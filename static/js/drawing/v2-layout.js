@@ -9,8 +9,9 @@
  *   % = 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이 — input.base), 없으면 원본 대비.
  * - 치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함). 기준(V1 자동 배치)은 빈 종이에 큰 그림을
  *   가득 키운 크기라 80% 로 두면 그림 넷뿐인 시트에도 나누기를 권했다(로컬 실화면 2026-10-26).
- * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 그것을 뺀 빈 사각형 중 큰 셋 안에서만 틀을 재고,
- *   장애물에 닿는 틀은 버린다. 예전엔 고정 그림 자리를 비우지 않아 다시 놓은 그림이 그 위에 겹쳤다(스테이징 주문 4385, 2026-10-27).
+ * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 종이 칸 그대로와 장애물을 뺀 빈 사각형 중 큰 셋에서
+ *   틀을 재고, 장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room). 예전엔 고정 그림 자리를 비우지 않아
+ *   다시 놓은 그림이 그 위에 겹쳤고(스테이징 주문 4385, 2026-10-27), 고친 뒤엔 틀 전체를 빈 사각형 하나로 옮겨 그림이 작아졌다.
  * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
  *
  * window.FomsV2Layout = { AREA, compute(input, opts) → { band, column, best, rec }, MIN_TEXT, CROWD_PCT, HEAD_MIN_W }
@@ -162,8 +163,8 @@
       x += Math.max(r.w, HEAD_MIN_W) + GAP;
     });
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
-    var y = A.y0 + (anyBand ? Hb + GAP : 0);
-    return putBig(res, inp, big, A.x0, y, W, A.y1 - y, same) ? res : null;
+    var y = A.y0 + (anyBand ? Hb + GAP : 0), room = P.room(A.x0, y, W, A.y1 - y, inp.obstacles, big.groups, same);
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) ? res : null;
   }
 
   /** 왼쪽 기둥형 — 기둥 폭 Wc. */
@@ -208,8 +209,8 @@
     }
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var topH = Math.max(b.h, nh, st ? st.h : 0);
-    var by = A.y0 + (topH ? topH + GAP : 0);
-    return putBig(res, inp, big, rx, by, RW, A.y1 - by, same) ? res : null;
+    var by = A.y0 + (topH ? topH + GAP : 0), room = P.room(rx, by, RW, A.y1 - by, inp.obstacles, big.groups, same);
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) ? res : null;
   }
 
   function score(res, inp, o) {
@@ -247,11 +248,13 @@
     return top;
   }
 
-  /** 장애물을 뺀 빈 사각형 중 넓은 셋(칸 꼴 { x0, y0, x1, y1 }). 장애물이 없으면 종이 칸 그대로. */
+  /** 틀을 잴 칸(꼴 { x0, y0, x1, y1 }) — 종이 칸 그대로 + 장애물이 있으면 그것을 뺀 빈 사각형 중 넓은 셋. 종이 칸에서 잰 틀은
+      장애물에 닿지 않을 때만 남는다(keep) — 큰 그림 칸이 고정 그림을 비켜 가면(v2-pack room) 틀을 통째로 옮기지 않아도 된다. */
   function areasOf(full, obs) {
     if (!obs.length || !window.FomsPartPack) { return [full]; }
-    return window.FomsPartPack.freeRects(full, obs, pk().GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
-      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3);
+    return [full].concat(window.FomsPartPack.freeRects(full, obs, pk().GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
+      .filter(function (a) { return a.x0 !== full.x0 || a.y0 !== full.y0 || a.x1 !== full.x1 || a.y1 !== full.y1; })
+      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3));
   }
   function hitsAny(r, obs) {
     return obs.some(function (b) { return r.moves.some(function (m) { return m.x < b.x + b.w && b.x < m.x + m.w && m.y < b.y + b.h && b.y < m.y + m.h; }); });
@@ -268,6 +271,7 @@
     ['photo', 'detail', 'plan', 'unsorted'].forEach(function (k) { mark(inp[k], k); });
     inp.units.forEach(function (u) { mark(u.members, u.slot); });
     var obs = (input && input.obstacles) || [], full = inp.area, bands = [], cols = [], v;
+    inp.obstacles = obs;
     function keep(list, r) { list.push(r && obs.length && hitsAny(r, obs) ? null : r); }   // 장애물에 닿는 틀은 버린다
     areasOf(full, obs).forEach(function (ar) {
       var H = ar.y1 - ar.y0, W = ar.x1 - ar.x0;

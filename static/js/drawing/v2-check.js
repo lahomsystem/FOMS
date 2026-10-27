@@ -192,7 +192,9 @@
   function onChip(e) {
     var chip = e.target && e.target.closest ? e.target.closest('.dws-part-status-unsure') : null;
     if (!chip || !els.box || els.box.hidden) { return; }   // 상자에 그림이 없으면 V1 처리 그대로
-    e.stopPropagation();
+    // 막지 않고 표시만 한다 — 문서 클릭(⋯ 메뉴 · V1 메뉴 닫기)은 그대로 돌고, V1 칩 처리는 part-status 가 건너뛴다.
+    // 예전엔 stopPropagation 이라 ⋯ 메뉴를 연 채 칩을 누르면 메뉴가 남았다(운영 점검 2026-10-27).
+    e.preventDefault();
     show(null);
   }
 

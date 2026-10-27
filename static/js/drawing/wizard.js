@@ -605,6 +605,15 @@
     }
   }
 
+  /* V2 아래 띠 '장 N / 시트 수' — 도면 번호가 '-'(제품 1개 주문 규칙)나 빈칸이면 몇 번째 시트인지 보인다('장 - / 1' → '1 / 1').
+     화면 · PNG 글만 바꾸고 저장 값('-' · 파일 이름 규칙)은 그대로. 번호가 매겨진 시트가 있으면(여러 제품) 손대지 않는다. */
+  function v2PageText(text) {
+    var t = text.trim();
+    if (t !== '' && t !== '-') { return text; }
+    var numbered = state.sheets.some(function (s) { return /^\d+$/.test(String((s.form || {}).page_no == null ? '' : s.form.page_no).trim()); });
+    return numbered ? text : String(current + 1);
+  }
+
   function renderForm() {
     var cs = currentSheet();
     if (!cs) { return; }   // 시트 0개(빈 상태): 빈 안내 오버레이는 renderTabs 가 표시
@@ -613,6 +622,7 @@
       var k = el.getAttribute('data-dws-form-key');
       el.textContent = (form[k] != null) ? String(form[k]) : '';
       if (k === 'phone') { el.textContent = splitPhones(el.textContent); }
+      if (k === 'page_no' && UI === 'v2') { el.textContent = v2PageText(el.textContent); }
     });
     renderChecks();
     renderLogo(form.logo);

@@ -7,7 +7,7 @@
  * - 짝(내부 · 도어)은 한 묶음으로 옆에 붙인다(묶음 안 간격 GAP).
  *
  * window.FomsV2Pack = { GAP, HEAD, MAX_UP, row(items, maxW, maxH, same), stack(items, maxW, maxH, same),
- *   shelves(groups, W, H, same), flow(boxes, W, gap) }
+ *   shelves(groups, W, H, same), flow(boxes, W, gap), room(x, y, w, h, obstacles, groups, same) }
  *   item  = { id, nw, nh, tx } (원본 픽셀) · unit = { members: [item] } · group = { key, units: [unit] }
  *   결과 좌표는 칸 왼쪽 위(0,0) 기준 — 부르는 쪽이 칸 자리를 더한다.
  */
@@ -135,6 +135,20 @@
     return res;
   }
 
+  /** 칸 (x, y, w, h) 안에 장애물(고정 그림 · 잠긴 글자)이 있으면 그것을 뺀 빈 사각형(넓은 넷) 중 묶음이 가장 크게 들어가는 곳
+      → { x, y, w, h }(장애물이 없으면 칸 그대로). v2-layout 큰 그림 칸 — 틀 전체를 빈 사각형 하나로 옮기면 그림이 다 작아졌다. */
+  function room(x, y, w, h, obstacles, groups, same) {
+    var box = { x: x, y: y, w: w, h: h }, top = null, P = window.FomsPartPack;
+    var obs = (obstacles || []).filter(function (b) { return b.x < x + w && x < b.x + b.w && b.y < y + h && y < b.y + b.h; });
+    if (!obs.length || !P) { return box; }
+    P.freeRects({ x0: x, y0: y, x1: x + w, y1: y + h }, obs, GAP).sort(function (a, b) { return b.w * b.h - a.w * a.h; })
+      .slice(0, 4).forEach(function (f) {
+        var t = groups.length ? (shelves(groups, f.w, f.h, same) || { t: 0 }).t : f.w * f.h;
+        if (!top || t > top.t) { top = { t: t, room: f }; }
+      });
+    return top ? top.room : box;
+  }
+
   /** 글자 상자를 왼쪽부터 줄 바꿈 흐름으로(특이 사항 딱지). boxes = [{id, w, h}] → { placed, w, h } */
   function flow(boxes, W, gap) {
     var g = gap > 0 ? gap : 8, x = 0, y = 0, rowH = 0, w = 0, out = [];
@@ -149,5 +163,5 @@
   }
 
   window.FomsV2Pack = { GAP: GAP, HEAD: HEAD, MAX_UP: MAX_UP, row: row, stack: stack, shelves: shelves, flow: flow,
-    unitH: unitH };
+    unitH: unitH, room: room };
 })();
