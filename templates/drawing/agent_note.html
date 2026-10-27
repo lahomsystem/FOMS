@@ -1,0 +1,82 @@
+{% extends "drawing/layout.html" %}
+{# AI 도면팀원 노트(설계서 docs/plans/2026-10-27-drawing-ai-teammate-spec.md §2 A3) — 주간 노트 · 도면팀에 묻는 질문.
+   답하기는 도면팀 · 관리자만(data-can-answer). 그림은 주문 그림 보기 길(asset-raw)로만 연다. #}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/agent-note.css') }}?v=20261027a">
+{% endblock %}
+
+{% block content %}
+<main class="dan-page" data-can-answer="{{ '1' if can_answer else '0' }}">
+  <header class="dan-head">
+    <span class="dan-avatar" aria-hidden="true">AI</span>
+    <div class="dan-head-text">
+      <h1 class="dan-title">AI 도면팀원 노트</h1>
+      <p class="dan-sub">매주 월요일, 지난주에 배운 것과 바뀐 것을 정리하고 도면팀에 물어봐요.</p>
+    </div>
+  </header>
+
+  {% if not notes %}
+  <p class="dan-empty">아직 노트가 없어요. 첫 노트는 다음 주 월요일 아침에 와요.</p>
+  {% endif %}
+
+  {% for note in notes %}
+  <section class="dan-note" aria-labelledby="dan-note-{{ note.id }}">
+    <h2 class="dan-note-title" id="dan-note-{{ note.id }}">{{ note.title }}</h2>
+    <ul class="dan-stats">
+      <li class="dan-stat"><span class="dan-stat-num">{{ note.stats.labels or 0 }}</span><span class="dan-stat-label">사람이 고른 그림</span></li>
+      <li class="dan-stat"><span class="dan-stat-num">{{ note.stats.agree or 0 }}</span><span class="dan-stat-label">AI 짐작과 같음</span></li>
+      <li class="dan-stat"><span class="dan-stat-num">{{ note.stats.changed or 0 }}</span><span class="dan-stat-label">AI 와 다르게 고름</span></li>
+    </ul>
+    {% if note.stats.top_changes %}
+    <p class="dan-line">자주 고친 것 —
+      {% for c in note.stats.top_changes %}{{ c[0] }} → {{ c[1] }} {{ c[2] }}장{% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+    {% if note.review %}
+    <p class="dan-line">검수 메모 —
+      {% for r in note.review %}{{ r.rule }} 보인 시트 {{ r.seen }} · 끈 시트 {{ r.off }}{% if not loop.last %} / {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+
+    {% if note.changes %}
+    <h3 class="dan-h3">바뀐 것</h3>
+    <ul class="dan-changes">
+      {% for c in note.changes %}<li>{{ c.text }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if note.questions %}
+    <h3 class="dan-h3">물어볼 것</h3>
+    {% for q in note.questions %}
+    <article class="dan-q" data-note="{{ note.id }}" data-q="{{ q.id }}">
+      <p class="dan-q-text">두 그림이 아주 닮았는데(닮음 {{ q.sim }}%) 종류를 다르게 골랐어요. 어느 쪽이 맞나요?</p>
+      <div class="dan-q-pair">
+        {% for side, name in ((q.a, '왼쪽'), (q.b, '오른쪽')) %}
+        <figure class="dan-q-side">
+          {% if side.src %}<img class="dan-q-img" src="{{ side.src }}" alt="{{ name }} 그림 — {{ side.label }}" loading="lazy">{% endif %}
+          <figcaption class="dan-q-cap"><b>{{ name }}</b> · {{ side.label }}
+            {% if side.order %}<a class="dan-q-order" href="/erp/drawing-workbench/{{ side.order }}">주문 #{{ side.order }}</a>{% endif %}
+          </figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+      <div class="dan-q-acts">
+        {% if can_answer %}
+          {% for key, text in choice_text.items() %}
+          <button type="button" class="dan-btn" data-choice="{{ key }}" aria-pressed="{{ 'true' if q.answer and q.answer.choice == key else 'false' }}">{{ text }}</button>
+          {% endfor %}
+        {% endif %}
+        <span class="dan-q-answer" aria-live="polite">{% if q.answer %}답: {{ q.answer.text }}{% if q.answer.name %} — {{ q.answer.name }}{% endif %}{% elif not can_answer %}도면팀이 답하면 여기에 보여요.{% endif %}</span>
+      </div>
+    </article>
+    {% endfor %}
+    {% endif %}
+  </section>
+  {% endfor %}
+</main>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/drawing/agent-note.js') }}?v=20261027a" defer></script>
+{% endblock %}

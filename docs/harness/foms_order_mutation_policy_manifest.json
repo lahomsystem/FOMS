@@ -640,6 +640,11 @@
       "policy_id": "DRAWING_ASSIGNED",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/part-memory/match"
     },
+    "drawing_agent.api_drawing_agent_note_answer": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/drawing-agent/notes/<note_id>/answer"
+    },
     "erp_orders_drawing_wizard.api_post_drawing_wizard_presets": {
       "mode": "guard",
       "policy_id": "DRAWING_TEAM",
