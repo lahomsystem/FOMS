@@ -343,7 +343,12 @@ def test_wizard_channel_button_registers_then_pushes():
     tpl = (ROOT / "templates/orders/wizard/step4_confirm.html").read_text(encoding="utf-8")
     shell = (ROOT / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
 
-    assert "등록하고 실측 PUSH" in tpl
+    wizard = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    # 4단계 큰 버튼 하나가 "등록하고 실측 PUSH" 를 맡는다(위 버튼은 2026-10-27 에 합쳤다).
+    assert 'data-wizard-send="channel"' not in tpl
+    assert '"등록하고 실측 PUSH"' in wizard
+    assert "window.FomsWizardRegisterWithPush()" in wizard
+    assert "window.FomsWizardRegisterWithPush = function" in js
     assert 'send: "/api/channel/push-manual"' in js
     # 등록 먼저 → 성공해야만 PUSH. 본문(text)은 보내지 않는다(서버 조립).
     register_at = js.index("client\n      .submitOrder()")
@@ -351,7 +356,7 @@ def test_wizard_channel_button_registers_then_pushes():
     assert register_at < push_at
     assert 'push_kind: "measure_room"' in js
     assert "payload.text" not in js
-    assert "wizard-send.js') }}?v=20261026b" in shell
+    assert "wizard-send.js') }}?v=20261027a" in shell
 
 
 def test_wizard_register_and_push_success_goes_to_dashboard():
@@ -365,3 +370,27 @@ def test_wizard_register_and_push_success_goes_to_dashboard():
     assert 'getAttribute("data-exit-href")' in js
     # PUSH 실패는 재전송이 필요하므로 주문 화면으로 간다.
     assert js.count("goToOrder(orderId, 0)") == 2
+
+
+def test_single_button_skips_push_only_for_regional_partner_orders():
+    """실측이 필요 없는 지방 협력사 시공 주문만 PUSH 없이 ERP 등록만 한다(2026-10-27 사용자 결정)."""
+    wizard = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    step3 = (ROOT / "templates/orders/wizard/step3_schedule.html").read_text(encoding="utf-8")
+
+    body = wizard[wizard.index("function needsMeasurePush("):]
+    body = body[:body.index(chr(10) + "  }" + chr(10))]
+    assert 'flags.regional_order && flags.regional_construction_type === "협력사 시공"' in body
+    # 비교 글자가 화면 선택지 값과 같아야 한다(값이 바뀌면 조용히 모든 주문에 PUSH 가 나간다).
+    assert '<option value="협력사 시공">' in step3
+    assert 'needsMeasurePush(root) ? "등록하고 실측 PUSH" : "주문 등록"' in wizard
+
+
+def test_emergency_register_only_opens_when_push_cannot_go():
+    """채널톡 PUSH 는 백업이다 — 못 보낼 때(미설정·본문 없음·미리보기 실패)도 ERP 등록은 할 수 있다."""
+    js = (ROOT / "static/js/foms/wizard-send.js").read_text(encoding="utf-8")
+    wizard = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+
+    assert 'showRegisterOnly(kind === "channel" && !!blocked);' in js
+    assert js.count('showRegisterOnly(kind === "channel");') == 3, "flush 실패·미리보기 실패·통신 실패"
+    assert "window.FomsWizardSubmitOnly();" in js
+    assert "window.FomsWizardSubmitOnly = function" in wizard
