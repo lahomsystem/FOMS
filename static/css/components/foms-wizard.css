@@ -684,8 +684,26 @@
 
 .foms-wizard__send-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: var(--foms-space-2, 8px);
+}
+
+/* 비상 등록(PUSH 없이 주문만) — 평소엔 숨어 있고, 눈에 띄되 큰 버튼과 겨루지 않게 글자 링크로. */
+.foms-wizard__register-only {
+  display: block;
+  width: 100%;
+  margin-top: var(--foms-space-2, 8px);
+  padding: var(--foms-space-2, 8px) 0;
+  border: 0;
+  background: none;
+  color: var(--foms-color-danger-600, #c62828);
+  font-size: var(--foms-font-size-sm, 14px);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.foms-wizard__register-only[hidden] {
+  display: none;
 }
 
 /* 좁은 폭(320px)에서도 글자가 세로로 깨지지 않게 한 줄로 고정한다.

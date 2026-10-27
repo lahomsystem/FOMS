@@ -1061,6 +1061,20 @@
       && navigator.maxTouchPoints > 1;
   }
 
+  /**
+   * 등록할 때 실측방 PUSH 를 함께 보내야 하는 주문인가.
+   *
+   * 4단계 등록 버튼은 하나다(2026-10-27 — "등록하고 실측 PUSH" 와 "주문 등록" 두 개가 헷갈렸다).
+   * 실측이 필요 없는 지방 협력사 시공 주문만 PUSH 없이 ERP 등록만 한다. 채널톡 PUSH 는 백업이고
+   * 정본은 ERP 주문이다.
+   * @param {HTMLElement} root 마법사 루트.
+   * @returns {boolean} PUSH 를 함께 보내면 true.
+   */
+  function needsMeasurePush(root) {
+    var flags = collectFlags(root);
+    return !(flags.regional_order && flags.regional_construction_type === "협력사 시공");
+  }
+
   function setStep(root, step) {
     var panels = root.querySelectorAll("[data-wizard-step]");
     panels.forEach(function (panel) {
@@ -1087,7 +1101,7 @@
     }
     var next = root.querySelector("#foms-wizard-next");
     if (next) {
-      next.textContent = step >= MAX_STEP ? "주문 등록" : "다음 →";
+      next.textContent = step < MAX_STEP ? "다음 →" : needsMeasurePush(root) ? "등록하고 실측 PUSH" : "주문 등록";
     }
     if (step === MAX_STEP) {
       renderSummary(root);
@@ -1140,7 +1154,7 @@
       })
       .catch(function () {
         window.alert(
-          "주문 등록에 실패했습니다 — 통신이 끊겼습니다.\n연결을 확인하고 [주문 등록] 을 다시 눌러 주세요. 입력한 내용은 그대로 남아 있습니다."
+          "주문 등록에 실패했습니다 — 통신이 끊겼습니다.\n연결을 확인하고 아래 등록 버튼을 다시 눌러 주세요. 입력한 내용은 그대로 남아 있습니다."
         );
         unlock();
       });
@@ -1416,6 +1430,12 @@
         return;
       }
       if (currentStep >= MAX_STEP) {
+        // 실측 PUSH 가 필요한 주문은 시트 확인 → 등록 → PUSH(wizard-send.js). 시트·발송이 막히면
+        // 거기서 "PUSH 없이 주문만 등록" 비상 버튼이 열린다.
+        if (needsMeasurePush(root) && typeof window.FomsWizardRegisterWithPush === "function") {
+          window.FomsWizardRegisterWithPush();
+          return;
+        }
         submitOrderWithFeedback(root, draftClient);
         return;
       }
@@ -1437,6 +1457,20 @@
         draftClient.scheduleSave();
       });
     });
+
+    // 비상 등록(PUSH 없이 ERP 만) — wizard-send.js 의 비상 버튼이 부른다.
+    window.FomsWizardSubmitOnly = function () {
+      var err = validateStep(root, MAX_STEP);
+      if (err) {
+        if (window.fomsShowToast) {
+          window.fomsShowToast(err);
+        } else {
+          window.alert(err);
+        }
+        return;
+      }
+      submitOrderWithFeedback(root, draftClient);
+    };
 
     var closeBtn = root.querySelector("#foms-wizard-close");
     if (closeBtn) {

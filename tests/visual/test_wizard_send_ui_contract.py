@@ -34,16 +34,17 @@ def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
-def test_step4_has_both_send_buttons() -> None:
-    """4단계 확인 화면에 실측 PUSH · 알림톡 버튼이 한 줄로 놓인다."""
+def test_step4_has_single_register_button() -> None:
+    """4단계 등록 버튼은 아래 큰 버튼 하나다(2026-10-27 — 위 "등록하고 실측 PUSH" 와 아래 "주문 등록" 이
+    헷갈렸다). 위에는 알림톡만 남고, PUSH 를 못 보낼 때만 "PUSH 없이 주문만 등록" 이 열린다."""
     html = _read(STEP4)
     assert 'data-wizard-step="4"' in html
-    assert 'id="foms-wizard-push-btn"' in html
+    assert 'id="foms-wizard-push-btn"' not in html
+    assert 'data-wizard-send="channel"' not in html
     assert 'id="foms-wizard-alimtalk-btn"' in html
-    assert 'data-wizard-send="channel"' in html
     assert 'data-wizard-send="alimtalk"' in html
-    assert "실측 PUSH" in html
     assert "알림톡 · 예약 내역" in html
+    assert html.count("data-wizard-register-only hidden") == 2, "비상 등록 버튼(영역·시트)은 평소 숨김"
     # 합계 카드 뒤에 온다(요약 → 합계 → 액션).
     assert html.index("foms-wizard__summary-card--total") < html.index("foms-wizard__send-actions")
 
@@ -153,12 +154,11 @@ def test_css_defines_send_and_sheet_blocks() -> None:
 
 
 def test_send_buttons_carry_channel_icons() -> None:
-    """두 버튼은 색만이 아니라 아이콘으로도 채널을 구분한다.
+    """알림톡 버튼은 색만이 아니라 아이콘으로도 채널을 드러낸다.
 
     색만으로 구분하면 색각 이상 사용자에게는 같은 버튼 두 개다. 카카오 아이콘은
     FA6 free 에 없어 인라인 SVG 로 넣으므로, 링크가 아니라 마크업 자체를 못 박는다.
     """
     html = _read(STEP4)
-    assert "fa-paper-plane" in html, "실측 PUSH 아이콘 없음"
     assert "<svg" in html and "foms-wizard__send-btn-icon" in html, "카카오 아이콘 없음"
-    assert html.count('aria-hidden="true"') >= 2, "장식 아이콘은 스크린리더에서 숨긴다"
+    assert 'aria-hidden="true"' in html, "장식 아이콘은 스크린리더에서 숨긴다"

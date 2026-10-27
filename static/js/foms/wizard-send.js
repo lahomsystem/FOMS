@@ -355,11 +355,26 @@
     }
 
     state.sendable = !blocked;
+    showRegisterOnly(kind === "channel" && !!blocked);
     var confirmBtn = document.getElementById("foms-wizard-send-confirm");
     if (confirmBtn) {
       confirmBtn.disabled = !state.sendable;
       confirmBtn.textContent = kind === "channel" ? "등록하고 보내기" : "발송";
     }
+  }
+
+  /**
+   * "PUSH 없이 주문만 등록" 비상 버튼을 보이거나 숨긴다(영역·시트 두 곳).
+   *
+   * 실측 PUSH 를 못 보낼 때(채널톡 미설정·본문 없음·미리보기 실패)만 연다. 채널톡 PUSH 는 백업이고
+   * 정본은 ERP 주문이라 PUSH 가 막혀도 등록은 할 수 있어야 한다(2026-10-27 사용자).
+   * @param {boolean} show 보일지.
+   * @returns {void}
+   */
+  function showRegisterOnly(show) {
+    document.querySelectorAll("[data-wizard-register-only]").forEach(function (btn) {
+      btn.hidden = !show;
+    });
   }
 
   /**
@@ -380,6 +395,7 @@
       .then(function (ok) {
         if (!ok) {
           setStatus(reasonLabel("draft_flush_failed"), true);
+          showRegisterOnly(kind === "channel");
           return null;
         }
         setStatus("미리보기 불러오는 중…");
@@ -394,6 +410,7 @@
         var body = result.body;
         if (!body || body.success !== true || !body.data) {
           setStatus("미리보기 실패 · " + reasonLabel(errorCode(result.status, body)), true);
+          showRegisterOnly(kind === "channel");
           return;
         }
         setStatus("");
@@ -403,6 +420,7 @@
       })
       .catch(function () {
         setStatus("미리보기 실패 · " + reasonLabel("network"), true);
+        showRegisterOnly(kind === "channel");
       })
       .then(function () {
         lockButtons(false);
@@ -448,7 +466,7 @@
           if (!data.last) {
             renderTrace(kind, { sent_at: new Date().toISOString() });
           }
-          setStatus(conf.title + " 발송 완료 — 아직 주문 등록 전입니다. 아래 [주문 등록] 을 눌러 주세요");
+          setStatus(conf.title + " 발송 완료 — 아직 주문 등록 전입니다. 아래 등록 버튼을 눌러 주세요");
           markPendingSubmit();
           toggleSheet(false);
           return;
@@ -625,6 +643,15 @@
         toggleSheet(false);
         return;
       }
+      if (target.closest("[data-wizard-register-only]")) {
+        ev.preventDefault();
+        if (state.busy || typeof window.FomsWizardSubmitOnly !== "function") {
+          return;
+        }
+        toggleSheet(false);
+        window.FomsWizardSubmitOnly();
+        return;
+      }
       if (target.closest("#foms-wizard-send-confirm")) {
         ev.preventDefault();
         if (state.busy) {
@@ -642,6 +669,13 @@
   }
 
   window.FomsWizardSendReasonLabel = reasonLabel;
+  // 4단계 큰 버튼("등록하고 실측 PUSH")이 부른다 — 시트 확인 → 등록 → PUSH.
+  window.FomsWizardRegisterWithPush = function () {
+    if (state.busy) {
+      return;
+    }
+    void openPreview("channel");
+  };
   // wizard.js 의 닫기 확인창이 읽는다(발송 완료 + 등록 전이면 그냥 못 나간다).
   window.FomsWizardHasPendingSend = function () {
     return !!state.sentPendingSubmit;
