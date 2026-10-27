@@ -9,11 +9,15 @@
  *   % = 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이 — input.base), 없으면 원본 대비.
  * - 치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함). 기준(V1 자동 배치)은 빈 종이에 큰 그림을
  *   가득 키운 크기라 80% 로 두면 그림 넷뿐인 시트에도 나누기를 권했다(로컬 실화면 2026-10-26).
+ * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 그것을 뺀 빈 사각형 중 큰 셋 안에서만 틀을 재고,
+ *   장애물에 닿는 틀은 버린다. 예전엔 고정 그림 자리를 비우지 않아 다시 놓은 그림이 그 위에 겹쳤다(스테이징 주문 4385, 2026-10-27).
+ * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
  *
- * window.FomsV2Layout = { AREA, compute(input, opts) → { band, column, best }, MIN_TEXT, CROWD_PCT }
+ * window.FomsV2Layout = { AREA, compute(input, opts) → { band, column, best, rec }, MIN_TEXT, CROWD_PCT, HEAD_MIN_W }
  *   input: { area?, base: {id:{w,h}}, photo, detail, plan, unsorted: [item], units: [{slot, members:[item]}],
- *            bom: [{id,w,h}], notes: [{id,w,h}], stamp: {id,w,h}|null }   item = { id, nw, nh, tx }
+ *            bom: [{id,w,h}], notes: [{id,w,h}], stamp: {id,w,h}|null, obstacles?: [{x,y,w,h}] }   item = { id, nw, nh, tx }
  *   opts : { sameScale (기본 true), photoFirst (기본 true), prefer: 'band'|'column'|'' , minText: 8 }
+ *   best = 붙일 틀(사람이 고른 틀이 놓이면 그것) · rec = 점수가 높은 틀(추천 표시 — 고른 틀과 다를 수 있다)
  *   틀 결과: { template, moves: [{id,x,y,w,h}], slots: [{key,x,y,w,h}], pct: {id: 비율}, minPct, minId, mainPct,
  *             minText, score, crowded, pctBase: 'v1'|'natural' } 또는 null(못 놓음)
  */
@@ -23,7 +27,7 @@
 
   var AREA = { x0: 53, y0: 53, x1: 1427, y1: 848 };
   var COLGAP = 18, NOTE_PAD_X = 7, NOTE_PAD_Y = 3, STAMP_PAD = 10, NOTE_MIN_W = 300;
-  var UNSORTED_H = 170, UNSORTED_W = 200;
+  var UNSORTED_H = 170, UNSORTED_W = 200, HEAD_MIN_W = 132;
   var MIN_TEXT = 8, CROWD_PCT = 0.6;   // 나누기 권함: 치수 글자 8px 밑(V1 과 같은 기준) 또는 지금 양식 대비 60% 밑
 
   function pk() { return window.FomsV2Pack; }
@@ -98,13 +102,14 @@
       return true;
     }
     var below = P.row(inp.unsorted, W, UNSORTED_H - P.HEAD, same), side = P.stack(inp.unsorted, UNSORTED_W, H - P.HEAD, same);
-    var a = below ? lay(W, H - (P.HEAD + below.h + P.GAP)) : null, b = side ? lay(W - side.w - P.GAP, H) : null;
+    var sideW = side ? Math.max(side.w, HEAD_MIN_W) : 0;   // 좁은 기둥도 머리 폭만큼 — 머리가 칸 밖(고정 그림 · 종이 끝)으로 뻗지 않게
+    var a = below ? lay(W, H - (P.HEAD + below.h + P.GAP)) : null, b = side ? lay(W - sideW - P.GAP, H) : null;
     var useSide = !!b && (!a || b.t > a.t * 1.001), sh = useSide ? b : a;
     if (!sh) { return false; }
     addPics(res, sh.placed, x, y);
     sh.slots.forEach(function (s) { addSlot(res, s.key, x + s.x, y + s.y, s.w, s.h); });
     if (useSide) {
-      var sx = x + W - side.w;
+      var sx = x + W - sideW;
       addSlot(res, 'unsorted', sx, y, side.w, P.HEAD + side.h);
       addPics(res, side.placed, sx, y + P.HEAD);
     } else {
@@ -115,12 +120,12 @@
     return true;
   }
 
-  /** 위 띠형 — 띠 높이 Hb. */
+  /** 위 띠형 — 띠 높이 Hb. 띠 칸(자재 · 상세 · 평면 · 사진)은 머리 최소 폭만큼은 자리를 잡는다. */
   function band(inp, o, Hb) {
-    var P = pk(), A = inp.area, W = A.x1 - A.x0, H = A.y1 - A.y0, HEAD = P.HEAD, GAP = P.GAP;
+    var P = pk(), A = inp.area, W = A.x1 - A.x0, HEAD = P.HEAD, GAP = P.GAP;
     var res = newRes('band'), same = o.sameScale !== false, big = bigGroups(inp);
     var hasBom = inp.bom.length > 0, hasNotes = inp.notes.length > 0;
-    var colW = hasBom ? Math.max(bomBlock(inp.bom).w, hasNotes ? NOTE_MIN_W : 0) : (hasNotes ? NOTE_MIN_W + 40 : 0);
+    var colW = hasBom ? Math.max(bomBlock(inp.bom).w, HEAD_MIN_W, hasNotes ? NOTE_MIN_W : 0) : (hasNotes ? NOTE_MIN_W + 40 : 0);
     var nH = hasNotes ? HEAD + noteFlow(inp.notes, colW).h : 0;
     var colH = (hasBom ? HEAD + bomBlock(inp.bom).h : 0) + (hasNotes ? (hasBom ? GAP : 0) + nH : 0);
     var st = stampBox(inp.stamp);
@@ -131,7 +136,7 @@
     var cH = Hb - HEAD;
     var avail = W - (colW ? colW + GAP : 0) - (st ? st.w + GAP : 0) - GAP * Math.max(0, smalls.length - 1);
     function widths(k) {
-      return smalls.map(function (key) { var r = P.row(inp[key], Infinity, cH * k, same); return r ? r.w : Infinity; });
+      return smalls.map(function (key) { var r = P.row(inp[key], Infinity, cH * k, same); return r ? Math.max(r.w, HEAD_MIN_W) : Infinity; });
     }
     var k = 1;
     if (smalls.length && sum(widths(1)) > avail) {
@@ -154,7 +159,7 @@
       var r = P.row(inp[key], Infinity, cH * k, same);
       addSlot(res, key, x, A.y0, r.w, HEAD + r.h);
       addPics(res, r.placed, x, A.y0 + HEAD);
-      x += r.w + GAP;
+      x += Math.max(r.w, HEAD_MIN_W) + GAP;
     });
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var y = A.y0 + (anyBand ? Hb + GAP : 0);
@@ -192,11 +197,11 @@
     sh.slots.forEach(function (s) { addSlot(res, s.key, A.x0 + s.x, y + s.y, s.w, s.h); });
     y += sh.h + (sh.h ? GAP : 0);
     if (ph && photoAt > 0) { putPhoto(); }
-    // 오른쪽 위: 자재 · 특이 · 강조
-    var st = stampBox(inp.stamp), b = putBom(res, inp, rx, A.y0);
-    var notesW = RW - (b.w ? b.w + GAP : 0) - (st ? st.w + GAP : 0), nh;
+    // 오른쪽 위: 자재 · 특이 · 강조(특이는 자재 머리 최소 폭 뒤에서 — 머리끼리 겹치지 않게)
+    var st = stampBox(inp.stamp), b = putBom(res, inp, rx, A.y0), bw = b.w ? Math.max(b.w, HEAD_MIN_W) + GAP : 0;
+    var notesW = RW - bw - (st ? st.w + GAP : 0), nh;
     if (inp.notes.length && notesW >= NOTE_MIN_W) {
-      nh = putNotes(res, inp, rx + (b.w ? b.w + GAP : 0), A.y0, notesW).h;
+      nh = putNotes(res, inp, rx + bw, A.y0, notesW).h;
     } else {
       nh = putNotes(res, inp, rx, A.y0 + (b.h ? b.h + GAP : 0), Math.max(b.w, NOTE_MIN_W)).h;
       nh = nh ? nh + (b.h ? b.h + GAP : 0) : 0;
@@ -242,6 +247,16 @@
     return top;
   }
 
+  /** 장애물을 뺀 빈 사각형 중 넓은 셋(칸 꼴 { x0, y0, x1, y1 }). 장애물이 없으면 종이 칸 그대로. */
+  function areasOf(full, obs) {
+    if (!obs.length || !window.FomsPartPack) { return [full]; }
+    return window.FomsPartPack.freeRects(full, obs, pk().GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
+      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3);
+  }
+  function hitsAny(r, obs) {
+    return obs.some(function (b) { return r.moves.some(function (m) { return m.x < b.x + b.w && b.x < m.x + m.w && m.y < b.y + b.h && b.y < m.y + m.h; }); });
+  }
+
   function compute(input, opts) {
     var o = opts || {}, inp = {};
     ['photo', 'detail', 'plan', 'unsorted', 'units', 'bom', 'notes'].forEach(function (k) { inp[k] = (input && input[k]) || []; });
@@ -252,18 +267,23 @@
     function mark(list, slot) { list.forEach(function (it) { inp.byId[it.id] = { nw: it.nw, nh: it.nh, tx: it.tx || 0, slot: slot }; }); }
     ['photo', 'detail', 'plan', 'unsorted'].forEach(function (k) { mark(inp[k], k); });
     inp.units.forEach(function (u) { mark(u.members, u.slot); });
-    var H = inp.area.y1 - inp.area.y0, W = inp.area.x1 - inp.area.x0, bands = [], cols = [], v;
-    for (v = 64; v <= 0.55 * H; v += 8) { bands.push(band(inp, o, v)); }
-    bands.push(band(inp, o, 0));
-    for (v = 160; v <= 0.45 * W; v += 12) { cols.push(column(inp, o, v)); }
+    var obs = (input && input.obstacles) || [], full = inp.area, bands = [], cols = [], v;
+    function keep(list, r) { list.push(r && obs.length && hitsAny(r, obs) ? null : r); }   // 장애물에 닿는 틀은 버린다
+    areasOf(full, obs).forEach(function (ar) {
+      var H = ar.y1 - ar.y0, W = ar.x1 - ar.x0;
+      inp.area = ar;
+      for (v = 64; v <= 0.55 * H; v += 8) { keep(bands, band(inp, o, v)); }
+      keep(bands, band(inp, o, 0));
+      for (v = 160; v <= 0.45 * W; v += 12) { keep(cols, column(inp, o, v)); }
+    });
+    inp.area = full;
     var out = { band: best(bands, inp, o), column: best(cols, inp, o) };
-    var pref = o.prefer === 'column' ? 'column' : (o.prefer === 'band' ? 'band' : '');
-    if (pref && out[pref]) { out.best = pref; }
-    else if (out.band && out.column) { out.best = out.column.score > out.band.score + 0.005 ? 'column' : 'band'; }
-    else { out.best = out.band ? 'band' : (out.column ? 'column' : ''); }
+    out.rec = out.band && out.column ? (out.column.score > out.band.score + 0.005 ? 'column' : 'band') : (out.band ? 'band' : (out.column ? 'column' : ''));
+    var pref = o.prefer === 'column' || o.prefer === 'band' ? o.prefer : '';
+    out.best = pref && out[pref] ? pref : out.rec;
     return out;
   }
 
-  window.FomsV2Layout = { AREA: AREA, compute: compute, MIN_TEXT: MIN_TEXT, CROWD_PCT: CROWD_PCT,
+  window.FomsV2Layout = { AREA: AREA, compute: compute, MIN_TEXT: MIN_TEXT, CROWD_PCT: CROWD_PCT, HEAD_MIN_W: HEAD_MIN_W,
     NOTE_PAD_X: NOTE_PAD_X, NOTE_PAD_Y: NOTE_PAD_Y, STAMP_PAD: STAMP_PAD, COLGAP: COLGAP };
 })();

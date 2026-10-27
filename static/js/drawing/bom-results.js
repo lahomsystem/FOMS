@@ -1,5 +1,6 @@
 /**
- * 도면 마법사 — 자재표 계산 칸의 '결과 · 맞춰 보기'(칸 맨 위에 고정)와 '줄마다 계산 근거'.
+ * 도면 마법사 — 자재표 계산 칸의 '계산 결과'(칸 맨 위에 고정, 줄마다 시트와 맞춰 본 칩)와 '계산식 보기'.
+ * 화면 글은 짧게(사용자 피드백 2026-10-27): 제목 '결과 · 맞춰 보기' → '계산 결과', 접는 묶음 '줄마다 계산 근거' → '계산식 보기'.
  *
  * 보고서 2026-10-25 큼-3·보통-7(계산 칸 배치 안 A):
  * - 결과와 맞춰 보기를 합쳐 줄마다 계산 값 + 맞춰 보기 칩을 한 줄에 둔다(같은 숫자를 두 번 보이지 않는다).
@@ -50,14 +51,14 @@
     chip.title = KIND_NAMES[r.kind] || '';
   }
 
-  /** 칸 맨 위 '결과 · 맞춰 보기'. rows = C.parseBom(시트 글자). refocus 는 '더 보기'·'접기'를 눌러 다시 그릴 때만. */
+  /** 칸 맨 위 '계산 결과'. rows = C.parseBom(시트 글자). refocus 는 '더 보기'·'접기'를 눌러 다시 그릴 때만. */
   function renderTop(host, lines, rows, C, refocus) {
     var keep = host.scrollTop || 0;
     host.textContent = '';
     var head = host.appendChild(el('div', 'dws-calc-top-head'));
-    head.appendChild(el('strong', 'dws-calc-top-title', '결과 · 맞춰 보기'));
+    head.appendChild(el('strong', 'dws-calc-top-title', '계산 결과'));
     if (!(lines || []).some(function (l) { return !l.head; })) {
-      host.appendChild(el('p', 'dws-calc-empty', '전체 폭·천장 높이와 모듈을 넣으면 계산이 나옵니다.'));
+      host.appendChild(el('p', 'dws-calc-empty', '아래에 치수와 모듈을 넣으면 계산이 나옵니다.'));   // 아래 묶음 이름(제품·치수 · 모듈) 그대로, 340px 한 줄
       return;
     }
     var res = C.compare(lines, rows);
@@ -107,10 +108,10 @@
     row.appendChild(el('span', 'dws-calc-why', why));
   }
 
-  /** 접힌 묶음 '줄마다 계산 근거' — 줄마다 어떻게 셈했는지(규칙 이름이 붙은 숫자). */
+  /** 접힌 묶음 '계산식 보기' — 줄마다 어떻게 셈했는지(규칙 이름이 붙은 숫자). */
   function renderWhy(host, lines) {
     host.textContent = '';
-    if (!lines.length) { host.appendChild(el('p', 'dws-calc-empty', '계산이 나오면 줄마다 어떻게 셈했는지 보여 줍니다.')); return; }
+    if (!lines.length) { host.appendChild(el('p', 'dws-calc-empty', '계산이 나오면 줄마다 계산식을 보여 줍니다.')); return; }
     lines.forEach(function (l) {
       if (l.head) { host.appendChild(el('div', 'dws-calc-head-line', '[' + l.head + ']')); return; }
       whyRow(host, l.text, l.why);

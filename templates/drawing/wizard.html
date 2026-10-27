@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261027c">
-  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261026d">{% endif %}
+  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261027e">{% endif %}
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -41,11 +41,13 @@
       <!-- 중앙: 도구 세그먼트 컨트롤 -->
       <div class="dws-appbar-center">
         {% if wizard_ui == 'v2' %}
-        {# V2 배치 방식 — 자동 배치: 그림을 칸에 저절로 · 자유 배치: V1 도구로 손으로(v2-shell.js setMode) #}
+        {# V2 배치 방식 — 자동 배치: 그림을 칸에 저절로(누르면 지금 그림으로 다시 놓는다) · 자유 배치: V1 도구로 손으로(v2-shell.js setMode).
+           [다시 자동 배치]는 오른쪽 칸 바닥과 여기 두 곳 — 오른쪽 칸이 숨는 좁은 창(1280 밑) · 자재표 계산 칸을 열었을 때도 보인다(v2-right.js) #}
         <div class="dws-v2-modes" role="group" aria-label="배치 방식">
-          <button type="button" class="dws-v2-mode" data-v2-mode="free" aria-pressed="false">자유 배치</button>
-          <button type="button" class="dws-v2-mode" data-v2-mode="auto" aria-pressed="true">자동 배치</button>
+          <button type="button" class="dws-v2-mode" data-v2-mode="free" aria-pressed="false" title="그림을 손으로 옮기고 글자 · 도형 도구를 써요">자유 배치</button>
+          <button type="button" class="dws-v2-mode" data-v2-mode="auto" aria-pressed="true" title="그림을 칸에 저절로 놓아요 · 누르면 지금 그림으로 다시 놓아요">자동 배치</button>
         </div>
+        <button type="button" class="dws-v2-rearrange" id="dws-v2-rearrange" title="지금 그림으로 칸 배치를 다시 계산해 놓아요 · 고정된 그림은 그 자리에 둬요 · 되돌리기 Ctrl+Z">다시 자동 배치</button>
         {% endif %}
         <div class="dws-seg" role="group" aria-label="주석 도구">
           <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동 (V)">
@@ -174,7 +176,9 @@
         </div>
 
         {% if wizard_ui == 'v2' %}
-        {# V2: K2 앱바처럼 PNG · 저장만 드러내고 나머지는 ⋯ 메뉴(원래 단추를 눌러 줄 뿐 — 처리·잠금 그대로, v2-chrome.js) #}
+        {# V2: K2 앱바처럼 PNG · 저장만 드러내고 나머지는 ⋯ 메뉴(원래 단추를 눌러 줄 뿐 — 처리·잠금 그대로, v2-chrome.js).
+           [고정 풀고 모두 다시]는 고정 그림이 있을 때만(v2-right.js 가 오른쪽 칸 바닥 단추와 같이 숨기고 보인다 — 1280 밑 창은 오른쪽 칸이 숨는다).
+           [예전 화면]은 늘 보인다 — ⋯ 메뉴 안에만 있어 돌아가는 길을 못 찾았다(도면팀 평가 2026-10-27). #}
         <button type="button" class="dws-btn" data-v2-for="dws-btn-export-png" title="지금 시트를 PNG 로 내려받기">PNG</button>
         <div class="dws-dropdown dws-v2-more">
           <button type="button" class="dws-btn dws-icon-btn" id="dws-v2-more" title="더 보기" aria-label="더 보기" aria-haspopup="true" aria-expanded="false" aria-controls="dws-v2-more-menu">⋯</button>
@@ -183,6 +187,7 @@
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-export-all">일괄 내보내기 (폴더 저장)</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-version-history">버전 이력…</button>
             <div class="dws-menu-sep"></div>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-autofill">자동 채움</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-calc">자재표 계산</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-help">단축키 도움말</button>
@@ -190,6 +195,7 @@
             <button type="button" class="dws-menu-item" data-dws-ui-switch="v1">예전 화면(V1)으로</button>
           </div>
         </div>
+        <button type="button" class="dws-btn dws-v2-uiback" data-dws-ui-switch="v1" title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>
         {% endif %}
 
         <span class="dws-appbar-sep"></span>
@@ -388,8 +394,8 @@
       </div>
     </div>
 
-    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '시험 계산').
-         배치 안 A: 제목 아래 결과·맞춰 보기 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
+    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '참고용').
+         배치 안 A: 제목 아래 '계산 결과' 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
     <aside class="dws-calc dws-ui" id="dws-calc" aria-label="자재표 계산" hidden></aside>
     {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_right.html' %}{% endif %}
 
@@ -710,9 +716,9 @@
   <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261025c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-rules-dialog.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-results.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-form.js') }}?v=20261025a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-results.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-form.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261027d" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/save-status.js') }}?v=20261027c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/sheet-ids.js') }}?v=20261026a" defer></script>
   {# AI 도면팀원 검수 메모 — [저장] 때 시트를 읽어 확실한 것만 메모한다(설계서 2026-10-27-drawing-ai-teammate-spec A1). wizard.js 보다 먼저. #}
@@ -721,20 +727,21 @@
   <script src="{{ url_for('static', filename='js/drawing/wizard-chrome.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-toast.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-appbar.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261027c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}
   {# V2 칸 자동 배치 화면 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md. v2-shell.js 가 마지막(나머지를 잇는다). #}
-  <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261026b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-pack.js') }}?v=20261026a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261026f" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261026b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261026c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261026a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-left.js') }}?v=20261026d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261027a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261026b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261026e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-check.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-left.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261027e" defer></script>
   {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>

@@ -2021,16 +2021,19 @@
 
   function removeObject(id) { spliceObject(id); rebuildAnno(); }
 
-  /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회. */
+  /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회.
+      V2: removed 사건 → 자동 배치 모드면 남은 그림을 다시 놓는다(v2-shell.js — 되돌리기는 여기서 남긴 한 번에 함께). */
   function deleteSelected() {
     if (!canSave || !selectedIds.length) { return; }
     var ids = selectedIds.filter(function (id) { var o = findObj(id); return !(o && o.locked); });
     if (!ids.length) { toast('잠긴 객체는 삭제할 수 없습니다. Ctrl+L 로 잠금을 해제하세요.'); return; }
+    var images = ids.filter(function (id) { var o = findObj(id); return !!(o && o.type === 'image'); }).length;
     recordUndo();
     deselect();
     ids.forEach(spliceObject);
     rebuildAnno();
     markDirty();
+    emitCore('removed', { ids: ids, images: images });
   }
 
   /* ---- 객체 복사 / 붙여넣기 ------------------------------------------------
@@ -2070,6 +2073,18 @@
     return txt === mine;
   }
 
+  /** 그림 사본은 새로 올린 그림처럼 — 자동 배치 자리(part.arr)를 지운다. 남기면 어긋나게 놓은 사본이 처음부터 '손으로 옮긴
+      고정' 그림이 되어 V2 다시 배치가 그 자리에 남겼다(스테이징 주문 4385, 2026-10-27). */
+  function freshCopy(o) {
+    if (o.type === 'image' && o.part && o.part.arr) { delete o.part.arr; }
+    return o;
+  }
+
+  /** 붙여넣기 · 복제로 생긴 그림 사본 — V2 자동 배치 모드면 칸에 놓는다(v2-shell added 사건). */
+  function emitCopiesAdded(ids) {
+    ids.forEach(function (id) { var o = findObj(id); if (o && o.type === 'image') { emitCore('added', { id: id }); } });
+  }
+
   function pasteClipObjects() {
     if (!canSave || !dwsClip || !currentSheet()) { return; }
     recordUndo();
@@ -2077,7 +2092,7 @@
     var off = 20 * dwsClip.pastes;
     var ids = [];
     dwsClip.objs.forEach(function (src) {
-      var o = JSON.parse(JSON.stringify(src));
+      var o = freshCopy(JSON.parse(JSON.stringify(src)));
       o.id = rid('o-');
       delete o.locked;   // 붙여넣은 사본은 잠금 없이 시작
       moveObjectBy(o, off, off);
@@ -2088,6 +2103,7 @@
     rebuildAnno();
     selectedIds = ids;
     applySelection();
+    emitCopiesAdded(ids);
   }
 
   /* ---- Alt+드래그 복제(포토샵 방식) -----------------------------------------
@@ -2149,7 +2165,7 @@
     recordUndo();
     var ids = [];
     src.forEach(function (s) {
-      var o = JSON.parse(JSON.stringify(s));
+      var o = freshCopy(JSON.parse(JSON.stringify(s)));
       o.id = rid('o-');
       delete o.locked;   // 복제본은 잠금 없이 시작
       moveObjectBy(o, 10, 10);
@@ -2160,6 +2176,7 @@
     rebuildAnno();
     selectedIds = ids;
     applySelection();
+    emitCopiesAdded(ids);
   }
 
   /** Ctrl+]/[ 계열: 시트 objects 배열 순서(=그리는 순서)를 바꿔 층을 옮기고 선택 유지.
@@ -2729,10 +2746,11 @@
     startEditText(nodeById[o.id], true);
   }
 
-  /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). */
-  function insertPresetText(text, bold) {
-    if (!canSave || !currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
-    recordUndo();
+  /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). 돌려주는 값 = 넣은 객체(못 넣으면 null).
+      quiet = V2 [자재표 칸 넣기](v2AddPresets): 되돌리기 사본은 부른 쪽이 한 번 남기고, 고르지도 글 편집기를 열지도 않는다. */
+  function insertPresetText(text, bold, quiet) {
+    if (!canSave || !currentSheet()) { if (!quiet) { toast('제품을 선택해 도면을 먼저 시작하세요.'); } return null; }
+    if (!quiet) { recordUndo(); }
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 0, y: 95 + (n % 6) * 46, w: 1,
@@ -2744,8 +2762,10 @@
     o.x = Math.max(0, PRESET_RIGHT_EDGE - (o.w || 1));
     markDirty();
     rebuildAnno();
+    if (quiet) { return o; }
     selectById(o.id);
     startEditText(nodeById[o.id], true);
+    return o;
   }
 
   function addPreset(kind) {
@@ -3758,16 +3778,21 @@
       var cur = findObj(o.id);
       if (!cur || cur.type !== 'image') { return; }
       recordUndo();
+      // 자동 배치 자리(part.arr)에 그대로 있던 그림은 잘라도 '손으로 옮긴 고정'이 되지 않게 새 크기를 자리로 남긴다(V2 v2-slots moved 와 같은 허용 폭)
+      var arr = cur.part && cur.part.arr, tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;
+      var laid = !!(arr && arr.length === 4) && [cur.x, cur.y, cur.w, cur.h].every(function (v, i) { return Math.abs(arr[i] - v) <= tol; });
       cur.key = data.key;
       cur.natural_w = data.width || cur.natural_w;
       cur.natural_h = data.height || cur.natural_h;
       if (cur.natural_w > 0 && cur.natural_h > 0) {
         cur.h = clampDim(Math.round(cur.w * cur.natural_h / cur.natural_w));
       }
+      if (laid) { cur.part.arr = [cur.x, cur.y, cur.w, cur.h]; }
       markDirty();
       rebuildAnno();
       selectById(cur.id);
       toast('여백을 잘랐습니다.');
+      emitCore('trimmed', { id: cur.id });   // V2 자동 배치 모드면 새 비율로 다시 놓는다(v2-shell.js)
     }).catch(function (err) {
       done();
       console.warn('[dws] trim image', err);
@@ -6885,8 +6910,9 @@
   /* ========================================================================
    * [8] V2 화면 연결 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md
    * V2 모듈(v2-*.js)은 이 창구(window.FomsWizardCore)로만 마법사 상태를 읽고 바꾼다. V1 화면은 아무도 듣지 않는다.
-   * 사건: ready · loaded · sheet(탭을 다시 그림) · render(객체를 다시 그림) · change(markDirty) · added(그림 한 장 놓음)
-   *       · labels(그림 종류가 바뀜) · batch(같이 올린 묶음이 끝남) · arrange([자동 배치] — V2 가 받는다)
+   * 사건: ready · loaded · sheet(탭을 다시 그림) · render(객체를 다시 그림) · change(markDirty) · added(그림 한 장 놓음 · 붙여넣기 ·
+   *       복제 사본) · removed(선택을 지움 — { ids, images }) · trimmed(여백 자르기) · labels(그림 종류가 바뀜)
+   *       · batch(같이 올린 묶음이 끝남) · arrange([자동 배치] — V2 가 받는다)
    * ====================================================================== */
   function emitCore(name, data) {
     var list = coreHandlers[name];
@@ -6935,6 +6961,15 @@
     return made;
   }
 
+  /** V2 [자재표 칸 넣기] — 자리표(PRESETS: [SR] [EP] [DOOR] [옷봉] [마이다])를 한꺼번에 넣는다(insertPresetText 그대로, quiet).
+      되돌리기 한 번 · 글 편집기를 열지 않는다 — 자리는 부른 쪽(V2 배치)이 자재 칸에 잡는다. 돌려주는 값 = 넣은 객체 id 목록. */
+  function v2AddPresets(kinds) {
+    var list = (kinds && kinds.length ? kinds : Object.keys(PRESETS)).filter(function (k) { return !!PRESETS[k]; });
+    if (!canSave || !currentSheet() || !list.length) { return []; }
+    recordUndo();
+    return list.map(function (k) { var o = insertPresetText(PRESETS[k] + '\n', false, true); return o ? o.id : ''; }).filter(Boolean);
+  }
+
   function exposeCore() {
     window.FomsWizardCore = {
       ui: UI, stageW: STAGE_W, stageH: STAGE_H, orderId: ORDER_ID, partLabels: PART_LABELS.slice(),
@@ -6977,6 +7012,7 @@
         return imgs.map(function (o) { return partItem(o, order); });
       },
       split: v2SplitSheet,
+      addPresets: v2AddPresets,
       rid: rid,
       normalize: normalizeObj,
       textSize: loadPreferredTextSize,

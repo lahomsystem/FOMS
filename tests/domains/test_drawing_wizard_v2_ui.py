@@ -80,7 +80,8 @@ def test_v2_page_has_layout_regions_scripts_and_form(client):
     body, _ = _page(client, _order(), query="?ui=v2")
     for el_id in ["dws-v2-left", "dws-v2-right", "dws-v2-slots", "dws-v2-badges", "dws-v2-banner", "dws-v2-drop", "dws-v2-zoom",
                   "dws-v2-cards", "dws-v2-unsorted", "dws-v2-kind", "dws-v2-templates", "dws-v2-seen", "dws-v2-toggles",
-                  "dws-v2-relayout", "dws-v2-more", "dws-v2-more-menu", "dws-v2-tabstatus", "dws-v2-pagetotal", "dws-logo-cell"]:
+                  "dws-v2-relayout", "dws-v2-rearrange", "dws-v2-unpin", "dws-v2-more", "dws-v2-more-menu", "dws-v2-tabstatus",
+                  "dws-v2-pagetotal", "dws-logo-cell"]:
         assert f'id="{el_id}"' in body, el_id
     assert 'data-v2-mode="auto"' in body and 'data-v2-mode="free"' in body
     assert 'data-dws-ui-switch="v1"' in body
@@ -137,3 +138,47 @@ def test_v2_relabel_releases_pin_and_remembers_ai_slot_guess():
     for name in ("v2-paper.js", "v2-left.js"):
         src = (ROOT / "static/js/drawing" / name).read_text(encoding="utf-8")
         assert "product_name" not in src and "FomsV2Slots.title(" in src, name
+
+
+def _fn(src: str, head: str, size: int = 1600) -> str:
+    start = src.index(head)
+    return src[start:start + size]
+
+
+def test_engine_emits_removed_copies_and_trim_for_v2_rearrange():
+    """스테이징 주문 4385(2026-10-27): 지우기 · 사본 · 자르기도 V2 가 알아야 다시 놓는다(V1 은 듣는 곳이 없다)."""
+    delete = _fn(JS, "  function deleteSelected() {", 900)
+    assert delete.index("recordUndo();") < delete.index("markDirty();") < delete.index("emitCore('removed', { ids: ids, images: images });")
+    copy = _fn(JS, "  function freshCopy(o) {", 300)
+    assert "if (o.type === 'image' && o.part && o.part.arr) { delete o.part.arr; }" in copy   # 사본은 처음부터 고정이 아니다
+    for head in ("  function pasteClipObjects() {", "  function duplicateSelectedInPlace() {"):
+        body = _fn(JS, head, 1300)
+        assert "freshCopy(JSON.parse(JSON.stringify(" in body and "emitCopiesAdded(ids);" in body, head
+    trim = _fn(JS, "  function trimSelectedImage() {", 2700)
+    assert "tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;" in trim             # V2 고정 판정과 같은 허용 폭
+    assert trim.index("var laid =") < trim.index("if (laid) { cur.part.arr = [cur.x, cur.y, cur.w, cur.h]; }")
+    assert "emitCore('trimmed', { id: cur.id });" in trim
+    events = JS[JS.index("[8] V2 화면 연결"):JS.index("  function emitCore(name, data) {")]
+    assert "removed(" in events and "trimmed(" in events
+
+
+def test_v2_shell_rearranges_after_delete_mode_click_and_late_labels():
+    shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
+    wire = shell[shell.index("  function wire() {"):shell.index("  function init() {")]
+    assert "core.on('removed'" in wire and "scheduleArrange('removed')" in wire and "core.on('trimmed'" in wire
+    assert "batched[d.id]" in wire                                          # 묶음 배치 뒤 늦게 온 AI 이름표
+    arrange = shell[shell.index("  function arrange(reason, opts) {"):shell.index("  function scheduleArrange(")]
+    assert arrange.index("FomsV2Plan.diff(") < arrange.index("if (d.any && o.undo) { core.recordUndo(); }")   # 헛 되돌리기 없음
+    assert "arrange(fromUser ? 'mode' : 'open'" in shell
+    chrome = (ROOT / "static/js/drawing/v2-chrome.js").read_text(encoding="utf-8")
+    assert "api.setMode(b.getAttribute('data-v2-mode'), true)" in chrome and "arrangeText: arrangeText" in chrome
+
+
+def test_v2_assets_pinned_after_rearrange_fix():
+    for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
+                  "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
+                  "js/drawing/v2-shell.js"):
+        assert f"{asset}') }}}}?v=20261027d" in TPL or f"{asset}') }}}}?v=20261027e" in TPL, asset
+    right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
+    assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
+    assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL

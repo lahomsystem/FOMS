@@ -1,15 +1,17 @@
 /**
- * 도면 마법사 — 자재표 계산 칸(오른쪽에 여닫는 칸, 그림자 판 — 화면 글은 '시험 계산').
+ * 도면 마법사 — 자재표 계산 칸(오른쪽에 여닫는 칸, 그림자 판 — 화면 글은 '참고용').
  *
  * 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.6
- * - 시트마다 전체 폭·깊이·천장 높이·제품 계열·손잡이·모듈 목록을 받아 [SR][EP][DOOR][옷봉][마이다]
+ * - 시트마다 전체 폭·깊이·천장 높이·제품 종류·손잡이·모듈 목록을 받아 [SR][EP][DOOR][옷봉][마이다]
  *   줄을 계산해 보여 주고, 시트에 사람이 친 자재표와 줄마다 맞춰 본다.
  * - 그림자 판(calc.mode 'shadow'): 도면팀이 규칙을 확인하기 전에는 시트에 넣지도, 복사하게 하지도 않는다.
  *   사람이 따로 친 자재표와 계산을 맞춰 본 기록(시트 calc)이 규칙을 검증하는 자료이기 때문이다.
  * - 입력을 처음 바꿀 때 시트에 calc 를 만든다(열어 보기만 해서는 시트가 바뀌지 않는다).
- * - 배치(보고서 2026-10-25 '계산 칸 배치 안 A'): 제목 아래 '결과 · 맞춰 보기'를 고정하고(bom-results.js)
- *   그 아래만 스크롤한다 — 모듈(펼침) · 기본(값이 차면 한 줄 요약) · 줄마다 계산 근거(접힘) · 규칙 한 줄.
+ * - 배치(보고서 2026-10-25 '계산 칸 배치 안 A'): 제목 아래 '계산 결과'를 고정하고(bom-results.js)
+ *   그 아래만 스크롤한다 — 모듈(펼침) · 제품·치수(값이 차면 한 줄 요약) · 계산식 보기(접힘) · 규칙 한 줄.
  *   입력 묶음은 bom-form.js, 규칙 편집은 칸 밖 규칙 창(bom-rules-dialog.js)이 맡는다.
+ * - 화면 글은 짧게, 하는 일로 쓴다(사용자 피드백 2026-10-27 '머리 글이 어색하다'): '시험 계산' → '참고용',
+ *   '결과 · 맞춰 보기' → '계산 결과', '줄마다 계산 근거' → '계산식 보기', 규칙 줄 '규칙 2판 사용 중 [규칙 고치기]'.
  * - 칸 폭은 왼쪽 가장자리 손잡이로 280~420px 사이에서 바꾼다(이 브라우저에만 기억, 없으면 340).
  *
  * window.FomsBomPanel = { init(opts), sync(), toggle(), roomPlan(o) }
@@ -20,7 +22,7 @@
   'use strict';
   if (window.FomsBomPanel) { return; }
 
-  var NOTE = '계산만 보여 줍니다. 자재표는 지금처럼 직접 쳐 주세요. 둘을 맞춰 본 기록으로 계산 규칙을 고치고, ' +
+  var NOTE = '참고용 계산입니다. 자재표는 지금처럼 시트에 직접 쳐 주세요. 둘을 맞춰 본 기록으로 계산 규칙을 다듬고, ' +
     '도면팀이 규칙을 확인하면 시트에 넣는 단추를 엽니다.';
   var WIDTH_KEY = 'dws-calc-width', W_MIN = 280, W_MAX = 420, W_DEF = 340;
   var C = null, R = null, F = null, B = null, D = null, ctx = null, info = null, loading = null, isOpen = false;
@@ -65,12 +67,14 @@
     if (ae && ae !== els.body && els.body.contains(ae) && ae.scrollIntoView) { ae.scrollIntoView({ block: 'nearest' }); }
   }
 
-  /** 규칙 한 줄 — '규칙 2판 · 도면팀·관리자만 고침 [규칙 창 열기]'. 편집은 칸 밖 규칙 창에서. */
+  /** 규칙 한 줄 — '규칙 2판 사용 중 [규칙 고치기]'. 고칠 수 없는 사람(도면팀·관리자 밖)은 [규칙 보기].
+      편집은 칸 밖 규칙 창에서(규칙 창이 보기만 하는 사람에게 '도면팀·관리자만 고칠 수 있습니다'를 보인다). */
   function renderRulesRow() {
     var row = els.body.appendChild(el('div', 'dws-calc-rules-row'));
-    row.appendChild(el('span', 'dws-calc-rules-text', R.labelName(info.label) + ' · 도면팀·관리자만 고침'));
-    var btn = els.rulesBtn = row.appendChild(el('button', 'dws-btn dws-calc-small', '규칙 창 열기'));
+    row.appendChild(el('span', 'dws-calc-rules-text', (R.labelName(info.label) || '계산 규칙') + ' 사용 중'));
+    var btn = els.rulesBtn = row.appendChild(el('button', 'dws-btn dws-calc-small', info.can_edit ? '규칙 고치기' : '규칙 보기'));
     btn.type = 'button';
+    btn.title = info.can_edit ? '고친 숫자는 도면팀 전체 계산에 바로 적용됩니다' : '규칙은 도면팀·관리자만 고칠 수 있습니다';
     btn.addEventListener('click', function () {
       D.open(info, function (next) { info = next; render(); }, ctx.toast, function () { if (els.rulesBtn) { els.rulesBtn.focus(); } });
     });
@@ -96,7 +100,7 @@
     els.top.hidden = false;
     F.build(els.body, { C: C, inp: inp, rules: info.rules, product: product, editable: editable(), edit: edit, render: render, sheetId: s.id });
     var why = F.fold(els.body, 'why');
-    why.label.textContent = '줄마다 계산 근거';
+    why.label.textContent = '계산식 보기';
     els.why = why.body;
     renderRulesRow();
     refresh();
@@ -192,7 +196,8 @@
     about.setAttribute('aria-label', '자재표 계산 안내');
     about.setAttribute('aria-expanded', 'false');
     about.setAttribute('aria-controls', 'dws-calc-note');
-    head.appendChild(el('span', 'dws-calc-badge', '시험 계산'));
+    var badge = head.appendChild(el('span', 'dws-calc-badge', '참고용'));
+    badge.title = '계산만 보여 주고 시트에는 넣지 않습니다';
     var close = head.appendChild(el('button', 'dws-calc-close', '✕'));
     close.type = 'button';
     close.title = '닫기';
@@ -205,7 +210,7 @@
       els.note.hidden = !els.note.hidden;
       about.setAttribute('aria-expanded', String(!els.note.hidden));
     });
-    els.top = ctx.host.appendChild(el('div', 'dws-calc-top'));   // 결과 · 맞춰 보기(아래 칸과 따로 스크롤)
+    els.top = ctx.host.appendChild(el('div', 'dws-calc-top'));   // 계산 결과(아래 칸과 따로 스크롤)
     els.top.hidden = true;
     els.body = ctx.host.appendChild(el('div', 'dws-calc-body'));
     initGrip();

@@ -18,9 +18,13 @@
 .dws-v2 .dws-fontctl,
 .dws-v2 #dws-btn-save-all,
 .dws-v2 #dws-btn-export { display: none !important; }
-.dws-v2.dws-v2-auto .dws-appbar-center .dws-seg,
+/* 도구 묶음(선택 · 텍스트 · 도형 · 펜 · 지우개 · 이미지)은 자동 배치 모드에도 보인다 — 메모 · 화살표를 쓰려면 자유 배치로 바꿔야 했다
+   (도면팀 평가 2026-10-27). 그림 밖 메모 · 선은 다시 배치가 비켜 간다(v2-plan.js). 프리셋(자재표 머리 글)은 자유 배치에서만. */
 .dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }
 .dws-v2 .dws-appbar-center { display: flex; align-items: center; gap: 10px; }
+.dws-v2 #dws-v2-more-menu .dws-menu-item[hidden] { display: none; }   /* [고정 풀고 모두 다시]는 고정 그림이 있을 때만(v2-right.js) */
+/* [예전 화면] — 늘 보이는 V1 돌아가기(wizard-ui-switch.js). ⋯ 메뉴 안에만 있어 돌아가는 길을 못 찾았다 */
+.dws-v2-uiback { color: #3a3a3c; }
 
 .dws-v2-modes {
   display: flex;
@@ -46,6 +50,28 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 .dws-v2-mode:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+/* 앱바 [다시 자동 배치] — 자동 배치 모드에서만(자유 배치는 도구 묶음 자리). 오른쪽 칸이 숨는 좁은 창에서도 보인다(v2-right.js) */
+.dws-v2-rearrange {
+  border: 1px solid #0071e3;
+  background: #ffffff;
+  color: #0062c4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-v2-rearrange:hover { background: #e8f0fc; }
+.dws-v2-rearrange:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+.dws-v2-rearrange:disabled { opacity: 0.5; cursor: default; background: #ffffff; }
+.dws-v2.dws-v2-free .dws-v2-rearrange { display: none; }
+/* 1180~1279(한 줄 앱바): 도구 묶음 · [예전 화면]을 더하니 1180 에서 오른쪽 끝이 6px 넘쳤다 — 배치 방식 단추 안쪽 여백 · 가운데 틈만 줄인다 */
+@media (min-width: 1180px) and (max-width: 1279px) {
+  .dws-v2 .dws-appbar-center { gap: 6px; }
+  .dws-v2-mode { padding-left: 10px; padding-right: 10px; }
+}
 
 /* ---- 몸통: 왼쪽 316 · 가운데 · 오른쪽 316 ------------------------------------ */
 .dws-v2-left,
@@ -62,7 +88,17 @@
   min-height: 0;
 }
 .dws-v2-left { border-right: 1px solid #e5e5ea; }
-.dws-v2-right { border-left: 1px solid #e5e5ea; gap: 14px; }
+/* 오른쪽 칸 = 굴러가는 몸통 + 늘 보이는 바닥([다시 자동 배치]) */
+.dws-v2-right { border-left: 1px solid #e5e5ea; gap: 0; padding: 0; overflow: hidden; }
+.dws-v2-right-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .dws-v2 .dws-calc:not([hidden]) ~ .dws-v2-right { display: none; }   /* 자재표 계산 칸을 열면 그 자리를 쓴다 */
 
 .dws-v2 .dws-canvas {
@@ -154,13 +190,15 @@
 .dws-v2-chip-blue { background: #eef3fd; color: #0062c4; }
 .dws-v2-chip-orange { background: #fff4e0; color: #9a5a00; }
 .dws-v2-chip-gray { background: #f5f5f7; color: #6e6e73; }
-.dws-v2-card-body { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.dws-v2-card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
 .dws-v2-card-meta { font-size: 11px; color: #6e6e73; overflow-wrap: anywhere; }
+/* 작은 그림 + 바로 밑 그 그림의 종류 딱지(어느 그림 것인지 보이게 — v2-left.js). 카드 한 줄에 셋(좁은 창은 둘) */
+.dws-v2-figs { display: flex; flex-wrap: wrap; gap: 6px; }
+.dws-v2-fig { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 76px; min-width: 0; }
 .dws-v2-thumb {
+  position: relative;
   flex: none;
-  width: 44px;
-  height: 38px;
+  width: 76px;
+  height: 52px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -172,22 +210,37 @@
 .dws-v2-thumb:focus-visible { border-color: #0071e3; outline: none; }
 .dws-v2-thumb-fixed { border-color: #6e6e73; }
 .dws-v2-thumb-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.dws-v2-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+/* 고정 그림(손으로 옮김 · 잠금 · 돌림 — 다시 배치해도 그 자리) 표시 — 작은 그림 왼쪽 위 */
+.dws-v2-thumb-pin {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(29, 29, 31, 0.78);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+}
 .dws-v2-tag {
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   height: 18px;
   padding: 0 6px;
+  border: 1px solid transparent;
   border-radius: 9px;
+  font-family: inherit;
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
 }
+.dws-v2-fig .dws-v2-tag { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 16px; }
 .dws-v2-tag-ok { background: #e9f7ee; color: #1a7f37; }
 .dws-v2-tag-ai { background: #ffffff; color: #0062c4; border: 1px dashed #7aa7e0; }
-.dws-v2-tag-fixed { background: #f5f5f7; color: #3a3a3c; }
-/* AI 가 칸만 짐작한 그림 — 눌러서 세부 종류를 고른다(v2-left.js famLabels) */
-.dws-v2-tag-guess { background: #fff6e8; color: #b25000; border: 1px dashed #e8a35a; font-family: inherit; cursor: pointer; }
+/* AI 가 칸만 짐작한 그림('정면·도어?') · 미분류 — 누르면 맨 위 '확인할 그림' 상자의 그 그림으로(v2-check.js show) */
+.dws-v2-tag-guess { background: #fff6e8; color: #b25000; border: 1px dashed #e8a35a; cursor: pointer; }
 .dws-v2-tag-guess:hover,
 .dws-v2-tag-guess:focus-visible { border-style: solid; outline: none; }
 .dws-v2-tag-guess:disabled { cursor: default; }
@@ -203,6 +256,24 @@
   cursor: pointer;
 }
 .dws-v2-link:hover { text-decoration: underline; }
+/* 자재 카드: [자재표 칸 넣기](자재표 글자가 없을 때) · '계산해 보기 (참고용)' */
+.dws-v2-card-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.dws-v2-bom-add {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #0071e3;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0062c4;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-v2-bom-add:hover { background: #e8f0fc; }
+.dws-v2-bom-add:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+.dws-v2-bom-add:disabled { opacity: 0.5; cursor: default; background: #ffffff; }
 .dws-v2-choose { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-top: 4px; border-top: 1px solid #e5e5ea; }
 .dws-v2-choose-text { font-size: 11px; color: #6e6e73; margin-right: 2px; }
 .dws-v2-choose-btn,
@@ -252,13 +323,80 @@
 .dws-v2-stamp-label { width: 100%; font-size: 11px; color: #6e6e73; }
 .dws-v2-stamp-input { flex: 1 1 90px; }
 
-.dws-v2-unsorted { padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
-.dws-v2-unsorted-ok { background: #f2fbf5; border: 1px solid #b6e3c4; color: #14532d; }
-.dws-v2-unsorted-warn { background: #fff8eb; border: 1px solid #f5cf8a; color: #6b3d00; }
-.dws-v2-unsorted-title { font-size: 12px; font-weight: 800; }
-.dws-v2-unsorted-text { font-size: 11px; line-height: 16px; }
-.dws-v2-unsorted-row { display: flex; align-items: center; gap: 8px; }
-.dws-v2-unsorted-select { flex: 1 1 auto; height: 30px; border: 1px solid #e5e5ea; border-radius: 6px; font: inherit; font-size: 12px; background: #ffffff; }
+/* 맨 위 '확인할 그림' 상자(v2-check.js) — 종류를 사람이 골라야 하는 그림이 있을 때만. 그림마다 큰 미리보기 + 종류 단추 2~4개 + '그 밖 ▾' */
+.dws-v2-unsorted {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #f5cf8a;
+  border-radius: 10px;
+  background: #fff8eb;
+  color: #6b3d00;
+}
+.dws-v2-unsorted[hidden] { display: none; }
+.dws-v2-check-head { display: flex; flex-direction: column; gap: 2px; }
+.dws-v2-check-title { font-size: 13px; font-weight: 800; }
+.dws-v2-check-text { font-size: 12px; line-height: 16px; }
+.dws-v2-check-row { display: flex; align-items: flex-start; gap: 8px; padding-top: 8px; border-top: 1px solid #f5dfb0; }
+.dws-v2-check-pic {
+  flex: none;
+  width: 96px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #ecd29b;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dws-v2-check-pic:hover,
+.dws-v2-check-pic:focus-visible,
+.dws-v2-check-row:focus-within .dws-v2-check-pic { border-color: #0071e3; outline: none; }   /* 지금 고를 그림(초점 줄) = 종이의 파란 테와 같은 색 */
+.dws-v2-check-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.dws-v2-check-picks { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; }
+.dws-v2-check-btn,
+.dws-v2-check-more {
+  flex: 1 1 74px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid #e5e5ea;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* AI 첫 짐작 단추 — 파란 테 */
+.dws-v2-check-btn-ai { border-color: #7aa7e0; background: #eef3fd; color: #0062c4; }
+.dws-v2-check-more { appearance: none; -webkit-appearance: none; text-align: center; color: #3a3a3c; font-weight: 600; }
+.dws-v2-check-btn:hover,
+.dws-v2-check-more:hover { border-color: #0071e3; color: #0062c4; }
+.dws-v2-check-btn:focus-visible,
+.dws-v2-check-more:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+/* 좁은 창(왼쪽 칸 260px) — 미리보기를 위에, 단추를 그 아래 줄로 */
+@media (max-width: 1100px) {
+  .dws-v2-check-row { flex-direction: column; align-items: stretch; }
+  .dws-v2-check-pic { width: 100%; height: 88px; }
+}
+/* 확인할 그림 미리보기를 가리키면(또는 그 줄에 초점) 종이에서 그 그림을 짚는 파란 테 — 스테이지 안이라 줌을 따라가고,
+   .dws-ui 라 PNG · 저장 그림에는 안 찍힌다(v2-check.js point). 칸 머리 · 배율 표시(12) 위 */
+.dws-v2-point {
+  position: absolute;
+  z-index: 13;
+  box-sizing: border-box;
+  border: 4px solid #0071e3;
+  border-radius: 6px;
+  background: rgba(0, 113, 227, 0.08);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.22);
+  pointer-events: none;
+}
 
 /* ---- 가운데: 알림 띠 · 끌어 놓기 · 범례 ---------------------------------------- */
 .dws-v2-banner {
@@ -272,6 +410,12 @@
   gap: 4px 8px;
   font-size: 12px;
   border: 1px solid transparent;
+  /* 종이를 내려도 화면 위에 붙어 있다 — 내리면 결과 알림 · [되돌리기] · [칸으로 정리하기]가 화면 밖으로 사라졌다(도면팀 평가 2026-10-27).
+     종이(변형 스택)·전달본 지우기 ×(z 60) 위, 떠 있는 펜 팔레트 · 미니 막대(fixed 82~95) 밑 */
+  position: sticky;
+  top: 8px;
+  z-index: 61;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .dws-v2-banner[hidden] { display: none; }
 .dws-v2-banner-green { background: #e9f7ee; border-color: #b6e3c4; color: #14532d; }
@@ -458,30 +602,76 @@
 .dws-v2-head-name { font-size: 14.5px; font-weight: 800; }
 .dws-v2-head-meta { font-size: 13px; font-weight: 600; color: #555555; }
 .dws-v2-head-side { margin-left: auto; padding-left: 8px; font-size: 12.5px; color: #555555; }
+.dws-v2-head-name,
+.dws-v2-head-meta,
+.dws-v2-head-side { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dws-v2-head-meta,
+.dws-v2-head-side { flex-shrink: 4; }   /* 좁으면 곁글부터 줄인다 — 칸 이름이 먼저 보이게 */
 .dws-v2-bom-line { position: absolute; background: #dddddd; }
 .dws-v2-note { position: absolute; box-sizing: border-box; border: 1.5px solid #111111; }
 .dws-v2-note-site { border-style: dashed; }
 .dws-v2-stamp { position: absolute; box-sizing: border-box; border: 3px solid #d2232a; }
 
-/* ---- 종이 위 배율 표시(화면에만) ------------------------------------------------- */
+/* ---- 종이 위 배율 · 고정 · 문제 표시 · 종류 확인 머리(화면에만) ------------------------ */
 .dws-v2-badges { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
+/* 칸 머리 오른쪽 끝 위에 뜬다(v2-paper.js PILL_UP 18) — 아래 끝이 머리 글 윗선이라 칸 이름을 가리지 않는다 */
 .dws-v2-pill {
   position: absolute;
   transform: translateX(-100%);
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 14px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
-  font-size: 16px;
+  font-size: 13.5px;
   font-weight: 800;
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+/* 고정 그림 표시(그림 왼쪽 위) — 다시 자동 배치해도 그 자리에 남는 그림(손으로 옮김 · 잠금 · 돌림) */
+.dws-v2-pin {
+  position: absolute;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(29, 29, 31, 0.78);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
 }
 .dws-v2-pill-blue { background: #0071e3; color: #ffffff; }
 .dws-v2-pill-orange { background: #ff9f0a; color: #1d1d1f; }
 .dws-v2-pill-green { background: #1a7f37; color: #ffffff; }
 .dws-v2-pill-gray { background: #6e6e73; color: #ffffff; }
+/* 종류 모르는 그림 칸 머리(v2-paper.js) — 전달 도면에 '기타 그림'을 찍지 않고 화면에서만 사람이 종류를 고르게 부른다 */
+.dws-v2-head-check {
+  padding-right: 6px;
+  border-bottom: 2px solid #ff9f0a;
+  background: #fff4e0;
+  color: #1d1d1f;
+  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+}
+.dws-v2-head-check .dws-v2-head-badge { background: #ff9f0a; color: #1d1d1f; }
+/* 문제 표시(자동 배치 모드) — 서로 겹친 그림 · 치수 글자가 8px 밑인 그림: 주황 테두리 + 왼쪽 위 딱지('고정' 표시 아래 줄) */
+.dws-v2-warn {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2.5px solid #ff9f0a;
+  border-radius: 4px;
+}
+.dws-v2-warn-tag {
+  position: absolute;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #ff9f0a;
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
 
 /* ---- 오른쪽 칸 '배치 확인' ----------------------------------------------------- */
 .dws-v2-right-title { margin: 0; font-size: 14px; font-weight: 800; }
@@ -543,6 +733,23 @@
 .dws-v2-tpl-name { font-size: 12px; font-weight: 700; color: #1d1d1f; }
 .dws-v2-tpl-meta { font-size: 11px; color: #6e6e73; }
 .dws-v2-tpl-state { font-size: 10px; font-weight: 700; color: #0062c4; }
+.dws-v2-tpl-back { margin-left: 2px; }   /* [추천 틀로 돌아가기] — 고른 틀이 추천과 다를 때만(v2-right.js) */
+/* 자세히 ▸ — '컴퓨터가 본 것' · 켜고 끄기를 접어 둔다(처음엔 접힘 · 이 브라우저에 기억, v2-right.js) */
+.dws-v2-detail-toggle {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0062c4;
+  cursor: pointer;
+}
+.dws-v2-detail-toggle:hover { text-decoration: underline; }
+.dws-v2-detail-toggle:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; border-radius: 4px; }
+.dws-v2-detail { display: flex; flex-direction: column; gap: 14px; }
+.dws-v2-detail[hidden] { display: none; }
 .dws-v2-seen { display: flex; flex-direction: column; gap: 6px; }
 .dws-v2-seen-row {
   display: flex;
@@ -593,20 +800,29 @@
 .dws-v2-switch-on { background: #34c759; }
 .dws-v2-switch-on::after { left: 15px; }
 .dws-v2-toggle:focus-visible .dws-v2-switch { outline: 2px solid #0071e3; outline-offset: 2px; }
-.dws-v2-right-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
-.dws-v2-relayout {
-  height: 36px;
-  border-radius: 9px;
-  border: 1px solid #e5e5ea;
+.dws-v2-right-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid #e5e5ea;
   background: #ffffff;
+}
+.dws-v2-relayout {
+  height: 38px;
+  border-radius: 9px;
+  border: 0;
+  background: #0071e3;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
-  color: #1d1d1f;
+  color: #ffffff;
   cursor: pointer;
 }
-.dws-v2-relayout:hover { border-color: #0071e3; color: #0062c4; }
-.dws-v2-relayout:disabled { opacity: 0.5; cursor: default; }
+.dws-v2-relayout:hover { background: #0062c4; }
+.dws-v2-relayout:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.dws-v2-relayout:disabled { opacity: 0.5; cursor: default; background: #0071e3; }
 
 /* ---- 좁은 창: 오른쪽 칸을 접고(1280 밑) 왼쪽 칸을 좁힌다 ------------------------------ */
 @media (max-width: 1279px) {
