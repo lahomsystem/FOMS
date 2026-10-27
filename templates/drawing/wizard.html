@@ -390,8 +390,8 @@
       </div>
     </div>
 
-    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '시험 계산').
-         배치 안 A: 제목 아래 결과·맞춰 보기 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
+    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '참고용').
+         배치 안 A: 제목 아래 '계산 결과' 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
     <aside class="dws-calc dws-ui" id="dws-calc" aria-label="자재표 계산" hidden></aside>
     {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_right.html' %}{% endif %}
 
@@ -712,9 +712,9 @@
   <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261025c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-rules-dialog.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-results.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-form.js') }}?v=20261025a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-results.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-form.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261027d" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/save-status.js') }}?v=20261027c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/sheet-ids.js') }}?v=20261026a" defer></script>
   {# AI 도면팀원 검수 메모 — [저장] 때 시트를 읽어 확실한 것만 메모한다(설계서 2026-10-27-drawing-ai-teammate-spec A1). wizard.js 보다 먼저. #}

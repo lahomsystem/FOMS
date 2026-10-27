@@ -1,9 +1,11 @@
 """도면 마법사 자재표 계산 칸 — 배치 안 A 화면 계약(가짜 DOM, node).
 
 사용성 평가(2026-10-25) 큼-3·보통-3·보통-4·보통-7·작음 항목을 브라우저 없이 확인한다.
-- 칸 맨 위 '결과 · 맞춰 보기'(줄마다 계산 값 + 칩 한 줄, 6줄 넘으면 '더 보기'), 그 아래 스크롤 구역
-  '모듈 N개 · 합 · 남는 폭 [+ 모듈]'(펼침) · '기본'(값이 차면 한 줄 요약으로 접힘) · '줄마다 계산 근거'(접힘) ·
-  '규칙 N판 · 도면팀·관리자만 고침 [규칙 창 열기]'.
+- 칸 맨 위 '계산 결과'(줄마다 계산 값 + 칩 한 줄, 6줄 넘으면 '더 보기'), 그 아래 스크롤 구역
+  '모듈 N개 · 폭 합 · 남는 폭 [+ 모듈]'(펼침) · '제품·치수'(값이 차면 한 줄 요약으로 접힘) · '계산식 보기'(접힘) ·
+  '규칙 N판 사용 중 [규칙 고치기]'(고칠 수 없는 사람은 [규칙 보기]).
+- 화면 글은 짧게, 하는 일로(사용자 피드백 2026-10-27 '머리 글이 어색하다'): 배지 '참고용', 빈 모듈은 '모듈',
+  모듈 합이 전체 폭을 넘으면 '넘는 폭 N', 입력 이름 '제품 종류'·'문 높이(비우면 자동)'·'옆벽 SR 왼쪽·오른쪽'.
 - 규칙 창: mm 단위 · 표준 문 높이 한 줄 전체 · 바꾼 칸 '기본 35' · 저장 확인('규칙 2판 → 3판') · 뒤 단축키로 키가 새지 않음
   (초점이 창 밖 body 로 빠져도) · 창이 열린 채 Ctrl+S 는 도면을 저장하지 않고 안내만(실화면 QA 2026-10-25 V1).
 - '더 보기'로 펼칠 때 포커스가 칸을 내리지 않고(preventScroll), 다시 그려도 보던 자리 그대로(실화면 QA V2).
@@ -123,6 +125,8 @@ process.argv.slice(1, -1).forEach(f => require(f));   // node -e 는 argv[1] 부
   await tick(); await tick();
   const [head, note, top, body, grip] = host.childNodes;
   out.head = head.textContent;
+  const badge = one(head, cls('dws-calc-badge'));
+  out.badge = { text: badge.textContent, title: badge.title };
   out.noteHidden = note.hidden;
   one(head, cls('dws-calc-info')).fire('click');
   out.noteShown = !note.hidden;
@@ -158,6 +162,15 @@ process.argv.slice(1, -1).forEach(f => require(f));   // node -e 는 argv[1] 부
   out.addBtn = !!one(body, button('+ 모듈'));
   out.disabledInputs = all(body, e => e.tagName === 'INPUT' && e.disabled).length;
   out.rulesRow = one(body, cls('dws-calc-rules-row')).textContent;
+  // 규칙 줄 단추는 고칠 수 있는지에 따라 글이 달라서 글이 아니라 자리(규칙 줄 안 단추)로 찾는다
+  const rulesBtn = () => one(one(host, cls('dws-calc-rules-row')), e => e.tagName === 'BUTTON');
+  out.rulesBtn = { text: rulesBtn().textContent, title: rulesBtn().title };
+  // 제품·치수 입력 이름 [안내 글] — 숨은 칸(무몰딩 문 높이)은 빼고
+  out.fields = all(body, cls('dws-calc-field')).filter(f => !f.hidden).map(f => {
+    const box = one(f, e => e.tagName === 'INPUT');
+    return one(f, cls('dws-calc-field-name')).textContent + (box ? ' [' + box.placeholder + ']' : '');
+  });
+  out.rest = one(body, cls('dws-calc-sum')).textContent;
   out.width = host.style.props['--dws-calc-w'];
   if (out.split) {
     split.fire('click');
@@ -171,7 +184,7 @@ process.argv.slice(1, -1).forEach(f => require(f));   // node -e 는 argv[1] 부
     out.added = { count: sheet.calc.in.mods.length, focused: document.activeElement === last, label: last.getAttribute('aria-label'),
       value: last.value, visible: (last.scrolled || 0) > 0 };
   }
-  const openBtn = one(host, button('규칙 창 열기'));
+  const openBtn = rulesBtn();
   openBtn.focus();
   openBtn.fire('click');
   const dlg = document.getElementById('dws-calc-rules-dialog');
@@ -205,8 +218,8 @@ process.argv.slice(1, -1).forEach(f => require(f));   // node -e 는 argv[1] 부
     out.dialogClosed = !dlg.open;
     out.rulesRowAfter = one(host, cls('dws-calc-rules-row')).textContent;
     const ae = document.activeElement;
-    out.focusBack = !!(ae && ae.textContent === '규칙 창 열기' && ae.isConnected);
-    one(host, button('규칙 창 열기')).fire('click');   // 저장 응답의 '마지막 고침'으로 바뀌었나
+    out.focusBack = !!(ae && ae === rulesBtn() && ae.isConnected);
+    rulesBtn().fire('click');   // 저장 응답의 '마지막 고침'으로 바뀌었나
     out.metaAfterSave = (one(dlg, cls('dws-calc-rules-meta')) || { textContent: null }).textContent;
     one(dlg, button('닫기')).fire('click');
   } else {
@@ -242,7 +255,7 @@ def _run(job):
 
 
 def test_layout_a_editor_flow():
-    """도면팀이 입력한 시트: 결과가 맨 위, 접힌 기본 요약, 옆벽 SR 나눔, 새 모듈 커서, 규칙 창 저장 확인."""
+    """도면팀이 입력한 시트: 결과가 맨 위, 접힌 제품·치수 요약, 옆벽 SR 나눔, 새 모듈 커서, 규칙 창 저장 확인."""
     sheet = {"id": "s-1", "calc": {"in": json.loads(json.dumps(S11)), "mode": "shadow"},
              "objects": [{"type": "text", "text": "[SR]\n110*2440=3"},
                          {"type": "text", "text": "[DOOR]\n483*2060=4\nㄴ피닉스바 2EA\n483*1407=2"},
@@ -251,10 +264,12 @@ def test_layout_a_editor_flow():
                 "changed_at": "2026-10-24 09:30", "changed_by": "도면팀장",
                 "product": {"name": "몰딩 여닫이장", "spec": "3660×570×2300"}, "sheet": sheet})
     assert got["ok"] is True and got["loading"] is True
-    assert "자재표 계산" in got["head"] and "시험 계산" in got["head"] and "그림자" not in got["head"]
+    # 머리 줄: 제목 · ⓘ · 배지 '참고용'(예전 '시험 계산' — 시험인지 무엇인지 몰랐다, 사용자 피드백 2026-10-27) · 닫기
+    assert got["head"] == "자재표 계산ⓘ참고용✕" and "그림자" not in got["head"]
+    assert got["badge"] == {"text": "참고용", "title": "계산만 보여 주고 시트에는 넣지 않습니다"}
     assert got["noteHidden"] is True and got["noteShown"] is True          # 안내 글은 ⓘ 로 펼친다
-    # 결과 · 맞춰 보기 — 계산 값과 칩이 한 줄, 높이만 다른 줄은 한 줄로 묶임
-    assert got["top"].startswith("결과 · 맞춰 보기")
+    # 계산 결과 — 계산 값과 칩이 한 줄, 높이만 다른 줄은 한 줄로 묶임
+    assert got["top"].startswith("계산 결과") and "맞춰 보기" not in got["top"]
     # 다름 5 = SR 수량 · 문 높이 · 빠진 문 470 과 그 피닉스바 · 1407 문 밑 피닉스바 줄 없음, 아직 안 침 3 = 옷봉 2 · 마이다 1
     assert got["score"] == "10줄 중 2줄 같음 · 다름 5 · 아직 안 침 3"
     # 차이는 여유·짧음처럼 시트 − 계산(시트 2060 이 계산 2160 보다 낮으면 −, 실화면 QA V2)
@@ -266,17 +281,23 @@ def test_layout_a_editor_flow():
     assert got["keptScroll"] == 40
     # 접으면 칸 스크롤이 맨 위로 — 제목·요약 칩이 다시 보이고, 다시 그린 '더 보기'에 포커스(실화면 QA 2026-10-25)
     assert got["collapsed"] == {"rows": 6, "scrollTop": 0, "label": "더 보기(4줄 · 다름 1)", "focused": True}
-    # 스크롤 구역: 모듈(펼침) · 기본(값이 차서 한 줄 요약으로 접힘) · 근거(접힘)
-    assert got["folds"] == ["모듈 4개 · 합 3500 · 남는 폭 160", "기본: 몰딩 여닫이 · 피닉스바 · 3660×570×2300", "줄마다 계산 근거"]
+    # 스크롤 구역: 모듈(펼침) · 제품·치수(값이 차서 한 줄 요약으로 접힘) · 계산식(접힘)
+    assert got["folds"] == ["모듈 4개 · 폭 합 3500 · 남는 폭 160", "제품·치수: 몰딩 여닫이 · 피닉스바 · 3660×570×2300", "계산식 보기"]
     assert got["foldOpen"] == [True, False, False]
-    assert "(1000 − 쌍문 틈 34) ÷ 2 내림" in got["why"]                     # 근거 숫자에 규칙 이름
-    assert got["rulesRow"] == "규칙 2판 · 도면팀·관리자만 고침규칙 창 열기"
+    assert got["rest"] == "남는 폭 160 은 옆벽 SR 로 채울 폭입니다."
+    assert "(1000 − 쌍문 틈 34) ÷ 2 내림" in got["why"]                     # 계산식 숫자에 규칙 이름
+    # 입력 이름은 하는 일 그대로 — '제품 계열'·'문 높이 직접(비우면 계산)'·'옆벽 SR 좌/우' 를 고쳤다
+    assert got["fields"] == ["제품 종류", "손잡이", "전체 폭 [mm]", "깊이 [mm]", "천장 높이 [mm]", "서랍 칸 높이 [753]",
+                             "문 높이 [비우면 자동]", "드러난 옆면(EP)", "옆벽 SR 왼쪽 [없으면 비움]", "옆벽 SR 오른쪽 [없으면 비움]"]
+    # 규칙 줄: 쓰는 규칙 + 고칠 수 있는 사람에게는 [규칙 고치기](예전 '· 도면팀·관리자만 고침 [규칙 창 열기]')
+    assert got["rulesRow"] == "규칙 2판 사용 중규칙 고치기"
+    assert got["rulesBtn"] == {"text": "규칙 고치기", "title": "고친 숫자는 도면팀 전체 계산에 바로 적용됩니다"}
     assert got["width"] == "340px"                                         # 기억 못 하는 브라우저는 340
     # 옆벽 SR 에 나눠 넣기 — 계산 입력만 채운다(시트 글자는 그대로, 그림자 판 유지)
     assert got["split"] == "옆벽 SR 에 나눠 넣기(80·80)"
     split = got["afterSplit"]
     assert split["sr"] == [80, 80] and split["hidden"] is True and split["changed"] is True
-    assert split["mods"] == "모듈 4개 · 합 3500 · 남는 폭 0" and split["mode"] == "shadow"
+    assert split["mods"] == "모듈 4개 · 폭 합 3500 · 남는 폭 0" and split["mode"] == "shadow"
     assert "80*2440=2" in split["out"].split("\n")
     # [+ 모듈] 뒤 새 줄 폭 칸에 커서(앞 모듈 폭을 이어 받음) — 위 결과 칸이 자라도 그 칸이 보이게 스크롤
     assert got["added"] == {"count": 5, "focused": True, "label": "5번 모듈 폭", "value": "500", "visible": True}
@@ -296,9 +317,9 @@ def test_layout_a_editor_flow():
     assert got["rodAfter"] == {"changed": True, "base": "기본 35", "baseHidden": False}
     assert got["confirms"] == ["도면팀 전체 계산에 바로 적용됩니다(규칙 2판 → 3판). 저장할까요?"]
     assert len(got["posted"]) == 1 and got["posted"][0]["rules"]["rod_cut"] == 40 and got["posted"][0]["settings_version"] == 2
-    assert got["dialogClosed"] is True and got["rulesRowAfter"].startswith("규칙 3판 · ")
+    assert got["dialogClosed"] is True and got["rulesRowAfter"] == "규칙 3판 사용 중규칙 고치기"
     assert "계산 규칙을 저장했습니다(규칙 3판)." in got["toasts"]
-    assert got["focusBack"] is True                                        # 다시 그려진 [규칙 창 열기]로 포커스
+    assert got["focusBack"] is True                                        # 다시 그려진 [규칙 고치기]로 포커스
     assert got["metaAfterSave"] == "마지막 고침: 저장한 사람 · 2026-10-25 15:10"   # 저장 응답으로 바로 바뀜
     assert got["widthAfterKey"] == "350px"
     assert got["opens"] == [True, False] and got["hiddenAfterClose"] is True
@@ -318,18 +339,23 @@ def test_layout_a_sheet_without_typed_bom_marks_rows_grey():
 
 
 def test_layout_a_view_only_fresh_sheet():
-    """보기만 하는 사람·새 시트: 열어도 calc 가 생기지 않고, 기본 칸은 펼쳐 있고, 규칙 창은 보기만."""
+    """보기만 하는 사람·새 시트: 열어도 calc 가 생기지 않고, 제품·치수 칸은 펼쳐 있고, 규칙 창은 보기만."""
     sheet = {"id": "s-9", "objects": []}
     got = _run({"rules": RULES, "label": "d1", "version": 0, "can_edit": False, "can_save": False,
                 "product": None, "sheet": sheet})
     assert got["calcCreated"] is False and got["calcAfter"] is None
-    assert got["top"] == "결과 · 맞춰 보기전체 폭·천장 높이와 모듈을 넣으면 계산이 나옵니다."
+    assert got["top"] == "계산 결과아래에 치수와 모듈을 넣으면 계산이 나옵니다."
     assert got["score"] is None and got["more"] is None
-    assert got["folds"] == ["모듈 0개 · 합 0", "기본", "줄마다 계산 근거"]
+    # 빈 모듈 묶음은 '모듈 0개 · 합 0' 대신 '모듈' 한 낱말(스크린샷 2026-10-27)
+    assert got["folds"] == ["모듈", "제품·치수", "계산식 보기"]
+    assert got["why"] == "계산이 나오면 줄마다 계산식을 보여 줍니다."
+    assert got["rest"] == "전체 폭을 넣으면 남는 폭을 알려 줍니다."
     assert "모듈이 없습니다." in got["modsBody"]                              # 빈 표 머리 대신 한 줄 안내
-    assert got["foldOpen"] == [True, True, False]                          # 폭·깊이·높이가 비어 기본을 펼친다
-    assert got["split"] is None and got["addBtn"] is False and got["disabledInputs"] == 7   # 기본 숫자 칸 7개
-    assert got["rulesRow"] == "기본 규칙 · 도면팀·관리자만 고침규칙 창 열기"
+    assert got["foldOpen"] == [True, True, False]                          # 폭·깊이·높이가 비어 제품·치수를 펼친다
+    assert got["split"] is None and got["addBtn"] is False and got["disabledInputs"] == 7   # 제품·치수 숫자 칸 7개
+    # 고칠 수 없는 사람에게는 [규칙 보기] — 누가 고치는지는 단추 풀이와 규칙 창 안내가 말한다
+    assert got["rulesRow"] == "기본 규칙 사용 중규칙 보기"
+    assert got["rulesBtn"] == {"text": "규칙 보기", "title": "규칙은 도면팀·관리자만 고칠 수 있습니다"}
     dialog = got["dialog"]
     assert dialog["title"] == "계산 규칙 숫자 · 기본 규칙" and dialog["save"] is False and dialog["hint"] is True
     assert dialog["meta"] is None                                          # 아직 아무도 안 고쳤으면 줄이 없다
@@ -337,3 +363,27 @@ def test_layout_a_view_only_fresh_sheet():
     assert got["saveNotes"] == [SAVE_NOTE_VIEW, SAVE_NOTE_VIEW]            # [규칙 저장]이 없는 사람에게는 창 닫고 저장하라고만
     assert got["outside"]["undo"] is True and got["outsideAfterClose"] is False
     assert got["opens"] == [True, False]
+
+
+def test_module_title_says_over_width_and_stays_quiet_without_modules():
+    """모듈 합이 전체 폭을 넘으면 '남는 폭 -500' 대신 '넘는 폭 500'. 모듈이 아직 없으면 제목은 '모듈'뿐이고,
+    전체 폭을 통째로 '옆벽 SR 로 채울 폭'이라 하거나 SR 나눔(300·300)을 권하지 않는다(사용자 피드백 2026-10-27)."""
+    over = json.loads(json.dumps(S11))
+    over["W"] = 3000                                                       # 모듈 합 3500 > 전체 폭 3000
+    got = _run({"rules": RULES, "label": "s2", "version": 2, "can_edit": True, "can_save": True,
+                "product": None, "sheet": {"id": "s-over", "calc": {"in": over, "mode": "shadow"}, "objects": []}})
+    assert got["folds"][0] == "모듈 4개 · 폭 합 3500 · 넘는 폭 500"
+    assert got["rest"] == "모듈 폭 합이 전체 폭보다 500 큽니다." and got["split"] is None
+    empty = dict(json.loads(json.dumps(S11)), W=600, mods=[])               # 폭은 있고 모듈은 아직 없음
+    got = _run({"rules": RULES, "label": "d1", "version": 0, "can_edit": False, "can_save": True,
+                "product": None, "sheet": {"id": "s-empty", "calc": {"in": empty, "mode": "shadow"}, "objects": []}})
+    assert got["folds"][0] == "모듈" and got["addBtn"] is True
+    assert got["rest"] == "" and got["split"] is None
+    assert "아직 모듈이 없습니다. [+ 모듈]로 한 줄씩 더하세요." in got["modsBody"]
+
+
+def test_calc_panel_word_scripts_are_repinned():
+    """글을 바꾼 세 파일은 ?v= 를 올려 브라우저가 옛 글(시험 계산·결과 · 맞춰 보기)을 들고 있지 않게 한다."""
+    html = (ROOT / "templates/drawing/wizard.html").read_text(encoding="utf-8")
+    for name in ("bom-results", "bom-form", "bom-panel"):
+        assert "js/drawing/" + name + ".js') }}?v=20261027d" in html, name

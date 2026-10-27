@@ -1,11 +1,14 @@
 /**
- * 도면 마법사 — 자재표 계산 칸의 입력 묶음(모듈 · 기본)과 접는 묶음 틀.
+ * 도면 마법사 — 자재표 계산 칸의 입력 묶음(모듈 · 제품·치수)과 접는 묶음 틀.
  *
- * 보고서 2026-10-25 '계산 칸 배치 안 A': 칸 맨 위 '결과 · 맞춰 보기' 아래 스크롤 구역에
- * - '모듈 N개 · 합 3500 · 남는 폭 160 [+ 모듈]'(펼침) — 가장 자주 고치는 곳이라 위에 둔다.
- * - '기본'(시트마다 한 번 — 폭·깊이·높이가 차 있으면 '몰딩 여닫이 · 피닉스바 · 3660×600×2300' 한 줄로 접고,
+ * 보고서 2026-10-25 '계산 칸 배치 안 A': 칸 맨 위 '계산 결과' 아래 스크롤 구역에
+ * - '모듈 N개 · 폭 합 3500 · 남는 폭 160 [+ 모듈]'(펼침) — 가장 자주 고치는 곳이라 위에 둔다.
+ * - '제품·치수'(시트마다 한 번 — 폭·깊이·높이가 차 있으면 '몰딩 여닫이 · 피닉스바 · 3660×600×2300' 한 줄로 접고,
  *   눌러서 편다). 치는 도중에는 접지 않는다(다시 그릴 때만 판단).
- * - 남는 폭이 있고 옆벽 SR 좌·우가 비었으면 '옆벽 SR 에 나눠 넣기(80·80)'를 권한다(계산 입력만 채운다).
+ * - 남는 폭이 있고 옆벽 SR 왼쪽·오른쪽이 비었으면 '옆벽 SR 에 나눠 넣기(80·80)'를 권한다(계산 입력만 채운다).
+ * - 화면 글은 짧게(사용자 피드백 2026-10-27): 묶음 '기본' → '제품·치수', 빈 모듈 '모듈 0개 · 합 0' → '모듈',
+ *   모듈 합이 전체 폭을 넘으면 '남는 폭 -140' 대신 '넘는 폭 140'. 입력 이름 '제품 계열' → '제품 종류',
+ *   '문 높이 직접'(비우면 계산) → '문 높이'(비우면 자동), '옆벽 SR 좌·우' → '옆벽 SR 왼쪽·오른쪽'.
  *
  * window.FomsBomForm = { fold(host, key, open?, extra?), build(host, f), refresh() }
  *   f: { C, inp, rules, product, editable, edit(key, value), render(), sheetId }
@@ -20,7 +23,7 @@
   var MAX_MODS = 24;     // 서버 _validate_calc 모듈 상한(bom-calc.js MAX_MODS 와 같다)
   var SPLIT_MAX = 600;   // 남는 폭이 이보다 크면 모듈을 덜 넣은 것으로 보고 옆벽 SR 나눔을 권하지 않는다
   var opened = { mods: true };   // 사람이 접고 편 상태(다시 그려도 그대로)
-  var basicsFor = null;          // '기본' 묶음을 사람이 접고 편 시트 { id, open }
+  var basicsFor = null;          // '제품·치수' 묶음을 사람이 접고 편 시트 { id, open }
   var f = null, refs = {}, focusNew = false;
 
   function el(tag, cls, text) {
@@ -58,7 +61,7 @@
     return api;
   }
 
-  /* ---- 기본 ---- */
+  /* ---- 제품·치수 ---- */
   function choice(host, label, key, names, numeric) {
     var wrap = host.appendChild(el('label', 'dws-calc-field'));
     wrap.appendChild(el('span', 'dws-calc-field-name', label));
@@ -99,17 +102,17 @@
     var grid = host.appendChild(el('div', 'dws-calc-grid'));
     var lines = {};
     f.C.LINES.forEach(function (k) { lines[k] = f.C.LINE_NAMES[k]; });
-    choice(grid, '제품 계열', 'line', lines);
+    choice(grid, '제품 종류', 'line', lines);
     choice(grid, '손잡이', 'handle', HANDLE_NAMES);
     number(grid, '전체 폭', 'W', 'mm');
     number(grid, '깊이', 'D', 'mm');
     number(grid, '천장 높이', 'H', 'mm');
     refs.nomold = choice(grid, '무몰딩 문 높이', 'nomold', NOMOLD_NAMES);
     number(grid, '서랍 칸 높이', 'zone', String(f.rules.drawer_zone));
-    number(grid, '문 높이 직접', 'door_h', '비우면 계산');
+    number(grid, '문 높이', 'door_h', '비우면 자동');   // 넣으면 이 값으로(무몰딩 문 높이·표준 문 계산보다 먼저)
     choice(grid, '드러난 옆면(EP)', 'ep', { 0: '0', 1: '1', 2: '2' }, true);
-    number(grid, '옆벽 SR 좌', 'sr_l', '없으면 비움');
-    number(grid, '옆벽 SR 우', 'sr_r', '없으면 비움');
+    number(grid, '옆벽 SR 왼쪽', 'sr_l', '없으면 비움');
+    number(grid, '옆벽 SR 오른쪽', 'sr_r', '없으면 비움');
     syncNomold();
     var spec = f.product && f.C.parseSpec(f.product.spec);
     if (spec && f.editable) {
@@ -183,23 +186,35 @@
     focusNew = false;
   }
 
-  /** 입력이 바뀔 때마다 — 묶음 제목(모듈 합·남는 폭, 기본 요약)과 옆벽 SR 나눔 제안을 고친다. */
+  /** 모듈 묶음 제목 — 모듈이 없으면 '모듈', 있으면 '모듈 4개 · 폭 합 3500 · 남는 폭 160'(넘치면 '넘는 폭 140'). */
+  function modsTitle(n, sum, rest) {
+    if (!n) { return '모듈'; }
+    var t = '모듈 ' + n + '개 · 폭 합 ' + sum;
+    if (rest != null) { t += rest < 0 ? ' · 넘는 폭 ' + (-rest) : ' · 남는 폭 ' + rest; }
+    return t;
+  }
+
+  /** 입력이 바뀔 때마다 — 묶음 제목(모듈 폭 합·남는 폭, 제품·치수 요약)과 옆벽 SR 나눔 제안을 고친다.
+      모듈이 아직 없으면 남는 폭 안내·나눔 제안을 하지 않는다(전체 폭을 통째로 SR 로 채우라는 말이 된다). */
   function refresh() {
     if (!f || !refs.modsLabel) { return; }
-    var inp = f.inp;
+    var inp = f.inp, n = inp.mods.length;
     var sum = inp.mods.reduce(function (t, m) { return t + (m.w || 0); }, 0);
     var rest = inp.W > 0 ? inp.W - sum - inp.sr_l - inp.sr_r : null;
-    refs.modsLabel.textContent = '모듈 ' + inp.mods.length + '개 · 합 ' + sum + (rest == null ? '' : ' · 남는 폭 ' + rest);
-    refs.rest.textContent = rest == null ? '전체 폭을 넣으면 남는 폭을 알려 줍니다.'
-      : (rest > 0 ? '남는 폭 ' + rest + ' 은 옆벽 SR 로 채울 폭입니다.' : (rest < 0 ? '모듈 합이 전체 폭보다 ' + (-rest) + ' 큽니다.' : ''));
-    var split = f.editable && rest > 0 && rest <= SPLIT_MAX && !inp.sr_l && !inp.sr_r;
+    refs.modsLabel.textContent = modsTitle(n, sum, rest);
+    var restText = '';
+    if (rest == null) { restText = '전체 폭을 넣으면 남는 폭을 알려 줍니다.'; }
+    else if (n && rest > 0) { restText = '남는 폭 ' + rest + ' 은 옆벽 SR 로 채울 폭입니다.'; }
+    else if (n && rest < 0) { restText = '모듈 폭 합이 전체 폭보다 ' + (-rest) + ' 큽니다.'; }
+    refs.rest.textContent = restText;
+    var split = f.editable && n > 0 && rest > 0 && rest <= SPLIT_MAX && !inp.sr_l && !inp.sr_r;
     refs.split.half = split ? [Math.floor(rest / 2), rest - Math.floor(rest / 2)] : null;
     refs.split.hidden = !split;
     if (split) { refs.split.textContent = '옆벽 SR 에 나눠 넣기(' + refs.split.half.join('·') + ')'; }
-    refs.basics.label.textContent = refs.basics.isOpen() ? '기본' : '기본: ' + basicsText(inp);
+    refs.basics.label.textContent = refs.basics.isOpen() ? '제품·치수' : '제품·치수: ' + basicsText(inp);
   }
 
-  /** 스크롤 구역에 모듈 · 기본 묶음을 그린다. */
+  /** 스크롤 구역에 모듈 · 제품·치수 묶음을 그린다. */
   function build(host, fctx) {
     f = fctx;
     refs = {};
