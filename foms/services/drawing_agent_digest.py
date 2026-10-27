@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Any
 
 from foms.services.drawing_agent_notes import load_book
+from foms.services.drawing_wizard_part_memory import real_orders
 from models import DrawingPartMemory, Order
 
 TOKEN_ENV = 'FOMS_DRAWING_AGENT_TOKEN_SHA256'
@@ -182,7 +183,7 @@ def memory_row(row: DrawingPartMemory, secret: str) -> dict[str, Any]:
 
 
 def memory_page(db, *, since: datetime | None, after: int, limit: int, secret: str) -> dict[str, Any]:
-    q = db.query(DrawingPartMemory).filter(DrawingPartMemory.id > after)
+    q = real_orders(db.query(DrawingPartMemory)).filter(DrawingPartMemory.id > after)   # 시험 · 휴지통 주문 줄은 뺀다(§9)
     if since is not None:
         q = q.filter(DrawingPartMemory.updated_at >= since)
     rows = q.order_by(DrawingPartMemory.id.asc()).limit(limit + 1).all()
@@ -193,7 +194,7 @@ def memory_page(db, *, since: datetime | None, after: int, limit: int, secret: s
 
 def sheets_page(db, *, since: datetime | None, after: int, limit: int) -> dict[str, Any]:
     """그림 기억이 있는 주문(= 마법사에서 그림을 다룬 주문)의 시트들. 주문 번호 순, ``after`` 다음부터."""
-    q = db.query(DrawingPartMemory.order_id).filter(DrawingPartMemory.order_id > after)
+    q = real_orders(db.query(DrawingPartMemory.order_id)).filter(DrawingPartMemory.order_id > after)
     if since is not None:
         q = q.filter(DrawingPartMemory.updated_at >= since)
     order_ids = [oid for (oid,) in q.distinct().order_by(DrawingPartMemory.order_id.asc()).limit(limit + 1).all()]
@@ -216,8 +217,8 @@ def sheets_page(db, *, since: datetime | None, after: int, limit: int) -> dict[s
 
 def summary(db) -> dict[str, Any]:
     """한눈 수치 — 기억 줄 수 · 사람 이름표 수 · AI 와 다르게 고른 수 · 종류별 사람 이름표."""
-    rows = db.query(DrawingPartMemory.label, DrawingPartMemory.ai, DrawingPartMemory.src,
-                    DrawingPartMemory.active, DrawingPartMemory.feat_v).all()
+    rows = real_orders(db.query(DrawingPartMemory.label, DrawingPartMemory.ai, DrawingPartMemory.src,
+                                DrawingPartMemory.active, DrawingPartMemory.feat_v)).all()
     user_rows = [r for r in rows if r.src == 'user' and r.active]
     by_label: dict[str, int] = {}
     for r in user_rows:

@@ -256,3 +256,26 @@ def test_wizard_page_config_carries_memory_switches(client):
     assert cfg["part_memory"] == {"store": True, "follow": True, "spread": True}
     assert "js/drawing/part-memory.js" in html
     assert html.index("js/drawing/part-memory.js") < html.index("js/drawing/wizard.js")
+
+
+def test_test_and_trashed_orders_labels_are_not_followed(client):
+    """시험 주문(CLAUDE-TEST-) · 휴지통 주문에서 고른 이름표는 다른 주문 그림이 따르지 않고, 되살리면 다시 따른다
+    (설계서 2026-10-27-drawing-ai-teammate-spec §9 — 운영 점검 시험 그림의 이름표가 실제 주문으로 번지지 않게)."""
+    _login(client)
+    test_order, trashed, other = _order(), _order(), _order()
+    db_session.get(Order, test_order).customer_name = "CLAUDE-TEST-도면"
+    db_session.commit()
+    v, w = _unit(11), _unit(12)
+    _human(client, test_order, "t", v, "정면·도어")
+    _human(client, trashed, "d", w, "정면·도어")
+    gone = db_session.get(Order, trashed)
+    gone.status, gone.deleted_at = "DELETED", "2026-10-27 12:00:00"
+    db_session.commit()
+    pm._INDEX.reset()
+    assert _follow(client, other, _near(v, 0.995), ai="서랍 단면", conf=0.3) is None
+    assert _follow(client, other, _near(w, 0.995), ai="서랍 단면", conf=0.3) is None
+    back = db_session.get(Order, trashed)
+    back.status, back.deleted_at = "DRAWING", None
+    db_session.commit()
+    pm._INDEX.reset()   # 운영에선 10분마다 통째로 다시 읽는다(_FULL_RELOAD_S)
+    assert _follow(client, other, _near(w, 0.995), ai="서랍 단면", conf=0.3)["label"] == "정면·도어"

@@ -232,3 +232,24 @@ def test_changes_file_and_script_checks():
     assert proc.returncode == 0, proc.stderr
     src = js.read_text(encoding="utf-8")
     assert len(src.splitlines()) < 300 and "data.success" in src and "jQuery" not in src and "$(" not in src
+
+
+def test_test_and_trashed_orders_stay_out_of_numbers_and_questions(app):
+    """시험 주문(CLAUDE-TEST-) · 휴지통 주문 줄은 주간 노트 숫자 · 물어볼 것에서 빠진다(설계서 §9) — 시험 그림 두 장이
+    닮았는데 종류가 달라도 도면팀에 묻지 않는다."""
+    worker = _user()
+    t1, t2, gone = _order(), _order(), _order()
+    for oid in (t1, t2):
+        db_session.get(Order, oid).customer_name = "CLAUDE-TEST-노트"
+    db_session.commit()
+    base = _vec(21)
+    _mem(t1, "a", base, "서랍 단면", ai="부품 상세", user_id=worker.id)
+    _mem(t2, "b", _vec(22, base, 0.005), "부품 상세", ai="부품 상세", user_id=worker.id)
+    _mem(gone, "c", _vec(23), "정면·도어", ai="정면·내부", user_id=worker.id)
+    order = db_session.get(Order, gone)
+    order.status, order.deleted_at = "DELETED", "2026-10-27 12:00:00"
+    db_session.commit()
+    start = notes.week_start(NOW) - timedelta(days=7)
+    stats = notes.label_stats(db_session, start, notes.week_start(NOW))
+    assert stats["labels"] == 0 and stats["new_rows"] == 0 and stats["top_changes"] == []
+    assert notes.find_questions(db_session, NOW, []) == []
