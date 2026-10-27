@@ -136,15 +136,17 @@ FOMS 에 **'AI 도면팀원'** 계정을 두고, 그 이름으로 도면팀 일�
 - **시험 주문 줄 정정**(2026-10-27): 첫 학습 요약의 '사람 1/85' 는 운영 측정 계정 점검의 시험 주문 5857 · 5865(휴지통) 줄이었다
   (운영 DB 읽기로 확인). 사용자 승인("할일 진행")으로 그 8줄(AI 7 · 사람 1)을 지웠다 — 지우기 전 줄 전체 사본은 로컬에만. 지금 운영은 AI 77 · 사람 0.
 
-## 9. 시험 · 휴지통 주문 줄 거르기 (설계 · 승인 대기, 2026-10-27)
+## 9. 시험 · 휴지통 주문 줄 거르기 (설계 2026-10-27 · 승인 "계속진행" 2026-10-28 · deploy)
 
 **문제.** 시험 주문(고객 이름 `CLAUDE-TEST-`, 정본 `docs/guides/REAL_SERVER_TEST_ACCOUNT.md`)과 휴지통 주문도 그림 기억 표에 줄을 남기고,
 학습 요약과 '사람 기억 따르기'(다른 주문 기억)가 그 줄을 그대로 쓴다. 이번엔 줄을 손으로 지웠지만 다음 운영 점검 때 또 생긴다.
 시험 그림에 사람이 종류를 고르면 실제 주문 그림이 그 이름표를 따를 수도 있다.
 
-**바꿀 것(서버 두 곳, 같은 조건 하나).**
+**바꿀 것(서버 세 곳, 같은 조건 하나).**
 - 조건: 주문이 휴지통이 아니고(`deleted_at` 비어 있음 · `status` ≠ DELETED) 고객 이름이 `CLAUDE-TEST-` 로 시작하지 않는다.
-  두 곳이 같은 조건을 쓰도록 `drawing_wizard_part_memory` 에 함수 하나로 둔다.
+  세 곳이 같은 조건을 쓰도록 `drawing_wizard_part_memory.real_orders` 하나로 둔다(`Order.not_deleted_filter` 재사용).
+- 주간 노트(`foms/services/drawing_agent_notes.py`): 숫자(`label_stats` · `review_stats`)와 물어볼 것(`find_questions`)도
+  같은 조건 — 구현하며 찾은 세 번째 소비처(시험 그림 두 장으로 도면팀에 질문이 갈 수 있었다).
 - 학습 요약(`foms/services/drawing_agent_digest.py`): `memory_page` · `sheets_page` · `summary` 가 이 조건으로 거른다.
 - 사람 기억 따르기(`_HumanIndex.refresh`): 다른 주문 기억으로 읽는 줄도 같은 조건. 휴지통으로 옮긴 주문은 다음 전체 새로 읽기
   (`_FULL_RELOAD_S`) 때 빠진다. 같은 주문 안 '같이 고치기'(spread)와 기억 저장(`save_items`)은 그대로.
