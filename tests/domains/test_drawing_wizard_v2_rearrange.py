@@ -240,16 +240,18 @@ dom['dws-v2-unpin'].click();                   // 고정 풀고 모두 다시
 tick(100);
 out.afterUnpin = Object.keys(V2.plan().g.fixed);
 out.unpinHidden2 = dom['dws-v2-unpin'].hidden;
-// 고른 틀만 있어도 풀기 링크가 보인다
-core.sheet().form.v2_pick = 'band';
+// 고른 틀만 있으면 바닥 링크는 숨고, 고른 틀이 추천과 다르면 틀 고르기에 [추천 틀로 돌아가기](2026-10-27 도면팀 평가)
+const rec = V2.plan().out.rec;
+core.sheet().form.v2_pick = rec === 'band' ? 'column' : 'band';
 V2.refresh(); tick(100);
-out.pickText = dom['dws-v2-unpin'].hidden ? '' : dom['dws-v2-unpin'].textContent;
+out.pickHidden = dom['dws-v2-unpin'].hidden;
+out.back = dom['dws-v2-templates'].textContent;
 """)
     assert "고정된 그림 1장" in out["toast"]
     assert out["pinnedKept"] and out["overlaps"] == []
     assert out["unpinHidden"] is False and "1장" in out["unpinText"]
     assert out["afterUnpin"] == [] and out["unpinHidden2"] is True
-    assert "고른 틀" in out["pickText"]
+    assert out["pickHidden"] is True and "추천 틀로 돌아가기" in out["back"]
 
 
 def test_auto_mode_button_rearranges_stale_sheet_but_opening_does_not():

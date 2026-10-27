@@ -176,7 +176,9 @@
         </div>
 
         {% if wizard_ui == 'v2' %}
-        {# V2: K2 앱바처럼 PNG · 저장만 드러내고 나머지는 ⋯ 메뉴(원래 단추를 눌러 줄 뿐 — 처리·잠금 그대로, v2-chrome.js) #}
+        {# V2: K2 앱바처럼 PNG · 저장만 드러내고 나머지는 ⋯ 메뉴(원래 단추를 눌러 줄 뿐 — 처리·잠금 그대로, v2-chrome.js).
+           [고정 풀고 모두 다시]는 고정 그림이 있을 때만(v2-right.js 가 오른쪽 칸 바닥 단추와 같이 숨기고 보인다 — 1280 밑 창은 오른쪽 칸이 숨는다).
+           [예전 화면]은 늘 보인다 — ⋯ 메뉴 안에만 있어 돌아가는 길을 못 찾았다(도면팀 평가 2026-10-27). #}
         <button type="button" class="dws-btn" data-v2-for="dws-btn-export-png" title="지금 시트를 PNG 로 내려받기">PNG</button>
         <div class="dws-dropdown dws-v2-more">
           <button type="button" class="dws-btn dws-icon-btn" id="dws-v2-more" title="더 보기" aria-label="더 보기" aria-haspopup="true" aria-expanded="false" aria-controls="dws-v2-more-menu">⋯</button>
@@ -185,6 +187,7 @@
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-export-all">일괄 내보내기 (폴더 저장)</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-version-history">버전 이력…</button>
             <div class="dws-menu-sep"></div>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-autofill">자동 채움</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-calc">자재표 계산</button>
             <button type="button" class="dws-menu-item" data-v2-for="dws-btn-help">단축키 도움말</button>
@@ -192,6 +195,7 @@
             <button type="button" class="dws-menu-item" data-dws-ui-switch="v1">예전 화면(V1)으로</button>
           </div>
         </div>
+        <button type="button" class="dws-btn dws-v2-uiback" data-dws-ui-switch="v1" title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>
         {% endif %}
 
         <span class="dws-appbar-sep"></span>
@@ -730,13 +734,13 @@
   <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-pack.js') }}?v=20261026a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261027d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261027e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261026a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-left.js') }}?v=20261026d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261027d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261027d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261027d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261027e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261027e" defer></script>
   {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>

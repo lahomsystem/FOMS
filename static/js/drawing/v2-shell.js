@@ -202,12 +202,12 @@
     });
   }
 
-  function pickTemplate(t) {
+  function pickTemplate(t) {   // '' = 고른 틀만 풀고 추천 틀로([추천 틀로 돌아가기] — 고정 그림은 그대로)
     var sh = core.sheet();
-    if (!sh || (t !== 'band' && t !== 'column')) { return; }
+    if (!sh || (t !== 'band' && t !== 'column' && t !== '')) { return; }
     core.recordUndo();
     sh.form.v2_pick = t;
-    arrange('template', { template: t });
+    arrange(t ? 'template' : 'unpick', { template: t });
   }
 
   function split() {

@@ -1,18 +1,24 @@
 {# 도면 마법사 V2 — 오른쪽 칸(316px) '배치 확인'. v2-right.js 가 채운다.
-   몸통만 굴러가고 [다시 자동 배치] 바닥은 늘 보인다 — 예전엔 칸 맨 아래라 그림이 많으면 내려야 보였다(스테이징 주문 4385, 2026-10-27). #}
+   몸통만 굴러가고 [다시 자동 배치] 바닥은 늘 보인다 — 예전엔 칸 맨 아래라 그림이 많으면 내려야 보였다(스테이징 주문 4385, 2026-10-27).
+   '컴퓨터가 본 것'과 켜고 끄기는 '자세히 ▸'로 접어 둔다(처음엔 접힘 · 이 브라우저에 기억 — 도면팀 평가 2026-10-27). #}
 <aside class="dws-v2-right dws-ui" id="dws-v2-right" aria-label="배치 확인">
   <div class="dws-v2-right-body">
     <h2 class="dws-v2-right-title">배치 확인</h2>
     <div class="dws-v2-summary" id="dws-v2-summary"></div>
     <section class="dws-v2-section">
-      <h3 class="dws-v2-section-title">틀 후보 (둘 다 계산해 봤어요)</h3>
+      <h3 class="dws-v2-section-title">틀 고르기</h3>
       <div class="dws-v2-templates" id="dws-v2-templates"></div>
     </section>
     <section class="dws-v2-section">
-      <h3 class="dws-v2-section-title">컴퓨터가 본 것</h3>
-      <div class="dws-v2-seen" id="dws-v2-seen"></div>
+      <button type="button" class="dws-v2-detail-toggle" id="dws-v2-detail-toggle" aria-expanded="false" aria-controls="dws-v2-detail" title="컴퓨터가 그림을 어떻게 봤는지 · 자동 배치 규칙 켜고 끄기">자세히 ▸</button>
+      <div class="dws-v2-detail" id="dws-v2-detail" hidden>
+        <section class="dws-v2-section">
+          <h3 class="dws-v2-section-title">컴퓨터가 본 것</h3>
+          <div class="dws-v2-seen" id="dws-v2-seen"></div>
+        </section>
+        <section class="dws-v2-section dws-v2-toggles" id="dws-v2-toggles" aria-label="자동 배치 규칙"></section>
+      </div>
     </section>
-    <section class="dws-v2-section dws-v2-toggles" id="dws-v2-toggles" aria-label="자동 배치 규칙"></section>
   </div>
   <div class="dws-v2-right-foot">
     <button type="button" class="dws-v2-relayout" id="dws-v2-relayout" title="지금 그림으로 칸 배치를 다시 계산해 놓아요 · 고정된 그림은 그 자리에 둬요 · 되돌리기 Ctrl+Z">다시 자동 배치</button>
