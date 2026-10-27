@@ -12,9 +12,12 @@
  * - AI 칸 짐작(opts.guess = form.v2_ai): 세부 종류 확신은 낮아도(미분류) 칸 확신(큰 그림 = 정면 + 입체 확률 합,
  *   상세 = 서랍 단면 + 부품 상세 합)이 문턱을 넘은 그림은 그 칸에 놓는다. 이름표는 미분류 그대로 — 사람이 고르기 전까지 '확인'.
  * - 칸 이름(title)은 칸에 든 그림 종류로 짓는다(제품 이름이 아니다).
+ * - 칸 글자(letters): 칸으로 정리한 시트는 종이 위 칸 상자를 왼쪽 위부터 읽는 순서로 A, B, C… — 큰 그림부터 붙였더니
+ *   틀에 따라 상세가 왼쪽에 와서 종이 위 순서가 B → A → D, 그 밑 C 로 뒤섞였다(생산팀이 'B 그림'을 찾기 어렵다, 2026-10-27).
  *
  * window.FomsV2Slots = { group(objects, opts) → g, role(o), noteKind(o), textBox(o), isFixed(o, opts), moved(o),
- *   detectKind(productText), KINDS, letters(g, kitchen), title(key, g, kitchen), parseGuess(text), formatGuess(map, objects) }
+ *   detectKind(productText), KINDS, letters(g, kitchen, laid), slotBox(g, key), readOrder(items), title(key, g, kitchen),
+ *   parseGuess(text), formatGuess(map, objects) }
  *   g = { photo, main, iso, detail, plan, unsorted (그림 객체 배열), bom, notes (글자), stamp (글자|null), free, fixed: {id:true},
  *         labels: { id: 보이는 이름표 }, lay: { id: 칸 · 짝을 정한 이름표(짐작이면 짐작 칸의 이름표) }, guess: { id: {fam, conf} } }
  */
@@ -173,18 +176,52 @@
     return 'closet';
   }
 
-  /** 칸 글자 딱지 — 큰 그림 A, (주방) 입체 B, 상세 · 평면 · 기타 그림은 다음 글자. 그림 없는 칸은 빼고 센다. */
-  function letters(g, kitchen) {
-    var out = {}, next = 0, abc = 'ABCDEFG';
-    ['main'].concat(kitchen ? ['iso'] : [], ['detail', 'plan', 'unsorted']).forEach(function (k) {
-      if (g[k] && g[k].length) { out[k] = abc.charAt(next); next += 1; }
+  /** 칸 상자(스테이지 좌표) — 고정 그림을 뺀 객체들의 테두리(다 고정이면 전부). 종이 위 칸 머리 자리(v2-paper.js)와 같은 셈.
+      고정 그림은 칸 밖에 있을 수 있다 — 넣으면 머리가 다른 칸 위로 길게 뻗었다. 빈 칸은 null. */
+  function slotBox(g, key) {
+    var list = g[key] || [], loose = list.filter(function (o) { return !g.fixed[o.id]; });
+    var use = loose.length ? loose : list, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (!use.length) { return null; }
+    use.forEach(function (o) {
+      var b = o.type === 'text' ? textBox(o) : { x: o.x || 0, y: o.y || 0, w: o.w || 0, h: o.h || 0 };
+      x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h);
     });
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  /** 축(p 'y' · s 'h' = 위아래, p 'x' · s 'w' = 좌우)을 따라 처음 나오는 틈에서 둘로 나눈다 — 틈이 없으면 null. */
+  function cut(items, p, s) {
+    var sorted = items.slice().sort(function (a, b) { return a.box[p] - b.box[p]; }), end = -Infinity;
+    for (var i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i].box[p] >= end) { return [sorted.slice(0, i), sorted.slice(i)]; }
+      end = Math.max(end, sorted[i].box[p] + sorted[i].box[s]);
+    }
+    return null;
+  }
+
+  /** 읽는 순서 — 위아래로 틈이 있으면 위 무리부터, 없으면(위아래가 겹치면 같은 줄) 좌우 틈에서 왼쪽 무리부터 다시 읽는다.
+      한 줄 안 기둥(왼쪽 기둥형의 상세 · 평면)은 그 기둥 안에서 위부터. 못 자르면 위 → 왼쪽 순. items = [{ key, box }] → key 배열 */
+  function readOrder(items) {
+    var parts = items.length > 1 ? (cut(items, 'y', 'h') || cut(items, 'x', 'w')) : null;
+    if (parts) { return readOrder(parts[0]).concat(readOrder(parts[1])); }
+    return items.slice().sort(function (a, b) { return a.box.y - b.box.y || a.box.x - b.box.x; }).map(function (it) { return it.key; });
+  }
+
+  /** 칸 글자 딱지 — 그림 없는 칸은 빼고 센다.
+      정리 전 시트(laid 아님): 큰 그림 A, (주방) 입체 B, 상세 · 평면 · 기타 그림은 다음 글자(예전 그대로).
+      칸으로 정리한 시트(laid): 칸 상자(slotBox — 칸 머리 자리)를 종이 왼쪽 위부터 읽는 순서(readOrder)로 붙인다.
+      기타 그림은 글자를 받지 않는다 — 머리가 화면에만 '종류 확인'(v2-paper.js)이라 전달 도면 글자가 비지 않게. */
+  function letters(g, kitchen, laid) {
+    var out = {}, abc = 'ABCDEFG', keys = ['main'].concat(kitchen ? ['iso'] : [], ['detail', 'plan'], laid ? [] : ['unsorted']);
+    keys = keys.filter(function (k) { return g[k] && g[k].length; });
+    if (laid) { keys = readOrder(keys.map(function (k) { return { key: k, box: slotBox(g, k) }; })); }
+    keys.forEach(function (k, i) { out[k] = abc.charAt(i); });
     return out;
   }
 
   window.FomsV2Slots = {
     group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved, MOVE_TOL: MOVE_TOL,
-    detectKind: detectKind, KINDS: KINDS, letters: letters, slotOf: slotOf, isBom: isBom, title: title,
-    parseGuess: parseGuess, formatGuess: formatGuess, FAM_OF: FAM_OF
+    detectKind: detectKind, KINDS: KINDS, letters: letters, slotBox: slotBox, readOrder: readOrder, slotOf: slotOf, isBom: isBom,
+    title: title, parseGuess: parseGuess, formatGuess: formatGuess, FAM_OF: FAM_OF
   };
 })();

@@ -495,7 +495,7 @@
 .dws-v2-note-site { border-style: dashed; }
 .dws-v2-stamp { position: absolute; box-sizing: border-box; border: 3px solid #d2232a; }
 
-/* ---- 종이 위 배율 표시(화면에만) ------------------------------------------------- */
+/* ---- 종이 위 배율 · 고정 · 문제 표시 · 종류 확인 머리(화면에만) ------------------------ */
 .dws-v2-badges { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
 /* 칸 머리 오른쪽 끝 위에 뜬다(v2-paper.js PILL_UP 18) — 아래 끝이 머리 글 윗선이라 칸 이름을 가리지 않는다 */
 .dws-v2-pill {
@@ -527,6 +527,34 @@
 .dws-v2-pill-orange { background: #ff9f0a; color: #1d1d1f; }
 .dws-v2-pill-green { background: #1a7f37; color: #ffffff; }
 .dws-v2-pill-gray { background: #6e6e73; color: #ffffff; }
+/* 종류 모르는 그림 칸 머리(v2-paper.js) — 전달 도면에 '기타 그림'을 찍지 않고 화면에서만 사람이 종류를 고르게 부른다 */
+.dws-v2-head-check {
+  padding-right: 6px;
+  border-bottom: 2px solid #ff9f0a;
+  background: #fff4e0;
+  color: #1d1d1f;
+  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+}
+.dws-v2-head-check .dws-v2-head-badge { background: #ff9f0a; color: #1d1d1f; }
+/* 문제 표시(자동 배치 모드) — 서로 겹친 그림 · 치수 글자가 8px 밑인 그림: 주황 테두리 + 왼쪽 위 딱지('고정' 표시 아래 줄) */
+.dws-v2-warn {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2.5px solid #ff9f0a;
+  border-radius: 4px;
+}
+.dws-v2-warn-tag {
+  position: absolute;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #ff9f0a;
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
 
 /* ---- 오른쪽 칸 '배치 확인' ----------------------------------------------------- */
 .dws-v2-right-title { margin: 0; font-size: 14px; font-weight: 800; }
