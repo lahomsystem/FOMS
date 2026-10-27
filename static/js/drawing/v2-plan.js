@@ -8,8 +8,13 @@
  *   새로 올린 그림(arr 없음)은 아무것도 데려가지 않는다 — 올린 자리가 우연히 메모 위일 수 있다.
  * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류,
  *   v2_ai = AI 칸 짐작(v2-slots parseGuess).
+ * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠긴 자재표 · 특이 · 강조.
+ *   틀 계산이 그 자리를 비켜 간다(v2-layout). 잠기지 않은 그 밖 글자 · 도형은 넣지 않는다 — 그림을 따라가는 치수 메모가
+ *   장애물이 되면 칸이 잘게 쪼개진다.
+ * - diff: 붙이기 전에 바뀌는 것을 센다 — 같으면 v2-shell 이 되돌리기 사본을 남기지 않고 '이미 칸에 맞게' 라고 말한다.
  *
- * window.FomsV2Plan = { build(sheet, ctx) → plan, apply(sheet, res, opts), splitGroups(plan), nowPct(plan) }
+ * window.FomsV2Plan = { build(sheet, ctx) → plan, apply(sheet, res, opts), diff(sheet, res, template) → {n, any},
+ *   splitGroups(plan), nowPct(plan, sheet), afterPct(plan, pct) }
  *   ctx: { items(imgs) → [{id,nw,nh,tx,order,label}], baseline(imgs) → {id:{w,h}}, productText, settings }
  */
 (function () {
@@ -60,7 +65,9 @@
       bom: g.bom.filter(function (o) { return !o.locked; }).map(box),
       notes: g.notes.filter(function (o) { return !o.locked; }).map(box),
       stamp: g.stamp && !g.stamp.locked ? box(g.stamp) : null,
-      base: imgs.length && ctx.baseline ? ctx.baseline(imgs) : {}
+      base: imgs.length && ctx.baseline ? ctx.baseline(imgs) : {},
+      obstacles: imgs.filter(function (o) { return g.fixed[o.id]; }).map(stayBox)
+        .concat(g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).filter(function (o) { return o.locked; }).map(stayBox))
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
     var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, prefer: pick });
@@ -81,17 +88,24 @@
     return out;
   }
 
+  /** 객체 상자(스테이지 좌표) — 글자 = textBox, 펜 · 선 = 점들, 그림 · 네모 = (x, y)를 축으로 돌린 모양을 감싼 상자(Konva offset 0). */
+  function stayBox(o) {
+    if (o.type === 'text') { return S().textBox(o); }
+    var xs = [], ys = [], i;
+    if (o.points && o.points.length >= 2) {
+      for (i = 0; i + 1 < o.points.length; i += 2) { xs.push(o.points[i]); ys.push(o.points[i + 1]); }
+    } else {
+      var r = (o.type === 'ellipse' ? 0 : (o.rotation || 0)) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), w = o.w || 0, h = o.h || 0;
+      xs = [0, w * c, -h * s, w * c - h * s].map(function (v) { return (o.x || 0) + v; });
+      ys = [0, w * s, h * c, w * s + h * c].map(function (v) { return (o.y || 0) + v; });
+    }
+    var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+    return { x: x0, y: y0, w: Math.max.apply(null, xs) - x0, h: Math.max.apply(null, ys) - y0 };
+  }
+
   function inside(px, py, r) { return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h; }
 
-  function freeCenter(o) {
-    if (o.points && o.points.length >= 2) {
-      var xs = [], ys = [];
-      for (var i = 0; i + 1 < o.points.length; i += 2) { xs.push(o.points[i]); ys.push(o.points[i + 1]); }
-      return { x: (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, y: (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2 };
-    }
-    if (o.type === 'text') { var b = S().textBox(o); return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; }
-    return { x: (o.x || 0) + (o.w || 0) / 2, y: (o.y || 0) + (o.h || 0) / 2 };
-  }
+  function freeCenter(o) { var b = stayBox(o); return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; }
 
   function follow(o, from, to) {
     var sx = from.w > 0 ? to.w / from.w : 1, sy = from.h > 0 ? to.h / from.h : 1;
@@ -147,6 +161,30 @@
     return n;
   }
 
+  /** 틀(res)을 붙이면 바뀌는 것 — { n: 자리 · 크기가 바뀌는 그림 수, any: 무엇이든 바뀌나(놓인 틀 이름 포함) }. */
+  function diff(sheet, res, template) {
+    var byId = {}, n = 0, any = ((sheet && sheet.form) || {}).v2_layout !== (template || (res && res.template));
+    ((sheet && sheet.objects) || []).forEach(function (o) { byId[o.id] = o; });
+    ((res && res.moves) || []).forEach(function (m) {
+      var o = byId[m.id], img = !!o && o.type === 'image';
+      if (!o || (o.x === m.x && o.y === m.y && (!img || (o.w === m.w && o.h === m.h)))) { return; }
+      any = true;
+      if (img) { n += 1; }
+    });
+    return { n: n, any: any };
+  }
+
+  /** 지금 틀로 다시 놓으면 가장 작은 그림 % — 고정 그림은 지금 크기 그대로 친다(사진 · 기타 그림은 뺀다). pct = nowPct 결과. */
+  function afterPct(plan, pct) {
+    var g = plan && plan.g, res = plan && plan.out[plan.out.best], low = res ? res.minPct : null;
+    if (!res) { return null; }
+    Object.keys(g.fixed).forEach(function (id) {
+      var p = (pct || {})[id], skip = g.labels[id] === '사진' || g.unsorted.some(function (o) { return o.id === id; });
+      if (p > 0 && !skip && (low == null || p < low)) { low = p; }
+    });
+    return low;
+  }
+
   /** 시트 2장으로 나눌 그림 묶음 — 큰 그림 짝 · 상세 · 평면을 원본 넓이로 반씩(짝은 가르지 않는다).
       [새 시트로 옮길 id 배열] 하나를 돌려준다(못 나누면 null). 사진 · 자재표 · 특이 사항은 이 시트에 남는다. */
   function splitGroups(plan) {
@@ -164,5 +202,6 @@
     return moved.length ? [moved] : null;
   }
 
-  window.FomsV2Plan = { build: build, apply: apply, splitGroups: splitGroups, nowPct: nowPct, settingsOf: settingsOf };
+  window.FomsV2Plan = { build: build, apply: apply, diff: diff, splitGroups: splitGroups, nowPct: nowPct, afterPct: afterPct,
+    settingsOf: settingsOf, stayBox: stayBox };
 })();

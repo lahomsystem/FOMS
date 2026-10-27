@@ -4,16 +4,21 @@
  * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §3 (화면 시안 K2-WizardAuto)
  * - 칸 머리는 #dws-v2-slots(스테이지 안 DOM)에 그려 PNG 에 찍힌다. 자리는 칸 그림 · 글자의 실제 상자(묶음 테두리) 바로 위 —
  *   손으로 옮겨도 머리가 따라간다. 칸으로 정리한 시트(폼 v2_layout)에서만 그린다.
- * - 배율 표시(108% 등)는 #dws-v2-badges(.dws-ui)라 PNG 에 안 찍힌다.
+ *   고정 그림(손으로 옮김 · 잠금 · 돌림)은 칸 밖에 있을 수 있어 머리 자리에서 뺀다(칸 그림이 다 고정이면 그대로) —
+ *   빼지 않았더니 머리가 다른 칸 위로 길게 뻗었다.
+ * - 배율 표시(108% 등)는 #dws-v2-badges(.dws-ui)라 PNG 에 안 찍힌다. 머리 오른쪽 끝 위에 띄운다(아래 끝 = 머리 글 윗선) —
+ *   머리 가운데에 걸쳤더니 좁은 칸에서 글을 가렸다('B 서랍 단면 · 부[32%]세', 스테이징 주문 4385).
+ *   고정 그림 왼쪽 위에는 '고정'(화면에만, 자동 배치 모드) — 다시 배치해도 그대로인 그림.
  *
- * window.FomsV2Paper = { render(view), HEAD }
- *   view: { sheet, plan, pct: {id: 비율}, minId, autoPhoto: {id:true}, sheets: 시트 수, layer, badges, pageTotal }
+ * window.FomsV2Paper = { render(view), HEAD, bbox(list) }
+ *   view: { sheet, plan, pct: {id: 비율}, minId, autoPhoto: {id:true}, sheets: 시트 수, mode, layer, badges, pageTotal }
  */
 (function () {
   'use strict';
   if (window.FomsV2Paper) { return; }
 
   var HEAD = 24, HEAD_MIN_W = 132, NOTES_HEAD_W = 300, NOTE_PAD_X = 7, NOTE_PAD_Y = 3, STAMP_PAD = 10, COLGAP = 18;
+  var PILL_UP = 18;   // 배율 표시 위끝 = 머리 위 18px(높이 22 — wizard-v2.css .dws-v2-pill): 머리 글 윗선까지만 내려온다
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -99,12 +104,33 @@
     layer.appendChild(place(el('div', 'dws-v2-stamp'), b.x - STAMP_PAD, b.y - STAMP_PAD, b.w + 2 * STAMP_PAD, b.h + 2 * STAMP_PAD));
   }
 
-  /** 배율 표시 — 칸 머리 오른쪽 끝(화면에만). */
+  /** 배율 표시 — 칸 머리 오른쪽 끝 위(화면에만). */
   function drawPill(badges, head, text, tone) {
     var pill = el('span', 'dws-v2-pill dws-v2-pill-' + tone, text);
     pill.style.left = Math.round(head.x + head.w) + 'px';
-    pill.style.top = Math.round(head.y - 14) + 'px';
+    pill.style.top = Math.round(head.y - PILL_UP) + 'px';
     badges.appendChild(pill);
+  }
+
+  /** 칸 배율 표시 { text, tone } — 없으면 null. */
+  function pillOf(key, list, view) {
+    if (key === 'bom') { return { text: '직접 입력', tone: 'gray' }; }
+    if (key === 'notes') { return null; }
+    if (key === 'photo') {
+      var auto = list.some(function (o) { return view.autoPhoto && view.autoPhoto[o.id]; });
+      return auto ? { text: '사진 자동', tone: 'green' } : null;
+    }
+    var pct = view.pct || {}, ps = list.map(function (o) { return pct[o.id]; }).filter(function (v) { return v > 0; });
+    if (!ps.length) { return null; }
+    var hasMin = list.some(function (o) { return o.id === view.minId; });
+    return { text: pctText(Math.min.apply(null, ps)), tone: hasMin ? 'orange' : (key === 'main' || key === 'iso' ? 'blue' : 'gray') };
+  }
+
+  /** 고정 그림 표시 — 그림 왼쪽 위 '고정'(화면에만). */
+  function drawPins(badges, sheet, g) {
+    (sheet.objects || []).forEach(function (o) {
+      if (o.type === 'image' && g.fixed[o.id]) { badges.appendChild(place(el('span', 'dws-v2-pin', '고정'), (o.x || 0) + 4, (o.y || 0) + 4)); }
+    });
   }
 
   function render(view) {
@@ -119,25 +145,15 @@
     if (g.stamp) { drawStamp(layer, g.stamp); }
     if (!plan.laid) { return; }   // 칸으로 정리하기 전에는 머리를 그리지 않는다(예전 화면에서 놓은 그대로)
     if (g.bom.length > 1) { drawBomLines(layer, g.bom); }
-    var pct = view.pct || {}, minId = view.minId;
     ['photo', 'bom', 'notes', 'main', 'iso', 'detail', 'plan', 'unsorted'].forEach(function (key) {
       var list = key === 'bom' ? g.bom : (key === 'notes' ? g.notes : (g[key] || []));
-      var b = bbox(list);
+      var loose = list.filter(function (o) { return !g.fixed[o.id]; });
+      var b = bbox(loose.length ? loose : list), pill = badges ? pillOf(key, list, view) : null;
       if (!b) { return; }
       var head = drawHead(layer, key, b, view);
-      if (!badges) { return; }
-      if (key === 'bom') { drawPill(badges, head, '직접 입력', 'gray'); return; }
-      if (key === 'notes') { return; }
-      if (key === 'photo') {
-        if (list.some(function (o) { return view.autoPhoto && view.autoPhoto[o.id]; })) { drawPill(badges, head, '사진 자동', 'green'); }
-        return;
-      }
-      var ps = list.map(function (o) { return pct[o.id]; }).filter(function (v) { return v > 0; });
-      if (!ps.length) { return; }
-      var low = Math.min.apply(null, ps);
-      var hasMin = list.some(function (o) { return o.id === minId; });
-      drawPill(badges, head, pctText(low), hasMin ? 'orange' : (key === 'main' || key === 'iso' ? 'blue' : 'gray'));
+      if (pill) { drawPill(badges, head, pill.text, pill.tone); }
     });
+    if (badges && view.mode === 'auto') { drawPins(badges, sheet, g); }
   }
 
   window.FomsV2Paper = { render: render, HEAD: HEAD, bbox: bbox };

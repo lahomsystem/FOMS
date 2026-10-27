@@ -3,7 +3,11 @@
  *
  * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §1 · §4 (화면 시안 K2 오른쪽 316px)
  * - %는 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이). 칸으로 정리하기 전에는 '정리하면' 값을 보인다.
+ *   지금 종이가 낡아(지운 뒤 · 손댄 뒤) 다시 놓으면 크게 커지면 '다시 배치하면 32% → 84%'와 [다시 자동 배치]를 먼저 보인다 —
+ *   예전엔 낡은 32%만 보고 [시트 2장으로 나누기]를 권했다(스테이징 주문 4385, 2026-10-27).
  * - '컴퓨터가 본 것'은 아는 것만 말한다: AI 확신 · 사람이 고름 · 크기가 같아 짝 · 짝끼리 빗금 많고 적음(내부 판정 근거).
+ * - [다시 자동 배치]는 칸 바닥(늘 보임)과 앱바(#dws-v2-rearrange — 오른쪽 칸이 숨는 좁은 창에서도) 두 곳. [고정 풀고 모두 다시]는
+ *   고정 그림이나 고른 틀이 있으면 보인다(장수와 함께). '추천'은 점수가 높은 틀(out.rec — 고른 틀과 다를 수 있다).
  *
  * window.FomsV2Right = { init(api), render(view) }
  */
@@ -33,10 +37,13 @@
     els.seen = $('dws-v2-seen');
     els.toggles = $('dws-v2-toggles');
     els.relayout = $('dws-v2-relayout');
+    els.rearrange = $('dws-v2-rearrange');
     els.unpin = $('dws-v2-unpin');
-    if (els.relayout) { els.relayout.addEventListener('click', function () { api.arrange('button', { undo: true, photo: true }); }); }
+    [els.relayout, els.rearrange].forEach(function (b) { if (b) { b.addEventListener('click', relayout); } });
     if (els.unpin) { els.unpin.addEventListener('click', function () { api.unpinAll(); }); }
   }
+
+  function relayout() { api.arrange('button', { undo: true, photo: true }); }
 
   function labelOf(view, id) {
     var g = view.plan.g;
@@ -61,14 +68,15 @@
     box.appendChild(top);
     var row = el('div', 'dws-v2-sum-row');
     row.appendChild(el('span', 'dws-v2-sum-big', pct(low)));
+    var after = now ? window.FomsV2Plan.afterPct(plan, view.pct) : null, stale = after != null && low != null && after > low + 0.05;
     var crowded = (low != null && low < window.FomsV2Layout.CROWD_PCT) || (res && res.minText != null && res.minText < window.FomsV2Layout.MIN_TEXT);
-    row.appendChild(el('span', 'dws-v2-sum-state' + (crowded ? ' dws-v2-sum-warn' : ''),
-      crowded ? '그림이 작아요 · 2장으로 나누기를 권해요' : '한 장에 다 들어가요' + (main != null ? ' · 큰 그림 ' + pct(main) : '')));
+    row.appendChild(el('span', 'dws-v2-sum-state' + (crowded && !stale ? ' dws-v2-sum-warn' : ''), stale ? '다시 배치하면 ' + pct(low) + ' → ' + pct(after)
+      : (crowded ? '그림이 작아요 · 2장으로 나누기를 권해요' : '한 장에 다 들어가요' + (main != null ? ' · 큰 그림 ' + pct(main) : ''))));
     box.appendChild(row);
-    if (crowded && api.core.canSave()) {
-      var b = el('button', 'dws-v2-split', '시트 2장으로 나누기');
+    if ((stale || crowded) && api.core.canSave()) {   // 낡은 배치면 나누기보다 다시 놓기가 먼저
+      var b = el('button', 'dws-v2-split', stale ? '다시 자동 배치' : '시트 2장으로 나누기');
       b.type = 'button';
-      b.addEventListener('click', function () { api.split(); });
+      b.addEventListener('click', stale ? relayout : function () { api.split(); });
       box.appendChild(b);
     }
     var note = el('span', 'dws-v2-sum-note', res && res.pctBase === 'natural' ? '% = 원본 그림 대비' : '% = 지금 양식(예전 화면 자동 배치) 대비');
@@ -111,7 +119,7 @@
       txt.appendChild(el('span', 'dws-v2-tpl-name', t[1]));
       var dp = detailPct(res, view);
       txt.appendChild(el('span', 'dws-v2-tpl-meta', res ? '큰 그림 ' + pct(res.mainPct) + (dp != null ? ' · 상세 ' + pct(dp) : '') : '이 그림으로는 못 놓아요'));
-      var state = chosen ? '선택됨' + (plan.pick === t[0] ? ' (고름)' : '') : (plan.out.best === t[0] && res ? '추천' : '');
+      var state = chosen ? '선택됨' + (plan.pick === t[0] ? ' (고름)' : '') : (plan.out.rec === t[0] && res ? '추천' : '');
       if (state) { txt.appendChild(el('span', 'dws-v2-tpl-state', state)); }
       b.appendChild(txt);
       b.addEventListener('click', function () { api.pickTemplate(t[0]); });
@@ -187,10 +195,15 @@
 
   function render(view) {
     if (!els.summary) { return; }
-    var has = !!(view.sheet && view.plan);
+    var has = !!(view.sheet && view.plan), can = api.core.canSave();
+    var pics = has && (view.sheet.objects || []).some(function (o) { return o.type === 'image'; });
     [els.summary, els.templates, els.seen].forEach(function (n) { if (n && !has) { n.textContent = ''; } });
-    if (els.relayout) { els.relayout.disabled = !has || !api.core.canSave(); }
-    if (els.unpin) { els.unpin.hidden = !has || !Object.keys(view.plan.g.fixed).length || !api.core.canSave(); }
+    [els.relayout, els.rearrange].forEach(function (b) { if (b) { b.disabled = !pics || !can; } });
+    if (els.unpin) {   // 고정 그림 · 고른 틀이 있을 때만 — 다시 배치해도 그대로인 까닭을 풀어 준다
+      var fixed = has ? Object.keys(view.plan.g.fixed).length : 0, pick = has && view.plan.pick;
+      els.unpin.hidden = !has || (!fixed && !pick) || !can;
+      els.unpin.textContent = fixed ? '고정 풀고 모두 다시 (고정 ' + fixed + '장)' : '고른 틀 풀고 추천 틀로 다시';
+    }
     renderToggles(view);
     if (!has) { return; }
     renderSummary(view);

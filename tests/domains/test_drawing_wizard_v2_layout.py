@@ -88,6 +88,17 @@ out.off = Object.keys(S.group([moved, kept], { lockMoved: false }).fixed);
     assert out["off"] == []
 
 
+def test_click_jitter_does_not_pin_but_real_drag_does():
+    """Konva 는 3px 부터 끌기로 친다 — 1px 로 재던 때는 그림을 누르다 손이 조금 밀려도 고정이 되어 다시 배치가 건너뛰었다."""
+    out = _run(r"""
+const mk = (id, dx) => img(id, '정면·내부', 100 + dx, 100, 300, 200, { part: { label: '정면·내부', src: 'ai', arr: [100, 100, 300, 200] } });
+const g = S.group([mk('j3', 3), mk('j6', 6), mk('m7', 7), mk('m40', 40)], {});
+out.fixed = Object.keys(g.fixed).sort();
+out.tol = S.MOVE_TOL;
+""")
+    assert out["tol"] == 6 and out["fixed"] == ["m40", "m7"]
+
+
 INPUT = r"""
 const input = {
   base: { in1: { w: 480, h: 300 }, door1: { w: 430, h: 390 }, dr1: { w: 230, h: 170 } },
@@ -263,3 +274,171 @@ out.capLen = S.formatGuess(many, manyObjs).length;
     assert out["off"] == "정면·도어"                                   # 미분류 끄기 = AI 첫 짐작 그대로
     assert out["fmt"] == "cc=f68 w1=f76 dd=d55 me=f90"                 # 시트에 없는 그림은 뺀다
     assert 0 < out["capLen"] <= 500                                    # 폼 한 칸 한도
+
+
+# ---- 다시 배치 · 장애물 (스테이징 주문 4385, 2026-10-27) ------------------------------------------------
+# 고정 그림(손으로 옮김 · 잠금 · 돌림 · 사본)을 배치 입력에서 빼기만 하고 그 자리를 비우지 않아, 다시 놓은 그림이 그 위에 겹쳤다.
+ARRANGE = r"""
+const ctxOf = settings => ({ items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, tx: 0, order: i,
+  label: (o.part && o.part.label) || '미분류' })), baseline: () => ({}), productText: '몰딩 화장대 여닫이', settings: settings || {} });
+function arrange(sheet, settings) {   // v2-shell.js arrange 와 같은 길(코어 부수 효과 빼고)
+  const plan = P.build(sheet, ctxOf(settings));
+  let key = plan.pick || plan.out.best, res = key ? plan.out[key] : null;
+  if (!res && key !== plan.out.best) { key = plan.out.best; res = key ? plan.out[key] : null; }
+  if (!res) { return { ok: false, plan }; }
+  P.apply(sheet, res, { template: key });
+  return { ok: true, plan, res, key };
+}
+function box(o) {   // 돌린 그림을 감싼 상자 — Konva offset 0 이라 (x, y)가 축
+  const r = (o.rotation || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  const xs = [0, o.w * c, -o.h * s, o.w * c - o.h * s].map(v => o.x + v), ys = [0, o.w * s, o.h * c, o.w * s + o.h * c].map(v => o.y + v);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  return { x: x0, y: y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 };
+}
+const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+function overlaps(sheet) {
+  const b = sheet.objects.filter(o => o.type === 'image').map(o => Object.assign(box(o), { id: o.id })), n = [];
+  for (let i = 0; i < b.length; i++) { for (let j = i + 1; j < b.length; j++) { if (hit(b[i], b[j])) { n.push(b[i].id + '/' + b[j].id); } } }
+  return n;
+}
+function upload(id, label, nw, nh, k, part) {   // wizard.js placeImageFromKey: 폭 900 까지 · 가운데에서 24px 씩 어긋나게
+  const w = Math.min(900, nw), h = Math.round(w * nh / nw);
+  return img(id, label, Math.round((1478 - w) / 2) + 24 * k, Math.round(70 + (730 - h) / 2) + 24 * k, w, h,
+    Object.assign({ natural_w: nw, natural_h: nh }, part ? { part } : {}));
+}
+function sheet4385() {
+  const u = (ai, conf) => ({ label: '미분류', src: 'ai', ai, conf });
+  return { id: 's1', form: { v2_ai: 'cc=f68 w1=f76', v2_pick: 'column' }, objects: [
+    upload('c1', '입체·내부', 1700, 1200, 0), upload('cc', null, 1500, 1100, 1, u('정면·도어', 0.36)),
+    upload('w1', null, 1400, 1000, 2, u('입체·내부', 0.36)), upload('d1', '서랍 단면', 500, 400, 3),
+    upload('d2', '서랍 단면', 450, 380, 4), upload('d3', '부품 상세', 400, 240, 5), upload('t1', '평면·상판', 1300, 1000, 6),
+    upload('xx', null, 600, 1400, 7, u('부품 상세', 0.2))] };
+}
+const find = (sh, id) => sh.objects.find(o => o.id === id);
+const rect = o => [o.x, o.y, o.w, o.h, o.rotation || 0];
+"""
+
+
+def test_pinned_pictures_are_obstacles_when_rearranging():
+    out = _run(ARRANGE + r"""
+const laid = sheet4385();
+out.first = arrange(laid).ok && overlaps(laid).length === 0;
+const cases = {
+  drag: sh => { const o = find(sh, 'd1'); o.x += 40; o.y += 10; sh.objects = sh.objects.filter(x => x.id !== 'c1'); return 'd1'; },
+  resize: sh => { const o = find(sh, 't1'); o.w = Math.round(o.w * 1.6); o.h = Math.round(o.h * 1.6); return 't1'; },
+  lock: sh => { find(sh, 'c1').locked = true; sh.objects.push(upload('n1', '정면·내부', 1200, 900, 0)); return 'c1'; },
+  rotate: sh => { find(sh, 'w1').rotation = 90; return 'w1'; },
+  copy: sh => { const c = JSON.parse(JSON.stringify(find(sh, 'd2'))); c.id = 'cp'; c.x += 10; c.y += 10; sh.objects.push(c); return 'cp'; },
+  trim: sh => { const o = find(sh, 'c1'); o.natural_h = 900; o.h = Math.round(o.w * 900 / o.natural_w); sh.objects.push(upload('n2', '서랍 단면', 520, 400, 0)); return 'c1'; }
+};
+out.cases = {};
+Object.keys(cases).forEach(name => {
+  const sh = JSON.parse(JSON.stringify(laid)), pin = cases[name](sh), before = rect(find(sh, pin));
+  const r = arrange(sh);
+  out.cases[name] = { ok: r.ok, kept: JSON.stringify(rect(find(sh, pin))) === JSON.stringify(before), overlaps: overlaps(sh),
+    obstacles: (r.plan.input.obstacles || []).length };
+});
+""")
+    assert out["first"]
+    for name, case in out["cases"].items():
+        assert case["ok"] and case["overlaps"] == [], (name, case)      # 예전: 여섯 경우 모두 고정 그림 위에 겹쳤다
+        assert case["kept"] and case["obstacles"] >= 1, (name, case)    # 고정 그림은 그대로 · 장애물로 들어간다
+
+
+def test_locked_bom_and_stamp_texts_are_obstacles():
+    out = _run(ARRANGE + r"""
+const sh = { id: 's', form: {}, objects: [
+  img('a', '정면·내부', 300, 300, 600, 400, { natural_w: 1200, natural_h: 800 }),
+  img('b', '서랍 단면', 300, 300, 300, 240, { natural_w: 500, natural_h: 400 }),
+  img('p', '평면·상판', 300, 300, 400, 300, { natural_w: 1300, natural_h: 1000 }),
+  Object.assign(txt('b1', '[SR]\n60*2440=2\n60*2440=2\n60*2440=2', 60, 60, 120), { locked: true }),
+  Object.assign(txt('st-1', '비규격', 700, 400, 80, 24), { locked: true })] };
+const r = arrange(sh);
+out.ok = r.ok;
+out.hits = [];
+sh.objects.filter(o => o.type === 'image').forEach(i => ['b1', 'st-1'].forEach(id => { if (hit(i, S.textBox(find(sh, id)))) { out.hits.push(i.id + '/' + id); } }));
+out.textsKept = [find(sh, 'b1').x, find(sh, 'b1').y, find(sh, 'st-1').x, find(sh, 'st-1').y];
+""")
+    assert out["ok"] and out["hits"] == []
+    assert out["textsKept"] == [60, 60, 700, 400]     # 잠긴 글자는 그 자리 그대로
+
+
+def test_compute_without_obstacles_is_unchanged_and_rec_is_best_score():
+    out = _run(INPUT + r"""
+const a = L.compute(input, {}), b = L.compute(Object.assign({}, input, { obstacles: [] }), {});
+out.same = JSON.stringify(a) === JSON.stringify(b);
+out.rec = a.rec;
+out.recWant = a.column.score > a.band.score + 0.005 ? 'column' : 'band';
+const other = out.recWant === 'band' ? 'column' : 'band', picked = L.compute(input, { prefer: other });
+out.picked = [picked.best, picked.rec];
+out.other = other;
+""")
+    assert out["same"]
+    assert out["rec"] == out["recWant"]
+    assert out["picked"] == [out["other"], out["recWant"]]   # 고른 틀을 붙여도 '추천'은 점수가 높은 틀
+
+
+def test_seeded_pin_then_delete_or_add_never_overlaps():
+    out = _run(ARRANGE + r"""
+let seed = 4242;
+const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+const ri = (a, b) => Math.floor(a + rnd() * (b - a + 1));
+const LABELS = ['정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', null];
+let uid = 0;
+const pic = () => upload('o' + (uid++), LABELS[ri(0, LABELS.length - 1)], ri(250, 2000), ri(200, 1500), 0);
+out.runs = 0; out.overlapRuns = 0; out.failed = 0;
+for (let n = 0; n < 60; n++) {
+  const sh = { id: 's', form: rnd() < 0.3 ? { v2_pick: rnd() < 0.5 ? 'band' : 'column' } : {}, objects: Array.from({ length: ri(3, 9) }, pic) };
+  if (!arrange(sh).ok) { continue; }
+  const imgs = sh.objects.filter(o => o.type === 'image'), t = imgs[ri(0, imgs.length - 1)], act = ri(0, 4);
+  if (act === 0) { t.x += ri(3, 300) * (rnd() < 0.5 ? 1 : -1); t.y += ri(3, 200) * (rnd() < 0.5 ? 1 : -1); }
+  if (act === 1) { const k = 0.6 + rnd() * 1.2; t.w = Math.round(t.w * k); t.h = Math.round(t.h * k); }
+  if (act === 2) { t.locked = true; }
+  if (act === 3) { t.rotation = 90; }
+  if (act === 4) { const c = JSON.parse(JSON.stringify(t)); c.id = 'o' + (uid++); c.x += 10; c.y += 10; sh.objects.push(c); }
+  if (rnd() < 0.5 && imgs.length > 2) { const d = imgs.find(o => o !== t); sh.objects = sh.objects.filter(o => o !== d); } else { sh.objects.push(pic()); }
+  const r = arrange(sh);
+  out.runs++;
+  if (!r.ok) { out.failed++; continue; }
+  if (overlaps(sh).length) { out.overlapRuns++; }
+}
+""")
+    assert out["runs"] >= 50
+    assert out["overlapRuns"] == 0 and out["failed"] == 0      # 예전(고친 앞): 겹친 다시 배치가 대부분이었다
+
+
+def test_slot_heads_keep_minimum_width_so_neighbours_do_not_collide():
+    out = _run(r"""
+const units = [{ slot: 'main', members: [{ id: 'm1', nw: 1600, nh: 1100 }] }, { slot: 'main', members: [{ id: 'm2', nw: 1400, nh: 1000 }] }];
+const sets = [
+  { photo: [{ id: 'ph', nw: 900, nh: 1200 }], detail: [{ id: 'd1', nw: 300, nh: 500 }], plan: [{ id: 't1', nw: 400, nh: 900 }] },
+  { photo: [{ id: 'ph', nw: 600, nh: 1400 }], detail: [{ id: 'd1', nw: 500, nh: 400 }, { id: 'd2', nw: 260, nh: 600 }], plan: [] },
+  { photo: [], detail: [{ id: 'd1', nw: 200, nh: 700 }], plan: [{ id: 't1', nw: 1300, nh: 1000 }] }];
+const H = 132, row = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + 24 && b.y < a.y + 24;
+out.min = L.HEAD_MIN_W;
+out.collide = [];
+sets.forEach((s, si) => {
+  ['band', 'column'].forEach(t => {
+    const r = L.compute(Object.assign({ units, unsorted: [], bom: [{ id: 'b1', w: 70, h: 125 }], notes: [{ id: 'n-1', w: 110, h: 21 }], stamp: null }, s), { prefer: t })[t];
+    if (!r) { return; }
+    const heads = r.slots.map(x => ({ key: x.key, x: x.x, y: x.y, w: Math.max(x.w, x.key === 'notes' ? 300 : H) }));   // v2-paper 머리 폭
+    for (let i = 0; i < heads.length; i++) { for (let j = i + 1; j < heads.length; j++) { if (row(heads[i], heads[j])) { out.collide.push(si + t + ':' + heads[i].key + '/' + heads[j].key); } } }
+  });
+});
+""")
+    assert out["min"] == 132
+    assert out["collide"] == []      # 예전: 좁은 칸 머리(132px)가 옆 칸 머리 위로 뻗었다
+
+
+def test_plan_diff_counts_changed_pictures_only():
+    out = _run(ARRANGE + r"""
+const sh = sheet4385(), r = arrange(sh);
+out.after = P.diff(sh, r.res, r.key);
+find(sh, 'd1').x += 30;
+out.moved = P.diff(sh, r.res, r.key);
+find(sh, 'd1').x -= 30;
+out.other = P.diff(sh, r.res, r.key === 'band' ? 'column' : 'band').any;
+""")
+    assert out["after"] == {"n": 0, "any": False}     # 붙인 그대로면 바뀐 것 없음 — 되돌리기 사본을 남기지 않는다
+    assert out["moved"] == {"n": 1, "any": True}
+    assert out["other"] is True                       # 놓인 틀 이름이 바뀌어도 바뀐 것
