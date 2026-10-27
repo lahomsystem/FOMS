@@ -75,8 +75,10 @@
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
     var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, prefer: pick });
-    return { g: g, kind: kind, kindAuto: kindAuto, kitchen: kitchen, letters: S().letters(g, kitchen), input: input,
-      out: out, base: input.base, settings: set, laid: form.v2_layout === 'band' || form.v2_layout === 'column',
+    var laid = form.v2_layout === 'band' || form.v2_layout === 'column';
+    // 칸 글자 = 정리한 시트는 종이 위 읽는 순서(v2-slots letters) — 종이 머리 · 왼쪽 카드가 같은 plan 에서 읽는다(그리는 순서와 무관)
+    return { g: g, kind: kind, kindAuto: kindAuto, kitchen: kitchen, letters: S().letters(g, kitchen, laid), input: input,
+      out: out, base: input.base, settings: set, laid: laid,
       template: form.v2_layout || '', pick: pick, items: byId, stay: stay.length };
   }
 

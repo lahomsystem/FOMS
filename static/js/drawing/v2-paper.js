@@ -6,8 +6,8 @@
  *   손으로 옮겨도 머리가 따라간다. 칸으로 정리한 시트(폼 v2_layout)에서만 그린다.
  *   고정 그림(손으로 옮김 · 잠금 · 돌림)은 칸 밖에 있을 수 있어 머리 자리에서 뺀다(칸 그림이 다 고정이면 그대로 — v2-slots slotBox) —
  *   빼지 않았더니 머리가 다른 칸 위로 길게 뻗었다.
- * - 칸 글자는 종이 왼쪽 위부터 읽는 순서(v2-slots letters). 그릴 때 plan.letters 를 그 글자로 바꿔 둔다 — 왼쪽 카드(v2-left.js)는
- *   v2-shell refreshNow 에서 종이 다음에 그려 같은 글자를 쓴다. 정리 전 시트는 v2-plan 이 붙인 예전 순서 그대로.
+ * - 칸 글자는 종이 왼쪽 위부터 읽는 순서(v2-slots letters — v2-plan build 가 plan.letters 로 붙인다). 왼쪽 카드(v2-left.js)도
+ *   같은 plan.letters 를 읽는다. 정리 전 시트는 예전 순서 그대로.
  * - 종류 모르는 그림 칸 머리는 화면에만(#dws-v2-badges) 주황 '? 종류 확인 N장' — 예전엔 'D 기타 그림'이 전달 도면에 찍혔다.
  *   큰 그림 칸 곁글은 이름을 붙인다('현장규격 1500 · 색상 화이트') — '1500'만 있어 무슨 숫자인지 몰랐다.
  * - 배율 표시(108% 등)는 #dws-v2-badges(.dws-ui)라 PNG 에 안 찍힌다. 머리 오른쪽 끝 위에 띄운다(아래 끝 = 머리 글 윗선) —
@@ -185,7 +185,6 @@
     if (g.notes.length) { drawNotes(layer, g.notes); }
     if (g.stamp) { drawStamp(layer, g.stamp); }
     if (!plan.laid) { return; }   // 칸으로 정리하기 전에는 머리를 그리지 않는다(예전 화면에서 놓은 그대로)
-    plan.letters = S().letters(g, plan.kitchen, true);   // 종이 위 읽는 순서 — 왼쪽 카드도 이 글자(머리 주석)
     if (g.bom.length > 1) { drawBomLines(layer, g.bom); }
     ['photo', 'bom', 'notes', 'main', 'iso', 'detail', 'plan', 'unsorted'].forEach(function (key) {
       var b = S().slotBox(g, key), into = key === 'unsorted' ? badges : layer;   // 종류 모르는 그림 머리는 화면에만
