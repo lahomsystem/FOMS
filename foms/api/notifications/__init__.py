@@ -186,6 +186,15 @@ def _resolve_notification_deep_link(
             "deep_link_url": shipment_change_deep_link(order_structured_data),
         }
 
+    if n_type == "DRAWING_AGENT_NOTE":
+        # AI 도면팀원 주간 노트(주문 없음) — 노트 화면으로 연다(설계서 2026-10-27-drawing-ai-teammate-spec A3).
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": "/erp/drawing-workbench/agent-note",
+        }
+
     if n_type == "MEASURE_SAME_DAY_ADDED" and oid:
         # 알림 벨 목록도 폰 알림과 같은 곳(그날 실측 목록의 그 줄)으로 연다.
         return {

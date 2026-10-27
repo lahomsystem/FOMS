@@ -119,6 +119,12 @@
     });
   }
 
+  /** 그림 종류 기억을 따른 이름표 — 닮음은 이 창에서 따른 그림만 안다(part-memory.js). */
+  function memText(id) {
+    var m = window.FomsPartMemory, sim = m ? m.simOf(id) : null;
+    return '사람이 고른 비슷한 그림을 따름' + (typeof sim === 'number' ? ' · 닮음 ' + Math.round(sim * 100) + '%' : '');
+  }
+
   function reasonOf(o, view, partner) {
     var p = o.part || {}, bits = [], gs = view.plan.g.guess[o.id];
     if (p.src === 'user') { bits.push('사람이 고름'); }
@@ -126,6 +132,7 @@
     else { bits.push('종류를 아직 몰라요'); }
     if (gs) { bits.push('칸 확신 ' + Math.round(gs.conf * 100) + '% · 종류 확인'); }
     else if (p.src !== 'user' && view.plan.g.labels[o.id] === '미분류' && typeof p.conf === 'number') { bits.push('확신이 낮아 미분류'); }
+    else if (p.src !== 'user' && /\.m$/.test(String(p.head || ''))) { bits.push(memText(o.id)); }
     else if (p.ai && p.label && p.label !== '미분류' && p.ai !== p.label && p.src !== 'user') { bits.push('짝 규칙으로 고침'); }
     if (partner) {
       var h1 = api.core.hatch(o), h2 = api.core.hatch(partner);

@@ -4,6 +4,12 @@
 
 도면팀이 마법사에서 고친 그림 종류(정면·내부, 입체·도어 …)를 모아 브라우저 분류기(`static/js/drawing/part-head.json`)를 다시 가르친다. 지금 판의 가중치에서 출발하고, 고정 시험 묶음에서 나빠지지 않을 때만 새 판을 낸다.
 
+## 학습 요약으로 가르치기(운영 DB · 그림 없이)
+
+AI 도면팀원 학습 요약(`GET /api/drawing-agent/digest`, 읽기 전용 토큰)에는 브라우저가 낸 그림 특징과 사람 이름표가 있다.
+`fetch_digest.py fetch` 로 받고 `fetch_digest.py to-retrain` 으로 바꾸면 아래 3단계 `train` 이 그대로 읽는다 —
+collect · embed 를 건너뛴다(운영 DB · 저장소 자격이 필요 없다). 순서 정본: `docs/research/drawing-agent/AGENT.md`.
+
 ## 언제 돌리나
 
 - 처음엔 손으로 한 달에 한 번. 고친 기록(사람이 AI 짐작과 다르게 고른 것)이 100건 넘을 때만 가르친다(`train` 이 스스로 멈춘다).

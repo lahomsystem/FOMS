@@ -121,6 +121,18 @@
     {
       "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_import_attachment",
       "reason": "실측 첨부를 마법사 에셋 폴더로 복사(원본 불변·OrderAttachment 미생성) — 저장 시 마법사 기록이 남는다."
+    },
+    {
+      "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_part_memory",
+      "reason": "AI 학습용 그림 특징·이름표 사본(실시간 학습) — 잦은 자동 쓰기, 줄마다 쓴 사람·시각을 남기고 이름표 원본은 마법사 저장(감사됨)에 있다."
+    },
+    {
+      "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_part_memory_match",
+      "reason": "그림 종류 기억 찾기(읽기만) — 아무것도 쓰지 않는다."
+    },
+    {
+      "key": "foms/api/drawing_agent.py::api_drawing_agent_note_answer",
+      "reason": "AI 도면팀원 노트 질문 답 — 학습 기억 이름표만 맞추고(주문·고객 데이터 아님) 답한 사람·시각·고른 답은 노트(SystemSetting)에 남는다."
     }
   ]
 }

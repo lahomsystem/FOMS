@@ -14,6 +14,7 @@ from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
+from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
 
 
@@ -53,7 +54,10 @@ def erp_drawing_workbench_wizard(order_id: int) -> Any:
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
     wizard_ui = _wizard_ui()
-    wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui}
+    # 그림 종류 기억(실시간 학습) 켜고 끄기 — 문턱은 서버가 판정한다(설계서 2026-10-26-drawing-part-memory-spec §3.7).
+    memory = load_part_memory_policy(db)
+    wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui,
+                     'part_memory': {k: bool(memory[k]) for k in ('store', 'follow', 'spread')}}
     return render_template(
         'drawing/wizard.html',
         order=order,

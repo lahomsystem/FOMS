@@ -55,6 +55,8 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
         ("--retention-days", "7", "--batch-size", "1000", "--apply"),
     ),
     NightlyStep("purge_audit_logs", "tools/ops/purge_audit_logs.py", ("--apply",)),
+    # AI 도면팀원 주간 노트 — 그 주 노트가 이미 있으면 아무것도 안 한다(설계서 2026-10-27-drawing-ai-teammate-spec A3).
+    NightlyStep("drawing_agent_note", "tools/cron/drawing_agent_note.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]

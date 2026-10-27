@@ -69,7 +69,7 @@ def test_every_step_logs_one_summary_line(caplog) -> None:
         main(runner=_FakeRunner())
     summaries = [r.getMessage() for r in caplog.records if r.getMessage().startswith("[nightly] step=")]
     assert len(summaries) == len(NIGHTLY_STEPS)
-    assert "[nightly] done steps=3 failed=none" in caplog.text
+    assert f"[nightly] done steps={len(NIGHTLY_STEPS)} failed=none" in caplog.text
 
 
 def test_run_step_launches_a_real_child_and_returns_its_exit_code() -> None:
