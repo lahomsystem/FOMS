@@ -157,3 +157,40 @@ def test_family_rule_matches_retrain_tool():
 
     for text in ("냉장고장 키큰", "주방 하부장", "몰딩 여닫이장", "슬라이딩 붙박이", "신발장", "", "홈카페장"):
         assert agent_digest.family_of(text) == tool_family(text)
+
+
+def _side_order(name, *, trashed=False):
+    """사람 줄 하나 · AI 줄 하나가 있는 주문 — 시험 주문(이름) · 휴지통 주문 시험용."""
+    order = Order(received_date=date.today().strftime("%Y-%m-%d"), customer_name=name, phone="010-0000-0000",
+                  address="대구", product="붙박이장", status="DELETED" if trashed else "DRAWING", is_erp_order=True,
+                  deleted_at="2026-10-27 12:00:00" if trashed else None,
+                  structured_data={"drawing_wizard": {"v": 1, "sheets": [{"id": "s-x", "name": "x", "objects": []}]}})
+    db_session.add(order)
+    db_session.commit()
+    key = f"orders/{order.id}/drawing_wizard/assets/t.png"
+    db_session.add_all([
+        DrawingPartMemory(order_id=order.id, asset_key=key, feat=_feat(9), feat_v="f1-dv2s-8b1f", ai="정면·도어",
+                          conf=0.5, head="h1", label="미분류", src="user", active=True),
+        DrawingPartMemory(order_id=order.id, asset_key=key + "2", feat=_feat(10), feat_v="f1-dv2s-8b1f", ai="정면·도어",
+                          conf=0.9, head="h1", label="정면·도어", src="ai", active=True)])
+    db_session.commit()
+    return order.id
+
+
+def test_test_and_trashed_orders_are_left_out(client, armed):
+    """시험 주문(CLAUDE-TEST-) · 휴지통 주문 줄은 요약 · 기억 줄 · 시트 어디에도 없고, 휴지통에서 되살리면 다시 보인다
+    (설계서 §9). 2026-10-27 첫 요약의 '사람 1/85' 가 운영 점검 시험 주문 줄이었다."""
+    order_id, _, ids = _seed()
+    test_id = _side_order("CLAUDE-TEST-도면V2")
+    trash_id = _side_order("휴지통고객", trashed=True)
+    mem = client.get(URL, headers=_auth()).get_json()["data"]["memory"]
+    assert mem["total"] == 2 and mem["user"] == 1 and mem["ai"] == 1
+    assert [r["id"] for r in client.get(URL + "?kind=memory", headers=_auth()).get_json()["data"]["items"]] == ids
+    assert {s["order"] for s in client.get(URL + "?kind=sheets", headers=_auth()).get_json()["data"]["items"]} == {order_id}
+    order = db_session.get(Order, trash_id)
+    order.status, order.deleted_at = "DRAWING", None
+    db_session.commit()
+    mem = client.get(URL, headers=_auth()).get_json()["data"]["memory"]
+    assert mem["total"] == 4 and mem["user"] == 2
+    orders = {s["order"] for s in client.get(URL + "?kind=sheets", headers=_auth()).get_json()["data"]["items"]}
+    assert orders == {order_id, trash_id} and test_id not in orders

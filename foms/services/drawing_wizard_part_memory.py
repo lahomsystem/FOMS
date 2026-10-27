@@ -13,6 +13,8 @@
 - 켜고 끄기·문턱(:func:`load_policy`): SystemSetting ``drawing_part_memory`` — 없거나 틀린 칸은 코드 기본값.
 - 사람 이름표 줄의 특징은 프로세스 메모리에 들고 있다가 바뀐 줄만(``updated_at``) 다시 읽는다.
   줄이 5만을 넘으면 pgvector 로 옮긴다(설계서 §3.7).
+- 시험 · 휴지통 주문 줄 거르기(:func:`real_orders`): 다른 주문 기억 따르기 · 학습 요약 · 주간 노트는 같은 조건으로
+  시험 주문(``CLAUDE-TEST-``)과 휴지통 주문 줄을 뺀다(설계서 2026-10-27-drawing-ai-teammate-spec §9). 줄은 지우지 않는다.
 """
 from __future__ import annotations
 
@@ -28,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from foms.persistence.main.models import SystemSetting
 from foms.services.datetime_kst import now_utc_naive
-from models import DrawingPartMemory
+from models import DrawingPartMemory, Order
 
 __all__ = [
     "DEFAULT_POLICY",
@@ -36,11 +38,13 @@ __all__ = [
     "decide",
     "MAX_ITEMS",
     "POLICY_KEY",
+    "TEST_ORDER_PREFIX",
     "follow",
     "load_policy",
     "parse_follow_items",
     "parse_items",
     "parse_spread",
+    "real_orders",
     "save_items",
     "spread",
 ]
@@ -64,10 +68,20 @@ _ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,48}$")
 _DOOR_PAIRS = (frozenset({"정면·내부", "정면·도어"}), frozenset({"입체·내부", "입체·도어"}))
 _NEIGHBORS = 8
 _FULL_RELOAD_S = 600   # 10분마다 통째로 다시 읽어 지워진 주문의 줄을 뺀다
+#: 실서버 측정 계정 가상 주문의 고객 이름 머리(정본 docs/guides/REAL_SERVER_TEST_ACCOUNT.md)
+TEST_ORDER_PREFIX = "CLAUDE-TEST-"
 
 
 class PartMemoryError(ValueError):
     """요청 형식이 틀렸다(400)."""
+
+
+def real_orders(query):
+    """기억 줄 조회에서 시험 주문(고객 이름 ``CLAUDE-TEST-``)과 휴지통 주문 줄을 뺀다(주문 표와 잇는다).
+    운영 점검 시험 그림이 학습 요약 숫자에 섞이고(2026-10-27 첫 요약 '사람 1/85' 가 시험 줄), 시험 그림에 고른
+    이름표를 실제 주문 그림이 따를 수 있었다. 휴지통에서 되살린 주문의 줄은 다시 쓰인다."""
+    return query.join(Order, Order.id == DrawingPartMemory.order_id).filter(
+        Order.not_deleted_filter(), ~Order.customer_name.startswith(TEST_ORDER_PREFIX))
 
 
 # --------------------------------------------------------------------------- 설정
@@ -255,11 +269,11 @@ class _HumanIndex:
             self.rows, self.since, self.mats = {}, None, {}
         if self.since is None:
             self.loaded = time.monotonic()
-        q = session.query(
+        q = real_orders(session.query(   # 시험 · 휴지통 주문 이름표는 다른 주문이 따르지 않는다(휴지통은 다음 통째 읽기 때 빠진다)
             DrawingPartMemory.id, DrawingPartMemory.order_id, DrawingPartMemory.asset_key,
             DrawingPartMemory.label, DrawingPartMemory.src, DrawingPartMemory.active,
             DrawingPartMemory.feat, DrawingPartMemory.feat_v, DrawingPartMemory.updated_at,
-        )
+        ))
         if self.since is None:   # 처음엔 쓸 줄만, 그다음엔 바뀐 줄 전부(사람 → AI 로 바뀐 줄을 빼야 한다)
             q = q.filter(DrawingPartMemory.active.is_(True), DrawingPartMemory.src == "user",
                          DrawingPartMemory.label != UNSURE, DrawingPartMemory.feat.isnot(None))
