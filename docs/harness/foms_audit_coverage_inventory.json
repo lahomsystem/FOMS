@@ -644,7 +644,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_delete_order_draft",
-      "lineno": 495,
+      "lineno": 500,
       "methods": [
         "DELETE"
       ],
@@ -662,7 +662,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_submit_order_draft",
-      "lineno": 664,
+      "lineno": 669,
       "methods": [
         "POST"
       ],
@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_upload_order_draft_attachment",
-      "lineno": 525,
+      "lineno": 530,
       "methods": [
         "POST"
       ],
