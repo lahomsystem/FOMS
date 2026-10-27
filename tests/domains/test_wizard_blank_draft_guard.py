@@ -279,8 +279,9 @@ def test_finished_wizard_navigations_replace_history() -> None:
 
 def test_shell_pins_bumped() -> None:
     shell = (ROOT / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
-    for name in ("draft.js", "wizard.js", "wizard-send.js"):
-        assert f"js/foms/{name}') }}}}?v=20261026b" in shell, name
+    assert "js/foms/draft.js') }}?v=20261026b" in shell
+    for name in ("wizard.js", "wizard-send.js"):
+        assert f"js/foms/{name}') }}}}?v=2026102" in shell, name
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")

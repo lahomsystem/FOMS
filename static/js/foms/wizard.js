@@ -1087,7 +1087,8 @@
     }
     var next = root.querySelector("#foms-wizard-next");
     if (next) {
-      next.textContent = step >= MAX_STEP ? "주문 등록" : "다음 →";
+      // 4단계 등록 버튼은 하나다 — 모든 주문을 등록하며 실측방 PUSH 를 함께 보낸다(2026-10-27 사용자).
+      next.textContent = step < MAX_STEP ? "다음 →" : "등록하고 실측 PUSH";
     }
     if (step === MAX_STEP) {
       renderSummary(root);
@@ -1096,7 +1097,7 @@
   }
 
   /**
-   * 4단계 "주문 등록" 클릭 처리.
+   * 주문 등록(PUSH 없이 ERP 만) — "PUSH 없이 주문만 등록" 비상 버튼과 PUSH 진입점이 없을 때 쓴다.
    *
    * 예전에는 `submitOrder().then(...)` 하나뿐이라 **실패가 무음이었다**. fetch 가 거부되거나
    * (회선 끊김·iOS 백그라운드 전환) 서버가 JSON 이 아닌 응답(500 HTML·로그인 리다이렉트)을
@@ -1140,7 +1141,7 @@
       })
       .catch(function () {
         window.alert(
-          "주문 등록에 실패했습니다 — 통신이 끊겼습니다.\n연결을 확인하고 [주문 등록] 을 다시 눌러 주세요. 입력한 내용은 그대로 남아 있습니다."
+          "주문 등록에 실패했습니다 — 통신이 끊겼습니다.\n연결을 확인하고 아래 등록 버튼을 다시 눌러 주세요. 입력한 내용은 그대로 남아 있습니다."
         );
         unlock();
       });
@@ -1416,6 +1417,12 @@
         return;
       }
       if (currentStep >= MAX_STEP) {
+        // 시트 확인 → 등록 → PUSH(wizard-send.js). PUSH 를 못 보내면(채널톡 미설정·미리보기 실패)
+        // 거기서 "PUSH 없이 주문만 등록" 비상 버튼이 열린다 — 채널톡은 백업이고 정본은 ERP 주문이다.
+        if (typeof window.FomsWizardRegisterWithPush === "function") {
+          window.FomsWizardRegisterWithPush();
+          return;
+        }
         submitOrderWithFeedback(root, draftClient);
         return;
       }
@@ -1437,6 +1444,20 @@
         draftClient.scheduleSave();
       });
     });
+
+    // 비상 등록(PUSH 없이 ERP 만) — wizard-send.js 의 비상 버튼이 부른다.
+    window.FomsWizardSubmitOnly = function () {
+      var err = validateStep(root, MAX_STEP);
+      if (err) {
+        if (window.fomsShowToast) {
+          window.fomsShowToast(err);
+        } else {
+          window.alert(err);
+        }
+        return;
+      }
+      submitOrderWithFeedback(root, draftClient);
+    };
 
     var closeBtn = root.querySelector("#foms-wizard-close");
     if (closeBtn) {
