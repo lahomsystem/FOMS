@@ -3,7 +3,7 @@
  * 설계서 docs/specs/2026-10-27-drawing-team-production-fix_SPEC.md A절(주문 5690).
  *
  * - [지우기] = 기존 DELETE /api/orders/<id>/attachments/<att_id> 그대로(권한·409 는 서버가 정한다).
- * - 결과 문구는 카드 안에 띄운다. 성공하면 그 줄을 지우고, 다 지우면 카드를 숨긴다.
+ * - 결과 문구는 카드 안에 띄운다. 성공하면 그 줄을 지운다. 다 지워도 상자와 문구는 남긴다.
  */
 (function () {
   'use strict';
@@ -22,11 +22,13 @@
     el.classList.toggle('text-danger', !ok);
   }
 
+  // 다 지워도 상자는 남긴다 — 숨기면 "지웠습니다" 문구까지 사라져 됐는지 모른다(스테이징 실화면).
   function refreshCount(card) {
     var left = card.querySelectorAll('[data-dw-stray-item]').length;
     var countEl = card.querySelector('[data-dw-stray-count]');
     if (countEl) countEl.textContent = String(left);
-    if (!left) card.classList.add('d-none');
+    var list = card.querySelector('.dw-stray-list');
+    if (!left && list) list.classList.add('d-none');
   }
 
   async function removeOne(card, btn) {
