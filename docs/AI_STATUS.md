@@ -10,10 +10,10 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-27] **마법사 등록 정리 운영(PR #627·#633·#634)** — 버튼 하나·빈 초안·미등록 알림·SIDEFX 처리기. 잔여: DEAD 6행 둠
 - [2026-10-27] **AI 도면팀원·실시간 학습 운영(PR #632)** — 실계정 점검 끝. 잔여: 루틴 토큰·PR 트리거(사용자)
 - [2026-10-24] **mine 켠 대시보드 지연 운영 완료(PR #611·#616·#622)** — 잔여: 한용희 폰 첫 로딩 4~5초 멈춤(서버·망 아님)
 - [2026-10-22] **Railway 사고(env 유출)·배포 정지** — 복원 리허설 OK(pgvector)·SIDEFX 백업·Redis 문 닫음. 재개 전 DB Regenerate 금지. 가드 반영·대피 초안 준비됨
-- [2026-10-23] **마법사 같은 주문 2번 저장 수정 — 운영 완료(PR #623 `f8d464c1`)** — 잔여: 운영 #5812 중복(사용자 정리)
 - [2026-10-26] **알림톡 '상담 먼저' 후속 운영 완료(PR #628)** — 카톡 실패→링크 문자 워커(운영 WORKER SOLAPI_* 복사·켬)·공유 창·보내기 창 3칸. 옛 서식 6개·env 삭제. 잔여: 없음(키 교체 시 WORKER 도). SPEC `2026-10-21-consult-sms-fallback-design`
 - [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 8건 운영. 잔여(사용자 결정): 카카오 REST 키 교체·tests/docs 실고객 번호 의심 34개. 원장 `2026-10-18-foms-security-audit-ledger.md`
 - [2026-10-15] **모바일 홈 달력·날씨 시간 줄 v2(production `fa101723`, PR #551~#563)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 칸 보기 삭제·기상청 강수강도·판정(낮 기준 하루 날씨·밤 약한 비는 구름)·여러 날 시공 출고가 나눔. 태블릿 예산 30,700B
@@ -207,6 +207,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-23] **마법사 같은 주문 2번 저장 수정 — 운영 완료(PR #623 `f8d464c1`)** — 잔여: 운영 #5812 중복(사용자 정리)
 - [2026-10-21] **협력사 1~6·18 운영 완료(#577~#619)** — 새 주문·사진·입력 칸·희망 시공일·시공 달력·사진 연결. SPEC `2026-10-19-partner-foms-mode` §18
 - [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)
 - [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
