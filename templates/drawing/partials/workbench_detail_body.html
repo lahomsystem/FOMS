@@ -1523,6 +1523,45 @@
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
           {% endif %}
+          {# 도면 칸에 따로 올라온 파일(사본) — 도면팀이 여기서 지운다(SPEC 2026-10-27 A, 주문 5690).
+             도면팀은 ERP 주문 화면을 열 수 없어서 작업실에 둔다. 최종 도면은 이 목록에 없다.
+             고정(sticky) 패널 밖에 두면 아래 카드가 패널 밑에 깔려 안 보인다 — 현재 버전 바로 밑에 둔다. #}
+          {% if stray_drawing_files %}
+          <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-stray-files.css') }}?v=20261027b">
+          <div class="dw-stray-box mt-2 mb-3" id="dw-stray-drawing-card" data-order-id="{{ order.id }}">
+            <div class="fw-semibold small mb-1">
+              <i class="fas fa-copy text-warning"></i> 도면 칸에 따로 올라온 파일 <span data-dw-stray-count>{{ stray_drawing_files|length }}</span>개
+            </div>
+            <div class="small text-muted mb-2">
+              최종 도면이 아닌 파일입니다. 같은 도면을 한 번 더 올린 사본이면 지워 주세요.
+            </div>
+            <ul class="list-unstyled mb-0 dw-stray-list">
+              {% for f in stray_drawing_files %}
+              <li class="dw-stray-item" data-dw-stray-item>
+                <a class="dw-stray-thumb" href="{{ f.view_url }}" target="_blank" rel="noopener">
+                  {% if f.thumb_url %}
+                  <img loading="lazy" src="{{ f.thumb_url }}" alt="{{ f.filename }}">
+                  {% else %}
+                  <i class="fas fa-file text-muted" aria-hidden="true"></i>
+                  {% endif %}
+                </a>
+                <div class="dw-stray-meta">
+                  <div class="small fw-semibold dw-stray-name" title="{{ f.filename }}">{{ f.filename }}</div>
+                  <div class="small text-muted">{{ f.uploader }} · {{ f.uploaded_at }}</div>
+                </div>
+                <div class="dw-stray-actions">
+                  <a class="btn btn-outline-secondary btn-sm" href="{{ f.view_url }}" target="_blank" rel="noopener">보기</a>
+                  {% if f.can_delete %}
+                  <button class="btn btn-outline-danger btn-sm" type="button" data-dw-stray-delete
+                    data-attachment-id="{{ f.id }}">지우기</button>
+                  {% endif %}
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <div class="small mt-2 d-none" data-dw-stray-status role="status"></div>
+          </div>
+          {% endif %}
           {% include 'drawing/partials/workbench_confirm_result.html' %}
           {# 영업 → 고객 상태 한 줄(설계서 2026-09-29 §3.2·§3.4) — 서버 읽기 모델 값만 그린다(읽기 전용). #}
           {% set cs = customer_send|default({}) %}
@@ -1665,47 +1704,6 @@
           </div>
         </div>
       </div>
-
-      {# 도면 칸에 따로 올라온 파일(사본) — 도면팀이 여기서 지운다(SPEC 2026-10-27 A, 주문 5690).
-         도면팀은 ERP 주문 화면을 열 수 없어서 작업실에 둔다. 최종 도면은 이 목록에 없다. #}
-      {% if stray_drawing_files %}
-      <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-stray-files.css') }}?v=20261027a">
-      <div class="erp-pro-card mt-3" id="dw-stray-drawing-card" data-order-id="{{ order.id }}">
-        <div class="card-body">
-          <div class="fw-semibold mb-1">
-            <i class="fas fa-copy text-warning"></i> 도면 칸에 따로 올라온 파일 <span data-dw-stray-count>{{ stray_drawing_files|length }}</span>개
-          </div>
-          <div class="small text-muted mb-2">
-            최종 도면이 아닌 파일입니다. 같은 도면을 한 번 더 올린 사본이면 지워 주세요.
-          </div>
-          <ul class="list-unstyled mb-0 dw-stray-list">
-            {% for f in stray_drawing_files %}
-            <li class="dw-stray-item" data-dw-stray-item>
-              <a class="dw-stray-thumb" href="{{ f.view_url }}" target="_blank" rel="noopener">
-                {% if f.thumb_url %}
-                <img loading="lazy" src="{{ f.thumb_url }}" alt="{{ f.filename }}">
-                {% else %}
-                <i class="fas fa-file text-muted" aria-hidden="true"></i>
-                {% endif %}
-              </a>
-              <div class="dw-stray-meta">
-                <div class="small fw-semibold dw-stray-name" title="{{ f.filename }}">{{ f.filename }}</div>
-                <div class="small text-muted">{{ f.uploader }} · {{ f.uploaded_at }}</div>
-              </div>
-              <div class="dw-stray-actions">
-                <a class="btn btn-outline-secondary btn-sm" href="{{ f.view_url }}" target="_blank" rel="noopener">보기</a>
-                {% if f.can_delete %}
-                <button class="btn btn-outline-danger btn-sm" type="button" data-dw-stray-delete
-                  data-attachment-id="{{ f.id }}">지우기</button>
-                {% endif %}
-              </div>
-            </li>
-            {% endfor %}
-          </ul>
-          <div class="small mt-2 d-none" data-dw-stray-status role="status"></div>
-        </div>
-      </div>
-      {% endif %}
 
       <div class="erp-pro-card mt-3">
         <div class="card-body">
