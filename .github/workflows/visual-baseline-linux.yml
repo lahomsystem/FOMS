@@ -42,7 +42,7 @@ jobs:
 
       - name: Set up Python 3.12
         if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
