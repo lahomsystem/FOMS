@@ -5,14 +5,13 @@
 order+type+팀 기준(actor 무관)이다. 생산 알림은 팀 공지 성격이라 누가 바꿨든 같은 주문의
 같은 종류 변경은 60초 내 한 줄로 합친다.
 
-수신 팀 = :data:`TARGET_TEAMS`\\ ``= ("CS", "SALES")``. 원래는 ``"PRODUCTION"`` 하나였는데
-**그 팀 소속 활성 사용자가 0명**이라(운영 DB 실측 2026-08-05: CONSTRUCTION 10 · SALES 8 ·
-CS 6 · DRAWING 3 · ADMIN 2, ``PRODUCTION``·``SHIPMENT`` 행 자체가 없음) ``fan_out`` 이
-0건이었다 — ``notification_user_states`` 0행 = 아무에게도 안 가는 무음 알림. ADMIN 은
-팬아웃 대상이 아니라(관리자에게 모든 알림 state 를 만들지 않는 것이 의도 —
-``recipients`` 모듈 docstring) 관리자도 못 봤다. 실제 생산 작업 주체는 권한 정책
-``PRODUCTION_EDIT`` 의 팀 집합 ``("CS", "SALES", "PRODUCTION")`` 이 정본이므로 실사용자가
-있는 두 팀을 수신자로 삼는다.
+수신 팀 = :data:`TARGET_TEAMS`\\ ``= ("CS", "SALES", "PRODUCTION")`` — 권한 정책
+``PRODUCTION_EDIT`` 의 팀 집합과 같다. 원래는 ``"PRODUCTION"`` 하나였는데 **그 팀 소속 활성
+사용자가 0명**이라(운영 DB 실측 2026-08-05) ``fan_out`` 이 0건 = 아무에게도 안 가는 무음
+알림이었다(ADMIN 은 팬아웃 대상이 아니다 — ``recipients`` 모듈 docstring). 그래서 CS·영업으로
+바꿨다가, 2026-10-27 사용자 결정("생산 단계 도면 수정은 생산팀 전원이 알아야 한다", 생산팀
+계정은 전원 만든다)으로 생산팀을 다시 넣었다. CS·영업이 늘 함께 받으므로 생산팀 계정이 아직
+0명이어도 무음 알림은 아니다.
 
 ``Notification.target_team`` 은 단일 문자열 컬럼이라 **팀당 row 1개**를 만든다(row 가
 자기 수신 범위를 정직하게 describe 하도록 — 공용 resolver 의 팀 매칭 의미를 바꾸지 않는다).
@@ -42,12 +41,14 @@ logger = logging.getLogger(__name__)
 
 NOTIFICATION_TYPE = "PRODUCTION_ORDER_CHANGED"
 #: 수신 팀(팀당 Notification row 1개). 위 모듈 docstring 의 근거 참조.
-TARGET_TEAMS: Tuple[str, ...] = ("CS", "SALES")
+TARGET_TEAMS: Tuple[str, ...] = ("CS", "SALES", "PRODUCTION")
 DEBOUNCE_SECONDS = 60
 
 _KIND_LABEL = {
     "construction_date": "시공일 변경",
     "drawing": "도면 변경",
+    # 생산·시공 단계에서 도면팀이 보낸 도면이 영업 확인 없이 바로 최종이 된 것(바로 반영).
+    "drawing_hotfix": "도면 바뀜",
     "cancelled": "주문 취소",
 }
 
@@ -93,6 +94,7 @@ def apply_production_change_alert(
     *,
     actor_user_id: Optional[int],
     actor_name: str,
+    merge: bool = True,
 ) -> Tuple[List[Notification], bool]:
     """생산 파이프라인 게이트 통과 시 생산 담당 팀 알림을 생성/갱신한다(커밋 전 호출).
 
@@ -101,10 +103,12 @@ def apply_production_change_alert(
     Args:
         db: 활성 세션.
         order: 대상 주문(``is_erp_order``·``erp_stage_code`` 로드 상태).
-        kind: 'construction_date' | 'drawing' | 'cancelled'.
+        kind: 'construction_date' | 'drawing' | 'drawing_hotfix' | 'cancelled'.
         message_detail: 메시지 상세(예 '7/6 → 7/4'). 없으면 빈 문자열.
         actor_user_id: 변경자 id(선택).
         actor_name: 변경자 표시명.
+        merge: False 면 60초 합치기를 하지 않고 늘 새 row(= 늘 push)를 만든다. 도면 바로
+            반영은 바로 앞 수정요청 알림과 합쳐지면 폰 알림이 안 나가 생산팀이 놓친다.
 
     Returns:
         ``(notifications, created_any)``. 비생산 단계·비ERP면 ``([], False)``. 리스트는
@@ -129,7 +133,7 @@ def apply_production_change_alert(
     notifications: List[Notification] = []
     created_any = False
     for team in TARGET_TEAMS:
-        prev = _find_recent_notification(db, int(order.id), team, now=now)
+        prev = _find_recent_notification(db, int(order.id), team, now=now) if merge else None
         if prev is not None:
             prev.title = title
             prev.message = message

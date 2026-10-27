@@ -34,6 +34,7 @@ from sqlalchemy import and_, func, inspect as sa_inspect, or_
 from sqlalchemy.orm.util import identity_key
 
 from models import Order, OrderAttachment
+from foms.services.orders.drawing_key_safety import history_referenced_keys
 from foms.services.orders.drawing_transfer import clean_sheet_id
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "is_superseded_drawing_row",
     "load_structured_data_by_order",
     "resolve_final_drawing_files",
+    "stray_drawing_rows",
     "superseded_drawing_keys",
     "superseded_drawing_row_counts",
 ]
@@ -283,6 +285,36 @@ def drop_superseded_drawing_rows(
         r for r in rows
         if not is_superseded_drawing_row(r, keys_by_order.get(int(r.order_id), frozenset()))
     ]
+
+
+def stray_drawing_rows(db: Any, order_id: int, structured_data: Any) -> list[Any]:
+    """도면 칸에 따로 올라온 파일 — 도면 작업실 사본 카드(2026-10-27, 주문 5690).
+
+    살아 있는 ``category='drawing'`` 첨부 중 도면 기록(현재본·전달·확정·수정요청 참고사진)이
+    한 번도 가리킨 적 없는 행이다. 주문 화면 '직접 업로드' 배지처럼 최종 도면이 있을 때만
+    고른다(최종이 없으면 비교할 기준이 없다).
+
+    Args:
+        db: 활성 세션(전역 tombstone 필터로 지운 행은 빠진다).
+        order_id: 대상 주문 id.
+        structured_data: 주문 ``structured_data``.
+
+    Returns:
+        올린 시각 새것 먼저 ``OrderAttachment`` 목록.
+    """
+    if not resolve_final_drawing_files(structured_data):
+        return []
+    referenced = history_referenced_keys(structured_data)
+    rows = (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id == order_id,
+            func.lower(OrderAttachment.category) == _DRAWING_CATEGORY,
+        )
+        .order_by(OrderAttachment.created_at.desc(), OrderAttachment.id.desc())
+        .all()
+    )
+    return [r for r in rows if str(r.storage_key or "").strip() not in referenced]
 
 
 def finalize_drawing_files_on_confirm(

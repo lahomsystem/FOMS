@@ -114,7 +114,9 @@ def test_superseded_rows_carry_no_delete_until_2b(client):
 
     can_delete = {a["storage_key"]: a["can_delete"] for a in items}
     assert can_delete[keys["v1"]] is False
-    assert can_delete[keys["v2"]] is True and can_delete[keys["sketch"]] is True
+    # 현재 최종 도면(v2)은 삭제 API 가 관리자에게도 409(DRAWING_IN_USE) 라 휴지통을 그리지 않는다
+    # (2026-10-27 주문 5690 — 눌러도 안 지워졌다). 첨부 탭 도면 업로드(sketch)는 지울 수 있다.
+    assert can_delete[keys["v2"]] is False and can_delete[keys["sketch"]] is True
 
 
 def test_include_superseded_needs_no_manage_permission(client):

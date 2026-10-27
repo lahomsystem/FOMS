@@ -695,7 +695,7 @@ def api_order_attachments_delete(order_id, attachment_id):
                 jsonify(
                     {
                         "success": False,
-                        "message": "첨부파일 삭제 권한이 없습니다. (관리자, 해당 주문 담당자, 또는 업로드한 본인만 가능)",
+                        "message": "첨부파일 삭제 권한이 없습니다. (관리자, 해당 주문 담당자, 업로드한 본인, 도면 칸은 도면팀만 가능)",
                     }
                 ),
                 403,
@@ -780,7 +780,7 @@ def api_order_attachments_restore(order_id, attachment_id):
                 jsonify(
                     {
                         "success": False,
-                        "message": "첨부파일 복구 권한이 없습니다. (관리자, 해당 주문 담당자, 또는 업로드한 본인만 가능)",
+                        "message": "첨부파일 복구 권한이 없습니다. (관리자, 해당 주문 담당자, 업로드한 본인, 도면 칸은 도면팀만 가능)",
                     }
                 ),
                 403,

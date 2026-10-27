@@ -5,10 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_download_url, build_file_view_url
+from foms.services.datetime_kst import format_datetime_kst
+from foms.services.drawing_confirm_cleanup import stray_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
-from models import OrderAttachment
+from foms.services.order_attachment_permissions import can_delete_order_attachment
+from models import OrderAttachment, User
 
 __all__ = [
+    "build_stray_drawing_files",
     "drawing_thumb_enabled",
     "pick_row_thumbnail_url",
     "resolve_row_image_list",
@@ -166,3 +170,45 @@ def resolve_row_thumbnail_url(
     return pick_row_thumbnail_url(
         resolve_row_image_list(order_id, drawing_files, db, mobile_v2_active=mobile_v2_active)
     )
+
+
+def build_stray_drawing_files(db: Any, order: Any, structured_data: Any, user: Any) -> list[dict[str, Any]]:
+    """도면 작업실 '도면 칸에 따로 올라온 파일' 카드 행(2026-10-27, 주문 5690 사본).
+
+    대상 판정은 :func:`foms.services.drawing_confirm_cleanup.stray_drawing_rows` 가 한다.
+    지우기는 첨부 삭제 API 를 그대로 쓰므로 ``can_delete`` 도 그 API 의 권한 함수 답이다.
+
+    Args:
+        db: 활성 세션.
+        order: 대상 주문.
+        structured_data: 주문 ``structured_data``.
+        user: 현재 사용자(없으면 지우기 버튼 없음).
+
+    Returns:
+        ``{id, filename, view_url, thumb_url, is_image, uploader, uploaded_at, can_delete}`` 목록.
+    """
+    rows = stray_drawing_rows(db, int(order.id), structured_data)
+    if not rows:
+        return []
+    uploader_ids = {r.user_id for r in rows if r.user_id is not None}
+    names = (
+        dict(db.query(User.id, User.name).filter(User.id.in_(uploader_ids)).all())
+        if uploader_ids else {}
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        key = str(row.storage_key or "").strip()
+        thumb_key = str(row.thumbnail_key or "").strip()
+        filename = row.filename or key.rsplit("/", 1)[-1] or "-"
+        is_image = _is_image_file({"filename": filename, "key": key})
+        out.append({
+            "id": row.id,
+            "filename": filename,
+            "view_url": build_file_view_url(key) if key else "",
+            "thumb_url": build_file_view_url(thumb_key or key) if (thumb_key or (is_image and key)) else "",
+            "is_image": is_image,
+            "uploader": names.get(row.user_id) or "-",
+            "uploaded_at": format_datetime_kst(row.created_at, "%m/%d %H:%M") or "-",
+            "can_delete": bool(user) and can_delete_order_attachment(user, order, row),
+        })
+    return out
