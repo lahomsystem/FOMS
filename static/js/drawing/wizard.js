@@ -2746,10 +2746,11 @@
     startEditText(nodeById[o.id], true);
   }
 
-  /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). */
-  function insertPresetText(text, bold) {
-    if (!canSave || !currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
-    recordUndo();
+  /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). 돌려주는 값 = 넣은 객체(못 넣으면 null).
+      quiet = V2 [자재표 칸 넣기](v2AddPresets): 되돌리기 사본은 부른 쪽이 한 번 남기고, 고르지도 글 편집기를 열지도 않는다. */
+  function insertPresetText(text, bold, quiet) {
+    if (!canSave || !currentSheet()) { if (!quiet) { toast('제품을 선택해 도면을 먼저 시작하세요.'); } return null; }
+    if (!quiet) { recordUndo(); }
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 0, y: 95 + (n % 6) * 46, w: 1,
@@ -2761,8 +2762,10 @@
     o.x = Math.max(0, PRESET_RIGHT_EDGE - (o.w || 1));
     markDirty();
     rebuildAnno();
+    if (quiet) { return o; }
     selectById(o.id);
     startEditText(nodeById[o.id], true);
+    return o;
   }
 
   function addPreset(kind) {
@@ -6958,6 +6961,15 @@
     return made;
   }
 
+  /** V2 [자재표 칸 넣기] — 자리표(PRESETS: [SR] [EP] [DOOR] [옷봉] [마이다])를 한꺼번에 넣는다(insertPresetText 그대로, quiet).
+      되돌리기 한 번 · 글 편집기를 열지 않는다 — 자리는 부른 쪽(V2 배치)이 자재 칸에 잡는다. 돌려주는 값 = 넣은 객체 id 목록. */
+  function v2AddPresets(kinds) {
+    var list = (kinds && kinds.length ? kinds : Object.keys(PRESETS)).filter(function (k) { return !!PRESETS[k]; });
+    if (!canSave || !currentSheet() || !list.length) { return []; }
+    recordUndo();
+    return list.map(function (k) { var o = insertPresetText(PRESETS[k] + '\n', false, true); return o ? o.id : ''; }).filter(Boolean);
+  }
+
   function exposeCore() {
     window.FomsWizardCore = {
       ui: UI, stageW: STAGE_W, stageH: STAGE_H, orderId: ORDER_ID, partLabels: PART_LABELS.slice(),
@@ -7000,6 +7012,7 @@
         return imgs.map(function (o) { return partItem(o, order); });
       },
       split: v2SplitSheet,
+      addPresets: v2AddPresets,
       rid: rid,
       normalize: normalizeObj,
       textSize: loadPreferredTextSize,

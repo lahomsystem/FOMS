@@ -1,17 +1,18 @@
-{# 도면 마법사 V2 — 왼쪽 칸(316px): [제품 | 칸 | 실측 사진] · 제품 종류 · 칸 카드 · 미분류 상자. v2-left.js 가 채우고,
-   제품·실측 사진 목록은 V1 DOM(#dws-product-list · #dws-pending · #dws-photos)을 옮겨 담는다. #}
-<aside class="dws-v2-left dws-ui" id="dws-v2-left" aria-label="제품 · 칸 · 실측 사진">
+{# 도면 마법사 V2 — 왼쪽 칸(316px): [제품 | 그림 | 실측 사진] · 확인할 그림 상자 · 제품 종류 · 칸 카드. v2-left.js 가 채우고(확인할 그림은
+   v2-check.js), 제품·실측 사진 목록은 V1 DOM(#dws-product-list · #dws-pending · #dws-photos)을 옮겨 담는다. #}
+<aside class="dws-v2-left dws-ui" id="dws-v2-left" aria-label="제품 · 그림 · 실측 사진">
   <div class="dws-v2-tabs" role="tablist" aria-label="왼쪽 칸 보기">
     <button type="button" class="dws-v2-tab" role="tab" data-v2-tab="products" aria-selected="false">제품 <span data-v2-count="products">0</span></button>
-    <button type="button" class="dws-v2-tab" role="tab" data-v2-tab="slots" aria-selected="true">칸 <span data-v2-count="slots">0</span></button>
+    <button type="button" class="dws-v2-tab" role="tab" data-v2-tab="slots" aria-selected="true" title="종이에 놓인 그림 수(실측 사진 빼고)">그림 <span data-v2-count="slots">0</span></button>
     <button type="button" class="dws-v2-tab" role="tab" data-v2-tab="photos" aria-selected="false">실측 사진 <span data-v2-count="photos">0</span></button>
   </div>
   <div class="dws-v2-pane" data-v2-pane="products" role="tabpanel" hidden></div>
   <div class="dws-v2-pane" data-v2-pane="slots" role="tabpanel">
-    <label class="dws-v2-kind-label" for="dws-v2-kind">제품 종류 <span id="dws-v2-kind-auto">(그림을 보고 자동으로 골랐어요)</span></label>
+    {# 확인할 그림(미분류 · AI 칸 짐작 '?') — 있을 때만 보인다. 앱바 '미분류 N장 ›' 칩 · 카드의 '?' 딱지가 여기로 데려온다(v2-check.js) #}
+    <section class="dws-v2-unsorted" id="dws-v2-unsorted" aria-label="확인할 그림" hidden></section>
+    <label class="dws-v2-kind-label" for="dws-v2-kind">제품 종류 <span id="dws-v2-kind-auto">(제품 · 시트 이름을 보고 골랐어요)</span></label>
     <select class="dws-v2-kind" id="dws-v2-kind"></select>
     <div class="dws-v2-cards" id="dws-v2-cards"></div>
-    <div class="dws-v2-unsorted" id="dws-v2-unsorted"></div>
   </div>
   <div class="dws-v2-pane" data-v2-pane="photos" role="tabpanel" hidden>
     <p class="dws-v2-pane-note">사진을 누르면 종이에 넣어요. 예전 사진은 종이에서 골라 Delete.</p>
