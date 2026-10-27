@@ -135,13 +135,22 @@ def is_partner_original_key(storage_key: Any) -> bool:
     return len(parts) >= 3 and parts[0] == "orders" and parts[2] in PARTNER_ORIGINAL_FOLDERS
 
 
-def can_delete_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
-    """Return whether the user may delete an attachment on the given order."""
-    if not user or not order or not attachment:
+def _is_drawing_team_drawing_cleanup(user: Any, attachment: Any) -> bool:
+    """도면팀이 '도면' 칸 파일을 정리하는 경우인가(2026-10-27 사용자 결정 — 도면팀 전원).
+
+    주문 5690: 최종 도면과 같은 파일이 도면 칸에 사본으로 한 번 더 올라왔는데 도면팀은 지울
+    권한이 없었다. 단계는 보지 않는다. 실측·시공·AS 사진은 그대로 영업·관리자·올린 본인 몫이다.
+    최종 도면(``drawing_current_files``)은 삭제 API 가 따로 409 로 막는다.
+    """
+    if (getattr(user, "role", None) or "").strip().upper() == "VIEWER":
         return False
-    # PARTNER-02: 협력사가 낸 원본(초안 도면·실측 사진)은 ADMIN 만 지운다 — 실측 책임을 가리는 근거.
-    if is_partner_original_key(getattr(attachment, "storage_key", None)):
-        return (getattr(user, "role", None) or "").strip().upper() == "ADMIN"
+    if normalize_team(getattr(user, "team", None)) != "DRAWING":
+        return False
+    return str(getattr(attachment, "category", "") or "").strip().lower() == "drawing"
+
+
+def _can_delete_by_owner_rule(user: Any, order: Any, attachment: Any) -> bool:
+    """관리자·주문 담당자·올린 본인 규칙(도면팀 정리 규칙을 뺀 옛 삭제 규칙)."""
     if can_manage_order_attachments(user, order):
         return True
 
@@ -158,9 +167,37 @@ def can_delete_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
     )
 
 
+def _is_partner_original_guarded(user: Any, attachment: Any) -> bool | None:
+    """협력사 원본이면 ADMIN 여부(True/False), 아니면 None(다음 규칙으로)."""
+    # PARTNER-02: 협력사가 낸 원본(초안 도면·실측 사진)은 ADMIN 만 지운다 — 실측 책임을 가리는 근거.
+    if is_partner_original_key(getattr(attachment, "storage_key", None)):
+        return (getattr(user, "role", None) or "").strip().upper() == "ADMIN"
+    return None
+
+
+def can_delete_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
+    """Return whether the user may delete (or restore) an attachment on the given order."""
+    if not user or not order or not attachment:
+        return False
+    partner = _is_partner_original_guarded(user, attachment)
+    if partner is not None:
+        return partner
+    if _is_drawing_team_drawing_cleanup(user, attachment):
+        return True
+    return _can_delete_by_owner_rule(user, order, attachment)
+
+
 def can_modify_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
-    """Return whether the user may modify attachment metadata (e.g. item_index)."""
-    return can_delete_order_attachment(user, order, attachment)
+    """Return whether the user may modify attachment metadata (e.g. item_index).
+
+    도면팀 '도면' 칸 정리 규칙은 삭제·되살리기에만 쓴다 — 제품 연결 바꾸기는 옛 규칙 그대로.
+    """
+    if not user or not order or not attachment:
+        return False
+    partner = _is_partner_original_guarded(user, attachment)
+    if partner is not None:
+        return partner
+    return _can_delete_by_owner_rule(user, order, attachment)
 
 
 def can_reorder_order_attachments(user: Any, order: Any) -> bool:

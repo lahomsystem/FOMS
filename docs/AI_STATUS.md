@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-27] **생산·시공 도면 바로 반영·생산팀 알림(deploy)** — 잔여: 생산팀 계정·실화면·5690 사본. SPEC `2026-10-27-drawing-team-production-fix`
 - [2026-10-27] **마법사 등록 정리 운영(PR #627·#633·#634)** — 버튼 하나·빈 초안·미등록 알림·SIDEFX 처리기. 잔여: DEAD 6행 둠
 - [2026-10-27] **AI 도면팀원·V2 운영(PR #632·#635)** — 실계정 점검 끝. 잔여: 루틴 403(사용자)
 - [2026-10-24] **mine 켠 대시보드 지연 운영 완료(PR #611·#616·#622)** — 잔여: 한용희 폰 첫 로딩 4~5초 멈춤(서버·망 아님)
@@ -26,7 +27,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
-- [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
@@ -207,6 +207,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-10-23] **마법사 같은 주문 2번 저장 수정 — 운영 완료(PR #623 `f8d464c1`)** — 잔여: 운영 #5812 중복(사용자 정리)
 - [2026-10-21] **협력사 1~6·18 운영 완료(#577~#619)** — 새 주문·사진·입력 칸·희망 시공일·시공 달력·사진 연결. SPEC `2026-10-19-partner-foms-mode` §18
 - [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)
