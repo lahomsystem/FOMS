@@ -407,6 +407,47 @@ for (let n = 0; n < 60; n++) {
     assert out["overlapRuns"] == 0 and out["failed"] == 0      # 예전(고친 앞): 겹친 다시 배치가 대부분이었다
 
 
+def test_pinned_picture_does_not_shrink_the_rest_much():
+    """고정 그림 하나가 생겨도 나머지 그림은 고정 없이 놓은 것과 비슷한 크기 — 틀 전체를 빈 사각형 하나 안으로 옮기지 않고,
+    종이 칸 그대로에서 큰 그림 칸만 고정 그림을 비켜 간다(v2-pack room). 비율 = 같은 시트를 고정 없이 놓았을 때 대비 한 변."""
+    out = _run(ARRANGE + r"""
+let seed = 4242;
+const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+const ri = (a, b) => Math.floor(a + rnd() * (b - a + 1));
+const LABELS = ['정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진'];
+let uid = 0;
+const pic = () => upload('o' + (uid++), LABELS[ri(0, LABELS.length - 1)], ri(250, 2000), ri(200, 1500), 0);
+const area = sh => { const m = {}; sh.objects.filter(o => o.type === 'image').forEach(o => { m[o.id] = o.w * o.h; }); return m; };
+function ratio(free, sh, pin) {
+  const A = area(free), B = area(sh), rs = Object.keys(B).filter(id => id !== pin && A[id] > 0).map(id => Math.sqrt(B[id] / A[id]));
+  return rs.reduce((s, v) => s + v, 0) / rs.length;
+}
+const rs = [];
+out.overlapRuns = 0;
+for (let n = 0; n < 60; n++) {
+  const sh = { id: 's', form: {}, objects: Array.from({ length: ri(3, 9) }, pic) };
+  if (!arrange(sh).ok) { continue; }
+  const imgs = sh.objects.filter(o => o.type === 'image'), t = imgs[ri(0, imgs.length - 1)], free = JSON.parse(JSON.stringify(sh));
+  t.x += ri(20, 160) * (rnd() < 0.5 ? 1 : -1); t.y += ri(20, 120) * (rnd() < 0.5 ? 1 : -1);
+  const extra = pic(); sh.objects.push(extra); free.objects.push(JSON.parse(JSON.stringify(extra)));
+  if (!arrange(free).ok || !arrange(sh).ok) { continue; }
+  if (overlaps(sh).length) { out.overlapRuns++; }
+  rs.push(ratio(free, sh, t.id));
+}
+rs.sort((a, b) => a - b);
+out.n = rs.length; out.median = rs[Math.floor(rs.length / 2)]; out.p10 = rs[Math.floor(rs.length / 10)];
+const laid = sheet4385(); arrange(laid);
+const sh = JSON.parse(JSON.stringify(laid)), free = JSON.parse(JSON.stringify(laid));
+find(sh, 'c1').locked = true;
+[sh, free].forEach(s => s.objects.push(upload('nn', '서랍 단면', 520, 400, 0)));
+arrange(free); arrange(sh);
+out.lock = ratio(free, sh, 'c1');
+""")
+    assert out["n"] >= 50 and out["overlapRuns"] == 0
+    assert out["median"] >= 0.93 and out["p10"] >= 0.72, out   # 예전(2026-10-27): 중앙값 0.88 · 열에 하나는 0.64배 밑
+    assert out["lock"] >= 0.9, out                               # 스테이징 4385: 큰 그림 하나를 잠그면 나머지가 0.75배였다
+
+
 def test_slot_heads_keep_minimum_width_so_neighbours_do_not_collide():
     out = _run(r"""
 const units = [{ slot: 'main', members: [{ id: 'm1', nw: 1600, nh: 1100 }] }, { slot: 'main', members: [{ id: 'm2', nw: 1400, nh: 1000 }] }];
