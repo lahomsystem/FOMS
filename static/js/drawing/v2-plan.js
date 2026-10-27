@@ -8,9 +8,11 @@
  *   새로 올린 그림(arr 없음)은 아무것도 데려가지 않는다 — 올린 자리가 우연히 메모 위일 수 있다.
  * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류,
  *   v2_ai = AI 칸 짐작(v2-slots parseGuess).
- * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠긴 자재표 · 특이 · 강조.
- *   틀 계산이 그 자리를 비켜 간다(v2-layout). 잠기지 않은 그 밖 글자 · 도형은 넣지 않는다 — 그림을 따라가는 치수 메모가
- *   장애물이 되면 칸이 잘게 쪼개진다.
+ * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠긴 자재표 · 특이 · 강조,
+ *   그리고 종이 칸에 걸친 그림 밖 글자 · 도형 · 펜(staying — 잠긴 것 · apply 가 데려가지 않는 것). 틀 계산이 그 자리를 비켜 간다
+ *   (v2-layout). 그림 안 치수 메모(배치 자리에 그대로 있는 그림 안에 가운데가 있는 것)는 그림을 따라가니 넣지 않는다 — 장애물이
+ *   되면 칸이 잘게 쪼개진다. 예전엔 그림 밖 메모 · 화살표도 빼서 다시 놓은 그림이 그 위에 겹쳤다(도면팀 평가 2026-10-27).
+ *   plan.stay = 그 수(오른쪽 요약 · 알림 글이 그림이 작아진 까닭으로 말한다).
  * - diff: 붙이기 전에 바뀌는 것을 센다 — 같으면 v2-shell 이 되돌리기 사본을 남기지 않고 '이미 칸에 맞게' 라고 말한다.
  *
  * window.FomsV2Plan = { build(sheet, ctx) → plan, apply(sheet, res, opts), diff(sheet, res, template) → {n, any},
@@ -56,6 +58,7 @@
     grp.units.forEach(function (u) { u.members.forEach(function (m) { promoted[m.id] = true; }); });
     function strip(list) { return list.map(function (o) { var it = item(o); return { id: it.id, nw: it.nw, nh: it.nh, tx: it.tx }; }); }
     function box(o) { var b = S().textBox(o); return { id: o.id, w: b.w, h: b.h }; }
+    var stay = staying(g, imgs);
     var input = {
       photo: strip(movable(g.photo)),
       detail: strip(movable(g.detail).filter(function (o) { return !promoted[o.id]; })),
@@ -68,12 +71,25 @@
       base: imgs.length && ctx.baseline ? ctx.baseline(imgs) : {},
       obstacles: imgs.filter(function (o) { return g.fixed[o.id]; }).map(stayBox)
         .concat(g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).filter(function (o) { return o.locked; }).map(stayBox))
+        .concat(stay.map(stayBox))
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
     var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, prefer: pick });
     return { g: g, kind: kind, kindAuto: kindAuto, kitchen: kitchen, letters: S().letters(g, kitchen), input: input,
       out: out, base: input.base, settings: set, laid: form.v2_layout === 'band' || form.v2_layout === 'column',
-      template: form.v2_layout || '', pick: pick, items: byId };
+      template: form.v2_layout || '', pick: pick, items: byId, stay: stay.length };
+  }
+
+  /** 다시 배치해도 그 자리에 남는 그림 밖 글자 · 도형 · 펜(g.free) 중 종이 칸에 걸친 것 — 잠긴 것, 그리고 apply '그림 따라가기'가
+      데려가지 않는 것(가운데가 배치 자리(part.arr)에 그대로 있는 그림 안이 아닌 것). 칸 밖(아래 띠 · 여백)은 상관없어 뺀다. */
+  function staying(g, imgs) {
+    var A = window.FomsV2Layout.AREA;
+    var hosts = imgs.filter(function (o) { return !g.fixed[o.id] && !o.locked && o.part && o.part.arr && !S().moved(o); });
+    return (g.free || []).filter(function (o) {
+      var b = stayBox(o), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      if (!(b.x < A.x1 && A.x0 < b.x + b.w && b.y < A.y1 && A.y0 < b.y + b.h)) { return false; }
+      return !(!o.locked && S().role(o) === 'free' && hosts.some(function (h) { return inside(cx, cy, h); }));   // apply 와 같은 판정
+    });
   }
 
   /** 지금 자리 기준 % — { id: 비율 } (기준이 없으면 원본 대비). 사진도 넣는다(화면이 뺀다). */

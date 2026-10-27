@@ -6,7 +6,10 @@
  * - 배치 알림 글(arrangeText): 사람이 누른 배치([다시 자동 배치] · [자동 배치] · 정리하기 · 고정 풀기)는 늘 결과를 말하고
  *   (다시 놓은 장수 · 이미 맞음 · 고정이라 그대로 · 못 놓음), 지운 뒤 배치는 다시 놓았을 때만 말한다. 예전엔 눌러도 알림이 없고
  *   결과가 같으면 화면도 그대로라 '단추가 안 된다'로 보였다(스테이징 주문 4385, 2026-10-27).
+ *   고정 그림은 [고정 풀고 모두 다시]를 가리킨다 — 오른쪽 칸 바닥과 ⋯ 메뉴 두 곳(1280 밑 창은 오른쪽 칸이 숨어 '오른쪽'을 뺐다).
+ *   그림 밖 메모 · 선(v2-plan.js plan.stay)은 비켜 놓았다고 말한다 — 그림이 작아진 까닭이다.
  * - 알림 띠: 지금 종이가 낡아(지운 뒤 · 손댄 뒤) 다시 놓으면 충분히 커지면 나누기 대신 [다시 자동 배치]를 권한다.
+ *   종이를 내려도 화면 위에 붙어 있다(wizard-v2.css sticky — 내리면 결과 · [되돌리기]가 사라졌다, 도면팀 평가 2026-10-27).
  * window.FomsV2Chrome = { init(api), render(view), pickPhoto(photos) → Promise<photo|null>, arrangeText(reason, d, plan, removed) }
  */
 (function () {
@@ -14,8 +17,8 @@
   if (window.FomsV2Chrome) { return; }
 
   var api = null, els = {}, ZOOMS = [50, 70, 100, 150];
-  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1 };
-  var TPL = { band: '위 띠형', column: '왼쪽 기둥형' };
+  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1, unpick: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1 };
+  var TPL = { band: '사진·상세를 위에', column: '사진·상세를 왼쪽에' };   // v2-right.js 틀 고르기와 같은 이름
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -112,15 +115,17 @@
 
   /** 배치 결과 알림 글('' = 말하지 않음). d = FomsV2Plan.diff 결과(null = 놓을 자리 없음), removed = 지운 그림 수. */
   function arrangeText(reason, d, plan, removed) {
-    var fixed = Object.keys((plan && plan.g && plan.g.fixed) || {}).length;
-    var pin = fixed ? ' · 고정된 그림 ' + fixed + '장은 그 자리에 두었어요(오른쪽 [고정 풀고 모두 다시])' : '';
+    var fixed = Object.keys((plan && plan.g && plan.g.fixed) || {}).length, stay = (plan && plan.stay) || 0;
+    var pin = (fixed ? ' · 고정된 그림 ' + fixed + '장은 그 자리에 두었어요([고정 풀고 모두 다시])' : '') +
+      (stay ? ' · 그림 밖 메모 ' + stay + '개는 비켜 놓았어요' : '');
     if (!d) {
       if (!TALK[reason] && !FAIL[reason]) { return ''; }
-      return '칸에 놓을 자리가 없어요 — ' + (fixed ? '고정된 그림 ' + fixed + '장이 자리를 차지해요 · 오른쪽 [고정 풀고 모두 다시]'
-        : '그림을 줄이거나 시트를 2장으로 나눠 주세요');
+      return '칸에 놓을 자리가 없어요 — ' + (fixed ? '고정된 그림 ' + fixed + '장이 자리를 차지해요 · [고정 풀고 모두 다시]'
+        : (stay ? '그림 밖 메모 ' + stay + '개가 자리를 차지해요 · 옮기거나 지워 주세요' : '그림을 줄이거나 시트를 2장으로 나눠 주세요'));
     }
     if (reason === 'removed') { return d.n ? (removed ? '그림 ' + removed + '장을 빼고 ' : '') + '남은 그림을 다시 놓았어요 · 되돌리기 Ctrl+Z' : ''; }
     if (!TALK[reason]) { return ''; }
+    if (reason === 'unpick') { return '추천 틀(' + TPL[plan.out.best] + ')로 ' + (d.any ? '다시 놓았어요 · 되돌리기 Ctrl+Z' : '이미 놓여 있어요') + pin; }
     if (!d.any) { return '이미 칸에 맞게 놓여 있어요' + pin + (plan.pick ? ' · 고른 틀: ' + TPL[plan.pick] : ''); }
     return (d.n ? '그림 ' + d.n + '장을 칸에 맞춰 ' + (reason === 'banner' ? '정리했어요' : '다시 놓았어요') : '칸에 맞춰 정리했어요') + ' · 되돌리기 Ctrl+Z' + pin;
   }

@@ -18,9 +18,13 @@
 .dws-v2 .dws-fontctl,
 .dws-v2 #dws-btn-save-all,
 .dws-v2 #dws-btn-export { display: none !important; }
-.dws-v2.dws-v2-auto .dws-appbar-center .dws-seg,
+/* 도구 묶음(선택 · 텍스트 · 도형 · 펜 · 지우개 · 이미지)은 자동 배치 모드에도 보인다 — 메모 · 화살표를 쓰려면 자유 배치로 바꿔야 했다
+   (도면팀 평가 2026-10-27). 그림 밖 메모 · 선은 다시 배치가 비켜 간다(v2-plan.js). 프리셋(자재표 머리 글)은 자유 배치에서만. */
 .dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }
 .dws-v2 .dws-appbar-center { display: flex; align-items: center; gap: 10px; }
+.dws-v2 #dws-v2-more-menu .dws-menu-item[hidden] { display: none; }   /* [고정 풀고 모두 다시]는 고정 그림이 있을 때만(v2-right.js) */
+/* [예전 화면] — 늘 보이는 V1 돌아가기(wizard-ui-switch.js). ⋯ 메뉴 안에만 있어 돌아가는 길을 못 찾았다 */
+.dws-v2-uiback { color: #3a3a3c; }
 
 .dws-v2-modes {
   display: flex;
@@ -63,6 +67,11 @@
 .dws-v2-rearrange:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
 .dws-v2-rearrange:disabled { opacity: 0.5; cursor: default; background: #ffffff; }
 .dws-v2.dws-v2-free .dws-v2-rearrange { display: none; }
+/* 1180~1279(한 줄 앱바): 도구 묶음 · [예전 화면]을 더하니 1180 에서 오른쪽 끝이 6px 넘쳤다 — 배치 방식 단추 안쪽 여백 · 가운데 틈만 줄인다 */
+@media (min-width: 1180px) and (max-width: 1279px) {
+  .dws-v2 .dws-appbar-center { gap: 6px; }
+  .dws-v2-mode { padding-left: 10px; padding-right: 10px; }
+}
 
 /* ---- 몸통: 왼쪽 316 · 가운데 · 오른쪽 316 ------------------------------------ */
 .dws-v2-left,
@@ -299,6 +308,12 @@
   gap: 4px 8px;
   font-size: 12px;
   border: 1px solid transparent;
+  /* 종이를 내려도 화면 위에 붙어 있다 — 내리면 결과 알림 · [되돌리기] · [칸으로 정리하기]가 화면 밖으로 사라졌다(도면팀 평가 2026-10-27).
+     종이(변형 스택)·전달본 지우기 ×(z 60) 위, 떠 있는 펜 팔레트 · 미니 막대(fixed 82~95) 밑 */
+  position: sticky;
+  top: 8px;
+  z-index: 61;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .dws-v2-banner[hidden] { display: none; }
 .dws-v2-banner-green { background: #e9f7ee; border-color: #b6e3c4; color: #14532d; }
@@ -616,6 +631,23 @@
 .dws-v2-tpl-name { font-size: 12px; font-weight: 700; color: #1d1d1f; }
 .dws-v2-tpl-meta { font-size: 11px; color: #6e6e73; }
 .dws-v2-tpl-state { font-size: 10px; font-weight: 700; color: #0062c4; }
+.dws-v2-tpl-back { margin-left: 2px; }   /* [추천 틀로 돌아가기] — 고른 틀이 추천과 다를 때만(v2-right.js) */
+/* 자세히 ▸ — '컴퓨터가 본 것' · 켜고 끄기를 접어 둔다(처음엔 접힘 · 이 브라우저에 기억, v2-right.js) */
+.dws-v2-detail-toggle {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0062c4;
+  cursor: pointer;
+}
+.dws-v2-detail-toggle:hover { text-decoration: underline; }
+.dws-v2-detail-toggle:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; border-radius: 4px; }
+.dws-v2-detail { display: flex; flex-direction: column; gap: 14px; }
+.dws-v2-detail[hidden] { display: none; }
 .dws-v2-seen { display: flex; flex-direction: column; gap: 6px; }
 .dws-v2-seen-row {
   display: flex;
