@@ -121,5 +121,7 @@ FOMS 에 **'AI 도면팀원'** 계정을 두고, 그 이름으로 도면팀 일�
   `foms/services/drawing_agent_changes.json` — 그 환경에 실제로 올라간 것만 노트에 나온다.
 - **B2 연구 노트 · 루틴**(2026-10-27, deploy `ed7fbeec`): `docs/research/drawing-agent/`(AGENT · JOURNAL · METRICS · BACKLOG · TEAM-RULES),
   받기 도구 `tools/drawing_ai/fetch_digest.py`(fetch · to-retrain). 원격 루틴 `trig_01EduRFxmcmoM7uFGuW7RqEX` 매주 월 01:00 UTC.
-  운영 반영 트리거는 GitHub 'production 으로 합친 PR'(웹 화면에서만 붙일 수 있음 — 공개 API 칸 없음), 토큰은 루틴 환경 변수(사용자가 넣음).
+  운영 반영 실행은 도면 기능을 운영에 올린 세션이 RemoteTrigger run 으로 돌린다(GitHub PR 트리거는 운영 PR 이 주 40개 안팎이라 안 씀 ·
+  필터 칸이 공개 API 에 없음). 토큰은 루틴 지시문에 둔다 — 트리거 API 가 환경 변수를 받지 않는다("not supported on triggers").
+  읽기 전용 · 고객 정보 없음이라 위험이 작고, 운영 web 지문만 바꾸면 바로 무효가 된다(사용자 승인 2026-10-27).
 - **스테이징 확인**(2026-10-27): 학습 요약 4종 200 · 토큰 없음/틀림 401 · 고객 정보 없음, 주간 노트 W44 생성 · 도면팀 3명 알림 · 노트 화면.
