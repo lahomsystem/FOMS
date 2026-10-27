@@ -6,6 +6,8 @@
  *   특이 사항 = id 가 'n-'(실선 · 제작) · 'nc-'(점선 · 현장/고객)인 글자, 강조 문구 = id 가 'st-' 인 글자.
  * - '확신이 낮으면 미분류로'(lowToUnsorted)를 끄면 미분류 그림은 AI 짐작(part.ai) 칸으로 간다.
  * - 고정 = 잠금 · 돌림 · (lockMoved 일 때) 자동 배치가 놓은 자리(part.arr)에서 사람이 옮긴 그림 — 배치가 옮기지 않는다.
+ *   옮김은 6px 넘게(MOVE_TOL): 그림을 누르다 손이 조금 밀려도 Konva 는 3px 부터 끌기로 친다 — 1px 로 재던 때는 누르기만 해도
+ *   고정이 되어 다시 배치가 그 그림을 건너뛰었다(스테이징 주문 4385, 2026-10-27).
  * - 주방이면 큰 그림을 정면 · 입체 두 칸으로 나눈다(kitchen).
  * - AI 칸 짐작(opts.guess = form.v2_ai): 세부 종류 확신은 낮아도(미분류) 칸 확신(큰 그림 = 정면 + 입체 확률 합,
  *   상세 = 서랍 단면 + 부품 상세 합)이 문턱을 넘은 그림은 그 칸에 놓는다. 이름표는 미분류 그대로 — 사람이 고르기 전까지 '확인'.
@@ -27,6 +29,7 @@
   var FAM = { f: '정면·내부', i: '입체·내부', d: '부품 상세' };
   var FAM_OF = { '정면·내부': 'f', '정면·도어': 'f', '입체·내부': 'i', '입체·도어': 'i', '서랍 단면': 'd', '부품 상세': 'd' };
   var GUESS_MAX = 500;   // 폼 한 칸 글자 한도(서버 _MAX_FORM_VALUE_LEN)
+  var MOVE_TOL = 6;      // 이만큼(px)까지 어긋난 것은 옮긴 것으로 치지 않는다(끌기 시작 3px + 손떨림)
   var KINDS = [
     { key: 'closet', name: '붙박이장류' },
     { key: 'kitchen', name: '주방' },
@@ -72,11 +75,11 @@
 
   function rotated(o) { var r = Math.round(o.rotation || 0) % 360; return r !== 0; }
 
-  /** 자동 배치가 놓은 자리(part.arr)에서 사람이 옮기거나 크기를 바꿨나(1px 넘게). arr 가 없으면 false. */
+  /** 자동 배치가 놓은 자리(part.arr)에서 사람이 옮기거나 크기를 바꿨나(MOVE_TOL 넘게). arr 가 없으면 false. */
   function moved(o) {
-    var a = o && o.part && o.part.arr;
+    var a = o && o.part && o.part.arr, t = MOVE_TOL;
     if (!a || a.length !== 4) { return false; }
-    return Math.abs(a[0] - o.x) > 1 || Math.abs(a[1] - o.y) > 1 || Math.abs(a[2] - o.w) > 1 || Math.abs(a[3] - o.h) > 1;
+    return Math.abs(a[0] - o.x) > t || Math.abs(a[1] - o.y) > t || Math.abs(a[2] - o.w) > t || Math.abs(a[3] - o.h) > t;
   }
 
   function isFixed(o, opts) {
@@ -180,7 +183,7 @@
   }
 
   window.FomsV2Slots = {
-    group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved,
+    group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved, MOVE_TOL: MOVE_TOL,
     detectKind: detectKind, KINDS: KINDS, letters: letters, slotOf: slotOf, isBom: isBom, title: title,
     parseGuess: parseGuess, formatGuess: formatGuess, FAM_OF: FAM_OF
   };

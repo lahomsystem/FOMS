@@ -107,7 +107,7 @@ def test_wizard_js_asset_pin_bumped() -> None:
     assert "js/drawing/wizard.js') }}?v=20261024a" not in tpl   # 2026-10-25 사용성 평가 수정으로 다시 올림
     assert "js/drawing/wizard.js') }}?v=20261025a" not in tpl   # 2026-10-25 실화면 QA 뒤 고침으로 한 번 더 올림
     assert "js/drawing/wizard.js') }}?v=20261025b" not in tpl   # 2026-10-25 검수 뒤 마지막 고침으로 한 번 더 올림
-    assert "js/drawing/wizard.js') }}?v=20261027c" in tpl
+    assert "js/drawing/wizard.js') }}?v=20261027d" in tpl
 
 
 def test_wizard_js_calls_push_manual_and_preview_with_drawing_room_kind() -> None:

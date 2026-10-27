@@ -46,6 +46,23 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 .dws-v2-mode:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+/* 앱바 [다시 자동 배치] — 자동 배치 모드에서만(자유 배치는 도구 묶음 자리). 오른쪽 칸이 숨는 좁은 창에서도 보인다(v2-right.js) */
+.dws-v2-rearrange {
+  border: 1px solid #0071e3;
+  background: #ffffff;
+  color: #0062c4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-v2-rearrange:hover { background: #e8f0fc; }
+.dws-v2-rearrange:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+.dws-v2-rearrange:disabled { opacity: 0.5; cursor: default; background: #ffffff; }
+.dws-v2.dws-v2-free .dws-v2-rearrange { display: none; }
 
 /* ---- 몸통: 왼쪽 316 · 가운데 · 오른쪽 316 ------------------------------------ */
 .dws-v2-left,
@@ -62,7 +79,17 @@
   min-height: 0;
 }
 .dws-v2-left { border-right: 1px solid #e5e5ea; }
-.dws-v2-right { border-left: 1px solid #e5e5ea; gap: 14px; }
+/* 오른쪽 칸 = 굴러가는 몸통 + 늘 보이는 바닥([다시 자동 배치]) */
+.dws-v2-right { border-left: 1px solid #e5e5ea; gap: 0; padding: 0; overflow: hidden; }
+.dws-v2-right-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .dws-v2 .dws-calc:not([hidden]) ~ .dws-v2-right { display: none; }   /* 자재표 계산 칸을 열면 그 자리를 쓴다 */
 
 .dws-v2 .dws-canvas {
@@ -458,6 +485,11 @@
 .dws-v2-head-name { font-size: 14.5px; font-weight: 800; }
 .dws-v2-head-meta { font-size: 13px; font-weight: 600; color: #555555; }
 .dws-v2-head-side { margin-left: auto; padding-left: 8px; font-size: 12.5px; color: #555555; }
+.dws-v2-head-name,
+.dws-v2-head-meta,
+.dws-v2-head-side { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dws-v2-head-meta,
+.dws-v2-head-side { flex-shrink: 4; }   /* 좁으면 곁글부터 줄인다 — 칸 이름이 먼저 보이게 */
 .dws-v2-bom-line { position: absolute; background: #dddddd; }
 .dws-v2-note { position: absolute; box-sizing: border-box; border: 1.5px solid #111111; }
 .dws-v2-note-site { border-style: dashed; }
@@ -465,18 +497,31 @@
 
 /* ---- 종이 위 배율 표시(화면에만) ------------------------------------------------- */
 .dws-v2-badges { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
+/* 칸 머리 오른쪽 끝 위에 뜬다(v2-paper.js PILL_UP 18) — 아래 끝이 머리 글 윗선이라 칸 이름을 가리지 않는다 */
 .dws-v2-pill {
   position: absolute;
   transform: translateX(-100%);
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 14px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
-  font-size: 16px;
+  font-size: 13.5px;
   font-weight: 800;
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+/* 고정 그림 표시(그림 왼쪽 위) — 다시 자동 배치해도 그 자리에 남는 그림(손으로 옮김 · 잠금 · 돌림) */
+.dws-v2-pin {
+  position: absolute;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(29, 29, 31, 0.78);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
 }
 .dws-v2-pill-blue { background: #0071e3; color: #ffffff; }
 .dws-v2-pill-orange { background: #ff9f0a; color: #1d1d1f; }
@@ -593,20 +638,29 @@
 .dws-v2-switch-on { background: #34c759; }
 .dws-v2-switch-on::after { left: 15px; }
 .dws-v2-toggle:focus-visible .dws-v2-switch { outline: 2px solid #0071e3; outline-offset: 2px; }
-.dws-v2-right-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
-.dws-v2-relayout {
-  height: 36px;
-  border-radius: 9px;
-  border: 1px solid #e5e5ea;
+.dws-v2-right-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid #e5e5ea;
   background: #ffffff;
+}
+.dws-v2-relayout {
+  height: 38px;
+  border-radius: 9px;
+  border: 0;
+  background: #0071e3;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
-  color: #1d1d1f;
+  color: #ffffff;
   cursor: pointer;
 }
-.dws-v2-relayout:hover { border-color: #0071e3; color: #0062c4; }
-.dws-v2-relayout:disabled { opacity: 0.5; cursor: default; }
+.dws-v2-relayout:hover { background: #0062c4; }
+.dws-v2-relayout:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.dws-v2-relayout:disabled { opacity: 0.5; cursor: default; background: #0071e3; }
 
 /* ---- 좁은 창: 오른쪽 칸을 접고(1280 밑) 왼쪽 칸을 좁힌다 ------------------------------ */
 @media (max-width: 1279px) {
