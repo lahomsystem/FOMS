@@ -5024,6 +5024,11 @@
       var calc = window.FomsBomCalc ? window.FomsBomCalc.sanitize(s.calc) : s.calc;
       if (calc) { out.calc = calc; }
     }
+    // AI 도면팀원 검수 메모 기록(끈 메모 · 보인 메모 key — 설계서 2026-10-27 A1). 그림과 무관해 지문(sheetSig)에서 뺀다.
+    if (s.review && typeof s.review === 'object') {
+      var review = window.FomsReviewMemo ? window.FomsReviewMemo.sanitize(s.review) : s.review;
+      if (review) { out.review = review; }
+    }
     return out;
   }
 
@@ -5103,6 +5108,7 @@
       if (isFiniteNum(s.product_index)) { sheet.product_index = Math.round(s.product_index); }
       if (isFiniteNum(s.attachment_id)) { sheet.attachment_id = Math.round(s.attachment_id); }
       if (s.calc && typeof s.calc === 'object') { sheet.calc = s.calc; }
+      if (s.review && typeof s.review === 'object') { sheet.review = s.review; }
       /* 기본 프리셋 이전에 만든 시트: 빈 시트면 한 번만 자리표를 깔고, 깔았든 안 깔았든 표시를 남겨
          지운 프리셋이 다시 열 때 되살아나지 않게 한다. 저장 권한이 없으면 건드리지 않는다. */
       if (s.presets_seeded === true) { sheet.presets_seeded = true; }
@@ -5242,6 +5248,72 @@
    *   토스트 + dirty 유지, (c) 성공 토스트 없음(저장 버튼 dirty 해제로 충분).
    * @returns {Promise<boolean>}
    */
+  /* AI 도면팀원 검수 메모(설계서 2026-10-27 A1 · review-memo.js 규칙 · review-card.js 카드) — [저장] · [일괄 저장] 때
+     시트를 읽어 확실한 것만 메모한다(시트 그림은 안 고친다). 지금 시트는 화면 노드로 테두리를 재고, 다른 시트는
+     돌리지 않은 그림만 저장 값으로 잰다. 메모 계산이 터져도 저장은 그대로 간다. */
+  function reviewCtx(live) {
+    return { unsure: PART_LABELS[PART_LABELS.length - 1], border: PART_BORDER, minText: 8, bom: window.FomsBomCalc || null,
+      textOf: function (o) { return partTextOf(o); },
+      rectOf: function (o) {
+        if (live) { return partObjRect(o); }
+        return normalizeRotation(o.rotation) ? null : { x: o.x, y: o.y, w: o.w, h: o.h };
+      } };
+  }
+
+  /** 시트들의 메모 → 카드 묶음. 보인 메모 key 를 sheet.review 에 적는다(저장 본문을 만들기 전에 부른다). */
+  function reviewSheets(sheets) {
+    var M = window.FomsReviewMemo, cs = currentSheet(), groups = [];
+    if (!M || !canSave) { return groups; }
+    (sheets || []).forEach(function (s) {
+      if (!s) { return; }
+      try {
+        var memos = M.check(s, reviewCtx(s === cs)), review = M.note(s, memos);
+        if (review) { s.review = review; } else { delete s.review; }
+        if (memos.length) { groups.push({ sheetId: s.id, sheetName: s.name, memos: memos }); }
+      } catch (e) { console.warn('[dws] review', e); }
+    });
+    return groups;
+  }
+
+  function showReview(groups) {
+    var K = window.FomsReviewCard;
+    if (!K || !groups) { return; }
+    if (groups.length) { K.show(groups, { look: reviewLook, off: reviewOff }); } else { K.hide(); }
+  }
+
+  function sheetIndexById(id) {
+    for (var i = 0; i < state.sheets.length; i += 1) { if (state.sheets[i].id === id) { return i; } }
+    return -1;
+  }
+
+  /** [보기] — 그 시트로 가서 머리칸이면 그 칸, 자재표면 계산 칸, 그림이면 그 그림들을 고른다. */
+  function reviewLook(sheetId, memo) {
+    var i = sheetIndexById(sheetId);
+    if (i < 0 || !memo) { return; }
+    if (i !== current) { switchSheet(i); }
+    if (memo.field && els.form) {
+      var cell = els.form.querySelector('[data-dws-form-key="' + memo.field + '"]');
+      if (cell && cell.focus) { cell.focus(); }
+      return;
+    }
+    if (memo.rule === 'bom') {
+      var calc = document.getElementById('dws-calc');   // 자재표 계산 칸(initBomPanel) — 닫혀 있을 때만 연다
+      if (window.FomsBomPanel && calc && calc.hidden) { window.FomsBomPanel.toggle(); }
+      return;
+    }
+    selectedIds = (memo.ids || []).filter(function (id) { return !!nodeById[id]; });
+    if (selectedIds.length) { applySelection(); } else { deselect(); }
+  }
+
+  /** [끄기] — 그 시트에서 그 메모를 다시 띄우지 않는다(다음 자동 저장 때 같이 나간다). */
+  function reviewOff(sheetId, memo) {
+    var i = sheetIndexById(sheetId), M = window.FomsReviewMemo;
+    if (i < 0 || !M || !canSave) { return; }
+    var s = state.sheets[i], review = M.off(s, memo);
+    if (review) { s.review = review; }
+    markDirty();
+  }
+
   function save(opts) {
     opts = opts || {};
     var auto = opts.auto === true;
@@ -5269,6 +5341,7 @@
     saveInFlight = true;
     renderSaveStatus();   // '저장 중…'
     var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
+    var memos = auto ? null : reviewSheets([sheet]);   // 본문 전에 — 보인 메모 key 가 이 저장에 같이 실린다
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: auto };
     els.saveBtn.disabled = true;
     return jsonFetch(API_BASE + '/drawing-wizard', {
@@ -5301,6 +5374,7 @@
           saveInFlight = false;
           renderSaveStatus();
           refreshPending();   // 전달 대기함에 새 시트 반영 → 미리보기 패널 갱신
+          showReview(memos);
           return true;
         });
       }
@@ -5492,6 +5566,7 @@
     var origIdx = current;
     els.saveBtn.disabled = true;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
+    var memos = reviewSheets(state.sheets);
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: false };
     jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -5524,6 +5599,7 @@
         var msg = SS ? SS.allQueuedToast(res.ok, res.total, res.fail)
           : ('일괄 저장 · ' + res.ok + '/' + res.total + ' 시트를 전달 대기함에 넣었어요');
         if (res.fail.length) { toast(msg, { error: true, retry: saveAll }); } else { toast(msg); }
+        showReview(memos);
       });
     }, function (err) {
       saveFailed = true;

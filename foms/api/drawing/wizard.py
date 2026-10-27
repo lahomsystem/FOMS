@@ -122,6 +122,12 @@ _PART_HEAD_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
 _PART_ARR_XY = (-2000, 5000)
 _PART_ARR_WH = (1, 5000)
 
+# AI 도면팀원 검수 메모 기록(optional 시트 ``review``) — 끈 메모 · 보인 메모 key 목록(학습 요약이 메모마다 센다).
+# 설계 정본: docs/plans/2026-10-27-drawing-ai-teammate-spec.md §2 A1 · 브라우저 계약 static/js/drawing/review-memo.js
+_REVIEW_FIELDS = ('off', 'seen')
+_REVIEW_KEY_RE = re.compile(r'^[0-9A-Za-z가-힣:_.-]{1,40}$')
+_MAX_REVIEW_KEYS = 40
+
 # 자재표 계산 칸(optional 시트 ``calc``) — 입력값·마지막 계산 글자·규칙 판·모드(그림자/넣기).
 # 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.3 · §3.6
 _CALC_FIELDS = frozenset({'in', 'out', 'rules', 'mode'})
@@ -479,6 +485,24 @@ def _validate_calc_inputs(inputs) -> str | None:
     return None
 
 
+def _validate_review(review) -> str | None:
+    """검수 메모 기록 ``{off?: [key], seen?: [key]}`` — 목록마다 key 40개 이하 · 겹침 없음(review-memo.js sanitize 와 같다)."""
+    if not isinstance(review, dict) or not set(review) <= set(_REVIEW_FIELDS):
+        return '검수 메모 기록 형식이 올바르지 않습니다.'
+    for name in _REVIEW_FIELDS:
+        keys = review.get(name)
+        if keys is None:
+            continue
+        if (
+            not isinstance(keys, list)
+            or len(keys) > _MAX_REVIEW_KEYS
+            or not all(isinstance(k, str) and _REVIEW_KEY_RE.fullmatch(k) for k in keys)
+            or len(set(keys)) != len(keys)
+        ):
+            return '검수 메모 기록 형식이 올바르지 않습니다.'
+    return None
+
+
 def _validate_calc(calc) -> str | None:
     """optional 시트 ``calc``(자재표 계산 칸) 검증 — 닫힌 칸·모드·규칙 판·글자 길이·크기 상한."""
     if not isinstance(calc, dict) or not set(calc) <= _CALC_FIELDS:
@@ -697,6 +721,10 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
         calc_error = _validate_calc(sheet['calc'])
         if calc_error:
             return calc_error
+    if 'review' in sheet:
+        review_error = _validate_review(sheet['review'])
+        if review_error:
+            return review_error
     form = sheet.get('form')
     if not isinstance(form, dict):
         return '시트 폼 형식이 올바르지 않습니다.'

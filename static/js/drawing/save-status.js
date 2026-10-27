@@ -126,7 +126,7 @@
     try {
       var src = (canon && sheet) ? canon(sheet) : sheet;
       return digest(JSON.stringify(sortKeys(src || null), function (k, v) {
-        if (k === 'calc' || k === 'part') { return undefined; }
+        if (k === 'calc' || k === 'part' || k === 'review') { return undefined; }   // 계산 칸 · 그림 종류 · 검수 메모 기록은 그림이 아니다
         if (k === 'w' && this && this.type === 'text' && this.autoWidth !== false) { return undefined; }
         return v;
       }));
