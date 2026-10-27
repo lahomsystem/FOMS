@@ -193,7 +193,8 @@ def _build_change_lists(
             continue
         action = str((entry.get("action") or "")).strip().upper()
         if action == "TRANSFER":
-            label = "도면 재전달"
+            # 생산·시공 단계 도면팀 바로 반영은 영업 확인 없이 최종이 된다 — 생산이 따로 알아보게.
+            label = "도면 바뀜(바로 반영)" if entry.get("hotfix") else "도면 재전달"
         elif action == "REQUEST_REVISION":
             label = "도면 수정요청"
         else:

@@ -30,11 +30,23 @@ import json
 import re
 from typing import Any
 
+from foms.services.orders.state_axes import read_main_stage
+
+#: 도면팀이 보내면 영업 수령 확정 없이 바로 최종 도면이 되는 주문 단계(바로 반영).
+#: 2026-10-27 사용자 결정 — 생산·시공 중 도면 핫픽스는 도면팀이 고친 대로 바로 쓴다.
+#: 도면·고객컨펌 단계는 지금처럼 영업 확정을 거친다.
+DRAWING_HOTFIX_STAGES = frozenset({"PRODUCTION", "CONSTRUCTION"})
+
 #: 마법사 시트 id 로 받아 줄 모양. 클라이언트가 보낸 값도 섞이므로 저장 전에 거른다.
 _SHEET_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 #: 마법사 산출물(시트 PNG) key 의 경로 조각 — sheet_id 없는 옛 엔트리의 시트 추정에 쓴다.
 _WIZARD_EXPORT_SEGMENT = "/drawing_wizard/exports/"
+
+
+def is_drawing_hotfix_stage(order: Any) -> bool:
+    """주문이 도면 바로 반영 단계(생산·시공)인가 — 전달 API 와 작업실 화면이 같은 답을 쓴다."""
+    return (read_main_stage(order) or "") in DRAWING_HOTFIX_STAGES
 
 
 def clean_sheet_id(value: Any) -> str:

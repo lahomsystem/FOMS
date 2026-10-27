@@ -43,6 +43,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
+from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.orders.drawing_revision_source import (
     is_customer_request,
@@ -72,6 +73,7 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, record_phase
 from foms.services.request_utils import get_search_query_arg
 from foms.services.drawing_workbench_display import (
+    build_stray_drawing_files,
     drawing_thumb_enabled,
     pick_row_thumbnail_url,
     resolve_row_image_list,
@@ -1436,6 +1438,9 @@ def erp_drawing_workbench_detail(order_id):
                 'item_index': item_index,
             })
     measure_photos = []  # 템플릿 호환용 (미사용)
+    # 도면 칸에 따로 올라온 파일(사본) — 도면팀이 여기서 지운다(주문 5690). 도면팀은 ERP 주문
+    # 화면을 못 연다(can_edit_erp). PC 상세만 그린다.
+    stray_drawing_files = build_stray_drawing_files(db, order, s_data, current_user)
 
     ctx = dict(
         order=order,
@@ -1492,6 +1497,9 @@ def erp_drawing_workbench_detail(order_id):
         product_items=product_items,
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
+        stray_drawing_files=stray_drawing_files,
+        # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).
+        drawing_hotfix_stage=is_drawing_hotfix_stage(order),
         erp_order_enabled=True,
         # 확정 창 ①제품 ②최종 생산 도면(DRAWING-PARTIAL-CONFIRM) — 순수 계산, 조회 0.
         ok_scope=build_ok_scope(s_data),

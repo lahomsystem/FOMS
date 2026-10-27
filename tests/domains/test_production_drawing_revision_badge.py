@@ -6,7 +6,8 @@
 (``confirm_drawing_gate``)이고, 수령 확정되면 배지가 바로 사라져야 한다.
 
 실제 라우트 순서를 밟는다(합성 상태 주입 없음): 전달 → 수령 확정 → 고객컨펌 승인(생산 대기)
-→ 수정요청(RETURNED) → 재전달(TRANSFERRED) → 수령 확정(CONFIRMED).
+→ 수정요청(RETURNED) → 재전달. 생산 단계 재전달은 도면팀 바로 반영이라 곧바로 CONFIRMED 다
+(2026-10-27 결정, docs/specs/2026-10-27-drawing-team-production-fix_SPEC.md).
 """
 from __future__ import annotations
 
@@ -140,15 +141,10 @@ def test_badge_and_start_block_follow_revision_then_vanish_on_receipt(client, mo
     sent = client.post(f"/api/orders/{oid}/transfer-drawing",
                        json={"files": [{"key": key, "filename": "v2.png"}], "mode": "APPEND", "is_retransfer": True})
     assert sent.status_code == 200, sent.get_json()
-    login_as(client, prod)
-    row = _row(_pc_grid(_board(client)), oid)
-    assert "도면 수정 중 · 확정 대기" in row and _BLOCKED in row
-    assert _start(client, oid).status_code == 409
-
-    # 수령 확정(단계 유지) — 새로고침 즉시 배지·막힘이 사라지고 버튼이 돌아온다(캐시 무효화 포함).
-    login_as(client, sales)
-    received = client.post(f"/api/orders/{oid}/confirm-drawing-receipt", json={})
-    assert received.status_code == 200, received.get_json()
+    # 생산 단계 재전달 = 도면팀 바로 반영(2026-10-27 결정) — 영업 수령 확정 없이 곧바로 확정이라
+    # "확정 대기" 중간 상태가 없다. 새로고침 즉시 배지·막힘이 사라지고 버튼이 돌아온다(캐시 무효화 포함).
+    assert sent.get_json().get("hotfix") is True
+    assert reload_order(oid).structured_data["drawing_status"] == "CONFIRMED"
     assert reload_order(oid).erp_stage_code == "PRODUCTION"
     login_as(client, prod)
     body = _board(client)

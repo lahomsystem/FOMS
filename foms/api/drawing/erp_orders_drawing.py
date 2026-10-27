@@ -38,7 +38,9 @@ from foms.services.erp_policy import (
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_transfer
 from foms.services.orders.team_labels import team_label
+from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
 from foms.services.orders.drawing_transfer import (
+    is_drawing_hotfix_stage,
     materialize_pending_snapshot,
     materialize_transfer_attachments,
     order_by_wizard_sheets,
@@ -60,6 +62,44 @@ erp_orders_drawing_bp = Blueprint(
 
 #: REV-00 receipt scope 용 정책 id(전달·작업실 대기 전달 공용). 버전 올림은 엔진이 한다.
 DRAWING_TRANSFER_POLICY_ID = 'DRAWING_TRANSFER'
+
+#: 생산·시공 단계 바로 반영 때 수령 확정 이력에 남기는 표시·메모 — 영업이 누른 확정과 갈라 읽는다.
+DRAWING_HOTFIX_AUTO_CONFIRM = 'DRAWING_HOTFIX'
+DRAWING_HOTFIX_CONFIRM_NOTE = '생산·시공 단계 — 도면팀 바로 반영(영업 확인 생략)'
+
+
+def _apply_hotfix_confirm(s_data, *, now_str, user_id, user_name):
+    """생산·시공 단계 전달을 바로 최종 도면으로 만든다(영업 수령 확정 생략, 2026-10-27 결정).
+
+    전달 이력 끝 ``TRANSFER``(hotfix) 뒤에 ``CONFIRM_RECEIPT``(auto_confirm)를 붙이고 도면 상태를
+    ``CONFIRMED`` 로 둔다 — 수령 확정 라우트(``erp_orders_draftsman``)와 같은 흔적이라 생산
+    도면 게이트·확정본 목록·옛 도면 빼기가 그대로 읽는다. 단계는 건드리지 않는다.
+    ``TRANSFERRED`` 를 거치지 않으므로 [전달 취소] 대상이 아니다.
+    """
+    final_files, _deleted = finalize_drawing_files_on_confirm(None, 0, s_data)
+    history = list(s_data.get('drawing_transfer_history') or [])
+    history.append({
+        'action': 'CONFIRM_RECEIPT',
+        'at': now_str,
+        'by_user_id': user_id,
+        'by_user_name': user_name,
+        'note': DRAWING_HOTFIX_CONFIRM_NOTE,
+        'auto_confirm': DRAWING_HOTFIX_AUTO_CONFIRM,
+        'files': final_files,
+        'files_count': len(final_files),
+    })
+    s_data['drawing_transfer_history'] = history
+    s_data['drawing_status'] = 'CONFIRMED'
+    s_data['drawing_confirmed_at'] = datetime.now().isoformat()
+    s_data['drawing_confirmed_by'] = user_name
+
+
+def _hotfix_production_detail(current_user, user_name, *, answered_revision):
+    """생산 변경 알림 본문 — 도면팀이 스스로 고친 것과 영업 수정 요청에 답한 것을 가른다."""
+    team = (getattr(current_user, 'team', None) or '').strip().upper()
+    who = f"{'도면팀 ' if team == 'DRAWING' else ''}{user_name} 님이"
+    how = f"영업 수정 요청을 {who} 반영해" if answered_revision else f"{who} 고쳐"
+    return f"{how} 바로 최종 도면이 됐습니다. 새 도면으로 만들어 주세요"
 
 
 #: 담당자 이름에 이 글자가 들어간 주문(양산지사·양산)은 관리자가 직접 처리한다 — 담당자 경로에
@@ -195,6 +235,8 @@ def perform_drawing_transfer(
         return {'success': False, 'message': msg}, 403
 
     drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
+    # 생산·시공 단계 = 도면팀이 보내면 영업 확인 없이 바로 최종(바로 반영, 2026-10-27 결정).
+    hotfix = is_drawing_hotfix_stage(order)
     # 영업 수령 확정 전(TRANSFERRED)에 다시 보내면서 방식을 고르지 않았으면 전체 교체로 본다.
     # 예전엔 APPEND 로 쌓여 확정 뒤 도면 칸에 이전 회차가 전부 남았다(2026-09-30 주문 5331,
     # 3회 전달 → 3장). 한 장 더 보태려면 호출측이 mode='APPEND' 를 명시해야 한다.
@@ -202,6 +244,14 @@ def perform_drawing_transfer(
         mode = 'REPLACE_ALL'
     if not is_retransfer:
         is_retransfer = drawing_status == 'RETURNED'
+    # 바로 반영인데 방식을 고르지 않았고(태블릿 시트·대시보드 전달) 확정 도면이 한 장뿐이면 그
+    # 장을 바꾼다 — 추가로 쌓으면 고친 도면과 옛 도면이 둘 다 최종이 된다(주문 5690). 두 장
+    # 이상이면 어느 장인지 몰라 지금처럼 더한다.
+    if (
+        hotfix and not mode and not replace_target_keys and not is_retransfer
+        and len(s_data.get('drawing_current_files') or []) == 1
+    ):
+        is_retransfer = True
     if (
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -351,6 +401,8 @@ def perform_drawing_transfer(
         'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
         'replace_target_number': replaced_target_numbers[0] if len(replaced_target_numbers) == 1 else None,
     }
+    if hotfix:
+        transfer_info['hotfix'] = True
 
     if 'drawing_transfer_history' not in s_data:
         s_data['drawing_transfer_history'] = []
@@ -360,6 +412,8 @@ def perform_drawing_transfer(
     s_data['drawing_status'] = 'TRANSFERRED'
     s_data['drawing_transferred'] = True
     s_data['last_drawing_transfer'] = transfer_info
+    if hotfix:
+        _apply_hotfix_confirm(s_data, now_str=now_str, user_id=user_id, user_name=user_name)
     if prepare_structured is not None:
         prepare_structured(s_data)
 
@@ -376,6 +430,27 @@ def perform_drawing_transfer(
         write=_write_transfer,
     )
 
+    if hotfix:
+        # 수령 확정 라우트와 같은 감사 흔적(누가 언제 확정 상태로 바꿨나).
+        db.add(OrderEvent(
+            order_id=order_id,
+            event_type='DRAWING_STATUS_CHANGED',
+            payload={
+                'domain': 'DRAWING_DOMAIN',
+                'action': 'DRAWING_STATUS_CHANGED',
+                'target': 'drawing_status',
+                'before': drawing_status,
+                'after': 'CONFIRMED',
+                'change_method': 'API',
+                'source_screen': 'drawing_transfer',
+                'reason': '도면팀 바로 반영(생산·시공 단계)',
+                'auto_confirm': DRAWING_HOTFIX_AUTO_CONFIRM,
+                'is_override': False,
+                'override_reason': None,
+            },
+            created_by_user_id=user_id,
+        ))
+
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
     target_team, target_manager_name, target_role = _drawing_notice_target(
@@ -383,7 +458,10 @@ def perform_drawing_transfer(
     notification_message = f"주문 #{order_id}"
     if customer_name:
         notification_message += f" ({customer_name})"
-    notification_message += f" 도면이 준비되었습니다."
+    notification_message += (
+        " 도면팀이 고친 도면을 바로 반영했습니다. 확인할 필요 없습니다." if hotfix
+        else " 도면이 준비되었습니다."
+    )
     if note:
         notification_message += f" 메모: {note}"
 
@@ -393,7 +471,7 @@ def perform_drawing_transfer(
         target_team=target_team,
         target_manager_name=target_manager_name,
         target_role=target_role,
-        title='도면 전달됨',
+        title='도면 바로 반영됨' if hotfix else '도면 전달됨',
         message=notification_message,
         created_by_user_id=user_id,
         created_by_name=user_name,
@@ -407,10 +485,19 @@ def perform_drawing_transfer(
     prod_notif_created = False
     try:
         from foms.services.notifications.production_change import apply_production_change_alert
-        prod_notif, prod_notif_created = apply_production_change_alert(
-            db, order, "drawing", "도면 재전달",
-            actor_user_id=user_id, actor_name=user_name,
-        )
+        if hotfix:
+            # 생산팀 전원이 알아야 한다(2026-10-27 결정) — 앞 알림과 합치지 않아 폰 알림이 늘 나간다.
+            prod_notif, prod_notif_created = apply_production_change_alert(
+                db, order, "drawing_hotfix",
+                _hotfix_production_detail(current_user, user_name,
+                                          answered_revision=drawing_status == 'RETURNED'),
+                actor_user_id=user_id, actor_name=user_name, merge=False,
+            )
+        else:
+            prod_notif, prod_notif_created = apply_production_change_alert(
+                db, order, "drawing", "도면 재전달",
+                actor_user_id=user_id, actor_name=user_name,
+            )
     except Exception as e:
         logger.warning("production change alert (transfer) failed: %s", e, exc_info=True)
     context = order_audit_context(order)
@@ -421,7 +508,7 @@ def perform_drawing_transfer(
         action="DRAWING_DELIVERED", target_type="order", target_id=int(order_id),
         detail={"note": note or None, "target_team": target_team,
                 "target_manager_name": target_manager_name,
-                "target_role": target_role, **context},
+                "target_role": target_role, "hotfix": hotfix, **context},
         db=db,  # 호출자 소유 세션 — get_db() 를 부르면 teardown 이 호출자 인스턴스를 detach 한다.
     )
     db.commit()
@@ -435,6 +522,13 @@ def perform_drawing_transfer(
     )
 
     invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+    if hotfix:
+        # 바로 반영은 도면 상태가 확정으로 바뀐다 — 생산 도면 게이트·시공 화면도 새 답을 본다.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_CONSTRUCTION,
+            DASHBOARD_FAMILY_PRODUCTION,
+        )
+        invalidate_dashboard_families(DASHBOARD_FAMILY_PRODUCTION, DASHBOARD_FAMILY_CONSTRUCTION)
     invalidate_after_drawing_transfer()  # 2a-2: 첨부 개수·생산/시공 패널도 같은 답
 
     # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
@@ -472,6 +566,14 @@ def perform_drawing_transfer(
     )
     if target_role and target_manager_name:
         target_info += " · 관리자"
+    if hotfix:
+        return {
+            'success': True,
+            'hotfix': True,
+            'message': '도면이 바로 반영되었습니다. 생산·시공 단계라 영업 확인 없이 최종 도면이 됩니다. '
+                       f'[{target_info}]·생산팀에 알림이 전송되었습니다.',
+            'info': '잘못 보냈으면 전달 취소 대신 고친 도면을 다시 보내 교체하세요.',
+        }, 200
     return {
         'success': True,
         'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다. (확정 대기 상태)',

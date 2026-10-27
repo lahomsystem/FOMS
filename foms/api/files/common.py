@@ -185,8 +185,22 @@ def serialize_attachment(
     data["download_url"] = build_file_download_url(storage_key) if storage_key else ""
     data["thumbnail_view_url"] = build_file_view_url(thumbnail_key) if thumbnail_key else None
     if order is not None and user is not None:
-        data["can_delete"] = can_delete_order_attachment(user, order, att)
+        # 지금 최종 도면(drawing_current_files)은 삭제 API 가 누구에게나 409 다 — 휴지통 버튼을
+        # 그리면 눌러도 안 지워진다(주문 5690, 실패 문구는 화면 밖에 떴다).
+        data["can_delete"] = (
+            storage_key not in _current_drawing_keys(order)
+            and can_delete_order_attachment(user, order, att)
+        )
     return data
+
+
+def _current_drawing_keys(order: Any) -> set[str]:
+    sd = getattr(order, "structured_data", None)
+    files = sd.get("drawing_current_files") if isinstance(sd, dict) else None
+    return {
+        str(f.get("key") or "").strip()
+        for f in (files or []) if isinstance(f, dict) and f.get("key")
+    }
 
 
 __all__ = [
