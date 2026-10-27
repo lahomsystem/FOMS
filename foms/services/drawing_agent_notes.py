@@ -9,7 +9,7 @@
 - 물어볼 것: 지난 4주 사람이 고른 그림 중 아주 닮았는데(0.95, 같은 보기의 내부/도어는 0.985) 종류가 다른 두 장 — 3쌍까지,
   이미 물은 쌍은 다시 묻지 않는다.
 - 답(도면팀 · 관리자): 'a' = 왼쪽이 맞음 → 오른쪽 그림 기억을 왼쪽 종류로, 'b' = 반대, 'both' = 그림마다 다름(기억은 그대로).
-  답은 학습 요약(digest kind=notes)으로 연구 루틴에 가서 팀 기준(docs/drawing-agent/TEAM-RULES.md)이 된다.
+  답은 학습 요약(digest kind=notes)으로 연구 루틴에 가서 팀 기준(docs/research/drawing-agent/TEAM-RULES.md)이 된다.
 """
 
 from __future__ import annotations
