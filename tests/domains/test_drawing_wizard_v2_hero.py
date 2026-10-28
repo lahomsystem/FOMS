@@ -29,7 +29,9 @@ def test_main_picture_grows_bento_style_and_the_rest_fits_beside_it():
     """사용자 보고(2026-10-28): 메인 컴퍼넌트를 크게(bento grid) — 큰 그림 칸에서 원본 넓이가 두드러지게 큰 그림을 크게,
     나머지는 남은 자리에 같은 배율로. 위 띠 · 틀 고르기는 그대로, 겹침 없음."""
     out = _run(ARRANGE + HERO + r"""
-const on = heroSheet(), off = heroSheet(), a = arrange(on), b = arrange(off, { hero: false });
+const on = heroSheet(), off = heroSheet();
+off.form.v2_style = 'even';                              // 시트 스타일 '고르게' = 예전 같은 배율 한 줄
+const a = arrange(on), b = arrange(off);
 const sc = (sh, id) => find(sh, id).h / find(sh, id).natural_h;
 out.hero = a.res.hero || null;
 out.offHero = b.res.hero || null;
@@ -95,4 +97,25 @@ out.slotOverlap = ov(s('main'), s('iso'));
     assert out["hero"] == ["i1"] and out["grow"] >= 1.15, out
     assert out["heads"] == [True, True] and out["isoHead"] and out["frontHead"]
     assert out["slotOverlap"] is False
+
+
+def test_sheet_style_even_keeps_old_row_and_both_looks_are_kept_for_preview():
+    """스타일은 시트 폼 v2_style 로 고른다(사용자 요청 2026-10-28) — '고르게'면 예전 같은 배율 한 줄 그대로 놓고 키운 모습은
+    미리보기(res.alt)로만, '주 그림 크게'면 고르게 모습을 res.alt 에 남긴다(오른쪽 칸 두 미리보기 · 큰 그림 %)."""
+    out = _run(ARRANGE + HERO + r"""
+const on = heroSheet(), even = heroSheet();
+even.form.v2_style = 'even';
+const a = arrange(on), b = arrange(even), off = heroSheet(), c = arrange(off, {});
+out.style = [a.plan.style, b.plan.style];
+out.hero = [a.res.hero || null, b.res.hero || null];
+out.alt = [a.res.alt && a.res.alt.style, b.res.alt && b.res.alt.style];
+out.altPct = [a.res.alt.mainPct < a.res.mainPct, b.res.alt.mainPct > b.res.mainPct];   // 키운 쪽 큰 그림 %가 크다
+out.altSlots = !!(b.res.alt.slots || []).find(s => s.key === 'main');
+out.evenSize = find(even, 'hero').h < find(on, 'hero').h;
+out.overlaps = [overlaps(on), overlaps(even)];
+""")
+    assert out["style"] == ["hero", "even"]
+    assert out["hero"] == [["hero"], None]
+    assert out["alt"] == ["even", "hero"] and out["altPct"] == [True, True] and out["altSlots"]
+    assert out["evenSize"] and out["overlaps"] == [[], []]
 
