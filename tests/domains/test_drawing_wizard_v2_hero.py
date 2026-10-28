@@ -119,3 +119,28 @@ out.overlaps = [overlaps(on), overlaps(even)];
     assert out["alt"] == ["even", "hero"] and out["altPct"] == [True, True] and out["altSlots"]
     assert out["evenSize"] and out["overlaps"] == [[], []]
 
+
+def test_even_style_gives_the_empty_height_below_the_big_row_to_the_top_band():
+    """사용자 보고(2026-10-28, 스테이징 4385 · '사진·상세를 위에' + 고르게): 큰 그림 줄이 폭에 막혀 아래 153px 이 비었다 —
+    '여백을 최소화 해서 최대한 공간 활용을 해'. 같은 점수면 그림 넓이 합이 큰 틀, 위 띠 상세는 두 줄로도 접어 본다(v2-pack rows).
+    주 그림 크게면 빈 높이는 주 그림 몫이라 예전 그대로. 고른 틀은 두 스타일 모두 그대로, 미리보기는 실제와 같다."""
+    out = _run(ARRANGE + HERO + r"""
+const mk = style => { const s = heroSheet(); s.form.v2_pick = 'band'; if (style) { s.form.v2_style = style; } return s; };
+const on = mk(''), off = mk('even'), a = arrange(on), b = arrange(off);
+const bottom = sh => Math.max(...sh.objects.filter(o => o.type === 'image').map(o => o.y + o.h));
+out.bottoms = [bottom(on), bottom(off)];
+out.keys = [a.key, b.key];
+out.grow = ['ph', 'p1'].map(id => find(off, id).h / find(on, id).h);
+out.hero = [find(on, 'hero').w, find(on, 'hero').h];
+out.overlaps = [overlaps(on), overlaps(off)];
+out.alt = [b.res.alt && b.res.alt.style, Math.abs(b.res.alt.mainPct - a.res.mainPct) < 0.001];
+out.rows = K.rows([{ id: 'a', nw: 490, nh: 403 }, { id: 'b', nw: 512, nh: 371 }, { id: 'c', nw: 436, nh: 237 }], 2, true).map(u => u.members.map(m => m.id));
+""")
+    assert out["bottoms"][0] == 848 and out["bottoms"][1] >= 820, out     # 고르게도 아래가 거의 비지 않는다(예전 695)
+    assert out["keys"] == ["band", "band"]
+    assert min(out["grow"]) >= 1.5, out                                   # 사진 · 평면 212 → 352
+    assert out["hero"] == [715, 515], out                                  # 주 그림 크게는 예전 그대로
+    assert out["overlaps"] == [[], []]
+    assert out["alt"] == ["hero", True]                                   # 고르게에서 본 '주 그림 크게' 미리보기 = 실제
+    assert out["rows"] == [["a"], ["b", "c"]]                             # 두 줄은 줄 폭이 고르게
+

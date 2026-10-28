@@ -125,8 +125,8 @@
     return true;
   }
 
-  /** 위 띠형 — 띠 높이 Hb. 띠 칸(자재 · 상세 · 평면 · 사진)은 머리 최소 폭만큼은 자리를 잡는다. */
-  function band(inp, o, Hb) {
+  /** 위 띠형 — 띠 높이 Hb. 띠 칸(자재 · 상세 · 평면 · 사진)은 머리 최소 폭만큼은 자리를 잡는다. wrap = 상세를 두 줄로 접는다(여백 줄이기). */
+  function band(inp, o, Hb, wrap) {
     var P = pk(), A = inp.area, W = A.x1 - A.x0, HEAD = P.HEAD, GAP = P.GAP;
     var res = newRes('band'), same = o.sameScale !== false, big = bigGroups(inp);
     var hasBom = inp.bom.length > 0, hasNotes = inp.notes.length > 0;
@@ -140,8 +140,9 @@
     if (anyBand && (colH > Hb || (st && st.h > Hb) || Hb - HEAD < 40)) { return null; }
     var cH = Hb - HEAD;
     var avail = W - (colW ? colW + GAP : 0) - (st ? st.w + GAP : 0) - GAP * Math.max(0, smalls.length - 1);
+    function cell(key, h) { return wrap && key === 'detail' ? P.stack(P.rows(inp.detail, 2, same), Infinity, h, same) : P.row(inp[key], Infinity, h, same); }
     function widths(k) {
-      return smalls.map(function (key) { var r = P.row(inp[key], Infinity, cH * k, same); return r ? Math.max(r.w, HEAD_MIN_W) : Infinity; });
+      return smalls.map(function (key) { var r = cell(key, cH * k); return r ? Math.max(r.w, HEAD_MIN_W) : Infinity; });
     }
     var k = 1;
     if (smalls.length && sum(widths(1)) > avail) {
@@ -161,7 +162,7 @@
         return;
       }
       if (!inp[key].length) { return; }
-      var r = P.row(inp[key], Infinity, cH * k, same);
+      var r = cell(key, cH * k);
       addSlot(res, key, x, A.y0, r.w, HEAD + r.h);
       addPics(res, r.placed, x, A.y0 + HEAD);
       x += Math.max(r.w, HEAD_MIN_W) + GAP;
@@ -242,26 +243,14 @@
     return res;
   }
 
-  function best(list, inp, o) {
+  function best(list, inp, o, tie) {   // tie = 같은 점수면 더 큰 쪽(그림 넓이 합 — 여백 줄이기)
     var top = null;
     list.forEach(function (r) {
       if (!r) { return; }
       score(r, inp, o);
-      if (!top || r.score > top.score + 1e-9) { top = r; }
+      if (!top || r.score > top.score + 1e-9 || (tie && r.score > top.score - 1e-9 && tie(r) > tie(top) + 1)) { top = r; }
     });
     return top;
-  }
-
-  /** 틀을 잴 칸(꼴 { x0, y0, x1, y1 }) — 종이 칸 그대로 + 장애물이 있으면 그것을 뺀 빈 사각형 중 넓은 셋. 종이 칸에서 잰 틀은
-      장애물에 닿지 않을 때만 남는다(keep) — 큰 그림 칸이 고정 그림을 비켜 가면(v2-pack room) 틀을 통째로 옮기지 않아도 된다. */
-  function areasOf(full, obs) {
-    if (!obs.length || !window.FomsPartPack) { return [full]; }
-    return [full].concat(window.FomsPartPack.freeRects(full, obs, pk().GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
-      .filter(function (a) { return a.x0 !== full.x0 || a.y0 !== full.y0 || a.x1 !== full.x1 || a.y1 !== full.y1; })
-      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3));
-  }
-  function hitsAny(r, obs) {
-    return obs.some(function (b) { return r.moves.some(function (m) { return m.x < b.x + b.w && b.x < m.x + m.w && m.y < b.y + b.h && b.y < m.y + m.h; }); });
   }
 
   function compute(input, opts) {
@@ -274,21 +263,26 @@
     function mark(list, slot) { list.forEach(function (it) { inp.byId[it.id] = { nw: it.nw, nh: it.nh, tx: it.tx || 0, slot: slot }; }); }
     ['photo', 'detail', 'plan', 'unsorted'].forEach(function (k) { mark(inp[k], k); });
     inp.units.forEach(function (u) { mark(u.members, u.slot); });
-    var obs = (input && input.obstacles) || [], full = inp.area, bands = [], cols = [], v;
+    var obs = (input && input.obstacles) || [], full = inp.area, bands = [], fills = [], cols = [], v, bv, fold = inp.detail.length > 1;
     inp.obstacles = obs;
-    function keep(list, r) { list.push(r && obs.length && hitsAny(r, obs) ? null : r); }   // 장애물에 닿는 틀은 버린다
-    areasOf(full, obs).forEach(function (ar) {
+    function keep(list, r) { list.push(r && obs.length && pk().hits(r, obs) ? null : r); }   // 장애물에 닿는 틀은 버린다(잴 칸은 v2-pack areas)
+    pk().areas(full, obs).forEach(function (ar) {
       var H = ar.y1 - ar.y0, W = ar.x1 - ar.x0;
       inp.area = ar;
-      for (v = 64; v <= 0.55 * H; v += 8) { keep(bands, band(inp, o, v)); }
+      for (v = 64; v <= 0.55 * H; v += 8) { bv = band(inp, o, v); keep(bands, bv); keep(fills, bv); if (fold) { keep(fills, band(inp, o, v, true)); } }
       keep(bands, band(inp, o, 0));
       for (v = 160; v <= 0.45 * W; v += 12) { keep(cols, column(inp, o, v)); }
     });
     inp.area = full;
-    var out = { band: best(bands, inp, o), column: best(cols, inp, o) };
-    out.rec = out.band && out.column ? (out.column.score > out.band.score + 0.005 ? 'column' : 'band') : (out.band ? 'band' : (out.column ? 'column' : ''));
     var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); } };
-    if (H) { out.band = H.refine(out.band, inp, o, kit); out.column = H.refine(out.column, inp, o, kit); }   // 추천을 정한 뒤 — 나머지가 줄어 점수가 깎인다
+    function fill(r) { return r.moves.reduce(function (a, m) { return a + (inp.byId[m.id] ? m.w * m.h : 0); }, 0); }
+    // 여백 줄이기(2026-10-28 사용자 '여백을 최소화 해서 최대한 공간 활용을 해'): 같은 점수면 그림 넓이 합이 큰 틀 · 위 띠 상세 두 줄(fills · cw)도 잰다.
+    // 주 그림을 키우면 큰 그림 칸의 빈 높이는 주 그림 몫이라 예전 틀 그대로(v2-hero choose). 추천 틀은 스타일과 상관없이 예전 점수(주 그림 크게 전)로 —
+    // 고르게 ↔ 주 그림 크게를 바꿔도 틀이 그대로여야 미리보기와 같다.
+    var bb = best(bands, inp, o), wb = best(fills, inp, o, fill), cb = best(cols, inp, o), cw = best(cols, inp, o, fill);
+    var pre = { b: bb ? bb.score : null, c: cb ? cb.score : null };
+    var out = H ? { band: H.choose(bb, wb, inp, o, kit), column: H.choose(cb, cw, inp, o, kit) } : { band: bb, column: cb };
+    out.rec = bb && cb ? (pre.c > pre.b + 0.005 ? 'column' : 'band') : (out.band ? 'band' : (out.column ? 'column' : ''));
     var pref = o.prefer === 'column' || o.prefer === 'band' ? o.prefer : '';
     out.best = pref && out[pref] ? pref : out.rec;
     return out;
