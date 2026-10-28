@@ -9,7 +9,8 @@
  * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류,
  *   v2_ai = AI 칸 짐작(v2-slots parseGuess), v2_style = 그림 크기 스타일(''|'hero' 주 그림 크게 · 'even' 고르게 — 2026-10-28),
  *   v2_hero_size = 주 그림 크기 막대(%, 없으면 자동 — v2-hero.js · v2-size.js, 2026-10-28).
- * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠긴 자재표 · 특이 · 강조,
+ * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠그거나 손으로 옮겨 고정한
+ *   자재표 · 특이 · 강조(v2-slots g.stay — 폼 v2_pin, v2-text.js),
  *   그리고 종이 칸에 걸친 그림 밖 글자 · 도형 · 펜(staying — 잠긴 것 · apply 가 데려가지 않는 것). 틀 계산이 그 자리를 비켜 간다
  *   (v2-layout). 그림 안 치수 메모(배치 자리에 그대로 있는 그림 안에 가운데가 있는 것)는 그림을 따라가니 넣지 않는다 — 장애물이
  *   되면 칸이 잘게 쪼개진다. 예전엔 그림 밖 메모 · 화살표도 빼서 다시 놓은 그림이 그 위에 겹쳤다(도면팀 평가 2026-10-27).
@@ -27,6 +28,15 @@
   function S() { return window.FomsV2Slots; }
   function bySlot(list) { return list || []; }
 
+  /** 틀 계산(v2-layout compute) — 배치 입력이 같으면 지난 결과를 그대로 쓴다. 빈자리 채우기로 한 번에 0.1초 넘게 걸리는데
+      화면은 고르기 · 확대 · 저장 상태마다 다시 그린다(결과는 읽기만 한다 — apply · 화면 모두). */
+  var memo = { key: null, out: null };
+  function layout(input, opts) {
+    var key = JSON.stringify([input, opts]);
+    if (key !== memo.key) { memo = { key: key, out: window.FomsV2Layout.compute(input, opts) }; }
+    return memo.out;
+  }
+
   function settingsOf(ctx) {
     var s = (ctx && ctx.settings) || {};
     return { lowToUnsorted: s.lowToUnsorted !== false, photoFirst: s.photoFirst !== false,
@@ -39,7 +49,7 @@
     var kindAuto = S().detectKind(ctx && ctx.productText);
     var kind = form.v2_kind || kindAuto, kitchen = kind === 'kitchen';
     var g = S().group((sheet && sheet.objects) || [], { lowToUnsorted: set.lowToUnsorted, lockMoved: set.lockMoved, kitchen: kitchen,
-      guess: S().parseGuess(form.v2_ai) });
+      guess: S().parseGuess(form.v2_ai), pins: S().parsePins(form.v2_pin) });
     var imgs = [].concat(g.photo, g.main, g.iso, g.detail, g.plan, g.unsorted);
     var items = imgs.length && ctx.items ? ctx.items(imgs) : [], byId = {};
     items.forEach(function (it) { byId[it.id] = it; });
@@ -66,17 +76,17 @@
       plan: strip(movable(g.plan)),
       unsorted: strip(movable(g.unsorted)),
       units: units,
-      bom: g.bom.filter(function (o) { return !o.locked; }).map(box),
-      notes: g.notes.filter(function (o) { return !o.locked; }).map(box),
-      stamp: g.stamp && !g.stamp.locked ? box(g.stamp) : null,
+      bom: g.bom.filter(function (o) { return !g.stay[o.id]; }).map(box),
+      notes: g.notes.filter(function (o) { return !g.stay[o.id]; }).map(box),
+      stamp: g.stamp && !g.stay[g.stamp.id] ? box(g.stamp) : null,
       base: imgs.length && ctx.baseline ? ctx.baseline(imgs) : {},
       obstacles: imgs.filter(function (o) { return g.fixed[o.id]; }).map(stayBox)
-        .concat(g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).filter(function (o) { return o.locked; }).map(stayBox))
+        .concat(g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).filter(function (o) { return g.stay[o.id]; }).map(stayBox))
         .concat(stay.map(stayBox))
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
     var style = form.v2_style === 'even' ? 'even' : 'hero';
-    var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, hero: style === 'hero',
+    var out = layout(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, hero: style === 'hero',
       heroSize: parseInt(form.v2_hero_size, 10) || 0, prefer: pick });
     var laid = form.v2_layout === 'band' || form.v2_layout === 'column';
     // 칸 글자 = 정리한 시트는 종이 위 읽는 순서(v2-slots letters) — 종이 머리 · 왼쪽 카드가 같은 plan 에서 읽는다(그리는 순서와 무관)

@@ -87,7 +87,7 @@ const core = {
   fitCell: () => {}, hatch: () => null, viewUrl: () => '', setTool: () => {}, setPartLabel: () => {}
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-fill.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-left.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2, S = window.FomsV2Slots;
 const img = (id, label, w, h, extra) => Object.assign({ id, type: 'image', key: id + '.png', x: 500, y: 300, w: Math.min(900, w),
@@ -190,9 +190,10 @@ def test_laid_sheet_paper_heads_and_left_cards_use_reading_order_letters():
     for name in ("column", "band", "kitchen"):
         case = out[name]
         assert case["layout"] == ("column" if name == "column" else "band"), (name, case["layout"])
-        want = {"detail": "A", "plan": "B", "main": "C"}
-        if name == "kitchen":
-            want["iso"] = "D"   # 주방: 큰 그림 줄은 정면 위 · 입체 아래
+        # 2026-10-28 빈자리 채우기(v2-fill): 평면(왼쪽 기둥형) · 상세와 평면(위 띠형)이 큰 그림 칸 빈자리로 가 읽는 순서가 바뀐다.
+        # 주방: 정면 줄 옆 빈자리에 평면, 그 아래 입체 줄, 입체 옆에 상세.
+        want = {"column": {"detail": "A", "main": "B", "plan": "C"}, "band": {"main": "A", "plan": "B", "detail": "C"},
+                "kitchen": {"main": "A", "plan": "B", "iso": "C", "detail": "D"}}[name]
         # 예전: 큰 그림 A · 상세 B · 평면 C · 기타 D — 틀에 따라 종이 위 순서가 B → A → D, 그 밑 C 로 뒤섞였다
         assert case["letters"] == want, (name, case["letters"])
         assert all(case["headAtSlot"].values()), (name, case["headAtSlot"])     # 글자 딱지 = 그 칸 머리
@@ -270,9 +271,9 @@ def test_screen_layer_hides_on_export_and_assets_are_pinned():
     paper = (JS_DIR / "v2-paper.js").read_text(encoding="utf-8")
     assert "text: '직접 입력'" not in paper and "name: '기타 그림'" not in paper
     assert "into = key === 'unsorted' ? badges : layer" in paper
-    assert "js/drawing/v2-paper.js') }}?v=20261027e" in TPL
-    assert "js/drawing/v2-slots.js') }}?v=20261028b" in TPL   # 10-28 겹친 고정 그림 풀기(clashes)
-    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028a" in TPL   # 10-28 주 그림 크기 막대
+    assert "js/drawing/v2-paper.js') }}?v=20261028a" in TPL
+    assert "js/drawing/v2-slots.js') }}?v=20261028c" in TPL   # 10-28 겹친 고정 그림 풀기 · 글자 고정(v2_pin)
+    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028b" in TPL   # 10-28 알림 띠 탭 줄 · 내 문구 단추
 
 
 def test_band_page_number_shows_sheet_position_instead_of_dash():

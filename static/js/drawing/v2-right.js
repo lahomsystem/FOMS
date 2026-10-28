@@ -279,9 +279,9 @@
     [els.summary, els.templates, els.seen].forEach(function (n) { if (n && !has) { n.textContent = ''; } });
     [els.relayout, els.rearrange].forEach(function (b) { if (b) { b.disabled = !pics || !can; } });
     if (els.unpin) {   // 고정 그림이 있을 때만 — 다시 배치해도 그대로인 까닭을 풀어 준다(고른 틀은 틀 고르기의 [추천 틀로 돌아가기])
-      var fixed = has ? Object.keys(view.plan.g.fixed).length : 0;
-      els.unpin.hidden = !fixed || !can;
-      els.unpin.textContent = '고정 풀고 모두 다시 (고정 ' + fixed + '장)';
+      var fixed = has ? Object.keys(view.plan.g.fixed).length : 0, pins = has ? Object.keys(view.plan.g.pins || {}).length : 0;   // 글자 고정(v2-text)
+      els.unpin.hidden = !(fixed || pins) || !can;
+      els.unpin.textContent = '고정 풀고 모두 다시 (고정 ' + (fixed ? fixed + '장' : '') + (fixed && pins ? ' · ' : '') + (pins ? '글자 ' + pins : '') + ')';
       if (els.unpinMenu) { els.unpinMenu.hidden = els.unpin.hidden; els.unpinMenu.textContent = els.unpin.textContent; }
     }
     renderToggles(view);

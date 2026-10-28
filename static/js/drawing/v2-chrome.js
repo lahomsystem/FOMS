@@ -10,7 +10,8 @@
  *   그림 밖 메모 · 선(v2-plan.js plan.stay)은 비켜 놓았다고 말한다 — 그림이 작아진 까닭이다.
  *   손으로 끌거나 키운 뒤 배치(moved)는 나머지를 옮겼을 때만 말하고, 놓을 자리가 없으면 고정 그림을 가리킨다.
  * - 알림 띠: 지금 종이가 낡아(지운 뒤 · 손댄 뒤) 다시 놓으면 충분히 커지면 나누기 대신 [다시 자동 배치]를 권한다.
- *   종이를 내려도 화면 위에 붙어 있다(wizard-v2.css sticky — 내리면 결과 · [되돌리기]가 사라졌다, 도면팀 평가 2026-10-27).
+ *   시트 탭 줄 안(탭 오른쪽)에 있다 — 종이 위 띠가 세로 자리를 먹었다(사용자 요청 2026-10-28 '이 라인을 탭 라인으로 옮겨').
+ *   탭 줄은 종이를 내려도 그대로라 결과 · [되돌리기]가 늘 보인다(예전 sticky 띠 — 도면팀 평가 2026-10-27).
  * window.FomsV2Chrome = { init(api), render(view), pickPhoto(photos) → Promise<photo|null>, arrangeText(reason, d, plan, removed) }
  */
 (function () {
@@ -18,7 +19,7 @@
   if (window.FomsV2Chrome) { return; }
 
   var api = null, els = {}, ZOOMS = [50, 70, 100, 150];
-  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1, unpick: 1, style: 1, size: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1, moved: 1 };
+  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1, unpick: 1, style: 1, size: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1, moved: 1, text: 1, pin: 1 };
   var TPL = { band: '사진·상세를 위에', column: '사진·상세를 왼쪽에' };   // v2-right.js 틀 고르기와 같은 이름
 
   function $(id) { return document.getElementById(id); }
@@ -105,11 +106,11 @@
     if (wrap && window.ResizeObserver) { new window.ResizeObserver(function () { fitWidths(); renderZoom(); }).observe(wrap); }   // Ctrl+휠 확대도 따라간다
   }
 
-  /** 알림 띠 · 끌어 놓기 칸 · 범례 폭 = 종이 폭(확대 비율 따라). */
+  /** 끌어 놓기 칸 · 범례 폭 = 종이 폭(확대 비율 따라). 알림 띠는 탭 줄에 있다. */
   function fitWidths() {
     var wrap = $('dws-stage-wrap'), w = wrap ? wrap.offsetWidth : 0;
     if (!w) { return; }
-    [els.banner, els.drop, document.querySelector('.dws-v2-legend')].forEach(function (n) { if (n) { n.style.width = w + 'px'; } });
+    [els.drop, document.querySelector('.dws-v2-legend')].forEach(function (n) { if (n) { n.style.width = w + 'px'; } });
   }
 
   function imageCount(sheet) { return (sheet.objects || []).filter(function (o) { return o.type === 'image'; }).length; }
@@ -127,6 +128,7 @@
     }
     if (reason === 'removed') { return d.n ? (removed ? '그림 ' + removed + '장을 빼고 ' : '') + '남은 그림을 다시 놓았어요 · 되돌리기 Ctrl+Z' : ''; }
     if (reason === 'moved') { return d.n ? '옮긴 그림을 비켜 나머지 ' + d.n + '장을 다시 놓았어요 · 되돌리기 Ctrl+Z' : ''; }
+    if (reason === 'pin') { return '옮긴 글자를 고정했어요 — 다시 배치해도 그 자리예요' + (d.n ? ' · 그림 ' + d.n + '장은 비켜 놓았어요' : '') + ' · 풀기 [고정 풀고 모두 다시]'; }
     if (!TALK[reason]) { return ''; }
     if (reason === 'unpick') { return '추천 틀(' + TPL[plan.out.best] + ')로 ' + (d.any ? '다시 놓았어요 · 되돌리기 Ctrl+Z' : '이미 놓여 있어요') + pin; }
     if (!d.any) { return '이미 칸에 맞게 놓여 있어요' + pin + (plan.pick ? ' · 고른 틀: ' + TPL[plan.pick] : ''); }
@@ -145,6 +147,7 @@
       b.classList.add('dws-v2-banner-' + tone);
       b.appendChild(el('strong', 'dws-v2-banner-strong', strong));
       if (rest) { b.appendChild(el('span', 'dws-v2-banner-text', rest)); }
+      b.title = strong + (rest ? ' — ' + rest : '');   // 탭 줄이 좁으면 설명이 '…'로 줄어든다 — 마우스를 올리면 다 보인다
     }
     var n = imageCount(sheet), g = plan.g, arr = view.arranged && view.arranged.sheetId === sheet.id ? view.arranged : null;
     if (!n) { line('그림을 끌어 놓으세요', '아래 칸에 스케치업 그림을 끌어 놓거나 붙여넣으면 종류를 알아보고 칸에 넣어요', 'gray'); return; }

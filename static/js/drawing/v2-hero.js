@@ -83,9 +83,9 @@
     return arr.reduce(function (h, p) { return ids.indexOf(p.id) >= 0 ? Math.max(h, p.h) : h; }, 0);
   }
 
-  function refine(res, inp, o, kit) {
+  function refine(res, inp, o, kit, ref) {
     var L = window.FomsV2Layout, B = res && res.big, base = inp.base || {}, hasBase = Object.keys(base).length > 0;
-    if (!B) { return res; }
+    if (!B || res.fillKeys) { return res; }   // 빈자리에 작은 칸을 옮겨 넣은 틀(v2-fill)은 큰 그림 칸을 다시 놓지 않는다
     var lim = o.minText > 0 ? o.minText : L.MIN_TEXT, ids = {}, cur = {}, minH = {}, keys = {}, gain = Infinity, same = o.sameScale !== false;
     kit.groups.forEach(function (g) {
       keys[g.key] = true;
@@ -98,7 +98,8 @@
       if (hasBase && base[id] && base[id].h > 0) { floor = Math.max(floor, L.CROWD_PCT * base[id].h); }
       minH[id] = Math.min(floor, cur[id].h);
     });
-    var top = pack(kit.groups, B.w, B.h, same, { ratio: RMIN, free: true }), even = top ? tall(top.hero, cur) : 0;   // 막대 끝 — 숫자 기준 없이 가장 크게
+    var top = pack(kit.groups, B.w, B.h, same, { ratio: RMIN, free: true });   // 막대 끝 — 숫자 기준 없이 가장 크게
+    var even = top ? tall(top.hero, ref ? ref.moves : cur) || tall(top.hero, cur) : 0;   // 막대 100% = 고르게로 놓일 틀(ref — 빈자리 채우기)의 주 그림
     var max = even > 0 ? Math.floor(100 * tall(top.hero, top.placed) / even) : 0;
     var want = max > 100 && o.heroSize > 0 ? Math.min(max, Math.max(100, Math.round(o.heroSize))) : 0;
     res.size = max > 100 ? { min: 100, max: max, pct: 100, manual: want > 0 } : null;
@@ -118,15 +119,16 @@
       return res;
     }
     res.alt = { style: 'even', slots: res.slots, mainPct: res.mainPct };
-    var size = res.size && Object.assign({}, res.size, { pct: Math.round(100 * gain) }), out = kit.score(Object.assign(res, grown));
+    var size = res.size && Object.assign({}, res.size, { pct: Math.round(100 * tall(bt.hero, bt.placed) / even) }), out = kit.score(Object.assign(res, grown));
     out.size = size;
     return out;
   }
 
-  /** 틀 고르기 끝(v2-layout compute): 주 그림을 키우면 원래 틀(plain), 안 키우는 시트(고르게 · 두드러진 그림 없음)는 여백을 덜 남기는 틀(filled).
-      미리보기(alt) · 막대 범위(size)는 원래 틀 값 — 주 그림 크게로 바꾸면 그 틀에서 키운다. */
+  /** 틀 고르기 끝(v2-layout compute): 주 그림을 키우면 원래 틀(plain), 안 키우는 시트(고르게 · 두드러진 그림 없음)는 여백을 덜 남기는 틀(filled —
+      상세 두 줄 · 빈자리 채우기 v2-fill). 미리보기(alt)는 두 스타일이 실제로 놓일 모습, 막대(size) 100% 는 고르게로 놓일 주 그림 높이. */
   function choose(plain, filled, inp, o, kit) {
-    var r = plain ? refine(plain, inp, o, kit) : null;
+    var ref = filled && filled !== plain ? filled : null, r = plain ? refine(plain, inp, o, kit, ref) : null;
+    if (r && r.hero && ref) { r.alt = { style: 'even', slots: ref.slots, mainPct: ref.mainPct }; }
     if (r && (r.hero || !filled || filled === plain)) { return r; }
     var f = filled ? refine(filled, inp, o, kit) : null;
     if (!f || !r) { return f || r; }

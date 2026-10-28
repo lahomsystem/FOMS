@@ -83,7 +83,7 @@ const core = {
   }
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-fill.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2, S = window.FomsV2Slots;
 // ---- 시트 · 사람 동작 ----

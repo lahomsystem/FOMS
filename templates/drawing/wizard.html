@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261027c">
-  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261028a">{% endif %}
+  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261028b">{% endif %}
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -229,6 +229,8 @@
     <!-- ================= 시트 탭 바 ================= -->
     <div class="dws-tabrow dws-ui">
       <div class="dws-tabbar" id="dws-tabbar"></div>
+      {# V2 알림 띠는 탭 오른쪽 — 종이 위 띠가 세로 자리를 먹었다(사용자 요청 2026-10-28 '이 라인을 탭 라인으로 옮겨', v2-chrome.js) #}
+      {% if wizard_ui == 'v2' %}<div class="dws-v2-banner dws-ui" id="dws-v2-banner" role="status" aria-live="polite" hidden></div>{% endif %}
       {# 오른쪽 끝: V1 은 [새 화면 V2 써 보기], V2 는 저장 상태 칩 자리(v2-chrome.js 가 칩을 옮겨 온다 — K2 '자동 저장됨 10:42') #}
       <div class="dws-tabrow-side" id="dws-v2-tabstatus">
         {% if wizard_ui != 'v2' and can_save %}<button type="button" class="dws-ui-switch-btn" data-dws-ui-switch="v2" title="그림을 칸에 저절로 넣는 새 화면 — 언제든 예전 화면으로 돌아올 수 있어요">새 화면 V2 써 보기</button>{% endif %}
@@ -272,7 +274,6 @@
 
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
-      {% if wizard_ui == 'v2' %}<div class="dws-v2-banner dws-ui" id="dws-v2-banner" role="status" aria-live="polite" hidden></div>{% endif %}
       <div class="dws-stage-wrap" id="dws-stage-wrap">
 
         <!-- 현재 시트의 전달본(전달 대기함에 넣은 그림) 지우기 — 전달본 있고 편집 권한일 때만 노출(wizard.js updateDeleteSavedBtn) -->
@@ -731,23 +732,25 @@
   {# 줄여 그린 그림 고운 필터(Chrome · Edge) — 그림 노드 sceneFunc. 2026-10-28 '컴퍼넌트를 줄이면 화질이 떨어진다'. #}
   <script src="{{ url_for('static', filename='js/drawing/image-smooth.js') }}?v=20261028b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/zoom-sharp.js') }}?v=20261028a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261028d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261028e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}
   {# V2 칸 자동 배치 화면 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md. v2-shell.js 가 마지막(나머지를 잇는다). #}
-  <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261028b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261028c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-pack.js') }}?v=20261028c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-hero.js') }}?v=20261028d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261028b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261028c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261027e" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-hero.js') }}?v=20261028e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-fill.js') }}?v=20261028a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261028c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261028d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261028a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261028a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-text.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-check.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-left.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-size.js') }}?v=20261028a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261028d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261028d" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261028c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261028e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261028e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261028d" defer></script>
   {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
