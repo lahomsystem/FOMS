@@ -17,6 +17,7 @@ from models import Order, OrderAttachment, Notification, OrderEvent, User
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.auth.partner_scope import is_partner_sd
+from foms.services.partners.notify import notify_partner_drawing_ready
 from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.error_logging import log_handled_exception
 from foms.services.orders.audit_order_context import order_audit_context
@@ -460,6 +461,8 @@ def perform_drawing_transfer(
         notification_message += f" ({customer_name})"
     notification_message += (
         " 도면팀이 고친 도면을 바로 반영했습니다. 확인할 필요 없습니다." if hotfix
+        # 협력사 주문은 협력사 직원이 FOMS 영업처럼 확인 · 수정 요청한다(사용자 2026-10-28) — CS 는 확인용.
+        else " 도면을 협력사에 보냈습니다(협력사가 확인합니다)." if is_partner_sd(s_data)
         else " 도면이 준비되었습니다."
     )
     if note:
@@ -530,6 +533,7 @@ def perform_drawing_transfer(
         )
         invalidate_dashboard_families(DASHBOARD_FAMILY_PRODUCTION, DASHBOARD_FAMILY_CONSTRUCTION)
     invalidate_after_drawing_transfer()  # 2a-2: 첨부 개수·생산/시공 패널도 같은 답
+    notify_partner_drawing_ready(db, order)  # 협력사 주문이면 협력사 직원에게 "도면이 올라왔습니다"(웹 푸시)
 
     # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
     from foms.services.notifications.push_sender import enqueue_push_for_notification

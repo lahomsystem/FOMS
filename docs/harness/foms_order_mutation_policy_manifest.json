@@ -1199,6 +1199,11 @@
       "mode": "guard",
       "policy_id": "WDC_ESTIMATE",
       "rule": "/api/wdcalculator/unmatch-order"
+    },
+    "partner_api.confirm_drawing_receipt": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/drawing-receipt"
     }
   }
 }

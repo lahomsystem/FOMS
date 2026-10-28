@@ -116,6 +116,9 @@ def order_detail(order_id: int):
     finals = _final_drawings(order)
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
     can_approve = stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None
+    # 저희가 보낸 도면을 협력사가 확인(받음) — FOMS 영업 "도면 수령 확인"과 같은 자리(사용자 2026-10-28).
+    can_receive = (stage == "DRAWING" and bool(finals)
+                   and (order.structured_data or {}).get("drawing_status") == "TRANSFERRED")
     return render_template(
         "partner/order_detail.html",
         org=_org(),
@@ -125,6 +128,7 @@ def order_detail(order_id: int):
         can_upload=partner_edit_open(order),
         final_drawings=finals,
         can_approve=can_approve,
+        can_receive=can_receive,
         can_revise=stage in ("DRAWING", "CONFIRM") and bool(finals)
         and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
         can_as=stage in AS_OPEN_STAGES and not as_open,
@@ -133,7 +137,7 @@ def order_detail(order_id: int):
         drawing_files=[f for f in finals if not f["is_image"]],
         drawing_round=_drawing_round(order),
         history=partner_order_history(db, order),
-        active_tab="drawing" if can_approve else "order",
+        active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
         product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),

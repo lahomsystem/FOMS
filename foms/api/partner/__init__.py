@@ -41,7 +41,11 @@ from foms.services.orders.as_cycle_service import ASCycleError
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_revision
 from foms.services.partners.as_intake import PartnerASError, register_partner_as
 from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
-from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
+from foms.services.partners.drawing_confirm import (
+    PartnerConfirmError,
+    approve_partner_drawing,
+    confirm_partner_drawing_receipt,
+)
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.info_edit import update_partner_info
 from foms.services.partners.items_edit import (
@@ -343,6 +347,26 @@ def approve_drawing(order_id: int):
     return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
 
 
+@partner_api_bp.route("/orders/<int:order_id>/drawing-receipt", methods=["POST"])
+@partner_required
+def confirm_drawing_receipt(order_id: int):
+    """보낸 도면 확인(받음) — 고객컨펌으로(:func:`confirm_partner_drawing_receipt`, FOMS 영업 "도면 수령 확인")."""
+    db = get_db()
+    try:
+        confirm_partner_drawing_receipt(db, g.current_user, order_id)
+        db.commit()
+    except PartnerConfirmError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    except (TransitionError, RevisionError):
+        db.rollback()
+        log_handled_exception("partner drawing receipt transition")
+        return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
+    # 도면 상태 · 단계(DRAWING→CONFIRM)가 바뀐다 — 직원 수령 확인과 같은 범위의 목록을 비운다.
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+
+
 MAX_PHOTOS = 10
 _PHOTO_EXTS = frozenset({"jpg", "jpeg", "png", "webp", "heic", "gif"})
 
@@ -440,6 +464,7 @@ def register_as(order_id: int):
         log_handled_exception("partner AS register")
         return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    _refresh_team_badges(db, ("CS",))  # 협력사 AS 접수 알림을 받는 CS 팀 벨
     # 사진은 접수가 확정된 뒤 붙인다 — 사진이 실패해도 AS 접수는 남는다(화면이 알려 준다).
     try:
         photos = _upload_photos(order_id, "as")

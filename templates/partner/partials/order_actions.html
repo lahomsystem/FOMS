@@ -8,6 +8,9 @@
         {% if can_revise %}
         <button type="button" class="btn btn-outline-primary" data-pp-goto-tab="drawing">수정 요청 보내기</button>
         {% endif %}
+        {% if can_receive %}
+        <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.confirm_drawing_receipt', order_id=view.id) }}" data-pp-approve-confirm="도면을 확인했다고 저희에게 알릴까요? 고객 확인 단계로 넘어갑니다."><i class="fas fa-check"></i> 도면 확인했어요</button>
+        {% endif %}
         {% if can_approve %}
         <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=view.id) }}"><i class="fas fa-check"></i> 이대로 만들어 주세요</button>
         {% endif %}

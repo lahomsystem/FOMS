@@ -67,12 +67,12 @@ def _matches_query(row: dict[str, Any], q: str) -> bool:
     return any(needle in str(row[key] or "").lower() for key in ("customer_name", "address", "product"))
 
 
-def _drawing_confirmed(db, order_ids: set[int]) -> dict[int, bool]:
-    """고객컨펌 단계 주문만 도면 확정 여부를 읽는다(주문 데이터 JSONB — 그 단계 주문 몇 건뿐)."""
+def _drawing_status(db, order_ids: set[int]) -> dict[int, str]:
+    """도면 · 고객컨펌 단계 주문만 도면 상태를 읽는다(주문 데이터 JSONB — 그 단계 주문 몇 건뿐)."""
     if not order_ids:
         return {}
     rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()
-    return {r.id: isinstance(r.structured_data, dict) and r.structured_data.get("drawing_status") == "CONFIRMED"
+    return {r.id: str(r.structured_data.get("drawing_status") or "") if isinstance(r.structured_data, dict) else ""
             for r in rows}
 
 
@@ -89,14 +89,17 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
         .limit(_SCAN_LIMIT)
         .all()
     )
-    confirmed = _drawing_confirmed(db, {r.id for r in result if (r.erp_stage_code or "").upper() == "CONFIRM"})
+    drawing = _drawing_status(db, {r.id for r in result if (r.erp_stage_code or "").upper() in ("CONFIRM", "DRAWING")})
     # 시공일 칸: 우리 시공일이 없으면 보낸 희망 시공일을 "(희망)"으로(사용자 2026-10-28).
     requested = pending_request_texts(db, {r.id for r in result if not r.erp_construction_date})
     rows: dict[int, dict[str, Any]] = {}
     for r in result:
         if r.id in rows:
             continue
-        label = partner_stage_label(r.erp_stage_code, r.as_axis_status, confirmed.get(r.id))
+        status = drawing.get(r.id)
+        label = partner_stage_label(r.erp_stage_code, r.as_axis_status,
+                                    None if status is None else status == "CONFIRMED",
+                                    status == "TRANSFERRED")
         rows[r.id] = {
             "id": r.id, "customer_name": r.customer_name, "phone": r.phone, "address": r.address,
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
@@ -132,11 +135,12 @@ def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
 
 
 def partner_turn_count(db, org_id: int) -> int:
-    """머리 메뉴 "도면 확인 N" — 협력사 차례(고객컨펌 단계 · 도면 확정 · AS 건 열림 제외)."""
-    ids = {
-        r.id for r in db.query(Order.id).filter(
-            Order.partner_org_id == org_id, Order.active_filter(), Order.erp_stage_code == "CONFIRM",
+    """머리 메뉴 "도면 확인 N" — 협력사 차례(보낸 도면 확인 · 고객컨펌 도면 확정, AS 건 열림 제외)."""
+    stages = {
+        r.id: (r.erp_stage_code or "").upper() for r in db.query(Order.id, Order.erp_stage_code).filter(
+            Order.partner_org_id == org_id, Order.active_filter(), Order.erp_stage_code.in_(("CONFIRM", "DRAWING")),
             or_(Order.as_axis_status.is_(None), ~Order.as_axis_status.in_(("RECEIVED", "IN_PROGRESS"))),
         )
     }
-    return sum(1 for ok in _drawing_confirmed(db, ids).values() if ok)
+    wanted = {"CONFIRM": "CONFIRMED", "DRAWING": "TRANSFERRED"}
+    return sum(1 for oid, status in _drawing_status(db, set(stages)).items() if status == wanted[stages[oid]])
