@@ -232,6 +232,43 @@ def test_cli_train_end_to_end_writes_report_and_new_head(tmp_path):
     assert "판정: 통과" in (tmp_path / "data" / "report.md").read_text(encoding="utf-8")
 
 
+def test_cli_train_adds_new_view_class_once_people_labeled_enough(tmp_path):
+    """탑뷰 · 사이드뷰(2026-10-28 사용자 요청)는 머리가 아직 모른다 — 사람 기록이 --min-new 장 넘으면 머리에 새 줄로 더하고,
+    모자라면 그 기록은 빼고 다음에(기록 장수는 보고서에)."""
+    X, y, orders, W0, b0 = _synthetic(140, drift=0.62, dim=32, seed=3)
+    head = {"version": "h1", "labels": list(rd.LABELS), "W": W0.tolist(), "b": b0.tolist(), "threshold": 0.5,
+            "model": {"url": "u", "sha256": "s"}, "prep": {"size": 224}, "trained_on": {"n": 1201}}
+    (tmp_path / "head.json").write_text(json.dumps(head), encoding="utf-8")
+    data = tmp_path / "data"
+    _write_dataset(data, X, y, orders, ["주방"] * len(y))
+    rng = np.random.default_rng(11)
+    top = rng.normal(size=32)
+    top /= np.linalg.norm(top)
+    new = np.array([(top + 0.15 * rng.normal(size=32)) for _ in range(60)])
+    new /= np.linalg.norm(new, axis=1, keepdims=True)
+    keys = json.loads((data / "feature_keys.json").read_text(encoding="utf-8"))
+    lines = (data / "manifest.jsonl").read_text(encoding="utf-8").splitlines()
+    for i in range(60):   # 위에서 본 그림 — AI 는 평면·상판으로 짐작했고 사람이 탑뷰로 고쳤다
+        key, order = f"orders/{2000 + i}/drawing_wizard/assets/top{i}.png", 2000 + i
+        keys.append(key)
+        lines.append(json.dumps({"key": key, "label": "탑뷰", "weight": 1.0, "src": "user", "ai": "평면·상판",
+                                 "order_id": order, "family": "주방", "corrected": True}))
+    (data / "manifest.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    np.save(data / "features.npy", np.vstack([np.load(data / "features.npy"), new.astype(np.float32)]))
+    (data / "feature_keys.json").write_text(json.dumps(keys), encoding="utf-8")
+    out = tmp_path / "h2.json"
+    args = ["train", "--data", str(data), "--head", str(tmp_path / "head.json"), "--out", str(out), "--min-corrections", "50"]
+    assert cli.main(args) == 0
+    rep = json.loads((data / "report.json").read_text(encoding="utf-8"))
+    new_head = json.loads(out.read_text(encoding="utf-8"))
+    assert rep["new_labels"] == ["탑뷰"] and rep["new_counts"] == {"탑뷰": 60, "사이드뷰": 0}
+    assert new_head["labels"] == list(rd.LABELS) + ["탑뷰"] and len(new_head["W"]) == len(new_head["b"]) == len(rd.LABELS) + 1
+    assert set(new_head["labels"]) <= set(wizard_api._PART_LABELS) - {"미분류"}   # 브라우저 · 서버 닫힌 목록 안
+    cli.main(args + ["--min-new", "100"])
+    rep2 = json.loads((data / "report.json").read_text(encoding="utf-8"))
+    assert rep2["new_labels"] == [] and rep2["new_counts"]["탑뷰"] == 60       # 모자라면 다음에
+
+
 def test_cli_collect_requires_db_env(tmp_path, monkeypatch):
     monkeypatch.delenv("RETRAIN_DB_URL", raising=False)
     assert cli.main(["collect", "--out", str(tmp_path / "o")]) == 2

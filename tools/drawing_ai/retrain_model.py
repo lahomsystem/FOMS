@@ -145,12 +145,13 @@ def next_version(version: str) -> str:
     return f'h{int(digits) + 1 if digits else 1}'
 
 
-def export_head(W: np.ndarray, b: np.ndarray, base: dict, trained_on: dict, version: Optional[str] = None) -> dict:
-    """브라우저(part-ai.js)가 그대로 읽는 꼴 — 모델 주소·전처리·문턱은 지금 판을 그대로 잇는다."""
+def export_head(W: np.ndarray, b: np.ndarray, base: dict, trained_on: dict, version: Optional[str] = None,
+                labels: Optional[list] = None) -> dict:
+    """브라우저(part-ai.js)가 그대로 읽는 꼴 — 모델 주소·전처리·문턱은 지금 판을 그대로 잇는다. labels = 새 분류를 더한 목록."""
     head = dict(base)
     head.update(
         version=version or next_version(base.get('version', 'h0')),
-        labels=list(base['labels']),
+        labels=list(labels or base['labels']),
         W=[[round(float(v), 5) for v in row] for row in W],
         b=[round(float(v), 5) for v in b],
         trained_on=trained_on,

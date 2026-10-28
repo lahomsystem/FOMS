@@ -27,7 +27,7 @@
   'use strict';
   if (window.FomsV2Slots) { return; }
 
-  var FRONT = { '정면·내부': 1, '정면·도어': 1 };
+  var FRONT = { '정면·내부': 1, '정면·도어': 1, '사이드뷰': 1 };   // 사이드뷰(2026-10-28)는 정면 칸에 같은 배율로
   var ISO = { '입체·내부': 1, '입체·도어': 1 };
   var DETAIL = { '서랍 단면': 1, '부품 상세': 1 };
   // AI 칸 짐작 글자 — f 정면 · i 입체 · d 상세. 짐작 칸에 놓을 때 AI 첫 짐작이 다른 칸이면 대표 이름표로 놓는다.
@@ -121,7 +121,7 @@
     if (FRONT[label]) { return 'main'; }
     if (ISO[label]) { return kitchen ? 'iso' : 'main'; }
     if (DETAIL[label]) { return 'detail'; }
-    if (label === '평면·상판') { return 'plan'; }
+    if (label === '평면·상판' || label === '탑뷰') { return 'plan'; }
     return 'unsorted';
   }
 
@@ -175,12 +175,12 @@
     var have = {};
     (g[key] || []).forEach(function (o) {
       var l = (g.lay && g.lay[o.id]) || g.labels[o.id], f = FAM_OF[l];
-      have[f === 'f' ? '정면' : (f === 'i' ? '입체' : l)] = true;
+      have[f === 'f' ? '정면' : (f === 'i' ? '입체' : String(l).replace('·', ' · '))] = true;
     });
     function pick(names) { return names.filter(function (n) { return have[n]; }).join(' · '); }
-    if (key === 'main' || key === 'iso') { return pick(['정면', '입체']) || (key === 'iso' ? '입체' : (kitchen ? '정면' : '큰 그림')); }
+    if (key === 'main' || key === 'iso') { return pick(['정면', '사이드뷰', '입체']) || (key === 'iso' ? '입체' : (kitchen ? '정면' : '큰 그림')); }
     if (key === 'detail') { return pick(['서랍 단면', '부품 상세']) || '상세'; }
-    if (key === 'plan') { return '평면 · 상판'; }
+    if (key === 'plan') { return pick(['탑뷰', '평면 · 상판']) || '평면 · 상판'; }
     if (key === 'photo') { return '실측 사진'; }
     return '기타 그림';
   }

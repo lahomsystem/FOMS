@@ -1835,7 +1835,7 @@
     PART_LABELS.forEach(function (label, i) {
       var opt = document.createElement('option');
       opt.value = label;
-      opt.textContent = (i < 9 ? i + 1 : 0) + ' ' + label;
+      opt.textContent = (i < 9 ? (i + 1) + ' ' : (i === PART_LABELS.length - 1 ? '0 ' : '')) + label;
       els.mtPart.appendChild(opt);
     });
     els.mtPart.addEventListener('change', function () {
@@ -5013,7 +5013,8 @@
 
   /* 그림 종류 이름표(part) — 서버 계약(foms/api/drawing/wizard.py _validate_part)과 같은 닫힌 목록.
      순서 = 숫자키 1~9, 마지막 '미분류' = 0. */
-  var PART_LABELS = ['정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류'];
+  // 숫자키 1~9 = 앞 아홉, 0 = 미분류(맨 끝). 탑뷰 · 사이드뷰(2026-10-28 사용자 요청)는 숫자키 없이 종류 칸에서 고른다.
+  var PART_LABELS = ['정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님', '탑뷰', '사이드뷰', '미분류'];
   function sanitizePart(p) {
     if (!p || typeof p !== 'object' || PART_LABELS.indexOf(p.label) < 0 || (p.src !== 'ai' && p.src !== 'user')) { return null; }
     var out = { label: p.label, src: p.src };
