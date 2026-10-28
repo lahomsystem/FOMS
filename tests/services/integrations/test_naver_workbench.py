@@ -1000,7 +1000,8 @@ def test_history_tab_open_for_accounting_and_sales(client, workbench_on, role, t
     link.failure_reason = "커머스API 인증 만료"
     db_session.commit()
 
-    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    # 영업팀은 '내 담당만' 이 기본 켜짐(2026-10-28) — 여기는 열람 범위를 보므로 끈다.
+    body = client.get(f"{TRIAGE_PATH}?tab=all&mine=0").get_data(as_text=True)
 
     assert 'data-active-tab="all"' in body, f"{team} {role} 이 이력 탭을 못 열었다"
     assert "전체 이력" in body
