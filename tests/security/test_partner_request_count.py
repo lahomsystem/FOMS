@@ -2,13 +2,14 @@
 
 협력사는 주문 · 실측까지만 하고 도면 · 제작 · 시공 · AS 는 우리가 한다. 그래서 확정 전 희망일도 우리 모바일 홈
 달력 · 그날 목록 · 협력사 달력 · 출고 14일 칸의 시공 건수에 넣고, 시공일이 정해지면 그 날짜로 옮겨 한 번만 센다.
-대조군: 희망일 없는 협력사 주문, 시공일 확정 뒤.
+출고가도 그날 금액에 싣는다(사용자 결정 2026-10-29). 대조군: 희망일 없는 협력사 주문, 시공일 확정 뒤.
 """
 from __future__ import annotations
 
 import datetime
 import re
 
+import pytest
 from sqlalchemy.orm.attributes import flag_modified
 
 import foms.services.orders.dashboard_control_tower as tower
@@ -24,6 +25,12 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
 )
 
 _TODAY = datetime.date(2026, 11, 1)
+
+
+@pytest.fixture
+def priced(monkeypatch):
+    """출고가 = 300만(시험용) — 실제 식은 우리 달력 시험이 고정한다."""
+    monkeypatch.setattr(tower, "erp_shipping_price_from_structured", lambda sd: 3_000_000)
 
 
 def _order(app, partner_id, date="", name="희망고객") -> int:
@@ -47,29 +54,35 @@ def _cell(cal, iso):
     return next(c for w in cal["weeks"] for c in w if c["iso"] == iso)
 
 
-def test_partner_calendar_counts_request_once(app, world):
+def test_partner_calendar_counts_request_once(app, world, priced):
     asked = _order(app, world["partner_a"], "2026-11-03")
     _order(app, world["partner_b"], name="희망없음")
     cal = partner_construction_calendar(db_session, world["org_b"], "2026-11", today=_TODAY)
     assert _cell(cal, "2026-11-03")["count"] == 1 and cal["construction_total"] == 1
+    assert _cell(cal, "2026-11-03")["amount_label"] == ""  # 다른 회사 주문 — 건수만
+    own = partner_construction_calendar(db_session, world["org_a"], "2026-11", today=_TODAY)
+    assert _cell(own, "2026-11-03")["amount_label"] == "300만" and own["own_amount_label"] == "300만"
     _confirm(asked, "2026-11-05")
     cal = partner_construction_calendar(db_session, world["org_b"], "2026-11", today=_TODAY)
     assert _cell(cal, "2026-11-03")["count"] == 0
     assert _cell(cal, "2026-11-05")["count"] == 1 and cal["construction_total"] == 1
 
 
-def test_home_calendar_and_day_sheet_list_request(app, world):
+def test_home_calendar_and_day_sheet_list_request(app, world, priced):
     asked = _order(app, world["partner_a"], "2026-11-03")
     admin = db_session.get(User, world["admin"])
     month = tower.build_month_calendar(db_session, admin, "2026-11", today=_TODAY)
-    assert _cell(month, "2026-11-03")["construction"] == 1
+    assert _cell(month, "2026-11-03")["construction"] == 1 and _cell(month, "2026-11-03")["amount_label"] == "300만"
     day = tower.build_field_ops_for_day(db_session, admin, "2026-11-03", today=_TODAY)
     assert day["construction_count"] == 1 and day["count"] == 1
     row = next(r for r in day["rows"] if r["id"] == asked)
     assert row["type_code"] == "construction" and row["time"] == "오후"
-    assert row["readiness_label"] == "협력사 희망 · 확정 대기" and row["amount"] is None
+    assert row["readiness_label"] == "협력사 희망 · 확정 대기" and row["amount"] == 3_000_000
+    assert day["amount_label"] == "300만"
     _confirm(asked, "2026-11-05")
     assert tower.build_field_ops_for_day(db_session, admin, "2026-11-03", today=_TODAY)["rows"] == []
+    month = tower.build_month_calendar(db_session, admin, "2026-11", today=_TODAY)
+    assert _cell(month, "2026-11-03")["amount_label"] == "" and month["amount_label"] == "300만"
     row = tower.build_field_ops_for_day(db_session, admin, "2026-11-05", today=_TODAY)["rows"][0]
     assert row["id"] == asked and row["readiness_label"] != "협력사 희망 · 확정 대기"
 

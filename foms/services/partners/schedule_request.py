@@ -4,7 +4,8 @@
 에만 두고 우리 ``schedule.construction``(확정 시공일)은 건드리지 않는다.
 
 협력사는 주문 · 실측까지만 하고 도면 · 제작 · 시공 · AS 는 우리가 한다 — 확정 전 희망 시공일도 그날 우리 시공
-건수에 넣는다(사용자 결정 2026-10-28, :func:`partner_request_on` · :func:`pending_request_counts`).
+건수에 넣는다(사용자 결정 2026-10-28, :func:`partner_request_on` · :func:`pending_request_counts`). 출고가도 그날
+금액에 싣는다(2026-10-29, :func:`pending_request_rows`).
 """
 from __future__ import annotations
 
@@ -140,6 +141,15 @@ def pending_request_counts(query, dates: list[str]) -> dict[str, int]:
     for day in pending_request_ids_by_date(query, dates).values():
         counts[day] = counts.get(day, 0) + 1
     return counts
+
+
+def pending_request_rows(query, dates: list[str]) -> list[tuple[int, str, Any]]:
+    """확정 대기 희망 시공 (주문 번호, 희망일, structured_data) — 그날 출고가를 더할 때 쓴다(사용자 결정 2026-10-29)."""
+    if not dates:
+        return []
+    rows = (query.filter(partner_request_on(dates))
+            .with_entities(Order.id, _REQUEST_DATE_EXPR, Order.structured_data).all())
+    return [(int(order_id), str(day), sd) for order_id, day, sd in rows if day]
 
 
 def pending_request_texts(db, order_ids: set[int]) -> dict[int, str]:
