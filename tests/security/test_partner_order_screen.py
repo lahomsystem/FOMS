@@ -24,6 +24,7 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
     _to_stage,
     fake_storage,
     world,
+    _send_first_drawing,
 )
 
 _ITEMS = [
@@ -104,7 +105,7 @@ def test_editable_only_while_intake_is_checked(app, world):
     client = _client(app, db_session.get(User, world["partner_a"]))
     measure = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "품목 저장" in measure and 'id="ppItemRow"' in measure and "partner-items.js" in measure
-    _to_stage(order_id, "DRAWING")
+    _send_first_drawing(order_id)  # 도면 단계로 들어오므로 잠금은 저희 첫 도면부터
     drawing = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "품목 저장" not in drawing and 'id="ppItemRow"' not in drawing
     assert 'data-k="product_name" maxlength="100" value="안방 붙박이장" placeholder="예: 드레스룸 ㄷ자" readonly' in drawing
@@ -139,7 +140,7 @@ def test_edit_keeps_uid_and_staff_keys_and_records_original(app, world):
     assert order.product == "안방 붙박이장 ㄱ자"
     assert db_session.query(SecurityLog).filter_by(action="PARTNER_ORDER_ITEMS_EDITED", target_id=order_id).count() == 1
     assert db_session.query(Notification).filter_by(
-        order_id=order_id, notification_type="PARTNER_ORDER_ITEMS_EDITED", target_team="CS").count() == 1
+        order_id=order_id, notification_type="PARTNER_ORDER_ITEMS_EDITED", target_team="DRAWING").count() == 1  # 도면 단계 = 작업 중인 도면팀
 
 
 def test_forged_uid_is_not_adopted(app, world):
@@ -175,7 +176,7 @@ def test_edit_refused_after_intake_or_for_other_company(app, world):
     assert _put(other, order_id, [{"product_name": "x"}]).status_code == 404
     own = _client(app, db_session.get(User, world["partner_a"]))
     assert _put(own, order_id, [{"product_name": ""}]).status_code == 400
-    _to_stage(order_id, "DRAWING")
+    _send_first_drawing(order_id)  # 도면 단계로 들어오므로 잠금은 저희 첫 도면부터
     resp = _put(own, order_id, [{"product_name": "x"}])
     assert resp.status_code == 409 and "수정 요청" in resp.get_json()["error"]
     db_session.expire_all()

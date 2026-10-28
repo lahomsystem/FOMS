@@ -22,7 +22,13 @@ from foms.services.datetime_kst import now_kst
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
-from foms.services.partners.items_edit import ITEMS_EDIT_STAGES, MAX_EDIT_HISTORY, PartnerItemsError
+from foms.services.partners.items_edit import (
+    EDIT_CLOSED_MESSAGE,
+    MAX_EDIT_HISTORY,
+    PartnerItemsError,
+    partner_edit_open,
+    partner_notice_team,
+)
 from foms.services.partners.schedule_request import (
     clean_date,
     clean_request,
@@ -38,11 +44,11 @@ INFO_KEYS = ("customer_name", "customer_phone", "address", "measured_on", "measu
 REQUEST_KEYS = ("requested_construction_date", "requested_construction_time")
 
 
-def _notify_cs(db, user: Any, order_id: int, customer: str) -> None:
+def _notify_cs(db, user: Any, order_id: int, customer: str, team: str = "CS") -> None:
     notification = Notification(
         order_id=order_id,
         notification_type="PARTNER_ORDER_INFO_EDITED",
-        target_team="CS",
+        target_team=team,
         title="협력사 주문 정보 고침",
         message=f"[협력사] 주문 #{order_id}" + (f" ({customer})" if customer else "")
         + " 고객 · 주소 · 실측 정보를 고쳤습니다. 확인해 주세요.",
@@ -88,8 +94,8 @@ def update_partner_info(db, user: Any, order_id: int, payload: Any) -> dict[str,
     if not wants_info and not wants_request:
         raise PartnerItemsError("고칠 내용이 없습니다.")
     old_sd = order.structured_data or {}
-    if wants_info and (order.erp_stage_code or "").upper() not in ITEMS_EDIT_STAGES:
-        raise PartnerItemsError("도면 작업이 시작되어 고객 · 주소 · 실측 정보를 고칠 수 없습니다. 저희 담당자에게 알려 주세요.", 409)
+    if wants_info and not partner_edit_open(order):
+        raise PartnerItemsError(EDIT_CLOSED_MESSAGE, 409)
     if wants_request and not request_open(old_sd, order.erp_stage_code or ""):
         raise PartnerItemsError("시공일이 이미 정해졌습니다. 바꾸려면 저희 출고 담당자에게 알려 주세요.", 409)
 
@@ -131,7 +137,7 @@ def update_partner_info(db, user: Any, order_id: int, payload: Any) -> dict[str,
     ))
     customer = str(((sd.get("parties") or {}).get("customer") or {}).get("name") or "").strip()
     if info:
-        _notify_cs(db, user, order.id, customer)
+        _notify_cs(db, user, order.id, customer, partner_notice_team(order))
     if request_changed and intake.get("requested_construction"):
         notify_shipment_request(db, user, order.id, customer, intake["requested_construction"])
     return {"address_changed": address_changed, "request_changed": request_changed}

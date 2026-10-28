@@ -12,7 +12,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from foms.services.partners.items_edit import ITEMS_EDIT_STAGES, PARTNER_ITEM_KEYS
+from foms.services.partners.items_edit import PARTNER_ITEM_KEYS, partner_edit_open
 from foms.services.partners.orders import partner_stage_label
 from foms.services.partners.schedule_request import request_open
 from models import Order
@@ -97,7 +97,8 @@ def build_partner_order_view(order: Order) -> dict[str, Any]:
         "memo": _text(intake.get("memo")),
         "submitted_at": _text(intake.get("submitted_at"))[:16].replace("T", " "),
         "items": _items(sd),
-        "items_editable": stage in ITEMS_EDIT_STAGES,
+        # 접수 확인 중 · 도면 단계에서 저희 첫 도면 전까지(사용자 2026-10-28).
+        "items_editable": partner_edit_open(order),
         # 희망 시공일은 우리가 시공일을 정하기 전까지 고친다(§18).
         "request_editable": request_open(sd, stage),
     }

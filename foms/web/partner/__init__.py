@@ -11,7 +11,6 @@ from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.api.files.routes import build_file_download_url, build_file_view_url
-from foms.api.partner import UPLOAD_OPEN_STAGES
 from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
@@ -25,6 +24,7 @@ from foms.services.partners.completion import as_progress_for_partner, construct
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
+from foms.services.partners.items_edit import partner_edit_open
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.view import build_partner_order_view, partner_steps
@@ -96,7 +96,7 @@ def new_order():
         org=_org(),
         me=g.current_user,
         today=get_today_kst().isoformat(),
-        steps=partner_steps("MEASURE"),  # 보내면 "접수 확인 중" — 주문 화면과 같은 진행 칸
+        steps=partner_steps("DRAWING"),  # 보내면 바로 "도면 작업 중" — 주문 화면과 같은 진행 칸
         product_names=_product_names(),
     )
 
@@ -122,7 +122,7 @@ def order_detail(order_id: int):
         view=view,
         partner_files=partner_files,
         item_photos=item_photos,
-        can_upload=stage in UPLOAD_OPEN_STAGES,
+        can_upload=partner_edit_open(order),
         final_drawings=finals,
         can_approve=can_approve,
         can_revise=stage in ("DRAWING", "CONFIRM") and bool(finals)

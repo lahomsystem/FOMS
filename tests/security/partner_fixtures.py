@@ -127,6 +127,20 @@ def _to_confirm(order_id, *, drawing_status="CONFIRMED"):
     db_session.commit()
 
 
+def _send_first_drawing(order_id):
+    """저희 도면팀이 첫 도면을 보냄(TRANSFER 이력 1건) — 이 뒤로 협력사 정보 · 품목 · 파일 고치기가 닫힌다."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_transfer_history"] = list(sd.get("drawing_transfer_history") or []) + [
+        {"action": "TRANSFER", "at": "2026-10-28T10:00:00", "files": 1}]
+    sd["drawing_status"] = "TRANSFERRED"
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
 def _to_stage(order_id, stage):
     from sqlalchemy.orm.attributes import flag_modified
 
