@@ -40,6 +40,7 @@ from foms.services.partners.schedule_request import (
     partner_request_on,
     pending_request,
     pending_request_counts,
+    pending_request_rows,
 )
 from foms.services.integrations.kma.seoul_daily_weather import load_days as load_weather_days
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
@@ -308,6 +309,7 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
     출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
     산출 불가(None) 주문은 금액에서만 빠진다. 시공일이 여러 날인 주문은 출고가를 시공일 수로 나눠
     날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 기간 합계 = 날짜 칸 합(중복 없음).
+    확정 대기 협력사 희망 시공일은 그 하루에 출고가 전부를 싣는다(사용자 결정 2026-10-29 — 건수와 같이 우리 시공).
 
     Returns:
         ({날짜: 원}, 기간 합계 원).
@@ -334,6 +336,8 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
     for date_str, order_id in seen:
         share = split_price_by_day(price_of[order_id], dates_of.get(order_id, [date_str]), date_str)
         by_date[date_str] = by_date.get(date_str, 0) + share
+    for _order_id, date_str, sd in pending_request_rows(base, date_strs):
+        by_date[date_str] = by_date.get(date_str, 0) + (erp_shipping_price_from_structured(_ensure_dict(sd)) or 0)
     return by_date, sum(by_date.values())
 
 
@@ -599,7 +603,7 @@ def _field_ops_for_date(
             is_cons = order_id in cons_id_set
         schedule_key = "as_visit" if is_as_only_visit else ("construction" if is_cons else "measurement")
         sched = (sd.get("schedule") or {}).get(schedule_key) or {}
-        # 확정 대기 협력사 희망 시공일 — 시간은 희망 시간, 칩은 '확정 대기', 출고가는 시공일이 정해진 뒤에 싣는다
+        # 확정 대기 협력사 희망 시공일 — 시간은 희망 시간, 칩은 '확정 대기'(출고가는 달력 칸과 같이 싣는다)
         request = (pending_request(sd, _stage_code_of(order, sd))
                    if is_cons and not is_as_only_visit and getattr(order, "partner_org_id", None) else None)
         if request:
@@ -615,7 +619,7 @@ def _field_ops_for_date(
         parties = sd.get("parties") or {}
         site = sd.get("site") or {}
         time_text = str(sched.get("time") or "").strip() or None
-        amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit and not request) else None
+        amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit) else None
         cons_dates = cons_dates_of.get(order_id, []) if amount else []
         amount_total = amount
         if amount and len(cons_dates) > 1:
