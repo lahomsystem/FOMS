@@ -21,6 +21,7 @@ from foms.services.cs_agent.state import (
     PRIORITY_STALE,
     ChatMessage,
     ChatState,
+    StaffPromise,
     business_minutes_between,
     compute_chat_state,
     detect_promise,
@@ -326,3 +327,44 @@ def test_naive_datetime_raises():
 
 def test_brand_hours_match_channel_keys():
     assert set(state.BRAND_HOURS) == {"LAHOM", "HAUD"}
+
+
+# ── 미리 잰 값(상태 표 길 — 원문 없음, C1-2) ────────────────────────────
+
+
+def test_precomputed_closing_wins_over_text():
+    sent = staff(1, at(2, 9), "견적 보내드렸습니다")
+    s = run([sent, user(2, at(2, 9, 20), "", closing=True)], at(2, 11))
+    assert not s.needs_reply and s.closing_only
+    assert run([sent, user(2, at(2, 9, 20), "네 감사합니다!", closing=False)], at(2, 11)).needs_reply
+
+
+def test_text_less_customer_message_without_precomputed_value_needs_reply():
+    """원문도 미리 잰 값도 없으면 맺음으로 보지 않는다 — 놓치는 쪽보다 한 번 더 보는 쪽."""
+    assert run([user(1, at(2, 10), "")], at(2, 11)).needs_reply
+
+
+def test_code_message_alone_is_not_needs_reply():
+    """확인코드 글은 share_consult 가 링크로 답한다(R4-2) — 답 필요도 맺음도 아니다."""
+    s = run([staff(1, at(2, 9), "안녕하세요"), user(2, at(2, 10), "", code_message=True)], at(2, 11))
+    assert not s.needs_reply and not s.closing_only and s.priority == PRIORITY_NONE
+
+
+def test_code_message_does_not_hide_a_real_question():
+    msgs = [user(1, at(2, 10), "색상 문의요"), user(2, at(2, 10, 5), "", code_message=True)]
+    s = run(msgs, at(2, 11))
+    assert s.needs_reply and s.waiting_since == at(2, 10)
+
+
+def test_precomputed_promise_is_used_without_text():
+    promise = StaffPromise("m2", at(2, 10), "chat", at(3, 17), "내일")
+    msgs = [user(1, at(2, 9, 50), "", closing=False), staff(2, at(2, 10), "", promise=promise)]
+    pending = run(msgs, at(3, 11))
+    assert pending.open_promise == promise and pending.priority == PRIORITY_PROMISE_PENDING
+    broken = run(msgs, at(3, 17, 1))
+    assert broken.promise_overdue and broken.priority == PRIORITY_BROKEN_PROMISE
+
+
+def test_text_less_staff_message_without_promise_is_a_plain_answer():
+    s = run([user(1, at(2, 9, 50), "", closing=False), staff(2, at(2, 10), "")], at(3, 11))
+    assert not s.needs_reply and s.open_promise is None and s.priority == PRIORITY_NONE
