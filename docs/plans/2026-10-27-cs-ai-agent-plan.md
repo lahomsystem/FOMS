@@ -60,19 +60,21 @@ v1 → v2: 교차검수 단순화 심판(원장 R2)을 반영해 단계 2 를 '�
 - 경계: 채널톡 쓰기 0. WORKER 1개 고정 · 정기 작업 겹침 금지. 화면은 만들지 않는다(아침 보고 한 장). 하트비트 kind 를 따로 등록하고 부팅 순서 시험(`tests/contracts/runtime/test_worker_boot_order.py`)을 함께 고친다(원장 R1-17 · R1-18).
 - 완료 기준: 스테이징에서 하루 돌려 보고 1건의 '답 필요' 목록이 데스크 확인과 맞음(표본 대조).
 - 검증: 시험 + 스테이징 보고 1건 + 감독자 하트비트.
-- 구현 기록(10-28 15시대, 미커밋 → 커밋 때 SHA): `foms/services/cs_agent/loop.py`(한 바퀴) · `report.py`(아침 보고 · 경보 · 한 번만) · `scripts/maintenance/run_cs_loop.py`(러너, `--switch on|off`) · 감독자 자식 `cs_loop`(env `FOMS_CS_LOOP_ENABLED=1`, 기본 꺼짐) · 하트비트 `CS_LOOP`(2700초) · 바로 끄기 SystemSetting `cs_agent_switch` · 기록 줄 `cs_agent_loop_state` · 받는 곳은 ADMIN 전원(사장님 규칙이 저장소에 없음, 원장 D2) · 수신 누락 경보는 운영만(`resolve_environment`). **월요일판 사람 답 사후 점검 건수는 C2-2 로 옮김**(검산 규칙이 C2-2 에서 생김, 원장 R5-11). 검수 R5 12건 판정은 원장.
+- 구현 기록(10-28 15시대, 미커밋 → 커밋 때 SHA): `foms/services/cs_agent/loop.py`(한 바퀴) · `report.py`(아침 보고 · 경보 · 한 번만) · `scripts/maintenance/run_cs_loop.py`(러너, `--switch on|off`) · 감독자 자식 `cs_loop`(env `FOMS_CS_LOOP_ENABLED=1`, 기본 꺼짐) · 하트비트 `CS_LOOP`(2700초) · 바로 끄기 SystemSetting `cs_agent_switch` · 기록 줄 `cs_agent_loop_state` · 받는 곳은 ADMIN 전원(사장님 규칙이 저장소에 없음, 원장 D2) · 수신 누락 경보는 운영만(`resolve_environment`). **월요일판 사람 답 사후 점검 건수는 C2-2 로 옮김**(검산 규칙이 C2-2 에서 생김, 원장 R5-11). 검수 R5 12건 판정은 원장. 스테이징 켬(D38) · Open API 실제 꼴 고침(원장 §3 12행).
 
 ## C2 기준 답 · 검사 (코어)
 
 ### C2-0 지식 · 가격을 서버로 옮기는 길 (짧은 Spec 절)
 - 무엇: 학습 폴더의 승인 지식 · 가격표를 운영 DB 로 옮기는 방법(누가 · 어떤 허락으로 · 어떤 스크립트로), '그날 스토어 가격'을 서버가 아는 법(손으로 넣기 / 스토어 읽기), 틀렸을 때 되돌리기(이전 버전). 설계서 7.1 을 Spec 으로 굳힌다.
 - 완료 기준: 사용자 승인. 검증: 원장 결정 기록.
+- 진행(10-28): 설계서 7.1 'C2-0 확정안' 7항목 — **사장님 승인(D42)**. 첫 넣기는 묶음 목록을 질문 창으로 보여 드린 뒤.
 
 ### C2-1 기준 답 = SystemSetting 키 (브랜드마다)
 - 무엇: 승인 항목만 JSON 으로 SystemSetting 키 하나에(`models.py:1164`, 이력은 버전 · 수정 기록 표 `models.py:1182`). 넣는 길은 사용자 승인 뒤 관리자 스크립트. 사장님 결정 답을 항목으로.
 - 대상: `foms/services/cs_agent/knowledge.py` · 관리자 스크립트(기존 `tools/ops/` 안) · 시험.
 - 완료 기준: 승인 안 된 항목은 초안 재료에 안 들어감 · 이전 버전으로 되돌림(시험).
 - 검증: `python -m pytest tests/domains/test_cs_knowledge.py -q`.
+- 구현 기록(10-28 17시대, 미커밋 → 커밋 때 SHA): `knowledge.py`(DB 길) · `knowledge_doc.py`(꼴 검사 · 승인 거르기 · 차이 — 500줄 상한으로 나눔) · `tools/ops/cs_agent_knowledge.py`(기본 모의 실행) · 시험 40. 키 `cs_agent_knowledge_lahom` · `_haud`. 승인된 가격 규칙은 `checked_at` 필수 · 관리자 스크립트 운영 막기는 sqlite 와 Railway 서비스 표지가 있는 스테이징 밖에서는 늘 표시 필요 · 날짜는 날짜만 · 미래 거절(원장 K-1 · K-2 · R6-14 · R6-15). 되돌리기 정본은 학습 폴더 문서(K-3).
 
 ### C2-2 보내기 전 검사 (메모에 필요한 규칙부터)
 - 무엇: 학습 폴더 work/post_drafts.py 의 검사를 서버 모듈로 옮기고 넓힌다: 다른 브랜드 이름 · 계좌 · 할인 · 환불 약속 · 확정 안 된 날짜 · 연락 시각 약속 · 내부 말 · 가림 표시 · 링크 허용 목록 · [사람] 항목 금액. 말투 꼴: 이모지 여러 개 · 한 덩어리 120자 넘음 · 해요체 끝맺음은 보류(D35 — 직원 말투 숫자는 학습 고리가 다시 잼). 매체 규칙: 톡톡 상담은 카톡 · 다른 메신저 · 바깥 링크 · 채팅으로 번호 받기를 막는다(D30 — PC 시범 post_drafts.py NAVER_BANS 와 같은 꼴, 스마트스토어 링크는 허용). 매체 길이 · 마감은 단계 3 에서.
@@ -80,12 +82,14 @@ v1 → v2: 교차검수 단순화 심판(원장 R2)을 반영해 단계 2 를 '�
 - 허용 목록: 초안 속 숫자 · 날짜 · 금액은 계산기 · 확정 값과 같을 때만 통과(원장 R1-11). 비공개 메모 문장 · '예시에만 있는 고유 낱말'이 섞이면 막음(R1-10 · R1-12).
 - 완료 기준: 시범 검사 10개 포함, 합성 예문 BAD 0, 우회 예문 묶음(한글 숫자 · 띄어 쓴 금액 · 돌려 말한 할인 · 링크 돌려 쓰기) BAD 0.
 - 검증: `python -m pytest tests/domains/test_cs_checks.py -q`.
+- 구현 기록(10-28 17~19시대, 미커밋): `checks.py`(판정 · 공개 API `check_draft` · `audit_staff_reply` — 월요일판 사람 답 점검용) · `checks_rules.py`(금지 꼴 — 검수 R6 뒤 나눔) · `checks_read.py`(NFKC · 숫자 · 종류 · 단위 · 날짜 · 링크 집 읽기) · 시험 274. 시범 검사 전부 + 허용 목록 · 계좌 · 전화 · 비공개 메모 · 예시 낱말 · 톡톡 규칙. 매체를 모르면 톡톡 규칙(막는 쪽). 총괄 고침: '네고객님' 오탐 · 전각 글자 링크 시험 · 가림 표시 `[링크:…]` 못 잡음(원장 C2-2 · C2-3 총괄 검증).
 
 ### C2-3 가림 (따로 — 가장 큰 사고 위험)
 - 무엇: 학습 폴더 가림 규칙을 checks 모듈로 옮기되 예문은 합성. ① 10-28 에 찾은 꼴 셋(이름 뒤 쉼표 · 줄바꿈, 한 글 전체가 이름, 단지 이름 꼬리)을 회귀 목록으로 ② "가림 검사 0 이어야 모델 호출"을 코드로 강제하는 시험 ③ 구멍을 찾으면 규칙과 합성 예문을 같이 더하는 절차를 문서에.
-- 대상: `foms/services/cs_agent/checks.py` · `tests/domains/test_cs_mask.py`.
+- 대상: `foms/services/cs_agent/masking.py`(10-28 — C2-2 와 같은 날 동시에 만들어 파일을 나눔, 원장 D39) · `tests/domains/test_cs_mask.py`.
 - 완료 기준: 회귀 예문 BAD 0, 검사 0 이 아니면 brain 호출이 일어나지 않음(시험).
 - 검증: `python -m pytest tests/domains/test_cs_mask.py -q`.
+- 구현 기록(10-28 17~19시대, 미커밋): `masking.py`(`mask` · `leak_counts` 11칸 · `require_masked` · `call_with_masked` — 검사 0 일 때만 모델 호출) · `masking_contacts.py`(글 맞추기 · 전화 · 번호 · 치수 지킴) · `masking_words.py`(낱말 목록) · 시험 467. 학습 폴더 가린 사본 54,237글에 돌려 가린 뒤에도 꼴이 남아 멈출 상담 2.1%(대부분 PC 가림이 남긴 단지 꼬리 — 원장 R6 아래). C3 연결 규칙: 글마다 `mask` 한 번(이어 붙인 대화에 하지 않음) · 만든 프롬프트 전체에 `require_masked` · 멈추면 그 상담만 건너뛰고 칸별 숫자만 경보. 구멍 고치는 절차는 모듈 설명 머리.
 
 ## C3 서버 초안 = 단계 2 서버판 (코어, Railway 키 교체 뒤)
 
@@ -157,7 +161,7 @@ v1 → v2: 교차검수 단순화 심판(원장 R2)을 반영해 단계 2 를 '�
 ## C6 실시간 초안 = 단계 2.7 (코어 — 사람이 보냄, 설계서 15절 · 원장 D29)
 
 ### C6-1 수신 기록 뒤돌아 읽기 + 모아 받기 (원장 R4 반영)
-- 무엇: `cs_loop` 가 수신 기록 표를 몇 초마다 **PK 로 뒤돌아 읽는다**(최근 N줄 — 커서를 저장하지 않음, R4-1 · R4-16). 상태 표는 (상담, 메시지 id) 고유 · 있으면 무시. 시작 신호는 chatType userChat · personType user 이고 확인코드 글(`parse_consult_message`)은 거른다(R4-2). 모아 받기는 상태 없이: 마지막 손님 글 30초 조용 또는 첫 미답 90초 + 선점 줄 없음(R4-S1). 상담원 공개 글(manager · 비공개 아님)이 오면 집지 않는다(R4-8).
+- 무엇: `cs_loop` 가 수신 기록 표를 몇 초마다 **PK 로 뒤돌아 읽는다**(최근 N줄 — 커서를 저장하지 않음, R4-1 · R4-16). 상태 표는 (상담, 메시지 id) 고유 · 있으면 무시. 시작 신호는 chatType userChat · personType user 이고 확인코드 글(`parse_consult_message`)은 거른다(R4-2). 모아 받기는 상태 없이: 마지막 손님 글이 운영 시간 안 60초 · 밖 45초 조용(D40) 또는 첫 미답 90초 + 선점 줄 없음(R4-S1). 상담원 공개 글(manager · 비공개 아님)이 오면 집지 않는다(R4-8).
 - 같이: `pg_try_advisory_lock` 대표 하나(R4-10) · TERM 멈춤 깃발(R4-4) · 상담 하나씩(R4-S3) · 15분 보정 · 아침 보고는 시간 상한 조각(R4-13) · 요청 표 하나(실시간 초안 · 고칠 말 · 보내기, R4-S4) · pending 웹훅 일 1분 경보(R4-11).
 - 대상: `foms/services/cs_agent/loop.py` · `foms/services/cs_agent/channel_read.py`(C1-2 의 뽑기 함수를 같이 씀) · 시험.
 - 경계: 웹훅 입구 · RQ · share_consult 는 고치지 않는다. 15분 Open API 보정은 그대로 정본.
