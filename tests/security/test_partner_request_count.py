@@ -82,7 +82,8 @@ def test_home_calendar_and_day_sheet_list_request(app, world, priced):
     _confirm(asked, "2026-11-05")
     assert tower.build_field_ops_for_day(db_session, admin, "2026-11-03", today=_TODAY)["rows"] == []
     month = tower.build_month_calendar(db_session, admin, "2026-11", today=_TODAY)
-    assert _cell(month, "2026-11-03")["amount_label"] == "" and month["amount_label"] == "300만"
+    assert _cell(month, "2026-11-03")["amount_label"] == "" and _cell(month, "2026-11-05")["amount_label"] == "300만"
+    assert month["amount_label"] == "0원"  # 이달 합계는 발주방 PUSH 된 주문만(2026-10-29) — 이 주문은 PUSH 전
     row = tower.build_field_ops_for_day(db_session, admin, "2026-11-05", today=_TODAY)["rows"][0]
     assert row["id"] == asked and row["readiness_label"] != "협력사 희망 · 확정 대기"
 

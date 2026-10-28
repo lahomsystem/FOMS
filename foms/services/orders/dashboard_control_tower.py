@@ -304,18 +304,33 @@ def split_price_by_day(price: int, dates: list[str], date_str: str) -> int:
 
 
 def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, int], int]:
-    """날짜별 시공 출고가 합과 기간 합계.
+    """날짜별 시공 출고가 합과 기간 합계(:func:`_construction_amount_parts` 의 앞 두 값)."""
+    by_date, total, _pushed = _construction_amount_parts(base, date_strs)
+    return by_date, total
+
+
+def _is_order_room_pushed(sd: Any) -> bool:
+    """발주방 PUSH(push_kind='drawing', 이력 키 ``channeltalk_push_drawing``)를 한 번이라도 보낸 주문인가."""
+    push = _ensure_dict(sd).get("channeltalk_push_drawing")
+    return isinstance(push, dict) and bool(push.get("pushed"))
+
+
+def _construction_amount_parts(base: Any, date_strs: list[str]) -> tuple[dict[str, int], int, int]:
+    """날짜별 시공 출고가 합과 기간 합계, 그리고 발주방 PUSH 된 주문만의 기간 합계.
 
     출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
     산출 불가(None) 주문은 금액에서만 빠진다. 시공일이 여러 날인 주문은 출고가를 시공일 수로 나눠
     날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 기간 합계 = 날짜 칸 합(중복 없음).
     확정 대기 협력사 희망 시공일은 그 하루에 출고가 전부를 싣는다(사용자 결정 2026-10-29 — 건수와 같이 우리 시공).
 
+    발주방 합계(사용자 결정 2026-10-29): 달력 머리 '출고가 합계' 는 발주방 PUSH 가 된 주문 중 그 기간에
+    시공일이 잡힌 것만 — 날짜 칸과 같은 몫 나눔, 확정 대기 협력사 희망일은 시공일 지정 전이라 뺀다.
+
     Returns:
-        ({날짜: 원}, 기간 합계 원).
+        ({날짜: 원}, 기간 합계 원, 발주방 PUSH 된 주문 기간 합계 원).
     """
     if not date_strs:
-        return {}, 0
+        return {}, 0, 0
     rows = (
         base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
         .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date.in_(date_strs))
@@ -323,6 +338,7 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
         .all()
     )
     price_of: dict[int, int] = {}
+    pushed_ids: set[int] = set()
     by_date: dict[str, int] = {}
     seen: set[tuple[str, int]] = set()
     for date_str, order_id, sd in rows:
@@ -332,13 +348,18 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
         seen.add(key)
         if key[1] not in price_of:
             price_of[key[1]] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
+            if _is_order_room_pushed(sd):
+                pushed_ids.add(key[1])
     dates_of = _construction_dates_of(base, price_of)
+    pushed_total = 0
     for date_str, order_id in seen:
         share = split_price_by_day(price_of[order_id], dates_of.get(order_id, [date_str]), date_str)
         by_date[date_str] = by_date.get(date_str, 0) + share
+        if order_id in pushed_ids:
+            pushed_total += share
     for _order_id, date_str, sd in pending_request_rows(base, date_strs):
         by_date[date_str] = by_date.get(date_str, 0) + (erp_shipping_price_from_structured(_ensure_dict(sd)) or 0)
-    return by_date, sum(by_date.values())
+    return by_date, sum(by_date.values()), pushed_total
 
 
 def _man_label(won: int | None) -> str:
@@ -411,7 +432,7 @@ def _month_calendar(
 
     meas_by, cons_by, as_by = _day_counts(base, month_dates)
     unshipped_by = _unshipped_construction_by(base, soon_dates)
-    amount_by, month_amount = _construction_amounts(base, month_dates)
+    amount_by, _month_all, month_amount = _construction_amount_parts(base, month_dates)
     holidays = get_holidays_kr(first.year)
 
     weeks: list[list[dict[str, Any]]] = []
