@@ -107,7 +107,9 @@ def test_wizard_js_asset_pin_bumped() -> None:
     assert "js/drawing/wizard.js') }}?v=20261024a" not in tpl   # 2026-10-25 사용성 평가 수정으로 다시 올림
     assert "js/drawing/wizard.js') }}?v=20261025a" not in tpl   # 2026-10-25 실화면 QA 뒤 고침으로 한 번 더 올림
     assert "js/drawing/wizard.js') }}?v=20261025b" not in tpl   # 2026-10-25 검수 뒤 마지막 고침으로 한 번 더 올림
-    assert "js/drawing/wizard.js') }}?v=20261027f" in tpl
+    assert "js/drawing/wizard.js') }}?v=20261027f" not in tpl   # 2026-10-28 주 그림 크게 · 손으로 옮기면 나머지 다시 배치
+    assert "js/drawing/wizard.js') }}?v=20261028a" not in tpl   # 2026-10-28 줄여 그린 그림 고운 필터(image-smooth.js)
+    assert "js/drawing/wizard.js') }}?v=20261028b" in tpl
 
 
 def test_wizard_js_calls_push_manual_and_preview_with_drawing_room_kind() -> None:

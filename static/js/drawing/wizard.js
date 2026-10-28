@@ -1032,14 +1032,17 @@
       selectedNodes().forEach(commitNode);   // commitNode 내부 markDirty
       transformer.forceUpdate();             // arrow/line commit 이 노드 내부(points/position) 재설정 → 박스 재계산
       positionAlignToolbar();
+      emitMoved(selectedNodes());
     });
     transformer.on('transformstart', function () { if (!isMultiSelect()) { return; } dragActive = true; recordUndo(); });
     transformer.on('transform', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
     transformer.on('transformend', function () {
       if (!isMultiSelect()) { return; }
       dragActive = false;
-      selectedNodes().forEach(commitNode);   // commitNode 가 residual scale 를 치수로 baking
+      var nodes = selectedNodes();
+      nodes.forEach(commitNode);   // commitNode 가 residual scale 를 치수로 baking
       rebuildAnno();   // state 기준 재구성(런텍스트 스냅 정리) + 다중 선택 복원
+      emitMoved(nodes);
     });
   }
 
@@ -1197,6 +1200,7 @@
       x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
       rotation: num(o.rotation), image: undefined, name: 'anno', draggable: canSave
     });
+    if (window.FomsImageSmooth) { node.sceneFunc(window.FomsImageSmooth.sceneFunc); }   // 줄여 그린 그림 고운 필터(image-smooth.js)
     tagNode(node, o);
     if (o.key) {
       var cached = _annoImgCache[o.key];
@@ -1361,10 +1365,20 @@
       else { recordUndo(); }
     });
     node.on('dragmove', function () { if (isMultiSelect()) { return; } positionMiniToolbar(); });
-    node.on('dragend', function () { altDupArmed = false; if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
+    node.on('dragend', function () { altDupArmed = false; if (isMultiSelect()) { return; } dragActive = false; commitNode(node); emitMoved([node]); });
     node.on('transformstart', function () { if (isMultiSelect()) { return; } dragActive = true; recordUndo(); });
     node.on('transform', function () { if (isMultiSelect()) { return; } applyLiveTransform(node); positionMiniToolbar(); });
-    node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
+    node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); emitMoved([node]); });
+  }
+
+  /** 사람이 그림을 끌거나 크기를 바꾸거나 돌리기를 마쳤다 — V2 자동 배치 모드는 고정이 된 그 그림을 비켜 나머지를 다시 놓는다
+      (v2-shell.js · 되돌리기는 끌기 시작이 남긴 한 번). 글자 · 도형만 옮긴 것은 알리지 않는다. */
+  function emitMoved(nodes) {
+    var ids = (nodes || []).map(function (n) { return n.getAttr('objId'); }).filter(function (id) {
+      var o = findObj(id);
+      return !!o && o.type === 'image';
+    });
+    if (ids.length) { emitCore('moved', { ids: ids }); }
   }
 
   // 텍스트가 리사이즈 핸들로 폭 조정되었는지 표시(scaleX≠1 감지). commitNode 텍스트 브랜치가
@@ -6922,7 +6936,7 @@
    * V2 모듈(v2-*.js)은 이 창구(window.FomsWizardCore)로만 마법사 상태를 읽고 바꾼다. V1 화면은 아무도 듣지 않는다.
    * 사건: ready · loaded · sheet(탭을 다시 그림) · render(객체를 다시 그림) · change(markDirty) · added(그림 한 장 놓음 · 붙여넣기 ·
    *       복제 사본) · removed(선택을 지움 — { ids, images }) · trimmed(여백 자르기) · labels(그림 종류가 바뀜)
-   *       · batch(같이 올린 묶음이 끝남) · arrange([자동 배치] — V2 가 받는다)
+   *       · batch(같이 올린 묶음이 끝남) · arrange([자동 배치] — V2 가 받는다) · moved(그림을 끌거나 크기를 바꾸거나 돌리기를 마침 — { ids })
    * ====================================================================== */
   function emitCore(name, data) {
     var list = coreHandlers[name];
@@ -7032,7 +7046,8 @@
       fitZoom: fitZoom,
       save: save,
       setTool: setAnnoMode,
-      editing: function () { return !!(editingTextarea || editCtx); }
+      editing: function () { return !!(editingTextarea || editCtx); },
+      dragging: function () { return !!dragActive; }   // 끌기 · 크기 바꾸기 중 — V2 다시 배치가 끝날 때까지 기다린다
     };
     emitCore('ready', window.FomsWizardCore);
   }

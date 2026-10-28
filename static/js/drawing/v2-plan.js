@@ -7,7 +7,7 @@
  *   자리에 그대로 있던 그림 안쪽에 가운데가 있는 글자 · 도형 · 펜은 그 그림을 따라 옮긴다(치수 메모가 떨어지지 않게).
  *   새로 올린 그림(arr 없음)은 아무것도 데려가지 않는다 — 올린 자리가 우연히 메모 위일 수 있다.
  * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류,
- *   v2_ai = AI 칸 짐작(v2-slots parseGuess).
+ *   v2_ai = AI 칸 짐작(v2-slots parseGuess), v2_style = 그림 크기 스타일(''|'hero' 주 그림 크게 · 'even' 고르게 — 2026-10-28).
  * - 장애물(input.obstacles): 그 자리에 남는 고정 그림(잠금 · 돌림 · 손으로 옮김 — 돌린 모양을 감싼 상자)과 잠긴 자재표 · 특이 · 강조,
  *   그리고 종이 칸에 걸친 그림 밖 글자 · 도형 · 펜(staying — 잠긴 것 · apply 가 데려가지 않는 것). 틀 계산이 그 자리를 비켜 간다
  *   (v2-layout). 그림 안 치수 메모(배치 자리에 그대로 있는 그림 안에 가운데가 있는 것)는 그림을 따라가니 넣지 않는다 — 장애물이
@@ -74,12 +74,13 @@
         .concat(stay.map(stayBox))
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
-    var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, prefer: pick });
+    var style = form.v2_style === 'even' ? 'even' : 'hero';
+    var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, hero: style === 'hero', prefer: pick });
     var laid = form.v2_layout === 'band' || form.v2_layout === 'column';
     // 칸 글자 = 정리한 시트는 종이 위 읽는 순서(v2-slots letters) — 종이 머리 · 왼쪽 카드가 같은 plan 에서 읽는다(그리는 순서와 무관)
     return { g: g, kind: kind, kindAuto: kindAuto, kitchen: kitchen, letters: S().letters(g, kitchen, laid), input: input,
       out: out, base: input.base, settings: set, laid: laid,
-      template: form.v2_layout || '', pick: pick, items: byId, stay: stay.length };
+      template: form.v2_layout || '', pick: pick, style: style, items: byId, stay: stay.length };
   }
 
   /** 다시 배치해도 그 자리에 남는 그림 밖 글자 · 도형 · 펜(g.free) 중 종이 칸에 걸친 것 — 잠긴 것, 그리고 apply '그림 따라가기'가

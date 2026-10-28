@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TPL = (ROOT / "templates/drawing/wizard.html").read_text(encoding="utf-8")
 V2_FORM = (ROOT / "templates/drawing/partials/wizard_v2_form.html").read_text(encoding="utf-8")
 JS = (ROOT / "static/js/drawing/wizard.js").read_text(encoding="utf-8")
-V2_SCRIPTS = ["v2-slots.js", "v2-pack.js", "v2-layout.js", "v2-plan.js", "v2-paper.js", "v2-notes.js", "v2-left.js",
+V2_SCRIPTS = ["v2-slots.js", "v2-pack.js", "v2-hero.js", "v2-layout.js", "v2-plan.js", "v2-paper.js", "v2-notes.js", "v2-left.js",
               "v2-right.js", "v2-chrome.js", "v2-shell.js"]
 
 
@@ -178,7 +178,33 @@ def test_v2_assets_pinned_after_rearrange_fix():
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
                   "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
                   "js/drawing/v2-shell.js"):
-        assert any(f"{asset}') }}}}?v=20261027{v}" in TPL for v in "def"), asset
+        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b")), asset
     right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
     assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
     assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL
+
+
+def test_engine_emits_moved_after_drag_or_resize_and_v2_rearranges_around_it():
+    """사용자 보고(2026-10-28, 스테이징 주문 4385): 메인을 키우면 나머지가 저절로 맞춰져야 하는데 겹쳤다 —
+    끌기 · 크기 바꾸기 · 돌리기를 마치면 코어가 moved 를 알리고, V2 자동 배치 모드가 고정이 된 그 그림을 비켜 다시 놓는다."""
+    for head in ("    node.on('dragend', function () {", "    node.on('transformend', function () {"):
+        line = JS[JS.index(head):JS.index("\n", JS.index(head))]
+        assert line.index("commitNode(node);") < line.index("emitMoved([node]);"), head
+    multi_drag = _fn(JS, "    transformer.on('dragend', function () {", 500)
+    assert multi_drag.index("selectedNodes().forEach(commitNode);") < multi_drag.index("emitMoved(selectedNodes());")
+    multi_tf = _fn(JS, "    transformer.on('transformend', function () {", 420)
+    assert multi_tf.index("nodes.forEach(commitNode);") < multi_tf.index("emitMoved(nodes);")
+    emit = _fn(JS, "  function emitMoved(nodes) {", 400)
+    assert "o.type === 'image'" in emit and "emitCore('moved', { ids: ids });" in emit   # 글자 · 도형만 옮긴 것은 알리지 않는다
+    assert "dragging: function () { return !!dragActive; }" in JS
+    events = JS[JS.index("[8] V2 화면 연결"):JS.index("  function emitCore(name, data) {")]
+    assert "moved(" in events
+    shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
+    wire = shell[shell.index("  function wire() {"):shell.index("  function init() {")]
+    assert "core.on('moved'" in wire and "scheduleArrange('moved')" in wire and "S.isFixed(o, settings)" in wire
+    assert "settings.lockMoved" in wire and "laidNow()" in wire
+    assert "if (core.editing() || core.dragging()) { scheduleArrange(reason); return; }" in shell
+    assert "if (reason !== 'moved') { core.select([]); }" in shell
+    chrome = (ROOT / "static/js/drawing/v2-chrome.js").read_text(encoding="utf-8")
+    assert "moved: 1 }" in chrome and "옮긴 그림을 비켜 나머지" in chrome
+

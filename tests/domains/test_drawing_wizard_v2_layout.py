@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 JS_DIR = ROOT / "static/js/drawing"
-MODULES = ["v2-slots.js", "v2-pack.js", "v2-layout.js", "v2-plan.js"]
+MODULES = ["v2-slots.js", "v2-pack.js", "v2-hero.js", "v2-layout.js", "v2-plan.js"]
 
 
 def _node() -> str:
@@ -27,7 +27,7 @@ RUNNER = r"""
 global.window = {};
 const fs = require('fs');
 const [dir, layoutFile] = process.argv.slice(1, 3);
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
 const S = window.FomsV2Slots, L = window.FomsV2Layout, P = window.FomsV2Plan, K = window.FomsV2Pack;
 const out = {};
 const img = (id, label, x, y, w, h, extra) => Object.assign({ id, type: 'image', key: id + '.png', x, y, w, h, natural_w: w, natural_h: h,
@@ -143,13 +143,17 @@ def test_same_scale_off_makes_equal_heights_and_upscale_is_capped():
     out = _run(r"""
 const units = [{ slot: 'main', members: [{ id: 'a', nw: 200, nh: 100 }] }, { slot: 'main', members: [{ id: 'b', nw: 100, nh: 50 }] }];
 const on = L.compute({ units, photo: [], detail: [], plan: [], unsorted: [], bom: [], notes: [] }, {}).band;
-const off = L.compute({ units, photo: [], detail: [], plan: [], unsorted: [], bom: [], notes: [] }, { sameScale: false }).band;
+const off = L.compute({ units, photo: [], detail: [], plan: [], unsorted: [], bom: [], notes: [] }, { sameScale: false, hero: false }).band;
+const offHero = L.compute({ units, photo: [], detail: [], plan: [], unsorted: [], bom: [], notes: [] }, { sameScale: false }).band;
 const h = (r, id) => r.moves.find(m => m.id === id).h;
 out.on = [h(on, 'a'), h(on, 'b')];
 out.off = [h(off, 'a'), h(off, 'b')];
+out.offHero = [h(offHero, 'a'), h(offHero, 'b'), offHero.hero];
 """)
     assert out["on"] == [125, 63] or out["on"] == [125, 62]   # 원본의 1.25배까지만 · 같은 배율(높이 비 2:1)
     assert out["off"][0] == out["off"][1]                     # 같은 높이
+    # 주 그림 크게(기본)는 따로 켜고 끈다 — 같은 높이로 맞춘 칸에서도 주 그림만 제 상한(원본 1.25배)까지 커진다
+    assert out["offHero"][:2] == [125, out["off"][1]] and out["offHero"][2] == ["a"]
 
 
 def test_crowded_when_smaller_than_80_percent_or_text_under_8px():

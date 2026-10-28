@@ -12,6 +12,7 @@
  * - 실측 사진 자동: 첫 배치 때 사진 그림이 없고 실측 사진이 있으면 한 장 골라 넣는다(폼 v2_photo = 'done' — 시트마다 한 번).
  * - AI 칸 짐작: AI 이름표가 미분류(세부 확신 낮음)여도 칸 확신이 문턱을 넘으면 폼 v2_ai 에 남겨 그 칸에 놓는다(v2-slots).
  * - 사람이 종류를 고르면(자동 배치 모드) 그 그림의 고정(손으로 옮김)을 풀어 새 종류 칸으로 보낸다 — 잠금 · 돌림은 그대로.
+ * - 손으로 끌거나 키워 고정이 된 그림(코어 moved)은 비켜 나머지를 다시 놓는다 — 메인을 키우면 옆 그림과 겹쳤다(주문 4385, 2026-10-28).
  *
  * window.FomsV2 = { refresh(), arrange(reason, opts), plan(), settings(), setSetting(k, v), mode(), setMode(m, fromUser),
  *   relabel(id, label), selectIds(ids), split(), pickTemplate(t), unpinAll(), core }
@@ -116,7 +117,7 @@
       core.markDirty();
       core.redraw();
     }
-    core.select([]);   // 마지막에 올린 그림이 골라진 채 남으면 미니 막대가 칸을 가린다
+    if (reason !== 'moved') { core.select([]); }   // 마지막에 올린 그림이 골라진 채 남으면 미니 막대가 칸을 가린다(손으로 맞추던 그림은 그대로)
     if (o.photo) { maybeAutoPhoto(sheet); }
     say(reason, d, plan, removed);
     refresh();
@@ -136,7 +137,7 @@
     if (arrangeTimer) { window.clearTimeout(arrangeTimer); }
     arrangeTimer = window.setTimeout(function () {
       arrangeTimer = 0;
-      if (core.editing()) { scheduleArrange(reason); return; }
+      if (core.editing() || core.dragging()) { scheduleArrange(reason); return; }   // 끄는 중에 다시 그리면 끌던 노드가 사라진다
       var sh = core.sheet();
       if (!sh || sh.id !== sid || (reason === 'removed' && !afterRemove(sh))) { return; }   // 그 사이 다른 시트로 옮겼으면 건드리지 않는다
       arrange(reason, { photo: reason === 'added' });
@@ -258,6 +259,11 @@
       scheduleArrange('removed');
     });
     core.on('trimmed', function () { if (laidNow()) { scheduleArrange('trimmed'); } });   // 여백을 자르면 새 비율로 다시
+    core.on('moved', function (d) {   // 고정이 된 그림을 비켜 다시 놓는다(되돌리기는 끌기가 남긴 한 번 · 6px 안 손떨림은 고정이 아니라 그대로)
+      if (!d || mode !== 'auto' || !settings.lockMoved || !laidNow()) { return; }
+      var objs = core.sheet().objects || [], S = window.FomsV2Slots;
+      if (objs.some(function (o) { return (d.ids || []).indexOf(o.id) >= 0 && o.type === 'image' && S.isFixed(o, settings); })) { scheduleArrange('moved'); }
+    });
     core.on('labels', function (d) {
       if (!d) { return; }
       if (d.by === 'ai') { rememberGuess(d); }
