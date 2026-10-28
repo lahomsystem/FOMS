@@ -9,7 +9,7 @@
  * - 글이 바뀌면(자동 배치 모드 · 칸으로 정리한 시트): 그린 뒤(render — 글자 폭을 잰 뒤) 칸 머리 위 글자 크기 지문(id · 폭 · 높이)이
  *   달라졌으면 0.45초 뒤 한 번 다시 배치한다(글을 쓰는 중 · 끄는 중이면 기다린다). 시트를 열거나 바꿀 때는 지문만 새로 잡는다.
  *   되돌리기는 글 고치기가 남긴 한 번. 고정된 자재표 줄은 그 자리에서 앞 열에 붙은 열만 오른쪽으로 민다(사람이 벌린 틈은 그대로).
- * - 손으로 옮기면(자동 배치 모드 · '손으로 옮긴 그림은 고정' 켬): 그 글자를 고정한다 — 자재표는 한 열만 옮겨도 줄 전체, 특이 사항 ·
+ * - 손으로 6px 넘게 옮기면(자동 배치 모드 · '손으로 옮긴 그림은 고정' 켬): 그 글자를 고정한다 — 자재표는 한 열만 옮겨도 줄 전체, 특이 사항 ·
  *   강조 문구는 그 글자만. 고정 글자는 장애물이 되고(v2-plan) 그림이 겹치면 비켜 다시 놓인다. [고정 풀고 모두 다시]가 함께 푼다(v2-shell).
  *
  * window.FomsV2Text = { init(api), sig(sheet) → 지문 글자, respace(bom) → 민 열 수, pin(sheet, ids) → 새로 고정한 수, WAIT }
@@ -19,7 +19,7 @@
   if (window.FomsV2Text) { return; }
 
   var WAIT = 450;
-  var api = null, seen = { sheet: '', sig: '' }, timer = 0;
+  var api = null, seen = { sheet: '', sig: '' }, timer = 0, drawn = {};   // drawn = 마지막으로 그린 칸 머리 위 글자 자리(끌기 전)
 
   function S() { return window.FomsV2Slots; }
   function heads(sheet) {
@@ -70,6 +70,8 @@
   function check() {
     var core = api.core, sh = core.sheet();
     if (!sh) { return; }
+    drawn = {};
+    heads(sh).forEach(function (o) { drawn[o.id] = [o.x || 0, o.y || 0]; });
     var s = sig(sh);
     if (seen.sheet !== sh.id) { seen = { sheet: sh.id, sig: s }; return; }   // 시트를 열거나 바꿨다 — 지문만
     if (s === seen.sig) { return; }
@@ -79,11 +81,16 @@
     timer = window.setTimeout(run, WAIT);
   }
 
-  /** 끌기 · 크기 바꾸기를 마쳤다 — 칸 머리 위 글자면 고정하고 그림이 겹치면 비켜 다시 놓는다. */
+  /** 끌기 · 크기 바꾸기를 마쳤다 — 칸 머리 위 글자가 6px 넘게(그림과 같은 MOVE_TOL — 더블클릭하다 손이 밀린 것은 빼고) 옮겨졌으면
+      고정하고 그림이 겹치면 비켜 다시 놓는다. */
   function moved(d) {
-    var core = api.core, sh = core.sheet();
+    var core = api.core, sh = core.sheet(), tol = S().MOVE_TOL;
     if (!sh || api.mode() !== 'auto' || api.settings().lockMoved === false || !laid(sh) || !core.canSave()) { return; }
-    if (pin(sh, (d && d.ids) || [])) { api.arrange('pin', {}); }
+    var ids = ((d && d.ids) || []).filter(function (id) {
+      var o = sh.objects.filter(function (x) { return x.id === id; })[0], was = drawn[id];
+      return !!o && (!was || Math.abs((o.x || 0) - was[0]) > tol || Math.abs((o.y || 0) - was[1]) > tol);
+    });
+    if (pin(sh, ids)) { api.arrange('pin', {}); }
   }
 
   function init(a) {
