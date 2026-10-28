@@ -60,14 +60,24 @@ def _customer_name(order: Order) -> str:
     return (name or "").strip() or "-"
 
 
+def _title_prefix(label: str) -> str:
+    """알림 제목 앞부분 ``[생산] <종류> — `` — row 에 종류 칸이 없어 제목으로 종류를 가른다."""
+    return f"[생산] {label} — "
+
+
 def _find_recent_notification(
-    db: Session, order_id: int, team: str, *, now: _dt.datetime
+    db: Session, order_id: int, team: str, *, now: _dt.datetime, label: str
 ) -> Optional[Notification]:
-    """동일 order+type+**팀** 60초 내 최근 생산 알림(actor 무관).
+    """동일 order+type+**팀** 60초 내 최근 생산 알림이 **같은 종류**면 돌려준다(actor 무관).
 
     팀을 조건에 넣지 않으면 팀별 row 중 id 가 큰 하나만 잡혀 다른 팀 row 가 매번 새로
     생성된다(한 팀은 merge, 다른 팀은 중복). debounce 는 row 단위 개념이므로 row 를
     가르는 축(팀)을 그대로 따라간다.
+
+    종류는 가장 최근 row 하나만 본다. 종류를 안 보면 '도면 바뀜' 직후의 '시공일 변경'이
+    앞 row 제목을 덮어 벨에서 도면 기록이 사라지고, 합친 것으로 쳐서 폰 알림도 안 나갔다
+    (2026-10-27 스테이징 실측). 더 앞의 같은 종류 row 로 거슬러 합치지 않는 것은 최신 변경이
+    벨 맨 위에 새 줄로 보이게 하려는 것이다.
     """
     prev = (
         db.query(Notification)
@@ -82,6 +92,8 @@ def _find_recent_notification(
     if prev is None or prev.created_at is None:
         return None
     if (now - prev.created_at).total_seconds() > DEBOUNCE_SECONDS:
+        return None
+    if not (prev.title or "").startswith(_title_prefix(label)):
         return None
     return prev
 
@@ -108,7 +120,8 @@ def apply_production_change_alert(
         actor_user_id: 변경자 id(선택).
         actor_name: 변경자 표시명.
         merge: False 면 60초 합치기를 하지 않고 늘 새 row(= 늘 push)를 만든다. 도면 바로
-            반영은 바로 앞 수정요청 알림과 합쳐지면 폰 알림이 안 나가 생산팀이 놓친다.
+            반영은 1분 안에 두 번 고쳐도 매번 폰 알림이 나가야 생산팀이 놓치지 않는다.
+            합치기는 종류가 같을 때만이다(:func:`_find_recent_notification`).
 
     Returns:
         ``(notifications, created_any)``. 비생산 단계·비ERP면 ``([], False)``. 리스트는
@@ -123,7 +136,7 @@ def apply_production_change_alert(
         return [], False
 
     label = _KIND_LABEL.get(kind, "주문 변경")
-    title = f"[생산] {label} — {_customer_name(order)}"
+    title = f"{_title_prefix(label)}{_customer_name(order)}"
     detail = (message_detail or "").strip()
     message = f"주문 #{order.id} — {label}" + (f" ({detail})" if detail else "")
 
@@ -133,7 +146,9 @@ def apply_production_change_alert(
     notifications: List[Notification] = []
     created_any = False
     for team in TARGET_TEAMS:
-        prev = _find_recent_notification(db, int(order.id), team, now=now) if merge else None
+        prev = (
+            _find_recent_notification(db, int(order.id), team, now=now, label=label) if merge else None
+        )
         if prev is not None:
             prev.title = title
             prev.message = message
