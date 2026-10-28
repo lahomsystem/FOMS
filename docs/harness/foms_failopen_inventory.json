@@ -5233,7 +5233,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 398,
+      "lineno": 403,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5242,7 +5242,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 510,
+      "lineno": 515,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

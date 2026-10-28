@@ -9,7 +9,9 @@
   파생 칸만 넣는다 — 수신 원본을 나중에 지워도(플랜 C5-1) 감시가 돈다.
 - **늦게 온 옛 글**: 상담 줄의 마지막 손님 글 · 마지막 공개 직원 글은 더 새 시각일 때만, 채널톡 상태는 더 새
   ``updatedAt`` 일 때만 바뀐다(R1-7).
-- **수신 누락 경보**: '채널톡엔 글이 있는데 수신 기록엔 없음'인 글 id 를 돌려준다(알림 배선은 C1-3).
+- **수신 누락 경보**: '채널톡엔 글이 있는데 수신 기록엔 없음'인 글 id 를 돌려준다(알림 배선은 C1-3 ``report``).
+- **감시 루프용(C1-3)**: 열린 상담 상태를 상담 줄 · 글 묶음 질의로 한 번에(:func:`compute_open_states`), 한 상담
+  보정은 읽기(:meth:`OpenApiReader.read_messages`)와 쓰기(:func:`apply_api_messages`)로 나눠 그 사이에 TERM 을 본다.
 """
 
 from __future__ import annotations
@@ -40,11 +42,14 @@ from foms.services.datetime_kst import now_utc_naive
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ACTIVE_WINDOW",
     "INBOUND_LOOKBACK_ROWS",
     "IngestResult",
     "ReconcileResult",
     "StoreResult",
+    "apply_api_messages",
     "apply_chat_snapshots",
+    "compute_open_states",
     "compute_state_from_table",
     "effective_chat_state",
     "find_missing_inbound",
@@ -307,6 +312,47 @@ def compute_state_from_table(session: Any, chat_id: str, *, now: datetime.dateti
         is_business_day=is_business_day)
 
 
+#: 이만큼 조용한 상담은 감시에서 뺀다 — 카카오 상담은 손님 마지막 글 30일 뒤 저절로 닫힌다(설계서 2.6).
+ACTIVE_WINDOW = datetime.timedelta(days=30)
+#: 글을 상담 묶음으로 읽을 때 한 번에 넣는 상담 id 수(바인드 변수 상한 아래로).
+_IN_CHUNK = 500
+
+
+def compute_open_states(session: Any, *, now: datetime.datetime, brands: Sequence[str],
+                        active_window: datetime.timedelta = ACTIVE_WINDOW,
+                        is_business_day: Optional[BusinessDayFn] = None) -> list[ChatState]:
+    """열린 상담 상태를 한 번에 낸다 — 상담 줄 한 질의 + 글 묶음 질의(상담마다 따로 읽지 않는다, N+1 없음).
+
+    마지막 손님 글이나 마지막 공개 직원 글이 ``active_window`` 안인 상담만 본다. 닫힘으로 읽은 뒤 손님이 또 쓴
+    상담은 열린 것으로 본다(:func:`effective_chat_state`).
+
+    Args:
+        session: DB 세션(읽기만).
+        now: 지금(시간대 있는 값).
+        brands: 볼 브랜드.
+        active_window: 이보다 오래 조용한 상담은 뺀다.
+        is_business_day: 운영일 판정(시험 주입).
+
+    Returns:
+        열린 상담의 :class:`ChatState` — 순서 없음(보고 순서는 ``state.sort_by_priority``).
+    """
+    since = naive_utc(now) - active_window
+    rows = session.execute(select(_CHATS).where(
+        _CHATS.c.brand.in_(list(brands)),
+        or_(_CHATS.c.last_user_at >= since, _CHATS.c.last_answer_at >= since))).all()
+    chats = {row.chat_id: (row, effective_chat_state(row.chat_state, row.state_at, row.last_user_at))
+             for row in rows}
+    chats = {chat_id: pair for chat_id, pair in chats.items() if pair[1] != "closed"}
+    messages: dict[str, list[ChatMessage]] = {chat_id: [] for chat_id in chats}
+    ids = sorted(chats)
+    for start in range(0, len(ids), _IN_CHUNK):
+        for row in session.execute(select(_MSGS).where(_MSGS.c.chat_id.in_(ids[start:start + _IN_CHUNK]))):
+            messages[row.chat_id].append(_derived_from_row(row).to_chat_message())
+    return [compute_chat_state(chat_id, row.brand, messages[chat_id], now=now, chat_state=chat_state,
+                               is_business_day=is_business_day)
+            for chat_id, (row, chat_state) in chats.items()]
+
+
 def apply_chat_snapshots(session: Any, snapshots: Sequence[ChatSnapshot], *,
                          now: Optional[datetime.datetime] = None) -> int:
     """Open API 상담 목록을 상담 줄에 반영하고 커밋한다 — 더 새로운 ``updatedAt`` 일 때만 상태를 바꾼다.
@@ -405,9 +451,26 @@ def reconcile_chat(session: Any, reader: OpenApiReader, brand: str, chat_id: str
     """Open API(정본)로 상담 최근 글을 읽어 상태 표를 맞추고 커밋한다 — 15분 보정 · 밀린 상담 채우기의 한 상담 몫.
 
     웹훅이 빠뜨린 글도 여기서 상태 표에 들어가 '답 필요'가 맞게 나오고, 빠진 글 id 는 경보 재료로 돌려준다.
+    읽기와 쓰기 사이에 멈춤 깃발을 두려면 :meth:`OpenApiReader.read_messages` 뒤 :func:`apply_api_messages` 를 부른다.
     """
-    messages = reader.read_messages(brand, chat_id, limit=limit)
-    missing = find_missing_inbound(session, chat_id, messages, now=now)
+    return apply_api_messages(session, chat_id, reader.read_messages(brand, chat_id, limit=limit), now=now)
+
+
+def apply_api_messages(session: Any, chat_id: str, messages: Sequence[DerivedMessage], *,
+                       now: datetime.datetime, detect_missing: bool = True) -> ReconcileResult:
+    """Open API 로 이미 읽은 한 상담 글을 상태 표에 맞추고 커밋한다(쓰기 몫만 — 감시 루프는 그 앞에서 TERM 을 본다).
+
+    Args:
+        session: DB 세션(이 함수가 커밋한다).
+        chat_id: 상담 id.
+        messages: :meth:`OpenApiReader.read_messages` 결과.
+        now: 지금(시간대 있는 값) — 수신 누락 판정의 기준.
+        detect_missing: 수신 누락을 찾을지 — 웹훅이 오지 않는 환경(스테이징)은 모든 글이 '누락'이라 끈다.
+
+    Returns:
+        :class:`ReconcileResult`.
+    """
+    missing = find_missing_inbound(session, chat_id, messages, now=now) if detect_missing else []
     try:
         stored = store_messages(session, messages, source=SOURCE_OPENAPI)
         session.commit()

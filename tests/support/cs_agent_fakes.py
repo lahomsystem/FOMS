@@ -1,4 +1,4 @@
-"""CS 상담 에이전트(C1-2) 시험 재료 — 손으로 꾸민 합성 글 · 가짜 시계 · 전송 · Redis.
+"""CS 상담 에이전트(C1-2 · C1-3) 시험 재료 — 손으로 꾸민 합성 글 · 가짜 시계 · 전송 · Redis · Open API 읽기.
 
 손님 글 · 전화 꼴 숫자는 쓰지 않는다. 네트워크 · Redis · 채널톡은 모두 가짜다.
 시각은 2026-11 KST(11-02 월요일), 상태 계산 달력은 '주말만 쉼' 가짜 달력이다.
@@ -188,6 +188,37 @@ def keys(monkeypatch):
     for brand in ("LAHOM", "HAUD"):
         monkeypatch.setenv(f"CHANNEL_OPENAPI_KEY_{brand}", f"key-{brand.lower()}")
         monkeypatch.setenv(f"CHANNEL_OPENAPI_SECRET_{brand}", f"secret-{brand.lower()}")
+
+
+class FakeReader:
+    """Open API 읽기 대역(감시 루프용) — 준비한 상담 목록 · 글을 내고 부른 순서를 남긴다(네트워크 없음)."""
+
+    def __init__(self, chats=(), messages=None, *, on_read=None, missing_keys=(), errors=None):
+        self.chats, self.messages = list(chats), dict(messages or {})
+        self.on_read, self.missing_keys = on_read, set(missing_keys)
+        self.errors = {chat: list(excs) for chat, excs in (errors or {}).items()}  # 상담마다 차례로 던질 읽기 오류
+        self.calls: list[tuple] = []
+
+    def iter_user_chats(self, brand, *, changed_from, changed_to, state=None):
+        """Open API 처럼 창(``changed_from`` 부터 바뀐 상담)만 낸다 — 창 시작이 상담을 넘어가면 그 상담은 안 나온다."""
+        self.calls.append(("list", brand, changed_from))
+        if brand in self.missing_keys:
+            raise cr.OpenApiNotConfigured(f"{brand} 키 없음")
+        return iter([chat for chat in self.chats if chat.brand == brand
+                     and (chat.updated_at is None or chat.updated_at >= changed_from)])
+
+    def read_messages(self, brand, chat_id, *, limit=50):
+        self.calls.append(("read", brand, chat_id))
+        if self.on_read:
+            self.on_read(chat_id)
+        if self.errors.get(chat_id):
+            raise self.errors[chat_id].pop(0)
+        return list(self.messages.get(chat_id, []))
+
+
+def chat_snap(chat: str, when: datetime.datetime, state: str = "opened", brand: str = "LAHOM") -> cr.ChatSnapshot:
+    """Open API 상담 목록 항목(상태 · 바뀐 시각)."""
+    return cr.ChatSnapshot(chat, brand, LAHOM_CHANNEL if brand == "LAHOM" else HAUD_CHANNEL, state, when)
 
 
 def make_reader(transport: FakeTransport, clock: FakeClock, budget=None, **kw) -> cr.OpenApiReader:
