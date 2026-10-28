@@ -5,7 +5,7 @@
    고른 틀이 추천과 다르면 [추천 틀로 돌아가기] — 고른 틀만 풀고 다시 놓는다(고정 그림은 그대로).
 2) '컴퓨터가 본 것' · 켜고 끄기는 '자세히 ▸'로 접는다(처음엔 접힘 · 이 브라우저에 기억 · 저장소가 막혀도 돈다).
 3) 자동 배치 모드에도 도구가 보이고, 그림 밖 메모 · 선 · 도형은 다시 배치의 장애물이다(그림 안 치수 메모는 그림을 따라간다).
-4) 알림 띠는 종이를 내려도 위에 붙어 있다(sticky).
+4) 알림 띠는 시트 탭 줄 안(탭 오른쪽)에 있다 — 종이를 내려도 보이고 세로 자리를 먹지 않는다(2026-10-28 '이 라인을 탭 라인으로 옮겨').
 5) 알림 글은 '오른쪽 [고정 풀고 모두 다시]'를 가리키지 않는다 — ⋯ 메뉴에도 같은 항목(1280 밑 창은 오른쪽 칸이 숨는다).
 6) V2 앱바에 늘 보이는 [예전 화면](data-dws-ui-switch="v1").
 """
@@ -33,7 +33,7 @@ CSS = (ROOT / "static/css/contexts/drawing/wizard-v2.css").read_text(encoding="u
 PLAN = r"""
 global.window = {};
 const dir = process.argv[1];
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-fill.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
 const S = window.FomsV2Slots, P = window.FomsV2Plan;
 const out = {};
 const ctx = { items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, tx: 0, order: i,
@@ -118,7 +118,7 @@ const core = {
   importPhoto: () => Promise.resolve(false), threshold: () => 0.5, fitCell: () => {}, hatch: () => null, viewUrl: () => '', setTool: () => {}
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-fill.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-size.js', 'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2;
 const img = (id, label, nw, nh, k) => ({ id, type: 'image', key: id + '.png', x: 300 + 24 * k, y: 120 + 24 * k, w: Math.min(900, nw),
@@ -279,13 +279,17 @@ def test_templates_css_tools_sticky_banner_and_pins():
     assert ('<button type="button" class="dws-btn dws-v2-uiback" data-dws-ui-switch="v1" '
             'title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>') in v2_block
     assert '<button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>' in v2_block
-    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028a" in TPL                  # 10-28 주 그림 크기 막대
-    for asset, v in (("js/drawing/v2-plan.js", "c"), ("js/drawing/v2-right.js", "d"), ("js/drawing/v2-chrome.js", "d"), ("js/drawing/v2-shell.js", "c")):
-        assert f"{asset}') }}}}?v=20261028{v}" in TPL, asset                             # 10-28 그림 크기 스타일 · 막대
+    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028b" in TPL                  # 10-28 알림 띠 탭 줄 · 내 문구 단추
+    for asset, v in (("js/drawing/v2-plan.js", "d"), ("js/drawing/v2-right.js", "e"), ("js/drawing/v2-chrome.js", "e"), ("js/drawing/v2-shell.js", "d")):
+        assert f"{asset}') }}}}?v=20261028{v}" in TPL, asset                             # 10-28 빈자리 채우기 · 글자 고정
     assert ".dws-v2-auto .dws-appbar-center .dws-seg" not in CSS                       # 자동 배치에도 도구가 보인다
     assert ".dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }" in CSS
     banner = CSS[CSS.index(".dws-v2-banner {"):CSS.index(".dws-v2-banner[hidden]")]
-    assert "position: sticky;" in banner and "top: 8px;" in banner
+    assert "sticky" not in banner and "flex-wrap: nowrap;" in banner and "min-width: 0;" in banner   # 탭 줄 안 · 좁으면 설명만 줄인다
+    assert ".dws-v2-banner-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }" in CSS
+    row = TPL[TPL.index('<div class="dws-tabrow dws-ui">'):TPL.index('<div class="dws-body">')]
+    assert row.index('id="dws-tabbar"') < row.index('id="dws-v2-banner"') < row.index('id="dws-v2-tabstatus"')
+    assert TPL.count('id="dws-v2-banner"') == 1
     assert ".dws-v2 #dws-v2-more-menu .dws-menu-item[hidden] { display: none; }" in CSS
     narrow = CSS[CSS.index("@media (min-width: 1180px) and (max-width: 1279px) {"):]
     assert ".dws-v2-mode { padding-left: 10px; padding-right: 10px; }" in narrow[:300]

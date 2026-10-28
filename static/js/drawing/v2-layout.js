@@ -2,16 +2,15 @@
  * 도면 마법사 V2 — 틀 두 가지(위 띠형 · 왼쪽 기둥형)를 모두 계산해 그림이 크게 나오는 쪽을 고른다(순수 계산).
  *
  * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §3 · §4 (화면 시안 K2-WizardAuto)
- * - 위 띠형: 위 띠 = [사진][자재 + 특이][B 상세][평면] · 오른쪽 위 강조 문구, 아래 = 큰 그림 칸(정면 · 입체 짝 줄).
- * - 왼쪽 기둥형: 왼쪽 기둥 = [사진][상세][평면], 오른쪽 위 = [자재][특이][강조], 오른쪽 아래 = 큰 그림 칸.
- * - 큰 그림이 없으면 상세 · 평면이 큰 그림 자리를 쓴다. 미분류 그림은 맨 아래 낮은 '기타 그림' 줄(큰 그림과 배율을 나누지 않음).
- * - 띠 높이 · 기둥 폭을 여러 값으로 재 본다. 점수 = 가장 작은 그림 % + 큰 그림 %의 절반 − 치수 글자 하한 벌점.
+ * - 위 띠형: 위 띠 = [사진][자재 + 특이][B 상세][평면] · 오른쪽 위 강조 문구, 아래 = 큰 그림 칸(정면 · 입체 짝 줄). 왼쪽 기둥형: 왼쪽 기둥 =
+ *   [사진][상세][평면], 오른쪽 위 = [자재][특이][강조], 오른쪽 아래 = 큰 그림 칸. 큰 그림이 없으면 상세 · 평면이 큰 그림 자리를 쓴다.
+ *   미분류 그림은 큰 그림과 배율을 나누지 않는 '기타 그림' 낮은 줄 · 좁은 기둥.
+ * - 띠 높이 · 기둥 폭을 여러 값으로 재 본다. 점수 = 가장 작은 그림 % + 큰 그림 %의 절반 − 치수 글자 하한 벌점 − 빈자리 벌점(v2-fill penalty).
  *   % = 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이 — input.base), 없으면 원본 대비.
- * - 치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함). 기준(V1 자동 배치)은 빈 종이에 큰 그림을
- *   가득 키운 크기라 80% 로 두면 그림 넷뿐인 시트에도 나누기를 권했다(로컬 실화면 2026-10-26).
- * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 종이 칸 그대로와 장애물을 뺀 빈 사각형 중 큰 셋에서
- *   틀을 재고, 장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room). 예전엔 고정 그림 자리를 비우지 않아
- *   다시 놓은 그림이 그 위에 겹쳤고(스테이징 주문 4385, 2026-10-27), 고친 뒤엔 틀 전체를 빈 사각형 하나로 옮겨 그림이 작아졌다.
+ *   치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함 — 80% 는 그림 넷뿐인 시트에도 권했다, 2026-10-26).
+ * - 빈자리 채우기(2026-10-28 '공간을 꽉 채워' — v2-fill.js): 평면 · 상세를 큰 그림 칸이 남긴 빈 사각형으로 옮긴 틀도 재 본다.
+ * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 종이 칸 그대로와 장애물을 뺀 빈 사각형 중 큰 셋에서 틀을 재고,
+ *   장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room — 스테이징 주문 4385, 2026-10-27).
  * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
  * - 주 그림 크게(opts.hero, 기본 켬 — v2-hero.js): 추천까지 정한 뒤 큰 그림 칸(res.big)만 주 그림 + 나머지로 다시 놓는다.
  *
@@ -20,8 +19,8 @@
  *            bom: [{id,w,h}], notes: [{id,w,h}], stamp: {id,w,h}|null, obstacles?: [{x,y,w,h}] }   item = { id, nw, nh, tx }
  *   opts : { sameScale (기본 true), photoFirst (기본 true), hero (기본 true), prefer: 'band'|'column'|'' , minText: 8 }
  *   best = 붙일 틀(사람이 고른 틀이 놓이면 그것) · rec = 점수가 높은 틀(추천 표시 — 고른 틀과 다를 수 있다)
- *   틀 결과: { template, moves: [{id,x,y,w,h}], slots: [{key,x,y,w,h}], pct: {id: 비율}, minPct, minId, mainPct,
- *             minText, score, crowded, pctBase: 'v1'|'natural', big: {x,y,w,h}, hero?: [id](mainPct = 주 그림 %) } 또는 null(못 놓음)
+ *   틀 결과: { template, moves: [{id,x,y,w,h}], slots: [{key,x,y,w,h}], pct: {id: 비율}, minPct, minId, mainPct, minText, score,
+ *             crowded, pctBase: 'v1'|'natural', big: {x,y,w,h}, blank, fillKeys?: [칸], hero?: [id](mainPct = 주 그림 %) } 또는 null(못 놓음)
  */
 (function () {
   'use strict';
@@ -59,9 +58,8 @@
     return { w: b.w, h: HEAD + b.h };
   }
   function putNotes(res, inp, x, y, W) {
-    var HEAD = pk().HEAD;
     if (!inp.notes.length) { return { w: 0, h: 0 }; }
-    var f = noteFlow(inp.notes, W);
+    var HEAD = pk().HEAD, f = noteFlow(inp.notes, W);
     addSlot(res, 'notes', x, y, W, HEAD + f.h);
     f.placed.forEach(function (p) {
       res.moves.push({ id: p.id, x: Math.round(x + p.x + NOTE_PAD_X), y: Math.round(y + HEAD + p.y + NOTE_PAD_Y), w: p.w - 2 * NOTE_PAD_X, h: p.h - 2 * NOTE_PAD_Y });
@@ -125,16 +123,20 @@
     return true;
   }
 
+  /** 띠 · 기둥에 남는 칸인가 — 그림이 있고 큰 그림 칸 빈자리로 옮기지 않은 칸(mv — v2-fill.js). */
+  function inBand(inp, mv) { return function (k) { return inp[k].length > 0 && !(mv && mv.indexOf(k) >= 0); }; }
+  function fillIn(res, inp, mv, room, same, big) { return !(mv && mv.length) || window.FomsV2Fill.place(res, inp, mv, room, same, big.groups); }
+
   /** 위 띠형 — 띠 높이 Hb. 띠 칸(자재 · 상세 · 평면 · 사진)은 머리 최소 폭만큼은 자리를 잡는다. wrap = 상세를 두 줄로 접는다(여백 줄이기). */
-  function band(inp, o, Hb, wrap) {
+  function band(inp, o, Hb, wrap, mv) {
     var P = pk(), A = inp.area, W = A.x1 - A.x0, HEAD = P.HEAD, GAP = P.GAP;
-    var res = newRes('band'), same = o.sameScale !== false, big = bigGroups(inp);
+    var res = newRes('band'), same = o.sameScale !== false, big = bigGroups(inp), on = inBand(inp, mv);
     var hasBom = inp.bom.length > 0, hasNotes = inp.notes.length > 0;
     var colW = hasBom ? Math.max(bomBlock(inp.bom).w, HEAD_MIN_W, hasNotes ? NOTE_MIN_W : 0) : (hasNotes ? NOTE_MIN_W + 40 : 0);
     var nH = hasNotes ? HEAD + noteFlow(inp.notes, colW).h : 0;
     var colH = (hasBom ? HEAD + bomBlock(inp.bom).h : 0) + (hasNotes ? (hasBom ? GAP : 0) + nH : 0);
     var st = stampBox(inp.stamp);
-    var smalls = big.smallKeys.concat(['photo']).filter(function (k) { return inp[k].length; });
+    var smalls = big.smallKeys.concat(['photo']).filter(on);
     var anyBand = colW > 0 || smalls.length > 0;
     if (!anyBand) { Hb = 0; }
     if (anyBand && (colH > Hb || (st && st.h > Hb) || Hb - HEAD < 40)) { return null; }
@@ -161,7 +163,7 @@
         x += colW + GAP;
         return;
       }
-      if (!inp[key].length) { return; }
+      if (!on(key)) { return; }
       var r = cell(key, cH * k);
       addSlot(res, key, x, A.y0, r.w, HEAD + r.h);
       addPics(res, r.placed, x, A.y0 + HEAD);
@@ -169,15 +171,14 @@
     });
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var y = A.y0 + (anyBand ? Hb + GAP : 0), room = P.room(A.x0, y, W, A.y1 - y, inp.obstacles, big.groups, same);
-    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) ? res : null;
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;
   }
 
   /** 왼쪽 기둥형 — 기둥 폭 Wc. */
-  function column(inp, o, Wc) {
+  function column(inp, o, Wc, mv) {
     var P = pk(), A = inp.area, W = A.x1 - A.x0, H = A.y1 - A.y0, HEAD = P.HEAD, GAP = P.GAP;
     var res = newRes('column'), same = o.sameScale !== false, big = bigGroups(inp);
-    var leftKeys = (o.photoFirst === false ? big.smallKeys.concat(['photo']) : ['photo'].concat(big.smallKeys))
-      .filter(function (k) { return inp[k].length; });
+    var leftKeys = (o.photoFirst === false ? big.smallKeys.concat(['photo']) : ['photo'].concat(big.smallKeys)).filter(inBand(inp, mv));
     if (!leftKeys.length) { return null; }   // 기둥에 넣을 것이 없으면 위 띠형과 같다
     var rx = A.x0 + Wc + GAP, RW = A.x1 - rx;
     // 왼쪽 기둥: 사진은 기둥 폭 · 높이 40% 안, 나머지(상세 · 평면)는 남은 높이에 한 배율로
@@ -215,7 +216,7 @@
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var topH = Math.max(b.h, nh, st ? st.h : 0);
     var by = A.y0 + (topH ? topH + GAP : 0), room = P.room(rx, by, RW, A.y1 - by, inp.obstacles, big.groups, same);
-    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) ? res : null;
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;
   }
 
   function score(res, inp, o) {
@@ -238,7 +239,8 @@
     res.minId = minId;
     res.mainPct = mainPct === Infinity ? null : mainPct;
     res.minText = minText === Infinity ? null : Math.round(minText * 10) / 10;
-    res.score = mp + 0.5 * (mainPct === Infinity ? mp : mainPct) - (minText < lim ? 2 + (lim - minText) : 0);
+    res.score = mp + 0.5 * (mainPct === Infinity ? mp : mainPct) - (minText < lim ? 2 + (lim - minText) : 0) -
+      (o.raw || !window.FomsV2Fill ? 0 : window.FomsV2Fill.penalty(res, inp));   // 빈자리 벌점(v2-fill) — 주 그림 크게가 다시 놓을 틀(raw)은 빼고
     res.crowded = (hasBase && minPct !== Infinity && minPct < CROWD_PCT) || minText < lim;
     return res;
   }
@@ -258,12 +260,13 @@
     ['photo', 'detail', 'plan', 'unsorted', 'units', 'bom', 'notes'].forEach(function (k) { inp[k] = (input && input[k]) || []; });
     inp.stamp = (input && input.stamp) || null;
     inp.base = (input && input.base) || {};
-    inp.area = (input && input.area) || AREA;
+    inp.area = inp.full = (input && input.area) || AREA;
     inp.byId = {};
     function mark(list, slot) { list.forEach(function (it) { inp.byId[it.id] = { nw: it.nw, nh: it.nh, tx: it.tx || 0, slot: slot }; }); }
     ['photo', 'detail', 'plan', 'unsorted'].forEach(function (k) { mark(inp[k], k); });
     inp.units.forEach(function (u) { mark(u.members, u.slot); });
-    var obs = (input && input.obstacles) || [], full = inp.area, bands = [], fills = [], cols = [], v, bv, fold = inp.detail.length > 1;
+    var obs = (input && input.obstacles) || [], full = inp.area, bands = [], fills = [], cols = [], bandF = [], colF = [], v, bv, fold = inp.detail.length > 1;
+    var mvs = window.FomsV2Fill && inp.units.length ? window.FomsV2Fill.subsets(['detail', 'plan'].filter(function (k) { return inp[k].length; })).slice(1) : [];
     inp.obstacles = obs;
     function keep(list, r) { list.push(r && obs.length && pk().hits(r, obs) ? null : r); }   // 장애물에 닿는 틀은 버린다(잴 칸은 v2-pack areas)
     pk().areas(full, obs).forEach(function (ar) {
@@ -272,15 +275,18 @@
       for (v = 64; v <= 0.55 * H; v += 8) { bv = band(inp, o, v); keep(bands, bv); keep(fills, bv); if (fold) { keep(fills, band(inp, o, v, true)); } }
       keep(bands, band(inp, o, 0));
       for (v = 160; v <= 0.45 * W; v += 12) { keep(cols, column(inp, o, v)); }
+      mvs.forEach(function (mv) {   // 빈자리 채우기(v2-fill.js) — 평면 · 상세를 큰 그림 칸 빈자리로 옮겨 본 틀(눈금은 두 배 성기게)
+        for (v = 64; v <= 0.55 * H; v += 16) { keep(bandF, band(inp, o, v, false, mv)); if (fold && mv.indexOf('detail') < 0) { keep(bandF, band(inp, o, v, true, mv)); } }
+        for (v = 160; v <= 0.45 * W; v += 24) { keep(colF, column(inp, o, v, mv)); }
+      });
     });
     inp.area = full;
     var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); } };
     function fill(r) { return r.moves.reduce(function (a, m) { return a + (inp.byId[m.id] ? m.w * m.h : 0); }, 0); }
-    // 여백 줄이기(2026-10-28 사용자 '여백을 최소화 해서 최대한 공간 활용을 해'): 같은 점수면 그림 넓이 합이 큰 틀 · 위 띠 상세 두 줄(fills · cw)도 잰다.
-    // 주 그림을 키우면 큰 그림 칸의 빈 높이는 주 그림 몫이라 예전 틀 그대로(v2-hero choose). 추천 틀은 스타일과 상관없이 예전 점수(주 그림 크게 전)로 —
-    // 고르게 ↔ 주 그림 크게를 바꿔도 틀이 그대로여야 미리보기와 같다.
-    var bb = best(bands, inp, o), wb = best(fills, inp, o, fill), cb = best(cols, inp, o), cw = best(cols, inp, o, fill);
-    var pre = { b: bb ? bb.score : null, c: cb ? cb.score : null };
+    // 고르게 쪽 틀(wb · cw): 상세 두 줄 · 빈자리 채우기까지 빈자리 벌점 점수로, 같으면 그림 넓이 합이 큰 틀. 주 그림 크게가 다시 놓을 틀(bb · cb)은
+    // 예전 점수(빈 높이는 주 그림 몫 — v2-hero choose). 추천 틀은 고르게 쪽 점수 — 스타일과 상관없어 미리보기와 같다.
+    var raw = Object.assign({}, o, { raw: true }), bb = best(bands, inp, raw), cb = best(cols, inp, raw);
+    var wb = best(fills.concat(bandF), inp, o, fill), cw = best(cols.concat(colF), inp, o, fill), pre = { b: wb ? wb.score : null, c: cw ? cw.score : null };
     var out = H ? { band: H.choose(bb, wb, inp, o, kit), column: H.choose(cb, cw, inp, o, kit) } : { band: bb, column: cb };
     out.rec = bb && cb ? (pre.c > pre.b + 0.005 ? 'column' : 'band') : (out.band ? 'band' : (out.column ? 'column' : ''));
     var pref = o.prefer === 'column' || o.prefer === 'band' ? o.prefer : '';

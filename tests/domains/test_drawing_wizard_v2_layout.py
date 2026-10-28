@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 JS_DIR = ROOT / "static/js/drawing"
-MODULES = ["v2-slots.js", "v2-pack.js", "v2-hero.js", "v2-layout.js", "v2-plan.js"]
+MODULES = ["v2-slots.js", "v2-pack.js", "v2-hero.js", "v2-fill.js", "v2-layout.js", "v2-plan.js"]
 
 
 def _node() -> str:
@@ -27,7 +27,7 @@ RUNNER = r"""
 global.window = {};
 const fs = require('fs');
 const [dir, layoutFile] = process.argv.slice(1, 3);
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-fill.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
 const S = window.FomsV2Slots, L = window.FomsV2Layout, P = window.FomsV2Plan, K = window.FomsV2Pack;
 const out = {};
 const img = (id, label, x, y, w, h, extra) => Object.assign({ id, type: 'image', key: id + '.png', x, y, w, h, natural_w: w, natural_h: h,
@@ -44,7 +44,7 @@ def _run(body: str) -> dict:
 
 
 def test_node_check_v2_modules():
-    for name in MODULES + ["v2-paper.js", "v2-notes.js", "v2-left.js", "v2-right.js", "v2-chrome.js", "v2-shell.js",
+    for name in MODULES + ["v2-paper.js", "v2-notes.js", "v2-text.js", "v2-left.js", "v2-right.js", "v2-chrome.js", "v2-shell.js",
                            "wizard-ui-switch.js"]:
         proc = subprocess.run([_node(), "--check", str(JS_DIR / name)], capture_output=True, text=True, encoding="utf-8")
         assert proc.returncode == 0, (name, proc.stderr)

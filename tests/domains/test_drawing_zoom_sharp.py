@@ -93,4 +93,4 @@ def test_wizard_wires_zoom_sharp_into_stage_and_set_zoom():
     assert set_zoom.rstrip().endswith("if (zoomSharp) { zoomSharp.zoom(z); }\n  }")         # 휠 · 핀치 · 단축키 · V2 배율 고르기 모두 여기로 온다
     konva = TPL.index("vendor/konva.min.js')")
     sharp = TPL.index("js/drawing/zoom-sharp.js') }}?v=20261028a")
-    assert konva < TPL.index("js/drawing/image-smooth.js')") < sharp < TPL.index("js/drawing/wizard.js') }}?v=20261028d")
+    assert konva < TPL.index("js/drawing/image-smooth.js')") < sharp < TPL.index("js/drawing/wizard.js') }}?v=20261028e")

@@ -13,14 +13,16 @@
  * - 주방이면 큰 그림을 정면 · 입체 두 칸으로 나눈다(kitchen).
  * - AI 칸 짐작(opts.guess = form.v2_ai): 세부 종류 확신은 낮아도(미분류) 칸 확신(큰 그림 = 정면 + 입체 확률 합,
  *   상세 = 서랍 단면 + 부품 상세 합)이 문턱을 넘은 그림은 그 칸에 놓는다. 이름표는 미분류 그대로 — 사람이 고르기 전까지 '확인'.
+ * - 칸 머리 위 글자 고정(opts.pins = form.v2_pin — v2-text.js가 손으로 옮긴 글자를 적는다, 2026-10-28): 잠근 글자와 함께 g.stay 가 되어
+ *   배치가 옮기지 않는다. 자재표는 한 열이라도 고정이면 줄 전체 — 열끼리 간격은 사람이 맞췄다. g.pins = 고정 표시('고정')를 그릴 글자.
  * - 칸 이름(title)은 칸에 든 그림 종류로 짓는다(제품 이름이 아니다).
  * - 칸 글자(letters): 칸으로 정리한 시트는 종이 위 칸 상자를 왼쪽 위부터 읽는 순서로 A, B, C… — 큰 그림부터 붙였더니
  *   틀에 따라 상세가 왼쪽에 와서 종이 위 순서가 B → A → D, 그 밑 C 로 뒤섞였다(생산팀이 'B 그림'을 찾기 어렵다, 2026-10-27).
  *
  * window.FomsV2Slots = { group(objects, opts) → g, role(o), noteKind(o), textBox(o), isFixed(o, opts), moved(o), clashes(objects, opts, keep) → [id], release(objects, ids),
  *   detectKind(productText), KINDS, letters(g, kitchen, laid), slotBox(g, key), readOrder(items), title(key, g, kitchen),
- *   parseGuess(text), formatGuess(map, objects) }
- *   g = { photo, main, iso, detail, plan, unsorted (그림 객체 배열), bom, notes (글자), stamp (글자|null), free, fixed: {id:true},
+ *   parseGuess(text), formatGuess(map, objects), parsePins(text), formatPins(map, objects) }
+ *   g = { photo, main, iso, detail, plan, unsorted (그림 객체 배열), bom, notes (글자), stamp (글자|null), free, fixed: {id:true}, stay · pins: {id:true},
  *         labels: { id: 보이는 이름표 }, lay: { id: 칸 · 짝을 정한 이름표(짐작이면 짐작 칸의 이름표) }, guess: { id: {fam, conf} } }
  */
 (function () {
@@ -146,11 +148,11 @@
     return out;
   }
 
-  /** objects → 칸 묶음. opts: { lowToUnsorted (기본 true), lockMoved (기본 true), kitchen, guess (parseGuess 결과) } */
+  /** objects → 칸 묶음. opts: { lowToUnsorted (기본 true), lockMoved (기본 true), kitchen, guess (parseGuess 결과), pins (parsePins 결과) } */
   function group(objects, opts) {
-    var o2 = opts || {}, guess = o2.guess || {};
+    var o2 = opts || {}, guess = o2.guess || {}, pins = o2.pins || {};
     var g = { photo: [], main: [], iso: [], detail: [], plan: [], unsorted: [], bom: [], notes: [], stamp: null,
-      free: [], fixed: {}, labels: {}, lay: {}, guess: {} };
+      free: [], fixed: {}, stay: {}, pins: {}, labels: {}, lay: {}, guess: {} };
     (objects || []).forEach(function (o) {
       var r = role(o);
       if (r === 'bom') { g.bom.push(o); return; }
@@ -167,7 +169,26 @@
       if (isFixed(o, o2)) { g.fixed[o.id] = true; }
       g[slotOf(lay, !!o2.kitchen)].push(o);
     });
+    var bomPin = o2.lockMoved !== false && g.bom.some(function (o) { return pins[o.id]; });
+    g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).forEach(function (o) {
+      var pinned = o2.lockMoved !== false && (pins[o.id] || (bomPin && role(o) === 'bom'));
+      if (pinned || o.locked) { g.stay[o.id] = true; }
+      if (pinned && !o.locked) { g.pins[o.id] = true; }
+    });
     return g;
+  }
+
+  /** form.v2_pin 글자 ↔ { id: true } — 손으로 옮겨 고정한 칸 머리 위 글자(v2-text.js). 시트에 없는 글자는 빼고 폼 한 칸 한도 안에서 끊는다. */
+  function parsePins(text) {
+    var out = {};
+    String(text || '').split(' ').forEach(function (id) { if (/^[\w-]{1,48}$/.test(id)) { out[id] = true; } });
+    return out;
+  }
+  function formatPins(map, objects) {
+    var have = {}, out = '';
+    (objects || []).forEach(function (o) { if (o && o.type === 'text') { have[o.id] = true; } });
+    Object.keys(map || {}).forEach(function (id) { if (have[id] && out.length + id.length + 1 <= GUESS_MAX) { out += (out ? ' ' : '') + id; } });
+    return out;
   }
 
   /** 칸 이름 — 칸에 든 그림 종류로 짓는다. 큰 그림 = 정면 · 입체, 상세 = 서랍 단면 · 부품 상세. 빈 칸은 기본 이름. */
@@ -239,6 +260,6 @@
   window.FomsV2Slots = {
     group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved, MOVE_TOL: MOVE_TOL, clashes: clashes, release: release,
     detectKind: detectKind, KINDS: KINDS, letters: letters, slotBox: slotBox, readOrder: readOrder, slotOf: slotOf, isBom: isBom,
-    title: title, parseGuess: parseGuess, formatGuess: formatGuess, FAM_OF: FAM_OF
+    title: title, parseGuess: parseGuess, formatGuess: formatGuess, parsePins: parsePins, formatPins: formatPins, FAM_OF: FAM_OF
   };
 })();

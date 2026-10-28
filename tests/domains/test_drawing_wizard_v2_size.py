@@ -32,7 +32,8 @@ def test_node_check_v2_size():
 
 
 def test_slider_value_sets_main_picture_size_and_the_rest_fits_without_overlap():
-    """4385 꼴 시트: 자동은 148%(칸 끝 164%). 막대 값대로 주 그림 높이가 정해지고, 범위 밖은 끝으로 붙는다.
+    """4385 꼴 시트: 자동은 칸 끝 142%(빈자리 채우기 뒤 추천 틀이 '사진·상세를 위에' — 예전 왼쪽 기둥형 148% · 칸 끝 164%).
+    100% = 고르게로 놓일 주 그림 높이. 막대 값대로 주 그림 높이가 정해지고, 범위 밖은 끝으로 붙는다.
     나머지는 주 그림보다 크게 놓지 않고, 위 띠(사진 · 상세 · 평면)는 그대로다."""
     out = _run_layout(ARRANGE + HERO + r"""
 const even = heroSheet(); even.form.v2_style = 'even';
@@ -49,9 +50,9 @@ out.cases = [100, 120, 130, 999, 50].map(v => {
 });
 """)
     size, pct = out["auto"]
-    assert size == {"min": 100, "max": 164, "pct": 148, "manual": False} and pct == 148
+    assert size == {"min": 100, "max": 142, "pct": 142, "manual": False} and pct == 142
     assert out["evenSize"] == 100                                     # 고르게 시트는 100% 로 보인다
-    want = {100: 100, 120: 120, 130: 130, 999: 164, 50: 100}         # 범위 밖은 끝으로
+    want = {100: 100, 120: 120, 130: 130, 999: 142, 50: 100}         # 범위 밖은 끝으로
     for c in out["cases"]:
         assert c["size"]["manual"] is True and c["size"]["pct"] == want[c["v"]] and c["pct"] == want[c["v"]], c
         assert c["hero"] == ["hero"] and c["overlaps"] == 0 and c["restLe"] and c["band"], c
@@ -126,9 +127,9 @@ def test_slider_wiring_template_css_and_pins():
     right = (JS_DIR / "v2-right.js").read_text(encoding="utf-8")
     assert '<div class="dws-v2-size" id="dws-v2-size" hidden></div>' in RIGHT_TPL
     assert RIGHT_TPL.index('id="dws-v2-styles"') < RIGHT_TPL.index('id="dws-v2-size"')
-    assert TPL.index("js/drawing/v2-size.js') }}?v=20261028a") < TPL.index("js/drawing/v2-right.js') }}?v=20261028d")
-    for asset in ("js/drawing/v2-hero.js') }}?v=20261028d", "js/drawing/v2-pack.js') }}?v=20261028c",
-                  "css/contexts/drawing/wizard-v2.css') }}?v=20261028a"):
+    assert TPL.index("js/drawing/v2-size.js') }}?v=20261028a") < TPL.index("js/drawing/v2-right.js') }}?v=20261028e")
+    for asset in ("js/drawing/v2-hero.js') }}?v=20261028e", "js/drawing/v2-pack.js') }}?v=20261028c",
+                  "css/contexts/drawing/wizard-v2.css') }}?v=20261028b"):
         assert asset in TPL, asset
     assert ".dws-v2-size[hidden] { display: none; }" in CSS                    # display:flex 가 hidden 을 이기지 않게
     assert "heroSize: parseInt(form.v2_hero_size, 10) || 0" in plan
