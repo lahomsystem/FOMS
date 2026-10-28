@@ -36,6 +36,11 @@ from foms.services.erp_permissions import build_mine_sql_filter, mine_membership
 from foms.services.measurement_time import measurement_glance_time_key
 from foms.services.orders.calendar_amount_colors import DEFAULT_COLORS, load_colors, tone_for
 from foms.services.orders.calendar_month_photos import month_photo
+from foms.services.partners.schedule_request import (
+    partner_request_on,
+    pending_request,
+    pending_request_counts,
+)
 from foms.services.integrations.kma.seoul_daily_weather import load_days as load_weather_days
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
@@ -75,6 +80,11 @@ def _sched_any(kind: str, dates: list[str]):
     return Order.schedule_dates.any(
         and_(OrderScheduleDate.kind == kind, OrderScheduleDate.date.in_(list(dates)))
     )
+
+
+def _construction_on(dates: list[str]):
+    """시공 술어: 우리 시공일 + 확정 대기 협력사 희망 시공일(시공은 우리가 한다 — 사용자 결정 2026-10-28)."""
+    return or_(_sched_any('construction', dates), partner_request_on(dates))
 
 
 # 자가실측 4체크 완료 = 실측 집계 제외/시공 집계 포함
@@ -216,6 +226,7 @@ def _day_counts(base: Any, date_strs: list[str]) -> tuple[dict, dict, dict]:
     """날짜별 (실측, 시공, AS 방문) 주문 수. 복수 일정 주문은 각 날짜에 모두 잡힌다.
 
     order_schedule_dates 조인 집계 — 실측 대시보드 패널·출고 대시보드와 같은 모집단.
+    시공 수에는 확정 대기 협력사 희망 시공일(:func:`_construction_on`)도 더한다.
 
     Args:
         base: 타워 base 쿼리.
@@ -238,6 +249,8 @@ def _day_counts(base: Any, date_strs: list[str]) -> tuple[dict, dict, dict]:
 
     meas_by = _count_by(OrderScheduleDate.kind == 'measurement', ~_SELF_MEASURE_DONE_SQL)
     cons_by = _count_by(OrderScheduleDate.kind == 'construction')
+    for day, n in pending_request_counts(base, date_strs).items():
+        cons_by[day] = int(cons_by.get(day, 0) or 0) + n
     as_by = _count_by(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == "as_visit")
     return meas_by, cons_by, as_by
 
@@ -530,7 +543,7 @@ def _field_ops_for_date(
     if field_type == "measure":
         date_filter = _measure_on([date_iso])
     elif field_type == "construction":
-        date_filter = _sched_any('construction', [date_iso])
+        date_filter = _construction_on([date_iso])
     elif field_type == "as":
         as_ids = _as_visit_order_ids_for_date(base, date_iso)
         date_filter = Order.id.in_(as_ids)
@@ -538,7 +551,7 @@ def _field_ops_for_date(
         as_ids = _as_visit_order_ids_for_date(base, date_iso)
         date_filter = or_(
             _measure_on([date_iso]),
-            _sched_any('construction', [date_iso]),
+            _construction_on([date_iso]),
             Order.id.in_(as_ids) if as_ids else false(),
         )
     rows = (
@@ -552,7 +565,7 @@ def _field_ops_for_date(
     if field_type == "all":
         cons_id_set = {
             int(r[0])
-            for r in base.filter(_sched_any('construction', [date_iso])).with_entities(Order.id).all()
+            for r in base.filter(_construction_on([date_iso])).with_entities(Order.id).all()
         }
     as_id_set = set(as_ids)
     # 여러 날 시공 주문은 출고가를 시공일 수로 나눠 그날 몫만 보인다(한 번의 조회로 그날 주문들의 시공일 전부)
@@ -586,8 +599,15 @@ def _field_ops_for_date(
             is_cons = order_id in cons_id_set
         schedule_key = "as_visit" if is_as_only_visit else ("construction" if is_cons else "measurement")
         sched = (sd.get("schedule") or {}).get(schedule_key) or {}
+        # 확정 대기 협력사 희망 시공일 — 시간은 희망 시간, 칩은 '확정 대기', 출고가는 시공일이 정해진 뒤에 싣는다
+        request = (pending_request(sd, _stage_code_of(order, sd))
+                   if is_cons and not is_as_only_visit and getattr(order, "partner_org_id", None) else None)
+        if request:
+            sched = request
         if is_as_only_visit:
             state, label = ("ok", "")
+        elif request:
+            state, label = ("warn", "협력사 희망 · 확정 대기")
         elif is_cons:
             state, label = _construction_readiness(order, sd, day_offset=day_offset)
         else:
@@ -595,7 +615,7 @@ def _field_ops_for_date(
         parties = sd.get("parties") or {}
         site = sd.get("site") or {}
         time_text = str(sched.get("time") or "").strip() or None
-        amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit) else None
+        amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit and not request) else None
         cons_dates = cons_dates_of.get(order_id, []) if amount else []
         amount_total = amount
         if amount and len(cons_dates) > 1:
@@ -687,7 +707,7 @@ def _field_sections(rows: list[dict[str, Any]], day_offset: int) -> list[dict[st
 def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int, int]:
     """(실측 건수, 시공 건수, AS 방문 건수) — 표시 limit과 무관한 정확 카운트(복수 일정 포함)."""
     measure = int(base.filter(_measure_on([date_iso])).count() or 0)
-    construction = int(base.filter(_sched_any('construction', [date_iso])).count() or 0)
+    construction = int(base.filter(_construction_on([date_iso])).count() or 0)
     as_count = len(_as_visit_order_ids_for_date(base, date_iso))
     return measure, construction, as_count
 
@@ -901,7 +921,7 @@ def _today_total(base: Any, today_iso: str) -> int:
         base.filter(
             or_(
                 _measure_on([today_iso]),
-                _sched_any('construction', [today_iso]),
+                _construction_on([today_iso]),
                 Order.id.in_(as_ids) if as_ids else false(),
             )
         ).count()
