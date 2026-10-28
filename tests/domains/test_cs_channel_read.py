@@ -31,6 +31,7 @@ from tests.support.cs_agent_fakes import (  # noqa: F401 — keys 는 fixture
     derived,
     entity,
     inbound,
+    iso,
     keys,
     make_reader,
     message_count,
@@ -176,25 +177,38 @@ def test_code_message_does_not_create_needs_reply(app):
 # ── Open API 읽기 · 공유 양동이 ─────────────────────────────────────────
 
 
-def test_list_follows_cursor_until_last_page(keys):
+def test_list_reads_every_state_and_follows_next_cursor(keys):
+    # 10-28 스테이징 실측 꼴: 상태를 비우면 열린 상담만 · 응답 nextCursor/hasNext · 시각은 ISO 글자(원장 Q1)
     clock = FakeClock()
-    page1 = {"userChats": [{"id": "c1", "channelId": LAHOM_CHANNEL, "state": "opened",
-                            "updatedAt": int(at(2, 9).timestamp() * 1000)},
-                           {"id": "c2", "state": "closed"}], "next": "cur-2"}
-    page2 = {"userChats": [{"id": "c3", "state": "snoozed"},
-                           {"id": "c4", "channelId": HAUD_CHANNEL, "state": "opened"}]}
-    transport = FakeTransport(FakeResponse(200, page1), FakeResponse(200, page2))
+    opened1 = {"userChats": [{"id": "c1", "channelId": LAHOM_CHANNEL, "state": "opened", "updatedAt": iso(at(2, 9))},
+                             {"id": "c2", "state": "opened"}], "nextCursor": "cur-2", "hasNext": True}
+    opened2 = {"userChats": [{"id": "c4", "channelId": HAUD_CHANNEL, "state": "opened"}], "hasNext": False}
+    snoozed = {"userChats": [], "hasNext": False}
+    closed = {"userChats": [{"id": "c3", "state": "closed", "updatedAt": iso(at(2, 8, 30))}],
+              "nextCursor": "stale", "hasNext": False}  # hasNext 거짓이면 cursor 가 있어도 끝
+    transport = FakeTransport(*(FakeResponse(200, page) for page in (opened1, opened2, snoozed, closed)))
 
     chats = list(make_reader(transport, clock).iter_user_chats("LAHOM", changed_from=at(1, 0), changed_to=at(3, 0)))
-    assert [(c.chat_id, c.state) for c in chats] == [("c1", "opened"), ("c2", "closed"), ("c3", "snoozed")]
-    assert chats[0].updated_at == at(2, 9) and chats[1].updated_at is None
-    first, second = transport.calls
-    assert first["url"] == "https://api.channel.io/open/user-chats"
-    assert first["params"]["from"] == int(at(1, 0).timestamp() * 1000)
-    assert first["params"]["to"] == int(at(3, 0).timestamp() * 1000)
-    assert "cursor" not in first["params"] and second["params"]["cursor"] == "cur-2"
-    assert first["headers"]["x-access-key"] == "key-lahom"
-    assert first["headers"]["Channel-Version"] == "2026-06-01"
+    assert [(c.chat_id, c.state) for c in chats] == [("c1", "opened"), ("c2", "opened"), ("c3", "closed")]
+    assert (chats[0].updated_at, chats[1].updated_at, chats[2].updated_at) == (at(2, 9), None, at(2, 8, 30))
+    calls = transport.calls
+    assert [call["params"].get("state") for call in calls] == ["opened", "opened", "snoozed", "closed"]
+    assert "cursor" not in calls[0]["params"] and calls[1]["params"]["cursor"] == "cur-2"
+    assert calls[0]["url"] == "https://api.channel.io/open/user-chats"
+    assert calls[0]["params"]["from"] == int(at(1, 0).timestamp() * 1000)
+    assert calls[0]["params"]["to"] == int(at(3, 0).timestamp() * 1000)
+    assert calls[0]["headers"]["x-access-key"] == "key-lahom"
+    assert calls[0]["headers"]["Channel-Version"] == "2026-06-01"
+
+
+def test_times_read_both_webhook_millis_and_open_api_iso():
+    when = at(2, 9, 15)  # = 11-02 00:15 UTC
+    millis = int(when.timestamp() * 1000)
+    for value in (millis, str(millis), iso(when), "2026-11-02T00:15:00Z", "2026-11-02T09:15:00+09:00",
+                  "2026-11-02T00:15:00"):
+        assert cr._created_at(value) == when, value
+    for bad in ("", "어제", "2026-13-40T00:00:00Z", 0, -5, None, True):
+        assert cr._created_at(bad) is None, bad
 
 
 def test_empty_responses_read_as_nothing(keys):

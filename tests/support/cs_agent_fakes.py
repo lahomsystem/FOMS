@@ -43,10 +43,14 @@ def entity(msg_id: str, when: datetime.datetime, person: str = "user", text: str
             "personType": person, "createdAt": int(when.timestamp() * 1000), "plainText": text, **extra}
 
 
+def iso(when: datetime.datetime) -> str:
+    """Open API 2026-06-01 판 시각 꼴(ISO 글자, UTC 'Z') — 10-28 스테이징 첫 호출에서 확인."""
+    return when.astimezone(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def api_message(msg_id: str, when: datetime.datetime, person: str = "user", text: str = "", **extra) -> dict:
-    """Open API 글 꼴 — 상담 · 채널 칸이 없어도 읽기 도우미가 채운다."""
-    return {"id": msg_id, "personType": person, "createdAt": int(when.timestamp() * 1000),
-            "plainText": text, **extra}
+    """Open API 글 꼴 — 상담 · 채널 칸이 없어도 읽기 도우미가 채운다. 시각은 ISO 글자(웹훅은 밀리초 숫자)."""
+    return {"id": msg_id, "personType": person, "createdAt": iso(when), "plainText": text, **extra}
 
 
 def inbound(log_id: int, body: dict) -> None:
