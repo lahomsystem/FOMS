@@ -1198,6 +1198,12 @@
   // 재생성하는데, 캐시 없이 매번 new Image()+async 로드하면 로드 전까지 노드가 빈 프레임이라
   // 획마다 이미지가 깜빡인다. 로드 완료분은 캐시에서 동기 재사용해 깜빡임을 제거한다.
   var _annoImgCache = {};
+  // 그림이 뜨면 V2 를 한 번 다시 그린다 — 치수 글자 높이 · 예전 양식 기준은 그림이 떠야 잰다(첫 계산은 그림 전이라 미리보기 · % 가 열 때마다 달랐다)
+  var imgLoadTimer = 0;
+  function imagesLoaded() {
+    if (imgLoadTimer) { clearTimeout(imgLoadTimer); }
+    imgLoadTimer = setTimeout(function () { imgLoadTimer = 0; emitCore('render'); }, 150);
+  }
   function buildImage(o) {
     var node = new Konva.Image({
       x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
@@ -1212,7 +1218,8 @@
       } else {
         var img = cached || new Image();
         _annoImgCache[o.key] = img;
-        img.onload = function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); };
+        // 같은 그림 둘(Ctrl+J 사본)이 함께 기다릴 수 있다 — onload 를 덮으면 앞 칸이 다음 편집 전까지 빈 틀로 남았다(스테이징 실화면 2026-10-29)
+        img.addEventListener('load', function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); imagesLoaded(); }, { once: true });
         img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
         if (!img.src) { img.src = viewUrl(o.key); }
       }

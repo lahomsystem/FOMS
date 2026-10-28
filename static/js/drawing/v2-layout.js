@@ -8,7 +8,7 @@
  * - 띠 높이 · 기둥 폭을 여러 값으로 재 본다. 점수 = 가장 작은 그림 % + 큰 그림 %의 절반 − 치수 글자 하한 벌점 − 빈자리 벌점(v2-fill penalty).
  *   % = 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이 — input.base), 없으면 원본 대비.
  *   치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함 — 80% 는 그림 넷뿐인 시트에도 권했다, 2026-10-26).
- * - 빈자리 채우기(2026-10-28 '공간을 꽉 채워' — v2-fill.js): 평면 · 상세를 큰 그림 칸이 남긴 빈 사각형으로 옮긴 틀도 재 본다.
+ * - 빈자리 채우기(2026-10-28 '공간을 꽉 채워' — v2-fill.js): 평면 · 상세를 빈 사각형으로 옮긴 틀도 재 본다(띠형은 위 띠 자재 · 특이 밑까지 — 10-29).
  * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 종이 칸 그대로와 장애물을 뺀 빈 사각형 중 큰 셋에서 틀을 재고,
  *   장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room — 스테이징 주문 4385, 2026-10-27).
  * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
@@ -171,7 +171,7 @@
     });
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var y = A.y0 + (anyBand ? Hb + GAP : 0), room = P.room(A.x0, y, W, A.y1 - y, inp.obstacles, big.groups, same);
-    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, { x: A.x0, y: A.y0, w: W, h: A.y1 - A.y0 }, same, big) ? res : null;
   }
 
   /** 왼쪽 기둥형 — 기둥 폭 Wc. */
@@ -281,10 +281,10 @@
       });
     });
     inp.area = full;
-    var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); } };
+    var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); },
+      cands: { band: fills.concat(bandF), column: cols.concat(colF) } };   // 주 그림 크게가 견줄 틀(v2-hero heroPick — 점수는 아래 best 가 매긴다)
     function fill(r) { return r.moves.reduce(function (a, m) { return a + (inp.byId[m.id] ? m.w * m.h : 0); }, 0); }
-    // 고르게 쪽 틀(wb · cw): 상세 두 줄 · 빈자리 채우기까지 빈자리 벌점 점수로, 같으면 그림 넓이 합이 큰 틀. 주 그림 크게가 다시 놓을 틀(bb · cb)은
-    // 예전 점수(빈 높이는 주 그림 몫 — v2-hero choose). 추천 틀은 고르게 쪽 점수 — 스타일과 상관없어 미리보기와 같다.
+    // 고르게 쪽 틀(wb · cw): 빈자리 벌점 점수로, 같으면 그림 넓이 합이 큰 틀. 주 그림 크게의 바탕 틀(bb · cb)은 예전 점수. 추천은 고르게 쪽 점수.
     var raw = Object.assign({}, o, { raw: true }), bb = best(bands, inp, raw), cb = best(cols, inp, raw);
     var wb = best(fills.concat(bandF), inp, o, fill), cw = best(cols.concat(colF), inp, o, fill), pre = { b: wb ? wb.score : null, c: cw ? cw.score : null };
     var out = H ? { band: H.choose(bb, wb, inp, o, kit), column: H.choose(cb, cw, inp, o, kit) } : { band: bb, column: cb };

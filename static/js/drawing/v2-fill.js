@@ -6,13 +6,14 @@
  *   스테이징 주문 4385(왼쪽 기둥형): 큰 그림 칸(정면 둘 · 입체)이 높이에 막혀 폭 826 중 636만 쓰고 오른쪽 190px 기둥이 통째로 비었고,
  *   평면은 왼쪽 기둥에 끼어 상세가 62%로 작아졌다.
  * - v2-layout 이 틀마다 옮길 칸(없음 · 평면 · 상세 · 둘 다 — subsets)을 재 본다. 옮긴 칸은 띠 · 기둥에서 빠져 남은 칸이 커지고,
- *   큰 그림 칸의 빈 사각형(놓인 그림 · 칸 머리 · 장애물을 GAP 띄워 뺀 것) 가운데 가장 크게 들어가는 곳 왼쪽 위에 놓인다.
+ *   큰 그림 칸의 빈 사각형(놓인 그림 · 글자 · 칸 머리 · 장애물을 GAP 띄워 뺀 것) 가운데 가장 크게 들어가는 곳 왼쪽 위에 놓인다.
+ *   띠형은 종이 칸 전체에서 찾는다(2026-10-29 — 위 띠 자재 · 특이 밑이 비었다: 스테이징 4385 띠형 빈칸 17% → 5%, 사진 258 → 344px).
  *   점수(가장 작은 그림 % 중심)가 나은 틀이 이긴다 — 옮겨서 그림이 더 작아지면 옮기지 않는다.
  * - 옮긴 칸은 큰 그림보다 큰 배율로 놓지 않는다(같은 배율이면 t ≤ 큰 그림 t, 아니면 높이 ≤ 큰 그림 높이) — 비율이 이상하지 않게.
  *   칸 머리 최소 폭(HEAD_MIN_W)보다 좁은 빈 사각형은 쓰지 않는다.
  *
  * window.FomsV2Fill = { subsets(keys) → [[key]](빈 묶음 먼저), place(res, inp, keys, room, same, groups) → boolean }
- *   room = 큰 그림 칸 { x, y, w, h } · groups = 큰 그림 칸 묶음(v2-layout bigGroups) · 성공하면 res.fillKeys = keys
+ *   room = 찾을 칸 { x, y, w, h }(기둥형 = 큰 그림 칸, 띠형 = 종이 칸) · groups = 큰 그림 칸 묶음(v2-layout bigGroups) · 성공하면 res.fillKeys · fillRoom
  */
 (function () {
   'use strict';
@@ -31,7 +32,7 @@
   /** 큰 그림 칸 안 막힌 자리 — 놓인 그림 · 칸 머리(최소 폭) · 장애물. */
   function blocks(res, inp, room, headW) {
     var HEAD = window.FomsV2Pack.HEAD, out = [];
-    res.moves.forEach(function (m) { if (inp.byId[m.id] && hit(m, room)) { out.push(m); } });
+    res.moves.forEach(function (m) { if (hit(m, room)) { out.push(m); } });   // 그림 · 글자(자재 · 특이 · 강조 — 띠형은 종이 칸 전체에서 찾는다)
     res.slots.forEach(function (s) { if (hit(s, room)) { out.push({ x: s.x, y: s.y, w: Math.max(s.w, headW), h: HEAD }); } });
     (inp.obstacles || []).forEach(function (b) { if (hit(b, room)) { out.push(b); } });
     return out;
@@ -69,7 +70,7 @@
       });
       return true;
     });
-    if (ok) { res.fillKeys = keys.slice(); }
+    if (ok) { res.fillKeys = keys.slice(); res.fillRoom = room; }
     return ok;
   }
 
