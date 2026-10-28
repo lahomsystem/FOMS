@@ -99,7 +99,7 @@ function mkEl(tag) {
 }
 const dom = {}, menuUnpin = mkEl('button');
 menuUnpin.hidden = true;
-['dws-root', 'dws-v2-slots', 'dws-v2-badges', 'dws-v2-summary', 'dws-v2-templates', 'dws-v2-seen', 'dws-v2-toggles',
+['dws-root', 'dws-v2-slots', 'dws-v2-badges', 'dws-v2-summary', 'dws-v2-templates', 'dws-v2-styles', 'dws-v2-seen', 'dws-v2-toggles',
  'dws-v2-relayout', 'dws-v2-rearrange', 'dws-v2-unpin', 'dws-v2-detail-toggle', 'dws-v2-detail'].forEach(id => { dom[id] = mkEl('div'); dom[id].id = id; });
 dom['dws-v2-detail'].hidden = true;
 global.document = { readyState: 'complete', getElementById: id => dom[id] || null, querySelectorAll: () => [],
@@ -280,8 +280,8 @@ def test_templates_css_tools_sticky_banner_and_pins():
             'title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>') in v2_block
     assert '<button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>' in v2_block
     assert "css/contexts/drawing/wizard-v2.css') }}?v=20261027e" in TPL
-    for asset in ("js/drawing/v2-plan.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js", "js/drawing/v2-shell.js"):   # 10-28 주 그림 크게
-        assert f"{asset}') }}}}?v=20261028a" in TPL, asset
+    for asset in ("js/drawing/v2-plan.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js", "js/drawing/v2-shell.js"):   # 10-28 그림 크기 스타일
+        assert f"{asset}') }}}}?v=20261028b" in TPL, asset
     assert ".dws-v2-auto .dws-appbar-center .dws-seg" not in CSS                       # 자동 배치에도 도구가 보인다
     assert ".dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }" in CSS
     banner = CSS[CSS.index(".dws-v2-banner {"):CSS.index(".dws-v2-banner[hidden]")]
@@ -314,13 +314,36 @@ def test_old_screen_button_only_on_v2_page(client):
     assert "dws-v2-uiback" not in v1 and 'data-dws-ui-switch="v1"' not in v1
 
 
-def test_main_picture_toggle_is_listed_and_on_by_default():
-    """주 그림 크게(bento — 사용자 요청 2026-10-28)는 켜고 끄기 다섯째(기본 켬) — 끄면 예전처럼 큰 그림 칸이 같은 배율 한 줄."""
-    right = (JS_DIR / "v2-right.js").read_text(encoding="utf-8")
-    assert "['sameScale', '같은 칸은 같은 배율'], ['hero', '주 그림 크게'], ['lockMoved', '손으로 옮긴 그림은 고정']" in right
-    assert "켜고 끄기 5" in right
-    shell = (JS_DIR / "v2-shell.js").read_text(encoding="utf-8")
-    assert "lockMoved: true, hero: true }" in shell
-    plan = (JS_DIR / "v2-plan.js").read_text(encoding="utf-8")
-    assert "hero: s.hero !== false" in plan and "hero: set.hero" in plan
 
+def test_picture_size_style_is_chosen_per_sheet_with_both_previews():
+    """사용자 요청(2026-10-28): '꼭 메인을 크게 할 필요는 없을 수도 있으니 스타일 고를 수 있게' — 오른쪽 칸 '그림 크기'에서
+    주 그림 크게(기본) · 고르게를 시트마다 고른다(폼 v2_style · 되돌리기 한 번). 미리보기는 두 모습 · 큰 그림 %."""
+    out = _run(UI, r"""
+state.sheets = [{ id: 's1', name: '붙박이장', form: {}, objects: [img('h1', '입체·내부', 1696, 1223, 0), img('g1', '정면·도어', 1067, 1049, 1),
+  img('g2', '입체·내부', 1049, 1049, 2), img('d1', '서랍 단면', 490, 403, 3), img('t1', '평면·상판', 1335, 1065, 4)] }];
+emit('batch', { ids: state.sheets[0].objects.map(o => o.id), sheetId: 's1' });
+tick(100);
+const styles = () => dom['dws-v2-styles'].children.filter(n => n.className === 'dws-v2-tpl');
+const h = id => core.sheet().objects.find(o => o.id === id).h;
+out.first = styles().map(c => c.textContent);
+out.heroBig = h('h1');
+const depth = undo.length;
+styles()[1].click();                                   // 고르게
+tick(100);
+out.even = [core.sheet().form.v2_style, h('h1'), styles().map(c => c.textContent), undo.length - depth];
+core.undo(); tick(100);
+out.undone = [core.sheet().form.v2_style || '', h('h1')];
+out.toggles = dom['dws-v2-toggles'].children.map(c => c.textContent);
+state.sheets = [{ id: 's2', name: '붙박이장', form: {}, objects: [img('a', '정면·내부', 1200, 740, 0), img('b', '정면·도어', 1100, 980, 1)] }];
+emit('batch', { ids: ['a', 'b'], sheetId: 's2' });
+tick(100);
+out.same = styles().map(c => c.textContent);
+""")
+    hero, even = out["first"]
+    assert "주 그림 크게" in hero and "지금 쓰는 스타일" in hero and "큰 그림" in hero
+    assert "고르게" in even and "지금 쓰는 스타일" not in even and "큰 그림" in even   # 고르게 미리보기도 큰 그림 %
+    assert out["even"][0] == "even" and out["even"][1] < out["heroBig"]          # 고르게 = 예전 같은 배율 한 줄(주 그림이 작다)
+    assert "지금 쓰는 스타일" in out["even"][2][1] and out["even"][3] == 1        # 되돌리기 한 번
+    assert out["undone"] == ["", out["heroBig"]]
+    assert not any("주 그림" in t for t in out["toggles"])                       # 켜고 끄기가 아니라 시트마다 고른다
+    assert "이 시트는 두 스타일이 같아요" in out["same"][1]                         # 주 그림이 두드러지지 않으면 두 모습이 같다

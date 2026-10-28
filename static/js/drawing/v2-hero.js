@@ -9,10 +9,11 @@
  *   (크기 차이 2배 안). 한 칸이면 머리 하나가 전체 위, 여러 칸(주방 정면 · 입체)이면 주 그림이 제 칸에 혼자일 때만 — 칸 머리는 칸마다.
  * - refine: v2-layout 이 틀을 고른 뒤(추천도 바꾸기 전 점수로) 큰 그림 칸(res.big — 장애물을 비켜 간 자리)을 다시 놓는다.
  *   나머지는 치수 글자 8px · 지금 양식 대비 60% 밑으로 줄이지 않고(이미 밑이면 지금보다 더 줄이지 않는다),
- *   주 그림이 GAIN 배 넘게 커질 때만 바꾼다 — 조금 커지려고 칸 모양을 바꾸지 않는다.
+ *   주 그림이 GAIN 배 넘게 커질 때만 바꾼다 — 조금 커지려고 칸 모양을 바꾸지 않는다. 시트 스타일이 '고르게'(o.hero === false)면
+ *   바꾸지 않고 키운 모습을 res.alt 에 남기고, 키웠으면 고르게 모습을 res.alt 에 남긴다(오른쪽 칸 스타일 고르기 미리보기 — v2-right.js).
  *
  * window.FomsV2Hero = { pack(groups, W, H, same, opts) → { placed, slots, w, h, t, hero: [id] } | null,
- *   refine(res, inp, o, kit) → res, LEAD, RATIO, GAIN }
+ *   refine(res, inp, o, kit) → res(+ alt: { style: 'hero'|'even', slots, mainPct }), LEAD, RATIO, GAIN }
  *   opts.minH = { id: 이보다 작게 줄이지 않는 높이 } · kit = { groups: 큰 그림 칸 묶음, score(res) } (v2-layout 이 넘긴다)
  */
 (function () {
@@ -73,7 +74,7 @@
 
   function refine(res, inp, o, kit) {
     var L = window.FomsV2Layout, B = res && res.big, base = inp.base || {}, hasBase = Object.keys(base).length > 0;
-    if (!B || o.hero === false) { return res; }
+    if (!B) { return res; }
     var lim = o.minText > 0 ? o.minText : L.MIN_TEXT, ids = {}, cur = {}, minH = {}, keys = {}, gain = Infinity;
     kit.groups.forEach(function (g) {
       keys[g.key] = true;
@@ -90,14 +91,18 @@
     if (!bt) { return res; }
     bt.placed.forEach(function (p) { if (bt.hero.indexOf(p.id) >= 0 && cur[p.id]) { gain = Math.min(gain, p.h / cur[p.id].h); } });
     if (gain === Infinity || !(gain >= GAIN)) { return res; }
-    res.moves = res.moves.filter(function (m) { return !ids[m.id]; }).concat(bt.placed.map(function (p) {
+    var grown = { hero: bt.hero, moves: res.moves.filter(function (m) { return !ids[m.id]; }).concat(bt.placed.map(function (p) {
       return { id: p.id, x: Math.round(B.x + p.x), y: Math.round(B.y + p.y), w: p.w, h: p.h };
-    }));
-    res.slots = res.slots.filter(function (s) { return !keys[s.key]; }).concat(bt.slots.map(function (s) {
+    })), slots: res.slots.filter(function (s) { return !keys[s.key]; }).concat(bt.slots.map(function (s) {
       return { key: s.key, x: Math.round(B.x + s.x), y: Math.round(B.y + s.y), w: Math.round(s.w), h: Math.round(s.h) };
-    }));
-    res.hero = bt.hero;
-    return kit.score(res);
+    })) };
+    if (o.hero === false) {   // 고르게 — 키운 모습은 미리보기로만
+      var look = kit.score(Object.assign({}, res, grown));
+      res.alt = { style: 'hero', slots: look.slots, mainPct: look.mainPct };
+      return res;
+    }
+    res.alt = { style: 'even', slots: res.slots, mainPct: res.mainPct };
+    return kit.score(Object.assign(res, grown));
   }
 
   window.FomsV2Hero = { pack: pack, refine: refine, LEAD: LEAD, RATIO: RATIO, GAIN: GAIN };

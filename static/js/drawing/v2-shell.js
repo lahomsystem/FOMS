@@ -22,7 +22,7 @@
   if (window.FomsV2) { return; }
 
   var SET_KEY = 'foms.dws.v2.settings', MODE_KEY = 'foms.dws.v2.mode';
-  var core = null, settings = { lowToUnsorted: true, photoFirst: true, sameScale: true, lockMoved: true, hero: true }, mode = 'auto';
+  var core = null, settings = { lowToUnsorted: true, photoFirst: true, sameScale: true, lockMoved: true }, mode = 'auto';
   var last = null, baseCache = { key: '', val: {} }, refreshTimer = 0, arrangeTimer = 0, autoPhoto = {}, awaitingPhoto = false;
   var lastArranged = null;   // 마지막 배치 요약 — 알림 띠 글
   // 지운 그림(다음 배치 알림 · 되돌렸는지) · 배치가 끝난 묶음 그림(뒤에 온 AI 이름표 = 늦은 이름) · 다른 시트에서 끝난 묶음

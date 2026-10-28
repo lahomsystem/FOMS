@@ -1,5 +1,6 @@
 /**
- * 도면 마법사 V2 — 오른쪽 칸 '배치 확인': 가장 작게 줄어든 그림 · 틀 고르기 2 · 자세히 ▸(컴퓨터가 본 것 · 켜고 끄기 5) · [다시 자동 배치].
+ * 도면 마법사 V2 — 오른쪽 칸 '배치 확인': 가장 작게 줄어든 그림 · 틀 고르기 2 · 그림 크기 2 · 자세히 ▸(컴퓨터가 본 것 · 켜고 끄기 4) ·
+ * [다시 자동 배치].
  *
  * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §1 · §4 (화면 시안 K2 오른쪽 316px)
  * - %는 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이). 칸으로 정리하기 전에는 '정리하면' 값을 보인다.
@@ -13,6 +14,8 @@
  *   도면팀 평가 2026-10-27). '추천'은 점수가 높은 틀(out.rec)에 늘 붙고, 고른 틀(v2_pick)이 추천과 다르면 그 아래
  *   [추천 틀로 돌아가기] — 고른 틀만 풀고 다시 놓는다(고정 그림은 그대로).
  * - 그림 밖 메모 · 선은 다시 배치가 비켜 간다(v2-plan.js plan.stay) — 그림이 작아진 까닭을 요약에 적는다.
+ * - 그림 크기(사용자 요청 2026-10-28 '꼭 메인을 크게 할 필요는 없을 수도'): 주 그림 크게(기본) · 고르게를 시트마다 고른다(폼 v2_style,
+ *   되돌리기 한 번). 미리보기는 지금 틀의 두 모습(v2-hero res.alt) — 주 그림이 두드러지지 않는 시트는 두 스타일이 같다고 말한다.
  *
  * window.FomsV2Right = { init(api), render(view) }
  */
@@ -22,7 +25,8 @@
 
   var api = null, els = {}, last = null;
   var TOGGLES = [['lowToUnsorted', '확신이 낮으면 미분류로'], ['photoFirst', '사진은 늘 왼쪽 위'],
-    ['sameScale', '같은 칸은 같은 배율'], ['hero', '주 그림 크게'], ['lockMoved', '손으로 옮긴 그림은 고정']];
+    ['sameScale', '같은 칸은 같은 배율'], ['lockMoved', '손으로 옮긴 그림은 고정']];
+  var STYLES = [['hero', '주 그림 크게', '가장 큰 그림을 크게 · 나머지는 옆에'], ['even', '고르게', '같은 칸은 같은 배율로 한 줄']];
   var MINI = { w: 72, h: 53 };
   var NAMES = { photo: '사진', bom: '자재', notes: '특이', stamp: '강조', main: 'A', iso: 'B', detail: '상세', plan: '평면', unsorted: '?' };
   var TPL = { band: '사진·상세를 위에', column: '사진·상세를 왼쪽에' };   // v2-chrome.js 알림 글과 같은 이름
@@ -41,6 +45,7 @@
     api = a;
     els.summary = $('dws-v2-summary');
     els.templates = $('dws-v2-templates');
+    els.styles = $('dws-v2-styles');
     els.seen = $('dws-v2-seen');
     els.toggles = $('dws-v2-toggles');
     els.relayout = $('dws-v2-relayout');
@@ -164,6 +169,36 @@
     }
   }
 
+  function renderStyles(view) {
+    var box = els.styles, plan = view.plan, res = plan.out[plan.template] || plan.out[plan.out.best], look = {};
+    if (!box) { return; }
+    box.textContent = '';
+    look[plan.style] = res;
+    if (res && res.alt) { look[res.alt.style] = res.alt; }
+    STYLES.forEach(function (s) {
+      var r = look[s[0]], on = plan.style === s[0], b = el('button', 'dws-v2-tpl'), txt = el('span', 'dws-v2-tpl-text');
+      b.type = 'button';
+      b.classList.toggle('dws-v2-tpl-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.disabled = !res || !api.core.canSave();
+      b.appendChild(mini(r || res));
+      txt.appendChild(el('span', 'dws-v2-tpl-name', s[1]));
+      txt.appendChild(el('span', 'dws-v2-tpl-meta', r ? s[2] + ' · 큰 그림 ' + pct(r.mainPct) : '이 시트는 두 스타일이 같아요'));
+      if (on) { txt.appendChild(el('span', 'dws-v2-tpl-state', '지금 쓰는 스타일')); }
+      b.appendChild(txt);
+      b.addEventListener('click', function () { pickStyle(s[0]); });
+      box.appendChild(b);
+    });
+  }
+
+  function pickStyle(key) {   // 시트 폼 v2_style — 되돌리기 한 번 · 다시 배치(고정 그림 · 고른 틀은 그대로)
+    var sh = api.core.sheet();
+    if (!sh || (sh.form.v2_style === 'even' ? 'even' : 'hero') === key) { return; }
+    api.core.recordUndo();
+    sh.form.v2_style = key;
+    api.arrange('style', {});
+  }
+
   /** 그림 종류 기억을 따른 이름표 — 닮음은 이 창에서 따른 그림만 안다(part-memory.js). */
   function memText(id) {
     var m = window.FomsPartMemory, sim = m ? m.simOf(id) : null;
@@ -247,6 +282,7 @@
     if (!has) { return; }
     renderSummary(view);
     renderTemplates(view);
+    renderStyles(view);
     if (detailOpen()) { renderSeen(view); }   // 접혀 있으면 펼 때 그린다(작은 그림 10장을 매번 다시 만들지 않게)
   }
 
