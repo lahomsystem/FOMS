@@ -25,6 +25,7 @@ from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
+    DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
     invalidate_dashboard_families,
 )
@@ -43,7 +44,12 @@ from foms.services.partners.completion import CompletionPhotoError, pick_constru
 from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.info_edit import update_partner_info
-from foms.services.partners.items_edit import PartnerItemsError, update_partner_items
+from foms.services.partners.items_edit import (
+    EDIT_CLOSED_MESSAGE,
+    PartnerItemsError,
+    partner_edit_open,
+    update_partner_items,
+)
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionError, request_partner_revision
 from foms.services.partners.logo import partner_org_of, read_partner_logo
@@ -54,8 +60,6 @@ from models import Order, OrderAttachment, PartnerOrg, SecurityLog
 
 partner_api_bp = Blueprint("partner_api", __name__, url_prefix="/api/partner")
 
-# 협력사가 파일을 더 올릴 수 있는 단계 — 우리 CS 가 도면으로 넘기기 전까지.
-UPLOAD_OPEN_STAGES = frozenset({"RECEIVED", "MEASURE"})
 
 # kind → (첨부 분류, 폴더 이름, 허용 확장자). 폴더 이름은 원본 보존 판정
 # (order_attachment_permissions.PARTNER_ORIGINAL_FOLDERS)과 같아야 한다.
@@ -97,6 +101,13 @@ def _item_index_for_upload(order: Order, raw: str | None, category: str) -> tupl
     return item_index, None
 
 
+def _refresh_team_badges(db, teams) -> None:
+    """알림을 받을 수 있는 팀들의 벨 배지 캐시를 비운다(어느 팀에 갔는지는 주문 단계가 정한다)."""
+    for team in teams:
+        invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
+            db, target_team=team, target_manager_name=None, include_admin=False))
+
+
 @partner_api_bp.route("/orders", methods=["POST"])
 @partner_required
 def create_order():
@@ -110,9 +121,9 @@ def create_order():
     except PartnerOrderError as exc:
         db.rollback()
         return _fail(str(exc), 400)
-    # 받는 사람(CS 팀)의 벨 배지를 바로 갱신한다.
-    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-        db, target_team="CS", target_manager_name=None, include_admin=False))
+    # 받는 사람(도면팀 · CS 팀)의 벨 배지와 도면 작업실 목록을 바로 갱신한다 — 저장하면 바로 도면 단계다.
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("DRAWING", "CS"))
     item_count = len((order.structured_data or {}).get("items") or [])
     return jsonify({"success": True, "data": {"order_id": order.id, "item_count": item_count}, "error": None})
 
@@ -125,8 +136,8 @@ def upload_file(order_id: int):
     order = _own_order(db, order_id)
     if order is None:
         return _fail("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in UPLOAD_OPEN_STAGES:
-        return _fail("도면 작업이 시작된 주문에는 파일을 더 올릴 수 없습니다. 담당자에게 보내 주세요.", 409)
+    if not partner_edit_open(order):
+        return _fail(EDIT_CLOSED_MESSAGE, 409)
     kind = _KINDS.get((request.form.get("kind") or "").strip())
     if kind is None:
         return _fail("파일 종류(사진/초안 도면)를 골라 주세요.", 400)
@@ -195,8 +206,8 @@ def link_attachment(order_id: int, attachment_id: int):
     order = _own_order(db, order_id)
     if order is None:
         return _fail("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in UPLOAD_OPEN_STAGES:
-        return _fail("도면 작업이 시작되어 사진 자리를 바꿀 수 없습니다. 저희 담당자에게 알려 주세요.", 409)
+    if not partner_edit_open(order):
+        return _fail(EDIT_CLOSED_MESSAGE, 409)
     attachment = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id,
                                                   OrderAttachment.order_id == order.id).first()
     if attachment is None:
@@ -250,9 +261,8 @@ def update_items(order_id: int):
     except RevisionError:
         db.rollback()
         return _fail("다른 사람이 먼저 고쳤습니다. 화면을 새로고침해 주세요.", 409)
-    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-        db, target_team="CS", target_manager_name=None, include_admin=False))
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("CS", "DRAWING"))
     uids = [it.get("uid") for it in items]
     return jsonify({"success": True, "data": {"order_id": order_id, "item_count": len(items), "uids": uids},
                     "error": None})
@@ -274,10 +284,8 @@ def update_info(order_id: int):
         return _fail("다른 사람이 먼저 고쳤습니다. 화면을 새로고침해 주세요.", 409)
     if result["address_changed"]:
         enqueue_geocode_order_address(order_id)
-    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    for team in ("CS", "SHIPMENT"):
-        invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-            db, target_team=team, target_manager_name=None, include_admin=False))
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("CS", "DRAWING", "SHIPMENT"))
     return jsonify({"success": True, "data": {"order_id": order_id, **result}, "error": None})
 
 

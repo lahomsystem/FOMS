@@ -22,12 +22,14 @@ from foms.services.datetime_kst import now_kst
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
+from foms.services.orders.drawing_customer_send import drawing_round_info
 from foms.services.orders.structured_item_uid import ensure_item_uids, item_uid_of
 from foms.services.partners.orders import ATTRIBUTE_KEYS, PartnerOrderError, clean_partner_items
 from models import Notification, OrderAttachment, SecurityLog
 
 ITEMS_EDIT_POLICY_ID = "PARTNER_ITEMS_EDIT"
 ITEMS_EDIT_STAGES = frozenset({"RECEIVED", "MEASURE"})
+EDIT_CLOSED_MESSAGE = "저희 도면팀이 도면을 보낸 뒤라 고칠 수 없습니다. 바꿀 곳은 도면 탭 \"수정 요청\"으로 보내 주세요."
 MAX_EDIT_HISTORY = 20
 # 협력사 화면이 고치는 품목 키. 우리 저장이 규격 첫 줄로 함께 쓰는 옛 칸(spec_width 등)은 아래에서 다시 맞춘다.
 PARTNER_ITEM_KEYS = ("product_name", "spec_rows", "quantity", *ATTRIBUTE_KEYS, "extra_input")
@@ -91,11 +93,26 @@ def _remap_item_attachments(db, order_id: int, old_items: list, new_items: list)
     return moved
 
 
-def _notify_cs(db, user: Any, order_id: int, customer: str, count: int) -> None:
+def partner_edit_open(order: Any) -> bool:
+    """협력사가 정보 · 품목 · 실측 파일을 고칠 수 있는가 — 접수 확인 중이거나, 도면 단계에서 저희가 첫 도면을
+    보내기 전(사용자 2026-10-28: 협력사 주문은 저장하면 바로 도면 단계라). 도면을 보낸 뒤는 수정 요청으로."""
+    stage = (getattr(order, "erp_stage_code", None) or "").upper()
+    if stage in ITEMS_EDIT_STAGES:
+        return True
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    return stage == "DRAWING" and drawing_round_info(sd).transfer_count == 0
+
+
+def partner_notice_team(order: Any) -> str:
+    """협력사가 고친 내용을 알릴 팀 — 도면 단계면 작업 중인 도면팀, 그 전이면 CS."""
+    return "DRAWING" if (getattr(order, "erp_stage_code", None) or "").upper() == "DRAWING" else "CS"
+
+
+def _notify_cs(db, user: Any, order_id: int, customer: str, count: int, team: str = "CS") -> None:
     notification = Notification(
         order_id=order_id,
         notification_type="PARTNER_ORDER_ITEMS_EDITED",
-        target_team="CS",
+        target_team=team,
         title="협력사 품목 고침",
         message=f"[협력사] 주문 #{order_id}" + (f" ({customer})" if customer else "")
         + f" 품목을 고쳤습니다(지금 {count}개). 확인해 주세요.",
@@ -116,8 +133,8 @@ def update_partner_items(db, user: Any, order_id: int, payload: Any) -> list[dic
     order = lock_order_row(db, order_id)
     if order is None or order.deleted_at is not None or not partner_can_read_order(user, order):
         raise PartnerItemsError("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in ITEMS_EDIT_STAGES:
-        raise PartnerItemsError("도면 작업이 시작되어 품목을 고칠 수 없습니다. 바꿀 곳은 수정 요청으로 보내 주세요.", 409)
+    if not partner_edit_open(order):
+        raise PartnerItemsError(EDIT_CLOSED_MESSAGE, 409)
     data = payload if isinstance(payload, dict) else {}
     try:
         cleaned = clean_partner_items(data.get("items"), keep_uid=True)
@@ -152,5 +169,5 @@ def update_partner_items(db, user: Any, order_id: int, payload: Any) -> list[dic
                                           "after": len(sd["items"]), "attachments_moved": moved}),
     ))
     customer = str(((sd.get("parties") or {}).get("customer") or {}).get("name") or "").strip()
-    _notify_cs(db, user, order.id, customer, len(sd["items"]))
+    _notify_cs(db, user, order.id, customer, len(sd["items"]), partner_notice_team(order))
     return sd["items"]

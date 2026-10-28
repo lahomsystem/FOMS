@@ -220,13 +220,17 @@ def test_staff_form_cannot_change_partner_orderer():
     assert ours_new["parties"]["orderer"] == {"name": "라홈"}
 
 
-def test_new_partner_order_notifies_cs_only(app, world):
+def test_new_partner_order_notifies_drawing_and_cs(app, world):
     from foms.services.notifications.recipients import resolve_recipients_for_notification
     from models import Notification
 
     order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
-    note = db_session.query(Notification).filter(Notification.order_id == order_id,
-                                                 Notification.notification_type == "PARTNER_ORDER_CREATED").one()
+    notes = db_session.query(Notification).filter(Notification.order_id == order_id,
+                                                  Notification.notification_type == "PARTNER_ORDER_CREATED").all()
+    # 저장하면 바로 도면 단계 — 도면팀(작업 시작)과 CS(협력사 창구, 확인용)에 1건씩(사용자 2026-10-28).
+    assert sorted(n.target_team for n in notes) == ["CS", "DRAWING"]
+    assert "도면 작업을 시작해 주세요" in next(n for n in notes if n.target_team == "DRAWING").message
+    note = next(n for n in notes if n.target_team == "CS")
     ids = {uid for uid, _ in resolve_recipients_for_notification(db_session, note)}
     assert world["staff"] in ids  # world 의 staff 는 CS 팀
     # 담당(협력사 직원)도, 영업 직원도 받지 않는다 — 우리 쪽은 CS 가 챙긴다(스펙 §16).

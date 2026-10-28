@@ -15,6 +15,7 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
     _upload,
     fake_storage,
     world,
+    _send_first_drawing,
 )
 
 _ITEMS = [{"product_name": "안방장", "width": "2400"}, {"product_name": "신발장", "width": "1200"}]
@@ -72,7 +73,7 @@ def test_link_rejects_wrong_company_stage_kind_range_and_staff(app, world, fake_
     assert _patch(app, world["partner_a"], order_id, photo_id, {}).status_code == 400
     other = _order(app, world["partner_a"])
     assert _patch(app, world["partner_a"], other, photo_id, {"item_index": 0}).status_code == 404  # 다른 주문의 사진
-    _to_stage(order_id, "DRAWING")
+    _send_first_drawing(order_id)  # 도면 단계로 들어오므로 잠금은 저희 첫 도면부터
     assert _patch(app, world["partner_a"], order_id, photo_id, {"item_index": 0}).status_code == 409
     assert _att(order_id, "wall.jpg").item_index is None
 
@@ -89,7 +90,7 @@ def test_screen_shows_link_controls_only_while_intake_open(app, world, fake_stor
     assert f'data-pp-att-link="{_att(order_id, "wall.jpg").id}"' in html  # 공통 사진 → 제품 연결
     assert f'data-pp-att-unlink="{_att(order_id, "item.jpg").id}"' in html  # 제품 사진 → 공통으로
     assert 'data-pp-photo-zone="common"' in html and 'name="photos"' not in html  # 더 보내기도 사진 칸
-    _to_stage(order_id, "DRAWING")
+    _send_first_drawing(order_id)  # 도면 단계로 들어오므로 잠금은 저희 첫 도면부터
     locked = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "ppAttUrl" not in locked and "data-pp-att-unlink" not in locked
     assert db_session.get(Order, order_id) is not None

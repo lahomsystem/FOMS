@@ -50,7 +50,8 @@ def test_pipeline_counts_own_company_only_and_turn_first(app, world):
     ids = _seed(app, world)
     board = _board(world)
     counts = {step["label"]: step["count"] for step in board["pipeline"]}
-    assert counts == {"접수 확인 중": 2, "도면 작업 중": 0, "도면 확인 대기": 1, "생산 중": 0,
+    # 새 협력사 주문은 저장하면 바로 도면 단계(사용자 2026-10-28).
+    assert counts == {"접수 확인 중": 0, "도면 작업 중": 2, "도면 확인 대기": 1, "생산 중": 0,
                       "시공 예정": 0, "완료": 1, "AS 진행 중": 1}
     assert board["turn_count"] == 1
     assert board["orders"][0]["id"] == ids["confirm"] and board["orders"][0]["turn"] is True
