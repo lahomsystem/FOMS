@@ -4,7 +4,7 @@
 
 - ``SENTRY_DSN`` 부재 = **완전 no-op** (``sentry_sdk``가 sys.modules에 로드조차
   되지 않는다 — 미설치 환경에서도 앱 import가 죽지 않는 근거).
-- DSN 존재 시 ``sentry_sdk.init`` 인자 계약(FlaskIntegration·PII off·
+- DSN 존재 시 ``sentry_sdk.init`` 인자 계약(FlaskIntegration·PII off·지역 변수 off·
   traces 0·before_send 배선). 실네트워크 0 — init을 monkeypatch로 가로챈다.
 - ``_scrub_event``의 재귀 마스킹: 중첩 dict/list·breadcrumbs·exception values·
   request 데이터·비밀 키 이름·깊이 상한(순환 참조)·원본 비파괴·실패 시 최소
@@ -112,6 +112,7 @@ def test_init_sentry_passes_expected_options(clean_env):
 
     assert captured["dsn"] == "https://public@example.invalid/1"
     assert captured["send_default_pii"] is False
+    assert captured["include_local_variables"] is False  # 지역 변수(손님 정보가 들 수 있음)를 싣지 않는다
     assert captured["traces_sample_rate"] == 0
     assert captured["before_send"] is _scrub_event
     assert captured["environment"] == "staging"

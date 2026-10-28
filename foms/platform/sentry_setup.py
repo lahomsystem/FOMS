@@ -254,6 +254,9 @@ def init_sentry() -> bool:
             dsn=dsn,
             integrations=[FlaskIntegration()],
             send_default_pii=False,
+            # 스택 프레임 지역 변수를 싣지 않는다(SDK 기본은 싣는다) — 주문 · 손님 이름 · 번호 · 상담 글이 든
+            # 변수가 오류와 함께 나가지 않게. _scrub_event 는 비밀값만 가린다(2026-10-28 사용자 결정).
+            include_local_variables=False,
             traces_sample_rate=0.0,
             environment=environment,
             before_send=_scrub_event,
