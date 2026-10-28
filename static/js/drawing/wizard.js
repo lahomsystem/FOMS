@@ -1200,6 +1200,7 @@
       x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
       rotation: num(o.rotation), image: undefined, name: 'anno', draggable: canSave
     });
+    if (window.FomsImageSmooth) { node.sceneFunc(window.FomsImageSmooth.sceneFunc); }   // 줄여 그린 그림 고운 필터(image-smooth.js)
     tagNode(node, o);
     if (o.key) {
       var cached = _annoImgCache[o.key];

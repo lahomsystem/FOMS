@@ -136,7 +136,8 @@ def test_wizard_js_asset_pin_bumped_for_autosave_guard() -> None:
     assert "js/drawing/wizard.js') }}?v=20261025a" not in TPL   # 2026-10-25 실화면 QA 뒤 고침으로 한 번 더 올림
     assert "js/drawing/wizard.js') }}?v=20261025b" not in TPL   # 2026-10-25 검수 뒤 마지막 고침으로 한 번 더 올림
     assert "js/drawing/wizard.js') }}?v=20261027f" not in TPL   # 2026-10-28 주 그림 크게 · 손으로 옮기면 나머지 다시 배치
-    assert "js/drawing/wizard.js') }}?v=20261028a" in TPL
+    assert "js/drawing/wizard.js') }}?v=20261028a" not in TPL   # 2026-10-28 줄여 그린 그림 고운 필터(image-smooth.js)
+    assert "js/drawing/wizard.js') }}?v=20261028b" in TPL
 
 
 def test_no_content_based_empty_canvas_block() -> None:
