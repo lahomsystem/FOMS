@@ -204,6 +204,58 @@ def test_debounce_updates_existing_within_60s(app):
     assert all("8/2" in n.message for n in second)
 
 
+def test_debounce_does_not_merge_different_kind(app):
+    """'도면 바뀜' 직후 다른 종류가 와도 앞 줄을 덮지 않고 새 줄(=폰 알림)이 생긴다."""
+    for team in TARGET_TEAMS:
+        _make_user(f"prod_bell4_{team.lower()}", role="STAFF", team=team)
+    order = _make_order(stage="생산")
+    first, c1 = apply_production_change_alert(
+        db_session, order, "drawing_hotfix", "도면팀 A 님이 고쳐",
+        actor_user_id=1, actor_name="A", merge=False,
+    )
+    db_session.commit()
+    second, c2 = apply_production_change_alert(
+        db_session, order, "construction_date", "7/20 → 7/28",
+        actor_user_id=2, actor_name="B",
+    )
+    db_session.commit()
+    assert c1 is True and c2 is True
+    assert {n.id for n in first}.isdisjoint({n.id for n in second})
+    assert len(_notifs(order.id)) == 2 * len(TARGET_TEAMS)
+    for n in first:
+        db_session.refresh(n)
+        assert "도면 바뀜" in n.title and "고쳐" in n.message
+    assert all("시공일 변경" in n.title for n in second)
+
+
+def test_debounce_merges_only_into_latest_same_kind(app):
+    """같은 종류라도 사이에 다른 종류가 끼면 옛 줄로 거슬러 합치지 않는다(최신 변경이 맨 위)."""
+    for team in TARGET_TEAMS:
+        _make_user(f"prod_bell5_{team.lower()}", role="STAFF", team=team)
+    order = _make_order(stage="생산")
+    first, _ = apply_production_change_alert(
+        db_session, order, "construction_date", "7/20 → 7/28",
+        actor_user_id=1, actor_name="A",
+    )
+    db_session.commit()
+    apply_production_change_alert(
+        db_session, order, "drawing", "도면 재전달",
+        actor_user_id=1, actor_name="A",
+    )
+    db_session.commit()
+    third, c3 = apply_production_change_alert(
+        db_session, order, "construction_date", "7/28 → 8/2",
+        actor_user_id=1, actor_name="A",
+    )
+    db_session.commit()
+    assert c3 is True
+    assert {n.id for n in first}.isdisjoint({n.id for n in third})
+    assert len(_notifs(order.id)) == 3 * len(TARGET_TEAMS)
+    for n in first:
+        db_session.refresh(n)
+        assert "7/28)" in n.message and "8/2" not in n.message
+
+
 def test_cancelled_kind_alert(app):
     order = _make_order(stage="생산", status="DELETED")
     notifs, created = apply_production_change_alert(
