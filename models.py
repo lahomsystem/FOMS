@@ -4266,3 +4266,63 @@ class CsAgentMessage(Base):
         UniqueConstraint('chat_id', 'message_id', name='uq_cs_agent_messages_chat_message'),
         CheckConstraint("source IN ('webhook','openapi')", name='ck_cs_agent_messages_source'),
     )
+
+
+# --------------------------------------------------------------------------- #
+# CS-AGENT C3-3: AI 상담팀원 초안 차례 기록 — 손님 글 하나에 한 줄(선점 · 상태 · 코드 · 숫자, 글은 가린 칸만)
+# --------------------------------------------------------------------------- #
+
+
+class CsAgentTurn(Base):
+    """AI 상담팀원 초안 차례 한 줄 — (상담, 마지막 손님 글 id) 하나에 한 줄이다.
+
+    설계서 2026-10-27-cs-ai-agent 4절 8 · 9(플랜 C3-1 · C3-3). ``uq_cs_agent_turns_chat_turn`` 이 '손님 글 하나에 메모
+    하나'를 DB 에서 막는다(RQ 잡 id 는 겹침을 못 막는다 — 원장 R1-2). ``state`` 는 ``claimed`` → ``posting`` → ``posted`` ·
+    ``stored`` · ``skipped`` · ``failed`` 이고, '올리는 중(posting)'을 채널톡 부르기 전에 커밋한다(R1-3). 글은 가린 칸
+    (``masked_draft`` · ``staff_reply_masked``)에만 두고 가림 검사를 통과한 것만 넣는다(R1-20). 나머지 칸은 코드 · 숫자다.
+    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns`. DDL 은 migration(``csagent_01``)과 같다.
+    """
+
+    __tablename__ = 'cs_agent_turns'
+
+    id = Column(Integer, primary_key=True)
+    brand = Column(String(8), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    # 이 차례를 연 손님 글(채널톡 메시지 id).
+    last_user_message_id = Column(String(64), nullable=False)
+    state = Column(String(16), nullable=False)
+    # 선점한 횟수(처음 1). 실패로 끝난 줄은 상한(turns.MAX_ATTEMPTS) 전까지 같은 줄을 다시 집는다.
+    attempts = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    # 올린 내부 메모의 채널톡 메시지 id(올렸을 때만).
+    memo_message_id = Column(String(64), nullable=True)
+    # 두뇌 결과(코드 · 숫자만): 의도 · 넘김 · 넘김 이유 코드 · 모델 · 깊이 · 토큰 · 비용(달러) · 지연(밀리초).
+    intent = Column(String(32), nullable=True)
+    handoff = Column(Boolean, nullable=True)
+    handoff_reason = Column(String(64), nullable=True)
+    model = Column(String(64), nullable=True)
+    effort = Column(String(16), nullable=True)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    cache_read_tokens = Column(Integer, nullable=True)
+    cache_write_tokens = Column(Integer, nullable=True)
+    cost_usd = Column(Numeric(12, 6), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    # 보내기 전 검사 코드 목록(글 없음, 예: ["date_promise"]).
+    check_codes = Column(JSONColumn, nullable=True)
+    # 가린 초안 · 가린 직원 최종 답(공개 manager 글, 나중에 채움) — 가림 검사를 통과한 글만.
+    masked_draft = Column(Text, nullable=True)
+    staff_reply_masked = Column(Text, nullable=True)
+    # 초안 ↔ 직원 답 '같은 뜻' 판정 코드(나중에 채움) · 실패 · 건너뜀 이유 코드.
+    judgment = Column(String(16), nullable=True)
+    error_code = Column(String(48), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('chat_id', 'last_user_message_id', name='uq_cs_agent_turns_chat_turn'),
+        CheckConstraint("state IN ('claimed','posting','posted','stored','skipped','failed')",
+                        name='ck_cs_agent_turns_state'),
+        # 재시작 때 '올리는 중'으로 남은 줄 찾기 · 브랜드 하루 상한과 판정 표.
+        Index('ix_cs_agent_turns_state_updated', 'state', 'updated_at'),
+        Index('ix_cs_agent_turns_brand_created', 'brand', 'created_at'),
+    )
