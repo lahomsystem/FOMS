@@ -14,7 +14,11 @@ from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
-from foms.services.partners.schedule_request import shipment_pending_requests
+from foms.services.partners.schedule_request import (
+    pending_request_counts,
+    pending_request_ids_by_date,
+    shipment_pending_requests,
+)
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
     extract_dashboard_target_dates,
@@ -138,6 +142,23 @@ def _erp_order_search_filter(query, q):
             include_structured_data_blob=True,
         )
     )
+
+
+def _partner_pending_counts(db, scoped_orders_query, dates: list[str], current_user, mine_only: bool) -> dict[str, int]:
+    """패널 날짜별 확정 대기 협력사 희망 시공 수 — 그날 우리 시공 건수에 더한다(사용자 결정 2026-10-28).
+
+    협력사는 주문 · 실측까지만 하고 시공은 우리가 한다. 내 담당만(mine · 시공팀)이면 희망 주문도
+    패널과 같은 ``is_order_related_to_user`` 로 거른다(시공일 없는 협력사 주문이라 몇 건 — 배치 1쿼리).
+    """
+    if not (mine_only and current_user):
+        return pending_request_counts(scoped_orders_query, dates)
+    day_of = pending_request_ids_by_date(scoped_orders_query, dates)
+    related = db.query(Order).filter(Order.id.in_(list(day_of))).all() if day_of else []
+    counts: dict[str, int] = {}
+    for order in related:
+        if is_order_related_to_user(order, current_user):
+            counts[day_of[order.id]] = counts.get(day_of[order.id], 0) + 1
+    return counts
 
 
 def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
@@ -448,6 +469,14 @@ def erp_shipment_dashboard():
         slice_name="panel_aggregates",
     )
     construction_counts = _agg_blob["construction_counts"]
+    # 확정 대기 협력사 희망 시공일도 그날 시공 건수에 넣는다(캐시 밖 — 시공일 없는 주문이라 패널 집합에 없다).
+    _panel_dates = [(range_start + datetime.timedelta(days=i)).isoformat()
+                    for i in range((range_end - range_start).days + 1)]
+    partner_pending_counts = _partner_pending_counts(db, scoped_for_search, _panel_dates, current_user, mine_only)
+    if partner_pending_counts:
+        construction_counts = dict(construction_counts)
+        for _day, _n in partner_pending_counts.items():
+            construction_counts[_day] = construction_counts.get(_day, 0) + _n
     assigned_workers_by_date = {
         k: set(v) for k, v in _agg_blob["assigned_workers_by_date"].items()
     }
@@ -497,6 +526,7 @@ def erp_shipment_dashboard():
             "use_single_day": use_single_day,
         },
         "aggregates_key_suffix": _agg_key.rsplit(":", 1)[-1],
+        "partner_pending": sorted(partner_pending_counts.items()),
         "worker_settings_fp": _worker_settings_fp,
     }
     _derived_key = build_dashboard_cache_key(
