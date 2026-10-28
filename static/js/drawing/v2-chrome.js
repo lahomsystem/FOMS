@@ -114,10 +114,11 @@
 
   function imageCount(sheet) { return (sheet.objects || []).filter(function (o) { return o.type === 'image'; }).length; }
 
-  /** 배치 결과 알림 글('' = 말하지 않음). d = FomsV2Plan.diff 결과(null = 놓을 자리 없음), removed = 지운 그림 수. */
-  function arrangeText(reason, d, plan, removed) {
+  /** 배치 결과 알림 글('' = 말하지 않음). d = FomsV2Plan.diff 결과(null = 놓을 자리 없음), removed = 지운 그림 수, freed = 겹쳐 푼 고정 그림 수. */
+  function arrangeText(reason, d, plan, removed, freed) {
     var fixed = Object.keys((plan && plan.g && plan.g.fixed) || {}).length, stay = (plan && plan.stay) || 0;
-    var pin = (fixed ? ' · 고정된 그림 ' + fixed + '장은 그 자리에 두었어요([고정 풀고 모두 다시])' : '') +
+    var pin = (freed ? ' · 서로 겹친 고정 그림 ' + freed + '장은 풀어 다시 놓았어요' : '') +
+      (fixed ? ' · 고정된 그림 ' + fixed + '장은 그 자리에 두었어요([고정 풀고 모두 다시])' : '') +
       (stay ? ' · 그림 밖 메모 ' + stay + '개는 비켜 놓았어요' : '');
     if (!d) {
       if (!TALK[reason] && !FAIL[reason]) { return ''; }

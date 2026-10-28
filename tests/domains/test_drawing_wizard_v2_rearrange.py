@@ -388,3 +388,69 @@ out.unpinned = others() === base;
     assert out["jitter"] and out["waited"] and out["after"], out
     assert out["free"] and out["unpinned"], out
 
+
+def test_pinned_clashes_pick_moved_then_locked_then_larger_and_release_unpins():
+    """고정끼리 겹치면 배치가 둘 다 안 옮겨 겹친 채 남았다(4385, 2026-10-28) — clashes 가 풀 그림을 고른다:
+    방금 옮긴 그림(keep) · 잠금 · 돌린 그림이 이기고, 나머지 고정은 넓이 큰 쪽부터 남기며 남긴 것과 겹치면 푼다."""
+    out = _run(r"""
+const set = { lockMoved: true };
+const mk = (id, r, arr, extra) => Object.assign({ id, type: 'image', x: r[0], y: r[1], w: r[2], h: r[3], rotation: 0, part: { label: '정면·내부', arr } }, extra || {});
+const objs = () => [mk('big', [0, 0, 400, 300], [10, 10, 400, 300]), mk('small', [300, 200, 200, 150], [600, 600, 200, 150]),
+  mk('far', [600, 0, 100, 100], [650, 0, 100, 100]), mk('lock', [1000, 0, 100, 100], [0, 0, 100, 100], { locked: true }),
+  mk('pin3', [1050, 50, 100, 100], [1200, 50, 100, 100]), mk('auto', [100, 100, 50, 50], [100, 100, 50, 50])];
+out.button = S.clashes(objs(), set).sort();
+out.keep = S.clashes(objs(), set, ['small']).sort();
+out.off = S.clashes(objs(), { lockMoved: false });            // 고정 끔 — 옮긴 그림은 고정이 아니다
+const o = objs();
+S.release(o, ['small']);
+out.released = [o[1].part.arr.join(','), S.moved(o[1]), S.moved(o[0])];
+""")
+    assert out["button"] == ["pin3", "small"]      # 작은 쪽 · 잠금과 겹친 쪽을 푼다(겹치지 않은 far · 고정 아닌 auto 는 그대로)
+    assert out["keep"] == ["big", "pin3"]          # 방금 옮긴 small 이 이긴다
+    assert out["off"] == []
+    assert out["released"] == ["300,200,200,150", False, True]
+
+
+def test_moving_a_picture_onto_another_pinned_picture_unpins_that_one_and_nothing_overlaps():
+    """사용자 보고(2026-10-28, 스테이징 주문 4385): 고정 그림끼리 겹쳐 [다시 자동 배치]를 눌러도 그대로였다 —
+    방금 옮긴 그림이 이기고 겹친 다른 고정 그림은 풀어 비킨다. 되돌리기 한 번이면 둘 다 제자리(고정도 그대로)."""
+    out = _run(r"""
+laidSheet();
+core.recordUndo(); obj('i1').x += 40; obj('i1').y += 10; core.markDirty(); emit('moved', { ids: ['i1'] }); tick(500);
+const i1 = [obj('i1').x, obj('i1').y, obj('i1').w, obj('i1').h].join(','), before = rects();
+core.recordUndo(); obj('d1').x = obj('i1').x + 30; obj('d1').y = obj('i1').y + 30; core.markDirty();
+const d1 = [obj('d1').x, obj('d1').y, obj('d1').w, obj('d1').h].join(',');
+emit('moved', { ids: ['d1'] }); tick(500);
+out.fixed = Object.keys(V2.plan().g.fixed).sort();
+out.overlaps = overlaps();
+out.kept = [obj('d1').x, obj('d1').y, obj('d1').w, obj('d1').h].join(',') === d1;
+out.away = [obj('i1').x, obj('i1').y, obj('i1').w, obj('i1').h].join(',') !== i1;
+core.undo(); tick(100);
+out.undone = [rects() === before, Object.keys(V2.plan().g.fixed).sort()];
+""")
+    assert out["fixed"] == ["d1"] and out["overlaps"] == [] and out["kept"] and out["away"], out
+    assert out["undone"] == [True, ["i1"]]
+
+
+def test_relayout_button_unpins_the_smaller_of_overlapping_pinned_pictures():
+    """겹친 채 저장된 고정 그림(4385) — [다시 자동 배치]는 작은 쪽을 풀어 다시 놓고 알린다. 푼 것까지 되돌리기 한 번."""
+    out = _run(r"""
+laidSheet();
+core.recordUndo(); obj('i1').x += 30; obj('d1').x = obj('i1').x + 40; obj('d1').y = obj('i1').y + 40; core.markDirty();
+out.before = overlaps().length;
+const depth = undo.length, i1 = [obj('i1').x, obj('i1').y, obj('i1').w, obj('i1').h].join(',');
+toasts.length = 0;
+dom['dws-v2-relayout'].click(); tick(100);
+out.overlaps = overlaps();
+out.fixed = Object.keys(V2.plan().g.fixed);
+out.kept = [obj('i1').x, obj('i1').y, obj('i1').w, obj('i1').h].join(',') === i1;
+out.undo = undo.length - depth;
+out.toast = toasts.slice(-1)[0] || '';
+core.undo(); tick(100);
+out.restored = [overlaps().length === out.before, Object.keys(V2.plan().g.fixed).sort()];
+""")
+    assert out["before"] > 0 and out["overlaps"] == [], out
+    assert out["fixed"] == ["i1"] and out["kept"]                 # 큰 쪽(i1)은 그 자리 · 작은 쪽(d1)은 풀어 다시 놓음
+    assert out["undo"] == 1 and "서로 겹친 고정 그림 1장은 풀어 다시 놓았어요" in out["toast"], out
+    assert out["restored"] == [True, ["d1", "i1"]]
+

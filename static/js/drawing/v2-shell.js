@@ -96,11 +96,11 @@
     });
   }
 
-  function say(reason, d, plan, removed) {   // 배치 결과 알림(글은 v2-chrome arrangeText — '' 면 말하지 않음)
-    var C = window.FomsV2Chrome, msg = C && C.arrangeText ? C.arrangeText(reason, d, plan, removed) : '';
+  function say(reason, d, plan, removed, freed) {   // 배치 결과 알림(글은 v2-chrome arrangeText — '' 면 말하지 않음)
+    var C = window.FomsV2Chrome, msg = C && C.arrangeText ? C.arrangeText(reason, d, plan, removed, freed) : '';
     if (msg) { core.toast(msg); }
   }
-  /** 칸 배치를 시트에 붙인다. opts: { undo: 따로 되돌리기 한 번, photo: 실측 사진 자동, template: 고른 틀 } */
+  /** 칸 배치를 시트에 붙인다. opts: { undo: 따로 되돌리기 한 번, photo: 실측 사진 자동, template: 고른 틀, freed: 겹쳐 푼 고정 그림 수(알림) } */
   function arrange(reason, opts) {
     var o = opts || {}, sheet = core.sheet(), removed = gone.n;
     gone = { n: 0, ids: {} };
@@ -119,7 +119,7 @@
     }
     if (reason !== 'moved') { core.select([]); }   // 마지막에 올린 그림이 골라진 채 남으면 미니 막대가 칸을 가린다(손으로 맞추던 그림은 그대로)
     if (o.photo) { maybeAutoPhoto(sheet); }
-    say(reason, d, plan, removed);
+    say(reason, d, plan, removed, o.freed);
     refresh();
     return true;
   }
@@ -260,9 +260,10 @@
     });
     core.on('trimmed', function () { if (laidNow()) { scheduleArrange('trimmed'); } });   // 여백을 자르면 새 비율로 다시
     core.on('moved', function (d) {   // 고정이 된 그림을 비켜 다시 놓는다(되돌리기는 끌기가 남긴 한 번 · 6px 안 손떨림은 고정이 아니라 그대로)
-      if (!d || mode !== 'auto' || !settings.lockMoved || !laidNow()) { return; }
-      var objs = core.sheet().objects || [], S = window.FomsV2Slots;
-      if (objs.some(function (o) { return (d.ids || []).indexOf(o.id) >= 0 && o.type === 'image' && S.isFixed(o, settings); })) { scheduleArrange('moved'); }
+      var objs = (core.sheet() || {}).objects || [], S = window.FomsV2Slots, ids = (d && d.ids) || [];
+      if (mode !== 'auto' || !settings.lockMoved || !laidNow() || !objs.some(function (o) { return ids.indexOf(o.id) >= 0 && o.type === 'image' && S.isFixed(o, settings); })) { return; }
+      S.release(objs, S.clashes(objs, settings, ids));   // 옮긴 그림과 겹친 다른 고정 그림은 풀어 비키게(방금 옮긴 그림이 이긴다)
+      scheduleArrange('moved');
     });
     core.on('labels', function (d) {
       if (!d) { return; }

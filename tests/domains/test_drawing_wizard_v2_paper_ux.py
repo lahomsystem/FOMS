@@ -270,8 +270,8 @@ def test_screen_layer_hides_on_export_and_assets_are_pinned():
     paper = (JS_DIR / "v2-paper.js").read_text(encoding="utf-8")
     assert "text: '직접 입력'" not in paper and "name: '기타 그림'" not in paper
     assert "into = key === 'unsorted' ? badges : layer" in paper
-    for asset in ("js/drawing/v2-slots.js", "js/drawing/v2-paper.js"):
-        assert f"{asset}') }}}}?v=20261027e" in TPL, asset
+    assert "js/drawing/v2-paper.js') }}?v=20261027e" in TPL
+    assert "js/drawing/v2-slots.js') }}?v=20261028a" in TPL   # 10-28 겹친 고정 그림 풀기(clashes)
     assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028a" in TPL   # 10-28 주 그림 크기 막대
 
 
