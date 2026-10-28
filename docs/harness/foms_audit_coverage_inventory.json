@@ -1176,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 331,
+      "lineno": 309,
       "methods": [
         "POST"
       ],
@@ -1185,7 +1185,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 241,
+      "lineno": 219,
       "methods": [
         "POST"
       ],
@@ -1194,7 +1194,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "confirm_drawing_receipt",
-      "lineno": 352,
+      "lineno": 330,
       "methods": [
         "POST"
       ],
@@ -1203,7 +1203,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 117,
+      "lineno": 95,
       "methods": [
         "POST"
       ],
@@ -1212,7 +1212,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "link_attachment",
-      "lineno": 204,
+      "lineno": 182,
       "methods": [
         "PATCH"
       ],
@@ -1221,7 +1221,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 444,
+      "lineno": 422,
       "methods": [
         "POST"
       ],
@@ -1230,7 +1230,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 404,
+      "lineno": 382,
       "methods": [
         "POST"
       ],
@@ -1239,7 +1239,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_info",
-      "lineno": 277,
+      "lineno": 255,
       "methods": [
         "PUT"
       ],
@@ -1248,7 +1248,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_items",
-      "lineno": 256,
+      "lineno": 234,
       "methods": [
         "PUT"
       ],
@@ -1257,7 +1257,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 307,
+      "lineno": 285,
       "methods": [
         "POST"
       ],
@@ -1266,7 +1266,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 137,
+      "lineno": 115,
       "methods": [
         "POST"
       ],
