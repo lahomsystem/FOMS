@@ -99,7 +99,7 @@ function mkEl(tag) {
 }
 const dom = {}, menuUnpin = mkEl('button');
 menuUnpin.hidden = true;
-['dws-root', 'dws-v2-slots', 'dws-v2-badges', 'dws-v2-summary', 'dws-v2-templates', 'dws-v2-styles', 'dws-v2-seen', 'dws-v2-toggles',
+['dws-root', 'dws-v2-slots', 'dws-v2-badges', 'dws-v2-summary', 'dws-v2-templates', 'dws-v2-styles', 'dws-v2-size', 'dws-v2-seen', 'dws-v2-toggles',
  'dws-v2-relayout', 'dws-v2-rearrange', 'dws-v2-unpin', 'dws-v2-detail-toggle', 'dws-v2-detail'].forEach(id => { dom[id] = mkEl('div'); dom[id].id = id; });
 dom['dws-v2-detail'].hidden = true;
 global.document = { readyState: 'complete', getElementById: id => dom[id] || null, querySelectorAll: () => [],
@@ -119,7 +119,7 @@ const core = {
 };
 window.FomsWizardCore = core;
 for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
-  'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
+  'v2-size.js', 'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2;
 const img = (id, label, nw, nh, k) => ({ id, type: 'image', key: id + '.png', x: 300 + 24 * k, y: 120 + 24 * k, w: Math.min(900, nw),
   h: Math.round(Math.min(900, nw) * nh / nw), natural_w: nw, natural_h: nh, rotation: 0, part: { label, src: 'ai', conf: 0.8 } });
@@ -279,9 +279,9 @@ def test_templates_css_tools_sticky_banner_and_pins():
     assert ('<button type="button" class="dws-btn dws-v2-uiback" data-dws-ui-switch="v1" '
             'title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>') in v2_block
     assert '<button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>' in v2_block
-    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261027e" in TPL
-    for asset in ("js/drawing/v2-plan.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js", "js/drawing/v2-shell.js"):   # 10-28 그림 크기 스타일
-        assert f"{asset}') }}}}?v=20261028b" in TPL, asset
+    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028a" in TPL                  # 10-28 주 그림 크기 막대
+    for asset, v in (("js/drawing/v2-plan.js", "c"), ("js/drawing/v2-right.js", "c"), ("js/drawing/v2-chrome.js", "c"), ("js/drawing/v2-shell.js", "b")):
+        assert f"{asset}') }}}}?v=20261028{v}" in TPL, asset                             # 10-28 그림 크기 스타일 · 막대
     assert ".dws-v2-auto .dws-appbar-center .dws-seg" not in CSS                       # 자동 배치에도 도구가 보인다
     assert ".dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }" in CSS
     banner = CSS[CSS.index(".dws-v2-banner {"):CSS.index(".dws-v2-banner[hidden]")]
