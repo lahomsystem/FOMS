@@ -178,6 +178,6 @@ def test_assets_pinned_and_check_module_loaded_before_shell():
     assert "js/drawing/v2-left.js') }}?v=20261028a" in TPL
     assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028b" in TPL   # 10-28 알림 띠 탭 줄 · 내 문구 단추
     assert "js/drawing/v2-check.js') }}?v=20261028a" in TPL   # 10-27 작은 고침(장 번호 · ⋯ 메뉴 닫힘)
-    assert "js/drawing/wizard.js') }}?v=20261029a" in TPL    # 10-28 moved · 줄여 그린 그림 고운 필터 · 확대 해상도
+    assert "js/drawing/wizard.js') }}?v=20261029b" in TPL    # 10-28 moved · 줄여 그린 그림 고운 필터 · 확대 해상도
     pos = [TPL.index(f"js/drawing/{name}") for name in ("wizard.js", "v2-check.js", "v2-left.js", "v2-shell.js")]
     assert pos == sorted(pos)
