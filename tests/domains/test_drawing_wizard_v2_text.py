@@ -117,6 +117,9 @@ out.toast = toasts[toasts.length - 1] || '';
 V2.arrange('button', { undo: true }); tick(100);             // 다시 자동 배치(특이 사항 더하기와 같은 길)
 out.kept = JSON.stringify(xs()) === JSON.stringify(want);
 out.unpinText = dom['dws-v2-unpin'].textContent; out.unpinHidden = dom['dws-v2-unpin'].hidden;
+obj('b2').x = obj('b3').x - 10;                              // [EP] 를 [DOOR] 위로 끌어 놓았다 — 뒤 열을 민다
+emit('moved', { ids: ['b2'] }); tick(100);
+out.pushed = gapOk();
 const imgs = sh.objects.filter(o => o.type === 'image'), boxes = ['b1', 'b2', 'b3'].map(id => window.FomsV2Slots.textBox(obj(id)));
 out.clear = imgs.every(o => boxes.every(b => !(o.x < b.x + b.w && b.x < o.x + o.w && o.y < b.y + b.h && b.y < o.y + o.h)));
 V2.unpinAll(); tick(100);
@@ -124,7 +127,7 @@ out.after = { pin: sh.form.v2_pin || null, back: JSON.stringify(xs()) !== JSON.s
 """)
     assert out["slip"] is None and out["pin"] == ["b1", "b2", "b3"], out
     assert "옮긴 글자를 고정했어요" in out["toast"] and "[고정 풀고 모두 다시]" in out["toast"], out
-    assert out["kept"] and out["clear"], out                  # 다시 배치해도 그 자리 · 그림은 비켜 놓인다
+    assert out["kept"] and out["clear"] and out["pushed"], out   # 다시 배치해도 그 자리 · 그림은 비켜 · 옆 열 위에 놓으면 뒤 열을 민다
     assert out["unpinText"] == "고정 풀고 모두 다시 (고정 글자 3)" and out["unpinHidden"] is False, out
     assert out["after"] == {"pin": None, "back": True}, out    # 함께 풀고 칸에 다시 놓는다
 

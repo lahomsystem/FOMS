@@ -10,7 +10,8 @@
  *   달라졌으면 0.45초 뒤 한 번 다시 배치한다(글을 쓰는 중 · 끄는 중이면 기다린다). 시트를 열거나 바꿀 때는 지문만 새로 잡는다.
  *   되돌리기는 글 고치기가 남긴 한 번. 고정된 자재표 줄은 그 자리에서 앞 열에 붙은 열만 오른쪽으로 민다(사람이 벌린 틈은 그대로).
  * - 손으로 6px 넘게 옮기면(자동 배치 모드 · '손으로 옮긴 그림은 고정' 켬): 그 글자를 고정한다 — 자재표는 한 열만 옮겨도 줄 전체, 특이 사항 ·
- *   강조 문구는 그 글자만. 고정 글자는 장애물이 되고(v2-plan) 그림이 겹치면 비켜 다시 놓인다. [고정 풀고 모두 다시]가 함께 푼다(v2-shell).
+ *   강조 문구는 그 글자만. 고정 글자는 장애물이 되고(v2-plan) 그림이 겹치면 비켜 다시 놓인다. 자재표 열을 옆 열 위에 놓으면 뒤 열을
+ *   민다(스테이징 4385 실화면 — [DOOR] 를 끌어 [옷봉] 위에 놓으면 겹친 채 남았다). [고정 풀고 모두 다시]가 함께 푼다(v2-shell).
  *
  * window.FomsV2Text = { init(api), sig(sheet) → 지문 글자, respace(bom) → 민 열 수, pin(sheet, ids) → 새로 고정한 수, WAIT }
  */
@@ -89,8 +90,12 @@
     var ids = ((d && d.ids) || []).filter(function (id) {
       var o = sh.objects.filter(function (x) { return x.id === id; })[0], was = drawn[id];
       return !!o && (!was || Math.abs((o.x || 0) - was[0]) > tol || Math.abs((o.y || 0) - was[1]) > tol);
-    });
-    if (pin(sh, ids)) { api.arrange('pin', {}); }
+    }), mine = heads(sh).filter(function (o) { return ids.indexOf(o.id) >= 0; });
+    if (!mine.length) { return; }
+    pin(sh, ids);
+    var bom = sh.objects.filter(function (o) { return S().role(o) === 'bom'; });
+    if (mine.some(function (o) { return S().role(o) === 'bom'; }) && respace(bom)) { core.markDirty(); core.redraw(); }   // 옆 열 위에 놓았으면 뒤 열을 민다
+    api.arrange('pin', {});   // 이미 고정된 글자를 또 옮겨도 — 그림이 새 자리를 비켜 간다
   }
 
   function init(a) {
