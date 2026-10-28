@@ -1188,6 +1188,7 @@
       });
     });
     group.setAttr('richWidth', Math.round(groupWidth));
+    if (o.w !== Math.round(groupWidth)) { o.w = Math.round(groupWidth); }   // 글자 상자 폭도 그린 폭으로(V2 자재표 간격 — 예전엔 끌어야 맞춰졌다)
     tagNode(group, o);
     group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave && !isLockedNode(group)) { startEditText(group, false); } });
     return group;
@@ -1373,12 +1374,13 @@
     node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); emitMoved([node]); });
   }
 
-  /** 사람이 그림을 끌거나 크기를 바꾸거나 돌리기를 마쳤다 — V2 자동 배치 모드는 고정이 된 그 그림을 비켜 나머지를 다시 놓는다
-      (v2-shell.js · 되돌리기는 끌기 시작이 남긴 한 번). 글자 · 도형만 옮긴 것은 알리지 않는다. */
+  /** 사람이 그림 · 글자를 끌거나 크기를 바꾸거나 돌리기를 마쳤다 — V2 자동 배치 모드는 고정이 된 그 그림을 비켜 나머지를 다시 놓고
+      (v2-shell.js), 칸 머리 위 글자(자재표 · 특이 · 강조)는 고정한다(v2-text.js — 2026-10-28). 되돌리기는 끌기 시작이 남긴 한 번.
+      도형 · 펜만 옮긴 것은 알리지 않는다. */
   function emitMoved(nodes) {
     var ids = (nodes || []).map(function (n) { return n.getAttr('objId'); }).filter(function (id) {
       var o = findObj(id);
-      return !!o && o.type === 'image';
+      return !!o && (o.type === 'image' || o.type === 'text');
     });
     if (ids.length) { emitCore('moved', { ids: ids }); }
   }

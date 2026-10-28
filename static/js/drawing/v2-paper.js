@@ -137,10 +137,15 @@
     return { text: pctText(Math.min.apply(null, ps)), tone: hasMin ? 'orange' : (key === 'main' || key === 'iso' ? 'blue' : 'gray') };
   }
 
-  /** 고정 그림 표시 — 그림 왼쪽 위 '고정'(화면에만). */
+  /** 고정 표시 — 그림 왼쪽 위 '고정', 손으로 옮겨 고정한 칸 머리 위 글자(g.pins — v2-text.js)는 글자 왼쪽 위(자재표는 줄 첫 열만, 화면에만). */
   function drawPins(badges, sheet, g) {
+    var bomDone = false;
     (sheet.objects || []).forEach(function (o) {
       if (o.type === 'image' && g.fixed[o.id]) { badges.appendChild(place(el('span', 'dws-v2-pin', '고정'), (o.x || 0) + 4, (o.y || 0) + 4)); }
+      if (o.type !== 'text' || !g.pins || !g.pins[o.id] || (bomDone && S().role(o) === 'bom')) { return; }
+      var b = boxOf(S().role(o) === 'bom' ? g.bom.filter(function (x) { return g.pins[x.id]; }).sort(function (p, q) { return p.x - q.x; })[0] : o);
+      bomDone = bomDone || S().role(o) === 'bom';
+      badges.appendChild(place(el('span', 'dws-v2-pin dws-v2-pin-text', '고정'), b.x - 2, b.y - 8));   // 글자 윗선에 걸친 작은 딱지
     });
   }
 

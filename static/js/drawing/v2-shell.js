@@ -13,6 +13,7 @@
  * - AI 칸 짐작: AI 이름표가 미분류(세부 확신 낮음)여도 칸 확신이 문턱을 넘으면 폼 v2_ai 에 남겨 그 칸에 놓는다(v2-slots).
  * - 사람이 종류를 고르면(자동 배치 모드) 그 그림의 고정(손으로 옮김)을 풀어 새 종류 칸으로 보낸다 — 잠금 · 돌림은 그대로.
  * - 손으로 끌거나 키워 고정이 된 그림(코어 moved)은 비켜 나머지를 다시 놓는다 — 메인을 키우면 옆 그림과 겹쳤다(주문 4385, 2026-10-28).
+ *   칸 머리 위 글자(자재표 · 특이 · 강조)는 글이 바뀌면 다시 배치하고 손으로 옮기면 고정한다(v2-text.js — 같은 날 '자재 입력 시 간격').
  *
  * window.FomsV2 = { refresh(), arrange(reason, opts), plan(), settings(), setSetting(k, v), mode(), setMode(m, fromUser),
  *   relabel(id, label), selectIds(ids), split(), pickTemplate(t), unpinAll(), core }
@@ -231,6 +232,7 @@
       if (o.type === 'image' && o.part && window.FomsV2Slots.moved(o)) { o.part.arr = [o.x, o.y, o.w, o.h]; }
     });
     sh.form.v2_pick = '';
+    delete sh.form.v2_pin;   // 손으로 옮겨 고정한 칸 머리 위 글자(v2-text.js)도 함께 푼다
     arrange('unpin', {});
   }
 
@@ -284,9 +286,7 @@
       settings: function () { return settings; }, setSetting: setSetting, mode: function () { return mode; }, setMode: setMode,
       relabel: relabel, selectIds: function (ids) { core.select(ids); }, split: split, pickTemplate: pickTemplate, unpinAll: unpinAll
     };
-    if (window.FomsV2Chrome) { window.FomsV2Chrome.init(window.FomsV2); }
-    if (window.FomsV2Left) { window.FomsV2Left.init(window.FomsV2); }
-    if (window.FomsV2Right) { window.FomsV2Right.init(window.FomsV2); }
+    ['FomsV2Chrome', 'FomsV2Left', 'FomsV2Right', 'FomsV2Text'].forEach(function (k) { if (window[k]) { window[k].init(window.FomsV2); } });
     wire();
     setMode(mode);
   }

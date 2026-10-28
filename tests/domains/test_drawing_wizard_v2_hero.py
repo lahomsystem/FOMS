@@ -27,7 +27,8 @@ const rectOf = o => [o.x, o.y, o.w, o.h].join(',');
 
 def test_main_picture_grows_bento_style_and_the_rest_fits_beside_it():
     """사용자 보고(2026-10-28): 메인 컴퍼넌트를 크게(bento grid) — 큰 그림 칸에서 원본 넓이가 두드러지게 큰 그림을 크게,
-    나머지는 남은 자리에 같은 배율로. 위 띠 · 틀 고르기는 그대로, 겹침 없음."""
+    나머지는 남은 자리에 같은 배율로. 틀 고르기는 그대로, 겹침 없음. 같은 날 '공간을 꽉 채워' 뒤로 고르게는 빈자리 채우기(v2-fill)로
+    위 띠가 달라질 수 있다 — 대신 두 스타일 미리보기(alt)가 실제로 놓일 모습과 같다."""
     out = _run(ARRANGE + HERO + r"""
 const on = heroSheet(), off = heroSheet();
 off.form.v2_style = 'even';                              // 시트 스타일 '고르게' = 예전 같은 배율 한 줄
@@ -44,7 +45,9 @@ out.mainPct = Math.abs(a.res.mainPct - sc(on, 'hero')) < 0.01;
 const slot = a.res.slots.find(s => s.key === 'main');
 out.slot = ['g1', 'hero', 'g2'].every(id => { const o = find(on, id);
   return o.x >= slot.x && o.x + o.w <= slot.x + slot.w + 1 && o.y >= slot.y + 24 && o.y + o.h <= slot.y + slot.h + 1; });
-out.band = ['ph', 'd1', 'd2', 'd3', 'p1', 'u1'].every(id => rectOf(find(on, id)) === rectOf(find(off, id)));
+const norm = sl => JSON.stringify(sl.slice().sort((x, y) => (x.key + x.x + ',' + x.y).localeCompare(y.key + y.x + ',' + y.y)));
+out.preview = [a.res.alt.style === 'even' && norm(a.res.alt.slots) === norm(b.res.slots),
+  b.res.alt.style === 'hero' && Math.abs(b.res.alt.mainPct - a.res.mainPct) < 0.001];
 out.key = [a.key, b.key];
 """)
     assert out["hero"] == ["hero"] and out["offHero"] is None
@@ -52,7 +55,7 @@ out.key = [a.key, b.key];
     assert out["overlaps"] == [[], []]
     assert out["restSame"] and out["ratio"] >= 0.5, out   # 나머지는 같은 배율 · 주 그림의 절반 이상
     assert out["inside"] and out["mainPct"] and out["slot"]
-    assert out["band"] and out["key"][0] == out["key"][1]  # 큰 그림 칸만 바뀐다
+    assert out["preview"] == [True, True] and out["key"][0] == out["key"][1]   # 미리보기 = 실제 · 틀은 그대로
 
 
 def test_main_picture_stays_same_scale_when_sizes_are_close_or_floors_hold_the_rest():
@@ -136,7 +139,7 @@ out.overlaps = [overlaps(on), overlaps(off)];
 out.alt = [b.res.alt && b.res.alt.style, Math.abs(b.res.alt.mainPct - a.res.mainPct) < 0.001];
 out.rows = K.rows([{ id: 'a', nw: 490, nh: 403 }, { id: 'b', nw: 512, nh: 371 }, { id: 'c', nw: 436, nh: 237 }], 2, true).map(u => u.members.map(m => m.id));
 """)
-    assert out["bottoms"][0] == 848 and out["bottoms"][1] >= 820, out     # 고르게도 아래가 거의 비지 않는다(예전 695)
+    assert out["bottoms"][0] == 848 and out["bottoms"][1] >= 800, out     # 고르게도 아래가 거의 비지 않는다(예전 695 · 빈자리 벌점 뒤 815)
     assert out["keys"] == ["band", "band"]
     assert min(out["grow"]) >= 1.5, out                                   # 사진 · 평면 212 → 352
     assert out["hero"] == [715, 515], out                                  # 주 그림 크게는 예전 그대로
