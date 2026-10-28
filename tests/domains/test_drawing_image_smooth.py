@@ -100,4 +100,4 @@ def test_image_nodes_use_the_smooth_scene_and_keep_the_original_source():
     assert build.count("node.image(flippedImageSource(") == 2              # 원본(또는 뒤집은 원본) 그대로 — 글자 높이 · 빗금 · 딱지가 읽는다
     konva = TPL.index("vendor/konva.min.js')")
     smooth = TPL.index("js/drawing/image-smooth.js') }}?v=20261028b")
-    assert konva < smooth < TPL.index("js/drawing/wizard.js') }}?v=20261028e")
+    assert konva < smooth < TPL.index("js/drawing/wizard.js') }}?v=20261029a")

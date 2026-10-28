@@ -281,10 +281,10 @@
       });
     });
     inp.area = full;
-    var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); } };
+    var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); },
+      cands: { band: fills.concat(bandF), column: cols.concat(colF) } };   // 주 그림 크게가 견줄 틀(v2-hero heroPick — 점수는 아래 best 가 매긴다)
     function fill(r) { return r.moves.reduce(function (a, m) { return a + (inp.byId[m.id] ? m.w * m.h : 0); }, 0); }
-    // 고르게 쪽 틀(wb · cw): 상세 두 줄 · 빈자리 채우기까지 빈자리 벌점 점수로, 같으면 그림 넓이 합이 큰 틀. 주 그림 크게가 다시 놓을 틀(bb · cb)은
-    // 예전 점수(빈 높이는 주 그림 몫 — v2-hero choose). 추천 틀은 고르게 쪽 점수 — 스타일과 상관없어 미리보기와 같다.
+    // 고르게 쪽 틀(wb · cw): 빈자리 벌점 점수로, 같으면 그림 넓이 합이 큰 틀. 주 그림 크게의 바탕 틀(bb · cb)은 예전 점수. 추천은 고르게 쪽 점수.
     var raw = Object.assign({}, o, { raw: true }), bb = best(bands, inp, raw), cb = best(cols, inp, raw);
     var wb = best(fills.concat(bandF), inp, o, fill), cw = best(cols.concat(colF), inp, o, fill), pre = { b: wb ? wb.score : null, c: cw ? cw.score : null };
     var out = H ? { band: H.choose(bb, wb, inp, o, kit), column: H.choose(cb, cw, inp, o, kit) } : { band: bb, column: cb };

@@ -1212,7 +1212,8 @@
       } else {
         var img = cached || new Image();
         _annoImgCache[o.key] = img;
-        img.onload = function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); };
+        // 같은 그림 둘(Ctrl+J 사본)이 함께 기다릴 수 있다 — onload 를 덮으면 앞 칸이 다음 편집 전까지 빈 틀로 남았다(스테이징 실화면 2026-10-29)
+        img.addEventListener('load', function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); }, { once: true });
         img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
         if (!img.src) { img.src = viewUrl(o.key); }
       }
