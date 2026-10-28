@@ -105,6 +105,10 @@ out.switched = obj('b2').x === sh.objects.find(o => o.id === 'b2').x;
 def test_moved_header_text_is_pinned_kept_on_rearrange_and_unpinned_by_unpin_all():
     out = _run_ui(HEAD, BOM + r"""
 const sh = laidBom();
+obj('b2').x += 4;                                            // 더블클릭하다 손이 4px 밀렸다 — 고정이 아니다
+emit('moved', { ids: ['b2'] }); tick(100);
+out.slip = sh.form.v2_pin || null;
+obj('b2').x -= 4; emit('render'); tick(10);
 obj('b2').x += 40; obj('b3').x += 80;                        // 손으로 간격을 벌렸다(끌기 끝 → 엔진 moved)
 const want = xs();
 emit('moved', { ids: ['b2'] }); tick(100);
@@ -118,7 +122,7 @@ out.clear = imgs.every(o => boxes.every(b => !(o.x < b.x + b.w && b.x < o.x + o.
 V2.unpinAll(); tick(100);
 out.after = { pin: sh.form.v2_pin || null, back: JSON.stringify(xs()) !== JSON.stringify(want) };
 """)
-    assert out["pin"] == ["b1", "b2", "b3"], out
+    assert out["slip"] is None and out["pin"] == ["b1", "b2", "b3"], out
     assert "옮긴 글자를 고정했어요" in out["toast"] and "[고정 풀고 모두 다시]" in out["toast"], out
     assert out["kept"] and out["clear"], out                  # 다시 배치해도 그 자리 · 그림은 비켜 놓인다
     assert out["unpinText"] == "고정 풀고 모두 다시 (고정 글자 3)" and out["unpinHidden"] is False, out
