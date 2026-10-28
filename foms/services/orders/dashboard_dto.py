@@ -22,6 +22,7 @@ from foms.services.erp_mobile_order_display import (
 from foms.services.estimate_service import build_measurement_manager_phone_map
 from foms.services.orders.board_state_display import build_board_state
 from foms.services.auth.partner_scope import partner_mark_name
+from foms.services.partners.schedule_request import pending_request, request_text
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
@@ -103,6 +104,10 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'channel_source': 'NAVER' if sd.get('source') == SOURCE_MARKER else None,
             # PARTNER-02: 외부 협력사 주문 표식(협력사 이름). 협력사 주문이 아니면 None.
             'partner_name': partner_mark_name(o, sd),
+            # 협력사 희망 시공일(우리 시공일 확정 전만) — 시공일 칸 아래 "확정 대기" 한 줄.
+            'partner_requested_construction': (
+                request_text(pending_request(sd, stage_code)) if getattr(o, 'partner_org_id', None) else ''
+            ),
             'manager_phone': resolve_manager_phone_for_queue(
                 parties, order=o, manager_phone_map=manager_phone_map
             ),

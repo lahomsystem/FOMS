@@ -435,6 +435,9 @@
                     -
                     {% endif %}
                     {% endif %}
+                    {% if o.partner_requested_construction %}
+                    <div class="small text-primary fw-normal mt-1" data-erp-partner-requested-construction><i class="fas fa-handshake" aria-hidden="true"></i> 협력사 희망 {{ o.partner_requested_construction }} · 확정 대기</div>
+                    {% endif %}
                   </td>
                   <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">
                     {% if o.is_unassigned_intake %}

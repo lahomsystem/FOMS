@@ -80,7 +80,9 @@ def home():
         me=g.current_user,
         members=members,
         filters=filters,
-        cal=partner_construction_calendar(db, org.id, request.args.get("cal")),
+        # 달력은 걸러 보지 않는 "주문" 첫 화면에만 — 탭(도면 확인 · 완공 · AS) · 칩으로 거르면 달력이 휴대폰
+        # 화면을 다 덮어 목록이 바뀐 게 안 보였다(사용자 2026-10-28).
+        cal=None if any(filters.values()) else partner_construction_calendar(db, org.id, request.args.get("cal")),
         cal_url=url_for("partner_portal.home"),
         **board,
     )
