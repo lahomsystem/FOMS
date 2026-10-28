@@ -191,9 +191,9 @@ def test_laid_sheet_paper_heads_and_left_cards_use_reading_order_letters():
         case = out[name]
         assert case["layout"] == ("column" if name == "column" else "band"), (name, case["layout"])
         # 2026-10-28 빈자리 채우기(v2-fill): 평면(왼쪽 기둥형) · 상세와 평면(위 띠형)이 큰 그림 칸 빈자리로 가 읽는 순서가 바뀐다.
-        # 주방: 정면 줄 옆 빈자리에 평면, 그 아래 입체 줄, 입체 옆에 상세.
+        # 주방: 정면 줄 옆 빈자리에 평면, 그 아래 입체 줄. 10-29 띠형은 위 띠 자재 · 특이 밑 빈자리도 찾아 상세가 입체보다 위(C)로.
         want = {"column": {"detail": "A", "main": "B", "plan": "C"}, "band": {"main": "A", "plan": "B", "detail": "C"},
-                "kitchen": {"main": "A", "plan": "B", "iso": "C", "detail": "D"}}[name]
+                "kitchen": {"main": "A", "plan": "B", "detail": "C", "iso": "D"}}[name]
         # 예전: 큰 그림 A · 상세 B · 평면 C · 기타 D — 틀에 따라 종이 위 순서가 B → A → D, 그 밑 C 로 뒤섞였다
         assert case["letters"] == want, (name, case["letters"])
         assert all(case["headAtSlot"].values()), (name, case["headAtSlot"])     # 글자 딱지 = 그 칸 머리

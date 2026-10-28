@@ -8,7 +8,7 @@
  * - 띠 높이 · 기둥 폭을 여러 값으로 재 본다. 점수 = 가장 작은 그림 % + 큰 그림 %의 절반 − 치수 글자 하한 벌점 − 빈자리 벌점(v2-fill penalty).
  *   % = 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이 — input.base), 없으면 원본 대비.
  *   치수 글자가 8px 밑이거나 가장 작은 그림이 60% 밑이면 crowded(나누기를 권함 — 80% 는 그림 넷뿐인 시트에도 권했다, 2026-10-26).
- * - 빈자리 채우기(2026-10-28 '공간을 꽉 채워' — v2-fill.js): 평면 · 상세를 큰 그림 칸이 남긴 빈 사각형으로 옮긴 틀도 재 본다.
+ * - 빈자리 채우기(2026-10-28 '공간을 꽉 채워' — v2-fill.js): 평면 · 상세를 빈 사각형으로 옮긴 틀도 재 본다(띠형은 위 띠 자재 · 특이 밑까지 — 10-29).
  * - 장애물(input.obstacles = 그 자리에 남는 고정 그림 · 잠긴 글자)이 있으면 종이 칸 그대로와 장애물을 뺀 빈 사각형 중 큰 셋에서 틀을 재고,
  *   장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room — 스테이징 주문 4385, 2026-10-27).
  * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
@@ -171,7 +171,7 @@
     });
     if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
     var y = A.y0 + (anyBand ? Hb + GAP : 0), room = P.room(A.x0, y, W, A.y1 - y, inp.obstacles, big.groups, same);
-    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, { x: A.x0, y: A.y0, w: W, h: A.y1 - A.y0 }, same, big) ? res : null;
   }
 
   /** 왼쪽 기둥형 — 기둥 폭 Wc. */

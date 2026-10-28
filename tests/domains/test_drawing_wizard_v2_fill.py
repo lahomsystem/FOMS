@@ -124,3 +124,23 @@ out.after = calls;
 L.compute = real;
 """)
     assert out == {"same": True, "calls": 1, "after": 2}, out
+
+
+def test_band_fills_the_empty_space_under_materials_and_notes_in_the_top_band():
+    """사용자 질문 창 답(2026-10-29 '띠형 빈칸도 고치고 올려'): 띠형을 고르면 위 띠의 자재표 · 특이 사항 칸이 사진 · 평면보다 낮아
+    그 밑이 통째로 비었다(스테이징 4385 띠형 빈칸 17%). 띠형은 옮긴 칸(상세 · 평면)을 종이 칸 전체 빈자리에서 찾는다 — 위 띠
+    자재 · 특이 밑으로 들어가고 글자(자재 · 특이 · 강조)와 겹치지 않는다."""
+    out = _run(INPUT_4385 + r"""
+const o = { prefer: 'band', hero: false };
+const now = L.compute(copy(), o).band, none = without(() => L.compute(copy(), o).band);
+const isText = m => /^(b\d|n-|st-)/.test(m.id), pics = now.moves.filter(m => !isText(m)), texts = now.moves.filter(isText);
+out.now = { fill: now.fillKeys || null, blank: F.blank(now, A, []), photo: (now.moves.find(m => m.id === 'ph') || {}).h, inside: inside(now),
+  top: ['d1', 'd2', 'd3', 'p1', 'p2'].filter(id => { const m = now.moves.find(x => x.id === id); return m && m.y + m.h <= now.big.y; }),
+  textClash: texts.reduce((n, t) => n + pics.filter(p => hit(t, p)).length, 0), clashes: clashes(now) };
+out.none = { blank: F.blank(none, A, []), photo: (none.moves.find(m => m.id === 'ph') || {}).h };
+""")
+    n, z = out["now"], out["none"]
+    assert n["fill"] and set(n["top"]) >= {"d1", "d2", "d3"}, n          # 상세가 위 띠(큰 그림 칸 위)로
+    assert n["blank"] < 0.06 and n["blank"] < z["blank"] - 0.05, (n, z)  # 빈칸이 크게 준다
+    assert n["photo"] >= 300, n                                          # 위 띠가 넉넉해져 사진도 커진다
+    assert n["textClash"] == 0 and n["clashes"] == [] and n["inside"], n

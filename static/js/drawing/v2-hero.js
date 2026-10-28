@@ -129,7 +129,7 @@
     })), slots: work.slots.filter(function (s) { return !keys[s.key]; }).concat(bt.slots.map(function (s) {
       return { key: s.key, x: Math.round(B.x + s.x), y: Math.round(B.y + s.y), w: Math.round(s.w), h: Math.round(s.h) };
     })) };
-    if (mv && !window.FomsV2Fill.place(grown, inp, mv, B, same, kit.groups)) { return res; }   // 옮긴 칸이 들어갈 빈자리가 없으면 안 키운다
+    if (mv && !window.FomsV2Fill.place(grown, inp, mv, res.fillRoom || B, same, kit.groups)) { return res; }   // 옮긴 칸이 들어갈 빈자리가 없으면 안 키운다
     if (o.hero === false) {   // 고르게 — 키운 모습은 미리보기로만(숫자는 heroPick 이 틀을 견줄 때)
       var look = kit.score(Object.assign({}, res, grown));
       res.alt = { style: 'hero', slots: look.slots, mainPct: look.mainPct, minPct: look.minPct, minText: look.minText, score: look.score,
