@@ -155,7 +155,9 @@
     var busy = false;
     button.addEventListener('click', async function () {
       if (busy) return;
-      if (!window.confirm('이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.')) return;
+      // 같은 단추 모양이 "도면 확인했어요"(받음)에도 쓰인다 — 물음 글은 단추가 준다.
+      var question = button.getAttribute('data-pp-approve-confirm') || '이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.';
+      if (!window.confirm(question)) return;
       busy = true;
       button.disabled = true;
       setStatus('보내는 중…');

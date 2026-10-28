@@ -56,18 +56,24 @@ class PartnerOrderError(ValueError):
     """협력사 화면에 그대로 보여 줄 수 있는 입력 오류."""
 
 
-def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_confirmed: bool | None = None) -> str:
+def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_confirmed: bool | None = None,
+                        drawing_sent: bool | None = None) -> str:
     """쉬운 단계. AS 건이 열려 있으면(접수·진행) 단계와 무관하게 "AS 진행 중".
 
     ``drawing_confirmed`` 를 주면 고객컨펌 단계라도 도면이 확정(``drawing_status == CONFIRMED``)되지 않았을 때
     "도면 작업 중"이다 — 협력사가 수정 요청을 보낸 뒤(RETURNED)나 다시 올린 도면을 우리가 아직 확인하기 전은
     협력사 차례가 아니다(PARTNER-FOMS 6 §1-9).
+
+    ``drawing_sent`` 를 주면 도면 단계라도 저희가 보낸 도면(``drawing_status == TRANSFERRED``)은 "도면 확인 대기"다 —
+    협력사가 FOMS 영업처럼 확인(받음) 또는 수정 요청할 차례(사용자 2026-10-28).
     """
     if str(as_axis_status or "").upper() in ("RECEIVED", "IN_PROGRESS"):
         return "AS 진행 중"
     stage = str(stage_code or "").upper()
     if stage == "CONFIRM" and drawing_confirmed is False:
         return "도면 작업 중"
+    if stage == "DRAWING" and drawing_sent:
+        return "도면 확인 대기"
     return _PARTNER_STAGE_LABELS.get(stage, "접수 확인 중")
 
 
