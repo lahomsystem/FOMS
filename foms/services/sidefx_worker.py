@@ -55,6 +55,8 @@ WORKER_KIND_NAVER_ORDER_SYNC = "NAVER_ORDER_SYNC"
 WORKER_KIND_NAVER_SETTLE_SYNC = "NAVER_SETTLE_SYNC"
 WORKER_KIND_RQ_WORKER = "RQ_WORKER"
 WORKER_KIND_SHARE_CONSULT_SMS = "SHARE_CONSULT_SMS"
+# AI 상담팀원 감시 루프(설계서 2026-10-27-cs-ai-agent 3.2 · 원장 R1-17 — 새 루프는 kind 를 따로 등록한다).
+WORKER_KIND_CS_LOOP = "CS_LOOP"
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,9 @@ WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
     # '상담 먼저' 카톡 실패 → 링크 문자(tick 60초) → 3틱.
     WORKER_KIND_SHARE_CONSULT_SMS: WorkerKindSpec(
         WORKER_KIND_SHARE_CONSULT_SMS, max_heartbeat_age=180),
+    # AI 상담팀원 감시 루프(바퀴 간격 900초 — 플랜 C1-3) → 3틱. 바퀴는 그 간격을 metadata 로 신고한다.
+    WORKER_KIND_CS_LOOP: WorkerKindSpec(
+        WORKER_KIND_CS_LOOP, max_heartbeat_age=2700),
 }
 
 DEFAULT_LEASE_SECONDS = 60

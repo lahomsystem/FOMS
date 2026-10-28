@@ -142,6 +142,14 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
             python, "scripts/maintenance/run_geocode_sweep.py", "--loop",
             "--interval", _env(env, "FOMS_GEOCODE_SWEEP_INTERVAL_SECONDS", "60"), "--json")))
 
+    # AI 상담팀원 감시 루프(설계서 2026-10-27-cs-ai-agent 3.2 · 플랜 C1-3). 두 브랜드 상담을 읽기만 하고(채널톡 GET 만)
+    # 아침 보고 · 약속 넘김 · 웹훅 경보를 FOMS 앱 안 알림으로 낸다 — 채널톡 쓰기 · AI · RQ 없음. 15분 바퀴, 기본 off.
+    # 바로 끄기는 SystemSetting(매 바퀴 읽음) — env 는 켜기용이라 간격 env 도 두지 않는다. 바퀴는 대표 잠금으로
+    # 하나씩 돌고(재배포 겹침) TERM 을 받으면 쓰기를 시작하지 않고 끝난다.
+    if env.get("FOMS_CS_LOOP_ENABLED") == "1":
+        jobs.append(Job("cs_loop", (
+            python, "scripts/maintenance/run_cs_loop.py", "--loop", "--interval", "900", "--json")))
+
     # 큐 소비 본체. `rq worker` CLI 대신 러너를 쓰는 이유: rq 하트비트 자리에서 RQ_WORKER 행을
     # side_effect_worker_heartbeats 에 함께 남긴다(2026-02 워커 offline 을 표만 봐서 몰랐다).
     # 루프는 전부 rq 뒤로 미룬다. 수집·정산은 같은 결과, 자동발송은 DB 로 하루 1회가 막혀 있어
