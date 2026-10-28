@@ -56,8 +56,10 @@ def test_part_labels_match_server_and_browser():
     wizard_labels = _js_list(JS["wizard"], "var PART_LABELS")
     ai_labels = _js_list(JS["part_ai"], "var LABELS")
     assert wizard_labels == server
-    # 브라우저 AI 는 '미분류'를 따로 붙인다(LABELS + UNSURE = 숫자키 1~9, 0)
-    assert ai_labels + ["미분류"] == server
+    # 숫자키 1~9 = 브라우저 AI 의 아홉(머리 순서), 0 = 미분류(맨 끝). 탑뷰 · 사이드뷰(2026-10-28 사용자 요청)는 머리가 아직 몰라
+    # 숫자키 없이 그 사이 — 사람이 고르면 기억(part-memory)이 따르고, 다시 가르치면(tools/drawing_ai) 머리에 들어온다.
+    assert server[:9] == ai_labels and server[-1] == "미분류"
+    assert server[9:-1] == ["탑뷰", "사이드뷰"]
 
 
 def test_head_json_shape_matches_browser_contract():

@@ -260,7 +260,9 @@ def test_help_lists_part_number_keys_first_in_label_order():
     body = TEMPLATE.read_text(encoding="utf-8").split('id="dws-help"', 1)[1]
     group = body.split("그림 종류 숫자키", 1)[1].split("</section>", 1)[0]
     pairs = re.findall(r"<dt><kbd>(\d)</kbd></dt><dd>([^<]+)</dd>", group)
-    assert pairs == [(str((i + 1) % 10), label) for i, label in enumerate(wizard_api._PART_LABELS)]
+    labels = list(wizard_api._PART_LABELS)
+    assert pairs == [(str(i + 1), label) for i, label in enumerate(labels[:9])] + [("0", "미분류")]   # 숫자키는 앞 아홉 · 0 = 미분류
+    assert "<dt>탑뷰 · 사이드뷰</dt><dd>숫자키 없음" in group                                           # 새 분류(2026-10-28)는 종류 칸에서
     assert "<kbd>Enter</kbd>" in group and "맞음" in group
     assert body.index("그림 종류 숫자키") < body.index('dws-help-group-title">도구<')   # 앞쪽(기본 다음)
     assert "고른 그림의 종류 정하기" not in body                      # 예전 '1~9 · 0' 한 줄은 이 묶음으로 옮김

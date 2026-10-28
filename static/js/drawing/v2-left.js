@@ -20,7 +20,7 @@
   if (window.FomsV2Left) { return; }
 
   var api = null, els = {}, tab = 'slots', DRAG = 'application/x-dws-v2-id';
-  var FRONT_ISO = ['정면·내부', '정면·도어', '입체·내부', '입체·도어'];
+  var FRONT_ISO = ['정면·내부', '정면·도어', '입체·내부', '입체·도어'], PLAN = ['평면·상판', '탑뷰'];   // 탑뷰 · 사이드뷰 2026-10-28
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -105,11 +105,11 @@
   function dropTo(card, slot, id, view) {
     var cur = view.plan.g.labels[id];
     if (slot === 'photo') { api.relabel(id, '사진'); return; }
-    if (slot === 'plan') { api.relabel(id, '평면·상판'); return; }
+    if (slot === 'plan') { if (PLAN.indexOf(cur) < 0) { chooser(card, id, PLAN); } return; }
     if (slot === 'unsorted') { api.relabel(id, '미분류'); return; }
     if (slot === 'detail') { api.relabel(id, cur === '서랍 단면' || cur === '부품 상세' ? cur : '부품 상세'); return; }
     if (slot === 'main' || slot === 'iso') {
-      var opts = view.plan.kitchen ? (slot === 'main' ? FRONT_ISO.slice(0, 2) : FRONT_ISO.slice(2)) : FRONT_ISO;
+      var opts = view.plan.kitchen ? (slot === 'main' ? FRONT_ISO.slice(0, 2).concat(['사이드뷰']) : FRONT_ISO.slice(2)) : FRONT_ISO.concat(['사이드뷰']);
       if (opts.indexOf(cur) >= 0) { return; }
       chooser(card, id, opts);
     }

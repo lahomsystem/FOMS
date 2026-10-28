@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_BASE = 'https://lahom-production.up.railway.app'
 TOKEN_ENV = 'FOMS_DRAWING_AGENT_TOKEN'
-LABELS = ('정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류')
+LABELS = ('정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님', '탑뷰', '사이드뷰', '미분류')
 FEAT_DIM = 768
 EXIT = {404: 2, 401: 3}
 
