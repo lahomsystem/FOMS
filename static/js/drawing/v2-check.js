@@ -21,7 +21,7 @@
   if (window.FomsV2Check) { return; }
 
   var FRONT = ['정면·내부', '정면·도어'], ISO = ['입체·내부', '입체·도어'];
-  var ALL = FRONT.concat(ISO, ['평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님']);
+  var ALL = FRONT.concat(['사이드뷰'], ISO, ['평면·상판', '탑뷰', '서랍 단면', '부품 상세', '사진', '그림 아님']);   // 사이드뷰 · 탑뷰 2026-10-28
   var ROW = 80, PAD = 6;   // 읽는 순서 한 줄 높이(part-status.js 와 같다) · 짚는 테가 그림 밖으로 나오는 여백(스테이지 px)
   var CHIP_TITLE = '왼쪽 \'확인할 그림\' 상자로 — 그림을 보고 종류를 골라요';
   var api = null, els = { ids: [] }, sig = null, want = null, pointed = null, lastShown = null;
@@ -51,6 +51,7 @@
     var famOf = (window.FomsV2Slots && window.FomsV2Slots.FAM_OF) || {}, fam = gs ? gs.fam : famOf[p.ai];
     function add(l) { if (ALL.indexOf(l) >= 0 && out.indexOf(l) < 0) { out.push(l); } }
     add(p.ai);
+    if (p.ai === '평면·상판') { add('탑뷰'); }   // 위에서 본 그림 — AI 는 아직 탑뷰를 몰라 평면·상판으로 짐작한다
     if (fam === 'd') { add('서랍 단면'); add('부품 상세'); }
     if (fam === 'f' || fam === 'i') {
       (fam === 'f' ? FRONT : ISO).forEach(add);

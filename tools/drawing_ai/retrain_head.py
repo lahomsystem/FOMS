@@ -117,12 +117,20 @@ def cmd_train(args) -> int:
     data = Path(args.data)
     head = json.loads(Path(args.head).read_text(encoding='utf-8'))
     labels = list(head['labels'])
-    X, meta = load_dataset(data, labels)
+    fresh = [lab for lab in rd.NEW_LABELS if lab not in labels]
+    X, meta = load_dataset(data, labels + fresh)
+    counts = {lab: sum(1 for r in meta if r['label'] == lab) for lab in fresh}
+    extra = [lab for lab in fresh if counts[lab] >= args.min_new]   # 사람 기록이 모자란 새 분류는 이번엔 빼고 다음에
+    keep = [i for i, r in enumerate(meta) if r['label'] in labels or r['label'] in extra]
+    X, meta, labels = X[keep], [meta[i] for i in keep], labels + extra
     corrections = sum(1 for r in meta if r['corrected'])
     if corrections < args.min_corrections:
         _say(f'[train] 고친 기록 {corrections}건 — {args.min_corrections}건 이상일 때 가르칩니다.')
         return 2
     W0, b0 = np.array(head['W'], float), np.array(head['b'], float)
+    if extra:   # 새 분류 줄은 0 에서 출발(가까이 당기는 벌점도 0 쪽) · 처음 치우침은 지금 판에서 가장 낮은 값
+        W0 = np.vstack([W0, np.zeros((len(extra), W0.shape[1]))])
+        b0 = np.concatenate([b0, np.full(len(extra), float(b0.min()))])
     if X.shape[1] != W0.shape[1]:
         _say(f'[train] 특징 차원 {X.shape[1]} 이 지금 판 {W0.shape[1]} 과 다릅니다 — 멈춥니다.')
         return 2
@@ -141,7 +149,7 @@ def cmd_train(args) -> int:
     verdict = rm.judge(cur, cand, args.min_test, args.min_family, args.kitchen_gain)
     train_meta = [m for m, t in zip(meta, tr) if t]
     rep = {
-        'base': head.get('version'), 'lambda': lam, 'lambda_scores': {str(k): v for k, v in scores.items()},
+        'base': head.get('version'), 'new_labels': extra, 'new_counts': counts, 'lambda': lam, 'lambda_scores': {str(k): v for k, v in scores.items()},
         'train': {'n': int(tr.sum()), 'human': sum(r['src'] == 'user' for r in train_meta),
                   'confirmed': sum(r['src'] == 'ai' for r in train_meta), 'corrections': corrections},
         'test': {'current': cur, 'candidate': cand}, 'verdict': verdict,
@@ -153,7 +161,7 @@ def cmd_train(args) -> int:
         trained_on = {'n': int(tr.sum()), 'per_label': per_label, 'from': head.get('version'),
                       'from_n': (head.get('trained_on') or {}).get('n'), 'lambda': lam,
                       'human': rep['train']['human'], 'confirmed': rep['train']['confirmed']}
-        new_head = rm.export_head(W, b, head, trained_on)
+        new_head = rm.export_head(W, b, head, trained_on, labels=labels)
         Path(args.out).write_text(json.dumps(new_head, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
         rep.update(written=str(args.out), new_version=new_head['version'])
     (data / 'report.json').write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding='utf-8')
@@ -183,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument('--head', default=str(DEFAULT_HEAD))
     t.add_argument('--out', help='판정 통과 때 새 판을 쓸 파일')
     t.add_argument('--min-corrections', type=int, default=100)
+    t.add_argument('--min-new', type=int, default=20, help='머리에 없는 새 분류(탑뷰 · 사이드뷰)를 더할 사람 기록 장수')
     t.add_argument('--min-test', type=int, default=30)
     t.add_argument('--min-family', type=int, default=10)
     t.add_argument('--kitchen-gain', type=float, default=0.01)

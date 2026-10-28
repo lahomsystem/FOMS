@@ -123,5 +123,18 @@
     return out;
   }
 
-  window.FomsV2Hero = { pack: pack, refine: refine, LEAD: LEAD, RATIO: RATIO, GAIN: GAIN, RMIN: RMIN };
+  /** 틀 고르기 끝(v2-layout compute): 주 그림을 키우면 원래 틀(plain), 안 키우는 시트(고르게 · 두드러진 그림 없음)는 여백을 덜 남기는 틀(filled).
+      미리보기(alt) · 막대 범위(size)는 원래 틀 값 — 주 그림 크게로 바꾸면 그 틀에서 키운다. */
+  function choose(plain, filled, inp, o, kit) {
+    var r = plain ? refine(plain, inp, o, kit) : null;
+    if (r && (r.hero || !filled || filled === plain)) { return r; }
+    var f = filled ? refine(filled, inp, o, kit) : null;
+    if (!f || !r) { return f || r; }
+    if (f.hero) { return r; }
+    f.alt = r.alt;
+    f.size = r.size;
+    return f;
+  }
+
+  window.FomsV2Hero = { pack: pack, refine: refine, choose: choose, LEAD: LEAD, RATIO: RATIO, GAIN: GAIN, RMIN: RMIN };
 })();

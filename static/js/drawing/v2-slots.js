@@ -8,6 +8,8 @@
  * - 고정 = 잠금 · 돌림 · (lockMoved 일 때) 자동 배치가 놓은 자리(part.arr)에서 사람이 옮긴 그림 — 배치가 옮기지 않는다.
  *   옮김은 6px 넘게(MOVE_TOL): 그림을 누르다 손이 조금 밀려도 Konva 는 3px 부터 끌기로 친다 — 1px 로 재던 때는 누르기만 해도
  *   고정이 되어 다시 배치가 그 그림을 건너뛰었다(스테이징 주문 4385, 2026-10-27).
+ *   고정끼리 겹치면 배치가 둘 다 안 옮겨 겹친 채 남았다(4385, 2026-10-28 '다시 자동 배치를 눌러도 재배치가 안 돼') — clashes 가 풀 그림을 고른다:
+ *   방금 옮긴 그림(keep) · 잠금 · 돌린 그림이 이기고, 나머지 고정은 넓이 큰 쪽부터 남기며 남긴 것과 겹치면 푼다(release = 지금 자리를 배치 자리로).
  * - 주방이면 큰 그림을 정면 · 입체 두 칸으로 나눈다(kitchen).
  * - AI 칸 짐작(opts.guess = form.v2_ai): 세부 종류 확신은 낮아도(미분류) 칸 확신(큰 그림 = 정면 + 입체 확률 합,
  *   상세 = 서랍 단면 + 부품 상세 합)이 문턱을 넘은 그림은 그 칸에 놓는다. 이름표는 미분류 그대로 — 사람이 고르기 전까지 '확인'.
@@ -15,7 +17,7 @@
  * - 칸 글자(letters): 칸으로 정리한 시트는 종이 위 칸 상자를 왼쪽 위부터 읽는 순서로 A, B, C… — 큰 그림부터 붙였더니
  *   틀에 따라 상세가 왼쪽에 와서 종이 위 순서가 B → A → D, 그 밑 C 로 뒤섞였다(생산팀이 'B 그림'을 찾기 어렵다, 2026-10-27).
  *
- * window.FomsV2Slots = { group(objects, opts) → g, role(o), noteKind(o), textBox(o), isFixed(o, opts), moved(o),
+ * window.FomsV2Slots = { group(objects, opts) → g, role(o), noteKind(o), textBox(o), isFixed(o, opts), moved(o), clashes(objects, opts, keep) → [id], release(objects, ids),
  *   detectKind(productText), KINDS, letters(g, kitchen, laid), slotBox(g, key), readOrder(items), title(key, g, kitchen),
  *   parseGuess(text), formatGuess(map, objects) }
  *   g = { photo, main, iso, detail, plan, unsorted (그림 객체 배열), bom, notes (글자), stamp (글자|null), free, fixed: {id:true},
@@ -25,7 +27,7 @@
   'use strict';
   if (window.FomsV2Slots) { return; }
 
-  var FRONT = { '정면·내부': 1, '정면·도어': 1 };
+  var FRONT = { '정면·내부': 1, '정면·도어': 1, '사이드뷰': 1 };   // 사이드뷰(2026-10-28)는 정면 칸에 같은 배율로
   var ISO = { '입체·내부': 1, '입체·도어': 1 };
   var DETAIL = { '서랍 단면': 1, '부품 상세': 1 };
   // AI 칸 짐작 글자 — f 정면 · i 입체 · d 상세. 짐작 칸에 놓을 때 AI 첫 짐작이 다른 칸이면 대표 이름표로 놓는다.
@@ -90,6 +92,21 @@
     return !!o.locked || rotated(o) || (p.lockMoved !== false && moved(o));
   }
 
+  function overlap(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+
+  function clashes(objects, opts, keep) {
+    var k = keep || [], imgs = (objects || []).filter(function (o) { return o.type === 'image' && isFixed(o, opts); }), won = [], out = [];
+    var free = imgs.filter(function (o) { var stay = o.locked || rotated(o) || k.indexOf(o.id) >= 0; if (stay) { won.push(o); } return !stay; });
+    free.sort(function (a, b) { return b.w * b.h - a.w * a.h; }).forEach(function (o) {
+      if (won.some(function (w) { return overlap(o, w); })) { out.push(o.id); } else { won.push(o); }
+    });
+    return out;
+  }
+
+  function release(objects, ids) {
+    (objects || []).forEach(function (o) { if ((ids || []).indexOf(o.id) >= 0 && o.part) { o.part.arr = [o.x, o.y, o.w, o.h]; } });
+  }
+
   function labelOf(o, opts) {
     var p = (o && o.part) || {};
     var label = p.label || '미분류';
@@ -104,7 +121,7 @@
     if (FRONT[label]) { return 'main'; }
     if (ISO[label]) { return kitchen ? 'iso' : 'main'; }
     if (DETAIL[label]) { return 'detail'; }
-    if (label === '평면·상판') { return 'plan'; }
+    if (label === '평면·상판' || label === '탑뷰') { return 'plan'; }
     return 'unsorted';
   }
 
@@ -158,12 +175,12 @@
     var have = {};
     (g[key] || []).forEach(function (o) {
       var l = (g.lay && g.lay[o.id]) || g.labels[o.id], f = FAM_OF[l];
-      have[f === 'f' ? '정면' : (f === 'i' ? '입체' : l)] = true;
+      have[f === 'f' ? '정면' : (f === 'i' ? '입체' : String(l).replace('·', ' · '))] = true;
     });
     function pick(names) { return names.filter(function (n) { return have[n]; }).join(' · '); }
-    if (key === 'main' || key === 'iso') { return pick(['정면', '입체']) || (key === 'iso' ? '입체' : (kitchen ? '정면' : '큰 그림')); }
+    if (key === 'main' || key === 'iso') { return pick(['정면', '사이드뷰', '입체']) || (key === 'iso' ? '입체' : (kitchen ? '정면' : '큰 그림')); }
     if (key === 'detail') { return pick(['서랍 단면', '부품 상세']) || '상세'; }
-    if (key === 'plan') { return '평면 · 상판'; }
+    if (key === 'plan') { return pick(['탑뷰', '평면 · 상판']) || '평면 · 상판'; }
     if (key === 'photo') { return '실측 사진'; }
     return '기타 그림';
   }
@@ -220,7 +237,7 @@
   }
 
   window.FomsV2Slots = {
-    group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved, MOVE_TOL: MOVE_TOL,
+    group: group, role: role, noteKind: noteKind, textBox: textBox, isFixed: isFixed, moved: moved, MOVE_TOL: MOVE_TOL, clashes: clashes, release: release,
     detectKind: detectKind, KINDS: KINDS, letters: letters, slotBox: slotBox, readOrder: readOrder, slotOf: slotOf, isBom: isBom,
     title: title, parseGuess: parseGuess, formatGuess: formatGuess, FAM_OF: FAM_OF
   };

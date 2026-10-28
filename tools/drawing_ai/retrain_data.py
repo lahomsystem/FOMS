@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 LABELS = ('정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님')
+#: 머리(h1)가 아직 모르는 분류(2026-10-28 사용자 요청) — 사람 기록을 모아 두고, 다시 가르칠 때 --min-new 장 넘으면 머리에 더한다.
+NEW_LABELS = ('탑뷰', '사이드뷰')
 UNSURE = '미분류'
 USER_WEIGHT = 1.0
 CONFIRMED_WEIGHT = 0.5
@@ -64,7 +66,7 @@ def _image_parts(sheet: dict) -> Iterable[tuple[dict, dict]]:
 
 def _record(order_id: int, sheet: dict, obj: dict, part: dict, family: str, delivered: bool) -> Optional[dict]:
     label, src = part.get('label'), part.get('src')
-    if label not in LABELS:
+    if label not in LABELS + NEW_LABELS:
         return None
     if src == 'user':
         weight = USER_WEIGHT
@@ -72,7 +74,7 @@ def _record(order_id: int, sheet: dict, obj: dict, part: dict, family: str, deli
         weight = CONFIRMED_WEIGHT
     else:
         return None
-    ai = part.get('ai') if part.get('ai') in LABELS else None
+    ai = part.get('ai') if part.get('ai') in LABELS + NEW_LABELS else None
     return {
         'key': obj['key'], 'label': label, 'weight': weight, 'src': src, 'ai': ai,
         'conf': part.get('conf'), 'head': part.get('head'), 'order_id': order_id,

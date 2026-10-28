@@ -35,7 +35,7 @@
   var MAX_TRY = 22;       // 한 후보 틀에서 재 보는 배율 수 상한
   var WIDTHS = [1, 0.72, 0.55];        // 큰 그림 줄을 칸 폭의 이만큼까지만 — 좁히면 줄이 늘고 오른쪽에 평면·입체 자리가 생긴다
   var SHRINK = [1, 0.8, 0.64, 0.5];    // 남은 칸 그림이 다 안 들어가면 그 그림들만 이만큼 줄여 다시 놓아 본다
-  var FRONT = { '정면·내부': 1, '정면·도어': 1 };
+  var FRONT = { '정면·내부': 1, '정면·도어': 1, '사이드뷰': 1 };   // 사이드뷰(2026-10-28)는 정면 줄에
   var ISO = { '입체·내부': 1, '입체·도어': 1 };
   var RATIOS = {          // 큰 그림 줄 높이에 대한 비율(큰 것부터). tight = 글자를 못 지킬 때만 더 줄여 보는 값
     iso: [1, 0.9, 0.8, 0.7, 0.6, 0.5], plan: [1.25, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5], small: [0.6, 0.55, 0.5, 0.45, 0.4, 0.35],
@@ -98,7 +98,7 @@
         if (it.kind === 'other' && frontH.some(function (h) { return Math.abs(it.nh - h) <= 0.03 * h; })) { it.kind = 'front'; }
         it.promoted = small;
         g.main.push(it);
-      } else if (it.label === '평면·상판') { it.kind = 'plan'; g.plan.push(it); }
+      } else if (it.label === '평면·상판' || it.label === '탑뷰') { it.kind = 'plan'; g.plan.push(it); }
       else if (small) { it.kind = 'small'; g.small.push(it); }
       else { it.kind = 'photo'; g.photo.push(it); }
     });
