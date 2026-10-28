@@ -8,7 +8,8 @@
  *
  * window.FomsV2Pack = { GAP, HEAD, MAX_UP, row(items, maxW, maxH, same), stack(items, maxW, maxH, same),
  *   shelves(groups, W, H, same, bare, hi), flow(boxes, W, gap), room(x, y, w, h, obstacles, groups, same),
- *   block(unit, t, same), search(hi, fits), tCap(units, same) }   — 마지막 셋은 주 그림 크게(v2-hero.js)가 쓴다
+ *   block(unit, t, same), search(hi, fits), tCap(units, same),   — 이 셋은 주 그림 크게(v2-hero.js)가 쓴다
+ *   rows(items, r, same) → r 줄 묶음(stack 에 넘긴다 — 위 띠 상세 두 줄), areas(full, obstacles), hits(res, obstacles) }   — v2-layout
  *   item  = { id, nw, nh, tx } (원본 픽셀) · unit = { members: [item] } · group = { key, units: [unit] }
  *   결과 좌표는 칸 왼쪽 위(0,0) 기준 — 부르는 쪽이 칸 자리를 더한다.
  */
@@ -152,6 +153,32 @@
     return top ? top.room : box;
   }
 
+  /** 그림을 r 줄로 — 순서대로 두고 줄 폭(같은 배율이면 원본 폭, 아니면 가로세로 비)을 고르게 끊는다. → [{ members }] 줄마다 한 묶음 */
+  function rows(items, r, same) {
+    var list = asUnits(items), wOf = function (u) { return u.members.reduce(function (s, m) { return s + (same ? m.nw : m.nw / m.nh); }, 0); };
+    var total = list.reduce(function (s, u) { return s + wOf(u); }, 0), out = [], cur = [], acc = 0;
+    list.forEach(function (u) {
+      var w = wOf(u);
+      if (cur.length && out.length < r - 1 && acc + w / 2 > total * (out.length + 1) / r) { out.push({ members: cur }); cur = []; }
+      cur = cur.concat(u.members);
+      acc += w;
+    });
+    if (cur.length) { out.push({ members: cur }); }
+    return out;
+  }
+
+  /** 틀을 잴 칸(꼴 { x0, y0, x1, y1 }) — 종이 칸 그대로 + 장애물이 있으면 그것을 뺀 빈 사각형 중 넓은 셋. 종이 칸에서 잰 틀은
+      장애물에 닿지 않을 때만 남는다(hits) — 큰 그림 칸이 고정 그림을 비켜 가면(room) 틀을 통째로 옮기지 않아도 된다. */
+  function areas(full, obs) {
+    if (!obs.length || !window.FomsPartPack) { return [full]; }
+    return [full].concat(window.FomsPartPack.freeRects(full, obs, GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
+      .filter(function (a) { return a.x0 !== full.x0 || a.y0 !== full.y0 || a.x1 !== full.x1 || a.y1 !== full.y1; })
+      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3));
+  }
+  function hits(r, obs) {
+    return obs.some(function (b) { return r.moves.some(function (m) { return m.x < b.x + b.w && b.x < m.x + m.w && m.y < b.y + b.h && b.y < m.y + m.h; }); });
+  }
+
   /** 글자 상자를 왼쪽부터 줄 바꿈 흐름으로(특이 사항 딱지). boxes = [{id, w, h}] → { placed, w, h } */
   function flow(boxes, W, gap) {
     var g = gap > 0 ? gap : 8, x = 0, y = 0, rowH = 0, w = 0, out = [];
@@ -166,5 +193,5 @@
   }
 
   window.FomsV2Pack = { GAP: GAP, HEAD: HEAD, MAX_UP: MAX_UP, row: row, stack: stack, shelves: shelves, flow: flow,
-    unitH: unitH, room: room, block: block, search: search, tCap: tCap };
+    unitH: unitH, room: room, block: block, search: search, tCap: tCap, rows: rows, areas: areas, hits: hits };
 })();
