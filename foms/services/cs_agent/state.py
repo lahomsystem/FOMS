@@ -97,7 +97,7 @@ _CLOSE_WORD = (
     r"수고(?:하세요|하셨습니다|많으셨습니다|많으세요)|오케이|ok|okay|ㅇㅋ|ㅎ+|ㅋ+)"
 )
 _CLOSE_TOKEN = re.compile(rf"(?:{_CLOSE_WORD})+", re.IGNORECASE)
-_EMOJI = re.compile("[☀-➿\U0001f000-\U0001faff️‍]")
+_EMOJI = re.compile("[☀-➿\U0001f000-\U0001faff\ufe0f\u200d]")
 _CLOSE_SPLIT = re.compile(r"[\s!.,~^♡♥ㅠㅜ]+")
 # 손님이 다음 차례를 가져간 글("확인해 보고 톡톡 드리겠습니다" · "상의하고 연락드릴게요") — 답을 기다리는 글이 아니다.
 _CUSTOMER_DEFER = re.compile(

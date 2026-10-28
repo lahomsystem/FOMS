@@ -5,5 +5,8 @@
 (:mod:`~foms.services.cs_agent.channel_read`, GET 만) · 읽기 한도(:mod:`~foms.services.cs_agent.read_budget`) ·
 상태 표(:mod:`~foms.services.cs_agent.state_store`, 수신 기록 뒤돌아 읽기 · 누락 경보) · 감시 루프 한 바퀴
 (:mod:`~foms.services.cs_agent.loop`, 바로 끄기 · 대표 잠금 · TERM 깃발 · 채널톡 보정) · 아침 보고 · 경보
-(:mod:`~foms.services.cs_agent.report`, FOMS 앱 안 알림 — 한 번씩만).
+(:mod:`~foms.services.cs_agent.report`, FOMS 앱 안 알림 — 한 번씩만) · 기준 답 · 지식
+(:mod:`~foms.services.cs_agent.knowledge` DB 읽기 · 쓰기 · 되돌리기, :mod:`~foms.services.cs_agent.knowledge_doc` 꼴 검사 ·
+승인 항목만 재료) · 보내기 전 검사(:mod:`~foms.services.cs_agent.checks` 판정, :mod:`~foms.services.cs_agent.checks_rules`
+금지 꼴, :mod:`~foms.services.cs_agent.checks_read` 숫자 · 링크 읽기) · 가림(:mod:`~foms.services.cs_agent.masking`, 가림 검사 0 일 때만 모델 호출).
 """
