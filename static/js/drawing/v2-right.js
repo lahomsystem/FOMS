@@ -15,7 +15,7 @@
  *   [추천 틀로 돌아가기] — 고른 틀만 풀고 다시 놓는다(고정 그림은 그대로).
  * - 그림 밖 메모 · 선은 다시 배치가 비켜 간다(v2-plan.js plan.stay) — 그림이 작아진 까닭을 요약에 적는다.
  * - 그림 크기(사용자 요청 2026-10-28 '꼭 메인을 크게 할 필요는 없을 수도'): 주 그림 크게(기본) · 고르게를 시트마다 고른다(폼 v2_style,
- *   되돌리기 한 번). 미리보기는 지금 틀의 두 모습(v2-hero res.alt) — 주 그림이 두드러지지 않는 시트는 두 스타일이 같다고 말한다.
+ *   되돌리기 한 번). 미리보기는 지금 틀의 두 모습(v2-hero res.alt) — 주 그림이 두드러지지 않는 시트는 두 스타일이 같다고 말한다. 그 아래 주 그림 크기 막대(v2-size.js).
  *
  * window.FomsV2Right = { init(api), render(view) }
  */
@@ -46,6 +46,7 @@
     els.summary = $('dws-v2-summary');
     els.templates = $('dws-v2-templates');
     els.styles = $('dws-v2-styles');
+    els.size = $('dws-v2-size');
     els.seen = $('dws-v2-seen');
     els.toggles = $('dws-v2-toggles');
     els.relayout = $('dws-v2-relayout');
@@ -189,6 +190,7 @@
       b.addEventListener('click', function () { pickStyle(s[0]); });
       box.appendChild(b);
     });
+    if (window.FomsV2Size) { window.FomsV2Size.render(els.size, res, api, plan.style); }   // 주 그림 크기 막대
   }
 
   function pickStyle(key) {   // 시트 폼 v2_style — 되돌리기 한 번 · 다시 배치(고정 그림 · 고른 틀은 그대로)

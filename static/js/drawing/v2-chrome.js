@@ -18,7 +18,7 @@
   if (window.FomsV2Chrome) { return; }
 
   var api = null, els = {}, ZOOMS = [50, 70, 100, 150];
-  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1, unpick: 1, style: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1, moved: 1 };
+  var TALK = { button: 1, mode: 1, banner: 1, unpin: 1, unpick: 1, style: 1, size: 1 }, FAIL = { removed: 1, added: 1, batch: 1, late: 1, trimmed: 1, moved: 1 };
   var TPL = { band: '사진·상세를 위에', column: '사진·상세를 왼쪽에' };   // v2-right.js 틀 고르기와 같은 이름
 
   function $(id) { return document.getElementById(id); }

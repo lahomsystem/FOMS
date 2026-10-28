@@ -1,7 +1,7 @@
 {# 도면 마법사 V2 — 오른쪽 칸(316px) '배치 확인'. v2-right.js 가 채운다.
    몸통만 굴러가고 [다시 자동 배치] 바닥은 늘 보인다 — 예전엔 칸 맨 아래라 그림이 많으면 내려야 보였다(스테이징 주문 4385, 2026-10-27).
    '컴퓨터가 본 것'과 켜고 끄기는 '자세히 ▸'로 접어 둔다(처음엔 접힘 · 이 브라우저에 기억 — 도면팀 평가 2026-10-27).
-   '그림 크기'(주 그림 크게 · 고르게)는 시트마다 고른다(폼 v2_style — 사용자 요청 2026-10-28). #}
+   '그림 크기'(주 그림 크게 · 고르게)는 시트마다 고른다(폼 v2_style — 사용자 요청 2026-10-28). 그 아래 주 그림 크기 막대(폼 v2_hero_size · v2-size.js). #}
 <aside class="dws-v2-right dws-ui" id="dws-v2-right" aria-label="배치 확인">
   <div class="dws-v2-right-body">
     <h2 class="dws-v2-right-title">배치 확인</h2>
@@ -13,6 +13,7 @@
     <section class="dws-v2-section">
       <h3 class="dws-v2-section-title">그림 크기</h3>
       <div class="dws-v2-templates" id="dws-v2-styles"></div>
+      <div class="dws-v2-size" id="dws-v2-size" hidden></div>
     </section>
     <section class="dws-v2-section">
       <button type="button" class="dws-v2-detail-toggle" id="dws-v2-detail-toggle" aria-expanded="false" aria-controls="dws-v2-detail" title="컴퓨터가 그림을 어떻게 봤는지 · 자동 배치 규칙 켜고 끄기">자세히 ▸</button>

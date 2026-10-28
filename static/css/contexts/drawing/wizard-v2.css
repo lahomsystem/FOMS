@@ -734,6 +734,27 @@
 .dws-v2-tpl-meta { font-size: 11px; color: #6e6e73; }
 .dws-v2-tpl-state { font-size: 10px; font-weight: 700; color: #0062c4; }
 .dws-v2-tpl-back { margin-left: 2px; }   /* [추천 틀로 돌아가기] — 고른 틀이 추천과 다를 때만(v2-right.js) */
+/* 주 그림 크기 막대 — 고르게 때 크기 100% ~ 칸이 허락하는 만큼(v2-size.js, 사용자 요청 2026-10-28 '컴퍼넌트 사이즈는 자유로 조절') */
+.dws-v2-size { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid #e5e5ea; border-radius: 10px; background: #ffffff; }
+.dws-v2-size[hidden] { display: none; }
+.dws-v2-size-head { display: flex; align-items: center; gap: 8px; }
+.dws-v2-size-name { font-size: 12px; font-weight: 700; color: #1d1d1f; }
+.dws-v2-size-val { margin-left: auto; font-size: 12px; font-weight: 700; color: #0062c4; font-variant-numeric: tabular-nums; }
+.dws-v2-size-auto {
+  border: 1px solid #c7c7cc;
+  border-radius: 6px;
+  background: #f5f5f7;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+.dws-v2-size-auto:disabled, .dws-v2-size-range:disabled { cursor: default; opacity: 0.55; }
+.dws-v2-size-range { width: 100%; margin: 2px 0; accent-color: #0071e3; cursor: pointer; }
+.dws-v2-size-ends { display: flex; justify-content: space-between; font-size: 10px; color: #6e6e73; }
+.dws-v2-size-note { margin: 0; font-size: 11px; color: #6e6e73; }
 /* 자세히 ▸ — '컴퓨터가 본 것' · 켜고 끄기를 접어 둔다(처음엔 접힘 · 이 브라우저에 기억, v2-right.js) */
 .dws-v2-detail-toggle {
   align-self: flex-start;
