@@ -94,7 +94,8 @@ def test_long_range_is_split_into_30_day_windows(keys):
     transport = FakeTransport(*[FakeResponse(200, {"userChats": []}) for _ in range(3)])
     start = datetime.datetime(2026, 9, 1, tzinfo=KST)
     end = datetime.datetime(2026, 11, 1, tzinfo=KST)
-    assert list(make_reader(transport, clock).iter_user_chats("LAHOM", changed_from=start, changed_to=end)) == []
+    assert list(make_reader(transport, clock).iter_user_chats("LAHOM", changed_from=start, changed_to=end,
+                                                              state="opened")) == []  # 상태 하나 — 창 나누기만 본다
     spans = [(call["params"]["from"], call["params"]["to"]) for call in transport.calls]
     assert spans[0][0] == int(start.timestamp() * 1000) and spans[-1][1] == int(end.timestamp() * 1000)
     assert all(b - a <= 30 * 86400 * 1000 for a, b in spans)

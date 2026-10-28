@@ -130,8 +130,18 @@ class DerivedMessage:
 
 
 def _created_at(value: Any) -> Optional[datetime.datetime]:
-    """채널톡 시각(밀리초 숫자) → 시간대 있는 UTC. 숫자가 아니거나 0 이하면 ``None``."""
-    if isinstance(value, str) and value.strip().isdigit():
+    """채널톡 시각 → 시간대 있는 UTC. 꼴이 틀리거나 0 이하면 ``None``.
+
+    웹훅 ``entity`` 는 밀리초 숫자, Open API 2026-06-01 판은 ISO 글자(``2026-10-28T06:50:45.123Z``)다 — 둘 다 읽는다
+    (10-28 스테이징 첫 호출에서 확인, 원장 Q1). 시간대 없는 ISO 는 UTC 로 본다(채널톡 API 시각은 UTC).
+    """
+    if isinstance(value, str) and not value.strip().isdigit():
+        try:
+            parsed = datetime.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    if isinstance(value, str):
         value = int(value.strip())
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         return None
@@ -227,12 +237,15 @@ def aware_utc(value: datetime.datetime) -> datetime.datetime:
 
 
 # ── Open API 읽기(GET 만) ────────────────────────────────────────────────
-#: 2026-06-01 판 주소 · 칸 이름(원장 F6-4: 목록은 cursor + from/to, 최대 30일). 이 세션은 네트워크 없이 만들어
-#: 칸 이름을 원문으로 다시 대조하지 못했다 — 스테이징 첫 호출(C1-3)에서 확인한다.
+#: 2026-06-01 판 주소 · 칸 이름(원장 F6-4). 10-28 스테이징 첫 호출에서 실제 응답으로 확인했다(원장 Q1):
+#: 목록은 ``from``/``to``(밀리초, 바뀐 시각 기준, 30일까지 — 31일은 422) + 요청 ``cursor`` → 응답 ``nextCursor``
+#: · ``hasNext``. 상태를 안 주면 열린 상담만 준다. 시각 칸은 모두 ISO 글자다.
 _LIST_PATH = "/open/user-chats"
 _LIST_ITEMS_KEY = "userChats"
 _MESSAGES_KEY = "messages"
-_CURSOR_KEY = "next"
+_CURSOR_KEY = "nextCursor"
+#: 상태를 안 주고 목록을 읽을 때 차례로 읽는 상태 — 비우면 채널톡은 열린 상담만 준다(10-28 실측).
+LIST_STATES: tuple[str, ...] = ("opened", "snoozed", "closed")
 MAX_LIST_WINDOW = datetime.timedelta(days=30)
 LIST_PAGE_LIMIT = 100
 MESSAGE_PAGE_LIMIT = 50
@@ -366,28 +379,34 @@ class OpenApiReader:
         data = self._get(brand, _LIST_PATH, params, BUCKET_LIST)
         items = data.get(_LIST_ITEMS_KEY)
         snapshots = (_snapshot(item, brand) for item in (items if isinstance(items, list) else []))
-        next_cursor = data.get(_CURSOR_KEY)
+        next_cursor = data.get(_CURSOR_KEY) if data.get("hasNext") is not False else None
         return ChatPage([snap for snap in snapshots if snap is not None],
                         str(next_cursor) if next_cursor else None)
 
     def iter_user_chats(self, brand: str, *, changed_from: datetime.datetime,
                         changed_to: datetime.datetime, state: Optional[str] = None,
                         max_pages: int = 50) -> Iterator[ChatSnapshot]:
-        """바뀐 상담을 cursor 로 끝까지 읽는다. 30일보다 긴 구간은 30일씩 나눈다."""
-        start, end = aware_utc(changed_from), aware_utc(changed_to)
-        while start < end:
-            stop = min(end, start + MAX_LIST_WINDOW)
-            cursor: Optional[str] = None
-            for _ in range(max_pages):
-                page = self.list_user_chats(brand, changed_from=start, changed_to=stop,
-                                            cursor=cursor, state=state)
-                yield from page.chats
-                if not page.next_cursor or page.next_cursor == cursor:
-                    break
-                cursor = page.next_cursor
-            else:
-                logger.warning("[CS 상담] 상담 목록 쪽 수 상한(%d)에 닿음 brand=%s", max_pages, brand)
-            start = stop
+        """바뀐 상담을 cursor 로 끝까지 읽는다. 30일보다 긴 구간은 30일씩 나눈다.
+
+        ``state`` 를 안 주면 :data:`LIST_STATES` 를 차례로 다 읽는다 — 상태 칸을 비우면 채널톡은 열린 상담만 줘서
+        닫힌 상담을 영영 못 본다(10-28 실측).
+        """
+        for one_state in (state,) if state else LIST_STATES:
+            start, end = aware_utc(changed_from), aware_utc(changed_to)
+            while start < end:
+                stop = min(end, start + MAX_LIST_WINDOW)
+                cursor: Optional[str] = None
+                for _ in range(max_pages):
+                    page = self.list_user_chats(brand, changed_from=start, changed_to=stop,
+                                                cursor=cursor, state=one_state)
+                    yield from page.chats
+                    if not page.next_cursor or page.next_cursor == cursor:
+                        break
+                    cursor = page.next_cursor
+                else:
+                    logger.warning("[CS 상담] 상담 목록 쪽 수 상한(%d)에 닿음 brand=%s state=%s",
+                                   max_pages, brand, one_state)
+                start = stop
 
     def read_messages(self, brand: str, chat_id: str, *,
                       limit: int = MESSAGE_PAGE_LIMIT) -> list[DerivedMessage]:
