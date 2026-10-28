@@ -278,6 +278,7 @@
   var konvaStage = null;
   var konvaLayer = null;
   var transformer = null;
+  var zoomSharp = null;                // 확대해도 또렷하게 — 배율에 맞춰 캔버스 해상도(zoom-sharp.js)
   var nodeById = {};                   // objId → Konva 노드
   var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'eraser'
   var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
@@ -968,6 +969,7 @@
     konvaStage = new Konva.Stage({ container: els.anno, width: STAGE_W, height: STAGE_H });
     konvaLayer = new Konva.Layer();
     konvaStage.add(konvaLayer);
+    if (window.FomsZoomSharp) { zoomSharp = window.FomsZoomSharp.attach(konvaStage); zoomSharp.zoom(zoom); }
 
     transformer = new Konva.Transformer({
       rotateEnabled: true,
@@ -4630,6 +4632,7 @@
     els.zoomRange.value = String(clamp(pct, 50, 400));
     els.zoomLabel.textContent = pct + '%';
     positionMiniToolbar();
+    if (zoomSharp) { zoomSharp.zoom(z); }
   }
 
   function openLogoPopup() {
