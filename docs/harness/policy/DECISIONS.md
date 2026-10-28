@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-10-28] 코드 작업을 끝내기 전 Jev 점검(jev_gate)은 필수가 아니다 · 상담 에이전트의 Jev 사용은 그대로
+- **키워드**: Jev, TypeSafe, jev_gate, jev_review, jev_verify, jev_screen, jev_compare, ~/.claude/skills/jev, When to call, 끝내기 전 점검, 되돌림 확인, 상담 에이전트, CS 초안, 하네스 재점검
+- **결정**: 사용자 선택(2026-10-28 "1"). 사용자 범위 스킬 `~/.claude/skills/jev/SKILL.md` 의 로컬 규칙에서 "큰 변경(파일 3개 이상 또는 100줄 이상)을 끝내기 전 `jev_gate` 1회"를 뺀다. 코드 작업이 끝났는지는 실제 검사(시험·스모크·CI)로 판정하고, `jev_gate`·`jev_review` 는 사용자가 요청할 때만 부른다. 나머지 세 경우(남의 보고 전달·실행으로 확인 못 하는 주장 → `jev_verify`, 바깥 글 → `jev_screen`)와 상담 초안(가린 글에 screen·verify·compare — 같은 날 다른 창에서 받은 사용자 허락)은 그대로 둔다. MCP 등록(`@jkudish/jev-mcp@latest`, 같은 날 사용자 지시)도 그대로다.
+- **이유**: 처음 실제로 쓴 점검(2026-10-28 AI 도면팀원 설계서 §9, 파일 6개·122줄)에서 지적 두 개 중 하나는 증거 글이 모호해서 생긴 헛짚음이었다. 다른 하나(시험 빈칸 점수)는 어느 시험이 빠졌는지 짚지 못했고, 실제 빈칸(`review_stats` 시험)은 다시 훑다가 찾았다. 빠진 시험은 고친 곳을 잠깐 되돌려 시험이 깨지는지 보는 쪽이 더 정확했다. 또 스킬 설명에 "꼭 부를 것"을 적어도 세 번 모두 부르지 않았다(2026-10-07 새 세션 시험 2회, 10-28 §9 작업) — 지켜지지 않는 규칙은 훅으로 강제하거나 빼야 하는데, 효용이 낮아 뺀다. 사용자는 처음에 "Jev 전부 빼기"를 골랐으나 상담 에이전트 사용과 부딪혀 다시 물었고, 상담 쪽은 두기로 했다.
+- **남는 위험**: 끝내기 전 두 번째 눈이 하나 줄어든다. 다음 하네스 재점검(2027-03)에서 "끝냈다고 한 뒤 빠진 시험이 드러난 사례"가 반복되면 되돌림 확인을 규칙이나 훅으로 둘지 본다.
+- **영향**: `~/.claude/skills/jev/SKILL.md`(저장소 밖 — 설명 줄 · When to call · Local data rules 한 줄), 메모리 `project_jev_mcp_setup.md`. 저장소 코드 변경 없음.
+
 ### [2026-09-30] 시공·생산 보드의 팀 승인 코드 삭제는 버그 수정이다 — 셸 전환 뒤 확인창 없이 두 번 승인되던 것 · 핀은 올리지 않는다
 - **키워드**: approveQuestTeam, erp-btn-approve-team, __FOMS_CONSTR_SCRIPTS_BOUND, construction/dashboard.js, production/partials/scripts.html, erp-dashboard-detail-dom.js, 셸 전환, 이중 승인, ?v= 핀, max-age 86400, TEAM_LABELS, STAGE_LABELS
 - **결정**: 시공 `static/js/construction/dashboard.js` 와 생산 인라인 `templates/production/partials/scripts.html` 의 `approveQuestTeam`·`.erp-btn-approve-team` body 위임·`loadQuestDetail` 과 이제 쓰지 않는 전역 `TEAM_LABELS`·`STAGE_LABELS`·`label()` 을 지운다. 시공 `scripts.html` 의 `?v=` 핀은 올리지 않는다(선택지 a).
