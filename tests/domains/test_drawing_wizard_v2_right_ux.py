@@ -33,7 +33,7 @@ CSS = (ROOT / "static/css/contexts/drawing/wizard-v2.css").read_text(encoding="u
 PLAN = r"""
 global.window = {};
 const dir = process.argv[1];
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js']) { require(dir + '/' + f); }
 const S = window.FomsV2Slots, P = window.FomsV2Plan;
 const out = {};
 const ctx = { items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, tx: 0, order: i,
@@ -111,14 +111,14 @@ const core = {
   state: () => state, sheet: () => state.sheets[0] || null, canSave: () => true,
   recordUndo: () => { undo.push(JSON.stringify(state.sheets[0])); },
   undo: () => { const s = undo.pop(); if (s) { state.sheets[0] = JSON.parse(s); emit('render'); } },
-  markDirty: () => emit('change'), redraw: () => emit('render'), select: () => {}, toast: m => toasts.push(m), editing: () => false,
+  markDirty: () => emit('change'), redraw: () => emit('render'), select: () => {}, toast: m => toasts.push(m), editing: () => false, dragging: () => false,
   items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, order: i, tx: 0,
     label: (o.part && o.part.label) || '미분류' })),
   baseline: () => ({}), productText: () => '몰딩 화장대 여닫이', photos: () => [], photoVisible: () => true,
   importPhoto: () => Promise.resolve(false), threshold: () => 0.5, fitCell: () => {}, hatch: () => null, viewUrl: () => '', setTool: () => {}
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2;
 const img = (id, label, nw, nh, k) => ({ id, type: 'image', key: id + '.png', x: 300 + 24 * k, y: 120 + 24 * k, w: Math.min(900, nw),
@@ -279,9 +279,9 @@ def test_templates_css_tools_sticky_banner_and_pins():
     assert ('<button type="button" class="dws-btn dws-v2-uiback" data-dws-ui-switch="v1" '
             'title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>') in v2_block
     assert '<button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>' in v2_block
-    for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/v2-plan.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
-                  "js/drawing/v2-shell.js"):
-        assert f"{asset}') }}}}?v=20261027e" in TPL, asset
+    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261027e" in TPL
+    for asset in ("js/drawing/v2-plan.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js", "js/drawing/v2-shell.js"):   # 10-28 주 그림 크게
+        assert f"{asset}') }}}}?v=20261028a" in TPL, asset
     assert ".dws-v2-auto .dws-appbar-center .dws-seg" not in CSS                       # 자동 배치에도 도구가 보인다
     assert ".dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }" in CSS
     banner = CSS[CSS.index(".dws-v2-banner {"):CSS.index(".dws-v2-banner[hidden]")]
@@ -312,3 +312,15 @@ def test_old_screen_button_only_on_v2_page(client):
     assert v2.count('data-dws-ui-switch="v1"') == 2 and 'class="dws-btn dws-v2-uiback"' in v2   # 앱바 단추 + ⋯ 메뉴
     assert 'data-v2-for="dws-v2-unpin"' in v2 and 'id="dws-v2-detail-toggle"' in v2
     assert "dws-v2-uiback" not in v1 and 'data-dws-ui-switch="v1"' not in v1
+
+
+def test_main_picture_toggle_is_listed_and_on_by_default():
+    """주 그림 크게(bento — 사용자 요청 2026-10-28)는 켜고 끄기 다섯째(기본 켬) — 끄면 예전처럼 큰 그림 칸이 같은 배율 한 줄."""
+    right = (JS_DIR / "v2-right.js").read_text(encoding="utf-8")
+    assert "['sameScale', '같은 칸은 같은 배율'], ['hero', '주 그림 크게'], ['lockMoved', '손으로 옮긴 그림은 고정']" in right
+    assert "켜고 끄기 5" in right
+    shell = (JS_DIR / "v2-shell.js").read_text(encoding="utf-8")
+    assert "lockMoved: true, hero: true }" in shell
+    plan = (JS_DIR / "v2-plan.js").read_text(encoding="utf-8")
+    assert "hero: s.hero !== false" in plan and "hero: set.hero" in plan
+

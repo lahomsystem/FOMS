@@ -13,14 +13,15 @@
  *   틀을 재고, 장애물에 닿는 틀은 버린다. 큰 그림 칸은 그 안의 장애물을 비켜 간다(v2-pack room). 예전엔 고정 그림 자리를 비우지 않아
  *   다시 놓은 그림이 그 위에 겹쳤고(스테이징 주문 4385, 2026-10-27), 고친 뒤엔 틀 전체를 빈 사각형 하나로 옮겨 그림이 작아졌다.
  * - 칸은 머리 최소 폭(HEAD_MIN_W — v2-paper.js 와 같음)만큼 자리를 잡는다. 좁은 칸 머리가 옆 칸 머리 위로 뻗어 겹쳤다.
+ * - 주 그림 크게(opts.hero, 기본 켬 — v2-hero.js): 추천까지 정한 뒤 큰 그림 칸(res.big)만 주 그림 + 나머지로 다시 놓는다.
  *
  * window.FomsV2Layout = { AREA, compute(input, opts) → { band, column, best, rec }, MIN_TEXT, CROWD_PCT, HEAD_MIN_W }
  *   input: { area?, base: {id:{w,h}}, photo, detail, plan, unsorted: [item], units: [{slot, members:[item]}],
  *            bom: [{id,w,h}], notes: [{id,w,h}], stamp: {id,w,h}|null, obstacles?: [{x,y,w,h}] }   item = { id, nw, nh, tx }
- *   opts : { sameScale (기본 true), photoFirst (기본 true), prefer: 'band'|'column'|'' , minText: 8 }
+ *   opts : { sameScale (기본 true), photoFirst (기본 true), hero (기본 true), prefer: 'band'|'column'|'' , minText: 8 }
  *   best = 붙일 틀(사람이 고른 틀이 놓이면 그것) · rec = 점수가 높은 틀(추천 표시 — 고른 틀과 다를 수 있다)
  *   틀 결과: { template, moves: [{id,x,y,w,h}], slots: [{key,x,y,w,h}], pct: {id: 비율}, minPct, minId, mainPct,
- *             minText, score, crowded, pctBase: 'v1'|'natural' } 또는 null(못 놓음)
+ *             minText, score, crowded, pctBase: 'v1'|'natural', big: {x,y,w,h}, hero?: [id](mainPct = 주 그림 %) } 또는 null(못 놓음)
  */
 (function () {
   'use strict';
@@ -95,9 +96,11 @@
   function putBig(res, inp, big, x, y, W, H, same) {
     var P = pk(), none = { placed: [], slots: [], t: Infinity };
     function lay(w, h) { return big.groups.length ? P.shelves(big.groups, w, h, same) : none; }
+    function mark(w, h) { if (big.groups.length) { res.big = { x: x, y: y, w: w, h: h }; } }   // 큰 그림 칸 자리 — refine(bento)
     if (!inp.unsorted.length) {
       var only = lay(W, H);
       if (!only) { return false; }
+      mark(W, H);
       addPics(res, only.placed, x, y);
       only.slots.forEach(function (s) { addSlot(res, s.key, x + s.x, y + s.y, s.w, s.h); });
       return true;
@@ -107,6 +110,7 @@
     var a = below ? lay(W, H - (P.HEAD + below.h + P.GAP)) : null, b = side ? lay(W - sideW - P.GAP, H) : null;
     var useSide = !!b && (!a || b.t > a.t * 1.001), sh = useSide ? b : a;
     if (!sh) { return false; }
+    if (useSide) { mark(W - sideW - P.GAP, H); } else { mark(W, H - (P.HEAD + below.h + P.GAP)); }
     addPics(res, sh.placed, x, y);
     sh.slots.forEach(function (s) { addSlot(res, s.key, x + s.x, y + s.y, s.w, s.h); });
     if (useSide) {
@@ -223,7 +227,7 @@
       if (p != null) { pct[m.id] = p; }
       if (it.slot === 'photo' || it.slot === 'unsorted') { return; }   // 사진 · 종류를 고르기 전 그림은 '가장 작은 그림'에서 뺀다
       if (p != null && p < minPct) { minPct = p; minId = m.id; }
-      if (p != null && (it.slot === 'main' || it.slot === 'iso')) { mainPct = Math.min(mainPct, p); }
+      if (p != null && (it.slot === 'main' || it.slot === 'iso') && (!res.hero || res.hero.indexOf(m.id) >= 0)) { mainPct = Math.min(mainPct, p); }
       if (it.tx > 0) { minText = Math.min(minText, it.tx * m.h / it.nh); }
     });
     var lim = o.minText > 0 ? o.minText : MIN_TEXT, mp = minPct === Infinity ? 1 : minPct;
@@ -283,6 +287,8 @@
     inp.area = full;
     var out = { band: best(bands, inp, o), column: best(cols, inp, o) };
     out.rec = out.band && out.column ? (out.column.score > out.band.score + 0.005 ? 'column' : 'band') : (out.band ? 'band' : (out.column ? 'column' : ''));
+    var H = window.FomsV2Hero, kit = { groups: bigGroups(inp).groups, score: function (r) { return score(r, inp, o); } };
+    if (H) { out.band = H.refine(out.band, inp, o, kit); out.column = H.refine(out.column, inp, o, kit); }   // 추천을 정한 뒤 — 나머지가 줄어 점수가 깎인다
     var pref = o.prefer === 'column' || o.prefer === 'band' ? o.prefer : '';
     out.best = pref && out[pref] ? pref : out.rec;
     return out;

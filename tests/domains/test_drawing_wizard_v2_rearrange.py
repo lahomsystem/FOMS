@@ -71,7 +71,7 @@ const core = {
   recordUndo: () => { undo.push(JSON.stringify(state.sheets[cur])); },
   undo: () => { const s = undo.pop(); if (s) { state.sheets[cur] = JSON.parse(s); emit('render'); emit('change'); } },
   markDirty: () => emit('change'), redraw: () => emit('render'),
-  select: () => {}, toast: m => toasts.push(m), editing: () => false,
+  select: () => {}, toast: m => toasts.push(m), editing: () => false, dragging: () => false,
   items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, order: i, tx: 0,
     label: (o.part && o.part.label) || '미분류' })),
   baseline: () => ({}), productText: () => '몰딩 화장대 여닫이',
@@ -83,7 +83,7 @@ const core = {
   }
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-right.js', 'v2-chrome.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2, S = window.FomsV2Slots;
 // ---- 시트 · 사람 동작 ----
@@ -326,3 +326,65 @@ out.overlaps = overlaps();
     assert out["pillUp"] == 18      # 예전 14 — 머리 가운데에 걸쳐 좁은 칸 글을 가렸다('B 서랍 단면 · 부[32%]세')
     assert out["pins"] == ["고정"]
     assert out["overlaps"] == []
+
+
+def test_resizing_a_picture_rearranges_the_rest_around_it_in_one_undo_step():
+    """사용자 보고(2026-10-28, 스테이징 주문 4385): 메인을 키우면 나머지가 저절로 맞춰져야 하는데 겹친 채 남았다.
+    끌기 · 크기 바꾸기를 마치면(코어 moved) 고정이 된 그 그림을 비켜 나머지를 다시 놓는다 — 되돌리기는 끌기 시작이 남긴 한 번,
+    손으로 맞추던 그림은 골라진 채 둔다."""
+    out = _run(r"""
+laidSheet();
+const before = rects(), t = obj('g2'), selects = [];        // 큰 그림 칸 가운데 그림을 키운다(4385 의 메인 자리)
+core.select = ids => selects.push((ids || []).length);
+core.recordUndo();                                           // wizard.js transformstart
+t.w = Math.round(t.w * 1.5); t.h = Math.round(t.h * 1.5);
+const keep = [t.x, t.y, t.w, t.h].join(',');
+core.markDirty(); emit('moved', { ids: ['g2'] });           // wizard.js transformend → commitNode → emitMoved
+out.overlapBefore = overlaps().length;
+tick(500);
+out.kept = [obj('g2').x, obj('g2').y, obj('g2').w, obj('g2').h].join(',') === keep;
+out.pinned = Object.keys(V2.plan().g.fixed);
+out.overlaps = overlaps();
+out.toast = toasts[toasts.length - 1] || '';
+out.selects = selects;
+core.undo();
+out.undone = rects() === before;
+""")
+    assert out["overlapBefore"] > 0                           # 키운 그림이 옆 그림 위로 올라갔다(고치기 전엔 그대로 남았다)
+    assert out["kept"] and out["pinned"] == ["g2"]
+    assert out["overlaps"] == [] and "옮긴 그림을 비켜 나머지" in out["toast"], out
+    assert out["selects"] == []                               # 골라진 채 둔다(이어서 크기를 맞추게)
+    assert out["undone"]                                      # Ctrl+Z 한 번이면 키우기 전 그대로
+
+
+def test_moved_waits_for_drag_and_skips_jitter_free_mode_and_unpinned_moves():
+    out = _run(r"""
+laidSheet();
+const others = () => JSON.stringify(core.sheet().objects.filter(o => o.type === 'image' && o.id !== 'd1').map(o => [o.id, o.x, o.y, o.w, o.h]));
+let base = others();
+// 1) 손떨림(6px 안쪽)은 고정이 아니다 — 다시 놓지 않는다
+core.recordUndo(); obj('d1').x += 4; core.markDirty(); emit('moved', { ids: ['d1'] }); tick(500);
+out.jitter = others() === base;
+// 2) 끄는 중에는 기다린다(다시 그리면 끌던 노드가 사라진다) — 끝나면 놓는다
+let dragging = true;
+core.dragging = () => dragging;
+core.recordUndo(); obj('d1').x = 900; obj('d1').y = 560; core.markDirty(); emit('moved', { ids: ['d1'] });
+tick(2000);
+out.waited = others() === base;
+dragging = false; tick(500);
+out.after = others() !== base && overlaps().length === 0;
+// 3) 자유 배치 모드는 저절로 옮기지 않는다
+V2.setMode('free');
+base = others();
+core.recordUndo(); obj('d1').x += 120; core.markDirty(); emit('moved', { ids: ['d1'] }); tick(500);
+out.free = others() === base;
+// 4) '손으로 옮긴 그림은 고정'을 끄면 옮긴 그림이 고정이 아니라 다시 놓지 않는다(놓으면 옮긴 그림이 바로 제자리로 간다)
+V2.setMode('auto'); tick(500);
+V2.setSetting('lockMoved', false); tick(500);
+base = others();
+core.recordUndo(); obj('d1').x += 120; core.markDirty(); emit('moved', { ids: ['d1'] }); tick(500);
+out.unpinned = others() === base;
+""")
+    assert out["jitter"] and out["waited"] and out["after"], out
+    assert out["free"] and out["unpinned"], out
+

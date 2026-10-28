@@ -29,7 +29,7 @@
   function settingsOf(ctx) {
     var s = (ctx && ctx.settings) || {};
     return { lowToUnsorted: s.lowToUnsorted !== false, photoFirst: s.photoFirst !== false,
-      sameScale: s.sameScale !== false, lockMoved: s.lockMoved !== false };
+      sameScale: s.sameScale !== false, lockMoved: s.lockMoved !== false, hero: s.hero !== false };
   }
 
   /** 시트 → { g, kind, kindAuto, kitchen, letters, input, out, base, settings, laid, template, pick } */
@@ -74,7 +74,7 @@
         .concat(stay.map(stayBox))
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
-    var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, prefer: pick });
+    var out = window.FomsV2Layout.compute(input, { sameScale: set.sameScale, photoFirst: set.photoFirst, hero: set.hero, prefer: pick });
     var laid = form.v2_layout === 'band' || form.v2_layout === 'column';
     // 칸 글자 = 정리한 시트는 종이 위 읽는 순서(v2-slots letters) — 종이 머리 · 왼쪽 카드가 같은 plan 에서 읽는다(그리는 순서와 무관)
     return { g: g, kind: kind, kindAuto: kindAuto, kitchen: kitchen, letters: S().letters(g, kitchen, laid), input: input,
