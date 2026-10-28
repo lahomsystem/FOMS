@@ -126,7 +126,7 @@ def test_slider_wiring_template_css_and_pins():
     right = (JS_DIR / "v2-right.js").read_text(encoding="utf-8")
     assert '<div class="dws-v2-size" id="dws-v2-size" hidden></div>' in RIGHT_TPL
     assert RIGHT_TPL.index('id="dws-v2-styles"') < RIGHT_TPL.index('id="dws-v2-size"')
-    assert TPL.index("js/drawing/v2-size.js') }}?v=20261028a") < TPL.index("js/drawing/v2-right.js') }}?v=20261028c")
+    assert TPL.index("js/drawing/v2-size.js') }}?v=20261028a") < TPL.index("js/drawing/v2-right.js') }}?v=20261028d")
     for asset in ("js/drawing/v2-hero.js') }}?v=20261028c", "js/drawing/v2-pack.js') }}?v=20261028b",
                   "css/contexts/drawing/wizard-v2.css') }}?v=20261028a"):
         assert asset in TPL, asset

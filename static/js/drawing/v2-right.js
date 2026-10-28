@@ -78,7 +78,11 @@
   }
   function detailOpen() { return !els.detail || !els.detail.hidden; }
 
-  function relayout() { api.arrange('button', { undo: true, photo: true }); }
+  function relayout() {   // 다시 자동 배치 — 서로 겹친 고정 그림은 작은 쪽을 풀어 다시 놓는다(푼 것까지 되돌리기 한 번 — v2-slots clashes)
+    var sh = api.core.sheet(), S = window.FomsV2Slots, free = sh ? S.clashes(sh.objects || [], api.settings()) : [];
+    if (free.length) { api.core.recordUndo(); S.release(sh.objects, free); }
+    api.arrange('button', { undo: !free.length, photo: true, freed: free.length });
+  }
 
   function labelOf(view, id) {
     var g = view.plan.g;
