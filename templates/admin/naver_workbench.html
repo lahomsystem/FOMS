@@ -1272,6 +1272,10 @@
         {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
         {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
         {% set h_q = history.find or None %}
+        {# '내 담당만'(2026-10-28) — 기본값과 다를 때만 `mine` 을 들고 간다. 기본값이 사람마다
+           달라(영업팀 켜짐 · ADMIN 꺼짐) 영업이 끈 상태를 빼먹으면 다른 칩을 누르는 순간 다시 켜진다.
+           범위지 필터가 아니라 h_any 에 넣지 않는다 — `전체` 는 '내 담당 전체' 를 말한다. #}
+        {% set h_mine = none if history.mine == history.mine_default else ('1' if history.mine else '0') %}
         {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
         {% set hist_filters = [] %}
         {# `전체` — 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
@@ -1279,7 +1283,7 @@
         {% set _ = hist_filters.append({
             'group': 'stage', 'label': '전체', 'on': not h_any,
             'n': none if h_any else history.total,
-            'href': url_for('admin.naver_ingest_triage', tab='all', q=h_q)}) %}
+            'href': url_for('admin.naver_ingest_triage', tab='all', q=h_q, mine=h_mine)}) %}
         {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
            배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
            라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
@@ -1289,7 +1293,7 @@
             'group': 'stage', 'label': label, 'on': history.status == key,
             'n': history.counts.get(key, 0),
             'href': url_for('admin.naver_ingest_triage', tab='all', status=key,
-                            place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+                            place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q, mine=h_mine)}) %}
         {% endfor %}
         {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
            표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
@@ -1299,14 +1303,15 @@
             'n': history.place_pending_count,
             'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status,
                             place=None if history.place_pending else 'PENDING',
-                            dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+                            dispatch=h_dispatch, rel=h_rel, q=h_q, mine=h_mine)}) %}
         {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
            같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
         {% set _ = hist_filters.append({
             'group': 'naver', 'label': '발송처리 남음 · 취소 포함', 'on': history.dispatch_pending,
             'n': history.dispatch_pending_count,
             'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                            dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q)}) %}
+                            dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q,
+                            mine=h_mine)}) %}
         {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
            같은 것을 두 표기로 쓰지 않는다. #}
         {% set _ = hist_filters.append({
@@ -1314,7 +1319,16 @@
             'n': history.relation_count,
             'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
                             dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
-                            q=h_q)}) %}
+                            q=h_q, mine=h_mine)}) %}
+        {# '내 담당만' — 담당이 있을 수 있는 사람(ADMIN·영업팀)에게만. 숫자는 비운다(켜면 `전체` 가 말한다). #}
+        {% if history.mine_available %}
+        {% set _ = hist_filters.append({
+            'group': 'mine', 'label': '내 담당만', 'on': history.mine, 'n': none,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
+                            dispatch=h_dispatch, rel=h_rel, q=h_q,
+                            mine=none if (not history.mine) == history.mine_default
+                                 else ('0' if history.mine else '1'))}) %}
+        {% endif %}
 
         {# ── 폰 상태 시트(2026-09-29 폰 2단계) ─────────────────────────────
            폰에서는 칩 8개가 가로로 밀려 화면 밖으로 나갔다 — 켜진 것 + 숫자를 말하는 버튼 하나로
@@ -1339,7 +1353,7 @@
                         <i class="fas fa-xmark" aria-hidden="true"></i>
                     </button>
                 </div>
-                {% for group_key, group_label in [('stage', '받은 뒤 단계'), ('naver', '네이버에 남은 일')] %}
+                {% for group_key, group_label in [('stage', '받은 뒤 단계'), ('naver', '네이버에 남은 일')] + ([('mine', '담당')] if history.mine_available else []) %}
                 <section class="wb-hsheet__group" aria-labelledby="wb-hsheet-g-{{ group_key }}">
                     <h3 class="wb-hsheet__legend" id="wb-hsheet-g-{{ group_key }}">{{ group_label }}</h3>
                     <ul class="wb-hsheet__list">
@@ -1379,6 +1393,7 @@
                 {% if h_place %}<input type="hidden" name="place" value="{{ h_place }}">{% endif %}
                 {% if h_dispatch %}<input type="hidden" name="dispatch" value="{{ h_dispatch }}">{% endif %}
                 {% if h_rel %}<input type="hidden" name="rel" value="{{ h_rel }}">{% endif %}
+                {% if h_mine %}<input type="hidden" name="mine" value="{{ h_mine }}">{% endif %}
                 <label class="wb-find__label" for="wb-find">찾기</label>
                 <input type="search" id="wb-find" name="q" class="wb-find__input" autocomplete="off"
                        value="{{ history.find }}" enterkeyhint="search"
@@ -1388,7 +1403,7 @@
                 {# 폰 P2(감사 원장 N-38) — 찾는 낱말이 있으면 지우기(×). 같은 필터에서 낱말만 뺀 평범한 링크다. #}
                 {% if history.find %}
                 <a class="wb-find__clear" aria-label="찾기 지우기"
-                   href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}"><span aria-hidden="true">×</span></a>
+                   href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel, mine=h_mine) }}"><span aria-hidden="true">×</span></a>
                 {% endif %}
             </form>
             {# 서버가 좁힌 결과를 말한다 — 빈 결과일 때 "다른 쪽에 있을 수 있다"는 이제
@@ -1581,8 +1596,10 @@
                     <tr class="wb-hist__none"><td colspan="8" class="wb-empty"><div class="wb-empty--done wb-empty--find">
                         <p class="wb-empty__title">‘{{ history.find }}’(으)로 찾은 주문이 없어요</p>
                         <p class="wb-empty__sub">이름 · 전화 뒷자리 4개 · 주문번호로 찾아 보세요.</p>
-                        <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}">찾기 지우기</a>
+                        <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel, mine=h_mine) }}">찾기 지우기</a>
                     </div></td></tr>
+                    {% elif history.mine %}
+                    <tr class="wb-hist__none"><td colspan="8" class="wb-empty">내 담당 네이버 주문이 없어요. ‘내 담당만’을 끄면 전체가 보여요.</td></tr>
                     {% else %}
                     <tr class="wb-hist__none"><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
                     {% endif %}
@@ -1602,15 +1619,16 @@
         {% set p_rel = 'ADDON_REPAY' if history.relation_filter else None %}
         {# 찾기 낱말도 같은 규약이다 — 빠지면 2쪽으로 넘긴 순간 800주문 전체로 돌아간다. #}
         {% set p_q = history.find or None %}
+        {% set p_mine = none if history.mine == history.mine_default else ('1' if history.mine else '0') %}
         <div class="wb-pager">
             {% if history.page > 1 %}
             <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=p_status, place=p_place,
-                                dispatch=p_dispatch, rel=p_rel, q=p_q, page=history.page - 1) }}">이전</a>
+                                dispatch=p_dispatch, rel=p_rel, q=p_q, mine=p_mine, page=history.page - 1) }}">이전</a>
             {% endif %}
             <span class="wb-pager__cur">{{ history.page }} / {{ history.pages }}</span>
             {% if history.page < history.pages %}
             <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=p_status, place=p_place,
-                                dispatch=p_dispatch, rel=p_rel, q=p_q, page=history.page + 1) }}">다음</a>
+                                dispatch=p_dispatch, rel=p_rel, q=p_q, mine=p_mine, page=history.page + 1) }}">다음</a>
             {% endif %}
             {# 필터 유지는 페이저 쿼리스트링이 코드로 보장한다. #}
         </div>

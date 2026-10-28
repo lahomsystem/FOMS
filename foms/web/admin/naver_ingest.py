@@ -308,7 +308,8 @@ def _group_key_col():
     return group_key_expression()
 
 
-def _status_group_counts(db, *, find: str = "") -> dict[str, int]:
+def _status_group_counts(db, *, find: str = "",
+                         mine_user_id: Optional[int] = None) -> dict[str, int]:
     """상태별 **묶음 수**를 센다 — 필터 버튼 숫자를 표 총계와 같은 단위로 맞춘다.
 
     링크 행으로 세면 "전체 36 · 수집됨(주문 전) 102" 처럼 부분이 전체보다 커 보인다
@@ -330,9 +331,7 @@ def _status_group_counts(db, *, find: str = "") -> dict[str, int]:
         db.query(key_col, ExternalOrderLink.sync_status)
         .filter(ExternalOrderLink.channel == "NAVER")
     )
-    find_clause = _history_find_clause(find)
-    if find_clause is not None:
-        query = query.filter(find_clause)
+    query = _apply_history_scope(query, find=find, mine_user_id=mine_user_id)
     pairs = query.group_by(key_col, ExternalOrderLink.sync_status).all()
     counts = {name: 0 for name in VALID_STATUSES}
     for _key, link_status in pairs:
@@ -353,7 +352,8 @@ def _place_pending_clause():
                ExternalOrderLink.place_order_status.notin_(CONFIRMED_PLACE_VALUES))
 
 
-def _place_pending_group_count(db, *, find: str = "") -> int:
+def _place_pending_group_count(db, *, find: str = "",
+                               mine_user_id: Optional[int] = None) -> int:
     """'발주확인 전' 묶음 수 — 필터 버튼 숫자(다른 버튼과 같은 집 단위).
 
     Args:
@@ -367,9 +367,7 @@ def _place_pending_group_count(db, *, find: str = "") -> int:
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _place_pending_clause())
     )
-    find_clause = _history_find_clause(find)
-    if find_clause is not None:
-        query = query.filter(find_clause)
+    query = _apply_history_scope(query, find=find, mine_user_id=mine_user_id)
     return query.group_by(key_col).count()
 
 
@@ -395,7 +393,8 @@ def _dispatch_pending_clause() -> ColumnElement[bool]:
     return dispatch_pending_clause()
 
 
-def _dispatch_pending_group_count(db, *, find: str = "") -> int:
+def _dispatch_pending_group_count(db, *, find: str = "",
+                                  mine_user_id: Optional[int] = None) -> int:
     """'발송처리 전' 묶음 수 — 칩 숫자(다른 칩과 **같은 집 단위**).
 
     링크 행으로 세면 부분이 전체보다 커 보인다(2026-08-19 스테이징 실화면). 필터는
@@ -413,9 +412,7 @@ def _dispatch_pending_group_count(db, *, find: str = "") -> int:
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _dispatch_pending_clause())
     )
-    find_clause = _history_find_clause(find)
-    if find_clause is not None:
-        query = query.filter(find_clause)
+    query = _apply_history_scope(query, find=find, mine_user_id=mine_user_id)
     return query.group_by(key_col).count()
 
 
@@ -430,7 +427,8 @@ def _relation_clause() -> ColumnElement[bool]:
     return ExternalOrderLink.relation.in_(("ADDON", "REPAY"))
 
 
-def _relation_group_count(db, *, find: str = "") -> int:
+def _relation_group_count(db, *, find: str = "",
+                          mine_user_id: Optional[int] = None) -> int:
     """추가결제·재결제 묶음 수 — 칩 숫자(다른 칩과 같은 집 단위).
 
     Args:
@@ -444,9 +442,7 @@ def _relation_group_count(db, *, find: str = "") -> int:
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _relation_clause())
     )
-    find_clause = _history_find_clause(find)
-    if find_clause is not None:
-        query = query.filter(find_clause)
+    query = _apply_history_scope(query, find=find, mine_user_id=mine_user_id)
     return query.group_by(key_col).count()
 
 
@@ -1238,10 +1234,87 @@ def _history_find_clause(term: str) -> Optional[ColumnElement]:
     return or_(*clauses)
 
 
+def _history_mine_clause(user_id: int) -> ColumnElement[bool]:
+    """'내 담당만' 술어 — 붙은 FOMS 주문의 **현재 영업 담당**이 이 사람인 링크(2026-10-28).
+
+    담당의 정본은 ``order_assignments`` 의 active SALES 행이다(주문당 1명, partial unique).
+    released 행은 옛 담당이라 빼고, 주문이 아직 없는 수집분은 담당도 없으니 안 걸린다.
+    작은 표(운영 963행)라 ``IN (select)`` 하나로 끝난다 — JSONB 를 타지 않는다.
+
+    Args:
+        user_id: 현재 사용자 id.
+
+    Returns:
+        ``order_id IN (...)`` 술어.
+    """
+    from sqlalchemy import select
+
+    from models import OrderAssignment
+
+    mine = select(OrderAssignment.order_id).where(
+        OrderAssignment.active.is_(True),
+        OrderAssignment.domain == "SALES",
+        OrderAssignment.user_id == int(user_id),
+    )
+    return ExternalOrderLink.order_id.in_(mine)  # perf-ok: order_assignments 소형 표
+
+
+def _apply_history_scope(query: Any, *, find: str = "",
+                         mine_user_id: Optional[int] = None) -> Any:
+    """이력 탭의 범위 술어(찾기 낱말 · 내 담당만)를 쿼리에 건다 — 목록·칩 숫자 공용.
+
+    목록만 좁히고 칩이 전체를 말하면 한 화면이 두 모집단을 주장한다. 그래서 다섯 조회
+    (:func:`_link_rows` 와 칩 숫자 넷)가 이 한 곳을 거친다.
+
+    Args:
+        query: 링크 기준 SQLAlchemy 쿼리.
+        find: 찾기 낱말(:func:`_history_find_clause`).
+        mine_user_id: '내 담당만' 이 켜졌으면 그 사용자 id, 아니면 ``None``.
+
+    Returns:
+        좁힌 쿼리.
+    """
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        query = query.filter(find_clause)
+    if mine_user_id is not None:
+        query = query.filter(_history_mine_clause(mine_user_id))
+    return query
+
+
+def _history_mine_state() -> tuple[bool, bool, bool]:
+    """'내 담당만' 칩을 보여 줄지 · 지금 켜졌는지 · 기본값 — ``(보임, 켜짐, 기본 켜짐)``.
+
+    담당 주문이 있을 수 있는 사람(ADMIN · 영업팀)에게만 칩을 준다. 회계팀은 담당이 없어
+    켜면 늘 빈 목록이라 안 보인다. 기본값: 영업팀(MANAGER/STAFF)은 **켜짐** — 이 탭을 여는
+    이유가 자기 고객 결제 확인이다(2026-10-28 사용자 결정). ADMIN 은 꺼짐.
+    ``?mine=1``·``?mine=0`` 이 기본값을 이긴다. 모르는 값은 기본값.
+
+    Returns:
+        ``(available, on, default_on)``. 화면은 켜짐이 기본값과 다를 때만 주소에
+        ``mine`` 을 싣는다.
+    """
+    from foms.services.orders.order_mutation_policy import normalize_team
+
+    user = getattr(g, "current_user", None)
+    if user is None:
+        return (False, False, False)
+    role = str(getattr(user, "role", "") or "").strip().upper()
+    sales = (role in _HISTORY_TEAM_CAPABLE_ROLES
+             and normalize_team(getattr(user, "team", None)) == "SALES")
+    if role != "ADMIN" and not sales:
+        return (False, False, False)
+    raw = (request.args.get("mine") or "").strip()
+    if raw in ("0", "1"):
+        return (True, raw == "1", sales)
+    return (True, sales, sales)
+
+
 def _link_rows(db, *, status: Optional[str], page: int,
                place_pending: bool = False, dispatch_pending: bool = False,
                relation_filter: bool = False,
-               find: str = "") -> tuple[list[dict], int]:
+               find: str = "",
+               mine_user_id: Optional[int] = None) -> tuple[list[dict], int]:
     """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
 
     페이지는 묶음(네이버 주문번호) 단위로 센다 — 상품주문 단위로 자르면 페이지 끝에서 한
@@ -1263,6 +1336,7 @@ def _link_rows(db, *, status: Optional[str], page: int,
         find: 찾기 낱말(:func:`_history_find_clause`). 다른 필터와 **같은 규약**이다 —
             해당 링크가 하나라도 있는 집을 고르고, 뽑힌 집의 상품주문은 전부 싣는다.
             ``total`` 도 좁혀진 총계라 쪽수·"N주문" 이 찾은 결과와 어긋나지 않는다.
+        mine_user_id: '내 담당만' 칩(:func:`_history_mine_clause`). ``find`` 와 같은 규약.
 
     Returns:
         ``(묶음 목록, 묶음 총 개수)``.
@@ -1285,9 +1359,7 @@ def _link_rows(db, *, status: Optional[str], page: int,
         key_query = key_query.filter(_dispatch_pending_clause())
     if relation_filter:
         key_query = key_query.filter(_relation_clause())
-    find_clause = _history_find_clause(find)
-    if find_clause is not None:
-        key_query = key_query.filter(find_clause)
+    key_query = _apply_history_scope(key_query, find=find, mine_user_id=mine_user_id)
     key_query = key_query.group_by(key_col)
 
     total = key_query.count()
@@ -3442,7 +3514,7 @@ def _history_view(db) -> dict[str, Any]:
 
     Returns:
         ``rows``·``total``·``page``·``page_size``·``status``·``find``·``place_pending``·
-        ``dispatch_pending``·``relation_filter``·``counts``·``status_chips`` 와
+        ``dispatch_pending``·``relation_filter``·``mine_available``·``mine``·``mine_default``·``counts``·``status_chips`` 와
         칩 숫자 3종을 담은 dict.
     """
     status = (request.args.get("status") or "").strip().upper()
@@ -3457,12 +3529,16 @@ def _history_view(db) -> dict[str, Any]:
         page = 1
 
     find = _history_find_term(request.args.get("q"))
+    # '내 담당만'(2026-10-28) — 찾기와 같은 범위 술어라 목록·칩 숫자에 함께 건다.
+    mine_available, mine, mine_default = _history_mine_state()
+    user = getattr(g, "current_user", None)
+    mine_user_id = int(user.id) if mine and user is not None else None
 
     rows, total = _link_rows(db, status=status or None, page=page,
                              place_pending=place_pending,
                              dispatch_pending=dispatch_pending,
                              relation_filter=relation_filter,
-                             find=find)
+                             find=find, mine_user_id=mine_user_id)
     return {
         "rows": rows,
         "total": total,
@@ -3474,15 +3550,20 @@ def _history_view(db) -> dict[str, Any]:
         "place_pending": place_pending,
         "dispatch_pending": dispatch_pending,
         "relation_filter": relation_filter,
+        "mine_available": mine_available,
+        "mine": mine,
+        "mine_default": mine_default,
         # 칩 숫자도 **같은 낱말**로 좁힌다 — 목록만 좁히고 칩은 전체를 말하면
         # 한 화면이 두 모집단을 동시에 주장한다.
-        "counts": _status_group_counts(db, find=find),
+        "counts": _status_group_counts(db, find=find, mine_user_id=mine_user_id),
         # 칩 낱말의 **단일 출처**. 템플릿이 두 벌째 적으면 칩만 `받아옴 · 주문 전`,
         # 배지만 `받아옴` 으로 조용히 갈린다(상수 주석이 경고한 그 실패 모양).
         "status_chips": HISTORY_STATUS_CHIPS,
-        "place_pending_count": _place_pending_group_count(db, find=find),
-        "dispatch_pending_count": _dispatch_pending_group_count(db, find=find),
-        "relation_count": _relation_group_count(db, find=find),
+        "place_pending_count": _place_pending_group_count(
+            db, find=find, mine_user_id=mine_user_id),
+        "dispatch_pending_count": _dispatch_pending_group_count(
+            db, find=find, mine_user_id=mine_user_id),
+        "relation_count": _relation_group_count(db, find=find, mine_user_id=mine_user_id),
     }
 
 

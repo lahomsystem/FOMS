@@ -207,7 +207,10 @@ def _sheet(body: str) -> str:
 
 
 def test_history_sheet_uses_the_same_links_as_the_chips(client, workbench_on, monkeypatch):
-    """시트 줄 8개 = 칩 8개와 **같은 주소·같은 켜짐**(한 목록에서 그린다). 묶음은 5 + 3."""
+    """시트 줄 9개 = 칩 9개와 **같은 주소·같은 켜짐**(한 목록에서 그린다). 묶음은 5 + 3 + 1.
+
+    ADMIN 에게는 '내 담당만'(2026-10-28) 묶음이 맨 끝에 하나 더 붙는다.
+    """
     _empty_strips(monkeypatch)
     _seed_history()
     _login(client)
@@ -219,12 +222,13 @@ def test_history_sheet_uses_the_same_links_as_the_chips(client, workbench_on, mo
         chips = _chip_links(body)
         sheet = _sheet(body)
         opts = re.findall(r'<a class="wb-hsheet__opt" href="([^"]+)"( aria-current="true")?>', sheet)
-        assert len(chips) == 8 and len(opts) == 8, (query, chips, opts)
+        assert len(chips) == 9 and len(opts) == 9, (query, chips, opts)
         assert [href for href, _ in opts] == [href for href, _ in chips], query
         assert [bool(cur) for _, cur in opts] == [p == "true" for _, p in chips], query
         groups = sheet.split('class="wb-hsheet__group"')[1:]
-        assert [g.count('class="wb-hsheet__opt"') for g in groups] == [5, 3]
+        assert [g.count('class="wb-hsheet__opt"') for g in groups] == [5, 3, 1]
         assert "받은 뒤 단계" in groups[0] and "네이버에 남은 일" in groups[1]
+        assert "내 담당만" in groups[2]
 
 
 def test_history_sheet_button_says_current_filter_and_count(client, workbench_on, monkeypatch):
