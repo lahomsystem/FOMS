@@ -222,6 +222,7 @@
         <div class="erp-pro-alert__icon"><i class="fas fa-handshake" aria-hidden="true"></i></div>
         <div class="erp-pro-alert__content">
           <span class="erp-pro-alert__label">협력사 희망 시공일 · 확정 대기 {{ partner_pending_requests|length }}건</span>
+          <span class="small text-muted">시공은 우리가 하니 희망일도 날짜별 시공 건수에 들어가 있습니다.</span>
           <div class="d-flex flex-wrap gap-1 mt-1">
             {% for p in partner_pending_requests %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_edit.edit_order', order_id=p.id, open='erp-order') }}">#{{ p.id }} {{ p.customer_name }}{% if p.partner_name %} ({{ p.partner_name }}){% endif %} · 희망 {{ p.text }}</a>

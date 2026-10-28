@@ -2,6 +2,9 @@
 
 스펙 docs/specs/2026-10-19-partner-foms-mode_SPEC.md §18. 희망 시공일은 ``partner_intake.requested_construction``
 에만 두고 우리 ``schedule.construction``(확정 시공일)은 건드리지 않는다.
+
+협력사는 주문 · 실측까지만 하고 도면 · 제작 · 시공 · AS 는 우리가 한다 — 확정 전 희망 시공일도 그날 우리 시공
+건수에 넣는다(사용자 결정 2026-10-28, :func:`partner_request_on` · :func:`pending_request_counts`).
 """
 from __future__ import annotations
 
@@ -9,15 +12,16 @@ import datetime
 import re
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from foms.services.notifications.recipients import fan_out_new_notification
-from models import Notification, Order, PartnerOrg
+from models import Notification, Order, OrderScheduleDate, PartnerOrg
 
 TIME_LIMIT = 20
 # 출고 화면 확정 대기 칸이 훑는 협력사 주문 수(최근 순) — 시공일 없는 시공 전 주문만이라 몇 건이다.
 _SHIPMENT_SCAN_LIMIT = 200
-_REQUEST_DATE = Order.structured_data["partner_intake"]["requested_construction"]["date"].as_string().label("date")
+_REQUEST_DATE_EXPR = Order.structured_data["partner_intake"]["requested_construction"]["date"].as_string()
+_REQUEST_DATE = _REQUEST_DATE_EXPR.label("date")
 _REQUEST_TIME = Order.structured_data["partner_intake"]["requested_construction"]["time"].as_string().label("time")
 # 시공이 시작됐거나 끝난 단계 — 희망 시공일을 더 받지 않는다.
 REQUEST_CLOSED_STAGES = frozenset({"CONSTRUCTION", "CS", "COMPLETED", "AS", "AS_RECEIVED", "AS_COMPLETED"})
@@ -93,14 +97,49 @@ def pending_request(sd: Any, stage: str) -> dict[str, Any] | None:
     return request if request_text(request) else None
 
 
-def _unconfirmed_partner_orders(query):
+def _unconfirmed_conds() -> tuple:
     """협력사 주문 중 우리 시공일이 없고 시공 전 단계인 것 — 평면 칸으로 먼저 줄인다(JSONB 는 남은 건만 읽는다)."""
-    return query.filter(
+    return (
         Order.partner_org_id.isnot(None),
-        Order.active_filter(),
         or_(Order.erp_construction_date.is_(None), Order.erp_construction_date == ""),
         or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(REQUEST_CLOSED_STAGES)),
     )
+
+
+def _unconfirmed_partner_orders(query):
+    """확정 대기 협력사 주문(삭제 · 보관 제외)."""
+    return query.filter(Order.active_filter(), *_unconfirmed_conds())
+
+
+def partner_request_on(dates: list[str]):
+    """희망 시공일이 dates 중 하나인 확정 대기 협력사 주문 술어 — 날짜별 시공 술어에 OR 로 붙인다.
+
+    우리 시공 일정 행이 하나라도 있으면(품목별 시공일만 있는 경우 포함) 그 행으로 세므로 여기서 뺀다(두 번 세지 않게).
+    """
+    return and_(
+        *_unconfirmed_conds(),
+        ~Order.schedule_dates.any(OrderScheduleDate.kind == "construction"),
+        _REQUEST_DATE_EXPR.in_(list(dates)),
+    )
+
+
+def pending_request_ids_by_date(query, dates: list[str]) -> dict[int, str]:
+    """확정 대기 희망 시공 주문 번호 → 희망일(query 범위 안). 화면이 담당 거르기를 따로 할 때 쓴다."""
+    if not dates:
+        return {}
+    rows = query.filter(partner_request_on(dates)).with_entities(Order.id, _REQUEST_DATE_EXPR).all()
+    return {int(order_id): str(day) for order_id, day in rows if day}
+
+
+def pending_request_counts(query, dates: list[str]) -> dict[str, int]:
+    """날짜별 확정 대기 희망 시공 주문 수(query 가 정한 범위 안). 우리 시공 건수에 더한다.
+
+    시공일 없는 협력사 주문이라 몇 건뿐이다 — 번호 · 날짜를 받아 여기서 센다(담당 거르기 경로와 같은 행).
+    """
+    counts: dict[str, int] = {}
+    for day in pending_request_ids_by_date(query, dates).values():
+        counts[day] = counts.get(day, 0) + 1
+    return counts
 
 
 def pending_request_texts(db, order_ids: set[int]) -> dict[int, str]:
