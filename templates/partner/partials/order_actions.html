@@ -3,7 +3,7 @@
     <p class="pp-status mb-0" id="ppStatus" role="status" aria-live="polite"></p>
     <div class="pp-actions__buttons">
         {% if view.items_editable %}
-        <button type="button" class="btn btn-primary" data-pp-items-url="{{ url_for('partner_api.update_items', order_id=view.id) }}" data-pp-upload-url="{{ url_for('partner_api.upload_file', order_id=view.id) }}"><i class="fas fa-floppy-disk"></i> 품목 저장</button>
+        <button type="button" class="btn btn-primary" data-pp-items-url="{{ url_for('partner_api.update_items', order_id=view.id) }}" data-pp-upload-url="{{ url_for('partner_api.upload_file', order_id=view.id) }}" data-pp-list-url="{{ url_for('partner_portal.home') }}"><i class="fas fa-floppy-disk"></i> 품목 저장</button>
         {% endif %}
         {% if can_revise %}
         <button type="button" class="btn btn-outline-primary" data-pp-goto-tab="drawing">수정 요청 보내기</button>

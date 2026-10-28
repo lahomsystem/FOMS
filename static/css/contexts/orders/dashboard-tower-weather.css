@@ -5,7 +5,9 @@
    - 움직임은 transform·opacity 만, 오늘부터 7일 안에 날씨가 있는 주만(.is-still 이 아닌 주). '동작 줄이기'면 전부 멈춘다.
      측정(10월 실데이터, CPU 6배 느리게): 57fps. 한 달 세 주가 움직이면 35~50fps 로 떨어진다 — 7일 규칙을 지킬 것. */
 
-.foms-tower {
+/* 날씨 색 변수는 달력이 놓이는 곳 어디서나 보여야 한다 — 협력사 달력(.pp-cal)은 .foms-tower 밖이라
+   변수가 비어 SVG 멈춤 색이 검정이 됐다(사용자 2026-10-28). 그래서 :root 에도 건다. */
+:root, .foms-tower {
   --wx-sun: rgb(255, 236, 176);
   --wx-partly: rgb(240, 236, 214);
   --wx-cloud: rgb(214, 221, 232);
@@ -16,7 +18,7 @@
   --wx-flurry: rgb(214, 227, 248);
   --wx-none: rgb(238, 240, 244);
 }
-[data-theme='dark'] .foms-tower {
+[data-theme='dark'], [data-theme='dark'] .foms-tower {
   --wx-sun: rgb(130, 122, 95);
   --wx-partly: rgb(118, 116, 104);
   --wx-cloud: rgb(112, 115, 120);

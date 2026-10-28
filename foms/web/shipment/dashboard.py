@@ -14,6 +14,7 @@ from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
+from foms.services.partners.schedule_request import shipment_pending_requests
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
     extract_dashboard_target_dates,
@@ -650,6 +651,8 @@ def erp_shipment_dashboard():
         shipment_team_group_meta=shipment_team_group_meta,
         # 상단 배너 요약({count, chips, overflow}). 행 배지는 r.shipment_change_alerts.
         shipment_change_banner=shipment_change_banner,
+        # 협력사 희망 시공일 · 확정 대기(우리 시공일 없는 협력사 주문 — 출고 담당자가 정한다).
+        partner_pending_requests=shipment_pending_requests(db),
         # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
         # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
         kakao_js_key=KAKAO_JS_API_KEY,

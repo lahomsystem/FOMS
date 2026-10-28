@@ -75,7 +75,8 @@
         await putJson(button.getAttribute('data-pp-items-url'), { items: collected.items });
         var failed = await portal.uploadFiles(document.createElement('form'), button.getAttribute('data-pp-upload-url'), collected.photoJobs);
         if (failed.length) window.alert('품목은 저장됐지만 일부 사진을 올리지 못했습니다.\n\n' + failed.join('\n'));
-        window.location.reload();
+        // 새 주문처럼 저장하면 바로 목록으로(사용자 2026-10-28).
+        window.location.href = button.getAttribute('data-pp-list-url');
       } catch (err) {
         portal.setStatus(err.message, true);
         busy = false;

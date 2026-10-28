@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import or_
 
 from foms.services.partners.orders import partner_stage_label
+from foms.services.partners.schedule_request import pending_request_texts
 from models import Order, OrderAssignment
 
 PARTNER_PIPELINE = ("접수 확인 중", "도면 작업 중", "도면 확인 대기", "생산 중", "시공 예정", "완료", "AS 진행 중")
@@ -89,6 +90,8 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
         .all()
     )
     confirmed = _drawing_confirmed(db, {r.id for r in result if (r.erp_stage_code or "").upper() == "CONFIRM"})
+    # 시공일 칸: 우리 시공일이 없으면 보낸 희망 시공일을 "(희망)"으로(사용자 2026-10-28).
+    requested = pending_request_texts(db, {r.id for r in result if not r.erp_construction_date})
     rows: dict[int, dict[str, Any]] = {}
     for r in result:
         if r.id in rows:
@@ -97,6 +100,7 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
         rows[r.id] = {
             "id": r.id, "customer_name": r.customer_name, "phone": r.phone, "address": r.address,
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
+            "requested_construction": requested.get(r.id, ""),
             "stage_label": label, "turn": label == TURN_LABEL, "work": _work_text(label, r.erp_construction_date),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
         }
