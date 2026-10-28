@@ -8,6 +8,10 @@
 
 종료 후보는 내지 않는다(원장 D23 — AI 는 종료를 누르지 않고 감시는 '답 필요'만 센다). 대신 손님의 남은
 글이 맺음 인사뿐이면 '답 필요'에서 뺀다(``closing_only``).
+
+상태 표(C1-2 ``channel_read``)는 원문을 두지 않는다. 그래서 글마다 맺음 · 확인코드 · 약속을 받을 때 한 번
+재 두고(:class:`ChatMessage` 의 ``closing`` · ``code_message`` · ``promise``), 여기서는 그 값이 있으면 그것을,
+없으면 ``text`` 를 본다. 확인코드('문서 받기') 글은 share_consult 가 링크로 답하므로 '답 필요'를 만들지 않는다(R4-2).
 """
 
 from __future__ import annotations
@@ -39,7 +43,12 @@ BusinessDayFn = Callable[[datetime.date], bool]
 
 @dataclass(frozen=True)
 class ChatMessage:
-    """상담 글 하나. ``text`` 는 가린 글이고 약속 꼴 · 맺음 꼴 판정에만 쓴다."""
+    """상담 글 하나. ``text`` 는 가린 글이고 약속 꼴 · 맺음 꼴 판정에만 쓴다.
+
+    ``closing`` · ``promise`` 는 미리 잰 값이다 — 있으면 ``text`` 대신 쓴다(상태 표에는 원문이 없다).
+    ``code_message`` 는 확인코드 글 표시다. 채널 원본에서 글을 만들 때는 ``channel_read.derive_message`` 를
+    거쳐야 세 값이 같은 규칙으로 채워진다.
+    """
 
     message_id: str
     person_type: str  # 'user' | 'manager' | 'bot'
@@ -48,6 +57,9 @@ class ChatMessage:
     private: bool = False  # 내부 메모(손님에게 안 보임)
     is_log: bool = False  # 시스템 기록(배정 · 종료 · 태그)
     has_file: bool = False  # 사진 · 파일
+    closing: Optional[bool] = None  # 미리 잰 맺음 여부(None 이면 text 로 잰다)
+    code_message: bool = False  # 확인코드('문서 받기') 글 — 답 필요를 만들지 않는다(R4-2)
+    promise: Optional[StaffPromise] = None  # 미리 잰 약속(None 이면 text 로 잰다)
 
 
 @dataclass(frozen=True)
@@ -258,6 +270,20 @@ def _is_answer(message: ChatMessage) -> bool:
     return message.person_type == "manager" and not message.private and not message.is_log
 
 
+def _is_closing(message: ChatMessage) -> bool:
+    """미리 잰 맺음 값이 있으면 그것, 없으면 글로 잰다."""
+    return message.closing if message.closing is not None else is_closing_text(message.text)
+
+
+def _promise_of(
+    message: ChatMessage, brand: str, is_business_day: Optional[BusinessDayFn]
+) -> Optional[StaffPromise]:
+    """미리 잰 약속이 있으면 그것, 없으면 글로 잰다(원문 없는 직원 글은 약속 없음이 된다)."""
+    if message.promise is not None:
+        return message.promise
+    return detect_promise(message, brand, is_business_day=is_business_day)
+
+
 def compute_chat_state(
     chat_id: str,
     brand: str,
@@ -273,8 +299,9 @@ def compute_chat_state(
     ordered = sorted((m for m in messages if not m.is_log), key=lambda m: (_kst(m.created_at), m.message_id))
     is_open = chat_state != "closed"
     last_answer = max((i for i, m in enumerate(ordered) if _is_answer(m)), default=-1)
-    pending = [m for m in ordered[last_answer + 1:] if m.person_type == "user"]
-    substantive = [m for m in pending if m.has_file or not is_closing_text(m.text)]
+    # 확인코드 글은 share_consult 가 링크로 답한다 — 남은 손님 글로 세지 않는다(R4-2).
+    pending = [m for m in ordered[last_answer + 1:] if m.person_type == "user" and not m.code_message]
+    substantive = [m for m in pending if m.has_file or not _is_closing(m)]
     needs_reply = is_open and bool(substantive)
     waiting_since = _kst(substantive[0].created_at) if needs_reply else None
     waited = (
@@ -287,19 +314,8 @@ def compute_chat_state(
 
     promise = None
     if is_open and last_answer >= 0:
-        promise = detect_promise(ordered[last_answer], brand, is_business_day=is_business_day)
+        promise = _promise_of(ordered[last_answer], brand, is_business_day)
     overdue = bool(promise and now > promise.due_at)
-
-    if stale:
-        priority = PRIORITY_STALE
-    elif overdue:
-        priority = PRIORITY_BROKEN_PROMISE
-    elif needs_reply:
-        priority = PRIORITY_NEEDS_REPLY
-    elif promise:
-        priority = PRIORITY_PROMISE_PENDING
-    else:
-        priority = PRIORITY_NONE
     return ChatState(
         chat_id=chat_id,
         brand=brand,
@@ -311,8 +327,19 @@ def compute_chat_state(
         stale=stale,
         open_promise=promise,
         promise_overdue=overdue,
-        priority=priority,
+        priority=_priority(stale=stale, overdue=overdue, needs_reply=needs_reply, has_promise=bool(promise)),
     )
+
+
+def _priority(*, stale: bool, overdue: bool, needs_reply: bool, has_promise: bool) -> int:
+    """우선순위 칸: 3일+ → 약속 넘김 → 답 필요 → 약속 기한 전 → 없음."""
+    if stale:
+        return PRIORITY_STALE
+    if overdue:
+        return PRIORITY_BROKEN_PROMISE
+    if needs_reply:
+        return PRIORITY_NEEDS_REPLY
+    return PRIORITY_PROMISE_PENDING if has_promise else PRIORITY_NONE
 
 
 def sort_by_priority(states: Sequence[ChatState]) -> list[ChatState]:

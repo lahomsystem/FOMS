@@ -2306,6 +2306,8 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "construction",
         "crew",
         "cs",
+        # CS-AGENT C1-1: AI 상담팀원 패키지 하나(설계서 2026-10-27-cs-ai-agent 승인, 플랜 공통 규칙).
+        "cs_agent",
         "drawing",
         "files",
         # NAVER-INGEST-01 §3.2: 외부 판매채널 API 클라이언트 경계(네이버 커머스API 등).
