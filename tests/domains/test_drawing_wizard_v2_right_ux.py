@@ -280,8 +280,8 @@ def test_templates_css_tools_sticky_banner_and_pins():
             'title="예전 화면(V1)으로 돌아가요 · 고치던 것은 저장돼요">예전 화면</button>') in v2_block
     assert '<button type="button" class="dws-menu-item" data-v2-for="dws-v2-unpin" hidden>고정 풀고 모두 다시</button>' in v2_block
     assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028b" in TPL                  # 10-28 알림 띠 탭 줄 · 내 문구 단추
-    for asset, v in (("js/drawing/v2-plan.js", "d"), ("js/drawing/v2-right.js", "e"), ("js/drawing/v2-chrome.js", "e"), ("js/drawing/v2-shell.js", "d")):
-        assert f"{asset}') }}}}?v=20261028{v}" in TPL, asset                             # 10-28 빈자리 채우기 · 글자 고정
+    for asset, v in (("js/drawing/v2-plan.js", "28d"), ("js/drawing/v2-right.js", "28e"), ("js/drawing/v2-chrome.js", "28e"), ("js/drawing/v2-shell.js", "29a")):
+        assert f"{asset}') }}}}?v=202610{v}" in TPL, asset                               # 10-28 빈자리 채우기 · 글자 고정 · 10-29 그림 뜬 뒤 기준
     assert ".dws-v2-auto .dws-appbar-center .dws-seg" not in CSS                       # 자동 배치에도 도구가 보인다
     assert ".dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }" in CSS
     banner = CSS[CSS.index(".dws-v2-banner {"):CSS.index(".dws-v2-banner[hidden]")]

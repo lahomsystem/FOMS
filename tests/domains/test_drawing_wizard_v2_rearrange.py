@@ -454,3 +454,20 @@ out.restored = [overlaps().length === out.before, Object.keys(V2.plan().g.fixed)
     assert out["undo"] == 1 and "서로 겹친 고정 그림 1장은 풀어 다시 놓았어요" in out["toast"], out
     assert out["restored"] == [True, ["d1", "i1"]]
 
+
+
+def test_v1_baseline_is_measured_again_once_pictures_have_loaded():
+    """예전 양식 기준(% 의 분모 — V1 자동 배치 크기)은 치수 글자 높이를 쓰는데 그 높이는 그림이 떠야 잰다. 그림 전에 잰 기준을
+    계속 기억해 같은 시트도 열 때마다 % · 배치가 달랐다(스테이징 4465, 2026-10-29) — 그림이 뜨면 한 번 다시 잰다."""
+    out = _run(r"""
+let loaded = false, calls = 0;
+core.image = () => (loaded ? { naturalWidth: 640 } : null);
+core.baseline = () => { calls += 1; return {}; };
+laidSheet();
+const first = calls;
+emit('render'); tick(100);
+const again = calls;                                   // 그림이 그대로면 다시 안 잰다
+loaded = true; emit('render'); tick(100);              // 그림이 다 뜸(wizard.js 가 render 한 번)
+out.calls = [first > 0, again === first, calls === first + 1];
+""")
+    assert out["calls"] == [True, True, True], out

@@ -732,7 +732,7 @@
   {# 줄여 그린 그림 고운 필터(Chrome · Edge) — 그림 노드 sceneFunc. 2026-10-28 '컴퍼넌트를 줄이면 화질이 떨어진다'. #}
   <script src="{{ url_for('static', filename='js/drawing/image-smooth.js') }}?v=20261028b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/zoom-sharp.js') }}?v=20261028a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261029a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261029b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}
   {# V2 칸 자동 배치 화면 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md. v2-shell.js 가 마지막(나머지를 잇는다). #}
@@ -750,7 +750,7 @@
   <script src="{{ url_for('static', filename='js/drawing/v2-size.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261028e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261028e" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261028d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261029a" defer></script>
   {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>

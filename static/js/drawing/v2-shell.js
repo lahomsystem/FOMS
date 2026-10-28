@@ -40,7 +40,7 @@
 
   function baseline(imgs) {
     var sh = core.sheet(), key = (sh ? sh.id : '') + '|' + imgs.map(function (o) {
-      return [o.id, o.natural_w || o.w, o.natural_h || o.h, (o.part && o.part.label) || ''].join(':');
+      return [o.id, o.natural_w || o.w, o.natural_h || o.h, (o.part && o.part.label) || '', core.image && core.image(o.id) ? 1 : 0].join(':');   // 그림이 뜨면(치수 글자 높이를 잰 뒤) 다시 잰다
     }).join(';');
     if (baseCache.key !== key) { baseCache = { key: key, val: core.baseline(imgs) }; }
     return baseCache.val;
