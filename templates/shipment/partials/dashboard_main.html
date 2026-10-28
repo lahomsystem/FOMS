@@ -215,6 +215,21 @@
          보이는 첫 정보여야 한다. 조상이 .erp-shipment-desktop-shell 이라 모바일 v2
          코호트에서는 통째로 은닉된다(모바일 표면은 이번 범위 밖 — 스펙 §4.2 · §7). #}
       {{ render_shipment_change_banner(shipment_change_banner) }}
+      {# 협력사 희망 시공일 · 확정 대기: 협력사가 고른 날짜는 희망일이다 — 출고 담당자가 이야기한 뒤
+         주문 화면에서 시공일을 정하면 이 칸에서 빠지고 날짜별 목록 · 달력에 들어간다(사용자 2026-10-28). #}
+      {% if partner_pending_requests %}
+      <div class="erp-pro-alert erp-pro-alert--info mb-3" data-partner-pending-requests>
+        <div class="erp-pro-alert__icon"><i class="fas fa-handshake" aria-hidden="true"></i></div>
+        <div class="erp-pro-alert__content">
+          <span class="erp-pro-alert__label">협력사 희망 시공일 · 확정 대기 {{ partner_pending_requests|length }}건</span>
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            {% for p in partner_pending_requests %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_edit.edit_order', order_id=p.id, open='erp-order') }}">#{{ p.id }} {{ p.customer_name }}{% if p.partner_name %} ({{ p.partner_name }}){% endif %} · 희망 {{ p.text }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
       {% if not erp_mobile_v2_enabled %}
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">출고 큐</span>

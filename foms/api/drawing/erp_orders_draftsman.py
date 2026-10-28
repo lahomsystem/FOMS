@@ -4,33 +4,25 @@ erp.py에서 분리: assign-draftsman, batch-assign-draftsman, confirm-drawing-r
 """
 import copy
 from foms.services.error_logging import log_handled_exception
-from datetime import datetime
 
 from flask import Blueprint, request, jsonify, session
 
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, User, OrderEvent, SecurityLog
+from models import Order, User, OrderEvent
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain
 from foms.api.drawing.draftsman_receipt_authz import can_confirm_drawing_receipt
-from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
-from foms.services.orders.drawing_confirm_partial import (
-    PartialConfirmError,
-    apply_partial_confirm,
-    cancel_event_payload,
-    plan_partial_confirm,
-)
+from foms.services.orders.drawing_confirm_partial import PartialConfirmError, plan_partial_confirm
 from foms.services.orders.drawing_receipt_command import (
     advance_receipt_stage,
     receipt_transition_error,
-    write_receipt_structured,
+    record_drawing_receipt,
 )
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError, lock_order_row
@@ -367,92 +359,11 @@ def api_order_confirm_drawing_receipt(order_id):
             code, status = receipt_transition_error(exc)
             return jsonify({'success': False, 'code': code, 'message': str(exc)}), status
 
-        next_stage = read_main_stage(order) or old_stage or 'CONFIRM'
-
-        # 전이가 structured_data 를 새로 썼으므로 도면 축 쓰기는 최신 dict 에서 이어 간다.
-        s_data = copy.deepcopy(_ensure_dict(order.structured_data))
-        s_data['drawing_status'] = 'CONFIRMED'
-        s_data['drawing_confirmed_at'] = datetime.now().isoformat()
-        s_data['drawing_confirmed_by'] = current_user.name
-
-        # 단계 축 타임스탬프(workflow.stage_updated_at)는 전이 엔진만 쓰고 라우트는 읽기만
-        # 한다. 이력 행 시각은 이번 요청 시각이다 — 단계가 실제로 옮겨 간 경우에만 전이가
-        # 방금 넣은 값을 써서 두 기록이 같은 순간을 가리킨다(drift 경로의 옛 시각 금지).
-        request_at = now_utc_naive().isoformat()
-        wf: dict = s_data.get('workflow') or {}
-        wf['stage_updated_by'] = current_user.name
-        history_at = (wf.get('stage_updated_at') or request_at) if stage_moved else request_at
-
-        hist: list = wf.get('history') or []
-        hist.append({
-            'stage': next_stage,
-            'updated_at': history_at,
-            'updated_by': wf['stage_updated_by'],
-            'note': '도면 수령 확인 및 단계 이동' if stage_moved else '도면 수령 확인(단계 유지)'
-        })
-        wf['history'] = hist
-        s_data['workflow'] = wf
-
-        partial_summary = None
-        if partial_plan is not None:
-            partial_summary = apply_partial_confirm(
-                s_data, partial_plan, actor_user_id=current_user.id, at_iso=request_at)
-
-        now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
-        draw_history = list(s_data.get('drawing_transfer_history') or [])
-        draw_history.append({
-            'action': 'CONFIRM_RECEIPT',
-            'at': now_str,
-            'by_user_id': current_user.id,
-            'by_user_name': current_user.name,
-            'note': '도면 수령 확인',
-            'files': list(s_data.get('drawing_current_files') or []),
-            'files_count': len(s_data.get('drawing_current_files') or []),
-        })
-
-        final_files, _deleted_count = finalize_drawing_files_on_confirm(db, order_id, s_data)
-        if partial_summary is not None:
-            draw_history[-1].update(partial_summary)
-        draw_history[-1]['files'] = final_files
-        draw_history[-1]['files_count'] = len(final_files)
-        s_data['drawing_transfer_history'] = draw_history
-
-        # 단계 유지면 REV-00 콜백 안에서 쓰고 버전 +1, 단계 이동이면 전이 직후 같은 tx(2a-1②).
-        write_receipt_structured(db, order, s_data, actor_user_id=current_user.id,
-                                 stage_moving=stage_moved, body=data)
-
-        event_payload = {
-            'domain': 'SALES_DOMAIN',
-            'action': 'DRAWING_STATUS_CHANGED',
-            'target': 'drawing_status',
-            'before': old_drawing_status,
-            'after': 'CONFIRMED',
-            'change_method': 'API',
-            'source_screen': 'erp_drawing_dashboard',
-            'reason': '도면 수령 확인',
-            'is_override': emergency_override,
-            'override_reason': override_reason if emergency_override else None,
-        }
-        drawing_confirm_event = OrderEvent(
-            order_id=order_id,
-            event_type='DRAWING_STATUS_CHANGED',
-            payload=event_payload,
-            created_by_user_id=current_user.id
-        )
-        db.add(drawing_confirm_event)
-        if partial_summary is not None and partial_summary['cancelled_item_uids']:
-            db.add(OrderEvent(order_id=order_id, event_type='ITEM_CANCELLED_AT_CONFIRM',
-                              payload=cancel_event_payload(partial_plan, partial_summary),
-                              created_by_user_id=current_user.id))
-
-        if stage_moved:
-            security_note = f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"
-        else:
-            security_note = (
-                f"주문 #{order_id} 도면 확정(단계 유지 {next_stage}) — 전달된 도면이 "
-                f"도면 단계 밖에서 확정되어 단계를 되돌리지 않았다."
-            )
-        db.add(SecurityLog(user_id=current_user.id, message=security_note))
+        next_stage = record_drawing_receipt(
+            db, order, actor_user_id=current_user.id, actor_name=current_user.name,
+            old_drawing_status=old_drawing_status, old_stage=old_stage, stage_moved=stage_moved,
+            body=data, partial_plan=partial_plan, emergency_override=emergency_override,
+            override_reason=override_reason)
 
         if admin_override is not None and punched:
             record_admin_override_event(

@@ -128,10 +128,17 @@ def _after_commit(db, order: Order | None, event: str, ready) -> int:
     return notify_partner_staff(db, order, event, values)
 
 
+def partner_drawing_turn(order: Order) -> bool:
+    """협력사가 도면을 볼 차례인가 — 저희가 보낸 도면(도면 단계 · TRANSFERRED: 확인 또는 수정 요청)이거나
+    고객컨펌 단계(이대로 제작 또는 수정 요청). FOMS 영업 담당과 같은 2단계다(사용자 2026-10-28)."""
+    stage = (order.erp_stage_code or "").upper()
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    return stage == "CONFIRM" or (stage == "DRAWING" and sd.get("drawing_status") == "TRANSFERRED")
+
+
 def notify_partner_drawing_ready(db, order: Order | None) -> int:
-    """우리 CS 가 "도면 받음 확인"을 커밋한 뒤 — 고객컨펌 단계일 때만(협력사 차례). 수정 뒤 다시 확정도 같다."""
-    return _after_commit(db, order, PARTNER_DRAWING_READY,
-                         lambda o: {} if (o.erp_stage_code or "").upper() == "CONFIRM" else None)
+    """저희 도면팀이 도면을 보낸 뒤 · 우리 쪽이 "도면 받음 확인"을 커밋한 뒤 — 협력사 차례일 때만 알린다."""
+    return _after_commit(db, order, PARTNER_DRAWING_READY, lambda o: {} if partner_drawing_turn(o) else None)
 
 
 def _as_visit_values(order: Order) -> dict[str, str] | None:

@@ -93,8 +93,8 @@ def test_mobile_list_uses_our_queue_cards_chips_and_turn_group(app, world):
     assert f'href="/partner/orders/{turn_id}#drawing">도면 확인하기<' in mobile
     assert f'href="/partner/orders/{other_id}">열기<' in mobile
     assert 'href="tel:010-1234-5678"' in mobile
-    stage = _html(app, world["partner_a"], "/partner?stage=접수 확인 중")
-    assert re.search(r'chip foms-chip is-active" href="[^"]*stage=[^"]*">접수 확인 중 1<', stage)
+    stage = _html(app, world["partner_a"], "/partner?stage=도면 작업 중")
+    assert re.search(r'chip foms-chip is-active" href="[^"]*stage=[^"]*">도면 작업 중 1<', stage)
 
 
 def test_mobile_order_screen_hero_chip_tabs_and_as_sheet(app, world):
@@ -105,7 +105,7 @@ def test_mobile_order_screen_hero_chip_tabs_and_as_sheet(app, world):
     order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     html = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
     hero = html[html.index("detail-hero foms-detail-hero pp-mhero"):html.index('class="pp-mtabs"')]
-    assert "foms-stage-badge foms-stage-badge--received" in hero and "홍길동" in hero and "붙박이장" in hero
+    assert "foms-stage-badge foms-stage-badge--drawing" in hero and "홍길동" in hero and "붙박이장" in hero
     tabs = html[html.index('class="pp-mtabs"'):html.index("pp-order")]
     assert re.findall(r'chip foms-chip" role="tab" data-pp-tab="(\w+)"', tabs) == ["order", "drawing", "completion", "history"]
     assert 'data-pp-tab="completion" disabled' in tabs  # 시공 전에는 꺼짐

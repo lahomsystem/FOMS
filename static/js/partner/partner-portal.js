@@ -155,7 +155,9 @@
     var busy = false;
     button.addEventListener('click', async function () {
       if (busy) return;
-      if (!window.confirm('이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.')) return;
+      // 같은 단추 모양이 "도면 확인했어요"(받음)에도 쓰인다 — 물음 글은 단추가 준다.
+      var question = button.getAttribute('data-pp-approve-confirm') || '이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.';
+      if (!window.confirm(question)) return;
       busy = true;
       button.disabled = true;
       setStatus('보내는 중…');
@@ -251,11 +253,24 @@
     });
   }
 
+  /** 칩 줄: 고른 칩이 오른쪽 화면 밖이면 보이게 가로로만 민다(완료 · AS 칩이 안 보여 무엇을 골랐는지 몰랐다). */
+  function revealActiveChip() {
+    Array.prototype.forEach.call(document.querySelectorAll('.foms-chip-strip'), function (strip) {
+      var chip = strip.querySelector('.foms-chip.is-active');
+      if (!chip) return;
+      var left = chip.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft;
+      if (left + chip.offsetWidth > strip.scrollLeft + strip.clientWidth || left < strip.scrollLeft) {
+        strip.scrollLeft = Math.max(0, left - (strip.clientWidth - chip.offsetWidth) / 2);
+      }
+    });
+  }
+
   // 주문 화면 품목 저장(partner-order.js)이 같은 상태 줄 · 파일 올리기를 쓴다.
   window.PartnerPortal = { setStatus: setStatus, uploadFiles: uploadFiles };
 
   document.addEventListener('DOMContentLoaded', function () {
     bindBoard();
+    revealActiveChip();
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-json-url]'), bindJsonForm);
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
     var approve = document.querySelector('[data-pp-approve-url]');

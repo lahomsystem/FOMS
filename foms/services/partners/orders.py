@@ -4,8 +4,9 @@
 
 * ``orders.partner_org_id`` = 협력사, ``structured_data.source`` = ``PARTNER``,
   발주사(``parties.orderer.name``) = 협력사 이름.
-* 실측 단계(MEASURE) · 주관 팀 CS · ``measurement_completed`` 로 들어온다. CS 가 내용을 보고 기존
-  "도면 단계로 넘기기"를 누르면 도면으로 간다. 새 단계 코드는 만들지 않는다.
+* 도면 단계(DRAWING) · ``measurement_completed`` 로 들어와 도면팀이 바로 작업한다(사용자 2026-10-28 —
+  전에는 실측 단계로 들어와 CS 가 "도면 단계로 넘기기"를 눌렀다). 협력사는 저희 첫 도면 전까지 정보 · 품목 ·
+  실측 파일을 고칠 수 있다(``items_edit.partner_edit_open``). 새 단계 코드는 만들지 않는다.
 * 담당은 주문을 올린 협력사 직원이다(스펙 §16 — ``foms/services/partners/manager.py``). 우리 쪽은 CS 팀이 챙긴다.
 * 협력사가 낸 원문은 ``structured_data.partner_intake`` 에 등록 시점 사본으로 남는다(도면팀이
   ``items`` 를 고쳐도 원문은 그대로 — 실측 책임을 가리는 근거).
@@ -55,18 +56,24 @@ class PartnerOrderError(ValueError):
     """협력사 화면에 그대로 보여 줄 수 있는 입력 오류."""
 
 
-def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_confirmed: bool | None = None) -> str:
+def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_confirmed: bool | None = None,
+                        drawing_sent: bool | None = None) -> str:
     """쉬운 단계. AS 건이 열려 있으면(접수·진행) 단계와 무관하게 "AS 진행 중".
 
     ``drawing_confirmed`` 를 주면 고객컨펌 단계라도 도면이 확정(``drawing_status == CONFIRMED``)되지 않았을 때
     "도면 작업 중"이다 — 협력사가 수정 요청을 보낸 뒤(RETURNED)나 다시 올린 도면을 우리가 아직 확인하기 전은
     협력사 차례가 아니다(PARTNER-FOMS 6 §1-9).
+
+    ``drawing_sent`` 를 주면 도면 단계라도 저희가 보낸 도면(``drawing_status == TRANSFERRED``)은 "도면 확인 대기"다 —
+    협력사가 FOMS 영업처럼 확인(받음) 또는 수정 요청할 차례(사용자 2026-10-28).
     """
     if str(as_axis_status or "").upper() in ("RECEIVED", "IN_PROGRESS"):
         return "AS 진행 중"
     stage = str(stage_code or "").upper()
     if stage == "CONFIRM" and drawing_confirmed is False:
         return "도면 작업 중"
+    if stage == "DRAWING" and drawing_sent:
+        return "도면 확인 대기"
     return _PARTNER_STAGE_LABELS.get(stage, "접수 확인 중")
 
 
@@ -181,8 +188,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         },
         "site": {"address_full": address},
         "items": items,
-        "workflow": {"stage": "MEASURE"},
-        "assignments": {"owner_team": "CS"},
+        "workflow": {"stage": "DRAWING"},
+        "assignments": {"owner_team": "DRAWING"},
         "flags": {},
         "notes": memo,
         "meta": {"created_via": "PARTNER_PORTAL"},
@@ -201,7 +208,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
             product=items[0]["product_name"],
             options=None,
             notes=memo or None,
-            status="MEASURE",
+            status="DRAWING",
             raw_order_text="",
             structured_confidence=None,
             partner_org_id=org.id,
@@ -219,20 +226,24 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         target_id=order.id,
         detail=normalize_security_detail({"partner_org_id": org.id}),
     ))
-    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — CS 팀 알림(벨 목록). 담당(협력사 직원)은 알림을 받지 않는다.
-    # 협력사 주문은 실측일이 없어 실측 화면에 뜨지 않으므로 알림이 접수 신호다.
-    notification = Notification(
-        order_id=order.id,
-        notification_type=PARTNER_ORDER_NOTIFICATION_TYPE,
-        target_team="CS",
-        title="협력사 새 주문",
-        message=f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 내용 확인 후 도면 단계로 넘겨 주세요.",
-        created_by_user_id=user.id,
-        created_by_name=f"{user.name} (협력사)",
-    )
-    db.add(notification)
-    db.flush()
-    fan_out_new_notification(db, notification, actor_user_id=user.id)
+    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — 도면팀(바로 작업)과 CS 팀(협력사 창구) 벨 목록에 1건씩.
+    # 담당(협력사 직원)은 알림을 받지 않는다.
+    for team, message in (
+        ("DRAWING", f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 도면 단계로 바로 들어왔습니다. 도면 작업을 시작해 주세요."),
+        ("CS", f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 도면 단계로 바로 들어갔습니다(확인용)."),
+    ):
+        notification = Notification(
+            order_id=order.id,
+            notification_type=PARTNER_ORDER_NOTIFICATION_TYPE,
+            target_team=team,
+            title="협력사 새 주문",
+            message=message,
+            created_by_user_id=user.id,
+            created_by_name=f"{user.name} (협력사)",
+        )
+        db.add(notification)
+        db.flush()
+        fan_out_new_notification(db, notification, actor_user_id=user.id)
     if requested:
         notify_shipment_request(db, user, order.id, customer_name, requested)
     return order

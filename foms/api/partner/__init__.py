@@ -13,11 +13,8 @@ from flask import Blueprint, Response, g, jsonify, request, session
 
 from db import get_db
 from foms.api.files.blueprint import ASYNC_ATTACHMENT_THUMBNAIL
-from foms.api.files.common import (
-    DRAWING_ATTACHMENT_EXTRA_EXTENSIONS,
-    get_erp_media_max_size,
-    parse_attachment_item_index,
-)
+from foms.api.files.common import DRAWING_ATTACHMENT_EXTRA_EXTENSIONS, get_erp_media_max_size
+from foms.api.partner.uploads import item_index_for_upload
 from foms.services.orders.item_identity import resolve_active_item_id
 from foms.api.files.order_routes import ATTACHMENT_ADDED, ATTACHMENT_META_UPDATED, emit_attachment_event
 from foms.services.audit_writer import normalize_security_detail
@@ -25,6 +22,7 @@ from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
+    DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
     invalidate_dashboard_families,
 )
@@ -40,10 +38,19 @@ from foms.services.orders.as_cycle_service import ASCycleError
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_revision
 from foms.services.partners.as_intake import PartnerASError, register_partner_as
 from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
-from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
+from foms.services.partners.drawing_confirm import (
+    PartnerConfirmError,
+    approve_partner_drawing,
+    confirm_partner_drawing_receipt,
+)
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.info_edit import update_partner_info
-from foms.services.partners.items_edit import PartnerItemsError, update_partner_items
+from foms.services.partners.items_edit import (
+    EDIT_CLOSED_MESSAGE,
+    PartnerItemsError,
+    partner_edit_open,
+    update_partner_items,
+)
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionError, request_partner_revision
 from foms.services.partners.logo import partner_org_of, read_partner_logo
@@ -54,8 +61,6 @@ from models import Order, OrderAttachment, PartnerOrg, SecurityLog
 
 partner_api_bp = Blueprint("partner_api", __name__, url_prefix="/api/partner")
 
-# 협력사가 파일을 더 올릴 수 있는 단계 — 우리 CS 가 도면으로 넘기기 전까지.
-UPLOAD_OPEN_STAGES = frozenset({"RECEIVED", "MEASURE"})
 
 # kind → (첨부 분류, 폴더 이름, 허용 확장자). 폴더 이름은 원본 보존 판정
 # (order_attachment_permissions.PARTNER_ORIGINAL_FOLDERS)과 같아야 한다.
@@ -78,23 +83,11 @@ def _own_order(db, order_id: int) -> Order | None:
     return order if partner_can_read_order(g.current_user, order) else None
 
 
-def _item_index_for_upload(order: Order, raw: str | None, category: str) -> tuple[int | None, str | None]:
-    """품목 실측 사진의 품목 번호(우리 직원 업로드와 같은 ``item_index``). 없으면 공통 사진.
-
-    Returns:
-        ``(item_index, None)`` 또는 ``(None, 오류 문구)``.
-    """
-    ok, item_index, _err = parse_attachment_item_index(raw)
-    if not ok:
-        return None, "품목 번호가 올바르지 않습니다."
-    if item_index is None:
-        return None, None
-    if category != "measurement":
-        return None, "품목에는 실측 사진만 붙일 수 있습니다."
-    items = (order.structured_data or {}).get("items")
-    if not isinstance(items, list) or item_index >= len(items):
-        return None, "없는 품목입니다. 화면을 새로고침한 뒤 다시 올려 주세요."
-    return item_index, None
+def _refresh_team_badges(db, teams) -> None:
+    """알림을 받을 수 있는 팀들의 벨 배지 캐시를 비운다(어느 팀에 갔는지는 주문 단계가 정한다)."""
+    for team in teams:
+        invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
+            db, target_team=team, target_manager_name=None, include_admin=False))
 
 
 @partner_api_bp.route("/orders", methods=["POST"])
@@ -110,9 +103,9 @@ def create_order():
     except PartnerOrderError as exc:
         db.rollback()
         return _fail(str(exc), 400)
-    # 받는 사람(CS 팀)의 벨 배지를 바로 갱신한다.
-    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-        db, target_team="CS", target_manager_name=None, include_admin=False))
+    # 받는 사람(도면팀 · CS 팀)의 벨 배지와 도면 작업실 목록을 바로 갱신한다 — 저장하면 바로 도면 단계다.
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("DRAWING", "CS"))
     item_count = len((order.structured_data or {}).get("items") or [])
     return jsonify({"success": True, "data": {"order_id": order.id, "item_count": item_count}, "error": None})
 
@@ -125,13 +118,13 @@ def upload_file(order_id: int):
     order = _own_order(db, order_id)
     if order is None:
         return _fail("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in UPLOAD_OPEN_STAGES:
-        return _fail("도면 작업이 시작된 주문에는 파일을 더 올릴 수 없습니다. 담당자에게 보내 주세요.", 409)
+    if not partner_edit_open(order):
+        return _fail(EDIT_CLOSED_MESSAGE, 409)
     kind = _KINDS.get((request.form.get("kind") or "").strip())
     if kind is None:
         return _fail("파일 종류(사진/초안 도면)를 골라 주세요.", 400)
     category, folder_name, allowed_exts = kind
-    item_index, item_error = _item_index_for_upload(order, request.form.get("item_index"), category)
+    item_index, item_error = item_index_for_upload(order, request.form.get("item_index"), category)
     if item_error:
         return _fail(item_error, 400)
     file = request.files.get("file")
@@ -195,8 +188,8 @@ def link_attachment(order_id: int, attachment_id: int):
     order = _own_order(db, order_id)
     if order is None:
         return _fail("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in UPLOAD_OPEN_STAGES:
-        return _fail("도면 작업이 시작되어 사진 자리를 바꿀 수 없습니다. 저희 담당자에게 알려 주세요.", 409)
+    if not partner_edit_open(order):
+        return _fail(EDIT_CLOSED_MESSAGE, 409)
     attachment = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id,
                                                   OrderAttachment.order_id == order.id).first()
     if attachment is None:
@@ -207,7 +200,7 @@ def link_attachment(order_id: int, attachment_id: int):
     if "item_index" not in payload:
         return _fail("item_index 가 필요합니다.", 400)
     raw = payload.get("item_index")
-    item_index, item_error = _item_index_for_upload(order, None if raw is None else str(raw), "measurement")
+    item_index, item_error = item_index_for_upload(order, None if raw is None else str(raw), "measurement")
     if item_error:
         return _fail(item_error, 400)
     previous = attachment.item_index
@@ -250,9 +243,8 @@ def update_items(order_id: int):
     except RevisionError:
         db.rollback()
         return _fail("다른 사람이 먼저 고쳤습니다. 화면을 새로고침해 주세요.", 409)
-    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-        db, target_team="CS", target_manager_name=None, include_admin=False))
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("CS", "DRAWING"))
     uids = [it.get("uid") for it in items]
     return jsonify({"success": True, "data": {"order_id": order_id, "item_count": len(items), "uids": uids},
                     "error": None})
@@ -274,10 +266,8 @@ def update_info(order_id: int):
         return _fail("다른 사람이 먼저 고쳤습니다. 화면을 새로고침해 주세요.", 409)
     if result["address_changed"]:
         enqueue_geocode_order_address(order_id)
-    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    for team in ("CS", "SHIPMENT"):
-        invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
-            db, target_team=team, target_manager_name=None, include_admin=False))
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    _refresh_team_badges(db, ("CS", "DRAWING", "SHIPMENT"))
     return jsonify({"success": True, "data": {"order_id": order_id, **result}, "error": None})
 
 
@@ -332,6 +322,26 @@ def approve_drawing(order_id: int):
         log_handled_exception("partner approve drawing transition")
         return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+
+
+@partner_api_bp.route("/orders/<int:order_id>/drawing-receipt", methods=["POST"])
+@partner_required
+def confirm_drawing_receipt(order_id: int):
+    """보낸 도면 확인(받음) — 고객컨펌으로(:func:`confirm_partner_drawing_receipt`, FOMS 영업 "도면 수령 확인")."""
+    db = get_db()
+    try:
+        confirm_partner_drawing_receipt(db, g.current_user, order_id)
+        db.commit()
+    except PartnerConfirmError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    except (TransitionError, RevisionError):
+        db.rollback()
+        log_handled_exception("partner drawing receipt transition")
+        return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
+    # 도면 상태 · 단계(DRAWING→CONFIRM)가 바뀐다 — 직원 수령 확인과 같은 범위의 목록을 비운다.
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
     return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
 
 
@@ -432,6 +442,7 @@ def register_as(order_id: int):
         log_handled_exception("partner AS register")
         return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    _refresh_team_badges(db, ("CS",))  # 협력사 AS 접수 알림을 받는 CS 팀 벨
     # 사진은 접수가 확정된 뒤 붙인다 — 사진이 실패해도 AS 접수는 남는다(화면이 알려 준다).
     try:
         photos = _upload_photos(order_id, "as")

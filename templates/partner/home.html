@@ -45,7 +45,7 @@
 </div>
 
 {# 18-2 시공 달력: 날짜마다 저희 전체 시공 건수 · 내 회사 출고가(휴대폰 칸마다, PC 는 달 합계). #}
-<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}</section>
+{% if cal %}<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}</section>{% endif %}
 
 {# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 큐 카드(설계서 §3.2 · §16). 진행 막대는 협력사 추가. PC 는 위 프로세스 맵 · 작업 큐 표. #}
 {% from "partner/partials/stage_badge.html" import stage_badge %}
@@ -88,7 +88,8 @@
             {% if o.address %}<div class="foms-queue-card-v2__meta-full"><dt>주소</dt><dd>{{ o.address }}</dd></div>{% endif %}
             {% if o.product %}<div class="foms-queue-card-v2__meta-full"><dt>제품</dt><dd>{{ o.product }}</dd></div>{% endif %}
             {% if o.phone %}<div><dt>연락처</dt><dd><a href="tel:{{ o.phone }}">{{ o.phone }}</a></dd></div>{% endif %}
-            {% if o.construction_date %}<div><dt>시공일</dt><dd class="foms-tabular">{{ o.construction_date }}</dd></div>{% endif %}
+            {% if o.construction_date %}<div><dt>시공일</dt><dd class="foms-tabular">{{ o.construction_date }}</dd></div>
+            {% elif o.requested_construction %}<div><dt>시공일</dt><dd class="foms-tabular">{{ o.requested_construction }} <span class="text-muted">(희망)</span></dd></div>{% endif %}
             {% if o.manager_name %}<div><dt>담당</dt><dd>{{ o.manager_name }}</dd></div>{% endif %}
         </dl>
         <footer class="queue-card__action foms-queue-card-v2__action">
@@ -118,7 +119,7 @@
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>
                     <td class="pp-grid__address">{{ o.address or '-' }}</td>
                     <td>{{ o.product or '-' }}</td>
-                    <td class="text-nowrap">{{ o.construction_date or '-' }}</td>
+                    <td class="text-nowrap">{% if o.construction_date %}{{ o.construction_date }}{% elif o.requested_construction %}{{ o.requested_construction }} <span class="text-muted small">(희망)</span>{% else %}-{% endif %}</td>
                     <td class="text-nowrap">{{ o.manager_name or '-' }}</td>
                 </tr>
                 {% endfor %}

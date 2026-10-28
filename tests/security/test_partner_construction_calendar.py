@@ -74,3 +74,24 @@ def test_home_shows_calendar(app, world, priced):
     assert "foms-wx-band" in html  # 우리 달력과 같은 주마다 날씨 '시간 줄' 띠
     new = _client(app, db_session.get(User, world["partner_a"])).get("/partner/orders/new").get_data(as_text=True)
     assert 'data-pp-date-counts="/api/partner/construction-calendar"' in new
+
+
+def test_weather_band_colors_reach_partner_calendar_outside_tower():
+    """날씨 띠 색 변수가 .foms-tower 밖(협력사 달력 .pp-cal)에도 걸린다 — 없으면 SVG 멈춤 색이 검정(사용자 2026-10-28)."""
+    with open("static/css/contexts/orders/dashboard-tower-weather.css", encoding="utf-8") as fh:
+        css = fh.read()
+    assert ":root, .foms-tower {\n  --wx-sun:" in css.replace("\r\n", "\n")
+    assert "[data-theme='dark'], [data-theme='dark'] .foms-tower {" in css
+    with open("static/css/foundation/foms-mobile-surfaces.css", encoding="utf-8") as fh:
+        assert "dashboard-tower-weather.css?v=20261028a" in fh.read()
+    for path in ("templates/partner/layout.html", "templates/partials/shared/layout_head.html"):
+        with open(path, encoding="utf-8") as fh:
+            assert "foms-mobile-surfaces.css') }}?v=20261028a" in fh.read(), path
+
+
+def test_calendar_only_on_unfiltered_list(app, world):
+    """탭(도면 확인 · 완공 · AS) · 칩으로 거르면 달력을 빼 목록이 맨 위에 온다 — 휴대폰에서 탭이 안 바뀌어 보였다."""
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    assert "data-pp-cal" in client.get("/partner").get_data(as_text=True)
+    for query in ("turn=1", "stage=완료", "mine=1", "q=홍"):
+        assert "data-pp-cal" not in client.get(f"/partner?{query}").get_data(as_text=True), query

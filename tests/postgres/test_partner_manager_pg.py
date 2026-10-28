@@ -56,7 +56,7 @@ def test_partner_manager_change_replaces_sales_owner(pg_session: Session) -> Non
     assert sd["parties"]["manager"]["name"] == f"가나 둘째 ({org.name})"
     assert sd["parties"]["manager"]["phone"] == "010-3333-4444"
     assert order.manager_name == f"가나 둘째 ({org.name})"
-    quest = next(q for q in sd["quests"] if q.get("stage") == "MEASURE")
+    quest = next(q for q in sd["quests"] if q.get("stage") == "DRAWING")  # 저장하면 바로 도면 단계(2026-10-28)
     assert quest["owner_person"] == str(second.id)
 
     assert set_partner_user_phone(pg_session, first, "010-5555-6666", actor_user_id=first.id) == 0

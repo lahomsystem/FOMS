@@ -969,6 +969,10 @@
     "wdcalculator.api_wdcalculator_unmatch_order": {
       "mode": "guard",
       "rule": "/api/wdcalculator/unmatch-order"
+    },
+    "partner_api.confirm_drawing_receipt": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/drawing-receipt"
     }
   }
 }

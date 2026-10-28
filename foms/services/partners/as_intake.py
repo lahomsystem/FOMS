@@ -17,6 +17,7 @@ from typing import Any
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.auth.partner_scope import partner_can_read_order
 from foms.services.datetime_kst import get_today_kst
+from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.orders.as_cycle_service import (
     AS_IN_PROGRESS,
     AS_RECEIVED,
@@ -26,7 +27,7 @@ from foms.services.orders.as_cycle_service import (
 )
 from foms.services.orders.as_log import append_client_log, append_system_log, migrate_legacy_into_log
 from foms.services.orders.revision import lock_order_row
-from models import SecurityLog
+from models import Notification, SecurityLog
 
 MAX_CONTENT = 2000
 # AS 를 받을 수 있는 단계 — 시공이 시작된 뒤(우리가 시공을 간다).
@@ -117,4 +118,20 @@ def register_partner_as(
         target_id=order.id,
         detail=normalize_security_detail({"partner_org_id": order.partner_org_id}),
     ))
+    # 우리 쪽이 협력사 AS 를 놓치지 않게 — CS 팀 벨 1건(사용자 2026-10-28). 직원 접수는 직원이 하므로 알림이 없다.
+    parties = (order.structured_data or {}).get("parties") or {}
+    customer = str((parties.get("customer") or {}).get("name") or "").strip()
+    notification = Notification(
+        order_id=order.id,
+        notification_type="PARTNER_AS_REGISTERED",
+        target_team="CS",
+        title="협력사 AS 접수",
+        message=f"[협력사] 주문 #{order.id}" + (f" ({customer})" if customer else "")
+        + f" AS 가 접수되었습니다. 내용: {text[:80]}",
+        created_by_user_id=user.id,
+        created_by_name=who,
+    )
+    db.add(notification)
+    db.flush()
+    fan_out_new_notification(db, notification, actor_user_id=user.id)
     return captured.get("reception_log_id")

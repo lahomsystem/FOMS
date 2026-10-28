@@ -11,7 +11,6 @@ from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.api.files.routes import build_file_download_url, build_file_view_url
-from foms.api.partner import UPLOAD_OPEN_STAGES
 from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
@@ -25,6 +24,7 @@ from foms.services.partners.completion import as_progress_for_partner, construct
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
+from foms.services.partners.items_edit import partner_edit_open
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.view import build_partner_order_view, partner_steps
@@ -80,7 +80,9 @@ def home():
         me=g.current_user,
         members=members,
         filters=filters,
-        cal=partner_construction_calendar(db, org.id, request.args.get("cal")),
+        # 달력은 걸러 보지 않는 "주문" 첫 화면에만 — 탭(도면 확인 · 완공 · AS) · 칩으로 거르면 달력이 휴대폰
+        # 화면을 다 덮어 목록이 바뀐 게 안 보였다(사용자 2026-10-28).
+        cal=None if any(filters.values()) else partner_construction_calendar(db, org.id, request.args.get("cal")),
         cal_url=url_for("partner_portal.home"),
         **board,
     )
@@ -94,7 +96,7 @@ def new_order():
         org=_org(),
         me=g.current_user,
         today=get_today_kst().isoformat(),
-        steps=partner_steps("MEASURE"),  # 보내면 "접수 확인 중" — 주문 화면과 같은 진행 칸
+        steps=partner_steps("DRAWING"),  # 보내면 바로 "도면 작업 중" — 주문 화면과 같은 진행 칸
         product_names=_product_names(),
     )
 
@@ -114,15 +116,19 @@ def order_detail(order_id: int):
     finals = _final_drawings(order)
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
     can_approve = stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None
+    # 저희가 보낸 도면을 협력사가 확인(받음) — FOMS 영업 "도면 수령 확인"과 같은 자리(사용자 2026-10-28).
+    can_receive = (stage == "DRAWING" and bool(finals)
+                   and (order.structured_data or {}).get("drawing_status") == "TRANSFERRED")
     return render_template(
         "partner/order_detail.html",
         org=_org(),
         view=view,
         partner_files=partner_files,
         item_photos=item_photos,
-        can_upload=stage in UPLOAD_OPEN_STAGES,
+        can_upload=partner_edit_open(order),
         final_drawings=finals,
         can_approve=can_approve,
+        can_receive=can_receive,
         can_revise=stage in ("DRAWING", "CONFIRM") and bool(finals)
         and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
         can_as=stage in AS_OPEN_STAGES and not as_open,
@@ -131,7 +137,7 @@ def order_detail(order_id: int):
         drawing_files=[f for f in finals if not f["is_image"]],
         drawing_round=_drawing_round(order),
         history=partner_order_history(db, order),
-        active_tab="drawing" if can_approve else "order",
+        active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
         product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),

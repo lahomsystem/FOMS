@@ -14,6 +14,7 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
     _create,
     _to_stage,
     world,
+    _send_first_drawing,
 )
 
 _REQ = {"requested_construction_date": "2026-11-03", "requested_construction_time": "오후"}
@@ -94,7 +95,7 @@ def test_info_edit_while_intake_open_updates_columns_intake_and_history(app, wor
 
 def test_info_closed_after_drawing_but_request_open_until_confirmed(app, world):
     order_id = _order(app, world["partner_a"])
-    _to_stage(order_id, "DRAWING")
+    _send_first_drawing(order_id)  # 도면 단계로 들어오므로 잠금은 저희 첫 도면부터
     closed = _put(app, world["partner_a"], order_id, {"customer_name": "x", "customer_phone": "1", "address": "y"})
     assert closed.status_code == 409
     assert _put(app, world["partner_a"], order_id, _REQ).status_code == 200  # 희망일은 시공일 확정 전까지

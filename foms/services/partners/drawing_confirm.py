@@ -33,7 +33,9 @@ from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
     find_stage_quest_for_approve,
 )
+from foms.services.orders.drawing_receipt_command import advance_receipt_stage, record_drawing_receipt
 from foms.services.orders.revision import lock_order_row
+from foms.services.orders.state_axes import read_main_stage
 from models import OrderEvent, SecurityLog
 
 _COMMAND = "PARTNER_DRAWING_APPROVE"
@@ -147,3 +149,40 @@ def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: st
         source_screen=_SOURCE_SCREEN,
         now=now,
     )
+
+
+def confirm_partner_drawing_receipt(db, user: Any, order_id: int) -> str:
+    """협력사가 저희가 보낸 도면을 확인했다(호출자가 commit) — 고객컨펌(CONFIRM)으로 넘어간다.
+
+    FOMS 영업 담당의 "도면 수령 확인"과 같은 한 경로(``advance_receipt_stage`` + ``record_drawing_receipt``)를
+    탄다. 협력사 주문은 담당이 협력사 직원이라 이 단추를 협력사가 누른다(사용자 2026-10-28 — 전에는 우리
+    CS 가 눌렀다). 그 뒤 고객과 확인하고 "이대로 만들어 주세요"(:func:`approve_partner_drawing`).
+
+    Raises:
+        PartnerConfirmError: 주문 없음(404) · 보낸 도면 확인 차례가 아님(409).
+    """
+    order = lock_order_row(db, order_id)
+    if order is None or not partner_can_read_order(user, order):
+        raise PartnerConfirmError("주문을 찾을 수 없습니다.", 404)
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    old_stage = read_main_stage(order)
+    old_status = sd.get("drawing_status")
+    if old_stage != "DRAWING" or old_status != "TRANSFERRED" or not final_drawings_for_partner(order):
+        raise PartnerConfirmError("지금은 도면 확인 차례가 아닙니다. 화면을 새로고침해 주세요.")
+    body = {"order_id": order.id, "partner_drawing_receipt": True}
+    stage_moved = advance_receipt_stage(db, order, actor_user_id=user.id, body=body)
+    next_stage = record_drawing_receipt(
+        db, order, actor_user_id=user.id, actor_name=f"{user.name} (협력사)", old_drawing_status=old_status,
+        old_stage=old_stage, stage_moved=stage_moved, body=body, source_screen=_SOURCE_SCREEN)
+    db.add(SecurityLog(
+        user_id=user.id,
+        message=f"협력사 도면 확인(받음): #{order.id}",
+        action="PARTNER_DRAWING_RECEIVED",
+        target_type="order",
+        target_id=order.id,
+        detail=normalize_security_detail({
+            "partner_org_id": order.partner_org_id,
+            "drawing_round": getattr(drawing_round_info(sd), "round", None),
+        }),
+    ))
+    return next_stage

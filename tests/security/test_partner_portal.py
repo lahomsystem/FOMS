@@ -21,6 +21,7 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
     _FakeStorage,
     _client,
     _create,
+    _send_first_drawing,
     _upload,
     _user,
     fake_storage,
@@ -31,7 +32,8 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
 # --------------------------------------------------------------------------
 # 주문 등록
 # --------------------------------------------------------------------------
-def test_partner_order_lands_in_measure_owned_by_cs_with_partner_manager(app, world):
+def test_partner_order_lands_in_drawing_with_partner_manager(app, world):
+    """저장하면 바로 도면 단계 — 도면팀이 곧바로 작업한다(사용자 2026-10-28)."""
     resp = _create(app, world["partner_a"])
     body = resp.get_json()
     assert resp.status_code == 200 and body["success"] is True, body
@@ -40,8 +42,8 @@ def test_partner_order_lands_in_measure_owned_by_cs_with_partner_manager(app, wo
     assert order.partner_org_id == world["org_a"]
     assert sd["source"] == "PARTNER"
     assert sd["parties"]["orderer"]["name"] == "가나가구"
-    assert order.erp_stage_code == "MEASURE" and order.status == "MEASURE"
-    assert order.erp_owner_team_code == "CS"
+    assert order.erp_stage_code == "DRAWING" and order.status == "DRAWING"
+    assert order.erp_owner_team_code == "DRAWING"
     assert order.measurement_completed is True
     # 우리 실측 일정표에 섞이지 않게 실측일은 schedule 에 넣지 않는다.
     assert not (sd.get("schedule") or {}).get("measurement")
@@ -55,8 +57,7 @@ def test_partner_order_lands_in_measure_owned_by_cs_with_partner_manager(app, wo
         "partner_user_id": world["partner_a"], "partner_user_name": "가나 직원",
     }
     assert order.manager_name == "가나 직원 (가나가구)"
-    quest = next(q for q in sd["quests"] if q.get("stage") == "MEASURE")
-    assert quest["owner_team"] == "CS"
+    assert not any(q.get("stage") == "MEASURE" for q in sd.get("quests") or [])
 
 
 def test_partner_order_without_phone_has_no_manager_phone(app, world):
@@ -115,9 +116,9 @@ def test_partner_cannot_upload_to_other_or_started_orders(app, world, fake_stora
     own = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     client = _client(app, db_session.get(User, world["partner_a"]))
     assert _upload(client, other, "a.jpg", "photo").status_code == 404
-    order = db_session.get(Order, own)
-    order.erp_stage_code = "DRAWING"
-    db_session.commit()
+    assert _upload(client, own, "a.jpg", "photo").status_code != 409  # 도면 단계라도 저희 첫 도면 전이면 연다
+    fake_storage.calls.clear()
+    _send_first_drawing(own)
     assert _upload(client, own, "a.jpg", "photo").status_code == 409
     assert fake_storage.calls == []
 
