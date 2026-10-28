@@ -4,7 +4,9 @@
 ``cs_loop``(``scripts/maintenance/run_cs_loop.py``)가 15분마다 :func:`run_pass` 를 부른다. 실시간 길(C6-1)도 이 루프가
 맡을 자리라 바퀴를 단계 함수로 나눠 두었다. 경보 · 아침 보고를 언제 · 한 번만 내는지는 :mod:`.report`.
 
-- **채널톡 쓰기 0 · AI 0 · RQ 0**: 채널톡은 GET 만(두 브랜드 다 읽기만), 알림은 FOMS 앱 안 알림만.
+- **채널톡 쓰기 0 · AI 0 · RQ 0**: 채널톡은 GET 만(두 브랜드 다 읽기만), 알림은 FOMS 앱 안 알림만. 초안 스위치
+  (:func:`.turns.draft_mode`)가 ``store`` · ``memo`` 일 때만 바퀴 끝에 :mod:`.drafting` 이 라홈 초안을 쓴다(두뇌 · 내부 메모).
+  스위치가 없거나 꺼져 있으면(기본) 바퀴는 그대로다.
 - **바로 끄기(설계서 6절)**: SystemSetting :data:`SWITCH_KEY` 를 매 바퀴 읽는다(``{"loop": "off"}`` 면 그 바퀴 일 0).
   env(``FOMS_CS_LOOP_ENABLED``)는 켜기용이다 — Railway env 는 재배포 전엔 안 바뀐다(원장 R2-15).
 - **멈춤 깃발(R4-4)**: TERM 을 받으면 일을 집기 전 · 쓰기 전마다 :meth:`StopFlag.check` 가 바퀴를 멈춘다. 이미 읽은
@@ -48,6 +50,8 @@ from foms.services.cs_agent.state_store import (
     compute_open_states,
     ingest_inbound,
 )
+from foms.services.cs_agent.drafting import DraftSummary, run_drafting
+from foms.services.cs_agent.turns import DRAFT_OFF, draft_mode
 from foms.services.datetime_kst import now_kst
 from models import CsAgentChat, SystemSetting
 
@@ -250,14 +254,18 @@ class PassResult:
     needs_reply: dict[str, int] = field(default_factory=dict)
     alerts: dict[str, int] = field(default_factory=dict)
     report_sent: bool = False
+    drafting: Optional[DraftSummary] = None  # 초안 스위치가 켜진 바퀴만(숫자만)
 
     def summary(self) -> dict[str, Any]:
-        """JSON 한 줄 요약."""
-        return {"outcome": self.outcome, "ingested": self.ingested,
-                "reconciled": sum(c.done for c in self.checks.values()),
-                "checks": {b: c.status for b, c in self.checks.items()},
-                "needs_reply": sum(self.needs_reply.values()), "alerts": sum(self.alerts.values()),
-                "report_sent": self.report_sent}
+        """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸(숫자만)이 붙는다."""
+        out = {"outcome": self.outcome, "ingested": self.ingested,
+               "reconciled": sum(c.done for c in self.checks.values()),
+               "checks": {b: c.status for b, c in self.checks.items()},
+               "needs_reply": sum(self.needs_reply.values()), "alerts": sum(self.alerts.values()),
+               "report_sent": self.report_sent}
+        if self.drafting is not None:
+            out["drafting"] = self.drafting.counts()
+        return out
 
 
 # ── 한 바퀴 ──────────────────────────────────────────────────────────────
@@ -305,7 +313,7 @@ def run_pass(session: Any, *, config: LoopConfig = LoopConfig(), stop: Optional[
 
 def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFlag, reader: OpenApiReader,
           now: datetime.datetime, clock: Callable[[], float], cal: BusinessDayFn) -> None:
-    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고."""
+    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고 → (스위치가 켜졌으면) 초안."""
     stop.check()
     result.ingested = ingest_inbound(session, lookback=config.ingest_lookback, now=naive_utc(now)).inserted
     budget = config.reconcile_budget_seconds / max(1, len(config.brands))
@@ -322,6 +330,13 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
         watch_missing_inbound=config.watch_missing_inbound, now=now, is_business_day=cal,
         report_hour=config.report_hour, stop_check=stop.check)
     result.alerts, result.report_sent = published.alerts, published.report_sent
+    mode = draft_mode(session)  # 초안 스위치(매 바퀴 DB 에서 새로) — 없거나 꺼졌으면 바퀴는 여기까지(예전 그대로)
+    session.commit()
+    if mode == DRAFT_OFF:
+        return
+    result.drafting = DraftSummary()  # 멈춰도 센 수가 요약에 남게 미리 단다
+    run_drafting(session, states=states, reader=reader, now=now, stop=stop, mode=mode, is_business_day=cal,
+                 clock=clock, summary=result.drafting)
 
 
 # ── 채널톡 보정(시간 상한 · 오래된 것부터) ───────────────────────────────
