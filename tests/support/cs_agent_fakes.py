@@ -1,4 +1,4 @@
-"""CS 상담 에이전트(C1-2 · C1-3) 시험 재료 — 손으로 꾸민 합성 글 · 가짜 시계 · 전송 · Redis · Open API 읽기.
+"""CS 상담 에이전트(C1-2 · C1-3 · C3-1) 시험 재료 — 손으로 꾸민 합성 글 · 가짜 시계 · 전송 · Redis · Open API 읽기.
 
 손님 글 · 전화 꼴 숫자는 쓰지 않는다. 네트워크 · Redis · 채널톡은 모두 가짜다.
 시각은 2026-11 KST(11-02 월요일), 상태 계산 달력은 '주말만 쉼' 가짜 달력이다.
@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import datetime
 import json
+from types import SimpleNamespace
+from urllib.parse import unquote
 
 import pytest
+from anthropic.types.beta import BetaMessage
 from sqlalchemy import func, select
 
 from db import db_session
@@ -218,6 +221,62 @@ class FakeReader:
         if self.errors.get(chat_id):
             raise self.errors[chat_id].pop(0)
         return list(self.messages.get(chat_id, []))
+
+
+class FakeChannel:
+    """채널톡 Open API GET 대역(``requests.get`` 꼴 — 주소로 가른다): 상담 목록은 빈 쪽 · 상담 정보는 매체 · 상담 글은 원문 꼴.
+
+    상담마다 매체와 글(:func:`api_message` 꼴)을 둔다. 시험이 ``messages[상담]`` 에 글을 더하면 다음 읽기부터 보인다 —
+    '그사이 손님이 더 씀 · 직원이 답함'을 꾸민다. 부른 경로(``user-chats/…``)는 ``calls`` 에 차례로 남는다.
+    """
+
+    def __init__(self) -> None:
+        self.media: dict[str, str | None] = {}
+        self.messages: dict[str, list[dict]] = {}
+        self.calls: list[str] = []
+
+    def chat(self, chat_id: str, *messages: dict, medium: str | None = "native") -> None:
+        self.media[chat_id], self.messages[chat_id] = medium, list(messages)
+
+    def __call__(self, url, *, params, headers, timeout):
+        path = url.split("/open/", 1)[1]
+        self.calls.append(path)
+        parts = path.split("/")
+        if len(parts) == 1:  # 상담 목록 — 감시 보정은 상태 표만으로 돈다
+            return FakeResponse(200, {"userChats": [], "hasNext": False})
+        chat = unquote(parts[1])
+        if chat not in self.messages:
+            return FakeResponse(404)
+        if len(parts) == 3:  # 상담 글(새 글부터)
+            newest = sorted(self.messages[chat], key=lambda m: m["createdAt"], reverse=True)
+            return FakeResponse(200, {"messages": newest})
+        medium = self.media[chat]
+        source = {"source": {"medium": {"mediumType": medium}}} if medium else {}
+        return FakeResponse(200, {"userChat": {"id": chat, "state": "opened", **source}})
+
+
+class FakeAnthropic:
+    """``anthropic.Anthropic`` 흉내 — 진짜 두뇌 길(가림 · 돈 셈 · 응답 읽기)을 그대로 돌린다(네트워크 · 키 없음).
+
+    받은 인자를 남기고, 정한 구조화 출력(dict)을 SDK 실제 응답 형(``BetaMessage``)으로 차례로 낸다(마지막 것은 계속).
+    """
+
+    def __init__(self, *answers: dict) -> None:
+        self.answers, self.params = list(answers), []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self.create))
+
+    def with_options(self, **_options):
+        return self
+
+    def create(self, **params):
+        self.params.append(params)
+        answer = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+        return BetaMessage.model_validate({
+            "id": "msg_synthetic", "type": "message", "role": "assistant", "model": params["model"],
+            "content": [{"type": "text", "text": json.dumps(answer, ensure_ascii=False)}], "stop_reason": "end_turn",
+            "stop_sequence": None, "stop_details": None,
+            "usage": {"input_tokens": 1000, "output_tokens": 200, "cache_read_input_tokens": 0,
+                      "cache_creation_input_tokens": 0}})
 
 
 def chat_snap(chat: str, when: datetime.datetime, state: str = "opened", brand: str = "LAHOM") -> cr.ChatSnapshot:
