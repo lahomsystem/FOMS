@@ -13,25 +13,28 @@
   :func:`read_output` 이 다시 검사한다. 오류 글에는 칸 이름만 싣고 모델 글은 싣지 않는다.
 - **돈**: :func:`usage_cost` — ``usage`` × :data:`PRICES`. 서버 쪽 대체가 돌았으면 ``usage.iterations`` 칸마다 그 칸의
   모델 값으로 센다(위 ``usage`` 는 답한 시도뿐이다). 표에 없는 모델은 칸마다 가장 비싼 값 — 적게 세면 하루 상한이 샌다.
+  :func:`worst_case_cost` 는 보내기 전 예약할 최악값이다(원장 R7-3).
+- **재료 · 결과 꼴**: :class:`DraftRequest` · :class:`DraftResult`(:mod:`.brain` 이 그대로 내보낸다 — 500줄 상한으로 옮겼다).
 """
 
 from __future__ import annotations
 
 import datetime
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 from foms.services.cs_agent.checks_rules import is_naver_talk
-from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, ApprovedKnowledge
+from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
 
 __all__ = [
     "CACHE_CONTROL_DAY", "ENABLED_BRANDS", "HANDOFF_NONE", "HANDOFF_REASONS", "HANDOFF_UNSURE", "INTENT_OTHER", "MODEL",
-    "OUTPUT_FIELDS", "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "ROLE_MANAGER", "ROLE_USER", "SPEAKERS",
-    "OutputError", "Price", "Tokens", "answer_text", "evidence_choices", "fallback_served", "instructions",
-    "intent_choices", "knowledge_text", "output_schema", "read_output", "render_conversation", "system_blocks",
-    "task_text", "usage_cost",
+    "OUTPUT_FIELDS", "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER",
+    "ROLE_USER", "SPEAKERS", "DraftRequest", "DraftResult", "OutputError", "Price", "Tokens", "answer_text",
+    "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text", "output_schema",
+    "read_output", "render_conversation", "system_blocks", "task_text", "usage_cost", "worst_case_cost",
 ]
 
 MODEL = "claude-opus-5-5"
@@ -87,6 +90,92 @@ order_lookup 주문 · 배송 확인, photo 사진 · 파일만 옴, other 그 �
 
 class OutputError(ValueError):
     """구조화 출력을 쓸 수 없다. 메시지엔 칸 이름만 싣는다(모델 글 · 손님 글은 싣지 않는다)."""
+
+
+# ── 재료 · 결과 꼴 ───────────────────────────────────────────────────────
+_CHAT_ID = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
+_MEDIUM = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+
+
+def _texts(value: Any, name: str) -> tuple[str, ...]:
+    """글 목록 → 튜플. 글 하나(str)는 거절 — 이름이면 글자마다 따로 가리게 된다."""
+    items = () if isinstance(value, (str, bytes)) else tuple(value)
+    if isinstance(value, (str, bytes)) or not all(isinstance(v, str) for v in items):
+        raise ValueError(f"{name} 는 글 목록이다")
+    return items
+
+
+def _turns(value: Any) -> tuple[tuple[str, str], ...]:
+    """(말한 사람, 글) 짝 목록 → 튜플(하나 이상, 말한 사람은 'user' · 'manager')."""
+    if isinstance(value, (str, bytes)):
+        raise ValueError("messages 는 (말한 사람, 글) 목록이다")
+    turns = tuple(tuple(turn) for turn in value)
+    if not turns or any(len(t) != 2 or t[0] not in SPEAKERS or not isinstance(t[1], str) for t in turns):
+        raise ValueError("messages 는 ('user' | 'manager', 글) 짝 목록이다(하나 이상)")
+    return turns  # type: ignore[return-value]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DraftRequest:
+    """두뇌 한 번의 재료. 손님 글 · 이름 · 지식은 repr 에 싣지 않는다(로그에 따라가지 않게).
+
+    ``messages`` 는 가리기 전 원문(오래된 것부터)이다 — 가림은 두뇌가 한다. ``daytime`` 은 운영 시간(1시간 캐시 표시),
+    ``realtime`` 은 실시간 길(단계 2.7 — 45초), 아니면 15분 루프(90초). 어느 길도 시간 초과는 다시 보내지 않는다.
+    """
+
+    brand: str
+    chat_id: str
+    medium: Optional[str]
+    purpose: str
+    daytime: bool
+    messages: Sequence[tuple[str, str]] = field(repr=False)
+    customer_names: Sequence[str] = field(repr=False)
+    staff_names: Sequence[str] = field(repr=False)
+    knowledge: ApprovedKnowledge = field(repr=False)
+    calculator_lines: Sequence[str] = field(default=(), repr=False)
+    realtime: bool = False
+
+    def __post_init__(self) -> None:
+        """꼴을 맞춘다(목록 → 튜플). 틀리면 ``ValueError`` — 칸 이름만 싣는다."""
+        if self.brand not in KNOWN_BRANDS:
+            raise ValueError(f"모르는 브랜드: {self.brand!r}")
+        if not isinstance(self.chat_id, str) or not _CHAT_ID.fullmatch(self.chat_id):
+            raise ValueError("chat_id 꼴이 틀렸다")
+        if self.medium is not None and not (isinstance(self.medium, str) and _MEDIUM.fullmatch(self.medium)):
+            raise ValueError("medium 꼴이 틀렸다")
+        if self.purpose not in PURPOSES:
+            raise ValueError(f"purpose 는 {' / '.join(PURPOSES)} 가운데 하나다")
+        if not isinstance(self.daytime, bool) or not isinstance(self.realtime, bool):
+            raise ValueError("daytime · realtime 은 bool 이다")
+        if not isinstance(self.knowledge, ApprovedKnowledge):
+            raise ValueError("knowledge 는 ApprovedKnowledge 다")
+        object.__setattr__(self, "messages", _turns(self.messages))
+        for name in ("customer_names", "staff_names", "calculator_lines"):
+            object.__setattr__(self, name, _texts(getattr(self, name), name))
+
+
+@dataclass(frozen=True, kw_only=True)
+class DraftResult:
+    """두뇌 한 번의 결과. 초안 · 직원 참고는 repr 에 싣지 않는다. 토큰 · 돈은 대체 모델까지 넣은 이번 호출 전체다."""
+
+    intent: str
+    draft: str = field(repr=False)  # 손님께 보낼 답(넘김 · 의도 고르기 · 거절이면 빈 글)
+    evidence_ids: tuple[str, ...]
+    handoff: bool
+    handoff_reason: str  # :data:`HANDOFF_REASONS` 또는 거절 ``refused``(코드만 쓰는 까닭)
+    staff_note: str = field(repr=False)
+    model: str  # 답을 낸 모델(대체가 답했으면 그 모델)
+    effort: str
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost_usd: Decimal
+    latency_ms: int
+    stop_reason: Optional[str]
+    refused: bool
+    fallback_used: bool
+    refusal_category: Optional[str] = None  # 거절이면 ``stop_details.category`` 만
 
 
 # ── 앞부분(캐시) ─────────────────────────────────────────────────────────
@@ -305,3 +394,21 @@ def usage_cost(response: Any) -> tuple[Tokens, Decimal]:
     for tokens, model in pairs:
         total, cost = total + tokens, cost + tokens.cost(model)
     return total, cost
+
+
+#: 최악값 어림에 더하는 틀 토큰(메시지 · 블록 경계 · 구조화 출력 · 생각 설정이 붙이는 몫 — 넉넉히 잡은 어림).
+RESERVE_OVERHEAD_TOKENS = 2000
+
+
+def worst_case_cost(params: Mapping[str, Any]) -> Decimal:
+    """보내기 한 번의 최악 돈(달러) — 보내기 전에 하루 돈 줄에 예약한다(원장 R7-3).
+
+    = 입력 어림 × 입력 쪽 가장 비싼 단가(캐시 1시간 쓰기까지) + ``max_tokens`` 전부 × 가장 비싼 출력 단가. 입력 어림은 요청
+    칸 JSON 의 글자 수 + :data:`RESERVE_OVERHEAD_TOKENS` 다(한글 1자 ≈ 1토큰 — 설계서 11절 가정, 영문 · 칸 이름 · 기호는
+    그보다 적게 든다). 단가는 :data:`PRICES` 모든 모델 가운데 칸마다 가장 비싼 값이다(서버 쪽 대체 모델이 답할 수 있다).
+    응답이 오면 실제 값으로 바로잡으니 넉넉한 쪽이 맞다.
+    """
+    text = json.dumps(dict(params), ensure_ascii=False, default=str)
+    input_price = max(_PRICE_UNKNOWN.input, _PRICE_UNKNOWN.cache_write_5m, _PRICE_UNKNOWN.cache_write_1h)
+    micro = (len(text) + RESERVE_OVERHEAD_TOKENS) * input_price + int(params["max_tokens"]) * _PRICE_UNKNOWN.output
+    return micro / _MILLION

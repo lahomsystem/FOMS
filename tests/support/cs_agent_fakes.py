@@ -259,9 +259,10 @@ class FakeAnthropic:
     """``anthropic.Anthropic`` 흉내 — 진짜 두뇌 길(가림 · 돈 셈 · 응답 읽기)을 그대로 돌린다(네트워크 · 키 없음).
 
     받은 인자를 남기고, 정한 구조화 출력(dict)을 SDK 실제 응답 형(``BetaMessage``)으로 차례로 낸다(마지막 것은 계속).
+    예외를 넣으면 그 차례에 던진다(SDK 오류 형 — 401 · 403 같은 응답).
     """
 
-    def __init__(self, *answers: dict) -> None:
+    def __init__(self, *answers) -> None:
         self.answers, self.params = list(answers), []
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self.create))
 
@@ -271,6 +272,8 @@ class FakeAnthropic:
     def create(self, **params):
         self.params.append(params)
         answer = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+        if isinstance(answer, BaseException):
+            raise answer
         return BetaMessage.model_validate({
             "id": "msg_synthetic", "type": "message", "role": "assistant", "model": params["model"],
             "content": [{"type": "text", "text": json.dumps(answer, ensure_ascii=False)}], "stop_reason": "end_turn",

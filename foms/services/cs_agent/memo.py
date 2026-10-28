@@ -9,9 +9,11 @@
   env 기본 채널(``CHANNEL_ID``)로 빠지지도 않는다.
 - **운영 밖은 허용 목록만(R1-4)**: 채널이 브랜드마다 하나라 스테이징 · PC 도 진짜 손님 상담에 닿는다. 운영이 아니면
   env :data:`TEST_CHAT_IDS_ENV`(쉼표로 나눔) 또는 인자로 받은 시험 상담 id 에만 쓴다 — 목록이 비면 아무 데도 안 쓴다.
-  운영 판정은 :func:`is_production` (인자는 더 막는 쪽으로만 쓴다).
+  운영 판정은 :func:`is_production` — 맞는 것만(환경 판정이 운영이고 프로젝트 이름이 ``-PRODUCTION`` 으로 끝날 때, R7-6).
 - **올린 뒤 다시 읽기**: Open API 로 그 상담 최근 글을 읽어 올린 글이 비공개인지 본다. 못 찾거나 공개면
-  ``verified=False`` 와 경고(공개면 오류 로그).
+  ``verified=False`` 와 경고(공개면 오류 로그). 초안 바퀴는 공개면 초안 스위치를 끄고, 확인 못 함이면 '저장만'으로 바꾼다
+  (원장 R7-1 · R7-2). 그래서 memo 로 켜기 전에 스테이징에서 우리 봇 메모가 Open API 글 목록에 오는지를 먼저 본다 —
+  안 오면 모든 메모가 '못 찾음'이 되어 첫 메모에서 '저장만'으로 돌아간다.
 - 글은 로그 · 예외 · 결과 어디에도 싣지 않는다(상담 id · 메시지 id · 이유 코드만).
 """
 
@@ -50,6 +52,8 @@ MEMO_BOT_NAME = "FOMS AI초안"
 #: 운영이 아닌 환경에서 메모를 써도 되는 시험 상담 id(쉼표로 나눔). 없으면 아무 데도 안 쓴다.
 TEST_CHAT_IDS_ENV = "FOMS_CS_MEMO_TEST_CHAT_IDS"
 PRODUCTION = "production"
+#: 운영 Railway 프로젝트 이름의 끝 — 정확히 이 글자로 끝나야 운영이다(대소문자까지).
+PRODUCTION_PROJECT_SUFFIX = "-PRODUCTION"
 
 REASON_BRAND = "brand_not_allowed"
 REASON_NO_CHAT = "no_chat"
@@ -98,14 +102,16 @@ def env_test_chat_ids() -> frozenset[str]:
 
 
 def is_production(environment: Optional[str] = None) -> bool:
-    """운영인가 — :func:`resolve_environment` 가 운영이고 Railway 프로젝트 이름이 개발(``-DEV``)이 아닐 때만.
+    """운영인가 — 맞는 것만: :func:`resolve_environment` 가 운영이고 **그리고** Railway 프로젝트 이름이 정확히
+    :data:`PRODUCTION_PROJECT_SUFFIX` 로 끝날 때만(원장 R7-6). 나머지는 모두 시험 상담 허용 목록을 따른다.
 
-    ``FOMS_ENV`` 가 먼저라 스테이징에 잘못 남은 값이 운영을 흉내 낼 수 있어 프로젝트 이름을 한 번 더 본다.
-    인자 ``environment`` 는 더 막는 쪽으로만 쓴다 — 운영이 아닌 값을 주면 운영이 아니고, ``"production"`` 을 줘도
-    실제 환경이 운영이 아니면 운영이 아니다.
+    프로젝트 이름이 없거나 바뀌었거나(``FOMS-STAGING``) Railway 환경 이름만 ``production`` 인 스테이징(FOMS-DEV 도 그렇다),
+    스테이징에 잘못 남은 ``FOMS_ENV=production`` 은 운영이 아니다 — 채널이 브랜드마다 하나라 열린 쪽으로 닫히면 스테이징이
+    진짜 손님 상담 전부에 쓴다. 인자 ``environment`` 는 더 막는 쪽으로만 쓴다(``"production"`` 을 줘도 실제 환경이 운영이
+    아니면 운영이 아니다).
     """
-    project = (os.environ.get("RAILWAY_PROJECT_NAME") or "").strip().upper()
-    if resolve_environment() != PRODUCTION or project.endswith("-DEV"):
+    project = (os.environ.get("RAILWAY_PROJECT_NAME") or "").strip()
+    if resolve_environment() != PRODUCTION or not project.endswith(PRODUCTION_PROJECT_SUFFIX):
         return False
     return environment is None or environment == PRODUCTION
 

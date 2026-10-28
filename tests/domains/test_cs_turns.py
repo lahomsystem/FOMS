@@ -16,8 +16,9 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from db import db_session
+from db import db_session, engine
 from foms.services.cs_agent import loop, turns
 from foms.services.cs_agent.checks import Problem
 from foms.services.cs_agent.masking import MaskLeak
@@ -46,7 +47,7 @@ def brain_result(**overrides):
     values = dict(intent="quote", handoff=False, handoff_reason=None, model="claude-opus-5-5", effort="high",
                   input_tokens=1200, output_tokens=300, cache_read_tokens=1000, cache_write_tokens=0,
                   cost_usd=0.0123, latency_ms=4321, draft=f"{BRAIN_MARK} 합성 초안", staff_note=f"{BRAIN_MARK} 참고",
-                  raw={"text": BRAIN_MARK})
+                  raw={"text": BRAIN_MARK}, fallback_used=True)
     values.update(overrides)
     return SimpleNamespace(**values)
 
@@ -222,8 +223,8 @@ def test_brain_results_copy_codes_and_numbers_only(app, caplog):
                                                 latency_ms=4321.6))
     db_session.commit()
     db_session.expire_all()
-    assert (row.intent, row.handoff, row.handoff_reason, row.model, row.effort) == (
-        "견적", True, "refund_rule", "claude-opus-5-5", "high")
+    assert (row.intent, row.handoff, row.handoff_reason, row.model, row.effort, row.fallback_used) == (
+        "견적", True, "refund_rule", "claude-opus-5-5", "high", True)  # 대체 모델이 답했는지도 남긴다(R7-12)
     assert (row.input_tokens, row.output_tokens, row.cache_read_tokens, row.cache_write_tokens, row.latency_ms) == (
         1200, 300, 900, 40, 4322)
     assert row.cost_usd == Decimal("0.0123")
@@ -314,3 +315,69 @@ def test_draft_mode_reads_the_row_fresh_every_time(app):
                        .values(setting_value={"draft": "off"}))  # 다른 길(관리자 스크립트)이 끈다 — 커밋 전
     assert turns.draft_mode(db_session) == "off"
     db_session.rollback()
+
+
+# ── 조건부 쓰기 · 시도를 세지 않는 돌려놓기 · 스위치 쓰기(검수 R7) ────────
+
+
+def test_a_stale_object_never_writes_over_a_turn_another_pass_took(app):
+    row = claim()  # 이 세션의 선점(시도 1) — 커밋 뒤 줄을 다시 읽어도 선점 표지는 남는다
+    other = Session(bind=engine)  # 겹친 다른 바퀴: 오래된 선점 정리 → 다시 집기(시도 2)
+    try:
+        turns.mark_failed(other.get(CsAgentTurn, row.id), error_code="claim_expired", now=at(2, 9, 30))
+        other.commit()
+        assert turns.claim_turn(other, "LAHOM", "uc-1", "m-1", now=at(2, 9, 30)).attempts == 2
+        other.commit()
+    finally:
+        other.close()
+    writes = (lambda: turns.mark_posting(row, masked_draft="합성 초안", now=at(2, 9, 31)),
+              lambda: turns.mark_stored(row, masked_draft="합성 초안", now=at(2, 9, 31)),
+              lambda: turns.mark_skipped(row, reason="stale", now=at(2, 9, 31)),
+              lambda: turns.mark_failed(row, error_code="error", now=at(2, 9, 31)),
+              lambda: turns.release_turn(row, error_code="api_auth", now=at(2, 9, 31)),
+              lambda: turns.record_brain_result(row, brain_result()))
+    for write in writes:  # 다시 읽은 줄은 'claimed' 지만 시도 수가 다르다 — 바뀐 줄 0 → 쓰지 않는다
+        with pytest.raises(turns.TurnConflict):
+            write()
+        db_session.rollback()
+    db_session.expire_all()
+    final = db_session.get(CsAgentTurn, row.id)
+    assert (final.state, final.attempts, final.masked_draft, final.intent) == ("claimed", 2, None, None)
+    db_session.execute(update(CsAgentTurn.__table__).values(state="failed"))  # 정리만 하고 다시 집지 않은 때(시도 그대로)
+    db_session.commit()
+    with pytest.raises(turns.TurnStateError):  # 다시 읽은 상태가 'failed' — 올리기로 가지 않는다
+        turns.mark_posting(row, masked_draft="합성 초안", now=at(2, 9, 32))
+
+
+def test_release_puts_a_turn_back_without_spending_an_attempt(app):
+    row = claim()
+    for minute in (1, 2, 3, 4):  # 키 · 설정 문제가 이어져도 차례는 시도 상한에 닿지 않는다
+        turns.release_turn(row, error_code="api_auth", now=at(2, 9, minute))
+        db_session.commit()
+        assert (row.state, row.attempts, row.error_code) == ("failed", 0, "api_auth")
+        row = claim(now=at(2, 9, minute))
+        assert (row.state, row.attempts, row.error_code) == ("claimed", 1, None)
+    turns.mark_stored(row, masked_draft=None, now=NOW)
+    with pytest.raises(turns.TurnStateError):  # 선점한 줄만 돌려놓는다
+        turns.release_turn(row, error_code="api_auth", now=NOW)
+    assert count() == 1
+
+
+def test_set_draft_mode_changes_only_the_draft_field(app):
+    loop.set_switch(db_session, on=True, now=at(2, 8))
+    before = dict(db_session.get(SystemSetting, turns.SWITCH_KEY).setting_value)
+    version = db_session.get(SystemSetting, turns.SWITCH_KEY).version
+    turns.set_draft_mode(db_session, "off", reason="memo_not_private", now=at(2, 9, 5))
+    db_session.commit()
+    row = db_session.get(SystemSetting, turns.SWITCH_KEY, populate_existing=True)
+    assert row.setting_value == {**before, "draft": "off", "draft_changed_at": "2026-11-02T00:05:00",
+                                 "draft_reason": "memo_not_private"} and row.version == version + 1
+    assert (turns.draft_mode(db_session), loop.read_switch(db_session)) == ("off", True)
+    for bad in (("on", "memo_not_private"), ("store", "합성 까닭")):
+        with pytest.raises(ValueError):
+            turns.set_draft_mode(db_session, bad[0], reason=bad[1], now=NOW)
+    db_session.delete(row)
+    db_session.commit()
+    turns.set_draft_mode(db_session, "store", reason="memo_not_found", now=NOW)  # 줄이 없으면 만든다
+    db_session.commit()
+    assert turns.draft_mode(db_session) == "store" and loop.read_switch(db_session) is True

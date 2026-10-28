@@ -119,3 +119,24 @@ def test_state_check_columns_and_stale_posting_on_postgres(pg_engine):
         assert (found[0].check_codes, found[0].cost_usd, found[0].input_tokens, found[0].handoff) == (
             ["tone_emoji"], Decimal("0.012300"), 1200, False)
         assert turns.stale_posting(session, NOW - datetime.timedelta(minutes=5)) == []
+
+
+def test_a_stale_session_cannot_post_a_turn_another_session_reclaimed(pg_engine):
+    """검수 R7-8 — 앞 바퀴가 두뇌를 부르는 동안 뒤 바퀴가 정리 · 다시 집으면 앞 바퀴의 '올리는 중'은 0 줄(올리지 않는다)."""
+    make_session = sessionmaker(bind=pg_engine)
+    mine = make_session()
+    row = turns.claim_turn(mine, "LAHOM", CHAT, "m-5", now=NOW)
+    row_id = row.id
+    mine.commit()  # 선점 커밋 → 두뇌를 부르는 동안(줄은 커밋 뒤 다시 읽힌다)
+    with make_session() as other:
+        turns.mark_failed(other.get(CsAgentTurn, row_id), error_code="claim_expired", now=NOW)
+        other.commit()
+        assert turns.claim_turn(other, "LAHOM", CHAT, "m-5", now=NOW).attempts == 2
+        other.commit()
+    with pytest.raises(turns.TurnConflict):
+        turns.mark_posting(row, masked_draft="합성 초안입니다", now=NOW)
+    mine.rollback()
+    mine.close()
+    with make_session() as check:
+        final = check.get(CsAgentTurn, row_id)
+        assert (final.state, final.attempts, final.masked_draft) == ("claimed", 2, None)

@@ -300,7 +300,7 @@ def test_spend_limit_answers_stop_without_retry(app, error):
     with pytest.raises(brain.SpendCapReached) as excinfo:  # 밤 길(한 번 더 할 수 있는 길)에서도 다시 하지 않는다
         brain.draft_reply(request(), client=fake, session=db_session, now=NOW)
     assert excinfo.value.code == "api_spend_limit" and excinfo.value.request_id == "req_synthetic"
-    assert len(fake.calls) == 1 and spend() is None
+    assert len(fake.calls) == 1 and Decimal(spend()["usd"]) == Decimal(spend()["reserved"]) == 0  # 오류 응답 = 예약 풀림
 
 
 def _timeout():
@@ -309,14 +309,14 @@ def _timeout():
 
 @pytest.mark.parametrize("realtime,outcomes,code,calls", [
     (True, [_timeout], "timeout", 1),
-    (False, [_timeout, _timeout], "timeout", 2),
+    (False, [_timeout, _timeout], "timeout", 1),  # 밤 길도 시간 초과는 다시 보내지 않는다(원장 R7-3)
     (False, [lambda: api_error(anthropic.RateLimitError, 429, "rate_limit_error", "Synthetic.")], "rate_limited", 1),
     (False, [lambda: api_error(anthropic.BadRequestError, 400, "invalid_request_error", "Synthetic.")], "api_error", 1),
     (True, [lambda: api_error(anthropic.OverloadedError, 529, "overloaded_error", "Synthetic.")], "api_error", 1),
-    (False, [lambda: anthropic.APIConnectionError(request=_REQUEST)] * 2, "api_error", 2),
-    (False, [lambda: api_error(anthropic.InternalServerError, 500, "api_error", "Synthetic."), message], None, 2),
-], ids=["timeout-realtime", "timeout-batch-retries-once", "rate-limited", "bad-request", "overloaded-realtime",
-        "connection-batch", "server-error-then-ok"])
+    (False, [lambda: anthropic.APIConnectionError(request=_REQUEST)] * 2, "api_error", 1),  # 나갔는지 모르면 안 함
+    (False, [lambda: api_error(anthropic.InternalServerError, 500, "api_error", "합성"), message], "api_error", 1),
+], ids=["timeout-realtime", "timeout-batch-not-retried", "rate-limited", "bad-request", "overloaded-realtime",
+        "connection-unknown-not-retried", "server-error-not-retried"])
 def test_api_failures_map_to_unavailable(app, realtime, outcomes, code, calls):
     fake = FakeClient(*(make() for make in outcomes))
     if code is None:
@@ -372,7 +372,7 @@ def test_today_at_the_cap_refuses_before_any_call(app, monkeypatch):
 def test_after_a_call_the_spend_row_grows_and_yesterday_does_not_count(app):
     put_spend({"date": "2026-10-27", "usd": "999", "calls": 9})  # 어제 합은 오늘 상한에 들어가지 않는다
     run()
-    assert spend() == {"date": "2026-10-28", "usd": spend()["usd"], "calls": 1}
+    assert spend() == {"date": "2026-10-28", "usd": spend()["usd"], "reserved": "0.000000", "calls": 1}
     assert Decimal(spend()["usd"]) == Decimal("0.014")
     before = db_session.get(SystemSetting, brain.SPEND_KEY).version
     assert brain.add_spend(db_session, Decimal("0.001"), now=NOW) == Decimal("0.015")
