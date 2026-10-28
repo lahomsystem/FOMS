@@ -86,6 +86,7 @@ def assert_private_lahom(calls):
 
 def test_production_posts_a_private_memo_and_verifies_it(send, monkeypatch):
     monkeypatch.setenv("FOMS_ENV", "production")
+    monkeypatch.setenv("RAILWAY_PROJECT_NAME", "FOMS-PRODUCTION")  # 운영은 둘 다 맞아야(R7-6)
     reader = reader_with(bot_memo(chat=REAL_CHAT), chat=REAL_CHAT)
     result = memo.post_private_memo(REAL_CHAT, DRAFT, brand="LAHOM", reader=reader)
     assert result == memo.MemoResult(True, verified=True, message_id="memo-1")
@@ -106,6 +107,7 @@ def test_the_public_path_is_never_used_on_any_route(send, monkeypatch):
     send.result = {"success": True, "message_id": None, "error": None}
     post()
     monkeypatch.setenv("FOMS_ENV", "production")
+    monkeypatch.setenv("RAILWAY_PROJECT_NAME", "FOMS-PRODUCTION")
     post(REAL_CHAT)
     assert len(send.calls) == 7
     assert_private_lahom(send.calls)
@@ -188,10 +190,30 @@ def test_a_local_or_dev_project_is_never_production(send, monkeypatch):
     monkeypatch.setenv("FOMS_ENV", "production")  # 스테이징에 잘못 남은 FOMS_ENV
     assert refused()
     monkeypatch.delenv("RAILWAY_PROJECT_NAME")
+    assert refused()  # FOMS_ENV 만 운영이고 프로젝트 이름이 없으면 운영이 아니다(맞는 것만 — R7-6)
+    monkeypatch.setenv("RAILWAY_PROJECT_NAME", "FOMS-PRODUCTION")
     assert refused(environment="staging")  # 인자는 더 막는 쪽으로만
     assert send.calls == []
     assert memo.post_private_memo(REAL_CHAT, DRAFT, brand="LAHOM", reader=reader).verified is True  # 음성 대조군: 운영
     assert len(send.calls) == 1
+
+
+@pytest.mark.parametrize("env,production", [
+    ({"RAILWAY_PROJECT_NAME": "FOMS-STAGING", "RAILWAY_ENVIRONMENT": "production"}, False),  # 검수 P7 — 이름이 바뀐 스테이징
+    ({"RAILWAY_ENVIRONMENT": "production"}, False),  # P7b — 프로젝트 이름 변수가 없다(FOMS-DEV 환경 이름도 production)
+    ({"FOMS_ENV": "production"}, False),
+    ({"FOMS_ENV": "production", "RAILWAY_PROJECT_NAME": "FOMS-DEV"}, False),
+    ({"FOMS_ENV": "staging", "RAILWAY_PROJECT_NAME": "FOMS-PRODUCTION"}, False),
+    ({"RAILWAY_PROJECT_NAME": "foms-production"}, False),  # 끝 글자는 대소문자까지 정확히
+    ({"RAILWAY_PROJECT_NAME": "FOMS-PRODUCTION-COPY"}, False),
+    ({"RAILWAY_PROJECT_NAME": "FOMS-PRODUCTION"}, True),
+    ({"FOMS_ENV": "production", "RAILWAY_PROJECT_NAME": "FOMS-PRODUCTION"}, True),
+])
+def test_production_is_only_the_exact_production_project(monkeypatch, env, production):
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    assert memo.is_production() is production  # 맞는 것만 운영 — 나머지는 시험 상담 허용 목록(원장 R7-6)
+    assert memo.memo_allowed(REAL_CHAT) is production  # 허용 목록이 비면 운영만 쓴다
 
 
 def test_bad_chat_ids_and_empty_text_are_refused_without_calls(send, monkeypatch):

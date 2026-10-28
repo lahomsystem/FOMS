@@ -4307,6 +4307,8 @@ class CsAgentTurn(Base):
     cache_write_tokens = Column(Integer, nullable=True)
     cost_usd = Column(Numeric(12, 6), nullable=True)
     latency_ms = Column(Integer, nullable=True)
+    # 서버 쪽 대체 모델이 답했나(설계서 11.1 의 4 — 원장 R7-12). 두뇌를 안 부른 줄은 비어 있다.
+    fallback_used = Column(Boolean, nullable=True)
     # 보내기 전 검사 코드 목록(글 없음, 예: ["date_promise"]).
     check_codes = Column(JSONColumn, nullable=True)
     # 가린 초안 · 가린 직원 최종 답(공개 manager 글, 나중에 채움) — 가림 검사를 통과한 글만.

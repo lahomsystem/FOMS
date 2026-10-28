@@ -7,7 +7,8 @@ Create Date: 2026-10-28
 설계 정본: 설계서 2026-10-27-cs-ai-agent 4절 8 · 9, 실행 플랜 C3-1 · C3-3(원장 R1-2 · R1-3 · R1-20).
 
 * ``cs_agent_turns`` — 손님 글 하나(상담의 마지막 손님 글)에 한 줄. 상태 · 선점 횟수 · 올린 메모 id · 두뇌 결과
-  (의도 · 넘김 · 모델 · 깊이 · 토큰 · 비용 · 지연 — 코드 · 숫자만) · 검사 코드 · 가린 초안 · 가린 직원 답 · 판정 · 이유 코드.
+  (의도 · 넘김 · 모델 · 깊이 · 토큰 · 비용 · 지연 · 대체 모델 여부 — 코드 · 숫자만) · 검사 코드 · 가린 초안 · 가린 직원 답 ·
+  판정 · 이유 코드. ``fallback_used`` 는 아직 어디에도 올리지 않은 이 리비전에 그 자리에서 더했다(원장 R7-12).
   ``uq_cs_agent_turns_chat_turn`` — (상담, 마지막 손님 글 id) 하나에 한 줄(선점 = 있으면 무시하고 넣기의 기준).
   ``ck_cs_agent_turns_state`` — 상태 여섯 가지(claimed · posting · posted · stored · skipped · failed)만.
   ``ix_cs_agent_turns_state_updated`` — 재시작 때 '올리는 중'으로 남은 줄 찾기.
@@ -52,6 +53,7 @@ def upgrade() -> None:
         sa.Column('cache_write_tokens', sa.Integer(), nullable=True),
         sa.Column('cost_usd', sa.Numeric(12, 6), nullable=True),
         sa.Column('latency_ms', sa.Integer(), nullable=True),
+        sa.Column('fallback_used', sa.Boolean(), nullable=True),
         sa.Column('check_codes', _JSON_TYPE, nullable=True),
         sa.Column('masked_draft', sa.Text(), nullable=True),
         sa.Column('staff_reply_masked', sa.Text(), nullable=True),

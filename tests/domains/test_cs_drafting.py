@@ -54,12 +54,15 @@ KNOWLEDGE = {"schema_version": 1, "brand": "LAHOM", "items": [
 
 @pytest.fixture
 def channel(app, keys, monkeypatch):
-    """승인 지식 · 라홈 Open API 키(가짜) · 운영 밖 시험 상담 허용 목록 · 가짜 채널톡."""
+    """승인 지식 · 라홈 Open API 키(가짜) · 두뇌 준비 env(가짜 키 · 하루 상한) · 운영 밖 시험 상담 허용 목록 · 가짜 채널톡."""
     db_session.add(SystemSetting(setting_key=knowledge_key("LAHOM"), setting_value=KNOWLEDGE, version=1))
     db_session.commit()
     for key in ("FOMS_ENV", "RAILWAY_PROJECT_NAME", "RAILWAY_ENVIRONMENT"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, "uc-1,uc-2,uc-3,uc-4,uc-5")
+    monkeypatch.setenv(brain.KEY_ENV, "synthetic-placeholder")  # 선점 전 준비 확인(R7-4)만 지난다 — 진짜 호출은 없다
+    monkeypatch.setenv(brain.DAILY_CAP_ENV, "5")
+    monkeypatch.setattr(brain, "_default_client", lambda: pytest.fail("진짜 SDK 클라이언트를 만들려 했다"))
     return FakeChannel()
 
 
@@ -121,6 +124,8 @@ class FakePoster:
 
 
 def run(channel, mode="store", *, brain_fn=None, poster=None, now=NOW, stop=None, **kwargs):
+    if mode in turns.DRAFT_MODES and db_session.get(SystemSetting, turns.SWITCH_KEY) is None:
+        set_switch({"draft": mode})  # 감시 루프처럼 스위치 줄이 있다(메모 직전에 다시 읽는다) — 있으면 건드리지 않는다
     states = ss.compute_open_states(db_session, now=now, brands=("LAHOM", "HAUD"), is_business_day=weekdays_only)
     return drafting.run_drafting(db_session, states=states, reader=make_reader(channel, FakeClock()), now=now,
                                  stop=stop or loop.StopFlag(), mode=mode, is_business_day=weekdays_only,
@@ -190,7 +195,7 @@ def test_memo_text_is_the_pilot_shape_with_a_masked_staff_note(channel):
     poster = FakePoster()
     run(channel, "memo", brain_fn=FakeBrain(result(staff_note=f"{NOTE} 가상로 12 앞")), poster=poster)
     (call,) = poster.calls
-    assert (call.chat_id, call.brand, call.kwargs) == ("uc-1", "LAHOM", {})
+    assert (call.chat_id, call.brand, set(call.kwargs)) == ("uc-1", "LAHOM", {"reader"})  # 루프 읽기 도우미(R7-11)
     assert call.text.split("\n") == ["[AI 초안 · 손님에게 보내지 않음 · 직원이 고쳐서 보내 주세요]", "■ 손님께 보낼 답(초안)",
                                      DRAFT, "■ 직원 참고(손님에게 보내지 마세요)", f"{NOTE} [도로명주소] 앞"]
     assert (MEMO_HEAD, MEMO_DRAFT_HEAD, MEMO_NOTE_HEAD) == tuple(call.text.split("\n")[i] for i in (0, 1, 3))
@@ -295,8 +300,9 @@ def test_mask_leak_skips_one_chat_and_not_ready_stops_the_pass(channel, caplog):
     for chat in ("uc-3", "uc-4"):
         customer(channel, chat)
     second = run(channel, brain_fn=FakeBrain(brain.BrainNotReady("no_api_key")), now=at(2, 9, 15))
-    assert (outcome("uc-3"), turn("uc-4")) == ([("skipped", "no_api_key")], None)  # 설정 문제 — 다음 상담도 같아 멈춘다
-    assert (second.halted, second.brain_calls) == ({"not_ready": 1}, 1)
+    # 설정 문제는 차례 탓이 아니다 — 시도를 세지 않고 돌려놓고(다음 바퀴가 같은 시도 수로 다시 집음) 멈춘다(R7-4)
+    assert (outcome("uc-3"), turn("uc-3").attempts, turn("uc-4")) == ([("failed", "no_api_key")], 0, None)
+    assert (second.halted, second.brain_calls, second.released) == ({"not_ready": 1}, 1, 1)
 
 
 def test_brain_unavailable_fails_and_the_next_pass_reclaims(channel):
@@ -318,29 +324,31 @@ def test_spend_cap_stops_the_day_and_a_later_day_resumes(channel, code):
     assert (first.halted, outcome("uc-1"), turn("uc-2")) == ({"spend_cap": 1}, [("failed", code)], None)
     same_day = run(channel, brain_fn=FakeBrain(max_calls=0), now=at(2, 23, 50))  # 그날은 선점도 두뇌도 없다
     assert (same_day.halted, same_day.claimed, turn("uc-2")) == ({"spend_cap": 1}, 0, None)
-    next_day = run(channel, now=at(3, 9))
-    assert (next_day.stored, turn("uc-1").attempts, turn("uc-2").state) == (2, 2, "stored")
+    next_day = run(channel, now=at(3, 9))  # 돈 상한은 차례 탓이 아니라 시도를 세지 않았다(R7-4)
+    assert (next_day.stored, turn("uc-1").attempts, turn("uc-2").state) == (2, 1, "stored")
 
 
-def test_memo_outcomes_are_recorded_as_they_happened(channel, caplog):
-    for chat in ("uc-1", "uc-2", "uc-3", "uc-4"):
+def test_a_send_failure_fails_the_turn_and_stops_the_pass(channel, caplog):
+    for chat in ("uc-1", "uc-2"):
         customer(channel, chat)
-    caplog.set_level(logging.ERROR, logger=drafting.__name__)
-    poster = FakePoster(memo.MemoResult(False, reason="send_provider_error"),
-                        memo.MemoResult(True, message_id="memo-2", reason="memo_not_found"),
-                        memo.MemoResult(True, message_id="memo-3", reason="memo_not_private"))
-    summary = run(channel, "memo", poster=poster)
-    assert outcome("uc-1", "uc-2", "uc-3") == [
-        ("failed", "send_provider_error"), ("posted", "memo_not_found"), ("posted", "memo_not_private")]
-    assert (turn("uc-2").memo_message_id, turn("uc-4")) == ("memo-2", None)  # 공개로 확인되면 이번 바퀴를 멈춘다
-    assert (summary.posted, summary.unverified, summary.failed, summary.halted) == (2, 2, 1, {"memo_not_private": 1})
-    assert caplog.text.count("비공개를 확인 못 했다") == 2
+    caplog.set_level(logging.WARNING, logger="foms.services.cs_agent")
+    brain_fn = FakeBrain()
+    refused = FakePoster(memo.MemoResult(False, reason="send_provider_error"))
+    summary = run(channel, "memo", brain_fn=brain_fn, poster=refused)
+    assert (outcome("uc-1"), turn("uc-2"), len(brain_fn.requests)) == ([("failed", "send_provider_error")], None, 1)
+    assert (summary.failed, summary.halted) == (1, {"memo_send_failed": 1})  # 채널톡 쓰기가 멈췄으면 두뇌 돈만 쓴다(R7-5)
+    assert "못 올렸다" in caplog.text
 
 
 def test_outcome_unknown_stays_posting_and_is_never_reposted(channel):
     customer(channel)
+    customer(channel, "uc-2")
     summary = run(channel, "memo", poster=FakePoster(memo.MemoResult(False, reason=memo.SEND_UNKNOWN)))
-    assert (turn().state, summary.unknown, summary.failed) == ("posting", 1, 0)
+    assert (turn().state, summary.unknown, summary.failed, summary.halted) == ("posting", 1, 0, {"memo_unknown": 1})
+    assert turn("uc-2") is None  # 닿았는지 모르면 이번 바퀴를 멈춘다(R7-5)
+    ss.store_messages(db_session, [derived("a-2", at(2, 8, 55), "manager", "합성 답입니다", chat="uc-2")],
+                      source="openapi")  # 아래 바퀴는 uc-1 만 본다(uc-2 는 사람이 답함)
+    db_session.commit()
     later = FakePoster()
     second = run(channel, "memo", brain_fn=FakeBrain(max_calls=0), poster=later, now=at(2, 9, 15))
     third = run(channel, "memo", brain_fn=FakeBrain(max_calls=0), poster=later, now=at(2, 9, 40))
@@ -397,7 +405,7 @@ def test_brain_call_cap_time_budget_and_the_night_flag(channel):
     capped = run(channel, brain_fn=brain_fn, now=at(2, 21), limit=1)
     assert (capped.brain_calls, capped.halted, turn("uc-2")) == (1, {"call_cap": 1}, None)
     assert brain_fn.requests[0].daytime is False  # 운영 시간 밖(라홈 평일 8~17시)
-    ticks = itertools.chain([0.0, 0.0, 0.0], itertools.repeat(999.0))  # 시작 · uc-1(이미) · uc-2 · 그 뒤 시간 넘김
+    ticks = itertools.chain([0.0, 0.0], itertools.repeat(999.0))  # 시작 · uc-2(uc-1 은 이미 — 시계 안 봄) · 그 뒤 넘김
     timed = run(channel, now=at(2, 21, 15), clock=lambda: next(ticks), budget_seconds=10)
     assert (timed.claimed, timed.halted, turn("uc-3")) == (1, {"time_budget": 1}, None)
 
@@ -469,7 +477,8 @@ def test_loop_runs_drafting_after_the_report_when_the_switch_is_on(channel, monk
     wired = functools.partial(drafting.run_drafting, brain=brain_fn, poster=FakePoster())
     monkeypatch.setattr(loop, "run_drafting", wired)
     result = loop_pass(channel)
-    expected = {**drafting.DraftSummary().counts(), "candidates": 1, "claimed": 1, "brain_calls": 1, "stored": 1}
+    expected = {**drafting.DraftSummary().counts(), "candidates": 1, "claimed": 1, "brain_calls": 1, "stored": 1,
+                "cache_cold": 1}  # 월요일 9시(운영 시간)인데 가짜 결과의 캐시 읽기가 0(R7-12)
     assert (result.outcome, result.report_sent, result.summary()["drafting"]) == ("ok", True, expected)
     assert turn().state == "stored" and brain_fn.requests[0].daytime is True
     assert json.loads(json.dumps(result.summary()))["drafting"] == expected  # JSON 한 줄 — 숫자만
