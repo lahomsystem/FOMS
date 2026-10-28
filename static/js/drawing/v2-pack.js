@@ -7,7 +7,7 @@
  * - 짝(내부 · 도어)은 한 묶음으로 옆에 붙인다(묶음 안 간격 GAP).
  *
  * window.FomsV2Pack = { GAP, HEAD, MAX_UP, row(items, maxW, maxH, same), stack(items, maxW, maxH, same),
- *   shelves(groups, W, H, same, bare), flow(boxes, W, gap), room(x, y, w, h, obstacles, groups, same),
+ *   shelves(groups, W, H, same, bare, hi), flow(boxes, W, gap), room(x, y, w, h, obstacles, groups, same),
  *   block(unit, t, same), search(hi, fits), tCap(units, same) }   — 마지막 셋은 주 그림 크게(v2-hero.js)가 쓴다
  *   item  = { id, nw, nh, tx } (원본 픽셀) · unit = { members: [item] } · group = { key, units: [unit] }
  *   결과 좌표는 칸 왼쪽 위(0,0) 기준 — 부르는 쪽이 칸 자리를 더한다.
@@ -99,9 +99,9 @@
   }
 
   /** 여러 칸(group)을 위에서부터 — 칸마다 머리(HEAD)를 두고 묶음을 줄로 채운다(넘치면 다음 줄).
-      모든 칸이 같은 t(배율 · 높이)를 쓴다. bare = 머리 없이(bento 나머지 — 머리는 칸 전체 위에 하나).
+      모든 칸이 같은 t(배율 · 높이)를 쓴다. bare = 머리 없이(bento 나머지 — 머리는 칸 전체 위에 하나). hi = t 위 한계(주 그림 막대 — 나머지가 주 그림보다 커지지 않게).
       → { placed, slots: [{key, x, y, w, h}], w, h, t } 또는 null */
-  function shelves(groups, W, H, same, bare) {
+  function shelves(groups, W, H, same, bare, hi) {
     var list = (groups || []).filter(function (g) { return g.units && g.units.length; });
     if (!list.length) { return { placed: [], slots: [], w: 0, h: 0, t: 0 }; }
     var all = [];
@@ -130,7 +130,8 @@
       });
       return { placed: out, slots: slots, w: wMax, h: y, over: over };
     }
-    var t = search(tCap(all, same), function (v) { var r = lay(v); return !r.over && r.h <= H; });
+    var cap = hi > 0 ? Math.min(hi, tCap(all, same)) : tCap(all, same);
+    var t = search(cap, function (v) { var r = lay(v); return !r.over && r.h <= H; });
     if (!(t > 0)) { return null; }
     var res = lay(t);
     res.t = t;
