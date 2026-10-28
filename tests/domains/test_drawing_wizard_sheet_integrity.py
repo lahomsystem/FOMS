@@ -197,7 +197,7 @@ def test_wizard_splits_dup_ids_on_load_and_before_save():
     assert save.index("splitDupIds(state.sheets, newObjId)") < save.index("serializeState()")
     assert "rebuildAnno();" in save and "deselect()" not in save        # 자동 저장도 도구·선택을 건드리지 않는다
     assert "function newObjId() { return rid('o-'); }" in JS
-    assert TPL.index("js/drawing/sheet-ids.js') }}?v=20261026a") < TPL.index("js/drawing/wizard.js') }}?v=20261027f")
+    assert TPL.index("js/drawing/sheet-ids.js') }}?v=20261026a") < TPL.index("js/drawing/wizard.js') }}?v=20261028a")
     assert "js/drawing/save-status.js') }}?v=20261027c" in TPL
 
 

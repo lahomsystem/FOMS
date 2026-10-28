@@ -79,7 +79,7 @@ const core = {
   state: () => state, sheet: () => state.sheets[cur] || null, canSave: () => true,
   recordUndo: () => { undo.push(JSON.stringify(state.sheets[cur])); },
   markDirty: () => emit('change'), redraw: () => emit('render'),
-  select: () => {}, toast: () => {}, editing: () => false,
+  select: () => {}, toast: () => {}, editing: () => false, dragging: () => false,
   items: imgs => imgs.map((o, i) => ({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h, order: i, tx: TX[o.id] || 0,
     label: (o.part && o.part.label) || '미분류' })),
   baseline: () => ({}), productText: () => '몰딩 화장대 여닫이',
@@ -87,7 +87,7 @@ const core = {
   fitCell: () => {}, hatch: () => null, viewUrl: () => '', setTool: () => {}, setPartLabel: () => {}
 };
 window.FomsWizardCore = core;
-for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
+for (const f of ['part-pack.js', 'part-layout.js', 'v2-slots.js', 'v2-pack.js', 'v2-hero.js', 'v2-layout.js', 'v2-plan.js', 'v2-paper.js',
   'v2-left.js', 'v2-shell.js']) { require(dir + '/' + f); }
 const V2 = window.FomsV2, S = window.FomsV2Slots;
 const img = (id, label, w, h, extra) => Object.assign({ id, type: 'image', key: id + '.png', x: 500, y: 300, w: Math.min(900, w),

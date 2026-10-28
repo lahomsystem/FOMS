@@ -1,5 +1,5 @@
 /**
- * 도면 마법사 V2 — 오른쪽 칸 '배치 확인': 가장 작게 줄어든 그림 · 틀 고르기 2 · 자세히 ▸(컴퓨터가 본 것 · 켜고 끄기 4) · [다시 자동 배치].
+ * 도면 마법사 V2 — 오른쪽 칸 '배치 확인': 가장 작게 줄어든 그림 · 틀 고르기 2 · 자세히 ▸(컴퓨터가 본 것 · 켜고 끄기 5) · [다시 자동 배치].
  *
  * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §1 · §4 (화면 시안 K2 오른쪽 316px)
  * - %는 지금 양식 대비(같은 그림을 V1 자동 배치로 놓았을 때 높이). 칸으로 정리하기 전에는 '정리하면' 값을 보인다.
@@ -22,7 +22,7 @@
 
   var api = null, els = {}, last = null;
   var TOGGLES = [['lowToUnsorted', '확신이 낮으면 미분류로'], ['photoFirst', '사진은 늘 왼쪽 위'],
-    ['sameScale', '같은 칸은 같은 배율'], ['lockMoved', '손으로 옮긴 그림은 고정']];
+    ['sameScale', '같은 칸은 같은 배율'], ['hero', '주 그림 크게'], ['lockMoved', '손으로 옮긴 그림은 고정']];
   var MINI = { w: 72, h: 53 };
   var NAMES = { photo: '사진', bom: '자재', notes: '특이', stamp: '강조', main: 'A', iso: 'B', detail: '상세', plan: '평면', unsorted: '?' };
   var TPL = { band: '사진·상세를 위에', column: '사진·상세를 왼쪽에' };   // v2-chrome.js 알림 글과 같은 이름
