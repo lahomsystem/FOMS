@@ -23,9 +23,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, load_only
 
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.as_dashboard_helpers import (
+    _erp_as_incomplete_condition,
+    _has_text_value,
+    _json_text_expr,
+)
 from foms.services.as_dashboard_read_model import build_as_tab_query_conditions
 from foms.services.orders.sales_delivery_link import derive_display_state, read_link
 from foms.services.schedule_recommendations import (
@@ -101,7 +107,10 @@ def build_sales_delivery_by_ref(db: Session, *, cap: int = 300) -> dict[str, Any
     """미완료 AS ∩ 영업/택배 배정 건을 실측 주문 id(ref_order_id) 로 역방향 인덱싱한다.
 
     모집단은 `build_as_tab_query_conditions()["sales_delivery_condition"]`
-    (= 미완료 AS ∩ `sales_delivery=true`, AS 탭 카운트와 같은 SSOT)를 그대로 재사용한다.
+    (= 미완료 AS ∩ `sales_delivery=true`, AS 탭 카운트와 같은 SSOT) **또는** 미완료 AS ∩
+    배정 링크(`sales_delivery_link.status`)가 있는 건이다. 한 AS 건에 전달과 방문이 섞이면
+    영업/전달 분류를 꺼 두어(미완료 탭 유지) 배정만 거는 업무가 있다 — 분류만 보면 그런
+    배정이 실측 표에서 사라진다(운영 #5432, 2026-10-29).
     그중 실제로 실측 일정에 배정된 링크가 있고(`read_link`) method 가 parcel 이
     아닌(`derive_display_state` ∈ assigned|delivered) 건만 결과에 담는다 — 미배정·택배
     전환 건은 실측 대시보드에 보여줄 배정 정보가 없다.
@@ -115,11 +124,18 @@ def build_sales_delivery_by_ref(db: Session, *, cap: int = 300) -> dict[str, Any
         `{"by_ref": {ref_order_id: [item, ...]}, "total": int, "truncated": bool}`.
         `total` 은 `by_ref` 에 실제로 담긴 건수(모집단 전체가 아니라 링크가 있는 건만).
     """
-    conditions = build_as_tab_query_conditions(dialect_name=_dialect_name(db))
+    dialect_name = _dialect_name(db)
+    conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
+    linked_condition = and_(
+        _erp_as_incomplete_condition(),
+        _has_text_value(_json_text_expr(
+            "shipment", "sales_delivery_link", "status", dialect_name=dialect_name)),
+    )
     query = (
         db.query(Order)
         .options(load_only(Order.id, Order.customer_name, Order.address, Order.phone, Order.structured_data))
-        .filter(Order.active_filter(), conditions["sales_delivery_condition"])
+        .filter(Order.active_filter(),
+                or_(conditions["sales_delivery_condition"], linked_condition))
         .order_by(Order.id.desc())
     )
     rows = query.limit(cap + 1).all()
