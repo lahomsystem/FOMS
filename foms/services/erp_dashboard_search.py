@@ -135,7 +135,8 @@ def erp_order_dashboard_search_predicate(
     ERP 화면에 노출되는 주요 컬럼 및 structured_data 가시 경로에 대한 ilike OR 조건.
 
     주문 작업 큐(`/erp/dashboard`)는 ``customer_contact_only=True``로 고객명·전화·주소만
-    검색한다(담당자·발주자 이름 혼동 방지). ``include_structured_data_blob=False``로
+    검색하고 실제 협력사 주문의 회사명도 찾는다(일반 담당자·발주자 이름 혼동 방지).
+    ``include_structured_data_blob=False``로
     항목 메모 등 비노출 JSON 깊은 구간이 검색에 걸리지 않게 한다.
 
     출고 대시보드는 시공자 등 깊은 필드를 찾기 위해 ``include_structured_data_blob=True``로
@@ -164,6 +165,10 @@ def erp_order_dashboard_search_predicate(
             Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
             _phone_search_clause(raw, search_term),
             Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
+            and_(
+                Order.partner_org_id.isnot(None),
+                Order.structured_data["parties"]["orderer"]["name"].as_string().ilike(search_term),  # perf-ok: ix_orders_sd_orderer_name_trgm
+            ),
             *[
                 and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: 경로 옆 주석의 trgm 인덱스
                 for field in structured_visible_fields

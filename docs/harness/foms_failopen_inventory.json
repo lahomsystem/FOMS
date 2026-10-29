@@ -50,7 +50,7 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:242",
+    "foms/platform/request_limits.py:245",
     "foms/services/app_init.py:145",
     "foms/services/channel_client.py:495",
     "foms/services/channel_dispatch.py:59",
@@ -3002,7 +3002,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 242,
+      "lineno": 245,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -3011,7 +3011,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 248,
+      "lineno": 251,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -4775,7 +4775,7 @@
     },
     {
       "path": "foms/services/orders/dashboard_read_model.py",
-      "lineno": 402,
+      "lineno": 404,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5684,7 +5684,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 69,
+      "lineno": 72,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5693,7 +5693,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 316,
+      "lineno": 321,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5702,7 +5702,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 320,
+      "lineno": 325,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5711,7 +5711,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 360,
+      "lineno": 365,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5720,7 +5720,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 512,
+      "lineno": 517,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5729,7 +5729,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 554,
+      "lineno": 559,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5738,7 +5738,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 684,
+      "lineno": 689,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5747,7 +5747,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 711,
+      "lineno": 716,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",

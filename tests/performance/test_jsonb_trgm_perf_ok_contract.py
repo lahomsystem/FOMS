@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_FILES = [
     ROOT / "migrations" / "versions" / "phase_d_trgm_indexes.py",
     ROOT / "migrations" / "versions" / "phase_e_trgm_perm_indexes.py",
+    ROOT / "migrations" / "versions" / "phase_f_trgm_search_indexes.py",
 ]
 PERF_OK_RE = re.compile(r"#\s*perf-ok:\s*(ix_[a-zA-Z0-9_]+)")
 

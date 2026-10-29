@@ -1625,6 +1625,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" defer integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js" defer integrity="sha384-GyzlITcjwPgjvsKMq6Pws/ETSXr/1Za1ieVBHZnkws6Pkyn7rc13MTLI8gFJvjuY" crossorigin="anonymous"></script>
     {% if current_user %}
+    <script src="{{ asset_url('js/foms/partner-order-filter.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/global-nav-runtime.js') }}" defer></script>
     {# nav 수집 뱃지 숫자는 렌더 뒤에 채운다 — 서버에서 세면 워크벤치 코호트 콜드에
        약 400ms 가 첫 화면 앞에 붙는다(2026-09-11 실측). #}
