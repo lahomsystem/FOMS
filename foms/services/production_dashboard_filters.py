@@ -17,6 +17,7 @@ from typing import Optional
 
 from foms.services.request_utils import get_search_query_arg
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.partner_order_filter import partner_filter_value
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class ProductionDashboardFilters:
     # 실측일/시공일 컬럼 헤더 정렬. ''(기본)이면 기존 시공일 빠른 순 정렬을 유지한다.
     sort: str = ''
     sort_dir: str = 'asc'
+    partner_org: str = ''
 
 
 def parse_production_dashboard_filters(request) -> ProductionDashboardFilters:
@@ -63,4 +65,5 @@ def parse_production_dashboard_filters(request) -> ProductionDashboardFilters:
         page=page,
         sort=f_sort,
         sort_dir=f_sort_dir,
+        partner_org=partner_filter_value(request),
     )

@@ -16,6 +16,7 @@ from foms.api.files import build_file_view_url
 from foms.web.auth import login_required
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
+from foms.services.common.partner_order_filter import partner_filter_value
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_display import (
@@ -359,6 +360,7 @@ def _completion_working_and_filtered(user, params: dict) -> tuple[list[dict], li
         focus_order_id=focus_order_id,
         current_user=user,
         mine_only=erp_mine_only,
+        partner_org=partner_filter_value(request),
     )
     rows = _build_tablet_completion_rows(orders)
     if not params["as_include"]:

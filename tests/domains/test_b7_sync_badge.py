@@ -70,8 +70,9 @@ def test_b7_header_badge_marker_and_grid_untouched() -> None:
     assert "data-foms-sync-badge" in header
     assert "foms-sync-badge" in header
     # 배지는 context 영역 안(그리드 칼럼 신설 아님).
-    ctx = header.split("erp-mobile-shell-header__context", 1)[1]
-    assert "data-foms-sync-badge" in ctx.split("</div>", 1)[0]
+    from bs4 import BeautifulSoup
+    ctx = BeautifulSoup(header, "html.parser").select_one(".erp-mobile-shell-header__context")
+    assert ctx.select_one("[data-foms-sync-badge]")
 
 
 def test_b7_app_shell_loads_write_js_and_badge_css() -> None:

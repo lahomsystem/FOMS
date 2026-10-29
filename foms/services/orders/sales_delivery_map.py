@@ -27,6 +27,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, load_only
 
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.as_dashboard_helpers import (
     _erp_as_incomplete_condition,
     _has_text_value,
@@ -103,7 +104,7 @@ def _row_to_item(order: Order, link: dict[str, Any], state: str) -> dict[str, An
     }
 
 
-def build_sales_delivery_by_ref(db: Session, *, cap: int = 300) -> dict[str, Any]:
+def build_sales_delivery_by_ref(db: Session, *, cap: int = 300, partner_org: str = '') -> dict[str, Any]:
     """미완료 AS ∩ 영업/택배 배정 건을 실측 주문 id(ref_order_id) 로 역방향 인덱싱한다.
 
     모집단은 `build_as_tab_query_conditions()["sales_delivery_condition"]`
@@ -134,7 +135,7 @@ def build_sales_delivery_by_ref(db: Session, *, cap: int = 300) -> dict[str, Any
     query = (
         db.query(Order)
         .options(load_only(Order.id, Order.customer_name, Order.address, Order.phone, Order.structured_data))
-        .filter(Order.active_filter(),
+        .filter(Order.active_filter(), partner_order_clause(partner_org),
                 or_(conditions["sales_delivery_condition"], linked_condition))
         .order_by(Order.id.desc())
     )

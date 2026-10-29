@@ -31,6 +31,7 @@ from foms.services.settlement_channel_access import can_view_channel_settlement
 # `settlement_rows` 경유로 먼저 로드돼 `erp_display` 순환에 걸리지 않는다.
 from foms.web.cs.completion_dashboard import SETTLEMENT_DEPARTMENT_OPTIONS
 from foms.web.auth import login_required
+from foms.services.common.partner_order_filter import partner_filter_value
 
 #: 정산 대시보드 열람 정책 id — 페이지·API·템플릿이 **이 상수 하나**를 공유한다.
 #: ``user_can`` 은 미등록 policy_id 에 조용히 ``False`` 를 주므로 문자열을 여러 곳에 적으면
@@ -115,7 +116,8 @@ def erp_settlement_dashboard():
             # 채널(네이버) 정산 탭은 ADMIN·회계팀만 본다(NAVER-SETTLE-01 §1). 서버에서
             # 마크업째 빼는 이유: 클라이언트 숨김은 개발자 도구로 그대로 보인다.
             # 두 렌더 분기(프래그먼트·전체 문서)가 같은 render_template 을 타므로 여기 1곳이다.
-            can_view_channel_settlement=can_view_channel_settlement(user),
+            can_view_channel_settlement=can_view_channel_settlement(user) and not partner_filter_value(request),
+            partner_channel_scope=bool(partner_filter_value(request)) and can_view_channel_settlement(user),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

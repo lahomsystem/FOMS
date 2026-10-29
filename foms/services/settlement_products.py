@@ -180,7 +180,7 @@ def _ranked(counter: Counter) -> list[tuple[str, int]]:
 
 
 def aggregate_products(db: Any, *, date_from: Optional[str] = None,
-                       date_to: Optional[str] = None) -> dict:
+                       date_to: Optional[str] = None, partner_org: str = '') -> dict:
     """제품별 매출 탭 집계(계약 ``data``).
 
     Args:
@@ -208,8 +208,8 @@ def aggregate_products(db: Any, *, date_from: Optional[str] = None,
     check = {"orders": 0, "sum_shipping": 0, "sum_raw_items": 0}
     items_total = items_other = 0
 
-    channels = _channel_map(db)
-    rows = fetch_settlement_rows(db, (Order.id, Order.status), _erp_scope_filters(),
+    channels = _channel_map(db, partner_org)
+    rows = fetch_settlement_rows(db, (Order.id, Order.status), _erp_scope_filters(partner_org),
                                  spec=PRODUCTS_SD_SPEC)
     for row in rows:
         sd = _ensure_dict(row.structured_data)

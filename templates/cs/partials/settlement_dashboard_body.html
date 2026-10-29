@@ -21,7 +21,12 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261007b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-products.css') }}?v=20261007b">
 {% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261007b">{% endif %}
-<div class="container-fluid erp-dashboard erp-pro erp-settlement">
+<div class="container-fluid erp-dashboard erp-pro erp-settlement erp-mobile-shell"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% set erp_sub_nav_active = 'settlement' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
       <i class="fas fa-coins"></i>
@@ -40,6 +45,12 @@
   </header>
   {% set erp_sub_nav_active = 'settlement' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  {% if partner_channel_scope %}
+  <div class="alert alert-info" role="status" data-partner-channel-notice data-foms-no-autodismiss>
+    협력사 주문의 정산 자료를 보고 있습니다. 네이버 채널 원장은 전체 채널 자료로,
+    협력사 필터를 해제하면 볼 수 있습니다.
+  </div>
+  {% endif %}
 
   <div id="foms-settlement-root" class="foms-settle foms-settlement-root"
     data-foms-settlement-dashboard="1"

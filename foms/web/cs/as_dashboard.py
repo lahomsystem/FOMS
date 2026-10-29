@@ -9,6 +9,7 @@ import datetime
 
 from foms.services.erp_display import _normalize_for_search
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp, mine_membership_clause
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
@@ -259,7 +260,7 @@ def erp_as_dashboard():
     use_postgres = dialect_name == 'postgresql'
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
-    base_query = db.query(Order).filter(Order.active_filter())
+    base_query = db.query(Order).filter(Order.active_filter(), partner_order_clause(partner_filter_value(request)))
     base_query = base_query.filter(erp_as_scope_condition())
 
     if status_filter:

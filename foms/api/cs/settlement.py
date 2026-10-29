@@ -36,6 +36,7 @@ from flask import Blueprint, g, jsonify, request
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.settlement_aggregation import aggregate_settlement
+from foms.services.common.partner_order_filter import partner_filter_value
 from foms.services.settlement_channel_access import can_view_channel_settlement
 from foms.services.settlement_products import aggregate_products
 from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
@@ -123,6 +124,7 @@ def api_settlement_aggregates():
             month_from=month_from,
             month_to=month_to,
             granularity=granularity,
+            partner_org=partner_filter_value(request),
             date_from=date_from,
             date_to=date_to,
         )
@@ -177,6 +179,7 @@ def api_settlement_rows():
             aging=(request.args.get("aging") or "").strip(),
             page=request.args.get("page", type=int) or 1,
             per_page=PER_PAGE,
+            partner_org=partner_filter_value(request),
             include_naver_settlement=include_naver_settlement,
             date_from=(request.args.get("date_from") or "").strip() or None,
             date_to=(request.args.get("date_to") or "").strip() or None,
@@ -212,6 +215,7 @@ def api_settlement_products():
     try:
         data = aggregate_products(
             get_db(),
+            partner_org=partner_filter_value(request),
             date_from=(request.args.get("date_from") or "").strip() or None,
             date_to=(request.args.get("date_to") or "").strip() or None,
         )
