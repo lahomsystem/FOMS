@@ -637,7 +637,7 @@ def test_field_sections_group_by_type_then_time():
 
 
 def test_month_calendar_amounts_and_soon_risk(app):
-    """날짜 칸 금액 = 그날 시공 출고가 합(여러 날 시공은 시공일 수로 나눈 몫), 이달 합계 = 발주방 PUSH 된 주문 몫 합. 빨간 점은 오늘·내일만."""
+    """날짜 칸 금액·이달 합계 = 발주방 PUSH 된 주문의 시공 출고가 몫(여러 날 시공은 시공일 수로 나눔). 빨간 점은 오늘·내일만."""
     import datetime
 
     from db import db_session
@@ -676,12 +676,13 @@ def test_month_calendar_amounts_and_soon_risk(app):
     cal = ct._month_calendar(base, today, today.replace(day=1))
     by_iso = {c["iso"]: c for w in cal["weeks"] for c in w if c["in_month"]}
     assert by_iso[today.isoformat()]["construction"] == 2
-    assert by_iso[today.isoformat()]["amount_label"] == "512만"  # 412만 + 이틀 시공 200만의 절반
+    # 날짜 칸·이달 합계 = 발주방 PUSH 된 주문만(사용자 결정 2026-10-29) — 이틀 시공 200만의 몫만
+    assert by_iso[today.isoformat()]["amount_label"] == "100만"
     assert by_iso[today.isoformat()]["unshipped"] == 2
-    assert by_iso[far]["amount_label"] == "200만"  # 100만 + 이틀 시공 몫 100만
+    assert by_iso[far]["amount_label"] == "100만"
+    assert cal["today_all_amount_label"] == "512만"  # 오늘 시트는 그날 목록 전체(412만 + 이틀 시공 절반)
     assert by_iso[far]["unshipped"] == 0  # 먼 날짜 출고 전은 점 없음
-    # 이달 합계 = 발주방 PUSH 된 주문만(사용자 결정 2026-10-29) — 이틀 시공 200만(몫 둘 다 6월). 날짜 칸은 전체 그대로.
-    assert cal["amount_label"] == "200만"
+    assert cal["amount_label"] == "200만"  # 이틀 시공 몫 둘 다 6월
 
     payload = ct.build_field_ops_for_day(db_session, None, today.isoformat(), today=today)
     assert payload["amount_label"] == "512만" and payload["is_today"] is True
