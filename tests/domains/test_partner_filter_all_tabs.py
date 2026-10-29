@@ -86,7 +86,10 @@ def test_completion_api_and_csv_use_cookie_scope(auth_client, scoped_orders):
     rows = auth_client.get("/api/orders/completion").get_json()["orders"]
     assert {row["id"] for row in rows} <= set(ids[0])
     assert rows
-    csv = auth_client.get("/erp/completion?format=csv").get_data(as_text=True)
+    response = auth_client.get("/erp/completion/export.csv")
+    assert response.status_code == 200 and response.mimetype == "text/csv"
+    csv = response.get_data(as_text=True)
+    assert "SCOPE-COMPANY-0-" in csv
     assert "SCOPE-COMPANY-1-" not in csv and "INTERNAL-" not in csv
 
 
@@ -182,5 +185,35 @@ def test_mobile_filter_preserves_controls_and_does_not_query_orgs_in_fragments(a
         response = auth_client.get(f"{path}?view=fragment", headers={"X-FOMS-ERP-SHELL": "1"})
         assert response.status_code == 200
         assert not sql
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+
+@pytest.mark.parametrize("path", [
+    "/erp/dashboard", "/erp/measurement", "/erp/drawing-workbench", "/erp/production/dashboard",
+    "/erp/shipment", "/erp/as", "/erp/construction/dashboard", "/erp/completion", "/erp/history/",
+])
+def test_company_filter_does_not_add_database_round_trips(auth_client, scoped_orders, path):
+    orgs, _ = scoped_orders
+    engine = db_session.get_bind()
+    statements = []
+
+    def record(conn, cursor, sql, parameters, context, executemany):
+        if sql.lstrip().upper().startswith("SELECT"):
+            statements.append(sql)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        counts = []
+        for company in ("", str(orgs[0])):
+            statements.clear()
+            params = {"partner_org": company, "view": "fragment", "from_dashboard": "1"}
+            if path == "/erp/history/":
+                params["q"] = "SCOPE"
+            response = auth_client.get(path, query_string=params,
+                                       headers={"X-FOMS-ERP-SHELL": "1"})
+            assert response.status_code == 200
+            counts.append(len(statements))
+        assert counts[1] <= counts[0], (path, counts)
     finally:
         event.remove(engine, "before_cursor_execute", record)
