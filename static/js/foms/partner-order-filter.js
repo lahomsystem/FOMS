@@ -5,7 +5,7 @@
   window.__FOMS_PARTNER_FILTER_BOUND = true;
 
   var paths = ['/', '/erp/dashboard', '/erp/dashboard/', '/erp/history/'];
-  var resetKeys = ['page', 'focus_order', 'view', 'mobile_chunk', 'from_history', 'from_dashboard'];
+  var resetKeys = ['page', 'order', 'focus_order', 'view', 'mobile_chunk', 'from_history', 'from_dashboard'];
 
   function refreshLinks() {
     var supported = paths.indexOf(window.location.pathname) !== -1;

@@ -65,7 +65,7 @@ def partner_filter_menu() -> dict[str, Any]:
     supported = request.path in PARTNER_FILTER_PATHS
     endpoint = request.endpoint if supported else "erp_dashboard.erp_dashboard"
     args = request.args.to_dict() if supported else {}
-    for key in ("page", "focus_order", "view", "mobile_chunk", "from_history", "from_dashboard"):
+    for key in ("page", "order", "focus_order", "view", "mobile_chunk", "from_history", "from_dashboard"):
         args.pop(key, None)
     items = []
     for value, name in choices:
