@@ -10,6 +10,13 @@
 (function () {
   'use strict';
 
+  // 서버 오류는 문자열 또는 {code, message}(본문 크기 · 내부 오류 공통 봉투) — 둘 다 글로 보인다.
+  function errorText(data) {
+    var err = data && data.error;
+    if (err && typeof err === 'object') return err.message || '';
+    return err || '';
+  }
+
   function setStatus(text, isError) {
     var el = document.getElementById('ppStatus');
     if (!el) return;
@@ -32,7 +39,7 @@
     var data = null;
     try { data = await resp.json(); } catch (e) { data = null; }
     if (!data || !data.success) {
-      throw new Error((data && data.error) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+      throw new Error(errorText(data) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
     }
     return data.data;
   }
@@ -46,7 +53,7 @@
     var data = null;
     try { data = await resp.json(); } catch (e) { data = null; }
     if (!data || !data.success) {
-      throw new Error(file.name + ': ' + ((data && data.error) || '올리지 못했습니다.'));
+      throw new Error(file.name + ': ' + (errorText(data) || '올리지 못했습니다.'));
     }
   }
 
@@ -197,7 +204,7 @@
         var resp = await fetch(form.getAttribute('data-pp-post-url'), { method: 'POST', body: body, credentials: 'same-origin' });
         var data = null;
         try { data = await resp.json(); } catch (e) { data = null; }
-        if (!data || !data.success) throw new Error((data && data.error) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+        if (!data || !data.success) throw new Error(errorText(data) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
         if (data.data && data.data.photo_error) window.alert('접수는 됐지만 사진을 올리지 못했습니다: ' + data.data.photo_error);
         window.location.reload();
       } catch (err) {

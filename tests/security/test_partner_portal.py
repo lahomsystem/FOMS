@@ -111,6 +111,19 @@ def test_partner_upload_goes_to_partner_folders(app, world, fake_storage):
     assert _upload(client, order_id, "x.pdf", "photo").status_code == 400  # 사진 칸에 pdf
 
 
+def test_partner_upload_accepts_real_phone_photo_and_video_size(app, world, fake_storage):
+    """휴대폰 사진(수 MB) · 동영상도 받는다 — 2026-10-29 운영 사고: 1 MiB 기본 본문 캡에 걸려 전부 413."""
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    for name, size in (("61519.jpg", 4 * 1024 * 1024), ("site.mp4", 30 * 1024 * 1024)):
+        resp = client.post(
+            f"/api/partner/orders/{order_id}/files",
+            data={"kind": "photo", "file": (io.BytesIO(b"x" * size), name)},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200, (name, resp.status_code, resp.get_json())
+
+
 def test_partner_cannot_upload_to_other_or_started_orders(app, world, fake_storage):
     other = _create(app, world["partner_b"]).get_json()["data"]["order_id"]
     own = _create(app, world["partner_a"]).get_json()["data"]["order_id"]

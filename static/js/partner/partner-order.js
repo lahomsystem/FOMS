@@ -11,6 +11,13 @@
 (function () {
   'use strict';
 
+  // 서버 오류는 문자열 또는 {code, message}(본문 크기 · 내부 오류 공통 봉투) — 둘 다 글로 보인다.
+  function errorText(data) {
+    var err = data && data.error;
+    if (err && typeof err === 'object') return err.message || '';
+    return err || '';
+  }
+
   function showTab(name) {
     var found = false;
     Array.prototype.forEach.call(document.querySelectorAll('[data-pp-tab-panel]'), function (panel) {
@@ -52,7 +59,7 @@
     });
     var data = null;
     try { data = await resp.json(); } catch (e) { data = null; }
-    if (!data || !data.success) throw new Error((data && data.error) || '저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+    if (!data || !data.success) throw new Error(errorText(data) || '저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
     return data.data;
   }
 
@@ -145,7 +152,7 @@
           body: JSON.stringify({ item_index: itemIndex }), credentials: 'same-origin' });
         var data = null;
         try { data = await resp.json(); } catch (e) { data = null; }
-        if (!data || !data.success) throw new Error((data && data.error) || '사진 자리를 바꾸지 못했습니다.');
+        if (!data || !data.success) throw new Error(errorText(data) || '사진 자리를 바꾸지 못했습니다.');
         window.location.reload();
       } catch (err) {
         if (portal) portal.setStatus(err.message, true);

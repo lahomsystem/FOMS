@@ -13,6 +13,13 @@
 (function () {
   'use strict';
 
+  // 서버 오류는 문자열 또는 {code, message}(본문 크기 · 내부 오류 공통 봉투) — 둘 다 글로 보인다.
+  function errorText(data) {
+    var err = data && data.error;
+    if (err && typeof err === 'object') return err.message || '';
+    return err || '';
+  }
+
   var BASE = '/erp/api/notifications/push';
   var ua = navigator.userAgent || '';
   var IS_IOS = /iphone|ipad|ipod/i.test(ua);
@@ -33,7 +40,7 @@
       body: body ? JSON.stringify(body) : null,
     }).then(function (res) {
       return res.json().catch(function () { return null; }).then(function (data) {
-        if (!res.ok || !data || !data.success) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        if (!res.ok || !data || !data.success) throw new Error(errorText(data) || ('HTTP ' + res.status));
         return data.data;
       });
     });

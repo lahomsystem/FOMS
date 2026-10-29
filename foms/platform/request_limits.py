@@ -122,6 +122,9 @@ _MANIFEST: tuple[BodyCap, ...] = (
     # 성격의 multipart 업로드다(핸들러 자체 상한 20 MiB 이미지 / 동영상).
     BodyCap(r"^/api/erp/order-draft/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     BodyCap(r"^/api/orders/\d+/drawing-gateway-upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    # 협력사 화면 사진 · 동영상 · 초안 도면(핸들러 상한 20 MiB 이미지 / 동영상)과 수정 요청 · AS 사진.
+    # 빠져 있으면 1 MiB 기본 캡에 걸려 휴대폰 사진이 전부 413 이다(2026-10-29 운영 사고).
+    BodyCap(r"^/api/partner/orders/\d+/(files|revision|as)$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
 )
 
 # Presigned / direct-upload surfaces: the file bytes go browser -> R2/S3, only a
