@@ -5,11 +5,11 @@
 <hr class="my-3">
 <div class="card border-secondary" data-pp-channel-push data-pp-push-url="{{ url_for('partner_channel_push.send_channel_push', order_id=view.id) }}">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
-        <div class="fw-bold small"><i class="fas fa-paper-plane"></i> 본사 보내기(영발방 · 발주방)</div>
+        <div class="fw-bold small"><i class="fas fa-paper-plane pp-push-head__icon"></i> 본사 보내기(영발방 · 발주방)</div>
         <div class="d-flex flex-wrap gap-1">
-            <button type="button" class="btn btn-sm btn-primary" data-pp-push="measurement" data-pp-pushed="{{ 1 if _ms.pushed else 0 }}" title="보낼 글 + 실측 사진을 영발방으로"><i class="fas fa-paper-plane"></i> 영발 PUSH</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-pp-push="drawing" data-pp-pushed="{{ 1 if _dr.pushed else 0 }}"{% if not _dr.open %} disabled title="{{ _dr.reason }}"{% else %} title="보낼 글 + 최종 도면을 발주방으로"{% endif %}><i class="fas fa-paper-plane"></i> 발주 PUSH</button>
-            <button type="button" class="btn btn-sm btn-secondary" data-pp-push-preview><i class="fas fa-sync"></i> 변환</button>
+            <button type="button" class="btn btn-sm pp-push-btn pp-push-btn--measure" data-pp-push="measurement" data-pp-pushed="{{ 1 if _ms.pushed else 0 }}" title="보낼 글 + 실측 사진을 영발방으로"><i class="fas fa-paper-plane"></i> 영발 PUSH</button>
+            <button type="button" class="btn btn-sm pp-push-btn pp-push-btn--drawing" data-pp-push="drawing" data-pp-pushed="{{ 1 if _dr.pushed else 0 }}"{% if not _dr.open %} disabled title="{{ _dr.reason }}"{% else %} title="보낼 글 + 최종 도면을 발주방으로"{% endif %}><i class="fas fa-paper-plane"></i> 발주 PUSH</button>
+            <button type="button" class="btn btn-sm pp-push-btn pp-push-btn--convert" data-pp-push-preview><i class="fas fa-sync"></i> 변환</button>
         </div>
     </div>
     <div class="card-body p-2">
