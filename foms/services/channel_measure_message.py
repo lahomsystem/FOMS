@@ -50,12 +50,15 @@ from foms.services.erp_display import (
     erp_shipping_price_from_structured,
 )
 
-__all__ = ["build_measure_push_text"]
+__all__ = ["build_measure_push_text", "slice_for_channel_push"]
 
 _DEFAULT_ORDERER = "라홈"
 _NO_CONSTRUCTION_DATE = "상담"
 _FREE_INPUT_SUFFIX = "(총견적 포함)"
 _TRAILING_NEWLINES_RE = re.compile(r"\n+$")
+#: 영발 · 발주 PUSH 에서 빼는 줄(PC ``erpSliceConversionTextForChannelPush`` 와 같은 규칙).
+_STARS_LINE_RE = re.compile(r"^\s*★★\s*$")
+_MEASURE_ONLY_LINE_RE = re.compile(r"^\s*(실측일\s*:|시\s*간\s*:|(실측|주소|연락처) 특이사항\s*:)")
 _FREE_INPUT_LABEL_RE = re.compile(r"^(.+?)[:：]\s*(.+)$")
 _TRUTHY_STRINGS = frozenset({"true", "1", "yes", "on"})
 #: PC 가 노트를 담는 dict 키. sd['notes'] 는 마법사·구주문에서 **문자열**일 수 있으므로
@@ -462,3 +465,23 @@ def build_measure_push_text(sd: dict) -> str:
     text = _items_block(text, data)
     text = _footer_block(text, data)
     return _TRAILING_NEWLINES_RE.sub("", text)
+
+
+def slice_for_channel_push(text: str) -> str:
+    """영발 · 발주 PUSH 용으로 실측 전용 줄을 뺀다(PC ``erpSliceConversionTextForChannelPush`` 서버 미러).
+
+    실측일 · 시간 · 실측/주소/연락처 특이사항은 시공에 필요 없는 실측용 정보다. 라홈시스템(★★) 표시는 맨 위에 남긴다.
+    실측방 PUSH 는 이 함수를 거치지 않는다.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    lines = raw.split("\n")
+    has_stars = any(_STARS_LINE_RE.match(line) for line in lines)
+    body = "\n".join(
+        line for line in lines if not _STARS_LINE_RE.match(line) and not _MEASURE_ONLY_LINE_RE.match(line)
+    ).lstrip("\n").strip()
+    if not has_stars:
+        return body
+    return f"★★\n{body}" if body else "★★"
+

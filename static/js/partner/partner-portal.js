@@ -128,6 +128,9 @@
         if (failed.length) {
           // 주문은 이미 저장됐다 — 다시 저장하면 중복 주문이 생기니, 목록에서 그 주문을 열어 파일만 더 올리게 한다.
           window.alert('주문은 저장됐지만 일부 파일을 올리지 못했습니다. 목록에서 주문 #' + orderId + ' 을 열어 "실측 사진 더 보내기"로 다시 보내 주세요.\n\n' + failed.join('\n'));
+        } else if (window.PartnerChannelPush) {
+          // 사진까지 다 올라갔을 때만 영발방에 보낼지 묻는다 — 빠진 사진은 다시 보낸 뒤 주문 화면 "영발 PUSH"로(2026-10-29).
+          await window.PartnerChannelPush.offerAfterCreate(String(form.getAttribute('data-channel-push-url') || '').replace('/orders/0/', '/orders/' + orderId + '/'));
         }
         // 우리 FOMS 처럼 저장하면 바로 목록으로(사용자 2026-10-21).
         window.location.href = form.getAttribute('data-list-url');
@@ -170,7 +173,8 @@
       setStatus('보내는 중…');
       try {
         var key = 'pp-approve-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-        await postJson(button.getAttribute('data-pp-approve-url'), { idempotency_key: key });
+        var done = await postJson(button.getAttribute('data-pp-approve-url'), { idempotency_key: key });
+        if (done && done.push_note) window.alert(done.push_note);  // 승인 뒤 발주방 자동 전송 결과(2026-10-29)
         window.location.reload();
       } catch (err) {
         setStatus(err.message, true);

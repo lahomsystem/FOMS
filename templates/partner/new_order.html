@@ -15,7 +15,7 @@
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
 {% set pick = product_names | length > 0 %}
-<form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-list-url="{{ url_for('partner_portal.home') }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
+<form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-list-url="{{ url_for('partner_portal.home') }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" data-channel-push-url="{{ url_for('partner_channel_push.send_channel_push', order_id=0) }}" novalidate>
 <div class="card border-secondary pp-order pp-new">
     <div class="card-header pp-order__head">
         <div class="fw-bold"><i class="fas fa-layer-group"></i> 주문 <span class="text-muted fw-normal">새 주문</span></div>

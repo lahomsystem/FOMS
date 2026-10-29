@@ -21,6 +21,7 @@ from foms.services.orders.drawing_customer_send import drawing_round_info, round
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
+from foms.services.partners.channel_push import push_state
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
@@ -139,6 +140,7 @@ def order_detail(order_id: int):
         history=partner_order_history(db, order),
         active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
+        channel_push=push_state(order),
         product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),
     )

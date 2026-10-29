@@ -18,8 +18,8 @@ from foms.api.channel.channel_integration import (
     _PUSH_KIND_CONFIG,
     _PUSH_SLOT_BUSY_MESSAGE,
     _try_claim_push_slot,
-    api_channel_push_manual,
     api_channel_push_estimate,
+    run_manual_push,
 )
 
 
@@ -58,8 +58,8 @@ def test_kind_key_does_not_collide_across_push_kinds() -> None:
 
 
 def test_both_push_entrypoints_claim_a_slot() -> None:
-    """수동 push(4종)와 견적서 push 모두 판정 전에 슬롯을 잡는다."""
-    for route in (api_channel_push_manual, api_channel_push_estimate):
+    """수동 push(ERP · 협력사가 같이 쓰는 run_manual_push)와 견적서 push 모두 판정 전에 슬롯을 잡는다."""
+    for route in (run_manual_push, api_channel_push_estimate):
         source = inspect.getsource(route)
         assert "_try_claim_push_slot" in source, f"{route.__name__} 에 가드가 없다"
         claim_at = source.index("_try_claim_push_slot")
