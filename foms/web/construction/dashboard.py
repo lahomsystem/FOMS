@@ -20,6 +20,7 @@ from foms.services.common.dashboard_cache import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     mine_membership_clause,
@@ -77,7 +78,9 @@ def erp_construction_dashboard():
     focus_order_id = _cf.focus_order_id
     mine_only = _cf.mine_only
 
-    query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
+    partner_org = partner_filter_value(request)
+    query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True),
+                                   partner_order_clause(partner_org))
 
     if mine_only and user:
         mine_conds = build_mine_sql_filter(user)
@@ -96,6 +99,7 @@ def erp_construction_dashboard():
         "v": KEY_VERSION,
         "scope": "construction_stage",
         "mine": bool(mine_only),
+        "partner_org": partner_org,
     }
     if mine_only:
         _summary_fp["uid"] = user.id if user else None
@@ -127,6 +131,7 @@ def erp_construction_dashboard():
             db.query(Order)
             .filter(
                 Order.id == focus_order_id,
+                partner_order_clause(partner_org),
                 Order.active_filter(),
                 Order.is_erp_order.is_(True),
             )

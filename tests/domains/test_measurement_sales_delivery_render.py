@@ -217,7 +217,7 @@ def test_truncated_map_is_disclosed_on_screen(client, monkeypatch):
     monkeypatch.setattr(
         measurement_dashboard,
         "build_sales_delivery_by_ref",
-        lambda db, cap=300: {"by_ref": {}, "total": 0, "truncated": True},
+        lambda db, cap=300, partner_org='': {"by_ref": {}, "total": 0, "truncated": True},
     )
 
     body = _fetch_dashboard(client, today)

@@ -46,6 +46,10 @@
   {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}
 {% endif %}
 {% set _primary_items = [] %}
+{% if policy_can('SETTLEMENT_DASHBOARD_READ') %}
+  {% set _ = _all_items.append({'id': 'settlement', 'label': '정산', 'icon': 'fas fa-coins', 'href': url_for('erp_settlement_page.erp_settlement_dashboard')}) %}
+  {% set _ = _allowed_ids.append('settlement') %}
+{% endif %}
 {% set _drawer_items = [] %}
 {% set _current = namespace(item=None) %}
 {% for item in _all_items %}

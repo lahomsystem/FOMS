@@ -65,8 +65,8 @@ GATE_MIN_OBSERVATIONS: Final[int] = 1000
 GATE_MIN_HIT_RATE: Final[float] = 0.5
 GATE_MAX_KEY_TO_RENDER: Final[float] = 0.3
 #: 셸 공통 재료 — 모든 탭 프래그먼트가 싣는 셸 머리·서랍·nav 가 읽는 것(§3.2).
-SHELL_ARGS: Final[tuple[str, ...]] = ("mine", "tower_mine")
-SHELL_COOKIES: Final[tuple[str, ...]] = ("erp_mine_only", "foms_ptr", "foms_vw", "foms_scr")
+SHELL_ARGS: Final[tuple[str, ...]] = ("mine", "tower_mine", "partner_org")
+SHELL_COOKIES: Final[tuple[str, ...]] = ("erp_mine_only", "foms_ptr", "foms_vw", "foms_scr", "foms_partner_org")
 SHELL_SESSION_KEYS: Final[tuple[str, ...]] = ("user_id", "impersonating_from")
 SHELL_HEADERS: Final[tuple[str, ...]] = ("x-foms-erp-shell",)
 #: 렌더 중 읽히는 env(기록 계약이 모은 목록). 값은 해시로만 키에 들어간다.

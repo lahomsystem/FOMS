@@ -23,6 +23,7 @@ from foms.services.erp_dashboard_search import (
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     is_order_related_to_user,
@@ -115,6 +116,7 @@ def _load_completion_orders(
     focus_order_id: int | None = None,
     current_user=None,
     mine_only: bool = False,
+    partner_org: str = '',
 ) -> list[Order]:
     """
     Load completion dashboard rows.
@@ -124,6 +126,8 @@ def _load_completion_orders(
     ``focus_order``: 검색 카드 클릭 — PK 단건만 반환 (``q``는 검색창 표시용, 목록 확장 금지).
     """
     base = _completion_base_query(db)
+    if partner_org:
+        base = base.filter(partner_order_clause(partner_org))
     base = _apply_mine_filter(base, current_user, mine_only=mine_only)
     if focus_order_id:
         orders = load_focus_order_only(base, focus_order_id)
@@ -264,6 +268,7 @@ def api_orders_completion():
             focus_order_id=focus_order_id,
             current_user=user,
             mine_only=mine_only,
+            partner_org=partner_filter_value(request),
         )
         result = _serialize_completion_orders(db, orders)
         return jsonify({"success": True, "orders": result})
