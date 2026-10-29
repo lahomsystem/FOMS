@@ -154,3 +154,16 @@ def test_history_shadow_key_includes_cookie_scope(app, monkeypatch):
         with app.test_request_context("/erp/history/", headers={"Cookie": f"foms_partner_org={company}"}):
             history._observe_fragment_version(make_response("body"), SimpleNamespace(id=1), False)
     assert captured[0]["route_id"] != captured[1]["route_id"]
+
+
+def test_company_switch_drops_previous_split_selection(auth_client, partner_orders):
+    from bs4 import BeautifulSoup
+
+    org, _, ids = partner_orders
+    response = auth_client.get(f"/erp/dashboard?q=필터&order={ids[5]}&focus_order={ids[5]}&page=2")
+    soup = BeautifulSoup(response.get_data(as_text=True), "html.parser")
+    href = soup.select_one(f'[data-foms-partner-choice="{org}"]')["href"]
+    from urllib.parse import parse_qs, urlsplit
+    args = parse_qs(urlsplit(href).query)
+    assert args["q"] == ["필터"]
+    assert not {"order", "focus_order", "page"} & args.keys()
