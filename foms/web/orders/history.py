@@ -45,6 +45,7 @@ from foms.services.history_read_model import (
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
 from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
 from foms.services.request_utils import get_search_query_arg
+from foms.services.common.partner_order_filter import partner_filter_args, partner_filter_value, partner_order_clause
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
@@ -56,7 +57,7 @@ _QUEUE_BLANK = ("", "-", None)
 _HISTORY_ROUTE_ID = "erp_history_dashboard"
 _HISTORY_KEY_ARGS = (
     "q", "search", "stage", "date_from", "date_to",
-    "from_dashboard", "from_search", "page", "mine",
+    "from_dashboard", "from_search", "page", "mine", "partner_org",
 )
 # 본문이 좌우되는 테이블. orders(목록) · order_attachments(build_product_items_for_orders)
 # · order_schedule_dates(큐 카드 일정) · users(담당자 표시·mine 판정).
@@ -140,8 +141,10 @@ def _observe_fragment_version(response, user, mine_only: bool) -> None:
     """
     if not is_shadow_revalidation_enabled() or not wants_erp_shell_tab_body(request):
         return
+    # Namespace the key by the effective scope, including cookie-only selections.
+    partner_scope = partner_filter_value(request)
     key = build_fragment_version_key(
-        route_id=_HISTORY_ROUTE_ID,
+        route_id=f"{_HISTORY_ROUTE_ID}:partner:{partner_scope}" if partner_scope else _HISTORY_ROUTE_ID,
         req=request,
         user=user,
         tables=_HISTORY_KEY_TABLES,
@@ -178,7 +181,8 @@ def history_dashboard():
     else:
         mine_only = erp_mine_only_for_construction(request, user)
     
-    has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
+    partner_org = partner_filter_value(request)
+    has_filter = bool(f_q or f_stage or f_date_from or f_date_to or partner_org)
     auto_browse_mine = mine_only and not has_filter
 
     # 검색어만 있고 ERP 대시보드에 결과가 있으면 대시보드 결과로 보낸다.
@@ -193,7 +197,7 @@ def history_dashboard():
         and request.args.get('page', 1, type=int) <= 1
         and _dashboard_has_search_results(db, user)
     ):
-        target_args = {"q": f_q, "from_history": "1"}
+        target_args = {"q": f_q, "from_history": "1", **partner_filter_args(request)}
         if wants_erp_shell_tab_body(request):
             target_args["view"] = "fragment"
         return redirect(url_for("erp_dashboard.erp_dashboard", **target_args))
@@ -206,7 +210,7 @@ def history_dashboard():
     # dashboard_active_filter(완료 후 60일 경과 주문 제외)를 쓰면 안 된다 — 8ffc9c4a(tail latency
     # 수정)에서 잘못 적용돼 오래 전 완료된 주문이 이력 검색에서만 사라지는 회귀가 있었다
     # (전체 주문 목록 listing.py는 active_filter라 거기선 검색됨). Full Scan은 has_filter 게이트가 막는다.
-    _q = db.query(Order).filter(Order.active_filter())
+    _q = db.query(Order).filter(Order.active_filter(), partner_order_clause(partner_org))
 
     if mine_only and user:
         mine_clause = mine_membership_clause(build_mine_sql_filter(user))
@@ -260,6 +264,7 @@ def history_dashboard():
             "role": getattr(user, "role", None) if user else None,
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
+            "partner_org": partner_org,
             "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
             "search": "visible_v5",  # v1: SD 전체 문자열 제거 · v2: 낱말 AND · v3: #번호 · v4: 띄어 친 전화 · v5: 초성
 

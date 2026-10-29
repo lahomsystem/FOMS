@@ -17,6 +17,7 @@ from foms.services.erp_display import get_today_kst, _erp_get_stage
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import discount_superseded_drawing_rows
 from foms.services.common.business_calendar import business_days_until
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     STAGE_SQL_FILTER_MAP,
@@ -68,7 +69,8 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         - today_date, today_iso: 라우트 다운스트림(payload date 등) 호환용.
     """
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
-    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
+    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True),
+                                partner_order_clause(filters.partner_org))
 
     if filters.q:
         search_term = f"%{filters.q}%"

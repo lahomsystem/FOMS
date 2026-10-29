@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from foms.services.request_utils import get_search_query_arg
+from foms.services.common.partner_order_filter import partner_filter_value
 from foms.services.orders.dashboard_control_tower import RISK_KEYS
 from foms.services.common.erp_mine_filter import (
     erp_mine_only_from_request,
@@ -49,6 +50,7 @@ class OrdersDashboardFilters:
     status: str = ''
     # 컬럼 헤더 정렬 방향(실측일/시공일 헤더 토글). sort가 날짜 키일 때만 의미가 있다.
     sort_dir: str = 'asc'
+    partner_org: str = ''
 
 
 def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
@@ -68,7 +70,8 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
     f_has_alert = (request.args.get('has_alert') or '').strip()
     f_alert_type = (request.args.get('alert_type') or '').strip()
     f_q = get_search_query_arg('q', 'search')
-    effective_stage = '' if f_q else f_stage
+    partner_org = partner_filter_value(request)
+    effective_stage = f_stage if partner_org or not f_q else ''
     f_team = (request.args.get('team') or '').strip()
     f_sort = (request.args.get('sort') or 'latest').strip()
     if f_sort not in ('latest', 'schedule', 'amount', 'measure_date', 'construction_date'):
@@ -118,4 +121,5 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
         focus_order_id=focus_order_id,
         status=f_status,
         sort_dir=f_sort_dir,
+        partner_org=partner_org,
     )

@@ -26,6 +26,25 @@
                     </button>
                 </div>
                 {% endif %}
+                {% if current_user.role != 'PARTNER' %}
+                {% set partner_menu = partner_filter_menu() %}
+                <div class="dropdown">
+                    <button class="btn btn-link p-0 border-0 {{ 'text-primary' if partner_menu.active else 'text-secondary' }}"
+                        id="global-partner-filter-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="협력사 주문 필터: {{ partner_menu.label }}"
+                        title="협력사 주문 필터: {{ partner_menu.label }} (전체 주문·주문 대시보드·이력)">
+                        <i class="fas fa-handshake fa-2x" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="global-partner-filter-btn">
+                        <li><h6 class="dropdown-header">협력사 주문 보기</h6></li>
+                        {% for choice in partner_menu['items'] %}
+                        <li><a class="dropdown-item{{ ' active' if choice.selected else '' }}"
+                            href="{{ choice.href }}" data-foms-erp-no-shell data-gnav-ignore="1" data-foms-partner-choice="{{ choice.value }}"
+                            {% if choice.selected %}aria-current="true"{% endif %}>{{ choice.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
                 <!-- Global Notification Button — 단일 센터(모바일 시트 SSOT) 오픈 -->
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"

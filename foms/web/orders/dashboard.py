@@ -8,7 +8,8 @@ from models import Order
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
 from foms.services.foms_unified_search import is_chosung_query
-from sqlalchemy import text
+from sqlalchemy import and_, text
+from foms.services.common.partner_order_filter import partner_filter_args, partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.orders.mobile_delete_guard import build_mobile_delete_context
 from foms.services.erp_order_flags import is_erp_order_record
@@ -97,7 +98,7 @@ def _dashboard_search_history_redirect_blocked(f_team: str, f_urgent: str, f_has
 
 
 def _redirect_to_history_for_dashboard_search(f_q: str):
-    target_args = {"q": f_q, "from_dashboard": "1"}
+    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request)}
     if wants_erp_shell_tab_body(request):
         target_args["view"] = "fragment"
     flash("ERP 대시보드에서 결과가 없어 과거 이력 검색으로 이동했습니다.", "info")
@@ -109,11 +110,14 @@ def _history_more_link(db, f_q: str, dashboard_total: int):
     if is_chosung_query(f_q):
         return None
     token_clauses = [visible_order_search_clause(tok) for tok in search_query_tokens(f_q)]
-    history_total = db.query(Order.id).filter(Order.active_filter(), *token_clauses).count()
-    extra = history_total - dashboard_total
+    extra = db.query(Order.id).filter(
+        Order.active_filter(), *token_clauses,
+        partner_order_clause(partner_filter_value(request)),
+        and_(Order.is_erp_order.is_(True), Order.dashboard_active_filter(days=60)).is_not(True),
+    ).count()
     if extra <= 0:
         return None
-    target_args = {"q": f_q, "from_dashboard": "1"}
+    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request)}
     return {"count": extra, "href": url_for("erp_history.history_dashboard", **target_args)}
 
 
@@ -218,7 +222,8 @@ def erp_dashboard():
     if focus_order_id and focus_order_id not in {o.id for o in orders}:
         focus_o = (
             db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True),
+                    partner_order_clause(_filters.partner_org))
             .first()
         )
         if focus_o is not None:
@@ -344,6 +349,7 @@ def erp_dashboard():
             "field": f_field if f_date else '',
             "risk": f_risk,
             "status": _filters.status,
+            "partner_org": _filters.partner_org,
         },
     }
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
@@ -469,6 +475,7 @@ def erp_dashboard():
         f_team, request.args.get('mine') == '1', f_today == '1', bool(f_date), bool(f_risk),
         request.args.get('view') == 'queue',
         request.args.get('focus_order'),
+        _filters.partner_org,
     ))
     # mobile_chunk(무한스크롤 조각 요청)은 큐 전용 → 타워 페이로드 계산을 건너뛴다.
     _is_chunk = request.args.get('mobile_chunk') == '1'

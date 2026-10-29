@@ -35,3 +35,4 @@ Contract: each listed file is either **keep** in place, **move** (not applied in
 | `erp_shell_http.py` | keep | ERP shell fragment HTTP helper (ETag/cache/prefetch headers) shared by all ERP fragment endpoints. Paired with `ept_b7_profile.py`. Landed in commit `9541bfd5`. |
 | `geocode_config.py` | keep | Shared geocode configuration. |
 | `map_generator.py` | keep | Shared map generation helpers. |
+| `partner_order_filter.py` | keep | Internal partner selection shared by the global header, order listing, ERP order dashboard and history; normalizes the preference and applies the indexed partner FK scope. Added with the approved 2026-10-29 partner-order-filter Spec. |

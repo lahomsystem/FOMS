@@ -101,6 +101,7 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "dashboard_cache.py",
         "ept_b7_profile.py",
         "erp_mine_filter.py",
+        "partner_order_filter.py",
         "erp_navigation_contract.py",
         "erp_shell_http.py",
         # HB-S2a: 프래그먼트 버전 키 + 그림자 관측(렌더 전 304 의 선행 검증)
