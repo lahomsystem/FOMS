@@ -15,8 +15,9 @@ from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.partners.schedule_request import (
-    pending_request_counts,
-    pending_request_ids_by_date,
+    pending_request,
+    pending_request_orders,
+    request_text,
     shipment_pending_requests,
 )
 from foms.services.shipment_dashboard_helpers import (
@@ -144,21 +145,29 @@ def _erp_order_search_filter(query, q):
     )
 
 
-def _partner_pending_counts(db, scoped_orders_query, dates: list[str], current_user, mine_only: bool) -> dict[str, int]:
-    """패널 날짜별 확정 대기 협력사 희망 시공 수 — 그날 우리 시공 건수에 더한다(사용자 결정 2026-10-28).
+def _partner_pending_orders(scoped_orders_query, dates: list[str], current_user, mine_only: bool) -> list[tuple]:
+    """dates 에 희망 시공일이 든 확정 대기 협력사 주문 (주문, 희망일) — 그날 시공 건수 · 자수 · 목록에 넣는다.
 
-    협력사는 주문 · 실측까지만 하고 시공은 우리가 한다. 내 담당만(mine · 시공팀)이면 희망 주문도
-    패널과 같은 ``is_order_related_to_user`` 로 거른다(시공일 없는 협력사 주문이라 몇 건 — 배치 1쿼리).
+    협력사는 주문 · 실측까지만 하고 시공은 우리가 한다(사용자 결정 2026-10-28 · 10-29). 내 담당만(mine · 시공팀)이면
+    패널과 같은 ``is_order_related_to_user`` 로 거른다. 목록 칸 표시용으로 ``partner_request_text`` 를 붙인다.
     """
-    if not (mine_only and current_user):
-        return pending_request_counts(scoped_orders_query, dates)
-    day_of = pending_request_ids_by_date(scoped_orders_query, dates)
-    related = db.query(Order).filter(Order.id.in_(list(day_of))).all() if day_of else []
-    counts: dict[str, int] = {}
-    for order in related:
-        if is_order_related_to_user(order, current_user):
-            counts[day_of[order.id]] = counts.get(day_of[order.id], 0) + 1
-    return counts
+    pairs = pending_request_orders(scoped_orders_query, dates)
+    if mine_only and current_user:
+        pairs = [(o, day) for o, day in pairs if is_order_related_to_user(o, current_user)]
+    for order, _day in pairs:
+        sd = _ensure_dict(order.structured_data)
+        order.partner_request_text = request_text(pending_request(sd, order.erp_stage_code or ""))
+    return pairs
+
+
+def _date_span(start: str, end: str) -> list[str]:
+    """'YYYY-MM-DD' 두 날짜 사이(양 끝 포함) 날짜 목록. 형식이 틀리면 빈 목록."""
+    try:
+        d0 = datetime.date.fromisoformat(start)
+        d1 = datetime.date.fromisoformat(end)
+    except (TypeError, ValueError):
+        return []
+    return [(d0 + datetime.timedelta(days=i)).isoformat() for i in range((d1 - d0).days + 1)]
 
 
 def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
@@ -472,15 +481,22 @@ def erp_shipment_dashboard():
     # 확정 대기 협력사 희망 시공일도 그날 시공 건수에 넣는다(캐시 밖 — 시공일 없는 주문이라 패널 집합에 없다).
     _panel_dates = [(range_start + datetime.timedelta(days=i)).isoformat()
                     for i in range((range_end - range_start).days + 1)]
-    partner_pending_counts = _partner_pending_counts(db, scoped_for_search, _panel_dates, current_user, mine_only)
-    if partner_pending_counts:
-        construction_counts = dict(construction_counts)
-        for _day, _n in partner_pending_counts.items():
-            construction_counts[_day] = construction_counts.get(_day, 0) + _n
+    partner_pending = _partner_pending_orders(scoped_for_search, _panel_dates, current_user, mine_only)
     assigned_workers_by_date = {
         k: set(v) for k, v in _agg_blob["assigned_workers_by_date"].items()
     }
     spec_units_by_date = _agg_blob["spec_units_by_date"]
+    if partner_pending:
+        # 자수(잔여 용량) · 배정 시공자도 우리 시공처럼 그날에 싣는다(사용자 결정 2026-10-29).
+        construction_counts = dict(construction_counts)
+        spec_units_by_date = dict(spec_units_by_date)
+        for _order, _day in partner_pending:
+            construction_counts[_day] = construction_counts.get(_day, 0) + 1
+            spec_units_by_date[_day] = spec_units_by_date.get(_day, 0.0) + order_spec_units(_order, target_date=_day)
+            for _w in ((_ensure_dict(_order.structured_data).get('shipment') or {}).get('construction_workers') or []):
+                _wk = _normalize_worker_name(_w)
+                if _wk in worker_name_map:
+                    assigned_workers_by_date.setdefault(_day, set()).add(_wk)
 
     # 검색 시 광범위 일정 조회가 실패했을 때만 14일 패널 집계로 포커스 날짜 보조
     if (
@@ -526,7 +542,8 @@ def erp_shipment_dashboard():
             "use_single_day": use_single_day,
         },
         "aggregates_key_suffix": _agg_key.rsplit(":", 1)[-1],
-        "partner_pending": sorted(partner_pending_counts.items()),
+        "partner_pending": sorted((_day, _order.id, round(spec_units_by_date.get(_day, 0.0), 1))
+                                  for _order, _day in partner_pending),
         "worker_settings_fp": _worker_settings_fp,
     }
     _derived_key = build_dashboard_cache_key(
@@ -601,6 +618,16 @@ def erp_shipment_dashboard():
                 r for r in rows
                 if is_order_related_to_user(r, current_user)
             ]
+    # 확정 대기 협력사 희망 시공일도 그날 목록에 넣는다 — 자수 · 팀 합계 · KPI 가 rows 에서 같이 따라온다
+    # (사용자 결정 2026-10-29). 우리 시공 일정 행이 없어 위 패널/일정 조인에는 안 잡힌다.
+    if use_single_day or use_range:
+        _row_dates = [selected_date] if use_single_day else _date_span(date_from, date_to)
+        if set(_row_dates) <= set(_panel_dates):
+            _row_pending = [(o, d) for o, d in partner_pending if d in _row_dates]
+        else:
+            _row_pending = _partner_pending_orders(scoped_for_search, _row_dates, current_user, mine_only)
+        _row_ids = {r.id for r in rows}
+        rows = rows + [o for o, _d in _row_pending if o.id not in _row_ids]
     rows = rows[:300]
 
     # 렌더되는 rows(≤300)만 structured_data 배치 주입. derive-from-panel 경로의 rows는

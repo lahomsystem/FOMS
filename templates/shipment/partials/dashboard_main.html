@@ -222,7 +222,7 @@
         <div class="erp-pro-alert__icon"><i class="fas fa-handshake" aria-hidden="true"></i></div>
         <div class="erp-pro-alert__content">
           <span class="erp-pro-alert__label">협력사 희망 시공일 · 확정 대기 {{ partner_pending_requests|length }}건</span>
-          <span class="small text-muted">시공은 우리가 하니 희망일도 날짜별 시공 건수에 들어가 있습니다.</span>
+          <span class="small text-muted">시공은 우리가 하니 희망일도 날짜별 시공 건수 · 자수 · 그날 목록에 들어가 있습니다.</span>
           <div class="d-flex flex-wrap gap-1 mt-1">
             {% for p in partner_pending_requests %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_edit.edit_order', order_id=p.id, open='erp-order') }}">#{{ p.id }} {{ p.customer_name }}{% if p.partner_name %} ({{ p.partner_name }}){% endif %} · 희망 {{ p.text }}</a>
@@ -537,6 +537,9 @@
                     </div>
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
+                    {% endif %}
+                    {% if r.partner_request_text is defined and r.partner_request_text %}
+                    <div class="small text-primary" data-shipment-partner-request><i class="fas fa-handshake" aria-hidden="true"></i> 협력사 희망 {{ r.partner_request_text }} · 확정 대기</div>
                     {% endif %}
                     {# 시공일 변경 배지 + [확인]. 고객 셀에 두는 이유: PC 표에는 시공일 열이
                        없고(페이지 자체가 날짜로 필터된다) 고객 셀이 행 신원을 읽는 자리다. #}
