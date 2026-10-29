@@ -11,6 +11,8 @@
    돈 줄 · 오늘 상한)가 안 됐으면 **줄을 하나도 만들지 않고** 멈춘다(원장 R7-4).
 1. **고르기** — 루프가 낸 열린 상담 상태에서 라홈 · 답 필요 · 맺음 글뿐 아님 · 마지막 손님 글 뒤 공개 직원 글 없음(우선순위 순).
    운영 시간 안 · 밖 모두(R7-7 결정 — 처음 2주는 '저장만'으로 PC 시범과 같은 범위를 견준다). 하우드는 고르지 않는다.
+   마지막 손님 글이 운영 시간으로 :data:`MAX_WAIT_BUSINESS_DAYS` 를 넘긴 상담도 고르지 않는다 — 켜는 날 밀린 상담에 하루
+   돈을 먼저 쓰지 않게(원장 D50, 주말 · 공휴일은 세지 않는다).
 2. **선점** — 이미 있는 줄을 먼저 한 번에 읽어 다시 집을 수 없는 차례는 건너뛰고, (상담, 마지막 손님 글 id) 줄을
    :func:`.turns.claim_turn` 으로 잡아 바로 커밋한다. 뒤 쓰기는 모두 조건부라(R7-8) 그사이 다른 바퀴가 줄을 바꿨으면 올리지 않는다.
 3. **읽기** — 매체(이메일이면 건너뜀) · 최근 글. 선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없어야 한다.
@@ -63,7 +65,9 @@ from foms.services.cs_agent.drafting_read import (
 from foms.services.cs_agent.knowledge import ApprovedKnowledge, load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
-from foms.services.cs_agent.state import BRAND_HOURS, KST, BusinessDayFn, ChatState, sort_by_priority
+from foms.services.cs_agent.state import (
+    BRAND_HOURS, KST, BusinessDayFn, ChatState, business_minutes_between, sort_by_priority,
+)
 from foms.services.cs_agent.turns import (
     DRAFT_MEMO, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn, mark_failed,
     mark_skipped, record_brain_result, release_turn, stale_posting,
@@ -80,6 +84,8 @@ BRAND = "LAHOM"  # 초안을 쓰는 브랜드 — 하우드는 쓰기 허락 전
 #: 한 바퀴 두뇌 호출 상한. 시간 상한(초)은 선점 전에 본다 — 두뇌 한 번이 90초까지 걸릴 수 있다(11.1 의 5).
 MAX_BRAIN_CALLS = 10
 DRAFT_BUDGET_SECONDS = 240.0
+#: 마지막 손님 글이 이만큼(운영일 — 라홈 운영 시간 기준) 넘게 묵은 상담은 고르지 않는다(원장 D50).
+MAX_WAIT_BUSINESS_DAYS = 1
 #: 이보다 오래 ``claimed`` 인 줄은 두뇌를 부르다 죽은 차례다(대표 잠금이 바퀴를 하나만 돌리고 바퀴는 이보다 짧다).
 STALE_CLAIM_AFTER = datetime.timedelta(minutes=20)
 #: 이보다 오래 ``posting`` 인 줄을 센다(올라갔는지 모름 — 복구 단계 몫, 다시 올리지 않는다).
@@ -104,6 +110,7 @@ class DraftSummary:
     """한 바퀴 초안 결과 — 숫자만(상담 id · 글 없음). :meth:`counts` 가 바퀴 요약 JSON 의 ``drafting`` 칸이다."""
 
     candidates: int = 0  # 고른 상담
+    too_old: int = 0  # 마지막 손님 글이 운영일 하루를 넘겨 고르지 않은 상담
     claimed: int = 0  # 이번에 선점한 차례(실패 줄 다시 집음 포함)
     already: int = 0  # 차례가 이미 있어 건너뜀(손님 글 하나에 초안 하나)
     brain_calls: int = 0
@@ -127,23 +134,34 @@ class DraftSummary:
 
 
 # ── 고르기 · 정리 ────────────────────────────────────────────────────────
-def _candidates(session: Any, states: Sequence[ChatState]) -> list[tuple[str, str]]:
-    """고르기 — (상담 id, 마지막 손님 글 id), 우선순위 순(아침 보고와 같다). 마지막 손님 글 뒤 공개 직원 글이 있으면 뺀다."""
+def _candidates(session: Any, states: Sequence[ChatState], *, now: datetime.datetime,
+                is_business_day: Optional[BusinessDayFn] = None) -> tuple[list[tuple[str, str]], int]:
+    """고르기 — ((상담 id, 마지막 손님 글 id) 목록, 너무 묵어 뺀 수), 우선순위 순(아침 보고와 같다).
+
+    마지막 손님 글 뒤 공개 직원 글이 있으면 빼고, 마지막 손님 글이 운영일 :data:`MAX_WAIT_BUSINESS_DAYS` 를 넘겼으면 세고 뺀다.
+    """
     picked = [s.chat_id for s in sort_by_priority(states) if s.brand == BRAND and s.needs_reply and not s.closing_only]
     rows: dict[str, Any] = {}
     for start in range(0, len(picked), _CHAT_CHUNK):
         stmt = select(CsAgentChat.chat_id, CsAgentChat.last_user_message_id, CsAgentChat.last_user_at,
                       CsAgentChat.last_answer_at).where(CsAgentChat.chat_id.in_(picked[start:start + _CHAT_CHUNK]))
         rows.update({row.chat_id: row for row in session.execute(stmt)})
+    open_hour, close_hour = BRAND_HOURS[BRAND]
+    max_wait = MAX_WAIT_BUSINESS_DAYS * (close_hour - open_hour) * 60
     out: list[tuple[str, str]] = []
+    too_old = 0
     for chat_id in picked:
         row = rows.get(chat_id)
         if row is None or not row.last_user_message_id or row.last_user_at is None:
             continue
         if row.last_answer_at is not None and row.last_answer_at >= row.last_user_at:
             continue
+        last_user_at = row.last_user_at.replace(tzinfo=datetime.timezone.utc)  # 표는 UTC naive
+        if business_minutes_between(last_user_at, now, BRAND, is_business_day=is_business_day) > max_wait:
+            too_old += 1
+            continue
         out.append((chat_id, row.last_user_message_id))
-    return out
+    return out, too_old
 
 
 def _existing(session: Any, candidates: Sequence[tuple[str, str]]) -> dict[tuple[str, str], Any]:
@@ -302,7 +320,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         return _halted(session, summary, HALT_NOT_READY)
     except SpendCapReached:
         return _halted(session, summary, HALT_SPEND)
-    candidates = _candidates(session, states)
+    candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day)
     existing = _existing(session, candidates)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡 · 두뇌를 부르는 동안 열어 두지 않는다
     summary.candidates = len(candidates)
