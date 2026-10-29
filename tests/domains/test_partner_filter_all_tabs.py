@@ -8,6 +8,7 @@ from sqlalchemy import event
 
 from db import db_session
 from models import PartnerOrg
+from foms.services.datetime_kst import get_today_kst
 from tests.domains.test_settlement_aggregation import _money, _seed_order
 
 
@@ -17,7 +18,7 @@ def scoped_orders(auth_client):
     orgs = [PartnerOrg(name=f"SCOPE-COMPANY-{i}") for i in range(2)]
     db_session.add_all(orgs)
     db_session.flush()
-    today = dt.date.today().isoformat()
+    today = get_today_kst().isoformat()
     result = []
     for company in [*orgs, None]:
         group = []
