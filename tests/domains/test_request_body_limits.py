@@ -40,6 +40,10 @@ _CATEGORIES = [
     ("estimate_image", "/api/channel/push-estimate", 15 * _MIB + 256 * _KIB),
     ("legacy", "/api/erp/order-draft/attachments", 50 * _MIB + 256 * _KIB),
     ("legacy", "/api/orders/1/drawing-gateway-upload", 50 * _MIB + 256 * _KIB),
+    # 협력사 화면 사진 · 동영상 · 초안 도면, 수정 요청 · AS 사진(2026-10-29 사고: 1 MiB 기본 캡에 걸려 전부 실패)
+    ("legacy", "/api/partner/orders/1/files", 50 * _MIB + 256 * _KIB),
+    ("legacy", "/api/partner/orders/1/revision", 50 * _MIB + 256 * _KIB),
+    ("legacy", "/api/partner/orders/1/as", 50 * _MIB + 256 * _KIB),
 ]
 
 #: 핸들러가 스스로 걸러야 하는 파일 크기 — 플랫폼 캡이 그보다 낮으면 핸들러의 친절한
@@ -49,6 +53,9 @@ _HANDLER_FILE_CEILINGS = [
     ("/api/orders/1/drawing-wizard/asset", 10 * _MIB),
     ("/api/orders/1/drawing-wizard/sheet-png", 10 * _MIB),
     ("/api/channel/push-estimate", 15 * _MIB),
+    ("/api/partner/orders/1/files", 20 * _MIB),
+    ("/api/partner/orders/1/revision", 20 * _MIB),
+    ("/api/partner/orders/1/as", 20 * _MIB),
 ]
 
 
