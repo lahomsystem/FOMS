@@ -85,7 +85,8 @@ def test_calendar_cells_carry_tone(app):
             is_erp_order=True,
             structured_data={"parties": {"customer": {"name": name}},
                              "schedule": {"construction": {"date": "2026-06-12"}},
-                             "totals": {"items_total": total}},
+                             "totals": {"items_total": total},
+                             "channeltalk_push_drawing": {"pushed": True}},  # 칸 금액은 발주방 PUSH 된 주문만
         ))
     db_session.commit()
 
