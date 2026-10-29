@@ -53,7 +53,7 @@ def test_dashboard_search_links_older_history_orders(auth_client):
     db_session.commit()
     body = auth_client.get("/erp/dashboard?q=더보기고객&from_history=1").get_data(as_text=True)
     assert "data-erp-history-more" in body
-    assert "과거 이력에 1건 더" in body
+    assert "전체 이력에 1건 더" in body
     assert "from_dashboard=1" in body
 
 

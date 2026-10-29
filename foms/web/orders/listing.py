@@ -46,6 +46,9 @@ from foms.services.post_auth_navigation import redirect_to_authenticated_home, s
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.auth.partner_scope import partner_mark_name
+from foms.services.common.partner_order_filter import (
+    inject_partner_filter, partner_filter_value, partner_order_clause, persist_partner_filter,
+)
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
@@ -105,6 +108,8 @@ def _form_owner_user_id(form) -> Optional[int]:
 
 
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
+order_pages_bp.app_context_processor(inject_partner_filter)
+order_pages_bp.after_app_request(persist_partner_filter)
 
 
 @order_pages_bp.app_template_filter('order_link')
@@ -177,7 +182,7 @@ def index():
                 column_filters[col] = request.args[filter_key]
         active_column_filters = {k: v for k, v in column_filters.items() if v}
 
-        query = db.query(Order).filter(Order.active_filter())
+        query = db.query(Order).filter(Order.active_filter(), partner_order_clause(partner_filter_value(request)))
         if effective_status_filter and effective_status_filter != 'ALL':
             query = query.filter(Order.status == effective_status_filter)
         if effective_region_filter == 'metro':
