@@ -70,7 +70,7 @@
     }
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      themeColor.setAttribute('content', effective === 'dark' ? '#0a0c10' : '#0070f2');
+      themeColor.setAttribute('content', effective === 'dark' ? '#0a0c10' : '#ffffff');
     }
     syncToggleUi(pref);
   }
