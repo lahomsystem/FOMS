@@ -36,7 +36,6 @@ var API_CACHE = CACHE_VERSION + "-api";
 var STATIC_URLS = [
   "/static/js/vendor/htmx.min.js",
   "/static/js/vendor/alpine.min.js",
-  "/static/manifest.json",
 ];
 
 self.addEventListener("install", function (event) {
@@ -81,6 +80,13 @@ self.addEventListener("fetch", function (event) {
   if (url.origin !== self.location.origin) return;
 
   if (isFileDeliveryRequest(url)) {
+    return;
+  }
+
+  // App metadata must revalidate through the browser's normal HTTP path.
+  // staleWhileRevalidate can return the old theme_color to Chrome's WebAPK
+  // updater even when the origin already serves the new manifest (no-cache).
+  if (url.pathname === "/static/manifest.json" || url.pathname === "/static/manifest-partner.json") {
     return;
   }
 
