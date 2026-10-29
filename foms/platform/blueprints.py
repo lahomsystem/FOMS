@@ -195,8 +195,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     # --- Lane: 외부 협력사 화면(PARTNER-02) — /partner(HTML) · /api/partner(JSON). 경로가 고유해
     # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 협력사 세션은 문지기 허용 목록만 지난다.
-    from foms.api.partner import partner_api_bp
-    from foms.api.partner.channel_push import partner_channel_push_bp
+    from foms.api.partner import partner_api_bp, partner_channel_push_bp
     from foms.web.partner import partner_portal_bp
 
     app.register_blueprint(partner_api_bp)
