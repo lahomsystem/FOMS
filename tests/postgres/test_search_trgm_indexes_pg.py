@@ -267,7 +267,12 @@ def _explain(conn: Connection, case: str) -> str:
 # 합성 1,200행에서 플래너는 trgm 대신 ix_orders_erp_order_active 전체를 가지 대용으로 골랐다).
 # 그래서 계획을 잴 때만 트랜잭션 안에서 빼고 "trgm 인덱스로만 OR 전체를 덮을 수 있는가"를 본다.
 # 실데이터에서 플래너가 무엇을 고르는지는 스테이징 EXPLAIN(스펙 §9-3)의 몫이다.
-STAND_IN_BTREES = ("ix_orders_is_erp_order", "ix_orders_erp_phone_digits", "ix_orders_erp_order_active")
+# The partner-only company-name branch also has an indexed IS NOT NULL guard.
+# Remove that shortcut too so this contract still proves the text index itself.
+STAND_IN_BTREES = (
+    "ix_orders_is_erp_order", "ix_orders_erp_phone_digits", "ix_orders_erp_order_active",
+    "ix_orders_partner_org_id",
+)
 # 등호 가지(주문번호 정확 일치)가 타는 인덱스 — trgm 이 아니어도 정당하다.
 EQUALITY_INDEXES = frozenset({"orders_pkey"})
 
