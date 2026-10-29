@@ -3,6 +3,8 @@
 플랜 ``docs/plans/2026-10-27-cs-ai-agent-plan.md`` C3-2 · 설계서 11.1 의 2 · 3 · 6. 부르기 · 돈 줄 · 오류는 :mod:`.brain`.
 네트워크 · DB 가 없다.
 
+- **모델**: 관리 화면이 고를 수 있는 모델은 :data:`BRAIN_MODELS` 뿐이다(공식 문서로 id · 값 · 기능을 확인한 것 — 아래 값 표
+  설명). 서버 쪽 대체는 :data:`SERVER_FALLBACK_MODELS` 만 받는다.
 - **앞부분(캐시)**: 지시문 블록 + 승인 지식 블록(:func:`system_blocks`). 같은 브랜드 · 같은 지식이면 바이트까지 같다 —
   시각 · 상담 id · 손님 글은 넣지 않는다. 지식은 문서 순서 그대로 ``[id] (종류) 글`` 줄로 쓴다(기준 답 문구는 종류 뒤에
   의도 id 를 붙인다).
@@ -13,7 +15,9 @@
   :func:`read_output` 이 다시 검사한다. 오류 글에는 칸 이름만 싣고 모델 글은 싣지 않는다.
 - **돈**: :func:`usage_cost` — ``usage`` × :data:`PRICES`. 서버 쪽 대체가 돌았으면 ``usage.iterations`` 칸마다 그 칸의
   모델 값으로 센다(위 ``usage`` 는 답한 시도뿐이다). 표에 없는 모델은 칸마다 가장 비싼 값 — 적게 세면 하루 상한이 샌다.
-  :func:`worst_case_cost` 는 보내기 전 예약할 최악값이다(원장 R7-3).
+  Haiku 5.5 는 프롬프트가 :data:`LONG_PROMPT_TOKENS` 를 넘으면 그 요청 전체가 :data:`LONG_PROMPT_PRICES` 값이다.
+  :func:`worst_case_cost` 는 보내기 전 예약할 최악값이다(원장 R7-3) — 고른 모델 단가로, 서버 쪽 대체를 보낼 때만
+  :data:`FALLBACK_TARGETS` 단가와 견주어 큰 쪽을 쓰고 입력 · 출력을 모두 두 번 센다(:data:`FALLBACK_ATTEMPTS`).
 - **재료 · 결과 꼴**: :class:`DraftRequest` · :class:`DraftResult`(:mod:`.brain` 이 그대로 내보낸다 — 500줄 상한으로 옮겼다).
 """
 
@@ -30,14 +34,26 @@ from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
 
 __all__ = [
-    "CACHE_CONTROL_DAY", "ENABLED_BRANDS", "HANDOFF_NONE", "HANDOFF_REASONS", "HANDOFF_UNSURE", "INTENT_OTHER", "MODEL",
-    "OUTPUT_FIELDS", "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER",
-    "ROLE_USER", "SPEAKERS", "DraftRequest", "DraftResult", "OutputError", "Price", "Tokens", "answer_text",
-    "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text", "output_schema",
-    "read_output", "render_conversation", "system_blocks", "task_text", "usage_cost", "worst_case_cost",
+    "BRAIN_MODELS", "CACHE_CONTROL_DAY", "CACHE_TTLS", "CACHE_TTL_1H", "CACHE_TTL_5M", "ENABLED_BRANDS",
+    "FALLBACK_ATTEMPTS", "FALLBACK_TARGETS", "HANDOFF_NONE", "HANDOFF_REASONS",
+    "HANDOFF_UNSURE",
+    "INTENT_OTHER", "LONG_PROMPT_PRICES", "LONG_PROMPT_TOKENS", "MODEL", "MODEL_HAIKU", "MODEL_SONNET", "OUTPUT_FIELDS",
+    "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER", "ROLE_USER",
+    "SERVER_FALLBACK_MODELS", "SPEAKERS", "DraftRequest", "DraftResult", "OutputError", "Price", "Tokens",
+    "answer_text", "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text",
+    "output_schema", "read_output", "render_conversation", "system_blocks", "task_text", "usage_cost",
+    "worst_case_cost",
 ]
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-opus-5-5"  # 처음 값(D44) — 관리 화면이 바꾸지 않으면 초안 · 의도 고르기 모두 이 모델
+MODEL_SONNET, MODEL_HAIKU = "claude-sonnet-5-5", "claude-haiku-5-5"
+#: 관리 화면에서 고를 수 있는 두뇌 모델 — 공식 문서(모델 개요 · 가격 · effort · 구조화 출력 · 거절과 대체, 2026-10-29 열람)로
+#: id · 값 · 기능(적응형 생각 · effort low~max · ``output_config.format``)을 확인한 것만. Fable 5.1 은 30일 보관이 필수라
+#: 넣지 않는다(설계서 9.1 · 16.1).
+BRAIN_MODELS: tuple[str, ...] = (MODEL, MODEL_SONNET, MODEL_HAIKU)
+#: 서버 쪽 대체(``fallbacks="default"``)를 받는 모델. Haiku 5.5 는 서버 쪽 대체가 없다 — 보내면 거절이 그대로 남고 목록
+#: 꼴은 400 이라 보내지 않는다(거절과 대체 문서 10-29).
+SERVER_FALLBACK_MODELS: frozenset[str] = frozenset({MODEL, MODEL_SONNET})
 PURPOSE_DRAFT, PURPOSE_INTENT = "draft", "intent"  # 답 초안 · 3a 의도 고르기
 PURPOSES: tuple[str, ...] = (PURPOSE_DRAFT, PURPOSE_INTENT)
 ROLE_USER, ROLE_MANAGER = "user", "manager"
@@ -45,8 +61,12 @@ ROLE_USER, ROLE_MANAGER = "user", "manager"
 SPEAKERS: dict[str, str] = {ROLE_USER: "[손님]", ROLE_MANAGER: "[직원]"}
 #: 두뇌를 부르는 브랜드 → 지시문의 이름. 라홈만 — 하우드는 아직 거절한다(플랜은 라홈 먼저).
 ENABLED_BRANDS: dict[str, str] = {"LAHOM": "라홈"}
-#: 운영 시간 앞부분 캐시 표시(1시간). 밤에는 드문 단발이라 표시 없이 보낸다(설계서 11.1 의 3).
-CACHE_CONTROL_DAY: dict[str, str] = {"type": "ephemeral", "ttl": "1h"}
+#: 앞부분 캐시 표시(처음 값 1시간 — 사장님 결정 10-29). 처음 방침은 운영 시간만이다 — 밤에는 드문 단발이라 표시 없이
+#: 보낸다(설계서 11.1 의 3 · 16.1). 길이는 관리 화면 ``cache_ttl`` 칸(1h · 5m)이 정한다. 1시간 캐시는 베타 머리값 없이
+#: ``cache_control.ttl`` 만으로 되고 5.5 모델 모두 지원한다(공식 prompt caching 문서 10-29 열람).
+CACHE_TTL_1H, CACHE_TTL_5M = "1h", "5m"
+CACHE_TTLS: tuple[str, ...] = (CACHE_TTL_1H, CACHE_TTL_5M)
+CACHE_CONTROL_DAY: dict[str, str] = {"type": "ephemeral", "ttl": CACHE_TTL_1H}
 INTENT_OTHER = "other"
 HANDOFF_NONE, HANDOFF_UNSURE = "none", "unsure"
 #: 모델이 고르는 넘김 까닭 코드 — 글이 아니라 코드라 기록 · 로그에 손님 글이 섞이지 않는다.
@@ -121,8 +141,9 @@ def _turns(value: Any) -> tuple[tuple[str, str], ...]:
 class DraftRequest:
     """두뇌 한 번의 재료. 손님 글 · 이름 · 지식은 repr 에 싣지 않는다(로그에 따라가지 않게).
 
-    ``messages`` 는 가리기 전 원문(오래된 것부터)이다 — 가림은 두뇌가 한다. ``daytime`` 은 운영 시간(1시간 캐시 표시),
-    ``realtime`` 은 실시간 길(단계 2.7 — 45초), 아니면 15분 루프(90초). 어느 길도 시간 초과는 다시 보내지 않는다.
+    ``messages`` 는 가리기 전 원문(오래된 것부터)이다 — 가림은 두뇌가 한다. ``daytime`` 은 운영 시간(캐시 방침이 '운영
+    시간만'이면 1시간 캐시 표시), ``realtime`` 은 실시간 길(단계 2.7 — 처음 45초), 아니면 15분 루프(처음 90초). 시간은
+    관리 화면 설정이고, 어느 길도 시간 초과는 다시 보내지 않는다.
     """
 
     brand: str
@@ -178,6 +199,7 @@ class DraftResult:
     refused: bool
     fallback_used: bool
     refusal_category: Optional[str] = None  # 거절이면 ``stop_details.category`` 만
+    cache_marked: bool = False  # 앞부분에 캐시 표시를 실은 요청인가 — 캐시 읽기 0 은 이 요청만 센다(검수 R9)
 
 
 # ── 앞부분(캐시) ─────────────────────────────────────────────────────────
@@ -217,14 +239,20 @@ def knowledge_text(knowledge: ApprovedKnowledge) -> str:
     return "\n".join(lines)
 
 
-def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, daytime: bool) -> list[dict[str, Any]]:
-    """``system`` 칸 — [지시문, 승인 지식]. 운영 시간(``daytime``)이면 마지막 블록에만 1시간 캐시 표시를 단다."""
+def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Optional[str]) -> list[dict[str, Any]]:
+    """``system`` 칸 — [지시문, 승인 지식(교훈 포함)]. ``cache_ttl``(1h · 5m)이면 마지막 블록에만 그 길이로 캐시 표시를 단다.
+
+    표시는 바뀌지 않는 앞부분 끝에 하나만 단다 — 시각 · 상담 id · 손님 글은 ``messages`` (뒷부분, :func:`task_text`)에만 있다.
+    ``None`` 이면(캐시 방침이 끔이거나 운영 시간 밖) 표시 없이 보낸다.
+    """
+    if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
+        raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
     blocks: list[dict[str, Any]] = [
         {"type": "text", "text": instructions(brand)},
         {"type": "text", "text": knowledge_text(knowledge)},
     ]
-    if daytime:
-        blocks[-1]["cache_control"] = dict(CACHE_CONTROL_DAY)
+    if cache_ttl is not None:
+        blocks[-1]["cache_control"] = {"type": "ephemeral", "ttl": cache_ttl}
     return blocks
 
 
@@ -332,14 +360,29 @@ class Price:
 
 
 _D = Decimal
-#: 공개 정가(달러 / 백만 토큰) — claude-api 스킬 모델 표 · 'Migrating to Claude Opus 5.5' 가격 줄, 2026-10-28 열람.
-#: 대체 모델 둘(공식 대체 대상)은 같은 표의 입력 · 출력 값에 캐시 기본 배수(읽기 0.1 · 5분 쓰기 1.25 · 1시간 쓰기 2)를 곱했다.
+#: 공개 정가(달러 / 백만 토큰 — 입력 · 출력 · 캐시 읽기 · 5분 쓰기 · 1시간 쓰기) — 공식 가격 페이지
+#: (platform.claude.com/docs/en/about-claude/pricing) 2026-10-29 열람값 그대로. Opus 5.5 · Sonnet 5.5 의 캐시 읽기는 입력의
+#: 0.05배다(다른 모델은 0.1배). 아래 셋(Opus 5 · Opus 4.8 · Sonnet 5)은 서버 쪽 대체가 답할 수 있는 모델이다.
 PRICES: dict[str, Price] = {
     MODEL: Price(_D("4"), _D("20"), _D("0.20"), _D("5"), _D("8")),
+    MODEL_SONNET: Price(_D("2"), _D("10"), _D("0.10"), _D("2.50"), _D("4")),
+    MODEL_HAIKU: Price(_D("0.10"), _D("0.50"), _D("0.01"), _D("0.125"), _D("0.20")),
     "claude-opus-5": Price(_D("5"), _D("25"), _D("0.50"), _D("6.25"), _D("10")),
     "claude-opus-4-8": Price(_D("5"), _D("25"), _D("0.50"), _D("6.25"), _D("10")),
+    "claude-sonnet-5": Price(_D("2"), _D("10"), _D("0.20"), _D("2.50"), _D("4")),
 }
-_PRICE_UNKNOWN = Price(*(max(getattr(p, name) for p in PRICES.values()) for name in Price.__dataclass_fields__))
+#: 긴 프롬프트 값 — Haiku 5.5 는 한 요청의 프롬프트(입력 + 캐시 읽기 + 캐시 쓰기)가 10만 토큰을 넘으면 그 요청의 모든 칸이
+#: 비싼 값이다(캐시 적중이 섞여도 — 가격 페이지 'Long context pricing' 10-29).
+LONG_PROMPT_TOKENS = 100_000
+LONG_PROMPT_PRICES: dict[str, Price] = {MODEL_HAIKU: Price(_D("0.50"), _D("2.50"), _D("0.05"), _D("0.625"), _D("1"))}
+#: 서버 쪽 대체(``fallbacks="default"``)가 답할 수 있는 모델 — 위 값표의 공식 대체 대상(Opus 5.5 → Opus 5 · Opus 4.8,
+#: Sonnet 5.5 → Sonnet 5). 최악값 예약은 대체를 보낼 때만 이 단가와 견준다. 여기 없는 모델에 대체를 보내면 가장 비싼 값으로 센다.
+FALLBACK_TARGETS: dict[str, tuple[str, ...]] = {
+    MODEL: ("claude-opus-5", "claude-opus-4-8"),
+    MODEL_SONNET: ("claude-sonnet-5",),
+}
+_PRICE_UNKNOWN = Price(*(max(getattr(p, name) for p in (*PRICES.values(), *LONG_PROMPT_PRICES.values()))
+                         for name in Price.__dataclass_fields__))
 _MILLION = Decimal(1_000_000)
 
 
@@ -358,13 +401,20 @@ class Tokens:
         """캐시 쓰기 합."""
         return self.write_5m + self.write_1h
 
+    @property
+    def prompt(self) -> int:
+        """프롬프트 길이 = 입력 + 캐시 읽기 + 캐시 쓰기(긴 프롬프트 값을 고르는 기준)."""
+        return self.input + self.cache_read + self.cache_write
+
     def __add__(self, other: "Tokens") -> "Tokens":
         """칸끼리 더한다."""
         return Tokens(*(getattr(self, n) + getattr(other, n) for n in Tokens.__dataclass_fields__))
 
     def cost(self, model: str) -> Decimal:
-        """이 토큰을 ``model`` 값으로 센 달러(표에 없으면 가장 비싼 값)."""
+        """이 토큰(요청 하나)을 ``model`` 값으로 센 달러(표에 없으면 가장 비싼 값 · 긴 프롬프트면 그 모델의 비싼 값)."""
         p = PRICES.get(model, _PRICE_UNKNOWN)
+        if model in LONG_PROMPT_PRICES and self.prompt > LONG_PROMPT_TOKENS:
+            p = LONG_PROMPT_PRICES[model]
         micro = (self.input * p.input + self.output * p.output + self.cache_read * p.cache_read
                  + self.write_5m * p.cache_write_5m + self.write_1h * p.cache_write_1h)
         return micro / _MILLION
@@ -385,10 +435,13 @@ def _tokens_of(entry: Any) -> Tokens:
                   _count(entry, "cache_read_input_tokens"), five, one_hour + max(0, written - one_hour - five))
 
 
-def usage_cost(response: Any) -> tuple[Tokens, Decimal]:
-    """응답의 토큰 합 · 달러. ``usage.iterations`` 가 있으면 칸마다 그 칸의 모델 값으로(없으면 답한 모델 값으로) 센다."""
+def usage_cost(response: Any, *, model: str = MODEL) -> tuple[Tokens, Decimal]:
+    """응답의 토큰 합 · 달러. ``usage.iterations`` 가 있으면 칸마다 그 칸의 모델 값으로(없으면 답한 모델 값으로) 센다.
+
+    응답에 모델 칸이 없으면 보낸 모델(``model``) 값으로 센다.
+    """
     usage = getattr(response, "usage", None)
-    served_by = str(getattr(response, "model", None) or MODEL)
+    served_by = str(getattr(response, "model", None) or model)
     entries = list(getattr(usage, "iterations", None) or [])
     pairs = ([(_tokens_of(e), str(getattr(e, "model", None) or served_by)) for e in entries]
              or ([(_tokens_of(usage), served_by)] if usage is not None else []))
@@ -400,17 +453,39 @@ def usage_cost(response: Any) -> tuple[Tokens, Decimal]:
 
 #: 최악값 어림에 더하는 틀 토큰(메시지 · 블록 경계 · 구조화 출력 · 생각 설정이 붙이는 몫 — 넉넉히 잡은 어림).
 RESERVE_OVERHEAD_TOKENS = 2000
+#: 서버 쪽 대체를 보내면 최악값을 세는 시도 수 — 시도마다 따로 청구된다. 고른 모델이 쓰다가 거절하면 그 시도의 입력과
+#: 그때까지 쓴 출력이 청구되고, 대체 모델이 같은 요청을 다시 읽어 ``max_tokens`` 까지 쓸 수 있다(거절과 대체 문서
+#: 'Billing and rate limits' 10-29 — 기본 대체는 한 번 더 부른다). 입력 · 출력 모두 이만큼 센다(검수 R9 결정 10-29).
+FALLBACK_ATTEMPTS = 2
+
+
+def _reserve_prices(params: Mapping[str, Any]) -> list[Price]:
+    """예약에 견줄 단가 — 고른 모델(긴 프롬프트 값까지), 서버 쪽 대체를 보내면 그 대체 대상도. 모르면 가장 비싼 값."""
+    model = str(params.get("model"))
+    names = [model]
+    if params.get("fallbacks"):
+        if model not in FALLBACK_TARGETS:
+            return [_PRICE_UNKNOWN]
+        names += FALLBACK_TARGETS[model]
+    if any(name not in PRICES for name in names):
+        return [_PRICE_UNKNOWN]
+    return [*(PRICES[name] for name in names), *(LONG_PROMPT_PRICES[name] for name in names if name in LONG_PROMPT_PRICES)]
 
 
 def worst_case_cost(params: Mapping[str, Any]) -> Decimal:
     """보내기 한 번의 최악 돈(달러) — 보내기 전에 하루 돈 줄에 예약한다(원장 R7-3).
 
-    = 입력 어림 × 입력 쪽 가장 비싼 단가(캐시 1시간 쓰기까지) + ``max_tokens`` 전부 × 가장 비싼 출력 단가. 입력 어림은 요청
-    칸 JSON 의 글자 수 + :data:`RESERVE_OVERHEAD_TOKENS` 다(한글 1자 ≈ 1토큰 — 설계서 11절 가정, 영문 · 칸 이름 · 기호는
-    그보다 적게 든다). 단가는 :data:`PRICES` 모든 모델 가운데 칸마다 가장 비싼 값이다(서버 쪽 대체 모델이 답할 수 있다).
+    = (입력 어림 × 입력 쪽 가장 비싼 단가(캐시 1시간 쓰기까지) + ``max_tokens`` 전부 × 가장 비싼 출력 단가) × 시도 수(서버
+    쪽 대체를 보내면 :data:`FALLBACK_ATTEMPTS` — 시도마다 따로 청구된다, 아니면 1). 입력 어림은 요청 칸 JSON 의 글자 수 +
+    :data:`RESERVE_OVERHEAD_TOKENS` 다(한글 1자 ≈ 1토큰 — 설계서 11절 가정, 영문 · 칸 이름 · 기호는 그보다 적게 든다).
+    단가는 고른 모델(Haiku 5.5 는 긴 프롬프트 값까지)이고, 서버 쪽 대체를 보낼 때만 :data:`FALLBACK_TARGETS`
+    단가와 견주어 칸마다 큰 쪽이다(Haiku 5.5 는 대체를 보내지 않으니 Haiku 단가만). 표에 없는 모델은 가장 비싼 값이다.
     응답이 오면 실제 값으로 바로잡으니 넉넉한 쪽이 맞다.
     """
+    prices = _reserve_prices(params)
     text = json.dumps(dict(params), ensure_ascii=False, default=str)
-    input_price = max(_PRICE_UNKNOWN.input, _PRICE_UNKNOWN.cache_write_5m, _PRICE_UNKNOWN.cache_write_1h)
-    micro = (len(text) + RESERVE_OVERHEAD_TOKENS) * input_price + int(params["max_tokens"]) * _PRICE_UNKNOWN.output
+    input_price = max(max(p.input, p.cache_write_5m, p.cache_write_1h) for p in prices)
+    output_price = max(p.output for p in prices)
+    attempts = FALLBACK_ATTEMPTS if params.get("fallbacks") else 1
+    micro = ((len(text) + RESERVE_OVERHEAD_TOKENS) * input_price + int(params["max_tokens"]) * output_price) * attempts
     return micro / _MILLION

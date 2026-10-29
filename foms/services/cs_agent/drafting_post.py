@@ -4,7 +4,8 @@
 플랜 C3-1 · C3-3 · 설계서 4절 8 · 원장 R7-1 · R7-2 · R7-5 · R7-11.
 
 - **저장만**: 초안 스위치가 ``store`` 이거나 운영 밖 시험 상담 허용 목록 밖이면 가린 초안만 기록한다(R1-4). 메모 바로
-  전에 스위치를 DB 에서 다시 읽는다 — 바퀴 도중 꺼지면(사람 · 막는 장치) 그 뒤 차례는 메모 없이 저장만 한다.
+  전에 초안 스위치와 비상 정지(감시 루프 바로 끄기)를 DB 에서 다시 읽는다 — 바퀴 도중(두뇌를 부르는 동안 포함) 꺼지면
+  (사람 · 막는 장치) 그 초안부터 메모 없이 저장만 한다(설계서 16.4 — 끈 동안 만들던 초안은 저장만 하고 보내지 않는다).
 - **메모**: '올리는 중'을 먼저 커밋 → 감싸개(루프의 읽기 도우미를 넘긴다 — 올린 뒤 다시 읽기도 TERM 을 본다, R7-11) → 결과를
   적는다. 감싸개를 부른 뒤로는 깃발과 상관없이 적는다(이미 일어난 일이다).
 
@@ -35,7 +36,7 @@ from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE, SEND_PRE
 from foms.services.cs_agent.report import desk_link, post_admin_notification
 from foms.services.cs_agent.turns import (
     DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, TurnStateError, draft_mode, mark_failed, mark_posted, mark_posting, mark_stored,
-    set_draft_mode,
+    read_switch, set_draft_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,10 +75,12 @@ def place(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
           warnings: Sequence[str]) -> Optional[str]:
     """검사를 마친 초안을 놓는다 — 메모 스위치 · 허용된 상담이면 메모, 아니면 저장만. 이번 바퀴를 멈출 까닭(없으면 ``None``).
 
-    ``ctx`` 는 초안 바퀴의 재료(세션 · 지금 · 깃발 · 감싸개 · 읽기 도우미 · 요약 · ``skip``)다. 메모 직전에 초안 스위치를
-    DB 에서 다시 읽는다 — 바퀴 도중 꺼졌으면(사람 · 막는 장치, R7-1) 그 뒤로는 메모를 쓰지 않고 저장만 한다.
+    ``ctx`` 는 초안 바퀴의 재료(세션 · 지금 · 깃발 · 감싸개 · 읽기 도우미 · 요약 · ``skip``)다. 메모 직전에 초안 스위치와
+    비상 정지를 DB 에서 다시 읽는다 — 바퀴 도중(두뇌를 부르는 동안 포함) 꺼졌으면(사람 · 막는 장치, R7-1 · 설계서 16.4)
+    메모를 쓰지 않고 저장만 한다. 허용 목록 밖 수(``not_allowed``)는 메모가 켜진 채 목록 밖이라 저장만 한 것만 센다.
     """
-    if ctx.mode == DRAFT_MEMO and draft_mode(ctx.session) == DRAFT_MEMO and memo_allowed(chat_id):
+    memo_on = ctx.mode == DRAFT_MEMO and draft_mode(ctx.session) == DRAFT_MEMO and read_switch(ctx.session)
+    if memo_on and memo_allowed(chat_id):
         return _post(ctx, row, chat_id, draft=draft, staff_note=staff_note, masked=masked, warnings=warnings)
     ctx.stop.check()  # 쓰기 전
     try:
@@ -87,7 +90,7 @@ def place(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
         return ctx.skip(row, SKIP_DRAFT_MASK_LEAK)
     ctx.session.commit()
     ctx.summary.stored += 1
-    ctx.summary.not_allowed += int(ctx.mode == DRAFT_MEMO)
+    ctx.summary.not_allowed += int(memo_on)
     return None
 
 

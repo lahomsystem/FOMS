@@ -78,7 +78,7 @@ def test_a_timeout_keeps_its_worst_case_reservation_and_is_never_resent(app, rea
     with pytest.raises(brain.BrainUnavailable) as excinfo:
         call(client, realtime=realtime)
     (reserved,) = client.reserved_at_send  # 한 번만 보냈고, 보내기 전에 최악값이 커밋돼 있었다
-    assert excinfo.value.code == "timeout" and reserved > Decimal("0.40")  # 출력 상한 16000 × $25/M 만으로도 0.40
+    assert excinfo.value.code == "timeout" and reserved > Decimal("0.80")  # 출력 상한 16000 × $25/M 를 두 번(대체 켬)만 세도 0.80
     assert (Decimal(spend()["usd"]), Decimal(spend()["reserved"]), spend()["calls"]) == (reserved, 0, 1)
     assert brain.spent_today(db_session, now=NOW) == reserved  # 서버가 생성했을 수 있으니 0 으로 세지 않는다
 
@@ -124,7 +124,7 @@ def test_a_reservation_that_would_pass_the_cap_is_never_sent(app, monkeypatch):
     put_spend({"date": TODAY, "usd": "0.05", "reserved": "0.20", "calls": 1})  # 다른 바퀴가 부르는 중
     assert brain.check_budget(db_session, cap=Decimal("0.6"), now=NOW) == Decimal("0.25")  # 예약 없이 보면 남는다
     client = FakeClient()
-    with pytest.raises(brain.SpendCapReached) as excinfo:  # 0.25 + 최악값(출력만 0.40) > 0.6 — 보내지 않는다
+    with pytest.raises(brain.SpendCapReached) as excinfo:  # 0.25 + 최악값(대체 켬 — 출력만 0.80) > 0.6 — 보내지 않는다
         call(client)
     assert excinfo.value.code == "daily_cap_reached" and client.calls == []
     assert spend() == {"date": TODAY, "usd": "0.05", "reserved": "0.20", "calls": 1}  # 되돌렸다 — 예약도 안 더함
@@ -142,11 +142,19 @@ def test_check_budget_counts_reservations_and_a_broken_reservation_refuses(app):
     assert excinfo.value.code == "spend_record_invalid"
 
 
-def test_worst_case_is_max_tokens_at_the_top_output_price_plus_the_input_estimate():
+@pytest.mark.parametrize("fallbacks,input_price,output_price,attempts", [
+    (None, "8", "20", 1),  # 고른 모델(Opus 5.5) 단가만 — 1시간 캐시 쓰기 $8, 출력 $20
+    ("default", "10", "25", 2),  # 대체를 보내면 대체 대상(Opus 5 · 4.8)과 견주어 큰 쪽 — $10 · $25, 입력 · 출력 두 번
+])
+def test_worst_case_is_max_tokens_at_the_top_output_price_plus_the_input_estimate(fallbacks, input_price,
+                                                                                  output_price, attempts):
     params = {"model": brain.MODEL, "max_tokens": 16000, "messages": [{"role": "user", "content": "가" * 3000}]}
+    if fallbacks:
+        params["fallbacks"] = fallbacks
     tokens = len(json.dumps(params, ensure_ascii=False)) + bp.RESERVE_OVERHEAD_TOKENS
-    expected = (Decimal(tokens) * Decimal("10") + Decimal(16000) * Decimal("25")) / 10**6
-    assert bp.worst_case_cost(params) == expected  # 입력은 가장 비싼 입력 쪽 값(1시간 캐시 쓰기 $10), 출력은 $25
+    expected = (Decimal(tokens) * Decimal(input_price) + Decimal(16000) * Decimal(output_price)) * attempts / 10**6
+    assert bp.worst_case_cost(params) == expected  # 입력은 입력 쪽 가장 비싼 값(1시간 캐시 쓰기), 출력은 출력 값
+    assert bp.FALLBACK_ATTEMPTS == 2  # 시도마다 따로 청구된다 — 거절한 시도의 입력 · 출력도(거절과 대체 문서 10-29)
 
 
 # ── R7-4 준비 확인 · 401 · 403 ───────────────────────────────────────────

@@ -51,7 +51,7 @@ from foms.services.cs_agent.state_store import (
     ingest_inbound,
 )
 from foms.services.cs_agent.drafting import DraftSummary, run_drafting
-from foms.services.cs_agent.turns import DRAFT_OFF, draft_mode
+from foms.services.cs_agent.turns import DRAFT_OFF, SWITCH_OFF, SWITCH_ON, draft_mode, read_switch
 from foms.services.datetime_kst import now_kst
 from models import CsAgentChat, SystemSetting
 
@@ -62,7 +62,6 @@ UTC = datetime.timezone.utc
 #: 바로 끄기 SystemSetting 키(관리자가 쓴다 — ``run_cs_loop.py --switch off``). 값 ``{"loop": "on" | "off"}``.
 #: 뒤 단계의 스위치(메모 · 브랜드 · 의도)도 이 한 줄에 칸으로 더한다(설계서 6절 '키 하나').
 SWITCH_KEY = "cs_agent_switch"
-SWITCH_ON, SWITCH_OFF = "on", "off"
 LEADER_LOCK_KEY = "foms:cs_agent_loop"
 
 BRANDS: tuple[str, ...] = ("LAHOM", "HAUD")
@@ -82,24 +81,8 @@ CHECK_RATE_LIMITED, CHECK_ERROR = "rate_limited", "error"
 
 
 # ── 바로 끄기 ────────────────────────────────────────────────────────────
-def read_switch(session: Any) -> bool:
-    """바퀴를 돌려도 되면 True — 줄이 없거나 ``{"loop": "on"}`` 이면 돈다.
-
-    줄은 있는데 값이 비었거나(NULL) 꼴이 틀린 값(``{"loop": "of"}`` · 글자 하나 등)은 끈 것으로 본다 — 끄려고 손댄
-    값이 오타로 켜진 채 남으면 안 된다(원장 R5-8).
-    """
-    row = session.get(SystemSetting, SWITCH_KEY, populate_existing=True)
-    if row is None:
-        return True
-    value = row.setting_value
-    loop_value = value.get("loop", SWITCH_ON) if isinstance(value, dict) else None
-    if loop_value == SWITCH_ON:
-        return True
-    if loop_value != SWITCH_OFF:
-        logger.warning("[CS 감시] 바로 끄기 값의 꼴이 틀려 끈 것으로 본다 key=%s", SWITCH_KEY)
-    return False
-
-
+# 읽기(:func:`read_switch` — 줄이 없거나 ``{"loop": "on"}`` 이면 돈다, 꼴이 틀리면 끈 것)는 :mod:`.turns` 에 있다 — 초안 바퀴도
+# 두뇌를 부르기 전마다 같은 함수로 다시 읽는다(초안 바퀴가 이 모듈을 import 하지 않게).
 def set_switch(session: Any, *, on: bool, now: Optional[datetime.datetime] = None) -> dict:
     """바로 끄기 값을 쓰고 커밋한다(관리자 스크립트 한 줄). 다른 칸은 그대로 둔다.
 

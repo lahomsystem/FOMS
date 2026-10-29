@@ -553,3 +553,100 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
   }
 }
 
+
+/* ── AI 상담팀원 관리 패널(/admin/cs-agent — templates/admin/cs_agent.html, 설계서 16.1 단계 1) ──
+   맨 위 빨간 비상 정지 단추 · 멈춤 표시 · 탭 안 카드와 설정 칸 묶음. 색은 Bootstrap 의 danger 와 같은 값을 토큰 뒤에 둔다. */
+.cs-agent-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.cs-agent-stop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cs-agent-stop-btn {
+  min-width: 9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cs-agent-stopped {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  background: var(--foms-status-danger, #dc3545);
+  color: #fff;
+  font-weight: 700;
+}
+
+.cs-agent-message {
+  margin: 0.75rem 0 0;
+}
+
+.cs-agent-tabs > .tab-pane {
+  padding-top: 0.25rem;
+}
+
+.cs-agent-card--alert {
+  border-color: var(--foms-status-danger, #dc3545);
+  box-shadow: inset 4px 0 0 0 var(--foms-status-danger, #dc3545);
+}
+
+.cs-agent-list {
+  padding-left: 1.1rem;
+}
+
+.cs-agent-list li + li {
+  margin-top: 0.25rem;
+}
+
+.cs-agent-cap {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--foms-border-default, #dee2e6);
+  border-radius: 0.5rem;
+  background: var(--foms-surface-raised, #f8f9fa);
+}
+
+.cs-agent-fieldset {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--foms-border-subtle, #e9ecef);
+  border-radius: 0.5rem;
+}
+
+.cs-agent-fieldset > legend {
+  float: none;
+  width: auto;
+  margin-bottom: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+.cs-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.cs-agent-figure {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cs-agent-table td,
+.cs-agent-table th {
+  font-size: 0.875rem;
+}
+
+/* 다음 단계 칸(잠김) — 값만 보인다. 칸은 Bootstrap disabled 모양, 이름 · 설명은 흐리게. */
+.cs-agent-locked .form-label,
+.cs-agent-locked .form-text {
+  color: var(--foms-text-tertiary, #6c757d);
+}
