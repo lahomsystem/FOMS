@@ -66,9 +66,11 @@ def channel(app, keys, monkeypatch):
     return FakeChannel()
 
 
-def customer(channel, chat="uc-1", *, text=None, extra=None, medium="native", channel_id=LAHOM_CHANNEL, more=()):
+def customer(channel, chat="uc-1", *, text=None, extra=None, medium="native", channel_id=LAHOM_CHANNEL, more=(),
+             when=None):
     """손님 글 하나로 '답 필요'인 상담 — 상태 표(파생 칸)와 가짜 채널톡(원문)에 같은 글. ``more`` = (id, 시각, 사람, 글, 칸)."""
-    first = (f"m-{chat}", at(2, 8, 50), "user", f"{CUSTOMER} 선반 깊이 문의드려요" if text is None else text, extra or {})
+    first = (f"m-{chat}", when or at(2, 8, 50), "user", f"{CUSTOMER} 선반 깊이 문의드려요" if text is None else text,
+             extra or {})
     rows = [first, *more]
     ss.store_messages(db_session, [derived(m, w, p, t, chat=chat, channel=channel_id, **x) for m, w, p, t, x in rows],
                       source="openapi")
@@ -267,6 +269,19 @@ def test_a_human_reply_is_not_selected_or_skips_the_turn(channel):
     assert [r.chat_id for r in brain_fn.requests] == ["uc-3"] and not poster.calls
 
 
+def test_a_last_customer_message_over_one_business_day_old_is_counted_and_not_picked(channel):
+    customer(channel, "uc-1")  # 월요일 08:50 — 화요일 10:00 이면 운영 시간 610분(하루 540분 넘음)
+    customer(channel, "uc-2", when=at(3, 9, 30))  # 화요일 09:30 — 30분
+    summary = run(channel, brain_fn=FakeBrain(), now=at(3, 10))
+    assert (summary.candidates, summary.too_old, turn("uc-1"), turn("uc-2").state) == (1, 1, None, "stored")
+
+
+def test_a_friday_evening_message_is_still_fresh_on_monday_morning(channel):
+    customer(channel, when=at(6, 20))  # 금요일 20:00(운영 시간 밖) — 월요일 09:00 까지 운영 시간 60분, 주말은 세지 않는다
+    summary = run(channel, now=at(9, 9))
+    assert (summary.candidates, summary.too_old, turn().state) == (1, 0, "stored")
+
+
 def test_check_problems_are_recorded_and_never_posted(channel):
     customer(channel, "uc-1", text=f"{CUSTOMER} 예산은 9,876원이에요")
     customer(channel, "uc-2")
@@ -324,7 +339,7 @@ def test_spend_cap_stops_the_day_and_a_later_day_resumes(channel, code):
     assert (first.halted, outcome("uc-1"), turn("uc-2")) == ({"spend_cap": 1}, [("failed", code)], None)
     same_day = run(channel, brain_fn=FakeBrain(max_calls=0), now=at(2, 23, 50))  # 그날은 선점도 두뇌도 없다
     assert (same_day.halted, same_day.claimed, turn("uc-2")) == ({"spend_cap": 1}, 0, None)
-    next_day = run(channel, now=at(3, 9))  # 돈 상한은 차례 탓이 아니라 시도를 세지 않았다(R7-4)
+    next_day = run(channel, now=at(3, 8, 30))  # 돈 상한은 차례 탓이 아니라 시도를 세지 않았다(R7-4) · 아직 운영일 하루 안
     assert (next_day.stored, turn("uc-1").attempts, turn("uc-2").state) == (2, 1, "stored")
 
 
