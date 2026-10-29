@@ -80,6 +80,7 @@ REASONS: dict[str, str] = {
     "date_promise": "날짜 확답",
     "contact_time_promise": "연락 시간 약속",
     "internal_words": "내부 말 노출",
+    "ai_mention": "AI 표시 · 자기소개(직원이 보내는 글)",
     "mask_marker": "가림 표시가 답에 섞임",
     "link_not_allowed": "허용 목록 밖 링크",
     "number_not_allowed": "계산기 · 확정 값에 없는 숫자 · 금액",

@@ -183,6 +183,17 @@ def test_roundabout_refund_date_contact_internal_are_blocked(code, bad):
     assert code in run(bad, allowed_numbers=[3, 11]).codes
 
 
+# 사장님 D15 · 10-29 — 직원이 보내는 글이라 AI 자기소개 · 표시는 막는다(영어 낱말 속 AI 는 아니다)
+@pytest.mark.parametrize("bad", ["안녕하세요 고객님, 라홈 AI 상담사입니다", "챗봇이 안내해 드렸습니다",
+                                 "자동 응답으로 안내드립니다", "인공지능이 답변드립니다", "AI가 확인해 보겠습니다"])
+def test_ai_self_mention_is_blocked(bad):
+    assert "ai_mention" in run(bad).codes
+
+
+def test_english_words_with_ai_inside_are_not_ai_mentions():
+    assert "ai_mention" not in run("AIR 매트리스 문의 감사합니다").codes
+
+
 # R6-3 — 문장 안 다른 말의 부정 · 묻는 끝은 약속을 지우지 않는다(AI 가 먼저 묻는 것도 제안이다)
 NEGATION_ELSEWHERE = [
     ("discount_promise", "할인해 드리고 추가금 없어요"), ("refund_promise", "환불 가능하고 수수료 없습니다"),

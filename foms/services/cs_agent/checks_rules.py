@@ -151,6 +151,9 @@ _INTERNAL = re.compile(
     r"|\[FOMS|(?<![a-z])foms(?![a-z])|프롬프트|(?<![a-z])prompt(?![a-z])|근거\s?id|넘김\s?(?:여부|:)|의도\s?:",
     re.I,
 )
+#: AI 표시 · 자기소개('AI 상담사입니다' · 챗봇 · 자동 응답) — 직원이 자기 이름으로 보내는 글이다(사장님 D15, 10-29 다시 지시).
+#: 'AI' 는 대문자 낱말만(AIR 같은 영어 낱말 속은 아니다).
+_AI_SELF = re.compile(r"(?<![A-Za-z])AI(?![A-Za-z])|인공\s?지능|챗봇|상담\s?봇|자동\s?(?:응답|답변)")
 #: 괄호 안 짧은 말 — 안에 가림 · 빈칸 낱말이 있으면 가림 표시다(띄어 써도 — '[ 이 름 ]', R6-8).
 _BRACKETED = re.compile(r"[\[{<【〔]([^\[\]{}<>【】〔〕\n]{1,24})[\]}>】〕]")
 #: 가림 · 빈칸 낱말(시범: 이름 · 전화 · 주소 · 예금주 · 직원이름) + 단지 · 동호 · 링크 · 금액 · '고객명' 같은 'OO명' · 영문 name 등.
@@ -256,13 +259,14 @@ def mask_marker_count(body: str) -> int:
 
 
 def pattern_codes(body: str, brand: str, confirmed: Confirmed) -> list[str]:
-    """금지 꼴 — 다른 브랜드 · 할인 · 환불 · 날짜 확답 · 연락 시각 약속 · 내부 말 · 가림 표시."""
+    """금지 꼴 — 다른 브랜드 · 할인 · 환불 · 날짜 확답 · 연락 시각 약속 · 내부 말 · AI 표시 · 가림 표시."""
     codes = ["other_brand"] * other_brand_count(body, brand)
     codes += ["discount_promise"] * _promise_count((_DISCOUNT, _DISCOUNT_MONEY), body)
     codes += ["refund_promise"] * _promise_count((_REFUND, _REFUND_MONEY), body)
     codes += ["date_promise"] * _date_promise_count(body, confirmed)
     codes += ["contact_time_promise"] * _contact_promise_count(body)
     codes += ["internal_words"] * len(_INTERNAL.findall(body))
+    codes += ["ai_mention"] * len(_AI_SELF.findall(body))
     return codes + ["mask_marker"] * mask_marker_count(body)
 
 
