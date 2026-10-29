@@ -7,7 +7,8 @@ import 하느라 새 rq 의 ``*** Listening on`` 이 p50 20초 · p90 35초 뒤�
 
 여기서 지키는 것:
 
-* 루프 5종은 ``deferred`` — rq 가 준비 표식 파일을 만들거나 최대 N초가 지나야 켜진다.
+* 루프는 모두 ``deferred`` — rq 가 준비 표식 파일을 만들거나 최대 N초가 지나야 켜진다. 지금 7종이고, 2026-10-28
+  CS 감시 루프 ``cs_loop`` 를 자식 하나로 더했다(원장 R1-18 — 자식이 늘면 배포 공백이 커지니 rq 뒤로 미룬다).
 * 문은 한 번 열리면 닫히지 않는다(운행 중 rq 재시작이 루프를 붙잡지 않는다).
 * N=0 이면 예전처럼 모두 같은 tick 에 켜진다(되돌리기 스위치 — 음성 대조군).
 * rq 러너는 ``bootstrap()`` 이 끝난 직후에 표식을 만들고, 듣기 전에 잡 모듈을 미리 연다.
@@ -100,8 +101,9 @@ def _supervisor(mod, h, defer):
 # --- 배선 ---------------------------------------------------------------------------------
 def test_every_loop_is_deferred_and_the_queue_consumer_is_not() -> None:
     listed = jobs(all_enabled=True)
-    assert len(listed) == 7, [j.name for j in listed]
+    assert len(listed) == 8, [j.name for j in listed]
     assert [j.name for j in listed if not j.deferred] == ["rq_worker"]
+    assert "cs_loop" in [j.name for j in listed if j.deferred]  # 새 자식도 rq 뒤에 켜진다(R1-18)
     assert load_supervisor().Job("x", ("python", "x.py")).deferred is False  # 음성 대조: 기본은 안 미룸
 
 
