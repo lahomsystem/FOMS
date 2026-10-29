@@ -114,7 +114,7 @@
           </span>
           {%- else -%}-{%- endif -%}
         </td>
-        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}{{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment|default(false, true)) }}</td>
+        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}{% if r.partner_request_text is defined and r.partner_request_text %}<div class="small text-primary" data-shipment-partner-request>협력사 희망 · 확정 대기</div>{% endif %}{{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment|default(false, true)) }}</td>
         <td>{{ r.orderer_name or '-' }}</td>
         <td class="foms-tablet-shipgrid__product">
           {%- if _is_as %}{{ r.as_content_text or 'AS' }}

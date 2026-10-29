@@ -152,6 +152,17 @@ def pending_request_rows(query, dates: list[str]) -> list[tuple[int, str, Any]]:
     return [(int(order_id), str(day), sd) for order_id, day, sd in rows if day]
 
 
+def pending_request_orders(query, dates: list[str]) -> list[tuple[Any, str]]:
+    """확정 대기 희망 시공 (주문, 희망일) — 출고 화면이 그날 목록 · 자수에 넣을 때 쓴다(사용자 결정 2026-10-29).
+
+    시공일 없는 협력사 주문이라 몇 건뿐이다 — 담당 거르기 · 품목 자수에 structured_data 가 필요해 주문째 읽는다.
+    """
+    if not dates:
+        return []
+    rows = query.filter(partner_request_on(dates)).add_columns(_REQUEST_DATE_EXPR).all()
+    return [(order, str(day)) for order, day in rows if day]
+
+
 def pending_request_texts(db, order_ids: set[int]) -> dict[int, str]:
     """주문 번호별 확정 대기 희망 시공일 한 줄('2026-10-30 오후'). 대상이 아니면 빠진다."""
     if not order_ids:
