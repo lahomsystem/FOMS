@@ -16,7 +16,7 @@ import foms.services.orders.dashboard_control_tower as tower
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.orders import create_partner_order
 from foms.services.partners.schedule_request import pending_request_counts
-from foms.web.shipment.dashboard import _partner_pending_counts
+from foms.web.shipment.dashboard import _partner_pending_orders
 from models import Order, PartnerOrg, User
 
 _DAY = "2031-03-04"
@@ -48,7 +48,7 @@ def test_partner_request_counts_on_pg(pg_session: Session) -> None:
 
     only_this = pg_session.query(Order).filter(Order.id == order.id)
     assert pending_request_counts(only_this, [_DAY, "2031-03-05"]) == {_DAY: 1}
-    assert _partner_pending_counts(pg_session, only_this, [_DAY], None, False) == {_DAY: 1}
+    assert [(o.id, d) for o, d in _partner_pending_orders(only_this, [_DAY], None, False)] == [(order.id, _DAY)]
 
     month = tower.build_month_calendar(pg_session, None, "2031-03", today=_TODAY)
     assert _cell(month, _DAY)["construction"] >= 1

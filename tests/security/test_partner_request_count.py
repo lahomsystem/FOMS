@@ -2,7 +2,7 @@
 
 협력사는 주문 · 실측까지만 하고 도면 · 제작 · 시공 · AS 는 우리가 한다. 그래서 확정 전 희망일도 우리 모바일 홈
 달력 · 그날 목록 · 협력사 달력 · 출고 14일 칸의 시공 건수에 넣고, 시공일이 정해지면 그 날짜로 옮겨 한 번만 센다.
-출고가도 그날 금액에 싣는다(사용자 결정 2026-10-29). 대조군: 희망일 없는 협력사 주문, 시공일 확정 뒤.
+출고가도 그날 금액에 싣고, 출고 화면 그날 목록 · 자수에도 넣는다(사용자 결정 2026-10-29). 대조군: 희망일 없는 협력사 주문, 시공일 확정 뒤.
 """
 from __future__ import annotations
 
@@ -100,8 +100,33 @@ def test_shipment_panel_counts_request(app, world):
     asked = _order(app, world["partner_a"], day)
     admin = _client(app, db_session.get(User, world["admin"]))
     page = admin.get("/erp/shipment").get_data(as_text=True)
-    assert _panel_count(page, day) == 1 and "날짜별 시공 건수에 들어가 있습니다" in page
+    assert _panel_count(page, day) == 1 and "날짜별 시공 건수 · 자수 · 그날 목록에 들어가 있습니다" in page
     staff = _client(app, db_session.get(User, world["staff"]))
     assert _panel_count(staff.get("/erp/shipment?mine=1").get_data(as_text=True), day) == 0
     _confirm(asked, day)
     assert _panel_count(admin.get("/erp/shipment").get_data(as_text=True), day) == 1
+
+
+def test_shipment_day_list_and_units_include_request(app, world):
+    day = (get_today_kst() + datetime.timedelta(days=4)).isoformat()
+    asked = _order(app, world["partner_a"], day)
+    _order(app, world["partner_b"], name="희망없음")  # 대조군: 희망일 없는 협력사 주문
+    order = db_session.get(Order, asked)
+    sd = dict(order.structured_data)
+    sd["items"] = [{"product_name": "붙박이장", "spec_width": "3000"}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    admin = _client(app, db_session.get(User, world["admin"]))
+    page = admin.get(f"/erp/shipment?date={day}").get_data(as_text=True)
+    assert f'id="shipment-row-{asked}"' in page and "data-shipment-partner-request" in page
+    assert "희망없음" not in page
+    used = re.search(rf'href="[^"]*#date-{day}">\s*<span class="foms-ship-cap-card__top">.*?foms-ship-cap-card__val">([\d.]+)/', page, re.S)
+    assert used and float(used.group(1)) == 10.0
+    other_day = (get_today_kst() + datetime.timedelta(days=5)).isoformat()
+    assert f'id="shipment-row-{asked}"' not in admin.get(f"/erp/shipment?date={other_day}").get_data(as_text=True)
+    staff = _client(app, db_session.get(User, world["staff"]))
+    assert f'id="shipment-row-{asked}"' not in staff.get(f"/erp/shipment?date={day}&mine=1").get_data(as_text=True)
+    _confirm(asked, day)  # 확정 뒤에는 우리 시공 일정 행으로 한 번만 — 확정 대기 표시는 빠진다
+    page = admin.get(f"/erp/shipment?date={day}").get_data(as_text=True)
+    assert page.count(f'id="shipment-row-{asked}"') == 1 and "data-shipment-partner-request" not in page
