@@ -11,7 +11,8 @@ import inspect
 from pathlib import Path
 
 import foms.services.channel_dispatch as dispatch_mod
-from foms.api.channel.channel_integration import api_channel_push_manual
+# 라우트 몸통은 ERP · 협력사 API 가 같이 쓰는 run_manual_push 로 옮겼다(2026-10-29).
+from foms.api.channel.channel_integration import run_manual_push as api_channel_push_manual
 from foms.web.auth.routes import _AUDITED_USER_FIELDS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
