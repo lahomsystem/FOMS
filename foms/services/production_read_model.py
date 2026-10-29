@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query
 
 from models import Order, ProductionRun
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.common.dashboard_cache import KEY_VERSION as DASHBOARD_CACHE_KEY_VERSION
 from foms.services.common.dashboard_cache import build_dashboard_cache_key
 from foms.services.drawing_confirm_cleanup import (
@@ -61,6 +62,7 @@ def build_production_orders_query(
     f_stage: str,
     f_q: str,
     erp_mine_only: bool,
+    partner_org: str = '',
 ) -> Query:
     """필터를 적용한 생산 대시보드용 ERP Order 쿼리(정렬 전).
 
@@ -71,6 +73,8 @@ def build_production_orders_query(
     한글 값(고객컨펌/생산/시공)은 운영에 없으나 sync가 원문 복사라 미래 방어로 유지(비용 0).
     """
     _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
+    if partner_org:
+        _q = _q.filter(partner_order_clause(partner_org))
     _q = _q.filter(Order.erp_stage_code.in_(list(PRODUCTION_BASE_STAGE_CODES)))
 
     if f_stage:
@@ -315,7 +319,7 @@ def apply_production_dashboard_sort(_q: Query, sort: str, sort_dir: str) -> Quer
     )
 
 
-def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_only: bool) -> str:
+def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_only: bool, partner_org: str = '') -> str:
     """숫자판 조각(``production/summary_counts``) 캐시 키 — 렌더와 렌더 전 304 키가 같은 키를 읽는다."""
     fingerprint = {
         "v": DASHBOARD_CACHE_KEY_VERSION,
@@ -325,6 +329,8 @@ def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_onl
         "stage": f_stage or "",
         "q": f_q or "",
     }
+    if partner_org:
+        fingerprint["partner_org"] = partner_org
     return build_dashboard_cache_key("production", "summary_counts", fingerprint)
 
 

@@ -9,6 +9,7 @@ from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.datetime_kst import format_datetime_kst, parse_datetime_utc
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -644,6 +645,7 @@ def erp_drawing_workbench_dashboard():
     status_filter = (request.args.get('status') or '').strip().upper()
     # ERP 공통: mine은 URL 쿼리 + erp_mine_only 쿠키 SSOT (foms.services.common.erp_mine_filter)
     mine_only = erp_mine_only_from_request(request)
+    partner_org = partner_filter_value(request)
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
     # 프로세스 맵 '지연' 타일 전용 필터(due_today 와 별개 축 — 시공일 경과 미전달).
@@ -678,7 +680,7 @@ def erp_drawing_workbench_dashboard():
 
     orders_query = (
         db.query(Order)
-        .filter(Order.active_filter(), Order.is_erp_order.is_(True))
+        .filter(Order.active_filter(), Order.is_erp_order.is_(True), partner_order_clause(partner_org))
     )
     if mine_only:
         mine_clause = mine_membership_clause(build_mine_sql_filter(current_user, scope=mine_scope))
@@ -698,6 +700,7 @@ def erp_drawing_workbench_dashboard():
         "role": getattr(current_user, "role", None) if current_user else None,
         "team": getattr(current_user, "team", None) if current_user else None,
         "mine": bool(mine_only),
+        "partner_org": partner_org,
         "confirmed": bool(include_confirmed),
     }
     _seed_key = build_dashboard_cache_key("drawing", "workbench_queue_ids", _seed_fp)
@@ -729,7 +732,8 @@ def erp_drawing_workbench_dashboard():
     if focus_order_id and focus_order_id not in {o.id for o in orders}:
         focus_order = (
             db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True),
+                    partner_order_clause(partner_org))
             .first()
         )
         if focus_order is not None and (

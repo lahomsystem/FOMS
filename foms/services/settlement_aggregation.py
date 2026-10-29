@@ -20,6 +20,7 @@
 """
 
 from __future__ import annotations
+from foms.services.common.partner_order_filter import partner_order_clause
 
 import calendar
 import datetime
@@ -600,7 +601,7 @@ def _rows_in_span(rows: list[dict], start: datetime.date, end: datetime.date) ->
 # ---------------------------------------------------------------------------
 
 
-def _erp_scope_filters() -> tuple:
+def _erp_scope_filters(partner_org: str = '') -> tuple:
     """예상 매출 모집단 — 진행 단계와 무관한 살아 있는 ERP 주문 전부.
 
     ``Order.dashboard_active_filter()`` 를 쓰지 않는다 — 완료 60일 경과분을 잘라
@@ -609,13 +610,13 @@ def _erp_scope_filters() -> tuple:
     return (
         Order.active_filter(),
         Order.is_erp_order.is_(True),
-    )
+    ) + ((partner_order_clause(partner_org),) if partner_org else ())
 
 
-def _population_filters() -> tuple:
+def _population_filters(partner_org: str = '') -> tuple:
     """주 모집단 3조건 — 완료 대시보드 ``_completion_base_query`` 와 정확히 동일."""
     return (
-        *_erp_scope_filters(),
+        *_erp_scope_filters(partner_org),
         Order.status.in_(ORDER_SETTLEMENT_ALERT_TARGET_STATUSES),
     )
 
@@ -625,7 +626,7 @@ def _is_settlement_row(row: dict) -> bool:
     return row["status"] in ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 
 
-def _channel_map(db: Any) -> dict[int, str]:
+def _channel_map(db: Any, partner_org: str = '') -> dict[int, str]:
     """모집단 주문의 외부 판매채널 코드 맵(단일 배치 쿼리, N+1 없음).
 
     한 주문에 링크가 여럿 붙을 수 있어(ADDON/REPAY 는 기존 주문에 붙는다) 주 쿼리에
@@ -641,7 +642,7 @@ def _channel_map(db: Any) -> dict[int, str]:
     rows = (
         db.query(ExternalOrderLink.order_id, ExternalOrderLink.channel)
         .join(Order, ExternalOrderLink.order_id == Order.id)
-        .filter(*_erp_scope_filters())
+        .filter(*_erp_scope_filters(partner_org))
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
@@ -653,7 +654,7 @@ def _channel_map(db: Any) -> dict[int, str]:
     return mapping
 
 
-def _load_rows(db: Any) -> list[dict]:
+def _load_rows(db: Any, partner_org: str = '') -> list[dict]:
     """살아 있는 ERP 주문 전량을 파생 행 리스트로 읽는다(날짜·상태 술어 없음).
 
     예상 매출은 진행 단계와 무관하게 시공일이 있는 주문 전부라 status 로 거르지 않고
@@ -670,11 +671,11 @@ def _load_rows(db: Any) -> list[dict]:
     Returns:
         ``_settlement_row`` 파생 dict 리스트.
     """
-    channels = _channel_map(db)
+    channels = _channel_map(db, partner_org)
     orders = fetch_settlement_rows(
         db,
         (Order.id, Order.status, Order.manager_name, Order.as_axis_status),
-        _erp_scope_filters(),
+        _erp_scope_filters(partner_org),
     )
     return [
         _settlement_row(order, channels.get(int(order.id), _DEFAULT_CHANNEL))
@@ -1186,7 +1187,7 @@ def _stage_sort_index(code: str) -> tuple[int, str]:
     return (order.index(code), "") if code in order else (len(order), code)
 
 
-def _build_stages(db: Any) -> list[dict]:
+def _build_stages(db: Any, partner_org: str = '') -> list[dict]:
     """단계별 물린 금액(현재 시점 스냅샷 — 기간 스코프 밖, SPEC §4.4 별도 모집단).
 
     완료 계열(COMPLETED/AS_COMPLETED)을 뺀 진행 중 ERP 주문을 stage code 로 묶는다.
@@ -1207,6 +1208,7 @@ def _build_stages(db: Any) -> list[dict]:
             Order.is_erp_order.is_(True),
             Order.erp_stage_code.isnot(None),
             ~Order.erp_stage_code.in_(_COMPLETED_STAGE_CODES),
+            *((partner_order_clause(partner_org),) if partner_org else ()),
         ),
     )
     stats: dict[str, dict] = {}
@@ -1255,6 +1257,7 @@ def aggregate_settlement(
     granularity: str = "month",
     date_from: str | None = None,
     date_to: str | None = None,
+    partner_org: str = '',
 ) -> dict:
     """정산 대시보드 집계 — 완료 대시보드 200건 캡과 무관한 전량 집계.
 
@@ -1285,7 +1288,7 @@ def aggregate_settlement(
     period = _resolve_period(month_from, month_to, date_from, date_to)
     start, end = period["start"], period["end"]
     prev_start, prev_end = period["prev_start"], period["prev_end"]
-    erp_rows = _load_rows(db)
+    erp_rows = _load_rows(db, partner_org)
     all_rows = [row for row in erp_rows if _is_settlement_row(row)]
     in_period = _rows_in_span(all_rows, start, end)
     prev_period = _rows_in_span(all_rows, prev_start, prev_end)
@@ -1312,7 +1315,7 @@ def aggregate_settlement(
         "managers": managers,
         "managers_total": managers_total,
         "settlement_status": _build_settlement_status(in_period),
-        "stages": _build_stages(db),
+        "stages": _build_stages(db, partner_org),
         "unknown_completion": _build_unknown_completion(all_rows),
         "forecast": _build_forecast(
             expected, in_period,

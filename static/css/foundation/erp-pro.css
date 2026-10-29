@@ -655,3 +655,27 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
 .layout-header #global-partner-filter-btn + .dropdown-menu {
   z-index: 1050;
 }
+
+.erp-mobile-shell-header__title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.erp-mobile-shell-header__title-row > .erp-mobile-shell-header__title {
+  flex: 1;
+  min-width: 0;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header__partner {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
+  color: var(--foms-interactive-primary, #0d6efd);
+}
+.offcanvas.foms-partner-filter-sheet {
+  height: auto;
+  max-height: 70dvh;
+}
+.foms-partner-filter-sheet .list-group-item {
+  min-height: 44px;
+}

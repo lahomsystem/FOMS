@@ -11,6 +11,7 @@ from sqlalchemy import or_, and_, inspect
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm.attributes import set_committed_value
 from foms.services.common.business_calendar import get_holidays_kr
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
@@ -376,7 +377,8 @@ def erp_shipment_dashboard():
     selected_date = _sf.selected_date
     user_locked_calendar_date = _sf.user_locked_calendar_date
 
-    base_query = db.query(Order).filter(Order.active_filter())
+    partner_org = partner_filter_value(request)
+    base_query = db.query(Order).filter(Order.active_filter(), partner_order_clause(partner_org))
     base_query = _erp_order_search_filter(base_query, search_q)
 
     scoped_for_search = base_query.filter(_shipment_dashboard_order_scope())
@@ -448,6 +450,7 @@ def erp_shipment_dashboard():
 
     _agg_fp = {
         "v": 2,
+        "partner_org": partner_org,
         "user": _shipment_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -528,6 +531,7 @@ def erp_shipment_dashboard():
     _worker_settings_fp = hashlib.sha256(_ws_canon.encode("utf-8")).hexdigest()[:20]
     _derived_fp = {
         "v": 1,
+        "partner_org": partner_org,
         "user": _shipment_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,

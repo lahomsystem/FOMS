@@ -29,6 +29,7 @@ SSOT(파이썬)에서 나오기 때문이다. 대신 행마다 싣는 문서를 
 """
 
 from __future__ import annotations
+from foms.services.common.partner_order_filter import partner_order_clause
 
 import datetime
 import math
@@ -95,7 +96,7 @@ _AGING_CODES: tuple[str, ...] = tuple(code for code, _ in AGING_BUCKETS)
 _AGING_LABELS: dict[str, str] = dict(AGING_BUCKETS)
 
 
-def _population_filters() -> tuple:
+def _population_filters(partner_org: str = '') -> tuple:
     """모집단 3조건 — 집계 커널·완료 대시보드와 **정확히 동일**해야 한다.
 
     Returns:
@@ -105,10 +106,10 @@ def _population_filters() -> tuple:
         Order.active_filter(),
         Order.is_erp_order.is_(True),
         Order.status.in_(ORDER_SETTLEMENT_ALERT_TARGET_STATUSES),
-    )
+    ) + ((partner_order_clause(partner_org),) if partner_org else ())
 
 
-def _channel_map(db: Any) -> dict[int, str]:
+def _channel_map(db: Any, partner_org: str = '') -> dict[int, str]:
     """주문별 외부 판매채널 코드(배치 1회, N+1 없음).
 
     주 쿼리에 조인하지 않는다 — 한 주문에 링크가 여럿(ADDON/REPAY) 붙으면 조인이 행을
@@ -123,7 +124,7 @@ def _channel_map(db: Any) -> dict[int, str]:
     rows = (
         db.query(ExternalOrderLink.order_id, ExternalOrderLink.channel)
         .join(Order, ExternalOrderLink.order_id == Order.id)
-        .filter(*_population_filters())
+        .filter(*_population_filters(partner_org))
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
@@ -370,6 +371,7 @@ def _load_rows(
     today: datetime.date,
     *,
     include_naver_settlement: bool = False,
+    partner_org: str = '',
 ) -> list[dict]:
     """모집단 전량을 화면 행으로 읽는다(날짜 술어 없음, 캡 없음).
 
@@ -384,9 +386,9 @@ def _load_rows(
     Returns:
         행 dict 리스트.
     """
-    channels = _channel_map(db)
+    channels = _channel_map(db, partner_org)
     orders = fetch_settlement_rows(
-        db, (Order.id, Order.status, Order.customer_name), _population_filters())
+        db, (Order.id, Order.status, Order.customer_name), _population_filters(partner_org))
     settle_map: dict[int, dict] = {}
     if include_naver_settlement:
         settle_map = _naver_settle_map(db, [int(order.id) for order in orders])
@@ -533,6 +535,7 @@ def list_settlement_rows(
     include_naver_settlement: bool = False,
     date_from: str | None = None,
     date_to: str | None = None,
+    partner_org: str = '',
 ) -> dict:
     """정산 실무 탭의 주문 행 목록(필터·정렬·페이지네이션 적용).
 
@@ -576,7 +579,7 @@ def list_settlement_rows(
         span = (start.isoformat(), end.isoformat())
 
     today = get_today_kst()
-    all_rows = _load_rows(db, today, include_naver_settlement=include_naver_settlement)
+    all_rows = _load_rows(db, today, include_naver_settlement=include_naver_settlement, partner_org=partner_org)
     if span is not None:
         all_rows = [
             row for row in all_rows

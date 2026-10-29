@@ -14,6 +14,7 @@ from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.orders.complete_path_policy import build_complete_ctas
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
@@ -135,7 +136,7 @@ def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
 
 
 def _build_panel_delivery_counts(
-    db, by_ref: dict, range_start_str: str, range_end_str: str
+    db, by_ref: dict, range_start_str: str, range_end_str: str, partner_org: str = ''
 ) -> dict[str, int]:
     """날짜 패널 카드에 붙일 ``전달 N`` — 그 날짜에 실측이 잡힌 주문들의 전달 건수 합.
 
@@ -160,8 +161,11 @@ def _build_panel_delivery_counts(
         return {}
     counts: dict[str, int] = {}
     seen: set[tuple] = set()
+    pair_query = db.query(OrderScheduleDate.order_id, OrderScheduleDate.date)
+    if partner_org:
+        pair_query = pair_query.join(Order, Order.id == OrderScheduleDate.order_id).filter(partner_order_clause(partner_org))
     pairs = (
-        db.query(OrderScheduleDate.order_id, OrderScheduleDate.date)
+        pair_query
         .filter(
             OrderScheduleDate.order_id.in_(list(by_ref.keys())),
             OrderScheduleDate.kind == 'measurement',
@@ -191,6 +195,7 @@ def erp_measurement_dashboard():
     # parse_measurement_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 로컬 바인딩.
     _mf = parse_measurement_dashboard_filters(request, today_kst)
     search_q = _mf.search_q
+    partner_org = partner_filter_value(request)
     date_from = _mf.date_from
     date_to = _mf.date_to
     open_map = _mf.open_map
@@ -217,6 +222,8 @@ def erp_measurement_dashboard():
     def _build_measurement_base(days: int):
         """days 창 기준 실측 대시보드 base_query 조립(검색+scope 동일 적용)."""
         q = db.query(Order).filter(Order.dashboard_active_filter(days=days))
+        if partner_org:
+            q = q.filter(partner_order_clause(partner_org))
         q = _erp_order_search_filter(q, search_q)
         # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
         return apply_measurement_dashboard_order_scope(q)
@@ -266,6 +273,7 @@ def erp_measurement_dashboard():
     # 선택 표시는 아래에서 캐시 밖으로 입힌다.
     _panel_fp = {
         "v": 4,
+        "partner_org": partner_org,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -302,6 +310,7 @@ def erp_measurement_dashboard():
     focus_order_id = request.args.get('focus_order', type=int)
     _main_fp = {
         "v": 3,
+        "partner_org": partner_org,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -331,6 +340,7 @@ def erp_measurement_dashboard():
                 date_from,
                 date_to,
                 focus_order_id,
+                partner_org,
             ),
             page="measurement",
             slice_name="main_rows",
@@ -381,6 +391,7 @@ def erp_measurement_dashboard():
 
     _pi_fp = {
         "v": 3,
+        "partner_org": partner_org,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -459,14 +470,14 @@ def erp_measurement_dashboard():
     # 렌더되는 행에 그대로 붙인다. 캐시 슬라이스 키(_panel_fp/_main_fp)에는 넣지 않는다.
     with phase("sales_delivery"):
         _sales_delivery_map = build_sales_delivery_by_ref(
-            db, cap=MEASUREMENT_SALES_DELIVERY_CAP
+            db, cap=MEASUREMENT_SALES_DELIVERY_CAP, partner_org=partner_org
         )
     _sales_delivery_by_ref = _sales_delivery_map["by_ref"]
     for o in rows:
         o.sales_delivery_items = _sales_delivery_by_ref.get(o.id, [])
     sales_delivery_visible_total = sum(len(o.sales_delivery_items) for o in rows)
     measurement_panel_delivery_counts = _build_panel_delivery_counts(
-        db, _sales_delivery_by_ref, range_start_str, range_end_str
+        db, _sales_delivery_by_ref, range_start_str, range_end_str, partner_org
     )
 
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
@@ -575,7 +586,7 @@ def erp_measurement_dashboard():
     )
     # render_template 인자로 바로 부르면 그 시간이 템플릿 구간에 섞인다(인자 선평가) — 먼저 잰다.
     with phase("naver_preview"):
-        _bulk_dispatch = _naver_dispatch_preview(selected_date, today_date)
+        _bulk_dispatch = None if partner_org else _naver_dispatch_preview(selected_date, today_date)
     _t0 = time.perf_counter()
     response = make_response(
         render_template(

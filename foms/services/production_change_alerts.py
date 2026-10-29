@@ -31,6 +31,7 @@ import datetime
 from typing import Any
 
 from models import Order, OrderEvent
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_display import _ensure_dict, _normalize_date_to_yyyymmdd
 from foms.services.production_dashboard_display import (
@@ -276,7 +277,7 @@ def production_tombstone_criteria() -> list[Any]:
 
 
 def collect_production_tombstones(
-    db: Any, user: Any, erp_mine_only: bool
+    db: Any, user: Any, erp_mine_only: bool, partner_org: str = ''
 ) -> list[dict[str, Any]]:
     """최근 14일 내 취소(soft delete)된 생산 파이프라인 주문의 묘비 카드 목록.
 
@@ -297,6 +298,7 @@ def collect_production_tombstones(
     candidates = (
         db.query(Order)
         .filter(*production_tombstone_criteria())
+        .filter(partner_order_clause(partner_org))
         .all()
     )
     if erp_mine_only and user:

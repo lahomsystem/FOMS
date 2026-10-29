@@ -11,7 +11,11 @@ from models import Order, PartnerOrg
 
 PARTNER_FILTER_KEY = "partner_org"
 PARTNER_FILTER_COOKIE = "foms_partner_org"
-PARTNER_FILTER_PATHS = frozenset({"/", "/erp/dashboard", "/erp/dashboard/", "/erp/history/"})
+PARTNER_FILTER_PATHS = frozenset({
+    "/", "/erp/dashboard", "/erp/dashboard/", "/erp/measurement", "/erp/drawing-workbench",
+    "/erp/production/dashboard", "/erp/shipment", "/erp/as", "/erp/construction/dashboard",
+    "/erp/completion", "/erp/settlement", "/erp/history/",
+})
 
 
 def partner_filter_value(req: Any) -> str:
@@ -57,6 +61,9 @@ def persist_partner_filter(response: Any) -> Any:
 
 def partner_filter_menu() -> dict[str, Any]:
     """Load the small organization menu only when a full authenticated header renders."""
+    cached = getattr(g, "_partner_filter_menu", None)
+    if cached is not None:
+        return cached
     selected = partner_filter_value(request)
     orgs = get_db().query(PartnerOrg.id, PartnerOrg.name).order_by(PartnerOrg.name).all()
     choices = [("", "전체 주문"), ("all", "협력사 전체")]
@@ -71,9 +78,15 @@ def partner_filter_menu() -> dict[str, Any]:
     for value, name in choices:
         href = url_for(endpoint, **{**args, PARTNER_FILTER_KEY: value})
         items.append({"value": value, "name": name, "href": href, "selected": value == selected})
-    return {"active": bool(selected), "label": label, "items": items}
+    g._partner_filter_menu = {"active": bool(selected), "label": label, "items": items}
+    return g._partner_filter_menu
+
+
+def partner_filter_current() -> str:
+    """Read the current company for fragment chrome without loading organization names."""
+    return partner_filter_value(request)
 
 
 def inject_partner_filter() -> dict[str, Any]:
     """Expose the lazy menu without reading inputs or querying on fragment responses."""
-    return {"partner_filter_menu": partner_filter_menu}
+    return {"partner_filter_menu": partner_filter_menu, "partner_filter_current": partner_filter_current}

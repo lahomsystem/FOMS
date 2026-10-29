@@ -25,6 +25,7 @@ from foms.services.erp_template_filters import (
 )
 
 from foms.services.production_dashboard_filters import parse_production_dashboard_filters
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.production_read_model import (
     apply_production_dashboard_sort,
     build_production_orders_query,
@@ -105,7 +106,7 @@ def erp_production_dashboard():
 
     # 단계 필터/버킷은 build_production_orders_query·production_stage_bucket_expr가
     # flat 컬럼 Order.erp_stage_code(index=True)를 직접 참조한다(JSONB path cast 제거).
-    _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only)
+    _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only, _pf.partner_org)
     # 칸반은 dashboard_body.html 의 `erp_mobile_v2_enabled and coarse_pointer_surfaces` 일 때만
     # 그린다. 안 그리는 요청(마우스 PC·옛 셸, 하트비트 포함)은 전량(최대 300행)을 건너뛰고 페이지
     # 행만 읽는다. 칸반 값(kanban_*·changed_count·tombstones·tablet_prod_kpis)은 그 칸반만 읽는다.
@@ -117,7 +118,7 @@ def erp_production_dashboard():
     _fv, _fv_abandon = compute_production_key(db, request, user, _pf, kanban_wanted) if _shadow else (None, "")
     _reuse = _fv.reuse if _fv else {}
     _summary_blob = _reuse["summary"] if "summary" in _reuse else get_or_compute_dashboard_slice(
-        production_summary_slice_key(user, f_stage, f_q, erp_mine_only),
+        production_summary_slice_key(user, f_stage, f_q, erp_mine_only, _pf.partner_org),
         TTL_SUMMARY_COUNTS,
         lambda: compute_production_summary_blob(_q),
         page="production",
@@ -161,7 +162,8 @@ def erp_production_dashboard():
     if focus_order_id and focus_order_id not in {o.id for o in page_rows}:
         focus_order = (
             db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True),
+                    partner_order_clause(_pf.partner_org))
             .first()
         )
         if focus_order is not None and (
@@ -223,7 +225,7 @@ def erp_production_dashboard():
         _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
 
     # 취소 묘비와 변경 카운트는 칸반(보드 전체) 기준 — 모달·칩 카운트가 보드와 일치(칸반 없으면 생략).
-    tombstones = collect_production_tombstones(db, user, erp_mine_only) if kanban_wanted else []
+    tombstones = collect_production_tombstones(db, user, erp_mine_only, _pf.partner_org) if kanban_wanted else []
     changed_count = sum(1 for _r in kanban_enriched if _r.get("has_changes")) + len(tombstones)
     process_steps = build_production_process_steps(step_stats)
     # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 전량 셋 기준(신규 쿼리 없음).

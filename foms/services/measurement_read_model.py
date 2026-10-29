@@ -9,6 +9,8 @@ subpackage `foms.services.measurement` __init__의 standalone 순환 import 회�
 """
 from __future__ import annotations
 
+from foms.services.common.partner_order_filter import partner_order_clause
+
 import datetime
 import logging
 
@@ -135,6 +137,7 @@ def compute_measurement_main_rows_blob(
     date_from,
     date_to,
     focus_order_id,
+    partner_org: str = '',
 ) -> dict:
     """JSON DTO for measurement main_rows micro-cache.
 
@@ -161,6 +164,7 @@ def compute_measurement_main_rows_blob(
         date_from,
         date_to,
         focus_order_id,
+        partner_org,
     )
     return {
         "order_ids": [int(o.id) for o in rows],
@@ -426,6 +430,7 @@ def build_measurement_main_rows(
     date_from,
     date_to,
     focus_order_id,
+    partner_org: str = '',
 ):
     """실측 메인 목록 rows 조립 (구 route main-rows 블록). 동작 보존.
 
@@ -495,7 +500,7 @@ def build_measurement_main_rows(
     if focus_order_id and focus_order_id not in {o.id for o in rows}:
         focus_row = (
             db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter())
+            .filter(Order.id == focus_order_id, Order.active_filter(), partner_order_clause(partner_org))
             .options(selectinload(Order.schedule_dates))
             .first()
         )

@@ -30,6 +30,7 @@ from typing import Any, Final
 from sqlalchemy import String, cast, literal, select, union_all
 
 from models import Order, OrderAttachment, OrderEvent, ProductionRun, SystemSetting, User
+from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_SUMMARY_COUNTS,
@@ -106,7 +107,7 @@ def _window(db: Any, sorted_q: Any, kanban_wanted: bool, total: int, page: int, 
     return rows, kanban_ids + [oid for oid in page_ids if oid not in seen]
 
 
-def _dependents(db: Any, ids: list[int], kanban_wanted: bool, dialect: str) -> dict[str, str]:
+def _dependents(db: Any, ids: list[int], kanban_wanted: bool, dialect: str, partner_org: str = '') -> dict[str, str]:
     """딸린 표 지문을 SQL 한 번(UNION ALL)으로 뜬다 — 표식별 ``"행수:지문"``.
 
     ORM 전역 필터(첨부 tombstone)를 타지 않게 Core 로 실행한다 — 지운 행까지 포함한 상위집합이
@@ -129,9 +130,10 @@ def _dependents(db: Any, ids: list[int], kanban_wanted: bool, dialect: str) -> d
         ),
     ]
     if kanban_wanted:
-        tomb_ids = select(Order.id).where(*production_tombstone_criteria())
+        tomb_criteria = (*production_tombstone_criteria(), partner_order_clause(partner_org))
+        tomb_ids = select(Order.id).where(*tomb_criteria)
         branches += [
-            branch("tomb", Order.id, row_version(Order.__table__, dialect)).where(*production_tombstone_criteria()),
+            branch("tomb", Order.id, row_version(Order.__table__, dialect)).where(*tomb_criteria),
             branch("tomb_events", evt.c.id, row_version(evt, dialect)).where(
                 evt.c.order_id.in_(tomb_ids), evt.c.event_type == "PRODUCTION_CHANGE_ACK"
             ),
@@ -179,9 +181,9 @@ def compute_production_key(db: Any, req: Any, user: Any, pf: Any, kanban_wanted:
 
 def _production_material(db: Any, user: Any, pf: Any, kanban_wanted: bool, material: dict[str, Any]) -> PrerenderKey:
     dialect = db.get_bind().dialect.name
-    base_q = build_production_orders_query(db, user, pf.stage, pf.q, pf.erp_mine_only)
+    base_q = build_production_orders_query(db, user, pf.stage, pf.q, pf.erp_mine_only, pf.partner_org)
     summary = get_or_compute_dashboard_slice(
-        production_summary_slice_key(user, pf.stage, pf.q, pf.erp_mine_only),
+        production_summary_slice_key(user, pf.stage, pf.q, pf.erp_mine_only, pf.partner_org),
         TTL_SUMMARY_COUNTS,
         lambda: compute_production_summary_blob(base_q),
         page="production",
@@ -199,12 +201,13 @@ def _production_material(db: Any, user: Any, pf: Any, kanban_wanted: bool, mater
         page="production",
         slice_name="attachment_counts",
     )
-    material["production"] = {"mine": bool(pf.erp_mine_only), "kanban": bool(kanban_wanted), "page": page}
+    material["production"] = {"mine": bool(pf.erp_mine_only), "kanban": bool(kanban_wanted),
+                              "page": page, "partner_org": pf.partner_org}
     material["data"] = {
         "summary": digest(summary),
         "att_slice": digest(att_blob),
         "window": digest_rows(window),
-        **_dependents(db, ids, kanban_wanted, dialect),
+        **_dependents(db, ids, kanban_wanted, dialect, pf.partner_org),
     }
     key, controls = finish_key(material, CONTROL_KEYS)
     return PrerenderKey(

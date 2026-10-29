@@ -45,6 +45,7 @@ from foms.services.settlement_channel_export import (
     normalize_kind,
 )
 from foms.web.auth import log_access, login_required
+from foms.services.common.partner_order_filter import partner_filter_value
 
 #: 조회 기본 구간(오늘 기준). 정산 예정일은 **미래로도 잡히므로** 뒤쪽도 연다.
 _DEFAULT_BACK_DAYS = 30
@@ -235,6 +236,8 @@ def api_settlement_channel():
     """
     if not can_view_channel_settlement(getattr(g, "current_user", None)):
         return _error(_DENIED_MESSAGE, 403)
+    if partner_filter_value(request):
+        return _error("네이버 채널 원장은 전체 채널 자료입니다. 협력사 필터를 해제한 뒤 확인해 주세요.", 400)
 
     today = get_today_kst()
     try:
@@ -423,6 +426,8 @@ def api_settlement_channel_sync_progress():
         return _error(_DENIED_MESSAGE, 403)
 
     from models import NaverSettleSyncRun
+    if partner_filter_value(request):
+        return _error("네이버 채널 원장은 전체 채널 자료입니다. 협력사 필터를 해제한 뒤 확인해 주세요.", 400)
 
     row = (get_db().query(NaverSettleSyncRun)
            .filter(NaverSettleSyncRun.channel == _ALLOWED_CHANNELS[0])
@@ -530,6 +535,8 @@ def api_settlement_channel_export_csv():
         return _error(_DENIED_MESSAGE, 403)
 
     today = get_today_kst()
+    if partner_filter_value(request):
+        return _error("네이버 채널 원장은 전체 채널 자료입니다. 협력사 필터를 해제한 뒤 확인해 주세요.", 400)
     try:
         kind = normalize_kind(request.args.get("kind"))
         channel = _channel_arg()
