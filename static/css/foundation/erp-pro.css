@@ -650,3 +650,8 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
 .cs-agent-locked .form-text {
   color: var(--foms-text-tertiary, #6c757d);
 }
+
+/* Match the user menu layer above the sticky global navigation (z-index: 1000). */
+.layout-header #global-partner-filter-btn + .dropdown-menu {
+  z-index: 1050;
+}
