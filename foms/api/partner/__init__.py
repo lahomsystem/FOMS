@@ -19,6 +19,7 @@ from foms.services.orders.item_identity import resolve_active_item_id
 from foms.api.files.order_routes import ATTACHMENT_ADDED, ATTACHMENT_META_UPDATED, emit_attachment_event
 from foms.services.audit_writer import normalize_security_detail
 from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
+from foms.api.partner.channel_push import auto_drawing_push, partner_channel_push_bp  # noqa: F401 — 등록은 blueprints.py
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
@@ -322,7 +323,9 @@ def approve_drawing(order_id: int):
         log_handled_exception("partner approve drawing transition")
         return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+    # 승인 뒤 발주방에 한 번 자동으로 보낸다(사용자 결정 2026-10-29) — 실패해도 승인은 그대로, 다시 보내기는 버튼.
+    push_note = auto_drawing_push(db, g.current_user, order_id)
+    return jsonify({"success": True, "data": {"order_id": order_id, "push_note": push_note}, "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/drawing-receipt", methods=["POST"])

@@ -473,45 +473,33 @@ def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
     )
 
 
-@channel_integration_bp.route('/push-manual', methods=['POST'])
-@login_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def api_channel_push_manual():
-    """
-    ERP Beta 수동 채널톡 푸쉬.
+def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = None) -> tuple[dict, int]:
+    """수동 채널톡 PUSH 한 건(글 · 첨부 고르기 → 전송 → 이력 · 감사 기록). ERP 라우트와 협력사 API 가 같이 쓴다.
 
-    push_kind에 따라 변환 텍스트 + 해당 분류 첨부파일만 채널톡 그룹으로 전송합니다.
-        - measurement(영발 PUSH): 실측 첨부 → 영발 그룹(209990)
-        - measure_room(실측 PUSH): 실측 첨부 → 실측 그룹(229923)
-        - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
-        - as(AS PUSH): AS 첨부 → AS 그룹(230351)
-        - drawing_room(도면방 PUSH): 현재 전달본 도면 → 도면방 그룹(230331),
-          본문·첨부 모두 서버 조립
+    권한(누가 이 주문을 보낼 수 있나)은 호출자가 먼저 판정한다 — 여기서는 주문 존재 · 설정 · 재전송 메모 ·
+    동시 클릭만 본다(협력사 주문 화면 PUSH, 사용자 결정 2026-10-29).
 
-    Request JSON:
-        order_id (int): 주문 ID
-        text (str): 전송할 텍스트 (변환된 내용)
-        push_kind (str): 'measurement'(기본) / 'measure_room' / 'drawing' / 'as' /
-            'drawing_room'
-        change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
+    Args:
+        db: 요청 세션(성공하면 이력 기록과 함께 commit 된다).
+        payload: ``order_id`` · ``text`` · ``push_kind`` · ``change_note`` · (AS) ``attachment_ids``.
+        actor: 보내는 사용자(감사 · 이력 actor).
+        pushed_by_name: 이력에 남길 보낸 사람 표시명(없으면 ``actor.name``).
 
     Returns:
-        {success: bool, files_count: int, error: str}
+        (응답 본문 dict, HTTP 상태).
     """
-    db = get_db()
     try:
-        payload = request.get_json(silent=True) or {}
         order_id = payload.get('order_id')
         text = (payload.get('text') or '').strip()
         push_kind = payload.get('push_kind') or 'measurement'
         change_note = (payload.get('change_note') or '').strip()
 
         if push_kind not in _PUSH_KIND_CONFIG:
-            return jsonify({'success': False, 'message': f'지원하지 않는 push_kind: {push_kind}'}), 400
+            return {'success': False, 'message': f'지원하지 않는 push_kind: {push_kind}'}, 400
         kind_config = _PUSH_KIND_CONFIG[push_kind]
 
         if not order_id:
-            return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
+            return {'success': False, 'message': 'order_id가 없습니다.'}, 400
         # AS·도면방 본문은 서버가 저장된 주문으로 조립한다(SSOT). ERP 폼·AS 대시보드·
         # 도면 워크벤치·도면 마법사 어느 쪽에서 쏘든 같은 문구가 나가야 하므로 클라이언트가
         # 보낸 text 는 이 경로에서 신뢰하지 않는다.
@@ -520,73 +508,73 @@ def api_channel_push_manual():
         )
         if not server_composes:
             if not text:
-                return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
+                return {'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}, 400
             if len(text) > _MAX_TEXT_LENGTH:
-                return jsonify({'success': False, 'message': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}), 400
+                return {'success': False, 'message': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}, 400
 
         if not is_configured():
             msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
-            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
+            return {'success': False, 'message': msg, 'error': msg}, 503
 
         try:
             group_id = get_routing_group_id('manual', {'push_kind': push_kind})
         except ChannelGroupRetiredError as exc:
             logger.info("[채널톡 수동푸쉬] retired group blocked (group_id=%s, push_kind=%s)", exc.group_id, push_kind)
-            return jsonify({
+            return {
                 'success': False,
                 'message': _RETIRED_GROUP_MESSAGE,
                 'error': _RETIRED_GROUP_MESSAGE,
-            }), 410
+            }, 410
         if not group_id:
             env_name = kind_config['group_env']
             msg = f'{env_name} 환경변수가 설정되지 않았습니다.'
-            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
+            return {'success': False, 'message': msg, 'error': msg}, 503
 
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
-            return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+            return {'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}, 404
 
         # 동시 클릭 직렬화: is_resend 판정 전에 (주문, push 종류) 슬롯을 잡는다.
         if not _try_claim_push_slot(db, order.id, push_kind):
-            return jsonify({
+            return {
                 'success': False,
                 'message': _PUSH_SLOT_BUSY_MESSAGE,
                 'error': 'push_in_progress',
-            }), 409
+            }, 409
 
         if push_kind == 'as':
             text = build_as_push_text(order)
             if not text:
-                return jsonify({
+                return {
                     'success': False,
                     'message': 'AS 접수 내용이 없습니다. AS 접수를 먼저 등록한 뒤 다시 시도해주세요.',
-                }), 400
+                }, 400
             if len(text) > _MAX_TEXT_LENGTH:
-                return jsonify({
+                return {
                     'success': False,
                     'message': f'AS 접수 내용이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
-                }), 400
+                }, 400
 
         if push_kind == 'drawing_room':
             text = build_drawing_room_push_text(order)
             if not text:
-                return jsonify({
+                return {
                     'success': False,
                     'message': '주문 정보가 비어 있어 도면방에 보낼 본문을 만들 수 없습니다.',
-                }), 400
+                }, 400
             if len(text) > _MAX_TEXT_LENGTH:
-                return jsonify({
+                return {
                     'success': False,
                     'message': f'도면방 본문이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
-                }), 400
+                }, 400
 
         if push_kind in _SERVER_COMPOSED_WHEN_EMPTY_KINDS and server_composes:
             text = build_measure_push_text(order.structured_data or {})
             if len(text) > _MAX_TEXT_LENGTH:
-                return jsonify({
+                return {
                     'success': False,
                     'message': f'실측 PUSH 본문이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
-                }), 400
+                }, 400
 
         # 이전 푸쉬 이력 확인 (push_kind별 분리)
         sd = copy.deepcopy(order.structured_data or {})
@@ -595,18 +583,18 @@ def api_channel_push_manual():
 
         if is_resend:
             if len(change_note) < _MIN_CHANGE_NOTE_LEN:
-                return jsonify({
+                return {
                     'success': False,
                     'message': f'재전송 시 변경 내용을 {_MIN_CHANGE_NOTE_LEN}자 이상 입력해주세요.',
-                }), 400
+                }, 400
         else:
             change_note = ''
 
         if change_note and len(change_note) > _MAX_CHANGE_NOTE_LEN:
-            return jsonify({
+            return {
                 'success': False,
                 'message': f'변경 내용은 최대 {_MAX_CHANGE_NOTE_LEN}자까지 입력할 수 있습니다.',
-            }), 400
+            }, 400
 
         # 해당 분류 첨부파일만. AS 기본 선정은 select_as_push_attachments 가
         # sort_order(없으면 id) 순으로 돌려준다. explicit ids 는 **배열 순서 그대로**.
@@ -621,6 +609,9 @@ def api_channel_push_manual():
             .order_by(OrderAttachment.id.asc())
             .all()
         )
+        if push_kind == 'drawing':
+            # 발주방에는 우리 최종 도면만 — 협력사가 처음 올린 초안(partner_draft 폴더)은 뺀다(사용자 결정 2026-10-29).
+            attachments = [a for a in attachments if '/partner_draft/' not in (a.storage_key or '')]
 
         # AS 는 "이번 건의 최신 첨부"만 보낸다(AS-FRESH-01). 전량 발사는 옛 사진 혼입 +
         # 상한 20장을 오래된 것부터 채우는 최신 탈락을 함께 일으켰다. 클라이언트가
@@ -628,15 +619,15 @@ def api_channel_push_manual():
         if push_kind == 'as':
             explicit_ids, id_error = _parse_attachment_ids(payload.get('attachment_ids'))
             if id_error:
-                return jsonify({'success': False, 'message': id_error}), 400
+                return {'success': False, 'message': id_error}, 400
             if explicit_ids is not None:
                 allowed = {att.id: att for att in attachments}
                 unknown = [i for i in explicit_ids if i not in allowed]
                 if unknown:
-                    return jsonify({
+                    return {
                         'success': False,
                         'message': '이 주문의 AS 첨부가 아닌 파일이 포함됐습니다.',
-                    }), 400
+                    }, 400
                 # AS-SORT-01: 확인창이 보낸 배열 순서 = 채널톡 dto.files 순서.
                 # id 로 다시 정렬하면 지정 순서가 사라진다.
                 attachments = [allowed[i] for i in explicit_ids]
@@ -649,10 +640,10 @@ def api_channel_push_manual():
             # 때마다 category 가 'drawing' 으로 표시되므로 옛 전달본 첨부행이 남아 있다.
             current_keys = current_drawing_storage_keys(order)
             if not current_keys:
-                return jsonify({
+                return {
                     'success': False,
                     'message': '전달된 도면이 없습니다. 도면을 먼저 전달한 뒤 도면방 PUSH 를 눌러주세요.',
-                }), 400
+                }, 400
             attachments = select_drawing_room_push_attachments(order, attachments)
             if not attachments:
                 # 옛 전달본은 첨부행이 지워졌을 수 있다 — "전달 안 함"과 다른 상황이므로
@@ -661,10 +652,10 @@ def api_channel_push_manual():
                     "[채널톡 도면방푸쉬] 전달본 key 는 있으나 첨부행 교집합 0 (order_id=%s)",
                     order.id,
                 )
-                return jsonify({
+                return {
                     'success': False,
                     'message': '현재 전달본 도면을 첨부 목록에서 찾지 못했습니다. 도면을 다시 전달한 뒤 시도해주세요.',
-                }), 400
+                }, 400
 
         storage = get_storage()
         files = []
@@ -703,8 +694,8 @@ def api_channel_push_manual():
                         item['url'] = url
             files = renamed
 
-        current_user = getattr(g, "current_user", None)
-        pushed_by_name = current_user.name if current_user else None
+        current_user = actor
+        pushed_by_name = pushed_by_name or (current_user.name if current_user else None)
 
         # DispatchService를 통해 전송 (CT-A-04)
         dispatch_data = {
@@ -781,18 +772,48 @@ def api_channel_push_manual():
             response['manager_room_sent'] = manager_room_sent
             if manager_room_note:
                 response['message'] = manager_room_note
-        return jsonify(response)
+        return response, 200
 
     except RuntimeError as e:
         # 채널톡 API 레벨 오류 (토큰 발급 실패, API 거부 등)
         err_msg = str(e)
         logger.error("[채널톡 수동푸쉬] RuntimeError: %s", err_msg)
-        return jsonify({'success': False, 'message': f'채널톡 API 오류: {err_msg}', 'error': err_msg}), 502
+        return {'success': False, 'message': f'채널톡 API 오류: {err_msg}', 'error': err_msg}, 502
 
     except Exception as e:
         err_msg = str(e)
         logger.error("[채널톡 수동푸쉬] 예외: %s\n%s", err_msg, traceback.format_exc())
-        return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
+        return {'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}, 500
+
+
+
+@channel_integration_bp.route('/push-manual', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_channel_push_manual():
+    """
+    ERP Beta 수동 채널톡 푸쉬.
+
+    push_kind에 따라 변환 텍스트 + 해당 분류 첨부파일만 채널톡 그룹으로 전송합니다.
+        - measurement(영발 PUSH): 실측 첨부 → 영발 그룹(209990)
+        - measure_room(실측 PUSH): 실측 첨부 → 실측 그룹(229923)
+        - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
+        - as(AS PUSH): AS 첨부 → AS 그룹(230351)
+        - drawing_room(도면방 PUSH): 현재 전달본 도면 → 도면방 그룹(230331),
+          본문·첨부 모두 서버 조립
+
+    Request JSON:
+        order_id (int): 주문 ID
+        text (str): 전송할 텍스트 (변환된 내용)
+        push_kind (str): 'measurement'(기본) / 'measure_room' / 'drawing' / 'as' /
+            'drawing_room'
+        change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
+
+    Returns:
+        {success: bool, files_count: int, error: str}
+    """
+    body, status = run_manual_push(get_db(), request.get_json(silent=True) or {}, getattr(g, "current_user", None))
+    return jsonify(body), status
 
 
 def _as_log_labels(sd: dict) -> dict:
