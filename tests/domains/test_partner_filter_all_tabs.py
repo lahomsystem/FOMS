@@ -104,7 +104,8 @@ def test_financial_queries_scope_before_projection_without_extra_queries(auth_cl
     calls = {"aggregate": aggregate_settlement, "rows": list_settlement_rows, "products": aggregate_products}
     statements = []
     engine = db_session.get_bind()
-    kwargs = {"month_from": dt.date.today().strftime("%Y-%m"), "month_to": dt.date.today().strftime("%Y-%m")} if service == "aggregate" else {}
+    month = get_today_kst().strftime("%Y-%m")
+    kwargs = {"month_from": month, "month_to": month} if service == "aggregate" else {}
 
     def record(conn, cursor, sql, parameters, context, executemany):
         statements.append(sql)
@@ -121,6 +122,7 @@ def test_financial_queries_scope_before_projection_without_extra_queries(auth_cl
     finally:
         event.remove(engine, "before_cursor_execute", record)
     if service == "aggregate":
+        assert sum(row["count"] for row in off["stages"]) > 0
         assert sum(row["count"] for row in on["stages"]) * 3 == sum(row["count"] for row in off["stages"])
         assert sum(row["amount"] for row in on["stages"]) * 3 == sum(row["amount"] for row in off["stages"])
     elif service == "rows":
