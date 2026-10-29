@@ -1,0 +1,57 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}AI 상담팀원 관리{% endblock %}
+
+{% block content %}
+{#- 설계서 2026-10-27-cs-ai-agent 16.1 · 16.6 단계 1 — 스위치 · 두뇌 · 기록. 값은 서버가 그린다(숫자 · 코드 · 시각 · 직원 이름만).
+    쓰기는 static/js/admin/cs-agent-panel.js 가 JSON API 로 보내고 화면을 다시 읽는다(인라인 스크립트 · 스타일 없음). -#}
+{% set sw = state.switch %}
+<div class="container mt-4 mb-5 cs-agent-panel" data-cs-agent-panel
+     data-loop-url="{{ url_for('cs_agent_admin_api.cs_agent_switch_loop') }}"
+     data-draft-url="{{ url_for('cs_agent_admin_api.cs_agent_switch_draft') }}"
+     data-settings-url="{{ url_for('cs_agent_admin_api.cs_agent_save_settings') }}">
+
+  <div class="cs-agent-head">
+    <div>
+      <h1 class="h4 mb-1">AI 상담팀원 관리</h1>
+      <p class="text-muted small mb-0">바꾼 값은 다음 차례부터 적용됩니다(재배포 없음) · 지금 {{ state.now }}(한국 시각)</p>
+    </div>
+    <div class="cs-agent-stop">
+      {% if sw.loop == 'on' %}
+      <button type="button" class="btn btn-danger btn-lg cs-agent-stop-btn" data-cs-loop="off">비상 정지</button>
+      {% else %}
+      <span class="cs-agent-stopped" data-cs-loop-state="off">감시 루프 멈춤</span>
+      <button type="button" class="btn btn-outline-success" data-cs-loop="on">다시 켜기</button>
+      {% endif %}
+    </div>
+  </div>
+
+  {#- 공용 5초 자동 닫힘(script.js)이 지우지 않게 — 나중에 스크립트가 글을 넣어 보여 준다. -#}
+  <div class="alert d-none cs-agent-message" data-cs-message data-foms-no-autodismiss role="status" aria-live="polite"></div>
+
+  <ul class="nav nav-tabs mt-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="cs-tab-switch-btn" data-bs-toggle="tab" data-bs-target="#cs-tab-switch"
+              type="button" role="tab" aria-controls="cs-tab-switch" aria-selected="true">스위치</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="cs-tab-brain-btn" data-bs-toggle="tab" data-bs-target="#cs-tab-brain"
+              type="button" role="tab" aria-controls="cs-tab-brain" aria-selected="false">두뇌 · 돈 · 고르기</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="cs-tab-records-btn" data-bs-toggle="tab" data-bs-target="#cs-tab-records"
+              type="button" role="tab" aria-controls="cs-tab-records" aria-selected="false">기록</button>
+    </li>
+  </ul>
+
+  <div class="tab-content cs-agent-tabs">
+    {% include "admin/partials/cs_agent_switch.html" %}
+    {% include "admin/partials/cs_agent_brain.html" %}
+    {% include "admin/partials/cs_agent_records.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/cs-agent-panel.js') }}?v=20261029a" defer></script>
+{% endblock %}

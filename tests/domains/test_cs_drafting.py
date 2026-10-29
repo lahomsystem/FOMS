@@ -82,7 +82,7 @@ def result(draft=DRAFT, **overrides):
     values = dict(intent="hours", draft=draft, evidence_ids=("shelf-depth",), handoff=False, handoff_reason="none",
                   staff_note=NOTE, model=brain.MODEL, effort="high", input_tokens=900, output_tokens=200,
                   cache_read_tokens=0, cache_write_tokens=0, cost_usd=Decimal("0.01"), latency_ms=1200,
-                  stop_reason="end_turn", refused=False, fallback_used=False)
+                  stop_reason="end_turn", refused=False, fallback_used=False, cache_marked=True)
     values.update(overrides)
     return brain.DraftResult(**values)
 
@@ -331,8 +331,8 @@ def test_brain_unavailable_fails_and_the_next_pass_reclaims(channel):
         ("stored", 2), ("stored", 2), ("stored", 1)]
 
 
-@pytest.mark.parametrize("code", ["daily_cap_reached", "api_spend_limit"])
-def test_spend_cap_stops_the_day_and_a_later_day_resumes(channel, code):
+@pytest.mark.parametrize("code", ["api_spend_limit"])  # 코드 하루 상한은 지금 상한으로 견준다(test_cs_brain_settings)
+def test_console_spend_limit_stops_the_day_and_a_later_day_resumes(channel, code):
     for chat in ("uc-1", "uc-2"):
         customer(channel, chat)
     first = run(channel, brain_fn=FakeBrain(brain.SpendCapReached(code)))
@@ -493,7 +493,7 @@ def test_loop_runs_drafting_after_the_report_when_the_switch_is_on(channel, monk
     monkeypatch.setattr(loop, "run_drafting", wired)
     result = loop_pass(channel)
     expected = {**drafting.DraftSummary().counts(), "candidates": 1, "claimed": 1, "brain_calls": 1, "stored": 1,
-                "cache_cold": 1}  # 월요일 9시(운영 시간)인데 가짜 결과의 캐시 읽기가 0(R7-12)
+                "cache_cold": 1}  # 월요일 9시 — 캐시 표시를 실은 가짜 결과의 캐시 읽기가 0(R7-12)
     assert (result.outcome, result.report_sent, result.summary()["drafting"]) == ("ok", True, expected)
     assert turn().state == "stored" and brain_fn.requests[0].daytime is True
     assert json.loads(json.dumps(result.summary()))["drafting"] == expected  # JSON 한 줄 — 숫자만

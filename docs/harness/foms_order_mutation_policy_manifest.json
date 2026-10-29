@@ -1204,6 +1204,21 @@
       "mode": "guard",
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/drawing-receipt"
+    },
+    "cs_agent_admin_api.cs_agent_save_settings": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/cs-agent/settings"
+    },
+    "cs_agent_admin_api.cs_agent_switch_draft": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/cs-agent/switch/draft"
+    },
+    "cs_agent_admin_api.cs_agent_switch_loop": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/cs-agent/switch/loop"
     }
   }
 }

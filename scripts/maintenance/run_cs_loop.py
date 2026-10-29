@@ -38,6 +38,7 @@ from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from app import app  # noqa: E402
 from db import db_session, engine  # noqa: E402
 from foms.platform.sentry_setup import resolve_environment  # noqa: E402
+from foms.services.cs_agent.brain_spend import HEARTBEAT_CAP_KEY, heartbeat_cap_value  # noqa: E402
 from foms.services.cs_agent.loop import (  # noqa: E402
     DEFAULT_INTERVAL_SECONDS,
     OUTCOME_NOT_LEADER,
@@ -144,7 +145,10 @@ def _pass_once(stop: StopFlag, config: LoopConfig) -> dict:
 
 def _heartbeat_metadata(result: Optional[dict], interval: int = 0,
                         last_success: Optional[str] = None) -> dict:
-    """하트비트에 실을 집계값. 상담 id · 손님 정보(글 · 이름 · 번호)는 싣지 않는다."""
+    """하트비트에 실을 집계값. 상담 id · 손님 정보(글 · 이름 · 번호)는 싣지 않는다.
+
+    이 프로세스(WORKER)의 env 하루 상한도 싣는다 — 관리 화면(web)은 env 를 읽지 않고 이 값을 천장으로 보인다.
+    """
     summary = result or {}
     return {
         "interval_seconds": int(interval or 0),
@@ -155,6 +159,7 @@ def _heartbeat_metadata(result: Optional[dict], interval: int = 0,
         "alerts": int(summary.get("alerts") or 0),
         "report_sent": bool(summary.get("report_sent")),
         HEARTBEAT_LAST_SUCCESS_KEY: last_success,
+        HEARTBEAT_CAP_KEY: heartbeat_cap_value(),
     }
 
 

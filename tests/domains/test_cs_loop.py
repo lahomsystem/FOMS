@@ -395,7 +395,7 @@ def test_runner_beats_after_a_pass_and_writes_nothing_after_term(app, monkeypatc
     assert len(calls) == 2 and len(beats) == 1  # TERM 뒤 바퀴는 하트비트도 쓰지 않았다
     meta = beats[0]
     assert set(meta) == {"interval_seconds", "outcome", "ingested", "reconciled", "needs_reply", "alerts",
-                         "report_sent", report.HEARTBEAT_LAST_SUCCESS_KEY}  # 상담 id 는 싣지 않는다
+                         "report_sent", report.HEARTBEAT_LAST_SUCCESS_KEY, "daily_cap_usd"}  # 상담 id 는 싣지 않는다
     assert (meta["interval_seconds"], meta["outcome"], meta["ingested"]) == (900, "ok", 2)
     assert db_session.get(SideEffectWorkerHeartbeat, "CS_LOOP").metadata_json == meta
     assert report.read_last_success(db_session) is not None

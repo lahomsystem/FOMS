@@ -1,0 +1,92 @@
+{#- AI 상담팀원 관리 — 기록 탭(읽기만). 오늘(KST) 돈 줄 · 오늘 바뀐 차례 수 · 감시 루프 하트비트 · 마지막 아침 보고 · 최근 바꿈 20개.
+    숫자 · 코드 · 시각 · 직원 이름만 — 손님 글 · 상담 id 는 없다. -#}
+{% set rec = state.records %}
+{% set caps = state.caps %}
+<div class="tab-pane fade" id="cs-tab-records" role="tabpanel" aria-labelledby="cs-tab-records-btn">
+  <div class="cs-agent-actions mt-3">
+    <span class="text-muted small">{{ state.day }} 기준 · 지금 {{ state.now }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cs-reload>새로 읽기</button>
+  </div>
+  <div class="row g-3 mt-1">
+    <div class="col-md-4">
+      <section class="card h-100 cs-agent-card">
+        <div class="card-body">
+          <h2 class="h6 mb-2">오늘 쓴 돈(두뇌)</h2>
+          {% if rec.spend.problem %}
+          <p class="text-danger small mb-0">돈 줄 꼴이 틀렸습니다({{ rec.spend.problem }}) — 두뇌는 부르지 않습니다.</p>
+          {% else %}
+          <p class="cs-agent-figure mb-1">${{ rec.spend.usd }}
+            <span class="text-muted small">/ 상한 {{ '$' ~ caps.effective if caps.effective is not none
+                                                    else 'WORKER 상한 확인 안 됨' }}</span></p>
+          <p class="text-muted small mb-0">보낸 수 {{ rec.spend.calls }}번 · 부르는 중 예약 ${{ rec.spend.reserved }}</p>
+          <p class="text-muted small mb-0">상한에 닿아 멈춰도 상한을 올리면 다음 바퀴부터 다시 돕니다.</p>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+    <div class="col-md-4">
+      <section class="card h-100 cs-agent-card {{ 'cs-agent-card--alert' if rec.heartbeat.stale }}">
+        <div class="card-body">
+          <h2 class="h6 mb-2">감시 루프(CS_LOOP)</h2>
+          {% if rec.heartbeat.at %}
+          <p class="mb-1">마지막 신호 {{ rec.heartbeat.at }} · {{ rec.heartbeat.age_minutes }}분 전
+            {% if rec.heartbeat.stale %}<span class="badge bg-danger">늦음</span>{% endif %}</p>
+          <p class="text-muted small mb-0">바퀴 결과 {{ outcome_labels.get(rec.heartbeat.outcome, rec.heartbeat.outcome or '-') }}
+            · 마지막 정상 바퀴 {{ rec.heartbeat.last_success or '없음' }}</p>
+          {% else %}
+          <p class="text-danger small mb-0">하트비트가 없습니다 — 감시 루프가 아직 돈 적이 없거나 WORKER 에 없습니다.</p>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+    <div class="col-md-4">
+      <section class="card h-100 cs-agent-card">
+        <div class="card-body">
+          <h2 class="h6 mb-2">마지막 아침 보고</h2>
+          {% if rec.report %}
+          <p class="mb-1">{{ rec.report.title }}</p>
+          <p class="text-muted small mb-0">{{ rec.report.at }}</p>
+          {% else %}
+          <p class="text-muted small mb-0">아직 낸 적이 없습니다.</p>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <h2 class="h6 mt-4">오늘 바뀐 차례 {{ rec.turns.total }}개</h2>
+  <p class="small mb-2">
+    {% for st, count in rec.turns.by_state.items() %}{{ state_labels.get(st, st) }} {{ count }}{{ ' · ' if not loop.last }}{% endfor %}
+  </p>
+  {% if rec.turns.by_code %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle cs-agent-table">
+      <thead><tr><th scope="col">상태</th><th scope="col">까닭 코드</th><th scope="col" class="text-end">수</th></tr></thead>
+      <tbody>
+        {% for row in rec.turns.by_code %}
+        <tr><td>{{ state_labels.get(row.state, row.state) }}</td><td><code>{{ row.code or '-' }}</code></td>
+          <td class="text-end">{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <h2 class="h6 mt-4">최근 바꿈(관리 화면 · 20개)</h2>
+  {% if state.changes %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle cs-agent-table">
+      <thead><tr><th scope="col">때</th><th scope="col">누가</th><th scope="col">무엇</th><th scope="col">바뀐 값</th>
+        <th scope="col" class="text-end">버전</th></tr></thead>
+      <tbody>
+        {% for row in state.changes %}
+        <tr><td class="text-nowrap">{{ row.at or '-' }}</td><td>{{ row.who }}</td><td>{{ row.what }}</td>
+          <td>{{ row.detail }}</td><td class="text-end">{{ row.version }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small">아직 이 화면에서 바꾼 것이 없습니다.</p>
+  {% endif %}
+</div>

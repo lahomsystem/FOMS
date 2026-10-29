@@ -1,21 +1,24 @@
 """두뇌 — Claude API 를 부르는 한 곳. 가린 상담 글 · 승인 지식으로 답 초안 하나를 받는다(플랜 C3-2 · 설계서 11.1 D44).
 
 초안 바퀴(:mod:`.drafting`)가 부른다. 바퀴는 선점 전에 :func:`check_ready` 로 준비를 한 번 본다(원장 R7-4).
-:func:`draft_reply` 의 순서(바꾸지 않는다):
+모델 · 생각 깊이 · 최대 출력 · 시간 상한 · 다시 하기 · 캐시 · 대체 · 하루 상한(화면 값)은 관리 화면 설정
+(:func:`.settings.read_settings`)을 부를 때마다 새로 읽는다 — 줄이 없으면 아래 상수 그대로다(처음 값 = 상수, 시험이 맞춘다).
+돈 줄 · 오류 꼴은 :mod:`.brain_spend` 에 있고 이 모듈이 이름을 그대로 내보낸다. :func:`draft_reply` 의 순서(바꾸지 않는다):
 
 1. **재료 확인** — 켠 브랜드(라홈)만 · 지식 브랜드가 같음 · 승인 지식이 있음 · 요청 본문을 쓰는 디버그 로거가 모두 꺼짐
    (:data:`SDK_BODY_LOGGERS` 와 그 아래 로거 — 켜면 SDK · HTTP 층이 본문 = 손님 글을 로그에 쓴다, R7-10) · 기본
    클라이언트면 env :data:`KEY_ENV` 가 있음.
-2. **돈 막기** — env :data:`DAILY_CAP_ENV` (하루 상한, 달러)가 없거나 틀리면 부르지 않는다. 오늘(KST) 돈 줄(SystemSetting
-   :data:`SPEND_KEY` — 바로잡은 돈 + 부르는 중 예약)이 상한 이상이면 :class:`SpendCapReached`. 읽은 뒤 커밋한다.
+2. **돈 막기** — env :data:`DAILY_CAP_ENV` (하루 상한, 달러)가 없거나 틀리면 부르지 않는다. 쓰는 상한은 env 와 화면 값 가운데
+   작은 것이다(env 가 늘 천장). 오늘(KST) 돈 줄(SystemSetting :data:`SPEND_KEY` — 바로잡은 돈 + 부르는 중 예약)이 상한
+   이상이면 :class:`SpendCapReached`. 읽은 뒤 커밋한다.
 3. **가림** — 글마다 :func:`.masking.call_with_masked` (검사 0 일 때만 다음) → 만든 상담 글 덩어리를
    :func:`.masking.require_masked` 로 한 번 더(가림이 고장 나도 모델에 닿지 않게). 지시문 · 승인 지식은 회사 글이라 넣지
    않는다(기본 안내 전화 · 계좌가 들어 있을 수 있다).
 4. **예약 → 부르기** — 보낼 때마다 먼저 최악값(:func:`.brain_prompt.worst_case_cost`)을 돈 줄 잠금 안에서 예약한다(R7-3 —
    바로잡은 돈 + 예약 + 이번 값이 상한을 넘으면 보내지 않는다). 그다음 ``client.with_options(timeout=…, max_retries=0)
-   .beta.messages.create(…)``: 모델 :data:`MODEL`, 생각은 adaptive(끌 수 없다), effort 는 늘 적는다(:data:`EFFORTS`),
-   구조화 출력, 도구 없음, 서버 쪽 대체 ``fallbacks="default"`` (베타 :data:`FALLBACK_BETA`). **시간 초과는 다시 보내지
-   않는다** — 서버가 이미 생성(과금)했을 수 있다. 밤 길의 한 번 더는 요청 바이트가 하나도 안 나간 연결 실패(연결 단계 오류)
+   .beta.messages.create(…)``: 고른 모델, 생각은 adaptive(끌 수 없다), effort 는 늘 적는다, 구조화 출력, 도구 없음, 서버 쪽
+   대체 ``fallbacks="default"`` (베타 :data:`FALLBACK_BETA` — 켬이고 그 모델이 받을 때만). **시간 초과는 다시 보내지
+   않는다** — 서버가 이미 생성(과금)했을 수 있다. 다시 하기는 요청 바이트가 하나도 안 나간 연결 실패(연결 단계 오류)
    뿐이고, 모르면 다시 하지 않는다. SDK 는 429 를 스스로 다시 보내므로 SDK 다시 하기는 0 이다(설계서 11.1 의 6 ③).
 5. **바로잡기** — 응답이 오면 예약을 실제 돈(:func:`.brain_prompt.usage_cost`)으로 바꾼다(쓸 수 없는 답이어도 센다).
    오류 응답(4xx · 5xx · 돈 상한)과 보내기 전 연결 실패는 0원, 응답이 없으면(시간 초과 · 보낸 뒤 끊김) 예약을 그대로 돈으로.
@@ -35,21 +38,24 @@ import datetime
 import logging
 import os
 import time
-from decimal import Decimal, InvalidOperation
-from typing import Any, Mapping, Optional
+from decimal import Decimal
+from typing import Any, Optional
 
 import anthropic
 import httpx2
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.cs_agent import brain_prompt as prompt
 from foms.services.cs_agent.brain_prompt import DraftRequest, DraftResult
+from foms.services.cs_agent.brain_spend import (  # 코드 · 돈 줄 이름은 예전처럼 ``brain.`` 으로도 쓴다(초안 바퀴 · 시험)
+    API_AUTH, API_ERROR, API_SPEND_LIMIT, BAD_RESPONSE, BRAND_MISMATCH, BRAND_NOT_ENABLED, CAP_INVALID, CAP_MISSING,
+    DAILY_CAP_ENV, DAILY_CAP_REACHED, NO_API_KEY, NO_KNOWLEDGE, RATE_LIMITED, SDK_DEBUG_LOGGING, SPEND_KEY,
+    SPEND_RECORD_INVALID, TIMEOUT, BrainError, BrainNotReady, BrainUnavailable, SpendCapReached, add_spend,
+    check_budget, daily_cap_usd, kst_now, reserve_spend, settle_spend, spent_today,
+)
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge
 from foms.services.cs_agent.masking import call_with_masked, require_masked
-from foms.services.cs_agent.state import KST
-from foms.services.datetime_kst import now_kst
-from models import SystemSetting
+from foms.services.cs_agent.settings import PanelSettings, read_settings
+from models import SystemSetting  # noqa: F401 — 부르는 쪽 · 시험이 ``brain.SystemSetting`` 으로 돈 줄을 읽는다
 
 logger = logging.getLogger(__name__)
 
@@ -60,33 +66,24 @@ __all__ = [
     "check_ready", "daily_cap_usd", "draft_reply", "reserve_spend", "settle_spend", "spent_today",
 ]
 
-MODEL = prompt.MODEL  # claude-opus-5-5
+MODEL = prompt.MODEL  # claude-opus-5-5 — 관리 화면 처음 값
 PRICES = prompt.PRICES
-#: 길마다 effort — Opus 5.5 기본은 medium 이라 늘 적는다. 그림자 1주 뒤 시험 묶음 점수 · 지연으로 다시 정한다(11.1 의 1).
+#: 길마다 effort(처음 값) — Opus 5.5 기본은 medium 이라 늘 적는다. 그림자 1주 뒤 시험 묶음 점수 · 지연으로 다시 정한다(11.1 의 1).
 EFFORTS: dict[str, str] = {prompt.PURPOSE_DRAFT: "high", prompt.PURPOSE_INTENT: "low"}
-#: 출력 상한(생각도 이 안에서 쓴다 — 보이지 않아도 센다). 최악값 예약은 이 수 전부를 출력 단가로 센다.
+#: 출력 상한(처음 값 — 생각도 이 안에서 쓴다, 보이지 않아도 센다). 최악값 예약은 이 수 전부를 출력 단가로 센다.
 MAX_TOKENS: dict[str, int] = {prompt.PURPOSE_DRAFT: 16000, prompt.PURPOSE_INTENT: 8000}
 FALLBACK_BETA = "server-side-fallback-2026-07-01"  # ``fallbacks="default"`` 짝(배열 꼴은 -06-01 — 섞으면 400)
 FALLBACKS = "default"
-#: 실시간 길: 45초 · 다시 하기 0. 15분 루프(밤 · 견적) 길: 90초 · 보내기 전 연결 실패만 한 번 더(11.1 의 5 · 원장 R7-3).
+#: 처음 값 — 실시간 길: 45초 · 다시 하기 0. 15분 루프(밤 · 견적) 길: 90초 · 보내기 전 연결 실패만 한 번 더(11.1 의 5 ·
+#: 원장 R7-3). 화면은 실시간 다시 하기 · 두 길 시간만 바꾼다 — 15분 루프 다시 하기는 이 상수 그대로다.
 REALTIME_TIMEOUT_SECONDS, REALTIME_RETRIES = 45.0, 0
 BATCH_TIMEOUT_SECONDS, BATCH_RETRIES = 90.0, 1
 RETRY_BACKOFF_SECONDS = 2.0
 KEY_ENV = "ANTHROPIC_API_KEY"  # 이름만 — 값은 WORKER env 에만(C3-0, 사장님이 넣는다)
-DAILY_CAP_ENV = "FOMS_CS_BRAIN_DAILY_USD"  # 하루 상한(달러) = 콘솔 월 상한 ÷ 30(11.1 의 6 ②)
-#: 오늘 돈 줄 SystemSetting 키(두뇌만 쓴다). 값 ``{"date": "YYYY-MM-DD"(KST), "usd": 바로잡은 돈, "reserved": 부르는 중
-#: 예약 합, "calls": 보낸 수}``. 죽어서 바로잡지 못한 예약은 그날 내내 남는다(막는 쪽).
-SPEND_KEY = "cs_agent_brain_spend"
 #: 요청 본문(가린 손님 글 · 승인 지식)을 디버그 로그에 쓸 수 있는 로거 — 이 이름과 이미 있는 그 아래 로거 가운데 하나라도
 #: DEBUG 면 부르지 않는다(원장 R7-10 — 본문은 ``anthropic._base_client`` 가, 연결 내용은 ``httpcore2.connection`` 이 쓴다).
 SDK_BODY_LOGGERS: tuple[str, ...] = ("anthropic", "anthropic._base_client", "httpx2", "httpcore2", "httpx", "httpcore")
 
-# 오류 코드 — BrainNotReady(부르지 않음 · 키 거절) · SpendCapReached(돈 상한) · BrainUnavailable(불렀는데 못 씀)
-BRAND_NOT_ENABLED, BRAND_MISMATCH, NO_KNOWLEDGE = "brand_not_enabled", "brand_mismatch", "no_knowledge"
-NO_API_KEY, SDK_DEBUG_LOGGING, API_AUTH = "no_api_key", "sdk_debug_logging", "api_auth"
-CAP_MISSING, CAP_INVALID, SPEND_RECORD_INVALID = "daily_cap_missing", "daily_cap_invalid", "spend_record_invalid"
-DAILY_CAP_REACHED, API_SPEND_LIMIT = "daily_cap_reached", "api_spend_limit"
-TIMEOUT, RATE_LIMITED, API_ERROR, BAD_RESPONSE = "timeout", "rate_limited", "api_error", "bad_response"
 #: 콘솔 돈 상한 응답(설계서 11.1 의 6 ③): 429 ``error.details.error_code`` · 400 ``invalid_request_error`` 글 머리.
 SPEND_LIMIT_ERROR_CODE = "enforced_spend_limit_reached"
 _SPEND_LIMIT_PREFIXES = ("you have reached your specified api usage limits",
@@ -98,165 +95,7 @@ _NEVER_SENT = (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout)
 STOP_REFUSAL = "refusal"
 _STOP_ANSWERED = frozenset({"end_turn", "stop_sequence"})
 HANDOFF_REFUSED = "refused"  # 코드만 쓰는 넘김 까닭(모델은 고르지 못한다)
-_MICRO = Decimal("0.000001")
 _sleep = time.sleep  # 시험이 바꾼다
-
-
-# ── 오류 ─────────────────────────────────────────────────────────────────
-class BrainError(RuntimeError):
-    """두뇌를 부르지 않았거나 답을 쓸 수 없다 — 호출부는 :attr:`code` 로 가른다. 글(손님 글 · 오류 본문)은 싣지 않는다."""
-
-    title = "두뇌 오류"
-
-    def __init__(self, code: str, *, status: Optional[int] = None, request_id: Optional[str] = None) -> None:
-        """코드 · HTTP 상태 · 요청 id(지원 문의용)만 싣는다."""
-        self.code, self.status, self.request_id = code, status, request_id
-        super().__init__(f"{self.title} — {code}" + (f" (HTTP {status})" if status else ""))
-
-
-class BrainNotReady(BrainError):
-    """설정 · 재료 · 브랜드가 준비되지 않았다 — 부르기 전에 알았거나 API 가 키 · 권한을 거절했다(401 · 403, 돈 0)."""
-
-    title = "두뇌를 부르지 않는다"
-
-
-class SpendCapReached(BrainError):
-    """돈 상한 — 코드 하루 상한(``daily_cap_reached`` — 예약 포함)이나 콘솔 상한 응답(``api_spend_limit``). 다시 하지 않는다."""
-
-    title = "돈 상한 — 더 부르지 않는다"
-
-
-class BrainUnavailable(BrainError):
-    """불렀는데 쓸 답이 없다 — ``timeout`` · ``rate_limited`` · ``api_error`` · ``bad_response``. 그 차례는 사람에게."""
-
-    title = "두뇌 호출 실패"
-
-
-# ── 돈 줄(하루 상한 · 예약 · 바로잡기) ──────────────────────────────────
-def _kst(now: Optional[datetime.datetime]) -> datetime.datetime:
-    """지금(KST). 시간대 없는 시각은 거절한다(UTC · KST 가 섞이면 조용히 틀린다)."""
-    value = now if now is not None else now_kst()
-    if value.tzinfo is None:
-        raise ValueError("시간대가 없는 시각은 받지 않는다")
-    return value.astimezone(KST)
-
-
-def daily_cap_usd(environ: Optional[Mapping[str, str]] = None) -> Decimal:
-    """하루 상한(달러) — env :data:`DAILY_CAP_ENV`. 없거나 틀리면(숫자 아님 · 음수 · 무한) :class:`BrainNotReady`."""
-    raw = (os.environ if environ is None else environ).get(DAILY_CAP_ENV)
-    if raw is None or not raw.strip():
-        raise BrainNotReady(CAP_MISSING)
-    try:
-        cap = Decimal(raw.strip())
-    except InvalidOperation:
-        raise BrainNotReady(CAP_INVALID) from None
-    if not cap.is_finite() or cap < 0:
-        raise BrainNotReady(CAP_INVALID)
-    return cap
-
-
-def _money(raw: Any) -> Decimal:
-    """저장된 돈 값 하나(0 이상 · 유한). 틀리면 :class:`BrainNotReady` — 막는 쪽으로 닫힌다."""
-    try:
-        value = Decimal(str(raw))
-    except InvalidOperation:
-        raise BrainNotReady(SPEND_RECORD_INVALID) from None
-    if not value.is_finite() or value < 0:
-        raise BrainNotReady(SPEND_RECORD_INVALID)
-    return value
-
-
-def _stored(value: Any, day: str) -> tuple[Decimal, Decimal, int]:
-    """저장 값 → 그날 (바로잡은 돈, 예약, 보낸 수)(다른 날이면 0). 꼴이 틀리면 :class:`BrainNotReady`."""
-    if value is None or value == {}:
-        return Decimal(0), Decimal(0), 0
-    if not isinstance(value, dict) or not isinstance(value.get("date"), str):
-        raise BrainNotReady(SPEND_RECORD_INVALID)
-    if value["date"] != day:
-        return Decimal(0), Decimal(0), 0
-    calls = value.get("calls")
-    return _money(value.get("usd")), _money(value.get("reserved", "0")), calls if isinstance(calls, int) else 0
-
-
-def spent_today(session: Any, *, now: Optional[datetime.datetime] = None) -> Decimal:
-    """오늘(KST) 상한에 드는 돈 = 바로잡은 돈 + 부르는 중 예약(잠그지 않고 읽는다)."""
-    row = session.get(SystemSetting, SPEND_KEY, populate_existing=True)
-    usd, reserved, _ = _stored(row.setting_value if row is not None else None, _kst(now).date().isoformat())
-    return usd + reserved
-
-
-def check_budget(session: Any, *, cap: Optional[Decimal] = None, now: Optional[datetime.datetime] = None) -> Decimal:
-    """부르기 전 돈 확인 — 오늘 돈(예약 포함)이 상한(없으면 env) 이상이면 :class:`SpendCapReached`. 오늘 돈을 돌려준다."""
-    limit = daily_cap_usd() if cap is None else cap
-    spent = spent_today(session, now=now)
-    if spent >= limit:
-        logger.warning("[CS 두뇌] 오늘 돈이 하루 상한에 닿아 부르지 않는다 key=%s spent=%s cap=%s", SPEND_KEY, spent, limit)
-        raise SpendCapReached(DAILY_CAP_REACHED)
-    return spent
-
-
-def _locked_row(session: Any) -> Any:
-    """돈 줄을 잠가 읽는다(없으면 먼저 만들어 커밋 — 같은 때 다른 쪽이 만들었으면 그 줄)."""
-    if session.get(SystemSetting, SPEND_KEY) is None:
-        session.add(SystemSetting(setting_key=SPEND_KEY, setting_value={},
-                                  description="AI 상담팀원 두뇌 — 오늘(KST) 돈 · 예약(플랜 C3-2, 하루 상한 확인)"))
-        try:
-            session.commit()
-        except IntegrityError:
-            session.rollback()
-    return session.get(SystemSetting, SPEND_KEY, populate_existing=True, with_for_update=True)
-
-
-def _put(row: Any, day: str, usd: Decimal, reserved: Decimal, calls: int) -> None:
-    """돈 줄 새 값(버전 +1). 커밋은 부르는 쪽."""
-    row.setting_value = {"date": day, "usd": str(usd), "reserved": str(reserved.quantize(_MICRO)), "calls": calls}
-    flag_modified(row, "setting_value")
-    row.version = int(row.version or 1) + 1
-
-
-def _read_locked(session: Any, now: Optional[datetime.datetime]) -> tuple[Any, str, Decimal, Decimal, int]:
-    """잠근 돈 줄과 오늘 값. 꼴이 틀리면 되돌려 잠금을 풀고 :class:`BrainNotReady`."""
-    row, day = _locked_row(session), _kst(now).date().isoformat()
-    try:
-        return (row, day, *_stored(row.setting_value, day))
-    except BrainNotReady:
-        session.rollback()
-        raise
-
-
-def reserve_spend(session: Any, amount: Decimal, *, cap: Decimal, now: Optional[datetime.datetime] = None) -> Decimal:
-    """보내기 전 최악값을 예약하고 커밋한다(원장 R7-3). 예약 합을 돌려준다.
-
-    줄 ``FOR UPDATE`` 안에서 '바로잡은 돈 + 예약 + 이번 값'이 상한을 넘으면 되돌리고 :class:`SpendCapReached` — 바퀴가
-    겹쳐도(두 컨테이너) 둘째는 첫째 예약을 보고 멈춘다.
-    """
-    row, day, usd, reserved, calls = _read_locked(session, now)
-    if usd + reserved + Decimal(amount) > cap:
-        session.rollback()
-        logger.warning("[CS 두뇌] 예약하면 하루 상한을 넘어 부르지 않는다 key=%s spent=%s reserved=%s need=%s cap=%s",
-                       SPEND_KEY, usd, reserved, amount, cap)
-        raise SpendCapReached(DAILY_CAP_REACHED)
-    _put(row, day, usd, reserved + Decimal(amount), calls)
-    session.commit()
-    return reserved + Decimal(amount)
-
-
-def settle_spend(session: Any, reserved_amount: Decimal, cost: Decimal, *,
-                 now: Optional[datetime.datetime] = None) -> Decimal:
-    """예약을 실제 돈으로 바로잡고 커밋한다 — 예약을 빼고(0 아래로 안 내림) ``cost`` 를 더하고 보낸 수 +1. 바로잡은 돈 합을 돌려준다.
-
-    날이 바뀐 뒤면 옛 날 예약은 이미 0 으로 본다(다른 날 값은 세지 않는다) — 돈은 오늘 합에 더한다.
-    """
-    row, day, usd, reserved, calls = _read_locked(session, now)
-    usd += Decimal(cost)
-    _put(row, day, usd, max(Decimal(0), reserved - Decimal(reserved_amount)), calls + 1)
-    session.commit()
-    return usd
-
-
-def add_spend(session: Any, cost_usd: Decimal, *, now: Optional[datetime.datetime] = None) -> Decimal:
-    """쓴 돈을 오늘 합에 더해 커밋한다(예약 없이 — :func:`settle_spend` 의 예약 0). 새 합을 돌려준다."""
-    return settle_spend(session, Decimal(0), cost_usd, now=now)
 
 
 # ── 준비 ─────────────────────────────────────────────────────────────────
@@ -293,40 +132,62 @@ def _check_ready(request: DraftRequest, *, need_key: bool) -> None:
 
 def check_ready(brand: str, knowledge: ApprovedKnowledge, *, session: Any = None,
                 now: Optional[datetime.datetime] = None, client: Any = None) -> Decimal:
-    """두뇌를 부를 준비가 됐나 — 초안 바퀴가 고르기 · 선점 전에 한 번 부른다(원장 R7-4). 하루 상한(달러)을 돌려준다.
+    """두뇌를 부를 준비가 됐나 — 초안 바퀴가 고르기 · 선점 전에 한 번 부른다(원장 R7-4). 쓰는 하루 상한(달러)을 돌려준다.
 
     본다: 켠 브랜드 · 같은 브랜드 승인 지식 · 본문을 쓰는 디버그 로거 · 키(``client`` 를 안 주면) · 하루 상한 env · 돈 줄 꼴 ·
-    오늘 돈(예약 포함)이 상한 아래. 돈 줄을 읽은 트랜잭션은 커밋해 닫는다.
+    오늘 돈(예약 포함)이 **지금** 상한(env 와 화면 값 가운데 작은 것) 아래이고 초안 한 번(:func:`_floor_reserve`)을 부를 만큼
+    남았는가. 그날 상한에 닿았어도 상한을 올리면 다음 바퀴부터 다시 지난다(멈춤은 지금 상한과 오늘 돈으로만 정한다).
+    돈 줄을 읽은 트랜잭션은 커밋해 닫는다.
 
     Raises:
-        BrainNotReady: 준비 안 됨(까닭은 코드). SpendCapReached: 오늘 상한에 이미 닿음.
+        BrainNotReady: 준비 안 됨(까닭은 코드). SpendCapReached: 오늘 상한에 이미 닿음 · 한 번 부를 만큼도 안 남음.
     """
     _check_material(brand, knowledge)
     _check_environment(need_key=client is None)
-    cap = daily_cap_usd()
+    env_cap = daily_cap_usd()
     session = session if session is not None else _default_session()
-    check_budget(session, cap=cap, now=_kst(now))
+    cfg = read_settings(session, log=False)  # 설정 경고는 초안 바퀴가 바퀴마다 한 번 남긴다
+    cap = cfg.daily_cap(env_cap)
+    spent = check_budget(session, cap=cap, now=kst_now(now))
+    need = _floor_reserve(cfg)
+    if spent + need > cap:
+        session.commit()
+        logger.warning("[CS 두뇌] 남은 돈이 초안 한 번도 안 돼 부르지 않는다 key=%s spent=%s need=%s cap=%s",
+                       SPEND_KEY, spent, need, cap)
+        raise SpendCapReached(DAILY_CAP_REACHED)
     session.commit()
     return cap
 
 
+def _floor_reserve(cfg: PanelSettings) -> Decimal:
+    """초안 한 번이 적어도 예약할 돈 — 상담 글 · 지식이 없는 가장 작은 요청의 최악값(실제 요청은 늘 이보다 크다)."""
+    model = cfg.model_for(prompt.PURPOSE_DRAFT)
+    smallest: dict[str, Any] = {"model": model, "max_tokens": cfg.max_tokens_for(prompt.PURPOSE_DRAFT)}
+    if cfg.fallback_on(model):
+        smallest["fallbacks"] = FALLBACKS
+    return prompt.worst_case_cost(smallest)
+
+
 # ── 부르기 ───────────────────────────────────────────────────────────────
-def _params(request: DraftRequest, conversation: str, now: datetime.datetime) -> dict[str, Any]:
-    """``beta.messages.create`` 인자 — 앞부분(system)에는 바뀌는 값을 넣지 않는다."""
+def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
+            cfg: PanelSettings) -> dict[str, Any]:
+    """``beta.messages.create`` 인자 — 앞부분(system)에는 바뀌는 값을 넣지 않는다. 모델 · 깊이 · 출력 · 캐시 · 대체는 설정."""
     knowledge = request.knowledge
-    return {
-        "model": MODEL,
-        "max_tokens": MAX_TOKENS[request.purpose],
+    model = cfg.model_for(request.purpose)
+    params: dict[str, Any] = {
+        "model": model,
+        "max_tokens": cfg.max_tokens_for(request.purpose),
         "thinking": {"type": "adaptive"},  # 끌 수 없다 — 대체 모델(Opus 4.8)은 빼면 생각 없이 돌아 적어 둔다
-        "output_config": {"effort": EFFORTS[request.purpose],
+        "output_config": {"effort": cfg.effort_for(request.purpose),
                           "format": {"type": "json_schema", "schema": prompt.output_schema(knowledge)}},
-        "system": prompt.system_blocks(request.brand, knowledge, daytime=request.daytime),
+        "system": prompt.system_blocks(request.brand, knowledge, cache_ttl=cfg.cache_ttl_for(request.daytime)),
         "messages": [{"role": "user", "content": prompt.task_text(
             purpose=request.purpose, chat_id=request.chat_id, medium=request.medium, now=now,
             calculator_lines=request.calculator_lines, conversation=conversation)}],
-        "betas": [FALLBACK_BETA],
-        "fallbacks": FALLBACKS,
     }
+    if cfg.fallback_on(model):  # Haiku 5.5 는 서버 쪽 대체가 없다 — 보내지 않는다
+        params.update(betas=[FALLBACK_BETA], fallbacks=FALLBACKS)
+    return params
 
 
 def _spend_limited(exc: anthropic.APIStatusError) -> bool:
@@ -367,11 +228,17 @@ def _failure_of(exc: anthropic.APIError) -> tuple[BrainError, bool, bool]:
     return BrainUnavailable(API_ERROR), False, True
 
 
+def _limits(cfg: PanelSettings, *, realtime: bool) -> tuple[float, int]:
+    """길마다 (시간 상한 초, 다시 하기 수) — 실시간 길은 둘 다 설정, 15분 루프 길은 시간만 설정(다시 하기는 상수)."""
+    if realtime:
+        return float(cfg.get("realtime_timeout_s")), int(cfg.get("realtime_retries"))
+    return float(cfg.get("batch_timeout_s")), BATCH_RETRIES
+
+
 def _send(api: Any, params: dict[str, Any], *, realtime: bool, session: Any, cap: Decimal,
-          now: datetime.datetime) -> tuple[Any, int, Decimal]:
+          now: datetime.datetime, cfg: PanelSettings) -> tuple[Any, int, Decimal]:
     """부른다(SDK 다시 하기 0 — 다시 하기는 여기서 센다). 보낼 때마다 최악값을 먼저 예약한다. (응답, 걸린 ms, 예약)."""
-    timeout, retries = ((REALTIME_TIMEOUT_SECONDS, REALTIME_RETRIES) if realtime
-                        else (BATCH_TIMEOUT_SECONDS, BATCH_RETRIES))
+    timeout, retries = _limits(cfg, realtime=realtime)
     messages = api.with_options(timeout=timeout, max_retries=0).beta.messages
     reserve = prompt.worst_case_cost(params)
     started = time.monotonic()
@@ -392,15 +259,15 @@ def _send(api: Any, params: dict[str, Any], *, realtime: bool, session: Any, cap
     raise AssertionError("닿지 않는 자리")  # pragma: no cover
 
 
-def _result(request: DraftRequest, response: Any, *, tokens: prompt.Tokens, cost: Decimal,
-            latency_ms: int) -> DraftResult:
+def _result(request: DraftRequest, response: Any, *, tokens: prompt.Tokens, cost: Decimal, latency_ms: int,
+            model: str, effort: str, cache_marked: bool) -> DraftResult:
     """응답 → 결과. 거절은 초안 없이 넘김, 그 밖의 멈춤 · 틀린 꼴은 :class:`BrainUnavailable` (돈은 이미 셌다)."""
     stop = getattr(response, "stop_reason", None)
     common: dict[str, Any] = dict(
-        model=str(getattr(response, "model", None) or MODEL), effort=EFFORTS[request.purpose],
+        model=str(getattr(response, "model", None) or model), effort=effort,
         input_tokens=tokens.input, output_tokens=tokens.output, cache_read_tokens=tokens.cache_read,
         cache_write_tokens=tokens.cache_write, cost_usd=cost, latency_ms=latency_ms, stop_reason=stop,
-        fallback_used=prompt.fallback_served(response) and stop != STOP_REFUSAL)
+        fallback_used=prompt.fallback_served(response) and stop != STOP_REFUSAL, cache_marked=cache_marked)
     logger.info("[CS 두뇌] chat=%s purpose=%s model=%s effort=%s stop=%s fallback=%s in=%d out=%d cache_read=%d "
                 "cache_write=%d cost=%s ms=%d", request.chat_id, request.purpose, common["model"], common["effort"],
                 stop, common["fallback_used"], tokens.input, tokens.output, tokens.cache_read, tokens.cache_write,
@@ -446,12 +313,12 @@ def _default_client() -> Any:
 
 def draft_reply(request: DraftRequest, *, client: Any = None, session: Any = None,
                 now: Optional[datetime.datetime] = None) -> DraftResult:
-    """두뇌 한 번 — 확인 → 돈 확인 → 가림 → 예약 · 부르기 → 바로잡기 → 결과(모듈 설명의 순서).
+    """두뇌 한 번 — 확인 → 설정 · 돈 확인 → 가림 → 예약 · 부르기 → 바로잡기 → 결과(모듈 설명의 순서).
 
     Args:
         request: 재료(:class:`DraftRequest` — 글은 가리기 전 원문).
         client: Anthropic 클라이언트(시험은 가짜). 없으면 부를 때 ``anthropic.Anthropic()`` 을 만들고 끝나면 닫는다.
-        session: DB 세션 — 돈 줄을 읽고 · 예약하고 · 바로잡는다. 여러 번 커밋하니 넘기기 전에 부르는 쪽 쓰기를 마쳐 둔다.
+        session: DB 세션 — 설정 · 돈 줄을 읽고 · 예약하고 · 바로잡는다. 여러 번 커밋하니 넘기기 전에 부르는 쪽 쓰기를 마쳐 둔다.
         now: 지금(시간대 있는 값, 시험 주입). 돈의 날(KST)과 프롬프트의 '지금'.
 
     Returns:
@@ -463,10 +330,12 @@ def draft_reply(request: DraftRequest, *, client: Any = None, session: Any = Non
         MaskLeak: 가린 뒤에도 개인정보 꼴이 남음(부르지 않음 — 칸별 숫자만).
         BrainUnavailable: 시간 초과 · 429 · API 오류 · 쓸 수 없는 답.
     """
-    now = _kst(now)
+    now = kst_now(now)
     _check_ready(request, need_key=client is None)
-    cap = daily_cap_usd()
+    env_cap = daily_cap_usd()
     session = session if session is not None else _default_session()
+    cfg = read_settings(session, log=False)  # 부를 때마다 새로 — 화면에서 저장하면 다음 차례부터
+    cap = cfg.daily_cap(env_cap)
     check_budget(session, cap=cap, now=now)
     session.commit()  # 부르는 동안 읽기 트랜잭션을 열어 두지 않는다('idle in transaction' 방지)
     roles = [role for role, _ in request.messages]
@@ -474,17 +343,19 @@ def draft_reply(request: DraftRequest, *, client: Any = None, session: Any = Non
     def call(masked: list[str]) -> DraftResult:
         conversation = prompt.render_conversation(list(zip(roles, masked)))
         require_masked(conversation)  # 모델에 가는 손님 글 전부 — 가림이 고장 나도 여기서 멈춘다
-        params = _params(request, conversation, now)
+        params = _params(request, conversation, now, cfg)
         api = client if client is not None else _default_client()
         try:
             response, latency_ms, reserved = _send(api, params, realtime=request.realtime, session=session, cap=cap,
-                                                   now=now)
+                                                   now=now, cfg=cfg)
         finally:
             if client is None:
                 api.close()
-        tokens, cost = prompt.usage_cost(response)
+        tokens, cost = prompt.usage_cost(response, model=params["model"])
         settle_spend(session, reserved, cost, now=now)
-        return _result(request, response, tokens=tokens, cost=cost, latency_ms=latency_ms)
+        return _result(request, response, tokens=tokens, cost=cost, latency_ms=latency_ms, model=params["model"],
+                       effort=params["output_config"]["effort"],
+                       cache_marked=any("cache_control" in block for block in params["system"]))
 
     return call_with_masked([text for _, text in request.messages], call,
                             customer_names=request.customer_names, staff_names=request.staff_names)
