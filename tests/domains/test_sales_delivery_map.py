@@ -107,6 +107,25 @@ def test_order_without_link_is_excluded(app):
     assert result["total"] == 0
 
 
+def test_linked_order_without_sales_delivery_flag_is_included(app):
+    """영업/전달 분류를 꺼 둔(전달+방문 혼합) AS 도 배정이 있으면 실측 표에 실린다.
+
+    운영 #5432(2026-10-29): 분류를 꺼서 미완료 탭에 둔 채 배정했더니 실측 표에서 빠졌다.
+    """
+    order = _create_as_order(shipment_extra={"sales_delivery": False})
+    _assign_link(order, ref_order_id=9006)
+    _create_as_order(shipment_extra={"sales_delivery": False}, customer_name="배정 없음")
+    done = _create_as_order(status="AS_COMPLETED", as_completed_date=date.today().strftime("%Y-%m-%d"),
+                            shipment_extra={"sales_delivery": False})
+    _assign_link(done, ref_order_id=9007)
+
+    result = build_sales_delivery_by_ref(db_session)
+
+    assert [i["order_id"] for i in result["by_ref"].get(9006, [])] == [order.id]
+    assert 9007 not in result["by_ref"]
+    assert result["total"] == 1
+
+
 def test_parcel_method_is_excluded(app):
     order = _create_as_order()
     _assign_link(order, ref_order_id=9003)
