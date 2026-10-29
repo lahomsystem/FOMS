@@ -43,9 +43,9 @@ _ALLOWED_METADATA_KEYS = {
     "run_naver_order_sync": {"interval_seconds", "outcome", "changed", "candidates",
                              "created", "pending_review"},
     "run_naver_settle_sync": {"interval_seconds", "ran", "status", "calls", "rows"},
-    # CS 감시 루프 — 집계 수와 마지막 정상 바퀴 시각뿐(상담 id · 손님 글 없음).
+    # CS 감시 루프 — 집계 수 · 마지막 정상 바퀴 시각 · WORKER env 하루 상한(관리 화면 천장)뿐(상담 id · 손님 글 없음).
     "run_cs_loop": {"interval_seconds", "outcome", "ingested", "reconciled", "needs_reply", "alerts",
-                    "report_sent", "last_success_at"},
+                    "report_sent", "last_success_at", "daily_cap_usd"},
 }
 
 

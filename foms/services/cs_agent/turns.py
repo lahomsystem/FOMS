@@ -41,9 +41,10 @@ from foms.services.cs_agent.masking import mask, require_masked
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "TurnConflict",
-    "TurnStateError", "claim_turn", "draft_mode", "mark_failed", "mark_posted", "mark_posting", "mark_skipped",
-    "mark_stored", "record_brain_result", "record_staff_reply", "release_turn", "set_draft_mode", "stale_posting",
+    "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
+    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_turn", "draft_mode", "mark_failed", "mark_posted",
+    "mark_posting", "mark_skipped", "mark_stored", "read_switch", "record_brain_result", "record_staff_reply",
+    "release_turn", "set_draft_mode", "stale_posting",
 ]
 
 STATE_CLAIMED, STATE_POSTING, STATE_POSTED = "claimed", "posting", "posted"
@@ -54,6 +55,8 @@ MAX_ATTEMPTS = 3
 
 #: 바로 끄기 줄 — ``loop.SWITCH_KEY`` 와 같은 줄이다(loop 가 이 모듈을 부를 쪽이라 거꾸로 import 하지 않는다 · 시험이 맞춘다).
 SWITCH_KEY = "cs_agent_switch"
+LOOP_FIELD = "loop"
+SWITCH_ON, SWITCH_OFF = "on", "off"
 DRAFT_FIELD = "draft"
 DRAFT_OFF, DRAFT_STORE, DRAFT_MEMO = "off", "store", "memo"
 DRAFT_MODES: tuple[str, ...] = (DRAFT_OFF, DRAFT_STORE, DRAFT_MEMO)
@@ -256,6 +259,25 @@ def stale_posting(session: Any, older_than: datetime.datetime, *, limit: int = 1
             .limit(int(limit))
             .execution_options(populate_existing=True))
     return list(session.scalars(stmt))
+
+
+def read_switch(session: Any) -> bool:
+    """감시 루프 바로 끄기(``loop`` 칸) — 돌려도 되면 True. 줄이 없거나 ``{"loop": "on"}`` 이면 돈다.
+
+    줄은 있는데 값이 비었거나(NULL) 꼴이 틀린 값(``{"loop": "of"}`` · 글자 하나 등)은 끈 것으로 본다 — 끄려고 손댄
+    값이 오타로 켜진 채 남으면 안 된다(원장 R5-8). 감시 루프(바퀴 시작)와 초안 바퀴(두뇌 부르기 전마다)가 같이 쓴다 —
+    ``loop.read_switch`` 는 이 함수다(loop 가 초안 바퀴를 부르므로 초안 바퀴가 loop 를 import 하지 않게 여기 둔다).
+    """
+    row = session.get(SystemSetting, SWITCH_KEY, populate_existing=True)
+    if row is None:
+        return True
+    value = row.setting_value
+    loop_value = value.get(LOOP_FIELD, SWITCH_ON) if isinstance(value, dict) else None
+    if loop_value == SWITCH_ON:
+        return True
+    if loop_value != SWITCH_OFF:
+        logger.warning("[CS 감시] 바로 끄기 값의 꼴이 틀려 끈 것으로 본다 key=%s", SWITCH_KEY)
+    return False
 
 
 def draft_mode(session: Any) -> str:

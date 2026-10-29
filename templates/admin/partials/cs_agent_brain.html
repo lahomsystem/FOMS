@@ -1,0 +1,82 @@
+{#- AI 상담팀원 관리 — 두뇌 · 돈 탭(고르기는 다음 단계라 잠김). 칸 · 고를 수 있는 값 · 범위는 서버 설정 표
+    (foms/services/cs_agent/settings.py FIELDS)가 정본이다. 저장은 읽은 버전(data-version)을 같이 보내 다른 사람 저장을 덮지
+    않는다(409). 잠긴 칸(locked)은 값만 보이고 보내지 않는다 — 서버도 바꾸는 저장을 400 으로 거절한다.
+    하루 상한 천장은 WORKER 가 감시 루프 하트비트에 남긴 자기 env 값이다(이 화면은 env 를 읽지 않는다). -#}
+{% set settings = state.settings %}
+{% set caps = state.caps %}
+<div class="tab-pane fade" id="cs-tab-brain" role="tabpanel" aria-labelledby="cs-tab-brain-btn">
+  <div class="cs-agent-cap mt-3">
+    {% if caps.worker_state == 'ok' %}
+    <p class="mb-1">쓰는 하루 돈 상한: <strong>${{ caps.effective }}</strong></p>
+    <p class="text-muted small mb-0">WORKER env 천장 ${{ caps.worker }}(감시 루프 하트비트 {{ caps.worker_seen or '-' }}) ·
+      화면 값 {{ '$' ~ caps.panel if caps.panel is not none else '비움(WORKER env 그대로)' }} — 둘 가운데 작은 값을 씁니다.
+      두뇌(WORKER)는 부를 때마다 자기 env 로 한 번 더 자릅니다.</p>
+    {% elif caps.worker_state == 'missing' %}
+    <p class="mb-1 text-danger">WORKER 에 하루 상한 env(FOMS_CS_BRAIN_DAILY_USD)가 없거나 틀립니다 — 두뇌는 부르지 않습니다.</p>
+    <p class="text-muted small mb-0">감시 루프 하트비트 {{ caps.worker_seen or '-' }} 기준. 화면 값은 칸의 최댓값까지만 막습니다.</p>
+    {% else %}
+    <p class="mb-1 text-warning">WORKER 상한 확인 안 됨</p>
+    <p class="text-muted small mb-0">감시 루프 하트비트에 WORKER 하루 상한이 아직 없습니다. 화면 값은 칸의 최댓값까지만 막고,
+      두뇌(WORKER)가 부를 때 자기 env 와 견줘 작은 값을 씁니다.</p>
+    {% endif %}
+    <p class="text-muted small mb-0 mt-1">상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돕니다(콘솔 월 상한에 닿은 날은
+      그날 멈춤).</p>
+  </div>
+
+  {% if settings.fallback_fields %}
+  <div class="alert alert-warning small mt-3 mb-0" data-foms-no-autodismiss>저장된 값이 틀려 처음 값으로 쓰는 칸:
+    {{ settings.fallback_fields | join(', ') }} — 확인한 뒤 다시 저장해 주세요(저장하면 고친 칸이 기록에 남습니다).</div>
+  {% endif %}
+
+  <p class="text-muted small mt-3 mb-0">'다음 단계' 칸은 값만 보입니다 — 의도 고르기 · 실시간 길은 아직 그 길이 없고, 고르기는
+    단계 1 승인 밖입니다. 지금은 처음 값(코드 상수) 그대로 돕니다.</p>
+
+  <form class="cs-agent-form mt-3" data-cs-settings data-version="{{ settings.version }}" novalidate>
+    {% for group in settings.fields | map(attribute='group') | unique %}
+    {% set members = settings.fields | selectattr('group', 'equalto', group) | list %}
+    <fieldset class="cs-agent-fieldset">
+      <legend class="h6">{{ group }}{% if members | rejectattr('locked') | list | length == 0 %}
+        <span class="badge text-bg-secondary ms-1">다음 단계</span>{% endif %}</legend>
+      <div class="row g-3">
+        {% for f in members %}
+        <div class="col-md-6 col-xl-4 {{ 'cs-agent-locked' if f.locked }}">
+          <label class="form-label small fw-semibold" for="cs-set-{{ f.name }}">{{ f.label }}
+            {% if f.locked %}<span class="badge text-bg-secondary ms-1">다음 단계</span>{% endif %}</label>
+          {% if f.kind == 'choice' %}
+          <select class="form-select form-select-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"
+                  data-kind="{{ 'choice-number' if f.default is number else 'choice' }}" {{ 'disabled' if f.locked }}>
+            {% for c in f.choices %}
+            <option value="{{ c.value }}" {{ 'selected' if c.value == f.value }}>{{ c.label }}</option>
+            {% endfor %}
+          </select>
+          {% elif f.kind == 'bool' %}
+          <select class="form-select form-select-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}" data-kind="bool"
+                  {{ 'disabled' if f.locked }}>
+            <option value="true" {{ 'selected' if f.value }}>켬</option>
+            <option value="false" {{ 'selected' if not f.value }}>끔</option>
+          </select>
+          {% elif f.kind == 'money' %}
+          <input type="number" class="form-control form-control-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"
+                 data-kind="money" min="0" step="0.01" max="{{ caps.worker if caps.worker is not none else f.high }}"
+                 value="{{ f.value if f.value is not none else '' }}" placeholder="비우면 WORKER env 그대로"
+                 {{ 'disabled' if f.locked }}>
+          {% else %}
+          <input type="number" class="form-control form-control-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"
+                 data-kind="int" min="{{ f.low }}" max="{{ f.high }}" step="1" value="{{ f.value }}"
+                 {{ 'disabled' if f.locked }}>
+          {% endif %}
+          <div class="invalid-feedback">고를 수 없는 값입니다.</div>
+          <p class="form-text small mb-0">
+            {%- if f.kind == 'int' %}{{ f.low }} ~ {{ f.high }} {{ f.unit }} · {% endif -%}
+            처음 값 {{ f.default_label }}{% if f.help %} · {{ f.help }}{% endif %}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+    <div class="cs-agent-actions">
+      <button type="submit" class="btn btn-primary" data-cs-save>저장(다음 차례부터)</button>
+      <span class="text-muted small">버전 {{ settings.version }}{{ ' · 아직 저장한 적 없음(모두 처음 값)' if settings.version == 0 }}</span>
+    </div>
+  </form>
+</div>

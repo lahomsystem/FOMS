@@ -3,6 +3,7 @@
 import foms.web.admin.alimtalk_failures  # noqa: F401 — registers alimtalk-failure route on admin_bp
 import foms.web.admin.audit  # noqa: F401 — registers audit routes on admin_bp
 import foms.web.admin.backup_status  # noqa: F401 — registers backup-status route on admin_bp
+import foms.web.admin.cs_agent  # noqa: F401 — registers AI 상담팀원 panel route on admin_bp
 import foms.web.admin.naver_ingest  # noqa: F401 — registers naver ingest routes on admin_bp
 import foms.web.admin.naver_ingest  # noqa: F401 - registers naver ingest routes on admin_bp
 import foms.web.admin.ops_approvals  # noqa: F401 — registers ops-approval routes on admin_bp

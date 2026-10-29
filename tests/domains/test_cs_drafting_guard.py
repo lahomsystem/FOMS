@@ -1,6 +1,6 @@
 """초안 차례 막는 장치(검수 R7) — 공개 메모면 스위치 끔 · 확인 못 함이면 저장만 · 관리자 알림, 두뇌 준비가 안 됐으면 줄 0,
 401 · 403 · 준비 안 됨은 시도를 세지 않음, 보내기 실패는 저장된 초안으로 다시 올림(두뇌 안 부름), 줄이 그사이 바뀌면 안 올림,
-루프 읽기 도우미 넘김, 낮 캐시 읽기 0 세기 · 대체 모델 기록.
+루프 읽기 도우미 넘김, 캐시 표시를 실은 요청의 캐시 읽기 0 세기 · 대체 모델 기록.
 
 가짜만 쓴다(두뇌 · 메모 감싸개 · 채널톡) — 네트워크 · 진짜 키 없음. 손으로 꾸민 합성 글만. 재료 · 가짜는 ``test_cs_drafting``
 과 같다(그 모듈의 fixture 를 그대로 쓴다). 시각은 2026-11 KST(11-02 월요일).
@@ -230,7 +230,7 @@ def test_the_memo_check_uses_the_loops_reader(channel):
     assert poster.calls[0].kwargs["reader"] is reader  # 다시 읽기의 기다림도 TERM 을 본다
 
 
-def test_daytime_cache_misses_are_counted_and_warned_once_and_fallbacks_recorded(channel, caplog):
+def test_marked_cache_misses_are_counted_and_warned_once_and_fallbacks_recorded(channel, caplog):
     for chat in ("uc-1", "uc-2", "uc-3"):
         customer(channel, chat)
     caplog.set_level(logging.WARNING, logger=drafting.__name__)
@@ -239,5 +239,6 @@ def test_daytime_cache_misses_are_counted_and_warned_once_and_fallbacks_recorded
     assert (day.cache_cold, caplog.text.count("캐시 읽기 0")) == (2, 1)
     assert [turn(c).fallback_used for c in ("uc-1", "uc-2", "uc-3")] == [False, True, False]
     customer(channel, "uc-4")
-    night = run(channel, brain_fn=FakeBrain(result(cache_read_tokens=0)), now=at(2, 21))  # 밤엔 캐시 표시가 없다
+    unmarked = FakeBrain(result(cache_read_tokens=0, cache_marked=False))  # 밤엔 캐시 표시가 없다(처음 방침)
+    night = run(channel, brain_fn=unmarked, now=at(2, 21))
     assert (night.stored, night.cache_cold) == (1, 0)

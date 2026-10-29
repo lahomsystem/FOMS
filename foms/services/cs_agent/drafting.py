@@ -6,19 +6,22 @@
 :mod:`.drafting_read` · 놓기(저장만 · 메모 · 메모 막는 장치) :mod:`.drafting_post`. :func:`run_drafting` 한 바퀴(순서 고정):
 
 0. **정리 · 준비** — 두뇌를 부르다 죽어 ``claimed`` 로 :data:`STALE_CLAIM_AFTER` 넘게 남은 줄은 ``failed``(시도 상한까지 다시
-   집음). 오래 남은 ``posting`` 은 세기만 한다(다시 올리지 않는다 — 복구 단계 몫). 오늘(KST) 돈 상한으로 멈춘 줄이 있거나
-   라홈 Open API 키가 없거나 **두뇌 준비**(:func:`.brain.check_ready` — 키 · 하루 상한 env · 승인 지식 · 디버그 로그 막기 ·
-   돈 줄 · 오늘 상한)가 안 됐으면 **줄을 하나도 만들지 않고** 멈춘다(원장 R7-4).
+   집음). 오래 남은 ``posting`` 은 세기만 한다(다시 올리지 않는다 — 복구 단계 몫). 오늘(KST) 콘솔 돈 상한 응답으로 멈춘 줄이
+   있거나 라홈 Open API 키가 없거나 **두뇌 준비**(:func:`.brain.check_ready` — 키 · 하루 상한 env · 승인 지식 · 디버그 로그
+   막기 · 돈 줄 · **지금** 상한과 오늘 돈)가 안 됐으면 **줄을 하나도 만들지 않고** 멈춘다(원장 R7-4). 코드 하루 상한은 그때그때
+   견주므로 상한을 올리면 다음 바퀴부터 다시 돈다.
 1. **고르기** — 루프가 낸 열린 상담 상태에서 라홈 · 답 필요 · 맺음 글뿐 아님 · 마지막 손님 글 뒤 공개 직원 글 없음(우선순위 순).
    운영 시간 안 · 밖 모두(R7-7 결정 — 처음 2주는 '저장만'으로 PC 시범과 같은 범위를 견준다). 하우드는 고르지 않는다.
-   마지막 손님 글이 운영 시간으로 :data:`MAX_WAIT_BUSINESS_DAYS` 를 넘긴 상담도 고르지 않는다 — 켜는 날 밀린 상담에 하루
-   돈을 먼저 쓰지 않게(원장 D50, 주말 · 공휴일은 세지 않는다).
+   마지막 손님 글이 운영 시간으로 '묵은 상담 기준'(관리 화면 설정 — 처음 값 :data:`MAX_WAIT_BUSINESS_DAYS`)을 넘긴
+   상담도 고르지 않는다 — 켜는 날 밀린 상담에 하루 돈을 먼저 쓰지 않게(원장 D50, 주말 · 공휴일은 세지 않는다).
+   한 바퀴 두뇌 상한도 관리 화면 설정이다(처음 값 :data:`MAX_BRAIN_CALLS` — 바퀴마다 새로 읽는다).
 2. **선점** — 이미 있는 줄을 먼저 한 번에 읽어 다시 집을 수 없는 차례는 건너뛰고, (상담, 마지막 손님 글 id) 줄을
    :func:`.turns.claim_turn` 으로 잡아 바로 커밋한다. 뒤 쓰기는 모두 조건부라(R7-8) 그사이 다른 바퀴가 줄을 바꿨으면 올리지 않는다.
 3. **읽기** — 매체(이메일이면 건너뜀) · 최근 글. 선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없어야 한다.
    재료는 공개 손님 · 직원 글만(R1-12). 손님 글에 글자가 없으면(사진만) 건너뜀.
 4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프라 ``realtime=False``. 두뇌는 세션을 여러 번
-   커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 낮인데 캐시 읽기 0 인 호출은 세고 바퀴마다 한 번 경고한다(R7-12).
+   커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만 세고(표시 없는
+   요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
    항목 글도 넣지 않는다). 걸리면 코드만 남기고 올리지 않는다.
 6. **직전 다시 읽기** — 그사이 손님이 더 썼거나(``stale``) 공개 직원 글이 왔으면(``human_replied``) 올리지 않는다.
@@ -32,6 +35,8 @@
 본 상담이고, 직원 참고 칸은 검사를 안 거친 모델 글이며, 그 상담은 이미 아침 보고 '답 필요'에 있다). 넘김 까닭 코드는 남는다.
 
 TERM: 선점 전 · 두뇌 전 · 쓰기 전마다 깃발을 보고, 서 있으면 지금 줄을 ``failed`` 로 돌려놓고 멈춘다(LLM 답은 버린다 — R4-4).
+바퀴 도중 끄기: 선점 전 · 두뇌 전마다 비상 정지(:func:`.turns.read_switch`) · 초안 스위치(:func:`.turns.draft_mode`)를 DB 에서
+다시 읽고, 꺼졌으면 그 줄은 시도로 세지 않고 돌려놓고 바퀴를 멈춘다(``switched_off``).
 글(손님 글 · 초안 · 직원 참고)은 로그 · 요약 · 예외에 싣지 않는다 — 요약은 숫자만, 로그는 상담 id · 코드 · 숫자만. 손님 프로필
 이름 · 직원 이름은 지금 읽기 도우미가 주지 않아 가림에 넘기지 않는다(빈 목록 — 이름꼴 가림 · 검사는 그대로 돈다).
 """
@@ -52,7 +57,7 @@ from foms.persistence.main.models import CsAgentChat, CsAgentTurn
 from foms.services.channel_client import _open_api_headers
 from foms.services.common.business_calendar import is_business_day as calendar_is_business_day
 from foms.services.cs_agent.brain import (
-    API_SPEND_LIMIT, BAD_RESPONSE, DAILY_CAP_REACHED, BrainNotReady, BrainUnavailable, DraftRequest, DraftResult,
+    API_SPEND_LIMIT, BAD_RESPONSE, BrainNotReady, BrainUnavailable, DraftRequest, DraftResult,
     SpendCapReached, check_ready, draft_reply,
 )
 from foms.services.cs_agent.brain_prompt import PURPOSE_DRAFT
@@ -65,12 +70,13 @@ from foms.services.cs_agent.drafting_read import (
 from foms.services.cs_agent.knowledge import ApprovedKnowledge, load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
+from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.state import (
     BRAND_HOURS, KST, BusinessDayFn, ChatState, business_minutes_between, sort_by_priority,
 )
 from foms.services.cs_agent.turns import (
-    DRAFT_MEMO, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn, mark_failed,
-    mark_skipped, record_brain_result, release_turn, stale_posting,
+    DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn,
+    draft_mode, mark_failed, mark_skipped, read_switch, record_brain_result, release_turn, stale_posting,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,10 +87,11 @@ __all__ = [
 ]
 
 BRAND = "LAHOM"  # 초안을 쓰는 브랜드 — 하우드는 쓰기 허락 전이라 고르지 않는다(설계서 6절 단계 1)
-#: 한 바퀴 두뇌 호출 상한. 시간 상한(초)은 선점 전에 본다 — 두뇌 한 번이 90초까지 걸릴 수 있다(11.1 의 5).
+#: 한 바퀴 두뇌 호출 상한(처음 값 — 관리 화면이 바꾼다). 시간 상한(초)은 선점 전에 본다 — 두뇌 한 번이 90초까지 걸릴 수
+#: 있다(11.1 의 5).
 MAX_BRAIN_CALLS = 10
 DRAFT_BUDGET_SECONDS = 240.0
-#: 마지막 손님 글이 이만큼(운영일 — 라홈 운영 시간 기준) 넘게 묵은 상담은 고르지 않는다(원장 D50).
+#: 마지막 손님 글이 이만큼(운영일 — 라홈 운영 시간 기준) 넘게 묵은 상담은 고르지 않는다(원장 D50, 처음 값 — 관리 화면이 바꾼다).
 MAX_WAIT_BUSINESS_DAYS = 1
 #: 이보다 오래 ``claimed`` 인 줄은 두뇌를 부르다 죽은 차례다(대표 잠금이 바퀴를 하나만 돌리고 바퀴는 이보다 짧다).
 STALE_CLAIM_AFTER = datetime.timedelta(minutes=20)
@@ -93,7 +100,7 @@ STALE_POSTING_AFTER = datetime.timedelta(minutes=20)
 HUMAN_ONLY_MARK = "[사람]"  # 승인 지식에서 사람만 말하는 항목 표시 — 그 글의 숫자는 허용 목록에 넣지 않는다
 #: 다시 올린 메모의 직원 참고 칸(처음 참고는 기록에 없다 — 표에는 가린 초안만 둔다).
 REPOST_NOTE = "다시 올린 초안이다 — 처음 직원 참고는 기록에 남기지 않았다"
-_SPEND_CODES = (DAILY_CAP_REACHED, API_SPEND_LIMIT)
+_CONSOLE_LIMIT_CODES = (API_SPEND_LIMIT,)  # 그날 멈춤 — 코드 하루 상한(DAILY_CAP_REACHED)은 준비 확인이 그때그때 견준다
 _CHAT_CHUNK = 500
 
 # 건너뜀 · 실패 · 멈춤 코드(기록 줄 ``error_code`` · 요약 칸 — 글이 아니다). 읽기 · 놓기 쪽 코드는 그 모듈에 있다.
@@ -103,6 +110,7 @@ FAIL_STALE_CLAIM, FAIL_STOPPED, FAIL_ERROR = "claim_expired", "stopped", "error"
 FAIL_READ, FAIL_RATE_LIMITED = "read_failed", "rate_limited"
 HALT_NOT_CONFIGURED, HALT_NOT_READY, HALT_SPEND = "not_configured", "not_ready", "spend_cap"
 HALT_BRAIN, HALT_CONFLICT, HALT_CALLS, HALT_TIME = "brain_unavailable", "turn_conflict", "call_cap", "time_budget"
+HALT_SWITCHED_OFF = "switched_off"  # 바퀴 도중 비상 정지 · 초안 끔
 
 
 @dataclass
@@ -114,7 +122,7 @@ class DraftSummary:
     claimed: int = 0  # 이번에 선점한 차례(실패 줄 다시 집음 포함)
     already: int = 0  # 차례가 이미 있어 건너뜀(손님 글 하나에 초안 하나)
     brain_calls: int = 0
-    cache_cold: int = 0  # 운영 시간인데 캐시 읽기 0 인 두뇌 호출(앞부분 캐시가 안 먹는다 — R7-12)
+    cache_cold: int = 0  # 캐시 표시를 실은 두뇌 호출인데 캐시 읽기 0(앞부분 캐시가 안 먹는다 — R7-12)
     stored: int = 0
     posted: int = 0
     reposted: int = 0  # 보내기 실패로 다시 집어 저장된 초안을 다시 놓음(두뇌 안 부름 — R7-5)
@@ -135,10 +143,11 @@ class DraftSummary:
 
 # ── 고르기 · 정리 ────────────────────────────────────────────────────────
 def _candidates(session: Any, states: Sequence[ChatState], *, now: datetime.datetime,
-                is_business_day: Optional[BusinessDayFn] = None) -> tuple[list[tuple[str, str]], int]:
+                is_business_day: Optional[BusinessDayFn] = None,
+                max_wait_days: float = MAX_WAIT_BUSINESS_DAYS) -> tuple[list[tuple[str, str]], int]:
     """고르기 — ((상담 id, 마지막 손님 글 id) 목록, 너무 묵어 뺀 수), 우선순위 순(아침 보고와 같다).
 
-    마지막 손님 글 뒤 공개 직원 글이 있으면 빼고, 마지막 손님 글이 운영일 :data:`MAX_WAIT_BUSINESS_DAYS` 를 넘겼으면 세고 뺀다.
+    마지막 손님 글 뒤 공개 직원 글이 있으면 빼고, 마지막 손님 글이 운영일 ``max_wait_days`` 를 넘겼으면 세고 뺀다.
     """
     picked = [s.chat_id for s in sort_by_priority(states) if s.brand == BRAND and s.needs_reply and not s.closing_only]
     rows: dict[str, Any] = {}
@@ -147,7 +156,7 @@ def _candidates(session: Any, states: Sequence[ChatState], *, now: datetime.date
                       CsAgentChat.last_answer_at).where(CsAgentChat.chat_id.in_(picked[start:start + _CHAT_CHUNK]))
         rows.update({row.chat_id: row for row in session.execute(stmt)})
     open_hour, close_hour = BRAND_HOURS[BRAND]
-    max_wait = MAX_WAIT_BUSINESS_DAYS * (close_hour - open_hour) * 60
+    max_wait = max_wait_days * (close_hour - open_hour) * 60
     out: list[tuple[str, str]] = []
     too_old = 0
     for chat_id in picked:
@@ -194,17 +203,24 @@ def _recover(session: Any, now: datetime.datetime, stop: Any, summary: DraftSumm
                        summary.recovered, summary.stale_posting)
 
 
-def _spend_stopped_today(session: Any, now: datetime.datetime) -> bool:
-    """오늘(KST) 돈 상한으로 멈춘 줄이 있나 — 있으면 그날은 두뇌를 더 부르지 않는다. 다음 날 그 줄을 다시 집는다(원장 21행)."""
+def _console_limit_today(session: Any, now: datetime.datetime) -> bool:
+    """오늘(KST) 콘솔(작업 공간) 돈 상한 응답으로 멈춘 줄이 있나 — 화면 상한을 올려도 풀리지 않아 그날은 부르지 않는다.
+    다음 날 그 줄을 다시 집는다(원장 21행). 코드 하루 상한은 여기서 보지 않는다(준비 확인이 지금 상한과 오늘 돈으로 견준다)."""
     day = now.date()
     start = naive_utc(datetime.datetime(day.year, day.month, day.day, tzinfo=KST))
-    stmt = select(CsAgentTurn.id).where(CsAgentTurn.state == STATE_FAILED, CsAgentTurn.error_code.in_(_SPEND_CODES),
+    stmt = select(CsAgentTurn.id).where(CsAgentTurn.state == STATE_FAILED,
+                                        CsAgentTurn.error_code.in_(_CONSOLE_LIMIT_CODES),
                                         CsAgentTurn.updated_at >= start).limit(1)
     return session.scalar(stmt) is not None
 
 
+def _switched_off(session: Any) -> bool:
+    """비상 정지(감시 루프 멈춤)나 초안 끔인가 — DB 에서 새로 읽는다(바퀴 도중 끄기)."""
+    return not read_switch(session) or draft_mode(session) == DRAFT_OFF
+
+
 def _daytime(now: datetime.datetime, cal: BusinessDayFn) -> bool:
-    """라홈 운영 시간(평일 · 공휴일 쉼)인가 — 두뇌의 1시간 캐시 표시에 쓴다."""
+    """라홈 운영 시간(평일 · 공휴일 쉼)인가 — 두뇌의 캐시 방침('운영 시간만')에 쓴다."""
     open_hour, close_hour = BRAND_HOURS[BRAND]
     return bool(cal(now.date())) and open_hour <= now.hour < close_hour
 
@@ -273,7 +289,7 @@ def _reclaimable(prev: Any) -> bool:
 def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now: datetime.datetime, stop: Any,
                  mode: str, is_business_day: Optional[BusinessDayFn] = None,
                  brain: Callable[..., DraftResult] = draft_reply,
-                 poster: Callable[..., MemoResult] = post_private_memo, limit: int = MAX_BRAIN_CALLS,
+                 poster: Callable[..., MemoResult] = post_private_memo, limit: Optional[int] = None,
                  clock: Callable[[], float] = time.monotonic, budget_seconds: float = DRAFT_BUDGET_SECONDS,
                  ready: Callable[..., Any] = check_ready, summary: Optional[DraftSummary] = None) -> DraftSummary:
     """초안 한 바퀴(모듈 설명의 순서). 감시 루프가 상태 · 보고 뒤에 부른다 — 스위치가 ``store`` · ``memo`` 가 아니면 일 0.
@@ -287,7 +303,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         mode: 초안 스위치 값(:func:`.turns.draft_mode`).
         is_business_day: 운영일 판정(시험 주입).
         brain: 두뇌(시험은 가짜). poster: 메모 감싸개(시험은 가짜 — 루프의 읽기 도우미를 넘겨 다시 읽는다).
-        limit: 한 바퀴 두뇌 호출 상한. clock · budget_seconds: 시간 상한(선점 전에 본다).
+        limit: 한 바퀴 두뇌 호출 상한(없으면 관리 화면 설정). clock · budget_seconds: 시간 상한(선점 전에 본다).
         ready: 두뇌 준비 확인(기본 :func:`.brain.check_ready` — 선점 전에 한 번).
         summary: 채울 결과(루프는 멈춰도 센 수가 남게 미리 만들어 넘긴다).
 
@@ -308,7 +324,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
     deadline = clock() + budget_seconds
     stop.check()
     _recover(session, now, stop, summary)
-    if _spend_stopped_today(session, now):
+    if _console_limit_today(session, now):
         return _halted(session, summary, HALT_SPEND)
     if _open_api_headers(BRAND) is None:
         return _halted(session, summary, HALT_NOT_CONFIGURED)
@@ -320,7 +336,10 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         return _halted(session, summary, HALT_NOT_READY)
     except SpendCapReached:
         return _halted(session, summary, HALT_SPEND)
-    candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day)
+    cfg = read_settings(session)  # 바퀴마다 새로 — 화면에서 저장하면 다음 바퀴부터
+    limit = cfg.get("max_brain_calls_per_pass") if limit is None else limit
+    candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day,
+                                              max_wait_days=cfg.get("max_wait_business_days"))
     existing = _existing(session, candidates)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡 · 두뇌를 부르는 동안 열어 두지 않는다
     summary.candidates = len(candidates)
@@ -334,6 +353,9 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
             continue
         if summary.brain_calls >= limit or clock() >= deadline:
             summary.halted[HALT_CALLS if summary.brain_calls >= limit else HALT_TIME] = 1
+            break
+        if _switched_off(session):  # 바퀴 도중 비상 정지 · 초안 끔 — 선점하지 않는다
+            summary.halted[HALT_SWITCHED_OFF] = 1
             break
         stop.check()  # 선점 전
         try:
@@ -353,7 +375,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
             summary.halted[halt] = 1
             break
     if summary.cache_cold:
-        logger.warning("[CS 초안] 운영 시간인데 캐시 읽기 0 인 두뇌 호출 %d번 — 앞부분 캐시가 안 먹는다(최소 길이 · 바뀌는 값 확인)",
+        logger.warning("[CS 초안] 캐시 표시를 실었는데 캐시 읽기 0 인 두뇌 호출 %d번 — 앞부분 캐시가 안 먹는다(최소 길이 · 바뀌는 값 확인)",
                        summary.cache_cold)
     return summary
 
@@ -422,6 +444,8 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     except ValueError:
         return ctx.skip(row, SKIP_BAD_REQUEST)
     ctx.stop.check()  # 두뇌 전
+    if _switched_off(ctx.session):  # 바퀴 도중 꺼졌으면 부르지 않는다 — 시도로 세지 않고 돌려놓는다
+        return ctx.release(row, HALT_SWITCHED_OFF, halt=HALT_SWITCHED_OFF)
     ctx.summary.brain_calls += 1
     try:
         result = ctx.brain(request, session=ctx.session, now=ctx.now)
@@ -435,7 +459,7 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     except BrainUnavailable as exc:
         return ctx.fail(row, exc.code, halt=None if exc.code == BAD_RESPONSE else HALT_BRAIN)
     ctx.stop.check()  # TERM 이 두뇌를 부르는 동안 왔으면 답을 버린다(R4-4)
-    ctx.summary.cache_cold += int(ctx.daytime and not result.cache_read_tokens)
+    ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
     if result.refused or result.handoff:
         return ctx.skip(row, SKIP_REFUSED if result.refused else SKIP_HANDOFF)

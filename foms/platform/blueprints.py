@@ -207,6 +207,18 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(drawing_agent_bp)
 
+    # --- Lane: AI 상담팀원 관리 패널 JSON(/api/admin/cs-agent/*, ADMIN 만 · 쓰기는 CSRF). 화면(/admin/cs-agent)은
+    # admin_bp 에 붙는다. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 설계서 2026-10-27-cs-ai-agent 16.1
+    from foms.api.admin import cs_agent_admin_api_bp
+
+    app.register_blueprint(cs_agent_admin_api_bp)
+
+    # --- Lane: AI 상담팀원 PC 반복 비상 정지 읽기(GET /api/cs-agent/pc-switch, 머리값 열쇠 전용 · 읽기만). 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 토큰 읽기 길(drawing_agent digest)과 같은 꼴.
+    from foms.api.cs_agent_pc import cs_agent_pc_bp
+
+    app.register_blueprint(cs_agent_pc_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

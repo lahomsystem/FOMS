@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 LOGIN_RATE_LIMIT_ENV = "FOMS_LOGIN_RATE_LIMIT"
 DEFAULT_LOGIN_RATE_LIMIT = "10 per minute;100 per hour"
 
+#: AI 상담팀원 PC 스위치 읽기 길(``GET /api/cs-agent/pc-switch``) 전용 한도 — IP 로만 센다. PC 하나가 몇 초마다
+#: 묻는 정도는 분당 30 안에 들고, 열쇠 맞혀 보기는 분당 30 으로 떨어진다. env 로 여는 까닭은 로그인 한도와 같다.
+PC_SWITCH_RATE_LIMIT_ENV = "FOMS_CS_PC_SWITCH_RATE_LIMIT"
+DEFAULT_PC_SWITCH_RATE_LIMIT = "30 per minute"
+PC_SWITCH_ENDPOINT = "cs_agent_pc.cs_agent_pc_switch"
+
 #: 로그인 성공 응답의 상태 코드. 성공은 302(홈/next 로 리다이렉트), 실패는 폼 재렌더(200)
 #: 또는 잠금(429)이다.
 _LOGIN_SUCCESS_STATUS = 302
@@ -185,6 +191,26 @@ def _bind_login_rate_limit(app: Any, limiter: Any) -> None:
     )(view)
 
 
+def _bind_pc_switch_rate_limit(app: Any, limiter: Any) -> None:
+    """PC 스위치 읽기 길(``GET /api/cs-agent/pc-switch``)에 IP 기준 한도를 건다.
+
+    로그인 한도와 같은 관례다(블루프린트 등록이 끝난 뒤 ``app.view_functions`` 를 감싼다). 기본 ``rate_limit_key`` 는
+    로그인 사용자 → 세션 쿠키 hash → IP 순으로 묶음을 고르는데, 이 길은 로그인이 없는 기계 요청이라 쿠키가 클라이언트
+    임의 값이다 — 쿠키를 갈아 끼우면 묶음이 끝없이 바뀌어 열쇠 맞혀 보기가 막히지 않는다. 그래서 쿠키와 상관없이
+    :func:`get_remote_address`(ProxyFix 가 고친 손님 주소)로만 센다. 이 길의 한도는 공용 기본 한도(하루 · 시간)를
+    대신한다 — 몇 초마다 묻는 PC 반복이 하루 한도에 걸리지 않는다.
+
+    :param app: 블루프린트 등록이 끝난 Flask 앱.
+    :param limiter: 초기화된 limiter.
+    :return: 없음.
+    """
+    view = app.view_functions.get(PC_SWITCH_ENDPOINT)
+    if view is None:
+        return
+    limit_value = (os.environ.get(PC_SWITCH_RATE_LIMIT_ENV) or "").strip() or DEFAULT_PC_SWITCH_RATE_LIMIT
+    app.view_functions[PC_SWITCH_ENDPOINT] = limiter.limit(limit_value, key_func=get_remote_address)(view)
+
+
 def init_limiter(app: Any) -> Limiter:
     """Initialize the Flask-Limiter instance for the current app."""
     redis_url = os.environ.get("REDIS_URL")
@@ -245,6 +271,7 @@ def init_limiter(app: Any) -> Limiter:
     _install_storage_fallback_alert(limiter, storage_scheme)
     _report_limiter_storage(storage_scheme)
     _bind_login_rate_limit(app, limiter)
+    _bind_pc_switch_rate_limit(app, limiter)
     return limiter
 
 
