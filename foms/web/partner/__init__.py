@@ -145,8 +145,23 @@ def order_detail(order_id: int):
         active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
         channel_push=push_state(order),
+        measure_file_count=_measurement_push_count(db, order.id),
         product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),
+    )
+
+
+def _measurement_push_count(db, order_id: int) -> int:
+    """영발 PUSH에 실릴 실측 첨부 수. 저장 키가 있는 measurement만. 없으면 글만 나간다."""
+    return (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id == order_id,
+            OrderAttachment.category == "measurement",
+            OrderAttachment.storage_key.isnot(None),
+            OrderAttachment.storage_key != "",
+        )
+        .count()
     )
 
 
