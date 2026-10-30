@@ -309,27 +309,46 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
     return by_date, total
 
 
-def _is_order_room_pushed(sd: Any) -> bool:
-    """발주방 PUSH(push_kind='drawing', 이력 키 ``channeltalk_push_drawing``)를 한 번이라도 보낸 주문인가."""
-    push = _ensure_dict(sd).get("channeltalk_push_drawing")
+def _push_done(sd: Any, key: str) -> bool:
+    """채널톡 PUSH 이력이 성공 전송인지."""
+    push = _ensure_dict(sd).get(key)
     return isinstance(push, dict) and bool(push.get("pushed"))
+
+
+def construction_amount_basis(sd: Any) -> str | None:
+    """달력 칸 출고가에 이 주문을 넣는 기준.
+
+    발주 PUSH 가 있으면 발주(영발을 먼저 보내고 나중에 발주를 보낸 주문도 발주 한 번).
+    영발만 있으면 영발. 둘 다 없으면 None. 시공일은 호출부가 건다.
+
+    Args:
+        sd: 주문 structured_data.
+
+    Returns:
+        ``"drawing"`` | ``"measurement"`` | None.
+    """
+    if _push_done(sd, "channeltalk_push_drawing"):
+        return "drawing"
+    if _push_done(sd, "channeltalk_push"):
+        return "measurement"
+    return None
 
 
 def _construction_amount_parts(
     base: Any, date_strs: list[str],
 ) -> tuple[dict[str, int], int, dict[str, int]]:
-    """날짜별 시공 출고가 합과 기간 합계, 그리고 발주방 PUSH 된 주문만의 날짜별 합.
+    """날짜별 시공 출고가 합과 기간 합계, 그리고 달력 칸에 싣는 날짜별 합.
 
     출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
     산출 불가(None) 주문은 금액에서만 빠진다. 시공일이 여러 날인 주문은 출고가를 시공일 수로 나눠
     날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 기간 합계 = 날짜 칸 합(중복 없음).
     확정 대기 협력사 희망 시공일은 그 하루에 출고가 전부를 싣는다(사용자 결정 2026-10-29 — 건수와 같이 우리 시공).
 
-    발주방 합계(사용자 결정 2026-10-29): 모바일 홈 달력의 날짜 칸 금액·머리 '출고가 합계' 는 발주방 PUSH 가
-    된 주문 중 그날(그 달) 시공일이 잡힌 것만 — 몫 나눔은 같고, 확정 대기 협력사 희망일은 시공일 지정 전이라 뺀다.
+    달력 칸·이달 합계: 영발 PUSH 또는 발주 PUSH 가 되고 시공일이 있는 주문. 둘 다 보낸 주문은
+    발주 기준 한 번(영발 금액을 남기지 않는다). 확정 대기 협력사 희망일은 시공일 지정 전이라 뺀다.
 
     Returns:
-        ({날짜: 원}, 기간 합계 원, {날짜: 발주방 PUSH 된 주문 원}).
+        ({날짜: 원}, 기간 합계 원, {날짜: 달력 칸 출고가 원}).
     """
     if not date_strs:
         return {}, 0, {}
@@ -350,7 +369,7 @@ def _construction_amount_parts(
         seen.add(key)
         if key[1] not in price_of:
             price_of[key[1]] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
-            if _is_order_room_pushed(sd):
+            if construction_amount_basis(sd):
                 pushed_ids.add(key[1])
     dates_of = _construction_dates_of(base, price_of)
     pushed_by: dict[str, int] = {}
@@ -509,7 +528,7 @@ def _month_calendar(
         "construction_total": sum(int(v or 0) for v in cons_by.values()),
         "as_total": sum(int(v or 0) for v in as_by.values()),
         "amount_label": _man_label(month_amount) or "0원",
-        # 오늘 시트 '출고가 합계' 는 그날 목록(전체 시공)과 같은 기준 — 칸 금액(발주방 PUSH 된 것만)과 다르다
+        # 오늘 시트 '출고가 합계' 는 그날 목록(전체 시공)과 같은 기준 — 칸 금액(영발·발주 PUSH)과 다르다
         "today_all_amount_label": _man_label(int(all_by.get(today.isoformat(), 0) or 0)),
         "colors": colors,
         "photo": month_photo(first.month),

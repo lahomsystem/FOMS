@@ -696,6 +696,64 @@ def test_month_calendar_amounts_and_soon_risk(app):
     assert {r["readiness_label"] for r in far_payload["rows"]} == {""}
 
 
+def test_construction_amount_basis_youngbal_then_balju():
+    """영발만이면 영발, 발주가 있으면 발주. 영발 뒤에 발주를 보내도 발주 한 번."""
+    assert ct.construction_amount_basis({"channeltalk_push": {"pushed": True}}) == "measurement"
+    assert ct.construction_amount_basis({"channeltalk_push_drawing": {"pushed": True}}) == "drawing"
+    assert ct.construction_amount_basis({
+        "channeltalk_push": {"pushed": True, "sent_at": "2026-10-01T01:00:00+00:00"},
+        "channeltalk_push_drawing": {"pushed": True, "sent_at": "2026-10-20T09:00:00+00:00"},
+    }) == "drawing"
+    assert ct.construction_amount_basis({
+        "channeltalk_push": {"pushed": True, "sent_at": "2026-10-21T09:00:00+00:00"},
+        "channeltalk_push_drawing": {"pushed": True, "sent_at": "2026-10-20T09:00:00+00:00"},
+    }) == "drawing"
+    assert ct.construction_amount_basis({"channeltalk_push_measure_room": {"pushed": True}}) is None
+    assert ct.construction_amount_basis({}) is None
+
+
+def test_calendar_amount_includes_youngbal_once(app):
+    """시공일이 있는 영발 PUSH 는 칸 금액에 넣고, 발주까지 보낸 주문은 한 번만."""
+    import datetime
+
+    from db import db_session
+    from models import Order
+
+    today = datetime.date(2026, 8, 3)
+
+    def _order(name, total, push):
+        sd = {
+            "parties": {"customer": {"name": name}},
+            "schedule": {"construction": {"date": today.isoformat()}},
+            "totals": {"items_total": total},
+            "items": [{"product_name": "붙박이장"}],
+        }
+        sd.update(push)
+        return Order(
+            received_date=today.isoformat(), customer_name=name, phone="010-2000-3000",
+            address="서울", product="붙박이장", status="PRODUCTION", erp_stage_code="PRODUCTION",
+            is_erp_order=True, structured_data=sd,
+        )
+
+    db_session.add_all([
+        _order("영발만", 1_000_000, {"channeltalk_push": {"pushed": True}}),
+        _order("둘다", 4_000_000, {
+            "channeltalk_push": {"pushed": True, "sent_at": "2026-08-01T01:00:00+00:00"},
+            "channeltalk_push_drawing": {"pushed": True, "sent_at": "2026-08-02T01:00:00+00:00"},
+        }),
+        _order("미푸시", 9_000_000, {}),
+    ])
+    db_session.commit()
+
+    base = ct._tower_base_query(db_session, None)
+    cal = ct._month_calendar(base, today, today.replace(day=1))
+    cell = next(c for w in cal["weeks"] for c in w if c["iso"] == today.isoformat())
+    assert cell["construction"] == 3
+    assert cell["amount_label"] == "500만"  # 100 + 400. 미푸시는 빠지고 둘 다는 한 번
+    assert cal["amount_label"] == "500만"
+    assert cal["today_all_amount_label"] == "1,400만"  # 시트는 시공 전체
+
+
 def test_field_calendar_route_renders_month_and_clamps(auth_client):
     """달 이동 swap 라우트: 달력 조각 HTML + 정규화된 month. 형식 오류·12개월 밖은 이번 달."""
     from foms.services.erp_display import get_today_kst
