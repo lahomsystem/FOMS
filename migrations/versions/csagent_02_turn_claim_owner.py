@@ -1,7 +1,7 @@
 """CSAGENT-02: cs_agent_turns — 선점 주인 · 만료 칸과 빠른 길의 두 상태('지난 초안' · '직원 답함')
 
 Revision ID: csagent_02
-Revises: csagent_01
+Revises: mine_manager_names_idx_00 (csagent_01 뒤에 다른 세션 색인이 먼저 붙어 그 뒤로 — 한 머리)
 Create Date: 2026-10-30
 
 설계 정본: 설계서 2026-10-27-cs-ai-agent 17.3(구조 네 줄), 실행 플랜 C10-1(원장 R10-1 · R10-2 · R10-4 · R10-31).
@@ -25,7 +25,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'csagent_02'
-down_revision: Union[str, None] = 'csagent_01'
+down_revision: Union[str, None] = 'mine_manager_names_idx_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
