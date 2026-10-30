@@ -27,28 +27,29 @@ R1-20 · R1-22. 표는 ``models.CsAgentTurn``(마이그레이션 ``csagent_01``)
 from __future__ import annotations
 
 import datetime
-import enum
 import logging
 import os
 import re
 import socket
-from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Iterable, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.orm import object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from foms.persistence.main.models import CsAgentTurn, SystemSetting
 from foms.services.cs_agent.channel_read import CHANNEL_BRANDS, naive_utc
-from foms.services.cs_agent.masking import mask, require_masked
+from foms.services.cs_agent.turns_fields import (  # 칸 꼴 검사(500줄 상한으로 나눔)
+    ID_PATTERN as _ID, check_codes as _check_codes, checked_id as _checked_id, code as _code, cost as _cost,
+    count as _count, masked_or_none as _masked_or_none, reason as _reason,
+)
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
-    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims",
+    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims", "retry_due",
     "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
     "read_switch", "record_brain_result", "record_handoff", "record_staff_reply", "release_turn", "set_draft_mode",
     "stale_posting",
@@ -61,6 +62,12 @@ STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_POSTING, STATE_POSTED, STATE_STO
                            STATE_SUPERSEDED, STATE_STAFF_REPLIED)
 #: 손님 글 하나에 차례를 여는 상한(두뇌 호출 상한 — 원장 R1-3). 실패로 끝난 줄은 이 수까지만 다시 집는다.
 MAX_ATTEMPTS = 3
+#: 만료를 적지 않은 옛 선점 줄(csagent_02 전)은 이만큼 손대지 않았으면 죽은 차례로 본다(예전 15분 바퀴 정리 기준).
+LEGACY_CLAIM_AFTER = datetime.timedelta(minutes=20)
+#: 실패 줄 다시 집기 간격 — 시도 수마다 이만큼 더 기다린다(짧은 장애에 시도 셋을 몇 초 만에 다 쓰지 않게, 검수 R13-3).
+RETRY_STEP = datetime.timedelta(seconds=30)
+#: 만료로 정리한 실패는 이미 만료(시간 상한 + 여유)만큼 기다렸다 — 다시 집기 간격을 더하지 않는다.
+CLAIM_EXPIRED = "claim_expired"
 
 #: 바로 끄기 줄 — ``loop.SWITCH_KEY`` 와 같은 줄이다(loop 가 이 모듈을 부를 쪽이라 거꾸로 import 하지 않는다 · 시험이 맞춘다).
 SWITCH_KEY = "cs_agent_switch"
@@ -74,12 +81,6 @@ _TURNS = CsAgentTurn.__table__
 _INSERT_BUILDERS: dict[str, Callable[[Any], Any]] = {"postgresql": postgresql.insert, "sqlite": sqlite.insert}
 #: 선점한 세션이 줄에 붙여 두는 '선점 때 시도 수'(파이썬 값 — 표 칸이 아니라 커밋 · 다시 읽기에도 그대로 남는다).
 _CLAIM_ATTR = "_cs_claimed_attempts"
-#: 채널톡 id 꼴 — 빈칸 없는 ASCII 64자까지(손님 글이 자리를 바꿔 들어오면 여기서 걸린다).
-_ID = re.compile(r"[\x21-\x7e]{1,64}")
-#: 코드 칸 꼴 — 빈칸 · 줄바꿈 없는 짧은 이름(한글 이름도 된다). 글처럼 생긴 값은 칸에 넣지 않는다.
-_CODE = re.compile(r"[\w.:/\-]+")
-_CHECK_CODE = re.compile(r"[a-z][a-z0-9_]{0,47}")
-_REASON_MAX = 48
 #: 두뇌 결과의 코드 칸과 길이 상한(표 칸 길이).
 _BRAIN_CODES: tuple[tuple[str, int], ...] = (("intent", 32), ("handoff_reason", 64), ("model", 64), ("effort", 16))
 #: 두뇌 결과의 숫자 칸 → 읽을 속성 이름(앞에서부터 — 뒤 이름은 Anthropic usage 칸 이름).
@@ -90,10 +91,6 @@ _BRAIN_COUNTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("cache_write_tokens", ("cache_write_tokens", "cache_creation_input_tokens")),
     ("latency_ms", ("latency_ms",)),
 )
-_INT_MAX = 2**31 - 1
-#: 비용 칸 ``Numeric(12, 6)`` — 소수 여섯째 자리, 정수 여섯 자리까지.
-_COST_SCALE = Decimal(10) ** -6
-_COST_MAX = Decimal(10) ** 6 - _COST_SCALE
 
 
 class TurnStateError(RuntimeError):
@@ -253,17 +250,33 @@ def record_handoff(row: CsAgentTurn, *, reason: str) -> None:
 
 
 def expired_claims(session: Any, now: datetime.datetime, *, limit: int = 100) -> list[CsAgentTurn]:
-    """선점 만료(``claim_expires_at``)가 ``now`` 보다 앞인 ``claimed`` 줄 — 두뇌를 부르다 죽은 차례, 오래된 것부터.
+    """죽은 선점 — 만료(``claim_expires_at``)가 ``now`` 보다 앞인 ``claimed`` 줄, 오래된 것부터. 15분 바퀴 정리와 빠른 길이 같이 쓴다.
 
-    만료를 적지 않은 줄(15분 바퀴 옛 줄)은 여기서 보지 않는다 — 그 줄은 15분 바퀴의 정리(``updated_at`` 20분)가 맡는다.
+    만료를 적지 않은 옛 줄은 ``updated_at`` 이 :data:`LEGACY_CLAIM_AFTER` 넘게 지났을 때 죽은 차례로 본다(검수 R13 — 한 규칙).
     """
+    at = naive_utc(now)
+    dead = or_(CsAgentTurn.claim_expires_at < at,
+               and_(CsAgentTurn.claim_expires_at.is_(None), CsAgentTurn.updated_at < at - LEGACY_CLAIM_AFTER))
     stmt = (select(CsAgentTurn)
-            .where(CsAgentTurn.state == STATE_CLAIMED, CsAgentTurn.claim_expires_at.isnot(None),
-                   CsAgentTurn.claim_expires_at < naive_utc(now))
-            .order_by(CsAgentTurn.claim_expires_at, CsAgentTurn.id)
+            .where(CsAgentTurn.state == STATE_CLAIMED, dead)
+            .order_by(CsAgentTurn.updated_at, CsAgentTurn.id)
             .limit(int(limit))
             .execution_options(populate_existing=True))
     return list(session.scalars(stmt))
+
+
+def retry_due(row: Any, now: datetime.datetime) -> bool:
+    """실패 줄을 지금 다시 집어도 되나 — 시도 상한 전이고 ``updated_at + RETRY_STEP × 시도 수`` 가 지났을 때(한 규칙, R13-2 · 3).
+
+    ``row`` 는 ``state`` · ``attempts`` · ``error_code`` · ``updated_at``(UTC naive) 칸이 있는 줄 · 읽은 꼴이면 된다.
+    만료로 정리한 줄(:data:`CLAIM_EXPIRED`)은 이미 만료만큼 기다렸으니 바로 집는다.
+    """
+    attempts = int(row.attempts or 0)
+    if row.state != STATE_FAILED or attempts >= MAX_ATTEMPTS:
+        return False
+    if row.error_code == CLAIM_EXPIRED or row.updated_at is None:
+        return True
+    return naive_utc(now) >= row.updated_at + RETRY_STEP * attempts
 
 
 def record_brain_result(row: CsAgentTurn, result: Any) -> None:
@@ -414,83 +427,3 @@ def _write(row: CsAgentTurn, allowed: tuple[str, ...], values: dict[str, Any], *
         raise TurnConflict(f"{state} 줄이 그사이 바뀌었다 — 쓰지 않는다")
     for key, value in changes.items():
         set_committed_value(row, key, value)
-
-
-def _masked_or_none(text: Optional[str]) -> Optional[str]:
-    """가린 사본 — 한 번 더 가리고 가림 검사가 0 일 때만 돌려준다. ``None`` · 빈 글은 ``None``."""
-    if text is None:
-        return None
-    if not isinstance(text, str):
-        raise TypeError("가린 글은 글자열이다")
-    return require_masked(mask(text)) if text.strip() else None
-
-
-def _check_codes(codes: Iterable[Any]) -> list[str]:
-    """검사 코드 목록(겹침 없이 순서대로). 코드 글자열이나 ``code`` 속성이 있는 검사 결과 항목을 받는다."""
-    if isinstance(codes, (str, bytes)):
-        raise TypeError("check_codes 는 코드 목록이다")
-    out: list[str] = []
-    for item in codes:
-        code = getattr(item, "code", item)
-        if not isinstance(code, str) or not _CHECK_CODE.fullmatch(code):
-            raise ValueError("검사 코드 꼴이 아니다(영문 소문자 · 숫자 · 밑줄)")
-        if code not in out:
-            out.append(code)
-    return out
-
-
-def _checked_id(value: Any) -> str:
-    """채널톡 id 꼴인 값만."""
-    if not isinstance(value, str) or not _ID.fullmatch(value):
-        raise ValueError("채널톡 id 꼴이 아니다")
-    return value
-
-
-def _reason(value: Any) -> str:
-    """이유 코드(비면 안 된다)."""
-    code = _code(value, _REASON_MAX, "error_code")
-    if code is None:
-        raise ValueError("이유 코드 꼴이 아니다")
-    return code
-
-
-def _code(value: Any, limit: int, field: str) -> Optional[str]:
-    """코드 칸 값 — 꼴이 맞는 짧은 이름만. 비었으면 ``None``, 꼴이 틀리면 경고하고 ``None``(값은 로그에 싣지 않는다)."""
-    if isinstance(value, enum.Enum):
-        value = value.value
-    if value is None or value == "":
-        return None
-    if isinstance(value, str) and len(value) <= limit and _CODE.fullmatch(value):
-        return value
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=%s", field)
-    return None
-
-
-def _count(value: Any, field: str) -> Optional[int]:
-    """0 이상 정수 칸(토큰 · 밀리초). 꼴이 틀리면 경고하고 ``None``."""
-    if value is None:
-        return None
-    if not isinstance(value, bool) and isinstance(value, (int, float, Decimal)):
-        try:
-            number = int(round(value))
-        except (ValueError, OverflowError, InvalidOperation):
-            number = -1
-        if 0 <= number <= _INT_MAX:
-            return number
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=%s", field)
-    return None
-
-
-def _cost(value: Any) -> Optional[Decimal]:
-    """비용(달러) — 0 이상, 소수 여섯째 자리까지. 꼴이 틀리면 경고하고 ``None``."""
-    if value is None:
-        return None
-    if not isinstance(value, bool) and isinstance(value, (int, float, Decimal)):
-        try:
-            cost = Decimal(str(value))
-        except InvalidOperation:
-            cost = Decimal("NaN")
-        if cost.is_finite() and Decimal(0) <= cost <= _COST_MAX:
-            return cost.quantize(_COST_SCALE)
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=cost_usd")
-    return None

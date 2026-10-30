@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from db import db_session, engine
-from foms.services.cs_agent import loop, turns
+from foms.services.cs_agent import loop, turns, turns_fields
 from foms.services.cs_agent.checks import Problem
 from foms.services.cs_agent.masking import MaskLeak
 from models import CsAgentTurn, SystemSetting
@@ -260,7 +260,7 @@ def test_no_customer_text_is_stored_except_the_masked_fields(app):
 
 def test_text_that_fails_the_mask_check_is_refused_and_nothing_changes(app, monkeypatch):
     row = claim()
-    monkeypatch.setattr(turns, "mask", lambda text: text)  # 가림이 구멍 난 때 — 검사가 마지막 문이다
+    monkeypatch.setattr(turns_fields, "mask", lambda text: text)  # 가림이 구멍 난 때 — 검사가 마지막 문이다(칸 꼴 모듈)
     for store in (lambda: turns.mark_posting(row, masked_draft=f"{ADDRESS} 앞입니다", now=at(2, 9, 5)),
                   lambda: turns.mark_stored(row, masked_draft=f"{ADDRESS} 앞입니다", now=at(2, 9, 5))):
         with pytest.raises(MaskLeak) as caught:

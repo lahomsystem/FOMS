@@ -21,8 +21,9 @@ from models import SecurityLog, SideEffectWorkerHeartbeat, SystemSetting, System
 from tests.domains.test_cs_brain import KNOWLEDGE, NOW
 
 #: 잠긴 칸 — 빠른 길(C10-1)이 생겨 시간 상한(realtime_timeout_s)은 잠금을 풀었다(설계서 17.1 · 원장 V10-9).
+#: 학습 돈 상한은 학습 길(C10-7)이 생길 때까지 잠근다(총괄 결정 — 검수 R13-12).
 LOCKED = {"intent_model", "intent_effort", "intent_max_tokens", "realtime_retries",
-          "max_brain_calls_per_pass", "max_wait_business_days"}
+          "max_brain_calls_per_pass", "max_wait_business_days", "learning_cap_usd_panel"}
 
 
 @pytest.fixture

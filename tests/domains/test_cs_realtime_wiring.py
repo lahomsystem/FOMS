@@ -10,7 +10,6 @@ from __future__ import annotations
 import datetime
 import functools
 import importlib.util
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -126,10 +125,10 @@ def test_the_runner_declares_a_registered_kind_and_beats_without_customer_data(a
     assert meta == {"interval_seconds": runner.HEARTBEAT_SECONDS, "outcome": "idle", "ticks": 3, "ingested": 2,
                     "picked": 1, "brain_calls": 1}
     stop, beats = loop.StopFlag(), []
-    monkeypatch.setattr(runner, "_tick", lambda _stop, _memory: {"outcome": "ok"})
+    monkeypatch.setattr(runner, "_tick", lambda _stop, _memory, _gate=None: {"outcome": "ok"})
     monkeypatch.setattr(runner, "emit_heartbeat", lambda *a, **k: beats.append(k["metadata"]) or stop.set())
     assert runner._run_loop(False, stop) == 0 and [beat["ticks"] for beat in beats] == [1]
-    monkeypatch.setattr(runner, "_tick", lambda the_stop, _memory: the_stop.set())  # TERM 뒤엔 하트비트도 안 쓴다
+    monkeypatch.setattr(runner, "_tick", lambda the_stop, _memory, _gate=None: the_stop.set())  # TERM 뒤엔 하트비트도 안 쓴다
     assert runner._run_loop(False, loop.StopFlag()) == 0 and len(beats) == 1
 
 
@@ -143,12 +142,12 @@ def test_the_runner_declares_a_registered_kind_and_beats_without_customer_data(a
 ])
 def test_new_panel_fields_check_their_ranges(name, good, bad):
     field = st.FIELD_BY_NAME[name]
-    assert not field.locked
+    assert field.locked == (name == "learning_cap_usd_panel")  # 학습 돈 상한은 C10-7 까지 잠김(R13-12)
     assert all(st.check_value(field, value)[0] for value in good), name
     assert not any(st.check_value(field, value)[0] for value in bad), name
 
 
-def test_the_learning_cap_is_not_held_under_the_worker_ceiling_and_starts_empty(app, monkeypatch):
+def test_the_learning_cap_starts_empty_and_stays_locked_until_c10_7(app, monkeypatch):
     monkeypatch.setenv(brain.DAILY_CAP_ENV, "5")
     actor = User(username="cs-realtime-admin", password="x", role="ADMIN", name="합성 관리자", is_active=True)
     db_session.add(actor)
@@ -157,14 +156,16 @@ def test_the_learning_cap_is_not_held_under_the_worker_ceiling_and_starts_empty(
     db_session.merge(SideEffectWorkerHeartbeat(worker_kind="CS_LOOP", last_heartbeat_at=now_utc_naive(),
                                                metadata_json={"outcome": "ok", bs.HEARTBEAT_CAP_KEY: "5"}))
     db_session.commit()
-    saved = st.save_settings(db_session, {"learning_cap_usd_panel": "9", "quiet_wait_s": 30},
-                             expected_version=0, actor_user_id=actor.id)  # WORKER 하루 상한(5)보다 높아도 받는다
+    with pytest.raises(st.SettingsLockedError) as caught:  # 총괄 결정(R13-12) — 학습 길(C10-7)이 생길 때까지 잠김
+        st.save_settings(db_session, {"learning_cap_usd_panel": "9", "quiet_wait_s": 30},
+                         expected_version=0, actor_user_id=actor.id)
+    assert caught.value.fields == ("learning_cap_usd_panel",)
+    db_session.rollback()
+    saved = st.save_settings(db_session, {"quiet_wait_s": 30}, expected_version=0, actor_user_id=actor.id)
     db_session.commit()
     cfg = st.read_settings(db_session)
-    assert (cfg.get("learning_cap_usd_panel"), cfg.get("quiet_wait_s"), cfg.daily_cap(Decimal("5"))) == (
-        "9.00", 30, Decimal("5"))
-    assert set(saved.changed) == {"learning_cap_usd_panel", "quiet_wait_s"}
-    with pytest.raises(st.SettingsInvalidError):  # 음성 대조: 하루 상한 화면 값은 여전히 WORKER 천장 아래만
+    assert (cfg.get("learning_cap_usd_panel"), cfg.get("quiet_wait_s"), saved.changed) == (None, 30, ("quiet_wait_s",))
+    with pytest.raises(st.SettingsInvalidError):  # 하루 상한 화면 값은 여전히 WORKER 천장 아래만
         st.save_settings(db_session, {"daily_cap_usd_panel": "9"}, expected_version=1, actor_user_id=actor.id)
 
 

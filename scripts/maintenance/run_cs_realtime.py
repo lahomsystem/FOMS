@@ -9,7 +9,8 @@
 - **관측(OPS-HEARTBEAT-01)**: ``CS_REALTIME`` 하트비트를 :data:`HEARTBEAT_SECONDS` 마다 남긴다(차례마다 쓰면 DB 쓰기가 분당 12번)
   — 그 사이 차례 수 · 넣은 글 · 집은 상담 · 두뇌 수의 합과 마지막 차례 결과 코드뿐(상담 id · 손님 정보 없음). 꺼 둔 차례도
   남긴다("죽었다" 와 "지금은 꺼 두었다" 를 가른다).
-- **Sentry**: 이 프로세스의 오류 이벤트에서 스택 지역 변수를 뺀다 — 상담 글 원문이 따라가지 않게(원장 R5-2).
+- **Sentry**: 이 프로세스의 오류 이벤트에서 스택 지역 변수를 뺀다 — 상담 글 원문이 따라가지 않게(원장 R5-2). 같은 오류가
+  이어지면 :data:`ERROR_REPORT_SECONDS` 에 한 번만 보낸다 — 5초마다 같은 이벤트를 쏟지 않게(검수 R13-10).
 
 사용 예 (PowerShell 5.x)::
 
@@ -53,6 +54,24 @@ HEARTBEAT_WORKER_KIND = WORKER_KIND_CS_REALTIME
 HEARTBEAT_SECONDS = 30
 #: 하트비트에 합해 싣는 차례 숫자(상담 id · 글 없음).
 _COUNTED = ("ingested", "picked")
+#: 같은 꼴의 차례 실패를 Sentry · 전체 추적으로 다시 보내기까지(초).
+ERROR_REPORT_SECONDS = 600
+
+
+class ErrorGate:
+    """같은 꼴(예외 이름)의 실패는 :data:`ERROR_REPORT_SECONDS` 에 한 번만 보낸다 — 다른 꼴이면 바로 보낸다."""
+
+    def __init__(self, clock=time.monotonic) -> None:
+        """마지막으로 보낸 꼴 · 시각."""
+        self.clock, self.last_kind, self.last_at = clock, None, None
+
+    def should_report(self, kind: str) -> bool:
+        """이번 실패를 보낼까 — 보내면 꼴 · 시각을 적는다."""
+        now = self.clock()
+        if kind == self.last_kind and self.last_at is not None and now - self.last_at < ERROR_REPORT_SECONDS:
+            return False
+        self.last_kind, self.last_at = kind, now
+        return True
 
 
 def _parse_args(argv: Optional[list] = None) -> argparse.Namespace:
@@ -66,8 +85,11 @@ def _parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _tick(stop: StopFlag, memory: TickMemory) -> Optional[dict]:
-    """차례 하나(앱 컨텍스트 안) — 실패는 기록하고 삼킨다(한 번 실패가 루프를 죽이면 빠른 길이 조용히 꺼진다)."""
+def _tick(stop: StopFlag, memory: TickMemory, gate: Optional[ErrorGate] = None) -> Optional[dict]:
+    """차례 하나(앱 컨텍스트 안) — 실패는 기록하고 삼킨다(한 번 실패가 루프를 죽이면 빠른 길이 조용히 꺼진다).
+
+    같은 꼴 실패가 이어지면 ``gate`` 가 정한 간격에 한 번만 전체 추적 · Sentry 로 보내고 그 사이엔 한 줄만 찍는다.
+    """
     try:
         with app.app_context():
             try:
@@ -77,10 +99,14 @@ def _tick(stop: StopFlag, memory: TickMemory) -> Optional[dict]:
                 raise
             finally:
                 db_session.remove()
-    except Exception:
-        print("[cs-realtime] tick failed:", flush=True)
-        traceback.print_exc()
-        capture_exception()
+    except Exception as exc:
+        kind = type(exc).__name__
+        if gate is None or gate.should_report(kind):
+            print("[cs-realtime] tick failed:", flush=True)
+            traceback.print_exc()
+            capture_exception()
+        else:
+            print(f"[cs-realtime] tick failed again ({kind}) — Sentry 는 {ERROR_REPORT_SECONDS}s 에 한 번", flush=True)
         return None
 
 
@@ -118,13 +144,13 @@ def _worth_printing(summary: Optional[dict]) -> bool:
 
 def _run_loop(as_json: bool, stop: StopFlag) -> int:
     """앱 1회 부팅 후 차례를 돈다. TERM 깃발이 서면 하트비트도 쓰지 않고 0 으로 끝낸다."""
-    memory = TickMemory()
+    memory, gate = TickMemory(), ErrorGate()
     totals: dict = {}
     last_beat: Optional[float] = None
     print(f"[cs-realtime] started (tick={TICK_SECONDS}s heartbeat={HEARTBEAT_SECONDS}s)", flush=True)
     while not stop.is_set():
         started = time.monotonic()
-        summary = _tick(stop, memory)
+        summary = _tick(stop, memory, gate)
         if stop.is_set():
             break  # TERM 뒤엔 쓰기를 시작하지 않는다(R4-4) — 하트비트도
         _add(totals, summary)

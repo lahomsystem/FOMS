@@ -154,6 +154,14 @@ _INTERNAL = re.compile(
 #: AI 표시 · 자기소개('AI 상담사입니다' · 챗봇 · 자동 응답) — 직원이 자기 이름으로 보내는 글이다(사장님 D15, 10-29 다시 지시).
 #: 'AI' 는 대문자 낱말만(AIR 같은 영어 낱말 속은 아니다).
 _AI_SELF = re.compile(r"(?<![A-Za-z])AI(?![A-Za-z])|인공\s?지능|챗봇|상담\s?봇|자동\s?(?:응답|답변)")
+#: 사람이라고 하는 말('사람입니다' · '직원이 직접 답' · '실제 상담사') — 손님이 'AI 냐' 물었는데 첫 거름을 지나 초안이 나와도
+#: 사람인 척은 못 나가게 한다(검수 R13-5 · 설계서 17.8). 사람 수('두 사람입니다')는 아니다.
+_HUMAN_CLAIM = re.compile(
+    r"(?<![한두세네몇])(?<![한두세네몇]\s)(?<!\d)(?<!\d\s)(?:사람|인간)\s?(?:입니다|이에요|이예요|이랍니다|이\s?맞(?:아요|습니다))"
+    r"|(?:직원|상담원|상담사|사람)\s?(?:이|가|께서)\s?직접\s?(?:답|대답|응대|상담|보고|확인하고\s?있)"
+    r"|(?:실제|진짜)\s?(?:상담사|상담원|직원|사람)"
+    r"|(?:로봇|봇|기계|자동\s?응답)(?:이|가)?\s?(?:아니(?:에요|예요|랍니다)|아닙니다)"
+)
 #: 괄호 안 짧은 말 — 안에 가림 · 빈칸 낱말이 있으면 가림 표시다(띄어 써도 — '[ 이 름 ]', R6-8).
 _BRACKETED = re.compile(r"[\[{<【〔]([^\[\]{}<>【】〔〕\n]{1,24})[\]}>】〕]")
 #: 가림 · 빈칸 낱말(시범: 이름 · 전화 · 주소 · 예금주 · 직원이름) + 단지 · 동호 · 링크 · 금액 · '고객명' 같은 'OO명' · 영문 name 등.
@@ -259,7 +267,7 @@ def mask_marker_count(body: str) -> int:
 
 
 def pattern_codes(body: str, brand: str, confirmed: Confirmed) -> list[str]:
-    """금지 꼴 — 다른 브랜드 · 할인 · 환불 · 날짜 확답 · 연락 시각 약속 · 내부 말 · AI 표시 · 가림 표시."""
+    """금지 꼴 — 다른 브랜드 · 할인 · 환불 · 날짜 확답 · 연락 시각 약속 · 내부 말 · AI 표시 · 사람이라는 말 · 가림 표시."""
     codes = ["other_brand"] * other_brand_count(body, brand)
     codes += ["discount_promise"] * _promise_count((_DISCOUNT, _DISCOUNT_MONEY), body)
     codes += ["refund_promise"] * _promise_count((_REFUND, _REFUND_MONEY), body)
@@ -267,6 +275,7 @@ def pattern_codes(body: str, brand: str, confirmed: Confirmed) -> list[str]:
     codes += ["contact_time_promise"] * _contact_promise_count(body)
     codes += ["internal_words"] * len(_INTERNAL.findall(body))
     codes += ["ai_mention"] * len(_AI_SELF.findall(body))
+    codes += ["human_claim"] * len(_HUMAN_CLAIM.findall(body))
     return codes + ["mask_marker"] * mask_marker_count(body)
 
 
