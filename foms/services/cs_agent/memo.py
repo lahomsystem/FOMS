@@ -73,8 +73,9 @@ SEND_PREFIX = "send_"
 #: 요청이 채널톡에 닿았는지 모르는 실패(시간 초과 등) — 다시 보내면 메모가 둘이 될 수 있다.
 SEND_UNKNOWN = SEND_PREFIX + "request_failed"
 
-#: 채널톡 상담 id 꼴(빈칸 없는 ASCII, 64자까지). 손님 글이 자리를 바꿔 들어오면 여기서 걸린다.
-_CHAT_ID = re.compile(r"[\x21-\x7e]{1,64}")
+#: 채널톡 상담 id 꼴(영문 · 숫자 · ``_`` · ``-``, 64자까지). 손님 글이 자리를 바꿔 들어오면 여기서 걸리고, ``/`` · ``..`` 가
+#: Open API 주소 경로를 다른 곳으로 바꾸지 못한다(검수 R12-5).
+_CHAT_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _ERROR_CODE = re.compile(r"[a-z_]{1,32}")
 
 
@@ -179,7 +180,7 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
                                                 channel_id=MEMO_CHANNEL_ID, buttons=buttons)
     except channel_client.PrivateOptionMissing:
         raise
-    except ValueError:
+    except (ValueError, TypeError):
         logger.warning("[CS 초안] 메모 버튼 꼴이 틀려 메모를 쓰지 않는다 chat=%s", chat_id)
         return MemoResult(False, reason=REASON_BAD_BUTTONS)
     if not sent.get("success"):

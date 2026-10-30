@@ -302,6 +302,11 @@ def test_only_memo_writes_to_channel_talk_in_the_agent_package():
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
              and getattr(node.func, "attr", getattr(node.func, "id", None)) in _WRITE_NAMES]
     assert len(calls) == 1, "memo.py 안 채널톡 쓰기는 한 곳이어야 한다"
+    http_writes = sorted(f"{path.name}:{node.lineno}" for path in sources
+                         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+                         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                         and node.func.attr in ("post", "put", "patch", "delete", "request"))
+    assert not http_writes, f"패키지 안에서 HTTP 쓰기를 직접 부른다(메모 감싸개도 channel_client 를 거친다): {http_writes}"
     keywords = {kw.arg: kw.value for kw in calls[0].keywords}
     assert isinstance(keywords["private"], ast.Constant) and keywords["private"].value is True
     assert getattr(keywords["channel_id"], "id", None) == "MEMO_CHANNEL_ID"
@@ -358,23 +363,63 @@ def test_a_memo_with_link_buttons_goes_through_open_api_as_private(open_api, mon
                for b, (_t, url) in zip(call["json"]["buttons"], BUTTONS))
 
 
-def test_a_missing_private_option_stops_before_the_network(open_api, monkeypatch):
-    """두 길의 비공개 옵션 이름이 다르다 — 그 길의 이름이 빠지거나 다른 길 이름이 오면 채널톡을 부르기 전에 멈춘다."""
+def test_the_private_option_is_fixed_per_path_and_cannot_be_chosen(open_api, monkeypatch):
+    """두 길의 비공개 옵션 이름이 다르다 — 보낼 본문의 옵션은 늘 그 길의 비공개 하나이고, 부르는 쪽이 고를 칸이 없다(R12-1)."""
     native_calls = []
-    monkeypatch.setattr(channel_client, "_call_native_function", lambda *a, **k: native_calls.append(a) or {})
+    monkeypatch.setattr(channel_client, "_call_native_function",
+                        lambda payload, channel_id="": native_calls.append(payload) or {"result": {"message": {"id": "n1"}}})
     kwargs = {"brand": "LAHOM", "bot_name": memo.MEMO_BOT_NAME, "channel_id": LAHOM_CHANNEL}
-    cases = [
-        dict(buttons=BUTTONS, options=["silentToUser"], private=True),  # Open API 길 — private 빠짐
-        dict(buttons=BUTTONS, options=[channel_client.NATIVE_PRIVATE], private=True),  # 다른 길 이름
-        dict(options=["MESSAGE_OPTION_SILENT_TO_USER"], private=True),  # 앱 함수 길 — 비공개 빠짐
-        dict(options=[channel_client.OPEN_API_PRIVATE], private=True),  # 다른 길 이름
-        dict(private=False),
-        dict(buttons=BUTTONS, private=False),
-    ]
-    for case in cases:
+    for falsy in (False, 1, "True", None):
         with pytest.raises(channel_client.PrivateOptionMissing):
-            channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs, **case)
+            channel_client.send_private_memo(TEST_CHAT, DRAFT, private=falsy, buttons=BUTTONS, **kwargs)
+    with pytest.raises(TypeError):  # 옵션을 고르는 칸이 없다
+        channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, options=["silentToUser"], **kwargs)
     assert open_api.calls == [] and native_calls == []
+    assert channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=BUTTONS, **kwargs)["success"]
+    assert channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=None, **kwargs)["success"]
+    assert [call["json"]["options"] for call in open_api.calls] == [[channel_client.OPEN_API_PRIVATE]]
+    assert [payload["params"]["dto"]["options"] for payload in native_calls] == [[channel_client.NATIVE_PRIVATE]]
+
+
+def test_a_missing_private_option_inside_memo_is_never_swallowed(send, monkeypatch):
+    """감싸개는 비공개 빠짐 예외를 '버튼 꼴 틀림'으로 바꾸지 않고 그대로 올린다(R12-7)."""
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+
+    def raising(*_a, **_k):
+        raise channel_client.PrivateOptionMissing("합성")
+    monkeypatch.setattr(channel_client, "send_private_memo", raising)
+    with pytest.raises(channel_client.PrivateOptionMissing):
+        post(buttons=BUTTONS)
+
+
+def test_odd_responses_and_http_errors_are_classified_without_raising(open_api, monkeypatch):
+    """받은 뒤 응답 꼴이 이상해도 던지지 않고 '받음 + id 없음', 앱 함수 4xx 는 거절 · 5xx 는 모름(R12-2)."""
+    kwargs = {"brand": "LAHOM", "bot_name": memo.MEMO_BOT_NAME, "channel_id": LAHOM_CHANNEL, "private": True}
+    for body in ([1], {"message": "글"}, {"message": {"id": 7}}, "x"):
+        open_api.body = body
+        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, buttons=BUTTONS, **kwargs) == {
+            "success": True, "message_id": None, "error": None}
+    for data in ([1], {"result": "x"}, {"error": "글"}, {"result": {"message": None}}):
+        monkeypatch.setattr(channel_client, "_call_native_function", lambda *a, _d=data, **k: _d)
+        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["success"] is True
+    for status, expected in ((403, "provider_error"), (422, "provider_error"), (502, "request_failed")):
+        response = requests.Response()
+        response.status_code = status
+
+        def http_fail(*_a, _r=response, **_k):
+            raise requests.HTTPError("합성", response=_r)
+        monkeypatch.setattr(channel_client, "_call_native_function", http_fail)
+        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["error"] == expected
+
+
+def test_chat_ids_that_could_change_the_api_path_are_refused(open_api, monkeypatch):
+    """``/`` · ``..`` 가 든 상담 id 는 메모를 쓰지 않는다 — Open API 주소 경로가 다른 곳으로 정리될 수 있다(R12-5)."""
+    monkeypatch.setenv("FOMS_ENV", "production")
+    monkeypatch.setenv("RAILWAY_PROJECT_NAME", "FOMS-PRODUCTION")
+    for chat in ("x/../../groups/G1", "a/b", "..", "uc test", "uc%2Fx"):
+        assert memo.post_private_memo(chat, DRAFT, brand="LAHOM", buttons=BUTTONS,
+                                      reader=reader_with(bot_memo(), chat=chat)).reason == memo.REASON_NO_CHAT
+    assert open_api.calls == []
 
 
 def test_bad_buttons_are_refused_without_any_call(open_api, monkeypatch):
