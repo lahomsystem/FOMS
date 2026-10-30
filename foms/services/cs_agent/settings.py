@@ -5,8 +5,11 @@
 저장하면 **다음 차례부터** 적용된다(재배포 없음).
 
 - **잠긴 칸(다음 단계)**: 사장님이 단계 1 로 승인한 것은 스위치 · 두뇌(돈 상한 포함) · 기록이다. 고르기 칸(한 바퀴 두뇌 상한 ·
-  묵은 상담 기준)은 승인 밖이고, 의도 고르기 · 실시간 길 칸은 아직 그 길이 없어 효과가 없다 — :attr:`Field.locked` 칸은
+  묵은 상담 기준)은 승인 밖이고, 의도 고르기 · 실시간 다시 시도 칸은 아직 그 길이 없어 효과가 없다 — :attr:`Field.locked` 칸은
   화면에 값만 보이고, 바꾸는 저장은 :class:`SettingsLockedError` 로 거절하며, 읽을 때는 저장 값과 상관없이 늘 처음 값이다.
+- **빠른 길 칸(C10-1 · 설계서 17.1 · 17.3)**: 빠른 길 스위치(처음 끔) · 조용 기다림(10~120초, 처음 15초 — D65) · 최대
+  기다림(20~300초, 처음 60초)을 새로 두고, 시간 상한 ``realtime_timeout_s``(처음 45초 · 20~60)는 값은 그대로 두고 잠금만
+  풀었다. 학습 돈 상한(처음 값 비움 — 공개 저장소라 금액을 코드에 두지 않는다)은 학습 길(17.6)이 쓸 자리다.
 - **읽기(:func:`read_settings`)**: 칸마다 따로 검사해 빠지거나 틀린 칸만 처음 값으로 둔다(경고 로그엔 칸 이름만 — 초안 바퀴가
   바퀴마다 한 번만 남긴다).
 - **쓰기(:func:`save_settings`)**: 받은 칸을 지금 값 위에 얹는다. 칸 하나라도 틀리면(모르는 칸 포함) 통째로 거절한다
@@ -46,7 +49,8 @@ from models import SecurityLog, SystemSetting, SystemSettingReceipt
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CACHE_ALWAYS", "CACHE_DAYTIME", "CACHE_OFF", "DEFAULTS", "FIELDS", "FIELD_BY_NAME", "POLICY_ID", "SETTINGS_KEY",
+    "CACHE_ALWAYS", "CACHE_DAYTIME", "CACHE_OFF", "DAILY_CAP_FIELD", "DEFAULTS", "FIELDS", "FIELD_BY_NAME", "POLICY_ID",
+    "SETTINGS_KEY",
     "LOCKED_FIELDS", "Field", "PanelSettings", "SettingsConflictError", "SettingsError", "SettingsInvalidError",
     "SettingsLockedError", "SettingsNoChangeError", "SettingsSaveResult", "check_value", "field_view",
     "read_settings", "save_settings", "value_label",
@@ -61,6 +65,9 @@ KIND_CHOICE, KIND_INT, KIND_BOOL, KIND_MONEY = "choice", "int", "bool", "money"
 CACHE_DAYTIME, CACHE_ALWAYS, CACHE_OFF = "daytime", "always", "off"
 GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
+GROUP_REALTIME = "빠른 길(실시간 초안)"
+#: WORKER env 하루 상한이 천장인 돈 칸(화면 값) — 학습 돈 상한은 실시간과 따로라 이 천장을 쓰지 않는다(설계서 17.6).
+DAILY_CAP_FIELD = "daily_cap_usd_panel"
 #: 돈 칸 최댓값(달러) — WORKER 상한을 모를 때는 이 값으로만 막는다.
 MONEY_MAX = Decimal("10000")
 _CENT = Decimal("0.01")
@@ -99,7 +106,7 @@ _WAIT_CHOICES = ((0.5, "운영일 반나절"), (1, "운영일 1일"), (2, "운�
 
 #: 단계 1 칸 — 처음 값은 오늘 상수 그대로(:mod:`.brain` 의 MODEL · EFFORTS · MAX_TOKENS · 시간 · 다시 하기, :mod:`.drafting` 의
 #: MAX_BRAIN_CALLS · MAX_WAIT_BUSINESS_DAYS). 하루 상한 화면 값의 처음 값은 비움(WORKER env 그대로)이다. ``locked=True`` 는
-#: 다음 단계 칸(의도 고르기 · 실시간 길은 아직 그 길이 없고, 고르기는 승인 밖이다).
+#: 다음 단계 칸(의도 고르기 · 실시간 다시 시도는 아직 그 길이 없고, 고르기는 승인 밖이다). 빠른 길 칸은 :mod:`.realtime` 이 쓴다.
 FIELDS: tuple[Field, ...] = (
     Field("draft_model", "초안 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES, help=_MODEL_HELP),
     Field("intent_model", "의도 고르기 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES, locked=True),
@@ -110,7 +117,7 @@ FIELDS: tuple[Field, ...] = (
     Field("intent_max_tokens", "의도 고르기 최대 출력", KIND_INT, 8000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
           locked=True),
     Field("realtime_timeout_s", "실시간 길 시간 상한", KIND_INT, 45, GROUP_TIME, low=20, high=60, unit="초",
-          help="실시간 길(단계 4)이 생기면 쓴다 — 늦으면 그 차례는 사람에게", locked=True),
+          help="빠른 길 두뇌가 이만큼 넘으면 그 차례는 실패로 두고 사람에게(다시 보내지 않는다)"),
     Field("batch_timeout_s", "15분 루프 길 시간 상한(밤 · 견적)", KIND_INT, 90, GROUP_TIME, low=30, high=120,
           unit="초"),
     Field("realtime_retries", "실시간 길 다시 시도", KIND_INT, 0, GROUP_TIME, low=0, high=1, unit="번",
@@ -122,13 +129,22 @@ FIELDS: tuple[Field, ...] = (
                "상담이 5분보다 드물게 오면 1시간이 싸다"),
     Field("fallback_enabled", "서버 쪽 대체 모델", KIND_BOOL, True, GROUP_CACHE,
           help="거절된 요청을 공식 대체 모델로 한 번 더 — Haiku 5.5 는 대체가 없어 늘 보내지 않는다"),
-    Field("daily_cap_usd_panel", "하루 돈 상한(화면 값)", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
+    Field(DAILY_CAP_FIELD, "하루 돈 상한(화면 값)", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
           help="비우면 WORKER env 그대로 — 그보다 높게는 저장되지 않는다(쓰는 값은 둘 가운데 작은 것). "
                "상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돈다(콘솔 상한에 닿은 날은 그날 멈춤)"),
+    Field("learning_cap_usd_panel", "학습 돈 상한", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
+          help="스스로 배우기(설계서 17.6)에 쓰는 돈을 실시간 초안과 따로 묶는 칸 — 학습 길이 생기면 쓴다(지금은 효과 없음)"),
     Field("max_brain_calls_per_pass", "한 바퀴 두뇌 상한", KIND_INT, 10, GROUP_PICK, low=1, high=20, unit="번",
           locked=True),
     Field("max_wait_business_days", "묵은 상담 기준", KIND_CHOICE, 1, GROUP_PICK, _WAIT_CHOICES,
           help="마지막 손님 글이 운영 시간으로 이만큼 넘게 묵은 상담은 초안을 쓰지 않는다", locked=True),
+    Field("realtime_enabled", "빠른 길 스위치", KIND_BOOL, False, GROUP_REALTIME,
+          help="켜면 5초마다 새 손님 글을 보고 조용 기다림 뒤 초안을 쓴다(초안 스위치가 저장만 · 메모이고 비상 정지가 아닐 "
+               "때만). 켜 있는 동안 15분 바퀴는 초안을 쓰지 않는다(보정 · 아침 보고만)"),
+    Field("quiet_wait_s", "조용 기다림", KIND_INT, 15, GROUP_REALTIME, low=10, high=120, unit="초",
+          help="마지막 손님 글 뒤 이만큼 새 글이 없으면 집는다(D65) — 짧을수록 갈아 끼움 · 두뇌 부름이 는다"),
+    Field("max_wait_s", "최대 기다림", KIND_INT, 60, GROUP_REALTIME, low=20, high=300, unit="초",
+          help="손님이 계속 써도 첫 미답 글부터 이만큼 지나면 집는다(그 사이 이 상담 초안이 한 번도 없었을 때만)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}
@@ -283,7 +299,7 @@ class PanelSettings:
 
     def daily_cap(self, env_cap: Decimal) -> Decimal:
         """쓰는 하루 상한 = env 와 화면 값 가운데 작은 것(화면 값을 비웠으면 env)."""
-        panel = self.values["daily_cap_usd_panel"]
+        panel = self.values[DAILY_CAP_FIELD]
         return env_cap if panel is None else min(env_cap, Decimal(panel))
 
 
@@ -310,7 +326,8 @@ def value_label(name: str, value: Any) -> str:
     if field.kind == KIND_BOOL:
         return "켬" if value else "끔"
     if field.kind == KIND_MONEY:
-        return "env 그대로" if value is None else f"${value}"
+        empty = "env 그대로" if name == DAILY_CAP_FIELD else "비움"
+        return empty if value is None else f"${value}"
     if field.kind == KIND_INT:
         return f"{value:,} {field.unit}".strip() if isinstance(value, int) else str(value)
     return next((label for choice, label in field.choices if _same(value, choice)), str(value))
@@ -343,8 +360,8 @@ def _checked_changes(values: Any, ceiling: Optional[Decimal]) -> dict[str, Any]:
     for name, raw in values.items():
         field = FIELD_BY_NAME.get(name) if isinstance(name, str) else None
         ok, value = check_value(field, raw) if field is not None else (False, None)
-        if ok and field.kind == KIND_MONEY and value is not None and ceiling is not None and Decimal(value) > ceiling:
-            ok = False  # WORKER env 가 천장 — 화면은 그보다 낮게만
+        if ok and name == DAILY_CAP_FIELD and value is not None and ceiling is not None and Decimal(value) > ceiling:
+            ok = False  # WORKER env 가 천장 — 화면은 그보다 낮게만(학습 돈 상한은 따로라 이 천장을 쓰지 않는다)
         if ok:
             checked[name] = value
         else:

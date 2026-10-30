@@ -4278,9 +4278,12 @@ class CsAgentTurn(Base):
 
     설계서 2026-10-27-cs-ai-agent 4절 8 · 9(플랜 C3-1 · C3-3). ``uq_cs_agent_turns_chat_turn`` 이 '손님 글 하나에 메모
     하나'를 DB 에서 막는다(RQ 잡 id 는 겹침을 못 막는다 — 원장 R1-2). ``state`` 는 ``claimed`` → ``posting`` → ``posted`` ·
-    ``stored`` · ``skipped`` · ``failed`` 이고, '올리는 중(posting)'을 채널톡 부르기 전에 커밋한다(R1-3). 글은 가린 칸
-    (``masked_draft`` · ``staff_reply_masked``)에만 두고 가림 검사를 통과한 것만 넣는다(R1-20). 나머지 칸은 코드 · 숫자다.
-    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns`. DDL 은 migration(``csagent_01``)과 같다.
+    ``stored`` · ``skipped`` · ``failed`` 이고, '올리는 중(posting)'을 채널톡 부르기 전에 커밋한다(R1-3). 빠른 길(C10-1)이
+    두 상태를 더한다 — 손님이 더 써서 갈아 끼운 차례는 ``superseded``('지난 초안'), 직원이 먼저 공개 답을 한 차례는
+    ``staff_replied``('직원 답함'). 선점 줄에는 주인(``claim_owner``)과 만료(``claim_expires_at``)를 적는다 — 만료가 지난
+    선점은 죽은 차례로 보고 다른 차례가 정리해 다시 집는다(원장 R10-2). 글은 가린 칸(``masked_draft`` ·
+    ``staff_reply_masked``)에만 두고 가림 검사를 통과한 것만 넣는다(R1-20). 나머지 칸은 코드 · 숫자다.
+    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns`. DDL 은 migration(``csagent_01`` · ``csagent_02``)과 같다.
     """
 
     __tablename__ = 'cs_agent_turns'
@@ -4317,13 +4320,16 @@ class CsAgentTurn(Base):
     # 초안 ↔ 직원 답 '같은 뜻' 판정 코드(나중에 채움) · 실패 · 건너뜀 이유 코드.
     judgment = Column(String(16), nullable=True)
     error_code = Column(String(48), nullable=True)
+    # 선점한 실행 단위(예 'realtime:호스트:pid') · 선점 만료(UTC) — 만료가 지난 선점은 죽은 차례다(csagent_02).
+    claim_owner = Column(String(64), nullable=True)
+    claim_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint('chat_id', 'last_user_message_id', name='uq_cs_agent_turns_chat_turn'),
-        CheckConstraint("state IN ('claimed','posting','posted','stored','skipped','failed')",
-                        name='ck_cs_agent_turns_state'),
+        CheckConstraint("state IN ('claimed','posting','posted','stored','skipped','failed','superseded',"
+                        "'staff_replied')", name='ck_cs_agent_turns_state'),
         # 재시작 때 '올리는 중'으로 남은 줄 찾기 · 브랜드 하루 상한과 판정 표.
         Index('ix_cs_agent_turns_state_updated', 'state', 'updated_at'),
         Index('ix_cs_agent_turns_brand_created', 'brand', 'created_at'),

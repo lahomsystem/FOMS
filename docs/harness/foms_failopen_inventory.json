@@ -55,7 +55,7 @@
     "foms/services/channel_client.py:495",
     "foms/services/channel_dispatch.py:59",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:391",
+    "foms/services/cs_agent/drafting.py:376",
     "foms/services/integrations/naver_commerce/client.py:1257",
     "foms/services/integrations/naver_commerce/client.py:1359",
     "foms/services/integrations/naver_commerce/fulfillment.py:880",
@@ -3614,7 +3614,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 391,
+      "lineno": 376,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -5270,7 +5270,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 403,
+      "lineno": 408,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5279,7 +5279,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 515,
+      "lineno": 520,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

@@ -19,7 +19,7 @@
    :func:`.turns.claim_turn` 으로 잡아 바로 커밋한다. 뒤 쓰기는 모두 조건부라(R7-8) 그사이 다른 바퀴가 줄을 바꿨으면 올리지 않는다.
 3. **읽기** — 매체(이메일이면 건너뜀) · 최근 글. 선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없어야 한다.
    재료는 공개 손님 · 직원 글만(R1-12). 손님 글에 글자가 없으면(사진만) 건너뜀.
-4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프라 ``realtime=False``. 두뇌는 세션을 여러 번
+4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참). 두뇌는 세션을 여러 번
    커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만 세고(표시 없는
    요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
@@ -43,11 +43,9 @@ TERM: 선점 전 · 두뇌 전 · 쓰기 전마다 깃발을 보고, 서 있으�
 
 from __future__ import annotations
 
-import dataclasses
 import datetime
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Sequence
 
 from sqlalchemy import select
@@ -67,6 +65,7 @@ from foms.services.cs_agent.drafting_post import is_send_failure, place
 from foms.services.cs_agent.drafting_read import (
     MEDIUM_EMAIL, ChatLine, conversation, freshness, memo_snippets, no_text_reason, read_lines, read_medium,
 )
+from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.knowledge import ApprovedKnowledge, load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
@@ -75,8 +74,8 @@ from foms.services.cs_agent.state import (
     BRAND_HOURS, KST, BusinessDayFn, ChatState, business_minutes_between, sort_by_priority,
 )
 from foms.services.cs_agent.turns import (
-    DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn,
-    draft_mode, mark_failed, mark_skipped, read_switch, record_brain_result, release_turn, stale_posting,
+    DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_owner,
+    claim_turn, draft_mode, mark_failed, mark_skipped, read_switch, record_brain_result, release_turn, stale_posting,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,34 +110,6 @@ FAIL_READ, FAIL_RATE_LIMITED = "read_failed", "rate_limited"
 HALT_NOT_CONFIGURED, HALT_NOT_READY, HALT_SPEND = "not_configured", "not_ready", "spend_cap"
 HALT_BRAIN, HALT_CONFLICT, HALT_CALLS, HALT_TIME = "brain_unavailable", "turn_conflict", "call_cap", "time_budget"
 HALT_SWITCHED_OFF = "switched_off"  # 바퀴 도중 비상 정지 · 초안 끔
-
-
-@dataclass
-class DraftSummary:
-    """한 바퀴 초안 결과 — 숫자만(상담 id · 글 없음). :meth:`counts` 가 바퀴 요약 JSON 의 ``drafting`` 칸이다."""
-
-    candidates: int = 0  # 고른 상담
-    too_old: int = 0  # 마지막 손님 글이 운영일 하루를 넘겨 고르지 않은 상담
-    claimed: int = 0  # 이번에 선점한 차례(실패 줄 다시 집음 포함)
-    already: int = 0  # 차례가 이미 있어 건너뜀(손님 글 하나에 초안 하나)
-    brain_calls: int = 0
-    cache_cold: int = 0  # 캐시 표시를 실은 두뇌 호출인데 캐시 읽기 0(앞부분 캐시가 안 먹는다 — R7-12)
-    stored: int = 0
-    posted: int = 0
-    reposted: int = 0  # 보내기 실패로 다시 집어 저장된 초안을 다시 놓음(두뇌 안 부름 — R7-5)
-    unverified: int = 0  # 올렸지만 비공개를 확인 못 함(ERROR 로그 · 스위치 바꿈 · 알림)
-    unknown: int = 0  # 닿았는지 모름 — '올리는 중' 그대로
-    not_allowed: int = 0  # 메모 스위치지만 운영 밖 시험 상담 허용 목록 밖이라 저장만
-    failed: int = 0
-    released: int = 0  # 시도를 세지 않고 돌려놓음(준비 안 됨 · 401 · 403 · 돈 상한 — R7-4)
-    recovered: int = 0  # 오래 남은 선점 → 실패(다시 집음)
-    stale_posting: int = 0  # 오래 남은 '올리는 중'(복구 단계 몫)
-    skipped: dict[str, int] = field(default_factory=dict)  # 건너뜀 코드 → 수
-    halted: dict[str, int] = field(default_factory=dict)  # 이번 바퀴를 멈춘 까닭(하나)
-
-    def counts(self) -> dict[str, Any]:
-        """JSON 한 덩어리 — 숫자와 코드 이름 → 숫자만."""
-        return dataclasses.asdict(self)
 
 
 # ── 고르기 · 정리 ────────────────────────────────────────────────────────
@@ -227,7 +198,10 @@ def _daytime(now: datetime.datetime, cal: BusinessDayFn) -> bool:
 
 # ── 한 바퀴 ──────────────────────────────────────────────────────────────
 class _Pass:
-    """한 바퀴의 재료와 쓰기 도우미 — 쓰기 전마다 TERM 깃발을 본다."""
+    """한 바퀴의 재료와 쓰기 도우미 — 쓰기 전마다 TERM 깃발을 본다. 빠른 길(:mod:`.realtime`)이 물려받아 바꾼다."""
+
+    #: 두뇌 시간 상한 길(실시간 · 15분) · 선점 주인 이름 앞말 · 선점 만료 — 빠른 길은 실시간 · 90초(설계서 17.3).
+    realtime, owner_kind, claim_ttl = False, "pass", STALE_CLAIM_AFTER
 
     def __init__(self, session: Any, *, reader: Any, now: datetime.datetime, stop: Any, mode: str,
                  brain: Callable[..., DraftResult], poster: Callable[..., MemoResult], knowledge: ApprovedKnowledge,
@@ -237,6 +211,11 @@ class _Pass:
         self.brain, self.poster, self.knowledge, self.daytime, self.summary = brain, poster, knowledge, daytime, summary
         self.allowed = tuple(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text)
         self.human_only = frozenset(item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text)
+        self.owner = claim_owner(self.owner_kind)
+
+    def asks_human(self, lines: Sequence[ChatLine]) -> bool:
+        """두뇌 없이 사람에게 넘길 물음인가 — 15분 바퀴는 늘 아니다(빠른 길이 'AI 냐 사람이냐' 물음으로 바꾼다)."""
+        return False
 
     def skip(self, row: CsAgentTurn, code: str, *, codes: Sequence[Any] = (), masked: Optional[str] = None,
              halt: Optional[str] = None) -> Optional[str]:
@@ -291,7 +270,8 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
                  brain: Callable[..., DraftResult] = draft_reply,
                  poster: Callable[..., MemoResult] = post_private_memo, limit: Optional[int] = None,
                  clock: Callable[[], float] = time.monotonic, budget_seconds: float = DRAFT_BUDGET_SECONDS,
-                 ready: Callable[..., Any] = check_ready, summary: Optional[DraftSummary] = None) -> DraftSummary:
+                 ready: Callable[..., Any] = check_ready, summary: Optional[DraftSummary] = None,
+                 picks: Optional[Sequence[tuple[str, str]]] = None, pass_type: Optional[type] = None) -> DraftSummary:
     """초안 한 바퀴(모듈 설명의 순서). 감시 루프가 상태 · 보고 뒤에 부른다 — 스위치가 ``store`` · ``memo`` 가 아니면 일 0.
 
     Args:
@@ -306,6 +286,8 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         limit: 한 바퀴 두뇌 호출 상한(없으면 관리 화면 설정). clock · budget_seconds: 시간 상한(선점 전에 본다).
         ready: 두뇌 준비 확인(기본 :func:`.brain.check_ready` — 선점 전에 한 번).
         summary: 채울 결과(루프는 멈춰도 센 수가 남게 미리 만들어 넘긴다).
+        picks · pass_type: 빠른 길(:mod:`.realtime`)이 모아 받기로 이미 고른 (상담, 손님 글 id) 목록과 바꾼 차례 꼴 — 주면
+            고르기(1)를 건너뛰고 선점 · 두뇌 · 검사 · 놓기 순서는 그대로 쓴다.
 
     Returns:
         :class:`DraftSummary`.
@@ -338,14 +320,17 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         return _halted(session, summary, HALT_SPEND)
     cfg = read_settings(session)  # 바퀴마다 새로 — 화면에서 저장하면 다음 바퀴부터
     limit = cfg.get("max_brain_calls_per_pass") if limit is None else limit
-    candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day,
-                                              max_wait_days=cfg.get("max_wait_business_days"))
+    if picks is None:
+        candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day,
+                                                  max_wait_days=cfg.get("max_wait_business_days"))
+    else:
+        candidates = list(picks)
     existing = _existing(session, candidates)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡 · 두뇌를 부르는 동안 열어 두지 않는다
     summary.candidates = len(candidates)
-    ctx = _Pass(session, reader=reader, now=now, stop=stop, mode=mode, brain=brain, poster=poster,
-                knowledge=knowledge, daytime=_daytime(now, is_business_day or calendar_is_business_day),
-                summary=summary)
+    ctx = (pass_type or _Pass)(session, reader=reader, now=now, stop=stop, mode=mode, brain=brain, poster=poster,
+                               knowledge=knowledge, daytime=_daytime(now, is_business_day or calendar_is_business_day),
+                               summary=summary)
     for chat_id, message_id in candidates:
         prev = existing.get((chat_id, message_id))
         if prev is not None and not _reclaimable(prev):
@@ -359,7 +344,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
             break
         stop.check()  # 선점 전
         try:
-            row = claim_turn(session, BRAND, chat_id, message_id, now=now)
+            row = claim_turn(session, BRAND, chat_id, message_id, now=now, owner=ctx.owner, ttl=ctx.claim_ttl)
         except ValueError:
             session.rollback()
             logger.warning("[CS 초안] 상담 · 글 id 꼴이 아니라 고르지 않는다 chat=%s", chat_id)
@@ -435,12 +420,14 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     early = freshness(lines, claimed_id) or no_text_reason(lines)
     if early:
         return ctx.skip(row, early, masked=stored)
+    if ctx.asks_human(lines):  # 빠른 길: 'AI 냐 사람이냐' 물음이면 두뇌 · 초안 없이 사람에게(설계서 17.8)
+        return ctx.hand_to_human(row, chat_id)
     if repost:  # 이 읽기가 직전 다시 읽기다 — 두뇌를 다시 부르지 않는다
         return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=stored, note="", reread=False)
     try:
         request = DraftRequest(brand=BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=ctx.daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(),
-                               knowledge=ctx.knowledge, realtime=False)
+                               knowledge=ctx.knowledge, realtime=ctx.realtime)
     except ValueError:
         return ctx.skip(row, SKIP_BAD_REQUEST)
     ctx.stop.check()  # 두뇌 전

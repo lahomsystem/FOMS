@@ -17,6 +17,8 @@
     다른 칸은 그대로다. 다시 켜는 것은 사람이다.
   - **memo 로 켜기 전 할 일**: 스테이징에서 우리 봇 메모가 Open API 글 목록에 오는지 먼저 본다 — 안 오면 모든 메모가 '못 찾음'
     이라 첫 메모에서 '저장만'으로 돌아간다(그물이 비면 공개 확인 장치가 한 번도 켜지지 않기 때문이다).
+- **한 줄 메모(빠른 길)**: 손님이 'AI 냐 사람이냐' 물으면 초안 없이 '직원이 직접 답해 주세요' 한 줄을 같은 길
+  (:func:`post_note` — '올리는 중' 먼저 커밋 · 비공개 확인 · 막는 장치)로 올린다(설계서 17.8).
 - 알림은 감시 보고와 같은 길(:func:`.report.post_admin_notification` — ADMIN 역할 전원 · OS 푸시 없음). 글에는 상담 id ·
   데스크 주소 · 메모 id · 코드만 싣는다(손님 글 · 초안 없음).
 """
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "FAIL_SEND", "HALT_PUBLIC", "HALT_SEND_FAILED", "HALT_SEND_UNKNOWN", "HALT_UNVERIFIED", "NOTIFY_MEMO_PUBLIC",
-    "NOTIFY_MEMO_UNVERIFIED", "SKIP_DRAFT_MASK_LEAK", "is_send_failure", "place",
+    "NOTIFY_MEMO_UNVERIFIED", "SKIP_DRAFT_MASK_LEAK", "is_send_failure", "memo_on", "place", "post_note",
 ]
 
 #: 알림 유형(``notifications.notification_type``) — 감시 보고(``CS_MORNING_REPORT`` …)와 같은 ``CS_`` 줄기.
@@ -71,6 +73,16 @@ def is_send_failure(error_code: Any) -> bool:
     return isinstance(error_code, str) and error_code.startswith(SEND_PREFIX)
 
 
+def memo_on(ctx: Any) -> bool:
+    """메모를 올려도 되는 스위치인가 — 바퀴 시작 값 · DB 에서 새로 읽은 초안 스위치가 모두 ``memo`` 이고 비상 정지가 아님."""
+    return ctx.mode == DRAFT_MEMO and draft_mode(ctx.session) == DRAFT_MEMO and read_switch(ctx.session)
+
+
+def post_note(ctx: Any, row: Any, chat_id: str, *, text: str) -> Optional[str]:
+    """초안 없는 한 줄 메모 — 초안 메모와 같은 길('올리는 중' 먼저 커밋 · 비공개 확인 · 막는 장치). 멈출 까닭을 돌려준다."""
+    return _post(ctx, row, chat_id, draft="", staff_note="", masked=None, warnings=(), text=text)
+
+
 def place(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, masked: str,
           warnings: Sequence[str]) -> Optional[str]:
     """검사를 마친 초안을 놓는다 — 메모 스위치 · 허용된 상담이면 메모, 아니면 저장만. 이번 바퀴를 멈출 까닭(없으면 ``None``).
@@ -79,8 +91,8 @@ def place(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
     비상 정지를 DB 에서 다시 읽는다 — 바퀴 도중(두뇌를 부르는 동안 포함) 꺼졌으면(사람 · 막는 장치, R7-1 · 설계서 16.4)
     메모를 쓰지 않고 저장만 한다. 허용 목록 밖 수(``not_allowed``)는 메모가 켜진 채 목록 밖이라 저장만 한 것만 센다.
     """
-    memo_on = ctx.mode == DRAFT_MEMO and draft_mode(ctx.session) == DRAFT_MEMO and read_switch(ctx.session)
-    if memo_on and memo_allowed(chat_id):
+    memo_ready = memo_on(ctx)
+    if memo_ready and memo_allowed(chat_id):
         return _post(ctx, row, chat_id, draft=draft, staff_note=staff_note, masked=masked, warnings=warnings)
     ctx.stop.check()  # 쓰기 전
     try:
@@ -90,13 +102,16 @@ def place(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
         return ctx.skip(row, SKIP_DRAFT_MASK_LEAK)
     ctx.session.commit()
     ctx.summary.stored += 1
-    ctx.summary.not_allowed += int(memo_on)
+    ctx.summary.not_allowed += int(memo_ready)
     return None
 
 
-def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, masked: str,
-          warnings: Sequence[str]) -> Optional[str]:
-    """메모 — '올리는 중'을 먼저 커밋 → 감싸개 → 결과 적기(R1-3). 감싸개를 부른 뒤로는 깃발과 상관없이 결과를 적는다."""
+def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, masked: Optional[str],
+          warnings: Sequence[str], text: Optional[str] = None) -> Optional[str]:
+    """메모 — '올리는 중'을 먼저 커밋 → 감싸개 → 결과 적기(R1-3). 감싸개를 부른 뒤로는 깃발과 상관없이 결과를 적는다.
+
+    ``text`` 를 주면 초안 메모 꼴(:func:`.drafting_read.memo_text`) 대신 그 글을 올린다(빠른 길의 한 줄 메모).
+    """
     ctx.stop.check()  # 쓰기 전 — 깃발 뒤엔 올리기를 시작하지 않는다
     try:
         mark_posting(row, masked_draft=masked, check_codes=warnings, now=ctx.now)
@@ -104,7 +119,8 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
         logger.warning("[CS 초안] 가린 초안에 개인정보 꼴이 남아 건너뜀 chat=%s counts=%s", chat_id, exc.counts)
         return ctx.skip(row, SKIP_DRAFT_MASK_LEAK)
     ctx.session.commit()  # 채널톡을 부르기 전에 '올리는 중'을 커밋한다 — 죽어도 복구 단계가 찾는다
-    sent = ctx.poster(chat_id, memo_text(draft, staff_note), brand=MEMO_BRAND, reader=ctx.reader)
+    body = memo_text(draft, staff_note) if text is None else text
+    sent = ctx.poster(chat_id, body, brand=MEMO_BRAND, reader=ctx.reader)
     if sent.outcome_unknown:
         ctx.summary.unknown += 1
         logger.warning("[CS 초안] 메모가 닿았는지 모른다 — 올리는 중 그대로 · 이번 바퀴 멈춤 chat=%s", chat_id)

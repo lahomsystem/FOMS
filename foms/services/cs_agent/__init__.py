@@ -8,5 +8,7 @@
 (:mod:`~foms.services.cs_agent.report`, FOMS 앱 안 알림 — 한 번씩만) · 기준 답 · 지식
 (:mod:`~foms.services.cs_agent.knowledge` DB 읽기 · 쓰기 · 되돌리기, :mod:`~foms.services.cs_agent.knowledge_doc` 꼴 검사 ·
 승인 항목만 재료) · 보내기 전 검사(:mod:`~foms.services.cs_agent.checks` 판정, :mod:`~foms.services.cs_agent.checks_rules`
-금지 꼴, :mod:`~foms.services.cs_agent.checks_read` 숫자 · 링크 읽기) · 가림(:mod:`~foms.services.cs_agent.masking`, 가림 검사 0 일 때만 모델 호출).
+금지 꼴, :mod:`~foms.services.cs_agent.checks_read` 숫자 · 링크 읽기) · 가림(:mod:`~foms.services.cs_agent.masking`, 가림 검사 0 일 때만 모델 호출) ·
+빠른 길(:mod:`~foms.services.cs_agent.realtime`, 5초 차례 · 따로 잠금 · 모아 받기 — 'AI 냐 사람이냐' 물음은
+:mod:`~foms.services.cs_agent.ask_human`).
 """

@@ -73,7 +73,10 @@ def test_the_brain_sends_what_the_panel_chose(actor):
     assert (result.model, result.effort) == ("claude-sonnet-5-5", "medium")
     assert result.cost_usd == Decimal("0.007")  # Sonnet 5.5: 1000 × $2 + 500 × $10
     _, realtime = call(request(realtime=True), message(model=bp.MODEL_SONNET))
-    assert realtime.options == [{"timeout": 45.0, "max_retries": 0}]  # 실시간 길은 잠긴 칸 — 상수 그대로
+    assert realtime.options == [{"timeout": 45.0, "max_retries": 0}]  # 실시간 길 시간 상한은 고르지 않았으니 처음 값
+    configure(actor, realtime_timeout_s=30)  # 빠른 길(C10-1)이 생겨 시간 상한은 잠금을 풀었다(다시 시도는 잠김 — 0)
+    _, realtime = call(request(realtime=True), message(model=bp.MODEL_SONNET))
+    assert realtime.options == [{"timeout": 30.0, "max_retries": 0}]
 
 
 def test_without_a_row_the_request_is_exactly_as_before(actor):
