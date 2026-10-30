@@ -92,6 +92,13 @@
         <h3 class="erp-pro-card__title"><i class="fas fa-table-cells"></i> 작업 큐 <span class="small text-muted fw-normal">주문별 현재 작업</span></h3>
         <span class="badge bg-primary">표시: <strong>{{ orders | length }}</strong>건{% if total > orders | length %} / {{ total }}{% endif %}</span>
     </div>
+    {# PC 도 휴대폰과 같은 정렬 단추(사용자 2026-10-30). 거른 조건 · 검색은 그대로. #}
+    <nav class="pp-sort pp-sort--pc" aria-label="순서">
+        <span class="pp-sort__label">순서</span>
+        <div class="pp-sort__seg">
+            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=filters.q or None, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None, manager=filters.manager or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+        </div>
+    </nav>
     {% if not orders %}
     <p class="pp-empty p-3 mb-0">{% if filtered %}조건에 맞는 주문이 없습니다. "초기화"를 눌러 모두 보세요.{% else %}아직 등록한 주문이 없습니다. "새 주문 등록"으로 실측 내용과 초안 도면을 보내 주세요.{% endif %}</p>
     {% else %}
