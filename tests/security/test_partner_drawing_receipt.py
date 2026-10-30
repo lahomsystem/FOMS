@@ -163,3 +163,20 @@ def test_drawing_tab_mirrors_workbench_layout_with_partner_safe_values(app, worl
     assert 'data-pp-drawing-turn="other"' in page and "고치는 중" in page
     partner_name = db_session.get(User, world["partner_a"]).name
     assert "pp-dthread__msg--right" in page and partner_name in page and "서랍 3단으로" in page
+
+
+def test_drawing_tab_survives_old_history_shapes():
+    """옛 이력 모양(files 가 개수 int · 시각 없음 · 모르는 action)에도 도면 탭이 깨지지 않는다(500 대조군)."""
+    from types import SimpleNamespace
+
+    from foms.services.partners.drawing_tab import build_partner_drawing_tab
+
+    order = SimpleNamespace(id=1, partner_org_id=7, erp_stage_code="DRAWING", structured_data={
+        "drawing_status": "TRANSFERRED",
+        "drawing_transfer_history": [
+            {"action": "TRANSFER", "files": 2}, {"action": "REQUEST_REVISION", "files": 3, "partner_org_id": 7},
+            {"action": "REVISION_CANCELLED"}, "garbage",
+        ]})
+    tab = build_partner_drawing_tab(order, [{"key": "k"}], can_receive=True, can_approve=False)
+    assert [e["tag"] for e in tab["thread"]] == ["1차 도면 올림", "수정 요청"]
+    assert tab["thread"][0]["note"] == "도면 2장" and tab["turn"]["tone"] == "mine"
