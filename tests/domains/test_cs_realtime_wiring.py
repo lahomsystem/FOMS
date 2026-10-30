@@ -170,9 +170,9 @@ def test_the_learning_cap_starts_empty_and_stays_locked_until_c10_7(app, monkeyp
 
 
 # ── 마이그레이션 꼴 ──────────────────────────────────────────────────────
-def test_csagent_02_chains_onto_csagent_01_and_matches_the_model():
+def test_csagent_02_chains_onto_the_previous_head_and_matches_the_model():
     module = load(MIGRATION, "csagent_02_mig_unit")
-    assert (module.revision, module.down_revision) == ("csagent_02", "csagent_01")
+    assert (module.revision, module.down_revision) == ("csagent_02", "mine_manager_names_idx_00")
     source = MIGRATION.read_text(encoding="utf-8")
     assert "import models" not in source and "from models" not in source  # 상수 동결
     assert module.NEW_STATES == turns.STATES and set(module.OLD_STATES) < set(module.NEW_STATES)
