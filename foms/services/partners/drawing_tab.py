@@ -36,7 +36,7 @@ def _partner_name(entry: dict[str, Any]) -> str:
 def _refs(order_id: int, files: Any) -> list[dict[str, Any]]:
     """이 회사가 올린 수정 요청 참고 사진 — 이 주문 수정 요청 폴더 key 만(주소는 화면 쪽이 key 로 만든다)."""
     rows = []
-    for f in (files or [])[:MAX_REFS]:
+    for f in (files if isinstance(files, list) else [])[:MAX_REFS]:
         key = str((f or {}).get("key") or "") if isinstance(f, dict) else ""
         if not key or not is_revision_reference_key(order_id, key):
             continue
@@ -55,7 +55,9 @@ def _thread(order: Any, history: list[Any]) -> list[dict[str, Any]]:
         action = h.get("action")
         if action == "TRANSFER":
             at, at_text = _when(h.get("transferred_at") or h.get("at"))
-            count = int(h.get("files_count") or len(h.get("files") or []))
+            files = h.get("files")
+            # 옛 이력은 files 가 개수(int)인 줄도 있다.
+            count = int(h.get("files_count") or (len(files) if isinstance(files, list) else files if isinstance(files, int) else 0) or 0)
             events.append({"side": "left", "who": OUR_DRAWING_TEAM, "tag": f"{revisions + 1}차 도면 올림",
                            "note": f"도면 {count}장", "refs": [], "at": at, "at_text": at_text})
         elif action == "REQUEST_REVISION":
