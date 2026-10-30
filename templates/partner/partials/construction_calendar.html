@@ -1,6 +1,8 @@
 {# PARTNER-FOMS 18-2: 시공 달력 — 우리 모바일 홈 달력과 같은 칸 모양(foms-tower__cal-*, dashboard-control-tower.css).
-   칸 = 날짜 · 우리 회사 전체 시공 건수 · (휴대폰) 그 협력사 주문 출고가. 위 줄 = 달 합계(전체 시공 건수 · 내 회사 출고가).
-   입력: cal (foms/services/partners/construction_calendar.py), cal_url(달 넘기기 주소 — ?cal=YYYY-MM). #}
+   칸 = 날짜 · 우리 회사 전체 시공 건수 · 내 회사 주문 수 · (휴대폰) 그 협력사 주문 출고가. 위 줄 = 달 합계.
+   칸을 누르면 그날 내 회사 주문 목록 시트(우리 모바일 홈 달력과 같은 시트 — 사용자 2026-10-30). 목록은 칸마다
+   <template data-pp-day-list> 로 미리 싣고 partner-calendar.js 가 시트에 옮긴다(다른 회사 주문은 싣지 않는다).
+   입력: cal (foms/services/partners/construction_calendar.py), cal_url(달 넘기기 주소 — ?cal=YYYY-MM), org. #}
 <div class="foms-tower__cal pp-cal" data-pp-cal data-month="{{ cal.month }}">
   {% if cal.wx_legend %}{{ wx_timeline_defs(cal.wx_legend) }}{% endif %}
   <div class="foms-tower__cal-hero pp-cal__hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
@@ -21,6 +23,7 @@
       </div>
       <div class="foms-tower__cal-sum-counts">
         <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>전체 시공 <b>{{ cal.construction_total }}</b>건</span>
+        <span><i class="foms-tower__mark pp-cal__own-mark" aria-hidden="true"></i>{{ org.name }} <b>{{ cal.own_total }}</b>건</span>
       </div>
     </div>
   </div>
@@ -34,11 +37,11 @@
         {%- endif -%}
         {%- for c in week -%}
         {%- if c.in_month -%}
-        <span class="foms-tower__cal-cell is-c{{ c.dow + 1 }}{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}" aria-label="{{ c.day }}일 시공 {{ c.count }}건{% if c.amount_label %}, 내 회사 출고가 {{ c.amount_label }}원{% endif %}">
+        <button type="button" class="foms-tower__cal-cell is-c{{ c.dow + 1 }}{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}{% if c.own %} pp-cal__cell--own{% endif %}" data-pp-day-tile data-iso="{{ c.iso }}" data-count="{{ c.count }}" data-amount="{{ c.amount_label }}" aria-label="{{ c.day }}일 시공 {{ c.count }}건{% if c.own %}, 내 회사 주문 {{ c.own }}건{% endif %}{% if c.amount_label %}, 내 회사 출고가 {{ c.amount_label }}원{% endif %}">
           <span class="foms-tower__cal-head"><span class="foms-tower__cal-date">{{ c.day }}</span>{% if c.t_max_label or c.t_min_label %}<span class="foms-tower__cal-temp">{% if c.t_max_label %}<b class="is-max">{{ c.t_max_label }}</b>{% endif %}{% if c.t_min_label %}<b class="is-min">{{ c.t_min_label }}</b>{% endif %}</span>{% endif %}</span>
-          <span class="foms-tower__cal-counts">{% if c.count %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.count }}</span>{% endif %}</span>
+          <span class="foms-tower__cal-counts">{% if c.count %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.count }}</span>{% endif %}{% if c.own %}<span class="foms-tower__cal-n pp-cal__own"><i class="foms-tower__mark pp-cal__own-mark"></i>{{ c.own }}</span>{% endif %}</span>
           {%- if c.amount_pill %}<span class="foms-tower__cal-amt pp-cal__amt">{{ c.amount_pill }}</span>{% endif -%}
-        </span>
+        </button>
         {%- else -%}
         <span class="foms-tower__cal-cell is-out is-c{{ c.dow + 1 }}" aria-hidden="true"></span>
         {%- endif -%}
@@ -48,8 +51,10 @@
     </div>
     <div class="foms-tower__cal-legend">
       {% if cal.wx_legend %}<span class="foms-tower__wx-chips" aria-label="날씨">{% for k, label in cal.wx_legend %}<i class="foms-tower__wx-chip wx-k-{{ k }}">{{ label }}</i>{% endfor %}</span>{% endif %}
-      <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>숫자 = 그날 저희 시공 건수(전체)</span>
+      <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>그날 저희 시공 건수(전체)</span>
+      <span><i class="foms-tower__mark pp-cal__own-mark" aria-hidden="true"></i>그중 {{ org.name }} 주문 · 날짜를 누르면 목록</span>
       <span class="pp-cal__amt-legend">알약 = 내 회사 주문 출고가</span>
     </div>
   </div>
 </div>
+{% include "partner/partials/calendar_day_sheet.html" %}

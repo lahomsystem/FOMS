@@ -13,7 +13,7 @@ import foms.services.orders.dashboard_control_tower as tower
 from db import db_session
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from models import Order, OrderScheduleDate, User
-from tests.security.partner_fixtures import _client, _create, world  # noqa: F401 — pytest fixture 재노출
+from tests.security.partner_fixtures import _PAYLOAD, _client, _create, world  # noqa: F401 — pytest fixture 재노출
 
 _TODAY = datetime.date(2026, 11, 1)
 
@@ -95,3 +95,34 @@ def test_calendar_only_on_unfiltered_list(app, world):
     assert "data-pp-cal" in client.get("/partner").get_data(as_text=True)
     for query in ("turn=1", "stage=완료", "mine=1", "q=홍"):
         assert "data-pp-cal" not in client.get(f"/partner?{query}").get_data(as_text=True), query
+
+
+def test_own_orders_marked_per_day_and_listed_without_other_company(app, world, priced):
+    """사용자 2026-10-30: 날짜마다 내 회사 주문을 따로 표시하고, 날짜를 누르면 그날 내 회사 주문 목록(우리 모바일 홈처럼)."""
+    own_id = _order_on(app, world["partner_a"], ["2026-11-05"], 3_000_000)
+    other_id = _order_on(app, world["partner_b"], ["2026-11-05"], 9_990_000)
+    two_day = _order_on(app, world["partner_a"], ["2026-11-10", "2026-11-11"], 2_000_000)
+    cal = partner_construction_calendar(db_session, world["org_a"], "2026-11", today=_TODAY)
+    assert _cell(cal, "2026-11-05")["count"] == 2 and _cell(cal, "2026-11-05")["own"] == 1
+    assert _cell(cal, "2026-11-11")["own"] == 1 and _cell(cal, "2026-11-06")["own"] == 0
+    assert [r["id"] for r in cal["day_orders"]["2026-11-05"]] == [own_id]
+    assert [r["id"] for r in cal["day_orders"]["2026-11-10"]] == [two_day] and cal["own_total"] == 2
+
+    html = _client(app, db_session.get(User, world["partner_a"])).get("/partner?cal=2026-11").get_data(as_text=True)
+    assert 'data-pp-day-tile data-iso="2026-11-05"' in html and "pp-cal__own" in html
+    assert 'data-pp-day-list="2026-11-05"' in html and f"/partner/orders/{own_id}" in html
+    assert f"/partner/orders/{other_id}" not in html
+    other_name = db_session.get(Order, other_id).customer_name
+    assert html.count(other_name) == 0 or other_name == db_session.get(Order, own_id).customer_name
+    assert "partner-calendar.js" in html and "data-pp-day-sheet" in html
+
+
+def test_requested_construction_day_listed_as_requested(app, world, priced):
+    """시공일을 아직 안 정한 주문은 희망 시공일 칸에 '희망' 줄로 뜬다(칸 숫자와 같은 모집단)."""
+    resp = _create(app, world["partner_a"], {**_PAYLOAD, "requested_construction_date": "2026-11-07",
+                                             "requested_construction_time": "오후"})
+    order_id = resp.get_json()["data"]["order_id"]
+    cal = partner_construction_calendar(db_session, world["org_a"], "2026-11", today=_TODAY)
+    rows = cal["day_orders"]["2026-11-07"]
+    assert [(r["id"], r["requested"], r["time"]) for r in rows] == [(order_id, True, "오후")]
+    assert _cell(cal, "2026-11-07")["own"] == 1 and _cell(cal, "2026-11-07")["count"] == 1
