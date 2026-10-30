@@ -112,3 +112,12 @@ def test_inline_manager_field_accepts_comma_list(client) -> None:
     saved = db_session.get(Order, order_id)
     assert saved.manager_name == "한용희"
     assert saved.structured_data["parties"]["manager"] == {"name": "한용희", "names": ["한용희", "김의종"]}
+
+
+def test_separators_inside_parentheses_do_not_split() -> None:
+    """운영 #5579 실측: "안중훈(1번), 백재현(2번, 3번)" 은 두 사람이다(괄호 속 쉼표·빗금은 메모)."""
+    sd = _sd("안중훈(1번), 백재현(2번, 3번)")
+    assert order_manager_names(sd) == ["안중훈(1번)", "백재현(2번, 3번)"]
+    assert order_manager_names(_sd("김(A/B)/한")) == ["김(A/B)", "한"]
+    normalize_manager_party(sd)
+    assert sd["parties"]["manager"] == {"name": "안중훈(1번)", "names": ["안중훈(1번)", "백재현(2번, 3번)"]}

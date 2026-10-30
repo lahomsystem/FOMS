@@ -386,6 +386,31 @@ var getOrdererValue =
     };
 window.getOrdererValue = getOrdererValue;
 
+/**
+ * 괄호 밖 구분자에서만 나눈다 — "백재현(2번, 3번)" 은 한 사람이다(MULTI-MGR-01, 운영 #5579).
+ * @param {string} text 나눌 글
+ * @param {string} separators 구분자 글자들(예: 쉼표와 줄바꿈)
+ * @returns {string[]}
+ */
+function erpSplitNamesOutsideParens(text, separators) {
+    var parts = [];
+    var buf = "";
+    var depth = 0;
+    String(text == null ? "" : text).split("").forEach(function (ch) {
+        if (ch === "(") depth += 1;
+        else if (ch === ")" && depth > 0) depth -= 1;
+        if (depth === 0 && separators.indexOf(ch) !== -1) {
+            parts.push(buf);
+            buf = "";
+        } else {
+            buf += ch;
+        }
+    });
+    parts.push(buf);
+    return parts;
+}
+window.erpSplitNamesOutsideParens = erpSplitNamesOutsideParens;
+
 var erpNormalizeConstructionWorkers =
     window.erpNormalizeConstructionWorkers ||
     function erpNormalizeConstructionWorkers(value) {
@@ -393,7 +418,7 @@ var erpNormalizeConstructionWorkers =
         if (Array.isArray(value)) {
             rawValues = value;
         } else {
-            rawValues = String(value || "").replace(/\n/g, ",").split(",");
+            rawValues = erpSplitNamesOutsideParens(value || "", ",\n");
         }
         var workers = [];
         rawValues.forEach(function (item) {
@@ -445,7 +470,7 @@ window.erpJoinSiteAddress = erpJoinSiteAddress;
 function erpManagerNamesFromSd(sd) {
     var manager = sd && sd.parties ? sd.parties.manager : null;
     var rawName = manager && typeof manager === 'object' ? manager.name : manager;
-    var primary = erpNormalizeConstructionWorkers(String(rawName || '').replace(/\//g, ','));
+    var primary = erpNormalizeConstructionWorkers(erpSplitNamesOutsideParens(String(rawName || ''), ',/\n'));
     var names = erpNormalizeConstructionWorkers(manager && typeof manager === 'object' ? manager.names || [] : []);
     if (!primary.length) return [];
     if (primary.length === 1 && names.indexOf(primary[0]) !== -1) {
