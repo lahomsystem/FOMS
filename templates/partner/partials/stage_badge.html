@@ -1,5 +1,6 @@
 {# 협력사 쉬운 단계 → 우리 단계 칩 색(foms-stage-badge--<단계>). 목록 카드 · 주문 화면 위 카드 공용(4-2 · 4-3). #}
-{% macro stage_badge(label) -%}
+{# text: 보이는 글자만 바꿀 때(예: 도면 작업 중 → "도면 수정 중"). 색 · 프로세스 맵 칸은 label 그대로. #}
+{% macro stage_badge(label, text=None) -%}
 {%- set mod = {"접수 확인 중": "received", "도면 작업 중": "drawing", "도면 확인 대기": "confirm", "생산 중": "production", "시공 예정": "construction", "완료": "completed", "AS 진행 중": "cs"} -%}
-<span class="foms-stage-badge foms-stage-badge--{{ mod.get(label, 'received') }}">{{ label }}</span>
+<span class="foms-stage-badge foms-stage-badge--{{ mod.get(label, 'received') }}">{{ text or label }}</span>
 {%- endmacro %}

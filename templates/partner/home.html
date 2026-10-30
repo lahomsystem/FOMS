@@ -77,7 +77,7 @@
     {% elif not o.turn and (loop.first or loop.previtem.turn) %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">{{ '다른 주문' if turn_count else '주문' }}</h2><span class="section-header__count foms-section-header__count">{{ orders | length - turn_count }}</span></div>{% endif %}
     <article class="queue-card foms-queue-card-v2 pp-qcard{% if o.turn %} pp-qcard--turn{% endif %}" data-pp-order-id="{{ o.id }}">
         <header class="queue-card__head foms-queue-card-v2__head">
-            {{ stage_badge(o.stage_label) }}
+            {{ stage_badge(o.stage_label, o.badge) }}
             {% if o.turn %}<span class="foms-badge foms-badge--alert">내 차례</span>{% endif %}
             <span class="queue-card__time foms-queue-card-v2__time">#{{ o.id }}</span>
         </header>
@@ -114,7 +114,7 @@
             <tbody>
                 {% for o in orders %}
                 <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
-                    <td><span class="pp-stage">{{ o.stage_label }}</span></td>
+                    <td><span class="pp-stage">{{ o.badge }}</span></td>
                     <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% include "partner/partials/drawing_thumbs.html" %}</td>
                     <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>

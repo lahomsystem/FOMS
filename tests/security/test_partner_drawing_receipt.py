@@ -124,7 +124,9 @@ def test_sent_drawing_marks_turn_and_revision_wait_explains_itself(app, world, f
     assert "/drawing-receipt" not in page and "내 차례</span>" not in page
     assert "final.png" in page  # 지난번 도면은 그대로 보인다
     assert f'data-pp-order-id="{order_id}"' not in client.get("/partner?turn=1").get_data(as_text=True)
-    assert REVISION_WORK in client.get("/partner").get_data(as_text=True)
+    board = client.get("/partner").get_data(as_text=True)
+    assert REVISION_WORK in board and "도면 수정 중</span>" in board  # 배지도 "도면 수정 중"(사용자 2026-10-30)
+    assert "도면 수정 중</span>" in page and "도면 작업 중 1" in board  # 칸 셈은 도면 작업 중 그대로
 
     # 우리 쪽이 낸 수정 요청이면 메모는 숨긴다(history.py 와 같은 규칙).
     order = db_session.get(Order, order_id)

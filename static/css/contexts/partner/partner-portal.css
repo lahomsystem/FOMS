@@ -479,3 +479,9 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-dthread__ref { width: 56px; height: 56px; border-radius: 8px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--foms-border-subtle, #e5e7eb); }
 .pp-dthread__ref img { width: 100%; height: 100%; object-fit: cover; }
 .pp-dthread__time { display: block; margin-top: 4px; font-size: 0.7rem; color: var(--foms-text-secondary, #6b7280); }
+
+/* 도면 갤러리 카드 — 휴대폰 폭(991px 이하)에서 우리 첨부 칸 규칙(body.erp-mobile-v2-layout .foms-attach-item:
+   정사각형 + 보라 그라데이션, foms-detail-extras.css)이 같이 걸려 16:9 도면 아래로 보라가 비쳤다(2026-10-30 실화면).
+   크롬만이 아니라 폭 기준이라 실제 휴대폰도 같다 — 도면 카드는 도면 모양(16:9 · 흰 바탕)으로 되돌린다. */
+.pp-drawing-gallery .foms-drawing-card.foms-attach-item { aspect-ratio: 16 / 9; background: #fff; padding: 0; border: 1px solid var(--foms-border-subtle, #e2e8f0); }
+.pp-drawing-gallery .foms-drawing-card.foms-attach-item > img { object-fit: contain; background: #fff; }
