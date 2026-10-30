@@ -28,6 +28,7 @@ from foms.services.partners.history import partner_order_history
 from foms.services.partners.items_edit import partner_edit_open
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
+from foms.services.partners.revision import pending_revision_for_partner
 from foms.services.partners.view import build_partner_order_view, partner_steps
 from models import Order, OrderAttachment, PartnerOrg
 
@@ -137,6 +138,7 @@ def order_detail(order_id: int):
         drawing_cards=[f for f in finals if f["is_image"]],
         drawing_files=[f for f in finals if not f["is_image"]],
         drawing_round=_drawing_round(order),
+        revision_pending=pending_revision_for_partner(order) if stage in ("DRAWING", "CONFIRM") else None,
         history=partner_order_history(db, order),
         active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
