@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD",
-    "SKIP_HUMAN_REPLIED", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation", "freshness",
+    "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
+    "freshness",
     "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
 ]
 
@@ -53,6 +54,8 @@ _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
 _MEDIUM = re.compile(r"[A-Za-z0-9_.-]{1,40}")
 #: 건너뜀 코드 — 그사이 손님이 더 씀(선점한 글이 마지막이 아님) · 공개 직원 글이 옴 · 손님 글에 글자 없음(사진만 · 빈 글).
 SKIP_STALE, SKIP_HUMAN_REPLIED = "stale", "human_replied"
+#: 선점한 손님 글이 Open API 읽기에 아직 안 보임(수신 기록이 먼저 옴) — 지난 초안이 아니라 다시 집을 실패다(검수 R13-6).
+SKIP_NOT_VISIBLE = "not_visible"
 SKIP_PHOTO_ONLY, SKIP_NO_TEXT = "photo_only", "no_text"
 
 
@@ -129,9 +132,15 @@ def read_medium(reader: Any, brand: str, chat_id: str) -> Optional[str]:
 
 
 def freshness(lines: Sequence[ChatLine], claimed_id: str) -> Optional[str]:
-    """선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없으면 ``None``, 아니면 건너뜀 코드."""
+    """선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없으면 ``None``, 아니면 건너뜀 코드.
+
+    선점한 글이 읽은 글에 아직 없으면 :data:`SKIP_NOT_VISIBLE`(채널톡 읽기가 늦음 — 다시 집는다), 그 글 뒤에 더 새 손님 글이
+    보일 때만 :data:`SKIP_STALE` 이다.
+    """
     customers = [line for line in lines if line.meta.is_customer_signal]
-    if not customers or customers[-1].meta.message_id != claimed_id:
+    if claimed_id not in {line.meta.message_id for line in customers}:
+        return SKIP_NOT_VISIBLE
+    if customers[-1].meta.message_id != claimed_id:
         return SKIP_STALE
     last = customers[-1].key
     return SKIP_HUMAN_REPLIED if any(line.meta.is_answer and line.key > last for line in lines) else None

@@ -4204,7 +4204,8 @@ class CsAgentChat(Base):
     설계서 2026-10-27-cs-ai-agent 4절 2 · 15.2(플랜 C1-2). 글 한 줄이 들어올 때마다 고친다. 시각 칸은
     ``entity.createdAt`` 이 더 새로울 때만 바뀐다 — 늦게 온 옛 글이 새 값을 덮지 않는다(원장 R1-7).
     ``chat_state`` 는 Open API 상담 목록에서만 오고 그 상담의 ``updatedAt`` 이 더 새로울 때만 바뀐다.
-    쓰기 · 읽기는 :mod:`foms.services.cs_agent.channel_read`. DDL 은 migration(``csagent_00``)과 같다.
+    쓰기 · 읽기는 :mod:`foms.services.cs_agent.channel_read`. DDL 은 migration(``csagent_00``)과 같고, 빠른 길이 5초마다
+    '라홈 · 마지막 손님 글이 창 안'을 새 것부터 읽는 색인은 ``csagent_02`` 가 더했다(검수 R13-10).
     """
 
     __tablename__ = 'cs_agent_chats'
@@ -4227,6 +4228,7 @@ class CsAgentChat(Base):
 
     __table_args__ = (
         UniqueConstraint('chat_id', name='uq_cs_agent_chats_chat_id'),
+        Index('ix_cs_agent_chats_brand_last_user_at', 'brand', 'last_user_at'),
     )
 
 

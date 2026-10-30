@@ -72,7 +72,7 @@ HANDOFF_NONE, HANDOFF_UNSURE = "none", "unsure"
 #: 모델이 고르는 넘김 까닭 코드 — 글이 아니라 코드라 기록 · 로그에 손님 글이 섞이지 않는다.
 HANDOFF_REASONS: tuple[str, ...] = (
     HANDOFF_NONE, HANDOFF_UNSURE, "human_only_amount", "discount_refund", "schedule", "complaint", "order_lookup",
-    "photo", "other",
+    "photo", "asked_if_ai", "other",
 )
 OUTPUT_FIELDS: tuple[str, ...] = ("intent", "draft", "evidence_ids", "handoff", "handoff_reason", "staff_note")
 _INDENT = "    "
@@ -95,6 +95,8 @@ _INSTRUCTIONS = """\
 8. 확실하지 않거나 승인 지식에 근거가 없으면 지어내지 말고 사람에게 넘긴다. 틀린 답보다 넘김이 낫다.
 9. 답은 직원이 자기 이름으로 보내는 글이다. AI · 인공지능 · 챗봇 · 자동 응답이라는 말이나 'AI 상담사입니다' 같은 \
 자기소개는 쓰지 않는다.
+10. 손님이 상대가 사람인지 AI · 봇 · 자동 응답인지 묻거나 사람과 이야기하고 싶다고 하면 초안을 쓰지 않고 넘긴다(asked_if_ai). \
+'사람입니다' · '직원이 직접 답합니다' · '실제 상담사입니다' 처럼 사람이라고 하는 말도 쓰지 않는다.
 
 상담 글 읽는 법: 줄 맨 앞의 [손님] · [직원] 만 말한 사람 표시다. 들여 쓴 줄은 바로 위 글이 이어진 것이다.
 
@@ -105,7 +107,7 @@ _INSTRUCTIONS = """\
 - handoff: 사람에게 넘기면 true.
 - handoff_reason: 넘기는 까닭 코드 — unsure 모름 · 근거 없음, human_only_amount 사람만 말하는 금액, \
 discount_refund 할인 · 환불 · 보상, schedule 날짜 · 연락 약속 · 일정 바꾸기, complaint 불만 · 분쟁 · 하자, \
-order_lookup 주문 · 배송 확인, photo 사진 · 파일만 옴, other 그 밖. 넘기지 않으면 none.
+order_lookup 주문 · 배송 확인, photo 사진 · 파일만 옴, asked_if_ai 사람인지 AI 인지 물음, other 그 밖. 넘기지 않으면 none.
 - staff_note: 직원 참고 한두 문장(무엇을 확인할지). 손님 글을 옮겨 적지 않는다.
 """
 
