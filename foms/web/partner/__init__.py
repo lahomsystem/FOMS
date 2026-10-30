@@ -27,6 +27,7 @@ from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
 from foms.services.partners.items_edit import partner_edit_open
+from foms.services.partners.list_view import SORTS, pick_sort
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.revision import pending_revision_for_partner
@@ -36,6 +37,10 @@ from models import Order, OrderAttachment, PartnerOrg
 partner_portal_bp = Blueprint("partner_portal", __name__, url_prefix="/partner")
 
 MAX_PRODUCT_NAMES = 500
+
+
+# "도면 확인" 탭 정렬 — 기본은 도면 나온 순(목업 2026-10-30). 목록과 같은 sort 인자.
+TURN_SORTS = (("drawing", "도면 나온 순"), ("date", "시공일 빠른 순"))
 
 
 def _org() -> PartnerOrg:
@@ -76,7 +81,8 @@ def home():
     org = _org()
     members = org_member_choices(db, org.id)
     filters = partner_list_filters(request.args)
-    board = partner_order_board(db, org.id, g.current_user.id, filters, {u.id: u.name for u in members})
+    sort = pick_sort(request.args.get("sort") or ("drawing" if filters["turn"] else None))
+    board = partner_order_board(db, org.id, g.current_user.id, filters, {u.id: u.name for u in members}, sort)
     return render_template(
         "partner/home.html",
         org=org,
@@ -87,6 +93,8 @@ def home():
         # 화면을 다 덮어 목록이 바뀐 게 안 보였다(사용자 2026-10-28).
         cal=None if any(filters.values()) else partner_construction_calendar(db, org.id, request.args.get("cal")),
         cal_url=url_for("partner_portal.home"),
+        sort=sort,
+        sorts=TURN_SORTS if filters["turn"] else SORTS,
         **board,
     )
 

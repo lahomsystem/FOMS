@@ -284,8 +284,8 @@
     revealActiveChip();
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-json-url]'), bindJsonForm);
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
-    var approve = document.querySelector('[data-pp-approve-url]');
-    if (approve) bindApprove(approve);
+    // 주문 화면은 하나, "도면 확인" 작업대는 카드마다 하나씩(2026-10-30).
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-approve-url]'), bindApprove);
     var newOrder = document.getElementById('ppNewOrder');
     if (newOrder) bindNewOrder(newOrder);
     var more = document.getElementById('ppMoreFiles');

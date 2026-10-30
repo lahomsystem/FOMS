@@ -1,0 +1,18 @@
+{# 휴대폰 주문 한 줄 목록(사용자 2026-10-30 목업). 줄 = 날짜 칸 · 고객 #번호 단계 배지 · 제품 · 주소 · 지금 무엇을 기다리는지.
+   진행 막대 · 연락처 · 담당은 주문 화면 안에 있다. 도면 그림이 있으면 작은 그림 하나. #}
+{% from "partner/partials/date_cell.html" import date_cell %}
+{% set turn_count = orders | selectattr('turn') | list | length %}
+{% for o in orders %}
+{% if loop.first and o.turn %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">지금 내 차례</h2><span class="section-header__count foms-section-header__count">{{ turn_count }}</span></div><div class="pp-rows">
+{% elif not o.turn and (loop.first or loop.previtem.turn) %}{% if not loop.first %}</div>{% endif %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">{{ '다른 주문' if turn_count else '주문' }}</h2><span class="section-header__count foms-section-header__count">{{ orders | length - turn_count }}</span></div><div class="pp-rows">{% endif %}
+<a class="pp-row{% if o.turn %} pp-row--turn{% endif %}" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}{% if o.turn %}#drawing{% endif %}" data-pp-order-id="{{ o.id }}">
+    {{ date_cell(o.date_cell) }}
+    <span class="pp-row__main">
+        <span class="pp-row__l1"><span class="pp-row__name">{{ o.customer_name }}</span><span class="pp-row__no">#{{ o.id }}</span>{{ stage_badge(o.stage_label, o.badge) }}</span>
+        <span class="pp-row__l2">{{ o.product or '제품 미정' }}{% if o.address %} · {{ o.address }}{% endif %}</span>
+        <span class="pp-row__l3">{% if o.drawing_thumbs %}<img class="pp-row__thumb" src="{{ o.drawing_thumbs[0].url }}" alt="" loading="lazy" decoding="async" width="36" height="26">{% endif %}<span class="pp-row__now{% if o.turn %} is-turn{% elif o.drawing_status == 'RETURNED' %} is-fix{% endif %}">{% if o.turn %}내 차례 · {% endif %}{{ o.work }}</span></span>
+    </span>
+    <i class="fas fa-chevron-right pp-row__chev" aria-hidden="true"></i>
+</a>
+{% if loop.last %}</div>{% endif %}
+{% endfor %}

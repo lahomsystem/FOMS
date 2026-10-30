@@ -479,3 +479,72 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-dthread__ref { width: 56px; height: 56px; border-radius: 8px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--foms-border-subtle, #e5e7eb); }
 .pp-dthread__ref img { width: 100%; height: 100%; object-fit: cover; }
 .pp-dthread__time { display: block; margin-top: 4px; font-size: 0.7rem; color: var(--foms-text-secondary, #6b7280); }
+
+/* 도면 갤러리 카드 — 휴대폰 폭(991px 이하)에서 우리 첨부 칸 규칙(body.erp-mobile-v2-layout .foms-attach-item:
+   정사각형 + 보라 그라데이션, foms-detail-extras.css)이 같이 걸려 16:9 도면 아래로 보라가 비쳤다(2026-10-30 실화면).
+   크롬만이 아니라 폭 기준이라 실제 휴대폰도 같다 — 도면 카드는 도면 모양(16:9 · 흰 바탕)으로 되돌린다. */
+.pp-drawing-gallery .foms-drawing-card.foms-attach-item { aspect-ratio: 16 / 9; background: #fff; padding: 0; border: 1px solid var(--foms-border-subtle, #e2e8f0); }
+.pp-drawing-gallery .foms-drawing-card.foms-attach-item > img { object-fit: contain; background: #fff; }
+
+/* 휴대폰 한 줄 목록 · 정렬 단추 · "도면 확인" 작업대(사용자 2026-10-30 목업). */
+.pp-sort { display: flex; align-items: center; gap: 6px; margin: 0 12px; }
+.pp-sort__label { font-size: 12px; color: var(--foms-text-secondary, #6b7280); flex-shrink: 0; }
+.pp-sort__seg { display: flex; flex: 1; gap: 2px; padding: 3px; border-radius: 10px; background: var(--foms-color-neutral-200, #e5e7eb); }
+.pp-sort__btn { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; font-size: 12.5px; color: #374151; text-decoration: none; white-space: nowrap; }
+.pp-sort__btn.is-on { background: #fff; color: var(--pp-primary); font-weight: 700; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.pp-rows { background: #fff; border-top: 1px solid var(--pp-border); border-bottom: 1px solid var(--pp-border); }
+.pp-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #f0f1f4; color: inherit; text-decoration: none; }
+.pp-row:last-child { border-bottom: 0; }
+.pp-row:active { background: #f9fafb; }
+.pp-row--turn { background: #fffaf0; }
+.pp-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pp-row__l1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pp-row__l1 .foms-stage-badge { margin-left: auto; flex-shrink: 0; }
+.pp-row__name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-row__no { font-size: 11.5px; color: var(--foms-text-secondary, #6b7280); flex-shrink: 0; }
+.pp-row__l2 { font-size: 12.5px; color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-row__l3 { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--foms-text-secondary, #6b7280); min-width: 0; }
+.pp-row__now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-row__now.is-turn { color: #dc2626; font-weight: 700; }
+.pp-row__now.is-fix { color: #be185d; font-weight: 600; }
+.pp-row__thumb { width: 36px; height: 26px; object-fit: contain; border: 1px solid var(--pp-border); border-radius: 3px; background: #fff; flex-shrink: 0; }
+.pp-row__chev { color: #c0c4cc; flex-shrink: 0; font-size: 12px; }
+.pp-date { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; border-radius: 10px; background: #f3f4f6; padding: 5px 0 4px; line-height: 1.15; }
+.pp-date__md { font-weight: 800; font-size: 15px; text-align: center; }
+.pp-date__dw { font-size: 11px; color: var(--foms-text-secondary, #6b7280); }
+.pp-date__dd { font-size: 10.5px; font-weight: 700; color: var(--pp-primary); margin-top: 1px; }
+.pp-date--soon .pp-date__dd { color: #dc2626; }
+.pp-date--req { background: #fff7e6; }
+.pp-date--req .pp-date__dd { color: #b45309; }
+.pp-date--none .pp-date__md { font-size: 11.5px; font-weight: 600; color: var(--foms-text-secondary, #6b7280); padding: 6px 0; }
+.pp-tb__head { padding: 4px 14px 0; }
+.pp-tb__title { margin: 0; font-size: 18px; font-weight: 800; }
+.pp-tb__sub { margin: 3px 0 0; font-size: 12.5px; color: var(--foms-text-secondary, #6b7280); }
+.pp-tb__status { margin: 0 14px; }
+.pp-tcard { margin: 4px 10px; background: #fff; border: 1px solid #fca5a5; border-radius: 14px; box-shadow: 0 0 0 2px #fee2e2; overflow: hidden; }
+.pp-tcard__steps { display: flex; gap: 4px; list-style: none; margin: 0; padding: 8px 12px 0; }
+.pp-tcard__steps li { flex: 1; text-align: center; font-size: 11px; color: var(--foms-text-secondary, #6b7280); border-top: 3px solid #d1d5db; padding-top: 4px; }
+.pp-tcard__steps li.is-done { border-color: var(--pp-primary); }
+.pp-tcard__steps li.is-now { border-color: #dc2626; color: #dc2626; font-weight: 700; }
+.pp-tcard__head { display: flex; gap: 10px; align-items: center; padding: 10px 12px 4px; }
+.pp-tcard__who { flex: 1; min-width: 0; }
+.pp-tcard__strip { display: flex; gap: 6px; padding: 6px 12px; overflow-x: auto; text-decoration: none; }
+.pp-tcard__sheet { position: relative; width: 120px; height: 82px; flex-shrink: 0; border: 1px solid var(--pp-border); border-radius: 8px; background: #fff; overflow: hidden; }
+.pp-tcard__sheet img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pp-tcard__sheet b { position: absolute; left: 4px; top: 4px; background: rgba(17, 24, 39, 0.75); color: #fff; font-size: 10px; border-radius: 4px; padding: 1px 5px; }
+.pp-tcard__tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 12px 8px; }
+.pp-tag { font-size: 11px; border-radius: 6px; padding: 2px 7px; background: #f3f4f6; color: #374151; }
+.pp-tag--new { background: #fff1f1; color: #dc2626; font-weight: 700; }
+.pp-tag--ok { background: #ecfdf5; color: #15803d; font-weight: 600; }
+.pp-tcard__ask { margin: 0 12px 8px; background: #fdf2f8; border-radius: 8px; padding: 7px 9px; font-size: 12px; color: #831843; }
+.pp-tcard__ask b { display: block; font-size: 11px; color: #be185d; }
+.pp-tcard__acts { display: flex; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid #f0f1f4; }
+.pp-tcard__acts .btn { flex: 1; font-weight: 700; font-size: 13.5px; padding: 9px 4px; }
+.pp-tcard__acts .btn-outline-secondary { flex: 0 0 auto; padding: 9px 10px; }
+.pp-tcard__note { margin: -4px 12px 10px; font-size: 11.5px; color: #15803d; }
+/* 휴대폰 목록 칸 폭 — .pp-mlist 는 grid 라 줄바꿈 없는 칸(정렬 단추 · 줄 글)이 칸 폭을 밀어 화면이 옆으로 넘쳤다(431px). */
+.pp-mlist { grid-template-columns: minmax(0, 1fr); }
+.pp-sort__btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 도면 갤러리 — 우리 셸 본문 여백(아래 탭 자리 76px)이 갤러리에도 붙어 그림 아래가 비었다. 도면은 두 줄 칸으로 크게. */
+.pp-drawing-gallery .foms-drawing-mobile-v2 { padding: 0 0 4px; }
+.pp-drawing-gallery .foms-drawing-card-grid.foms-attach-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -47,7 +47,8 @@
 {# 18-2 시공 달력: 날짜마다 저희 전체 시공 건수 · 내 회사 출고가(휴대폰 칸마다, PC 는 달 합계). #}
 {% if cal %}<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}</section>{% endif %}
 
-{# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 큐 카드(설계서 §3.2 · §16). 진행 막대는 협력사 추가. PC 는 위 프로세스 맵 · 작업 큐 표. #}
+{# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 한 줄 목록(2026-10-30 — 큰 카드가 한 건에 화면 반을 써서). "도면 확인" 탭(turn)은
+   확인 작업대 카드. PC 는 위 프로세스 맵 · 작업 큐 표(같은 정렬). #}
 {% from "partner/partials/stage_badge.html" import stage_badge %}
 {% set q = filters.q or None %}
 <div class="foms-shell-body pp-mlist">
@@ -56,6 +57,7 @@
             {% if filters.stage %}<input type="hidden" name="stage" value="{{ filters.stage }}">{% endif %}
             {% if filters.turn %}<input type="hidden" name="turn" value="1">{% endif %}
             {% if filters.mine %}<input type="hidden" name="mine" value="1">{% endif %}
+            <input type="hidden" name="sort" value="{{ sort }}">
             <label class="visually-hidden" for="ppMobileSearch">검색</label>
             <input id="ppMobileSearch" type="text" class="erp-mobile-queue-filters__input" name="q" placeholder="고객 · 연락처 · 주소 · 주문 번호" value="{{ filters.q }}">
             <button class="erp-mobile-queue-filters__submit" type="submit" aria-label="검색"><i class="fas fa-search" aria-hidden="true"></i></button>
@@ -68,36 +70,21 @@
             <a class="chip foms-chip{% if filters.mine %} is-active{% endif %}" href="{{ url_for('partner_portal.home', mine='1', q=q) }}"><i class="fas fa-user-check" aria-hidden="true"></i> 내 담당</a>
         </nav>
     </section>
+    {# 정렬 단추(사용자 2026-10-30 목업) — 걸러 본 조건은 그대로 두고 순서만 바꾼다. #}
+    <nav class="pp-sort" aria-label="순서">
+        <span class="pp-sort__label">순서</span>
+        <div class="pp-sort__seg">
+            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=q, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+        </div>
+    </nav>
+    {% if turn_board is not none %}
+    {% include "partner/partials/turn_board.html" %}
+    {% else %}
     {% if not orders %}
     <div class="foms-mobile-empty"><i class="fas fa-inbox" aria-hidden="true"></i><p class="mb-0">{% if filtered %}조건에 맞는 주문이 없습니다. "전체"를 눌러 모두 보세요.{% else %}아직 등록한 주문이 없습니다. 아래 "새 주문"으로 보내 주세요.{% endif %}</p></div>
     {% endif %}
-    {% set turn_count = orders | selectattr('turn') | list | length %}
-    {% for o in orders %}
-    {% if loop.first and o.turn %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">지금 내 차례</h2><span class="section-header__count foms-section-header__count">{{ turn_count }}</span></div>
-    {% elif not o.turn and (loop.first or loop.previtem.turn) %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">{{ '다른 주문' if turn_count else '주문' }}</h2><span class="section-header__count foms-section-header__count">{{ orders | length - turn_count }}</span></div>{% endif %}
-    <article class="queue-card foms-queue-card-v2 pp-qcard{% if o.turn %} pp-qcard--turn{% endif %}" data-pp-order-id="{{ o.id }}">
-        <header class="queue-card__head foms-queue-card-v2__head">
-            {{ stage_badge(o.stage_label) }}
-            {% if o.turn %}<span class="foms-badge foms-badge--alert">내 차례</span>{% endif %}
-            <span class="queue-card__time foms-queue-card-v2__time">#{{ o.id }}</span>
-        </header>
-        <h3 class="queue-card__title foms-queue-card-v2__title"><span class="foms-queue-card-v2__customer">{{ o.customer_name }}</span></h3>
-        {% include "partner/partials/drawing_thumbs.html" %}
-        <span class="pp-progress" aria-hidden="true"><span class="pp-progress__bar pp-progress__bar--{{ o.step }}"></span></span>
-        <dl class="queue-card__meta foms-queue-card-v2__meta">
-            <div class="foms-queue-card-v2__meta-full"><dt>지금</dt><dd>{{ o.work }}</dd></div>
-            {% if o.address %}<div class="foms-queue-card-v2__meta-full"><dt>주소</dt><dd>{{ o.address }}</dd></div>{% endif %}
-            {% if o.product %}<div class="foms-queue-card-v2__meta-full"><dt>제품</dt><dd>{{ o.product }}</dd></div>{% endif %}
-            {% if o.phone %}<div><dt>연락처</dt><dd><a href="tel:{{ o.phone }}">{{ o.phone }}</a></dd></div>{% endif %}
-            {% if o.construction_date %}<div><dt>시공일</dt><dd class="foms-tabular">{{ o.construction_date }}</dd></div>
-            {% elif o.requested_construction %}<div><dt>시공일</dt><dd class="foms-tabular">{{ o.requested_construction }} <span class="text-muted">(희망)</span></dd></div>{% endif %}
-            {% if o.manager_name %}<div><dt>담당</dt><dd>{{ o.manager_name }}</dd></div>{% endif %}
-        </dl>
-        <footer class="queue-card__action foms-queue-card-v2__action">
-            <a class="foms-btn {{ 'foms-btn--primary' if o.turn else 'foms-btn--ghost' }} foms-btn--sm" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}{% if o.turn %}#drawing{% endif %}">{{ '도면 확인하기' if o.turn else '열기' }}</a>
-        </footer>
-    </article>
-    {% endfor %}
+    {% include "partner/partials/order_rows.html" %}
+    {% endif %}
 </div>
 
 <div class="erp-pro-card pp-queue">
@@ -114,7 +101,7 @@
             <tbody>
                 {% for o in orders %}
                 <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
-                    <td><span class="pp-stage">{{ o.stage_label }}</span></td>
+                    <td><span class="pp-stage">{{ o.badge }}</span></td>
                     <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% include "partner/partials/drawing_thumbs.html" %}</td>
                     <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>
