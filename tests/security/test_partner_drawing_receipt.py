@@ -102,3 +102,37 @@ def test_partner_as_register_notifies_cs(app, world, fake_storage):
     assert resp.status_code == 200, resp.get_json()
     notes = db_session.query(Notification).filter_by(order_id=order_id, notification_type="PARTNER_AS_REGISTERED").all()
     assert [n.target_team for n in notes] == ["CS"] and "문짝 처짐" in notes[0].message
+
+
+def test_sent_drawing_marks_turn_and_revision_wait_explains_itself(app, world, fake_storage, quiet_push):
+    """운영 #5888(2026-10-30): 도면 단계에서 보낸 도면에 '내 차례'·'확인' 표시가 없었고, 수정 요청 뒤에는
+    버튼 · 차례 목록에서 빠진 이유가 화면에 없어 "도면이 안 보인다"로 읽혔다."""
+    from foms.services.partners.order_list import REVISION_WORK
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _send_drawing(order_id)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "내 차례</span>" in page and 'bg-danger">확인</span>' in page
+    assert "data-pp-revision-wait" not in page
+
+    resp = client.post(f"/api/partner/orders/{order_id}/revision", data={"note": "스마트바는 없나요"},
+                       content_type="multipart/form-data")
+    assert resp.status_code == 200, resp.get_json()
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "data-pp-revision-wait" in page and "수정 요청을 보냈어요" in page and "스마트바는 없나요" in page
+    assert "/drawing-receipt" not in page and "내 차례</span>" not in page
+    assert "final.png" in page  # 지난번 도면은 그대로 보인다
+    assert f'data-pp-order-id="{order_id}"' not in client.get("/partner?turn=1").get_data(as_text=True)
+    assert REVISION_WORK in client.get("/partner").get_data(as_text=True)
+
+    # 우리 쪽이 낸 수정 요청이면 메모는 숨긴다(history.py 와 같은 규칙).
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_transfer_history"] = [*sd["drawing_transfer_history"],
+                                      {"action": "REQUEST_REVISION", "at": "2026-10-30 01:00:00", "note": "내부 메모"}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "저희 쪽에서 도면을 고치고 있어요" in page and "내부 메모" not in page
