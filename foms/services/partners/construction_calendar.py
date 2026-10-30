@@ -6,6 +6,8 @@
   달력과 같다(``dashboard_control_tower._day_counts`` — 최근 60일 활성 ERP 주문의 ``order_schedule_dates`` 시공).
 * 날씨 = 우리 달력과 같은 하루 날씨 · 기온 · 주마다 '시간 줄' 띠(사용자 요청 2026-10-21).
 * 금액 = 그 협력사 주문의 출고가만(``_construction_amounts`` — 여러 날 시공은 날짜 수로 나눈다). 우리 전체 매출은 싣지 않는다.
+* 내 회사 주문 = 칸마다 따로 세고, 날짜를 누르면 그날 내 회사 주문 목록이 뜬다(우리 모바일 홈처럼 — 사용자 2026-10-30,
+  :mod:`foms.services.partners.calendar_day_orders`).
 """
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ from typing import Any
 
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.datetime_kst import get_today_kst
+from foms.services.partners.calendar_day_orders import own_orders_by_day
 from foms.services.orders.calendar_month_photos import month_photo
 from foms.services.orders.dashboard_control_tower import (
     _construction_amounts,
@@ -65,7 +68,9 @@ def partner_construction_calendar(db, org_id: int, month: str | None = None,
     dates = [(first + datetime.timedelta(days=i)).isoformat() for i in range(last.day)]
     base = _base(db)
     _measure, cons_by, _as = _day_counts(base, dates)
-    amount_by, month_amount = _construction_amounts(base.filter(Order.partner_org_id == org_id), dates)
+    own_base = base.filter(Order.partner_org_id == org_id)
+    amount_by, month_amount = _construction_amounts(own_base, dates)
+    day_orders = own_orders_by_day(own_base, dates)
     holidays = get_holidays_kr(first.year)
     wx_days = (_weather_window(db, first) or {}).get("days") or {}
 
@@ -83,7 +88,8 @@ def partner_construction_calendar(db, org_id: int, month: str | None = None,
             cell = {
                 "iso": iso, "day": day.day, "dow": col, "in_month": in_month,
                 "is_today": day == today, "is_past": day < today, "is_holiday": iso in holidays,
-                "count": count, "amount_pill": _pill_label(amount), "amount_label": _man_label(amount),
+                "count": count, "own": len(day_orders.get(iso, ())) if in_month else 0,
+                "amount_pill": _pill_label(amount), "amount_label": _man_label(amount),
             }
             cell.update(_weather_cell(wx_days.get(iso) if in_month else None))
             week.append(cell)
@@ -102,6 +108,8 @@ def partner_construction_calendar(db, org_id: int, month: str | None = None,
         "construction_total": sum(int(v or 0) for v in cons_by.values()),
         "wx_legend": _weather_legend([c for w in weeks for c in w if c["in_month"] and c["wx"]]),
         "own_amount_label": _man_label(month_amount) or "0원",
+        "own_total": len({row["id"] for rows in day_orders.values() for row in rows}),
+        "day_orders": day_orders,
         # 날짜 고르기 달력(flatpickr)이 칸마다 붙일 숫자 — 이 달 칸만.
         "days": {c["iso"]: {"count": c["count"], "amount": c["amount_pill"]}
                  for w in weeks for c in w if c["in_month"]},

@@ -399,7 +399,12 @@ body.pp-sheet-open { overflow: hidden; }
 /* 18-2 시공 달력 — 우리 모바일 홈 달력 칸(foms-tower__cal-*). PC 는 칸에 건수만, 금액은 위 줄 합계. 휴대폰은 칸마다 금액. */
 .pp-cal-wrap { margin-bottom: 16px; }
 .pp-cal .foms-tower__cal-arrow.is-off { opacity: 0.35; }
-.pp-cal .foms-tower__cal-cell { cursor: default; }
+/* 칸을 누르면 그날 내 회사 주문 시트(2026-10-30). 내 회사 주문 수 = 파란 원(전체 시공 = 주황 네모). */
+.pp-cal .foms-tower__cal-cell { cursor: pointer; }
+.pp-cal__own, .pp-cal__own-mark { color: var(--pp-primary); }
+.pp-cal__own-mark { border-radius: 50%; }
+.pp-cal__cell--own { background: color-mix(in srgb, var(--pp-primary) 7%, transparent); }
+.pp-cal__chip--requested { color: var(--foms-color-warning-700, #b45309); }
 /* PC 에는 달력을 두지 않는다(사용자 2026-10-21) — 희망 시공일 고르기 달력 칸에 건수가 뜬다. */
 @media (min-width: 992px) {
   .pp-cal-wrap { display: none; }
@@ -439,3 +444,34 @@ body.pp-sheet-open { overflow: hidden; }
 }
 .pp-push-btn--convert:hover, .pp-push-btn--convert:focus { background: var(--foms-color-neutral-200, #e5e7eb); color: var(--foms-color-neutral-700, #374151); }
 .pp-push-head__icon { color: var(--foms-color-info-600, #2563eb); }
+
+/* 도면 탭 — 우리 도면 작업실 휴대폰 화면 모양(차례 띠 · 단계 · 주고받은 기록, 2026-10-30).
+   우리 .foms-drawing-turn · .foms-drawing-thread 는 erp-mobile-v2 몸체에만 걸려 있어 협력사 이름으로 따로 둔다. */
+.pp-dturn { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin-bottom: 12px; border-radius: 12px; border: 1px solid var(--foms-border-subtle, #e5e7eb); background: var(--foms-surface-subtle, #f8fafc); }
+.pp-dturn__dot { width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; flex-shrink: 0; background: var(--foms-color-neutral-400, #9ca3af); }
+.pp-dturn__label { margin: 0; font-size: 1rem; font-weight: 700; }
+.pp-dturn__sub { margin: 2px 0 0; font-size: 0.85rem; color: var(--foms-text-secondary, #6b7280); }
+.pp-dturn--mine { background: color-mix(in srgb, var(--foms-color-danger-500, #ef4444) 8%, #fff); border-color: color-mix(in srgb, var(--foms-color-danger-500, #ef4444) 35%, transparent); }
+.pp-dturn--mine .pp-dturn__dot { background: var(--foms-color-danger-500, #ef4444); }
+.pp-dturn--other .pp-dturn__dot { background: var(--pp-primary); }
+.pp-dturn--done { background: color-mix(in srgb, var(--foms-color-success-500, #22c55e) 8%, #fff); }
+.pp-dturn--done .pp-dturn__dot { background: var(--foms-color-success-500, #22c55e); }
+.pp-dsteps { display: flex; gap: 6px; list-style: none; margin: 0 0 14px; padding: 0; }
+.pp-dsteps__item { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.75rem; text-align: center; color: var(--foms-text-secondary, #6b7280); }
+.pp-dsteps__dot { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid var(--foms-border-default, #d1d5db); background: #fff; }
+.pp-dsteps__item.is-done .pp-dsteps__dot { background: var(--pp-primary); border-color: var(--pp-primary); color: #fff; }
+.pp-dsteps__item.is-now { color: var(--foms-text-primary, #111827); font-weight: 700; }
+.pp-dsteps__item.is-now .pp-dsteps__dot { border-color: var(--pp-primary); color: var(--pp-primary); }
+.pp-dhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.pp-dthread { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--foms-border-subtle, #e5e7eb); }
+.pp-dthread__msg { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 10px; }
+.pp-dthread__msg--right { align-items: flex-end; }
+.pp-dthread__who { font-size: 0.75rem; color: var(--foms-text-secondary, #6b7280); margin-bottom: 2px; }
+.pp-dthread__bubble { max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--foms-surface-subtle, #f1f5f9); }
+.pp-dthread__msg--right .pp-dthread__bubble { background: color-mix(in srgb, var(--pp-primary) 10%, #fff); }
+.pp-dthread__tag { display: inline-block; font-size: 0.75rem; font-weight: 700; color: var(--pp-primary); }
+.pp-dthread__note { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+.pp-dthread__refs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.pp-dthread__ref { width: 56px; height: 56px; border-radius: 8px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--foms-border-subtle, #e5e7eb); }
+.pp-dthread__ref img { width: 100%; height: 100%; object-fit: cover; }
+.pp-dthread__time { display: block; margin-top: 4px; font-size: 0.7rem; color: var(--foms-text-secondary, #6b7280); }

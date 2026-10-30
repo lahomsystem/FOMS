@@ -23,6 +23,7 @@ from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.channel_push import push_state
 from foms.services.partners.construction_calendar import partner_construction_calendar
+from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
 from foms.services.partners.items_edit import partner_edit_open
@@ -139,6 +140,7 @@ def order_detail(order_id: int):
         drawing_files=[f for f in finals if not f["is_image"]],
         drawing_round=_drawing_round(order),
         revision_pending=pending_revision_for_partner(order) if stage in ("DRAWING", "CONFIRM") else None,
+        drawing_tab=_drawing_tab(order, finals, can_receive, can_approve),
         history=partner_order_history(db, order),
         active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
@@ -151,16 +153,25 @@ def order_detail(order_id: int):
 def _final_drawings(order: Order) -> list[dict]:
     """최종 도면 — 그림은 고객 공유 화면과 같은 갤러리 카드(``url`` · ``label`` · ``download_url``), 그 밖은 파일 줄."""
     rows = []
-    for f in final_drawings_for_partner(order):
+    for no, f in enumerate(final_drawings_for_partner(order), start=1):
         name = f.get("filename") or f.get("key", "").rsplit("/", 1)[-1]
         rows.append({
             "filename": name,
-            "label": name,
+            "label": f"{no}번 · {name}",  # 우리 도면 작업실처럼 번호로 부른다(수정 요청 때 "2번 도면")
             "url": build_file_view_url(f["key"]),
             "download_url": build_file_download_url(f["key"]),
             "is_image": attachment_file_type(name) == "image",
         })
     return rows
+
+
+def _drawing_tab(order: Order, finals: list[dict], can_receive: bool, can_approve: bool) -> dict:
+    """도면 탭 차례 띠 · 단계 · 주고받은 기록(우리 도면 작업실 휴대폰 화면 모양). 참고 사진 주소는 여기서 key 로."""
+    tab = build_partner_drawing_tab(order, finals, can_receive=can_receive, can_approve=can_approve)
+    for event in tab["thread"]:
+        for ref in event["refs"]:
+            ref["url"] = build_file_view_url(ref["key"])
+    return tab
 
 
 def _drawing_round(order: Order) -> str:
