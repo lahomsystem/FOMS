@@ -169,8 +169,9 @@
   };
 
   document.addEventListener('DOMContentLoaded', function () {
-    // PC 머리줄과 휴대폰 위 줄에 하나씩 있다(4-1) — 칸마다 따로 묶는다.
-    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-push]'), function (root) {
+    // PC 머리줄과 휴대폰 위 줄에 하나씩 있다(4-1) — 칸마다 따로 묶는다. 이름표는 data-pp-webpush:
+    // data-pp-push 는 주문 화면 영발 · 발주 PUSH 단추(partner-channel-push.js)가 쓴다 — 겹치면 단추를 알림 판으로 잡아 오류.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-webpush]'), function (root) {
       new Push(root).bind();
     });
   });
