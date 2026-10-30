@@ -1,0 +1,45 @@
+{# 협력사 시공 달력 — 날짜를 누르면 뜨는 그날 내 회사 주문 시트(우리 모바일 홈 '그날 현장' 시트와 같은 모양:
+   foms-tower__sheet · foms-tower__field, dashboard-control-tower.css). 목록은 날마다 아래 <template> 로 싣고
+   partner-calendar.js 가 누른 날짜 것을 시트 본문에 옮긴다. ‹ › 는 이 달 안에서만 넘긴다.
+   입력: cal.weeks · cal.day_orders(foms/services/partners/calendar_day_orders.py), org. #}
+<div class="foms-tower__sheet" hidden data-pp-day-sheet>
+  <button type="button" class="foms-tower__sheet-backdrop" data-pp-sheet-close aria-label="목록 닫기"></button>
+  <section class="foms-tower__sheet-panel" role="dialog" aria-modal="true" aria-labelledby="ppDaySheetTitle">
+    <div class="foms-tower__sheet-head">
+      <span class="foms-tower__sheet-handle" aria-hidden="true"></span>
+      <div class="foms-tower__sheet-bar">
+        <button type="button" class="foms-tower__sheet-icon" data-pp-day-step="-1" aria-label="전날"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+        <div class="foms-tower__sheet-titlebox">
+          <h2 class="foms-tower__sheet-title" id="ppDaySheetTitle"><span data-pp-day-title></span> <span class="foms-tower__sheet-today" data-pp-day-today hidden>오늘</span></h2>
+          <p class="foms-tower__sheet-sub">{{ org.name }} <b data-pp-day-own>0</b>건 · 저희 전체 시공 <span data-pp-day-count>0</span>건<span data-pp-day-amount-wrap hidden> · 출고가 <b data-pp-day-amount></b></span></p>
+        </div>
+        <button type="button" class="foms-tower__sheet-icon" data-pp-day-step="1" aria-label="다음날"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="foms-tower__sheet-icon" data-pp-sheet-close aria-label="닫기"><i class="fas fa-times" aria-hidden="true"></i></button>
+      </div>
+    </div>
+    <div class="foms-tower__sheet-body" data-pp-day-body></div>
+  </section>
+</div>
+<template data-pp-day-empty><div class="foms-tower__empty">이날 {{ org.name }} 시공 주문이 없습니다.</div></template>
+{%- for iso, rows in cal.day_orders.items() %}
+<template data-pp-day-list="{{ iso }}"><div class="foms-tower__field-list">
+  {%- for row in rows %}
+  <div class="foms-tower__field">
+    <a class="foms-tower__field-main" href="{{ url_for('partner_portal.order_detail', order_id=row.id) }}">
+      <span class="foms-tower__field-time">{{ row.time or '미정' }}</span>
+      <span class="foms-tower__field-body">
+        <span class="foms-tower__field-line"><span class="foms-tower__field-name">{{ row.name }}</span><span class="foms-tower__field-amt">#{{ row.id }}</span></span>
+        <span class="foms-tower__field-addr">{{ row.addr }}</span>
+        <span class="foms-tower__field-foot">
+          {% if row.product %}<span class="foms-tower__field-items">{{ row.product }}</span>{% endif %}
+          <span class="foms-tower__field-who{% if not row.manager %} is-missing{% endif %}">{{ '담당 ' ~ row.manager if row.manager else '담당 없음' }}</span>
+          <span class="foms-tower__chip">{{ row.stage_label }}</span>
+          {% if row.requested %}<span class="foms-tower__chip pp-cal__chip--requested">희망 시공일</span>{% endif %}
+        </span>
+      </span>
+    </a>
+  </div>
+  {%- endfor %}
+</div></template>
+{%- endfor %}
+<script src="{{ asset_url('js/partner/partner-calendar.js') }}" defer></script>

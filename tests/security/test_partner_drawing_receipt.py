@@ -136,3 +136,47 @@ def test_sent_drawing_marks_turn_and_revision_wait_explains_itself(app, world, f
     db_session.commit()
     page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "저희 쪽에서 도면을 고치고 있어요" in page and "내부 메모" not in page
+
+
+def test_drawing_tab_mirrors_workbench_layout_with_partner_safe_values(app, world, fake_storage, quiet_push):
+    """사용자 2026-10-30 '도면 탭도 FOMS 와 같은 방식으로': 차례 띠 · 단계 · 번호 붙은 도면 · 주고받은 기록.
+    우리 도면팀 전달 메모 · 직원 이름은 싣지 않고, 이 회사가 낸 요청은 메모까지 싣는다."""
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _send_drawing(order_id)
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_transfer_history"] = [{**sd["drawing_transfer_history"][0], "note": "내부 전달 메모",
+                                       "by_user_name": "김도면", "files_count": 1}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert 'data-pp-drawing-turn="mine"' in page and "내 차례 · 도면 확인" in page
+    assert "1번 · final.png" in page and "1차 도면 올림" in page and "저희 도면팀" in page
+    assert "내부 전달 메모" not in page and "김도면" not in page
+    assert 'pp-dsteps__item is-done' in page and 'pp-dsteps__item is-now' in page
+
+    client.post(f"/api/partner/orders/{order_id}/revision", data={"note": "서랍 3단으로"},
+                content_type="multipart/form-data")
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert 'data-pp-drawing-turn="other"' in page and "고치는 중" in page
+    partner_name = db_session.get(User, world["partner_a"]).name
+    assert "pp-dthread__msg--right" in page and partner_name in page and "서랍 3단으로" in page
+
+
+def test_drawing_tab_survives_old_history_shapes():
+    """옛 이력 모양(files 가 개수 int · 시각 없음 · 모르는 action)에도 도면 탭이 깨지지 않는다(500 대조군)."""
+    from types import SimpleNamespace
+
+    from foms.services.partners.drawing_tab import build_partner_drawing_tab
+
+    order = SimpleNamespace(id=1, partner_org_id=7, erp_stage_code="DRAWING", structured_data={
+        "drawing_status": "TRANSFERRED",
+        "drawing_transfer_history": [
+            {"action": "TRANSFER", "files": 2}, {"action": "REQUEST_REVISION", "files": 3, "partner_org_id": 7},
+            {"action": "REVISION_CANCELLED"}, "garbage",
+        ]})
+    tab = build_partner_drawing_tab(order, [{"key": "k"}], can_receive=True, can_approve=False)
+    assert [e["tag"] for e in tab["thread"]] == ["1차 도면 올림", "수정 요청"]
+    assert tab["thread"][0]["note"] == "도면 2장" and tab["turn"]["tone"] == "mine"
