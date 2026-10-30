@@ -637,7 +637,7 @@ def test_field_sections_group_by_type_then_time():
 
 
 def test_month_calendar_amounts_and_soon_risk(app):
-    """날짜 칸 금액·이달 합계 = 발주방 PUSH 된 주문의 시공 출고가 몫(여러 날 시공은 시공일 수로 나눔). 빨간 점은 오늘·내일만."""
+    """날짜 칸은 발주 PUSH 주문의 시공일 몫. 이달 합계는 그 주문 출고가 전체. 빨간 점은 오늘·내일만."""
     import datetime
 
     from db import db_session
@@ -676,13 +676,13 @@ def test_month_calendar_amounts_and_soon_risk(app):
     cal = ct._month_calendar(base, today, today.replace(day=1))
     by_iso = {c["iso"]: c for w in cal["weeks"] for c in w if c["in_month"]}
     assert by_iso[today.isoformat()]["construction"] == 2
-    # 날짜 칸·이달 합계 = 발주방 PUSH 된 주문만(사용자 결정 2026-10-29) — 이틀 시공 200만의 몫만
+    # 날짜 칸 = 발주 PUSH 주문의 그날 몫. 이달 합계 = 그 주문 출고가 한 번(이틀 모두 6월이라 200만).
     assert by_iso[today.isoformat()]["amount_label"] == "100만"
     assert by_iso[today.isoformat()]["unshipped"] == 2
     assert by_iso[far]["amount_label"] == "100만"
     assert cal["today_all_amount_label"] == "512만"  # 오늘 시트는 그날 목록 전체(412만 + 이틀 시공 절반)
     assert by_iso[far]["unshipped"] == 0  # 먼 날짜 출고 전은 점 없음
-    assert cal["amount_label"] == "200만"  # 이틀 시공 몫 둘 다 6월
+    assert cal["amount_label"] == "200만"
 
     payload = ct.build_field_ops_for_day(db_session, None, today.isoformat(), today=today)
     assert payload["amount_label"] == "512만" and payload["is_today"] is True
@@ -749,9 +749,52 @@ def test_calendar_amount_includes_youngbal_once(app):
     cal = ct._month_calendar(base, today, today.replace(day=1))
     cell = next(c for w in cal["weeks"] for c in w if c["iso"] == today.isoformat())
     assert cell["construction"] == 3
-    assert cell["amount_label"] == "500만"  # 100 + 400. 미푸시는 빠지고 둘 다는 한 번
-    assert cal["amount_label"] == "500만"
+    assert cell["amount_label"] == "500만"  # 칸: 영발 100 + 발주 400. 미푸시는 빠지고 둘 다는 한 번
+    assert cal["amount_label"] == "400만"  # 위 합계: 발주 PUSH 만. 영발만은 빠진다
     assert cal["today_all_amount_label"] == "1,400만"  # 시트는 시공 전체
+
+
+def test_month_sum_counts_drawing_order_once_across_months(app):
+    """이달 합계는 발주 주문 출고가 전체. 시공일이 두 달에 걸치면 각 달에 한 번씩, 칸은 그날 몫."""
+    import datetime
+
+    from db import db_session
+    from models import Order
+
+    june = datetime.date(2026, 6, 28)
+    july = "2026-07-02"
+
+    def _order(name, dates, total, push):
+        sd = {
+            "parties": {"customer": {"name": name}},
+            "schedule": {"construction": {"date": dates}},
+            "totals": {"items_total": total},
+            "items": [{"product_name": "붙박이장"}],
+        }
+        sd.update(push)
+        return Order(
+            received_date=june.isoformat(), customer_name=name, phone="010-3000-4000",
+            address="서울", product="붙박이장", status="PRODUCTION", erp_stage_code="PRODUCTION",
+            is_erp_order=True, structured_data=sd,
+        )
+
+    db_session.add_all([
+        _order("걸친 발주", f"{june.isoformat()}, {july}", 2_000_000, {
+            "channeltalk_push_drawing": {"pushed": True},
+        }),
+        _order("6월 영발", june.isoformat(), 1_000_000, {"channeltalk_push": {"pushed": True}}),
+    ])
+    db_session.commit()
+
+    base = ct._tower_base_query(db_session, None)
+    june_cal = ct._month_calendar(base, june, june.replace(day=1))
+    july_cal = ct._month_calendar(base, june, datetime.date(2026, 7, 1))
+    june_cell = next(c for w in june_cal["weeks"] for c in w if c["iso"] == june.isoformat())
+    july_cell = next(c for w in july_cal["weeks"] for c in w if c["iso"] == july)
+    assert june_cell["amount_label"] == "200만"  # 발주 100만 몫 + 영발 100만
+    assert july_cell["amount_label"] == "100만"
+    assert june_cal["amount_label"] == "200만"  # 발주 출고가 전체. 영발은 빠짐
+    assert july_cal["amount_label"] == "200만"
 
 
 def test_field_calendar_route_renders_month_and_clamps(auth_client):
