@@ -19,8 +19,31 @@
 
   var SELECTOR = "[data-name-chips]";
 
+  // 괄호 밖 쉼표·줄바꿈에서만 나눈다 — "백재현(2번, 3번)" 은 한 사람(운영 #5579).
+  function splitOutsideParens(text) {
+    var parts = [];
+    var buf = "";
+    var depth = 0;
+    String(text == null ? "" : text).split("").forEach(function (ch) {
+      if (ch === "(") depth += 1;
+      else if (ch === ")" && depth > 0) depth -= 1;
+      if (depth === 0 && (ch === "," || ch === "\n")) {
+        parts.push(buf);
+        buf = "";
+      } else {
+        buf += ch;
+      }
+    });
+    parts.push(buf);
+    return parts;
+  }
+
+  function insideParens(text) {
+    return (String(text).match(/\(/g) || []).length > (String(text).match(/\)/g) || []).length;
+  }
+
   function splitNames(value) {
-    var raw = Array.isArray(value) ? value : String(value == null ? "" : value).split(/[,\n]/);
+    var raw = Array.isArray(value) ? value : splitOutsideParens(value);
     var names = [];
     raw.forEach(function (item) {
       var name = String(item == null ? "" : item).trim();
@@ -151,7 +174,7 @@
 
     entry.addEventListener("keydown", function (event) {
       if (event.isComposing) return;
-      if (event.key === "Enter" || event.key === ",") {
+      if (event.key === "Enter" || (event.key === "," && !insideParens(entry.value))) {
         event.preventDefault();
         commit();
       } else if (event.key === "Backspace" && !entry.value) {
@@ -160,7 +183,7 @@
       }
     });
     entry.addEventListener("input", function (event) {
-      if (/[,\n]/.test(entry.value)) {
+      if (splitOutsideParens(entry.value).length > 1) {
         commit();
       } else if (event.inputType === "insertReplacementText" || (!event.inputType && isListOption(entry.value))) {
         commit(); // 목록(datalist)에서 고른 이름

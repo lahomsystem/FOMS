@@ -19,13 +19,31 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 MANAGER_NAMES_SEPARATOR = ", "
 
-_SPLIT_RE = re.compile(r"[,\n]")
-_LEGACY_SPLIT_RE = re.compile(r"[,/\n]")
+_SEPARATORS = ",\n"
+_LEGACY_SEPARATORS = ",/\n"
+
+
+def _split_outside_parens(text: str, separators: str) -> list[str]:
+    """괄호 밖의 구분자에서만 나눈다 — ``"백재현(2번, 3번)"`` 은 한 사람이다(운영 #5579 실측)."""
+    parts: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    for ch in text:
+        if ch == "(":
+            depth += 1
+        elif ch == ")" and depth > 0:
+            depth -= 1
+        if depth == 0 and ch in separators:
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    parts.append("".join(buf))
+    return parts
 
 
 def normalize_name_list(value: Any) -> list[str]:
@@ -42,7 +60,7 @@ def normalize_name_list(value: Any) -> list[str]:
     if isinstance(value, (list, tuple)):
         raw_items: list[Any] = list(value)
     else:
-        raw_items = _SPLIT_RE.split(str(value))
+        raw_items = _split_outside_parens(str(value), _SEPARATORS)
     names: list[str] = []
     for item in raw_items:
         if isinstance(item, dict):
@@ -57,7 +75,7 @@ def _legacy_names(value: Any) -> list[str]:
     """대표 칸 값 하나를 이름 목록으로 나눈다(옛 한 칸 여러 이름 꼴 포함)."""
     if value is None or isinstance(value, (dict, list, tuple)):
         return []
-    return normalize_name_list(_LEGACY_SPLIT_RE.split(str(value)))
+    return normalize_name_list(_split_outside_parens(str(value), _LEGACY_SEPARATORS))
 
 
 def order_manager_names(structured_data: Any, fallback: Any = None) -> list[str]:
