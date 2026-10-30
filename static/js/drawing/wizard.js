@@ -659,9 +659,11 @@
       }
       return;
     }
-    // 라홈만 라홈 로고, 그 외 전부('haud'/'none'/빈값/기타)는 하우드 로고
+    // 라홈·베니시모만 그 로고, 그 외('haud'/'none'/빈값/기타)는 하우드 로고
     // (하위호환: 기존 저장 'none'도 하우드로 렌더).
-    var src = (logo === 'lahom') ? '/static/images/lahom-logo.png' : '/static/images/haud-logo.png';
+    var src = '/static/images/haud-logo.png';
+    if (logo === 'lahom') { src = '/static/images/lahom-logo.png'; }
+    else if (logo === 'benissimo') { src = '/static/images/benissimo-logo.png'; }
     els.logoImg.src = src;
     els.logoImg.hidden = false;
   }
@@ -5109,6 +5111,9 @@
     base.checks = checks;
     // 협력사 주문: 예전에 저장된 'haud'/'lahom' 이 남아 있어도 서버 기본값(협력사 로고/빈칸)을 쓴다.
     if (isPartnerLogoOrder()) { base.logo = d.logo; }
+    // 발주사에 '베니시모'가 있으면 서버 기본값이 benissimo 이다.
+    // 예전 자동값(하우드/없음/빈칸)이 저장돼 있어도 베니시모 로고로 맞춘다. 라홈을 직접 고른 값은 유지한다.
+    else if (d.logo === 'benissimo' && base.logo !== 'lahom') { base.logo = 'benissimo'; }
     base.layout = sanitizeLayout(saved.layout);
     base.cell_font = sanitizeCellFont(saved.cell_font);
     return base;
