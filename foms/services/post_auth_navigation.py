@@ -7,6 +7,8 @@ from werkzeug.wrappers import Response
 
 from foms.services.feature_flags import prefers_mobile_wizard_client, wizard_new_order_enabled
 
+_BACKSLASH = chr(92)
+
 
 def should_use_erp_mobile_home(user_id: int | None, request: Request) -> bool:
     """Return True when this client should treat ``/erp/dashboard`` as home.
@@ -68,11 +70,13 @@ def normalize_internal_next_url(raw_next: str | None, *, fallback: str) -> str:
     if not raw_next:
         return fallback
     next_url = str(raw_next).strip()
-    if not next_url or next_url.startswith("//"):
+    if not next_url or next_url.startswith("//") or not next_url.startswith("/"):
         return fallback
-    if next_url.startswith("/"):
-        return next_url
-    return fallback
+    # Browsers read a backslash as "/" and drop tab/CR/LF inside URLs, so "/\host" or "/<TAB>/host" become
+    # "//host" (another origin). Werkzeug keeps both in the Location header, so reject them here.
+    if _BACKSLASH in next_url or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in next_url):
+        return fallback
+    return next_url
 
 
 def resolve_post_login_redirect(
