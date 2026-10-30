@@ -493,6 +493,10 @@ def test_namespaced_channel_client_shim_preserves_canonical_contract() -> None:
         "send_user_chat_message",
         "send_user_chat_buttons",
         "label_user_chat",
+        "send_private_memo",
+        "PrivateOptionMissing",
+        "OPEN_API_PRIVATE",
+        "NATIVE_PRIVATE",
     ]
 
     assert namespaced_channel_client.__all__ == expected_public_names
