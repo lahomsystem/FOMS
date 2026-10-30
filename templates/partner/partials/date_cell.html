@@ -1,0 +1,6 @@
+{# 한 줄 목록 · 작업대 카드 왼쪽 날짜 칸(list_view.date_cell). 주황 = 확정 전 희망 시공일, 빨강 = 5일 안. #}
+{% macro date_cell(c) -%}
+{%- if c.none -%}<span class="pp-date pp-date--none"><span class="pp-date__md">시공일<br>미정</span></span>
+{%- else -%}<span class="pp-date{% if c.req %} pp-date--req{% elif c.soon %} pp-date--soon{% endif %}"><span class="pp-date__md">{{ c.md }}</span><span class="pp-date__dw">{{ c.dw }}{% if c.req %} · 희망{% endif %}</span><span class="pp-date__dd">{{ c.dd }}</span></span>
+{%- endif -%}
+{%- endmacro %}
