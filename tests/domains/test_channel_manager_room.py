@@ -156,3 +156,48 @@ def test_one_registration_wakes_the_reasons_back_up() -> None:
     lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("강민경"))
     assert lookup.reason == "not_registered"
     assert lookup.message
+
+
+@pytest.mark.parametrize(
+    "manager",
+    ["김의종, 백재현", "김의종/백재현", "김의종,백재현", "김의종(1번), 백재현(2번, 3번)"],
+)
+def test_several_managers_each_get_their_room(manager) -> None:
+    """담당자 칸에 여럿을 적으면 사람마다 방으로 보낸다(운영 표기: 쉼표·빗금·괄호 메모)."""
+    users = [_FakeUser("김의종", "598556"), _FakeUser("백재현", "438709")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder(manager))
+    assert lookup.group_ids == ("598556", "438709")
+    assert lookup.reason is None
+    assert lookup.message is None
+
+
+def test_several_managers_with_shared_room_send_once() -> None:
+    """두 사람이 같은 방이면 한 번만 보낸다(겸직 계정이 섞인 경우)."""
+    users = [_FakeUser("이시영", "477146"), _FakeUser("양산지사", "477146")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("이시영/양산지사"))
+    assert lookup.group_ids == ("477146",)
+
+
+def test_several_managers_partial_names_the_missing_one() -> None:
+    """일부만 찾으면 찾은 방은 보내고, 못 찾은 사람 이름을 알린다."""
+    users = [_FakeUser("백재현", "438709")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("백재현/선종현"))
+    assert lookup.group_ids == ("438709",)
+    assert lookup.reason == "partial"
+    assert lookup.missing_users == ("선종현",)
+    assert "선종현" in lookup.message
+
+
+def test_whole_name_match_wins_over_splitting() -> None:
+    """칸 전체가 한 계정 이름이면 나누지 않는다(괄호가 든 실제 이름을 지키기 위해)."""
+    users = [_FakeUser("정명근 (라운즈)", "500001"), _FakeUser("정명근", "500002")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("정명근 (라운즈)"))
+    assert lookup.group_ids == ("500001",)
+
+
+def test_single_name_with_note_reports_missing_user() -> None:
+    """괄호 메모가 붙은 협력사 담당자도 계정이 없으면 이름으로 알린다."""
+    users = [_FakeUser("백재현", "438709")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("정명근 (라운즈)"))
+    assert lookup.reason == "no_user"
+    assert lookup.missing_users == ("정명근",)

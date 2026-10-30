@@ -3001,9 +3001,14 @@
     // 도면방 PUSH — 현재 전달본 도면 전부를 채널톡 도면방으로. 본문·첨부는 서버가 조립한다.
     const DRAWING_ROOM_FILE_COUNT = Array.isArray(drawingFiles) ? drawingFiles.length : 0;
 
+    // 서버가 담당자 개인방을 못 찾으면(담당자 비었음·계정 없는 이름) 보내기 전에 409 로 멈춘다.
+    const MANAGER_ROOM_STOP_HINT = '\n\n담당자를 먼저 넣으려면 [취소], 도면방에만 보내려면 [확인]을 눌러주세요.';
+    let drawingRoomAllowWithoutManager = false;
+
     async function sendDrawingRoomPush(changeNote) {
       const payload = { order_id: orderId, push_kind: 'drawing_room' };
       if (changeNote) { payload.change_note = changeNote; }
+      if (drawingRoomAllowWithoutManager) { payload.allow_without_manager_room = true; }
       const res = await fetch('/api/channel/push-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3019,8 +3024,17 @@
       }
       if (!confirm('현재 전달본 도면 ' + DRAWING_ROOM_FILE_COUNT + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) return;
       btn.disabled = true;
+      drawingRoomAllowWithoutManager = false;
       try {
         let data = await sendDrawingRoomPush(null);
+        if (!data.success && data.error === 'manager_room_unresolved') {
+          if (!confirm((data.message || '담당자 개인방으로는 도면이 가지 않습니다.') + MANAGER_ROOM_STOP_HINT)) {
+            btn.disabled = false;
+            return;
+          }
+          drawingRoomAllowWithoutManager = true;
+          data = await sendDrawingRoomPush(null);
+        }
         // 재전송이면 서버가 400 으로 변경 내용을 요구한다(이력 유무는 서버가 정본).
         if (!data.success && String(data.message || '').indexOf('재전송 시 변경 내용') >= 0) {
           const note = (prompt('이번 재전송의 변경 내용을 입력해주세요. (1~500자)') || '').trim();
