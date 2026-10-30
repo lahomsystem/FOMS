@@ -446,6 +446,7 @@ def _try_claim_push_slot(db, order_id: int, push_kind: str) -> bool:
 def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
                         actor_user_id, files_count: int | None = None,
                         manager_room_group_id: str | None = None,
+                        manager_room_group_ids: list[str] | None = None,
                         manager_room_sent: bool | None = None) -> None:
     """채널톡 발송 1건을 구조화 감사로 남긴다(고객에게 나간 것은 반드시 추적 가능해야 한다).
 
@@ -458,6 +459,7 @@ def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
     :param actor_user_id: 발송자 user id.
     :param files_count: 함께 보낸 파일 수(있으면).
     :param manager_room_group_id: 담당자 개인 도면방 그룹 id(찾았으면).
+    :param manager_room_group_ids: 실제로 나간 담당자 개인방 전부(담당자 여럿이면 여럿).
     :param manager_room_sent: 담당자 개인방까지 실제로 나갔는지(도면방 PUSH 만).
     """
     context = order_audit_context(order)
@@ -469,8 +471,34 @@ def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
         detail={"push_kind": push_kind, "is_resend": bool(is_resend),
                 "files_count": files_count,
                 "manager_room_group_id": manager_room_group_id,
+                "manager_room_group_ids": manager_room_group_ids,
                 "manager_room_sent": manager_room_sent, **context},
     )
+
+
+def _manager_room_stop_message(db, order) -> str | None:
+    """도면방 PUSH 전에 확인받아야 할 담당자 문제가 있으면 안내 문구를, 없으면 ``None``.
+
+    운영 실측(2026-10-20~30): 개인방을 놓친 건은 전부 "누른 순간 담당자가 비었거나 계정
+    이름과 달랐던" 주문이었고, 담당자를 나중에 넣어도 다시 보내지 않으면 영업 개인방엔
+    끝내 안 갔다. 그래서 도면팀이 담당자 칸만 고치면 풀리는 경우(비었음·계정 없는 이름)는
+    보내기 전에 멈춘다. 방 미등록·겸직 충돌은 관리자 설정 문제라 막지 않는다.
+
+    파라미터:
+        db: 요청 스코프 세션.
+        order: 대상 주문.
+    반환: 화면 확인창에 띄울 한글 문구 또는 ``None``.
+    """
+    lookup = resolve_manager_room(db, order)
+    if lookup.reason == 'no_manager':
+        return '이 주문에 담당자가 비어 있어 영업 담당자 개인방으로는 도면이 가지 않습니다.'
+    if lookup.missing_users:
+        missing = ', '.join(lookup.missing_users)
+        return (
+            f"담당자 칸의 '{missing}' 와 이름이 같은 사용자 계정이 없어 "
+            '그 사람 개인방으로는 도면이 가지 않습니다.'
+        )
+    return None
 
 
 def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = None) -> tuple[dict, int]:
@@ -481,7 +509,9 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
 
     Args:
         db: 요청 세션(성공하면 이력 기록과 함께 commit 된다).
-        payload: ``order_id`` · ``text`` · ``push_kind`` · ``change_note`` · (AS) ``attachment_ids``.
+        payload: ``order_id`` · ``text`` · ``push_kind`` · ``change_note`` · (AS) ``attachment_ids`` ·
+            (도면방) ``allow_without_manager_room`` — 담당자 개인방을 못 찾아도(담당자 비었음·계정 없음)
+            공용방에만 보낸다. 없으면 409 ``manager_room_unresolved`` 로 멈춰 화면이 확인을 받는다.
         actor: 보내는 사용자(감사 · 이력 actor).
         pushed_by_name: 이력에 남길 보낸 사람 표시명(없으면 ``actor.name``).
 
@@ -533,6 +563,15 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
             return {'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}, 404
+
+        if push_kind == 'drawing_room' and payload.get('allow_without_manager_room') is not True:
+            stop_message = _manager_room_stop_message(db, order)
+            if stop_message:
+                return {
+                    'success': False,
+                    'message': stop_message,
+                    'error': 'manager_room_unresolved',
+                }, 409
 
         # 동시 클릭 직렬화: is_resend 판정 전에 (주문, push 종류) 슬롯을 잡는다.
         if not _try_claim_push_slot(db, order.id, push_kind):
@@ -722,27 +761,34 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
         manager_room_note = None
         manager_room_sent = False
         manager_room_group_id = None
+        manager_room_group_ids: list[str] = []
         if push_kind == 'drawing_room':
             lookup = resolve_manager_room(db, order)
             manager_room_group_id = lookup.group_id
-            if lookup.group_id:
+            # 담당자가 여럿이면 사람마다 개인방으로 보낸다. 한 방이 실패해도 나머지는 보낸다.
+            failed_rooms: list[str] = []
+            for room_group_id in lookup.group_ids:
                 try:
                     room_result = dispatch_order_event(
                         event_type='manual',
-                        data={**dispatch_data, 'group_id': lookup.group_id},
+                        data={**dispatch_data, 'group_id': room_group_id},
                         raise_on_error=True,
                     )
                     _ensure_dispatch_sent(room_result, push_kind)
-                    manager_room_sent = True
+                    manager_room_group_ids.append(room_group_id)
                 except Exception as exc:  # noqa: BLE001 - 공용방은 이미 나갔다
                     logger.error(
                         "[채널톡 도면방] 담당자 개인방 전송 실패 (order=%s, manager=%s, group=%s): %s",
-                        order.id, lookup.manager_name, lookup.group_id, exc, exc_info=True,
+                        order.id, lookup.manager_name, room_group_id, exc, exc_info=True,
                     )
-                    manager_room_note = (
-                        f"도면방에는 보냈지만 담당자 '{lookup.manager_name}' 개인방 전송은 "
-                        "실패했습니다."
-                    )
+                    failed_rooms.append(room_group_id)
+            # 일부만 찾은 경우(partial)는 찾은 방이 다 나갔어도 "전부 보냄" 이 아니다.
+            manager_room_sent = bool(lookup.group_ids) and not failed_rooms and not lookup.message
+            if failed_rooms:
+                manager_room_note = (
+                    f"도면방에는 보냈지만 담당자 '{lookup.manager_name}' 개인방 전송이 "
+                    f"{len(failed_rooms)}곳 실패했습니다."
+                )
             else:
                 manager_room_note = lookup.message
 
@@ -766,6 +812,7 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
                             actor_user_id=current_user.id if current_user else None,
                             files_count=len(files),
                             manager_room_group_id=manager_room_group_id,
+                            manager_room_group_ids=(manager_room_group_ids or None),
                             manager_room_sent=(manager_room_sent if push_kind == 'drawing_room' else None))
         response = {'success': True, 'files_count': len(files)}
         if push_kind == 'drawing_room':
@@ -890,6 +937,7 @@ def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any, d
         lookup = resolve_manager_room(db, order)
         payload['manager_name'] = lookup.manager_name
         payload['manager_room_group_id'] = lookup.group_id
+        payload['manager_room_group_ids'] = list(lookup.group_ids)
         payload['manager_room_note'] = lookup.message
     return payload
 

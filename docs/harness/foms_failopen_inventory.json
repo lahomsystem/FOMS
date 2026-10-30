@@ -44,7 +44,7 @@
   "fail_closed_sites": [
     "db.py:68",
     "foms/api/channel/channel_integration.py:395",
-    "foms/api/channel/channel_integration.py:1157",
+    "foms/api/channel/channel_integration.py:1205",
     "foms/api/orders/stage_override_admin.py:144",
     "foms/api/orders/stage_override_admin.py:210",
     "foms/persistence/designer/repositories.py:173",
@@ -122,7 +122,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 737,
+      "lineno": 779,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -131,7 +131,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 783,
+      "lineno": 830,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -140,7 +140,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1017,
+      "lineno": 1065,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -149,7 +149,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1157,
+      "lineno": 1205,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -158,7 +158,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1185,
+      "lineno": 1233,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -167,7 +167,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1335,
+      "lineno": 1383,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -176,7 +176,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1413,
+      "lineno": 1461,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -3578,7 +3578,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 256,
+      "lineno": 257,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3587,7 +3587,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 302,
+      "lineno": 303,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
