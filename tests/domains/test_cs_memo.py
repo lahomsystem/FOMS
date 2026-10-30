@@ -15,7 +15,7 @@ import pathlib
 import pytest
 import requests
 
-from foms.services import channel_client
+from foms.services import channel_client, channel_memo
 from foms.services.cs_agent import channel_read as cr
 from foms.services.cs_agent import memo
 from tests.support.cs_agent_fakes import HAUD_CHANNEL, LAHOM_CHANNEL, FakeReader, at, derived
@@ -54,7 +54,7 @@ class FakeSend:
 @pytest.fixture
 def send(monkeypatch):
     fake = FakeSend()
-    monkeypatch.setattr(channel_client, "send_private_memo", fake)
+    monkeypatch.setattr(channel_memo, "send_private_memo", fake)
     return fake
 
 
@@ -357,7 +357,7 @@ def test_a_memo_with_link_buttons_goes_through_open_api_as_private(open_api, mon
     (call,) = open_api.calls
     assert call["url"].endswith(f"/open/user-chats/{TEST_CHAT}/messages")
     assert call["params"] == {"botName": memo.MEMO_BOT_NAME} and call["headers"] == {"x-brand": "LAHOM"}
-    assert call["json"]["options"] == [channel_client.OPEN_API_PRIVATE]
+    assert call["json"]["options"] == [channel_memo.OPEN_API_PRIVATE]
     assert [b["title"] for b in call["json"]["buttons"]] == ["보내기", "수정하기"]
     assert all(b["action"] == {"type": "web", "attributes": {"url": url}}
                for b, (_t, url) in zip(call["json"]["buttons"], BUTTONS))
@@ -370,15 +370,15 @@ def test_the_private_option_is_fixed_per_path_and_cannot_be_chosen(open_api, mon
                         lambda payload, channel_id="": native_calls.append(payload) or {"result": {"message": {"id": "n1"}}})
     kwargs = {"brand": "LAHOM", "bot_name": memo.MEMO_BOT_NAME, "channel_id": LAHOM_CHANNEL}
     for falsy in (False, 1, "True", None):
-        with pytest.raises(channel_client.PrivateOptionMissing):
-            channel_client.send_private_memo(TEST_CHAT, DRAFT, private=falsy, buttons=BUTTONS, **kwargs)
+        with pytest.raises(channel_memo.PrivateOptionMissing):
+            channel_memo.send_private_memo(TEST_CHAT, DRAFT, private=falsy, buttons=BUTTONS, **kwargs)
     with pytest.raises(TypeError):  # 옵션을 고르는 칸이 없다
-        channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, options=["silentToUser"], **kwargs)
+        channel_memo.send_private_memo(TEST_CHAT, DRAFT, private=True, options=["silentToUser"], **kwargs)
     assert open_api.calls == [] and native_calls == []
-    assert channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=BUTTONS, **kwargs)["success"]
-    assert channel_client.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=None, **kwargs)["success"]
-    assert [call["json"]["options"] for call in open_api.calls] == [[channel_client.OPEN_API_PRIVATE]]
-    assert [payload["params"]["dto"]["options"] for payload in native_calls] == [[channel_client.NATIVE_PRIVATE]]
+    assert channel_memo.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=BUTTONS, **kwargs)["success"]
+    assert channel_memo.send_private_memo(TEST_CHAT, DRAFT, private=True, buttons=None, **kwargs)["success"]
+    assert [call["json"]["options"] for call in open_api.calls] == [[channel_memo.OPEN_API_PRIVATE]]
+    assert [payload["params"]["dto"]["options"] for payload in native_calls] == [[channel_memo.NATIVE_PRIVATE]]
 
 
 def test_a_missing_private_option_inside_memo_is_never_swallowed(send, monkeypatch):
@@ -386,9 +386,9 @@ def test_a_missing_private_option_inside_memo_is_never_swallowed(send, monkeypat
     monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
 
     def raising(*_a, **_k):
-        raise channel_client.PrivateOptionMissing("합성")
-    monkeypatch.setattr(channel_client, "send_private_memo", raising)
-    with pytest.raises(channel_client.PrivateOptionMissing):
+        raise channel_memo.PrivateOptionMissing("합성")
+    monkeypatch.setattr(channel_memo, "send_private_memo", raising)
+    with pytest.raises(channel_memo.PrivateOptionMissing):
         post(buttons=BUTTONS)
 
 
@@ -397,11 +397,11 @@ def test_odd_responses_and_http_errors_are_classified_without_raising(open_api, 
     kwargs = {"brand": "LAHOM", "bot_name": memo.MEMO_BOT_NAME, "channel_id": LAHOM_CHANNEL, "private": True}
     for body in ([1], {"message": "글"}, {"message": {"id": 7}}, "x"):
         open_api.body = body
-        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, buttons=BUTTONS, **kwargs) == {
+        assert channel_memo.send_private_memo(TEST_CHAT, DRAFT, buttons=BUTTONS, **kwargs) == {
             "success": True, "message_id": None, "error": None}
     for data in ([1], {"result": "x"}, {"error": "글"}, {"result": {"message": None}}):
         monkeypatch.setattr(channel_client, "_call_native_function", lambda *a, _d=data, **k: _d)
-        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["success"] is True
+        assert channel_memo.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["success"] is True
     for status, expected in ((403, "provider_error"), (422, "provider_error"), (502, "request_failed")):
         response = requests.Response()
         response.status_code = status
@@ -409,7 +409,7 @@ def test_odd_responses_and_http_errors_are_classified_without_raising(open_api, 
         def http_fail(*_a, _r=response, **_k):
             raise requests.HTTPError("합성", response=_r)
         monkeypatch.setattr(channel_client, "_call_native_function", http_fail)
-        assert channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["error"] == expected
+        assert channel_memo.send_private_memo(TEST_CHAT, DRAFT, **kwargs)["error"] == expected
 
 
 def test_chat_ids_that_could_change_the_api_path_are_refused(open_api, monkeypatch):
