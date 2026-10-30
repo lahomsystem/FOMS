@@ -126,14 +126,27 @@ def _format_construction_date(order: Any, sd: dict[str, Any]) -> str:
     return ", ".join(_korean_month_day(d) for d in _resolve_construction_dates(order, sd))
 
 
-def _resolve_logo(manager_name: str) -> str:
-    """도면 양식 로고 키: 발주사명에 '라홈' 포함 → 'lahom', 그 외 전부 → 'haud'.
+def _resolve_logo(manager_name: str, orderer_name: str = "") -> str:
+    """도면 양식 로고 키.
 
-    하우드/미지정/기타 발주사는 모두 하우드 로고를 쓴다('없음' 상태 폐지).
-    전달 라우팅 규칙과 별개로, 도면 양식 로고는 라홈만 라홈 로고이고 나머지는
-    전부 하우드 로고로 렌더한다.
+    발주사(``parties.orderer.name``)에 '베니시모'가 있으면 ``benissimo``.
+    지점 표기(``베니시모 오산``, ``베니시모 오산점``)도 포함한다.
+    그 외는 담당자명에 '라홈'이 있으면 ``lahom``, 없으면 ``haud``
+    (하우드/미지정/기타. '없음' 상태 폐지).
+
+    라홈/하우드 판정은 기존과 같이 담당자명을 본다. 베니시모만 발주사 칸을 본다.
+    발주사가 베니시모면 담당자명에 '라홈'이 있어도 베니시모 로고가 우선한다.
+
+    Args:
+        manager_name: 담당자명(``parties.manager.name``).
+        orderer_name: 발주사명(``parties.orderer.name``).
+
+    Returns:
+        ``benissimo`` | ``lahom`` | ``haud``.
     """
-    if "라홈" in manager_name:
+    if "베니시모" in (orderer_name or ""):
+        return "benissimo"
+    if "라홈" in (manager_name or ""):
         return "lahom"
     return "haud"
 
@@ -289,6 +302,8 @@ def build_wizard_defaults(
         product_name = _as_str(selected_item.get("product_name")).strip()
 
     sales_manager = _as_str(manager.get("name")) or _as_str(getattr(order, "manager_name", None))
+    orderer = parties.get("orderer") or {}
+    orderer_name = _as_str(orderer.get("name") if isinstance(orderer, dict) else "")
     # PARTNER-04: 협력사 주문은 담당이 협력사 직원 — 연락처는 parties.manager.phone 에 있고, 도면엔 이름만 찍는다.
     sales_manager_label = partner_drawing_manager_name(sd) or sales_manager
     phone_raw = customer.get("phone")
@@ -308,7 +323,7 @@ def build_wizard_defaults(
         "sales_manager": sales_manager_label,
         "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         # PARTNER-03: 협력사 주문은 라홈·하우드 대신 협력사 로고('partner') 또는 빈칸('none').
-        "logo": partner_logo_mode(order) or _resolve_logo(sales_manager),
+        "logo": partner_logo_mode(order) or _resolve_logo(sales_manager, orderer_name),
         "drew": _resolve_drew(sd, current_user),
         # 제품별 시트는 제품 번호(1-base)로 자동 넘버링, 집계(전체)·제품 1개 주문은 '-'.
         "page_no": (
