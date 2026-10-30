@@ -45,12 +45,14 @@
 </div>
 
 {# 18-2 시공 달력: 날짜마다 저희 전체 시공 건수 · 내 회사 출고가(휴대폰 칸마다, PC 는 달 합계). #}
-{% if cal %}<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}</section>{% endif %}
+{# 휴대폰 홈 = 달력 대시보드(본사 모바일 홈처럼) · 주문 목록은 '주문' 탭(view=orders). 사용자 2026-10-30. #}
+{% if cal %}<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}{% include "partner/partials/home_today.html" %}</section>{% endif %}
 
 {# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 한 줄 목록(2026-10-30 — 큰 카드가 한 건에 화면 반을 써서). "도면 확인" 탭(turn)은
    확인 작업대 카드. PC 는 위 프로세스 맵 · 작업 큐 표(같은 정렬). #}
 {% from "partner/partials/stage_badge.html" import stage_badge %}
 {% set q = filters.q or None %}
+{% if view == 'orders' %}
 <div class="foms-shell-body pp-mlist">
     <section class="erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="주문 찾기">
         <form method="get" action="{{ url_for('partner_portal.home') }}" class="foms-mobile-filter-bar__toolbar erp-mobile-queue-filters__search">
@@ -58,12 +60,13 @@
             {% if filters.turn %}<input type="hidden" name="turn" value="1">{% endif %}
             {% if filters.mine %}<input type="hidden" name="mine" value="1">{% endif %}
             <input type="hidden" name="sort" value="{{ sort }}">
+            <input type="hidden" name="view" value="orders">
             <label class="visually-hidden" for="ppMobileSearch">검색</label>
             <input id="ppMobileSearch" type="text" class="erp-mobile-queue-filters__input" name="q" placeholder="고객 · 연락처 · 주소 · 주문 번호" value="{{ filters.q }}">
             <button class="erp-mobile-queue-filters__submit" type="submit" aria-label="검색"><i class="fas fa-search" aria-hidden="true"></i></button>
         </form>
         <nav class="chip-strip foms-chip-strip" aria-label="단계">
-            <a class="chip foms-chip{% if not (filters.stage or filters.turn or filters.mine) %} is-active{% endif %}" href="{{ url_for('partner_portal.home', q=q) }}">전체 {{ pipeline | sum(attribute='count') }}</a>
+            <a class="chip foms-chip{% if not (filters.stage or filters.turn or filters.mine) %} is-active{% endif %}" href="{{ url_for('partner_portal.home', view='orders', q=q) }}">전체 {{ pipeline | sum(attribute='count') }}</a>
             {% for step in pipeline %}
             <a class="chip foms-chip{% if filters.stage == step.label %} is-active{% endif %}{% if step.turn and step.count %} pp-chip--turn{% endif %}" href="{{ url_for('partner_portal.home', stage=step.label, q=q) }}">{{ step.label }} {{ step.count }}</a>
             {% endfor %}
@@ -86,6 +89,7 @@
     {% include "partner/partials/order_rows.html" %}
     {% endif %}
 </div>
+{% endif %}
 
 <div class="erp-pro-card pp-queue">
     <div class="erp-pro-card__header">

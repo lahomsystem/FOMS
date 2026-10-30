@@ -109,6 +109,10 @@ def partner_construction_calendar(db, org_id: int, month: str | None = None,
         "wx_legend": _weather_legend([c for w in weeks for c in w if c["in_month"] and c["wx"]]),
         "own_amount_label": _man_label(month_amount) or "0원",
         "own_total": len({row["id"] for rows in day_orders.values() for row in rows}),
+        # 홈 대시보드 '오늘' 줄(우리 모바일 홈 오늘 요약 자리) — 이 달에 오늘이 있을 때만.
+        "today": next(({"iso": c["iso"], "label": f"{first.month}/{c['day']} ({'일월화수목금토'[c['dow']]})",
+                        "count": c["count"], "own": c["own"], "amount": c["amount_label"]}
+                       for w in weeks for c in w if c["in_month"] and c["is_today"]), None),
         "day_orders": day_orders,
         # 날짜 고르기 달력(flatpickr)이 칸마다 붙일 숫자 — 이 달 칸만.
         "days": {c["iso"]: {"count": c["count"], "amount": c["amount_pill"]}

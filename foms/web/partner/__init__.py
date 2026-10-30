@@ -82,6 +82,8 @@ def home():
     members = org_member_choices(db, org.id)
     filters = partner_list_filters(request.args)
     sort = pick_sort(request.args.get("sort") or ("drawing" if filters["turn"] else None))
+    # 휴대폰 홈 = 달력 대시보드, 주문 목록은 '주문' 탭(?view=orders · 거르기 · 정렬 · 검색). 사용자 2026-10-30.
+    view = "orders" if (request.args.get("view") == "orders" or any(filters.values()) or request.args.get("sort")) else "home"
     board = partner_order_board(db, org.id, g.current_user.id, filters, {u.id: u.name for u in members}, sort)
     return render_template(
         "partner/home.html",
@@ -91,7 +93,8 @@ def home():
         filters=filters,
         # 달력은 걸러 보지 않는 "주문" 첫 화면에만 — 탭(도면 확인 · 완공 · AS) · 칩으로 거르면 달력이 휴대폰
         # 화면을 다 덮어 목록이 바뀐 게 안 보였다(사용자 2026-10-28).
-        cal=None if any(filters.values()) else partner_construction_calendar(db, org.id, request.args.get("cal")),
+        cal=partner_construction_calendar(db, org.id, request.args.get("cal")) if view == "home" else None,
+        view=view,
         cal_url=url_for("partner_portal.home"),
         sort=sort,
         sorts=TURN_SORTS if filters["turn"] else SORTS,
