@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import foms.api.channel.channel_integration as channel_integration
@@ -159,3 +161,22 @@ def test_new_order_page_and_detail_page_carry_push_controls(app, world):
     order_id = _order(app, world)
     page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert 'data-pp-push="measurement"' in page and 'data-pp-push="drawing"' in page and "영발 아직 안 보냄" in page
+    assert "실측 사진이 없습니다. 글만 영발방으로 갑니다." in page
+    assert "pp-push-text" in page
+    assert "보낼 글 + 실측 사진을 영발방으로" not in page
+
+
+def test_detail_page_counts_measure_photos_for_this_site(app, world):
+    """실측 첨부가 있는 현장만 장수를 적는다. 도면 파일은 세지 않는다."""
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    order_id = _order(app, world)
+    _attach(order_id, "partner_measurement", "measurement", "site.jpg")
+    _attach(order_id, "drawing", "drawing", "final.jpg")
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "실측 사진 1장이 글과 함께 영발방으로 갑니다." in page
+
+
+def test_push_textarea_opens_tall() -> None:
+    """보낼 글 칸은 변환 전에도 기본 높이가 높다."""
+    css = Path("static/css/contexts/partner/partner-portal.css").read_text(encoding="utf-8")
+    assert ".pp-push-text" in css and "min-height: 425px" in css
