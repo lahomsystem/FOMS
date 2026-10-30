@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}주문 #{{ view.id }}{% endblock %}
-{% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
+{% block mobile_back %}{{ url_for('partner_portal.home', view='orders') }}{% endblock %}
 {% block content %}
 {% from "partner/partials/stage_badge.html" import stage_badge %}
 {% set tab_off = not (show_completion or as_open) %}

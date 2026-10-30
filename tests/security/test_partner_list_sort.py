@@ -54,7 +54,7 @@ def test_rows_sort_by_construction_date_drawing_and_recent(app, world):
     none = _order(app, world["partner_a"], "미정")
     _order(app, world["partner_b"], "남의회사", date="2026-11-01")
     client = _client(app, db_session.get(User, world["partner_a"]))
-    assert _ids(client.get("/partner").get_data(as_text=True)) == [early, late, none]  # 기본 = 시공일 빠른 순
+    assert _ids(client.get("/partner?view=orders").get_data(as_text=True)) == [early, late, none]  # 기본 = 시공일
     assert _ids(client.get("/partner?sort=drawing").get_data(as_text=True)) == [late, early, none]
     assert _ids(client.get("/partner?sort=recent").get_data(as_text=True)) == [none, early, late]
     html = client.get("/partner?sort=drawing").get_data(as_text=True)
@@ -93,3 +93,15 @@ def test_pc_queue_has_same_sort_buttons_and_keeps_filters(app, world):
     pc = html[html.index('class="erp-pro-card pp-queue"'):]
     assert 'class="pp-sort pp-sort--pc"' in pc
     assert re.search(r'pp-sort__btn" href="/partner\?sort=drawing&amp;stage=[^"]+"', pc)
+
+
+def test_home_is_calendar_dashboard_and_orders_tab_is_list(app, world):
+    """사용자 2026-10-30: 휴대폰 홈 = 달력 대시보드(오늘 요약 · 바로 가기), 주문 목록은 '주문' 탭."""
+    order_id = _order(app, world["partner_a"], "가", date="2026-11-02")
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    home = client.get("/partner").get_data(as_text=True)
+    assert 'class="foms-tower__cal pp-cal"' in home and "pp-quick" in home and "foms-tower__today pp-today" in home
+    assert 'class="foms-shell-body pp-mlist"' not in home  # 휴대폰 목록은 홈에 없다
+    orders = client.get("/partner?view=orders").get_data(as_text=True)
+    assert 'class="foms-shell-body pp-mlist"' in orders and 'class="foms-tower__cal pp-cal"' not in orders
+    assert f'data-pp-order-id="{order_id}"' in orders

@@ -1,0 +1,20 @@
+{# 홈 대시보드 — 달력 아래 오늘 요약 · 바로 가기(우리 모바일 홈 '오늘 요약' 자리, foms-tower__today 모양).
+   [오늘 목록]은 달력 칸과 같은 그날 시트를 연다(partner-calendar.js data-pp-day-open). 사용자 2026-10-30. #}
+<section class="foms-tower__today pp-today" aria-label="오늘 요약">
+    <div class="foms-tower__today-body">
+        {% if cal.today %}
+        <span class="foms-tower__today-date">오늘 {{ cal.today.label }}</span>
+        <strong class="foms-tower__today-counts">{{ org.name }} {{ cal.today.own }} · 전체 시공 {{ cal.today.count }}</strong>
+        {% if cal.today.amount %}<span class="foms-tower__today-amt">출고가 <b>{{ cal.today.amount }}</b></span>{% endif %}
+        {% else %}
+        <span class="foms-tower__today-date">{{ cal.label }}</span>
+        <strong class="foms-tower__today-counts">{{ org.name }} {{ cal.own_total }}건</strong>
+        {% endif %}
+    </div>
+    {% if cal.today %}<button type="button" class="foms-tower__today-btn" data-pp-day-open="{{ cal.today.iso }}">오늘 목록</button>{% endif %}
+</section>
+<nav class="pp-quick" aria-label="바로 가기">
+    <a class="pp-quick__item{% if turn_count %} is-turn{% endif %}" href="{{ url_for('partner_portal.home', turn='1') }}"><span class="pp-quick__n">{{ turn_count }}</span><span class="pp-quick__label">도면 확인할 것</span></a>
+    <a class="pp-quick__item" href="{{ url_for('partner_portal.home', view='orders') }}"><span class="pp-quick__n">{{ pipeline | sum(attribute='count') }}</span><span class="pp-quick__label">전체 주문</span></a>
+    <a class="pp-quick__item" href="{{ url_for('partner_portal.new_order') }}"><span class="pp-quick__n"><i class="fas fa-plus" aria-hidden="true"></i></span><span class="pp-quick__label">새 주문</span></a>
+</nav>

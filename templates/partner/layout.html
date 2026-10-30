@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-portal.css') }}">
 </head>
 {% set pp_back = self.mobile_back() | trim %}
-{% set pp_tab = 'new' if request.endpoint == 'partner_portal.new_order' else ('turn' if request.args.get('turn') == '1' else ('done' if request.args.get('stage') == '완료' else 'orders')) %}
+{% set pp_tab = 'new' if request.endpoint == 'partner_portal.new_order' else ('turn' if request.args.get('turn') == '1' else ('done' if request.args.get('stage') == '완료' else ('home' if (view is defined and view == 'home') else 'orders'))) %}
 <body class="pp-body erp-mobile-v2-layout">
 <div class="erp-mobile-shell pp-shell" data-erp-mobile-v2="true">
     {# 휴대폰(992px 미만): 우리 위 줄 + 아래 탭 5개(설계서 §3.1 · §16). PC 는 아래 머리줄 · 메뉴 줄(foms-shell-desktop-only). #}
@@ -37,7 +37,7 @@
                 {% if pp_back %}
                 <a class="erp-mobile-shell-header__home foms-icon-btn" href="{{ pp_back }}" aria-label="뒤로 가기"><i class="fas fa-arrow-left" aria-hidden="true"></i></a>
                 {% else %}
-                <a class="erp-mobile-shell-header__menu foms-icon-btn" href="{{ url_for('partner_portal.home') }}" aria-label="회사 주문"><i class="fas fa-layer-group" aria-hidden="true"></i></a>
+                <button type="button" class="erp-mobile-shell-header__menu foms-icon-btn" data-pp-sheet-open="ppMoreSheet" aria-controls="ppMoreSheet" aria-label="더보기"><i class="fas fa-bars" aria-hidden="true"></i></button>
                 {% endif %}
                 <div class="erp-mobile-shell-header__context"><strong class="erp-mobile-shell-header__title foms-shell-title">{% block mobile_title %}{{ org.name }}{% endblock %}</strong></div>
                 <div class="pp-push pp-push--m" data-pp-webpush>
@@ -48,11 +48,11 @@
         </header>
         {% macro tab(id, href, icon, label, badge=0) %}<a class="erp-mobile-bottom-nav__item{% if pp_tab == id %} is-active{% endif %}" href="{{ href }}" data-pp-nav="{{ id }}" aria-current="{{ 'page' if pp_tab == id else 'false' }}"><i class="fas {{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>{% if badge %}<span class="erp-mobile-bottom-nav__badge" aria-label="내 차례 {{ badge }}건">{{ badge if badge < 100 else '99+' }}</span>{% endif %}</a>{% endmacro %}
         <nav class="erp-mobile-bottom-nav pp-mnav" aria-label="협력사 주요 메뉴">
-            {{ tab('orders', url_for('partner_portal.home'), 'fa-layer-group', '주문') }}
+            {{ tab('home', url_for('partner_portal.home'), 'fa-house', '홈') }}
+            {{ tab('orders', url_for('partner_portal.home', view='orders'), 'fa-layer-group', '주문') }}
             {{ tab('turn', url_for('partner_portal.home', turn='1'), 'fa-compass-drafting', '도면 확인', partner_turn_count or 0) }}
             {{ tab('new', url_for('partner_portal.new_order'), 'fa-plus', '새 주문') }}
             {{ tab('done', url_for('partner_portal.home', stage='완료'), 'fa-camera', '완공·AS') }}
-            <button type="button" class="erp-mobile-bottom-nav__item" data-pp-sheet-open="ppMoreSheet" aria-controls="ppMoreSheet" aria-label="더보기"><i class="fas fa-ellipsis-h" aria-hidden="true"></i><span>더보기</span></button>
         </nav>
     </div>
     <header class="bg-light d-flex justify-content-between align-items-center gap-2 layout-header pp-header foms-shell-desktop-only">

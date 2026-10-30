@@ -81,6 +81,13 @@
       }
     }
 
+    // 홈 [오늘 목록] — 달력 칸과 같은 시트(우리 모바일 홈 오늘 목록 단추).
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-pp-day-open]');
+      if (!btn) return;
+      var tile = cal.querySelector('[data-pp-day-tile][data-iso="' + btn.getAttribute('data-pp-day-open') + '"]');
+      if (tile) open(tile);
+    });
     cal.addEventListener('click', function (ev) {
       var tile = ev.target.closest('[data-pp-day-tile]');
       if (tile) {
