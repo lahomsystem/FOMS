@@ -55,7 +55,7 @@
         <div class="pp-dthread__bubble">
             <span class="pp-dthread__tag">{{ e.tag }}</span>
             {% if e.note %}<p class="pp-dthread__note">{{ e.note }}</p>{% endif %}
-            {% if e.refs %}<div class="pp-dthread__refs">{% for r in e.refs %}<a class="pp-dthread__ref" href="{{ r.url }}" target="_blank" rel="noopener" aria-label="참고 사진 {{ loop.index }} 열기">{% if r.is_image %}<img src="{{ r.url }}" alt="" loading="lazy" decoding="async">{% else %}<i class="fas fa-file-lines" aria-hidden="true"></i>{% endif %}</a>{% endfor %}</div>{% endif %}
+            {% if e.refs %}<div class="pp-dthread__refs" data-foms-lightbox-gallery>{% for r in e.refs %}<a class="pp-dthread__ref" href="{{ r.url }}"{% if r.is_image %} data-foms-lightbox-src="{{ r.url }}"{% else %} target="_blank" rel="noopener"{% endif %} aria-label="참고 사진 {{ loop.index }} 열기">{% if r.is_image %}<img src="{{ r.url }}" alt="" loading="lazy" decoding="async">{% else %}<i class="fas fa-file-lines" aria-hidden="true"></i>{% endif %}</a>{% endfor %}</div>{% endif %}
             {% if e.at_text %}<time class="pp-dthread__time">{{ e.at_text }}</time>{% endif %}
         </div>
     </article>

@@ -558,3 +558,14 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-quick__n { font-size: 20px; font-weight: 800; color: var(--pp-primary); }
 .pp-quick__item.is-turn .pp-quick__n { color: #dc2626; }
 .pp-quick__label { font-size: 12px; color: #374151; }
+/* 도면 갤러리 PC 숨김 해제 — 공용 규칙(foms-mobile-v2-surfaces-hide.css · foms-shell.css)이 넓은 화면에서
+   휴대폰 갤러리(.foms-drawing-mobile-v2)를 !important 로 숨겨, 협력사 PC 주문 화면에 도면이 하나도 안 보였다
+   (운영 #5888 2026-10-30). 협력사 도면 칸은 PC 에서도 이 갤러리 하나뿐이다. */
+@media ((min-width: 992px) and (orientation: landscape)), ((min-width: 992px) and (pointer: fine)), ((min-width: 992px) and (pointer: none)) {
+  body.erp-mobile-v2-layout .pp-drawing-gallery .foms-drawing-mobile-v2 { display: block !important; }
+}
+/* 그림 확대 창 — 새 탭 대신 화면 안(lightbox). 바깥은 흐리게, 그림은 흰 바탕 · 그림자로 강조(사용자 2026-10-30). */
+.pp-body .foms-lightbox { background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.pp-body .foms-lightbox__img { background: #fff; border-radius: 12px; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45); }
+.pp-tcard__sheet { padding: 0; cursor: zoom-in; }
+.pp-draw-thumbs__link { cursor: zoom-in; }
