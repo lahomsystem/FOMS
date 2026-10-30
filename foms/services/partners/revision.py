@@ -18,7 +18,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.auth.partner_scope import partner_can_read_order
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive, parse_datetime_utc
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.orders.drawing_gate_followups import invalidate_customer_confirmation
 from foms.services.orders.drawing_revision_files import normalize_revision_files
@@ -120,3 +120,23 @@ def request_partner_revision(db, user: Any, order_id: int, note: Any, files: lis
         detail=normalize_security_detail({"partner_org_id": order.partner_org_id, "files": len(rows)}),
     ))
     return notification
+
+
+def pending_revision_for_partner(order: Any) -> dict[str, Any] | None:
+    """수정 요청 뒤 저희가 다시 보내기 전(RETURNED) — 협력사 도면 탭 안내 상자 값.
+
+    이 상태에서는 협력사 버튼(확인 · 수정 요청)이 없어 화면이 멈춘 것처럼 보인다(운영 #5888, 2026-10-30).
+    메모는 이 회사가 낸 요청일 때만 싣는다(우리 쪽이 낸 수정 요청 내용은 보여 주지 않는다 — history.py 와 같은 규칙).
+    """
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    if sd.get("drawing_status") != "RETURNED":
+        return None
+    last = next((h for h in reversed(sd.get("drawing_transfer_history") or [])
+                 if isinstance(h, dict) and h.get("action") == "REQUEST_REVISION"), {})
+    by_partner = last.get("partner_org_id") is not None and last.get("partner_org_id") == order.partner_org_id
+    when = parse_datetime_utc(last.get("at"))
+    return {
+        "by_partner": by_partner,
+        "at": format_datetime_kst(when, "%m-%d %H:%M") if when else "",
+        "note": str(last.get("note") or "").strip()[:300] if by_partner else "",
+    }

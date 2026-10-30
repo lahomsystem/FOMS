@@ -32,6 +32,8 @@ _WORK = {
     "완료": "끝났습니다 · 완공 사진을 볼 수 있습니다",
     "AS 진행 중": "저희 AS 팀이 처리하고 있습니다",
 }
+# 수정 요청 뒤(RETURNED) — 협력사 버튼이 없는 동안 무엇을 기다리는지(운영 #5888, 2026-10-30).
+REVISION_WORK = "수정 요청을 받아 저희 도면팀이 도면을 고치고 있습니다"
 MAX_ROWS = 200
 _PHONE_DIGITS_MIN = 4
 _SCAN_LIMIT = 2000
@@ -106,7 +108,8 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
             "id": r.id, "customer_name": r.customer_name, "phone": r.phone, "address": r.address,
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
             "requested_construction": requested.get(r.id, ""),
-            "stage_label": label, "turn": label == TURN_LABEL, "work": _work_text(label, r.erp_construction_date),
+            "stage_label": label, "turn": label == TURN_LABEL,
+            "work": REVISION_WORK if status == "RETURNED" else _work_text(label, r.erp_construction_date),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
         }
     return list(rows.values())
