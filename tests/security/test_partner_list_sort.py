@@ -84,3 +84,12 @@ def test_date_cell_and_sort_param():
     assert date_cell(datetime.date(2026, 11, 8), True, today)["req"] is True
     assert date_cell(None, False, today) == {"none": True}
     assert pick_sort("drawing") == "drawing" and pick_sort("<script>") == "date"
+
+
+def test_pc_queue_has_same_sort_buttons_and_keeps_filters(app, world):
+    """PC 작업 큐 위에도 정렬 단추(사용자 2026-10-30). 걸러 본 단계는 단추 링크에 그대로 남는다."""
+    _order(app, world["partner_a"], "가", date="2026-11-02")
+    html = _client(app, db_session.get(User, world["partner_a"])).get("/partner?stage=도면 작업 중").get_data(as_text=True)
+    pc = html[html.index('class="erp-pro-card pp-queue"'):]
+    assert 'class="pp-sort pp-sort--pc"' in pc
+    assert re.search(r'pp-sort__btn" href="/partner\?sort=drawing&amp;stage=[^"]+"', pc)

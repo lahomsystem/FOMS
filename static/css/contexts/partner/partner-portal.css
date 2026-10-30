@@ -548,3 +548,5 @@ body.pp-sheet-open { overflow: hidden; }
 /* 도면 갤러리 — 우리 셸 본문 여백(아래 탭 자리 76px)이 갤러리에도 붙어 그림 아래가 비었다. 도면은 두 줄 칸으로 크게. */
 .pp-drawing-gallery .foms-drawing-mobile-v2 { padding: 0 0 4px; }
 .pp-drawing-gallery .foms-drawing-card-grid.foms-attach-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* PC 작업 큐 위 정렬 단추 — 휴대폰 단추와 같은 모양, 폭만 줄인다. */
+.pp-sort--pc { margin: 8px 16px; max-width: 480px; }
