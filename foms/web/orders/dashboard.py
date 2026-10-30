@@ -486,7 +486,7 @@ def erp_dashboard():
     # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
     if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
-            "v": 5,  # 달력 출고가 = 영발·발주 PUSH + 시공일 (둘 다면 발주 한 번)
+            "v": 6,  # 이달 출고가 합계 = 발주 PUSH + 그 달 시공일 (칸 금액과 별개)
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),
             "date": today_iso,
             "mine": f_tower_mine,
@@ -731,7 +731,7 @@ def erp_dashboard_field_calendar():
     month = (request.args.get('month') or '').strip()[:7]
     today = get_today_kst()
     cache_key = build_dashboard_cache_key("orders", "mobile_month_calendar", {
-        "v": 4,  # 달력 출고가 = 영발·발주 PUSH + 시공일
+        "v": 5,  # 이달 출고가 합계 = 발주 PUSH + 그 달 시공일 (칸 금액과 별개)
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "date": today.isoformat(),
         "month": month,

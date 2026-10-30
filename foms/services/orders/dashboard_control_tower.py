@@ -293,8 +293,8 @@ def _construction_dates_of(base: Any, order_ids: Iterable[int]) -> dict[int, lis
 def split_price_by_day(price: int, dates: list[str], date_str: str) -> int:
     """출고가를 시공일 수로 나눈 그날 몫(원). 나머지 원은 첫 시공일에 — 날짜별 몫을 더하면 출고가와 같다.
 
-    사용자 결정(2026-10-15): 시공일이 여러 날이면 출고가를 날짜별로 나눠 싣는다(1,000만 · 이틀 = 500만씩).
-    월 합계도 그 달 날짜 몫만 더해 중복되지 않는다.
+    사용자 결정(2026-10-15): 시공일이 여러 날이면 날짜 칸에는 그날 몫만 싣는다(1,000만 · 이틀 = 500만씩).
+    달력 위 이달 합계는 이 몫의 합이 아니다. 발주 PUSH 주문의 출고가를 주문당 한 번 더한다.
     """
     n = len(dates)
     if price <= 0 or n <= 1:
@@ -305,7 +305,7 @@ def split_price_by_day(price: int, dates: list[str], date_str: str) -> int:
 
 def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, int], int]:
     """날짜별 시공 출고가 합과 기간 합계(:func:`_construction_amount_parts` 의 앞 두 값)."""
-    by_date, total, _pushed_by = _construction_amount_parts(base, date_strs)
+    by_date, total, _pushed_by, _drawing_total = _construction_amount_parts(base, date_strs)
     return by_date, total
 
 
@@ -334,24 +334,41 @@ def construction_amount_basis(sd: Any) -> str | None:
     return None
 
 
+def _record_construction_price(
+    sd: Any,
+    price_of: dict[int, int],
+    pushed_ids: set[int],
+    drawing_ids: set[int],
+    order_id: int,
+) -> None:
+    """주문 출고가와 칸·이달 합계 대상을 한 번만 기록한다."""
+    if order_id in price_of:
+        return
+    price_of[order_id] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
+    if construction_amount_basis(sd):
+        pushed_ids.add(order_id)
+    if _push_done(sd, "channeltalk_push_drawing"):
+        drawing_ids.add(order_id)
+
+
 def _construction_amount_parts(
     base: Any, date_strs: list[str],
-) -> tuple[dict[str, int], int, dict[str, int]]:
-    """날짜별 시공 출고가 합과 기간 합계, 그리고 달력 칸에 싣는 날짜별 합.
+) -> tuple[dict[str, int], int, dict[str, int], int]:
+    """날짜별 시공 출고가, 기간 합계, 달력 칸 합, 이달 발주 출고가 합.
 
     출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
     산출 불가(None) 주문은 금액에서만 빠진다. 시공일이 여러 날인 주문은 출고가를 시공일 수로 나눠
-    날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 기간 합계 = 날짜 칸 합(중복 없음).
+    날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 앞의 기간 합계는 날짜 칸 합(중복 없음).
     확정 대기 협력사 희망 시공일은 그 하루에 출고가 전부를 싣는다(사용자 결정 2026-10-29 — 건수와 같이 우리 시공).
 
-    달력 칸·이달 합계: 영발 PUSH 또는 발주 PUSH 가 되고 시공일이 있는 주문. 둘 다 보낸 주문은
-    발주 기준 한 번(영발 금액을 남기지 않는다). 확정 대기 협력사 희망일은 시공일 지정 전이라 뺀다.
+    달력 칸: 영발 또는 발주 PUSH. 둘 다면 발주 한 번. 희망 시공일은 뺀다.
+    이달 합계: 발주 PUSH 이고 시공일이 이 기간에 있는 주문의 출고가. 주문당 한 번(칸 금액과 다름).
 
     Returns:
-        ({날짜: 원}, 기간 합계 원, {날짜: 달력 칸 출고가 원}).
+        ({날짜: 원}, 기간 합계 원, {날짜: 칸 출고가 원}, 이달 발주 출고가 원).
     """
     if not date_strs:
-        return {}, 0, {}
+        return {}, 0, {}, 0
     rows = (
         base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
         .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date.in_(date_strs))
@@ -360,6 +377,7 @@ def _construction_amount_parts(
     )
     price_of: dict[int, int] = {}
     pushed_ids: set[int] = set()
+    drawing_ids: set[int] = set()
     by_date: dict[str, int] = {}
     seen: set[tuple[str, int]] = set()
     for date_str, order_id, sd in rows:
@@ -367,10 +385,7 @@ def _construction_amount_parts(
         if key in seen:
             continue
         seen.add(key)
-        if key[1] not in price_of:
-            price_of[key[1]] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
-            if construction_amount_basis(sd):
-                pushed_ids.add(key[1])
+        _record_construction_price(sd, price_of, pushed_ids, drawing_ids, key[1])
     dates_of = _construction_dates_of(base, price_of)
     pushed_by: dict[str, int] = {}
     for date_str, order_id in seen:
@@ -380,7 +395,8 @@ def _construction_amount_parts(
             pushed_by[date_str] = pushed_by.get(date_str, 0) + share
     for _order_id, date_str, sd in pending_request_rows(base, date_strs):
         by_date[date_str] = by_date.get(date_str, 0) + (erp_shipping_price_from_structured(_ensure_dict(sd)) or 0)
-    return by_date, sum(by_date.values()), pushed_by
+    drawing_total = sum(price_of[order_id] for order_id in drawing_ids)
+    return by_date, sum(by_date.values()), pushed_by, drawing_total
 
 
 def _man_label(won: int | None) -> str:
@@ -453,8 +469,7 @@ def _month_calendar(
 
     meas_by, cons_by, as_by = _day_counts(base, month_dates)
     unshipped_by = _unshipped_construction_by(base, soon_dates)
-    all_by, _month_all, amount_by = _construction_amount_parts(base, month_dates)
-    month_amount = sum(amount_by.values())
+    all_by, _month_all, amount_by, month_amount = _construction_amount_parts(base, month_dates)
     holidays = get_holidays_kr(first.year)
 
     weeks: list[list[dict[str, Any]]] = []
@@ -528,7 +543,7 @@ def _month_calendar(
         "construction_total": sum(int(v or 0) for v in cons_by.values()),
         "as_total": sum(int(v or 0) for v in as_by.values()),
         "amount_label": _man_label(month_amount) or "0원",
-        # 오늘 시트 '출고가 합계' 는 그날 목록(전체 시공)과 같은 기준 — 칸 금액(영발·발주 PUSH)과 다르다
+        # 오늘 시트 '출고가 합계' 는 그날 목록(전체 시공). 위 합계는 발주 PUSH 주문 출고가. 칸은 영발·발주 몫.
         "today_all_amount_label": _man_label(int(all_by.get(today.isoformat(), 0) or 0)),
         "colors": colors,
         "photo": month_photo(first.month),
