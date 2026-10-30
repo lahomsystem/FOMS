@@ -6709,9 +6709,10 @@
   }
 
   /** 도면방 PUSH 1회 전송. changeNote 가 있으면 재전송으로 보낸다. */
-  function sendRoomPush(changeNote) {
+  function sendRoomPush(changeNote, allowWithoutManager) {
     var payload = { order_id: ORDER_ID, push_kind: 'drawing_room' };
     if (changeNote) { payload.change_note = changeNote; }
+    if (allowWithoutManager) { payload.allow_without_manager_room = true; }
     return jsonFetch('/api/channel/push-manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6777,12 +6778,22 @@
         return;   // finally 에서 다시 열린다
       }
       if (!confirm('현재 전달본 도면 ' + count + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) { return; }
+      var allowWithoutManager = false;
       return sendRoomPush(null).then(function (r) {
+        // 담당자 개인방을 못 찾으면(담당자 비었음·계정 없는 이름) 서버가 보내기 전에 멈춘다.
+        if (r.data && r.data.success !== true && r.data.error === 'manager_room_unresolved') {
+          if (!confirm(String(r.data.message || '') + '\n\n담당자를 먼저 넣으려면 [취소], 도면방에만 보내려면 [확인]을 눌러주세요.')) { return null; }
+          allowWithoutManager = true;
+          return sendRoomPush(null, true);
+        }
+        return r;
+      }).then(function (r) {
+        if (!r) { return null; }
         var msg = String((r.data && r.data.message) || '');
         if (r.data && r.data.success !== true && msg.indexOf('재전송 시 변경 내용') >= 0) {
           return askChangeNote().then(function (note) {
             if (!note) { return null; }
-            return sendRoomPush(note);
+            return sendRoomPush(note, allowWithoutManager);
           });
         }
         return r;

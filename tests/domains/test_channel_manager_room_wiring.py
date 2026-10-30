@@ -102,3 +102,57 @@ def test_user_admin_screens_expose_the_room_field() -> None:
 def test_room_change_is_audited() -> None:
     """방 번호는 발송 대상을 바꾸는 값이라 누가 언제 바꿨는지 남아야 한다."""
     assert "channel_drawing_group_id" in _AUDITED_USER_FIELDS
+
+
+def test_push_stops_before_sending_when_manager_is_unresolved() -> None:
+    """담당자가 비었거나 계정 없는 이름이면 보내기 **전에** 멈추고 확인을 받는다.
+
+    운영 실측(2026-10-20~30): 개인방을 놓친 건은 전부 누른 순간 담당자가 비었던 주문이었다.
+    멈춤이 슬롯 잡기·발송보다 뒤에 있으면 이미 공용방에 나간 뒤라 소용이 없다.
+    """
+    source = inspect.getsource(api_channel_push_manual)
+    stop = source.index("_manager_room_stop_message(db, order)")
+    assert stop < source.index("_try_claim_push_slot"), "멈춤이 슬롯을 잡은 뒤에 있다"
+    assert stop < source.index("result = dispatch_order_event"), "멈춤이 발송 뒤에 있다"
+    assert "allow_without_manager_room" in source, "확인 뒤 그래도 보내는 길이 없다"
+    assert "'manager_room_unresolved'" in source
+
+
+def test_push_sends_to_every_manager_room() -> None:
+    """담당자 여럿이면 찾은 방 전부로 보낸다."""
+    source = inspect.getsource(api_channel_push_manual)
+    assert "for room_group_id in lookup.group_ids" in source
+
+
+def test_stop_message_covers_empty_and_unknown_manager(monkeypatch) -> None:
+    """멈춤 대상은 도면팀이 담당자 칸만 고치면 풀리는 두 경우뿐이다."""
+    import foms.api.channel.channel_integration as mod
+    from foms.services.channel_manager_room import ManagerRoomLookup
+
+    cases = {
+        "empty": ManagerRoomLookup(None, "", "no_manager", "x"),
+        "unknown": ManagerRoomLookup(None, "벡제현", "no_user", "x", missing_users=("벡제현",)),
+        "partial": ManagerRoomLookup(None, "백재현/선종현", "partial", "x",
+                                     group_ids=("438709",), missing_users=("선종현",)),
+        "unregistered": ManagerRoomLookup(None, "강민경", "not_registered", "x"),
+        "ambiguous": ManagerRoomLookup(None, "김세연", "ambiguous", "x"),
+        "dormant": ManagerRoomLookup(None, "강민경", "dormant", None),
+        "ok": ManagerRoomLookup("438709", "백재현"),
+    }
+    for key, lookup in cases.items():
+        monkeypatch.setattr(mod, "resolve_manager_room", lambda db, order, _l=lookup: _l)
+        message = mod._manager_room_stop_message(None, object())
+        if key in ("empty", "unknown", "partial"):
+            assert message, f"{key} 인데 멈추지 않는다"
+        else:
+            assert message is None, f"{key} 는 도면팀이 고칠 수 없는데 멈춘다"
+    monkeypatch.setattr(mod, "resolve_manager_room", lambda db, order: cases["partial"])
+    assert "선종현" in mod._manager_room_stop_message(None, object())
+
+
+def test_both_push_screens_confirm_and_retry_with_the_flag() -> None:
+    """작업실·마법사 둘 다 멈춤을 받으면 확인창을 띄우고, 확인하면 플래그로 다시 보낸다."""
+    for rel in ("templates/drawing/partials/workbench_detail_body.html", "static/js/drawing/wizard.js"):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        assert "manager_room_unresolved" in text, f"{rel} 가 멈춤 응답을 모른다"
+        assert "allow_without_manager_room" in text, f"{rel} 가 확인 뒤 다시 보내지 못한다"
