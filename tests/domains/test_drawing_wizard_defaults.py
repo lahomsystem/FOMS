@@ -142,6 +142,46 @@ def test_defaults_logo_lahom_only_else_haud():
     assert blank["logo"] == "haud"
 
 
+def test_defaults_logo_benissimo_when_orderer_name_contains_it():
+    """발주사(parties.orderer.name)에 '베니시모'가 있으면 benissimo.
+
+    지점 표기(베니시모 오산 · 베니시모 오산점)도 포함한다.
+    담당자명에 '라홈'이 있어도 발주사가 베니시모면 베니시모 로고가 우선한다.
+    발주사가 라홈이어도 담당자명 규칙(빈 담당 → haud)은 그대로다.
+    """
+    branch = build_wizard_defaults(
+        _order(),
+        {"parties": {"orderer": {"name": "베니시모 오산"}, "manager": {"name": "한용희"}}},
+        _user(),
+    )
+    store = build_wizard_defaults(
+        _order(),
+        {"parties": {"orderer": {"name": "베니시모 오산점"}, "manager": {"name": "이시영"}}},
+        _user(),
+    )
+    exact = build_wizard_defaults(
+        _order(),
+        {"parties": {"orderer": {"name": "베니시모"}}},
+        _user(),
+    )
+    beats_lahom_manager = build_wizard_defaults(
+        _order(),
+        {"parties": {"orderer": {"name": "베니시모 오산"}, "manager": {"name": "라홈 이영업"}}},
+        _user(),
+    )
+    lahom_orderer_keeps_manager_rule = build_wizard_defaults(
+        _order(),
+        {"parties": {"orderer": {"name": "라홈"}, "manager": {"name": ""}}},
+        _user(),
+    )
+
+    assert branch["logo"] == "benissimo"
+    assert store["logo"] == "benissimo"
+    assert exact["logo"] == "benissimo"
+    assert beats_lahom_manager["logo"] == "benissimo"
+    assert lahom_orderer_keeps_manager_rule["logo"] == "haud"
+
+
 def test_defaults_construction_date_falls_back_to_order_column():
     sd = {"schedule": {"construction": {"date": ""}}}
 
@@ -354,3 +394,18 @@ def test_resolve_assignee_drew_en_blank_when_no_assignee(monkeypatch):
     monkeypatch.setattr(mod, "load_erp_shipment_settings", _boom)
 
     assert resolve_assignee_drew_en({}) == ""
+
+
+def test_wizard_wires_benissimo_logo_asset():
+    """도면 마법사가 베니시모 로고 파일·선택 버튼·렌더 분기를 함께 가진다."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/drawing/wizard.js").read_text(encoding="utf-8")
+    html = (root / "templates/drawing/wizard.html").read_text(encoding="utf-8")
+
+    assert (root / "static/images/benissimo-logo.png").is_file()
+    assert "/static/images/benissimo-logo.png" in js
+    assert "d.logo === 'benissimo' && base.logo !== 'lahom'" in js
+    assert 'data-logo="benissimo"' in html
+    assert "베니시모" in html
