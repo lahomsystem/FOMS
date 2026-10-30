@@ -123,7 +123,10 @@ def test_sent_drawing_marks_turn_and_revision_wait_explains_itself(app, world, f
     assert "data-pp-revision-wait" in page and "수정 요청을 보냈어요" in page and "스마트바는 없나요" in page
     assert "/drawing-receipt" not in page and "내 차례</span>" not in page
     assert "final.png" in page  # 지난번 도면은 그대로 보인다
-    assert f'data-pp-order-id="{order_id}"' not in client.get("/partner?turn=1").get_data(as_text=True)
+    turn = client.get("/partner?turn=1").get_data(as_text=True)
+    # 작업대 카드(내 차례)는 아니고, 아래 "도면팀이 고치는 중" 줄에 내 요청과 함께 남는다(2026-10-30 목업).
+    assert f'<article class="pp-tcard" data-pp-order-id="{order_id}"' not in turn
+    assert "도면팀이 고치는 중" in turn and f'#drawing" data-pp-order-id="{order_id}"' in turn and "스마트바는 없나요" in turn
     board = client.get("/partner").get_data(as_text=True)
     assert REVISION_WORK in board and "도면 수정 중</span>" in board  # 배지도 "도면 수정 중"(사용자 2026-10-30)
     assert "도면 수정 중</span>" in page and "도면 작업 중 1" in board  # 칸 셈은 도면 작업 중 그대로

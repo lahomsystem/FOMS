@@ -1,0 +1,51 @@
+{# "도면 확인" 탭 — 확인 작업대(사용자 2026-10-30 목업, foms/services/partners/turn_board.py).
+   카드 = 내 차례(도면 확인 · 고객 확인 뒤 제작 요청). 단추는 그 자리에서 보낸다(partner-portal.js bindApprove).
+   아래 줄 = 내가 수정 요청을 보내 도면팀이 고치는 중인 건. #}
+{% from "partner/partials/date_cell.html" import date_cell %}
+{% set cards = turn_board.cards %}
+<div class="pp-tb__head">
+    <h2 class="pp-tb__title">{% if cards %}할 일 {{ cards | length }}건{% else %}지금 확인할 도면이 없습니다{% endif %}</h2>
+    <p class="pp-tb__sub">{% if cards %}도면을 보고 '확인했어요' 또는 '수정 요청'을 눌러 주세요.{% else %}저희 도면팀이 도면을 보내면 여기에 올라오고 알림이 갑니다.{% endif %}</p>
+</div>
+<p class="pp-status pp-tb__status" id="ppStatus" role="status" aria-live="polite"></p>
+{% for c in cards %}
+<article class="pp-tcard" data-pp-order-id="{{ c.id }}">
+    <ol class="pp-tcard__steps" aria-label="도면 진행"><li class="is-done">도면 올라옴</li><li class="{{ 'is-now' if c.kind == 'receive' else 'is-done' }}">도면 확인</li><li class="{{ 'is-now' if c.kind == 'approve' else '' }}">제작 요청</li></ol>
+    <div class="pp-tcard__head">
+        {{ date_cell(c.date_cell) }}
+        <div class="pp-tcard__who">
+            <div class="pp-row__l1"><span class="pp-row__name">{{ c.customer_name }}</span><span class="pp-row__no">#{{ c.id }}</span></div>
+            <div class="pp-row__l2">{{ c.product or '제품 미정' }}{% if c.address %} · {{ c.address }}{% endif %}</div>
+        </div>
+    </div>
+    {% if c.sheets %}<a class="pp-tcard__strip" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing" aria-label="도면 크게 보기">{% for s in c.sheets %}<span class="pp-tcard__sheet"><img src="{{ s.url }}" alt="{{ s.label }}" loading="lazy" decoding="async"><b>{{ s.no }}</b></span>{% endfor %}</a>{% endif %}
+    <div class="pp-tcard__tags">{% if c.arrived %}<span class="pp-tag pp-tag--new">{{ c.arrived }}</span>{% endif %}<span class="pp-tag">{% if c.round %}{{ c.round }} 도면 · {% endif %}{{ c.sheet_count }}장</span>{% if c.kind == 'approve' %}<span class="pp-tag pp-tag--ok">도면 확인함 · 고객 확인 차례</span>{% endif %}</div>
+    {% if c.prev_request %}<div class="pp-tcard__ask"><b>지난번 내 요청</b>{{ c.prev_request }}</div>{% endif %}
+    <div class="pp-tcard__acts">
+        <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">도면 보기</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">수정 요청</a>
+        {% if c.kind == 'receive' %}
+        <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.confirm_drawing_receipt', order_id=c.id) }}" data-pp-approve-confirm="{{ c.customer_name }} 도면을 확인했다고 저희에게 알릴까요? 고객 확인 단계로 넘어갑니다.">확인했어요</button>
+        {% else %}
+        <button type="button" class="btn btn-success" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=c.id) }}" data-pp-approve-confirm="{{ c.customer_name }} — 이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없고, 발주방에 발주 PUSH 가 자동으로 갑니다.">이대로 만들어 주세요</button>
+        {% endif %}
+    </div>
+    {% if c.kind == 'approve' %}<p class="pp-tcard__note">누르면 생산이 시작되고 발주방에 발주 PUSH(글 + 최종 도면)가 자동으로 갑니다.</p>{% endif %}
+</article>
+{% endfor %}
+{% if turn_board.fixing %}
+<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">도면팀이 고치는 중</h2><span class="section-header__count foms-section-header__count">{{ turn_board.fixing | length }}</span></div>
+<div class="pp-rows pp-rows--fix">
+{% for o in turn_board.fixing %}
+<a class="pp-row" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}#drawing" data-pp-order-id="{{ o.id }}">
+    {{ date_cell(o.date_cell) }}
+    <span class="pp-row__main">
+        <span class="pp-row__l1"><span class="pp-row__name">{{ o.customer_name }}</span><span class="pp-row__no">#{{ o.id }}</span>{{ stage_badge(o.stage_label, o.badge) }}</span>
+        <span class="pp-row__l2">{{ o.product or '제품 미정' }}{% if o.address %} · {{ o.address }}{% endif %}</span>
+        <span class="pp-row__l3"><span class="pp-row__now is-fix">{% if o.revision and o.revision.by_partner %}내 요청 {{ o.revision.at }}{% if o.revision.note %} · “{{ o.revision.note | truncate(40, True, '…') }}”{% endif %}{% else %}저희 쪽에서 도면을 고치고 있습니다{% endif %}</span></span>
+    </span>
+    <i class="fas fa-chevron-right pp-row__chev" aria-hidden="true"></i>
+</a>
+{% endfor %}
+</div>
+{% endif %}

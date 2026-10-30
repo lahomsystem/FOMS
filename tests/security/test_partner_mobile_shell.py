@@ -90,9 +90,10 @@ def test_mobile_list_uses_our_queue_cards_chips_and_turn_group(app, world):
     assert str(foreign_id) not in cards
     assert mobile.index("지금 내 차례") < mobile.index(f'data-pp-order-id="{turn_id}"') < mobile.index("다른 주문")
     assert "foms-stage-badge foms-stage-badge--confirm" in mobile
-    assert f'href="/partner/orders/{turn_id}#drawing">도면 확인하기<' in mobile
-    assert f'href="/partner/orders/{other_id}">열기<' in mobile
-    assert 'href="tel:010-1234-5678"' in mobile
+    # 2026-10-30 한 줄 목록: 줄 전체가 주문으로 가는 링크(내 차례는 도면 탭으로). 연락처는 주문 화면 안.
+    assert f'href="/partner/orders/{turn_id}#drawing" data-pp-order-id="{turn_id}"' in mobile
+    assert f'href="/partner/orders/{other_id}" data-pp-order-id="{other_id}"' in mobile
+    assert 'class="pp-row pp-row--turn"' in mobile and "pp-date" in mobile
     stage = _html(app, world["partner_a"], "/partner?stage=도면 작업 중")
     assert re.search(r'chip foms-chip is-active" href="[^"]*stage=[^"]*">도면 작업 중 1<', stage)
 

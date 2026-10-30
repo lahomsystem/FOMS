@@ -15,7 +15,10 @@ from typing import Any
 
 from sqlalchemy import or_
 
+from foms.services.datetime_kst import get_today_kst
 from foms.services.partners.drawing_list_thumbs import attach_saved_drawing_thumbs
+from foms.services.partners.list_view import DEFAULT_SORT, decorate_rows, sort_rows
+from foms.services.partners.turn_board import build_turn_board
 from foms.services.partners.orders import partner_stage_label
 from foms.services.partners.schedule_request import pending_request_texts
 from models import Order, OrderAssignment
@@ -115,7 +118,7 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
             "requested_construction": requested.get(r.id, ""),
             "stage_label": label, "turn": label == TURN_LABEL,
-            "badge": stage_badge_text(label, status),
+            "badge": stage_badge_text(label, status), "drawing_status": status or "",
             "work": REVISION_WORK if status == "RETURNED" else _work_text(label, r.erp_construction_date),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
         }
@@ -123,8 +126,11 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
 
 
 def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
-                        names: dict[int, str]) -> dict[str, Any]:
-    """목록 화면 값 — 프로세스 맵 칸별 수(필터 전), 내 차례 수, 거른 작업 큐(최근 200건)."""
+                        names: dict[int, str], sort: str = DEFAULT_SORT) -> dict[str, Any]:
+    """목록 화면 값 — 프로세스 맵 칸별 수(필터 전), 내 차례 수, 거른 작업 큐(최근 200건).
+
+    sort: 시공일 빠른 순 · 도면 나온 순 · 최근 등록 순(list_view.py). "도면 확인" 탭(turn)이면 작업대 카드도.
+    """
     rows = _rows(db, org_id, names)
     counts = {label: 0 for label in PARTNER_PIPELINE}
     for row in rows:
@@ -137,14 +143,23 @@ def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
         and (not filters["manager"] or str(row["manager_id"]) == filters["manager"])
         and _matches_query(row, filters["q"])
     ]
-    picked.sort(key=lambda row: not row["turn"])  # 내 차례를 맨 위로(그 안에서는 최신순 그대로)
+    decorate_rows(db, picked, get_today_kst())
+    picked = sort_rows(picked, sort)  # 내 차례는 늘 위
     shown = picked[:MAX_ROWS]
     attach_saved_drawing_thumbs(db, shown)
+    if filters["turn"]:
+        # 작업대 카드 = 내 차례, 아래 줄 = 내가 수정 요청을 보낸 건(turn 거르기 전 줄에서 고른다).
+        fixing = [r for r in rows if r.get("drawing_status") == "RETURNED"]
+        decorate_rows(db, fixing, get_today_kst())
+        board = build_turn_board(db, shown + fixing, sort)
+    else:
+        board = None
     return {
         "pipeline": [{"label": label, "count": counts[label], "turn": label == TURN_LABEL} for label in PARTNER_PIPELINE],
         "turn_count": counts[TURN_LABEL],
         "orders": shown,
         "total": len(picked),
+        "turn_board": board,
     }
 
 
