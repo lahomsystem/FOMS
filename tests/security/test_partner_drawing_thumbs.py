@@ -30,10 +30,15 @@ def _save_drawings(order_id: int, pending: dict, files: list | None = None) -> N
 
 
 def test_drawing_stage_lists_saved_images_only(app, world):
-    """저장 PNG 와 전달된 그림만. PDF · 다른 주문 · 시트 JSON 은 빠진다."""
+    """저장 PNG 와 전달된 그림만. PDF · 다른 주문 · 시트 JSON · 다른 단계는 빠진다.
+
+    새 협력사 주문은 저장하면 바로 도면 단계다. 비교 주문은 완료로 옮겨
+    도면 작업 중 목록에 안 남게 한다.
+    """
     drawing = _order(app, world["partner_a"], "도면고객")
-    measure = _order(app, world["partner_a"], "접수고객")
+    measure = _order(app, world["partner_a"], "완료고객")
     _to_stage(drawing, "DRAWING")
+    _to_stage(measure, "COMPLETED")
     own = f"orders/{drawing}/drawing_wizard/exports/molding.png"
     transferred = f"orders/{drawing}/drawing/sent.jpg"
     _save_drawings(drawing, {
