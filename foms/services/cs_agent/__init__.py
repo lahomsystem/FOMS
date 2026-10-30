@@ -10,6 +10,7 @@
 승인 항목만 재료) · 보내기 전 검사(:mod:`~foms.services.cs_agent.checks` 판정, :mod:`~foms.services.cs_agent.checks_rules`
 금지 꼴, :mod:`~foms.services.cs_agent.checks_read` 숫자 · 링크 읽기) · 가림(:mod:`~foms.services.cs_agent.masking`, 가림 검사 0 일 때만 모델 호출) ·
 빠른 길(:mod:`~foms.services.cs_agent.realtime`, 5초 차례 · 따로 잠금 · 모아 받기 — 'AI 냐 사람이냐' 물음은
-:mod:`~foms.services.cs_agent.ask_human`) · 사례 기억(:mod:`~foms.services.cs_agent.case_memory`, 직원 직접 답 붙이기 ·
-비슷한 지난 사례 재료 — 두뇌에 싣는 꼴은 :mod:`~foms.services.cs_agent.brain_cases`).
+:mod:`~foms.services.cs_agent.ask_human`) · 사례 기억(:mod:`~foms.services.cs_agent.case_memory` 직원 직접 답 붙이기 ·
+:mod:`~foms.services.cs_agent.case_material` 비슷한 지난 사례 재료 — 두뇌에 싣는 꼴은
+:mod:`~foms.services.cs_agent.brain_cases`, 지시문 글은 :mod:`~foms.services.cs_agent.brain_instructions`).
 """

@@ -4323,7 +4323,8 @@ class CsAgentTurn(Base):
     # 가린 초안 · 가린 직원 최종 답(공개 manager 글, 나중에 채움) — 가림 검사를 통과한 글만.
     masked_draft = Column(Text, nullable=True)
     staff_reply_masked = Column(Text, nullable=True)
-    # 초안 ↔ 직원 답 '같은 뜻' 판정 코드(나중에 채움) · 실패 · 건너뜀 이유 코드.
+    # 초안 ↔ 직원 답 '같은 뜻' 판정 코드(나중에 채움 — 직원 답 글이 없는 사례는 그 까닭 코드: mask_leak · file_only ·
+    # reply_missing · anchor_missing · chat_not_found, C10-4 R14-8) · 실패 · 건너뜀 이유 코드.
     judgment = Column(String(16), nullable=True)
     error_code = Column(String(48), nullable=True)
     # 선점한 실행 단위(예 'realtime:호스트:pid') · 선점 만료(UTC) — 만료가 지난 선점은 죽은 차례다(csagent_02).

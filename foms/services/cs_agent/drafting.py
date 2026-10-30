@@ -22,9 +22,9 @@
    (선점한 글이 읽기에 아직 없으면 다시 집을 실패 — R13-6). 재료는 공개 손님 · 직원 글만(R1-12). 손님 글에 글자가 없으면
    (사진만) 건너뜀. 손님이 'AI 냐 사람이냐' 물으면 두뇌 없이 사람에게(:mod:`.drafting_pass` — 두 길 공통, 설계서 17.8).
 4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참) · 재료에 같은 브랜드
-   비슷한 지난 사례(:func:`.case_memory.similar_cases` — L0, 허용 목록에는 넣지 않는다). 두뇌는 세션을 여러 번
-   커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만 세고(표시 없는
-   요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
+   비슷한 지난 사례(:func:`.case_material.similar_cases` — L0, 허용 목록에 넣지 않고 사례에만 있는 이름은 검사의 예시 낱말로).
+   두뇌는 세션을 여러 번 커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만
+   세고(표시 없는 요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
    항목 글도 넣지 않는다). 걸리면 코드만 남기고 올리지 않는다.
 6. **직전 다시 읽기** — 그사이 손님이 더 썼거나(``stale``) 공개 직원 글이 왔으면(``human_replied``) 올리지 않는다.
@@ -62,7 +62,7 @@ from foms.services.cs_agent.brain import (
     SpendCapReached, check_ready, draft_reply,
 )
 from foms.services.cs_agent.brain_prompt import PURPOSE_DRAFT
-from foms.services.cs_agent.case_memory import similar_cases
+from foms.services.cs_agent.case_material import case_only_names, similar_cases
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError, naive_utc
 from foms.services.cs_agent.checks import check_draft
 from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK, DraftPass as _Pass  # noqa: F401 — 예전 이름
@@ -367,11 +367,11 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         return ctx.hand_to_human(row, chat_id, lines)
     if repost:  # 이 읽기가 직전 다시 읽기다 — 두뇌를 다시 부르지 않는다
         return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=stored, note="", reread=False)
+    cases = similar_cases(ctx.session, BRAND, lines)  # L0 사례(DB 오류면 빈 사례) — 허용 목록엔 넣지 않는다
     try:
         request = DraftRequest(brand=BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=ctx.daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(),
-                               knowledge=ctx.knowledge, realtime=ctx.realtime,
-                               cases=similar_cases(ctx.session, BRAND, lines))  # L0 사례 — 허용 목록엔 넣지 않는다
+                               knowledge=ctx.knowledge, realtime=ctx.realtime, cases=cases)
     except ValueError:
         return ctx.skip(row, SKIP_BAD_REQUEST)
     ctx.stop.check()  # 두뇌 전
@@ -394,20 +394,21 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     record_brain_result(row, result)
     if result.refused or result.handoff:
         return ctx.skip(row, SKIP_REFUSED if result.refused else SKIP_HANDOFF)
+    names = case_only_names(cases, (*(line.text for line in lines), *(item.text for item in ctx.knowledge.items)))
     return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=result.draft,
-                            note=result.staff_note, evidence=result.evidence_ids)
+                            note=result.staff_note, evidence=result.evidence_ids, examples=names)
 
 
 def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, medium: Optional[str],
                      lines: Sequence[ChatLine], *, draft: str, note: str, evidence: Sequence[str] = (),
-                     reread: bool = True) -> Optional[str]:
+                     examples: Sequence[str] = (), reread: bool = True) -> Optional[str]:
     """검사 → (직전 다시 읽기) → 놓기. 다시 올리기는 막 읽은 글로 보니 다시 읽지 않고, 직원 참고는 기록에 없어 정한 글을 쓴다.
 
     다시 올리기의 [사람] 금액 표시는 근거 id 가 기록에 없어 끄지만, 허용 목록에서 [사람] 항목 글이 빠져 있어 그 금액은 그대로
     막힌다(같은 초안이 처음 올릴 때 이미 같은 검사를 통과했다).
     """
     check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=ctx.allowed,
-                        private_snippets=(*memo_snippets(lines), note),
+                        private_snippets=(*memo_snippets(lines), note), example_only_words=examples,
                         human_only_amounts=bool(ctx.human_only.intersection(evidence)))
     masked = mask(draft)
     if not check.ok:
