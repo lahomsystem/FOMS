@@ -21,7 +21,8 @@
 3. **읽기** — 매체(이메일이면 건너뜀) · 최근 글. 선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없어야 한다
    (선점한 글이 읽기에 아직 없으면 다시 집을 실패 — R13-6). 재료는 공개 손님 · 직원 글만(R1-12). 손님 글에 글자가 없으면
    (사진만) 건너뜀. 손님이 'AI 냐 사람이냐' 물으면 두뇌 없이 사람에게(:mod:`.drafting_pass` — 두 길 공통, 설계서 17.8).
-4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참). 두뇌는 세션을 여러 번
+4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참) · 재료에 같은 브랜드
+   비슷한 지난 사례(:func:`.case_memory.similar_cases` — L0, 허용 목록에는 넣지 않는다). 두뇌는 세션을 여러 번
    커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만 세고(표시 없는
    요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
@@ -61,6 +62,7 @@ from foms.services.cs_agent.brain import (
     SpendCapReached, check_ready, draft_reply,
 )
 from foms.services.cs_agent.brain_prompt import PURPOSE_DRAFT
+from foms.services.cs_agent.case_memory import similar_cases
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError, naive_utc
 from foms.services.cs_agent.checks import check_draft
 from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK, DraftPass as _Pass  # noqa: F401 — 예전 이름
@@ -368,7 +370,8 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     try:
         request = DraftRequest(brand=BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=ctx.daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(),
-                               knowledge=ctx.knowledge, realtime=ctx.realtime)
+                               knowledge=ctx.knowledge, realtime=ctx.realtime,
+                               cases=similar_cases(ctx.session, BRAND, lines))  # L0 사례 — 허용 목록엔 넣지 않는다
     except ValueError:
         return ctx.skip(row, SKIP_BAD_REQUEST)
     ctx.stop.check()  # 두뇌 전

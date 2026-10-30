@@ -25,6 +25,9 @@ WORKER 감독자 자식 ``cs_realtime``(``scripts/maintenance/run_cs_realtime.py
    실시간 길 · 그사이 더 새 손님 글이 보이면 '지난 초안', 직원이 공개 답을 하면 '직원 답함'(초안 안 올림). 'AI 냐 사람이냐'
    물음 · 안 보이는 손님 글 · 스위치 다시 읽기는 두 길 공통(:mod:`.drafting_pass`). 돈 상한 · 준비 안 됨으로 멈추면 그날 끝 ·
    30분까지 초안을 쉬고(날짜나 설정 판이 바뀌면 바로 다시), 같은 차례를 5초마다 다시 집지 않는다(R13-2).
+6. **사례 기억(L0 — C10-4)** — 초안 뒤, 끝난 차례에 직원이 데스크에서 직접 보낸 답을 붙인다(:func:`.case_memory
+   .attach_staff_replies` — 차례마다 읽기 수 · 시간 상한 :data:`.case_memory.TICK_LIMITS`). 빠른 길이 도는 동안 15분 바퀴는
+   이 일을 하지 않는다(빠른 길이 꺼지면 15분 바퀴가 한다).
 
 TERM: 일을 집기 전 · 쓰기 전 · 두뇌 전마다 깃발(:class:`.loop.StopFlag`)을 본다 — 깃발 뒤엔 새 두뇌를 부르지 않는다.
 모델을 부르는 곳은 이 길(과 빠른 길이 꺼졌을 때의 15분 바퀴)뿐이다. 웹훅 입구 · RQ · share_consult 는 고치지 않는다.
@@ -46,6 +49,7 @@ from sqlalchemy import and_, or_, select
 from foms.persistence.main.models import CsAgentChat, CsAgentMessage, CsAgentTurn
 from foms.services.common.business_calendar import is_business_day as calendar_is_business_day
 from foms.services.cs_agent.brain import check_ready, draft_reply
+from foms.services.cs_agent.case_memory import TICK_LIMITS, attach_staff_replies
 from foms.services.cs_agent.channel_read import OpenApiReader, naive_utc
 from foms.services.cs_agent.drafting import (
     BRAND, HALT_NOT_CONFIGURED, HALT_NOT_READY, HALT_SPEND, _candidates, run_drafting,
@@ -116,14 +120,17 @@ class TickResult:
     too_old: int = 0
     paused: Optional[str] = None  # 멈춘 뒤 초안을 쉬는 중이면 그 까닭 코드(R13-2)
     drafting: Optional[DraftSummary] = None
+    cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(사례 기억 L0 — 숫자 · 코드만)
 
     def summary(self) -> dict[str, Any]:
-        """JSON 한 덩어리 — 초안을 돈 차례만 ``drafting`` 칸이 붙는다."""
+        """JSON 한 덩어리 — 초안을 돈 차례만 ``drafting`` 칸, 사례 붙이기를 돈 차례만 ``cases`` 칸이 붙는다."""
         out = {key: getattr(self, key) for key in ("outcome", "ingested", "examined", "filtered", "expired",
                                                    "staff_replied", "superseded", "pending", "picked", "too_old",
                                                    "paused")}
         if self.drafting is not None:
             out["drafting"] = self.drafting.counts()
+        if self.cases is not None:
+            out["cases"] = self.cases
         return out
 
 
@@ -179,6 +186,8 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
                              budget_seconds=TICK_BUDGET_SECONDS, ready=ready, summary=result.drafting, picks=picks,
                              pass_type=functools.partial(_RealtimePass, claim_ttl=ttl))
                 _pause_if_halted(memory, result.drafting, now)
+            result.cases = attach_staff_replies(session, now=now, stop=stop, reader=reader, limits=TICK_LIMITS,
+                                                clock=clock).counts()  # 초안 뒤 — 초안 시간을 먼저 지킨다
         except PassStopped:
             session.rollback()
             result.outcome = OUTCOME_STOPPED

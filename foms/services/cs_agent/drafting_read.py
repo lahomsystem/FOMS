@@ -52,6 +52,8 @@ MEDIUM_EMAIL = "email"
 #: 그대로 믿는 매체 이름(웹 · 이메일). ``app`` 은 카카오 · 톡톡 · 인스타가 mediumId 로만 갈려 모름으로 둔다.
 _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
 _MEDIUM = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+#: 상담원 id 꼴 — 빈칸 없는 ASCII 64자까지(꼴이 아니면 두지 않는다).
+_PERSON_ID = re.compile(r"[\x21-\x7e]{1,64}")
 #: 건너뜀 코드 — 그사이 손님이 더 씀(선점한 글이 마지막이 아님) · 공개 직원 글이 옴 · 손님 글에 글자 없음(사진만 · 빈 글).
 SKIP_STALE, SKIP_HUMAN_REPLIED = "stale", "human_replied"
 #: 선점한 손님 글이 Open API 읽기에 아직 안 보임(수신 기록이 먼저 옴) — 지난 초안이 아니라 다시 집을 실패다(검수 R13-6).
@@ -61,10 +63,14 @@ SKIP_PHOTO_ONLY, SKIP_NO_TEXT = "photo_only", "no_text"
 
 @dataclass(frozen=True)
 class ChatLine:
-    """상담 글 하나 — 파생 칸(:class:`.channel_read.DerivedMessage`) + 원문. 원문은 이 바퀴 메모리에만 있다(repr 에도 없다)."""
+    """상담 글 하나 — 파생 칸(:class:`.channel_read.DerivedMessage`) + 원문. 원문은 이 바퀴 메모리에만 있다(repr 에도 없다).
+
+    ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
+    """
 
     meta: DerivedMessage
     text: str = field(repr=False)
+    person_id: Optional[str] = field(default=None, repr=False)
 
     @property
     def key(self) -> tuple[datetime.datetime, str]:
@@ -98,8 +104,10 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
         meta, _reason = derive_message({"chatType": "userChat", "chatId": chat_id, "channelId": channel, **item},
                                        expected_brand=brand)
         if meta is not None and meta.chat_id == chat_id:
-            text = item.get("plainText")
-            lines.append(ChatLine(meta, text if isinstance(text, str) else ""))
+            text, person = item.get("plainText"), item.get("personId")
+            person_id = str(person).strip() if meta.is_answer and person is not None else ""
+            lines.append(ChatLine(meta, text if isinstance(text, str) else "",
+                                  person_id if _PERSON_ID.fullmatch(person_id) else None))
     return sorted(lines, key=lambda line: line.key)
 
 

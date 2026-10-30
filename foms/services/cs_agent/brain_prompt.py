@@ -8,7 +8,8 @@
 - **앞부분(캐시)**: 지시문 블록 + 승인 지식 블록(:func:`system_blocks`). 같은 브랜드 · 같은 지식이면 바이트까지 같다 —
   시각 · 상담 id · 손님 글은 넣지 않는다. 지식은 문서 순서 그대로 ``[id] (종류) 글`` 줄로 쓴다(기준 답 문구는 종류 뒤에
   의도 id 를 붙인다).
-- **뒷부분(바뀌는 값)**: 사용자 글 하나(:func:`task_text`) — 이번 일 · 상담 id · 매체 · 지금 · 계산 결과 · 가린 상담 글.
+- **뒷부분(바뀌는 값)**: 사용자 글 하나(:func:`task_text`) — 이번 일 · 상담 id · 매체 · 지금 · 계산 결과 · 비슷한 지난 상담
+  (사례가 있을 때만 — :mod:`.brain_cases`) · 가린 상담 글.
   상담 글은 줄 맨 앞 ``[손님]`` · ``[직원]`` 만 말한 사람 표시다. 글 안의 줄바꿈은 들여 써서 손님 글이 표시를 흉내 내지
   못한다(:func:`render_conversation`).
 - **출력**: JSON 스키마(:func:`output_schema`) — 의도 · 근거 id · 넘김 까닭은 정한 값 가운데서만 고른다(enum).
@@ -30,6 +31,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Mapping, Optional, Sequence
 
+from foms.services.cs_agent.brain_cases import case_lines, case_pairs
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
 
@@ -158,6 +160,7 @@ class DraftRequest:
     staff_names: Sequence[str] = field(repr=False)
     knowledge: ApprovedKnowledge = field(repr=False)
     calculator_lines: Sequence[str] = field(default=(), repr=False)
+    cases: Sequence[tuple[str, str]] = field(default=(), repr=False)  # 비슷한 지난 상담(가린 질문, 사람이 보낸 가린 답)
     realtime: bool = False
 
     def __post_init__(self) -> None:
@@ -175,6 +178,7 @@ class DraftRequest:
         if not isinstance(self.knowledge, ApprovedKnowledge):
             raise ValueError("knowledge 는 ApprovedKnowledge 다")
         object.__setattr__(self, "messages", _turns(self.messages))
+        object.__setattr__(self, "cases", case_pairs(self.cases))
         for name in ("customer_names", "staff_names", "calculator_lines"):
             object.__setattr__(self, name, _texts(getattr(self, name), name))
 
@@ -286,8 +290,8 @@ def render_conversation(turns: Sequence[tuple[str, str]]) -> str:
 
 
 def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.datetime,
-              calculator_lines: Sequence[str], conversation: str) -> str:
-    """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각)."""
+              calculator_lines: Sequence[str], conversation: str, cases: Sequence[tuple[str, str]] = ()) -> str:
+    """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각). 사례 글은 가림 검사를 다시 지난다."""
     task = "답 초안 쓰기" if purpose == PURPOSE_DRAFT else "의도 고르기 — draft 는 빈 글로 둔다"
     talk = " · 네이버 톡톡 규칙" if not medium or is_naver_talk(medium) else ""
     calc = [line for raw in calculator_lines for line in _block("-", raw)] or ["- 없음"]
@@ -297,6 +301,7 @@ def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.d
         f"지금(KST): {now:%Y-%m-%d %H:%M} ({_WEEKDAYS[now.weekday()]})",
         "계산 결과(코드가 낸 값 — 금액은 이 값만 쓴다):",
         *calc,
+        *case_lines(cases, _block),
         "상담 글(가린 글 · 오래된 것부터):",
         conversation,
     ])

@@ -7,7 +7,8 @@
 - **채널톡 쓰기 0 · AI 0 · RQ 0**: 채널톡은 GET 만(두 브랜드 다 읽기만), 알림은 FOMS 앱 안 알림만. 초안 스위치
   (:func:`.turns.draft_mode`)가 ``store`` · ``memo`` 일 때만 바퀴 끝에 :mod:`.drafting` 이 라홈 초안을 쓴다(두뇌 · 내부 메모).
   스위치가 없거나 꺼져 있으면(기본) 바퀴는 그대로다. 관리 화면의 빠른 길 스위치가 켜져 있으면 초안은 빠른 길
-  (:mod:`.realtime` — 따로 도는 실행 단위 · 따로 잠금)의 몫이라 이 바퀴는 보정 · 아침 보고만 한다(설계서 17.3).
+  (:mod:`.realtime` — 따로 도는 실행 단위 · 따로 잠금)의 몫이라 이 바퀴는 보정 · 아침 보고만 한다(설계서 17.3). 직원이 데스크에서
+  직접 보낸 답을 끝난 차례에 사례로 붙이는 일(:mod:`.case_memory` — 상담 글 GET 만)도 초안을 쓰는 쪽 하나만 한다.
 - **바로 끄기(설계서 6절)**: SystemSetting :data:`SWITCH_KEY` 를 매 바퀴 읽는다(``{"loop": "off"}`` 면 그 바퀴 일 0).
   env(``FOMS_CS_LOOP_ENABLED``)는 켜기용이다 — Railway env 는 재배포 전엔 안 바뀐다(원장 R2-15). 쓰기(:func:`set_switch`)는
   줄을 잠그고 새로 읽은 값에 ``loop`` 칸만 얹은 뒤 읽은 판(version)일 때만 쓴다 — 초안 스위치 쓰기와 겹쳐도 서로 덮지 않는다
@@ -54,6 +55,7 @@ from foms.services.cs_agent.state_store import (
     ingest_inbound,
 )
 from foms.services.common.table_version_counter import mark_tables_dirty
+from foms.services.cs_agent.case_memory import PASS_LIMITS, attach_staff_replies
 from foms.services.cs_agent.drafting import DraftSummary, run_drafting
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import DRAFT_OFF, SWITCH_OFF, SWITCH_ON, draft_mode, read_switch
@@ -271,9 +273,10 @@ class PassResult:
     report_sent: bool = False
     drafting: Optional[DraftSummary] = None  # 초안 스위치가 켜진 바퀴만(숫자만)
     realtime_drafting: bool = False  # 초안은 켜졌지만 빠른 길 몫이라 이 바퀴는 쓰지 않았다
+    cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(초안을 쓰는 바퀴만 — 숫자 · 코드만)
 
     def summary(self) -> dict[str, Any]:
-        """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸(숫자만)이 붙는다."""
+        """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸, 사례를 붙인 바퀴만 ``cases`` 칸(숫자만)이 붙는다."""
         out = {"outcome": self.outcome, "ingested": self.ingested,
                "reconciled": sum(c.done for c in self.checks.values()),
                "checks": {b: c.status for b, c in self.checks.items()},
@@ -283,6 +286,8 @@ class PassResult:
             out["drafting"] = self.drafting.counts()
         if self.realtime_drafting:
             out["drafting"] = "realtime"
+        if self.cases is not None:
+            out["cases"] = self.cases
         return out
 
 
@@ -331,7 +336,8 @@ def run_pass(session: Any, *, config: LoopConfig = LoopConfig(), stop: Optional[
 
 def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFlag, reader: OpenApiReader,
           now: datetime.datetime, clock: Callable[[], float], cal: BusinessDayFn) -> None:
-    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고 → (스위치가 켜졌으면) 초안."""
+    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고 → (스위치가 켜졌고 빠른 길이
+    안 돌면) 직원 직접 답을 사례로 붙이기(:mod:`.case_memory`) → 초안."""
     stop.check()
     result.ingested = ingest_inbound(session, lookback=config.ingest_lookback, now=naive_utc(now)).inserted
     budget = config.reconcile_budget_seconds / max(1, len(config.brands))
@@ -354,6 +360,9 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
     if mode == DRAFT_OFF or realtime_on:  # 빠른 길이 켜져 있으면 초안은 빠른 길 몫(보정 · 아침 보고만 — 설계서 17.3)
         result.realtime_drafting = realtime_on and mode != DRAFT_OFF
         return
+    # 사례 기억(L0 — C10-4): 초안을 쓰는 쪽이 직원 직접 답도 붙인다(빠른 길이 돌면 빠른 길 몫). 새 사례가 이번 초안 재료가 된다.
+    result.cases = attach_staff_replies(session, now=now, stop=stop, reader=reader, limits=PASS_LIMITS,
+                                        clock=clock).counts()
     result.drafting = DraftSummary()  # 멈춰도 센 수가 요약에 남게 미리 단다
     run_drafting(session, states=states, reader=reader, now=now, stop=stop, mode=mode, is_business_day=cal,
                  clock=clock, summary=result.drafting)

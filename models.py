@@ -4284,8 +4284,12 @@ class CsAgentTurn(Base):
     두 상태를 더한다 — 손님이 더 써서 갈아 끼운 차례는 ``superseded``('지난 초안'), 직원이 먼저 공개 답을 한 차례는
     ``staff_replied``('직원 답함'). 선점 줄에는 주인(``claim_owner``)과 만료(``claim_expires_at``)를 적는다 — 만료가 지난
     선점은 죽은 차례로 보고 다른 차례가 정리해 다시 집는다(원장 R10-2). 글은 가린 칸(``masked_draft`` ·
-    ``staff_reply_masked``)에만 두고 가림 검사를 통과한 것만 넣는다(R1-20). 나머지 칸은 코드 · 숫자다.
-    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns`. DDL 은 migration(``csagent_01`` · ``csagent_02``)과 같다.
+    ``staff_reply_masked`` · ``masked_question``)에만 두고 가림 검사를 통과한 것만 넣는다(R1-20). 나머지 칸은 코드 · 숫자다.
+    사례 기억(C10-4 — 설계서 17.2 · 17.6 L0)은 새 표 없이 이 줄에 칸을 더했다(원장 S10-2): 가린 손님 질문 · 끝난 꼴 ·
+    고친 정도 · 고친 까닭 · 보낸 직원 번호 · 데스크에서 직접 답한 상담원 id · 보낸 글 id · 견적 줄 · 시험용 떼어 둠. 초안
+    바탕 손님 글 id 는 ``last_user_message_id`` 그대로다. 보관 기간은 줄과 같다. 직원 번호 · 상담원 id 는 ADMIN 만 본다(R10-28).
+    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns` · :mod:`foms.services.cs_agent.case_memory`. DDL 은
+    migration(``csagent_01`` · ``csagent_02`` · ``csagent_03``)과 같다.
     """
 
     __tablename__ = 'cs_agent_turns'
@@ -4325,6 +4329,19 @@ class CsAgentTurn(Base):
     # 선점한 실행 단위(예 'realtime:호스트:pid') · 선점 만료(UTC) — 만료가 지난 선점은 죽은 차례다(csagent_02).
     claim_owner = Column(String(64), nullable=True)
     claim_expires_at = Column(DateTime, nullable=True)
+    # 사례 기억(csagent_03): 가린 손님 질문(그 차례 손님 글 — 가림 검사를 넘은 것만) · 끝난 꼴(as_is 그대로 · edited 고침 ·
+    # direct 직접 답 · copied 복사 — 학습 무게 0 · discarded 버림) · 고친 정도(0~1) · 고친 까닭(wrong_fact · promise ·
+    # tone · missing · other — 2주차 화면이 채움) · 보낸 직원 번호(FOMS 사용자 id, FK 없음) · 데스크에서 직접 답한 상담원
+    # id(채널톡 manager id) · 우리가 보낸 공개 글 id(되먹임 막기 — R10-5) · 견적 줄(C10-6) · 시험용 떼어 둠(C12-1).
+    masked_question = Column(Text, nullable=True)
+    outcome = Column(String(16), nullable=True)
+    edit_ratio = Column(Numeric(4, 3), nullable=True)
+    edit_reason = Column(String(16), nullable=True)
+    sent_by_user_id = Column(Integer, nullable=True)
+    desk_manager_id = Column(String(64), nullable=True)
+    sent_message_id = Column(String(64), nullable=True)
+    quote_lines = Column(JSONColumn, nullable=True)
+    held_out = Column(Boolean, nullable=False, default=False, server_default='false')
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 
@@ -4332,7 +4349,24 @@ class CsAgentTurn(Base):
         UniqueConstraint('chat_id', 'last_user_message_id', name='uq_cs_agent_turns_chat_turn'),
         CheckConstraint("state IN ('claimed','posting','posted','stored','skipped','failed','superseded',"
                         "'staff_replied')", name='ck_cs_agent_turns_state'),
+        CheckConstraint("outcome IN ('as_is','edited','direct','copied','discarded')",
+                        name='ck_cs_agent_turns_outcome'),
+        CheckConstraint("edit_reason IN ('wrong_fact','promise','tone','missing','other')",
+                        name='ck_cs_agent_turns_edit_reason'),
+        CheckConstraint("edit_ratio >= 0 AND edit_ratio <= 1", name='ck_cs_agent_turns_edit_ratio'),
         # 재시작 때 '올리는 중'으로 남은 줄 찾기 · 브랜드 하루 상한과 판정 표.
         Index('ix_cs_agent_turns_state_updated', 'state', 'updated_at'),
         Index('ix_cs_agent_turns_brand_created', 'brand', 'created_at'),
+        # 같은 브랜드 비슷한 사례 찾기(pg_trgm ``%`` · similarity) — PostgreSQL 전용(SQLite 레인은 파이썬 비슷함).
+        Index('ix_cs_agent_turns_question_trgm', 'masked_question', postgresql_using='gin',
+              postgresql_ops={'masked_question': 'gin_trgm_ops'}).ddl_if(dialect='postgresql'),
     )
+
+
+# CSAGENT-03: 사례 칸의 trgm 색인도 pg_trgm 확장이 있어야 만들어진다 — create_all 레인에서 이 표가 orders 보다 먼저
+# 만들어질 수 있어(이름 순) 표를 만들기 직전에 확장부터 만든다(운영 · 스테이징은 phase_d 마이그레이션이 이미 깔았다).
+event.listen(
+    CsAgentTurn.__table__,
+    'before_create',
+    DDL('CREATE EXTENSION IF NOT EXISTS pg_trgm').execute_if(dialect='postgresql'),
+)
