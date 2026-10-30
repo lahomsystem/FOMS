@@ -405,6 +405,9 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-cal__own-mark { border-radius: 50%; }
 .pp-cal__cell--own { background: color-mix(in srgb, var(--pp-primary) 7%, transparent); }
 .pp-cal__chip--requested { color: var(--foms-color-warning-700, #b45309); }
+/* 그날 목록 줄 아래칸 — 우리 시트는 칩 하나라 한 줄이지만 협력사 줄은 단계 · 희망 칩 둘이라 접어 내린다. */
+.pp-day-sheet .foms-tower__field-foot { flex-wrap: wrap; row-gap: 4px; }
+.pp-day-sheet .foms-tower__field-foot .foms-tower__chip { margin-left: 0; }
 /* PC 에는 달력을 두지 않는다(사용자 2026-10-21) — 희망 시공일 고르기 달력 칸에 건수가 뜬다. */
 @media (min-width: 992px) {
   .pp-cal-wrap { display: none; }

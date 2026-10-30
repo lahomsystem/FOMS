@@ -40,7 +40,7 @@
                 <a class="erp-mobile-shell-header__menu foms-icon-btn" href="{{ url_for('partner_portal.home') }}" aria-label="회사 주문"><i class="fas fa-layer-group" aria-hidden="true"></i></a>
                 {% endif %}
                 <div class="erp-mobile-shell-header__context"><strong class="erp-mobile-shell-header__title foms-shell-title">{% block mobile_title %}{{ org.name }}{% endblock %}</strong></div>
-                <div class="pp-push pp-push--m" data-pp-push>
+                <div class="pp-push pp-push--m" data-pp-webpush>
                     <button type="button" class="foms-icon-btn erp-mobile-shell-header__notify pp-push__btn" data-pp-push-toggle aria-expanded="false" aria-label="알림 받기"><i class="fas fa-bell" aria-hidden="true"></i><span class="visually-hidden" data-pp-push-label>알림 받기</span></button>
                     {% include "partner/partials/push_panel.html" %}
                 </div>
@@ -65,7 +65,7 @@
                 <button type="submit" class="btn btn-sm btn-outline-primary">관리자로 돌아가기</button>
             </form>
             {% endif %}
-            <div class="pp-push" data-pp-push>
+            <div class="pp-push" data-pp-webpush>
                 <button type="button" class="btn btn-sm btn-outline-primary pp-push__btn" data-pp-push-toggle aria-expanded="false"><i class="fas fa-bell"></i> <span data-pp-push-label>알림 받기</span></button>
                 {% include "partner/partials/push_panel.html" %}
             </div>
