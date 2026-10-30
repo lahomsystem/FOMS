@@ -82,6 +82,7 @@
             <span class="queue-card__time foms-queue-card-v2__time">#{{ o.id }}</span>
         </header>
         <h3 class="queue-card__title foms-queue-card-v2__title"><span class="foms-queue-card-v2__customer">{{ o.customer_name }}</span></h3>
+        {% include "partner/partials/drawing_thumbs.html" %}
         <span class="pp-progress" aria-hidden="true"><span class="pp-progress__bar pp-progress__bar--{{ o.step }}"></span></span>
         <dl class="queue-card__meta foms-queue-card-v2__meta">
             <div class="foms-queue-card-v2__meta-full"><dt>지금</dt><dd>{{ o.work }}</dd></div>
@@ -114,7 +115,7 @@
                 {% for o in orders %}
                 <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
                     <td><span class="pp-stage">{{ o.stage_label }}</span></td>
-                    <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}</td>
+                    <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% include "partner/partials/drawing_thumbs.html" %}</td>
                     <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>
                     <td class="pp-grid__address">{{ o.address or '-' }}</td>
