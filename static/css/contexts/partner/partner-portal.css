@@ -167,6 +167,13 @@
 .pp-grid .pp-stage { white-space: nowrap; }
 .pp-grid__row--turn > td { background: #fffbea; }
 .pp-grid__work { min-width: 220px; }
+.pp-draw-thumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.pp-draw-thumbs__link { display: block; line-height: 0; }
+.pp-draw-thumbs img {
+  display: block; width: 96px; height: 68px; object-fit: cover; object-position: top;
+  border-radius: 6px; border: 1px solid var(--pp-border, #dee2e6); background: var(--pp-bg, #f4f6f8);
+}
+.pp-draw-thumbs__more { font-size: 12px; font-weight: 700; color: var(--pp-muted, #6c757d); }
 .pp-grid__address { min-width: 200px; }
 .pp-progress { display: block; height: 6px; border-radius: 999px; background: var(--pp-border); overflow: hidden; }
 .pp-progress__bar { display: block; height: 100%; border-radius: 999px; background: var(--pp-primary); }

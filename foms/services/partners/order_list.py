@@ -4,8 +4,9 @@
 
 * 프로세스 맵은 협력사 쉬운 단계 7칸이다(:data:`PARTNER_PIPELINE`). "도면 확인 대기"가 협력사 차례다.
 * 필터: 검색(고객 · 연락처 · 주소 · 주문 번호) · 단계 · 담당 · 내 차례만 · 내 담당.
-* 자기 회사의 운영 주문만 읽는다(삭제 · 초안 제외). structured_data(JSONB)는 고객컨펌 단계 주문의 도면 확정
-  여부만 읽는다(그 단계 주문 몇 건 — PARTNER-FOMS 6 §1-9). 나머지는 평면 칸.
+* 자기 회사의 운영 주문만 읽는다(삭제 · 초안 제외). structured_data 는 두 곳만 읽는다.
+  고객컨펌 단계의 도면 확정 여부(PARTNER-FOMS 6 §1-9), 그리고 화면에 그리는 "도면 작업 중"
+  주문의 저장·전달 도면 그림(시트 JSON 전체는 싣지 않는다). 나머지는 평면 칸.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from typing import Any
 
 from sqlalchemy import or_
 
+from foms.services.partners.drawing_list_thumbs import attach_saved_drawing_thumbs
 from foms.services.partners.orders import partner_stage_label
 from foms.services.partners.schedule_request import pending_request_texts
 from models import Order, OrderAssignment
@@ -129,10 +131,12 @@ def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
         and _matches_query(row, filters["q"])
     ]
     picked.sort(key=lambda row: not row["turn"])  # 내 차례를 맨 위로(그 안에서는 최신순 그대로)
+    shown = picked[:MAX_ROWS]
+    attach_saved_drawing_thumbs(db, shown)
     return {
         "pipeline": [{"label": label, "count": counts[label], "turn": label == TURN_LABEL} for label in PARTNER_PIPELINE],
         "turn_count": counts[TURN_LABEL],
-        "orders": picked[:MAX_ROWS],
+        "orders": shown,
         "total": len(picked),
     }
 
