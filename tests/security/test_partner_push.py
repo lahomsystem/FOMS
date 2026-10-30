@@ -143,7 +143,7 @@ def test_partner_can_subscribe_own_device_but_not_take_others(app, world, push_o
 
 def test_partner_layout_has_push_button_and_manifest(app, world):
     html = _client(app, db_session.get(User, world["partner_a"])).get("/partner").get_data(as_text=True)
-    assert "data-pp-push" in html and "partner-push.js" in html and "manifest-partner.json" in html
+    assert "data-pp-webpush" in html and "partner-push.js" in html and "manifest-partner.json" in html
 
 
 def test_admin_partner_page_shows_push_device_count(app, world):
@@ -180,3 +180,14 @@ def test_partner_as_progress_reads_visit_saved_by_as_screen(app, world):
     db_session.commit()
     html = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "2026-10-25 14:00" in html
+
+
+def test_webpush_root_name_does_not_collide_with_channel_push_buttons():
+    """운영 실화면(2026-10-30): 알림 판 묶기가 [data-pp-push] 를 찾다가 주문 화면 영발 · 발주 PUSH 단추
+    (data-pp-push="measurement")까지 판으로 잡아 화면을 열 때마다 TypeError 가 났다. 알림 판은 따로 이름표를 쓴다."""
+    from pathlib import Path
+
+    js = Path("static/js/partner/partner-push.js").read_text(encoding="utf-8")
+    layout = Path("templates/partner/layout.html").read_text(encoding="utf-8")
+    assert "querySelectorAll('[data-pp-webpush]')" in js and "querySelectorAll('[data-pp-push]')" not in js
+    assert layout.count("data-pp-webpush") == 2 and " data-pp-push>" not in layout
