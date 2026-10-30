@@ -2,8 +2,11 @@
 
 플랜 ``docs/plans/2026-10-27-cs-ai-agent-plan.md`` C3-3 · 설계서 4절 8 · 10 · 15.2 의 5. 원장 R1-4 · R1-14.
 
-- **늘 비공개(R1-14)**: :func:`foms.services.channel_client.send_user_chat_message` 는 기본이 공개 글이다 — 여기서는
-  ``private=True`` 를 고정으로 넘긴다. 이 패키지에서 채널톡에 글을 쓰는 곳은 이 모듈 하나다(시험이 소스를 훑어 막는다).
+- **늘 비공개(R1-14 · R10-14)**: 내부 메모 전용 :func:`foms.services.channel_client.send_private_memo` 만 부른다 — 그 함수는
+  길마다 다른 비공개 옵션 이름(앱 함수 ``MESSAGE_OPTION_PRIVATE`` · Open API ``private``)이 빠지면 채널톡을 부르기 전에
+  멈춘다. 링크 버튼([보내기] · [수정하기] 등)을 달면 Open API 길로 간다(앱 함수는 버튼 단 비공개도 422 — C10-2 시험 10-30,
+  PC · 휴대폰 데스크에서 보이고 눌리며 카톡 손님 쪽엔 안 감). 이 패키지에서 채널톡에 글을 쓰는 곳은 이 모듈 하나다(시험이
+  소스를 훑어 막는다).
 - **라홈만 · 채널 상수만**: 브랜드는 라홈만 받는다(하우드 쓰기 금지 · 모르는 브랜드 거절). 채널 id 는 브랜드 짝 상수
   (:data:`~foms.services.cs_agent.channel_read.CHANNEL_BRANDS`)에서 불러올 때 한 번 정한다 — 부르는 쪽이 넘길 칸이 없고
   env 기본 채널(``CHANNEL_ID``)로 빠지지도 않는다.
@@ -23,7 +26,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Sequence
 
 from foms.platform.sentry_setup import resolve_environment
 from foms.services import channel_client
@@ -36,6 +39,7 @@ __all__ = [
     "MEMO_BRAND",
     "MEMO_CHANNEL_ID",
     "MemoResult",
+    "REASON_BAD_BUTTONS",
     "TEST_CHAT_IDS_ENV",
     "env_test_chat_ids",
     "is_production",
@@ -63,6 +67,7 @@ REASON_NO_MESSAGE_ID = "no_message_id"
 REASON_NOT_FOUND = "memo_not_found"
 REASON_NOT_PRIVATE = "memo_not_private"
 REASON_READ_FAILED = "verify_read_failed"
+REASON_BAD_BUTTONS = "bad_buttons"
 #: 보내기 실패 이유는 이 앞말 + channel_client 오류 코드(``send_provider_error`` · ``send_request_failed``).
 SEND_PREFIX = "send_"
 #: 요청이 채널톡에 닿았는지 모르는 실패(시간 초과 등) — 다시 보내면 메모가 둘이 될 수 있다.
@@ -139,7 +144,7 @@ def memo_allowed(chat_id: str, *, environment: Optional[str] = None,
 
 def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optional[str] = None,
                       allowed_chat_ids: Optional[Iterable[str]] = None,
-                      reader: Optional[Any] = None) -> MemoResult:
+                      reader: Optional[Any] = None, buttons: Sequence[tuple[str, str]] = ()) -> MemoResult:
     """AI 초안을 그 상담의 내부 메모(비공개)로 올리고, 다시 읽어 비공개인지 확인한다.
 
     거르는 순서: 브랜드(라홈만) → 상담 id 꼴 → 빈 글 → 환경(운영 밖은 허용 목록만). 하나라도 걸리면 채널톡을
@@ -152,6 +157,7 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
         environment: :func:`is_production` 과 같다(더 막는 쪽으로만).
         allowed_chat_ids: :func:`memo_allowed` 와 같다.
         reader: 다시 읽기에 쓸 Open API 읽기 도우미(``read_messages`` 꼴). 없으면 올린 뒤에 기본 도우미를 만든다.
+        buttons: 메모에 달 링크 버튼 ``[(이름, https 주소), ...]``(2개까지). 꼴이 틀리면 채널톡을 부르지 않고 ``bad_buttons``.
 
     Returns:
         :class:`MemoResult`.
@@ -168,8 +174,14 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
     if not memo_allowed(chat_id, environment=environment, allowed_chat_ids=allowed_chat_ids):
         logger.info("[CS 초안] 운영이 아니고 시험 상담 허용 목록 밖 — 메모를 쓰지 않는다 chat=%s", chat_id)
         return MemoResult(False, reason=REASON_STAGING)
-    sent = channel_client.send_user_chat_message(chat_id, text, bot_name=MEMO_BOT_NAME, private=True,
-                                                 channel_id=MEMO_CHANNEL_ID)
+    try:
+        sent = channel_client.send_private_memo(chat_id, text, brand=MEMO_BRAND, bot_name=MEMO_BOT_NAME, private=True,
+                                                channel_id=MEMO_CHANNEL_ID, buttons=buttons)
+    except channel_client.PrivateOptionMissing:
+        raise
+    except ValueError:
+        logger.warning("[CS 초안] 메모 버튼 꼴이 틀려 메모를 쓰지 않는다 chat=%s", chat_id)
+        return MemoResult(False, reason=REASON_BAD_BUTTONS)
     if not sent.get("success"):
         error = str(sent.get("error") or "")
         reason = SEND_PREFIX + (error if _ERROR_CODE.fullmatch(error) else "unknown")

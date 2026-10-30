@@ -29,7 +29,7 @@ _PACKAGE = pathlib.Path(memo.__file__).resolve().parent
 _RUNNER = _PACKAGE.parents[2] / "scripts" / "maintenance" / "run_cs_loop.py"
 #: 채널톡에 글을 쓰는 이름 — 패키지 안에서는 memo.py 만 쓴다.
 _WRITE_NAMES = ("send_user_chat_message", "writeUserChatMessage", "_call_native_function",
-                "send_user_chat_buttons", "label_user_chat", "send_group_message")
+                "send_user_chat_buttons", "label_user_chat", "send_group_message", "send_private_memo")
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,7 @@ def clean_env(monkeypatch):
 
 
 class FakeSend:
-    """``send_user_chat_message`` 대역 — 부른 인자를 남기고 정한 결과를 낸다."""
+    """``send_private_memo`` 대역 — 부른 인자를 남기고 정한 결과를 낸다."""
 
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -54,7 +54,7 @@ class FakeSend:
 @pytest.fixture
 def send(monkeypatch):
     fake = FakeSend()
-    monkeypatch.setattr(channel_client, "send_user_chat_message", fake)
+    monkeypatch.setattr(channel_client, "send_private_memo", fake)
     return fake
 
 
@@ -79,6 +79,7 @@ def assert_private_lahom(calls):
         assert call["private"] is True
         assert call["channel_id"] == LAHOM_CHANNEL == memo.MEMO_CHANNEL_ID
         assert call["bot_name"] == memo.MEMO_BOT_NAME
+        assert call["brand"] == "LAHOM"
 
 
 # ── 늘 비공개 · 채널 상수 ────────────────────────────────────────────────
@@ -114,7 +115,7 @@ def test_the_public_path_is_never_used_on_any_route(send, monkeypatch):
 
 
 def test_the_real_sender_carries_the_private_option_and_the_lahom_channel(monkeypatch):
-    """진짜 ``send_user_chat_message`` 아래 앱 함수 본문까지 — 비공개 표시 · 라홈 채널 · 봇 이름(네트워크는 가짜)."""
+    """진짜 ``send_private_memo`` 아래 앱 함수 본문까지 — 비공개 표시 · 라홈 채널 · 봇 이름(네트워크는 가짜)."""
     monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
     monkeypatch.setattr(channel_client, "CHANNEL_ID", HAUD_CHANNEL)  # env 기본 채널이 다른 브랜드여도
     sent = []
@@ -305,3 +306,102 @@ def test_only_memo_writes_to_channel_talk_in_the_agent_package():
     assert isinstance(keywords["private"], ast.Constant) and keywords["private"].value is True
     assert getattr(keywords["channel_id"], "id", None) == "MEMO_CHANNEL_ID"
     assert getattr(keywords["bot_name"], "id", None) == "MEMO_BOT_NAME"
+
+
+# ── 메모 + 링크 버튼 · 비공개 강제(C10-2 — 원장 R10-14) ──────────────────
+
+BUTTONS = [("보내기", "https://foms.example/cs/send/1"), ("수정하기", "https://foms.example/cs/edit/1")]
+
+
+class FakeHttp:
+    """``requests.post`` 대역 — 받은 인자를 남기고 정한 응답을 낸다(네트워크 없음)."""
+
+    def __init__(self, status=200, body=None):
+        self.calls, self.status, self.body = [], status, body if body is not None else {"message": {"id": "memo-b1"}}
+
+    def __call__(self, url, **kwargs):
+        self.calls.append({"url": url, **kwargs})
+        fake = self
+
+        class _Resp:
+            status_code = fake.status
+
+            @staticmethod
+            def json():
+                return fake.body
+        return _Resp()
+
+
+@pytest.fixture
+def open_api(monkeypatch):
+    http = FakeHttp()
+    monkeypatch.setattr(channel_client.requests, "post", http)
+    monkeypatch.setattr(channel_client, "_open_api_headers", lambda brand: {"x-brand": brand})
+
+    def no_native(*_a, **_k):
+        raise AssertionError("버튼 메모는 앱 함수를 부르지 않는다")
+    monkeypatch.setattr(channel_client, "_call_native_function", no_native)
+    return http
+
+
+def test_a_memo_with_link_buttons_goes_through_open_api_as_private(open_api, monkeypatch):
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+    result = memo.post_private_memo(TEST_CHAT, DRAFT, brand="LAHOM", buttons=BUTTONS,
+                                    reader=reader_with(bot_memo("memo-b1")))
+    assert result == memo.MemoResult(True, verified=True, message_id="memo-b1")
+    (call,) = open_api.calls
+    assert call["url"].endswith(f"/open/user-chats/{TEST_CHAT}/messages")
+    assert call["params"] == {"botName": memo.MEMO_BOT_NAME} and call["headers"] == {"x-brand": "LAHOM"}
+    assert call["json"]["options"] == [channel_client.OPEN_API_PRIVATE]
+    assert [b["title"] for b in call["json"]["buttons"]] == ["보내기", "수정하기"]
+    assert all(b["action"] == {"type": "web", "attributes": {"url": url}}
+               for b, (_t, url) in zip(call["json"]["buttons"], BUTTONS))
+
+
+def test_a_missing_private_option_stops_before_the_network(open_api, monkeypatch):
+    """두 길의 비공개 옵션 이름이 다르다 — 그 길의 이름이 빠지거나 다른 길 이름이 오면 채널톡을 부르기 전에 멈춘다."""
+    native_calls = []
+    monkeypatch.setattr(channel_client, "_call_native_function", lambda *a, **k: native_calls.append(a) or {})
+    kwargs = {"brand": "LAHOM", "bot_name": memo.MEMO_BOT_NAME, "channel_id": LAHOM_CHANNEL}
+    cases = [
+        dict(buttons=BUTTONS, options=["silentToUser"], private=True),  # Open API 길 — private 빠짐
+        dict(buttons=BUTTONS, options=[channel_client.NATIVE_PRIVATE], private=True),  # 다른 길 이름
+        dict(options=["MESSAGE_OPTION_SILENT_TO_USER"], private=True),  # 앱 함수 길 — 비공개 빠짐
+        dict(options=[channel_client.OPEN_API_PRIVATE], private=True),  # 다른 길 이름
+        dict(private=False),
+        dict(buttons=BUTTONS, private=False),
+    ]
+    for case in cases:
+        with pytest.raises(channel_client.PrivateOptionMissing):
+            channel_client.send_private_memo(TEST_CHAT, DRAFT, **kwargs, **case)
+    assert open_api.calls == [] and native_calls == []
+
+
+def test_bad_buttons_are_refused_without_any_call(open_api, monkeypatch):
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+    bad = [BUTTONS + [("하나 더", "https://foms.example/x")], [("보내기", "http://foms.example/x")],
+           [("", "https://foms.example/x")], [("가" * 31, "https://foms.example/x")]]
+    for buttons in bad:
+        assert memo.post_private_memo(TEST_CHAT, DRAFT, brand="LAHOM", buttons=buttons,
+                                      reader=reader_with(bot_memo())) == memo.MemoResult(False,
+                                                                                          reason=memo.REASON_BAD_BUTTONS)
+    assert open_api.calls == []
+
+
+def test_open_api_memo_failures_keep_unknown_apart_and_hide_the_text(open_api, monkeypatch, caplog):
+    caplog.set_level(logging.DEBUG)
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+    open_api.status = 422
+    refused = memo.post_private_memo(TEST_CHAT, DRAFT, brand="LAHOM", buttons=BUTTONS, reader=reader_with(bot_memo()))
+    assert refused == memo.MemoResult(False, reason="send_provider_error") and not refused.outcome_unknown
+    open_api.status = 503  # 받았는지 모름 — 다시 보내지 않게 '모름'
+    unknown = memo.post_private_memo(TEST_CHAT, DRAFT, brand="LAHOM", buttons=BUTTONS, reader=reader_with(bot_memo()))
+    assert unknown.reason == memo.SEND_UNKNOWN and unknown.outcome_unknown
+
+    def boom(*_a, **_k):
+        raise requests.Timeout("read timed out")
+    monkeypatch.setattr(channel_client.requests, "post", boom)
+    timed_out = memo.post_private_memo(TEST_CHAT, DRAFT, brand="LAHOM", buttons=BUTTONS,
+                                       reader=reader_with(bot_memo()))
+    assert timed_out.outcome_unknown
+    assert MARK not in caplog.text and all(MARK not in repr(r) for r in (refused, unknown, timed_out))

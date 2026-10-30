@@ -40,6 +40,10 @@ __all__ = [
     "send_user_chat_message",
     "send_user_chat_buttons",
     "label_user_chat",
+    "send_private_memo",
+    "PrivateOptionMissing",
+    "OPEN_API_PRIVATE",
+    "NATIVE_PRIVATE",
 ]
 
 _BOT_NAME_PREFIX = "FOMS"
@@ -404,6 +408,121 @@ def send_user_chat_buttons(
         return {"success": True, "message_id": (resp.json().get("message") or {}).get("id"), "error": None}
     except ValueError:
         return {"success": True, "message_id": None, "error": None}
+
+
+#: 내부 메모(매니저에게만 보임) 옵션 이름 — Open API 와 앱 함수(네이티브)가 이름이 다르다(원장 R10-14).
+OPEN_API_PRIVATE = "private"
+NATIVE_PRIVATE = "MESSAGE_OPTION_PRIVATE"
+_MEMO_BUTTON_MAX = 2
+_MEMO_BUTTON_TITLE_MAX = 30
+
+
+class PrivateOptionMissing(ValueError):
+    """내부 메모로 쓰려는데 그 길의 비공개 옵션이 빠졌다 — 채널톡을 부르기 전에 막는다(손님에게 보이는 글이 될 수 있다)."""
+
+
+def _require_private(options: list[str], name: str) -> None:
+    """``options`` 에 그 길의 비공개 옵션(``name``)이 없으면 :class:`PrivateOptionMissing` — 네트워크 전에 부른다."""
+    if name not in options:
+        raise PrivateOptionMissing(f"내부 메모에 비공개 옵션({name})이 없다 — 보내지 않는다")
+
+
+def _memo_buttons(buttons: Any) -> list[dict[str, Any]]:
+    """링크 버튼 ``[(이름, https 주소), ...]`` → Open API 버튼 칸. 꼴이 틀리면 ``ValueError``(네트워크 전)."""
+    items = list(buttons)
+    if len(items) > _MEMO_BUTTON_MAX:
+        raise ValueError(f"메모 버튼은 {_MEMO_BUTTON_MAX}개까지다")
+    out = []
+    for item in items:
+        title, url = item
+        if not isinstance(title, str) or not 1 <= len(title.strip()) <= _MEMO_BUTTON_TITLE_MAX:
+            raise ValueError("메모 버튼 이름은 1~30자다")
+        if not isinstance(url, str) or not url.startswith("https://"):
+            raise ValueError("메모 버튼 주소는 https 주소만 받는다")
+        out.append({"title": title.strip(), "colorVariant": "cobalt",
+                    "action": {"type": "web", "attributes": {"url": url}}})
+    return out
+
+
+def send_private_memo(
+    user_chat_id: str,
+    plain_text: str,
+    *,
+    brand: str,
+    bot_name: str,
+    channel_id: str,
+    private: bool,
+    buttons: Any = (),
+    options: Any = None,
+) -> dict[str, Any]:
+    """
+    Write an internal (manager-only) memo into a user chat — never a customer-visible message.
+
+    버튼이 없으면 앱 함수(``writeUserChatMessage`` + ``MESSAGE_OPTION_PRIVATE``), 링크 버튼이 있으면 Open API
+    (``private`` 옵션 + 버튼)로 쓴다 — 앱 함수는 버튼을 단 비공개 글도 422 로 거절한다(C10-2 시험 10-30). 길마다 비공개
+    옵션 이름이 다르므로, 그 길의 이름이 ``options`` 에 없으면 채널톡을 부르기 전에 :class:`PrivateOptionMissing` 이다.
+    ``private`` 는 늘 ``True`` 여야 한다(부르는 쪽이 공개를 고를 수 없다는 것을 소스에 남기는 칸). 결과 꼴은
+    :func:`send_user_chat_message` 와 같다. 글은 로그에 싣지 않는다.
+
+    Args:
+        user_chat_id: 채널톡 userChat id.
+        plain_text: 메모 글.
+        brand: ``LAHOM``/``HAUD`` — 버튼 길(Open API)에서 어느 채널 키를 쓸지.
+        bot_name: 보낸 이로 보일 봇 이름.
+        channel_id: 상담이 있는 채널(앱 함수 길).
+        private: 늘 ``True``.
+        buttons: ``[(버튼 이름, https 주소), ...]`` — 2개까지.
+        options: 메시지 옵션(없으면 그 길의 비공개 옵션 하나). 비공개 옵션이 빠지면 예외.
+
+    Returns:
+        ``{'success': bool, 'message_id': str | None, 'error': str | None}``.
+
+    Raises:
+        PrivateOptionMissing: ``private`` 가 참이 아니거나 그 길의 비공개 옵션이 빠졌다.
+        ValueError: 버튼 꼴이 틀렸다.
+    """
+    button_items = _memo_buttons(buttons)
+    name = OPEN_API_PRIVATE if button_items else NATIVE_PRIVATE
+    picked = [name] if options is None else [str(option) for option in options]
+    if private is not True:
+        raise PrivateOptionMissing("내부 메모 함수는 공개 글을 쓰지 않는다")
+    _require_private(picked, name)
+    if not user_chat_id:
+        return {"success": False, "message_id": None, "error": "no_user_chat"}
+    if not button_items:
+        dto: dict[str, Any] = {"plainText": plain_text, "botName": bot_name, "options": picked}
+        payload = {"method": "writeUserChatMessage",
+                   "params": {"channelId": channel_id or CHANNEL_ID, "userChatId": user_chat_id, "dto": dto}}
+        try:
+            data = _call_native_function(payload, channel_id)
+        except Exception as exc:
+            logger.error("[채널톡] 내부 메모 앱 함수 요청 실패 (chat=%s): %s", user_chat_id, type(exc).__name__)
+            return {"success": False, "message_id": None, "error": "request_failed"}
+        if (data.get("error") or {}).get("message"):
+            logger.error("[채널톡] 내부 메모 앱 함수 오류 (chat=%s)", user_chat_id)
+            return {"success": False, "message_id": None, "error": "provider_error"}
+        message_id = ((data.get("result") or {}).get("message") or {}).get("id")
+        return {"success": True, "message_id": message_id, "error": None}
+    headers = _open_api_headers(brand)
+    if headers is None:
+        return {"success": False, "message_id": None, "error": "not_configured"}
+    body = {"plainText": plain_text, "buttons": button_items, "options": picked}
+    try:
+        resp = requests.post(f"{_OPEN_API_BASE}/open/user-chats/{user_chat_id}/messages",
+                             params={"botName": bot_name}, json=body, headers=headers, timeout=10)
+    except Exception as exc:
+        logger.error("[채널톡] 내부 메모(버튼) 요청 실패 (chat=%s): %s", user_chat_id, type(exc).__name__)
+        return {"success": False, "message_id": None, "error": "request_failed"}
+    if resp.status_code >= 400:
+        logger.error("[채널톡] 내부 메모(버튼) 실패 (chat=%s) status=%s", user_chat_id, resp.status_code)
+        # 5xx 는 채널톡이 받았는지 모른다 — 시간 초과와 같은 '모름'으로 돌려 다시 보내지 않게 한다.
+        error = "request_failed" if resp.status_code >= 500 else "provider_error"
+        return {"success": False, "message_id": None, "error": error}
+    try:
+        message_id = (resp.json().get("message") or {}).get("id")
+    except ValueError:
+        message_id = None
+    return {"success": True, "message_id": message_id, "error": None}
 
 
 def label_user_chat(
