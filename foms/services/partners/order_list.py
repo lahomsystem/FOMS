@@ -34,6 +34,12 @@ _WORK = {
 }
 # 수정 요청 뒤(RETURNED) — 협력사 버튼이 없는 동안 무엇을 기다리는지(운영 #5888, 2026-10-30).
 REVISION_WORK = "수정 요청을 받아 저희 도면팀이 도면을 고치고 있습니다"
+REVISION_BADGE = "도면 수정 중"
+
+
+def stage_badge_text(label: str, drawing_status: Any) -> str:
+    """배지 글자 — 수정 요청 뒤(RETURNED) 도면 작업 중은 "도면 수정 중"(사용자 2026-10-30). 칸 셈은 label 그대로."""
+    return REVISION_BADGE if label == "도면 작업 중" and drawing_status == "RETURNED" else label
 MAX_ROWS = 200
 _PHONE_DIGITS_MIN = 4
 _SCAN_LIMIT = 2000
@@ -109,6 +115,7 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
             "requested_construction": requested.get(r.id, ""),
             "stage_label": label, "turn": label == TURN_LABEL,
+            "badge": stage_badge_text(label, status),
             "work": REVISION_WORK if status == "RETURNED" else _work_text(label, r.erp_construction_date),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
         }
