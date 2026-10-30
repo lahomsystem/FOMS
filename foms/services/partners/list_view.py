@@ -11,7 +11,7 @@ from typing import Any
 
 from models import Order
 
-SORTS = (("date", "시공일 빠른 순"), ("drawing", "도면 나온 순"), ("recent", "최근 등록 순"))
+SORTS = (("date", "시공일"), ("drawing", "도면 나온 순"), ("recent", "최근 등록 순"))
 DEFAULT_SORT = "date"
 SOON_DAYS = 5
 _DOW = "월화수목금토일"
