@@ -444,6 +444,7 @@ body.pp-sheet-open { overflow: hidden; }
 }
 .pp-push-btn--convert:hover, .pp-push-btn--convert:focus { background: var(--foms-color-neutral-200, #e5e7eb); color: var(--foms-color-neutral-700, #374151); }
 .pp-push-head__icon { color: var(--foms-color-info-600, #2563eb); }
+.pp-push-text { height: 425px; min-height: 425px; }
 
 /* 도면 탭 — 우리 도면 작업실 휴대폰 화면 모양(차례 띠 · 단계 · 주고받은 기록, 2026-10-30).
    우리 .foms-drawing-turn · .foms-drawing-thread 는 erp-mobile-v2 몸체에만 걸려 있어 협력사 이름으로 따로 둔다. */
