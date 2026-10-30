@@ -76,7 +76,8 @@ def test_build_mine_sql_filter_escapes_like_pattern_and_adds_all_condition_group
 
     conds = erp_permissions.build_mine_sql_filter(user)
 
-    assert len(conds) == 14
+    # MULTI-MGR-01: 이름 묶음마다 parties.manager.names 조건이 하나씩 더 붙는다(7×2).
+    assert len(conds) == 16
     compiled = str(
         conds[0].compile(
             dialect=postgresql.dialect(),
@@ -92,7 +93,7 @@ def test_build_mine_sql_filter_skips_duplicate_username_match_group() -> None:
 
     conds = erp_permissions.build_mine_sql_filter(user)
 
-    assert len(conds) == 6
+    assert len(conds) == 7
 
 
 def test_resolve_mine_scope_for_user_uses_team_role() -> None:

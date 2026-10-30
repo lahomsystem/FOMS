@@ -136,7 +136,7 @@
                     {% for _d in _cparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
                     {% if not _cparts %}-{% endif %}
                   </td>
-                  <td data-label="담당" class="erp-c-cell">{{ o.manager_name or '-' }}</td>
+                  <td data-label="담당" class="erp-c-cell">{{ (o|manager_label) or '-' }}</td>
                   <td data-label="첨부">
                     {% if o.has_media %}
                     {% set order_id_att = o.id %}

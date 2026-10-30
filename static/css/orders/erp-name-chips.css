@@ -1,0 +1,98 @@
+/*
+ * 이름 뱃지 입력 칸(erp-name-chips.js) — 담당자·시공 담당자 여러 명.
+ * 상자는 원래 칸의 클래스(form-control-sm / foms-input)를 물려받아 같은 높이·테두리로 보인다.
+ * 숨은 값 보관 칸(.foms-name-chips__source)은 화면에서 빠진다.
+ */
+.foms-name-chips__source {
+  display: none !important;
+}
+
+.foms-name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  height: auto;
+  min-height: calc(1.5em + 0.5rem + 2px);
+  cursor: text;
+}
+
+.foms-name-chips:focus-within {
+  border-color: var(--bs-primary, #0d6efd);
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 13, 110, 253), 0.2);
+}
+
+.foms-name-chips.is-locked {
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  cursor: default;
+}
+
+.foms-name-chips__list {
+  display: contents;
+}
+
+.foms-name-chips__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  max-width: 100%;
+  padding: 0.0625rem 0.25rem 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  color: var(--bs-body-color, #212529);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.foms-name-chips.is-locked .foms-name-chips__chip {
+  padding-right: 0.5rem;
+}
+
+.foms-name-chips__chip.is-primary {
+  background-color: var(--bs-primary-bg-subtle, #cfe2ff);
+  border-color: var(--bs-primary-border-subtle, #9ec5fe);
+  color: var(--bs-primary-text-emphasis, #052c65);
+}
+
+.foms-name-chips__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.foms-name-chips__remove {
+  border: 0;
+  background: none;
+  padding: 0 0.25rem;
+  min-width: 1.25rem;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.9375rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-name-chips__remove:hover,
+.foms-name-chips__remove:focus-visible {
+  opacity: 1;
+}
+
+.foms-name-chips__entry {
+  flex: 1 1 4rem;
+  min-width: 4rem;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+@media (pointer: coarse) {
+  .foms-name-chips__remove {
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+  }
+}

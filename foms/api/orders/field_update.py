@@ -40,6 +40,7 @@ from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
+from foms.services.orders.manager_names import normalize_manager_party, normalize_name_list
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.structured_diff import diff_structured
 from foms.services.partners.notify import notify_partner_as_visit
@@ -769,11 +770,15 @@ def update_order_field_response(
                 shipment["construction_workers"] = _normalize_construction_workers_value(value)
                 structured_changed = True
             elif field == "manager_name":
-                clean_value = clean_dict_like_name(value)
+                # MULTI-MGR-01: "김의종, 한용희" 처럼 여러 명이 오면 첫 사람이 대표다.
+                names = normalize_name_list(value)
+                clean_value = clean_dict_like_name(names[0]) if names else ""
                 setattr(order, "manager_name", clean_value)
                 parties = ensure_path(structured_data, "parties")
                 manager = ensure_path(parties, "manager")
                 manager["name"] = clean_value
+                manager["names"] = [clean_value, *names[1:]] if clean_value else []
+                normalize_manager_party(structured_data)
                 structured_changed = True
             elif field == "measurement_date":
                 schedule = ensure_path(structured_data, "schedule")

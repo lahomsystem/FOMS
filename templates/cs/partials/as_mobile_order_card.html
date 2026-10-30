@@ -78,7 +78,7 @@
           {% endif %}
           <span class="erp-as-mobile-card__manager">
             <span class="erp-as-mobile-card__manager-label">담당</span>
-            <span class="erp-as-mobile-card__manager-value">{{ r.manager_name or '-' }}</span>
+            <span class="erp-as-mobile-card__manager-value">{{ (r|manager_label) or '-' }}</span>
           </span>
         </div>
         {% if r.orderer_name %}
@@ -268,7 +268,7 @@
     </div>
     <div class="erp-pro-order-card__row">
       <span class="erp-pro-order-card__label">담당자</span>
-      <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
+      <span class="erp-pro-order-card__value">{{ (r|manager_label) or '-' }}</span>
     </div>
     <div class="erp-pro-order-card__row">
       <span class="erp-pro-order-card__label">시공자</span>

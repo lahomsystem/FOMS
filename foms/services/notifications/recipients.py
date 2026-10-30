@@ -23,6 +23,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from sqlalchemy import func
 
 from foms.services.orders.order_mutation_policy import _TEAM_NORMALIZE, normalize_team
+from foms.services.orders.manager_names import normalize_name_list
 from models import (
     NotificationEvent,
     NotificationEventType,
@@ -106,10 +107,11 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_TEAM
 
-    manager = (notification.target_manager_name or '').strip()
-    if manager:
+    # MULTI-MGR-01: 담당자 여러 명 알림은 "김의종, 한용희" 처럼 이어 넣는다.
+    managers = normalize_name_list(notification.target_manager_name)
+    if managers:
         rows = db.query(User.id).filter(
-            User.name == manager, User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
+            User.name.in_(managers), User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
         ).yield_per(500)
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_MANAGER_NAME

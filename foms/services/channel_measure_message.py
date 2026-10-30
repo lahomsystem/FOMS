@@ -45,6 +45,7 @@ from typing import Any
 from foms.services.channel_as_message import _append_line, format_schedule_date_korean
 from foms.services.orders.balance_payment_method import balance_confirmed_suffix
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
+from foms.services.orders.manager_names import order_manager_label
 from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
     erp_shipping_price_from_structured,
@@ -416,7 +417,7 @@ def _footer_block(text: str, sd: dict) -> str:
     final_amount = _final_amount(totals, shipping, deposit)
 
     footer_start = len(text)
-    text = _append_line(text, "담당자", _text(_node(sd, "parties", "manager").get("name")))
+    text = _append_line(text, "담당자", order_manager_label(sd))  # MULTI-MGR-01: 담당자 전체
     if len(text) > footer_start:
         text += "\n"
     text = _append_money_line(text, "출고가", shipping)

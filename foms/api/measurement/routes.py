@@ -36,6 +36,7 @@ from foms.services.measurement_read_model import (
 from foms.services.measurement_undated import build_measurement_undated_payload
 from foms.services.measurement_time import parse_measurement_time_minutes
 from foms.services.common.business_calendar import get_holidays_kr
+from foms.services.orders.manager_names import normalize_manager_party, normalize_name_list
 
 
 def normalize_address_for_sort(address):
@@ -463,8 +464,14 @@ def api_erp_measurement_update(order_id):
             sd = copy.deepcopy(o.structured_data or {})
             parties = sd.setdefault('parties', {})
             if field == 'manager':
-                parties.setdefault('manager', {})['name'] = value
-                o.manager_name = value
+                # MULTI-MGR-01: "김의종, 한용희" 면 첫 사람이 대표, 전체는 names.
+                names = normalize_name_list(value)
+                manager = parties.get('manager') if isinstance(parties.get('manager'), dict) else {}
+                parties['manager'] = manager
+                manager['name'] = names[0] if names else ''
+                manager['names'] = names
+                normalize_manager_party(sd)
+                o.manager_name = manager['name']
             else:  # phone
                 parties.setdefault('customer', {})['phone'] = value
                 o.phone = value

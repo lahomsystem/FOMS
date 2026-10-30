@@ -322,7 +322,7 @@
                                                   placeholder="담당자 입력..." 
                                                   style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
-                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                                  data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
                                     <td>
                                         <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
@@ -494,7 +494,7 @@
                                                   placeholder="담당자 입력..." 
                                                   style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
-                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                                  data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
                                     <td>
                                         <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
@@ -604,7 +604,7 @@
                                                   placeholder="담당자 입력..." 
                                                   style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
-                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                                  data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
@@ -762,7 +762,7 @@
                                                   placeholder="담당자 입력..." 
                                                   style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
-                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                                  data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
                                     <td>
                                         <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 

@@ -34,7 +34,6 @@ from foms.services.erp_display import (
     _drawing_status_label,
     _drawing_next_action_text,
     _normalize_date_to_yyyymmdd,
-    manager_display_name,
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
@@ -80,6 +79,7 @@ from foms.services.drawing_workbench_display import (
     resolve_row_image_list,
 )
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
+from foms.services.orders.manager_names import manager_label_from_parties
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -776,7 +776,7 @@ def erp_drawing_workbench_dashboard():
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
-        manager_name = manager_display_name(sd.get('parties')) or '-'
+        manager_name = manager_label_from_parties(sd.get('parties')) or '-'
         drawing_files = list(sd.get('drawing_current_files', []) or [])
         # 전달 대기 도면(마법사 저장분): structured_data['drawing_wizard']['pending'] 길이.
         # 이미 로드된 sd 에서 계산(추가 쿼리 없음). 작업실 일괄 전송 UI의 행 배지/판별 소스.
@@ -1288,7 +1288,7 @@ def erp_drawing_workbench_detail(order_id):
     )
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
-    manager_name = manager_display_name(s_data.get('parties')) or (order.manager_name or '-') or '-'
+    manager_name = manager_label_from_parties(s_data.get('parties')) or (order.manager_name or '-') or '-'
     users_by_id = {
         u.id: u for u in db.query(User).filter(User.id.in_(draw_assignee_ids)).all()  # perf-ok
     } if draw_assignee_ids else {}

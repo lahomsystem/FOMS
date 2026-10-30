@@ -76,6 +76,8 @@ SCALAR_PATHS: tuple[str, ...] = (
     "parties.buyer.name",
     "parties.buyer.phone",
     "parties.manager.name",
+    # MULTI-MGR-01: 담당자 여러 명(대표 포함 전체 명단). 대표 아닌 사람만 바뀌어도 남는다.
+    "parties.manager.names",
     # --- 현장 ---
     "site.address_full",
     "site.address_detail",

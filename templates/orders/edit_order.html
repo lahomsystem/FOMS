@@ -1035,7 +1035,8 @@
                 const focusAssignee = function () {
                     if (assigneeFocusDone) { return; }
                     assigneeFocusDone = true;
-                    const target = document.getElementById('erp-manager');
+                    // MULTI-MGR-01: 담당자는 뱃지 칸 — 보이는 입력 칸(erp-manager-entry)에 포커스한다.
+                    const target = document.getElementById('erp-manager-entry') || document.getElementById('erp-manager');
                     if (!target) { return; }
                     const collapsed = target.closest('.collapse:not(.show)');
                     if (collapsed && typeof bootstrap !== 'undefined' && bootstrap.Collapse) {

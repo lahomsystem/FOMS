@@ -85,7 +85,7 @@
           {{ _cparts[0] if _cparts else '-' }}
         </td>
         {# 담당. #}
-        <td class="foms-tqcell-manager">{{ o.manager_name or '-' }}</td>
+        <td class="foms-tqcell-manager">{{ (o|manager_label) or '-' }}</td>
         {# 첨부: 개수 숫자(우측정렬). 없으면 무채 대시. plain(프리뷰 버튼 아님 → 행 탭=도크). #}
         <td class="foms-tqcell-attach">
           {% if o.has_media and o.attachments_count %}{{ o.attachments_count }}{% else %}<span class="foms-tqcell-muted">-</span>{% endif %}

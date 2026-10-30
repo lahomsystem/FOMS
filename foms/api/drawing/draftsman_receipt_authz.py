@@ -9,6 +9,7 @@ from typing import Any
 from foms.services.erp_display import manager_display_name
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
 from foms.services.orders.assignment import active_assignee_ids
+from foms.services.orders.manager_names import order_manager_match_names
 
 
 def _manager_names(order: Any, s_data: Any) -> set:
@@ -18,6 +19,8 @@ def _manager_names(order: Any, s_data: Any) -> set:
     manager_name_sd = manager_display_name(parties)
     if manager_name_sd:
         names.add(manager_name_sd.lower())
+    # MULTI-MGR-01: 담당자 여러 명.
+    names.update(order_manager_match_names(s_data))
 
     manager_name_col = (getattr(order, 'manager_name', '') or '').strip()
     if manager_name_col:

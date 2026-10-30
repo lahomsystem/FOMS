@@ -20,6 +20,7 @@ from foms.services.order_event_display import (
     translate_event_type_to_korean,
 )
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.manager_names import manager_label_from_parties
 from models import Order, OrderEvent
 
 __all__ = [
@@ -293,8 +294,8 @@ def load_wam_order_read_model(order_id: int) -> WamOrderReadModel | None:
     address_main = _value_or_dash(site.get("address_main") or getattr(display_order, "address", None))
     address_detail = _value_or_dash(site.get("address_detail"))
     manager_name = _value_or_dash(
-        getattr(display_order, "manager_name", None)
-        or _nested_value(parties, "manager", "name")
+        manager_label_from_parties(parties)  # MULTI-MGR-01: 담당자 전체
+        or getattr(display_order, "manager_name", None)
     )
     orderer_name = _value_or_dash(
         getattr(display_order, "orderer_name", None)
