@@ -16,7 +16,7 @@ from foms.web.auth import login_required, role_required
 
 #: 차례 상태 · 감시 루프 결과 코드의 화면 이름(코드는 그대로 옆에 둔다).
 STATE_LABELS = {"claimed": "일하는 중", "posting": "올리는 중", "posted": "메모 올림", "stored": "저장만",
-                "skipped": "건너뜀", "failed": "실패"}
+                "skipped": "건너뜀", "failed": "실패", "superseded": "지난 초안", "staff_replied": "직원 답함"}
 OUTCOME_LABELS = {"ok": "정상", "killed": "비상 정지로 쉼", "not_leader": "다른 컨테이너가 대표", "stopped": "멈춤 신호",
                   "pass_failed": "바퀴 실패"}
 

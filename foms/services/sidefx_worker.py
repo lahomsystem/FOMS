@@ -57,6 +57,8 @@ WORKER_KIND_RQ_WORKER = "RQ_WORKER"
 WORKER_KIND_SHARE_CONSULT_SMS = "SHARE_CONSULT_SMS"
 # AI 상담팀원 감시 루프(설계서 2026-10-27-cs-ai-agent 3.2 · 원장 R1-17 — 새 루프는 kind 를 따로 등록한다).
 WORKER_KIND_CS_LOOP = "CS_LOOP"
+# AI 상담팀원 빠른 길(설계서 17.3 · 플랜 C10-1) — 15분 바퀴와 따로 도는 5초 차례라 kind 를 따로 둔다.
+WORKER_KIND_CS_REALTIME = "CS_REALTIME"
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,9 @@ WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
     # AI 상담팀원 감시 루프(바퀴 간격 900초 — 플랜 C1-3) → 3틱. 바퀴는 그 간격을 metadata 로 신고한다.
     WORKER_KIND_CS_LOOP: WorkerKindSpec(
         WORKER_KIND_CS_LOOP, max_heartbeat_age=2700),
+    # AI 상담팀원 빠른 길(차례 5초 · 하트비트는 30초마다 — 두뇌가 든 차례는 시간 상한만큼 길어진다) → 넉넉히 300초.
+    WORKER_KIND_CS_REALTIME: WorkerKindSpec(
+        WORKER_KIND_CS_REALTIME, max_heartbeat_age=300),
 }
 
 DEFAULT_LEASE_SECONDS = 60

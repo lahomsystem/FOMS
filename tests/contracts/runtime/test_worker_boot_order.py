@@ -101,9 +101,10 @@ def _supervisor(mod, h, defer):
 # --- 배선 ---------------------------------------------------------------------------------
 def test_every_loop_is_deferred_and_the_queue_consumer_is_not() -> None:
     listed = jobs(all_enabled=True)
-    assert len(listed) == 8, [j.name for j in listed]
+    assert len(listed) == 9, [j.name for j in listed]
     assert [j.name for j in listed if not j.deferred] == ["rq_worker"]
     assert "cs_loop" in [j.name for j in listed if j.deferred]  # 새 자식도 rq 뒤에 켜진다(R1-18)
+    assert "cs_realtime" in [j.name for j in listed if j.deferred]  # 빠른 길(C10-1)도 rq 뒤에 켜진다
     assert load_supervisor().Job("x", ("python", "x.py")).deferred is False  # 음성 대조: 기본은 안 미룸
 
 

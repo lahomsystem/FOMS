@@ -7,7 +7,11 @@ R1-20 · R1-22. 표는 ``models.CsAgentTurn``(마이그레이션 ``csagent_01``)
   — SQLite · PostgreSQL 같은 문장)로 만든다. 이미 있으면 ``None`` — 손님 글 하나에 메모는 하나다. 실패로 끝난 줄만
   :data:`MAX_ATTEMPTS` 전까지 같은 줄을 다시 집는다(조건부 UPDATE 한 문장 — 둘이 겹쳐도 하나만 집는다).
 - **상태**: ``claimed`` → ``posting`` → ``posted``, 또는 ``claimed`` → ``stored`` · ``skipped``, ``claimed`` · ``posting`` →
-  ``failed``. '올리는 중'은 채널톡을 부르기 **전에** 커밋한다(R1-3) — 재시작 때 남은 줄은 :func:`stale_posting` 으로 찾아
+  ``failed``. 빠른 길(C10-1)이 둘을 더한다 — ``claimed`` · ``posted`` · ``stored`` → ``superseded``(손님이 더 써서 갈아 끼움 —
+  '지난 초안', :func:`mark_superseded`), ``claimed`` · ``failed`` → ``staff_replied``(직원이 먼저 공개 답 — :func:`mark_staff_replied`).
+- **주인 · 만료(원장 R10-2)**: 선점할 때 주인(:func:`claim_owner`)과 만료(지금 + ``ttl``)를 적는다. 만료가 지난 ``claimed`` 줄
+  (:func:`expired_claims`)은 죽은 차례다 — 정리하는 쪽이 ``failed`` 로 바꾸면 시도 상한 안에서 다시 집힌다. 살아 있던 주인이
+  나중에 쓰려 해도 조건부 쓰기가 0 줄이라 올리지 않는다. '올리는 중'은 채널톡을 부르기 **전에** 커밋한다(R1-3) — 재시작 때 남은 줄은 :func:`stale_posting` 으로 찾아
   채널톡의 우리 봇 메모와 맞춘다. 올라갔는지 모르는 실패는 ``failed`` 로 바꾸지 않는다(다시 집으면 메모가 둘이 된다).
   설정 문제 · 401 · 403 · 돈 상한은 :func:`release_turn` — 시도를 세지 않고 ``failed`` 로 돌려놓는다(원장 R7-4).
 - **조건부 쓰기(원장 R7-8)**: 줄을 쓰는 함수는 모두 한 문장 ``UPDATE … WHERE id AND state = 지금 상태 AND attempts =
@@ -25,7 +29,9 @@ from __future__ import annotations
 import datetime
 import enum
 import logging
+import os
 import re
+import socket
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Iterable, Optional
 
@@ -42,14 +48,17 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
-    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_turn", "draft_mode", "mark_failed", "mark_posted",
-    "mark_posting", "mark_skipped", "mark_stored", "read_switch", "record_brain_result", "record_staff_reply",
-    "release_turn", "set_draft_mode", "stale_posting",
+    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims",
+    "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
+    "read_switch", "record_brain_result", "record_handoff", "record_staff_reply", "release_turn", "set_draft_mode",
+    "stale_posting",
 ]
 
 STATE_CLAIMED, STATE_POSTING, STATE_POSTED = "claimed", "posting", "posted"
 STATE_STORED, STATE_SKIPPED, STATE_FAILED = "stored", "skipped", "failed"
-STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_POSTING, STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_FAILED)
+STATE_SUPERSEDED, STATE_STAFF_REPLIED = "superseded", "staff_replied"  # 빠른 길 — '지난 초안' · '직원 답함'
+STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_POSTING, STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_FAILED,
+                           STATE_SUPERSEDED, STATE_STAFF_REPLIED)
 #: 손님 글 하나에 차례를 여는 상한(두뇌 호출 상한 — 원장 R1-3). 실패로 끝난 줄은 이 수까지만 다시 집는다.
 MAX_ATTEMPTS = 3
 
@@ -96,8 +105,15 @@ class TurnConflict(TurnStateError):
 
 
 # ── 선점 ─────────────────────────────────────────────────────────────────
+def claim_owner(kind: str) -> str:
+    """선점 주인 이름 — ``<길>:<호스트>:<pid>``(빈칸 없는 ASCII 64자까지). 로그 · 기록의 '누가 집었나' 표지다."""
+    raw = f"{kind}:{socket.gethostname()}:{os.getpid()}"
+    return re.sub(r"[^\x21-\x7e]", "-", raw)[:64]
+
+
 def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str, *,
-               now: datetime.datetime) -> Optional[CsAgentTurn]:
+               now: datetime.datetime, owner: Optional[str] = None,
+               ttl: Optional[datetime.timedelta] = None) -> Optional[CsAgentTurn]:
     """(상담, 마지막 손님 글 id) 차례를 선점한다 — 새 줄(또는 다시 집은 실패 줄)이면 그 줄, 이미 있으면 ``None``.
 
     부르는 쪽은 받은 줄을 **바로 커밋**한다. PostgreSQL 에서 두 바퀴가 겹치면 뒤 바퀴의 넣기는 앞 바퀴가 커밋 · 되돌리기를
@@ -109,6 +125,8 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         chat_id: 채널톡 상담 id.
         last_user_message_id: 이 차례를 연 손님 글의 채널톡 메시지 id.
         now: 지금(시간대 있는 값 — 표에는 UTC naive).
+        owner: 선점 주인(:func:`claim_owner` — 없으면 비움).
+        ttl: 선점 만료까지(없으면 비움 — 정리는 ``updated_at`` 로 본다).
 
     Returns:
         선점한 :class:`CsAgentTurn`(``state='claimed'``) 또는 ``None``.
@@ -121,13 +139,16 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         raise ValueError("모르는 브랜드")
     if not all(isinstance(value, str) and _ID.fullmatch(value) for value in (chat_id, last_user_message_id)):
         raise ValueError("상담 · 글 id 꼴이 아니다")
+    if owner is not None and not _ID.fullmatch(owner):
+        raise ValueError("선점 주인 꼴이 아니다")
     at = naive_utc(now)
+    claim = {"claim_owner": owner, "claim_expires_at": None if ttl is None else at + ttl}
     builder = _INSERT_BUILDERS.get(session.get_bind().dialect.name)
     if builder is None:
         raise RuntimeError("있으면 무시하고 넣기를 모르는 DB")
     inserted = (builder(_TURNS)
                 .values(brand=brand, chat_id=chat_id, last_user_message_id=last_user_message_id,
-                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at)
+                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at, **claim)
                 .on_conflict_do_nothing(index_elements=["chat_id", "last_user_message_id"])
                 .returning(_TURNS.c.id))
     turn_id = session.execute(inserted).scalar()
@@ -135,7 +156,7 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         retry = (update(_TURNS)
                  .where(_TURNS.c.chat_id == chat_id, _TURNS.c.last_user_message_id == last_user_message_id,
                         _TURNS.c.state == STATE_FAILED, _TURNS.c.attempts < MAX_ATTEMPTS)
-                 .values(state=STATE_CLAIMED, attempts=_TURNS.c.attempts + 1, error_code=None, updated_at=at)
+                 .values(state=STATE_CLAIMED, attempts=_TURNS.c.attempts + 1, error_code=None, updated_at=at, **claim)
                  .returning(_TURNS.c.id))
         turn_id = session.execute(retry).scalar()
     if turn_id is None:
@@ -205,6 +226,44 @@ def release_turn(row: CsAgentTurn, *, error_code: str, now: datetime.datetime) -
     영영 끝나지 않는다. 선점한 줄(``claimed``)만.
     """
     _write(row, (STATE_CLAIMED,), {"error_code": _reason(error_code)}, target=STATE_FAILED, now=now, attempts_delta=-1)
+
+
+def mark_superseded(row: CsAgentTurn, *, masked_draft: Optional[str] = None, check_codes: Iterable[Any] = (),
+                    now: datetime.datetime) -> None:
+    """지난 초안 — 집은 뒤(만드는 중 · 올린 뒤) 같은 상담에 손님 새 글이 와 이 차례를 갈아 끼운다(빠른 길, 설계서 17.2).
+
+    선점한 줄이면 만든 초안의 가린 사본 · 검사 코드를 같이 적는다(``None`` 이면 두지 않음). 올렸거나 저장한 줄은 칸을 그대로
+    두고 상태만 바꾼다. 앞 메모를 지울지는 부르는 쪽 몫이다(C10-2 시험 뒤).
+    """
+    values: dict[str, Any] = {}
+    if masked_draft is not None:
+        values = {"masked_draft": _masked_or_none(masked_draft), "check_codes": _check_codes(check_codes)}
+    _write(row, (STATE_CLAIMED, STATE_POSTED, STATE_STORED), values, target=STATE_SUPERSEDED, now=now)
+
+
+def mark_staff_replied(row: CsAgentTurn, *, masked_draft: Optional[str] = None, now: datetime.datetime) -> None:
+    """직원 답함 — 직원이 먼저 공개 답을 해 아직 안 끝난 차례(선점 · 실패)를 닫는다. 초안은 올리지 않는다(빠른 길)."""
+    values = {} if masked_draft is None else {"masked_draft": _masked_or_none(masked_draft)}
+    _write(row, (STATE_CLAIMED, STATE_FAILED), values, target=STATE_STAFF_REPLIED, now=now)
+
+
+def record_handoff(row: CsAgentTurn, *, reason: str) -> None:
+    """두뇌 없이 코드가 사람에게 넘긴 까닭(넘김 칸)을 선점한 줄에 적는다 — 예: 손님이 'AI 냐 사람이냐' 물음(설계서 17.8)."""
+    _write(row, (STATE_CLAIMED,), {"handoff": True, "handoff_reason": _reason(reason)})
+
+
+def expired_claims(session: Any, now: datetime.datetime, *, limit: int = 100) -> list[CsAgentTurn]:
+    """선점 만료(``claim_expires_at``)가 ``now`` 보다 앞인 ``claimed`` 줄 — 두뇌를 부르다 죽은 차례, 오래된 것부터.
+
+    만료를 적지 않은 줄(15분 바퀴 옛 줄)은 여기서 보지 않는다 — 그 줄은 15분 바퀴의 정리(``updated_at`` 20분)가 맡는다.
+    """
+    stmt = (select(CsAgentTurn)
+            .where(CsAgentTurn.state == STATE_CLAIMED, CsAgentTurn.claim_expires_at.isnot(None),
+                   CsAgentTurn.claim_expires_at < naive_utc(now))
+            .order_by(CsAgentTurn.claim_expires_at, CsAgentTurn.id)
+            .limit(int(limit))
+            .execution_options(populate_existing=True))
+    return list(session.scalars(stmt))
 
 
 def record_brain_result(row: CsAgentTurn, result: Any) -> None:

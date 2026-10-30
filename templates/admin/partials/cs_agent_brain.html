@@ -28,8 +28,8 @@
     {{ settings.fallback_fields | join(', ') }} — 확인한 뒤 다시 저장해 주세요(저장하면 고친 칸이 기록에 남습니다).</div>
   {% endif %}
 
-  <p class="text-muted small mt-3 mb-0">'다음 단계' 칸은 값만 보입니다 — 의도 고르기 · 실시간 길은 아직 그 길이 없고, 고르기는
-    단계 1 승인 밖입니다. 지금은 처음 값(코드 상수) 그대로 돕니다.</p>
+  <p class="text-muted small mt-3 mb-0">'다음 단계' 칸은 값만 보입니다 — 의도 고르기 · 실시간 다시 시도는 아직 그 길이 없고,
+    고르기는 단계 1 승인 밖입니다. 지금은 처음 값(코드 상수) 그대로 돕니다.</p>
 
   <form class="cs-agent-form mt-3" data-cs-settings data-version="{{ settings.version }}" novalidate>
     {% for group in settings.fields | map(attribute='group') | unique %}
@@ -56,9 +56,12 @@
             <option value="false" {{ 'selected' if not f.value }}>끔</option>
           </select>
           {% elif f.kind == 'money' %}
+          {% set daily_cap = f.name == 'daily_cap_usd_panel' %}
           <input type="number" class="form-control form-control-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"
-                 data-kind="money" min="0" step="0.01" max="{{ caps.worker if caps.worker is not none else f.high }}"
-                 value="{{ f.value if f.value is not none else '' }}" placeholder="비우면 WORKER env 그대로"
+                 data-kind="money" min="0" step="0.01"
+                 max="{{ caps.worker if daily_cap and caps.worker is not none else f.high }}"
+                 value="{{ f.value if f.value is not none else '' }}"
+                 placeholder="{{ '비우면 WORKER env 그대로' if daily_cap else '비움' }}"
                  {{ 'disabled' if f.locked }}>
           {% else %}
           <input type="number" class="form-control form-control-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"

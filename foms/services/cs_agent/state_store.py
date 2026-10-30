@@ -19,7 +19,7 @@ from __future__ import annotations
 import datetime
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Collection, Mapping, Optional, Sequence
 
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects import postgresql, sqlite
@@ -199,7 +199,8 @@ def store_messages(session: Any, messages: Sequence[DerivedMessage], *, source: 
 #: 훨씬 넓고 재배포로 루프가 몇 분 멈춰도 메운다. 더 오래 멈춰 창을 넘친 줄은 15분 Open API 보정이 정본으로
 #: 메우고, 그때 :func:`find_missing_inbound` 가 그 상담의 수신 기록을 한 번 더 읽는다. 비용은 PK 색인 훑기와
 #: '이미 넣은 줄' 거르기뿐이라(원본 JSONB 는 새 줄만 연다) 몇 초마다 돌아도 작다. 거른 줄(그룹 채팅 · 모르는
-#: 채널)은 창 안에 있는 동안 다시 열지만, 지금 웹훅은 두 채널 모두 상담 글만 보낸다(설계서 2.4).
+#: 채널 · 같은 글의 두 번째 수신 줄)은 상태 표에 흔적이 없어 창 안에 있는 동안 다시 연다 — 5초마다 도는 빠른 길은
+#: 연 줄 id(:attr:`IngestResult.examined_ids`)로 거른 줄을 기억해 ``skip_ids`` 로 넘긴다(원장 R10-4).
 INBOUND_LOOKBACK_ROWS = 500
 
 
@@ -211,6 +212,7 @@ class IngestResult:
     inserted: int = 0
     duplicates: int = 0
     skipped: dict[str, int] = field(default_factory=dict)
+    examined_ids: list[int] = field(default_factory=list)  # 원본을 연 수신 줄 id(빠른 길이 거른 줄을 기억한다)
 
 
 def _ingest_rows(session: Any, stmt: Any, now: datetime.datetime) -> IngestResult:
@@ -221,6 +223,7 @@ def _ingest_rows(session: Any, stmt: Any, now: datetime.datetime) -> IngestResul
     try:
         for row in session.execute(stmt):
             result.examined += 1
+            result.examined_ids.append(int(row.id))
             payload = row.raw_payload if isinstance(row.raw_payload, Mapping) else {}
             message, reason = derive_message(payload.get("entity"))
             if message is None:
@@ -240,7 +243,7 @@ def _ingest_rows(session: Any, stmt: Any, now: datetime.datetime) -> IngestResul
 
 
 def ingest_inbound(session: Any, *, lookback: int = INBOUND_LOOKBACK_ROWS,
-                   now: Optional[datetime.datetime] = None) -> IngestResult:
+                   now: Optional[datetime.datetime] = None, skip_ids: Collection[int] = ()) -> IngestResult:
     """수신 기록 최근 ``lookback`` 줄을 PK 로 뒤돌아 읽어 상태 표에 넣고 커밋한다(커서 없음).
 
     상태 표에 수신 줄 id 가 이미 적힌 줄은 원본을 다시 열지 않는다. 늦게 커밋된 낮은 id 줄도 다음 바퀴의
@@ -250,6 +253,7 @@ def ingest_inbound(session: Any, *, lookback: int = INBOUND_LOOKBACK_ROWS,
         session: DB 세션(이 함수가 커밋한다).
         lookback: 뒤돌아 볼 줄 수.
         now: 넣는 시각(UTC naive, 시험 주입).
+        skip_ids: 원본을 다시 열지 않을 수신 줄 id(빠른 길이 기억한 거른 줄 — 15분 바퀴는 넘기지 않는다).
 
     Returns:
         :class:`IngestResult`.
@@ -260,7 +264,7 @@ def ingest_inbound(session: Any, *, lookback: int = INBOUND_LOOKBACK_ROWS,
     seen: set[int] = set()
     if ids:
         seen = set(session.scalars(select(_MSGS.c.inbound_log_id).where(_MSGS.c.inbound_log_id >= min(ids))))
-    todo = sorted(set(ids) - seen)
+    todo = sorted(i for i in set(ids) - seen if i not in skip_ids)
     if not todo:
         session.commit()  # 읽기 트랜잭션을 닫는다(루프가 'idle in transaction' 으로 남지 않게)
         return IngestResult()
@@ -320,7 +324,8 @@ _IN_CHUNK = 500
 
 def compute_open_states(session: Any, *, now: datetime.datetime, brands: Sequence[str],
                         active_window: datetime.timedelta = ACTIVE_WINDOW,
-                        is_business_day: Optional[BusinessDayFn] = None) -> list[ChatState]:
+                        is_business_day: Optional[BusinessDayFn] = None,
+                        chat_ids: Optional[Sequence[str]] = None) -> list[ChatState]:
     """열린 상담 상태를 한 번에 낸다 — 상담 줄 한 질의 + 글 묶음 질의(상담마다 따로 읽지 않는다, N+1 없음).
 
     마지막 손님 글이나 마지막 공개 직원 글이 ``active_window`` 안인 상담만 본다. 닫힘으로 읽은 뒤 손님이 또 쓴
@@ -332,14 +337,15 @@ def compute_open_states(session: Any, *, now: datetime.datetime, brands: Sequenc
         brands: 볼 브랜드.
         active_window: 이보다 오래 조용한 상담은 뺀다.
         is_business_day: 운영일 판정(시험 주입).
+        chat_ids: 이 상담만 본다(빠른 길이 고른 상담 — 주면 ``active_window`` 대신 이 목록, 500개까지).
 
     Returns:
         열린 상담의 :class:`ChatState` — 순서 없음(보고 순서는 ``state.sort_by_priority``).
     """
     since = naive_utc(now) - active_window
-    rows = session.execute(select(_CHATS).where(
-        _CHATS.c.brand.in_(list(brands)),
-        or_(_CHATS.c.last_user_at >= since, _CHATS.c.last_answer_at >= since))).all()
+    scope = (or_(_CHATS.c.last_user_at >= since, _CHATS.c.last_answer_at >= since) if chat_ids is None
+             else _CHATS.c.chat_id.in_(list(chat_ids)[:_IN_CHUNK]))
+    rows = session.execute(select(_CHATS).where(_CHATS.c.brand.in_(list(brands)), scope)).all()
     chats = {row.chat_id: (row, effective_chat_state(row.chat_state, row.state_at, row.last_user_at))
              for row in rows}
     chats = {chat_id: pair for chat_id, pair in chats.items() if pair[1] != "closed"}

@@ -146,9 +146,12 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
     # 아침 보고 · 약속 넘김 · 웹훅 경보를 FOMS 앱 안 알림으로 낸다 — 채널톡 쓰기 · AI · RQ 없음. 15분 바퀴, 기본 off.
     # 바로 끄기는 SystemSetting(매 바퀴 읽음) — env 는 켜기용이라 간격 env 도 두지 않는다. 바퀴는 대표 잠금으로
     # 하나씩 돌고(재배포 겹침) TERM 을 받으면 쓰기를 시작하지 않고 끝난다.
+    # 빠른 길(설계서 17.3 · 플랜 C10-1)은 같은 env 로 켜는 따로 도는 자식이다 — 5초 차례 · 15분 바퀴와 다른 대표 잠금이라
+    # 15분 바퀴가 보정 · 아침 보고로 잠금을 쥐어도 막히지 않는다. 실제 일은 관리 화면 빠른 길 스위치(처음 끔)가 켜야 한다.
     if env.get("FOMS_CS_LOOP_ENABLED") == "1":
         jobs.append(Job("cs_loop", (
             python, "scripts/maintenance/run_cs_loop.py", "--loop", "--interval", "900", "--json")))
+        jobs.append(Job("cs_realtime", (python, "scripts/maintenance/run_cs_realtime.py", "--loop", "--json")))
 
     # 큐 소비 본체. `rq worker` CLI 대신 러너를 쓰는 이유: rq 하트비트 자리에서 RQ_WORKER 행을
     # side_effect_worker_heartbeats 에 함께 남긴다(2026-02 워커 offline 을 표만 봐서 몰랐다).

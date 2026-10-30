@@ -46,6 +46,8 @@ _ALLOWED_METADATA_KEYS = {
     # CS 감시 루프 — 집계 수 · 마지막 정상 바퀴 시각 · WORKER env 하루 상한(관리 화면 천장)뿐(상담 id · 손님 글 없음).
     "run_cs_loop": {"interval_seconds", "outcome", "ingested", "reconciled", "needs_reply", "alerts",
                     "report_sent", "last_success_at", "daily_cap_usd"},
+    # CS 빠른 길(C10-1) — 30초 사이 차례 수 · 넣은 글 · 집은 상담 · 두뇌 수 합과 마지막 결과 코드뿐.
+    "run_cs_realtime": {"interval_seconds", "outcome", "ticks", "ingested", "picked", "brain_calls"},
 }
 
 

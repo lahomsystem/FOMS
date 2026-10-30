@@ -24,7 +24,6 @@ import datetime
 import json
 import logging
 import os
-import signal
 import sys
 import traceback
 from typing import Any, Optional
@@ -39,6 +38,11 @@ from app import app  # noqa: E402
 from db import db_session, engine  # noqa: E402
 from foms.platform.sentry_setup import resolve_environment  # noqa: E402
 from foms.services.cs_agent.brain_spend import HEARTBEAT_CAP_KEY, heartbeat_cap_value  # noqa: E402
+from foms.services.cs_agent.runner_support import (  # noqa: E402,F401 — drop_frame_locals 는 시험이 러너 이름으로 부른다
+    drop_frame_locals,
+    install_sentry_privacy,
+)
+from foms.services.cs_agent.runner_support import install_signal_handlers as install_stop_signals  # noqa: E402
 from foms.services.cs_agent.loop import (  # noqa: E402
     DEFAULT_INTERVAL_SECONDS,
     OUTCOME_NOT_LEADER,
@@ -95,41 +99,9 @@ def loop_config() -> LoopConfig:
     return LoopConfig(watch_missing_inbound=watch_missing_inbound_for(resolve_environment()))
 
 
-def drop_frame_locals(event: Any, _hint: Any = None) -> Any:
-    """Sentry 이벤트에서 스택 프레임 지역 변수(``vars``)를 뺀다 — 수신 기록 원본(손님 글 · 번호)을 든 지역 변수가
-    오류와 함께 Sentry 로 가지 않게(sentry-sdk 는 지역 변수를 기본으로 싣는다, 원장 R5-2). 꼴이 달라도 던지지 않는다."""
-    if not isinstance(event, dict):
-        return event
-    for section in ("exception", "threads"):
-        values = event.get(section, {}).get("values") if isinstance(event.get(section), dict) else None
-        for entry in values if isinstance(values, list) else ():
-            trace = entry.get("stacktrace") if isinstance(entry, dict) else None
-            frames = trace.get("frames") if isinstance(trace, dict) else None
-            for frame in frames if isinstance(frames, list) else ():
-                if isinstance(frame, dict):
-                    frame.pop("vars", None)
-    return event
-
-
-def install_sentry_privacy() -> None:
-    """이 프로세스의 Sentry 이벤트 모두에 :func:`drop_frame_locals` 를 건다(sentry-sdk 가 없으면 지나간다)."""
-    try:
-        from sentry_sdk.scope import add_global_event_processor
-    except ImportError:
-        return
-    add_global_event_processor(drop_frame_locals)
-
-
 def install_signal_handlers(stop: StopFlag) -> None:
-    """TERM/INT 에 멈춤 깃발만 세운다. 처리기를 못 달면 경고만 남긴다(바퀴는 그래도 돈다)."""
-    for name in ("SIGTERM", "SIGINT"):
-        sig = getattr(signal, name, None)
-        if sig is None:
-            continue
-        try:
-            signal.signal(sig, stop.set)
-        except (ValueError, OSError, RuntimeError) as exc:
-            _LOGGER.warning("signal %s handler not installed: %s", name, exc)
+    """TERM/INT 에 멈춤 깃발만 세운다(공통 처리기 — 빠른 길 러너와 같다)."""
+    install_stop_signals(stop.set, _LOGGER)
 
 
 def _pass_once(stop: StopFlag, config: LoopConfig) -> dict:

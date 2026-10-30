@@ -20,7 +20,8 @@ from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog, SideEffectWorkerHeartbeat, SystemSetting, SystemSettingReceipt, User
 from tests.domains.test_cs_brain import KNOWLEDGE, NOW
 
-LOCKED = {"intent_model", "intent_effort", "intent_max_tokens", "realtime_timeout_s", "realtime_retries",
+#: 잠긴 칸 — 빠른 길(C10-1)이 생겨 시간 상한(realtime_timeout_s)은 잠금을 풀었다(설계서 17.1 · 원장 V10-9).
+LOCKED = {"intent_model", "intent_effort", "intent_max_tokens", "realtime_retries",
           "max_brain_calls_per_pass", "max_wait_business_days"}
 
 
@@ -73,8 +74,9 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "realtime_timeout_s": brain.REALTIME_TIMEOUT_SECONDS, "batch_timeout_s": brain.BATCH_TIMEOUT_SECONDS,
         "realtime_retries": brain.REALTIME_RETRIES, "cache_policy": st.CACHE_DAYTIME,
         "cache_ttl": bp.CACHE_CONTROL_DAY["ttl"], "fallback_enabled": True,
-        "daily_cap_usd_panel": None, "max_brain_calls_per_pass": drafting.MAX_BRAIN_CALLS,
-        "max_wait_business_days": drafting.MAX_WAIT_BUSINESS_DAYS,
+        "daily_cap_usd_panel": None, "learning_cap_usd_panel": None,
+        "max_brain_calls_per_pass": drafting.MAX_BRAIN_CALLS, "max_wait_business_days": drafting.MAX_WAIT_BUSINESS_DAYS,
+        "realtime_enabled": False, "quiet_wait_s": 15, "max_wait_s": 60,  # 빠른 길(C10-1) — 처음 끔 · D65 15초
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
@@ -132,7 +134,7 @@ def test_non_mapping_values_and_odd_names_are_refused(admin_id):
 # ── 잠긴 칸(다음 단계) ───────────────────────────────────────────────────
 @pytest.mark.parametrize("name,value", [
     ("intent_model", bp.MODEL_HAIKU), ("intent_effort", "high"), ("intent_max_tokens", 4000),
-    ("realtime_timeout_s", 30), ("realtime_retries", 1), ("max_brain_calls_per_pass", 1),
+    ("realtime_retries", 1), ("max_brain_calls_per_pass", 1),
     ("max_wait_business_days", 2),
 ])
 def test_changing_a_locked_field_refuses_the_whole_save(admin_id, name, value):
@@ -144,7 +146,7 @@ def test_changing_a_locked_field_refuses_the_whole_save(admin_id, name, value):
 
 
 def test_a_locked_field_sent_with_its_current_value_is_not_a_change(admin_id):
-    result = save({"draft_effort": "max", "max_wait_business_days": 1.0, "realtime_timeout_s": 45}, actor=admin_id)
+    result = save({"draft_effort": "max", "max_wait_business_days": 1.0, "realtime_retries": 0}, actor=admin_id)
     assert result.changed == ("draft_effort",)  # 음성 대조: 값이 그대로면 잠긴 칸을 보내도 받는다
     assert set(stored()) == set(st.DEFAULTS) - LOCKED  # 잠긴 칸은 문서에 새로 쓰지 않는다
 
