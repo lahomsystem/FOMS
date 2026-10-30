@@ -162,7 +162,7 @@
           </dd>
         </div>
         <div class="foms-as-compare-meta"><dt>접수일</dt><dd class="foms-tabular">{{ r.as_received_date or '-' }}</dd></div>
-        <div class="foms-as-compare-meta"><dt>담당</dt><dd>{{ r.manager_name or '-' }}</dd></div>
+        <div class="foms-as-compare-meta"><dt>담당</dt><dd>{{ (r|manager_label) or '-' }}</dd></div>
         <div class="foms-as-compare-meta foms-as-compare-meta--full"><dt>주소</dt><dd>{{ r.address or '-' }}</dd></div>
       </dl>
 

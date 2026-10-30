@@ -37,6 +37,7 @@ from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 from foms.services.orders.status_constants import STATUS
+from foms.services.orders.manager_names import order_manager_match_names
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +261,11 @@ def _passes_measurement_undated_python_filters(order: Any, manager_filter: str) 
     if not is_measurement_undated(order):
         return False
     if manager_filter:
-        if resolve_manager_name(order).strip().lower() != manager_filter.strip().lower():
+        key = manager_filter.strip().lower()
+        # MULTI-MGR-01: 대표가 아닌 담당자로 걸러도 나온다.
+        if resolve_manager_name(order).strip().lower() != key and key not in order_manager_match_names(
+            getattr(order, 'structured_data', None), getattr(order, 'manager_name', None)
+        ):
             return False
     return True
 

@@ -15,7 +15,6 @@ from foms.services.drawing_confirm_cleanup import (
 )
 from foms.services.erp_display import (
     _ensure_dict,
-    manager_display_name,
     _erp_alerts,
     _erp_get_stage,
     _erp_has_media,
@@ -42,6 +41,7 @@ from foms.services.estimate_service import (
 )
 from foms.services.orders.board_state_display import build_board_state, production_run_ids_for
 from foms.services.orders.drawing_confirm_partial_view import cancel_label
+from foms.services.orders.manager_names import manager_label_from_parties
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -964,7 +964,7 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         # parties.manager 는 dict({name,...})가 정본이지만 스칼라(이름·user id)도 들어온다
         # (normalize_manager_name 이 두 모양을 다 받는다). dict 를 가정하면 그런 주문 한 건이
         # 모바일 큐 전체를 500 으로 만든다 — 2026-09-09 로컬 재현.
-        "manager_name": manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
+        "manager_name": manager_label_from_parties(parties) or getattr(order, "manager_name", None) or "-",
         "manager_phone": resolve_manager_phone_for_queue(
             parties,
             order=order,

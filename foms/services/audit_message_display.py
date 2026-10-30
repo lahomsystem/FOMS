@@ -360,6 +360,7 @@ PATH_LABELS: dict[str, str] = {
     "parties.buyer.name": "주문자명",
     "parties.buyer.phone": "주문자 연락처",
     "parties.manager.name": "담당자",
+    "parties.manager.names": "담당자 명단",
     # --- 현장 ---
     "site.address_full": "주소",
     "site.address_detail": "상세주소",

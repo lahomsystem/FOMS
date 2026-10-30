@@ -1086,7 +1086,7 @@
                                 }}</td>
                             <td class="th-measurement-time" data-label="실측시간">{{ order.measurement_time or '' }}</td>
                             <td class="th-scheduled-date" data-label="설치 예정일">{{ order.scheduled_date or '' }}</td>
-                            <td class="th-manager-name" data-label="담당자">{{ order.manager_name or '' }}</td>
+                            <td class="th-manager-name" data-label="담당자">{{ (order|manager_label) or '' }}</td>
                             <td class="th-status" data-label="상태">
                                 <span class="badge 
                                 {% if order.status == 'RECEIVED' %}bg-primary

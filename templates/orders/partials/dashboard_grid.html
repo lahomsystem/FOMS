@@ -299,7 +299,7 @@
                         주문 담당:
                         {% if o.is_unassigned_intake %}
                         <span class="badge bg-warning text-dark" title="담당자 배정 전">담당 미지정</span>
-                        {% else %}<strong>{{ o.manager_name or '-' }}</strong>{% endif %}
+                        {% else %}<strong>{{ (o|manager_label) or '-' }}</strong>{% endif %}
                         {% if drawing_transferred and drawing_files %}
                         <br />전달 파일: <strong>{{ drawing_files|length }}개</strong>
                         {% endif %}
@@ -444,7 +444,7 @@
                   <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">
                     {% if o.is_unassigned_intake %}
                     <span class="badge bg-warning text-dark" title="담당자 배정 전">담당 미지정</span>
-                    {% else %}{{ o.manager_name or '-' }}{% endif %}
+                    {% else %}{{ (o|manager_label) or '-' }}{% endif %}
                   </td>
                   <td data-col-key="attachment" data-label="첨부">
                     {% if o.has_media %}

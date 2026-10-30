@@ -732,7 +732,7 @@
                     </ul>
                   </td>
                   <td data-col-key="manager" data-label="담당자">
-                    {{ r.manager_name or '-' }}
+                    {{ (r|manager_label) or '-' }}
                   </td>
                 </tr>
                 {% endfor %}

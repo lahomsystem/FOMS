@@ -201,3 +201,28 @@ def test_single_name_with_note_reports_missing_user() -> None:
     lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("정명근 (라운즈)"))
     assert lookup.reason == "no_user"
     assert lookup.missing_users == ("정명근",)
+
+
+class _FakeSdOrder:
+    """뱃지로 저장한 주문 대역 — manager_name 칸은 대표만, 명단은 sd 에 있다(MULTI-MGR-01)."""
+
+    def __init__(self, names: list[str]) -> None:
+        self.manager_name = names[0]
+        self.structured_data = {"parties": {"manager": {"name": names[0], "names": list(names)}}}
+
+
+def test_badge_saved_managers_each_get_their_room() -> None:
+    """대표 칸에 한 명만 있어도 명단의 담당자 모두에게 개인방 PUSH 가 간다."""
+    users = [_FakeUser("김의종", "500101"), _FakeUser("한용희", "567922")]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeSdOrder(["김의종", "한용희"]))
+    assert lookup.group_ids == ("500101", "567922")
+    assert lookup.reason is None
+    assert lookup.manager_name == "김의종, 한용희"
+
+
+def test_badge_saved_single_manager_keeps_single_rules() -> None:
+    """명단이 한 명이면 예전 한 명 규칙 그대로다."""
+    users = [_FakeUser("한용희", "567922")]
+    order = _FakeSdOrder(["한용희"])
+    order.structured_data["parties"]["manager"].pop("names")
+    assert resolve_manager_room(_FakeDb(users), order).group_ids == ("567922",)

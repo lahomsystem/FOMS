@@ -76,6 +76,7 @@ from foms.services.erp_dashboard_search import (
 from foms.services.orders.sales_delivery_map import build_sales_delivery_by_ref
 from foms.services.auth.partner_scope import partner_mark_name
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
+from foms.services.orders.manager_names import order_manager_match_names
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -384,9 +385,11 @@ def erp_measurement_dashboard():
 
     if manager_filter:
         _mf_key = manager_filter.strip().lower()
+        # MULTI-MGR-01: 대표가 아닌 담당자로 걸러도 그 주문이 나온다(묶음·색은 대표 기준 그대로).
         rows = [
             o for o in rows
             if (get_manager_name_for_sort(o) or '').strip().lower() == _mf_key
+            or _mf_key in order_manager_match_names(o.structured_data, o.manager_name)
         ]
 
     _pi_fp = {

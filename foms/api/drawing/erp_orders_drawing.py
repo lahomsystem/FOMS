@@ -54,6 +54,7 @@ from foms.services.orders.upload_ticket import _file_type as attachment_file_typ
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
+from foms.services.orders.manager_names import MANAGER_NAMES_SEPARATOR, normalize_name_list, order_manager_label
 
 erp_orders_drawing_bp = Blueprint(
     'erp_orders_drawing',
@@ -130,12 +131,18 @@ def _drawing_notice_target(db, manager_name, *, partner=False):
         return 'CS', None, None
     admin_handled = ADMIN_HANDLED_MANAGER_KEYWORD in name
     role = ADMIN_HANDLED_TARGET_ROLE if admin_handled else None
-    if name:
-        matched = db.query(User.id).filter(
-            User.name == name, User.is_active == True  # noqa: E712
-        ).first()
-        if matched is not None:
-            return None, name, role
+    # MULTI-MGR-01: 담당자 여러 명이면 활성 계정과 맞는 사람 모두가 받는다
+    # (target_manager_name 에 ", " 로 이어 넣고, 수신자 resolver 가 나눠 읽는다).
+    names = normalize_name_list(name)
+    if names:
+        matched = {
+            str(row[0]) for row in db.query(User.name).filter(
+                User.name.in_(names), User.is_active == True  # noqa: E712
+            ).all()
+        }
+        matched_names = [n for n in names if n in matched]
+        if matched_names:
+            return None, MANAGER_NAMES_SEPARATOR.join(matched_names), role
     if admin_handled:
         return None, None, role
     return 'SALES', None, None
@@ -452,7 +459,7 @@ def perform_drawing_transfer(
             created_by_user_id=user_id,
         ))
 
-    manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+    manager_name = order_manager_label(s_data)
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
     target_team, target_manager_name, target_role = _drawing_notice_target(
         db, manager_name, partner=is_partner_sd(s_data))
@@ -851,7 +858,7 @@ def api_order_cancel_transfer(order_id):
         cancel_target_manager = None
         cancel_target_role = None
         try:
-            _mgr = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+            _mgr = order_manager_label(s_data)
             _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
             cancel_target_team, cancel_target_manager, cancel_target_role = _drawing_notice_target(
                 db, _mgr, partner=is_partner_sd(s_data))

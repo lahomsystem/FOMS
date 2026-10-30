@@ -36,6 +36,7 @@ from foms.services.address_learning_requests import (
 )
 from foms.services.erp_display import normalize_manager_name
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
+from foms.services.orders.manager_names import order_manager_label
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
@@ -203,6 +204,9 @@ def _extract_map_order_display(order):
         )
         if erp_manager_name:
             manager_name = erp_manager_name
+        # MULTI-MGR-01: 담당자 여러 명이면 전부 보인다(담당자 거르기도 이 문자열에 부분 일치).
+        if len(order_manager_label(sd).split(', ')) > 1:
+            manager_name = order_manager_label(sd)
 
     return {
         'customer_name': customer_name,

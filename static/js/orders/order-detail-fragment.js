@@ -234,8 +234,8 @@ function resolveOrderRoleAssignees(structured, preloadedPayload) {
     if (salesIds.length) {
         measurementNames = [salesIds.length + '명 지정'];
     } else {
-        const manager = String(((parties.manager || {}).name) || '').trim();
-        if (manager && manager !== '-') measurementNames = [manager];
+        // MULTI-MGR-01: 담당자 여러 명.
+        measurementNames = (function (m) { m = m && typeof m === 'object' ? m : { name: m }; const p = String(m.name || '').split(/[,/\n]/).map(function (s) { return s.trim(); }).filter(Boolean); if (p.length === 1 && Array.isArray(m.names) && m.names.indexOf(p[0]) !== -1) { return [p[0]].concat(m.names.filter(function (n) { return n !== p[0]; })); } return p; })(parties.manager).filter(function (n) { return n !== '-'; });
     }
 
     const drawingAssignees = Array.isArray(sd.drawing_assignees) ? sd.drawing_assignees : [];

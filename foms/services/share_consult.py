@@ -34,6 +34,7 @@ from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.manager_names import order_manager_label
 from models import Order, OrderEvent, OrderShareToken
 
 logger = logging.getLogger(__name__)
@@ -395,7 +396,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
         _note(user_chat_id, f"[FOMS 자동] 링크를 상담에 쓰지 못했어요. 담당자가 직접 보내 주세요.\n"
                             f"{_order_url(order.id)}", channel_id)
         return "send_failed"
-    manager = (order.manager_name or "").strip() or "미지정"
+    manager = order_manager_label(order.structured_data, order.manager_name) or "미지정"
     # 받은편지함에 누구인지 보이게 — 고객 이름과 "주문 · 고객 · 담당"(Open API 키가 있을 때만).
     channel_client.label_user_chat(
         brand, user_chat_id=user_chat_id,

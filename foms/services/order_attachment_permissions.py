@@ -8,6 +8,7 @@ from sqlalchemy import func, or_
 
 from foms.services.erp_permissions import is_order_related_to_user
 from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
+from foms.services.orders.manager_names import order_manager_match_names
 
 __all__ = [
     "can_delete_order_attachment",
@@ -49,6 +50,8 @@ def _collect_sales_manager_tokens(order: Any, sd: dict[str, Any]) -> set[str]:
         value = str(raw or "").strip().lower()
         if value:
             tokens.add(value)
+    # MULTI-MGR-01: 담당자 여러 명.
+    tokens.update(order_manager_match_names(sd))
     return tokens
 
 

@@ -21,7 +21,7 @@ from foms.services.erp_dashboard_search import (
     search_query_tokens,
 )
 from foms.services.erp_order_deeplink import load_focus_order_only
-from foms.services.erp_display import _ensure_dict, manager_display_name
+from foms.services.erp_display import _ensure_dict
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import (
@@ -40,6 +40,7 @@ from foms.services.foms_unified_search import (
 from foms.services.request_utils import get_search_query_arg
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.manager_names import manager_label_from_parties
 from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
 
 # 완료 대시보드 대상: 시공 완료·AS 접수 등 (정책 상수는 `foms.services.erp_policy` SSOT)
@@ -207,7 +208,7 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
         construction_date = (schedule.get("construction") or {}).get("date")
         parties = sd.get("parties") or {}
         customer_name = (parties.get("customer") or {}).get("name") or getattr(order, "customer_name", None) or "-"
-        manager_name = manager_display_name(parties) or getattr(order, "manager_name", None) or "-"
+        manager_name = manager_label_from_parties(parties) or getattr(order, "manager_name", None) or "-"
         items = active_items(sd)  # 취소 품목은 요약에서 뺀다
         product_summary = ", ".join(
             str((item.get("product_name") or "").strip() or "")

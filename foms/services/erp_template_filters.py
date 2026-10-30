@@ -4,6 +4,7 @@ import re
 
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.orders.manager_names import manager_label_filter
 # 실측 시간 자유 텍스트 판정 경계·정규식 SSOT (동선 정렬 파서와 같은 규약을 써야
 # 오전/오후 판정이 갈리지 않는다). 재노출은 기존 import 경로 호환용.
 from foms.services.measurement_time import (
@@ -343,6 +344,8 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(item_spec_w300_display, 'item_spec_w300')
     bp.add_app_template_filter(schedule_datetime_display, 'schedule_datetime_display')
     bp.add_app_template_filter(queue_card_schedule_filter, 'queue_card_schedule')
+    # MULTI-MGR-01: 담당자 여러 명 표시("김의종, 한용희").
+    bp.add_app_template_filter(manager_label_filter, 'manager_label')
     bp.add_app_template_filter(meas_daypart, 'meas_daypart')
     # 도면 상태 판정 정본(2a-2) — 강제 변경 창 경고(Q5)가 서버와 같은 답을 쓰게.
     bp.add_app_template_filter(effective_drawing_status, 'effective_drawing_status')

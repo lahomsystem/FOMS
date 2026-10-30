@@ -180,7 +180,7 @@
                                                        class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}"
                                                        data-field="manager_name"
-                                                       value="{{ order.manager_name or '' }}"
+                                                       value="{{ (order|manager_label) or '' }}"
                                                        placeholder="담당자 입력">
                                             </td>
                                             <td style="width: 150px;">
@@ -269,7 +269,7 @@
                                                        class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}"
                                                        data-field="manager_name"
-                                                       value="{{ order.manager_name or '' }}"
+                                                       value="{{ (order|manager_label) or '' }}"
                                                        placeholder="담당자 입력">
                                             </td>
                                             <td style="width: 150px;">
@@ -358,7 +358,7 @@
                                                        class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}"
                                                        data-field="manager_name"
-                                                       value="{{ order.manager_name or '' }}"
+                                                       value="{{ (order|manager_label) or '' }}"
                                                        placeholder="담당자 입력">
                                             </td>
                                             <td style="width: 150px;">
@@ -442,7 +442,7 @@
                                                 </select>
                                                 {{ complete_order_control(order.id, order.status, complete_ctas.get(order.id)) }}
                                             </td>
-                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ (order|manager_label) or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td class="text-danger">{{ order.scheduled_date or '-' }}</td>
                                             <td>
@@ -523,7 +523,7 @@
                                             <td>
                                                 <input type="text" class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}" data-field="manager_name" 
-                                                       value="{{ order.manager_name or '' }}" placeholder="담당자명">
+                                                       value="{{ (order|manager_label) or '' }}" placeholder="담당자명">
                                             </td>
                                             <td>
                                                 <input type="date" class="form-control form-control-sm inline-edit" 
@@ -616,7 +616,7 @@
                                                        class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}"
                                                        data-field="manager_name"
-                                                       value="{{ order.manager_name or '' }}"
+                                                       value="{{ (order|manager_label) or '' }}"
                                                        placeholder="담당자 입력">
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -706,7 +706,7 @@
                                                     {{ STATUS.get(order.status, order.status) }}
                                                 </span>
                                             </td>
-                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ (order|manager_label) or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>{{ order.scheduled_date or '-' }}</td>
                                             <td>
@@ -796,7 +796,7 @@
                                                     {{ STATUS.get(order.status, order.status) }}
                                                 </span>
                                             </td>
-                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ (order|manager_label) or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>{{ order.completion_date or '-' }}</td>
                                             <td>{{ order.as_received_date or '-' }}</td>

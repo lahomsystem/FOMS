@@ -22,6 +22,7 @@ from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.erp_policy import get_assignee_ids
+from foms.services.orders.manager_names import order_manager_label
 
 logger = logging.getLogger(__name__)
 
@@ -804,8 +805,9 @@ def compute_drawing_relevant_changes(
         changes,
         "parties.manager.name",
         "담당자",
-        _party_name(old_sd, "manager"),
-        _party_name(new_sd, "manager"),
+        # MULTI-MGR-01: 대표 말고 다른 담당자만 바뀌어도 알린다.
+        order_manager_label(old_sd) or _party_name(old_sd, "manager"),
+        order_manager_label(new_sd) or _party_name(new_sd, "manager"),
     )
     _add_change(
         changes,
