@@ -40,7 +40,7 @@ MAX_PRODUCT_NAMES = 500
 
 
 # "도면 확인" 탭 정렬 — 기본은 도면 나온 순(목업 2026-10-30). 목록과 같은 sort 인자.
-TURN_SORTS = (("drawing", "도면 나온 순"), ("date", "시공일 빠른 순"))
+TURN_SORTS = (("drawing", "도면 나온 순"), ("date", "시공일"))
 
 
 def _org() -> PartnerOrg:
