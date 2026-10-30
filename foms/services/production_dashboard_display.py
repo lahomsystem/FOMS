@@ -17,12 +17,12 @@ from foms.services.erp_display import (
     _erp_get_stage,
     _erp_has_media,
     _normalize_date_to_yyyymmdd,
-    manager_display_name,
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.estimate_service import build_measurement_manager_phone_map
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
+from foms.services.orders.manager_names import manager_label_from_parties
 
 __all__ = [
     "build_production_enriched_rows",
@@ -245,7 +245,7 @@ def _enrich_one_production_order(
         'v3_material': _production_material(_first_item),
         'construction_dday': _production_construction_dday(_construction_date),
         'construction_md': _production_construction_md(_construction_date),
-        'manager_name': manager_display_name(sd.get('parties')) or '-',
+        'manager_name': manager_label_from_parties(sd.get('parties')) or '-',
         'manager_phone': resolve_manager_phone_for_queue(
             sd.get('parties') or {}, order=o, manager_phone_map=manager_phone_map
         ),

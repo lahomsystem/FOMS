@@ -44,6 +44,7 @@ from foms.services.partners.schedule_request import (
 )
 from foms.services.integrations.kma.seoul_daily_weather import load_days as load_weather_days
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
+from foms.services.orders.manager_names import manager_label_from_parties
 
 __all__ = [
     "build_mobile_control_tower",
@@ -692,7 +693,7 @@ def _field_ops_for_date(
             "time": time_text,
             "time_group": _time_group(time_text),
             "addr": site.get("address_full") or site.get("address_main") or "-",
-            "manager": manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
+            "manager": manager_label_from_parties(parties) or getattr(order, "manager_name", None) or "-",
             "phone": str((parties.get("customer") or {}).get("phone") or "").strip(),
             "items_label": "" if (not is_cons and not is_as_only_visit) else _items_label(sd),
             "amount": amount,

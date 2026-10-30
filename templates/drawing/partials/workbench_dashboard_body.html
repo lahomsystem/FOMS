@@ -218,7 +218,7 @@
                 <div class="fw-bold">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
                   <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
                 <div class="small text-muted">#{{ r.id }}</div>
-                <div class="small text-muted">주문 담당: {{ r.manager_name }}</div>
+                <div class="small text-muted">주문 담당: {{ (r|manager_label) }}</div>
                 {% if r.my_todo %}
                 <span class="badge bg-primary mt-1">내 할 일</span>
                 {% endif %}

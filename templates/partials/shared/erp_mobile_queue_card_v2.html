@@ -224,7 +224,7 @@
       {% if (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING']) and not suppress_drawing_role_meta %}
         <div>
           <dt>실측 담당</dt>
-          <dd data-queue-card-field="measurement-assignee">{{ role_assignees.get('measurement_assignee') or order.manager_name or '-' }}</dd>
+          <dd data-queue-card-field="measurement-assignee">{{ role_assignees.get('measurement_assignee') or (order|manager_label) or '-' }}</dd>
         </div>
         <div>
           <dt>도면 담당</dt>
@@ -235,9 +235,9 @@
         <dt>담당</dt>
         <dd data-queue-card-field="manager">
           {% if has_manager_phone %}
-            <a data-queue-card-call-link href="tel:{{ safe_manager_phone }}">{{ order.manager_name or '-' }}</a>
+            <a data-queue-card-call-link href="tel:{{ safe_manager_phone }}">{{ (order|manager_label) or '-' }}</a>
           {% else %}
-            {{ order.manager_name or '-' }}
+            {{ (order|manager_label) or '-' }}
           {% endif %}
         </dd>
       </div>

@@ -529,8 +529,8 @@ def test_erp_order_party_workflow_notes_layout_is_two_rows():
     notes_idx = tpl.index('id="erp-notes"')
 
     assert orderer_idx < manager_idx < construction_idx < stage_idx < notes_idx
-    assert '<div class="col-md-4">\n                            <label class="form-label mb-1">담당자</label>' in tpl
-    assert '<div class="col-md-4">\n                            <label class="form-label mb-1">시공 담당자</label>' in tpl
+    assert '<div class="col-md-4">\n                            <label class="form-label mb-1" for="erp-manager">담당자</label>' in tpl
+    assert '<div class="col-md-4">\n                            <label class="form-label mb-1" for="erp-construction-workers">시공 담당자</label>' in tpl
     assert 'for="erp-workflow-stage">본공정 단계</label>' in tpl
     assert 'for="erp-workflow-stage">본공정 단계</label>' in mobile_tpl
     assert 'data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}' in tpl
@@ -1297,3 +1297,39 @@ def test_payment_confirm_ignores_unknown_balance_method(client):
     ).get_json()
     assert res["success"] is True
     assert res["payment"]["balance_method"] is None
+
+
+def test_structured_put_saves_multiple_managers_with_primary_column(client, monkeypatch):
+    """MULTI-MGR-01: 뱃지 여러 개 → name=대표(첫 뱃지)·names=전체, manager_name 컬럼은 대표."""
+    _login_as_admin(client, username="erp-multi-manager")
+    order = _create_order()
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+
+    next_sd = _structured_payload("서울 테헤란로 123")
+    next_sd["parties"]["manager"] = {"name": "김의종", "names": ["김의종", "한용희", "김의종"]}
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": next_sd, "structured_schema_version": 1},
+    )
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["parties"]["manager"] == {"name": "김의종", "names": ["김의종", "한용희"]}
+    assert saved.manager_name == "김의종"
+
+    # 뱃지를 하나만 남기면 명단 칸은 사라진다(예전 한 명 꼴 그대로).
+    next_sd["parties"]["manager"] = {"name": "한용희", "names": ["한용희"]}
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": next_sd, "structured_schema_version": 1},
+    )
+    assert response.status_code == 200
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["parties"]["manager"] == {"name": "한용희"}
+    assert saved.manager_name == "한용희"

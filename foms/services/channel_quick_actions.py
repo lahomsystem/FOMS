@@ -15,6 +15,7 @@ from foms.persistence.main.models import Order, OrderAttachment
 from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.manager_names import order_manager_label
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.storage import get_storage
 
@@ -132,7 +133,7 @@ def _format_order_manager(order: Order) -> str:
     const_wkr_str = ", ".join(const_workers) if const_workers else "-"
     return (
         f"👤 주문 #{order.id} 담당자 정보\n"
-        f"- 담당 매니저: {order.manager_name or '-'}\n"
+        f"- 담당 매니저: {order_manager_label(sd, order.manager_name) or '-'}\n"
         f"- 도면 담당자: {draw_mgr_str}\n"
         f"- 시공 담당자: {const_wkr_str}"
     )
@@ -204,7 +205,7 @@ def get_order_summary_for_wam(order_id: int) -> dict[str, Any] | None:
         "product": display_order.product,
         "measurement_date": display_order.measurement_date or "-",
         "construction_date": display_order.scheduled_date or "-",
-        "manager_name": display_order.manager_name or "-",
+        "manager_name": order_manager_label(display_order.structured_data, display_order.manager_name) or "-",
     }
 
 

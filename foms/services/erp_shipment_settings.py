@@ -13,6 +13,7 @@ from sqlalchemy import event
 from foms.persistence.main.db import db_session
 from foms.persistence.main.models import SystemSetting
 from foms.services.erp_display import manager_display_name
+from foms.services.orders.manager_names import order_manager_match_names
 
 __all__ = [
     "ERP_SHIPMENT_SETTINGS_KEY",
@@ -171,6 +172,8 @@ def is_order_mine_for_user(order, user):
         mn = manager_display_name(parties)
         if mn:
             manager_names.add(mn.lower())
+        # MULTI-MGR-01: 담당자 여러 명.
+        manager_names.update(order_manager_match_names(sd))
         wf = sd.get('workflow') or {}
         owner = (wf.get('current_quest') or {}).get('owner_person') or ''
         if (owner or '').strip():

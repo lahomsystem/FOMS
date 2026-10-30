@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-30] **담당자·시공자 여러 명 뱃지(MULTI-MGR-01, deploy)** — `parties.manager.names`(대표=첫 뱃지=`name`·컬럼). 내 주문·권한·알림·채널톡 개인방=명단 전체, 실측 색·정산=대표. 새 색인 `mine_manager_names_idx_00`. 잔여: 스테이징 실화면·통합 검색은 대표만
 - [2026-10-30] **AI 상담팀원 1주차(17절 판2 D67)** — '저장만' 끔(D66) · 로그인 구멍 운영(PR #669) · 메모 링크 버튼 시험 통과 · 다음: 빠른 길 · 사례 칸
 - [2026-10-28] **생산·시공 도면 바로 반영·생산팀 알림 운영 반영(PR #636 · production `6b2b5bd0`, 10-28 운영 실화면 통과)** — 생산 알림 합치기는 같은 종류만(deploy). 잔여: 생산팀 계정(사용자)·5690 사본. SPEC `2026-10-27-drawing-team-production-fix`
 - [2026-10-27] **마법사 등록 정리 운영(PR #627·#633·#634)** — 버튼 하나·빈 초안·미등록 알림·SIDEFX 처리기. DEAD 6행은 10-28 다시 처리(DONE, 사용자 승인) → 매일 워커 점검 초록
@@ -30,8 +31,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
-- [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
-- [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -208,6 +207,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
+- [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 - [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-10-23] **마법사 같은 주문 2번 저장 수정 — 운영 완료(PR #623 `f8d464c1`)** — 잔여: 운영 #5812 중복(사용자 정리)
 - [2026-10-21] **협력사 1~6·18 운영 완료(#577~#619)** — 새 주문·사진·입력 칸·희망 시공일·시공 달력·사진 연결. SPEC `2026-10-19-partner-foms-mode` §18

@@ -7,6 +7,7 @@ from foms.services.common.business_calendar import business_days_until
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive, to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
+from foms.services.orders.manager_names import order_manager_match_names
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -520,6 +521,8 @@ def _sales_domain_fallback_match(user, order, structured_data) -> bool:
     manager_name_sd = manager_display_name(parties)
     if manager_name_sd:
         manager_names.add(manager_name_sd.lower())
+    # MULTI-MGR-01: 대표 아닌 담당자도 영업 도메인 담당이다.
+    manager_names.update(order_manager_match_names(structured_data))
     manager_name_col = (order.manager_name or '').strip()
     if manager_name_col:
         manager_names.add(manager_name_col.lower())

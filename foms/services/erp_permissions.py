@@ -11,6 +11,7 @@ from typing import Any, Callable
 from flask import jsonify, session
 
 from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
+from foms.services.orders.manager_names import order_manager_match_names
 from foms.web.auth import get_user_by_id
 
 ERP_EDIT_ALLOWED_TEAMS = ("CS", "SALES")
@@ -189,6 +190,8 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
         str(manager.get("name") or "").strip().lower(),
         str(current_quest.get("owner_person") or "").strip().lower(),
     }
+    # MULTI-MGR-01: 담당자 여러 명 — 대표 아닌 담당자도 "내 주문"이다.
+    manager_names.update(order_manager_match_names(sd))
     manager_names.discard("")
 
     sales_ids = _normalized_int_values(assignments.get("sales_assignee_user_ids"))
@@ -320,6 +323,8 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
         safe = _escape_like(value)
         manager_conds.append(Order.manager_name.ilike(safe, escape="\\"))  # perf-ok: ix_orders_manager_name_trgm
         manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["name"], value, dialect_name=dialect_name))
+        # MULTI-MGR-01: 대표가 아닌 담당자는 names 배열에만 있다.
+        manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["names"], value, dialect_name=dialect_name))
         manager_conds.append(_json_string_token_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
         construction_conds.append(_json_string_token_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
         drawing_conds.append(_json_string_token_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))

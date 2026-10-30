@@ -27,6 +27,7 @@ from foms.services.orders.estimate_defaults import (
 )
 from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
+from foms.services.orders.manager_names import normalize_manager_party
 from foms.services.orders.stage_override import normalize_main_stage, override_pins_stage
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
@@ -1586,6 +1587,7 @@ def api_put_order_structured(order_id):
                     structured_data['assignments'] = {}
                 _preserve_operational_structured_state(old_sd, structured_data)
                 _preserve_or_normalize_construction_workers(old_sd, structured_data)
+                normalize_manager_party(structured_data)
                 # DATA-01 정본 projection: partial allowlist · provenance lock · server pricing.
                 project_structured_form(old_sd, structured_data)
 

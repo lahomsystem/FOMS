@@ -962,7 +962,7 @@
                               {%- endif %}
                               <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">{{ r.phone or '-' }}</span></div>
                               <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">{{ r.address or '-' }}</span></div>
-                              <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ r.manager_name or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ (r|manager_label) or '-' }}</span></div>
                             </div>
                           </div>
                         </div>

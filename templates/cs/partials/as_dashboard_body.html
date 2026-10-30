@@ -352,7 +352,7 @@
                   {% if can_edit_erp|default(false) %}data-as-reintake-url="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order&amp;as_reintake=1"{% endif %}
                   style="width: 100%;">
               </td>
-              <td>{{ r.manager_name or '-' }}</td>
+              <td>{{ (r|manager_label) or '-' }}</td>
               <td>{{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}</td>
               <td class="{% if r.as_pending %}erp-as-customer-cell--pending{% endif %}">
                 <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}

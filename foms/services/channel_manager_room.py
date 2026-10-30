@@ -23,6 +23,7 @@ import re
 from typing import Any
 
 from foms.services.channel_policy import is_retired_channel_group_id
+from foms.services.orders.manager_names import MANAGER_NAMES_SEPARATOR, order_manager_names
 
 __all__ = [
     "ManagerRoomLookup",
@@ -136,11 +137,27 @@ def resolve_manager_room(db, order: Any) -> ManagerRoomLookup:
             None, "", "no_manager", "주문에 담당자가 없어 담당자 개인방은 보내지 않았습니다."
         )
 
+    # MULTI-MGR-01: 뱃지로 여러 명을 저장한 주문은 ``manager_name`` 칸에 대표 1명만 있다.
+    # 명단(``parties.manager.names``)이 있으면 그 사람들 모두의 방을 찾는다.
+    listed = _listed_manager_names(order, manager_name)
+    if len(listed) > 1:
+        return _resolve_several(users, listed, MANAGER_NAMES_SEPARATOR.join(listed))
+
     whole_name_matches = any(str(u.name or "").strip() == manager_name for u in users)
     names = [manager_name] if whole_name_matches else _split_manager_names(manager_name)
     if len(names) <= 1:
         return _resolve_single(users, names[0] if names else manager_name, manager_name)
     return _resolve_several(users, names, manager_name)
+
+
+def _listed_manager_names(order: Any, manager_name: str) -> list[str]:
+    """새 저장 꼴(``parties.manager.names``)의 담당자 명단. 명단이 없으면 빈 목록."""
+    sd = getattr(order, "structured_data", None)
+    parties = sd.get("parties") if isinstance(sd, dict) else None
+    manager = parties.get("manager") if isinstance(parties, dict) else None
+    if not isinstance(manager, dict) or not manager.get("names"):
+        return []
+    return order_manager_names(sd, manager_name)
 
 
 def _split_manager_names(manager_name: str) -> list[str]:

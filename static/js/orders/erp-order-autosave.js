@@ -629,7 +629,8 @@
     var orderer = (sd.parties && sd.parties.orderer) || {};
     set("erp-orderer", orderer.name);
     var mgr = (sd.parties && sd.parties.manager) || {};
-    set("erp-manager", mgr.name);
+    set("erp-manager", typeof window.erpManagerNamesFromSd === "function"
+      ? window.erpManagerNamesFromSd(sd).join(", ") : mgr.name);
     var site = sd.site || {};
     set("erp-address", site.address_full || site.address_main || "");
     var meas = (sd.schedule && sd.schedule.measurement) || {};

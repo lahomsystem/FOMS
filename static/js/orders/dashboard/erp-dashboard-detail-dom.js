@@ -104,7 +104,9 @@
               (((sd.schedule || {}).construction || {}).date) || '',
               (((sd.schedule || {}).construction || {}).time) || ''
             );
-            const manager = (((sd.parties || {}).manager || {}).name) || '-';
+            // MULTI-MGR-01: 담당자 여러 명(대표가 맨 앞) — 서버 order_manager_names 와 같은 규칙.
+            const managerNames = (function (m) { m = m && typeof m === 'object' ? m : { name: m }; const p = String(m.name || '').split(/[,/\n]/).map(function (s) { return s.trim(); }).filter(Boolean); if (p.length === 1 && Array.isArray(m.names) && m.names.indexOf(p[0]) !== -1) { return [p[0]].concat(m.names.filter(function (n) { return n !== p[0]; })); } return p; })((sd.parties || {}).manager);
+            const manager = managerNames.join(', ') || '-';
             const stage = (((sd.workflow || {}).stage)) || '-';
             const urgent = ((sd.flags || {}).urgent) || false;
             __drawingCurrentFilesByOrder[orderId] = Array.isArray(sd.drawing_current_files) ? sd.drawing_current_files : [];
@@ -333,7 +335,7 @@
               const isDrawingTeam = (MY_TEAM === 'DRAWING');
               const isSalesTeam = (MY_TEAM === 'SALES');
               // Manager matches current user name? or admin
-              const isManager = (manager === MY_NAME);
+              const isManager = managerNames.indexOf(MY_NAME) !== -1;
               const isAdmin = (MY_ROLE === 'ADMIN');
               const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
               const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
@@ -493,7 +495,7 @@
               // 분기와 동일 조건 canEdit && (sales/manager/admin)). 도면팀측 버튼은 렌더 안 함.
               const canEdit = typeof CAN_EDIT_ERP !== 'undefined' && CAN_EDIT_ERP;
               const isSalesTeam = (MY_TEAM === 'SALES');
-              const isManager = (manager === MY_NAME);
+              const isManager = managerNames.indexOf(MY_NAME) !== -1;
               const isAdmin = (MY_ROLE === 'ADMIN');
               const reviseBtn = (canEdit && (isSalesTeam || isManager || isAdmin))
                 ? '<button class="btn btn-warning" onclick="openRevisionRequestModal(' + orderId + ')"><i class="fas fa-undo"></' + 'i> 수정 요청</' + 'button>'

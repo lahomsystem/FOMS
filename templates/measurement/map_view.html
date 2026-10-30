@@ -2408,7 +2408,9 @@
                     (((sd.schedule || {}).construction || {}).date) || '',
                     (((sd.schedule || {}).construction || {}).time) || ''
                 );
-                const manager = (((sd.parties || {}).manager || {}).name) || '-';
+                // MULTI-MGR-01: 담당자 여러 명(대표가 맨 앞) — 서버 order_manager_names 와 같은 규칙.
+                const managerNames = (function (m) { m = m && typeof m === 'object' ? m : { name: m }; const p = String(m.name || '').split(/[,/\n]/).map(function (s) { return s.trim(); }).filter(Boolean); if (p.length === 1 && Array.isArray(m.names) && m.names.indexOf(p[0]) !== -1) { return [p[0]].concat(m.names.filter(function (n) { return n !== p[0]; })); } return p; })((sd.parties || {}).manager);
+                const manager = managerNames.join(', ') || '-';
 
                 // 제품 항목
                 const items = (sd.items || []) || [];

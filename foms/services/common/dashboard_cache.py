@@ -836,6 +836,7 @@ def order_dashboard_cache_axes(order: Any) -> dict[str, Any]:
             _as_dict(parties.get("customer")).get("name"),
             _as_dict(parties.get("customer")).get("phone"),
             _as_dict(parties.get("manager")).get("name"),
+            str(_as_dict(parties.get("manager")).get("names") or ""),  # MULTI-MGR-01
             _as_dict(parties.get("orderer")).get("name"),
             _as_dict(parties.get("buyer")).get("name"),
             _as_dict(parties.get("buyer")).get("phone"),

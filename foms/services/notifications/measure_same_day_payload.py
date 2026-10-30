@@ -10,7 +10,7 @@ import datetime as _dt
 from typing import Any, Optional
 
 from foms.services.datetime_kst import format_datetime_kst
-from foms.services.erp_display import manager_display_name
+from foms.services.orders.manager_names import manager_label_from_parties
 
 #: 알림 유형(``Notification.notification_type``).
 NOTIFICATION_TYPE = "MEASURE_SAME_DAY_ADDED"
@@ -48,7 +48,7 @@ def _measure_time(order: Any) -> str:
 
 
 def _manager(order: Any) -> str:
-    name = manager_display_name(_sd(order).get("parties"))
+    name = manager_label_from_parties(_sd(order).get("parties"))  # MULTI-MGR-01
     return str(name or getattr(order, "manager_name", "") or "").strip()
 
 

@@ -7,7 +7,7 @@
     {'label': '주소', 'value': order.address or '-', 'map_query': order.address, 'copy_value': order.address},
   ] %}
   {% if include_manager %}
-    {% set _ = rows.append({'label': '담당', 'value': order.manager_name or '-'}) %}
+    {% set _ = rows.append({'label': '담당', 'value': (order|manager_label) or '-'}) %}
   {% endif %}
   {% if include_schedule and schedule_label and schedule_value %}
     {% set _ = rows.append({'label': schedule_label, 'value': schedule_value}) %}

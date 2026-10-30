@@ -32,7 +32,7 @@ from tests.support.asset_urls import (
 )
 
 PILOT_TEMPLATE_NAME = "orders/partials/erp_order_js.html"
-PILOT_ASSET_COUNT = 39  # CSS 14 · JS 25 (계획서 §1 + 2026-10-15 할인 항목 줄 CSS·JS)
+PILOT_ASSET_COUNT = 41  # CSS 15 · JS 26 (계획서 §1 + 2026-10-15 할인 항목 줄 CSS·JS + 2026-10-30 담당자 뱃지 CSS·JS)
 PILOT_IMAGE_COUNT = 4  # 결제 아이콘 — 버전 없는 이미지는 그대로 둔다
 
 _HASH_VERSION = re.compile(r"^[0-9a-f]{12}$")
@@ -227,8 +227,8 @@ def test_pilot_template_source_uses_asset_url_for_every_css_js() -> None:
     calls = _ASSET_URL_CALL.findall(source)
     assert len(calls) == PILOT_ASSET_COUNT, calls
     assert len(set(calls)) == PILOT_ASSET_COUNT, "같은 자산이 두 번 실렸다"
-    assert sum(c.endswith(".css") for c in calls) == 14
-    assert sum(c.endswith(".js") for c in calls) == 25
+    assert sum(c.endswith(".css") for c in calls) == 15
+    assert sum(c.endswith(".js") for c in calls) == 26
     assert not _DATE_PIN_URL_FOR.search(source), "시범 파일에 손 날짜 핀(?v=)이 남았다"
     assert "?v=" not in source
     images = re.findall(r"url_for\('static', filename='(images/[^']+\.png)'\)", source)

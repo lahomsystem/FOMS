@@ -436,6 +436,25 @@ function erpJoinSiteAddress(full, detail) {
 }
 window.erpJoinSiteAddress = erpJoinSiteAddress;
 
+/**
+ * 주문 sd 의 담당자 전체 명단(대표가 맨 앞) — 서버 order_manager_names 와 같은 규칙(MULTI-MGR-01).
+ * name 이 정본이다: name 이 names 안에 있으면 맨 앞으로, 없으면 name 만(옛 "김, 이" 한 칸은 나눈다).
+ * @param {Object} sd structured_data
+ * @returns {string[]}
+ */
+function erpManagerNamesFromSd(sd) {
+    var manager = sd && sd.parties ? sd.parties.manager : null;
+    var rawName = manager && typeof manager === 'object' ? manager.name : manager;
+    var primary = erpNormalizeConstructionWorkers(String(rawName || '').replace(/\//g, ','));
+    var names = erpNormalizeConstructionWorkers(manager && typeof manager === 'object' ? manager.names || [] : []);
+    if (!primary.length) return [];
+    if (primary.length === 1 && names.indexOf(primary[0]) !== -1) {
+        return [primary[0]].concat(names.filter(function (n) { return n !== primary[0]; }));
+    }
+    return primary;
+}
+window.erpManagerNamesFromSd = erpManagerNamesFromSd;
+
 function erpConstructionWorkersEqual(left, right) {
     var a = erpNormalizeConstructionWorkers(left);
     var b = erpNormalizeConstructionWorkers(right);
@@ -2179,7 +2198,9 @@ async function erpLoadStructured(bootstrapData, options) {
         }
         toggleOrdererUI();
     })();
-    document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+    // 조각(fragment)으로 늦게 붙은 폼도 뱃지 칸으로 바꾼 뒤 채운다(이미 바꾼 칸은 건너뛴다).
+    if (window.FomsNameChips) window.FomsNameChips.enhanceAll(document);
+    document.getElementById('erp-manager').value = erpManagerNamesFromSd(sd).join(', ');
     const erpConstructionWorkersEl = document.getElementById('erp-construction-workers');
     if (erpConstructionWorkersEl) {
         erpConstructionWorkersEl.value = erpFormatConstructionWorkers(sd?.shipment?.construction_workers || []);
@@ -2413,7 +2434,11 @@ function erpCollectStructured() {
                 phone: getVal('erp-customer-phone')
             },
             orderer: { name: typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer') },
-            manager: { name: getVal('erp-manager') }
+            manager: (function () {
+                // MULTI-MGR-01: 뱃지 여러 개 — 첫 뱃지가 대표(name), 전체는 names.
+                const names = erpNormalizeConstructionWorkers(getVal('erp-manager'));
+                return { name: names[0] || '', names: names };
+            })()
         },
         site: (function () {
             const full = getVal('erp-address').trim();
@@ -3279,7 +3304,8 @@ window.erpTogglePayment = async function(btn, pType) {
         erpSyncRegionalConstructionTypeVisibility({ clear: !this.checked });
         // 지방주문을 켜면 담당자를 양산지사로 지정할지 묻는다(아니오면 비워 둔다).
         const managerEl = document.getElementById('erp-manager');
-        if (this.checked && managerEl && managerEl.value.trim() !== '양산지사') {
+        if (this.checked && managerEl &&
+                erpNormalizeConstructionWorkers(managerEl.value).indexOf('양산지사') === -1) {
             managerEl.value = window.confirm('담당자를 양산지사로 지정할까요?') ? '양산지사' : '';
             managerEl.dispatchEvent(new Event('input', { bubbles: true }));
             managerEl.dispatchEvent(new Event('change', { bubbles: true }));

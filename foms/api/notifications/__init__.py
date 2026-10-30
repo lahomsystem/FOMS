@@ -24,6 +24,7 @@ from foms.services.notifications.measure_same_day_payload import measure_same_da
 from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
+from foms.services.orders.manager_names import normalize_name_list
 from db import get_db
 from models import (
     Notification,
@@ -117,7 +118,8 @@ def resolve_notification_recipient_user_ids(
 
         conditions.append(func.upper(User.team).in_(expand_team_codes(team)))
     if manager_name:
-        conditions.append(User.name == manager_name)
+        # MULTI-MGR-01: "김의종, 한용희" = 담당자 여러 명(recipients 와 같은 규칙).
+        conditions.append(User.name.in_(normalize_name_list(manager_name)))
     if include_admin:
         conditions.append(User.role == "ADMIN")
 
