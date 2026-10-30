@@ -29,7 +29,9 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateIndex
 
 from db import db_session
-from foms.services.cs_agent import brain, brain_cases, brain_prompt, case_memory, drafting, loop, realtime, turns_fields
+from foms.services.cs_agent import (
+    brain, brain_cases, brain_prompt, case_material, case_memory, drafting, loop, realtime, turns_fields,
+)
 from foms.services.cs_agent.drafting_read import ChatLine
 from foms.services.cs_agent.masking import MaskLeak, mask
 from models import CsAgentTurn
@@ -49,7 +51,8 @@ PROFILE_NAME = "하늘고래프로필명찰"  # 채널톡 글의 상담원 프�
 MANAGER = "mgr-synthetic-7"  # 데스크 상담원 id(채널톡 personId 꼴)
 QUESTION = f"{CUSTOMER} 선반 깊이 문의드려요"  # Talk 의 처음 손님 글
 COPY = DRAFT + " 감사합니다."  # 메모 글을 복사해 끝 인사만 붙임(글자 비슷함 0.91)
-EDITED = "안녕하세요 고객님, 합성 선반 깊이는 350mm 이고 원하시면 더 깊게도 맞춰 드립니다."  # 문장 하나 고침(0.78)
+EDITED = "안녕하세요 고객님, 합성 선반 깊이는 350mm 이고 원하시면 더 깊게도 맞춰 드립니다."  # 문장 하나 고침(0.78 — '고침')
+DIRECT = "고객님 선반은 350mm 입니다. 다른 크기는 따로 여쭤 주세요."  # 메모와 다른 답(0.44 — '직접 답')
 DRAFT_B = "안녕하세요 고객님, 문의 주신 합성 선반은 깊이 350mm 제품만 있습니다."
 
 
@@ -90,8 +93,8 @@ def test_a_direct_reply_is_attached_with_the_masked_question_and_the_desk_manage
     later = tick(channel, sec(50 + 121), memory)
     (row,) = rows()
     assert (row.state, row.outcome, row.desk_manager_id) == ("stored", "direct", MANAGER)
-    assert later.summary()["cases"] == {"pending": 1, "ready": 1, "reads": 1, "direct": 1, "copied": 0,
-                                        "no_text": 0, "conflicts": 0, "halted": None}
+    assert later.summary()["cases"] == {"pending": 1, "ready": 1, "reads": 1, "direct": 1, "edited": 0, "copied": 0,
+                                        "discarded": 0, "no_text": 0, "read_errors": 0, "conflicts": 0, "halted": None}
     reply = row.staff_reply_masked
     assert STAFF in reply and "추가로" in reply and "[도로명주소]" in reply and "가상로" not in reply  # 두 말풍선 · 가림
     assert row.masked_question.split("\n") == [QUESTION, "주소: 합성시 [주소]"]  # 그 차례 손님 글 둘(가린 것)
@@ -122,10 +125,11 @@ def test_a_turn_whose_window_closed_without_a_reply_gets_nothing_and_the_next_tu
     staff(talk, "s-1", sec(60), f"{STAFF} 사진과 문의 함께 봤습니다")
     result_ = tick(channel, sec(60 + 121), memory)
     photo, text_turn = rows()
-    assert (photo.state, photo.error_code, photo.outcome) == ("skipped", "photo_only", None)  # 직원 답은 뒤 차례 몫
+    assert (photo.state, photo.error_code, photo.outcome) == ("skipped", "photo_only", "discarded")  # 직원 답은 뒤 차례 몫
     assert (text_turn.outcome, text_turn.staff_reply_masked) == ("direct", f"{STAFF} 사진과 문의 함께 봤습니다")
     assert text_turn.masked_question.split("\n") == ["(사진 · 파일 첨부)", QUESTION]  # 묶음의 손님 글 모두
-    assert (result_.cases["pending"], result_.cases["ready"], result_.cases["reads"]) == (2, 1, 1)
+    assert (result_.cases["pending"], result_.cases["ready"], result_.cases["reads"], result_.cases["discarded"]) == (
+        2, 1, 1, 1)
 
 
 # ── ② 복사 판정 · 재료에서 뺌 ─────────────────────────────────────────────
@@ -137,11 +141,11 @@ def test_a_copied_memo_is_copied_and_never_becomes_material_but_an_edited_reply_
         talk.say(f"m-{talk.chat}", sec(0), text=QUESTION)
     tick(channel, sec(16), memory)
     staff(copied, "s-1", sec(30), COPY)
-    staff(edited, "s-2", sec(30), EDITED)  # 음성 대조군: 문장 하나를 고친 답
+    staff(edited, "s-2", sec(30), EDITED)  # 음성 대조군: 문장 하나를 고친 답(R14-5 — 중간 띠는 '고침')
     tick(channel, sec(30 + 121), memory)
     (copy_row,), (edit_row,) = rows("uc-1"), rows("uc-2")
     assert (copy_row.outcome, copy_row.edit_ratio) == ("copied", Decimal("0.089"))
-    assert (edit_row.outcome, edit_row.edit_ratio) == ("direct", Decimal("0.224"))
+    assert (edit_row.outcome, edit_row.edit_ratio) == ("edited", Decimal("0.224"))
     asker, brain_fn = Talk(channel, "uc-3"), FakeBrain()
     asker.say("m-uc-3", sec(300), text=QUESTION)
     tick(channel, sec(316), memory, brain_fn=brain_fn)
@@ -160,9 +164,10 @@ def test_copying_an_older_memo_that_could_not_be_removed_is_still_copied(channel
     tick(channel, sec(46), memory, brain_fn=brain_fn)
     assert [(row.state, row.masked_draft) for row in rows()] == [("superseded", DRAFT), ("stored", DRAFT_B)]
     staff(talk, "s-1", sec(60), COPY)  # 직원이 앞 메모(DRAFT)를 복사
-    tick(channel, sec(60 + 121), memory, brain_fn=brain_fn)
+    result_ = tick(channel, sec(60 + 121), memory, brain_fn=brain_fn)
     old, new = rows()
     assert (old.outcome, new.outcome) == (None, "copied")  # 지난 초안은 사례가 아니고, 새 차례가 '복사'로 남는다
+    assert (result_.cases["pending"], result_.cases["conflicts"]) == (1, 0)  # 지난 초안은 살펴보지도 않는다(M12)
     assert new.masked_question.split("\n") == [QUESTION, "합성 다른 색도 있나요"]
 
 
@@ -184,7 +189,8 @@ def test_the_next_draft_gets_similar_same_brand_cases_only(channel):
     task = brain_prompt.task_text(purpose="draft", chat_id="uc-1", medium="native", now=sec(0), calculator_lines=(),
                                   conversation="[손님] 합성", cases=request.cases)
     head = task.index(brain_cases.CASES_HEAD)
-    assert task.index("계산 결과") < head < task.index("상담 글(") and "- 사례 1 손님 글: 선반 깊이 문의드려요" in task
+    assert task.index("계산 결과") < head < task.index("상담 글(")
+    assert ["사례 1 손님 글:", "| 선반 깊이 문의드려요"] == task.split(brain_cases.CASES_HEAD)[1].splitlines()[1:3]
     assert brain_cases.CASES_HEAD not in brain_prompt.task_text(  # 사례가 없으면 칸도 없다(예전 글 그대로)
         purpose="draft", chat_id="uc-1", medium="native", now=sec(0), calculator_lines=(), conversation="[손님] 합성")
 
@@ -193,11 +199,11 @@ def test_cases_are_ordered_by_similarity_and_capped(app):
     for number in range(7):
         case_row(f"c-{number}", answer=f"합성 답 {number}")
     closer = case_row("c-closer", question=f"{CUSTOMER} 선반 깊이 문의드려요 합성", answer="합성 답 가장 비슷")
-    found = case_memory.similar_cases(db_session, "LAHOM", _lines(QUESTION + " 합성"))
+    found = case_material.similar_cases(db_session, "LAHOM", _lines(QUESTION + " 합성"))
     assert len(found) == brain_cases.MAX_CASES == 5
     assert found[0] == (closer.masked_question, "합성 답 가장 비슷")
     assert [answer for _, answer in found[1:]] == [f"합성 답 {n}" for n in (6, 5, 4, 3)]  # 같은 비슷함이면 새 사례부터
-    assert case_memory.similar_cases(db_session, "LAHOM", []) == ()  # 지금 손님 글이 없으면 재료 없음
+    assert case_material.similar_cases(db_session, "LAHOM", []) == ()  # 지금 손님 글이 없으면 재료 없음
 
 
 def _lines(text):
@@ -206,9 +212,9 @@ def _lines(text):
 
 
 def test_trigram_similarity_matches_pg_trgm():
-    assert round(case_memory.trigram_similarity("word", "two words"), 6) == 0.363636  # pg_trgm 문서의 보기 값
-    assert case_memory.trigram_similarity("선반 깊이", "선반 깊이") == 1.0
-    assert case_memory.trigram_similarity("선반", "배송") == 0.0 and case_memory.trigram_similarity("", "선반") == 0.0
+    assert round(case_material.trigram_similarity("word", "two words"), 6) == 0.363636  # pg_trgm 문서의 보기 값
+    assert case_material.trigram_similarity("선반 깊이", "선반 깊이") == 1.0
+    assert case_material.trigram_similarity("선반", "배송") == 0.0 and case_material.trigram_similarity("", "선반") == 0.0
     assert case_memory.text_similarity(DRAFT, COPY) >= case_memory.COPY_SIMILARITY > case_memory.text_similarity(
         DRAFT, EDITED)
 
@@ -275,9 +281,9 @@ def test_amounts_and_dates_from_a_case_are_blocked_in_a_new_draft(channel):
 def test_a_case_that_fails_the_mask_check_never_reaches_the_brain(app):
     case_row("c-1", answer="합성 답 가상로 12 로 오세요")  # 가림이 구멍 난 채 쌓인 사례(가정)
     case_row("c-2", answer="합성 답 깨끗함")
-    assert case_memory.similar_cases(db_session, "LAHOM", _lines(QUESTION)) == (("선반 깊이 문의드려요", "합성 답 깨끗함"),)
+    assert case_material.similar_cases(db_session, "LAHOM", _lines(QUESTION)) == (("선반 깊이 문의드려요", "합성 답 깨끗함"),)
     with pytest.raises(MaskLeak) as caught:  # 두뇌가 실을 때 한 번 더 — 칸별 숫자만
-        brain_cases.case_lines((("선반 깊이 문의드려요", "합성 답 가상로 12 로 오세요"),), brain_prompt._block)
+        brain_cases.case_lines((("선반 깊이 문의드려요", "합성 답 가상로 12 로 오세요"),))
     assert caught.value.counts == {"도로": 1} and "가상로" not in str(caught.value)
 
 
@@ -380,11 +386,11 @@ def test_each_tick_reads_at_most_its_cap_and_the_rest_wait_for_the_next(channel)
     for talk in talks:
         staff(talk, f"s-{talk.chat}", sec(30), EDITED)
     first = tick(channel, sec(30 + 121), memory)
-    assert (first.cases["reads"], first.cases["direct"], first.cases["halted"]) == (
+    assert (first.cases["reads"], first.cases["edited"], first.cases["halted"]) == (
         case_memory.TICK_LIMITS.max_reads, 2, "read_cap")
     second = tick(channel, sec(30 + 126), memory)
-    assert (second.cases["reads"], second.cases["direct"]) == (1, 1)
-    assert [rows(talk.chat)[0].outcome for talk in talks] == ["direct"] * 3
+    assert (second.cases["reads"], second.cases["edited"]) == (1, 1)
+    assert [rows(talk.chat)[0].outcome for talk in talks] == ["edited"] * 3
 
 
 def test_staff_ids_are_not_shown_or_counted_on_screens_or_reports():

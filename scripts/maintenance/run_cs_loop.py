@@ -25,7 +25,6 @@ import json
 import logging
 import os
 import sys
-import traceback
 from typing import Any, Optional
 
 sys.path.append(
@@ -40,6 +39,7 @@ from foms.platform.sentry_setup import resolve_environment  # noqa: E402
 from foms.services.cs_agent.brain_spend import HEARTBEAT_CAP_KEY, heartbeat_cap_value  # noqa: E402
 from foms.services.cs_agent.runner_support import (  # noqa: E402,F401 — drop_frame_locals 는 시험이 러너 이름으로 부른다
     drop_frame_locals,
+    error_summary,
     install_sentry_privacy,
 )
 from foms.services.cs_agent.runner_support import install_signal_handlers as install_stop_signals  # noqa: E402
@@ -166,9 +166,8 @@ def _tick(stop: StopFlag, config: LoopConfig, as_json: bool) -> Optional[dict]:
     try:
         with app.app_context():
             summary = _pass_once(stop, config)
-    except Exception:
-        print("[cs-loop] pass failed:", flush=True)
-        traceback.print_exc()
+    except Exception as exc:
+        print(f"[cs-loop] pass failed: {error_summary(exc)}", flush=True)  # 예외 글 없음(SQL 매개변수 — R14-8)
         capture_exception()
         return None
     if as_json or summary.get("alerts") or summary.get("report_sent"):

@@ -23,7 +23,6 @@ import logging
 import os
 import sys
 import time
-import traceback
 from typing import Optional
 
 sys.path.append(
@@ -35,6 +34,7 @@ from db import db_session, engine  # noqa: E402
 from foms.services.cs_agent.loop import StopFlag  # noqa: E402
 from foms.services.cs_agent.realtime import TICK_SECONDS, TickMemory, run_tick  # noqa: E402
 from foms.services.cs_agent.runner_support import (  # noqa: E402
+    error_summary,
     install_sentry_privacy,
     install_signal_handlers,
 )
@@ -54,7 +54,7 @@ HEARTBEAT_WORKER_KIND = WORKER_KIND_CS_REALTIME
 HEARTBEAT_SECONDS = 30
 #: 하트비트에 합해 싣는 차례 숫자(상담 id · 글 없음).
 _COUNTED = ("ingested", "picked")
-#: 같은 꼴의 차례 실패를 Sentry · 전체 추적으로 다시 보내기까지(초).
+#: 같은 꼴의 차례 실패를 Sentry 로 다시 보내기까지(초).
 ERROR_REPORT_SECONDS = 600
 
 
@@ -88,7 +88,7 @@ def _parse_args(argv: Optional[list] = None) -> argparse.Namespace:
 def _tick(stop: StopFlag, memory: TickMemory, gate: Optional[ErrorGate] = None) -> Optional[dict]:
     """차례 하나(앱 컨텍스트 안) — 실패는 기록하고 삼킨다(한 번 실패가 루프를 죽이면 빠른 길이 조용히 꺼진다).
 
-    같은 꼴 실패가 이어지면 ``gate`` 가 정한 간격에 한 번만 전체 추적 · Sentry 로 보내고 그 사이엔 한 줄만 찍는다.
+    같은 꼴 실패가 이어지면 ``gate`` 가 정한 간격에 한 번만 Sentry 로 보내고 그 사이엔 한 줄만 찍는다. 출력은 예외 이름 · 자리만(R14-8).
     """
     try:
         with app.app_context():
@@ -102,8 +102,7 @@ def _tick(stop: StopFlag, memory: TickMemory, gate: Optional[ErrorGate] = None) 
     except Exception as exc:
         kind = type(exc).__name__
         if gate is None or gate.should_report(kind):
-            print("[cs-realtime] tick failed:", flush=True)
-            traceback.print_exc()
+            print(f"[cs-realtime] tick failed: {error_summary(exc)}", flush=True)  # 예외 글 없음(SQL 매개변수 — R14-8)
             capture_exception()
         else:
             print(f"[cs-realtime] tick failed again ({kind}) — Sentry 는 {ERROR_REPORT_SECONDS}s 에 한 번", flush=True)

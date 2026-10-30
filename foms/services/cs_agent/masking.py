@@ -38,7 +38,8 @@ from foms.services.cs_agent.masking_contacts import MAIL, NUMBER, PHONE, contact
 from foms.services.cs_agent.masking_contacts import normalize as _normalize
 
 __all__ = [
-    "COMMON_WORDS", "MASK_TOKENS", "MaskLeak", "SURNAMES", "call_with_masked", "leak_counts", "mask", "require_masked",
+    "COMMON_WORDS", "MASK_TOKENS", "MaskLeak", "SURNAMES", "call_with_masked", "leak_counts", "looks_like_name", "mask",
+    "require_masked",
 ]
 
 T = TypeVar("T")
@@ -61,6 +62,9 @@ def _is_common_word(word: str) -> bool:
 def _looks_like_name(word: str) -> bool:
     """세 글자 낱말이 사람 이름 꼴인가 — 성씨로 시작하고 흔한 말이 아니면 이름으로 본다(가림 · 검사가 같이 쓴다)."""
     return len(word) == 3 and word[0] in SURNAMES and not _is_common_word(word)
+
+
+looks_like_name = _looks_like_name  # 사례 기억이 '예시에만 있는 이름'을 고를 때 같은 판정을 쓴다(case_material)
 
 
 # ── 주소 ───────────────────────────────────────────────────────────────────
