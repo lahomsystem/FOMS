@@ -48,7 +48,8 @@
     if (!source || source.__fomsNameChips) return source && source.__fomsNameChips;
     var desc = valueDescriptor(source);
     if (!desc) return null;
-    var sep = source.getAttribute("data-name-chips-sep") === "newline" ? "\n" : ", ";
+    // 한 줄 input 은 값의 줄바꿈을 지워 이름이 붙어 버린다 — 줄바꿈 구분자는 textarea 만.
+    var sep = source.getAttribute("data-name-chips-sep") === "newline" && source.tagName === "TEXTAREA" ? "\n" : ", ";
     var markPrimary = source.hasAttribute("data-name-chips-primary");
 
     var box = document.createElement("div");
