@@ -306,16 +306,17 @@ def record_brain_result(row: CsAgentTurn, result: Any) -> None:
 
 
 def record_staff_reply(row: CsAgentTurn, staff_reply: Optional[str], *, judgment: Optional[str] = None,
-                       now: datetime.datetime) -> None:
-    """직원 최종 답(공개 manager 글)의 가린 사본과 '같은 뜻' 판정 코드를 끝난 줄에 적는다(R1-20 — 같은 가림 · 검사).
+                       case: Optional[dict[str, Any]] = None, now: datetime.datetime) -> None:
+    """직원 최종 답(공개 manager 글)의 가린 사본 · '같은 뜻' 판정 코드 · 사례 칸(``case`` — :mod:`.case_memory` 가 꼴을 맞춘
+    값, 사례가 아직 없는 줄만)을 끝난 줄(직원 답함 포함)에 적는다(R1-20 — 같은 가림 · 검사). 커밋은 부르는 쪽.
 
     Raises:
         MaskLeak: 가린 뒤에도 가림 검사가 0 이 아니다(아무것도 바꾸지 않는다).
-        TurnStateError: 끝난 줄(``posted`` · ``stored`` · ``skipped``)이 아니다.
+        TurnStateError: 끝난 줄이 아니다 · 그사이 다른 쪽이 사례를 붙였다(:class:`TurnConflict`).
     """
-    reply = _masked_or_none(staff_reply)
-    code = _code(judgment, 16, "judgment")
-    _write(row, (STATE_POSTED, STATE_STORED, STATE_SKIPPED), {"staff_reply_masked": reply, "judgment": code}, now=now)
+    reply, code = _masked_or_none(staff_reply), _code(judgment, 16, "judgment")
+    _write(row, (STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_STAFF_REPLIED),
+           {"staff_reply_masked": reply, "judgment": code, **(case or {})}, now=now, unset="outcome" if case else None)
 
 
 # ── 복구 재료 · 스위치 ───────────────────────────────────────────────────
@@ -399,12 +400,12 @@ def set_draft_mode(session: Any, mode: str, *, reason: str, now: datetime.dateti
 
 # ── 칸 꼴 ────────────────────────────────────────────────────────────────
 def _write(row: CsAgentTurn, allowed: tuple[str, ...], values: dict[str, Any], *, target: Optional[str] = None,
-           now: Optional[datetime.datetime] = None, attempts_delta: int = 0) -> None:
+           now: Optional[datetime.datetime] = None, attempts_delta: int = 0, unset: Optional[str] = None) -> None:
     """줄 쓰기 한 문장 — ``UPDATE … WHERE id AND state = 지금 상태 AND attempts = 선점 때 시도 수``(원장 R7-8).
 
     지금 상태가 ``allowed`` 밖이면 :class:`TurnStateError`(아무것도 안 씀). 바뀐 줄이 0 이면 :class:`TurnConflict` — 그사이
-    다른 바퀴가 줄을 바꿨다. 시도 수는 선점 표지(없으면 지금 값)다. 성공하면 ORM 줄에도 같은 값을 '읽은 값'으로 넣는다
-    (ORM 이 같은 줄을 조건 없이 다시 쓰지 않게).
+    다른 바퀴가 줄을 바꿨다(``unset`` 칸을 주면 그 칸이 비었을 때만 쓴다). 시도 수는 선점 표지(없으면 지금 값)다. 성공하면
+    ORM 줄에도 같은 값을 '읽은 값'으로 넣는다(ORM 이 같은 줄을 조건 없이 다시 쓰지 않게).
     """
     session = object_session(row)
     if session is None:
@@ -423,6 +424,7 @@ def _write(row: CsAgentTurn, allowed: tuple[str, ...], values: dict[str, Any], *
         changes["attempts"] = attempts + attempts_delta
     stmt = (update(_TURNS).where(_TURNS.c.id == row.id, _TURNS.c.state == state, _TURNS.c.attempts == attempts)
             .values(changes))
+    stmt = stmt if unset is None else stmt.where(_TURNS.c[unset].is_(None))
     if session.execute(stmt).rowcount != 1:
         raise TurnConflict(f"{state} 줄이 그사이 바뀌었다 — 쓰지 않는다")
     for key, value in changes.items():
