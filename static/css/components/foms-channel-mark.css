@@ -42,3 +42,58 @@
   line-height: 1.6;
   white-space: nowrap;
 }
+
+/* 협력사 주문 칸 — 이름 다음 줄. 보낸 영발/발주 PUSH 만.
+   이름 줄은 누구인가, 이 줄은 방에 보냈나, 그 아래가 결제다.
+   보냄은 주문 화면 발송 칩(--push)과 같은 보라 + 체크.
+   두 번째부터 글자가 "영발 2번째"다. 발주 뒤 도면이 바뀌면 발송 실패 칩과 같은 붉은색.
+   안 보낸 종류는 칸을 만들지 않는다. 부모 flex-column 의 gap 이 간격을 만들면
+   margin 을 끈다. */
+.foms-partner-push {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.2rem;
+}
+
+.d-flex.flex-column > .foms-partner-push {
+  margin-top: 0;
+}
+
+.foms-partner-push__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  box-sizing: border-box;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.foms-partner-push__item--sent {
+  background: #f1eeff;
+  border-color: #cfc4fb;
+  color: #4b2fb8;
+}
+
+.foms-partner-push__item--stale {
+  background: #fdecec;
+  border-color: #f1aca7;
+  color: #a1231b;
+}
+
+.foms-partner-push__check {
+  display: block;
+  width: 0.85em;
+  height: 0.85em;
+  flex: none;
+}

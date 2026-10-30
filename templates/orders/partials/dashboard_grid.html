@@ -1,6 +1,6 @@
 {# foms-kv-rollout: order grid deeplinks via edit_order + mobile shell kv-copy.js #}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
-{% from 'partials/shared/channel_mark.html' import partner_mark %}
+{% from 'partials/shared/channel_mark.html' import partner_mark, partner_push_marks %}
 
     <!-- Middle: Grid -->
     {# data-foms-stage-catalog: 8단계 워크플로 카탈로그(STAGE_SEQUENCE SSOT, code+label). 태블릿
@@ -348,6 +348,8 @@
                         <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
                         {% endif %}
                       </span>
+                      {#- 협력사만: 이름 다음 줄, 결제 앞. 보낸 것만. 없으면 줄도 없다. -#}
+                      {%- if o.partner_name -%}{{ partner_push_marks(o.structured_data) }}{%- endif -%}
                       {% set is_erp_order = o.is_erp_order %}
                       {% if is_erp_order %}
                       {% set payment = o.structured_data.get('payment', {}) if o.structured_data else {} %}

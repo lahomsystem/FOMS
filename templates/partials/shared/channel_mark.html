@@ -22,3 +22,14 @@
 <span class="foms-partner-mark" title="외부 협력사 주문">협력사 · {{ partner_name }}</span>
 {%- endif -%}
 {%- endmacro %}
+
+{#- 협력사 주문 칸의 영발·발주 PUSH. 이름 줄 다음, 결제 앞. 보낸 것만.
+    보냄=체크. 두 번째부터 라벨이 "영발 2번째". 도면이 바뀐 발주는 붉은 칸.
+    시각은 title. 둘 다 안 보냈으면 빈 문자열. -#}
+{% macro partner_push_marks(structured_data) -%}
+{%- set slots = partner_channel_push_marks(structured_data) -%}
+{%- if slots -%}
+<span class="foms-partner-push" role="group" aria-label="영발·발주 푸시">{%- for slot in slots -%}
+<span class="foms-partner-push__item foms-partner-push__item--{{ slot.state }}" role="img" title="{{ slot.title }}" aria-label="{{ slot.aria }}"><span aria-hidden="true">{{ slot.label }}</span>{%- if slot.mark == 'check' -%}<svg class="foms-partner-push__check" viewBox="0 0 12 12" width="10" height="10" focusable="false" aria-hidden="true"><path d="M2.2 6.3 L4.7 8.8 L9.8 3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{%- endif -%}</span>{%- endfor -%}</span>
+{%- endif -%}
+{%- endmacro %}
