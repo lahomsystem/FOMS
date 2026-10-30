@@ -2,7 +2,7 @@
 
 플랜 ``docs/plans/2026-10-27-cs-ai-agent-plan.md`` C3-3 · 설계서 4절 8 · 10 · 15.2 의 5. 원장 R1-4 · R1-14.
 
-- **늘 비공개(R1-14 · R10-14)**: 내부 메모 전용 :func:`foms.services.channel_client.send_private_memo` 만 부른다 — 그 함수는
+- **늘 비공개(R1-14 · R10-14)**: 내부 메모 전용 :func:`foms.services.channel_memo.send_private_memo` 만 부른다 — 그 함수는
   길마다 다른 비공개 옵션 이름(앱 함수 ``MESSAGE_OPTION_PRIVATE`` · Open API ``private``)이 빠지면 채널톡을 부르기 전에
   멈춘다. 링크 버튼([보내기] · [수정하기] 등)을 달면 Open API 길로 간다(앱 함수는 버튼 단 비공개도 422 — C10-2 시험 10-30,
   PC · 휴대폰 데스크에서 보이고 눌리며 카톡 손님 쪽엔 안 감). 이 패키지에서 채널톡에 글을 쓰는 곳은 이 모듈 하나다(시험이
@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Optional, Sequence
 
 from foms.platform.sentry_setup import resolve_environment
-from foms.services import channel_client
+from foms.services import channel_memo
 from foms.services.cs_agent.channel_read import CHANNEL_BRANDS, ChannelReadError, OpenApiReader, channel_for_brand
 
 logger = logging.getLogger(__name__)
@@ -176,9 +176,9 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
         logger.info("[CS 초안] 운영이 아니고 시험 상담 허용 목록 밖 — 메모를 쓰지 않는다 chat=%s", chat_id)
         return MemoResult(False, reason=REASON_STAGING)
     try:
-        sent = channel_client.send_private_memo(chat_id, text, brand=MEMO_BRAND, bot_name=MEMO_BOT_NAME, private=True,
+        sent = channel_memo.send_private_memo(chat_id, text, brand=MEMO_BRAND, bot_name=MEMO_BOT_NAME, private=True,
                                                 channel_id=MEMO_CHANNEL_ID, buttons=buttons)
-    except channel_client.PrivateOptionMissing:
+    except channel_memo.PrivateOptionMissing:
         raise
     except (ValueError, TypeError):
         logger.warning("[CS 초안] 메모 버튼 꼴이 틀려 메모를 쓰지 않는다 chat=%s", chat_id)

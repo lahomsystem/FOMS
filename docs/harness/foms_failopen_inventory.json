@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 642,
+    "broad_total": 644,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 39,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 420,
+    "LOG_AND_CONTINUE": 422,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 196,
+    "services": 198,
     "storage": 24,
     "telemetry": 41,
     "web": 39
@@ -3129,6 +3129,24 @@
     {
       "path": "foms/services/channel_inbound.py",
       "lineno": 336,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/channel_memo.py",
+      "lineno": 122,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/channel_memo.py",
+      "lineno": 139,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
