@@ -1,8 +1,8 @@
-{# 도면 작업 중 행의 저장·전달 도면. 그림은 새 탭, 줄의 나머지 클릭은 주문으로 간다. #}
+{# 도면 작업 중 행의 저장·전달 도면. 그림은 화면 안 확대 창(lightbox — 새 탭 아님, 사용자 2026-10-30), 줄의 나머지 클릭은 주문으로 간다. #}
 {% if o.drawing_thumbs %}
-<div class="pp-draw-thumbs">
+<div class="pp-draw-thumbs" data-foms-lightbox-gallery>
     {% for t in o.drawing_thumbs %}
-    <a class="pp-draw-thumbs__link" href="{{ t.url }}" target="_blank" rel="noopener" title="{{ t.label }}">
+    <a class="pp-draw-thumbs__link" href="{{ t.url }}" data-foms-lightbox-src="{{ t.url }}" title="{{ t.label }}">
         <img src="{{ t.url }}" alt="{{ t.label }}" loading="lazy" decoding="async" width="96" height="68">
     </a>
     {% endfor %}

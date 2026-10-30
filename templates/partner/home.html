@@ -2,6 +2,7 @@
 {# PARTNER-FOMS 3-2: 협력사 주문 목록 — 우리 ERP 대시보드 모양(프로세스 맵 · 필터 줄 · 작업 큐). 설계서 §3.2. #}
 {% block title %}주문 목록{% endblock %}
 {% block main_class %}pp-main--wide pp-main--list{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
 {% block content %}
 {% set filtered = filters.q or filters.stage or filters.manager or filters.turn or filters.mine %}
 <div class="erp-pro-card erp-pro-card--process-map pp-board">
@@ -138,4 +139,5 @@
     </form>
     {% if not me.contact_phone %}<p class="pp-help pp-status--error">연락처가 없습니다. 넣어 두어야 도면에 담당 연락처가 찍힙니다.</p>{% endif %}
 </section>
+<script src="{{ asset_url('js/foms/lightbox.js') }}" defer></script>
 {% endblock %}

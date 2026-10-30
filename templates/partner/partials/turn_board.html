@@ -18,11 +18,11 @@
             <div class="pp-row__l2">{{ c.product or '제품 미정' }}{% if c.address %} · {{ c.address }}{% endif %}</div>
         </div>
     </div>
-    {% if c.sheets %}<a class="pp-tcard__strip" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing" aria-label="도면 크게 보기">{% for s in c.sheets %}<span class="pp-tcard__sheet"><img src="{{ s.url }}" alt="{{ s.label }}" loading="lazy" decoding="async"><b>{{ s.no }}</b></span>{% endfor %}</a>{% endif %}
+    {% if c.sheets %}<div class="pp-tcard__strip" data-foms-lightbox-gallery>{% for s in c.sheets %}<button type="button" class="pp-tcard__sheet" data-foms-lightbox-src="{{ s.url }}" aria-label="{{ s.label }} 크게 보기"><img src="{{ s.url }}" alt="{{ s.label }}" loading="lazy" decoding="async"><b>{{ s.no }}</b></button>{% endfor %}</div>{% endif %}
     <div class="pp-tcard__tags">{% if c.arrived %}<span class="pp-tag pp-tag--new">{{ c.arrived }}</span>{% endif %}<span class="pp-tag">{% if c.round %}{{ c.round }} 도면 · {% endif %}{{ c.sheet_count }}장</span>{% if c.kind == 'approve' %}<span class="pp-tag pp-tag--ok">도면 확인함 · 고객 확인 차례</span>{% endif %}</div>
     {% if c.prev_request %}<div class="pp-tcard__ask"><b>지난번 내 요청</b>{{ c.prev_request }}</div>{% endif %}
     <div class="pp-tcard__acts">
-        <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">도면 보기</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">주문 열기</a>
         <a class="btn btn-outline-primary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">수정 요청</a>
         {% if c.kind == 'receive' %}
         <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.confirm_drawing_receipt', order_id=c.id) }}" data-pp-approve-confirm="{{ c.customer_name }} 도면을 확인했다고 저희에게 알릴까요? 고객 확인 단계로 넘어갑니다.">확인했어요</button>
