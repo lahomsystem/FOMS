@@ -11,6 +11,8 @@ from typing import Any
 
 import requests
 
+from foms.services import channel_token_cache
+
 logger = logging.getLogger(__name__)
 
 _NATIVE_FUNCTIONS_URL = "https://app-store-api.channel.io/general/v1/native/functions"
@@ -25,21 +27,9 @@ CHANNEL_GROUP_GENERAL = os.environ.get("CHANNEL_GROUP_GENERAL", "")
 FOMS_BASE_URL = os.environ.get("FOMS_BASE_URL", "https://lahom-production.up.railway.app")
 
 __all__ = [
-    "CHANNEL_APP_SECRET",
-    "CHANNEL_ID",
-    "CHANNEL_GROUP_MEASUREMENT",
-    "CHANNEL_GROUP_CONSTRUCTION",
-    "CHANNEL_GROUP_GENERAL",
-    "FOMS_BASE_URL",
-    "is_configured",
-    "get_target_group_id",
-    "get_attachment_category_for_status",
-    "format_order_message",
-    "build_channel_bot_name",
-    "send_group_message",
-    "send_user_chat_message",
-    "send_user_chat_buttons",
-    "label_user_chat",
+    "CHANNEL_APP_SECRET", "CHANNEL_ID", "CHANNEL_GROUP_MEASUREMENT", "CHANNEL_GROUP_CONSTRUCTION", "CHANNEL_GROUP_GENERAL",
+    "FOMS_BASE_URL", "is_configured", "get_target_group_id", "get_attachment_category_for_status", "format_order_message",
+    "build_channel_bot_name", "send_group_message", "send_user_chat_message", "send_user_chat_buttons", "label_user_chat",
 ]
 
 _BOT_NAME_PREFIX = "FOMS"
@@ -193,7 +183,11 @@ def _issue_token(channel_id: str = "") -> tuple[str, float]:
 
 
 def _get_access_token(channel_id: str = "") -> str:
-    """Return a cached valid access token (per channel) or issue a new one."""
+    """Return a cached valid access token (per channel) or issue a new one.
+
+    프로세스 캐시 → Redis 공유 캐시(프로세스 여럿이 토큰 하나 — :mod:`foms.services.channel_token_cache`, 원장 R10-17) →
+    발급 순서다. Redis 가 없거나 실패하면 예전처럼 이 프로세스가 발급한다.
+    """
     if not is_configured():
         raise RuntimeError("CHANNEL_APP_SECRET, CHANNEL_ID 환경변수 미설정")
 
@@ -202,8 +196,8 @@ def _get_access_token(channel_id: str = "") -> str:
         cached = _token_cache.get(cid)
         if cached and time.time() < cached[1]:
             return cached[0]
-
-        access_token, expires_at = _issue_token(cid)
+        shared = channel_token_cache.shared_token(cid, lambda: _issue_token(cid))
+        access_token, expires_at = shared if shared is not None else _issue_token(cid)
         _token_cache[cid] = (access_token, expires_at)
         return access_token
 
@@ -212,7 +206,7 @@ def _invalidate_token(stale_token: str, channel_id: str = "") -> None:
     """
     Drop the cached access token when ChannelTalk rejected it.
 
-    다른 스레드가 이미 새 토큰을 캐시했으면 그대로 둔다(방금 실패한 토큰만 버린다).
+    다른 스레드 · 프로세스가 이미 새 토큰을 캐시했으면 그대로 둔다(방금 실패한 토큰만 버린다 — 공유 캐시도 같은 규칙).
 
     Args:
         stale_token: 401 을 받은 토큰 값.
@@ -222,6 +216,7 @@ def _invalidate_token(stale_token: str, channel_id: str = "") -> None:
         cached = _token_cache.get(cid)
         if cached and cached[0] == stale_token:
             _token_cache.pop(cid, None)
+    channel_token_cache.drop_shared_token(cid, stale_token)  # 공유 값도 그 토큰일 때만 지운다
 
 
 def _is_unauthenticated_error(err: dict[str, Any]) -> bool:

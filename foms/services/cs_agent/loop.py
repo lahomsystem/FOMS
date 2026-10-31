@@ -57,6 +57,7 @@ from foms.services.cs_agent.state_store import (
 from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.cs_agent.case_memory import PASS_LIMITS, attach_staff_replies
 from foms.services.cs_agent.drafting import DraftSummary, run_drafting
+from foms.services.cs_agent.send_record import reconcile_sends
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import DRAFT_OFF, SWITCH_OFF, SWITCH_ON, draft_mode, read_switch
 from foms.services.datetime_kst import now_kst
@@ -274,6 +275,7 @@ class PassResult:
     drafting: Optional[DraftSummary] = None  # 초안 스위치가 켜진 바퀴만(숫자만)
     realtime_drafting: bool = False  # 초안은 켜졌지만 빠른 길 몫이라 이 바퀴는 쓰지 않았다
     cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(초안을 쓰는 바퀴만 — 숫자 · 코드만)
+    sends: Optional[dict[str, int]] = None  # 결과 모름 [보내기] 맞추기(C10-3 — 맞출 줄이 있던 바퀴만)
 
     def summary(self) -> dict[str, Any]:
         """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸, 사례를 붙인 바퀴만 ``cases`` 칸(숫자만)이 붙는다."""
@@ -288,6 +290,8 @@ class PassResult:
             out["drafting"] = "realtime"
         if self.cases is not None:
             out["cases"] = self.cases
+        if self.sends:
+            out["sends"] = self.sends
         return out
 
 
@@ -354,6 +358,7 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
         watch_missing_inbound=config.watch_missing_inbound, now=now, is_business_day=cal,
         report_hour=config.report_hour, stop_check=stop.check)
     result.alerts, result.report_sent = published.alerts, published.report_sent
+    result.sends = reconcile_sends(session, now=now, reader=reader, stop=stop)  # [보내기] 결과 모름 — 바퀴 정리(C10-3)
     mode = draft_mode(session)  # 초안 스위치(매 바퀴 DB 에서 새로) — 없거나 꺼졌으면 바퀴는 여기까지(예전 그대로)
     realtime_on = bool(read_settings(session, log=False).get("realtime_enabled"))
     session.commit()

@@ -67,6 +67,7 @@ CACHE_DAYTIME, CACHE_ALWAYS, CACHE_OFF = "daytime", "always", "off"
 GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
 GROUP_REALTIME = "빠른 길(실시간 초안)"
+GROUP_SEND = "[보내기] · [수정하기] · 직원 알림"
 #: WORKER env 하루 상한이 천장인 돈 칸(화면 값) — 학습 돈 상한은 실시간과 따로라 이 천장을 쓰지 않는다(설계서 17.6).
 DAILY_CAP_FIELD = "daily_cap_usd_panel"
 #: 돈 칸 최댓값(달러) — WORKER 상한을 모를 때는 이 값으로만 막는다.
@@ -147,6 +148,9 @@ FIELDS: tuple[Field, ...] = (
           help="마지막 손님 글 뒤 이만큼 새 글이 없으면 집는다(D65) — 짧을수록 갈아 끼움 · 두뇌 부름이 는다"),
     Field("max_wait_s", "최대 기다림", KIND_INT, 60, GROUP_REALTIME, low=20, high=300, unit="초",
           help="손님이 계속 써도 첫 미답 글부터 이만큼 지나면 집는다(그 사이 이 상담 초안이 한 번도 없었을 때만)"),
+    Field("send_buttons_enabled", "[보내기] · [수정하기] 버튼", KIND_BOOL, False, GROUP_SEND,
+          help="켜면 초안 메모에 링크 버튼 둘을 달고, 누른 직원의 보내기 화면이 손님께 봇 이름 공개 글로 보낸다(운영 밖은 "
+               "시험 상담만 · 라홈만). 끄면 메모에 버튼을 달지 않고 보내기 · 고칠 말 요청을 거절한다(설계서 17.2)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

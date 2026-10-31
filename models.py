@@ -4288,8 +4288,9 @@ class CsAgentTurn(Base):
     사례 기억(C10-4 — 설계서 17.2 · 17.6 L0)은 새 표 없이 이 줄에 칸을 더했다(원장 S10-2): 가린 손님 질문 · 끝난 꼴 ·
     고친 정도 · 고친 까닭 · 보낸 직원 번호 · 데스크에서 직접 답한 상담원 id · 보낸 글 id · 견적 줄 · 시험용 떼어 둠. 초안
     바탕 손님 글 id 는 ``last_user_message_id`` 그대로다. 보관 기간은 줄과 같다. 직원 번호 · 상담원 id 는 ADMIN 만 본다(R10-28).
-    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns` · :mod:`foms.services.cs_agent.case_memory`. DDL 은
-    migration(``csagent_01`` · ``csagent_02`` · ``csagent_03``)과 같다.
+    [보내기] · [수정하기](C10-3)는 보내기 상태 · 고칠 말 칸을 따로 둔다 — 차례 ``state`` 는 그대로 ``posted`` 다.
+    쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns` · :mod:`foms.services.cs_agent.case_memory` ·
+    :mod:`foms.services.cs_agent.send_flow`. DDL 은 migration(``csagent_01`` ~ ``csagent_04``)과 같다.
     """
 
     __tablename__ = 'cs_agent_turns'
@@ -4343,11 +4344,32 @@ class CsAgentTurn(Base):
     sent_message_id = Column(String(64), nullable=True)
     quote_lines = Column(JSONColumn, nullable=True)
     held_out = Column(Boolean, nullable=False, default=False, server_default='false')
+    # [보내기] · [수정하기](csagent_04 — 플랜 C10-3 · C10-5): 초안 놓은 때(메모 · 저장만 — '초안 뜸' 지표) · 보내기 상태(sending
+    # 보내는 중 · sent 보냄 · unknown 결과 모름 · failed 못 보냄) · '보내는 중' 커밋 때 · 보낸 글 시각 · 막힘 · 실패 코드 · 화면이 보인
+    # 때부터 누를 때까지 밀리초 · 첫 미답 손님 글 시각('발송' 지표) · '고칠 말' 요청(requested · working · done · failed) · 가린
+    # 고칠 말 · 요청 때 · 다시 쓴 수. 보낼 글 원문은 두지 않는다 — 보낼 글의 정본은 채널톡 메모 · 직원이 고친 화면 입력이다.
+    placed_at = Column(DateTime, nullable=True)
+    send_state = Column(String(16), nullable=True)
+    send_started_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    send_error = Column(String(48), nullable=True)
+    click_ms = Column(Integer, nullable=True)
+    waiting_since = Column(DateTime, nullable=True)
+    rewrite_state = Column(String(16), nullable=True)
+    rewrite_note_masked = Column(Text, nullable=True)
+    rewrite_requested_at = Column(DateTime, nullable=True)
+    rewrite_count = Column(Integer, nullable=False, default=0, server_default=text('0'))
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint('chat_id', 'last_user_message_id', name='uq_cs_agent_turns_chat_turn'),
+        CheckConstraint("send_state IN ('sending','sent','unknown','failed')", name='ck_cs_agent_turns_send_state'),
+        CheckConstraint("rewrite_state IN ('requested','working','done','failed')",
+                        name='ck_cs_agent_turns_rewrite_state'),
+        # 빠른 길이 5초마다 '결과 모름 · 고칠 말 요청' 줄을 찾는다(거의 모든 줄이 비어 있다).
+        Index('ix_cs_agent_turns_send_state', 'send_state'),
+        Index('ix_cs_agent_turns_rewrite_state', 'rewrite_state'),
         CheckConstraint("state IN ('claimed','posting','posted','stored','skipped','failed','superseded',"
                         "'staff_replied')", name='ck_cs_agent_turns_state'),
         CheckConstraint("outcome IN ('as_is','edited','direct','copied','discarded')",

@@ -84,6 +84,8 @@ def channel_for_brand(brand: str) -> str:
 _MAX_ID_LEN = 64
 _MAX_PERSON_TYPE_LEN = 16
 _PRIVATE_OPTIONS = frozenset({"private", "message_option_private"})
+#: [보내기](C10-3)가 쓰는 requestId 앞말 — 이 앞말이 붙은 봇 공개 글은 직원이 누른 답이라 '답'(``manager``)으로 읽는다.
+SENT_REPLY_REQUEST_PREFIX = "foms-cs-send-"
 _FILE_KEYS = ("files", "attachments")
 _CHAT_STATES = frozenset({"opened", "snoozed", "closed"})
 
@@ -204,7 +206,8 @@ def _identity(entity: Any, expected_brand: Optional[str]) -> tuple[Optional[dict
 def derive_message(entity: Any, *, expected_brand: Optional[str] = None) -> tuple[Optional[DerivedMessage], str]:
     """채널톡 글(웹훅 ``entity`` · Open API 글 — 꼴이 같다)에서 파생 칸을 만든다.
 
-    ``plainText`` 는 이 함수 안에서만 쓰고 버린다. ``chatType`` 이 ``userChat`` 이 아니면 거른다.
+    ``plainText`` 는 이 함수 안에서만 쓰고 버린다. ``chatType`` 이 ``userChat`` 이 아니면 거른다. [보내기]로 나간 봇 공개 글
+    (requestId 앞말 :data:`SENT_REPLY_REQUEST_PREFIX`)은 직원 답이라 ``manager`` 로 읽는다.
 
     Args:
         entity: 글 dict.
@@ -219,6 +222,10 @@ def derive_message(entity: Any, *, expected_brand: Optional[str] = None) -> tupl
     files = (entity.get(key) for key in _FILE_KEYS)
     base.update(is_private=_is_private(entity), is_log=bool(entity.get("log")),
                 has_file=any(isinstance(value, (list, tuple)) and len(value) > 0 for value in files))
+    request_id = entity.get("requestId")
+    if (base["person_type"] == "bot" and not base["is_private"] and not base["is_log"] and isinstance(request_id, str)
+            and request_id.startswith(SENT_REPLY_REQUEST_PREFIX)):
+        base["person_type"] = "manager"  # [보내기]로 나간 직원 답(봇 이름 공개 글 — D68)도 '답'이다(설계서 17.2 되먹임 막기)
     base.update(_text_fields(base["person_type"], base, str(entity.get("plainText") or "")))
     return DerivedMessage(**base), ""
 

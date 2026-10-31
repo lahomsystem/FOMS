@@ -8,12 +8,12 @@
     "log_access"
   ],
   "baselines": {
-    "total": 244,
+    "total": 248,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 210,
-    "EXEMPT": 33,
+    "AUDITED": 213,
+    "EXEMPT": 34,
     "UNAUDITED": 1
   },
   "coverage_percent": 99.5,
@@ -393,6 +393,42 @@
       "path": "foms/api/cs/settlement_channel.py",
       "endpoint": "api_settlement_channel_sync",
       "lineno": 357,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_send.py",
+      "endpoint": "cs_agent_discard",
+      "lineno": 99,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_send.py",
+      "endpoint": "cs_agent_reconcile",
+      "lineno": 122,
+      "methods": [
+        "POST"
+      ],
+      "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/cs_agent_send.py",
+      "endpoint": "cs_agent_rewrite",
+      "lineno": 110,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_send.py",
+      "endpoint": "cs_agent_send",
+      "lineno": 86,
       "methods": [
         "POST"
       ],

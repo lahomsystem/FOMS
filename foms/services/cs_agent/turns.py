@@ -177,7 +177,7 @@ def mark_posting(row: CsAgentTurn, *, masked_draft: Optional[str], check_codes: 
 
 def mark_posted(row: CsAgentTurn, *, memo_message_id: Optional[str], error_code: Optional[str] = None,
                 now: datetime.datetime) -> None:
-    """올림 — 채널톡이 메모를 받았다(복구 단계가 우리 봇 메모를 찾았을 때도).
+    """올림 — 채널톡이 메모를 받았다(복구 단계가 우리 봇 메모를 찾았을 때도). 놓은 때(``placed_at`` — '초안 뜸' 지표)를 적는다.
 
     Args:
         row: '올리는 중' 줄.
@@ -187,14 +187,16 @@ def mark_posted(row: CsAgentTurn, *, memo_message_id: Optional[str], error_code:
     """
     message_id = None if memo_message_id is None else _checked_id(memo_message_id)
     code = None if error_code is None else _reason(error_code)
-    _write(row, (STATE_POSTING,), {"memo_message_id": message_id, "error_code": code}, target=STATE_POSTED, now=now)
+    _write(row, (STATE_POSTING,), {"memo_message_id": message_id, "error_code": code, "placed_at": naive_utc(now)},
+           target=STATE_POSTED, now=now)
 
 
 def mark_stored(row: CsAgentTurn, *, masked_draft: Optional[str], check_codes: Iterable[Any] = (),
                 now: datetime.datetime) -> None:
-    """저장만 — 초안을 기록에만 두고 올리지 않는다(초안 스위치 ``store`` · 운영 밖 허용 목록 밖 상담)."""
+    """저장만 — 초안을 기록에만 두고 올리지 않는다(초안 스위치 ``store`` · 운영 밖 허용 목록 밖 상담). 놓은 때도 적는다."""
     draft, codes = _masked_or_none(masked_draft), _check_codes(check_codes)
-    _write(row, (STATE_CLAIMED,), {"masked_draft": draft, "check_codes": codes}, target=STATE_STORED, now=now)
+    _write(row, (STATE_CLAIMED,), {"masked_draft": draft, "check_codes": codes, "placed_at": naive_utc(now)},
+           target=STATE_STORED, now=now)
 
 
 def mark_skipped(row: CsAgentTurn, *, reason: str, check_codes: Iterable[Any] = (),

@@ -39,7 +39,7 @@ __all__ = [
     "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
     "freshness",
-    "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
+    "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
 ]
 
 CONVERSATION_LIMIT = 30  # 두뇌에 넣는 최근 공개 글 수(설계서 5절 '최근 30개 안팎')
@@ -66,11 +66,13 @@ class ChatLine:
     """상담 글 하나 — 파생 칸(:class:`.channel_read.DerivedMessage`) + 원문. 원문은 이 바퀴 메모리에만 있다(repr 에도 없다).
 
     ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
+    ``request_id`` 는 글을 쓴 쪽이 붙인 채널톡 ``requestId``(꼴이 맞을 때만) — [보내기] 결과를 모를 때 맞추는 표지다(C10-3).
     """
 
     meta: DerivedMessage
     text: str = field(repr=False)
     person_id: Optional[str] = field(default=None, repr=False)
+    request_id: Optional[str] = field(default=None, repr=False)
 
     @property
     def key(self) -> tuple[datetime.datetime, str]:
@@ -104,10 +106,11 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
         meta, _reason = derive_message({"chatType": "userChat", "chatId": chat_id, "channelId": channel, **item},
                                        expected_brand=brand)
         if meta is not None and meta.chat_id == chat_id:
-            text, person = item.get("plainText"), item.get("personId")
+            text, person, request = item.get("plainText"), item.get("personId"), item.get("requestId")
             person_id = str(person).strip() if meta.is_answer and person is not None else ""
             lines.append(ChatLine(meta, text if isinstance(text, str) else "",
-                                  person_id if _PERSON_ID.fullmatch(person_id) else None))
+                                  person_id if _PERSON_ID.fullmatch(person_id) else None,
+                                  request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None))
     return sorted(lines, key=lambda line: line.key)
 
 
@@ -199,3 +202,20 @@ def memo_text(draft: str, staff_note: str) -> str:
     """
     note = mask(staff_note).strip() if staff_note.strip() else ""
     return "\n".join((MEMO_HEAD, MEMO_DRAFT_HEAD, draft.strip(), MEMO_NOTE_HEAD, note or "없음"))
+
+
+def memo_draft(text: str) -> Optional[str]:
+    """우리 AI 메모(:func:`memo_text` 꼴)의 '손님께 보낼 답' 칸 — [보내기]가 보낼 글의 정본이다(DB 에는 가린 사본만 있다).
+
+    첫 줄 표지 · 답 머리 · 직원 참고 머리가 모두 있어야 한다(초안에는 '직원 참고' 낱말이 검사로 막혀 끝이 헷갈리지 않는다).
+    꼴이 아니거나 답이 비었으면 ``None``.
+    """
+    body = (text or "").replace("\r\n", "\n")
+    if not body.lstrip().startswith(MEMO_HEAD):
+        return None
+    head = f"\n{MEMO_DRAFT_HEAD}\n"
+    start = body.find(head)
+    end = body.find(f"\n{MEMO_NOTE_HEAD}", start + len(head)) if start >= 0 else -1
+    if end < 0:
+        return None
+    return body[start + len(head):end].strip() or None

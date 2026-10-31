@@ -39,6 +39,15 @@ _TOKEN_CLIENT_CONTRACTS: dict[str, tuple[str, tuple[str, ...]]] = {
             "test_send_group_message_gives_up_when_retry_also_unauthenticated",
         ),
     ),
+    # 채널톡 토큰 공유 캐시(Redis + 잠금 — 원장 R10-17). 발급 · 1회 재시도는 channel_client 가 하고, 이 모듈은 그 토큰을
+    # 프로세스 사이에 나눈다: 공유 값의 수명 = 발급 응답 만료(R1) · 401 이면 그 토큰일 때만 공유 값을 지움(R2).
+    "foms/services/channel_token_cache.py": (
+        "tests.domains.test_cs_send",
+        (
+            "test_shared_token_keeps_the_issued_expiry",
+            "test_a_dead_shared_token_is_dropped_and_reissued_once",
+        ),
+    ),
     "foms/services/integrations/naver_commerce/client.py": (
         "tests.services.integrations.test_naver_commerce_client",
         (

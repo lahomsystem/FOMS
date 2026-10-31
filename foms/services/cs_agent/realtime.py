@@ -25,6 +25,8 @@ WORKER 감독자 자식 ``cs_realtime``(``scripts/maintenance/run_cs_realtime.py
    실시간 길 · 그사이 더 새 손님 글이 보이면 '지난 초안', 직원이 공개 답을 하면 '직원 답함'(초안 안 올림). 'AI 냐 사람이냐'
    물음 · 안 보이는 손님 글 · 스위치 다시 읽기는 두 길 공통(:mod:`.drafting_pass`). 돈 상한 · 준비 안 됨으로 멈추면 그날 끝 ·
    30분까지 초안을 쉬고(날짜나 설정 판이 바뀌면 바로 다시), 같은 차례를 5초마다 다시 집지 않는다(R13-2).
+5½. **'고칠 말' 다시 쓰기(C10-3)** — [수정하기] 화면의 요청을 차례마다 하나씩 받아 새 초안 메모로(:func:`.rewrite.run_rewrites` —
+   모델을 부르는 곳은 이 길 하나다). 결과를 모르는 [보내기]는 상담 글의 requestId 로 맞춘다(:func:`.send_record.reconcile_sends`).
 6. **사례 기억(L0 — C10-4)** — 초안 뒤, 끝난 차례에 직원이 데스크에서 직접 보낸 답을 붙인다(:func:`.case_memory
    .attach_staff_replies` — 차례마다 읽기 수 · 시간 상한 :data:`.case_memory.TICK_LIMITS`). 빠른 길이 도는 동안 15분 바퀴는
    이 일을 하지 않는다(빠른 길이 꺼지면 15분 바퀴가 한다).
@@ -52,7 +54,7 @@ from foms.services.cs_agent.brain import check_ready, draft_reply
 from foms.services.cs_agent.case_memory import TICK_LIMITS, attach_staff_replies
 from foms.services.cs_agent.channel_read import OpenApiReader, naive_utc
 from foms.services.cs_agent.drafting import (
-    BRAND, HALT_NOT_CONFIGURED, HALT_NOT_READY, HALT_SPEND, _candidates, run_drafting,
+    BRAND, HALT_NOT_CONFIGURED, HALT_NOT_READY, HALT_SPEND, _candidates, _daytime, run_drafting,
 )
 from foms.services.cs_agent.drafting_pass import DraftPass
 from foms.services.cs_agent.drafting_read import SKIP_HUMAN_REPLIED, SKIP_STALE
@@ -61,6 +63,8 @@ from foms.services.cs_agent.loop import PassStopped, StopFlag, leader_lock
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import post_private_memo
 from foms.services.cs_agent.realtime_memory import TickMemory
+from foms.services.cs_agent.rewrite import run_rewrites
+from foms.services.cs_agent.send_record import reconcile_sends
 from foms.services.cs_agent.settings import PanelSettings, read_settings
 from foms.services.cs_agent.state import KST, BusinessDayFn
 from foms.services.cs_agent.state_store import INBOUND_LOOKBACK_ROWS, compute_open_states, ingest_inbound
@@ -121,6 +125,8 @@ class TickResult:
     paused: Optional[str] = None  # 멈춘 뒤 초안을 쉬는 중이면 그 까닭 코드(R13-2)
     drafting: Optional[DraftSummary] = None
     cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(사례 기억 L0 — 숫자 · 코드만)
+    rewrites: Optional[dict[str, int]] = None  # '고칠 말' 다시 쓰기(C10-3 — 요청이 있던 차례만)
+    sends: Optional[dict[str, int]] = None  # 결과 모름 [보내기] 맞추기(맞출 줄이 있던 차례만)
 
     def summary(self) -> dict[str, Any]:
         """JSON 한 덩어리 — 초안을 돈 차례만 ``drafting`` 칸, 사례 붙이기를 돈 차례만 ``cases`` 칸이 붙는다."""
@@ -131,6 +137,9 @@ class TickResult:
             out["drafting"] = self.drafting.counts()
         if self.cases is not None:
             out["cases"] = self.cases
+        for name in ("rewrites", "sends"):
+            if getattr(self, name):
+                out[name] = getattr(self, name)
         return out
 
 
@@ -178,6 +187,8 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
             picks = _prepare(session, result, memory=memory, cfg=cfg, now=now, stop=stop, cal=cal,
                              memo_remover=memo_remover)
             result.paused = memory.paused(now) if picks else None
+            result.rewrites = run_rewrites(session, now=now, stop=stop, reader=reader, brain=brain, poster=poster,
+                                           daytime=_daytime(now, cal))  # 직원이 화면에서 기다린다 — 초안보다 먼저
             if picks and result.paused is None:
                 result.drafting = DraftSummary()
                 ttl = datetime.timedelta(seconds=int(cfg.get("realtime_timeout_s"))) + CLAIM_MARGIN
@@ -188,6 +199,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
                 _pause_if_halted(memory, result.drafting, now)
             result.cases = attach_staff_replies(session, now=now, stop=stop, reader=reader, limits=TICK_LIMITS,
                                                 clock=clock).counts()  # 초안 뒤 — 초안 시간을 먼저 지킨다
+            result.sends = reconcile_sends(session, now=now, reader=reader, stop=stop)
         except PassStopped:
             session.rollback()
             result.outcome = OUTCOME_STOPPED

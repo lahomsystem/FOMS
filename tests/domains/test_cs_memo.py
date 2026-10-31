@@ -27,9 +27,13 @@ TEST_CHAT, OTHER_TEST_CHAT, REAL_CHAT = "uc-test-1", "uc-test-2", "uc-real-9"
 _ENV_KEYS = ("FOMS_ENV", "RAILWAY_PROJECT_NAME", "RAILWAY_ENVIRONMENT", memo.TEST_CHAT_IDS_ENV)
 _PACKAGE = pathlib.Path(memo.__file__).resolve().parent
 _RUNNER = _PACKAGE.parents[2] / "scripts" / "maintenance" / "run_cs_loop.py"
-#: 채널톡에 글을 쓰는 이름 — 패키지 안에서는 memo.py 만 쓴다.
+#: 채널톡에 글을 쓰는 이름 — 패키지 안에서는 메모 감싸개(memo.py — 내부 메모)와 보내기 감싸개(send.py — 손님이 보는 봇
+#: 공개 글, C10-3) 둘만 쓴다.
 _WRITE_NAMES = ("send_user_chat_message", "writeUserChatMessage", "_call_native_function",
-                "send_user_chat_buttons", "label_user_chat", "send_group_message", "send_private_memo")
+                "send_user_chat_buttons", "label_user_chat", "send_group_message", "send_private_memo",
+                "send_public_bot_message")
+#: 쓰기 감싸개 → 그 안에서 부르는 단 하나의 쓰기 이름.
+_WRAPPERS = {"memo.py": "send_private_memo", "send.py": "send_public_bot_message"}
 
 
 @pytest.fixture(autouse=True)
@@ -292,25 +296,55 @@ def test_the_text_never_reaches_logs_results_or_exceptions(monkeypatch, caplog):
 # ── 감싸개 밖 호출 금지(소스) ────────────────────────────────────────────
 
 
-def test_only_memo_writes_to_channel_talk_in_the_agent_package():
+def _write_calls(name: str) -> list[ast.Call]:
+    """감싸개 모듈 안 채널톡 쓰기 호출(이름이 :data:`_WRITE_NAMES` 인 것)."""
+    tree = ast.parse((_PACKAGE / name).read_text(encoding="utf-8"))
+    return [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+            and getattr(node.func, "attr", getattr(node.func, "id", None)) in _WRITE_NAMES]
+
+
+def test_only_the_memo_and_send_wrappers_write_to_channel_talk_in_the_agent_package():
+    """채널톡 쓰기는 메모 감싸개(내부 메모) · 보내기 감싸개(봇 공개 글) 둘뿐 — 각자 정확히 한 곳, 패키지 HTTP 쓰기는 0."""
     sources = sorted(_PACKAGE.glob("*.py")) + [_RUNNER]
-    assert len(sources) > 10 and _RUNNER.is_file()
-    offenders = sorted(f"{path.name}:{name}" for path in sources if path.name != "memo.py"
+    assert len(sources) > 10 and _RUNNER.is_file() and set(_WRAPPERS) <= {path.name for path in sources}
+    offenders = sorted(f"{path.name}:{name}" for path in sources if path.name not in _WRAPPERS
                        for name in _WRITE_NAMES if name in path.read_text(encoding="utf-8"))
-    assert not offenders, f"메모 감싸개 밖에서 채널톡에 쓴다: {offenders}"
-    tree = ast.parse((_PACKAGE / "memo.py").read_text(encoding="utf-8"))
-    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
-             and getattr(node.func, "attr", getattr(node.func, "id", None)) in _WRITE_NAMES]
-    assert len(calls) == 1, "memo.py 안 채널톡 쓰기는 한 곳이어야 한다"
+    assert not offenders, f"쓰기 감싸개 밖에서 채널톡에 쓴다: {offenders}"
+    for module, name in _WRAPPERS.items():
+        calls = _write_calls(module)
+        assert [getattr(c.func, "attr", getattr(c.func, "id", None)) for c in calls] == [name], (
+            f"{module} 안 채널톡 쓰기는 {name} 한 곳이어야 한다")
     http_writes = sorted(f"{path.name}:{node.lineno}" for path in sources
                          for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
                          if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                          and node.func.attr in ("post", "put", "patch", "delete", "request"))
-    assert not http_writes, f"패키지 안에서 HTTP 쓰기를 직접 부른다(메모 감싸개도 channel_client 를 거친다): {http_writes}"
-    keywords = {kw.arg: kw.value for kw in calls[0].keywords}
+    assert not http_writes, f"패키지 안에서 HTTP 쓰기를 직접 부른다(감싸개도 channel_* 모듈을 거친다): {http_writes}"
+    keywords = {kw.arg: kw.value for kw in _write_calls("memo.py")[0].keywords}
     assert isinstance(keywords["private"], ast.Constant) and keywords["private"].value is True
     assert getattr(keywords["channel_id"], "id", None) == "MEMO_CHANNEL_ID"
     assert getattr(keywords["bot_name"], "id", None) == "MEMO_BOT_NAME"
+    sent = {kw.arg: kw.value for kw in _write_calls("send.py")[0].keywords}  # 보내기: 봇 이름 · 라홈 상수 · 차례 requestId
+    assert getattr(sent["bot_name"], "id", None) == "SEND_BOT_NAME" and getattr(sent["brand"], "id", None) == "SEND_BRAND"
+    assert "private" not in sent and isinstance(sent["request_id"], ast.Call)
+    assert getattr(sent["request_id"].func, "id", None) == "request_id_for"
+
+
+def test_a_mutated_extra_writer_is_caught(tmp_path):
+    """음성 대조군: 감싸개가 아닌 모듈이 보내기 함수를 부르면 위 시험이 잡는다(소스 훑기가 살아 있다)."""
+    fake = tmp_path / "pkg"
+    fake.mkdir()
+    for module in _WRAPPERS:
+        (fake / module).write_text((_PACKAGE / module).read_text(encoding="utf-8"), encoding="utf-8")
+    for index in range(10):
+        (fake / f"other_{index}.py").write_text("x = 1\n", encoding="utf-8")
+    (fake / "rogue.py").write_text("from foms.services import channel_send\nchannel_send.send_public_bot_message('a', 'b')\n",
+                                   encoding="utf-8")
+    globals()["_PACKAGE"] = fake
+    try:
+        with pytest.raises(AssertionError, match="rogue.py"):
+            test_only_the_memo_and_send_wrappers_write_to_channel_talk_in_the_agent_package()
+    finally:
+        globals()["_PACKAGE"] = pathlib.Path(memo.__file__).resolve().parent
 
 
 # ── 메모 + 링크 버튼 · 비공개 강제(C10-2 — 원장 R10-14) ──────────────────

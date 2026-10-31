@@ -17,6 +17,8 @@
     다른 칸은 그대로다. 다시 켜는 것은 사람이다.
   - **memo 로 켜기 전 할 일**: 스테이징에서 우리 봇 메모가 Open API 글 목록에 오는지 먼저 본다 — 안 오면 모든 메모가 '못 찾음'
     이라 첫 메모에서 '저장만'으로 돌아간다(그물이 비면 공개 확인 장치가 한 번도 켜지지 않기 때문이다).
+- **링크 버튼(C10-3)**: 관리 화면 '[보내기] · [수정하기] 버튼'이 켜져 있으면 초안 메모에 링크 버튼 둘(:func:`.send.memo_buttons`
+  — Open API 메모 길)을 단다. 꺼져 있으면 예전처럼 버튼 없는 메모다. 한 줄 메모에는 달지 않는다.
 - **한 줄 메모(빠른 길)**: 손님이 'AI 냐 사람이냐' 물으면 초안 없이 '직원이 직접 답해 주세요' 한 줄을 같은 길
   (:func:`post_note` — '올리는 중' 먼저 커밋 · 비공개 확인 · 막는 장치)로 올린다(설계서 17.8).
 - 알림은 감시 보고와 같은 길(:func:`.report.post_admin_notification` — ADMIN 역할 전원 · OS 푸시 없음). 글에는 상담 id ·
@@ -36,6 +38,8 @@ from foms.services.cs_agent.drafting_read import memo_text
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE, SEND_PREFIX, memo_allowed
 from foms.services.cs_agent.report import desk_link, post_admin_notification
+from foms.services.cs_agent.send import memo_buttons
+from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
     DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, TurnStateError, draft_mode, mark_failed, mark_posted, mark_posting, mark_stored,
     read_switch, set_draft_mode,
@@ -118,9 +122,10 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
     except MaskLeak as exc:
         logger.warning("[CS 초안] 가린 초안에 개인정보 꼴이 남아 건너뜀 chat=%s counts=%s", chat_id, exc.counts)
         return ctx.skip(row, SKIP_DRAFT_MASK_LEAK)
+    buttons = _buttons(ctx, row, chat_id) if text is None else ()
     ctx.session.commit()  # 채널톡을 부르기 전에 '올리는 중'을 커밋한다 — 죽어도 복구 단계가 찾는다
     body = memo_text(draft, staff_note) if text is None else text
-    sent = ctx.poster(chat_id, body, brand=MEMO_BRAND, reader=ctx.reader)
+    sent = ctx.poster(chat_id, body, brand=MEMO_BRAND, reader=ctx.reader, **({"buttons": buttons} if buttons else {}))
     if sent.outcome_unknown:
         ctx.summary.unknown += 1
         logger.warning("[CS 초안] 메모가 닿았는지 모른다 — 올리는 중 그대로 · 이번 바퀴 멈춤 chat=%s", chat_id)
@@ -144,6 +149,13 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
                  guard, chat_id, message_id, reason)
     _alert(ctx, chat_id, message_id, guard, reason)
     return HALT_PUBLIC if guard == DRAFT_OFF else HALT_UNVERIFIED
+
+
+def _buttons(ctx: Any, row: Any, chat_id: str) -> tuple[tuple[str, str], ...]:
+    """초안 메모의 [보내기] · [수정하기] 링크(관리 화면 버튼 스위치가 켜졌을 때만 — 처음 끔, 플랜 C10-3)."""
+    if not read_settings(ctx.session, log=False).get("send_buttons_enabled"):
+        return ()
+    return memo_buttons(row.id, chat_id)
 
 
 def _record_posted(ctx: Any, row: Any, chat_id: str, message_id: Optional[str], reason: Optional[str],
