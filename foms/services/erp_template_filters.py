@@ -5,7 +5,10 @@ import re
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.manager_names import manager_label_filter
-from foms.services.orders.partner_push_marks import partner_channel_push_marks
+from foms.services.orders.partner_push_marks import (
+    partner_channel_push_marks,
+    partner_requested_construction_mark,
+)
 # 실측 시간 자유 텍스트 판정 경계·정규식 SSOT (동선 정렬 파서와 같은 규약을 써야
 # 오전/오후 판정이 갈리지 않는다). 재노출은 기존 import 경로 호환용.
 from foms.services.measurement_time import (
@@ -349,6 +352,7 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(manager_label_filter, 'manager_label')
     # 협력사 주문 영발·발주 보낸 차례(전역 함수) — context_processors 500줄 래칫 때문에 여기서 등록.
     bp.add_app_template_global(partner_channel_push_marks, 'partner_channel_push_marks')
+    bp.add_app_template_global(partner_requested_construction_mark, 'partner_requested_construction_mark')
     bp.add_app_template_filter(meas_daypart, 'meas_daypart')
     # 도면 상태 판정 정본(2a-2) — 강제 변경 창 경고(Q5)가 서버와 같은 답을 쓰게.
     bp.add_app_template_filter(effective_drawing_status, 'effective_drawing_status')

@@ -51,7 +51,7 @@ SURFACES = {
 }
 MACRO = "templates/partials/shared/channel_mark.html"
 CSS = "static/css/components/foms-channel-mark.css"
-CSS_PIN = "css/components/foms-channel-mark.css') }}?v=20261030a"
+CSS_PIN = "css/components/foms-channel-mark.css') }}?v=20261031a"
 
 
 def _read(rel: str) -> str:

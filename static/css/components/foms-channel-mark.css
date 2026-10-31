@@ -91,6 +91,13 @@
   color: #a1231b;
 }
 
+/* 협력사 희망 시공일 — 보낸 PUSH(보라)와 다른 하늘색. 우리 시공일이 정해지면 칸이 없다. */
+.foms-partner-push__item--wish {
+  background: #e8f4fd;
+  border-color: #a9d3f2;
+  color: #0b5a8f;
+}
+
 .foms-partner-push__check {
   display: block;
   width: 0.85em;

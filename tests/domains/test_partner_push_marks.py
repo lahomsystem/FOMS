@@ -136,3 +136,40 @@ def test_workqueue_places_marks_only_on_partner_rows() -> None:
     tablet_push = tablet.index("partner_push_marks(o.structured_data)")
     assert tablet.index("foms-tqchip-urgent") < tablet_push
     assert "{%- if o.partner_name -%}" in tablet[tablet.index("partner_mark(o.partner_name"):tablet_push]
+
+
+def test_requested_construction_mark_until_confirmed() -> None:
+    """희망 시공일은 우리 시공일이 정해지기 전만 칸이 된다. 날짜는 월-일로 줄인다."""
+    from foms.services.orders.partner_push_marks import partner_requested_construction_mark
+
+    wish = {"partner_intake": {"requested_construction": {"date": "2026-11-06", "time": "오후"}}}
+    mark = partner_requested_construction_mark(wish)
+    assert mark["label"] == "희망 시공 11-06 오후"
+    assert "2026-11-06 오후" in mark["aria"]
+
+    confirmed = dict(wish, schedule={"construction": {"date": "2026-11-07"}})
+    assert partner_requested_construction_mark(confirmed) is None
+    assert partner_requested_construction_mark({}) is None
+    assert partner_requested_construction_mark(None) is None
+    assert partner_requested_construction_mark(
+        {"partner_intake": {"requested_construction": {"date": "", "time": ""}}}
+    ) is None
+    assert partner_requested_construction_mark(
+        {"partner_intake": {"requested_construction": {"date": "", "time": "종일"}}}
+    )["label"] == "희망 시공 종일"
+
+
+def test_macro_renders_wish_alone_and_after_push(app) -> None:
+    """PUSH 가 없어도 희망 시공일만으로 줄이 생기고, 있으면 PUSH 칸 뒤에 붙는다."""
+    render = app.jinja_env.get_template(
+        "partials/shared/channel_mark.html"
+    ).module.partner_push_marks
+    wish = {"partner_intake": {"requested_construction": {"date": "2026-11-06", "time": "오전"}}}
+
+    alone = str(render(wish))
+    assert "foms-partner-push__item--wish" in alone
+    assert "희망 시공 11-06 오전" in alone
+    assert 'style="' not in alone
+
+    both = str(render(dict(wish, channeltalk_push={"pushed": True, "sent_at": _SENT_AT})))
+    assert both.index("foms-partner-push__item--sent") < both.index("foms-partner-push__item--wish")
