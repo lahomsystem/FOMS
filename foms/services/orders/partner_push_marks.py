@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.partners.schedule_request import clean_date, clean_time, construction_confirmed
 
 _MEASURE_KEY = "channeltalk_push"
 _DRAWING_KEY = "channeltalk_push_drawing"
@@ -29,6 +30,36 @@ def partner_channel_push_marks(structured_data: Any) -> list[dict[str, str]]:
         _push_slot("발주", sd.get(_DRAWING_KEY), allow_stale=True),
     ]
     return [slot for slot in slots if slot is not None]
+
+
+def partner_requested_construction_mark(structured_data: Any) -> dict[str, str] | None:
+    """협력사가 보낸 희망 시공일 칸. 우리 시공일이 정해지면 그리지 않는다.
+
+    희망일은 ``partner_intake.requested_construction`` 에만 있다(§18). 확정된 뒤에는
+    시공일 칸이 정답이라 옛 희망일을 띄우지 않는다.
+
+    Args:
+        structured_data: 주문 structured_data. dict 가 아니면 ``None``.
+
+    Returns:
+        label(``희망 시공 11-06 오후``), title, aria. 없거나 확정됐으면 ``None``.
+    """
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    intake = sd.get("partner_intake")
+    request = intake.get("requested_construction") if isinstance(intake, dict) else None
+    if not isinstance(request, dict) or construction_confirmed(sd):
+        return None
+    date = clean_date(request.get("date"))
+    time = clean_time(request.get("time"))
+    if not (date or time):
+        return None
+    short = " ".join(v for v in (date[5:], time) if v)
+    full = " ".join(v for v in (date, time) if v)
+    return {
+        "label": f"희망 시공 {short}",
+        "title": f"협력사 희망 시공일 {full} — 협의 후 시공일을 정해 주세요",
+        "aria": f"협력사 희망 시공일 {full}",
+    }
 
 
 def _push_slot(label: str, record: Any, *, allow_stale: bool) -> dict[str, str] | None:
