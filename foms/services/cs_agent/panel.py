@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import logging
 import uuid
 from decimal import Decimal
 from typing import Any, Optional
@@ -25,7 +26,7 @@ from sqlalchemy import func, select
 from foms.services.cs_agent.brain_spend import kst_now, today_spend, worker_daily_cap
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.loop import SWITCH_KEY, SWITCH_OFF, SWITCH_ON, read_switch, set_switch
-from foms.services.cs_agent.metrics import metrics_view
+from foms.services.cs_agent.metrics import DEFINITIONS, metrics_view
 from foms.services.cs_agent.report import BRAND_LABELS, NOTIFY_MORNING_REPORT, format_kst, read_last_success
 from foms.services.cs_agent.staff_alert import subscription_counts
 from foms.services.cs_agent.settings import (
@@ -43,6 +44,8 @@ __all__ = [
     "CHANGES_LIMIT", "PANEL_REASON", "SWITCH_POLICY_ID", "change_draft_mode", "change_loop", "panel_state",
     "recent_changes",
 ]
+
+logger = logging.getLogger(__name__)
 
 #: 스위치 수정 기록 이름(``SystemSettingReceipt.policy_id``).
 SWITCH_POLICY_ID = "CS_AGENT_SWITCH"
@@ -263,6 +266,16 @@ def recent_changes(session: Any, *, limit: int = CHANGES_LIMIT) -> list[dict[str
     return [_change_entry(receipt, name) for receipt, name in _receipts(session, (POLICY_ID, SWITCH_POLICY_ID), limit)]
 
 
+def _metrics(session: Any, now: datetime.datetime) -> dict[str, Any]:
+    """기록판 시간 지표 — 세이브포인트 안에서 센다. 실패하면 '지금 셀 수 없음'(화면은 산다, 검수 R16-9)."""
+    try:
+        with session.begin_nested():
+            return metrics_view(session, now=now, labels=BRAND_LABELS)
+    except Exception as exc:  # 지표는 덤이다 — 관리 화면(비상 정지 단추)이 500 이 되면 안 된다(기록은 남긴다)
+        logger.warning("[CS 관리] 시간 지표를 못 셌다 — 화면은 지표 없이 그린다 err=%s", type(exc).__name__)
+        return {"error": True, "definitions": list(DEFINITIONS), "brands": []}
+
+
 def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """관리 화면 한 덩어리(JSON 꼴) — 스위치 · 두뇌 설정 · 하루 상한 · 기록. 읽기만 한다(커밋 · 잠금 없음)."""
     now = kst_now(now)
@@ -272,6 +285,6 @@ def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dic
             "settings": _settings_view(cfg), "caps": _caps(session, cfg),
             "records": {"spend": today_spend(session, now=now), "turns": _turn_counts(session, day_start),
                         "heartbeat": _heartbeat(session, now), "report": _last_report(session),
-                        "metrics": metrics_view(session, now=now, labels=BRAND_LABELS),
+                        "metrics": _metrics(session, now),
                         "push": subscription_counts(session)},
             "changes": recent_changes(session)}

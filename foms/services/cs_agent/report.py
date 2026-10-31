@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -40,6 +41,8 @@ from foms.services.cs_agent.state import (
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.sidefx_worker import WORKER_KIND_CS_LOOP
 from models import ChannelWebhookJob, Notification, SideEffectWorkerHeartbeat, SystemSetting
+
+logger = logging.getLogger(__name__)
 
 #: 알림 유형(``notifications.notification_type``). 아침 보고와 경보 셋을 가른다.
 NOTIFY_MORNING_REPORT = "CS_MORNING_REPORT"
@@ -424,6 +427,16 @@ def publish(session: Any, *, states: Sequence[ChatState], missing: Sequence[Miss
     return published
 
 
+def _metric_lines(session: Any, now: datetime.datetime, cal: Optional[BusinessDayFn]) -> list[str]:
+    """아침 보고의 시간 지표 줄 — 세이브포인트 안에서 센다. 세다 실패해도 보고 · 경보는 지표 없이 나간다(검수 R16-9)."""
+    try:
+        with session.begin_nested():
+            return metrics_lines(session, now=now, labels=BRAND_LABELS, is_business_day=cal)
+    except Exception as exc:  # 지표는 덤이다 — 어떤 실패도 그 바퀴 보고 · 경보를 잃게 하지 않는다(기록은 남긴다)
+        logger.warning("[CS 보고] 시간 지표를 못 셌다 — 아침 보고는 지표 없이 낸다 err=%s", type(exc).__name__)
+        return []
+
+
 def _send(session: Any, plan: _Plan, nxt: dict, *, states: Sequence[ChatState],
           candidates: Mapping[str, Mapping[str, Any]], checks: Mapping[str, str], watch_missing_inbound: bool,
           now: datetime.datetime, cal: Optional[BusinessDayFn] = None) -> Published:
@@ -441,7 +454,7 @@ def _send(session: Any, plan: _Plan, nxt: dict, *, states: Sequence[ChatState],
         missing_inbound_24h=(_recent(nxt, ALERT_INBOUND, now, datetime.timedelta(hours=24))
                              if watch_missing_inbound else None),
         checks=checks, last_success_at=read_last_success(session),
-        metrics_lines=metrics_lines(session, now=now, labels=BRAND_LABELS, is_business_day=cal))
+        metrics_lines=_metric_lines(session, now, cal))
     title, message = morning_report(facts)
     post_admin_notification(session, kind=NOTIFY_MORNING_REPORT, title=title, message=message, now=stamp)
     published.report_sent = True

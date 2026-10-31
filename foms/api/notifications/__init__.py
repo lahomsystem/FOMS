@@ -21,7 +21,7 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
-from foms.services.notifications.cs_draft_link import cs_send_link
+from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -198,7 +198,7 @@ def _resolve_notification_deep_link(
             "deep_link_url": "/erp/drawing-workbench/agent-note",
         }
 
-    if n_type == "CS_DRAFT_READY":
+    if n_type == NOTIFY_DRAFT_READY:
         # AI 상담 초안(주문 없음, 플랜 C10-5) — 알림 글의 [보내기] 화면 같은 출처 경로(폰 알림과 같은 곳).
         return {
             "deep_tab": None,

@@ -19,7 +19,7 @@ from __future__ import annotations
 import datetime as _dt
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
-from foms.services.notifications.cs_draft_link import cs_send_link
+from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_draft_chat, cs_send_link
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.partner_push import (
     is_partner_notification_type,
@@ -73,7 +73,7 @@ PUSH_HTTP_TIMEOUT_SECONDS = 10
 _HIGH_URGENCY_TYPES = frozenset(
     {
         # AI 상담 초안이 떴다 — 손님 글 뒤 90초 안 발송이 목표라(설계서 17.3) 절전 폰이 미루면 뜻이 없다.
-        "CS_DRAFT_READY",
+        NOTIFY_DRAFT_READY,
         "MEASURE_SAME_DAY_ADDED",
         "DRAWING_TRANSFERRED",
         "DRAWING_REVISION",
@@ -117,7 +117,7 @@ _DEFAULT_P1_TYPES = frozenset(
         # 알아야 한다 — 미등록이면 enqueue 해도 조용히 안 나간다.
         "MEASURE_SAME_DAY_ADDED",
         # AI 상담 초안이 떴다(플랜 C10-5) — 구독한 상담 직원에게만 만든다(cs_agent.staff_alert).
-        "CS_DRAFT_READY",
+        NOTIFY_DRAFT_READY,
     }
 )
 
@@ -233,7 +233,7 @@ def _deep_link(notif: Notification) -> str:
             # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
             return measure_same_day_link(oid, notif.created_at)
         return f"/erp/orders/{oid}"
-    if (notif.notification_type or "").strip().upper() == "CS_DRAFT_READY":
+    if (notif.notification_type or "").strip().upper() == NOTIFY_DRAFT_READY:
         return cs_send_link(notif.message) or "/erp"
     return "/erp"
 
@@ -263,7 +263,7 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "자동 처리가 멈췄습니다"
     if ntype == "WORKER_RECOVERED":
         return "자동 처리가 다시 시작됐습니다"
-    if ntype == "CS_DRAFT_READY":
+    if ntype == NOTIFY_DRAFT_READY:
         return "상담 초안"
     return "새 알림"
 
@@ -289,7 +289,7 @@ def _generic_body(urgent: bool, ntype: str) -> str:
         return "발주확인·발송처리 같은 자동 처리가 멈췄습니다. 앱을 열어 확인하세요."
     if ntype == "WORKER_RECOVERED":
         return "자동 처리가 다시 시작됐습니다."
-    if ntype == "CS_DRAFT_READY":
+    if ntype == NOTIFY_DRAFT_READY:
         # 손님 글 · 초안은 싣지 않는다(잠금화면) — 눌러서 보내기 화면을 연다.
         return "새 상담 초안이 떴어요 — 눌러서 보내기 화면을 여세요"
     return "확인이 필요한 새 알림이 있습니다."
@@ -393,6 +393,10 @@ def _build_payload(notif: Notification, customer_name: str = "") -> Dict[str, An
         # ``payload.vibrate || [80, 40, 80]`` 이 기본 진동을 붙여 새벽에 울린다.
         # JS 에서 빈 배열은 truthy 라 []를 그대로 보내면 진동이 꺼진다.
         payload["vibrate"] = [] if ntype == "WORKER_RECOVERED" else [80, 40, 80]
+    elif ntype == NOTIFY_DRAFT_READY and cs_draft_chat(notif.message):
+        # 상담마다 같은 tag — 갈아 끼운 새 초안 알림이 잠금화면의 앞 알림을 바꾸고(쌓이지 않음) 다시 울린다(검수 R16-2).
+        payload["tag"] = f"foms-cs-draft-{cs_draft_chat(notif.message)}"
+        payload["renotify"] = True
     elif ntype == "MEASURE_SAME_DAY_ADDED":
         # 알림별 tag(주문·날짜당 1건은 outbox dedupe 가 보장): 같은 알림 재배달은 1건으로 접히되
         # 소리는 다시 낸다.

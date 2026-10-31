@@ -19,7 +19,9 @@ from db import db_session
 from foms.services.cs_agent import metrics, report, staff_alert
 from foms.services.cs_agent import settings as st
 from foms.services.notifications import push_sender
-from models import CsAgentMessage, CsAgentTurn, Notification, NotificationPushSubscription, SystemSetting, User
+from models import (
+    CsAgentMessage, CsAgentTurn, Notification, NotificationPushSubscription, PartnerOrg, SystemSetting, User,
+)
 from tests.domains.test_cs_drafting import CUSTOMER, DRAFT, NOTE, FakePoster, channel, customer, run  # noqa: F401
 from tests.support.cs_agent_fakes import at, keys, naive, weekdays_only  # noqa: F401 — keys 는 fixture
 
@@ -29,13 +31,14 @@ DAY = datetime.date(2026, 11, 2)  # 월요일
 
 
 def turn(n, *, brand="LAHOM", state="posted", asked=None, placed=None, send_state=None, waiting=None, sent=None,
-         click=None, outcome=None, error=None, created=None):
+         click=None, outcome=None, error=None, created=None, latency=None):
     """합성 차례 줄 하나(+ 그 차례 손님 글 시각을 상태 표에)."""
     chat, message = f"uc-m{n}", f"m-{n}"
     db_session.add(CsAgentTurn(brand=brand, chat_id=chat, last_user_message_id=message, state=state, attempts=1,
                                placed_at=naive(placed) if placed else None, send_state=send_state,
                                waiting_since=naive(waiting) if waiting else None, sent_at=naive(sent) if sent else None,
                                click_ms=click, outcome=outcome, error_code=error, sent_by_user_id=STAFF_NO,
+                               latency_ms=latency,
                                created_at=naive(created or asked or at(2, 9))))
     if asked is not None:
         db_session.add(CsAgentMessage(chat_id=chat, message_id=message, brand=brand, person_type="user",
@@ -69,10 +72,10 @@ def test_each_metric_comes_out_of_synthetic_turns(app):
     assert m.turns == 11
     assert (m.draft_shown.count, m.draft_shown.median, m.draft_shown.p90) == (7, 25.0, 100.0)
     assert (m.send.count, m.send.median, m.send.p90, m.send.excluded) == (2, 60.0, 90.0, 0)
-    assert (m.superseded.hits, m.superseded.total) == (1, 9)  # 올림 7 · 저장만 1 · 지난 초안 1
+    assert (m.superseded.hits, m.superseded.total) == (1, 7)  # 초안이 보인 차례만 — 올림 6 · 지난 초안 1(R16-4)
     assert (m.staff_first.hits, m.staff_first.total) == (2, 11)
     assert (m.button.hits, m.button.total, m.as_is.hits, m.as_is.total) == (2, 3, 1, 2)
-    assert (m.fast_click.hits, m.fast_click.total) == (1, 2)
+    assert (m.fast_click.hits, m.fast_click.total) == (1, 1)  # 그대로 보낸 차례만(R16-8)
     assert metrics.percentile([5, 1, 3], 0.5) == 3 and metrics.percentile([], 0.9) is None
 
 
@@ -82,7 +85,7 @@ def test_each_metric_comes_out_of_synthetic_turns(app):
     ("LAHOM", at(2, 17, 0), False), ("HAUD", at(2, 17, 30), True), ("LAHOM", at(7, 10), False),  # 11-07 토요일
 ])
 def test_send_time_counts_only_inside_business_hours(app, brand, waiting, inside):
-    turn(1, brand=brand, send_state="sent", waiting=waiting, sent=secs(waiting, 120), created=waiting)
+    turn(1, brand=brand, asked=waiting, send_state="sent", waiting=waiting, sent=secs(waiting, 120), created=waiting)
     m = compute(start=DAY, end=DAY + datetime.timedelta(days=7))[brand]
     assert (m.send.count, m.send.excluded) == ((1, 0) if inside else (0, 1))
     assert m.send.median == (120.0 if inside else None)
@@ -114,9 +117,9 @@ def test_the_board_and_morning_report_show_numbers_but_no_staff(app, client):
     turn(1, asked=yesterday, placed=secs(yesterday, 28), send_state="sent", waiting=yesterday,
          sent=secs(yesterday, 300), click=2000, outcome="as_is")
     lines = metrics.metrics_lines(db_session, now=at(2, 9), labels=report.BRAND_LABELS, is_business_day=weekdays_only)
-    assert lines == ["[라홈 지난 7일 시간 지표] 초안 뜸(모든 시간) 중간 28초 · 90% 28초 · 1건 · 발송(운영 시간 안) 중간 — · "
-                     "90% — · 0건(밖 1건) · 갈아 끼움 0%(0/1) · 직원이 먼저 답함 0%(0/1) · 버튼으로 보냄 100%(1/1) · "
-                     "그대로 보냄 100%(1/1) · 5초 안에 누름 100%(1/1)"]
+    assert lines == ["[라홈 지난 7일 시간 지표] 초안 뜸(모든 시간) 중간 28초 · 90% 28초 · 1건(재지 못함 0건) · 발송(운영 "
+                     "시간 안) 중간 — · 90% — · 0건(재지 못함 0건 · 밖 1건) · 갈아 끼움 0%(0/1) · 직원이 먼저 답함 0%(0/1) · "
+                     "버튼으로 보냄 100%(1/1) · 그대로 보냄 100%(1/1) · 5초 안에 누름 100%(1/1)"]
     facts = report.ReportFacts(day=DAY, states=[], pending_webhooks=0, missing_inbound_24h=None, checks={"LAHOM": "ok"},
                                last_success_at=None, metrics_lines=lines)
     _title, body = report.morning_report(facts)
@@ -136,9 +139,14 @@ def test_the_board_and_morning_report_show_numbers_but_no_staff(app, client):
 
 
 # ── ⑥ 직원 알림: 구독한 상담 직원만 · 글 없음 · 스위치 ───────────────────────
-def person(name, *, role="STAFF", team="CS", subscribed=True, revoked=False, active=True):
+def person(name, *, role="STAFF", team="CS", subscribed=True, revoked=False, active=True, partner=False):
     user = User(username=f"alert-{name}", password=generate_password_hash("pw"), role=role, team=team,
                 name=f"합성 {name}", is_active=active)
+    if partner:
+        org = PartnerOrg(name=f"합성 협력사 {name}")
+        db_session.add(org)
+        db_session.flush()
+        user.partner_org_id, user.role = org.id, "PARTNER"  # 협력사 계정은 role 도 PARTNER(ck_users_partner_role_org)
     db_session.add(user)
     db_session.flush()
     if subscribed:
@@ -155,10 +163,10 @@ def pushes(monkeypatch):
     return sent
 
 
-def alert_switch(on=True, draft="memo"):
+def alert_switch(on=True, draft="memo", buttons=True):
     db_session.merge(SystemSetting(setting_key="cs_agent_switch", setting_value={"loop": "on", "draft": draft}))
-    db_session.merge(SystemSetting(setting_key=st.SETTINGS_KEY,
-                                   setting_value={**st.DEFAULTS, "staff_push_enabled": on}))
+    db_session.merge(SystemSetting(setting_key=st.SETTINGS_KEY, setting_value={
+        **st.DEFAULTS, "staff_push_enabled": on, "send_buttons_enabled": buttons}))
     db_session.commit()
 
 

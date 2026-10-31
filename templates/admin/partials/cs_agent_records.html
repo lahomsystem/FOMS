@@ -55,7 +55,13 @@
   </div>
 
   {#- 시간 지표(플랜 C10-5 · 설계서 17.3 '잰다') — 숫자만, 직원별 수치 없음(원장 R10-28). 정의는 foms/services/cs_agent/metrics.py. -#}
-  <h2 class="h6 mt-4">시간 지표 — 지난 7일({{ rec.metrics.start }} ~ {{ rec.metrics.end }})</h2>
+  <h2 class="h6 mt-4">시간 지표 — 지난 7일{% if not rec.metrics.error %}({{ rec.metrics.start }} ~ {{ rec.metrics.end }}){% endif %}</h2>
+  {% if rec.metrics.error %}
+  <p class="text-warning small mb-1">시간 지표를 지금 셀 수 없습니다(기록 확인) — 다른 칸은 그대로입니다.</p>
+  {% endif %}
+  <ul class="text-muted small mb-2">
+    {% for line in rec.metrics.definitions %}<li>{{ line }}</li>{% endfor %}
+  </ul>
   <div class="row g-3">
     {% for b in rec.metrics.brands %}
     <div class="col-md-6">
