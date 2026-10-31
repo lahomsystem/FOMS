@@ -22,11 +22,11 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Iterable, Optional
-from urllib.parse import urlencode
 
 from foms.services import channel_send
 from foms.services.cs_agent.channel_read import SENT_REPLY_REQUEST_PREFIX, _created_at
 from foms.services.cs_agent.memo import MEMO_BRAND, memo_allowed
+from foms.services.notifications.cs_draft_link import edit_path, send_path
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +88,7 @@ def memo_buttons(turn_id: int, chat_id: str) -> tuple[tuple[str, str], ...]:
     if not base.startswith("https://") or not isinstance(chat_id, str) or not _CHAT_ID.fullmatch(chat_id):
         logger.warning("[CS 보내기] FOMS 기본 주소(https)가 없어 메모에 버튼을 달지 않는다 turn=%s", turn_id)
         return ()
-    query = urlencode({"c": chat_id})
-    return ((BUTTON_SEND, f"{base}/cs-agent/turns/{int(turn_id)}/send?{query}"),
-            (BUTTON_EDIT, f"{base}/cs-agent/turns/{int(turn_id)}/edit?{query}"))
+    return ((BUTTON_SEND, base + send_path(turn_id, chat_id)), (BUTTON_EDIT, base + edit_path(turn_id, chat_id)))
 
 
 def request_id_for(turn_id: int) -> str:
