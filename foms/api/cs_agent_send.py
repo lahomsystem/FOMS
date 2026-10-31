@@ -1,6 +1,6 @@
 """AI 상담 초안 [보내기] · [수정하기] JSON API — 상담 직원(CS 팀) · ADMIN 만, 쓰기는 공용 CSRF · Origin 가드 뒤(플랜 C10-3).
 
-- ``POST /api/cs-agent/turns/<id>/send`` ``{"token", "mode": "as_is" | "edited", "text"?, "edit_reason"?, "confirm"?,
+- ``POST /api/cs-agent/turns/<id>/send`` ``{"token", "mode": "as_is" | "edited", "text"?, "edit_reason"?, "confirm"?(확인표),
   "shown_ms"?}`` — web 이 직접 손님께 보낸다(모델을 부르지 않는다, :func:`foms.services.cs_agent.send_flow.send_turn`).
 - ``POST …/discard`` ``{"token"}`` — 버리기(끝난 꼴 '버림').
 - ``POST …/rewrite`` ``{"token", "note"}`` — '고칠 말' 요청(빠른 길이 받아 새 초안 메모로).
@@ -90,7 +90,7 @@ def cs_agent_send(turn_id: int) -> tuple[Any, int]:
         return denied
     body = _body()
     req = SendRequest(turn_id=turn_id, user_id=user_id, token=body.get("token"), mode=body.get("mode") or "as_is",
-                      text=body.get("text"), edit_reason=body.get("edit_reason"), confirm=body.get("confirm") is True,
+                      text=body.get("text"), edit_reason=body.get("edit_reason"), confirm=body.get("confirm"),
                       shown_ms=body.get("shown_ms"))
     return _run(lambda session: send_turn(session, req, secret_key=current_app.secret_key, now=now_kst()))
 

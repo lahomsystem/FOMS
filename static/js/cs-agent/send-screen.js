@@ -4,6 +4,7 @@
  * 화면(GET)은 보여 주기만 한다. 이 스크립트가 서버가 data-* 로 실은 한 번용 서명 표를 POST 본문에 넣어 JSON API
  * (/api/cs-agent/turns/<id>/*)로 보낸다 — CSRF 토큰은 공용 csrf_bootstrap 의 fetch 래퍼가 붙인다.
  * 화면이 보인 때부터 [보내기]를 누를 때까지 밀리초(shown_ms)를 같이 보낸다('5초 안에 누름' 지표).
+ * '확인 후 보내기'는 서버가 준 확인표를 다시 보내고, 고치는 칸이 바뀌면 그 확인표를 버린다(검수 R15-1).
  * 결과 모름(확인 중)이면 다시 보내지 않고 결과 맞추기(reconcile)를 몇 번 부른다. 글은 textContent 로만 넣는다.
  */
 (function () {
@@ -15,7 +16,7 @@
   if (!root) return;
   var shownAt = Date.now();
   var busy = false;
-  var confirmNext = false;
+  var confirmStamp = null;  // '확인 후 보내기' 확인표 — 경고를 본 그 글에만 맞는다(글을 고치면 버린다)
   var finished = false;
   var RECONCILE_EVERY_MS = 4000;
   var RECONCILE_TRIES = 20;
@@ -110,7 +111,7 @@
     if (code === 'sent') { message('success', d.message); finish(); return; }
     if (code === 'checking') { message('info', d.message); finish(); reconcileLoop(); return; }
     if (code === 'needs_confirm') {
-      confirmNext = true;
+      confirmStamp = d.confirm || null;
       showList(d.warnings);
       message('warning', d.message);
       var go = root.querySelector('[data-cs-send-go]');
@@ -128,7 +129,7 @@
 
   async function onSend() {
     if (busy || finished) return;
-    var body = { token: data('token'), mode: 'as_is', confirm: confirmNext, shown_ms: Math.max(0, Date.now() - shownAt) };
+    var body = { token: data('token'), mode: 'as_is', confirm: confirmStamp, shown_ms: Math.max(0, Date.now() - shownAt) };
     if (data('mode') === 'edit') {
       var text = root.querySelector('[data-cs-send-text]');
       var reason = root.querySelector('[data-cs-send-reason]');
@@ -196,6 +197,16 @@
     if (el) el.addEventListener('click', handler);
   }
 
+  function resetConfirm() {
+    if (!confirmStamp) return;
+    confirmStamp = null;  // 글이 바뀌었다 — 새 글의 경고를 다시 본다
+    showList([]);
+    var go = root.querySelector('[data-cs-send-go]');
+    if (go) go.textContent = '보내기';
+  }
+
+  var box = root.querySelector('[data-cs-send-text]');
+  if (box) box.addEventListener('input', resetConfirm);
   bind('[data-cs-send-go]', onSend);
   bind('[data-cs-discard]', onDiscard);
   bind('[data-cs-rewrite-go]', onRewrite);

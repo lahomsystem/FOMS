@@ -9,12 +9,18 @@
   표를 쓰지 않는다(미리 읽기가 표를 써 버리지 않는다). 한 번만 쓰이는 것은 차례 줄의 조건부 쓰기가 보장한다 — 보냄 · 버림 ·
   다시 쓰기 뒤에는 같은 표로 다시 할 일이 없다.
 - 표에는 글 · 상담 id 가 없다(차례 id · 직원 id · 메모 id · 무작위 값).
+- **확인표(:func:`confirm_stamp`)**: '확인 후 보내기' 경고가 나간 그 글(빈칸을 하나로 맞춘 글) · 그 경고 코드 · 그 차례 · 그 직원에
+  묶인 서명(HMAC). 두 번째 누름은 같은 확인표가 있어야 보낸다 — 글을 바꾸면 새 경고를 다시 본다(검수 R15-1). 확인표에도 글은
+  없다(서명 값뿐).
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import secrets
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
@@ -23,7 +29,7 @@ from foms.services.auth.partner_scope import is_partner_user
 
 __all__ = [
     "SEND_TEAMS", "SIGN_SALT", "TOKEN_MAX_AGE", "SendTokenError", "can_use_send_screen", "check_send_token",
-    "issue_send_token",
+    "confirm_matches", "confirm_stamp", "issue_send_token", "normalized",
 ]
 
 #: 서명 소금(비밀이 아니다 — 이 화면 서명을 다른 서명과 가르는 이름). 비밀은 앱 비밀 키다.
@@ -92,3 +98,24 @@ def check_send_token(secret_key: Any, token: Any, *, turn_id: int, user_id: int,
         raise SendTokenError(TOKEN_OTHER_USER)
     if data.get("m") != (memo_id or ""):
         raise SendTokenError(TOKEN_STALE)
+
+
+def normalized(text: str) -> str:
+    """확인표가 보는 글 — 빈칸 · 줄바꿈을 하나로 맞춘 글(빈칸만 다른 같은 글은 같은 글)."""
+    return " ".join((text or "").split())
+
+
+def confirm_stamp(secret_key: Any, *, turn_id: int, user_id: int, text: str, codes: Iterable[str]) -> str:
+    """'확인 후 보내기' 확인표 — 그 차례 · 그 직원 · 그 글 · 그 경고 코드에 묶인 HMAC(앞 40자)."""
+    key = hashlib.sha256(SIGN_SALT.encode("utf-8") + b":confirm:" + str(secret_key).encode("utf-8")).digest()
+    body = json.dumps([int(turn_id), int(user_id), sorted(set(codes)), normalized(text)], ensure_ascii=False)
+    return hmac.new(key, body.encode("utf-8"), hashlib.sha256).hexdigest()[:40]
+
+
+def confirm_matches(secret_key: Any, stamp: Any, *, turn_id: int, user_id: int, text: str,
+                    codes: Iterable[str]) -> bool:
+    """두 번째 누름의 확인표가 지금 글 · 지금 경고에 맞는가(글자열이 아니면 아니다)."""
+    if not isinstance(stamp, str) or not stamp:
+        return False
+    expected = confirm_stamp(secret_key, turn_id=turn_id, user_id=user_id, text=text, codes=codes)
+    return hmac.compare_digest(stamp, expected)

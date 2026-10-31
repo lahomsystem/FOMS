@@ -11,6 +11,8 @@
 5. 새 메모(링크 버튼 포함)를 올리고 다시 읽어 비공개 확인 → 차례 줄의 메모 id · 가린 초안을 새것으로(그사이 보냄 · 버림이면 쓰지
    않는다). 공개로 보이면 초안 스위치를 끄고 · 확인 못 함이면 '저장만'으로 + 관리자 알림(초안 메모와 같은 막는 장치).
 
+'하는 중'으로 :data:`WORKING_EXPIRES` 넘게 남은 줄(죽은 실행 단위)은 차례 시작에 '못 함'(``rewrite_expired``)으로 되돌린다 —
+그 동안은 [보내기]가 막히므로 영원히 남지 않게(검수 R15-5). 예상 밖 예외는 그 줄을 '못 함'으로 되돌린 뒤 올린다.
 다시 쓴 수(하는 중으로 집을 때 센다)는 차례마다 :data:`.send_flow.MAX_REWRITES` 까지(요청 쪽이 막는다). 글은 로그 · 요약에 싣지 않는다(차례 id · 코드만).
 """
 
@@ -21,7 +23,7 @@ import logging
 from types import SimpleNamespace
 from typing import Any, Callable
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 
 from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.brain import BrainNotReady, BrainUnavailable, DraftRequest, SpendCapReached
@@ -37,32 +39,29 @@ from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE
 from foms.services.cs_agent.send import memo_buttons
-from foms.services.cs_agent.send_record import SEND_FAILED
+from foms.services.cs_agent.send_record import REWRITE_WORKING, open_turn
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
-    DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, STATE_POSTED, draft_mode, read_switch, set_draft_mode,
+    DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, draft_mode, read_switch, set_draft_mode,
 )
 from foms.services.cs_agent.turns_fields import ID_PATTERN, masked_or_none
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["REWRITE_DONE", "REWRITE_FAILED", "REWRITE_REQUESTED", "REWRITE_STATES", "REWRITE_WORKING", "run_rewrites"]
+__all__ = ["REWRITE_DONE", "REWRITE_FAILED", "REWRITE_REQUESTED", "REWRITE_STATES", "REWRITE_WORKING",
+           "WORKING_EXPIRES", "run_rewrites"]
 
-REWRITE_REQUESTED, REWRITE_WORKING, REWRITE_DONE, REWRITE_FAILED = "requested", "working", "done", "failed"
+REWRITE_REQUESTED, REWRITE_DONE, REWRITE_FAILED = "requested", "done", "failed"  # 하는 중은 send_record 와 같은 이름
+#: '하는 중' 만료 — 두뇌 시간 상한(60초까지) + 읽기 · 메모 여유. 넘으면 죽은 실행 단위로 보고 되돌린다.
+WORKING_EXPIRES = datetime.timedelta(minutes=3)
 #: 다시 쓰기 상태 — 마이그레이션 ``csagent_04`` · 모델 검사 제약과 같은 순서 · 글자(시험이 맞춘다).
 REWRITE_STATES: tuple[str, ...] = (REWRITE_REQUESTED, REWRITE_WORKING, REWRITE_DONE, REWRITE_FAILED)
 _TURNS = CsAgentTurn.__table__
 
 
-def _open(turn_id: int) -> tuple[Any, ...]:
-    """아직 보내지 않은 메모 차례 조건 — 그사이 보냄 · 버림이면 다시 쓰기를 적지 않는다."""
-    return (_TURNS.c.id == turn_id, _TURNS.c.state == STATE_POSTED, _TURNS.c.outcome.is_(None),
-            or_(_TURNS.c.send_state.is_(None), _TURNS.c.send_state == SEND_FAILED))
-
-
 def _claim(session: Any, turn_id: int, now: datetime.datetime) -> bool:
     """요청 → 하는 중(조건부 한 문장). 다시 쓴 수는 여기서 센다 — 못 함으로 끝나도 두뇌 한 번은 쓴 것이다(상한이 돈을 묶는다)."""
-    stmt = (update(_TURNS).where(*_open(turn_id), _TURNS.c.rewrite_state == REWRITE_REQUESTED)
+    stmt = (update(_TURNS).where(*open_turn(turn_id), _TURNS.c.rewrite_state == REWRITE_REQUESTED)
             .values(rewrite_state=REWRITE_WORKING, rewrite_count=_TURNS.c.rewrite_count + 1, updated_at=naive_utc(now)))
     return session.execute(stmt).rowcount == 1
 
@@ -88,11 +87,18 @@ def _switch_ready(session: Any) -> bool:
 def run_rewrites(session: Any, *, now: datetime.datetime, stop: Any, reader: Any, brain: Callable[..., Any],
                  poster: Callable[..., Any], daytime: bool = True, limit: int = 1) -> dict[str, int]:
     """'고칠 말' 요청을 :data:`limit` 개까지 처리한다(모듈 설명의 순서). 숫자 · 코드만 돌려준다. 커밋한다."""
+    expired = session.execute(update(_TURNS).where(_TURNS.c.rewrite_state == REWRITE_WORKING,
+                                                   _TURNS.c.updated_at < naive_utc(now) - WORKING_EXPIRES)
+                              .values(rewrite_state=REWRITE_FAILED, send_error="rewrite_expired",
+                                      updated_at=naive_utc(now))).rowcount
+    session.commit()
+    if expired:
+        logger.warning("[CS 다시 쓰기] 오래 남은 '하는 중' %d건을 되돌렸다(다시 요청할 수 있다)", expired)
     stmt = (select(CsAgentTurn.id).where(CsAgentTurn.rewrite_state == REWRITE_REQUESTED)
             .order_by(CsAgentTurn.rewrite_requested_at, CsAgentTurn.id).limit(int(limit)))
     ids = list(session.scalars(stmt))
     session.commit()
-    counts: dict[str, int] = {}
+    counts: dict[str, int] = {"expired": expired} if expired else {}
     if ids and reader is None:
         reader = OpenApiReader(sleep=stop.reader_sleep)  # 요청이 있을 때만 만든다(5초마다 도는 차례)
     for turn_id in ids:
@@ -101,8 +107,12 @@ def run_rewrites(session: Any, *, now: datetime.datetime, stop: Any, reader: Any
             session.rollback()
             continue
         session.commit()
-        verdict = _one(session, turn_id, now=now, stop=stop, reader=reader, brain=brain, poster=poster,
-                       daytime=daytime)
+        try:
+            verdict = _one(session, turn_id, now=now, stop=stop, reader=reader, brain=brain, poster=poster,
+                           daytime=daytime)
+        except Exception:
+            _give_up(session, turn_id, "error", now)  # 그 줄을 '하는 중'에 두지 않는다 — 예외는 그대로 올린다
+            raise
         counts[verdict] = counts.get(verdict, 0) + 1
     return counts
 
@@ -167,7 +177,7 @@ def _post(session: Any, turn_id: int, chat_id: str, result: Any, *, now: datetim
         values["masked_draft"] = masked_or_none(result.draft)
     except MaskLeak:
         values["masked_draft"] = None  # 가림이 놓친 꼴 — 가린 사본을 두지 않는다(메모는 이미 올렸다)
-    done = session.execute(update(_TURNS).where(*_open(turn_id), _TURNS.c.rewrite_state == REWRITE_WORKING)
+    done = session.execute(update(_TURNS).where(*open_turn(turn_id), _TURNS.c.rewrite_state == REWRITE_WORKING)
                            .values(values)).rowcount == 1
     guard = None if sent.verified else (DRAFT_OFF if sent.reason == REASON_NOT_PRIVATE else DRAFT_STORE)
     if guard is not None:

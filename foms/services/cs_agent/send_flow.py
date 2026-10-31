@@ -13,11 +13,14 @@ R10-16 · D68 · D69. 화면(``foms/web/cs_agent_send.py``)과 JSON API(``foms/a
    (DB 상태 표는 늦다 — R10-11). 아니면 되돌리고 '새 글이 있어요'.
 3. **검사** — 보낼 글: 그대로 = 그 메모를 다시 읽은 '손님께 보낼 답'(:func:`.drafting_read.memo_draft` — DB 에는 가린 사본만),
    고침 = 화면 입력. 그대로면 :func:`.checks.check_draft` 전체(걸리면 막음). 고친 글은 확실한 위험(:data:`HARD_CODES` — 다른
-   브랜드 · 계좌 · 가림 표시 · 내부 메모 글 · 내부 말 · AI 표시 · 사람인 척)만 막고, 나머지(맞춤 금액 · 날짜 · 약속 …)는 '확인 후
-   보내기' 경고 — 직원이 한 번 더 눌러야 보낸다(R10-16: 막으면 직원이 버튼을 버리고 데스크에 써서 기록이 끊긴다).
-4. **보내기** — 보내기 감싸개(:func:`.send.send_reply` — 봇 이름 공개 글 · requestId = 차례 id). 바로 앞에서 스위치를 한 번 더 본다.
-5. **결과** — 보냄: 보낸 글 id · 끝난 꼴(그대로 · 고침) · 고친 정도 · 까닭 · 보낸 직원 · 보낸 때 + 상태 표 '답'. 모름: 다시 보내지
-   않고 '확인 중'(requestId 로 맞춘다 — :func:`reconcile_one` · 빠른 길 바퀴). 거절: '못 보냄'(다시 누를 수 있다).
+   브랜드 · 계좌 · 가림 표시 · 내부 메모 글 · 내부 말 · AI 표시 · 사람인 척)과 **AI 초안에 이미 있던 문제 코드**(검수 R15-3 — 한
+   글자 고쳐 전체 검사를 피하지 못하게)만 막고, 나머지(맞춤 금액 · 날짜 · 약속 …)는 '확인 후 보내기' 경고 — 그 글 · 그 경고에
+   묶인 확인표(:func:`.send_auth.confirm_stamp`)를 들고 한 번 더 눌러야 보낸다(R10-16 · R15-1).
+4. **보내기** — 보내기 감싸개(:func:`.send.send_reply` — 봇 이름 공개 글 · requestId = 차례 id). 바로 앞에서 스위치와 '보내는 중'을
+   한 번 더 본다(그사이 맞추기 · 다른 쪽이 바꿨으면 부르지 않는다 — R15-4). '고칠 말' 처리 중엔 보내지 않는다(R15-5).
+5. **결과** — 보냄: 보낸 글 id · 끝난 꼴(그대로 · 고침) · 고친 정도 · 까닭 · 보낸 직원 · 보낸 때 + 상태 표 '답'(약속 칸 포함). 모름:
+   다시 보내지 않고 '확인 중'(requestId 로 맞춘다 — :func:`reconcile_one` · 빠른 길 바퀴). 거절: '못 보냄'(다시 누를 수 있다). 결과를
+   못 적었으면(그사이 줄이 바뀜) '보냈어요'라 하지 않고 '확인 중'.
 
 결과는 :class:`FlowResult`(코드 · HTTP 상태 · 숫자와 코드뿐인 ``data``) — 손님 글 · 보낼 글은 싣지 않는다. 로그도 차례 id · 코드만.
 """
@@ -42,10 +45,10 @@ from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.send import SEND_BRAND, send_reply
-from foms.services.cs_agent.send_auth import SendTokenError, check_send_token
+from foms.services.cs_agent.send_auth import SendTokenError, check_send_token, confirm_matches, confirm_stamp
 from foms.services.cs_agent.send_record import (
-    SEND_FAILED, SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, finish_sent, mark_send_failed, mark_unknown,
-    reconcile_turn, record_answer, revert_sending, sent_case, start_sending,
+    REWRITE_WORKING, SEND_FAILED, SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, finish_sent, mark_send_failed,
+    mark_unknown, open_turn, reconcile_turn, record_answer, revert_sending, sent_case, start_sending, still_sending,
 )
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import DRAFT_MEMO, STATE_POSTED, draft_mode, read_switch
@@ -80,6 +83,7 @@ MESSAGES: dict[str, str] = {
     "not_open": "더는 보낼 수 없는 초안이에요(지난 초안 · 직원 답함).",
     "switch_off": "지금은 보내기가 꺼져 있어요(관리 화면 스위치 · 비상 정지).",
     "not_allowed": "이 상담은 보내기가 허락되지 않았어요(하우드 · 시험 상담 밖).",
+    "rewriting": "AI 가 고칠 말로 다시 쓰는 중이에요 — 잠시 뒤 새 초안으로 바뀝니다(그때 보내 주세요).",
     "token": "화면이 오래됐어요 — 새로 열어 주세요.",
     "failed": "채널톡이 받지 않았어요 — 잠시 뒤 다시 눌러 주세요.",
     "read_failed": "채널톡 글을 읽지 못했어요 — 잠시 뒤 다시 눌러 주세요(보내지 않았어요).",
@@ -121,7 +125,7 @@ class SendRequest:
     mode: str = MODE_AS_IS
     text: Optional[str] = field(default=None, repr=False)
     edit_reason: Optional[str] = None
-    confirm: bool = False
+    confirm: Any = None  # '확인 후 보내기' 확인표(needs_confirm 응답의 confirm — 참 · 거짓 칸이 아니다, R15-1)
     shown_ms: Optional[int] = None
 
 
@@ -179,6 +183,8 @@ def _closed(row: Any) -> Optional[FlowResult]:
         return _fail("already", 409, **turn_status(row))
     if row.state != STATE_POSTED or not row.memo_message_id:
         return _fail("not_open", 409, **turn_status(row))
+    if row.rewrite_state == REWRITE_WORKING:
+        return _fail("rewriting", 409, **turn_status(row))
     return None
 
 
@@ -243,7 +249,7 @@ def _send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: date
     logger.info("[CS 보내기] 보내는 중 turn=%s mode=%s", row.id, request.mode)
     called: list[bool] = []
     try:
-        return _send_started(session, row, request, previous=previous, now=now, called=called,
+        return _send_started(session, row, request, previous=previous, now=now, called=called, secret_key=secret_key,
                              reader=reader if reader is not None else OpenApiReader(), sender=sender)
     except Exception:
         session.rollback()
@@ -265,7 +271,7 @@ def _back(session: Any, row: Any, previous: Optional[str], code: str, now: datet
 
 
 def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Optional[str], now: datetime.datetime,
-                  reader: Any, sender: Callable[..., Any], called: list[bool]) -> FlowResult:
+                  reader: Any, sender: Callable[..., Any], called: list[bool], secret_key: Any) -> FlowResult:
     """② 최신인가 → ③ 검사 → ④ 보내기 → ⑤ 결과('보내는 중'을 커밋한 뒤)."""
     try:
         lines = read_lines(reader, row.brand, row.chat_id)
@@ -285,34 +291,44 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     edited = edited and text != (ai_draft or "").strip()
     knowledge = load_approved(session, row.brand)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
-    check = check_draft(text, brand=row.brand, medium=medium, private_snippets=memo_snippets(lines),
-                        allowed_numbers=tuple(i.text for i in knowledge.items if HUMAN_ONLY_MARK not in i.text))
-    hard = [p for p in check.problems if not edited or p.code in HARD_CODES]
-    soft = [p for p in check.problems if edited and p.code not in HARD_CODES]
+    args = {"brand": row.brand, "medium": medium, "private_snippets": memo_snippets(lines),
+            "allowed_numbers": tuple(i.text for i in knowledge.items if HUMAN_ONLY_MARK not in i.text)}
+    check = check_draft(text, **args)
+    kept = set(check_draft(ai_draft, **args).codes) if edited and ai_draft else set()  # AI 초안의 문제는 고쳐도 막는다
+    hard = [p for p in check.problems if not edited or p.code in HARD_CODES or p.code in kept]
+    soft = [p for p in check.problems if p not in hard]
     if hard:
         return _back(session, row, previous, "check_failed", now, _fail("blocked", 422, problems=_problems(hard)))
-    if soft and not request.confirm:
-        return _back(session, row, previous, "needs_confirm", now,
-                     _fail("needs_confirm", 409, warnings=_problems(soft)))
+    stamp = {"turn_id": row.id, "user_id": request.user_id, "text": text, "codes": [p.code for p in soft]}
+    if soft and not confirm_matches(secret_key, request.confirm, **stamp):
+        return _back(session, row, previous, "needs_confirm", now, _fail(
+            "needs_confirm", 409, warnings=_problems(soft), confirm=confirm_stamp(secret_key, **stamp)))
     if not switch_on(session):  # ④ 바로 앞 — 그사이 꺼졌으면(비상 정지 · 버튼 끔) 보내지 않는다
         return _back(session, row, previous, "switch_off", now, _fail("switch_off", 409))
+    if not still_sending(session, row.id):  # 그사이 맞추기 · 다른 쪽이 줄을 바꿨다 — 부르지 않는다(R15-4)
+        session.commit()
+        return _fail("checking", 202)
     session.commit()
     called.append(True)
     sent = sender(row.chat_id, text, brand=row.brand, turn_id=row.id)
     case = sent_case(lines, ai_draft=ai_draft, sent_text=text, edited=edited,
                      edit_reason=request.edit_reason if edited else None)
-    return _record(session, row, sent, case, now=now, warned=[p.code for p in soft])
+    return _record(session, row, sent, case, text=text, now=now, warned=[p.code for p in soft])
 
 
-def _record(session: Any, row: Any, sent: Any, case: Any, *, now: datetime.datetime, warned: list[str]) -> FlowResult:
-    """⑤ 결과 적기 — 보냄 · 모름(다시 안 보냄) · 못 보냄."""
+def _record(session: Any, row: Any, sent: Any, case: Any, *, text: str, now: datetime.datetime,
+            warned: list[str]) -> FlowResult:
+    """⑤ 결과 적기 — 보냄 · 모름(다시 안 보냄) · 못 보냄. 적기가 0 줄이면(그사이 줄이 바뀜) '확인 중'으로 답한다(R15-4)."""
     if sent.posted and sent.message_id:
         at = sent.created_at or now
-        finish_sent(session, row.id, message_id=sent.message_id, sent_at=at, case=case, now=now)
+        written = finish_sent(session, row.id, message_id=sent.message_id, sent_at=at, case=case, now=now)
         session.commit()  # 보낸 사실을 먼저 굳힌다 — 상태 표 '답'은 그다음(못 적어도 웹훅 · 보정이 채운다)
+        if not written:
+            logger.warning("[CS 보내기] 보냈지만 줄이 그사이 바뀌어 결과를 못 적었다 — 맞추기에 맡긴다 turn=%s", row.id)
+            return _fail("checking", 202, message_id=sent.message_id)
         try:
             record_answer(session, brand=row.brand, chat_id=row.chat_id, message_id=sent.message_id, sent_at=at,
-                          now=now)
+                          text=text, turn_id=row.id, now=now)
             session.commit()
         except SQLAlchemyError:
             session.rollback()
@@ -325,20 +341,12 @@ def _record(session: Any, row: Any, sent: Any, case: Any, *, now: datetime.datet
         session.commit()
         logger.warning("[CS 보내기] 결과 모름 — 다시 보내지 않고 requestId 로 맞춘다 turn=%s", row.id)
         return _fail("checking", 202, send_state=SEND_UNKNOWN_STATE)
-    mark_send_failed(session, row.id, error=sent.reason or "send_failed", now=now)
+    written = mark_send_failed(session, row.id, error=sent.reason or "send_failed", now=now)
     session.commit()
-    return _fail("failed", 502, reason=sent.reason)
+    return _fail("failed", 502, reason=sent.reason) if written else _fail("checking", 202)
 
 
 # ── 버리기 · 고칠 말 · 결과 맞추기 ───────────────────────────────────────
-def _open_where(row: Any) -> tuple[Any, ...]:
-    """아직 보내지 않은 메모 차례 조건(한 문장 조건부 쓰기)."""
-    turns = CsAgentTurn.__table__
-    return (turns.c.id == row.id, turns.c.state == STATE_POSTED, turns.c.outcome.is_(None),
-            turns.c.memo_message_id == row.memo_message_id,
-            or_(turns.c.send_state.is_(None), turns.c.send_state == SEND_FAILED))
-
-
 def discard_turn(session: Any, *, turn_id: int, user_id: int, token: Any, secret_key: Any,
                  now: datetime.datetime) -> FlowResult:
     """버리기 — 끝난 꼴 '버림'(학습 무게 0). 손님께는 아무것도 가지 않는다. 커밋한다."""
@@ -348,7 +356,7 @@ def discard_turn(session: Any, *, turn_id: int, user_id: int, token: Any, secret
         session.rollback()
         return closed
     turns = CsAgentTurn.__table__
-    done = session.execute(update(turns).where(*_open_where(row))
+    done = session.execute(update(turns).where(*open_turn(row.id, row.memo_message_id))
                            .values(outcome=OUTCOME_DISCARDED, updated_at=naive_utc(now))).rowcount == 1
     session.commit()
     logger.info("[CS 보내기] 버림 turn=%s done=%s", turn_id, done)
@@ -380,7 +388,8 @@ def request_rewrite(session: Any, *, turn_id: int, user_id: int, token: Any, not
         session.rollback()
         return _fail("bad_request", 400, field="note_private")
     turns = CsAgentTurn.__table__
-    done = session.execute(update(turns).where(*_open_where(row), turns.c.rewrite_count < MAX_REWRITES,
+    done = session.execute(update(turns).where(*open_turn(row.id, row.memo_message_id),
+                                               turns.c.rewrite_count < MAX_REWRITES,
                                                or_(turns.c.rewrite_state.is_(None),
                                                    turns.c.rewrite_state.in_(("done", "failed"))))
                            .values(rewrite_state="requested", rewrite_note_masked=masked,
@@ -402,5 +411,6 @@ def reconcile_one(session: Any, *, turn_id: int, user_id: int, token: Any, secre
     row = session.get(CsAgentTurn, int(turn_id), populate_existing=True)
     session.commit()
     code = {"sent": "sent", "failed": "failed"}.get(verdict, "checking" if row.send_state in (
-        SEND_SENDING, SEND_UNKNOWN_STATE) else "already" if row.send_state == SEND_SENT else "not_open")
+        SEND_SENDING, SEND_UNKNOWN_STATE) else "already" if row.send_state == SEND_SENT else
+        "failed" if row.send_state == SEND_FAILED else "not_open")
     return _fail(code, 200, verdict=verdict, **turn_status(row))
