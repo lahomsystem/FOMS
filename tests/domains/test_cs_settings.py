@@ -78,6 +78,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "daily_cap_usd_panel": None, "learning_cap_usd_panel": None,
         "max_brain_calls_per_pass": drafting.MAX_BRAIN_CALLS, "max_wait_business_days": drafting.MAX_WAIT_BUSINESS_DAYS,
         "realtime_enabled": False, "quiet_wait_s": 15, "max_wait_s": 60,  # 빠른 길(C10-1) — 처음 끔 · D65 15초
+        "send_buttons_enabled": False,  # [보내기] · [수정하기](C10-3) — 처음 끔
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)

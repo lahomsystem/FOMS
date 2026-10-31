@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ '수정하기' if mode == 'edit' else '보내기' }} · AI 상담 초안</title>
+    {#- 플랜 C10-3 · 설계서 17.2.1 링크 길 — 채널톡 데스크 메모 버튼이 여는 짧은 화면(휴대폰 채널톡 앱 안 브라우저 포함).
+        공용 레이아웃(메뉴 · 알림 · 실시간 연결)은 싣지 않는다 — 빨리 떠야 한다. CSRF 는 공용 partial, 쓰기는
+        static/js/cs-agent/send-screen.js 가 JSON API 로 보낸다(인라인 스크립트 · 스타일 없음). GET 은 보여 주기만 한다. -#}
+    {% include "partials/shared/csrf_bootstrap.html" %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261031a">
+    <script src="{{ url_for('static', filename='js/cs-agent/send-screen.js') }}?v=20261031a" defer></script>
+</head>
+<body class="cs-send-body">
+{% if denied %}
+<main class="cs-send">
+    <h1 class="h5">AI 상담 초안</h1>
+    <p class="alert alert-warning mb-0">이 화면은 상담 직원 · 관리자만 쓸 수 있어요.</p>
+</main>
+{% else %}
+{% set turn = view.turn_id %}
+<main class="cs-send" data-cs-send data-mode="{{ mode }}" data-token="{{ view.token or '' }}"
+      data-memo-id="{{ view.status.memo_id or '' }}" data-checking="{{ '1' if view.checking else '0' }}"
+      data-send-url="{{ url_for('cs_agent_send_api.cs_agent_send', turn_id=turn) }}"
+      data-discard-url="{{ url_for('cs_agent_send_api.cs_agent_discard', turn_id=turn) }}"
+      data-rewrite-url="{{ url_for('cs_agent_send_api.cs_agent_rewrite', turn_id=turn) }}"
+      data-reconcile-url="{{ url_for('cs_agent_send_api.cs_agent_reconcile', turn_id=turn) }}"
+      data-status-url="{{ url_for('cs_agent_send_api.cs_agent_status', turn_id=turn) }}">
+    <div class="cs-send__head">
+        <h1 class="h5 mb-0">AI 상담 초안 · {{ '수정하기' if mode == 'edit' else '보내기' }}</h1>
+        <a class="cs-send__desk" href="{{ view.desk_url }}" target="_blank" rel="noopener noreferrer">데스크에서 상담 보기</a>
+    </div>
+
+    <div class="alert cs-send__msg {{ 'alert-warning' if view.blocked or view.fresh_note else 'd-none' }}"
+         data-cs-send-msg data-foms-no-autodismiss role="status" aria-live="polite">{{ view.blocked or view.fresh_note or '' }}</div>
+    <ul class="cs-send__warnings d-none" data-cs-send-warnings></ul>
+
+    {% if not view.blocked %}
+    {% if mode == 'edit' %}
+    <label class="form-label small fw-semibold" for="cs-send-text">손님께 보낼 글(고쳐서 보내기)</label>
+    <textarea class="form-control cs-send__text" id="cs-send-text" data-cs-send-text maxlength="{{ view.max_text }}"
+              rows="8">{{ view.draft or '' }}</textarea>
+    <label class="form-label small fw-semibold mt-3" for="cs-send-reason">고친 까닭</label>
+    <select class="form-select" id="cs-send-reason" data-cs-send-reason>
+        <option value="">고르기</option>
+        {% for code, label in view.edit_reasons %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+    </select>
+    <div class="cs-send__rewrite">
+        <label class="form-label small fw-semibold" for="cs-send-note">고칠 말 — AI 가 다시 써요(남은 {{ view.rewrite_left }}번)</label>
+        <div class="cs-send__row">
+            <input type="text" class="form-control" id="cs-send-note" data-cs-rewrite-note maxlength="{{ view.max_note }}"
+                   placeholder="예: 더 짧게 · 실측 안내를 먼저" {{ 'disabled' if view.rewrite_left == 0 }}>
+            <button type="button" class="btn btn-outline-primary" data-cs-rewrite-go
+                    {{ 'disabled' if view.rewrite_left == 0 }}>AI 다시 쓰기</button>
+        </div>
+    </div>
+    {% else %}
+    <p class="small text-muted mb-1">손님께 이 글이 그대로 갑니다(채널 이름으로).</p>
+    {% if view.draft %}
+    <div class="cs-send__draft" data-cs-send-draft>{{ view.draft }}</div>
+    {% else %}
+    <p class="alert alert-warning">채널톡에서 이 초안 메모를 찾지 못했어요 — 수정하기로 글을 넣어 보내 주세요.</p>
+    {% endif %}
+    {% endif %}
+    <div class="cs-send__actions">
+        <button type="button" class="btn btn-primary btn-lg" data-cs-send-go
+                {{ 'disabled' if mode != 'edit' and not view.draft }}>보내기</button>
+        {% if mode != 'edit' %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('cs_agent_send_page.cs_agent_edit_screen', turn_id=turn, c=chat_hint) }}">수정하기</a>
+        {% else %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('cs_agent_send_page.cs_agent_send_screen', turn_id=turn, c=chat_hint) }}">그대로 보내기 화면</a>
+        {% endif %}
+        <button type="button" class="btn btn-outline-danger" data-cs-discard>버리기</button>
+    </div>
+    {% endif %}
+</main>
+{% endif %}
+</body>
+</html>

@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Mapping, Optional, Sequence
 
-from foms.services.cs_agent.brain_cases import case_lines, case_pairs
+from foms.services.cs_agent.brain_cases import case_lines, case_pairs, rewrite_lines, rewrite_pair
 from foms.services.cs_agent.brain_instructions import INSTRUCTIONS
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
@@ -129,6 +129,7 @@ class DraftRequest:
     knowledge: ApprovedKnowledge = field(repr=False)
     calculator_lines: Sequence[str] = field(default=(), repr=False)
     cases: Sequence[tuple[str, str]] = field(default=(), repr=False)  # 비슷한 지난 상담(가린 질문, 사람이 보낸 가린 답)
+    rewrite: Sequence[str] = field(default=(), repr=False)  # [수정하기] 다시 쓰기 — (앞 초안, 고칠 말), 가림은 두뇌가 한다
     realtime: bool = False
 
     def __post_init__(self) -> None:
@@ -147,6 +148,7 @@ class DraftRequest:
             raise ValueError("knowledge 는 ApprovedKnowledge 다")
         object.__setattr__(self, "messages", _turns(self.messages))
         object.__setattr__(self, "cases", case_pairs(self.cases))
+        object.__setattr__(self, "rewrite", rewrite_pair(self.rewrite))
         for name in ("customer_names", "staff_names", "calculator_lines"):
             object.__setattr__(self, name, _texts(getattr(self, name), name))
 
@@ -258,7 +260,8 @@ def render_conversation(turns: Sequence[tuple[str, str]]) -> str:
 
 
 def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.datetime,
-              calculator_lines: Sequence[str], conversation: str, cases: Sequence[tuple[str, str]] = ()) -> str:
+              calculator_lines: Sequence[str], conversation: str, cases: Sequence[tuple[str, str]] = (),
+              rewrite: Sequence[str] = ()) -> str:
     """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각). 사례 글은 가림 검사를 다시 지난다."""
     task = "답 초안 쓰기" if purpose == PURPOSE_DRAFT else "의도 고르기 — draft 는 빈 글로 둔다"
     talk = " · 네이버 톡톡 규칙" if not medium or is_naver_talk(medium) else ""
@@ -270,6 +273,7 @@ def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.d
         "계산 결과(코드가 낸 값 — 금액은 이 값만 쓴다):",
         *calc,
         *case_lines(cases),
+        *rewrite_lines(rewrite),
         "상담 글(가린 글 · 오래된 것부터):",
         conversation,
     ])

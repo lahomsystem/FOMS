@@ -158,6 +158,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),
                    description="주문 form(구조화 폼·편집 폼·담당자·상태 — §2.1 '일반 structured form' 은 CS/SALES 만, 2026-10-20)·finance-외 CS·SALES command(call-log/cs-complete/confirm/AS/estimate/measurement/address/gateway). MEASURE→SALES, ACCOUNTING→CS capability(2026-09-03)."),
 
+    # AI 상담 초안 [보내기] · [수정하기](플랜 C10-3): ADMIN, 또는 CS 권한 팀(회계팀 alias 포함)의 STAFF · MANAGER. MANAGER 가
+    # 팀 검사보다 먼저 통과하는 엔진 순서를 피해 게이트 함수 하나가 판정한다(핸들러가 같은 함수로 한 번 더 본다).
+    "CS_AGENT_SEND": _p("CS_AGENT_SEND", teams=("CS",),
+                        gate="foms.services.cs_agent.send_auth:can_use_send_screen",
+                        description="AI 상담 초안 보내기 · 버리기 · 고칠 말 · 결과 맞추기 — ADMIN, 또는 CS 권한 팀의 STAFF · MANAGER. VIEWER · 다른 팀 deny."),
+
     # --- 일반 STAFF 업무(전 팀 열람+쓰기, 현행 role_required STAFF) ----------
     "STAFF_MUTATION": _p("STAFF_MUTATION", teams="*",
                          description="structured/field/status/regional/quest/task/draft/blueprint/attachment/queue 등 전 STAFF 팀 업무. VIEWER deny."),

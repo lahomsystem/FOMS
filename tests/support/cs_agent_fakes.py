@@ -189,6 +189,37 @@ class _FakePipeline:
         return [op() for op in self.ops]
 
 
+class TokenRedis:
+    """공유 캐시가 쓰는 명령만(GET · SET NX PX · DELETE) — 시계는 가짜."""
+
+    def __init__(self, clock):
+        self.clock, self.values, self.expires, self.fail = clock, {}, {}, False
+
+    def _live(self, key):
+        if key in self.expires and self.expires[key] <= self.clock():
+            self.values.pop(key, None)
+            self.expires.pop(key, None)
+
+    def get(self, key):
+        if self.fail:
+            raise ConnectionError("합성 Redis 끊김")
+        self._live(key)
+        return self.values.get(key)
+
+    def set(self, key, value, nx=False, px=None):
+        self._live(key)
+        if nx and key in self.values:
+            return None
+        self.values[key] = value.encode() if isinstance(value, str) else value
+        if px is not None:
+            self.expires[key] = self.clock() + px / 1000
+        return True
+
+    def delete(self, key):
+        self.values.pop(key, None)
+        self.expires.pop(key, None)
+
+
 @pytest.fixture
 def keys(monkeypatch):
     """두 브랜드 Open API 키(가짜 값)."""

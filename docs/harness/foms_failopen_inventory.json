@@ -5,12 +5,12 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 644,
+    "broad_total": 646,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
-    "FAIL_CLOSED": 39,
+    "FAIL_CLOSED": 41,
     "INTENTIONAL": 17,
     "LOG_AND_CONTINUE": 422,
     "SWALLOW_BY_CONTROL_FLOW": 166
@@ -19,12 +19,12 @@
     "api": 247,
     "audit": 2,
     "auth": 16,
-    "cache": 29,
+    "cache": 30,
     "channel": 37,
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 198,
+    "services": 199,
     "storage": 24,
     "telemetry": 41,
     "web": 39
@@ -52,10 +52,12 @@
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:245",
     "foms/services/app_init.py:145",
-    "foms/services/channel_client.py:495",
+    "foms/services/channel_client.py:490",
     "foms/services/channel_dispatch.py:59",
+    "foms/services/channel_token_cache.py:94",
     "foms/services/common/business_calendar.py:65",
     "foms/services/cs_agent/drafting.py:319",
+    "foms/services/cs_agent/send_flow.py:248",
     "foms/services/integrations/naver_commerce/client.py:1257",
     "foms/services/integrations/naver_commerce/client.py:1359",
     "foms/services/integrations/naver_commerce/fulfillment.py:880",
@@ -3065,7 +3067,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 333,
+      "lineno": 328,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3074,7 +3076,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 397,
+      "lineno": 392,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3083,7 +3085,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 450,
+      "lineno": 445,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3092,7 +3094,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 495,
+      "lineno": 490,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3170,6 +3172,15 @@
       "owner": "audit",
       "has_logging": true,
       "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/channel_token_cache.py",
+      "lineno": 94,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "cache",
+      "has_logging": false,
+      "justification": "re-raises"
     },
     {
       "path": "foms/services/common/address_converter.py",
@@ -3619,6 +3630,15 @@
       "disposition": "FAIL_CLOSED",
       "owner": "services",
       "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/cs_agent/send_flow.py",
+      "lineno": 248,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
       "justification": "re-raises"
     },
     {
