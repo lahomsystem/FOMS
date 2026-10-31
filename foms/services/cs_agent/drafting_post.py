@@ -19,6 +19,8 @@
     이라 첫 메모에서 '저장만'으로 돌아간다(그물이 비면 공개 확인 장치가 한 번도 켜지지 않기 때문이다).
 - **링크 버튼(C10-3)**: 관리 화면 '[보내기] · [수정하기] 버튼'이 켜져 있으면 초안 메모에 링크 버튼 둘(:func:`.send.memo_buttons`
   — Open API 메모 길)을 단다. 꺼져 있으면 예전처럼 버튼 없는 메모다. 한 줄 메모에는 달지 않는다.
+- **직원 알림(C10-5)**: 초안 메모를 비공개로 확인한 뒤 상담 직원 FOMS 앱 푸시(:mod:`.staff_alert` — 스위치 · 구독한 사람만 ·
+  글 없음). 실패해도 차례는 그대로다.
 - **한 줄 메모(빠른 길)**: 손님이 'AI 냐 사람이냐' 물으면 초안 없이 '직원이 직접 답해 주세요' 한 줄을 같은 길
   (:func:`post_note` — '올리는 중' 먼저 커밋 · 비공개 확인 · 막는 장치)로 올린다(설계서 17.8).
 - 알림은 감시 보고와 같은 길(:func:`.report.post_admin_notification` — ADMIN 역할 전원 · OS 푸시 없음). 글에는 상담 id ·
@@ -38,6 +40,7 @@ from foms.services.cs_agent.drafting_read import memo_text
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE, SEND_PREFIX, memo_allowed
 from foms.services.cs_agent.report import desk_link, post_admin_notification
+from foms.services.cs_agent import staff_alert
 from foms.services.cs_agent.send import memo_buttons
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
@@ -143,6 +146,8 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
     _record_posted(ctx, row, chat_id, message_id, reason, guard)
     ctx.summary.posted += 1
     if guard is None:
+        if text is None:  # 초안 메모만 — 한 줄 메모('AI 냐' 물음)는 알리지 않는다
+            _notify_staff(ctx, row, chat_id)
         return None
     ctx.summary.unverified += 1
     logger.error("[CS 초안] 메모를 올렸지만 비공개를 확인 못 했다 — 초안 스위치를 %s 로 chat=%s message=%s reason=%s",
@@ -156,6 +161,16 @@ def _buttons(ctx: Any, row: Any, chat_id: str) -> tuple[tuple[str, str], ...]:
     if not read_settings(ctx.session, log=False).get("send_buttons_enabled"):
         return ()
     return memo_buttons(row.id, chat_id)
+
+
+def _notify_staff(ctx: Any, row: Any, chat_id: str) -> None:
+    """상담 직원 알림(관리 화면 스위치 · 구독한 사람만 — :mod:`.staff_alert`). 실패해도 초안 차례는 그대로다(기록만)."""
+    try:
+        staff_alert.notify_draft_ready(ctx.session, turn_id=row.id, brand=MEMO_BRAND, chat_id=chat_id, now=ctx.now)
+    except Exception as exc:  # 알림(DB · 푸시 큐)은 덤이다 — 어떤 실패도 초안 바퀴를 멈추지 않는다(로그는 남긴다)
+        ctx.session.rollback()
+        logger.warning("[CS 초안] 상담 직원 알림을 못 남겼다 — 초안 메모는 그대로 chat=%s err=%s", chat_id,
+                       type(exc).__name__)
 
 
 def _record_posted(ctx: Any, row: Any, chat_id: str, message_id: Optional[str], reason: Optional[str],
