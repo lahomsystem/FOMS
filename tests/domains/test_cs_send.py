@@ -191,7 +191,7 @@ def test_a_custom_amount_is_a_warning_and_a_second_press_sends(app, ready):
     assert first.code == "needs_confirm" and "number_not_allowed" in [w["code"] for w in first.data["warnings"]]
     assert not sender.calls and fresh(turn_id).send_state is None
     second = press(app, ready, turn_id, staff.id, sender, mode="edited", text=text, edit_reason="missing",
-                   confirm=True)
+                   confirm=first.data["confirm"])  # 그 글 · 그 경고에 묶인 확인표(R15-1)
     assert second.code == "sent" and [c.text for c in sender.calls] == [text]
     row = fresh(turn_id)
     assert (row.outcome, row.edit_reason) == ("edited", "missing") and 0 < row.edit_ratio <= 1
@@ -332,7 +332,7 @@ def test_shared_token_keeps_the_issued_expiry(token_env):
     """R1 — 공유 값의 수명은 발급 응답(expiresIn)이 정한 만료 그대로다."""
     token_env.monkeypatch.setattr(channel_client, "_token_cache", {})
     channel_client._get_access_token()
-    key = channel_token_cache.KEY_PREFIX + "201824"
+    key = channel_token_cache.shared_key("201824", "secret")
     assert json.loads(token_env.redis.values[key])["expires_at"] == 1_000.0 + 1500
     assert token_env.redis.expires[key] == pytest.approx(1_000.0 + 1500)
     token_env.clock.now += 1500 - 1  # 남은 수명이 짧으면(5초 안) 쓰지 않고 새로 받는다
@@ -354,15 +354,15 @@ def test_a_dead_shared_token_is_dropped_and_reissued_once(token_env):
 
 
 def test_a_waiting_process_uses_the_token_the_lock_holder_stored(token_env):
-    lock = channel_token_cache.KEY_PREFIX + "201824:lock"
+    lock = channel_token_cache.shared_key("201824", "secret") + ":lock"
     token_env.redis.set(lock, "other-process", nx=True, px=15_000)  # 다른 프로세스가 발급 중
 
     def sleep(seconds):
         token_env.clock.now += seconds
-        token_env.redis.set(channel_token_cache.KEY_PREFIX + "201824",
+        token_env.redis.set(channel_token_cache.shared_key("201824", "secret"),
                             json.dumps({"token": "token-of-other", "expires_at": token_env.clock() + 900}), px=900_000)
 
-    got = channel_token_cache.shared_token("201824", lambda: pytest.fail("잠금을 못 잡은 쪽이 발급했다"),
+    got = channel_token_cache.shared_token("201824", lambda: pytest.fail("잠금을 못 잡은 쪽이 발급했다"), secret="secret",
                                            client=token_env.redis, now=token_env.clock, sleep=sleep)
     assert got[0] == "token-of-other" and token_env.issued == []
 

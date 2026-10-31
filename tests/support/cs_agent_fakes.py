@@ -219,6 +219,16 @@ class TokenRedis:
         self.values.pop(key, None)
         self.expires.pop(key, None)
 
+    def eval(self, _script, _numkeys, key, expected):
+        """같은 값일 때만 지우기(공유 캐시의 비교 후 지우기 Lua 와 같은 뜻) — 지웠으면 1."""
+        self._live(key)
+        current = self.values.get(key)
+        wanted = expected.encode() if isinstance(expected, str) else expected
+        if current is not None and current == wanted:
+            self.delete(key)
+            return 1
+        return 0
+
 
 @pytest.fixture
 def keys(monkeypatch):

@@ -45,7 +45,7 @@ REASON_STAGING = "staging_not_allowed"
 SEND_PREFIX = "send_"
 #: 채널톡에 닿았는지 모르는 실패(시간 초과 · 연결 오류 · 5xx) — 다시 보내면 손님에게 두 번 간다.
 SEND_UNKNOWN = SEND_PREFIX + "request_failed"
-_CHAT_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_CHAT_ID = channel_send.CHAT_ID  # 상담 id 꼴은 한 곳(channel_send) — 검수 R15 단순화
 _ERROR_CODE = re.compile(r"[a-z_]{1,32}")
 _MESSAGE_ID = re.compile(r"[\x21-\x7e]{1,64}")
 

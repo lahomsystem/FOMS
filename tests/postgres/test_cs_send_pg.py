@@ -2,7 +2,7 @@
 
 SQLite 메인 레인은 DB 전체 잠금이라 두 세션이 진짜로 겹치지 않는다. 여기서는 진짜 PostgreSQL 에서 ① 두 세션이 같은 차례를 읽고
 (둘 다 앞 확인을 지남) '보내는 중' 조건부 쓰기를 겹쳐 해도 뒤 세션은 앞 세션 커밋을 기다렸다가 0 줄 — 한 사람만 채널톡을 부른다
-② 앞 세션이 되돌리면 뒤 세션이 집는다(음성 대조군) ③ 웹훅이 먼저 우리 봇 글로 넣은 줄도 '답'으로 고친다 ④ ``csagent_04``
+② 앞 세션이 되돌리면 뒤 세션이 집는다(음성 대조군) ③ 웹훅이 먼저 우리 봇 글로 넣은 줄도 '답'으로 고치고 약속 칸을 채운다 ④ ``csagent_04``
 내리기 → 올리기가 모델(create_all)과 같은 칸 · 제약 · 색인을 되살리는지 본다. ``FOMS_TEST_DATABASE_URL`` 이 없으면 건너뛴다.
 """
 
@@ -94,11 +94,13 @@ def test_a_bot_row_ingested_first_is_turned_into_an_answer(pg_session):
     bot = DerivedMessage(chat_id=CHAT, message_id="sent-1", channel_id="201824", brand="LAHOM", person_type="bot",
                          created_at=created)
     store_messages(pg_session, [bot], source=SOURCE_WEBHOOK, now=NOW.replace(tzinfo=None))  # 웹훅이 먼저(봇 글)
-    send_record.record_answer(pg_session, brand="LAHOM", chat_id=CHAT, message_id="sent-1", sent_at=created, now=NOW)
+    send_record.record_answer(pg_session, brand="LAHOM", chat_id=CHAT, message_id="sent-1", sent_at=created,
+                              text="안녕하세요 고객님, 확인 후 안내드리겠습니다.", turn_id=1, now=NOW)
     pg_session.flush()
-    person = pg_session.execute(select(CsAgentMessage.person_type).where(CsAgentMessage.message_id == "sent-1")).scalar()
+    person, promise = pg_session.execute(select(CsAgentMessage.person_type, CsAgentMessage.promise_kind)
+                                         .where(CsAgentMessage.message_id == "sent-1")).one()
     chat = pg_session.execute(select(CsAgentChat.last_answer_message_id).where(CsAgentChat.chat_id == CHAT)).scalar()
-    assert (person, chat) == ("manager", "sent-1")
+    assert (person, chat) == ("manager", "sent-1") and promise is not None  # 약속 칸도 채운다(R15-2)
 
 
 def _load_migration():

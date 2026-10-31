@@ -30,7 +30,7 @@ from foms.persistence.main.models import CsAgentMessage, CsAgentTurn
 from foms.services.cs_agent.case_material import current_question
 from foms.services.cs_agent.case_memory import OUTCOME_AS_IS, OUTCOME_EDITED, text_similarity
 from foms.services.cs_agent.channel_read import (
-    ChannelReadError, DerivedMessage, OpenApiReader, channel_for_brand, naive_utc,
+    ChannelReadError, DerivedMessage, OpenApiReader, channel_for_brand, derive_message, naive_utc,
 )
 from foms.services.cs_agent.drafting_read import ChatLine, memo_draft, read_lines
 from foms.services.cs_agent.masking import MaskLeak, mask
@@ -42,14 +42,17 @@ from foms.services.cs_agent.turns_fields import masked_or_none
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "NOT_DELIVERED_AFTER", "SEND_FAILED", "SEND_SENDING", "SEND_SENT", "SEND_STATES", "SEND_UNKNOWN_STATE",
-    "STUCK_AFTER", "SentCase", "finish_sent", "mark_send_failed", "mark_unknown", "reconcile_sends",
-    "reconcile_turn", "record_answer", "revert_sending", "sent_case", "start_sending", "waiting_since",
+    "NOT_DELIVERED_AFTER", "REWRITE_WORKING", "SEND_FAILED", "SEND_SENDING", "SEND_SENT", "SEND_STATES",
+    "SEND_UNKNOWN_STATE", "STUCK_AFTER", "SentCase", "finish_sent", "mark_send_failed", "mark_unknown", "open_turn",
+    "reconcile_sends", "reconcile_turn", "record_answer", "revert_sending", "sent_case", "start_sending",
+    "still_sending", "waiting_since",
 ]
 
 SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, SEND_FAILED = "sending", "sent", "unknown", "failed"
 #: 보내기 상태 — 마이그레이션 ``csagent_04`` · 모델 검사 제약과 같은 순서 · 글자(시험이 맞춘다).
 SEND_STATES: tuple[str, ...] = (SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, SEND_FAILED)
+#: '고칠 말' 처리 중 — 이 동안은 보내기를 막는다(검수 R15-5, 상태 이름은 :mod:`.rewrite` 와 같다).
+REWRITE_WORKING = "working"
 #: '보내는 중'이 이만큼 넘게 남으면 보내던 web 이 죽은 것으로 보고 상담 글로 맞춘다(보내기 한 번은 읽기 + 쓰기 각 10초 안).
 STUCK_AFTER = datetime.timedelta(seconds=60)
 #: 결과를 모르는 보내기가 이만큼 지나도 상담 글에 없으면 못 보냄 — 다시 누를 수 있다.
@@ -99,13 +102,22 @@ def _one(session: Any, stmt: Any) -> bool:
     return session.execute(stmt).rowcount == 1
 
 
+def open_turn(turn_id: int, memo_id: Optional[str] = None) -> tuple[Any, ...]:
+    """아직 열린 메모 차례 조건(조건부 쓰기 한 곳 — 보내기 · 버리기 · 고칠 말 · 다시 쓰기가 같이 쓴다, 검수 R15 단순화).
+
+    메모 올림 · 끝난 꼴 없음 · 안 보냈거나 못 보낸 줄. ``memo_id`` 를 주면 화면이 본 그 메모일 때만.
+    """
+    where = (_TURNS.c.id == turn_id, _TURNS.c.state == STATE_POSTED, _TURNS.c.outcome.is_(None),
+             or_(_TURNS.c.send_state.is_(None), _TURNS.c.send_state == SEND_FAILED))
+    return where if memo_id is None else (*where, _TURNS.c.memo_message_id == memo_id)
+
+
 def start_sending(session: Any, row: Any, *, user_id: int, click_ms: Optional[int], now: datetime.datetime) -> bool:
-    """'보내는 중' — 메모 올림 · 끝난 꼴 없음 · 안 보냈거나 못 보낸 줄 · 화면이 본 그 메모일 때만(두 번 누름 · 동시엔 하나만)."""
+    """'보내는 중' — 열린 차례 · 화면이 본 그 메모 · '고칠 말' 처리 중 아님일 때만(두 번 누름 · 동시엔 하나만)."""
     at = naive_utc(now)
     stmt = (update(_TURNS)
-            .where(_TURNS.c.id == row.id, _TURNS.c.state == STATE_POSTED, _TURNS.c.outcome.is_(None),
-                   _TURNS.c.memo_message_id == row.memo_message_id,
-                   or_(_TURNS.c.send_state.is_(None), _TURNS.c.send_state == SEND_FAILED))
+            .where(*open_turn(row.id, row.memo_message_id),
+                   or_(_TURNS.c.rewrite_state.is_(None), _TURNS.c.rewrite_state != REWRITE_WORKING))
             .values(send_state=SEND_SENDING, send_started_at=at, sent_by_user_id=int(user_id), click_ms=click_ms,
                     send_error=None, updated_at=at))
     return _one(session, stmt)
@@ -117,6 +129,11 @@ def revert_sending(session: Any, turn_id: int, *, back_to: Optional[str], error:
             .values(send_state=back_to, send_error=error, sent_by_user_id=None, click_ms=None,
                     send_started_at=None if back_to is None else _TURNS.c.send_started_at, updated_at=naive_utc(now)))
     return _one(session, stmt)
+
+
+def still_sending(session: Any, turn_id: int) -> bool:
+    """채널톡을 부르기 바로 전 — 아직 '보내는 중'인가(그사이 맞추기 · 다른 쪽이 바꿨으면 부르지 않는다, 검수 R15-4)."""
+    return session.scalar(select(_TURNS.c.send_state).where(_TURNS.c.id == turn_id)) == SEND_SENDING
 
 
 def finish_sent(session: Any, turn_id: int, *, message_id: Optional[str], sent_at: datetime.datetime,
@@ -147,16 +164,33 @@ def mark_send_failed(session: Any, turn_id: int, *, error: str, now: datetime.da
 
 
 # ── 상태 표에 '답' 한 줄 ─────────────────────────────────────────────────
-def record_answer(session: Any, *, brand: str, chat_id: str, message_id: str, sent_at: datetime.datetime,
-                  now: datetime.datetime) -> None:
-    """보낸 글을 상태 표에 공개 직원 글(답)로 넣는다 — 이미 봇 글로 들어와 있으면 답으로 고치고 상담 줄을 올린다."""
-    message = DerivedMessage(chat_id=chat_id, message_id=message_id, channel_id=channel_for_brand(brand), brand=brand,
-                             person_type="manager", created_at=sent_at.astimezone(datetime.timezone.utc))
+def _answer_message(brand: str, chat_id: str, message_id: str, sent_at: datetime.datetime, text: str,
+                    turn_id: int) -> DerivedMessage:
+    """보낸 글의 파생 칸 — 웹훅이 받을 글과 같은 꼴(봇 공개 글 + 우리 requestId)로 :func:`derive_message` 를 돌린다. 그래서
+    직원 답(manager)으로 읽히고 약속(연락 · 전화 약속과 기한)도 데스크 직접 답과 같이 잰다(검수 R15-2). 글은 메모리에서만."""
+    entity = {"chatType": "userChat", "chatId": chat_id, "channelId": channel_for_brand(brand), "id": message_id,
+              "personType": "bot", "requestId": request_id_for(turn_id), "plainText": text,
+              "createdAt": int(sent_at.astimezone(datetime.timezone.utc).timestamp() * 1000)}
+    message, _reason = derive_message(entity, expected_brand=brand)
+    return message if message is not None else DerivedMessage(
+        chat_id=chat_id, message_id=message_id, channel_id=channel_for_brand(brand), brand=brand, person_type="manager",
+        created_at=sent_at.astimezone(datetime.timezone.utc))
+
+
+def record_answer(session: Any, *, brand: str, chat_id: str, message_id: str, sent_at: datetime.datetime, text: str,
+                  turn_id: int, now: datetime.datetime) -> None:
+    """보낸 글을 상태 표에 공개 직원 글(답) · 약속 칸과 함께 넣는다. 이미 들어와 있으면(웹훅이 먼저 봇 글로) 답으로 고치고
+    비어 있던 약속 칸만 채운 뒤 상담 줄을 올린다."""
+    message = _answer_message(brand, chat_id, message_id, sent_at, text, turn_id)
     if store_messages(session, [message], source=SOURCE_OPENAPI, now=naive_utc(now)).inserted:
         return
+    due = message.promise_due_at
     fixed = session.execute(update(_MSGS).where(_MSGS.c.chat_id == chat_id, _MSGS.c.message_id == message_id,
-                                                _MSGS.c.person_type != "manager", _MSGS.c.is_private.is_(False))
-                            .values(person_type="manager")).rowcount
+                                                _MSGS.c.is_private.is_(False),
+                                                or_(_MSGS.c.person_type != "manager", _MSGS.c.promise_kind.is_(None)))
+                            .values(person_type="manager", promise_kind=message.promise_kind,
+                                    promise_due_at=naive_utc(due) if due else None,
+                                    promise_rule=message.promise_rule)).rowcount
     if fixed:
         _bump_chat_summary(session, message, naive_utc(now))
 
@@ -191,18 +225,18 @@ def reconcile_turn(session: Any, row: Any, *, now: datetime.datetime, reader: An
         logger.warning("[CS 보내기] 결과 맞추기 읽기 실패 turn=%s status=%s", row.id, exc.status)
         return "read_failed"
     wanted = request_id_for(row.id)
-    found = next((line for line in lines if line.request_id == wanted and not line.meta.is_private), None)
-    if found is not None:
-        case = None
-        if row.send_state == SEND_SENDING:  # 보내던 web 이 죽었다 — 사례 칸을 상담 글로 채운다
+    at_found = next((i for i, line in enumerate(lines) if line.request_id == wanted and not line.meta.is_private), None)
+    if at_found is not None:
+        found, case = lines[at_found], None
+        if row.send_state == SEND_SENDING:  # 보내던 web 이 죽었다 — 사례 칸을 우리 글 **앞** 상담 글로 채운다(R16-5)
             memo = next((line for line in lines if line.meta.message_id == row.memo_message_id), None)
             ai = memo_draft(memo.text) if memo is not None else None
-            case = sent_case(lines, ai_draft=ai, sent_text=found.text, edited=ai is None or ai != found.text.strip(),
-                             edit_reason=None)
+            case = sent_case(lines[:at_found], ai_draft=ai, sent_text=found.text,
+                             edited=ai is None or ai != found.text.strip(), edit_reason=None)
         if finish_sent(session, row.id, message_id=found.meta.message_id, sent_at=found.meta.created_at, case=case,
                        now=now):
             record_answer(session, brand=row.brand, chat_id=row.chat_id, message_id=found.meta.message_id,
-                          sent_at=found.meta.created_at, now=now)
+                          sent_at=found.meta.created_at, text=found.text, turn_id=row.id, now=now)
         session.commit()
         logger.info("[CS 보내기] 결과를 맞췄다 — 보냄 turn=%s message=%s", row.id, found.meta.message_id)
         return "sent"
