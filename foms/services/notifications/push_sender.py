@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime as _dt
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.notifications.cs_draft_link import cs_send_link
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.partner_push import (
     is_partner_notification_type,
@@ -71,6 +72,8 @@ PUSH_HTTP_TIMEOUT_SECONDS = 10
 #: 운영 시험, 두 유형 모두 FCM 이 받아 감).
 _HIGH_URGENCY_TYPES = frozenset(
     {
+        # AI 상담 초안이 떴다 — 손님 글 뒤 90초 안 발송이 목표라(설계서 17.3) 절전 폰이 미루면 뜻이 없다.
+        "CS_DRAFT_READY",
         "MEASURE_SAME_DAY_ADDED",
         "DRAWING_TRANSFERRED",
         "DRAWING_REVISION",
@@ -113,6 +116,8 @@ _DEFAULT_P1_TYPES = frozenset(
         # 오늘(KST) 실측이 새로 들어온 주문. 영업이 화면을 안 보고 있어도 당일 안에
         # 알아야 한다 — 미등록이면 enqueue 해도 조용히 안 나간다.
         "MEASURE_SAME_DAY_ADDED",
+        # AI 상담 초안이 떴다(플랜 C10-5) — 구독한 상담 직원에게만 만든다(cs_agent.staff_alert).
+        "CS_DRAFT_READY",
     }
 )
 
@@ -228,6 +233,8 @@ def _deep_link(notif: Notification) -> str:
             # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
             return measure_same_day_link(oid, notif.created_at)
         return f"/erp/orders/{oid}"
+    if (notif.notification_type or "").strip().upper() == "CS_DRAFT_READY":
+        return cs_send_link(notif.message) or "/erp"
     return "/erp"
 
 
@@ -256,6 +263,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "자동 처리가 멈췄습니다"
     if ntype == "WORKER_RECOVERED":
         return "자동 처리가 다시 시작됐습니다"
+    if ntype == "CS_DRAFT_READY":
+        return "상담 초안"
     return "새 알림"
 
 
@@ -280,6 +289,9 @@ def _generic_body(urgent: bool, ntype: str) -> str:
         return "발주확인·발송처리 같은 자동 처리가 멈췄습니다. 앱을 열어 확인하세요."
     if ntype == "WORKER_RECOVERED":
         return "자동 처리가 다시 시작됐습니다."
+    if ntype == "CS_DRAFT_READY":
+        # 손님 글 · 초안은 싣지 않는다(잠금화면) — 눌러서 보내기 화면을 연다.
+        return "새 상담 초안이 떴어요 — 눌러서 보내기 화면을 여세요"
     return "확인이 필요한 새 알림이 있습니다."
 
 

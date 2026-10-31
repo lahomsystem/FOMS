@@ -151,6 +151,9 @@ FIELDS: tuple[Field, ...] = (
     Field("send_buttons_enabled", "[보내기] · [수정하기] 버튼", KIND_BOOL, False, GROUP_SEND,
           help="켜면 초안 메모에 링크 버튼 둘을 달고, 누른 직원의 보내기 화면이 손님께 봇 이름 공개 글로 보낸다(운영 밖은 "
                "시험 상담만 · 라홈만). 끄면 메모에 버튼을 달지 않고 보내기 · 고칠 말 요청을 거절한다(설계서 17.2)"),
+    Field("staff_push_enabled", "상담 직원 알림", KIND_BOOL, False, GROUP_SEND,
+          help="켜면 초안 메모가 뜰 때 상담 직원(CS 팀 · 푸시 구독이 있는 사람만) FOMS 앱으로 알린다 — 알림에는 손님 글 · "
+               "초안이 없다(상담 · 보내기 화면 주소만). 구독 수는 기록 탭에 보인다(플랜 C10-5)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

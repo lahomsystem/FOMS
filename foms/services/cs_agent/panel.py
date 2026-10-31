@@ -6,7 +6,7 @@
   하지 않는다 — 값이 '켬 · 멈춤'처럼 목표 값이라 두 사람이 겹쳐도 마지막 값이 맞고, 비상 정지는 막히면 안 된다.
   같은 값이면 쓰지 않는다.
 - **읽기판(:func:`panel_state`)**: 스위치 · 설정 칸 · 오늘(KST) 돈 줄 · 오늘 차례 상태 · 감시 루프 하트비트 · 마지막 아침
-  보고 · 최근 바꿈 20개. 숫자 · 코드 · 시각 · 직원 이름만 싣는다 — 손님 글 · 상담 id 는 싣지 않는다.
+  보고 · 최근 바꿈 20개 · 지난 7일 시간 지표(:mod:`.metrics` — 숫자만, 직원별 없음) · 상담 직원 알림 구독 수(C10-5). 숫자 · 코드 · 시각 · 직원 이름만 싣는다 — 손님 글 · 상담 id 는 싣지 않는다.
 - 하루 상한 천장은 WORKER(두뇌가 도는 곳)가 감시 루프 하트비트에 남긴 자기 env 값이다(:func:`.brain_spend.worker_daily_cap`
   — 이 화면은 env 를 읽지 않는다). 모르면 'WORKER 상한 확인 안 됨'이고, 돈은 늘 WORKER 가 부를 때 자기 env 로 다시 자른다.
 """
@@ -25,7 +25,9 @@ from sqlalchemy import func, select
 from foms.services.cs_agent.brain_spend import kst_now, today_spend, worker_daily_cap
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.loop import SWITCH_KEY, SWITCH_OFF, SWITCH_ON, read_switch, set_switch
-from foms.services.cs_agent.report import NOTIFY_MORNING_REPORT, format_kst, read_last_success
+from foms.services.cs_agent.metrics import metrics_view
+from foms.services.cs_agent.report import BRAND_LABELS, NOTIFY_MORNING_REPORT, format_kst, read_last_success
+from foms.services.cs_agent.staff_alert import subscription_counts
 from foms.services.cs_agent.settings import (
     FIELD_BY_NAME, FIELDS, POLICY_ID, RECEIPT_KEEP, SETTINGS_KEY, PanelSettings, field_view, read_settings,
     value_label,
@@ -269,5 +271,7 @@ def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dic
     return {"now": format_kst(now), "day": now.date().isoformat(), "switch": _switch_view(session),
             "settings": _settings_view(cfg), "caps": _caps(session, cfg),
             "records": {"spend": today_spend(session, now=now), "turns": _turn_counts(session, day_start),
-                        "heartbeat": _heartbeat(session, now), "report": _last_report(session)},
+                        "heartbeat": _heartbeat(session, now), "report": _last_report(session),
+                        "metrics": metrics_view(session, now=now, labels=BRAND_LABELS),
+                        "push": subscription_counts(session)},
             "changes": recent_changes(session)}
