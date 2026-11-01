@@ -91,6 +91,11 @@ document.addEventListener('DOMContentLoaded', function() {
             coupon_type: document.getElementById('couponType').value,
             coupon_value: parseFloat(stripComma(document.getElementById('couponValue').value)) || 0
         };
+        // 브랜드(C10-6): 고르지 않으면 칸을 두지 않는다 — 서버는 이름으로 가른다(하우드… = 하우드).
+        const brandEl = document.getElementById('productBrand');
+        if (brandEl && brandEl.value) {
+            formData.brand = brandEl.value;
+        }
 
         // 가격 정보 추가 (콤마 내성 파싱 — 저장 값은 항상 클린 숫자)
         if (formData.pricing_type === '1m') {
@@ -129,6 +134,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('productForm').reset();
         document.getElementById('productId').value = '';
         document.getElementById('productCategory').value = '';
+        const resetBrandEl = document.getElementById('productBrand');
+        if (resetBrandEl) resetBrandEl.value = '';
         editingProductId = null;
         document.getElementById('price1mGroup').classList.remove('show');
         document.getElementById('price30cmGroup').classList.remove('show');
@@ -145,6 +152,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('productId').value = productId;
                 document.getElementById('productName').value = product.name;
                 document.getElementById('productCategory').value = product.category || '';
+                const editBrandEl = document.getElementById('productBrand');
+                if (editBrandEl) editBrandEl.value = (product.brand === 'LAHOM' || product.brand === 'HAUD') ? product.brand : '';
                 document.getElementById('pricingType').value = product.pricing_type;
                 document.getElementById('pricingType').dispatchEvent(new Event('change'));
                 

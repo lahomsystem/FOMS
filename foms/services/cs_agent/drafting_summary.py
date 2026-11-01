@@ -37,6 +37,7 @@ class DraftSummary:
     staff_replied: int = 0  # 빠른 길: 직원이 먼저 공개 답을 해 닫은 차례
     asked_human: int = 0  # 빠른 길: 손님이 'AI 냐 사람이냐' 물어 두뇌 없이 사람에게 넘긴 차례
     skipped: dict[str, int] = field(default_factory=dict)  # 건너뜀 코드 → 수
+    quotes: dict[str, int] = field(default_factory=dict)  # 견적 계산 넣기(C10-6) 결과 → 수(켰고 견적 말이 있던 차례만)
     halted: dict[str, int] = field(default_factory=dict)  # 이번 바퀴를 멈춘 까닭(하나)
 
     def counts(self) -> dict[str, Any]:

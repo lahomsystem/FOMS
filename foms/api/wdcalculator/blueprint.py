@@ -16,6 +16,9 @@ from models import Order
 from foms.services.erp_display import _ensure_dict, _normalize_for_search
 from foms.web.auth import log_access, login_required
 from foms.services.audit_message_display import describe_action
+# 서버 계산은 서비스 함수로 옮겼다(플랜 C10-6). 이 두 이름은 /api/wdcalculator/calculate 의 옛 값 그대로이고, 직원 화면
+# 계산(pricing-core.js)과 같은 값은 ``foms.services.wdcalculator.pricing.compute_estimate`` 다(CI 계약 시험).
+from foms.services.wdcalculator.pricing import apply_coupon, calculate_estimate
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import (
     Estimate,
@@ -459,36 +462,6 @@ def save_spec_field_presets(presets):
         session.rollback()
         logger.exception("스펙 필드 프리셋 저장 실패")
         return False
-
-
-def calculate_estimate(product, width_mm, additional_options=None):
-    """견적 계산 함수"""
-    if not product:
-        return 0
-    base_price = 0
-    if product['pricing_type'] == '1m':
-        meters = width_mm / 1000
-        base_price = meters * product.get('price_1m', 0)
-    elif product['pricing_type'] == '30cm':
-        units_30cm = width_mm // 300
-        remainder_mm = width_mm % 300
-        units_1cm = remainder_mm // 10
-        base_price = (units_30cm * product.get('price_30cm', 0)) + (units_1cm * product.get('price_1cm', 0))
-    additional_price = 0
-    if additional_options:
-        for option in additional_options:
-            if isinstance(option, dict) and 'price' in option:
-                additional_price += float(option.get('price', 0))
-    return base_price + additional_price
-
-
-def apply_coupon(total_price, coupon_type, coupon_value):
-    """쿠폰가 적용"""
-    if coupon_type == 'percentage':
-        return total_price - (total_price * (float(coupon_value) / 100))
-    elif coupon_type == 'fixed':
-        return max(0, total_price - float(coupon_value))
-    return total_price
 
 
 # ==================== 페이지 라우트 ====================

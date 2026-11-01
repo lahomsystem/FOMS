@@ -68,6 +68,7 @@ GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 최대 출력
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
 GROUP_REALTIME = "빠른 길(실시간 초안)"
 GROUP_SEND = "[보내기] · [수정하기] · 직원 알림"
+GROUP_QUOTE = "견적 계산(라홈 규격)"
 #: WORKER env 하루 상한이 천장인 돈 칸(화면 값) — 학습 돈 상한은 실시간과 따로라 이 천장을 쓰지 않는다(설계서 17.6).
 DAILY_CAP_FIELD = "daily_cap_usd_panel"
 #: 돈 칸 최댓값(달러) — WORKER 상한을 모를 때는 이 값으로만 막는다.
@@ -154,6 +155,10 @@ FIELDS: tuple[Field, ...] = (
     Field("staff_push_enabled", "상담 직원 알림", KIND_BOOL, False, GROUP_SEND,
           help="켜면 초안 메모가 뜰 때 상담 직원(CS 팀 · 푸시 구독이 있는 사람만) FOMS 앱으로 알린다 — 알림에는 손님 글 · "
                "초안이 없다(상담 · 보내기 화면 주소만). 구독 수는 기록 탭에 보인다(플랜 C10-5)"),
+    Field("quote_calc_enabled", "견적 계산 넣기", KIND_BOOL, False, GROUP_QUOTE,
+          help="켜면 손님 글이 견적 문의로 보일 때 견적 재료를 한 번 뽑아(두뇌 한 번 — 의도 고르기 모델) 계산기 값을 초안 "
+               "재료에 넣는다. 금액은 계산기 값 · 승인 지식에서만, 0원 · 모르는 가격 방식 · 제작 조건에 안 맞음은 사람에게. "
+               "끄면 예전 그대로(플랜 C10-6)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}
