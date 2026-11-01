@@ -994,6 +994,10 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/channel-push"
     },
+    "partner_channel_push.request_drawing": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/request-drawing"
+    },
     "cs_agent_send_api.cs_agent_send": {
       "mode": "guard",
       "rule": "/api/cs-agent/turns/<int:turn_id>/send"
