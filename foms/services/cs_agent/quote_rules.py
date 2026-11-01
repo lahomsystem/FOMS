@@ -6,7 +6,7 @@
 - **30cm 가격 방식만** 해당한다. 남는 mm 는 cm 로 올린다(가로를 10mm 단위로 올린 뒤 계산 — 11-01 부터 화면도 올린다, 값은 같고 계산기 줄에 고친 가로를 보인다). 1m 가격 방식은
   화면 계산 그대로다.
 - 제품 '견적 규칙 종류' 칸(:data:`RULE_FIELD` — 계산기 제품 설정 화면에서 고른다):
-  - ``hinge``(여닫이): 가로 1500mm 미만이면 사람에게(1500 미만 맞춤 공임은 금액이라 코드에 두지 않는다), 그 이상은 올림 계산.
+  - ``hinge``(여닫이): 가로 1500mm 미만이면 1500mm 값(30cm 5개 — 사장님 지시 11-01), 그 이상은 올림 계산.
   - ``slide``(슬라이딩): 2400mm 미만이면 2400mm 값(30cm 8개), 그 이상은 올림 계산.
   - ``linear``(cm 비례): cm = 올림(가로 ÷ 10), 값 = 반올림(30cm 단가 × cm ÷ 30) + 화면 옵션 값.
   - ``none``(최소 없음): 올림 계산만.
@@ -32,7 +32,7 @@ RULE_FIELD = "quote_rule"  # 제품 칸 이름(계산기 제품 설정 화면 '�
 RULE_HINGE, RULE_SLIDE, RULE_LINEAR, RULE_NONE, RULE_UNKNOWN = "hinge", "slide", "linear", "none", "unknown"
 RULES: tuple[str, ...] = (RULE_HINGE, RULE_SLIDE, RULE_LINEAR, RULE_NONE)
 HINGE_MIN_MM, SLIDE_MIN_MM, UNKNOWN_MIN_MM = 1500, 2400, 2400
-HUMAN_MIN_WIDTH = "quote_min_width"  # 최소 길이 미만(여닫이 · 모름) — 사람에게
+HUMAN_MIN_WIDTH = "quote_min_width"  # 최소 길이 미만(모름) — 사람에게
 _SLIDE_NAME = "슬라이딩"
 
 
@@ -97,17 +97,17 @@ def price(product: Mapping[str, Any], width: int, options: Sequence[Mapping[str,
     """AI 견적 값 하나(모듈 설명의 규칙).
 
     Raises:
-        NeedsHuman: 최소 길이 미만(여닫이 · 모름). ValueError: ``zero``(0원) · ``failed``(화면이 제품을 못 담음).
+        NeedsHuman: 최소 길이 미만(모름). ValueError: ``zero``(0원) · ``failed``(화면이 제품을 못 담음).
     """
     if product.get("pricing_type") != "30cm":
         return RulePrice(_screen(product, width, options, products), int(width))
     rule = rule_of(product)
     if rule == RULE_LINEAR:
         return _linear(product, width, options, products)
-    if (rule == RULE_HINGE and width < HINGE_MIN_MM) or (rule == RULE_UNKNOWN and width < UNKNOWN_MIN_MM):
+    if rule == RULE_UNKNOWN and width < UNKNOWN_MIN_MM:
         raise NeedsHuman(HUMAN_MIN_WIDTH)
-    if rule == RULE_SLIDE and width < SLIDE_MIN_MM:
-        return RulePrice(_screen(product, SLIDE_MIN_MM, options, products), SLIDE_MIN_MM,
-                         f"슬라이딩 최소 {SLIDE_MIN_MM:,}mm 값")
+    floor = {RULE_HINGE: (HINGE_MIN_MM, "여닫이"), RULE_SLIDE: (SLIDE_MIN_MM, "슬라이딩")}.get(rule)
+    if floor is not None and width < floor[0]:
+        return RulePrice(_screen(product, floor[0], options, products), floor[0], f"{floor[1]} 최소 {floor[0]:,}mm 값")
     used = rounded_width(width)
     return RulePrice(_screen(product, used, options, products), used, "" if used == width else "10mm 단위 올림")
