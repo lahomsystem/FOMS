@@ -49,7 +49,7 @@ def test_rule_of_reads_the_field_then_the_name():
 
 
 @pytest.mark.parametrize(("product", "widths"), [
-    (HINGE, {1500: 1500, 1501: 1510, 2399: 2400, 3005: 3010}),
+    (HINGE, {1: 1500, 1499: 1500, 1500: 1500, 1501: 1510, 2399: 2400, 3005: 3010}),  # 1500 미만 = 1500 값(11-01)
     (SLIDING, {10: 2400, 1800: 2400, 2399: 2400, 2400: 2400, 2401: 2410, 4795: 4800}),
     (MOLD, {2400: 2400, 2401: 2410, 3605: 3610}),
     (NONE, {5: 10, 1005: 1010, 2400: 2400}),
@@ -62,7 +62,7 @@ def test_hinge_slide_unknown_and_none_equal_the_screen_at_the_fixed_width(produc
         assert same, (product["id"], width)
 
 
-@pytest.mark.parametrize(("product", "width"), [(HINGE, 1499), (HINGE, 1), (MOLD, 2399), (MOLD, 1500)])
+@pytest.mark.parametrize(("product", "width"), [(MOLD, 2399), (MOLD, 1500), (MOLD, 1)])  # 모름만 — 여닫이는 1500 값
 def test_below_the_minimum_goes_to_a_human(product, width):
     with pytest.raises(qr.NeedsHuman) as caught:
         qr.price(product, width, [], PRODUCTS)
