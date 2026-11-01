@@ -55,6 +55,17 @@
         </div>
         <hr class="my-3">
         <div class="row g-2">
+            {# 실측 전 주문은 '실측 예정'으로 저장 — 도면팀 · 영발방에 가지 않는다(사용자 2026-11-01). 꼭 고른다. #}
+            <div class="col-12" role="radiogroup" aria-label="실측을 마쳤나요">
+                <span class="form-label mb-1 d-block">실측을 마쳤나요? *</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="measured_done" id="ppMeasuredYes" value="yes" required>
+                    <label class="btn btn-outline-primary" for="ppMeasuredYes">마쳤어요 (도면 요청)</label>
+                    <input type="radio" class="btn-check" name="measured_done" id="ppMeasuredNo" value="no">
+                    <label class="btn btn-outline-secondary" for="ppMeasuredNo">아직이에요 (실측 예정)</label>
+                </div>
+                <div class="small text-muted mt-1">아직이면 실측일에 예정일을 넣어 주세요. 실측 뒤 주문 화면에서 "실측 끝 · 도면 요청"을 누르면 됩니다.</div>
+            </div>
             <div class="col-7 col-md-3">{{ date_field('실측일', 'measured_on', '', 'ppMeasuredOn') }}</div>
             <div class="col-5 col-md-3">{{ time_field('실측시간', 'measured_time', '', 'ppMeasuredTime') }}</div>
             <div class="col-7 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate', counts=True) }}</div>

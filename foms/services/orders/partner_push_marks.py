@@ -62,6 +62,29 @@ def partner_requested_construction_mark(structured_data: Any) -> dict[str, str] 
     }
 
 
+def partner_measure_pending_mark(structured_data: Any) -> dict[str, str] | None:
+    """실측 예정 협력사 주문의 실측일 칸("협력사 실측 11-13"). 도면 단계로 넘어가면 그리지 않는다.
+
+    실측 전에 들어온 협력사 주문은 실측 단계(MEASURE)에 머문다 — 실측은 협력사가 하므로 우리 실측 일정표에
+    넣지 않고(``partner_intake.measured_on`` 에만) 작업 큐 카드에서만 보인다(사용자 2026-11-01).
+
+    Returns:
+        label, title, aria. 실측 예정이 아니면 ``None``.
+    """
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
+    if str(workflow.get("stage") or "").upper() not in ("RECEIVED", "MEASURE"):
+        return None
+    intake = sd.get("partner_intake") if isinstance(sd.get("partner_intake"), dict) else {}
+    date = clean_date(intake.get("measured_on"))
+    shown = date[5:] if date else "미정"
+    return {
+        "label": f"협력사 실측 {shown}",
+        "title": f"협력사 실측 예정 {date or '(날짜 미정)'} — 실측 뒤 협력사가 도면을 요청하면 도면 단계로 옵니다",
+        "aria": f"협력사 실측 예정 {date or '날짜 미정'}",
+    }
+
+
 def _push_slot(label: str, record: Any, *, allow_stale: bool) -> dict[str, str] | None:
     """PUSH 이력 하나 → 표시 칸. 안 보냈으면 ``None``.
 

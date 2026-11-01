@@ -23,12 +23,12 @@ from foms.services.partners.orders import partner_stage_label
 from foms.services.partners.schedule_request import pending_request_texts
 from models import Order, OrderAssignment
 
-PARTNER_PIPELINE = ("접수 확인 중", "도면 작업 중", "도면 확인 대기", "생산 중", "시공 예정", "완료", "AS 진행 중")
+PARTNER_PIPELINE = ("실측 예정", "도면 작업 중", "도면 확인 대기", "생산 중", "시공 예정", "완료", "AS 진행 중")
 TURN_LABEL = "도면 확인 대기"
 # 진행 막대 칸(주문 화면 진행 단계 6칸과 같은 순서). AS 는 끝 칸.
 _STEP_OF_LABEL = {label: min(i, 5) for i, label in enumerate(PARTNER_PIPELINE)}
 _WORK = {
-    "접수 확인 중": "저희 CS 가 보낸 내용을 확인하고 있습니다",
+    "실측 예정": "실측을 마치면 주문 화면에서 \"실측 끝 · 도면 요청\"을 눌러 주세요",
     "도면 작업 중": "저희 도면팀이 도면을 그리고 있습니다",
     "도면 확인 대기": "고객과 도면을 확인한 뒤 승인 또는 수정 요청",
     "생산 중": "공장에서 만들고 있습니다",

@@ -22,6 +22,7 @@ from foms.services.orders.upload_ticket import _file_type as attachment_file_typ
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.channel_push import push_state
+from foms.services.partners.measure_ready import drawing_request_state
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
@@ -156,6 +157,7 @@ def order_detail(order_id: int):
         active_tab="drawing" if (can_approve or can_receive) else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
         channel_push=push_state(order),
+        drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
         product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),

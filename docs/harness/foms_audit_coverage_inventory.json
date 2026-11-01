@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 249,
+    "total": 250,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 214,
+    "AUDITED": 215,
     "EXEMPT": 34,
     "UNAUDITED": 1
   },
@@ -1248,7 +1248,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 310,
+      "lineno": 313,
       "methods": [
         "POST"
       ],
@@ -1257,7 +1257,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 220,
+      "lineno": 223,
       "methods": [
         "POST"
       ],
@@ -1266,7 +1266,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "confirm_drawing_receipt",
-      "lineno": 333,
+      "lineno": 336,
       "methods": [
         "POST"
       ],
@@ -1275,7 +1275,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 96,
+      "lineno": 97,
       "methods": [
         "POST"
       ],
@@ -1284,7 +1284,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "link_attachment",
-      "lineno": 183,
+      "lineno": 186,
       "methods": [
         "PATCH"
       ],
@@ -1293,7 +1293,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 425,
+      "lineno": 428,
       "methods": [
         "POST"
       ],
@@ -1302,7 +1302,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 385,
+      "lineno": 388,
       "methods": [
         "POST"
       ],
@@ -1311,7 +1311,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_info",
-      "lineno": 256,
+      "lineno": 259,
       "methods": [
         "PUT"
       ],
@@ -1320,7 +1320,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_items",
-      "lineno": 235,
+      "lineno": 238,
       "methods": [
         "PUT"
       ],
@@ -1329,7 +1329,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 286,
+      "lineno": 289,
       "methods": [
         "POST"
       ],
@@ -1338,7 +1338,16 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 116,
+      "lineno": 119,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/channel_push.py",
+      "endpoint": "request_drawing",
+      "lineno": 158,
       "methods": [
         "POST"
       ],
@@ -1347,7 +1356,7 @@
     {
       "path": "foms/api/partner/channel_push.py",
       "endpoint": "send_channel_push",
-      "lineno": 76,
+      "lineno": 96,
       "methods": [
         "POST"
       ],

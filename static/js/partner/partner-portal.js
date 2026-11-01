@@ -104,6 +104,10 @@
         memo: form.elements.memo.value.trim(),
         items: collected.items,
       };
+      // 실측을 마쳤나(2026-11-01) — 새 주문 화면은 꼭 고른다. 서버가 실측일 · 가로 치수를 다시 본다.
+      var done = form.querySelector('input[name="measured_done"]:checked');
+      if (done) payload.measured_done = done.value === 'yes';
+      else if (form.querySelector('input[name="measured_done"]')) return setStatus('실측을 마쳤는지 골라 주세요.', true);
       if (!payload.customer_name || !payload.customer_phone || !payload.address) {
         setStatus('고객 이름 · 연락처 · 현장 주소를 넣어 주세요.', true);
         return;
@@ -129,8 +133,8 @@
           // 주문은 이미 저장됐다 — 다시 저장하면 중복 주문이 생기니, 목록에서 그 주문을 열어 파일만 더 올리게 한다.
           window.alert('주문은 저장됐지만 일부 파일을 올리지 못했습니다. 목록에서 주문 #' + orderId + ' 을 열어 "실측 사진 더 보내기"로 다시 보내 주세요.\n\n' + failed.join('\n'));
         } else if (window.PartnerChannelPush) {
-          // 사진까지 다 올라갔을 때만 영발방에 보낼지 묻는다 — 빠진 사진은 다시 보낸 뒤 주문 화면 "영발 PUSH"로(2026-10-29).
-          await window.PartnerChannelPush.offerAfterCreate(String(form.getAttribute('data-channel-push-url') || '').replace('/orders/0/', '/orders/' + orderId + '/'));
+          // 사진까지 다 올라갔을 때만 — 도면 단계면 영발방으로 한 번, 실측 예정이면 다음 할 일 안내(2026-11-01).
+          await window.PartnerChannelPush.afterCreate(String(form.getAttribute('data-channel-push-url') || '').replace('/orders/0/', '/orders/' + orderId + '/'), created, payload.measured_done);
         }
         // 우리 FOMS 처럼 저장하면 바로 목록으로(사용자 2026-10-21).
         window.location.href = form.getAttribute('data-list-url');

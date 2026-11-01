@@ -1230,6 +1230,11 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/channel-push"
     },
+    "partner_channel_push.request_drawing": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/request-drawing"
+    },
     "cs_agent_send_api.cs_agent_send": {
       "mode": "guard",
       "policy_id": "CS_AGENT_SEND",

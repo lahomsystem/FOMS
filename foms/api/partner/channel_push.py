@@ -5,7 +5,9 @@
 
 글은 서버가 만든다(:func:`build_partner_push_text`) — 협력사가 고친 글을 보내지 않는다. 보내기는 ERP 와 같은
 :func:`run_manual_push`(같은 방 · 같은 이력 칸 · 재전송 메모 · 동시 클릭 막기). 발주 PUSH 는 "이대로 만들어
-주세요" 뒤에만 열고, 그 승인 직후 한 번은 :func:`auto_drawing_push` 가 자동으로 보낸다.
+주세요" 뒤에만 열고, 그 승인 직후 한 번은 :func:`auto_drawing_push` 가 자동으로 보낸다. 영발은 실측 예정(MEASURE)
+에서 닫혀 있고 "실측 끝 · 도면 요청"(``POST .../request-drawing``) 직후 :func:`auto_measure_push` 가 한 번 보낸다
+(사용자 2026-11-01 — docs/specs/2026-11-01-partner-measure-pending_SPEC.md).
 5xx · 설정 오류 문구(환경변수 이름 · 예외 글)는 협력사에게 그대로 보이지 않는다.
 스펙: docs/specs/2026-10-29-partner-channel-push_SPEC.md
 """
@@ -18,9 +20,24 @@ from flask import Blueprint, g, jsonify, request
 
 from db import get_db
 from foms.api.channel.channel_integration import run_manual_push
+from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
+from foms.services.common.dashboard_cache import (
+    DASHBOARD_FAMILY_DRAWING,
+    DASHBOARD_FAMILY_ORDERS,
+    invalidate_dashboard_families,
+)
 from foms.services.error_logging import log_handled_exception
-from foms.services.partners.channel_push import KINDS, build_partner_push_text, push_state
+from foms.services.orders.order_transition_service import TransitionError
+from foms.services.orders.revision import RevisionError
+from foms.services.partners.channel_push import (
+    KINDS,
+    MEASURE_DONE_NOTE,
+    MEASURE_DONE_PREFIX,
+    build_partner_push_text,
+    push_state,
+)
+from foms.services.partners.drawing_request import PartnerDrawingRequestError, request_partner_drawing
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -30,6 +47,8 @@ partner_channel_push_bp = Blueprint("partner_channel_push", __name__, url_prefix
 _SEND_FAILED = "지금은 보내지 못했습니다. 잠시 뒤 다시 시도해 주세요."
 AUTO_SENT_NOTE = "발주방에 도면을 보냈습니다."
 AUTO_FAILED_NOTE = '발주방 전송은 실패했습니다. 주문 화면의 "발주 PUSH"로 다시 보내 주세요.'
+AUTO_MEASURE_SENT_NOTE = "영발방에 보냈습니다."
+AUTO_MEASURE_FAILED_NOTE = '영발방 전송은 실패했습니다. 주문 화면의 "영발 PUSH"로 다시 보내 주세요.'
 
 
 def _fail(message: str, status: int):
@@ -41,11 +60,12 @@ def _own_order(db, order_id: int) -> Order | None:
     return order if partner_can_read_order(g.current_user, order) else None
 
 
-def _send(db, user: Any, order: Order, kind: str, change_note: str) -> tuple[bool, str, int]:
+def _send(db, user: Any, order: Order, kind: str, change_note: str, prefix: str = "") -> tuple[bool, str, int]:
     """ERP 와 같은 보내기 한 건. 반환 (성공, 협력사에게 보일 문구, HTTP 상태)."""
+    text = build_partner_push_text(order, prefix)
     body, status = run_manual_push(
         db,
-        {"order_id": order.id, "text": build_partner_push_text(order), "push_kind": kind, "change_note": change_note},
+        {"order_id": order.id, "text": text, "push_kind": kind, "change_note": change_note},
         user,
         pushed_by_name=f"{user.name} (협력사)",
     )
@@ -110,3 +130,47 @@ def auto_drawing_push(db, user: Any, order_id: int) -> str | None:
         db.rollback()
         log_handled_exception("partner auto drawing push")
         return AUTO_FAILED_NOTE
+
+
+def auto_measure_push(db, user: Any, order_id: int) -> str | None:
+    """도면 요청 직후 영발 PUSH 한 번. 실측 예정 때 빈 영발이 먼저 나갔으면 재전송으로 — 첫 줄 "[실측 완료]" ·
+    재전송 메모를 붙여 영발방에서 앞의 빈 글과 가른다. 실패해도 단계는 되돌리지 않는다. 반환: 화면에 보일 한 줄.
+    """
+    try:
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        if order is None:
+            return None
+        state = push_state(order)["measurement"]
+        if not state["open"]:
+            return None
+        resend = state["pushed"]
+        ok, _message, _status = _send(db, user, order, "measurement", MEASURE_DONE_NOTE if resend else "",
+                                      MEASURE_DONE_PREFIX if resend else "")
+        return AUTO_MEASURE_SENT_NOTE if ok else AUTO_MEASURE_FAILED_NOTE
+    except Exception:  # noqa: BLE001 - 도면 요청은 끝났다, 전송 실패만 알린다
+        db.rollback()
+        log_handled_exception("partner auto measure push")
+        return AUTO_MEASURE_FAILED_NOTE
+
+
+@partner_channel_push_bp.route("/orders/<int:order_id>/request-drawing", methods=["POST"])
+@partner_required
+def request_drawing(order_id: int):
+    """"실측 끝 · 도면 요청" — 실측 예정 → 도면 단계(:func:`request_partner_drawing`), 그 뒤 영발 한 번."""
+    db = get_db()
+    try:
+        request_partner_drawing(db, g.current_user, order_id)
+        db.commit()
+    except PartnerDrawingRequestError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": {"missing": exc.missing}, "error": str(exc)}), exc.status
+    except (TransitionError, RevisionError):
+        db.rollback()
+        log_handled_exception("partner drawing request transition")
+        return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
+    for team in ("DRAWING", "CS"):
+        invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
+            db, target_team=team, target_manager_name=None, include_admin=False))
+    push_note = auto_measure_push(db, g.current_user, order_id)
+    return jsonify({"success": True, "data": {"order_id": order_id, "push_note": push_note}, "error": None})
