@@ -124,7 +124,7 @@
                         if (price30 > 0 && price1 > 0) {
                             var units30cm = Math.floor(widthMm / 300);
                             var remainderMm = widthMm % 300;
-                            var units1cm = Math.floor(remainderMm / 10);
+                            var units1cm = Math.ceil(remainderMm / 10); // 남는 mm 는 1cm 로 올린다(2,841mm → 2,850mm 값)
                             compPrice = units30cm * price30 + units1cm * price1;
                             compData = attachWidthFields(
                                 {
@@ -155,7 +155,7 @@
                             } else if (product.pricing_type === "30cm") {
                                 var u30 = Math.floor(widthMm / 300);
                                 var rem = widthMm % 300;
-                                var u1 = Math.floor(rem / 10);
+                                var u1 = Math.ceil(rem / 10); // 남는 mm 는 1cm 로 올린다(2,841mm → 2,850mm 값)
                                 compPrice =
                                     u30 * (product.price_30cm || 0) + u1 * (product.price_1cm || 0);
                             }
