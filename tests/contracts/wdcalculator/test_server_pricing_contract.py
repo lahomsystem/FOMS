@@ -165,3 +165,18 @@ def test_option_rows_use_server_option_list():
         pass
     else:
         raise AssertionError("모르는 옵션 id 를 받았다")
+
+
+def test_remaining_mm_rounds_up_to_the_next_cm_on_screen_and_server():
+    """남는 mm 는 1cm 로 올린다(사장님 지시 11-01 — 2,841mm 는 2,850mm 값). 화면 · 서버 둘 다, 직접 입력 30cm 도."""
+    thirty = next(p for p in PRODUCTS if p["pricing_type"] == "30cm")
+    manual = {"mode": "manual", "additionalFees": [], "manualName": "합성",
+              "manualPricing": {"pricing_type": "30cm", "price_30cm": thirty["price_30cm"],
+                                "price_1cm": thirty["price_1cm"]}}
+    widths = (2840, 2841, 2845, 2849, 2850)
+    cases = [_estimate([_select(thirty["id"], w)]) for w in widths]
+    cases += [_estimate([dict(manual, widthMm=w, widthInput=str(w))]) for w in widths]
+    for result in (_node(cases), [_server(case) for case in cases]):
+        totals = [r["total_calculate"] for r in result]
+        for row in (totals[:5], totals[5:]):
+            assert row[0] < row[1] == row[2] == row[3] == row[4]  # 2840 < 2841 = 2845 = 2849 = 2850
