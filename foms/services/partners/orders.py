@@ -4,9 +4,11 @@
 
 * ``orders.partner_org_id`` = 협력사, ``structured_data.source`` = ``PARTNER``,
   발주사(``parties.orderer.name``) = 협력사 이름.
-* 도면 단계(DRAWING) · ``measurement_completed`` 로 들어와 도면팀이 바로 작업한다(사용자 2026-10-28 —
-  전에는 실측 단계로 들어와 CS 가 "도면 단계로 넘기기"를 눌렀다). 협력사는 저희 첫 도면 전까지 정보 · 품목 ·
-  실측 파일을 고칠 수 있다(``items_edit.partner_edit_open``). 새 단계 코드는 만들지 않는다.
+* 실측을 마쳤고 조건(실측일 · 제품마다 가로 치수, ``measure_ready``)이 맞으면 도면 단계(DRAWING) ·
+  ``measurement_completed`` 로 들어와 도면팀이 바로 작업한다(사용자 2026-10-28). 아니면 **실측 예정**(MEASURE ·
+  주관 CS)으로 들어오고, 협력사가 실측 뒤 "실측 끝 · 도면 요청"을 누르면 도면 단계로 간다(``drawing_request``,
+  사용자 2026-11-01 — 실측 전 주문이 도면팀 큐 · 영발방에 빈 채로 가던 것). 협력사는 저희 첫 도면 전까지 정보 ·
+  품목 · 실측 파일을 고칠 수 있다(``items_edit.partner_edit_open``). 새 단계 코드는 만들지 않는다.
 * 담당은 주문을 올린 협력사 직원이다(스펙 §16 — ``foms/services/partners/manager.py``). 우리 쪽은 CS 팀이 챙긴다.
 * 협력사가 낸 원문은 ``structured_data.partner_intake`` 에 등록 시점 사본으로 남는다(도면팀이
   ``items`` 를 고쳐도 원문은 그대로 — 실측 책임을 가리는 근거).
@@ -23,6 +25,7 @@ from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.orders.order_create import create_order
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.partners.manager import manager_party
+from foms.services.partners.measure_ready import drawing_request_missing
 from foms.services.partners.schedule_request import clean_date, clean_request, clean_time, notify_shipment_request
 from models import Notification, Order, PartnerOrg, SecurityLog, User
 
@@ -38,8 +41,9 @@ ATTRIBUTE_KEYS = ("internal", "color", "option_detail", "handle", "misc")
 
 # 협력사 화면의 쉬운 단계(내부 단계 코드를 묶는다). 스펙 §5.1.
 _PARTNER_STAGE_LABELS = {
-    "RECEIVED": "접수 확인 중",
-    "MEASURE": "접수 확인 중",
+    # 실측 전 주문(사용자 2026-11-01) — 협력사가 실측 뒤 "실측 끝 · 도면 요청"을 누르면 도면 작업 중으로.
+    "RECEIVED": "실측 예정",
+    "MEASURE": "실측 예정",
     "DRAWING": "도면 작업 중",
     "CONFIRM": "도면 확인 대기",
     "PRODUCTION": "생산 중",
@@ -74,7 +78,7 @@ def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_con
         return "도면 작업 중"
     if stage == "DRAWING" and drawing_sent:
         return "도면 확인 대기"
-    return _PARTNER_STAGE_LABELS.get(stage, "접수 확인 중")
+    return _PARTNER_STAGE_LABELS.get(stage, "실측 예정")
 
 
 def _text(value: Any, limit: int = _TEXT_LIMIT) -> str:
@@ -150,7 +154,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         user: 등록하는 협력사 계정.
         org: 그 계정의 협력사(활성 확인은 문지기가 했다).
         payload: ``customer_name``·``customer_phone``·``address``·``items``·``memo``·``measured_on``·``measured_time``·
-            ``requested_construction_date``·``requested_construction_time``(희망 시공일 — §18, 확정은 우리가 한다).
+            ``requested_construction_date``·``requested_construction_time``(희망 시공일 — §18, 확정은 우리가 한다)·
+            ``measured_done``(실측을 마쳤나 — ``False`` 면 실측 예정, 없으면 옛 화면이라 조건만 본다).
     """
     data = payload if isinstance(payload, dict) else {}
     customer_name = _text(data.get("customer_name"), 50)
@@ -163,6 +168,10 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     measured_on = clean_date(data.get("measured_on"))
     measured_time = clean_time(data.get("measured_time"))
     requested = clean_request(data)
+    measured_done = data.get("measured_done")
+    measured_done = measured_done if isinstance(measured_done, bool) else None
+    to_drawing = measured_done is not False and not drawing_request_missing(measured_on, items)
+    stage = "DRAWING" if to_drawing else "MEASURE"
 
     submitted_at = now_kst()
     intake = {
@@ -176,6 +185,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         "measured_on": measured_on or None,
         "measured_time": measured_time or None,
         "requested_construction": requested,
+        "measured_done": measured_done,
         "items": copy.deepcopy(items),
         "memo": memo,
     }
@@ -188,8 +198,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         },
         "site": {"address_full": address},
         "items": items,
-        "workflow": {"stage": "DRAWING"},
-        "assignments": {"owner_team": "DRAWING"},
+        "workflow": {"stage": stage},
+        "assignments": {"owner_team": "DRAWING" if to_drawing else "CS"},
         "flags": {},
         "notes": memo,
         "meta": {"created_via": "PARTNER_PORTAL"},
@@ -208,11 +218,11 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
             product=items[0]["product_name"],
             options=None,
             notes=memo or None,
-            status="DRAWING",
+            status=stage,
             raw_order_text="",
             structured_confidence=None,
             partner_org_id=org.id,
-            measurement_completed=True,
+            measurement_completed=to_drawing,
         ),
         structured_data=sd,
         is_erp_order=True,
@@ -226,17 +236,31 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         target_id=order.id,
         detail=normalize_security_detail({"partner_org_id": org.id}),
     ))
-    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — 도면팀(바로 작업)과 CS 팀(협력사 창구) 벨 목록에 1건씩.
-    # 담당(협력사 직원)은 알림을 받지 않는다.
-    for team, message in (
-        ("DRAWING", f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 도면 단계로 바로 들어왔습니다. 도면 작업을 시작해 주세요."),
-        ("CS", f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 도면 단계로 바로 들어갔습니다(확인용)."),
-    ):
+    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — 도면 단계면 도면팀(바로 작업)과 CS 팀(협력사 창구) 벨 목록에 1건씩,
+    # 실측 예정이면 CS 팀에만(도면팀은 도면 요청 때). 담당(협력사 직원)은 알림을 받지 않는다.
+    head = f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수"
+    if to_drawing:
+        notify_partner_teams(db, user, order.id, (
+            ("DRAWING", f"{head} — 도면 단계로 바로 들어왔습니다. 도면 작업을 시작해 주세요."),
+            ("CS", f"{head} — 도면 단계로 바로 들어갔습니다(확인용)."),
+        ))
+    else:
+        notify_partner_teams(db, user, order.id, (
+            ("CS", f"{head} — 실측 예정(실측일 {measured_on or '미정'}). 실측 뒤 협력사가 도면을 요청하면 도면 단계로 갑니다."),
+        ))
+    if requested:
+        notify_shipment_request(db, user, order.id, customer_name, requested)
+    return order
+
+
+def notify_partner_teams(db, user: User, order_id: int, messages: Any, *, title: str = "협력사 새 주문") -> None:
+    """팀 벨 목록에 협력사 주문 알림(팀, 문장) 묶음을 1건씩 남긴다(호출자가 commit)."""
+    for team, message in messages:
         notification = Notification(
-            order_id=order.id,
+            order_id=order_id,
             notification_type=PARTNER_ORDER_NOTIFICATION_TYPE,
             target_team=team,
-            title="협력사 새 주문",
+            title=title,
             message=message,
             created_by_user_id=user.id,
             created_by_name=f"{user.name} (협력사)",
@@ -244,6 +268,3 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         db.add(notification)
         db.flush()
         fan_out_new_notification(db, notification, actor_user_id=user.id)
-    if requested:
-        notify_shipment_request(db, user, order.id, customer_name, requested)
-    return order

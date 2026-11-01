@@ -5,7 +5,8 @@
 :func:`build_measure_push_text` 에 영발 · 발주 자르기(:func:`slice_for_channel_push`)를 건다. 확정 전 협력사
 희망 시공일은 '시공일' 줄에 '협력사 희망 … · 확정 대기'로 싣는다(스케줄 짜는 데 필요하다).
 
-언제: 영발은 처음 저장할 때 묻고(고칠 수 있으니) 그 뒤엔 버튼, 발주는 "이대로 만들어 주세요" 뒤에 자동으로
+언제: 영발은 실측을 마친 주문만 — 도면 단계로 들어올 때(새 주문 저장 · "실측 끝 · 도면 요청") 한 번 나가고 그 뒤엔
+버튼이다. 실측 예정(MEASURE)에서는 닫혀 있다(사용자 2026-11-01, 전에는 첫 저장 때 물어 빈 주문도 나갔다). 발주는 "이대로 만들어 주세요" 뒤에 자동으로
 한 번 보내고 다시 보내기는 버튼. 보내기 자체는 ERP 와 같은 ``run_manual_push``(API 층)다 — 이력 칸도 같아서
 ERP 에서 보낸 뒤 협력사가 누르면(또는 그 반대) 재전송으로 본다.
 스펙: docs/specs/2026-10-29-partner-channel-push_SPEC.md
@@ -17,6 +18,7 @@ from typing import Any
 
 from foms.services.channel_as_message import format_schedule_date_korean
 from foms.services.channel_measure_message import build_measure_push_text, slice_for_channel_push
+from foms.services.partners.measure_ready import PRE_DRAWING_STAGES
 from foms.services.partners.schedule_request import pending_request
 
 #: 협력사가 쓰는 PUSH 종류 → (이력 칸 — ERP 와 같다, 화면 이름).
@@ -26,6 +28,10 @@ KINDS = {
 }
 # 승인 단추 글자("이대로 만들어 주세요")를 그대로 쓰지 않는다 — 그 글자가 화면에 있으면 승인 차례로 읽힌다.
 DRAWING_CLOSED_REASON = "도면 승인(제작 요청) 뒤에 보낼 수 있습니다."
+MEASURE_CLOSED_REASON = "실측 끝 · 도면 요청을 누르면 영발방으로 같이 갑니다."
+#: 실측 예정 때 빈 영발이 먼저 나간 주문 — 실측 뒤 영발 첫 줄 · 재전송 메모(영발방에서 앞의 빈 글과 가른다).
+MEASURE_DONE_PREFIX = "[실측 완료]"
+MEASURE_DONE_NOTE = "[실측 완료] 치수와 내용을 넣었습니다"
 _NO_CONSTRUCTION_LINE = "시공일 : 상담"
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 
@@ -40,15 +46,15 @@ def drawing_push_open(sd: dict) -> bool:
     return bool(blueprint.get("customer_confirmed"))
 
 
-def build_partner_push_text(order: Any) -> str:
-    """영발 · 발주방에 보낼 글(두 방 같은 글 — ERP 와 같다)."""
+def build_partner_push_text(order: Any, prefix: str = "") -> str:
+    """영발 · 발주방에 보낼 글(두 방 같은 글 — ERP 와 같다). ``prefix`` 는 첫 줄로 붙인다."""
     sd = _sd(order)
     text = slice_for_channel_push(build_measure_push_text(sd))
     request = pending_request(sd, getattr(order, "erp_stage_code", None) or "")
     if request:
         wish = " ".join(v for v in (format_schedule_date_korean(request.get("date")), str(request.get("time") or "")) if v)
         text = text.replace(_NO_CONSTRUCTION_LINE, f"시공일 : 협력사 희망 {wish} · 확정 대기", 1)
-    return text
+    return f"{prefix}\n{text}" if prefix else text
 
 
 def _sent_label(raw: Any) -> str:
@@ -66,14 +72,15 @@ def _sent_label(raw: Any) -> str:
 def push_state(order: Any) -> dict[str, dict[str, Any]]:
     """종류별 {pushed, sent_label, open, reason} — 화면 버튼과 API 가 같은 판정을 쓴다."""
     sd = _sd(order)
+    measured = (getattr(order, "erp_stage_code", None) or "").upper() not in PRE_DRAWING_STAGES
     state = {}
     for kind, (history_key, _label) in KINDS.items():
         history = sd.get(history_key) if isinstance(sd.get(history_key), dict) else {}
-        is_open = kind != "drawing" or drawing_push_open(sd)
+        is_open = measured if kind == "measurement" else drawing_push_open(sd)
         state[kind] = {
             "pushed": bool(history.get("pushed")),
             "sent_label": _sent_label(history.get("sent_at")) if history.get("pushed") else "",
             "open": is_open,
-            "reason": "" if is_open else DRAWING_CLOSED_REASON,
+            "reason": "" if is_open else (MEASURE_CLOSED_REASON if kind == "measurement" else DRAWING_CLOSED_REASON),
         }
     return state

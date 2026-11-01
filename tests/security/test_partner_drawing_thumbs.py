@@ -96,5 +96,5 @@ def test_list_page_renders_the_thumbnail(app, world):
     assert f"/api/files/view/{key}" in page
     assert 'class="pp-draw-thumbs"' in page
     assert "그림고객" in page
-    other = client.get("/partner?stage=접수 확인 중").get_data(as_text=True)
+    other = client.get("/partner?stage=실측 예정").get_data(as_text=True)
     assert key not in other

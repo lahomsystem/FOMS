@@ -57,6 +57,7 @@ from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionErro
 from foms.services.partners.logo import partner_org_of, read_partner_logo
 from foms.services.partners.manager import PartnerManagerError, change_partner_order_manager, set_partner_user_phone
 from foms.services.partners.orders import PartnerOrderError, create_partner_order
+from foms.services.partners.measure_ready import order_drawing_missing
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment, PartnerOrg, SecurityLog
 
@@ -108,7 +109,9 @@ def create_order():
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_DRAWING)
     _refresh_team_badges(db, ("DRAWING", "CS"))
     item_count = len((order.structured_data or {}).get("items") or [])
-    return jsonify({"success": True, "data": {"order_id": order.id, "item_count": item_count}, "error": None})
+    # 실측 예정(MEASURE)이면 빠진 것을 같이 돌려준다 — 화면이 "도면 요청 전에 넣을 것"으로 보인다(2026-11-01).
+    return jsonify({"success": True, "data": {"order_id": order.id, "item_count": item_count, "stage": order.erp_stage_code,
+                    "missing": order_drawing_missing(order)}, "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/files", methods=["POST"])
