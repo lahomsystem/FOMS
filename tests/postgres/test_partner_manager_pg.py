@@ -40,7 +40,9 @@ def test_partner_manager_change_replaces_sales_owner(pg_session: Session) -> Non
     second = _partner(pg_session, org, "가나 둘째", "010-3333-4444")
     order = create_partner_order(pg_session, first, org, {
         "customer_name": "홍길동", "customer_phone": "010-0000-0000", "address": "서울 1",
-        "items": [{"product_name": "붙박이장"}],
+        # 실측을 마친 주문 — 도면 단계로 들어온다(실측 전이면 실측 예정, 2026-11-01).
+        "measured_done": True, "measured_on": "2026-10-01",
+        "items": [{"product_name": "붙박이장", "spec_rows": [{"spec_width": "2400"}]}],
     })
     pg_session.flush()
 
