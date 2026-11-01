@@ -1,5 +1,6 @@
-"""[보내기] · [수정하기](플랜 C10-3) 둘레 — 화면 두 개 · '고칠 말' 다시 쓰기(빠른 길) · 메모 링크 버튼 · 채널 보내기 함수 ·
-버리기 · 빠른 길 · 15분 바퀴 배선 · 마이그레이션 ``csagent_04`` · 화면 규칙. 완료 기준 ①~⑨ 는 ``test_cs_send.py``.
+"""[보내기] · [수정하기](플랜 C10-3) 둘레 — 화면 두 개 · '고칠 말' 다시 쓰기(빠른 길) · 메모 링크 버튼 · 버리기 · 빠른 길 ·
+15분 바퀴 배선 · 마이그레이션 ``csagent_04`` · 화면 규칙. 완료 기준 ①~⑨ 는 ``test_cs_send.py``, 채널 보내기 함수(앱 함수 길)는
+``test_cs_send_native.py``.
 
 채널톡 · 두뇌는 가짜(네트워크 없음), 손으로 꾸민 합성 글만. 시각은 2026-11 KST(11-02 월).
 """
@@ -10,13 +11,11 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-import requests
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint
 
 from db import db_session
-from foms.services import channel_client, channel_send
 from foms.services.cs_agent import loop, memo, realtime, rewrite, send, send_flow, send_record, send_view
 from foms.services.cs_agent.masking import mask
 from models import CsAgentTurn
@@ -183,60 +182,6 @@ def test_draft_memos_get_link_buttons_only_when_switched_on_with_an_https_base(c
 def fresh_turn_id():
     db_session.expire_all()
     return db_session.query(CsAgentTurn.id).order_by(CsAgentTurn.id.desc()).first()[0]
-
-
-# ── 채널 보내기 함수(손님이 보는 봇 공개 글 · requestId) ────────────────────
-class Http:
-    def __init__(self, status=200, body=None, raises=None):
-        self.status, self.body, self.raises, self.calls = status, body, raises, []
-
-    def __call__(self, url, **kwargs):
-        self.calls.append({"url": url, **kwargs})
-        if self.raises:
-            raise self.raises
-        fake = self
-
-        class _Resp:
-            status_code = fake.status
-
-            @staticmethod
-            def json():
-                return fake.body if fake.body is not None else {"message": {"id": "sent-1",
-                                                                            "createdAt": "2026-11-02T00:01:00Z"}}
-        return _Resp()
-
-
-@pytest.mark.parametrize("http,expected", [
-    (Http(), {"success": True, "message_id": "sent-1", "created_at": "2026-11-02T00:01:00Z", "error": None}),
-    (Http(status=422), {"success": False, "message_id": None, "created_at": None, "error": "provider_error"}),
-    (Http(status=503), {"success": False, "message_id": None, "created_at": None, "error": "request_failed"}),
-    (Http(raises=requests.Timeout("read timed out")),
-     {"success": False, "message_id": None, "created_at": None, "error": "request_failed"}),
-])
-def test_the_channel_sender_posts_a_public_bot_message_with_the_request_id(monkeypatch, http, expected):
-    monkeypatch.setattr(channel_client.requests, "post", http)
-    monkeypatch.setattr(channel_client, "_open_api_headers", lambda brand: {"x-brand": brand})
-    got = channel_send.send_public_bot_message("uc-1", "합성 답", brand="LAHOM", bot_name="라홈",
-                                               request_id="foms-cs-send-7")
-    assert got == expected
-    (call,) = http.calls
-    assert call["url"].endswith("/open/user-chats/uc-1/messages") and call["params"] == {"botName": "라홈"}
-    assert call["json"] == {"plainText": "합성 답", "requestId": "foms-cs-send-7"}  # 옵션 칸이 없다 — 공개 글
-    with pytest.raises(ValueError):
-        channel_send.send_public_bot_message("x/../y", "합성", brand="LAHOM", bot_name="라홈", request_id="r")
-
-
-def test_the_real_wrapper_reaches_the_channel_sender_with_the_turn_request_id(monkeypatch):
-    http = Http()
-    monkeypatch.setattr(channel_client.requests, "post", http)
-    monkeypatch.setattr(channel_client, "_open_api_headers", lambda brand: {"x-brand": brand})
-    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, "uc-1")
-    for env in ("FOMS_ENV", "RAILWAY_PROJECT_NAME"):
-        monkeypatch.delenv(env, raising=False)
-    sent = send.send_reply("uc-1", "  합성 답  ", brand="LAHOM", turn_id=42)
-    assert (sent.posted, sent.message_id, sent.created_at.isoformat()) == (True, "sent-1", "2026-11-02T00:01:00+00:00")
-    assert http.calls[0]["json"] == {"plainText": "합성 답", "requestId": "foms-cs-send-42"}
-    assert http.calls[0]["params"] == {"botName": send.SEND_BOT_NAME} and "AI" not in send.SEND_BOT_NAME
 
 
 # ── 15분 바퀴도 결과 모름을 맞춘다 ────────────────────────────────────────

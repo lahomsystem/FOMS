@@ -5,7 +5,8 @@
 이 패키지에서 채널톡에 쓰는 곳은 메모 감싸개(:mod:`.memo` — 내부 메모만)와 이 모듈 둘뿐이다(시험이 소스를 훑어 막는다).
 
 - **봇 이름 공개 글(D68)**: 상담원 이름으로 보내지 않는다 — :data:`SEND_BOT_NAME` 봇 이름으로 쓰고, 누른 직원은 FOMS 차례 줄에만
-  남긴다. 외부 메신저(카카오 · 톡톡)에서 손님에게는 채널 프로필로 보인다(원장 F12-8).
+  남긴다. 외부 메신저(카카오 · 톡톡)에서 손님에게는 채널 프로필로 보인다(원장 F12-8). 앱 함수(네이티브)로 라홈 채널 상수
+  (:data:`SEND_CHANNEL_ID`)에 쓴다 — Open API 쓰기에는 requestId 칸이 없어 맞추기 표지가 사라진다(스테이징 실화면 11-01).
 - **라홈만 · 운영 밖은 허용 목록만**: 브랜드는 라홈만(하우드는 쓰기 허락 전 — 막음). 운영이 아니면 메모와 같은 시험 상담 허용
   목록(:func:`.memo.memo_allowed`)에만 쓴다 — 목록이 비면 아무 데도 안 쓴다(설계서 4절 10 · D69).
 - **requestId = 차례 id(:func:`request_id_for`)**: 채널톡은 같은 requestId 를 거르지 않는다(C10-2 ⑤) — 두 번 나가지 않게 막는
@@ -25,18 +26,20 @@ from typing import Iterable, Optional
 
 from foms.services import channel_send
 from foms.services.cs_agent.channel_read import SENT_REPLY_REQUEST_PREFIX, _created_at
-from foms.services.cs_agent.memo import MEMO_BRAND, memo_allowed
+from foms.services.cs_agent.memo import MEMO_BRAND, MEMO_CHANNEL_ID, memo_allowed
 from foms.services.notifications.cs_draft_link import edit_path, send_path
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "REASON_BRAND", "REASON_EMPTY", "REASON_NO_CHAT", "REASON_STAGING", "SEND_BOT_NAME", "SEND_BRAND", "SEND_PREFIX",
-    "SEND_UNKNOWN", "SendResult", "memo_buttons", "request_id_for", "send_reply",
+    "REASON_BRAND", "REASON_EMPTY", "REASON_NO_CHAT", "REASON_STAGING", "SEND_BOT_NAME", "SEND_BRAND", "SEND_CHANNEL_ID",
+    "SEND_PREFIX", "SEND_UNKNOWN", "SendResult", "memo_buttons", "request_id_for", "send_reply",
 ]
 
 #: 손님께 보내는 브랜드 — 하우드는 쓰기 허락 전이라 막는다.
 SEND_BRAND = MEMO_BRAND
+#: 손님께 보내는 채널 — 브랜드 짝 상수(메모와 같은 라홈 채널). 부르는 쪽이 넘길 칸이 없고 env 기본 채널로 빠지지 않는다.
+SEND_CHANNEL_ID = MEMO_CHANNEL_ID
 #: 보낸 이로 보일 봇 이름(D68 — 상담원 이름 아님). AI 표시 · 내부 말(FOMS)을 넣지 않는다(설계서 17.1 'AI 소개 삭제').
 SEND_BOT_NAME = "라홈"
 REASON_BRAND, REASON_NO_CHAT, REASON_EMPTY = "brand_not_allowed", "no_chat", "empty_text"
@@ -121,8 +124,8 @@ def send_reply(chat_id: str, text: str, *, brand: str, turn_id: int, environment
     if not memo_allowed(chat_id, environment=environment, allowed_chat_ids=allowed_chat_ids):
         logger.info("[CS 보내기] 운영이 아니고 시험 상담 허용 목록 밖 — 보내지 않는다 chat=%s turn=%s", chat_id, turn_id)
         return SendResult(False, reason=REASON_STAGING)
-    sent = channel_send.send_public_bot_message(chat_id, text.strip(), brand=SEND_BRAND, bot_name=SEND_BOT_NAME,
-                                                request_id=request_id_for(turn_id))
+    sent = channel_send.send_public_bot_message(chat_id, text.strip(), channel_id=SEND_CHANNEL_ID,
+                                                bot_name=SEND_BOT_NAME, request_id=request_id_for(turn_id))
     if not sent.get("success"):
         error = str(sent.get("error") or "")
         reason = SEND_PREFIX + (error if _ERROR_CODE.fullmatch(error) else "unknown")

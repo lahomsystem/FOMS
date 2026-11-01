@@ -323,9 +323,10 @@ def test_only_the_memo_and_send_wrappers_write_to_channel_talk_in_the_agent_pack
     assert isinstance(keywords["private"], ast.Constant) and keywords["private"].value is True
     assert getattr(keywords["channel_id"], "id", None) == "MEMO_CHANNEL_ID"
     assert getattr(keywords["bot_name"], "id", None) == "MEMO_BOT_NAME"
-    sent = {kw.arg: kw.value for kw in _write_calls("send.py")[0].keywords}  # 보내기: 봇 이름 · 라홈 상수 · 차례 requestId
-    assert getattr(sent["bot_name"], "id", None) == "SEND_BOT_NAME" and getattr(sent["brand"], "id", None) == "SEND_BRAND"
-    assert "private" not in sent and isinstance(sent["request_id"], ast.Call)
+    sent = {kw.arg: kw.value for kw in _write_calls("send.py")[0].keywords}  # 보내기: 봇 이름 · 라홈 채널 상수 · 차례 requestId
+    assert getattr(sent["bot_name"], "id", None) == "SEND_BOT_NAME"
+    assert getattr(sent["channel_id"], "id", None) == "SEND_CHANNEL_ID"  # 앱 함수 길 — 채널은 상수(env 기본 채널 아님)
+    assert "private" not in sent and "options" not in sent and isinstance(sent["request_id"], ast.Call)
     assert getattr(sent["request_id"].func, "id", None) == "request_id_for"
 
 
