@@ -192,6 +192,17 @@
                                 </select>
                                 <small class="form-text text-muted">AI 상담 견적 계산은 라홈 제품만 씁니다</small>
                             </div>
+                            <div class="col-md-8">
+                                <label for="productQuoteRule" class="form-label">견적 규칙 종류 (AI 상담 견적)</label>
+                                <select class="form-select" id="productQuoteRule" name="quote_rule" data-sheet>
+                                    <option value="">자동 (이름에 '슬라이딩'이 있으면 슬라이딩, 그 밖은 모름 — 2400mm 미만은 사람에게)</option>
+                                    <option value="hinge">여닫이 — 1500mm 미만은 사람에게</option>
+                                    <option value="slide">슬라이딩 — 2400mm 미만은 2400mm 값</option>
+                                    <option value="linear">cm 비례 — 30cm 값 × cm ÷ 30</option>
+                                    <option value="none">최소 없음</option>
+                                </select>
+                                <small class="form-text text-muted">계산기 화면 값은 바뀌지 않습니다 — AI 상담 견적만 30cm 제품의 남는 mm 를 cm 로 올리고 이 규칙을 씁니다</small>
+                            </div>
                         </div>
 
                         <!-- 1m 옵션 가격 입력 -->
@@ -614,7 +625,7 @@
 {{ (spec_field_presets|default({}))|tojson }}
 </script>
 
-<script src="{{ url_for('static', filename='js/wdcalculator/product-settings.js') }}?v=20261101a" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/product-settings.js') }}?v=20261101b" defer></script>
 {% endblock %}
 
 {% block scripts %}

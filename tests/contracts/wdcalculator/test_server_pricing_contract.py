@@ -77,11 +77,31 @@ def _cases() -> list[dict]:
         _estimate([{"mode": "direct", "productId": None, "widthMm": 1500, "widthInput": "1500",
                     "additionalFees": [{"name": "", "amount": OPTION_PRICES[3]}]}]),
     ]
-    return cases
+    return cases + _odd_cases(thirty)
+
+
+def _odd_cases(thirty: dict) -> list[dict]:
+    """JS ``Number()`` · 예외 규칙 맞춤(검수 R17-7) — 글 숫자(BOM · 0b · 0o · 전각 · 아랍 숫자 · 무한) · 배열 · 빈 칸."""
+    widths = ["﻿2400", "0b100101100000", "0o4540", "0B101", "-0x10", "２４００",
+              "٢٤٠٠", "Infinity", " 2400\n", [2400], ["2400"], [2400, 1]]
+    out = [_estimate([{"mode": "select", "productId": thirty["id"], "widthMm": w, "widthInput": "",
+                       "additionalFees": []}]) for w in widths]
+    arrays = dict(thirty, id=987656, price_30cm=[thirty["price_30cm"]], price_1cm=[thirty["price_1cm"]])
+    option = pricing.option_rows([(OPTION_REFS[0], 1)], CATEGORIES)[0]
+    out += [
+        _estimate([_select(arrays["id"], 2410)], products=[*PRODUCTS, arrays]),  # 배열 단가
+        _estimate([_select(thirty["id"], 2400)], options=[dict(option, quantity=[2]), dict(option, price=[option["price"]])]),
+        _estimate([dict(_select(thirty["id"], 2400), additionalFees=[None])]),  # 빈 추가금 칸 — 둘 다 계산하지 않는다
+        _estimate([None]),  # 빈 구성품 칸 — 둘 다 계산하지 않는다
+        _estimate([5, dict(_select(thirty["id"], 2400), additionalFees=[5, "x", {"amount": "﻿7"}])],
+                  options=["깨진 줄", None, option]),
+    ]
+    return out
 
 
 def _aggregate_cases(estimates: list[dict]) -> list[dict]:
-    rows = [{"basePrice": e["base_collect"], "additionalPrice": e["additional"]} for e in estimates if e["ok"]]
+    rows = [{"basePrice": e["base_collect"], "additionalPrice": e["additional"]} for e in estimates
+            if e["ok"] and math.isfinite(e["base_collect"]) and math.isfinite(e["additional"])]  # JSON 에 NaN 을 못 싣는다
     return [{"kind": "aggregate", "estimates": rows[:3], "coupon": 0, "shipping": 0, "included": False},
             {"kind": "aggregate", "estimates": rows[3:9], "coupon": 0, "shipping": OPTION_PRICES[0], "included": True},
             {"kind": "aggregate", "estimates": rows, "coupon": 0, "shipping": OPTION_PRICES[1], "included": False}]
@@ -92,7 +112,7 @@ def _server(case: dict) -> dict:
         return pricing.aggregate_totals(case["estimates"], case["coupon"], case["shipping"], case["included"])
     try:
         got = pricing.compute_estimate(case["components"], case["products"], case["options"])
-    except pricing.WidthInputError:
+    except pricing.EstimateInputError:  # 가로 글 · 빈 칸 — 화면도 예외를 낸다
         return {"ok": False}
     values = (got.base_price_calculate, got.base_price_collect, got.additional_price, got.total_price_calculate,
               got.total_price_collect)
@@ -110,8 +130,8 @@ def _node(cases: list[dict]) -> list[dict]:
 
 
 def _same(server, screen) -> bool:
-    if isinstance(server, float) and math.isnan(server):
-        return screen is None  # JSON 에서 NaN 은 null
+    if isinstance(server, float) and not math.isfinite(server):
+        return screen is None  # JSON 에서 NaN · 무한은 null
     return server == screen
 
 

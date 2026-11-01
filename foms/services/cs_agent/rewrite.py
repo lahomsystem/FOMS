@@ -38,6 +38,7 @@ from foms.services.cs_agent.drafting_read import (
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE
+from foms.services.cs_agent.quote_record import allowed_from, lines_from
 from foms.services.cs_agent.send import memo_buttons
 from foms.services.cs_agent.send_record import REWRITE_WORKING, open_turn
 from foms.services.cs_agent.settings import read_settings
@@ -122,6 +123,7 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
     """요청 하나 — 스위치 → 읽기 → 두뇌 → 검사 → 새 메모 → 줄 바꾸기."""
     row = session.get(CsAgentTurn, turn_id, populate_existing=True)
     chat_id, note, memo_id = row.chat_id, row.rewrite_note_masked, row.memo_message_id
+    quote_lines, quote_allowed = lines_from(row.quote_lines), allowed_from(row.quote_lines)  # 그 차례 계산기 값(R17-1)
     if not _switch_ready(session) or row.brand != MEMO_BRAND or not note:
         return _give_up(session, turn_id, "switched_off", now)
     knowledge = load_approved(session, row.brand)
@@ -139,7 +141,7 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
     try:
         request = DraftRequest(brand=MEMO_BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(), knowledge=knowledge,
-                               realtime=True, rewrite=(previous, note))
+                               realtime=True, rewrite=(previous, note), calculator_lines=quote_lines)
     except ValueError:
         return _give_up(session, turn_id, "bad_request", now)
     stop.check()  # 두뇌 전
@@ -149,7 +151,7 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
         return _give_up(session, turn_id, getattr(exc, "code", None) or type(exc).__name__.lower(), now)
     if result.refused or result.handoff or not result.draft.strip():
         return _give_up(session, turn_id, "handoff", now)
-    allowed = tuple(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text)
+    allowed = (*(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text), *quote_allowed)
     human_only = {item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text}
     check = check_draft(result.draft, brand=MEMO_BRAND, medium=medium, allowed_numbers=allowed,
                         private_snippets=(*memo_snippets(lines), result.staff_note),

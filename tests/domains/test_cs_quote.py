@@ -3,89 +3,47 @@
 완료 기준(브리프): 계산기 값이 화면 계산과 원 단위로 같음(node — 큰 묶음은 계약 시험
 ``tests/contracts/wdcalculator/test_server_pricing_contract.py``) · 0원 · 모르는 가격 방식 · 계산 실패 · 안 되는 구성은
 사람에게 · 모르는 칸은 한 가지만 묻기 · 계산기 값만 허용 목록에(손님 글 금액은 계속 막힘) · 끄면 예전 그대로 · 14일 확인 필요.
-단가는 이미 공개된 처음 채우기 파일을 읽어 쓰고, 이 파일에는 금액 숫자를 적지 않는다(기대값은 계산해서 얻는다). 두뇌 ·
-채널톡은 가짜, 손님 글은 합성 글이다.
+스토어 규칙 층(D73)은 ``test_cs_quote_rules.py``, 확인 날 기록(D74)은 ``test_cs_quote_check.py``, 검수 R17 은
+``test_cs_quote_review.py``. 금액 숫자는 적지 않는다(재료는 ``tests/support/cs_quote_support.py``).
 """
 
 from __future__ import annotations
 
 import dataclasses
 import datetime
-import functools
-import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from db import db_session
-from foms.services.cs_agent import brain, quote_brain as qb, quote_calc as qc, quote_step as qs
+from foms.services.cs_agent import brain, quote_brain as qb, quote_calc as qc, quote_record as qrec, quote_step as qs
+from foms.services.cs_agent import quote_check as qk
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.brain_spend import BAD_RESPONSE, BrainUnavailable, SpendCapReached
-from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.checks import check_draft
-from foms.services.cs_agent.drafting_pass import DraftPass
 from foms.services.cs_agent.drafting_read import MEMO_HEAD, MEMO_NOTE_HEAD, MEMO_QUOTE_HEAD, memo_snippets, memo_text
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge, KnowledgeItem
-from foms.services.wdcalculator import catalog as cat
 from foms.services.wdcalculator import pricing
-from models import SystemSetting
 from tests.contracts.wdcalculator.test_server_pricing_contract import _node
 from tests.domains.test_cs_drafting import (  # noqa: F401 — channel 은 fixture
-    CUSTOMER, NOW, FakeBrain, FakePoster, channel, customer, result, run, turn,
+    CUSTOMER, FakeBrain, FakePoster, channel, customer, result, run, turn,
 )
 from tests.support.cs_agent_fakes import FakeAnthropic, keys  # noqa: F401 — keys 는 fixture
-
-ROOT = Path(__file__).resolve().parents[2]
-PRODUCTS = json.loads((ROOT / "data" / "products.json").read_text(encoding="utf-8"))["products"]
-CATEGORIES = json.loads((ROOT / "data" / "additional_options.json").read_text(encoding="utf-8"))["categories"]
-SLIDE = next(p for p in PRODUCTS if p["pricing_type"] == "30cm" and pricing.product_brand(p) == "LAHOM")
-OTHER = next(p for p in PRODUCTS if p["pricing_type"] == "1m" and pricing.product_brand(p) == "LAHOM")
-HAUD = next(p for p in PRODUCTS if pricing.product_brand(p) == "HAUD")
-OPTION = next(f"{c['id']}:{o['id']}" for c in CATEGORIES for o in c["options"] if (o.get("price") or 0) > 0)
-UTC_NOW = naive_utc(NOW)
-QUOTE_TEXT = f"{CUSTOMER} 슬라이딩장 가로 2400mm 견적 부탁드려요"
-
-
-def catalog(*, saved_at=UTC_NOW - datetime.timedelta(days=1), extra=(), categories=()):
-    return cat.Catalog(tuple([*PRODUCTS, *extra]), tuple([*CATEGORIES, *categories]), saved_at)
-
-
-def space(pid=SLIDE["id"], width=2400, **kw):
-    values = dict(space="안방", product_ids=() if pid is None else (pid,), width_mm=width, width_max_mm=0,
-                  height_mm=0, door="unknown", handle="unknown", options=())
-    return qb.QuoteSpace(**{**values, **kw})
-
-
-def ask(*spaces, brand="LAHOM", **kw):
-    return qb.QuoteAsk(quote_request=True, brand=brand, spaces=spaces or (space(),), cost_usd=Decimal("0.002"),
-                       input_tokens=300, output_tokens=40, latency_ms=900, **kw)
-
-
-def won(pid, width, options=()):
-    """서버 값(계약 시험이 화면 계산과 원 단위로 맞춘 함수)."""
-    rows = pricing.option_rows(options, CATEGORIES)
-    got = pricing.compute_estimate([{"mode": "select", "productId": pid, "widthMm": width}], PRODUCTS, rows)
-    return pricing.won(got.total_price_collect)
-
-
-def evaluate(quote, cat_=None, rules=()):
-    return qc.evaluate(quote, cat_ or catalog(), rules, now_utc=UTC_NOW)
-
-
-def rule_item(text, kind=qc.KIND_BUILD_RULE, item_id="rule-1"):
-    return KnowledgeItem(item_id=item_id, kind=kind, status="approved", text=text)
+from tests.support.cs_quote_support import (
+    CATEGORIES, HAUD, LAHOM, MOLD, NOW, OPTION, OTHER, QUOTE_TEXT, FakeQuoter, amount_draft, ask, catalog, checked,
+    confirm_prices, evaluate, quoting, rule_item, space, switch, won,
+)
 
 
 # ── 계산 · 허용 목록 ─────────────────────────────────────────────────────
 def test_calculator_line_equals_the_screen_amount_and_only_it_is_allowed():
     outcome = evaluate(ask(space(options=((OPTION, 2),))))
     rows = pricing.option_rows([(OPTION, 2)], CATEGORIES)
-    (screen,) = _node([{"kind": "estimate", "products": PRODUCTS, "options": rows,
-                        "components": [{"mode": "select", "productId": SLIDE["id"], "widthMm": 2400}]}])
+    (screen,) = _node([{"kind": "estimate", "products": LAHOM, "options": rows,
+                        "components": [{"mode": "select", "productId": MOLD["id"], "widthMm": 2400}]}])
     amount = screen["won_total"]
-    assert outcome.status == qc.STATUS_OK and amount == won(SLIDE["id"], 2400, [(OPTION, 2)]) > 0
+    assert outcome.status == qc.STATUS_OK and amount == won(MOLD["id"], 2400, [(OPTION, 2)]) > 0
     head, line = outcome.lines
     assert f"{amount:,}원" in line and "가로 2,400mm" in line and "× 2" in line and f"{amount:,}" not in head
     assert outcome.allowed == (line,) and outcome.note.startswith(MEMO_QUOTE_HEAD) and outcome.code is None
@@ -101,16 +59,18 @@ def test_calculator_line_equals_the_screen_amount_and_only_it_is_allowed():
 
 def test_several_spaces_get_a_total_and_a_width_range_gets_both_ends():
     two = evaluate(ask(space(), space(OTHER["id"], 1800, space="드레스룸")))
-    total = won(SLIDE["id"], 2400) + won(OTHER["id"], 1800)
+    total = won(MOLD["id"], 2400) + won(OTHER["id"], 1800)
     assert two.status == qc.STATUS_OK and two.allowed[-1] == f"합계(공간 2곳) {total:,}원"
-    ranged = evaluate(ask(space(width=2000, width_max_mm=2600)))
-    assert [f"{won(SLIDE['id'], w):,}원" in line for line, w in zip(ranged.allowed, (2000, 2600))] == [True, True]
-    assert not any(line.startswith("합계") for line in ranged.allowed)
+    ranged = evaluate(ask(space(width=2400, width_max_mm=3005)))  # 위 끝은 10mm 단위로 올려 계산(D73)
+    expected = (won(MOLD["id"], 2400), won(MOLD["id"], 3010))
+    assert [f"{amount:,}원" in line for line, amount in zip(ranged.allowed, expected)] == [True, True]
+    assert "계산 가로 3,010mm" in ranged.allowed[1] and not any(line.startswith("합계") for line in ranged.allowed)
 
 
 def test_zero_unknown_pricing_type_failure_and_haud_go_to_a_human():
-    zero = dict(SLIDE, id=990001, price_30cm=0, price_1cm=0)
-    odd = dict(SLIDE, id=990002, pricing_type="2m")
+    zero = dict(MOLD, id=990001, price_30cm=0, price_1cm=0)
+    odd = dict(MOLD, id=990002, pricing_type="2m")
+    infinite = dict(MOLD, id=990003, price_30cm="Infinity")
     free = {"id": 990, "name": "합성", "options": [{"id": 1, "name": "영원", "price": 0}]}
     cases = {
         qc.HUMAN_ZERO: (ask(space(zero["id"])), catalog(extra=[zero])),
@@ -123,12 +83,13 @@ def test_zero_unknown_pricing_type_failure_and_haud_go_to_a_human():
         assert (outcome.status, outcome.code, outcome.lines, outcome.allowed) == (qc.STATUS_HUMAN, code, (), ()), code
     zero_option = evaluate(ask(space(options=(("990:1", 1),))), catalog(categories=[free]))
     assert (zero_option.status, zero_option.code) == (qc.STATUS_HUMAN, qc.HUMAN_ZERO)  # 화면은 0원 옵션을 빼고 센다
-    missing = evaluate(ask(space(999999)))
-    assert (missing.status, missing.code) == (qc.STATUS_HUMAN, qc.HUMAN_FAILED)
+    for pid, catalog_ in ((999999, catalog()), (infinite["id"], catalog(extra=[infinite]))):
+        outcome = evaluate(ask(space(pid)), catalog_)
+        assert outcome.status == qc.STATUS_HUMAN and outcome.code in (qc.HUMAN_FAILED, qc.HUMAN_ZERO), pid
 
 
 def test_unknown_fields_ask_exactly_one_thing_in_order():
-    rules = qc.build_rules([rule_item(f"검사: product={SLIDE['id']} max_height=2400 door=hinged")])
+    rules = qc.build_rules([rule_item(f"검사: product={MOLD['id']} max_height=2400 door=hinged")])
     order = [
         (ask(space(None, 0)), (), "product"),
         (ask(space(width=0)), (), "width"),
@@ -149,7 +110,7 @@ def test_unknown_fields_ask_exactly_one_thing_in_order():
 
 def test_build_rules_block_configurations_that_cannot_be_made():
     rules = qc.build_rules([
-        rule_item("슬라이딩은 ㄱ자에 안 된다\n검사: product=%s door=hinged" % SLIDE["id"]),
+        rule_item("슬라이딩은 ㄱ자에 안 된다\n검사: product=%s door=hinged" % MOLD["id"]),
         rule_item("검사: min_width=600 max_width=4800", item_id="rule-2"),
         rule_item("검사: product=999 max_height=10", item_id="rule-3"),  # 다른 제품 규칙은 걸리지 않는다
         rule_item("검사: max_height=10", kind="fact", item_id="fact-1"),  # build_rule 이 아니면 읽지 않는다
@@ -162,36 +123,22 @@ def test_build_rules_block_configurations_that_cannot_be_made():
             qc.STATUS_HUMAN, qc.HUMAN_RULE)
     assert evaluate(ask(space(door="hinged")), rules=rules).status == qc.STATUS_OK
     assert evaluate(ask(space(OTHER["id"], door="sliding")), rules=rules).status == qc.STATUS_OK
-    for text in ("검사: colour=red", "검사: door=folding", "검사: max_height=abc", "검사:", "검사: product="):
+    for text in ("검사: colour=red", "검사: door=folding", "검사: max_height=abc", "검사:", "검사: product=",
+                 "검사: max_width=１２"):
         with pytest.raises(qc.RuleUnreadable):
             qc.build_rules([rule_item(text)])
 
 
-def test_fourteen_days_after_the_calculator_was_saved_amounts_need_a_check():
-    for days, status in ((13.9, qc.STATUS_OK), (14.1, qc.STATUS_CHECK)):
-        outcome = evaluate(ask(), catalog(saved_at=UTC_NOW - datetime.timedelta(days=days)))
-        assert outcome.status == status, days
-    stale = evaluate(ask(), catalog(saved_at=UTC_NOW - datetime.timedelta(days=20)))
-    amount = f"{won(SLIDE['id'], 2400):,}원"
-    assert stale.allowed == () and "확인 필요" in stale.lines[0] and amount in stale.lines[1]
-    assert stale.note.startswith(f"{MEMO_QUOTE_HEAD} · 확인 필요") and amount in stale.note  # 직원 참고 칸에만
-    seed = evaluate(ask(), catalog(saved_at=None))  # 처음 채우기 파일 = 확인 날 없음
-    assert (seed.status, seed.allowed) == (qc.STATUS_CHECK, ())
-
-
-def test_read_catalog_uses_the_calculator_db_and_its_saved_time(app, wdcalculator_settings_env, monkeypatch):
-    import foms.api.wdcalculator.blueprint as wd
-
-    monkeypatch.setattr(cat, "SEED_PRODUCTS_PATH", str(wdcalculator_settings_env["products_path"]))
-    seed = cat.read_catalog()
-    assert (seed.from_seed, seed.saved_at, seed.needs_check(UTC_NOW)) == (True, None, True)
-    with app.app_context():
-        assert wd.save_products([dict(SLIDE), dict(HAUD), dict(OTHER, brand="HAUD")])
-    saved = cat.read_catalog()
-    assert saved.from_seed is False and saved.saved_at is not None
-    assert not saved.needs_check(saved.saved_at + datetime.timedelta(days=1))
-    assert [p["id"] for p in saved.products_of()] == [SLIDE["id"]]  # 이름 '하우드…' · 브랜드 칸 HAUD 는 빠진다
-    assert [p["id"] for p in saved.products_of("HAUD")] == [HAUD["id"], OTHER["id"]]
+def test_fourteen_days_after_the_confirm_day_amounts_need_a_check():
+    for days, status in ((13.9, qc.STATUS_OK), (14, qc.STATUS_OK), (14.01, qc.STATUS_CHECK)):
+        assert evaluate(ask(), check=checked(days)).status == status, days  # 정확히 14일은 아직 확인됨
+    stale = evaluate(ask(), check=checked(20))
+    amount = f"{won(MOLD['id'], 2400):,}원"
+    assert (stale.lines, stale.allowed) == ((qc.CHECK_LINE,), ())  # 두뇌 재료엔 금액 없이 한 줄만(R17-4)
+    assert stale.note.startswith(f"{MEMO_QUOTE_HEAD} · 확인 필요") and amount in stale.note  # 직원 참고 줄에만
+    for check in (qk.PriceCheck(), qk.PriceCheck(seed=True), checked(1, failed=True), checked(1, seed=True)):
+        outcome = evaluate(ask(), check=check)
+        assert (outcome.status, outcome.allowed) == (qc.STATUS_CHECK, ()), check
 
 
 # ── 뽑기 두뇌 ────────────────────────────────────────────────────────────
@@ -204,7 +151,7 @@ def _request(**kw):
 
 
 ANSWER = {"quote_request": True, "brand": "LAHOM", "unknown": ["height"], "spaces": [{
-    "space": "안방", "product_ids": [str(SLIDE["id"]), str(HAUD["id"]), "nope"], "width_mm": 2400, "width_max_mm": 0,
+    "space": "안방", "product_ids": [str(MOLD["id"]), str(HAUD["id"]), "nope"], "width_mm": 2400, "width_max_mm": 0,
     "height_mm": 0, "door": "sliding", "handle": "push", "options": [{"id": OPTION, "qty": 120}]}]}
 
 
@@ -231,14 +178,14 @@ def test_extract_quote_sends_ids_not_prices_and_reads_the_answer(brain_env):
     assert client.options == [{"timeout": float(qb.REALTIME_TIMEOUT_CAP), "max_retries": 0}]  # 뽑기 + 초안이 선점 안에
     schema = params["output_config"]["format"]["schema"]
     ids = schema["properties"]["spaces"]["items"]["properties"]["product_ids"]["items"]["enum"]
-    assert str(SLIDE["id"]) in ids and str(HAUD["id"]) not in ids  # 라홈 제품만 고를 수 있다
+    assert str(MOLD["id"]) in ids and str(HAUD["id"]) not in ids  # 라홈 제품만 고를 수 있다
     system = "\n".join(block["text"] for block in params["system"])
-    prices = {p[k] for p in PRODUCTS for k in ("price_1m", "price_30cm") if p.get(k)}
-    assert all(f"{price:,}" not in system for price in prices) and SLIDE["name"] in system  # 값은 두뇌에 주지 않는다
+    prices = {p[k] for p in LAHOM for k in ("price_1m", "price_30cm") if p.get(k)}
+    assert all(f"{price:,}" not in system for price in prices) and MOLD["name"] in system  # 값은 두뇌에 주지 않는다
     assert CUSTOMER in params["messages"][0]["content"]
     assert (got.quote_request, got.brand, got.unknown) == (True, "LAHOM", ("height",))
     (only,) = got.spaces
-    assert (only.product_ids, only.width_mm, only.door, only.options) == ((SLIDE["id"],), 2400, "sliding", ((OPTION, 1),))
+    assert (only.product_ids, only.width_mm, only.door, only.options) == ((MOLD["id"],), 2400, "sliding", ((OPTION, 1),))
     assert got.cost_usd > 0 and brain.spent_today(db_session, now=NOW) == got.cost_usd  # 돈 줄에 바로잡혀 남는다
     batch = Recording(ANSWER)
     qb.extract_quote(_request(), catalog(), client=batch, session=db_session, now=NOW)
@@ -253,35 +200,6 @@ def test_extract_quote_rejects_a_bad_shape(brain_env):
 
 
 # ── 초안 차례에 잇기 ─────────────────────────────────────────────────────
-class FakeQuoter:
-    def __init__(self, outcome):
-        self.outcome, self.calls = outcome, []
-
-    def __call__(self, request, catalog_, *, session, now):
-        self.calls.append(request)
-        if isinstance(self.outcome, BaseException):
-            raise self.outcome
-        return self.outcome
-
-
-def switch(on=True):
-    row = db_session.get(SystemSetting, st.SETTINGS_KEY)
-    if row is None:
-        db_session.add(SystemSetting(setting_key=st.SETTINGS_KEY, version=1,
-                                     setting_value={**st.DEFAULTS, "quote_calc_enabled": on}))
-    else:
-        row.setting_value = {**st.DEFAULTS, "quote_calc_enabled": on}
-    db_session.commit()
-
-
-def quoting(quoter, catalog_=None):
-    return functools.partial(DraftPass, quoter=quoter, catalog_reader=lambda: catalog_ or catalog())
-
-
-def amount_draft():
-    return f"고객님, 가로 2,400mm 기준 계산기 금액은 {won(SLIDE['id'], 2400):,}원입니다."
-
-
 @pytest.mark.parametrize("row", [False, True])
 def test_switched_off_is_exactly_as_before(channel, row):
     if row:
@@ -291,28 +209,33 @@ def test_switched_off_is_exactly_as_before(channel, row):
     summary = run(channel, brain_fn=brain_fn, pass_type=quoting(quoter))
     (request,) = brain_fn.requests
     assert quoter.calls == [] and request.calculator_lines == () and summary.quotes == {} and summary.brain_calls == 1
-    assert (turn().state, turn().error_code) == ("skipped", "check_failed")  # 예전처럼 그 금액은 막힌다
+    assert (turn().state, turn().error_code, turn().quote_lines) == ("skipped", "check_failed", None)  # 예전처럼 막힌다
 
 
 def test_switched_on_fills_calculator_lines_allows_their_amounts_and_notes_them(channel):
     switch()
+    confirm_prices()
     customer(channel, text=QUOTE_TEXT)
     quoter, brain_fn, poster = FakeQuoter(ask()), FakeBrain(result(draft=amount_draft())), FakePoster()
     summary = run(channel, "memo", brain_fn=brain_fn, poster=poster, pass_type=quoting(quoter))
     (request,) = brain_fn.requests
-    expected = evaluate(ask())
-    assert request.calculator_lines == expected.lines and quoter.calls[0].calculator_lines == ()
+    expected = evaluate(ask(), check=checked(0))  # 버튼을 바퀴와 같은 때 눌렀다
+    same_lines = request.calculator_lines == expected.lines  # 비교 결과만 단언한다(실패 글에 금액을 찍지 않게)
+    assert same_lines and quoter.calls[0].calculator_lines == ()
     assert (summary.brain_calls, summary.quotes, summary.posted) == (2, {"ok": 1}, 1)
     (call,) = poster.calls
     assert call.text.split(MEMO_NOTE_HEAD, 1)[1].strip().splitlines()[-1] == expected.note
     row = turn()
     assert (row.state, row.cost_usd, row.input_tokens) == ("posted", Decimal("0.012"), 1200)  # 뽑기 돈까지
+    assert row.quote_lines == qrec.record_value(qrec.STATUS_OK, lines=expected.lines, allowed=expected.allowed)
+    assert qrec.allowed_from(row.quote_lines) == expected.allowed
 
 
 def test_a_customer_budget_amount_is_still_blocked_when_switched_on(channel):
     switch()
+    confirm_prices()
     customer(channel, text=QUOTE_TEXT)
-    budget = f"고객님, 말씀하신 예산 {won(SLIDE['id'], 2400) + 10000:,}원에 맞춰 드릴게요."
+    budget = f"고객님, 말씀하신 예산 {won(MOLD['id'], 2400) + 10000:,}원에 맞춰 드릴게요."
     run(channel, brain_fn=FakeBrain(result(draft=budget)), pass_type=quoting(FakeQuoter(ask())))
     assert (turn().state, turn().error_code) == ("skipped", "check_failed")
 
@@ -320,7 +243,7 @@ def test_a_customer_budget_amount_is_still_blocked_when_switched_on(channel):
 def test_a_quote_that_cannot_be_calculated_goes_to_a_human_without_a_draft(channel):
     switch()
     customer(channel, text=QUOTE_TEXT)
-    zero = dict(SLIDE, id=990001, price_30cm=0, price_1cm=0)
+    zero = dict(MOLD, id=990001, price_30cm=0, price_1cm=0)
     poster = FakePoster()
     summary = run(channel, "memo", brain_fn=FakeBrain(max_calls=0), poster=poster,
                   pass_type=quoting(FakeQuoter(ask(space(zero["id"]))), catalog(extra=[zero])))
@@ -328,6 +251,7 @@ def test_a_quote_that_cannot_be_calculated_goes_to_a_human_without_a_draft(chann
     assert (row.state, row.error_code, row.handoff, row.handoff_reason, row.intent) == (
         "skipped", qc.HUMAN_ZERO, True, qc.HUMAN_ZERO, qb.QUOTE_INTENT)
     assert (row.cost_usd, poster.calls, summary.quotes, summary.brain_calls) == (Decimal("0.002"), [], {"human": 1}, 1)
+    assert row.quote_lines["status"] == qrec.STATUS_HUMAN and qrec.allowed_from(row.quote_lines) == ()
 
 
 def test_an_unknown_width_asks_one_thing_and_allows_no_amount(channel):
@@ -345,7 +269,7 @@ def test_no_quote_words_or_not_a_quote_keeps_the_old_path(channel):
     customer(channel)  # '선반 깊이 문의' — 견적 말이 없다
     quoter, brain_fn = FakeQuoter(ask()), FakeBrain()
     run(channel, brain_fn=brain_fn, pass_type=quoting(quoter))
-    assert quoter.calls == [] and brain_fn.requests[0].calculator_lines == ()
+    assert quoter.calls == [] and brain_fn.requests[0].calculator_lines == () and turn().quote_lines is None
     customer(channel, chat="uc-2", text=QUOTE_TEXT)
     other, brain_fn = FakeQuoter(dataclasses.replace(ask(), quote_request=False)), FakeBrain()
     summary = run(channel, brain_fn=brain_fn, pass_type=quoting(other))
@@ -375,3 +299,14 @@ def test_the_panel_switch_starts_off():
     field = st.FIELD_BY_NAME[qs.SETTING]
     assert (field.kind, field.default, field.locked) == (st.KIND_BOOL, False, False)
     assert qs.looks_like_quote(["가로 2.4m 얼마예요"]) and not qs.looks_like_quote(["내일 배송 언제 와요"])
+
+
+def test_the_turn_record_carries_no_customer_text_and_passes_the_mask_check():
+    from foms.services.cs_agent.masking import leak_counts
+
+    outcome = evaluate(ask(space(options=((OPTION, 2),), height_mm=2300, door="sliding"), space(OTHER["id"], 1800)))
+    record = qrec.record_value(outcome.status, lines=outcome.lines, allowed=outcome.allowed)
+    assert not any(leak_counts("\n".join([*record["lines"], *record["allowed"]])).values())
+    assert qrec.allowed_from({**record, "status": qrec.STATUS_CHECK}) == () and qrec.allowed_from(None) == ()
+    assert qrec.allowed_from({**record, "allowed": "한 글"}) == () and qrec.lines_from(record) == outcome.lines
+    assert datetime.timedelta(days=qk.FRESH_DAYS) == datetime.timedelta(days=14)

@@ -60,5 +60,22 @@
       </section>
     </div>
   </div>
+  {#- 계산기 값 확인(사장님 결정 D74) — 확인 날 = 계산기 제품 · 옵션 값이 바뀐 때와 이 버튼을 누른 때 가운데 늦은 것. -#}
+  {% set qc = state.quote_check %}
+  <section class="card mt-3 cs-agent-card {{ 'cs-agent-card--alert' if qc.needs_check }}" data-cs-calc-check-card>
+    <div class="card-body">
+      <h2 class="h6 mb-2">계산기 값 확인 — AI 견적 계산</h2>
+      <p class="mb-1">확인 날: <strong data-cs-calc-confirmed="{{ qc.confirmed or '' }}">{{ qc.confirmed or '없음' }}</strong>
+        {% if qc.needs_check %}<span class="badge bg-warning text-dark ms-1">확인 필요</span>{% endif %}</p>
+      <p class="text-muted small mb-2">값이 바뀐 때 {{ qc.changed or '-' }} · 확인한 때 {{ qc.checked or '-' }}
+        {%- if qc.checked_by %} · {{ qc.checked_by }}{% endif %}
+        {%- if qc.pending %} · 계산기 값이 바뀌었습니다(다음 견적 때 '바뀐 때'로 적힙니다){% endif %}
+        {%- if qc.seed %} · 계산기 제품 설정이 아직 저장된 적이 없습니다{% endif %}</p>
+      <p class="small mb-3">AI 상담 견적은 계산기 제품 · 옵션 값이 바뀐 때와 이 버튼을 누른 때 가운데 늦은 날부터
+        {{ qc.fresh_days }}일 동안만 손님 글에 금액을 씁니다. 그 뒤에는 금액을 직원 참고 칸에만 적습니다.
+        스토어 가격과 계산기 값이 같은지 확인한 뒤 눌러 주세요.</p>
+      <button type="button" class="btn btn-outline-primary" data-cs-calc-check>계산기 값 확인했어요</button>
+    </div>
+  </section>
   <p class="text-muted small mt-3 mb-0">브랜드 · 시간대 · 매체 · 직원 보내기 스위치와 초안 목록은 다음 단계에서 더합니다(설계서 16.6).</p>
 </div>

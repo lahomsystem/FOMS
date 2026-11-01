@@ -974,6 +974,10 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/drawing-receipt"
     },
+    "cs_agent_admin_api.cs_agent_calculator_check": {
+      "mode": "guard",
+      "rule": "/api/admin/cs-agent/calculator-check"
+    },
     "cs_agent_admin_api.cs_agent_save_settings": {
       "mode": "guard",
       "rule": "/api/admin/cs-agent/settings"

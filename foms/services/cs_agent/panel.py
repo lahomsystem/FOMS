@@ -27,6 +27,7 @@ from foms.services.cs_agent.brain_spend import kst_now, today_spend, worker_dail
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.loop import SWITCH_KEY, SWITCH_OFF, SWITCH_ON, read_switch, set_switch
 from foms.services.cs_agent.metrics import DEFINITIONS, metrics_view
+from foms.services.cs_agent.quote_check import view as quote_check_view
 from foms.services.cs_agent.report import BRAND_LABELS, NOTIFY_MORNING_REPORT, format_kst, read_last_success
 from foms.services.cs_agent.staff_alert import subscription_counts
 from foms.services.cs_agent.settings import (
@@ -283,6 +284,7 @@ def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dic
     cfg = read_settings(session, log=False)  # 틀린 칸은 화면이 보인다 — 경고 로그는 초안 바퀴가 바퀴마다 한 번
     return {"now": format_kst(now), "day": now.date().isoformat(), "switch": _switch_view(session),
             "settings": _settings_view(cfg), "caps": _caps(session, cfg),
+            "quote_check": quote_check_view(session, now=now),  # 계산기 값 확인 날(D74 — 읽기만)
             "records": {"spend": today_spend(session, now=now), "turns": _turn_counts(session, day_start),
                         "heartbeat": _heartbeat(session, now), "report": _last_report(session),
                         "metrics": _metrics(session, now),

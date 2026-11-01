@@ -44,6 +44,7 @@ from foms.services.cs_agent.drafting_read import freshness, memo_draft, memo_sni
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
+from foms.services.cs_agent.quote_record import allowed_from
 from foms.services.cs_agent.send import SEND_BRAND, send_reply
 from foms.services.cs_agent.send_auth import SendTokenError, check_send_token, confirm_matches, confirm_stamp
 from foms.services.cs_agent.send_record import (
@@ -290,9 +291,10 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     text = (request.text or "").strip() if edited else ai_draft
     edited = edited and text != (ai_draft or "").strip()
     knowledge = load_approved(session, row.brand)
+    quote_allowed = allowed_from(row.quote_lines)  # 그 차례 계산기 값 — '계산됨 · 확인됨'일 때만(C10-6 · R17-1)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
     args = {"brand": row.brand, "medium": medium, "private_snippets": memo_snippets(lines),
-            "allowed_numbers": tuple(i.text for i in knowledge.items if HUMAN_ONLY_MARK not in i.text)}
+            "allowed_numbers": (*(i.text for i in knowledge.items if HUMAN_ONLY_MARK not in i.text), *quote_allowed)}
     check = check_draft(text, **args)
     kept = set(check_draft(ai_draft, **args).codes) if edited and ai_draft else set()  # AI 초안의 문제는 고쳐도 막는다
     hard = [p for p in check.problems if not edited or p.code in HARD_CODES or p.code in kept]

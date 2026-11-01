@@ -51,8 +51,8 @@ __all__ = [
     "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
     "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims", "retry_due",
     "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
-    "read_switch", "record_brain_result", "record_handoff", "record_staff_reply", "release_turn", "set_draft_mode",
-    "stale_posting",
+    "read_switch", "record_brain_result", "record_handoff", "record_quote", "record_staff_reply", "release_turn",
+    "set_draft_mode", "stale_posting",
 ]
 
 STATE_CLAIMED, STATE_POSTING, STATE_POSTED = "claimed", "posting", "posted"
@@ -304,6 +304,21 @@ def record_brain_result(row: CsAgentTurn, result: Any) -> None:
         value = next((getattr(result, name) for name in names if getattr(result, name, None) is not None), None)
         values[column] = _count(value, column)
     values["cost_usd"] = _cost(getattr(result, "cost_usd", None))
+    _write(row, (STATE_CLAIMED,), values)
+
+
+def record_quote(row: CsAgentTurn, *, quote_lines: Optional[dict], usage: Any = None) -> None:
+    """견적 계산 기록(``quote_lines`` — :mod:`.quote_record`)과 뽑기 호출의 토큰 · 돈 · 시간을 선점한 줄에 적는다(C10-6 · R17-1 · R17-3).
+
+    초안 두뇌 **전에** 적어, 초안 두뇌가 실패 · 놓아주기로 끝나도 뽑기 쓰임이 남는다. 뒤의 :func:`record_brain_result` 는 두
+    호출을 더한 값으로 같은 칸을 덮어쓴다. ``quote_lines=None`` 이면 지난 시도의 기록을 지운다.
+    """
+    values: dict[str, Any] = {"quote_lines": quote_lines}
+    if usage is not None:
+        for column, names in _BRAIN_COUNTS:
+            value = next((getattr(usage, name) for name in names if getattr(usage, name, None) is not None), None)
+            values[column] = _count(value, column)
+        values["cost_usd"] = _cost(getattr(usage, "cost_usd", None))
     _write(row, (STATE_CLAIMED,), values)
 
 

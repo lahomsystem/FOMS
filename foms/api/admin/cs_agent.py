@@ -5,6 +5,8 @@
 - ``POST /api/admin/cs-agent/switch/draft`` ``{"mode": "off" | "store" | "memo"}`` — 초안 스위치.
 - ``POST /api/admin/cs-agent/settings`` ``{"values": {...}, "expected_version": int}`` — 두뇌 · 돈 설정(버전 대조 — 다른
   사람이 먼저 저장했으면 409). 다음 단계 칸(고르기 · 의도 고르기 · 실시간 길 — 잠김)을 바꾸는 저장은 400 이다.
+- ``POST /api/admin/cs-agent/calculator-check`` — [계산기 값 확인했어요](사장님 결정 D74): 지금 계산기 제품 · 옵션 값을
+  확인한 것으로 적는다(값 지문 · 확인한 때 · 사람 + 감사 원장 — :func:`.quote_check.confirm`).
 
 미인증 401 · ADMIN 아님 403(JSON — 리다이렉트 없음, ``/api/foms/ops/*`` 와 같은 규약). 쓰기 정책은 manifest 의
 ``ADMIN_OPS`` 이고 CSRF 는 ``enforce_csrf_origin`` 이 핸들러 전에 본다. 응답은 ``{"success", "data", "error"}`` 이고 오류 글은
@@ -21,11 +23,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.services.cs_agent.panel import change_draft_mode, change_loop, panel_state
+from foms.services.cs_agent.quote_check import CheckError, confirm
 from foms.services.cs_agent.settings import (
     SettingsConflictError, SettingsInvalidError, SettingsLockedError, SettingsNoChangeError, save_settings,
 )
 from foms.services.cs_agent.turns import DRAFT_MODES
 from foms.services.datetime_kst import now_kst
+from foms.services.wdcalculator.catalog import read_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -149,3 +153,28 @@ def cs_agent_save_settings() -> tuple[Any, int]:
         logger.warning("[CS 관리] 설정을 쓰지 못했다 user=%s expected_version=%s", actor_id, expected)
         return _fail(500, "저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.")
     return _ok({"version": result.version, "changed": list(result.changed), "state": _state(session)})
+
+
+@cs_agent_admin_api_bp.route(f"{_PREFIX}/calculator-check", methods=["POST"])
+def cs_agent_calculator_check() -> tuple[Any, int]:
+    """[계산기 값 확인했어요] — 지금 계산기 제품 · 옵션 값을 확인한 것으로 적는다(D74 — 확인 날 14일 규칙을 새로 센다)."""
+    actor_id, denied = _admin()
+    if denied:
+        return denied
+    try:
+        catalog = read_catalog()
+    except (SQLAlchemyError, OSError):
+        logger.warning("[CS 관리] 계산기 설정을 읽지 못해 확인을 적지 않았다 user=%s", actor_id)
+        return _fail(503, "계산기 설정을 읽지 못했습니다. 잠시 뒤 다시 눌러 주세요.")
+    session = get_db()
+    try:
+        confirm(session, catalog, actor_user_id=actor_id, now=now_kst())
+        session.commit()
+    except CheckError:
+        session.rollback()
+        return _fail(400, "계산기 제품 설정이 아직 저장된 적이 없습니다. 계산기 제품 설정에서 먼저 저장해 주세요.")
+    except SQLAlchemyError:
+        session.rollback()
+        logger.warning("[CS 관리] 계산기 값 확인을 쓰지 못했다 user=%s", actor_id)
+        return _fail(500, "저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.")
+    return _ok({"changed": True, "state": _state(session)})
