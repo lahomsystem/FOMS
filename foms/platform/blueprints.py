@@ -201,6 +201,10 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_api_bp)
     # 협력사 주문 화면 영발 · 발주 PUSH(2026-10-29) — /api/partner/orders/<id>/channel-push 하나뿐이라 겹치지 않는다.
     app.register_blueprint(partner_channel_push_bp)
+    # 협력사 공지 확인(2026-11-02) — /api/partner/notices/<id>/ack 하나뿐이라 겹치지 않는다.
+    from foms.api.partner.notices import partner_notice_bp
+
+    app.register_blueprint(partner_notice_bp)
     app.register_blueprint(partner_portal_bp)
 
     # --- Lane: AI 도면팀원 학습 요약(GET /api/drawing-agent/digest, 토큰 전용 · 읽기만). 경로가 고유해

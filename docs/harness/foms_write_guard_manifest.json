@@ -998,6 +998,10 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/request-drawing"
     },
+    "partner_notice.ack_notice": {
+      "mode": "guard",
+      "rule": "/api/partner/notices/<int:notice_id>/ack"
+    },
     "cs_agent_send_api.cs_agent_send": {
       "mode": "guard",
       "rule": "/api/cs-agent/turns/<int:turn_id>/send"

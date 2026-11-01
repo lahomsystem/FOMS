@@ -23,6 +23,7 @@ from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.channel_push import push_state
 from foms.services.partners.measure_ready import drawing_request_state
+from foms.services.partners.notices import pending_partner_notices
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
@@ -68,11 +69,13 @@ def _product_names() -> list[str]:
 
 @partner_portal_bp.context_processor
 def _partner_nav():
-    """머리 메뉴 "도면 확인 N"(협력사 차례 수). 협력사 화면을 그릴 때만 센다."""
+    """머리 메뉴 "도면 확인 N"(협력사 차례 수)와 확인 안 한 공지(창으로 띄운다). 협력사 화면을 그릴 때만 센다."""
     user = getattr(g, "current_user", None)
     if user is None or not getattr(user, "partner_org_id", None):
         return {}
-    return {"partner_turn_count": partner_turn_count(get_db(), user.partner_org_id)}
+    db = get_db()
+    return {"partner_turn_count": partner_turn_count(db, user.partner_org_id),
+            "partner_notices": pending_partner_notices(db, user)}
 
 
 @partner_portal_bp.route("")

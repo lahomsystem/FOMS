@@ -54,6 +54,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_channel_push.send_channel_push",
     # 실측 끝 · 도면 요청(2026-11-01): 실측 예정 → 도면 단계 + 영발 한 번 — 자기 회사 주문만, 조건은 서버가 본다.
     "partner_channel_push.request_drawing",
+    # 협력사 공지 확인(2026-11-02): 자기 공지만 — "확인"을 눌러야 창이 닫힌다.
+    "partner_notice.ack_notice",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
     "address.search",
     # PARTNER-FOMS 6: 협력사 직원 웹 푸시 "알림 받기". 넷 다 자기 것만 다룬다 — 공개 키(읽기),
