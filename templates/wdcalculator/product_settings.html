@@ -181,6 +181,19 @@
                             </div>
                         </div>
 
+                        <!-- 브랜드(AI 상담 견적이 라홈 제품만 쓴다 — 플랜 C10-6) -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="productBrand" class="form-label">브랜드</label>
+                                <select class="form-select" id="productBrand" name="brand" data-sheet>
+                                    <option value="">이름으로 자동 (하우드… = 하우드, 나머지 라홈)</option>
+                                    <option value="LAHOM">라홈</option>
+                                    <option value="HAUD">하우드</option>
+                                </select>
+                                <small class="form-text text-muted">AI 상담 견적 계산은 라홈 제품만 씁니다</small>
+                            </div>
+                        </div>
+
                         <!-- 1m 옵션 가격 입력 -->
                         <div class="row mb-3 price-input-group" id="price1mGroup">
                             <div class="col-md-6">
@@ -601,7 +614,7 @@
 {{ (spec_field_presets|default({}))|tojson }}
 </script>
 
-<script src="{{ url_for('static', filename='js/wdcalculator/product-settings.js') }}?v=20260716d" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/product-settings.js') }}?v=20261101a" defer></script>
 {% endblock %}
 
 {% block scripts %}

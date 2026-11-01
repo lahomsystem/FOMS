@@ -25,6 +25,7 @@ from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.knowledge import ApprovedKnowledge
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
+from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
     DRAFT_OFF, LEGACY_CLAIM_AFTER, claim_owner, draft_mode, mark_failed, mark_skipped, read_switch, record_handoff,
@@ -52,14 +53,34 @@ class DraftPass:
 
     def __init__(self, session: Any, *, reader: Any, now: datetime.datetime, stop: Any, mode: str,
                  brain: Callable[..., Any], poster: Callable[..., Any], knowledge: ApprovedKnowledge,
-                 daytime: bool, summary: DraftSummary, clock: Callable[[], float] = time.monotonic) -> None:
-        """재료를 담는다. 허용 목록은 승인 지식 글만 — [사람] 항목 글 · 손님 글 금액은 넣지 않는다(손님 예산에 맞춰 주게 된다)."""
+                 daytime: bool, summary: DraftSummary, clock: Callable[[], float] = time.monotonic,
+                 quoter: Optional[Callable[..., Any]] = None, catalog_reader: Optional[Callable[[], Any]] = None) -> None:
+        """재료를 담는다. 허용 목록은 승인 지식 글만 — [사람] 항목 글 · 손님 글 금액은 넣지 않는다(손님 예산에 맞춰 주게 된다).
+
+        견적 계산 넣기(C10-6)가 켜진 차례만 계산기 값 줄이 그 차례 허용 목록에 더해진다(:meth:`quote`). ``quoter`` ·
+        ``catalog_reader`` 는 뽑기 두뇌 · 계산기 설정 읽기(시험은 가짜 — 없으면 진짜).
+        """
         self.session, self.reader, self.now, self.stop, self.mode = session, reader, now, stop, mode
         self.brain, self.poster, self.knowledge, self.daytime, self.summary = brain, poster, knowledge, daytime, summary
         self.allowed = tuple(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text)
         self.human_only = frozenset(item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text)
         self.owner = claim_owner(self.owner_kind)
         self.clock = clock  # 빠른 길이 선점 시각을 잴 때 쓴다(15분 바퀴는 시간 상한 시계를 여기서 읽지 않는다)
+        self.quoter, self.catalog_reader = quoter, catalog_reader
+
+    def quote(self, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
+        """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다."""
+        texts = [line.text for line in pending_customer_lines(lines) if line.meta.is_customer_signal]
+        return prepare_quote(session=self.session, knowledge=self.knowledge, request=request, texts=texts,
+                             now=self.now, stop=self.stop, summary=self.summary, quoter=self.quoter,
+                             catalog_reader=self.catalog_reader)
+
+    def quote_to_human(self, row: CsAgentTurn, chat_id: str, code: str) -> Optional[str]:
+        """견적 계산이 안 돼 초안 없이 사람에게 — 넘김 까닭을 적고 건너뜀(메모 없음 — 두뇌 넘김과 같다)."""
+        self.stop.check()  # 쓰기 전
+        record_handoff(row, reason=code)
+        logger.info("[CS 초안] 견적 계산이 안 돼 사람에게 chat=%s code=%s", chat_id, code)
+        return self.skip(row, code)
 
     def claim_at(self) -> datetime.datetime:
         """선점 시각 — 15분 바퀴는 바퀴 시각 그대로(빠른 길은 실제 지금 시각으로 바꾼다)."""

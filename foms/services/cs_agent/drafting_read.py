@@ -36,7 +36,7 @@ from foms.services.cs_agent.read_budget import BUCKET_MESSAGE
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD",
+    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
     "freshness",
     "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
@@ -48,6 +48,8 @@ FILE_NOTE = "(사진 · 파일 첨부)"  # 모델은 첨부를 못 본다 — �
 MEMO_HEAD = "[AI 초안 · 손님에게 보내지 않음 · 직원이 고쳐서 보내 주세요]"
 MEMO_DRAFT_HEAD = "■ 손님께 보낼 답(초안)"
 MEMO_NOTE_HEAD = "■ 직원 참고(손님에게 보내지 마세요)"
+#: 직원 참고 칸에 코드가 붙이는 견적 계산 줄의 머리(C10-6) — 계산기 값 · 제품 이름이라 비공개 메모 섞임 재료에서 뺀다.
+MEMO_QUOTE_HEAD = "[견적 계산"
 MEDIUM_EMAIL = "email"
 #: 그대로 믿는 매체 이름(웹 · 이메일). ``app`` 은 카카오 · 톡톡 · 인스타가 mediumId 로만 갈려 모름으로 둔다.
 _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
@@ -182,7 +184,8 @@ def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
     """비공개 메모 글(직원 내부 메모 · 우리 AI 메모의 직원 참고 칸) — 초안에 섞이면 검사가 막는다(R1-12).
 
-    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게.
+    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 줄
+    (:data:`MEMO_QUOTE_HEAD` — 코드가 쓴 계산기 값)도 뺀다 — 다음 초안이 같은 제품 이름 · 값을 쓰는 것을 막지 않게.
     """
     out: list[str] = []
     for line in lines:
@@ -191,6 +194,7 @@ def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
         text = line.text
         if text.lstrip().startswith(MEMO_HEAD):
             text = text.split(MEMO_NOTE_HEAD, 1)[1] if MEMO_NOTE_HEAD in text else ""
+            text = "\n".join(part for part in text.split("\n") if not part.lstrip().startswith(MEMO_QUOTE_HEAD))
         out.append(text)
     return out
 

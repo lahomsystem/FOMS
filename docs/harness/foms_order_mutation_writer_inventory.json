@@ -85,7 +85,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1245,
+      "lineno": 1218,
       "kind": "flag_modified_structured_data",
       "owner": "WDC-LINK-01"
     },
@@ -515,7 +515,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1245,
+      "lineno": 1218,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "WDC-LINK-01"

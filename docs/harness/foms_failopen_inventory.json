@@ -56,7 +56,7 @@
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:319",
+    "foms/services/cs_agent/drafting.py:324",
     "foms/services/cs_agent/rewrite.py:113",
     "foms/services/cs_agent/send_flow.py:254",
     "foms/services/integrations/naver_commerce/client.py:1257",
@@ -2600,7 +2600,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 197,
+      "lineno": 200,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2609,7 +2609,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 311,
+      "lineno": 314,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2618,7 +2618,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 337,
+      "lineno": 340,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2627,7 +2627,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 351,
+      "lineno": 354,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2636,7 +2636,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 377,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2645,7 +2645,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 391,
+      "lineno": 394,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2654,7 +2654,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 417,
+      "lineno": 420,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2663,7 +2663,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 431,
+      "lineno": 434,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2672,7 +2672,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 457,
+      "lineno": 460,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2681,7 +2681,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 503,
+      "lineno": 476,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2690,7 +2690,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 508,
+      "lineno": 481,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2699,7 +2699,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 519,
+      "lineno": 492,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2708,7 +2708,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 529,
+      "lineno": 502,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2717,7 +2717,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 534,
+      "lineno": 507,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2726,7 +2726,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 538,
+      "lineno": 511,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2735,7 +2735,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 612,
+      "lineno": 585,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2744,7 +2744,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 626,
+      "lineno": 599,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2753,7 +2753,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 648,
+      "lineno": 621,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2762,7 +2762,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 726,
+      "lineno": 699,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2771,7 +2771,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 740,
+      "lineno": 713,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2780,7 +2780,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 779,
+      "lineno": 752,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2789,7 +2789,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 797,
+      "lineno": 770,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2798,7 +2798,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 840,
+      "lineno": 813,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2807,7 +2807,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 854,
+      "lineno": 827,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2816,7 +2816,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 887,
+      "lineno": 860,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2825,7 +2825,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 924,
+      "lineno": 897,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2834,7 +2834,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 984,
+      "lineno": 957,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2843,7 +2843,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1003,
+      "lineno": 976,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2852,7 +2852,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1039,
+      "lineno": 1012,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2861,7 +2861,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1064,
+      "lineno": 1037,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2870,7 +2870,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1149,
+      "lineno": 1122,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2879,7 +2879,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1173,
+      "lineno": 1146,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2888,7 +2888,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1213,
+      "lineno": 1186,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2897,7 +2897,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1281,
+      "lineno": 1254,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2906,7 +2906,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1293,
+      "lineno": 1266,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2915,7 +2915,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1307,
+      "lineno": 1280,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2924,7 +2924,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1351,
+      "lineno": 1324,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2933,7 +2933,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1368,
+      "lineno": 1341,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2942,7 +2942,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1401,
+      "lineno": 1374,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2951,7 +2951,7 @@
     },
     {
       "path": "foms/api/wdcalculator/blueprint.py",
-      "lineno": 1432,
+      "lineno": 1405,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3635,7 +3635,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 319,
+      "lineno": 324,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

@@ -24,7 +24,9 @@
 4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참) · 재료에 같은 브랜드
    비슷한 지난 사례(:func:`.case_material.similar_cases` — L0, 허용 목록에 넣지 않고 사례에만 있는 이름은 검사의 예시 낱말로).
    두뇌는 세션을 여러 번 커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만
-   세고(표시 없는 요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12).
+   세고(표시 없는 요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12). 관리 화면 '견적 계산 넣기'가 켜졌고
+   손님 글이 견적 문의로 보이면 두뇌 전에 견적 재료 뽑기 · 계산(:mod:`.quote_step` — C10-6): 계산기 값 줄을 재료 · 그 차례
+   허용 목록에 넣고, 계산이 안 되면(0원 · 가격 방식 · 제작 조건) 초안 없이 사람에게. 끄면 예전 그대로.
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
    항목 글도 넣지 않는다). 걸리면 코드만 남기고 올리지 않는다.
 6. **직전 다시 읽기** — 그사이 손님이 더 썼거나(``stale``) 공개 직원 글이 왔으면(``human_replied``) 올리지 않는다.
@@ -49,6 +51,7 @@ from __future__ import annotations
 import datetime
 import logging
 import time
+from types import SimpleNamespace
 from typing import Any, Callable, Optional, Sequence
 
 from sqlalchemy import select
@@ -74,6 +77,8 @@ from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
+from foms.services.cs_agent.quote_brain import QUOTE_INTENT
+from foms.services.cs_agent.quote_step import merge_usage
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.state import (
     BRAND_HOURS, KST, BusinessDayFn, ChatState, business_minutes_between, sort_by_priority,
@@ -377,9 +382,11 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     ctx.stop.check()  # 두뇌 전
     if ctx.switched_off():  # 바퀴 도중 꺼졌으면(다른 길로 바뀜 포함) 부르지 않는다 — 시도로 세지 않고 돌려놓는다
         return ctx.release(row, HALT_SWITCHED_OFF, halt=HALT_SWITCHED_OFF)
-    ctx.summary.brain_calls += 1
     try:
-        result = ctx.brain(request, session=ctx.session, now=ctx.now)
+        quote = ctx.quote(request, lines)  # 견적 계산 넣기(C10-6) — 끔 · 견적 말 없음이면 None(예전 그대로)
+        if quote is None or quote.human is None:
+            ctx.summary.brain_calls += 1
+            result = ctx.brain(quote.apply(request) if quote else request, session=ctx.session, now=ctx.now)
     except SpendCapReached as exc:
         return ctx.release(row, exc.code, halt=HALT_SPEND)
     except BrainNotReady as exc:
@@ -390,24 +397,42 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     except BrainUnavailable as exc:
         return ctx.fail(row, exc.code, halt=None if exc.code == BAD_RESPONSE else HALT_BRAIN)
     ctx.stop.check()  # TERM 이 두뇌를 부르는 동안 왔으면 답을 버린다(R4-4)
+    if quote is not None and quote.human is not None:  # 견적 계산이 안 됨(0원 · 가격 방식 · 제작 조건 …) — 사람에게
+        record_brain_result(row, _quote_only(quote))
+        return ctx.quote_to_human(row, chat_id, quote.human)
+    result = merge_usage(result, quote)  # 뽑기 호출의 토큰 · 돈 · 시간까지 차례 줄에
     ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
     if result.refused or result.handoff:
         return ctx.skip(row, SKIP_REFUSED if result.refused else SKIP_HANDOFF)
     names = case_only_names(cases, (*(line.text for line in lines), *(item.text for item in ctx.knowledge.items)))
     return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=result.draft,
-                            note=result.staff_note, evidence=result.evidence_ids, examples=names)
+                            note=result.staff_note, evidence=result.evidence_ids, examples=names,
+                            extra_allowed=quote.allowed if quote else (), quote_note=quote.note if quote else "")
+
+
+def _quote_only(quote: Any) -> Any:
+    """사람에게 넘긴 견적 차례의 기록 재료 — 뽑기 호출의 토큰 · 돈 · 시간만(초안 두뇌는 부르지 않았다)."""
+    usage = quote.usage
+    return SimpleNamespace(intent=QUOTE_INTENT, handoff=True, handoff_reason=quote.human, fallback_used=None,
+                           model=None, effort=None, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+                           cache_read_tokens=usage.cache_read_tokens, cache_write_tokens=usage.cache_write_tokens,
+                           cost_usd=usage.cost_usd, latency_ms=usage.latency_ms)
 
 
 def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, medium: Optional[str],
                      lines: Sequence[ChatLine], *, draft: str, note: str, evidence: Sequence[str] = (),
-                     examples: Sequence[str] = (), reread: bool = True) -> Optional[str]:
+                     examples: Sequence[str] = (), reread: bool = True,
+                     extra_allowed: Sequence[str] = (), quote_note: str = "") -> Optional[str]:
     """검사 → (직전 다시 읽기) → 놓기. 다시 올리기는 막 읽은 글로 보니 다시 읽지 않고, 직원 참고는 기록에 없어 정한 글을 쓴다.
 
     다시 올리기의 [사람] 금액 표시는 근거 id 가 기록에 없어 끄지만, 허용 목록에서 [사람] 항목 글이 빠져 있어 그 금액은 그대로
-    막힌다(같은 초안이 처음 올릴 때 이미 같은 검사를 통과했다).
+    막힌다(같은 초안이 처음 올릴 때 이미 같은 검사를 통과했다). ``extra_allowed`` · ``quote_note`` 는 이 차례 계산기 값 줄과
+    코드가 쓴 견적 계산 참고 줄(C10-6)뿐이다 — 손님 글 · 사례 금액은 넣지 않고, 참고 줄은 메모에만 붙인다(비공개 메모 섞임
+    재료가 아니다 — 계산기 값 · 제품 이름을 초안이 쓰는 것을 막지 않게).
     """
-    check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=ctx.allowed,
+    memo_note = "\n".join(part for part in (note, quote_note) if part)  # 견적 계산 줄이 없으면 예전 직원 참고 그대로
+    check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=(*ctx.allowed, *extra_allowed),
                         private_snippets=(*memo_snippets(lines), note), example_only_words=examples,
                         human_only_amounts=bool(ctx.human_only.intersection(evidence)))
     masked = mask(draft)
@@ -422,5 +447,5 @@ def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str
             return ctx.skip(row, stale, masked=masked)
     else:
         ctx.summary.reposted += 1
-    return place(ctx, row, chat_id, draft=draft, staff_note=note if reread else REPOST_NOTE, masked=masked,
+    return place(ctx, row, chat_id, draft=draft, staff_note=memo_note if reread else REPOST_NOTE, masked=masked,
                  warnings=[problem.code for problem in check.warnings])
