@@ -18,6 +18,7 @@ from wdcalculator_db import close_wdcalculator_db
 
 from .blueprints import register_blueprints
 from .client_ip_trust import log_proxy_trust_config, resolve_trusted_proxy_hops, wrap_proxy_fix
+from .db_leak_trace import install_db_leak_trace
 from .http import register_http_bootstrap
 from .logging_setup import configure_logging
 from .realtime import init_realtime_bootstrap
@@ -308,5 +309,9 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # SQL·새 DB 연결·CPU·전체 GC)을 잰다. 400ms 넘는 요청의 req_duration 로그와 HTML 응답
     # 헤더에 실린다(진단 전용). 2026-09-09 부터 HTML 에만 생긴 꼬리를 가르기 위한 것이다.
     install_request_phase_profile(app, engine=main_db_engine)
+
+    # DB-LEAK-01: 돌려놓지 않아 GC 가 치운 연결의 꺼낸 자리를 남긴다(기록 전용).
+    # 2026-10-06 부터 운영 web 의 `QueuePool Exception during reset` 하루 1건꼴의 범인 찾기.
+    install_db_leak_trace(main_db_engine)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)
