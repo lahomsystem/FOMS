@@ -1,0 +1,14 @@
+{# 협력사 공지 창(사용자 2026-11-02) — "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘). 확인 안 한 공지를 오래된 것부터
+   한 건씩 보인다. 공지는 서버가 그린다(partner_notices), 확인은 POST /api/partner/notices/<id>/ack. 동작: partner-notice.js #}
+{% if partner_notices %}
+<div class="pp-notice" data-pp-notice data-pp-notice-url="{{ url_for('partner_notice.ack_notice', notice_id=0) }}" role="dialog" aria-modal="true" aria-labelledby="ppNoticeTitle">
+    <div class="pp-notice__backdrop"></div>
+    <div class="pp-notice__panel">
+        <p class="pp-notice__kicker"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항</p>
+        <h2 class="pp-notice__title" id="ppNoticeTitle" data-pp-notice-title>{{ partner_notices[0].title }}</h2>
+        <div class="pp-notice__body" data-pp-notice-body>{{ partner_notices[0].message }}</div>
+        <p class="pp-status mb-2" data-pp-notice-status role="status" aria-live="polite"></p>
+        <button type="button" class="btn btn-primary w-100" data-pp-notice-ok data-pp-notice-id="{{ partner_notices[0].id }}">확인</button>
+    </div>
+</div>
+{% endif %}

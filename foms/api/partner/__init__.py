@@ -20,6 +20,7 @@ from foms.api.files.order_routes import ATTACHMENT_ADDED, ATTACHMENT_META_UPDATE
 from foms.services.audit_writer import normalize_security_detail
 from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
 from foms.api.partner.channel_push import auto_drawing_push, partner_channel_push_bp  # noqa: F401 — 등록은 blueprints.py
+from foms.api.partner.notices import partner_notice_bp  # noqa: F401 — 등록은 blueprints.py
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
