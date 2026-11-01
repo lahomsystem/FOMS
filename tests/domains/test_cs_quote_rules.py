@@ -49,7 +49,7 @@ def test_rule_of_reads_the_field_then_the_name():
 
 
 @pytest.mark.parametrize(("product", "widths"), [
-    (HINGE, {1: 1500, 1499: 1500, 1500: 1500, 1501: 1510, 2399: 2400, 3005: 3010}),  # 1500 미만 = 1500 값(11-01)
+    (HINGE, {1: 1500, 1199: 1500, 1500: 1500, 1501: 1510, 2399: 2400, 3005: 3010}),  # 1200 미만 = 1500 값(11-01)
     (SLIDING, {10: 2400, 1800: 2400, 2399: 2400, 2400: 2400, 2401: 2410, 4795: 4800}),
     (MOLD, {2400: 2400, 2401: 2410, 3605: 3610}),
     (NONE, {5: 10, 1005: 1010, 2400: 2400}),
@@ -163,3 +163,32 @@ def test_extracted_widths_at_or_below_zero_or_too_large_are_unknown(width):
     (only,) = asked.spaces
     assert (only.width_mm, only.width_max_mm, only.height_mm) == (0, 0, 0)
     assert evaluate(asked).code == "width"  # 모르는 가로 → 한 가지만 묻기
+
+
+#: 처음 채우기 파일 옵션 목록에는 이미 '반통' 옵션이 하나 있다(운영 계산기도 같다 — '통 추가 > 반통').
+NO_HALF = [c for c in CATEGORIES if not any(qr.HALF_FEE_MARK in str(o.get("name")) for o in c.get("options") or [])]
+
+
+@pytest.mark.parametrize("width", [1200, 1350, 1499])
+def test_hinge_from_1200_to_1500_adds_the_half_unit_fee_option(width):
+    """여닫이 1200~1500mm 미만 = 1.5통 비규격 — 1500mm 값 + 반통 옵션(사장님 지시 11-01). 1200 미만 1통은 1500mm 값만."""
+    row = qr.half_fee_row(CATEGORIES)
+    cases = [{"kind": "estimate", "products": PRODUCTS, "options": [row],
+              "components": [{"mode": "select", "productId": HINGE["id"], "widthMm": 1500}]}]
+    expected = _node(cases)[0]["won_total"]
+    got = qr.price(HINGE, width, [], PRODUCTS, categories=CATEGORIES)
+    assert (got.amount, got.width_used) == (expected, 1500) and "1.5통" in got.note
+    assert got.amount > qr.price(HINGE, 1199, [], PRODUCTS, categories=CATEGORIES).amount  # 1통은 반통 없음
+
+
+def test_the_half_unit_fee_needs_exactly_one_priced_option():
+    twice = {"id": 990901, "name": "합성", "options": [{"id": 1, "name": "반통(합성)", "price": 7}]}
+    free = {"id": 990902, "name": "합성", "options": [{"id": 1, "name": "반통", "price": 0}]}
+    for cats in (NO_HALF, [*CATEGORIES, twice], [*NO_HALF, free]):
+        assert qr.half_fee_row(cats) is None
+        with pytest.raises(qr.NeedsHuman) as caught:
+            qr.price(HINGE, 1300, [], PRODUCTS, categories=cats)
+        assert caught.value.args == (qr.HUMAN_HALF_FEE,)
+    assert qr.price(HINGE, 1199, [], PRODUCTS, categories=NO_HALF).width_used == 1500  # 1통은 옵션 없이도 낸다
+    outcome = evaluate(ask(space(HINGE["id"], 1300)), catalog(extra=[HINGE]))
+    assert outcome.status == qc.STATUS_OK and any("반통 추가" in line for line in outcome.allowed)
