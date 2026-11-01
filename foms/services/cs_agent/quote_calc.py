@@ -198,7 +198,7 @@ def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list
         if product.get("pricing_type") not in PRICING_TYPES:
             raise KeyError("pricing_type")
         for width in [w for w in (space.width_mm, space.width_max_mm) if w]:
-            priced = rule_price(product, width, rows, lahom)
+            priced = rule_price(product, width, rows, lahom, categories=catalog.option_categories)
             name = " ".join(str(product.get("name") or "").split())
             used = [f"계산 가로 {priced.width_used:,}mm — {priced.note}"] if priced.note else []
             lines.append(" · ".join([label, name, f"가로 {width:,}mm", *used, *extra]) + f" = {priced.amount:,}원")
