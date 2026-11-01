@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -24,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from foms.services.cs_agent.channel_read import channel_for_brand, naive_utc
+from foms.services.cs_agent.metrics import metrics_lines
 from foms.services.cs_agent.state import (
     KST,
     PRIORITY_BROKEN_PROMISE,
@@ -39,6 +41,8 @@ from foms.services.cs_agent.state import (
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.sidefx_worker import WORKER_KIND_CS_LOOP
 from models import ChannelWebhookJob, Notification, SideEffectWorkerHeartbeat, SystemSetting
+
+logger = logging.getLogger(__name__)
 
 #: 알림 유형(``notifications.notification_type``). 아침 보고와 경보 셋을 가른다.
 NOTIFY_MORNING_REPORT = "CS_MORNING_REPORT"
@@ -111,6 +115,7 @@ class ReportFacts:
     missing_inbound_24h: Optional[int]
     checks: Mapping[str, str]  # 브랜드 → 채널톡 보정 상태
     last_success_at: Optional[datetime.datetime]  # 시간대 있는 값
+    metrics_lines: Sequence[str] = ()  # 시간 지표 한 줄 묶음(C10-5 — :func:`.metrics.metrics_lines`, 숫자만)
 
 
 # ── 글 만들기(순수) ──────────────────────────────────────────────────────
@@ -187,6 +192,7 @@ def morning_report(facts: ReportFacts) -> tuple[str, str]:
         f"{brand_label(b)} {_CHECK_LABELS.get(facts.checks.get(b, ''), '건너뜀')}" for b in brands))
     last = format_kst(facts.last_success_at) if facts.last_success_at else "없음(이번이 첫 바퀴)"
     lines.append(f"[마지막 정상 바퀴] {last}")
+    lines.extend(facts.metrics_lines)
     return title, "\n".join(lines)
 
 
@@ -413,7 +419,7 @@ def publish(session: Any, *, states: Sequence[ChatState], missing: Sequence[Miss
     check_stop()  # 알림 쓰기 전(줄 잠금을 기다리는 사이 TERM 이 왔을 수 있다)
     nxt = _next_state(state, plan, candidates, now)
     published = _send(session, plan, nxt, states=states, candidates=candidates, checks=checks,
-                      watch_missing_inbound=watch_missing_inbound, now=now)
+                      watch_missing_inbound=watch_missing_inbound, now=now, cal=is_business_day)
     row = session.get(SystemSetting, STATE_KEY)
     row.setting_value = nxt
     row.version = int(row.version or 1) + 1
@@ -421,9 +427,19 @@ def publish(session: Any, *, states: Sequence[ChatState], missing: Sequence[Miss
     return published
 
 
+def _metric_lines(session: Any, now: datetime.datetime, cal: Optional[BusinessDayFn]) -> list[str]:
+    """아침 보고의 시간 지표 줄 — 세이브포인트 안에서 센다. 세다 실패해도 보고 · 경보는 지표 없이 나간다(검수 R16-9)."""
+    try:
+        with session.begin_nested():
+            return metrics_lines(session, now=now, labels=BRAND_LABELS, is_business_day=cal)
+    except Exception as exc:  # 지표는 덤이다 — 어떤 실패도 그 바퀴 보고 · 경보를 잃게 하지 않는다(기록은 남긴다)
+        logger.warning("[CS 보고] 시간 지표를 못 셌다 — 아침 보고는 지표 없이 낸다 err=%s", type(exc).__name__)
+        return []
+
+
 def _send(session: Any, plan: _Plan, nxt: dict, *, states: Sequence[ChatState],
           candidates: Mapping[str, Mapping[str, Any]], checks: Mapping[str, str], watch_missing_inbound: bool,
-          now: datetime.datetime) -> Published:
+          now: datetime.datetime, cal: Optional[BusinessDayFn] = None) -> Published:
     """새 경보(종류마다 한 건)와 아침 보고를 알림으로 만든다(커밋은 부르는 쪽 — 기록과 한 트랜잭션)."""
     stamp, published = naive_utc(now), Published()
     for kind in ALERT_KINDS:
@@ -437,7 +453,8 @@ def _send(session: Any, plan: _Plan, nxt: dict, *, states: Sequence[ChatState],
         day=plan.report_day, states=states, pending_webhooks=len(candidates[ALERT_WEBHOOK]),
         missing_inbound_24h=(_recent(nxt, ALERT_INBOUND, now, datetime.timedelta(hours=24))
                              if watch_missing_inbound else None),
-        checks=checks, last_success_at=read_last_success(session))
+        checks=checks, last_success_at=read_last_success(session),
+        metrics_lines=_metric_lines(session, now, cal))
     title, message = morning_report(facts)
     post_admin_notification(session, kind=NOTIFY_MORNING_REPORT, title=title, message=message, now=stamp)
     published.report_sent = True

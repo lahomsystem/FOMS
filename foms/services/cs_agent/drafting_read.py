@@ -36,9 +36,10 @@ from foms.services.cs_agent.read_budget import BUCKET_MESSAGE
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD",
-    "SKIP_HUMAN_REPLIED", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation", "freshness",
-    "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
+    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
+    "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
+    "freshness",
+    "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
 ]
 
 CONVERSATION_LIMIT = 30  # 두뇌에 넣는 최근 공개 글 수(설계서 5절 '최근 30개 안팎')
@@ -47,21 +48,33 @@ FILE_NOTE = "(사진 · 파일 첨부)"  # 모델은 첨부를 못 본다 — �
 MEMO_HEAD = "[AI 초안 · 손님에게 보내지 않음 · 직원이 고쳐서 보내 주세요]"
 MEMO_DRAFT_HEAD = "■ 손님께 보낼 답(초안)"
 MEMO_NOTE_HEAD = "■ 직원 참고(손님에게 보내지 마세요)"
+#: 직원 참고 칸에 코드가 붙이는 견적 계산 줄의 머리(C10-6) — 계산기 값 · 제품 이름이라 비공개 메모 섞임 재료에서 뺀다.
+MEMO_QUOTE_HEAD = "[견적 계산"
 MEDIUM_EMAIL = "email"
 #: 그대로 믿는 매체 이름(웹 · 이메일). ``app`` 은 카카오 · 톡톡 · 인스타가 mediumId 로만 갈려 모름으로 둔다.
 _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
 _MEDIUM = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+#: 상담원 id 꼴 — 빈칸 없는 ASCII 64자까지(꼴이 아니면 두지 않는다).
+_PERSON_ID = re.compile(r"[\x21-\x7e]{1,64}")
 #: 건너뜀 코드 — 그사이 손님이 더 씀(선점한 글이 마지막이 아님) · 공개 직원 글이 옴 · 손님 글에 글자 없음(사진만 · 빈 글).
 SKIP_STALE, SKIP_HUMAN_REPLIED = "stale", "human_replied"
+#: 선점한 손님 글이 Open API 읽기에 아직 안 보임(수신 기록이 먼저 옴) — 지난 초안이 아니라 다시 집을 실패다(검수 R13-6).
+SKIP_NOT_VISIBLE = "not_visible"
 SKIP_PHOTO_ONLY, SKIP_NO_TEXT = "photo_only", "no_text"
 
 
 @dataclass(frozen=True)
 class ChatLine:
-    """상담 글 하나 — 파생 칸(:class:`.channel_read.DerivedMessage`) + 원문. 원문은 이 바퀴 메모리에만 있다(repr 에도 없다)."""
+    """상담 글 하나 — 파생 칸(:class:`.channel_read.DerivedMessage`) + 원문. 원문은 이 바퀴 메모리에만 있다(repr 에도 없다).
+
+    ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
+    ``request_id`` 는 글을 쓴 쪽이 붙인 채널톡 ``requestId``(꼴이 맞을 때만) — [보내기] 결과를 모를 때 맞추는 표지다(C10-3).
+    """
 
     meta: DerivedMessage
     text: str = field(repr=False)
+    person_id: Optional[str] = field(default=None, repr=False)
+    request_id: Optional[str] = field(default=None, repr=False)
 
     @property
     def key(self) -> tuple[datetime.datetime, str]:
@@ -95,8 +108,11 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
         meta, _reason = derive_message({"chatType": "userChat", "chatId": chat_id, "channelId": channel, **item},
                                        expected_brand=brand)
         if meta is not None and meta.chat_id == chat_id:
-            text = item.get("plainText")
-            lines.append(ChatLine(meta, text if isinstance(text, str) else ""))
+            text, person, request = item.get("plainText"), item.get("personId"), item.get("requestId")
+            person_id = str(person).strip() if meta.is_answer and person is not None else ""
+            lines.append(ChatLine(meta, text if isinstance(text, str) else "",
+                                  person_id if _PERSON_ID.fullmatch(person_id) else None,
+                                  request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None))
     return sorted(lines, key=lambda line: line.key)
 
 
@@ -129,9 +145,15 @@ def read_medium(reader: Any, brand: str, chat_id: str) -> Optional[str]:
 
 
 def freshness(lines: Sequence[ChatLine], claimed_id: str) -> Optional[str]:
-    """선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없으면 ``None``, 아니면 건너뜀 코드."""
+    """선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없으면 ``None``, 아니면 건너뜀 코드.
+
+    선점한 글이 읽은 글에 아직 없으면 :data:`SKIP_NOT_VISIBLE`(채널톡 읽기가 늦음 — 다시 집는다), 그 글 뒤에 더 새 손님 글이
+    보일 때만 :data:`SKIP_STALE` 이다.
+    """
     customers = [line for line in lines if line.meta.is_customer_signal]
-    if not customers or customers[-1].meta.message_id != claimed_id:
+    if claimed_id not in {line.meta.message_id for line in customers}:
+        return SKIP_NOT_VISIBLE
+    if customers[-1].meta.message_id != claimed_id:
         return SKIP_STALE
     last = customers[-1].key
     return SKIP_HUMAN_REPLIED if any(line.meta.is_answer and line.key > last for line in lines) else None
@@ -162,7 +184,8 @@ def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
     """비공개 메모 글(직원 내부 메모 · 우리 AI 메모의 직원 참고 칸) — 초안에 섞이면 검사가 막는다(R1-12).
 
-    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게.
+    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 줄
+    (:data:`MEMO_QUOTE_HEAD` — 코드가 쓴 계산기 값)도 뺀다 — 다음 초안이 같은 제품 이름 · 값을 쓰는 것을 막지 않게.
     """
     out: list[str] = []
     for line in lines:
@@ -171,6 +194,7 @@ def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
         text = line.text
         if text.lstrip().startswith(MEMO_HEAD):
             text = text.split(MEMO_NOTE_HEAD, 1)[1] if MEMO_NOTE_HEAD in text else ""
+            text = "\n".join(part for part in text.split("\n") if not part.lstrip().startswith(MEMO_QUOTE_HEAD))
         out.append(text)
     return out
 
@@ -182,3 +206,20 @@ def memo_text(draft: str, staff_note: str) -> str:
     """
     note = mask(staff_note).strip() if staff_note.strip() else ""
     return "\n".join((MEMO_HEAD, MEMO_DRAFT_HEAD, draft.strip(), MEMO_NOTE_HEAD, note or "없음"))
+
+
+def memo_draft(text: str) -> Optional[str]:
+    """우리 AI 메모(:func:`memo_text` 꼴)의 '손님께 보낼 답' 칸 — [보내기]가 보낼 글의 정본이다(DB 에는 가린 사본만 있다).
+
+    첫 줄 표지 · 답 머리 · 직원 참고 머리가 모두 있어야 한다(초안에는 '직원 참고' 낱말이 검사로 막혀 끝이 헷갈리지 않는다).
+    꼴이 아니거나 답이 비었으면 ``None``.
+    """
+    body = (text or "").replace("\r\n", "\n")
+    if not body.lstrip().startswith(MEMO_HEAD):
+        return None
+    head = f"\n{MEMO_DRAFT_HEAD}\n"
+    start = body.find(head)
+    end = body.find(f"\n{MEMO_NOTE_HEAD}", start + len(head)) if start >= 0 else -1
+    if end < 0:
+        return None
+    return body[start + len(head):end].strip() or None

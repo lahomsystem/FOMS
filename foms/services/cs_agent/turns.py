@@ -7,7 +7,11 @@ R1-20 · R1-22. 표는 ``models.CsAgentTurn``(마이그레이션 ``csagent_01``)
   — SQLite · PostgreSQL 같은 문장)로 만든다. 이미 있으면 ``None`` — 손님 글 하나에 메모는 하나다. 실패로 끝난 줄만
   :data:`MAX_ATTEMPTS` 전까지 같은 줄을 다시 집는다(조건부 UPDATE 한 문장 — 둘이 겹쳐도 하나만 집는다).
 - **상태**: ``claimed`` → ``posting`` → ``posted``, 또는 ``claimed`` → ``stored`` · ``skipped``, ``claimed`` · ``posting`` →
-  ``failed``. '올리는 중'은 채널톡을 부르기 **전에** 커밋한다(R1-3) — 재시작 때 남은 줄은 :func:`stale_posting` 으로 찾아
+  ``failed``. 빠른 길(C10-1)이 둘을 더한다 — ``claimed`` · ``posted`` · ``stored`` → ``superseded``(손님이 더 써서 갈아 끼움 —
+  '지난 초안', :func:`mark_superseded`), ``claimed`` · ``failed`` → ``staff_replied``(직원이 먼저 공개 답 — :func:`mark_staff_replied`).
+- **주인 · 만료(원장 R10-2)**: 선점할 때 주인(:func:`claim_owner`)과 만료(지금 + ``ttl``)를 적는다. 만료가 지난 ``claimed`` 줄
+  (:func:`expired_claims`)은 죽은 차례다 — 정리하는 쪽이 ``failed`` 로 바꾸면 시도 상한 안에서 다시 집힌다. 살아 있던 주인이
+  나중에 쓰려 해도 조건부 쓰기가 0 줄이라 올리지 않는다. '올리는 중'은 채널톡을 부르기 **전에** 커밋한다(R1-3) — 재시작 때 남은 줄은 :func:`stale_posting` 으로 찾아
   채널톡의 우리 봇 메모와 맞춘다. 올라갔는지 모르는 실패는 ``failed`` 로 바꾸지 않는다(다시 집으면 메모가 둘이 된다).
   설정 문제 · 401 · 403 · 돈 상한은 :func:`release_turn` — 시도를 세지 않고 ``failed`` 로 돌려놓는다(원장 R7-4).
 - **조건부 쓰기(원장 R7-8)**: 줄을 쓰는 함수는 모두 한 문장 ``UPDATE … WHERE id AND state = 지금 상태 AND attempts =
@@ -23,35 +27,47 @@ R1-20 · R1-22. 표는 ``models.CsAgentTurn``(마이그레이션 ``csagent_01``)
 from __future__ import annotations
 
 import datetime
-import enum
 import logging
+import os
 import re
-from decimal import Decimal, InvalidOperation
+import socket
 from typing import Any, Callable, Iterable, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.orm import object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from foms.persistence.main.models import CsAgentTurn, SystemSetting
 from foms.services.cs_agent.channel_read import CHANNEL_BRANDS, naive_utc
-from foms.services.cs_agent.masking import mask, require_masked
+from foms.services.cs_agent.turns_fields import (  # 칸 꼴 검사(500줄 상한으로 나눔)
+    ID_PATTERN as _ID, check_codes as _check_codes, checked_id as _checked_id, code as _code, cost as _cost,
+    count as _count, masked_or_none as _masked_or_none, reason as _reason,
+)
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
-    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_turn", "draft_mode", "mark_failed", "mark_posted",
-    "mark_posting", "mark_skipped", "mark_stored", "read_switch", "record_brain_result", "record_staff_reply",
-    "release_turn", "set_draft_mode", "stale_posting",
+    "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims", "retry_due",
+    "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
+    "read_switch", "record_brain_result", "record_handoff", "record_quote", "record_staff_reply", "release_turn",
+    "set_draft_mode", "stale_posting",
 ]
 
 STATE_CLAIMED, STATE_POSTING, STATE_POSTED = "claimed", "posting", "posted"
 STATE_STORED, STATE_SKIPPED, STATE_FAILED = "stored", "skipped", "failed"
-STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_POSTING, STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_FAILED)
+STATE_SUPERSEDED, STATE_STAFF_REPLIED = "superseded", "staff_replied"  # 빠른 길 — '지난 초안' · '직원 답함'
+STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_POSTING, STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_FAILED,
+                           STATE_SUPERSEDED, STATE_STAFF_REPLIED)
 #: 손님 글 하나에 차례를 여는 상한(두뇌 호출 상한 — 원장 R1-3). 실패로 끝난 줄은 이 수까지만 다시 집는다.
 MAX_ATTEMPTS = 3
+#: 만료를 적지 않은 옛 선점 줄(csagent_02 전)은 이만큼 손대지 않았으면 죽은 차례로 본다(예전 15분 바퀴 정리 기준).
+LEGACY_CLAIM_AFTER = datetime.timedelta(minutes=20)
+#: 실패 줄 다시 집기 간격 — 시도 수마다 이만큼 더 기다린다(짧은 장애에 시도 셋을 몇 초 만에 다 쓰지 않게, 검수 R13-3).
+RETRY_STEP = datetime.timedelta(seconds=30)
+#: 만료로 정리한 실패는 이미 만료(시간 상한 + 여유)만큼 기다렸다 — 다시 집기 간격을 더하지 않는다.
+CLAIM_EXPIRED = "claim_expired"
 
 #: 바로 끄기 줄 — ``loop.SWITCH_KEY`` 와 같은 줄이다(loop 가 이 모듈을 부를 쪽이라 거꾸로 import 하지 않는다 · 시험이 맞춘다).
 SWITCH_KEY = "cs_agent_switch"
@@ -65,12 +81,6 @@ _TURNS = CsAgentTurn.__table__
 _INSERT_BUILDERS: dict[str, Callable[[Any], Any]] = {"postgresql": postgresql.insert, "sqlite": sqlite.insert}
 #: 선점한 세션이 줄에 붙여 두는 '선점 때 시도 수'(파이썬 값 — 표 칸이 아니라 커밋 · 다시 읽기에도 그대로 남는다).
 _CLAIM_ATTR = "_cs_claimed_attempts"
-#: 채널톡 id 꼴 — 빈칸 없는 ASCII 64자까지(손님 글이 자리를 바꿔 들어오면 여기서 걸린다).
-_ID = re.compile(r"[\x21-\x7e]{1,64}")
-#: 코드 칸 꼴 — 빈칸 · 줄바꿈 없는 짧은 이름(한글 이름도 된다). 글처럼 생긴 값은 칸에 넣지 않는다.
-_CODE = re.compile(r"[\w.:/\-]+")
-_CHECK_CODE = re.compile(r"[a-z][a-z0-9_]{0,47}")
-_REASON_MAX = 48
 #: 두뇌 결과의 코드 칸과 길이 상한(표 칸 길이).
 _BRAIN_CODES: tuple[tuple[str, int], ...] = (("intent", 32), ("handoff_reason", 64), ("model", 64), ("effort", 16))
 #: 두뇌 결과의 숫자 칸 → 읽을 속성 이름(앞에서부터 — 뒤 이름은 Anthropic usage 칸 이름).
@@ -81,10 +91,6 @@ _BRAIN_COUNTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("cache_write_tokens", ("cache_write_tokens", "cache_creation_input_tokens")),
     ("latency_ms", ("latency_ms",)),
 )
-_INT_MAX = 2**31 - 1
-#: 비용 칸 ``Numeric(12, 6)`` — 소수 여섯째 자리, 정수 여섯 자리까지.
-_COST_SCALE = Decimal(10) ** -6
-_COST_MAX = Decimal(10) ** 6 - _COST_SCALE
 
 
 class TurnStateError(RuntimeError):
@@ -96,8 +102,15 @@ class TurnConflict(TurnStateError):
 
 
 # ── 선점 ─────────────────────────────────────────────────────────────────
+def claim_owner(kind: str) -> str:
+    """선점 주인 이름 — ``<길>:<호스트>:<pid>``(빈칸 없는 ASCII 64자까지). 로그 · 기록의 '누가 집었나' 표지다."""
+    raw = f"{kind}:{socket.gethostname()}:{os.getpid()}"
+    return re.sub(r"[^\x21-\x7e]", "-", raw)[:64]
+
+
 def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str, *,
-               now: datetime.datetime) -> Optional[CsAgentTurn]:
+               now: datetime.datetime, owner: Optional[str] = None,
+               ttl: Optional[datetime.timedelta] = None) -> Optional[CsAgentTurn]:
     """(상담, 마지막 손님 글 id) 차례를 선점한다 — 새 줄(또는 다시 집은 실패 줄)이면 그 줄, 이미 있으면 ``None``.
 
     부르는 쪽은 받은 줄을 **바로 커밋**한다. PostgreSQL 에서 두 바퀴가 겹치면 뒤 바퀴의 넣기는 앞 바퀴가 커밋 · 되돌리기를
@@ -109,6 +122,8 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         chat_id: 채널톡 상담 id.
         last_user_message_id: 이 차례를 연 손님 글의 채널톡 메시지 id.
         now: 지금(시간대 있는 값 — 표에는 UTC naive).
+        owner: 선점 주인(:func:`claim_owner` — 없으면 비움).
+        ttl: 선점 만료까지(없으면 비움 — 정리는 ``updated_at`` 로 본다).
 
     Returns:
         선점한 :class:`CsAgentTurn`(``state='claimed'``) 또는 ``None``.
@@ -121,13 +136,16 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         raise ValueError("모르는 브랜드")
     if not all(isinstance(value, str) and _ID.fullmatch(value) for value in (chat_id, last_user_message_id)):
         raise ValueError("상담 · 글 id 꼴이 아니다")
+    if owner is not None and not _ID.fullmatch(owner):
+        raise ValueError("선점 주인 꼴이 아니다")
     at = naive_utc(now)
+    claim = {"claim_owner": owner, "claim_expires_at": None if ttl is None else at + ttl}
     builder = _INSERT_BUILDERS.get(session.get_bind().dialect.name)
     if builder is None:
         raise RuntimeError("있으면 무시하고 넣기를 모르는 DB")
     inserted = (builder(_TURNS)
                 .values(brand=brand, chat_id=chat_id, last_user_message_id=last_user_message_id,
-                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at)
+                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at, **claim)
                 .on_conflict_do_nothing(index_elements=["chat_id", "last_user_message_id"])
                 .returning(_TURNS.c.id))
     turn_id = session.execute(inserted).scalar()
@@ -135,7 +153,7 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         retry = (update(_TURNS)
                  .where(_TURNS.c.chat_id == chat_id, _TURNS.c.last_user_message_id == last_user_message_id,
                         _TURNS.c.state == STATE_FAILED, _TURNS.c.attempts < MAX_ATTEMPTS)
-                 .values(state=STATE_CLAIMED, attempts=_TURNS.c.attempts + 1, error_code=None, updated_at=at)
+                 .values(state=STATE_CLAIMED, attempts=_TURNS.c.attempts + 1, error_code=None, updated_at=at, **claim)
                  .returning(_TURNS.c.id))
         turn_id = session.execute(retry).scalar()
     if turn_id is None:
@@ -159,7 +177,7 @@ def mark_posting(row: CsAgentTurn, *, masked_draft: Optional[str], check_codes: 
 
 def mark_posted(row: CsAgentTurn, *, memo_message_id: Optional[str], error_code: Optional[str] = None,
                 now: datetime.datetime) -> None:
-    """올림 — 채널톡이 메모를 받았다(복구 단계가 우리 봇 메모를 찾았을 때도).
+    """올림 — 채널톡이 메모를 받았다(복구 단계가 우리 봇 메모를 찾았을 때도). 놓은 때(``placed_at`` — '초안 뜸' 지표)를 적는다.
 
     Args:
         row: '올리는 중' 줄.
@@ -169,14 +187,16 @@ def mark_posted(row: CsAgentTurn, *, memo_message_id: Optional[str], error_code:
     """
     message_id = None if memo_message_id is None else _checked_id(memo_message_id)
     code = None if error_code is None else _reason(error_code)
-    _write(row, (STATE_POSTING,), {"memo_message_id": message_id, "error_code": code}, target=STATE_POSTED, now=now)
+    _write(row, (STATE_POSTING,), {"memo_message_id": message_id, "error_code": code, "placed_at": naive_utc(now)},
+           target=STATE_POSTED, now=now)
 
 
 def mark_stored(row: CsAgentTurn, *, masked_draft: Optional[str], check_codes: Iterable[Any] = (),
                 now: datetime.datetime) -> None:
-    """저장만 — 초안을 기록에만 두고 올리지 않는다(초안 스위치 ``store`` · 운영 밖 허용 목록 밖 상담)."""
+    """저장만 — 초안을 기록에만 두고 올리지 않는다(초안 스위치 ``store`` · 운영 밖 허용 목록 밖 상담). 놓은 때도 적는다."""
     draft, codes = _masked_or_none(masked_draft), _check_codes(check_codes)
-    _write(row, (STATE_CLAIMED,), {"masked_draft": draft, "check_codes": codes}, target=STATE_STORED, now=now)
+    _write(row, (STATE_CLAIMED,), {"masked_draft": draft, "check_codes": codes, "placed_at": naive_utc(now)},
+           target=STATE_STORED, now=now)
 
 
 def mark_skipped(row: CsAgentTurn, *, reason: str, check_codes: Iterable[Any] = (),
@@ -207,6 +227,60 @@ def release_turn(row: CsAgentTurn, *, error_code: str, now: datetime.datetime) -
     _write(row, (STATE_CLAIMED,), {"error_code": _reason(error_code)}, target=STATE_FAILED, now=now, attempts_delta=-1)
 
 
+def mark_superseded(row: CsAgentTurn, *, masked_draft: Optional[str] = None, check_codes: Iterable[Any] = (),
+                    now: datetime.datetime) -> None:
+    """지난 초안 — 집은 뒤(만드는 중 · 올린 뒤) 같은 상담에 손님 새 글이 와 이 차례를 갈아 끼운다(빠른 길, 설계서 17.2).
+
+    선점한 줄이면 만든 초안의 가린 사본 · 검사 코드를 같이 적는다(``None`` 이면 두지 않음). 올렸거나 저장한 줄은 칸을 그대로
+    두고 상태만 바꾼다. 앞 메모를 지울지는 부르는 쪽 몫이다(C10-2 시험 뒤).
+    """
+    values: dict[str, Any] = {}
+    if masked_draft is not None:
+        values = {"masked_draft": _masked_or_none(masked_draft), "check_codes": _check_codes(check_codes)}
+    _write(row, (STATE_CLAIMED, STATE_POSTED, STATE_STORED), values, target=STATE_SUPERSEDED, now=now)
+
+
+def mark_staff_replied(row: CsAgentTurn, *, masked_draft: Optional[str] = None, now: datetime.datetime) -> None:
+    """직원 답함 — 직원이 먼저 공개 답을 해 아직 안 끝난 차례(선점 · 실패)를 닫는다. 초안은 올리지 않는다(빠른 길)."""
+    values = {} if masked_draft is None else {"masked_draft": _masked_or_none(masked_draft)}
+    _write(row, (STATE_CLAIMED, STATE_FAILED), values, target=STATE_STAFF_REPLIED, now=now)
+
+
+def record_handoff(row: CsAgentTurn, *, reason: str) -> None:
+    """두뇌 없이 코드가 사람에게 넘긴 까닭(넘김 칸)을 선점한 줄에 적는다 — 예: 손님이 'AI 냐 사람이냐' 물음(설계서 17.8)."""
+    _write(row, (STATE_CLAIMED,), {"handoff": True, "handoff_reason": _reason(reason)})
+
+
+def expired_claims(session: Any, now: datetime.datetime, *, limit: int = 100) -> list[CsAgentTurn]:
+    """죽은 선점 — 만료(``claim_expires_at``)가 ``now`` 보다 앞인 ``claimed`` 줄, 오래된 것부터. 15분 바퀴 정리와 빠른 길이 같이 쓴다.
+
+    만료를 적지 않은 옛 줄은 ``updated_at`` 이 :data:`LEGACY_CLAIM_AFTER` 넘게 지났을 때 죽은 차례로 본다(검수 R13 — 한 규칙).
+    """
+    at = naive_utc(now)
+    dead = or_(CsAgentTurn.claim_expires_at < at,
+               and_(CsAgentTurn.claim_expires_at.is_(None), CsAgentTurn.updated_at < at - LEGACY_CLAIM_AFTER))
+    stmt = (select(CsAgentTurn)
+            .where(CsAgentTurn.state == STATE_CLAIMED, dead)
+            .order_by(CsAgentTurn.updated_at, CsAgentTurn.id)
+            .limit(int(limit))
+            .execution_options(populate_existing=True))
+    return list(session.scalars(stmt))
+
+
+def retry_due(row: Any, now: datetime.datetime) -> bool:
+    """실패 줄을 지금 다시 집어도 되나 — 시도 상한 전이고 ``updated_at + RETRY_STEP × 시도 수`` 가 지났을 때(한 규칙, R13-2 · 3).
+
+    ``row`` 는 ``state`` · ``attempts`` · ``error_code`` · ``updated_at``(UTC naive) 칸이 있는 줄 · 읽은 꼴이면 된다.
+    만료로 정리한 줄(:data:`CLAIM_EXPIRED`)은 이미 만료만큼 기다렸으니 바로 집는다.
+    """
+    attempts = int(row.attempts or 0)
+    if row.state != STATE_FAILED or attempts >= MAX_ATTEMPTS:
+        return False
+    if row.error_code == CLAIM_EXPIRED or row.updated_at is None:
+        return True
+    return naive_utc(now) >= row.updated_at + RETRY_STEP * attempts
+
+
 def record_brain_result(row: CsAgentTurn, result: Any) -> None:
     """두뇌 결과에서 코드 · 숫자 칸만 옮긴다(덕 타이핑 — 없는 속성은 비운다). 초안 · 직원 참고 같은 글은 옮기지 않는다.
 
@@ -233,17 +307,33 @@ def record_brain_result(row: CsAgentTurn, result: Any) -> None:
     _write(row, (STATE_CLAIMED,), values)
 
 
+def record_quote(row: CsAgentTurn, *, quote_lines: Optional[dict], usage: Any = None) -> None:
+    """견적 계산 기록(``quote_lines`` — :mod:`.quote_record`)과 뽑기 호출의 토큰 · 돈 · 시간을 선점한 줄에 적는다(C10-6 · R17-1 · R17-3).
+
+    초안 두뇌 **전에** 적어, 초안 두뇌가 실패 · 놓아주기로 끝나도 뽑기 쓰임이 남는다. 뒤의 :func:`record_brain_result` 는 두
+    호출을 더한 값으로 같은 칸을 덮어쓴다. ``quote_lines=None`` 이면 지난 시도의 기록을 지운다.
+    """
+    values: dict[str, Any] = {"quote_lines": quote_lines}
+    if usage is not None:
+        for column, names in _BRAIN_COUNTS:
+            value = next((getattr(usage, name) for name in names if getattr(usage, name, None) is not None), None)
+            values[column] = _count(value, column)
+        values["cost_usd"] = _cost(getattr(usage, "cost_usd", None))
+    _write(row, (STATE_CLAIMED,), values)
+
+
 def record_staff_reply(row: CsAgentTurn, staff_reply: Optional[str], *, judgment: Optional[str] = None,
-                       now: datetime.datetime) -> None:
-    """직원 최종 답(공개 manager 글)의 가린 사본과 '같은 뜻' 판정 코드를 끝난 줄에 적는다(R1-20 — 같은 가림 · 검사).
+                       case: Optional[dict[str, Any]] = None, now: datetime.datetime) -> None:
+    """직원 최종 답(공개 manager 글)의 가린 사본 · '같은 뜻' 판정 코드 · 사례 칸(``case`` — :mod:`.case_memory` 가 꼴을 맞춘
+    값, 사례가 아직 없는 줄만)을 끝난 줄(직원 답함 포함)에 적는다(R1-20 — 같은 가림 · 검사). 커밋은 부르는 쪽.
 
     Raises:
         MaskLeak: 가린 뒤에도 가림 검사가 0 이 아니다(아무것도 바꾸지 않는다).
-        TurnStateError: 끝난 줄(``posted`` · ``stored`` · ``skipped``)이 아니다.
+        TurnStateError: 끝난 줄이 아니다 · 그사이 다른 쪽이 사례를 붙였다(:class:`TurnConflict`).
     """
-    reply = _masked_or_none(staff_reply)
-    code = _code(judgment, 16, "judgment")
-    _write(row, (STATE_POSTED, STATE_STORED, STATE_SKIPPED), {"staff_reply_masked": reply, "judgment": code}, now=now)
+    reply, code = _masked_or_none(staff_reply), _code(judgment, 16, "judgment")
+    _write(row, (STATE_POSTED, STATE_STORED, STATE_SKIPPED, STATE_STAFF_REPLIED),
+           {"staff_reply_masked": reply, "judgment": code, **(case or {})}, now=now, unset="outcome" if case else None)
 
 
 # ── 복구 재료 · 스위치 ───────────────────────────────────────────────────
@@ -327,12 +417,12 @@ def set_draft_mode(session: Any, mode: str, *, reason: str, now: datetime.dateti
 
 # ── 칸 꼴 ────────────────────────────────────────────────────────────────
 def _write(row: CsAgentTurn, allowed: tuple[str, ...], values: dict[str, Any], *, target: Optional[str] = None,
-           now: Optional[datetime.datetime] = None, attempts_delta: int = 0) -> None:
+           now: Optional[datetime.datetime] = None, attempts_delta: int = 0, unset: Optional[str] = None) -> None:
     """줄 쓰기 한 문장 — ``UPDATE … WHERE id AND state = 지금 상태 AND attempts = 선점 때 시도 수``(원장 R7-8).
 
     지금 상태가 ``allowed`` 밖이면 :class:`TurnStateError`(아무것도 안 씀). 바뀐 줄이 0 이면 :class:`TurnConflict` — 그사이
-    다른 바퀴가 줄을 바꿨다. 시도 수는 선점 표지(없으면 지금 값)다. 성공하면 ORM 줄에도 같은 값을 '읽은 값'으로 넣는다
-    (ORM 이 같은 줄을 조건 없이 다시 쓰지 않게).
+    다른 바퀴가 줄을 바꿨다(``unset`` 칸을 주면 그 칸이 비었을 때만 쓴다). 시도 수는 선점 표지(없으면 지금 값)다. 성공하면
+    ORM 줄에도 같은 값을 '읽은 값'으로 넣는다(ORM 이 같은 줄을 조건 없이 다시 쓰지 않게).
     """
     session = object_session(row)
     if session is None:
@@ -351,87 +441,8 @@ def _write(row: CsAgentTurn, allowed: tuple[str, ...], values: dict[str, Any], *
         changes["attempts"] = attempts + attempts_delta
     stmt = (update(_TURNS).where(_TURNS.c.id == row.id, _TURNS.c.state == state, _TURNS.c.attempts == attempts)
             .values(changes))
+    stmt = stmt if unset is None else stmt.where(_TURNS.c[unset].is_(None))
     if session.execute(stmt).rowcount != 1:
         raise TurnConflict(f"{state} 줄이 그사이 바뀌었다 — 쓰지 않는다")
     for key, value in changes.items():
         set_committed_value(row, key, value)
-
-
-def _masked_or_none(text: Optional[str]) -> Optional[str]:
-    """가린 사본 — 한 번 더 가리고 가림 검사가 0 일 때만 돌려준다. ``None`` · 빈 글은 ``None``."""
-    if text is None:
-        return None
-    if not isinstance(text, str):
-        raise TypeError("가린 글은 글자열이다")
-    return require_masked(mask(text)) if text.strip() else None
-
-
-def _check_codes(codes: Iterable[Any]) -> list[str]:
-    """검사 코드 목록(겹침 없이 순서대로). 코드 글자열이나 ``code`` 속성이 있는 검사 결과 항목을 받는다."""
-    if isinstance(codes, (str, bytes)):
-        raise TypeError("check_codes 는 코드 목록이다")
-    out: list[str] = []
-    for item in codes:
-        code = getattr(item, "code", item)
-        if not isinstance(code, str) or not _CHECK_CODE.fullmatch(code):
-            raise ValueError("검사 코드 꼴이 아니다(영문 소문자 · 숫자 · 밑줄)")
-        if code not in out:
-            out.append(code)
-    return out
-
-
-def _checked_id(value: Any) -> str:
-    """채널톡 id 꼴인 값만."""
-    if not isinstance(value, str) or not _ID.fullmatch(value):
-        raise ValueError("채널톡 id 꼴이 아니다")
-    return value
-
-
-def _reason(value: Any) -> str:
-    """이유 코드(비면 안 된다)."""
-    code = _code(value, _REASON_MAX, "error_code")
-    if code is None:
-        raise ValueError("이유 코드 꼴이 아니다")
-    return code
-
-
-def _code(value: Any, limit: int, field: str) -> Optional[str]:
-    """코드 칸 값 — 꼴이 맞는 짧은 이름만. 비었으면 ``None``, 꼴이 틀리면 경고하고 ``None``(값은 로그에 싣지 않는다)."""
-    if isinstance(value, enum.Enum):
-        value = value.value
-    if value is None or value == "":
-        return None
-    if isinstance(value, str) and len(value) <= limit and _CODE.fullmatch(value):
-        return value
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=%s", field)
-    return None
-
-
-def _count(value: Any, field: str) -> Optional[int]:
-    """0 이상 정수 칸(토큰 · 밀리초). 꼴이 틀리면 경고하고 ``None``."""
-    if value is None:
-        return None
-    if not isinstance(value, bool) and isinstance(value, (int, float, Decimal)):
-        try:
-            number = int(round(value))
-        except (ValueError, OverflowError, InvalidOperation):
-            number = -1
-        if 0 <= number <= _INT_MAX:
-            return number
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=%s", field)
-    return None
-
-
-def _cost(value: Any) -> Optional[Decimal]:
-    """비용(달러) — 0 이상, 소수 여섯째 자리까지. 꼴이 틀리면 경고하고 ``None``."""
-    if value is None:
-        return None
-    if not isinstance(value, bool) and isinstance(value, (int, float, Decimal)):
-        try:
-            cost = Decimal(str(value))
-        except InvalidOperation:
-            cost = Decimal("NaN")
-        if cost.is_finite() and Decimal(0) <= cost <= _COST_MAX:
-            return cost.quantize(_COST_SCALE)
-    logger.warning("[CS 초안] 기록 칸 꼴이 틀려 비운다 field=cost_usd")
-    return None

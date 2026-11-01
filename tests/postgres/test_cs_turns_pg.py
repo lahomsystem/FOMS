@@ -3,7 +3,9 @@
 SQLite 메인 레인은 DB 전체 잠금이라 두 세션이 진짜로 겹치지 않는다. 여기서는 진짜 PostgreSQL 에서 ① 앞 세션이 넣고
 커밋하기 전에 뒤 세션의 '있으면 무시하고 넣기'가 고유 색인에서 기다렸다가 아무것도 넣지 않는지 ② 앞 세션이 되돌리면 뒤
 세션이 집는지(음성 대조군) ③ 실패 줄 다시 집기가 겹쳐도 하나만 집는지 ④ 상태 검사 제약 · JSONB · 숫자 칸 · '올리는 중'
-찾기를 본다. ``FOMS_TEST_DATABASE_URL`` 이 없으면 건너뛴다(레인 규칙은 ``tests/postgres/conftest.py``).
+찾기를 본다. 빠른 길(C10-1): ⑤ 새 상태 둘(지난 초안 · 직원 답함)과 선점 주인 · 만료 칸 · 만료 찾기 ⑥ 바로 끄기와 초안
+스위치를 겹쳐 써도 줄 잠금에서 기다려 서로 덮지 않는지(원장 R10-31). ``FOMS_TEST_DATABASE_URL`` 이 없으면 건너뛴다(레인 규칙은
+``tests/postgres/conftest.py``).
 """
 
 from __future__ import annotations
@@ -19,9 +21,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from foms.services.cs_agent import turns
+from foms.services.cs_agent import loop, turns
 from foms.services.cs_agent.state import KST
-from models import CsAgentTurn
+from models import CsAgentTurn, SystemSetting
 
 NOW = datetime.datetime(2026, 11, 2, 9, 0, tzinfo=KST)
 CHAT = "uc-pg"
@@ -140,3 +142,52 @@ def test_a_stale_session_cannot_post_a_turn_another_session_reclaimed(pg_engine)
     with make_session() as check:
         final = check.get(CsAgentTurn, row_id)
         assert (final.state, final.attempts, final.masked_draft) == ("claimed", 2, None)
+
+
+def test_new_states_and_claim_columns_on_postgres(pg_engine):
+    make_session = sessionmaker(bind=pg_engine)
+    with make_session() as session:
+        live = turns.claim_turn(session, "LAHOM", CHAT, "m-6", now=NOW, owner="realtime:pg:1",
+                                ttl=datetime.timedelta(seconds=90))
+        dead = turns.claim_turn(session, "LAHOM", CHAT, "m-7", now=NOW - datetime.timedelta(minutes=5),
+                                owner="realtime:pg:2", ttl=datetime.timedelta(seconds=90))
+        session.commit()
+        assert [r.id for r in turns.expired_claims(session, NOW)] == [dead.id]  # 만료가 지난 선점만
+        turns.mark_superseded(live, masked_draft="합성 지난 초안입니다", now=NOW)
+        turns.mark_failed(dead, error_code="claim_expired", now=NOW)
+        session.commit()
+        turns.mark_staff_replied(dead, now=NOW)
+        session.commit()
+    with make_session() as session:
+        found = {r.last_user_message_id: (r.state, r.claim_owner) for r in session.scalars(
+            select(CsAgentTurn).where(CsAgentTurn.last_user_message_id.in_(["m-6", "m-7"])))}
+        assert found == {"m-6": ("superseded", "realtime:pg:1"), "m-7": ("staff_replied", "realtime:pg:2")}
+
+
+def test_loop_switch_waits_on_the_row_lock_and_keeps_the_draft_switch(pg_engine):
+    make_session = sessionmaker(bind=pg_engine)
+    with make_session() as session:
+        session.merge(SystemSetting(setting_key=turns.SWITCH_KEY, setting_value={"loop": "on", "draft": "memo"},
+                                    version=1))
+        session.commit()
+    guard = make_session()
+    turns.set_draft_mode(guard, "off", reason="memo_not_private", now=NOW)  # 막는 장치가 줄을 잠그고 커밋 전
+    guard.flush()
+    outcome: dict = {}
+
+    def admin() -> None:
+        with make_session() as session:
+            outcome["value"] = loop.set_switch(session, on=False, now=NOW)
+
+    worker = threading.Thread(target=admin)
+    worker.start()
+    time.sleep(0.5)
+    assert worker.is_alive()  # 바로 끄기 쓰기는 줄 잠금에서 기다린다
+    guard.commit()
+    guard.close()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    with make_session() as session:
+        row = session.get(SystemSetting, turns.SWITCH_KEY)
+        assert (row.setting_value["loop"], row.setting_value["draft"], row.version) == ("off", "off", 3)
+    assert outcome["value"]["draft"] == "off"  # 옛 memo 로 되돌리지 않았다

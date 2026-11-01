@@ -221,6 +221,15 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(cs_agent_pc_bp)
 
+    # --- Lane: AI 상담 초안 [보내기] · [수정하기](플랜 C10-3 · 설계서 17.2.1 링크 길) — 짧은 화면(/cs-agent/turns/<id>/send ·
+    # edit, 로그인 · 상담 직원 · ADMIN) + JSON(/api/cs-agent/turns/<id>/*, 쓰기는 CSRF · 정책 CS_AGENT_SEND). 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.cs_agent_send import cs_agent_send_api_bp
+    from foms.web.cs_agent_send import cs_agent_send_page_bp
+
+    app.register_blueprint(cs_agent_send_page_bp)
+    app.register_blueprint(cs_agent_send_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

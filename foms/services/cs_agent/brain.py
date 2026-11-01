@@ -39,7 +39,7 @@ import logging
 import os
 import time
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import anthropic
 import httpx2
@@ -170,7 +170,7 @@ def _floor_reserve(cfg: PanelSettings) -> Decimal:
 
 # ── 부르기 ───────────────────────────────────────────────────────────────
 def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
-            cfg: PanelSettings) -> dict[str, Any]:
+            cfg: PanelSettings, rewrite: Sequence[str] = ()) -> dict[str, Any]:
     """``beta.messages.create`` 인자 — 앞부분(system)에는 바뀌는 값을 넣지 않는다. 모델 · 깊이 · 출력 · 캐시 · 대체는 설정."""
     knowledge = request.knowledge
     model = cfg.model_for(request.purpose)
@@ -183,7 +183,8 @@ def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
         "system": prompt.system_blocks(request.brand, knowledge, cache_ttl=cfg.cache_ttl_for(request.daytime)),
         "messages": [{"role": "user", "content": prompt.task_text(
             purpose=request.purpose, chat_id=request.chat_id, medium=request.medium, now=now,
-            calculator_lines=request.calculator_lines, conversation=conversation)}],
+            calculator_lines=request.calculator_lines, conversation=conversation, cases=request.cases,
+            rewrite=rewrite)}],
     }
     if cfg.fallback_on(model):  # Haiku 5.5 는 서버 쪽 대체가 없다 — 보내지 않는다
         params.update(betas=[FALLBACK_BETA], fallbacks=FALLBACKS)
@@ -341,9 +342,9 @@ def draft_reply(request: DraftRequest, *, client: Any = None, session: Any = Non
     roles = [role for role, _ in request.messages]
 
     def call(masked: list[str]) -> DraftResult:
-        conversation = prompt.render_conversation(list(zip(roles, masked)))
+        conversation = prompt.render_conversation(list(zip(roles, masked[:len(roles)])))
         require_masked(conversation)  # 모델에 가는 손님 글 전부 — 가림이 고장 나도 여기서 멈춘다
-        params = _params(request, conversation, now, cfg)
+        params = _params(request, conversation, now, cfg, rewrite=masked[len(roles):])
         api = client if client is not None else _default_client()
         try:
             response, latency_ms, reserved = _send(api, params, realtime=request.realtime, session=session, cap=cap,
@@ -357,5 +358,5 @@ def draft_reply(request: DraftRequest, *, client: Any = None, session: Any = Non
                        effort=params["output_config"]["effort"],
                        cache_marked=any("cache_control" in block for block in params["system"]))
 
-    return call_with_masked([text for _, text in request.messages], call,
+    return call_with_masked([*(text for _, text in request.messages), *request.rewrite], call,
                             customer_names=request.customer_names, staff_names=request.staff_names)

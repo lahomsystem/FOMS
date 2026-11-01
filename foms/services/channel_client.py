@@ -11,6 +11,8 @@ from typing import Any
 
 import requests
 
+from foms.services import channel_token_cache
+
 logger = logging.getLogger(__name__)
 
 _NATIVE_FUNCTIONS_URL = "https://app-store-api.channel.io/general/v1/native/functions"
@@ -25,21 +27,9 @@ CHANNEL_GROUP_GENERAL = os.environ.get("CHANNEL_GROUP_GENERAL", "")
 FOMS_BASE_URL = os.environ.get("FOMS_BASE_URL", "https://lahom-production.up.railway.app")
 
 __all__ = [
-    "CHANNEL_APP_SECRET",
-    "CHANNEL_ID",
-    "CHANNEL_GROUP_MEASUREMENT",
-    "CHANNEL_GROUP_CONSTRUCTION",
-    "CHANNEL_GROUP_GENERAL",
-    "FOMS_BASE_URL",
-    "is_configured",
-    "get_target_group_id",
-    "get_attachment_category_for_status",
-    "format_order_message",
-    "build_channel_bot_name",
-    "send_group_message",
-    "send_user_chat_message",
-    "send_user_chat_buttons",
-    "label_user_chat",
+    "CHANNEL_APP_SECRET", "CHANNEL_ID", "CHANNEL_GROUP_MEASUREMENT", "CHANNEL_GROUP_CONSTRUCTION", "CHANNEL_GROUP_GENERAL",
+    "FOMS_BASE_URL", "is_configured", "get_target_group_id", "get_attachment_category_for_status", "format_order_message",
+    "build_channel_bot_name", "send_group_message", "send_user_chat_message", "send_user_chat_buttons", "label_user_chat",
 ]
 
 _BOT_NAME_PREFIX = "FOMS"
@@ -193,7 +183,11 @@ def _issue_token(channel_id: str = "") -> tuple[str, float]:
 
 
 def _get_access_token(channel_id: str = "") -> str:
-    """Return a cached valid access token (per channel) or issue a new one."""
+    """Return a cached valid access token (per channel) or issue a new one.
+
+    프로세스 캐시 → Redis 공유 캐시(프로세스 여럿이 토큰 하나 — :mod:`foms.services.channel_token_cache`, 원장 R10-17) →
+    발급 순서다. Redis 가 없거나 실패하면 예전처럼 이 프로세스가 발급한다.
+    """
     if not is_configured():
         raise RuntimeError("CHANNEL_APP_SECRET, CHANNEL_ID 환경변수 미설정")
 
@@ -202,8 +196,13 @@ def _get_access_token(channel_id: str = "") -> str:
         cached = _token_cache.get(cid)
         if cached and time.time() < cached[1]:
             return cached[0]
-
-        access_token, expires_at = _issue_token(cid)
+    # 공유 캐시는 프로세스 잠금 밖에서 — Redis 잠금을 기다리는 동안 이 프로세스의 다른 채널톡 호출을 막지 않는다(R15-6).
+    shared = channel_token_cache.shared_token(cid, lambda: _issue_token(cid), secret=CHANNEL_APP_SECRET)
+    with _token_lock:
+        cached = _token_cache.get(cid)
+        if shared is None and cached and time.time() < cached[1]:
+            return cached[0]  # Redis 없음 — 그사이 다른 스레드가 발급했다
+        access_token, expires_at = shared if shared is not None else _issue_token(cid)
         _token_cache[cid] = (access_token, expires_at)
         return access_token
 
@@ -212,7 +211,7 @@ def _invalidate_token(stale_token: str, channel_id: str = "") -> None:
     """
     Drop the cached access token when ChannelTalk rejected it.
 
-    다른 스레드가 이미 새 토큰을 캐시했으면 그대로 둔다(방금 실패한 토큰만 버린다).
+    다른 스레드 · 프로세스가 이미 새 토큰을 캐시했으면 그대로 둔다(방금 실패한 토큰만 버린다 — 공유 캐시도 같은 규칙).
 
     Args:
         stale_token: 401 을 받은 토큰 값.
@@ -222,6 +221,7 @@ def _invalidate_token(stale_token: str, channel_id: str = "") -> None:
         cached = _token_cache.get(cid)
         if cached and cached[0] == stale_token:
             _token_cache.pop(cid, None)
+    channel_token_cache.drop_shared_token(cid, stale_token, secret=CHANNEL_APP_SECRET)  # 공유 값도 그 토큰일 때만
 
 
 def _is_unauthenticated_error(err: dict[str, Any]) -> bool:
@@ -356,56 +356,6 @@ def _open_api_headers(brand: str) -> dict[str, str] | None:
             "Channel-Version": _OPEN_API_VERSION, "Content-Type": "application/json"}
 
 
-def send_user_chat_buttons(
-    brand: str,
-    user_chat_id: str,
-    plain_text: str,
-    buttons: list[tuple[str, str]],
-    *,
-    bot_name: str = "FOMS",
-) -> dict[str, Any]:
-    """
-    Write a customer-visible message with link buttons into a user chat (Open API).
-
-    앱 함수는 버튼을 422 로 거절했지만 Open API 공식 형식으로 보내면 카카오 상담톡에도 버튼으로
-    간다(2026-10-21 실폰 확인). 키가 없으면 ``not_configured`` — 호출자가 글 속 링크로 보낸다.
-
-    Args:
-        brand: ``LAHOM``/``HAUD`` — 어느 채널 키를 쓸지.
-        user_chat_id: 채널톡 userChat id.
-        plain_text: 버튼 위에 보일 글.
-        buttons: ``[(버튼 이름, 열 주소), ...]`` — 한 글에 2개까지.
-        bot_name: 보낸 이로 보일 봇 이름.
-
-    Returns:
-        ``{'success': bool, 'message_id': str | None, 'error': str | None}``.
-    """
-    headers = _open_api_headers(brand)
-    if headers is None:
-        return {"success": False, "message_id": None, "error": "not_configured"}
-    if not user_chat_id:
-        return {"success": False, "message_id": None, "error": "no_user_chat"}
-    body = {
-        "plainText": plain_text,
-        "buttons": [{"title": title, "colorVariant": "cobalt",
-                     "action": {"type": "web", "attributes": {"url": url}}}
-                    for title, url in buttons[:2]],
-    }
-    try:
-        resp = requests.post(f"{_OPEN_API_BASE}/open/user-chats/{user_chat_id}/messages",
-                             params={"botName": bot_name}, json=body, headers=headers, timeout=10)
-    except Exception as exc:
-        logger.error("[채널톡] 버튼 메시지 요청 실패 (chat=%s): %s", user_chat_id, exc)
-        return {"success": False, "message_id": None, "error": "request_failed"}
-    if resp.status_code >= 400:
-        logger.error("[채널톡] 버튼 메시지 실패 (chat=%s) status=%s", user_chat_id, resp.status_code)
-        return {"success": False, "message_id": None, "error": f"http_{resp.status_code}"}
-    try:
-        return {"success": True, "message_id": (resp.json().get("message") or {}).get("id"), "error": None}
-    except ValueError:
-        return {"success": True, "message_id": None, "error": None}
-
-
 def label_user_chat(
     brand: str,
     *,
@@ -497,3 +447,7 @@ def send_group_message(
         if raise_on_error:
             raise
         return {"success": False, "message_id": None}
+
+
+# 링크 버튼 글은 손님이 보는 Open API 글 쓰기와 한 곳(channel_send)으로 옮겼다 — 이 이름으로도 그대로 쓴다(검수 R15 단순화).
+from foms.services.channel_send import send_user_chat_buttons  # noqa: E402 — channel_send 가 이 모듈을 쓴다(순서 고정)

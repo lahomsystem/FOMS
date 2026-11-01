@@ -651,6 +651,83 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
   color: var(--foms-text-tertiary, #6c757d);
 }
 
+/* ── AI 상담 초안 [보내기] · [수정하기] 짧은 화면(/cs-agent/turns/<id>/send · edit — templates/cs_agent/send.html,
+   플랜 C10-3). 휴대폰 채널톡 앱 안 브라우저에서 한 손으로 누를 수 있게 단추를 크게, 보낼 글은 줄바꿈 그대로. */
+.cs-send-body {
+  background: var(--foms-surface-subtle, #f8f9fa);
+}
+
+.cs-send {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.cs-send__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.cs-send__desk {
+  font-size: 0.875rem;
+}
+
+.cs-send__draft {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fff;
+  border: 1px solid var(--foms-border-default, #dee2e6);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.cs-send__text {
+  min-height: 12rem;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.cs-send__warnings {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+  color: var(--foms-text-danger, #b02a37);
+  font-size: 0.9375rem;
+}
+
+.cs-send__rewrite {
+  margin-top: 1rem;
+}
+
+.cs-send__row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cs-send__row .form-control {
+  min-width: 0;
+}
+
+.cs-send__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.cs-send__actions .btn {
+  min-height: 44px;
+}
+
+.cs-send__actions .btn-lg {
+  flex: 1 1 100%;
+}
+
 /* Match the user menu layer above the sticky global navigation (z-index: 1000). */
 .layout-header #global-partner-filter-btn + .dropdown-menu {
   z-index: 1050;

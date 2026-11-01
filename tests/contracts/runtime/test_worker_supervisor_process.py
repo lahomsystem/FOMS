@@ -178,7 +178,7 @@ def test_enable_flags_select_the_jobs(env, expected) -> None:
 def test_all_loops_can_be_enabled_and_queue_consumer_is_last() -> None:
     names = [job.name for job in jobs(all_enabled=True)]
     assert names[-1] == "rq_worker"
-    assert len(names) == 8, names
+    assert len(names) == 9, names  # CS 빠른 길(cs_realtime, 플랜 C10-1)이 cs_loop 와 같은 env 로 하나 더 뜬다
 
 
 def test_print_jobs_redacts_the_redis_url(capsys, monkeypatch) -> None:

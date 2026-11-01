@@ -6,9 +6,13 @@
 
 - **채널톡 쓰기 0 · AI 0 · RQ 0**: 채널톡은 GET 만(두 브랜드 다 읽기만), 알림은 FOMS 앱 안 알림만. 초안 스위치
   (:func:`.turns.draft_mode`)가 ``store`` · ``memo`` 일 때만 바퀴 끝에 :mod:`.drafting` 이 라홈 초안을 쓴다(두뇌 · 내부 메모).
-  스위치가 없거나 꺼져 있으면(기본) 바퀴는 그대로다.
+  스위치가 없거나 꺼져 있으면(기본) 바퀴는 그대로다. 관리 화면의 빠른 길 스위치가 켜져 있으면 초안은 빠른 길
+  (:mod:`.realtime` — 따로 도는 실행 단위 · 따로 잠금)의 몫이라 이 바퀴는 보정 · 아침 보고만 한다(설계서 17.3). 직원이 데스크에서
+  직접 보낸 답을 끝난 차례에 사례로 붙이는 일(:mod:`.case_memory` — 상담 글 GET 만)도 초안을 쓰는 쪽 하나만 한다.
 - **바로 끄기(설계서 6절)**: SystemSetting :data:`SWITCH_KEY` 를 매 바퀴 읽는다(``{"loop": "off"}`` 면 그 바퀴 일 0).
-  env(``FOMS_CS_LOOP_ENABLED``)는 켜기용이다 — Railway env 는 재배포 전엔 안 바뀐다(원장 R2-15).
+  env(``FOMS_CS_LOOP_ENABLED``)는 켜기용이다 — Railway env 는 재배포 전엔 안 바뀐다(원장 R2-15). 쓰기(:func:`set_switch`)는
+  줄을 잠그고 새로 읽은 값에 ``loop`` 칸만 얹은 뒤 읽은 판(version)일 때만 쓴다 — 초안 스위치 쓰기와 겹쳐도 서로 덮지 않는다
+  (원장 R10-31).
 - **멈춤 깃발(R4-4)**: TERM 을 받으면 일을 집기 전 · 쓰기 전마다 :meth:`StopFlag.check` 가 바퀴를 멈춘다. 이미 읽은
   채널톡 글은 버린다 — 깃발 뒤에는 쓰기를 시작하지 않는다.
 - **대표 하나(R4-10)**: 바퀴마다 따로 연 연결로 ``pg_try_advisory_lock`` 을 잡고, 못 잡으면 그 바퀴를 건너뛴다.
@@ -27,7 +31,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional, Sequence
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -50,7 +54,11 @@ from foms.services.cs_agent.state_store import (
     compute_open_states,
     ingest_inbound,
 )
+from foms.services.common.table_version_counter import mark_tables_dirty
+from foms.services.cs_agent.case_memory import PASS_LIMITS, attach_staff_replies
 from foms.services.cs_agent.drafting import DraftSummary, run_drafting
+from foms.services.cs_agent.send_record import reconcile_sends
+from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import DRAFT_OFF, SWITCH_OFF, SWITCH_ON, draft_mode, read_switch
 from foms.services.datetime_kst import now_kst
 from models import CsAgentChat, SystemSetting
@@ -83,24 +91,51 @@ CHECK_RATE_LIMITED, CHECK_ERROR = "rate_limited", "error"
 # ── 바로 끄기 ────────────────────────────────────────────────────────────
 # 읽기(:func:`read_switch` — 줄이 없거나 ``{"loop": "on"}`` 이면 돈다, 꼴이 틀리면 끈 것)는 :mod:`.turns` 에 있다 — 초안 바퀴도
 # 두뇌를 부르기 전마다 같은 함수로 다시 읽는다(초안 바퀴가 이 모듈을 import 하지 않게).
+#: 판이 그사이 바뀌어 다시 읽는 횟수 — 비상 정지는 버전 충돌로 실패하면 안 되니 몇 번 다시 한다.
+SWITCH_WRITE_TRIES = 3
+
+
+class SwitchConflict(RuntimeError):
+    """바로 끄기 쓰기가 몇 번 다시 읽어도 판(version)이 계속 바뀌었다(값은 쓰지 않았다)."""
+
+
 def set_switch(session: Any, *, on: bool, now: Optional[datetime.datetime] = None) -> dict:
-    """바로 끄기 값을 쓰고 커밋한다(관리자 스크립트 한 줄). 다른 칸은 그대로 둔다.
+    """바로 끄기 값을 쓰고 커밋한다(관리자 스크립트 · 관리 화면). ``loop`` · ``changed_at`` 칸만 바꾸고 다른 칸은 그대로 둔다.
+
+    줄을 ``FOR UPDATE`` 로 잠그고 **새로 읽은** 값에 칸을 얹은 뒤, 읽은 판(version)과 같을 때만 쓴다(조건부 UPDATE —
+    판 +1). 판이 그사이 바뀌었으면(잠금이 없는 DB · 다른 쓰기) 다시 읽어 :data:`SWITCH_WRITE_TRIES` 번까지 한다 — 초안
+    스위치(:func:`.turns.set_draft_mode`)를 옛 값으로 되돌리지 않는다(원장 R10-31). 관리 화면이 미리 넣은 수정 기록 ·
+    감사 줄도 같은 커밋에 들어간다.
 
     Returns:
         새로 쓴 값.
+
+    Raises:
+        SwitchConflict: 다시 읽어도 판이 계속 바뀌었다.
     """
-    row = session.get(SystemSetting, SWITCH_KEY)
-    old = row.setting_value if row is not None and isinstance(row.setting_value, dict) else {}
     stamp = naive_utc(now or datetime.datetime.now(UTC)).isoformat(timespec="seconds")
-    value = {**old, "loop": SWITCH_ON if on else SWITCH_OFF, "changed_at": stamp}
-    if row is None:
-        session.add(SystemSetting(setting_key=SWITCH_KEY, setting_value=value,
-                                  description="AI 상담팀원 감시 루프 바로 끄기(매 바퀴 읽음, 플랜 C1-3)"))
-    else:
-        row.setting_value = value
-        row.version = int(row.version or 1) + 1
-    session.commit()
-    return value
+    for _ in range(SWITCH_WRITE_TRIES):
+        row = session.get(SystemSetting, SWITCH_KEY, populate_existing=True, with_for_update=True)
+        old = row.setting_value if row is not None and isinstance(row.setting_value, dict) else {}
+        value = {**old, "loop": SWITCH_ON if on else SWITCH_OFF, "changed_at": stamp}
+        if row is None:
+            session.add(SystemSetting(setting_key=SWITCH_KEY, setting_value=value,
+                                      description="AI 상담팀원 감시 루프 바로 끄기(매 바퀴 읽음, 플랜 C1-3)"))
+            session.commit()
+            return value
+        read_version = int(row.version or 1)
+        written = session.execute(
+            update(SystemSetting)
+            .where(SystemSetting.setting_key == SWITCH_KEY, SystemSetting.version == read_version)
+            .values(setting_value=value, version=read_version + 1)
+            .execution_options(synchronize_session="fetch")).rowcount
+        if written == 1:
+            mark_tables_dirty(session, SystemSetting.__tablename__)  # ORM 을 거치지 않은 쓰기 — 화면 304 카운터
+            session.commit()
+            return value
+        logger.warning("[CS 감시] 바로 끄기 쓰기 중 판이 바뀌었다 — 다시 읽는다 key=%s", SWITCH_KEY)
+    session.rollback()
+    raise SwitchConflict("바로 끄기 줄의 판이 계속 바뀌었다 — 쓰지 않았다")
 
 
 # ── 멈춤 깃발 · 대표 잠금 ────────────────────────────────────────────────
@@ -238,9 +273,12 @@ class PassResult:
     alerts: dict[str, int] = field(default_factory=dict)
     report_sent: bool = False
     drafting: Optional[DraftSummary] = None  # 초안 스위치가 켜진 바퀴만(숫자만)
+    realtime_drafting: bool = False  # 초안은 켜졌지만 빠른 길 몫이라 이 바퀴는 쓰지 않았다
+    cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(초안을 쓰는 바퀴만 — 숫자 · 코드만)
+    sends: Optional[dict[str, int]] = None  # 결과 모름 [보내기] 맞추기(C10-3 — 맞출 줄이 있던 바퀴만)
 
     def summary(self) -> dict[str, Any]:
-        """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸(숫자만)이 붙는다."""
+        """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸, 사례를 붙인 바퀴만 ``cases`` 칸(숫자만)이 붙는다."""
         out = {"outcome": self.outcome, "ingested": self.ingested,
                "reconciled": sum(c.done for c in self.checks.values()),
                "checks": {b: c.status for b, c in self.checks.items()},
@@ -248,6 +286,12 @@ class PassResult:
                "report_sent": self.report_sent}
         if self.drafting is not None:
             out["drafting"] = self.drafting.counts()
+        if self.realtime_drafting:
+            out["drafting"] = "realtime"
+        if self.cases is not None:
+            out["cases"] = self.cases
+        if self.sends:
+            out["sends"] = self.sends
         return out
 
 
@@ -296,7 +340,8 @@ def run_pass(session: Any, *, config: LoopConfig = LoopConfig(), stop: Optional[
 
 def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFlag, reader: OpenApiReader,
           now: datetime.datetime, clock: Callable[[], float], cal: BusinessDayFn) -> None:
-    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고 → (스위치가 켜졌으면) 초안."""
+    """대표가 된 바퀴의 일 — 수신 기록 → 채널톡 보정(시간 상한) → 열린 상담 상태 → 경보 · 아침 보고 → (스위치가 켜졌고 빠른 길이
+    안 돌면) 직원 직접 답을 사례로 붙이기(:mod:`.case_memory`) → 초안."""
     stop.check()
     result.ingested = ingest_inbound(session, lookback=config.ingest_lookback, now=naive_utc(now)).inserted
     budget = config.reconcile_budget_seconds / max(1, len(config.brands))
@@ -313,10 +358,16 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
         watch_missing_inbound=config.watch_missing_inbound, now=now, is_business_day=cal,
         report_hour=config.report_hour, stop_check=stop.check)
     result.alerts, result.report_sent = published.alerts, published.report_sent
+    result.sends = reconcile_sends(session, now=now, reader=reader, stop=stop)  # [보내기] 결과 모름 — 바퀴 정리(C10-3)
     mode = draft_mode(session)  # 초안 스위치(매 바퀴 DB 에서 새로) — 없거나 꺼졌으면 바퀴는 여기까지(예전 그대로)
+    realtime_on = bool(read_settings(session, log=False).get("realtime_enabled"))
     session.commit()
-    if mode == DRAFT_OFF:
+    if mode == DRAFT_OFF or realtime_on:  # 빠른 길이 켜져 있으면 초안은 빠른 길 몫(보정 · 아침 보고만 — 설계서 17.3)
+        result.realtime_drafting = realtime_on and mode != DRAFT_OFF
         return
+    # 사례 기억(L0 — C10-4): 초안을 쓰는 쪽이 직원 직접 답도 붙인다(빠른 길이 돌면 빠른 길 몫). 새 사례가 이번 초안 재료가 된다.
+    result.cases = attach_staff_replies(session, now=now, stop=stop, reader=reader, limits=PASS_LIMITS,
+                                        clock=clock).counts()
     result.drafting = DraftSummary()  # 멈춰도 센 수가 요약에 남게 미리 단다
     run_drafting(session, states=states, reader=reader, now=now, stop=stop, mode=mode, is_business_day=cal,
                  clock=clock, summary=result.drafting)
