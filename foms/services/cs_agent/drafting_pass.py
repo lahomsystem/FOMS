@@ -29,7 +29,7 @@ from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quot
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
     DRAFT_OFF, LEGACY_CLAIM_AFTER, claim_owner, draft_mode, mark_failed, mark_skipped, read_switch, record_handoff,
-    release_turn,
+    record_quote, release_turn,
 )
 
 logger = logging.getLogger("foms.services.cs_agent.drafting")
@@ -68,12 +68,24 @@ class DraftPass:
         self.clock = clock  # 빠른 길이 선점 시각을 잴 때 쓴다(15분 바퀴는 시간 상한 시계를 여기서 읽지 않는다)
         self.quoter, self.catalog_reader = quoter, catalog_reader
 
-    def quote(self, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
-        """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다."""
+    def quote(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
+        """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다.
+
+        결과 값(상태 · 두뇌 줄 · 허용 금액 줄)과 뽑기 쓰임은 초안 두뇌 **전에** 차례 줄에 적고 커밋한다 — 보내기 · 고칠 말 ·
+        다시 올리기 검사가 다시 쓰고(R17-1 · R17-2), 초안 두뇌가 실패해도 뽑기 돈이 남는다(R17-3). 이번 시도가 견적을 넣지
+        않았는데 지난 시도의 기록이 있으면 지운다.
+        """
         texts = [line.text for line in pending_customer_lines(lines) if line.meta.is_customer_signal]
-        return prepare_quote(session=self.session, knowledge=self.knowledge, request=request, texts=texts,
+        step = prepare_quote(session=self.session, knowledge=self.knowledge, request=request, texts=texts,
                              now=self.now, stop=self.stop, summary=self.summary, quoter=self.quoter,
                              catalog_reader=self.catalog_reader)
+        if step is None and row.quote_lines is None:
+            return None
+        self.stop.check()  # 쓰기 전
+        record_quote(row, quote_lines=step.record() if step is not None else None,
+                     usage=step.usage if step is not None else None)
+        self.session.commit()
+        return step
 
     def quote_to_human(self, row: CsAgentTurn, chat_id: str, code: str) -> Optional[str]:
         """견적 계산이 안 돼 초안 없이 사람에게 — 넘김 까닭을 적고 건너뜀(메모 없음 — 두뇌 넘김과 같다)."""

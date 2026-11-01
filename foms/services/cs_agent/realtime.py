@@ -61,6 +61,8 @@ from foms.services.cs_agent.drafting_read import SKIP_HUMAN_REPLIED, SKIP_STALE
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.loop import PassStopped, StopFlag, leader_lock
 from foms.services.cs_agent.masking import MaskLeak
+from foms.services.cs_agent.quote_brain import worst_seconds as quote_worst_seconds
+from foms.services.cs_agent.quote_step import SETTING as QUOTE_SETTING
 from foms.services.cs_agent.memo import post_private_memo
 from foms.services.cs_agent.realtime_memory import TickMemory
 from foms.services.cs_agent.rewrite import run_rewrites
@@ -78,7 +80,7 @@ from foms.services.datetime_kst import now_kst
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CLAIM_MARGIN", "CLAIM_TTL", "REALTIME_LOCK_KEY", "TICK_SECONDS", "TickMemory", "TickResult", "run_tick",
+    "CLAIM_MARGIN", "CLAIM_TTL", "REALTIME_LOCK_KEY", "TICK_SECONDS", "TickMemory", "TickResult", "claim_ttl", "run_tick",
 ]
 
 UTC = datetime.timezone.utc
@@ -191,7 +193,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
                                            daytime=_daytime(now, cal))  # 직원이 화면에서 기다린다 — 초안보다 먼저
             if picks and result.paused is None:
                 result.drafting = DraftSummary()
-                ttl = datetime.timedelta(seconds=int(cfg.get("realtime_timeout_s"))) + CLAIM_MARGIN
+                ttl = claim_ttl(cfg)
                 run_drafting(session, states=(), reader=reader or OpenApiReader(sleep=stop.reader_sleep), now=now,
                              stop=stop, mode=mode, is_business_day=cal, brain=brain, poster=poster, clock=clock,
                              budget_seconds=TICK_BUDGET_SECONDS, ready=ready, summary=result.drafting, picks=picks,
@@ -204,6 +206,14 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
             session.rollback()
             result.outcome = OUTCOME_STOPPED
         return result
+
+
+def claim_ttl(cfg: PanelSettings) -> datetime.timedelta:
+    """선점 만료 = 시간 상한 + 여유(R10-2 · R13-8). 견적 계산 넣기가 켜졌으면 뽑기 최악 시간도 더한다(검수 R17-6)."""
+    seconds = float(int(cfg.get("realtime_timeout_s")))
+    if cfg.get(QUOTE_SETTING):
+        seconds += quote_worst_seconds(cfg)
+    return datetime.timedelta(seconds=seconds) + CLAIM_MARGIN
 
 
 def _prepare(session: Any, result: TickResult, *, memory: TickMemory, cfg: PanelSettings, now: datetime.datetime,

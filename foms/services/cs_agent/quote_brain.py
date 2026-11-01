@@ -6,8 +6,8 @@
 
 부르기 · 가림 · 돈 줄 · 오류 꼴은 두뇌 한 곳(:mod:`.brain`)의 것을 그대로 쓴다(같은 패키지 — 보내기 · 예약 · 바로잡기 순서를
 새로 만들지 않는다). 모델 · 생각 깊이 · 최대 출력은 관리 화면 '의도 고르기' 칸(지금 잠김 — 처음 값 그대로)이다. 시간 상한은
-그 길의 상한이고, 빠른 길이면 :data:`REALTIME_TIMEOUT_CAP` 와 견주어 작은 쪽 — 뽑기 + 초안이 빠른 길 선점 만료(시간 상한 +
-45초) 안에 끝나게. 거절이면 견적 문의가 아닌 것으로 둔다(초안 두뇌가 다시 판단한다). 손님 글 · 뽑은 값은 로그에 싣지 않는다.
+그 길의 상한이고, 빠른 길이면 :data:`REALTIME_TIMEOUT_CAP` 와 견주어 작은 쪽이다. 견적 계산 넣기가 켜지면 빠른 길 선점
+만료가 뽑기 최악 시간(:func:`worst_seconds`)만큼 늘어난다(시간 상한 + 뽑기 상한 + 45초 — 검수 R17-6). 거절이면 견적 문의가 아닌 것으로 둔다(초안 두뇌가 다시 판단한다). 손님 글 · 뽑은 값은 로그에 싣지 않는다.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "BRANDS", "DOORS", "HANDLES", "QUOTE_INTENT", "REALTIME_TIMEOUT_CAP", "SPACES", "UNKNOWN_FIELDS", "QuoteAsk",
-    "QuoteSpace", "catalog_text", "extract_quote", "option_ids", "quote_schema", "read_ask",
+    "QuoteSpace", "catalog_text", "extract_quote", "option_ids", "quote_schema", "read_ask", "worst_seconds",
 ]
 
 QUOTE_INTENT = "quote_request"  # 견적 문의 — 뽑기 결과의 의도 이름(이것일 때만 계산을 넣는다)
@@ -199,6 +199,16 @@ def read_ask(text: str, catalog: Catalog) -> QuoteAsk:
 
 
 # ── 부르기 ───────────────────────────────────────────────────────────────
+def worst_seconds(cfg: PanelSettings) -> float:
+    """빠른 길 뽑기 한 번의 최악 시간(초) — 시도마다 상한(:data:`REALTIME_TIMEOUT_CAP` 이하) + 다시 하기 사이 쉼(R17-6).
+
+    선점 만료는 견적 계산 넣기가 켜지면 이만큼 늘어난다(:func:`.realtime.claim_ttl`).
+    """
+    retries = int(cfg.get("realtime_retries"))
+    per_try = min(int(cfg.get("realtime_timeout_s")), REALTIME_TIMEOUT_CAP)
+    return (retries + 1) * per_try + retries * brain.RETRY_BACKOFF_SECONDS
+
+
 def _capped(cfg: PanelSettings, realtime: bool) -> PanelSettings:
     """빠른 길이면 시간 상한을 :data:`REALTIME_TIMEOUT_CAP` 이하로(15분 루프 길은 그대로)."""
     if not realtime:

@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 248,
+    "total": 249,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 213,
+    "AUDITED": 214,
     "EXEMPT": 34,
     "UNAUDITED": 1
   },
@@ -30,8 +30,17 @@
   "routes": [
     {
       "path": "foms/api/admin/cs_agent.py",
+      "endpoint": "cs_agent_calculator_check",
+      "lineno": 159,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_save_settings",
-      "lineno": 120,
+      "lineno": 124,
       "methods": [
         "POST"
       ],
@@ -40,7 +49,7 @@
     {
       "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_switch_draft",
-      "lineno": 101,
+      "lineno": 105,
       "methods": [
         "POST"
       ],
@@ -49,7 +58,7 @@
     {
       "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_switch_loop",
-      "lineno": 82,
+      "lineno": 86,
       "methods": [
         "POST"
       ],

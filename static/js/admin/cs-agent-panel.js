@@ -1,7 +1,7 @@
 /**
  * 관리자 — AI 상담팀원 관리 패널(templates/admin/cs_agent.html, 설계서 16.1 단계 1).
  *
- * 화면은 서버가 그린다. 이 스크립트는 쓰기만 한다: 비상 정지 · 초안 스위치 · 두뇌 설정 저장을
+ * 화면은 서버가 그린다. 이 스크립트는 쓰기만 한다: 비상 정지 · 초안 스위치 · 두뇌 설정 저장 · 계산기 값 확인(D74)을
  * JSON API(/api/admin/cs-agent/*)로 보내고, 성공하면 같은 탭으로 화면을 다시 읽는다.
  * CSRF 토큰은 공용 csrf_bootstrap 의 fetch 래퍼가 붙인다. 글은 textContent 로만 넣는다(innerHTML 없음).
  * 잠긴 칸(다음 단계 — disabled)은 보내지 않는다. 저장 성공 글은 다시 읽은 뒤 한 번 보인다(sessionStorage — 못 쓰면 없이 간다).
@@ -178,6 +178,11 @@
     if (loopBtn) { onLoopClick(loopBtn); return; }
     var draftBtn = event.target.closest('[data-cs-draft]');
     if (draftBtn) { onDraftClick(draftBtn); return; }
+    if (event.target.closest('[data-cs-calc-check]')) {
+      if (!window.confirm('스토어 가격과 계산기 값이 같은지 확인하셨나요? 오늘부터 14일 동안 AI 견적이 계산기 금액을 씁니다.')) return;
+      send(root.getAttribute('data-calc-check-url'), {}, 'cs-tab-switch');
+      return;
+    }
     if (event.target.closest('[data-cs-reload]')) reloadAt('cs-tab-records');
   });
 

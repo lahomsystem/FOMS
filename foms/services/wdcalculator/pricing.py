@@ -23,9 +23,9 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
 __all__ = [
-    "BRAND_HAUD", "BRAND_LAHOM", "PRICING_TYPES", "EstimateMath", "WidthInputError", "aggregate_totals",
-    "apply_coupon", "calculate_estimate", "compute_estimate", "find_product", "js_number", "option_rows",
-    "product_brand", "won",
+    "BRAND_HAUD", "BRAND_LAHOM", "PRICING_TYPES", "EstimateInputError", "EstimateMath", "WidthInputError",
+    "aggregate_totals", "apply_coupon", "calculate_estimate", "compute_estimate", "find_product", "js_number",
+    "option_rows", "product_brand", "won",
 ]
 
 BRAND_LAHOM, BRAND_HAUD = "LAHOM", "HAUD"
@@ -33,32 +33,61 @@ BRAND_LAHOM, BRAND_HAUD = "LAHOM", "HAUD"
 PRICING_TYPES: tuple[str, ...] = ("1m", "30cm")
 #: 제품 이름이 이 말로 시작하면 하우드(처음 채우기 파일엔 브랜드 칸이 없다 — 설계서 17.4 · V10-2).
 _HAUD_NAME = re.compile(r"^\s*하우드")
-_JS_NUMBER = re.compile(r"[+-]?(\d+\.?\d*(e[+-]?\d+)?|\.\d+(e[+-]?\d+)?)", re.IGNORECASE)
-_ZEROS = re.compile(r"0+(\.0+)?")
+#: JS 숫자 글 꼴(ASCII 숫자만 — 전각 · 아랍 숫자는 JS 에서 NaN 이다, 검수 R17-7).
+_JS_NUMBER = re.compile(r"[+-]?(\d+\.?\d*(e[+-]?\d+)?|\.\d+(e[+-]?\d+)?)", re.IGNORECASE | re.ASCII)
+_JS_RADIX = {"x": (16, re.compile(r"0x[0-9a-f]+", re.IGNORECASE | re.ASCII)),
+             "b": (2, re.compile(r"0b[01]+", re.IGNORECASE | re.ASCII)),
+             "o": (8, re.compile(r"0o[0-7]+", re.IGNORECASE | re.ASCII))}
+#: JS ``String.prototype.trim`` 이 걷는 글자(공백 · 줄바꿈 · BOM ``﻿`` · 유니코드 Zs).
+_JS_SPACE = "\t\n\v\f\r              " \
+            "    　﻿"
+_ZEROS = re.compile(r"0+(\.0+)?", re.ASCII)
 
 
-class WidthInputError(ValueError):
+class EstimateInputError(ValueError):
+    """화면 계산이 예외를 내는 입력(빈 구성품 · 빈 추가금 칸 등) — 화면도 계산하지 않는다."""
+
+
+class WidthInputError(EstimateInputError):
     """가로 글을 숫자로 못 읽었다(화면은 알림을 띄우고 계산하지 않는다 — ``validateBaseWidthComponents``)."""
 
 
 # ── JS 숫자 규칙 ─────────────────────────────────────────────────────────
+def _js_string(value: Any) -> str:
+    """JS ``String()``(배열 칸 · 숫자 — 배열을 숫자로 바꿀 때 쓴다). 객체는 '[object Object]'."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer() and abs(value) < 1e21:
+        return str(int(value))
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    if isinstance(value, list):
+        return ",".join(_js_string(item) for item in value)
+    return "[object Object]"
+
+
 def js_number(value: Any) -> float:
-    """JS ``Number(value)`` — 못 바꾸면 NaN. ``None`` 은 ``Number(null)`` 처럼 0 이다."""
+    """JS ``Number(value)`` — 못 바꾸면 NaN. ``None`` 은 ``Number(null)`` 처럼 0, 배열은 글로 바꿔 읽는다."""
     if value is None:
         return 0.0
     if isinstance(value, bool):
         return 1.0 if value else 0.0
     if isinstance(value, (int, float)):
         return float(value)
+    if isinstance(value, list):
+        return js_number(_js_string(value))
     if not isinstance(value, str):
         return math.nan
-    text = value.strip()
+    text = value.strip(_JS_SPACE)
     if not text:
         return 0.0
     if text in ("Infinity", "+Infinity", "-Infinity"):
         return -math.inf if text.startswith("-") else math.inf
-    if re.fullmatch(r"0[xX][0-9a-fA-F]+", text):
-        return float(int(text, 16))
+    radix = _JS_RADIX.get(text[1:2].lower()) if text[:1] == "0" else None
+    if radix is not None:
+        return float(int(text[2:], radix[0])) if radix[1].fullmatch(text) else math.nan
     return float(text) if _JS_NUMBER.fullmatch(text) else math.nan
 
 
@@ -98,16 +127,16 @@ def won(value: float) -> int:
 
 # ── 제품 ─────────────────────────────────────────────────────────────────
 def find_product(products: Sequence[Mapping[str, Any]], product_id: Any) -> Optional[Mapping[str, Any]]:
-    """화면 ``findProduct`` — 숫자 id 가 같거나 글 id 가 같은 첫 제품."""
+    """화면 ``findProduct`` — 숫자 id 가 같거나 글 id 가 같은 첫 제품(객체가 아닌 칸은 건너뛴다)."""
     if product_id is None or product_id == "":
         return None
     pid = js_number(product_id)
     for row in products or ():
-        if row is None:
+        if not isinstance(row, Mapping):
             continue
         if not math.isnan(pid) and js_number(row.get("id")) == pid:
             return row
-        if str(row.get("id")) == str(product_id):
+        if _js_string(row.get("id")) == _js_string(product_id):
             return row
     return None
 
@@ -133,27 +162,45 @@ class EstimateMath:
     components: int  # 견적에 담기는 구성품 수(``normalizedComponents``)
 
 
-def _check_width_inputs(components: Sequence[Mapping[str, Any]]) -> None:
+def _floor(value: float) -> float:
+    """JS ``Math.floor`` — 무한 · NaN 은 그대로(파이썬 ``math.floor`` 는 예외를 낸다)."""
+    return float(math.floor(value)) if math.isfinite(value) else value
+
+
+def _mod(value: float, divisor: float) -> float:
+    """JS ``%`` — 무한을 나누면 NaN(파이썬 ``math.fmod`` 는 예외를 낸다)."""
+    return math.fmod(value, divisor) if math.isfinite(value) else math.nan
+
+
+def _get(value: Any, key: str) -> Any:
+    """JS ``value.key`` — 객체가 아니면 없음(``undefined``)."""
+    return value.get(key) if isinstance(value, Mapping) else None
+
+
+def _check_width_inputs(components: Sequence[Any]) -> None:
     """화면 ``validateBaseWidthComponents`` — 가로 글이 있는데 0 이하로 읽혔고 '0' 꼴도 아니면 :class:`WidthInputError`."""
     for comp in components or ():
-        raw = str((comp or {}).get("widthInput") or "").strip()
-        if not raw or _num0((comp or {}).get("widthMm")) > 0:
+        raw = _js_string(_get(comp, "widthInput") or "").strip(_JS_SPACE)
+        if not raw or _num0(_get(comp, "widthMm")) > 0:
             continue
-        if _ZEROS.fullmatch(re.sub(r"\s", "", raw)):
+        if _ZEROS.fullmatch("".join(ch for ch in raw if ch not in _JS_SPACE)):
             continue
         raise WidthInputError("가로(mm) 형식을 확인하세요")
 
 
+def _thirty(width: float, price_30: float, price_1: float) -> float:
+    """30cm 단가 + 나머지 1cm 단가(나머지 mm 는 버린다 — 화면 그대로, V10-1)."""
+    return _floor(width / 300) * price_30 + _floor(_mod(width, 300) / 10) * price_1
+
+
 def _manual_price(comp: Mapping[str, Any], width: float) -> Optional[float]:
     """직접 입력 단가 구성품의 값 — 단가가 0 이하면 ``None``(화면은 그 구성품을 담지 않는다)."""
-    pricing = comp.get("manualPricing") or {}
-    if (pricing.get("pricing_type") or "30cm") == "1m":
-        price_1m = _num0(pricing.get("price_1m"))
+    pricing = comp.get("manualPricing")
+    if (_get(pricing, "pricing_type") or "30cm") == "1m":
+        price_1m = _num0(_get(pricing, "price_1m"))
         return (width / 1000) * price_1m if price_1m > 0 else None
-    price_30, price_1 = _num0(pricing.get("price_30cm")), _num0(pricing.get("price_1cm"))
-    if price_30 > 0 and price_1 > 0:
-        return math.floor(width / 300) * price_30 + math.floor(math.fmod(width, 300) / 10) * price_1
-    return None
+    price_30, price_1 = _num0(_get(pricing, "price_30cm")), _num0(_get(pricing, "price_1cm"))
+    return _thirty(width, price_30, price_1) if price_30 > 0 and price_1 > 0 else None
 
 
 def _select_price(product: Mapping[str, Any], width: float) -> float:
@@ -161,15 +208,23 @@ def _select_price(product: Mapping[str, Any], width: float) -> float:
     if product.get("pricing_type") == "1m":
         return (width / 1000) * _operand(product.get("price_1m"))
     if product.get("pricing_type") == "30cm":
-        return (math.floor(width / 300) * _operand(product.get("price_30cm"))
-                + math.floor(math.fmod(width, 300) / 10) * _operand(product.get("price_1cm")))
+        return _thirty(width, _operand(product.get("price_30cm")), _operand(product.get("price_1cm")))
     return 0.0
+
+
+def _fee_amounts(fees: Any) -> list[float]:
+    """구성품 추가금 칸 → 금액들. 빈 칸(``null``)이면 화면이 예외를 낸다 — :class:`EstimateInputError`."""
+    if not isinstance(fees, list):
+        return []  # 배열이 아니면 화면은 하나도 돌지 않는다(글이면 글자마다 0)
+    if any(fee is None for fee in fees):
+        raise EstimateInputError("구성품 추가금 칸이 비었다")
+    return [_num0(_get(fee, "amount")) for fee in fees]
 
 
 def _component(comp: Mapping[str, Any], products: Sequence[Mapping[str, Any]]) -> tuple[float, bool]:
     """구성품 하나 → (값, 견적에 담기나) — 화면 ``computeBaseLayer`` 의 한 바퀴."""
     width = _num0(comp.get("widthMm"))
-    fees = comp.get("additionalFees") or []
+    amounts = _fee_amounts(comp.get("additionalFees") or [])
     price, kept = 0.0, False
     if width > 0:
         if comp.get("mode") == "manual":
@@ -180,7 +235,6 @@ def _component(comp: Mapping[str, Any], products: Sequence[Mapping[str, Any]]) -
             product = find_product(products, product_id) if product_id else None
             if product is not None:
                 price, kept = _select_price(product, width), True
-    amounts = [_num0((fee or {}).get("amount")) for fee in fees]
     total_fee = 0.0
     for amount in amounts:  # sum() 은 보정 덧셈이라 JS 차례 덧셈과 끝자리가 갈릴 수 있다 — 차례로 더한다
         total_fee += amount
@@ -192,11 +246,11 @@ def _component(comp: Mapping[str, Any], products: Sequence[Mapping[str, Any]]) -
     return price, kept
 
 
-def _options_price(rows: Iterable[Mapping[str, Any]]) -> float:
+def _options_price(rows: Iterable[Any]) -> float:
     """화면 ``computeOptionsLayer`` 의 금액 — 이름 없거나 단가 0 이하인 줄은 뺀다, 수량이 0 · 없음이면 1."""
     total = 0.0
     for row in rows or ():
-        if not row or not _truthy(row.get("name")):
+        if not _truthy(_get(row, "name")):
             continue
         price, quantity = _num0(row.get("price")), _or0(js_number(row.get("quantity"))) or 1.0
         if price <= 0:
@@ -205,8 +259,8 @@ def _options_price(rows: Iterable[Mapping[str, Any]]) -> float:
     return total
 
 
-def compute_estimate(components: Sequence[Mapping[str, Any]], products: Sequence[Mapping[str, Any]],
-                     options: Sequence[Mapping[str, Any]] = ()) -> EstimateMath:
+def compute_estimate(components: Sequence[Any], products: Sequence[Mapping[str, Any]],
+                     options: Sequence[Any] = ()) -> EstimateMath:
     """화면 ``wdcComputeCurrentEstimateMath`` 와 같은 금액.
 
     Args:
@@ -216,13 +270,17 @@ def compute_estimate(components: Sequence[Mapping[str, Any]], products: Sequence
         options: 추가 옵션 줄(``{"name", "price", "quantity"}`` — :func:`option_rows`).
 
     Raises:
-        WidthInputError: 가로 글을 못 읽음(화면도 계산하지 않는다).
+        EstimateInputError: 화면도 계산하지 않는 입력 — 가로 글을 못 읽음(:class:`WidthInputError`) · 빈 구성품 칸 · 빈 추가금 칸.
     """
     _check_width_inputs(components)
     base_calc = base_collect = 0.0
     kept_count = 0
     for comp in components or ():
-        price, kept = _component(comp or {}, products)
+        if comp is None:
+            raise EstimateInputError("구성품 칸이 비었다")
+        if not isinstance(comp, Mapping):
+            continue  # 객체가 아닌 칸은 화면에서 가로 0 · 추가금 없음 — 값이 없다
+        price, kept = _component(comp, products)
         base_calc += price
         if kept:
             base_collect += price
@@ -232,7 +290,7 @@ def compute_estimate(components: Sequence[Mapping[str, Any]], products: Sequence
                         kept_count)
 
 
-def aggregate_totals(estimates: Iterable[Mapping[str, Any]], coupon_value: Any = 0, shipping_cost: Any = 0,
+def aggregate_totals(estimates: Iterable[Any], coupon_value: Any = 0, shipping_cost: Any = 0,
                      shipping_included: Any = True) -> dict[str, float]:
     """화면 ``wdcComputeAggregateTotals`` — 견적마다 ``basePrice`` · ``additionalPrice`` 합, 쿠폰은 합에 한 번, 운임은 끝 값만."""
     def finite(value: Any) -> float:
@@ -243,8 +301,8 @@ def aggregate_totals(estimates: Iterable[Mapping[str, Any]], coupon_value: Any =
     for est in estimates or ():
         if est is None:
             continue
-        base += finite(est.get("basePrice"))
-        additional += finite(est.get("additionalPrice"))
+        base += finite(_get(est, "basePrice"))
+        additional += finite(_get(est, "additionalPrice"))
     total = base + additional
     estimate = max(0.0, total - finite(coupon_value))
     final = estimate + finite(shipping_cost) if shipping_included is not False else estimate
@@ -252,17 +310,23 @@ def aggregate_totals(estimates: Iterable[Mapping[str, Any]], coupon_value: Any =
             "totalEstimate": estimate, "finalPrice": final}
 
 
-def option_rows(refs: Iterable[tuple[str, Any]], categories: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def option_rows(refs: Iterable[tuple[str, Any]], categories: Sequence[Any]) -> list[dict[str, Any]]:
     """옵션 id(``카테고리id:옵션id``) · 수량 → 화면 옵션 줄(``카테고리 > 옵션`` · 서버 목록의 단가 · 수량).
+
+    객체가 아닌 카테고리 · 옵션 칸(깨진 설정)은 건너뛴다(검수 R17-7).
 
     Raises:
         KeyError: 서버 목록에 없는 옵션 id.
     """
     index: dict[str, dict[str, Any]] = {}
     for category in categories or ():
-        for option in (category or {}).get("options") or ():
-            key = f"{category.get('id')}:{(option or {}).get('id')}"
-            index[key] = {"name": f"{category.get('name')} > {option.get('name')}", "price": option.get("price")}
+        if not isinstance(category, Mapping):
+            continue
+        for option in category.get("options") or ():
+            if not isinstance(option, Mapping):
+                continue
+            index[f"{category.get('id')}:{option.get('id')}"] = {
+                "name": f"{category.get('name')} > {option.get('name')}", "price": option.get("price")}
     rows = []
     for ref, quantity in refs:
         if ref not in index:

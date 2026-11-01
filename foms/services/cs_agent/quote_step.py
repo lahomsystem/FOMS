@@ -8,10 +8,12 @@
 2. **계산기 설정 읽기** — 못 읽거나 라홈 제품이 없으면 그만(로그만 — 예전 그대로 초안).
 3. **뽑기(두뇌 구조화 출력 한 번)** — :func:`.quote_brain.extract_quote`. 견적 문의(``quote_request``)가 아니면 계산 없이 초안.
    두뇌 오류(준비 안 됨 · 돈 상한 · 가림 · 못 씀)는 초안 두뇌와 같게 부르는 쪽이 다룬다(같은 ``except``).
-4. **제작 조건 · 계산** — :func:`.quote_calc.evaluate`. 결과가 사람에게(``human``)면 초안 없이 넘김 기록만. 나머지는
-   ``calculator_lines`` · 허용 목록 · 직원 참고 줄을 초안 차례에 넘긴다.
+4. **확인 날 · 제작 조건 · 계산** — 확인 날은 값 지문 기록(:func:`.quote_check.observe` — D74), 계산은
+   :func:`.quote_calc.evaluate`. 제작 조건 줄을 못 읽으면 빈 규칙이 아니라 사람에게(R17-9). 결과가 사람에게(``human``)면 초안
+   없이 넘김 기록만. 나머지는 ``calculator_lines`` · 허용 목록 · 직원 참고 줄을 초안 차례에 넘긴다.
 
-뽑기 호출의 토큰 · 돈 · 시간은 초안 결과에 더해 차례 줄에 남긴다(:func:`merge_usage`). 글은 로그에 싣지 않는다.
+결과 값(:meth:`QuoteStep.record` — 상태 · 두뇌 줄 · 허용 금액 줄)과 뽑기 호출의 토큰 · 돈 · 시간은 부르는 쪽
+(:meth:`.drafting_pass.DraftPass.quote`)이 초안 두뇌 **전에** 차례 줄에 적는다(R17-1 · R17-3). 글은 로그에 싣지 않는다.
 """
 
 from __future__ import annotations
@@ -26,12 +28,11 @@ from typing import Any, Callable, Iterable, Optional
 from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.cs_agent.brain_prompt import DraftRequest, DraftResult
-from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge
 from foms.services.cs_agent.quote_brain import QUOTE_INTENT, QuoteAsk, extract_quote
-from foms.services.cs_agent.quote_calc import (
-    HUMAN_RULE_UNREADABLE, STATUS_HUMAN, RuleUnreadable, build_rules, evaluate,
-)
+from foms.services.cs_agent.quote_calc import HUMAN_RULE_UNREADABLE, RuleUnreadable, build_rules, evaluate
+from foms.services.cs_agent.quote_check import PriceCheck, observe
+from foms.services.cs_agent.quote_record import STATUS_HUMAN, STATUS_NOT_QUOTE, record_value
 from foms.services.cs_agent.settings import read_settings
 from foms.services.wdcalculator.catalog import Catalog, read_catalog
 
@@ -40,7 +41,6 @@ logger = logging.getLogger("foms.services.cs_agent.drafting")
 __all__ = ["QUOTE_CUE", "SETTING", "STATUS_NOT_QUOTE", "QuoteStep", "looks_like_quote", "merge_usage", "prepare"]
 
 SETTING = "quote_calc_enabled"  # 관리 화면 칸 이름
-STATUS_NOT_QUOTE = "not_quote"
 #: 견적 문의 같은 말(코드 거르기 — 뽑기를 부를지만 정한다. 정말 견적 문의인지는 뽑기가 정한다).
 QUOTE_CUE = re.compile(
     r"견적|가격|금액|비용|얼마|단가|만\s?원|사이즈|치수|가로|세로|높이|천고|폭|"
@@ -57,10 +57,15 @@ class QuoteStep:
     note: str = ""
     human: Optional[str] = None
     usage: Optional[QuoteAsk] = None
+    code: Optional[str] = None
 
     def apply(self, request: DraftRequest) -> DraftRequest:
         """초안 재료에 계산 결과 줄을 넣는다(없으면 그대로)."""
         return dataclasses.replace(request, calculator_lines=self.lines) if self.lines else request
+
+    def record(self) -> dict[str, Any]:
+        """차례 줄 ``quote_lines`` 에 남길 값(:mod:`.quote_record`)."""
+        return record_value(self.status, lines=self.lines, allowed=self.allowed, code=self.human or self.code)
 
 
 def looks_like_quote(texts: Iterable[str]) -> bool:
@@ -96,7 +101,8 @@ def _catalog(reader: Callable[[], Catalog], chat_id: str) -> Optional[Catalog]:
 
 def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest, texts: Iterable[str],
             now: datetime.datetime, stop: Any, summary: Any, quoter: Optional[Callable[..., QuoteAsk]] = None,
-            catalog_reader: Optional[Callable[[], Catalog]] = None) -> Optional[QuoteStep]:
+            catalog_reader: Optional[Callable[[], Catalog]] = None,
+            price_check: Optional[Callable[..., PriceCheck]] = None) -> Optional[QuoteStep]:
     """견적 계산 넣기 한 번(모듈 설명의 차례). ``None`` 이면 예전 그대로 초안(끔 · 견적 말 없음 · 계산기 못 읽음).
 
     Raises:
@@ -110,7 +116,7 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
     try:
         rules, unreadable = build_rules(knowledge.items), False
     except RuleUnreadable as exc:
-        logger.warning("[CS 견적] 제작 조건 줄을 못 읽었다 item=%s", exc)
+        logger.warning("[CS 견적] 제작 조건 줄을 못 읽었다 — 견적 문의면 사람에게 item=%s", exc)
         rules, unreadable = (), True
     stop.check()  # 두뇌 전
     summary.brain_calls += 1
@@ -120,10 +126,12 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
     elif unreadable:
         step = QuoteStep(STATUS_HUMAN, human=HUMAN_RULE_UNREADABLE, usage=ask)
     else:
-        outcome = evaluate(ask, catalog, rules, now_utc=naive_utc(now))
+        check = (price_check or observe)(session, catalog, now=now)
+        outcome = evaluate(ask, catalog, rules, check=check, now=now)
         step = QuoteStep(outcome.status, lines=outcome.lines, allowed=outcome.allowed, note=outcome.note,
-                         human=outcome.code if outcome.status == STATUS_HUMAN else None, usage=ask)
+                         human=outcome.code if outcome.status == STATUS_HUMAN else None, usage=ask,
+                         code=outcome.code)
     summary.quotes[step.status] = summary.quotes.get(step.status, 0) + 1
     logger.info("[CS 견적] chat=%s intent=%s status=%s code=%s", request.chat_id,
-                QUOTE_INTENT if ask.quote_request else "other", step.status, step.human)
+                QUOTE_INTENT if ask.quote_request else "other", step.status, step.human or step.code)
     return step

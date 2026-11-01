@@ -1,14 +1,16 @@
 """견적 계산 — 뽑은 견적 재료로 제작 조건을 보고 계산기 값을 낸다(순수 함수 — 네트워크 · DB 없음).
 
-플랜 C10-6 · 설계서 17.4 길 2 · 3 · 5(원장 R10-24 · R10-25). 금액은 :func:`foms.services.wdcalculator.pricing.compute_estimate`
-(직원 화면 계산과 원 단위로 같은 서버 계산 — CI 계약 시험)만 낸다. 쿠폰 · 운임은 넣지 않는다. 결과(:func:`evaluate`):
+플랜 C10-6 · 설계서 17.4 길 2 · 3 · 5(원장 R10-24 · R10-25 · 사장님 결정 D73 · D74 · 검수 R17). 금액은 화면 계산
+(:func:`foms.services.wdcalculator.pricing.compute_estimate` — CI 계약 시험) 위에 AI 견적 규칙 층(:mod:`.quote_rules` — 최소
+길이 · mm 올림 · cm 비례)을 얹어 낸다. 쿠폰 · 운임은 넣지 않는다. 제품은 **라홈 제품에서만** 찾는다. 결과(:func:`evaluate`):
 
-- **ok** — 계산기 줄(두뇌 ``calculator_lines`` 재료)과 같은 줄을 금액 허용 목록에 더한다. 확인 날 줄은 허용 목록에 넣지 않는다.
-- **needs_check** — 계산기 설정 저장(= 가격 확인 날) 뒤 14일이 지났거나 확인 날이 없다(처음 채우기 파일). 금액은 손님 글에 쓰지
-  않고 직원 참고 칸에만(설계서 7.1 의 5) — 허용 목록에 더하지 않는다.
+- **ok** — 계산기 줄(두뇌 ``calculator_lines`` 재료)과 같은 줄을 금액 허용 목록에 더한다. 머리 줄(확인 날)은 넣지 않는다.
+- **needs_check** — 확인 날(:mod:`.quote_check` — 값이 바뀐 때 · 버튼을 누른 때 가운데 늦은 것) 뒤 14일이 지났거나 확인 날이
+  없다. 두뇌 재료에는 금액 없이 '금액 확인 필요 — 금액을 쓰지 말 것' 한 줄만, 금액은 코드가 쓰는 직원 참고 줄에만(R17-4).
 - **ask** — 계산에 꼭 필요한 칸(제품 · 가로, 제작 조건이 보는 높이 · 문 방식)을 모른다. 한 가지만 묻게 한다(제품 → 가로 →
   높이 → 문 방식 차례).
-- **human** — 사람에게: 하우드(이번 범위 밖) · 제작 조건에 안 맞음 · 제작 조건 글을 못 읽음 · 모르는 가격 방식 · 0원 · 계산 실패.
+- **human** — 사람에게: 하우드(이번 범위 밖) · 제작 조건에 안 맞음 · 최소 길이 미만(여닫이 · 모름) · 모르는 가격 방식 · 0원 ·
+  계산 실패(무한 · 깨진 설정 포함). 제작 조건 글을 못 읽으면 :mod:`.quote_step` 이 사람에게 보낸다.
 
 **제작 조건(build_rule)**: 지식 문서의 ``build_rule`` 항목 글에서 ``검사:`` 로 시작하는 줄만 코드가 읽는다(그 밖의 글은 두뇌
 재료일 뿐). 꼴: ``검사: product=7,24 min_width=600 max_width=4800 max_height=2400 door=hinged`` — ``product`` 가 없으면
@@ -24,21 +26,24 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Optional, Sequence
 
 from foms.services.cs_agent.quote_brain import DOORS, HANDLES, QuoteAsk, QuoteSpace
-from foms.services.wdcalculator.catalog import FRESH_DAYS, Catalog
-from foms.services.wdcalculator.pricing import (
-    BRAND_HAUD, PRICING_TYPES, compute_estimate, find_product, option_rows, won,
-)
+from foms.services.cs_agent.quote_check import FRESH_DAYS, PriceCheck
+from foms.services.cs_agent.quote_record import STATUS_ASK, STATUS_CHECK, STATUS_HUMAN, STATUS_OK
+from foms.services.cs_agent.quote_rules import NeedsHuman, price as rule_price
+from foms.services.wdcalculator.catalog import Catalog
+from foms.services.wdcalculator.pricing import BRAND_HAUD, PRICING_TYPES, find_product, option_rows
 
 __all__ = [
-    "ASK_ORDER", "KIND_BUILD_RULE", "STATUS_ASK", "STATUS_CHECK", "STATUS_HUMAN", "STATUS_OK", "BuildRule",
-    "QuoteOutcome", "RuleUnreadable", "build_rules", "evaluate",
+    "ASK_ORDER", "CHECK_LINE", "KIND_BUILD_RULE", "STATUS_ASK", "STATUS_CHECK", "STATUS_HUMAN", "STATUS_OK",
+    "BuildRule", "QuoteOutcome", "RuleUnreadable", "build_rules", "evaluate",
 ]
 
 KIND_BUILD_RULE = "build_rule"  # 지식 문서 종류 이름(설계서 17.5 — 그 종류가 문서에 들어오면 여기서 읽는다)
-STATUS_OK, STATUS_CHECK, STATUS_ASK, STATUS_HUMAN = "ok", "needs_check", "ask", "human"
 #: 사람에게 넘기는 까닭 코드(차례 기록 ``error_code`` · 넘김 칸 — 글이 아니다).
 HUMAN_BRAND, HUMAN_RULE, HUMAN_RULE_UNREADABLE = "quote_brand", "quote_build_rule", "quote_rule_unreadable"
 HUMAN_PRICING_TYPE, HUMAN_ZERO, HUMAN_FAILED = "quote_pricing_type", "quote_zero", "quote_calc_failed"
+#: '확인 필요'일 때 두뇌 재료 한 줄(금액 없음 — R17-4).
+CHECK_LINE = (f"금액 확인 필요 — 계산기 값 확인 날이 없거나 {FRESH_DAYS}일이 지났다. 금액을 쓰지 말 것"
+              "(실측 · 확인 뒤 안내한다고만 쓴다).")
 #: 모르면 묻는 차례와 손님께 물을 말(두뇌 재료 — 한 가지만 묻는다).
 ASK_ORDER: dict[str, str] = {
     "product": "어떤 가구(제품 · 문 방식)를 원하시는지",
@@ -93,7 +98,7 @@ def _rule(item_id: str, body: str) -> BuildRule:
     numbers = {}
     for key in ("min_width", "max_width", "max_height"):
         raw = values.get(key, "0")
-        if not raw.isdigit():
+        if not raw.isascii() or not raw.isdigit():
             raise RuleUnreadable(item_id)
         numbers[key] = int(raw)
     doors = frozenset(values["door"].split(",")) if "door" in values else frozenset()
@@ -166,24 +171,20 @@ def _missing(ask: QuoteAsk, rules: Sequence[BuildRule]) -> Optional[str]:
     return next((name for name in ASK_ORDER if name in gaps), None)
 
 
-def _price(product: dict[str, Any], width: int, rows: Sequence[dict[str, Any]], products: Sequence[Any]) -> int:
-    """한 후보 · 한 가로의 계산기 값(원). 0 이하 · 수가 아님 · 구성품 값 0 이면 :class:`ValueError` ``zero``."""
-    math_ = compute_estimate([{"mode": "select", "productId": product.get("id"), "widthMm": width,
-                               "additionalFees": []}], products, rows)
-    if not math.isfinite(math_.total_price_collect) or math_.base_price_collect <= 0 or math_.components != 1:
-        raise ValueError("zero")
-    if any(js <= 0 for js in (won(math_.base_price_collect), won(math_.total_price_collect))):
-        raise ValueError("zero")
-    return won(math_.total_price_collect)
+def _option_rows(space: QuoteSpace, catalog: Catalog) -> list[dict[str, Any]]:
+    """공간의 옵션 줄 — 0원 옵션은 ``zero``(화면은 그 줄을 빼고 센다 — 손님이 말한 옵션이 빠진 값은 쓰지 않는다)."""
+    rows = option_rows(space.options, catalog.option_categories)
+    for row in rows:
+        value = row.get("price")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise ValueError("zero")
+    return rows
 
 
 def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list[str], list[int]]:
     """공간 하나의 계산기 줄 · 값들(후보 × 가로 끝). 모르는 가격 방식이면 ``KeyError`` ``pricing_type``."""
-    rows = option_rows(space.options, catalog.option_categories)
-    for row in rows:
-        if not (isinstance(row.get("price"), (int, float)) and not isinstance(row.get("price"), bool)
-                and row["price"] > 0):
-            raise ValueError("zero")  # 화면은 0원 옵션 줄을 빼고 계산한다 — 손님이 말한 옵션이 빠진 값은 쓰지 않는다
+    rows = _option_rows(space, catalog)
+    lahom = catalog.products_of()
     label = space.space if space.space != "기타" else f"공간 {number}"
     extra = [f"높이 {space.height_mm:,}mm"] if space.height_mm else []
     extra += [f"{DOORS[space.door]}"] if space.door != "unknown" else []
@@ -191,16 +192,17 @@ def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list
     extra += [f"옵션 {row['name']} × {qty}" for row, (_, qty) in zip(rows, space.options)]
     lines, values = [], []
     for pid in space.product_ids:
-        product = find_product(catalog.products, pid)
+        product = find_product(lahom, pid)  # 라홈 제품에서만(같은 id 하우드 줄을 집지 않는다 — R17-7)
         if product is None:
             raise ValueError("failed")
         if product.get("pricing_type") not in PRICING_TYPES:
             raise KeyError("pricing_type")
         for width in [w for w in (space.width_mm, space.width_max_mm) if w]:
-            amount = _price(product, width, rows, catalog.products)
+            priced = rule_price(product, width, rows, lahom)
             name = " ".join(str(product.get("name") or "").split())
-            lines.append(" · ".join([label, name, f"가로 {width:,}mm", *extra]) + f" = {amount:,}원")
-            values.append(amount)
+            used = [f"계산 가로 {priced.width_used:,}mm — {priced.note}"] if priced.note else []
+            lines.append(" · ".join([label, name, f"가로 {width:,}mm", *used, *extra]) + f" = {priced.amount:,}원")
+            values.append(priced.amount)
     return lines, values
 
 
@@ -210,21 +212,23 @@ def _priced(ask: QuoteAsk, catalog: Catalog) -> QuoteOutcome | tuple[list[str], 
     single, total = True, 0
     for number, space in enumerate(ask.spaces, start=1):
         try:
-            space_lines, values = _space_lines(number, space, catalog)
+            space_lines, amounts = _space_lines(number, space, catalog)
+        except NeedsHuman as exc:
+            return QuoteOutcome(STATUS_HUMAN, code=str(exc.args[0]))
         except KeyError as exc:
             code = HUMAN_PRICING_TYPE if exc.args == ("pricing_type",) else HUMAN_FAILED
             return QuoteOutcome(STATUS_HUMAN, code=code)
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             return QuoteOutcome(STATUS_HUMAN, code=HUMAN_ZERO if exc.args == ("zero",) else HUMAN_FAILED)
         lines += space_lines
-        single = single and len(values) == 1
-        total += values[0]
+        single = single and len(amounts) == 1
+        total += amounts[0]
     return lines, (total if single and len(ask.spaces) > 1 else 0)
 
 
-def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *,
-             now_utc: datetime.datetime) -> QuoteOutcome:
-    """뽑은 재료 → 계산 결과(모듈 설명). ``now_utc`` 는 UTC naive(확인 날과 견준다)."""
+def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *, check: PriceCheck,
+             now: datetime.datetime) -> QuoteOutcome:
+    """뽑은 재료 → 계산 결과(모듈 설명). ``check`` 는 확인 날 판정 재료, ``now`` 는 시간대 있는 지금."""
     if ask.brand == BRAND_HAUD:
         return QuoteOutcome(STATUS_HUMAN, code=HUMAN_BRAND)
     missing = _missing(ask, rules)
@@ -237,16 +241,14 @@ def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *,
     priced = _priced(ask, catalog)
     if isinstance(priced, QuoteOutcome):
         return priced
-    values, total = priced
+    lines, total = priced
     if total:
-        values.append(f"합계(공간 {len(ask.spaces)}곳) {total:,}원")
-    day = f"{catalog.saved_at:%Y-%m-%d}" if catalog.saved_at else "없음"
-    if catalog.needs_check(now_utc):
-        head = (f"계산기 금액 '확인 필요' — 계산기 제품 설정 확인 날({day}) 뒤 {FRESH_DAYS}일이 지났거나 확인 날이 없다. "
-                "금액은 손님 글에 쓰지 않고 직원 참고 칸에만 적는다:")
-        return QuoteOutcome(STATUS_CHECK, lines=(head, *values),
-                            note=f"[견적 계산 · 확인 필요 — 확인 날 {day}] " + " / ".join(values))
-    head = (f"라홈 견적 계산기 값(직원 계산기 화면과 같은 계산 · 쿠폰 · 운임 빼고 · 실측 전 값, 계산기 설정 확인 날 {day}) — "
-            "금액은 이 줄의 값만 쓴다:")
-    return QuoteOutcome(STATUS_OK, lines=(head, *values), allowed=tuple(values),
-                        note=f"[견적 계산 — 확인 날 {day}] " + " / ".join(values))
+        lines.append(f"합계(공간 {len(ask.spaces)}곳) {total:,}원")
+    day = check.day()
+    if check.needs_check(now):
+        return QuoteOutcome(STATUS_CHECK, lines=(CHECK_LINE,),
+                            note=f"[견적 계산 · 확인 필요 — 확인 날 {day}] " + " / ".join(lines))
+    head = (f"라홈 견적 계산기 값(직원 계산기 화면 계산 + 스토어 최소 길이 · mm 올림 규칙 · 쿠폰 · 운임 빼고 · 실측 전 값, "
+            f"계산기 값 확인 날 {day}) — 금액은 이 줄의 값만 쓴다:")
+    return QuoteOutcome(STATUS_OK, lines=(head, *lines), allowed=tuple(lines),
+                        note=f"[견적 계산 — 확인 날 {day}] " + " / ".join(lines))

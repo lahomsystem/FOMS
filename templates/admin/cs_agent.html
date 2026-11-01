@@ -9,7 +9,8 @@
 <div class="container mt-4 mb-5 cs-agent-panel" data-cs-agent-panel
      data-loop-url="{{ url_for('cs_agent_admin_api.cs_agent_switch_loop') }}"
      data-draft-url="{{ url_for('cs_agent_admin_api.cs_agent_switch_draft') }}"
-     data-settings-url="{{ url_for('cs_agent_admin_api.cs_agent_save_settings') }}">
+     data-settings-url="{{ url_for('cs_agent_admin_api.cs_agent_save_settings') }}"
+     data-calc-check-url="{{ url_for('cs_agent_admin_api.cs_agent_calculator_check') }}">
 
   <div class="cs-agent-head">
     <div>
@@ -53,5 +54,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/cs-agent-panel.js') }}?v=20261029a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/cs-agent-panel.js') }}?v=20261101a" defer></script>
 {% endblock %}

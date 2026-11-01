@@ -78,6 +78,7 @@ from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
 from foms.services.cs_agent.quote_brain import QUOTE_INTENT
+from foms.services.cs_agent.quote_record import allowed_from
 from foms.services.cs_agent.quote_step import merge_usage
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.state import (
@@ -371,7 +372,8 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     if ctx.asks_human(lines):  # 'AI 냐 사람이냐' 물음이면 두 길 모두 두뇌 · 초안 없이 사람에게(설계서 17.1 · 17.8)
         return ctx.hand_to_human(row, chat_id, lines)
     if repost:  # 이 읽기가 직전 다시 읽기다 — 두뇌를 다시 부르지 않는다
-        return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=stored, note="", reread=False)
+        return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=stored, note="", reread=False,
+                                extra_allowed=allowed_from(row.quote_lines))  # 그 차례 계산기 값(R17-2)
     cases = similar_cases(ctx.session, BRAND, lines)  # L0 사례(DB 오류면 빈 사례) — 허용 목록엔 넣지 않는다
     try:
         request = DraftRequest(brand=BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=ctx.daytime,
@@ -383,7 +385,7 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     if ctx.switched_off():  # 바퀴 도중 꺼졌으면(다른 길로 바뀜 포함) 부르지 않는다 — 시도로 세지 않고 돌려놓는다
         return ctx.release(row, HALT_SWITCHED_OFF, halt=HALT_SWITCHED_OFF)
     try:
-        quote = ctx.quote(request, lines)  # 견적 계산 넣기(C10-6) — 끔 · 견적 말 없음이면 None(예전 그대로)
+        quote = ctx.quote(row, request, lines)  # 견적 계산 넣기(C10-6) — 끔 · 견적 말 없음이면 None(예전 그대로)
         if quote is None or quote.human is None:
             ctx.summary.brain_calls += 1
             result = ctx.brain(quote.apply(request) if quote else request, session=ctx.session, now=ctx.now)

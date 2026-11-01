@@ -1,11 +1,11 @@
-"""계산기 설정 읽기(읽기만) — 제품 목록 · 추가 옵션 목록 · 저장 시각(= 가격 확인 날).
+"""계산기 설정 읽기(읽기만) — 제품 목록 · 추가 옵션 목록.
 
-플랜 C10-6 · 설계서 17.4(원장 V10-2 · R10-25). 정본은 계산기 DB 설정 한 줄(``WDCalculatorProductSettings`` id 1 —
+플랜 C10-6 · 설계서 17.4(원장 V10-2). 정본은 계산기 DB 설정 한 줄(``WDCalculatorProductSettings`` id 1 —
 ``foms/api/wdcalculator/blueprint.py`` 의 ``load_products`` 가 읽는 그 줄)이다. 줄이 없거나 칸이 비었을 때만 처음 채우기 파일
-(``data/products.json`` · ``data/additional_options.json``)을 쓰고, 그때는 확인 날이 없다(= '확인 필요').
+(``data/products.json`` · ``data/additional_options.json``)을 쓴다(``from_seed``).
 
-- **확인 날**: 설정 줄의 ``updated_at``(제품 · 옵션 · 비고 · 프리셋 중 무엇을 저장해도 바뀐다 — 화면에서 저장한 날을 '확인'으로
-  본다). :data:`FRESH_DAYS` 일이 지나면 :meth:`Catalog.needs_check` — 계산기 금액은 손님 글에 바로 쓰지 않는다(설계서 7.1 · 17.4).
+- **확인 날은 여기서 정하지 않는다**: 설정 줄의 ``updated_at`` 은 비고 · 프리셋 저장에도 바뀌고 DB 시간대에 기대므로 쓰지
+  않는다(검수 R17-5 · R17-8). 확인 날은 CS 쪽 값 지문 기록(:mod:`foms.services.cs_agent.quote_check` — 사장님 결정 D74)이다.
 - **세션**: Flask 요청 밖(WORKER — 감시 루프 · 빠른 길)에서도 읽게 짧은 세션을 따로 열고 닫는다(``get_wdcalculator_db`` 는 앱
   컨텍스트 ``g`` 가 있어야 한다). 값을 쓰지 않는다.
 """
@@ -13,21 +13,18 @@
 from __future__ import annotations
 
 import copy
-import datetime
 import json
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from foms.services.wdcalculator.pricing import BRAND_LAHOM, product_brand
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["FRESH_DAYS", "Catalog", "read_catalog"]
+__all__ = ["Catalog", "read_catalog"]
 
-#: 가격 확인 날에서 이만큼(일) 지나면 '확인 필요'(설계서 7.1 의 5 — 지식 문서 가격 규칙을 계산기 쪽으로, 원장 R10-25).
-FRESH_DAYS = 14
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 SEED_PRODUCTS_PATH = os.path.join(_ROOT, "data", "products.json")
 SEED_OPTIONS_PATH = os.path.join(_ROOT, "data", "additional_options.json")
@@ -35,27 +32,15 @@ SEED_OPTIONS_PATH = os.path.join(_ROOT, "data", "additional_options.json")
 
 @dataclass(frozen=True)
 class Catalog:
-    """계산기 설정 묶음(읽기 전용 사본). ``saved_at`` 은 UTC naive(설정 줄 저장 시각) — 처음 채우기 파일이면 ``None``."""
+    """계산기 설정 묶음(읽기 전용 사본). ``from_seed`` 면 계산기 설정 줄이 없어 처음 채우기 파일을 읽었다."""
 
     products: tuple[dict[str, Any], ...]
     option_categories: tuple[dict[str, Any], ...]
-    saved_at: Optional[datetime.datetime]
     from_seed: bool = False
 
     def products_of(self, brand: str = BRAND_LAHOM) -> tuple[dict[str, Any], ...]:
         """그 브랜드 제품(목록 순서) — 브랜드 칸, 없으면 이름으로 가른다(:func:`.pricing.product_brand`)."""
         return tuple(p for p in self.products if isinstance(p, dict) and product_brand(p) == brand)
-
-    def age_days(self, now_utc: datetime.datetime) -> Optional[float]:
-        """확인 날부터 지금까지 지난 날 수(확인 날이 없으면 ``None``)."""
-        if self.saved_at is None:
-            return None
-        return (now_utc - self.saved_at).total_seconds() / 86400
-
-    def needs_check(self, now_utc: datetime.datetime) -> bool:
-        """'확인 필요'인가 — 확인 날이 없거나(처음 채우기 파일) :data:`FRESH_DAYS` 일을 넘김."""
-        age = self.age_days(now_utc)
-        return age is None or age > FRESH_DAYS
 
 
 def _seed(path: str, key: str) -> list[Any]:
@@ -93,14 +78,13 @@ def read_catalog(session: Any = None) -> Catalog:
         products = copy.deepcopy(row.products) if row is not None and row.products is not None else None
         options = (copy.deepcopy(row.additional_options)
                    if row is not None and row.additional_options is not None else None)
-        saved_at = row.updated_at if row is not None else None
     finally:
         if own:
             session.close()
     from_seed = products is None
     if products is None:
-        products, saved_at = _seed(SEED_PRODUCTS_PATH, "products"), None
+        products = _seed(SEED_PRODUCTS_PATH, "products")
     if options is None:
         options = _seed(SEED_OPTIONS_PATH, "categories")
     return Catalog(tuple(p for p in products if isinstance(p, dict)),
-                   tuple(c for c in options if isinstance(c, dict)), saved_at, from_seed)
+                   tuple(c for c in options if isinstance(c, dict)), from_seed)

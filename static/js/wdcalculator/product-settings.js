@@ -96,6 +96,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (brandEl && brandEl.value) {
             formData.brand = brandEl.value;
         }
+        // 견적 규칙 종류(D73): AI 상담 견적만 쓴다 — 고르지 않으면 칸을 두지 않는다(이름으로 가른다).
+        const quoteRuleEl = document.getElementById('productQuoteRule');
+        if (quoteRuleEl && quoteRuleEl.value) {
+            formData.quote_rule = quoteRuleEl.value;
+        }
 
         // 가격 정보 추가 (콤마 내성 파싱 — 저장 값은 항상 클린 숫자)
         if (formData.pricing_type === '1m') {
@@ -136,6 +141,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('productCategory').value = '';
         const resetBrandEl = document.getElementById('productBrand');
         if (resetBrandEl) resetBrandEl.value = '';
+        const resetRuleEl = document.getElementById('productQuoteRule');
+        if (resetRuleEl) resetRuleEl.value = '';
         editingProductId = null;
         document.getElementById('price1mGroup').classList.remove('show');
         document.getElementById('price30cmGroup').classList.remove('show');
@@ -154,6 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('productCategory').value = product.category || '';
                 const editBrandEl = document.getElementById('productBrand');
                 if (editBrandEl) editBrandEl.value = (product.brand === 'LAHOM' || product.brand === 'HAUD') ? product.brand : '';
+                const editRuleEl = document.getElementById('productQuoteRule');
+                const rules = ['hinge', 'slide', 'linear', 'none'];
+                if (editRuleEl) editRuleEl.value = rules.indexOf(product.quote_rule) !== -1 ? product.quote_rule : '';
                 document.getElementById('pricingType').value = product.pricing_type;
                 document.getElementById('pricingType').dispatchEvent(new Event('change'));
                 
