@@ -5,13 +5,13 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 652,
+    "broad_total": 655,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 42,
-    "INTENTIONAL": 17,
+    "INTENTIONAL": 20,
     "LOG_AND_CONTINUE": 427,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
@@ -22,7 +22,7 @@
     "cache": 30,
     "channel": 37,
     "persistence": 3,
-    "platform": 5,
+    "platform": 8,
     "runtime": 3,
     "services": 204,
     "storage": 24,
@@ -2249,7 +2249,7 @@
     },
     {
       "path": "foms/api/partner/__init__.py",
-      "lineno": 170,
+      "lineno": 171,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2993,6 +2993,33 @@
       "owner": "persistence",
       "has_logging": false,
       "justification": "re-raises"
+    },
+    {
+      "path": "foms/platform/db_leak_trace.py",
+      "lineno": 67,
+      "handler_type": "broad_exception",
+      "disposition": "INTENTIONAL",
+      "owner": "platform",
+      "has_logging": false,
+      "justification": "진단 전용 태그 — 못 읽으면 '-' 로 남기고 앱 동작에 끼어들지 않는다"
+    },
+    {
+      "path": "foms/platform/db_leak_trace.py",
+      "lineno": 98,
+      "handler_type": "broad_exception",
+      "disposition": "INTENTIONAL",
+      "owner": "platform",
+      "has_logging": false,
+      "justification": "기록 전용 리스너 — 실패해도 연결 꺼내기를 막지 않는다"
+    },
+    {
+      "path": "foms/platform/db_leak_trace.py",
+      "lineno": 116,
+      "handler_type": "broad_exception",
+      "disposition": "INTENTIONAL",
+      "owner": "platform",
+      "has_logging": false,
+      "justification": "기록 전용 리스너 — 실패해도 연결 반납(rollback)을 막지 않는다"
     },
     {
       "path": "foms/platform/realtime.py",

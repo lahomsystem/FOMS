@@ -64,8 +64,8 @@ def _request_tag() -> tuple[str, str]:
 
         if has_request_context():
             return (request.endpoint or "-", getattr(g, "request_id", None) or "-")
-    except Exception:  # noqa: BLE001 — 진단 전용, 앱 동작에 끼어들지 않는다
-        pass
+    except Exception:  # noqa: BLE001
+        pass  # failopen: intentional: 진단 전용 태그 — 못 읽으면 '-' 로 남기고 앱 동작에 끼어들지 않는다
     return ("-", "-")
 
 
@@ -96,7 +96,7 @@ def _on_checkout(dbapi_connection: Any, connection_record: Any, connection_proxy
         endpoint, request_id = _request_tag()
         connection_record.info[_INFO_KEY] = (_app_frames(), endpoint, request_id, time.monotonic())
     except Exception:  # noqa: BLE001
-        pass
+        pass  # failopen: intentional: 기록 전용 리스너 — 실패해도 연결 꺼내기를 막지 않는다
 
 
 def _on_reset(dbapi_connection: Any, connection_record: Any, reset_state: Any) -> None:
@@ -114,7 +114,7 @@ def _on_reset(dbapi_connection: Any, connection_record: Any, reset_state: Any) -
             frames, endpoint, request_id, time.monotonic() - t0,
         )
     except Exception:  # noqa: BLE001
-        pass
+        pass  # failopen: intentional: 기록 전용 리스너 — 실패해도 연결 반납(rollback)을 막지 않는다
 
 
 def install_db_leak_trace(engine: Any) -> bool:
