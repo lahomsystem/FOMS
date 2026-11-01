@@ -112,9 +112,11 @@
         </div>
     </div>
 </div>
+{% include "partner/partials/notice_modal.html" %}
     <script src="{{ asset_url('js/partner/partner-portal.js') }}" defer></script>
     <script src="{{ asset_url('js/partner/partner-channel-push.js') }}" defer></script>
     <script src="{{ asset_url('js/partner/partner-push.js') }}" defer></script>
     <script src="{{ asset_url('js/partner/partner-shell.js') }}" defer></script>
+    {% if partner_notices %}<script src="{{ asset_url('js/partner/partner-notice.js') }}" defer></script>{% endif %}
 </body>
 </html>

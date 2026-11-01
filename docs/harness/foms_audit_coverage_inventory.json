@@ -8,20 +8,28 @@
     "log_access"
   ],
   "baselines": {
-    "total": 250,
-    "unaudited": 1
+    "total": 251,
+    "unaudited": 2
   },
   "classification_counts": {
     "AUDITED": 215,
     "EXEMPT": 34,
-    "UNAUDITED": 1
+    "UNAUDITED": 2
   },
-  "coverage_percent": 99.5,
+  "coverage_percent": 99.1,
   "unaudited_sites": [
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
       "endpoint": "api_order_item_cancel_after_confirm",
       "lineno": 51,
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "foms/api/partner/notices.py",
+      "endpoint": "ack_notice",
+      "lineno": 19,
       "methods": [
         "POST"
       ]
@@ -1361,6 +1369,15 @@
         "POST"
       ],
       "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/notices.py",
+      "endpoint": "ack_notice",
+      "lineno": 19,
+      "methods": [
+        "POST"
+      ],
+      "classification": "UNAUDITED"
     },
     {
       "path": "foms/api/production/orders.py",
