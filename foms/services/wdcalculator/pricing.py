@@ -167,6 +167,11 @@ def _floor(value: float) -> float:
     return float(math.floor(value)) if math.isfinite(value) else value
 
 
+def _ceil(value: float) -> float:
+    """JS ``Math.ceil`` — 무한 · NaN 은 그대로(파이썬 ``math.ceil`` 은 예외를 낸다)."""
+    return float(math.ceil(value)) if math.isfinite(value) else value
+
+
 def _mod(value: float, divisor: float) -> float:
     """JS ``%`` — 무한을 나누면 NaN(파이썬 ``math.fmod`` 는 예외를 낸다)."""
     return math.fmod(value, divisor) if math.isfinite(value) else math.nan
@@ -189,8 +194,8 @@ def _check_width_inputs(components: Sequence[Any]) -> None:
 
 
 def _thirty(width: float, price_30: float, price_1: float) -> float:
-    """30cm 단가 + 나머지 1cm 단가(나머지 mm 는 버린다 — 화면 그대로, V10-1)."""
-    return _floor(width / 300) * price_30 + _floor(_mod(width, 300) / 10) * price_1
+    """30cm 단가 + 나머지 1cm 단가(남는 mm 는 1cm 로 올린다 — 화면 그대로, 사장님 지시 11-01: 2,841mm → 2,850mm 값)."""
+    return _floor(width / 300) * price_30 + _ceil(_mod(width, 300) / 10) * price_1
 
 
 def _manual_price(comp: Mapping[str, Any], width: float) -> Optional[float]:
@@ -347,7 +352,7 @@ def calculate_estimate(product, width_mm, additional_options=None):
     elif product['pricing_type'] == '30cm':
         units_30cm = width_mm // 300
         remainder_mm = width_mm % 300
-        units_1cm = remainder_mm // 10
+        units_1cm = -(-remainder_mm // 10)  # 남는 mm 는 1cm 로 올린다(화면과 같게)
         base_price = (units_30cm * product.get('price_30cm', 0)) + (units_1cm * product.get('price_1cm', 0))
     additional_price = 0
     if additional_options:
