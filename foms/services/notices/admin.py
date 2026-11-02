@@ -6,8 +6,11 @@
 """
 from __future__ import annotations
 
+import copy
 from collections import Counter
 from typing import Any, Optional
+
+from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notices.audience import (
@@ -19,6 +22,7 @@ from foms.services.notices.audience import (
     notice_team_label,
     recipients,
 )
+from foms.services.notices.images import admin_items
 from foms.services.notices.payload import format_input_kst, parse_notice_payload
 from foms.services.orders.order_mutation_policy import normalize_team
 from models import Notice, NoticeAck, NotificationUserState, PartnerOrg, SecurityLog
@@ -27,6 +31,7 @@ __all__ = [
     "ack_status",
     "admin_notice_rows",
     "audience_options",
+    "audit_image_upload",
     "create_notice",
     "delete_notice",
     "notice_detail",
@@ -38,7 +43,7 @@ _AUDIT_TARGET = "notice"
 #: 고치기 감사에 적는 칸(바뀐 칸 이름만 — 본문 원문은 적지 않는다).
 _TRACKED_FIELDS = (
     "title", "body", "audience_staff_all", "audience_staff_teams", "audience_partner_all",
-    "audience_partner_org_ids", "display_mode", "pinned", "starts_at", "ends_at",
+    "audience_partner_org_ids", "display_mode", "pinned", "starts_at", "ends_at", "images",
 )
 
 
@@ -57,6 +62,15 @@ def _audit(db, actor: Any, action: str, notice: Notice, message: str, **detail: 
     db.add(SecurityLog(
         user_id=getattr(actor, "id", None), action=action, target_type=_AUDIT_TARGET, target_id=int(notice.id),
         message=message, detail={"title": notice.title, **detail},
+    ))
+
+
+def audit_image_upload(db, actor: Any, entry: dict[str, Any]) -> None:
+    """공지 사진 올림 감사 한 줄(``NOTICE_IMAGE_UPLOADED``) — 아직 공지에 붙지 않은 사진이라 대상 id 는 없다. commit 은 부르는 쪽."""
+    db.add(SecurityLog(
+        user_id=getattr(actor, "id", None), action="NOTICE_IMAGE_UPLOADED", target_type=_AUDIT_TARGET, target_id=None,
+        message=f"공지 사진 올림: {entry.get('name') or ''}",
+        detail={"key": entry.get("key"), "name": entry.get("name"), "size": entry.get("size")},
     ))
 
 
@@ -84,7 +98,8 @@ def create_notice(db, actor: Any, payload: Any) -> Notice:
     db.flush()
     label = audience_label(notice, _org_name_map(db))
     _audit(db, actor, "NOTICE_CREATED", notice, f"공지 만듦: {notice.title} ({label})",
-           audience=label, display_mode=notice.display_mode, pinned=bool(notice.pinned))
+           audience=label, display_mode=notice.display_mode, pinned=bool(notice.pinned),
+           images=len(notice.images or []))
     return notice
 
 
@@ -92,14 +107,18 @@ def update_notice(db, actor: Any, notice_id: Any, payload: Any) -> Optional[Noti
     """공지 고치기 — 없거나 지운 공지면 None. 틀리면 :class:`~.payload.NoticeInputError`.
 
     받는 쪽을 바꿔도 이미 남은 확인 기록은 지우지 않는다(현황은 지금 받는 사람 기준으로 센다).
+    페이로드에 ``images`` 칸이 없으면 사진은 그대로 둔다. 뺀 사진의 저장소 파일은 지우지 않는다(감사 · 되돌리기).
     """
     notice = _live_notice(db, notice_id)
     if notice is None:
         return None
     values = parse_notice_payload(db, payload)
-    changed = [f for f in _TRACKED_FIELDS if getattr(notice, f) != values[f]]
+    changed = [f for f in _TRACKED_FIELDS if f in values and getattr(notice, f) != values[f]]
     for field, value in values.items():
         setattr(notice, field, value)
+    if "images" in values:
+        notice.images = copy.deepcopy(values["images"])  # JSONB 칸은 새 목록으로 다시 넣고 바뀜을 알린다
+        flag_modified(notice, "images")
     notice.updated_at = now_utc_naive()
     db.flush()
     label = audience_label(notice, _org_name_map(db))
@@ -209,6 +228,7 @@ def notice_detail(db, notice_id: Any) -> Optional[dict[str, Any]]:
         "created_at": _kst(notice.created_at),
         "created_by_name": notice.created_by_name or "",
         "audience_label": audience_label(notice, _org_name_map(db)),
+        "images": admin_items(notice.images),
     }
 
 

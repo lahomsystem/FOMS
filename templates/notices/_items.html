@@ -1,6 +1,7 @@
 {# FOMS 공지 목록 한 덩어리(본사 /notices · 협력사 /partner/notices 같이 쓴다). 설계서 2026-11-02-foms-notices §5.
    넘겨받는 값: notices(visible_notices 항목), total, unread, filters, current_filter, filter_url(거르기 주소 앞부분).
-   펼쳐 읽으면 foms-notice-popup.js 가 POST /api/notices/<id>/read 로 읽음을 남기고 점을 지운다. #}
+   펼쳐 읽으면 foms-notice-popup.js 가 POST /api/notices/<id>/read 로 읽음을 남기고 점을 지운다.
+   사진(설계서 §8): 본문 아래 썸네일 줄(data-foms-notice-images · data-images) — 누르면 사진 창(foms-notice-gallery.js). #}
 <section class="foms-notice-page" data-foms-notice-list data-read-url="{{ url_for('notices_api.read_notice', notice_id=0) }}">
     <header class="foms-notice-page__head">
         <h1 class="foms-notice-page__title"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항</h1>
@@ -31,6 +32,11 @@
                     <i class="fas fa-chevron-down foms-notice-item__caret" aria-hidden="true"></i>
                 </summary>
                 <div class="foms-notice-item__body">{{ n.body }}</div>
+                {% if n.images %}
+                <div class="foms-notice-thumbs foms-notice-item__thumbs" data-foms-notice-images data-images="{{ n.images|tojson|forceescape }}">
+                    {% for img in n.images %}<button type="button" class="foms-notice-thumb" data-foms-notice-thumb data-index="{{ loop.index0 }}" aria-label="사진 {{ loop.index }} / {{ n.images|length }} 크게 보기"><img class="foms-notice-thumb__img" src="{{ img.thumb_url }}" alt="" loading="lazy" decoding="async"></button>{% endfor %}
+                </div>
+                {% endif %}
             </details>
         </li>
         {% endfor %}

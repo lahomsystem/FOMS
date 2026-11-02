@@ -2,7 +2,8 @@
  * 협력사 공지 창(사용자 2026-11-02) — "확인"을 눌러야만 닫힌다. 배경 누르기 · Esc 로는 안 닫힌다.
  *
  * 두 출처를 차례로 띄운다(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5): 서버가 정한 차례를
- * data-pp-notice-queue(JSON [{source, id, title, message, by, at}])로 받는다 — 기존 협력사 공지 먼저, 그다음 FOMS 공지사항.
+ * data-pp-notice-queue(JSON [{source, id, title, message, by, at, images}])로 받는다 — 기존 협력사 공지 먼저, 그다음 FOMS 공지사항.
+ * images([{url, thumb_url, name}])는 창 안 썸네일 줄 — 누르면 사진 창(foms-notice-gallery.js, 설계서 §8)이 공지 창 위에 뜬다.
  * 서버 계약(둘 다 {success, data:{pending:[...]}, error}):
  *   source=partner → POST /api/partner/notices/<id>/ack (data-pp-notice-url)
  *   source=notice  → POST /api/notices/<id>/ack          (data-pp-notice-new-url)
@@ -10,6 +11,7 @@
  * 확인 주소가 404 등 4xx 면(그새 지웠거나 · 기간이 끝났거나 · 받는 쪽이 바뀜) "이미 끝난 공지"로 보고 다음으로 넘어간다.
  * 오류 글을 남기고 창을 그대로 두는 것은 네트워크 오류 · 5xx 뿐이다.
  * 초점은 "확인" 단추에 가둔다 — document 잡기 단계 focusin · keydown(Tab · Esc 무시), 창이 닫히면 푼다.
+ * 사진 창(.foms-notice-gallery)이 열려 있는 동안은 가두기를 쉰다 — 사진 창을 닫아도 공지 창은 그대로다.
  */
 (function () {
   'use strict';
@@ -32,6 +34,7 @@
     var meta = root.querySelector('[data-pp-notice-meta]');
     var count = root.querySelector('[data-pp-notice-count]');
     var status = root.querySelector('[data-pp-notice-status]');
+    var images = root.querySelector('[data-foms-notice-images]');
     var ok = root.querySelector('[data-pp-notice-ok]');
     if (!ok) return;
     var queue = parseQueue(root.getAttribute('data-pp-notice-queue'));
@@ -41,11 +44,33 @@
     var total = queue.length;
     var index = 0;
 
-    // 창 밖으로 초점이 나가지 않게 — 단추가 하나뿐이라 Tab 도 그 단추에 머문다. Esc 는 무시한다.
+    // 사진 창이 위에 열려 있으면 가두지 않는다(사진 창이 자기 안에 초점을 가둔다).
+    function galleryOpen() { return !!document.querySelector('.foms-notice-gallery:not([hidden])'); }
+    function renderImages(notice) {
+      if (!images) return;
+      if (window.FomsNoticeGallery) window.FomsNoticeGallery.render(images, notice && notice.images);
+      else images.hidden = true;
+    }
+
+    // 창 밖으로 초점이 나가지 않게 — 썸네일 · "확인" 단추 안에서만. Esc 는 무시한다.
+    function cycleFocus(back) {
+      var list = Array.prototype.slice.call(root.querySelectorAll('[data-foms-notice-thumb], [data-pp-notice-ok]'));
+      var at = list.indexOf(document.activeElement);
+      var next = back ? (at <= 0 ? list.length - 1 : at - 1) : (at + 1) % list.length;
+      (list[next] || ok).focus();
+    }
     function onFocusIn(ev) {
+      if (galleryOpen()) return;
       if (!root.contains(ev.target)) ok.focus();
     }
     function onKeyDown(ev) {
+      if (galleryOpen()) return;
+      if (ev.key === 'Tab' && root.contains(ev.target)) { // 썸네일 · 확인 단추 사이만 돈다
+        ev.preventDefault();
+        ev.stopPropagation();
+        cycleFocus(ev.shiftKey);
+        return;
+      }
       if (ev.key === 'Escape' || ev.key === 'Esc' || ev.key === 'Tab' || !root.contains(ev.target)) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -55,6 +80,7 @@
     document.addEventListener('focusin', onFocusIn, true);
     document.addEventListener('keydown', onKeyDown, true);
     document.body.classList.add('pp-notice-open');
+    renderImages(queue[0]);
     ok.focus();
 
     function close() {
@@ -71,6 +97,7 @@
       if (body) body.textContent = notice.message || '';
       if (meta) meta.textContent = notice.by ? [notice.by, notice.at].filter(Boolean).join(' · ') : '';
       if (count) count.textContent = total > 1 ? (index + 1) + ' / ' + total : '';
+      renderImages(notice);
       ok.focus();
     }
 

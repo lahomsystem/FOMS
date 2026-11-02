@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 260,
+    "total": 261,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 222,
+    "AUDITED": 223,
     "EXEMPT": 36,
     "UNAUDITED": 2
   },
@@ -1084,7 +1084,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "ack_notice",
-      "lineno": 220,
+      "lineno": 315,
       "methods": [
         "POST"
       ],
@@ -1093,7 +1093,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_create_notice",
-      "lineno": 114,
+      "lineno": 189,
       "methods": [
         "POST"
       ],
@@ -1102,7 +1102,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_delete_notice",
-      "lineno": 170,
+      "lineno": 248,
       "methods": [
         "DELETE"
       ],
@@ -1111,7 +1111,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_update_notice",
-      "lineno": 147,
+      "lineno": 223,
       "methods": [
         "PUT"
       ],
@@ -1120,16 +1120,25 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "read_notice",
-      "lineno": 239,
+      "lineno": 334,
       "methods": [
         "POST"
       ],
       "classification": "EXEMPT"
     },
     {
+      "path": "foms/api/notices/__init__.py",
+      "endpoint": "upload_image",
+      "lineno": 152,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 759,
+      "lineno": 769,
       "methods": [
         "POST"
       ],
@@ -1138,7 +1147,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 673,
+      "lineno": 683,
       "methods": [
         "POST"
       ],
@@ -1147,7 +1156,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 589,
+      "lineno": 599,
       "methods": [
         "POST"
       ],
@@ -1156,7 +1165,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 710,
+      "lineno": 720,
       "methods": [
         "POST"
       ],
@@ -1165,7 +1174,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 790,
+      "lineno": 800,
       "methods": [
         "POST"
       ],
@@ -1174,7 +1183,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 630,
+      "lineno": 640,
       "methods": [
         "POST"
       ],
@@ -1183,7 +1192,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 897,
+      "lineno": 907,
       "methods": [
         "POST"
       ],
@@ -1192,7 +1201,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1196,
+      "lineno": 1206,
       "methods": [
         "POST"
       ],

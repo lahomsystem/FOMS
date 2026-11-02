@@ -323,3 +323,212 @@ html.foms-notice-open {
 .foms-notice-badge[hidden] {
   display: none !important;
 }
+
+/* ---- 공지 사진(설계서 §8) — 썸네일 줄 · 사진 창(foms-notice-gallery.js) ----
+ * 사진 창 z-index 105460: 공지 창(105450) 위 · 도면 수정 확인창(105500) · 긴급 오버레이(106000) 아래.
+ * 바깥은 흐림 + 어둡게, 카드는 공지 창과 같은 흰 바탕 · 둥근 모서리 · 보라 윗줄.
+ */
+.foms-notice-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.foms-notice-thumbs[hidden] {
+  display: none !important;
+}
+
+.foms-notice-item__thumbs {
+  margin: 0;
+  padding: 0 16px 16px 34px;
+}
+
+/* 협력사 공지 창(pp-notice, partner-portal.css) 안 — 본문(아래 1rem 여백) 바로 아래 */
+.pp-notice__thumbs {
+  margin: -0.25rem 0 0.75rem;
+}
+
+.foms-notice-thumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d9def0;
+  border-radius: 10px;
+  background: #f3f4fb;
+  cursor: zoom-in;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.foms-notice-thumb:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(90, 103, 216, 0.25);
+}
+
+.foms-notice-thumb:focus-visible {
+  outline: 3px solid var(--foms-color-brand-300, #9ea4ff);
+  outline-offset: 2px;
+}
+
+.foms-notice-thumb__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+html.foms-notice-gallery-open {
+  overflow: hidden;
+}
+
+.foms-notice-gallery {
+  position: fixed;
+  inset: 0;
+  z-index: 105460;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.foms-notice-gallery[hidden] {
+  display: none !important;
+}
+
+.foms-notice-gallery__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.foms-notice-gallery__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 720px);
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  background: #fff;
+  color: #1b2733;
+  border-radius: 12px;
+  border-top: 5px solid var(--foms-color-brand-500, #5a67d8);
+  box-shadow: 0 18px 48px rgba(16, 32, 44, 0.35);
+  overflow: hidden;
+}
+
+.foms-notice-gallery__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+  font-size: 0.85rem;
+  color: #6d8598;
+}
+
+.foms-notice-gallery__count {
+  font-weight: 700;
+  color: var(--foms-color-brand-600, #4a55b8);
+}
+
+.foms-notice-gallery__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.foms-notice-gallery__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f2fb;
+  color: #33465a;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.foms-notice-gallery__close:hover {
+  background: #e4e6fa;
+}
+
+.foms-notice-gallery__close:focus-visible,
+.foms-notice-gallery__nav:focus-visible {
+  outline: 3px solid var(--foms-color-brand-300, #9ea4ff);
+  outline-offset: 2px;
+}
+
+.foms-notice-gallery__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 0 12px 12px;
+  touch-action: pan-y;
+}
+
+.foms-notice-gallery__img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
+  border-radius: 8px;
+  object-fit: contain;
+  background: #f3f4fb;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+
+.foms-notice-gallery__img.is-loading {
+  opacity: 0.85;
+}
+
+.foms-notice-gallery__nav {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -28px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--foms-color-brand-600, #4a55b8);
+  box-shadow: 0 4px 14px rgba(16, 32, 44, 0.25);
+  cursor: pointer;
+}
+
+.foms-notice-gallery__nav[hidden] {
+  display: none !important;
+}
+
+.foms-notice-gallery__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.foms-notice-gallery__nav--prev {
+  left: 20px;
+}
+
+.foms-notice-gallery__nav--next {
+  right: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-notice-thumb,
+  .foms-notice-gallery__img {
+    transition: none;
+  }
+}

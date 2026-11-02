@@ -1,8 +1,11 @@
 {# 협력사 공지 창(사용자 2026-11-02) — "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘). 확인 안 한 공지를 한 건씩 보인다.
    두 출처를 차례로 띄운다(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §3 · §5): 기존 협력사 공지(PARTNER_NOTICE) 먼저,
    그다음 FOMS 공지사항(확인 창 공지). 차례는 서버가 정한다(partner_notices = _pending_notice_queue, 항목마다 source).
-   확인 주소: source=partner → POST /api/partner/notices/<id>/ack, source=notice → POST /api/notices/<id>/ack. 동작: partner-notice.js #}
+   확인 주소: source=partner → POST /api/partner/notices/<id>/ack, source=notice → POST /api/notices/<id>/ack. 동작: partner-notice.js
+   사진(설계서 §8): 본문 아래 썸네일 줄(data-foms-notice-images, 항목 images) — 누르면 공지 창 위에 사진 창(foms-notice-gallery.js).
+   썸네일 · 사진 창 모양은 본사와 같은 foms-notice.css. #}
 {% if partner_notices %}
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">
 <div class="pp-notice" data-pp-notice
      data-pp-notice-url="{{ url_for('partner_notice.ack_notice', notice_id=0) }}"
      data-pp-notice-new-url="{{ url_for('notices_api.ack_notice', notice_id=0) }}"
@@ -13,9 +16,11 @@
         <p class="pp-notice__kicker"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항 <span class="text-muted" data-pp-notice-count>{% if partner_notices|length > 1 %}1 / {{ partner_notices|length }}{% endif %}</span></p>
         <h2 class="pp-notice__title" id="ppNoticeTitle" data-pp-notice-title>{{ partner_notices[0].title }}</h2>
         <div class="pp-notice__body" data-pp-notice-body>{{ partner_notices[0].message }}</div>
+        <div class="foms-notice-thumbs pp-notice__thumbs" data-foms-notice-images hidden></div>
         <p class="small text-muted mb-2" data-pp-notice-meta>{% if partner_notices[0].by %}{{ partner_notices[0].by }} · {{ partner_notices[0].at }}{% endif %}</p>
         <p class="pp-status mb-2" data-pp-notice-status role="status" aria-live="polite"></p>
         <button type="button" class="btn btn-primary w-100" data-pp-notice-ok data-pp-notice-id="{{ partner_notices[0].id }}" data-pp-notice-source="{{ partner_notices[0].source }}">확인</button>
     </div>
 </div>
+<script src="{{ asset_url('js/foms/foms-notice-gallery.js') }}" defer></script>
 {% endif %}
