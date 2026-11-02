@@ -4448,3 +4448,57 @@ class NoticeAck(Base):
     __table_args__ = (
         UniqueConstraint('notice_id', 'user_id', name='uq_notice_acks_notice_user'),
     )
+
+
+# --------------------------------------------------------------------------- #
+# CS-AGENT 17.11: 손님 그림 읽기(도면 · 예시) — 숫자 · 코드만(그림 · 파일 key · 주소 · 파일 이름 · 모델 글 없음)
+# --------------------------------------------------------------------------- #
+
+
+class CsAgentImageRead(Base):
+    """손님 그림(또는 PDF) 하나의 읽기 한 줄 — (상담, 글, 파일 차례) 하나에 한 줄이다(설계서 17.11 (e) · D89).
+
+    미리 읽기(그림이 온 순간 — WORKER '그림 읽기 길')와 그 자리 읽기(초안 차례)가 같은 줄을 선점(``claim_owner`` ·
+    ``claim_expires_at``)해 같은 그림을 두 번 읽지 않는다. ``state``: ``pending`` 기다림 · ``reading`` 읽는 중 · ``done`` 결과
+    있음 · ``skipped`` 보내지 않음(``skip_code`` — 꼴 · 크기 · 얼굴 · 상한 …) · ``failed`` 받기 · 부르기 실패(다시 읽을 수 있음) ·
+    ``discarded`` 모델이 얼굴 · 사람을 보았다고 해 결과를 버림. ``result`` 는 구조화 출력 칸 + 코드가 낸 범위 · 판 번호(글 칸
+    없음 — 스키마가 강제)이고, 한 번에 읽은 그림 묶음은 같은 결과를 나눠 갖는다(``result.batch`` — sha256 차례). 토큰 · 돈은
+    묶음의 첫 줄에만 적는다(합이 한 번만 세이게). ``sha256`` 은 받은 바이트의 지문(되돌릴 수 없음 — 그림이 아니다)이다.
+    ``turn_id`` 는 이 결과를 쓴 초안 차례(FK 없음), ``truth`` 는 학습 정답(숫자만 — 17.11 (g)). DDL 은 ``csagent_06`` 과 같다.
+    """
+
+    __tablename__ = 'cs_agent_image_reads'
+
+    id = Column(Integer, primary_key=True)
+    brand = Column(String(8), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    message_id = Column(String(64), nullable=False)
+    file_index = Column(Integer, nullable=False)
+    sha256 = Column(String(64), nullable=True)
+    state = Column(String(16), nullable=False)
+    skip_code = Column(String(32), nullable=True)
+    result = Column(JSONColumn, nullable=True)
+    confidence = Column(String(8), nullable=True)
+    personal_codes = Column(JSONColumn, nullable=True)
+    model = Column(String(64), nullable=True)
+    effort = Column(String(16), nullable=True)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    cost_usd = Column(Numeric(12, 6), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default=text('0'))
+    claim_owner = Column(String(64), nullable=True)
+    claim_expires_at = Column(DateTime, nullable=True)
+    turn_id = Column(Integer, nullable=True)
+    truth = Column(JSONColumn, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    read_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('chat_id', 'message_id', 'file_index', name='uq_cs_agent_image_reads_file'),
+        CheckConstraint("state IN ('pending','reading','done','skipped','failed','discarded')",
+                        name='ck_cs_agent_image_reads_state'),
+        # 미리 읽기 길이 2초마다 기다리는 줄을 찾는 질의 · 하루 장수 상한(읽은 때)을 세는 질의.
+        Index('ix_cs_agent_image_reads_state_created', 'state', 'created_at'),
+        Index('ix_cs_agent_image_reads_read_at', 'read_at'),
+    )

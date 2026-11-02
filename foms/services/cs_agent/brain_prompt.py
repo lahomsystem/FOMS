@@ -33,6 +33,7 @@ from typing import Any, Mapping, Optional, Sequence
 
 from foms.services.cs_agent.brain_cases import case_lines, case_pairs, rewrite_lines, rewrite_pair
 from foms.services.cs_agent.brain_instructions import INSTRUCTIONS
+from foms.services.cs_agent.brain_media import media_tokens
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
 
@@ -457,14 +458,17 @@ def worst_case_cost(params: Mapping[str, Any]) -> Decimal:
     = (입력 어림 × 입력 쪽 가장 비싼 단가(캐시 1시간 쓰기까지) + ``max_tokens`` 전부 × 가장 비싼 출력 단가) × 시도 수(서버
     쪽 대체를 보내면 :data:`FALLBACK_ATTEMPTS` — 시도마다 따로 청구된다, 아니면 1). 입력 어림은 요청 칸 JSON 의 글자 수 +
     :data:`RESERVE_OVERHEAD_TOKENS` 다(한글 1자 ≈ 1토큰 — 설계서 11절 가정, 영문 · 칸 이름 · 기호는 그보다 적게 든다).
+    그림 · PDF(base64)는 글자 수에서 빼고 픽셀 · 쪽 식으로 따로 더한다(:mod:`.brain_media` — 설계서 17.11 (f)).
     단가는 고른 모델(Haiku 5.5 는 긴 프롬프트 값까지)이고, 서버 쪽 대체를 보낼 때만 :data:`FALLBACK_TARGETS`
     단가와 견주어 칸마다 큰 쪽이다(Haiku 5.5 는 대체를 보내지 않으니 Haiku 단가만). 표에 없는 모델은 가장 비싼 값이다.
     응답이 오면 실제 값으로 바로잡으니 넉넉한 쪽이 맞다.
     """
     prices = _reserve_prices(params)
-    text = json.dumps(dict(params), ensure_ascii=False, default=str)
+    stripped, media = media_tokens(params)
+    text = json.dumps(stripped, ensure_ascii=False, default=str)
     input_price = max(max(p.input, p.cache_write_5m, p.cache_write_1h) for p in prices)
     output_price = max(p.output for p in prices)
     attempts = FALLBACK_ATTEMPTS if params.get("fallbacks") else 1
-    micro = ((len(text) + RESERVE_OVERHEAD_TOKENS) * input_price + int(params["max_tokens"]) * output_price) * attempts
+    tokens_in = len(text) + RESERVE_OVERHEAD_TOKENS + media
+    micro = (tokens_in * input_price + int(params["max_tokens"]) * output_price) * attempts
     return micro / _MILLION

@@ -48,6 +48,8 @@ _ALLOWED_METADATA_KEYS = {
                     "report_sent", "last_success_at", "daily_cap_usd"},
     # CS 빠른 길(C10-1) — 30초 사이 차례 수 · 넣은 글 · 집은 상담 · 두뇌 수 합과 마지막 결과 코드뿐.
     "run_cs_realtime": {"interval_seconds", "outcome", "ticks", "ingested", "picked", "brain_calls"},
+    # CS 그림 미리 읽기(17.11 (b)) — 30초 사이 차례 수 · 읽은 묶음 · 실패 수와 마지막 결과 코드뿐.
+    "run_cs_image_read": {"interval_seconds", "outcome", "ticks", "read", "failed"},
 }
 
 

@@ -40,18 +40,22 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.cs_agent.brain_prompt import (
-    CACHE_TTL_1H, CACHE_TTL_5M, MODEL, MODEL_HAIKU, MODEL_SONNET, PRICES, PURPOSE_DRAFT, PURPOSE_INTENT,
-    SERVER_FALLBACK_MODELS,
+    CACHE_TTL_1H, CACHE_TTL_5M, MODEL, PURPOSE_DRAFT, PURPOSE_INTENT, SERVER_FALLBACK_MODELS,
 )
 from foms.services.cs_agent.brain_spend import worker_daily_cap
+from foms.services.cs_agent.image_settings import IMAGE_FIELDS
+from foms.services.cs_agent.settings_field import (
+    EFFORT_CHOICES as _EFFORT_CHOICES, KIND_BOOL, KIND_CHOICE, KIND_INT, KIND_MONEY, MODEL_CHOICES as _MODEL_CHOICES,
+    MODEL_HELP as _MODEL_HELP, Field,
+)
 from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog, SystemSetting, SystemSettingReceipt
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CACHE_ALWAYS", "CACHE_DAYTIME", "CACHE_OFF", "DAILY_CAP_FIELD", "DEFAULTS", "FIELDS", "FIELD_BY_NAME", "POLICY_ID",
-    "SETTINGS_KEY",
+    "CACHE_ALWAYS", "CACHE_DAYTIME", "CACHE_OFF", "DAILY_CAP_FIELD", "DEFAULTS", "FIELDS", "FIELD_BY_NAME", "KIND_BOOL",
+    "KIND_CHOICE", "KIND_INT", "KIND_MONEY", "POLICY_ID", "SETTINGS_KEY",
     "LOCKED_FIELDS", "Field", "PanelSettings", "SettingsConflictError", "SettingsError", "SettingsInvalidError",
     "SettingsLockedError", "SettingsNoChangeError", "SettingsSaveResult", "check_value", "field_view",
     "read_settings", "save_settings", "value_label",
@@ -62,7 +66,6 @@ SETTINGS_KEY = "cs_agent_settings"
 POLICY_ID = "CS_AGENT_SETTINGS"
 #: 수정 기록 ``expires_at`` — 지식 기록처럼 길게 둔다(다른 설정 영수증의 24시간 지우기 창에 걸리지 않게).
 RECEIPT_KEEP = datetime.timedelta(days=3650)
-KIND_CHOICE, KIND_INT, KIND_BOOL, KIND_MONEY = "choice", "int", "bool", "money"
 CACHE_DAYTIME, CACHE_ALWAYS, CACHE_OFF = "daytime", "always", "off"
 GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
@@ -76,33 +79,8 @@ MONEY_MAX = Decimal("10000")
 _CENT = Decimal("0.01")
 _NAME = re.compile(r"[a-z][a-z0-9_]{0,47}")
 _PURPOSE_PREFIX = {PURPOSE_DRAFT: "draft", PURPOSE_INTENT: "intent"}
-_MODEL_NAMES = {MODEL: "Opus 5.5", MODEL_SONNET: "Sonnet 5.5", MODEL_HAIKU: "Haiku 5.5"}
 
 
-@dataclass(frozen=True)
-class Field:
-    """칸 하나. ``choices`` 는 (값, 화면 이름) 목록, 정수 칸은 ``low`` ~ ``high``. ``help`` 는 화면 설명 한 줄.
-
-    ``locked`` 면 다음 단계 칸이다 — 화면은 값만 보이고, 바꾸는 저장은 거절하고, 읽을 때는 늘 처음 값이다.
-    """
-
-    name: str
-    label: str
-    kind: str
-    default: Any
-    group: str
-    choices: tuple[tuple[Any, str], ...] = ()
-    low: Optional[int] = None
-    high: Optional[int] = None
-    unit: str = ""
-    help: str = ""
-    locked: bool = False
-
-
-_MODEL_CHOICES = tuple((model, name) for model, name in _MODEL_NAMES.items())
-_MODEL_HELP = " · ".join(f"{_MODEL_NAMES[m]} ${PRICES[m].input} / ${PRICES[m].output}" for m in _MODEL_NAMES) + (
-    " (백만 토큰당 입력 / 출력). Haiku 5.5 는 서버 쪽 대체가 없고, 10만 토큰 넘는 프롬프트는 5배 값이다")
-_EFFORT_CHOICES = (("low", "낮음"), ("medium", "보통"), ("high", "높음"), ("max", "최고"))
 _CACHE_CHOICES = ((CACHE_DAYTIME, "운영 시간만"), (CACHE_ALWAYS, "늘"), (CACHE_OFF, "끔"))
 _TTL_CHOICES = ((CACHE_TTL_1H, "1시간"), (CACHE_TTL_5M, "5분"))
 _WAIT_CHOICES = ((0.5, "운영일 반나절"), (1, "운영일 1일"), (2, "운영일 2일"))
@@ -159,6 +137,7 @@ FIELDS: tuple[Field, ...] = (
           help="켜면 손님 글이 견적 문의로 보일 때 견적 재료를 한 번 뽑아(두뇌 한 번 — 의도 고르기 모델) 계산기 값을 초안 "
                "재료에 넣는다. 금액은 계산기 값 · 승인 지식에서만, 0원 · 모르는 가격 방식 · 제작 조건에 안 맞음은 사람에게. "
                "끄면 예전 그대로(플랜 C10-6)"),
+    *IMAGE_FIELDS,  # 그림 읽기(설계서 17.11) — 처음 끔
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

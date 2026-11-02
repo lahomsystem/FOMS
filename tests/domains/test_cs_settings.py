@@ -23,7 +23,8 @@ from tests.domains.test_cs_brain import KNOWLEDGE, NOW
 #: 잠긴 칸 — 빠른 길(C10-1)이 생겨 시간 상한(realtime_timeout_s)은 잠금을 풀었다(설계서 17.1 · 원장 V10-9).
 #: 학습 돈 상한은 학습 길(C10-7)이 생길 때까지 잠근다(총괄 결정 — 검수 R13-12).
 LOCKED = {"intent_model", "intent_effort", "intent_max_tokens", "realtime_retries",
-          "max_brain_calls_per_pass", "max_wait_business_days", "learning_cap_usd_panel"}
+          "max_brain_calls_per_pass", "max_wait_business_days", "learning_cap_usd_panel",
+          "image_truth_enabled", "image_truth_model"}  # 그림 정답 읽기(17.11 (g))는 그 길이 생길 때까지 잠근다
 
 
 @pytest.fixture
@@ -81,6 +82,11 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "send_buttons_enabled": False,  # [보내기] · [수정하기](C10-3) — 처음 끔
         "staff_push_enabled": False,  # 상담 직원 알림(C10-5) — 처음 끔
         "quote_calc_enabled": False,  # 견적 계산 넣기(C10-6) — 처음 끔
+        # 그림 읽기(설계서 17.11 (i)) — 처음 끔(D89) · Sonnet 5.5(D92) · PDF 3쪽(D96)
+        "image_read_mode": "off", "image_model": bp.MODEL_SONNET, "image_effort": "high", "image_max_tokens": 8000,
+        "image_preread_timeout_s": 60, "image_inline_timeout_s": 35, "image_use_confidence": "medium",
+        "image_per_turn": 4, "image_per_chat_day": 8, "image_per_day": 150, "image_pdf_pages": 3,
+        "image_pdf_max_mb": 10, "image_truth_enabled": False, "image_truth_model": bp.MODEL_HAIKU,
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
