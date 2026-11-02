@@ -56,7 +56,8 @@ def test_similar_cases_use_pg_trgm_and_match_the_python_fallback(pg_session):
     _case(pg_session, "c-far", "배송 일정이 궁금합니다")
     found = case_material.similar_cases(pg_session, "LAHOM", _lines(QUERY))
     assert [answer for _, answer in found] == ["합성 답 c-3", "합성 답 c-1", "합성 답 c-2"]
-    assert case_material._py_cases(pg_session, "LAHOM", QUERY, 5) == [(q, a) for q, a in found]  # 같은 셈 · 같은 순서
+    py_rows = case_material._py_cases(pg_session, "LAHOM", QUERY, 5)  # 행(17.6.1 — 까닭 칸까지)을 짝으로 견준다
+    assert [(row.masked_question, row.staff_reply_masked) for row in py_rows] == [(q, a) for q, a in found]  # 같은 셈 · 같은 순서
     for question in ("선반 깊이 문의드려요", "선반 깊이가 얼마인가요", "[이름] 선반 문의"):  # 한국어 글 셈이 같다
         score = pg_session.execute(text("SELECT similarity(:a, :b)"), {"a": question, "b": QUERY}).scalar()
         assert round(score, 6) == round(case_material.trigram_similarity(question, QUERY), 6), question
