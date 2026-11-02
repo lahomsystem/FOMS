@@ -25,6 +25,7 @@ from sqlalchemy import func, select
 
 from foms.services.cs_agent.brain_spend import kst_now, today_spend, worker_daily_cap
 from foms.services.cs_agent.channel_read import naive_utc
+from foms.services.cs_agent.image_store import image_view
 from foms.services.cs_agent.loop import SWITCH_KEY, SWITCH_OFF, SWITCH_ON, read_switch, set_switch
 from foms.services.cs_agent.metrics import DEFINITIONS, metrics_view
 from foms.services.cs_agent.quote_check import view as quote_check_view
@@ -277,6 +278,16 @@ def _metrics(session: Any, now: datetime.datetime) -> dict[str, Any]:
         return {"error": True, "definitions": list(DEFINITIONS), "brands": []}
 
 
+def _images(session: Any, since: datetime.datetime) -> dict[str, Any]:
+    """기록판 그림 읽기 숫자(설계서 17.11 (e)) — 세이브포인트 안에서 센다. 실패하면 '지금 셀 수 없음'(화면은 산다)."""
+    try:
+        with session.begin_nested():
+            return image_view(session, since)
+    except Exception as exc:  # 숫자는 덤이다 — 관리 화면(비상 정지 단추)이 500 이 되면 안 된다(기록은 남긴다)
+        logger.warning("[CS 관리] 그림 읽기 숫자를 못 셌다 — 화면은 숫자 없이 그린다 err=%s", type(exc).__name__)
+        return {"error": True}
+
+
 def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """관리 화면 한 덩어리(JSON 꼴) — 스위치 · 두뇌 설정 · 하루 상한 · 기록. 읽기만 한다(커밋 · 잠금 없음)."""
     now = kst_now(now)
@@ -288,5 +299,5 @@ def panel_state(session: Any, *, now: Optional[datetime.datetime] = None) -> dic
             "records": {"spend": today_spend(session, now=now), "turns": _turn_counts(session, day_start),
                         "heartbeat": _heartbeat(session, now), "report": _last_report(session),
                         "metrics": _metrics(session, now),
-                        "push": subscription_counts(session)},
+                        "push": subscription_counts(session), "images": _images(session, day_start)},
             "changes": recent_changes(session)}

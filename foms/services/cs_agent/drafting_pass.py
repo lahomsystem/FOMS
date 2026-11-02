@@ -22,6 +22,7 @@ from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO, ASK_HUMAN_MEMO_HEAD
 from foms.services.cs_agent.drafting_post import memo_on, post_note
 from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine
 from foms.services.cs_agent.drafting_summary import DraftSummary
+from foms.services.cs_agent.image_step import turn_hook as image_hook
 from foms.services.cs_agent.knowledge import ApprovedKnowledge
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
@@ -54,11 +55,14 @@ class DraftPass:
     def __init__(self, session: Any, *, reader: Any, now: datetime.datetime, stop: Any, mode: str,
                  brain: Callable[..., Any], poster: Callable[..., Any], knowledge: ApprovedKnowledge,
                  daytime: bool, summary: DraftSummary, clock: Callable[[], float] = time.monotonic,
-                 quoter: Optional[Callable[..., Any]] = None, catalog_reader: Optional[Callable[[], Any]] = None) -> None:
+                 quoter: Optional[Callable[..., Any]] = None, catalog_reader: Optional[Callable[[], Any]] = None,
+                 image_client: Any = None, image_transport: Any = None,
+                 image_sleep: Optional[Callable[[float], None]] = None) -> None:
         """재료를 담는다. 허용 목록은 승인 지식 글만 — [사람] 항목 글 · 손님 글 금액은 넣지 않는다(손님 예산에 맞춰 주게 된다).
 
         견적 계산 넣기(C10-6)가 켜진 차례만 계산기 값 줄이 그 차례 허용 목록에 더해진다(:meth:`quote`). ``quoter`` ·
-        ``catalog_reader`` 는 뽑기 두뇌 · 계산기 설정 읽기(시험은 가짜 — 없으면 진짜).
+        ``catalog_reader`` 는 뽑기 두뇌 · 계산기 설정 읽기, ``image_client`` · ``image_transport`` · ``image_sleep`` 은 그림 읽기
+        두뇌 · 파일 받기 · 기다림(설계서 17.11 — 시험은 가짜, 없으면 진짜).
         """
         self.session, self.reader, self.now, self.stop, self.mode = session, reader, now, stop, mode
         self.brain, self.poster, self.knowledge, self.daytime, self.summary = brain, poster, knowledge, daytime, summary
@@ -67,6 +71,7 @@ class DraftPass:
         self.owner = claim_owner(self.owner_kind)
         self.clock = clock  # 빠른 길이 선점 시각을 잴 때 쓴다(15분 바퀴는 시간 상한 시계를 여기서 읽지 않는다)
         self.quoter, self.catalog_reader = quoter, catalog_reader
+        self.image_client, self.image_transport, self.image_sleep = image_client, image_transport, image_sleep
 
     def quote(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
         """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다.
@@ -78,7 +83,7 @@ class DraftPass:
         texts = [line.text for line in pending_customer_lines(lines) if line.meta.is_customer_signal]
         step = prepare_quote(session=self.session, knowledge=self.knowledge, request=request, texts=texts,
                              now=self.now, stop=self.stop, summary=self.summary, quoter=self.quoter,
-                             catalog_reader=self.catalog_reader)
+                             catalog_reader=self.catalog_reader, drawing=image_hook(self, row, request, lines))
         if step is None and row.quote_lines is None:
             return None
         self.stop.check()  # 쓰기 전

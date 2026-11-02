@@ -59,6 +59,7 @@ from foms.services.cs_agent.drafting import (
 from foms.services.cs_agent.drafting_pass import DraftPass
 from foms.services.cs_agent.drafting_read import SKIP_HUMAN_REPLIED, SKIP_STALE
 from foms.services.cs_agent.drafting_summary import DraftSummary
+from foms.services.cs_agent.image_settings import MODE_OFF as IMAGE_OFF, image_mode
 from foms.services.cs_agent.loop import PassStopped, StopFlag, leader_lock
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.quote_brain import worst_seconds as quote_worst_seconds
@@ -209,10 +210,13 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
 
 
 def claim_ttl(cfg: PanelSettings) -> datetime.timedelta:
-    """선점 만료 = 시간 상한 + 여유(R10-2 · R13-8). 견적 계산 넣기가 켜졌으면 뽑기 최악 시간도 더한다(검수 R17-6)."""
+    """선점 만료 = 시간 상한 + 여유(R10-2 · R13-8). 견적 계산 넣기가 켜졌으면 뽑기 최악 시간도 더하고(검수 R17-6), 그림 읽기도
+    켜졌으면 그 자리 읽기 최악 시간(받기 포함 상한 · 다시 시도 0)을 또 더한다(설계서 17.11 (b) — 처음 값 45 + 20 + 35 + 45)."""
     seconds = float(int(cfg.get("realtime_timeout_s")))
     if cfg.get(QUOTE_SETTING):
         seconds += quote_worst_seconds(cfg)
+        if image_mode(cfg) != IMAGE_OFF:
+            seconds += float(int(cfg.get("image_inline_timeout_s")))
     return datetime.timedelta(seconds=seconds) + CLAIM_MARGIN
 
 
