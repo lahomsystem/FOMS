@@ -1,5 +1,9 @@
 """항목 카드(설계서 7.5 화면 3) — 이름 · 유형 · 상태 · 확신, 핵심 칸, 링크 종류 · 방향별 '관련(수)', 근거 · 만든 이 · 승인자,
-바깥 정본 칩(``calc:`` · ``setting:`` — **가리키는 키만**, 그 자리 값은 읽지 않는다), 사본 목록, 이력(판들).
+바깥 정본 칩(``calc:`` · ``setting:`` — 있음 여부 · 지금 값은 **볼 수 있는 사람에게만**, :mod:`.external`), 사본 목록, 이력(판들),
+빠진 링크(연결 개수 최소 — :mod:`.quality`).
+
+- **유효 기간으로 읽기**(7.7 · D105): 끝 날이 지난 링크 · 끝 항목은 '관련'에서 빠진다. 키로 바로 연 항목 자신은 끝났어도
+  보이고 ``ended`` 가 붙는다(화면이 '기간 끝남'으로 흐리게).
 
 - 시작 항목을 볼 수 없거나 없으면 ``None``(둘을 가르지 않는다 — 화면 · API 404).
 - 링크 끝 항목도 보는 사람의 범위로 **질의 단계에서** 거른다 — 볼 수 없는 끝은 목록에도 수에도 0(4절 · 12절).
@@ -16,11 +20,13 @@ from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
+from foms.services.brain.external import ref_cards
+from foms.services.brain.quality import item_rules, missing_links
 from foms.services.brain.read import current_item, item_history
 from foms.services.brain.schemas import get as schema_get
 from foms.services.brain.schemas import key_fields, payload_props
 from foms.services.brain.scope import Viewer, scope_clause
-from foms.services.brain.store import OBJECT_FIELDS, is_current
+from foms.services.brain.store import OBJECT_FIELDS, in_force, is_current
 from foms.services.datetime_kst import format_datetime_kst
 from models import User
 
@@ -30,7 +36,7 @@ HISTORY_LIMIT = 20
 IMPORT_ACTOR = "import"
 
 
-def _link_query(viewer: Viewer, key: str, direction: str) -> Any:
+def _link_query(viewer: Viewer, key: str, direction: str, today: datetime.date) -> Any:
     """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신)."""
     other = aliased(BrainObject)
     near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
@@ -38,12 +44,13 @@ def _link_query(viewer: Viewer, key: str, direction: str) -> Any:
                    other.name.label("name"), other.item_type.label("type"), other.status.label("status"),
                    other.stale_after.label("stale_after"), BrainLink.confidence.label("confidence"))
             .join(other, and_(other.item_key == far, is_current(other)))
-            .where(near == key, is_current(BrainLink), scope_clause(viewer, other.visibility)))
+            .where(near == key, is_current(BrainLink), scope_clause(viewer, other.visibility),
+                   in_force(BrainLink, today), in_force(other, today)))
 
 
-def _ranked_links(session: Any, viewer: Viewer, key: str) -> list[Any]:
+def _ranked_links(session: Any, viewer: Viewer, key: str, today: datetime.date) -> list[Any]:
     """두 방향 링크를 (종류, 방향)마다 앞 :data:`MAX_LINKS_PER_GROUP` 개 + 그 묶음 전체 수로 읽는다(한 질의)."""
-    both = union_all(_link_query(viewer, key, "out"), _link_query(viewer, key, "in")).subquery("both")
+    both = union_all(_link_query(viewer, key, "out", today), _link_query(viewer, key, "in", today)).subquery("both")
     group = (both.c.kind, both.c.direction)
     rank = func.row_number().over(partition_by=group, order_by=(both.c.name, both.c.key)).label("rank")
     size = func.count().over(partition_by=group).label("size")
@@ -55,7 +62,7 @@ def _ranked_links(session: Any, viewer: Viewer, key: str) -> list[Any]:
 def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -> list[dict[str, Any]]:
     """링크 종류 · 방향별 묶음 ``[{"kind", "direction", "count", "items": [...]}]`` — 종류 차례대로."""
     groups: dict[tuple[str, str], dict[str, Any]] = {}
-    for row in _ranked_links(session, viewer, key):
+    for row in _ranked_links(session, viewer, key, today):
         entry = groups.setdefault((row.kind, row.direction), {"kind": row.kind, "direction": row.direction,
                                                               "count": int(row.size), "items": []})
         entry["items"].append({"key": row.key, "name": row.name, "type": row.type, "status": row.status,
@@ -65,11 +72,12 @@ def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date)
     return sorted(groups.values(), key=lambda g: (order.get(g["kind"], 99), g["direction"] != "out"))
 
 
-def external_chips(session: Any, key: str) -> list[dict[str, Any]]:
-    """바깥 정본 칩 — 이 항목이 가리키는 계산기 id · 설정 키(**키만** — 그 자리 값은 읽지 않는다)."""
+def external_chips(session: Any, key: str, today: Optional[datetime.date] = None) -> list[dict[str, Any]]:
+    """바깥 정본 칩 — 이 항목이 가리키는 계산기 id · 설정 키(키만 — 있음 · 값은 :func:`.external.ref_cards`)."""
     starts = [BrainLink.to_key.like(prefix + "%") for prefix in EXTERNAL_PREFIXES]
+    live = [in_force(BrainLink, today)] if today is not None else []
     rows = session.execute(select(BrainLink.kind, BrainLink.to_key)
-                           .where(BrainLink.from_key == key, is_current(BrainLink), or_(*starts))
+                           .where(BrainLink.from_key == key, is_current(BrainLink), or_(*starts), *live)
                            .order_by(BrainLink.to_key).limit(MAX_EXTERNAL)).all()
     return [{"kind": kind, "ref": ref, "ext_type": external_type(ref)} for kind, ref in rows]
 
@@ -152,7 +160,7 @@ def open_change_count(session: Any, key: str) -> int:
 
 def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -> Optional[dict[str, Any]]:
     """카드 한 덩어리 — 볼 수 없거나 없으면 ``None``."""
-    item = current_item(session, viewer, key)
+    item = current_item(session, viewer, key, today)
     if item is None:
         return None
     versions = item_history(session, viewer, key, limit=HISTORY_LIMIT)
@@ -170,7 +178,9 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
         "created_by": actor_label(item.get("created_by"), names),
         "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values,
         "links": link_groups(session, viewer, key, today=today),
-        "external": external_chips(session, key),
+        "external": ref_cards(session, viewer, external_chips(session, key, today)),
+        "missing_links": missing_links(session, viewer, item, today=today),
+        "link_rules": item_rules(item["type"]),
         "copies": list(item.get("copies") or []),
         "history": history_rows(session, viewer, key, names),
     }

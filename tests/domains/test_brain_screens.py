@@ -23,7 +23,8 @@ from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import viewer_of
 from models import User
 from tests.support.brain_screen_support import TODAY, world
-from tests.support.brain_support import NOW, create
+from foms.services.brain.external import catalog_source
+from tests.support.brain_support import NOW, create, synth_catalog
 
 
 @pytest.fixture
@@ -97,14 +98,15 @@ def test_table_query_accepts_only_listed_values():
             parse_table_query(bad)
 
 
-def test_card_groups_links_hides_out_of_scope_ends_and_shows_external_keys_only(who):
-    admin = item_card(db_session, who["admin"], "common/door", today=TODAY)
+def test_card_groups_links_hides_out_of_scope_ends_and_shows_external_refs(who):
+    with catalog_source(synth_catalog):
+        admin = item_card(db_session, who["admin"], "common/door", today=TODAY)
     groups = {(g["kind"], g["direction"]): g for g in admin["links"]}
     assert groups[("applies_to", "in")]["count"] == 3
     assert sorted(_keys(groups[("applies_to", "in")]["items"])) == ["common/discount", "common/fit", "drawing/rule"]
-    assert admin["external"] == [
-        {"kind": "value_from", "ref": "calc:product/door", "ext_type": "ext_calculator"},
-        {"kind": "value_from", "ref": "setting:drawing_wizard_bom_rules", "ext_type": "ext_setting"}]
+    assert [(e["kind"], e["ref"], e["ext_type"], e["exists"]) for e in admin["external"]] == [
+        ("value_from", "calc:product/7", "ext_calculator", True),
+        ("value_from", "setting:drawing_wizard_bom_rules", "ext_setting", True)]
     assert admin["copies"] == ["매크로 문짝 안내", "스토어 상세 문짝 칸"]
     assert "payload" not in admin["item"] and admin["item"]["version"] == 2
     assert [h["version"] for h in admin["history"]] == [2, 1]
@@ -171,6 +173,6 @@ def test_releases_count_only_changes_the_viewer_may_see(who):
     assert "common/discount" not in keys and "common/ask" not in keys and "drawing/rule" not in keys
     assert {"common/door", "common/fit"} <= keys
     link_rows = [c for layer in diff["layers"] for c in layer["changes"] if c["link_kind"] == "value_from"]
-    assert {c["link_to"] for c in link_rows} == {"calc:product/door", "setting:drawing_wizard_bom_rules"}
+    assert {c["link_to"] for c in link_rows} == {"calc:product/7", "setting:drawing_wizard_bom_rules"}
     admin_keys = {c["key"] for layer in release_diff(db_session, who["admin"], 1)["layers"] for c in layer["changes"]}
     assert {"common/discount", "common/ask", "drawing/rule"} <= admin_keys  # 대조군
