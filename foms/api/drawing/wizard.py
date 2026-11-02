@@ -1078,8 +1078,9 @@ def api_post_drawing_wizard_asset(order_id):
         # 여백 트림: 스케치업 렌더 PNG 의 흰 테두리를 잘라 저장한다. 마법사는 이미지를
         # 원본 크기 상자로 놓기 때문에 여백이 그대로 선택·리사이즈 영역이 되어, 여러 장을
         # 놓으면 서로 겹쳐 잡힌다. 판정이 서지 않으면 원본을 그대로 올린다(fail-open).
+        # trim=0 = 사람이 [자르기]로 고른 자리 그대로 올린다(image-crop.js) — 여기서 또 자르면 놓인 자리가 어긋난다.
         upload_source = file
-        trimmed = trim_uniform_margins(file.read(), ext=ext)
+        trimmed = None if request.form.get('trim') == '0' else trim_uniform_margins(file.read(), ext=ext)
         file.seek(0)
         if trimmed is not None:
             upload_source = io.BytesIO(trimmed.data)

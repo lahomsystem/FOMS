@@ -3099,9 +3099,10 @@
   }
 
   /* ---- 이미지 업로드 / 생성 ----------------------------------------------- */
-  function uploadAsset(file) {
+  function uploadAsset(file, opts) {
     var fd = new FormData();
     fd.append('file', file, file.name || ('paste-' + Date.now() + '.png'));
+    if (opts && opts.noTrim) { fd.append('trim', '0'); }   // 자르기(image-crop.js): 사람이 고른 자리 그대로 — 서버 여백 자르기를 건너뛴다
     return jsonFetch(API_BASE + '/drawing-wizard/asset', { method: 'POST', body: fd });
   }
 
@@ -3788,6 +3789,36 @@
     s.objects = window.FomsPartArrange.reorder(s.objects, res.placed.map(function (p) { return p.id; }));
   }
 
+  /* 자동 배치 자리(part.arr)에 그대로 있던 그림은 잘라도 '손으로 옮긴 고정'이 되지 않게 새 크기를 자리로 남긴다(V2 v2-slots moved 와 같은 허용 폭) */
+  function laidAtSlot(o) {
+    var arr = o.part && o.part.arr, tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;
+    return !!(arr && arr.length === 4) && [o.x, o.y, o.w, o.h].every(function (v, i) { return Math.abs(arr[i] - v) <= tol; });
+  }
+
+  /** 자르기(image-crop.js) 적용 — 잘라 올린 새 에셋(data: key·width·height)으로 바꾸고, 남긴 부분이 화면에서 제자리에 있게 놓는다.
+      box = 그림 안쪽 좌표 {x, y, w, h}(돌리기 전 틀 기준). 뒤집기는 잘라 낸 그림에 이미 들어 있어 지운다. 되돌리기 한 번. */
+  function applyImageCrop(id, data, box) {
+    var cur = findObj(id);
+    if (!canSave || !cur || cur.type !== 'image' || cur.locked || !data || !data.key || !box) { return false; }
+    recordUndo();
+    var laid = laidAtSlot(cur);
+    var rad = num(cur.rotation) * Math.PI / 180, c = Math.cos(rad), sn = Math.sin(rad);
+    cur.x = Math.round(num(cur.x) + box.x * c - box.y * sn);
+    cur.y = Math.round(num(cur.y) + box.x * sn + box.y * c);
+    cur.w = clampDim(box.w);
+    cur.h = clampDim(box.h);
+    cur.key = data.key;
+    cur.natural_w = data.width || cur.natural_w;
+    cur.natural_h = data.height || cur.natural_h;
+    delete cur.flipX; delete cur.flipY;
+    if (laid) { cur.part.arr = [cur.x, cur.y, cur.w, cur.h]; }
+    markDirty();
+    rebuildAnno();
+    selectById(cur.id);
+    emitCore('trimmed', { id: cur.id });   // V2 자동 배치 모드면 새 비율로 다시 놓는다(v2-shell.js)
+    return true;
+  }
+
   /** 선택한 이미지의 여백을 잘라 새 에셋으로 교체한다.
 
       서버는 업로드 시점에 여백을 잘라 저장하므로, 기존에 올려둔(여백 포함) 에셋도
@@ -3815,9 +3846,7 @@
       var cur = findObj(o.id);
       if (!cur || cur.type !== 'image') { return; }
       recordUndo();
-      // 자동 배치 자리(part.arr)에 그대로 있던 그림은 잘라도 '손으로 옮긴 고정'이 되지 않게 새 크기를 자리로 남긴다(V2 v2-slots moved 와 같은 허용 폭)
-      var arr = cur.part && cur.part.arr, tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;
-      var laid = !!(arr && arr.length === 4) && [cur.x, cur.y, cur.w, cur.h].every(function (v, i) { return Math.abs(arr[i] - v) <= tol; });
+      var laid = laidAtSlot(cur);
       cur.key = data.key;
       cur.natural_w = data.width || cur.natural_w;
       cur.natural_h = data.height || cur.natural_h;
@@ -7053,6 +7082,12 @@
       },
       setPartLabel: setPartLabel,
       addFiles: addImagesFromFiles,
+      selectedId: function () { return isMultiSelect() ? '' : (selected || ''); },
+      find: findObj,
+      stage: function () { return konvaStage; },
+      layer: function () { return konvaLayer; },
+      upload: uploadAsset,
+      applyCrop: applyImageCrop,
       pickFiles: function () { if (canSave && els.fileInput) { els.fileInput.click(); } },
       importPhoto: importMeasurePhoto,
       image: function (id) { var n = nodeById[id]; return (n && typeof n.image === 'function') ? n.image() : null; },
