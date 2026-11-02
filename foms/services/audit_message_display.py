@@ -326,6 +326,10 @@ ACTION_LABELS: dict[str, str] = {
     "PARTNER_USER_CREATED": "협력사 계정 추가",
     "PARTNER_USER_TOGGLED": "협력사 계정 켜기/끄기",
     "PARTNER_USER_PASSWORD_RESET": "협력사 계정 비밀번호 변경",
+    # --- FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices) ---
+    "NOTICE_CREATED": "공지 만듦",
+    "NOTICE_UPDATED": "공지 고침",
+    "NOTICE_DELETED": "공지 지움",
     # --- AI 상담팀원 관리 패널(설계서 2026-10-27-cs-ai-agent 16.1) ---
     "CS_AGENT_SETTINGS_UPDATE": "AI 상담팀원 설정 변경(두뇌 · 돈 · 고르기)",
     "CS_AGENT_SWITCH": "AI 상담팀원 스위치 변경(비상 정지 · 초안)",

@@ -1,0 +1,13 @@
+{% extends "partner/layout.html" %}
+{# 협력사 공지 목록 /partner/notices — FOMS 공지사항 중 우리 회사가 받는 것. 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5.
+   목록 모양 · 읽음 표시는 본사 /notices 와 같은 조각(notices/_items.html) · 같은 파일(foms-notice.css · foms-notice-popup.js). #}
+{% block title %}공지사항{% endblock %}
+{% block mobile_title %}공지사항{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">{% endblock %}
+{% block content %}
+<div class="foms-notice-wrap">
+    {% set filter_url = url_for('partner_portal.notices') %}
+    {% include "notices/_items.html" %}
+</div>
+<script src="{{ asset_url('js/foms/foms-notice-popup.js') }}" defer></script>
+{% endblock %}

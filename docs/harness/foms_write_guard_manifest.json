@@ -1002,6 +1002,26 @@
       "mode": "guard",
       "rule": "/api/partner/notices/<int:notice_id>/ack"
     },
+    "notices_admin_api.create_notice": {
+      "mode": "guard",
+      "rule": "/api/admin/notices"
+    },
+    "notices_admin_api.update_notice": {
+      "mode": "guard",
+      "rule": "/api/admin/notices/<int:notice_id>"
+    },
+    "notices_admin_api.delete_notice": {
+      "mode": "guard",
+      "rule": "/api/admin/notices/<int:notice_id>"
+    },
+    "notices_api.ack_notice": {
+      "mode": "guard",
+      "rule": "/api/notices/<int:notice_id>/ack"
+    },
+    "notices_api.read_notice": {
+      "mode": "guard",
+      "rule": "/api/notices/<int:notice_id>/read"
+    },
     "cs_agent_send_api.cs_agent_send": {
       "mode": "guard",
       "rule": "/api/cs-agent/turns/<int:turn_id>/send"

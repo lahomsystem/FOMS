@@ -2250,6 +2250,8 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "drawing",
         "macros",
         "measurement",
+        # FOMS 공지사항(설계서 2026-11-02-foms-notices §5): 본사 직원 공지 목록 /notices.
+        "notices",
         "orders",
         "partials",
         # PARTNER-01: 외부 협력사 전용 화면(공용 레이아웃을 쓰지 않는 단독 템플릿).
@@ -2288,6 +2290,8 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
         "files",
         "kakao",
         "measurement",
+        # FOMS 공지사항 JSON API(설계서 2026-11-02-foms-notices §4) — 긴급 알림(notifications)과 따로 둔다.
+        "notices",
         "notifications",
         "orders",
         "partner",
@@ -2315,6 +2319,8 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "integrations",
         "jobs",
         "measurement",
+        # FOMS 공지사항(설계서 2026-11-02-foms-notices §3): 받는 사람 판정 · 확인 기록.
+        "notices",
         "notifications",
         "orders",
         "partners",  # PARTNER-02: 외부 협력사
@@ -2516,6 +2522,8 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "layout_nav.html",
         "layout_scripts.html",
         "mobile_queue_pager.html",
+        # FOMS 공지사항 확인 창(설계서 2026-11-02-foms-notices §5): 본사 공용 레이아웃이 모든 화면에서 싣는다.
+        "notice_popup.html",
         "status_select_options.html",
     }
 )

@@ -217,8 +217,9 @@ def test_csagent_04_chains_onto_csagent_03_and_matches_the_model():
     up, down = source.split("def upgrade", 1)[1].split("def downgrade", 1)
     assert up.index("add_column") < up.index("create_check_constraint") < up.index("create_index")
     assert down.index("drop_index") < down.index("drop_constraint") < down.index("drop_column")
-    heads = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads()
-    assert heads == ["csagent_04"]
+    script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    heads = script.get_heads()  # 뒤에 새 마이그레이션(notice_00 등)이 붙어도 csagent_04 는 사슬 안에 있어야 한다
+    assert len(heads) == 1 and "csagent_04" in {rev.revision for rev in script.walk_revisions("base", heads[0])}
 
 
 # ── 화면 규칙(인라인 스타일 · 스크립트 없음 · jQuery 없음 · fetch 검사) ──────
