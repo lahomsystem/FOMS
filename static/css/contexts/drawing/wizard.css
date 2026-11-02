@@ -1748,6 +1748,24 @@ button.dws-sheet-renaming { display: none; }
 .dws-mt-btn.dws-mt-lock.dws-active { background: #f59f00; border-color: #f59f00; color: #1d1d1f; }
 .dws-mt-btn.dws-mt-eyedrop.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
 .dws-eyedrop-armed, .dws-eyedrop-armed canvas { cursor: crosshair; }
+/* 그림 자르기 막대(image-crop.js) — 미니 툴바와 같은 어두운 막대, 자르기 틀 위에 뜬다 */
+.dws-crop-bar {
+  position: fixed;
+  z-index: 95;   /* 미니 툴바와 같은 층 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(40, 40, 42, 0.94);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  color: #f5f5f7;
+  font-size: 13px;
+}
+.dws-crop-bar[hidden] { display: none; }
+.dws-crop-hint { padding: 0 4px; white-space: nowrap; }
+.dws-mt-btn.dws-crop-apply { background: #0071e3; border-color: #0071e3; color: #fff; }
+.dws-mt-btn.dws-crop-apply:disabled { opacity: 0.6; cursor: wait; }
 
 .dws-swatch {
   flex-shrink: 0;
