@@ -1,0 +1,41 @@
+{# FOMS 공지 목록 한 덩어리(본사 /notices · 협력사 /partner/notices 같이 쓴다). 설계서 2026-11-02-foms-notices §5.
+   넘겨받는 값: notices(visible_notices 항목), total, unread, filters, current_filter, filter_url(거르기 주소 앞부분).
+   펼쳐 읽으면 foms-notice-popup.js 가 POST /api/notices/<id>/read 로 읽음을 남기고 점을 지운다. #}
+<section class="foms-notice-page" data-foms-notice-list data-read-url="{{ url_for('notices_api.read_notice', notice_id=0) }}">
+    <header class="foms-notice-page__head">
+        <h1 class="foms-notice-page__title"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항</h1>
+        <p class="foms-notice-page__sum">전체 {{ total }}건 · 안 읽음 <strong data-foms-notice-unread-count>{{ unread }}</strong>건</p>
+    </header>
+    <nav class="foms-notice-filter" aria-label="공지 거르기">
+        {% for code, label in filters %}
+        <a class="foms-notice-filter__btn{% if current_filter == code %} is-active{% endif %}" href="{{ filter_url }}{% if code != 'all' %}?filter={{ code }}{% endif %}" aria-current="{{ 'page' if current_filter == code else 'false' }}">{{ label }}</a>
+        {% endfor %}
+    </nav>
+    {% if notices %}
+    <ul class="foms-notice-list">
+        {% for n in notices %}
+        <li class="foms-notice-list__row">
+            <details class="foms-notice-item{% if n.pinned %} is-pinned{% endif %}{% if not n.read %} is-unread{% endif %}" data-foms-notice-item data-notice-id="{{ n.id }}" data-read="{{ '1' if n.read else '0' }}">
+                <summary class="foms-notice-item__head">
+                    <span class="foms-notice-item__dot" aria-hidden="true"></span>
+                    <span class="foms-notice-item__main">
+                        <span class="foms-notice-item__chips">
+                            {% if n.pinned %}<span class="foms-notice-chip foms-notice-chip--pin"><i class="fas fa-thumbtack" aria-hidden="true"></i> 고정</span>{% endif %}
+                            {% if n.display_mode == 'POPUP' %}{% if n.acked %}<span class="foms-notice-chip">확인함</span>{% else %}<span class="foms-notice-chip foms-notice-chip--popup">확인 필요</span>{% endif %}{% endif %}
+                            {% if n.audience_label %}<span class="foms-notice-chip">{{ n.audience_label }}</span>{% endif %}
+                            {% if not n.read %}<span class="visually-hidden" data-foms-notice-unread-label>안 읽음</span>{% endif %}
+                        </span>
+                        <span class="foms-notice-item__title">{{ n.title }}</span>
+                        <span class="foms-notice-item__meta">{% if n.created_by_name %}{{ n.created_by_name }} · {% endif %}{{ n.created_at }}</span>
+                    </span>
+                    <i class="fas fa-chevron-down foms-notice-item__caret" aria-hidden="true"></i>
+                </summary>
+                <div class="foms-notice-item__body">{{ n.body }}</div>
+            </details>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="foms-notice-empty">{% if current_filter == 'unread' %}안 읽은 공지가 없습니다.{% else %}아직 공지가 없습니다.{% endif %}</p>
+    {% endif %}
+</section>

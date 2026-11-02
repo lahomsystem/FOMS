@@ -56,6 +56,13 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_channel_push.request_drawing",
     # 협력사 공지 확인(2026-11-02): 자기 공지만 — "확인"을 눌러야 창이 닫힌다.
     "partner_notice.ack_notice",
+    # FOMS 공지사항(2026-11-02 설계서 2026-11-02-foms-notices §4): 본사 · 협력사 공용 — 내 공지 목록 · 확인 · 읽음.
+    # 셋 다 안에서 받는 사람 판정(user_matches — 자기 회사 · 협력사 대상 공지만)을 다시 하고, 아니면 404 다.
+    "notices_api.list_notices",
+    "notices_api.ack_notice",
+    "notices_api.read_notice",
+    # 협력사 공지사항 목록 화면(/partner/notices — partner_required).
+    "partner_portal.notices",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
     "address.search",
     # PARTNER-FOMS 6: 협력사 직원 웹 푸시 "알림 받기". 넷 다 자기 것만 다룬다 — 공개 키(읽기),

@@ -1240,6 +1240,31 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/notices/<int:notice_id>/ack"
     },
+    "notices_admin_api.create_notice": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/admin/notices"
+    },
+    "notices_admin_api.update_notice": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/admin/notices/<int:notice_id>"
+    },
+    "notices_admin_api.delete_notice": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/admin/notices/<int:notice_id>"
+    },
+    "notices_api.ack_notice": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_SELF",
+      "rule": "/api/notices/<int:notice_id>/ack"
+    },
+    "notices_api.read_notice": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_SELF",
+      "rule": "/api/notices/<int:notice_id>/read"
+    },
     "cs_agent_send_api.cs_agent_send": {
       "mode": "guard",
       "policy_id": "CS_AGENT_SEND",

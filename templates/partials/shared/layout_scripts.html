@@ -86,6 +86,8 @@
 {# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
 <script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260930a" defer></script>
+{# FOMS 공지 창(가운데 흰 창, 확인으로만 닫힘) · 메뉴 안 읽음 수 — 긴급 빨간 창과 다른 것. 설계서 2026-11-02-foms-notices §5. #}
+{% include 'partials/shared/notice_popup.html' %}
 <script src="{{ url_for('static', filename='js/foms/foms-overlay-fab.js') }}?v=20260924a" defer></script>
 {# 당일 실측 확인창 재조회는 영업(MEASURE 표기 포함)만 — 수신자 규칙 recipients.expand_team_codes('SALES'). #}
 {% set _alert_sync_target = ((current_user.team or '')|string|trim|upper) in ('SALES', 'MEASURE') %}

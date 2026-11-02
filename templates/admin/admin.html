@@ -1,5 +1,9 @@
 {% extends "admin/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/notices.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-8 mx-auto">
@@ -16,6 +20,7 @@
                     <a href="{{ url_for('admin.alimtalk_failures') }}" class="btn btn-warning"><i class="fas fa-comment-slash me-1"></i>손님에게 못 간 안내</a>
                     <a href="{{ url_for('admin.sent_unregistered_drafts') }}" class="btn btn-warning"><i class="fas fa-paper-plane me-1"></i>발송 후 미등록 초안</a>
                     <a href="{{ url_for('admin.admin_notifications') }}" class="btn btn-outline-danger"><i class="fas fa-bullhorn me-1"></i>공지/알림 발송</a>
+                    <a href="{{ url_for('notices_admin.notices_list') }}" class="btn foms-notice-entry-btn" data-notice-admin-entry><i class="fas fa-clipboard-list me-1"></i>공지사항</a>
                     <a href="{{ url_for('admin.backup_status') }}" class="btn btn-outline-secondary"><i class="fas fa-database me-1"></i>백업 상황판</a>
                     <a href="{{ url_for('admin.cs_agent_panel') }}" class="btn btn-outline-dark"><i class="fas fa-robot me-1"></i>AI 상담팀원 관리</a>
                 </div>
