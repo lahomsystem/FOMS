@@ -21,6 +21,7 @@ from foms.services.brain.constants import (
 )
 from foms.services.brain.read import current_item, neighbours, visible_clauses
 from foms.services.brain.scope import Viewer
+from foms.services.brain.usage import usage_total
 
 DEFAULT_LIMIT = 60
 #: 바탕 점 상태 표시(비트) — 초안 · 은퇴 · 낡음.
@@ -103,8 +104,8 @@ def brain_points(session: Any, viewer: Viewer, *, today: datetime.date,
     conditions = visible_clauses(viewer, today)
     total = int(session.execute(select(func.count()).select_from(BrainObject).where(*conditions)).scalar_one())
     rows = session.execute(select(BrainObject.item_key, BrainObject.item_type, BrainObject.status,
-                                  BrainObject.stale_after, BrainObject.usage_count)
-                           .where(*conditions).order_by(BrainObject.usage_count.desc(), BrainObject.item_key)
+                                  BrainObject.stale_after, usage_total().label("used"))
+                           .where(*conditions).order_by(usage_total().desc(), BrainObject.item_key)
                            .limit(max(1, min(int(cap), MAX_BRAIN_POINTS)))).all()
     index = {t: i for i, t in enumerate(TYPES)}
     out = []

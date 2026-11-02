@@ -1,6 +1,16 @@
 {#- 카드 '내용' 탭 — 글 · 핵심 칸 · 고칠 말 · 은퇴 · 지우기 제안 · 링크 종류 · 방향별 '관련(수)' · 근거 · 만든 이 · 승인자 ·
     바깥 정본 칩 · 사본 목록. -#}
 {% if it.text %}<p class="brain-card__text">{{ it.text }}</p>{% endif %}
+{#- 기본 읽기 거르기(점검 지금 1)가 빼는 항목 — 카드는 보이되 표시를 단다(챗봇 · 찾기 · 이웃 · 수에는 안 나온다). -#}
+{% if not card.effect.effective %}
+<p class="brain-card__effect" data-brain-effect>
+  {%- if it.status == 'draft' %}<span class="brain-badge brain-badge--check">초안 — 아직 읽지 않음</span>{% endif -%}
+  {%- if it.status == 'retired' %}<span class="brain-badge">은퇴 — 읽지 않음</span>{% endif -%}
+  {%- if card.effect.not_yet %}<span class="brain-badge brain-badge--check">아직 효력 전(유효 시작 {{ it.valid_from }})</span>{% endif -%}
+  {%- for by in card.effect.superseded_by %}<span class="brain-badge brain-badge--check" data-brain-superseded-by="{{ by }}">대체됨 — {{ by }}</span>{% endfor -%}
+</p>
+{% endif %}
+{% if card.open_conflicts %}<p class="brain-card__effect"><span class="brain-badge brain-badge--check" data-brain-open-conflicts>열린 엇갈림 {{ card.open_conflicts }}건 — 확인 필요</span></p>{% endif %}
 
 <dl class="brain-fields">
   <dt>층 · 브랜드</dt><dd>{{ layer_labels.get(it.layer, it.layer) }} · {{ brand_labels.get(it.brand, it.brand) }}</dd>

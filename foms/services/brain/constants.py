@@ -9,6 +9,7 @@
   설계서 11절 판 1 ② '공통 바탕 항목 정리(사장님 승인)'에서 제안으로 한다.
 - 4절 링크 설명('규칙 → 제품 · 옵션' 같은 글)을 짝 표로 옮겼다. ``caused_by`` · ``fixed_by`` 는 판 3 유형(공정 · 불량)이
   아직 없어 짝이 0 이다.
+- ``about``(에이전트 일 → 정체 항목) 링크를 더했다(전사 지식 온톨로지 점검 '지금 8' — 설계서 4절 9 종류 밖 열 번째).
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ TYPE_LAYERS: dict[str, frozenset[str]] = {
 # ── 링크(9 종류 — 4절) · 허용 짝 ─────────────────────────────────────────
 LINK_KINDS: tuple[str, ...] = (
     "applies_to", "requires", "excludes", "value_from", "copy_in", "supersedes", "evidence_of", "caused_by", "fixed_by",
+    "about",
 )
 #: 바깥 정본 자리(``value_from`` 의 끝) — 키 머리 → 가짜 유형. brain 은 가리키기만 한다(값은 그 자리가 정본).
 EXT_CALCULATOR, EXT_SETTING = "ext_calculator", "ext_setting"
@@ -75,6 +77,8 @@ ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     # 판 3(불량 → 공정 → 고침) — 유형이 생길 때 짝을 넣는다
     "caused_by": (frozenset(), frozenset()),
     "fixed_by": (frozenset(), frozenset()),
+    # 에이전트 일(엇갈림 · 물어볼 것) → 무엇에 대한 것인가(점검 '지금 8') — 열린 엇갈림이 그 항목을 '확인 필요'로 만든다
+    "about": (frozenset(AGENT_WORK_TYPES), frozenset(IDENTITY_TYPES)),
 }
 #: 연결 개수 규칙(7.7 · D105) — (시작 유형, 링크 종류) → (최소, 최대). 그 항목에서 **나가는** 지금 · 유효 기간 안 링크 수.
 #: 최대(``None`` = 끝없음)는 반영 동작이 링크 더하기 때 막고(:mod:`.apply`), 최소는 막지 않고 카드 '빠진 링크' · 품질 수
@@ -129,7 +133,8 @@ STALE_DAYS: dict[str, int] = {"price_rule": 14, "build_rule": 90, "policy": 90, 
 RECHECK_SOON_DAYS = 7
 
 # ── 제안함 · 결정(7.5 승인 흐름 · 사장님 D103 — 13절 13 · 14) ───────────────
-#: AI(에이전트) 제안은 한 주(한국 월요일 시작)에 이만큼만 제안함에 보인다 — 쓰인 횟수 순. 그 주에 결정한 AI 제안 수만큼 줄어든다.
+#: AI(에이전트) 제안은 한 주(한국 월요일 시작)에 **층마다** 이만큼만 제안함에 보인다(사장님 D106 — 회사 한 묶음이 아니라 공통 ·
+#: 상담 · 도면 · 생산 층마다) — 쓰인 횟수 순. 그 주에 그 층에서 결정한 AI 제안 수만큼 줄어든다.
 AI_WEEKLY_CAP = 20
 #: AI 제안은 만든 뒤 이 날 수가 지나면 '기간 끝남'으로 저절로 닫힌다(사람 제안은 닫지 않는다).
 AI_EXPIRE_DAYS = 28

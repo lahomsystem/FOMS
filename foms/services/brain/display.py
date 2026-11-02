@@ -73,6 +73,7 @@ LINK_DISPLAY: dict[str, tuple[str, str, str, str]] = {
     "evidence_of": ("근거", "#be185d", "근거로 받친 항목", "근거 관찰"),
     "caused_by": ("원인", "#92400e", "원인", "결과"),
     "fixed_by": ("고침", "#166534", "고친 방법", "고친 대상"),
+    "about": ("대한 것", "#b45309", "무엇에 대한 것", "이 항목에 대한 엇갈림 · 물어볼 것"),
 }
 
 LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "drawing": "도면", "production": "생산"}
@@ -93,7 +94,8 @@ FIELD_LABELS: dict[str, str] = {
 #: 관문 이름 · 결과 이름(제안 카드 — 6절 다섯 관문 중 지금 도는 것과 아직 안 도는 것).
 GATE_LABELS: dict[str, str] = {"form": "꼴", "mask": "가림(개인정보 0)", "hanja": "한자 0", "numbers": "숫자 출처",
                                "conflict": "승인 지식과 부딪침", "evidence": "근거 수", "eval": "평가 묶음 재시험"}
-GATE_VALUE_LABELS: dict[str, str] = {"pass": "통과", "fail": "안 됨", "not_run": "아직 안 돌림", "unavailable": "준비 안 됨"}
+GATE_VALUE_LABELS: dict[str, str] = {"pass": "통과", "fail": "안 됨", "not_run": "아직 안 돌림", "unavailable": "준비 안 됨",
+                                     "skipped": "해당 없음"}
 #: 거절 까닭 칩(7.5 — 남겨서 같은 제안이 다시 오지 않게). 차례 = 화면 차례.
 REJECT_LABELS: dict[str, str] = {"wrong_number": "숫자 틀림", "one_customer": "한 손님 일", "not_policy": "정책 아님",
                                  "needs_photo": "사진 필요", "other": "그 밖"}

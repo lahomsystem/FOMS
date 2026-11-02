@@ -10,13 +10,17 @@
   뇌 보기(7.6)는 ``brain3d-tab.js`` 가 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 탭을 숨기고, 열 때만 three.js 를 ``import()``.
 - 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐, 그 밖은 404(:func:`foms.services.brain.access.screen_viewer`).
   메뉴 항목도 같은 판정(:func:`brain_nav_allowed` — DB 를 읽지 않는다).
+- **물어보기 탭**(설계서 10절 · ⑤-5) — 탭은 :func:`foms.services.brain.chat_access.page_viewer` 가 열 때만(ADMIN 은 늘 —
+  꺼져 있어도 설정을 보려고 · 층 승인자 MANAGER 는 단계 ``leads`` 이상 · 켬). 회사 지식 화면을 못 여는 직원이 여는 단계 안이면
+  ``/brain`` 이 물어보기만 있는 ``/brain/ask`` 로 보낸다(그 밖 404). 답 · 근거 칩 · 피드백은 ``brain-ask.js`` 가 JSON API
+  (:mod:`foms.api.brain_chat`)로 읽고 쓴다.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, abort, g, render_template, request
+from flask import Blueprint, abort, g, redirect, render_template, request, url_for
 
 from db import get_db
 from foms.services.brain import actions
@@ -24,6 +28,8 @@ from foms.services.brain.access import can_open_screen, screen_viewer
 from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, type_map
 from foms.services.brain.card import item_card
+from foms.services.brain.chat_access import page_viewer
+from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.constants import (
     BRANDS, CONFIDENCES, GRADES, LAYERS, LINK_KINDS, MAX_NEIGHBOUR_DEPTH, OBJECT_STATUSES, TYPES,
 )
@@ -33,13 +39,14 @@ from foms.services.brain.display import (
 )
 from foms.services.brain.inbox import inbox_counts
 from foms.services.brain.recheck import recheck_counts
+from foms.services.brain.scope import viewer_of
 from foms.services.brain.schemas import payload_props
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.web.auth import login_required
 
 brain_web_bp = Blueprint("brain_web", __name__)
 
-TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map")
+TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "ask")
 
 
 @brain_web_bp.app_template_global("brain_nav_allowed")
@@ -75,21 +82,38 @@ def _screen_actions(viewer: Any) -> list[dict[str, Any]]:
     return [a for a in actions.specs() if viewer.is_admin or not a["admin_only"]]
 
 
+def _chat_open() -> bool:
+    """물어보기를 열 수 있나(여는 단계 · 스위치 — 설정 한 줄을 읽는다)."""
+    db = get_db()
+    try:
+        return page_viewer(getattr(g, "current_user", None), read_chat_settings(db)) is not None
+    finally:
+        db.rollback()
+
+
 @brain_web_bp.route("/brain")
 @login_required
 def index():
-    """회사 지식 — 탭 넷(첫 탭 찾기). ``?tab=table&type=<유형>`` 으로 지식 표를 바로 연다."""
-    viewer = _viewer_or_404()
+    """회사 지식 — 탭(첫 탭 찾기). ``?tab=table&type=<유형>`` 으로 지식 표를 바로 연다. 화면을 못 열지만 물어보기 단계 안인
+    직원은 물어보기 화면으로 보낸다."""
+    viewer = screen_viewer(getattr(g, "current_user", None))
+    if viewer is None:
+        if _chat_open():
+            return redirect(url_for("brain_web.ask_page"))
+        abort(404)
     tab = request.args.get("tab", "search")
     db = get_db()
     try:
         tmap = type_map(db, viewer)
         counts = {"inbox": inbox_counts(db, viewer, now_utc_naive())["cards"],
                   "recheck": recheck_counts(db, viewer, today=get_today_kst())["total"]}
+        chat_tab = page_viewer(getattr(g, "current_user", None), read_chat_settings(db)) is not None
     finally:
         db.rollback()  # 읽기만
+    if tab == "ask" and not chat_tab:
+        tab = "search"
     return render_template(
-        "brain/index.html", tab=tab if tab in TABS else "search",
+        "brain/index.html", tab=tab if tab in TABS else "search", chat_tab=chat_tab,
         start_type=request.args.get("type", "") if request.args.get("type", "") in TYPES else "",
         start_query=request.args.get("q", "")[:100], tmap=tmap, display=display_table(), options=_filter_options(),
         type_display=TYPE_DISPLAY, link_display=LINK_DISPLAY, layer_labels=LAYER_LABELS, counts=counts,
@@ -123,3 +147,12 @@ def item(key: str):
         confidence_labels=CONFIDENCE_LABELS, grade_labels=GRADE_LABELS, evidence_labels=EVIDENCE_LABELS,
         field_labels=FIELD_LABELS, visibility=visibility_label(card["item"]["visibility"]), around=around,
         link_order=LINK_KINDS, max_depth=MAX_NEIGHBOUR_DEPTH)
+
+
+@brain_web_bp.route("/brain/ask")
+@login_required
+def ask_page():
+    """물어보기만 있는 화면(여는 단계 안 직원 · ADMIN) — 그 밖 404."""
+    if not _chat_open():
+        abort(404)
+    return render_template("brain/ask.html", display=display_table(), is_admin=viewer_of(g.current_user).is_admin)

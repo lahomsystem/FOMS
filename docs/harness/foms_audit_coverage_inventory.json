@@ -8,12 +8,12 @@
     "log_access"
   ],
   "baselines": {
-    "total": 267,
+    "total": 270,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 229,
-    "EXEMPT": 36,
+    "AUDITED": 230,
+    "EXEMPT": 38,
     "UNAUDITED": 2
   },
   "coverage_percent": 99.1,
@@ -67,6 +67,33 @@
       "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_switch_loop",
       "lineno": 86,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_chat.py",
+      "endpoint": "brain_chat_ask",
+      "lineno": 105,
+      "methods": [
+        "POST"
+      ],
+      "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/brain_chat.py",
+      "endpoint": "brain_chat_feedback",
+      "lineno": 129,
+      "methods": [
+        "POST"
+      ],
+      "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/brain_chat.py",
+      "endpoint": "brain_chat_settings_save",
+      "lineno": 153,
       "methods": [
         "POST"
       ],

@@ -1,5 +1,5 @@
-"""HAUD master brain 표 다섯(ORM) — DDL 정본은 마이그레이션 ``brain_00`` + ``brain_01``(제안 줄 액션 이름 · 기준 판 바뀜 칸)과
-같다(``tests/domains/test_brain_store.py`` 가 견준다).
+"""HAUD master brain 표 다섯 + 챗봇 표 둘(ORM) — DDL 정본은 마이그레이션 ``brain_00`` + ``brain_01``(제안 줄 액션 이름 · 기준
+판 바뀜 칸) + ``brain_02``(쓰인 횟수 · 틀림 신고)와 같다(``tests/domains/test_brain_store.py`` · ``test_brain_chat_store.py`` 가 견준다).
 
 설계서 2026-11-02-haud-master-brain 4절 · 6절 · 7.5 끝 '저장 꼴' · 10.3.
 
@@ -205,4 +205,48 @@ class BrainQuestion(Base):
     __table_args__ = (
         CheckConstraint("feedback IN ('helpful','not_helpful','wrong')", name='ck_brain_questions_feedback'),
         Index('ix_brain_questions_asked_at', 'asked_at'),
+    )
+
+
+class BrainUsage(Base):
+    """쓰인 횟수(설계서 7.7 · D105 — **판 행이 아니라 따로 센다**) — (항목 키, 읽은 쪽) 한 줄에 수 · 마지막 쓰인 때.
+
+    읽은 쪽은 ``chatbot``(직원 챗봇이 근거로 쓴 항목) · ``cs_brain``(상담 두뇌 초안이 근거로 고른 지식 문서 항목)이다. 셀 때마다
+    새 판 줄을 만들지 않는다(쌓기만 하는 판 행 규칙). 화면의 '쓰인 횟수'는 판 줄 칸(옛 값 — 옮긴 수) + 이 표의 합이다.
+    """
+
+    __tablename__ = 'brain_usage'
+
+    id = Column(Integer, primary_key=True)
+    item_key = Column(String(120), nullable=False)
+    reader = Column(String(16), nullable=False)
+    count = Column(Integer, nullable=False, default=0, server_default=sql_text('0'))
+    last_used_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("reader IN ('chatbot','cs_brain')", name='ck_brain_usage_reader'),
+        Index('uq_brain_usage_key_reader', 'item_key', 'reader', unique=True),
+    )
+
+
+class BrainWrongReport(Base):
+    """챗봇 '틀림' 신고 한 줄(설계서 10.3) — 그 답이 근거로 쓴 항목마다 하나('엇갈림 후보'). 고칠 말은 가린 글만.
+
+    같은 항목에 서로 다른 사람 둘 이상이면 승인자에게 제안이 간다(``change_id`` — 이름 있는 액션 ``report_conflict``).
+    사람 번호 칸은 FK 가 없다(계정을 지워도 기록이 남는다). 직원별 모아 보기 화면은 만들지 않는다.
+    """
+
+    __tablename__ = 'brain_wrong_reports'
+
+    id = Column(Integer, primary_key=True)
+    item_key = Column(String(120), nullable=False)
+    question_id = Column(Integer, nullable=False)
+    reporter_id = Column(Integer, nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow, server_default=func.now())
+    change_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('uq_brain_wrong_reports_question_key', 'question_id', 'item_key', unique=True),
+        Index('ix_brain_wrong_reports_key_created', 'item_key', 'created_at'),
     )

@@ -32,9 +32,18 @@ from foms.services.brain.store import current_link, current_object
 from foms.services.orders.order_mutation_policy import load_policy_manifest
 from tests.support.brain_review_support import review_world
 from tests.support.brain_screen_support import TODAY
-from tests.support.brain_support import NOW, REASON, create, values
+from tests.support.brain_support import NOW, REASON, TWO_SOURCES, agent_judge, create, values
+
 from tools.cron import expire_brain_proposals
 from tools.cron.nightly import NIGHTLY_STEPS
+
+
+@pytest.fixture(autouse=True)
+def _agent_judge():
+    """에이전트 제안의 관문 ②(부딪침 — 7.7 · D105)를 합성 판정자로 넘긴다(모델을 부르지 않는다)."""
+    with agent_judge():
+        yield
+
 
 LATER = NOW + datetime.timedelta(minutes=5)
 UI_BUTTONS = {"propose_edit", "propose_retire", "propose_delete", "item_rollback", "apply", "edit_apply", "reject",
@@ -206,7 +215,8 @@ def test_nightly_step_closes_old_ai_proposals_only_and_flags_changed_bases(world
     who, ch = world["people"], world["changes"]
     old = NOW - datetime.timedelta(days=AI_EXPIRE_DAYS + 2)
     ai = propose_update(db_session, key="cs/tone/polite", base_version=1, after={"name": "오래된 AI 말투"},
-                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"), now=old, known="")
+                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"),
+                        evidence=TWO_SOURCES, now=old, known="")
     db_session.get(BrainChange, ch["hidden"]).created_at = old  # 사람 제안 — 대조군
     stale = propose_update(db_session, key="common/door", base_version=1, after={"text": "옛 기준 제안"}, reason=REASON,
                            proposer=Proposer.user(who["admin"].id), now=NOW, known="")
@@ -235,18 +245,18 @@ def test_confirmed_comes_only_from_a_human_approver_or_an_import(world):
     admin, agent = who["admin"], Proposer.agent_named("cs_agent")
     lesson = propose_create(db_session, key="cs/lesson/agent", brand="COMMON", layer="cs", item_type="lesson",
                             values=values("AI 가 적은 배운 점", confidence="confirmed"), reason="AI 일반화",
-                            proposer=agent, now=NOW, known="")
+                            proposer=agent, evidence=TWO_SOURCES, now=NOW, known="")
     case = propose_create(db_session, key="obs/case/agent", brand="COMMON", layer="cs", item_type="case",
                           values=values("AI 가 적은 사례", confidence="confirmed"), reason="AI 일반화",
-                          proposer=agent, now=NOW, known="")
+                          proposer=agent, evidence=TWO_SOURCES, now=NOW, known="")
     assert "confidence" not in lesson.fields and "confidence" not in case.fields  # 적은 값은 버린다
     dropped = propose_update(db_session, key="cs/tone/polite", base_version=1,
                              after={"confidence": "confirmed", "text": "말투 고침"}, reason="AI 일반화",
-                             proposer=agent, now=NOW, known="")
+                             proposer=agent, evidence=TWO_SOURCES, now=NOW, known="")
     assert set(dropped.fields) == {"text"}
     with pytest.raises(BrainShapeError):  # 확신만 바꾸는 제안은 바뀐 칸이 없다
         propose_update(db_session, key="cs/lesson/photo", base_version=1, after={"confidence": "confirmed"},
-                       reason="AI", proposer=agent, now=NOW, known="")
+                       reason="AI", proposer=agent, evidence=TWO_SOURCES, now=NOW, known="")
     db_session.execute(update(BrainChange).where(BrainChange.id == case.id).values(
         fields={**case.fields, "confidence": {"before": None, "after": "confirmed"}}))  # 제안 줄을 몰래 고쳐도
     db_session.flush()
@@ -255,7 +265,7 @@ def test_confirmed_comes_only_from_a_human_approver_or_an_import(world):
     assert current_object(db_session, "cs/lesson/agent").confidence == "confirmed"  # 사람 승인자가 넣음
     assert current_object(db_session, "obs/case/agent").confidence == "observed"  # 관찰은 늘 관찰
     link = propose_link(db_session, op="link_add", kind="evidence_of", from_key="obs/case/agent",
-                        to_key="cs/lesson/agent", reason=REASON, proposer=agent, now=NOW)
+                        to_key="cs/lesson/agent", reason=REASON, proposer=agent, evidence=TWO_SOURCES, now=NOW)
     assert "confidence" not in link.fields  # 링크 제안 기본 '확정' 없음
     apply_change(db_session, link.id, actor=who["cs_mgr"], now=LATER)
     assert current_link(db_session, "evidence_of", "obs/case/agent", "cs/lesson/agent").confidence == "confirmed"

@@ -5,7 +5,11 @@
 
 - **API 는 이 목록으로 본문을 검사한다**(:func:`parse` — 정한 칸 밖 · 꼴이 틀린 값은 400, 서비스에 닿기 전).
 - **화면은 이 목록으로 단추 · 고르기 칸을 그린다**(:func:`specs` 를 ``data-actions`` 로 싣는다 — 이름 · 거절 칩 · 고칠 칸).
-- **⑤-5 챗봇 · 에이전트 도구 목록**도 같은 목록에서 나온다(:func:`tool_specs` — JSON Schema 꼴 입력).
+- **⑤-5 챗봇 · 에이전트 도구 목록**도 같은 목록에서 나온다(:func:`tool_specs` — JSON Schema 꼴 입력). **지금 에이전트 도구로
+  내놓는 것은 읽기 셋뿐**이다(:data:`foms.services.brain.chat_tools.AGENT_TOOLS`) — 쓰기 액션은 하나도 모델 도구로 열지 않는다
+  (:data:`AGENT_EXPOSED_WRITES` 빈 묶음). 챗봇 화면은 사람에게 ``propose_edit`` 를 권한다.
+- 코드(에이전트) 길 액션은 :data:`AGENT_ACTION_TYPES` — 챗봇 '틀림' 신고 묶음(``report_conflict``)이 이 꼴로 선언되고
+  :func:`foms.services.brain.action_runner.perform_agent` 로만 돈다(화면 단추 · HTTP 길 없음).
 - 제안 · 결정 줄의 ``action`` · ``decided_action`` 칸(마이그레이션 ``brain_01``)이 여기 이름을 쓴다. 사람이 누르는 단추가
   아닌 이름(옮기기 ``import`` · 기간 끝남 ``expire``)은 :data:`SYSTEM_ACTIONS`, 에이전트 길(새 항목 · 링크 제안)은
   :data:`AGENT_ACTIONS`.
@@ -69,8 +73,10 @@ FAILURES: dict[str, str] = {
 }
 #: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계).
 SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire")
-#: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 — ⑤-5 에서 도구로 연다, 지금 화면 단추 없음).
-AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link")
+#: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 — 화면 단추 없음).
+AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict")
+#: 에이전트(모델)에게 도구로 내놓은 쓰기 액션 — 지금은 없다(읽기만 — 설계서 5절 · 10.1 '챗봇은 쓰지 않는다').
+AGENT_EXPOSED_WRITES: tuple[str, ...] = ()
 
 _KEY = Param("key", "key", "항목 키")
 _BASE = Param("base_version", "int", "기준 판")
@@ -129,6 +135,16 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
 )}
 
 
+#: 코드(에이전트) 길 액션 — 같은 꼴(이름 · 매개변수 · 조건 · 실패 말)로 선언한다. 사람 단추 목록(:data:`ACTIONS`)과 따로다.
+AGENT_ACTION_TYPES: dict[str, ActionType] = {a.name: a for a in (
+    ActionType("report_conflict", "틀림 신고 묶음",
+               "챗봇 '틀림'이 같은 항목에 서로 다른 사람 둘 이상이면 승인자에게 엇갈림 항목 제안을 올린다(10.3).", "propose",
+               "", (_KEY,),
+               ("서로 다른 사람 2명 이상(지금 판에 대한 신고)", "그 신고로 연 엇갈림 제안이 없음", "관문 셋(7.7 · D105)"),
+               ("BRAIN_TARGET", "BRAIN_GATE", "BRAIN_SHAPE"), "승인자 제안함에 올렸어요.", ui=False),
+)}
+
+
 def known_names() -> frozenset[str]:
     """제안 · 결정 줄의 액션 칸에 들어갈 수 있는 이름 모두."""
     return frozenset(ACTIONS) | frozenset(SYSTEM_ACTIONS) | frozenset(AGENT_ACTIONS)
@@ -173,9 +189,15 @@ def _ok(param: Param, value: Any) -> bool:
     return checks[kind](value)
 
 
-def parse(name: Any, body: Mapping[str, Any]) -> tuple[ActionType, dict[str, Any]]:
-    """본문을 그 액션의 매개변수로 검사한다 — 정한 칸만 · 꼴이 맞아야(틀리면 :class:`BrainShapeError`, 칸 이름만 싣는다)."""
-    action = get(name)
+def parse(name: Any, body: Mapping[str, Any], *, agent: bool = False) -> tuple[ActionType, dict[str, Any]]:
+    """본문을 그 액션의 매개변수로 검사한다 — 정한 칸만 · 꼴이 맞아야(틀리면 :class:`BrainShapeError`, 칸 이름만 싣는다).
+    ``agent`` 면 코드 길 액션 목록(:data:`AGENT_ACTION_TYPES`)에서 찾는다."""
+    if agent:
+        action = AGENT_ACTION_TYPES.get(name) if isinstance(name, str) else None
+        if action is None:
+            raise BrainShapeError([f"action: {' / '.join(AGENT_ACTION_TYPES)} 가운데 하나여야 한다"])
+    else:
+        action = get(name)
     problems, out = [], {}
     for param in action.params:
         present = param.name in body and body[param.name] is not None

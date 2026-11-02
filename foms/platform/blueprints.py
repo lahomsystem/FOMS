@@ -269,6 +269,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(brain_review_api_bp)
 
+    # --- Lane: 회사 지식 물어보기(직원 챗봇 — 설계서 10절 · D88 · D99 · ⑤-5) — JSON(/api/brain/chat/*). 여는 단계(admin → leads →
+    # all)는 라우트가 다시 보고 그 밖 404 · 쓰기는 CSRF · 정책 BRAIN_ASK(설정 저장 ADMIN_OPS). 챗봇은 지식 정본을 쓰지 않는다.
+    # 같은 접두 아래 고유 경로(/chat/…)라 겹치지 않고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.brain_chat import brain_chat_api_bp
+
+    app.register_blueprint(brain_chat_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

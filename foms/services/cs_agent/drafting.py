@@ -58,6 +58,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from foms.persistence.main.models import CsAgentChat, CsAgentTurn
+from foms.services.brain.usage import count_doc_reads
 from foms.services.channel_client import _open_api_headers
 from foms.services.common.business_calendar import is_business_day as calendar_is_business_day
 from foms.services.cs_agent.brain import (
@@ -89,6 +90,7 @@ from foms.services.cs_agent.turns import (
     CLAIM_EXPIRED, DRAFT_MEMO, DRAFT_STORE, LEGACY_CLAIM_AFTER, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn,
     expired_claims, mark_failed, record_brain_result, retry_due, stale_posting,
 )
+from foms.services.datetime_kst import now_utc_naive
 
 logger = logging.getLogger(__name__)
 
@@ -407,6 +409,7 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     result = merge_usage(result, quote)  # 뽑기 호출의 토큰 · 돈 · 시간까지 차례 줄에
     ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
+    count_doc_reads(ctx.session, BRAND, result.evidence_ids, now=now_utc_naive())  # 회사 지식 쓰인 횟수(D105 — 따로 센다)
     if result.refused or result.handoff:
         return ctx.skip(row, SKIP_REFUSED if result.refused else SKIP_HANDOFF)
     names = case_only_names(cases, (*(line.text for line in lines), *(item.text for item in ctx.knowledge.items)))

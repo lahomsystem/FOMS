@@ -43,7 +43,7 @@ from foms.services.cs_agent.masking import leak_counts, looks_like_name
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CASE_MIN_SIMILARITY", "CASE_QUESTION_LIMIT", "CASE_TEXT_LIMIT", "TRGM_BLIND", "case_only_names",
+    "CASE_MIN_SIMILARITY", "CASE_QUESTION_LIMIT", "CASE_TEXT_LIMIT", "TRGM_BLIND", "case_only_names", "case_pair",
     "current_question", "similar_cases", "trim_answer", "trigram_similarity",
 ]
 
@@ -110,6 +110,10 @@ def _trimmed(question: str, answer: str) -> Optional[tuple[str, str]]:
     if not answer.replace(FILE_NOTE, "").strip():
         return None
     return pair if all(part and not any(leak_counts(part).values()) for part in pair) else None
+
+
+#: 같은 다듬기 · 가림 검사(회사 지식 의미 찾기의 상담 사례 백필이 쓴다 — 두뇌 재료와 같은 글만 바깥 처리자에게).
+case_pair = _trimmed
 
 
 # ── 사례에만 있는 이름 ───────────────────────────────────────────────────

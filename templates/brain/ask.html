@@ -1,0 +1,27 @@
+{% extends "admin/layout.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/brain.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 회사 지식 물어보기만 있는 화면(설계서 10절 — 회사 지식 화면을 못 여는 직원이 여는 단계 안일 때). 값은 static/js/brain/brain-ask.js
+    가 JSON API(/api/brain/chat/*)로 읽고 textContent 로만 그린다. 인라인 스크립트 · 스타일 없음. -#}
+<div class="container-fluid mt-3 mb-5 brain-page">
+  <div class="brain-head">
+    <div>
+      <h1 class="h4 mb-1"><i class="fas fa-comments me-1" aria-hidden="true"></i>회사 지식 물어보기</h1>
+      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 회사 지식에서 내 보기 범위 안의 것만 찾아 답해요.</p>
+    </div>
+  </div>
+  {% include "brain/partials/ask_panel.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-ask-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-ask.js') }}" defer></script>
+{% if is_admin %}<script src="{{ asset_url('js/brain/brain-ask-admin.js') }}" defer></script>{% endif %}
+{% endblock %}

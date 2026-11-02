@@ -43,14 +43,14 @@ def test_search_groups_by_type_and_counts_only_what_the_viewer_may_see(who):
     drawing = search_grouped(db_session, who["dr_mgr"], "문짝", today=TODAY)
     assert [g["type"] for g in admin["groups"]] == ["product_line", "build_rule", "price_rule", "drawing_rule",
                                                     "question"]  # 유형 차례(TYPES)
-    assert admin["total"] == 9
+    assert admin["total"] == 7  # 초안 · 은퇴는 기본 읽기 거르기(점검 지금 1)가 뺀다 — 지식 표에서 상태로 고르면 보인다
     assert [g["type"] for g in cs["groups"]] == ["product_line", "build_rule"]  # 가격 재량 · 관리 · 도면팀 0
-    assert cs["total"] == 6
-    assert "drawing_rule" in [g["type"] for g in drawing["groups"]] and drawing["total"] == 7
+    assert cs["total"] == 4
+    assert "drawing_rule" in [g["type"] for g in drawing["groups"]] and drawing["total"] == 5
     rules = next(g for g in admin["groups"] if g["type"] == "build_rule")
     flags = {i["key"]: (i["status"], i["stale"], i["needs_check"]) for i in rules["items"]}
     assert flags["common/fit"] == ("active", True, True)  # 낡음 + 열린 제안
-    assert flags["common/draft"][0] == "draft" and flags["common/old"][0] == "retired"
+    assert "common/draft" not in flags and "common/old" not in flags  # 기본 읽기에서 빠진다
     assert flags["common/fresh"] == ("active", False, False)  # 대조군
     assert search_grouped(db_session, who["admin"], "   ", today=TODAY) == {"query": "", "total": 0, "groups": []}
 
@@ -134,7 +134,7 @@ def test_type_map_counts_by_scope_and_lists_every_type_and_link_kind(who):
     cs_counts = {t["type"]: t["count"] for g in cs["groups"] for t in g["types"]}
     assert set(TYPES) <= set(counts) and len(counts) == len(TYPES) + 2  # 바깥 정본 둘
     assert counts["price_rule"] == 1 and cs_counts["price_rule"] == 0 and cs_counts["question"] == 0
-    assert admin["total"] == 9 and cs["total"] == 6
+    assert admin["total"] == 7 and cs["total"] == 4  # 초안 · 은퇴는 수에서도 빠진다(점검 지금 1)
     assert [link["kind"] for link in admin["links"]] == list(LINK_KINDS)
     for link in admin["links"]:
         starts, ends = ALLOWED_LINKS[link["kind"]]
