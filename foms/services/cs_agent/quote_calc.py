@@ -9,6 +9,11 @@
   없다. 두뇌 재료에는 금액 없이 '금액 확인 필요 — 금액을 쓰지 말 것' 한 줄만, 금액은 코드가 쓰는 직원 참고 줄에만(R17-4).
 - **ask** — 계산에 꼭 필요한 칸(제품 · 가로, 제작 조건이 보는 높이 · 문 방식)을 모른다. 한 가지만 묻게 한다(제품 → 가로 →
   높이 → 문 방식 차례).
+- **size_in_drawing** — 가로를 모르지만 손님이 규격 모름 · 도면 참고라 했고 손님 첨부가 있다(``size_in_attachment`` — 설계서
+  17.4 의 5). 가로를 묻지 않는다: 두뇌 재료엔 :data:`DRAWING_LINE` 한 줄(금액 없음), 직원 참고 줄엔 :data:`DRAWING_NOTE`,
+  까닭 코드 :data:`SIZE_IN_DRAWING`, 허용 목록엔 아무것도 더하지 않는다. 초안 두뇌는 부른다 — 같은 글의 다른 물음은 답하고
+  견적은 '보내 주신 도면 보고 확인해 안내'로 쓴 초안이 직원 참고 줄과 함께 직원에게 간다(사람에게 ``human`` 은 초안 없이
+  넘김만 해서 이 줄들이 쓰이지 않는다). 모델은 그림을 못 본다 — 크기 읽기는 사람 몫이다.
 - **human** — 사람에게: 하우드(이번 범위 밖) · 제작 조건에 안 맞음 · 최소 길이 미만(규칙 칸이 빈 '모름' 제품) · 모르는 가격 방식 · 0원 ·
   계산 실패(무한 · 깨진 설정 포함). 제작 조건 글을 못 읽으면 :mod:`.quote_step` 이 사람에게 보낸다.
 
@@ -27,14 +32,15 @@ from typing import Any, Iterable, Optional, Sequence
 
 from foms.services.cs_agent.quote_brain import DOORS, HANDLES, QuoteAsk, QuoteSpace
 from foms.services.cs_agent.quote_check import FRESH_DAYS, PriceCheck
-from foms.services.cs_agent.quote_record import STATUS_ASK, STATUS_CHECK, STATUS_HUMAN, STATUS_OK
+from foms.services.cs_agent.quote_record import STATUS_ASK, STATUS_CHECK, STATUS_DRAWING, STATUS_HUMAN, STATUS_OK
 from foms.services.cs_agent.quote_rules import NeedsHuman, price as rule_price
 from foms.services.wdcalculator.catalog import Catalog
 from foms.services.wdcalculator.pricing import BRAND_HAUD, PRICING_TYPES, find_product, option_rows
 
 __all__ = [
-    "ASK_ORDER", "CHECK_LINE", "KIND_BUILD_RULE", "STATUS_ASK", "STATUS_CHECK", "STATUS_HUMAN", "STATUS_OK",
-    "BuildRule", "QuoteOutcome", "RuleUnreadable", "build_rules", "evaluate",
+    "ASK_ORDER", "CHECK_LINE", "DRAWING_LINE", "DRAWING_NOTE", "KIND_BUILD_RULE", "SIZE_IN_DRAWING", "STATUS_ASK",
+    "STATUS_CHECK", "STATUS_DRAWING", "STATUS_HUMAN", "STATUS_OK", "BuildRule", "QuoteOutcome", "RuleUnreadable",
+    "build_rules", "evaluate",
 ]
 
 KIND_BUILD_RULE = "build_rule"  # 지식 문서 종류 이름(설계서 17.5 — 그 종류가 문서에 들어오면 여기서 읽는다)
@@ -44,6 +50,11 @@ HUMAN_PRICING_TYPE, HUMAN_ZERO, HUMAN_FAILED = "quote_pricing_type", "quote_zero
 #: '확인 필요'일 때 두뇌 재료 한 줄(금액 없음 — R17-4).
 CHECK_LINE = (f"금액 확인 필요 — 계산기 값 확인 날이 없거나 {FRESH_DAYS}일이 지났다. 금액을 쓰지 말 것"
               "(실측 · 확인 뒤 안내한다고만 쓴다).")
+#: 가로를 모르지만 손님이 도면 · 사진을 보냈을 때(설계서 17.4 의 5) — 까닭 코드 · 두뇌 재료 한 줄(금액 없음) · 직원 참고 줄.
+SIZE_IN_DRAWING = "quote_size_in_drawing"
+DRAWING_LINE = ("손님이 보낸 도면 · 사진에서 크기를 확인해 안내한다 — 가로 길이를 다시 묻지 말 것. 금액은 쓰지 않는다"
+                "(보내 주신 도면을 보고 확인해 견적을 안내한다고만 쓴다).")
+DRAWING_NOTE = "[견적 계산] 손님 도면 · 사진에서 가로 확인 → 계산기"
 #: 모르면 묻는 차례와 손님께 물을 말(두뇌 재료 — 한 가지만 묻는다).
 ASK_ORDER: dict[str, str] = {
     "product": "어떤 가구(제품 · 문 방식)를 원하시는지",
@@ -157,8 +168,8 @@ def _breaks(space: QuoteSpace, rules: Sequence[BuildRule]) -> bool:
 
 
 # ── 계산 ─────────────────────────────────────────────────────────────────
-def _missing(ask: QuoteAsk, rules: Sequence[BuildRule]) -> Optional[str]:
-    """모르는 칸 하나(:data:`ASK_ORDER` 차례) — 다 알면 ``None``."""
+def _gaps(ask: QuoteAsk, rules: Sequence[BuildRule]) -> set[str]:
+    """모르는 칸 이름들(:data:`ASK_ORDER` 의 열쇠)."""
     gaps: set[str] = set()
     if not ask.spaces:
         gaps.add("product")
@@ -168,7 +179,7 @@ def _missing(ask: QuoteAsk, rules: Sequence[BuildRule]) -> Optional[str]:
         if not space.width_mm or "width" in ask.unknown:
             gaps.add("width")
         gaps.update(_rule_gaps(space, rules))
-    return next((name for name in ASK_ORDER if name in gaps), None)
+    return gaps
 
 
 def _option_rows(space: QuoteSpace, catalog: Catalog) -> list[dict[str, Any]]:
@@ -231,7 +242,10 @@ def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *, che
     """뽑은 재료 → 계산 결과(모듈 설명). ``check`` 는 확인 날 판정 재료, ``now`` 는 시간대 있는 지금."""
     if ask.brand == BRAND_HAUD:
         return QuoteOutcome(STATUS_HUMAN, code=HUMAN_BRAND)
-    missing = _missing(ask, rules)
+    gaps = _gaps(ask, rules)
+    if "width" in gaps and ask.size_in_attachment:  # 가로는 손님이 보낸 그림에 있다 — 묻지 않고 직원이 본다(17.4 의 5)
+        return QuoteOutcome(STATUS_DRAWING, lines=(DRAWING_LINE,), note=DRAWING_NOTE, code=SIZE_IN_DRAWING)
+    missing = next((name for name in ASK_ORDER if name in gaps), None)
     if missing is not None:
         line = (f"견적 계산 전 — 모르는 칸: {ASK_ORDER[missing]}. 손님께 이 한 가지만 묻는다(다른 것은 묻지 않는다). "
                 "금액은 쓰지 않는다.")
