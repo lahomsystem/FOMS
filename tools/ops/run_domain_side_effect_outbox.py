@@ -279,10 +279,33 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
     return 0
 
 
+#: 기상청 연결 실패가 이만큼 **연달아** 나야 Sentry 로 보낸다(기본 주기 1시간 = 6시간).
+#: 한두 번은 기상청 쪽 지연이다 — 10-14~11-02 운영 SIDEFX 에서 회차 30번꼴, 거의 다 5초 연결 초과였고
+#: 다음 회차에 저절로 받았다. 달력은 저장된 값을 보이므로 몇 시간 늦어도 화면은 그대로다.
+WEATHER_ALERT_STREAK = 6
+_weather_net_fails: dict[str, int] = {}
+
+
 def _refresh_weather(session_factory, refresh, label: str) -> None:
-    """날씨 한 갈래(단기/중기)를 받아 저장하고 결과를 한 줄 남긴다(키·URL 은 찍지 않는다)."""
-    with session_factory() as session:
-        result = refresh(session)
+    """날씨 한 갈래(단기/중기)를 받아 저장하고 결과를 한 줄 남긴다(키·URL 은 찍지 않는다).
+
+    연결·시간 초과는 경고 한 줄만 남기고, :data:`WEATHER_ALERT_STREAK` 번째 연속 실패에서만
+    예외를 올려 ``_safe`` 가 Sentry 로 보내게 한다(연속 구간마다 한 번). 다른 예외는 그대로 올린다.
+    """
+    from requests.exceptions import ConnectionError as _NetError, Timeout as _NetTimeout
+
+    try:
+        with session_factory() as session:
+            result = refresh(session)
+    except (_NetError, _NetTimeout) as exc:
+        fails = _weather_net_fails.get(label, 0) + 1
+        _weather_net_fails[label] = fails
+        if fails == WEATHER_ALERT_STREAK:
+            raise
+        _LOGGER.warning("[sidefx-worker] weather-%s network fail %d in a row: %s",
+                        label, fails, type(exc).__name__)
+        return
+    _weather_net_fails[label] = 0
     _LOGGER.info("[sidefx-worker] weather-%s %s", label, result)
 
 

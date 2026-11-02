@@ -106,6 +106,49 @@ def test_outbox_worker_initializes_sentry_and_reports_step_failures(monkeypatch)
     assert captured == [True], "성공한 step 까지 Sentry 로 보냈다"
 
 
+def test_weather_network_fail_reaches_sentry_only_on_the_streak(monkeypatch):
+    """기상청 연결 실패는 한두 번이면 경고만 — N번 연속일 때 한 번만 Sentry 로 간다(11-02)."""
+    import requests
+
+    outbox = _load(_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py")
+    captured = []
+    monkeypatch.setattr(outbox, "capture_exception", lambda *a, **k: captured.append(True))
+    monkeypatch.setattr(outbox, "_weather_net_fails", {})
+
+    class _Sess:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _timeout(_session):
+        raise requests.exceptions.ConnectTimeout("apihub.kma.go.kr")
+
+    def _step(refresh):
+        return outbox._safe(lambda: outbox._refresh_weather(_Sess, refresh, "short"), "weather-short")
+
+    streak = outbox.WEATHER_ALERT_STREAK
+    for _ in range(streak - 1):
+        assert _step(_timeout) is True
+    assert captured == [], "한두 번 실패에 Sentry 를 보냈다"
+    assert _step(_timeout) is False
+    assert captured == [True], "연속 실패가 Sentry 로 안 갔다"
+    assert _step(_timeout) is True
+    assert captured == [True], "같은 연속 구간에서 Sentry 를 또 보냈다"
+
+    assert _step(lambda _s: {"stored": 1}) is True  # 성공하면 다시 0부터 센다
+    for _ in range(streak - 1):
+        _step(_timeout)
+    assert captured == [True]
+
+    def _boom(_session):
+        raise ValueError("bad json")
+
+    assert _step(_boom) is False
+    assert captured == [True, True], "연결 말고 다른 예외는 바로 Sentry 로 가야 한다"
+
+
 def test_outbox_worker_calls_the_sentry_gate_on_startup():
     """호출처가 없으면 배선이 있어도 안 붙는다 — main 이 게이트를 부르는지 본다."""
     source = (_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py").read_text(
