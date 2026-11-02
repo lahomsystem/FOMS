@@ -7,7 +7,9 @@
 
 받는 사람(로그인한 본사 직원 · 협력사 직원) — ``notices_api``, 접두 ``/api/notices``:
 
-- ``GET ""`` 내 공지 ``{items, unread, pending}`` · ``POST /<id>/ack`` 확인 → ``{pending}`` · ``POST /<id>/read`` 읽음.
+- ``GET ""`` 내 공지 ``{items, unread, pending}``(목록 — 본문까지) · ``GET "?view=popup"`` 창 · 배지용 ``{pending, unread}``
+  (본사 공용 창 스크립트가 모든 페이지에서 부른다 — 목록 본문을 싣지 않는다) · ``POST /<id>/ack`` 확인 → ``{pending, unread}`` ·
+  ``POST /<id>/read`` 읽음.
   남의 공지 · 없는 공지 · 지난 공지는 404(있는지도 알리지 않는다). 협력사 문지기 허용 목록에 세 endpoint 가 있다.
 
 미인증 401 · 관리자 아님 403(JSON — 리다이렉트 없음). 쓰기는 공용 CSRF · Origin 가드와 쓰기 정책 엔진 뒤
@@ -36,7 +38,9 @@ from foms.services.notices.payload import NoticeInputError
 from foms.services.notices.service import (
     ack_notice as svc_ack_notice,
     mark_read,
+    notice_summary,
     pending_popups_from,
+    unread_count,
     visible_notices,
 )
 
@@ -198,10 +202,12 @@ def notice_status(notice_id: int):
 # --------------------------------------------------------------------------
 @notices_api_bp.route("", methods=["GET"])
 def list_notices():
-    """내 공지 목록 · 안 읽음 수 · 확인 안 한 창 공지."""
+    """내 공지 목록 · 안 읽음 수 · 확인 안 한 창 공지. ``?view=popup`` 이면 목록 없이 ``{pending, unread}`` 만."""
     user, denied = _signed_in()
     if denied:
         return denied
+    if request.args.get("view") == "popup":
+        return _ok(notice_summary(get_db(), user))
     items = visible_notices(get_db(), user)
     return _ok({
         "items": items,
@@ -226,8 +232,7 @@ def ack_notice(notice_id: int):
         db.rollback()
         logger.warning("[NOTICE] 공지 확인 저장 실패 id=%s", notice_id, exc_info=True)
         return _fail(500, _SAVE_FAILED)
-    items = visible_notices(db, user)
-    return _ok({"pending": pending_popups_from(items), "unread": sum(1 for i in items if not i["read"])})
+    return _ok(notice_summary(db, user))
 
 
 @notices_api_bp.route("/<int:notice_id>/read", methods=["POST"])
@@ -246,5 +251,4 @@ def read_notice(notice_id: int):
         db.rollback()
         logger.warning("[NOTICE] 공지 읽음 저장 실패 id=%s", notice_id, exc_info=True)
         return _fail(500, _SAVE_FAILED)
-    items = visible_notices(db, user)
-    return _ok({"id": int(notice_id), "read": True, "unread": sum(1 for i in items if not i["read"])})
+    return _ok({"id": int(notice_id), "read": True, "unread": unread_count(db, user)})
