@@ -129,12 +129,15 @@ AUDIT_ITEMS: tuple[tuple[str, str, str, str, str, dict[str, Any]], ...] = (
      {"payload": {"aliases": ["제주", "섬 지역"], "broader": "권역"}}),
     ("eval/part-door", "part_kind", "drawing", "도어 조각", "정면 문짝 그림 조각 합성 종류", {}),
     ("eval/d83", "owner_decision", "common", "D83 결정", "옛 몰딩 기준을 새 기준으로 바꾼 합성 결정",
-     {"payload": {"doc_id": "d83", **_DOC}, "evidence_ref": "원장 합성 번호"}),
+     {"payload": {"doc_id": "d83", **_DOC, "decision_no": "D83"}, "evidence_ref": "원장 합성 번호"}),
     ("eval/old-molding", "build_rule", "common", "옛 몰딩 기준", "옛 몰딩 합성 기준", {"checked_at": "2026-10-30"}),
+    # 공정 단계(7.8 다음 3) — 손님용 단계 이름은 다른 이름
+    ("eval/step-measure", "process_step", "common", "실측 단계", "주문 뒤 집에 가서 재는 합성 공정 단계",
+     {"payload": {"erp_stage": "MEASURE", "step_order": 2, "aliases": ["실측 방문 단계"]}}),
 )
-#: (링크 종류, 시작, 끝) — 그림 조각 → 제품 · 제품 → 옵션 · 결정 → 대체한 앞 항목.
+#: (링크 종류, 시작, 끝) — 그림 조각 → 제품(7.8 다음 5 — ``part_of``) · 제품 → 옵션 · 결정 → 대체한 앞 항목.
 AUDIT_LINKS: tuple[tuple[str, str, str], ...] = (
-    ("applies_to", "eval/part-door", "eval/fridge"),
+    ("part_of", "eval/part-door", "eval/fridge"),
     ("requires", "eval/vanity", "eval/handle"),
     ("supersedes", "eval/d83", "eval/old-molding"),
 )
@@ -146,6 +149,7 @@ AUDIT_QUESTIONS: list[dict[str, Any]] = [
     {"id": "x04", "q": "슬라이딩 깊이 값을 베끼는 매크로는?", "expect": ["eval/sliding"]},
     {"id": "x05", "q": "손잡이 종류는 어느 제품에 들어가나?", "expect": ["eval/vanity"]},
     {"id": "x06", "q": "D83 은 무엇을 바꿨나?", "expect": ["eval/d83"]},
+    {"id": "x07", "q": "실측 방문 단계는 주문 흐름에서 어디예요?", "expect": ["eval/step-measure"]},  # 새 유형(7.8)
     {"id": "s01", "q": "섬 지역 배송비 알려 주세요", "expect": ["eval/remote-shipping"]},
     {"id": "s02", "q": "도서 산간 운임은?", "expect": ["eval/remote-shipping"]},
 ]

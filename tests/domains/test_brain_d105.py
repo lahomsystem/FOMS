@@ -40,9 +40,10 @@ def made(app):
             "ids": {name: u.id for name, u in users.items()}}
 
 
-def _price_rule(admin, key="common/shipping", **extra):
+def _price_rule(admin, key="common/shipping", basis="calc", **extra):
+    payload = {"doc_id": key.split("/")[-1], **DOC, **({"basis": basis} if basis else {})}
     return create(db_session, admin, key, item_type="price_rule", name="합성 운임 규칙", checked_at="2026-10-20",
-                  visibility="price", payload={"doc_id": key.split("/")[-1], **DOC}, **extra)
+                  visibility="price", payload=payload, **extra)
 
 
 def _propose(admin, kind, src, dst, **values):
@@ -61,7 +62,8 @@ def test_cardinality_table_uses_only_allowed_pairs():
     for (from_type, kind), (low, high) in LINK_CARDINALITY.items():
         assert from_type in ALLOWED_LINKS[kind][0], (from_type, kind)
         assert 0 <= low and (high is None or high >= max(low, 1))
-    assert cardinality("price_rule", "value_from") == (1, 1) and cardinality("spec", "value_from") == (0, 1)
+    assert cardinality("price_rule", "value_from", {"basis": "calc"}) == (1, 1)  # 근거 종류로 갈린다(D115 — 7.8 시험)
+    assert cardinality("spec", "value_from") == (0, 1)
     assert cardinality("product_line", "value_from") == (0, None)  # 적지 않은 짝 — 끝없음
 
 
@@ -98,15 +100,19 @@ def test_min_is_flagged_on_the_card_and_in_quality_counts_within_scope(made, app
     _price_rule(admin, "common/install")
     card = item_card(db_session, who["admin"], "common/shipping", today=TODAY)
     assert card["missing_links"] == [{"kind": "value_from", "min": 1, "max": 1, "have": 0}]
-    counts = {(r["type"], r["kind"]): r for r in quality_counts(db_session, who["admin"], today=TODAY)["rules"]}
-    assert counts[("price_rule", "value_from")]["items"] == 3 and counts[("price_rule", "value_from")]["missing"] == 3
+    counts = {(r["type"], r["kind"], r["basis"]): r for r in quality_counts(db_session, who["admin"], today=TODAY)["rules"]}
+    assert counts[("price_rule", "value_from", "calc")]["items"] == 2
+    assert counts[("price_rule", "value_from", "calc")]["missing"] == 2
+    assert counts[("price_rule", "value_from", "")]["items"] == 1  # world 의 근거 종류 빈 규칙 — 최소를 따지지 않음
+    assert counts[("price_rule", "value_from", "")]["missing"] == 0
     link(db_session, admin, "value_from", "common/shipping", "calc:product/1")
     assert item_card(db_session, who["admin"], "common/shipping", today=TODAY)["missing_links"] == []  # 대조군
-    after = {(r["type"], r["kind"]): r for r in quality_counts(db_session, who["admin"], today=TODAY)["rules"]}
-    assert after[("price_rule", "value_from")]["missing"] == 2
-    cs = {(r["type"], r["kind"]): r for r in quality_counts(db_session, who["cs_mgr"], today=TODAY)["rules"]}
-    assert cs[("price_rule", "value_from")] == {"type": "price_rule", "kind": "value_from", "min": 1, "max": 1,
-                                                "items": 0, "missing": 0, "over": 0}  # 가격 재량 항목 수는 새지 않는다
+    after = {(r["type"], r["kind"], r["basis"]): r for r in quality_counts(db_session, who["admin"], today=TODAY)["rules"]}
+    assert after[("price_rule", "value_from", "calc")]["missing"] == 1
+    cs = {(r["type"], r["kind"], r["basis"]): r for r in quality_counts(db_session, who["cs_mgr"], today=TODAY)["rules"]}
+    assert cs[("price_rule", "value_from", "calc")] == {
+        "type": "price_rule", "kind": "value_from", "basis": "calc", "min": 1, "max": 1, "items": 0, "missing": 0,
+        "over": 0}  # 가격 재량 항목 수는 새지 않는다
     assert missing_links(db_session, who["admin"], {"key": "common/door", "type": "product_line"}, today=TODAY) == []
     client = app.test_client()
     with client.session_transaction() as sess:

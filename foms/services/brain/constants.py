@@ -1,7 +1,8 @@
-"""master brain 유형 · 층 · 링크 · 허용 짝 · 값 목록 — 설계서 2026-11-02-haud-master-brain 4절 · 5절 · 6절 · 3.1.
+"""master brain 유형 · 층 · 링크 · 허용 짝 · 값 목록 — 설계서 2026-11-02-haud-master-brain 4절 · 5절 · 6절 · 3.1 · 7.8.
 
 **유형(스키마)은 코드 + 설계서로만 바꾼다** — 화면에서 고치지 않는다(7.5 끝 · 유형 남발 막기). 허용 짝(어떤 유형 → 어떤 링크 →
-어떤 유형)은 :data:`ALLOWED_LINKS` 하나이고 반영 동작(:mod:`.apply`)이 검사한다.
+어떤 유형)은 :data:`ALLOWED_LINKS` 하나(+ 좁힘 :data:`NARROW_ENDS` · :data:`SAME_TYPE_KINDS`)이고 반영 동작(:mod:`.apply`)이
+검사한다. 항목 값에 따른 링크 제약(근거 종류 · 고리 · 맞서는 짝)은 :mod:`.link_rules`.
 
 설계서와 다른 점(까닭은 보고 · 원장):
 
@@ -10,14 +11,18 @@
 - 4절 링크 설명('규칙 → 제품 · 옵션' 같은 글)을 짝 표로 옮겼다. ``caused_by`` · ``fixed_by`` 는 판 3 유형(공정 · 불량)이
   아직 없어 짝이 0 이다.
 - ``about``(에이전트 일 → 정체 항목) 링크를 더했다(전사 지식 온톨로지 점검 '지금 8' — 설계서 4절 9 종류 밖 열 번째).
+- 7.8 온톨로지 바로잡기(⑤-6 · D115 ~ D126): 공정 단계 유형(``process_step``) · 링크 일곱(``decided_by`` · ``at_step`` ·
+  ``uses`` · ``answers`` · ``refines`` · ``broader`` · ``part_of``) · 바깥 자리 다섯(ERP 단계 정본 + 사본 넷) · 근거 종류별 가격
+  규칙 연결 개수(:func:`cardinality`) · 값 목록 검사 한 곳(:func:`value_problems`).
 """
 
 from __future__ import annotations
 
 import re
+from typing import Any, Mapping, Optional
 
 from foms.services.cs_agent.knowledge_doc import (
-    KIND_FACT, KIND_OWNER_DECISION, KIND_POLICY, KIND_PRICE_RULE, KIND_TEMPLATE, KNOWN_BRANDS,
+    KIND_BUILD_RULE, KIND_FACT, KIND_OWNER_DECISION, KIND_POLICY, KIND_PRICE_RULE, KIND_TEMPLATE, KNOWN_BRANDS,
 )
 
 # ── 브랜드 · 층 ──────────────────────────────────────────────────────────
@@ -28,9 +33,10 @@ BRANDS: tuple[str, ...] = (*sorted(KNOWN_BRANDS), BRAND_COMMON)
 LAYER_COMMON, LAYER_CS, LAYER_DRAWING, LAYER_PRODUCTION = "common", "cs", "drawing", "production"
 LAYERS: tuple[str, ...] = (LAYER_COMMON, LAYER_CS, LAYER_DRAWING, LAYER_PRODUCTION)
 
-# ── 유형(판 1 · 2 — 4절) ─────────────────────────────────────────────────
+# ── 유형(판 1 · 2 — 4절 · 7.8) ───────────────────────────────────────────
 COMMON_TYPES: tuple[str, ...] = (
     "brand", "product_line", "option", "spec", "build_rule", "policy", "price_rule", "owner_decision", "term", "fact",
+    "process_step",  # 공정 단계(7.8 다음 3 · D117 — ERP 주문 단계를 가리키고 정책 · 사실을 단계에 잇는다)
 )
 CS_TYPES: tuple[str, ...] = ("situation", "template", "lesson", "tone", "image_read_rule")
 DRAWING_TYPES: tuple[str, ...] = ("part_kind", "bom_rule", "drawing_rule")
@@ -47,30 +53,50 @@ TYPE_LAYERS: dict[str, frozenset[str]] = {
     **{t: frozenset(LAYERS) for t in (*OBSERVATION_TYPES, *AGENT_WORK_TYPES)},
 }
 
-# ── 링크(9 종류 — 4절) · 허용 짝 ─────────────────────────────────────────
+# ── 링크(4절 아홉 + about + 7.8 일곱) · 허용 짝 ─────────────────────────
 LINK_KINDS: tuple[str, ...] = (
     "applies_to", "requires", "excludes", "value_from", "copy_in", "supersedes", "evidence_of", "caused_by", "fixed_by",
-    "about",
+    "about", "decided_by", "at_step", "uses", "answers", "refines", "broader", "part_of",
 )
-#: 바깥 정본 자리(``value_from`` 의 끝) — 키 머리 → 가짜 유형. brain 은 가리키기만 한다(값은 그 자리가 정본).
-EXT_CALCULATOR, EXT_SETTING = "ext_calculator", "ext_setting"
-EXTERNAL_PREFIXES: dict[str, str] = {"calc:": EXT_CALCULATOR, "setting:": EXT_SETTING}
+#: 바깥 자리(brain 항목이 아니라 가리키기만 — 키 머리 → 가짜 유형). **정본 자리**(``value_from`` 의 끝 — 값은 그 자리가 정본)와
+#: **사본 자리**(``copy_in`` 의 끝 — 정본 값을 베껴 둔 바깥 글: 매크로 · 스토어 상세 구획 · 화면 · 양식, 7.8 다음 6).
+EXT_CALCULATOR, EXT_SETTING, EXT_ERP_STAGE = "ext_calculator", "ext_setting", "ext_erp_stage"
+EXT_MACRO, EXT_STORE, EXT_SCREEN, EXT_FORM = "ext_macro", "ext_store", "ext_screen", "ext_form"
+EXTERNAL_PREFIXES: dict[str, str] = {
+    "calc:": EXT_CALCULATOR, "setting:": EXT_SETTING, "erp:stage/": EXT_ERP_STAGE,
+    "macro:": EXT_MACRO, "store:": EXT_STORE, "screen:": EXT_SCREEN, "form:": EXT_FORM,
+}
+CANON_EXTERNAL_TYPES: tuple[str, ...] = (EXT_CALCULATOR, EXT_SETTING, EXT_ERP_STAGE)
+COPY_EXTERNAL_TYPES: tuple[str, ...] = (EXT_MACRO, EXT_STORE, EXT_SCREEN, EXT_FORM)
+EXTERNAL_TYPES: tuple[str, ...] = (*CANON_EXTERNAL_TYPES, *COPY_EXTERNAL_TYPES)
+#: 바깥 자리 키 꼴(머리 포함) — ``#`` 뒤는 칸 · 구획. 계산기 · 설정은 실재 확인(:mod:`.external`)이 있어 넓게 두고, 사본 자리는
+#: 있음을 확인할 길이 없어(매크로 · 스토어) 이 꼴만 본다. ERP 단계 값은 소문자로 적는다(키는 소문자 하나 — 정본 코드와는
+#: 대문자로 바꿔 견준다. 대소문자가 다른 같은 단계 링크가 둘 생기지 않게).
+EXTERNAL_KEY_PATTERNS: dict[str, re.Pattern[str]] = {
+    EXT_CALCULATOR: re.compile(r"calc:[a-z0-9_.:/-]{1,110}"),
+    EXT_SETTING: re.compile(r"setting:[a-z0-9_.-]{1,70}(?:#[a-z0-9_]{1,40})?"),
+    EXT_ERP_STAGE: re.compile(r"erp:stage/[a-z_]{1,40}"),
+    EXT_MACRO: re.compile(r"macro:[a-z0-9_-]{1,60}"),
+    EXT_STORE: re.compile(r"store:[a-z0-9_.-]{1,60}#[a-z0-9_.-]{1,40}"),
+    EXT_SCREEN: re.compile(r"screen:[a-z0-9_./-]{1,100}"),
+    EXT_FORM: re.compile(r"form:[a-z0-9_.-]{1,60}"),
+}
 _RULES_TO_PRODUCTS = frozenset({
-    "spec", "build_rule", "policy", "price_rule", "image_read_rule", "drawing_rule", "bom_rule", "part_kind", "situation",
+    "spec", "build_rule", "policy", "price_rule", "image_read_rule", "drawing_rule", "bom_rule", "situation",
 })
-#: 링크 종류 → (시작 유형들, 끝 유형들). 설계서 4절 · 8절 글을 짝으로 옮긴 것.
+#: 링크 종류 → (시작 유형들, 끝 유형들). 설계서 4절 · 8절 · 7.8 글을 짝으로 옮긴 것.
 ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
-    # 규칙 → 제품 · 옵션(4절) · 그림 조각 종류 → 제품 라인(8절 '어느 제품이 어느 조각을 만드나') · 상황 → 제품(17.5)
+    # 규칙 → 제품 · 옵션(4절) · 상황 → 제품(17.5). 그림 조각 종류 → 제품 라인은 ``part_of`` 로 옮겼다(7.8 다음 5)
     "applies_to": (_RULES_TO_PRODUCTS, frozenset({"product_line", "option"})),
-    # 제작 조건('ㄱ자는 여닫이만')
+    # 제작 조건('ㄱ자는 여닫이만') — 같은 짝에 필요 + 제외를 함께 두지 않는다(:mod:`.link_rules`)
     "requires": (frozenset({"build_rule", "product_line", "option"}), frozenset({"product_line", "option", "spec"})),
     "excludes": (frozenset({"build_rule", "product_line", "option"}), frozenset({"product_line", "option", "spec"})),
-    # 항목 → 정본 자리(계산기 id · SystemSetting 키 — 8절 자재표 규칙 키)
-    "value_from": (frozenset({"product_line", "option", "spec", "price_rule", "bom_rule"}),
-                   frozenset({EXT_CALCULATOR, EXT_SETTING})),
-    # 정본 → brain 안 사본(기준 답 문구). 바깥 사본(매크로 · 스토어 상세)은 ``copies`` 칸(3.1 규칙 2).
-    "copy_in": (frozenset(COMMON_TYPES), frozenset({"template"})),
-    # 새 결정 → 앞 항목(3.1 규칙 5)
+    # 항목 → 정본 자리(계산기 id · SystemSetting 키(+ 칸) — 8절 자재표 규칙 키 · 공정 단계 → ERP 단계 정본)
+    "value_from": (frozenset({"product_line", "option", "spec", "price_rule", "bom_rule", "process_step"}),
+                   frozenset(CANON_EXTERNAL_TYPES)),
+    # 정본 → 사본(brain 안 기준 답 문구 · 바깥 사본 자리 — 7.8 다음 6. 링크 실음 칸은 본 글 지문 · 확인 날만)
+    "copy_in": (frozenset(COMMON_TYPES), frozenset({"template", *COPY_EXTERNAL_TYPES})),
+    # 새 결정 → 앞 항목(3.1 규칙 5) — 반영하면 앞 항목의 유효 끝을 찍는다(7.8 다음 2), 고리 금지
     "supersedes": (frozenset({"owner_decision"}), frozenset(IDENTITY_TYPES)),
     # 관찰 → 항목(관찰은 근거로만)
     "evidence_of": (frozenset(OBSERVATION_TYPES), frozenset(IDENTITY_TYPES)),
@@ -79,17 +105,51 @@ ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "fixed_by": (frozenset(), frozenset()),
     # 에이전트 일(엇갈림 · 물어볼 것) → 무엇에 대한 것인가(점검 '지금 8') — 열린 엇갈림이 그 항목을 '확인 필요'로 만든다
     "about": (frozenset(AGENT_WORK_TYPES), frozenset(IDENTITY_TYPES)),
+    # 정체 항목 → 그것을 정한 사장님 결정(7.8 다음 2)
+    "decided_by": (frozenset(t for t in IDENTITY_TYPES if t != "owner_decision"), frozenset({"owner_decision"})),
+    # 정책 · 사실 · 제작 조건 · 상황 · 기준 답 → 공정 단계(7.8 다음 3 · D117)
+    "at_step": (frozenset({"policy", "fact", "build_rule", "situation", "template"}), frozenset({"process_step"})),
+    # 상담 · 도면 층 항목 → 쓰는 공통 바탕(규격 · 정책 · 용어 · 제작 조건 — 7.8 다음 5)
+    "uses": (frozenset({*CS_TYPES, *DRAWING_TYPES}), frozenset({"spec", "policy", "term", "build_rule"})),
+    "answers": (frozenset({"template"}), frozenset({"situation"})),  # 기준 답 → 상황
+    "refines": (frozenset({"lesson"}), frozenset({"situation", "template", "tone"})),  # 배운 점 → 다듬은 것
+    # 좁은 항목 → 넓은 항목(같은 유형끼리 — SKOS ``broader`` 방향, 고리 금지)
+    "broader": (frozenset(IDENTITY_TYPES), frozenset(IDENTITY_TYPES)),
+    "part_of": (frozenset({"part_kind"}), frozenset({"product_line"})),  # 그림 조각 종류 → 제품 라인(8절)
 }
+#: 짝 표를 시작 유형마다 더 좁힘 — (시작 유형, 종류) → 받는 끝 유형. ERP 단계 정본은 공정 단계만 가리킨다.
+NARROW_ENDS: dict[tuple[str, str], frozenset[str]] = {
+    **{(t, "value_from"): frozenset({EXT_CALCULATOR, EXT_SETTING})
+       for t in ("product_line", "option", "spec", "price_rule", "bom_rule")},
+    ("process_step", "value_from"): frozenset({EXT_ERP_STAGE}),
+}
+#: 같은 유형끼리만 잇는 종류.
+SAME_TYPE_KINDS: frozenset[str] = frozenset({"broader"})
+#: 고리를 막는 종류 · 같은 두 항목 사이에 함께 두지 않는 종류 짝(7.8 다음 14 — :mod:`.link_rules`).
+ACYCLIC_KINDS: frozenset[str] = frozenset({"supersedes", "broader"})
+OPPOSED_KINDS: dict[str, str] = {"requires": "excludes", "excludes": "requires"}
 #: 연결 개수 규칙(7.7 · D105) — (시작 유형, 링크 종류) → (최소, 최대). 그 항목에서 **나가는** 지금 · 유효 기간 안 링크 수.
 #: 최대(``None`` = 끝없음)는 반영 동작이 링크 더하기 때 막고(:mod:`.apply`), 최소는 막지 않고 카드 '빠진 링크' · 품질 수
-#: (:mod:`.quality`)로만 알린다. 적지 않은 짝은 (0, 끝없음). 기본값은 보고서에 적어 사장님께 여쭌다.
+#: (:mod:`.quality`)로만 알린다. 적지 않은 짝은 (0, 끝없음). **가격 규칙 → 정본 자리는 근거 종류로 갈린다**(:data:`BASIS_RULES`).
 LINK_CARDINALITY: dict[tuple[str, str], tuple[int, int | None]] = {
-    ("price_rule", "value_from"): (1, 1),  # 가격 규칙 값은 정본 자리 꼭 하나(계산기 · 설정 — 두 곳이면 어느 값인지 모른다)
     ("spec", "value_from"): (0, 1),  # 규격 값 정본은 하나까지
     ("option", "value_from"): (0, 1),  # 옵션 → 계산기 옵션 하나까지
     ("bom_rule", "value_from"): (1, 1),  # 자재표 규칙은 '가리키는 항목'(8절) — 설정 키 꼭 하나
+    ("process_step", "value_from"): (0, 1),  # 공정 단계 → ERP 단계 정본 하나까지(7.8 다음 3)
     **{(t, "evidence_of"): (1, None) for t in OBSERVATION_TYPES},  # 관찰은 받치는 항목이 하나 이상(외톨이 관찰)
 }
+#: 가격 규칙 근거 종류(``payload.basis`` — 7.8 다음 1 · 사장님 D115) → (최소, 최대, 받는 끝 유형): 계산기 값 · 회사 지식 정본
+#: (운임 등 — 연결 없음) · 두 값의 차이 · 설정 값.
+PRICE_RULE_TYPE, BASIS_FIELD = "price_rule", "basis"
+BASIS_RULES: dict[str, tuple[int, int, tuple[str, ...]]] = {
+    "calc": (1, 1, (EXT_CALCULATOR,)),
+    "brain": (0, 0, ()),
+    "derived": (2, 2, (EXT_CALCULATOR, EXT_SETTING)),
+    "setting": (1, 1, (EXT_SETTING,)),
+}
+PRICE_BASES: tuple[str, ...] = tuple(BASIS_RULES)
+#: 근거 종류가 빈 옛 가격 규칙 — 최소는 따지지 않고(카드 '근거 종류 비었음'), 최대 · 끝은 예전 그대로(정본 자리 하나).
+BASIS_EMPTY_RULE: tuple[int, int, tuple[str, ...]] = (0, 1, (EXT_CALCULATOR, EXT_SETTING))
 
 # ── 상태 · 확신 · 등급 · 근거 · 보기 범위 ────────────────────────────────
 STATUS_DRAFT, STATUS_ACTIVE, STATUS_RETIRED = "draft", "active", "retired"
@@ -158,9 +218,13 @@ KIND_TYPES: dict[str, tuple[str, str]] = {
     KIND_POLICY: ("policy", LAYER_COMMON),
     KIND_PRICE_RULE: ("price_rule", LAYER_COMMON),
     KIND_OWNER_DECISION: ("owner_decision", LAYER_COMMON),
+    KIND_BUILD_RULE: ("build_rule", LAYER_COMMON),  # 7.8 다음 9 — 상담 견적 검사가 지식 문서의 제작 조건을 읽는다
 }
 TYPE_KINDS: dict[str, str] = {item_type: kind for kind, (item_type, _layer) in KIND_TYPES.items()}
 DOC_TYPES: tuple[str, ...] = tuple(TYPE_KINDS)
+#: 지식 문서 항목일 수도, brain 만의 항목일 수도 있는 유형 — 실음 칸에 ``doc_id`` 가 있을 때만 지식 문서 항목(다시 만들기 ·
+#: 옮기기 · 문서 꼴 검사 대상). 제작 조건은 링크로 제품을 묶는 brain 항목이 먼저 있었다(7.8 다음 9).
+OPTIONAL_DOC_TYPES: frozenset[str] = frozenset({"build_rule"})
 
 # ── 꼴 상한 ──────────────────────────────────────────────────────────────
 KEY_RE = re.compile(r"[a-z0-9][a-z0-9_.:/-]{0,119}")
@@ -171,20 +235,72 @@ MAX_NEIGHBOUR_DEPTH, MAX_NEIGHBOUR_LIMIT, MAX_SEARCH_LIMIT = 2, 200, 100
 MAX_NEIGHBOUR_EDGES, MAX_BRAIN_POINTS = 1000, 5000
 
 
-def cardinality(from_type: str | None, kind: str) -> tuple[int, int | None]:
-    """(시작 유형, 링크 종류)의 연결 개수 규칙 — (최소, 최대). 적지 않은 짝은 (0, ``None``)."""
+def basis_of(payload: Any) -> Optional[str]:
+    """가격 규칙 근거 종류(정한 값이 아니거나 비었으면 ``None``)."""
+    value = payload.get(BASIS_FIELD) if isinstance(payload, Mapping) else None
+    return value if value in BASIS_RULES else None
+
+
+def basis_rule(payload: Any) -> tuple[int, int, tuple[str, ...]]:
+    """가격 규칙 → 정본 자리 규칙 — (최소, 최대, 받는 끝 유형). 근거 종류가 비면 :data:`BASIS_EMPTY_RULE`."""
+    basis = basis_of(payload)
+    return BASIS_RULES[basis] if basis else BASIS_EMPTY_RULE
+
+
+def cardinality(from_type: str | None, kind: str, payload: Any = None) -> tuple[int, int | None]:
+    """(시작 유형, 링크 종류)의 연결 개수 규칙 — (최소, 최대). 적지 않은 짝은 (0, ``None``).
+
+    가격 규칙 → 정본 자리(``value_from``)는 그 항목 실음 칸의 근거 종류(``payload``)로 갈린다(D115)."""
+    if from_type == PRICE_RULE_TYPE and kind == "value_from":
+        low, high, _ends = basis_rule(payload)
+        return low, high
     return LINK_CARDINALITY.get((from_type or "", kind), (0, None))
 
 
+def cardinality_rules() -> list[tuple[str, str, Optional[str], int, int | None]]:
+    """품질 수 · 안내용 규칙 줄 — (시작 유형, 종류, 근거 종류(가격 규칙만 — 빈 근거는 ``""``), 최소, 최대)."""
+    rows: list[tuple[str, str, Optional[str], int, int | None]] = [
+        (t, k, None, low, high) for (t, k), (low, high) in LINK_CARDINALITY.items()]
+    rows += [(PRICE_RULE_TYPE, "value_from", basis, low, high) for basis, (low, high, _e) in BASIS_RULES.items()]
+    rows.append((PRICE_RULE_TYPE, "value_from", "", BASIS_EMPTY_RULE[0], BASIS_EMPTY_RULE[1]))
+    return rows
+
+
 def external_type(key: str) -> str | None:
-    """바깥 정본 자리 키(``calc:`` · ``setting:``)면 그 가짜 유형, 아니면 ``None``."""
+    """바깥 자리 키(:data:`EXTERNAL_PREFIXES` 머리)면 그 가짜 유형, 아니면 ``None``."""
     return next((kind for prefix, kind in EXTERNAL_PREFIXES.items() if key.startswith(prefix)), None)
 
 
 def link_allowed(from_type: str, kind: str, to_type: str) -> bool:
-    """(시작 유형, 링크 종류, 끝 유형) 짝이 허용 표에 있나."""
+    """(시작 유형, 링크 종류, 끝 유형) 짝이 허용 표에 있나(시작 유형별 좁힘 · 같은 유형끼리 종류 포함)."""
     pair = ALLOWED_LINKS.get(kind)
-    return pair is not None and from_type in pair[0] and to_type in pair[1]
+    if pair is None or from_type not in pair[0] or to_type not in pair[1]:
+        return False
+    narrow = NARROW_ENDS.get((from_type, kind))
+    if narrow is not None and to_type not in narrow:
+        return False
+    return kind not in SAME_TYPE_KINDS or from_type == to_type
+
+
+def is_doc_item(item_type: Optional[str], payload: Any) -> bool:
+    """지식 문서 항목인가 — 지식 문서 유형이고, 고를 수 있는 유형(:data:`OPTIONAL_DOC_TYPES`)은 문서 id 가 있을 때만."""
+    if item_type not in DOC_TYPES:
+        return False
+    return item_type not in OPTIONAL_DOC_TYPES or bool(isinstance(payload, Mapping) and payload.get("doc_id"))
+
+
+def value_problems(*, item_type: Any = None, brand: Any = None, kind: Any = None, status: Any = None,
+                   check: tuple[str, ...] = ("item_type", "brand", "kind", "status")) -> list[str]:
+    """유형 · 브랜드 · 링크 종류 · 상태 값이 정한 목록 안인가 — **값 목록 검사 한 곳**(7.8 다음 14). DB 검사 제약은 유형이 늘
+    때마다 마이그레이션이 붙어 두지 않고, 쓰는 길(:mod:`.gates` · :mod:`.proposals`)과 품질 수(:mod:`.quality`)가 이 목록을 쓴다.
+
+    Args:
+        check: 볼 칸 이름(부르는 쪽이 가진 칸만).
+    """
+    lists = {"item_type": (item_type, TYPES, "유형"), "brand": (brand, BRANDS, "브랜드"),
+             "kind": (kind, LINK_KINDS, "링크 종류"), "status": (status, OBJECT_STATUSES, "상태")}
+    return [f"{name}: 정한 {lists[name][2]} 값이 아니다(값 목록은 코드 + 설계서로만 더한다)"
+            for name in check if lists[name][0] not in lists[name][1]]
 
 
 def heavier_grade(*grades: str) -> str:

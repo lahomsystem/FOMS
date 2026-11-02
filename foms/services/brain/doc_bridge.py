@@ -3,6 +3,8 @@
 - 지식 문서 항목 하나 = brain 항목 하나(지식 문서 유형 :data:`.constants.DOC_TYPES`). 문서 칸 열 개는 그대로 돌아온다 —
   ``text`` · ``checked_at`` 는 줄 칸, 나머지(문서 id · 의도 · 꼬리표 · 근거 파일 · 승인한 사람 · 승인 날 · 문서 차례)는
   ``payload``. 상태는 ``approved`` ↔ ``active``(반영)만 이름이 다르다.
+- 실음 칸의 brain 만의 칸(유형 속성 틀 칸 · 이름표 — 7.8 다음 1 · 2)은 문서로 나가지 않는다 — :func:`doc_item_of` 는 문서 칸만
+  읽는다. 제작 조건은 문서 id 가 있을 때만 지식 문서 항목이다(:func:`.constants.is_doc_item`).
 - 두 브랜드에 같은 항목은 ``COMMON`` 항목 하나(3.1 규칙 1 · D99)이고, 다시 만들 때 두 브랜드 문서에 모두 들어간다. 문서
   차례는 ``payload.doc_pos[브랜드]`` 로 지킨다(차례가 바뀌면 두뇌가 고르는 의도 차례가 바뀐다).
 - **아직 상담 두뇌는 표를 읽지 않고, 표에서 지식 문서를 쓰지도 않는다** — :func:`shadow_compare` 로 견주기만 한다.
@@ -17,7 +19,7 @@ from sqlalchemy import select
 from foms.persistence.brain.models import BrainObject
 from foms.services.brain.constants import (
     BRAND_COMMON, CONFIRMED, DOC_TYPES, EVIDENCE_IMPORT, OBSERVED, SCOPE_ALL, STATUS_ACTIVE, STATUS_DRAFT,
-    STATUS_RETIRED, TYPE_GRADES, TYPE_KINDS,
+    STATUS_RETIRED, TYPE_GRADES, TYPE_KINDS, is_doc_item,
 )
 from foms.services.brain.scope import SYSTEM, Viewer, scope_clause
 from foms.services.brain.store import is_current, values_of
@@ -79,7 +81,7 @@ def doc_rows(session: Any, brand: str, *, viewer: Viewer = SYSTEM) -> list[Brain
     query = select(BrainObject).where(
         is_current(BrainObject), BrainObject.brand.in_((brand, BRAND_COMMON)), BrainObject.item_type.in_(DOC_TYPES),
         scope_clause(viewer, BrainObject.visibility))
-    rows = session.execute(query).scalars().all()
+    rows = [row for row in session.execute(query).scalars().all() if is_doc_item(row.item_type, row.payload)]
 
     def order(row: BrainObject) -> tuple[int, int, str]:
         """문서 차례가 있는 줄 먼저(차례 순), 없는 줄은 뒤에 키 순."""

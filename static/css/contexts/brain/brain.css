@@ -26,6 +26,7 @@
 .brain-type--owner_decision { --brain-type: #9f1239; }
 .brain-type--term { --brain-type: #3730a3; }
 .brain-type--fact { --brain-type: #155e75; }
+.brain-type--process_step { --brain-type: #0c4a6e; }
 .brain-type--situation { --brain-type: #15803d; }
 .brain-type--template { --brain-type: #166534; }
 .brain-type--lesson { --brain-type: #4d7c0f; }
@@ -41,6 +42,11 @@
 .brain-type--question { --brain-type: #991b1b; }
 .brain-type--ext_calculator { --brain-type: #1f2937; }
 .brain-type--ext_setting { --brain-type: #312e81; }
+.brain-type--ext_erp_stage { --brain-type: #134e4a; }
+.brain-type--ext_macro { --brain-type: #5b21b6; }
+.brain-type--ext_store { --brain-type: #6b21a8; }
+.brain-type--ext_screen { --brain-type: #4c1d95; }
+.brain-type--ext_form { --brain-type: #581c87; }
 
 /* ── 링크 종류 색(정본 = display.py LINK_DISPLAY) ── */
 .brain-link--applies_to { --brain-link: #2563eb; }
@@ -53,6 +59,13 @@
 .brain-link--caused_by { --brain-link: #92400e; }
 .brain-link--fixed_by { --brain-link: #166534; }
 .brain-link--about { --brain-link: #b45309; }
+.brain-link--decided_by { --brain-link: #e11d48; }
+.brain-link--at_step { --brain-link: #0891b2; }
+.brain-link--uses { --brain-link: #0284c7; }
+.brain-link--answers { --brain-link: #16a34a; }
+.brain-link--refines { --brain-link: #65a30d; }
+.brain-link--broader { --brain-link: #6366f1; }
+.brain-link--part_of { --brain-link: #9333ea; }
 
 /* ── 머리 ── */
 .brain-head {

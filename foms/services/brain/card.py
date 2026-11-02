@@ -2,6 +2,8 @@
 바깥 정본 칩(``calc:`` · ``setting:`` — 있음 여부 · 지금 값은 **볼 수 있는 사람에게만**, :mod:`.external`), 사본 목록, 이력(판들),
 빠진 링크(연결 개수 최소 — :mod:`.quality`).
 
+- **알림**(7.8): 근거 종류가 빈 가격 규칙 · 번호가 빈 옮긴 결정(:func:`.schemas.empty_notices`) · 은퇴 항목을 가리키는 지금
+  링크(:func:`.quality.retired_targets`)를 ``warnings`` 로 단다(막지 않는다).
 - **유효 기간으로 읽기**(7.7 · D105): 끝 날이 지난 링크 · 끝 항목은 '관련'에서 빠진다. 키로 바로 연 항목 자신은 끝났어도
   보이고 ``ended`` 가 붙는다(화면이 '기간 끝남'으로 흐리게).
 
@@ -22,10 +24,10 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
 from foms.services.brain.external import ref_cards
-from foms.services.brain.quality import item_rules, missing_links
+from foms.services.brain.quality import item_rules, missing_links, retired_targets
 from foms.services.brain.read import current_item, effect_state, item_history
 from foms.services.brain.schemas import get as schema_get
-from foms.services.brain.schemas import key_fields, payload_props
+from foms.services.brain.schemas import empty_notices, key_fields, payload_props
 from foms.services.brain.scope import Viewer, scope_clause
 from foms.services.brain.store import OBJECT_FIELDS, in_force, is_current
 from foms.services.brain.usage import usage_by_reader
@@ -75,13 +77,16 @@ def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date)
 
 
 def external_chips(session: Any, key: str, today: Optional[datetime.date] = None) -> list[dict[str, Any]]:
-    """바깥 정본 칩 — 이 항목이 가리키는 계산기 id · 설정 키(키만 — 있음 · 값은 :func:`.external.ref_cards`)."""
+    """바깥 자리 칩 — 이 항목이 가리키는 계산기 id · 설정 키(+ 칸) · ERP 단계 · 사본 자리(키 · 사본 링크의 확인 날만 — 있음 ·
+    값은 :func:`.external.ref_cards`. 사본 링크의 글 지문은 싣지 않는다)."""
     starts = [BrainLink.to_key.like(prefix + "%") for prefix in EXTERNAL_PREFIXES]
     live = [in_force(BrainLink, today)] if today is not None else []
-    rows = session.execute(select(BrainLink.kind, BrainLink.to_key)
+    rows = session.execute(select(BrainLink.kind, BrainLink.to_key, BrainLink.payload)
                            .where(BrainLink.from_key == key, is_current(BrainLink), or_(*starts), *live)
                            .order_by(BrainLink.to_key).limit(MAX_EXTERNAL)).all()
-    return [{"kind": kind, "ref": ref, "ext_type": external_type(ref)} for kind, ref in rows]
+    return [{"kind": kind, "ref": ref, "ext_type": external_type(ref),
+             "checked_at": payload.get("checked_at") if isinstance(payload, dict) else None}
+            for kind, ref, payload in rows]
 
 
 def _user_ids(*values: Any) -> set[int]:
@@ -171,6 +176,11 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
     stale_after = item.get("stale_after")
     keys = key_fields(item, item["type"])  # 유형 속성 틀의 '눈에 띄는 칸'(7.7 · D104)
     payload_values = {p.path: schema_get(item, p.path) for p in payload_props(item["type"])}
+    gaps = missing_links(session, viewer, item, today=today)  # 가격 규칙은 근거 종류로 갈린다(실음 칸을 빼기 전에)
+    rules = item_rules(item["type"], item.get("payload"))
+    warnings = empty_notices(item, item["type"]) + [
+        {"code": "retired_target:" + t["key"], "text": f"은퇴 항목을 가리킴 — {t['name']}", "key": t["key"]}
+        for t in retired_targets(session, viewer, key, today=today)]
     item.pop("payload", None)  # 실음 칸 통째(지식 문서 꼴 · 내부 값)는 싣지 않는다 — 틀 칸만 위 두 묶음으로
     open_changes = open_change_count(session, key)
     conflicts = open_conflict_counts(session, [key], today).get(key, 0)  # 이 항목에 대한 열린 엇갈림(점검 지금 8)
@@ -184,8 +194,7 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
         "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values,
         "links": link_groups(session, viewer, key, today=today),
         "external": ref_cards(session, viewer, external_chips(session, key, today), layer=item["layer"]),
-        "missing_links": missing_links(session, viewer, item, today=today),
-        "link_rules": item_rules(item["type"]),
+        "missing_links": gaps, "link_rules": rules, "warnings": warnings,
         "copies": list(item.get("copies") or []),
         "history": history_rows(session, viewer, key, names),
         "effect": effect_state(session, item, today), "open_conflicts": conflicts,

@@ -26,12 +26,13 @@ from foms.services.cs_agent.image_brain import BrainRead, read_images
 from foms.services.cs_agent.image_fetch import FetchError, fetch_bytes
 from foms.services.cs_agent.image_files import FileRef
 from foms.services.cs_agent.image_prep import SKIP_CAP, SKIP_SIZE, Prepared, precheck, prepare
-from foms.services.cs_agent.image_rules import ImageRead, read_result, result_json, space_range
+from foms.services.cs_agent.image_rules import WALL_SIDE_MM, ImageRead, read_result, result_json, space_range
 from foms.services.cs_agent.image_store import (
     DISCARDED, DONE, FAILED, HARD_SKIPS, READING, SKIPPED, SKIP_SWITCH, claim, ensure_rows, finish, reuse_by_sha,
     sent_today, set_skip,
 )
 from foms.services.cs_agent.masking import MaskLeak
+from foms.services.cs_agent.rule_settings import wall_side_mm
 from foms.services.cs_agent.settings import PanelSettings
 from foms.services.cs_agent.state import KST
 
@@ -59,11 +60,11 @@ class BatchOutcome:
     ranges: tuple[dict[str, Any], ...] = field(default=())
 
 
-def _ranges(read: ImageRead) -> list[dict[str, Any]]:
-    """공간마다 코드가 낸 범위(또는 못 쓴 까닭) — 표 ``result.ranges``."""
+def _ranges(read: ImageRead, wall_side: int = WALL_SIDE_MM) -> list[dict[str, Any]]:
+    """공간마다 코드가 낸 범위(또는 못 쓴 까닭) — 표 ``result.ranges``. ``wall_side`` = 벽 쪽마다 빼는 값(설정 → 처음 값)."""
     out = []
     for space in read.spaces:
-        found, code = space_range(space)
+        found, code = space_range(space, wall_side)
         entry: dict[str, Any] = {"room": space.room, "target": space.target}
         if found is None:
             entry["code"] = code
@@ -206,7 +207,8 @@ def _call(job: _Job, used: Sequence[tuple[Any, Prepared]]) -> BatchOutcome:
         job.session.commit()
         return BatchOutcome(usage=answer, codes=(*job.codes, "refused"))
     read = answer.read
-    result = {**result_json(read), "batch": shas, "ranges": _ranges(read), "rules_version": RULES_VERSION}
+    result = {**result_json(read), "batch": shas, "ranges": _ranges(read, wall_side_mm(job.session)),
+              "rules_version": RULES_VERSION}
     state = DISCARDED if read.face_seen else DONE
     finish(rows, result=result, state=state, confidence=read.confidence, personal=read.personal_seen,
            usage=answer.usage(), now=job.at(), shas=shas, turn_id=job.turn_id)

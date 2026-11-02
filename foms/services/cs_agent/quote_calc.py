@@ -30,10 +30,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional, Sequence
 
+from foms.services.cs_agent.knowledge_doc import KIND_BUILD_RULE as DOC_KIND_BUILD_RULE
 from foms.services.cs_agent.quote_brain import DOORS, HANDLES, QuoteAsk, QuoteSpace
 from foms.services.cs_agent.quote_check import FRESH_DAYS, PriceCheck
 from foms.services.cs_agent.quote_record import STATUS_ASK, STATUS_CHECK, STATUS_DRAWING, STATUS_HUMAN, STATUS_OK
-from foms.services.cs_agent.quote_rules import NeedsHuman, price as rule_price
+from foms.services.cs_agent.quote_rules import DEFAULT_LIMITS, NeedsHuman, QuoteLimits, price as rule_price
 from foms.services.wdcalculator.catalog import Catalog
 from foms.services.wdcalculator.pricing import BRAND_HAUD, PRICING_TYPES, find_product, option_rows
 
@@ -43,7 +44,8 @@ __all__ = [
     "build_rules", "evaluate",
 ]
 
-KIND_BUILD_RULE = "build_rule"  # 지식 문서 종류 이름(설계서 17.5 — 그 종류가 문서에 들어오면 여기서 읽는다)
+# 지식 문서 종류 이름(설계서 17.5 · master brain 7.8 다음 9 — 문서 종류에 들어와 승인 항목이면 여기서 읽는다)
+KIND_BUILD_RULE = DOC_KIND_BUILD_RULE
 #: 사람에게 넘기는 까닭 코드(차례 기록 ``error_code`` · 넘김 칸 — 글이 아니다).
 HUMAN_BRAND, HUMAN_RULE, HUMAN_RULE_UNREADABLE = "quote_brand", "quote_build_rule", "quote_rule_unreadable"
 HUMAN_PRICING_TYPE, HUMAN_ZERO, HUMAN_FAILED = "quote_pricing_type", "quote_zero", "quote_calc_failed"
@@ -192,7 +194,8 @@ def _option_rows(space: QuoteSpace, catalog: Catalog) -> list[dict[str, Any]]:
     return rows
 
 
-def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list[str], list[int]]:
+def _space_lines(number: int, space: QuoteSpace, catalog: Catalog,
+                 limits: QuoteLimits = DEFAULT_LIMITS) -> tuple[list[str], list[int]]:
     """공간 하나의 계산기 줄 · 값들(후보 × 가로 끝). 모르는 가격 방식이면 ``KeyError`` ``pricing_type``."""
     rows = _option_rows(space, catalog)
     lahom = catalog.products_of()
@@ -209,7 +212,7 @@ def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list
         if product.get("pricing_type") not in PRICING_TYPES:
             raise KeyError("pricing_type")
         for width in [w for w in (space.width_mm, space.width_max_mm) if w]:
-            priced = rule_price(product, width, rows, lahom, categories=catalog.option_categories)
+            priced = rule_price(product, width, rows, lahom, categories=catalog.option_categories, limits=limits)
             name = " ".join(str(product.get("name") or "").split())
             used = [f"계산 가로 {priced.width_used:,}mm — {priced.note}"] if priced.note else []
             lines.append(" · ".join([label, name, f"가로 {width:,}mm", *used, *extra]) + f" = {priced.amount:,}원")
@@ -217,13 +220,13 @@ def _space_lines(number: int, space: QuoteSpace, catalog: Catalog) -> tuple[list
     return lines, values
 
 
-def _priced(ask: QuoteAsk, catalog: Catalog) -> QuoteOutcome | tuple[list[str], int]:
+def _priced(ask: QuoteAsk, catalog: Catalog, limits: QuoteLimits) -> QuoteOutcome | tuple[list[str], int]:
     """모든 공간의 줄 + 합(후보 · 범위가 하나뿐일 때만, 아니면 0). 안 되면 사람에게 결과."""
     lines: list[str] = []
     single, total = True, 0
     for number, space in enumerate(ask.spaces, start=1):
         try:
-            space_lines, amounts = _space_lines(number, space, catalog)
+            space_lines, amounts = _space_lines(number, space, catalog, limits)
         except NeedsHuman as exc:
             return QuoteOutcome(STATUS_HUMAN, code=str(exc.args[0]))
         except KeyError as exc:
@@ -238,8 +241,9 @@ def _priced(ask: QuoteAsk, catalog: Catalog) -> QuoteOutcome | tuple[list[str], 
 
 
 def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *, check: PriceCheck,
-             now: datetime.datetime) -> QuoteOutcome:
-    """뽑은 재료 → 계산 결과(모듈 설명). ``check`` 는 확인 날 판정 재료, ``now`` 는 시간대 있는 지금."""
+             now: datetime.datetime, limits: QuoteLimits = DEFAULT_LIMITS) -> QuoteOutcome:
+    """뽑은 재료 → 계산 결과(모듈 설명). ``check`` 는 확인 날 판정 재료, ``now`` 는 시간대 있는 지금, ``limits`` 는 최소 길이 ·
+    반통 기준(설정 ``cs_quote_rules`` — :func:`.rule_settings.quote_limits`, 처음 값은 코드 상수와 같다)."""
     if ask.brand == BRAND_HAUD:
         return QuoteOutcome(STATUS_HUMAN, code=HUMAN_BRAND)
     gaps = _gaps(ask, rules)
@@ -252,7 +256,7 @@ def evaluate(ask: QuoteAsk, catalog: Catalog, rules: Sequence[BuildRule], *, che
         return QuoteOutcome(STATUS_ASK, lines=(line,), note=f"[견적 계산] 모르는 칸 — {ASK_ORDER[missing]}", code=missing)
     if any(_breaks(space, rules) for space in ask.spaces):
         return QuoteOutcome(STATUS_HUMAN, code=HUMAN_RULE)
-    priced = _priced(ask, catalog)
+    priced = _priced(ask, catalog, limits)
     if isinstance(priced, QuoteOutcome):
         return priced
     lines, total = priced

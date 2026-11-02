@@ -45,6 +45,8 @@ from foms.services.cs_agent.quote_calc import (
 )
 from foms.services.cs_agent.quote_check import PriceCheck, observe
 from foms.services.cs_agent.quote_record import STATUS_HUMAN, STATUS_NOT_QUOTE, record_value
+from foms.services.cs_agent.quote_rules import QuoteLimits
+from foms.services.cs_agent.rule_settings import quote_limits
 from foms.services.cs_agent.settings import read_settings
 from foms.services.wdcalculator.catalog import Catalog, read_catalog
 
@@ -120,14 +122,15 @@ def _catalog(reader: Callable[[], Catalog], chat_id: str) -> Optional[Catalog]:
 
 
 def _with_drawing(drawing: Optional[Callable[[QuoteAsk], Any]], ask: QuoteAsk, outcome: QuoteOutcome, *,
-                  catalog: Catalog, rules: Any, check: PriceCheck, now: datetime.datetime) -> tuple[QuoteOutcome, Any]:
+                  catalog: Catalog, rules: Any, check: PriceCheck, now: datetime.datetime,
+                  limits: QuoteLimits) -> tuple[QuoteOutcome, Any]:
     """``size_in_drawing`` 이면 그림 읽기를 끼운다(모듈 설명 5) — (결과, 그림 두뇌 쓰임 · 없으면 ``None``)."""
     if outcome.status != STATUS_DRAWING or drawing is None:
         return outcome, None
     use = drawing(ask)
     note = use.note
     if use.ask is not None:
-        again = evaluate(use.ask, catalog, rules, check=check, now=now)
+        again = evaluate(use.ask, catalog, rules, check=check, now=now, limits=limits)
         if again.status in (STATUS_OK, STATUS_CHECK):
             lines = (again.lines[0], *use.lines, *again.lines[1:]) if again.status == STATUS_OK else again.lines
             return dataclasses.replace(again, lines=lines,
@@ -167,8 +170,10 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
         step = QuoteStep(STATUS_HUMAN, human=HUMAN_RULE_UNREADABLE, usage=ask)
     else:
         check = (price_check or observe)(session, catalog, now=now)
-        outcome = evaluate(ask, catalog, rules, check=check, now=now)
-        outcome, image_usage = _with_drawing(drawing, ask, outcome, catalog=catalog, rules=rules, check=check, now=now)
+        limits = quote_limits(session)  # 최소 길이 · 반통 기준(설정 → 없으면 코드 상수 — 7.8 다음 4)
+        outcome = evaluate(ask, catalog, rules, check=check, now=now, limits=limits)
+        outcome, image_usage = _with_drawing(drawing, ask, outcome, catalog=catalog, rules=rules, check=check, now=now,
+                                             limits=limits)
         summary.brain_calls += int(image_usage is not None)
         step = QuoteStep(outcome.status, lines=outcome.lines, allowed=outcome.allowed, note=outcome.note,
                          human=outcome.code if outcome.status == STATUS_HUMAN else None,

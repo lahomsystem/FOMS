@@ -82,6 +82,7 @@
     <li class="brain-type--{{ ext.ext_type }}{{ ' is-missing' if ext.exists == false else '' }}" data-brain-ext="{{ ext.ref }}">
       <span class="brain-chip brain-ext__chip" title="{{ xd[0] }}"><i class="fas {{ xd[2] }} brain-chip__icon" aria-hidden="true"></i>{{ ext.ref }}</span>
       {% if ext.exists == false %}<span class="brain-badge brain-badge--missing">자리가 없어요 — 키를 확인해 주세요</span>
+      {% elif ext.copy_ref %}<span class="brain-badge brain-badge--observed" data-brain-ext-copy>바깥 사본 — 있음은 확인하지 않는 자리{% if ext.checked_at %} · 확인 {{ ext.checked_at }}{% endif %}</span>
       {% elif ext.exists is none %}<span class="brain-badge brain-badge--observed">지금 확인할 수 없어요</span>
       {% else %}
       {% if ext.label and ext.label != ext.ref %}<span class="brain-ext__label">{{ ext.label }}</span>{% endif %}

@@ -6,8 +6,9 @@
    은퇴 · 지우기는 **사장님(ADMIN)만**. 그 밖은 ADMIN 또는 그 층 승인자 팀의 MANAGER(:data:`.constants.LAYER_APPROVER_TEAMS`).
    **그 항목(지금 줄 · 새 보기 범위 · 링크 양 끝)을 볼 수 있어야 한다**(7.7 · D104 — 쓰기 권한이 보기 범위도 본다).
 2. **꼴 · 대상** — 값 목록 · 길이 · 날짜 · 유형과 층 · 지식 문서 꼴, 같은 지식 문서 id 겹침, 링크 허용 짝 · 양 끝. 링크
-   더하기는 **연결 개수 최대**(:func:`.quality.check_link_limit`)와 **바깥 정본 자리 실재**(:func:`.external.require_refs`)도
-   본다(7.7 · D105).
+   더하기는 **연결 개수 최대**(:func:`.quality.check_link_limit` — 가격 규칙은 근거 종류별)와 **바깥 정본 자리 실재**
+   (:func:`.external.require_refs`)(7.7 · D105), **링크 제약**(근거 종류 끝 · 맞서는 짝 · 고리 — :mod:`.link_rules`, 7.8)도 본다.
+   ``supersedes`` 반영은 앞 항목의 유효 끝을 찍은 새 판도 같은 반영에서 쓴다(7.8 다음 2).
 3. **기준 판** — 제안을 만든 때의 판이 지금 판과 같아야 한다(다르면 :class:`BrainConflictError` — 제안은 열린 채).
 
 그다음 앞 줄을 닫고(``superseded_at``) 새 판 줄을 쓰고, 제안을 ``applied`` 로 닫고, 그날 판에 붙이고, 감사 원장에 한 줄.
@@ -34,13 +35,14 @@ from foms.services.brain.ai_gates import sources
 from foms.services.brain.constants import (
     BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
     OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
-    external_type, link_allowed,
+    external_type, is_doc_item, link_allowed,
 )
 from foms.services.brain.errors import (
     BrainConflictError, BrainPermissionError, BrainShapeError, BrainTargetError,
 )
 from foms.services.brain.external import require_refs
 from foms.services.brain.gates import link_problems, object_problems
+from foms.services.brain.link_rules import check_link_rules, superseded_end
 from foms.services.brain.proposals import IMPORT_PROPOSER, link_target_type
 from foms.services.brain.quality import check_link_limit
 from foms.services.brain.scope import can_see, viewer_of
@@ -49,6 +51,8 @@ from foms.services.brain.store import (
 )
 from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog
+
+SUPERSEDES = "supersedes"
 
 
 @dataclass(frozen=True)
@@ -138,7 +142,7 @@ def _check_object_target(change: BrainChange, current: Optional[BrainObject]) ->
 
 def _doc_collision(session: Any, change: BrainChange, values: dict[str, Any]) -> None:
     """지식 문서 유형 — 같은 브랜드(공통은 모든 브랜드와 겹친다) 지금 줄에 같은 문서 id 가 있으면 대상 오류."""
-    if change.item_type not in DOC_TYPES:
+    if not is_doc_item(change.item_type, values.get("payload")):
         return
     doc_id = (values.get("payload") or {}).get("doc_id")
     brands = BRANDS if change.brand == BRAND_COMMON else (change.brand, BRAND_COMMON)
@@ -220,19 +224,23 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
 
 def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.datetime,
                 as_import: bool) -> tuple[int, Optional[int], int]:
-    """링크 동작 — 양 끝 · 허용 짝 · 기준 판을 다시 보고 새 판 줄(더하기) 또는 지금 줄 닫기(빼기)."""
+    """링크 동작 — 양 끝 · 허용 짝 · 기준 판을 다시 보고 새 판 줄(더하기) 또는 지금 줄 닫기(빼기).
+
+    빼기는 허용 짝을 다시 보지 않는다(짝 표가 바뀐 옛 링크도 끊을 수 있게 — 7.8 다음 5). 더하기는 링크 제약(:mod:`.link_rules`)
+    도 다시 보고, ``supersedes`` 면 앞 항목의 유효 끝을 찍는다(:func:`_end_superseded` — 7.8 다음 2)."""
     adding = change.op == OP_LINK_ADD
     limited = adding and cardinality(source_type(session, change.link_from), change.link_kind)[1] is not None
     # 연결 개수 상한이 있는 짝은 시작 항목 줄을 잠근 뒤 센다 — 같은 때 두 반영이 같은 항목에 더하지 못하게(D105)
     source = current_object(session, change.link_from, lock=limited)
     to_type = link_target_type(session, change.link_to)
-    if source is None or to_type is None or not link_allowed(source.item_type, change.link_kind, to_type):
+    if source is None or to_type is None or (adding and not link_allowed(source.item_type, change.link_kind, to_type)):
         raise BrainTargetError(f"허용하지 않는 링크 짝이거나 끝이 없다: {change.link_kind}")
     actor_id = check_permission(actor, op=change.op, layer=source.layer, types=[source.item_type, to_type],
                                 visibilities=[source.visibility, _link_end_visibility(session, change.link_to)])
-    if adding:  # 바깥 정본 자리가 지금도 있나 · 연결 개수 최대(7.7 · D105) — 빼기는 보지 않는다
+    if adding:  # 바깥 정본 자리가 지금도 있나 · 연결 개수 최대(7.7 · D105) · 링크 제약(7.8) — 빼기는 보지 않는다
         require_refs(session, [change.link_to])
         check_link_limit(session, source, change.link_kind, kst_day(now))
+        check_link_rules(session, source, change.link_kind, change.link_to, to_type, kst_day(now))
     identity = (change.link_kind, change.link_from, change.link_to)
     link = current_link(session, *identity, lock=True)
     if link is None:  # :func:`_locked_current` 와 같은 까닭
@@ -242,8 +250,8 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
     values = {**dict.fromkeys(LINK_FIELDS), **_after(change)} if adding else None
     if values is not None:
         values["confidence"] = settled_confidence(None, values.get("confidence"), as_import=as_import)
-    if values is not None and link_problems(values):
-        raise BrainShapeError(link_problems(values))
+    if values is not None and link_problems(values, change.link_kind):
+        raise BrainShapeError(link_problems(values, change.link_kind))
     key = f"{change.link_kind}:{change.link_from}>{change.link_to}"[:200]
     release_no = releases.attach(session, layer=source.layer, op=change.op, key=key, actor_id=actor_id, now=now,
                                  as_import=as_import)
@@ -258,7 +266,40 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
                     **column_values(values), recorded_at=now, created_by=change.proposed_by,
                     human_approver_id=None if as_import else actor_id, change_id=change.id, release_no=release_no)
     _insert_version(session, row, None)
+    if change.link_kind == SUPERSEDES:
+        _end_superseded(session, change, source, approver_id=None if as_import else actor_id, release_no=release_no,
+                        now=now)
     return actor_id, row.version, release_no
+
+
+def _end_superseded(session: Any, change: BrainChange, decision: BrainObject, *, approver_id: Optional[int],
+                    release_no: int, now: datetime.datetime) -> None:
+    """``supersedes`` 반영 — 앞 항목의 유효 끝을 새 결정의 유효 시작 전날(없으면 반영 날)로 찍은 새 판(7.8 다음 2).
+
+    이미 그보다 이르게 끝나는 항목과 아직 시작 전인 앞 항목(유효 시작이 끝 날보다 뒤 — 효력을 갖기 전에 대체됐다. 대체 링크가
+    읽기에서 뺀다)은 그대로 둔다. 새 판은 이 링크 제안 · 판 번호에 붙고, 그 항목의 다른 열린 제안에는 '기준 판 바뀜'을 적는다.
+    판 되돌리기(:mod:`.rollback`)는 링크만 뺀다 — 찍은 유효 끝은 그 항목 되돌리기(옛 판을 새 제안으로)로 푼다."""
+    target = current_object(session, change.link_to, lock=True)
+    end = superseded_end(decision.valid_from, kst_day(now))
+    if target is None or (target.valid_to is not None and target.valid_to <= end) or (
+            target.valid_from is not None and target.valid_from > end):
+        return
+    values = {**values_of(target), "valid_to": end.isoformat()}
+    problems = object_problems(values, brand=target.brand, layer=target.layer, item_type=target.item_type)
+    if problems:
+        raise BrainShapeError(problems)
+    _close(session, target, now)
+    columns = column_values(values)
+    top = session.execute(select(func.max(BrainObject.version)).where(BrainObject.item_key == target.item_key)).scalar()
+    row = BrainObject(
+        item_key=target.item_key, version=int(top or 0) + 1, brand=target.brand, layer=target.layer,
+        item_type=target.item_type, **columns, stale_after=target.stale_after, evidence_count=target.evidence_count,
+        usage_count=target.usage_count, recorded_at=now, created_by=change.proposed_by, human_approver_id=approver_id,
+        change_id=change.id, release_no=release_no)
+    _insert_version(session, row, target.version)
+    session.execute(update(BrainChange).where(
+        BrainChange.status == CHANGE_OPEN, BrainChange.op.in_(OBJECT_OPS), BrainChange.item_key == target.item_key,
+        BrainChange.base_changed_at.is_(None)).values(base_changed_at=now).execution_options(synchronize_session="fetch"))
 
 
 def _audit(session: Any, actor_id: int, change: BrainChange, verb: str, detail: dict[str, Any],

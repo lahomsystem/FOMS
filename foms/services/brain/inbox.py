@@ -19,7 +19,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import and_, false, func, literal, not_, or_, select, true, union_all
+from sqlalchemy import and_, case, false, func, literal, not_, or_, select, true, union_all
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
@@ -38,6 +38,7 @@ from foms.services.brain.usage import usage_of, usage_total
 from foms.services.datetime_kst import format_datetime_kst
 
 MAX_CHANGES = 200
+OCCURRED_AT = "occurred_at"  # 관찰 틀 원본 시각 칸(7.8 다음 13)
 TOUCH_PER_CARD = 6
 PHOTO_PREFIX = "photo:"
 
@@ -153,20 +154,49 @@ def inbox_counts(session: Any, viewer: Viewer, now: datetime.datetime) -> dict[s
 
 # ── 카드 재료(묶음 질의) ─────────────────────────────────────────────────
 def similar_cases(session: Any, viewer: Viewer, keys: Iterable[str]) -> dict[str, dict[str, Any]]:
-    """항목 → 근거 관찰(사례 · 그림 읽기 · 사진 관찰 — ``evidence_of``) 수와 처음 · 마지막 날(볼 수 있는 것만)."""
+    """항목 → 근거 관찰(사례 · 그림 읽기 · 사진 관찰 — ``evidence_of``) 수와 처음 · 마지막 날(볼 수 있는 것만).
+
+    날은 **원본 시각**(관찰 틀 ``payload.occurred_at`` — 7.8 다음 13)이 있으면 그 날, 없으면 줄 쓴 때(``recorded_at``)의 한국
+    날짜다(옮겨 쓴 관찰이 다 같은 날로 보이지 않게)."""
     wanted = sorted(set(keys))
     if not wanted:
         return {}
     obs = aliased(BrainObject)
     scopes = allowed_scopes(viewer)
-    query = (select(BrainLink.to_key, func.count(), func.min(obs.recorded_at), func.max(obs.recorded_at))
+    occurred = obs.payload[OCCURRED_AT].as_string()
+    recorded = case((occurred.is_(None), obs.recorded_at))  # 원본 시각이 없는 줄만 줄 쓴 때로
+    query = (select(BrainLink.to_key, func.count(), func.min(recorded), func.max(recorded), func.min(occurred),
+                    func.max(occurred))
              .join(obs, and_(obs.item_key == BrainLink.from_key, is_current(obs)))
              .where(BrainLink.kind == "evidence_of", is_current(BrainLink), BrainLink.to_key.in_(wanted))
              .group_by(BrainLink.to_key))
     if scopes is not None:
         query = query.where(obs.visibility.in_(sorted(scopes)) if scopes else false())
-    return {key: {"count": int(n), "first": _day(first), "last": _day(last)}
-            for key, n, first, last in session.execute(query)}
+    out = {}
+    for key, n, first, last, first_seen, last_seen in session.execute(query):
+        days = [d for d in (_day(_moment(first)), _day(_moment(last)), _seen_day(first_seen), _seen_day(last_seen)) if d]
+        out[key] = {"count": int(n), "first": min(days) if days else None, "last": max(days) if days else None}
+    return out
+
+
+def _moment(value: Any) -> Optional[datetime.datetime]:
+    """집계 값 → 시각(SQLite 는 글로 돌려준다)."""
+    if isinstance(value, str):
+        return datetime.datetime.fromisoformat(value)
+    return value
+
+
+def _seen_day(value: Any) -> Optional[str]:
+    """원본 시각 글 → 한국 날짜 글(시간대가 없으면 적힌 날 그대로 · 못 읽으면 ``None``)."""
+    try:
+        moment = datetime.datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+    if moment is None:
+        return None
+    if moment.tzinfo is None:
+        return moment.date().isoformat()
+    return _day(moment.astimezone(datetime.timezone.utc).replace(tzinfo=None))
 
 
 def _touch_query(viewer: Viewer, keys: list[str], direction: str) -> Any:
