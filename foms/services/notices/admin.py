@@ -21,7 +21,7 @@ from foms.services.notices.audience import (
 )
 from foms.services.notices.payload import format_input_kst, parse_notice_payload
 from foms.services.orders.order_mutation_policy import normalize_team
-from models import Notice, NoticeAck, PartnerOrg, SecurityLog
+from models import Notice, NoticeAck, NotificationUserState, PartnerOrg, SecurityLog
 
 __all__ = [
     "ack_status",
@@ -108,12 +108,29 @@ def update_notice(db, actor: Any, notice_id: Any, payload: Any) -> Optional[Noti
     return notice
 
 
+def _archive_bell_states(db, notice_id: int, now) -> None:
+    """지운 공지의 폰 알림(``FOMS_NOTICE``) 상태를 보관으로 — 앱 · 종 배지에서 빠진다(설계서 §7)."""
+    ids = [
+        int(nid) for (nid,) in db.query(NoticeAck.notification_id).filter(
+            NoticeAck.notice_id == int(notice_id), NoticeAck.notification_id.isnot(None),
+        )
+    ]
+    if not ids:
+        return
+    # ORM 으로 고친다(대량 UPDATE 는 표 버전 신호를 건너뛴다) — 공지 한 건의 받는 사람 수만큼이다.
+    for state in db.query(NotificationUserState).filter(
+        NotificationUserState.notification_id.in_(ids), NotificationUserState.archived_at.is_(None),
+    ):
+        state.archived_at = now
+
+
 def delete_notice(db, actor: Any, notice_id: Any) -> bool:
-    """공지 지우기(soft — ``deleted_at``). 없거나 이미 지웠으면 False."""
+    """공지 지우기(soft — ``deleted_at``). 없거나 이미 지웠으면 False. 보낸 폰 알림은 배지에서 뺀다."""
     notice = _live_notice(db, notice_id)
     if notice is None:
         return False
     notice.deleted_at = now_utc_naive()
+    _archive_bell_states(db, int(notice.id), notice.deleted_at)
     db.flush()
     _audit(db, actor, "NOTICE_DELETED", notice, f"공지 지움: {notice.title}")
     return True

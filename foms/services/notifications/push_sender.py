@@ -21,6 +21,11 @@ import datetime as _dt
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_draft_chat, cs_send_link
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
+from foms.services.notifications.notice_push import (
+    is_notice_notification_type,
+    notice_deep_link,
+    notice_push_text,
+)
 from foms.services.notifications.partner_push import (
     is_partner_notification_type,
     partner_deep_link,
@@ -198,7 +203,12 @@ def _should_push(notif: Notification) -> bool:
         return True
     ntype = (notif.notification_type or "").strip().upper()
     # 협력사 알림은 협력사에게 닿는 유일한 길이라 env 로 P1 집합을 바꿔도 늘 보낸다(PARTNER-FOMS 6).
-    return ntype in _p1_types() or is_partner_notification_type(ntype)
+    # 공지도 같다 — 모든 공지를 폰으로 보낸다는 사용자 결정(2026-11-02, 공지 설계서 §7).
+    return (
+        ntype in _p1_types()
+        or is_partner_notification_type(ntype)
+        or is_notice_notification_type(ntype)
+    )
 
 
 def _urgency(notif: Notification) -> str:
@@ -355,15 +365,43 @@ def _order_bound_text(
     )
 
 
-def _build_payload(notif: Notification, customer_name: str = "") -> Dict[str, Any]:
+def _notice_recipient_is_partner(db: Any, notif: Any) -> bool:
+    """공지 알림을 받는 사람이 협력사 직원인가(알림 1건당 한 번 — 공지 알림은 받는 사람이 한 명이다)."""
+    if not is_notice_notification_type(getattr(notif, "notification_type", "")):
+        return False
+    uid = getattr(notif, "target_user_id", None)
+    if not uid:
+        return False
+    try:
+        org_id = db.query(User.partner_org_id).filter(User.id == int(uid)).scalar()
+    except Exception as exc:  # noqa: BLE001 - 주소를 몰라도 배너는 나가야 한다(본사 목록으로 연다)
+        logger.warning("[push] notice recipient lookup failed user=%s: %s", uid, exc)
+        return False
+    return org_id is not None
+
+
+def _build_payload(
+    notif: Notification, customer_name: str = "", *, partner_recipient: bool = False
+) -> Dict[str, Any]:
     """push payload 구성. 알림 row 의 title/message(주소·사유·메모)는 읽지 않는다.
+
+    공지(``FOMS_NOTICE``)만 예외로 알림 title(= 공지 제목)을 본문에 싣는다 — 본문 내용은 싣지 않는다(공지 설계서 §7).
 
     :param notif: 알림 row
     :param customer_name: ``_order_customer_name`` 결과. 비어 있거나 주문이 없으면 일반 문구.
+    :param partner_recipient: 공지 알림을 받는 사람이 협력사 직원이면 True(누르면 ``/partner/notices``).
     """
     urgent = bool(notif.is_urgent)
     ntype = (notif.notification_type or "").strip().upper()
     name = _clean_customer_name(customer_name)
+    if is_notice_notification_type(ntype):
+        title, body = notice_push_text(notif.title)
+        return {
+            "title": title,
+            "body": body,
+            "tag": f"foms-notice-{int(notif.id)}",
+            "data": {"notification_id": int(notif.id), "deep_link": notice_deep_link(partner_recipient)},
+        }
     if is_partner_notification_type(ntype):
         # 협력사 알림 문장은 협력사 알림 서비스가 주소 · 메모 없이, 고객 이름을 가려서 만든다.
         title, body = partner_push_text(ntype, notif.message)
@@ -614,7 +652,11 @@ def _send_push_impl(
         logger.error("[push] pywebpush 미설치 - 발송 불가")
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "pywebpush_unavailable"}
 
-    base_payload = _build_payload(notif, _order_customer_name(db, notif))
+    base_payload = _build_payload(
+        notif,
+        _order_customer_name(db, notif),
+        partner_recipient=_notice_recipient_is_partner(db, notif),
+    )
     urgency = _urgency(notif)
     unread_by_user = _unread_counts(db, (s.user_id for s in states))
     sent = failed = revoked = 0

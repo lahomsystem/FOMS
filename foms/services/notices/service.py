@@ -27,7 +27,7 @@ from foms.services.notices.admin import (  # noqa: F401 — 설계서 이름 그
 from foms.services.notices.audience import is_live, user_matches, viewer_audience_label
 from foms.services.notices.payload import NoticeInputError  # noqa: F401
 from foms.services.orders.order_mutation_policy import normalize_team
-from models import Notice, NoticeAck, PartnerOrg
+from models import Notice, NoticeAck, NotificationUserState, PartnerOrg
 
 __all__ = [
     "NoticeInputError",
@@ -40,6 +40,7 @@ __all__ = [
     "live_notices_query",
     "mark_read",
     "notice_detail",
+    "notice_ack_row",
     "notice_summary",
     "pending_popups",
     "pending_popups_from",
@@ -256,7 +257,30 @@ def _target(db, user: Any, notice_id: Any) -> Optional[Notice]:
     return notice
 
 
-def _ack_row(db, notice_id: int, user_id: int) -> NoticeAck:
+def _sync_bell_state(db, row: NoticeAck, now: datetime.datetime, *, ack: bool) -> None:
+    """이 사람에게 보낸 공지 폰 알림(``FOMS_NOTICE``) 상태도 읽음(· 확인)으로 — 앱 · 종 배지 숫자가 준다(설계서 §7).
+
+    알림을 아직 안 보냈으면(``notification_id`` 없음) 아무것도 하지 않는다. 이미 채운 때는 그대로 둔다.
+    """
+    if row.notification_id is None:
+        return
+    state = (
+        db.query(NotificationUserState)
+        .filter(
+            NotificationUserState.notification_id == int(row.notification_id),
+            NotificationUserState.user_id == int(row.user_id),
+        )
+        .first()
+    )
+    if state is None:
+        return
+    if state.read_at is None:
+        state.read_at = now
+    if ack and state.ack_at is None:
+        state.ack_at = now
+
+
+def notice_ack_row(db, notice_id: int, user_id: int) -> NoticeAck:
     """(공지, 사람) 기록 줄 — 없으면 만든다. 두 번 눌러 같이 만들면 먼저 만든 줄을 쓴다."""
     row = db.query(NoticeAck).filter(NoticeAck.notice_id == notice_id, NoticeAck.user_id == user_id).first()
     if row is not None:
@@ -281,12 +305,13 @@ def ack_notice(db, user: Any, notice_id: Any) -> bool:
     notice = _target(db, user, notice_id)
     if notice is None:
         return False
-    row = _ack_row(db, int(notice.id), int(user.id))
+    row = notice_ack_row(db, int(notice.id), int(user.id))
     now = now_utc_naive()
     if row.ack_at is None:
         row.ack_at = now
     if row.read_at is None:
         row.read_at = now
+    _sync_bell_state(db, row, now, ack=True)
     return True
 
 
@@ -295,7 +320,9 @@ def mark_read(db, user: Any, notice_id: Any) -> bool:
     notice = _target(db, user, notice_id)
     if notice is None:
         return False
-    row = _ack_row(db, int(notice.id), int(user.id))
+    row = notice_ack_row(db, int(notice.id), int(user.id))
+    now = now_utc_naive()
     if row.read_at is None:
-        row.read_at = now_utc_naive()
+        row.read_at = now
+    _sync_bell_state(db, row, now, ack=False)
     return True
