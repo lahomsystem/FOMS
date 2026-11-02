@@ -37,7 +37,56 @@ def _record_session(session_id: str) -> None:
     prepend_session_block(harness_runtime_path("SESSION_LOG.md"), session_id, timestamp)
 
 
-_DRIFT_TIMEOUT_S = 10
+# 2026-11-03 부터 drift 도구가 판정 전에 `git fetch origin deploy production` 을 한다 — 여유를 둔다.
+_DRIFT_TIMEOUT_S = 20
+
+#: 메인 체크아웃이 뒤처졌을 때 훅·세션 규칙에 영향을 주는 경로. 앱 코드만 달라진 것은 알리지 않는다
+#: (deploy 는 하루 수십 번 움직인다 — 매 세션 잡음이면 사람이 경고를 무시하게 된다).
+_HARNESS_PATHS = (".claude", "CLAUDE.md", "AGENTS.md", "tools/harness", "tools/ops", "scripts/ops")
+
+
+def _git_out(root: str, *args: str) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", root, *args],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+def _main_checkout_stale_note(root: str) -> tuple[str, str]:
+    """메인 체크아웃이 origin/deploy 보다 뒤처져 하네스 파일이 다르면 (모델용, 사용자용) 안내.
+
+    훅은 `${CLAUDE_PROJECT_DIR}`(메인 체크아웃) 파일로 돈다. 2026-10-21 ~ 11-03 메인이 304커밋
+    뒤처진 채 아무도 몰라, 그 사이 deploy 에 올린 하네스 수정(푸시 가드 등)이 훅에 하나도
+    적용되지 않았다(설계서 docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md F5·F6).
+    fetch 는 하지 않는다 — 바로 앞 drift 도구가 받아 온 origin/deploy 를 쓴다. 판정 불가는 조용히 넘긴다.
+    """
+    counts = _git_out(root, "rev-list", "--left-right", "--count", "origin/deploy...HEAD")
+    if not counts:
+        return "", ""
+    behind, ahead = (int(x) for x in counts.split())
+    if behind == 0:
+        return "", ""
+    changed = _git_out(root, "diff", "--name-only", "HEAD", "origin/deploy", "--", *_HARNESS_PATHS)
+    if not changed:
+        return "", ""
+    files = len(changed.splitlines())
+    if ahead == 0:
+        how = f"`git -C {root} merge --ff-only origin/deploy` 로 맞춘다(작업 중 변경이 있으면 먼저 사용자 확인)"
+    else:
+        how = "로컬 커밋이 앞서 있어 갈라졌다 — 백업 브랜치를 만든 뒤 맞출지 사용자에게 먼저 묻는다"
+    model = (
+        f"[MAIN-STALE] 메인 체크아웃({root})이 origin/deploy 보다 {behind}커밋 뒤(앞섬 {ahead}), "
+        f"하네스·세션 규칙 파일 {files}개가 다르다 — 훅이 옛 코드로 돈다. 사용자에게 알리고, {how}."
+    )
+    user = (
+        f"메인 폴더가 서버보다 {behind}커밋 뒤처져 있어요. 안전장치·규칙 파일 {files}개가 옛날 것이라 "
+        "푸시 승인 창이 다시 자주 뜰 수 있어요. Claude 에게 '메인 폴더 최신으로'라고 말해 주세요."
+    )
+    return model, user
 
 
 def _deploy_drift_note() -> str:
@@ -87,24 +136,27 @@ def _deploy_drift_note() -> str:
     )
 
 
-def _build_context(source: str) -> str:
-    """SessionStart additionalContext 텍스트를 조립한다.
+def _build_context(source: str) -> tuple[str, str]:
+    """SessionStart additionalContext 텍스트와 사용자에게 바로 보일 경고를 조립한다.
 
     정적 RPI/AI_STATUS 안내는 CLAUDE.md와 중복이라 제거했다(2026-08-03 하네스
     ablation). compact 재개 시점의 체크포인트 포인터만 조건부로 주입한다.
 
     파라미터:
         source: "startup"|"resume"|"clear"|"compact" 중 하나.
-    반환: 주입할 안내 문자열(없으면 빈 문자열).
+    반환: (주입할 안내, 사용자 경고) — 없으면 빈 문자열.
     """
     if source == "compact":
         return (
             "[SYSTEM] 컨텍스트 압축 후 재개입니다 — 먼저 "
-            "docs/harness/runtime/COMPACT_CHECKPOINT.md를 읽어 직전 작업을 복원하세요."
+            "docs/harness/runtime/COMPACT_CHECKPOINT.md를 읽어 직전 작업을 복원하세요.",
+            "",
         )
     if source in ("startup", "resume"):
-        return _deploy_drift_note()
-    return ""
+        drift = _deploy_drift_note()  # origin/deploy 를 받아 온다 — 낡음 판정보다 먼저
+        stale_model, stale_user = _main_checkout_stale_note(os.path.dirname(os.path.dirname(_dir)))
+        return "\n".join(part for part in (drift, stale_model) if part), stale_user
+    return "", ""
 
 
 def main() -> None:
@@ -114,16 +166,17 @@ def main() -> None:
         session_id = str(payload.get("session_id") or "unknown")[:8]
         source = str(payload.get("source") or "startup")
         _record_session(session_id)
-        context = _build_context(source)
-        if context:
-            write_stdout_json(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "SessionStart",
-                        "additionalContext": context,
-                    }
+        context, user_warning = _build_context(source)
+        if context or user_warning:
+            output: dict = {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": context,
                 }
-            )
+            }
+            if user_warning:
+                output["systemMessage"] = user_warning  # 창을 열 때 사용자 화면에 바로 보인다
+            write_stdout_json(output)
     except Exception as exc:  # noqa: BLE001 - fail-open + 로그
         hook_log(f"session_start fail-open: {type(exc).__name__}: {exc}", tag="session_start")
     sys.exit(0)

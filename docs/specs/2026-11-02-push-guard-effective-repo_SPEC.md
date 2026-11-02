@@ -101,6 +101,14 @@
 - 메인에는 남의 미커밋 변경(10-22·10-30 날짜)과 고유 커밋 1개(`e4674d528`)가 있다. 그래서 맞추는 방법은 사용자와 따로 정한다.
 - 옛 guard_policy 와 함께 돌아도 깨지지 않게 했다. `guard_shell.py` 는 `cwd` 인자 TypeError 를, `record_commit_ledger.py` 는 도우미 ImportError 를 예전 동작으로 받는다.
 
+### F6. 세션 시작에 메인 체크아웃 낡음을 알린다 (사용자 선택 2026-11-03)
+
+- 11-03 에 메인 체크아웃을 origin/deploy 로 맞췄다. 맞추기 전 상태는 로컬 브랜치 `backup/main-deploy-20261103`·`backup/main-wip-20261103` 와 `c:/tmp/main_backup_20261103/main_wip.patch` 에 남겼다.
+- 다시 뒤처지는 것을 막으려고 `.claude/hooks/session_start.py` 가 startup·resume 때 알린다. 조건은 `origin/deploy...HEAD` 에서 뒤처짐이 1 이상이고, 하네스·세션 규칙 경로(`.claude`, `CLAUDE.md`, `AGENTS.md`, `tools/harness`, `tools/ops`, `scripts/ops`)가 다를 때다.
+- 모델에게는 `[MAIN-STALE]` 를, 사용자에게는 `systemMessage` 를 보낸다. 앱 코드만 다르면 알리지 않는다.
+- 앞섬 0 이면 `merge --ff-only` 를 권하고, 갈라졌으면 백업 뒤 사용자에게 묻게 한다. 자동으로 맞추지는 않는다(다른 창이 메인에서 일하는 중일 수 있다).
+- 시험: `tests/harness/test_session_start_main_stale.py`.
+
 ## 4. 하지 않는 것 (따로 정할 일)
 
 - 로컬 smoke 를 줄이고 Railway "Wait for CI" 켜기. 09-22 결정(목록 smoke 가 red 를 놓침)과 부딪혀서 따로 판단한다.
