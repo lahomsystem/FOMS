@@ -1,0 +1,300 @@
+"""제안함 '내 승인 대기'(설계서 7.5 화면 4 · 승인 흐름 · 사장님 D101 · D103) — 읽기만. 결정은 :mod:`.decide`.
+
+**질의 단계에서 두 번 거른다**: ① 이 사람이 결정할 수 있는 제안만(:func:`.access.approver_layers` — 층 승인자 MANAGER 는 자기
+층 · 사장님 몫 유형 빼고, ADMIN 은 모두) ② 보기 범위 안의 제안만(항목 동작은 지금 줄과 새 보기 범위 둘 다, 링크는 양 끝 — 4절 ·
+12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
+
+- **항목당 카드 하나**: 같은 항목(링크는 같은 링크)에 열린 제안이 둘 이상이면 처음 것이 카드, 나머지는 같은 카드에 붙는다.
+- **AI 제안**: 이번 주 남은 자리(:data:`AI_WEEKLY_CAP` − 이번 주 결정한 AI 제안 수)만큼, 그 항목이 **쓰인 횟수 순**으로 보인다.
+  만든 뒤 4주가 지난 AI 제안은 보이지 않고 :func:`.decide.expire_ai_proposals` 가 '기간 끝남'으로 닫는다.
+- 카드: 한 줄 요약 재료 · 칸별 전 → 후 · 사람 까닭과 사진 먼저 · AI 일반화 다음 · 근거 서랍(근거 id 만 — 가린 글 자리) ·
+  비슷한 사례 수와 날짜 · 함께 닿는 항목 · 관문 결과 · 기준 판 바뀜 경고 · 유형별 '승인의 뜻' · 등급 B 확인 값 · 휴대폰 가능.
+  카드마다 따로 읽지 않는다(사례 · 이웃 · 링크 판 · 사람 이름은 묶음 질의 하나씩).
+"""
+
+from __future__ import annotations
+
+import datetime
+from typing import Any, Iterable, Optional
+
+from sqlalchemy import and_, false, func, literal, not_, or_, select, true, union_all
+from sqlalchemy.orm import aliased
+
+from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.access import approval_problem, approver_layers
+from foms.services.brain.card import actor_label, people_names
+from foms.services.brain.constants import (
+    AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
+    HUMAN_EDIT_FIELDS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
+)
+from foms.services.brain.display import GATE_LABELS, approval_meaning
+from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
+from foms.services.brain.schemas import diff_rows, payload_props, prop_of
+from foms.services.brain.scope import Viewer, allowed_scopes
+from foms.services.brain.store import LINK_FIELDS, OBJECT_FIELDS, is_current
+from foms.services.datetime_kst import format_datetime_kst
+
+MAX_CHANGES = 200
+TOUCH_PER_CARD = 6
+PHOTO_PREFIX = "photo:"
+
+
+# ── 거르기 조건 ──────────────────────────────────────────────────────────
+def agent_clause() -> Any:
+    """에이전트 제안 조건."""
+    return BrainChange.proposed_by.like(AGENT_PREFIX + "%")
+
+
+def decidable_clause(viewer: Viewer) -> Any:
+    """이 사람이 결정할 수 있는 제안(질의 조건 — :func:`.access.approval_problem` 과 같은 규칙)."""
+    layers = approver_layers(viewer)
+    if layers is None:
+        return true()
+    if not layers:
+        return false()
+    owner_end = select(BrainObject.id).where(BrainObject.item_key == BrainChange.link_to, is_current(BrainObject),
+                                             BrainObject.item_type.in_(sorted(OWNER_ONLY_TYPES))).exists()
+    return and_(BrainChange.layer.in_(layers), BrainChange.item_type.notin_(sorted(OWNER_ONLY_TYPES)), not_(owner_end))
+
+
+def visible_clause(viewer: Viewer, cur: Any) -> Any:
+    """보기 범위 안의 제안 — 항목 동작은 지금 줄 · 새 보기 범위 둘 다(만들기는 새 범위), 링크는 양 끝(바깥 정본은 늘 보임)."""
+    scopes = allowed_scopes(viewer)
+    if scopes is None:
+        return true()
+    if not scopes:
+        return false()
+    wanted = sorted(scopes)
+    after = BrainChange.fields[("visibility", "after")].as_string()
+    create = and_(BrainChange.op == OP_CREATE, after.in_(wanted), or_(cur.id.is_(None), cur.visibility.in_(wanted)))
+    other = and_(BrainChange.op != OP_CREATE, cur.visibility.in_(wanted), or_(after.is_(None), after.in_(wanted)))
+    seen = select(BrainObject.item_key).where(is_current(BrainObject), BrainObject.visibility.in_(wanted))
+    outside = [BrainChange.link_to.like(prefix + "%") for prefix in EXTERNAL_PREFIXES]
+    link = and_(BrainChange.op.in_(LINK_OPS), BrainChange.link_from.in_(seen), or_(*outside, BrainChange.link_to.in_(seen)))
+    return or_(and_(BrainChange.op.in_(OBJECT_OPS), or_(create, other)), link)
+
+
+def current_join(cur: Any) -> Any:
+    """제안 → 그 항목(링크면 시작 항목)의 지금 줄."""
+    return and_(cur.item_key == BrainChange.item_key, is_current(cur))
+
+
+# ── AI 주 상한 ───────────────────────────────────────────────────────────
+def ai_week(session: Any, now: datetime.datetime) -> dict[str, int]:
+    """이번 주 AI 자리 — ``{"cap", "used", "left"}``(모든 사람 같은 수 — 회사 하나의 주 상한)."""
+    used = int(session.execute(select(func.count()).select_from(BrainChange).where(
+        agent_clause(), BrainChange.status.in_((CHANGE_APPLIED, CHANGE_REJECTED)),
+        BrainChange.decided_at >= week_start(now))).scalar_one())
+    return {"cap": AI_WEEKLY_CAP, "used": used, "left": max(0, AI_WEEKLY_CAP - used)}
+
+
+def shown_ai_ids(session: Any, now: datetime.datetime) -> list[int]:
+    """제안함에 보일 AI 제안 id — 남은 자리만큼, 쓰인 횟수 많은 순(그다음 오래된 순). 4주 지난 것은 빼고."""
+    left = ai_week(session, now)["left"]
+    if not left:
+        return []
+    cur = aliased(BrainObject)
+    query = (select(BrainChange.id).outerjoin(cur, current_join(cur))
+             .where(BrainChange.status == CHANGE_OPEN, agent_clause(), BrainChange.created_at >= ai_cutoff(now))
+             .order_by(func.coalesce(cur.usage_count, 0).desc(), BrainChange.created_at, BrainChange.id).limit(left))
+    return [int(i) for i in session.execute(query).scalars()]
+
+
+def _in_box(session: Any, now: datetime.datetime) -> Any:
+    """제안함에 드는 제안 — 사람 제안 전부 + 보일 AI 제안."""
+    shown = shown_ai_ids(session, now)
+    return or_(not_(agent_clause()), BrainChange.id.in_(shown) if shown else false())
+
+
+def open_rows(session: Any, viewer: Viewer, now: datetime.datetime) -> list[tuple[BrainChange, Optional[BrainObject]]]:
+    """이 사람의 열린 제안(+ 그 항목 지금 줄) — 결정 가능 · 보기 범위 · AI 자리로 거른 것, 오래된 순."""
+    cur = aliased(BrainObject)
+    rows = session.execute(
+        select(BrainChange, cur).outerjoin(cur, current_join(cur))
+        .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur),
+               _in_box(session, now))
+        .order_by(BrainChange.created_at, BrainChange.id).limit(MAX_CHANGES)).all()
+    return [(change, row) for change, row in rows
+            if approval_problem(viewer, op=change.op, layer=change.layer, types=[change.item_type]) is None]
+
+
+def inbox_counts(session: Any, viewer: Viewer, now: datetime.datetime) -> dict[str, int]:
+    """제안함 수(보기 범위 · 결정 가능으로 거른 것) — ``{"open", "cards", "ai_waiting"}``. 알림 수 API 가 쓴다."""
+    cur = aliased(BrainObject)
+    base = (select(BrainChange.id, BrainChange.item_key, BrainChange.link_kind, BrainChange.link_to, agent_clause().label("ai"))
+            .outerjoin(cur, current_join(cur))
+            .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur)))
+    shown = set(shown_ai_ids(session, now))
+    rows = [r for r in session.execute(base.where(or_(not_(agent_clause()), BrainChange.created_at >= ai_cutoff(now))))]
+    boxed = [r for r in rows if not r.ai or r.id in shown]
+    return {"open": len(boxed), "cards": len({(r.item_key, r.link_kind, r.link_to) for r in boxed}),
+            "ai_waiting": len([r for r in rows if r.ai and r.id not in shown])}
+
+
+# ── 카드 재료(묶음 질의) ─────────────────────────────────────────────────
+def similar_cases(session: Any, viewer: Viewer, keys: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """항목 → 근거 관찰(사례 · 그림 읽기 · 사진 관찰 — ``evidence_of``) 수와 처음 · 마지막 날(볼 수 있는 것만)."""
+    wanted = sorted(set(keys))
+    if not wanted:
+        return {}
+    obs = aliased(BrainObject)
+    scopes = allowed_scopes(viewer)
+    query = (select(BrainLink.to_key, func.count(), func.min(obs.recorded_at), func.max(obs.recorded_at))
+             .join(obs, and_(obs.item_key == BrainLink.from_key, is_current(obs)))
+             .where(BrainLink.kind == "evidence_of", is_current(BrainLink), BrainLink.to_key.in_(wanted))
+             .group_by(BrainLink.to_key))
+    if scopes is not None:
+        query = query.where(obs.visibility.in_(sorted(scopes)) if scopes else false())
+    return {key: {"count": int(n), "first": _day(first), "last": _day(last)}
+            for key, n, first, last in session.execute(query)}
+
+
+def _touch_query(viewer: Viewer, keys: list[str], direction: str) -> Any:
+    """한 방향 링크 + 끝 항목(볼 수 있는 지금 줄만)."""
+    other = aliased(BrainObject)
+    near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
+    scopes = allowed_scopes(viewer)
+    query = (select(near.label("near"), BrainLink.kind.label("kind"), literal(direction).label("direction"),
+                    other.item_key.label("key"), other.name.label("name"), other.item_type.label("type"))
+             .join(other, and_(other.item_key == far, is_current(other)))
+             .where(near.in_(keys), is_current(BrainLink)))
+    if scopes is not None:
+        query = query.where(other.visibility.in_(sorted(scopes)) if scopes else false())
+    return query
+
+
+def touched_items(session: Any, viewer: Viewer, keys: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """항목 → 함께 닿는 항목(링크 양쪽 · 볼 수 있는 것) 수와 앞 :data:`TOUCH_PER_CARD` 개(한 질의 — 창 함수)."""
+    wanted = sorted(set(keys))
+    if not wanted:
+        return {}
+    both = union_all(_touch_query(viewer, wanted, "out"), _touch_query(viewer, wanted, "in")).subquery("both")
+    rank = func.row_number().over(partition_by=both.c.near, order_by=(both.c.kind, both.c.name, both.c.key))
+    size = func.count().over(partition_by=both.c.near)
+    ranked = select(both, rank.label("rank"), size.label("size")).subquery("ranked")
+    out: dict[str, dict[str, Any]] = {}
+    for row in session.execute(select(ranked).where(ranked.c.rank <= TOUCH_PER_CARD)
+                               .order_by(ranked.c.near, ranked.c.rank)):
+        entry = out.setdefault(row.near, {"total": int(row.size), "items": []})
+        entry["items"].append({"kind": row.kind, "direction": row.direction, "key": row.key, "name": row.name,
+                               "type": row.type})
+    return out
+
+
+def link_versions(session: Any, changes: Iterable[BrainChange]) -> dict[tuple[str, str, str], int]:
+    """링크 제안들의 지금 링크 판(한 질의)."""
+    idents = {(c.link_kind, c.link_from, c.link_to) for c in changes if c.op in LINK_OPS}
+    if not idents:
+        return {}
+    froms = sorted({f for _k, f, _t in idents})
+    rows = session.execute(select(BrainLink.kind, BrainLink.from_key, BrainLink.to_key, BrainLink.version).where(
+        BrainLink.from_key.in_(froms), is_current(BrainLink)))
+    return {(k, f, t): int(v) for k, f, t, v in rows if (k, f, t) in idents}
+
+
+# ── 카드 ─────────────────────────────────────────────────────────────────
+def _day(value: Optional[datetime.datetime]) -> Optional[str]:
+    """UTC naive 시각 → 한국 날짜 글."""
+    return format_datetime_kst(value, "%Y-%m-%d") if value else None
+
+
+def _diff(change: BrainChange) -> list[dict[str, Any]]:
+    """칸별 전 → 후(정한 칸 차례 · 실음 칸은 유형 속성 틀 칸마다 펼침 — 7.7). 고쳐 넣기로 바뀐 칸은 처음 제안 값(``proposed``)도.
+    줄마다 이름 · 단위 · 고쳐 넣을 수 있나 · 자료형 · 고른 값(화면 입력 칸을 틀에서 만든다)."""
+    order = OBJECT_FIELDS if change.op in OBJECT_OPS else LINK_FIELDS
+    fields = change.fields or {}
+    ordered = {name: fields[name] for name in [n for n in order if n in fields] + sorted(n for n in fields
+                                                                                       if n not in order)}
+    editable_op = change.op in (OP_CREATE, OP_UPDATE)
+    editable = set(HUMAN_EDIT_FIELDS) | {p.path for p in payload_props(change.item_type)}
+    rows = []
+    for row in diff_rows(change.item_type, ordered):
+        prop = prop_of(change.item_type, row["field"])
+        row.update(editable=editable_op and row["field"] in editable,
+                   datatype=prop.datatype if prop else ("date" if row["field"] in ("valid_from", "valid_to") else "text"),
+                   choices=list(prop.choices) if prop else [])
+        rows.append(row)
+    return rows
+
+
+def _base_changed(change: BrainChange, cur: Optional[BrainObject], links: dict[tuple[str, str, str], int]) -> dict:
+    """기준 판 비교 — ``{"changed", "current"}``(만들기는 지금 줄이 생겼으면 바뀜)."""
+    if change.op in LINK_OPS:
+        current = links.get((change.link_kind, change.link_from, change.link_to))
+    else:
+        current = cur.version if cur is not None else None
+    flagged = change.base_changed_at is not None
+    stamp = format_datetime_kst(change.base_changed_at, "%Y-%m-%d %H:%M") if flagged else None
+    if change.op == OP_CREATE:
+        return {"changed": cur is not None or flagged, "current": current, "flagged_at": stamp}
+    return {"changed": current != change.base_version or flagged, "current": current, "flagged_at": stamp}
+
+
+def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int, str],
+                links: dict[tuple[str, str, str], int]) -> dict[str, Any]:
+    """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id)."""
+    field, value = confirm_value(change.op, change.fields, change.item_type)
+    evidence = [str(e) for e in (change.evidence or [])]
+    gates = change.gates or {}
+    return {
+        "id": change.id, "op": change.op, "grade": change.grade, "ai": is_agent(change.proposed_by),
+        "action": change.action,
+        "proposer": actor_label(change.proposed_by, names), "reason": change.reason or "",
+        "photos": [e for e in evidence if e.startswith(PHOTO_PREFIX)],
+        "evidence": [e for e in evidence if not e.startswith(PHOTO_PREFIX)],
+        "fields": _diff(change), "base_version": change.base_version, "base": _base_changed(change, cur, links),
+        "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
+        "meaning": approval_meaning(change.op, change.item_type),
+        "confirm": {"field": field, "value": value} if change.grade == GRADE_B else None,
+        "phone_ok": phone_ok(change.op, change.fields), "bulk_ok": change.grade == GRADE_A,
+        "rollback_of": change.rollback_of_version, "link": ({"kind": change.link_kind, "from": change.link_from,
+                                                            "to": change.link_to} if change.op in LINK_OPS else None),
+        "created_at": format_datetime_kst(change.created_at, "%Y-%m-%d %H:%M") if change.created_at else None,
+    }
+
+
+def _group_key(change: BrainChange) -> tuple:
+    """카드 묶음 — 항목 동작은 항목 키, 링크는 링크 정체."""
+    if change.op in LINK_OPS:
+        return ("link", change.link_kind, change.link_from, change.link_to)
+    return ("item", change.item_key)
+
+
+def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[str, Any]) -> dict[str, Any]:
+    """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
+    main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
+    change, cur = group[main_index]
+    views = [change_view(c, r, extra["names"], extra["links"]) for c, r in group]
+    after_name = ((change.fields or {}).get("name") or {}).get("after")
+    key = change.item_key or ""
+    return {
+        "id": change.id, "key": key, "name": cur.name if cur is not None else (after_name or key),
+        "type": change.item_type, "layer": change.layer, "brand": change.brand,
+        "usage_count": int(cur.usage_count or 0) if cur is not None else 0,
+        "version": cur.version if cur is not None else None, "exists": cur is not None,
+        "copies": len(cur.copies or []) if cur is not None else 0,
+        "main": views[main_index], "attached": [v for i, v in enumerate(views) if i != main_index],
+        "similar": extra["similar"].get(key, {"count": 0, "first": None, "last": None}),
+        "touches": extra["touches"].get(key, {"total": 0, "items": []}),
+    }
+
+
+def _card_order(card: dict[str, Any]) -> tuple:
+    """사람 제안 카드 먼저(오래된 순), 그다음 AI 카드(쓰인 횟수 순)."""
+    ai = card["main"]["ai"]
+    return (ai, -card["usage_count"] if ai else 0, card["main"]["created_at"] or "", card["id"])
+
+
+def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, Any]:
+    """제안함 — ``{"cards", "counts", "ai"}``. 카드는 항목(링크)마다 하나."""
+    rows = open_rows(session, viewer, now)
+    groups: dict[tuple, list[tuple[BrainChange, Optional[BrainObject]]]] = {}
+    for change, cur in rows:
+        groups.setdefault(_group_key(change), []).append((change, cur))
+    item_keys = [g[0][0].item_key for k, g in groups.items() if k[0] == "item"]
+    people = {int(c.proposed_by[5:]) for c, _r in rows if (c.proposed_by or "").startswith("user:")
+              and c.proposed_by[5:].isdigit()}
+    extra = {"names": people_names(session, people), "links": link_versions(session, [c for c, _r in rows]),
+             "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys)}
+    cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)
+    return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now)}

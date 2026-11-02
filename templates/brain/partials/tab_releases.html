@@ -1,8 +1,9 @@
-{#- 화면 6 판 — 판 목록 · 차이 요약(보기 범위 안의 바뀜만 센다). 되돌리기 단추는 자리만(다음 단계 ⑤-3 — 지금은 꺼짐).
-    목록은 brain-releases.js 가 GET /api/brain/releases 로 읽는다. -#}
+{#- 화면 6 판 — 판 목록 · 차이 요약(보기 범위 안의 바뀜만 센다) · 층 되돌리기(ADMIN 만 — 같은 판 번호를 한 번 더 넣어 확인).
+    목록은 brain-releases.js 가 GET /api/brain/releases 로 읽고, 되돌리기는 POST /api/brain/releases/<번호>/rollback. -#}
 <section class="tab-pane fade{{ ' show active' if tab == 'releases' else '' }} brain-pane" id="brain-tab-releases" role="tabpanel"
          aria-labelledby="brain-tab-releases-btn" tabindex="0">
-  <p class="brain-head__note">하루에 한 판. 판 0 은 지식 문서에서 옮겨 온 판입니다. 되돌리기는 다음 단계에서 열립니다.</p>
+  <p class="brain-head__note">하루에 한 판. 판 0 은 지식 문서에서 옮겨 온 판입니다. 층 되돌리기는 사장님(관리자)만 하고, 되돌린
+    판도 이력에 남습니다. 항목 하나만 되돌릴 때는 항목 카드의 이력에서 '이 판으로 되돌리기 제안'을 씁니다.</p>
   <p class="brain-status-line" data-brain-releases-status role="status" aria-live="polite"></p>
   <ol class="brain-releases" data-brain-releases></ol>
   <nav class="brain-pager" aria-label="판 목록 쪽">

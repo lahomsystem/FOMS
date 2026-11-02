@@ -20,6 +20,7 @@
   var ctx = {
     root: root,
     display: dom.safeJsonParse(root.getAttribute('data-display'), {}),
+    actions: dom.safeJsonParse(root.getAttribute('data-actions'), []),  // 이름 있는 액션 목록(7.7 — 단추 이름 · 고른 값)
     urls: {
       search: root.getAttribute('data-search-url'), table: root.getAttribute('data-table-url'),
       releases: root.getAttribute('data-releases-url'), typeMap: root.getAttribute('data-type-map-url'),

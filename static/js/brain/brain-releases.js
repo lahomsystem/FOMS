@@ -1,7 +1,8 @@
 /**
  * 회사 지식 '판' 탭(HAUD master brain 설계서 7.5 화면 6) — 판 목록 · 층별 동작 수 · 차이 요약. GET /api/brain/releases ·
- * /api/brain/releases/<번호>(수 · 차이는 내 보기 범위 안의 바뀜만). **되돌리기는 다음 단계(⑤-3)** — 단추는 꺼진 자리만 둔다.
- * 글은 textContent 만, 탭이 처음 보일 때 읽는다.
+ * /api/brain/releases/<번호>(수 · 차이는 내 보기 범위 안의 바뀜만). 층 되돌리기는 ADMIN 만(data-is-admin) — 한 번 누르면
+ * 확인 줄이 열리고 '되돌리기'를 한 번 더 눌러야 POST /api/brain/releases/<번호>/rollback {layer, confirm_number} 를 보낸다.
+ * 되돌린 층은 '되돌림 — 판 N 에서' 표시로 남는다(이력). 글은 textContent 만, 탭이 처음 보일 때 읽는다.
  */
 (function () {
   'use strict';
@@ -22,6 +23,8 @@
 
   var page = 1;
   var loaded = false;
+  var canRollback = root.getAttribute('data-is-admin') === '1';
+  var review = window.FOMS_BRAIN_REVIEW;
 
   function layerLabel(layer) {
     return (ctx.display.layers || {})[layer] || layer || '층 없음';
@@ -86,9 +89,11 @@
       var row = dom.el('li', { cls: 'brain-release__layer' });
       row.appendChild(dom.el('span', { cls: 'brain-badge', text: layerLabel(layer.layer) }));
       row.appendChild(dom.el('span', { text: view.countsText(layer.counts, ctx.display) + ' (모두 ' + layer.total + '건)' }));
-      row.appendChild(dom.el('button', { cls: 'brain-btn', text: '이 층 되돌리기 · 다음 단계',
-                                         attrs: { type: 'button', disabled: 'disabled', 'aria-disabled': 'true',
-                                                  title: '판 되돌리기는 다음 단계(⑤-3)에서 열립니다' } }));
+      if (layer.rollback) {
+        row.appendChild(dom.el('span', { cls: 'brain-badge brain-badge--retired', text: review.rollbackText(layer.rollback) }));
+      } else if (canRollback && !item.import) {
+        row.appendChild(rollbackControl(item.number, layer.layer));
+      }
       layers.appendChild(row);
     });
     li.appendChild(layers);
@@ -97,6 +102,40 @@
     li.appendChild(box);
     diffButton.addEventListener('click', function () { toggleDiff(diffButton, box, item.number); });
     return li;
+  }
+
+  /** 층 되돌리기 — 첫 누름은 확인 줄만 연다(같은 판 번호를 다시 보내 확인). */
+  function rollbackControl(number, layer) {
+    var box = dom.el('span', { cls: 'brain-release__rollback' });
+    var start = dom.el('button', { cls: 'brain-btn', text: '이 층 ' + review.actionLabel(ctx.actions, 'release_rollback'),
+                                   attrs: { type: 'button' } });
+    var ask = dom.el('span', { cls: 'brain-release__ask' });
+    ask.hidden = true;
+    var yes = dom.el('button', { cls: 'brain-btn brain-btn--danger', text: '판 ' + number + ' ' + layerLabel(layer) + ' 되돌리기',
+                                 attrs: { type: 'button' } });
+    var no = dom.el('button', { cls: 'brain-btn', text: '그만', attrs: { type: 'button' } });
+    var note = dom.el('span', { cls: 'brain-status-line', attrs: { role: 'status', 'aria-live': 'polite' } });
+    ask.appendChild(yes);
+    ask.appendChild(no);
+    box.appendChild(start);
+    box.appendChild(ask);
+    box.appendChild(note);
+    start.addEventListener('click', function () { start.hidden = true; ask.hidden = false; yes.focus(); });
+    no.addEventListener('click', function () { ask.hidden = true; start.hidden = false; });
+    yes.addEventListener('click', async function () {
+      yes.disabled = true;
+      dom.setStatus(note, '되돌리는 중…');
+      var res = await dom.postJson(ctx.urls.releases + '/' + encodeURIComponent(number) + '/rollback',
+                                   { layer: layer, confirm_number: number });
+      if (!res.ok) {
+        yes.disabled = false;
+        dom.setStatus(note, res.error, 'error');
+        return;
+      }
+      dom.setStatus(note, res.data.message);
+      load();
+    });
+    return box;
   }
 
   async function load() {

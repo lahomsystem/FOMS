@@ -1,4 +1,5 @@
-"""HAUD master brain 표 다섯(ORM) — DDL 정본은 마이그레이션 ``brain_00`` 과 같다(``tests/domains/test_brain_store.py`` 가 견준다).
+"""HAUD master brain 표 다섯(ORM) — DDL 정본은 마이그레이션 ``brain_00`` + ``brain_01``(제안 줄 액션 이름 · 기준 판 바뀜 칸)과
+같다(``tests/domains/test_brain_store.py`` 가 견준다).
 
 설계서 2026-11-02-haud-master-brain 4절 · 6절 · 7.5 끝 '저장 꼴' · 10.3.
 
@@ -146,6 +147,10 @@ class BrainChange(Base):
     release_no = Column(Integer, nullable=True)
     created_at = Column(DateTime, nullable=False, default=_utcnow, server_default=func.now())
     decided_at = Column(DateTime, nullable=True)
+    # brain_01 — 만든 액션 · 닫은 액션 이름(정본 목록 foms/services/brain/actions.py) · 기준 판이 바뀐 때(D104)
+    action = Column(String(32), nullable=True)
+    decided_action = Column(String(32), nullable=True)
+    base_changed_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         CheckConstraint("op IN ('create','update','retire','delete','link_add','link_remove')",

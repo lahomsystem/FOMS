@@ -3,7 +3,8 @@
 - **글 관문**(:func:`text_gates`): 개인정보 꼴 0(:func:`foms.services.cs_agent.masking.leak_counts`) · 가림 표시 0
   (:func:`foms.services.cs_agent.checks_rules.mask_marker_count`) · 한자 0 · 숫자(금액 · 날짜 · 기간)는 승인 지식 글과
   계산기 값에 이미 있는 숫자만(학습한 숫자가 허용 목록으로 세탁되지 않게 — R10-19). 결과는 관문 이름 → ``pass`` · ``fail``.
-- **꼴 검사**(:func:`object_problems`): 값 목록 · 길이 · 날짜 · 유형과 층 · 보기 범위 · 사본 목록. 지식 문서 유형
+- **꼴 검사**(:func:`object_problems`): 값 목록 · 길이 · 날짜 · 유형과 층 · 보기 범위 · 사본 목록 · 유형별 속성 틀
+  (:mod:`.schemas` — 제안 때와 반영 때 같은 검사). 지식 문서 유형
   (:data:`.constants.DOC_TYPES`)은 그 항목을 지식 문서 꼴로 바꿔 :func:`foms.services.cs_agent.knowledge_doc.validate_document`
   로 검사한다 — 다시 만든 지식 문서가 늘 상담 두뇌가 받는 꼴이게.
 """
@@ -20,6 +21,7 @@ from foms.services.brain.constants import (
     MAX_PAYLOAD_CHARS, MAX_REF, MAX_TEXT, OBJECT_STATUSES, TYPE_LAYERS, TYPES, VISIBILITIES,
 )
 from foms.services.brain.doc_bridge import DOC_PAYLOAD_KEYS, doc_item_of
+from foms.services.brain.schemas import schema_problems
 from foms.services.brain.store import DATE_FIELDS, LINK_FIELDS, OBJECT_FIELDS
 from foms.services.cs_agent.checks_rules import mask_marker_count
 from foms.services.cs_agent.knowledge_doc import KNOWN_BRANDS, KnowledgeSchemaError, validate_document
@@ -142,6 +144,8 @@ def object_problems(values: Mapping[str, Any], *, brand: Any, layer: Any, item_t
     elif layer not in TYPE_LAYERS[item_type]:
         problems.append(f"layer: {item_type} 은 {sorted(TYPE_LAYERS[item_type])} 층에만 둔다")
     problems += _choice_problems(values) + _date_problems(values) + _body_problems(values)
+    if not problems:
+        problems += schema_problems(values, item_type)  # 유형별 속성 틀(7.7 · D104)
     if not problems and item_type in DOC_TYPES and brand in BRANDS:
         problems += _doc_problems(values, brand, item_type)
     return problems

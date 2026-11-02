@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 261,
+    "total": 267,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 223,
+    "AUDITED": 229,
     "EXEMPT": 36,
     "UNAUDITED": 2
   },
@@ -67,6 +67,60 @@
       "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_switch_loop",
       "lineno": 86,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_apply",
+      "lineno": 178,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_bulk_apply",
+      "lineno": 191,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_propose",
+      "lineno": 171,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_recheck_confirm",
+      "lineno": 197,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_reject",
+      "lineno": 185,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_release_rollback",
+      "lineno": 203,
       "methods": [
         "POST"
       ],

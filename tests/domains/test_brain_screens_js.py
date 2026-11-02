@@ -1,4 +1,4 @@
-"""'회사 지식' 화면 스크립트 — node --check(새 파일 여섯) + 순수 함수 node 시험(static/js/brain/brain-view.js).
+"""'회사 지식' 화면 스크립트 — node --check(파일 열하나) + 순수 함수 node 시험(static/js/brain/brain-view.js).
 
 유형 → 색 · 상태 모양 · 표 물음 글 · 쪽 안내 · 항목 주소 · 판 수 글 · 유형 지도 요소(묶음 줄이기 · 같은 두 끝 선 합치기 ·
 파이썬 :func:`foms.services.brain.browse.compress_types` 와 같은 줄이기). 그림 요소는 서버 :func:`type_map_data` 자료로 만든다.
@@ -33,7 +33,7 @@ def _node(expr: str, data: object = None):
 
 @NODE
 def test_node_check_passes_for_every_brain_script():
-    assert len(SCRIPTS) == 6
+    assert len(SCRIPTS) == 11  # 읽기 여섯(⑤-2) + 제안함 · 다시 확인 · 카드 제안 다섯(⑤-3)
     for path in SCRIPTS:
         subprocess.run(["node", "--check", str(path)], check=True, capture_output=True, timeout=60)
 
