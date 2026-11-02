@@ -2,7 +2,8 @@
    페이지를 열 때 GET /api/notices?view=popup 을 한 번 불러(목록 본문 없이 확인 안 한 창 공지 최대 5건 · 안 읽음 수만)
    확인 안 한 "확인 창" 공지가 있으면 가운데 흰 창을 띄운다.
    "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘), 여러 건이면 "1 / 2" 로 다음 공지. 메뉴의 안 읽음 수도 이 응답으로 채운다.
-   로그인 전 · 협력사 계정에서는 싣지 않는다(협력사는 partner/partials/notice_modal.html). 동작: foms-notice-popup.js #}
+   로그인 전 · 협력사 계정에서는 싣지 않는다(협력사는 partner/partials/notice_modal.html). 동작: foms-notice-popup.js
+   사진(설계서 §8): 본문 아래 썸네일 줄(data-foms-notice-images) — 누르면 공지 창 위에 사진 창(foms-notice-gallery.js). #}
 {% if current_user and not current_user.partner_org_id %}
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">
 <div class="foms-notice-popup" data-foms-notice-popup hidden
@@ -14,10 +15,12 @@
         <p class="foms-notice-popup__kicker"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항 <span class="foms-notice-popup__count" data-foms-notice-count></span></p>
         <h2 class="foms-notice-popup__title" id="fomsNoticePopupTitle" data-foms-notice-title></h2>
         <div class="foms-notice-popup__body" data-foms-notice-body></div>
+        <div class="foms-notice-thumbs" data-foms-notice-images hidden></div>
         <p class="foms-notice-popup__meta" data-foms-notice-meta></p>
         <p class="foms-notice-popup__status" data-foms-notice-status role="status" aria-live="polite"></p>
         <button type="button" class="foms-notice-popup__ok" data-foms-notice-ok>확인</button>
     </div>
 </div>
+<script src="{{ asset_url('js/foms/foms-notice-gallery.js') }}" defer></script>
 <script src="{{ asset_url('js/foms/foms-notice-popup.js') }}" defer></script>
 {% endif %}

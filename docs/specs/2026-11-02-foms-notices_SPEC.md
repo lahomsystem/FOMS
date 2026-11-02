@@ -76,3 +76,31 @@
 - 배지: 공지 `mark_read` · `ack_notice` 가 그 사람 `NoticeAck.notification_id` 의 `NotificationUserState.read_at`(확인은 `ack_at` 도)을 채운다(이미 있으면 그대로). 공지 지우기(soft)는 연결된 상태를 `archived_at` 으로 — 배지에서 빠진다.
 - 푸시 글(`push_sender._build_payload`): FOMS_NOTICE 는 협력사 분기보다 먼저 — title "📢 공지사항", body = 공지 제목, tag `foms-notice-<알림 id>`, `data.deep_link` 는 받는 사람(`target_user_id` → `User.partner_org_id`)이 협력사면 `/partner/notices`, 아니면 `/notices`. `FOMS_PUSH_P1_TYPES` 로 P1 집합을 줄여도 늘 보낸다(협력사 알림과 같다). 벨 목록 링크(`_resolve_notification_deep_link`)도 같은 규칙.
 - 시험: `tests/domains/test_notices_push.py`(받는 사람 · 음성 대조군 · 선점 · 예약 · 끝난 예약 · 배지 · 보관 · 글 · 주소), `tests/postgres/test_notices_push_pg.py`(동시 선점 · 마이그레이션 왕복).
+
+## 8. 사진 첨부 (사용자 요청 2026-11-02 · 구현)
+요청(사용자): "공지에 사진도 올릴 수 있게 변경 > 미리보기는 모달 : thumbnail with blur outside (FOMS 스타일 그대로)". 아래 기본값은 위임자가 정했다.
+- **데이터**(마이그레이션 `notice_02`, 그때 머리 `brain_00` 뒤, downgrade 포함): `notices.images` JSONB NOT NULL DEFAULT `'[]'` — 보이는 순서 그대로의 목록,
+  항목 `{key, thumb_key, name, width, height, size}`. 고치기는 새 목록을 다시 넣고 `flag_modified(notice, 'images')`. 뺀 사진의 저장소 파일은 지우지 않는다.
+- **받기**(`foms/services/notices/images.py`): 공지당 최대 5장, 한 장 15MB 이하, Pillow 로 열어 판정 — JPEG(MPO) · PNG · WebP. HEIC/HEIF 는 서버에 읽는
+  패키지가 없어 쉬운 글로 거절한다(쓰기 화면 고르기 `accept` 에 HEIC 를 넣지 않아 아이폰은 JPEG 로 바꿔 올린다). 방향(EXIF)을 바로잡고 긴 변 2000px 본 +
+  긴 변 480px 썸네일로 다시 그린다(EXIF · 위치 정보 빠짐, 투명 칸이 있으면 PNG 아니면 JPEG). 저장은 `StorageAdapter.put_private_bytes`(비공개, R2) —
+  key `notices/images/<YYYYMM>/<uuid>.<jpg|png>` · 썸네일 `..._thumb.<같은 확장자>`. 로컬 저장소(개발 전용)는 업로드 폴더에 바로 쓴다.
+- **API**: 관리자 `POST /api/admin/notices/images`(multipart `image` 한 장, ADMIN · MANAGER, 본문 상한 15MB+256KB `request_limits` `notice_image`)
+  → `{key, thumb_key, name, width, height, size, preview_url, thumb_url}` · `GET /api/admin/notices/images/file?key=` 관리자 보기(아직 저장 안 한 사진 ·
+  지운 · 예약 공지). 만들기 · 고치기 페이로드 `images: [{key, thumb_key, name, width, height, size}]` — `payload.clean_images` 가 key 꼴(업로드 API 가 만든
+  `notices/images/...` 만)을 보고 썸네일 key 는 본 key 에서 다시 만든다(남의 파일 key 끼워 넣기 금지). 칸이 없으면 고치기에서 사진을 그대로 둔다.
+  받는 사람 `GET /api/notices/<id>/images/<차례>`(`?thumb=1` 썸네일) — `service.viewable_notice` 로 판정(게시 중 · 받는 사람, 관리자는 지운 · 예약 공지도),
+  아니면 404. 클라우드면 10분 서명 주소로 302, 로컬은 바이트 — 둘 다 `Cache-Control: private, no-store`. 협력사 문지기 허용 목록에 `notices_api.notice_image`.
+  쓰기 manifest 두 곳에 `notices_admin_api.upload_image`(MANAGER_MUTATION).
+  올리기마다 감사 원장 한 줄(`NOTICE_IMAGE_UPLOADED`, 라벨 "공지 사진 올림" — key · 이름 · 크기, 대상 id 없음).
+- **창 · 목록**: `notice_summary` 의 창 공지 항목과 `visible_notices` 항목에 `images: [{url, thumb_url, name, width, height}]`(주소만 — 저장소 key 는 싣지 않는다).
+  창 · 배지 요약은 사진 목록도 본문과 같은 한 번(`id IN (...)`)에 읽는다(질의 수 그대로). 협력사 창 차례(`_pending_notice_queue`)도 `images` 를 싣는다.
+- **화면**: 본문 아래 작은 썸네일 줄(`[data-foms-notice-images]` · `[data-foms-notice-thumb]`) — 본사 공지 창 · `/notices` · 협력사 공지 창 · `/partner/notices` ·
+  관리자 휴대폰 미리보기. 누르면 가운데 사진 창(`static/js/foms/foms-notice-gallery.js`, 모양 `foms-notice.css`): 흰 카드 · 둥근 모서리 · 보라 윗줄, 바깥은
+  `backdrop-filter: blur(8px)` + 어둡게. 여러 장이면 좌우 단추 · 화살표 키 · 밀기, 닫기는 X · 바깥 · Esc. z-index 105460(공지 창 105450 위, 도면 확인 105500 ·
+  긴급 106000 아래). 공지 창의 초점 가두기(document 잡기 단계)와 겹치지 않게 사진 창은 window 잡기 단계에서 keydown · focusin 을 먼저 받아 내려보내지 않고,
+  두 공지 창 스크립트도 열린 사진 창을 "더 위 창"으로 보고 가두기를 쉰다. 사진 창을 닫으면 누른 썸네일로 초점이 돌아가고 공지 창은 그대로다.
+  관리자 쓰기 화면: 내용 아래 "사진" 칸(끌어놓기 · 고르기, 올리는 중 표시, 썸네일 줄 — 빼기 X · 좌우 순서, 5장 넘으면 안내, `static/js/admin/notices-images.js`).
+- 폰 알림(잠금화면 글 · 배지)은 바꾸지 않는다(제목만).
+- 시험: `tests/domains/test_notices_images.py`(받기 · 페이로드 · 업로드 API · 사진 주소 권한 + 음성 대조군 · 창 항목), `tests/security/test_notices_photo_screens.py`
+  (썸네일 · 사진 창 훅 · 정적 검사), `tests/postgres/test_notices_images_pg.py`(`notice_02` 왕복 — 옛 공지는 `[]`).

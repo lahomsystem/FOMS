@@ -31,6 +31,19 @@
         <label for="notice-body" class="foms-notice-card__label mt-3">내용</label>
         <textarea class="form-control foms-notice-body-input" id="notice-body" rows="7"
                   placeholder="알릴 내용을 쉽게 써 주세요" data-notice-field="body"></textarea>
+
+        {#- 사진(설계서 §8) — static/js/admin/notices-images.js 가 한 장씩 POST {{ api_base }}/images 로 올린다. -#}
+        <div class="foms-notice-images" data-notice-images-field data-upload-url="{{ api_base }}/images" data-max="{{ max_images }}">
+          <div class="foms-notice-card__label mt-3">사진 <span class="foms-notice-images__count" data-images-count>0 / {{ max_images }}</span></div>
+          <label class="foms-notice-drop" data-images-drop>
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp" multiple data-images-input>
+            <i class="fas fa-images foms-notice-drop__icon" aria-hidden="true"></i>
+            <span class="foms-notice-drop__title">사진을 끌어 놓거나 눌러서 고르세요</span>
+            <span class="foms-notice-drop__help">JPG · PNG · WEBP · 한 장 15MB · {{ max_images }}장까지. 받는 사람에게 작은 사진으로 보이고, 누르면 크게 보여요.</span>
+          </label>
+          <ul class="foms-notice-uploads" data-images-list></ul>
+          <p class="foms-notice-images__status" data-images-status role="status" aria-live="polite"></p>
+        </div>
       </section>
 
       <section class="foms-notice-card" aria-labelledby="notice-audience-title">
@@ -115,6 +128,7 @@
             <div class="foms-notice-phone__popup-head"><span>공지사항</span><span>1 / 1</span></div>
             <strong class="foms-notice-phone__title" data-preview-title>제목이 여기에 보여요</strong>
             <p class="foms-notice-phone__body" data-preview-body>내용이 여기에 보여요.</p>
+            <div class="foms-notice-thumbs foms-notice-phone__thumbs" data-foms-notice-images data-preview-images hidden></div>
             <span class="foms-notice-phone__ok">확인</span>
           </div>
           <div class="foms-notice-phone__list d-none" data-preview-list>
@@ -123,6 +137,7 @@
               <span class="foms-notice-phone__dot" aria-hidden="true"></span>
               <span class="foms-notice-phone__row-title" data-preview-list-title>제목이 여기에 보여요</span>
             </div>
+            <div class="foms-notice-thumbs foms-notice-phone__thumbs foms-notice-phone__thumbs--list" data-foms-notice-images data-preview-images hidden></div>
             <div class="foms-notice-phone__row foms-notice-phone__row--ghost">지난 공지</div>
             <div class="foms-notice-phone__row foms-notice-phone__row--ghost">지난 공지</div>
           </div>
@@ -135,5 +150,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset_url('js/admin/notices-images.js') }}" defer></script>
 <script src="{{ asset_url('js/admin/notices-form.js') }}" defer></script>
 {% endblock %}

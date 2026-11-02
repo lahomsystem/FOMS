@@ -316,7 +316,8 @@ def test_brain_00_matches_the_models_and_is_the_single_head():
     trgm = {i.name for i in Base.metadata.tables["brain_objects"].indexes if i.name.endswith("_trgm")}
     assert trgm == {n for n, _ in module.TRGM_INDEXES}
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert script.get_heads() == ["brain_00"]
+    heads = script.get_heads()  # 뒤에 새 마이그레이션(notice_02 등)이 붙어도 brain_00 은 사슬 안에 있어야 한다
+    assert len(heads) == 1 and "brain_00" in {rev.revision for rev in script.walk_revisions("base", heads[0])}
 
 
 def test_recheck_periods_follow_the_owner_decision_d103():

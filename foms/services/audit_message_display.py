@@ -330,6 +330,7 @@ ACTION_LABELS: dict[str, str] = {
     "NOTICE_CREATED": "공지 만듦",
     "NOTICE_UPDATED": "공지 고침",
     "NOTICE_DELETED": "공지 지움",
+    "NOTICE_IMAGE_UPLOADED": "공지 사진 올림",
     # --- AI 상담팀원 관리 패널(설계서 2026-10-27-cs-ai-agent 16.1) ---
     "CS_AGENT_SETTINGS_UPDATE": "AI 상담팀원 설정 변경(두뇌 · 돈 · 고르기)",
     "CS_AGENT_SWITCH": "AI 상담팀원 스위치 변경(비상 정지 · 초안)",

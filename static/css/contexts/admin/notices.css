@@ -369,3 +369,75 @@
 .foms-notice-person__state--acked { color: var(--foms-color-success-600, #059669); }
 .foms-notice-person__state--read { color: var(--foms-color-warning-700, #b45309); }
 .foms-notice-person__state--pending { color: var(--notice-muted); }
+
+/* ---- 사진 칸(설계서 §8, static/js/admin/notices-images.js) ----
+   썸네일 단추 · 사진 창 모양은 받는 사람과 같은 foms-notice.css(.foms-notice-thumb · .foms-notice-gallery). */
+.foms-notice-images__count { margin-left: 6px; font-size: 0.75rem; font-weight: 600; color: var(--notice-muted); }
+
+.foms-notice-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 12px;
+  border: 2px dashed var(--notice-staff-border);
+  border-radius: 12px;
+  background: var(--notice-staff-bg);
+  color: var(--notice-staff-ink);
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.foms-notice-drop:hover,
+.foms-notice-drop.is-dragover { background: var(--foms-color-brand-100, #e6e8ff); border-color: var(--notice-staff-strong); }
+.foms-notice-drop:focus-within { outline: 3px solid var(--foms-color-brand-300, #9ea4ff); outline-offset: 2px; }
+.foms-notice-drop.is-full { opacity: 0.55; pointer-events: none; }
+.foms-notice-drop__icon { font-size: 1.4rem; color: var(--notice-staff-strong); }
+.foms-notice-drop__title { font-weight: 700; font-size: 0.9375rem; }
+.foms-notice-drop__help { font-size: 0.8125rem; color: var(--notice-muted); }
+
+.foms-notice-uploads { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.foms-notice-uploads:empty { display: none; }
+
+.foms-notice-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--notice-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.foms-notice-upload.is-pending { color: var(--notice-muted); }
+.foms-notice-upload__thumb { margin: 0; flex: none; }
+.foms-notice-upload__thumb .foms-notice-thumb { width: 56px; height: 56px; }
+.foms-notice-upload__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
+.foms-notice-upload__spinner { flex: none; width: 56px; font-size: 0.75rem; font-weight: 700; color: var(--notice-staff-strong); text-align: center; }
+.foms-notice-upload__tools { display: inline-flex; gap: 4px; flex: none; }
+
+.foms-notice-upload__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--notice-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--foms-color-neutral-700, #353a44);
+  cursor: pointer;
+}
+
+.foms-notice-upload__btn:hover:not(:disabled) { background: var(--notice-staff-bg); color: var(--notice-staff-ink); }
+.foms-notice-upload__btn[data-image-action="remove"]:hover { background: #fdecec; color: #b42318; }
+.foms-notice-upload__btn:disabled { opacity: 0.35; cursor: default; }
+
+.foms-notice-images__status { min-height: 1em; margin: 6px 0 0; font-size: 0.8125rem; color: var(--notice-muted); }
+.foms-notice-images__status.is-error { color: #b42318; }
+
+/* 휴대폰 미리보기 안 썸네일 줄 — 화면이 작아 조금 작게 */
+.foms-notice-phone__thumbs { gap: 6px; margin: 8px 0 10px; }
+.foms-notice-phone__thumbs .foms-notice-thumb { width: 44px; height: 44px; border-radius: 8px; }
+.foms-notice-phone__thumbs--list { margin: 0 0 8px; padding: 0 4px; }

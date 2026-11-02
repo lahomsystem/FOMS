@@ -73,6 +73,8 @@ _WIZARD_MAX_FILES = 1
 _ESTIMATE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
 #   - cs-agent edit photo         : ``edit_photos.py`` ``MAX_BYTES`` 5 MiB
 _CS_EDIT_PHOTO_CAP = 5 * _MIB + 256 * _KIB
+#   - notice photo (admin)        : ``notices/images.py`` ``MAX_BYTES`` 15 MiB
+_NOTICE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
 
 # Global outermost ceiling (replaces the old 500 MiB). Also the MAX_CONTENT_LENGTH.
 GLOBAL_BODY_CAP = 50 * _MIB + 256 * _KIB
@@ -130,6 +132,8 @@ _MANIFEST: tuple[BodyCap, ...] = (
     # AI 상담 [수정하기] 자세한 이유 사진(설계서 17.6.1 — 화면이 긴 변 2,048px 로 줄여 한 장씩, 핸들러 상한 5MB).
     # 빠지면 1 MiB 기본 캡에 걸려 휴대폰 사진이 413 이다(위 10-29 협력사 사고와 같은 꼴).
     BodyCap(r"^/api/cs-agent/turns/\d+/edit-photos$", _CS_EDIT_PHOTO_CAP, 1, "cs_edit_photo"),
+    # 공지 사진(설계서 2026-11-02-foms-notices §8 — 관리자가 한 장씩, 핸들러 상한 15MB). 빠지면 1 MiB 기본 캡에 걸려 413 이다.
+    BodyCap(r"^/api/admin/notices/images$", _NOTICE_IMAGE_CAP, 1, "notice_image"),
 )
 
 # Presigned / direct-upload surfaces: the file bytes go browser -> R2/S3, only a
