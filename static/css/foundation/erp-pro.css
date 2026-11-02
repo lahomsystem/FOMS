@@ -689,8 +689,36 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
 
 .cs-send__text {
   min-height: 12rem;
+  max-height: 65vh;
   font-size: 1rem;
   line-height: 1.55;
+}
+
+/* C10-7 글에 맞춰 높이가 느는 칸(send-screen.js 가 height 를 잰다). 최대 높이 아래면 is-fit 로 스크롤 막대를 숨기고,
+   넘으면(또는 스크립트가 못 돌면) 기본 auto 스크롤. 손으로 늘리는 손잡이는 끈다 — 높이는 글이 정한다. */
+.cs-send__grow {
+  resize: none;
+  overflow-y: auto;
+}
+
+.cs-send__grow.is-fit {
+  overflow-y: hidden;
+}
+
+/* '고칠 말' — 여러 줄(줄 바꿈 허용), 300자 상한이라 최대 높이가 낮다. */
+.cs-send__note {
+  min-height: 3.25rem;
+  max-height: 12rem;
+  line-height: 1.5;
+}
+
+/* 결과 알림 · 경고 줄 — [보내기] 바로 위(C10-7). 알림이 없으면 자리를 차지하지 않는다. */
+.cs-send__notice {
+  margin-top: 1rem;
+}
+
+.cs-send__notice .cs-send__msg {
+  margin-bottom: 0.5rem;
 }
 
 .cs-send__warnings {
@@ -706,6 +734,7 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
 
 .cs-send__row {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
@@ -713,11 +742,15 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
   min-width: 0;
 }
 
+.cs-send__row .btn {
+  align-self: flex-end;
+}
+
 .cs-send__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 .cs-send__actions .btn {

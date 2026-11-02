@@ -6,9 +6,32 @@
  * 화면이 보인 때부터 [보내기]를 누를 때까지 밀리초(shown_ms)를 같이 보낸다('5초 안에 누름' 지표).
  * '확인 후 보내기'는 서버가 준 확인표를 다시 보내고, 고치는 칸이 바뀌면 그 확인표를 버린다(검수 R15-1).
  * 결과 모름(확인 중)이면 다시 보내지 않고 결과 맞추기(reconcile)를 몇 번 부른다. 글은 textContent 로만 넣는다.
+ * C10-7: 고친 까닭은 안 골라도 보낸다(서버가 None 으로 둔다) · 알림 칸은 [보내기] 바로 위이고 알림이 뜨면 보이게 스크롤한다 ·
+ * data-cs-autosize 글 칸(본문 · 고칠 말)은 입력 · 붙여넣기 · 처음 그릴 때 글에 맞춰 높이가 늘고, CSS 최대 높이를 넘으면 스크롤.
+ * 순수 함수(sendBody · fitSize)는 window.FOMS_CS_SEND 로 내놓는다 — node 시험(tests/domains/test_cs_send_edit_screen.py).
  */
 (function () {
   'use strict';
+
+  /** [보내기] 본문 — 고친 글이 비면 error. 고친 까닭은 고르지 않아도 된다(빈 값은 null — 서버가 None 으로 둔다). */
+  function sendBody(opts) {
+    var body = { token: opts.token || '', mode: 'as_is', confirm: opts.confirm || null,
+      shown_ms: Math.max(0, Math.round(opts.shownMs || 0)) };
+    if (opts.mode !== 'edit') return { body: body, error: '' };
+    body.mode = 'edited';
+    body.text = opts.text || '';
+    body.edit_reason = opts.reason || null;
+    return { body: body, error: body.text.trim() ? '' : '보낼 글이 비었어요.' };
+  }
+
+  /** 글 칸 높이 — 글 높이(scrollHeight) + 위아래 테두리, 최대 높이(px, 없으면 NaN)를 넘으면 최대 높이에서 멈추고 스크롤. */
+  function fitSize(scrollHeight, border, maxPx) {
+    var want = Math.ceil((scrollHeight || 0) + (border || 0));
+    var capped = isFinite(maxPx) && maxPx > 0 && want > maxPx;
+    return { height: capped ? maxPx : want, capped: capped };
+  }
+
+  window.FOMS_CS_SEND = { sendBody: sendBody, fitSize: fitSize };
   if (window.__FOMS_CS_SEND_BOUND) return;
   window.__FOMS_CS_SEND_BOUND = true;
 
@@ -27,11 +50,22 @@
     return root.getAttribute('data-' + name) || '';
   }
 
+  function reveal() {
+    var spot = root.querySelector('[data-cs-send-notice]');
+    if (!spot || typeof spot.scrollIntoView !== 'function') return;
+    try {
+      spot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });  // 이미 보이면 움직이지 않는다
+    } catch (err) {
+      spot.scrollIntoView(false);
+    }
+  }
+
   function message(kind, text) {
     var box = root.querySelector('[data-cs-send-msg]');
     if (!box) return;
     box.className = 'alert cs-send__msg alert-' + kind;
     box.textContent = text;
+    reveal();
   }
 
   function showList(items) {
@@ -129,19 +163,14 @@
 
   async function onSend() {
     if (busy || finished) return;
-    var body = { token: data('token'), mode: 'as_is', confirm: confirmStamp, shown_ms: Math.max(0, Date.now() - shownAt) };
-    if (data('mode') === 'edit') {
-      var text = root.querySelector('[data-cs-send-text]');
-      var reason = root.querySelector('[data-cs-send-reason]');
-      body.mode = 'edited';
-      body.text = text ? text.value : '';
-      body.edit_reason = reason ? reason.value : '';
-      if (!body.text.trim()) { message('warning', '보낼 글이 비었어요.'); return; }
-      if (!body.edit_reason) { message('warning', '고친 까닭을 골라 주세요.'); return; }
-    }
+    var text = root.querySelector('[data-cs-send-text]');
+    var reason = root.querySelector('[data-cs-send-reason]');
+    var built = sendBody({ token: data('token'), mode: data('mode'), confirm: confirmStamp, shownMs: Date.now() - shownAt,
+      text: text ? text.value : '', reason: reason ? reason.value : '' });
+    if (built.error) { message('warning', built.error); return; }
     setBusy(true);
     message('info', '보내는 중이에요…');
-    var res = await call(data('send-url'), body);
+    var res = await call(data('send-url'), built.body);
     setBusy(false);
     handleSend(res);
   }
@@ -204,6 +233,34 @@
     var go = root.querySelector('[data-cs-send-go]');
     if (go) go.textContent = '보내기';
   }
+
+  function fit(el) {
+    var y = window.pageYOffset;
+    el.style.height = 'auto';  // 줄어든 글도 다시 재도록 한 번 풀었다가 잰다
+    var cs = window.getComputedStyle(el);
+    var border = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    var size = fitSize(el.scrollHeight, border, parseFloat(cs.maxHeight));
+    el.style.height = size.height + 'px';
+    el.classList.toggle('is-fit', !size.capped);  // 최대 높이 아래면 스크롤 막대를 숨긴다(넘으면 CSS 기본 auto)
+    if (window.pageYOffset !== y) window.scrollTo(window.pageXOffset, y);
+  }
+
+  var grows = Array.prototype.slice.call(root.querySelectorAll('[data-cs-autosize]'));
+  var fitQueued = false;
+  function fitAll() {
+    fitQueued = false;
+    grows.forEach(fit);
+  }
+  grows.forEach(function (el) {
+    el.addEventListener('input', function () { fit(el); });  // 입력 · 붙여넣기 · 지우기 모두 input 이 온다
+    el.addEventListener('paste', function () { window.setTimeout(function () { fit(el); }, 0); });
+  });
+  window.addEventListener('resize', function () {
+    if (fitQueued) return;
+    fitQueued = true;
+    window.requestAnimationFrame(fitAll);  // 폭이 바뀌면 줄 나눔이 바뀐다
+  });
+  fitAll();
 
   var box = root.querySelector('[data-cs-send-text]');
   if (box) box.addEventListener('input', resetConfirm);
