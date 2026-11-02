@@ -163,3 +163,9 @@
   border: 1px solid var(--foms-border-subtle, #dee2e6);
   border-radius: 0.5rem;
 }
+
+/* "실측 끝 · 도면 넘기기"(2026-11-02, erp-measure-done.js) — 휴대폰 아래 단추줄에서 한 줄을 다 쓴다
+   (저장 · PUSH · 알림톡 세 칸 위). 단추줄은 이미 flex-wrap 이다. */
+.erp-mobile-sticky-action-bar .erp-measure-done-btn {
+  flex: 1 0 100%;
+}

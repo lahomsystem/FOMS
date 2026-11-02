@@ -8,6 +8,7 @@ from typing import Any
 from models import Order, OrderEvent, User
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.orders.order_create import CREATED_EVENT
 
 
@@ -136,5 +137,11 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
         "order_creator": build_order_creator(get_db(), order.id),
         "as_schedule_drift": build_schedule_link_drift(
             getattr(order, "structured_data", None), get_db()
+        ),
+        # "실측 끝 · 도면 넘기기"(2026-11-02) — 대시보드 "도면 단계로 넘기기"와 같은 판정(실측 단계 · 승인 권한).
+        # 화면이 저장 → 도면 단계 → 영발을 한 번에 부른다(erp-measure-done.js).
+        "measure_done_cta": (
+            build_drawing_transfer_ctas(get_db(), [order], user).get(order.id)
+            if is_erp_order_record(order) and user is not None else None
         ),
     }
