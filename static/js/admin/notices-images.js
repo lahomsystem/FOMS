@@ -214,6 +214,7 @@
       });
     },
     busy: function () { return items.some(function (it) { return it.pending; }); },
+    items: function () { return saved().slice(); }, // notices-draft.js 가 쓰던 글과 같이 맡긴다(주소 포함)
     refresh: renderPreview
   };
   renderList();
