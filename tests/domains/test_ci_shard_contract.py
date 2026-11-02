@@ -9,8 +9,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 from tests.conftest import ci_shard_of
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -23,27 +21,42 @@ SHARD_ONE_STEPS = (
 )
 
 
-def _test_job() -> dict:
-    return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))["jobs"]["test"]
+def _ci_text() -> str:
+    # CI 러너에는 PyYAML 이 없다(requirements 밖) — 글자로 읽는다.
+    return CI_WORKFLOW.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
+def _shards() -> list[int]:
+    match = re.search(r"^\s+shard: \[([\d,\s]+)\]\s*$", _ci_text(), re.MULTILINE)
+    assert match, "ci.yml test 잡에 matrix.shard 목록이 없다"
+    return [int(x) for x in match.group(1).split(",")]
+
+
+def _step_block(name: str) -> str:
+    text = _ci_text()
+    start = text.index(f"    - name: {name}\n")
+    end = text.find("\n    - name:", start + 1)
+    return text[start:] if end < 0 else text[start:end]
 
 
 def test_matrix_and_shard_env_agree() -> None:
-    job = _test_job()
-    shards = job["strategy"]["matrix"]["shard"]
+    shards = _shards()
     assert shards == list(range(1, len(shards) + 1)) and len(shards) >= 2
-    assert job["strategy"]["fail-fast"] is False
-    run_tests = next(step for step in job["steps"] if step.get("name") == "Run tests")
-    assert run_tests["env"]["FOMS_TEST_SHARD"] == "${{ matrix.shard }}/" + str(len(shards))
+    assert re.search(r"^\s+fail-fast: false\s*$", _ci_text(), re.MULTILINE)
+    expected = 'FOMS_TEST_SHARD: "${{ matrix.shard }}/' + str(len(shards)) + '"'
+    assert expected in _step_block("Run tests")
 
 
 def test_single_owner_steps_run_on_shard_one_only() -> None:
-    steps = {step.get("name"): step for step in _test_job()["steps"]}
     for name in SHARD_ONE_STEPS:
-        assert "matrix.shard == 1" in str(steps[name].get("if", "")), name
+        if_line = next(
+            (line for line in _step_block(name).splitlines() if line.strip().startswith("if:")), ""
+        )
+        assert "matrix.shard == 1" in if_line, name
 
 
 def test_every_test_file_lands_in_exactly_one_shard() -> None:
-    total = len(_test_job()["strategy"]["matrix"]["shard"])
+    total = len(_shards())
     files = sorted(
         p.relative_to(REPO_ROOT).as_posix()
         for p in (REPO_ROOT / "tests").rglob("test_*.py")
