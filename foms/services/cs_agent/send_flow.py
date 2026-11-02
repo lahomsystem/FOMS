@@ -18,7 +18,7 @@ R10-16 · D68 · D69. 화면(``foms/web/cs_agent_send.py``)과 JSON API(``foms/a
    묶인 확인표(:func:`.send_auth.confirm_stamp`)를 들고 한 번 더 눌러야 보낸다(R10-16 · R15-1).
 4. **보내기** — 보내기 감싸개(:func:`.send.send_reply` — 봇 이름 공개 글 · requestId = 차례 id). 바로 앞에서 스위치와 '보내는 중'을
    한 번 더 본다(그사이 맞추기 · 다른 쪽이 바꿨으면 부르지 않는다 — R15-4). '고칠 말' 처리 중엔 보내지 않는다(R15-5).
-5. **결과** — 보냄: 보낸 글 id · 끝난 꼴(그대로 · 고침) · 고친 정도 · 까닭 · 보낸 직원 · 보낸 때 + 상태 표 '답'(약속 칸 포함). 모름:
+5. **결과** — 보냄: 보낸 글 id · 끝난 꼴(그대로 · 고침) · 고친 정도 · 까닭(안 고르면 비움) · 보낸 직원 · 보낸 때 + 상태 표 '답'(약속 칸 포함). 모름:
    다시 보내지 않고 '확인 중'(requestId 로 맞춘다 — :func:`reconcile_one` · 빠른 길 바퀴). 거절: '못 보냄'(다시 누를 수 있다). 결과를
    못 적었으면(그사이 줄이 바뀜) '보냈어요'라 하지 않고 '확인 중'.
 
@@ -60,7 +60,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "HARD_CODES", "MAX_NOTE", "MAX_REWRITES", "MAX_TEXT", "MESSAGES", "MODE_AS_IS", "MODE_EDITED", "FlowResult",
-    "SendRequest", "discard_turn", "reconcile_one", "request_rewrite", "send_turn", "switch_on", "turn_status",
+    "SendRequest", "discard_turn", "edit_reason_or_none", "reconcile_one", "request_rewrite", "send_turn", "switch_on",
+    "turn_status",
 ]
 
 MODE_AS_IS, MODE_EDITED = "as_is", "edited"
@@ -194,15 +195,22 @@ def _shown_ms(value: Any) -> Optional[int]:
     return value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_SHOWN_MS else None
 
 
+def edit_reason_or_none(value: Any) -> Any:
+    """고친 까닭 — 안 고름(``None`` · 빈 글)은 ``None``, 나머지는 그대로(꼴은 :func:`_validate` 가 본다)."""
+    return None if value is None or value == "" else value
+
+
 def _validate(request: SendRequest) -> Optional[FlowResult]:
-    """요청 꼴 — 고친 글은 1~:data:`MAX_TEXT` 자 · 고친 까닭 하나."""
+    """요청 꼴 — 고친 글은 1~:data:`MAX_TEXT` 자. 고친 까닭은 고르지 않아도 된다(``None`` 으로 둔다 — 운영에서 까닭을 안
+    골라 [보내기]가 안 됐다, 2026-11 C10-7). 고른 까닭은 :data:`.case_memory.EDIT_REASONS` 가운데 하나여야 한다."""
     if request.mode not in (MODE_AS_IS, MODE_EDITED):
         return _fail("bad_request", 400, field="mode")
     if request.mode == MODE_EDITED:
         text = request.text if isinstance(request.text, str) else ""
         if not text.strip() or len(text) > MAX_TEXT:
             return _fail("bad_request", 400, field="text")
-        if request.edit_reason not in EDIT_REASONS:
+        reason = edit_reason_or_none(request.edit_reason)
+        if reason is not None and reason not in EDIT_REASONS:
             return _fail("bad_request", 400, field="edit_reason")
     return None
 
@@ -314,7 +322,7 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     called.append(True)
     sent = sender(row.chat_id, text, brand=row.brand, turn_id=row.id)
     case = sent_case(lines, ai_draft=ai_draft, sent_text=text, edited=edited,
-                     edit_reason=request.edit_reason if edited else None)
+                     edit_reason=edit_reason_or_none(request.edit_reason) if edited else None)
     return _record(session, row, sent, case, text=text, now=now, warned=[p.code for p in soft])
 
 
