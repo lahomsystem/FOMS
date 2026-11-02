@@ -5,7 +5,9 @@
 1. **권한** — 켜진 내부 사람 계정만(에이전트 시스템 계정은 꺼져 있어 못 한다). 가격 규칙 · 정책 · 사장님 결정과 공통 바탕
    은퇴 · 지우기는 **사장님(ADMIN)만**. 그 밖은 ADMIN 또는 그 층 승인자 팀의 MANAGER(:data:`.constants.LAYER_APPROVER_TEAMS`).
    **그 항목(지금 줄 · 새 보기 범위 · 링크 양 끝)을 볼 수 있어야 한다**(7.7 · D104 — 쓰기 권한이 보기 범위도 본다).
-2. **꼴 · 대상** — 값 목록 · 길이 · 날짜 · 유형과 층 · 지식 문서 꼴, 같은 지식 문서 id 겹침, 링크 허용 짝 · 양 끝.
+2. **꼴 · 대상** — 값 목록 · 길이 · 날짜 · 유형과 층 · 지식 문서 꼴, 같은 지식 문서 id 겹침, 링크 허용 짝 · 양 끝. 링크
+   더하기는 **연결 개수 최대**(:func:`.quality.check_link_limit`)와 **바깥 정본 자리 실재**(:func:`.external.require_refs`)도
+   본다(7.7 · D105).
 3. **기준 판** — 제안을 만든 때의 판이 지금 판과 같아야 한다(다르면 :class:`BrainConflictError` — 제안은 열린 채).
 
 그다음 앞 줄을 닫고(``superseded_at``) 새 판 줄을 쓰고, 제안을 ``applied`` 로 닫고, 그날 판에 붙이고, 감사 원장에 한 줄.
@@ -30,17 +32,19 @@ from foms.services.brain import releases
 from foms.services.brain.access import approval_problem
 from foms.services.brain.constants import (
     BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
-    OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, external_type,
-    link_allowed,
+    OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
+    external_type, link_allowed,
 )
 from foms.services.brain.errors import (
     BrainConflictError, BrainPermissionError, BrainShapeError, BrainTargetError,
 )
+from foms.services.brain.external import require_refs
 from foms.services.brain.gates import link_problems, object_problems
 from foms.services.brain.proposals import IMPORT_PROPOSER, link_target_type
+from foms.services.brain.quality import check_link_limit
 from foms.services.brain.scope import can_see, viewer_of
 from foms.services.brain.store import (
-    LINK_FIELDS, OBJECT_FIELDS, column_values, current_link, current_object, is_current, values_of,
+    LINK_FIELDS, OBJECT_FIELDS, column_values, current_link, current_object, is_current, kst_day, values_of,
 )
 from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog
@@ -89,6 +93,12 @@ def _link_end_visibility(session: Any, key: Optional[str]) -> Optional[str]:
         return None
     row = current_object(session, key)
     return row.visibility if row is not None else None
+
+
+def source_type(session: Any, key: Optional[str]) -> Optional[str]:
+    """링크 시작 항목의 유형(없으면 ``None``) — 잠그기 전에 연결 개수 규칙이 있는 짝인지 보려고."""
+    row = current_object(session, key) if key else None
+    return row.item_type if row is not None else None
 
 
 def _open_change(session: Any, change_id: int) -> BrainChange:
@@ -210,18 +220,25 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
 def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.datetime,
                 as_import: bool) -> tuple[int, Optional[int], int]:
     """링크 동작 — 양 끝 · 허용 짝 · 기준 판을 다시 보고 새 판 줄(더하기) 또는 지금 줄 닫기(빼기)."""
-    source, to_type = current_object(session, change.link_from), link_target_type(session, change.link_to)
+    adding = change.op == OP_LINK_ADD
+    limited = adding and cardinality(source_type(session, change.link_from), change.link_kind)[1] is not None
+    # 연결 개수 상한이 있는 짝은 시작 항목 줄을 잠근 뒤 센다 — 같은 때 두 반영이 같은 항목에 더하지 못하게(D105)
+    source = current_object(session, change.link_from, lock=limited)
+    to_type = link_target_type(session, change.link_to)
     if source is None or to_type is None or not link_allowed(source.item_type, change.link_kind, to_type):
         raise BrainTargetError(f"허용하지 않는 링크 짝이거나 끝이 없다: {change.link_kind}")
     actor_id = check_permission(actor, op=change.op, layer=source.layer, types=[source.item_type, to_type],
                                 visibilities=[source.visibility, _link_end_visibility(session, change.link_to)])
+    if adding:  # 바깥 정본 자리가 지금도 있나 · 연결 개수 최대(7.7 · D105) — 빼기는 보지 않는다
+        require_refs(session, [change.link_to])
+        check_link_limit(session, source, change.link_kind, kst_day(now))
     identity = (change.link_kind, change.link_from, change.link_to)
     link = current_link(session, *identity, lock=True)
     if link is None:  # :func:`_locked_current` 와 같은 까닭
         link = current_link(session, *identity, lock=True)
     if (link.version if link is not None else None) != change.base_version:
         raise BrainConflictError(link.version if link is not None else None)
-    values = {**dict.fromkeys(LINK_FIELDS), **_after(change)} if change.op == OP_LINK_ADD else None
+    values = {**dict.fromkeys(LINK_FIELDS), **_after(change)} if adding else None
     if values is not None:
         values["confidence"] = settled_confidence(None, values.get("confidence"), as_import=as_import)
     if values is not None and link_problems(values):

@@ -4,6 +4,7 @@
 결과를 ``gates`` 에 남긴다. **에이전트 제안**은 글 관문 하나라도 떨어지면 제안함에 넣지 않는다(:class:`BrainGateError`).
 사람 · 옮기기 제안은 결과만 남기고 승인자가 본다. 부딪침(Haiku) · 근거 수 · 평가 묶음 관문은 아직 돌리지 않는다(``not_run``).
 
+- 링크 더하기 제안은 바깥 정본 끝(``calc:`` · ``setting:``)이 정말 있는지 본다(:func:`.external.require_refs` — 7.7 · D105).
 - 은퇴 · 지우기도 제안이다(7.5 — 지우기가 승인을 비켜 가지 않게). 항목 하나 되돌리기 = **옛 값을 새 제안으로**
   (:func:`propose_rollback`).
 - **제안은 확신 값을 정하지 않는다**(7.7 · D104 — '확정'은 사람 승인 또는 옮기기만): 옮기기 제안이 아니면 적힌 확신 값을
@@ -29,6 +30,7 @@ from foms.services.brain.constants import (
 from foms.services.brain.errors import (
     BrainConflictError, BrainGateError, BrainRejectedError, BrainShapeError, BrainTargetError,
 )
+from foms.services.brain.external import require_refs
 from foms.services.brain.gates import FAIL, key_problems, link_problems, object_problems, text_gates
 from foms.services.brain.store import (
     LINK_FIELDS, OBJECT_FIELDS, current_link, current_object, is_current, object_version, values_of,
@@ -264,6 +266,8 @@ def propose_link(session: Any, *, op: str, kind: str, from_key: str, to_key: str
     link = current_link(session, kind, from_key, to_key)
     if op == OP_LINK_ADD and link is not None:
         raise BrainTargetError("이미 있는 링크다")
+    if op == OP_LINK_ADD:
+        require_refs(session, [to_key])  # 가리킨 계산기 · 설정 자리가 정말 있나(7.7 · D105 — 반영 때 한 번 더)
     if op == OP_LINK_REMOVE and (link is None or link.version != base_version):
         raise BrainConflictError(link.version if link is not None else None)
     fields = ({n: {"before": None, "after": v} for n, v in full.items() if v is not None} if op == OP_LINK_ADD

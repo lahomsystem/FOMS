@@ -1,0 +1,38 @@
+{#- 카드 '뇌 보기' 탭(설계서 7.6 · D98 · D100) — 뇌 전체는 흐리게, 지금 항목과 이웃만 밝게. 정보를 읽는 곳은 옆 HTML 패널
+    (고른 항목 · 이웃 목록 · 카드 링크)이고 3D 는 '어디에 있나'를 보는 그림이다. 탭은 서버가 숨겨 그리고(휴대폰 · WebGL 없음 ·
+    소프트웨어 그리기는 그대로 숨김) brain3d-tab.js 가 판정해 보인다. three.js 는 폴더 이름이 판(three-0.187.0)이라 ?v= 없는
+    주소로 싣는다 — OrbitControls 가 같은 three 인스턴스를 읽게(static/vendor/three-NOTICE.txt). 그리기 파일은 asset_url 로 고정. -#}
+{% set modules = {
+  'layout': asset_url('js/brain/brain3d-layout.js'), 'shell': asset_url('js/brain/brain3d-shell.js'),
+  'nodes': asset_url('js/brain/brain3d-nodes.js'), 'labels': asset_url('js/brain/brain3d-labels.js'),
+  'scene': asset_url('js/brain/brain3d-scene.js')} %}
+<div class="brain3d" data-brain3d
+     data-three-url="{{ url_for('static', filename='vendor/three-0.187.0/three.module.js') }}"
+     data-orbit-url="{{ url_for('static', filename='vendor/three-0.187.0/OrbitControls.js') }}"
+     data-modules="{{ modules|tojson|forceescape }}"
+     data-points-url="{{ url_for('brain_api.brain_points_api') }}"
+     data-around-url="{{ url_for('brain_api.brain_around') }}">
+  <p class="brain-status-line" data-brain3d-status role="status" aria-live="polite"></p>
+  <div class="brain3d__body">
+    <div class="brain3d__viewport">
+      <div class="brain3d__canvas" data-brain3d-canvas role="img"
+           aria-label="회사 지식 뇌 보기 그림 — 옆 패널의 이웃 목록과 같은 내용입니다"></div>
+      <svg class="brain3d__labels" data-brain3d-labels aria-hidden="true" focusable="false"></svg>
+    </div>
+    <aside class="brain3d__side" aria-label="고른 항목 · 이웃">
+      <div class="brain3d-panel" data-brain3d-panel></div>
+      <details class="brain3d__legend">
+        <summary>층 → 뇌 부위 · 점 모양</summary>
+        <ul class="brain3d__legend-list">
+          <li><b>가운데 깊은 곳</b> — 공통 바탕(제품 · 규격 · 제작 조건 · 용어)</li>
+          <li><b>앞쪽(이마엽)</b> — 사장님 결정 · 정책 · 가격 규칙 · 에이전트 일(엇갈림 · 물어볼 것)</li>
+          <li><b>옆쪽(관자엽)</b> — 상담 층</li>
+          <li><b>뒤쪽(뒤통수엽)</b> — 도면 층</li>
+          <li><b>정수리 띠(운동 피질)</b> — 생산 층(판 3)</li>
+          <li><b>안쪽 해마 자리</b> — 관찰 · 사례</li>
+          <li>밝을수록 많이 쓰인 항목 · <b>주황</b> 낡음 · <b>회색</b> 은퇴 · <b>흐린 테</b> 초안</li>
+        </ul>
+      </details>
+    </aside>
+  </div>
+</div>

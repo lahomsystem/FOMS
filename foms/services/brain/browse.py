@@ -1,7 +1,7 @@
 """'회사 지식' 화면 읽기 — 찾기(유형별 묶음) · 지식 표(유형 하나 · 거르기 · 정렬 · 쪽) · 유형 지도(설계서 7.5 화면 1 · 2 · 7).
 
 **모든 질의 · 수는 보는 사람의 범위로 질의 단계에서 거른다**(:func:`.read.visible_clauses` — 4절 · 12절 첫 줄). 볼 수 없는
-항목은 행에도, 유형별 수에도, 쪽 수에도 0 이다. 목록은 쪽으로 자르고(상한 :data:`MAX_PER_PAGE`), 줄마다 따로 읽지 않는다
+항목은 행에도, 유형별 수에도, 쪽 수에도 0 이다. 끝 날이 지난 항목도 같은 조건으로 빠진다(유효 기간으로 읽기 — D105). 목록은 쪽으로 자르고(상한 :data:`MAX_PER_PAGE`), 줄마다 따로 읽지 않는다
 (N+1 없음 — '확인 필요'도 같은 질의의 상관 부분 질의).
 
 - **확인 필요** = 그 항목에 열린 제안이 있다(엇갈림 · 고침 제안이 걸린 동안 — 3.1 규칙 4 · 7.5 '판 1 엔 엇갈림도 제안함에').
@@ -116,7 +116,7 @@ def search_grouped(session: Any, viewer: Viewer, query: str, *, today: datetime.
     order = ((func.similarity(BrainObject.name, text).desc(), BrainObject.item_key) if postgres
              else (BrainObject.name, BrainObject.item_key))
     rank = func.row_number().over(partition_by=BrainObject.item_type, order_by=order).label("rank")
-    ranked = select(BrainObject.id, rank).where(*visible_clauses(viewer), match).subquery("ranked")
+    ranked = select(BrainObject.id, rank).where(*visible_clauses(viewer, today), match).subquery("ranked")
     rows = session.execute(select(BrainObject, _open_change().label("open"))
                            .join(ranked, ranked.c.id == BrainObject.id)
                            .where(ranked.c.rank <= max(1, min(int(per_type), 20)))
@@ -135,7 +135,7 @@ def _table_conditions(query: TableQuery, viewer: Viewer, today: datetime.date) -
     (뜻은 같고, 유형만 걸면 앞 칸이 층인 색인을 못 써 표 전체를 읽는다).
     """
     layers = sorted(TYPE_LAYERS.get(query.item_type, ()))
-    conditions = [*visible_clauses(viewer), BrainObject.layer.in_(layers), BrainObject.item_type == query.item_type]
+    conditions = [*visible_clauses(viewer, today), BrainObject.layer.in_(layers), BrainObject.item_type == query.item_type]
     for name, column in (("layer", BrainObject.layer), ("brand", BrainObject.brand), ("status", BrainObject.status),
                          ("grade", BrainObject.risk_grade), ("confidence", BrainObject.confidence)):
         value = getattr(query, name)
@@ -168,7 +168,7 @@ def table_page(session: Any, viewer: Viewer, query: TableQuery, *, today: dateti
                            .offset((page - 1) * query.per_page).limit(query.per_page)).all()
     return {"type": query.item_type, "rows": [light_item(row, today=today, needs_check=o) for row, o in rows],
             "total": total, "page": page, "pages": pages, "per_page": query.per_page,
-            "type_counts": count_items(session, viewer)["types"]}
+            "type_counts": count_items(session, viewer, today=today)["types"]}
 
 
 def _pairs(kind: str) -> list[list[str]]:

@@ -7,6 +7,9 @@
 - ``/items/<키>`` 항목 카드(링크 · 바깥 정본 칩 · 사본 · 이력).
 - ``/type-map`` 유형 지도(유형 · 링크 종류 · 허용 짝 · 유형별 수).
 - ``/releases?page=`` 판 목록 · ``/releases/<번호>`` 판 차이 요약.
+- ``/around?key=&kinds=a,b&depth=1|2&limit=`` 이웃 찾기(Search Around — 7.7 · D105) — 이웃 지도 · 뇌 보기 탭(점 · 선 · 종류별 수).
+- ``/points`` 뇌 보기 바탕 점(키 · 유형 · 상태 표시 · 쓰인 횟수 — 이름 없음 · 상한 5,000).
+- ``/quality`` 연결 개수 규칙 품질 수(최소 미달 · 최대 넘음 — D105).
 
 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐(D101 — :func:`foms.services.brain.access.screen_viewer`). 로그인 안 함 401,
 그 밖(다른 역할 · 협력사 직원)은 **404**(있는지도 알리지 않는다). PARTNER 세션은 이 핸들러 앞에서 협력사 문지기
@@ -23,8 +26,10 @@ from flask import Blueprint, g, jsonify, request
 
 from db import get_db
 from foms.services.brain.access import screen_viewer
+from foms.services.brain.around import AroundQueryError, brain_points, parse_around, search_around
 from foms.services.brain.browse import TableQueryError, parse_table_query, search_grouped, table_page, type_map
 from foms.services.brain.card import item_card
+from foms.services.brain.quality import quality_counts
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import Viewer
 from foms.services.datetime_kst import get_today_kst
@@ -114,3 +119,26 @@ def brain_releases() -> tuple[Any, int]:
 def brain_release_diff(number: int) -> tuple[Any, int]:
     """판 차이 요약(화면 6) — 볼 수 있는 바뀜이 없으면 404."""
     return _read(lambda db, viewer: release_diff(db, viewer, number))
+
+
+@brain_api_bp.route("/around", methods=["GET"])
+def brain_around() -> tuple[Any, int]:
+    """이웃 찾기(화면 9 · 뇌 보기) — 꼴 밖 물음은 400(권한 없는 사람에게는 404 · 401 그대로)."""
+    try:
+        query = parse_around(request.args)
+    except AroundQueryError:
+        viewer, denied = _viewer()
+        return denied if denied else _fail(400, BAD_QUERY)
+    return _read(lambda db, viewer: search_around(db, viewer, query, today=get_today_kst()))
+
+
+@brain_api_bp.route("/points", methods=["GET"])
+def brain_points_api() -> tuple[Any, int]:
+    """뇌 보기 바탕 점 — 볼 수 있는 · 유효 기간 안 항목만."""
+    return _read(lambda db, viewer: brain_points(db, viewer, today=get_today_kst()))
+
+
+@brain_api_bp.route("/quality", methods=["GET"])
+def brain_quality() -> tuple[Any, int]:
+    """연결 개수 규칙 품질 수 — 볼 수 있는 것만 센다."""
+    return _read(lambda db, viewer: quality_counts(db, viewer, today=get_today_kst()))

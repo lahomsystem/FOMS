@@ -363,3 +363,101 @@
   .brain-diff tbody th { width: 5em; }
   .brain-propose__fields { grid-template-columns: 1fr; }
 }
+
+/* ── 유효 기간 · 연결 개수 · 바깥 정본 값(D105) ── */
+.brain-state--ended { opacity: 0.62; filter: grayscale(0.6); }
+.brain-badge--ended { background: #f3f4f6; color: #4b5563; border: 1px solid #9ca3af; }
+.brain-badge--missing { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+.brain-rules { color: var(--brain-muted); font-size: 0.8125rem; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.brain-ext { flex-direction: column; align-items: flex-start; }
+.brain-ext li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.brain-ext li.is-missing .brain-ext__chip { border-style: dashed; opacity: 0.7; }
+.brain-ext__label { font-weight: 600; font-size: 0.875rem; }
+.brain-ext__value { color: var(--brain-ink); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.brain-ext__value.is-hidden { color: var(--brain-muted); font-style: italic; }
+
+/* ── 이웃 지도(7.5 화면 9) — 진짜 화면은 목록, 그림은 돕는 쪽 ── */
+.brain-nb__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.brain-nb__depth,
+.brain-nb__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.brain-nb__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--brain-line);
+  background: #fff;
+  color: var(--brain-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.brain-nb__chip[aria-pressed="true"] { border-color: var(--brain-link, #1d4ed8); box-shadow: inset 0 0 0 1px var(--brain-link, #1d4ed8); }
+.brain-nb__chip[aria-pressed="false"] { opacity: 0.6; }
+.brain-nb__chip .brain-swatch { width: 14px; }
+.brain-nb__depth .brain-nb__chip[aria-pressed="true"] { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.brain-nb__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 16px; align-items: start; }
+.brain-nb__canvas {
+  min-height: 460px;
+  border: 1px solid var(--brain-line);
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+.brain-nb__canvas.is-failed { min-height: 0; border-style: dashed; }
+.brain-nb__list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; }
+.brain-nb__list .brain-item { align-items: center; }
+.brain-nb__list .brain-item.is-selected { box-shadow: 0 0 0 2px #1d4ed8; }
+.brain-nb__list .brain-item.is-dim { opacity: 0.45; }
+.brain-nb__pick,
+.brain3d-panel__pick {
+  border: none;
+  background: none;
+  padding: 0;
+  font-weight: 600;
+  color: var(--brain-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.brain-nb__pick:hover,
+.brain3d-panel__pick:hover { text-decoration: underline; }
+.brain-nb__pick[aria-pressed="true"] { color: #1d4ed8; }
+.brain-nb__via,
+.brain3d-panel__via { color: var(--brain-muted); font-size: 0.75rem; flex: 1 1 auto; }
+
+/* ── 뇌 보기(7.6) — 어두운 무대 + SVG 이름표 겹침(자리는 transform 속성) ── */
+.brain3d__body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.brain3d__viewport {
+  position: relative;
+  height: min(70vh, 640px);
+  min-height: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #1b2236 0%, #0b0f1a 70%);
+}
+.brain3d__canvas,
+.brain3d__canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.brain3d__canvas canvas { cursor: grab; touch-action: none; }
+.brain3d__labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.brain3d-label__box { fill: rgba(11, 15, 26, 0.78); stroke: var(--brain-type); stroke-width: 1; }
+.brain3d-label__dot { fill: var(--brain-type); }
+.brain3d-label__text { fill: #e5e7eb; font-size: 12px; font-weight: 600; }
+.brain3d-label.is-main .brain3d-label__box { fill: rgba(29, 78, 216, 0.88); stroke: #bfdbfe; }
+.brain3d-label.is-main .brain3d-label__text { fill: #ffffff; font-size: 13px; }
+.brain3d-label.is-crowded { opacity: 0.45; }
+.brain3d-label.is-hidden { display: none; }
+.brain3d__side { display: grid; gap: 12px; }
+.brain3d-panel__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.brain3d-panel__name { font-weight: 700; font-size: 1rem; color: var(--brain-ink); }
+.brain3d-panel__region { color: var(--brain-muted); font-size: 0.8125rem; margin: 6px 0; }
+.brain3d-panel__title { font-size: 0.9375rem; font-weight: 700; margin: 10px 0 6px; }
+.brain3d-panel__list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; max-height: 46vh; overflow-y: auto; }
+.brain3d__legend { font-size: 0.8125rem; color: var(--brain-muted); }
+.brain3d__legend-list { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+
+@media (max-width: 991.98px) {
+  .brain-nb__body,
+  .brain3d__body { grid-template-columns: minmax(0, 1fr); }
+  .brain-nb__canvas { min-height: 340px; }
+}

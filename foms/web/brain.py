@@ -5,7 +5,9 @@
   (``static/js/brain/*.js``)가 JSON API(:mod:`foms.api.brain` · :mod:`foms.api.brain_review`)로 읽고 쓴다. 탭 이름 옆 수는
   서버가 센다(보기 범위 · 결정 가능으로 거른 수). 그림 라이브러리는 지도 탭을 열 때만 ``import()`` 한다.
 - ``/brain/items/<키>`` 항목 카드 — 서버가 그리고, '고칠 말 제안' · 은퇴 · 지우기 · 옛 판 되돌리기 제안 단추만 스크립트
-  (``brain-item-actions.js``)가 단다(탭: 내용 · 이력 · 이웃 지도 · 뇌 보기 — 뒤 둘은 다음 단계 빈 자리).
+  (``brain-item-actions.js``)가 단다(탭: 내용 · 이력 · 이웃 지도 · 뇌 보기). 이웃 지도의 1걸음 이웃 목록(진짜 화면 — 그림은
+  돕는 쪽)은 서버가 그리고, 그림 · 걸음 · 종류 칩은 ``brain-neighbours.js`` 가 탭을 열 때 Cytoscape 를 ``import()`` 해 단다.
+  뇌 보기(7.6)는 ``brain3d-tab.js`` 가 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 탭을 숨기고, 열 때만 three.js 를 ``import()``.
 - 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐, 그 밖은 404(:func:`foms.services.brain.access.screen_viewer`).
   메뉴 항목도 같은 판정(:func:`brain_nav_allowed` — DB 를 읽지 않는다).
 """
@@ -19,9 +21,12 @@ from flask import Blueprint, abort, g, render_template, request
 from db import get_db
 from foms.services.brain import actions
 from foms.services.brain.access import can_open_screen, screen_viewer
+from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, type_map
 from foms.services.brain.card import item_card
-from foms.services.brain.constants import BRANDS, CONFIDENCES, GRADES, LAYERS, OBJECT_STATUSES, TYPES
+from foms.services.brain.constants import (
+    BRANDS, CONFIDENCES, GRADES, LAYERS, LINK_KINDS, MAX_NEIGHBOUR_DEPTH, OBJECT_STATUSES, TYPES,
+)
 from foms.services.brain.display import (
     BRAND_LABELS, CHECK_LABELS, CONFIDENCE_LABELS, EVIDENCE_LABELS, FIELD_LABELS, GRADE_LABELS, LAYER_LABELS,
     LINK_DISPLAY, SORT_LABELS, STATUS_LABELS, TYPE_DISPLAY, display_table, visibility_label,
@@ -97,11 +102,13 @@ def item(key: str):
     """항목 카드 — 볼 수 없거나 없으면 404."""
     viewer = _viewer_or_404()
     db = get_db()
+    today = get_today_kst()
     try:
-        card = item_card(db, viewer, key[:120], today=get_today_kst())
+        card = item_card(db, viewer, key[:120], today=today)
+        around = search_around(db, viewer, AroundQuery(key=card["item"]["key"]), today=today) if card else None
     finally:
         db.rollback()
-    if card is None:
+    if card is None or around is None:
         abort(404)
     it = card["item"]
     props = payload_props(it["type"])
@@ -114,4 +121,5 @@ def item(key: str):
         type_display=TYPE_DISPLAY, link_display=LINK_DISPLAY,
         layer_labels=LAYER_LABELS, brand_labels=BRAND_LABELS, status_labels=STATUS_LABELS,
         confidence_labels=CONFIDENCE_LABELS, grade_labels=GRADE_LABELS, evidence_labels=EVIDENCE_LABELS,
-        field_labels=FIELD_LABELS, visibility=visibility_label(card["item"]["visibility"]))
+        field_labels=FIELD_LABELS, visibility=visibility_label(card["item"]["visibility"]), around=around,
+        link_order=LINK_KINDS, max_depth=MAX_NEIGHBOUR_DEPTH)

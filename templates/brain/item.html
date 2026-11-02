@@ -7,15 +7,19 @@
 {% block content %}
 {#- HAUD master brain 설계서 7.5 화면 3 항목 카드 — 서버가 그린다(탭은 Bootstrap). '고칠 말 제안' · 은퇴 · 지우기 · 옛 판으로
     되돌리기 제안만 brain-item-actions.js 가 POST /api/brain/proposals 로 보낸다(제안함으로 — 정본은 승인 뒤 반영 동작이 쓴다).
-    탭 '이웃 지도'(7.5 화면 9) · '뇌 보기'(7.6)는 다음 단계 빈 자리다. 링크 끝 · 이력은 내 보기 범위 안의 것만. -#}
+    탭 '이웃 지도'(7.5 화면 9 — 1걸음 목록은 서버가 그리고 그림은 brain-neighbours.js 가 탭을 열 때 Cytoscape 를 import()) ·
+    '뇌 보기'(7.6 — 서버가 숨겨 그리고 brain3d-tab.js 가 PC · 하드웨어 WebGL 일 때만 보인다, 열 때만 three.js 를 import()).
+    링크 끝 · 이력 · 이웃은 내 보기 범위 안의 것만. 끝 날이 지난 항목은 '기간 끝남'으로 흐리게(D105). -#}
 {% set it = card.item %}
 {% set td = type_display.get(it.type, (it.type, '', 'fa-circle')) %}
-{% set state = ('brain-state--' ~ it.status if it.status in ('draft', 'retired') else '') ~ (' brain-state--stale' if it.stale else '') %}
+{% set state = ('brain-state--' ~ it.status if it.status in ('draft', 'retired') else '') ~ (' brain-state--stale' if it.stale else '') ~ (' brain-state--ended' if it.ended else '') %}
 <div class="container-fluid mt-3 mb-5 brain-card brain-type--{{ it.type }}" data-brain-card data-brain-key="{{ it.key }}"
      data-brain-version="{{ it.version }}" data-current="{{ current|tojson|forceescape }}"
      data-proposals-url="{{ url_for('brain_review_api.brain_propose') }}"
      data-inbox-page="{{ url_for('brain_web.index', tab='inbox') }}"
-     data-rollback-action="item_rollback">
+     data-rollback-action="item_rollback"
+     data-display="{{ display|tojson|forceescape }}"
+     data-item-base="{{ url_for('brain_web.index') }}/items/">
   <a class="brain-back" href="{{ url_for('brain_web.index') }}"><i class="fas fa-arrow-left me-1" aria-hidden="true"></i>회사 지식</a>
 
   <div class="brain-card__frame {{ state }}">
@@ -27,7 +31,9 @@
     <p class="mb-2">
       <span class="brain-badge brain-badge--{{ it.status }}">{{ status_labels.get(it.status, it.status) }}</span>
       <span class="brain-badge brain-badge--{{ it.confidence }}">확신 {{ confidence_labels.get(it.confidence, it.confidence) }}</span>
+      {% if it.ended %}<span class="brain-badge brain-badge--ended">기간 끝남 — {{ it.valid_to }}까지였어요</span>{% endif %}
       {% if it.stale %}<span class="brain-badge brain-badge--stale">낡음 — 다시 확인할 때</span>{% endif %}
+      {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing" data-brain-missing="{{ gap.kind }}">빠진 링크 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
       {% if it.needs_check %}<span class="brain-badge brain-badge--check">확인 필요 — 열린 제안 {{ it.open_changes }}건</span>{% endif %}
       <span class="brain-card__key">{{ it.key }} · 판 {{ it.version }}</span>
     </p>
@@ -42,14 +48,16 @@
       <button class="nav-link" id="brain-card-history-btn" data-bs-toggle="tab" data-bs-target="#brain-card-history"
               type="button" role="tab" aria-controls="brain-card-history" aria-selected="false">이력({{ card.history|length }})</button>
     </li>
-    {#- 다음 단계 빈 자리 — 이웃 지도(7.5 화면 9) · 뇌 보기(7.6 three.js). 탭 머리는 꺼 두고 판만 둔다. -#}
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="brain-card-neighbours-btn" type="button" role="tab" disabled aria-disabled="true"
-              data-brain-slot-tab="neighbours" title="다음 단계에서 열립니다">이웃 지도 · 준비 중</button>
+      <button class="nav-link" id="brain-card-neighbours-btn" data-bs-toggle="tab" data-bs-target="#brain-card-neighbours"
+              type="button" role="tab" aria-controls="brain-card-neighbours" aria-selected="false"
+              data-brain-tab-name="neighbours">이웃 지도({{ around.total }})</button>
     </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="brain-card-brain3d-btn" type="button" role="tab" disabled aria-disabled="true"
-              data-brain-slot-tab="brain3d" title="다음 단계에서 열립니다">뇌 보기 · 준비 중</button>
+    {#- 뇌 보기 — 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 숨긴 채(brain3d-tab.js 가 판정해 보인다). -#}
+    <li class="nav-item" role="presentation" hidden data-brain3d-tab-item>
+      <button class="nav-link" id="brain-card-brain3d-btn" data-bs-toggle="tab" data-bs-target="#brain-card-brain3d"
+              type="button" role="tab" aria-controls="brain-card-brain3d" aria-selected="false"
+              data-brain-tab-name="brain3d">뇌 보기</button>
     </li>
   </ul>
 
@@ -60,10 +68,12 @@
     <section class="tab-pane fade brain-pane" id="brain-card-history" role="tabpanel" aria-labelledby="brain-card-history-btn" tabindex="0">
       {% include "brain/partials/card_history.html" %}
     </section>
-    <section class="tab-pane fade brain-pane" id="brain-card-neighbours" role="tabpanel" aria-labelledby="brain-card-neighbours-btn"
-             data-brain-slot="neighbours"><p class="brain-slot">이웃 지도는 다음 단계에서 열립니다.</p></section>
-    <section class="tab-pane fade brain-pane" id="brain-card-brain3d" role="tabpanel" aria-labelledby="brain-card-brain3d-btn"
-             data-brain-slot="brain3d"><p class="brain-slot">뇌 보기는 다음 단계에서 열립니다.</p></section>
+    <section class="tab-pane fade brain-pane" id="brain-card-neighbours" role="tabpanel" aria-labelledby="brain-card-neighbours-btn" tabindex="0">
+      {% include "brain/partials/card_neighbours.html" %}
+    </section>
+    <section class="tab-pane fade brain-pane" id="brain-card-brain3d" role="tabpanel" aria-labelledby="brain-card-brain3d-btn" tabindex="0">
+      {% include "brain/partials/card_brain3d.html" %}
+    </section>
   </div>
 </div>
 {% endblock %}
@@ -73,4 +83,8 @@
 <script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-review-view.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-item-actions.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-graph-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-neighbours.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain3d-core.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain3d-tab.js') }}" defer></script>
 {% endblock %}
