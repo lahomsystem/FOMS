@@ -586,6 +586,46 @@ runScenario(
     }
 );
 
+// 0원 옵션(기본 구성)은 견적 줄에 남고, 값 칸이 빈 직접 입력 줄은 빠진다(대조군)
+runScenario(
+    "zero_won_option_kept",
+    {
+        couponValue: 0,
+        baseRows: [
+            {
+                mode: "select",
+                widthMm: 4470,
+                productId: 1,
+                additionalFees: [],
+            },
+        ],
+        optionItems: [
+            {
+                useSelect: true,
+                selectValue: "가구|기본장|0",
+                price: 0,
+                quantity: 1,
+            },
+            {
+                useSelect: false,
+                nameInputValue: "값 없는 줄",
+                price: null,
+                quantity: 1,
+            },
+        ],
+    },
+    products30,
+    null,
+    [],
+    {
+        assert(collected, scenarioName) {
+            assertEq(collected.options.length, 1, `${scenarioName} zero-won row kept, blank-price row dropped`);
+            assertEq(collected.options[0].name, "가구 > 기본장", `${scenarioName} zero-won option name`);
+            assertEq(collected.options[0].price, 0, `${scenarioName} zero-won option price`);
+        },
+    }
+);
+
 // Manual 30cm path (readBaseComponentsFromUI fills price_1cm via computeAutoPrice1cmFrom30cm)
 runScenario(
     "manual_30cm",
