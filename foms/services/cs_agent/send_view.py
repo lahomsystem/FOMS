@@ -18,6 +18,8 @@ from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.case_memory import EDIT_REASONS
 from foms.services.cs_agent.channel_read import ChannelReadError, OpenApiReader
 from foms.services.cs_agent.drafting_read import freshness, memo_draft, read_lines
+from foms.services.cs_agent.edit_detail import MAX_DETAIL, switches
+from foms.services.cs_agent.edit_photos import MAX_BYTES as PHOTO_MAX_BYTES, MAX_PHOTOS
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.report import desk_link
 from foms.services.cs_agent.send import SEND_BRAND
@@ -50,13 +52,23 @@ def _status_text(row: Any) -> Optional[str]:
     return None
 
 
+def _detail_view(session: Any) -> Optional[dict[str, Any]]:
+    """'왜 고쳤나요(자세히) · 사진' 칸 재료(설계서 17.6.1 (a)) — 칸이 꺼졌으면 ``None``(화면에 칸이 없다). DB 는 읽기만 한다."""
+    on = switches(session)
+    session.rollback()
+    if not on.detail:
+        return None
+    return {"photos": on.photos, "max_detail": MAX_DETAIL, "max_photos": MAX_PHOTOS, "max_photo_bytes": PHOTO_MAX_BYTES}
+
+
 def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret_key: Any, now: datetime.datetime,
                 reader: Any = None) -> Optional[dict[str, Any]]:
     """화면 재료 — 차례가 없거나 링크의 상담 id 가 다르면 ``None``(404). DB 는 읽기만 한다(읽기 트랜잭션은 닫는다).
 
     Returns:
         ``{"turn_id", "desk_url", "status": {...}, "blocked": 까닭 글 | None, "draft": 보낼 글 | None, "fresh_note",
-        "token", "edit_reasons", "rewrite_left", "max_text", "max_note"}`` — 상담 글은 보낼 초안(직원이 보낼 글)만 싣는다.
+        "token", "edit_reasons", "rewrite_left", "max_text", "max_note", "detail"}`` — 상담 글은 보낼 초안(직원이 보낼 글)만
+        싣는다. ``detail`` 은 '왜 고쳤나요(자세히) · 사진' 칸 재료(꺼졌으면 ``None``).
     """
     row = session.get(CsAgentTurn, int(turn_id), populate_existing=True)
     session.rollback()
@@ -74,12 +86,13 @@ def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret
         "draft": None, "fresh_note": None, "token": None, "checking": status["send_state"] in (SEND_SENDING,
                                                                                                SEND_UNKNOWN_STATE),
         "edit_reasons": list(EDIT_REASON_LABELS.items()), "rewrite_left": max(0, MAX_REWRITES - status["rewrite_count"]),
-        "max_text": MAX_TEXT, "max_note": MAX_NOTE,
+        "max_text": MAX_TEXT, "max_note": MAX_NOTE, "detail": None,
     }
     if view["checking"] or blocked is None:
         view["token"] = issue_send_token(secret_key, turn_id=row.id, user_id=int(user.id), memo_id=row.memo_message_id)
     if blocked is not None:
         return view
+    view["detail"] = _detail_view(session)
     try:
         lines = read_lines(reader if reader is not None else OpenApiReader(), row.brand, row.chat_id)
     except ChannelReadError as exc:

@@ -333,6 +333,11 @@ ACTION_LABELS: dict[str, str] = {
     # --- AI 상담팀원 관리 패널(설계서 2026-10-27-cs-ai-agent 16.1) ---
     "CS_AGENT_SETTINGS_UPDATE": "AI 상담팀원 설정 변경(두뇌 · 돈 · 고르기)",
     "CS_AGENT_SWITCH": "AI 상담팀원 스위치 변경(비상 정지 · 초안)",
+    # --- AI 상담 [수정하기] 고친 까닭 자세히 · 사진 · 주간 고침 안(설계서 2026-10-27-cs-ai-agent 17.6.1) ---
+    "CS_AGENT_EDIT_DETAIL": "AI 상담 고친 이유 저장",
+    "CS_AGENT_PHOTO_ADD": "AI 상담 고친 이유 사진 올림",
+    "CS_AGENT_PHOTO_DELETE": "AI 상담 고친 이유 사진 지움",
+    "CS_AGENT_FIX_DECIDE": "AI 상담 주간 고침 안 결정(승인 · 거절)",
     # --- 차단(거부 기록) ---
     "ACCESS_DENIED": "권한 거부",
     "CSRF_BLOCKED": "CSRF 차단",

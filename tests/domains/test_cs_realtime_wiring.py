@@ -142,12 +142,12 @@ def test_the_runner_declares_a_registered_kind_and_beats_without_customer_data(a
 ])
 def test_new_panel_fields_check_their_ranges(name, good, bad):
     field = st.FIELD_BY_NAME[name]
-    assert field.locked == (name == "learning_cap_usd_panel")  # 학습 돈 상한은 C10-7 까지 잠김(R13-12)
+    assert not field.locked  # 학습 돈 상한도 학습 길(17.6.1 — 사진 설명 · 주간 고침 안)이 생겨 잠금을 풀었다
     assert all(st.check_value(field, value)[0] for value in good), name
     assert not any(st.check_value(field, value)[0] for value in bad), name
 
 
-def test_the_learning_cap_starts_empty_and_stays_locked_until_c10_7(app, monkeypatch):
+def test_the_learning_cap_starts_empty_and_opens_with_the_learning_path(app, monkeypatch):
     monkeypatch.setenv(brain.DAILY_CAP_ENV, "5")
     actor = User(username="cs-realtime-admin", password="x", role="ADMIN", name="합성 관리자", is_active=True)
     db_session.add(actor)
@@ -156,15 +156,14 @@ def test_the_learning_cap_starts_empty_and_stays_locked_until_c10_7(app, monkeyp
     db_session.merge(SideEffectWorkerHeartbeat(worker_kind="CS_LOOP", last_heartbeat_at=now_utc_naive(),
                                                metadata_json={"outcome": "ok", bs.HEARTBEAT_CAP_KEY: "5"}))
     db_session.commit()
-    with pytest.raises(st.SettingsLockedError) as caught:  # 총괄 결정(R13-12) — 학습 길(C10-7)이 생길 때까지 잠김
-        st.save_settings(db_session, {"learning_cap_usd_panel": "9", "quiet_wait_s": 30},
-                         expected_version=0, actor_user_id=actor.id)
-    assert caught.value.fields == ("learning_cap_usd_panel",)
-    db_session.rollback()
-    saved = st.save_settings(db_session, {"quiet_wait_s": 30}, expected_version=0, actor_user_id=actor.id)
+    # R13-12 의 잠금은 학습 길이 생길 때까지였다 — 17.6.1(사진 설명 · 주간 고침 안)이 그 길이라 이제 저장된다. 비우면 학습
+    # 길은 부르지 않는다(막는 쪽 — learning_brain.off_reason).
+    saved = st.save_settings(db_session, {"learning_cap_usd_panel": "9", "quiet_wait_s": 30},
+                             expected_version=0, actor_user_id=actor.id)
     db_session.commit()
     cfg = st.read_settings(db_session)
-    assert (cfg.get("learning_cap_usd_panel"), cfg.get("quiet_wait_s"), saved.changed) == (None, 30, ("quiet_wait_s",))
+    assert (cfg.get("learning_cap_usd_panel"), cfg.get("quiet_wait_s")) == ("9.00", 30)
+    assert set(saved.changed) == {"learning_cap_usd_panel", "quiet_wait_s"}
     with pytest.raises(st.SettingsInvalidError):  # 하루 상한 화면 값은 여전히 WORKER 천장 아래만
         st.save_settings(db_session, {"daily_cap_usd_panel": "9"}, expected_version=1, actor_user_id=actor.id)
 

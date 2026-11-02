@@ -179,6 +179,8 @@
     "foms/platform/blueprints.py::foms.api.channel",
     "foms/platform/blueprints.py::foms.api.construction",
     "foms/platform/blueprints.py::foms.api.cs",
+    "foms/platform/blueprints.py::foms.api.cs_agent_edit_detail",
+    "foms/platform/blueprints.py::foms.api.cs_agent_fix_proposals",
     "foms/platform/blueprints.py::foms.api.cs_agent_pc",
     "foms/platform/blueprints.py::foms.api.cs_agent_send",
     "foms/platform/blueprints.py::foms.api.drawing",
