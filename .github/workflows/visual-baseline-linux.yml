@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: visual-baseline-linux
           path: |
