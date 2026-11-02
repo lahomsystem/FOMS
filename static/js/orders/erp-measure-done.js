@@ -96,13 +96,55 @@
     goDashboard(orderId);
   }
 
+  /* 단추 묶음 접기(2026-11-02 결정 D1) — 실측 끝 단추가 있을 때만 서버가 손잡이를 그린다(erp_order_tab_mobile.html).
+     기본은 접힘, 기억하지 않는다(열 때마다 접힌 채 시작). 손잡이가 aria-expanded 와 몸통 hidden 을 같이 바꾼다. */
+  function setFold(toggle, open) {
+    var body = document.getElementById(toggle.getAttribute('aria-controls'));
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (body) body.hidden = !open;
+  }
+
+  /** 손잡이 오른쪽 "발송 N" — 발송 기록 모듈이 다시 그릴 때마다 같은 규칙(erpSendTraceModel)으로 센다. 새 API 없음. */
+  function updateFoldCount() {
+    var count = document.querySelector('[data-erp-action-fold-count]');
+    if (!count) return;
+    var n = 0;
+    if (typeof window.erpSendTraceModel === 'function') {
+      try {
+        var model = window.erpSendTraceModel(window.__erpLastStructuredData, Date.now());
+        n = (model && model.chips) ? model.chips.length : 0;
+      } catch (e) {
+        n = 0;
+      }
+    }
+    count.textContent = n ? '발송 ' + n : '';
+    count.hidden = !n;
+  }
+
+  function bindFoldCount() {
+    var slot = document.querySelector('[data-erp-action-fold-body] [data-erp-send-trace="fold"]');
+    if (!slot) return;
+    updateFoldCount();
+    if (typeof MutationObserver === 'function') new MutationObserver(updateFoldCount).observe(slot, { childList: true });
+  }
+
   if (!window.__FOMS_ERP_MEASURE_DONE_BOUND) {
     window.__FOMS_ERP_MEASURE_DONE_BOUND = true;
     document.addEventListener('click', function (event) {
-      var btn = event.target && event.target.closest ? event.target.closest('[data-erp-measure-done]') : null;
+      var target = event.target && event.target.closest ? event.target : null;
+      if (!target) return;
+      var toggle = target.closest('[data-erp-action-fold-toggle]');
+      if (toggle) {
+        event.preventDefault();
+        setFold(toggle, toggle.getAttribute('aria-expanded') !== 'true');
+        return;
+      }
+      var btn = target.closest('[data-erp-measure-done]');
       if (!btn) return;
       event.preventDefault();
       run(btn);
     });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindFoldCount);
+    else bindFoldCount();
   }
 })();
