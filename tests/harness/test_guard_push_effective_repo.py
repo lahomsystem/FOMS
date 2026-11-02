@@ -219,3 +219,40 @@ def test_commit_ledger_hook_main_commit_stays_in_main_ledger(fresh_repos, monkey
     hook.process(payload)
     assert _ledger_shas(repos["main"]) == [sha]
     assert _ledger_shas(repos["wt"]) == []
+
+
+def test_quiet_commit_is_recorded_from_fresh_reflog(fresh_repos, monkeypatch) -> None:
+    """`git commit -q` 는 성공 출력이 없다 — 방금 생긴 reflog commit 으로 인정한다(2026-11-03)."""
+    repos = fresh_repos
+    hook = _load("record_commit_ledger_effective_ut3", HOOKS / "record_commit_ledger.py")
+    monkeypatch.setattr(hook, "get_project_root", lambda: str(repos["main"]))
+    sha = _commit(repos["wt"], "quiet.txt")
+    payload = {
+        "session_id": SID + "-ledger",
+        "cwd": str(repos["main"]),
+        "tool_input": {"command": f"cd {_posix(repos['wt'])} && git commit -q -F msg.txt -- quiet.txt"},
+        "tool_response": {"stdout": "", "stderr": ""},
+    }
+    hook.process(payload)
+    assert _ledger_shas(repos["wt"]) == [sha]
+
+
+def test_failed_commit_output_is_not_recorded_even_with_fresh_reflog(fresh_repos, monkeypatch) -> None:
+    repos = fresh_repos
+    hook = _load("record_commit_ledger_effective_ut4", HOOKS / "record_commit_ledger.py")
+    monkeypatch.setattr(hook, "get_project_root", lambda: str(repos["main"]))
+    _commit(repos["wt"], "earlier.txt")
+    payload = {
+        "session_id": SID + "-ledger",
+        "cwd": str(repos["wt"]),
+        "tool_input": {"command": "git commit -q -m again"},
+        "tool_response": {"stdout": "nothing to commit, working tree clean"},
+    }
+    hook.process(payload)
+    assert _ledger_shas(repos["wt"]) == []
+
+
+def test_stale_reflog_commit_is_not_taken_as_just_committed(repos) -> None:
+    rec = _load("record_git_commit_ledger_effective_ut", HARNESS / "record_git_commit_ledger.py")
+    assert rec.just_committed(str(repos["wt"]))
+    assert not rec.just_committed(str(repos["wt"]), now=10**10)
