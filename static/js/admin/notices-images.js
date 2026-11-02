@@ -2,7 +2,7 @@
  * FOMS 공지 쓰기 · 고치기 — "사진" 칸(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §8).
  * - 끌어놓기 · 고르기 → 한 장씩 POST /api/admin/notices/images (multipart image)
  *   → {success, data:{key, thumb_key, name, width, height, size, preview_url, thumb_url}, error}.
- * - 썸네일 줄: 지우기(X) · 순서 바꾸기(좌우 화살표). 최대 data-max 장(5), 한 장 15MB, JPG · PNG · WEBP.
+ * - 썸네일 줄: 지우기(X) · 순서 바꾸기(좌우 화살표). 최대 data-max 장(5), 한 장 15MB, JPG · PNG · WEBP · HEIC.
  * - 오른쪽 휴대폰 미리보기의 썸네일 줄([data-preview-images])도 바로 바꾼다 — 누르면 받는 사람과 같은 사진 창
  *   (static/js/foms/foms-notice-gallery.js).
  * - 저장은 notices-form.js 가 window.FomsNoticeImages.payload() 를 페이로드 images 로 싣는다(올리는 중이면 막는다).
@@ -143,7 +143,7 @@
     files.forEach(function (file) {
       if (items.length >= max) { problems.push('사진은 ' + max + '장까지 올릴 수 있어요.'); return; }
       if (!OK_EXT.test(file.name || '') && !/^image\//.test(file.type || '')) {
-        problems.push(file.name + ': JPG · PNG · WEBP 사진만 올릴 수 있어요.');
+        problems.push(file.name + ': JPG · PNG · WEBP · HEIC 사진만 올릴 수 있어요.');
         return;
       }
       if (file.size > MAX_BYTES) { problems.push(file.name + ': 한 장에 15MB 까지 올릴 수 있어요.'); return; }

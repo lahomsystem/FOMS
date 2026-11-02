@@ -81,8 +81,8 @@
 요청(사용자): "공지에 사진도 올릴 수 있게 변경 > 미리보기는 모달 : thumbnail with blur outside (FOMS 스타일 그대로)". 아래 기본값은 위임자가 정했다.
 - **데이터**(마이그레이션 `notice_02`, 그때 머리 `brain_00` 뒤, downgrade 포함): `notices.images` JSONB NOT NULL DEFAULT `'[]'` — 보이는 순서 그대로의 목록,
   항목 `{key, thumb_key, name, width, height, size}`. 고치기는 새 목록을 다시 넣고 `flag_modified(notice, 'images')`. 뺀 사진의 저장소 파일은 지우지 않는다.
-- **받기**(`foms/services/notices/images.py`): 공지당 최대 5장, 한 장 15MB 이하, Pillow 로 열어 판정 — JPEG(MPO) · PNG · WebP. HEIC/HEIF 는 서버에 읽는
-  패키지가 없어 쉬운 글로 거절한다(쓰기 화면 고르기 `accept` 에 HEIC 를 넣지 않아 아이폰은 JPEG 로 바꿔 올린다). 방향(EXIF)을 바로잡고 긴 변 2000px 본 +
+- **받기**(`foms/services/notices/images.py`): 공지당 최대 5장, 한 장 15MB 이하, Pillow 로 열어 판정 — JPEG(MPO) · PNG · WebP · HEIC/HEIF(아이폰 원본 —
+  `pillow-heif` 로 이 모듈 안에서만 풀어 JPEG/PNG 로 다시 그린다. Pillow 전체 등록은 하지 않아 다른 업로드 규칙은 그대로, 사용자 요청 2026-11-02). 방향(EXIF)을 바로잡고 긴 변 2000px 본 +
   긴 변 480px 썸네일로 다시 그린다(EXIF · 위치 정보 빠짐, 투명 칸이 있으면 PNG 아니면 JPEG). 저장은 `StorageAdapter.put_private_bytes`(비공개, R2) —
   key `notices/images/<YYYYMM>/<uuid>.<jpg|png>` · 썸네일 `..._thumb.<같은 확장자>`. 로컬 저장소(개발 전용)는 업로드 폴더에 바로 쓴다.
 - **API**: 관리자 `POST /api/admin/notices/images`(multipart `image` 한 장, ADMIN · MANAGER, 본문 상한 15MB+256KB `request_limits` `notice_image`)

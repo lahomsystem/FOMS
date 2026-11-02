@@ -76,7 +76,7 @@ def test_staff_popup_and_admin_form_have_photo_hooks(app, world):
     state = json.loads(unescape(re.search(r'data-notice="([^"]*)"', page).group(1)))
     assert state["images"][0]["key"] == _IMG["key"]
     assert state["images"][0]["preview_url"].startswith("/api/admin/notices/images/file?key=")
-    assert 'accept="image/jpeg,image/png,image/webp"' in page  # 아이폰은 HEIC 를 JPEG 로 바꿔 올린다
+    assert 'accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"' in page  # HEIC 원본도 받는다(pillow-heif)
 
 
 def test_gallery_script_closes_navigates_and_preempts_popup_trap() -> None:

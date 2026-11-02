@@ -1,7 +1,7 @@
 """공지 사진 — 받기(다시 그리기) · 저장소 key · 보여 줄 주소(설계서 2026-11-02-foms-notices §8).
 
-- **받기**: 확장자가 아니라 Pillow 로 열어 판정한다 — JPEG(MPO 포함) · PNG · WebP. HEIC/HEIF 는 서버에 읽는 패키지가 없어
-  쉬운 글로 거절한다(아이폰 사파리는 파일 고르기 ``accept`` 에 HEIC 가 없으면 JPEG 로 바꿔 올린다). 받은 바이트
+- **받기**: 확장자가 아니라 Pillow 로 열어 판정한다 — JPEG(MPO 포함) · PNG · WebP · HEIC/HEIF(아이폰 원본, ``pillow-heif``
+  가 Pillow 에 여는 길을 더한다 — 사용자 요청 2026-11-02). 받은 바이트
   :data:`MAX_BYTES`(15MB) · 픽셀 :data:`MAX_PIXELS`(압축 폭탄) 넘음도 거절.
 - **다시 그리기**: 방향(EXIF)을 바로잡고 긴 변 :data:`LONG_EDGE` 로 줄인 본 + 긴 변 :data:`THUMB_EDGE` 썸네일. EXIF · 위치 정보는
   빠진다. 투명 칸이 있으면 PNG, 아니면 JPEG.
@@ -23,6 +23,7 @@ from typing import Any, Optional
 from urllib.parse import quote
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+import pillow_heif
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.storage import get_storage
@@ -40,7 +41,7 @@ LONG_EDGE = 2000
 THUMB_EDGE = 480
 JPEG_QUALITY = 85
 NAME_MAX = 120
-#: 파일 고르기 · 끌어놓기에서 받는 확장자(HEIC 는 이름만 받고 열 수 없으면 쉬운 글로 거절).
+#: 파일 고르기 · 끌어놓기에서 받는 확장자(HEIC · HEIF 는 JPEG/PNG 로 다시 그려 저장한다).
 IMAGE_EXTS = ("jpg", "jpeg", "png", "webp", "heic", "heif")
 KEY_PREFIX = "notices/images"
 KEY_RE = re.compile(r"notices/images/[0-9]{6}/[0-9a-f]{32}\.(?:jpg|png)")
@@ -54,8 +55,7 @@ _CONTENT_TYPES = {"jpg": "image/jpeg", "png": "image/png"}
 ERR_EMPTY = "사진 파일이 비어 있습니다."
 ERR_SIZE = "사진은 한 장에 15MB 까지 올릴 수 있어요."
 ERR_PIXELS = "사진이 너무 큽니다. 크기를 줄여 다시 올려 주세요."
-ERR_FORMAT = "JPG · PNG · WEBP 사진만 올릴 수 있어요."
-ERR_HEIC = "아이폰 HEIC 사진은 바로 열 수 없어요. JPG 로 바꿔 올려 주세요(아이폰에서 고르면 JPG 로 바뀝니다)."
+ERR_FORMAT = "JPG · PNG · WEBP · HEIC 사진만 올릴 수 있어요."
 ERR_STORE = "사진을 저장하지 못했습니다. 잠시 뒤 다시 해 주세요."
 
 
@@ -91,16 +91,37 @@ def _encode(image: Any, edge: int, alpha: bool) -> bytes:
     return out.getvalue()
 
 
+_HEIF_MARK = "foms_heif"
+
+
+def _open(data: bytes) -> Any:
+    """Pillow 로 연다. Pillow 가 모르는 HEIC/HEIF(아이폰 원본)면 ``pillow_heif`` 로 풀어 Pillow 그림으로 바꾼다.
+
+    ``register_heif_opener`` 로 Pillow 전체에 등록하지 않는다 — 다른 업로드(CS 상담 사진 등)의 받는 형식 규칙을 바꾸지 않게
+    공지 사진만 이 길로 연다.
+    """
+    try:
+        return Image.open(io.BytesIO(data))
+    except UnidentifiedImageError:
+        if not pillow_heif.is_supported(data):
+            raise
+        heif = pillow_heif.open_heif(data, convert_hdr_to_8bit=True)
+        if heif.size[0] * heif.size[1] > MAX_PIXELS:
+            raise NoticeImageError(ERR_PIXELS) from None
+        image = heif.to_pillow()
+        image.info[_HEIF_MARK] = True
+        return image
+
+
 def redraw(data: bytes, filename: Any = "") -> dict[str, Any]:
     """받은 바이트 → ``{main, thumb, ext, content_type, width, height}``. 받을 수 없으면 :class:`NoticeImageError`."""
     if not data:
         raise NoticeImageError(ERR_EMPTY)
     if len(data) > MAX_BYTES:
         raise NoticeImageError(ERR_SIZE)
-    heic = _ext_of(filename) in ("heic", "heif")
     try:
-        with Image.open(io.BytesIO(data)) as source:
-            if source.format not in _FORMATS:
+        with _open(data) as source:
+            if source.format not in _FORMATS and not source.info.get(_HEIF_MARK):
                 raise NoticeImageError(ERR_FORMAT)
             if source.width * source.height > MAX_PIXELS:
                 raise NoticeImageError(ERR_PIXELS)
@@ -113,8 +134,8 @@ def redraw(data: bytes, filename: Any = "") -> dict[str, Any]:
     except NoticeImageError:
         raise
     except (UnidentifiedImageError, Image.DecompressionBombError):
-        raise NoticeImageError(ERR_HEIC if heic else ERR_FORMAT) from None
-    except (OSError, ValueError, SyntaxError):  # 잘린 · 깨진 파일
+        raise NoticeImageError(ERR_FORMAT) from None
+    except (OSError, ValueError, SyntaxError, RuntimeError):  # 잘린 · 깨진 파일(HEIC 풀기 실패 포함)
         raise NoticeImageError(ERR_FORMAT) from None
     with Image.open(io.BytesIO(main)) as check:
         width, height = check.size
