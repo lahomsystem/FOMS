@@ -33,7 +33,7 @@ jobs:
     # 몇 시간을 태운 전례(2026-07, 192.9분)가 있어 반드시 상한을 둔다.
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
