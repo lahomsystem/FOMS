@@ -2,8 +2,8 @@
 
 플랜 C10-6 · 검수 R17-1 · R17-2. 초안 차례가 견적 계산을 넣었으면 그 값을 ``CsAgentTurn.quote_lines``(csagent_03 — C10-6 몫으로
 비워 둔 칸)에 한 번 남긴다. [보내기] 다시 검사(:mod:`.send_flow`) · '고칠 말' 다시 쓰기(:mod:`.rewrite`) · 다시 올리기
-(:mod:`.drafting`)는 이 값을 허용 목록에 더한다 — **상태가 '계산됨 · 확인됨'(``ok``)일 때만**(확인 필요 · 묻기 · 사람에게면
-더하지 않는다). 글은 코드가 만든 계산기 줄뿐이다(손님 글 없음 — 공간 이름 · 문 방식은 정한 값, 제품 이름은 계산기 설정).
+(:mod:`.drafting`)는 이 값을 허용 목록에 더한다 — **상태가 '계산됨 · 확인됨'(``ok``)일 때만**(확인 필요 · 묻기 · 도면에서
+크기 확인 · 사람에게면 더하지 않는다). 글은 코드가 만든 계산기 줄뿐이다(손님 글 없음 — 공간 이름 · 문 방식은 정한 값, 제품 이름은 계산기 설정).
 무거운 import 가 없다(보내기 길이 web 에서 읽는다).
 """
 
@@ -12,14 +12,16 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional, Sequence
 
 __all__ = [
-    "RECORD_VERSION", "STATUS_ASK", "STATUS_CHECK", "STATUS_HUMAN", "STATUS_NOT_QUOTE", "STATUS_OK", "STATUSES",
-    "allowed_from", "lines_from", "record_value",
+    "RECORD_VERSION", "STATUS_ASK", "STATUS_CHECK", "STATUS_DRAWING", "STATUS_HUMAN", "STATUS_NOT_QUOTE", "STATUS_OK",
+    "STATUSES", "allowed_from", "lines_from", "record_value",
 ]
 
 RECORD_VERSION = 1
 STATUS_OK, STATUS_CHECK, STATUS_ASK, STATUS_HUMAN = "ok", "needs_check", "ask", "human"
 STATUS_NOT_QUOTE = "not_quote"
-STATUSES: tuple[str, ...] = (STATUS_OK, STATUS_CHECK, STATUS_ASK, STATUS_HUMAN, STATUS_NOT_QUOTE)
+#: 가로를 모르지만 손님이 도면 · 사진을 보냈다 — 묻지 않고 직원이 그림에서 크기를 확인한다(금액 없는 초안 + 직원 참고 줄).
+STATUS_DRAWING = "size_in_drawing"
+STATUSES: tuple[str, ...] = (STATUS_OK, STATUS_CHECK, STATUS_ASK, STATUS_DRAWING, STATUS_HUMAN, STATUS_NOT_QUOTE)
 _MAX_LINES = 40
 
 
