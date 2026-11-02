@@ -14,6 +14,11 @@
    :func:`.quote_calc.evaluate`. 제작 조건 줄을 못 읽으면 빈 규칙이 아니라 사람에게(R17-9). 결과가 사람에게(``human``)면 초안
    없이 넘김 기록만. 나머지는 ``calculator_lines`` · 허용 목록 · 직원 참고 줄을 초안 차례에 넘긴다 — 도면에서 크기 확인
    (``size_in_drawing``)도 여기다: 금액 없는 초안 + 직원 참고 줄로 직원에게 간다(넘김 까닭 코드는 기록의 ``code``).
+5. **그림 읽기(설계서 17.11 (d))** — 결과가 ``size_in_drawing`` 이고 부르는 쪽이 ``drawing``(:func:`.image_step.turn_hook` —
+   불릴 때 패널을 읽고, '그림 읽기'가 끔이면 빈 쓰임이라 모델 0번 · 글자까지 앞 단계 그대로)을 넘겼을 때만 그 갈림에서 손님
+   그림을 읽는다. 쓸 수 있는 범위를 가로 범위 칸에 넣어 다시 계산해 금액이 나오면 그 결과(계산기 머리 줄 뒤에 그림 줄)를,
+   아니면 앞 단계 그대로 + 직원 참고 줄 한 줄을 쓴다.
+   그림 읽기의 토큰 · 돈 · 시간은 뽑기 쓰임에 더한다(차례 줄의 돈이 그 차례 전부가 되게).
 
 결과 값(:meth:`QuoteStep.record` — 상태 · 두뇌 줄 · 허용 금액 줄)과 뽑기 호출의 토큰 · 돈 · 시간은 부르는 쪽
 (:meth:`.drafting_pass.DraftPass.quote`)이 초안 두뇌 **전에** 차례 줄에 적는다(R17-1 · R17-3). 글은 로그에 싣지 않는다.
@@ -32,9 +37,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.cs_agent.brain_prompt import ROLE_USER, DraftRequest, DraftResult
 from foms.services.cs_agent.drafting_read import FILE_NOTE
+from foms.services.cs_agent.image_brain import merged as merge_image_usage
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge
 from foms.services.cs_agent.quote_brain import QUOTE_INTENT, QuoteAsk, extract_quote
-from foms.services.cs_agent.quote_calc import HUMAN_RULE_UNREADABLE, RuleUnreadable, build_rules, evaluate
+from foms.services.cs_agent.quote_calc import (
+    HUMAN_RULE_UNREADABLE, STATUS_CHECK, STATUS_DRAWING, STATUS_OK, QuoteOutcome, RuleUnreadable, build_rules, evaluate,
+)
 from foms.services.cs_agent.quote_check import PriceCheck, observe
 from foms.services.cs_agent.quote_record import STATUS_HUMAN, STATUS_NOT_QUOTE, record_value
 from foms.services.cs_agent.settings import read_settings
@@ -111,10 +119,28 @@ def _catalog(reader: Callable[[], Catalog], chat_id: str) -> Optional[Catalog]:
     return catalog
 
 
+def _with_drawing(drawing: Optional[Callable[[QuoteAsk], Any]], ask: QuoteAsk, outcome: QuoteOutcome, *,
+                  catalog: Catalog, rules: Any, check: PriceCheck, now: datetime.datetime) -> tuple[QuoteOutcome, Any]:
+    """``size_in_drawing`` 이면 그림 읽기를 끼운다(모듈 설명 5) — (결과, 그림 두뇌 쓰임 · 없으면 ``None``)."""
+    if outcome.status != STATUS_DRAWING or drawing is None:
+        return outcome, None
+    use = drawing(ask)
+    note = use.note
+    if use.ask is not None:
+        again = evaluate(use.ask, catalog, rules, check=check, now=now)
+        if again.status in (STATUS_OK, STATUS_CHECK):
+            lines = (again.lines[0], *use.lines, *again.lines[1:]) if again.status == STATUS_OK else again.lines
+            return dataclasses.replace(again, lines=lines,
+                                       note="\n".join(p for p in (again.note, use.note) if p)), use.usage
+        note = use.fallback_note  # 다시 계산해도 금액이 안 나옴(제작 조건 · 사람에게) — 앞 단계 그대로
+    return dataclasses.replace(outcome, note="\n".join(p for p in (outcome.note, note) if p)), use.usage
+
+
 def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest, texts: Iterable[str],
             now: datetime.datetime, stop: Any, summary: Any, quoter: Optional[Callable[..., QuoteAsk]] = None,
             catalog_reader: Optional[Callable[[], Catalog]] = None,
-            price_check: Optional[Callable[..., PriceCheck]] = None) -> Optional[QuoteStep]:
+            price_check: Optional[Callable[..., PriceCheck]] = None,
+            drawing: Optional[Callable[[QuoteAsk], Any]] = None) -> Optional[QuoteStep]:
     """견적 계산 넣기 한 번(모듈 설명의 차례). ``None`` 이면 예전 그대로 초안(끔 · 견적 말 없음 · 계산기 못 읽음).
 
     Raises:
@@ -142,9 +168,11 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
     else:
         check = (price_check or observe)(session, catalog, now=now)
         outcome = evaluate(ask, catalog, rules, check=check, now=now)
+        outcome, image_usage = _with_drawing(drawing, ask, outcome, catalog=catalog, rules=rules, check=check, now=now)
+        summary.brain_calls += int(image_usage is not None)
         step = QuoteStep(outcome.status, lines=outcome.lines, allowed=outcome.allowed, note=outcome.note,
-                         human=outcome.code if outcome.status == STATUS_HUMAN else None, usage=ask,
-                         code=outcome.code)
+                         human=outcome.code if outcome.status == STATUS_HUMAN else None,
+                         usage=merge_image_usage(ask, image_usage), code=outcome.code)
     summary.quotes[step.status] = summary.quotes.get(step.status, 0) + 1
     logger.info("[CS 견적] chat=%s intent=%s status=%s code=%s", request.chat_id,
                 QUOTE_INTENT if ask.quote_request else "other", step.status, step.human or step.code)

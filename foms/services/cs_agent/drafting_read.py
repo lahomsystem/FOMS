@@ -30,13 +30,15 @@ from foms.services.cs_agent.channel_read import (
     derive_message,
 )
 from foms.services.cs_agent.checks_rules import is_naver_talk
+from foms.services.cs_agent.image_files import FileRef, parse_files
 from foms.services.cs_agent.masking import mask
 from foms.services.cs_agent.read_budget import BUCKET_MESSAGE
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
+    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_CODE_HEADS", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_IMAGE_HEAD",
+    "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
     "freshness",
     "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
@@ -50,6 +52,9 @@ MEMO_DRAFT_HEAD = "■ 손님께 보낼 답(초안)"
 MEMO_NOTE_HEAD = "■ 직원 참고(손님에게 보내지 마세요)"
 #: 직원 참고 칸에 코드가 붙이는 견적 계산 줄의 머리(C10-6) — 계산기 값 · 제품 이름이라 비공개 메모 섞임 재료에서 뺀다.
 MEMO_QUOTE_HEAD = "[견적 계산"
+#: 직원 참고 칸에 코드가 붙이는 그림 읽기 줄의 머리(설계서 17.11 (d)) — 숫자 · 정한 말뿐이라 같은 까닭으로 뺀다.
+MEMO_IMAGE_HEAD = "[그림 읽기"
+MEMO_CODE_HEADS = (MEMO_QUOTE_HEAD, MEMO_IMAGE_HEAD)
 MEDIUM_EMAIL = "email"
 #: 그대로 믿는 매체 이름(웹 · 이메일). ``app`` 은 카카오 · 톡톡 · 인스타가 mediumId 로만 갈려 모름으로 둔다.
 _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
@@ -69,12 +74,14 @@ class ChatLine:
 
     ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
     ``request_id`` 는 글을 쓴 쪽이 붙인 채널톡 ``requestId``(꼴이 맞을 때만) — [보내기] 결과를 모를 때 맞추는 표지다(C10-3).
+    ``files`` 는 손님 공개 글의 파일 정보(그림 읽기 — 설계서 17.11 (a))다. 파일 key 는 이 바퀴 메모리에만 있다.
     """
 
     meta: DerivedMessage
     text: str = field(repr=False)
     person_id: Optional[str] = field(default=None, repr=False)
     request_id: Optional[str] = field(default=None, repr=False)
+    files: tuple[FileRef, ...] = field(default=(), repr=False)
 
     @property
     def key(self) -> tuple[datetime.datetime, str]:
@@ -110,9 +117,11 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
         if meta is not None and meta.chat_id == chat_id:
             text, person, request = item.get("plainText"), item.get("personId"), item.get("requestId")
             person_id = str(person).strip() if meta.is_answer and person is not None else ""
+            files = parse_files(meta.message_id, item) if meta.is_customer_signal and meta.has_file else ()
             lines.append(ChatLine(meta, text if isinstance(text, str) else "",
                                   person_id if _PERSON_ID.fullmatch(person_id) else None,
-                                  request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None))
+                                  request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None,
+                                  files))
     return sorted(lines, key=lambda line: line.key)
 
 
@@ -184,8 +193,8 @@ def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
     """비공개 메모 글(직원 내부 메모 · 우리 AI 메모의 직원 참고 칸) — 초안에 섞이면 검사가 막는다(R1-12).
 
-    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 줄
-    (:data:`MEMO_QUOTE_HEAD` — 코드가 쓴 계산기 값)도 뺀다 — 다음 초안이 같은 제품 이름 · 값을 쓰는 것을 막지 않게.
+    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 · 그림 읽기
+    줄(:data:`MEMO_CODE_HEADS` — 코드가 쓴 계산기 값 · 읽은 범위)도 뺀다 — 다음 초안이 같은 제품 이름 · 값을 쓰는 것을 막지 않게.
     """
     out: list[str] = []
     for line in lines:
@@ -194,7 +203,7 @@ def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
         text = line.text
         if text.lstrip().startswith(MEMO_HEAD):
             text = text.split(MEMO_NOTE_HEAD, 1)[1] if MEMO_NOTE_HEAD in text else ""
-            text = "\n".join(part for part in text.split("\n") if not part.lstrip().startswith(MEMO_QUOTE_HEAD))
+            text = "\n".join(part for part in text.split("\n") if not part.lstrip().startswith(MEMO_CODE_HEADS))
         out.append(text)
     return out
 

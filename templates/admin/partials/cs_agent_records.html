@@ -103,6 +103,19 @@
   </div>
   {% endif %}
 
+  {% set img = rec.images %}
+  <h2 class="h6 mt-4">오늘 그림 읽기(손님 도면 · 예시 — 숫자만)</h2>
+  {% if img.error %}
+  <p class="text-warning small mb-0">그림 읽기 숫자를 지금 셀 수 없습니다(기록 확인) — 다른 칸은 그대로입니다.</p>
+  {% else %}
+  <p class="small mb-1">보낸 장수 {{ img.sent }} · 돈 ${{ img.cost_usd }} · 평균 {{ img.avg_latency_ms }}ms ·
+    {% for st, count in img.by_state.items() %}{{ st }} {{ count }}{{ ' · ' if not loop.last }}{% else %}줄 없음{% endfor %}</p>
+  <p class="text-muted small mb-0">건너뜀 · 실패 까닭:
+    {% for code, count in img.by_skip.items() %}<code>{{ code }}</code> {{ count }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}
+    · 보인 개인정보 종류:
+    {% for code, count in img.personal.items() %}<code>{{ code }}</code> {{ count }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}</p>
+  {% endif %}
+
   <h2 class="h6 mt-4">최근 바꿈(관리 화면 · 20개)</h2>
   {% if state.changes %}
   <div class="table-responsive">

@@ -153,6 +153,11 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
             python, "scripts/maintenance/run_cs_loop.py", "--loop", "--interval", "900", "--json")))
         jobs.append(Job("cs_realtime", (python, "scripts/maintenance/run_cs_realtime.py", "--loop", "--json")))
 
+    # AI 상담팀원 그림 미리 읽기(설계서 17.11 (b)) — 손님 그림이 온 순간 따로 읽어 두는 2초 차례. 빠른 길 · 15분 바퀴와 다른
+    # 대표 잠금이다. 처음 끔인 기능이라 따로 켠다(끈 동안 WORKER 메모리가 늘지 않게) — 실제 일은 관리 화면 '그림 읽기'가 켠다.
+    if env.get("FOMS_CS_IMAGE_READ_ENABLED") == "1":
+        jobs.append(Job("cs_image_read", (python, "scripts/maintenance/run_cs_image_read.py", "--loop", "--json")))
+
     # 큐 소비 본체. `rq worker` CLI 대신 러너를 쓰는 이유: rq 하트비트 자리에서 RQ_WORKER 행을
     # side_effect_worker_heartbeats 에 함께 남긴다(2026-02 워커 offline 을 표만 봐서 몰랐다).
     # 루프는 전부 rq 뒤로 미룬다. 수집·정산은 같은 결과, 자동발송은 DB 로 하루 1회가 막혀 있어

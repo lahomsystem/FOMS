@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 655,
+    "broad_total": 656,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 42,
     "INTENTIONAL": 20,
-    "LOG_AND_CONTINUE": 427,
+    "LOG_AND_CONTINUE": 428,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 8,
     "runtime": 3,
-    "services": 204,
+    "services": 205,
     "storage": 24,
     "telemetry": 42,
     "web": 39
@@ -3689,7 +3689,16 @@
     },
     {
       "path": "foms/services/cs_agent/panel.py",
-      "lineno": 275,
+      "lineno": 276,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/cs_agent/panel.py",
+      "lineno": 286,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5372,7 +5381,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 408,
+      "lineno": 413,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5381,7 +5390,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 520,
+      "lineno": 525,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
