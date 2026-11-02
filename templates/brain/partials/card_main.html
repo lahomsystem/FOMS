@@ -1,4 +1,5 @@
-{#- 카드 '내용' 탭 — 글 · 핵심 칸 · 링크 종류 · 방향별 '관련(수)' · 근거 · 만든 이 · 승인자 · 바깥 정본 칩 · 사본 목록. -#}
+{#- 카드 '내용' 탭 — 글 · 핵심 칸 · 고칠 말 · 은퇴 · 지우기 제안 · 링크 종류 · 방향별 '관련(수)' · 근거 · 만든 이 · 승인자 ·
+    바깥 정본 칩 · 사본 목록. -#}
 {% if it.text %}<p class="brain-card__text">{{ it.text }}</p>{% endif %}
 
 <dl class="brain-fields">
@@ -8,8 +9,13 @@
   <dt>마지막 확인</dt><dd>{{ it.checked_at or '확인 날 없음' }}{% if it.stale_after %} · 다시 볼 날 {{ it.stale_after }}{% endif %}</dd>
   <dt>쓰인 횟수</dt><dd>{{ it.usage_count }}</dd>
   <dt>보기 범위</dt><dd>{{ visibility }}</dd>
+  {% for kf in card.key_fields %}
+  <dt>{{ kf.label }}</dt><dd data-brain-key-field="{{ kf.path }}">{{ kf.value or '—' }}</dd>
+  {% endfor %}
   <dt>판</dt><dd>판 {{ it.release_no if it.release_no is not none else '—' }}에서 반영 · 기록 {{ it.recorded_at or '—' }}</dd>
 </dl>
+
+{% include "brain/partials/card_propose.html" %}
 
 <section class="brain-section" aria-labelledby="brain-card-evidence">
   <h2 id="brain-card-evidence">근거 · 만든 이 · 승인자</h2>

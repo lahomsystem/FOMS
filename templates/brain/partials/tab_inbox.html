@@ -1,0 +1,18 @@
+{#- 화면 4 제안함('내 승인 대기') — 내가 결정할 수 있고 볼 수 있는 제안만, 항목마다 카드 하나(두 번째 제안은 같은 카드에 붙음).
+    카드는 brain-inbox-card.js 가 그리고 결정(넣기 · 고쳐 넣기 · 거절 까닭 칩 · PC 에서 볼게요 · 등급 A 한꺼번에)은 brain-inbox.js
+    가 POST /api/brain/proposals/<id>/… 로 보낸다. 휴대폰 폭에서는 칸 하나 고침의 넣기만 보이고 나머지는 'PC 에서 볼게요'. -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'inbox' else '' }} brain-pane" id="brain-tab-inbox" role="tabpanel"
+         aria-labelledby="brain-tab-inbox-btn" tabindex="0">
+  <div class="brain-inbox__bar">
+    <p class="brain-status-line" data-brain-inbox-status role="status" aria-live="polite"></p>
+    <button type="button" class="brain-btn brain-inbox__bulk" data-brain-bulk hidden>등급 A 모두 넣기</button>
+  </div>
+  <p class="brain-inbox__ai" data-brain-inbox-ai></p>
+  <p class="brain-inbox__phone-note" data-brain-phone-note>휴대폰에서는 칸 하나만 고치는 제안의 넣기와 '아직 맞음'만 합니다.
+    나머지는 PC 에서 결정해 주세요.</p>
+  <ol class="brain-inbox" data-brain-inbox></ol>
+  <details class="brain-inbox__later" data-brain-later-box hidden>
+    <summary data-brain-later-title>PC 에서 볼 것</summary>
+    <ol class="brain-inbox" data-brain-later></ol>
+  </details>
+</section>

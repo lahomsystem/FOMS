@@ -1,7 +1,8 @@
 /**
  * 회사 지식 화면 DOM 도움(HAUD master brain 설계서 7.5) — 요소 만들기(글은 textContent 만 · innerHTML 없음) · 유형 칩 ·
- * 항목 줄 · GET JSON 읽기(try/catch + data.success 확인) · 알림 줄. 쓰기(POST)는 이 단계에 없다.
- * window.FOMS_BRAIN_DOM 으로 내놓고 brain-page.js · brain-table.js · brain-releases.js · brain-map.js 가 같이 쓴다.
+ * 항목 줄 · JSON 읽기 · 쓰기(fetch 는 requestJson 한 곳 — try/catch + data.success 확인) · 알림 줄.
+ * 쓰기(POST)의 CSRF 머리는 공용 partials/shared/csrf_bootstrap.html 이 같은 출처 fetch 에 자동으로 싣는다(WRITE-GUARD-01).
+ * window.FOMS_BRAIN_DOM 으로 내놓고 회사 지식 화면 스크립트들이 같이 쓴다.
  */
 (function () {
   'use strict';
@@ -64,23 +65,36 @@
     while (node && node.firstChild) node.removeChild(node.firstChild);
   }
 
-  /** GET JSON — {ok, data, error}. 네트워크 · 꼴 오류는 정한 글로(서버 글은 정한 글만 온다). */
-  async function getJson(url) {
+  /** JSON 요청 — {ok, status, data, error}. 실패 답의 data(오류 코드 · 지금 판 같은 것)도 돌려준다.
+   *  네트워크 · 꼴 오류는 정한 글로(서버 글은 정한 글만 온다). */
+  async function requestJson(url, init) {
     try {
-      var response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      var response = await fetch(url, Object.assign({ credentials: 'same-origin' }, init || {}));
       var payload = null;
       try {
         payload = await response.json();
       } catch (parseError) {
-        return { ok: false, data: null, error: '답을 읽지 못했습니다(' + response.status + ').' };
+        return { ok: false, status: response.status, data: null, error: '답을 읽지 못했습니다(' + response.status + ').' };
       }
       if (!payload || payload.success !== true) {
-        return { ok: false, data: null, error: (payload && payload.error) || '불러오지 못했습니다.' };
+        return { ok: false, status: response.status, data: (payload && payload.data) || null,
+                 error: (payload && payload.error) || '처리하지 못했습니다.' };
       }
-      return { ok: true, data: payload.data, error: null };
+      return { ok: true, status: response.status, data: payload.data, error: null };
     } catch (networkError) {
-      return { ok: false, data: null, error: '연결이 끊겼습니다. 잠시 뒤 다시 해 주세요.' };
+      return { ok: false, status: 0, data: null, error: '연결이 끊겼습니다. 잠시 뒤 다시 해 주세요.' };
     }
+  }
+
+  /** GET JSON. */
+  function getJson(url) {
+    return requestJson(url, { headers: { Accept: 'application/json' } });
+  }
+
+  /** POST JSON(본문 객체). */
+  function postJson(url, body) {
+    return requestJson(url, { method: 'POST', body: JSON.stringify(body || {}),
+                              headers: { Accept: 'application/json', 'Content-Type': 'application/json' } });
   }
 
   /** data-* JSON 읽기(틀리면 fallback). */
@@ -94,5 +108,6 @@
   }
 
   window.FOMS_BRAIN_DOM = { el: el, icon: icon, typeChip: typeChip, badgeNodes: badgeNodes, itemRow: itemRow,
-                            setStatus: setStatus, clear: clear, getJson: getJson, safeJsonParse: safeJsonParse };
+                            setStatus: setStatus, clear: clear, getJson: getJson, postJson: postJson,
+                            safeJsonParse: safeJsonParse };
 })();

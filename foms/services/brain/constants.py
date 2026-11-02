@@ -115,6 +115,25 @@ LAYER_APPROVER_TEAMS: dict[str, str] = {LAYER_CS: "CS", LAYER_DRAWING: "DRAWING"
 #: 다시 확인 주기(7.5 '다시 확인' · 사장님 D103) — 가격 규칙 14일 · 제작 조건 · 정책 90일 · 도면 규칙 180일 · 용어 1년.
 #: 없는 유형은 낡음 날을 두지 않는다.
 STALE_DAYS: dict[str, int] = {"price_rule": 14, "build_rule": 90, "policy": 90, "drawing_rule": 180, "term": 365}
+#: '다시 확인' 화면에 '다가오는' 항목으로 넣는 날 수(낡음 날이 오늘부터 이 안).
+RECHECK_SOON_DAYS = 7
+
+# ── 제안함 · 결정(7.5 승인 흐름 · 사장님 D103 — 13절 13 · 14) ───────────────
+#: AI(에이전트) 제안은 한 주(한국 월요일 시작)에 이만큼만 제안함에 보인다 — 쓰인 횟수 순. 그 주에 결정한 AI 제안 수만큼 줄어든다.
+AI_WEEKLY_CAP = 20
+#: AI 제안은 만든 뒤 이 날 수가 지나면 '기간 끝남'으로 저절로 닫힌다(사람 제안은 닫지 않는다).
+AI_EXPIRE_DAYS = 28
+#: 사람이 화면에서 고칠 말을 제안할 수 있는 칸(정체 · 보기 범위 · 실음 칸은 설계서 · 코드 길로만).
+HUMAN_EDIT_FIELDS: tuple[str, ...] = ("name", "text", "valid_from", "valid_to")
+#: 한꺼번에 넣기 상한(등급 A 만).
+BULK_MAX = 50
+#: 결정 시간 측정 — 카드를 보인 뒤 이 밀리초 안에 누르면 '5초 안 누름'으로 센다(7.5 '잘 도는지 숫자로').
+FAST_DECISION_MS = 5000
+#: 등급 B '핵심 값 하나 직접 확인'에서 고를 칸 차례(바뀐 칸 가운데 앞의 것).
+KEY_FIELD_ORDER: tuple[str, ...] = (
+    "text", "name", "valid_to", "valid_from", "status", "visibility", "checked_at", "copies", "confidence",
+    "risk_grade", "evidence_ref", "evidence_kind", "payload",
+)
 
 # ── 지식 문서(상담 두뇌) ↔ 유형 ──────────────────────────────────────────
 #: 지식 문서 종류 → brain 유형 · 층. 다시 만들기는 이 짝을 거꾸로 쓴다.

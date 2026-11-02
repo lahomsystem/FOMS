@@ -1,4 +1,5 @@
-"""판 화면(설계서 7.5 화면 6) — 판 목록 · 판 차이 요약. **되돌리기는 다음 단계(⑤-3)** — 여기는 읽기만.
+"""판 화면(설계서 7.5 화면 6) — 판 목록 · 판 차이 요약 · 층마다 되돌림 표시. 되돌리기 동작은 :mod:`.rollback`(ADMIN 만) —
+여기는 읽기만.
 
 판 줄(``brain_releases``)의 동작별 수 · 바뀐 키는 모든 범위를 섞어 센 값이라 그대로 보이면 볼 수 없는 항목 수가 샌다
 (4절 '모아 센 수에도 범위'). 그래서 화면 수는 **반영된 제안(``brain_changes``)을 보는 사람의 범위로 질의 단계에서 거른 뒤**
@@ -69,6 +70,20 @@ def _days(session: Any, numbers: list[int]) -> dict[int, str]:
     return {int(number): day.isoformat() for number, day in rows if day is not None}
 
 
+def _rollbacks(session: Any, numbers: list[int]) -> dict[tuple[int, str], dict[str, Any]]:
+    """(판 번호, 층) → 되돌림 표시(되돌린 판도 이력에 남는다 — 숫자 · 날만)."""
+    if not numbers:
+        return {}
+    rows = session.execute(select(BrainRelease.number, BrainRelease.layer, BrainRelease.diff)
+                           .where(BrainRelease.number.in_(numbers)))
+    out = {}
+    for number, layer, diff in rows:
+        mark = (diff or {}).get("rollback") if isinstance(diff, dict) else None
+        if mark:
+            out[(int(number), layer)] = {"into": mark.get("into"), "at": str(mark.get("at") or "")[:10]}
+    return out
+
+
 def release_page(session: Any, viewer: Viewer, *, page: int = 1,
                  per_page: int = DEFAULT_PER_PAGE) -> dict[str, Any]:
     """판 목록 ``{"items": [{"number", "day", "import", "layers": [{"layer", "counts", "total"}]}], "total", ...}``."""
@@ -88,8 +103,10 @@ def release_page(session: Any, viewer: Viewer, *, page: int = 1,
         for number, layer, op, count in rows:
             layers[int(number)].setdefault(layer or "", {})[op] = int(count)
     days = _days(session, numbers)
+    marks = _rollbacks(session, numbers)
     items = [{"number": n, "day": days.get(n), "import": n == IMPORT_RELEASE,
-              "layers": [{"layer": layer, "counts": dict(sorted(counts.items())), "total": sum(counts.values())}
+              "layers": [{"layer": layer, "counts": dict(sorted(counts.items())), "total": sum(counts.values()),
+                          "rollback": marks.get((n, layer))}
                          for layer, counts in sorted(layers[n].items())]} for n in numbers]
     return {"items": items, "total": total, "page": page, "pages": pages, "per_page": per_page}
 

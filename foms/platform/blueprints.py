@@ -262,6 +262,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(brain_web_bp)
     app.register_blueprint(brain_api_bp)
 
+    # --- Lane: 회사 지식 제안함 · 다시 확인 · 판 되돌리기(설계서 7.5 화면 4 · 5 · 6 · ⑤-3) — JSON(/api/brain/inbox · proposals ·
+    # recheck · releases/<번호>/rollback · metrics). 쓰기는 CSRF · 정책 MANAGER_MUTATION(판 되돌리기 ADMIN_OPS), 실제 결정 판정은
+    # 서비스(층 승인자 · 사장님 몫 — D101). 읽기 API 와 같은 접두지만 경로가 겹치지 않고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.brain_review import brain_review_api_bp
+
+    app.register_blueprint(brain_review_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

@@ -60,6 +60,9 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     # AI 상담 [수정하기] 자세한 이유 사진 원본 90일 지우기(설계서 2026-10-27-cs-ai-agent 17.6.1 (b) · D94). 지울 줄이 없으면
     # 저장소를 열지 않는다. 저장소가 R2 가 아니면(이 서비스에 R2 env 없음) 줄을 '지움'으로 적지 않고 실패(exit 3)로 알린다.
     NightlyStep("purge_cs_edit_photos", "tools/cron/purge_cs_edit_photos.py", ("--apply",)),
+    # 회사 지식 AI 제안 4주 '기간 끝남' 닫기 · 기준 판 바뀐 열린 제안 표시(설계서 2026-11-02-haud-master-brain 7.7 · D103 · D104).
+    # 사람 제안은 닫지 않는다. 닫을 것이 없으면 아무것도 쓰지 않고 exit 0.
+    NightlyStep("expire_brain_proposals", "tools/cron/expire_brain_proposals.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]

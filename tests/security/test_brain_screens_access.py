@@ -4,7 +4,8 @@
 - 못 여는 사람: 다른 팀 MANAGER · STAFF · VIEWER · 꺼진 ADMIN → **404**(화면 · API 모두, 있는지도 알리지 않는다).
 - PARTNER: 협력사 문지기가 이 핸들러 앞에서 막는다 — **없는 주소와 똑같은 답**이고 brain 글은 한 글자도 없다. 문지기를 지나도
   (판정 함수) 열 수 없다.
-- 로그인 안 함: API 401 · 화면은 로그인으로. 쓰기 동작은 이 단계에 없다(POST 405).
+- 로그인 안 함: API 401 · 화면은 로그인으로. 읽기 블루프린트에는 쓰기 동작이 없다(POST 405) — 쓰기(제안 · 결정 · 되돌리기)는
+  따로 블루프린트(``brain_review_api``)이고 권한 · CSRF 시험은 ``test_brain_review_access.py``.
 합성 계정 · 합성 항목만.
 """
 
@@ -109,7 +110,7 @@ def test_hidden_item_answers_exactly_like_a_missing_item(app, people):
     assert _client(app, people["admin"]).get("/api/brain/items/common/discount").status_code == 200  # 대조군
 
 
-def test_there_are_no_write_routes_in_this_step(app, people):
+def test_read_blueprints_have_no_write_routes(app, people):
     client = _client(app, people["admin"])
     for path in ("/api/brain/search", "/api/brain/table", "/api/brain/items/common/door", "/api/brain/releases"):
         assert client.post(path, json={}).status_code in (403, 405), path  # 쓰기 가드(CSRF) 또는 없는 동작

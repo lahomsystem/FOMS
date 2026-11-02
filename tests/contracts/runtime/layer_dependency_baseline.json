@@ -177,6 +177,7 @@
     "foms/platform/blueprints.py::foms.api.admin",
     "foms/platform/blueprints.py::foms.api.attachments",
     "foms/platform/blueprints.py::foms.api.brain",
+    "foms/platform/blueprints.py::foms.api.brain_review",
     "foms/platform/blueprints.py::foms.api.channel",
     "foms/platform/blueprints.py::foms.api.construction",
     "foms/platform/blueprints.py::foms.api.cs",

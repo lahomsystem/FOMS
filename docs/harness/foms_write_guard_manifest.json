@@ -1057,6 +1057,30 @@
     "cs_agent_fix_api.cs_agent_fix_decide": {
       "mode": "guard",
       "rule": "/api/admin/cs-agent/fix-proposals/<proposal_id>/decide"
+    },
+    "brain_review_api.brain_propose": {
+      "mode": "guard",
+      "rule": "/api/brain/proposals"
+    },
+    "brain_review_api.brain_apply": {
+      "mode": "guard",
+      "rule": "/api/brain/proposals/<int:change_id>/apply"
+    },
+    "brain_review_api.brain_reject": {
+      "mode": "guard",
+      "rule": "/api/brain/proposals/<int:change_id>/reject"
+    },
+    "brain_review_api.brain_bulk_apply": {
+      "mode": "guard",
+      "rule": "/api/brain/proposals/bulk-apply"
+    },
+    "brain_review_api.brain_recheck_confirm": {
+      "mode": "guard",
+      "rule": "/api/brain/recheck/confirm"
+    },
+    "brain_review_api.brain_release_rollback": {
+      "mode": "guard",
+      "rule": "/api/brain/releases/<int:number>/rollback"
     }
   }
 }

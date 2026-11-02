@@ -50,6 +50,45 @@ class BrainPermissionError(BrainError):
     code = "BRAIN_FORBIDDEN"
 
 
+class BrainRejectedError(BrainTargetError):
+    """같은 항목 · 같은 동작 · 같은 새 값의 제안이 이미 거절됐다 — 다시 올리지 않는다(7.5 거절 까닭 칩)."""
+
+    code = "BRAIN_REJECTED_BEFORE"
+
+    def __init__(self, reject_code: str | None) -> None:
+        """앞 거절의 까닭 칩을 싣는다."""
+        super().__init__(f"같은 제안이 이미 거절됐다 — 까닭 {reject_code}")
+        self.reject_code = reject_code
+
+
+class BrainOpenProposalError(BrainTargetError):
+    """그 항목에 열린 제안이 있다 — '아직 맞음'은 제안함에서 그 제안을 먼저 결정한 뒤에."""
+
+    code = "BRAIN_OPEN_PROPOSAL"
+
+
+class BrainConfirmError(BrainError):
+    """등급 B 제안은 핵심 값 하나를 직접 확인해야 넣는다(7.5 '등급 B 는 핵심 값 하나를 직접 확인'). ``field`` 는 칸 이름만."""
+
+    code = "BRAIN_CONFIRM"
+
+    def __init__(self, field: str | None) -> None:
+        """확인할 칸 이름을 싣는다."""
+        super().__init__(f"핵심 값 확인이 필요하다: {field}")
+        self.field = field
+
+
+class BrainRollbackBlockedError(BrainError):
+    """판 되돌리기를 할 수 없다 — 뒤 판이 같은 항목 · 링크를 또 고쳤다(항목마다 되돌리기로). ``count`` 는 막힌 수만."""
+
+    code = "BRAIN_ROLLBACK_BLOCKED"
+
+    def __init__(self, count: int) -> None:
+        """막힌 항목 · 링크 수를 싣는다."""
+        super().__init__(f"뒤 판이 같은 항목을 고쳤다 — {count}개")
+        self.count = count
+
+
 class BrainGateError(BrainError):
     """에이전트 제안이 글 관문(개인정보 · 한자 · 숫자)을 넘지 못했다 — 제안함에 넣지 않는다."""
 
