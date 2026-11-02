@@ -43,6 +43,7 @@ from foms.services.cs_agent.brain_prompt import (
     CACHE_TTL_1H, CACHE_TTL_5M, MODEL, PURPOSE_DRAFT, PURPOSE_INTENT, SERVER_FALLBACK_MODELS,
 )
 from foms.services.cs_agent.brain_spend import worker_daily_cap
+from foms.services.cs_agent.edit_detail_settings import DETAIL_FIELDS
 from foms.services.cs_agent.image_settings import IMAGE_FIELDS
 from foms.services.cs_agent.settings_field import (
     EFFORT_CHOICES as _EFFORT_CHOICES, KIND_BOOL, KIND_CHOICE, KIND_INT, KIND_MONEY, MODEL_CHOICES as _MODEL_CHOICES,
@@ -114,8 +115,8 @@ FIELDS: tuple[Field, ...] = (
           help="비우면 WORKER env 그대로 — 그보다 높게는 저장되지 않는다(쓰는 값은 둘 가운데 작은 것). "
                "상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돈다(콘솔 상한에 닿은 날은 그날 멈춤)"),
     Field("learning_cap_usd_panel", "학습 돈 상한", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
-          help="스스로 배우기(설계서 17.6)에 쓰는 돈을 실시간 초안과 따로 묶는 칸 — 학습 길(C10-7)이 생길 때까지 잠김",
-          locked=True),
+          help="스스로 배우기(설계서 17.6 · 17.6.1 — 사진 설명 · 주간 고침 안)에 쓰는 하루 돈을 실시간 초안과 따로 묶는 칸. "
+               "비우면 학습 길은 부르지 않는다(막는 쪽). 학습 돈도 하루 돈 상한 안에 같이 센다"),
     Field("max_brain_calls_per_pass", "한 바퀴 두뇌 상한", KIND_INT, 10, GROUP_PICK, low=1, high=20, unit="번",
           locked=True),
     Field("max_wait_business_days", "묵은 상담 기준", KIND_CHOICE, 1, GROUP_PICK, _WAIT_CHOICES,
@@ -138,6 +139,7 @@ FIELDS: tuple[Field, ...] = (
                "재료에 넣는다. 금액은 계산기 값 · 승인 지식에서만, 0원 · 모르는 가격 방식 · 제작 조건에 안 맞음은 사람에게. "
                "끄면 예전 그대로(플랜 C10-6)"),
     *IMAGE_FIELDS,  # 그림 읽기(설계서 17.11) — 처음 끔
+    *DETAIL_FIELDS,  # 고친 까닭 자세히 · 사진 · 학습(설계서 17.6.1) — 처음 끔
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

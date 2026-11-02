@@ -4290,7 +4290,7 @@ class CsAgentTurn(Base):
     바탕 손님 글 id 는 ``last_user_message_id`` 그대로다. 보관 기간은 줄과 같다. 직원 번호 · 상담원 id 는 ADMIN 만 본다(R10-28).
     [보내기] · [수정하기](C10-3)는 보내기 상태 · 고칠 말 칸을 따로 둔다 — 차례 ``state`` 는 그대로 ``posted`` 다.
     쓰기 · 읽기는 :mod:`foms.services.cs_agent.turns` · :mod:`foms.services.cs_agent.case_memory` ·
-    :mod:`foms.services.cs_agent.send_flow`. DDL 은 migration(``csagent_01`` ~ ``csagent_04``)과 같다.
+    :mod:`foms.services.cs_agent.send_flow`. DDL 은 migration(``csagent_01`` ~ ``csagent_05``)과 같다.
     """
 
     __tablename__ = 'cs_agent_turns'
@@ -4359,6 +4359,11 @@ class CsAgentTurn(Base):
     rewrite_note_masked = Column(Text, nullable=True)
     rewrite_requested_at = Column(DateTime, nullable=True)
     rewrite_count = Column(Integer, nullable=False, default=0, server_default=text('0'))
+    # 고친 까닭 자세히(csagent_05 — 설계서 17.6.1 · D94): 가린 자세한 이유(가림 검사 0 일 때만 · 1,000자) · 적은 직원 번호(FK
+    # 없음 — ADMIN 만 봄) · 적은 때(UTC). 붙인 사진은 :class:`CsAgentTurnPhoto` 줄이다.
+    edit_detail_masked = Column(Text, nullable=True)
+    edit_detail_by = Column(Integer, nullable=True)
+    edit_detail_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 
@@ -4447,6 +4452,53 @@ class NoticeAck(Base):
 
     __table_args__ = (
         UniqueConstraint('notice_id', 'user_id', name='uq_notice_acks_notice_user'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# CS-AGENT 17.6.1: [수정하기] 자세한 이유에 붙인 사진 — 비공개 저장소 key · 숫자 · 가린 설명만(바이트 · 주소 · 파일 이름 없음)
+# --------------------------------------------------------------------------- #
+
+
+class CsAgentTurnPhoto(Base):
+    """직원이 [수정하기] '왜 고쳤나요(자세히)'에 붙인 사진 하나 = 줄 하나(설계서 17.6.1 (b) · D94).
+
+    원본은 비공개 저장소(R2)에만 있고 ``storage_key`` 는 ``cs-agent/edit-photos/<차례>/<uuid>.<jpg|png>`` 꼴이다(이름 · 상담 id ·
+    파일 이름 없음). 보기는 FOMS 라우트가 권한(ADMIN · 올린 직원 24시간)을 본 뒤 바이트를 흘려보낸다 — URL 칸은 없다.
+    ``sha256`` 은 받은 바이트의 지문(같은 차례에 같은 사진 두 번 막기), ``no_personal`` 은 직원 확인 칸('손님 얼굴 · 이름 · 전화 ·
+    주소가 안 보여요' — 켠 사진만 설명 뽑기 후보), ``desc_state`` 는 ``pending`` · ``done`` · ``leak`` · ``skipped`` ·
+    ``failed``, ``desc_masked`` 는 가린 사진 설명(300자 — 가림 검사 0 일 때만). 원본은 올린 날부터 90일 뒤 밤 단계가 지우고
+    (``storage_key`` NULL · ``purged_at``) 가린 설명은 남긴다. 직원 · ADMIN 이 지운 사진은 바로 저장소에서도 지운다. ``turn_id``
+    FK 는 지우기를 막는다 — 차례 줄을 지우는 단계는 저장소 사진을 먼저 지워야 한다. DDL 은 ``csagent_05`` 와 같다.
+    """
+
+    __tablename__ = 'cs_agent_turn_photos'
+
+    id = Column(Integer, primary_key=True)
+    turn_id = Column(Integer, ForeignKey('cs_agent_turns.id'), nullable=False)
+    seq = Column(Integer, nullable=False)
+    storage_key = Column(String(200), nullable=True)
+    content_type = Column(String(16), nullable=False)
+    bytes = Column(Integer, nullable=False)
+    width = Column(Integer, nullable=False)
+    height = Column(Integer, nullable=False)
+    sha256 = Column(String(64), nullable=False)
+    no_personal = Column(Boolean, nullable=False, default=False, server_default=text('false'))
+    desc_state = Column(String(8), nullable=False)
+    desc_masked = Column(Text, nullable=True)
+    desc_at = Column(DateTime, nullable=True)
+    uploaded_by = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    purged_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('turn_id', 'seq', name='uq_cs_agent_turn_photos_turn_seq'),
+        CheckConstraint("desc_state IN ('pending','done','leak','skipped','failed')",
+                        name='ck_cs_agent_turn_photos_desc_state'),
+        CheckConstraint("seq >= 1 AND seq <= 10", name='ck_cs_agent_turn_photos_seq'),
+        # 15분 바퀴가 설명 뽑을 사진(pending)을 찾는다 · 밤 단계가 90일 지난 원본을 찾는다.
+        Index('ix_cs_agent_turn_photos_desc_state_created', 'desc_state', 'created_at'),
+        Index('ix_cs_agent_turn_photos_created', 'created_at'),
     )
 
 

@@ -9,12 +9,15 @@
         공용 레이아웃(메뉴 · 알림 · 실시간 연결)은 싣지 않는다 — 빨리 떠야 한다. CSRF 는 공용 partial, 쓰기는
         static/js/cs-agent/send-screen.js 가 JSON API 로 보낸다(인라인 스크립트 · 스타일 없음). GET 은 보여 주기만 한다.
         C10-7: 결과 알림 칸은 [보내기] 바로 위(맨 아래에서 누르면 맨 위 알림이 안 보였다) · 고친 까닭은 안 골라도 보낸다 ·
-        '고칠 말'은 여러 줄 · 두 글 칸은 글에 맞춰 높이가 는다(data-cs-autosize). -#}
+        '고칠 말'은 여러 줄 · 두 글 칸은 글에 맞춰 높이가 는다(data-cs-autosize).
+        17.6.1: 고친 까닭 아래 접힌 칸 '왜 고쳤나요(자세히) · 사진'(관리 패널 스위치가 켜졌을 때만) — 보내기를 막지 않고, 보낸 뒤
+        static/js/cs-agent/edit-detail.js 가 이유(JSON) · 사진(한 장씩 multipart)을 따로 올린다. 응답 · 화면에 사진 주소는 없다. -#}
     {% include "partials/shared/csrf_bootstrap.html" %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261102a">
-    <script src="{{ url_for('static', filename='js/cs-agent/send-screen.js') }}?v=20261102a" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261102b">
+    <script src="{{ url_for('static', filename='js/cs-agent/send-screen.js') }}?v=20261102b" defer></script>
+    <script src="{{ url_for('static', filename='js/cs-agent/edit-detail.js') }}?v=20261102a" defer></script>
 </head>
 <body class="cs-send-body">
 {% if denied %}
@@ -52,6 +55,29 @@
         <option value="{{ code }}">{{ label }}</option>
         {% endfor %}
     </select>
+    {% if view.detail %}
+    <details class="cs-detail" data-cs-detail
+             data-detail-url="{{ url_for('cs_agent_edit_api.cs_agent_edit_detail', turn_id=turn) }}"
+             data-photo-url="{{ url_for('cs_agent_edit_api.cs_agent_edit_photo_add', turn_id=turn) }}"
+             data-photos="{{ '1' if view.detail.photos else '0' }}"
+             data-limits="{{ {'maxDetail': view.detail.max_detail, 'maxPhotos': view.detail.max_photos, 'maxBytes': view.detail.max_photo_bytes}|tojson|forceescape }}">
+        <summary class="cs-detail__summary">왜 고쳤나요(자세히){{ ' · 사진' if view.detail.photos }}</summary>
+        <p class="small text-muted mb-1">손님 이름 · 전화 · 주소는 적지 마세요 — 적으면 저장되지 않아요. 안 적어도 보내져요.</p>
+        <label class="visually-hidden" for="cs-detail-text">왜 고쳤나요(자세히)</label>
+        <textarea class="form-control cs-detail__text cs-send__grow" id="cs-detail-text" data-cs-detail-text data-cs-autosize
+                  maxlength="{{ view.detail.max_detail }}" rows="3" placeholder="예: 지식에 있는 깊이 값과 다르게 안내했어요"></textarea>
+        {% if view.detail.photos %}
+        <div class="cs-detail__drop" data-cs-detail-drop>
+            <p class="small mb-2">사진 붙여넣기(Ctrl+V) · 끌어놓기 · 고르기 — {{ view.detail.max_photos }}장까지(JPEG · PNG · WebP)</p>
+            <label class="btn btn-outline-secondary btn-sm mb-0" for="cs-detail-file">사진 고르기 · 찍기</label>
+            <input type="file" class="visually-hidden" id="cs-detail-file" data-cs-detail-file
+                   accept="image/jpeg,image/png,image/webp" multiple>
+        </div>
+        <ul class="cs-detail__photos" data-cs-detail-photos></ul>
+        {% endif %}
+        <button type="button" class="btn btn-outline-primary btn-sm d-none" data-cs-detail-save>이유 · 사진 다시 저장</button>
+    </details>
+    {% endif %}
     <div class="cs-send__rewrite">
         <label class="form-label small fw-semibold" for="cs-send-note">고칠 말 — AI 가 다시 써요(남은 {{ view.rewrite_left }}번)</label>
         <div class="cs-send__row">
@@ -77,6 +103,9 @@
         <div class="alert cs-send__msg {{ 'alert-warning' if view.blocked else 'd-none' }}"
              data-cs-send-msg data-foms-no-autodismiss role="status" aria-live="polite">{{ view.blocked or '' }}</div>
         <ul class="cs-send__warnings d-none" data-cs-send-warnings></ul>
+        {% if view.detail and mode == 'edit' %}
+        <p class="small cs-detail__status d-none" data-cs-detail-status role="status" aria-live="polite"></p>
+        {% endif %}
     </div>
 
     {% if not view.blocked %}

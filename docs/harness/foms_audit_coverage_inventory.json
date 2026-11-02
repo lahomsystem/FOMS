@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 256,
+    "total": 260,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 218,
+    "AUDITED": 222,
     "EXEMPT": 36,
     "UNAUDITED": 2
   },
@@ -410,6 +410,42 @@
       "path": "foms/api/cs/settlement_channel.py",
       "endpoint": "api_settlement_channel_sync",
       "lineno": 357,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_edit_detail.py",
+      "endpoint": "cs_agent_edit_detail",
+      "lineno": 77,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_edit_detail.py",
+      "endpoint": "cs_agent_edit_photo_add",
+      "lineno": 88,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_edit_detail.py",
+      "endpoint": "cs_agent_edit_photo_delete",
+      "lineno": 103,
+      "methods": [
+        "DELETE"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs_agent_fix_proposals.py",
+      "endpoint": "cs_agent_fix_decide",
+      "lineno": 70,
       "methods": [
         "POST"
       ],
@@ -1048,7 +1084,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "ack_notice",
-      "lineno": 214,
+      "lineno": 220,
       "methods": [
         "POST"
       ],
@@ -1057,7 +1093,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_create_notice",
-      "lineno": 110,
+      "lineno": 114,
       "methods": [
         "POST"
       ],
@@ -1066,7 +1102,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_delete_notice",
-      "lineno": 166,
+      "lineno": 170,
       "methods": [
         "DELETE"
       ],
@@ -1075,7 +1111,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "api_update_notice",
-      "lineno": 143,
+      "lineno": 147,
       "methods": [
         "PUT"
       ],
@@ -1084,7 +1120,7 @@
     {
       "path": "foms/api/notices/__init__.py",
       "endpoint": "read_notice",
-      "lineno": 234,
+      "lineno": 239,
       "methods": [
         "POST"
       ],

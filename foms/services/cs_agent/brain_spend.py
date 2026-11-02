@@ -32,7 +32,7 @@ from models import SideEffectWorkerHeartbeat, SystemSetting
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "DAILY_CAP_ENV", "HEARTBEAT_CAP_KEY", "SPEND_KEY", "BrainError", "BrainNotReady", "BrainUnavailable",
+    "DAILY_CAP_ENV", "HEARTBEAT_CAP_KEY", "LEARNING_SPEND_KEY", "SPEND_KEY", "BrainError", "BrainNotReady", "BrainUnavailable",
     "SpendCapReached", "WorkerCap", "add_spend", "check_budget", "daily_cap_usd", "heartbeat_cap_value", "kst_now",
     "reserve_spend", "settle_spend", "spent_today", "today_spend", "worker_daily_cap",
 ]
@@ -40,6 +40,11 @@ __all__ = [
 DAILY_CAP_ENV = "FOMS_CS_BRAIN_DAILY_USD"  # 하루 상한(달러) = 콘솔 월 상한 ÷ 30(11.1 의 6 ②) — 관리 화면 값의 천장
 #: 오늘 돈 줄 SystemSetting 키(두뇌만 쓴다).
 SPEND_KEY = "cs_agent_brain_spend"
+#: 학습 길(설계서 17.6.1 — 사진 설명 · 주간 고침 안) 돈 줄 키 — 같은 꼴, 패널 '학습 돈 상한'으로 따로 자른다(R10-22). 학습 돈은
+#: 하루 돈 줄(:data:`SPEND_KEY`)에도 같이 센다(두뇌 한 곳 :func:`.brain._send` 가 그 줄에 예약한다).
+LEARNING_SPEND_KEY = "cs_agent_learning_spend"
+_DESCRIPTIONS = {SPEND_KEY: "AI 상담팀원 두뇌 — 오늘(KST) 돈 · 예약(플랜 C3-2, 하루 상한 확인)",
+                 LEARNING_SPEND_KEY: "AI 상담팀원 학습 길 — 오늘(KST) 돈 · 예약(설계서 17.6.1, 학습 돈 상한 확인)"}
 #: 감시 루프(CS_LOOP) 하트비트 metadata 에서 WORKER env 하루 상한(달러 글, 없거나 틀리면 ``None``)을 담는 칸.
 HEARTBEAT_CAP_KEY = "daily_cap_usd"
 CAP_KNOWN, CAP_ABSENT, CAP_UNKNOWN = "ok", "missing", "unknown"  # WORKER 상한: 앎 · WORKER 에 없음 · 확인 안 됨
@@ -163,17 +168,17 @@ def _stored(value: Any, day: str) -> tuple[Decimal, Decimal, int]:
     return _money(value.get("usd")), _money(value.get("reserved", "0")), calls if isinstance(calls, int) else 0
 
 
-def spent_today(session: Any, *, now: Optional[datetime.datetime] = None) -> Decimal:
-    """오늘(KST) 상한에 드는 돈 = 바로잡은 돈 + 부르는 중 예약(잠그지 않고 읽는다)."""
-    row = session.get(SystemSetting, SPEND_KEY, populate_existing=True)
+def spent_today(session: Any, *, now: Optional[datetime.datetime] = None, key: str = SPEND_KEY) -> Decimal:
+    """오늘(KST) 상한에 드는 돈 = 바로잡은 돈 + 부르는 중 예약(잠그지 않고 읽는다). ``key`` 는 돈 줄(학습 줄은 따로)."""
+    row = session.get(SystemSetting, key, populate_existing=True)
     usd, reserved, _ = _stored(row.setting_value if row is not None else None, kst_now(now).date().isoformat())
     return usd + reserved
 
 
-def today_spend(session: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
+def today_spend(session: Any, *, now: Optional[datetime.datetime] = None, key: str = SPEND_KEY) -> dict[str, Any]:
     """관리 화면 읽기판 — 오늘(KST) 바로잡은 돈 · 예약 · 보낸 수(잠그지 않고 읽는다). 꼴이 틀리면 ``problem`` 코드만(던지지 않는다)."""
     day = kst_now(now).date().isoformat()
-    row = session.get(SystemSetting, SPEND_KEY, populate_existing=True)
+    row = session.get(SystemSetting, key, populate_existing=True)
     try:
         usd, reserved, calls = _stored(row.setting_value if row is not None else None, day)
     except BrainNotReady as exc:
@@ -181,27 +186,27 @@ def today_spend(session: Any, *, now: Optional[datetime.datetime] = None) -> dic
     return {"date": day, "usd": str(usd), "reserved": str(reserved), "calls": calls, "problem": None}
 
 
-def check_budget(session: Any, *, cap: Optional[Decimal] = None, now: Optional[datetime.datetime] = None) -> Decimal:
+def check_budget(session: Any, *, cap: Optional[Decimal] = None, now: Optional[datetime.datetime] = None,
+                 key: str = SPEND_KEY) -> Decimal:
     """부르기 전 돈 확인 — 오늘 돈(예약 포함)이 상한(없으면 env) 이상이면 :class:`SpendCapReached`. 오늘 돈을 돌려준다."""
     limit = daily_cap_usd() if cap is None else cap
-    spent = spent_today(session, now=now)
+    spent = spent_today(session, now=now, key=key)
     if spent >= limit:
-        logger.warning("[CS 두뇌] 오늘 돈이 하루 상한에 닿아 부르지 않는다 key=%s spent=%s cap=%s", SPEND_KEY, spent, limit)
+        logger.warning("[CS 두뇌] 오늘 돈이 하루 상한에 닿아 부르지 않는다 key=%s spent=%s cap=%s", key, spent, limit)
         raise SpendCapReached(DAILY_CAP_REACHED)
     return spent
 
 
 # ── 예약 · 바로잡기 ──────────────────────────────────────────────────────
-def _locked_row(session: Any) -> Any:
+def _locked_row(session: Any, key: str = SPEND_KEY) -> Any:
     """돈 줄을 잠가 읽는다(없으면 먼저 만들어 커밋 — 같은 때 다른 쪽이 만들었으면 그 줄)."""
-    if session.get(SystemSetting, SPEND_KEY) is None:
-        session.add(SystemSetting(setting_key=SPEND_KEY, setting_value={},
-                                  description="AI 상담팀원 두뇌 — 오늘(KST) 돈 · 예약(플랜 C3-2, 하루 상한 확인)"))
+    if session.get(SystemSetting, key) is None:
+        session.add(SystemSetting(setting_key=key, setting_value={}, description=_DESCRIPTIONS.get(key, key)))
         try:
             session.commit()
         except IntegrityError:
             session.rollback()
-    return session.get(SystemSetting, SPEND_KEY, populate_existing=True, with_for_update=True)
+    return session.get(SystemSetting, key, populate_existing=True, with_for_update=True)
 
 
 def _put(row: Any, day: str, usd: Decimal, reserved: Decimal, calls: int) -> None:
@@ -211,9 +216,10 @@ def _put(row: Any, day: str, usd: Decimal, reserved: Decimal, calls: int) -> Non
     row.version = int(row.version or 1) + 1
 
 
-def _read_locked(session: Any, now: Optional[datetime.datetime]) -> tuple[Any, str, Decimal, Decimal, int]:
+def _read_locked(session: Any, now: Optional[datetime.datetime],
+                 key: str = SPEND_KEY) -> tuple[Any, str, Decimal, Decimal, int]:
     """잠근 돈 줄과 오늘 값. 꼴이 틀리면 되돌려 잠금을 풀고 :class:`BrainNotReady`."""
-    row, day = _locked_row(session), kst_now(now).date().isoformat()
+    row, day = _locked_row(session, key), kst_now(now).date().isoformat()
     try:
         return (row, day, *_stored(row.setting_value, day))
     except BrainNotReady:
@@ -221,17 +227,18 @@ def _read_locked(session: Any, now: Optional[datetime.datetime]) -> tuple[Any, s
         raise
 
 
-def reserve_spend(session: Any, amount: Decimal, *, cap: Decimal, now: Optional[datetime.datetime] = None) -> Decimal:
+def reserve_spend(session: Any, amount: Decimal, *, cap: Decimal, now: Optional[datetime.datetime] = None,
+                  key: str = SPEND_KEY) -> Decimal:
     """보내기 전 최악값을 예약하고 커밋한다(원장 R7-3). 예약 합을 돌려준다.
 
     줄 ``FOR UPDATE`` 안에서 '바로잡은 돈 + 예약 + 이번 값'이 상한을 넘으면 되돌리고 :class:`SpendCapReached` — 바퀴가
     겹쳐도(두 컨테이너) 둘째는 첫째 예약을 보고 멈춘다.
     """
-    row, day, usd, reserved, calls = _read_locked(session, now)
+    row, day, usd, reserved, calls = _read_locked(session, now, key)
     if usd + reserved + Decimal(amount) > cap:
         session.rollback()
         logger.warning("[CS 두뇌] 예약하면 하루 상한을 넘어 부르지 않는다 key=%s spent=%s reserved=%s need=%s cap=%s",
-                       SPEND_KEY, usd, reserved, amount, cap)
+                       key, usd, reserved, amount, cap)
         raise SpendCapReached(DAILY_CAP_REACHED)
     _put(row, day, usd, reserved + Decimal(amount), calls)
     session.commit()
@@ -239,18 +246,19 @@ def reserve_spend(session: Any, amount: Decimal, *, cap: Decimal, now: Optional[
 
 
 def settle_spend(session: Any, reserved_amount: Decimal, cost: Decimal, *,
-                 now: Optional[datetime.datetime] = None) -> Decimal:
+                 now: Optional[datetime.datetime] = None, key: str = SPEND_KEY) -> Decimal:
     """예약을 실제 돈으로 바로잡고 커밋한다 — 예약을 빼고(0 아래로 안 내림) ``cost`` 를 더하고 보낸 수 +1. 바로잡은 돈 합을 돌려준다.
 
     날이 바뀐 뒤면 옛 날 예약은 이미 0 으로 본다(다른 날 값은 세지 않는다) — 돈은 오늘 합에 더한다.
     """
-    row, day, usd, reserved, calls = _read_locked(session, now)
+    row, day, usd, reserved, calls = _read_locked(session, now, key)
     usd += Decimal(cost)
     _put(row, day, usd, max(Decimal(0), reserved - Decimal(reserved_amount)), calls + 1)
     session.commit()
     return usd
 
 
-def add_spend(session: Any, cost_usd: Decimal, *, now: Optional[datetime.datetime] = None) -> Decimal:
+def add_spend(session: Any, cost_usd: Decimal, *, now: Optional[datetime.datetime] = None,
+              key: str = SPEND_KEY) -> Decimal:
     """쓴 돈을 오늘 합에 더해 커밋한다(예약 없이 — :func:`settle_spend` 의 예약 0). 새 합을 돌려준다."""
-    return settle_spend(session, Decimal(0), cost_usd, now=now)
+    return settle_spend(session, Decimal(0), cost_usd, now=now, key=key)

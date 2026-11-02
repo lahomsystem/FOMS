@@ -71,6 +71,8 @@ _LEGACY_MAX_FILES = 20
 _WIZARD_IMAGE_CAP = 10 * _MIB + 256 * _KIB
 _WIZARD_MAX_FILES = 1
 _ESTIMATE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
+#   - cs-agent edit photo         : ``edit_photos.py`` ``MAX_BYTES`` 5 MiB
+_CS_EDIT_PHOTO_CAP = 5 * _MIB + 256 * _KIB
 
 # Global outermost ceiling (replaces the old 500 MiB). Also the MAX_CONTENT_LENGTH.
 GLOBAL_BODY_CAP = 50 * _MIB + 256 * _KIB
@@ -125,6 +127,9 @@ _MANIFEST: tuple[BodyCap, ...] = (
     # 협력사 화면 사진 · 동영상 · 초안 도면(핸들러 상한 20 MiB 이미지 / 동영상)과 수정 요청 · AS 사진.
     # 빠져 있으면 1 MiB 기본 캡에 걸려 휴대폰 사진이 전부 413 이다(2026-10-29 운영 사고).
     BodyCap(r"^/api/partner/orders/\d+/(files|revision|as)$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    # AI 상담 [수정하기] 자세한 이유 사진(설계서 17.6.1 — 화면이 긴 변 2,048px 로 줄여 한 장씩, 핸들러 상한 5MB).
+    # 빠지면 1 MiB 기본 캡에 걸려 휴대폰 사진이 413 이다(위 10-29 협력사 사고와 같은 꼴).
+    BodyCap(r"^/api/cs-agent/turns/\d+/edit-photos$", _CS_EDIT_PHOTO_CAP, 1, "cs_edit_photo"),
 )
 
 # Presigned / direct-upload surfaces: the file bytes go browser -> R2/S3, only a

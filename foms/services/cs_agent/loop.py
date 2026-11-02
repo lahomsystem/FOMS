@@ -57,6 +57,7 @@ from foms.services.cs_agent.state_store import (
 from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.cs_agent.case_memory import PASS_LIMITS, attach_staff_replies
 from foms.services.cs_agent.drafting import DraftSummary, run_drafting
+from foms.services.cs_agent.learning_pass import run_learning
 from foms.services.cs_agent.send_record import reconcile_sends
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import DRAFT_OFF, SWITCH_OFF, SWITCH_ON, draft_mode, read_switch
@@ -276,6 +277,7 @@ class PassResult:
     realtime_drafting: bool = False  # 초안은 켜졌지만 빠른 길 몫이라 이 바퀴는 쓰지 않았다
     cases: Optional[dict[str, Any]] = None  # 직원 직접 답 붙이기(초안을 쓰는 바퀴만 — 숫자 · 코드만)
     sends: Optional[dict[str, int]] = None  # 결과 모름 [보내기] 맞추기(C10-3 — 맞출 줄이 있던 바퀴만)
+    learning: Optional[dict[str, Any]] = None  # 사진 설명 · 주간 고침 안(17.6.1 — 켠 길이 있던 바퀴만, 숫자 · 코드만)
 
     def summary(self) -> dict[str, Any]:
         """JSON 한 줄 요약 — 초안을 돈 바퀴만 ``drafting`` 칸, 사례를 붙인 바퀴만 ``cases`` 칸(숫자만)이 붙는다."""
@@ -292,6 +294,8 @@ class PassResult:
             out["cases"] = self.cases
         if self.sends:
             out["sends"] = self.sends
+        if self.learning:
+            out["learning"] = self.learning
         return out
 
 
@@ -362,6 +366,8 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
     mode = draft_mode(session)  # 초안 스위치(매 바퀴 DB 에서 새로) — 없거나 꺼졌으면 바퀴는 여기까지(예전 그대로)
     realtime_on = bool(read_settings(session, log=False).get("realtime_enabled"))
     session.commit()
+    if mode != DRAFT_OFF:  # 학습 몫(17.6.1) — 15분 바퀴만(빠른 길 아님), 길마다 자기 스위치 · 학습 돈 상한을 본다
+        result.learning = run_learning(session, now=now, stop_check=stop.check)
     if mode == DRAFT_OFF or realtime_on:  # 빠른 길이 켜져 있으면 초안은 빠른 길 몫(보정 · 아침 보고만 — 설계서 17.3)
         result.realtime_drafting = realtime_on and mode != DRAFT_OFF
         return

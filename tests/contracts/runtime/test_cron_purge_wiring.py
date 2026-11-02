@@ -39,6 +39,8 @@ _REQUIRED_STEPS = (
     ("tools/cron/cleanup_order_drafts.py", "--execute"),
     ("tools/ops/purge_order_mutation_receipts.py", "--apply"),
     ("tools/ops/purge_audit_logs.py", "--apply"),
+    # AI 상담 자세한 이유 사진 원본 90일(설계서 2026-10-27-cs-ai-agent 17.6.1 (b) · D94).
+    ("tools/cron/purge_cs_edit_photos.py", "--apply"),
 )
 
 #: 셸이 없으면 뜻을 잃는 문법. Dockerfile 서비스는 startCommand 를 셸 없이 exec 한다.
