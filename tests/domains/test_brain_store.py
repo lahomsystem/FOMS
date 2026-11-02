@@ -29,7 +29,15 @@ from foms.services.brain.proposals import (
 from foms.services.brain.releases import release_number
 from foms.services.brain.store import current_object
 from models import SecurityLog
-from tests.support.brain_support import NOW, REASON, create, link, person, values
+from tests.support.brain_support import NOW, REASON, TWO_SOURCES, agent_judge, create, link, person, values
+
+
+@pytest.fixture(autouse=True)
+def _agent_judge():
+    """에이전트 제안의 관문 ②(부딪침 — 7.7 · D105)를 합성 판정자로 넘긴다(모델을 부르지 않는다)."""
+    with agent_judge():
+        yield
+
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "migrations" / "versions" / "brain_00_master_brain_tables.py"
@@ -64,7 +72,8 @@ def test_allowed_pairs_follow_the_spec_table():
     assert not c.link_allowed("template", "supersedes", "policy")  # 앞 항목을 대체하는 것은 사장님 결정만
     assert not c.link_allowed("case", "evidence_of", "case")  # 관찰은 정체 항목의 근거로만
     assert not any(c.link_allowed(f, "caused_by", t) for f in c.TYPES for t in c.TYPES)  # 판 3 전 — 짝 0
-    assert set(c.ALLOWED_LINKS) == set(c.LINK_KINDS) and len(c.LINK_KINDS) == 9
+    assert set(c.ALLOWED_LINKS) == set(c.LINK_KINDS) and len(c.LINK_KINDS) == 10  # 4절 아홉 + about(점검 지금 8)
+    assert c.link_allowed("conflict", "about", "spec") and not c.link_allowed("spec", "about", "conflict")
     assert all(set(layers) <= set(c.LAYERS) for layers in c.TYPE_LAYERS.values())
     assert set(c.TYPE_LAYERS) == set(c.TYPES) == set(c.TYPE_GRADES)
 
@@ -202,7 +211,7 @@ def test_retire_goes_through_the_apply_action_and_keeps_history(app):
     admin = person(db_session, "br_admin")
     create(db_session, admin, "common/door")
     change = propose_retire(db_session, key="common/door", base_version=1, reason=REASON,
-                            proposer=Proposer.agent_named("cs_agent"))
+                            proposer=Proposer.agent_named("cs_agent"), evidence=TWO_SOURCES)
     assert change.grade == c.GRADE_B and change.status == "open"
     assert current_object(db_session, "common/door").status == "active"  # 제안만으로는 아무것도 안 바뀐다
     apply_change(db_session, change.id, actor=admin, now=NOW)
@@ -266,10 +275,11 @@ def test_agent_proposals_must_pass_the_text_gates(app):
     for text in (hanja, "합성 길이 35 넘음"):  # 승인 지식에 없는 숫자
         with pytest.raises(BrainGateError):
             propose_create(db_session, key="lahom/sit", brand="LAHOM", layer="cs", item_type="situation",
-                           values=values("sit", text=text), reason=REASON, proposer=agent, known="합성 길이 20")
+                           values=values("sit", text=text), reason=REASON, proposer=agent, evidence=TWO_SOURCES,
+                           known="합성 길이 20")
     ok = propose_create(db_session, key="lahom/sit", brand="LAHOM", layer="cs", item_type="situation",
                         values=values("sit", text="합성 길이 20 안쪽"), reason=REASON, proposer=agent,
-                        known="합성 길이 20")
+                        evidence=TWO_SOURCES, known="합성 길이 20")
     assert ok.gates["numbers"] == "pass" and ok.gates["hanja"] == "pass" and ok.gates["mask"] == "pass"
     person_made = propose_create(db_session, key="lahom/sit2", brand="LAHOM", layer="cs", item_type="situation",
                                  values=values("sit2", text=hanja), reason=REASON, proposer=Proposer.user(1), known="")

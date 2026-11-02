@@ -23,8 +23,9 @@ from sqlalchemy import select
 from foms.persistence.brain.models import BrainObject
 from foms.services.brain.apply import apply_change
 from foms.services.brain.constants import BRAND_COMMON, DOC_TYPES, KIND_TYPES, STATUS_RETIRED
-from foms.services.brain.doc_bridge import SYNC_FIELDS, doc_values
+from foms.services.brain.doc_bridge import IMPORT_SCOPE_OVERRIDES, SYNC_FIELDS, doc_values
 from foms.services.brain.gates import FAIL
+from foms.services.brain.labels import LABEL_PAYLOAD_KEYS
 from foms.services.brain.proposals import (
     IMPORT_PROPOSER, propose_create, propose_delete, propose_retire, propose_update,
 )
@@ -128,7 +129,14 @@ def plan_import(session: Any, desired: Mapping[str, Desired]) -> ImportPlan:
             plan.creates.append(wanted)
             continue
         values = values_of(row)
-        after = {name: wanted.values[name] for name in SYNC_FIELDS if values[name] != wanted.values[name]}
+        want = dict(wanted.values)
+        if isinstance(want.get("payload"), dict) and isinstance(values.get("payload"), dict):  # brain 에서 단 이름표는 그대로
+            kept = {k: v for k, v in values["payload"].items() if k in LABEL_PAYLOAD_KEYS}
+            want["payload"] = {**want["payload"], **kept}
+        after = {name: want[name] for name in SYNC_FIELDS if values[name] != want[name]}
+        doc_id = (want.get("payload") or {}).get("doc_id")
+        if doc_id in IMPORT_SCOPE_OVERRIDES and values["visibility"] != IMPORT_SCOPE_OVERRIDES[doc_id]:
+            after["visibility"] = IMPORT_SCOPE_OVERRIDES[doc_id]  # 정해 둔 항목만 범위를 맞춘다(점검 지금 5)
         if after:
             plan.updates.append((wanted, row, after))
         else:

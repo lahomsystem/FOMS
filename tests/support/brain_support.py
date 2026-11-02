@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from werkzeug.security import generate_password_hash
 
+from foms.services.brain.ai_gates import judge_source
 from foms.services.brain.apply import apply_change
 from foms.services.brain.external import catalog_source
 from foms.services.brain.proposals import Proposer, propose_create, propose_link
@@ -27,6 +28,20 @@ SYNTH_CATALOG = Catalog(
     products=({"id": 1, "name": "합성 제품 하나", "pricing_type": "30cm", "price_30cm": 1000, "price_1cm": 40},
               {"id": 7, "name": "합성 문짝 제품", "pricing_type": "1m", "price_1m": 2000}),
     option_categories=({"id": 3, "name": "합성 옵션 묶음", "options": [{"id": 5, "name": "합성 손잡이", "price": 300}]},))
+
+
+#: 에이전트 제안의 근거 관문(서로 다른 근거 2곳 — 7.7 · D105)을 넘는 합성 근거 id.
+TWO_SOURCES = ("case:synth-a", "case:synth-b")
+
+
+def no_conflict(_session: Any, _first: str, _second: str) -> bool:
+    """합성 판정자 — 늘 '부딪침 없음'(에이전트 제안 관문 ②를 모델 없이 넘긴다)."""
+    return False
+
+
+def agent_judge():
+    """에이전트 제안 시험용 판정자 끼우기(:func:`foms.services.brain.ai_gates.judge_source`)."""
+    return judge_source(no_conflict)
 
 
 def synth_catalog() -> Catalog:

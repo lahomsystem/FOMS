@@ -63,6 +63,14 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     # 회사 지식 AI 제안 4주 '기간 끝남' 닫기 · 기준 판 바뀐 열린 제안 표시(설계서 2026-11-02-haud-master-brain 7.7 · D103 · D104).
     # 사람 제안은 닫지 않는다. 닫을 것이 없으면 아무것도 쓰지 않고 exit 0.
     NightlyStep("expire_brain_proposals", "tools/cron/expire_brain_proposals.py", ("--apply",)),
+    # 회사 지식 물어보기 기록 1년 지우기(설계서 2026-11-02-haud-master-brain 10.3). 지울 것이 없으면 exit 0.
+    NightlyStep("purge_brain_questions", "tools/cron/purge_brain_questions.py", ("--apply",)),
+    # 회사 지식 빈 지식 목록 주 1회(10.3 — 설정 '빈 지식 묶기'가 꺼져 있으면(처음 값) 아무것도 안 하고 exit 0,
+    # 이번 주 목록이 있으면 exit 0, 켜 놓고 부를 수 없으면 exit 3).
+    NightlyStep("brain_chat_gaps", "tools/cron/brain_chat_gaps.py", ("--apply",)),
+    # 회사 지식 의미 찾기 벡터 다시 넣기(사장님 D114 — 설정 '의미 찾기'가 꺼져 있으면(처음 값) · 열쇠 env · 돈 상한 · pgvector
+    # 표가 없으면 아무것도 안 하고 exit 0, 켜 놓고 부르다 실패하면 exit 3).
+    NightlyStep("brain_embed", "tools/cron/brain_embed.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]

@@ -2,7 +2,9 @@
 
 제안 하나 = 바꿀 항목 · 칸별 전 → 후 · 기준 판 · 까닭 · 근거 id · 등급 · 층. 만들 때 꼴 검사와 글 관문(:mod:`.gates`)을 돌려
 결과를 ``gates`` 에 남긴다. **에이전트 제안**은 글 관문 하나라도 떨어지면 제안함에 넣지 않는다(:class:`BrainGateError`).
-사람 · 옮기기 제안은 결과만 남기고 승인자가 본다. 부딪침(Haiku) · 근거 수 · 평가 묶음 관문은 아직 돌리지 않는다(``not_run``).
+에이전트 제안은 **안 돌던 관문 셋**(부딪침 — 두 순서 · 서로 다른 근거 2곳 · 평가 묶음 재시험 — :mod:`.ai_gates`, 7.7 · D105)도
+실제로 돌리고, 떨어지거나 부딪침 판정을 못 하면 넣지 않는다. 사람 · 옮기기 제안은 예전 그대로 결과만 남기고(``not_run``)
+승인자가 본다.
 
 - 링크 더하기 제안은 바깥 정본 끝(``calc:`` · ``setting:``)이 정말 있는지 본다(:func:`.external.require_refs` — 7.7 · D105).
 - 은퇴 · 지우기도 제안이다(7.5 — 지우기가 승인을 비켜 가지 않게). 항목 하나 되돌리기 = **옛 값을 새 제안으로**
@@ -22,8 +24,9 @@ from typing import Any, Iterable, Mapping, Optional
 from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
+from foms.services.brain.ai_gates import blocking, run_ai_gates
 from foms.services.brain.constants import (
-    CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, OBSERVED, GRADE_A, GRADE_B, GRADES, KEY_RE, LINK_KINDS, MAX_EVIDENCE, MAX_REASON,
+    AGENT_WORK_TYPES, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, OBSERVED, GRADE_A, GRADE_B, GRADES, KEY_RE, LINK_KINDS, MAX_EVIDENCE, MAX_REASON,
     MAX_REF, OP_CREATE, OP_DELETE, OP_LINK_ADD, OP_LINK_REMOVE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE, STATUS_RETIRED,
     TYPE_GRADES, external_type, heavier_grade, link_allowed,
 )
@@ -88,13 +91,27 @@ def _common_problems(reason: Any, evidence: Any, grade: Any) -> list[str]:
     return problems
 
 
-def _gates(texts: Iterable[Optional[str]], known: str, proposer: Proposer) -> dict[str, str]:
-    """글 관문 결과. 에이전트 제안이 떨어지면 넣지 않는다."""
+def _gates(texts: Iterable[Optional[str]], known: str, proposer: Proposer,
+           item_type: Optional[str] = None) -> dict[str, str]:
+    """글 관문 결과. 에이전트 제안이 떨어지면 넣지 않는다 — 에이전트 일 유형(엇갈림 · 물어볼 것)은 지식이 아니라 알림이라
+    숫자 출처 관문은 결과만 남기고 막지 않는다(직원 고칠 말의 숫자 — 가림 · 한자는 그대로 막는다)."""
     result = text_gates(texts, known)
-    failed = [name for name, value in result.items() if value == FAIL]
+    failed = [name for name, value in result.items()
+              if value == FAIL and not (name == "numbers" and item_type in AGENT_WORK_TYPES)]
     if proposer.agent and failed:
         raise BrainGateError(failed)
     return {"form": "pass", **result, **_NOT_RUN}
+
+
+def _ai_gates(session: Any, gates: dict[str, str], proposer: Proposer, **kwargs: Any) -> dict[str, str]:
+    """에이전트 제안이면 관문 셋(:mod:`.ai_gates`)을 돌려 결과를 얹는다 — 막는 관문이 있으면 넣지 않는다. 사람은 그대로."""
+    if not proposer.agent:
+        return gates
+    result = run_ai_gates(session, **kwargs)
+    failed = blocking(result)
+    if failed:
+        raise BrainGateError(failed)
+    return {**gates, **result}
 
 
 def after_values(fields: Optional[Mapping[str, Any]]) -> dict[str, Any]:
@@ -155,7 +172,9 @@ def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type:
         raise BrainShapeError(problems)
     if current_object(session, key) is not None:
         raise BrainTargetError(f"이미 지금 판이 있는 키다: {key}")
-    gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer)
+    gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer, item_type)
+    gates = _ai_gates(session, gates, proposer, op=OP_CREATE, key=key, item_type=item_type,
+                      texts=[full["name"] or "", full["text"] or ""], evidence=evidence, after=full)
     return _insert(session, now=now, op=OP_CREATE, item_key=key, brand=brand, layer=layer, item_type=item_type,
                    fields={n: {"before": None, "after": v} for n, v in full.items() if v is not None},
                    reason=reason.strip(), evidence=evidence, gates=gates, rollback_of_version=rollback_of,
@@ -188,6 +207,8 @@ def propose_update(session: Any, *, key: str, base_version: int, after: Mapping[
         raise BrainShapeError(problems)
     texts = [new[name] for name in ("name", "text") if name in changed]
     gates = _gates(texts, known_text(session) if known is None else known, proposer)
+    gates = _ai_gates(session, gates, proposer, op=OP_UPDATE, key=key, item_type=current.item_type,
+                      texts=[t or "" for t in texts], evidence=evidence, before=before, after=new)
     return _insert(session, now=now, op=OP_UPDATE, item_key=key, brand=current.brand, layer=current.layer,
                    item_type=current.item_type, base_version=current.version,
                    fields={n: {"before": before[n], "after": new[n]} for n in changed}, reason=reason.strip(),
@@ -211,7 +232,9 @@ def _propose_end(session: Any, op: str, *, key: str, base_version: int, reason: 
               else {n: {"before": v, "after": None} for n, v in before.items() if v is not None})
     return _insert(session, now=now, op=op, item_key=key, brand=current.brand, layer=current.layer,
                    item_type=current.item_type, base_version=current.version, fields=fields, reason=reason.strip(),
-                   evidence=evidence, gates={"form": "pass", **_NOT_RUN}, grade=GRADE_B, proposed_by=proposer.name,
+                   evidence=evidence, grade=GRADE_B, proposed_by=proposer.name,
+                   gates=_ai_gates(session, {"form": "pass", **_NOT_RUN}, proposer, op=op, key=key,
+                                   item_type=current.item_type, texts=[], evidence=evidence, before=before),
                    rollback_of_version=rollback_of, action=action or ("propose_retire" if op == OP_RETIRE
                                                                       else "propose_delete"))
 
@@ -275,7 +298,9 @@ def propose_link(session: Any, *, op: str, kind: str, from_key: str, to_key: str
     return _insert(session, now=now, op=op, item_key=from_key, link_kind=kind, link_from=from_key, link_to=to_key,
                    brand=source.brand, layer=source.layer, item_type=source.item_type,
                    base_version=link.version if link is not None else None, fields=fields, reason=reason.strip(),
-                   evidence=evidence, gates={"form": "pass", **_NOT_RUN}, proposed_by=proposer.name,
+                   evidence=evidence, proposed_by=proposer.name,
+                   gates=_ai_gates(session, {"form": "pass", **_NOT_RUN}, proposer, op=op, key=from_key,
+                                   item_type=source.item_type, texts=[], evidence=evidence),
                    rollback_of_version=rollback_of, action=action,
                    grade=heavier_grade(grade or GRADE_A, TYPE_GRADES[source.item_type],
                                        GRADE_B if op == OP_LINK_REMOVE else GRADE_A))

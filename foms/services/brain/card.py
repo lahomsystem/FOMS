@@ -19,14 +19,16 @@ from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
 from foms.services.brain.external import ref_cards
 from foms.services.brain.quality import item_rules, missing_links
-from foms.services.brain.read import current_item, item_history
+from foms.services.brain.read import current_item, effect_state, item_history
 from foms.services.brain.schemas import get as schema_get
 from foms.services.brain.schemas import key_fields, payload_props
 from foms.services.brain.scope import Viewer, scope_clause
 from foms.services.brain.store import OBJECT_FIELDS, in_force, is_current
+from foms.services.brain.usage import usage_by_reader
 from foms.services.datetime_kst import format_datetime_kst
 from models import User
 
@@ -171,16 +173,20 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
     payload_values = {p.path: schema_get(item, p.path) for p in payload_props(item["type"])}
     item.pop("payload", None)  # 실음 칸 통째(지식 문서 꼴 · 내부 값)는 싣지 않는다 — 틀 칸만 위 두 묶음으로
     open_changes = open_change_count(session, key)
+    conflicts = open_conflict_counts(session, [key], today).get(key, 0)  # 이 항목에 대한 열린 엇갈림(점검 지금 8)
+    readers = usage_by_reader(session, key)  # 쓰인 횟수 — 판 줄 칸 + 따로 센 수(챗봇 · 상담 두뇌 — D105)
     return {
         "item": {**item, "stale": bool(stale_after and datetime.date.fromisoformat(stale_after) < today),
-                 "needs_check": open_changes > 0, "open_changes": open_changes,
+                 "needs_check": open_changes > 0 or conflicts > 0, "open_changes": open_changes,
+                 "usage_count": int(item.get("usage_count") or 0) + sum(readers.values()), "usage_readers": readers,
                  "recorded_at": _kst(item.get("recorded_at"))},
         "created_by": actor_label(item.get("created_by"), names),
         "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values,
         "links": link_groups(session, viewer, key, today=today),
-        "external": ref_cards(session, viewer, external_chips(session, key, today)),
+        "external": ref_cards(session, viewer, external_chips(session, key, today), layer=item["layer"]),
         "missing_links": missing_links(session, viewer, item, today=today),
         "link_rules": item_rules(item["type"]),
         "copies": list(item.get("copies") or []),
         "history": history_rows(session, viewer, key, names),
+        "effect": effect_state(session, item, today), "open_conflicts": conflicts,
     }

@@ -21,6 +21,7 @@ from foms.services.brain.constants import (
     MAX_PAYLOAD_CHARS, MAX_REF, MAX_TEXT, OBJECT_STATUSES, TYPE_LAYERS, TYPES, VISIBILITIES,
 )
 from foms.services.brain.doc_bridge import DOC_PAYLOAD_KEYS, doc_item_of
+from foms.services.brain.labels import LABEL_PAYLOAD_KEYS
 from foms.services.brain.schemas import schema_problems
 from foms.services.brain.store import DATE_FIELDS, LINK_FIELDS, OBJECT_FIELDS
 from foms.services.cs_agent.checks_rules import mask_marker_count
@@ -122,7 +123,7 @@ def _body_problems(values: Mapping[str, Any]) -> list[str]:
 def _doc_problems(values: Mapping[str, Any], brand: str, item_type: str) -> list[str]:
     """지식 문서 유형 — 지식 문서 꼴 검사(공통 항목은 브랜드마다). 문제 글은 칸 자리만."""
     payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
-    extra = sorted(str(k)[:40] for k in payload if k not in DOC_PAYLOAD_KEYS)
+    extra = sorted(str(k)[:40] for k in payload if k not in DOC_PAYLOAD_KEYS | LABEL_PAYLOAD_KEYS)
     problems = [f"payload: 모르는 칸 {extra}"] if extra else []
     item = doc_item_of(values, item_type)
     for doc_brand in (sorted(KNOWN_BRANDS) if brand == BRAND_COMMON else [brand]):

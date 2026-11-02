@@ -185,8 +185,9 @@ def test_write_routes_are_listed_in_the_policy_manifest(app):
     for endpoint, policy in WRITES.items():
         assert routes[endpoint]["policy_id"] == policy and routes[endpoint]["mode"] == "guard", endpoint
     brain_writes = {r.endpoint for r in app.url_map.iter_rules()
-                    if r.endpoint.startswith("brain_") and r.methods - {"GET", "HEAD", "OPTIONS"}}
-    assert brain_writes == set(WRITES)  # 읽기 블루프린트(brain_api · brain_web)에는 쓰기가 없다
+                    if r.endpoint.startswith("brain_") and not r.endpoint.startswith("brain_chat_api.")
+                    and r.methods - {"GET", "HEAD", "OPTIONS"}}
+    assert brain_writes == set(WRITES)  # 읽기 블루프린트(brain_api · brain_web)에는 쓰기가 없다(물어보기는 test_brain_chat_access)
 
 
 def test_the_page_shows_inbox_and_recheck_tabs_with_scoped_counts(app, ids):

@@ -129,7 +129,8 @@ def test_ended_items_and_links_leave_default_reads_but_open_directly(made):
     assert "common/oldfit" not in keys and "common/nextfit" in keys  # 끝 날 = 그날까지(대조군)
     rows = {r["key"] for r in table_page(db_session, v, TableQuery("build_rule", per_page=50), today=TODAY)["rows"]}
     assert "common/oldfit" not in rows and "common/nextfit" in rows
-    assert count_items(db_session, v, today=TODAY)["types"]["build_rule"] == 5  # 넷 + 오늘까지 하나
+    # 맞춤 · 새 규칙 + 오늘까지 하나 — 초안 · 은퇴는 기본 읽기 거르기(점검 지금 1)가 뺀다
+    assert count_items(db_session, v, today=TODAY)["types"]["build_rule"] == 3
     around = search_around(db_session, v, AroundQuery("common/door"), today=TODAY)
     reached = {i["key"] for i in around["items"]}
     assert "common/oldfit" not in reached and "common/nextfit" in reached

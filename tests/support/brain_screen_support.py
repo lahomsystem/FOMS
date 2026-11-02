@@ -15,7 +15,7 @@ from foms.persistence.brain.models import BrainObject
 from foms.services.brain.apply import apply_change
 from foms.services.brain.proposals import Proposer, propose_retire, propose_update
 from foms.services.brain.store import current_object
-from tests.support.brain_support import NOW, REASON, create, link, person, setting
+from tests.support.brain_support import NOW, REASON, TWO_SOURCES, agent_judge, create, link, person, setting
 
 #: 한국 2026-11-02 — :data:`tests.support.brain_support.NOW` 의 한국 날짜.
 TODAY = datetime.date(2026, 11, 2)
@@ -64,8 +64,9 @@ def graph(session: Any, admin: Any) -> None:
     fix = propose_update(session, key="common/door", base_version=1, after={"text": "합성 설명 고친 문짝"},
                          reason=REASON, proposer=Proposer.user(admin.id), now=NOW, known="")
     apply_change(session, fix.id, actor=admin, now=NOW)
-    propose_update(session, key="common/fit", base_version=1, after={"name": "문짝 맞춤 규칙 고침"}, reason=REASON,
-                   proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+    with agent_judge():  # 에이전트 제안은 관문 셋을 넘어야 들어간다(7.7 · D105)
+        propose_update(session, key="common/fit", base_version=1, after={"name": "문짝 맞춤 규칙 고침"}, reason=REASON,
+                       proposer=Proposer.agent_named("cs_agent"), now=NOW, known="", evidence=TWO_SOURCES)
     session.execute(update(BrainObject).where(BrainObject.item_key == "common/fresh",
                                               BrainObject.superseded_at.is_(None)).values(usage_count=9))
     session.execute(update(BrainObject).where(BrainObject.item_key == "common/fit",

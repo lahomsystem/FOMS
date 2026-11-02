@@ -23,6 +23,7 @@ from foms.services.brain.constants import CHANGE_OPEN, OWNER_ONLY_TYPES, RECHECK
 from foms.services.brain.errors import BrainConflictError, BrainOpenProposalError, BrainPermissionError
 from foms.services.brain.proposals import Proposer, propose_update
 from foms.services.brain.read import visible_clauses
+from foms.services.brain.usage import usage_sum, usage_total
 from foms.services.brain.review_rules import clamp_ms
 from foms.services.brain.scope import Viewer, viewer_of
 from foms.services.brain.store import kst_day
@@ -74,15 +75,16 @@ def summary_line(counts: dict[str, int]) -> str:
 
 def recheck_list(session: Any, viewer: Viewer, *, today: datetime.date, limit: int = MAX_ROWS) -> dict[str, Any]:
     """다시 확인 목록 — 쓰인 횟수 많은 순(같으면 낡음 날 이른 순). 줄마다 열린 제안 여부(같은 질의)."""
-    rows = session.execute(select(BrainObject, _open_change().label("open")).where(*_conditions(viewer, today))
-                           .order_by(BrainObject.usage_count.desc(), BrainObject.stale_after, BrainObject.item_key)
+    rows = session.execute(select(BrainObject, _open_change().label("open"), usage_sum().label("used"))
+                           .where(*_conditions(viewer, today))
+                           .order_by(usage_total().desc(), BrainObject.stale_after, BrainObject.item_key)
                            .limit(max(1, min(int(limit), MAX_ROWS)))).all()
     items = [{"key": row.item_key, "name": row.name, "type": row.item_type, "layer": row.layer, "brand": row.brand,
-              "version": row.version, "usage_count": int(row.usage_count or 0),
+              "version": row.version, "usage_count": int(row.usage_count or 0) + int(used or 0),
               "checked_at": row.checked_at.isoformat() if row.checked_at else None,
               "stale_after": row.stale_after.isoformat(), "overdue": row.stale_after < today,
               "days": (row.stale_after - today).days, "open": bool(is_open), "snippet": (row.text or "")[:120]}
-             for row, is_open in rows]
+             for row, is_open, used in rows]
     return {"items": items, "counts": recheck_counts(session, viewer, today=today)}
 
 

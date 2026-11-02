@@ -14,7 +14,10 @@ from typing import Any, Callable, Mapping, Optional
 from foms.services.brain.actions import ActionType, parse
 from foms.services.brain.decide import apply_decision, bulk_apply, record_proposal, reject_decision
 from foms.services.brain.errors import BrainPermissionError, BrainShapeError
-from foms.services.brain.proposals import Proposer, propose_delete, propose_retire, propose_rollback, propose_update
+from foms.services.brain.chat_reports import build_conflict_proposal
+from foms.services.brain.proposals import (
+    Proposer, propose_create, propose_delete, propose_retire, propose_rollback, propose_update,
+)
 from foms.services.brain.read import current_item, item_history
 from foms.services.brain.recheck import confirm_still_true
 from foms.services.brain.rollback import rollback_release
@@ -139,6 +142,24 @@ def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datet
     if name == "release_rollback":
         return _release_rollback(session, actor, p, now)
     raise BrainShapeError([f"action: 실행 길이 없는 액션 {name}"])
+
+
+def perform_agent(session: Any, name: Any, *, agent: str, body: Mapping[str, Any],
+                  now: Optional[datetime.datetime] = None) -> tuple[ActionType, dict[str, Any]]:
+    """코드(에이전트) 길 액션 하나 — 꼴 검사(:data:`.actions.AGENT_ACTION_TYPES`) → 서비스. 제안만 만든다(정본은 그대로).
+
+    제안한 이는 늘 ``agent:<이름>`` 이라 관문 셋(:mod:`.ai_gates`)이 돈다. 커밋은 호출자 몫이다.
+
+    Raises:
+        BrainError 갈래(꼴 · 대상 · 관문).
+    """
+    action, params = parse(name, body, agent=True)
+    when = now or now_utc_naive()
+    if action.name == "report_conflict":
+        change = build_conflict_proposal(session, key=params["key"], proposer=Proposer.agent_named(agent), now=when,
+                                         propose_create=propose_create)
+        return action, {"message": action.done, "change_id": change.id, "op": change.op, "grade": change.grade}
+    raise BrainShapeError([f"action: 실행 길이 없는 액션 {action.name}"])  # pragma: no cover
 
 
 def perform(session: Any, name: Any, *, actor: Any, body: Mapping[str, Any],

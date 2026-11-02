@@ -25,7 +25,15 @@ from foms.services.brain.scope import viewer_of
 from foms.services.brain.store import current_object
 from tests.support.brain_review_support import review_world
 from tests.support.brain_screen_support import TODAY
-from tests.support.brain_support import NOW, REASON, create, link, values
+from tests.support.brain_support import NOW, REASON, TWO_SOURCES, agent_judge, create, link, values
+
+
+@pytest.fixture(autouse=True)
+def _agent_judge():
+    """에이전트 제안의 관문 ②(부딪침 — 7.7 · D105)를 합성 판정자로 넘긴다(모델을 부르지 않는다)."""
+    with agent_judge():
+        yield
+
 
 LATER = NOW + datetime.timedelta(minutes=5)
 
@@ -47,7 +55,8 @@ def test_inbox_filters_by_scope_and_new_visibility_on_postgres(pg_session):
                                values=values("새 보이는 배운 점"), reason=REASON, proposer=Proposer.user(admin.id),
                                now=NOW, known="")
     ai = propose_update(pg_session, key="cs/lesson/photo", base_version=1, after={"text": "사진 먼저"},
-                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"),
+                        evidence=TWO_SOURCES, now=NOW, known="")
     pg_session.commit()
     cs = inbox(pg_session, viewer_of(who["cs_mgr"]), now=LATER)
     assert sorted(c["main"]["id"] for c in cs["cards"]) == sorted([ch["cs"], shown_new.id])
@@ -77,7 +86,8 @@ def test_decisions_recheck_rollback_and_metrics_on_postgres(pg_session):
     assert current_object(pg_session, "cs/lesson/photo").name == "사진부터 받기"
     with pytest.raises(BrainRejectedError):
         propose_update(pg_session, key="drawing/rule/final", base_version=1, after={"text": "최종 도면만 올린다"},
-                       reason="다시", proposer=Proposer.agent_named("drawing_agent"), now=LATER, known="")
+                       reason="다시", proposer=Proposer.agent_named("drawing_agent"),
+                       evidence=TWO_SOURCES, now=LATER, known="")
     listed = recheck_list(pg_session, viewer_of(admin), today=TODAY)
     assert [(i["key"], i["overdue"], i["open"]) for i in listed["items"]] == [
         ("common/fit", True, False), ("common/shipping", False, False)]  # 글 고침 승인은 확인 날을 옮기지 않는다
@@ -107,7 +117,8 @@ def test_d104_actions_schema_visibility_flags_and_confidence_on_postgres(pg_sess
     _a, made = perform(pg_session, "propose_edit", actor=admin, now=NOW,
                        body={"key": "common/depth", "base_version": 1, "after": {"payload.value": 650}, "reason": "r"})
     sibling = propose_update(pg_session, key="common/depth", base_version=1, after={"text": "같은 항목 둘째 제안"},
-                             reason=REASON, proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+                             reason=REASON, proposer=Proposer.agent_named("cs_agent"),
+                             evidence=TWO_SOURCES, now=NOW, known="")
     view = next(c for c in inbox(pg_session, viewer_of(admin), now=LATER)["cards"] if c["key"] == "common/depth")
     assert [(r["field"], r["before"], r["after"]) for r in view["main"]["fields"]] == [("payload.value", 600, 650)]
     perform(pg_session, "edit_apply", actor=admin, now=LATER,

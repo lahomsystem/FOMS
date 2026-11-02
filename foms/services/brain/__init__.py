@@ -24,4 +24,11 @@
   범위) · 뇌 보기 바탕 점. :mod:`.quality` — 연결 개수 규칙(최대는 반영 때 막고 최소는 '빠진 링크' · 품질 수).
   :mod:`.external` — ``calc:`` · ``setting:`` 가리킴 실재 확인(제안 · 반영) · 카드의 지금 값(보기 범위 안에서만).
   유효 기간으로 읽기(끝난 항목 · 링크는 기본 읽기 · 이웃 · 수에서 빠짐)는 :mod:`.read` 의 조건 하나.
+- ⑤-5(설계서 10절 · 7.7 D105 · D106 · D109 · D114 · 전사 지식 온톨로지 점검 '지금'): 물어보기(직원 챗봇) — :mod:`.chat_answer`
+  (답하는 길 한 곳) · :mod:`.chat_retrieve` · :mod:`.chat_tools`(유형 있는 읽기 도구 셋) · :mod:`.chat_prompt` · :mod:`.chat_model`
+  (상담 두뇌 부르기 · 따로 돈 줄) · :mod:`.chat_log` · :mod:`.chat_reports`(틀림 신고) · :mod:`.chat_gaps`(빈 지식) ·
+  :mod:`.chat_settings` · :mod:`.chat_access`(여는 단계). 기본 읽기 거르기 하나는 :func:`.read.effective_clauses`.
+  :mod:`.ai_gates`(AI 제안 관문 셋) · :mod:`.labels`(SKOS 이름표) · :mod:`.eval_set`(평가 질문 시험) · :mod:`.usage`(쓰인 횟수) ·
+  :mod:`.conflicts`(열린 엇갈림 — ``about``) · :mod:`.embeddings` · :mod:`.embed_sources`(의미 찾기 — 처음 끔, 근원 셋:
+  회사 지식 항목 · 물어보기 질문 · 상담 사례(백필만)).
 """
