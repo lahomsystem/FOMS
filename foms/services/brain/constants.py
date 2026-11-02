@@ -109,11 +109,12 @@ CHANGE_OPEN, CHANGE_APPLIED, CHANGE_REJECTED, CHANGE_EXPIRED = "open", "applied"
 REJECT_CODES: tuple[str, ...] = ("wrong_number", "one_customer", "not_policy", "needs_photo", "other")
 #: 사장님만 반영하는 유형(5절 — 가격 · 정책 · 사장님 결정). 공통 바탕 은퇴 · 지우기도 사장님만.
 OWNER_ONLY_TYPES: frozenset[str] = frozenset({"price_rule", "policy", "owner_decision"})
-#: 층 승인자 팀(5절 '그 층 승인자' — 설계서 13절 3 은 따로 여쭘). 그 팀의 켜진 MANAGER 가 사장님 몫이 아닌 제안을 반영한다.
+#: 층 승인자 팀(5절 '그 층 승인자' · 사장님 D101 — 그 팀 팀장). 그 팀의 켜진 MANAGER 가 사장님 몫이 아닌 제안을 반영한다.
 #: 공통 바탕은 승인자 팀이 없다(ADMIN 만).
 LAYER_APPROVER_TEAMS: dict[str, str] = {LAYER_CS: "CS", LAYER_DRAWING: "DRAWING", LAYER_PRODUCTION: "PRODUCTION"}
-#: 다시 확인 주기(7.5 '다시 확인' — 가격 규칙 14일, 다른 유형은 사장님이 정함 → 아직 없음).
-STALE_DAYS: dict[str, int] = {"price_rule": 14}
+#: 다시 확인 주기(7.5 '다시 확인' · 사장님 D103) — 가격 규칙 14일 · 제작 조건 · 정책 90일 · 도면 규칙 180일 · 용어 1년.
+#: 없는 유형은 낡음 날을 두지 않는다.
+STALE_DAYS: dict[str, int] = {"price_rule": 14, "build_rule": 90, "policy": 90, "drawing_rule": 180, "term": 365}
 
 # ── 지식 문서(상담 두뇌) ↔ 유형 ──────────────────────────────────────────
 #: 지식 문서 종류 → brain 유형 · 층. 다시 만들기는 이 짝을 거꾸로 쓴다.

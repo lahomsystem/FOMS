@@ -317,3 +317,9 @@ def test_brain_00_matches_the_models_and_is_the_single_head():
     assert trgm == {n for n, _ in module.TRGM_INDEXES}
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
     assert script.get_heads() == ["brain_00"]
+
+
+def test_recheck_periods_follow_the_owner_decision_d103():
+    from foms.services.brain.constants import STALE_DAYS, TYPES
+    assert STALE_DAYS == {"price_rule": 14, "build_rule": 90, "policy": 90, "drawing_rule": 180, "term": 365}
+    assert set(STALE_DAYS) <= set(TYPES)
