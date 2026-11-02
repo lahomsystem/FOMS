@@ -36,7 +36,7 @@
         <div class="foms-notice-images" data-notice-images-field data-upload-url="{{ api_base }}/images" data-max="{{ max_images }}">
           <div class="foms-notice-card__label mt-3">사진 <span class="foms-notice-images__count" data-images-count>0 / {{ max_images }}</span></div>
           <label class="foms-notice-drop" data-images-drop>
-            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple data-images-input>
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple data-foms-no-capture data-images-input>
             <i class="fas fa-images foms-notice-drop__icon" aria-hidden="true"></i>
             <span class="foms-notice-drop__title">사진을 끌어 놓거나 눌러서 고르세요</span>
             <span class="foms-notice-drop__help">JPG · PNG · WEBP · HEIC · 한 장 15MB · {{ max_images }}장까지. 받는 사람에게 작은 사진으로 보이고, 누르면 크게 보여요.</span>
@@ -150,6 +150,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset_url('js/admin/notices-draft.js') }}" defer></script>
 <script src="{{ asset_url('js/admin/notices-images.js') }}" defer></script>
 <script src="{{ asset_url('js/admin/notices-form.js') }}" defer></script>
 {% endblock %}
