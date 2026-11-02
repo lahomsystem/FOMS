@@ -9,7 +9,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests.conftest import ci_shard_of
+import json
+
+from tests.conftest import ci_shard_plan
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -55,18 +57,40 @@ def test_single_owner_steps_run_on_shard_one_only() -> None:
         assert "matrix.shard == 1" in if_line, name
 
 
+def _test_files() -> list[str]:
+    """본 스위트가 모으는 파일 — ci.yml `Run tests` 의 --ignore 와 같게 tests/visual·harness 를 뺀다."""
+    return sorted(
+        rel
+        for rel in (p.relative_to(REPO_ROOT).as_posix() for p in (REPO_ROOT / "tests").rglob("test_*.py"))
+        if not rel.startswith(("tests/visual/", "tests/harness/"))
+    )
+
+
 def test_every_test_file_lands_in_exactly_one_shard() -> None:
     total = len(_shards())
-    files = sorted(
-        p.relative_to(REPO_ROOT).as_posix()
-        for p in (REPO_ROOT / "tests").rglob("test_*.py")
-    )
+    files = _test_files()
     assert len(files) > 500
-    owners = [ci_shard_of(f, total) for f in files]
-    assert all(1 <= o <= total for o in owners)
-    assert set(owners) == set(range(1, total + 1))  # 빈 조각 없음
-    # 같은 경로는 운영체제 구분자와 무관하게 같은 조각이다(Windows 로컬 = Linux CI).
-    assert all(ci_shard_of(f.replace("/", "\\"), total) == ci_shard_of(f, total) for f in files[:50])
+    plan = ci_shard_plan(files, total)
+    assert sorted(plan) == files  # 모든 파일이 정확히 한 번
+    assert set(plan.values()) == set(range(1, total + 1))  # 빈 조각 없음
+    # Windows 구분자로 넘겨도 같은 배정이다(로컬 = Linux CI).
+    assert ci_shard_plan([f.replace("/", "\\") for f in files], total) == plan
+    # 순서를 바꿔 넘겨도 같은 배정이다(xdist 워커마다 수집 순서가 달라도 된다).
+    assert ci_shard_plan(list(reversed(files)), total) == plan
+
+
+def test_recorded_durations_balance_shards() -> None:
+    """기록 시간 기준 가장 무거운 조각이 평균보다 15% 넘게 무겁지 않다(crc32 때는 +20%)."""
+    total = len(_shards())
+    seconds = json.loads((REPO_ROOT / "tests" / "ci_shard_durations.json").read_text(encoding="utf-8"))["seconds"]
+    files = _test_files()
+    covered = sum(1 for f in files if f in seconds) / len(files)
+    assert covered >= 0.6, f"조각 시간 기록이 낡았다({covered:.0%}) — tools/harness/refresh_ci_shard_durations.py"
+    plan = ci_shard_plan(files, total)
+    loads = [0.0] * total
+    for f, shard in plan.items():
+        loads[shard - 1] += seconds.get(f, 0.0)
+    assert max(loads) <= sum(loads) / total * 1.15, loads
 
 
 def test_conftest_hook_reads_shard_env() -> None:

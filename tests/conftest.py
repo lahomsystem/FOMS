@@ -66,15 +66,41 @@ import foms.persistence.designer.models  # noqa: F401
 # --- CI-SHARD-01: CI 본 스위트를 파일 단위로 N 조각 나눠 동시에 돈다 -----------------
 # FOMS CI `Run tests`(약 5분)가 deploy 푸시·운영 PR 마다 한 번씩, 한 건에 두 번 도는 가장
 # 긴 구간이었다(2026-11-02 계측, 설계서 docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md).
-# `FOMS_TEST_SHARD=i/N` 이면 테스트 파일 경로의 crc32 % N == i-1 인 파일만 남긴다.
-# 파일 단위라 모듈 스코프 fixture 가 조각 사이에서 갈리지 않고(--dist loadfile 과 같은 이유),
-# 경로만으로 정해지므로 조각들의 합은 항상 전체와 같다(빠지거나 겹치는 파일이 없다).
+# `FOMS_TEST_SHARD=i/N` 이면 i 번 조각에 배정된 테스트 파일만 남긴다. 배정은 파일 단위라 모듈
+# 스코프 fixture 가 조각 사이에서 갈리지 않는다(--dist loadfile 과 같은 이유). 수집한 파일 전체로
+# 한 번에 정하므로 조각들의 합은 항상 전체와 같다(빠지거나 겹치는 파일이 없다).
 # 변수가 없으면(로컬 smoke·개별 실행) 아무것도 하지 않는다.
-def ci_shard_of(test_path: str, total: int) -> int:
-    """테스트 파일 경로가 속하는 조각 번호(1..total)."""
-    import zlib
+#
+# 처음엔 경로 crc32 로 나눴더니 무거운 파일이 한 조각에 몰려(기록 시간 174 · 232 · 174초) 그 조각이
+# 전체를 늦췄다. 이제 tests/ci_shard_durations.json 의 파일별 시간으로 큰 파일부터 가장 덜 찬
+# 조각에 넣는다. 기록에 없는 새 파일은 중간값으로 친다. 기록 갱신은
+# tools/harness/refresh_ci_shard_durations.py.
+_SHARD_DURATIONS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ci_shard_durations.json")
+#: 1번 조각은 lint·Redis·UI 구조 스텝(CI 약 25초)을 더 맡는다 — 그만큼 먼저 찬 것으로 친다.
+_SHARD_ONE_HEAD_START_SECONDS = 15.0
 
-    return zlib.crc32(test_path.replace("\\", "/").encode("utf-8")) % total + 1
+
+def ci_shard_plan(test_paths, total: int) -> dict[str, int]:
+    """테스트 파일 경로 → 조각 번호(1..total). 같은 입력이면 어느 프로세스에서도 같은 답이다."""
+    import json
+    import statistics
+
+    try:
+        with open(_SHARD_DURATIONS_PATH, encoding="utf-8") as handle:
+            seconds = json.load(handle)["seconds"]
+    except (OSError, ValueError, KeyError):
+        seconds = {}
+    paths = sorted({p.replace("\\", "/") for p in test_paths})
+    known = [seconds[p] for p in paths if p in seconds]
+    fallback = statistics.median(known) if known else 1.0
+    loads = [0.0] * total
+    loads[0] = _SHARD_ONE_HEAD_START_SECONDS if total > 1 else 0.0
+    plan: dict[str, int] = {}
+    for path in sorted(paths, key=lambda p: (-seconds.get(p, fallback), p)):
+        target = min(range(total), key=lambda k: (loads[k], k))
+        plan[path] = target + 1
+        loads[target] += seconds.get(path, fallback)
+    return plan
 
 
 def pytest_collection_modifyitems(config, items):
@@ -84,9 +110,10 @@ def pytest_collection_modifyitems(config, items):
     index, total = (int(part) for part in spec.split("/", 1))
     if not 1 <= index <= total:
         raise pytest.UsageError(f"FOMS_TEST_SHARD={spec!r}: 1..N 범위가 아니다")
+    plan = ci_shard_plan({item.nodeid.split("::", 1)[0] for item in items}, total)
     keep, drop = [], []
     for item in items:
-        (keep if ci_shard_of(item.nodeid.split("::", 1)[0], total) == index else drop).append(item)
+        (keep if plan[item.nodeid.split("::", 1)[0].replace("\\", "/")] == index else drop).append(item)
     if drop:
         config.hook.pytest_deselected(items=drop)
         items[:] = keep
