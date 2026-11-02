@@ -7,10 +7,13 @@
    부르지 않는다 — 돈 · 시간은 견적 문의일 때만).
 2. **계산기 설정 읽기** — 못 읽거나 라홈 제품이 없으면 그만(로그만 — 예전 그대로 초안).
 3. **뽑기(두뇌 구조화 출력 한 번)** — :func:`.quote_brain.extract_quote`. 견적 문의(``quote_request``)가 아니면 계산 없이 초안.
-   두뇌 오류(준비 안 됨 · 돈 상한 · 가림 · 못 씀)는 초안 두뇌와 같게 부르는 쪽이 다룬다(같은 ``except``).
+   두뇌 오류(준비 안 됨 · 돈 상한 · 가림 · 못 씀)는 초안 두뇌와 같게 부르는 쪽이 다룬다(같은 ``except``). 뽑기가 '크기는 손님
+   첨부에'(``size_in_attachment``)라 해도 두뇌 재료에 손님이 보낸 첨부 표시(:data:`.drafting_read.FILE_NOTE`)가 없으면 거짓으로
+   돌린다(모델이 지어낸 첨부로 가로 묻기를 건너뛰지 않게 — :func:`customer_sent_file`).
 4. **확인 날 · 제작 조건 · 계산** — 확인 날은 값 지문 기록(:func:`.quote_check.observe` — D74), 계산은
    :func:`.quote_calc.evaluate`. 제작 조건 줄을 못 읽으면 빈 규칙이 아니라 사람에게(R17-9). 결과가 사람에게(``human``)면 초안
-   없이 넘김 기록만. 나머지는 ``calculator_lines`` · 허용 목록 · 직원 참고 줄을 초안 차례에 넘긴다.
+   없이 넘김 기록만. 나머지는 ``calculator_lines`` · 허용 목록 · 직원 참고 줄을 초안 차례에 넘긴다 — 도면에서 크기 확인
+   (``size_in_drawing``)도 여기다: 금액 없는 초안 + 직원 참고 줄로 직원에게 간다(넘김 까닭 코드는 기록의 ``code``).
 
 결과 값(:meth:`QuoteStep.record` — 상태 · 두뇌 줄 · 허용 금액 줄)과 뽑기 호출의 토큰 · 돈 · 시간은 부르는 쪽
 (:meth:`.drafting_pass.DraftPass.quote`)이 초안 두뇌 **전에** 차례 줄에 적는다(R17-1 · R17-3). 글은 로그에 싣지 않는다.
@@ -27,7 +30,8 @@ from typing import Any, Callable, Iterable, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from foms.services.cs_agent.brain_prompt import DraftRequest, DraftResult
+from foms.services.cs_agent.brain_prompt import ROLE_USER, DraftRequest, DraftResult
+from foms.services.cs_agent.drafting_read import FILE_NOTE
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge
 from foms.services.cs_agent.quote_brain import QUOTE_INTENT, QuoteAsk, extract_quote
 from foms.services.cs_agent.quote_calc import HUMAN_RULE_UNREADABLE, RuleUnreadable, build_rules, evaluate
@@ -38,7 +42,10 @@ from foms.services.wdcalculator.catalog import Catalog, read_catalog
 
 logger = logging.getLogger("foms.services.cs_agent.drafting")
 
-__all__ = ["QUOTE_CUE", "SETTING", "STATUS_NOT_QUOTE", "QuoteStep", "looks_like_quote", "merge_usage", "prepare"]
+__all__ = [
+    "QUOTE_CUE", "SETTING", "STATUS_NOT_QUOTE", "QuoteStep", "customer_sent_file", "looks_like_quote", "merge_usage",
+    "prepare",
+]
 
 SETTING = "quote_calc_enabled"  # 관리 화면 칸 이름
 #: 견적 문의 같은 말(코드 거르기 — 뽑기를 부를지만 정한다. 정말 견적 문의인지는 뽑기가 정한다).
@@ -71,6 +78,11 @@ class QuoteStep:
 def looks_like_quote(texts: Iterable[str]) -> bool:
     """손님 글에 견적 · 값 · 크기 말이 있나(:data:`QUOTE_CUE`)."""
     return any(QUOTE_CUE.search(text or "") for text in texts)
+
+
+def customer_sent_file(request: DraftRequest) -> bool:
+    """두뇌 재료(최근 공개 글)에 손님이 보낸 첨부 표시가 있나 — 직원이 보낸 그림은 세지 않는다."""
+    return any(role == ROLE_USER and FILE_NOTE in text for role, text in request.messages)
 
 
 def merge_usage(result: DraftResult, step: Optional[QuoteStep]) -> DraftResult:
@@ -121,6 +133,8 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
     stop.check()  # 두뇌 전
     summary.brain_calls += 1
     ask = (quoter or extract_quote)(request, catalog, session=session, now=now)
+    if ask.size_in_attachment and not customer_sent_file(request):
+        ask = dataclasses.replace(ask, size_in_attachment=False)  # 손님 첨부가 없으면 예전처럼 가로를 묻는다
     if not ask.quote_request:
         step = QuoteStep(STATUS_NOT_QUOTE, usage=ask)
     elif unreadable:
