@@ -90,6 +90,38 @@ FIELD_LABELS: dict[str, str] = {
     "valid_to": "유효 끝", "checked_at": "마지막 확인", "evidence_kind": "근거 종류", "evidence_ref": "근거 위치",
     "visibility": "보기 범위", "copies": "사본 목록", "payload": "실음 칸",
 }
+#: 관문 이름 · 결과 이름(제안 카드 — 6절 다섯 관문 중 지금 도는 것과 아직 안 도는 것).
+GATE_LABELS: dict[str, str] = {"form": "꼴", "mask": "가림(개인정보 0)", "hanja": "한자 0", "numbers": "숫자 출처",
+                               "conflict": "승인 지식과 부딪침", "evidence": "근거 수", "eval": "평가 묶음 재시험"}
+GATE_VALUE_LABELS: dict[str, str] = {"pass": "통과", "fail": "안 됨", "not_run": "아직 안 돌림", "unavailable": "준비 안 됨"}
+#: 거절 까닭 칩(7.5 — 남겨서 같은 제안이 다시 오지 않게). 차례 = 화면 차례.
+REJECT_LABELS: dict[str, str] = {"wrong_number": "숫자 틀림", "one_customer": "한 손님 일", "not_policy": "정책 아님",
+                                 "needs_photo": "사진 필요", "other": "그 밖"}
+#: 유형별 '승인의 뜻' 한 줄(7.5 — 승인 = 명백한 문제 없음 확인, 위키백과 pending changes 꼴). 동작 줄 뒤에 붙는다.
+OP_MEANING: dict[str, str] = {
+    "create": "넣으면 새 항목이 생기고 에이전트 · 직원이 이 값을 읽기 시작해요.",
+    "update": "넣으면 이 항목의 새 판이 되고, 앞 판은 이력에 남아요.",
+    "retire": "넣으면 항목이 은퇴해 에이전트가 더는 쓰지 않아요(이력은 남아요).",
+    "delete": "넣으면 지금 판이 닫히고 이 항목에 이어진 링크도 닫혀요(이력은 남아요).",
+    "link_add": "넣으면 두 항목이 이 종류로 이어져요.",
+    "link_remove": "넣으면 두 항목의 이음이 끊겨요(이력은 남아요).",
+}
+TYPE_MEANING: dict[str, str] = {
+    "price_rule": "가격 규칙이라 손님에게 가는 금액이 바뀔 수 있어요 — 숫자를 직접 확인해 주세요.",
+    "policy": "정책이라 상담 · 도면 · 생산이 모두 따라요.",
+    "owner_decision": "사장님 결정 항목이에요.",
+    "template": "기준 답 문구라 에이전트가 손님에게 그대로 보낼 수 있는 글이에요.",
+    "drawing_rule": "도면 규칙이라 도면팀 · AI 도면팀원이 따라요.",
+}
+APPROVAL_NOTE = "승인은 '명백한 문제가 없다'는 확인이에요."
+
+
+def approval_meaning(op: str, item_type: str | None) -> str:
+    """제안 카드의 '승인의 뜻' 한 줄 — 동작 줄 + 유형 줄(있으면) + 승인 뜻."""
+    parts = [OP_MEANING.get(op, ""), TYPE_MEANING.get(item_type or "", ""), APPROVAL_NOTE]
+    return " ".join(part for part in parts if part)
+
+
 #: 지식 표 정렬 · 확인 거르기 이름.
 SORT_LABELS: dict[str, str] = {"usage": "쓰인 횟수 많은 순", "checked": "오래 확인 안 한 순", "name": "이름 순"}
 CHECK_LABELS: dict[str, str] = {"needs_check": "확인 필요(열린 제안)", "stale": "낡음(확인 날 지남)"}
@@ -123,6 +155,7 @@ def display_table() -> dict[str, Any]:
         "link_order": list(LINK_KINDS),
         "layers": LAYER_LABELS, "brands": BRAND_LABELS, "statuses": STATUS_LABELS, "confidences": CONFIDENCE_LABELS,
         "grades": GRADE_LABELS, "ops": OP_LABELS, "sorts": SORT_LABELS, "checks": CHECK_LABELS,
+        "fields": FIELD_LABELS, "gates": GATE_LABELS, "gate_values": GATE_VALUE_LABELS, "rejects": REJECT_LABELS,
         "visibilities": {v: visibility_label(v) for v in (SCOPE_ALL, SCOPE_PRICE, SCOPE_ADMIN,
                                                            *(SCOPE_TEAM_PREFIX + t for t in TEAMS))},
     }

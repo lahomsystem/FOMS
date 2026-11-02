@@ -1,0 +1,60 @@
+{#- 카드 '고칠 말 제안' — 이 항목을 볼 수 있는 사람 누구나 사람 제안을 만든다(제안함으로 · 정본은 승인 뒤 반영 동작이 쓴다).
+    단추는 이름 있는 액션 목록(foms/services/brain/actions.py — 제안 단계)에서, 고칠 칸은 이름 · 글 · 유효 기간 + 그 유형의
+    속성 틀 칸(foms/services/brain/schemas.py — 자료형 · 고른 값 · 단위)에서 그린다(7.7 · D104). 값 채우기 · 보내기는
+    brain-item-actions.js(data-current JSON → 칸 값, 글은 textContent · value 로만). -#}
+{% set icons = {'propose_edit': 'fa-pen', 'propose_retire': 'fa-box-archive', 'propose_delete': 'fa-trash-can'} %}
+<section class="brain-section brain-propose" aria-labelledby="brain-card-propose" data-brain-propose>
+  <h2 id="brain-card-propose">고칠 말 제안</h2>
+  <p class="brain-empty">제안은 제안함으로 가고, 그 층 승인자(사장님 · 그 팀 팀장)가 넣거나 거절합니다.
+    {%- if it.open_changes %} 이 항목에는 열린 제안이 {{ it.open_changes }}건 있어 새 제안은 같은 카드에 붙습니다.{% endif %}</p>
+  <div class="brain-propose__buttons">
+    {% for action in propose if not (action.name == 'propose_retire' and it.status == 'retired') %}
+    <button type="button" class="brain-btn{{ ' brain-btn--primary' if loop.first else '' }}"
+            data-brain-propose-open="{{ action.name }}" title="{{ action.summary }}">
+      <i class="fas {{ icons.get(action.name, 'fa-pen') }}" aria-hidden="true"></i>{{ action.label }}</button>
+    {% endfor %}
+  </div>
+  <form class="brain-propose__form" data-brain-propose-form hidden>
+    <p class="brain-propose__title" data-brain-propose-title></p>
+    <div class="brain-propose__fields" data-brain-propose-fields>
+      <label class="brain-propose__field">이름
+        <input class="form-control form-control-sm" name="name" maxlength="200" autocomplete="off"
+               data-brain-field="name" data-datatype="text"></label>
+      <label class="brain-propose__field">글
+        <textarea class="form-control form-control-sm" name="text" rows="4" maxlength="2000"
+                  data-brain-field="text" data-datatype="text"></textarea></label>
+      <label class="brain-propose__field brain-propose__field--half">유효 시작
+        <input class="form-control form-control-sm" type="date" name="valid_from" data-brain-field="valid_from"
+               data-datatype="date"></label>
+      <label class="brain-propose__field brain-propose__field--half">유효 끝
+        <input class="form-control form-control-sm" type="date" name="valid_to" data-brain-field="valid_to"
+               data-datatype="date"></label>
+      {% for prop in props %}
+      <label class="brain-propose__field brain-propose__field--half">{{ prop.label }}{% if prop.unit %}({{ prop.unit }}){% endif %}
+        {% if prop.datatype == 'enum' %}
+        <select class="form-select form-select-sm" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
+                data-datatype="enum">
+          <option value="">(없음)</option>
+          {% for choice in prop.choices %}<option value="{{ choice }}">{{ choice }}</option>{% endfor %}
+        </select>
+        {% elif prop.datatype in ('int', 'number') %}
+        <input class="form-control form-control-sm" type="number" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
+               data-datatype="{{ prop.datatype }}"{% if prop.low is not none %} min="{{ prop.low }}"{% endif %}
+               {%- if prop.high is not none %} max="{{ prop.high }}"{% endif %}{% if prop.datatype == 'number' %} step="any"{% endif %}>
+        {% else %}
+        <input class="form-control form-control-sm" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
+               data-datatype="{{ prop.datatype }}" autocomplete="off"
+               {%- if prop.datatype == 'list' %} placeholder="쉼표로 나눠 적기{% if prop.choices %} — {{ prop.choices|join(', ') }}{% endif %}"{% endif %}>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <label class="brain-propose__field">까닭(꼭 — 손님 · 직원 이름 · 전화 · 주소는 쓰지 않아요)
+      <textarea class="form-control form-control-sm" name="reason" rows="2" maxlength="500" required></textarea></label>
+    <div class="brain-propose__actions">
+      <button type="submit" class="brain-btn brain-btn--primary" data-brain-propose-submit>제안함에 넣기</button>
+      <button type="button" class="brain-btn" data-brain-propose-cancel>그만</button>
+    </div>
+  </form>
+  <p class="brain-status-line" data-brain-propose-status role="status" aria-live="polite"></p>
+</section>

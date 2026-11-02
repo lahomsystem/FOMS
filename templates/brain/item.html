@@ -5,12 +5,17 @@
 {% endblock %}
 
 {% block content %}
-{#- HAUD master brain 설계서 7.5 화면 3 항목 카드 — 서버가 다 그린다(읽기만 · 스크립트 없음, 탭은 Bootstrap).
+{#- HAUD master brain 설계서 7.5 화면 3 항목 카드 — 서버가 그린다(탭은 Bootstrap). '고칠 말 제안' · 은퇴 · 지우기 · 옛 판으로
+    되돌리기 제안만 brain-item-actions.js 가 POST /api/brain/proposals 로 보낸다(제안함으로 — 정본은 승인 뒤 반영 동작이 쓴다).
     탭 '이웃 지도'(7.5 화면 9) · '뇌 보기'(7.6)는 다음 단계 빈 자리다. 링크 끝 · 이력은 내 보기 범위 안의 것만. -#}
 {% set it = card.item %}
 {% set td = type_display.get(it.type, (it.type, '', 'fa-circle')) %}
 {% set state = ('brain-state--' ~ it.status if it.status in ('draft', 'retired') else '') ~ (' brain-state--stale' if it.stale else '') %}
-<div class="container-fluid mt-3 mb-5 brain-card brain-type--{{ it.type }}" data-brain-card data-brain-key="{{ it.key }}">
+<div class="container-fluid mt-3 mb-5 brain-card brain-type--{{ it.type }}" data-brain-card data-brain-key="{{ it.key }}"
+     data-brain-version="{{ it.version }}" data-current="{{ current|tojson|forceescape }}"
+     data-proposals-url="{{ url_for('brain_review_api.brain_propose') }}"
+     data-inbox-page="{{ url_for('brain_web.index', tab='inbox') }}"
+     data-rollback-action="item_rollback">
   <a class="brain-back" href="{{ url_for('brain_web.index') }}"><i class="fas fa-arrow-left me-1" aria-hidden="true"></i>회사 지식</a>
 
   <div class="brain-card__frame {{ state }}">
@@ -61,4 +66,11 @@
              data-brain-slot="brain3d"><p class="brain-slot">뇌 보기는 다음 단계에서 열립니다.</p></section>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-review-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-item-actions.js') }}" defer></script>
 {% endblock %}

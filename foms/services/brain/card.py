@@ -17,6 +17,8 @@ from sqlalchemy.orm import aliased
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
 from foms.services.brain.read import current_item, item_history
+from foms.services.brain.schemas import get as schema_get
+from foms.services.brain.schemas import key_fields, payload_props
 from foms.services.brain.scope import Viewer, scope_clause
 from foms.services.brain.store import OBJECT_FIELDS, is_current
 from foms.services.datetime_kst import format_datetime_kst
@@ -157,14 +159,16 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
     names = people_names(session, _user_ids(*(v.get("created_by") for v in versions),
                                             *(v.get("human_approver_id") for v in versions)))
     stale_after = item.get("stale_after")
-    item.pop("payload", None)  # 실음 칸(지식 문서 꼴 · 내부 값)은 카드에 싣지 않는다
+    keys = key_fields(item, item["type"])  # 유형 속성 틀의 '눈에 띄는 칸'(7.7 · D104)
+    payload_values = {p.path: schema_get(item, p.path) for p in payload_props(item["type"])}
+    item.pop("payload", None)  # 실음 칸 통째(지식 문서 꼴 · 내부 값)는 싣지 않는다 — 틀 칸만 위 두 묶음으로
     open_changes = open_change_count(session, key)
     return {
         "item": {**item, "stale": bool(stale_after and datetime.date.fromisoformat(stale_after) < today),
                  "needs_check": open_changes > 0, "open_changes": open_changes,
                  "recorded_at": _kst(item.get("recorded_at"))},
         "created_by": actor_label(item.get("created_by"), names),
-        "approver": approver_label(item, names),
+        "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values,
         "links": link_groups(session, viewer, key, today=today),
         "external": external_chips(session, key),
         "copies": list(item.get("copies") or []),

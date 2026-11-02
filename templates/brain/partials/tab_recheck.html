@@ -1,0 +1,9 @@
+{#- 화면 5 다시 확인 — 확인 날이 지났거나 다가오는 항목(내가 결정할 수 있고 볼 수 있는 것), 쓰인 횟수 순. '아직 맞음' 한 번이면
+    확인 날만 오늘로 바꾸는 제안이 반영 동작으로 들어간다(POST /api/brain/recheck/confirm). 예외는 항목 카드의 '고칠 말 제안'으로.
+    맨 위 한 줄이 묶음 알림 글이다(폰 알림은 아직 없음 — GET /api/brain/inbox/count). 휴대폰 폭에서 그대로 쓴다. -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'recheck' else '' }} brain-pane" id="brain-tab-recheck" role="tabpanel"
+         aria-labelledby="brain-tab-recheck-btn" tabindex="0">
+  <p class="brain-recheck__line" data-brain-recheck-line></p>
+  <p class="brain-status-line" data-brain-recheck-status role="status" aria-live="polite"></p>
+  <ol class="brain-recheck" data-brain-recheck></ol>
+</section>

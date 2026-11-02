@@ -1,11 +1,12 @@
-{#- 카드 '이력' 탭 — 판마다(새 것부터, 최대 20) 시각 · 상태 · 만든 이 · 승인자 · 판 번호 · 바뀐 칸. 판마다 보기 범위로 거른다. -#}
+{#- 카드 '이력' 탭 — 판마다(새 것부터, 최대 20) 시각 · 상태 · 만든 이 · 승인자 · 판 번호 · 바뀐 칸. 판마다 보기 범위로 거른다.
+    지난 판 줄의 '이 판으로 되돌리기 제안'은 옛 값을 **새 제안**으로 제안함에 넣는다(바로 바뀌지 않는다). -#}
 {% if card.history %}
 <div class="brain-table-wrap">
   <table class="brain-history">
     <caption class="visually-hidden">항목 이력 — 새 판부터</caption>
     <thead>
       <tr><th scope="col">판</th><th scope="col">기록(한국 시각)</th><th scope="col">상태 · 확신</th><th scope="col">바뀐 칸</th>
-          <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">하루 판</th></tr>
+          <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">하루 판</th><th scope="col">되돌리기</th></tr>
     </thead>
     <tbody>
       {% for row in card.history %}
@@ -17,6 +18,8 @@
         <td>{{ row.created_by }}</td>
         <td>{{ row.approver }}</td>
         <td>{{ row.release_no if row.release_no is not none else '—' }}</td>
+        <td>{% if row.superseded_at %}<button type="button" class="brain-btn brain-btn--small"
+                data-brain-rollback-to="{{ row.version }}">{{ rollback_label }} — 판 {{ row.version }}</button>{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -25,3 +28,4 @@
 {% else %}
 <p class="brain-empty">이력이 없습니다.</p>
 {% endif %}
+<p class="brain-status-line" data-brain-rollback-status role="status" aria-live="polite"></p>

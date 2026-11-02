@@ -23,9 +23,15 @@ VENDOR = {
 JS = sorted((ROOT / "static/js/brain").glob("*.js"))
 TEMPLATES = sorted((ROOT / "templates/brain").rglob("*.html"))
 CSS = ROOT / "static/css/contexts/brain/brain.css"
-PY = [ROOT / "foms/api/brain.py", ROOT / "foms/web/brain.py",
+PY = [ROOT / "foms/api/brain.py", ROOT / "foms/api/brain_review.py", ROOT / "foms/web/brain.py",
       *[ROOT / "foms/services/brain" / n for n in ("access.py", "browse.py", "card.py", "display.py", "read.py",
-                                                   "release_view.py")]]
+                                                   "release_view.py", "inbox.py", "decide.py", "recheck.py",
+                                                   "rollback.py", "metrics.py", "review_rules.py", "proposals.py",
+                                                   "apply.py", "actions.py", "action_runner.py", "schemas.py")]]
+#: 화면 스크립트 — 읽기(⑤-2) 여섯 + 제안함 · 다시 확인 · 카드 제안(⑤-3) 다섯.
+SCRIPT_NAMES = {"brain-view.js", "brain-dom.js", "brain-page.js", "brain-table.js", "brain-releases.js", "brain-map.js",
+                "brain-review-view.js", "brain-inbox-card.js", "brain-inbox.js", "brain-recheck.js",
+                "brain-item-actions.js"}
 
 
 def _text(path: Path) -> str:
@@ -81,10 +87,11 @@ def test_templates_have_no_inline_style_or_script_and_pin_assets():
     assert "asset_url('css/contexts/brain/brain.css')" in index
     item = _text(ROOT / "templates/brain/item.html")
     assert 'data-brain-slot-tab="neighbours"' in item and 'data-brain-slot-tab="brain3d"' in item  # 다음 단계 빈 자리
+    assert 'data-current="{{ current|tojson|forceescape }}"' in item
 
 
 def test_scripts_follow_the_frontend_rules():
-    assert len(JS) == 6
+    assert {p.name for p in JS} == SCRIPT_NAMES
     for path in JS:
         js = _text(path)
         lines = len(js.splitlines())
@@ -94,9 +101,14 @@ def test_scripts_follow_the_frontend_rules():
             assert banned not in js, (path.name, banned)
     dom = _text(ROOT / "static/js/brain/brain-dom.js")
     assert dom.count("fetch(") == 1 and "try {" in dom and "payload.success !== true" in dom
+    assert "function postJson(" in dom and "method: 'POST'" in dom  # 쓰기도 같은 한 곳(CSRF 는 공용 부트스트랩)
     assert "safeJsonParse" in dom and "textContent" in dom
     others = [p.name for p in JS if p.name != "brain-dom.js" and "fetch(" in _text(p)]
-    assert others == []  # 모든 읽기는 getJson 한 곳(try/catch + success 확인)으로
+    assert others == []  # 모든 읽기 · 쓰기는 requestJson 한 곳(try/catch + success 확인)으로
+    for name in ("brain-inbox.js", "brain-recheck.js", "brain-item-actions.js"):
+        assert "__FOMS_BRAIN_" in _text(ROOT / "static/js/brain" / name), name  # 다시 실행해도 한 번만 묶는다
+    actions = _text(ROOT / "static/js/brain/brain-item-actions.js")
+    assert "dom.safeJsonParse(root.getAttribute('data-current')" in actions
     page = _text(ROOT / "static/js/brain/brain-page.js")
     assert "dom.safeJsonParse(root.getAttribute('data-display')" in page and "__FOMS_BRAIN_PAGE_BOUND" in page
 

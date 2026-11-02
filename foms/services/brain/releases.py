@@ -39,7 +39,7 @@ def _row(session: Any, number: int, layer: str) -> Optional[BrainRelease]:
     return session.execute(query.execution_options(populate_existing=True)).scalar_one_or_none()
 
 
-def _ensure_row(session: Any, number: int, layer: str, *, day: datetime.date, actor_id: Optional[int],
+def ensure_row(session: Any, number: int, layer: str, *, day: datetime.date, actor_id: Optional[int],
                 now: datetime.datetime) -> BrainRelease:
     """(번호, 층) 판 줄 — 없으면 만든다(같은 때 둘이 만들면 유일 색인에서 갈려 다시 읽는다)."""
     row = _row(session, number, layer)
@@ -64,7 +64,7 @@ def attach(session: Any, *, layer: str, op: str, key: str, actor_id: Optional[in
     """반영 하나를 그날 판(층 줄)에 붙이고 판 번호를 돌려준다(커밋은 호출자)."""
     day = kst_day(now)
     number = release_number(session, day=day, as_import=as_import)
-    row = _ensure_row(session, number, layer, day=day, actor_id=actor_id, now=now)
+    row = ensure_row(session, number, layer, day=day, actor_id=actor_id, now=now)
     counts = copy.deepcopy(row.counts or {})
     counts[op] = int(counts.get(op, 0)) + 1
     diff = copy.deepcopy(row.diff or {"keys": [], "more": 0})
