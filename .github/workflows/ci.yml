@@ -24,6 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     # CI-TIMEOUT-01: 실측 median 14.1분 / max 15.4분. P0-1 이후 약 5분이 되므로 여유는 더 커진다.
     timeout-minutes: 25
+    # CI-SHARD-01: 본 스위트(약 5분)를 파일 단위 3조각으로 나눠 동시에 돈다(tests/conftest.py
+    # 의 FOMS_TEST_SHARD). 문서 계약·Redis·UI 구조 스텝은 1번 조각만 맡는다. 한 조각이 red 여도
+    # 나머지는 끝까지 돌려 실패를 한 번에 다 본다(fail-fast: false).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     services:
       # RQ positive-path lane 전용 Redis. 2026-07-21 Redis 장애(레이트리미터 매 요청
@@ -60,6 +67,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run design SSOT lint
+      if: matrix.shard == 1
       run: |
         python tools/design/ssot_lint.py docs/design
 
@@ -107,6 +115,7 @@ jobs:
         DATABASE_URL: "sqlite:///:memory:"
         SECRET_KEY: "ci-secret-key"
         FLASK_ENV: "testing"
+        FOMS_TEST_SHARD: "${{ matrix.shard }}/3"
       run: |
         # tests/harness는 Harness CI job이 전담(이중 실행 제거), -q로 로그 절감
         # CI-XDIST-01: public repo 의 ubuntu-latest 는 4 vCPU 다. --dist loadfile 로
@@ -118,7 +127,7 @@ jobs:
     # 문서 드리프트가 조용히 새므로, tests/domains/test_docs_facing_registry.py 가
     # 이 목록과 실제 스캔 결과가 같은지 못 박는다.
     - name: Run docs-facing contracts (docs-only change)
-      if: steps.scope.outputs.docs_only == 'true'
+      if: steps.scope.outputs.docs_only == 'true' && matrix.shard == 1
       env:
         DATABASE_URL: "sqlite:///:memory:"
         SECRET_KEY: "ci-secret-key"
@@ -152,6 +161,7 @@ jobs:
           tests/services/integrations/test_naver_return_wiring.py
 
     - name: Run Redis lane (RQ positive path / rq API drift)
+      if: matrix.shard == 1
       env:
         # 이 lane 에서만 켜지는 opt-in 변수. 미설정이면 해당 테스트는 skip 된다.
         FOMS_TEST_REDIS_URL: "redis://127.0.0.1:6379/15"
@@ -166,6 +176,7 @@ jobs:
     # test_erp_order_edit_mobile_form.py 의 red 가 2주 반 살았다.
     # tests/domains/test_visual_lane_registry.py 가 이 목록과 실제 파일 집합을 못 박는다.
     - name: Run UI structural tests (no Playwright PNG regression)
+      if: matrix.shard == 1
       env:
         DATABASE_URL: "sqlite:///:memory:"
         SECRET_KEY: "ci-secret-key"

@@ -125,6 +125,22 @@ def resolve_ref(ref: str) -> str:
         return ""
 
 
+def _fetch_and_resolve(ref: str, branch: str) -> str:
+    """로컬에 없는 SHA(방금 머지된 커밋 등)면 `git fetch origin <branch>` 한 번 뒤 다시 해석한다.
+
+    2026-11-02: 운영 머지 SHA 를 받아 오지 않은 채 넘겨 "ref 해석 실패"로 바로 끝났고,
+    확인 루프가 20분 헛돌았다(설계서 2026-11-02 push-guard-effective-repo F3).
+    """
+    try:
+        subprocess.run(
+            ["git", "fetch", "-q", "origin", branch],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return resolve_ref(ref)
+
+
 def current_head_sha() -> str:
     """현재 HEAD 를 full commit SHA 로 반환한다(실패 시 빈 문자열)."""
     return resolve_ref("HEAD")
@@ -613,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if args.sha:
-        sha = resolve_ref(args.sha)
+        sha = resolve_ref(args.sha) or _fetch_and_resolve(args.sha, args.branch)
         if not sha:
             print(f"[ci-watch] 게이트 불가: ref 해석 실패: {args.sha}(유효한 git ref 아님)")
             return 3

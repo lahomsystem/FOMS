@@ -51,11 +51,30 @@ def process(payload: dict) -> None:
             sys.path.insert(0, harness)
         from record_git_commit_ledger import record_head_commit  # type: ignore[import-not-found]
 
+        # 커밋은 `cd <워크트리> && git commit` 처럼 메인 밖에서 돈다 — 그 저장소의 HEAD 를
+        # 적어야 한다(설계서 2026-11-02 push-guard-effective-repo F2). 해석 불가면 기록 안 함.
+        repo_root = project_root
+        try:
+            from effective_repo import resolve_repo_root  # type: ignore[import-not-found]
+            from guard_policy import git_command_dir  # type: ignore[import-not-found]
+        except ImportError:  # 메인 체크아웃이 뒤처져 도우미가 없으면 예전처럼 메인 기준
+            resolve_repo_root = None
+        if resolve_repo_root is not None:
+            payload_cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
+            repo_root = resolve_repo_root(
+                git_command_dir(command, "commit"),
+                base=payload_cwd or project_root,
+                reference_root=project_root,
+            )
+            if repo_root is None:
+                hook_log("record_commit_ledger: 커밋 저장소 판정 불가 — 기록 생략", tag="commit_ledger")
+                return
         record_head_commit(
-            project_root,
+            repo_root,
             session_id,
             command,
             _response_text(payload.get("tool_response")),
+            main_root=project_root,
         )
     except Exception as exc:  # noqa: BLE001
         hook_log(

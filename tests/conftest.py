@@ -63,6 +63,35 @@ from models import (
 import foms.persistence.designer.models  # noqa: F401
 
 
+# --- CI-SHARD-01: CI 본 스위트를 파일 단위로 N 조각 나눠 동시에 돈다 -----------------
+# FOMS CI `Run tests`(약 5분)가 deploy 푸시·운영 PR 마다 한 번씩, 한 건에 두 번 도는 가장
+# 긴 구간이었다(2026-11-02 계측, 설계서 docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md).
+# `FOMS_TEST_SHARD=i/N` 이면 테스트 파일 경로의 crc32 % N == i-1 인 파일만 남긴다.
+# 파일 단위라 모듈 스코프 fixture 가 조각 사이에서 갈리지 않고(--dist loadfile 과 같은 이유),
+# 경로만으로 정해지므로 조각들의 합은 항상 전체와 같다(빠지거나 겹치는 파일이 없다).
+# 변수가 없으면(로컬 smoke·개별 실행) 아무것도 하지 않는다.
+def ci_shard_of(test_path: str, total: int) -> int:
+    """테스트 파일 경로가 속하는 조각 번호(1..total)."""
+    import zlib
+
+    return zlib.crc32(test_path.replace("\\", "/").encode("utf-8")) % total + 1
+
+
+def pytest_collection_modifyitems(config, items):
+    spec = os.environ.get("FOMS_TEST_SHARD", "").strip()
+    if not spec:
+        return
+    index, total = (int(part) for part in spec.split("/", 1))
+    if not 1 <= index <= total:
+        raise pytest.UsageError(f"FOMS_TEST_SHARD={spec!r}: 1..N 범위가 아니다")
+    keep, drop = [], []
+    for item in items:
+        (keep if ci_shard_of(item.nodeid.split("::", 1)[0], total) == index else drop).append(item)
+    if drop:
+        config.hook.pytest_deselected(items=drop)
+        items[:] = keep
+
+
 # --- CI-SCHEMA-01: 스키마는 세션에 한 번, 데이터만 테스트마다 비운다 ------------
 # 예전에는 `app` fixture 가 테스트마다 83 개 테이블을 create_all 하고 drop_all 했다
 # (1 사이클 65.9ms x 2,234 회 = 약 146 초, CI `Run tests` 의 17%).

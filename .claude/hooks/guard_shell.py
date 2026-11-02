@@ -103,9 +103,17 @@ def main() -> None:
             default="unknown",
         )
         classify_command = _load_classifier(project_root)
-        decision, label = classify_command(
-            command, project_root=project_root, session_id=session_id
-        )
+        # 훅은 메인 체크아웃에서 돌지만 명령은 워크트리에서 돌 수 있다 — payload cwd 를 넘겨
+        # push 범위를 실제 저장소로 판정한다(설계서 2026-11-02 push-guard-effective-repo F1).
+        payload_cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
+        try:
+            decision, label = classify_command(
+                command, project_root=project_root, session_id=session_id, cwd=payload_cwd
+            )
+        except TypeError:  # cwd 인자를 모르는 옛 guard_policy(메인 체크아웃이 뒤처진 경우)
+            decision, label = classify_command(
+                command, project_root=project_root, session_id=session_id
+            )
 
         if decision == "allow":
             return

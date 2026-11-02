@@ -18,8 +18,13 @@
     python tools/ops/check_deploy_drift.py --target production
     python tools/ops/check_deploy_drift.py --json
 
-종료 코드: 0=일치(또는 배포 진행 중) · 1=누락 발견 · 2=판정 불가(토큰·CLI·API 문제).
+종료 코드: 0=일치(또는 배포 진행 중) · 1=누락 발견 · 2=판정 불가(토큰·CLI·API·fetch 문제).
 판정 불가를 0 으로 뭉개지 않는다 — 조용한 초록이 이번 사건의 본질이었다.
+
+판정 전에 `git fetch origin deploy production` 을 한다(2026-11-02). 로컬 ref 가 낡으면
+이미 더 새 배포로 덮인(REMOVED) 옛 머리를 "누락 — 0커밋 뒤"로 판정해, 50초 만에 끝난
+운영 반영을 21분 헛기다리게 했다. 머리 배포가 REMOVED 여도 지금 LIVE 배포가 그 머리의
+후손이면 일치다(설계서 docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md F3).
 """
 
 from __future__ import annotations
@@ -164,6 +169,36 @@ def _deployments(
     return [e["node"] for e in data.get("deployments", {}).get("edges", [])]
 
 
+def _live_descendant(deployments: list[dict[str, Any]], head: str) -> str:
+    """LIVE 배포 커밋이 head 의 후손(head 포함)이면 그 SHA, 아니면 빈 문자열."""
+    for node in deployments:
+        if (node.get("status") or "") not in LIVE:
+            continue
+        sha = ((node.get("meta") or {}).get("commitHash")) or ""
+        if not sha:
+            continue
+        proc = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", head, sha], capture_output=True, text=True
+        )
+        if proc.returncode == 0:
+            return sha
+    return ""
+
+
+def _fetch(targets: list[Target]) -> None:
+    """판정 전에 대상 브랜치를 받아 온다. 실패는 판정 불가(초록으로 뭉개지 않는다)."""
+    branches = sorted({t.git_ref.split("/", 1)[1] for t in targets})
+    try:
+        proc = subprocess.run(
+            ["git", "fetch", "-q", "origin", *branches],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise Undetermined(f"git fetch 실행 실패: {exc}") from exc
+    if proc.returncode != 0:
+        raise Undetermined(f"git fetch origin {' '.join(branches)} 실패: {proc.stderr.strip()[:200]}")
+
+
 def _git(*args: str) -> str:
     proc = subprocess.run(
         ["git", *args], capture_output=True, text=True, encoding="utf-8", errors="replace"
@@ -204,14 +239,22 @@ def check(target: Target, token: str, project_ids: dict[str, str]) -> Result:
         meta = node.get("meta") or {}
         if (meta.get("commitHash") or "") == head:
             status = node.get("status") or "?"
-            return Result(
-                target.label,
-                ok=status in LIVE or status in IN_FLIGHT,
-                head=head,
-                deployed=head,
-                status=status,
-                note="배포 진행 중" if status in IN_FLIGHT else "",
-            )
+            if status in LIVE or status in IN_FLIGHT:
+                return Result(
+                    target.label,
+                    ok=True,
+                    head=head,
+                    deployed=head,
+                    status=status,
+                    note="배포 진행 중" if status in IN_FLIGHT else "",
+                )
+            newer = _live_descendant(deployments, head)
+            if newer:
+                return Result(
+                    target.label, ok=True, head=head, deployed=newer, status="SUCCESS",
+                    note=f"더 새 배포 {newer[:8]} 가 덮음",
+                )
+            break
 
     # 없으면 누락이다. 실제로 살아 있는 최신 배포와 견준다.
     live = next((n for n in deployments if (n.get("status") or "") in LIVE), deployments[0])
@@ -252,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     targets = [t for t in TARGETS if not args.target or t.label == args.target]
 
     try:
+        _fetch(targets)
         token = _token()
         project_ids = _project_ids()
     except Undetermined as exc:

@@ -66,8 +66,10 @@ _RISK_ORDER = {"allow": 0, "ask": 1, "deny": 2}
 # classify_command 호출 동안 deploy scope 검사용 컨텍스트(재귀 언랩 공유).
 _ctx_project_root: str | None = None
 _ctx_session_id: str | None = None
-#: 같은 명령 안 선행 `cd <dir>` 세그먼트가 알려 준 작업 디렉토리(임시폴더 면제 판정용).
+#: 같은 명령 안 선행 `cd <dir>` 세그먼트가 알려 준 작업 디렉토리(임시폴더 면제·푸시 실효 저장소 판정용).
 _ctx_cwd_hint: str | None = None
+#: 훅 입력 JSON 의 `cwd` — 명령에 cd·-C 가 없을 때 push 실효 저장소의 기준(설계서 2026-11-02 F1).
+_ctx_payload_cwd: str | None = None
 
 #: 선행 환경변수 할당 토큰(`KEY=VAL`) 패턴 — 실제 명령 앞에서 스킵한다.
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
@@ -318,7 +320,7 @@ def _classify_deploy_push_scope(
 ) -> tuple[str, str]:
     """deploy push 세션 범위 판정. 실패 시 ask(묵시 allow 금지)."""
     if not project_root:
-        return "ask", "deploy 푸시(세션 범위 확인 필요)"
+        return "ask", "deploy 푸시(실효 저장소 판정 불가 — 세션 범위 확인 필요)"
     try:
         harness_dir = os.path.dirname(os.path.abspath(__file__))
         if harness_dir not in sys.path:
@@ -414,6 +416,12 @@ def _git_effective_dir(tokens: list[str]) -> str | None:
         tokens: 따옴표 제거된 argv 토큰(첫 토큰 = git).
     반환: 디렉토리 문자열 또는 None(명시된 것이 없음).
     """
+    explicit = _git_c_flag_dir(tokens)
+    return explicit if explicit is not None else _ctx_cwd_hint
+
+
+def _git_c_flag_dir(tokens: list[str]) -> str | None:
+    """git 전역 옵션 `-C <dir>` 값. 없으면 None."""
     i = 1
     while i < len(tokens):
         tok = _strip_quotes(tokens[i])
@@ -422,7 +430,65 @@ def _git_effective_dir(tokens: list[str]) -> str | None:
         if not tok.startswith("-"):
             break
         i += 2 if tok in _GIT_GLOBAL_VALUE_FLAGS else 1
-    return _ctx_cwd_hint
+    return None
+
+
+def _cd_hint(tokens: list[str]) -> str:
+    """`cd`/`pushd`/`popd` 세그먼트가 남기는 작업 디렉토리 힌트.
+
+    `popd`·`cd -` 는 "-", 인자 없는 `cd` 는 "~" — 둘 다 가드가 미리 알 수 없는 값이라
+    effective_repo.resolve_repo_root 가 None(판정 불가)으로 닫는다.
+    """
+    if _command_name(tokens) == "popd":
+        return "-"
+    args = [_strip_quotes(t) for t in tokens[1:]]
+    args = [a for a in args if a == "-" or not a.startswith("-")]
+    return args[0] if args else "~"
+
+
+def _push_scope_root(tokens: list[str]) -> str | None:
+    """`git push` 의 deploy 범위를 판정할 저장소 루트 — 명령이 실제로 도는 저장소.
+
+    `-C` → 앞선 `cd` → 훅 입력 cwd → 메인 순서(설계서 2026-11-02 F1). 메인만 보던 시절에는
+    메인의 낡은 로컬 deploy 때문에 워크트리 푸시가 매번 "타 세션 커밋 포함" ask 였다.
+    해석 불가면 None — 호출부(_classify_deploy_push_scope)가 ask 로 닫는다.
+    """
+    if not _ctx_project_root:
+        return None
+    harness_dir = os.path.dirname(os.path.abspath(__file__))
+    if harness_dir not in sys.path:
+        sys.path.insert(0, harness_dir)
+    from effective_repo import resolve_repo_root  # type: ignore[import-not-found]
+
+    base = _ctx_payload_cwd or _ctx_project_root
+    return resolve_repo_root(_git_effective_dir(tokens), base=base, reference_root=_ctx_project_root)
+
+
+def git_command_dir(command: str, subcommand: str) -> str | None:
+    """명령 안 첫 `git <subcommand>` 가 도는 폴더의 명시 값(`-C` 또는 앞선 cd)(공개 API).
+
+    커밋 원장 훅이 "어느 저장소의 HEAD 를 적을지" 정할 때 쓴다(설계서 2026-11-02 F2).
+    명시가 없으면 None — 호출부가 훅 입력 cwd 로 떨어진다. 괄호 서브셸 안은 보지 않는다.
+    """
+    normalized = (command or "").replace("\r\n", "\n").replace("\r", "\n")
+    hint: str | None = None
+    for raw_segment in _split_segments(_strip_heredoc_bodies(normalized)):
+        tokens = _tokenize(re.sub(r"\s+", " ", raw_segment).strip())
+        while tokens and _ENV_ASSIGN_RE.match(_strip_quotes(tokens[0])):
+            tokens = tokens[1:]
+        if not tokens:
+            continue
+        name = _command_name(tokens)
+        if name in ("cd", "pushd", "popd"):
+            hint = _cd_hint(tokens)
+            continue
+        if name != "git":
+            continue
+        idx = _git_subcommand_index(tokens)
+        if idx is not None and _strip_quotes(tokens[idx]).lower() == subcommand:
+            explicit = _git_c_flag_dir(tokens)
+            return explicit if explicit is not None else hint
+    return None
 
 
 def _in_temp_worktree(tokens: list[str]) -> bool:
@@ -499,7 +565,7 @@ def _classify_git(tokens: list[str]) -> tuple[str, str]:
         return _classify_git_push(
             tokens,
             idx,
-            project_root=_ctx_project_root,
+            project_root=_push_scope_root(tokens),
             session_id=_ctx_session_id,
         )
     if sub == "reset":
@@ -1095,18 +1161,24 @@ def _classify_command(command: str, depth: int) -> tuple[str, str]:
     best_decision, best_label = "allow", ""
     if _heredoc_railway_mutation(normalized):  # 본문은 지우기 전에 본다(R1)
         best_decision, best_label = "ask", _RAILWAY_API_LABEL
-    for raw_segment in _split_segments(unified):
-        segment = re.sub(r"\s+", " ", raw_segment).strip()
-        if not segment:
-            continue
-        cd_tokens = _tokenize(segment)
-        if cd_tokens and _command_name(cd_tokens) in ("cd", "pushd") and len(cd_tokens) >= 2:
-            _ctx_cwd_hint = _strip_quotes(cd_tokens[1])
-        decision, label = _classify_segment(segment, depth)
-        if _RISK_ORDER[decision] > _RISK_ORDER[best_decision]:
-            best_decision, best_label = decision, label
-            if best_decision == "deny":
-                break
+    # 언랩한 하위 명령(서브셸·`bash -c`)의 cd 는 바깥 셸 위치를 바꾸지 않는다 — 끝나면 되돌린다.
+    outer_hint = _ctx_cwd_hint
+    try:
+        for raw_segment in _split_segments(unified):
+            segment = re.sub(r"\s+", " ", raw_segment).strip()
+            if not segment:
+                continue
+            cd_tokens = _tokenize(segment)
+            if cd_tokens and _command_name(cd_tokens) in ("cd", "pushd", "popd"):
+                _ctx_cwd_hint = _cd_hint(cd_tokens)
+            decision, label = _classify_segment(segment, depth)
+            if _RISK_ORDER[decision] > _RISK_ORDER[best_decision]:
+                best_decision, best_label = decision, label
+                if best_decision == "deny":
+                    break
+    finally:
+        if depth > 0:
+            _ctx_cwd_hint = outer_hint
     return best_decision, best_label
 
 
@@ -1115,6 +1187,7 @@ def classify_command(
     *,
     project_root: str | None = None,
     session_id: str | None = None,
+    cwd: str | None = None,
 ) -> tuple[str, str]:
     """셸 명령 전체의 위험도를 판정한다(공개 API).
 
@@ -1127,17 +1200,18 @@ def classify_command(
         command: 판정할 원본 명령 문자열.
         project_root: 저장소 루트(deploy 세션 범위 검사용, 선택).
         session_id: 현재 에이전트 세션 id(선택).
+        cwd: 훅 입력의 작업 폴더(선택). 명령에 cd·-C 가 없을 때 push 실효 저장소 기준.
     반환:
         (decision, label) 튜플. decision ∈ {"deny","ask","allow"}.
         label 은 로그/사유용 한글 요약(allow 시 빈 문자열).
     """
-    global _ctx_project_root, _ctx_session_id, _ctx_cwd_hint
-    prev_root, prev_sid, prev_cwd = _ctx_project_root, _ctx_session_id, _ctx_cwd_hint
-    _ctx_project_root, _ctx_session_id, _ctx_cwd_hint = project_root, session_id, None
+    global _ctx_project_root, _ctx_session_id, _ctx_cwd_hint, _ctx_payload_cwd
+    prev = (_ctx_project_root, _ctx_session_id, _ctx_cwd_hint, _ctx_payload_cwd)
+    _ctx_project_root, _ctx_session_id, _ctx_cwd_hint, _ctx_payload_cwd = project_root, session_id, None, cwd
     try:
         return _classify_command(command, 0)
     finally:
-        _ctx_project_root, _ctx_session_id, _ctx_cwd_hint = prev_root, prev_sid, prev_cwd
+        _ctx_project_root, _ctx_session_id, _ctx_cwd_hint, _ctx_payload_cwd = prev
 
 
 # ---------------------------------------------------------------------------

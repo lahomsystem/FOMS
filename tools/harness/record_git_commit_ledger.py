@@ -38,11 +38,18 @@ def record_head_commit(
     session_id: str | None,
     command: str,
     output: str,
+    *,
+    main_root: str | None = None,
 ) -> bool:
-    """성공한 git commit 이면 HEAD 를 레저에 기록. 기록 시 True."""
+    """성공한 git commit 이면 project_root 저장소의 HEAD 를 레저에 기록. 기록 시 True.
+
+    project_root 가 워크트리면 그 워크트리 레저(deploy_push_scope 가 union 으로 읽는 곳)에
+    적고, main_root 가 다르면 메인 레저의 같은 세션 키에도 적는다 — 승격 도구
+    (`promote_own_to_production --session-id`)가 어디서 돌든 이 창의 커밋을 찾게 한다.
+    """
     if not looks_like_git_commit(command) or not commit_succeeded(output):
         return False
-    harness = os.path.join(project_root, "tools", "harness")
+    harness = os.path.join(main_root or project_root, "tools", "harness")
     if harness not in sys.path:
         sys.path.insert(0, harness)
     from session_commit_ledger import append_commit  # type: ignore[import-not-found]
@@ -62,4 +69,8 @@ def record_head_commit(
     if not sha:
         return False
     append_commit(project_root, session_id, sha)
+    if main_root and os.path.normcase(os.path.abspath(main_root)) != os.path.normcase(
+        os.path.abspath(project_root)
+    ):
+        append_commit(main_root, session_id, sha)
     return True

@@ -60,7 +60,8 @@ def test_gh_pr_merge_targets_production() -> None:
     assert proc.returncode == 0, proc.stderr
     ctx = json.loads(proc.stdout.strip())["hookSpecificOutput"]["additionalContext"]
     assert "production" in ctx
-    assert "HEAD production" in ctx  # production 은 명시 인자 안내
+    # production 은 push CI 가 없다 — 배포 대조 도구로 안내(2026-11-02 설계서 F3)
+    assert "check_deploy_drift.py --target production" in ctx and "HEAD production" not in ctx
 
 
 def test_non_push_command_emits_nothing() -> None:
@@ -117,7 +118,7 @@ def test_git_push_production_injects_production() -> None:
     assert proc.returncode == 0, proc.stderr
     ctx = json.loads(proc.stdout.strip())["hookSpecificOutput"]["additionalContext"]
     assert "production" in ctx
-    assert "HEAD production" in ctx
+    assert "check_deploy_drift.py --target production" in ctx
 
 
 def test_echo_payload_with_push_string_is_not_gated() -> None:

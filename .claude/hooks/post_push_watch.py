@@ -113,6 +113,15 @@ def _push_failed(tool_response) -> bool:
 
 def _ci_gate_message(branch: str) -> str:
     """분기별 ci_watch 실행 안내를 담은 CI-GATE 리마인더 문자열을 만든다(논블로킹)."""
+    if branch == "production":
+        # production 은 push CI 가 없다(PR CI 가 이미 돌았다). 머지 SHA 는 로컬에 없어
+        # `ci_watch.py HEAD production` 은 엉뚱한 HEAD 를 보거나 해석에 실패했다(2026-11-02).
+        return (
+            "[CI-GATE] push 감지 (production). production 은 push CI 가 없다 — "
+            "run_in_background 로 `python tools/ops/check_deploy_drift.py --target production` 을 "
+            "1~2분 간격으로 돌려 Railway 반영을 확인하라(도구가 먼저 fetch 한다). "
+            "exit 0=일치·진행 중, 1=누락, 2=판정 불가."
+        )
     command = (
         "python tools/harness/ci_watch.py"
         if branch == "deploy"

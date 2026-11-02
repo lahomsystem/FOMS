@@ -10,6 +10,22 @@
 
 ---
 
+### [2026-11-02] 푸시 가드·커밋 원장은 명령이 실제로 도는 저장소로 판정한다 · 배포 확인 도구는 먼저 fetch · CI 본 스위트 3조각
+- **키워드**: guard_policy, _push_scope_root, effective_repo, git_command_dir, record_commit_ledger, deploy_push_scope, 타 세션 커밋 포함, 레저 없음, payload cwd, check_deploy_drift, REMOVED, ci_watch fetch, CI-SHARD-01, FOMS_TEST_SHARD, 메인 체크아웃 낡음
+- **결정**: 사용자 선택(2026-11-02 "①② 고치기 설계부터" 뒤 "검사 나눠 돌리기도 같이"). 설계서 `docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md` F1~F5.
+  - push 범위 판정과 커밋 원장 기록은 `git -C` → 같은 명령의 앞선 `cd` → 훅 입력 `cwd` → 메인 순서로 정한 실효 저장소에서 한다. 해석할 수 없거나 origin 이 다르면 가드는 묻고, 원장은 기록하지 않는다.
+  - `check_deploy_drift.py` 는 판정 전에 fetch 하고, 더 새 LIVE 배포가 덮은 REMOVED 머리는 일치로 본다. `ci_watch.py` 는 로컬에 없는 SHA 면 fetch 를 한 번 한다.
+  - FOMS CI 본 스위트는 파일 경로 crc32 기준으로 3조각을 동시에 돈다.
+- **이유**: 계측(설계서 §1)상 기계 시간은 짧았다. 시간은 사람 승인 대기와 거짓 판정에서 샜다.
+  - 가드가 늘 메인 체크아웃(10-21 에 멈춘 로컬 deploy)을 봐서, 30일 동안 deploy 푸시 승인 요청이 468번(10분 넘게 기다린 것 170번) 떴다.
+  - 원장에는 메인 HEAD(남의 커밋)가 이 세션 몫으로 적혀 `promote --session-id` 가 남의 커밋을 고를 위험이 있었다.
+  - 낡은 로컬 ref 탓에 50초 만에 끝난 운영 반영을 21분 헛기다렸다.
+- **남는 위험**:
+  - 훅은 메인 체크아웃 파일로 돈다. 메인을 origin/deploy 로 맞추기 전에는 이 수정이 훅에 적용되지 않는다(F5, 맞추는 방법은 사용자와 따로 정한다).
+  - 고친 날 이전 기록이 든 세션 키로 승격할 때는 `--shas` 를 쓴다.
+  - 워크트리에서 rebase 하면 post-rewrite 훅이 워크트리 원장만 승계하므로, 메인 원장에는 옛 SHA 가 남는다.
+- **영향**: `tools/harness/{guard_policy,effective_repo,record_git_commit_ledger,ci_watch}.py`, `.claude/hooks/{guard_shell,record_commit_ledger,post_push_watch}.py`, `tools/ops/check_deploy_drift.py`, `tests/conftest.py`, `.github/workflows/ci.yml`, 시험 3개(`tests/harness/test_guard_push_effective_repo.py`·`test_check_deploy_drift.py`, `tests/domains/test_ci_shard_contract.py`).
+
 ### [2026-10-28] 코드 작업을 끝내기 전 Jev 점검(jev_gate)은 필수가 아니다 · 상담 에이전트의 Jev 사용은 그대로
 - **키워드**: Jev, TypeSafe, jev_gate, jev_review, jev_verify, jev_screen, jev_compare, ~/.claude/skills/jev, When to call, 끝내기 전 점검, 되돌림 확인, 상담 에이전트, CS 초안, 하네스 재점검
 - **결정**: 사용자 선택(2026-10-28 "1"). 사용자 범위 스킬 `~/.claude/skills/jev/SKILL.md` 의 로컬 규칙에서 "큰 변경(파일 3개 이상 또는 100줄 이상)을 끝내기 전 `jev_gate` 1회"를 뺀다. 코드 작업이 끝났는지는 실제 검사(시험·스모크·CI)로 판정하고, `jev_gate`·`jev_review` 는 사용자가 요청할 때만 부른다. 나머지 세 경우(남의 보고 전달·실행으로 확인 못 하는 주장 → `jev_verify`, 바깥 글 → `jev_screen`)와 상담 초안(가린 글에 screen·verify·compare — 같은 날 다른 창에서 받은 사용자 허락)은 그대로 둔다. MCP 등록(`@jkudish/jev-mcp@latest`, 같은 날 사용자 지시)도 그대로다.
