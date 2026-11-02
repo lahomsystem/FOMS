@@ -1,0 +1,5 @@
+{#- 물어보기 탭(설계서 10절 · 7.5 화면 8) — ADMIN 은 늘(꺼져 있어도 설정을 보려고), 층 승인자 MANAGER 는 여는 단계 안일 때만. -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'ask' else '' }} brain-pane" id="brain-tab-ask" role="tabpanel"
+         aria-labelledby="brain-tab-ask-btn" tabindex="0">
+  {% include "brain/partials/ask_panel.html" %}
+</section>

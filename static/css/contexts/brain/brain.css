@@ -52,6 +52,7 @@
 .brain-link--evidence_of { --brain-link: #be185d; }
 .brain-link--caused_by { --brain-link: #92400e; }
 .brain-link--fixed_by { --brain-link: #166534; }
+.brain-link--about { --brain-link: #b45309; }
 
 /* ── 머리 ── */
 .brain-head {
@@ -233,6 +234,7 @@
 .brain-card__frame.brain-state--draft { border-left-style: dashed; }
 .brain-card__frame.brain-state--retired { border-left-color: var(--brain-retired); }
 .brain-card__frame.brain-state--stale { box-shadow: -6px 0 0 0 var(--brain-stale); }
+.brain-card__effect { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .brain-card__text { white-space: pre-wrap; background: #f9fafb; border: 1px solid var(--brain-line); border-radius: 8px; padding: 10px 12px; }
 .brain-fields { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0; font-size: 0.875rem; }
 .brain-fields dt { color: var(--brain-muted); font-weight: 600; }
@@ -461,3 +463,50 @@
   .brain3d__body { grid-template-columns: minmax(0, 1fr); }
   .brain-nb__canvas { min-height: 340px; }
 }
+
+/* ── 물어보기(직원 챗봇 — 설계서 10절 · ⑤-5) ── */
+.brain-ask { max-width: 860px; }
+.brain-ask__note { color: var(--brain-muted); font-size: 0.875rem; margin: 0 0 8px; }
+.brain-ask__form { display: flex; flex-direction: column; gap: 8px; }
+.brain-ask__label { font-weight: 600; }
+.brain-ask__input {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--brain-line);
+  border-radius: 8px;
+  font-size: 1rem;
+  resize: vertical;
+}
+.brain-ask__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brain-ask__left { color: var(--brain-muted); font-size: 0.8125rem; }
+.brain-ask__log { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.brain-ask__turn { border: 1px solid var(--brain-line); border-radius: 10px; background: #fff; padding: 12px 14px; }
+.brain-ask__q { color: var(--brain-muted); font-size: 0.875rem; margin: 0 0 6px; white-space: pre-wrap; }
+.brain-ask__a { margin: 0 0 8px; white-space: pre-wrap; line-height: 1.55; }
+.brain-ask__turn.is-unknown { border-left: 4px solid var(--brain-stale); }
+.brain-ask__turn.is-answer { border-left: 4px solid #1d4ed8; }
+.brain-ask__badge {
+  display: inline-block;
+  padding: 1px 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.brain-ask__meta { color: var(--brain-muted); font-size: 0.8125rem; margin: 0 0 6px; }
+.brain-ask__chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; padding: 0; list-style: none; }
+.brain-ask__chip-date { color: var(--brain-muted); font-weight: 400; }
+.brain-ask__checks { color: #9a3412; font-size: 0.8125rem; margin: 0 0 8px; }
+.brain-ask__feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.brain-ask__feedback .brain-btn.is-on { border-color: #1d4ed8; color: #1d4ed8; }
+.brain-ask__fix { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%; }
+.brain-ask__fix[hidden] { display: none; }
+.brain-ask-admin { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--brain-line); }
+.brain-ask-admin__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px 16px; }
+.brain-ask-admin__field { display: flex; flex-direction: column; gap: 4px; font-size: 0.875rem; }
+.brain-ask-admin__help { color: var(--brain-muted); font-size: 0.75rem; }
+.brain-ask-gaps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.brain-ask-gaps__row { border: 1px solid var(--brain-line); border-radius: 8px; padding: 6px 10px; font-size: 0.875rem; }

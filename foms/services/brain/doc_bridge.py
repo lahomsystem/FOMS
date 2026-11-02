@@ -32,8 +32,18 @@ STATUS_TO_DOC: dict[str, str] = {STATUS_ACTIVE: STATUS_APPROVED, STATUS_DRAFT: D
 DOC_TO_STATUS: dict[str, str] = {doc: status for status, doc in STATUS_TO_DOC.items()}
 #: 지식 문서 유형 ``payload`` 칸.
 DOC_PAYLOAD_KEYS = frozenset({"doc_id", "intents", "tags", "source", "approved_by", "approved_at", "doc_pos"})
-#: 옮기기를 다시 돌릴 때 문서를 따라 맞추는 칸(이름 · 보기 범위 · 사본 목록 등 brain 에서만 정하는 칸은 건드리지 않는다).
+#: 옮기기를 다시 돌릴 때 문서를 따라 맞추는 칸(이름 · 보기 범위 · 사본 목록 등 brain 에서만 정하는 칸은 건드리지 않는다 —
+#: 보기 범위는 :data:`IMPORT_SCOPE_OVERRIDES` 에 적힌 항목만 그 값으로 맞춘다).
 SYNC_FIELDS: tuple[str, ...] = ("text", "status", "confidence", "checked_at", "payload")
+#: 옮길 때 보기 범위를 정해 둔 항목(문서 id → 범위 — 전사 지식 온톨로지 점검 '지금 5'). 적지 않은 항목은 '내부 모두'다.
+#: ``basic-account``(계좌 번호가 든 사장님 결정)는 사장님이 **'내부 모두'** 로 정했다(11-02) — 범위는 그대로 두고, 계좌 같은
+#: 번호가 든 글은 의미 찾기(Voyage)로 보내지 않는다(:func:`foms.services.brain.embeddings.safe_text`). 다른 항목을 좁힐 때 쓴다.
+IMPORT_SCOPE_OVERRIDES: dict[str, str] = {"basic-account": SCOPE_ALL}
+
+
+def import_visibility(doc_id: Any) -> str:
+    """옮길 때 그 문서 항목의 보기 범위 — 적힌 항목은 좁힌 범위, 그 밖은 '내부 모두'."""
+    return IMPORT_SCOPE_OVERRIDES.get(str(doc_id or ""), SCOPE_ALL)
 
 
 def doc_item_of(values: Mapping[str, Any], item_type: str) -> dict[str, Any]:
@@ -50,13 +60,14 @@ def doc_item_of(values: Mapping[str, Any], item_type: str) -> dict[str, Any]:
 
 def doc_values(item: Mapping[str, Any], *, item_type: str, positions: Mapping[str, int], evidence_ref: str,
                ) -> dict[str, Any]:
-    """정본 지식 문서 항목 → brain 값 칸(옮기기). 이름은 문서 id, 보기 범위는 모두(내부)."""
+    """정본 지식 문서 항목 → brain 값 칸(옮기기). 이름은 문서 id, 보기 범위는 모두(내부) — 좁힐 항목은 :func:`import_visibility`."""
     approved = bool(item.get("approved_by")) and bool(item.get("approved_at"))
     return {
         "name": item["id"], "text": item["text"], "status": DOC_TO_STATUS[item["status"]],
         "confidence": CONFIRMED if approved else OBSERVED, "risk_grade": TYPE_GRADES[item_type],
         "valid_from": None, "valid_to": None, "checked_at": item.get("checked_at"),
-        "evidence_kind": EVIDENCE_IMPORT, "evidence_ref": evidence_ref, "visibility": SCOPE_ALL, "copies": None,
+        "evidence_kind": EVIDENCE_IMPORT, "evidence_ref": evidence_ref, "visibility": import_visibility(item["id"]),
+        "copies": None,
         "payload": {"doc_id": item["id"], "intents": list(item.get("intents") or []), "tags": list(item.get("tags") or []),
                     "source": item.get("source"), "approved_by": item.get("approved_by"),
                     "approved_at": item.get("approved_at"), "doc_pos": dict(sorted(positions.items()))},

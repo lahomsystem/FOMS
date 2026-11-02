@@ -30,6 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain import releases
 from foms.services.brain.access import approval_problem
+from foms.services.brain.ai_gates import sources
 from foms.services.brain.constants import (
     BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
     OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
@@ -186,7 +187,7 @@ def _write_object(session: Any, change: BrainChange, current: Optional[BrainObje
     row = BrainObject(
         item_key=change.item_key, version=int(top or 0) + 1, brand=change.brand, layer=change.layer,
         item_type=change.item_type, **columns, stale_after=_stale_after(change.item_type, columns.get("checked_at")),
-        evidence_count=len(change.evidence or []), usage_count=current.usage_count if current is not None else 0,
+        evidence_count=len(sources(change.evidence or [])), usage_count=current.usage_count if current is not None else 0,
         recorded_at=now, created_by=change.proposed_by, human_approver_id=approver_id, change_id=change.id,
         release_no=release_no)
     _insert_version(session, row, current.version if current is not None else None)

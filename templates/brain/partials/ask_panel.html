@@ -1,0 +1,39 @@
+{#- 회사 지식 물어보기(직원 챗봇 — 설계서 10절 · D88 · D99 · ⑤-5). 묻기 · 답 · 근거 칩 · 확신 · 피드백은 brain-ask.js 가
+    JSON API(/api/brain/chat/*)로 읽고 써서 textContent 로만 그린다. 질문은 보내기 전에 서버가 상담과 같은 가림으로 가린다.
+    ADMIN 은 설정 · 빈 지식 목록(brain-ask-admin.js)을 같이 본다. 인라인 스크립트 · 스타일 없음. -#}
+<div class="brain-ask" data-brain-ask
+     data-display="{{ display|tojson|forceescape }}"
+     data-state-url="{{ url_for('brain_chat_api.brain_chat_state') }}"
+     data-ask-url="{{ url_for('brain_chat_api.brain_chat_ask') }}"
+     data-feedback-url="{{ url_for('brain_chat_api.brain_chat_feedback', question_id=0) }}"
+     data-settings-url="{{ url_for('brain_chat_api.brain_chat_settings_save') }}"
+     data-item-base="{{ url_for('brain_web.index') }}/items/">
+  <p class="brain-ask__note">회사 지식에 있는 것만 근거를 달아 답해요. 지식에 없으면 '모름'과 물어볼 팀을 알려 줘요. 손님 이름 ·
+    전화 · 주소는 적지 마세요(적어도 가려서 보내요). 주문 자료(주문 상태 · 일정)는 아직 답하지 않아요.</p>
+  <p class="brain-status-line" data-brain-ask-state role="status"></p>
+  <form class="brain-ask__form" data-brain-ask-form>
+    <label class="brain-ask__label" for="brain-ask-input">무엇이 궁금한가요?</label>
+    <textarea class="brain-ask__input" id="brain-ask-input" maxlength="500" rows="3" autocomplete="off"
+              placeholder="예: 슬라이딩 문은 깊이가 얼마나 필요해요?" data-brain-ask-input></textarea>
+    <div class="brain-ask__bar">
+      <span class="brain-ask__left" data-brain-ask-left></span>
+      <button type="submit" class="brain-btn brain-btn--primary" data-brain-ask-submit>
+        <i class="fas fa-paper-plane" aria-hidden="true"></i>물어보기</button>
+    </div>
+  </form>
+  <p class="brain-status-line" data-brain-ask-status role="status" aria-live="polite"></p>
+  <ol class="brain-ask__log" data-brain-ask-log aria-live="polite"></ol>
+  {% if is_admin %}
+  <section class="brain-ask-admin" data-brain-ask-admin aria-labelledby="brain-ask-admin-head">
+    <h2 class="h6" id="brain-ask-admin-head">물어보기 설정(ADMIN)</h2>
+    <form data-brain-ask-settings>
+      <div class="brain-ask-admin__grid" data-brain-ask-fields></div>
+      <p class="brain-status-line" data-brain-ask-settings-status role="status" aria-live="polite"></p>
+      <button type="submit" class="brain-btn brain-btn--primary">설정 저장</button>
+    </form>
+    <h2 class="h6 mt-3">빈 지식(주 1회 · 층별)</h2>
+    <p class="brain-status-line" data-brain-ask-gaps-status role="status"></p>
+    <ul class="brain-ask-gaps" data-brain-ask-gaps></ul>
+  </section>
+  {% endif %}
+</div>

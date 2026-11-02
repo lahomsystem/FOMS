@@ -27,13 +27,19 @@ PY = [ROOT / "foms/api/brain.py", ROOT / "foms/api/brain_review.py", ROOT / "fom
       *[ROOT / "foms/services/brain" / n for n in ("access.py", "browse.py", "card.py", "display.py", "read.py",
                                                    "release_view.py", "inbox.py", "decide.py", "recheck.py",
                                                    "rollback.py", "metrics.py", "review_rules.py", "proposals.py",
-                                                   "apply.py", "actions.py", "action_runner.py", "schemas.py")]]
-#: 화면 스크립트 — 읽기(⑤-2) 여섯 + 제안함 · 다시 확인 · 카드 제안(⑤-3) 다섯 + 이웃 지도 · 뇌 보기(⑤-4) 아홉.
+                                                   "apply.py", "actions.py", "action_runner.py", "schemas.py",
+                                                   "chat_answer.py", "chat_retrieve.py", "chat_tools.py", "chat_log.py",
+                                                   "chat_reports.py", "chat_settings.py", "chat_gaps.py", "chat_model.py",
+                                                   "chat_prompt.py", "chat_access.py", "ai_gates.py", "eval_set.py",
+                                                   "labels.py", "usage.py", "embeddings.py", "embed_sources.py",
+                                                   "conflicts.py")],
+      ROOT / "foms/api/brain_chat.py"]
+#: 화면 스크립트 — 읽기(⑤-2) 여섯 + 제안함 · 다시 확인 · 카드 제안(⑤-3) 다섯 + 이웃 지도 · 뇌 보기(⑤-4) 아홉 + 물어보기(⑤-5) 셋.
 SCRIPT_NAMES = {"brain-view.js", "brain-dom.js", "brain-page.js", "brain-table.js", "brain-releases.js", "brain-map.js",
                 "brain-review-view.js", "brain-inbox-card.js", "brain-inbox.js", "brain-recheck.js",
                 "brain-item-actions.js", "brain-graph-view.js", "brain-neighbours.js", "brain3d-core.js",
                 "brain3d-layout.js", "brain3d-shell.js", "brain3d-nodes.js", "brain3d-labels.js", "brain3d-scene.js",
-                "brain3d-tab.js"}
+                "brain3d-tab.js", "brain-ask-view.js", "brain-ask.js", "brain-ask-admin.js"}
 #: 그림 라이브러리를 import() 하는 화면 파일 — 유형 지도 · 이웃 지도(Cytoscape) · 뇌 보기(three.js · 그리기 파일).
 IMPORTERS = ["brain-map.js", "brain-neighbours.js", "brain3d-tab.js"]
 

@@ -145,6 +145,14 @@
     {
       "key": "foms/api/cs_agent_send.py::cs_agent_reconcile",
       "reason": "AI 상담 [보내기] 결과 확인 — '확인 중' 화면이 몇 초마다 부르는 조회성 POST(서명 표를 본문에 싣느라 POST). 상태를 바꾸는 것은 채널톡 글로 이미 정해진 사실(보냄 · 못 보냄)을 적는 것뿐이고, 누른 행위는 CS_AGENT_SEND 로 남는다."
+    },
+    {
+      "key": "foms/api/brain_chat.py::brain_chat_ask",
+      "reason": "회사 지식 물어보기 질문 — 질문 기록 표(brain_questions)가 묻는 사람 번호 · 가린 질문 · 답 · 근거를 이미 남긴다. 감사 원장에 같은 줄을 또 남기지 않는다(직원별 모아 보기를 만들지 않는다 — 설계서 10.3 · 원장 Q20). 지식 정본은 쓰지 않는다."
+    },
+    {
+      "key": "foms/api/brain_chat.py::brain_chat_feedback",
+      "reason": "회사 지식 물어보기 피드백 — 묻는 사람 자기 질문 줄(brain_questions)에 도움 됨 · 안 됨 · 틀림과 가린 고칠 말을 적고, 틀림은 신고 표(brain_wrong_reports)에 남는다. 지식을 바꾸는 것은 제안함 결정(BRAIN_APPLY)뿐이라 그쪽이 감사 원장에 남는다."
     }
   ]
 }

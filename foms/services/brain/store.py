@@ -34,6 +34,11 @@ def in_force(model: Any, today: datetime.date) -> ColumnElement[bool]:
     return or_(model.valid_to.is_(None), model.valid_to >= today)
 
 
+def started(model: Any, today: datetime.date) -> ColumnElement[bool]:
+    """유효 시작 조건 — 시작 날(``valid_from``)이 없거나 오늘(한국 날짜) 이전. 시작 날이 뒤면 아직 효력이 없다(점검 '지금 1')."""
+    return or_(model.valid_from.is_(None), model.valid_from <= today)
+
+
 def is_ended(valid_to: Any, today: datetime.date) -> bool:
     """끝 날이 지났나(``date`` 또는 ``YYYY-MM-DD`` 글)."""
     if isinstance(valid_to, str):

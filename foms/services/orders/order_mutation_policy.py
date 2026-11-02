@@ -204,6 +204,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # --- WDC (§2.1 line 154) ------------------------------------------------
     "WDC_CALCULATE": _p("WDC_CALCULATE", teams="*", viewer=True,
                         description="WDC calculate — 로그인 사용자 pure calc, DB 무변경. VIEWER 허용."),
+
+    # --- 회사 지식 물어보기(HAUD master brain 설계서 10절 · D88 · D99) -------------
+    "BRAIN_ASK": _p("BRAIN_ASK", teams="*", viewer=True,
+                    description="회사 지식 물어보기 질문 · 내 질문 피드백 — 로그인 내부 직원(VIEWER 포함). 여는 단계(admin → "
+                                "leads → all) · 스위치는 라우트가 다시 보고 단계 밖은 404. 지식 정본은 쓰지 않는다."),
     "WDC_ESTIMATE": _p("WDC_ESTIMATE", teams=("CS", "SALES"),
                        description="WDC estimate save/match/unmatch/sync — ADMIN/MANAGER 또는 STAFF+CS/SALES."),
     "MASTER_MUTATION": _p("MASTER_MUTATION", teams=(),

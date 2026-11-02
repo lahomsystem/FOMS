@@ -18,7 +18,7 @@ def test_screen_reads_filter_by_scope_on_postgres(pg_session):
     who = {name: viewer_of(user) for name, user in world(pg_session).items()}
     admin = search_grouped(pg_session, who["admin"], "문짝", today=TODAY)
     cs = search_grouped(pg_session, who["cs_mgr"], "문짝", today=TODAY)
-    assert admin["total"] == 9 and cs["total"] == 6
+    assert admin["total"] == 7 and cs["total"] == 4  # 초안 · 은퇴는 기본 읽기 거르기가 뺀다(점검 지금 1)
     assert [g["type"] for g in cs["groups"]] == ["product_line", "build_rule"]
     # 부분 일치가 아니라 비슷함(%)으로만 닿는 찾기도 묶음에 들어온다(레인 클러스터는 C 로케일이라 영문 합성 이름으로 본다)
     create(pg_session, pg_session.query(User).filter_by(username="bs_admin").one(), "common/hinge",

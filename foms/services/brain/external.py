@@ -13,8 +13,9 @@ brain 은 값을 베끼지 않고 정본 자리를 가리키기만 한다(3.1 �
 - ``setting:<키>`` — 시스템 설정 한 줄(``system_settings.setting_key``).
 
 **카드의 지금 값은 볼 수 있는 사람에게만**(4절 보기 범위): 계산기 값(가격)은 가격 재량 범위(``price`` — 사장님 · ADMIN)를 볼
-수 있는 사람만, 설정 값은 관리 범위(``admin``)를 볼 수 있는 사람만 본다. 그 밖의 사람에게는 이름 · 있음 여부만 가고 값 칸
-자체를 싣지 않는다(``value_hidden``). 설정 값은 통째가 아니라 짧은 요약(글 앞부분 · 목록 개수 · 칸 이름 몇 개)만 보인다.
+수 있는 사람만, 설정 값 요약은 관리 범위(``admin``)를 볼 수 있는 사람 **과 그 항목 층의 승인자 팀 MANAGER**(사장님 D109 · D101 —
+도면 층의 자재표 설정은 도면팀 팀장)만 본다. 그 밖의 사람에게는 이름 · 있음 여부만 가고 값 칸 자체를 싣지 않는다
+(``value_hidden``). 설정 값은 통째가 아니라 짧은 요약(글 앞부분 · 목록 개수 · 칸 이름 몇 개)만 보인다.
 
 계산기 정본은 따로 DB 라 읽는 함수를 바꿔 끼울 수 있다(:func:`catalog_source` — 시험 · 도구). 못 읽으면 제안 · 반영은 막고
 (실재를 확인할 수 없으면 넣지 않는다), 카드는 '확인 못 함'으로 보인다.
@@ -29,9 +30,9 @@ from typing import Any, Callable, Iterable, Iterator, Optional
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from foms.services.brain.constants import SCOPE_ADMIN, SCOPE_PRICE, external_type
+from foms.services.brain.constants import LAYER_APPROVER_TEAMS, SCOPE_ADMIN, SCOPE_PRICE, external_type
 from foms.services.brain.errors import BrainExternalRefError
-from foms.services.brain.scope import Viewer, can_see
+from foms.services.brain.scope import ROLE_MANAGER, Viewer, can_see
 from foms.services.wdcalculator.catalog import Catalog, read_catalog
 from foms.services.wdcalculator.pricing import find_product
 from models import SystemSetting
@@ -153,11 +154,21 @@ def _calc_value(values: dict[str, Any]) -> str:
     return " · ".join(head + [f"{_PRICE_LABELS.get(k, k)} {_won(v)}" for k, v in values.items() if k != "pricing_type"])
 
 
-def ref_cards(session: Any, viewer: Viewer, chips: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def sees_setting_values(viewer: Viewer, layer: Optional[str]) -> bool:
+    """설정 값 요약을 볼 수 있나 — 관리 범위(ADMIN) 또는 그 층 승인자 팀의 켜진 MANAGER(D109 · D101)."""
+    if can_see(viewer, SCOPE_ADMIN):
+        return True
+    team = LAYER_APPROVER_TEAMS.get(layer or "")
+    return bool(viewer.internal and viewer.role == ROLE_MANAGER and team is not None and viewer.team == team)
+
+
+def ref_cards(session: Any, viewer: Viewer, chips: list[dict[str, Any]], *,
+              layer: Optional[str] = None) -> list[dict[str, Any]]:
     """카드 바깥 정본 칩에 있음 · 이름 · 지금 값(볼 수 있는 사람만)을 붙인다.
 
     Args:
         chips: :func:`foms.services.brain.card.external_chips` 결과(``ref`` · ``kind`` · ``ext_type``).
+        layer: 그 항목의 층 — 설정 값 요약을 그 층 승인자 팀 MANAGER 에게도 보인다(D109). 계산기 값은 층과 상관없다.
 
     Returns:
         칩마다 ``exists``(``True`` · ``False`` · 확인 못 하면 ``None``) · ``label`` · ``value`` · ``value_hidden``.
@@ -167,7 +178,7 @@ def ref_cards(session: Any, viewer: Viewer, chips: list[dict[str, Any]]) -> list
     catalog = _catalog() if calcs else None
     settings = [r for r in refs if r.startswith(SETTING)]
     present = _setting_keys(session, settings)
-    see_price, see_admin = can_see(viewer, SCOPE_PRICE), can_see(viewer, SCOPE_ADMIN)
+    see_price, see_admin = can_see(viewer, SCOPE_PRICE), sees_setting_values(viewer, layer)
     values: dict[str, Any] = {}
     if see_admin and present:
         rows = session.execute(select(SystemSetting.setting_key, SystemSetting.setting_value)

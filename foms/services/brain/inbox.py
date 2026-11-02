@@ -5,7 +5,9 @@
 12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
 
 - **항목당 카드 하나**: 같은 항목(링크는 같은 링크)에 열린 제안이 둘 이상이면 처음 것이 카드, 나머지는 같은 카드에 붙는다.
-- **AI 제안**: 이번 주 남은 자리(:data:`AI_WEEKLY_CAP` − 이번 주 결정한 AI 제안 수)만큼, 그 항목이 **쓰인 횟수 순**으로 보인다.
+- **AI 제안**: **층마다**(사장님 D106 — 공통 · 상담 · 도면 · 생산) 이번 주 남은 자리(:data:`AI_WEEKLY_CAP` − 이번 주 그 층에서
+  결정한 AI 제안 수)만큼, 그 항목이 **쓰인 횟수 순**으로 보인다(쓰인 횟수 = 판 줄 칸 + 따로 센 수 — :mod:`.usage`). 승인자는 자기
+  층 묶음만, ADMIN 은 모든 층 묶음을 본다.
   만든 뒤 4주가 지난 AI 제안은 보이지 않고 :func:`.decide.expire_ai_proposals` 가 '기간 끝남'으로 닫는다.
 - 카드: 한 줄 요약 재료 · 칸별 전 → 후 · 사람 까닭과 사진 먼저 · AI 일반화 다음 · 근거 서랍(근거 id 만 — 가린 글 자리) ·
   비슷한 사례 수와 날짜 · 함께 닿는 항목 · 관문 결과 · 기준 판 바뀜 경고 · 유형별 '승인의 뜻' · 등급 B 확인 값 · 휴대폰 가능.
@@ -25,13 +27,14 @@ from foms.services.brain.access import approval_problem, approver_layers
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
     AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
-    HUMAN_EDIT_FIELDS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
+    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
 from foms.services.brain.schemas import diff_rows, payload_props, prop_of
 from foms.services.brain.scope import Viewer, allowed_scopes
 from foms.services.brain.store import LINK_FIELDS, OBJECT_FIELDS, is_current
+from foms.services.brain.usage import usage_of, usage_total
 from foms.services.datetime_kst import format_datetime_kst
 
 MAX_CHANGES = 200
@@ -79,25 +82,42 @@ def current_join(cur: Any) -> Any:
     return and_(cur.item_key == BrainChange.item_key, is_current(cur))
 
 
-# ── AI 주 상한 ───────────────────────────────────────────────────────────
-def ai_week(session: Any, now: datetime.datetime) -> dict[str, int]:
-    """이번 주 AI 자리 — ``{"cap", "used", "left"}``(모든 사람 같은 수 — 회사 하나의 주 상한)."""
-    used = int(session.execute(select(func.count()).select_from(BrainChange).where(
+# ── AI 주 상한(층마다 — D106) ────────────────────────────────────────────
+def _used_by_layer(session: Any, now: datetime.datetime) -> dict[str, int]:
+    """이번 주 층마다 결정한 AI 제안 수."""
+    rows = session.execute(select(BrainChange.layer, func.count()).where(
         agent_clause(), BrainChange.status.in_((CHANGE_APPLIED, CHANGE_REJECTED)),
-        BrainChange.decided_at >= week_start(now))).scalar_one())
-    return {"cap": AI_WEEKLY_CAP, "used": used, "left": max(0, AI_WEEKLY_CAP - used)}
+        BrainChange.decided_at >= week_start(now)).group_by(BrainChange.layer)).all()
+    return {layer: int(n) for layer, n in rows if layer}
+
+
+def ai_week(session: Any, now: datetime.datetime, viewer: Optional[Viewer] = None) -> dict[str, Any]:
+    """이번 주 AI 자리 — ``{"cap", "used", "left", "per_layer", "layers": {층: {"used", "left"}}}``.
+
+    층마다 :data:`AI_WEEKLY_CAP` 자리다(D106). ``viewer`` 를 주면 그 사람이 결정하는 층만 더한다(층 승인자 MANAGER 는 자기 층
+    하나 — 자리 20, ADMIN 은 모든 층), 안 주면 모든 층."""
+    used = _used_by_layer(session, now)
+    mine = approver_layers(viewer) if viewer is not None else None
+    layers = tuple(LAYERS) if mine is None else tuple(layer for layer in LAYERS if layer in mine)
+    per = {layer: {"used": used.get(layer, 0), "left": max(0, AI_WEEKLY_CAP - used.get(layer, 0))} for layer in layers}
+    return {"cap": AI_WEEKLY_CAP * len(layers), "used": sum(v["used"] for v in per.values()),
+            "left": sum(v["left"] for v in per.values()), "per_layer": AI_WEEKLY_CAP, "layers": per}
 
 
 def shown_ai_ids(session: Any, now: datetime.datetime) -> list[int]:
-    """제안함에 보일 AI 제안 id — 남은 자리만큼, 쓰인 횟수 많은 순(그다음 오래된 순). 4주 지난 것은 빼고."""
-    left = ai_week(session, now)["left"]
-    if not left:
-        return []
+    """제안함에 보일 AI 제안 id — 층마다 남은 자리만큼, 쓰인 횟수 많은 순(그다음 오래된 순). 4주 지난 것은 빼고."""
+    week = ai_week(session, now)
+    shown: list[int] = []
     cur = aliased(BrainObject)
-    query = (select(BrainChange.id).outerjoin(cur, current_join(cur))
-             .where(BrainChange.status == CHANGE_OPEN, agent_clause(), BrainChange.created_at >= ai_cutoff(now))
-             .order_by(func.coalesce(cur.usage_count, 0).desc(), BrainChange.created_at, BrainChange.id).limit(left))
-    return [int(i) for i in session.execute(query).scalars()]
+    for layer, slot in week["layers"].items():
+        if not slot["left"]:
+            continue
+        query = (select(BrainChange.id).outerjoin(cur, current_join(cur))
+                 .where(BrainChange.status == CHANGE_OPEN, agent_clause(), BrainChange.layer == layer,
+                        BrainChange.created_at >= ai_cutoff(now))
+                 .order_by(usage_total(cur).desc(), BrainChange.created_at, BrainChange.id).limit(slot["left"]))
+        shown.extend(int(i) for i in session.execute(query).scalars())
+    return shown
 
 
 def _in_box(session: Any, now: datetime.datetime) -> Any:
@@ -270,7 +290,7 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     return {
         "id": change.id, "key": key, "name": cur.name if cur is not None else (after_name or key),
         "type": change.item_type, "layer": change.layer, "brand": change.brand,
-        "usage_count": int(cur.usage_count or 0) if cur is not None else 0,
+        "usage_count": (int(cur.usage_count or 0) + extra["usage"].get(key, 0)) if cur is not None else 0,
         "version": cur.version if cur is not None else None, "exists": cur is not None,
         "copies": len(cur.copies or []) if cur is not None else 0,
         "main": views[main_index], "attached": [v for i, v in enumerate(views) if i != main_index],
@@ -295,6 +315,7 @@ def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, 
     people = {int(c.proposed_by[5:]) for c, _r in rows if (c.proposed_by or "").startswith("user:")
               and c.proposed_by[5:].isdigit()}
     extra = {"names": people_names(session, people), "links": link_versions(session, [c for c, _r in rows]),
-             "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys)}
+             "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys),
+             "usage": usage_of(session, item_keys)}
     cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)
-    return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now)}
+    return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now, viewer)}

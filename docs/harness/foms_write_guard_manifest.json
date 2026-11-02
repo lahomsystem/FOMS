@@ -1081,6 +1081,18 @@
     "brain_review_api.brain_release_rollback": {
       "mode": "guard",
       "rule": "/api/brain/releases/<int:number>/rollback"
+    },
+    "brain_chat_api.brain_chat_ask": {
+      "mode": "guard",
+      "rule": "/api/brain/chat/ask"
+    },
+    "brain_chat_api.brain_chat_feedback": {
+      "mode": "guard",
+      "rule": "/api/brain/chat/questions/<int:question_id>/feedback"
+    },
+    "brain_chat_api.brain_chat_settings_save": {
+      "mode": "guard",
+      "rule": "/api/brain/chat/settings"
     }
   }
 }

@@ -33,7 +33,15 @@ from foms.services.brain.store import current_link, current_object
 from models import SecurityLog
 from tests.support.brain_review_support import review_world
 from tests.support.brain_screen_support import TODAY
-from tests.support.brain_support import NOW, REASON, create, link
+from tests.support.brain_support import NOW, REASON, TWO_SOURCES, agent_judge, create, link
+
+
+@pytest.fixture(autouse=True)
+def _agent_judge():
+    """에이전트 제안의 관문 ②(부딪침 — 7.7 · D105)를 합성 판정자로 넘긴다(모델을 부르지 않는다)."""
+    with agent_judge():
+        yield
+
 
 LATER = NOW + datetime.timedelta(minutes=5)
 
@@ -159,10 +167,12 @@ def test_reject_reason_is_stored_and_the_same_proposal_cannot_come_back(world):
     assert (rejected.status, rejected.reject_code, rejected.decided_by) == ("rejected", "one_customer", who["cs_mgr"].id)
     with pytest.raises(BrainRejectedError) as caught:
         propose_update(db_session, key="cs/lesson/photo", base_version=1, after={"name": "사진 먼저 꼭 받기"},
-                       reason="다시", proposer=Proposer.agent_named("cs_agent"), now=LATER, known="")
+                       reason="다시", proposer=Proposer.agent_named("cs_agent"),
+                       evidence=TWO_SOURCES, now=LATER, known="")
     assert caught.value.reject_code == "one_customer"
     other = propose_update(db_session, key="cs/lesson/photo", base_version=1, after={"name": "사진을 먼저 받기"},
-                           reason="다른 값", proposer=Proposer.agent_named("cs_agent"), now=LATER, known="")
+                           reason="다른 값", proposer=Proposer.agent_named("cs_agent"),
+                           evidence=TWO_SOURCES, now=LATER, known="")
     assert other.status == "open"  # 대조군: 다른 새 값은 받는다
     with pytest.raises(BrainShapeError):
         reject_decision(db_session, other.id, actor=who["cs_mgr"], code="no_such_chip", now=LATER)
@@ -171,7 +181,8 @@ def test_reject_reason_is_stored_and_the_same_proposal_cannot_come_back(world):
 def test_one_open_proposal_per_item_the_second_attaches_to_the_same_card(world):
     who, ch = world["people"], world["changes"]
     ai = propose_update(db_session, key="cs/lesson/photo", base_version=1, after={"text": "사진을 먼저 받는다"},
-                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"),
+                        evidence=TWO_SOURCES, now=NOW, known="")
     human = propose_update(db_session, key="cs/lesson/photo", base_version=1, after={"text": "사진 먼저 그다음 치수"},
                            reason=REASON, proposer=Proposer.user(who["cs_mgr"].id), now=LATER, known="")
     cards = [cd for cd in _cards(who["cs_mgr"]) if cd["key"] == "cs/lesson/photo"]
@@ -191,7 +202,7 @@ def test_ai_proposals_are_capped_at_twenty_a_week_by_usage(world):
         create(db_session, who["admin"], key, item_type="tone", layer="cs", name=f"합성 말투 {chr(0xAC00 + n)}")
         db_session.execute(update(BrainObject).where(BrainObject.item_key == key).values(usage_count=n))
         propose_update(db_session, key=key, base_version=1, after={"text": "말투 고침 제안"}, reason="AI 일반화",
-                       proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+                       proposer=Proposer.agent_named("cs_agent"), evidence=TWO_SOURCES, now=NOW, known="")
     db_session.commit()
     cards = [cd for cd in _cards(who["cs_mgr"]) if cd["main"]["ai"]]
     assert len(cards) == c.AI_WEEKLY_CAP == 20
@@ -200,7 +211,8 @@ def test_ai_proposals_are_capped_at_twenty_a_week_by_usage(world):
     for card in cards[:5]:
         reject_decision(db_session, card["main"]["id"], actor=who["cs_mgr"], code="other", now=LATER)
     data = inbox(db_session, viewer_of(who["cs_mgr"]), now=LATER)
-    assert data["ai"] == {"cap": 20, "used": 5, "left": 15}
+    assert {k: data["ai"][k] for k in ("cap", "used", "left")} == {"cap": 20, "used": 5, "left": 15}  # 상담 층 자리(D106)
+    assert data["ai"]["layers"] == {"cs": {"used": 5, "left": 15}}
     assert len([cd for cd in data["cards"] if cd["main"]["ai"]]) == 15  # 이번 주 남은 자리만
     next_week = LATER + datetime.timedelta(days=7)
     assert len([cd for cd in _cards(who["cs_mgr"], now=next_week) if cd["main"]["ai"]]) == 17  # 새 주 = 자리 20
@@ -210,9 +222,11 @@ def test_ai_proposals_close_after_four_weeks_but_human_ones_stay_open(world):
     who, ch = world["people"], world["changes"]
     old = NOW - datetime.timedelta(days=c.AI_EXPIRE_DAYS + 1)
     ai = propose_update(db_session, key="cs/tone/polite", base_version=1, after={"name": "오래된 AI 제안"},
-                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"), now=old, known="")
+                        reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"),
+                        evidence=TWO_SOURCES, now=old, known="")
     fresh = propose_update(db_session, key="cs/lesson/hidden", base_version=1, after={"text": "새 AI 제안"},
-                           reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"), now=NOW, known="")
+                           reason="AI 일반화", proposer=Proposer.agent_named("cs_agent"),
+                           evidence=TWO_SOURCES, now=NOW, known="")
     db_session.get(BrainChange, ch["cs"]).created_at = old  # 사람 제안도 같은 나이(대조군)
     db_session.flush()
     assert ai.id not in _ids(_cards(who["admin"]))  # 닫기 전에도 제안함에 안 보인다

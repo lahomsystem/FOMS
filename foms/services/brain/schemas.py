@@ -49,27 +49,33 @@ def _desc(label: str = "설명", *, required: bool = True) -> Prop:
 
 _CHECKED = Prop("checked_at", "마지막 확인", "date", key=True)
 _LEAD = Prop("payload.lead_days", "제작 기간", "int", low=1, high=180, unit="일", key=True)
+#: SKOS 꼴 이름표(7.7 · D105 · 점검 '지금 4') — 대표 이름(비우면 ``name``) · 다른 이름 · 숨은 이름(잘못 쓴 말 · 줄임 —
+#: 찾기만 보고 화면에 안 보임) · 위 낱말. 실음 칸이라 :mod:`.labels` 가 찾기 · 벡터 글에 쓴다.
+_PREF = Prop("payload.pref_label", "대표 이름", "text", max_len=60, key=True)
+_ALIASES = Prop("payload.aliases", "다른 이름", "list", max_items=20, max_len=60, key=True)
+_HIDDEN = Prop("payload.hidden_labels", "숨은 이름", "list", max_items=20, max_len=60)
+_BROADER = Prop("payload.broader", "위 낱말", "text", max_len=60)
+_LABELS = (_PREF, _ALIASES, _HIDDEN, _BROADER)
 
 #: 유형 → 속성 틀(차례 = 카드 · 제안함 차례).
 TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
     "product_line": (_desc(), Prop("payload.door_kinds", "문 방식", "list", choices=("hinged", "sliding", "folding",
                                                                                    "none"), max_items=4, key=True),
-                     _LEAD),
+                     _LEAD, *_LABELS),
     "option": (_desc(), Prop("payload.price_kind", "값 방식", "enum", choices=("included", "extra", "quote"), key=True),
-               _LEAD),
+               _LEAD, *_LABELS),
     "spec": (_desc(), Prop("payload.value", "값", "number", low=0, high=100_000, key=True),
              Prop("payload.unit", "단위", "enum", choices=("mm", "cm", "m", "개", "kg", "%"), key=True),
              Prop("payload.low", "아래 끝", "number", low=0, high=100_000),
              Prop("payload.high", "위 끝", "number", low=0, high=100_000)),
     "build_rule": (_desc("조건"), Prop("payload.rule_kind", "조건 꼴", "enum", choices=("requires", "excludes", "limit"),
                                        key=True), _CHECKED),
-    "policy": (_desc("정책 글"), _CHECKED, Prop("valid_from", "유효 시작", "date", key=True)),
+    "policy": (_desc("정책 글"), _CHECKED, Prop("valid_from", "유효 시작", "date", key=True), *_LABELS),
     "price_rule": (_desc("규칙 글"), Prop("checked_at", "마지막 확인", "date", when_active=True, key=True),
                    Prop("evidence_ref", "근거 위치", "text", max_len=200, key=True)),
     "owner_decision": (_desc("결정 글"), Prop("evidence_ref", "결정 근거(원장 번호)", "text", max_len=200, key=True),
                        Prop("valid_from", "유효 시작", "date", key=True)),
-    "term": (_desc("뜻", required=False), Prop("payload.aliases", "다른 이름", "list", max_items=20, max_len=60, key=True),
-             Prop("payload.broader", "위 낱말", "text", max_len=60)),
+    "term": (_desc("뜻", required=False), *_LABELS),
     "fact": (_desc("사실 글"), _CHECKED),
 }
 #: 틀이 아직 없는 유형(오늘 꼴 — 꼴 검사만). 틀을 더하면 여기서 뺀다.

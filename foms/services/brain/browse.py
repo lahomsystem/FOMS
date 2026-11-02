@@ -14,7 +14,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
@@ -22,8 +22,12 @@ from foms.services.brain.constants import (
     OBJECT_STATUSES, TYPE_LAYERS, TYPES,
 )
 from foms.services.brain.display import TYPE_GROUPS, display_table
-from foms.services.brain.read import MAX_QUERY, count_items, search_match, search_type_counts, visible_clauses
+from foms.services.brain.read import (
+    MAX_QUERY, count_items, effective_clauses, search_match, search_type_counts, visible_clauses,
+)
 from foms.services.brain.scope import Viewer
+from foms.services.brain.conflicts import open_conflict_clause
+from foms.services.brain.usage import usage_sum, usage_total
 
 DEFAULT_PER_PAGE, MAX_PER_PAGE = 20, 50
 SEARCH_PER_TYPE = 5
@@ -85,17 +89,19 @@ def parse_table_query(args: Mapping[str, Any]) -> TableQuery:
 
 
 def _open_change() -> Any:
-    """그 항목에 열린 제안이 있나(상관 부분 질의 — ``ix_brain_changes_item_key`` 를 탄다)."""
-    return exists(select(BrainChange.id).where(BrainChange.item_key == BrainObject.item_key,
-                                               BrainChange.status == CHANGE_OPEN))
+    """'확인 필요' — 그 항목에 열린 제안이 있거나(상관 부분 질의 — ``ix_brain_changes_item_key`` 를 탄다) 열린 엇갈림이 그 항목에
+    대한 것이다(:mod:`.conflicts` — 점검 '지금 8')."""
+    return or_(exists(select(BrainChange.id).where(BrainChange.item_key == BrainObject.item_key,
+                                                   BrainChange.status == CHANGE_OPEN)), open_conflict_clause(BrainObject))
 
 
-def light_item(row: BrainObject, *, today: datetime.date, needs_check: bool = False) -> dict[str, Any]:
-    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음)."""
+def light_item(row: BrainObject, *, today: datetime.date, needs_check: bool = False,
+               used: Optional[int] = None) -> dict[str, Any]:
+    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음). ``used`` = 따로 센 쓰인 수(:mod:`.usage`)."""
     text = (row.text or "").strip()
     return {"key": row.item_key, "name": row.name, "type": row.item_type, "layer": row.layer, "brand": row.brand,
             "status": row.status, "confidence": row.confidence, "grade": row.risk_grade, "version": row.version,
-            "usage_count": int(row.usage_count or 0),
+            "usage_count": int(row.usage_count or 0) + int(used or 0),
             "checked_at": row.checked_at.isoformat() if row.checked_at else None,
             "stale_after": row.stale_after.isoformat() if row.stale_after else None,
             "stale": bool(row.stale_after and row.stale_after < today), "needs_check": bool(needs_check),
@@ -116,14 +122,14 @@ def search_grouped(session: Any, viewer: Viewer, query: str, *, today: datetime.
     order = ((func.similarity(BrainObject.name, text).desc(), BrainObject.item_key) if postgres
              else (BrainObject.name, BrainObject.item_key))
     rank = func.row_number().over(partition_by=BrainObject.item_type, order_by=order).label("rank")
-    ranked = select(BrainObject.id, rank).where(*visible_clauses(viewer, today), match).subquery("ranked")
-    rows = session.execute(select(BrainObject, _open_change().label("open"))
+    ranked = select(BrainObject.id, rank).where(*effective_clauses(viewer, today), match).subquery("ranked")
+    rows = session.execute(select(BrainObject, _open_change().label("open"), usage_sum().label("used"))
                            .join(ranked, ranked.c.id == BrainObject.id)
                            .where(ranked.c.rank <= max(1, min(int(per_type), 20)))
                            .order_by(BrainObject.item_type, ranked.c.rank)).all()
     items: dict[str, list[dict[str, Any]]] = {}
-    for row, is_open in rows:
-        items.setdefault(row.item_type, []).append(light_item(row, today=today, needs_check=is_open))
+    for row, is_open, used in rows:
+        items.setdefault(row.item_type, []).append(light_item(row, today=today, needs_check=is_open, used=used))
     groups = [{"type": t, "count": counts[t], "items": items.get(t, [])} for t in TYPES if counts.get(t)]
     return {"query": text, "total": sum(counts.values()), "groups": groups}
 
@@ -154,7 +160,7 @@ def _table_order(sort: str) -> tuple[Any, ...]:
         return BrainObject.checked_at.asc().nulls_first(), BrainObject.item_key
     if sort == "name":
         return BrainObject.name, BrainObject.item_key
-    return BrainObject.usage_count.desc(), BrainObject.item_key
+    return usage_total().desc(), BrainObject.item_key
 
 
 def table_page(session: Any, viewer: Viewer, query: TableQuery, *, today: datetime.date) -> dict[str, Any]:
@@ -163,10 +169,10 @@ def table_page(session: Any, viewer: Viewer, query: TableQuery, *, today: dateti
     total = int(session.execute(select(func.count()).select_from(BrainObject).where(*conditions)).scalar_one())
     pages = max(1, -(-total // query.per_page))
     page = min(query.page, pages)
-    rows = session.execute(select(BrainObject, _open_change().label("open")).where(*conditions)
-                           .order_by(*_table_order(query.sort))
+    rows = session.execute(select(BrainObject, _open_change().label("open"), usage_sum().label("used"))
+                           .where(*conditions).order_by(*_table_order(query.sort))
                            .offset((page - 1) * query.per_page).limit(query.per_page)).all()
-    return {"type": query.item_type, "rows": [light_item(row, today=today, needs_check=o) for row, o in rows],
+    return {"type": query.item_type, "rows": [light_item(row, today=today, needs_check=o, used=u) for row, o, u in rows],
             "total": total, "page": page, "pages": pages, "per_page": query.per_page,
             "type_counts": count_items(session, viewer, today=today)["types"]}
 

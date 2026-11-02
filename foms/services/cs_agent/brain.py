@@ -237,19 +237,21 @@ def _limits(cfg: PanelSettings, *, realtime: bool) -> tuple[float, int]:
 
 
 def _send(api: Any, params: dict[str, Any], *, realtime: bool, session: Any, cap: Decimal,
-          now: datetime.datetime, cfg: PanelSettings) -> tuple[Any, int, Decimal]:
-    """부른다(SDK 다시 하기 0 — 다시 하기는 여기서 센다). 보낼 때마다 최악값을 먼저 예약한다. (응답, 걸린 ms, 예약)."""
+          now: datetime.datetime, cfg: PanelSettings, spend_key: str = SPEND_KEY) -> tuple[Any, int, Decimal]:
+    """부른다(SDK 다시 하기 0 — 다시 하기는 여기서 센다). 보낼 때마다 최악값을 먼저 예약한다. (응답, 걸린 ms, 예약).
+
+    ``spend_key`` 는 예약 · 실패 바로잡기를 적을 돈 줄(처음 값 = 상담 두뇌 하루 돈 줄 — 회사 지식 챗봇은 자기 줄)."""
     timeout, retries = _limits(cfg, realtime=realtime)
     messages = api.with_options(timeout=timeout, max_retries=0).beta.messages
     reserve = prompt.worst_case_cost(params)
     started = time.monotonic()
     for attempt in range(retries + 1):
-        reserve_spend(session, reserve, cap=cap, now=now)
+        reserve_spend(session, reserve, cap=cap, now=now, key=spend_key)
         try:
             response = messages.create(**params)
         except anthropic.APIError as exc:
             failure, retryable, maybe_billed = _failure_of(exc)
-            settle_spend(session, reserve, reserve if maybe_billed else Decimal(0), now=now)
+            settle_spend(session, reserve, reserve if maybe_billed else Decimal(0), now=now, key=spend_key)
         else:
             return response, int((time.monotonic() - started) * 1000), reserve
         logger.warning("[CS 두뇌] 호출 실패 code=%s status=%s request_id=%s attempt=%d kept_reservation=%s",

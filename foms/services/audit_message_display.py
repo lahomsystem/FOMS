@@ -345,6 +345,8 @@ ACTION_LABELS: dict[str, str] = {
     "BRAIN_REJECT": "회사 지식 제안 거절",
     "BRAIN_EXPIRE": "회사 지식 AI 제안 기간 끝남",
     "BRAIN_RELEASE_ROLLBACK": "회사 지식 판 되돌리기",
+    "BRAIN_CHAT_SETTINGS": "회사 지식 물어보기 설정 변경",
+    "BRAIN_CHAT_PURGE": "회사 지식 물어보기 기록 1년 지움",
     # --- 차단(거부 기록) ---
     "ACCESS_DENIED": "권한 거부",
     "CSRF_BLOCKED": "CSRF 차단",

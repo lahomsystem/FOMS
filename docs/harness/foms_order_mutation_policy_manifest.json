@@ -1339,6 +1339,21 @@
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/api/brain/releases/<int:number>/rollback"
+    },
+    "brain_chat_api.brain_chat_ask": {
+      "mode": "guard",
+      "policy_id": "BRAIN_ASK",
+      "rule": "/api/brain/chat/ask"
+    },
+    "brain_chat_api.brain_chat_feedback": {
+      "mode": "guard",
+      "policy_id": "BRAIN_ASK",
+      "rule": "/api/brain/chat/questions/<int:question_id>/feedback"
+    },
+    "brain_chat_api.brain_chat_settings_save": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/brain/chat/settings"
     }
   }
 }

@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block content %}
-{#- HAUD master brain 설계서 7.5 화면 1 · 2 · 4 · 5 · 6 · 7 — 읽기(⑤-2) + 제안함 · 다시 확인 · 판 되돌리기(⑤-3). 값은
+{#- HAUD master brain 설계서 7.5 화면 1 · 2 · 4 · 5 · 6 · 7 · 8 — 읽기(⑤-2) + 제안함 · 다시 확인 · 판 되돌리기(⑤-3) + 물어보기(⑤-5). 값은
     static/js/brain/*.js 가 JSON API(/api/brain/*)로 읽고 써서 textContent 로만 그린다. 유형 지도의 HTML 목록은 서버가 그린다(진짜
     화면 — 그림은 돕는 쪽). 탭 이름 옆 수는 내 보기 범위 · 내가 결정할 수 있는 것만 센다. 인라인 스크립트 · 스타일 없음. -#}
 <div class="container-fluid mt-3 mb-5 brain-page" data-brain-page
@@ -38,7 +38,8 @@
   <ul class="nav nav-tabs brain-tabs" role="tablist">
     {% for key, label, icon in [('search', '찾기', 'fa-magnifying-glass'), ('table', '지식 표', 'fa-table-list'),
                                 ('inbox', '제안함', 'fa-inbox'), ('recheck', '다시 확인', 'fa-rotate'),
-                                ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')] %}
+                                ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')]
+                               + ([('ask', '물어보기', 'fa-comments')] if chat_tab else []) %}
     <li class="nav-item" role="presentation">
       <button class="nav-link{{ ' active' if tab == key else '' }}" id="brain-tab-{{ key }}-btn" data-bs-toggle="tab"
               data-bs-target="#brain-tab-{{ key }}" data-brain-tab="{{ key }}" type="button" role="tab"
@@ -57,6 +58,7 @@
     {% include "brain/partials/tab_recheck.html" %}
     {% include "brain/partials/tab_releases.html" %}
     {% include "brain/partials/tab_map.html" %}
+    {% if chat_tab %}{% include "brain/partials/tab_ask.html" %}{% endif %}
   </div>
 </div>
 {% endblock %}
@@ -72,4 +74,9 @@
 <script src="{{ asset_url('js/brain/brain-recheck.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-releases.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-map.js') }}" defer></script>
+{% if chat_tab %}
+<script src="{{ asset_url('js/brain/brain-ask-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-ask.js') }}" defer></script>
+{% if is_admin %}<script src="{{ asset_url('js/brain/brain-ask-admin.js') }}" defer></script>{% endif %}
+{% endif %}
 {% endblock %}

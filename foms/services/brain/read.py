@@ -4,10 +4,14 @@
 - 이웃(:func:`neighbours`)은 지금 링크를 양쪽으로 따라가는 재귀 CTE(걸음 ≤ 2 · 종류 거르기 · 상한)다(7.5 '이 크기에서 충분').
   바깥 정본 자리(``calc:`` · ``setting:``)는 brain 항목이 아니라 이웃에 넣지 않는다. 닿은 항목 사이의 선(종류 · 양 끝)도 같이
   준다(이웃 지도 · 뇌 보기 — 7.5 화면 9 · 7.6).
+- **기본 읽기 거르기 하나**(:func:`effective_clauses` — 점검 '지금 1'): 볼 수 있음 · 유효 기간 안 + 반영(초안 · 은퇴 뺌) ·
+  유효 시작이 오늘 이전 · 반영된 결정의 ``supersedes`` 로 대체되지 않음. 찾기 · 이웃 · 모아 센 수 · 챗봇 · 벡터 찾기가 이 하나를
+  쓴다. 지식 표(상태 거르기를 고르는 화면)와 키로 바로 연 카드는 :func:`visible_clauses` 로 그런 항목도 보이고 표시를 단다.
 - **유효 기간으로 읽기**(7.7 · D105): 끝 날(``valid_to``)이 지난 항목 · 링크는 찾기 · 표 · 이웃 · 모아 센 수에서 뺀다
   (:func:`foms.services.brain.store.in_force`). 키로 바로 읽는 :func:`current_item` 만 끝난 항목도 돌려주고 ``ended`` 를 단다
   (카드가 '기간 끝남'으로 흐리게 보인다). 이력은 모든 판 그대로.
-- 찾기(:func:`search`)는 첫 판 자리만 — 이름 · 글 부분 일치(PostgreSQL 은 pg_trgm 색인이 받는 ILIKE + 이름 비슷함 순).
+- 찾기(:func:`search`)는 첫 판 자리만 — 이름 · 글 부분 일치(PostgreSQL 은 pg_trgm 색인이 받는 ILIKE + 이름 비슷함 순) +
+  SKOS 꼴 다른 이름(:func:`foms.services.brain.labels.alias_keys` — 용어 · 제품 라인 · 옵션, 7.7 · D105).
 """
 
 from __future__ import annotations
@@ -16,14 +20,17 @@ import datetime
 from collections import defaultdict
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import Integer, String, cast, func, literal, or_, select, union_all
+from sqlalchemy import Integer, String, and_, cast, exists, func, literal, not_, or_, select, union_all
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 
 from foms.persistence.brain.models import BrainLink, BrainObject
 from foms.services.brain.constants import (
-    LINK_KINDS, MAX_NEIGHBOUR_DEPTH, MAX_NEIGHBOUR_EDGES, MAX_NEIGHBOUR_LIMIT, MAX_SEARCH_LIMIT,
+    LINK_KINDS, MAX_NEIGHBOUR_DEPTH, MAX_NEIGHBOUR_EDGES, MAX_NEIGHBOUR_LIMIT, MAX_SEARCH_LIMIT, STATUS_ACTIVE,
 )
+from foms.services.brain.labels import alias_keys
 from foms.services.brain.scope import Viewer, scope_clause
-from foms.services.brain.store import in_force, is_current, is_ended, values_of
+from foms.services.brain.store import in_force, is_current, is_ended, started, values_of
 from foms.services.datetime_kst import get_today_kst
 
 MAX_QUERY = 100
@@ -45,7 +52,44 @@ def visible_clauses(viewer: Viewer, today: Optional[datetime.date] = None) -> tu
             in_force(BrainObject, today or get_today_kst()))
 
 
-_visible = visible_clauses
+def superseded_clause(model: Any, today: datetime.date) -> ColumnElement[bool]:
+    """대체된 항목 조건 — 반영된 · 효력 있는 결정이 지금 · 유효 기간 안 ``supersedes`` 링크로 이 항목을 가리킨다(3.1 규칙 5)."""
+    decision = aliased(BrainObject)
+    return exists(select(BrainLink.id).join(decision, and_(decision.item_key == BrainLink.from_key,
+                                                           is_current(decision)))
+                  .where(BrainLink.kind == "supersedes", BrainLink.to_key == model.item_key, is_current(BrainLink),
+                         in_force(BrainLink, today), decision.status == STATUS_ACTIVE, in_force(decision, today),
+                         started(decision, today)))
+
+
+def effective_clauses(viewer: Viewer, today: Optional[datetime.date] = None) -> tuple[Any, ...]:
+    """**기본 읽기 거르기 하나**(점검 '지금 1') — 볼 수 있음 · 유효 기간 안 + 반영(초안 · 은퇴 뺌) · 유효 시작이 오늘 이전 ·
+    대체되지 않음. 챗봇 · 벡터 찾기 · 이웃 찾기(Search Around) · 모아 센 수가 모두 이 조건을 쓴다. 키로 바로 연 카드는 이
+    거르기 밖에서 그런 항목도 보이고 표시를 단다(:func:`effect_state`)."""
+    day = today or get_today_kst()
+    return (*visible_clauses(viewer, day), BrainObject.status == STATUS_ACTIVE, started(BrainObject, day),
+            not_(superseded_clause(BrainObject, day)))
+
+
+def effect_state(session: Any, row_or_item: Any, today: datetime.date) -> dict[str, Any]:
+    """카드 표시 — 초안 · 은퇴 · 아직 효력 전(유효 시작이 오늘 뒤) · 대체됨(대체한 결정 키들)."""
+    get = row_or_item.get if isinstance(row_or_item, dict) else (lambda k: getattr(row_or_item, k, None))
+    key = get("key") or get("item_key")
+    start = get("valid_from")
+    if isinstance(start, str):
+        start = datetime.date.fromisoformat(start[:10])
+    decision = aliased(BrainObject)
+    by = session.execute(select(BrainLink.from_key).join(decision, and_(decision.item_key == BrainLink.from_key,
+                                                                        is_current(decision)))
+                         .where(BrainLink.kind == "supersedes", BrainLink.to_key == key, is_current(BrainLink),
+                                in_force(BrainLink, today), decision.status == STATUS_ACTIVE,
+                                in_force(decision, today), started(decision, today))).scalars().all()
+    status = get("status")
+    return {"effective": status == STATUS_ACTIVE and not (start and start > today) and not by,
+            "not_yet": bool(start and start > today), "superseded_by": sorted(by), "status": status}
+
+
+_visible = effective_clauses
 
 
 def current_item(session: Any, viewer: Viewer, key: str,
@@ -80,11 +124,16 @@ def _like(text: str) -> str:
 
 
 def search_match(session: Any, text: str) -> tuple[Any, bool]:
-    """찾기 조건 — 이름 · 글 부분 일치(PostgreSQL 은 이름 trgm 비슷함 ``%`` 도) · PostgreSQL 인가."""
+    """찾기 조건 — 이름 · 글 부분 일치(PostgreSQL 은 이름 trgm 비슷함 ``%`` 도) · 다른 이름(SKOS) · PostgreSQL 인가.
+
+    다른 이름으로 맞은 키도 같은 질의의 보기 범위 · 유효 기간 조건 안에서만 나온다(부르는 쪽 ``where``)."""
     postgres = session.get_bind().dialect.name == "postgresql"
     match = or_(BrainObject.name.ilike(_like(text), escape="\\"), BrainObject.text.ilike(_like(text), escape="\\"))
     if postgres:
         match = or_(match, BrainObject.name.op("%")(text))
+    aliased = alias_keys(session, text)
+    if aliased:
+        match = or_(match, BrainObject.item_key.in_(aliased))
     return match, postgres
 
 
