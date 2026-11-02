@@ -1,0 +1,27 @@
+{#- 카드 '이력' 탭 — 판마다(새 것부터, 최대 20) 시각 · 상태 · 만든 이 · 승인자 · 판 번호 · 바뀐 칸. 판마다 보기 범위로 거른다. -#}
+{% if card.history %}
+<div class="brain-table-wrap">
+  <table class="brain-history">
+    <caption class="visually-hidden">항목 이력 — 새 판부터</caption>
+    <thead>
+      <tr><th scope="col">판</th><th scope="col">기록(한국 시각)</th><th scope="col">상태 · 확신</th><th scope="col">바뀐 칸</th>
+          <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">하루 판</th></tr>
+    </thead>
+    <tbody>
+      {% for row in card.history %}
+      <tr>
+        <td>{{ row.version }}{% if not row.superseded_at %} <span class="brain-badge brain-badge--confirmed">지금</span>{% endif %}</td>
+        <td>{{ row.recorded_at or '—' }}{% if row.superseded_at %}<br><span class="brain-empty">닫힘 {{ row.superseded_at }}</span>{% endif %}</td>
+        <td>{{ status_labels.get(row.status, row.status) }} · {{ confidence_labels.get(row.confidence, row.confidence) }}</td>
+        <td>{% if row.changed %}{% for f in row.changed %}{{ field_labels.get(f, f) }}{{ ', ' if not loop.last }}{% endfor %}{% elif row.version == 1 %}처음 판{% else %}—{% endif %}</td>
+        <td>{{ row.created_by }}</td>
+        <td>{{ row.approver }}</td>
+        <td>{{ row.release_no if row.release_no is not none else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="brain-empty">이력이 없습니다.</p>
+{% endif %}
