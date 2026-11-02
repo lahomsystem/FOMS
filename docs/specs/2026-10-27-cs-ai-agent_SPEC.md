@@ -1141,11 +1141,19 @@ CEO 도전(원장 F1-4)과 단순화 심판(원장 R2)을 반영해 지시서의
 
 **모르는 점(확인 — 묻지 않음)**:
 
-- 채널톡 Open API 파일 받기 경로 · 응답 꼴 · 서명 주소 만료 · 읽기 한도(스테이징 시험 상담).
-- numpy 1.26.4 를 받는 `opencv-python-headless` 판 · 이미지 크기 · WORKER 메모리(큰 원본은 줄여 읽기로 한 장씩).
-- YuNet 모델 파일 라이선스 원문.
-- 구조화 출력 + 그림 입력 조합 · 그림 토큰 셈 · 긴 변 상한(공식 문서).
-- 앞 단계 이름(`size_in_attachment` · `quote_size_in_drawing`)이 구현에서 그대로인지.
+- 채널톡 Open API 파일 받기 경로 · 응답 꼴 · 서명 주소 만료 · 읽기 한도(스테이징 시험 상담). → **11-02 구현: 공개 문서(v4 'Get a file url in a UserChat')의 `GET …/user-chats/{상담}/messages/file?key=` → `{"result": 서명 주소}`(15분) 꼴로 짰다(`foms/services/cs_agent/image_fetch.py`). 2026-06-01 판 경로 · 응답 꼴은 아직 안 잼 — 스테이징 시험 상담에서 첫 일로 잰다(꼴이 다르면 `signed_url_shape` 실패 → 앞 단계 그대로).**
+- numpy 1.26.4 를 받는 `opencv-python-headless` 판 · 이미지 크기 · WORKER 메모리(큰 원본은 줄여 읽기로 한 장씩). → **`opencv-python-headless==4.11.0.86`(numpy>=1.26.0 · py3.12 — 4.12 부터 numpy>=2 라 못 씀, `pip install --dry-run` 으로 numpy 1.26.4 유지 확인 11-02). 이미지 크기 · WORKER 메모리 앞뒤 숫자는 아직(빌드 뒤 잰다).**
+- YuNet 모델 파일 라이선스 원문. → **MIT License, Copyright (c) 2020 Shiqi Yu(opencv_zoo `models/face_detection_yunet/LICENSE` 원문 11-02 확인). 파일 `face_detection_yunet_2023mar.onnx` sha256 `8f2383e4…52fa4` 가 opencv_zoo 원본과 같다. 원문을 파일 옆 `foms/services/cs_agent/assets/YUNET_LICENSE.txt` 에 적었다.**
+- 구조화 출력 + 그림 입력 조합 · 그림 토큰 셈 · 긴 변 상한(공식 문서). → **11-02 공식 문서 열람: 구조화 출력은 인용 · 미리 채우기만 함께 못 쓴다(그림 · 문서 블록은 된다). 그림 토큰 = ⌈가로/28⌉ × ⌈세로/28⌉, 높은 해상도 모델(Claude 4.7 이후 — Sonnet 5.5 포함) 긴 변 2,576px · 한 장 4,784 토큰. PDF 는 쪽마다 글 1,500 ~ 3,000 토큰 + 쪽 그림 한 장 값. 최악값 예약은 이 식으로 센다(`brain_media.py`).**
+- 앞 단계 이름(`size_in_attachment` · `quote_size_in_drawing`)이 구현에서 그대로인지. → **그대로다(ec3872e26 — 상태 `size_in_drawing`).**
+- **PDF 쪽 자르기(D96)**: 처음 3쪽만 떼어 보내려면 PDF 패키지(예: pypdf — requirements 에 없음)가 새로 필요하다 → 설치하지 않았다. 대신 쪽 수가 상한을 넘는 PDF 는 보내지 않는다(`skipped_cap` — 앞 단계 그대로). 떼어 보내기를 원하면 패키지 설치를 여쭌다. PDF 의 얼굴 거르기도 그림으로 바꾸는 패키지 없이 PDF 안의 그림(JPEG · 압축만 된 회색 · RGB · CMYK)을 꺼내 YuNet 으로 보고, 못 푸는 꼴 · 잠긴 PDF · 쪽 수를 못 센 PDF 는 보내지 않는다(막는 쪽).
+
+#### 구현 메모(11-02 · 판 1 — 설계와 다르게 한 곳)
+
+- **미리 읽기 자식은 따로 켠다**: 감독자 자식 `cs_image_read` 는 env `FOMS_CS_IMAGE_READ_ENABLED=1` 일 때만 뜬다(처음 끔인 기능이라 끈 동안 WORKER 메모리가 늘지 않게). 켜는 순서의 '운영 직원 참고만' 단계에서 env 를 넣는다. 미리 읽기 없이도 그 자리 읽기로 돈다.
+- **묶음 읽기**: 미리 읽기도 '한 장씩'이 아니라 그 상담의 마지막 직원 답 뒤 손님 파일 묶음(차례당 상한)을 한 번에 읽는다 — 평면도 + 참고 사진을 같이 봐야 모델이 고른다. 묶음의 줄은 같은 결과(`result.batch` = sha256 차례)를 갖고, 새 그림이 묶음에 들어오면 묶음을 다시 읽는다. 토큰 · 돈은 묶음 첫 줄에만 적는다.
+- **벽 끝 칸 `ends`**: D96 의 1('한쪽이 트인 벽은 벽 쪽만 150')을 코드가 하도록 벽마다 `ends`(both_walls · one_wall · no_wall)와 손님 표시 벽 `marked` 칸을 스키마에 더했다(고른 값 · 참거짓뿐 — 글 칸 없음).
+- **그림 읽기는 견적 계산 넣기가 켜져야 돈다**(그 갈림 하나에만 끼우므로). 정답 읽기(g) · 아침 보고 숫자 · '그림 있음' 시간 지표 칸은 다음 묶음이다(패널 정답 읽기 칸은 잠김).
 
 #### 앞 절과 달라지는 곳
 
