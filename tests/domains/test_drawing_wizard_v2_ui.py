@@ -155,7 +155,9 @@ def test_engine_emits_removed_copies_and_trim_for_v2_rearrange():
         body = _fn(JS, head, 1300)
         assert "freshCopy(JSON.parse(JSON.stringify(" in body and "emitCopiesAdded(ids);" in body, head
     trim = _fn(JS, "  function trimSelectedImage() {", 2700)
-    assert "tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;" in trim             # V2 고정 판정과 같은 허용 폭
+    laid = _fn(JS, "  function laidAtSlot(o) {", 400)   # 여백 자르기 · 그림 자르기(image-crop.js) 공용
+    assert "tol = window.FomsV2Slots ? window.FomsV2Slots.MOVE_TOL : 1;" in laid             # V2 고정 판정과 같은 허용 폭
+    assert "var laid = laidAtSlot(cur);" in trim
     assert trim.index("var laid =") < trim.index("if (laid) { cur.part.arr = [cur.x, cur.y, cur.w, cur.h]; }")
     assert "emitCore('trimmed', { id: cur.id });" in trim
     events = JS[JS.index("[8] V2 화면 연결"):JS.index("  function emitCore(name, data) {")]
@@ -178,7 +180,7 @@ def test_v2_assets_pinned_after_rearrange_fix():
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
                   "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
                   "js/drawing/v2-shell.js"):
-        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a")), asset
+        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a")), asset
     right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
     assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
     assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL

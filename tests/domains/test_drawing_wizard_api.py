@@ -415,6 +415,35 @@ def test_asset_upload_trims_uniform_margins(client, monkeypatch):
         assert saved.size == (200, 150)   # 저장본 자체가 여백 없는 그림
 
 
+def test_asset_upload_skips_trim_when_crop_asks(client, monkeypatch):
+    """trim=0(그림 자르기 image-crop.js) 이면 흰 여백이 있어도 자르지 않는다 — 사람이 고른 틀 그대로 둬야 놓인 자리가 맞다."""
+    from PIL import Image
+
+    _login_participant_admin(client)
+    order = _erp_order()
+    source = Image.new("RGB", (600, 400), (255, 255, 255))
+    source.paste(Image.new("RGB", (200, 150), (10, 10, 10)), (150, 100))
+    raw = io.BytesIO()
+    source.save(raw, format="PNG")
+    stored = {}
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            file_obj.seek(0)
+            stored["bytes"] = file_obj.read()
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+    resp = client.post(
+        f"/api/orders/{order.id}/drawing-wizard/asset",
+        data={"file": (io.BytesIO(raw.getvalue()), "crop-1.png"), "trim": "0"},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["data"]["trimmed"] is False
+    assert stored["bytes"] == raw.getvalue()
+
 def test_asset_upload_keeps_original_when_no_margin(client, monkeypatch):
     """여백이 없으면 원본 바이트를 그대로 저장하고 trimmed=False 로 알린다."""
     from PIL import Image
