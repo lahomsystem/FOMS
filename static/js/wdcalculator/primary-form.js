@@ -1072,7 +1072,7 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
             '\n                                </select>\n                                <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name value="' +
             escapeHtml(optionName || "") +
             '">\n                            </div>\n                        </div>\n                        <div class="col-md-3 price-col">\n                            <label class="form-label small">가격 (원)</label>\n                            <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price value="' +
-            (optionPrice != null && optionPrice !== "" ? formatPrice(optionPrice) : "") +
+            (optionPrice != null && optionPrice !== "" ? formatPrice(String(optionPrice)) : "") +
             '" inputmode="numeric">\n                        </div>\n                        <div class="col-md-2 quantity-col">\n                            <label class="form-label small">수량</label>\n                            <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="' +
             Math.max(1, parseInt(optionQuantity, 10) || 1) +
             '" data-option-quantity>\n                        </div>\n                        <div class="col-md-2">\n                            <label class="form-label small" style="visibility: hidden;">작업</label>\n                            <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">\n                                <i class="fas fa-times"></i> 삭제\n                            </button>\n                        </div>\n                    </div>\n                </div>\n            '
@@ -1249,7 +1249,7 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
             } else if (nameInput && nameInput.style.display !== "none" && nameInput.value) {
                 name = nameInput.value;
             }
-            if (name && price > 0) {
+            if (name && (price > 0 || priceInput.value.trim() !== "")) { // 0원 옵션(기본 구성)도 싣는다 — 값 칸이 빈 줄만 뺀다
                 rows.push({ name: name, price: price, quantity: quantity });
             }
         });
