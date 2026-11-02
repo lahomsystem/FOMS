@@ -1,0 +1,139 @@
+{% extends "admin/layout.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/notices.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 설계서 2026-11-02-foms-notices §5 — 공지 쓰기 · 고치기. 받는 쪽 칩 · 받는 사람 수는 static/js/admin/notices-form.js 가
+    GET {{ api_base }}/audience-options 로 채운다. 저장은 POST {{ api_base }} · PUT {{ api_base }}/<id>(설계서 §4 페이로드). -#}
+<div class="container-fluid mt-4 mb-5 foms-notice-admin foms-notice-form-page" data-notice-form
+     data-mode="{{ mode }}" data-api-url="{{ api_base }}" data-options-url="{{ api_base }}/audience-options"
+     data-page-base="{{ page_base }}"
+     data-notice="{{ (notice_state or {})|tojson|forceescape }}">
+
+  <div class="foms-notice-admin__head">
+    <div>
+      <a href="{{ url_for('notices_admin.notices_list') }}" class="foms-notice-back"><i class="fas fa-chevron-left me-1"></i>공지 목록</a>
+      <h1 class="h4 mb-0 mt-1">{% if mode == 'edit' %}공지 고치기{% else %}공지 쓰기{% endif %}</h1>
+    </div>
+  </div>
+
+  <div class="alert d-none foms-notice-admin__message" data-notice-message data-foms-no-autodismiss role="status" aria-live="polite"></div>
+
+  <div class="foms-notice-form-grid">
+    <form class="foms-notice-form" data-notice-form-el novalidate autocomplete="off">
+
+      <section class="foms-notice-card">
+        <label for="notice-title" class="foms-notice-card__label">제목 <span class="foms-notice-required">꼭 쓰기</span></label>
+        <input type="text" class="form-control" id="notice-title" maxlength="200" required
+               placeholder="예) 11월 연휴 배송 일정 안내" data-notice-field="title">
+        <label for="notice-body" class="foms-notice-card__label mt-3">내용</label>
+        <textarea class="form-control foms-notice-body-input" id="notice-body" rows="7"
+                  placeholder="알릴 내용을 쉽게 써 주세요" data-notice-field="body"></textarea>
+      </section>
+
+      <section class="foms-notice-card" aria-labelledby="notice-audience-title">
+        <div class="foms-notice-card__label" id="notice-audience-title">받는 쪽 <span class="foms-notice-required">하나 이상</span></div>
+        <p class="foms-notice-help">본사와 협력사를 같이 고를 수 있어요. 나중에 들어온 사람도 받습니다.</p>
+
+        <div class="foms-notice-aud foms-notice-aud--staff" data-audience-group="staff">
+          <div class="foms-notice-aud__name">본사</div>
+          <div class="foms-notice-chips" data-audience-chips="staff">
+            <button type="button" class="foms-notice-chip foms-notice-chip--staff foms-notice-chip--all"
+                    data-audience-chip="staff-all" aria-pressed="false">본사 전체</button>
+          </div>
+        </div>
+
+        <div class="foms-notice-aud foms-notice-aud--partner" data-audience-group="partner">
+          <div class="foms-notice-aud__name">협력사</div>
+          <div class="foms-notice-chips" data-audience-chips="partner">
+            <button type="button" class="foms-notice-chip foms-notice-chip--partner foms-notice-chip--all"
+                    data-audience-chip="partner-all" aria-pressed="false">협력사 전체</button>
+          </div>
+        </div>
+
+        <p class="foms-notice-count" data-audience-count aria-live="polite">받는 쪽을 골라 주세요.</p>
+      </section>
+
+      <section class="foms-notice-card" aria-labelledby="notice-mode-title">
+        <div class="foms-notice-card__label" id="notice-mode-title">보이는 방식</div>
+        <div class="foms-notice-modes">
+          <label class="foms-notice-mode">
+            <input type="radio" name="display_mode" value="POPUP" data-notice-field="display_mode" checked>
+            <span class="foms-notice-mode__title">확인 창</span>
+            <span class="foms-notice-mode__desc">화면을 열면 가운데 창이 뜨고, [확인]을 눌러야 닫혀요.</span>
+          </label>
+          <label class="foms-notice-mode">
+            <input type="radio" name="display_mode" value="LIST" data-notice-field="display_mode">
+            <span class="foms-notice-mode__title">목록에만</span>
+            <span class="foms-notice-mode__desc">창은 안 뜨고, 공지사항 목록에서만 보여요.</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="foms-notice-card" aria-labelledby="notice-period-title">
+        <div class="foms-notice-card__label" id="notice-period-title">게시 기간</div>
+        <div class="foms-notice-period">
+          <div>
+            <label for="notice-starts" class="foms-notice-sublabel">시작</label>
+            <input type="datetime-local" class="form-control" id="notice-starts" data-notice-field="starts_at">
+            <span class="foms-notice-help">비우면 바로 보여요.</span>
+          </div>
+          <div>
+            <label for="notice-ends" class="foms-notice-sublabel">끝</label>
+            <input type="datetime-local" class="form-control" id="notice-ends" data-notice-field="ends_at">
+            <span class="foms-notice-help">비우면 지울 때까지 보여요.</span>
+          </div>
+        </div>
+        <div class="form-check form-switch mt-3">
+          <input class="form-check-input" type="checkbox" id="notice-pinned" data-notice-field="pinned">
+          <label class="form-check-label" for="notice-pinned">맨 위에 고정</label>
+        </div>
+      </section>
+
+      <div class="foms-notice-actions">
+        <a href="{{ url_for('notices_admin.notices_list') }}" class="foms-notice-btn foms-notice-btn--ghost">취소</a>
+        <button type="submit" class="foms-notice-btn foms-notice-btn--primary" data-notice-submit>
+          {% if mode == 'edit' %}고친 내용 저장{% else %}공지 올리기{% endif %}</button>
+      </div>
+    </form>
+
+    <aside class="foms-notice-preview" data-notice-preview aria-label="휴대폰 미리보기">
+      <div class="foms-notice-preview__head">
+        <span class="foms-notice-preview__title">휴대폰 미리보기</span>
+        <span class="foms-notice-sides" data-preview-sides>
+          <span class="foms-notice-side" data-preview-side="staff">본사만</span>
+          <span class="foms-notice-side" data-preview-side="partner">협력사만</span>
+          <span class="foms-notice-side" data-preview-side="both">본사 + 협력사</span>
+        </span>
+      </div>
+      <div class="foms-notice-phone" data-preview-phone data-side="none">
+        <div class="foms-notice-phone__bar" data-preview-bar>FOMS</div>
+        <div class="foms-notice-phone__screen">
+          <div class="foms-notice-phone__popup" data-preview-popup>
+            <div class="foms-notice-phone__popup-head"><span>공지사항</span><span>1 / 1</span></div>
+            <strong class="foms-notice-phone__title" data-preview-title>제목이 여기에 보여요</strong>
+            <p class="foms-notice-phone__body" data-preview-body>내용이 여기에 보여요.</p>
+            <span class="foms-notice-phone__ok">확인</span>
+          </div>
+          <div class="foms-notice-phone__list d-none" data-preview-list>
+            <div class="foms-notice-phone__row">
+              <i class="fas fa-thumbtack foms-notice-phone__pin d-none" data-preview-pin aria-hidden="true"></i>
+              <span class="foms-notice-phone__dot" aria-hidden="true"></span>
+              <span class="foms-notice-phone__row-title" data-preview-list-title>제목이 여기에 보여요</span>
+            </div>
+            <div class="foms-notice-phone__row foms-notice-phone__row--ghost">지난 공지</div>
+            <div class="foms-notice-phone__row foms-notice-phone__row--ghost">지난 공지</div>
+          </div>
+        </div>
+      </div>
+      <p class="foms-notice-help mt-2" data-preview-help>받는 사람이 화면을 열면 이렇게 떠요.</p>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/admin/notices-form.js') }}" defer></script>
+{% endblock %}

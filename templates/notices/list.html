@@ -1,0 +1,11 @@
+{% extends "orders/layout.html" %}
+{# 본사 직원 공지 목록 /notices — 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5. 목록 CSS · 읽음 표시 JS 는
+   공용 레이아웃이 싣는 공지 창 묶음(partials/shared/notice_popup.html)과 같은 파일이다. #}
+{% block head %}<title>공지사항 - 가구 주문 관리 시스템</title>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">{% endblock %}
+{% block content %}
+<div class="foms-notice-wrap">
+    {% set filter_url = url_for('notices_web.notice_list') %}
+    {% include "notices/_items.html" %}
+</div>
+{% endblock %}

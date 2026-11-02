@@ -74,6 +74,9 @@
                                 정보</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin.change_logs') }}"><i
                                     class="fas fa-history"></i> 내 변경 로그</a></li>
+                        {# FOMS 공지사항(2026-11-02) — 안 읽음 수는 foms-notice-popup.js 가 채운다. #}
+                        <li><a class="dropdown-item" href="{{ url_for('notices_web.notice_list') }}"><i
+                                    class="fas fa-bullhorn"></i> 공지사항<span class="foms-notice-badge" data-foms-notice-unread hidden></span></a></li>
                         {% if impersonating_from_id %}
                         <li>
                             <form method="post" action="{{ url_for('auth.switch_back') }}">

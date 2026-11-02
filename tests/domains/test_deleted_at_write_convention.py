@@ -63,7 +63,9 @@ _WRITE_PATTERNS = (
 #   * ``deleted_at = Column(...)`` 은 스키마 선언이지 값을 쓰는 자리가 아니다
 #     (``models.py`` 의 Order·OrderAttachment 컬럼 정의). 모집단에 저장소 루트
 #     최상위 ``*.py`` 를 넣으면서 정규식 4번에 걸리기 시작해 명시적으로 뺀다.
-_ATTACHMENT_AXIS_RE = re.compile(r"\battachment\.deleted_at\b")
+#   * ``notice.deleted_at`` = FOMS 공지사항 ``Notice.deleted_at``(DateTime 컬럼이라 첨부와
+#     같은 까닭으로 문자열 규약이 없다 — foms/services/notices/admin.py, 2026-11-02).
+_ATTACHMENT_AXIS_RE = re.compile(r"\b(?:attachment|notice)\.deleted_at\b")
 _CLEAR_RE = re.compile(r"\.deleted_at\s*=\s*None\s*$")
 _COLUMN_DECL_RE = re.compile(r"deleted_at\s*=\s*Column\(")
 

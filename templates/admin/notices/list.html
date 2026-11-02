@@ -1,0 +1,32 @@
+{% extends "admin/layout.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/notices.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 설계서 2026-11-02-foms-notices §5 — 공지 목록. 값은 static/js/admin/notices-list.js 가 GET {{ api_base }} 로 읽는다. -#}
+<div class="container mt-4 mb-5 foms-notice-admin" data-notice-list
+     data-api-url="{{ api_base }}" data-page-base="{{ page_base }}">
+
+  <div class="foms-notice-admin__head">
+    <div>
+      <h1 class="h4 mb-1"><i class="fas fa-clipboard-list me-1 foms-notice-admin__icon"></i>공지사항</h1>
+      <p class="text-muted small mb-0">본사 직원 · 협력사에 알릴 글을 씁니다. 급한 알림(빨간 창)은
+        <a href="{{ url_for('admin.admin_notifications') }}">공지/알림 발송</a>에서 따로 보냅니다.</p>
+    </div>
+    <a href="{{ url_for('notices_admin.notice_new') }}" class="foms-notice-btn foms-notice-btn--primary" data-notice-new>
+      <i class="fas fa-pen me-1"></i>공지 쓰기</a>
+  </div>
+
+  <div class="alert d-none foms-notice-admin__message" data-notice-message data-foms-no-autodismiss role="status" aria-live="polite"></div>
+
+  <div class="foms-notice-list" data-notice-list-body aria-live="polite">
+    <p class="foms-notice-empty" data-notice-list-loading>공지를 불러오는 중…</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/admin/notices-list.js') }}" defer></script>
+{% endblock %}

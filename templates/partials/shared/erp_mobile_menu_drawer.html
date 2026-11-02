@@ -46,6 +46,10 @@
             <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('auth.profile') }}">
               <i class="fas fa-user-cog" aria-hidden="true"></i><span>내 정보</span>
             </a>
+            {# FOMS 공지사항(2026-11-02) — 안 읽음 수는 foms-notice-popup.js 가 채운다. #}
+            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('notices_web.notice_list') }}">
+              <i class="fas fa-bullhorn" aria-hidden="true"></i><span>공지사항</span><span class="foms-notice-badge" data-foms-notice-unread hidden></span>
+            </a>
             {% if current_user.role == 'ADMIN' %}
             <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('admin.admin') }}">
               <i class="fas fa-cog" aria-hidden="true"></i><span>관리자</span>

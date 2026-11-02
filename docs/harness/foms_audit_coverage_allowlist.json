@@ -55,6 +55,14 @@
       "reason": "알림 확인 응답 — notification_events 가 이미 시각·행위자를 남긴다."
     },
     {
+      "key": "foms/api/notices/__init__.py::ack_notice",
+      "reason": "FOMS 공지 확인 — notice_acks 줄이 사람 · 확인 시각을 이미 남기고, 관리자 확인 현황 화면이 그 줄을 보여 준다. 공지 하나에 받는 사람 수만큼 쌓여 원장을 덮는다."
+    },
+    {
+      "key": "foms/api/notices/__init__.py::read_notice",
+      "reason": "FOMS 공지 읽음 — 위와 같은 이유(notice_acks.read_at)."
+    },
+    {
       "key": "foms/api/notifications/push.py::subscribe",
       "reason": "웹푸시 구독 등록 — 기기 등록이지 업무 행위가 아니다."
     },

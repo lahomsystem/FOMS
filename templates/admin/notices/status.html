@@ -1,0 +1,57 @@
+{% extends "admin/layout.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/notices.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 설계서 2026-11-02-foms-notices §5 — 확인 현황. 사람 목록은 static/js/admin/notices-status.js 가
+    GET {{ api_base }}/{{ notice_id }}/status 로 읽는다(설계서 §3 ack_status 모양). -#}
+<div class="container mt-4 mb-5 foms-notice-admin" data-notice-status
+     data-status-url="{{ api_base }}/{{ notice_id }}/status"
+     data-edit-url="{{ url_for('notices_admin.notice_edit', notice_id=notice_id) }}">
+
+  <div class="foms-notice-admin__head">
+    <div>
+      <a href="{{ url_for('notices_admin.notices_list') }}" class="foms-notice-back"><i class="fas fa-chevron-left me-1"></i>공지 목록</a>
+      <h1 class="h4 mb-1 mt-1">확인 현황</h1>
+      <p class="foms-notice-status__title mb-0">{{ notice_title }}</p>
+      {% if audience_label %}<p class="text-muted small mb-0">받는 쪽: {{ audience_label }}</p>{% endif %}
+    </div>
+    <div class="foms-notice-admin__head-actions">
+      <button type="button" class="foms-notice-btn foms-notice-btn--ghost" data-status-refresh><i class="fas fa-rotate-right me-1"></i>새로 보기</button>
+      <a href="{{ url_for('notices_admin.notice_edit', notice_id=notice_id) }}" class="foms-notice-btn foms-notice-btn--ghost">고치기</a>
+    </div>
+  </div>
+
+  <div class="alert d-none foms-notice-admin__message" data-notice-message data-foms-no-autodismiss role="status" aria-live="polite"></div>
+
+  <section class="foms-notice-card">
+    <div class="foms-notice-progress-row">
+      <span class="foms-notice-progress-text" data-status-summary>불러오는 중…</span>
+      <span class="foms-notice-progress-pct" data-status-pct></span>
+    </div>
+    <progress class="foms-notice-progress" max="1" value="0" data-status-progress>0%</progress>
+  </section>
+
+  <section class="foms-notice-card">
+    <div class="foms-notice-status-tools">
+      <div class="foms-notice-tabs" role="tablist" aria-label="받는 쪽">
+        <button type="button" class="foms-notice-tab foms-notice-tab--staff" role="tab" aria-selected="true"
+                data-status-tab="staff">본사 <span data-status-tab-count="staff"></span></button>
+        <button type="button" class="foms-notice-tab foms-notice-tab--partner" role="tab" aria-selected="false"
+                data-status-tab="partner">협력사 <span data-status-tab-count="partner"></span></button>
+      </div>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="notice-only-pending" data-status-only-pending checked>
+        <label class="form-check-label" for="notice-only-pending">안 한 사람만</label>
+      </div>
+    </div>
+    <ul class="foms-notice-people" data-status-people aria-live="polite"></ul>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/admin/notices-status.js') }}" defer></script>
+{% endblock %}

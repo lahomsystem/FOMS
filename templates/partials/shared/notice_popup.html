@@ -1,0 +1,22 @@
+{# FOMS 공지 창(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5) — 본사 직원 화면 공용. 긴급(빨간 전체 화면) 창과 다른 것이다.
+   페이지를 열 때 GET /api/notices 를 한 번 불러 "확인 창" 공지 중 확인 안 한 것이 있으면 가운데 흰 창을 띄운다.
+   "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘), 여러 건이면 "1 / 2" 로 다음 공지. 메뉴의 안 읽음 수도 이 응답으로 채운다.
+   로그인 전 · 협력사 계정에서는 싣지 않는다(협력사는 partner/partials/notice_modal.html). 동작: foms-notice-popup.js #}
+{% if current_user and not current_user.partner_org_id %}
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">
+<div class="foms-notice-popup" data-foms-notice-popup hidden
+     data-list-url="{{ url_for('notices_api.list_notices') }}"
+     data-ack-url="{{ url_for('notices_api.ack_notice', notice_id=0) }}"
+     role="dialog" aria-modal="true" aria-labelledby="fomsNoticePopupTitle">
+    <div class="foms-notice-popup__backdrop"></div>
+    <div class="foms-notice-popup__card">
+        <p class="foms-notice-popup__kicker"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항 <span class="foms-notice-popup__count" data-foms-notice-count></span></p>
+        <h2 class="foms-notice-popup__title" id="fomsNoticePopupTitle" data-foms-notice-title></h2>
+        <div class="foms-notice-popup__body" data-foms-notice-body></div>
+        <p class="foms-notice-popup__meta" data-foms-notice-meta></p>
+        <p class="foms-notice-popup__status" data-foms-notice-status role="status" aria-live="polite"></p>
+        <button type="button" class="foms-notice-popup__ok" data-foms-notice-ok>확인</button>
+    </div>
+</div>
+<script src="{{ asset_url('js/foms/foms-notice-popup.js') }}" defer></script>
+{% endif %}

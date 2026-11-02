@@ -1,0 +1,371 @@
+/* FOMS 공지사항 관리자 화면(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5).
+   색: 본사 = FOMS 보라(--foms-color-brand-*), 협력사 = 하늘색(.foms-partner-push__item--wish 와 같은 #e8f4fd/#a9d3f2/#0b5a8f).
+   긴급 알림(빨강)과 섞이지 않게 빨강은 "지우기" 단추에만 쓴다.
+   단추는 .btn 을 쓰지 않는다 — 전역 .btn{border:none!important} 가 테두리 · 고른 색을 덮는다. */
+
+.foms-notice-admin {
+  --notice-staff-bg: var(--foms-color-brand-50, #f3f4ff);
+  --notice-staff-border: var(--foms-color-brand-300, #9ea4ff);
+  --notice-staff-ink: var(--foms-color-brand-700, #3a4490);
+  --notice-staff-strong: var(--foms-color-brand-500, #5a67d8);
+  --notice-partner-bg: #e8f4fd;
+  --notice-partner-border: #a9d3f2;
+  --notice-partner-ink: #0b5a8f;
+  --notice-partner-strong: #1f7fc4;
+  --notice-line: var(--foms-color-neutral-200, #dde1e6);
+  --notice-muted: var(--foms-color-neutral-500, #6b7380);
+}
+
+.foms-notice-admin__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.foms-notice-admin__head-actions,
+.foms-notice-actions,
+.foms-notice-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.foms-notice-admin__icon { color: var(--notice-staff-strong); }
+
+.foms-notice-back {
+  font-size: 0.875rem;
+  color: var(--notice-muted);
+  text-decoration: none;
+}
+
+.foms-notice-admin__message { margin-bottom: 16px; }
+
+/* ── 단추 ── */
+.foms-notice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--notice-line);
+  background: var(--foms-color-neutral-0, #fff);
+  color: var(--foms-color-neutral-800, #22262e);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.foms-notice-btn:hover { background: var(--foms-color-neutral-50, #f7f8fa); color: inherit; }
+.foms-notice-btn:disabled { opacity: 0.55; cursor: default; }
+
+.foms-notice-btn--primary {
+  background: var(--notice-staff-strong);
+  border-color: var(--notice-staff-strong);
+  color: #fff;
+}
+
+.foms-notice-btn--primary:hover { background: var(--foms-color-brand-600, #4a55b8); color: #fff; }
+.foms-notice-btn--danger { color: var(--foms-color-danger-600, #dc2626); }
+
+/* 관리자 첫 화면 "공지사항" 단추 — 긴급(빨간 테두리)과 다른 보라. 전역 .btn !important 를 이겨야 한다. */
+.btn.foms-notice-entry-btn {
+  background: var(--foms-color-brand-50, #f3f4ff) !important;
+  color: var(--foms-color-brand-700, #3a4490) !important;
+  border: 1px solid var(--foms-color-brand-300, #9ea4ff) !important;
+}
+
+.btn.foms-notice-entry-btn:hover {
+  background: var(--foms-color-brand-100, #e6e8ff) !important;
+}
+
+/* ── 카드 · 칸 ── */
+.foms-notice-card {
+  background: var(--foms-color-neutral-0, #fff);
+  border: 1px solid var(--notice-line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.foms-notice-card__label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.foms-notice-sublabel { display: block; font-weight: 600; font-size: 0.875rem; margin-bottom: 4px; }
+
+.foms-notice-required {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--notice-staff-ink);
+  background: var(--notice-staff-bg);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 4px;
+}
+
+.foms-notice-help { display: block; font-size: 0.8125rem; color: var(--notice-muted); margin-bottom: 8px; }
+.foms-notice-body-input { min-height: 140px; }
+.foms-notice-empty { color: var(--notice-muted); padding: 24px 8px; text-align: center; list-style: none; }
+
+/* ── 쓰기 화면 2단(폰 1단) ── */
+.foms-notice-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1140px;
+}
+
+@media (min-width: 992px) {
+  .foms-notice-form-grid { grid-template-columns: minmax(0, 1fr) 320px; }
+  .foms-notice-preview { position: sticky; top: 88px; align-self: start; }
+}
+
+/* ── 받는 쪽 칩 ── */
+.foms-notice-aud {
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.foms-notice-aud--staff { background: var(--notice-staff-bg); }
+.foms-notice-aud--partner { background: var(--notice-partner-bg); }
+.foms-notice-aud__name { font-weight: 700; font-size: 0.875rem; margin-bottom: 8px; }
+.foms-notice-aud--staff .foms-notice-aud__name { color: var(--notice-staff-ink); }
+.foms-notice-aud--partner .foms-notice-aud__name { color: var(--notice-partner-ink); }
+
+.foms-notice-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.foms-notice-chip {
+  min-height: 40px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--notice-line);
+  background: var(--foms-color-neutral-0, #fff);
+  color: var(--foms-color-neutral-700, #353a44);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.foms-notice-chip--all { border-style: dashed; }
+.foms-notice-chip--staff[aria-pressed="true"] { background: var(--notice-staff-strong); border: 1px solid var(--notice-staff-strong); color: #fff; }
+.foms-notice-chip--partner[aria-pressed="true"] { background: var(--notice-partner-strong); border: 1px solid var(--notice-partner-strong); color: #fff; }
+
+.foms-notice-count {
+  margin: 4px 0 0;
+  font-weight: 700;
+  color: var(--notice-staff-ink);
+}
+
+/* ── 보이는 방식 ── */
+.foms-notice-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+
+.foms-notice-mode {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--notice-line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.foms-notice-mode:has(input:checked) { border-color: var(--notice-staff-strong); background: var(--notice-staff-bg); }
+.foms-notice-mode input { grid-row: span 2; margin-top: 4px; accent-color: var(--notice-staff-strong); }
+.foms-notice-mode__title { font-weight: 700; }
+.foms-notice-mode__desc { font-size: 0.8125rem; color: var(--notice-muted); }
+
+.foms-notice-period { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.foms-notice-actions { justify-content: flex-end; }
+
+@media (max-width: 575.98px) {
+  .foms-notice-actions .foms-notice-btn { flex: 1 1 0; }
+}
+
+/* ── 휴대폰 미리보기 ── */
+.foms-notice-preview__head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.foms-notice-preview__title { font-weight: 700; }
+.foms-notice-sides { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.foms-notice-side {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--notice-line);
+  color: var(--notice-muted);
+}
+
+.foms-notice-side.is-active[data-preview-side="staff"] { background: var(--notice-staff-bg); border-color: var(--notice-staff-border); color: var(--notice-staff-ink); }
+.foms-notice-side.is-active[data-preview-side="partner"] { background: var(--notice-partner-bg); border-color: var(--notice-partner-border); color: var(--notice-partner-ink); }
+.foms-notice-side.is-active[data-preview-side="both"] { background: var(--notice-staff-strong); border-color: var(--notice-staff-strong); color: #fff; }
+
+.foms-notice-phone {
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  border: 8px solid var(--foms-color-neutral-800, #22262e);
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--foms-color-neutral-100, #eef0f3);
+}
+
+.foms-notice-phone__bar { padding: 10px 14px; font-weight: 700; color: #fff; background: var(--notice-staff-strong); }
+.foms-notice-phone[data-side="partner"] .foms-notice-phone__bar { background: var(--notice-partner-strong); }
+.foms-notice-phone[data-side="both"] .foms-notice-phone__bar { background: linear-gradient(90deg, var(--notice-staff-strong), var(--notice-partner-strong)); }
+.foms-notice-phone[data-side="none"] .foms-notice-phone__bar { background: var(--foms-color-neutral-400, #9aa3af); }
+
+.foms-notice-phone__screen { min-height: 360px; padding: 16px 12px; display: flex; flex-direction: column; justify-content: center; }
+
+.foms-notice-phone__popup {
+  background: #fff;
+  border-radius: 16px;
+  border-top: 4px solid var(--notice-staff-strong);
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(20, 23, 28, 0.15);
+}
+
+.foms-notice-phone[data-side="partner"] .foms-notice-phone__popup { border-top-color: var(--notice-partner-strong); }
+.foms-notice-phone__popup-head { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--notice-muted); margin-bottom: 6px; }
+.foms-notice-phone__title { display: block; color: var(--foms-color-neutral-900, #14171c); margin-bottom: 6px; overflow-wrap: anywhere; }
+.foms-notice-phone__body { font-size: 0.8125rem; color: var(--foms-color-neutral-700, #353a44); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: hidden; }
+
+.foms-notice-phone__ok {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--notice-staff-strong);
+  color: #fff;
+  font-weight: 700;
+}
+
+.foms-notice-phone[data-side="partner"] .foms-notice-phone__ok { background: var(--notice-partner-strong); }
+
+.foms-notice-phone__list { align-self: stretch; }
+.foms-notice-phone__screen:has(.foms-notice-phone__list:not(.d-none)) { justify-content: flex-start; }
+
+.foms-notice-phone__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.foms-notice-phone__row--ghost { color: var(--foms-color-neutral-400, #9aa3af); font-weight: 400; }
+.foms-notice-phone__pin { color: var(--notice-staff-strong); }
+.foms-notice-phone__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--notice-staff-strong); flex: none; }
+.foms-notice-phone[data-side="partner"] .foms-notice-phone__dot { background: var(--notice-partner-strong); }
+.foms-notice-phone__row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 목록 ── */
+.foms-notice-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--foms-color-neutral-0, #fff);
+  border: 1px solid var(--notice-line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.foms-notice-row__main { flex: 1 1 320px; min-width: 0; }
+.foms-notice-row__side { flex: 0 1 280px; display: flex; flex-direction: column; gap: 6px; }
+.foms-notice-row__badges, .foms-notice-row__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.foms-notice-row__title { display: block; font-weight: 700; font-size: 1.0625rem; margin: 6px 0; color: var(--foms-color-neutral-900, #14171c); text-decoration: none; overflow-wrap: anywhere; }
+.foms-notice-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--notice-muted); }
+.foms-notice-row__ack { font-weight: 700; font-size: 0.875rem; }
+
+.foms-notice-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--foms-color-neutral-100, #eef0f3);
+  color: var(--foms-color-neutral-600, #4b525d);
+}
+
+.foms-notice-badge--pin { background: var(--notice-staff-strong); color: #fff; }
+.foms-notice-badge--live { background: var(--foms-color-success-50, #ecfdf5); color: var(--foms-color-success-600, #059669); }
+.foms-notice-badge--scheduled { background: var(--foms-color-warning-50, #fffbeb); color: var(--foms-color-warning-700, #b45309); }
+
+.foms-notice-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.foms-notice-tag--staff { background: var(--notice-staff-bg); border-color: var(--notice-staff-border); color: var(--notice-staff-ink); }
+.foms-notice-tag--partner { background: var(--notice-partner-bg); border-color: var(--notice-partner-border); color: var(--notice-partner-ink); }
+
+/* ── 진행 막대(<progress> — 인라인 width 없이) ── */
+.foms-notice-progress {
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--foms-color-neutral-100, #eef0f3);
+  accent-color: var(--notice-staff-strong);
+}
+
+.foms-notice-progress::-webkit-progress-bar { background: var(--foms-color-neutral-100, #eef0f3); border-radius: 999px; }
+.foms-notice-progress::-webkit-progress-value { background: var(--notice-staff-strong); border-radius: 999px; }
+.foms-notice-progress::-moz-progress-bar { background: var(--notice-staff-strong); border-radius: 999px; }
+.foms-notice-progress--small { height: 6px; }
+
+.foms-notice-progress-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-weight: 700; }
+.foms-notice-progress-pct { color: var(--notice-staff-ink); font-size: 1.25rem; }
+.foms-notice-status__title { font-weight: 700; font-size: 1.0625rem; overflow-wrap: anywhere; }
+
+/* ── 확인 현황 탭 · 사람 ── */
+.foms-notice-status-tools { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.foms-notice-tabs { display: flex; gap: 6px; }
+
+.foms-notice-tab {
+  min-height: 40px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--notice-line);
+  background: var(--foms-color-neutral-0, #fff);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.foms-notice-tab--staff[aria-selected="true"] { background: var(--notice-staff-bg); border-color: var(--notice-staff-strong); color: var(--notice-staff-ink); }
+.foms-notice-tab--partner[aria-selected="true"] { background: var(--notice-partner-bg); border-color: var(--notice-partner-strong); color: var(--notice-partner-ink); }
+
+.foms-notice-people { list-style: none; margin: 0; padding: 0; }
+
+.foms-notice-person {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--notice-line);
+}
+
+.foms-notice-person__who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.foms-notice-person__name { font-weight: 600; }
+.foms-notice-person__state { font-size: 0.8125rem; font-weight: 600; }
+.foms-notice-person__state--acked { color: var(--foms-color-success-600, #059669); }
+.foms-notice-person__state--read { color: var(--foms-color-warning-700, #b45309); }
+.foms-notice-person__state--pending { color: var(--notice-muted); }

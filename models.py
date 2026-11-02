@@ -4393,3 +4393,58 @@ event.listen(
     'before_create',
     DDL('CREATE EXTENSION IF NOT EXISTS pg_trgm').execute_if(dialect='postgresql'),
 )
+
+
+class Notice(Base):
+    """FOMS 공지사항(본사 · 협력사, 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §1).
+
+    공지 한 줄에 받는 쪽(본사 전체 · 팀 · 협력사 전체 · 회사)을 적어 두고, 받는 사람은 **볼 때** 판정한다
+    (:mod:`foms.services.notices.audience`) — 나중에 들어온 계정도 받는다. 사람마다 읽음 · 확인은
+    :class:`NoticeAck`. 긴급 알림(``Notification``)과는 따로 둔다. 지우기는 ``deleted_at``(soft).
+    DDL 은 마이그레이션 ``notice_00`` 과 같다.
+    """
+
+    __tablename__ = 'notices'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=False, default='', server_default='')
+    created_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_by_name = Column(String(100), nullable=True)
+    audience_staff_all = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 팀 코드 목록(``normalize_team`` 으로 정규화한 값).
+    audience_staff_teams = Column(JSONColumn, nullable=True, default=list)
+    audience_partner_all = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 협력사(``partner_orgs.id``) 목록.
+    audience_partner_org_ids = Column(JSONColumn, nullable=True, default=list)
+    # ``POPUP`` 확인을 눌러야 닫히는 창 | ``LIST`` 목록에만.
+    display_mode = Column(String(20), nullable=False, default='LIST', server_default='LIST')
+    pinned = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 게시 기간(UTC naive). 비면 바로 · 끝 없음.
+    starts_at = Column(DateTime, nullable=True)
+    ends_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+    deleted_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("display_mode IN ('POPUP','LIST')", name='ck_notices_display_mode'),
+    )
+
+
+class NoticeAck(Base):
+    """공지 한 건 × 사람 한 명의 읽음 · 확인 기록(설계서 §1). 읽거나 확인할 때 처음 만든다."""
+
+    __tablename__ = 'notice_acks'
+
+    id = Column(Integer, primary_key=True)
+    notice_id = Column(Integer, ForeignKey('notices.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    read_at = Column(DateTime, nullable=True)
+    ack_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('notice_id', 'user_id', name='uq_notice_acks_notice_user'),
+    )
