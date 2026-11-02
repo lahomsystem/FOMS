@@ -4435,6 +4435,9 @@ class Notice(Base):
     # 폰 알림을 보낸(또는 보내지 않기로 정한) 때(설계서 §7, 마이그레이션 ``notice_01``). 비면 아직 안 보냄 —
     # 웹 만들기와 SIDEFX 예약 스캔이 ``push_sent_at IS NULL`` 선점으로 한 번만 보낸다.
     push_sent_at = Column(DateTime, nullable=True)
+    # 붙인 사진(설계서 §8, 마이그레이션 ``notice_02``) — 보이는 순서, 최대 5장. 항목 ``{key, thumb_key, name, width,
+    # height, size}``. key 는 관리자 업로드 API 가 만든 ``notices/images/...`` 뿐(:mod:`foms.services.notices.images`).
+    images = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
 
     __table_args__ = (
         CheckConstraint("display_mode IN ('POPUP','LIST')", name='ck_notices_display_mode'),

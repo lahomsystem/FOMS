@@ -61,6 +61,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "notices_api.list_notices",
     "notices_api.ack_notice",
     "notices_api.read_notice",
+    # 공지 사진(설계서 §8): 안에서 같은 받는 사람 판정(viewable_notice) — 자기 회사가 받는 게시 중 공지의 사진만, 아니면 404.
+    "notices_api.notice_image",
     # 협력사 공지사항 목록 화면(/partner/notices — partner_required).
     "partner_portal.notices",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).

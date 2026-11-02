@@ -3,6 +3,7 @@
  * - 받는 쪽 칩: GET /api/admin/notices/audience-options 의 teams · partners 로 그린다(본사 · 협력사 둘 다 고를 수 있다).
  * - 받는 사람 수: 같은 응답의 counts 로 칩을 누를 때마다 다시 센다.
  * - 저장: 새 공지 POST /api/admin/notices · 고치기 PUT /api/admin/notices/<id> (페이로드는 설계서 §4 그대로).
+ * - 사진(설계서 §8): notices-images.js 가 올리고 window.FomsNoticeImages.payload() 를 images 로 싣는다(없으면 칸을 빼 그대로 둔다).
  * CSRF 토큰은 공용 csrf_bootstrap 의 fetch 래퍼가 붙인다. 글은 textContent 로만 넣는다(innerHTML 없음).
  */
 (function () {
@@ -203,7 +204,7 @@
   }
 
   function payload() {
-    return {
+    var data = {
       title: field('title').value.trim(),
       body: field('body').value,
       audience: {
@@ -217,6 +218,8 @@
       starts_at: field('starts_at').value || '',
       ends_at: field('ends_at').value || ''
     };
+    if (window.FomsNoticeImages) data.images = window.FomsNoticeImages.payload();
+    return data;
   }
 
   function problem(data) {
@@ -230,6 +233,10 @@
   async function onSubmit(event) {
     event.preventDefault();
     if (busy) return;
+    if (window.FomsNoticeImages && window.FomsNoticeImages.busy()) {
+      message('warning', '사진을 올리는 중이에요. 다 올라간 뒤 저장해 주세요.');
+      return;
+    }
     var data = payload();
     var why = problem(data);
     if (why) {

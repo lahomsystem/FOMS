@@ -15,6 +15,7 @@ from flask import Blueprint, abort, render_template
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.notices.audience import audience_label
+from foms.services.notices.images import MAX_IMAGES, admin_items
 from foms.web.auth import login_required, role_required
 from models import Notice
 
@@ -61,7 +62,8 @@ def notice_form_state(notice: Any) -> dict[str, Any]:
     """고치기 화면에 미리 채울 값(설계서 §4 페이로드 모양 그대로).
 
     :param notice: ``Notice`` 한 줄.
-    :return: ``{id, title, body, audience:{...}, display_mode, pinned, starts_at, ends_at}``.
+    :return: ``{id, title, body, audience:{...}, display_mode, pinned, starts_at, ends_at, images:[...]}`` — 사진은
+        저장 항목 + 관리자 미리보기 주소(설계서 §8).
     """
     return {
         "id": notice.id,
@@ -77,6 +79,7 @@ def notice_form_state(notice: Any) -> dict[str, Any]:
         "pinned": bool(notice.pinned),
         "starts_at": _kst_input_value(notice.starts_at),
         "ends_at": _kst_input_value(notice.ends_at),
+        "images": admin_items(notice.images),
     }
 
 
@@ -94,7 +97,7 @@ def notices_list():
 def notice_new():
     """공지 쓰기."""
     return render_template("admin/notices/form.html", api_base=API_BASE, page_base=PAGE_BASE,
-                           mode="new", notice_state=None)
+                           mode="new", notice_state=None, max_images=MAX_IMAGES)
 
 
 @notices_admin_bp.route("/admin/notices/<int:notice_id>/edit")
@@ -106,7 +109,7 @@ def notice_edit(notice_id: int):
     state = notice_form_state(notice)
     get_db().rollback()  # 읽기만 — 트랜잭션을 닫는다
     return render_template("admin/notices/form.html", api_base=API_BASE, page_base=PAGE_BASE,
-                           mode="edit", notice_state=state)
+                           mode="edit", notice_state=state, max_images=MAX_IMAGES)
 
 
 @notices_admin_bp.route("/admin/notices/<int:notice_id>/status")

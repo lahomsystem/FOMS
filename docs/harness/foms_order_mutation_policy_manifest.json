@@ -1245,6 +1245,11 @@
       "policy_id": "MANAGER_MUTATION",
       "rule": "/api/admin/notices"
     },
+    "notices_admin_api.upload_image": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/admin/notices/images"
+    },
     "notices_admin_api.update_notice": {
       "mode": "guard",
       "policy_id": "MANAGER_MUTATION",

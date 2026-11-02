@@ -25,6 +25,7 @@ from foms.services.notices.admin import (  # noqa: F401 — 설계서 이름 그
     update_notice,
 )
 from foms.services.notices.audience import is_live, user_matches, viewer_audience_label
+from foms.services.notices.images import viewer_items
 from foms.services.notices.payload import NoticeInputError  # noqa: F401
 from foms.services.orders.order_mutation_policy import normalize_team
 from models import Notice, NoticeAck, NotificationUserState, PartnerOrg
@@ -46,11 +47,13 @@ __all__ = [
     "pending_popups_from",
     "unread_count",
     "update_notice",
+    "viewable_notice",
     "visible_notices",
 ]
 
 #: 창 공지는 한 번에 최대 5건(오래된 것부터) — 기존 협력사 공지 창과 같다.
 POPUP_LIMIT = 5
+_ADMIN_ROLES = frozenset({"ADMIN", "MANAGER"})
 _CREATED_FMT = "%Y-%m-%d %H:%M"
 
 
@@ -110,13 +113,13 @@ def _audience_clause(db, user: Any, org_active: bool):
 
 
 def _my_notices(db, user: Any, now: Optional[datetime.datetime] = None, *, with_body: bool = True) -> list[Notice]:
-    """이 사람이 지금 받는 게시 중 공지(고정 먼저 · 최근 순). ``with_body=False`` 면 본문을 읽지 않는다(창 · 배지용)."""
+    """이 사람이 지금 받는 게시 중 공지(고정 먼저 · 최근 순). ``with_body=False`` 면 본문 · 사진 목록을 읽지 않는다(창 · 배지용)."""
     if user is None or getattr(user, "id", None) is None:
         return []
     org_active = _org_active(db, user)
     query = live_notices_query(db, now).filter(_audience_clause(db, user, org_active))
     if not with_body:
-        query = query.options(defer(Notice.body))
+        query = query.options(defer(Notice.body), defer(Notice.images))
     return [n for n in query.all() if user_matches(n, user, org_active)]
 
 
@@ -156,7 +159,8 @@ def visible_notices(db, user: Any) -> list[dict[str, Any]]:
     (:func:`foms.services.notices.audience.viewer_audience_label`).
 
     Returns:
-        ``[{id, title, body, pinned, display_mode, created_at(KST 글), created_by_name, read, acked, audience_label}]``
+        ``[{id, title, body, pinned, display_mode, created_at(KST 글), created_by_name, read, acked, audience_label,
+        images: [{url, thumb_url, name, width, height}]}]``
     """
     notices = _my_notices(db, user)
     acks = _acks_for(db, user.id, [int(n.id) for n in notices]) if notices else {}
@@ -177,6 +181,7 @@ def visible_notices(db, user: Any) -> list[dict[str, Any]]:
             "read": bool(ack is not None and (ack.read_at is not None or acked)),
             "acked": acked,
             "audience_label": viewer_audience_label(n, user, names),
+            "images": viewer_items(int(n.id), n.images),
         })
     return items
 
@@ -186,7 +191,7 @@ def pending_popups_from(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     popups = [i for i in items if i["display_mode"] == "POPUP" and not i["acked"]]
     popups.sort(key=lambda i: (i["created_at"], i["id"]))
     return [
-        {k: i[k] for k in ("id", "title", "body", "created_by_name", "created_at")}
+        {k: i[k] for k in ("id", "title", "body", "created_by_name", "created_at", "images")}
         for i in popups[:POPUP_LIMIT]
     ]
 
@@ -211,28 +216,30 @@ def _tally(db, user: Any) -> tuple[int, list[Notice]]:
 
 
 def notice_summary(db, user: Any) -> dict[str, Any]:
-    """창 · 배지용 요약 ``{pending, unread}`` — 공지 목록 본문은 읽지 않는다(창에 띄울 최대 5건 본문만 한 번 더).
+    """창 · 배지용 요약 ``{pending, unread}`` — 공지 목록 본문은 읽지 않는다(창에 띄울 최대 5건 본문 · 사진만 한 번 더).
 
-    질의 수는 공지 수와 무관하게 일정하다(협력사 회사 1 · 공지 1 · 확인 기록 1 · 창 본문 1).
-    ``pending`` 항목: ``{id, title, body, created_by_name, created_at}``.
+    질의 수는 공지 수와 무관하게 일정하다(협력사 회사 1 · 공지 1 · 확인 기록 1 · 창 본문 · 사진 1).
+    ``pending`` 항목: ``{id, title, body, created_by_name, created_at, images: [{url, thumb_url, name, width, height}]}``.
     """
     unread, popups = _tally(db, user)
     if not popups:
         return {"pending": [], "unread": unread}
     ids = [int(n.id) for n in popups]
-    bodies = {int(i): b for i, b in db.query(Notice.id, Notice.body).filter(Notice.id.in_(ids)).all()}
+    rows = {int(i): (b, imgs) for i, b, imgs in
+            db.query(Notice.id, Notice.body, Notice.images).filter(Notice.id.in_(ids)).all()}
     pending = [{
         "id": int(n.id),
         "title": n.title or "",
-        "body": bodies.get(int(n.id)) or "",
+        "body": rows.get(int(n.id), ("", []))[0] or "",
         "created_by_name": n.created_by_name or "",
         "created_at": _created_text(n.created_at),
+        "images": viewer_items(int(n.id), rows.get(int(n.id), ("", []))[1]),
     } for n in popups]
     return {"pending": pending, "unread": unread}
 
 
 def pending_popups(db, user: Any) -> list[dict[str, Any]]:
-    """확인 안 한 창(POPUP) 공지 — 오래된 것부터 최대 5. ``{id, title, body, created_by_name, created_at}``."""
+    """확인 안 한 창(POPUP) 공지 — 오래된 것부터 최대 5. ``{id, title, body, created_by_name, created_at, images}``."""
     return notice_summary(db, user)["pending"]
 
 
@@ -255,6 +262,24 @@ def _target(db, user: Any, notice_id: Any) -> Optional[Notice]:
     if not user_matches(notice, user, _org_active(db, user)):
         return None
     return notice
+
+
+def _is_admin(user: Any) -> bool:
+    role = str(getattr(user, "role", "") or "").strip().upper()
+    return role in _ADMIN_ROLES and getattr(user, "partner_org_id", None) is None
+
+
+def viewable_notice(db, user: Any, notice_id: Any) -> Optional[Notice]:
+    """사진을 볼 수 있는 공지 — 관리자(본사 ADMIN · MANAGER)는 지운 · 예약 · 끝난 공지까지, 나머지는 게시 중이고 받는 사람인
+    공지만(:func:`_target`). 아니면 None(남의 공지 · 다른 협력사 공지는 있는지도 알리지 않는다)."""
+    if user is None or getattr(user, "id", None) is None or getattr(user, "is_active", None) is False:
+        return None
+    if _is_admin(user):
+        try:
+            return db.get(Notice, int(notice_id))
+        except (TypeError, ValueError):
+            return None
+    return _target(db, user, notice_id)
 
 
 def _sync_bell_state(db, row: NoticeAck, now: datetime.datetime, *, ack: bool) -> None:

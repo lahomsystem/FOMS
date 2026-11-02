@@ -2,6 +2,7 @@
 
 * :mod:`.audience` — 받는 사람 판정(볼 때 판정 — 나중에 들어온 계정도 받는다) · 받는 쪽 이름.
 * :mod:`.service` — 내 공지 목록 · 창 공지 · 읽음 · 확인 · 관리자 만들기 · 고치기 · 지우기 · 확인 현황.
+* :mod:`.images` — 공지 사진 받기(다시 그리기) · 저장소 key · 보여 줄 주소(설계서 §8).
 
 기존 협력사 공지(:mod:`foms.services.partners.notices`, 알림 종류 ``PARTNER_NOTICE``)는 그대로 둔다.
 """

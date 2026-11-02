@@ -88,12 +88,12 @@ def _pending_notice_queue(db, user, popups: list[dict]) -> list[dict]:
     """공지 창에 띄울 차례 — 기존 협력사 공지(PARTNER_NOTICE) 먼저, 그다음 FOMS 공지사항(POPUP 미확인).
 
     두 출처는 확인 주소가 다르다(``source``: ``partner`` → /api/partner/notices/<id>/ack, ``notice`` →
-    /api/notices/<id>/ack). 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §3 · §5.
+    /api/notices/<id>/ack). 새 공지는 사진 주소(``images`` — 설계서 §8)도 싣는다. 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §3 · §5.
     """
-    queue = [{"source": "partner", "id": n["id"], "title": n["title"], "message": n["message"]}
+    queue = [{"source": "partner", "id": n["id"], "title": n["title"], "message": n["message"], "images": []}
              for n in pending_partner_notices(db, user)]
     queue += [{"source": "notice", "id": n["id"], "title": n.get("title") or "", "message": n.get("body") or "",
-               "by": n.get("created_by_name") or "", "at": n.get("created_at") or ""}
+               "by": n.get("created_by_name") or "", "at": n.get("created_at") or "", "images": n.get("images") or []}
               for n in popups]
     return queue
 

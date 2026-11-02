@@ -1006,6 +1006,10 @@
       "mode": "guard",
       "rule": "/api/admin/notices"
     },
+    "notices_admin_api.upload_image": {
+      "mode": "guard",
+      "rule": "/api/admin/notices/images"
+    },
     "notices_admin_api.update_notice": {
       "mode": "guard",
       "rule": "/api/admin/notices/<int:notice_id>"
