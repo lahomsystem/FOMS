@@ -21,7 +21,7 @@
                     <span class="foms-notice-item__main">
                         <span class="foms-notice-item__chips">
                             {% if n.pinned %}<span class="foms-notice-chip foms-notice-chip--pin"><i class="fas fa-thumbtack" aria-hidden="true"></i> 고정</span>{% endif %}
-                            {% if n.display_mode == 'POPUP' %}<span class="foms-notice-chip foms-notice-chip--popup">확인 필요</span>{% endif %}
+                            {% if n.display_mode == 'POPUP' %}{% if n.acked %}<span class="foms-notice-chip">확인함</span>{% else %}<span class="foms-notice-chip foms-notice-chip--popup">확인 필요</span>{% endif %}{% endif %}
                             {% if n.audience_label %}<span class="foms-notice-chip">{{ n.audience_label }}</span>{% endif %}
                             {% if not n.read %}<span class="visually-hidden" data-foms-notice-unread-label>안 읽음</span>{% endif %}
                         </span>

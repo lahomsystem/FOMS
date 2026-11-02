@@ -51,6 +51,19 @@ def test_staff_notice_list_shows_only_staff_notices(app, world):
     assert "본사 전체 공지" in unread and "is-active" in unread
 
 
+def test_popup_notice_chip_turns_to_done_after_ack(app, world):
+    """확인 창 공지는 확인하기 전 '확인 필요', 확인한 뒤 '확인함'(스테이징 실화면 2026-11-02 — 확인 뒤에도 '확인 필요'가 남았다)."""
+    from foms.services.notices.service import ack_notice
+
+    nid = _notice("확인 창 공지", audience_staff_all=True, display_mode="POPUP")
+    before = _page(app, world["staff"], "/notices").get_data(as_text=True)
+    assert "확인 필요" in before and "확인함" not in before
+    assert ack_notice(db_session, db_session.get(User, world["staff"]), nid)
+    db_session.commit()
+    after = _page(app, world["staff"], "/notices").get_data(as_text=True)
+    assert "확인함" in after and "확인 필요" not in after
+
+
 def test_partner_is_sent_away_from_staff_list(app, world):
     resp = _page(app, world["partner_a"], "/notices")
     assert resp.status_code == 302
