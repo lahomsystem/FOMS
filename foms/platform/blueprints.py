@@ -205,6 +205,17 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_notice_bp)
     app.register_blueprint(partner_portal_bp)
 
+    # --- Lane: FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices). 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.notices import notices_admin_api_bp, notices_api_bp
+    from foms.web.admin.notices import notices_admin_bp
+    from foms.web.notices import notices_web_bp
+
+    app.register_blueprint(notices_admin_api_bp)
+    app.register_blueprint(notices_api_bp)
+    app.register_blueprint(notices_admin_bp)
+    app.register_blueprint(notices_web_bp)
+
     # --- Lane: AI 도면팀원 학습 요약(GET /api/drawing-agent/digest, 토큰 전용 · 읽기만). 경로가 고유해
     # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 설계서 docs/plans/2026-10-27-drawing-ai-teammate-spec.md
     from foms.api.drawing_agent import drawing_agent_bp
