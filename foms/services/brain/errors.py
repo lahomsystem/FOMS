@@ -98,3 +98,29 @@ class BrainGateError(BrainError):
         """떨어진 관문 이름만 싣는다."""
         super().__init__("관문 미통과: " + ", ".join(failed))
         self.failed: tuple[str, ...] = tuple(failed)
+
+
+class BrainLinkLimitError(BrainTargetError):
+    """연결 개수 상한을 넘는다(7.7 · D105 — 허용 짝의 최대). ``kind`` · ``limit`` 는 종류 이름 · 수만."""
+
+    code = "BRAIN_LINK_LIMIT"
+
+    def __init__(self, kind: str, limit: int) -> None:
+        """링크 종류와 상한을 싣는다."""
+        super().__init__(f"연결 개수 상한을 넘는다 — {kind} 최대 {limit}개")
+        self.kind = kind
+        self.limit = limit
+
+
+class BrainExternalRefError(BrainTargetError):
+    """가리킨 바깥 정본 자리(``calc:`` · ``setting:``)가 없거나 지금 확인할 수 없다(7.7 · D105). ``refs`` 는 키만."""
+
+    code = "BRAIN_EXTERNAL_MISSING"
+
+    def __init__(self, refs: Sequence[str], *, unavailable: bool = False) -> None:
+        """없는 키 목록(또는 확인 못 함)을 싣는다."""
+        shown = list(refs[:MAX_PROBLEMS])
+        reason = "확인할 수 없다" if unavailable else "없다"
+        super().__init__(f"바깥 정본 자리가 {reason}: {', '.join(shown)}")
+        self.refs: tuple[str, ...] = tuple(shown)
+        self.unavailable = unavailable

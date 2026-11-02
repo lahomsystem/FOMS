@@ -5,7 +5,7 @@
 <dl class="brain-fields">
   <dt>층 · 브랜드</dt><dd>{{ layer_labels.get(it.layer, it.layer) }} · {{ brand_labels.get(it.brand, it.brand) }}</dd>
   <dt>위험 등급</dt><dd>{{ grade_labels.get(it.risk_grade, '—') if it.risk_grade else '—' }}</dd>
-  <dt>유효 기간</dt><dd>{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '끝 없음' }}</dd>
+  <dt>유효 기간</dt><dd>{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '끝 없음' }}{% if it.ended %} · 기간 끝남(찾기 · 표 · 이웃에서 빠짐){% endif %}</dd>
   <dt>마지막 확인</dt><dd>{{ it.checked_at or '확인 날 없음' }}{% if it.stale_after %} · 다시 볼 날 {{ it.stale_after }}{% endif %}</dd>
   <dt>쓰인 횟수</dt><dd>{{ it.usage_count }}</dd>
   <dt>보기 범위</dt><dd>{{ visibility }}</dd>
@@ -27,6 +27,12 @@
 
 <section class="brain-section" aria-labelledby="brain-card-links">
   <h2 id="brain-card-links">관련 항목</h2>
+  {% if card.link_rules %}
+  <p class="brain-rules">연결 개수 규칙:
+    {% for rule in card.link_rules %}{{ link_display.get(rule.kind, (rule.kind,))[0] }} {{ rule.min }} ~ {{ rule.max if rule.max is not none else '여럿' }}{{ ' · ' if not loop.last }}{% endfor %}
+    {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing">빠짐 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
+  </p>
+  {% endif %}
   {% if card.links %}
   <div class="brain-linkgroups">
     {% for group in card.links %}
@@ -63,7 +69,16 @@
   <ul class="brain-ext">
     {% for ext in card.external %}
     {% set xd = type_display.get(ext.ext_type, (ext.ext_type, '', 'fa-link')) %}
-    <li class="brain-type--{{ ext.ext_type }}"><span class="brain-chip brain-ext__chip" title="{{ xd[0] }}"><i class="fas {{ xd[2] }} brain-chip__icon" aria-hidden="true"></i>{{ ext.ref }}</span></li>
+    <li class="brain-type--{{ ext.ext_type }}{{ ' is-missing' if ext.exists == false else '' }}" data-brain-ext="{{ ext.ref }}">
+      <span class="brain-chip brain-ext__chip" title="{{ xd[0] }}"><i class="fas {{ xd[2] }} brain-chip__icon" aria-hidden="true"></i>{{ ext.ref }}</span>
+      {% if ext.exists == false %}<span class="brain-badge brain-badge--missing">자리가 없어요 — 키를 확인해 주세요</span>
+      {% elif ext.exists is none %}<span class="brain-badge brain-badge--observed">지금 확인할 수 없어요</span>
+      {% else %}
+      {% if ext.label and ext.label != ext.ref %}<span class="brain-ext__label">{{ ext.label }}</span>{% endif %}
+      {% if ext.value_hidden %}<span class="brain-ext__value is-hidden">지금 값은 볼 수 있는 사람만</span>
+      {% elif ext.value %}<span class="brain-ext__value" data-brain-ext-value>지금 값 {{ ext.value }}</span>{% endif %}
+      {% endif %}
+    </li>
     {% endfor %}
   </ul>
   {% else %}

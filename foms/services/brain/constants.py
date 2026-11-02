@@ -76,6 +76,16 @@ ALLOWED_LINKS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "caused_by": (frozenset(), frozenset()),
     "fixed_by": (frozenset(), frozenset()),
 }
+#: 연결 개수 규칙(7.7 · D105) — (시작 유형, 링크 종류) → (최소, 최대). 그 항목에서 **나가는** 지금 · 유효 기간 안 링크 수.
+#: 최대(``None`` = 끝없음)는 반영 동작이 링크 더하기 때 막고(:mod:`.apply`), 최소는 막지 않고 카드 '빠진 링크' · 품질 수
+#: (:mod:`.quality`)로만 알린다. 적지 않은 짝은 (0, 끝없음). 기본값은 보고서에 적어 사장님께 여쭌다.
+LINK_CARDINALITY: dict[tuple[str, str], tuple[int, int | None]] = {
+    ("price_rule", "value_from"): (1, 1),  # 가격 규칙 값은 정본 자리 꼭 하나(계산기 · 설정 — 두 곳이면 어느 값인지 모른다)
+    ("spec", "value_from"): (0, 1),  # 규격 값 정본은 하나까지
+    ("option", "value_from"): (0, 1),  # 옵션 → 계산기 옵션 하나까지
+    ("bom_rule", "value_from"): (1, 1),  # 자재표 규칙은 '가리키는 항목'(8절) — 설정 키 꼭 하나
+    **{(t, "evidence_of"): (1, None) for t in OBSERVATION_TYPES},  # 관찰은 받치는 항목이 하나 이상(외톨이 관찰)
+}
 
 # ── 상태 · 확신 · 등급 · 근거 · 보기 범위 ────────────────────────────────
 STATUS_DRAFT, STATUS_ACTIVE, STATUS_RETIRED = "draft", "active", "retired"
@@ -152,6 +162,13 @@ KEY_RE = re.compile(r"[a-z0-9][a-z0-9_.:/-]{0,119}")
 MAX_NAME, MAX_TEXT, MAX_REASON, MAX_REF, MAX_COPIES, MAX_EVIDENCE = 200, 2000, 500, 200, 50, 50
 MAX_PAYLOAD_CHARS = 20000
 MAX_NEIGHBOUR_DEPTH, MAX_NEIGHBOUR_LIMIT, MAX_SEARCH_LIMIT = 2, 200, 100
+#: 이웃 지도 · 뇌 보기 — 한 번에 싣는 선 상한 · 뇌 보기 바탕 점 상한(흐린 전체 그림 — 자리만).
+MAX_NEIGHBOUR_EDGES, MAX_BRAIN_POINTS = 1000, 5000
+
+
+def cardinality(from_type: str | None, kind: str) -> tuple[int, int | None]:
+    """(시작 유형, 링크 종류)의 연결 개수 규칙 — (최소, 최대). 적지 않은 짝은 (0, ``None``)."""
+    return LINK_CARDINALITY.get((from_type or "", kind), (0, None))
 
 
 def external_type(key: str) -> str | None:

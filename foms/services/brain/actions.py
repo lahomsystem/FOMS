@@ -63,6 +63,8 @@ FAILURES: dict[str, str] = {
     "BRAIN_SHAPE": "값이 맞지 않아요 — 칸을 확인해 주세요.",
     "BRAIN_TARGET": "지금 상태와 맞지 않아요 — 이미 결정됐거나 바뀐 것이 없어요. 새로 불러와 주세요.",
     "BRAIN_GATE": "글 관문을 넘지 못했어요(개인정보 · 한자 · 숫자 출처).",
+    "BRAIN_LINK_LIMIT": "이 종류 링크는 더 이을 수 없어요(연결 개수 상한) — 앞 링크를 먼저 빼 주세요.",
+    "BRAIN_EXTERNAL_MISSING": "가리킨 계산기 · 설정 자리가 없거나 지금 확인할 수 없어요 — 키를 확인해 주세요.",
     "BRAIN_ERROR": "처리하지 못했어요 — 새로 불러온 뒤 다시 해 주세요.",
 }
 #: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계).
@@ -79,7 +81,8 @@ _CONFIRM = Param("confirm", "confirm", "등급 B 핵심 값 확인", required=Fa
 _SEE = "볼 수 있는 항목(보기 범위)"
 _DECIDE = ("결정 권한(층 승인자 · 사장님 몫 — D101)", _SEE, "열린 제안")
 _PROPOSE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_BASE_CHANGED", "BRAIN_REJECTED_BEFORE", "BRAIN_TARGET")
-_DECIDE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_BASE_CHANGED", "BRAIN_CONFIRM")
+_DECIDE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_BASE_CHANGED", "BRAIN_CONFIRM",
+                "BRAIN_LINK_LIMIT", "BRAIN_EXTERNAL_MISSING")  # 링크 더하기 — 연결 개수 상한 · 바깥 정본 실재(D105)
 _PROPOSALS = "brain_review_api.brain_propose"
 
 ACTIONS: dict[str, ActionType] = {a.name: a for a in (
@@ -120,7 +123,8 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
                (Param("number", "int", "판 번호"), Param("layer", "choice", "층", choices=LAYERS),
                 Param("confirm_number", "int", "판 번호 확인")),
                ("사장님(ADMIN)만", "판 0 아님", "뒤 판이 같은 항목을 안 고침"),
-               ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_ROLLBACK_BLOCKED"),
+               ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_ROLLBACK_BLOCKED", "BRAIN_LINK_LIMIT",
+                "BRAIN_EXTERNAL_MISSING"),  # 뺀 링크를 다시 더할 때 — 연결 개수 상한 · 바깥 정본 실재(D105)
                "판을 되돌렸어요 — 되돌린 판도 이력에 남아요.", admin_only=True),
 )}
 

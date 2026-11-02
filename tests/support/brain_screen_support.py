@@ -15,7 +15,7 @@ from foms.persistence.brain.models import BrainObject
 from foms.services.brain.apply import apply_change
 from foms.services.brain.proposals import Proposer, propose_retire, propose_update
 from foms.services.brain.store import current_object
-from tests.support.brain_support import NOW, REASON, create, link, person
+from tests.support.brain_support import NOW, REASON, create, link, person, setting
 
 #: 한국 2026-11-02 — :data:`tests.support.brain_support.NOW` 의 한국 날짜.
 TODAY = datetime.date(2026, 11, 2)
@@ -54,7 +54,8 @@ def graph(session: Any, admin: Any) -> None:
     link(session, admin, "applies_to", "drawing/rule", "common/door")
     link(session, admin, "applies_to", "common/discount", "common/door")
     link(session, admin, "requires", "common/fit", "common/slide")
-    link(session, admin, "value_from", "common/door", "calc:product/door")
+    setting(session, "drawing_wizard_bom_rules")
+    link(session, admin, "value_from", "common/door", "calc:product/7")
     link(session, admin, "value_from", "common/door", "setting:drawing_wizard_bom_rules")
     retire = propose_retire(session, key="common/old", base_version=1, reason=REASON,
                             proposer=Proposer.user(admin.id), now=NOW)

@@ -1,0 +1,46 @@
+{#- 카드 '이웃 지도' 탭(설계서 7.5 화면 9 · 7.7 이웃 찾기) — **진짜 화면은 아래 HTML 이웃 목록**(1걸음은 서버가 그린다 —
+    키보드 · 화면 읽기). 그림 · 걸음 · 종류 칩은 brain-neighbours.js 가 탭을 열 때 Cytoscape 를 import() 해 GET /api/brain/around
+    로 다시 그린다(보기 범위 · 유효 기간은 서버가 점 · 선 · 수에 모두 건다). 그림과 목록은 서로 고르면 맞물리고, 이어지지 않은
+    것은 숨기지 않고 흐리게. -#}
+<div class="brain-nb" data-brain-nb data-around-url="{{ url_for('brain_api.brain_around') }}"
+     data-cytoscape-url="{{ asset_url('vendor/cytoscape-3.34.4.esm.min.js') }}"
+     data-link-order="{{ link_order|list|tojson|forceescape }}">
+  <div class="brain-nb__controls">
+    <div class="brain-nb__depth" role="group" aria-label="걸음 수">
+      {% for step in range(1, max_depth + 1) %}
+      <button class="brain-nb__chip" type="button" data-brain-nb-depth="{{ step }}"
+              aria-pressed="{{ 'true' if step == 1 else 'false' }}">{{ step }}걸음</button>
+      {% endfor %}
+    </div>
+    <div class="brain-nb__chips" role="group" aria-label="링크 종류 펼치기(수 = 닿은 항목)" data-brain-nb-chips>
+      {% for kind in link_order if around.counts.get(kind) %}
+      <button class="brain-nb__chip brain-link--{{ kind }}" type="button" data-brain-nb-kind="{{ kind }}" aria-pressed="true">
+        <span class="brain-swatch" aria-hidden="true"></span>{{ link_display[kind][0] }} {{ around.counts[kind] }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="brain-status-line" data-brain-nb-status role="status" aria-live="polite">1걸음 이웃 {{ around.total }}개 — 내 보기 범위 안 · 기간이 끝나지 않은 것만.</p>
+  <div class="brain-nb__body">
+    <div class="brain-nb__canvas" data-brain-nb-canvas role="img"
+         aria-label="이웃 지도 그림 — 옆 이웃 목록과 같은 내용입니다"></div>
+    <section aria-labelledby="brain-nb-list-title">
+      <h2 class="h6" id="brain-nb-list-title">이웃 목록(이름을 누르면 그림에서 고릅니다)</h2>
+      <ol class="brain-nb__list" data-brain-nb-list>
+        {% for other in around['items'] %}
+        <li class="brain-item brain-type--{{ other.type }}{{ ' brain-state--' ~ other.status if other.status in ('draft', 'retired') else '' }}{{ ' brain-state--stale' if other.stale else '' }}"
+            data-brain-nb-key="{{ other.key }}">
+          {% set od = type_display.get(other.type, (other.type, '', 'fa-circle')) %}
+          <span class="brain-chip"><i class="fas {{ od[2] }} brain-chip__icon" aria-hidden="true"></i>{{ od[0] }}</span>
+          <button class="brain-nb__pick" type="button" data-brain-nb-select="{{ other.key }}" aria-pressed="false"
+                  title="그림에서 고르기">{{ other.name }}</button>
+          <span class="brain-nb__via">{{ other.depth }}걸음 · {% for k in other.via %}{{ link_display.get(k, (k,))[0] }}{{ ' · ' if not loop.last }}{% endfor %}</span>
+          <a class="brain-btn" href="{{ url_for('brain_web.item', key=other.key) }}">카드</a>
+        </li>
+        {% else %}
+        <li class="brain-empty">이어진 항목이 없습니다(내 보기 범위 안).</li>
+        {% endfor %}
+      </ol>
+      {% if around.truncated %}<p class="brain-empty">앞 {{ around['items']|length }}개만 보입니다 — 종류 칩으로 좁혀 보세요.</p>{% endif %}
+    </section>
+  </div>
+</div>

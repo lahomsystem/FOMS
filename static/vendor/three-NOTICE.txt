@@ -1,0 +1,57 @@
+회사 지식 '뇌 보기' 3D 라이브러리 (HAUD master brain 설계서 7.6 · 사장님 D100 — three.js 0.187.0 반입 허락)
+=========================================================================================
+
+파일 세 개 — 폴더 이름(three-0.187.0)이 판을 고정한다. 뇌 보기 탭을 열 때만 import() 로 읽는다
+(static/js/brain/brain3d-tab.js). 셋이 서로 같은 주소로 이어지게(three 인스턴스 하나) 화면은 ?v= 없는 주소를 쓴다
+— 폴더 이름이 판이고, .js 는 서버가 늘 다시 확인(no-cache + ETag)하게 내보낸다(foms/platform/app_factory.py).
+
+1) static/vendor/three-0.187.0/three.module.js
+   - 원본: npm three@0.187.0 build/three.module.js (사장님이 본 시제품에 쓴 그 파일 — 학습 폴더
+     design/brain3d_prototype/vendor/three/)
+   - 라이선스: MIT (Copyright 2010-2026 three.js authors)
+   - SHA-256: 104f56145899722094556490d787aae0617cc2fc3382f31df02d724ea1aee341
+
+2) static/vendor/three-0.187.0/three.core.js
+   - 원본: npm three@0.187.0 build/three.core.js (three.module.js 가 './three.core.js' 로 읽는다)
+   - 라이선스: MIT
+   - SHA-256: 613e370f76638fdef83926642bf256dc9615684922de1ce1f63a8583e5d78578
+
+3) static/vendor/three-0.187.0/OrbitControls.js
+   - 원본: npm three@0.187.0 examples/jsm/controls/OrbitControls.js (돌리기 · 확대 — 같은 저장소 addons)
+   - 원본 SHA-256: e7fca2fe9e7670a828af9b28084669a5909445b7f36f1f26cee9bf8f2961c32c
+   - 한 줄만 고쳤다 — 12번째 줄 import 끝 } from 'three'; → } from './three.module.js';
+     (import map 없이 브라우저가 읽게. 인라인 <script type="importmap"> 은 화면 규칙 · CSP 와 맞지 않는다.)
+   - 고친 뒤 SHA-256: a747d56dd959510407777f1800792b2b52c0a435980fd6e40caf303d8a674b9e
+   - 라이선스: MIT (three.js 와 같은 저장소)
+
+시제품의 addons/BufferGeometryUtils.js(mergeVertices)는 들이지 않았다 — 껍데기 꼭짓점 합치기는 앱 코드
+(static/js/brain/brain3d-shell.js)가 직접 한다.
+
+다시 들일 때: 빈 폴더에서 npm pack three@<판> → tarball integrity 를 npm view three@<판> dist.integrity 와 견주고 →
+build/three.module.js · build/three.core.js · examples/jsm/controls/OrbitControls.js 를 새 판 폴더(three-<판>)에 복사 →
+OrbitControls 의 import 줄을 위처럼 고치고 → SHA-256 을 여기와 tests/domains/test_brain3d_assets.py 에 고쳐 적는다.
+
+-----------------------------------------------------------------------------------------
+three.js — MIT License
+
+The MIT License
+
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

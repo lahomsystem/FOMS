@@ -28,10 +28,20 @@ PY = [ROOT / "foms/api/brain.py", ROOT / "foms/api/brain_review.py", ROOT / "fom
                                                    "release_view.py", "inbox.py", "decide.py", "recheck.py",
                                                    "rollback.py", "metrics.py", "review_rules.py", "proposals.py",
                                                    "apply.py", "actions.py", "action_runner.py", "schemas.py")]]
-#: 화면 스크립트 — 읽기(⑤-2) 여섯 + 제안함 · 다시 확인 · 카드 제안(⑤-3) 다섯.
+#: 화면 스크립트 — 읽기(⑤-2) 여섯 + 제안함 · 다시 확인 · 카드 제안(⑤-3) 다섯 + 이웃 지도 · 뇌 보기(⑤-4) 아홉.
 SCRIPT_NAMES = {"brain-view.js", "brain-dom.js", "brain-page.js", "brain-table.js", "brain-releases.js", "brain-map.js",
                 "brain-review-view.js", "brain-inbox-card.js", "brain-inbox.js", "brain-recheck.js",
-                "brain-item-actions.js"}
+                "brain-item-actions.js", "brain-graph-view.js", "brain-neighbours.js", "brain3d-core.js",
+                "brain3d-layout.js", "brain3d-shell.js", "brain3d-nodes.js", "brain3d-labels.js", "brain3d-scene.js",
+                "brain3d-tab.js"}
+#: 그림 라이브러리를 import() 하는 화면 파일 — 유형 지도 · 이웃 지도(Cytoscape) · 뇌 보기(three.js · 그리기 파일).
+IMPORTERS = ["brain-map.js", "brain-neighbours.js", "brain3d-tab.js"]
+
+
+def _code(path: Path) -> str:
+    """주석 줄(``*`` · ``//`` 로 시작)을 뺀 코드."""
+    return chr(10).join(line for line in _text(path).splitlines()
+                        if not line.strip().startswith(("*", "//", "/**")))
 
 
 def _text(path: Path) -> str:
@@ -58,9 +68,12 @@ def test_vendor_files_load_only_through_import_in_the_map_tab():
     tags = [t for p in ROOT.joinpath("templates").rglob("*.html") for t in re.findall(r"<(?:script|link)[^>]*>", _text(p))]
     assert not [t for t in tags if "vendor/cytoscape" in t]  # <script> · <link> 로 싣지 않는다 — 지도 탭 import() 만
     assert index.count("vendor/cytoscape") == 2
-    users = [p.name for p in JS if "import(" in _text(p)]
-    assert users == ["brain-map.js"]
+    users = [p.name for p in JS if "import(" in _code(p)]
+    assert sorted(users) == sorted(IMPORTERS)  # 그 밖의 화면 파일은 import() 하지 않는다
     assert "import(ctx.urls.cytoscape)" in _text(ROOT / "static/js/brain/brain-map.js")
+    assert "import(root.getAttribute('data-cytoscape-url'))" in _text(ROOT / "static/js/brain/brain-neighbours.js")
+    neighbours = _text(ROOT / "templates/brain/partials/card_neighbours.html")
+    assert "data-cytoscape-url=\"{{ asset_url('vendor/cytoscape-3.34.4.esm.min.js') }}\"" in neighbours
 
 
 def test_one_colour_per_type_in_css_matches_the_display_table():
@@ -86,8 +99,11 @@ def test_templates_have_no_inline_style_or_script_and_pin_assets():
     assert "data-display=\"{{ display|tojson|forceescape }}\"" in index
     assert "asset_url('css/contexts/brain/brain.css')" in index
     item = _text(ROOT / "templates/brain/item.html")
-    assert 'data-brain-slot-tab="neighbours"' in item and 'data-brain-slot-tab="brain3d"' in item  # 다음 단계 빈 자리
+    assert 'data-brain-slot-tab' not in item and "준비 중" not in item  # ⑤-4 — 이웃 지도 · 뇌 보기 탭이 열렸다
+    assert 'data-bs-target="#brain-card-neighbours"' in item and 'data-bs-target="#brain-card-brain3d"' in item
+    assert '<li class="nav-item" role="presentation" hidden data-brain3d-tab-item>' in item  # 뇌 보기는 숨겨 그린다
     assert 'data-current="{{ current|tojson|forceescape }}"' in item
+    assert 'data-display="{{ display|tojson|forceescape }}"' in item
 
 
 def test_scripts_follow_the_frontend_rules():
