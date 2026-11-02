@@ -418,7 +418,8 @@ def test_csagent_05_chains_onto_csagent_06_matches_the_model_and_keeps_one_head(
     indexes = {i.name: tuple(c.name for c in i.columns) for i in table.indexes}
     assert all(indexes[name] == columns for name, columns in module.INDEXES)
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert script.get_heads() == ["csagent_05"]
+    heads = script.get_heads()  # 뒤에 새 마이그레이션(notice_01 등)이 붙어도 csagent_05 는 사슬 안에 있어야 한다
+    assert len(heads) == 1 and "csagent_05" in {rev.revision for rev in script.walk_revisions("base", heads[0])}
 
 
 def test_the_view_window_is_one_day():

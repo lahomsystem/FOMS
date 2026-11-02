@@ -6,6 +6,7 @@ SIDEFX-00 outbox 를 소비하는 delivery/expiry/retention worker 다. 세 loop
 * delivery: ``--interval`` 초마다 PENDING 을 claim → 도메인 handler dispatch → DONE/재시도/DEAD.
 * expiry scan: ``--expiry-scan-interval`` 초마다 만료 lease 회수(죽은 worker 회복).
 * retention scan: ``--retention-scan-interval`` 초마다 terminal 행 purge(DONE 30d/DEAD 180d).
+* 예약 공지 폰 알림 스캔: 60 초마다 게시가 시작된 미발송 공지를 바로 보낸다(공지 설계서 §7, REDIS 없이).
 
 10 초마다 세 worker_kind heartbeat 를 upsert 하고, SIGTERM/SIGINT 에 graceful shutdown 한다.
 
@@ -86,6 +87,7 @@ from foms.services.notifications.measure_same_day_delivery import (  # noqa: E40
 from foms.services.notifications.notification_push_delivery import (  # noqa: E402
     handle_notification_push,
 )
+from foms.services.notices.push import sweep_due_notice_pushes  # noqa: E402
 from foms.services.record_only_effects import (
     CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
     HOLD_NOTIFICATION_EFFECT_TYPE,
@@ -194,6 +196,29 @@ def _run_watchdog(engine: Engine) -> None:
         s.close()
 
 
+#: 예약 공지 폰 알림 스캔 주기(초). 게시 시작 뒤 몇 분 늦어도 된다(사용자 결정 2026-11-02, 공지 설계서 §7).
+NOTICE_PUSH_SWEEP_INTERVAL_SECONDS = 60
+
+
+def _run_notice_push_sweep(engine: Engine) -> None:
+    """게시가 시작됐는데 아직 안 보낸 공지를 받는 사람 폰으로 보낸다.
+
+    이 컨테이너에는 REDIS 가 없어 RQ 를 거치지 않고 바로 보낸다(``enqueue=False``). 웹이 만들 때 이미 보낸 공지는
+    ``push_sent_at`` 선점으로 건너뛴다.
+    """
+    session_local = sessionmaker(bind=engine)
+    s = session_local()
+    try:
+        result = sweep_due_notice_pushes(s)
+        if result["notices"] or result["expired"] or result["failed"]:
+            _LOGGER.info("[sidefx-worker] 공지 폰 알림 스캔: %s", result)
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 def _push_watchdog_notification(session, notification_id) -> None:
     """워커 정지 알림만은 **rq 를 거치지 않고 여기서 바로** 웹푸시로 보낸다.
 
@@ -240,6 +265,7 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
     clock = _Clock(now)
     next_delivery = next_expiry = next_retention = next_heartbeat = time.monotonic()
     next_watchdog = time.monotonic()
+    next_notice_push = time.monotonic()
     next_weather = time.monotonic()
     weather_session = sessionmaker(bind=engine)
     _LOGGER.info("[sidefx-worker] started owner=%s interval=%ds expiry=%ds retention=%ds",
@@ -269,6 +295,9 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
         if mono >= next_watchdog:
             _safe(lambda: _run_watchdog(engine), "worker-watchdog")
             next_watchdog = mono + WATCHDOG_INTERVAL_SECONDS
+        if mono >= next_notice_push:
+            _safe(lambda: _run_notice_push_sweep(engine), "notice-push-sweep")
+            next_notice_push = mono + NOTICE_PUSH_SWEEP_INTERVAL_SECONDS
         if args.weather_interval > 0 and mono >= next_weather:
             # 단기·중기를 따로 돌린다 — 한쪽이 실패해도 다른 쪽 저장은 남는다.
             _safe(lambda: _refresh_weather(weather_session, refresh_short, "short"), "weather-short")

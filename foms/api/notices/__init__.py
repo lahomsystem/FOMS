@@ -4,6 +4,7 @@
 
 - ``GET ""`` 목록(지운 것 빼고) · ``POST ""`` 만들기 · ``GET /<id>`` 한 건(고치기 화면) · ``PUT /<id>`` 고치기 ·
   ``DELETE /<id>`` 지우기(soft) · ``GET /<id>/status`` 확인 현황 · ``GET /audience-options`` 받는 사람 고르기 칩 · 수.
+  만들기 · 고치기 커밋 뒤 지금 게시 중이고 아직 안 보낸 공지면 받는 사람 폰으로 보낸다(설계서 §7, 한 번만).
 
 받는 사람(로그인한 본사 직원 · 협력사 직원) — ``notices_api``, 접두 ``/api/notices``:
 
@@ -35,6 +36,7 @@ from foms.services.notices.admin import (
     update_notice,
 )
 from foms.services.notices.payload import NoticeInputError
+from foms.services.notices.push import push_notice_if_due
 from foms.services.notices.service import (
     ack_notice as svc_ack_notice,
     mark_read,
@@ -83,6 +85,16 @@ def _admin() -> tuple[Optional[Any], Optional[tuple[Any, int]]]:
     return user, None
 
 
+def _push_after_commit(db, notice_id: int) -> None:
+    """커밋한 공지가 지금 게시 중이고 아직 안 보냈으면 폰으로 보낸다(설계서 §7). 실패해도 응답은 그대로 —
+    보내지 못한 공지는 SIDEFX 예약 스캔이 다시 본다."""
+    try:
+        push_notice_if_due(db, notice_id, enqueue=True)
+    except Exception:  # noqa: BLE001 - 공지는 이미 저장됐다
+        db.rollback()
+        logger.warning("[NOTICE] 공지 폰 알림 준비 실패 id=%s", notice_id, exc_info=True)
+
+
 def _body() -> dict[str, Any]:
     payload = request.get_json(silent=True)
     return payload if isinstance(payload, dict) else {}
@@ -128,6 +140,7 @@ def api_create_notice():
         db.rollback()
         logger.warning("[NOTICE] 공지 만들기 저장 실패", exc_info=True)
         return _fail(500, _SAVE_FAILED)
+    _push_after_commit(db, notice_id)
     return _ok(notice_detail(db, notice_id), 201)
 
 
@@ -163,6 +176,8 @@ def api_update_notice(notice_id: int):
         db.rollback()
         logger.warning("[NOTICE] 공지 고치기 저장 실패 id=%s", notice_id, exc_info=True)
         return _fail(500, _SAVE_FAILED)
+    # 예약이었던 공지를 지금 게시로 바꿨으면 여기서 보낸다(이미 보낸 공지는 다시 보내지 않는다).
+    _push_after_commit(db, notice_id)
     return _ok(notice_detail(db, notice_id))
 
 

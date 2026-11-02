@@ -22,6 +22,7 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
+from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
 from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -196,6 +197,15 @@ def _resolve_notification_deep_link(
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": "/erp/drawing-workbench/agent-note",
+        }
+
+    if is_notice_notification_type(n_type):
+        # 공지 폰 알림(공지 설계서 §7) — 폰 알림과 같은 곳: 협력사 직원은 협력사 공지 목록, 본사 직원은 공지 목록.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": notice_deep_link(getattr(recipient, "partner_org_id", None) is not None),
         }
 
     if n_type == NOTIFY_DRAFT_READY:

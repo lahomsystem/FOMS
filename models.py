@@ -4432,6 +4432,9 @@ class Notice(Base):
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
                         server_default=func.now())
     deleted_at = Column(DateTime, nullable=True)
+    # 폰 알림을 보낸(또는 보내지 않기로 정한) 때(설계서 §7, 마이그레이션 ``notice_01``). 비면 아직 안 보냄 —
+    # 웹 만들기와 SIDEFX 예약 스캔이 ``push_sent_at IS NULL`` 선점으로 한 번만 보낸다.
+    push_sent_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         CheckConstraint("display_mode IN ('POPUP','LIST')", name='ck_notices_display_mode'),
@@ -4449,6 +4452,10 @@ class NoticeAck(Base):
     read_at = Column(DateTime, nullable=True)
     ack_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # 이 사람에게 보낸 폰 알림(``FOMS_NOTICE``) — 읽음 · 확인이 그 알림 배지를 같이 줄인다(설계서 §7).
+    notification_id = Column(
+        Integer, ForeignKey('notifications.id', ondelete='SET NULL', name='fk_notice_acks_notification_id'), nullable=True,
+    )
 
     __table_args__ = (
         UniqueConstraint('notice_id', 'user_id', name='uq_notice_acks_notice_user'),
