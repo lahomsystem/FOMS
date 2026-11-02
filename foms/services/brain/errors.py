@@ -112,6 +112,17 @@ class BrainLinkLimitError(BrainTargetError):
         self.limit = limit
 
 
+class BrainLinkRuleError(BrainTargetError):
+    """링크 제약에 걸렸다(7.8 다음 1 · 14 — 근거 종류와 맞지 않는 끝 · 같은 짝 필요 + 제외 · 고리). ``rule`` 은 규칙 이름만."""
+
+    code = "BRAIN_LINK_RULE"
+
+    def __init__(self, rule: str, message: str) -> None:
+        """규칙 이름(``basis_end`` · ``opposed`` · ``cycle``)과 키 · 종류만 든 글."""
+        super().__init__(message)
+        self.rule = rule
+
+
 class BrainExternalRefError(BrainTargetError):
     """가리킨 바깥 정본 자리(``calc:`` · ``setting:``)가 없거나 지금 확인할 수 없다(7.7 · D105). ``refs`` 는 키만."""
 
