@@ -6032,6 +6032,9 @@ function fomsMountErpOrderSurface() {
         return erpRunChannelPush(this, pushKind);
     });
 
+    // "실측 끝 · 도면 넘기기"(erp-measure-done.js)가 저장 · 도면 넘기기 뒤 같은 영발 전송을 부른다.
+    window.erpRunChannelPush = erpRunChannelPush;
+
     // 영발(measurement)/발주(drawing)/AS(as) PUSH 공용 핸들러.
     // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
     // 재전송(prev push) 시 modal/sheet에서 change_note 입력 후 전송.
@@ -6185,7 +6188,7 @@ function fomsMountErpOrderSurface() {
                     if (activeClass) btn.classList.replace(successClass, activeClass);
                     btn.disabled = false;
                 }, 3000);
-                return;
+                return true;
             }
 
             const errMsg = data.error || data.message || '알 수 없는 오류';

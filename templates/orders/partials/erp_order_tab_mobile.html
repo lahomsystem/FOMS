@@ -523,6 +523,13 @@ ERP Order mobile-v2 tab pane.
             <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
                 <!-- 발송 기록: 평소엔 요약 한 줄, 누르면 두 칸 격자로 펼친다(erp-send-trace.js). 기록이 없으면 비어서 접힌다 -->
                 <div class="erp-send-trace erp-send-trace--fold" data-erp-send-trace="fold"></div>
+                {% if measure_done_cta and measure_done_cta.visible and measure_done_cta.enabled %}
+                {# 실측 끝 · 도면 넘기기(2026-11-02): 저장 → 도면 단계 → 영발을 한 번에(erp-measure-done.js). 실측 단계 · 승인 권한일 때만. #}
+                <button class="foms-btn foms-btn--primary erp-measure-done-btn" type="button" data-erp-measure-done
+                    data-order-id="{{ order.id }}" data-confirm="{{ measure_done_cta.confirm }}">
+                    <i class="fas fa-ruler-combined"></i> 실측 끝 · 도면 넘기기
+                </button>
+                {% endif %}
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
                 </button>
