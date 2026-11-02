@@ -4561,3 +4561,13 @@ class CsAgentImageRead(Base):
         Index('ix_cs_agent_image_reads_state_created', 'state', 'created_at'),
         Index('ix_cs_agent_image_reads_read_at', 'read_at'),
     )
+
+
+# --------------------------------------------------------------------------- #
+# BRAIN-00: HAUD master brain 표 다섯(설계서 2026-11-02-haud-master-brain 7.5 · D97)
+# --------------------------------------------------------------------------- #
+# 표 정의는 foms/persistence/brain/models.py 에 둔다(이 파일을 더 키우지 않는다). 여기서 불러 Base 에 올린다 —
+# create_all 레인 · alembic env 가 같은 metadata 를 본다. 그 모듈은 models 를 참조하지 않아 순환이 없다.
+from foms.persistence.brain.models import (  # noqa: E402,F401
+    BrainChange, BrainLink, BrainObject, BrainQuestion, BrainRelease,
+)
