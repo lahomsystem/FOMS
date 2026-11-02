@@ -169,3 +169,66 @@
 .erp-mobile-sticky-action-bar .erp-measure-done-btn {
   flex: 1 0 100%;
 }
+
+/* 단추 묶음 접기(2026-11-02 결정 D1, erp-measure-done.js) — 실측 끝 단추가 있을 때만 그려진다.
+   손잡이 한 줄(40px)이 맨 위에 남고, 펼치면 그 아래에 지금 묶음(발송 기록 · 실측 끝 · 저장/PUSH/알림톡)이 그대로 나온다.
+   본문 아래 여백은 고정값(foms-detail-hero.css · foms-form-field.css)이라 접으면 가릴 일이 없고, 펼친 높이는 지금과 같다. */
+.erp-action-fold__toggle {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 0.5rem);
+  min-width: 0;
+  height: 40px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--foms-interactive-primary-soft, #eef0ff);
+  color: var(--foms-interactive-primary, #5b67d8);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.erp-action-fold__toggle strong {
+  font-weight: 700;
+}
+
+.erp-action-fold__chev {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.erp-action-fold__toggle[aria-expanded='true'] .erp-action-fold__chev {
+  transform: rotate(180deg);
+}
+
+.erp-action-fold__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.erp-action-fold__count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  color: var(--foms-text-secondary, #6b7280);
+}
+
+/* 펼친 몸통은 단추줄과 같은 flex-wrap · 간격이라 안쪽 모양이 접기 전과 같다. */
+.erp-action-fold__body {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--foms-space-2, 0.5rem);
+  min-width: 0;
+}
+
+.erp-action-fold__body[hidden] {
+  display: none;
+}
