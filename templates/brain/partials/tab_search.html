@@ -1,0 +1,14 @@
+{#- 화면 1 찾기(첫 화면) — 검색 칸 하나. 결과는 brain-page.js 가 유형별 묶음으로 그린다(PostgreSQL pg_trgm · SQLite 부분 일치). -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'search' else '' }} brain-pane" id="brain-tab-search" role="tabpanel"
+         aria-labelledby="brain-tab-search-btn" tabindex="0">
+  <form class="brain-search" role="search" action="{{ url_for('brain_web.index') }}" method="get" data-brain-search-form>
+    <input type="hidden" name="tab" value="search">
+    <label class="visually-hidden" for="brain-search-q">회사 지식 찾기</label>
+    <input class="form-control brain-search__input" type="search" id="brain-search-q" name="q" maxlength="100"
+           value="{{ start_query }}" placeholder="이름이나 글로 찾기 — 예: 슬라이딩, 깊이, 환불" autocomplete="off"
+           data-brain-search-input>
+    <button type="submit" class="brain-btn brain-btn--primary"><i class="fas fa-magnifying-glass" aria-hidden="true"></i>찾기</button>
+  </form>
+  <p class="brain-status-line" data-brain-search-status role="status" aria-live="polite"></p>
+  <div class="brain-groups" data-brain-search-results></div>
+</section>

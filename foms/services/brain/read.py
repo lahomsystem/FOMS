@@ -33,9 +33,12 @@ def _item(row: BrainObject) -> dict[str, Any]:
             "superseded_at": row.superseded_at.isoformat() if row.superseded_at else None}
 
 
-def _visible(viewer: Viewer) -> tuple[Any, Any]:
-    """지금 줄 + 볼 수 있는 범위 조건."""
+def visible_clauses(viewer: Viewer) -> tuple[Any, Any]:
+    """지금 줄 + 볼 수 있는 범위 조건(화면 읽기 모듈도 같은 조건을 쓴다)."""
     return is_current(BrainObject), scope_clause(viewer, BrainObject.visibility)
+
+
+_visible = visible_clauses
 
 
 def current_item(session: Any, viewer: Viewer, key: str) -> Optional[dict[str, Any]]:
@@ -65,16 +68,33 @@ def _like(text: str) -> str:
     return "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
+def search_match(session: Any, text: str) -> tuple[Any, bool]:
+    """찾기 조건 — 이름 · 글 부분 일치(PostgreSQL 은 이름 trgm 비슷함 ``%`` 도) · PostgreSQL 인가."""
+    postgres = session.get_bind().dialect.name == "postgresql"
+    match = or_(BrainObject.name.ilike(_like(text), escape="\\"), BrainObject.text.ilike(_like(text), escape="\\"))
+    if postgres:
+        match = or_(match, BrainObject.name.op("%")(text))
+    return match, postgres
+
+
+def search_type_counts(session: Any, viewer: Viewer, query: str) -> dict[str, int]:
+    """찾기 결과 수 — 유형별(볼 수 있는 것만 · 상한과 무관)."""
+    text = (query or "").strip()[:MAX_QUERY]
+    if not text:
+        return {}
+    match, _postgres = search_match(session, text)
+    rows = session.execute(select(BrainObject.item_type, func.count()).where(*_visible(viewer), match)
+                           .group_by(BrainObject.item_type))
+    return {item_type: int(n) for item_type, n in rows}
+
+
 def search(session: Any, viewer: Viewer, query: str, *, limit: int = 20,
            item_type: Optional[str] = None) -> dict[str, Any]:
     """이름 · 글 찾기 — ``{"items": [...], "total": n}``(수도 볼 수 있는 것만)."""
     text = (query or "").strip()[:MAX_QUERY]
     if not text:
         return {"items": [], "total": 0}
-    postgres = session.get_bind().dialect.name == "postgresql"
-    match = or_(BrainObject.name.ilike(_like(text), escape="\\"), BrainObject.text.ilike(_like(text), escape="\\"))
-    if postgres:
-        match = or_(match, BrainObject.name.op("%")(text))
+    match, postgres = search_match(session, text)
     conditions = [*_visible(viewer), match] + ([BrainObject.item_type == item_type] if item_type else [])
     total = session.execute(select(func.count()).select_from(BrainObject).where(*conditions)).scalar_one()
     order = (func.similarity(BrainObject.name, text).desc(), BrainObject.item_key) if postgres else (

@@ -1,0 +1,58 @@
+{% extends "admin/layout.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/brain.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- HAUD master brain 설계서 7.5 화면 1 · 2 · 6 · 7 — 읽기만(⑤-2). 찾기 · 표 · 판 값은 static/js/brain/*.js 가 JSON API(/api/brain/*)로
+    읽어 textContent 로만 그린다. 유형 지도의 HTML 목록은 서버가 그린다(진짜 화면 — 그림은 돕는 쪽). 인라인 스크립트 · 스타일 없음. -#}
+<div class="container-fluid mt-3 mb-5 brain-page" data-brain-page
+     data-display="{{ display|tojson|forceescape }}"
+     data-search-url="{{ url_for('brain_api.brain_search') }}"
+     data-table-url="{{ url_for('brain_api.brain_table') }}"
+     data-releases-url="{{ url_for('brain_api.brain_releases') }}"
+     data-type-map-url="{{ url_for('brain_api.brain_type_map') }}"
+     data-page-url="{{ url_for('brain_web.index') }}"
+     data-item-base="{{ url_for('brain_web.index') }}/items/"
+     data-start-tab="{{ tab }}" data-start-type="{{ start_type }}" data-start-query="{{ start_query }}"
+     data-cytoscape-url="{{ asset_url('vendor/cytoscape-3.34.4.esm.min.js') }}"
+     data-dagre-url="{{ asset_url('vendor/cytoscape-dagre-4.0.1.esm.min.js') }}">
+
+  <div class="brain-head">
+    <div>
+      <h1 class="h4 mb-1"><i class="fas fa-brain me-1" aria-hidden="true"></i>회사 지식</h1>
+      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 회사 지식입니다. 지금은 보기만 됩니다(고치기 · 승인은 다음 단계).
+        보이는 항목 {{ tmap.total }}개 — 내 보기 범위 안의 것만 셉니다.</p>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs brain-tabs" role="tablist">
+    {% for key, label, icon in [('search', '찾기', 'fa-magnifying-glass'), ('table', '지식 표', 'fa-table-list'),
+                                ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')] %}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link{{ ' active' if tab == key else '' }}" id="brain-tab-{{ key }}-btn" data-bs-toggle="tab"
+              data-bs-target="#brain-tab-{{ key }}" data-brain-tab="{{ key }}" type="button" role="tab"
+              aria-controls="brain-tab-{{ key }}" aria-selected="{{ 'true' if tab == key else 'false' }}">
+        <i class="fas {{ icon }} me-1" aria-hidden="true"></i>{{ label }}</button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content">
+    {% include "brain/partials/tab_search.html" %}
+    {% include "brain/partials/tab_table.html" %}
+    {% include "brain/partials/tab_releases.html" %}
+    {% include "brain/partials/tab_map.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-page.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-table.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-releases.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-map.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,258 @@
+/* 회사 지식 화면(HAUD master brain 설계서 7.5 · ⑤-2) — /brain · /brain/items/<키>.
+   색: 유형마다 하나(.brain-type--<유형> 의 --brain-type). 값은 foms/services/brain/display.py TYPE_DISPLAY 와 같아야 한다
+   (tests/domains/test_brain_screens_assets.py 가 견준다). 유형 지도 그림은 같은 값을 data-* 로 받는다.
+   상태는 모양으로: 은퇴 = 회색 · 초안 = 점선 · 낡음 = 주황 테두리(유형 색에는 회색 · 주황을 쓰지 않는다).
+   단추는 .btn 을 쓰지 않는다 — 전역 .btn{border:none!important} 가 테두리를 덮는다. */
+
+.brain-page,
+.brain-card {
+  --brain-line: var(--foms-color-neutral-200, #dde1e6);
+  --brain-muted: var(--foms-color-neutral-500, #6b7380);
+  --brain-ink: var(--foms-color-neutral-800, #22262e);
+  --brain-retired: #9ca3af;
+  --brain-stale: #ea580c;
+  --brain-type: #475569;
+  color: var(--brain-ink);
+}
+
+/* ── 유형 색(정본 = display.py) ── */
+.brain-type--brand { --brain-type: #1e3a8a; }
+.brain-type--product_line { --brain-type: #1d4ed8; }
+.brain-type--option { --brain-type: #0369a1; }
+.brain-type--spec { --brain-type: #0e7490; }
+.brain-type--build_rule { --brain-type: #0f766e; }
+.brain-type--policy { --brain-type: #4338ca; }
+.brain-type--price_rule { --brain-type: #854d0e; }
+.brain-type--owner_decision { --brain-type: #9f1239; }
+.brain-type--term { --brain-type: #3730a3; }
+.brain-type--fact { --brain-type: #155e75; }
+.brain-type--situation { --brain-type: #15803d; }
+.brain-type--template { --brain-type: #166534; }
+.brain-type--lesson { --brain-type: #4d7c0f; }
+.brain-type--tone { --brain-type: #3f6212; }
+.brain-type--image_read_rule { --brain-type: #047857; }
+.brain-type--part_kind { --brain-type: #7e22ce; }
+.brain-type--bom_rule { --brain-type: #6d28d9; }
+.brain-type--drawing_rule { --brain-type: #a21caf; }
+.brain-type--case { --brain-type: #9d174d; }
+.brain-type--image_read { --brain-type: #be185d; }
+.brain-type--photo_observation { --brain-type: #831843; }
+.brain-type--conflict { --brain-type: #b91c1c; }
+.brain-type--question { --brain-type: #991b1b; }
+.brain-type--ext_calculator { --brain-type: #1f2937; }
+.brain-type--ext_setting { --brain-type: #312e81; }
+
+/* ── 링크 종류 색(정본 = display.py LINK_DISPLAY) ── */
+.brain-link--applies_to { --brain-link: #2563eb; }
+.brain-link--requires { --brain-link: #0d9488; }
+.brain-link--excludes { --brain-link: #dc2626; }
+.brain-link--value_from { --brain-link: #1f2937; }
+.brain-link--copy_in { --brain-link: #7c3aed; }
+.brain-link--supersedes { --brain-link: #9f1239; }
+.brain-link--evidence_of { --brain-link: #be185d; }
+.brain-link--caused_by { --brain-link: #92400e; }
+.brain-link--fixed_by { --brain-link: #166534; }
+
+/* ── 머리 ── */
+.brain-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.brain-head__note { color: var(--brain-muted); font-size: 0.875rem; margin: 0; }
+.brain-back { color: var(--brain-muted); font-size: 0.875rem; text-decoration: none; }
+.brain-tabs { margin-top: 8px; }
+.brain-pane { padding: 16px 0; }
+.brain-status-line { color: var(--brain-muted); font-size: 0.875rem; min-height: 1.25rem; margin: 8px 0; }
+.brain-status-line.is-error { color: #b91c1c; }
+
+/* ── 단추 ── */
+.brain-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--brain-line);
+  background: #fff;
+  color: var(--brain-ink);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+.brain-btn:hover { background: #f3f4f6; }
+.brain-btn--primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.brain-btn--primary:hover { background: #1e40af; }
+.brain-btn[disabled],
+.brain-btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; background: #f9fafb; }
+
+/* ── 유형 칩 · 점 ── */
+.brain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--brain-type);
+  color: var(--brain-type);
+  background: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.brain-chip__icon { color: var(--brain-type); }
+.brain-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brain-type);
+  flex: none;
+}
+.brain-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brain-link);
+  vertical-align: middle;
+}
+
+/* ── 상태 모양(은퇴 회색 · 초안 점선 · 낡음 주황 테두리) ── */
+.brain-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--brain-line);
+  border-left: 4px solid var(--brain-type);
+  border-radius: 8px;
+  background: #fff;
+}
+.brain-item__name { font-weight: 600; color: var(--brain-ink); text-decoration: none; }
+.brain-item__name:hover { text-decoration: underline; }
+.brain-item__snippet { flex-basis: 100%; color: var(--brain-muted); font-size: 0.8125rem; margin: 0; }
+.brain-state--draft { border-style: dashed; }
+.brain-state--retired { border-color: var(--brain-retired); border-left-color: var(--brain-retired); background: #f9fafb; }
+.brain-state--retired .brain-item__name,
+.brain-row.brain-state--retired td { color: var(--brain-retired); }
+.brain-state--stale { box-shadow: 0 0 0 2px var(--brain-stale); }
+
+.brain-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.brain-badge--confirmed { background: #dcfce7; color: #166534; }
+.brain-badge--evidenced { background: #e0f2fe; color: #075985; }
+.brain-badge--observed { background: #f3f4f6; color: #4b5563; }
+.brain-badge--draft { background: #fff; color: #374151; border: 1px dashed #6b7280; }
+.brain-badge--retired { background: #e5e7eb; color: #6b7280; }
+.brain-badge--stale { background: #fff7ed; color: #9a3412; border: 1px solid var(--brain-stale); }
+.brain-badge--check { background: #fef2f2; color: #991b1b; }
+
+/* ── 찾기 ── */
+.brain-search { display: flex; flex-wrap: wrap; gap: 8px; max-width: 720px; }
+.brain-search__input { flex: 1 1 280px; min-height: 40px; }
+.brain-groups { display: grid; gap: 16px; margin-top: 12px; }
+.brain-group__head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.brain-group__count { color: var(--brain-muted); font-size: 0.875rem; }
+.brain-group__list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+
+/* ── 지식 표 ── */
+.brain-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.brain-filters__field { display: grid; gap: 2px; font-size: 0.8125rem; color: var(--brain-muted); }
+.brain-filters__field--wide { grid-column: span 2; }
+.brain-table-wrap { overflow-x: auto; }
+.brain-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: 0.875rem; }
+.brain-table th { color: var(--brain-muted); font-weight: 600; padding: 4px 8px; text-align: left; white-space: nowrap; }
+.brain-table td { padding: 8px; background: #fff; border-top: 1px solid var(--brain-line); border-bottom: 1px solid var(--brain-line); }
+.brain-table td:first-child { border-left: 4px solid var(--brain-type); border-radius: 6px 0 0 6px; }
+.brain-table td:last-child { border-right: 1px solid var(--brain-line); border-radius: 0 6px 6px 0; }
+.brain-row.brain-state--draft td { border-style: dashed; }
+.brain-row.brain-state--stale td { border-top-color: var(--brain-stale); border-bottom-color: var(--brain-stale); box-shadow: none; }
+.brain-row.brain-state--stale td:last-child { border-right-color: var(--brain-stale); }
+.brain-num,
+.brain-table .brain-num { text-align: right; font-variant-numeric: tabular-nums; }
+.brain-pager { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.brain-pager__text { color: var(--brain-muted); font-size: 0.875rem; }
+
+/* ── 판 ── */
+.brain-releases { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.brain-release { border: 1px solid var(--brain-line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.brain-release__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.brain-release__title { font-weight: 700; margin: 0; font-size: 1rem; }
+.brain-release__layers { display: grid; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; }
+.brain-release__layer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.875rem; }
+.brain-release__diff { margin-top: 10px; font-size: 0.8125rem; }
+.brain-release__diff ul { margin: 4px 0 8px; padding-left: 18px; }
+
+/* ── 유형 지도 ── */
+.brain-map { display: grid; gap: 16px; }
+.brain-map__canvas {
+  height: 640px;
+  border: 1px solid var(--brain-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.brain-map__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 0; padding: 0; font-size: 0.8125rem; }
+.brain-map__legend li { display: inline-flex; align-items: center; gap: 6px; }
+.brain-map__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.brain-map__group { border: 1px solid var(--brain-line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.brain-map__group h3 { font-size: 0.9375rem; font-weight: 700; margin: 0 0 6px; }
+.brain-map__types { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.brain-map__type { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brain-map__type.is-lit .brain-chip { box-shadow: 0 0 0 2px var(--brain-type); }
+.brain-map__links { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
+.brain-map__links li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.brain-map__kind { font-weight: 700; }
+.brain-map__code { color: var(--brain-muted); font-size: 0.75rem; }
+
+/* ── 항목 카드 ── */
+.brain-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 4px; }
+.brain-card__title { font-size: 1.375rem; font-weight: 700; margin: 0; }
+.brain-card__key { color: var(--brain-muted); font-size: 0.8125rem; font-family: ui-monospace, Consolas, monospace; }
+.brain-card__frame { border-left: 6px solid var(--brain-type); padding-left: 14px; }
+.brain-card__frame.brain-state--draft { border-left-style: dashed; }
+.brain-card__frame.brain-state--retired { border-left-color: var(--brain-retired); }
+.brain-card__frame.brain-state--stale { box-shadow: -6px 0 0 0 var(--brain-stale); }
+.brain-card__text { white-space: pre-wrap; background: #f9fafb; border: 1px solid var(--brain-line); border-radius: 8px; padding: 10px 12px; }
+.brain-fields { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0; font-size: 0.875rem; }
+.brain-fields dt { color: var(--brain-muted); font-weight: 600; }
+.brain-fields dd { margin: 0; }
+.brain-section { margin-top: 18px; }
+.brain-section h2 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+.brain-linkgroups { display: grid; gap: 10px; }
+.brain-linkgroup__head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.875rem; margin-bottom: 4px; }
+.brain-linkgroup__list { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.brain-ext { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.brain-ext__chip { font-family: ui-monospace, Consolas, monospace; font-size: 0.8125rem; }
+.brain-copies { margin: 0; padding-left: 18px; font-size: 0.875rem; }
+.brain-history { width: 100%; font-size: 0.8125rem; border-collapse: collapse; }
+.brain-history th,
+.brain-history td { padding: 6px 8px; border-bottom: 1px solid var(--brain-line); text-align: left; vertical-align: top; }
+.brain-slot { padding: 24px; border: 1px dashed var(--brain-line); border-radius: 10px; color: var(--brain-muted); text-align: center; }
+.brain-empty { color: var(--brain-muted); font-size: 0.875rem; }
+
+@media (max-width: 640px) {
+  .brain-filters__field--wide { grid-column: auto; }
+  .brain-map__canvas { height: 420px; }
+  .brain-fields { grid-template-columns: 1fr; }
+}

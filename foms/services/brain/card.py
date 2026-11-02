@@ -1,0 +1,172 @@
+"""항목 카드(설계서 7.5 화면 3) — 이름 · 유형 · 상태 · 확신, 핵심 칸, 링크 종류 · 방향별 '관련(수)', 근거 · 만든 이 · 승인자,
+바깥 정본 칩(``calc:`` · ``setting:`` — **가리키는 키만**, 그 자리 값은 읽지 않는다), 사본 목록, 이력(판들).
+
+- 시작 항목을 볼 수 없거나 없으면 ``None``(둘을 가르지 않는다 — 화면 · API 404).
+- 링크 끝 항목도 보는 사람의 범위로 **질의 단계에서** 거른다 — 볼 수 없는 끝은 목록에도 수에도 0(4절 · 12절).
+- 링크는 방향마다 한 질의(끝 항목과 묶어 읽기 — 줄마다 다시 읽지 않는다), 사람 이름은 한 질의.
+"""
+
+from __future__ import annotations
+
+import datetime
+from typing import Any, Iterable, Optional
+
+from sqlalchemy import and_, func, literal, or_, select, union_all
+from sqlalchemy.orm import aliased
+
+from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
+from foms.services.brain.read import current_item, item_history
+from foms.services.brain.scope import Viewer, scope_clause
+from foms.services.brain.store import OBJECT_FIELDS, is_current
+from foms.services.datetime_kst import format_datetime_kst
+from models import User
+
+MAX_LINKS_PER_GROUP = 30
+MAX_EXTERNAL = 30
+HISTORY_LIMIT = 20
+IMPORT_ACTOR = "import"
+
+
+def _link_query(viewer: Viewer, key: str, direction: str) -> Any:
+    """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신)."""
+    other = aliased(BrainObject)
+    near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
+    return (select(BrainLink.kind.label("kind"), literal(direction).label("direction"), other.item_key.label("key"),
+                   other.name.label("name"), other.item_type.label("type"), other.status.label("status"),
+                   other.stale_after.label("stale_after"), BrainLink.confidence.label("confidence"))
+            .join(other, and_(other.item_key == far, is_current(other)))
+            .where(near == key, is_current(BrainLink), scope_clause(viewer, other.visibility)))
+
+
+def _ranked_links(session: Any, viewer: Viewer, key: str) -> list[Any]:
+    """두 방향 링크를 (종류, 방향)마다 앞 :data:`MAX_LINKS_PER_GROUP` 개 + 그 묶음 전체 수로 읽는다(한 질의)."""
+    both = union_all(_link_query(viewer, key, "out"), _link_query(viewer, key, "in")).subquery("both")
+    group = (both.c.kind, both.c.direction)
+    rank = func.row_number().over(partition_by=group, order_by=(both.c.name, both.c.key)).label("rank")
+    size = func.count().over(partition_by=group).label("size")
+    ranked = select(both, rank, size).subquery("ranked")
+    return session.execute(select(ranked).where(ranked.c.rank <= MAX_LINKS_PER_GROUP)
+                           .order_by(ranked.c.kind, ranked.c.direction, ranked.c.rank)).all()
+
+
+def link_groups(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -> list[dict[str, Any]]:
+    """링크 종류 · 방향별 묶음 ``[{"kind", "direction", "count", "items": [...]}]`` — 종류 차례대로."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in _ranked_links(session, viewer, key):
+        entry = groups.setdefault((row.kind, row.direction), {"kind": row.kind, "direction": row.direction,
+                                                              "count": int(row.size), "items": []})
+        entry["items"].append({"key": row.key, "name": row.name, "type": row.type, "status": row.status,
+                               "stale": bool(row.stale_after and row.stale_after < today),
+                               "confidence": row.confidence})
+    order = {kind: i for i, kind in enumerate(LINK_KINDS)}
+    return sorted(groups.values(), key=lambda g: (order.get(g["kind"], 99), g["direction"] != "out"))
+
+
+def external_chips(session: Any, key: str) -> list[dict[str, Any]]:
+    """바깥 정본 칩 — 이 항목이 가리키는 계산기 id · 설정 키(**키만** — 그 자리 값은 읽지 않는다)."""
+    starts = [BrainLink.to_key.like(prefix + "%") for prefix in EXTERNAL_PREFIXES]
+    rows = session.execute(select(BrainLink.kind, BrainLink.to_key)
+                           .where(BrainLink.from_key == key, is_current(BrainLink), or_(*starts))
+                           .order_by(BrainLink.to_key).limit(MAX_EXTERNAL)).all()
+    return [{"kind": kind, "ref": ref, "ext_type": external_type(ref)} for kind, ref in rows]
+
+
+def _user_ids(*values: Any) -> set[int]:
+    """'user:<id>' 글 · 정수 id 에서 사람 번호만."""
+    ids: set[int] = set()
+    for value in values:
+        if isinstance(value, int):
+            ids.add(value)
+        elif isinstance(value, str) and value.startswith("user:") and value[5:].isdigit():
+            ids.add(int(value[5:]))
+    return ids
+
+
+def people_names(session: Any, ids: Iterable[int]) -> dict[int, str]:
+    """사람 번호 → 이름(한 질의). 지운 계정은 빠진다(호출자가 '지운 계정'으로 보인다)."""
+    wanted = sorted({int(i) for i in ids})
+    if not wanted:
+        return {}
+    return {int(uid): name for uid, name in session.execute(select(User.id, User.name).where(User.id.in_(wanted)))}
+
+
+def actor_label(created_by: Optional[str], names: dict[int, str]) -> str:
+    """만든 이 글 → 화면 이름(사람 · 에이전트 · 옮김)."""
+    value = created_by or ""
+    if value == IMPORT_ACTOR:
+        return "지식 문서에서 옮김"
+    if value.startswith("agent:"):
+        return "에이전트 " + value[6:]
+    ids = _user_ids(value)
+    if ids:
+        return names.get(next(iter(ids)), "지운 계정")
+    return value or "모름"
+
+
+def approver_label(item: dict[str, Any], names: dict[int, str]) -> str:
+    """사람 승인자 — 웹 승인 동작만 채운다(R10-18). 옮긴 확정 항목은 '옮김'(D102), 없으면 '승인 전'."""
+    approver = item.get("human_approver_id")
+    if approver is not None:
+        return names.get(int(approver), "지운 계정")
+    if item.get("created_by") == IMPORT_ACTOR:
+        return "옮김(사장님이 이미 승인한 기준)"
+    return "사람 승인 없음"
+
+
+def _changed_fields(newer: dict[str, Any], older: Optional[dict[str, Any]]) -> list[str]:
+    """두 판 사이에 바뀐 값 칸 이름(첫 판은 빈 목록)."""
+    if older is None:
+        return []
+    return [name for name in OBJECT_FIELDS if newer.get(name) != older.get(name)]
+
+
+def history_rows(session: Any, viewer: Viewer, key: str, names: dict[int, str]) -> list[dict[str, Any]]:
+    """이력 탭 — 판마다(새 것부터) 시각 · 상태 · 만든 이 · 승인자 · 판 번호 · 바뀐 칸."""
+    versions = item_history(session, viewer, key, limit=HISTORY_LIMIT)
+    rows = []
+    for index, item in enumerate(versions):
+        older = versions[index + 1] if index + 1 < len(versions) else None
+        rows.append({"version": item["version"], "name": item["name"], "status": item["status"],
+                     "confidence": item["confidence"], "release_no": item["release_no"],
+                     "recorded_at": _kst(item.get("recorded_at")), "superseded_at": _kst(item.get("superseded_at")),
+                     "created_by": actor_label(item.get("created_by"), names),
+                     "approver": approver_label(item, names), "changed": _changed_fields(item, older)})
+    return rows
+
+
+def _kst(value: Optional[str]) -> Optional[str]:
+    """ISO UTC naive 글 → 한국 시각 'YYYY-MM-DD HH:MM'."""
+    if not value:
+        return None
+    return format_datetime_kst(datetime.datetime.fromisoformat(value), "%Y-%m-%d %H:%M")
+
+
+def open_change_count(session: Any, key: str) -> int:
+    """이 항목에 걸린 열린 제안 수('확인 필요' 표시)."""
+    return int(session.execute(select(func.count()).select_from(BrainChange).where(
+        BrainChange.item_key == key, BrainChange.status == CHANGE_OPEN)).scalar_one())
+
+
+def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -> Optional[dict[str, Any]]:
+    """카드 한 덩어리 — 볼 수 없거나 없으면 ``None``."""
+    item = current_item(session, viewer, key)
+    if item is None:
+        return None
+    versions = item_history(session, viewer, key, limit=HISTORY_LIMIT)
+    names = people_names(session, _user_ids(*(v.get("created_by") for v in versions),
+                                            *(v.get("human_approver_id") for v in versions)))
+    stale_after = item.get("stale_after")
+    item.pop("payload", None)  # 실음 칸(지식 문서 꼴 · 내부 값)은 카드에 싣지 않는다
+    open_changes = open_change_count(session, key)
+    return {
+        "item": {**item, "stale": bool(stale_after and datetime.date.fromisoformat(stale_after) < today),
+                 "needs_check": open_changes > 0, "open_changes": open_changes,
+                 "recorded_at": _kst(item.get("recorded_at"))},
+        "created_by": actor_label(item.get("created_by"), names),
+        "approver": approver_label(item, names),
+        "links": link_groups(session, viewer, key, today=today),
+        "external": external_chips(session, key),
+        "copies": list(item.get("copies") or []),
+        "history": history_rows(session, viewer, key, names),
+    }

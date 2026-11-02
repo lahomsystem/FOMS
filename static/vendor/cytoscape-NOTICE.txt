@@ -1,0 +1,92 @@
+회사 지식 '유형 지도' 그림 라이브러리 (HAUD master brain 설계서 7.5 '라이브러리' · 사장님 D99)
+=========================================================================================
+
+파일 두 개 — npm 배포 파일을 한 바이트도 고치지 않고 이름만 바꿔 들였다(.mjs → .js: 서버 MIME 이 어디서나 JavaScript 이게).
+지도 탭을 열 때만 import() 로 읽는다(static/js/brain/brain-map.js). 화면은 asset_url 로 내용 해시 ?v= 를 붙인다.
+
+1) static/vendor/cytoscape-3.34.4.esm.min.js
+   - 원본: npm cytoscape@3.34.4 dist/cytoscape.esm.min.mjs (ESM 빌드 · 의존 없음 · default export = cytoscape)
+   - 라이선스: MIT (Copyright (c) 2016-2026, The Cytoscape Consortium)
+   - SHA-256: 0d7e373a706f0f01d6fb7a6ccf04988c01307cee1c2f9bcc7b068e9f6b431e3f
+   - npm tarball integrity: sha512-msY99tMY8iWTg+sIPGfSqDcPNOt4xcj+v/K/7qUFaCUxxlqnMkUYLBjRUzn9W5CU/R2hrmtJa5+UtovrEM2ctg==
+
+2) static/vendor/cytoscape-dagre-4.0.1.esm.min.js
+   - 원본: npm cytoscape-dagre@4.0.1 dist/cytoscape-dagre.min.mjs (ESM 빌드 · default export = 등록 함수)
+   - dagre(@dagrejs/dagre 3.x, MIT, Copyright (c) 2012-2014 Chris Pettitt)가 이 파일 안에 묶여 있다 —
+     4.x 는 dagre 를 의존으로 받지 않고 rollup 으로 넣었다. 그래서 dagre 파일을 따로 들이지 않는다.
+   - 라이선스: MIT (Copyright (c) 2016-2018, 2020, 2022, 2026, The Cytoscape Consortium) + 묶인 dagre MIT
+   - SHA-256: fe9ea1bf0804655e9daf8f201a5e72f6133c85d1a9fb3ab706d22c192e228871
+   - npm tarball integrity: sha512-hyNdh8Vp1nwzBcjHnM4c71G81bFhPmQYLXD2HM9AZIvl+8TrMzWEOPW45hF/XOBQiEguPcDQzi6VrXR1XBcXOA==
+   - 파일 끝의 sourceMappingURL(.map)은 들이지 않았다 — 개발자 도구를 열 때만 찾고 화면 동작과 무관하다.
+
+다시 들일 때: 빈 폴더에서 npm pack → tarball integrity 를 npm view <이름>@<판> dist.integrity 와 견주고 → 위 파일만 복사 →
+SHA-256 을 여기와 tests/domains/test_brain_screens_assets.py 에 고쳐 적는다.
+
+-----------------------------------------------------------------------------------------
+cytoscape — MIT License
+
+Copyright (c) 2016-2026, The Cytoscape Consortium.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-----------------------------------------------------------------------------------------
+cytoscape-dagre — MIT License
+
+Copyright (c) 2016-2018, 2020, 2022, 2026, The Cytoscape Consortium.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-----------------------------------------------------------------------------------------
+dagre (bundled inside cytoscape-dagre 4.x) — MIT License
+
+Copyright (c) 2012-2014 Chris Pettitt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
