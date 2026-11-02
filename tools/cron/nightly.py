@@ -57,6 +57,9 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     NightlyStep("purge_audit_logs", "tools/ops/purge_audit_logs.py", ("--apply",)),
     # AI 도면팀원 주간 노트 — 그 주 노트가 이미 있으면 아무것도 안 한다(설계서 2026-10-27-drawing-ai-teammate-spec A3).
     NightlyStep("drawing_agent_note", "tools/cron/drawing_agent_note.py", ("--apply",)),
+    # AI 상담 [수정하기] 자세한 이유 사진 원본 90일 지우기(설계서 2026-10-27-cs-ai-agent 17.6.1 (b) · D94). 지울 줄이 없으면
+    # 저장소를 열지 않는다. 저장소가 R2 가 아니면(이 서비스에 R2 env 없음) 줄을 '지움'으로 적지 않고 실패(exit 3)로 알린다.
+    NightlyStep("purge_cs_edit_photos", "tools/cron/purge_cs_edit_photos.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]

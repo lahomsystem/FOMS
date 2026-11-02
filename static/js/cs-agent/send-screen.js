@@ -9,6 +9,7 @@
  * C10-7: 고친 까닭은 안 골라도 보낸다(서버가 None 으로 둔다) · 알림 칸은 [보내기] 바로 위이고 알림이 뜨면 보이게 스크롤한다 ·
  * data-cs-autosize 글 칸(본문 · 고칠 말)은 입력 · 붙여넣기 · 처음 그릴 때 글에 맞춰 높이가 늘고, CSS 최대 높이를 넘으면 스크롤.
  * 순수 함수(sendBody · fitSize)는 window.FOMS_CS_SEND 로 내놓는다 — node 시험(tests/domains/test_cs_send_edit_screen.py).
+ * 17.6.1: 보냄이 굳으면 root 에 'cs-send:sent' 를 쏜다(edit-detail.js 가 받아 이유 · 사진을 올린다) · 끝낸 뒤에도 그 칸은 쓴다.
  */
 (function () {
   'use strict';
@@ -94,7 +95,13 @@
 
   function finish() {
     finished = true;
-    root.querySelectorAll('button, textarea, input, select').forEach(function (el) { el.disabled = true; });
+    root.querySelectorAll('button, textarea, input, select').forEach(function (el) {
+      if (!el.closest('[data-cs-detail]')) el.disabled = true;  // 17.6.1 자세한 이유 · 사진 칸은 보낸 뒤에도 쓴다
+    });
+  }
+
+  function sentNow() {  // 17.6.1 — 보냄이 굳은 뒤 edit-detail.js 가 이유 · 사진을 따로 올린다(보내기를 막지 않는다)
+    root.dispatchEvent(new CustomEvent('cs-send:sent'));
   }
 
   async function call(url, body) {
@@ -130,7 +137,7 @@
       await wait(RECONCILE_EVERY_MS);
       var res = await call(data('reconcile-url'), { token: data('token') });
       var code = res.data && res.data.code;
-      if (code === 'sent') { message('success', res.data.message); finish(); return; }
+      if (code === 'sent') { message('success', res.data.message); finish(); sentNow(); return; }
       if (code === 'failed') { message('danger', res.data.message); finished = false; setBusy(false); return; }
       if (code && code !== 'checking') { message('warning', res.data.message || res.error); finish(); return; }
       if (!res.data && res.error) { message('warning', res.error); }
@@ -142,7 +149,7 @@
     var d = res.data || {};
     var code = d.code;
     showList([]);
-    if (code === 'sent') { message('success', d.message); finish(); return; }
+    if (code === 'sent') { message('success', d.message); finish(); sentNow(); return; }
     if (code === 'checking') { message('info', d.message); finish(); reconcileLoop(); return; }
     if (code === 'needs_confirm') {
       confirmStamp = d.confirm || null;

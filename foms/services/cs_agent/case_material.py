@@ -13,6 +13,11 @@
 - **다듬기(R14-3 · R14-8)**: 질문은 :data:`CASE_QUESTION_LIMIT` 자로 짧게, 사람 답은 앞 인사 줄 · 끝 맺음말 줄(담당 이름 ·
   직함 · 감사 인사)을 떼고 :data:`CASE_TEXT_LIMIT` 자로. 파일만 보낸 답처럼 남는 글이 없으면 재료에서 뺀다. 모두 가림 검사를
   다시 넘은 것만.
+- **고친 까닭 · 이유 · 사진 설명(설계서 17.6.1 (d))**: ``with_reasons`` 가 참이면(관리 패널 '사례 재료에 이유 싣기') 고른 사례
+  가운데 끝난 꼴이 '고침'인 것에 고친 까닭 · 가린 자세한 이유 · 설명을 다 뽑은(``done``) 사진의 가린 설명을 더해
+  :class:`~.brain_cases.CaseItem` 으로 낸다 — 고르기에는 쓰지 않는다(견줄 것은 질문뿐). 비슷한 사례부터 덧붙은 글 합
+  :data:`~.brain_cases.EXTRA_LIMIT` 자까지 채우고, 가림 검사가 0 이 아닌 덧붙은 글은 뺀다. 사진 설명은 차례 id 묶음 한 번에
+  읽는다(N+1 없음). 거짓이면 예전 짝 그대로다.
 - **사례에만 있는 이름(R14-3)**: 가림이 놓친 이름꼴(직함 · 맺음말 · '저는 …' 문맥의 세 글자 이름)이 사례에만 있고 지금 상담 ·
   승인 지식에는 없으면 :func:`case_only_names` 가 돌려준다 — 초안 차례가 보내기 전 검사의 '예시에만 있는 낱말'로 넘겨, 다른
   손님 · 다른 직원 이름을 새 초안에 옮기면 막힌다.
@@ -27,8 +32,10 @@ from typing import Any, Iterable, Optional, Sequence
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from foms.persistence.main.models import CsAgentTurn
-from foms.services.cs_agent.brain_cases import MAX_CASES
+from foms.persistence.main.models import CsAgentTurn, CsAgentTurnPhoto
+from foms.services.cs_agent.brain_cases import (
+    DETAIL_LIMIT, EXTRA_LIMIT, MAX_CASES, MAX_PHOTO_NOTES, PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem,
+)
 from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, masked_join
 from foms.services.cs_agent.drafting_read import FILE_NOTE, ChatLine
 from foms.services.cs_agent.masking import leak_counts, looks_like_name
@@ -118,10 +125,16 @@ def _names_in(value: str) -> set[str]:
     return {word for word in found if looks_like_name(word)}
 
 
-def case_only_names(cases: Sequence[tuple[str, str]], known: Iterable[str]) -> tuple[str, ...]:
+def _case_text(item: Any) -> str:
+    """사례 하나의 글 전부(질문 · 답 · 덧붙은 이유 · 사진 설명)."""
+    extra = [item.detail or "", *item.photo_notes] if isinstance(item, CaseItem) else []
+    return "\n".join([item[0], item[1], *extra])
+
+
+def case_only_names(cases: Sequence[Any], known: Iterable[str]) -> tuple[str, ...]:
     """사례 글에만 있는 이름꼴 — ``known``(지금 상담 글 · 승인 지식 글)에 없는 것만, 정렬해서. 보내기 전 검사의 예시 낱말로 쓴다."""
     seen = "\n".join(known)
-    names = {name for question, answer in cases for name in _names_in(f"{question}\n{answer}")}
+    names = {name for item in cases for name in _names_in(_case_text(item))}
     return tuple(sorted(name for name in names if name not in seen))
 
 
@@ -133,10 +146,14 @@ def _usable(brand: str) -> tuple[Any, ...]:
             turn.masked_question.isnot(None), turn.staff_reply_masked.isnot(None))
 
 
+_COLUMNS = (CsAgentTurn.id, CsAgentTurn.masked_question, CsAgentTurn.staff_reply_masked, CsAgentTurn.outcome,
+            CsAgentTurn.edit_reason, CsAgentTurn.edit_detail_masked)
+
+
 def _pg_statement(brand: str, query: str, limit: int) -> Any:
     """PostgreSQL 사례 질의 — ``%``(trgm 문턱 — GIN 색인을 탄다)로 거르고 ``similarity`` 높은 것 · 새 사례부터."""
     score = func.similarity(CsAgentTurn.masked_question, query)
-    return (select(CsAgentTurn.masked_question, CsAgentTurn.staff_reply_masked)
+    return (select(*_COLUMNS)
             .where(*_usable(brand), CsAgentTurn.masked_question.bool_op("%")(query))
             .order_by(score.desc(), CsAgentTurn.id.desc()).limit(limit))
 
@@ -151,30 +168,86 @@ def warn_if_trgm_blind(session: Any) -> None:
                        TRGM_BLIND)
 
 
-def _pg_cases(session: Any, brand: str, query: str, limit: int) -> list[tuple[str, str]]:
+def _pg_cases(session: Any, brand: str, query: str, limit: int) -> list[Any]:
     """PostgreSQL — 이 트랜잭션만 trgm 문턱을 :data:`CASE_MIN_SIMILARITY` 로 두고 :func:`_pg_statement` 로 읽는다."""
     warn_if_trgm_blind(session)
     session.execute(text("SELECT set_config('pg_trgm.similarity_threshold', :value, true)"),
                     {"value": str(CASE_MIN_SIMILARITY)})
-    found = session.execute(_pg_statement(brand, query, limit))
-    return [(row.masked_question, row.staff_reply_masked) for row in found]
+    return list(session.execute(_pg_statement(brand, query, limit)))
 
 
-def _py_cases(session: Any, brand: str, query: str, limit: int) -> list[tuple[str, str]]:
+def _py_cases(session: Any, brand: str, query: str, limit: int) -> list[Any]:
     """SQLite 시험 레인 — 최근 :data:`CASE_POOL` 사례를 :func:`trigram_similarity` 로 재서 같은 문턱 · 같은 순서."""
-    stmt = (select(CsAgentTurn.id, CsAgentTurn.masked_question, CsAgentTurn.staff_reply_masked)
-            .where(*_usable(brand)).order_by(CsAgentTurn.id.desc()).limit(CASE_POOL))
+    stmt = select(*_COLUMNS).where(*_usable(brand)).order_by(CsAgentTurn.id.desc()).limit(CASE_POOL)
     scored = [(trigram_similarity(row.masked_question, query), row.id, row) for row in session.execute(stmt)]
     scored = sorted((item for item in scored if item[0] >= CASE_MIN_SIMILARITY), key=lambda item: (-item[0], -item[1]))
-    return [(row.masked_question, row.staff_reply_masked) for _, _, row in scored[:limit]]
+    return [row for _, _, row in scored[:limit]]
 
 
-def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *,
-                  limit: int = MAX_CASES) -> tuple[tuple[str, str], ...]:
+# ── 고친 까닭 · 이유 · 사진 설명(설계서 17.6.1 (d)) ───────────────────────
+def _clean(text: Any, limit: int) -> Optional[str]:
+    """덧붙은 글 — 자르고 가림 검사 0 일 때만(아니면 ``None`` — 그 글만 뺀다)."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    cut = text.strip()[:limit].strip()
+    return cut if cut and not any(leak_counts(cut).values()) else None
+
+
+def _photo_notes(session: Any, turn_ids: Sequence[int]) -> dict[int, list[str]]:
+    """차례마다 설명을 다 뽑은(``done``) 사진의 가린 설명 — 차례 번호 순, 한 번에 읽는다."""
+    if not turn_ids:
+        return {}
+    stmt = (select(CsAgentTurnPhoto.turn_id, CsAgentTurnPhoto.desc_masked)
+            .where(CsAgentTurnPhoto.turn_id.in_(list(turn_ids)), CsAgentTurnPhoto.desc_state == "done",
+                   CsAgentTurnPhoto.desc_masked.isnot(None))
+            .order_by(CsAgentTurnPhoto.turn_id, CsAgentTurnPhoto.seq))
+    out: dict[int, list[str]] = {}
+    for row in session.execute(stmt):
+        out.setdefault(row.turn_id, []).append(row.desc_masked)
+    return out
+
+
+def _with_reason(pair: tuple[str, str], row: Any, notes: list[str], room: int) -> tuple[Any, int]:
+    """'고침' 사례에 덧붙은 글을 남은 자리(``room`` 자)만큼 — (사례, 쓴 글자 수). 덧붙은 글이 없으면 짝 그대로."""
+    reason = row.edit_reason if row.edit_reason in REASON_LABELS else None
+    used = len(REASON_LABELS[reason]) if reason else 0
+    if used > room:
+        return pair, 0
+    detail = _clean(row.edit_detail_masked, min(DETAIL_LIMIT, room - used))
+    used += len(detail or "")
+    kept: list[str] = []
+    for note in notes:
+        cut = _clean(note, min(PHOTO_NOTE_LIMIT, room - used)) if len(kept) < MAX_PHOTO_NOTES and room > used else None
+        if cut:
+            kept.append(cut)
+            used += len(cut)
+    if not (reason or detail or kept):
+        return pair, 0
+    return CaseItem(pair[0], pair[1], reason=reason, detail=detail, photo_notes=tuple(kept)), used
+
+
+def _enriched(session: Any, chosen: list[tuple[tuple[str, str], Any]]) -> tuple[Any, ...]:
+    """비슷한 사례부터 '고침' 사례에 덧붙은 글을 :data:`EXTRA_LIMIT` 자까지 채운다."""
+    edited = [row.id for _pair, row in chosen if row.outcome == "edited"]
+    notes = _photo_notes(session, edited)
+    room, out = EXTRA_LIMIT, []
+    for pair, row in chosen:
+        if row.outcome != "edited" or room <= 0:
+            out.append(pair)
+            continue
+        item, used = _with_reason(pair, row, notes.get(row.id, []), room)
+        room -= used
+        out.append(item)
+    return tuple(out)
+
+
+def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit: int = MAX_CASES,
+                  with_reasons: bool = False) -> tuple[Any, ...]:
     """다음 초안 재료 — 같은 브랜드 비슷한 지난 사례 (가린 질문, 사람이 보낸 가린 답), 비슷한 것부터 ``limit`` 개까지.
 
     지금 손님 글(:func:`current_question`)이 없으면 빈 튜플. 다듬기(모듈 설명)를 지나 남은 사례만 돌려준다(두뇌가 실을 때
     가림 검사를 한 번 더 본다). DB 를 읽기만 한다 — 커밋은 부르는 쪽(두뇌가 곧 커밋한다). DB 오류면 되돌리고 빈 튜플.
+    ``with_reasons`` 면 '고침' 사례를 :class:`~.brain_cases.CaseItem` 으로 넓힌다(모듈 설명).
     """
     query = current_question(lines)
     if not query:
@@ -182,9 +255,11 @@ def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *,
     pick = _pg_cases if session.get_bind().dialect.name == "postgresql" else _py_cases
     try:
         rows = pick(session, brand, query, int(limit))
+        chosen = [(pair, row) for row in rows
+                  if (pair := _trimmed(row.masked_question, row.staff_reply_masked)) is not None]
+        return _enriched(session, chosen) if with_reasons else tuple(pair for pair, _row in chosen)
     except SQLAlchemyError as exc:
         session.rollback()
         logger.warning("[CS 사례] 비슷한 사례를 못 읽어 사례 없이 초안을 쓴다 code=%s error=%s", CASES_FAILED,
                        type(exc).__name__)
         return ()
-    return tuple(pair for question, answer in rows if (pair := _trimmed(question, answer)) is not None)

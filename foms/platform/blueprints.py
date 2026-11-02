@@ -243,6 +243,16 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(cs_agent_send_page_bp)
     app.register_blueprint(cs_agent_send_api_bp)
 
+    # --- Lane: [수정하기] '왜 고쳤나요(자세히)' · 사진(설계서 17.6.1 · D94) — JSON(/api/cs-agent/turns/<id>/edit-detail ·
+    # edit-photos, 쓰기는 CSRF · 정책 CS_AGENT_SEND) + 주간 고침 안 승인(/api/admin/cs-agent/fix-proposals, ADMIN 만 · 정책
+    # ADMIN_OPS). 사진 원본 보기는 위 화면 블루프린트(/cs-agent/turns/<id>/photos/<seq>)다. 경로가 고유해 shadowing 이 없고
+    # 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.cs_agent_edit_detail import cs_agent_edit_api_bp
+    from foms.api.cs_agent_fix_proposals import cs_agent_fix_api_bp
+
+    app.register_blueprint(cs_agent_edit_api_bp)
+    app.register_blueprint(cs_agent_fix_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

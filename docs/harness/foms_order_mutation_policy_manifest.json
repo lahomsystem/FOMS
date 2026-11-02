@@ -1284,6 +1284,26 @@
       "mode": "guard",
       "policy_id": "CS_AGENT_SEND",
       "rule": "/api/cs-agent/turns/<int:turn_id>/reconcile"
+    },
+    "cs_agent_edit_api.cs_agent_edit_detail": {
+      "mode": "guard",
+      "policy_id": "CS_AGENT_SEND",
+      "rule": "/api/cs-agent/turns/<int:turn_id>/edit-detail"
+    },
+    "cs_agent_edit_api.cs_agent_edit_photo_add": {
+      "mode": "guard",
+      "policy_id": "CS_AGENT_SEND",
+      "rule": "/api/cs-agent/turns/<int:turn_id>/edit-photos"
+    },
+    "cs_agent_edit_api.cs_agent_edit_photo_delete": {
+      "mode": "guard",
+      "policy_id": "CS_AGENT_SEND",
+      "rule": "/api/cs-agent/turns/<int:turn_id>/edit-photos/<int:seq>"
+    },
+    "cs_agent_fix_api.cs_agent_fix_decide": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/cs-agent/fix-proposals/<proposal_id>/decide"
     }
   }
 }

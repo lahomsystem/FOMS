@@ -357,6 +357,30 @@ class StorageAdapter:
             file_path = os.path.join(self.upload_folder, key)
             return os.path.isfile(file_path)
 
+    def put_private_bytes(self, key: str, data: bytes, content_type: str) -> bool:
+        """정한 key 로 바이트를 올린다 — 클라우드(R2/S3)만, URL 을 만들지 않는다(비공개 저장 · 보기는 앱을 거친다).
+
+        ``_upload_to_cloud`` 와 같은 ``upload_fileobj`` 길이되 key 를 부르는 쪽이 정하고(파일 이름이 key 에 들어가지 않게)
+        공개 · 서명 URL 을 돌려주지 않는다. 로컬 저장소는 ``static/uploads``(누구나 여는 정적 경로)라 받지 않는다.
+
+        Args:
+            key: 저장소 key(부르는 쪽이 만든 값).
+            data: 올릴 바이트.
+            content_type: 저장할 Content-Type.
+
+        Returns:
+            올렸으면 True. 로컬 저장소 · 클라우드 오류면 False(글은 로그에 key 만).
+        """
+        if self.storage_type not in ["r2", "s3"] or getattr(self, "client", None) is None:
+            return False
+        try:
+            self.client.upload_fileobj(io.BytesIO(data), self.bucket_name, key,
+                                       ExtraArgs={"ContentType": content_type})
+            return True
+        except ClientError:
+            logger.warning("put_private_bytes 실패: key=%s", key)
+            return False
+
     def read_file_bytes(self, key: str) -> bytes | None:
         """storage_key의 원본 바이트를 반환한다(R2/S3=get_object, local=파일 read).
 

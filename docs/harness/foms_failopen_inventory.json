@@ -50,13 +50,13 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:245",
+    "foms/platform/request_limits.py:250",
     "foms/services/app_init.py:145",
     "foms/services/channel_client.py:445",
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:325",
+    "foms/services/cs_agent/drafting.py:326",
     "foms/services/cs_agent/rewrite.py:114",
     "foms/services/cs_agent/send_flow.py:263",
     "foms/services/integrations/naver_commerce/client.py:1257",
@@ -3050,7 +3050,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 245,
+      "lineno": 250,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -3059,7 +3059,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 251,
+      "lineno": 256,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -3671,7 +3671,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 325,
+      "lineno": 326,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -5426,7 +5426,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 381,
+      "lineno": 405,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -5435,7 +5435,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 422,
+      "lineno": 446,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5444,7 +5444,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 517,
+      "lineno": 541,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5453,7 +5453,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 588,
+      "lineno": 612,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5462,7 +5462,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 707,
+      "lineno": 731,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",

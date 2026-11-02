@@ -761,6 +761,96 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
   flex: 1 1 100%;
 }
 
+/* 17.6.1 '왜 고쳤나요(자세히) · 사진' — 고친 까닭 아래 접힌 칸(바쁠 때 화면이 길어지지 않게). edit-detail.js 가 사진
+   미리보기 줄을 그린다. 이유 칸은 send-screen.js 의 autosize(cs-send__grow)를 같이 쓴다. */
+.cs-detail {
+  margin-top: 0.75rem;
+  border: 1px solid var(--foms-border-default, #dee2e6);
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.5rem 0.75rem;
+}
+
+.cs-detail[open] {
+  padding-bottom: 0.75rem;
+}
+
+.cs-detail__summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-height: 32px;
+  line-height: 32px;
+}
+
+.cs-detail__text {
+  min-height: 4.5rem;
+  max-height: 16rem;
+  line-height: 1.5;
+}
+
+.cs-detail__drop {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--foms-border-strong, #adb5bd);
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+.cs-detail__drop.is-over {
+  border-color: var(--foms-primary, #0d6efd);
+  background: var(--foms-surface-subtle, #f8f9fa);
+}
+
+.cs-detail__photos {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cs-detail__photo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cs-detail__thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 0.375rem;
+  border: 1px solid var(--foms-border-default, #dee2e6);
+}
+
+.cs-detail__check {
+  flex: 1 1 12rem;
+}
+
+.cs-detail [data-cs-detail-save] {
+  margin-top: 0.5rem;
+}
+
+.cs-detail__status {
+  margin: 0 0 0.5rem;
+}
+
+.cs-detail__status--warning {
+  color: var(--foms-text-danger, #b02a37);
+}
+
+.cs-detail__status--success {
+  color: var(--foms-text-success, #146c43);
+}
+
+.cs-detail__status--info,
+.cs-detail__status--secondary {
+  color: var(--foms-text-secondary, #495057);
+}
+
 /* Match the user menu layer above the sticky global navigation (z-index: 1000). */
 .layout-header #global-partner-filter-btn + .dropdown-menu {
   z-index: 1050;
