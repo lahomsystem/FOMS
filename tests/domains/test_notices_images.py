@@ -87,11 +87,38 @@ def test_redraw_keeps_transparency_as_png():
     (b"", "a.jpg", "비어"),
     (b"%PDF-1.4 not an image", "a.jpg", "JPG"),
     (b"\x00\x00\x00\x18ftypheic" + b"0" * 64, "IMG_0001.HEIC", "HEIC"),
-], ids=["empty", "pdf", "heic"])
+], ids=["empty", "pdf", "broken_heic"])
 def test_redraw_rejects_bad_files(data, name, needle):
     with pytest.raises(NoticeImageError) as err:
         redraw(data, name)
     assert needle in str(err.value)
+
+
+def _heic(size=(3000, 2000), color=(91, 103, 216)) -> bytes:
+    import pillow_heif
+
+    out = io.BytesIO()
+    pillow_heif.from_pillow(Image.new("RGB", size, color)).save(out, quality=60)
+    return out.getvalue()
+
+
+def test_redraw_accepts_iphone_heic_as_jpeg():
+    """아이폰 원본 HEIC 도 받아 JPEG 로 다시 그린다(사용자 요청 2026-11-02)."""
+    drawn = redraw(_heic(), "IMG_0001.HEIC")
+    assert drawn["ext"] == "jpg" and drawn["content_type"] == "image/jpeg"
+    assert (drawn["width"], drawn["height"]) == (2000, 1333)
+    with Image.open(io.BytesIO(drawn["main"])) as main:
+        assert main.format == "JPEG"
+    with Image.open(io.BytesIO(drawn["thumb"])) as thumb:
+        assert max(thumb.size) == 480
+
+
+def test_heic_support_stays_inside_notices():
+    """공지 사진만 HEIC 를 연다 — Pillow 전체 등록을 하지 않아 다른 업로드의 받는 형식 규칙은 그대로다."""
+    from PIL import UnidentifiedImageError
+
+    with pytest.raises(UnidentifiedImageError):
+        Image.open(io.BytesIO(_heic((64, 48))))
 
 
 def test_redraw_rejects_over_15mb():

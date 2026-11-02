@@ -68,6 +68,7 @@ passlib==1.7.4
 pbs-installer==2025.4.9
 pefile==2023.2.7
 Pillow==12.3.0
+pillow-heif==1.8.1
 pkginfo==1.12.1.2
 platformdirs==4.3.7
 pluggy==1.5.0
