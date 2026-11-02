@@ -2305,6 +2305,9 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
     {
         "admin",
         "auth",
+        # BRAIN-00: HAUD master brain 회사 지식 정본(설계서 2026-11-02-haud-master-brain · D97) — 상담 · 도면 · 생산이
+        # 같이 쓰는 지식이라 cs_agent 밖 한 패키지.
+        "brain",
         "channel",
         "common",
         "construction",
