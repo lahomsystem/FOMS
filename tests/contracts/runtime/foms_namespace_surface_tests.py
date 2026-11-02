@@ -2244,6 +2244,9 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
     {
         "admin",
         "auth",
+        # BRAIN-01: '회사 지식' 화면 /brain · /brain/items/<키>(설계서 2026-11-02-haud-master-brain 7.5 · ⑤-2) — ADMIN 과
+        # 층 승인자 팀 MANAGER 가 같이 여는 화면이라 admin 아래가 아니라 한 폴더.
+        "brain",
         "channel",
         "construction",
         "cs",
@@ -2305,6 +2308,9 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
     {
         "admin",
         "auth",
+        # BRAIN-00: HAUD master brain 회사 지식 정본(설계서 2026-11-02-haud-master-brain · D97) — 상담 · 도면 · 생산이
+        # 같이 쓰는 지식이라 cs_agent 밖 한 패키지.
+        "brain",
         "channel",
         "common",
         "construction",

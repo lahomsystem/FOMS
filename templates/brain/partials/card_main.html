@@ -1,0 +1,75 @@
+{#- 카드 '내용' 탭 — 글 · 핵심 칸 · 링크 종류 · 방향별 '관련(수)' · 근거 · 만든 이 · 승인자 · 바깥 정본 칩 · 사본 목록. -#}
+{% if it.text %}<p class="brain-card__text">{{ it.text }}</p>{% endif %}
+
+<dl class="brain-fields">
+  <dt>층 · 브랜드</dt><dd>{{ layer_labels.get(it.layer, it.layer) }} · {{ brand_labels.get(it.brand, it.brand) }}</dd>
+  <dt>위험 등급</dt><dd>{{ grade_labels.get(it.risk_grade, '—') if it.risk_grade else '—' }}</dd>
+  <dt>유효 기간</dt><dd>{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '끝 없음' }}</dd>
+  <dt>마지막 확인</dt><dd>{{ it.checked_at or '확인 날 없음' }}{% if it.stale_after %} · 다시 볼 날 {{ it.stale_after }}{% endif %}</dd>
+  <dt>쓰인 횟수</dt><dd>{{ it.usage_count }}</dd>
+  <dt>보기 범위</dt><dd>{{ visibility }}</dd>
+  <dt>판</dt><dd>판 {{ it.release_no if it.release_no is not none else '—' }}에서 반영 · 기록 {{ it.recorded_at or '—' }}</dd>
+</dl>
+
+<section class="brain-section" aria-labelledby="brain-card-evidence">
+  <h2 id="brain-card-evidence">근거 · 만든 이 · 승인자</h2>
+  <p class="mb-0">
+    근거 {{ evidence_labels.get(it.evidence_kind, '없음') if it.evidence_kind else '없음' }}{% if it.evidence_ref %} — {{ it.evidence_ref }}{% endif %}
+    (근거 수 {{ it.evidence_count }}) · 만든 이 {{ card.created_by }} · 승인자 {{ card.approver }}
+  </p>
+</section>
+
+<section class="brain-section" aria-labelledby="brain-card-links">
+  <h2 id="brain-card-links">관련 항목</h2>
+  {% if card.links %}
+  <div class="brain-linkgroups">
+    {% for group in card.links %}
+    {% set ld = link_display.get(group.kind, (group.kind, '', group.kind, group.kind)) %}
+    <div class="brain-linkgroup brain-link--{{ group.kind }}">
+      <div class="brain-linkgroup__head">
+        <span class="brain-swatch" aria-hidden="true"></span>
+        <span>{{ ld[2] if group.direction == 'out' else ld[3] }}({{ group.count }})</span>
+        <span class="brain-map__code">{{ group.kind }} {{ '→' if group.direction == 'out' else '←' }}</span>
+      </div>
+      <ul class="brain-linkgroup__list">
+        {% for other in group['items'] %}
+        {% set od = type_display.get(other.type, (other.type, '', 'fa-circle')) %}
+        <li class="brain-item brain-type--{{ other.type }}{{ ' brain-state--' ~ other.status if other.status in ('draft', 'retired') else '' }}{{ ' brain-state--stale' if other.stale else '' }}">
+          <span class="brain-chip"><i class="fas {{ od[2] }} brain-chip__icon" aria-hidden="true"></i>{{ od[0] }}</span>
+          <a class="brain-item__name" href="{{ url_for('brain_web.item', key=other.key) }}">{{ other.name }}</a>
+          {% if other.status != 'active' %}<span class="brain-badge brain-badge--{{ other.status }}">{{ status_labels.get(other.status, other.status) }}</span>{% endif %}
+          {% if other.stale %}<span class="brain-badge brain-badge--stale">낡음</span>{% endif %}
+        </li>
+        {% endfor %}
+        {% if group.count > group['items']|length %}<li class="brain-empty">그 밖 {{ group.count - group['items']|length }}개</li>{% endif %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="brain-empty">이어진 항목이 없습니다(내 보기 범위 안).</p>
+  {% endif %}
+</section>
+
+<section class="brain-section" aria-labelledby="brain-card-external">
+  <h2 id="brain-card-external">바깥 정본(값은 그 자리에서 — 여기는 가리키기만)</h2>
+  {% if card.external %}
+  <ul class="brain-ext">
+    {% for ext in card.external %}
+    {% set xd = type_display.get(ext.ext_type, (ext.ext_type, '', 'fa-link')) %}
+    <li class="brain-type--{{ ext.ext_type }}"><span class="brain-chip brain-ext__chip" title="{{ xd[0] }}"><i class="fas {{ xd[2] }} brain-chip__icon" aria-hidden="true"></i>{{ ext.ref }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="brain-empty">가리키는 바깥 정본이 없습니다.</p>
+  {% endif %}
+</section>
+
+<section class="brain-section" aria-labelledby="brain-card-copies">
+  <h2 id="brain-card-copies">사본 목록(이 값을 쓰는 곳 — 정본 아님)</h2>
+  {% if card.copies %}
+  <ul class="brain-copies">{% for copy in card.copies %}<li>{{ copy }}</li>{% endfor %}</ul>
+  {% else %}
+  <p class="brain-empty">적힌 사본이 없습니다.</p>
+  {% endif %}
+</section>

@@ -1,0 +1,13 @@
+{#- 화면 6 판 — 판 목록 · 차이 요약(보기 범위 안의 바뀜만 센다). 되돌리기 단추는 자리만(다음 단계 ⑤-3 — 지금은 꺼짐).
+    목록은 brain-releases.js 가 GET /api/brain/releases 로 읽는다. -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'releases' else '' }} brain-pane" id="brain-tab-releases" role="tabpanel"
+         aria-labelledby="brain-tab-releases-btn" tabindex="0">
+  <p class="brain-head__note">하루에 한 판. 판 0 은 지식 문서에서 옮겨 온 판입니다. 되돌리기는 다음 단계에서 열립니다.</p>
+  <p class="brain-status-line" data-brain-releases-status role="status" aria-live="polite"></p>
+  <ol class="brain-releases" data-brain-releases></ol>
+  <nav class="brain-pager" aria-label="판 목록 쪽">
+    <button type="button" class="brain-btn" data-brain-releases-prev disabled>이전</button>
+    <span class="brain-pager__text" data-brain-releases-text></span>
+    <button type="button" class="brain-btn" data-brain-releases-next disabled>다음</button>
+  </nav>
+</section>

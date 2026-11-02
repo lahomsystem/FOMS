@@ -253,6 +253,15 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(cs_agent_edit_api_bp)
     app.register_blueprint(cs_agent_fix_api_bp)
 
+    # --- Lane: 회사 지식(HAUD master brain 설계서 7.5 · ⑤-2) — 화면(/brain · /brain/items/<키>) + 읽기 JSON(/api/brain/*).
+    # ADMIN · 층 승인자 팀 MANAGER 만(그 밖 404) · 모두 GET(쓰기 없음). 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만**
+    # 덧붙인다.
+    from foms.api.brain import brain_api_bp
+    from foms.web.brain import brain_web_bp
+
+    app.register_blueprint(brain_web_bp)
+    app.register_blueprint(brain_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

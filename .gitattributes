@@ -11,3 +11,5 @@
 .agents/skills/gstack/browse/bin/* text eol=lf
 .agents/skills/gstack/browse/scripts/* text eol=lf
 .agents/skills/gstack/gstack-upgrade/migrations/*.sh text eol=lf
+# 회사 지식 유형 지도 라이브러리 — npm 배포 바이트 그대로(SHA-256 고정, static/vendor/cytoscape-NOTICE.txt). 줄 끝 바꾸기 금지.
+static/vendor/cytoscape*.esm.min.js -text
