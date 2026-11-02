@@ -24,7 +24,7 @@ from foms.services.partners.completion import as_progress_for_partner, construct
 from foms.services.partners.channel_push import push_state
 from foms.services.partners.measure_ready import drawing_request_state
 from foms.services.partners.notices import pending_partner_notices
-from foms.services.notices.service import pending_popups_from, visible_notices
+from foms.services.notices.service import notice_summary, visible_notices
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
@@ -70,18 +70,21 @@ def _product_names() -> list[str]:
 
 @partner_portal_bp.context_processor
 def _partner_nav():
-    """머리 메뉴 "도면 확인 N"(협력사 차례 수) · 공지 안 읽음 수와 확인 안 한 공지(창으로 띄운다). 협력사 화면을 그릴 때만 센다."""
+    """머리 메뉴 "도면 확인 N"(협력사 차례 수) · 공지 안 읽음 수와 확인 안 한 공지(창으로 띄운다). 협력사 화면을 그릴 때만 센다.
+
+    공지는 창 · 배지 요약만 읽는다(:func:`notice_summary` — 목록 본문은 안 읽고, 창에 띄울 최대 5건 본문만).
+    """
     user = getattr(g, "current_user", None)
     if user is None or not getattr(user, "partner_org_id", None):
         return {}
     db = get_db()
-    mine = visible_notices(db, user)  # 한 번 읽어 안 읽음 수 · 창 차례에 같이 쓴다
+    summary = notice_summary(db, user)
     return {"partner_turn_count": partner_turn_count(db, user.partner_org_id),
-            "partner_notices": _pending_notice_queue(db, user, mine),
-            "partner_notice_unread": sum(1 for n in mine if not n.get("read"))}
+            "partner_notices": _pending_notice_queue(db, user, summary["pending"]),
+            "partner_notice_unread": summary["unread"]}
 
 
-def _pending_notice_queue(db, user, mine: list[dict]) -> list[dict]:
+def _pending_notice_queue(db, user, popups: list[dict]) -> list[dict]:
     """공지 창에 띄울 차례 — 기존 협력사 공지(PARTNER_NOTICE) 먼저, 그다음 FOMS 공지사항(POPUP 미확인).
 
     두 출처는 확인 주소가 다르다(``source``: ``partner`` → /api/partner/notices/<id>/ack, ``notice`` →
@@ -91,7 +94,7 @@ def _pending_notice_queue(db, user, mine: list[dict]) -> list[dict]:
              for n in pending_partner_notices(db, user)]
     queue += [{"source": "notice", "id": n["id"], "title": n.get("title") or "", "message": n.get("body") or "",
                "by": n.get("created_by_name") or "", "at": n.get("created_at") or ""}
-              for n in pending_popups_from(mine)]
+              for n in popups]
     return queue
 
 

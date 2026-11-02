@@ -1,13 +1,14 @@
 /* FOMS 공지사항 — 본사 공지 창(가운데 흰 창) · 공지 목록(본사 /notices · 협력사 /partner/notices 같이 쓴다).
  * 설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5. 긴급(빨간 전체 화면) 창과 섞지 않는다:
- * z-index 는 긴급 오버레이(106000) · 도면 수정 확인창(105500) 아래 — 겹치면 그 창들이 위에 온다.
+ * z-index 105450: 긴급 오버레이(106000) · 도면 수정 확인창(105500) 아래 — 겹치면 그 창들이 위에 온다.
+ * 도면 쪽지(.foms-drawing-notices 105400, foms-drawing-alert.css)보다는 위 — 확인을 눌러야 닫히는 창이 쪽지에 가리지 않게.
  */
 
 /* ---- 공지 창 ---- */
 .foms-notice-popup {
   position: fixed;
   inset: 0;
-  z-index: 105400;
+  z-index: 105450;
   display: flex;
   align-items: center;
   justify-content: center;

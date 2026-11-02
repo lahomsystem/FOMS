@@ -171,3 +171,51 @@ def test_inactive_partner_org_hides_notices(app, world):
     resp = client.post(f"/api/notices/{nid}/ack")
     assert resp.status_code in (401, 403, 404)
     assert db_session.query(NoticeAck).count() == 0
+
+
+def test_partner_sees_neutral_audience_label_without_other_company_names(app, world):
+    """협력사 직원에게는 다른 협력사 이름 · 본사 팀 구성을 보이지 않는다(응답 · 페이지). 본사 직원은 전체 라벨 그대로."""
+    both = _create(app, world, staff_teams=["SALES"], partner_org_ids=[world["org_a"], world["org_b"]])
+    only = _create(app, world, partner_org_ids=[world["org_a"], world["org_b"]])
+    partner = _client(app, db_session.get(User, world["partner_a"]))
+    resp = partner.get("/api/notices")
+    labels = {i["id"]: i["audience_label"] for i in resp.get_json()["data"]["items"]}
+    assert labels == {both: "본사 · 협력사 공지", only: "협력사 공지"}
+    text = resp.get_data(as_text=True)
+    assert "다라가구" not in text and "영업" not in text
+    page = partner.get("/partner/notices").get_data(as_text=True)
+    assert "본사 · 협력사 공지" in page and "협력사 공지" in page
+    assert "다라가구" not in page and "본사: 영업" not in page
+    # 대조군: 본사 직원(영업)은 받는 쪽 전체 라벨을 본다.
+    sales = _client(app, db_session.get(User, world["sales"]))
+    staff_labels = {i["id"]: i["audience_label"] for i in sales.get("/api/notices").get_json()["data"]["items"]}
+    assert staff_labels == {both: "본사: 영업 + 협력사: 가나가구 · 다라가구"}
+
+
+def test_popup_view_returns_only_pending_and_unread(app, world):
+    """본사 공용 창은 ?view=popup — 목록(items) · 목록 본문을 싣지 않고 확인 안 한 창 공지만."""
+    popup = _create(app, world, staff_all=True)
+    listed_client = _client(app, db_session.get(User, world["admin"]))
+    resp = listed_client.post("/api/admin/notices", json={**_payload(staff_all=True), "display_mode": "LIST",
+                                                          "body": "목록만 본문 표식"})
+    assert resp.status_code == 201
+    staff = _client(app, db_session.get(User, world["staff"]))
+    got = staff.get("/api/notices?view=popup")
+    data = got.get_json()["data"]
+    assert set(data) == {"pending", "unread"} and data["unread"] == 2
+    assert [p["id"] for p in data["pending"]] == [popup] and data["pending"][0]["body"] == "본문"
+    assert "목록만 본문 표식" not in got.get_data(as_text=True)
+    ack = staff.post(f"/api/notices/{popup}/ack").get_json()["data"]
+    assert ack == {"pending": [], "unread": 1}
+    # 기본 목록 계약(items · unread · pending)은 그대로.
+    assert set(staff.get("/api/notices").get_json()["data"]) == {"items", "unread", "pending"}
+
+
+def test_ack_after_notice_ended_is_404(app, world):
+    """창을 띄운 뒤 공지가 지워지면 확인은 404 — 창 스크립트는 이것을 "이미 끝난 공지"로 보고 넘어간다."""
+    nid = _create(app, world, staff_all=True)
+    admin = _client(app, db_session.get(User, world["admin"]))
+    assert admin.delete(f"/api/admin/notices/{nid}").status_code == 200
+    staff = _client(app, db_session.get(User, world["staff"]))
+    assert staff.post(f"/api/notices/{nid}/ack").status_code == 404
+    assert db_session.query(NoticeAck).count() == 0

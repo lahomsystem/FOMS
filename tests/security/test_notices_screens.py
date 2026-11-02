@@ -105,10 +105,35 @@ def test_staff_layout_hooks_notice_popup(app, world):
 def test_popup_scripts_close_only_with_ok_and_handle_both_sources() -> None:
     js = (ROOT / "static/js/foms/foms-notice-popup.js").read_text(encoding="utf-8")
     assert "Escape" in js and "preventDefault" in js and "data.success" in js and "catch" in js
-    assert "display_mode === 'POPUP'" in js and "FOMSUrgentAlert" not in js  # 긴급 빨간 창과 섞지 않는다
+    assert "data.data.pending" in js and "FOMSUrgentAlert" not in js  # 서버가 정한 창 차례 · 긴급 빨간 창과 섞지 않는다
     pjs = (ROOT / "static/js/partner/partner-notice.js").read_text(encoding="utf-8")
     assert "data-pp-notice-new-url" in pjs and "data-pp-notice-queue" in pjs and "source" in pjs
     assert len(js.splitlines()) <= 300 and len(pjs.splitlines()) <= 300
+
+
+def test_popup_scripts_skip_ended_notice_and_trap_focus_on_document() -> None:
+    """확인이 4xx(404 — 지움 · 기간 끝 · 대상 바뀜)면 다음으로 넘어가고, 오류로 남기는 것은 네트워크 · 5xx 뿐.
+    초점 가두기는 document 잡기 단계 focusin · keydown 이고 창이 닫히면 푼다(긴급 창과 같은 틀)."""
+    for rel in ("static/js/foms/foms-notice-popup.js", "static/js/partner/partner-notice.js"):
+        js = (ROOT / rel).read_text(encoding="utf-8")
+        assert "resp.status >= 400 && resp.status < 500" in js, rel
+        for kind in ("focusin", "keydown"):
+            assert f"document.addEventListener('{kind}'" in js and f"document.removeEventListener('{kind}'" in js, rel
+        assert "root.addEventListener('keydown'" not in js, rel  # 창 안에서만 듣던 옛 가두기
+    popup = (ROOT / "templates/partials/shared/notice_popup.html").read_text(encoding="utf-8")
+    assert "view='popup'" in popup
+
+
+def test_notice_popup_sits_above_drawing_notes_below_urgent() -> None:
+    def z(rel: str, selector: str) -> int:
+        css = (ROOT / rel).read_text(encoding="utf-8")
+        block = css[css.index(selector + " {"):]
+        return int(re.search(r"z-index:\s*(\d+)", block[:block.index("}")]).group(1))
+
+    notice = z("static/css/components/foms-notice.css", ".foms-notice-popup")
+    notes = z("static/css/components/foms-drawing-alert.css", ".foms-drawing-notices")
+    urgent = z("static/css/components/foms-urgent-alert.css", ".foms-urgent-alert")
+    assert notes < notice < urgent
 
 
 def test_notice_screens_have_no_inline_style() -> None:

@@ -21,6 +21,7 @@ from foms.services.notices.service import (
     create_notice,
     delete_notice,
     mark_read,
+    notice_summary,
     pending_popups,
     unread_count,
     update_notice,
@@ -254,3 +255,32 @@ def test_created_by_and_kst_text(people):
     assert item["created_by_name"] == "관리자"
     assert len(item["created_at"]) == 16 and item["audience_label"] == "본사 전체"
     assert db_session.get(User, people["admin"].id).id == notice.created_by_user_id
+
+
+def test_partner_viewer_label_hides_other_companies_and_staff_teams(people):
+    """라운즈 직원이 보는 받는 쪽 이름에는 다른 회사(다라가구) · 본사 팀이 없다. 본사 직원은 전체 라벨."""
+    both = _make(people, teams=["SALES", "DRAWING"], orgs=["org_a", "org_b"], title="같이")
+    only = _make(people, orgs=["org_a", "org_b"], title="협력사만")
+    every = _make(people, staff_all=True, partner_all=True, title="모두")
+    labels = {i["id"]: i["audience_label"] for i in visible_notices(db_session, people["pa"])}
+    assert labels == {both.id: "본사 · 협력사 공지", only.id: "협력사 공지", every.id: "본사 · 협력사 공지"}
+    assert not any("다라가구" in v or "영업" in v for v in labels.values())
+    staff = {i["id"]: i["audience_label"] for i in visible_notices(db_session, people["sales"])}
+    assert staff[both.id] == "본사: 영업 · 도면 + 협력사: 라운즈 · 다라가구"
+
+
+def test_summary_matches_full_list(people):
+    """창 요약(본문 없이 센 것)과 전체 목록 판정이 같다 — 안 읽음 수 · 창 차례."""
+    popups = [_make(people, staff_all=True, mode="POPUP", title=f"창 {i}") for i in range(7)]
+    _make(people, teams=["SALES"], mode="LIST", title="영업 목록")
+    _make(people, teams=["CS"], mode="POPUP", title="상담만 창")
+    user = people["measure"]  # MEASURE → SALES 로 묶인다
+    mark_read(db_session, user, popups[0].id)
+    ack_notice(db_session, user, popups[1].id)
+    db_session.commit()
+    items = visible_notices(db_session, user)
+    summary = notice_summary(db_session, user)
+    assert summary["unread"] == sum(1 for i in items if not i["read"]) == 6
+    assert [p["id"] for p in summary["pending"]] == [p.id for p in popups if p.id != popups[1].id][:5]
+    assert summary["pending"][0]["body"] == "본문 첫 줄\n둘째 줄"
+    assert unread_count(db_session, user) == 6 and pending_popups(db_session, user) == summary["pending"]

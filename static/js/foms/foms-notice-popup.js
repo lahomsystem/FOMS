@@ -1,11 +1,14 @@
 /**
  * FOMS 공지 창 · 공지 목록 읽음 표시(설계서 docs/specs/2026-11-02-foms-notices_SPEC.md §5).
  *
- * 1) 공지 창(본사 공용 레이아웃, partials/shared/notice_popup.html): 페이지를 열 때 GET /api/notices 를 한 번 부른다.
- *    → {success, data:{items:[{id,title,body,display_mode,acked,read,created_by_name,created_at,...}], unread}, error}
- *    "확인 창"(POPUP) 공지 중 확인 안 한 것이 있으면 가운데 흰 창. "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘).
- *    확인: POST /api/notices/<id>/ack → {pending:[...남은 창 공지]} — 남은 게 있으면 다음 공지("2 / 2"), 없으면 닫는다.
- *    긴급(빨간 전체 화면, foms-urgent-alert.js)과는 다른 창이다 — 겹치면 긴급 창이 위(z-index, foms-notice.css).
+ * 1) 공지 창(본사 공용 레이아웃, partials/shared/notice_popup.html): 페이지를 열 때 GET /api/notices?view=popup 을 한 번 부른다.
+ *    → {success, data:{pending:[{id,title,body,created_by_name,created_at}], unread}, error} — 목록 본문은 싣지 않는다.
+ *    확인 안 한 "확인 창" 공지가 있으면 가운데 흰 창. "확인"을 눌러야만 닫힌다(배경 · Esc 로 안 닫힘).
+ *    확인: POST /api/notices/<id>/ack → {pending:[...남은 창 공지], unread} — 남은 게 있으면 다음 공지("2 / 2"), 없으면 닫는다.
+ *    404(그새 지웠거나 · 기간이 끝났거나 · 받는 쪽이 바뀜) 등 4xx 는 "이미 끝난 공지"로 보고 다음으로 넘어간다.
+ *    오류 글을 남기고 창을 그대로 두는 것은 네트워크 오류 · 5xx 뿐이다(다시 누르면 된다).
+ *    초점은 창 안 "확인" 단추에 가둔다(document 잡기 단계 focusin · keydown, 닫히면 푼다). 긴급 창 · 도면 확인창처럼
+ *    더 위에 뜨는 창이 열려 있으면 가두지 않는다(서로 초점을 뺏지 않게). 겹치면 그 창들이 위(z-index, foms-notice.css).
  * 2) 메뉴 안 읽음 수: 같은 응답의 unread 로 [data-foms-notice-unread] 를 채운다(0 이면 숨김).
  * 3) 공지 목록(/notices · /partner/notices, notices/_items.html): 펼치면 POST /api/notices/<id>/read 로 읽음.
  */
@@ -13,6 +16,8 @@
   'use strict';
 
   var MAX_POPUPS = 5;
+  // 공지 창보다 위에 뜨는 창(긴급 106000 · 도면 확인 105500) — 열려 있으면 초점 가두기를 쉰다.
+  var HIGHER = '#foms-urgent-alert, .foms-drawing-alert:not([hidden])';
 
   function setBadges(count) {
     var n = Number(count) || 0;
@@ -29,12 +34,14 @@
     return String(template || '').replace('/0/', '/' + encodeURIComponent(String(id)) + '/');
   }
 
+  // 결과: {ok:true, data} | {ok:false, gone:true}(4xx — 이미 끝난 공지) — 네트워크 오류 · 5xx 는 Error 를 던진다.
   async function postJson(url) {
     var resp = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } });
     var data = null;
     try { data = await resp.json(); } catch (e) { data = null; }
-    if (!data || !data.success) throw new Error((data && data.error) || '저장하지 못했습니다. 다시 눌러 주세요.');
-    return data.data || {};
+    if (resp.ok && data && data.success) return { ok: true, data: data.data || {} };
+    if (resp.status >= 400 && resp.status < 500) return { ok: false, gone: true };
+    throw new Error((data && data.error) || '저장하지 못했습니다. 다시 눌러 주세요.');
   }
 
   // ---- 1) 공지 창 ----
@@ -47,12 +54,27 @@
     var status = root.querySelector('[data-foms-notice-status]');
     var ok = root.querySelector('[data-foms-notice-ok]');
     if (!ok) return;
-    var total = pending.length;
+    var queue = pending.slice(0, MAX_POPUPS); // queue[0] = 지금 보이는 공지
+    var total = queue.length;
     var index = 0;
-    var current = null;
+
+    function higherOpen() { return !!document.querySelector(HIGHER); }
+
+    // 창 밖으로 초점이 나가지 않게 — 단추가 하나라 Tab 도 그 단추에 머문다. Esc 는 무시한다.
+    function onFocusIn(ev) {
+      if (higherOpen() || root.contains(ev.target)) return;
+      ok.focus();
+    }
+    function onKeyDown(ev) {
+      if (higherOpen()) return;
+      if (ev.key === 'Escape' || ev.key === 'Esc' || ev.key === 'Tab' || !root.contains(ev.target)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ok.focus();
+      }
+    }
 
     function show(notice) {
-      current = notice;
       if (title) title.textContent = notice.title || '';
       if (body) body.textContent = notice.body || '';
       if (meta) meta.textContent = [notice.created_by_name, notice.created_at].filter(Boolean).join(' · ');
@@ -62,30 +84,32 @@
     }
 
     function close() {
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('keydown', onKeyDown, true);
       root.hidden = true;
       document.documentElement.classList.remove('foms-notice-open');
     }
 
-    // 창 밖으로 초점이 나가지 않게 — 단추가 하나라 Tab 도 그 단추에 머문다. Esc 는 무시한다.
-    root.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Tab' || ev.key === 'Escape') {
-        ev.preventDefault();
-        ok.focus();
-      }
-    });
+    function advance(next) {
+      queue = next;
+      if (!queue.length) { close(); return; }
+      index += 1;
+      total = Math.max(total, index + queue.length);
+      show(queue[0]);
+    }
 
     ok.addEventListener('click', async function () {
+      var current = queue[0];
       if (!current) return;
       ok.disabled = true;
       try {
-        var data = await postJson(idUrl(ackUrl, current.id));
-        var next = Array.isArray(data.pending) ? data.pending : [];
-        if (next.length) {
-          index += 1;
-          total = Math.max(total, index + next.length);
-          show(next[0]);
+        var result = await postJson(idUrl(ackUrl, current.id));
+        if (result.ok) {
+          if (result.data.unread != null) setBadges(result.data.unread);
+          advance(Array.isArray(result.data.pending) ? result.data.pending : []);
         } else {
-          close();
+          // 그새 지운 · 끝난 · 대상이 바뀐 공지 — 남은 차례에서 빼고 넘어간다.
+          advance(queue.filter(function (n) { return String(n.id) !== String(current.id); }));
         }
       } catch (err) {
         if (status) { status.textContent = err.message; status.classList.add('is-error'); }
@@ -93,9 +117,11 @@
       ok.disabled = false;
     });
 
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('keydown', onKeyDown, true);
     root.hidden = false;
     document.documentElement.classList.add('foms-notice-open');
-    show(pending[0]);
+    show(queue[0]);
   }
 
   async function loadPopup(root) {
@@ -107,11 +133,8 @@
       try { data = await resp.json(); } catch (e) { data = null; }
       if (!data || !data.success || !data.data) return;
       setBadges(data.data.unread);
-      var items = Array.isArray(data.data.items) ? data.data.items : [];
-      var pending = items
-        .filter(function (n) { return n && n.display_mode === 'POPUP' && !n.acked; })
-        .sort(function (a, b) { return Number(a.id) - Number(b.id); }) // 오래된 것부터(서버 pending_popups 와 같은 차례)
-        .slice(0, MAX_POPUPS);
+      // 서버가 정한 차례(확인 안 한 창 공지, 오래된 것부터 최대 5)를 그대로 띄운다.
+      var pending = Array.isArray(data.data.pending) ? data.data.pending.filter(Boolean) : [];
       if (pending.length) bindPopup(root, pending);
     } catch (e) {
       // 공지 창은 보조 기능 — 불러오지 못해도 화면 작업은 막지 않는다(다음 페이지에서 다시 부른다).
@@ -127,12 +150,14 @@
       if (!item.open || item.getAttribute('data-read') === '1') return;
       item.setAttribute('data-read', '1');
       try {
-        await postJson(idUrl(readUrl, item.getAttribute('data-notice-id')));
+        var result = await postJson(idUrl(readUrl, item.getAttribute('data-notice-id')));
+        if (!result.ok) return; // 그새 끝난 공지 — 다시 남길 것이 없다
         item.classList.remove('is-unread');
         var label = item.querySelector('[data-foms-notice-unread-label]');
         if (label) label.remove();
         var counter = list.querySelector('[data-foms-notice-unread-count]');
-        setBadges(Math.max((counter ? Number(counter.textContent) || 0 : 1) - 1, 0));
+        var left = result.data.unread;
+        setBadges(left != null ? left : Math.max((counter ? Number(counter.textContent) || 0 : 1) - 1, 0));
       } catch (err) {
         item.setAttribute('data-read', '0'); // 다음에 펼칠 때 다시 남긴다
       }

@@ -7,6 +7,9 @@
  *   source=partner → POST /api/partner/notices/<id>/ack (data-pp-notice-url)
  *   source=notice  → POST /api/notices/<id>/ack          (data-pp-notice-new-url)
  * 확인하면 차례의 다음 공지를, 없으면 창을 닫는다. 첫 공지는 서버가 그린다(partials/notice_modal.html).
+ * 확인 주소가 404 등 4xx 면(그새 지웠거나 · 기간이 끝났거나 · 받는 쪽이 바뀜) "이미 끝난 공지"로 보고 다음으로 넘어간다.
+ * 오류 글을 남기고 창을 그대로 두는 것은 네트워크 오류 · 5xx 뿐이다.
+ * 초점은 "확인" 단추에 가둔다 — document 잡기 단계 focusin · keydown(Tab · Esc 무시), 창이 닫히면 푼다.
  */
 (function () {
   'use strict';
@@ -38,17 +41,25 @@
     var total = queue.length;
     var index = 0;
 
-    document.body.classList.add('pp-notice-open');
-    ok.focus();
     // 창 밖으로 초점이 나가지 않게 — 단추가 하나뿐이라 Tab 도 그 단추에 머문다. Esc 는 무시한다.
-    root.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Tab' || ev.key === 'Escape') {
+    function onFocusIn(ev) {
+      if (!root.contains(ev.target)) ok.focus();
+    }
+    function onKeyDown(ev) {
+      if (ev.key === 'Escape' || ev.key === 'Esc' || ev.key === 'Tab' || !root.contains(ev.target)) {
         ev.preventDefault();
+        ev.stopPropagation();
         ok.focus();
       }
-    });
+    }
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    document.body.classList.add('pp-notice-open');
+    ok.focus();
 
     function close() {
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('keydown', onKeyDown, true);
       root.remove();
       document.body.classList.remove('pp-notice-open');
     }
@@ -67,14 +78,17 @@
       var id = ok.getAttribute('data-pp-notice-id');
       var source = ok.getAttribute('data-pp-notice-source') === 'notice' ? 'notice' : 'partner';
       ok.disabled = true;
-      if (status) status.textContent = '';
+      if (status) { status.textContent = ''; status.classList.remove('pp-status--error'); }
       try {
         var resp = await fetch(urls[source].replace('/notices/0/', '/notices/' + encodeURIComponent(id) + '/'), {
           method: 'POST', credentials: 'same-origin',
         });
         var data = null;
         try { data = await resp.json(); } catch (e) { data = null; }
-        if (!data || !data.success) throw new Error((data && data.error) || '확인을 저장하지 못했습니다. 다시 눌러 주세요.');
+        var gone = resp.status >= 400 && resp.status < 500; // 이미 끝난 공지 — 다음으로 넘어간다
+        if (!gone && !(resp.ok && data && data.success)) {
+          throw new Error((data && data.error) || '확인을 저장하지 못했습니다. 다시 눌러 주세요.');
+        }
         index += 1;
         if (index < queue.length) show(queue[index]);
         else close();

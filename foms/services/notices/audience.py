@@ -28,6 +28,7 @@ __all__ = [
     "notice_team_label",
     "recipients",
     "user_matches",
+    "viewer_audience_label",
 ]
 
 #: 공지를 고를 수 있는 본사 팀(정규화 값 — 실측팀 MEASURE 는 영업팀 SALES 로 묶인다).
@@ -177,6 +178,23 @@ def audience_label(notice: Any, org_names: Optional[dict[int, str]] = None) -> s
                 org_names = _names_from_session(notice, ids)
             parts.append("협력사: " + " · ".join(org_names.get(i) or f"협력사 #{i}" for i in ids))
     return " + ".join(parts) if parts else "받는 사람 없음"
+
+
+#: 협력사 직원이 보는 받는 쪽 이름 — 다른 회사 이름 · 본사 팀 구성은 보이지 않는다.
+PARTNER_ONLY_LABEL = "협력사 공지"
+PARTNER_WITH_STAFF_LABEL = "본사 · 협력사 공지"
+
+
+def viewer_audience_label(notice: Any, viewer: Any, org_names: Optional[dict[int, str]] = None) -> str:
+    """보는 사람에게 맞춘 받는 쪽 이름.
+
+    본사 직원은 :func:`audience_label` 그대로(전체 라벨). 협력사 직원은 중립 문구만 — 본사와 같이 받은 공지면
+    ``본사 · 협력사 공지``, 협력사만 받은 공지면 ``협력사 공지``. 다른 협력사 이름 · 본사 팀 이름을 싣지 않는다.
+    """
+    if getattr(viewer, "partner_org_id", None) is None:
+        return audience_label(notice, org_names)
+    staff_side = bool(getattr(notice, "audience_staff_all", False)) or bool(notice_team_codes(notice))
+    return PARTNER_WITH_STAFF_LABEL if staff_side else PARTNER_ONLY_LABEL
 
 
 def _names_from_session(notice: Any, ids: list[int]) -> dict[int, str]:
