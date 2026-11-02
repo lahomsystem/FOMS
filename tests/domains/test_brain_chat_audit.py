@@ -50,7 +50,8 @@ def people(app):
            text="슬라이딩 깊이 옛 합성", payload={"value": 600, "unit": "mm"})
     create(db_session, admin, "common/sliding-decision", item_type="owner_decision", name="슬라이딩 깊이 결정",
            text="슬라이딩 깊이를 새로 정한 합성 결정", evidence_ref="원장 합성",
-           payload={"doc_id": "sliding-decision", "approved_by": "합성", "approved_at": "2026-10-30"})
+           payload={"doc_id": "sliding-decision", "approved_by": "합성", "approved_at": "2026-10-30",
+                    "decision_no": "D1"})
     link(db_session, admin, "supersedes", "common/sliding-decision", "common/sliding-old")
     db_session.commit()
     return who
@@ -153,7 +154,7 @@ def test_import_scope_override_and_account_numbers_never_embedded(app):
     assert doc_values(item, item_type="owner_decision", positions={"LAHOM": 0}, evidence_ref="합성")["visibility"] == "all"
     create(db_session, admin, "lahom/basic-account", item_type="owner_decision", brand="LAHOM",
            name="basic-account", text="합성 입금 안내", evidence_ref="합성",
-           payload={"doc_id": "basic-account", "approved_by": "합성", "approved_at": "2026-10-30"})
+           payload={"doc_id": "basic-account", "approved_by": "합성", "approved_at": "2026-10-30", "decision_no": "D2"})
     db_session.commit()
     docs = {"LAHOM": {"schema_version": 1, "brand": "LAHOM", "items": [item]}}
     plan = plan_import(db_session, desired_items(docs))
@@ -180,14 +181,14 @@ def test_audit_competency_and_synonym_questions_are_executable(app):
     seed_audit(db_session, admin)
     who = viewer_of(admin)
     qs = audit_questions()
-    assert len(qs) == 8 and {q.qid for q in qs} >= {"x01", "x02", "x03", "x04", "x05", "x06", "s01", "s02"}
+    assert len(qs) == 9 and {q.qid for q in qs} >= {"x01", "x02", "x03", "x04", "x05", "x06", "x07", "s01", "s02"}
 
     def recall(question):
         keys = [c.key for c in retrieve(db_session, who, question.q, today=TODAY).usable]
         return {"unknown": not keys, "evidence": keys}
 
     score = run_eval(qs, recall)
-    assert score.hit == 8 and score.passed, score.as_dict()
+    assert score.hit == 9 and score.passed, score.as_dict()
     later = retrieve(db_session, who, "옛 몰딩 기준은?", today=TODAY)
     assert "eval/old-molding" not in {c.key for c in later.candidates}  # D83 이 대체한 앞 항목은 읽지 않는다
     assert "eval/d83" in {c.key for c in later.usable}

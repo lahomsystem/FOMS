@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.brain.constants import (
-    AGENT_WORK_TYPES, BRAND_COMMON, COMMON_TYPES, CS_TYPES, DRAWING_TYPES, EXT_CALCULATOR, EXT_SETTING, LINK_KINDS,
+    AGENT_WORK_TYPES, BRAND_COMMON, CANON_EXTERNAL_TYPES, COMMON_TYPES, COPY_EXTERNAL_TYPES, CS_TYPES, DRAWING_TYPES,
+    EXT_CALCULATOR, EXT_ERP_STAGE, EXT_FORM, EXT_MACRO, EXT_SCREEN, EXT_SETTING, EXT_STORE, LINK_KINDS,
     OBSERVATION_TYPES, SCOPE_ADMIN, SCOPE_ALL, SCOPE_PRICE, SCOPE_TEAM_PREFIX, TEAMS, TYPES,
 )
 from foms.services.orders.team_labels import team_label
@@ -30,6 +31,7 @@ TYPE_DISPLAY: dict[str, tuple[str, str, str]] = {
     "owner_decision": ("사장님 결정", "#9f1239", "fa-stamp"),
     "term": ("용어", "#3730a3", "fa-book"),
     "fact": ("사실", "#155e75", "fa-circle-info"),
+    "process_step": ("공정 단계", "#0c4a6e", "fa-list-check"),
     # 상담 층 — 초록
     "situation": ("상황", "#15803d", "fa-comments"),
     "template": ("기준 답 문구", "#166534", "fa-comment-dots"),
@@ -50,6 +52,12 @@ TYPE_DISPLAY: dict[str, tuple[str, str, str]] = {
     # 바깥 정본 자리(가리키기만 — 값은 그 자리가 정본)
     EXT_CALCULATOR: ("견적 계산기", "#1f2937", "fa-calculator"),
     EXT_SETTING: ("설정 값", "#312e81", "fa-gear"),
+    EXT_ERP_STAGE: ("ERP 단계", "#134e4a", "fa-diagram-project"),
+    # 바깥 사본 자리(정본 값을 베껴 둔 바깥 글 — 7.8 다음 6. 글 지문 · 확인 날로 점검만)
+    EXT_MACRO: ("매크로(사본)", "#5b21b6", "fa-comment-medical"),
+    EXT_STORE: ("스토어 상세(사본)", "#6b21a8", "fa-store"),
+    EXT_SCREEN: ("화면(사본)", "#4c1d95", "fa-display"),
+    EXT_FORM: ("양식(사본)", "#581c87", "fa-file-lines"),
 }
 
 #: 유형 묶음(유형 지도의 층층 · 목록 차례). (키, 이름, 유형들)
@@ -59,7 +67,8 @@ TYPE_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("drawing", "도면 층", DRAWING_TYPES),
     ("observation", "관찰", OBSERVATION_TYPES),
     ("agent_work", "에이전트 일", AGENT_WORK_TYPES),
-    ("external", "바깥 정본(가리키기만)", (EXT_CALCULATOR, EXT_SETTING)),
+    ("external", "바깥 정본(가리키기만)", CANON_EXTERNAL_TYPES),
+    ("external_copy", "바깥 사본(점검만)", COPY_EXTERNAL_TYPES),
 )
 
 #: 링크 종류 → (짧은 이름, 색, 나가는 쪽 이름, 들어오는 쪽 이름). 카드는 방향마다 따로 묶는다.
@@ -74,6 +83,13 @@ LINK_DISPLAY: dict[str, tuple[str, str, str, str]] = {
     "caused_by": ("원인", "#92400e", "원인", "결과"),
     "fixed_by": ("고침", "#166534", "고친 방법", "고친 대상"),
     "about": ("대한 것", "#b45309", "무엇에 대한 것", "이 항목에 대한 엇갈림 · 물어볼 것"),
+    "decided_by": ("정한 결정", "#e11d48", "정한 사장님 결정", "이 결정이 정한 항목"),
+    "at_step": ("공정 단계", "#0891b2", "걸린 공정 단계", "이 단계에 걸린 항목"),
+    "uses": ("씀", "#0284c7", "쓰는 공통 바탕", "이것을 쓰는 항목"),
+    "answers": ("답함", "#16a34a", "답하는 상황", "이 상황의 기준 답"),
+    "refines": ("다듬음", "#65a30d", "다듬은 것", "다듬은 배운 점"),
+    "broader": ("위 항목", "#6366f1", "위(넓은) 항목", "아래(좁은) 항목"),
+    "part_of": ("들어감", "#9333ea", "들어가는 제품 라인", "이 제품의 그림 조각 종류"),
 }
 
 LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "drawing": "도면", "production": "생산"}

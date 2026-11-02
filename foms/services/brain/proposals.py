@@ -6,7 +6,9 @@
 실제로 돌리고, 떨어지거나 부딪침 판정을 못 하면 넣지 않는다. 사람 · 옮기기 제안은 예전 그대로 결과만 남기고(``not_run``)
 승인자가 본다.
 
-- 링크 더하기 제안은 바깥 정본 끝(``calc:`` · ``setting:``)이 정말 있는지 본다(:func:`.external.require_refs` — 7.7 · D105).
+- 링크 더하기 제안은 바깥 정본 끝(``calc:`` · ``setting:`` · ``erp:stage/``)이 정말 있는지 본다(:func:`.external.require_refs` —
+  7.7 · D105)과 링크 제약(근거 종류 · 맞서는 짝 · 고리 — :func:`.link_rules.check_link_rules`, 7.8)을 본다. 빼기는 허용 짝이
+  바뀐 옛 링크(그림 조각 종류 → 제품 라인 ``applies_to`` 등)도 끊을 수 있게 짝 표를 다시 보지 않는다.
 - 은퇴 · 지우기도 제안이다(7.5 — 지우기가 승인을 비켜 가지 않게). 항목 하나 되돌리기 = **옛 값을 새 제안으로**
   (:func:`propose_rollback`).
 - **제안은 확신 값을 정하지 않는다**(7.7 · D104 — '확정'은 사람 승인 또는 옮기기만): 옮기기 제안이 아니면 적힌 확신 값을
@@ -26,17 +28,18 @@ from sqlalchemy import select
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.ai_gates import blocking, run_ai_gates
 from foms.services.brain.constants import (
-    AGENT_WORK_TYPES, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, OBSERVED, GRADE_A, GRADE_B, GRADES, KEY_RE, LINK_KINDS, MAX_EVIDENCE, MAX_REASON,
+    AGENT_WORK_TYPES, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, OBSERVED, GRADE_A, GRADE_B, GRADES, KEY_RE, MAX_EVIDENCE, MAX_REASON,
     MAX_REF, OP_CREATE, OP_DELETE, OP_LINK_ADD, OP_LINK_REMOVE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE, STATUS_RETIRED,
-    TYPE_GRADES, external_type, heavier_grade, link_allowed,
+    TYPE_GRADES, external_type, heavier_grade, link_allowed, value_problems,
 )
 from foms.services.brain.errors import (
     BrainConflictError, BrainGateError, BrainRejectedError, BrainShapeError, BrainTargetError,
 )
 from foms.services.brain.external import require_refs
-from foms.services.brain.gates import FAIL, key_problems, link_problems, object_problems, text_gates
+from foms.services.brain.gates import FAIL, end_key_problems, key_problems, link_problems, object_problems, text_gates
+from foms.services.brain.link_rules import check_link_rules
 from foms.services.brain.store import (
-    LINK_FIELDS, OBJECT_FIELDS, current_link, current_object, is_current, object_version, values_of,
+    LINK_FIELDS, OBJECT_FIELDS, current_link, current_object, is_current, kst_day, object_version, values_of,
 )
 from foms.services.datetime_kst import now_utc_naive
 
@@ -277,19 +280,22 @@ def propose_link(session: Any, *, op: str, kind: str, from_key: str, to_key: str
     full = {**dict.fromkeys(LINK_FIELDS), **(values or {})}
     if not _trusted(proposer):
         full["confidence"] = None  # 기본 '확정' 없음 — 반영 동작이 정한다(7.7 · D104)
-    problems = _common_problems(reason, evidence, grade) + key_problems(from_key, "from") + key_problems(to_key, "to")
-    if op not in (OP_LINK_ADD, OP_LINK_REMOVE) or kind not in LINK_KINDS:
-        problems.append("op · kind: 링크 동작 · 정한 링크 종류여야 한다")
-    problems += link_problems({**full, "confidence": full["confidence"] or OBSERVED})
+    problems = _common_problems(reason, evidence, grade) + key_problems(from_key, "from") + end_key_problems(to_key, "to")
+    if op not in (OP_LINK_ADD, OP_LINK_REMOVE):
+        problems.append("op: 링크 동작이어야 한다")
+    problems += value_problems(kind=kind, check=("kind",))  # 값 목록 한 곳(7.8 다음 14)
+    problems += link_problems({**full, "confidence": full["confidence"] or OBSERVED}, kind)
     if problems:
         raise BrainShapeError(problems)
     source, to_type = current_object(session, from_key), link_target_type(session, to_key)
-    if source is None or to_type is None or not link_allowed(source.item_type, kind, to_type):
+    adding = op == OP_LINK_ADD
+    if source is None or to_type is None or (adding and not link_allowed(source.item_type, kind, to_type)):
         raise BrainTargetError(f"허용하지 않는 링크 짝이다: {kind}")
     link = current_link(session, kind, from_key, to_key)
-    if op == OP_LINK_ADD and link is not None:
+    if adding and link is not None:
         raise BrainTargetError("이미 있는 링크다")
-    if op == OP_LINK_ADD:
+    if adding:
+        check_link_rules(session, source, kind, to_key, to_type, kst_day(now or now_utc_naive()))  # 7.8 다음 1 · 14
         require_refs(session, [to_key])  # 가리킨 계산기 · 설정 자리가 정말 있나(7.7 · D105 — 반영 때 한 번 더)
     if op == OP_LINK_REMOVE and (link is None or link.version != base_version):
         raise BrainConflictError(link.version if link is not None else None)

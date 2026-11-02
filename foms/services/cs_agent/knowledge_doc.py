@@ -8,7 +8,8 @@
                 "checked_at": null, "source": "…", "tags": []}]}
 
 - 종류(``kind``): 기준 답 문구(template — 의도가 하나 이상) · 사실(fact) · 정책(policy) · 가격 규칙(price_rule — 계산기
-  재료, ``checked_at`` = 마지막 확인 날 — 승인하려면 꼭 있어야 한다) · 사장님 결정(owner_decision).
+  재료, ``checked_at`` = 마지막 확인 날 — 승인하려면 꼭 있어야 한다) · 사장님 결정(owner_decision) · 제작 조건(build_rule —
+  견적 검사가 ``검사:`` 줄을 읽는다, 안 맞으면 사람에게 넘길 까닭만).
 - 상태(``status``): draft · approved · retired. 승인(approved)은 ``approved_by`` · ``approved_at`` 이 있어야 하고, 재료가
   되는 것은 승인 항목뿐이다(:func:`approved_items`).
 - 모르는 칸은 거절한다(정본 꼴 그대로만). 문제 글에는 자리 · 까닭만 싣고 항목 글은 싣지 않는다.
@@ -30,7 +31,9 @@ KNOWN_BRANDS: frozenset[str] = frozenset(CHANNEL_BRANDS.values())
 
 KIND_TEMPLATE, KIND_FACT, KIND_POLICY = "template", "fact", "policy"
 KIND_PRICE_RULE, KIND_OWNER_DECISION = "price_rule", "owner_decision"
-KINDS: tuple[str, ...] = (KIND_TEMPLATE, KIND_FACT, KIND_POLICY, KIND_PRICE_RULE, KIND_OWNER_DECISION)
+#: 제작 조건 — 상담 견적 검사(:mod:`.quote_calc`)가 글의 ``검사:`` 줄을 읽는다(master brain 설계서 7.8 다음 9).
+KIND_BUILD_RULE = "build_rule"
+KINDS: tuple[str, ...] = (KIND_TEMPLATE, KIND_FACT, KIND_POLICY, KIND_PRICE_RULE, KIND_OWNER_DECISION, KIND_BUILD_RULE)
 STATUS_DRAFT, STATUS_APPROVED, STATUS_RETIRED = "draft", "approved", "retired"
 STATUSES: tuple[str, ...] = (STATUS_DRAFT, STATUS_APPROVED, STATUS_RETIRED)
 

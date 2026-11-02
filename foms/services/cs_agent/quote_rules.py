@@ -14,6 +14,9 @@
   - ``none``(최소 없음): 올림 계산만.
   - 칸이 비면 이름에 '슬라이딩'이 있으면 ``slide``, 그 밖은 '모름' — 2400mm 미만이면 사람에게, 그 이상은 올림 계산.
 - 순수 함수다(네트워크 · DB 없음). 사람에게는 :class:`NeedsHuman`(까닭 코드)로 알린다.
+- 길이 셋(여닫이 최소 · 슬라이딩 최소 · 반통 기준)은 :class:`QuoteLimits` 로 받는다 — 부르는 쪽이 설정 ``cs_quote_rules``
+  (:func:`.rule_settings.quote_limits` — master brain 설계서 7.8 다음 4 · D116)에서 읽어 넘기고, 설정이 없으면 아래 상수
+  (:data:`DEFAULT_LIMITS`)와 같다. '모름' 제품의 최소는 슬라이딩 최소를 따른다.
 """
 
 from __future__ import annotations
@@ -26,9 +29,9 @@ from typing import Any, Mapping, Optional, Sequence
 from foms.services.wdcalculator.pricing import compute_estimate, js_number, won
 
 __all__ = [
-    "HALF_FEE_MARK", "HINGE_HALF_MM", "HINGE_MIN_MM", "HUMAN_HALF_FEE", "HUMAN_MIN_WIDTH", "RULES", "RULE_FIELD", "RULE_HINGE", "RULE_LINEAR", "RULE_NONE", "RULE_SLIDE",
-    "RULE_UNKNOWN", "SLIDE_MIN_MM", "UNKNOWN_MIN_MM", "NeedsHuman", "RulePrice", "half_fee_row", "price", "rule_of",
-    "rounded_width",
+    "DEFAULT_LIMITS", "HALF_FEE_MARK", "HINGE_HALF_MM", "HINGE_MIN_MM", "HUMAN_HALF_FEE", "HUMAN_MIN_WIDTH", "RULES",
+    "RULE_FIELD", "RULE_HINGE", "RULE_LINEAR", "RULE_NONE", "RULE_SLIDE", "RULE_UNKNOWN", "SLIDE_MIN_MM",
+    "UNKNOWN_MIN_MM", "NeedsHuman", "QuoteLimits", "RulePrice", "half_fee_row", "price", "rule_of", "rounded_width",
 ]
 
 RULE_FIELD = "quote_rule"  # 제품 칸 이름(계산기 제품 설정 화면 '견적 규칙 종류')
@@ -44,6 +47,23 @@ _SLIDE_NAME = "슬라이딩"
 
 class NeedsHuman(ValueError):
     """규칙으로 값을 낼 수 없다 — 사람에게(``args[0]`` = 까닭 코드)."""
+
+
+@dataclass(frozen=True)
+class QuoteLimits:
+    """최소 길이 · 반통 기준(mm). 처음 값 = 코드 상수(설정이 없을 때 — 바뀜 0). '모름' 최소는 슬라이딩 최소를 따른다."""
+
+    hinge_min_mm: int = HINGE_MIN_MM
+    slide_min_mm: int = SLIDE_MIN_MM
+    hinge_half_mm: int = HINGE_HALF_MM
+
+    @property
+    def unknown_min_mm(self) -> int:
+        """규칙 칸이 빈 '모름' 제품의 최소(슬라이딩 최소와 같다 — :data:`UNKNOWN_MIN_MM`)."""
+        return self.slide_min_mm
+
+
+DEFAULT_LIMITS = QuoteLimits()
 
 
 @dataclass(frozen=True)
@@ -111,8 +131,10 @@ def half_fee_row(categories: Sequence[Any]) -> Optional[dict[str, Any]]:
 
 
 def price(product: Mapping[str, Any], width: int, options: Sequence[Mapping[str, Any]],
-          products: Sequence[Mapping[str, Any]], *, categories: Sequence[Any] = ()) -> RulePrice:
-    """AI 견적 값 하나(모듈 설명의 규칙). ``categories`` = 계산기 추가 옵션 목록(반통 추가비를 찾는다).
+          products: Sequence[Mapping[str, Any]], *, categories: Sequence[Any] = (),
+          limits: QuoteLimits = DEFAULT_LIMITS) -> RulePrice:
+    """AI 견적 값 하나(모듈 설명의 규칙). ``categories`` = 계산기 추가 옵션 목록(반통 추가비를 찾는다), ``limits`` = 최소
+    길이 · 반통 기준(처음 값은 코드 상수).
 
     Raises:
         NeedsHuman: 최소 길이 미만(모름) · 반통 추가비 옵션이 없음. ValueError: ``zero``(0원) · ``failed``(화면이 제품을 못 담음).
@@ -122,18 +144,18 @@ def price(product: Mapping[str, Any], width: int, options: Sequence[Mapping[str,
     rule = rule_of(product)
     if rule == RULE_LINEAR:
         return _linear(product, width, options, products)
-    if rule == RULE_UNKNOWN and width < UNKNOWN_MIN_MM:
+    if rule == RULE_UNKNOWN and width < limits.unknown_min_mm:
         raise NeedsHuman(HUMAN_MIN_WIDTH)
-    floor = {RULE_HINGE: (HINGE_MIN_MM, "여닫이"), RULE_SLIDE: (SLIDE_MIN_MM, "슬라이딩")}.get(rule)
+    floor = {RULE_HINGE: (limits.hinge_min_mm, "여닫이"), RULE_SLIDE: (limits.slide_min_mm, "슬라이딩")}.get(rule)
     if floor is not None and width < floor[0]:
         rows, note = list(options), f"{floor[1]} 최소 {floor[0]:,}mm 값"
-        if rule == RULE_HINGE and width >= HINGE_HALF_MM:
+        if rule == RULE_HINGE and width >= limits.hinge_half_mm:
             fee = half_fee_row(categories)
             if fee is None:
                 raise NeedsHuman(HUMAN_HALF_FEE)
             rows.append(fee)
-            note = (f"여닫이 {HINGE_HALF_MM:,}~{HINGE_MIN_MM:,}mm 미만은 1.5통 비규격 제작 — {HINGE_MIN_MM:,}mm 값 + 반통 추가 "
-                    f"{won(js_number(fee['price'])):,}원")
+            note = (f"여닫이 {limits.hinge_half_mm:,}~{limits.hinge_min_mm:,}mm 미만은 1.5통 비규격 제작 — "
+                    f"{limits.hinge_min_mm:,}mm 값 + 반통 추가 {won(js_number(fee['price'])):,}원")
         return RulePrice(_screen(product, floor[0], rows, products), floor[0], note)
     used = rounded_width(width)
     return RulePrice(_screen(product, used, options, products), used, "" if used == width else "10mm 단위 올림")

@@ -64,7 +64,8 @@ def current_count(key):
 # ── 허용 짝 ──────────────────────────────────────────────────────────────
 def test_allowed_pairs_follow_the_spec_table():
     assert c.link_allowed("build_rule", "applies_to", "product_line")
-    assert c.link_allowed("part_kind", "applies_to", "product_line")  # 8절 — 어느 제품이 어느 조각을
+    assert c.link_allowed("part_kind", "part_of", "product_line")  # 8절 — 어느 제품이 어느 조각을(7.8 다음 5)
+    assert not c.link_allowed("part_kind", "applies_to", "product_line")  # applies_to 에서 part_of 로 옮김
     assert c.link_allowed("price_rule", "value_from", c.EXT_CALCULATOR)
     assert c.link_allowed("owner_decision", "supersedes", "policy")
     assert c.link_allowed("case", "evidence_of", "template")
@@ -72,7 +73,7 @@ def test_allowed_pairs_follow_the_spec_table():
     assert not c.link_allowed("template", "supersedes", "policy")  # 앞 항목을 대체하는 것은 사장님 결정만
     assert not c.link_allowed("case", "evidence_of", "case")  # 관찰은 정체 항목의 근거로만
     assert not any(c.link_allowed(f, "caused_by", t) for f in c.TYPES for t in c.TYPES)  # 판 3 전 — 짝 0
-    assert set(c.ALLOWED_LINKS) == set(c.LINK_KINDS) and len(c.LINK_KINDS) == 10  # 4절 아홉 + about(점검 지금 8)
+    assert set(c.ALLOWED_LINKS) == set(c.LINK_KINDS) and len(c.LINK_KINDS) == 17  # 4절 아홉 + about + 7.8 일곱
     assert c.link_allowed("conflict", "about", "spec") and not c.link_allowed("spec", "about", "conflict")
     assert all(set(layers) <= set(c.LAYERS) for layers in c.TYPE_LAYERS.values())
     assert set(c.TYPE_LAYERS) == set(c.TYPES) == set(c.TYPE_GRADES)

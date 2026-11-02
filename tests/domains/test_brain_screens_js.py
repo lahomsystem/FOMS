@@ -75,9 +75,9 @@ def test_map_elements_compress_whole_groups_and_merge_parallel_lines():
     nodes = {e["data"]["id"]: e for e in els if e["group"] == "nodes"}
     edges = {e["data"]["id"]: e["data"] for e in els if e["group"] == "edges"}
     groups = [n for n in nodes.values() if n["data"].get("kind") == "group"]
-    assert len(groups) == 6
+    assert len(groups) == 7  # + 바깥 사본(7.8 다음 6)
     types = [n for n in nodes.values() if n["data"].get("kind") == "type"]
-    assert len(types) == 25 and all(n["data"]["parent"] in nodes for n in types)
+    assert len(types) == 31 and all(n["data"]["parent"] in nodes for n in types)  # 유형 24 + 바깥 자리 7
     assert nodes["t:product_line"]["data"]["label"] == "제품 라인\n4개" and nodes["t:product_line"]["data"]["color"] == "#1d4ed8"
     assert "is-empty" in nodes["t:spec"]["classes"] and "is-external" in nodes["t:ext_calculator"]["classes"]
     assert all(e["source"] in nodes and e["target"] in nodes for e in edges.values())
@@ -90,8 +90,9 @@ def test_map_elements_compress_whole_groups_and_merge_parallel_lines():
     assert edges["e:t:build_rule>t:product_line"]["label"] == "적용 · 필요 · 제외"
     assert edges["e:t:product_line>g:external"]["kinds"] == ["value_from"]
     kinds = {k for e in edges.values() for k in e["kinds"]}
-    assert kinds == {k for k in LINK_KINDS if ALLOWED_LINKS[k][0]}  # 짝 있는 종류는 모두 그림에(원인 · 고침은 판 3)
-    assert len(edges) < 50  # 실뭉치 막기 — 짝 그대로면 130 개가 넘는다
+    # 짝 있는 종류는 모두 그림에(원인 · 고침은 판 3) — 같은 유형끼리(broader)는 자기 자신 선뿐이라 범례에만
+    assert kinds == {k for k in LINK_KINDS if ALLOWED_LINKS[k][0]} - {"broader"}
+    assert len(edges) < 75  # 실뭉치 막기 — 짝 그대로면 290 개가 넘는다(7.8 링크 일곱 뒤)
 
 
 @NODE

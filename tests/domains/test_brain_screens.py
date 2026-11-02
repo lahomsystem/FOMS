@@ -17,7 +17,7 @@ from foms.services.brain.browse import (
     TableQuery, TableQueryError, parse_table_query, search_grouped, table_page, type_map, type_map_data,
 )
 from foms.services.brain.card import item_card
-from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS, TYPES
+from foms.services.brain.constants import ALLOWED_LINKS, LINK_KINDS, TYPES, link_allowed
 from foms.services.brain.display import TYPE_DISPLAY
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import viewer_of
@@ -132,13 +132,16 @@ def test_type_map_counts_by_scope_and_lists_every_type_and_link_kind(who):
     admin, cs = type_map(db_session, who["admin"]), type_map(db_session, who["cs_mgr"])
     counts = {t["type"]: t["count"] for g in admin["groups"] for t in g["types"]}
     cs_counts = {t["type"]: t["count"] for g in cs["groups"] for t in g["types"]}
-    assert set(TYPES) <= set(counts) and len(counts) == len(TYPES) + 2  # 바깥 정본 둘
+    assert set(TYPES) <= set(counts) and len(counts) == len(TYPES) + 7  # 바깥 정본 셋 + 바깥 사본 넷(7.8)
     assert counts["price_rule"] == 1 and cs_counts["price_rule"] == 0 and cs_counts["question"] == 0
     assert admin["total"] == 7 and cs["total"] == 4  # 초안 · 은퇴는 수에서도 빠진다(점검 지금 1)
     assert [link["kind"] for link in admin["links"]] == list(LINK_KINDS)
     for link in admin["links"]:
         starts, ends = ALLOWED_LINKS[link["kind"]]
-        assert len(link["pairs"]) == len(starts) * len(ends)
+        assert link["pairs"] == [[a, b] for a, b in link["pairs"] if link_allowed(a, link["kind"], b)]
+        narrowed = link["kind"] in ("value_from", "broader")  # 시작 유형별 좁힘 · 같은 유형끼리는 지도에 선 없음(7.8)
+        assert (len(link["pairs"]) < len(starts) * len(ends)) if narrowed else (
+            len(link["pairs"]) == len(starts) * len(ends)), link["kind"]
     evidence = next(link for link in admin["links"] if link["kind"] == "evidence_of")
     assert evidence["from"] == [{"group": "observation"}]
     assert evidence["to"] == [{"group": "common"}, {"group": "cs"}, {"group": "drawing"}]
@@ -149,7 +152,8 @@ def test_type_map_data_is_pure_and_compresses_whole_groups():
     data = type_map_data({"spec": 3})
     assert data["total"] == 3
     copy_in = next(link for link in data["links"] if link["kind"] == "copy_in")
-    assert copy_in["from"] == [{"group": "common"}] and copy_in["to"] == [{"type": "template"}]
+    assert copy_in["from"] == [{"group": "common"}]
+    assert copy_in["to"] == [{"group": "external_copy"}, {"type": "template"}]  # 바깥 사본 넷(7.8 다음 6)
     assert browse.compress_types(["case", "spec"]) == [{"type": "spec"}, {"type": "case"}]
 
 

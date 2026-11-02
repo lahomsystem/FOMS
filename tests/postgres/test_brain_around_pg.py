@@ -42,10 +42,13 @@ def test_around_points_and_quality_filter_by_scope_and_validity_on_postgres(pg_s
     assert limited["total"] == 0
     points = brain_points(pg_session, who["cs_mgr"], today=TODAY)
     assert points["total"] == 6 and "common/oldfit" not in {r[0] for r in points["rows"]}
-    rules = {(r["type"], r["kind"]): r for r in quality_counts(pg_session, who["admin"], today=TODAY)["rules"]}
-    assert rules[("price_rule", "value_from")]["items"] == 1 and rules[("price_rule", "value_from")]["missing"] == 1
-    hidden = {(r["type"], r["kind"]): r for r in quality_counts(pg_session, who["cs_mgr"], today=TODAY)["rules"]}
-    assert hidden[("price_rule", "value_from")]["items"] == 0  # 가격 재량 항목 수는 새지 않는다
+    rules = {(r["type"], r["kind"], r["basis"]): r
+             for r in quality_counts(pg_session, who["admin"], today=TODAY)["rules"]}
+    empty = rules[("price_rule", "value_from", "")]  # world 의 규칙은 근거 종류가 비었다 — 최소를 따지지 않음(D115)
+    assert empty["items"] == 1 and empty["missing"] == 0 and rules[("price_rule", "value_from", "calc")]["items"] == 0
+    hidden = {(r["type"], r["kind"], r["basis"]): r
+              for r in quality_counts(pg_session, who["cs_mgr"], today=TODAY)["rules"]}
+    assert hidden[("price_rule", "value_from", "")]["items"] == 0  # 가격 재량 항목 수는 새지 않는다
 
 
 def test_overlapping_link_adds_wait_on_the_source_row_and_hit_the_max(pg_engine):

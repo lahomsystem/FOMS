@@ -53,7 +53,7 @@ PERSONAL: tuple[str, ...] = ("none", "face", "person", "name", "phone", "address
 FACE_CODES = frozenset({"face", "person"})
 #: 이 까닭이 있으면 금액에 쓰지 않는다(사람에게 — 17.11 (d)).
 HUMAN_REASONS = frozenset({"wall_unclear", "room_unclear", "marks_conflict"})
-WALL_SIDE_MM = 150  # D90 · D96 — 벽 포함 치수면 벽 쪽마다
+WALL_SIDE_MM = 150  # D90 · D96 — 벽 포함 치수면 벽 쪽마다(처음 값 — 설정 drawing_dimension_rules 가 있으면 그 값, D116)
 RATIO_LIMIT = Fraction(3, 2)
 MAX_SPACES, MAX_WALLS, MAX_IMAGES, MAX_MM = 4, 3, 6, 100_000
 _ROUND = 10
@@ -235,12 +235,13 @@ def result_json(read: ImageRead) -> dict[str, Any]:
 
 
 # ── 범위(코드가 한다 — D90 · D96) ────────────────────────────────────────
-def wall_range(wall: Wall) -> Optional[tuple[int, int, int]]:
+def wall_range(wall: Wall, wall_side_mm: int = WALL_SIDE_MM) -> Optional[tuple[int, int, int]]:
     """벽 하나 → (아래 끝, 위 끝, 뺀 mm). 뺀 뒤 0 이하면 ``None``.
 
-    ``center_line`` 은 두 끝에서, ``unknown`` 은 아래 끝에서만 벽 쪽마다 150 을 뺀다. 아래는 10mm 내림 · 위는 10mm 올림.
+    ``center_line`` 은 두 끝에서, ``unknown`` 은 아래 끝에서만 벽 쪽마다 ``wall_side_mm``(처음 값 150 — 설정
+    ``drawing_dimension_rules`` 의 ``wall_side_mm``, :func:`.rule_settings.wall_side_mm`)를 뺀다. 아래는 10mm 내림 · 위는 10mm 올림.
     """
-    cut = WALL_SIDE_MM * ENDS[wall.ends] if wall.basis != "inner" else 0
+    cut = wall_side_mm * ENDS[wall.ends] if wall.basis != "inner" else 0
     low = wall.read_min_mm - cut
     high = wall.read_max_mm - cut if wall.basis == "center_line" else wall.read_max_mm
     low, high = (low // _ROUND) * _ROUND, math.ceil(high / _ROUND) * _ROUND
@@ -257,9 +258,10 @@ def _chosen(space: ReadSpace) -> tuple[Wall, ...]:
     return tuple(w for w in space.walls if w.usable)
 
 
-def space_range(space: ReadSpace) -> tuple[Optional[SpaceRange], Optional[str]]:
-    """공간 하나 → (범위, 못 쓴 까닭 코드). 벽이 없으면 ``no_dimensions``, 합친 범위가 1.5배를 넘으면 ``wall_unclear``."""
-    ranges = [r for r in (wall_range(w) for w in _chosen(space)) if r is not None]
+def space_range(space: ReadSpace, wall_side_mm: int = WALL_SIDE_MM) -> tuple[Optional[SpaceRange], Optional[str]]:
+    """공간 하나 → (범위, 못 쓴 까닭 코드). 벽이 없으면 ``no_dimensions``, 합친 범위가 1.5배를 넘으면 ``wall_unclear``.
+    ``wall_side_mm`` 은 벽 쪽마다 빼는 값(:func:`wall_range`)."""
+    ranges = [r for r in (wall_range(w, wall_side_mm) for w in _chosen(space)) if r is not None]
     if not ranges:
         return None, "no_dimensions"
     low, high = min(r[0] for r in ranges), max(r[1] for r in ranges)

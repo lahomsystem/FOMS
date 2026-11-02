@@ -8,6 +8,9 @@
 - **멱등**: 다시 돌리면 같은 항목은 건너뛴다(쓰기 0). 그림자 기간에 문서가 바뀌었으면 바뀐 칸(:data:`.doc_bridge.SYNC_FIELDS`)만
   고침 제안으로, 문서에서 빠진 항목은 지우기 제안으로 따라간다. 지우기는 옮기기가 만든 판(``created_by='import'``)만 —
   다른 길로 만든 항목은 건드리지 않고 ``unmanaged`` 로 알린다.
+- **brain 만의 칸은 따라 맞추기에서 남는다**(7.8 다음 1 · 2): 실음 칸은 문서 칸만 문서 값으로 맞추고, 그 밖의 칸(이름표 · 근거
+  종류 · 결정 번호 같은 유형 속성 틀 칸)은 brain 값을 그대로 둔다. 제작 조건 가운데 문서 id 가 없는 brain 만의 항목은 옮기기
+  대상이 아니다(:func:`.constants.is_doc_item`).
 - 요약에는 키 · 개수 · 관문 이름만 싣는다(글 · 가격 없음).
 """
 
@@ -22,10 +25,9 @@ from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainObject
 from foms.services.brain.apply import apply_change
-from foms.services.brain.constants import BRAND_COMMON, DOC_TYPES, KIND_TYPES, STATUS_RETIRED
-from foms.services.brain.doc_bridge import IMPORT_SCOPE_OVERRIDES, SYNC_FIELDS, doc_values
+from foms.services.brain.constants import BRAND_COMMON, DOC_TYPES, KIND_TYPES, STATUS_RETIRED, is_doc_item
+from foms.services.brain.doc_bridge import DOC_PAYLOAD_KEYS, IMPORT_SCOPE_OVERRIDES, SYNC_FIELDS, doc_values
 from foms.services.brain.gates import FAIL
-from foms.services.brain.labels import LABEL_PAYLOAD_KEYS
 from foms.services.brain.proposals import (
     IMPORT_PROPOSER, propose_create, propose_delete, propose_retire, propose_update,
 )
@@ -110,7 +112,7 @@ def plan_import(session: Any, desired: Mapping[str, Desired]) -> ImportPlan:
     """지금 표와 견준 계획(쓰기 없음)."""
     rows = session.execute(select(BrainObject).where(is_current(BrainObject),
                                                      BrainObject.item_type.in_(DOC_TYPES))).scalars().all()
-    current = {row.item_key: row for row in rows}
+    current = {row.item_key: row for row in rows if is_doc_item(row.item_type, row.payload)}
     plan = ImportPlan()
     for key, row in sorted(current.items()):
         wanted = desired.get(key)
@@ -130,8 +132,8 @@ def plan_import(session: Any, desired: Mapping[str, Desired]) -> ImportPlan:
             continue
         values = values_of(row)
         want = dict(wanted.values)
-        if isinstance(want.get("payload"), dict) and isinstance(values.get("payload"), dict):  # brain 에서 단 이름표는 그대로
-            kept = {k: v for k, v in values["payload"].items() if k in LABEL_PAYLOAD_KEYS}
+        if isinstance(want.get("payload"), dict) and isinstance(values.get("payload"), dict):  # brain 만의 칸은 그대로
+            kept = {k: v for k, v in values["payload"].items() if k not in DOC_PAYLOAD_KEYS}
             want["payload"] = {**want["payload"], **kept}
         after = {name: want[name] for name in SYNC_FIELDS if values[name] != want[name]}
         doc_id = (want.get("payload") or {}).get("doc_id")

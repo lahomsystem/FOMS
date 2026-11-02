@@ -18,8 +18,8 @@ from sqlalchemy import exists, func, or_, select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    ALLOWED_LINKS, BRANDS, CHANGE_OPEN, CONFIDENCES, EXT_CALCULATOR, EXT_SETTING, GRADES, LAYERS, LINK_KINDS,
-    OBJECT_STATUSES, TYPE_LAYERS, TYPES,
+    ALLOWED_LINKS, BRANDS, CHANGE_OPEN, CONFIDENCES, EXTERNAL_TYPES, GRADES, LAYERS, LINK_KINDS,
+    OBJECT_STATUSES, SAME_TYPE_KINDS, TYPE_LAYERS, TYPES, link_allowed,
 )
 from foms.services.brain.display import TYPE_GROUPS, display_table
 from foms.services.brain.read import (
@@ -178,10 +178,10 @@ def table_page(session: Any, viewer: Viewer, query: TableQuery, *, today: dateti
 
 
 def _pairs(kind: str) -> list[list[str]]:
-    """링크 종류의 허용 짝(시작 유형, 끝 유형) — 유형 차례대로."""
-    order = (*TYPES, EXT_CALCULATOR, EXT_SETTING)
+    """링크 종류의 허용 짝(시작 유형, 끝 유형) — 유형 차례대로(시작 유형별 좁힘 · 같은 유형끼리 종류 포함)."""
+    order = (*TYPES, *EXTERNAL_TYPES)
     starts, ends = ALLOWED_LINKS[kind]
-    return [[a, b] for a in order if a in starts for b in order if b in ends]
+    return [[a, b] for a in order if a in starts for b in order if b in ends and link_allowed(a, kind, b)]
 
 
 def compress_types(types: list[str]) -> list[dict[str, str]]:
@@ -191,20 +191,23 @@ def compress_types(types: list[str]) -> list[dict[str, str]]:
         if len(members) > 1 and set(members) <= wanted:
             out.append({"group": key})
             wanted -= set(members)
-    order = (*TYPES, EXT_CALCULATOR, EXT_SETTING)
+    order = (*TYPES, *EXTERNAL_TYPES)
     return out + [{"type": t} for t in order if t in wanted]
 
 
 def type_map_data(counts: Mapping[str, int]) -> dict[str, Any]:
-    """유형 지도 자료(순수) — 유형 묶음 · 유형별 수 · 링크 종류별 허용 짝(줄인 시작 · 끝 포함) · 표시 표."""
+    """유형 지도 자료(순수) — 유형 묶음 · 유형별 수 · 링크 종류별 허용 짝(줄인 시작 · 끝 포함) · 표시 표.
+
+    같은 유형끼리만 잇는 종류(``broader`` — :data:`.constants.SAME_TYPE_KINDS`)는 유형 지도에서 자기 자신으로 돌아오는 선뿐이라
+    선을 그리지 않는다(묶음으로 줄이면 묶음끼리 이은 거짓 선이 된다) — 범례에만 남는다."""
     groups = []
     for key, label, types in TYPE_GROUPS:
         groups.append({"key": key, "label": label, "types": [
             {"type": t, "count": int(counts.get(t, 0)), "layers": sorted(TYPE_LAYERS.get(t, ())),
-             "external": t in (EXT_CALCULATOR, EXT_SETTING)} for t in types]})
+             "external": t in EXTERNAL_TYPES} for t in types]})
     links = []
     for kind in LINK_KINDS:
-        pairs = _pairs(kind)
+        pairs = [] if kind in SAME_TYPE_KINDS else _pairs(kind)
         starts = list(dict.fromkeys(a for a, _b in pairs))
         ends = list(dict.fromkeys(b for _a, b in pairs))
         links.append({"kind": kind, "pairs": pairs, "from": compress_types(starts), "to": compress_types(ends)})
