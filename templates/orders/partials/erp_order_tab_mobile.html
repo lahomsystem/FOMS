@@ -520,10 +520,22 @@ ERP Order mobile-v2 tab pane.
                 </div>
 
             </div>
-            <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
+            {% set erp_action_fold = measure_done_cta and measure_done_cta.visible and measure_done_cta.enabled %}
+            <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar{% if erp_action_fold %} erp-action-fold{% endif %}" role="group" aria-label="ERP 주문 저장 및 전송">
+                {%- if erp_action_fold %}
+                {# 단추 묶음 접기(2026-11-02 결정 D1): 실측 끝 단추가 있으면 묶음이 3층이라 입력 칸을 가린다 → 손잡이 한 줄로 통째 접는다.
+                   열 때마다 접힌 채 시작(기억 안 함). 손잡이를 누르면 지금 모양 그대로 펼친다(erp-measure-done.js). 다른 단계는 이 손잡이가 없다. #}
+                <button type="button" class="erp-action-fold__toggle" data-erp-action-fold-toggle
+                    aria-expanded="false" aria-controls="erp-action-fold-body">
+                    <i class="fas fa-chevron-up erp-action-fold__chev" aria-hidden="true"></i>
+                    <span class="erp-action-fold__label">저장 · PUSH · 알림톡 · <strong>실측 끝</strong></span>
+                    <span class="erp-action-fold__count" data-erp-action-fold-count hidden></span>
+                </button>
+                <div class="erp-action-fold__body" id="erp-action-fold-body" data-erp-action-fold-body hidden>
+                {% endif %}
                 <!-- 발송 기록: 평소엔 요약 한 줄, 누르면 두 칸 격자로 펼친다(erp-send-trace.js). 기록이 없으면 비어서 접힌다 -->
                 <div class="erp-send-trace erp-send-trace--fold" data-erp-send-trace="fold"></div>
-                {% if measure_done_cta and measure_done_cta.visible and measure_done_cta.enabled %}
+                {% if erp_action_fold %}
                 {# 실측 끝 · 도면 넘기기(2026-11-02): 저장 → 도면 단계 → 영발을 한 번에(erp-measure-done.js). 실측 단계 · 승인 권한일 때만. #}
                 <button class="foms-btn foms-btn--primary erp-measure-done-btn" type="button" data-erp-measure-done
                     data-order-id="{{ order.id }}" data-confirm="{{ measure_done_cta.confirm }}">
@@ -540,6 +552,9 @@ ERP Order mobile-v2 tab pane.
                     id="erp-alimtalk-picker-btn" title="고객에게 카카오 알림톡 발송 (실패 시 문자 대체발송)">
                     <i class="fas fa-comment-dots"></i> 알림톡
                 </button>
+                {%- if erp_action_fold %}
+                </div>
+                {% endif %}
             </footer>
             {% endif %}
         </div>

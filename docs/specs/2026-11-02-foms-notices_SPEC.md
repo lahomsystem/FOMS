@@ -63,3 +63,16 @@
 - **B 관리자 화면**: `foms/web/admin/notices.py`(HTML 블루프린트 `notices_admin`, 등록 줄은 A 가 blueprints.py 에 미리 넣는다), `templates/admin/notices/*.html`, `templates/admin/admin.html` 단추, `static/js/admin/notices-*.js`, `static/css/contexts/admin/notices.css`, 시험 `tests/domains/test_notices_admin_pages.py`.
 - **C 받는 사람 화면**: 본사 `foms/web/notices.py`(HTML 블루프린트 `notices_web`, `/notices`; 등록 줄은 A 가 넣는다), `templates/notices/*.html`, 본사 공용 창 `templates/partials/shared/notice_popup.html` + `static/js/foms/foms-notice-popup.js` + `static/css/components/foms-notice.css` 와 레이아웃에 싣는 한 줄, 협력사 `foms/web/partner/__init__.py` 의 `/partner/notices` 라우트 · 머리줄 링크, `templates/partner/notices.html`, `notice_modal.html` · `partner-notice.js` 넓히기, 시험 `tests/security/test_notices_screens.py`.
 - 서로 부르는 이름(블루프린트 · 엔드포인트 · 서비스 함수)은 이 설계서 그대로. 등록 줄(blueprints.py)은 A 가 세 HTML/JSON 블루프린트 모두 넣고, B · C 의 모듈이 아직 없으면 import 가 깨지므로 A 는 B · C 모듈 파일을 **빈 블루프린트 뼈대**로 먼저 만들어 둔다(B · C 가 내용을 채운다).
+
+## 7. 폰 알림 · 배지 (사용자 결정 2026-11-02 · 구현)
+- 결정: 모든 공지(POPUP · LIST)를 받는 사람 폰으로 보낸다(Web Push) + 앱 아이콘 배지 · 종 배지 숫자에 잡힌다. 읽거나 확인하면 숫자가 준다. 예약 공지(`starts_at` 미래)는 게시가 시작될 때 보낸다(몇 분 늦어도 됨). 잠금화면: 제목 "📢 공지사항", 본문 = 공지 제목만(120자에서 자름 — 본문 내용은 싣지 않는다).
+- 데이터(마이그레이션 `notice_01`, downgrade 포함): `notices.push_sent_at`(보낸 · 보내지 않기로 정한 때, UTC) · `notice_acks.notification_id`(FK `notifications.id` ON DELETE SET NULL, `fk_notice_acks_notification_id`). 올릴 때 이미 있는 공지는 `push_sent_at` = 지금(배포 직후 옛 공지가 한꺼번에 울리지 않게). 머리 하나를 지키려고 `notice_00` 이 아니라 그때 머리 `csagent_05` 뒤에 잇는다.
+- 알림 종류 `FOMS_NOTICE`(정본 `foms/services/notifications/notice_push.py` — 글 · 주소 규칙도 거기). 발송 `foms/services/notices/push.py` `dispatch_notice_push(db, notice, *, now, enqueue)`:
+  1) 선점 `UPDATE notices SET push_sent_at=:now WHERE id=:id AND push_sent_at IS NULL` — 0줄이면 끝(웹과 SIDEFX 이중 발송 방지). 게시 중이 아니면 선점하지 않는다.
+  2) `recipients(db, notice)` 마다 `Notification`(FOMS_NOTICE · target_type USER · target_user_id · is_urgent False · title = 공지 제목 · message 빈 글) → `fan_out_new_notification` → 그 사람 `NoticeAck` 줄(없으면 만든다)에 `notification_id`. 받는 사람이 없어도 보낸 때는 채운다.
+  3) 커밋 뒤 `enqueue=True` 면 `enqueue_push_for_notification`(웹 · RQ), False 면 `send_push_for_notification` 바로(SIDEFX — REDIS 없음). 실패는 로그만.
+- 즉시: 관리자 API 만들기 · 고치기 커밋 뒤 `push_notice_if_due` — 지금 게시 중이고 `push_sent_at` 이 비었으면 보낸다(이미 보낸 공지는 고쳐도 다시 안 보냄, 예약 → 지금 게시로 고치면 보냄). 실패해도 응답은 그대로(SIDEFX 스캔이 다시 본다).
+- 예약: SIDEFX 루프(`tools/ops/run_domain_side_effect_outbox.py`)가 60초마다 `sweep_due_notice_pushes` — 지우지 않음 · 미발송 · 시작 지남 · 끝 안 지남이면 보내고, 끝난 미발송 공지는 보내지 않고 `push_sent_at` 만 채운다.
+- 배지: 공지 `mark_read` · `ack_notice` 가 그 사람 `NoticeAck.notification_id` 의 `NotificationUserState.read_at`(확인은 `ack_at` 도)을 채운다(이미 있으면 그대로). 공지 지우기(soft)는 연결된 상태를 `archived_at` 으로 — 배지에서 빠진다.
+- 푸시 글(`push_sender._build_payload`): FOMS_NOTICE 는 협력사 분기보다 먼저 — title "📢 공지사항", body = 공지 제목, tag `foms-notice-<알림 id>`, `data.deep_link` 는 받는 사람(`target_user_id` → `User.partner_org_id`)이 협력사면 `/partner/notices`, 아니면 `/notices`. `FOMS_PUSH_P1_TYPES` 로 P1 집합을 줄여도 늘 보낸다(협력사 알림과 같다). 벨 목록 링크(`_resolve_notification_deep_link`)도 같은 규칙.
+- 시험: `tests/domains/test_notices_push.py`(받는 사람 · 음성 대조군 · 선점 · 예약 · 끝난 예약 · 배지 · 보관 · 글 · 주소), `tests/postgres/test_notices_push_pg.py`(동시 선점 · 마이그레이션 왕복).

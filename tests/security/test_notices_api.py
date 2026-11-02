@@ -18,6 +18,13 @@ def _payload(**audience) -> dict:
             "starts_at": "", "ends_at": ""}
 
 
+def _recorded_acks() -> int:
+    """읽음 · 확인이 적힌 기록 수 — 폰 알림을 보낼 때 받는 사람마다 빈 기록(알림 연결만)이 먼저 생긴다(설계서 §7)."""
+    return db_session.query(NoticeAck).filter(
+        (NoticeAck.read_at.isnot(None)) | (NoticeAck.ack_at.isnot(None))
+    ).count()
+
+
 def _create(app, world, **audience) -> int:
     client = _client(app, db_session.get(User, world["admin"]))
     resp = client.post("/api/admin/notices", json=_payload(**audience))
@@ -127,7 +134,7 @@ def test_partner_cannot_see_or_ack_staff_only_notice(app, world):
     assert listed.get_json()["data"]["items"] == []
     assert partner.post(f"/api/notices/{nid}/ack").status_code == 404
     assert partner.post(f"/api/notices/{nid}/read").status_code == 404
-    assert db_session.query(NoticeAck).count() == 0
+    assert _recorded_acks() == 0
     # 대조군: 본사 직원은 보고 확인한다.
     staff = _client(app, db_session.get(User, world["staff"]))
     data = staff.get("/api/notices").get_json()["data"]
@@ -170,7 +177,7 @@ def test_inactive_partner_org_hides_notices(app, world):
     client = _client(app, db_session.get(User, world["partner_a"]))
     resp = client.post(f"/api/notices/{nid}/ack")
     assert resp.status_code in (401, 403, 404)
-    assert db_session.query(NoticeAck).count() == 0
+    assert _recorded_acks() == 0
 
 
 def test_partner_sees_neutral_audience_label_without_other_company_names(app, world):
@@ -218,4 +225,4 @@ def test_ack_after_notice_ended_is_404(app, world):
     assert admin.delete(f"/api/admin/notices/{nid}").status_code == 200
     staff = _client(app, db_session.get(User, world["staff"]))
     assert staff.post(f"/api/notices/{nid}/ack").status_code == 404
-    assert db_session.query(NoticeAck).count() == 0
+    assert _recorded_acks() == 0
