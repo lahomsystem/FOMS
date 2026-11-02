@@ -188,7 +188,7 @@
 
   // ── 미리 채우기 · 저장 ─────────────────────────────────────────────
   function prefill() {
-    if (!current || !current.id) return;
+    if (!current || !(current.id || current.draft)) return; // draft = notices-draft.js 가 되살린 쓰던 글
     var aud = current.audience || {};
     audience.staffAll = !!aud.staff_all;
     audience.partnerAll = !!aud.partner_all;
@@ -253,6 +253,7 @@
       message('danger', result.error);
       return;
     }
+    if (window.FomsNoticeDraft) window.FomsNoticeDraft.clear();
     try {
       window.sessionStorage.setItem('foms-notice-flash', isEdit ? '고친 내용을 저장했어요.' : '공지를 올렸어요.');
     } catch (err) { /* sessionStorage 막힘 — 글만 안 보인다 */ }
@@ -276,6 +277,7 @@
   form.addEventListener('input', renderPreview);
   form.addEventListener('change', renderPreview);
   form.addEventListener('submit', onSubmit);
+  window.FomsNoticeForm = { snapshot: payload };
 
   prefill();
   refresh();

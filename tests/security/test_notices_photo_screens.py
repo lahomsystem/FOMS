@@ -77,6 +77,13 @@ def test_staff_popup_and_admin_form_have_photo_hooks(app, world):
     assert state["images"][0]["key"] == _IMG["key"]
     assert state["images"][0]["preview_url"].startswith("/api/admin/notices/images/file?key=")
     assert 'accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"' in page  # HEIC 원본도 받는다(pillow-heif)
+    # 공용 photo-capture.js 가 사진 칸마다 capture="environment" 를 붙여 휴대폰에서 카메라만 열렸다 — 갤러리도 고르게 뺀다.
+    tag = re.search(r'<input type="file"[^>]*data-images-input[^>]*>', page).group(0)
+    assert "data-foms-no-capture" in tag and "capture=" not in tag
+    capture_js = _read("static/js/foms/photo-capture.js")
+    assert "if (input.hasAttribute('data-foms-no-capture')) return false;" in capture_js
+    # 쓰던 글 맡기기는 사진 · 쓰기 스크립트보다 먼저 실려 data-notice 에 겹친다.
+    assert page.index("notices-draft.js") < page.index("notices-images.js") < page.index("notices-form.js")
 
 
 def test_gallery_script_closes_navigates_and_preempts_popup_trap() -> None:
@@ -122,3 +129,19 @@ def test_photo_templates_have_no_inline_style() -> None:
                 "templates/partner/partials/notice_modal.html", "templates/admin/notices/form.html"):
         text = _read(rel)
         assert 'style="' not in text and "<style" not in text, rel
+
+
+def test_draft_survives_trip_to_photo_app() -> None:
+    """휴대폰이 갤러리 · 카메라에 다녀오는 사이 화면을 다시 읽어도 제목 · 내용 · 받는 쪽 · 사진이 남는다."""
+    draft = _read("static/js/admin/notices-draft.js")
+    assert len(draft.splitlines()) <= 300 and "innerHTML" not in draft and "style=" not in draft
+    assert "window.sessionStorage.setItem(key" in draft and "TTL_MS = 30 * 60 * 1000" in draft
+    assert "'visibilitychange'" in draft and "'pagehide'" in draft
+    assert "root.setAttribute('data-notice', JSON.stringify(merged))" in draft and "draft: true" in draft
+    assert "FomsNoticeForm.snapshot()" in draft and "FomsNoticeImages.items()" in draft
+    assert "closest('a[href]')" in draft  # [공지 목록]으로 일부러 떠나면 버린다
+    form = _read("static/js/admin/notices-form.js")
+    assert "current.id || current.draft" in form and "window.FomsNoticeForm = { snapshot: payload };" in form
+    assert form.index("FomsNoticeDraft.clear()") < form.index("window.location.href = pageBase")
+    images = _read("static/js/admin/notices-images.js")
+    assert "items: function () { return saved().slice(); }" in images
