@@ -9,7 +9,7 @@
   남으면 막는다. 같은 협력사 발행은 협력사 줄 잠금으로 한 줄로 세운다(잔액 · 번호 경합).
 * 수정본 — 발행본을 복사한 새 초안(``revision_of``). 수정본을 발행하면 옛 것은 VOID 가 된다. 취소도 이유가 꼭 있어야 한다.
 
-잔액 = 이 협력사 발행 명세서 합(VOID 빼고). 입금은 5단계 ``partner_payments`` 가 들어오면 여기서 뺀다.
+잔액 = 이 협력사 발행 명세서 합(VOID 빼고) − 지우지 않은 입금 합(``partner_payments``).
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.statement_calc import calc_item, round_half_up, summarize
 from foms.services.partners.statement_profile import load_profile
 from foms.services.shipment_dashboard_helpers import _get_order_construction_date
-from models import OrderItemOption, PartnerOrg, PartnerPriceList, PartnerStatement
+from models import OrderItemOption, PartnerOrg, PartnerPayment, PartnerPriceList, PartnerStatement
 
 DRAFT, ISSUED, VOID = "DRAFT", "ISSUED", "VOID"
 MAX_AMOUNT = 10 ** 10
@@ -245,12 +245,14 @@ def save_draft(db, statement_id: int, edits: Any, base_version: Any) -> PartnerS
 
 
 def balance(db, org_id: int, *, exclude_ids: tuple[int, ...] = ()) -> int:
-    """이 협력사 잔액 = 발행(ISSUED) 명세서 합. 입금은 5단계에서 뺀다."""
+    """이 협력사 잔액 = 발행(ISSUED) 명세서 합 − 지우지 않은 입금 합(5단계 ``partner_payments``)."""
     q = db.query(func.coalesce(func.sum(PartnerStatement.total), 0)).filter(
         PartnerStatement.partner_org_id == org_id, PartnerStatement.status == ISSUED)
     if exclude_ids:
         q = q.filter(PartnerStatement.id.notin_(exclude_ids))
-    return int(q.scalar() or 0)
+    paid = db.query(func.coalesce(func.sum(PartnerPayment.amount), 0)).filter(
+        PartnerPayment.partner_org_id == org_id, PartnerPayment.voided_at.is_(None)).scalar()
+    return int(q.scalar() or 0) - int(paid or 0)
 
 
 def _next_doc_no(db, prefix: str, on_date: datetime.date) -> str:

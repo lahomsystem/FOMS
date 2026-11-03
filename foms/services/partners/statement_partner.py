@@ -1,21 +1,24 @@
 """협력사 거래명세서 — 협력사 쪽 월 장부 · 보기 · 확인했어요 · 금액 문의(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §5.6 · §6).
 
 협력사는 자기 회사 명세서 중 발행(ISSUED) · 취소(VOID)만 본다 — 초안(DRAFT)은 없는 것처럼 404. 금액은 발행 스냅샷 그대로다.
-월 장부 = 지난달까지 이월(그 달 1일 전 발행 합) · 이달 판매(이달 발행 합) · 지금 잔액. 입금은 5단계 ``partner_payments`` 가
-들어오면 이월 · 잔액에서 뺀다(지금은 0). 문의는 줄을 골라(``line_ref`` "묶음-줄") 글로 묻고, 우리 CS 가 답을 단다.
+월 장부 = 지난달까지 이월(그 달 1일 전 발행 합 − 입금 합) · 이달 판매 · 이달 입금 · 지금 잔액(:mod:`foms.services.partners.payments`).
+줄은 명세서와 입금을 날짜 순으로 섞어 잔액을 이어 센다. CSV 받기(엑셀로 열림)는 같은 값이다. 문의는 줄을 골라(``line_ref`` "묶음-줄") 글로 묻고, 우리 CS 가 답을 단다.
 """
 from __future__ import annotations
 
+import csv
 import datetime
+import io
 import re
 from typing import Any, Optional
 
 from sqlalchemy import func
 
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive
-from foms.services.partners.statements import ISSUED, VOID, StatementError
+from foms.services.partners.payments import allocate, paid_total
+from foms.services.partners.statements import ISSUED, VOID, StatementError, balance
 from foms.services.partners.view import build_partner_order_view
-from models import Order, PartnerStatement, PartnerStatementQuestion, User
+from models import Order, PartnerPayment, PartnerStatement, PartnerStatementQuestion, User
 
 _TEXT_LIMIT = 500
 MAX_OPEN_QUESTIONS = 20
@@ -39,49 +42,77 @@ def _next_month(first: datetime.date) -> datetime.date:
     return (first.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
 
 
-def partner_status(stmt: PartnerStatement) -> str:
+def partner_status(stmt: PartnerStatement, paid: Optional[int] = None) -> str:
+    """협력사 화면 상태 — 취소됨 · 수정본 · 새 명세서 · 확인함, 발행본을 다 받지 못했으면 "입금 대기"를 붙인다."""
     if stmt.status == VOID:
         return "취소됨"
-    if stmt.revision_of:
-        return "수정본" + (" · 확인함" if stmt.partner_ack_at else "")
-    return "확인함" if stmt.partner_ack_at else "새 명세서"
+    head = ("수정본" + (" · 확인함" if stmt.partner_ack_at else "")) if stmt.revision_of else (
+        "확인함" if stmt.partner_ack_at else "새 명세서")
+    return head + (" · 입금 대기" if paid is not None and paid < int(stmt.total or 0) else "")
 
 
-def _issued_total(db, org_id: int, *, before: Optional[datetime.date] = None,
-                  start: Optional[datetime.date] = None) -> int:
+def _issued_total(db, org_id: int, *, before: Optional[datetime.date] = None) -> int:
     q = db.query(func.coalesce(func.sum(PartnerStatement.total), 0)).filter(
         PartnerStatement.partner_org_id == org_id, PartnerStatement.status == ISSUED)
     if before is not None:
         q = q.filter(PartnerStatement.statement_date < before)
-    if start is not None:
-        q = q.filter(PartnerStatement.statement_date >= start)
     return int(q.scalar() or 0)
 
 
 def partner_ledger(db, org_id: int, month: Any = None) -> dict[str, Any]:
-    """월 장부 — 이월 · 이달 판매 · 이달 입금 · 지금 잔액 + 이달 명세서 줄(날짜 순, 발행본은 잔액을 이어 센다)."""
+    """월 장부 — 이월 · 이달 판매 · 이달 입금 · 지금 잔액 + 이달 명세서 · 입금 줄(날짜 순, 잔액을 이어 센다)."""
     first = _month(month)
     nxt = _next_month(first)
-    carry = _issued_total(db, org_id, before=first)
+    carry = _issued_total(db, org_id, before=first) - paid_total(db, org_id, before=first)
     stmts = db.query(PartnerStatement).filter(
         PartnerStatement.partner_org_id == org_id, PartnerStatement.status.in_((ISSUED, VOID)),
-        PartnerStatement.statement_date >= first, PartnerStatement.statement_date < nxt).order_by(
-        PartnerStatement.statement_date, PartnerStatement.doc_no).all()
+        PartnerStatement.statement_date >= first, PartnerStatement.statement_date < nxt).all()
+    pays = db.query(PartnerPayment).filter(
+        PartnerPayment.partner_org_id == org_id, PartnerPayment.voided_at.is_(None),
+        PartnerPayment.paid_on >= first, PartnerPayment.paid_on < nxt).all()
     orders = {o.id: o for o in db.query(Order).filter(Order.id.in_({s.order_id for s in stmts}))} if stmts else {}
-    running, sales, rows = carry, 0, []
-    for s in stmts:
-        order = orders.get(s.order_id)
-        if s.status == ISSUED:
-            running += int(s.total or 0)
-            sales += int(s.total or 0)
-        rows.append({"id": s.id, "date": s.statement_date.isoformat() if s.statement_date else "", "doc_no": s.doc_no or "",
-                     "order_id": s.order_id, "customer_name": build_partner_order_view(order)["customer_name"] if order else "",
-                     "products": [{"title": g.get("title") or "", "subtotal": int(g.get("subtotal") or 0)} for g in s.groups or []],
-                     "total": int(s.total or 0), "paid": 0, "balance": running if s.status == ISSUED else None,
-                     "status": s.status, "status_text": partner_status(s), "reason": s.reason or ""})
+    docs = {s.id: s.doc_no for s in db.query(PartnerStatement).filter(
+        PartnerStatement.id.in_({p.statement_id for p in pays if p.statement_id}))} if pays else {}
+    paid_by = allocate(db, org_id)
+    events = [(s.statement_date, 0, s.doc_no or "", s) for s in stmts] + [(p.paid_on, 1, str(p.id), p) for p in pays]
+    running, sales, paid, rows = carry, 0, 0, []
+    for _day, kind, _key, obj in sorted(events, key=lambda e: (e[0], e[1], e[2])):
+        if kind == 1:
+            running -= int(obj.amount)
+            paid += int(obj.amount)
+            rows.append({"kind": "payment", "id": obj.id, "date": obj.paid_on.isoformat(), "doc_no": docs.get(obj.statement_id, ""),
+                         "customer_name": obj.memo or "입금", "products": [], "total": 0, "paid": int(obj.amount),
+                         "balance": running, "status": "PAID", "status_text": "입금", "reason": ""})
+            continue
+        order = orders.get(obj.order_id)
+        if obj.status == ISSUED:
+            running += int(obj.total or 0)
+            sales += int(obj.total or 0)
+        rows.append({"kind": "statement", "id": obj.id, "date": obj.statement_date.isoformat() if obj.statement_date else "",
+                     "doc_no": obj.doc_no or "", "order_id": obj.order_id,
+                     "customer_name": build_partner_order_view(order)["customer_name"] if order else "",
+                     "products": [{"title": g.get("title") or "", "subtotal": int(g.get("subtotal") or 0)} for g in obj.groups or []],
+                     "total": int(obj.total or 0), "paid": 0, "balance": running if obj.status == ISSUED else None,
+                     "status": obj.status, "status_text": partner_status(obj, paid_by.get(obj.id)), "reason": obj.reason or ""})
     return {"month": first.strftime("%Y-%m"), "prev": (first - datetime.timedelta(days=1)).strftime("%Y-%m"),
-            "next": nxt.strftime("%Y-%m"), "carry": carry, "sales": sales, "paid": 0,
-            "balance": _issued_total(db, org_id), "rows": rows}
+            "next": nxt.strftime("%Y-%m"), "carry": carry, "sales": sales, "paid": paid,
+            "balance": balance(db, org_id), "rows": rows}
+
+
+_CSV_HEAD = ("일자", "문서번호", "고객(현장) · 메모", "판매", "입금", "잔액", "상태")
+
+
+def ledger_csv(ledger: dict[str, Any]) -> str:
+    """월 장부 CSV(엑셀로 열림) — UTF-8 BOM · CRLF · 금액은 콤마 없는 정수(저장소 CSV 관례)."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    writer.writerow(_CSV_HEAD)
+    writer.writerow([ledger["month"] + "-01", "", "지난달까지 이월", "", "", ledger["carry"], ""])
+    for r in ledger["rows"]:
+        writer.writerow([r["date"], r["doc_no"], r["customer_name"], r["total"] or "", r["paid"] or "",
+                         "" if r["balance"] is None else r["balance"], r["status_text"]])
+    writer.writerow(["", "", "이달 합계", ledger["sales"], ledger["paid"], "", ""])
+    return "\ufeff" + buf.getvalue()
 
 
 def order_statements(db, org_id: int, order_id: int) -> list[dict[str, Any]]:

@@ -1,4 +1,4 @@
-# 협력사 거래명세서 — 단가표 · 옵션 고르기 · 명세서 · 입금 장부 SPEC (2026-11-03 승인 · 4단계까지 구현)
+# 협력사 거래명세서 — 단가표 · 옵션 고르기 · 명세서 · 입금 장부 SPEC (2026-11-03 승인 · 5단계까지 구현)
 
 등급: 코어 변경(DB · API · 권한 · 화면) — Spec → 승인 → 구현.
 선행 설계서: `docs/specs/2026-10-08-partner-portal_SPEC.md`(§6.3 정산은 "갈라 보이기만"으로 남겨 둠) · `docs/specs/2026-10-19-partner-foms-mode_SPEC.md`(협력사 화면 틀).
@@ -161,17 +161,18 @@
 - 목록: 도면 확정(CONFIRMED 있음) 주문, 출고일 가까운 순. 내일 출고 · 다음 출고 · 출고일 없음 세 갈래로 나눈다. 초안 상태 = 자동 완성 / 커스텀 금액 필요. "자동 완성만 한꺼번에 발행".
 - 명세서 화면: 왼쪽 확정 도면(제품별 탭), 오른쪽 묶음별 줄(자동 줄은 글자 · "고치기", 커스텀 줄만 금액 칸). 단가를 고치면 원래 값 · 이유가 남는다(`edited`).
 - 발행: 일자(출고일) · 번호 · 잠금 · 잔액 스냅샷 · 협력사 화면에 보임. 수정본 · 취소(VOID)는 이유 필수.
-- **4단계 구현(11-03)**: 화면 `/erp/partner-statements`(ERP 하위 메뉴 "협력사 명세서" — 정책 `PARTNER_STATEMENT` 로 숨김) · 한 장 `/erp/partner-statements/<id>` · 양식 `/<id>/print`(`templates/partner/statement_form.html`, 공급받는자용 · 공급자용 2장). API `/api/partner-statements`(`foms/api/partner_statements_staff.py`). 권한 = ADMIN, 또는 CS 권한 팀(회계팀 포함)의 STAFF · MANAGER(게이트 `statements.can_manage_statements`). 일자 = 출고 대시보드와 같은 시공일, 단가표 판 = 적용 시작일이 그 날 이전인 가장 새 판. 갈래는 "내일까지 출고(지난 날 포함) · 다음 출고 · 출고일 없음". 발행은 사람이 누른다(열린 질문 7 기본값). 잔액은 발행 명세서 합이고 5단계에서 입금을 뺀다.
+- **4단계 구현(11-03)**: 화면 `/erp/partner-statements`(ERP 하위 메뉴 "협력사 명세서" — 정책 `PARTNER_STATEMENT` 로 숨김) · 한 장 `/erp/partner-statements/<id>` · 양식 `/<id>/print`(`templates/partner/statement_form.html`, 공급받는자용 · 공급자용 2장). API `/api/partner-statements`(`foms/api/partner_statements_staff.py`). 권한 = ADMIN, 또는 CS 권한 팀(회계팀 포함)의 STAFF · MANAGER(게이트 `statements.can_manage_statements`). 일자 = 출고 대시보드와 같은 시공일, 단가표 판 = 적용 시작일이 그 날 이전인 가장 새 판. 갈래는 "내일까지 출고(지난 날 포함) · 다음 출고 · 출고일 없음". 발행은 사람이 누른다(열린 질문 7 기본값). 잔액은 발행 명세서 합 − 입금 합(5단계).
 
 ### 5.6 협력사 — 거래명세서 메뉴
 - 월 장부: 지난달 이월 · 이달 판매 · 이달 입금 · 지금 잔액. 줄 = 일자 · 문서번호 · 고객(현장) · 제품 수 · 판매 · 입금 · 잔액 · 상태(새 명세서 · 확인함 · 입금 대기 · 수정본). 제품 여러 개 주문은 ▾ 로 제품별 금액. 엑셀 받기.
 - 명세서 보기: 양식(5.8) + 오른쪽 제품별 최종 도면 + "명세서 확인했어요" + "금액 문의"(줄 골라 묻기) + 인쇄(공급받는자용 · 공급자용 2장) · PDF(브라우저 인쇄). 휴대폰은 제품 묶음 접기 · 입금 계좌 복사.
 - 주문 화면에도 "거래명세서" 탭.
-- **4단계 구현(11-03)**: 메뉴 "거래명세서"(PC 메뉴 줄 · 휴대폰 더보기) → `/partner/statements`(월 장부 — 이월 · 이달 판매 · 이달 입금 · 지금 잔액, 제품 여러 개는 ▾) · `/partner/statements/<id>`(양식 한 장 + 최종 도면 + 확인했어요 + 금액 문의 · 입금 계좌 복사, 처음 열면 `partner_viewed_at`) · `/<id>/print`(2장, 온라인 원본 QR). 주문 화면 "거래명세서" 탭은 발행 명세서가 있을 때만. 우리 CS 는 명세서 화면에서 문의에 답한다(발행함 목록에 "답할 문의 N"). 로직 `foms/services/partners/statement_partner.py`, API `foms/api/partner/statements.py`, 화면 `foms/web/partner/statements.py`. 엑셀 받기 · 이달 입금은 5단계(입금 장부)에서 채운다. 휴대폰 양식은 계산 근거 칸을 숨긴다(인쇄 · PC 에는 있다).
+- **4단계 구현(11-03)**: 메뉴 "거래명세서"(PC 메뉴 줄 · 휴대폰 더보기) → `/partner/statements`(월 장부 — 이월 · 이달 판매 · 이달 입금 · 지금 잔액, 제품 여러 개는 ▾) · `/partner/statements/<id>`(양식 한 장 + 최종 도면 + 확인했어요 + 금액 문의 · 입금 계좌 복사, 처음 열면 `partner_viewed_at`) · `/<id>/print`(2장, 온라인 원본 QR). 주문 화면 "거래명세서" 탭은 발행 명세서가 있을 때만. 우리 CS 는 명세서 화면에서 문의에 답한다(발행함 목록에 "답할 문의 N"). 로직 `foms/services/partners/statement_partner.py`, API `foms/api/partner/statements.py`, 화면 `foms/web/partner/statements.py`. 엑셀 받기 · 이달 입금은 5단계에서 채웠다. 휴대폰 양식은 계산 근거 칸을 숨긴다(인쇄 · PC 에는 있다).
 
 ### 5.7 입금 · 출고
 - CS 입금 기록 화면: 날짜 · 금액 · 메모 · 명세서 맞추기. 지우기는 이유 필수.
 - 출고 대시보드(1장 9번): 그 명세서 금액만큼 입금이 아직 다 들어오지 않은 협력사 주문 카드에 "입금 대기"를 붙인다. 막지는 않고 표시만 한다.
+- **5단계 구현(11-03)**: 표 `partner_payments`(마이그레이션 `ppay_00`, 금액 > 0 · 지우기는 줄을 남기고 이유만). 로직 `foms/services/partners/payments.py` — 잔액 = 발행 합 − 지우지 않은 입금 합(다음 명세서 전일 잔액에 그대로 들어간다), 명세서별 받은 돈 = 고른 입금은 그 명세서, 고르지 않은 입금은 일자가 오래된 덜 받은 명세서부터 채운다(넘치면 다음으로). 우리 CS 화면 `/erp/partner-statements` 의 "입금" 칸(API `/api/partner-payments`, 정책 `PARTNER_STATEMENT`). 출고 대시보드(PC 표 · 태블릿 표) 고객 칸에 "입금 대기". 월 장부 받기는 CSV(엑셀로 열림 — 저장소 관례대로 UTF-8 BOM · CRLF · 콤마 없는 정수, 새 라이브러리 없음), 협력사 `/partner/statements/export.csv` 와 CS `/api/partner-payments/export.csv` 가 같은 값. 협력사 월 장부에는 입금 줄이 날짜 순으로 섞이고 발행본을 다 받지 못했으면 상태에 "입금 대기".
 
 ### 5.8 양식 칸 (이카운트 양식 + 조사로 더한 것)
 문서번호 · 발행일 · 출고일 · 담당자 · 쪽 · QR(온라인 원본) · 공급받는자 / 공급자 블록(등록번호 · 상호 · 성명 · 주소 · 업태 · 종목) · 도장 · 합계 금액(한글 + 숫자) · 공급가액 / 세액 · "단가는 VAT 포함" · 현장(고객) · 주문번호 · 최종 도면 회차 · 제품 묶음 · 소계 · 기본 포함 비고(내부 · 깊이 줄임) · 계산 근거 칸 · 전일 잔액 / 판매 합계 / 금일 잔액 · 입금 계좌 · 입금 기한(출고 전날 16:00) · 받는 쪽 확인(누가 · 언제, 온라인) · 세금계산서 발행 안내 · 주의 문구 · 공급받는자용 / 공급자용.

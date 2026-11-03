@@ -1381,6 +1381,32 @@ class PartnerStatement(Base):
     )
 
 
+class PartnerPayment(Base):
+    """협력사 입금 한 건(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.4 · §5.7 — 5단계).
+
+    우리 CS 가 기록한다. 잔액 = 발행 명세서 합 − 지우지 않은 입금 합. ``statement_id`` 가 있으면 그 명세서 입금이고, 없으면
+    오래된 덜 받은 명세서부터 채운다(:mod:`foms.services.partners.payments`). 지우기는 줄을 남기고 ``voided_at`` · 이유만 적는다.
+    """
+    __tablename__ = 'partner_payments'
+
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id'), nullable=False)
+    paid_on = Column(Date, nullable=False)
+    amount = Column(BigInteger, nullable=False)
+    memo = Column(String(200), nullable=True)
+    statement_id = Column(Integer, ForeignKey('partner_statements.id', ondelete='SET NULL'), nullable=True)
+    recorded_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    voided_at = Column(DateTime, nullable=True)
+    voided_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    void_reason = Column(String(200), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('amount > 0', name='ck_partner_payments_amount'),
+        Index('ix_partner_payments_org_paid_on', 'partner_org_id', 'paid_on'),
+    )
+
+
 class PartnerStatementQuestion(Base):
     """협력사가 명세서 줄을 골라 묻는 금액 문의(설계서 §3.5). 답은 우리 CS 가 단다."""
     __tablename__ = 'partner_statement_questions'

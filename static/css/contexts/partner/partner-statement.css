@@ -62,3 +62,6 @@
   .pp-sv__sheet .psf-lines th:nth-child(7), .pp-sv__sheet .psf-lines td:nth-child(7) { display: none; }
   .pp-sv__sheet .psf-lines td:first-child { min-width: 84px; }
 }
+.pp-st__tools { margin: 0 0 8px; text-align: right; }
+.pp-st__dl { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #166534; font-size: 13px; text-decoration: none; }
+.pp-st__row--pay { background: #f0fdf4; }

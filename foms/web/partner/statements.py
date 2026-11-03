@@ -1,6 +1,6 @@
 """협력사 거래명세서 화면 — 협력사 계정(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §5.6).
 
-- ``GET /partner/statements`` 월 장부(이월 · 이달 판매 · 이달 입금 · 지금 잔액 + 이달 명세서).
+- ``GET /partner/statements`` 월 장부(이월 · 이달 판매 · 이달 입금 · 지금 잔액 + 이달 명세서 · 입금) · ``/export.csv`` 받기.
 - ``GET /partner/statements/<id>`` 명세서 보기(양식 + 제품별 최종 도면 + 확인했어요 · 금액 문의). 처음 열면 "열어 봄"을 남긴다.
 - ``GET /partner/statements/<id>/print`` 양식 인쇄(공급받는자용 · 공급자용 2장, 온라인 원본 QR).
 
@@ -8,13 +8,13 @@
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, g, render_template, request, url_for
+from flask import Blueprint, Response, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.api.files.routes import build_file_view_url
 from foms.services.auth.partner_scope import partner_required
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
-from foms.services.partners.statement_partner import mark_viewed, partner_ledger, questions, visible_statement
+from foms.services.partners.statement_partner import ledger_csv, mark_viewed, partner_ledger, questions, visible_statement
 from foms.services.partners.statement_view import form_context, qr_data_uri
 from models import Order, PartnerOrg
 
@@ -44,6 +44,17 @@ def ledger():
     """월 장부."""
     return render_template("partner/statements.html", org=_org(),
                            ledger=partner_ledger(get_db(), g.current_user.partner_org_id, request.args.get("month")))
+
+
+@partner_statements_portal_bp.route("/export.csv", endpoint="export")
+@partner_required
+def export():
+    """월 장부 받기(CSV — 엑셀로 열림)."""
+    ledger = partner_ledger(get_db(), g.current_user.partner_org_id, request.args.get("month"))
+    response = Response(ledger_csv(ledger), mimetype="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = f"attachment; filename=statements-{ledger['month']}.csv"
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @partner_statements_portal_bp.route("/<int:statement_id>", endpoint="view")

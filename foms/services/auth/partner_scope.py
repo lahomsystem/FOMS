@@ -74,9 +74,10 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "notifications_push.subscribe",
     "notifications_push.push_test",
     "notifications_push.push_event",
-    # 협력사 거래명세서(설계서 2026-11-03-partner-statement §5.6): 월 장부 · 보기 · 인쇄 · 확인했어요 · 금액 문의.
-    # 다섯 다 안에서 자기 회사 발행 · 취소 명세서만 고른다(초안 · 남의 것은 404 — tests/security/test_partner_statement_portal.py).
+    # 협력사 거래명세서(설계서 2026-11-03-partner-statement §5.6): 월 장부 · 받기 · 보기 · 인쇄 · 확인했어요 · 금액 문의.
+    # 여섯 다 안에서 자기 회사 발행 · 취소 명세서만 고른다(초안 · 남의 것은 404 — tests/security/test_partner_statement_portal.py).
     "partner_statements_portal.ledger",
+    "partner_statements_portal.export",
     "partner_statements_portal.view",
     "partner_statements_portal.print_form",
     "partner_statements_api.ack",
