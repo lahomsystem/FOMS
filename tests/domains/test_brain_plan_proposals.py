@@ -298,8 +298,22 @@ def test_text_fix_files_a_text_edit_once_and_skips_same_text(admin):
                                                          BrainChange.status == "open")).scalars().all()
     fixed = [c for c in rows if c.item_key == "lahom/pol"]
     assert len(fixed) == 1 and fixed[0].fields["text"]["after"] == f"{MARK} 고친 글"
-    assert "payload" in fixed[0].fields and "글 고침" in fixed[0].reason and "D147" in fixed[0].reason
+    assert "payload" in fixed[0].fields and "맞춤법 · 뜻을 고쳐요" in fixed[0].reason and "D147" in fixed[0].reason
     assert not any("text" in (c.fields or {}) for c in rows if c.item_key == "lahom/tpl")  # 같은 글은 싣지 않는다
     before = changes()
     run_plan(document)
     assert changes() == before  # 다시 돌려도 그대로
+
+
+def test_price_creates_carry_their_calculator_place_and_reasons_read_as_sentences(admin):
+    """새 가격 규칙 만들기 제안은 근거에 계산기 자리를 함께 싣는다(카드가 '지금 값' 한 줄 — 설계서 7.9 ② 문장 카드).
+    못 찾은 이름(띄어쓰기 다름)은 싣지 않는다. 까닭은 사람이 읽는 문장 + 사장님 결정 번호."""
+    run_plan()
+    rows = {c.item_key: c for c in db_session.execute(select(BrainChange).where(
+        BrainChange.proposed_by == "import", BrainChange.op == "create")).scalars()}
+    split_a, split_b = rows["lahom/p-split-a"], rows["lahom/p-split-b"]
+    assert [e for e in split_a.evidence if e.startswith("calc:")] == [e for e in split_a.evidence[1:]]
+    assert len(split_a.evidence) == 2 and split_a.evidence[1].startswith("calc:option/")
+    assert split_b.evidence == split_b.evidence[:1]  # 못 찾은 자리는 안 싣는다(대조군)
+    assert split_a.reason.startswith("한 글에 여러 값이 섞여 있어서 값마다 나눠요 (자료 정리 · 사장님 결정 D115")
+    assert "채움" not in " ".join(c.reason for c in rows.values()) and "자료 계획 —" not in split_a.reason
