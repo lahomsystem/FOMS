@@ -87,7 +87,7 @@
     var later = 0;
     var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
     if (asTable) tableKit.render(list, cards, openBin);
-    var asQuestion = !!questionKit && !phone && openBin === 'decide';
+    var asQuestion = !!questionKit && openBin === 'decide';  // 질문 카드는 휴대폰에서도(사장님이 폰으로 정한다)
     cards.forEach(function (card) {
       if (asTable) return;
       var node = asQuestion ? questionKit.build(card) : cardKit.build(card, ctx, phone);

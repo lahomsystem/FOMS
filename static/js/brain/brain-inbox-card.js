@@ -45,10 +45,21 @@
       (Array.isArray(value) && !value.length) || (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length);
   }
 
-  /** 칸별 표 — 지금 값이 모두 비었으면(새 칸만 채움) '지금' 칸을 뺀 두 칸 표(휴대폰에서 '(없음)' 줄 줄이기). */
+  /** 사람이 볼 필요 없는 칸 — 근거 종류 · 위치 · 그 밖 세부 칸, 새로 만들 때의 상태 · 보기 범위 · 확인 날 · 확신(기본값). */
+  var MACHINE_FIELDS = ['evidence_kind', 'evidence_ref', 'payload'];
+  var CREATE_DEFAULTS = ['status', 'visibility', 'checked_at', 'confidence'];
+
+  function shownFields(prop) {
+    return (prop.fields || []).filter(function (row) {
+      return MACHINE_FIELDS.indexOf(row.field) < 0 && !(prop.op === 'create' && CREATE_DEFAULTS.indexOf(row.field) >= 0);
+    });
+  }
+
+  /** 칸별 표 — 기계 칸은 뺀다. 지금 값이 모두 비었으면(새 칸만 채움) '지금' 칸을 뺀 두 칸 표. */
   function diffTable(prop, ctx) {
-    var rows = review.diffRows(prop.fields, ctx.display);
-    var withBefore = (prop.fields || []).some(function (row) { return !isEmpty(row.before); });
+    var fields = shownFields(prop);
+    var rows = review.diffRows(fields, ctx.display);
+    var withBefore = fields.some(function (row) { return !isEmpty(row.before); });
     var table = el('table', { cls: 'brain-diff' });
     table.appendChild(el('caption', { cls: 'visually-hidden', text: '바뀌는 칸' }));
     var titles = withBefore ? ['칸', '지금', '바뀐 뒤'] : ['칸', '내용'];
@@ -80,7 +91,8 @@
 
   /** 까닭 글 — 끝의 '(자료 정리 · 사장님 결정 D…)' 같은 기록용 꼬리는 화면에서 뺀다(데이터에는 남음). */
   function reasonText(prop) {
-    return String(prop.reason || '').replace(/\s*\([^()]*결정[^()]*\)\s*$/, '');
+    return String(prop.reason || '').replace(/^자료 계획 — /, '')
+      .replace(/\s*\((?:[^()]*결정[^()]*|D\d+(?:\s*·\s*D\d+)*)\)\s*$/, '');
   }
 
   function reasonLine(prop) {
