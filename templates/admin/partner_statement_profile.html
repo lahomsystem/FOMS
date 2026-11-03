@@ -1,0 +1,26 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ org.name }} 명세서 양식{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/partner-price-list.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 거래명세서 양식 정보(설계서 2026-11-03-partner-statement §5.8). 저장소가 공개라 사업자번호 · 계좌는 코드에 두지 않고 여기서 넣는다.
+    공급자 칸은 모든 협력사 명세서에 같이 쓰이고, 공급받는자 칸은 이 협력사 것이다. 칸 목록 · 값은 static/js/admin/partner-statement-profile.js 가
+    {{ api_url }} 에서 받아 그린다. -#}
+<div class="container-fluid mt-3 mb-5 foms-pl" data-sp-root data-api-url="{{ api_url }}">
+  <a href="{{ url_for('admin.partners') }}" class="foms-pl__back"><i class="fas fa-chevron-left me-1"></i>협력사 관리</a>
+  <h1 class="h4 mb-0 mt-1">{{ org.name }} 거래명세서 양식</h1>
+  <p class="text-muted small">명세서 위쪽 공급받는자 · 공급자 칸과 아래쪽 입금 계좌 · 안내 문구입니다. 바꾸면 이미 나간 명세서에도 새 글이 보입니다(금액은 그대로).</p>
+  <form class="foms-sp" data-sp-form novalidate>
+    <fieldset class="foms-sp__box"><legend class="h6">공급자 (우리 회사 — 모든 협력사 명세서에 같이 쓰임)</legend><div data-sp-supplier></div></fieldset>
+    <fieldset class="foms-sp__box"><legend class="h6">공급받는자 ({{ org.name }})</legend>
+      <p class="small text-muted mb-2" data-sp-org></p><div data-sp-receiver></div></fieldset>
+    <button type="submit" class="btn btn-primary btn-sm">저장</button>
+    <span class="small ms-2" data-sp-status role="status" aria-live="polite"></span>
+  </form>
+</div>
+<script src="{{ asset_url('js/admin/partner-statement-profile.js') }}" defer></script>
+{% endblock %}

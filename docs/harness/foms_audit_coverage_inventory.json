@@ -8,15 +8,15 @@
     "log_access"
   ],
   "baselines": {
-    "total": 272,
+    "total": 281,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 231,
+    "AUDITED": 240,
     "EXEMPT": 39,
     "UNAUDITED": 2
   },
-  "coverage_percent": 99.1,
+  "coverage_percent": 99.2,
   "unaudited_sites": [
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
@@ -1553,7 +1553,7 @@
     {
       "path": "foms/api/partner_price_list.py",
       "endpoint": "api_import_price_list",
-      "lineno": 117,
+      "lineno": 127,
       "methods": [
         "POST"
       ],
@@ -1562,7 +1562,88 @@
     {
       "path": "foms/api/partner_price_list.py",
       "endpoint": "api_save_price_list",
-      "lineno": 144,
+      "lineno": 154,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_save_statement_profile",
+      "lineno": 210,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_discard",
+      "lineno": 236,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_issue",
+      "lineno": 189,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_issue_complete",
+      "lineno": 252,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_open_draft",
+      "lineno": 137,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_recalc",
+      "lineno": 170,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_revise",
+      "lineno": 205,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_save",
+      "lineno": 154,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_void",
+      "lineno": 221,
       "methods": [
         "POST"
       ],
@@ -2228,7 +2309,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 141,
+      "lineno": 154,
       "methods": [
         "POST"
       ],
@@ -2237,7 +2318,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 69,
+      "lineno": 82,
       "methods": [
         "POST"
       ],
@@ -2246,7 +2327,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_reset_password",
-      "lineno": 208,
+      "lineno": 221,
       "methods": [
         "POST"
       ],
@@ -2255,7 +2336,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_set_user_phone",
-      "lineno": 185,
+      "lineno": 198,
       "methods": [
         "POST"
       ],
@@ -2264,7 +2345,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 91,
+      "lineno": 104,
       "methods": [
         "POST"
       ],
@@ -2273,7 +2354,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 168,
+      "lineno": 181,
       "methods": [
         "POST"
       ],
@@ -2282,7 +2363,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_upload_logo",
-      "lineno": 108,
+      "lineno": 121,
       "methods": [
         "POST"
       ],

@@ -1,4 +1,4 @@
-# 협력사 거래명세서 — 단가표 · 옵션 고르기 · 명세서 · 입금 장부 SPEC (2026-11-03 승인 · 3단계까지 구현)
+# 협력사 거래명세서 — 단가표 · 옵션 고르기 · 명세서 · 입금 장부 SPEC (2026-11-03 승인 · 4단계 우리 CS 쪽까지 구현)
 
 등급: 코어 변경(DB · API · 권한 · 화면) — Spec → 승인 → 구현.
 선행 설계서: `docs/specs/2026-10-08-partner-portal_SPEC.md`(§6.3 정산은 "갈라 보이기만"으로 남겨 둠) · `docs/specs/2026-10-19-partner-foms-mode_SPEC.md`(협력사 화면 틀).
@@ -95,12 +95,16 @@
 | status | varchar(10) | DRAFT · ISSUED · VOID |
 | revision_of | FK self null | 수정본이면 옛 명세서(옛 것은 VOID) |
 | price_list_id | FK | 계산에 쓴 단가표 판 |
-| drawing_revision_id | FK drawing_revisions | 협력사가 확정한 도면 회차 |
+| drawing_round · drawing_keys | int · JSONB | 협력사가 확정한 도면 회차와 그때 최종 도면 파일 열쇠(4단계 구현: `drawing_revisions` 는 실행 중에 줄을 쓰지 않아 FK 대신 스냅샷) |
 | groups | JSONB | 제품 묶음 스냅샷 `[{item_uid, title, lines:[{key?, name, spec, unit, qty, unit_price, amount, source, basis, reason}]}]` — source = `auto` · `custom` · `edited` |
 | total / supply / vat | bigint | 판매 합계 · 공급가액 · 세액 |
 | prev_balance / after_balance | bigint | 발행 때 잔액 스냅샷 |
 | issued_at / issued_by | | |
 | partner_viewed_at · partner_ack_at · partner_ack_by | | 협력사가 열어 봄 · "확인했어요" |
+| reason · version | text · int | 수정본 · 취소 이유(협력사에게 보임) · 초안 저장 경합 막기 |
+
+- **4단계 구현(11-03)**: 표 `partner_statements` · `partner_statement_questions`(마이그레이션 `pstmt_00`). 주문마다 DRAFT 하나(부분 유니크). 묶음 줄 모양 = `statement_calc.calc_item` 결과 + CS 값(`source` `custom` 은 `amount`, `edited` 는 `orig_unit_price` · `reason`). 로직 `foms/services/partners/statements.py`(초안 · 다시 계산 · 저장 · 발행 · 수정본 · 취소), 화면 값 `statement_view.py`(한글 금액 포함).
+- **양식 정보**(공급자 · 공급받는자 블록 · 계좌 · 문서번호 머리 · 입금 기한 · 세금계산서 안내 · 주의 문구)는 저장소가 공개라 코드에 두지 않고 SystemSetting `partner_statement_profile` 한 줄에 둔다. 관리 화면 `/admin/partners/<id>/statement-profile`(ADMIN). 공급받는자 상호 · 등록번호는 협력사 정보 그대로. 열린 질문 8(세금계산서 안내) · 9(번호 머리)는 이 화면에서 정한다.
 
 ### 3.4 `partner_payments` — 입금
 `id, partner_org_id, paid_on(date), amount, memo, statement_id(FK null — 어느 명세서 입금인지), recorded_by, created_at, voided_at`. 잔액 = ISSUED 명세서 합 − 지우지 않은 입금 합(날짜 순).
@@ -157,6 +161,7 @@
 - 목록: 도면 확정(CONFIRMED 있음) 주문, 출고일 가까운 순. 내일 출고 · 다음 출고 · 출고일 없음 세 갈래로 나눈다. 초안 상태 = 자동 완성 / 커스텀 금액 필요. "자동 완성만 한꺼번에 발행".
 - 명세서 화면: 왼쪽 확정 도면(제품별 탭), 오른쪽 묶음별 줄(자동 줄은 글자 · "고치기", 커스텀 줄만 금액 칸). 단가를 고치면 원래 값 · 이유가 남는다(`edited`).
 - 발행: 일자(출고일) · 번호 · 잠금 · 잔액 스냅샷 · 협력사 화면에 보임. 수정본 · 취소(VOID)는 이유 필수.
+- **4단계 구현(11-03)**: 화면 `/erp/partner-statements`(ERP 하위 메뉴 "협력사 명세서" — 정책 `PARTNER_STATEMENT` 로 숨김) · 한 장 `/erp/partner-statements/<id>` · 양식 `/<id>/print`(`templates/partner/statement_form.html`, 공급받는자용 · 공급자용 2장). API `/api/partner-statements`(`foms/api/partner_statements_staff.py`). 권한 = ADMIN, 또는 CS 권한 팀(회계팀 포함)의 STAFF · MANAGER(게이트 `statements.can_manage_statements`). 일자 = 출고 대시보드와 같은 시공일, 단가표 판 = 적용 시작일이 그 날 이전인 가장 새 판. 갈래는 "내일까지 출고(지난 날 포함) · 다음 출고 · 출고일 없음". 발행은 사람이 누른다(열린 질문 7 기본값). 잔액은 발행 명세서 합이고 5단계에서 입금을 뺀다.
 
 ### 5.6 협력사 — 거래명세서 메뉴
 - 월 장부: 지난달 이월 · 이달 판매 · 이달 입금 · 지금 잔액. 줄 = 일자 · 문서번호 · 고객(현장) · 제품 수 · 판매 · 입금 · 잔액 · 상태(새 명세서 · 확인함 · 입금 대기 · 수정본). 제품 여러 개 주문은 ▾ 로 제품별 금액. 엑셀 받기.

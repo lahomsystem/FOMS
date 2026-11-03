@@ -7,6 +7,8 @@
   (화면에 띄우기만 — 저장해야 새 판이 된다).
 - ``POST ""`` 새 판 저장 ``{sheet, label, effective_from, base_id}`` → 지금 판은 RETIRED, 새 판 ACTIVE.
   ``base_id`` 가 지금 판이 아니면 409(그 사이 다른 판이 저장됨). 감사 한 줄 ``PARTNER_PRICE_LIST_SAVED``.
+- ``GET · POST /<org_id>/statement-profile`` 거래명세서 양식 정보(공급자 · 공급받는자 블록 · 계좌 · 안내 문구 — §5.8).
+  값은 SystemSetting 한 줄(저장소 공개라 코드에 두지 않는다). 감사 ``PARTNER_STATEMENT_PROFILE_SAVED``.
 
 미인증 401 · ADMIN 아님 403(JSON). 쓰기는 공용 CSRF · Origin 가드와 쓰기 정책 엔진(``ADMIN_OPS``) 뒤.
 응답은 ``{"success", "data", "error"}``. 판정 · 저장은 :mod:`foms.services.partners.price_list`.
@@ -29,6 +31,14 @@ from foms.services.partners.price_list import (
     list_versions,
     save_price_list,
     version_summary,
+)
+from foms.services.partners.statement_profile import (
+    RECEIVER_FIELDS,
+    SUPPLIER_FIELDS,
+    ProfileError,
+    load_profile,
+    receiver_block,
+    save_profile,
 )
 from models import PartnerOrg, PartnerPriceList, SecurityLog, User
 
@@ -170,3 +180,57 @@ def api_save_price_list(org_id: int):
         logger.exception("[PRICE_LIST] 단가표 저장 실패 org=%s", org_id)
         return _fail(500, _SAVE_FAILED)
     return _ok(_detail(row, _names(db, [row])), 201)
+
+
+# --------------------------------------------------------------------------
+# 거래명세서 양식 정보(설계서 §5.8) — 공급자(우리) 블록 · 이 협력사 공급받는자 블록 · 계좌 · 안내 문구
+# --------------------------------------------------------------------------
+def _profile_payload(db, org: PartnerOrg) -> dict[str, Any]:
+    profile = load_profile(db)
+    return {"org": {"id": org.id, "name": org.name, "biz_reg_no": org.biz_reg_no or ""},
+            "supplier": profile["supplier"], "receiver": receiver_block(profile, org), "version": profile["version"],
+            "fields": {"supplier": [[n, label, limit, multi] for n, label, limit, multi in SUPPLIER_FIELDS],
+                       "receiver": [[n, label, limit, multi] for n, label, limit, multi in RECEIVER_FIELDS]}}
+
+
+@partner_price_list_api_bp.route("/<int:org_id>/statement-profile", methods=["GET"], endpoint="get_statement_profile")
+def api_get_statement_profile(org_id: int):
+    """양식 정보 읽기."""
+    _actor, denied = _admin()
+    if denied:
+        return denied
+    db = get_db()
+    org = _org(db, org_id)
+    if org is None:
+        return _fail(404, "협력사를 찾을 수 없습니다.")
+    return _ok(_profile_payload(db, org))
+
+
+@partner_price_list_api_bp.route("/<int:org_id>/statement-profile", methods=["POST"], endpoint="save_statement_profile")
+def api_save_statement_profile(org_id: int):
+    """양식 정보 저장 ``{supplier, receiver, version}`` — 감사 한 줄(값 대신 바뀐 칸 이름)."""
+    actor, denied = _admin()
+    if denied:
+        return denied
+    body = request.get_json(silent=True)
+    body = body if isinstance(body, dict) else {}
+    db = get_db()
+    org = _org(db, org_id)
+    if org is None:
+        return _fail(404, "협력사를 찾을 수 없습니다.")
+    try:
+        version, changed = save_profile(db, org_id, body, base_version=body.get("version"))
+        db.add(SecurityLog(
+            user_id=actor.id, action="PARTNER_STATEMENT_PROFILE_SAVED", target_type="partner_org",
+            target_id=org_id, message=f"거래명세서 양식 정보 저장: {org.name}",
+            detail={"partner_org_id": org_id, "version": version, "changed": changed},
+        ))
+        db.commit()
+    except ProfileError as exc:
+        db.rollback()
+        return _fail(exc.status, str(exc))
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("[PRICE_LIST] 명세서 양식 정보 저장 실패 org=%s", org_id)
+        return _fail(500, _SAVE_FAILED)
+    return _ok(_profile_payload(db, org))

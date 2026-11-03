@@ -1,0 +1,37 @@
+/* 협력사 거래명세서 — 우리 CS 목록 · 한 장(설계서 2026-11-03-partner-statement §5.5). 전역 .btn !important 를 피해 자체 단추 클래스. */
+.foms-ps__section { margin: 12px 0 20px; }
+.foms-ps__bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 6px; }
+.foms-ps__bucket { margin: 14px 0 6px; font-size: 14px; font-weight: 700; }
+.foms-ps__table { width: 100%; border-collapse: collapse; background: var(--erp-surface, #fff); font-size: 13px; }
+.foms-ps__table th, .foms-ps__table td { padding: 6px 8px; border-bottom: 1px solid var(--erp-border, #e5e7eb); text-align: left; vertical-align: middle; }
+.foms-ps__table thead th { font-weight: 600; color: var(--erp-text-muted, #6b7280); white-space: nowrap; }
+.foms-ps__num { text-align: right; white-space: nowrap; }
+.foms-ps__ok { color: #15803d; font-weight: 600; }
+.foms-ps__need { color: #b45309; font-weight: 600; }
+.foms-ps__void td { color: var(--erp-text-muted, #9ca3af); text-decoration: line-through; }
+.foms-ps__status { min-height: 1.2em; margin: 4px 0; color: #b45309; }
+.foms-ps__btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--erp-border, #d1d5db); border-radius: 6px; background: var(--erp-surface, #fff); color: inherit; font-size: 13px; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.foms-ps__btn:disabled { opacity: 0.6; cursor: default; }
+.foms-ps__btn--primary { border-color: #1f4fd1; background: #1f4fd1; color: #fff; }
+.foms-ps__btn--danger { border-color: #dc2626; color: #dc2626; }
+.foms-ps__btn--link { margin-left: 6px; padding: 0 4px; border: 0; background: none; color: #1f4fd1; text-decoration: underline; }
+.foms-pse__meta { color: var(--erp-text-muted, #6b7280); }
+.foms-pse__grid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+.foms-pse__drawings { position: sticky; top: 12px; padding: 10px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
+.foms-pse__drawings li { margin-bottom: 4px; word-break: break-all; }
+.foms-pse__group { margin-bottom: 14px; }
+.foms-pse__group-title { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
+.foms-pse__custom td { background: #fffbeb; }
+.foms-pse__input { padding: 4px 6px; border: 1px solid var(--erp-border, #d1d5db); border-radius: 5px; background: var(--erp-surface, #fff); color: inherit; font-size: 13px; }
+.foms-pse__amount { display: inline-block; width: 110px; text-align: right; }
+.foms-pse__reason { display: block; width: 100%; min-width: 160px; margin-top: 4px; }
+.foms-pse__date { width: 150px; }
+.foms-pse__orig { color: #b45309; font-size: 12px; }
+.foms-pse__needs { margin-bottom: 10px; padding: 8px 10px; border: 1px solid #fcd34d; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.foms-pse__totals { margin: 8px 0; font-size: 15px; }
+.foms-pse__actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid var(--erp-border, #e5e7eb); }
+@media (max-width: 860px) {
+  .foms-pse__grid { grid-template-columns: 1fr; }
+  .foms-pse__drawings { position: static; }
+  .foms-ps__table { font-size: 12px; }
+}
