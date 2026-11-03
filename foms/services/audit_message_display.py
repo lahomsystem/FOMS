@@ -338,6 +338,8 @@ ACTION_LABELS: dict[str, str] = {
     "PARTNER_STATEMENT_ACKED": "협력사가 명세서 확인",
     "PARTNER_STATEMENT_QUESTION": "협력사 명세서 금액 문의",
     "PARTNER_STATEMENT_ANSWERED": "협력사 명세서 문의 답",
+    "PARTNER_PAYMENT_RECORDED": "협력사 입금 기록",
+    "PARTNER_PAYMENT_VOIDED": "협력사 입금 지움",
     # --- FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices) ---
     "NOTICE_CREATED": "공지 만듦",
     "NOTICE_UPDATED": "공지 고침",

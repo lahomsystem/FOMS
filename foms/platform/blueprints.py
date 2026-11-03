@@ -292,10 +292,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     # --- Lane: 협력사 거래명세서 우리 CS(화면 /erp/partner-statements · JSON /api/partner-statements — 설계서
     # 2026-11-03-partner-statement §5.5). ADMIN 또는 CS 권한 팀만, 쓰기는 CSRF · 정책 PARTNER_STATEMENT. 경로가 고유해
     # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_payments_staff import partner_payments_staff_api_bp
     from foms.api.partner_statements_staff import partner_statements_staff_api_bp
     from foms.web.cs.partner_statements import erp_partner_statements_page_bp
 
     app.register_blueprint(partner_statements_staff_api_bp)
+    # 입금 장부(5단계 — /api/partner-payments): 명세서와 같은 권한 · 정책.
+    app.register_blueprint(partner_payments_staff_api_bp)
     app.register_blueprint(erp_partner_statements_page_bp)
 
     # --- Lane: 협력사 거래명세서 협력사 쪽(화면 /partner/statements · JSON /api/partner/statements — 설계서

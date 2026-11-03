@@ -26,9 +26,30 @@
     <div data-ps-pending><p class="text-muted small">불러오는 중…</p></div>
   </section>
 
+  {#- 입금 장부(5단계 — 설계서 §5.7). static/js/cs/partner-payments.js 가 /api/partner-payments 로 읽고 쓴다. -#}
+  <section class="foms-ps__section" aria-labelledby="ps-pay-title" data-pay-root data-api="/api/partner-payments">
+    <div class="foms-ps__bar">
+      <h2 class="h6 mb-0" id="ps-pay-title">입금</h2>
+      <label class="visually-hidden" for="ps-pay-org">협력사</label>
+      <select class="foms-pse__input" id="ps-pay-org" data-pay-org></select>
+      <b data-pay-balance></b>
+      <a class="foms-ps__btn ms-auto" data-pay-export href="#">이달 장부 엑셀로 받기</a>
+    </div>
+    <form class="foms-ps__payform" data-pay-form novalidate>
+      <label class="small">입금일 <input type="date" class="foms-pse__input" name="paid_on" required></label>
+      <label class="small">금액 <input type="text" inputmode="numeric" class="foms-pse__input foms-pse__amount" name="amount" placeholder="원" required></label>
+      <label class="small">명세서 <select class="foms-pse__input" name="statement_id" data-pay-statements></select></label>
+      <label class="small foms-ps__grow">메모 <input type="text" class="foms-pse__input" name="memo" maxlength="200" placeholder="예: 입금자명 · 은행"></label>
+      <button type="submit" class="foms-ps__btn foms-ps__btn--primary">입금 기록</button>
+    </form>
+    <p class="foms-ps__status small" data-pay-status role="status" aria-live="polite"></p>
+    <div data-pay-list></div>
+  </section>
+
   <section class="foms-ps__section" aria-labelledby="ps-issued-title">
     <h2 class="h6" id="ps-issued-title">발행함</h2>
     <div data-ps-issued><p class="text-muted small">불러오는 중…</p></div>
   </section>
 </div>
 <script src="{{ asset_url('js/cs/partner-statements.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/partner-payments.js') }}" defer></script>

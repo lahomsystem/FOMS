@@ -20,7 +20,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from foms.services.partners.price_list import save_price_list
-from models import Order, OrderItemOption, PartnerOrg, PartnerPriceList, PartnerStatement, PartnerStatementQuestion
+from models import (Order, OrderItemOption, PartnerOrg, PartnerPayment, PartnerPriceList, PartnerStatement,
+                    PartnerStatementQuestion)
 
 ROOT = Path(__file__).resolve().parents[2]
 _SHEET = {"schema": 1, "brand": "t", "seq": 1, "retired": [], "categories": [
@@ -97,7 +98,8 @@ def test_migration_matches_models_and_round_trips(pg_session):
     models_shape = _shape(conn)
     mig = _migration()
     # 이 판을 가리키는 뒤 판들(alembic 은 뒤 판부터 내린다 — 명세서 표도 단가표 판을 FK 로 가리킨다)
-    children = [_migration("itemopt_00_order_item_options"), _migration("pstmt_00_partner_statements")]
+    children = [_migration("itemopt_00_order_item_options"), _migration("pstmt_00_partner_statements"),
+                _migration("ppay_00_partner_payments")]
     assert (mig.revision, mig.down_revision) == ("pricelist_00", "brain_02")
     with Operations.context(MigrationContext.configure(conn)):
         for child in reversed(children):
@@ -191,12 +193,35 @@ def test_statements_migration_matches_models_and_round_trips(pg_session):
     conn = pg_session.connection()
     shapes = {t: _shape(conn, t) for t in ("partner_statements", "partner_statement_questions")}
     mig = _migration("pstmt_00_partner_statements")
+    child = _migration("ppay_00_partner_payments")  # 입금 표가 명세서를 FK 로 가리킨다(뒤 판부터 내린다)
     assert (mig.revision, mig.down_revision) == ("pstmt_00", "itemopt_00")
     with Operations.context(MigrationContext.configure(conn)):
+        child.downgrade()
         mig.downgrade()
         assert all(_shape(conn, t) == ([], {}) for t in shapes)
         mig.upgrade()
         assert {t: _shape(conn, t) for t in shapes} == shapes
         mig.downgrade()
         mig.upgrade()
+        child.upgrade()
     assert {t: _shape(conn, t) for t in shapes} == shapes
+
+
+def test_payments_migration_round_trips_and_amount_must_be_positive(pg_session):
+    conn = pg_session.connection()
+    shape = _shape(conn, "partner_payments")
+    mig = _migration("ppay_00_partner_payments")
+    assert (mig.revision, mig.down_revision) == ("ppay_00", "pstmt_00")
+    with Operations.context(MigrationContext.configure(conn)):
+        mig.downgrade()
+        assert _shape(conn, "partner_payments") == ([], {})
+        mig.upgrade()
+    assert _shape(conn, "partner_payments") == shape
+    org = _org(pg_session)
+    pg_session.add(PartnerPayment(partner_org_id=org.id, paid_on=dt.date(2026, 11, 3), amount=1000))
+    pg_session.flush()  # 대조군
+    savepoint = pg_session.begin_nested()
+    pg_session.add(PartnerPayment(partner_org_id=org.id, paid_on=dt.date(2026, 11, 3), amount=0))
+    with pytest.raises(IntegrityError):
+        pg_session.flush()  # 금액은 0 보다 커야 한다
+    savepoint.rollback()

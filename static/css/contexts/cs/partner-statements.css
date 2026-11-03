@@ -38,3 +38,6 @@
 .foms-pse__questions { margin: 10px 0; padding: 10px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
 .foms-pse__question { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid #dbeafe; }
 .foms-pse__question:first-of-type { border-top: 0; }
+.foms-ps__payform { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 6px 0; }
+.foms-ps__payform label { display: grid; gap: 2px; }
+.foms-ps__grow { flex: 1 1 200px; }
