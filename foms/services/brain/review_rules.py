@@ -14,7 +14,7 @@ import json
 from typing import Any, Mapping, Optional
 
 from foms.services.brain.constants import AI_EXPIRE_DAYS, KEY_FIELD_ORDER, OP_DELETE, OP_UPDATE
-from foms.services.brain.schemas import PAYLOAD, payload_props
+from foms.services.brain.schemas import PAYLOAD, edit_props
 from foms.services.brain.store import kst_day
 
 AGENT_PREFIX = "agent:"
@@ -53,10 +53,10 @@ def confirm_value(op: str, fields: Optional[Mapping[str, Any]],
     if name is None:
         return None, ""
     entry = (fields or {}).get(name) or {}
-    if name == "payload" and op != OP_DELETE and payload_props(item_type):
+    if name == "payload" and op != OP_DELETE:  # 틀이 없는 유형도 이름표 칸은 칸 하나로(설계서 7.9 ① 이름 표)
         before = entry.get("before") if isinstance(entry.get("before"), dict) else {}
         after = entry.get("after") if isinstance(entry.get("after"), dict) else {}
-        for prop in payload_props(item_type):
+        for prop in edit_props(item_type):
             sub = prop.path[len(PAYLOAD):]
             if before.get(sub) != after.get(sub):
                 return prop.path, value_text(after.get(sub))

@@ -107,3 +107,81 @@ def test_first_tab_is_inbox_only_when_there_is_something_to_decide(app):
     assert html.index('id="brain-tab-inbox-btn"') < html.index('id="brain-tab-search-btn"') < html.index("더 보기")
     assert 'class="dropdown-item" id="brain-tab-table-btn"' in html  # 지식 표는 더 보기 안
     assert "넣기" not in html.split('id="brain-tab-inbox"')[1].split("</section>")[0]  # 확인할 것 칸 글에 '넣기' 없음
+
+
+# ── 2단계: ① 이름 표 · ④ 한 번에(D151) ──────────────────────────────────
+def _label_change(admin, key, label):
+    row = current_object(db_session, key)
+    return propose_update(db_session, key=key, base_version=row.version,
+                          after={"payload": {**(row.payload or {}), "pref_label": label}},
+                          reason=REASON, proposer=Proposer.user(admin.id), now=NOW, known="")
+
+
+def _tpl(admin):
+    from tests.support.brain_review_support import DOC
+    from tests.support.brain_support import create
+    return create(db_session, admin, "lahom/tpl", item_type="template", layer="cs", brand="LAHOM", name="greeting",
+                  text="안녕하세요", payload={"doc_id": "tpl", "intents": ["hours"], **DOC})
+
+
+def test_admin_bulk_approves_label_only_changes_of_any_grade_and_refuses_mixed_batches(app):
+    from foms.persistence.brain.models import BrainChange
+    from foms.services.brain.decide import bulk_apply
+    from foms.services.brain.errors import BrainShapeError
+
+    world = review_world(db_session)
+    admin, cs_mgr = world["people"]["admin"], world["people"]["cs_mgr"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")  # 상용구 = 등급 B
+    price = _label_change(admin, "common/shipping", "운임 추가비")  # 가격 규칙 = 등급 B
+    db_session.commit()
+    assert {tpl.grade, price.grade} == {"B"}
+    with pytest.raises(BrainShapeError):  # 글이 바뀌는 등급 B(운임 글 고침)가 섞이면 통째 거절
+        bulk_apply(db_session, [tpl.id, world["changes"]["price"]], actor=admin, now=LATER)
+    with pytest.raises(BrainShapeError):  # 관리자가 아니면 이름표만이어도 등급 A 만
+        bulk_apply(db_session, [tpl.id], actor=cs_mgr, now=LATER)
+    db_session.rollback()
+    assert db_session.get(BrainChange, tpl.id).status == "open"  # 아무것도 안 썼다
+    out = bulk_apply(db_session, [tpl.id, price.id], actor=admin, now=LATER)
+    db_session.commit()
+    assert sorted(a["id"] for a in out["applied"]) == sorted([tpl.id, price.id]) and out["failed"] == []
+    assert current_object(db_session, "lahom/tpl").payload["pref_label"] == "첫인사 상용구"
+    assert current_object(db_session, "lahom/tpl").text == "안녕하세요"  # 글은 그대로
+
+
+def test_inbox_marks_label_only_b_changes_bulk_ok_for_the_admin_only(app):
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")
+    db_session.commit()
+    card = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"] if c["main"]["id"] == tpl.id)
+    assert card["bin"] == "names" and card["main"]["bulk_ok"] is True and card["title"] == "첫인사 상용구"
+    assert card["main"]["confirm"] == {"field": "payload.pref_label", "value": "첫인사 상용구"}  # JSON 이 아니라 이름 칸
+    price = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"]
+                 if c["main"]["id"] == world["changes"]["price"])
+    assert price["main"]["bulk_ok"] is False  # 글이 바뀌는 등급 B 는 한 장씩(대조군)
+    pref = next(r for r in card["main"]["fields"] if r["field"] == "payload.pref_label")
+    assert pref["editable"] is True and pref["label"] == "한글 이름"
+
+
+def test_renamed_label_is_approved_with_the_edited_name_on_a_type_without_schema(app):
+    from foms.services.brain.decide import apply_decision
+
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")
+    db_session.commit()
+    apply_decision(db_session, tpl.id, actor=admin, base_version=tpl.base_version, now=LATER,
+                   edits={"payload.pref_label": "첫 인사 상용구"},
+                   confirm={"field": "payload.pref_label", "value": "첫 인사 상용구"})
+    db_session.commit()
+    assert current_object(db_session, "lahom/tpl").payload["pref_label"] == "첫 인사 상용구"
+
+
+def test_copy_targets_read_as_place_names():
+    from foms.services.brain.inbox_bins import ref_label
+    assert ref_label("form:lahom-option-table") == "기본 옵션표"
+    assert ref_label("store:lahom-main") == "스마트스토어 상세 · lahom-main"
+    assert ref_label("lahom/ep") == "lahom/ep" and ref_label(None) == ""

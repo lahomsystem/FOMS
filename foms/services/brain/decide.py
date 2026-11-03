@@ -33,9 +33,10 @@ from foms.services.brain.errors import (
 )
 from foms.services.brain.gates import text_gates
 from foms.services.brain.inbox import agent_clause, current_join, link_versions, visible_clause
+from foms.services.brain.inbox_bins import bulk_ok_any_grade
 from foms.services.brain.proposals import known_text, link_target_type
 from foms.services.brain.review_rules import ai_cutoff, clamp_ms, confirm_value
-from foms.services.brain.schemas import PAYLOAD, payload_props
+from foms.services.brain.schemas import PAYLOAD, edit_props
 from foms.services.brain.scope import viewer_of
 from foms.services.brain.store import current_object, values_of
 from foms.services.datetime_kst import now_utc_naive
@@ -131,7 +132,7 @@ def _apply_edits(session: Any, change: BrainChange, edits: Mapping[str, Any]) ->
     """고쳐 넣기 — 바뀐 칸의 '후' 값만 고친다(처음 값은 ``proposed``). 고친 뒤 바뀐 칸이 없으면 대상 오류."""
     if change.op not in (OP_CREATE, OP_UPDATE):
         raise BrainShapeError(["edits: 새로 만듦 · 고침 제안만 고쳐 넣는다"])
-    editable = set(HUMAN_EDIT_FIELDS) | {p.path for p in payload_props(change.item_type)}
+    editable = set(HUMAN_EDIT_FIELDS) | {p.path for p in edit_props(change.item_type)}
     unknown = sorted(str(n)[:40] for n in edits if n not in editable)
     if unknown:
         raise BrainShapeError([f"edits: {sorted(editable)} 칸만 고쳐 넣는다 — {unknown}"])
@@ -213,20 +214,32 @@ def reject_decision(session: Any, change_id: Any, *, actor: Any, code: str, view
 
 def bulk_apply(session: Any, change_ids: Iterable[Any], *, actor: Any,
                now: Optional[datetime.datetime] = None) -> dict[str, Any]:
-    """등급 A 만 한꺼번에 넣기 — 하나라도 등급 A 가 아니면 아무것도 쓰지 않는다. 하나씩 저장점에서 넣고 막힌 것은 코드로 알린다."""
+    """한꺼번에 승인 — 등급 A, 또는 관리자의 ① 이름표만 · ④ 사본 링크만 제안(등급 상관없음 — 설계서 7.9 · D151).
+
+    하나라도 받을 수 없는 제안이 섞이면 아무것도 쓰지 않는다. ① · ④ 는 확인할 핵심 값이 글 · 금액이 아니라서 등급 B 확인 글을
+    서버가 채운다(표에서 보인 값 그대로). 하나씩 저장점에서 넣고 막힌 것은 코드로 알린다."""
     now = now or now_utc_naive()
     ids = list(dict.fromkeys(change_ids))
     if not ids or len(ids) > BULK_MAX or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
         raise BrainShapeError([f"ids: 제안 번호 1 ~ {BULK_MAX}개여야 한다"])
-    grades = dict(session.execute(select(BrainChange.id, BrainChange.grade).where(BrainChange.id.in_(ids))).all())
-    if any(grades.get(i) != GRADE_A for i in ids):
-        raise BrainShapeError(["ids: 한꺼번에 넣기는 등급 A 제안만 받는다"])
+    rows = {r.id: r for r in session.execute(select(
+        BrainChange.id, BrainChange.grade, BrainChange.op, BrainChange.item_type, BrainChange.fields,
+        BrainChange.link_kind).where(BrainChange.id.in_(ids))).all()}
+    admin = viewer_of(actor).is_admin
+    wide = {i for i, r in rows.items() if admin and bulk_ok_any_grade(r.op, r.item_type, r.fields, r.link_kind)}
+    if any(i not in rows or (rows[i].grade != GRADE_A and i not in wide) for i in ids):
+        raise BrainShapeError(["ids: 한꺼번에 승인은 등급 A, 또는 관리자의 이름표만 · 사본 링크만 제안만 받는다"])
     applied, failed = [], []
     for change_id in ids:
         base = session.execute(select(BrainChange.base_version).where(BrainChange.id == change_id)).scalar()
         try:
+            confirm = None
+            if change_id in wide:
+                field, value = confirm_value(rows[change_id].op, rows[change_id].fields, rows[change_id].item_type)
+                confirm = {"field": field, "value": value}
             with session.begin_nested():
-                result = apply_decision(session, change_id, actor=actor, base_version=base, now=now, bulk=True)
+                result = apply_decision(session, change_id, actor=actor, base_version=base, confirm=confirm, now=now,
+                                        bulk=True)
             applied.append({"id": change_id, "version": result.version, "release": result.release_no})
         except BrainError as exc:
             failed.append({"id": change_id, "code": exc.code})
