@@ -24,6 +24,7 @@ from foms.services.auth.partner_scope import PARTNER_SOURCE_MARKER
 from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.orders.order_create import create_order
 from foms.services.notifications.recipients import fan_out_new_notification
+from foms.services.partners.item_options import ItemOptionsError, prepare_partner_options, save_partner_options
 from foms.services.partners.manager import manager_party
 from foms.services.partners.measure_ready import drawing_request_missing
 from foms.services.partners.schedule_request import clean_date, clean_request, clean_time, notify_shipment_request
@@ -128,23 +129,34 @@ def _clean_item(raw: dict[str, Any], name: str) -> dict[str, Any]:
     return item
 
 
+def named_raw_items(raw_items: Any) -> list[dict[str, Any]]:
+    """화면이 보낸 품목 가운데 제품명이 있는 것(서버가 저장하는 품목과 같은 순서 — 옵션을 짝짓는다)."""
+    if not isinstance(raw_items, list):
+        return []
+    return [raw for raw in raw_items[:MAX_ITEMS] if isinstance(raw, dict) and _text(raw.get("product_name"), 100)]
+
+
 def clean_partner_items(raw_items: Any, *, keep_uid: bool = False) -> list[dict[str, Any]]:
     """협력사가 보낸 품목들. ``keep_uid`` 면 화면이 돌려보낸 품목 uid 를 싣는다(진위는 ``ensure_item_uids`` 가 본다)."""
     if not isinstance(raw_items, list):
         raise PartnerOrderError("품목을 하나 이상 넣어 주세요.")
     items: list[dict[str, Any]] = []
-    for raw in raw_items[:MAX_ITEMS]:
-        if not isinstance(raw, dict):
-            continue
-        name = _text(raw.get("product_name"), 100)
-        if name:
-            item = _clean_item(raw, name)
-            if keep_uid and isinstance(raw.get("uid"), str):
-                item["uid"] = raw["uid"][:64]
-            items.append(item)
+    for raw in named_raw_items(raw_items):
+        item = _clean_item(raw, _text(raw.get("product_name"), 100))
+        if keep_uid and isinstance(raw.get("uid"), str):
+            item["uid"] = raw["uid"][:64]
+        items.append(item)
     if not items:
         raise PartnerOrderError("품목을 하나 이상 넣어 주세요.")
     return items
+
+
+def prepare_options_or_raise(db, org_id: int, raw_items: Any, items: list[dict[str, Any]], error=PartnerOrderError):
+    """협력사 단가표가 있으면 품목마다 옵션 칸을 검사한다(설계서 2026-11-03-partner-statement §5.2). 없으면 None."""
+    try:
+        return prepare_partner_options(db, org_id, named_raw_items(raw_items), items)
+    except ItemOptionsError as exc:
+        raise error(str(exc)) from exc
 
 
 def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order:
@@ -164,6 +176,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     if not customer_name or not customer_phone or not address:
         raise PartnerOrderError("고객 이름 · 연락처 · 현장 주소를 넣어 주세요.")
     items = clean_partner_items(data.get("items"))
+    options = prepare_options_or_raise(db, org.id, data.get("items"), items)
     memo = _text(data.get("memo"), 2000)
     measured_on = clean_date(data.get("measured_on"))
     measured_time = clean_time(data.get("measured_time"))
@@ -227,6 +240,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         structured_data=sd,
         is_erp_order=True,
     )
+    if options:  # create_order 가 품목 uid 를 붙인 뒤에 품목마다 옵션 줄을 쓴다
+        save_partner_options(db, order.id, order.structured_data["items"], options[1], options[0].id, user.id)
     # 같은 트랜잭션에 감사 1줄(누가 · 어느 협력사로 · 몇 번 주문을).
     db.add(SecurityLog(
         user_id=user.id,

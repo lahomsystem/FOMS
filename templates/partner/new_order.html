@@ -9,12 +9,14 @@
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+{% if option_catalog is not none %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">{% endif %}
 {% include "partner/partials/flatpickr_head.html" %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}새 주문{% endblock %}
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
 {% set pick = product_names | length > 0 %}
+{% set opts = option_catalog is not none %}
 <form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-list-url="{{ url_for('partner_portal.home') }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" data-channel-push-url="{{ url_for('partner_channel_push.send_channel_push', order_id=0) }}" novalidate>
 <div class="card border-secondary pp-order pp-new">
     <div class="card-header pp-order__head">
@@ -79,7 +81,7 @@
         <hr class="my-3">
         <div class="fw-bold mb-2"><i class="fas fa-box"></i> 제품 항목(1..n) <span class="small text-muted fw-normal">치수 단위 mm</span></div>
         <p class="small text-muted mb-2">제품마다 규격을 여러 줄 넣을 수 있습니다(벽마다 한 줄). 제품명은 ▾ 목록에서 고르거나 직접 적어 주세요.</p>
-        {{ items_rail([], true, {}, pick) }}
+        {{ items_rail([], true, {}, pick, opts) }}
         <hr class="my-3">
         <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
         <p class="small text-muted mb-2">현장 전체 · 벽 · 천장 · 콘센트처럼 제품 하나에 묶이지 않는 사진은 여기에 올려 주세요. 사진마다 "제품 연결"로 제품에 붙일 수 있습니다.</p>
@@ -98,9 +100,11 @@
 </div>
 </form>
 {% include "partner/partials/address_modal.html" %}
-{{ pp_item_templates(pick) }}
-{% if pick %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>
-<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{{ pp_item_templates(pick, opts) }}
+{% if pick %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>{% endif %}
+{% if pick or opts %}<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{% if opts %}<div hidden data-pp-option-catalog='{{ option_catalog | tojson }}'></div>
+<script src="{{ asset_url('js/partner/partner-item-options.js') }}" defer></script>{% endif %}
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-photo-stage.js') }}" defer></script>

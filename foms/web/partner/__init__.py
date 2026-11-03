@@ -29,9 +29,11 @@ from foms.services.partners.construction_calendar import partner_construction_ca
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
+from foms.services.partners.item_options import current_options, pick_lists
 from foms.services.partners.items_edit import partner_edit_open
 from foms.services.partners.list_view import SORTS, pick_sort
 from foms.services.partners.manager import org_member_choices
+from foms.services.partners.price_list import active_price_list
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.revision import pending_revision_for_partner
 from foms.services.partners.view import build_partner_order_view, partner_steps
@@ -66,6 +68,17 @@ def _product_names() -> list[str]:
         if name:
             names.add(name[:100])
     return sorted(names)[:MAX_PRODUCT_NAMES]
+
+
+def _pick_context(db, org_id: int) -> dict:
+    """제품명 ▾ 목록 · 옵션 칸 목록. 협력사 단가표 지금 판이 있으면 그 이름만(금액 없음 — 설계서 2026-11-03-partner-statement
+    §5.2), 없으면 옛 방식(우리 제품 목록 이름 · 옵션은 글 칸)."""
+    price_list = active_price_list(db, org_id)
+    if price_list is None:
+        return {"product_names": _product_names(), "option_catalog": None}
+    lists = pick_lists(price_list.sheet)
+    return {"product_names": {"groups": lists["products"]} if lists["products"] else [],
+            "option_catalog": lists["options"]}
 
 
 @partner_portal_bp.context_processor
@@ -152,7 +165,7 @@ def new_order():
         me=g.current_user,
         today=get_today_kst().isoformat(),
         steps=partner_steps("DRAWING"),  # 보내면 바로 "도면 작업 중" — 주문 화면과 같은 진행 칸
-        product_names=_product_names(),
+        **_pick_context(get_db(), g.current_user.partner_org_id),
     )
 
 
@@ -199,7 +212,8 @@ def order_detail(order_id: int):
         channel_push=push_state(order),
         drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
-        product_names=_product_names() if view["items_editable"] else [],
+        **(dict(_pick_context(db, order.partner_org_id), item_options=current_options(db, order.id))
+           if view["items_editable"] else {"product_names": [], "option_catalog": None, "item_options": {}}),
         **_completion_context(db, order, stage),
     )
 
