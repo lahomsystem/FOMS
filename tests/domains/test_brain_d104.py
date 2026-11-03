@@ -179,7 +179,8 @@ def test_card_key_fields_and_inbox_diff_follow_the_schema(world):
     _spec(admin)
     card = item_card(db_session, viewer_of(admin), "common/depth", today=TODAY)
     keys = {k["path"]: k["value"] for k in card["key_fields"]}
-    assert keys == {"payload.value": "600mm", "payload.unit": "mm", "payload.basis": ""}  # 치수 기준(7.8 다음 7) 빈 칸
+    assert keys == {"payload.value": "600mm", "payload.unit": "mm", "payload.basis": "",  # 치수 기준(7.8 다음 7) 빈 칸
+                    "payload.pref_label": "", "payload.aliases": ""}  # 이름표(7.8 자료 · D130) 빈 칸
     _a, made = perform(db_session, "propose_edit", actor=admin, now=NOW,
                        body={"key": "common/depth", "base_version": 1, "after": {"payload.value": 650}, "reason": "r"})
     view = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"] if c["key"] == "common/depth")["main"]

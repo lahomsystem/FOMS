@@ -63,6 +63,8 @@ _PREF = Prop("payload.pref_label", "대표 이름", "text", max_len=60, key=True
 _ALIASES = Prop("payload.aliases", "다른 이름", "list", max_items=20, max_len=60, key=True)
 _HIDDEN = Prop("payload.hidden_labels", "숨은 이름", "list", max_items=20, max_len=60)
 _BROADER = Prop("payload.broader", "위 낱말", "text", max_len=60)
+#: 이름표 칸 넷. 옮긴 지식 문서 항목(가격 규칙 · 사실 · 사장님 결정)과 규격에도 둔다 — 설계서 7.8 자료 '옮긴 72개에 사람용 한글
+#: 이름 · 다른 이름'(점검 '지금 3' · D130). 지식 문서로는 나가지 않는 brain 만의 칸이다(:func:`brain_payload_keys`).
 _LABELS = (_PREF, _ALIASES, _HIDDEN, _BROADER)
 #: 관찰이 일어난 때(7.8 다음 13) — 줄 쓴 때(``recorded_at``)와 따로, 원본(상담 · 그림 · 사진) 시각.
 _OCCURRED = Prop("payload.occurred_at", "일어난 때", "datetime", max_len=40, key=True)
@@ -103,7 +105,7 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
              Prop("payload.unit", "단위", "enum", choices=UNITS, key=True),
              Prop("payload.low", "아래 끝", "number", low=0, high=_MM),
              Prop("payload.high", "위 끝", "number", low=0, high=_MM),
-             Prop("payload.basis", "치수 기준", "enum", choices=SPEC_BASES, key=True)),
+             Prop("payload.basis", "치수 기준", "enum", choices=SPEC_BASES, key=True), *_LABELS),
     "build_rule": (_desc("조건"), Prop("payload.rule_kind", "조건 꼴", "enum", choices=("requires", "excludes", "limit"),
                                        key=True), _CHECKED),
     "policy": (_desc("정책 글"), _CHECKED, Prop("valid_from", "유효 시작", "date", key=True),
@@ -117,14 +119,14 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
                    Prop("payload.band_low", "값 아래 끝", "number", low=0, high=_WON, unit="원"),
                    Prop("payload.band_high", "값 위 끝", "number", low=0, high=_WON, unit="원"),
                    Prop("payload.from_price", "'부터' 값", "number", low=0, high=_WON, unit="원"),
-                   Prop("payload.formula", "셈 꼴", "text", max_len=200)),
+                   Prop("payload.formula", "셈 꼴", "text", max_len=200), *_LABELS),
     "owner_decision": (_desc("결정 글"), Prop("evidence_ref", "결정 근거(원장 번호)", "text", max_len=200, key=True),
                        Prop("valid_from", "유효 시작", "date", key=True),
                        Prop("payload.decision_no", "결정 번호", "text", when_active=True, import_ok=True,
                             pattern=r"D\d{1,5}", max_len=6, key=True),
-                       Prop("payload.decided_on", "결정 날", "date", key=True)),
+                       Prop("payload.decided_on", "결정 날", "date", key=True), *_LABELS),
     "term": (_desc("뜻", required=False), *_LABELS),
-    "fact": (_desc("사실 글"), _CHECKED),
+    "fact": (_desc("사실 글"), _CHECKED, *_LABELS),
     "process_step": (_desc(required=False),
                      Prop("payload.erp_stage", "ERP 단계", "enum", required=True, choices=ERP_STAGES, key=True),
                      Prop("payload.step_order", "단계 차례", "int", low=1, high=99, key=True), *_LABELS),
