@@ -328,6 +328,13 @@ ACTION_LABELS: dict[str, str] = {
     "PARTNER_USER_PASSWORD_RESET": "협력사 계정 비밀번호 변경",
     # --- 협력사 단가표(2026-11-03 설계서 2026-11-03-partner-statement §5.1) ---
     "PARTNER_PRICE_LIST_SAVED": "협력사 단가표 새 판 저장",
+    "PARTNER_STATEMENT_PROFILE_SAVED": "거래명세서 양식 정보 저장",
+    "PARTNER_STATEMENT_DRAFT_OPENED": "협력사 명세서 초안 열기",
+    "PARTNER_STATEMENT_DRAFT_SAVED": "협력사 명세서 초안 고침",
+    "PARTNER_STATEMENT_DRAFT_DISCARDED": "협력사 명세서 초안 지움",
+    "PARTNER_STATEMENT_ISSUED": "협력사 명세서 발행",
+    "PARTNER_STATEMENT_REVISED": "협력사 명세서 수정본 만들기",
+    "PARTNER_STATEMENT_VOIDED": "협력사 명세서 취소",
     # --- FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices) ---
     "NOTICE_CREATED": "공지 만듦",
     "NOTICE_UPDATED": "공지 고침",

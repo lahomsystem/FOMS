@@ -67,10 +67,11 @@ def _band_pick(index: dict[str, dict[str, Any]], info: dict[str, Any], value: Op
     return top, max(0, value - int(top["cond"].get("max") or value))
 
 
-def _line(info: dict[str, Any], qty: Decimal, *, spec: str = "", basis: str = "", unit: str = "") -> dict[str, Any]:
+def _line(info: dict[str, Any], qty: Decimal, *, spec: str = "", basis: str = "", unit: str = "",
+          name: str = "") -> dict[str, Any]:
     price = info.get("price")
     amount = int(round_half_up(qty * price)) if price is not None else None
-    return {"key": info["key"], "name": info["name"], "spec": spec, "unit": unit or info.get("unit") or "개",
+    return {"key": info["key"], "name": name or info["name"], "spec": spec, "unit": unit or info.get("unit") or "개",
             "qty": format(qty, "f"),
             "unit_price": price, "amount": amount, "source": "auto", "basis": basis}
 
@@ -81,6 +82,8 @@ def _spec_text(row: dict[str, Any]) -> str:
 
 def _base_lines(index, info, item, rules, needs):
     kind = info.get("kind")
+    # 자 · m · 정해진 값 줄은 협력사가 고른 제품 이름으로 적는다(단가표 줄 이름은 "여닫이 / 몰딩, 무몰딩"처럼 여럿을 묶는다).
+    title = str(item.get("title") or "").strip()
     rows = item.get("spec_rows") or [{}]
     lines: list[dict[str, Any]] = []
     for row in rows:
@@ -94,7 +97,7 @@ def _base_lines(index, info, item, rules, needs):
             exact = Decimal(width) / Decimal(per)
             qty = round_half_up(exact, places)
             basis = f"가로 {width:,} ÷ {per:,} = {round_half_up(exact, places + 1)} → {qty}"
-            lines.append(_line(info, qty, spec=spec, basis=basis, unit="자" if kind == "ja" else "m"))
+            lines.append(_line(info, qty, spec=spec, basis=basis, unit="자" if kind == "ja" else "m", name=title))
         elif kind == "band":
             by_depth = (info.get("cond") or {}).get("dim") == "depth"
             dim = depth if by_depth else width
@@ -105,7 +108,7 @@ def _base_lines(index, info, item, rules, needs):
             if over_mm:
                 lines.extend(_over_line(index, chosen, over_mm, needs))
         else:
-            lines.append(_line(info, Decimal(max(1, int(item.get("quantity") or 1))), spec=spec))
+            lines.append(_line(info, Decimal(max(1, int(item.get("quantity") or 1))), spec=spec, name=title))
     return lines
 
 

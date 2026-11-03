@@ -1,0 +1,32 @@
+{% extends "cs/layout.html" %}
+{% block content %}
+{#- 협력사 거래명세서 한 장 — 우리 CS 고치기 · 발행 · 수정본 · 취소(설계서 2026-11-03-partner-statement §5.5).
+    값은 static/js/cs/partner-statement-edit.js 가 GET /api/partner-statements/<id> 로 읽는다. 자동 줄은 글자(단가 고치기는
+    이유 필수), 커스텀 줄만 금액 칸이다. 금액 · 합계는 저장할 때 서버가 다시 낸다. -#}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/cs/partner-statements.css') }}">
+<div class="container-fluid erp-dashboard erp-pro foms-ps foms-pse" data-pse-root data-api="/api/partner-statements"
+  data-id="{{ statement_id }}" data-list="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}"
+  data-print="{{ url_for('erp_partner_statements_page.erp_partner_statement_print', statement_id=statement_id) }}">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title"><i class="fas fa-file-invoice"></i><span data-pse-title>협력사 명세서</span></h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">목록</a>
+    </div>
+  </header>
+  <p class="foms-pse__meta small" data-pse-meta></p>
+  <div class="foms-pse__grid">
+    <aside class="foms-pse__drawings" aria-label="확정 도면">
+      <h2 class="h6">협력사가 확정한 도면</h2>
+      <ul class="list-unstyled small mb-0" data-pse-drawings></ul>
+    </aside>
+    <div class="foms-pse__main">
+      <div class="foms-pse__needs" data-pse-needs hidden></div>
+      <div data-pse-groups><p class="text-muted small">불러오는 중…</p></div>
+      <div class="foms-pse__totals" data-pse-totals></div>
+      <div class="foms-pse__actions" data-pse-actions></div>
+      <p class="foms-ps__status small" data-pse-status role="status" aria-live="polite"></p>
+    </div>
+  </div>
+</div>
+<script src="{{ asset_url('js/cs/partner-statement-edit.js') }}" defer></script>
+{% endblock %}

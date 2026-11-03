@@ -60,6 +60,14 @@
     <span>정산</span>
   </a>
   {% endif %}
+  {# 협력사 거래명세서(설계서 2026-11-03-partner-statement §5.5) — 라우트와 같은 정책 id 로 숨긴다(실제 차단은 라우트). #}
+  {% if policy_can('PARTNER_STATEMENT') %}
+  <a class="erp-pro-nav-item {% if _active == 'partner_statements' %}active{% endif %}"
+    href="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">
+    <i class="fas fa-file-invoice"></i>
+    <span>협력사 명세서</span>
+  </a>
+  {% endif %}
   <a class="erp-pro-nav-item {% if _active == 'history' %}active{% endif %}"
     href="{{ url_for('erp_history.history_dashboard') }}">
     <i class="fas fa-history"></i>

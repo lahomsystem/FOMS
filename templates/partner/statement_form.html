@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>거래명세서 {{ stmt.doc_no or '초안' }}</title>
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-statement-form.css') }}">
+</head>
+<body class="psf">
+{#- 협력사 거래명세서 양식(설계서 2026-11-03-partner-statement §5.8). 값은 foms/services/partners/statement_view.py form_context —
+    금액은 발행 스냅샷 그대로, 한글 금액만 거기서 쓴다. 인쇄하면 공급받는자용 · 공급자용 두 장. 초안 · 취소본은 띠가 찍힌다. -#}
+<div class="psf-tools" data-psf-tools>
+    <button type="button" class="psf-tools__btn" data-psf-print>인쇄 · PDF 저장</button>
+    <span class="psf-tools__note">브라우저 인쇄 창에서 "PDF로 저장"을 고르면 파일로 받을 수 있습니다.</span>
+</div>
+{% for copy in copies %}
+<section class="psf-sheet{% if stmt.status != 'ISSUED' %} psf-sheet--{{ stmt.status|lower }}{% endif %}">
+    {% if stmt.status == 'DRAFT' %}<div class="psf-band">초안 — 발행 전이라 협력사에게 보이지 않습니다</div>
+    {% elif stmt.status == 'VOID' %}<div class="psf-band">취소된 명세서{% if stmt.reason %} — {{ stmt.reason }}{% endif %}</div>{% endif %}
+    <header class="psf-head">
+        <div class="psf-head__title">거래명세서 <small>({{ copy }})</small></div>
+        <dl class="psf-head__meta">
+            <div><dt>문서번호</dt><dd>{{ stmt.doc_no or '발행 때 정함' }}</dd></div>
+            <div><dt>일자</dt><dd>{{ stmt.date or '-' }}</dd></div>
+            <div><dt>발행</dt><dd>{{ stmt.issued_at or '-' }}{% if stmt.issued_by %} · {{ stmt.issued_by }}{% endif %}</dd></div>
+        </dl>
+        {% if qr_svg %}<img class="psf-head__qr" src="{{ qr_svg }}" alt="온라인 원본 QR">{% endif %}
+    </header>
+
+    <div class="psf-parties">
+        <table class="psf-party">
+            <caption>공급받는자</caption>
+            <tr><th>상호</th><td>{{ receiver.name }}</td><th>성명</th><td>{{ receiver.ceo }}</td></tr>
+            <tr><th>등록번호</th><td colspan="3">{{ receiver.biz_no }}</td></tr>
+            <tr><th>주소</th><td colspan="3">{{ receiver.address }}</td></tr>
+            <tr><th>업태</th><td>{{ receiver.biz_type }}</td><th>종목</th><td>{{ receiver.biz_item }}</td></tr>
+        </table>
+        <table class="psf-party psf-party--supplier">
+            <caption>공급자</caption>
+            <tr><th>상호</th><td>{{ supplier.name }}</td><th>성명</th><td>{{ supplier.ceo }} <span class="psf-party__seal">(인)
+                <img class="psf-stamp" src="{{ url_for('static', filename='images/company-stamp.png') }}" alt="도장"></span></td></tr>
+            <tr><th>등록번호</th><td colspan="3">{{ supplier.biz_no }}</td></tr>
+            <tr><th>주소</th><td colspan="3">{{ supplier.address }}</td></tr>
+            <tr><th>업태</th><td>{{ supplier.biz_type }}</td><th>종목</th><td>{{ supplier.biz_item }}</td></tr>
+        </table>
+    </div>
+
+    <div class="psf-sum">
+        <div class="psf-sum__words">합계 금액 <b>일금 {{ amount_words }}원정</b> <span>(₩{{ '{:,}'.format(stmt.total) }})</span></div>
+        <div class="psf-sum__split">공급가액 {{ '{:,}'.format(stmt.supply) }}원 · 세액 {{ '{:,}'.format(stmt.vat) }}원 · 단가는 VAT 포함</div>
+    </div>
+    <div class="psf-site">현장(고객) {{ customer_name }}{% if site %} · {{ site }}{% endif %} · 주문번호 {{ order_id }}{% if stmt.drawing_round %} · 최종 도면 {{ stmt.drawing_round }}차{% endif %}</div>
+
+    <table class="psf-lines">
+        <thead><tr><th>품목</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th><th>비고 · 계산 근거</th></tr></thead>
+        {% for group in stmt.groups %}
+        <tbody>
+            <tr class="psf-lines__group"><th colspan="7">{{ group.ref }}. {{ group.title }}</th></tr>
+            {% for line in group.lines %}
+            <tr>
+                <td>{{ line.name }}</td><td>{{ line.spec }}</td><td>{{ line.unit }}</td><td class="psf-num">{{ line.qty }}</td>
+                <td class="psf-num">{{ '{:,}'.format(line.unit_price) if line.unit_price is not none else '' }}</td>
+                <td class="psf-num">{{ '{:,}'.format(line.amount) if line.amount is not none else '' }}</td>
+                <td class="psf-note">{% if line.note %}{{ line.note }}{% if line.basis %} · {% endif %}{% endif %}{{ line.basis if line.source == 'auto' else '' }}{% if line.reason %}{{ line.reason }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            <tr class="psf-lines__sub"><td colspan="5">소계</td><td class="psf-num">{{ '{:,}'.format(group.subtotal) }}</td><td></td></tr>
+        </tbody>
+        {% endfor %}
+    </table>
+
+    <div class="psf-foot">
+        <table class="psf-balance">
+            <tr><th>전일 잔액</th><td>{{ '{:,}'.format(stmt.prev_balance) if stmt.prev_balance is not none else '-' }}</td>
+                <th>판매 합계</th><td>{{ '{:,}'.format(stmt.total) }}</td>
+                <th>금일 잔액</th><td>{{ '{:,}'.format(stmt.after_balance) if stmt.after_balance is not none else '-' }}</td></tr>
+        </table>
+        <div class="psf-pay">
+            {% if accounts %}<div><b>입금 계좌</b> {% for a in accounts %}<span class="psf-pay__acc">{{ a }}</span>{% endfor %}</div>{% endif %}
+            <div><b>입금 기한</b> {{ supplier.pay_deadline }}</div>
+            {% if supplier.tax_notice %}<div class="psf-pre">{{ supplier.tax_notice }}</div>{% endif %}
+            {% if supplier.caution %}<div class="psf-pre psf-pay__caution">{{ supplier.caution }}</div>{% endif %}
+        </div>
+        <div class="psf-ack">받는 쪽 확인: {{ stmt.partner_ack_at or '아직 확인 전' }}</div>
+    </div>
+</section>
+{% endfor %}
+<script src="{{ asset_url('js/partner/partner-statement-form.js') }}" defer></script>
+</body>
+</html>

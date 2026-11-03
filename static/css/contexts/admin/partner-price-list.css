@@ -48,3 +48,9 @@
 .foms-pl-kb--hidden{opacity:.55;text-decoration:line-through}
 @media (max-width:1100px){.foms-pl__wrap,.foms-pl__cols{grid-template-columns:1fr}.foms-pl__panel{position:static}}
 @media (max-width:767.98px){.foms-pl__version{min-width:0;width:100%}.foms-pl__sheet{padding:12px}}
+
+/* 거래명세서 양식 정보(templates/admin/partner_statement_profile.html) */
+.foms-sp { max-width: 760px; }
+.foms-sp__box { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
+.foms-sp__box > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; }
+.foms-sp__field textarea { min-height: 64px; }

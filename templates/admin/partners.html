@@ -52,6 +52,7 @@
         <span class="text-muted small">주문 {{ row.order_count }}건</span>
         {% if org.contact_name or org.contact_phone %}<span class="text-muted small">· 연락 {{ org.contact_name or '' }} {{ org.contact_phone or '' }}</span>{% endif %}
         <a class="btn btn-outline-primary btn-sm ms-auto" href="{{ url_for('admin.partner_price_list', org_id=org.id) }}"><i class="fas fa-table"></i> 단가표</a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.partner_statement_profile', org_id=org.id) }}"><i class="fas fa-file-invoice"></i> 명세서 양식</a>
         <form method="post" action="{{ url_for('admin.partners_toggle', org_id=org.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline-secondary btn-sm">{{ '끄기' if org.is_active else '켜기' }}</button>

@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 9,
-  "guard_count": 224,
+  "guard_count": 233,
   "routes": {
     "admin.discard_sent_unregistered_draft": {
       "mode": "guard",
@@ -1101,6 +1101,42 @@
     "partner_price_list_api.save_price_list": {
       "mode": "guard",
       "rule": "/api/admin/partners/<int:org_id>/price-lists"
+    },
+    "partner_statements_staff_api.open_draft": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/orders/<int:order_id>/draft"
+    },
+    "partner_statements_staff_api.save": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/save"
+    },
+    "partner_statements_staff_api.recalc": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/recalc"
+    },
+    "partner_statements_staff_api.issue": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/issue"
+    },
+    "partner_statements_staff_api.revise": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/revise"
+    },
+    "partner_statements_staff_api.void": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/void"
+    },
+    "partner_statements_staff_api.discard": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/discard"
+    },
+    "partner_statements_staff_api.issue_complete": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/issue-complete"
+    },
+    "partner_price_list_api.save_statement_profile": {
+      "mode": "guard",
+      "rule": "/api/admin/partners/<int:org_id>/statement-profile"
     }
   }
 }
