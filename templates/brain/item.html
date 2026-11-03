@@ -32,7 +32,7 @@
         '한눈에' 탭의 '자세히 보기' 안. -#}
     <p class="mb-2">
       <span class="brain-badge brain-badge--{{ it.status }}">{{ '사용 중' if it.status == 'active' else status_labels.get(it.status, it.status) }}</span>
-      {% if it.ended %}<span class="brain-badge brain-badge--ended">기간 끝남 — {{ it.valid_to }}까지였어요</span>{% endif %}
+      {% if it.ended %}<span class="brain-badge brain-badge--ended">기간 끝남 — 찾기 · 표 · 연결에서 빠져요</span>{% endif %}
       {% if it.stale %}<span class="brain-badge brain-badge--stale">낡음 — 다시 확인할 때</span>{% endif %}
       {% if it.needs_check %}<span class="brain-badge brain-badge--check">승인을 기다리는 수정 {{ it.open_changes }}개</span>{% endif %}
     </p>

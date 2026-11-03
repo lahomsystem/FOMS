@@ -3,29 +3,29 @@
 {% if card.history %}
 <div class="brain-table-wrap">
   <table class="brain-history">
-    <caption class="visually-hidden">항목 이력 — 새 판부터</caption>
+    <caption class="visually-hidden">수정 기록 — 새것부터</caption>
     <thead>
-      <tr><th scope="col">판</th><th scope="col">기록(한국 시각)</th><th scope="col">상태 · 확신</th><th scope="col">바뀐 칸</th>
-          <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">하루 판</th><th scope="col">되돌리기</th></tr>
+      <tr><th scope="col">버전</th><th scope="col">바뀐 때</th><th scope="col">상태 · 확신</th><th scope="col">바뀐 칸</th>
+          <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">판</th><th scope="col">되돌리기</th></tr>
     </thead>
     <tbody>
       {% for row in card.history %}
       <tr>
         <td>{{ row.version }}{% if not row.superseded_at %} <span class="brain-badge brain-badge--confirmed">지금</span>{% endif %}</td>
-        <td>{{ row.recorded_at or '—' }}{% if row.superseded_at %}<br><span class="brain-empty">닫힘 {{ row.superseded_at }}</span>{% endif %}</td>
+        <td>{{ row.recorded_at or '—' }}{% if row.superseded_at %}<br><span class="brain-empty">~ {{ row.superseded_at }}</span>{% endif %}</td>
         <td>{{ status_labels.get(row.status, row.status) }} · {{ confidence_labels.get(row.confidence, row.confidence) }}</td>
-        <td>{% if row.changed %}{% for f in row.changed %}{{ field_labels.get(f, f) }}{{ ', ' if not loop.last }}{% endfor %}{% elif row.version == 1 %}처음 판{% else %}—{% endif %}</td>
+        <td>{% if row.changed %}{% for f in row.changed %}{{ field_labels.get(f, f) }}{{ ', ' if not loop.last }}{% endfor %}{% elif row.version == 1 %}처음 만듦{% else %}—{% endif %}</td>
         <td>{{ row.created_by }}</td>
         <td>{{ row.approver }}</td>
         <td>{{ row.release_no if row.release_no is not none else '—' }}</td>
         <td>{% if row.superseded_at %}<button type="button" class="brain-btn brain-btn--small"
-                data-brain-rollback-to="{{ row.version }}">{{ rollback_label }} — 판 {{ row.version }}</button>{% else %}—{% endif %}</td>
+                data-brain-rollback-to="{{ row.version }}">{{ rollback_label }} — 버전 {{ row.version }}</button>{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% else %}
-<p class="brain-empty">이력이 없습니다.</p>
+<p class="brain-empty">기록 없음</p>
 {% endif %}
 <p class="brain-status-line" data-brain-rollback-status role="status" aria-live="polite"></p>

@@ -16,8 +16,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261102b">
-    <script src="{{ url_for('static', filename='js/cs-agent/send-screen.js') }}?v=20261102b" defer></script>
-    <script src="{{ url_for('static', filename='js/cs-agent/edit-detail.js') }}?v=20261102a" defer></script>
+    <script src="{{ url_for('static', filename='js/cs-agent/send-screen.js') }}?v=20261104a" defer></script>
+    <script src="{{ url_for('static', filename='js/cs-agent/edit-detail.js') }}?v=20261104a" defer></script>
 </head>
 <body class="cs-send-body">
 {% if denied %}
@@ -45,10 +45,10 @@
 
     {% if not view.blocked %}
     {% if mode == 'edit' %}
-    <label class="form-label small fw-semibold" for="cs-send-text">손님께 보낼 글(고쳐서 보내기)</label>
+    <label class="form-label small fw-semibold" for="cs-send-text">손님께 보낼 글</label>
     <textarea class="form-control cs-send__text cs-send__grow" id="cs-send-text" data-cs-send-text data-cs-autosize
               maxlength="{{ view.max_text }}" rows="8">{{ view.draft or '' }}</textarea>
-    <label class="form-label small fw-semibold mt-3" for="cs-send-reason">고친 까닭(안 골라도 보내져요 · 고르면 AI 가 더 잘 배워요)</label>
+    <label class="form-label small fw-semibold mt-3" for="cs-send-reason">고친 까닭(안 골라도 보내져요 · 고르면 AI 가 배워요)</label>
     <select class="form-select" id="cs-send-reason" data-cs-send-reason>
         <option value="">고르지 않음</option>
         {% for code, label in view.edit_reasons %}
@@ -62,7 +62,7 @@
              data-photos="{{ '1' if view.detail.photos else '0' }}"
              data-limits="{{ {'maxDetail': view.detail.max_detail, 'maxPhotos': view.detail.max_photos, 'maxBytes': view.detail.max_photo_bytes}|tojson|forceescape }}">
         <summary class="cs-detail__summary">왜 고쳤나요(자세히){{ ' · 사진' if view.detail.photos }}</summary>
-        <p class="small text-muted mb-1">손님 이름 · 전화 · 주소는 적지 마세요 — 적으면 저장되지 않아요. 안 적어도 보내져요.</p>
+        <p class="small text-muted mb-1">손님 이름 · 전화 · 주소는 적지 마세요(적으면 저장 안 돼요). 안 적어도 보내져요.</p>
         <label class="visually-hidden" for="cs-detail-text">왜 고쳤나요(자세히)</label>
         <textarea class="form-control cs-detail__text cs-send__grow" id="cs-detail-text" data-cs-detail-text data-cs-autosize
                   maxlength="{{ view.detail.max_detail }}" rows="3" placeholder="예: 지식에 있는 깊이 값과 다르게 안내했어요"></textarea>
@@ -82,18 +82,18 @@
         <label class="form-label small fw-semibold" for="cs-send-note">고칠 말 — AI 가 다시 써요(남은 {{ view.rewrite_left }}번)</label>
         <div class="cs-send__row">
             <textarea class="form-control cs-send__note cs-send__grow" id="cs-send-note" data-cs-rewrite-note data-cs-autosize
-                      maxlength="{{ view.max_note }}" rows="2" placeholder="예: 더 짧게 · 실측 안내를 먼저(줄 바꿈 돼요)"
+                      maxlength="{{ view.max_note }}" rows="2" placeholder="예: 더 짧게 · 실측 안내를 먼저"
                       {{ 'disabled' if view.rewrite_left == 0 }}></textarea>
             <button type="button" class="btn btn-outline-primary" data-cs-rewrite-go
                     {{ 'disabled' if view.rewrite_left == 0 }}>AI 다시 쓰기</button>
         </div>
     </div>
     {% else %}
-    <p class="small text-muted mb-1">손님께 이 글이 그대로 갑니다(채널 이름으로).</p>
+    <p class="small text-muted mb-1">이 글이 손님께 그대로 가요(채널 이름으로).</p>
     {% if view.draft %}
     <div class="cs-send__draft" data-cs-send-draft>{{ view.draft }}</div>
     {% else %}
-    <p class="alert alert-warning">채널톡에서 이 초안 메모를 찾지 못했어요 — 수정하기로 글을 넣어 보내 주세요.</p>
+    <p class="alert alert-warning">채널톡에서 이 초안 메모를 못 찾았어요. 수정하기에서 글을 넣어 보내 주세요.</p>
     {% endif %}
     {% endif %}
     {% endif %}

@@ -5,7 +5,7 @@
 <div class="tab-pane fade" id="cs-tab-records" role="tabpanel" aria-labelledby="cs-tab-records-btn">
   <div class="cs-agent-actions mt-3">
     <span class="text-muted small">{{ state.day }} 기준 · 지금 {{ state.now }}</span>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-cs-reload>새로 읽기</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cs-reload>새로고침</button>
   </div>
   <div class="row g-3 mt-1">
     <div class="col-md-4">
@@ -13,13 +13,13 @@
         <div class="card-body">
           <h2 class="h6 mb-2">오늘 쓴 돈(두뇌)</h2>
           {% if rec.spend.problem %}
-          <p class="text-danger small mb-0">돈 줄 꼴이 틀렸습니다({{ rec.spend.problem }}) — 두뇌는 부르지 않습니다.</p>
+          <p class="text-danger small mb-0">돈 기록이 잘못됐어요({{ rec.spend.problem }}) — 두뇌를 부르지 않아요.</p>
           {% else %}
           <p class="cs-agent-figure mb-1">${{ rec.spend.usd }}
             <span class="text-muted small">/ 상한 {{ '$' ~ caps.effective if caps.effective is not none
-                                                    else 'WORKER 상한 확인 안 됨' }}</span></p>
-          <p class="text-muted small mb-0">보낸 수 {{ rec.spend.calls }}번 · 부르는 중 예약 ${{ rec.spend.reserved }}</p>
-          <p class="text-muted small mb-0">상한에 닿아 멈춰도 상한을 올리면 다음 바퀴부터 다시 돕니다.</p>
+                                                    else '서버 상한 확인 안 됨' }}</span></p>
+          <p class="text-muted small mb-0">부른 수 {{ rec.spend.calls }}번 · 진행 중 예약 ${{ rec.spend.reserved }}</p>
+          <p class="text-muted small mb-0">상한에 닿아 멈춰도 상한을 올리면 다음 바퀴부터 다시 돌아요.</p>
           {% endif %}
         </div>
       </section>
@@ -27,14 +27,14 @@
     <div class="col-md-4">
       <section class="card h-100 cs-agent-card {{ 'cs-agent-card--alert' if rec.heartbeat.stale }}">
         <div class="card-body">
-          <h2 class="h6 mb-2">감시 루프(CS_LOOP)</h2>
+          <h2 class="h6 mb-2">감시 루프</h2>
           {% if rec.heartbeat.at %}
           <p class="mb-1">마지막 신호 {{ rec.heartbeat.at }} · {{ rec.heartbeat.age_minutes }}분 전
             {% if rec.heartbeat.stale %}<span class="badge bg-danger">늦음</span>{% endif %}</p>
           <p class="text-muted small mb-0">바퀴 결과 {{ outcome_labels.get(rec.heartbeat.outcome, rec.heartbeat.outcome or '-') }}
             · 마지막 정상 바퀴 {{ rec.heartbeat.last_success or '없음' }}</p>
           {% else %}
-          <p class="text-danger small mb-0">하트비트가 없습니다 — 감시 루프가 아직 돈 적이 없거나 WORKER 에 없습니다.</p>
+          <p class="text-danger small mb-0">신호가 없어요 — 감시 루프가 아직 안 돌았거나 서버(WORKER)에 없어요.</p>
           {% endif %}
         </div>
       </section>
@@ -47,7 +47,7 @@
           <p class="mb-1">{{ rec.report.title }}</p>
           <p class="text-muted small mb-0">{{ rec.report.at }}</p>
           {% else %}
-          <p class="text-muted small mb-0">아직 낸 적이 없습니다.</p>
+          <p class="text-muted small mb-0">아직 없어요.</p>
           {% endif %}
         </div>
       </section>
@@ -57,7 +57,7 @@
   {#- 시간 지표(플랜 C10-5 · 설계서 17.3 '잰다') — 숫자만, 직원별 수치 없음(원장 R10-28). 정의는 foms/services/cs_agent/metrics.py. -#}
   <h2 class="h6 mt-4">시간 지표 — 지난 7일{% if not rec.metrics.error %}({{ rec.metrics.start }} ~ {{ rec.metrics.end }}){% endif %}</h2>
   {% if rec.metrics.error %}
-  <p class="text-warning small mb-1">시간 지표를 지금 셀 수 없습니다(기록 확인) — 다른 칸은 그대로입니다.</p>
+  <p class="text-warning small mb-1">시간 지표를 지금 셀 수 없어요(다른 칸은 정상).</p>
   {% endif %}
   <ul class="text-muted small mb-2">
     {% for line in rec.metrics.definitions %}<li>{{ line }}</li>{% endfor %}
@@ -75,15 +75,15 @@
             {% endfor %}
           </dl>
           {% else %}
-          <p class="text-muted small mb-0">이 기간 차례가 없습니다.</p>
+          <p class="text-muted small mb-0">이 기간엔 차례가 없어요.</p>
           {% endif %}
         </div>
       </section>
     </div>
     {% endfor %}
   </div>
-  <p class="text-muted small mt-2 mb-0">상담 직원 알림 구독: 상담 직원 {{ rec.push.staff }}명 가운데 {{ rec.push.subscribed }}명
-    (구독이 있는 사람만 초안 알림을 받습니다 — 관리 화면 '상담 직원 알림' 스위치).</p>
+  <p class="text-muted small mt-2 mb-0">상담 직원 알림 구독: {{ rec.push.staff }}명 중 {{ rec.push.subscribed }}명
+    — 이 사람들만 초안 알림을 받아요.</p>
 
   <h2 class="h6 mt-4">오늘 바뀐 차례 {{ rec.turns.total }}개</h2>
   <p class="small mb-2">
@@ -92,7 +92,7 @@
   {% if rec.turns.by_code %}
   <div class="table-responsive">
     <table class="table table-sm align-middle cs-agent-table">
-      <thead><tr><th scope="col">상태</th><th scope="col">까닭 코드</th><th scope="col" class="text-end">수</th></tr></thead>
+      <thead><tr><th scope="col">상태</th><th scope="col">까닭</th><th scope="col" class="text-end">수</th></tr></thead>
       <tbody>
         {% for row in rec.turns.by_code %}
         <tr><td>{{ state_labels.get(row.state, row.state) }}</td><td><code>{{ row.code or '-' }}</code></td>
@@ -104,19 +104,19 @@
   {% endif %}
 
   {% set img = rec.images %}
-  <h2 class="h6 mt-4">오늘 그림 읽기(손님 도면 · 예시 — 숫자만)</h2>
+  <h2 class="h6 mt-4">오늘 그림 읽기</h2>
   {% if img.error %}
-  <p class="text-warning small mb-0">그림 읽기 숫자를 지금 셀 수 없습니다(기록 확인) — 다른 칸은 그대로입니다.</p>
+  <p class="text-warning small mb-0">그림 읽기 숫자를 지금 셀 수 없어요(다른 칸은 정상).</p>
   {% else %}
   <p class="small mb-1">보낸 장수 {{ img.sent }} · 돈 ${{ img.cost_usd }} · 평균 {{ img.avg_latency_ms }}ms ·
-    {% for st, count in img.by_state.items() %}{{ st }} {{ count }}{{ ' · ' if not loop.last }}{% else %}줄 없음{% endfor %}</p>
+    {% for st, count in img.by_state.items() %}{{ st }} {{ count }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}</p>
   <p class="text-muted small mb-0">건너뜀 · 실패 까닭:
     {% for code, count in img.by_skip.items() %}<code>{{ code }}</code> {{ count }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}
-    · 보인 개인정보 종류:
+    · 보인 개인정보:
     {% for code, count in img.personal.items() %}<code>{{ code }}</code> {{ count }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}</p>
   {% endif %}
 
-  <h2 class="h6 mt-4">최근 바꿈(관리 화면 · 20개)</h2>
+  <h2 class="h6 mt-4">최근 바꿈(이 화면 · 20개)</h2>
   {% if state.changes %}
   <div class="table-responsive">
     <table class="table table-sm align-middle cs-agent-table">
@@ -131,6 +131,6 @@
     </table>
   </div>
   {% else %}
-  <p class="text-muted small">아직 이 화면에서 바꾼 것이 없습니다.</p>
+  <p class="text-muted small">아직 바꾼 것이 없어요.</p>
   {% endif %}
 </div>

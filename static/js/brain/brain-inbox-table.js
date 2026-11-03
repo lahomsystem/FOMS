@@ -80,8 +80,8 @@
     var ready = cards.filter(function (card) { return usable(card.main); }).length;
     var li = el('li', { cls: 'brain-icard', children: [el('div', { cls: 'brain-table-wrap', children: [table] })] });
     li.appendChild(el('p', { cls: 'brain-icard__summary', text: names
-      ? '이름 칸을 눌러 바로 고칠 수 있어요. 찾는 말은 손님이나 직원이 이런 말로 물어도 이 지식을 찾게 해 줘요. 체크를 끈 줄은 승인하지 않아요.'
-      : '글과 금액은 하나도 바뀌지 않아요. 나중에 값을 바꿀 때 같이 고쳐야 할 곳을 지식 화면에서 바로 볼 수 있어요.' }));
+      ? '이름 칸을 눌러 고칠 수 있어요. 찾는 말로 물어도 이 지식을 찾아요. 체크를 끈 줄은 승인하지 않아요.'
+      : '값을 바꿀 때 같이 고칠 곳을 알려 줘요.' }));
     var apply = el('button', { cls: 'brain-btn brain-btn--primary', attrs: { type: 'button', 'data-brain-table-apply': bin },
                                text: names ? '체크한 줄 승인' : ready + '개 모두 승인' });
     apply.disabled = !ready;

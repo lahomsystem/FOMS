@@ -46,7 +46,7 @@
   }
 
   var REASONS = {
-    photo_full: '사진은 5장까지예요.', photo_format: 'JPEG · PNG · WebP 사진만 받아요(HEIC · GIF · PDF 는 안 돼요).',
+    photo_full: '사진은 5장까지예요.', photo_format: 'JPEG · PNG · WebP 사진만 돼요(HEIC · GIF · PDF 안 됨).',
     photo_empty: '빈 파일이에요.', photo_source: '원본이 15MB 를 넘어요.', photo_size: '줄여도 5MB 를 넘어요.',
     photo_read: '사진을 열지 못했어요.'
   };
@@ -124,7 +124,7 @@
     try {
       response = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json' } }, init));
     } catch (err) {
-      return { ok: false, data: null, error: '서버에 닿지 못했어요. 네트워크를 확인해 주세요.' };
+      return { ok: false, data: null, error: '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.' };
     }
     try {
       payload = await response.json();
@@ -236,7 +236,7 @@
     }
     saving = false;
     var bad = !textOk || failed > 0;
-    if (failed) status('warning', '사진 ' + failed + '장 실패(다시) — ' + last);
+    if (failed) status('warning', '사진 ' + failed + '장 실패(다시 저장) — ' + last);
     else if (textOk && (savedText || todo.length)) status('success', '저장했어요.');
     if (again) again.classList.toggle('d-none', !bad && sent && !dirty());
   }

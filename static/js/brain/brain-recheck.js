@@ -40,18 +40,18 @@
     li.appendChild(head);
     li.appendChild(dom.el('p', { cls: 'brain-recheck__when' + (item.overdue ? ' is-late' : ''),
                                  text: review.recheckWhen(item) + ' · 마지막 확인 ' + (item.checked_at || '없음') +
-                                       ' · 쓰인 횟수 ' + item.usage_count }));
+                                       ' · ' + item.usage_count + '번 쓰임' }));
     if (item.snippet) li.appendChild(dom.el('p', { cls: 'brain-item__snippet', text: item.snippet }));
     var bar = dom.el('div', { cls: 'brain-recheck__actions' });
     if (item.open) {
-      bar.appendChild(dom.el('a', { cls: 'brain-btn', text: '열린 제안이 있어요 — 제안함에서 결정',
+      bar.appendChild(dom.el('a', { cls: 'brain-btn', text: '기다리는 수정 먼저 보기',
                                     attrs: { href: ctx.urls.page + '?tab=inbox' } }));
     } else {
       bar.appendChild(dom.el('button', { cls: 'brain-btn brain-btn--primary brain-recheck__ok',
                                          text: review.actionLabel(ctx.actions, 'recheck'),
                                          attrs: { type: 'button', 'data-recheck-ok': '1' } }));
     }
-    bar.appendChild(dom.el('a', { cls: 'brain-btn', text: '틀림 — 고칠 말 제안',
+    bar.appendChild(dom.el('a', { cls: 'brain-btn', text: '틀림 — 고치기',
                                   attrs: { href: view.itemHref(ctx.itemBase, item.key) + '#brain-card-propose' } }));
     li.appendChild(bar);
     li.appendChild(dom.el('p', { cls: 'brain-status-line', attrs: { 'data-recheck-status': '1', role: 'status', 'aria-live': 'polite' } }));
@@ -73,7 +73,7 @@
       list.appendChild(renderRow(item));
     });
     if (line) line.textContent = res.data.counts.line;
-    dom.setStatus(status, res.data.items.length ? '' : '지금 다시 볼 항목이 없어요.');
+    dom.setStatus(status, '');  // 빈 목록 글은 위 묶음 줄(counts.line)이 이미 말한다
     setCount(res.data.counts.total);
   }
 

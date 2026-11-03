@@ -64,7 +64,7 @@
     cy.on('tap', 'node.brain-map-type', function (event) {
       var data = event.target.data();
       if (data.external) {
-        dom.setStatus(status, data.label + ' — brain 은 이 자리를 가리키기만 합니다(값은 그 자리가 정본).');
+        dom.setStatus(status, data.label + ' — 값은 그곳에 있어요. 여기서는 가리키기만 해요.');
         return;
       }
       ctx.fire('brain:open-table', { type: data.type });
@@ -86,20 +86,20 @@
   }
 
   async function draw() {
-    dom.setStatus(status, '유형 지도를 그리는 중…');
+    dom.setStatus(status, '그리는 중…');
     var results;
     try {
       results = await Promise.all([loadLibraries(), dom.getJson(ctx.urls.typeMap)]);
     } catch (error) {
       started = false;  // 다음에 탭을 열 때 다시 해 본다
-      dom.setStatus(status, '그림 라이브러리를 읽지 못했습니다 — 아래 목록으로 보세요.', 'error');
+      dom.setStatus(status, '그림을 못 그렸어요. 아래 목록으로 봐 주세요.', 'error');
       return;
     }
     var cytoscape = results[0];
     var res = results[1];
     if (!res.ok) {
       started = false;
-      dom.setStatus(status, res.error + ' — 아래 목록으로 보세요.', 'error');
+      dom.setStatus(status, res.error + ' 아래 목록으로 봐 주세요.', 'error');
       return;
     }
     var display = res.data.display || ctx.display;
@@ -112,8 +112,7 @@
       minZoom: 0.3, maxZoom: 3, boxSelectionEnabled: false, autoungrabify: true
     });
     bindCanvas();
-    dom.setStatus(status, '유형 ' + cy.nodes('.brain-map-type').length + '가지 · 선 ' + cy.edges().length +
-                  '개 — 유형을 누르면 지식 표가 열립니다. 마우스를 올리면 그 유형의 선 이름이 보입니다.');
+    dom.setStatus(status, '유형 ' + cy.nodes('.brain-map-type').length + '가지 — 마우스를 올리면 선 이름이 보여요.');
   }
 
   bindList();

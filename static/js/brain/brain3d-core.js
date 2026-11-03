@@ -45,7 +45,7 @@
     { code: 'frontal', name: '앞쪽(이마엽)', layer: '사장님 결정 · 정책 · 가격 규칙 · 에이전트 일', why: '판단 · 규칙' },
     { code: 'temporal', name: '옆쪽(관자엽)', layer: '상담 층', why: '말 · 언어' },
     { code: 'occipital', name: '뒤쪽(뒤통수엽)', layer: '도면 층', why: '보기 · 그림' },
-    { code: 'motor', name: '정수리 띠(운동 피질)', layer: '생산 층(판 3)', why: '손 · 만들기' },
+    { code: 'motor', name: '정수리 띠(운동 피질)', layer: '생산 층(아직 없음)', why: '손 · 만들기' },
     { code: 'hippo', name: '안쪽 해마 자리', layer: '관찰 · 사례', why: '기억' }
   ];
 

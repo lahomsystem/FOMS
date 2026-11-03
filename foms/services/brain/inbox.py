@@ -339,7 +339,8 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
         "meaning": approval_meaning(change.op, change.item_type,
                                     card_bin(change.op, change.item_type, change.fields, change.link_kind)),
-        "confirm": {"field": field, "value": value} if change.grade == GRADE_B else None,
+        "confirm": ({"field": field, "value": value} if change.grade == GRADE_B and not (
+            admin and bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind)) else None),
         "phone_ok": phone_ok(change.op, change.fields),
         "bulk_ok": change.grade == GRADE_A or (admin and bulk_ok_any_grade(change.op, change.item_type, change.fields,
                                                                             change.link_kind)),

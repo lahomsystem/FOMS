@@ -388,7 +388,7 @@ def test_card_shows_scoped_similar_cases_touches_meaning_and_phone_rule(world):
                                                       "name": "사진 먼저 받은 사례", "type": "case"}]}
     main = card["main"]
     assert main["phone_ok"] is True and main["bulk_ok"] is True and main["confirm"] is None
-    assert main["meaning"].startswith("승인하면 이 지식이 바뀌고") and "명백한 문제가 없다" in main["meaning"]
+    assert main["meaning"] == ""  # 모든 카드에 같은 '승인의 뜻'은 '확인할 것' 위에 한 번만(사장님 11-04) — 배운 점은 주의 줄 없음
     assert [g["name"] for g in main["gates"]] == ["form", "mask", "hanja", "numbers", "conflict", "evidence", "eval"]
     assert main["fields"] == [{"field": "name", "before": "사진 먼저 받기", "after": "사진 먼저 꼭 받기", "label": None,
                                "unit": None, "editable": True, "datatype": "text", "choices": []}]
@@ -397,4 +397,4 @@ def test_card_shows_scoped_similar_cases_touches_meaning_and_phone_rule(world):
     assert admin_card["similar"]["count"] == 2 and admin_card["touches"]["total"] == 2  # 대조군
     price = next(cd for cd in _cards(admin) if cd["main"]["id"] == ch["price"])["main"]
     assert price["phone_ok"] is True and price["confirm"] == {"field": "text", "value": "지역별 운임 새 기준"}
-    assert "가격 규칙이라" in price["meaning"]
+    assert "금액이 바뀔 수 있어요" in price["meaning"]

@@ -107,7 +107,7 @@
     syncUrl({ q: query });
     dom.clear(results);
     if (!query) {
-      dom.setStatus(status, '찾을 말을 넣어 주세요.');
+      dom.setStatus(status, '찾을 말을 적어 주세요.');
       return;
     }
     var seq = ++searchSeq;
@@ -119,8 +119,7 @@
       return;
     }
     var groups = res.data.groups || [];
-    dom.setStatus(status, groups.length ? ('“' + res.data.query + '” — ' + res.data.total + '개(유형 ' + groups.length + '가지)')
-                                        : ('“' + res.data.query + '” — 찾은 항목이 없습니다(내 보기 범위 안).'));
+    dom.setStatus(status, groups.length ? (res.data.total + '개 찾았어요.') : '찾은 지식이 없어요. 다른 말로 찾아 보세요.');
     groups.forEach(function (group) { results.appendChild(renderGroup(group)); });
   }
 

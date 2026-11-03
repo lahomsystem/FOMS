@@ -74,15 +74,15 @@
       try {
         payload = await response.json();
       } catch (parseError) {
-        return { ok: false, status: response.status, data: null, error: '답을 읽지 못했습니다(' + response.status + ').' };
+        return { ok: false, status: response.status, data: null, error: '답을 읽지 못했어요(' + response.status + ').' };
       }
       if (!payload || payload.success !== true) {
         return { ok: false, status: response.status, data: (payload && payload.data) || null,
-                 error: (payload && payload.error) || '처리하지 못했습니다.' };
+                 error: (payload && payload.error) || '처리하지 못했어요.' };
       }
       return { ok: true, status: response.status, data: payload.data, error: null };
     } catch (networkError) {
-      return { ok: false, status: 0, data: null, error: '연결이 끊겼습니다. 잠시 뒤 다시 해 주세요.' };
+      return { ok: false, status: 0, data: null, error: '연결이 끊겼어요. 잠시 뒤 다시 해 주세요.' };
     }
   }
 

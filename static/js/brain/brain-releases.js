@@ -32,17 +32,17 @@
 
   function releaseTitle(item) {
     var title = '판 ' + item.number + (item.day ? ' · ' + item.day : '');
-    return item.import ? title + ' · 지식 문서에서 옮겨 옴' : title;
+    return item.import ? title + ' · 문서에서 옮겨 옴' : title;
   }
 
-  /** 바뀜 한 줄 글 — '고침 · 이름(키)' 또는 '링크 더함 · 적용: 시작 → 끝'. */
+  /** 바뀜 한 줄 글 — '고침 · 이름' 또는 '링크 더함 · 적용: 시작 → 끝'(키는 화면에 내지 않는다). */
   function changeText(change) {
     var op = (ctx.display.ops || {})[change.op] || change.op;
     if (change.link_kind) {
       var kind = view.linkInfo(ctx.display, change.link_kind).label;
       return op + ' · ' + kind + ': ' + (change.name || change.key) + ' → ' + (change.link_to_name || change.link_to);
     }
-    return op + ' · ' + (change.name || change.key) + ' (' + change.key + ')';
+    return op + ' · ' + (change.name || change.key);
   }
 
   function renderDiff(box, data) {
@@ -80,7 +80,7 @@
     var head = dom.el('div', { cls: 'brain-release__head' });
     head.appendChild(dom.el('h3', { cls: 'brain-release__title', text: releaseTitle(item) }));
     var boxId = 'brain-release-diff-' + item.number;
-    var diffButton = dom.el('button', { cls: 'brain-btn', text: '차이 보기',
+    var diffButton = dom.el('button', { cls: 'brain-btn', text: '바뀐 것 보기',
                                         attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': boxId } });
     head.appendChild(diffButton);
     li.appendChild(head);
@@ -88,7 +88,7 @@
     item.layers.forEach(function (layer) {
       var row = dom.el('li', { cls: 'brain-release__layer' });
       row.appendChild(dom.el('span', { cls: 'brain-badge', text: layerLabel(layer.layer) }));
-      row.appendChild(dom.el('span', { text: view.countsText(layer.counts, ctx.display) + ' (모두 ' + layer.total + '건)' }));
+      row.appendChild(dom.el('span', { text: view.countsText(layer.counts, ctx.display) }));
       if (layer.rollback) {
         row.appendChild(dom.el('span', { cls: 'brain-badge brain-badge--retired', text: review.rollbackText(layer.rollback) }));
       } else if (canRollback && !item.import) {
@@ -113,7 +113,7 @@
     ask.hidden = true;
     var yes = dom.el('button', { cls: 'brain-btn brain-btn--danger', text: '판 ' + number + ' ' + layerLabel(layer) + ' 되돌리기',
                                  attrs: { type: 'button' } });
-    var no = dom.el('button', { cls: 'brain-btn', text: '그만', attrs: { type: 'button' } });
+    var no = dom.el('button', { cls: 'brain-btn', text: '취소', attrs: { type: 'button' } });
     var note = dom.el('span', { cls: 'brain-status-line', attrs: { role: 'status', 'aria-live': 'polite' } });
     ask.appendChild(yes);
     ask.appendChild(no);
@@ -150,7 +150,7 @@
     page = data.page;
     dom.clear(list);
     data.items.forEach(function (item) { list.appendChild(renderRelease(item)); });
-    dom.setStatus(status, data.total ? ('판 ' + data.total + '개(내 보기 범위 안의 바뀜이 있는 판)') : '아직 판이 없습니다.');
+    dom.setStatus(status, data.total ? ('판 ' + data.total + '개') : '아직 판이 없어요.');
     var info = view.pager(data.page, data.pages, data.total, data.per_page);
     if (pageText) pageText.textContent = data.total ? (data.page + '/' + data.pages + '쪽') : '';
     if (prev) prev.disabled = !info.hasPrev;

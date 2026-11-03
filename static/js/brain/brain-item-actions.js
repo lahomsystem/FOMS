@@ -30,9 +30,9 @@
   var title = root.querySelector('[data-brain-propose-title]');
   var status = root.querySelector('[data-brain-propose-status]');
   var rollbackStatus = root.querySelector('[data-brain-rollback-status]');
-  var TITLES = { propose_edit: '고칠 칸만 바꾸고 까닭을 적어 주세요.',
-                 propose_retire: '은퇴 제안 — 까닭을 적어 주세요(승인되면 에이전트가 더는 쓰지 않아요).',
-                 propose_delete: '지우기 제안 — 까닭을 적어 주세요(승인되면 지금 판과 이어진 링크가 닫혀요. 이력은 남아요).' };
+  var TITLES = { propose_edit: '고칠 칸만 바꿔 주세요.',
+                 propose_retire: '승인되면 AI 가 더는 쓰지 않아요.',
+                 propose_delete: '승인되면 이 지식과 연결이 닫혀요. 수정 기록은 남아요.' };
   var action = 'propose_edit';
   if (!form) return;
 
@@ -78,8 +78,8 @@
       return false;
     }
     dom.clear(box);
-    box.appendChild(document.createTextNode(res.data.message + ' 제안 ' + res.data.change_id + '번 — '));
-    box.appendChild(dom.el('a', { text: '제안함에서 보기', attrs: { href: inboxPage } }));
+    box.appendChild(document.createTextNode(res.data.message + ' '));
+    box.appendChild(dom.el('a', { text: '확인할 것에서 보기', attrs: { href: inboxPage } }));
     return true;
   }
 
@@ -115,7 +115,7 @@
     button.disabled = true;
     dom.setStatus(rollbackStatus, '보내는 중…');
     var res = await dom.postJson(url, { action: rollbackAction, key: key, to_version: target,
-                                        reason: '판 ' + target + ' 의 값으로 되돌리기' });
+                                        reason: '버전 ' + target + ' 값으로 되돌리기' });
     button.disabled = false;
     done(res, rollbackStatus);
   }

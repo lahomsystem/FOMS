@@ -99,8 +99,7 @@
     if (pageText) pageText.textContent = info.text;
     if (prev) prev.disabled = !info.hasPrev;
     if (next) next.disabled = !info.hasNext;
-    var typeLabel = view.typeInfo(ctx.display, data.type).label;
-    dom.setStatus(status, data.total ? (typeLabel + ' ' + data.total + '개') : (typeLabel + ' — 고른 조건에 맞는 항목이 없습니다.'));
+    dom.setStatus(status, data.total ? (data.total + '개') : '조건에 맞는 지식이 없어요.');  // 유형 이름은 위 고르기 칸에
     ctx.syncUrl({ type: data.type });
   }
 

@@ -70,7 +70,7 @@
   function showBins(all) {
     if (openBin && !bins.inBin(all, openBin).length) openBin = '';
     binList.hidden = !!openBin;
-    if (binIntro) binIntro.hidden = !!openBin || !all.length;
+    if (binIntro) binIntro.hidden = !all.length;  // 카드마다 되풀이하던 '승인의 뜻'을 여기 한 번만(사장님 11-04)
     if (binBar) binBar.hidden = !openBin;
     if (binTitle) binTitle.textContent = openBin ? bins.title(openBin, bins.inBin(all, openBin).length) : '';
     if (!openBin) bins.renderOverview(binList, all);
