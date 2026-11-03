@@ -170,8 +170,16 @@ def is_decision_no(value: Any) -> bool:
 
 
 def reason(head: str, decisions: Iterable[str]) -> str:
-    """짧은 까닭 — 무엇 + 결정 번호(글 · 금액 없음)."""
-    return f"자료 계획 — {head} ({' · '.join(dict.fromkeys([*decisions, 'D130']))})"
+    """짧은 까닭 — 사람이 읽는 한 문장 + 사장님 결정 번호(글 · 금액 없음 — 설계서 7.9 '제안한 까닭')."""
+    return f"{head} (자료 정리 · 사장님 결정 {' · '.join(dict.fromkeys([*decisions, 'D130']))})"
+
+
+#: 링크 종류별 까닭 한 문장(제안 카드 '제안한 까닭').
+LINK_REASONS: dict[str, str] = {
+    "copy_in": "다른 곳에도 같은 값이 적혀 있다고 표시해요", "value_from": "금액을 가져오는 곳을 이어요",
+    "at_step": "어느 단계에서 쓰는 지식인지 이어요", "decided_by": "어느 사장님 결정에서 왔는지 이어요",
+    "about": "어느 지식에 대한 것인지 이어요",
+}
 
 
 # ── 제안 하나 넣기 ───────────────────────────────────────────────────────
@@ -301,7 +309,7 @@ def file_link(run: Run, link: Link) -> None:
     file_one(run, f"link_add:{link.kind}", lambda: propose_link(
         session, op=OP_LINK_ADD, kind=link.kind, from_key=link.from_key, to_key=link.to_key,
         values={"evidence_kind": EVIDENCE_KIND, "evidence_ref": run.ref(link.ref_id)},
-        reason=reason(f"{link.kind} 잇기", link.decisions), proposer=IMPORT_PROPOSER,
+        reason=reason(LINK_REASONS.get(link.kind, "두 지식을 이어요"), link.decisions), proposer=IMPORT_PROPOSER,
         evidence=[run.ref(link.ref_id)], now=run.now), ref_key=link.from_key)
 
 
@@ -317,5 +325,6 @@ def file_retire(run: Run, old_key: str, new_key: str, target: str, ref_id: str) 
     else:
         file_one(run, OP_RETIRE, lambda: propose_retire(
             run.session, key=old_key, base_version=current.version, proposer=IMPORT_PROPOSER, now=run.now,
-            reason=reason(f"사실 → {RETYPE_NAMES[target]} 나눔, 새 항목 {new_key} 로 옮김", ("D103",)),
+            reason=reason(f"사실 글을 새 {RETYPE_NAMES[target]} 지식({new_key})으로 옮겨서 옛 글은 그만 써요",
+                          ("D103",)),
             evidence=[run.ref(ref_id)]))
