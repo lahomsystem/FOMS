@@ -169,6 +169,35 @@
     return wrap;
   }
 
+  /** 계산기 금액 한 줄(값을 볼 수 없는 사람에게는 이름만). */
+  function priceLine(price) {
+    if (price.exists === false) return '금액: 견적 계산기에서 이 옵션을 찾지 못했어요 — 계산기 이름을 확인해 주세요.';
+    var value = price.hidden ? '(금액은 가격 재량이 있는 사람만 보여요)' : '지금 ' + (price.value || '값 없음');
+    return "금액: 견적 계산기 '" + (price.label || '') + "' — " + value;
+  }
+
+  /** ② 문장 카드 — AI와 직원이 알게 될 글 · 금액 줄 · 제안한 까닭(시안 화면 3). */
+  function sentenceBlock(prop) {
+    var box = el('div', { cls: 'brain-prop__reasons' });
+    if (prop.sentence) {
+      box.appendChild(el('p', { cls: 'brain-prop__meaning', text: 'AI와 직원이 이렇게 알게 돼요' }));
+      box.appendChild(el('p', { cls: 'brain-icard__summary', text: '“' + prop.sentence + '”' }));
+    }
+    var prices = prop.prices || [];
+    prices.forEach(function (price) { box.appendChild(el('p', { cls: 'brain-prop__fact', text: priceLine(price) })); });
+    if (prices.length) box.appendChild(el('p', { cls: 'brain-empty', text: '계산기 값을 바꾸면 이 지식도 같이 바뀌어요.' }));
+    box.appendChild(el('p', { cls: 'brain-prop__reason', children: [el('strong', { text: '제안한 까닭 · ' }),
+                                                                     el('span', { text: prop.reason })] }));
+    return box;
+  }
+
+  /** 카드 밑 한 줄 — 볼 수 있는 사람 · 자동 검사. */
+  function footer(prop) {
+    var failed = (prop.gates || []).filter(function (g) { return g.value === 'fail'; }).length;
+    return (prop.visible_to ? '볼 수 있는 사람: ' + prop.visible_to + ' · ' : '') +
+      '자동 검사: ' + (failed ? '걸린 것 ' + failed + '개(위에 적었어요)' : '문제 없음');
+  }
+
   /** 제안 하나(카드의 첫 제안 또는 붙은 제안). */
   function proposal(prop, card, ctx, phone, primary) {
     var box = el('div', { cls: 'brain-prop' + (primary ? '' : ' brain-prop--attached'),
@@ -176,18 +205,26 @@
     if (!primary) box.appendChild(el('p', { cls: 'brain-prop__sub', text: review.summary({ main: prop, type: card.type, name: card.name }, ctx.display) }));
     var warn = review.conflictText(prop);
     if (warn) box.appendChild(el('p', { cls: 'brain-prop__warn', text: warn, attrs: { role: 'note' } }));
-    if (primary) box.appendChild(el('p', { cls: 'brain-prop__meaning', text: '승인의 뜻 — ' + prop.meaning }));
-    box.appendChild(diffTable(prop, ctx));
-    box.appendChild(reasons(prop));
-    if (primary) {
-      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
-      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
+    var sentence = primary && card.bin === 'content';  // ② 문장 카드 — 칸 표 · 근거는 '자세히 보기' 안(설계서 7.9)
+    var detail = sentence ? el('details', { cls: 'brain-prop__drawer' }) : box;
+    if (sentence) {
+      box.appendChild(sentenceBlock(prop));
+      detail.appendChild(el('summary', { text: '자세히 보기 (바뀌는 칸 · 근거 · 수정 기록)' }));
     }
+    if (primary) detail.appendChild(el('p', { cls: 'brain-prop__meaning', text: '승인의 뜻 — ' + prop.meaning }));
+    detail.appendChild(diffTable(prop, ctx));
+    detail.appendChild(reasons(prop));
+    if (primary) {
+      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
+      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
+    }
+    if (sentence) box.appendChild(detail);
     var failed = gates(prop, ctx);
     if (failed) box.appendChild(failed);
     if (prop.confirm && !(prop.base && prop.base.changed)) box.appendChild(confirmBox(prop, ctx));
     if (!phone) box.appendChild(editBox(prop, ctx));
     box.appendChild(actions(prop, ctx, phone));
+    if (sentence) box.appendChild(el('p', { cls: 'brain-empty', text: footer(prop) }));
     box.appendChild(el('p', { cls: 'brain-status-line', attrs: { 'data-brain-prop-status': '1', role: 'status', 'aria-live': 'polite' } }));
     return box;
   }

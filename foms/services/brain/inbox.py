@@ -27,9 +27,10 @@ from foms.services.brain.access import approval_problem, approver_layers
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
     AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
-    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
+    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
-from foms.services.brain.display import GATE_LABELS, approval_meaning
+from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
+from foms.services.brain.external import ref_cards
 from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, ref_label
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
 from foms.services.brain.schemas import diff_rows, edit_prop, edit_props
@@ -281,8 +282,35 @@ def _base_changed(change: BrainChange, cur: Optional[BrainObject], links: dict[t
     return {"changed": current != change.base_version or flagged, "current": current, "flagged_at": stamp}
 
 
+CALC_REF = "calc:"
+
+
+def _sentence(change: BrainChange, cur: Optional[BrainObject]) -> str:
+    """② 문장 카드의 'AI와 직원이 이렇게 알게 돼요' 글 — 제안의 새 글, 글을 안 바꾸면 지금 글(링크는 빈 글)."""
+    after = ((change.fields or {}).get("text") or {}).get("after")
+    if isinstance(after, str) and after.strip():
+        return after.strip()
+    return (cur.text or "").strip() if cur is not None and change.op not in LINK_OPS else ""
+
+
+def _visible_to(change: BrainChange, cur: Optional[BrainObject]) -> Optional[str]:
+    """볼 수 있는 사람(제안의 새 보기 범위, 없으면 지금 범위)."""
+    value = ((change.fields or {}).get("visibility") or {}).get("after") or (cur.visibility if cur is not None else None)
+    return visibility_label(value) if isinstance(value, str) else None
+
+
+def price_cards(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) -> dict[str, dict[str, Any]]:
+    """제안 근거에 실린 계산기 자리 → 이름 · 지금 값(볼 수 있는 사람만 — :func:`.external.ref_cards`). 한 번에 읽는다."""
+    refs = sorted({e for c in changes for e in (c.evidence or []) if isinstance(e, str) and e.startswith(CALC_REF)})
+    if not refs:
+        return {}
+    chips = [{"ref": r, "kind": "value_from", "ext_type": external_type(r)} for r in refs]
+    return {card["ref"]: card for card in ref_cards(session, viewer, chips)}
+
+
 def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int, str],
-                links: dict[tuple[str, str, str], int], admin: bool = False) -> dict[str, Any]:
+                links: dict[tuple[str, str, str], int], admin: bool = False,
+                prices: Optional[dict[str, dict[str, Any]]] = None) -> dict[str, Any]:
     """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id)."""
     field, value = confirm_value(change.op, change.fields, change.item_type)
     evidence = [str(e) for e in (change.evidence or [])]
@@ -305,6 +333,9 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
                                                             "to": change.link_to, "to_label": ref_label(change.link_to)}
                                                            if change.op in LINK_OPS else None),
         "created_at": format_datetime_kst(change.created_at, "%Y-%m-%d %H:%M") if change.created_at else None,
+        "sentence": _sentence(change, cur), "visible_to": _visible_to(change, cur),
+        "prices": [{"label": p["label"], "value": p["value"], "hidden": p["value_hidden"], "exists": p["exists"]}
+                   for p in ((prices or {}).get(e) for e in evidence) if p is not None],
     }
 
 
@@ -329,7 +360,7 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
     main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
     change, cur = group[main_index]
-    views = [change_view(c, r, extra["names"], extra["links"], extra["admin"]) for c, r in group]
+    views = [change_view(c, r, extra["names"], extra["links"], extra["admin"], extra["prices"]) for c, r in group]
     after_name = ((change.fields or {}).get("name") or {}).get("after")
     key = change.item_key or ""
     name = cur.name if cur is not None else (after_name or key)
@@ -363,6 +394,7 @@ def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, 
               and c.proposed_by[5:].isdigit()}
     extra = {"names": people_names(session, people), "links": link_versions(session, [c for c, _r in rows]),
              "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys),
-             "usage": usage_of(session, item_keys), "admin": viewer.is_admin}
+             "usage": usage_of(session, item_keys), "admin": viewer.is_admin,
+             "prices": price_cards(session, viewer, [c for c, _r in rows])}
     cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)
     return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now, viewer)}
