@@ -63,10 +63,10 @@
       row.appendChild(dom.el('span', { cls: 'brain-nb__via', text: it.depth + '걸음 · ' + it.via.map(function (k) {
         return view.linkInfo(display, k).label;
       }).join(' · ') }));
-      row.appendChild(dom.el('a', { cls: 'brain-btn', text: '카드', attrs: { href: view.itemHref(itemBase, it.key) } }));
+      row.appendChild(dom.el('a', { cls: 'brain-btn', text: '열기', attrs: { href: view.itemHref(itemBase, it.key) } }));
       list.appendChild(row);
     });
-    if (!rows.length) list.appendChild(dom.el('li', { cls: 'brain-empty', text: '이어진 항목이 없습니다(내 보기 범위 안).' }));
+    if (!rows.length) list.appendChild(dom.el('li', { cls: 'brain-empty', text: '연결 없음' }));
   }
 
   function layout() {
@@ -106,18 +106,18 @@
     }
     var name = key && cy && !cy.getElementById(key).empty() ? cy.getElementById(key).data('label') : '';
     if (key && from !== 'refresh') {
-      dom.setStatus(status, '고른 항목: ' + (name || key) + ' — 이어진 ' + (keep.length - 1) + '개를 밝히고 나머지는 흐리게 했습니다.');
+      dom.setStatus(status, (name || key) + ' — 이어진 ' + (keep.length - 1) + '개를 밝혔어요.');
     }
   }
 
   function summary(data) {
-    return state.depth + '걸음 이웃 ' + data.total + '개' + (data.truncated ? '(앞 ' + data.items.length + '개만)' : '') +
-           ' · 선 ' + data.edges.length + '개 — 점이나 목록의 이름을 누르면 그 항목과 이어진 것만 밝힙니다.';
+    return state.depth + '걸음 안 ' + data.total + '개' + (data.truncated ? '(앞 ' + data.items.length + '개만)' : '') +
+           ' — 이름을 누르면 이어진 것만 밝혀요.';
   }
 
   async function refresh() {
     var mine = ++seq;
-    dom.setStatus(status, '이웃을 읽는 중…');
+    dom.setStatus(status, '불러오는 중…');
     var wants = [fetchAround(state.depth, state.kinds)];
     if (state.kinds.length && !state.counts[state.depth]) wants.push(fetchAround(state.depth, []));
     var results = await Promise.all(wants);
@@ -157,7 +157,7 @@
     } catch (error) {
       cy = null;
       canvas.classList.add('is-failed');
-      dom.setStatus(status, '그림 라이브러리를 읽지 못했습니다 — 옆 목록으로 모두 할 수 있어요.', 'error');
+      dom.setStatus(status, '그림을 못 그렸어요. 목록은 그대로 쓸 수 있어요.', 'error');
     }
   }
 

@@ -63,7 +63,7 @@ def test_table_params_pager_item_href_and_counts_text():
     assert got[0] == "type=build_rule&check=stale&sort=checked&page=3"  # 정한 차례 · 빈 값 빠짐
     assert got[1] == "type=spec"
     assert got[2] == {"hasPrev": True, "hasNext": True, "text": "21–40 / 모두 45개 (2/3쪽)"}
-    assert got[3] == {"hasPrev": False, "hasNext": False, "text": "항목이 없습니다"}
+    assert got[3] == {"hasPrev": False, "hasNext": False, "text": "0개"}
     assert got[4] == "/brain/items/calc%3Aa%20b/%EB%AC%B8%EC%A7%9D"
     assert got[5] == "새로 만듦 3 · 고침 1"
 

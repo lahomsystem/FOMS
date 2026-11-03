@@ -292,6 +292,6 @@ def test_the_runner_value_for_the_heartbeat():
 
 def test_value_labels_for_the_history_table():
     assert st.value_label("draft_model", bp.MODEL_HAIKU) == "Haiku 5.5"
-    assert st.value_label("fallback_enabled", False) == "끔" and st.value_label("daily_cap_usd_panel", None) == "env 그대로"
+    assert st.value_label("fallback_enabled", False) == "끔" and st.value_label("daily_cap_usd_panel", None) == "서버 상한 그대로"
     assert st.value_label("draft_max_tokens", 16000) == "16,000 토큰" and st.value_label("max_wait_business_days", 0.5) \
         == "운영일 반나절"

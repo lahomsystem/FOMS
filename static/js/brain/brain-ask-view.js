@@ -11,7 +11,7 @@
 
   var CERTAINTY = { high: '높음', medium: '보통', low: '낮음' };
   var FEEDBACKS = ['helpful', 'not_helpful', 'wrong'];
-  var FEEDBACK_LABELS = { helpful: '도움 됨', not_helpful: '안 됨', wrong: '틀림' };
+  var FEEDBACK_LABELS = { helpful: '도움 됨', not_helpful: '도움 안 됨', wrong: '틀림' };
 
   function labels(display, group) {
     return (display && display[group]) || {};
@@ -49,7 +49,7 @@
       text: String(d.answer || ''),
       confidence: confidenceLine(d, display),
       chips: chips,
-      checks: checks.length ? '지금 확인 중인 항목(값을 쓰지 않았어요): ' + checks.map(function (c) {
+      checks: checks.length ? '확인 중이라 안 쓴 지식: ' + checks.map(function (c) {
         return c.name + '(' + c.why + ')';
       }).join(', ') : '',
       feedback: FEEDBACKS.map(function (f) { return { value: f, label: FEEDBACK_LABELS[f] }; }),
@@ -81,7 +81,7 @@
   function stateText(state) {
     var s = state || {};
     if (!s.enabled) return s.is_admin ? '물어보기가 꺼져 있어요 — 아래 설정에서 켤 수 있어요.' : '물어보기가 꺼져 있어요.';
-    if (s.is_admin && s.cap_ready === false) return '하루 돈 상한이 비어 있어 답을 부르지 않아요 — 아래 설정에서 정해 주세요.';
+    if (s.is_admin && s.cap_ready === false) return '하루 돈 상한이 비어 있어 답하지 않아요. 아래 설정에서 정해 주세요.';
     return s.can_ask ? '' : '지금 단계에서는 물을 수 없어요.';
   }
 

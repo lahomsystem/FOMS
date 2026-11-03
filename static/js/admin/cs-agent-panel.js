@@ -74,7 +74,7 @@
         body: JSON.stringify(body)
       });
     } catch (err) {
-      return { ok: false, status: 0, data: null, error: '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.' };
+      return { ok: false, status: 0, data: null, error: '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.' };
     }
     try {
       data = await response.json();
@@ -82,11 +82,11 @@
       data = null;
     }
     if (!data || typeof data !== 'object') {
-      return { ok: false, status: response.status, data: null, error: '응답을 읽지 못했습니다(' + response.status + ').' };
+      return { ok: false, status: response.status, data: null, error: '응답을 읽지 못했어요(' + response.status + ').' };
     }
     if (!response.ok || !data.success) {
       return { ok: false, status: response.status, data: data.data || null,
-        error: data.error || '저장하지 못했습니다(' + response.status + ').' };
+        error: data.error || '저장하지 못했어요(' + response.status + ').' };
     }
     return { ok: true, status: response.status, data: data.data || {}, error: null };
   }
@@ -96,7 +96,7 @@
     setBusy(true);
     var result = await postJson(url, body);
     if (result.ok) {
-      var done = result.data.changed === false ? '이미 그 값입니다.' : '저장했습니다. 다음 차례부터 적용됩니다.';
+      var done = result.data.changed === false ? '이미 그 값이에요.' : '저장했어요. 다음 차례부터 적용돼요.';
       message('success', done);
       keepFlash(done);
       reloadAt(tabId);
@@ -110,8 +110,8 @@
   function onLoopClick(btn) {
     var turnOn = btn.getAttribute('data-cs-loop') === 'on';
     var question = turnOn
-      ? '감시 루프를 다시 켤까요? 다음 바퀴부터 상태 맞추기 · 보고 · 초안(스위치대로)이 다시 돕니다.'
-      : '감시 루프를 멈출까요? 다음 바퀴부터 상태 맞추기 · 아침 보고 · 경보 · 초안이 모두 쉽니다.';
+      ? '감시 루프를 다시 켤까요? 다음 바퀴부터 상태 맞추기 · 보고 · 초안(스위치대로)이 다시 돌아요.'
+      : '감시 루프를 멈출까요? 다음 바퀴부터 상태 맞추기 · 아침 보고 · 경보 · 초안이 모두 쉬어요.';
     if (!window.confirm(question)) return;
     send(root.getAttribute('data-loop-url'), { on: turnOn }, 'cs-tab-switch');
   }
@@ -120,9 +120,9 @@
     if (btn.getAttribute('aria-pressed') === 'true') return;
     var mode = btn.getAttribute('data-cs-draft');
     var questions = {
-      off: '초안을 끌까요? 감시 · 보고는 그대로 돕니다.',
-      store: '초안을 "저장만"으로 둘까요? 채널톡에는 아무것도 올리지 않습니다.',
-      memo: '초안을 채널톡 상담에 직원만 보는 내부 메모로 올릴까요? 손님에게는 보내지 않습니다.'
+      off: '초안을 끌까요? 감시 · 보고는 그대로 돌아요.',
+      store: '초안을 "저장만"으로 둘까요? 채널톡엔 안 올려요.',
+      memo: '초안을 채널톡 상담에 직원만 보는 메모로 올릴까요? 손님께는 안 가요.'
     };
     if (!window.confirm(questions[mode] || '초안 스위치를 바꿀까요?')) return;
     send(root.getAttribute('data-draft-url'), { mode: mode }, 'cs-tab-switch');
@@ -161,7 +161,7 @@
     if (result.status === 400 && result.data && Array.isArray(result.data.fields)) {
       markInvalid(form, result.data.fields);
     }
-    if (result.status === 409 && window.confirm(result.error + '\n지금 값을 새로 불러올까요? 입력한 값은 사라집니다.')) {
+    if (result.status === 409 && window.confirm(result.error + '\n지금 값을 새로 불러올까요? 입력한 값은 사라져요.')) {
       reloadAt('cs-tab-brain');
     }
   }
@@ -179,7 +179,7 @@
     var draftBtn = event.target.closest('[data-cs-draft]');
     if (draftBtn) { onDraftClick(draftBtn); return; }
     if (event.target.closest('[data-cs-calc-check]')) {
-      if (!window.confirm('스토어 가격과 계산기 값이 같은지 확인하셨나요? 오늘부터 14일 동안 AI 견적이 계산기 금액을 씁니다.')) return;
+      if (!window.confirm('스토어 가격과 계산기 값이 같나요? 오늘부터 14일 동안 AI 견적이 계산기 금액을 써요.')) return;
       send(root.getAttribute('data-calc-check-url'), {}, 'cs-tab-switch');
       return;
     }

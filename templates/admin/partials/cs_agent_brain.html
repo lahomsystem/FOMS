@@ -8,28 +8,25 @@
   <div class="cs-agent-cap mt-3">
     {% if caps.worker_state == 'ok' %}
     <p class="mb-1">쓰는 하루 돈 상한: <strong>${{ caps.effective }}</strong></p>
-    <p class="text-muted small mb-0">WORKER env 천장 ${{ caps.worker }}(감시 루프 하트비트 {{ caps.worker_seen or '-' }}) ·
-      화면 값 {{ '$' ~ caps.panel if caps.panel is not none else '비움(WORKER env 그대로)' }} — 둘 가운데 작은 값을 씁니다.
-      두뇌(WORKER)는 부를 때마다 자기 env 로 한 번 더 자릅니다.</p>
+    <p class="text-muted small mb-0">서버 상한 ${{ caps.worker }}({{ caps.worker_seen or '-' }} 확인) ·
+      화면 값 {{ '$' ~ caps.panel if caps.panel is not none else '비움' }} — 둘 중 작은 값을 써요.</p>
     {% elif caps.worker_state == 'missing' %}
-    <p class="mb-1 text-danger">WORKER 에 하루 상한 env(FOMS_CS_BRAIN_DAILY_USD)가 없거나 틀립니다 — 두뇌는 부르지 않습니다.</p>
-    <p class="text-muted small mb-0">감시 루프 하트비트 {{ caps.worker_seen or '-' }} 기준. 화면 값은 칸의 최댓값까지만 막습니다.</p>
+    <p class="mb-1 text-danger">서버(WORKER)에 하루 상한 설정이 없거나 틀려요 — 두뇌를 부르지 않아요.</p>
+    <p class="text-muted small mb-0">마지막 확인 {{ caps.worker_seen or '-' }}</p>
     {% else %}
-    <p class="mb-1 text-warning">WORKER 상한 확인 안 됨</p>
-    <p class="text-muted small mb-0">감시 루프 하트비트에 WORKER 하루 상한이 아직 없습니다. 화면 값은 칸의 최댓값까지만 막고,
-      두뇌(WORKER)가 부를 때 자기 env 와 견줘 작은 값을 씁니다.</p>
+    <p class="mb-1 text-warning">서버 상한 확인 안 됨</p>
+    <p class="text-muted small mb-0">서버 상한을 아직 못 받았어요. 두뇌는 부를 때 서버 상한과 화면 값 중 작은 값을 써요.</p>
     {% endif %}
-    <p class="text-muted small mb-0 mt-1">상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돕니다(콘솔 월 상한에 닿은 날은
-      그날 멈춤).</p>
+    <p class="text-muted small mb-0 mt-1">상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돌아요.
+      Claude 콘솔 월 상한에 닿은 날은 그날 멈춰요.</p>
   </div>
 
   {% if settings.fallback_fields %}
   <div class="alert alert-warning small mt-3 mb-0" data-foms-no-autodismiss>저장된 값이 틀려 처음 값으로 쓰는 칸:
-    {{ settings.fallback_fields | join(', ') }} — 확인한 뒤 다시 저장해 주세요(저장하면 고친 칸이 기록에 남습니다).</div>
+    {{ settings.fallback_fields | join(', ') }} — 확인하고 다시 저장해 주세요.</div>
   {% endif %}
 
-  <p class="text-muted small mt-3 mb-0">'다음 단계' 칸은 값만 보입니다 — 의도 고르기 · 실시간 다시 시도는 아직 그 길이 없고,
-    고르기는 단계 1 승인 밖입니다. 지금은 처음 값(코드 상수) 그대로 돕니다.</p>
+  <p class="text-muted small mt-3 mb-0">'다음 단계' 칸은 아직 못 바꿔요. 처음 값으로 돌아요.</p>
 
   <form class="cs-agent-form mt-3" data-cs-settings data-version="{{ settings.version }}" novalidate>
     {% for group in settings.fields | map(attribute='group') | unique %}
@@ -61,14 +58,14 @@
                  data-kind="money" min="0" step="0.01"
                  max="{{ caps.worker if daily_cap and caps.worker is not none else f.high }}"
                  value="{{ f.value if f.value is not none else '' }}"
-                 placeholder="{{ '비우면 WORKER env 그대로' if daily_cap else '비움' }}"
+                 placeholder="{{ '비우면 서버 상한 그대로' if daily_cap else '비움' }}"
                  {{ 'disabled' if f.locked }}>
           {% else %}
           <input type="number" class="form-control form-control-sm" id="cs-set-{{ f.name }}" data-setting="{{ f.name }}"
                  data-kind="int" min="{{ f.low }}" max="{{ f.high }}" step="1" value="{{ f.value }}"
                  {{ 'disabled' if f.locked }}>
           {% endif %}
-          <div class="invalid-feedback">고를 수 없는 값입니다.</div>
+          <div class="invalid-feedback">고를 수 없는 값이에요.</div>
           <p class="form-text small mb-0">
             {%- if f.kind == 'int' %}{{ f.low }} ~ {{ f.high }} {{ f.unit }} · {% endif -%}
             처음 값 {{ f.default_label }}{% if f.help %} · {{ f.help }}{% endif %}</p>
@@ -78,8 +75,8 @@
     </fieldset>
     {% endfor %}
     <div class="cs-agent-actions">
-      <button type="submit" class="btn btn-primary" data-cs-save>저장(다음 차례부터)</button>
-      <span class="text-muted small">버전 {{ settings.version }}{{ ' · 아직 저장한 적 없음(모두 처음 값)' if settings.version == 0 }}</span>
+      <button type="submit" class="btn btn-primary" data-cs-save>저장</button>
+      <span class="text-muted small">버전 {{ settings.version }}{{ ' · 저장한 적 없음(모두 처음 값)' if settings.version == 0 }}</span>
     </div>
   </form>
 </div>

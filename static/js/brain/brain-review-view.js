@@ -154,8 +154,7 @@
   /** 제안함 맨 위 줄 · AI 자리 줄. */
   function inboxStatus(data) {
     var cards = (data && data.cards) || [];
-    if (!cards.length) return '확인할 것이 없어요.';
-    return '확인할 것 ' + cards.length + '개';
+    return cards.length ? '' : '확인할 것이 없어요.';  // 수는 탭 · 묶음 줄에 이미 있다
   }
 
   function aiLine(data) {

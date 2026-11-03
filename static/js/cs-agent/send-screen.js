@@ -115,15 +115,15 @@
         body: body ? JSON.stringify(body) : undefined
       });
     } catch (err) {
-      return { ok: false, data: null, error: '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.' };
+      return { ok: false, data: null, error: '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.' };
     }
     try {
       payload = await response.json();
     } catch (err) {
-      return { ok: false, data: null, error: '응답을 읽지 못했습니다. 다시 열어 주세요.' };
+      return { ok: false, data: null, error: '응답을 읽지 못했어요. 화면을 다시 열어 주세요.' };
     }
     if (!payload || typeof payload !== 'object') {
-      return { ok: false, data: null, error: '응답을 읽지 못했습니다. 다시 열어 주세요.' };
+      return { ok: false, data: null, error: '응답을 읽지 못했어요. 화면을 다시 열어 주세요.' };
     }
     return { ok: payload.success === true, data: payload.data || null, error: payload.error || '' };
   }
@@ -142,7 +142,7 @@
       if (code && code !== 'checking') { message('warning', res.data.message || res.error); finish(); return; }
       if (!res.data && res.error) { message('warning', res.error); }
     }
-    message('warning', '아직 확인되지 않았어요 — 데스크에서 손님 쪽에 갔는지 보고, 이 화면을 다시 열어 주세요.');
+    message('warning', '아직 확인이 안 됐어요. 데스크에서 손님께 갔는지 보고 이 화면을 다시 열어 주세요.');
   }
 
   function handleSend(res) {
@@ -165,7 +165,7 @@
       finish();
       return;
     }
-    message('danger', d.message || res.error || '보내지 못했습니다.');
+    message('danger', d.message || res.error || '보내지 못했어요.');
   }
 
   async function onSend() {
@@ -184,12 +184,12 @@
 
   async function onDiscard() {
     if (busy || finished) return;
-    if (!window.confirm('이 초안을 버릴까요? 손님께는 아무것도 가지 않아요.')) return;
+    if (!window.confirm('이 초안을 버릴까요? 손님께는 아무것도 안 가요.')) return;
     setBusy(true);
     var res = await call(data('discard-url'), { token: data('token') });
     setBusy(false);
     var d = res.data || {};
-    message(res.ok ? 'secondary' : 'warning', d.message || res.error || '버리지 못했습니다.');
+    message(res.ok ? 'secondary' : 'warning', d.message || res.error || '버리지 못했어요.');
     if (res.ok || d.code === 'already') finish();
   }
 
@@ -201,12 +201,12 @@
       var d = res.data || {};
       if (res.ok && d.memo_id && d.memo_id !== before) { window.location.reload(); return; }
       if (res.ok && d.rewrite_state === 'failed') {
-        message('warning', 'AI 가 다시 쓰지 못했어요 — 직접 고쳐 보내 주세요.');
+        message('warning', 'AI 가 다시 쓰지 못했어요. 직접 고쳐 보내 주세요.');
         setBusy(false);
         return;
       }
     }
-    message('warning', '다시 쓰기가 늦어요 — 직접 고쳐 보내거나 잠시 뒤 다시 열어 주세요.');
+    message('warning', '다시 쓰기가 늦어요. 직접 고쳐 보내거나 잠시 뒤 다시 열어 주세요.');
     setBusy(false);
   }
 
@@ -225,7 +225,7 @@
       return;
     }
     setBusy(false);
-    message('warning', d.message || res.error || '요청하지 못했습니다.');
+    message('warning', d.message || res.error || '요청하지 못했어요.');
   }
 
   function bind(selector, handler) {

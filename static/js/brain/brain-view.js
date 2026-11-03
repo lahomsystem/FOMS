@@ -69,7 +69,7 @@
     var from = count ? (p - 1) * size + 1 : 0;
     var to = Math.min(count, p * size);
     return { hasPrev: p > 1, hasNext: p < last,
-             text: count ? (from + '–' + to + ' / 모두 ' + count + '개 (' + p + '/' + last + '쪽)') : '항목이 없습니다' };
+             text: count ? (from + '–' + to + ' / 모두 ' + count + '개 (' + p + '/' + last + '쪽)') : '0개' };
   }
 
   /** 항목 카드 주소 — 키의 '/' 마디는 그대로, 마디 안 글자는 이스케이프. */

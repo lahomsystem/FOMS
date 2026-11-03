@@ -9,18 +9,17 @@
     <div>
       <p class="brain-status-line" data-brain-map-status role="status" aria-live="polite"></p>
       <div class="brain-map__canvas" data-brain-map-canvas role="img"
-           aria-label="유형 지도 그림 — 아래 유형 목록 · 링크 목록과 같은 내용입니다"></div>
+           aria-label="유형 지도 그림 — 아래 목록과 같은 내용이에요"></div>
     </div>
 
     <section aria-labelledby="brain-map-links-title">
-      <h2 class="h6" id="brain-map-links-title">링크 종류(선 색)</h2>
+      <h2 class="h6" id="brain-map-links-title">연결 종류(선 색)</h2>
       <ul class="brain-map__links">
         {% for link in tmap.links %}
         {% set ld = link_display[link.kind] %}
         <li class="brain-link--{{ link.kind }}">
           <span class="brain-swatch" aria-hidden="true"></span>
           <span class="brain-map__kind">{{ ld[0] }}</span>
-          <span class="brain-map__code">{{ link.kind }}</span>
           {% if link.pairs %}
           <span>
             {%- for end in link['from'] %}{{ (group_labels[end.group] ~ ' 전체') if end.group else type_display[end.type][0] }}{{ ' · ' if not loop.last }}{% endfor -%}
@@ -28,7 +27,7 @@
             {%- for end in link['to'] %}{{ (group_labels[end.group] ~ ' 전체') if end.group else type_display[end.type][0] }}{{ ' · ' if not loop.last }}{% endfor -%}
           </span>
           {% else %}
-          <span class="brain-empty">아직 짝 없음(생산 층 — 판 3)</span>
+          <span class="brain-empty">그림에 없음</span>
           {% endif %}
         </li>
         {% endfor %}
@@ -36,7 +35,7 @@
     </section>
 
     <section aria-labelledby="brain-map-types-title">
-      <h2 class="h6" id="brain-map-types-title">유형 목록(누르면 지식 표)</h2>
+      <h2 class="h6" id="brain-map-types-title">유형 — 누르면 지식 표가 열려요</h2>
       <div class="brain-map__list">
         {% for group in tmap.groups %}
         <div class="brain-map__group">
@@ -47,7 +46,6 @@
             <li class="brain-map__type brain-type--{{ t.type }}" data-brain-map-type="{{ t.type }}">
               {% if t.external %}
               <span class="brain-chip"><i class="fas {{ td[2] }} brain-chip__icon" aria-hidden="true"></i>{{ td[0] }}</span>
-              <span class="brain-empty">가리키기만</span>
               {% else %}
               <a class="brain-chip" href="{{ url_for('brain_web.index', tab='table', type=t.type) }}"
                  data-brain-open-table="{{ t.type }}"><i class="fas {{ td[2] }} brain-chip__icon" aria-hidden="true"></i>{{ td[0] }}</a>

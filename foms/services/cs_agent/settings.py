@@ -69,7 +69,7 @@ POLICY_ID = "CS_AGENT_SETTINGS"
 #: 수정 기록 ``expires_at`` — 지식 기록처럼 길게 둔다(다른 설정 영수증의 24시간 지우기 창에 걸리지 않게).
 RECEIPT_KEEP = datetime.timedelta(days=3650)
 CACHE_DAYTIME, CACHE_ALWAYS, CACHE_OFF = "daytime", "always", "off"
-GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 답 길이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
+GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 답 길이", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
 GROUP_REALTIME = "빠른 길(실시간 초안)"
 GROUP_SEND = "[보내기] · [수정하기] · 직원 알림"
@@ -83,7 +83,7 @@ _NAME = re.compile(r"[a-z][a-z0-9_]{0,47}")
 _PURPOSE_PREFIX = {PURPOSE_DRAFT: "draft", PURPOSE_INTENT: "intent"}
 
 
-_CACHE_CHOICES = ((CACHE_DAYTIME, "운영 시간만"), (CACHE_ALWAYS, "늘"), (CACHE_OFF, "끔"))
+_CACHE_CHOICES = ((CACHE_DAYTIME, "운영 시간만"), (CACHE_ALWAYS, "항상"), (CACHE_OFF, "끔"))
 _TTL_CHOICES = ((CACHE_TTL_1H, "1시간"), (CACHE_TTL_5M, "5분"))
 _WAIT_CHOICES = ((0.5, "운영일 반나절"), (1, "운영일 1일"), (2, "운영일 2일"))
 
@@ -96,52 +96,47 @@ FIELDS: tuple[Field, ...] = (
     Field("draft_effort", "초안 생각 깊이", KIND_CHOICE, "high", GROUP_BRAIN, _EFFORT_CHOICES),
     Field("intent_effort", "의도 고르기 생각 깊이", KIND_CHOICE, "low", GROUP_BRAIN, _EFFORT_CHOICES, locked=True),
     Field("draft_length", "답 길이", KIND_CHOICE, LENGTH_DEFAULT, GROUP_BRAIN, LENGTH_CHOICES,
-          help="초안 글을 얼마나 짧게 · 자세히 쓸지(지시문 한 문장이 바뀐다). 3 이 예전 그대로 — 바꾸면 첫 차례에 캐시를 "
-               "새로 쓴다"),
+          help="바꾸면 첫 차례에 캐시를 새로 써서 그때만 돈이 더 들어요"),
     Field("draft_max_tokens", "초안 최대 출력", KIND_INT, 16000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
-          help="답 길이 칸이 아니라 잘림을 막는 상한이다 — 생각도 이 안에서 쓴다, 너무 낮으면 답이 잘려 쓸 수 없는 답이 된다"),
+          help="답 길이가 아니라 잘림을 막는 상한이에요. 생각도 이 안에서 쓰니 너무 낮으면 답이 잘려 못 써요"),
     Field("intent_max_tokens", "의도 고르기 최대 출력", KIND_INT, 8000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
           locked=True),
-    Field("realtime_timeout_s", "실시간 길 시간 상한", KIND_INT, 45, GROUP_TIME, low=20, high=60, unit="초",
-          help="빠른 길 두뇌가 이만큼 넘으면 그 차례는 실패로 두고 사람에게(다시 보내지 않는다)"),
-    Field("batch_timeout_s", "15분 루프 길 시간 상한(밤 · 견적)", KIND_INT, 90, GROUP_TIME, low=30, high=120,
+    Field("realtime_timeout_s", "빠른 길 시간 상한", KIND_INT, 45, GROUP_TIME, low=20, high=60, unit="초",
+          help="넘으면 그 차례는 실패로 두고 사람에게 넘겨요(다시 안 보냄)"),
+    Field("batch_timeout_s", "15분 바퀴 시간 상한(밤 · 견적)", KIND_INT, 90, GROUP_TIME, low=30, high=120,
           unit="초"),
-    Field("realtime_retries", "실시간 길 다시 시도", KIND_INT, 0, GROUP_TIME, low=0, high=1, unit="번",
-          help="요청이 하나도 안 나간 연결 실패만 다시 한다 — 시간 초과는 다시 보내지 않는다", locked=True),
+    Field("realtime_retries", "빠른 길 다시 시도", KIND_INT, 0, GROUP_TIME, low=0, high=1, unit="번",
+          help="요청이 안 나간 연결 실패만 다시 해요. 시간 초과는 다시 안 보내요", locked=True),
     Field("cache_policy", "캐시 켜는 때", KIND_CHOICE, CACHE_DAYTIME, GROUP_CACHE, _CACHE_CHOICES,
-          help="캐시 쓰기는 보통 입력보다 비싸다 — 손님이 드문 밤에는 끄는 쪽이 싸다"),
-    Field("cache_ttl", "캐시 길이", KIND_CHOICE, CACHE_TTL_1H, GROUP_CACHE, _TTL_CHOICES,
-          help="지시문 · 지식 · 교훈 앞부분에 거는 캐시 — 1시간 쓰기는 입력의 2배, 5분 쓰기는 1.25배(읽기는 같다). "
-               "상담이 5분보다 드물게 오면 1시간이 싸다"),
+          help="캐시 쓰기는 입력보다 비싸요. 손님이 드문 밤엔 끄는 게 싸요"),
+    Field("cache_ttl", "캐시 유지 시간", KIND_CHOICE, CACHE_TTL_1H, GROUP_CACHE, _TTL_CHOICES,
+          help="쓰기 값은 1시간이 입력의 2배, 5분이 1.25배예요(읽기는 같음). 상담이 5분보다 드물게 오면 1시간이 싸요"),
     Field("fallback_enabled", "서버 쪽 대체 모델", KIND_BOOL, True, GROUP_CACHE,
-          help="거절된 요청을 공식 대체 모델로 한 번 더 — Haiku 5.5 는 대체가 없어 늘 보내지 않는다"),
+          help="거절된 요청을 공식 대체 모델로 한 번 더 보내요"),
     Field(DAILY_CAP_FIELD, "하루 돈 상한(화면 값)", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
-          help="비우면 WORKER env 그대로 — 그보다 높게는 저장되지 않는다(쓰는 값은 둘 가운데 작은 것). "
-               "상한에 닿아 멈춘 날도 상한을 올리면 다음 바퀴부터 다시 돈다(콘솔 상한에 닿은 날은 그날 멈춤)"),
+          help="서버 상한보다 높게는 저장 안 돼요"),
     Field("learning_cap_usd_panel", "학습 돈 상한", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
-          help="스스로 배우기(설계서 17.6 · 17.6.1 — 사진 설명 · 주간 고침 안)에 쓰는 하루 돈을 실시간 초안과 따로 묶는 칸. "
-               "비우면 학습 길은 부르지 않는다(막는 쪽). 학습 돈도 하루 돈 상한 안에 같이 센다"),
+          help="사진 설명 · 주간 고침 안에 쓰는 하루 돈이에요(하루 돈 상한에도 포함). 비우면 학습을 안 돌려요"),
     Field("max_brain_calls_per_pass", "한 바퀴 두뇌 상한", KIND_INT, 10, GROUP_PICK, low=1, high=20, unit="번",
           locked=True),
     Field("max_wait_business_days", "묵은 상담 기준", KIND_CHOICE, 1, GROUP_PICK, _WAIT_CHOICES,
-          help="마지막 손님 글이 운영 시간으로 이만큼 넘게 묵은 상담은 초안을 쓰지 않는다", locked=True),
+          help="마지막 손님 글이 운영 시간으로 이보다 오래된 상담은 초안을 안 써요", locked=True),
     Field("realtime_enabled", "빠른 길 스위치", KIND_BOOL, False, GROUP_REALTIME,
-          help="켜면 5초마다 새 손님 글을 보고 조용 기다림 뒤 초안을 쓴다(초안 스위치가 저장만 · 메모이고 비상 정지가 아닐 "
-               "때만). 켜 있는 동안 15분 바퀴는 초안을 쓰지 않는다(보정 · 아침 보고만)"),
+          help="켜면 5초마다 새 손님 글을 보고 조용 기다림 뒤 초안을 써요. 초안 스위치가 저장만 · 메모일 때만 돌고, "
+               "켜 있는 동안 15분 바퀴는 초안을 안 써요"),
     Field("quiet_wait_s", "조용 기다림", KIND_INT, 15, GROUP_REALTIME, low=10, high=120, unit="초",
-          help="마지막 손님 글 뒤 이만큼 새 글이 없으면 집는다(D65) — 짧을수록 갈아 끼움 · 두뇌 부름이 는다"),
+          help="마지막 손님 글 뒤 이만큼 새 글이 없으면 초안을 써요. 짧을수록 갈아 끼움 · 두뇌 부름(돈)이 늘어요"),
     Field("max_wait_s", "최대 기다림", KIND_INT, 60, GROUP_REALTIME, low=20, high=300, unit="초",
-          help="손님이 계속 써도 첫 미답 글부터 이만큼 지나면 집는다(그 사이 이 상담 초안이 한 번도 없었을 때만)"),
+          help="손님이 계속 써도 답 못 받은 첫 글부터 이만큼 지나면 초안을 써요(그 사이 초안이 없었을 때만)"),
     Field("send_buttons_enabled", "[보내기] · [수정하기] 버튼", KIND_BOOL, False, GROUP_SEND,
-          help="켜면 초안 메모에 링크 버튼 둘을 달고, 누른 직원의 보내기 화면이 손님께 봇 이름 공개 글로 보낸다(운영 밖은 "
-               "시험 상담만 · 라홈만). 끄면 메모에 버튼을 달지 않고 보내기 · 고칠 말 요청을 거절한다(설계서 17.2)"),
+          help="켜면 초안 메모에 버튼 둘이 붙고, 직원이 누르면 손님께 봇 이름으로 실제 글이 가요(시험 서버는 시험 상담 · "
+               "라홈만). 끄면 버튼이 없고 보내기 · AI 다시 쓰기도 막아요"),
     Field("staff_push_enabled", "상담 직원 알림", KIND_BOOL, False, GROUP_SEND,
-          help="켜면 초안 메모가 뜰 때 상담 직원(CS 팀 · 푸시 구독이 있는 사람만) FOMS 앱으로 알린다 — 알림에는 손님 글 · "
-               "초안이 없다(상담 · 보내기 화면 주소만). 구독 수는 기록 탭에 보인다(플랜 C10-5)"),
+          help="켜면 초안 메모가 뜰 때 알림을 구독한 상담 직원에게 FOMS 앱 알림이 가요(구독 수는 기록 탭). "
+               "알림엔 손님 글 · 초안 없이 화면 주소만 있어요"),
     Field("quote_calc_enabled", "견적 계산 넣기", KIND_BOOL, False, GROUP_QUOTE,
-          help="켜면 손님 글이 견적 문의로 보일 때 견적 재료를 한 번 뽑아(두뇌 한 번 — 의도 고르기 모델) 계산기 값을 초안 "
-               "재료에 넣는다. 금액은 계산기 값 · 승인 지식에서만, 0원 · 모르는 가격 방식 · 제작 조건에 안 맞음은 사람에게. "
-               "끄면 예전 그대로(플랜 C10-6)"),
+          help="켜면 견적 문의에 두뇌를 한 번 더 불러(의도 고르기 모델) 계산기 값을 초안에 넣어요. 금액은 계산기 · 승인 "
+               "지식에서만 쓰고, 0원 · 모르는 가격 방식 · 제작 조건 밖은 사람에게 넘겨요"),
     *IMAGE_FIELDS,  # 그림 읽기(설계서 17.11) — 처음 끔
     *DETAIL_FIELDS,  # 고친 까닭 자세히 · 사진 · 학습(설계서 17.6.1) — 처음 끔
 )
@@ -325,7 +320,7 @@ def value_label(name: str, value: Any) -> str:
     if field.kind == KIND_BOOL:
         return "켬" if value else "끔"
     if field.kind == KIND_MONEY:
-        empty = "env 그대로" if name == DAILY_CAP_FIELD else "비움"
+        empty = "서버 상한 그대로" if name == DAILY_CAP_FIELD else "비움"
         return empty if value is None else f"${value}"
     if field.kind == KIND_INT:
         return f"{value:,} {field.unit}".strip() if isinstance(value, int) else str(value)

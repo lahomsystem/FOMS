@@ -33,28 +33,36 @@
     head.appendChild(el(href ? 'a' : 'span', { cls: 'brain-icard__name', text: card.title || card.name,
                                                attrs: { href: href } }));
     var main = card.main;
-    head.appendChild(el('span', { cls: 'brain-badge ' + (main.ai ? 'brain-badge--ai' : 'brain-badge--human'),
-                                  text: main.ai ? 'AI 제안' : '사람 제안' }));
+    if (main.ai) head.appendChild(el('span', { cls: 'brain-badge brain-badge--ai', text: 'AI 제안' }));
     if (main.rollback_of !== null && main.rollback_of !== undefined) {
       head.appendChild(el('span', { cls: 'brain-badge', text: '되돌리기' }));
     }
     return head;
   }
 
+  function isEmpty(value) {
+    return value === null || value === undefined || value === '' ||
+      (Array.isArray(value) && !value.length) || (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length);
+  }
+
+  /** 칸별 표 — 지금 값이 모두 비었으면(새 칸만 채움) '지금' 칸을 뺀 두 칸 표(휴대폰에서 '(없음)' 줄 줄이기). */
   function diffTable(prop, ctx) {
     var rows = review.diffRows(prop.fields, ctx.display);
+    var withBefore = (prop.fields || []).some(function (row) { return !isEmpty(row.before); });
     var table = el('table', { cls: 'brain-diff' });
-    table.appendChild(el('caption', { cls: 'visually-hidden', text: '칸별 지금 값과 제안 값' }));
-    var head = el('tr', { children: [el('th', { text: '칸', attrs: { scope: 'col' } }),
-                                     el('th', { text: '지금', attrs: { scope: 'col' } }),
-                                     el('th', { text: '제안', attrs: { scope: 'col' } })] });
-    table.appendChild(el('thead', { children: [head] }));
+    table.appendChild(el('caption', { cls: 'visually-hidden', text: '바뀌는 칸' }));
+    var titles = withBefore ? ['칸', '지금', '바뀐 뒤'] : ['칸', '내용'];
+    table.appendChild(el('thead', { children: [el('tr', { children: titles.map(function (t) {
+      return el('th', { text: t, attrs: { scope: 'col' } });
+    }) })] }));
     var body = el('tbody');
     rows.forEach(function (row) {
       var after = el('td', { cls: 'brain-diff__after', text: row.after });
       if (row.proposed !== null) after.appendChild(el('span', { cls: 'brain-diff__proposed', text: '처음 제안: ' + row.proposed }));
-      body.appendChild(el('tr', { children: [el('th', { text: row.label, attrs: { scope: 'row' } }),
-                                             el('td', { cls: 'brain-diff__before', text: row.before }), after] }));
+      var cells = [el('th', { text: row.label, attrs: { scope: 'row' } })];
+      if (withBefore) cells.push(el('td', { cls: 'brain-diff__before', text: row.before }));
+      cells.push(after);
+      body.appendChild(el('tr', { children: cells }));
     });
     table.appendChild(body);
     return el('div', { cls: 'brain-table-wrap', children: [table] });
@@ -70,21 +78,37 @@
     return list;
   }
 
-  function reasons(prop) {
+  /** 까닭 글 — 끝의 '(자료 정리 · 사장님 결정 D…)' 같은 기록용 꼬리는 화면에서 뺀다(데이터에는 남음). */
+  function reasonText(prop) {
+    return String(prop.reason || '').replace(/\s*\([^()]*결정[^()]*\)\s*$/, '');
+  }
+
+  function reasonLine(prop) {
+    return el('p', { cls: 'brain-prop__reason', children: [
+      el('strong', { text: prop.ai ? 'AI가 제안한 까닭 · ' : '까닭 · ' }), el('span', { text: reasonText(prop) })] });
+  }
+
+  /** 사람이 읽을 근거만(사진 · 사례) — 계획 · 계산기 · 다루는 항목 자리는 기계 근거라 안 보인다. */
+  var MACHINE_REF = /^(plan|calc|about|setting|erp|form|macro|store|screen):/;
+
+  /** '자세히 보기' 안 — 사진 · 사람 근거 · 비슷한 사례 · 함께 닿는 항목(있을 때만) · 누가 언제. */
+  function detailBits(prop, card, ctx, primary) {
     var box = el('div', { cls: 'brain-prop__reasons' });
-    var reasonBlock = el('p', { cls: 'brain-prop__reason', children: [
-      el('strong', { text: prop.ai ? 'AI가 제안한 까닭 · ' : '제안한 까닭 · ' }), el('span', { text: prop.reason }),
-      el('span', { cls: 'brain-empty', text: ' — ' + prop.proposer + (prop.created_at ? ' · ' + prop.created_at : '') })] });
-    if (!prop.ai) box.appendChild(reasonBlock);
     if (prop.photos.length) box.appendChild(photoChips(prop));
-    if (prop.ai) box.appendChild(reasonBlock);
-    var drawer = el('details', { cls: 'brain-prop__drawer' });
-    drawer.appendChild(el('summary', { text: '근거 ' + prop.evidence.length + '개' }));
-    var list = el('ul');
-    prop.evidence.forEach(function (ref) { list.appendChild(el('li', { cls: 'brain-prop__ref', text: ref })); });
-    if (!prop.evidence.length) list.appendChild(el('li', { cls: 'brain-empty', text: '적힌 근거가 없어요' }));
-    drawer.appendChild(list);
-    box.appendChild(drawer);
+    var refs = prop.evidence.filter(function (ref) { return !MACHINE_REF.test(ref); });
+    if (refs.length) {
+      var list = el('ul');
+      refs.forEach(function (ref) { list.appendChild(el('li', { cls: 'brain-prop__ref', text: ref })); });
+      box.appendChild(list);
+    }
+    if (primary && card.similar && card.similar.count) {
+      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
+    }
+    if (primary && card.touches && card.touches.total) {
+      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
+    }
+    box.appendChild(el('p', { cls: 'brain-empty', text: [prop.proposer, prop.created_at, prop.visible_to ? '볼 수 있는 사람 ' +
+      prop.visible_to : ''].filter(Boolean).join(' · ') }));
     return box;
   }
 
@@ -105,7 +129,7 @@
     var input = el('input', { attrs: { type: 'checkbox', 'data-brain-confirm': '1' } });
     var shown = review.valueText(prop.confirm.field, prop.confirm.value, ctx.display);  // 보이는 글만 이름으로(보내는 값은 그대로)
     return el('label', { cls: 'brain-prop__confirm', children: [input, el('span', {
-      text: '중요한 값이에요 — 직접 보고 맞는지 확인했어요 · ' + label + ': ' + shown })] });
+      text: label + ' 확인했어요: ' + shown })] });
   }
 
   /** 고칠 칸 하나 — 자료형(속성 틀)에 맞는 입력(글 · 날짜 · 수 · 고르기 · 쉼표 목록). */
@@ -184,22 +208,13 @@
   function sentenceBlock(prop) {
     var box = el('div', { cls: 'brain-prop__reasons' });
     if (prop.sentence) {
-      box.appendChild(el('p', { cls: 'brain-prop__meaning', text: 'AI와 직원이 이렇게 알게 돼요' }));
+      box.appendChild(el('p', { cls: 'brain-prop__meaning', text: 'AI · 직원이 알게 될 내용' }));
       box.appendChild(el('p', { cls: 'brain-icard__summary', text: '“' + prop.sentence + '”' }));
     }
     var prices = prop.prices || [];
     prices.forEach(function (price) { box.appendChild(el('p', { cls: 'brain-prop__fact', text: priceLine(price) })); });
-    if (prices.length) box.appendChild(el('p', { cls: 'brain-empty', text: '계산기 값을 바꾸면 이 지식도 같이 바뀌어요.' }));
-    box.appendChild(el('p', { cls: 'brain-prop__reason', children: [el('strong', { text: '제안한 까닭 · ' }),
-                                                                     el('span', { text: prop.reason })] }));
+    if (prices.length) box.appendChild(el('p', { cls: 'brain-empty', text: '계산기 값을 바꾸면 같이 바뀌어요.' }));
     return box;
-  }
-
-  /** 카드 밑 한 줄 — 볼 수 있는 사람 · 자동 검사. */
-  function footer(prop) {
-    var failed = (prop.gates || []).filter(function (g) { return g.value === 'fail'; }).length;
-    return (prop.visible_to ? '볼 수 있는 사람: ' + prop.visible_to + ' · ' : '') +
-      '자동 검사: ' + (failed ? '걸린 것 ' + failed + '개(위에 적었어요)' : '문제 없음');
   }
 
   /** 제안 하나(카드의 첫 제안 또는 붙은 제안). */
@@ -209,26 +224,21 @@
     if (!primary) box.appendChild(el('p', { cls: 'brain-prop__sub', text: review.summary({ main: prop, type: card.type, name: card.name }, ctx.display) }));
     var warn = review.conflictText(prop);
     if (warn) box.appendChild(el('p', { cls: 'brain-prop__warn', text: warn, attrs: { role: 'note' } }));
-    var sentence = primary && card.bin === 'content';  // ② 문장 카드 — 칸 표 · 근거는 '자세히 보기' 안(설계서 7.9)
-    var detail = sentence ? el('details', { cls: 'brain-prop__drawer' }) : box;
-    if (sentence) {
-      box.appendChild(sentenceBlock(prop));
-      detail.appendChild(el('summary', { text: '자세히 보기 (바뀌는 칸 · 근거 · 수정 기록)' }));
-    }
-    if (primary) detail.appendChild(el('p', { cls: 'brain-prop__meaning', text: '승인의 뜻 — ' + prop.meaning }));
-    detail.appendChild(diffTable(prop, ctx));
-    detail.appendChild(reasons(prop));
-    if (primary) {
-      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
-      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
-    }
-    if (sentence) box.appendChild(detail);
+    var sentence = primary && card.bin === 'content';  // ② 문장 카드(설계서 7.9)
+    var names = primary && (card.bin === 'names' || card.bin === 'mark');  // 묶음 줄이 까닭을 대신한다
+    if (primary && prop.meaning) box.appendChild(el('p', { cls: 'brain-prop__meaning', text: prop.meaning }));
+    box.appendChild(sentence ? sentenceBlock(prop) : diffTable(prop, ctx));
+    if (!names) box.appendChild(reasonLine(prop));
+    var detail = el('details', { cls: 'brain-prop__drawer' });
+    detail.appendChild(el('summary', { text: '자세히 보기' }));
+    if (sentence) detail.appendChild(diffTable(prop, ctx));
+    detail.appendChild(detailBits(prop, card, ctx, primary));
+    box.appendChild(detail);
     var failed = gates(prop, ctx);
     if (failed) box.appendChild(failed);
     if (prop.confirm && !(prop.base && prop.base.changed)) box.appendChild(confirmBox(prop, ctx));
     if (!phone) box.appendChild(editBox(prop, ctx));
     box.appendChild(actions(prop, ctx, phone));
-    if (sentence) box.appendChild(el('p', { cls: 'brain-empty', text: footer(prop) }));
     box.appendChild(el('p', { cls: 'brain-status-line', attrs: { 'data-brain-prop-status': '1', role: 'status', 'aria-live': 'polite' } }));
     return box;
   }
@@ -236,8 +246,7 @@
   /** 카드 하나 — li. */
   function build(card, ctx, phone) {
     var li = el('li', { cls: 'brain-icard brain-type--' + card.type, attrs: { 'data-card-id': card.id } });
-    li.appendChild(headOf(card, ctx));
-    li.appendChild(el('p', { cls: 'brain-icard__summary', text: review.summary(card, ctx.display) }));
+    li.appendChild(headOf(card, ctx));  // 요약 줄(동작 · 유형 · 이름 · 칸)은 제목 · 칸 표와 겹쳐 뺀다(사장님 11-04)
     li.appendChild(proposal(card.main, card, ctx, phone, true));
     if (card.attached.length) {
       var more = el('details', { cls: 'brain-icard__attached' });

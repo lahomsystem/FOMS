@@ -12,19 +12,19 @@
               aria-pressed="{{ 'true' if step == 1 else 'false' }}">{{ step }}걸음</button>
       {% endfor %}
     </div>
-    <div class="brain-nb__chips" role="group" aria-label="링크 종류 펼치기(수 = 닿은 항목)" data-brain-nb-chips>
+    <div class="brain-nb__chips" role="group" aria-label="연결 종류" data-brain-nb-chips>
       {% for kind in link_order if around.counts.get(kind) %}
       <button class="brain-nb__chip brain-link--{{ kind }}" type="button" data-brain-nb-kind="{{ kind }}" aria-pressed="true">
         <span class="brain-swatch" aria-hidden="true"></span>{{ link_display[kind][0] }} {{ around.counts[kind] }}</button>
       {% endfor %}
     </div>
   </div>
-  <p class="brain-status-line" data-brain-nb-status role="status" aria-live="polite">1걸음 이웃 {{ around.total }}개 — 내 보기 범위 안 · 기간이 끝나지 않은 것만.</p>
+  <p class="brain-status-line" data-brain-nb-status role="status" aria-live="polite">볼 수 있고 기간 안인 것만 보여요.</p>
   <div class="brain-nb__body">
     <div class="brain-nb__canvas" data-brain-nb-canvas role="img"
-         aria-label="이웃 지도 그림 — 옆 이웃 목록과 같은 내용입니다"></div>
+         aria-label="연결 그림 — 옆 목록과 같은 내용이에요"></div>
     <section aria-labelledby="brain-nb-list-title">
-      <h2 class="h6" id="brain-nb-list-title">이웃 목록(이름을 누르면 그림에서 고릅니다)</h2>
+      <h2 class="h6" id="brain-nb-list-title">이어진 지식</h2>
       <ol class="brain-nb__list" data-brain-nb-list>
         {% for other in around['items'] %}
         <li class="brain-item brain-type--{{ other.type }}{{ ' brain-state--' ~ other.status if other.status in ('draft', 'retired') else '' }}{{ ' brain-state--stale' if other.stale else '' }}"
@@ -34,13 +34,13 @@
           <button class="brain-nb__pick" type="button" data-brain-nb-select="{{ other.key }}" aria-pressed="false"
                   title="그림에서 고르기">{{ other.name }}</button>
           <span class="brain-nb__via">{{ other.depth }}걸음 · {% for k in other.via %}{{ link_display.get(k, (k,))[0] }}{{ ' · ' if not loop.last }}{% endfor %}</span>
-          <a class="brain-btn" href="{{ url_for('brain_web.item', key=other.key) }}">카드</a>
+          <a class="brain-btn" href="{{ url_for('brain_web.item', key=other.key) }}">열기</a>
         </li>
         {% else %}
-        <li class="brain-empty">이어진 항목이 없습니다(내 보기 범위 안).</li>
+        <li class="brain-empty">연결 없음</li>
         {% endfor %}
       </ol>
-      {% if around.truncated %}<p class="brain-empty">앞 {{ around['items']|length }}개만 보입니다 — 종류 칩으로 좁혀 보세요.</p>{% endif %}
+      {% if around.truncated %}<p class="brain-empty">앞 {{ around['items']|length }}개만 보여요. 종류를 골라 좁혀 보세요.</p>{% endif %}
     </section>
   </div>
 </div>

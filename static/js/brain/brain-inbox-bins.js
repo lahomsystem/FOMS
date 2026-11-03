@@ -13,13 +13,13 @@
   /** 화면 차례 · 글(시안 그대로). secs = 한 장에 드는 어림 초(걸리는 시간 한 줄에만 쓴다). */
   var BINS = [
     { key: 'names', title: '① 한글 이름 붙이기',
-      line: '지식 이름을 한글로 바꾸고, 찾을 때 쓰는 말을 붙여요. 글과 금액은 바뀌지 않아요.', secs: 10 },
+      line: '영어 이름을 한글로 바꾸고 찾는 말을 붙여요. 글 · 금액은 그대로예요.', secs: 10 },
     { key: 'content', title: '② 새로 들어가거나 바뀌는 지식',
-      line: 'AI와 직원이 새로 알게 되거나 바뀌는 내용이에요. 내용이 맞는지만 봐 주세요.', secs: 25 },
+      line: '새로 들어가거나 바뀌는 내용이에요. 맞는지만 봐 주세요.', secs: 25 },
     { key: 'decide', title: '③ 사장님이 정해 주실 것',
-      line: '같은 내용이 두 곳에 다르게 적혀 있어요. 어느 쪽이 맞는지 골라 주세요.', secs: 40 },
+      line: '두 곳에 다르게 적힌 내용이에요. 맞는 쪽을 골라 주세요.', secs: 40 },
     { key: 'mark', title: '④ 같은 값이 적힌 곳 표시',
-      line: '다른 곳에도 같은 값이 적혀 있다고 표시만 해요. 글과 금액은 바뀌지 않아요.', secs: 5 }
+      line: '같은 값이 적힌 곳을 표시만 해요. 글 · 금액은 그대로예요.', secs: 5 }
   ];
   var KEYS = BINS.map(function (bin) { return bin.key; });
 
@@ -57,7 +57,7 @@
       var open = el('button', { cls: 'brain-btn brain-btn--primary', text: '열기',
                                 attrs: { type: 'button', 'data-brain-bin-open': bin.key } });
       li.appendChild(el('div', { cls: 'brain-prop__actions', children: [
-        open, el('span', { cls: 'brain-empty', text: '한 장씩 · 약 ' + minutes(n[bin.key], bin.secs) + '분' })] }));
+        open, el('span', { cls: 'brain-empty', text: '약 ' + minutes(n[bin.key], bin.secs) + '분' })] }));
       list.appendChild(li);
     });
   }
