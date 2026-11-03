@@ -10,6 +10,7 @@ from __future__ import annotations
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import db_session
+from foms.services.partners.item_options import diff_options
 from models import Order, OrderItemOption, SecurityLog, User
 from tests.security.partner_fixtures import _PAYLOAD, _client, _create, _to_confirm, _user, world  # noqa: F401
 from tests.security.test_partner_item_options import PRICES, _item, priced  # noqa: F401 — 단가표 판 준비물 재사용
@@ -101,12 +102,14 @@ def test_approve_requires_later_items_and_confirms_with_fingerprint(app, priced)
     partner = _client(app, db_session.get(User, priced["partner_a"]))
     page = partner.get(f"/partner/orders/{oid}").get_data(as_text=True)
     assert "data-pp-confirm-options" in page and "data-pp-optfield" in page and not any(p in page for p in PRICES)
+    assert "저희 도면팀이 바꾼 옵션은" not in page  # 바뀐 품목이 없으면 노란 칸 안내도 없다(대조군)
     blocked = partner.post(f"/api/partner/orders/{oid}/approve-drawing", json={"idempotency_key": "k1"})
     assert blocked.status_code == 409 and "상담 후 정함" in blocked.get_json()["error"]
     assert _rows(oid, "CONFIRMED") == {}
     picked = {uids[1]: {"lines": [{"key": "r7", "qty": 1}]}}
     ok = partner.post(f"/api/partner/orders/{oid}/approve-drawing", json={"idempotency_key": "k2", "options": picked})
     assert ok.status_code == 200, ok.get_json()
+    assert "push_note" in ok.get_json()["data"]  # 옵션을 고른 승인도 발주방 전송 결과를 돌려준다(화면이 알림으로 띄운다)
     confirmed = _rows(oid, "CONFIRMED")
     assert set(confirmed) == set(uids)
     assert [(l["key"], l["qty"]) for l in confirmed[uids[1]].lines] == [("r7", "1")]
@@ -123,6 +126,13 @@ def test_drawing_tab_shows_changed_options_with_reason(app, priced):
         uids[0]: {"lines": [{"key": "r4", "qty": 2}], "reason": "문 폭 때문에 2짝"}}).status_code == 200
     _to_confirm(oid)
     page = _client(app, db_session.get(User, priced["partner_a"])).get(f"/partner/orders/{oid}").get_data(as_text=True)
-    assert "바뀜: 슬라이딩 거울 도어 1짝 → 2짝" in page and "까닭: 문 폭 때문에 2짝" in page
+    assert "바뀜: 슬라이딩 거울 도어 1짝 → 2짝" in page and "바꾼 이유: 문 폭 때문에 2짝" in page
+    assert "저희 도면팀이 바꾼 옵션은 노란 칸에 보입니다." in page
     assert "data-pp-optfield" not in page  # 고를 것(상담 후 정함)이 없으면 읽기만
     assert not any(price in page for price in PRICES)
+
+
+def test_state_only_change_names_states_once():
+    """"옵션 없음 → 상담 후 정함"처럼 상태만 바뀌면 이름 칸이 비어 화면에 "옵션"이 두 번 나오지 않는다."""
+    none, later = {"state": "none", "lines": [], "customs": []}, {"state": "later", "lines": [], "customs": []}
+    assert diff_options(none, later, {}) == [{"name": "", "from": "옵션 없음", "to": "상담 후 정함"}]

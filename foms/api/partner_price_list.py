@@ -50,6 +50,11 @@ def _fail(status: int, error: str, errors: Optional[list[str]] = None):
     return jsonify(body), status
 
 
+def _first(errors: list[str]) -> str:
+    """굵은 제목 글 — 하나면 그 글, 여럿이면 몇 군데인지만(목록은 화면이 아래에 보인다)."""
+    return errors[0] if len(errors) == 1 else f"고칠 곳이 {len(errors)}군데 있습니다."
+
+
 def _admin() -> tuple[Optional[Any], Optional[tuple[Any, int]]]:
     """켜진 ADMIN(본사 직원)만 — 아니면 401 · 403."""
     user = getattr(g, "current_user", None)
@@ -123,7 +128,7 @@ def api_import_price_list(org_id: int):
         try:
             html = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
-            return _fail(400, "UTF-8 로 저장한 HTML 파일이 아닙니다.")
+            return _fail(400, "이 파일은 읽을 수 없습니다. 통합 단가표 편집기로 저장한 파일을 넣어 주세요.")
     else:
         body = request.get_json(silent=True)
         html = body.get("html") if isinstance(body, dict) else None
@@ -131,7 +136,7 @@ def api_import_price_list(org_id: int):
     try:
         data = import_sheets(html, current=current.sheet if current else None)
     except PriceListError as exc:
-        return _fail(400, exc.errors[0], exc.errors)
+        return _fail(400, _first(exc.errors), exc.errors)
     return _ok(data)
 
 
@@ -150,7 +155,7 @@ def api_save_price_list(org_id: int):
                               user_id=actor.id)
         db.add(SecurityLog(
             user_id=actor.id, action="PARTNER_PRICE_LIST_SAVED", target_type="partner_price_list",
-            target_id=int(row.id), message=f"협력사 단가표 저장: {row.label} ({row.version}판)",
+            target_id=int(row.id), message=f"협력사 단가표 저장: {row.label} ({row.version}번째 판)",
             detail={"partner_org_id": org_id, "version": row.version, "effective_from": row.effective_from.isoformat()},
         ))
         db.commit()
@@ -159,7 +164,7 @@ def api_save_price_list(org_id: int):
         return _fail(409, exc.errors[0])
     except PriceListError as exc:
         db.rollback()
-        return _fail(400, exc.errors[0], exc.errors)
+        return _fail(400, _first(exc.errors), exc.errors)
     except SQLAlchemyError:
         db.rollback()
         logger.exception("[PRICE_LIST] 단가표 저장 실패 org=%s", org_id)

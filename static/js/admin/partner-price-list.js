@@ -50,7 +50,7 @@
       return { ok: false, error: '서버에 닿지 못했습니다. 인터넷 연결을 확인해 주세요.' };
     }
     try { data = await response.json(); } catch (err) { data = null; }
-    if (!data || typeof data !== 'object') return { ok: false, error: '응답을 읽지 못했습니다(' + response.status + ').' };
+    if (!data || typeof data !== 'object') return { ok: false, error: '서버 응답을 읽지 못했습니다. 잠시 뒤 다시 해 주세요.' };
     if (!response.ok || !data.success) {
       return { ok: false, status: response.status, error: data.error || '처리하지 못했습니다.', errors: data.data && data.data.errors };
     }
@@ -97,7 +97,7 @@
     eachItem(function (row, item) { if (item === target) found = row; });
     return found;
   }
-  function setDirty() { state.dirty = true; status('● 저장하지 않은 변경 — "저장 (새 판)"을 누르세요', 'dirty'); }
+  function setDirty() { state.dirty = true; status('● 아직 저장하지 않았습니다 — "저장 (새 판)"을 눌러 주세요', 'dirty'); }
 
   // ── 그리기 ────────────────────────────────────────────────────────────
   function badge(row, item) {
@@ -183,7 +183,7 @@
     });
     sec.appendChild(table);
     if (state.editing) {
-      var add = el('button', 'btn btn-outline-secondary btn-sm mt-1', '+ 줄 추가');
+      var add = el('button', 'btn btn-outline-secondary btn-sm mt-1', '+ 줄 넣기');
       add.type = 'button';
       add.addEventListener('click', function () {
         cat.rows.push({ cells: cat.headers.map(function () { return ''; }), items: [] });
@@ -214,7 +214,7 @@
     box.replaceChildren();
     if (!state.versions.length) box.appendChild(el('option', null, '저장한 판 없음'));
     state.versions.forEach(function (v) {
-      var o = el('option', null, v.label + ' · ' + v.version + '판 · ' + (v.effective_from || '') + ' 부터' + (v.status === 'ACTIVE' ? ' (지금)' : ''));
+      var o = el('option', null, v.label + ' (' + v.version + '번째) · ' + (v.effective_from || '') + '부터' + (v.status === 'ACTIVE' ? ' · 지금 쓰는 판' : ''));
       o.value = String(v.id);
       if (state.viewing && state.viewing.id === v.id) o.selected = true;
       box.appendChild(o);
@@ -226,7 +226,7 @@
     if (panel) panel.clear();
     renderVersions();
     renderSheet();
-    status(note || (detail ? (detail.status === 'ACTIVE' ? '지금 판' : '옛 판 — 보기만') + (detail.created_by ? ' · 저장 ' + detail.created_by : '') : ''));
+    status(note || (detail ? (detail.status === 'ACTIVE' ? '지금 쓰는 판' : '옛 판 — 볼 수만 있음') + (detail.created_by ? ' · ' + detail.created_by + ' 저장' : '') : ''));
   }
 
   async function load(note) {
@@ -242,7 +242,7 @@
     Object.assign(state, { sheet: clone(state.imported.sheets[brand]), dirty: true, editing: false, sel: null });
     if (panel) panel.clear();
     renderSheet();
-    status('● 불러온 단가표(' + brand + ') — 계산 정보를 확인하고 "저장 (새 판)"을 눌러야 새 판이 됩니다', 'dirty');
+    status('● ' + brand + ' 단가표를 불러왔습니다 — 계산 방법을 확인하고 "저장 (새 판)"을 눌러 주세요', 'dirty');
   }
 
   $('[data-pl-import-btn]').addEventListener('click', function () { $('[data-pl-import-file]').click(); });
@@ -289,8 +289,8 @@
     var res = await requestJson(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) { status('● 저장하지 못했습니다', 'dirty'); message('danger', res.error, res.errors); return; }
     saveForm.hidden = true;
-    message('success', res.data.label + ' (' + res.data.version + '판) 저장 · ' + res.data.effective_from + ' 출고분부터 · 이미 나간 명세서는 그대로');
-    await load('✓ ' + res.data.version + '판 저장');
+    message('success', res.data.label + ' 저장했습니다. ' + res.data.effective_from + ' 출고부터 이 단가로 계산하고, 이미 나간 명세서는 바뀌지 않습니다.');
+    await load('✓ ' + res.data.label + ' 저장');
   });
 
   window.addEventListener('beforeunload', function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });

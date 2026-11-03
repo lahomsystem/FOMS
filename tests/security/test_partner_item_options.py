@@ -92,9 +92,9 @@ def test_clean_item_options_rules():
         "state": "none", "base_key": "r1", "lines": [], "customs": []}
     assert clean_item_options({"state": "later"}, "직접 쓴 이름", SHEET, no=1)["base_key"] is None
     for raw, needle in [({}, "항목 2 옵션을 골라"), ({"state": "chosen"}, "골라"),
-                        ({"lines": [{"key": "r99"}]}, "단가표에 없는"), ({"lines": [{"key": "r9"}]}, "단가표에 없는"),
-                        ({"lines": [{"key": "r7"}]}, "침대 붙박이장 에만"), ({"lines": [{"key": "r4", "qty": "1.5"}]}, "정수"),
-                        ({"lines": [{"key": "r4", "qty": 0}]}, "1 이상")]:
+                        ({"lines": [{"key": "r99"}]}, "고를 수 없는 옵션"), ({"lines": [{"key": "r9"}]}, "고를 수 없는 옵션"),
+                        ({"lines": [{"key": "r7"}]}, "옵션은 침대 붙박이장에만"), ({"lines": [{"key": "r4", "qty": "1.5"}]}, "소수점 없이"),
+                        ({"lines": [{"key": "r4", "qty": 0}]}, "1부터 999까지")]:
         with pytest.raises(ItemOptionsError) as exc:
             clean_item_options(raw, "슬라이딩", SHEET, no=2)
         assert needle in str(exc.value), raw

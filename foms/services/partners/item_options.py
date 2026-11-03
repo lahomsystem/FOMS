@@ -106,9 +106,9 @@ def _qty(value: Any, unit: str, where: str) -> str:
     except (InvalidOperation, ValueError) as exc:
         raise ItemOptionsError(f"{where}: 수량은 숫자로 넣어 주세요.") from exc
     if qty <= 0 or qty > MAX_QTY:
-        raise ItemOptionsError(f"{where}: 수량은 1 이상 999 이하로 넣어 주세요.")
+        raise ItemOptionsError(f"{where}: 수량은 1부터 999까지 넣어 주세요.")
     if unit != "m" and qty != qty.to_integral():
-        raise ItemOptionsError(f"{where}: 수량은 정수로 넣어 주세요(m 만 소수).")
+        raise ItemOptionsError(f"{where}: 수량은 소수점 없이 넣어 주세요.")
     return format(qty.normalize(), "f")
 
 
@@ -127,11 +127,11 @@ def clean_item_options(raw: Any, product_name: str, sheet: dict[str, Any], *, no
         picked = picked if isinstance(picked, dict) else {}
         info = options.get(str(picked.get("key") or ""))
         if info is None:
-            raise ItemOptionsError(f"{where}: 단가표에 없는 옵션이 있습니다. 옵션을 다시 골라 주세요.")
+            raise ItemOptionsError(f"{where}: 지금은 고를 수 없는 옵션이 있습니다. 옵션을 다시 골라 주세요.")
         name = _text(picked.get("name"), 60)
         name = name if name in info["names"] else info["names"][0]
         if info["only"] and product_name not in info["only"]:
-            raise ItemOptionsError(f"{where}: '{name}' 은(는) {' · '.join(info['only'])} 에만 고를 수 있습니다.")
+            raise ItemOptionsError(f"{where}: '{name}' 옵션은 {' · '.join(info['only'])}에만 고를 수 있습니다.")
         lines.append({"key": picked["key"], "name": name, "qty": _qty(picked.get("qty"), info["unit"], f"{where} {name}"),
                       "memo": _text(picked.get("memo"), 60)})
     customs = [{"text": _text(c.get("text"), 200)} for c in (raw.get("customs") or [])[:MAX_CUSTOMS]
@@ -180,7 +180,7 @@ def save_partner_options(db, order_id: int, items: list[dict[str, Any]], parsed:
     """협력사 원문(PARTNER)과 지금 값(CURRENT)을 품목 uid 마다 쓴다. 이제 없는 품목의 PARTNER · CURRENT 줄은 지운다."""
     uids = [str(item.get("uid") or "") for item in items]
     if not all(uids):
-        raise ItemOptionsError("품목 번호가 없어 옵션을 저장하지 못했습니다.")
+        raise ItemOptionsError("옵션을 저장하지 못했습니다. 화면을 새로고침한 뒤 다시 저장해 주세요.")
     rows = {(r.item_uid, r.stage): r for r in db.query(OrderItemOption)
             .filter(OrderItemOption.order_id == order_id, OrderItemOption.stage.in_(("PARTNER", "CURRENT"))).all()}
     now = now_utc_naive()
@@ -224,7 +224,7 @@ def diff_options(partner: Optional[dict[str, Any]], current: dict[str, Any], uni
         return []
     out: list[dict[str, Any]] = []
     if partner["state"] != current["state"] and "chosen" not in (partner["state"], current["state"]):
-        out.append({"name": "옵션", "from": STATE_TEXT[partner["state"]], "to": STATE_TEXT[current["state"]]})
+        out.append({"name": "", "from": STATE_TEXT[partner["state"]], "to": STATE_TEXT[current["state"]]})
     before = {line["name"]: line for line in partner.get("lines") or []}
     after = {line["name"]: line for line in current.get("lines") or []}
     for name in list(before) + [n for n in after if n not in before]:
@@ -301,7 +301,7 @@ def prepare_review_options(db, order: Any, raw: Any):
         diff = diff_options(_view(rows.get((str(uid), "PARTNER")), units), options, units)
         reason = _text((entry or {}).get("reason") if isinstance(entry, dict) else "", 200)
         if diff and not reason:
-            raise ItemOptionsError(f"항목 {no}: 협력사가 고른 것과 달라진 옵션의 까닭을 한 줄 적어 주세요.")
+            raise ItemOptionsError(f"항목 {no}: 협력사가 고른 것과 달라진 옵션은 바꾼 이유를 한 줄 적어 주세요.")
         planned.append((str(uid), current, options, [{**d, "reason": reason} for d in diff]))
 
     def apply(s_data: dict[str, Any], user_id: Optional[int] = None) -> None:

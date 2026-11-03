@@ -9,7 +9,7 @@
         <div class="pp-opt-item__head">항목 {{ it.no }} · {{ it.title }}</div>
         {% if it.current.state == 'later' and can_approve %}
         <div class="pp-item" data-pp-uid="{{ it.uid }}" data-pp-item-no="{{ it.no }}"><input type="hidden" data-k="product_name" value="{{ it.title }}"><div data-pp-optfield></div></div>
-        <div class="pp-opt-note">"상담 후 정함"으로 두셨던 품목입니다. 옵션을 골라야 "이대로 만들어 주세요"가 됩니다. 없으면 "옵션 없음"을 고르세요.</div>
+        <div class="pp-opt-note">"상담 후 정함"으로 둔 항목입니다. 옵션을 골라야 "이대로 만들어 주세요"를 누를 수 있습니다.</div>
         {% else %}
         <div class="pp-optbox">
             {% if it.current.state != 'chosen' %}<div class="pp-optline pp-optline--special"><span class="pp-optline__name">{{ '옵션 없음' if it.current.state == 'none' else '상담 후 정함' }}</span></div>{% endif %}
@@ -18,10 +18,10 @@
         </div>
         {% endif %}
         {% if it.diff %}<div class="pp-opt-diff" data-pp-opt-diff>
-            {% for d in it.diff %}<div>바뀜: {{ d.name }} {{ d['from'] or '없음' }} → {{ d['to'] or '없음' }}</div>{% endfor %}
-            {% if it.current.changes and it.current.changes[0].reason %}<div>까닭: {{ it.current.changes[0].reason }}</div>{% endif %}
+            {% for d in it.diff %}<div>바뀜: {{ d.name ~ ' ' if d.name }}{{ d['from'] or '없음' }} → {{ d['to'] or '없음' }}</div>{% endfor %}
+            {% if it.current.changes and it.current.changes[0].reason %}<div>바꾼 이유: {{ it.current.changes[0].reason }}</div>{% endif %}
         </div>{% endif %}
     </div>
     {% endfor %}
-    <p class="pp-opt-note">처음 고르신 것과 달라진 품목만 노란색입니다. 다르면 "수정 요청 보내기"로 알려 주세요. 금액은 명세서가 나온 뒤에 보입니다.</p>
+    {% if option_review['items'] | selectattr('diff') | list %}<p class="pp-opt-note">저희 도면팀이 바꾼 옵션은 노란 칸에 보입니다. 맞지 않으면 "수정 요청 보내기"로 알려 주세요.</p>{% endif %}
 </section>

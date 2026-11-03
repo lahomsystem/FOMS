@@ -48,8 +48,8 @@
     var row = el('div', 'pp-optline');
     row.appendChild(el('span', 'pp-optline__name', line.name));
     var qty = el('span', 'pp-optline__qty');
-    var minus = button(null, '−', line.name + ' 하나 빼기');
-    var plus = button(null, '+', line.name + ' 하나 더하기');
+    var minus = button(null, '−', line.name + ' 수 줄이기');
+    var plus = button(null, '+', line.name + ' 수 늘리기');
     minus.addEventListener('click', function () { line.qty = String(Math.max(1, (parseFloat(line.qty) || 1) - 1)); draw(); });
     plus.addEventListener('click', function () { line.qty = String(Math.min(999, (parseFloat(line.qty) || 1) + 1)); draw(); });
     qty.appendChild(minus);
@@ -60,10 +60,10 @@
     var memo = el('input', 'pp-optline__memo');
     memo.value = line.memo || '';
     memo.maxLength = 60;
-    memo.placeholder = '위치 (선택)';
+    memo.placeholder = '위치(선택)';
     memo.addEventListener('input', function () { line.memo = memo.value; });
     row.appendChild(memo);
-    var del = button('pp-optline__del', '✕', line.name + ' 빼기');
+    var del = button('pp-optline__del', '✕', line.name + ' 지우기');
     del.addEventListener('click', function () { item.edit.lines.splice(i, 1); fixState(item); draw(); });
     row.appendChild(del);
     return row;
@@ -75,10 +75,10 @@
     var text = el('input', 'pp-optline__memo');
     text.value = custom.text || '';
     text.maxLength = 200;
-    text.placeholder = '무엇을 어떻게';
+    text.placeholder = '무엇을 어떻게 할지 적어 주세요';
     text.addEventListener('input', function () { custom.text = text.value; refreshDiff(item); });
     row.appendChild(text);
-    var del = button('pp-optline__del', '✕', '커스텀 빼기');
+    var del = button('pp-optline__del', '✕', '커스텀 지우기');
     del.addEventListener('click', function () { item.edit.customs.splice(i, 1); fixState(item); draw(); });
     row.appendChild(del);
     return row;
@@ -90,7 +90,7 @@
 
   function pick(item) {
     if (!window.ErpSpecPicker) return;
-    var groups = [{ label: '선택 없음', items: [
+    var groups = [{ label: '없거나 아직 모를 때', items: [
       { key: 's:none', label: SPECIAL.none, meta: '', payload: { kind: 'none' } },
       { key: 's:later', label: SPECIAL.later, meta: '', payload: { kind: 'later' } }] }];
     (state.catalog || []).forEach(function (g) {
@@ -98,7 +98,7 @@
         .map(function (it) { return { key: 'o:' + it.name, label: it.name, meta: '단위 ' + (it.unit || '개'), payload: { kind: 'opt', key: it.key, name: it.name, unit: it.unit } }; });
       if (items.length) groups.push({ label: g.label, items: items });
     });
-    groups.push({ label: '목록에 없는 것', items: [{ key: 'c:custom', label: '커스텀 (직접 적기)', meta: '', payload: { kind: 'custom' } }] });
+    groups.push({ label: '목록에 없는 것', items: [{ key: 'c:custom', label: '커스텀(직접 적기)', meta: '', payload: { kind: 'custom' } }] });
     var edit = item.edit;
     var selected = edit.lines.map(function (l) { return 'o:' + l.name; });
     if (edit.customs.length) selected.push('c:custom');
@@ -143,16 +143,16 @@
     }
     edit.lines.forEach(function (line, i) { box.appendChild(lineRow(item, line, i, unitMap)); });
     edit.customs.forEach(function (c, i) { box.appendChild(customRow(item, c, i)); });
-    var more = button('pp-optmore', '+ 옵션 고치기 · 더 고르기');
+    var more = button('pp-optmore', '+ 옵션 고르기');
     more.addEventListener('click', function () { pick(item); });
     box.appendChild(more);
     wrap.appendChild(box);
-    if (edit.state === 'later') wrap.appendChild(el('div', 'pp-opt-note', '협력사가 아직 고르지 않았습니다(상담 후 정함) — 도면 확인 때 협력사가 고릅니다. 정해졌으면 여기서 골라도 됩니다.'));
+    if (edit.state === 'later') wrap.appendChild(el('div', 'pp-opt-note', '협력사가 아직 고르지 않았습니다. 도면 확인 때 협력사가 고르고, 정해졌으면 여기서 골라도 됩니다.'));
     var diff = el('div', 'pp-opt-diff');
-    diff.appendChild(el('div', null, '협력사가 고른 것과 달라졌습니다 — 협력사가 도면 확인 때 이 까닭을 같이 봅니다.'));
+    diff.appendChild(el('div', null, '협력사가 고른 것과 다릅니다. 이유를 적으면 협력사가 도면 확인 때 함께 봅니다.'));
     var reason = el('input');
     reason.maxLength = 200;
-    reason.placeholder = '까닭 (예: 가운데 통 폭 900 — 서랍 2단 대신 1단)';
+    reason.placeholder = '바꾼 이유 (예: 가운데 통 폭 900 — 서랍 2단 대신 1단)';
     reason.value = item.reason || '';
     reason.addEventListener('input', function () { item.reason = reason.value; });
     diff.appendChild(reason);
@@ -200,7 +200,7 @@
       var item = state.items[i];
       var edit = item.edit;
       if (edit.customs.some(function (c) { return !(c.text || '').trim(); })) return { ok: false, error: '항목 ' + item.no + ' 커스텀 내용을 적어 주세요.' };
-      if (changed(item) && !(item.reason || '').trim()) return { ok: false, error: '항목 ' + item.no + ': 협력사가 고른 것과 달라진 옵션의 까닭을 한 줄 적어 주세요.' };
+      if (changed(item) && !(item.reason || '').trim()) return { ok: false, error: '항목 ' + item.no + ': 협력사가 고른 것과 달라진 옵션은 바꾼 이유를 한 줄 적어 주세요.' };
       data[item.uid] = { state: edit.state, reason: (item.reason || '').trim(),
         lines: edit.lines.map(function (l) { return { key: l.key, name: l.name, qty: l.qty, memo: (l.memo || '').trim() }; }),
         customs: edit.customs.map(function (c) { return { text: (c.text || '').trim() }; }) };

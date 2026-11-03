@@ -226,7 +226,7 @@ def parse_source_html(html: str) -> dict[str, list[dict[str, Any]]]:
         raise PriceListError("파일이 너무 큽니다(5MB 까지).")
     match = _DATA_RE.search(html)
     if not match:
-        raise PriceListError("단가표 HTML 에서 단가 자료를 찾지 못했습니다(통합 단가표 편집기로 저장한 파일인지 봐 주세요).")
+        raise PriceListError("이 파일에서 단가를 찾지 못했습니다. 통합 단가표 편집기로 저장한 파일인지 확인해 주세요.")
     try:
         data = json.loads(match.group(1))
     except (TypeError, ValueError) as exc:
@@ -290,12 +290,12 @@ def _clean_item(raw: dict[str, Any], ncells: int, errors: list[str]) -> Optional
     except (TypeError, ValueError):
         name_col = price_col = -1
     if not _KEY_RE.match(key) or kind is None or unit is None or not (0 <= name_col < ncells and 0 <= price_col < ncells):
-        errors.append(f"줄 정보가 틀렸습니다({key or '열쇠 없음'}).")
+        errors.append("계산 정보가 잘못된 줄이 있습니다. 화면을 새로 고친 뒤 다시 해 주세요.")
         return None
     try:
         cond = _cond(kind, raw.get("cond"))
     except (TypeError, ValueError):
-        errors.append(f"구간 · 넘친 만큼 조건은 숫자로 적어 주세요({key}).")
+        errors.append("크기 구간 · 넘친 만큼의 mm 값은 숫자로 적어 주세요.")
         return None
     return {"key": key, "name_col": name_col, "price_col": price_col,
             "role": raw.get("role") if raw.get("role") in ROLES else "option",
@@ -318,11 +318,11 @@ def _check_names(sheet: dict[str, Any], errors: list[str]) -> None:
                 products.add(name)
     for (role, name), keys in owners.items():
         if len(keys) > 1:
-            errors.append(f"고르는 이름 '{name}' 이(가) 여러 줄에 있습니다 — 한 줄에만 두세요.")
+            errors.append(f"고르는 이름이 여러 줄에 겹칩니다: {name} — 한 줄에만 두세요.")
     for _cat, row, item in iter_items(sheet):
         for name in item["for_products"]:
             if name not in products:
-                errors.append(f"'{item_name(row, item)}' 의 '이 제품일 때만' 에 없는 제품 이름이 있습니다: {name}")
+                errors.append(f"{item_name(row, item)}: '이 제품일 때만 보임'에 없는 제품 이름이 있습니다 — {name}")
 
 
 def clean_sheet(raw: Any) -> dict[str, Any]:
@@ -349,15 +349,16 @@ def clean_sheet(raw: Any) -> dict[str, Any]:
                 if item is None:
                     continue
                 if item["key"] in keys:
-                    errors.append(f"줄 열쇠가 겹칩니다({item['key']}).")
+                    errors.append("같은 줄이 두 번 들어갔습니다. 화면을 새로 고친 뒤 다시 해 주세요.")
                 keys.add(item["key"])
                 try:
                     price = item_price(clean, item)
                     cells[item["price_col"]] = "" if price is None else price
                 except PriceListError as exc:
-                    errors.extend(f"{item_name(clean, item) or item['key']}: {e}" for e in exc.errors)
+                    where = item_name(clean, item) or f"'{category['title'] or '단가표'}'의 이름 빈 품목"
+                    errors.extend(f"{where}: {e}" for e in exc.errors)
                 if not item_name(clean, item):
-                    errors.append(f"이름이 빈 품목이 있습니다({item['key']}) — 줄을 지우거나 이름을 적어 주세요.")
+                    errors.append(f"'{category['title'] or '단가표'}'에 이름이 빈 품목이 있습니다. 이름을 적거나 줄을 빼 주세요.")
                 clean["items"].append(item)
                 count += 1
             category["rows"].append(clean)
@@ -368,7 +369,7 @@ def clean_sheet(raw: Any) -> dict[str, Any]:
     out["seq"] = max([int(raw.get("seq") or 0)] + [int(_KEY_RE.match(k).group(1)) for k in keys])
     _check_names(out, errors)
     if errors:
-        raise PriceListError(errors[:30])
+        raise PriceListError(list(dict.fromkeys(errors))[:30])  # 같은 글은 한 번만
     return out
 
 
@@ -423,7 +424,7 @@ def save_price_list(db, org_id: int, raw_sheet: Any, *, label: Any, effective_fr
     sheet = clean_sheet(raw_sheet)
     current = active_price_list(db, org_id)
     if (current.id if current else None) != (int(base_id) if base_id else None):
-        raise PriceListConflict("그 사이 다른 판이 저장됐습니다. 새로 열어서 다시 고쳐 주세요.")
+        raise PriceListConflict("그사이 다른 사람이 새 판을 저장했습니다. 화면을 새로 고친 뒤 다시 고쳐 주세요.")
     if current is not None:
         _retire_missing(sheet, current.sheet or {})
         current.status = "RETIRED"
