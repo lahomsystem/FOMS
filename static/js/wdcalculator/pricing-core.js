@@ -253,7 +253,7 @@
             }
             var price = Number(row.price) || 0;
             var quantity = Number(row.quantity) || 1;
-            if (price <= 0) {
+            if (price < 0) { // 0원 옵션(기본 구성)은 견적 줄에 남긴다 — 금액은 0
                 continue;
             }
             var amount = price * quantity;
