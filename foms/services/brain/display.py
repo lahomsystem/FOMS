@@ -113,7 +113,10 @@ GATE_LABELS: dict[str, str] = {"form": "꼴", "mask": "가림(개인정보 0)", 
 GATE_VALUE_LABELS: dict[str, str] = {"pass": "통과", "fail": "안 됨", "not_run": "아직 안 돌림", "unavailable": "준비 안 됨",
                                      "skipped": "해당 없음"}
 #: 거절 까닭 칩(7.5 — 남겨서 같은 제안이 다시 오지 않게). 차례 = 화면 차례.
-REJECT_LABELS: dict[str, str] = {"wrong_number": "숫자 틀림", "one_customer": "한 손님 일", "not_policy": "정책 아님",
+REJECT_LABELS: dict[str, str] = {"knowledge_right": "회사 지식이 맞음 — 바깥 글 고칠 일",
+                                 "outside_right": "바깥 글이 맞음 — 회사 지식 고침",
+                                 "both_right": "둘 다 맞음 — 경우를 적음",
+                                 "wrong_number": "숫자 틀림", "one_customer": "한 손님 일", "not_policy": "정책 아님",
                                  "needs_photo": "사진 필요", "other": "그 밖"}
 #: 유형별 '승인의 뜻' 한 줄(7.5 — 승인 = 명백한 문제 없음 확인, 위키백과 pending changes 꼴). 동작 줄 뒤에 붙는다.
 OP_MEANING: dict[str, str] = {

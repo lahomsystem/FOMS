@@ -100,7 +100,8 @@
   }
 
   function confirmBox(prop, ctx) {
-    var label = (ctx.display.fields || {})[prop.confirm.field] || prop.confirm.field;
+    var row = (prop.fields || []).filter(function (r) { return r.field === prop.confirm.field; })[0];
+    var label = (row && row.label) || (ctx.display.fields || {})[prop.confirm.field] || '바뀌는 값';
     var input = el('input', { attrs: { type: 'checkbox', 'data-brain-confirm': '1' } });
     var shown = review.valueText(prop.confirm.field, prop.confirm.value, ctx.display);  // 보이는 글만 이름으로(보내는 값은 그대로)
     return el('label', { cls: 'brain-prop__confirm', children: [input, el('span', {
@@ -143,7 +144,10 @@
     var row = el('div', { cls: 'brain-prop__chips', attrs: { 'data-brain-reject-box': '1', role: 'group',
                                                                  'aria-label': '거절 까닭' } });
     row.hidden = true;
-    review.actionChoices(ctx.actions, 'reject', 'code').forEach(function (choice) {
+    var answers = (window.FOMS_BRAIN_INBOX_QUESTION || { codes: [] }).codes;  // ③ 질문 답 까닭은 보통 거절 칩에 안 보인다
+    review.actionChoices(ctx.actions, 'reject', 'code').filter(function (choice) {
+      return answers.indexOf(choice.value) < 0;
+    }).forEach(function (choice) {
       var chip = button(choice.label, 'reject-code', 'brain-chip-btn');
       chip.setAttribute('data-reject-code', choice.value);
       row.appendChild(chip);

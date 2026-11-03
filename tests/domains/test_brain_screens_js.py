@@ -33,8 +33,8 @@ def _node(expr: str, data: object = None):
 
 @NODE
 def test_node_check_passes_for_every_brain_script():
-    assert len(SCRIPTS) == 25  # 읽기 여섯(⑤-2) + 제안함 · 다시 확인 · 카드 제안 다섯(⑤-3) + 이웃 지도 · 뇌 보기 아홉(⑤-4)
-    # + 물어보기 셋(⑤-5) + '확인할 것' 네 묶음 · ① ④ 표 둘(설계서 7.9)
+    assert len(SCRIPTS) == 26  # 읽기 여섯(⑤-2) + 제안함 · 다시 확인 · 카드 제안 다섯(⑤-3) + 이웃 지도 · 뇌 보기 아홉(⑤-4)
+    # + 물어보기 셋(⑤-5) + '확인할 것' 네 묶음 · ① ④ 표 · ③ 질문 셋(설계서 7.9)
     for path in SCRIPTS:
         subprocess.run(["node", "--check", str(path)], check=True, capture_output=True, timeout=60)
 

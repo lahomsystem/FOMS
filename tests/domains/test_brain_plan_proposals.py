@@ -317,3 +317,12 @@ def test_price_creates_carry_their_calculator_place_and_reasons_read_as_sentence
     assert split_b.evidence == split_b.evidence[:1]  # 못 찾은 자리는 안 싣는다(대조군)
     assert split_a.reason.startswith("한 글에 여러 값이 섞여 있어서 값마다 나눠요 (자료 정리 · 사장님 결정 D115")
     assert "채움" not in " ".join(c.reason for c in rows.values()) and "자료 계획 —" not in split_a.reason
+
+
+def test_conflict_proposals_carry_the_items_they_are_about(admin):
+    """엇갈림 · 질문 제안은 근거에 다루는 항목(``about:<키>``)을 싣는다 — ③ 질문 카드가 두 글을 나란히(설계서 7.9)."""
+    run_plan()
+    rows = db_session.execute(select(BrainChange).where(BrainChange.proposed_by == "import",
+                                                         BrainChange.item_type.in_(("conflict", "question")))).scalars().all()
+    about = {c.item_type: [e for e in c.evidence if e.startswith("about:")] for c in rows}
+    assert about == {"conflict": ["about:lahom/p-calc"], "question": ["about:lahom/pol"]}  # 없는 'gone' 은 빠진다

@@ -52,16 +52,17 @@ from foms.services.datetime_kst import now_utc_naive
 APPROVED_BY = "D130 자료 계획"  # 나눈 지식 문서 항목의 승인 칸(실제 승인은 카드 승인)
 NEW_TYPES: dict[str, str] = {"process_step": "공정 단계", "spec": "규격", "term": "용어"}
 CONFLICT_TYPES: dict[str, str] = {"supersede": "conflict", "conflict_item": "conflict", "edit_text": "question"}
-CALC_PREFIX = "calc:"
+CALC_PREFIX, ABOUT_PREFIX = "calc:", "about:"
 _DOC_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
 _PAYLOAD = "payload."
 
 
 def _create(run: Run, *, key: str, brand: str, layer: str, item_type: str, values: dict[str, Any], ref_id: str,
-            why: str, prices: tuple[str, ...] = ()) -> None:
+            why: str, extra: tuple[str, ...] = ()) -> None:
     """만들기 제안(이미 있거나 열린 만들기가 있으면 넘김). 상태 '반영' · 근거 종류 ``document`` 가 기본.
 
-    ``prices`` = 금액을 가져올 계산기 자리(근거에 함께 싣는다 — 카드가 '지금 값' 한 줄을 보인다, 설계서 7.9 ② 문장 카드)."""
+    ``extra`` = 근거에 함께 싣는 자리 — 금액을 가져올 계산기 자리(② 문장 카드의 '지금 값' 한 줄) · 엇갈림이 다루는 항목
+    (``about:<키>`` — ③ 질문 카드가 두 글을 나란히 보인다). 링크는 반영 뒤 다음 차례라 그 전엔 알 길이 없다(설계서 7.9)."""
     if not KEY_RE.fullmatch(key):
         run.skipped["shape"] += 1
     elif current_object(run.session, key) is not None:
@@ -72,7 +73,7 @@ def _create(run: Run, *, key: str, brand: str, layer: str, item_type: str, value
         values = {"status": STATUS_ACTIVE, "evidence_kind": EVIDENCE_KIND, "evidence_ref": run.ref(ref_id), **values}
         file_one(run, OP_CREATE, lambda: propose_create(
             run.session, key=key, brand=brand, layer=layer, item_type=item_type, values=values, reason=why,
-            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id), *prices], now=run.now, known=run.known))
+            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id), *extra], now=run.now, known=run.known))
 
 
 # ── 항목(지식 문서에서 옮긴 것) ─────────────────────────────────────────
@@ -138,7 +139,7 @@ def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, pare
     prices = tuple(r for r in (resolve(run, h) for h in (block.get("value_from_hint") or []) if basis)
                    if r and r.startswith(CALC_PREFIX))[:3]
     _create(run, key=key, brand=parent.brand if parent is not None else run.brand, layer=layer, item_type=item_type,
-            ref_id=cid, why=why, prices=prices,
+            ref_id=cid, why=why, extra=prices,
             values={"name": label, "text": one_line(block.get("text"), MAX_TEXT) or label,
                     "visibility": parent.visibility if parent is not None else SCOPE_ALL,
                     "checked_at": run.today, "payload": payload})
@@ -280,7 +281,8 @@ def _conflicts(run: Run, rows: Iterable[Any]) -> None:
                         "visibility": scopes.pop() if len(scopes) == 1 else SCOPE_ADMIN,
                         "payload": {"plan_action": conflict["action"],
                                     **({"decisions": list(decisions)} if decisions else {})}},
-                why=reason("두 곳에 다르게 적혀 있어요" if item_type == "conflict" else "글을 고칠 곳이 있어요", decisions))
+                why=reason("두 곳에 다르게 적혀 있어요" if item_type == "conflict" else "글을 고칠 곳이 있어요", decisions),
+                extra=tuple(f"{ABOUT_PREFIX}{r.item_key}" for r in found[:3]))
         run.links += [Link("about", key, item_type, r.item_key, r.item_type, ref_id) for r in found]
 
 
