@@ -668,6 +668,18 @@
     renderForm();
     markDirty();
     emitCore('orderbox', { on: cs.form.order_list_on === '1' });   // V2 칸 배치가 칸을 비켜 다시 놓는다(v2-shell · v2-plan ORDER_BOX)
+    if (UI !== 'v2' && cs.form.order_list_on === '1' && orderBoxCovered(cs) > 0) {   // V1 은 스스로 옮기지 않는다 — 그림이 칸 위로 그려지니 알린다
+      toast('그림 ' + orderBoxCovered(cs) + '장이 발주 리스트 칸에 걸려요 — [자동 배치]를 누르면 비켜 놓아요');
+    }
+  }
+
+  /** 발주 리스트 칸(PART_FRAME.orderBox)에 걸친 그림 수. */
+  function orderBoxCovered(s) {
+    var b = PART_FRAME.orderBox;
+    return (s.objects || []).filter(function (o) {
+      var r = o.type === 'image' ? partObjRect(o) : null;
+      return r && r.x < b.x + b.w && b.x < r.x + r.w && r.y < b.y + b.h && b.y < r.y + r.h;
+    }).length;
   }
 
   /** PARTNER-03: 외부 협력사 주문인가 — 서버 기본값이 'partner'(협력사 로고)·'none'(빈칸)일 때. */

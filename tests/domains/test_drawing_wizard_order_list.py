@@ -55,6 +55,7 @@ def test_toggle_saves_on_sheet_rearranges_v2_and_split_does_not_copy_it():
     assert "form.order_list_on === '1'" in r and "classList.toggle('dws-order-on', on)" in r and "els.orderToggle.hidden = !canSave" in r
     t = _fn(JS, "toggleOrderList")
     assert t.index("recordUndo()") < t.index("cs.form.order_list_on =") < t.index("markDirty()") < t.index("emitCore('orderbox'")
+    assert "UI !== 'v2'" in t and "orderBoxCovered(cs) > 0" in t and "[자동 배치]" in t       # V1 은 옮기지 않고 걸린 그림을 알린다
     shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
     assert "['trimmed', 'orderbox'].forEach(function (ev) { core.on(ev, function () { if (laidNow()) { scheduleArrange(ev); } }); });" in shell
     assert JS.count("    form.order_list_on = '';") == 2 and JS.count("    form.order_list = '';") == 2   # V1 · V2 나누기
