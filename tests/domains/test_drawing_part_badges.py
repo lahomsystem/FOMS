@@ -243,7 +243,7 @@ def test_wizard_digit_guard_selection_hide_and_model_cache_wiring():
     assert "zoom: function () { return zoom; }" in init and "selectedIds.length === 1 ? selected : null" in init
     assert "zones: partBadgeZones" in init
     zones = _fn_body(js, "partBadgeZones")
-    assert ".dws-header" in zones and "PART_FRAME.pageBox" in zones and "partTableTop(currentSheet())" in zones
+    assert "partFormBoxes(s)" in zones and "partTableTop(s)" in zones   # 11-03 체크리스트 머리칸 대신 발주 리스트 칸
     # 모델을 이 브라우저에 받아 둔 뒤면 '모델 받는 중'이 아니라 '알아보는 중'
     prog = _fn_body(js, "partProgress")
     check = _fn_body(js, "partCheckModel")

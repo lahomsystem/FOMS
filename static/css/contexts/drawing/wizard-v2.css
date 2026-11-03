@@ -513,26 +513,16 @@
   box-sizing: border-box;
   border-top: 2px solid #111111;
   display: grid;
-  grid-template-columns: 192px 792px 297px minmax(0, 1fr);
+  grid-template-columns: 984px 297px minmax(0, 1fr);   /* 11-03 체크 칸(192px)을 지워 정보 칸에 넘겼다 */
   background: #ffffff;
 }
-.dws-v2-checks {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  column-gap: 8px;
-  align-content: center;
-  align-items: start;
-  padding: 0 10px;
-  border-right: 2px solid #111111;
-}
-.dws-v2-checkcol { display: flex; flex-direction: column; gap: 3px; }
-.dws-v2-checkhead { font-size: 13px; line-height: 16px; font-weight: 800; }
-.dws-v2-chk { display: flex; align-items: center; gap: 5px; font-size: 13.5px; line-height: 17px; font-weight: 600; white-space: nowrap; }
-.dws-v2-form .dws-check { width: 15px; height: 15px; font-size: 12px; border-width: 2px; flex: none; }
+/* 발주 리스트(우상) — V2 는 쪽번호가 아래 띠에 있어 ㄴ자 홈 없이 네모. 칸 모양 · 글자는 wizard.css .dws-orderbox */
+.dws-v2-orderbox { z-index: 3; }
+.dws-v2-orderbox .dws-orderbox-title { padding-right: 12px; }
 .dws-v2-info { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); border-right: 2px solid #111111; min-width: 0; }
 .dws-v2-row { display: grid; min-height: 0; }
-.dws-v2-row1 { grid-template-columns: 108px 92px 147px minmax(0, 1fr) 147px; border-bottom: 1.5px solid #111111; }
-.dws-v2-row2 { grid-template-columns: 121px 137px 168px 126px 163px minmax(0, 1fr); }
+.dws-v2-row1 { grid-template-columns: 134px 114px 183px minmax(0, 1fr) 183px; border-bottom: 1.5px solid #111111; }
+.dws-v2-row2 { grid-template-columns: 150px 170px 209px 157px 203px minmax(0, 1fr); }
 .dws-v2-cell {
   display: flex;
   flex-direction: column;

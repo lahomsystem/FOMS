@@ -9,7 +9,8 @@
  * window.FomsV2Pack = { GAP, HEAD, MAX_UP, row(items, maxW, maxH, same), stack(items, maxW, maxH, same),
  *   shelves(groups, W, H, same, bare, hi), flow(boxes, W, gap), room(x, y, w, h, obstacles, groups, same),
  *   block(unit, t, same), search(hi, fits), tCap(units, same),   — 이 셋은 주 그림 크게(v2-hero.js)가 쓴다
- *   rows(items, r, same) → r 줄 묶음(stack 에 넘긴다 — 위 띠 상세 두 줄), areas(full, obstacles), hits(res, obstacles) }   — v2-layout
+ *   rows(items, r, same) → r 줄 묶음(stack 에 넘긴다 — 위 띠 상세 두 줄), areas(full, obstacles), hits(res, obstacles),
+ *   corner(inp, A) → 오른쪽 위 고정 칸(발주 리스트) 몫 폭 }   — v2-layout
  *   item  = { id, nw, nh, tx } (원본 픽셀) · unit = { members: [item] } · group = { key, units: [unit] }
  *   결과 좌표는 칸 왼쪽 위(0,0) 기준 — 부르는 쪽이 칸 자리를 더한다.
  */
@@ -173,7 +174,8 @@
     if (!obs.length || !window.FomsPartPack) { return [full]; }
     return [full].concat(window.FomsPartPack.freeRects(full, obs, GAP).map(function (f) { return { x0: f.x, y0: f.y, x1: f.x + f.w, y1: f.y + f.h }; })
       .filter(function (a) { return a.x0 !== full.x0 || a.y0 !== full.y0 || a.x1 !== full.x1 || a.y1 !== full.y1; })
-      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); }).slice(0, 3));
+      .sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); })
+      .slice(0, obs.some(function (b) { return !b.corner; }) ? 3 : 1));   // 발주 리스트 칸만이면 종이 칸(corner 로 비켜 감) + 못 놓을 때 쓸 하나
   }
   function hits(r, obs) {
     return obs.some(function (b) { return r.moves.some(function (m) { return m.x < b.x + b.w && b.x < m.x + m.w && m.y < b.y + b.h && b.y < m.y + m.h; }); });
@@ -192,6 +194,13 @@
     return { placed: out, w: w, h: out.length ? y + rowH : 0 };
   }
 
+  /** 칸 A 의 오른쪽 위를 차지한 고정 칸(장애물 corner: true — 발주 리스트 칸, v2-plan ORDER_BOX)의 폭 + GAP, 없으면 0.
+      위 띠 · 오른쪽 위 자재 · 특이 · 강조가 그 앞에서 끝난다(그림 칸은 room 이 비켜 간다). 11-03 */
+  function corner(inp, A) {
+    var c = (inp.obstacles || []).filter(function (b) { return b.corner && b.x < A.x1 && b.x + b.w >= A.x1 && b.y <= A.y0 && b.y + b.h > A.y0; })[0];
+    return c ? A.x1 - c.x + GAP : 0;
+  }
+
   window.FomsV2Pack = { GAP: GAP, HEAD: HEAD, MAX_UP: MAX_UP, row: row, stack: stack, shelves: shelves, flow: flow,
-    unitH: unitH, room: room, block: block, search: search, tCap: tCap, rows: rows, areas: areas, hits: hits };
+    unitH: unitH, room: room, block: block, search: search, tCap: tCap, rows: rows, areas: areas, hits: hits, corner: corner };
 })();

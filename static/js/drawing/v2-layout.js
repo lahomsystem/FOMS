@@ -129,7 +129,7 @@
 
   /** 위 띠형 — 띠 높이 Hb. 띠 칸(자재 · 상세 · 평면 · 사진)은 머리 최소 폭만큼은 자리를 잡는다. wrap = 상세를 두 줄로 접는다(여백 줄이기). */
   function band(inp, o, Hb, wrap, mv) {
-    var P = pk(), A = inp.area, W = A.x1 - A.x0, HEAD = P.HEAD, GAP = P.GAP;
+    var P = pk(), A = inp.area, W = A.x1 - A.x0, HEAD = P.HEAD, GAP = P.GAP, cw = P.corner(inp, A);   // cw = 발주 리스트 칸 몫(띠가 그 앞에서 끝난다)
     var res = newRes('band'), same = o.sameScale !== false, big = bigGroups(inp), on = inBand(inp, mv);
     var hasBom = inp.bom.length > 0, hasNotes = inp.notes.length > 0;
     var colW = hasBom ? Math.max(bomBlock(inp.bom).w, HEAD_MIN_W, hasNotes ? NOTE_MIN_W : 0) : (hasNotes ? NOTE_MIN_W + 40 : 0);
@@ -141,7 +141,7 @@
     if (!anyBand) { Hb = 0; }
     if (anyBand && (colH > Hb || (st && st.h > Hb) || Hb - HEAD < 40)) { return null; }
     var cH = Hb - HEAD;
-    var avail = W - (colW ? colW + GAP : 0) - (st ? st.w + GAP : 0) - GAP * Math.max(0, smalls.length - 1);
+    var avail = W - cw - (colW ? colW + GAP : 0) - (st ? st.w + GAP : 0) - GAP * Math.max(0, smalls.length - 1);
     function cell(key, h) { return wrap && key === 'detail' ? P.stack(P.rows(inp.detail, 2, same), Infinity, h, same) : P.row(inp[key], Infinity, h, same); }
     function widths(k) {
       return smalls.map(function (key) { var r = cell(key, cH * k); return r ? Math.max(r.w, HEAD_MIN_W) : Infinity; });
@@ -169,14 +169,14 @@
       addPics(res, r.placed, x, A.y0 + HEAD);
       x += Math.max(r.w, HEAD_MIN_W) + GAP;
     });
-    if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
+    if (st) { if (cw && x - GAP > A.x1 - cw - st.w) { return null; } putStamp(res, st, A.x1 - cw - st.w, A.y0); }   // 발주 리스트 칸 앞 강조가 띠와 겹치면 못 놓음
     var y = A.y0 + (anyBand ? Hb + GAP : 0), room = P.room(A.x0, y, W, A.y1 - y, inp.obstacles, big.groups, same);
     return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, { x: A.x0, y: A.y0, w: W, h: A.y1 - A.y0 }, same, big) ? res : null;
   }
 
   /** 왼쪽 기둥형 — 기둥 폭 Wc. */
   function column(inp, o, Wc, mv) {
-    var P = pk(), A = inp.area, W = A.x1 - A.x0, H = A.y1 - A.y0, HEAD = P.HEAD, GAP = P.GAP;
+    var P = pk(), A = inp.area, W = A.x1 - A.x0, H = A.y1 - A.y0, HEAD = P.HEAD, GAP = P.GAP, cw = P.corner(inp, A);
     var res = newRes('column'), same = o.sameScale !== false, big = bigGroups(inp);
     var leftKeys = (o.photoFirst === false ? big.smallKeys.concat(['photo']) : ['photo'].concat(big.smallKeys)).filter(inBand(inp, mv));
     if (!leftKeys.length) { return null; }   // 기둥에 넣을 것이 없으면 위 띠형과 같다
@@ -206,14 +206,14 @@
     if (ph && photoAt > 0) { putPhoto(); }
     // 오른쪽 위: 자재 · 특이 · 강조(특이는 자재 머리 최소 폭 뒤에서 — 머리끼리 겹치지 않게)
     var st = stampBox(inp.stamp), b = putBom(res, inp, rx, A.y0), bw = b.w ? Math.max(b.w, HEAD_MIN_W) + GAP : 0;
-    var notesW = RW - bw - (st ? st.w + GAP : 0), nh;
+    var notesW = RW - cw - bw - (st ? st.w + GAP : 0), nh;
     if (inp.notes.length && notesW >= NOTE_MIN_W) {
       nh = putNotes(res, inp, rx + bw, A.y0, notesW).h;
     } else {
       nh = putNotes(res, inp, rx, A.y0 + (b.h ? b.h + GAP : 0), Math.max(b.w, NOTE_MIN_W)).h;
       nh = nh ? nh + (b.h ? b.h + GAP : 0) : 0;
     }
-    if (st) { putStamp(res, st, A.x1 - st.w, A.y0); }
+    if (st) { if (cw && bw + st.w > RW - cw) { return null; } putStamp(res, st, A.x1 - cw - st.w, A.y0); }   // 발주 리스트 칸 앞 강조가 자재와 겹치면 못 놓음
     var topH = Math.max(b.h, nh, st ? st.h : 0);
     var by = A.y0 + (topH ? topH + GAP : 0), room = P.room(rx, by, RW, A.y1 - by, inp.obstacles, big.groups, same);
     return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;

@@ -129,7 +129,7 @@ def test_slider_wiring_template_css_and_pins():
     assert RIGHT_TPL.index('id="dws-v2-styles"') < RIGHT_TPL.index('id="dws-v2-size"')
     assert TPL.index("js/drawing/v2-size.js') }}?v=20261028a") < TPL.index("js/drawing/v2-right.js') }}?v=20261028e")
     for asset in ("js/drawing/v2-hero.js') }}?v=20261029b", "js/drawing/v2-pack.js') }}?v=20261028c",
-                  "css/contexts/drawing/wizard-v2.css') }}?v=20261028b"):
+                  "css/contexts/drawing/wizard-v2.css') }}?v=20261103a"):
         assert asset in TPL, asset
     assert ".dws-v2-size[hidden] { display: none; }" in CSS                    # display:flex 가 hidden 을 이기지 않게
     assert "heroSize: parseInt(form.v2_hero_size, 10) || 0" in plan

@@ -191,7 +191,7 @@ vm.runInContext([
 ].join(NL), ctx);
 const names = ['currentSheet', 'cloneSheet', 'findObj', 'bindSheetHistory', 'pushUndoSnapshot', 'recordUndo', 'swapInHistory', 'undo', 'redo',
   'normalizeRotation', 'sizeOrDefault', 'num', 'sanitizePart', 'partWith', 'partTextOf', 'newPartBatch', 'recordBatchUndo', 'partTableTop',
-  'partObjRect', 'partArea', 'partPad', 'partItem', 'partArrangePlan', 'partFreshPlan', 'partArrangedText', 'autoArrangeImages',
+  'partObjRect', 'partArea', 'partFormBoxes', 'partPad', 'partItem', 'partArrangePlan', 'partFreshPlan', 'partBasePlan', 'partArrangedText', 'autoArrangeImages',
   'askCrowdedArrange', 'partSplitPlan', 'splitPartSheets', 'partSheetSig', 'partSplitUndone', 'applyPartArrangement', 'partPlace',
   'refreshPartBadges', 'partSplitSource', 'partSplitHint', 'restoreDeletedSheet'];
 vm.runInContext([line('var PART_FRAME ='), line('var PART_BORDER ='), line('var PART_LABELS ='), line('var LAYOUT_DEFAULT ='),
