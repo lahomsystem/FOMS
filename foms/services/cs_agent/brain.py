@@ -1,7 +1,7 @@
 """두뇌 — Claude API 를 부르는 한 곳. 가린 상담 글 · 승인 지식으로 답 초안 하나를 받는다(플랜 C3-2 · 설계서 11.1 D44).
 
 초안 바퀴(:mod:`.drafting`)가 부른다. 바퀴는 선점 전에 :func:`check_ready` 로 준비를 한 번 본다(원장 R7-4).
-모델 · 생각 깊이 · 최대 출력 · 시간 상한 · 다시 하기 · 캐시 · 대체 · 하루 상한(화면 값)은 관리 화면 설정
+모델 · 생각 깊이 · 답 길이 · 최대 출력 · 시간 상한 · 다시 하기 · 캐시 · 대체 · 하루 상한(화면 값)은 관리 화면 설정
 (:func:`.settings.read_settings`)을 부를 때마다 새로 읽는다 — 줄이 없으면 아래 상수 그대로다(처음 값 = 상수, 시험이 맞춘다).
 돈 줄 · 오류 꼴은 :mod:`.brain_spend` 에 있고 이 모듈이 이름을 그대로 내보낸다. :func:`draft_reply` 의 순서(바꾸지 않는다):
 
@@ -180,7 +180,8 @@ def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
         "thinking": {"type": "adaptive"},  # 끌 수 없다 — 대체 모델(Opus 4.8)은 빼면 생각 없이 돌아 적어 둔다
         "output_config": {"effort": cfg.effort_for(request.purpose),
                           "format": {"type": "json_schema", "schema": prompt.output_schema(knowledge)}},
-        "system": prompt.system_blocks(request.brand, knowledge, cache_ttl=cfg.cache_ttl_for(request.daytime)),
+        "system": prompt.system_blocks(request.brand, knowledge, cache_ttl=cfg.cache_ttl_for(request.daytime),
+                                       length=cfg.get("draft_length")),
         "messages": [{"role": "user", "content": prompt.task_text(
             purpose=request.purpose, chat_id=request.chat_id, medium=request.medium, now=now,
             calculator_lines=request.calculator_lines, conversation=conversation, cases=request.cases,
