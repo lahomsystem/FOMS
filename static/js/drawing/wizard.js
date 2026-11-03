@@ -4463,14 +4463,14 @@
     emitCore('sheet');
   }
 
-  /** V1 에서 V2(칸 자동 배치 화면)로 정리한 시트를 열었다 — V2 종이에는 위쪽 체크 칸·쪽 번호 칸이 없어 그 자리에 그림이 있을 수 있다.
+  /** V1 에서 V2(칸 자동 배치 화면)로 정리한 시트를 열었다 — V2 종이에는 위쪽 쪽 번호 칸이 없어(11-03 체크리스트는 둘 다 지웠다) 그 자리에 그림이 있을 수 있다.
       시트마다 한 번 알린다(설계서 2026-10-26 V2 §2 — V1 [자동 배치]가 다시 놓으면 V2 표시는 지워진다). */
   var v2LaidWarned = {};
   function warnV2Laid() {
     var cs = currentSheet();
     if (UI !== 'v1' || !cs || !cs.form || !cs.form.v2_layout || v2LaidWarned[cs.id]) { return; }
     v2LaidWarned[cs.id] = true;
-    toast('새 화면(V2)에서 칸으로 정리한 시트예요 — 위쪽 체크 칸과 겹치면 [자동 배치]를 누르거나 새 화면에서 열어 주세요');
+    toast('새 화면(V2)에서 칸으로 정리한 시트예요 — 오른쪽 위 쪽 번호 칸과 겹치면 [자동 배치]를 누르거나 새 화면에서 열어 주세요');
   }
 
   function switchSheet(i) {

@@ -18,7 +18,7 @@ CORE = (ROOT / "static/js/drawing/wizard.js").read_text(encoding="utf-8")
 def test_crop_button_bar_and_script_order():
     assert TPL.index('id="dws-mt-crop"') < TPL.index('id="dws-mt-trim"')   # 이미지 툴바, 여백 자르기 옆
     assert 'id="dws-crop-bar"' in TPL and 'id="dws-crop-apply"' in TPL and 'id="dws-crop-cancel"' in TPL
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261103c") < TPL.index("js/drawing/image-crop.js') }}?v=20261103a")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261103d") < TPL.index("js/drawing/image-crop.js') }}?v=20261103a")
 
 
 def test_core_exposes_crop_entry_and_apply_keeps_place():
