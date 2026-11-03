@@ -72,6 +72,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
     expected = {
         "draft_model": brain.MODEL, "intent_model": brain.MODEL,
         "draft_effort": brain.EFFORTS[bp.PURPOSE_DRAFT], "intent_effort": brain.EFFORTS[bp.PURPOSE_INTENT],
+        "draft_length": 3,  # 답 길이 5단계(사장님 11-03) — 3 이 예전 지시문 문장 그대로
         "draft_max_tokens": brain.MAX_TOKENS[bp.PURPOSE_DRAFT], "intent_max_tokens": brain.MAX_TOKENS[bp.PURPOSE_INTENT],
         "realtime_timeout_s": brain.REALTIME_TIMEOUT_SECONDS, "batch_timeout_s": brain.BATCH_TIMEOUT_SECONDS,
         "realtime_retries": brain.REALTIME_RETRIES, "cache_policy": st.CACHE_DAYTIME,
