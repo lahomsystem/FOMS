@@ -23,7 +23,7 @@ __all__ = [
     "PHOTOS_FIELD", "WEEKLY_FIELD", "WEEKLY_MODEL_FIELD", "switch_value",
 ]
 
-GROUP_DETAIL = "고친 까닭 자세히 · 사진 · 학습(설계서 17.6.1)"
+GROUP_DETAIL = "고친 까닭 · 사진 · 학습"
 DETAIL_FIELD = "edit_detail_enabled"
 PHOTOS_FIELD = "edit_photos_enabled"
 PHOTO_DESC_FIELD = "photo_desc_enabled"
@@ -34,24 +34,23 @@ WEEKLY_MODEL_FIELD = "weekly_fix_model"
 
 DETAIL_FIELDS: tuple[Field, ...] = (
     Field(DETAIL_FIELD, "자세한 이유 칸", KIND_BOOL, False, GROUP_DETAIL,
-          help="[수정하기] 화면에 '왜 고쳤나요(자세히)' 칸을 보이고 저장한다(가린 글만 · 1,000자). [보내기]를 막지 않는다 — "
-               "보낸 뒤 따로 저장한다"),
+          help="[수정하기] 화면에 '왜 고쳤나요' 칸을 보여요(가린 글만 · 1,000자). 보내기를 막지 않고, 보낸 뒤 따로 "
+               "저장해요"),
     Field(PHOTOS_FIELD, "사진 올리기", KIND_BOOL, False, GROUP_DETAIL,
-          help="자세한 이유에 사진(5장 · JPEG · PNG · WebP · 한 장 5MB)을 붙인다. 비공개 저장소(R2)에만, 보기는 FOMS 를 "
-               "거쳐 ADMIN · 올린 직원(24시간)만. 로컬 저장소면 늘 꺼짐. 원본은 90일 뒤 밤 단계가 지운다(D94)"),
+          help="이유에 사진을 5장까지 붙여요(장당 5MB). 비공개 저장소에서만 켜지고 관리자 · 올린 직원(24시간)만 봐요. "
+               "원본은 90일 뒤 지워요"),
     Field(PHOTO_DESC_FIELD, "사진 설명 뽑기", KIND_BOOL, False, GROUP_DETAIL,
-          help="직원이 '손님 정보 안 보임'을 켠 사진만 WORKER 15분 바퀴가 한 번 Claude 에 보내 가린 설명 글로 남긴다(D94). "
-               "얼굴이 보이면 보내지 않는다. 바퀴당 10장 · 60초 · 하루 100장, 학습 돈 상한 안에서만"),
-    Field(PHOTO_DESC_MODEL_FIELD, "사진 설명 모델", KIND_CHOICE, MODEL_HAIKU, GROUP_DETAIL, MODEL_CHOICES,
-          help="처음 Haiku 5.5(설계서 17.6.1 (d))"),
-    Field(CASE_REASONS_FIELD, "사례 재료에 이유 싣기", KIND_BOOL, False, GROUP_DETAIL,
-          help="비슷한 지난 상담 칸의 '고침' 사례에 고친 까닭 · 자세한 이유(200자) · 사진 설명(두 장)을 더한다 — 다섯 사례 합쳐 "
-               "1,500자까지. 끄면 질문 · 답 짝 그대로"),
+          help="직원이 '손님 정보 안 보임'을 켠 사진만 Claude 에 한 번 보내 가린 설명 글로 남겨요(얼굴이 보이면 안 "
+               "보냄). 15분 바퀴당 10장 · 60초, 하루 100장, 학습 돈 상한 안에서만"),
+    Field(PHOTO_DESC_MODEL_FIELD, "사진 설명 모델", KIND_CHOICE, MODEL_HAIKU, GROUP_DETAIL, MODEL_CHOICES),
+    Field(CASE_REASONS_FIELD, "지난 사례에 이유 싣기", KIND_BOOL, False, GROUP_DETAIL,
+          help="비슷한 지난 상담 중 고친 사례에 까닭 · 이유(200자) · 사진 설명(2장)을 붙여 두뇌에 줘요. 다섯 사례 합쳐 "
+               "1,500자까지"),
     Field(WEEKLY_FIELD, "주간 고침 안", KIND_BOOL, False, GROUP_DETAIL,
-          help="월요일 새벽(KST) 지난 7일 '고침' 사례의 까닭 · 이유를 묶어 기준 답 고침 안을 만든다. 근거는 손님 2명 · 직원 "
-               "2명 이상. 사장님(ADMIN) 승인 전에는 아무것도 바뀌지 않는다(D94) — 자동 반영 길이 없다"),
+          help="월요일 새벽, 지난 7일 고친 사례의 까닭 · 이유로 기준 답 고침 안을 만들어요(손님 2명 · 직원 2명 이상 "
+               "근거). 사장님이 승인하기 전엔 아무것도 안 바뀌어요"),
     Field(WEEKLY_MODEL_FIELD, "주간 고침 안 모델", KIND_CHOICE, MODEL_SONNET, GROUP_DETAIL, MODEL_CHOICES,
-          help="설계서는 처음 값을 구현 때 여쭙기로 했다 — 여쭙기 전 처음 값 Sonnet 5.5"),
+          help="사장님 확인 전 임시 값이에요"),
 )
 
 

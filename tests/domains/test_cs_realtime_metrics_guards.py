@@ -133,7 +133,7 @@ def test_a_failing_metric_never_costs_the_morning_report_or_the_panel(app, clien
     assert published.report_sent is True and "시간 지표를 못 셌다" in caplog.text
     admin(client)
     page = client.get("/admin/cs-agent")
-    assert page.status_code == 200 and "시간 지표를 지금 셀 수 없습니다" in page.get_data(as_text=True)
+    assert page.status_code == 200 and "시간 지표를 지금 셀 수 없어요" in page.get_data(as_text=True)
 
 
 # ── R16-10 살아남은 변이 ─────────────────────────────────────────────────

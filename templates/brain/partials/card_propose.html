@@ -5,8 +5,8 @@
 {% set icons = {'propose_edit': 'fa-pen', 'propose_retire': 'fa-box-archive', 'propose_delete': 'fa-trash-can'} %}
 <section class="brain-section brain-propose" aria-labelledby="brain-card-propose" data-brain-propose>
   <h2 id="brain-card-propose">고치기</h2>
-  <p class="brain-empty">고친 내용은 '확인할 것'으로 가고, 사장님이나 그 팀 팀장이 승인하면 바뀌어요.
-    {%- if it.open_changes %} 이 지식에는 승인을 기다리는 수정이 {{ it.open_changes }}개 있어서, 새로 고친 것도 같은 카드에 붙어요.{% endif %}</p>
+  <p class="brain-empty">고친 내용은 '확인할 것'에서 사장님이나 담당 팀장이 승인하면 바뀌어요.
+    {%- if it.open_changes %} 기다리는 수정과 한 카드로 묶여요.{% endif %}</p>
   <div class="brain-propose__buttons">
     {% for action in propose if not (action.name == 'propose_retire' and it.status == 'retired') %}
     <button type="button" class="brain-btn{{ ' brain-btn--primary' if loop.first else '' }}"
@@ -49,11 +49,11 @@
       </label>
       {% endfor %}
     </div>
-    <label class="brain-propose__field">까닭(꼭 — 손님 · 직원 이름 · 전화 · 주소는 쓰지 않아요)
+    <label class="brain-propose__field">까닭(꼭) — 사람 이름 · 전화 · 주소는 빼 주세요
       <textarea class="form-control form-control-sm" name="reason" rows="2" maxlength="500" required></textarea></label>
     <div class="brain-propose__actions">
-      <button type="submit" class="brain-btn brain-btn--primary" data-brain-propose-submit>제안함에 넣기</button>
-      <button type="button" class="brain-btn" data-brain-propose-cancel>그만</button>
+      <button type="submit" class="brain-btn brain-btn--primary" data-brain-propose-submit>보내기</button>
+      <button type="button" class="brain-btn" data-brain-propose-cancel>취소</button>
     </div>
   </form>
   <p class="brain-status-line" data-brain-propose-status role="status" aria-live="polite"></p>

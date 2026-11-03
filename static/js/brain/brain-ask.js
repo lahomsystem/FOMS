@@ -64,12 +64,12 @@
     });
     var fix = dom.el('div', { cls: 'brain-ask__fix', attrs: { hidden: 'hidden', 'data-fix': '1' } });
     var label = 'brain-ask-fix-' + data.id;
-    fix.appendChild(dom.el('label', { text: '고칠 말(무엇이 틀렸나요?)', attrs: { for: label } }));
+    fix.appendChild(dom.el('label', { text: '무엇이 틀렸나요?', attrs: { for: label } }));
     fix.appendChild(dom.el('textarea', { cls: 'brain-ask__input', attrs: { id: label, maxlength: '500', rows: '2', 'data-fix-note': '1' } }));
     fix.appendChild(dom.el('button', { cls: 'brain-btn brain-btn--primary', text: '틀림 보내기',
                                        attrs: { type: 'button', 'data-fix-send': '1' } }));
     if (v.fixLink) {
-      fix.appendChild(dom.el('a', { cls: 'brain-btn', text: '고칠 말 제안(항목 카드)', attrs: { href: v.fixLink } }));
+      fix.appendChild(dom.el('a', { cls: 'brain-btn', text: '지식 고치기', attrs: { href: v.fixLink } }));
     }
     bar.appendChild(fix);
     bar.appendChild(dom.el('p', { cls: 'brain-status-line', attrs: { 'data-feedback-status': '1', role: 'status' } }));
@@ -86,7 +86,7 @@
     li.appendChild(answer);
     if (v.confidence) li.appendChild(dom.el('p', { cls: 'brain-ask__meta', text: v.confidence }));
     if (v.chips.length) {
-      li.appendChild(dom.el('p', { cls: 'brain-ask__meta', text: '근거 항목' }));
+      li.appendChild(dom.el('p', { cls: 'brain-ask__meta', text: '근거' }));
       li.appendChild(dom.el('ul', { cls: 'brain-ask__chips', children: v.chips.map(chipNode) }));
     }
     if (v.checks) li.appendChild(dom.el('p', { cls: 'brain-ask__checks', text: v.checks }));
@@ -125,7 +125,7 @@
     });
     dom.setStatus(line, choice === 'wrong'
       ? (res.data.raised && res.data.raised.length ? '고마워요 — 여러 사람이 틀렸다고 해 승인자에게 올렸어요.'
-                                                   : '고마워요 — 근거 항목에 틀림 신고로 붙였어요.')
+                                                   : '고마워요 — 틀림 신고를 남겼어요.')
       : '고마워요 — 기록했어요.');
   }
 

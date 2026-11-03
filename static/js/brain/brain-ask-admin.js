@@ -41,7 +41,7 @@
     return dom.el('input', { cls: 'form-control form-control-sm', attrs: {
       id: id, name: field.name, type: field.kind === 'int' ? 'number' : 'text', inputmode: 'decimal',
       min: field.low, max: field.high, value: field.value === null ? '' : String(field.value),
-      placeholder: field.kind === 'money' ? '비움 = 부르지 않음' : null } });
+      placeholder: field.kind === 'money' ? '비우면 부르지 않아요' : null } });
   }
 
   function renderFields(settings) {
@@ -60,9 +60,15 @@
   function renderGaps(data) {
     dom.clear(gaps);
     var rows = view.gapRows(data, display);
-    dom.setStatus(gapsStatus, data ? '주(월요일 시작) ' + data.week + ' · 질문 ' + data.questions + '건'
-                                   : '아직 목록이 없어요(설정 "빈 지식 묶기"를 켜면 밤 단계가 주 1회 만들어요).');
+    dom.setStatus(gapsStatus, data ? data.week + ' 주 · 질문 ' + data.questions + '건'
+                                   : '아직 없어요. "빈 지식 묶기"를 켜면 주 1회 만들어요.');
     rows.forEach(function (row) { gaps.appendChild(dom.el('li', { cls: 'brain-ask-gaps__row', text: row.text })); });
+  }
+
+  /** 칸 이름(영어) → 화면 이름. */
+  function labelOf(name) {
+    var hit = current.fields.filter(function (f) { return f.name === name; })[0];
+    return hit ? hit.label : name;
   }
 
   function formValues() {
@@ -84,7 +90,7 @@
       event.preventDefault();
       var picked = view.settingsChanges(current.fields, formValues());
       if (picked.bad.length) {
-        dom.setStatus(status, '값이 맞지 않는 칸: ' + picked.bad.join(', '), 'error');
+        dom.setStatus(status, '값이 맞지 않는 칸: ' + picked.bad.map(labelOf).join(', '), 'error');
         return;
       }
       if (!Object.keys(picked.changes).length) {
@@ -98,7 +104,7 @@
         return;
       }
       renderFields(res.data.settings);
-      dom.setStatus(status, '저장했어요 — 다음 질문부터 써요.' + (res.data.cap_ready ? '' : ' 하루 돈 상한이 비어 있어 아직 부르지 않아요.'));
+      dom.setStatus(status, '저장했어요 — 다음 질문부터 써요.' + (res.data.cap_ready ? '' : ' 하루 돈 상한이 비어 있어 아직 답하지 않아요.'));
     });
   }
 })();

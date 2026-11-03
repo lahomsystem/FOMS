@@ -34,8 +34,8 @@
       'aria-label': outside ? '새 회사 지식 글' : '어떤 경우인지 한 줄' } });
     input.value = outside ? about.text : '';
     box.appendChild(el('label', { cls: 'brain-propose__field', children: [el('span', { text: outside
-      ? '회사 지식을 이 글로 바꿔요 — AI와 직원이 이 글로 안내해요'
-      : '어떤 경우에 어느 쪽인지 한 줄로 적어 주세요 — 지식 글 끝에 덧붙여요' }), input] }));
+      ? '새 글 — AI · 직원이 이 글로 안내해요'
+      : '어떤 경우에 어느 쪽인지 한 줄 — 지식 글 끝에 붙어요' }), input] }));
     box.appendChild(button(outside ? '이 글로 바꾸기' : '덧붙이기', kind + '-save', true));
     return box;
   }
@@ -49,13 +49,13 @@
     var title = card.title || card.name || '';
     box.appendChild(el('p', { cls: 'brain-icard__name', text: title }));
     box.appendChild(el('p', { cls: 'brain-prop__meaning', text: '어느 쪽이 맞아요?' }));
-    if (view.sentence && view.sentence.indexOf(title.replace(/…$/, '')) !== 0) box.appendChild(side('정리한 내용', view.sentence));
+    if (view.sentence && view.sentence.indexOf(title.replace(/…$/, '')) !== 0) box.appendChild(side('바깥 글', view.sentence));
     if (about) box.appendChild(side('회사 지식 「' + about.title + '」', about.text));
     var bar = el('div', { cls: 'brain-prop__actions' });
-    bar.appendChild(button('회사 지식이 맞아요 — 바깥 글을 고칠 일로 남겨요', 'knowledge'));
+    bar.appendChild(button('회사 지식이 맞아요 (바깥 글은 고칠 일로)', 'knowledge'));
     if (about) {
-      bar.appendChild(button('바깥 글이 맞아요 — 회사 지식을 바꿀게요', 'outside'));
-      bar.appendChild(button('둘 다 맞아요 — 경우가 달라요', 'both'));
+      bar.appendChild(button('바깥 글이 맞아요 (지식 고치기)', 'outside'));
+      bar.appendChild(button('둘 다 맞아요 (경우 적기)', 'both'));
     }
     bar.appendChild(el('button', { cls: 'brain-btn', text: '나중에', attrs: { type: 'button', 'data-brain-act': 'later' } }));
     box.appendChild(bar);
@@ -63,7 +63,7 @@
       box.appendChild(editor('outside', about));
       box.appendChild(editor('both', about));
     } else {
-      box.appendChild(el('p', { cls: 'brain-empty', text: '다루는 지식을 아직 못 찾았어요 — 지금은 회사 지식이 맞는지만 고를 수 있어요.' }));
+      box.appendChild(el('p', { cls: 'brain-empty', text: '다루는 지식을 못 찾아 「회사 지식이 맞아요」만 고를 수 있어요.' }));
     }
     box.appendChild(el('p', { cls: 'brain-status-line', attrs: { 'data-brain-prop-status': '1', role: 'status',
                                                                 'aria-live': 'polite' } }));

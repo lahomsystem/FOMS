@@ -57,12 +57,15 @@ def test_bins_are_decided_by_what_changes(op, item_type, fields, link_kind, want
     assert bulk_ok_any_grade(op, item_type, fields, link_kind) is (want in ("names", "mark"))
 
 
-def test_meaning_drops_the_price_warning_only_when_amounts_cannot_change():
+def test_meaning_is_one_warning_line_and_drops_the_price_warning_when_amounts_cannot_change():
+    from foms.services.brain.display import INBOX_NOTE
     names = approval_meaning("update", "price_rule", "names")
-    assert "글과 금액은 그대로" in names and "금액이 바뀔 수 있어요" not in names
-    assert "금액이 바뀔 수 있어요" in approval_meaning("update", "price_rule", "content")  # 대조군
-    assert approval_meaning("link_add", None, "mark").startswith("승인하면 두 지식이 이어져요.")
-    assert "넣으면" not in approval_meaning("create", "template")
+    assert names == "이름 · 찾는 말만 바뀌어요. 글 · 금액은 그대로예요." and "금액이 바뀔 수 있어요" not in names
+    assert approval_meaning("update", "price_rule", "content") == "손님에게 가는 금액이 바뀔 수 있어요. 숫자를 확인해 주세요."
+    assert approval_meaning("link_add", None, "mark") == "표시만 해요. 글 · 금액은 그대로예요."
+    assert approval_meaning("create", "template") == "손님에게 그대로 나가는 글이에요."
+    assert approval_meaning("update", "lesson") == ""  # 되풀이 안내는 카드에 없다(대조군)
+    assert "승인하면" in INBOX_NOTE and "수정 기록" in INBOX_NOTE  # 위에 한 번만
 
 
 def test_label_changes_of_a_type_without_schema_are_shown_as_named_rows_not_json():
@@ -82,7 +85,7 @@ def test_inbox_cards_carry_bin_and_korean_title(app):
     db_session.commit()
     cards = {c["main"]["id"]: c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"]}
     assert cards[labels.id]["bin"] == "names" and cards[labels.id]["title"] == "여닫이 문"
-    assert "글과 금액은 그대로" in cards[labels.id]["main"]["meaning"]
+    assert "글 · 금액은 그대로" in cards[labels.id]["main"]["meaning"]
     price = cards[world["changes"]["price"]]
     assert price["bin"] == "content" and price["title"] == price["name"]  # 한글 이름이 없으면 이름(대조군)
 
@@ -159,7 +162,7 @@ def test_inbox_marks_label_only_b_changes_bulk_ok_for_the_admin_only(app):
     db_session.commit()
     card = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"] if c["main"]["id"] == tpl.id)
     assert card["bin"] == "names" and card["main"]["bulk_ok"] is True and card["title"] == "첫인사 상용구"
-    assert card["main"]["confirm"] == {"field": "payload.pref_label", "value": "첫인사 상용구"}  # JSON 이 아니라 이름 칸
+    assert card["main"]["confirm"] is None  # 관리자의 이름표만 고침은 확인 칸 없음(D151 — 확인할 글 · 금액이 없다)
     price = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"]
                  if c["main"]["id"] == world["changes"]["price"])
     assert price["main"]["bulk_ok"] is False  # 글이 바뀌는 등급 B 는 한 장씩(대조군)
@@ -285,7 +288,25 @@ def test_item_page_puts_people_words_first_and_machine_detail_inside_more(app):
     head, rest = html.split('<details class="brain-prop__drawer" data-brain-card-more>', 1)
     assert '<h1 class="brain-card__title">첫인사 상용구</h1>' in head  # 영어 키(greeting)가 아니라 한글 이름
     assert "사용 중" in head and "승인을 기다리는 수정 1개" in head and "안녕하세요" in head
-    assert "라홈 상담 · 상용구" in head and "어디에 쓰이나" in head and "data-brain-propose-open" in head
-    assert "확신 " not in head and "lahom/tpl · 판" not in head  # 기계 칸은 자세히 보기 안
-    assert "확신 " in rest and "lahom/tpl · 판" in rest and "근거 · 만든 이 · 승인자" in rest
+    assert "라홈 상담<" in head and "어디에 쓰이나" in head and "data-brain-propose-open" in head  # 유형은 칩에만(한 번)
+    assert "확신 " not in head and "lahom/tpl · 버전" not in head  # 기계 칸은 자세히 보기 안
+    assert "확신 " in rest and "lahom/tpl · 버전" in rest and "근거 · 만든 이 · 승인자" in rest
     assert "한눈에" in html and "수정 기록(" in html and "연결된 지식(" in html
+
+
+def test_admin_approves_a_label_only_b_change_without_confirm_but_others_still_need_it(app):
+    from foms.services.brain.decide import apply_decision
+    from foms.services.brain.errors import BrainConfirmError
+    from foms.services.brain.review_rules import confirm_value
+
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")
+    db_session.commit()
+    assert confirm_value(tpl.op, tpl.fields, tpl.item_type) == ("payload.pref_label", "첫인사 상용구")  # 다른 사람용
+    apply_decision(db_session, tpl.id, actor=admin, base_version=tpl.base_version, now=LATER)
+    db_session.commit()
+    assert current_object(db_session, "lahom/tpl").payload["pref_label"] == "첫인사 상용구"
+    with pytest.raises(BrainConfirmError):  # 글이 바뀌는 등급 B 는 여전히 확인 글이 있어야 한다(대조군)
+        apply_decision(db_session, world["changes"]["price"], actor=admin, base_version=1, now=LATER)

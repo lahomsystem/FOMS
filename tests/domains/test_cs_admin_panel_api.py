@@ -220,15 +220,15 @@ def test_the_page_renders_three_tabs_for_an_admin(client, env):
     html = client.get("/admin/cs-agent").get_data(as_text=True)
     for needle in ("data-cs-agent-panel", "cs-tab-switch", "cs-tab-brain", "cs-tab-records", "감시 루프 멈춤",
                    "다시 켜기", "js/admin/cs-agent-panel.js", "/api/admin/cs-agent/settings", 'data-version="0"',
-                   'data-setting="draft_model"', 'value="claude-haiku-5-5"', "WORKER 상한 확인 안 됨",
-                   "상한을 올리면 다음 바퀴부터 다시", "비상 정지는 PC 시범 메모도 멈춥니다 · 초안 끔은 서버 초안만 멈춥니다",
-                   "만들던 초안은 메모 없이 저장만 합니다"):
+                   'data-setting="draft_model"', 'value="claude-haiku-5-5"', "서버 상한 확인 안 됨",
+                   "상한을 올리면 다음 바퀴부터 다시", "PC 시범 메모도 멈춰요", "서버 초안만 멈춰요",
+                   "만들던 초안은 메모 없이 저장만 해요"):
         assert needle in html, needle
     assert "이미 도는 바퀴는 끝까지 돕니다" not in html  # 바퀴 도중 끄기(R8) 뒤로 틀린 글
-    assert "claude-fable" not in html and "env 천장 $5" not in html  # 고를 수 없는 모델 · web env 는 화면에 없다
+    assert "claude-fable" not in html and "서버 상한 $5" not in html  # 고를 수 없는 모델 · web env 는 화면에 없다
     worker_beat("7")
     html = client.get("/admin/cs-agent").get_data(as_text=True)
-    assert "WORKER env 천장 $7" in html and 'max="7"' in html
+    assert "서버 상한 $7" in html and 'max="7"' in html
     admin_menu = (ROOT / "templates/admin/admin.html").read_text(encoding="utf-8")
     assert "url_for('admin.cs_agent_panel')" in admin_menu
 

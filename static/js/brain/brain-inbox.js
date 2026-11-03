@@ -70,7 +70,7 @@
   function showBins(all) {
     if (openBin && !bins.inBin(all, openBin).length) openBin = '';
     binList.hidden = !!openBin;
-    if (binIntro) binIntro.hidden = !!openBin || !all.length;
+    if (binIntro) binIntro.hidden = !all.length;  // 카드마다 되풀이하던 '승인의 뜻'을 여기 한 번만(사장님 11-04)
     if (binBar) binBar.hidden = !openBin;
     if (binTitle) binTitle.textContent = openBin ? bins.title(openBin, bins.inBin(all, openBin).length) : '';
     if (!openBin) bins.renderOverview(binList, all);
@@ -87,7 +87,7 @@
     var later = 0;
     var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
     if (asTable) tableKit.render(list, cards, openBin);
-    var asQuestion = !!questionKit && !phone && openBin === 'decide';
+    var asQuestion = !!questionKit && openBin === 'decide';  // 질문 카드는 휴대폰에서도(사장님이 폰으로 정한다)
     cards.forEach(function (card) {
       if (asTable) return;
       var node = asQuestion ? questionKit.build(card) : cardKit.build(card, ctx, phone);

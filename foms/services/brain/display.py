@@ -94,13 +94,13 @@ LINK_DISPLAY: dict[str, tuple[str, str, str, str]] = {
 
 LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "drawing": "도면", "production": "생산"}
 BRAND_LABELS: dict[str, str] = {"LAHOM": "라홈", "HAUD": "하우드", BRAND_COMMON: "공통"}
-STATUS_LABELS: dict[str, str] = {"draft": "초안", "active": "반영", "retired": "은퇴"}
+STATUS_LABELS: dict[str, str] = {"draft": "초안", "active": "사용 중", "retired": "은퇴"}
 CONFIDENCE_LABELS: dict[str, str] = {"confirmed": "확정", "evidenced": "근거 있음", "observed": "관찰"}
 GRADE_LABELS: dict[str, str] = {"A": "A", "B_LIGHT": "B 가벼움", "B": "B"}
 EVIDENCE_LABELS: dict[str, str] = {"import": "지식 문서에서 옮김", "decision": "사장님 결정", "document": "문서",
                                    "case": "사례", "observation": "관찰", "person": "사람 확인"}
 OP_LABELS: dict[str, str] = {"create": "새로 만듦", "update": "고침", "retire": "은퇴", "delete": "지움",
-                             "link_add": "링크 더함", "link_remove": "링크 뺌"}
+                             "link_add": "연결 더함", "link_remove": "연결 뺌"}
 #: 값 칸 이름(이력 탭의 '바뀐 칸').
 FIELD_LABELS: dict[str, str] = {
     "name": "이름", "text": "글", "status": "상태", "confidence": "확신", "risk_grade": "위험 등급", "valid_from": "유효 시작",
@@ -129,29 +129,33 @@ OP_MEANING: dict[str, str] = {
 }
 #: 묶음 ① · ④ 는 글 · 금액이 안 바뀐다(설계서 7.9) — 유형 경고(가격 '금액이 바뀔 수 있어요' 등) 대신 이 한 줄.
 BIN_MEANING: dict[str, str] = {
-    "names": "이름과 찾는 말만 바뀌어요 — 글과 금액은 그대로예요.",
-    "mark": "같은 값이 적힌 곳을 표시만 해요 — 글과 금액은 그대로예요.",
+    "names": "이름 · 찾는 말만 바뀌어요. 글 · 금액은 그대로예요.",
+    "mark": "표시만 해요. 글 · 금액은 그대로예요.",
 }
 TYPE_MEANING: dict[str, str] = {
-    "price_rule": "가격 규칙이라 손님에게 가는 금액이 바뀔 수 있어요 — 숫자를 직접 확인해 주세요.",
-    "policy": "정책이라 상담 · 도면 · 생산이 모두 따라요.",
-    "owner_decision": "사장님 결정 항목이에요.",
-    "template": "상용구라 AI 가 손님에게 그대로 보낼 수 있는 글이에요.",
-    "drawing_rule": "도면 규칙이라 도면팀 · AI 도면팀원이 따라요.",
+    "price_rule": "손님에게 가는 금액이 바뀔 수 있어요. 숫자를 확인해 주세요.",
+    "policy": "상담 · 도면 · 생산이 모두 따르는 정책이에요.",
+    "template": "손님에게 그대로 나가는 글이에요.",
+    "drawing_rule": "도면팀 · AI 도면팀원이 따라요.",
 }
 APPROVAL_NOTE = "승인은 '명백한 문제가 없다'는 확인이에요."
+#: '확인할 것' 위에 한 번만 — 카드마다 되풀이하지 않는다(사장님 11-04 "반복되는 말이 너무 많아").
+INBOX_NOTE = "승인하면 바로 반영되고, 바뀌기 전 내용은 수정 기록에 남아요. 승인 전에는 아무것도 바뀌지 않아요."
 
 
 def approval_meaning(op: str, item_type: str | None, bin_name: str | None = None) -> str:
-    """제안 카드의 '승인의 뜻' 한 줄 — 동작 줄 + 유형 줄(있으면 — ① · ④ 묶음은 그 묶음 줄) + 승인 뜻."""
+    """제안 카드의 주의 한 줄 — ① · ④ 묶음 줄, 아니면 유형 줄(가격 · 정책 · 상용구 · 도면 규칙), 없으면 빈 글.
+
+    동작 줄(:data:`OP_MEANING`) · 승인 뜻(:data:`APPROVAL_NOTE`)은 모든 카드에 같아 '확인할 것' 위에 한 번만
+    (:data:`INBOX_NOTE` — 사장님 11-04 "반복되는 말이 너무 많아")."""
     kind = BIN_MEANING.get(bin_name or "") or TYPE_MEANING.get(item_type or "", "")
-    parts = [OP_MEANING.get(op, ""), kind, APPROVAL_NOTE]
+    parts = [kind]
     return " ".join(part for part in parts if part)
 
 
 #: 지식 표 정렬 · 확인 거르기 이름.
 SORT_LABELS: dict[str, str] = {"usage": "쓰인 횟수 많은 순", "checked": "오래 확인 안 한 순", "name": "이름 순"}
-CHECK_LABELS: dict[str, str] = {"needs_check": "확인 필요(열린 제안)", "stale": "낡음(확인 날 지남)"}
+CHECK_LABELS: dict[str, str] = {"needs_check": "승인 대기", "stale": "확인 날 지남"}
 
 
 def visibility_label(value: str) -> str:
@@ -159,9 +163,9 @@ def visibility_label(value: str) -> str:
     if value == SCOPE_ALL:
         return "내부 모두"
     if value == SCOPE_PRICE:
-        return "가격 재량(사장님 · 관리자)"
+        return "사장님 · 관리자"
     if value == SCOPE_ADMIN:
-        return "관리(관리자만)"
+        return "관리자만"
     if value.startswith(SCOPE_TEAM_PREFIX):
         return team_label(value[len(SCOPE_TEAM_PREFIX):]) + "만"  # 팀 이름 정본 하나(team_labels.py)
     return value

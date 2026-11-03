@@ -197,7 +197,9 @@ def apply_decision(session: Any, change_id: Any, *, actor: Any, base_version: An
         raise BrainConflictError(_current_version(session, change))
     if edits:
         _apply_edits(session, change, edits)
-    _check_confirm(change, confirm)
+    if not (viewer_of(actor).is_admin
+            and bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind)):
+        _check_confirm(change, confirm)  # ① 이름표만 · ④ 사본 링크만은 확인할 핵심 값(글 · 금액)이 없다(D151)
     detail = _timing(change, view_ms, now, edited=bool(edits), bulk=bulk)
     action = "bulk_apply" if bulk else ("edit_apply" if edits else "apply")
     return apply_change(session, change.id, actor=actor, now=now, detail=detail, action=action)

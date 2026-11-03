@@ -49,7 +49,7 @@ def test_answer_view_chips_links_and_confidence():
     assert shown["confidence"] == "근거 확신: 확정 · 답 확신: 높음"
     assert shown["chips"] == [{"key": "common/sliding", "name": "슬라이딩 깊이", "type": "spec",
                                "href": "/brain/items/common/sliding", "meta": "확정 · 마지막 확인 2026-10-30"}]
-    assert shown["checks"] == "지금 확인 중인 항목(값을 쓰지 않았어요): 옛 몰딩 조건(확인 날이 지남)"
+    assert shown["checks"] == "확인 중이라 안 쓴 지식: 옛 몰딩 조건(확인 날이 지남)"
     assert shown["fixLink"] == "/brain/items/common/sliding#brain-card-propose"
     assert [f["value"] for f in shown["feedback"]] == ["helpful", "not_helpful", "wrong"]
     assert staff["chips"][0]["href"] is None and staff["fixLink"] is None  # 카드를 못 여는 직원은 링크 없음

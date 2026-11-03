@@ -52,12 +52,12 @@ def test_diff_rows_summary_and_gates():
                 {"f": two, "d": display, "c": card, "g": _prop()["gates"]})
     assert got[0] == [
         {"field": "text", "label": "글", "before": "(없음)", "after": "글", "proposed": "처음 글"},
-        {"field": "status", "label": "상태", "before": "반영", "after": "은퇴", "proposed": None},
+        {"field": "status", "label": "상태", "before": "사용 중", "after": "은퇴", "proposed": None},
         {"field": "copies", "label": "사본 목록", "before": "가 · 나", "after": "(빈 목록)", "proposed": None}]
     assert got[1] == "고침 · 배운 점 · 사진 먼저 — 글 · 상태 · 사본 목록"
     assert got[2] == [{"label": "꼴", "text": "통과", "cls": "is-pass"}, {"label": "숫자 출처", "text": "안 됨", "cls": "is-fail"},
                       {"label": "승인 지식과 부딪침", "text": "아직 안 돌림", "cls": "is-wait"}]
-    assert got[3] == "링크 더함 · 적용: a → b"
+    assert got[3] == "연결 더함 · 적용: a → b"
 
 
 @NODE

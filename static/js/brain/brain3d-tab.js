@@ -105,24 +105,24 @@
     var region = core.REGIONS.find(function (r) { return r.code === core.regionOf(data.start.type, data.start.layer); });
     if (region) panel.appendChild(dom.el('p', { cls: 'brain3d-panel__region', text: '자리: ' + region.name + ' — ' + region.layer }));
     if (data.start.key !== startKey) {
-      panel.appendChild(dom.el('button', { cls: 'brain-btn', text: '이 카드 항목으로 돌아가기',
+      panel.appendChild(dom.el('button', { cls: 'brain-btn', text: '처음 지식으로 돌아가기',
                                            attrs: { type: 'button', 'data-brain3d-pick': startKey } }));
     }
     var direct = data.items.filter(function (it) { return it.depth === 1; });
-    panel.appendChild(dom.el('h3', { cls: 'brain3d-panel__title', text: '이웃 ' + direct.length + '개' +
+    panel.appendChild(dom.el('h3', { cls: 'brain3d-panel__title', text: '이어진 지식 ' + direct.length + '개' +
                                      (data.truncated ? ' (앞 ' + data.items.length + '개만)' : '') }));
     var list = dom.el('ul', { cls: 'brain3d-panel__list' });
     direct.forEach(function (it) {
       var row = dom.el('li', { cls: ['brain-item', 'brain-type--' + it.type].concat(view.stateClasses(it)).join(' ') });
       row.appendChild(dom.el('button', { cls: 'brain3d-panel__pick', text: it.name,
-                                         attrs: { type: 'button', 'data-brain3d-pick': it.key, title: '3D 에서 고르기' } }));
+                                         attrs: { type: 'button', 'data-brain3d-pick': it.key, title: '그림에서 고르기' } }));
       row.appendChild(dom.el('span', { cls: 'brain3d-panel__via', text: it.via.map(function (k) {
         return view.linkInfo(display, k).label;
       }).join(' · ') }));
-      row.appendChild(dom.el('a', { cls: 'brain-btn', text: '카드', attrs: { href: view.itemHref(card.getAttribute('data-item-base'), it.key) } }));
+      row.appendChild(dom.el('a', { cls: 'brain-btn', text: '열기', attrs: { href: view.itemHref(card.getAttribute('data-item-base'), it.key) } }));
       list.appendChild(row);
     });
-    if (!direct.length) list.appendChild(dom.el('li', { cls: 'brain-empty', text: '이어진 항목이 없습니다(내 보기 범위 안).' }));
+    if (!direct.length) list.appendChild(dom.el('li', { cls: 'brain-empty', text: '연결 없음' }));
     panel.appendChild(list);
   }
 
@@ -132,7 +132,7 @@
     try {
       data = await loadAround(key);
     } catch (error) {
-      dom.setStatus(status, '이웃을 읽지 못했습니다 — 옆 목록 · 카드로 보세요.', 'error');
+      dom.setStatus(status, '연결을 불러오지 못했어요.', 'error');
       return;
     }
     if (!stage) return;
@@ -149,15 +149,15 @@
     stage.select(at, direct.map(function (it) { return index[it.key]; }), links, named);
     renderPanel(data);
     root.setAttribute('data-brain3d-selected', key);
-    dom.setStatus(status, '뇌 전체 ' + items.length.toLocaleString('ko-KR') + '개 가운데 “' + data.start.name + '” 항목과 이웃 ' +
-                  direct.length + '개를 밝혔습니다. 끌기 = 돌리기 · 휠 = 확대 · 점 누르기 = 고르기' +
-                  (reduced ? ' · 움직임 줄이기 켜짐(빛 흐름 · 자동 돌기 꺼짐)' : ''));
+    dom.setStatus(status, '“' + data.start.name + '” — 이어진 ' + direct.length + '개를 밝혔어요(전체 ' +
+                  items.length.toLocaleString('ko-KR') + '개). 끌면 돌고, 휠로 키우고, 점을 누르면 골라요.' +
+                  (reduced ? ' 움직임 줄이기가 켜져 있어 빛 흐름 · 자동 돌기는 꺼요.' : ''));
   }
 
   async function open() {
     if (stage || loading) return;
     loading = true;
-    dom.setStatus(status, '뇌를 불러오는 중…');
+    dom.setStatus(status, '불러오는 중…');
     var deps;
     var points;
     var around;
@@ -175,7 +175,7 @@
       around = await loadAround(startKey);
     } catch (error) {
       loading = false;
-      dom.setStatus(status, '뇌 보기를 읽지 못했습니다 — 내용 탭 · 이웃 지도로 보세요.', 'error');
+      dom.setStatus(status, '뇌 보기를 못 열었어요. 연결된 지식 탭으로 봐 주세요.', 'error');
       return;
     }
     var built = buildItems(points, around);
@@ -189,16 +189,16 @@
       });
     } catch (error) {
       loading = false;
-      hideTab('no_webgl', '이 기기에서는 3D 를 그릴 수 없습니다 — 이웃 지도 · 내용 탭으로 보세요.');
+      hideTab('no_webgl', '이 기기는 3D 를 못 그려요. 연결된 지식 탭으로 봐 주세요.');
       return;
     }
     loading = false;
     if (core.isSoftwareRenderer(stage.rendererName())) {
       close();
-      hideTab('software', '그래픽 장치 없이 그리는 기기라 뇌 보기를 쓰지 않습니다 — 이웃 지도로 보세요.');
+      hideTab('software', '그래픽 장치가 없는 기기라 뇌 보기를 꺼요. 연결된 지식 탭으로 봐 주세요.');
       return;
     }
-    if (points.capped) dom.setStatus(status, '항목이 많아 쓰인 횟수 많은 앞 ' + points.rows.length + '개만 그립니다.');
+    if (points.capped) dom.setStatus(status, '많이 쓰인 앞 ' + points.rows.length + '개만 그려요.');
     select(selected || startKey);
   }
 
