@@ -326,6 +326,8 @@ ACTION_LABELS: dict[str, str] = {
     "PARTNER_USER_CREATED": "협력사 계정 추가",
     "PARTNER_USER_TOGGLED": "협력사 계정 켜기/끄기",
     "PARTNER_USER_PASSWORD_RESET": "협력사 계정 비밀번호 변경",
+    # --- 협력사 단가표(2026-11-03 설계서 2026-11-03-partner-statement §5.1) ---
+    "PARTNER_PRICE_LIST_SAVED": "협력사 단가표 새 판 저장",
     # --- FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices) ---
     "NOTICE_CREATED": "공지 만듦",
     "NOTICE_UPDATED": "공지 고침",

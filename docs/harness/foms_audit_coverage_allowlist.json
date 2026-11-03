@@ -153,6 +153,10 @@
     {
       "key": "foms/api/brain_chat.py::brain_chat_feedback",
       "reason": "회사 지식 물어보기 피드백 — 묻는 사람 자기 질문 줄(brain_questions)에 도움 됨 · 안 됨 · 틀림과 가린 고칠 말을 적고, 틀림은 신고 표(brain_wrong_reports)에 남는다. 지식을 바꾸는 것은 제안함 결정(BRAIN_APPLY)뿐이라 그쪽이 감사 원장에 남는다."
+    },
+    {
+      "key": "foms/api/partner_price_list.py::api_import_price_list",
+      "reason": "협력사 단가표 HTML 불러오기 — 파일을 읽어 화면에 띄울 판 초안만 돌려주고 아무것도 저장하지 않는다(조회성 POST). 판 저장은 save_price_list 가 PARTNER_PRICE_LIST_SAVED 로 감사 원장에 남긴다."
     }
   ]
 }

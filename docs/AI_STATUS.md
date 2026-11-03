@@ -11,6 +11,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-11-03] **도면 양식 발주 리스트 칸(PR #712 · f4290c2c)** — 체크리스트 대신 빨간 칸(시트 위 체크로 켬), V1 ㄴ자 · V2 배치가 칸을 비켜 감(corner). 끈 시트 배치 그대로
+- [2026-11-03] **협력사 거래명세서 1단계 단가표** — SPEC `2026-11-03-partner-statement` 승인. `/admin/partners/<id>/price-list` · `pricelist_00` · `statement_calc.py`
 - [2026-11-03] **마법사 그림 자르기(PR #707)** — `image-crop.js`
 - [2026-11-03] **푸시 느림 수정** — 가드=작업 저장소·CI 3조각·메인 최신화(백업 `backup/main-*`)
 - [2026-11-02] **공지사항(#695·#699 폰·#701 사진)** — `/admin/notices`

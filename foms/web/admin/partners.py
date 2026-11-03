@@ -50,6 +50,19 @@ def partners():
     )
 
 
+@admin_bp.route("/admin/partners/<int:org_id>/price-list")
+@login_required
+@role_required(["ADMIN"])
+def partner_price_list(org_id: int):
+    """협력사 단가표 편집 화면(설계서 2026-11-03-partner-statement §5.1). 값은 static/js/admin/partner-price-list*.js 가
+    ``/api/admin/partners/<id>/price-lists`` 에서 읽고 보낸다."""
+    org = _org_or_none(get_db(), org_id)
+    if org is None:
+        abort(404)
+    return render_template("admin/partner_price_list.html", org=org,
+                           api_base=f"/api/admin/partners/{org.id}/price-lists")
+
+
 @admin_bp.route("/admin/partners", methods=["POST"])
 @login_required
 @role_required(["ADMIN"])

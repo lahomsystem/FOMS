@@ -1264,6 +1264,39 @@ class PartnerOrg(Base):
                         server_default=func.now())
 
 
+class PartnerPriceList(Base):
+    """협력사 단가표 한 판(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.1).
+
+    저장할 때마다 새 판이 생기고(``version`` 1, 2, 3 …) 협력사마다 ACTIVE 는 하나다. 옛 판은 RETIRED 로
+    남아 그 판으로 나간 명세서가 값을 그대로 갖는다. ``sheet`` 는 사용자가 쓰던 "통합 단가표" 모양
+    (카테고리 · 열 · 줄) + 줄마다 계산 정보(:mod:`foms.services.partners.price_list`)다. 단가는 DB 에만 둔다.
+    """
+    __tablename__ = 'partner_price_lists'
+
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id'), nullable=False)
+    version = Column(Integer, nullable=False)
+    label = Column(String(40), nullable=False)
+    # 이 날짜 출고분부터 이 판을 쓴다(한국 날짜).
+    effective_from = Column(Date, nullable=False)
+    status = Column(String(10), nullable=False, default='ACTIVE', server_default='ACTIVE')
+    sheet = Column(JSONColumn, nullable=False)
+    rules = Column(JSONColumn, nullable=False, default=dict, server_default=text("'{}'"))
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('partner_org_id', 'version', name='uq_partner_price_lists_org_version'),
+        CheckConstraint("status IN ('DRAFT','ACTIVE','RETIRED')", name='ck_partner_price_lists_status'),
+        # 협력사마다 지금 쓰는 판은 하나(SQLite 시험 레인도 같은 부분 유니크).
+        Index(
+            'uq_partner_price_lists_active', 'partner_org_id',
+            unique=True, postgresql_where=text("status = 'ACTIVE'"),
+            sqlite_where=text("status = 'ACTIVE'"),
+        ),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
