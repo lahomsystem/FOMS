@@ -11,7 +11,7 @@ from __future__ import annotations
 from flask import Blueprint, Response, abort, g, render_template, request, url_for
 
 from db import get_db
-from foms.api.files.routes import build_file_view_url
+from foms.api.partner_statements_staff import drawing_card
 from foms.services.auth.partner_scope import partner_required
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.statement_partner import ledger_csv, mark_viewed, partner_ledger, questions, visible_statement
@@ -65,8 +65,7 @@ def view(statement_id: int):
     stmt, order = _statement_or_404(db, statement_id)
     mark_viewed(stmt)
     db.commit()
-    drawings = [{"name": f.get("filename") or f.get("name") or f"{i}번 도면", "url": build_file_view_url(f["key"])}
-                for i, f in enumerate(final_drawings_for_partner(order), start=1) if f.get("key")]
+    drawings = [drawing_card(i, f) for i, f in enumerate(final_drawings_for_partner(order), start=1) if f.get("key")]
     return render_template("partner/statement_view.html", org=_org(), drawings=drawings,
                            questions=questions(db, stmt), **_context(db, stmt, order))
 

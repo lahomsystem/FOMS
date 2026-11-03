@@ -23,6 +23,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.api.files.routes import build_file_view_url
+from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본)
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.statement_partner import answer, questions
 from foms.services.partners.statement_view import issued_rows, pending_rows, statement_json
@@ -83,9 +84,15 @@ def _log(db, actor: Any, action: str, stmt: PartnerStatement, message: str, **de
 
 def _full(db, stmt: PartnerStatement) -> dict[str, Any]:
     order = db.get(Order, stmt.order_id)
-    drawings = [{"name": f.get("filename") or f.get("name") or f"{i}번 도면", "url": build_file_view_url(f["key"])}
-                for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1) if f.get("key")]
+    drawings = [drawing_card(i, f) for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1)
+                if f.get("key")]
     return {**statement_json(db, stmt), "drawings": drawings, "questions": questions(db, stmt)}
+
+
+def drawing_card(no: int, f: dict) -> dict[str, Any]:
+    """최종 도면 한 장 — 그림이면 썸네일로 보인다(협력사 주문 도면 탭과 같은 판정 · 같은 보기 주소)."""
+    name = f.get("filename") or f.get("name") or str(f.get("key") or "").rsplit("/", 1)[-1] or f"{no}번 도면"
+    return {"name": f"{no}번 · {name}", "url": build_file_view_url(f["key"]), "is_image": attachment_file_type(name) == "image"}
 
 
 def _run(work):

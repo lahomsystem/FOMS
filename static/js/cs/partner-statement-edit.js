@@ -114,10 +114,16 @@
     var list = root.querySelector('[data-pse-drawings]');
     list.replaceChildren();
     (stmt.drawings || []).forEach(function (d) {
-      var a = list.appendChild(el('li')).appendChild(el('a', null, d.name));
+      var a = list.appendChild(el('li', d.is_image ? 'foms-pse__thumb' : null)).appendChild(el('a', null, d.is_image ? null : d.name));
       a.href = d.url;
       a.target = '_blank';
       a.rel = 'noopener';
+      if (!d.is_image) return;
+      var img = a.appendChild(el('img'));
+      img.src = d.url;
+      img.alt = d.name;
+      img.loading = 'lazy';
+      a.appendChild(el('span', null, d.name));
     });
     if (!(stmt.drawings || []).length) list.appendChild(el('li', 'text-muted', '도면 파일이 없습니다.'));
     var needs = root.querySelector('[data-pse-needs]');
