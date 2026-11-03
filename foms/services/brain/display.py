@@ -34,7 +34,7 @@ TYPE_DISPLAY: dict[str, tuple[str, str, str]] = {
     "process_step": ("공정 단계", "#0c4a6e", "fa-list-check"),
     # 상담 층 — 초록
     "situation": ("상황", "#15803d", "fa-comments"),
-    "template": ("기준 답 문구", "#166534", "fa-comment-dots"),
+    "template": ("상용구", "#166534", "fa-comment-dots"),
     "lesson": ("배운 점", "#4d7c0f", "fa-lightbulb"),
     "tone": ("말투 규칙", "#3f6212", "fa-microphone"),
     "image_read_rule": ("그림 읽기 규칙", "#047857", "fa-image"),
@@ -105,7 +105,7 @@ OP_LABELS: dict[str, str] = {"create": "새로 만듦", "update": "고침", "ret
 FIELD_LABELS: dict[str, str] = {
     "name": "이름", "text": "글", "status": "상태", "confidence": "확신", "risk_grade": "위험 등급", "valid_from": "유효 시작",
     "valid_to": "유효 끝", "checked_at": "마지막 확인", "evidence_kind": "근거 종류", "evidence_ref": "근거 위치",
-    "visibility": "보기 범위", "copies": "사본 목록", "payload": "실음 칸",
+    "visibility": "보기 범위", "copies": "사본 목록", "payload": "세부 칸",
 }
 #: 관문 이름 · 결과 이름(제안 카드 — 6절 다섯 관문 중 지금 도는 것과 아직 안 도는 것).
 GATE_LABELS: dict[str, str] = {"form": "꼴", "mask": "가림(개인정보 0)", "hanja": "한자 0", "numbers": "숫자 출처",
@@ -117,26 +117,32 @@ REJECT_LABELS: dict[str, str] = {"wrong_number": "숫자 틀림", "one_customer"
                                  "needs_photo": "사진 필요", "other": "그 밖"}
 #: 유형별 '승인의 뜻' 한 줄(7.5 — 승인 = 명백한 문제 없음 확인, 위키백과 pending changes 꼴). 동작 줄 뒤에 붙는다.
 OP_MEANING: dict[str, str] = {
-    "create": "넣으면 새 항목이 생기고 에이전트 · 직원이 이 값을 읽기 시작해요.",
-    "update": "넣으면 이 항목의 새 판이 되고, 앞 판은 이력에 남아요.",
-    "retire": "넣으면 항목이 은퇴해 에이전트가 더는 쓰지 않아요(이력은 남아요).",
-    "delete": "넣으면 지금 판이 닫히고 이 항목에 이어진 링크도 닫혀요(이력은 남아요).",
-    "link_add": "넣으면 두 항목이 이 종류로 이어져요.",
-    "link_remove": "넣으면 두 항목의 이음이 끊겨요(이력은 남아요).",
+    "create": "승인하면 새 지식이 생기고 AI · 직원이 이 내용을 쓰기 시작해요.",
+    "update": "승인하면 이 지식이 바뀌고, 바뀌기 전 내용은 수정 기록에 남아요.",
+    "retire": "승인하면 AI 가 이 지식을 더는 쓰지 않아요(수정 기록은 남아요).",
+    "delete": "승인하면 이 지식과 이어진 연결이 닫혀요(수정 기록은 남아요).",
+    "link_add": "승인하면 두 지식이 이어져요.",
+    "link_remove": "승인하면 두 지식의 연결이 끊겨요(수정 기록은 남아요).",
+}
+#: 묶음 ① · ④ 는 글 · 금액이 안 바뀐다(설계서 7.9) — 유형 경고(가격 '금액이 바뀔 수 있어요' 등) 대신 이 한 줄.
+BIN_MEANING: dict[str, str] = {
+    "names": "이름과 찾는 말만 바뀌어요 — 글과 금액은 그대로예요.",
+    "mark": "같은 값이 적힌 곳을 표시만 해요 — 글과 금액은 그대로예요.",
 }
 TYPE_MEANING: dict[str, str] = {
     "price_rule": "가격 규칙이라 손님에게 가는 금액이 바뀔 수 있어요 — 숫자를 직접 확인해 주세요.",
     "policy": "정책이라 상담 · 도면 · 생산이 모두 따라요.",
     "owner_decision": "사장님 결정 항목이에요.",
-    "template": "기준 답 문구라 에이전트가 손님에게 그대로 보낼 수 있는 글이에요.",
+    "template": "상용구라 AI 가 손님에게 그대로 보낼 수 있는 글이에요.",
     "drawing_rule": "도면 규칙이라 도면팀 · AI 도면팀원이 따라요.",
 }
 APPROVAL_NOTE = "승인은 '명백한 문제가 없다'는 확인이에요."
 
 
-def approval_meaning(op: str, item_type: str | None) -> str:
-    """제안 카드의 '승인의 뜻' 한 줄 — 동작 줄 + 유형 줄(있으면) + 승인 뜻."""
-    parts = [OP_MEANING.get(op, ""), TYPE_MEANING.get(item_type or "", ""), APPROVAL_NOTE]
+def approval_meaning(op: str, item_type: str | None, bin_name: str | None = None) -> str:
+    """제안 카드의 '승인의 뜻' 한 줄 — 동작 줄 + 유형 줄(있으면 — ① · ④ 묶음은 그 묶음 줄) + 승인 뜻."""
+    kind = BIN_MEANING.get(bin_name or "") or TYPE_MEANING.get(item_type or "", "")
+    parts = [OP_MEANING.get(op, ""), kind, APPROVAL_NOTE]
     return " ".join(part for part in parts if part)
 
 

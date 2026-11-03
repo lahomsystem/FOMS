@@ -30,6 +30,7 @@ from foms.services.brain.constants import (
     HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning
+from foms.services.brain.inbox_bins import card_bin
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
 from foms.services.brain.schemas import diff_rows, payload_props, prop_of
 from foms.services.brain.scope import Viewer, allowed_scopes
@@ -294,7 +295,8 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "evidence": [e for e in evidence if not e.startswith(PHOTO_PREFIX)],
         "fields": _diff(change), "base_version": change.base_version, "base": _base_changed(change, cur, links),
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
-        "meaning": approval_meaning(change.op, change.item_type),
+        "meaning": approval_meaning(change.op, change.item_type,
+                                    card_bin(change.op, change.item_type, change.fields, change.link_kind)),
         "confirm": {"field": field, "value": value} if change.grade == GRADE_B else None,
         "phone_ok": phone_ok(change.op, change.fields), "bulk_ok": change.grade == GRADE_A,
         "rollback_of": change.rollback_of_version, "link": ({"kind": change.link_kind, "from": change.link_from,
@@ -310,6 +312,16 @@ def _group_key(change: BrainChange) -> tuple:
     return ("item", change.item_key)
 
 
+def card_title(change: BrainChange, cur: Optional[BrainObject], name: str) -> str:
+    """카드 제목 — 한글 대표 이름(제안의 '후' → 지금 항목 순), 없으면 이름(설계서 7.9 — 영어 키 제목을 앞에 두지 않는다)."""
+    after = ((change.fields or {}).get("payload") or {}).get("after")
+    for payload in (after, cur.payload if cur is not None else None):
+        label = payload.get("pref_label") if isinstance(payload, dict) else None
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    return name
+
+
 def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[str, Any]) -> dict[str, Any]:
     """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
     main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
@@ -317,8 +329,10 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     views = [change_view(c, r, extra["names"], extra["links"]) for c, r in group]
     after_name = ((change.fields or {}).get("name") or {}).get("after")
     key = change.item_key or ""
+    name = cur.name if cur is not None else (after_name or key)
     return {
-        "id": change.id, "key": key, "name": cur.name if cur is not None else (after_name or key),
+        "id": change.id, "key": key, "name": name, "title": card_title(change, cur, name),
+        "bin": card_bin(change.op, change.item_type, change.fields, change.link_kind),
         "type": change.item_type, "layer": change.layer, "brand": change.brand,
         "usage_count": (int(cur.usage_count or 0) + extra["usage"].get(key, 0)) if cur is not None else 0,
         "version": cur.version if cur is not None else None, "exists": cur is not None,
