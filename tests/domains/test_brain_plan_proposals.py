@@ -245,3 +245,41 @@ def test_script_refuses_remote_apply_without_owner_approval(admin, capsys, monke
     code, out = run_script(script, capsys, "--plan", str(path))  # 모의 실행은 막지 않는다(쓰기 0)
     assert code == 0 and changes() == 0
     assert db_session.scalar(select(func.count()).select_from(BrainObject)) == 10  # 합성 항목 그대로
+
+
+def test_plan_text_goes_into_new_items_and_withdraw_refiles_only_undecided(admin):
+    """계획의 ``text`` 는 새 항목 글로 들어간다 · 거두기는 이 계획이 넣고 아직 결정 안 된 제안만 닫고(결정된 것 · 다른 근거는 그대로),
+    다시 넣으면 고친 글로 들어간다."""
+    from foms.services.brain.plan_proposals import withdraw_open
+
+    first = plan()
+    run_plan(first)
+    decided = db_session.execute(select(BrainChange).where(BrainChange.proposed_by == "import", BrainChange.op == "update")
+                                 .order_by(BrainChange.id)).scalars().first()
+    with catalog_source(synth_catalog):
+        apply_change(db_session, decided.id, actor=admin, now=NOW)
+    db_session.commit()
+    open_before = db_session.scalar(select(func.count()).select_from(BrainChange).where(
+        BrainChange.proposed_by == "import", BrainChange.status == "open"))
+
+    second = plan()
+    second["new_items"][4]["text"] = f"{MARK} 낱말 뜻 글"
+    second["items"][1]["price_rule"]["split_into"][0]["text"] = f"{MARK} 가 나눔 글"
+    assert withdraw_open(db_session, source="other_plan", now=NOW) == 0  # 다른 근거 대조군
+    withdrawn = withdraw_open(db_session, source="synth_data_plan", now=NOW)
+    db_session.commit()
+    assert withdrawn == open_before
+    assert db_session.get(BrainChange, decided.id).status == "applied"  # 결정된 것은 그대로
+    assert db_session.scalar(select(func.count()).select_from(BrainChange).where(
+        BrainChange.status == "expired", BrainChange.decided_action == "withdraw")) == withdrawn
+
+    again = run_plan(second)
+    assert again["filed_total"] >= open_before  # 반영된 고침이 풀어 준 링크가 더 들어갈 수 있다
+    keys = db_session.execute(select(BrainChange.op, BrainChange.item_key, BrainChange.link_kind, BrainChange.link_to)
+                              .where(BrainChange.status == "open")).all()
+    assert len(keys) == len(set(keys))  # 같은 제안이 둘 열리지 않는다
+    texts = {c.item_key: (c.fields or {}).get("text", {}).get("after") for c in db_session.execute(
+        select(BrainChange).where(BrainChange.status == "open", BrainChange.op == "create")).scalars()}
+    assert texts["term/synth-word"] == f"{MARK} 낱말 뜻 글"
+    assert texts["lahom/p-split-a"] == f"{MARK} 가 나눔 글"
+    assert texts["spec/synth-limit"] == f"{MARK} 한도"  # 글이 없으면 대표 이름(규격)
