@@ -31,6 +31,7 @@
   /** 틀 계산(v2-layout compute) — 배치 입력이 같으면 지난 결과를 그대로 쓴다. 빈자리 채우기로 한 번에 0.1초 넘게 걸리는데
       화면은 고르기 · 확대 · 저장 상태마다 다시 그린다(결과는 읽기만 한다 — apply · 화면 모두). */
   var memo = { key: null, out: null };
+  var ORDER_BOX = { x: 1064, y: 40, w: 376, h: 200, corner: true };   // 발주 리스트 칸(#dws-orderbox 1074,40 366×190) + 여백 10 — 켜면 장애물(v2-pack corner)
   function layout(input, opts) {
     var key = JSON.stringify([input, opts]);
     if (key !== memo.key) { memo = { key: key, out: window.FomsV2Layout.compute(input, opts) }; }
@@ -83,6 +84,7 @@
       obstacles: imgs.filter(function (o) { return g.fixed[o.id]; }).map(stayBox)
         .concat(g.bom.concat(g.notes, g.stamp ? [g.stamp] : []).filter(function (o) { return g.stay[o.id]; }).map(stayBox))
         .concat(stay.map(stayBox))
+        .concat(form.order_list_on === '1' ? [ORDER_BOX] : [])
     };
     var pick = form.v2_pick === 'band' || form.v2_pick === 'column' ? form.v2_pick : '';
     var style = form.v2_style === 'even' ? 'even' : 'hero';

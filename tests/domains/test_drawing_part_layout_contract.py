@@ -422,7 +422,7 @@ def test_wizard_wires_auto_arrange_order_text_size_late_names_and_record():
     assert "A.bomZone(boms, area)" in plan and "A.order(imgs, partUploadSeq)" in plan and "partItem(o, order)" in plan
     assert "skipped += 1" in plan and "outside.push(o.id)" in plan                  # 돌리거나 잠근 그림은 알리고 밖이면 골라 보여 줌
     assert "tx: partTextOf(o)" in _fn_body(js, "partItem")
-    assert "var PART_FRAME = { x0: 43, x1: 1437, headBottom: 95, pageBox: { x: 1374, y: 40, w: 66, h: 49 } };" in js
+    assert "var PART_FRAME = { x0: 43, x1: 1437, headBottom: 40, pageBox: { x: 1374, y: 40, w: 66, h: 49 }, orderBox: { x: 1074, y: 40, w: 366, h: 190 } };" in js   # 11-03 체크리스트 머리칸 지움 · 발주 리스트 칸
     auto = _fn_body(js, "autoArrangeImages")
     assert "askCrowdedArrange(s, res, batch, plan)" in auto and "{ reserve: plan.reserve }" in auto
     assert "lateMsg || partArrangedText(batch)" in auto                              # 이름 없이 놓으면 '크기대로 놓았어요'

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261103a">
-  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261028b">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261103b">
+  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261103a">{% endif %}
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -277,6 +277,7 @@
       <div class="dws-stage-wrap" id="dws-stage-wrap">
 
         <!-- 현재 시트의 전달본(전달 대기함에 넣은 그림) 지우기 — 전달본 있고 편집 권한일 때만 노출(wizard.js updateDeleteSavedBtn) -->
+        <label class="dws-orderlist-toggle" id="dws-orderlist-toggle" hidden><input type="checkbox" id="dws-orderlist-on"> 발주 리스트</label>
         <button type="button" class="dws-del-saved" id="dws-btn-delete-saved" title="이 시트의 전달본 지우기" aria-label="이 시트의 전달본 지우기" hidden>×</button>
 
         <div class="dws-stage" id="dws-stage">
@@ -288,22 +289,10 @@
             <!-- 시트 외곽 테두리(검정 3px, §2) -->
             <div class="dws-outer-border"></div>
 
-            <!-- 헤더 체크리스트(좌상, 박스 없음) -->
-            <div class="dws-header">
-              <div class="dws-header-row">
-                <span class="dws-header-lead">도면팀 :</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="d_site"></span>현장확인</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="d_double"></span>더블체크</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="d_order"></span>발주확인</span>
-              </div>
-              <div class="dws-header-row">
-                <span class="dws-header-lead">생산팀 :</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="p_prod"></span>생산확인</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="p_glass"></span>유리,거울</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="p_light"></span>조명</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="p_handle"></span>손잡이</span>
-                <span class="dws-chk"><span class="dws-check" data-dws-check="p_etc"></span>부자재</span>
-              </div>
+            <!-- 발주 리스트(우상, 빨간 ㄴ자 칸) — 시트 위 '발주 리스트' 체크로 켜고 끈다(form.order_list_on). 11-03 체크리스트 자리 대신 -->
+            <div class="dws-orderbox" id="dws-orderbox">
+              <div class="dws-orderbox-title">**발주 리스트**</div>
+              <div class="dws-cell-value dws-orderbox-body" data-dws-form-key="order_list"></div>
             </div>
 
             <!-- 페이지 박스(우상) -->
@@ -741,7 +730,7 @@
   {# 줄여 그린 그림 고운 필터(Chrome · Edge) — 그림 노드 sceneFunc. 2026-10-28 '컴퍼넌트를 줄이면 화질이 떨어진다'. #}
   <script src="{{ url_for('static', filename='js/drawing/image-smooth.js') }}?v=20261028b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/zoom-sharp.js') }}?v=20261028a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261103a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261103b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/image-crop.js') }}?v=20261103a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}
@@ -751,7 +740,7 @@
   <script src="{{ url_for('static', filename='js/drawing/v2-hero.js') }}?v=20261029b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-fill.js') }}?v=20261029a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261029b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261028d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261103a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-text.js') }}?v=20261028c" defer></script>
@@ -760,7 +749,7 @@
   <script src="{{ url_for('static', filename='js/drawing/v2-size.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261028e" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261028e" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261029a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261103a" defer></script>
   {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>

@@ -260,7 +260,7 @@
       (d.ids || []).forEach(function (id) { gone.ids[id] = true; });
       scheduleArrange('removed');
     });
-    core.on('trimmed', function () { if (laidNow()) { scheduleArrange('trimmed'); } });   // 여백을 자르면 새 비율로 다시
+    ['trimmed', 'orderbox'].forEach(function (ev) { core.on(ev, function () { if (laidNow()) { scheduleArrange(ev); } }); });   // 여백 자르기 · 발주 리스트 칸 켜고 끄기 → 다시
     core.on('moved', function (d) {   // 고정이 된 그림을 비켜 다시 놓는다(되돌리기는 끌기가 남긴 한 번 · 6px 안 손떨림은 고정이 아니라 그대로)
       var objs = (core.sheet() || {}).objects || [], S = window.FomsV2Slots, ids = (d && d.ids) || [];
       if (mode !== 'auto' || !settings.lockMoved || !laidNow() || !objs.some(function (o) { return ids.indexOf(o.id) >= 0 && o.type === 'image' && S.isFixed(o, settings); })) { return; }

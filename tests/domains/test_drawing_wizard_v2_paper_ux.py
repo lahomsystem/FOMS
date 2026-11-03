@@ -273,7 +273,7 @@ def test_screen_layer_hides_on_export_and_assets_are_pinned():
     assert "into = key === 'unsorted' ? badges : layer" in paper
     assert "js/drawing/v2-paper.js') }}?v=20261028a" in TPL
     assert "js/drawing/v2-slots.js') }}?v=20261028c" in TPL   # 10-28 겹친 고정 그림 풀기 · 글자 고정(v2_pin)
-    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261028b" in TPL   # 10-28 알림 띠 탭 줄 · 내 문구 단추
+    assert "css/contexts/drawing/wizard-v2.css') }}?v=20261103a" in TPL   # 10-28 알림 띠 탭 줄 · 내 문구 단추
 
 
 def test_band_page_number_shows_sheet_position_instead_of_dash():
