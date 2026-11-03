@@ -216,7 +216,7 @@
     if (st) { if (cw && bw + st.w > RW - cw) { return null; } putStamp(res, st, A.x1 - cw - st.w, A.y0); }   // 발주 리스트 칸 앞 강조가 자재와 겹치면 못 놓음
     var topH = Math.max(b.h, nh, st ? st.h : 0);
     var by = A.y0 + (topH ? topH + GAP : 0), room = P.room(rx, by, RW, A.y1 - by, inp.obstacles, big.groups, same);
-    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, room, same, big) ? res : null;
+    return putBig(res, inp, big, room.x, room.y, room.w, room.h, same) && fillIn(res, inp, mv, cw ? { x: rx, y: by, w: RW, h: A.y1 - by } : room, same, big) ? res : null;
   }
 
   function score(res, inp, o) {

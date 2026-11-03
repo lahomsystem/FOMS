@@ -146,10 +146,11 @@
     var box = { x: x, y: y, w: w, h: h }, top = null, P = window.FomsPartPack;
     var obs = (obstacles || []).filter(function (b) { return b.x < x + w && x < b.x + b.w && b.y < y + h && y < b.y + b.h; });
     if (!obs.length || !P) { return box; }
+    var wide = obs.some(function (b) { return b.corner; }) ? 0.97 : 1;   // 발주 리스트 칸 옆: 배율이 3% 안이면 넓은 칸(칸 밑을 비우지 않게) — 11-03
     P.freeRects({ x0: x, y0: y, x1: x + w, y1: y + h }, obs, GAP).sort(function (a, b) { return b.w * b.h - a.w * a.h; })
       .slice(0, 4).forEach(function (f) {
         var t = groups.length ? (shelves(groups, f.w, f.h, same) || { t: 0 }).t : f.w * f.h;
-        if (!top || t > top.t) { top = { t: t, room: f }; }
+        if (!top || t > top.t * (f.w * f.h > top.room.w * top.room.h ? wide : 1 / wide)) { top = { t: t, room: f }; }
       });
     return top ? top.room : box;
   }
