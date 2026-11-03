@@ -16,7 +16,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = [ROOT / f"static/js/brain/{name}"
-           for name in ("brain-inbox-card.js", "brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox.js")]
+           for name in ("brain-inbox-card.js", "brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox-question.js",
+                        "brain-inbox.js")]
 NODE = pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 
 BOOT = r"""

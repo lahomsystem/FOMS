@@ -55,7 +55,7 @@
     input.value = after;
     input.disabled = !usable(view);
     return el('tr', { attrs: { 'data-change-id': view.id }, children: [
-      check(view, card.name), el('td', { cls: 'brain-diff__before', text: card.name }), el('td', { children: [input] }),
+      check(view, card.name), el('td', { cls: 'brain-empty', text: card.name }), el('td', { children: [input] }),
       el('td', { text: words(aliases ? aliases.after : []) })] });
   }
 

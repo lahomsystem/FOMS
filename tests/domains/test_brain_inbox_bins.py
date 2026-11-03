@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 
 import pytest
 
@@ -22,6 +23,7 @@ from tests.support.brain_review_support import items, people, review_world
 from tests.support.brain_support import NOW, REASON, agent_judge
 
 LATER = NOW + datetime.timedelta(minutes=5)
+ROOT_JS = Path(__file__).resolve().parents[2] / "static/js/brain"
 
 
 @pytest.fixture(autouse=True)
@@ -211,3 +213,52 @@ def test_content_card_carries_sentence_price_line_and_who_can_see(app):
     assert main["visible_to"] == "내부 모두"
     shipping = cards[world["changes"]["price"]]["main"]  # 글 고침 제안 — 새 글, 계산기 자리 없음(대조군)
     assert shipping["sentence"] == "지역별 운임 새 기준" and shipping["prices"] == []
+
+
+# ── 4단계: ③ 질문 카드(D152) ─────────────────────────────────────────────
+def _question(admin, about_key, text="스토어 상세는 '2주 이내', 회사 지식은 '실측일로부터 5~7일'"):
+    from foms.services.brain.proposals import propose_create
+    from tests.support.brain_support import values
+    return propose_create(db_session, key="conflict/lahom-synth1", brand="COMMON", layer="common", item_type="conflict",
+                          values=values("시공 기간이 두 곳에 다르게 적혀 있어요", text=text),
+                          reason=REASON, proposer=Proposer.user(admin.id), now=NOW, known="",
+                          evidence=["plan:synth#c1", f"about:{about_key}", "about:common/missing"])
+
+
+def test_question_card_shows_the_knowledge_side_and_answer_codes_close_it(app):
+    from foms.persistence.brain.models import BrainChange
+    from foms.services.brain.decide import apply_decision, reject_decision
+
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    q = _question(admin, "common/door")
+    db_session.commit()
+    card = next(c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"] if c["main"]["id"] == q.id)
+    door = current_object(db_session, "common/door")
+    assert card["bin"] == "decide"
+    assert card["main"]["about"] == [{"key": "common/door", "title": door.name, "text": door.text or "",
+                                      "version": door.version}]  # 없는 항목은 빠진다(대조군)
+    assert "2주 이내" in card["main"]["sentence"]
+    # '바깥 글이 맞아요' = 지식 글 고침 제안 → 바로 승인 → 질문을 그 까닭으로 닫음(화면이 부르는 차례 그대로)
+    edit = propose_update(db_session, key="common/door", base_version=door.version, after={"text": "실측 뒤 2주 안"},
+                          reason="사장님 답 — 바깥 글이 맞아요", proposer=Proposer.user(admin.id), now=LATER, known="")
+    apply_decision(db_session, edit.id, actor=admin, base_version=door.version, now=LATER,
+                   confirm={"field": "text", "value": "실측 뒤 2주 안"})
+    reject_decision(db_session, q.id, actor=admin, code="outside_right", now=LATER)
+    db_session.commit()
+    assert current_object(db_session, "common/door").text == "실측 뒤 2주 안"
+    closed = db_session.get(BrainChange, q.id)
+    assert closed.status == "rejected" and closed.reject_code == "outside_right"
+    from foms.services.brain.errors import BrainRejectedError
+    with pytest.raises(BrainRejectedError):  # 같은 질문은 다시 열리지 않는다(거절 기록 — 7.5)
+        _question(admin, "common/door")
+
+
+def test_answer_codes_are_known_reject_codes_and_hidden_from_plain_reject_chips():
+    from foms.services.brain.constants import ANSWER_CODES, REJECT_CODES
+    from foms.services.brain.display import REJECT_LABELS
+    assert set(ANSWER_CODES) <= set(REJECT_CODES) and all(code in REJECT_LABELS for code in REJECT_CODES)
+    question = (ROOT_JS / "brain-inbox-question.js").read_text(encoding="utf-8")
+    card = (ROOT_JS / "brain-inbox-card.js").read_text(encoding="utf-8")
+    assert all(f"'{code}'" in question for code in ANSWER_CODES)
+    assert "FOMS_BRAIN_INBOX_QUESTION" in card and "answers.indexOf(choice.value) < 0" in card

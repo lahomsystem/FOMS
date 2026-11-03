@@ -21,6 +21,7 @@
   var cardKit = window.FOMS_BRAIN_INBOX_CARD;
   var bins = window.FOMS_BRAIN_INBOX_BINS;
   var tableKit = window.FOMS_BRAIN_INBOX_TABLE;
+  var questionKit = window.FOMS_BRAIN_INBOX_QUESTION;
   var root = ctx.root;
   var isAdmin = root.getAttribute('data-is-admin') === '1';
   var list = root.querySelector('[data-brain-inbox]');
@@ -86,9 +87,10 @@
     var later = 0;
     var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
     if (asTable) tableKit.render(list, cards, openBin);
+    var asQuestion = !!questionKit && !phone && openBin === 'decide';
     cards.forEach(function (card) {
       if (asTable) return;
-      var node = cardKit.build(card, ctx, phone);
+      var node = asQuestion ? questionKit.build(card) : cardKit.build(card, ctx, phone);
       if (deferred[card.id]) { laterList.appendChild(node); later += 1; } else { list.appendChild(node); }
     });
     if (laterBox) laterBox.hidden = !later;
@@ -230,6 +232,12 @@
   }
 
   root.addEventListener('click', function (event) {
+    var answer = event.target.closest('[data-brain-answer]');
+    if (answer && root.contains(answer) && questionKit) {
+      questionKit.answer(answer, { urls: urls, findView: findView, reload: load,
+                                   done: function (text) { dom.setStatus(status, text); } });
+      return;
+    }
     var tableApply = event.target.closest('[data-brain-table-apply]');
     if (tableApply && root.contains(tableApply)) {
       applyTable(tableApply);

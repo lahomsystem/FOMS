@@ -180,7 +180,10 @@ OBJECT_OPS: tuple[str, ...] = (OP_CREATE, OP_UPDATE, OP_RETIRE, OP_DELETE)
 LINK_OPS: tuple[str, ...] = (OP_LINK_ADD, OP_LINK_REMOVE)
 CHANGE_OPEN, CHANGE_APPLIED, CHANGE_REJECTED, CHANGE_EXPIRED = "open", "applied", "rejected", "expired"
 #: 거절 까닭 칩(7.5 승인 흐름 — 남겨서 같은 제안이 다시 오지 않게).
-REJECT_CODES: tuple[str, ...] = ("wrong_number", "one_customer", "not_policy", "needs_photo", "other")
+REJECT_CODES: tuple[str, ...] = ("wrong_number", "one_customer", "not_policy", "needs_photo", "other",
+                                 *("knowledge_right", "outside_right", "both_right"))
+#: ③ 질문 카드 답(설계서 7.9 · D152) — 엇갈림 · 질문 제안을 닫는 까닭. 보통 거절 칩에는 안 보인다.
+ANSWER_CODES: tuple[str, ...] = ("knowledge_right", "outside_right", "both_right")
 #: 사장님만 반영하는 유형(5절 — 가격 · 정책 · 사장님 결정). 공통 바탕 은퇴 · 지우기도 사장님만.
 OWNER_ONLY_TYPES: frozenset[str] = frozenset({"price_rule", "policy", "owner_decision"})
 #: 층 승인자 팀(5절 '그 층 승인자' · 사장님 D101 — 그 팀 팀장). 그 팀의 켜진 MANAGER 가 사장님 몫이 아닌 제안을 반영한다.
