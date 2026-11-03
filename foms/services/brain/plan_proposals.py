@@ -85,7 +85,7 @@ def _row(run: Run, doc_id: Any) -> Optional[BrainObject]:
 
 
 def _update(run: Run, row: BrainObject, item: Mapping[str, Any], price: Optional[Mapping[str, Any]]) -> None:
-    """이름표 · 근거 종류(+ 계획에 적힌 가격 규칙 틀 칸) · 결정 번호를 실음 칸 고침 하나로."""
+    """이름표 · 근거 종류(+ 계획에 적힌 가격 규칙 틀 칸) · 결정 번호 · 글 고침(``text_fix``)을 고침 하나로."""
     want = labels_for(item, row.item_type)
     heads, decisions = (["이름표"] if want else []), []
     if price is not None and price.get("basis") in PRICE_BASES:
@@ -98,13 +98,20 @@ def _update(run: Run, row: BrainObject, item: Mapping[str, Any], price: Optional
         heads.append("결정 번호")
     payload = dict(row.payload or {})
     new = {**payload, **want}
-    if not want or new == payload:
+    after: dict[str, Any] = {"payload": new} if want and new != payload else {}
+    heads = heads if after else []
+    fix = one_line(item.get("text_fix"), MAX_TEXT)  # 승인된 글 고침(D147 맞춤법만 · D148 · D149) — 같으면 싣지 않는다
+    if fix is not None and fix != values_of(row)["text"]:
+        after["text"] = fix
+        heads.append("글 고침")
+        decisions += decisions_in(item.get("text_fix_why"))
+    if not after:
         run.skipped["same"] += 1
-    elif any(after_values(c.fields) == {"payload": new} for c in open_changes(run.session, OP_UPDATE, row.item_key)):
+    elif any(after_values(c.fields) == after for c in open_changes(run.session, OP_UPDATE, row.item_key)):
         run.skipped["open_proposal"] += 1
     else:
         file_one(run, OP_UPDATE, lambda: propose_update(
-            run.session, key=row.item_key, base_version=row.version, after={"payload": new},
+            run.session, key=row.item_key, base_version=row.version, after=after,
             reason=reason(" · ".join(heads) + " 채움", decisions), proposer=IMPORT_PROPOSER,
             evidence=[run.ref(item["id"])], now=run.now, known=run.known))
 
