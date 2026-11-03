@@ -14,6 +14,8 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
@@ -199,3 +201,163 @@ def current_options(db, order_id: int) -> dict[str, dict[str, Any]]:
     rows = db.query(OrderItemOption).filter(OrderItemOption.order_id == order_id,
                                             OrderItemOption.stage == "CURRENT").all()
     return {r.item_uid: {"state": r.state, "lines": list(r.lines or []), "customs": list(r.customs or [])} for r in rows}
+
+
+
+# --------------------------------------------------------------------------
+# 3단계 — 도면팀 옵션 확인 · 협력사 도면 확인 때 확정(설계서 §5.3 · §5.4)
+# --------------------------------------------------------------------------
+def _view(row: Optional[OrderItemOption], units: dict[str, str]) -> Optional[dict[str, Any]]:
+    if row is None:
+        return None
+    lines = [{**line, "unit": units.get(line.get("key"), "개")} for line in (row.lines or [])]
+    return {"state": row.state, "lines": lines, "customs": list(row.customs or []), "changes": list(row.changes or [])}
+
+
+def _qty_text(line: Optional[dict[str, Any]], units: dict[str, str]) -> Optional[str]:
+    return f"{line['qty']}{units.get(line.get('key'), '개')}" if line else None
+
+
+def diff_options(partner: Optional[dict[str, Any]], current: dict[str, Any], units: dict[str, str]) -> list[dict[str, Any]]:
+    """협력사 원문 → 지금 값에서 달라진 것 ``[{name, from, to}]`` — 수 · 더함 · 뺌 · 커스텀 · "옵션 없음/상담" 바뀜."""
+    if partner is None:
+        return []
+    out: list[dict[str, Any]] = []
+    if partner["state"] != current["state"] and "chosen" not in (partner["state"], current["state"]):
+        out.append({"name": "옵션", "from": STATE_TEXT[partner["state"]], "to": STATE_TEXT[current["state"]]})
+    before = {line["name"]: line for line in partner.get("lines") or []}
+    after = {line["name"]: line for line in current.get("lines") or []}
+    for name in list(before) + [n for n in after if n not in before]:
+        old, new = _qty_text(before.get(name), units), _qty_text(after.get(name), units)
+        if old != new:
+            out.append({"name": name, "from": old, "to": new})
+    old_custom = [c["text"] for c in partner.get("customs") or []]
+    new_custom = [c["text"] for c in current.get("customs") or []]
+    if old_custom != new_custom:
+        out.append({"name": "커스텀", "from": " · ".join(old_custom) or None, "to": " · ".join(new_custom) or None})
+    return out
+
+
+def _option_rows(db, order_id: int) -> dict[tuple[str, str], OrderItemOption]:
+    rows = db.query(OrderItemOption).filter(OrderItemOption.order_id == order_id).all()
+    return {(r.item_uid, r.stage): r for r in rows}
+
+
+def _sheet_for(db, order: Any, rows: dict) -> Optional[dict[str, Any]]:
+    """옵션 목록 · 단위를 볼 단가표 — 지금 판, 없으면 고를 때 본 판."""
+    from models import PartnerPriceList
+
+    price_list = active_price_list(db, order.partner_org_id) if order.partner_org_id else None
+    if price_list is None:
+        ids = [r.price_list_id for r in rows.values() if r.price_list_id]
+        price_list = db.get(PartnerPriceList, ids[0]) if ids else None
+    return price_list.sheet if price_list else None
+
+
+def _units(sheet: dict[str, Any]) -> dict[str, str]:
+    return {key: info["unit"] for key, info in _index(sheet)[0].items()}
+
+
+def option_review(db, order: Any) -> Optional[dict[str, Any]]:
+    """도면팀 · 협력사 화면 — 품목마다 지금 값 · 원문과 달라진 것 · 고를 목록(이름만). 옵션 줄이 없으면 None."""
+    rows = _option_rows(db, order.id)
+    sheet = _sheet_for(db, order, rows) if rows else None
+    if not rows or sheet is None:
+        return None
+    units = _units(sheet)
+    items = []
+    for no, item in enumerate((order.structured_data or {}).get("items") or [], start=1):
+        uid = str(item.get("uid") or "") if isinstance(item, dict) else ""
+        current = _view(rows.get((uid, "CURRENT")), units)
+        if current is None:
+            continue
+        partner = _view(rows.get((uid, "PARTNER")), units)
+        items.append({"uid": uid, "no": no, "title": str(item.get("product_name") or ""), "current": current,
+                      "partner": partner, "diff": diff_options(partner, current, units),
+                      "confirmed": rows.get((uid, "CONFIRMED")) is not None})
+    return {"catalog": pick_lists(sheet)["options"], "items": items} if items else None
+
+
+def prepare_review_options(db, order: Any, raw: Any):
+    """도면 전달 때 도면팀이 고친 옵션 — 검사만 먼저 하고, 쓰기는 돌려준 함수가 전달 쓰기 안에서 한다(같은 트랜잭션).
+
+    ``raw`` = ``{품목 uid: {state, lines, customs, reason}}``. 협력사 원문과 달라진 품목은 까닭이 꼭 있어야 한다.
+    """
+    if not getattr(order, "partner_org_id", None) or not isinstance(raw, dict) or not raw:
+        return None
+    rows = _option_rows(db, order.id)
+    sheet = _sheet_for(db, order, rows)
+    if sheet is None:
+        raise ItemOptionsError("협력사 단가표가 없어 옵션을 고칠 수 없습니다.")
+    units = _units(sheet)
+    items = [it for it in (order.structured_data or {}).get("items") or [] if isinstance(it, dict)]
+    planned = []
+    for uid, entry in raw.items():
+        no = next((i for i, it in enumerate(items, start=1) if str(it.get("uid") or "") == str(uid)), None)
+        current = rows.get((str(uid), "CURRENT"))
+        if no is None or current is None:
+            raise ItemOptionsError("옵션을 고칠 품목을 찾지 못했습니다. 화면을 새로 열어 주세요.")
+        options = clean_item_options(entry, str(items[no - 1].get("product_name") or ""), sheet, no=no)
+        diff = diff_options(_view(rows.get((str(uid), "PARTNER")), units), options, units)
+        reason = _text((entry or {}).get("reason") if isinstance(entry, dict) else "", 200)
+        if diff and not reason:
+            raise ItemOptionsError(f"항목 {no}: 협력사가 고른 것과 달라진 옵션의 까닭을 한 줄 적어 주세요.")
+        planned.append((str(uid), current, options, [{**d, "reason": reason} for d in diff]))
+
+    def apply(s_data: dict[str, Any], user_id: Optional[int] = None) -> None:
+        now = now_utc_naive()
+        for uid, current, options, changes in planned:
+            current.state, current.base_key = options["state"], options["base_key"]
+            current.lines, current.customs, current.changes = options["lines"], options["customs"], changes
+            current.updated_by, current.updated_at = user_id, now
+            db.add(current)
+            for item in s_data.get("items") or []:
+                if isinstance(item, dict) and str(item.get("uid") or "") == uid:
+                    item["option_detail"] = options_summary(options, sheet)
+        db.flush()
+    return apply
+
+
+def confirm_partner_options(db, order: Any, raw: Any, user_id: Optional[int],
+                            s_data: Optional[dict[str, Any]] = None) -> Optional[str]:
+    """협력사 "이대로 만들어 주세요" — "상담 후 정함" 품목은 여기서 고른 값을 넣고, 지금 값을 확정본(CONFIRMED)으로 복사한다.
+
+    확정 목록의 지문(sha256)을 돌려준다(감사 기록용). 옵션 줄이 없는 주문(단가표 전 주문)은 None. 커밋은 부르는 쪽.
+    """
+    rows = _option_rows(db, order.id)
+    currents = sorted((uid, row) for (uid, stage), row in rows.items() if stage == "CURRENT")
+    if not currents:
+        return None
+    sheet = _sheet_for(db, order, rows)
+    items = {str(it.get("uid") or ""): (no, it) for no, it in
+             enumerate((order.structured_data or {}).get("items") or [], start=1) if isinstance(it, dict)}
+    raw = raw if isinstance(raw, dict) else {}
+    now = now_utc_naive()
+    snapshot = []
+    for uid, current in currents:
+        no, item = items.get(uid, (0, {}))
+        if current.state == "later":
+            picked = raw.get(uid)
+            options = clean_item_options(picked, str(item.get("product_name") or ""), sheet, no=no) \
+                if picked and sheet else None
+            if options is None or options["state"] == "later":
+                raise ItemOptionsError(f"항목 {no} 옵션이 아직 \"상담 후 정함\"입니다. 주문 화면 도면 탭에서 옵션을 골라 주세요.")
+            for other in (s_data or {}).get("items") or []:
+                if isinstance(other, dict) and str(other.get("uid") or "") == uid:
+                    other["option_detail"] = options_summary(options, sheet)
+            for row in (current, rows.get((uid, "PARTNER"))):
+                if row is not None:
+                    row.state, row.base_key = options["state"], options["base_key"]
+                    row.lines, row.customs = options["lines"], options["customs"]
+                    row.updated_by, row.updated_at = user_id, now
+                    db.add(row)
+        confirmed = rows.get((uid, "CONFIRMED")) or OrderItemOption(order_id=order.id, item_uid=uid, stage="CONFIRMED")
+        confirmed.state, confirmed.base_key = current.state, current.base_key
+        confirmed.lines, confirmed.customs = list(current.lines or []), list(current.customs or [])
+        confirmed.changes, confirmed.price_list_id = list(current.changes or []), current.price_list_id
+        confirmed.updated_by, confirmed.updated_at = user_id, now
+        db.add(confirmed)
+        snapshot.append({"uid": uid, "state": current.state, "base_key": current.base_key,
+                         "lines": current.lines or [], "customs": current.customs or []})
+    db.flush()
+    return hashlib.sha256(json.dumps(snapshot, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()

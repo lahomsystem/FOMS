@@ -283,6 +283,12 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(partner_price_list_api_bp)
 
+    # --- Lane: 협력사 주문 옵션 직원 읽기(GET /api/orders/<id>/partner-options — 도면 전달 창, 설계서 2026-11-03-partner-statement
+    # §5.3). 읽기 전용. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_options_staff import partner_options_staff_api_bp
+
+    app.register_blueprint(partner_options_staff_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

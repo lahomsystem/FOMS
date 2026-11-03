@@ -140,11 +140,13 @@
 - 사진은 지금처럼 붙인다(도면팀 참고). 고칠 수 있는 때는 지금 규칙(`partner_edit_open`). 저장하면 PARTNER · CURRENT 두 줄을 함께 쓴다.
 
 ### 5.3 우리 도면팀 — 도면 전달 창에 "옵션 확인"
+- **3단계 구현(11-03)**: 도면 작업실 "도면 전달" 창(PC · 폰 같은 창, `#dwTransferModal`)에만 붙였다(`static/js/drawing/partner-option-review.js`, 읽기 `GET /api/orders/<id>/partner-options`). 대시보드 전달 창 · 태블릿 시트 "시트 전달"은 옵션 칸 없이 지금처럼 보내고, 그때 지금 값(CURRENT)은 바뀌지 않는다(협력사가 고른 값 그대로). 까닭은 품목마다 한 줄(바뀐 줄 모두에 같은 까닭).
 - 품목마다 CURRENT 옵션 목록을 보여 주고 고칠 수 있게 한다(같은 고르기 부품). 바꾼 줄은 까닭 한 줄 필수.
 - `state = later` 인 품목이 있으면 "옵션이 아직 안 정해진 품목이 있어요" 경고(전달은 막지 않음 — 협력사가 도면 확인 때 고른다).
 - 전달 처리(1장 5번)와 같은 트랜잭션에서 CURRENT 를 저장한다.
 
 ### 5.4 협력사 — 도면 확인
+- **3단계 구현(11-03)**: 도면 탭 최종 도면 아래 "옵션" 칸(`templates/partner/partials/order_options.html`). "상담 후 정함" 품목은 도면 확인 차례에만 고르는 칸이 되고, 고른 값은 "이대로 만들어 주세요" 요청(`options`)에 실려 같은 트랜잭션에서 지금 값 · 원문 · 확정본에 쓰인다(`approve_partner_drawing` → `confirm_partner_options`). 홈 "내 차례" 판의 승인 단추로 누르면 고를 품목이 있을 때 409(주문 화면 도면 탭에서 고르라는 안내). 옵션 지문은 감사 `PARTNER_DRAWING_APPROVED` 의 `options_fingerprint`.
 - 도면 아래 "옵션" 칸: CURRENT 목록 + PARTNER 원문과 다른 줄은 "바뀐 옵션"(까닭 함께). `later` 품목은 여기서 고르게 한다.
 - "도면 · 옵션 이대로 만들어 주세요" = 지금 `approve_partner_drawing` + 같은 트랜잭션에서 CURRENT → CONFIRMED 복사, 감사 기록에 옵션 지문(sha256)과 도면 회차.
 - "수정 요청"은 지금 그대로.

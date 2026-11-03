@@ -9,7 +9,8 @@
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
-{% if option_catalog is not none %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">{% endif %}
+{% if option_catalog is not none %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">{% endif %}
 {% include "partner/partials/flatpickr_head.html" %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}새 주문{% endblock %}

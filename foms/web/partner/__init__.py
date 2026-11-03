@@ -29,7 +29,7 @@ from foms.services.partners.construction_calendar import partner_construction_ca
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
-from foms.services.partners.item_options import current_options, pick_lists
+from foms.services.partners.item_options import current_options, option_review, pick_lists
 from foms.services.partners.items_edit import partner_edit_open
 from foms.services.partners.list_view import SORTS, pick_sort
 from foms.services.partners.manager import org_member_choices
@@ -212,6 +212,7 @@ def order_detail(order_id: int):
         channel_push=push_state(order),
         drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
+        option_review=option_review(db, order) if stage in ("DRAWING", "CONFIRM") and finals else None,
         **(dict(_pick_context(db, order.partner_org_id), item_options=current_options(db, order.id))
            if view["items_editable"] else {"product_names": [], "option_catalog": None, "item_options": {}}),
         **_completion_context(db, order, stage),
