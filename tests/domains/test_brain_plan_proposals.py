@@ -283,3 +283,23 @@ def test_plan_text_goes_into_new_items_and_withdraw_refiles_only_undecided(admin
     assert texts["term/synth-word"] == f"{MARK} 낱말 뜻 글"
     assert texts["lahom/p-split-a"] == f"{MARK} 가 나눔 글"
     assert texts["spec/synth-limit"] == f"{MARK} 한도"  # 글이 없으면 대표 이름(규격)
+
+
+def test_text_fix_files_a_text_edit_once_and_skips_same_text(admin):
+    """``text_fix`` 는 승인된 글의 고침을 고침 제안 '글' 칸으로 싣는다(D147 맞춤법만) — 지금 글과 같으면 싣지 않고,
+    다시 돌려도 같은 제안이 둘 열리지 않는다."""
+    from foms.services.brain.store import current_object, values_of
+
+    document = plan()
+    document["items"][6].update(text_fix=f"{MARK} 고친 글", text_fix_why="D147 — 합성 맞춤법만")  # pol
+    document["items"][8]["text_fix"] = values_of(current_object(db_session, "lahom/tpl"))["text"]  # 대조군: 같은 글
+    run_plan(document)
+    rows = db_session.execute(select(BrainChange).where(BrainChange.proposed_by == "import", BrainChange.op == "update",
+                                                         BrainChange.status == "open")).scalars().all()
+    fixed = [c for c in rows if c.item_key == "lahom/pol"]
+    assert len(fixed) == 1 and fixed[0].fields["text"]["after"] == f"{MARK} 고친 글"
+    assert "payload" in fixed[0].fields and "글 고침" in fixed[0].reason and "D147" in fixed[0].reason
+    assert not any("text" in (c.fields or {}) for c in rows if c.item_key == "lahom/tpl")  # 같은 글은 싣지 않는다
+    before = changes()
+    run_plan(document)
+    assert changes() == before  # 다시 돌려도 그대로
