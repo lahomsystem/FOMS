@@ -32,7 +32,7 @@ from decimal import Decimal
 from typing import Any, Mapping, Optional, Sequence
 
 from foms.services.cs_agent.brain_cases import case_lines, case_pairs, rewrite_lines, rewrite_pair
-from foms.services.cs_agent.brain_instructions import INSTRUCTIONS
+from foms.services.cs_agent.brain_instructions import INSTRUCTIONS, LENGTH_DEFAULT, length_rule
 from foms.services.cs_agent.brain_media import media_tokens
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
@@ -201,9 +201,9 @@ def evidence_choices(knowledge: ApprovedKnowledge) -> tuple[str, ...]:
     return tuple(item.item_id for item in knowledge.items)
 
 
-def instructions(brand: str) -> str:
-    """지시문 블록 글(코드에 있는 일반 지시 — 브랜드 이름만 바뀐다). 켠 브랜드가 아니면 ``KeyError``."""
-    return INSTRUCTIONS.format(label=ENABLED_BRANDS[brand])
+def instructions(brand: str, length: int = LENGTH_DEFAULT) -> str:
+    """지시문 블록 글(코드에 있는 일반 지시 — 브랜드 이름 · 답 길이 문장만 바뀐다). 켠 브랜드 · 있는 단계가 아니면 ``KeyError``."""
+    return INSTRUCTIONS.format(label=ENABLED_BRANDS[brand], length=length_rule(length))
 
 
 def knowledge_text(knowledge: ApprovedKnowledge) -> str:
@@ -216,7 +216,8 @@ def knowledge_text(knowledge: ApprovedKnowledge) -> str:
     return "\n".join(lines)
 
 
-def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Optional[str]) -> list[dict[str, Any]]:
+def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Optional[str],
+                  length: int = LENGTH_DEFAULT) -> list[dict[str, Any]]:
     """``system`` 칸 — [지시문, 승인 지식(교훈 포함)]. ``cache_ttl``(1h · 5m)이면 마지막 블록에만 그 길이로 캐시 표시를 단다.
 
     표시는 바뀌지 않는 앞부분 끝에 하나만 단다 — 시각 · 상담 id · 손님 글은 ``messages`` (뒷부분, :func:`task_text`)에만 있다.
@@ -225,7 +226,7 @@ def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Option
     if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
         raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
     blocks: list[dict[str, Any]] = [
-        {"type": "text", "text": instructions(brand)},
+        {"type": "text", "text": instructions(brand, length)},
         {"type": "text", "text": knowledge_text(knowledge)},
     ]
     if cache_ttl is not None:

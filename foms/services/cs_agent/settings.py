@@ -42,6 +42,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.services.cs_agent.brain_prompt import (
     CACHE_TTL_1H, CACHE_TTL_5M, MODEL, PURPOSE_DRAFT, PURPOSE_INTENT, SERVER_FALLBACK_MODELS,
 )
+from foms.services.cs_agent.brain_instructions import LENGTH_CHOICES, LENGTH_DEFAULT
 from foms.services.cs_agent.brain_spend import worker_daily_cap
 from foms.services.cs_agent.edit_detail_settings import DETAIL_FIELDS
 from foms.services.cs_agent.image_settings import IMAGE_FIELDS
@@ -68,7 +69,7 @@ POLICY_ID = "CS_AGENT_SETTINGS"
 #: 수정 기록 ``expires_at`` — 지식 기록처럼 길게 둔다(다른 설정 영수증의 24시간 지우기 창에 걸리지 않게).
 RECEIPT_KEEP = datetime.timedelta(days=3650)
 CACHE_DAYTIME, CACHE_ALWAYS, CACHE_OFF = "daytime", "always", "off"
-GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
+GROUP_BRAIN, GROUP_TIME, GROUP_CACHE = "모델 · 생각 깊이 · 답 길이 · 최대 출력", "시간 상한 · 다시 시도", "캐시 · 대체 모델"
 GROUP_MONEY, GROUP_PICK = "돈", "고르기"
 GROUP_REALTIME = "빠른 길(실시간 초안)"
 GROUP_SEND = "[보내기] · [수정하기] · 직원 알림"
@@ -94,8 +95,11 @@ FIELDS: tuple[Field, ...] = (
     Field("intent_model", "의도 고르기 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES, locked=True),
     Field("draft_effort", "초안 생각 깊이", KIND_CHOICE, "high", GROUP_BRAIN, _EFFORT_CHOICES),
     Field("intent_effort", "의도 고르기 생각 깊이", KIND_CHOICE, "low", GROUP_BRAIN, _EFFORT_CHOICES, locked=True),
+    Field("draft_length", "답 길이", KIND_CHOICE, LENGTH_DEFAULT, GROUP_BRAIN, LENGTH_CHOICES,
+          help="초안 글을 얼마나 짧게 · 자세히 쓸지(지시문 한 문장이 바뀐다). 3 이 예전 그대로 — 바꾸면 첫 차례에 캐시를 "
+               "새로 쓴다"),
     Field("draft_max_tokens", "초안 최대 출력", KIND_INT, 16000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
-          help="생각도 이 안에서 쓴다 — 너무 낮으면 답이 잘려 쓸 수 없는 답이 된다"),
+          help="답 길이 칸이 아니라 잘림을 막는 상한이다 — 생각도 이 안에서 쓴다, 너무 낮으면 답이 잘려 쓸 수 없는 답이 된다"),
     Field("intent_max_tokens", "의도 고르기 최대 출력", KIND_INT, 8000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
           locked=True),
     Field("realtime_timeout_s", "실시간 길 시간 상한", KIND_INT, 45, GROUP_TIME, low=20, high=60, unit="초",
