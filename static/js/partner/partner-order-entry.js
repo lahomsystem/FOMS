@@ -3,6 +3,7 @@
  *
  * - 제품명 ▾: 우리 고르기 창(erp-spec-picker.js 의 ErpSpecPicker.openSingle)으로 우리 제품 목록 이름을 고른다.
  *   이름 목록은 서버가 [data-pp-product-names] 에 이름만 싣는다(단가 없음). 직접 입력도 그대로 된다.
+ *   협력사 단가표가 있으면 목록은 묶음 모양 {groups:[{label, items:[이름]}]} — 단가표 제품 이름 하나씩(설계서 2026-11-03 §5.2).
  * - 주소 찾기: 우리 PC 주소 검색 창과 같은 칸(검색어 · 상세주소 · 결과 · 입력), 우리 서버 카카오 검색(/api/address/search).
  *   창 여닫기는 partner-shell.js(data-pp-sheet-open · data-pp-sheet-close · Esc).
  * - 연락처: 우리 화면(erp-order-shared.js formatPhoneAuto)처럼 숫자 10 · 11자리면 하이픈을 넣는다. "수동입력"이면 그대로 둔다.
@@ -17,14 +18,18 @@
     if (!el) return [];
     try {
       var list = JSON.parse(el.getAttribute('data-pp-product-names') || '[]');
+      if (list && Array.isArray(list.groups)) return list;
       return Array.isArray(list) ? list.filter(function (n) { return typeof n === 'string' && n; }) : [];
     } catch (_) {
       return [];
     }
   }
 
+  function asItems(names) { return names.map(function (n) { return { value: n, text: n }; }); }
+
   function bindProductPick(names) {
-    var items = names.map(function (n) { return { value: n, text: n }; });
+    var items = Array.isArray(names) ? asItems(names) : [];
+    var groups = Array.isArray(names) ? [] : names.groups.map(function (g) { return { label: g.label, items: asItems(g.items || []) }; });
     document.addEventListener('click', function (ev) {
       var btn = ev.target.closest('[data-pp-product-pick]');
       if (!btn) return;
@@ -37,6 +42,7 @@
         anchor: wrap,
         current: input.value,
         topItems: items,
+        groups: groups,
         onPick: function (value) {
           input.value = value;
           // partner-items-rail.js 가 왼쪽 목록 이름을 다시 그린다.
@@ -218,7 +224,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     var names = readNames();
-    if (names.length) bindProductPick(names);
+    if (names.length || (names.groups && names.groups.length)) bindProductPick(names);
     var modal = document.querySelector('[data-pp-address]');
     if (modal) bindAddress(modal);
     Array.prototype.forEach.call(document.querySelectorAll('[data-pp-phone]'), bindPhone);

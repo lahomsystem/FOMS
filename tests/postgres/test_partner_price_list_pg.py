@@ -2,7 +2,8 @@
 
 SQLite 메인 레인은 FK 를 강제하지 않는다. 여기서는 진짜 PostgreSQL 에서 ① 협력사마다 ACTIVE 판 하나(부분 유일 색인 —
 RETIRED 는 대조군) ② 없는 협력사 판은 FK 로 막힘 ③ 마이그레이션 ``pricelist_00`` 이 models 와 같은 표 · 색인을 만들고
-upgrade → downgrade → upgrade 가 되는지 ④ 새 판 저장(옛 판 RETIRED · 새 판 ACTIVE)이 실제 색인과 부딪히지 않는지를 본다.
+upgrade → downgrade → upgrade 가 되는지 ④ 새 판 저장(옛 판 RETIRED · 새 판 ACTIVE)이 실제 색인과 부딪히지 않는지
+⑤ 품목 옵션 표(``itemopt_00``)가 품목 · 단계마다 한 줄이고 주문을 지우면 같이 지워지는지(CASCADE)를 본다.
 ``FOMS_TEST_DATABASE_URL`` 이 없으면 건너뛴다(레인 규칙은 ``tests/postgres/conftest.py``). 단가 · 이름은 가짜다.
 """
 from __future__ import annotations
@@ -18,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from foms.services.partners.price_list import save_price_list
-from models import PartnerOrg, PartnerPriceList
+from models import Order, OrderItemOption, PartnerOrg, PartnerPriceList
 
 ROOT = Path(__file__).resolve().parents[2]
 _SHEET = {"schema": 1, "brand": "t", "seq": 1, "retired": [], "categories": [
@@ -28,9 +29,9 @@ _SHEET = {"schema": 1, "brand": "t", "seq": 1, "retired": [], "categories": [
           "partner_label": "", "pick_names": ["슬라이딩"], "for_products": [], "pickable": True}]}]}]}
 
 
-def _migration():
-    path = ROOT / "migrations" / "versions" / "pricelist_00_partner_price_lists.py"
-    spec = importlib.util.spec_from_file_location("pricelist_00_unit", path)
+def _migration(name="pricelist_00_partner_price_lists"):
+    path = ROOT / "migrations" / "versions" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"{name}_unit", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -48,12 +49,12 @@ def _row(org_id, version, status):
                             effective_from=dt.date(2026, 11, version), sheet=_SHEET)
 
 
-def _shape(conn):
+def _shape(conn, table="partner_price_lists"):
     cols = conn.execute(text(
         "SELECT column_name, data_type, is_nullable FROM information_schema.columns "
-        "WHERE table_name = 'partner_price_lists' ORDER BY column_name")).all()
+        "WHERE table_name = :t ORDER BY column_name"), {"t": table}).all()
     idx = dict(conn.execute(text(
-        "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'partner_price_lists'")).all())
+        "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = :t"), {"t": table}).all())
     return cols, idx
 
 
@@ -94,12 +95,60 @@ def test_migration_matches_models_and_round_trips(pg_session):
     conn = pg_session.connection()
     models_shape = _shape(conn)
     mig = _migration()
+    child = _migration("itemopt_00_order_item_options")  # 이 판을 가리키는 다음 판(alembic 은 뒤 판부터 내린다)
     assert (mig.revision, mig.down_revision) == ("pricelist_00", "brain_02")
     with Operations.context(MigrationContext.configure(conn)):
+        child.downgrade()
         mig.downgrade()
         assert _shape(conn) == ([], {})
         mig.upgrade()
         assert _shape(conn) == models_shape
         mig.downgrade()
         mig.upgrade()
+        child.upgrade()
     assert _shape(conn) == models_shape
+
+
+def _order(pg_session) -> Order:
+    order = Order(received_date="2026-11-03", customer_name="가짜 고객", phone="010-0000-0000", address="가짜 주소",
+                  product="슬라이딩", status="DRAWING", is_erp_order=True)
+    pg_session.add(order)
+    pg_session.flush()
+    return order
+
+
+def test_item_options_one_row_per_item_stage_and_cascade(pg_session):
+    order = _order(pg_session)
+    uid = "11111111-2222-3333-4444-555555555555"
+    pg_session.add_all([OrderItemOption(order_id=order.id, item_uid=uid, stage="PARTNER", state="none"),
+                        OrderItemOption(order_id=order.id, item_uid=uid, stage="CURRENT", state="chosen",
+                                        lines=[{"key": "r1", "name": "x", "qty": "1", "memo": ""}])])
+    pg_session.flush()  # 대조군: 같은 품목의 다른 단계
+    savepoint = pg_session.begin_nested()
+    pg_session.add(OrderItemOption(order_id=order.id, item_uid=uid, stage="CURRENT", state="none"))
+    with pytest.raises(IntegrityError):
+        pg_session.flush()
+    savepoint.rollback()
+    savepoint = pg_session.begin_nested()
+    pg_session.add(OrderItemOption(order_id=order.id, item_uid=uid, stage="CONFIRMED", state="maybe"))
+    with pytest.raises(IntegrityError):
+        pg_session.flush()  # state 검사 제약
+    savepoint.rollback()
+    pg_session.execute(text("DELETE FROM orders WHERE id = :i"), {"i": order.id})
+    left = pg_session.execute(text("SELECT count(*) FROM order_item_options WHERE order_id = :i"), {"i": order.id}).scalar()
+    assert left == 0
+
+
+def test_item_options_migration_matches_models_and_round_trips(pg_session):
+    conn = pg_session.connection()
+    models_shape = _shape(conn, "order_item_options")
+    mig = _migration("itemopt_00_order_item_options")
+    assert (mig.revision, mig.down_revision) == ("itemopt_00", "pricelist_00")
+    with Operations.context(MigrationContext.configure(conn)):
+        mig.downgrade()
+        assert _shape(conn, "order_item_options") == ([], {})
+        mig.upgrade()
+        assert _shape(conn, "order_item_options") == models_shape
+        mig.downgrade()
+        mig.upgrade()
+    assert _shape(conn, "order_item_options") == models_shape

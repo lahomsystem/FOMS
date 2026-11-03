@@ -1297,6 +1297,35 @@ class PartnerPriceList(Base):
     )
 
 
+class OrderItemOption(Base):
+    """협력사 품목마다 고른 옵션(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.2).
+
+    품목 JSON(``structured_data.items``) 밖에 둔다 — 우리 주문 화면 저장이 품목 JSON 을 통째로 다시 써서 서버가
+    가진 칸이 지워지기 때문이다. 품목은 ``items[].uid`` 로 잇는다. 한 품목에 단계(PARTNER 원문 · CURRENT 지금 값 ·
+    CONFIRMED 협력사 확정)마다 한 줄. 줄 모양은 :mod:`foms.services.partners.item_options`.
+    """
+    __tablename__ = 'order_item_options'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
+    item_uid = Column(String(64), nullable=False)
+    stage = Column(String(10), nullable=False)
+    state = Column(String(10), nullable=False)
+    base_key = Column(String(20), nullable=True)
+    lines = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    customs = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    changes = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    price_list_id = Column(Integer, ForeignKey('partner_price_lists.id'), nullable=True)
+    updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('order_id', 'item_uid', 'stage', name='uq_order_item_options_item_stage'),
+        CheckConstraint("stage IN ('PARTNER','CURRENT','CONFIRMED')", name='ck_order_item_options_stage'),
+        CheckConstraint("state IN ('chosen','none','later')", name='ck_order_item_options_state'),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
