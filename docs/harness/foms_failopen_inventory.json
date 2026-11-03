@@ -52,7 +52,7 @@
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:254",
     "foms/services/app_init.py:145",
-    "foms/services/brain/plan_proposals.py:315",
+    "foms/services/brain/plan_proposals.py:317",
     "foms/services/channel_client.py:445",
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
@@ -3124,7 +3124,7 @@
     },
     {
       "path": "foms/services/brain/plan_proposals.py",
-      "lineno": 315,
+      "lineno": 317,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
