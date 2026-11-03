@@ -99,7 +99,7 @@
     if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '확인할 것'에서 안 보인다(설계서 7.9)
     var ids = review.bulkIds(cards.filter(function (card) { return !deferred[card.id]; }));
     if (bulk) {
-      bulk.hidden = phone || asTable || ids.length < 2;
+      bulk.hidden = phone || asTable || asQuestion || ids.length < 2;  // ③ 질문은 답으로만 닫는다
       bulk.textContent = '등급 A 모두 승인 (' + ids.length + '건)';
     }
     setCount(all.length);

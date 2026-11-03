@@ -46,9 +46,10 @@
     var about = (view.about || [])[0] || null;
     var li = el('li', { cls: 'brain-icard brain-type--' + card.type, attrs: { 'data-card-id': card.id } });
     var box = el('div', { cls: 'brain-prop', attrs: { 'data-change-id': view.id } });
-    box.appendChild(el('p', { cls: 'brain-icard__name', text: card.title || card.name }));
+    var title = card.title || card.name || '';
+    box.appendChild(el('p', { cls: 'brain-icard__name', text: title }));
     box.appendChild(el('p', { cls: 'brain-prop__meaning', text: '어느 쪽이 맞아요?' }));
-    box.appendChild(side('정리한 내용', view.sentence));
+    if (view.sentence && view.sentence.indexOf(title.replace(/…$/, '')) !== 0) box.appendChild(side('정리한 내용', view.sentence));
     if (about) box.appendChild(side('회사 지식 「' + about.title + '」', about.text));
     var bar = el('div', { cls: 'brain-prop__actions' });
     bar.appendChild(button('회사 지식이 맞아요 — 바깥 글을 고칠 일로 남겨요', 'knowledge'));
