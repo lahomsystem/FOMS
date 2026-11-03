@@ -62,13 +62,80 @@ def test_toggle_saves_on_sheet_rearranges_v2_and_split_does_not_copy_it():
     assert "partFormBoxes(s)" in _fn(JS, "partArrangePlan") and "partFormBoxes(s)" in _fn(JS, "partFreshPlan")
 
 
-def test_presets_seed_at_top_center_and_legacy_untouched_ones_move_up():
-    assert "x: PRESET_TOP_X0 + i * PRESET_TOP_GAP, y: PRESET_TOP_Y" in _fn(JS, "seedPresetObjects")
-    m = _fn(JS, "moveLegacySeedRight")
-    assert "o.x !== 48 + i * PRESET_SEED_GAP && o.x !== right" in m and "o.y = PRESET_TOP_Y;" in m
-    x0 = int(re.search(r"var PRESET_TOP_X0 = (\d+);", JS).group(1))
-    gap = int(re.search(r"var PRESET_TOP_GAP = (\d+);", JS).group(1))
-    assert x0 + 4 * gap + 110 < 1074                                                    # [마이다]까지 발주 리스트 칸 앞에서 끝난다
+def _bom_js(body: str) -> dict:
+    """seedPresetObjects · moveBomRowTop 을 node 로 — 글자 폭은 글자 수 × 크기 × 0.62(measureRunWidth 가 없으면 쓰는 어림)."""
+    import json
+    import subprocess
+    names = ["seedPresetObjects", "bomTextBox", "bomRowXs", "moveBomRowTop", "bomObjBox", "partFormBoxes"]
+    consts = "\n".join(re.search(rf"  var {n} = [^;]+;", JS).group(0) for n in ("PRESET_TOP_Y", "PRESET_ROW_RIGHT", "PRESET_ROW_LEFT"))
+    src = "\n".join(_fn(JS, n) + "\n  }" for n in names)
+    js = f"""
+var PRESETS = {{ SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]', MAIDA: '[마이다]' }}, ALLOWED_SIZES = [14, 17, 20, 24, 28, 32, 36, 40];
+var PART_FRAME = {{ pageBox: {{ x: 1374, y: 40, w: 66, h: 49 }}, orderBox: {{ x: 1074, y: 40, w: 366, h: 190 }} }}, UI = 'v1', SIZE = 20, n = 0;
+function rid(p) {{ n += 1; return p + n; }}
+function loadPreferredTextSize() {{ return SIZE; }}
+function measureRunWidth() {{ throw new Error('no canvas'); }}
+function isFiniteNum(v) {{ return typeof v === 'number' && isFinite(v); }}
+function sizeOrDefault(s) {{ return ALLOWED_SIZES.indexOf(s) >= 0 ? s : 20; }}
+function normalizeRotation(r) {{ r = Math.round(Number(r) || 0); return ((r % 360) + 360) % 360; }}
+{consts}
+{src}
+var out = {{}};
+{body}
+process.stdout.write(JSON.stringify(out));
+"""
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def test_preset_row_ends_before_the_order_box_with_even_gaps():
+    """사용자 그림(11-03): 맨 위 한 줄, 칸 사이 고른 간격(글자 크기 × 3), 오른쪽 끝은 발주 리스트 칸 — 칸에 붙어 있어 24px 띄운다."""
+    out = _bom_js("""
+for (const size of [14, 20, 28, 40]) {
+  SIZE = size;
+  const objs = seedPresetObjects(), boxes = objs.map(bomTextBox);
+  out[size] = { xs: objs.map(o => o.x), ys: objs.map(o => o.y), ends: objs.map((o, i) => o.x + boxes[i].w), ws: boxes.map(b => b.w) };
+}
+""")
+    for size, r in out.items():
+        assert set(r["ys"]) == {52}, (size, r)
+        assert 1040 <= r["ends"][-1] <= 1051, (size, r)                                   # 칸(1074) 앞 24px
+        gaps = [r["xs"][i + 1] - r["ends"][i] for i in range(4)]
+        assert max(gaps) - min(gaps) <= 2 and all(g >= 24 for g in gaps), (size, gaps)    # 고른 간격
+        assert r["xs"][0] >= 60, (size, r)
+    assert out["28"]["xs"][0] < out["20"]["xs"][0]                                        # 글자가 크면 줄이 왼쪽으로 길어진다
+
+
+def test_written_sheets_move_their_bom_row_up_once_unless_something_is_in_the_way():
+    out = _bom_js("""
+const text = (t, x, y) => ({ id: rid('t'), type: 'text', x, y, text: t, size: 20 });
+const filled = () => [text('[SR]\\n60*2440=2', 628, 120), text('[EP]\\n18*600', 798, 120), text('[DOOR]', 968, 120),
+  { id: 'img', type: 'image', x: 60, y: 300, w: 500, h: 400 }];
+let s = { form: {}, objects: filled() };
+out.moved = moveBomRowTop(s);
+out.rows = s.objects.filter(o => o.type === 'text').map(o => [o.text.split('\\n')[0], o.x, o.y]);
+out.flag = s.form.bom_row;
+s.objects[0].x = 200; s.objects[0].y = 400;                       // 사람이 옮긴 뒤 다시 열어도 그대로
+out.again = moveBomRowTop(s); out.kept = [s.objects[0].x, s.objects[0].y];
+let b = { form: {}, objects: filled().concat([{ id: 'img2', type: 'image', x: 700, y: 45, w: 200, h: 120 }]) };   // 자리에 그림이 있다
+out.blocked = moveBomRowTop(b); out.blockedFlag = b.form.bom_row || ''; out.blockedX = b.objects[0].x;
+let v2 = { form: { v2_layout: 'band' }, objects: filled() };
+out.v2 = moveBomRowTop(v2);
+let lock = { form: {}, objects: filled() }; lock.objects[0].locked = true;
+moveBomRowTop(lock); out.lockedX = lock.objects[0].x;
+let rot = { form: {}, objects: filled().concat([{ id: 'r', type: 'image', x: 60, y: 750, w: 100, h: 100, rotation: 90 }]) };
+out.rot = moveBomRowTop(rot);
+""")
+    assert out["moved"] is True and out["flag"] == "1"
+    assert [r[0] for r in out["rows"]] == ["[SR]", "[EP]", "[DOOR]"] and {r[2] for r in out["rows"]} == {52}
+    assert out["rows"][0][1] < out["rows"][1][1] < out["rows"][2][1] < 1074
+    assert out["again"] is False and out["kept"] == [200, 400]                           # 한 번만
+    assert out["blocked"] is False and out["blockedFlag"] == "" and out["blockedX"] == 628   # 걸리면 그대로(다음에 다시 본다)
+    assert out["v2"] is False and out["lockedX"] == 628 and out["rot"] is False             # V2 · 잠근 글자 · 돌린 그림 있으면 손대지 않음
+    assert "moveBomRowTop(sheet)" in JS and "form.bom_row = '1';   // 자재표 줄은 새 자리에" in JS
+    status = (ROOT / "static/js/drawing/save-status.js").read_text(encoding="utf-8")
+    assert "k === 'bom_row'" in status                                                   # 옮김 표시만으로 '전달본 예전 것'이 되지 않게
 
 
 def test_v2_baseline_keeps_the_old_v1_frame():
