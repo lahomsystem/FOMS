@@ -9,4 +9,4 @@
 {% else %}
 <p class="small text-muted mb-2"><i class="fas fa-lock"></i> 도면 작업이 시작되어 고칠 수 없습니다. 바꿀 곳은 도면 탭의 "수정 요청"으로 보내 주세요.</p>
 {% endif %}
-{{ items_rail(view['items'], editable, item_photos, product_names | length > 0) }}
+{{ items_rail(view['items'], editable, item_photos, product_names | length > 0, option_catalog is not none) }}

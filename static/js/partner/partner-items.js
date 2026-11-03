@@ -117,6 +117,9 @@
     Array.prototype.forEach.call(item.querySelectorAll('[data-k]'), function (input) {
       data[input.getAttribute('data-k')] = input.value.trim();
     });
+    // 단가표가 있는 협력사는 옵션 칸이 고르는 칸이다(partner-item-options.js — 설계서 2026-11-03-partner-statement §5.2).
+    var options = window.PartnerItemOptions ? window.PartnerItemOptions.read(item) : null;
+    if (options) data.options = options;
     return data;
   }
 

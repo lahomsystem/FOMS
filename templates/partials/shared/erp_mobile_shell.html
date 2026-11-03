@@ -50,6 +50,10 @@
   {% set _ = _all_items.append({'id': 'settlement', 'label': '정산', 'icon': 'fas fa-coins', 'href': url_for('erp_settlement_page.erp_settlement_dashboard')}) %}
   {% set _ = _allowed_ids.append('settlement') %}
 {% endif %}
+{% if policy_can('PARTNER_STATEMENT') %}
+  {% set _ = _all_items.append({'id': 'partner_statements', 'label': '협력사 명세서', 'icon': 'fas fa-file-invoice', 'href': url_for('erp_partner_statements_page.erp_partner_statements')}) %}
+  {% set _ = _allowed_ids.append('partner_statements') %}
+{% endif %}
 {% set _drawer_items = [] %}
 {% set _current = namespace(item=None) %}
 {% for item in _all_items %}

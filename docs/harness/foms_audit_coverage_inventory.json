@@ -8,15 +8,15 @@
     "log_access"
   ],
   "baselines": {
-    "total": 270,
+    "total": 286,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 230,
-    "EXEMPT": 38,
+    "AUDITED": 245,
+    "EXEMPT": 39,
     "UNAUDITED": 2
   },
-  "coverage_percent": 99.1,
+  "coverage_percent": 99.2,
   "unaudited_sites": [
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
@@ -598,7 +598,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 998,
+      "lineno": 1009,
       "methods": [
         "POST"
       ],
@@ -607,7 +607,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 953,
+      "lineno": 964,
       "methods": [
         "POST"
       ],
@@ -616,7 +616,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 659,
+      "lineno": 670,
       "methods": [
         "POST"
       ],
@@ -625,7 +625,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 597,
+      "lineno": 598,
       "methods": [
         "POST"
       ],
@@ -1551,6 +1551,150 @@
       "classification": "UNAUDITED"
     },
     {
+      "path": "foms/api/partner/statements.py",
+      "endpoint": "api_ack",
+      "lineno": 38,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/statements.py",
+      "endpoint": "api_ask",
+      "lineno": 59,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_payments_staff.py",
+      "endpoint": "api_record",
+      "lineno": 86,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_payments_staff.py",
+      "endpoint": "api_void",
+      "lineno": 115,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_import_price_list",
+      "lineno": 127,
+      "methods": [
+        "POST"
+      ],
+      "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_save_price_list",
+      "lineno": 154,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_save_statement_profile",
+      "lineno": 210,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_answer",
+      "lineno": 288,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_discard",
+      "lineno": 245,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_issue",
+      "lineno": 198,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_issue_complete",
+      "lineno": 261,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_open_draft",
+      "lineno": 146,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_recalc",
+      "lineno": 179,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_revise",
+      "lineno": 214,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_save",
+      "lineno": 163,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_statements_staff.py",
+      "endpoint": "api_void",
+      "lineno": 230,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_cancel",
       "lineno": 1151,
@@ -2210,7 +2354,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 128,
+      "lineno": 154,
       "methods": [
         "POST"
       ],
@@ -2219,7 +2363,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 56,
+      "lineno": 82,
       "methods": [
         "POST"
       ],
@@ -2228,7 +2372,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_reset_password",
-      "lineno": 195,
+      "lineno": 221,
       "methods": [
         "POST"
       ],
@@ -2237,7 +2381,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_set_user_phone",
-      "lineno": 172,
+      "lineno": 198,
       "methods": [
         "POST"
       ],
@@ -2246,7 +2390,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 78,
+      "lineno": 104,
       "methods": [
         "POST"
       ],
@@ -2255,7 +2399,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 155,
+      "lineno": 181,
       "methods": [
         "POST"
       ],
@@ -2264,7 +2408,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_upload_logo",
-      "lineno": 95,
+      "lineno": 121,
       "methods": [
         "POST"
       ],

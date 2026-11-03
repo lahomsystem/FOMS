@@ -24,7 +24,13 @@ from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
 from foms.services.orders.drawing_customer_send import drawing_round_info
 from foms.services.orders.structured_item_uid import ensure_item_uids, item_uid_of
-from foms.services.partners.orders import ATTRIBUTE_KEYS, PartnerOrderError, clean_partner_items
+from foms.services.partners.item_options import save_partner_options
+from foms.services.partners.orders import (
+    ATTRIBUTE_KEYS,
+    PartnerOrderError,
+    clean_partner_items,
+    prepare_options_or_raise,
+)
 from models import Notification, OrderAttachment, SecurityLog
 
 ITEMS_EDIT_POLICY_ID = "PARTNER_ITEMS_EDIT"
@@ -148,6 +154,7 @@ def update_partner_items(db, user: Any, order_id: int, payload: Any) -> list[dic
     ensure_item_uids(old_sd, sd)  # 이 주문에 있던 uid 만 인정, 나머지는 새로 발급
     by_uid = {item_uid_of(it): it for it in old_items if item_uid_of(it)}
     sd["items"] = [_merge_item(by_uid.get(item_uid_of(it)), it) for it in cleaned]
+    options = prepare_options_or_raise(db, order.partner_org_id, data.get("items"), sd["items"], PartnerItemsError)
 
     intake = _record_intake(sd, user)
 
@@ -158,6 +165,8 @@ def update_partner_items(db, user: Any, order_id: int, payload: Any) -> list[dic
 
     execute_single_order_write(db, order_id=order.id, actor_user_id=user.id, policy_id=ITEMS_EDIT_POLICY_ID,
                                payload={"items": intake["items"]}, write=_write)
+    if options:  # 협력사 단가표가 있으면 품목 uid 마다 옵션 원문 · 지금 값(설계서 2026-11-03-partner-statement §3.2)
+        save_partner_options(db, order.id, sd["items"], options[1], options[0].id, user.id)
     moved = _remap_item_attachments(db, order.id, old_items, sd["items"])
     db.add(SecurityLog(
         user_id=user.id,

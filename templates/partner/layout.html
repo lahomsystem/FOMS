@@ -82,6 +82,7 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home', turn='1') }}"><i class="fas fa-compass-drafting"></i> 도면 확인{% if partner_turn_count %} <span class="badge rounded-pill bg-danger">{{ partner_turn_count }}</span>{% endif %}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home', stage='완료') }}"><i class="fas fa-camera"></i> 완공 사진 · AS</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.new_order') }}"><i class="fas fa-plus"></i> 새 주문</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_statements_portal.ledger') }}"><i class="fas fa-file-invoice"></i> 거래명세서</a></li>
             {# FOMS 공지사항(2026-11-02) — 안 읽음 수(partner_notice_unread). 목록에서 읽으면 foms-notice-popup.js 가 줄인다. #}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.notices') }}"><i class="fas fa-bullhorn"></i> 공지사항 <span class="badge rounded-pill bg-danger" data-foms-notice-unread{% if not partner_notice_unread %} hidden{% endif %}>{{ partner_notice_unread or 0 }}</span></a></li>
         </ul>
@@ -101,6 +102,7 @@
         <p class="pp-sheet__who"><i class="fas fa-user-circle" aria-hidden="true"></i> {% if g.current_user %}{{ g.current_user.name }} · {% endif %}{{ org.name }}</p>
         <p class="small text-muted">알림은 위 줄 오른쪽 종 단추에서 켜고 끕니다.</p>
         <div class="d-grid gap-2">
+            <a class="btn btn-outline-primary" href="{{ url_for('partner_statements_portal.ledger') }}"><i class="fas fa-file-invoice" aria-hidden="true"></i> 거래명세서</a>
             <a class="btn btn-outline-primary" href="{{ url_for('partner_portal.notices') }}"><i class="fas fa-bullhorn" aria-hidden="true"></i> 공지사항 <span class="badge rounded-pill bg-danger" data-foms-notice-unread{% if not partner_notice_unread %} hidden{% endif %}>{{ partner_notice_unread or 0 }}</span></a>
             {% if session.get('impersonating_from') %}
             <form method="post" action="{{ url_for('auth.switch_back') }}" class="d-grid">

@@ -583,3 +583,13 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-notice__title { margin: 0 0 .75rem; font-size: 1.15rem; font-weight: 700; line-height: 1.4; }
 .pp-notice__body { margin-bottom: 1rem; font-size: .95rem; line-height: 1.6; white-space: pre-line; word-break: keep-all; }
 body.pp-notice-open { overflow: hidden; }
+
+/* 휴대폰: 제품 속성 다섯 칸 두 줄(옵션 칸 모양은 components/foms-item-options.css). */
+@media (max-width: 767.98px) {
+  /* 휴대폰: 제품 속성 이름은 작은 글씨로 위, 입력 칸은 아래 한 줄 꽉(이름이 왼쪽이면 칸이 너무 작다 — 사용자 2026-11-03).
+     협력사 화면에만 둔다(우리 직원 화면은 그대로). */
+  .pp-items-md .erp-preset-sheet .erp-preset-row { display: block !important; grid-template-columns: none !important; padding: 6px 10px 8px !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row__label { display: block !important; width: auto !important; min-width: 0 !important; max-width: none !important; font-size: 11px !important; font-weight: 600 !important; line-height: 1.3 !important; color: var(--foms-color-neutral-500, #6b7380) !important; padding: 0 0 3px !important; margin: 0 !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row__value { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row__value .form-control { width: 100% !important; }
+}

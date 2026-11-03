@@ -12,6 +12,7 @@ from sqlalchemy.orm import load_only
 from sqlalchemy.orm.attributes import set_committed_value
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
+from foms.services.partners.payments import unpaid_order_ids
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
@@ -652,6 +653,10 @@ def erp_shipment_dashboard():
         )
 
     enrich_shipment_rows(rows)
+    # 협력사 주문 "입금 대기"(설계서 2026-11-03-partner-statement §5.7) — 발행 명세서만큼 다 받지 못했으면 표시만(막지 않음).
+    _unpaid = unpaid_order_ids(db, [r.id for r in rows if getattr(r, 'partner_org_id', None)])
+    for r in rows:
+        r.partner_payment_pending = r.id in _unpaid
 
     apply_erp_display_fields_to_orders(rows)
 

@@ -1,0 +1,57 @@
+/* 협력사 거래명세서 양식(templates/partner_statement/form.html, 설계서 2026-11-03-partner-statement §5.8).
+   A4 세로 한 장에 한 벌 — 인쇄하면 공급받는자용 · 공급자용 두 장. 화면에서는 가운데 종이처럼 보인다. */
+.psf { margin: 0; background: #eef0f3; color: #111; font-family: "Pretendard", "Malgun Gothic", sans-serif; font-size: 12px; }
+.psf-tools { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; }
+.psf-tools__btn { padding: 8px 16px; border: 1px solid #1f4fd1; border-radius: 6px; background: #1f4fd1; color: #fff; font-size: 14px; cursor: pointer; }
+.psf-tools__note { color: #555; font-size: 12px; }
+.psf-sheet th, .psf-sheet td { font-size: inherit; line-height: 1.35; }
+.psf-sheet { font-size: 12px; position: relative; box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto 16px; padding: 12mm 11mm; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+.psf-band { margin-bottom: 8px; padding: 6px 10px; border: 2px dashed #c0392b; color: #c0392b; font-weight: 700; text-align: center; }
+.psf-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; }
+.psf-head__title { font-size: 24px; font-weight: 800; letter-spacing: 6px; }
+.psf-head__title small { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.psf-head__meta { display: grid; gap: 2px; margin: 0; }
+.psf-head__meta div { display: flex; gap: 8px; }
+.psf-head__meta dt { min-width: 52px; color: #555; font-weight: 600; }
+.psf-head__meta dd { margin: 0; }
+.psf-head__qr { width: 22mm; height: 22mm; }
+.psf-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.psf-party { width: 100%; border-collapse: collapse; }
+.psf-party caption { padding: 3px 0; caption-side: top; color: inherit; font-weight: 700; text-align: left; }
+.psf-party th, .psf-party td { padding: 4px 5px; border: 1px solid #999; vertical-align: middle; }
+.psf-party th { width: 52px; background: #f3f4f6; font-weight: 600; white-space: nowrap; }
+.psf-party__seal { position: relative; display: inline-block; margin-left: 10px; color: #666; }
+.psf-stamp { position: absolute; top: 50%; left: 50%; width: 13mm; height: 13mm; transform: translate(-35%, -50%); object-fit: contain; opacity: 0.85; }
+.psf-sum { margin-top: 8px; padding: 6px 8px; border: 1px solid #111; }
+.psf-sum__words { font-size: 14px; }
+.psf-sum__words b { margin: 0 6px; }
+.psf-sum__split { margin-top: 2px; color: #333; }
+.psf-site { margin-top: 6px; color: #333; }
+.psf-lines { width: 100%; margin-top: 8px; border-collapse: collapse; }
+.psf-lines th, .psf-lines td { padding: 4px 5px; border: 1px solid #bbb; vertical-align: top; }
+.psf-lines thead th { background: #f3f4f6; font-weight: 700; white-space: nowrap; }
+.psf-lines__group th { background: #fafafa; text-align: left; }
+.psf-lines__sub td { background: #fafafa; font-weight: 700; text-align: right; }
+.psf-num { text-align: right; white-space: nowrap; }
+.psf-note { color: #444; font-size: 11px; }
+.psf-foot { margin-top: 10px; }
+.psf-balance { width: 100%; border-collapse: collapse; }
+.psf-balance th, .psf-balance td { padding: 5px; border: 1px solid #999; text-align: center; }
+.psf-balance th { background: #f3f4f6; }
+.psf-pay { display: grid; gap: 4px; margin-top: 8px; }
+.psf-pay__acc { display: inline-block; margin-right: 12px; }
+.psf-pre { white-space: pre-line; }
+.psf-pay__caution { color: #8a1c1c; }
+.psf-ack { margin-top: 8px; color: #333; text-align: right; }
+@media screen and (max-width: 820px) {
+  .psf-sheet { width: auto; min-height: 0; margin: 0 6px 12px; padding: 12px; }
+  .psf-parties { grid-template-columns: 1fr; }
+  .psf-lines { font-size: 11px; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  .psf { background: #fff; }
+  .psf-tools { display: none; }
+  .psf-sheet { margin: 0; box-shadow: none; page-break-after: always; break-after: page; }
+  .psf-sheet:last-of-type { page-break-after: auto; break-after: auto; }
+}

@@ -1,0 +1,55 @@
+{# 협력사 거래명세서 — 우리 CS 발행 대기 · 발행함(설계서 2026-11-03-partner-statement §5.5).
+   값은 static/js/cs/partner-statements.js 가 data-api 의 /pending · /issued 로 가져와 그린다(금액은 서버 값 그대로).
+   자산 링크는 ERP 셸 탭으로 들어와도 실리게 이 partial 안에 둔다. #}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/cs/partner-statements.css') }}">
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell foms-ps"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}"
+  data-ps-root data-api="/api/partner-statements"
+  data-page="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">
+  {% if erp_mobile_v2_enabled %}
+    {% set erp_sub_nav_active = 'partner_statements' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title"><i class="fas fa-file-invoice"></i><span>협력사 명세서</span></h1>
+  </header>
+  {% set erp_sub_nav_active = 'partner_statements' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
+
+  <section class="foms-ps__section" aria-labelledby="ps-pending-title">
+    <div class="foms-ps__bar">
+      <h2 class="h6 mb-0" id="ps-pending-title">발행 대기</h2>
+      <span class="small text-muted">협력사가 도면 · 옵션을 확정한 주문입니다. 금액이 다 찬 것은 "자동 완성", 커스텀 금액을 넣어야 하는 것은 "금액 필요"입니다.</span>
+      <button type="button" class="foms-ps__btn foms-ps__btn--primary ms-auto" data-ps-bulk>자동 완성만 한꺼번에 발행</button>
+    </div>
+    <p class="foms-ps__status small" data-ps-status role="status" aria-live="polite"></p>
+    <div data-ps-pending><p class="text-muted small">불러오는 중…</p></div>
+  </section>
+
+  {#- 입금 장부(5단계 — 설계서 §5.7). static/js/cs/partner-payments.js 가 /api/partner-payments 로 읽고 쓴다. -#}
+  <section class="foms-ps__section" aria-labelledby="ps-pay-title" data-pay-root data-api="/api/partner-payments">
+    <div class="foms-ps__bar">
+      <h2 class="h6 mb-0" id="ps-pay-title">입금</h2>
+      <label class="visually-hidden" for="ps-pay-org">협력사</label>
+      <select class="foms-pse__input" id="ps-pay-org" data-pay-org></select>
+      <b data-pay-balance></b>
+      <a class="foms-ps__btn ms-auto" data-pay-export href="#">이달 장부 엑셀로 받기</a>
+    </div>
+    <form class="foms-ps__payform" data-pay-form novalidate>
+      <label class="small">입금일 <input type="date" class="foms-pse__input" name="paid_on" required></label>
+      <label class="small">금액 <input type="text" inputmode="numeric" class="foms-pse__input foms-pse__amount" name="amount" placeholder="원" required></label>
+      <label class="small">명세서 <select class="foms-pse__input" name="statement_id" data-pay-statements></select></label>
+      <label class="small foms-ps__grow">메모 <input type="text" class="foms-pse__input" name="memo" maxlength="200" placeholder="예: 입금자명 · 은행"></label>
+      <button type="submit" class="foms-ps__btn foms-ps__btn--primary">입금 기록</button>
+    </form>
+    <p class="foms-ps__status small" data-pay-status role="status" aria-live="polite"></p>
+    <div data-pay-list></div>
+  </section>
+
+  <section class="foms-ps__section" aria-labelledby="ps-issued-title">
+    <h2 class="h6" id="ps-issued-title">발행함</h2>
+    <div data-ps-issued><p class="text-muted small">불러오는 중…</p></div>
+  </section>
+</div>
+<script src="{{ asset_url('js/cs/partner-statements.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/partner-payments.js') }}" defer></script>

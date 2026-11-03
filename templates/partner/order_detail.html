@@ -6,7 +6,9 @@
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">
 {% if view.items_editable or view.request_editable %}{% include "partner/partials/flatpickr_head.html" %}{% endif %}
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
-<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}{% endblock %}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+{% if option_catalog is not none or option_review %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">{% endif %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}주문 #{{ view.id }}{% endblock %}
 {% block mobile_back %}{{ url_for('partner_portal.home', view='orders') }}{% endblock %}
@@ -25,6 +27,7 @@
     <button type="button" class="chip foms-chip" role="tab" data-pp-tab="drawing">도면{% if can_approve or can_receive %} <span class="badge rounded-pill bg-danger">확인</span>{% elif revision_pending %} <span class="badge rounded-pill bg-secondary">요청함</span>{% endif %}</button>
     <button type="button" class="chip foms-chip" role="tab" data-pp-tab="completion"{% if tab_off %} disabled title="시공이 끝나면 열립니다"{% endif %}>완공</button>
     <button type="button" class="chip foms-chip" role="tab" data-pp-tab="history">이력</button>
+    {% if statements %}<button type="button" class="chip foms-chip" role="tab" data-pp-tab="statements">명세서</button>{% endif %}
 </nav>
 <div class="card border-secondary pp-order" data-pp-tabs="{{ active_tab }}">
     <div class="card-header pp-order__head">
@@ -36,6 +39,7 @@
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="drawing"><i class="fas fa-compass-drafting"></i> 도면{% if can_approve or can_receive %} <span class="badge bg-danger">확인</span>{% elif revision_pending %} <span class="badge bg-secondary">요청함</span>{% endif %}</button></li>
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="completion"{% if not (show_completion or as_open) %} disabled title="시공이 끝나면 열립니다"{% endif %}><i class="fas fa-camera"></i> 완공 사진{% if not (show_completion or as_open) %} <span class="small text-muted pp-tabs__hint">(시공 뒤)</span>{% endif %}</button></li>
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="history"><i class="fas fa-clock-rotate-left"></i> 이력</button></li>
+        {% if statements %}<li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="statements"><i class="fas fa-file-invoice"></i> 거래명세서</button></li>{% endif %}
     </ul>
     <div class="card-body foms-page-form">
         <section data-pp-tab-panel="order" aria-label="주문">
@@ -53,14 +57,29 @@
         <section data-pp-tab-panel="history" aria-label="이력" hidden>
             {% include "partner/partials/order_history.html" %}
         </section>
+        {% if statements %}
+        {#- 거래명세서 탭(설계서 2026-11-03-partner-statement §5.6) — 이 주문의 발행 · 취소 명세서(statement_partner.order_statements). -#}
+        <section data-pp-tab-panel="statements" aria-label="거래명세서" hidden>
+            <ul class="list-unstyled mb-0">
+                {% for s in statements %}<li class="py-1"><a href="{{ url_for('partner_statements_portal.view', statement_id=s.id) }}">{{ s.date }} · {{ s.doc_no }} · {{ '{:,}'.format(s.total) }}원</a> <span class="text-muted small">{{ s.status_text }}</span></li>{% endfor %}
+            </ul>
+        </section>
+        {% endif %}
     </div>
 </div>
 {% include "partner/partials/order_actions.html" %}
+{% if option_review and option_catalog is none %}{#- 도면 확인 때 "상담 후 정함" 품목 고르기(설계서 2026-11-03-partner-statement §5.4) -#}
+<div hidden data-pp-option-catalog='{{ option_review.catalog | tojson }}'></div>
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-item-options.js') }}" defer></script>{% endif %}
 {% if view.items_editable %}
 {% from "partner/partials/item_card.html" import pp_item_templates %}
-{{ pp_item_templates(product_names | length > 0) }}
-{% if product_names %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>
-<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{{ pp_item_templates(product_names | length > 0, option_catalog is not none) }}
+{% if product_names %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>{% endif %}
+{% if product_names or option_catalog is not none %}<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{% if option_catalog is not none %}<div hidden data-pp-option-catalog='{{ option_catalog | tojson }}'></div>
+<div hidden data-pp-item-options='{{ item_options | tojson }}'></div>
+<script src="{{ asset_url('js/partner/partner-item-options.js') }}" defer></script>{% endif %}
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-photo-stage.js') }}" defer></script>
 {% endif %}

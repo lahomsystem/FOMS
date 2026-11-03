@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>거래명세서 {{ stmt.doc_no or '초안' }}</title>
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-statement-form.css') }}">
+</head>
+<body class="psf">
+{#- 협력사 거래명세서 양식(설계서 2026-11-03-partner-statement §5.8). 값은 foms/services/partners/statement_view.py form_context —
+    금액은 발행 스냅샷 그대로, 한글 금액만 거기서 쓴다. 인쇄하면 공급받는자용 · 공급자용 두 장. 초안 · 취소본은 띠가 찍힌다. -#}
+<div class="psf-tools" data-psf-tools>
+    <button type="button" class="psf-tools__btn" data-psf-print>인쇄 · PDF 저장</button>
+    <span class="psf-tools__note">브라우저 인쇄 창에서 "PDF로 저장"을 고르면 파일로 받을 수 있습니다.</span>
+</div>
+{% for copy in copies %}
+{% include 'partner/partials/statement_sheet.html' %}
+{% endfor %}
+<script src="{{ asset_url('js/partner/partner-statement-form.js') }}" defer></script>
+</body>
+</html>

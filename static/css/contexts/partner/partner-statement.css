@@ -1,0 +1,72 @@
+/* 협력사 거래명세서 월 장부 · 보기(templates/partner/statements.html · statement_view.html, 설계서 2026-11-03-partner-statement §5.6).
+   전역 .btn !important 를 피해 자체 단추 클래스. 양식 한 장은 partner-statement-form.css 가 그린다. */
+.pp-st { max-width: 860px; margin: 0 auto; padding: 12px; }
+.pp-st__month { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
+.pp-st__title { margin: 0; font-size: 18px; font-weight: 700; }
+.pp-st__step { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border: 1px solid #d1d5db; border-radius: 50%; color: inherit; }
+.pp-st__sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 14px; }
+.pp-st__sum div { padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.pp-st__sum dt { color: #6b7280; font-size: 12px; font-weight: 600; }
+.pp-st__sum dd { margin: 2px 0 0; font-size: 16px; font-weight: 700; }
+.pp-st__sum .pp-st__sum-now { border-color: #1f4fd1; }
+.pp-st__rows { margin: 0; padding: 0; list-style: none; }
+.pp-st__row { margin-bottom: 8px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.pp-st__row--void { opacity: 0.7; }
+.pp-st__link { display: grid; grid-template-columns: 96px 1fr auto auto; gap: 8px; align-items: center; color: inherit; text-decoration: none; }
+.pp-st__who small { color: #6b7280; }
+.pp-st__amount { font-weight: 700; white-space: nowrap; }
+.pp-st__badge { justify-self: start; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pp-st__badge--new { background: #fee2e2; color: #b91c1c; }
+.pp-st__badge--ok { background: #dcfce7; color: #166534; }
+.pp-st__badge--void { background: #f3f4f6; color: #6b7280; }
+.pp-st__products { margin-top: 6px; font-size: 13px; }
+.pp-st__products ul { margin: 4px 0 0; padding-left: 0; list-style: none; }
+.pp-st__products li { display: flex; justify-content: space-between; padding: 2px 0; }
+.pp-st__balance, .pp-st__reason { margin-top: 4px; color: #6b7280; font-size: 12px; text-align: right; }
+.pp-st__empty { color: #6b7280; text-align: center; }
+.pp-sv { padding: 10px; }
+.pp-sv__bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+.pp-sv__btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+.pp-sv__btn:disabled { opacity: 0.6; }
+.pp-sv__btn--primary { border-color: #1f4fd1; background: #1f4fd1; color: #fff; }
+.pp-sv__acked { color: #166534; font-weight: 600; }
+.pp-sv__status { min-height: 1.2em; margin: 0 0 6px; color: #1f4fd1; }
+.pp-sv { max-width: 1120px; margin: 0 auto; }
+.pp-sv__grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+.pp-sv__sheet { overflow-x: auto; }
+.pp-sv__sheet .psf-sheet { width: auto; min-width: 640px; min-height: 0; margin: 0; padding: 16px; }
+.pp-sv__accounts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pp-sv__side { display: grid; gap: 12px; }
+.pp-sv__box { padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.pp-sv__h { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
+.pp-sv__files { margin: 0 0 6px; padding-left: 18px; }
+.pp-sv__muted { color: #6b7280; font-size: 12px; }
+.pp-sv__questions { margin: 0 0 8px; padding: 0; list-style: none; }
+.pp-sv__questions li { padding: 6px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+.pp-sv__answer { margin-top: 2px; color: #1f4fd1; }
+.pp-sv__ask { display: grid; gap: 6px; }
+.pp-sv__input { width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+@media (max-width: 991.98px) {
+  .pp-sv__grid { grid-template-columns: 1fr; }
+  .pp-sv__sheet .psf-sheet { min-width: 0; padding: 10px; }
+  .pp-sv__sheet .psf-parties { grid-template-columns: 1fr; }
+  .pp-st__sum { grid-template-columns: repeat(2, 1fr); }
+  .pp-st__link { grid-template-columns: 1fr auto; }
+  .pp-st__date { grid-column: 1 / -1; color: #6b7280; font-size: 12px; }
+}
+/* 휴대폰: 양식 한 장을 화면 폭에 맞춘다 — 계산 근거 칸은 인쇄 · PC 에서 보고, 머리는 두 줄로. */
+@media (max-width: 600px) {
+  .pp-sv__sheet .psf-head { flex-wrap: wrap; }
+  .pp-sv__sheet .psf-head__title { font-size: 20px; letter-spacing: 2px; }
+  .pp-sv__sheet .psf-head__qr { width: 18mm; height: 18mm; }
+  .pp-sv__sheet .psf-lines th:nth-child(7), .pp-sv__sheet .psf-lines td:nth-child(7) { display: none; }
+  .pp-sv__sheet .psf-lines td:first-child { min-width: 84px; }
+}
+.pp-st__tools { margin: 0 0 8px; text-align: right; }
+.pp-st__dl { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #166534; font-size: 13px; text-decoration: none; }
+.pp-st__row--pay { background: #f0fdf4; }
+.pp-sv__files .pp-sv__thumb { margin-bottom: 8px; list-style: none; }
+.pp-sv__files:has(.pp-sv__thumb) { padding-left: 0; }
+.pp-sv__thumb a { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+.pp-sv__thumb img { display: block; width: 100%; max-height: 200px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
+.pp-sv__thumb span { color: #6b7280; font-size: 12px; }

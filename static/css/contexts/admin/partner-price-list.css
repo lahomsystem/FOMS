@@ -1,0 +1,56 @@
+/* 협력사 단가표 편집 화면(설계서 2026-11-03-partner-statement §5.1) — 보내 주신 "통합 단가표" 모양(로고 · 왼쪽/오른쪽
+   카테고리 표 · 굵은 제목 줄)을 따른다. 오른쪽은 줄 계산 정보 칸. */
+.foms-pl__head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:10px}
+.foms-pl__back{font-size:13px;text-decoration:none}
+.foms-pl__bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px}
+.foms-pl__version{width:auto;min-width:320px}
+.foms-pl__brand{width:auto}
+.foms-pl__status{margin-left:auto;color:var(--foms-color-neutral-500,#6b7380)}
+.foms-pl__status--dirty{color:var(--foms-color-warning-700,#b45309);font-weight:600}
+.foms-pl__save{margin-bottom:10px}
+.foms-pl__wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.foms-pl__sheet{background:#fff;border:1px solid var(--foms-color-neutral-200,#dde1e6);border-radius:10px;padding:18px 20px}
+.foms-pl__logo{font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--foms-color-neutral-800,#22262e);margin-bottom:10px}
+.foms-pl__cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.foms-pl__col{min-width:0;overflow-x:auto}
+.foms-pl__sheet.is-editing .foms-pl__cols{grid-template-columns:minmax(0,1fr)}
+.foms-pl__cat{margin-bottom:16px}
+.foms-pl__cathead{background:var(--foms-color-neutral-800,#22262e);color:#fff;font-weight:700;font-size:13px;padding:6px 10px;border-radius:4px 4px 0 0}
+.foms-pl__tab{width:100%;border-collapse:collapse;font-size:12.5px}
+.foms-pl__tab th{background:var(--foms-color-neutral-100,#eef0f3);font-weight:600;padding:5px 8px;border-bottom:1px solid var(--foms-color-neutral-300,#c1c7d0);text-align:left}
+.foms-pl__tab td{padding:4px 8px;border-bottom:1px solid var(--foms-color-neutral-100,#eef0f3);vertical-align:middle}
+.foms-pl__tab .foms-pl__pr{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.foms-pl__tab td.foms-pl__pick{cursor:pointer}
+.foms-pl__tab td.foms-pl__pick:hover{background:var(--foms-color-brand-50,#f3f4ff)}
+.foms-pl__tab td.is-selected{background:var(--foms-color-brand-100,#e6e8ff);box-shadow:inset 3px 0 0 var(--foms-color-brand-500,#5a67d8)}
+/* 편집 칸 — 전역 .form-control 높이 · 여백(!important)을 이 표 안에서만 줄인다 */
+.foms-pl__tab td .form-control{height:auto!important;min-height:0!important;padding:2px 6px!important;font-size:12.5px!important;border-radius:4px!important}
+.foms-pl__tab td.foms-pl__nm .form-control{min-width:140px}
+.foms-pl__tab td.foms-pl__pr .form-control{width:96px;text-align:right}
+.foms-pl__tools{white-space:nowrap;width:1%}
+.foms-pl__tool{border:0;background:transparent;color:var(--foms-color-neutral-500,#6b7380);padding:0 4px;font-size:13px;line-height:1.4;cursor:pointer}
+.foms-pl__tool:hover{color:var(--foms-color-brand-600,#4a55b8)}
+.foms-pl__hint{margin:6px 0 0}
+.foms-pl__empty{padding:30px 0;text-align:center}
+.foms-pl__panel{position:sticky;top:12px}
+.foms-pl-f{display:block;margin:10px 0 0}
+.foms-pl-f__label{display:block;font-size:12px;font-weight:600;color:var(--foms-color-neutral-700,#353a44);margin-bottom:3px}
+.foms-pl-f__help{display:block;font-size:11px;color:var(--foms-color-neutral-500,#6b7380);margin:3px 0 0}
+.foms-pl-f__note{font-size:11.5px;color:var(--foms-color-warning-700,#b45309);background:var(--foms-color-warning-50,#fffbeb);border-radius:6px;padding:6px 8px;margin:10px 0 0}
+.foms-pl-f.form-check{display:flex;gap:6px;align-items:center;padding-left:0}
+.foms-pl-f.form-check .form-check-input{margin:0}
+.foms-pl-cond{border-left:2px solid var(--foms-color-neutral-200,#dde1e6);padding-left:10px}
+.foms-pl-kb{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px;vertical-align:middle;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-color-neutral-600,#4b525d)}
+.foms-pl-kb--ja,.foms-pl-kb--meter{background:#e6e8ff;color:#3a4490}
+.foms-pl-kb--band,.foms-pl-kb--over{background:#e0f2fe;color:#075985}
+.foms-pl-kb--count,.foms-pl-kb--fixed{background:#ecfdf5;color:#047857}
+.foms-pl-kb--included{background:#f3f4f6;color:#6b7380}
+.foms-pl-kb--hidden{opacity:.55;text-decoration:line-through}
+@media (max-width:1100px){.foms-pl__wrap,.foms-pl__cols{grid-template-columns:1fr}.foms-pl__panel{position:static}}
+@media (max-width:767.98px){.foms-pl__version{min-width:0;width:100%}.foms-pl__sheet{padding:12px}}
+
+/* 거래명세서 양식 정보(templates/admin/partner_statement_profile.html) */
+.foms-sp { max-width: 760px; }
+.foms-sp__box { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
+.foms-sp__box > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; }
+.foms-sp__field textarea { min-height: 64px; }

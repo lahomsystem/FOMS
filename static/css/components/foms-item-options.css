@@ -1,0 +1,36 @@
+/* 품목 "옵션" 칸 — 단가표 옵션 이름에서 고르기(설계서 2026-11-03-partner-statement §5.2 · §5.3).
+   협력사 새 주문 · 도면 탭(partner-item-options.js)과 우리 도면 작업실 "도면 전달" 창(partner-option-review.js)이 같이 쓴다.
+   전역 .btn !important 를 피하려고 칸 안 단추는 .btn 을 쓰지 않는다. */
+.pp-req { color: var(--foms-color-danger-600, #dc2626); }
+.pp-opt-legacy { font-size: 11px; color: var(--foms-color-neutral-500, #6b7380); margin-bottom: 4px; }
+.pp-optbox { border: 1px solid var(--foms-color-neutral-300, #c1c7d0); border-radius: 6px; background: #fff; padding: 2px 8px; }
+.pp-optbox.is-error { border-color: var(--foms-color-danger-600, #dc2626); box-shadow: 0 0 0 2px #fecaca; }
+.pp-optline { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--foms-color-neutral-100, #eef0f3); min-height: 34px; }
+.pp-optline:last-of-type { border-bottom: 0; }
+.pp-optline__name { flex: 0 0 auto; min-width: 120px; font-size: 13px; color: var(--foms-color-neutral-800, #22262e); }
+.pp-optline--custom .pp-optline__name { color: #6d28d9; }
+.pp-optline--special .pp-optline__name { color: var(--foms-color-neutral-600, #4b525d); }
+.pp-optline__qty { display: inline-flex; align-items: center; flex: 0 0 auto; border: 1px solid var(--foms-color-neutral-300, #c1c7d0); border-radius: 6px; overflow: hidden; }
+.pp-optline__qty button { border: 0; background: var(--foms-color-neutral-50, #f7f8fa); width: 26px; height: 26px; padding: 0; font-size: 14px; line-height: 1; color: var(--foms-color-neutral-700, #353a44); cursor: pointer; }
+.pp-optline__qty b { min-width: 26px; text-align: center; font-size: 13px; }
+.pp-optline__unit { flex: 0 0 auto; font-size: 11px; color: var(--foms-color-neutral-500, #6b7380); }
+.pp-optline__memo { flex: 1 1 120px; min-width: 0; border: 0; border-bottom: 1px dashed var(--foms-color-neutral-300, #c1c7d0); background: transparent; font-size: 12px; padding: 2px; color: var(--foms-color-neutral-700, #353a44); }
+.pp-optline__memo:focus { outline: 0; border-bottom-color: var(--foms-color-brand-500, #5a67d8); }
+.pp-optline__del { flex: 0 0 auto; border: 0; background: transparent; color: var(--foms-color-neutral-400, #9aa3af); padding: 0 4px; cursor: pointer; }
+.pp-optline__del:hover { color: var(--foms-color-danger-600, #dc2626); }
+.pp-optmore { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--foms-color-brand-600, #4a55b8); font-size: 12.5px; padding: 6px 0; cursor: pointer; }
+.pp-optempty { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; background: transparent; padding: 5px 0; color: var(--foms-color-neutral-400, #9aa3af); font-size: 13px; text-align: left; cursor: pointer; }
+.pp-opt-diff { background: var(--foms-color-warning-50, #fffbeb); border: 1px solid #f8d79a; border-radius: 6px; padding: 6px 8px; margin-top: 6px; font-size: 12px; color: var(--foms-color-warning-700, #b45309); }
+.pp-opt-diff input { width: 100%; margin-top: 4px; border: 1px solid #f8d79a; border-radius: 5px; padding: 3px 6px; font-size: 12px; background: #fff; }
+.pp-opt-item + .pp-opt-item { margin-top: 10px; }
+.pp-opt-item__head { font-size: 12px; font-weight: 700; color: var(--foms-color-neutral-700, #353a44); margin-bottom: 4px; }
+.pp-opt-note { font-size: 11.5px; color: var(--foms-color-neutral-500, #6b7380); margin-top: 4px; }
+@media (max-width: 767.98px) {
+  .pp-optline { flex-wrap: wrap; row-gap: 4px; column-gap: 6px; }
+  .pp-optline__name { order: 1; min-width: 0; flex: 1 1 calc(100% - 34px); }
+  .pp-optline__del { order: 2; }
+  .pp-optline__qty { order: 3; }
+  .pp-optline__unit { order: 4; }
+  .pp-optline__memo { order: 5; flex: 1 1 50px; }
+  .pp-optline--custom .pp-optline__memo { flex: 1 1 100%; }
+}

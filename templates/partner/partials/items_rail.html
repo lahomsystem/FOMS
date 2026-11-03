@@ -1,7 +1,7 @@
 {# 제품 항목 왼쪽 목록 · 오른쪽 상세 — 우리 erp_order_tab.html 의 틀(erp-items-master-detail.css). 주문 화면 · 새 주문이 같이 쓴다.
    pick 이면 제품명 칸에 ▾ 목록 단추(partner-order-entry.js). #}
 {% from "partner/partials/item_card.html" import pp_item %}
-{% macro items_rail(items, editable, item_photos, pick=False) %}
+{% macro items_rail(items, editable, item_photos, pick=False, opts=False) %}
 <div class="erp-items-section erp-items-master-detail-shell pp-items-md" data-pp-items-md>
     <div class="erp-order-body erp-items-master-detail">
         <aside class="item-rail" aria-label="제품 항목 목록">
@@ -20,7 +20,7 @@
         <main class="item-detail foms-page-form" aria-label="선택 항목">
             <div class="item-detail__scroll">
                 <div id="erp-items" data-pp-items>
-                    {% for it in items %}{{ pp_item(it, editable, item_photos.get(loop.index0, []), loop.index, pick) }}{% endfor %}
+                    {% for it in items %}{{ pp_item(it, editable, item_photos.get(loop.index0, []), loop.index, pick, opts) }}{% endfor %}
                 </div>
                 {% if editable %}<button type="button" class="btn btn-sm btn-outline-primary w-100 mt-3 pp-items-md__add" data-pp-add-item><i class="fas fa-plus"></i> 제품 항목 더하기</button>{% endif %}
             </div>

@@ -164,6 +164,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
                         gate="foms.services.cs_agent.send_auth:can_use_send_screen",
                         description="AI 상담 초안 보내기 · 버리기 · 고칠 말 · 결과 맞추기 — ADMIN, 또는 CS 권한 팀의 STAFF · MANAGER. VIEWER · 다른 팀 deny."),
 
+    # 협력사 거래명세서 만들기 · 발행 · 수정본 · 취소(설계서 2026-11-03-partner-statement §6): ADMIN, 또는 CS 권한 팀의 STAFF ·
+    # MANAGER. MANAGER 가 팀 검사보다 먼저 통과하는 엔진 순서를 피해 게이트 함수 하나가 판정한다(라우트가 같은 함수로 다시 본다).
+    "PARTNER_STATEMENT": _p("PARTNER_STATEMENT", teams=("CS",),
+                            gate="foms.services.partners.statements:can_manage_statements",
+                            description="협력사 거래명세서 초안 · 발행 · 수정본 · 취소 — ADMIN, 또는 CS 권한 팀의 STAFF · MANAGER. VIEWER · 다른 팀 · 협력사 deny."),
+
     # --- 일반 STAFF 업무(전 팀 열람+쓰기, 현행 role_required STAFF) ----------
     "STAFF_MUTATION": _p("STAFF_MUTATION", teams="*",
                          description="structured/field/status/regional/quest/task/draft/blueprint/attachment/queue 등 전 STAFF 팀 업무. VIEWER deny."),

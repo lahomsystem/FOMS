@@ -276,6 +276,40 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(brain_chat_api_bp)
 
+    # --- Lane: 협력사 단가표(ADMIN 전용 JSON — /api/admin/partners/<id>/price-lists, 설계서 2026-11-03-partner-statement
+    # §5.1). 화면은 admin_bp 의 /admin/partners/<id>/price-list. 쓰기는 CSRF · 정책 ADMIN_OPS. 경로가 고유해 shadowing 이
+    # 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_price_list import partner_price_list_api_bp
+
+    app.register_blueprint(partner_price_list_api_bp)
+
+    # --- Lane: 협력사 주문 옵션 직원 읽기(GET /api/orders/<id>/partner-options — 도면 전달 창, 설계서 2026-11-03-partner-statement
+    # §5.3). 읽기 전용. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_options_staff import partner_options_staff_api_bp
+
+    app.register_blueprint(partner_options_staff_api_bp)
+
+    # --- Lane: 협력사 거래명세서 우리 CS(화면 /erp/partner-statements · JSON /api/partner-statements — 설계서
+    # 2026-11-03-partner-statement §5.5). ADMIN 또는 CS 권한 팀만, 쓰기는 CSRF · 정책 PARTNER_STATEMENT. 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_payments_staff import partner_payments_staff_api_bp
+    from foms.api.partner_statements_staff import partner_statements_staff_api_bp
+    from foms.web.cs.partner_statements import erp_partner_statements_page_bp
+
+    app.register_blueprint(partner_statements_staff_api_bp)
+    # 입금 장부(5단계 — /api/partner-payments): 명세서와 같은 권한 · 정책.
+    app.register_blueprint(partner_payments_staff_api_bp)
+    app.register_blueprint(erp_partner_statements_page_bp)
+
+    # --- Lane: 협력사 거래명세서 협력사 쪽(화면 /partner/statements · JSON /api/partner/statements — 설계서
+    # 2026-11-03-partner-statement §5.6). 협력사 계정만(partner_required · 문지기 허용 목록). 경로가 고유해 shadowing 이
+    # 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner.statements import partner_statements_api_bp
+    from foms.web.partner.statements import partner_statements_portal_bp
+
+    app.register_blueprint(partner_statements_api_bp)
+    app.register_blueprint(partner_statements_portal_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

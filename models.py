@@ -1264,6 +1264,165 @@ class PartnerOrg(Base):
                         server_default=func.now())
 
 
+class PartnerPriceList(Base):
+    """협력사 단가표 한 판(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.1).
+
+    저장할 때마다 새 판이 생기고(``version`` 1, 2, 3 …) 협력사마다 ACTIVE 는 하나다. 옛 판은 RETIRED 로
+    남아 그 판으로 나간 명세서가 값을 그대로 갖는다. ``sheet`` 는 사용자가 쓰던 "통합 단가표" 모양
+    (카테고리 · 열 · 줄) + 줄마다 계산 정보(:mod:`foms.services.partners.price_list`)다. 단가는 DB 에만 둔다.
+    """
+    __tablename__ = 'partner_price_lists'
+
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id'), nullable=False)
+    version = Column(Integer, nullable=False)
+    label = Column(String(40), nullable=False)
+    # 이 날짜 출고분부터 이 판을 쓴다(한국 날짜).
+    effective_from = Column(Date, nullable=False)
+    status = Column(String(10), nullable=False, default='ACTIVE', server_default='ACTIVE')
+    sheet = Column(JSONColumn, nullable=False)
+    rules = Column(JSONColumn, nullable=False, default=dict, server_default=text("'{}'"))
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('partner_org_id', 'version', name='uq_partner_price_lists_org_version'),
+        CheckConstraint("status IN ('DRAFT','ACTIVE','RETIRED')", name='ck_partner_price_lists_status'),
+        # 협력사마다 지금 쓰는 판은 하나(SQLite 시험 레인도 같은 부분 유니크).
+        Index(
+            'uq_partner_price_lists_active', 'partner_org_id',
+            unique=True, postgresql_where=text("status = 'ACTIVE'"),
+            sqlite_where=text("status = 'ACTIVE'"),
+        ),
+    )
+
+
+class OrderItemOption(Base):
+    """협력사 품목마다 고른 옵션(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.2).
+
+    품목 JSON(``structured_data.items``) 밖에 둔다 — 우리 주문 화면 저장이 품목 JSON 을 통째로 다시 써서 서버가
+    가진 칸이 지워지기 때문이다. 품목은 ``items[].uid`` 로 잇는다. 한 품목에 단계(PARTNER 원문 · CURRENT 지금 값 ·
+    CONFIRMED 협력사 확정)마다 한 줄. 줄 모양은 :mod:`foms.services.partners.item_options`.
+    """
+    __tablename__ = 'order_item_options'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
+    item_uid = Column(String(64), nullable=False)
+    stage = Column(String(10), nullable=False)
+    state = Column(String(10), nullable=False)
+    base_key = Column(String(20), nullable=True)
+    lines = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    customs = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    changes = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    price_list_id = Column(Integer, ForeignKey('partner_price_lists.id'), nullable=True)
+    updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('order_id', 'item_uid', 'stage', name='uq_order_item_options_item_stage'),
+        CheckConstraint("stage IN ('PARTNER','CURRENT','CONFIRMED')", name='ck_order_item_options_stage'),
+        CheckConstraint("state IN ('chosen','none','later')", name='ck_order_item_options_state'),
+    )
+
+
+class PartnerStatement(Base):
+    """협력사 거래명세서 한 장(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.3).
+
+    DRAFT(우리 CS 가 고치는 중 — 협력사에게 안 보임) → ISSUED(발행 — 번호 · 일자 · 잔액 스냅샷, 잠김) → VOID(취소 ·
+    수정본으로 바뀜). ``groups`` 는 제품 묶음 · 줄 스냅샷이라 단가표 새 판이 나와도 발행본 값은 그대로다. 고칠 일은
+    ``revision_of`` 로 옛 명세서를 가리키는 수정본을 새로 낸다. 줄 모양은 :mod:`foms.services.partners.statements`.
+    """
+    __tablename__ = 'partner_statements'
+
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id'), nullable=False)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # 발행할 때 정한다(DRAFT 는 비어 있다). ``HD-<일자 YYYYMMDD>-<그날 순번 2자리>``.
+    doc_no = Column(String(30), nullable=True, unique=True)
+    statement_date = Column(Date, nullable=True)
+    status = Column(String(10), nullable=False, default='DRAFT', server_default='DRAFT')
+    revision_of = Column(Integer, ForeignKey('partner_statements.id'), nullable=True)
+    price_list_id = Column(Integer, ForeignKey('partner_price_lists.id'), nullable=True)
+    # 협력사가 확정한 도면 — 회차 번호와 그때 최종 도면 파일 열쇠(도면 회차 표는 실행 중에 줄을 쓰지 않아 FK 대신 스냅샷).
+    drawing_round = Column(Integer, nullable=True)
+    drawing_keys = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    groups = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    total = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    supply = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    vat = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    prev_balance = Column(BigInteger, nullable=True)
+    after_balance = Column(BigInteger, nullable=True)
+    # 수정본 · 취소 이유(협력사에게 보인다).
+    reason = Column(Text, nullable=True)
+    issued_at = Column(DateTime, nullable=True)
+    issued_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    voided_at = Column(DateTime, nullable=True)
+    voided_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    partner_viewed_at = Column(DateTime, nullable=True)
+    partner_ack_at = Column(DateTime, nullable=True)
+    partner_ack_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    # 초안 저장 경합 막기 — 화면이 본 version 과 같을 때만 쓴다.
+    version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("status IN ('DRAFT','ISSUED','VOID')", name='ck_partner_statements_status'),
+        # 주문마다 고치는 중인 초안은 하나.
+        Index(
+            'uq_partner_statements_order_draft', 'order_id',
+            unique=True, postgresql_where=text("status = 'DRAFT'"),
+            sqlite_where=text("status = 'DRAFT'"),
+        ),
+        Index('ix_partner_statements_org_status', 'partner_org_id', 'status'),
+    )
+
+
+class PartnerPayment(Base):
+    """협력사 입금 한 건(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md §3.4 · §5.7 — 5단계).
+
+    우리 CS 가 기록한다. 잔액 = 발행 명세서 합 − 지우지 않은 입금 합. ``statement_id`` 가 있으면 그 명세서 입금이고, 없으면
+    오래된 덜 받은 명세서부터 채운다(:mod:`foms.services.partners.payments`). 지우기는 줄을 남기고 ``voided_at`` · 이유만 적는다.
+    """
+    __tablename__ = 'partner_payments'
+
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id'), nullable=False)
+    paid_on = Column(Date, nullable=False)
+    amount = Column(BigInteger, nullable=False)
+    memo = Column(String(200), nullable=True)
+    statement_id = Column(Integer, ForeignKey('partner_statements.id', ondelete='SET NULL'), nullable=True)
+    recorded_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    voided_at = Column(DateTime, nullable=True)
+    voided_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    void_reason = Column(String(200), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('amount > 0', name='ck_partner_payments_amount'),
+        Index('ix_partner_payments_org_paid_on', 'partner_org_id', 'paid_on'),
+    )
+
+
+class PartnerStatementQuestion(Base):
+    """협력사가 명세서 줄을 골라 묻는 금액 문의(설계서 §3.5). 답은 우리 CS 가 단다."""
+    __tablename__ = 'partner_statement_questions'
+
+    id = Column(Integer, primary_key=True)
+    statement_id = Column(Integer, ForeignKey('partner_statements.id', ondelete='CASCADE'), nullable=False, index=True)
+    # 묶음 · 줄 번호("2-3" = 둘째 묶음 셋째 줄). 비면 명세서 전체.
+    line_ref = Column(String(20), nullable=True)
+    text = Column(Text, nullable=False)
+    asked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    asked_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    answer = Column(Text, nullable=True)
+    answered_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    answered_at = Column(DateTime, nullable=True)
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.

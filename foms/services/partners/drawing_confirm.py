@@ -28,6 +28,7 @@ from foms.services.erp_policy import STAGE_NAME_TO_CODE, create_quest_from_templ
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block, normalize_stage_code
 from foms.services.orders.drawing_customer_send import drawing_round_info
+from foms.services.partners.item_options import ItemOptionsError, confirm_partner_options
 from foms.services.orders.drawing_transfer import _is_drawing_key
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
@@ -59,8 +60,13 @@ def final_drawings_for_partner(order: Any) -> list[dict[str, Any]]:
     ]
 
 
-def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: str | None = None) -> Any:
+def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: str | None = None,
+                            options: Any = None) -> Any:
     """협력사가 최종 도면을 확인하고 제작을 요청한다(호출자가 commit).
+
+    협력사 옵션 줄이 있는 주문이면 같은 트랜잭션에서 옵션도 확정한다(설계서 2026-11-03-partner-statement §5.4) —
+    "상담 후 정함" 품목은 ``options``(``{품목 uid: 고른 옵션}``)로 고른 값을 넣고, 지금 값을 확정본으로 복사하며,
+    확정 목록의 지문을 감사 기록에 남긴다.
 
     Raises:
         PartnerConfirmError: 주문 없음(404)·도면 확인 차례 아님·도면 미확정(409).
@@ -74,6 +80,10 @@ def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: st
         raise PartnerConfirmError("지금은 도면 확인 차례가 아닙니다. 화면을 새로고침해 주세요.")
     if confirm_exit_block(sd) is not None:
         raise PartnerConfirmError("도면이 아직 확정되지 않았습니다. 저희 담당자에게 문의해 주세요.")
+    try:
+        options_fingerprint = confirm_partner_options(db, order, options, user.id, s_data=sd)
+    except ItemOptionsError as exc:
+        raise PartnerConfirmError(str(exc)) from exc
 
     stage_name = {v: k for k, v in STAGE_NAME_TO_CODE.items()}.get(stage_code, stage_code)
     quest, index = find_stage_quest_for_approve(sd, stage_name, stage_code)
@@ -135,6 +145,7 @@ def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: st
             "partner_org_id": order.partner_org_id,
             "drawing_round": getattr(round_info, "round", None),
             "final_drawing_keys": finals,
+            "options_fingerprint": options_fingerprint,
         }),
     ))
     body = {"order_id": order.id, "idempotency_key": idempotency_key}
