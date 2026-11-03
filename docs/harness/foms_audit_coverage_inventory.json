@@ -8,12 +8,12 @@
     "log_access"
   ],
   "baselines": {
-    "total": 270,
+    "total": 272,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 230,
-    "EXEMPT": 38,
+    "AUDITED": 231,
+    "EXEMPT": 39,
     "UNAUDITED": 2
   },
   "coverage_percent": 99.1,
@@ -1551,6 +1551,24 @@
       "classification": "UNAUDITED"
     },
     {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_import_price_list",
+      "lineno": 112,
+      "methods": [
+        "POST"
+      ],
+      "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/partner_price_list.py",
+      "endpoint": "api_save_price_list",
+      "lineno": 139,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_cancel",
       "lineno": 1151,
@@ -2210,7 +2228,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 128,
+      "lineno": 141,
       "methods": [
         "POST"
       ],
@@ -2219,7 +2237,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 56,
+      "lineno": 69,
       "methods": [
         "POST"
       ],
@@ -2228,7 +2246,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_reset_password",
-      "lineno": 195,
+      "lineno": 208,
       "methods": [
         "POST"
       ],
@@ -2237,7 +2255,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_set_user_phone",
-      "lineno": 172,
+      "lineno": 185,
       "methods": [
         "POST"
       ],
@@ -2246,7 +2264,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 78,
+      "lineno": 91,
       "methods": [
         "POST"
       ],
@@ -2255,7 +2273,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 155,
+      "lineno": 168,
       "methods": [
         "POST"
       ],
@@ -2264,7 +2282,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_upload_logo",
-      "lineno": 95,
+      "lineno": 108,
       "methods": [
         "POST"
       ],

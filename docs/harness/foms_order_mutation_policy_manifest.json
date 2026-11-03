@@ -1354,6 +1354,16 @@
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/api/brain/chat/settings"
+    },
+    "partner_price_list_api.import_price_list": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/partners/<int:org_id>/price-lists/import"
+    },
+    "partner_price_list_api.save_price_list": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/partners/<int:org_id>/price-lists"
     }
   }
 }

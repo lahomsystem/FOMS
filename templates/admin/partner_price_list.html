@@ -1,0 +1,73 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ org.name }} 단가표{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/admin/partner-price-list.css') }}">
+{% endblock %}
+
+{% block content %}
+{#- 설계서 2026-11-03-partner-statement §5.1 — 협력사 단가표. 보내 주신 "통합 단가표" 모양 그대로 보이고 고친다.
+    값은 static/js/admin/partner-price-list.js 가 GET {{ api_base }} 로 읽고, 저장은 POST {{ api_base }}(새 판),
+    HTML 불러오기는 POST {{ api_base }}/import(저장 안 함 — 화면에 띄우기만). 줄 계산 정보는 -panel.js 가 오른쪽 칸에서 고친다. -#}
+<div class="container-fluid mt-3 mb-5 foms-pl" data-pl-root data-api-url="{{ api_base }}" data-org-name="{{ org.name }}">
+  <div class="foms-pl__head">
+    <div>
+      <a href="{{ url_for('admin.partners') }}" class="foms-pl__back"><i class="fas fa-chevron-left me-1"></i>협력사 관리</a>
+      <h1 class="h4 mb-0 mt-1">{{ org.name }} 단가표</h1>
+      <p class="text-muted small mb-0">단가는 VAT 포함입니다. 저장하면 새 판이 되고, 이미 나간 명세서는 그때 판 값을 그대로 갖습니다. 라운즈에게는 이름만 보이고 금액은 명세서에만 나옵니다.</p>
+    </div>
+  </div>
+
+  <div class="foms-pl__bar" role="toolbar" aria-label="단가표 도구">
+    <label class="visually-hidden" for="pl-version">판</label>
+    <select class="form-select form-select-sm foms-pl__version" id="pl-version" data-pl-version></select>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-pl-edit>편집하기</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-pl-import-btn><i class="fas fa-file-import"></i> 단가표 HTML 불러오기</button>
+    <input type="file" class="visually-hidden" accept=".html,.htm,text/html" data-pl-import-file aria-label="단가표 HTML 파일">
+    <select class="form-select form-select-sm foms-pl__brand" data-pl-brand hidden aria-label="불러올 브랜드"></select>
+    <button type="button" class="btn btn-primary btn-sm" data-pl-save-open><i class="fas fa-floppy-disk"></i> 저장 (새 판)</button>
+    <span class="foms-pl__status small" data-pl-status role="status" aria-live="polite"></span>
+  </div>
+
+  <form class="foms-pl__save card" data-pl-save-form hidden novalidate>
+    <div class="card-body d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <label class="form-label small mb-1" for="pl-label">판 이름</label>
+        <input class="form-control form-control-sm" id="pl-label" maxlength="40" required placeholder="예: 11월판" data-pl-label>
+      </div>
+      <div>
+        <label class="form-label small mb-1" for="pl-from">적용 시작일 (이 날 출고분부터)</label>
+        <input class="form-control form-control-sm" id="pl-from" type="date" required data-pl-from>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">이 판으로 저장</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-pl-save-cancel>취소</button>
+    </div>
+  </form>
+
+  <div class="alert d-none foms-pl__message" data-pl-message data-foms-no-autodismiss role="alert"></div>
+
+  <div class="foms-pl__wrap">
+    <div class="foms-pl__sheet" data-pl-sheet>
+      <div class="foms-pl__logo" data-pl-logo></div>
+      <div class="foms-pl__cols">
+        <div class="foms-pl__col" data-pl-side="left"></div>
+        <div class="foms-pl__col" data-pl-side="right"></div>
+      </div>
+      <p class="foms-pl__empty text-muted" data-pl-empty hidden>아직 저장한 단가표가 없습니다. "단가표 HTML 불러오기"로 쓰시던 통합 단가표 파일을 넣어 주세요.</p>
+      <p class="foms-pl__hint small text-muted">품목 이름 옆 이름표 = 계산 방법. 이름을 누르면 오른쪽에서 계산 정보를 고칩니다. "편집하기"를 누르면 이름 · 금액을 바로 고치고 줄을 넣거나 뺄 수 있습니다.</p>
+    </div>
+    <aside class="foms-pl__panel card" data-pl-panel aria-label="줄 계산 정보">
+      <div class="card-body">
+        <p class="text-muted small mb-0" data-pl-panel-empty>줄 이름을 누르면 여기서 계산 정보를 정합니다.</p>
+        <div data-pl-panel-body hidden></div>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset_url('js/admin/partner-price-list-panel.js') }}" defer></script>
+<script src="{{ asset_url('js/admin/partner-price-list.js') }}" defer></script>
+{% endblock %}

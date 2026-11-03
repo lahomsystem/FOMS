@@ -210,6 +210,7 @@
     "foms/platform/blueprints.py::foms.api.ops_worker_heartbeat",
     "foms/platform/blueprints.py::foms.api.orders",
     "foms/platform/blueprints.py::foms.api.partner",
+    "foms/platform/blueprints.py::foms.api.partner_price_list",
     "foms/platform/blueprints.py::foms.api.production",
     "foms/platform/blueprints.py::foms.api.quest",
     "foms/platform/blueprints.py::foms.api.share",

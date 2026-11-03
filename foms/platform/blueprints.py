@@ -276,6 +276,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(brain_chat_api_bp)
 
+    # --- Lane: 협력사 단가표(ADMIN 전용 JSON — /api/admin/partners/<id>/price-lists, 설계서 2026-11-03-partner-statement
+    # §5.1). 화면은 admin_bp 의 /admin/partners/<id>/price-list. 쓰기는 CSRF · 정책 ADMIN_OPS. 경로가 고유해 shadowing 이
+    # 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner_price_list import partner_price_list_api_bp
+
+    app.register_blueprint(partner_price_list_api_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

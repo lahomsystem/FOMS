@@ -1093,6 +1093,14 @@
     "brain_chat_api.brain_chat_settings_save": {
       "mode": "guard",
       "rule": "/api/brain/chat/settings"
+    },
+    "partner_price_list_api.import_price_list": {
+      "mode": "guard",
+      "rule": "/api/admin/partners/<int:org_id>/price-lists/import"
+    },
+    "partner_price_list_api.save_price_list": {
+      "mode": "guard",
+      "rule": "/api/admin/partners/<int:org_id>/price-lists"
     }
   }
 }
