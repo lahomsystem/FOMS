@@ -61,11 +61,14 @@
   var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]', MAIDA: '[마이다]' };
-  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 머리 확인칸(.dws-header, top 43px) 아래, 오른쪽 끝에 붙인 한 줄.
-     라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
-  var PRESET_SEED_Y = 120;
+  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 맨 위 줄 가운데(왼쪽은 현장 사진 자리, 오른쪽은 발주 리스트 칸).
+     11-03 체크리스트를 지우며 위로 올렸다. 라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
+  var PRESET_TOP_Y = 52;
+  var PRESET_TOP_X0 = 330;
+  var PRESET_TOP_GAP = 145;
+  var PRESET_SEED_Y = 120;             // 예전 자리(체크리스트 아래) — 손대지 않고 남은 자리표를 맨 위로 옮길 때 알아본다
   var PRESET_SEED_GAP = 170;
-  var PRESET_SEED_LAST_W = 100;        // 마지막 자리표 시작~오른쪽 끝 여유(라벨 폭 + 여백)
+  var PRESET_SEED_LAST_W = 100;        // 예전 오른쪽 자리: 마지막 자리표 시작~오른쪽 끝 여유
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
   var _html2canvasPromise = null;
 
@@ -312,17 +315,17 @@
   function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects(), presets_seeded: true }; }
 
   function seedPresetObjects() {
-    // 왼쪽 빈칸은 현장 사진 자리 — 자리표 한 줄을 도면 오른쪽 끝에 붙여 깐다.
+    // 왼쪽 빈칸은 현장 사진 자리, 오른쪽 위는 발주 리스트 칸 — 자리표 한 줄을 맨 위 가운데에 깐다.
     var kinds = Object.keys(PRESETS);
     return kinds.map(function (kind, i) {
       return {
-        id: rid('o-'), type: 'text', x: PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP, y: PRESET_SEED_Y, w: 1,
+        id: rid('o-'), type: 'text', x: PRESET_TOP_X0 + i * PRESET_TOP_GAP, y: PRESET_TOP_Y, w: 1,
         text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
       };
     });
   }
 
-  /** 예전 왼쪽 자리(x=48+i*170, y=120)에 손대지 않고 남은 자리표를 오른쪽 자리로 옮긴다.
+  /** 예전 자리(y=120 — 왼쪽 x=48+i*170 · 오른쪽 끝 줄)에 손대지 않고 남은 자리표를 맨 위 가운데로 옮긴다.
       사용자가 옮겼거나 내용을 쓴 자리표는 그대로 둔다. */
   function moveLegacySeedRight(objects) {
     var kinds = Object.keys(PRESETS);
@@ -330,8 +333,11 @@
       if (!isPresetPlaceholder(o) || o.y !== PRESET_SEED_Y) { return; }
       var label = String(o.text || '').replace(/\n$/, '');
       var i = kinds.filter(function (k) { return PRESETS[k] === label; }).map(function (k) { return kinds.indexOf(k); })[0];
-      if (i == null || o.x !== 48 + i * PRESET_SEED_GAP) { return; }
-      o.x = PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP;
+      if (i == null) { return; }
+      var right = PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP;
+      if (o.x !== 48 + i * PRESET_SEED_GAP && o.x !== right) { return; }
+      o.x = PRESET_TOP_X0 + i * PRESET_TOP_GAP;
+      o.y = PRESET_TOP_Y;
     });
   }
 
@@ -523,6 +529,8 @@
     els.pendingToggle = document.getElementById('dws-pending-toggle');
     els.pendingGrid = document.getElementById('dws-pending-grid');
     els.delSavedBtn = document.getElementById('dws-btn-delete-saved');
+    els.orderToggle = document.getElementById('dws-orderlist-toggle');
+    els.orderOn = document.getElementById('dws-orderlist-on');
     els.lightbox = document.getElementById('dws-lightbox');
     els.lightboxImg = document.getElementById('dws-lightbox-img');
     els.lightboxClose = document.getElementById('dws-lightbox-close');
@@ -626,6 +634,7 @@
       if (k === 'page_no' && UI === 'v2') { el.textContent = v2PageText(el.textContent); }
     });
     renderChecks();
+    renderOrderList(form);
     renderLogo(form.logo);
     applyFormLayout(cs);
   }
@@ -640,6 +649,25 @@
       el.textContent = on ? '✓' : '';
       el.classList.toggle('dws-check-on', on);
     });
+  }
+
+  /** 발주 리스트 칸(V1 오른쪽 위) — form.order_list_on='1' 일 때만 보인다. 체크 칸은 편집 권한일 때만. */
+  function renderOrderList(form) {
+    if (!els.orderToggle || !document.getElementById('dws-orderbox')) { return; }
+    var on = form.order_list_on === '1';
+    els.form.classList.toggle('dws-order-on', on);
+    els.orderOn.checked = on;
+    els.orderToggle.hidden = !canSave;
+  }
+
+  function toggleOrderList() {
+    var cs = currentSheet();
+    if (!canSave || !cs) { renderForm(); return; }
+    recordUndo();
+    cs.form.order_list_on = els.orderOn.checked ? '1' : '';
+    renderForm();
+    markDirty();
+    emitCore('orderbox', { on: cs.form.order_list_on === '1' });   // V2 칸 배치가 칸을 비켜 다시 놓는다(v2-shell · v2-plan ORDER_BOX)
   }
 
   /** PARTNER-03: 외부 협력사 주문인가 — 서버 기본값이 'partner'(협력사 로고)·'none'(빈칸)일 때. */
@@ -704,6 +732,7 @@
       el.addEventListener('click', function () { toggleCheck(el.getAttribute('data-dws-check')); });
     });
     els.logoCell.addEventListener('click', function (e) { e.stopPropagation(); openLogoPopup(); });
+    if (els.orderOn) { els.orderOn.addEventListener('change', toggleOrderList); }
   }
 
   /* ---- 표 레이아웃 렌더 엔진 (CSS 고정 → JS 주도, 단일 소스=state) -------- */
@@ -1823,12 +1852,10 @@
     });
   }
 
-  /** 딱지가 덮지 않을 양식 칸(스테이지 좌표) — 머리칸 글자(도면팀·생산팀 줄) · 쪽번호 칸 · 아래 표. */
+  /** 딱지가 덮지 않을 양식 칸(스테이지 좌표) — 쪽번호 칸 · 켜진 발주 리스트 칸 · 아래 표(11-03 체크리스트 머리칸은 지웠다). */
   function partBadgeZones() {
-    var head = els.form ? els.form.querySelector('.dws-header') : null, pb = PART_FRAME.pageBox;
-    var out = [{ x: pb.x, y: pb.y, w: pb.w, h: pb.h }, { x: 0, y: partTableTop(currentSheet()), w: STAGE_W, h: STAGE_H }];
-    if (head && head.offsetHeight) { out.push({ x: head.offsetLeft, y: head.offsetTop, w: head.offsetWidth, h: head.offsetHeight }); }
-    return out;
+    var s = currentSheet();
+    return partFormBoxes(s).map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }).concat([{ x: 0, y: partTableTop(s), w: STAGE_W, h: STAGE_H }]);
   }
 
   function initPartSelect() {
@@ -3547,9 +3574,9 @@
   }
 
   /* 그림 놓는 칸(설계서 §3.2) — 시트 테두리(wizard.css .dws-outer-border: 40~1440, 굵기 3)의 안쪽 8px,
-     머리칸(.dws-header: 도면팀·생산팀 확인 줄) 아래 8px, 아래 표 윗선(form.layout.top) 위 12px.
-     쪽번호 칸(.dws-pagebox: 1374,40 66×49)은 장애물로 피한다. */
-  var PART_FRAME = { x0: 43, x1: 1437, headBottom: 95, pageBox: { x: 1374, y: 40, w: 66, h: 49 } };
+     위 테두리 아래 8px(11-03 체크리스트 머리칸을 지웠다 — headBottom 40), 아래 표 윗선(form.layout.top) 위 12px.
+     쪽번호 칸(.dws-pagebox: 1374,40 66×49)과 켜진 발주 리스트 칸(.dws-orderbox: 1074,40 366×190)은 장애물로 피한다. */
+  var PART_FRAME = { x0: 43, x1: 1437, headBottom: 40, pageBox: { x: 1374, y: 40, w: 66, h: 49 }, orderBox: { x: 1074, y: 40, w: 366, h: 190 } };
   var PART_BORDER = { x0: 40, y0: 40, x1: 1440, y1: 1000 };   // .dws-outer-border 바깥선 — 그대로 둔 그림이 밖에 있는지 본다
 
   function partObjRect(o) {
@@ -3566,6 +3593,12 @@
     return { x0: PART_FRAME.x0 + 8, y0: headBottom + 8, x1: PART_FRAME.x1 - 8, y1: partTableTop(s) - 12 };
   }
 
+  /** 그림이 피할 양식 칸 — 쪽번호 칸, 시트 s 의 발주 리스트가 켜져 있으면 그 칸도. */
+  function partFormBoxes(s) {
+    var on = !!(s && s.form && s.form.order_list_on === '1');
+    return on ? [PART_FRAME.pageBox, PART_FRAME.orderBox] : [PART_FRAME.pageBox];
+  }
+
   function partPad(r) { return { x: r.x - 8, y: r.y - 8, w: r.w + 16, h: r.h + 16 }; }
 
   /** 그림 한 장 → 자동 배치 입력(order = FomsPartArrange.order 결과). */
@@ -3578,7 +3611,7 @@
       skipped = 잠그거나 돌려서 그대로 둔 그림 수, outside = 그중 테두리 밖에 있는 그림 id(배치 뒤 골라 보여 준다). */
   function partArrangePlan(s) {
     var A = window.FomsPartArrange, B = PART_BORDER, area = partArea(s), imgs = [], boms = [], skipped = 0, outside = [];
-    var obstacles = [partPad(PART_FRAME.pageBox)];
+    var obstacles = partFormBoxes(s).map(partPad);
     (s.objects || []).forEach(function (o) {
       if (o.type === 'image' && !o.locked && !normalizeRotation(o.rotation)) { imgs.push(o); return; }
       var r = partObjRect(o);
@@ -3596,6 +3629,19 @@
   /** 새 시트(자리표만 있는 빈 시트) 칸 — 나누기 계획용. 자리표는 seedPresetObjects 자리·두 줄 높이로 어림한다. */
   function partFreshPlan(s) {
     var A = window.FomsPartArrange, area = partArea(s), seeds = A.seedRects(seedPresetObjects(), loadPreferredTextSize());
+    return { area: area, obstacles: partFormBoxes(s).map(partPad).concat(seeds.map(partPad)), reserve: A.bomZone(seeds, area) };
+  }
+
+  /** V2 % 기준(v1Baseline)의 빈 시트 — 11-03 전 V1 양식(체크리스트 머리 아래 · 자리표 y=120 오른쪽 끝 · 쪽번호 칸만)으로 잰다.
+      체크리스트를 지우고 발주 리스트 칸을 넣어도 V2 의 % · 틀 고르기 · 나누기 권함이 흔들리지 않게. */
+  function partBasePlan(s) {
+    var A = window.FomsPartArrange, kinds = Object.keys(PRESETS);
+    var area = { x0: PART_FRAME.x0 + 8, y0: 95 + 8, x1: PART_FRAME.x1 - 8, y1: partTableTop(s) - 12 };
+    var seeds = A.seedRects(seedPresetObjects().map(function (o, i) {
+      o.x = PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP;
+      o.y = PRESET_SEED_Y;
+      return o;
+    }), loadPreferredTextSize());
     return { area: area, obstacles: [partPad(PART_FRAME.pageBox)].concat(seeds.map(partPad)), reserve: A.bomZone(seeds, area) };
   }
 
@@ -3668,6 +3714,8 @@
     var form = cloneForm(s.form), base = cloneForm(defaults);
     form.checks = base.checks;
     form.page_no = base.page_no;
+    form.order_list_on = '';   // 발주 리스트는 나눈 새 시트로 옮기지 않는다(같은 발주를 두 번 적지 않게)
+    form.order_list = '';
     plan.items.forEach(function (it) { order[it.id] = it.order; });
     (s.objects || []).forEach(function (o) { byId[o.id] = o; });
     function place(sh, res) { partPlace(sh, res); Object.keys(res.guess || {}).forEach(function (id) { guess[id] = res.guess[id]; }); }
@@ -7008,7 +7056,7 @@
   function v1Baseline(imgs) {
     var L = window.FomsPartLayout, A = window.FomsPartArrange, s = currentSheet(), out = {};
     if (!L || !A || !s || !imgs || !imgs.length) { return out; }
-    var order = A.order(imgs, partUploadSeq), fresh = partFreshPlan(s);
+    var order = A.order(imgs, partUploadSeq), fresh = partBasePlan(s);
     var res = L.arrange(imgs.map(function (o) { return partItem(o, order); }), fresh.area, fresh.obstacles, { reserve: fresh.reserve });
     res.placed.forEach(function (p) { out[p.id] = { w: p.w, h: p.h }; });
     return out;
@@ -7023,6 +7071,8 @@
     var form = cloneForm(s.form), base = cloneForm(defaults), byId = {}, moved = [], made = [];
     form.checks = base.checks;
     form.page_no = base.page_no;
+    form.order_list_on = '';   // 발주 리스트는 나눈 새 시트로 옮기지 않는다(같은 발주를 두 번 적지 않게)
+    form.order_list = '';
     (s.objects || []).forEach(function (o) { byId[o.id] = o; });
     recordUndo();
     var snap = undoStack[undoStack.length - 1];

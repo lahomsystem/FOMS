@@ -1,25 +1,14 @@
 {# 도면 마법사 V2 — 종이 양식(01 정돈 표준형). 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md §3.
-   칸 이름(data-dws-form-key · data-dws-check · #dws-logo-cell)은 V1 양식과 같다 — 자동 채움·편집·글자 줄이기·로고 고르기를
+   칸 이름(data-dws-form-key · #dws-logo-cell · #dws-orderbox)은 V1 양식과 같다(11-03 도면팀 · 생산팀 체크 칸은 지우고 발주 리스트 칸) — 자동 채움·편집·글자 줄이기·로고 고르기를
    wizard.js 가 그대로 돌린다. 위쪽 칸 머리는 #dws-v2-slots(v2-paper.js)가 그림 자리를 보고 그린다. #}
 <div class="dws-form dws-v2-form" id="dws-form">
   <div class="dws-outer-border"></div>
+  <!-- 발주 리스트(우상, 빨간 칸) — 시트 위 '발주 리스트' 체크로 켜고 끈다(form.order_list_on). 켜면 칸 배치가 비켜 간다(v2-plan ORDER_BOX). 11-03 체크리스트 대신 -->
+  <div class="dws-orderbox dws-v2-orderbox" id="dws-orderbox">
+    <div class="dws-orderbox-title">**발주 리스트**</div>
+    <div class="dws-cell-value dws-orderbox-body" data-dws-form-key="order_list"></div>
+  </div>
   <div class="dws-v2-strip">
-    <div class="dws-v2-checks">
-      <div class="dws-v2-checkcol">
-        <span class="dws-v2-checkhead">도면팀</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_site"></span>현장확인</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_double"></span>더블체크</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_order"></span>발주확인</span>
-      </div>
-      <div class="dws-v2-checkcol">
-        <span class="dws-v2-checkhead">생산팀</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_prod"></span>생산확인</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_glass"></span>유리·거울</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_light"></span>조명</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_handle"></span>손잡이</span>
-        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_etc"></span>부자재</span>
-      </div>
-    </div>
     <div class="dws-v2-info">
       <div class="dws-v2-row dws-v2-row1">
         <div class="dws-v2-cell"><span class="dws-v2-lab">시공일자</span><span class="dws-v2-val dws-v2-val-big" data-dws-form-key="construction_date"></span></div>

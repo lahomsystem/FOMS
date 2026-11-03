@@ -58,7 +58,7 @@ def test_default_is_v1_with_switch_button(client):
     body, cfg = _page(client, _order())
     assert cfg["ui"] == "v1" and 'data-ui="v1"' in body
     assert 'class="dws-v2' not in body and 'id="dws-v2-left"' not in body and "v2-shell.js" not in body
-    assert 'class="dws-header"' in body                         # V1 양식 그대로
+    assert 'id="dws-orderbox"' in body and 'class="dws-header"' not in body   # V1 양식(11-03 체크리스트 대신 발주 리스트)
     assert 'data-dws-ui-switch="v2"' in body and "wizard-ui-switch.js" in body
 
 
@@ -85,7 +85,7 @@ def test_v2_page_has_layout_regions_scripts_and_form(client):
         assert f'id="{el_id}"' in body, el_id
     assert 'data-v2-mode="auto"' in body and 'data-v2-mode="free"' in body
     assert 'data-dws-ui-switch="v1"' in body
-    assert "wizard-v2.css" in body and 'class="dws-header"' not in body
+    assert "wizard-v2.css" in body and 'class="dws-header"' not in body and 'class="dws-orderbox dws-v2-orderbox"' in body
     pos = [body.index(f"js/drawing/{name}") for name in V2_SCRIPTS]
     assert pos == sorted(pos) and body.index("js/drawing/wizard.js") < pos[0]   # 엔진 → 계산 → 화면 → 잇기(v2-shell 마지막)
     for menu_for in ["dws-btn-save-all", "dws-btn-export-all", "dws-btn-version-history", "dws-btn-autofill", "dws-btn-calc",
@@ -167,7 +167,7 @@ def test_engine_emits_removed_copies_and_trim_for_v2_rearrange():
 def test_v2_shell_rearranges_after_delete_mode_click_and_late_labels():
     shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
     wire = shell[shell.index("  function wire() {"):shell.index("  function init() {")]
-    assert "core.on('removed'" in wire and "scheduleArrange('removed')" in wire and "core.on('trimmed'" in wire
+    assert "core.on('removed'" in wire and "scheduleArrange('removed')" in wire and "['trimmed', 'orderbox'].forEach" in wire
     assert "batched[d.id]" in wire                                          # 묶음 배치 뒤 늦게 온 AI 이름표
     arrange = shell[shell.index("  function arrange(reason, opts) {"):shell.index("  function scheduleArrange(")]
     assert arrange.index("FomsV2Plan.diff(") < arrange.index("if (d.any && o.undo) { core.recordUndo(); }")   # 헛 되돌리기 없음
@@ -180,7 +180,7 @@ def test_v2_assets_pinned_after_rearrange_fix():
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
                   "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
                   "js/drawing/v2-shell.js"):
-        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a")), asset
+        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a", "20261103b")), asset
     right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
     assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
     assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL
