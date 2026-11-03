@@ -5,7 +5,8 @@
   여기에). 다른 이름(``skos:altLabel``) = ``payload.aliases``(직원 말 · 손님 말 · 계산기 이름 · 도면 이름표). 숨은 이름
   (``skos:hiddenLabel``) = ``payload.hidden_labels``(잘못 쓴 말 · 줄임 — 찾기만, 화면에 안 보임). 위 낱말(``skos:broader``) =
   ``payload.broader``. 칸 꼴은 유형별 속성 틀(:mod:`.schemas`)이 정한다 — 용어 · 제품 라인 · 옵션 · 정책 · 공정 단계(손님용 단계
-  이름은 다른 이름 — 7.8 다음 3)(:data:`LABEL_TYPES`).
+  이름은 다른 이름 — 7.8 다음 3) · 규격, 그리고 옮긴 지식 문서 항목(가격 규칙 · 사실 · 사장님 결정 · 틀 없는 기준 답 문구 —
+  7.8 자료 '옮긴 72개에 사람용 한글 이름 · 다른 이름' · D130)(:data:`LABEL_TYPES`).
 - 견주기는 띄어쓰기 · 대소문자를 빼고 한다(:func:`norm`). 화면 찾기는 '물은 말이 이름표 안에 있거나 이름표가 물은 말 안에
   있음'(:func:`alias_keys`), 챗봇 찾기는 '이름표가 질문 안에 있음'(:func:`label_hits`)이다.
 - 읽는 줄은 지금 판 · 이름표 유형만이다. 보기 범위 · 유효 기간은 부르는 쪽 질의가 다시 건다(여기서 찾은 키는 후보일 뿐 — 볼 수
@@ -22,8 +23,11 @@ from sqlalchemy import select
 from foms.persistence.brain.models import BrainObject
 from foms.services.brain.store import is_current
 
-#: 다른 이름 · 위 낱말 칸을 갖는 유형(속성 틀에 ``payload.aliases`` · ``payload.broader`` 가 있다).
-LABEL_TYPES: tuple[str, ...] = ("term", "product_line", "option", "policy", "process_step")
+#: 다른 이름 · 위 낱말 칸을 갖는 유형(속성 틀에 ``payload.aliases`` · ``payload.broader`` 가 있다 — 기준 답 문구는 틀이 없어
+#: 지식 문서 꼴 검사가 이름표 칸을 받는다).
+LABEL_TYPES: tuple[str, ...] = (
+    "term", "product_line", "option", "policy", "process_step", "spec", "price_rule", "fact", "owner_decision", "template",
+)
 #: 이름표 실음 칸(지식 문서 유형인 정책도 이 칸은 둘 수 있다 — :func:`foms.services.brain.gates.object_problems`).
 LABEL_PAYLOAD_KEYS = frozenset({"pref_label", "aliases", "hidden_labels", "broader"})
 MIN_LABEL = 2
