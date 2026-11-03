@@ -30,25 +30,43 @@
   <div class="brain-head">
     <div>
       <h1 class="h4 mb-1"><i class="fas fa-brain me-1" aria-hidden="true"></i>회사 지식</h1>
-      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 회사 지식입니다. 고칠 말은 항목 카드에서 제안하고, 제안함에서 넣거나
-        거절합니다. 보이는 항목 {{ tmap.total }}개 — 내 보기 범위 안의 것만 셉니다.</p>
+      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 회사 지식입니다. 고칠 말은 지식 화면에서 제안하고, '확인할 것'에서
+        승인하거나 거절합니다. 보이는 항목 {{ tmap.total }}개 — 내 보기 범위 안의 것만 셉니다.</p>
     </div>
   </div>
 
+  {#- 위 탭은 확인할 것 · 지식 찾기 · 물어보기 셋 + '더 보기'(지식 표 · 다시 확인 · 판 · 유형 지도) — 설계서 7.9. 더 보기 안도
+      Bootstrap 탭 단추라 brain-page.js 의 'brain:tab' 흐름이 그대로 돈다. -#}
+  {% set main_tabs = [('inbox', '확인할 것', 'fa-inbox'), ('search', '지식 찾기', 'fa-magnifying-glass')]
+                     + ([('ask', '물어보기', 'fa-comments')] if chat_tab else []) %}
+  {% set more_tabs = [('table', '지식 표', 'fa-table-list'), ('recheck', '다시 확인', 'fa-rotate'),
+                      ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')] %}
+  {% macro tab_count(key) -%}
+    {%- if key in counts %} <span class="brain-tab-count{{ ' is-zero' if not counts[key] else '' }}"
+          data-brain-count="{{ key }}">{{ counts[key] }}</span>{% endif -%}
+  {%- endmacro %}
   <ul class="nav nav-tabs brain-tabs" role="tablist">
-    {% for key, label, icon in [('search', '찾기', 'fa-magnifying-glass'), ('table', '지식 표', 'fa-table-list'),
-                                ('inbox', '제안함', 'fa-inbox'), ('recheck', '다시 확인', 'fa-rotate'),
-                                ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')]
-                               + ([('ask', '물어보기', 'fa-comments')] if chat_tab else []) %}
+    {% for key, label, icon in main_tabs %}
     <li class="nav-item" role="presentation">
       <button class="nav-link{{ ' active' if tab == key else '' }}" id="brain-tab-{{ key }}-btn" data-bs-toggle="tab"
               data-bs-target="#brain-tab-{{ key }}" data-brain-tab="{{ key }}" type="button" role="tab"
               aria-controls="brain-tab-{{ key }}" aria-selected="{{ 'true' if tab == key else 'false' }}">
-        <i class="fas {{ icon }} me-1" aria-hidden="true"></i>{{ label }}
-        {%- if key in counts %} <span class="brain-tab-count{{ ' is-zero' if not counts[key] else '' }}"
-              data-brain-count="{{ key }}">{{ counts[key] }}</span>{% endif %}</button>
+        <i class="fas {{ icon }} me-1" aria-hidden="true"></i>{{ label }}{{ tab_count(key) }}</button>
     </li>
     {% endfor %}
+    {% set more_open = tab in more_tabs | map(attribute=0) | list %}
+    <li class="nav-item dropdown" role="presentation">
+      <button class="nav-link dropdown-toggle{{ ' active' if more_open else '' }}" data-bs-toggle="dropdown" type="button"
+              aria-expanded="false">더 보기</button>
+      <ul class="dropdown-menu">
+        {% for key, label, icon in more_tabs %}
+        <li><button class="dropdown-item{{ ' active' if tab == key else '' }}" id="brain-tab-{{ key }}-btn"
+                    data-bs-toggle="tab" data-bs-target="#brain-tab-{{ key }}" data-brain-tab="{{ key }}" type="button"
+                    role="tab" aria-controls="brain-tab-{{ key }}" aria-selected="{{ 'true' if tab == key else 'false' }}">
+          <i class="fas {{ icon }} me-1" aria-hidden="true"></i>{{ label }}{{ tab_count(key) }}</button></li>
+        {% endfor %}
+      </ul>
+    </li>
   </ul>
 
   <div class="tab-content">
@@ -70,6 +88,7 @@
 <script src="{{ asset_url('js/brain/brain-table.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-review-view.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-inbox-card.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-inbox-bins.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-inbox.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-recheck.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-releases.js') }}" defer></script>

@@ -94,14 +94,14 @@ def _chat_open() -> bool:
 @brain_web_bp.route("/brain")
 @login_required
 def index():
-    """회사 지식 — 탭(첫 탭 찾기). ``?tab=table&type=<유형>`` 으로 지식 표를 바로 연다. 화면을 못 열지만 물어보기 단계 안인
-    직원은 물어보기 화면으로 보낸다."""
+    """회사 지식 — 탭(첫 탭은 내가 결정할 제안이 있으면 '확인할 것', 없으면 찾기 — 설계서 7.9). ``?tab=table&type=<유형>`` 으로
+    지식 표를 바로 연다. 화면을 못 열지만 물어보기 단계 안인 직원은 물어보기 화면으로 보낸다."""
     viewer = screen_viewer(getattr(g, "current_user", None))
     if viewer is None:
         if _chat_open():
             return redirect(url_for("brain_web.ask_page"))
         abort(404)
-    tab = request.args.get("tab", "search")
+    tab = request.args.get("tab", "")
     db = get_db()
     try:
         tmap = type_map(db, viewer)
@@ -110,6 +110,8 @@ def index():
         chat_tab = page_viewer(getattr(g, "current_user", None), read_chat_settings(db)) is not None
     finally:
         db.rollback()  # 읽기만
+    if not tab:
+        tab = "inbox" if counts["inbox"] else "search"
     if tab == "ask" and not chat_tab:
         tab = "search"
     return render_template(

@@ -104,7 +104,7 @@ def test_bulk_ids_warnings_links_and_lines():
                 " r.rollbackText({into: 4, at: '2026-11-03'}), r.elapsed(100, 350.6),"
                 " r.touchText({total: 3, items: [{name: '가'}, {name: '나'}]}, 2, {})]", {"cards": cards})
     assert got[0] == [1]
-    assert got[1].startswith("제안을 만든 뒤 항목이 바뀌었어요(기준 판 2 → 지금 판 4)") and got[2] == ""
+    assert got[1].startswith("제안을 만든 뒤 이 지식이 바뀌었어요(기준 판 2 → 지금 판 4)") and got[2] == ""
     assert got[3:6] == ["/cs-agent/turns/12/photos/3", None, None]
     assert got[6] == "비슷한 사례 2건 (2026-10-01 ~ 2026-10-20)" and got[7].startswith("비슷한 사례 없음")
     assert got[8:11] == ["확인 날 3일 지남", "오늘이 확인 날", "5일 뒤 확인"]
