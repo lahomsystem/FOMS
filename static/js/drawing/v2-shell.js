@@ -14,7 +14,6 @@
  * - 사람이 종류를 고르면(자동 배치 모드) 그 그림의 고정(손으로 옮김)을 풀어 새 종류 칸으로 보낸다 — 잠금 · 돌림은 그대로.
  * - 손으로 끌거나 키워 고정이 된 그림(코어 moved)은 비켜 나머지를 다시 놓는다 — 메인을 키우면 옆 그림과 겹쳤다(주문 4385, 2026-10-28).
  *   칸 머리 위 글자(자재표 · 특이 · 강조)는 글이 바뀌면 다시 배치하고 손으로 옮기면 고정한다(v2-text.js — 같은 날 '자재 입력 시 간격').
- *
  * window.FomsV2 = { refresh(), arrange(reason, opts), plan(), settings(), setSetting(k, v), mode(), setMode(m, fromUser),
  *   relabel(id, label), selectIds(ids), split(), pickTemplate(t), unpinAll(), core }
  */
@@ -132,13 +131,13 @@
     return ok;
   }
 
-  function scheduleArrange(reason) {
+  function scheduleArrange(reason, n) {
     if (mode !== 'auto') { return; }
-    var sid = core.sheet() ? core.sheet().id : '';
+    var sid = core.sheet() ? core.sheet().id : '', tries = n || 0;
     if (arrangeTimer) { window.clearTimeout(arrangeTimer); }
     arrangeTimer = window.setTimeout(function () {
       arrangeTimer = 0;
-      if (core.editing() || core.dragging()) { scheduleArrange(reason); return; }   // 끄는 중에 다시 그리면 끌던 노드가 사라진다
+      if (core.editing() || core.dragging() || (tries < 20 && unloaded())) { scheduleArrange(reason, tries + 1); return; }   // 끄는 중 · 그림이 뜨기 전(치수 글자 높이 0 — 11-03 글자 7px)엔 기다린다(9초까지)
       var sh = core.sheet();
       if (!sh || sh.id !== sid || (reason === 'removed' && !afterRemove(sh))) { return; }   // 그 사이 다른 시트로 옮겼으면 건드리지 않는다
       arrange(reason, { photo: reason === 'added' });
@@ -237,6 +236,7 @@
   }
 
   function laidNow() { var sh = core.sheet(); return !!(sh && sh.form && sh.form.v2_layout); }
+  function unloaded() { var sh = core.sheet(); return !!(sh && core.image && (sh.objects || []).some(function (x) { return x.type === 'image' && !core.image(x.id); })); }
   function wire() {
     ['render', 'sheet', 'loaded', 'change'].forEach(function (ev) { core.on(ev, refresh); });
     core.on('batch', function (d) {

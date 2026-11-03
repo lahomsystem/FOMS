@@ -168,3 +168,18 @@ out.res = res;
         assert v["blank"] < 0.14, (k, v)                                                 # 왼쪽 위 띠를 쓴다
         assert v["offBest"], k
     assert max(v["plainBlank"] for v in out["res"].values()) >= 0.15                    # 대조군: 그냥 장애물이면 띠가 칸 아래로 밀려 비었다
+
+
+def test_v2_waits_for_pictures_uses_the_column_under_the_box_and_pins_are_bumped():
+    """11-03 '노란 칸(발주 리스트 칸 밑) 온전히': 칸을 켤 때 그림이 뜨기 전에 배치하면 치수 글자 높이를 0 으로 알고 놓아 칸 밑이 비고
+    글자가 7px 이 됐다 → 다시 배치는 그림이 뜰 때까지(9초까지) 기다린다. 큰 그림 칸은 배율이 3% 안이면 칸 밑까지 넓은 쪽,
+    왼쪽 기둥형 빈자리 채우기도 칸 밑까지 찾는다. PR #712 는 v2-pack · v2-layout 을 고치고 핀을 안 올려 캐시가 섞이면 멈출 수 있었다."""
+    shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
+    assert "(tries < 20 && unloaded())" in shell and "!core.image(x.id)" in shell
+    pack = (ROOT / "static/js/drawing/v2-pack.js").read_text(encoding="utf-8")
+    assert "wide = obs.some(function (b) { return b.corner; }) ? 0.97 : 1" in pack
+    lay = (ROOT / "static/js/drawing/v2-layout.js").read_text(encoding="utf-8")
+    assert "fillIn(res, inp, mv, cw ? { x: rx, y: by, w: RW, h: A.y1 - by } : room, same, big)" in lay
+    for asset in ("v2-pack.js", "v2-layout.js", "v2-plan.js"):
+        v = re.search(rf"js/drawing/{asset}'\) }}}}\?v=(\d{{8}})", TPL).group(1)
+        assert v >= "20261103", asset                                                   # 발주 리스트 칸 뒤 핀
