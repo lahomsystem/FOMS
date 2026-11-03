@@ -7,6 +7,7 @@
 - ``POST /<id>/save`` CS 가 넣은 값 ``{version, edits}`` · ``/recalc`` 다시 계산 · ``/issue`` 발행 ``{version, date?}`` ·
   ``/revise`` 수정본 ``{reason}`` · ``/void`` 취소 ``{reason}`` · ``/discard`` 초안 지우기 ``{version}``.
 - ``POST /issue-complete`` 금액이 다 찬 대기 주문만 한꺼번에 발행.
+- ``POST /<id>/questions/<question_id>/answer`` 협력사 금액 문의에 답 ``{text}``(협력사 화면에 보인다).
 
 ADMIN, 또는 CS 권한 팀의 STAFF · MANAGER 만(:func:`foms.services.partners.statements.can_manage_statements` — 쓰기 정책
 ``PARTNER_STATEMENT`` 게이트와 같은 함수). 협력사 계정은 문지기 허용 목록에 없어 막힌다. 발행 · 수정본 · 취소 · 초안 저장은
@@ -23,6 +24,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db import get_db
 from foms.api.files.routes import build_file_view_url
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
+from foms.services.partners.statement_partner import answer, questions
 from foms.services.partners.statement_view import issued_rows, pending_rows, statement_json
 from foms.services.partners.statements import (
     StatementError,
@@ -83,7 +85,7 @@ def _full(db, stmt: PartnerStatement) -> dict[str, Any]:
     order = db.get(Order, stmt.order_id)
     drawings = [{"name": f.get("filename") or f.get("name") or f"{i}번 도면", "url": build_file_view_url(f["key"])}
                 for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1) if f.get("key")]
-    return {**statement_json(db, stmt), "drawings": drawings}
+    return {**statement_json(db, stmt), "drawings": drawings, "questions": questions(db, stmt)}
 
 
 def _run(work):
@@ -272,3 +274,22 @@ def api_issue_complete():
             logger.exception("[PARTNER_STATEMENT] 한꺼번에 발행 실패 order=%s", row["order_id"])
             skipped.append({"order_id": row["order_id"], "error": _FAILED})
     return _ok({"issued": issued, "skipped": skipped})
+
+
+@partner_statements_staff_api_bp.route("/<int:statement_id>/questions/<int:question_id>/answer", methods=["POST"],
+                                       endpoint="answer")
+def api_answer(statement_id: int, question_id: int):
+    """협력사 금액 문의에 답(고쳐 쓸 수 있다 — 마지막 답이 보인다)."""
+    actor, denied = _staff()
+    if denied:
+        return denied
+    body = _body()
+
+    def work(db):
+        stmt = db.get(PartnerStatement, statement_id)
+        question = answer(db, question_id, actor.id, body.get("text"))
+        if stmt is None or question.statement_id != stmt.id:
+            raise StatementError("문의를 찾을 수 없습니다.", 404)
+        _log(db, actor, "PARTNER_STATEMENT_ANSWERED", stmt, f"협력사 명세서 문의 답: {stmt.doc_no}", question_id=question_id)
+        return _full(db, stmt)
+    return _run(work)

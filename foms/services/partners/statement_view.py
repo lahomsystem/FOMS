@@ -7,18 +7,26 @@ from __future__ import annotations
 import datetime
 from typing import Any, Optional
 
+import segno
+from sqlalchemy import func
+
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.partners.statement_calc import summarize
 from foms.services.partners.statement_profile import load_profile, receiver_block
 from foms.services.partners.statements import DRAFT, ISSUED, StatementError, bucket, compute, ship_date
 from foms.services.partners.view import build_partner_order_view
-from models import Order, OrderItemOption, PartnerOrg, PartnerStatement, User
+from models import Order, OrderItemOption, PartnerOrg, PartnerStatement, PartnerStatementQuestion, User
 
 _DIGITS = "영일이삼사오육칠팔구"
 _SMALL = ("", "십", "백", "천")
 _BIG = ("", "만", "억", "조")
 STATUS_TEXT = {DRAFT: "초안", ISSUED: "발행", "VOID": "취소됨"}
 BUCKET_TEXT = {"soon": "내일까지 출고", "later": "다음 출고", "none": "출고일 없음"}
+
+
+def qr_data_uri(url: str) -> str:
+    """온라인 원본 주소 QR(SVG data URI) — 양식 머리에 찍는다."""
+    return segno.make(url, error="m").svg_data_uri(scale=4, border=1, dark="#111111")
 
 
 def korean_amount(value: int) -> str:
@@ -94,6 +102,9 @@ def issued_rows(db, limit: int = 100) -> list[dict[str, Any]]:
         PartnerStatement.issued_at.desc().nullslast(), PartnerStatement.id.desc()).limit(limit).all()
     orders = {o.id: o for o in db.query(Order).filter(Order.id.in_({s.order_id for s in stmts}))} if stmts else {}
     orgs = {o.id: o.name for o in db.query(PartnerOrg).all()} if stmts else {}
+    open_questions = dict(db.query(PartnerStatementQuestion.statement_id, func.count(PartnerStatementQuestion.id)).filter(
+        PartnerStatementQuestion.statement_id.in_([s.id for s in stmts]), PartnerStatementQuestion.answered_at.is_(None)
+    ).group_by(PartnerStatementQuestion.statement_id).all()) if stmts else {}
     rows = []
     for s in stmts:
         order = orders.get(s.order_id)
@@ -101,7 +112,8 @@ def issued_rows(db, limit: int = 100) -> list[dict[str, Any]]:
                      "status": s.status, "status_text": STATUS_TEXT.get(s.status, s.status),
                      "customer_name": build_partner_order_view(order)["customer_name"] if order else "",
                      "org_name": orgs.get(s.partner_org_id, ""), "total": int(s.total or 0),
-                     "acked": s.partner_ack_at is not None, "reason": s.reason or ""})
+                     "acked": s.partner_ack_at is not None, "reason": s.reason or "",
+                     "open_questions": int(open_questions.get(s.id, 0))})
     return rows
 
 

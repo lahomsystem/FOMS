@@ -36,6 +36,7 @@ from foms.services.partners.manager import org_member_choices
 from foms.services.partners.price_list import active_price_list
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.revision import pending_revision_for_partner
+from foms.services.partners.statement_partner import order_statements
 from foms.services.partners.view import build_partner_order_view, partner_steps
 from models import Order, OrderAttachment, PartnerOrg
 
@@ -213,6 +214,7 @@ def order_detail(order_id: int):
         drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
         option_review=option_review(db, order) if stage in ("DRAWING", "CONFIRM") and finals else None,
+        statements=order_statements(db, order.partner_org_id, order.id),
         **(dict(_pick_context(db, order.partner_org_id), item_options=current_options(db, order.id))
            if view["items_editable"] else {"product_names": [], "option_catalog": None, "item_options": {}}),
         **_completion_context(db, order, stage),

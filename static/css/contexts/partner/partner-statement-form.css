@@ -4,7 +4,8 @@
 .psf-tools { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; }
 .psf-tools__btn { padding: 8px 16px; border: 1px solid #1f4fd1; border-radius: 6px; background: #1f4fd1; color: #fff; font-size: 14px; cursor: pointer; }
 .psf-tools__note { color: #555; font-size: 12px; }
-.psf-sheet { position: relative; box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto 16px; padding: 12mm 11mm; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+.psf-sheet th, .psf-sheet td { font-size: inherit; line-height: 1.35; }
+.psf-sheet { font-size: 12px; position: relative; box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto 16px; padding: 12mm 11mm; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
 .psf-band { margin-bottom: 8px; padding: 6px 10px; border: 2px dashed #c0392b; color: #c0392b; font-weight: 700; text-align: center; }
 .psf-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; }
 .psf-head__title { font-size: 24px; font-weight: 800; letter-spacing: 6px; }
@@ -16,7 +17,7 @@
 .psf-head__qr { width: 22mm; height: 22mm; }
 .psf-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .psf-party { width: 100%; border-collapse: collapse; }
-.psf-party caption { padding: 3px 0; font-weight: 700; text-align: left; }
+.psf-party caption { padding: 3px 0; caption-side: top; color: inherit; font-weight: 700; text-align: left; }
 .psf-party th, .psf-party td { padding: 4px 5px; border: 1px solid #999; vertical-align: middle; }
 .psf-party th { width: 52px; background: #f3f4f6; font-weight: 600; white-space: nowrap; }
 .psf-party__seal { position: relative; display: inline-block; margin-left: 10px; color: #666; }

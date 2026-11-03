@@ -35,3 +35,6 @@
   .foms-pse__drawings { position: static; }
   .foms-ps__table { font-size: 12px; }
 }
+.foms-pse__questions { margin: 10px 0; padding: 10px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
+.foms-pse__question { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid #dbeafe; }
+.foms-pse__question:first-of-type { border-top: 0; }
