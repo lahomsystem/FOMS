@@ -180,7 +180,7 @@ def test_v2_assets_pinned_after_rearrange_fix():
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
                   "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
                   "js/drawing/v2-shell.js"):
-        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a", "20261103b", "20261103c", "20261103d")), asset
+        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a", "20261103b", "20261103c", "20261103d", "20261103e")), asset
     right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
     assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
     assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL
@@ -205,7 +205,7 @@ def test_engine_emits_moved_after_drag_or_resize_and_v2_rearranges_around_it():
     wire = shell[shell.index("  function wire() {"):shell.index("  function init() {")]
     assert "core.on('moved'" in wire and "scheduleArrange('moved')" in wire and "S.isFixed(o, settings)" in wire
     assert "settings.lockMoved" in wire and "laidNow()" in wire
-    assert "if (core.editing() || core.dragging()) { scheduleArrange(reason); return; }" in shell
+    assert "if (core.editing() || core.dragging() || (tries < 20 && unloaded())) { scheduleArrange(reason, tries + 1); return; }" in shell   # 11-03 그림이 뜨기 전엔 기다린다hell
     assert "if (reason !== 'moved') { core.select([]); }" in shell
     chrome = (ROOT / "static/js/drawing/v2-chrome.js").read_text(encoding="utf-8")
     assert "moved: 1, text: 1, pin: 1 }" in chrome and "옮긴 그림을 비켜 나머지" in chrome

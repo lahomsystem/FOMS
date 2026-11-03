@@ -244,9 +244,9 @@ def test_template_loads_review_scripts_before_wizard_and_css():
     tpl = TPL.read_text(encoding="utf-8")
     memo = tpl.index("js/drawing/review-memo.js') }}?v=20261027c")
     card = tpl.index("js/drawing/review-card.js') }}?v=20261027c")
-    assert memo < card < tpl.index("js/drawing/wizard.js') }}?v=20261103d")
+    assert memo < card < tpl.index("js/drawing/wizard.js') }}?v=20261103e")
     assert "css/contexts/drawing/wizard.css') }}?v=20261103c" in tpl
-    assert "js/drawing/save-status.js') }}?v=20261027c" in tpl
+    assert "js/drawing/save-status.js') }}?v=20261103a" in tpl
     css = CSS.read_text(encoding="utf-8")
     block = css[css.index(".dws-review-card {"):]
     assert "position: fixed;" in block[:400] and "z-index: 128;" in block[:400]   # 알림(130) 아래 · 계산 칸(120) 위

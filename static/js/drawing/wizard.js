@@ -61,11 +61,12 @@
   var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]', MAIDA: '[마이다]' };
-  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 맨 위 줄 가운데(왼쪽은 현장 사진 자리, 오른쪽은 발주 리스트 칸).
-     11-03 체크리스트를 지우며 위로 올렸다. 라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
+  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 맨 위 한 줄(왼쪽은 현장 사진 자리), 오른쪽 끝은 발주 리스트 칸(x 1074) 앞 24px,
+     칸 사이는 글자 크기의 3배(11-03 사용자가 보낸 그림을 잰 값 — 그림은 칸에 붙어 있어 띄워 달라고 함).
+     라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
   var PRESET_TOP_Y = 52;
-  var PRESET_TOP_X0 = 330;
-  var PRESET_TOP_GAP = 145;
+  var PRESET_ROW_RIGHT = 1050;
+  var PRESET_ROW_LEFT = 60;            // 줄이 이보다 왼쪽으로 가면 간격을 줄이고, 그래도 넘치면 옮기지 않는다
   var PRESET_SEED_Y = 120;             // 예전 자리(체크리스트 아래) — 손대지 않고 남은 자리표를 맨 위로 옮길 때 알아본다
   var PRESET_SEED_GAP = 170;
   var PRESET_SEED_LAST_W = 100;        // 예전 오른쪽 자리: 마지막 자리표 시작~오른쪽 끝 여유
@@ -312,33 +313,89 @@
     return null;
   }
 
-  function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects(), presets_seeded: true }; }
-
-  function seedPresetObjects() {
-    // 왼쪽 빈칸은 현장 사진 자리, 오른쪽 위는 발주 리스트 칸 — 자리표 한 줄을 맨 위 가운데에 깐다.
-    var kinds = Object.keys(PRESETS);
-    return kinds.map(function (kind, i) {
-      return {
-        id: rid('o-'), type: 'text', x: PRESET_TOP_X0 + i * PRESET_TOP_GAP, y: PRESET_TOP_Y, w: 1,
-        text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
-      };
-    });
+  function newSheet(name, d) {
+    var form = cloneForm(d);
+    form.bom_row = '1';   // 자재표 줄은 새 자리에 깔았다 — 열 때 다시 옮기지 않는다(moveBomRowTop)
+    return { id: rid('s-'), name: name, form: form, objects: seedPresetObjects(), presets_seeded: true };
   }
 
-  /** 예전 자리(y=120 — 왼쪽 x=48+i*170 · 오른쪽 끝 줄)에 손대지 않고 남은 자리표를 맨 위 가운데로 옮긴다.
-      사용자가 옮겼거나 내용을 쓴 자리표는 그대로 둔다. */
-  function moveLegacySeedRight(objects) {
-    var kinds = Object.keys(PRESETS);
-    objects.forEach(function (o) {
-      if (!isPresetPlaceholder(o) || o.y !== PRESET_SEED_Y) { return; }
-      var label = String(o.text || '').replace(/\n$/, '');
-      var i = kinds.filter(function (k) { return PRESETS[k] === label; }).map(function (k) { return kinds.indexOf(k); })[0];
-      if (i == null) { return; }
-      var right = PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP;
-      if (o.x !== 48 + i * PRESET_SEED_GAP && o.x !== right) { return; }
-      o.x = PRESET_TOP_X0 + i * PRESET_TOP_GAP;
-      o.y = PRESET_TOP_Y;
+  function seedPresetObjects() {
+    // 왼쪽 빈칸은 현장 사진 자리, 오른쪽 위는 발주 리스트 칸 — 자리표 한 줄을 맨 위, 칸 앞에 붙여 깐다.
+    var kinds = Object.keys(PRESETS), size = loadPreferredTextSize();
+    var objs = kinds.map(function (kind) {
+      return {
+        id: rid('o-'), type: 'text', x: 0, y: PRESET_TOP_Y, w: 1,
+        text: PRESETS[kind] + '\n', size: size, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
+      };
     });
+    var boxes = objs.map(bomTextBox), xs = bomRowXs(boxes) || bomRowXs(boxes, true);
+    objs.forEach(function (o, i) { o.x = xs[i]; });
+    return objs;
+  }
+
+  /** 글자 상자 폭 · 높이(가장 긴 줄 폭 · 줄 수 × 1.25) — Konva 와 같은 measureText, 못 재면 글자 수로 어림. */
+  function bomTextBox(o) {
+    var size = sizeOrDefault(o.size), rows = String(o.text || '').replace(/\n$/, '').split('\n');
+    var w = Math.max.apply(null, rows.map(function (r) {
+      try { return measureRunWidth(r, size, !!o.bold); } catch (e) { return r.length * size * 0.62; }
+    }));
+    return { w: Math.ceil(w) + 4, h: Math.round(rows.length * size * 1.25), size: size };
+  }
+
+  /** 자재표 줄 x 들 — 오른쪽 끝 PRESET_ROW_RIGHT, 칸 사이 글자 크기 × 3(넘치면 24 까지 줄인다). 그래도 넘치면 null,
+      force = 넘쳐도 왼쪽 끝(PRESET_ROW_LEFT)부터 24 간격으로. */
+  function bomRowXs(boxes, force) {
+    if (!boxes.length) { return []; }
+    var size = Math.max.apply(null, boxes.map(function (b) { return b.size; })), wsum = boxes.reduce(function (a, b) { return a + b.w; }, 0);
+    var n = boxes.length - 1, room = PRESET_ROW_RIGHT - PRESET_ROW_LEFT - wsum, gap = n ? Math.min(size * 3, room / n) : 0;
+    var x = PRESET_ROW_RIGHT - wsum - gap * n;
+    if (n ? gap < 24 : x < PRESET_ROW_LEFT) {
+      if (!force) { return null; }
+      gap = 24;
+      x = PRESET_ROW_LEFT;
+    }
+    return boxes.map(function (b) { var at = Math.round(x); x += b.w + gap; return at; });
+  }
+
+  /** 이미 쓴 V1 시트의 자재표([SR] · [EP] · [DOOR] · [옷봉] · [마이다] 머리글 글자 — 치수를 적은 것도)를 맨 위 줄로 옮긴다(11-03 사용자 '둘 다').
+      시트마다 한 번(form.bom_row). 옮길 자리에 다른 그림 · 글 · 도형이 걸리거나 줄이 안 들어가면 완성된 도면을 망치지 않게 그대로 둔다.
+      V2 로 정리한 시트(v2_layout)는 V2 배치가 놓으니 건드리지 않는다. 옮기면 true. */
+  function moveBomRowTop(sheet) {
+    var form = sheet.form || (sheet.form = {});
+    if (form.bom_row === '1' || form.v2_layout || UI === 'v2') { return false; }
+    var labels = Object.keys(PRESETS).map(function (k) { return PRESETS[k]; });
+    function kindOf(o) {
+      if (!o || o.type !== 'text' || o.locked || normalizeRotation(o.rotation)) { return -1; }
+      return labels.indexOf(String(o.text || '').split('\n')[0].trim());
+    }
+    var boms = (sheet.objects || []).filter(function (o) { return kindOf(o) >= 0; })
+      .sort(function (a, b) { return (kindOf(a) - kindOf(b)) || (a.x - b.x); });
+    if (!boms.length) { form.bom_row = '1'; return false; }
+    var boxes = boms.map(bomTextBox), xs = bomRowXs(boxes);
+    if (!xs) { return false; }
+    var target = boms.map(function (o, i) { return { x: xs[i], y: PRESET_TOP_Y, w: boxes[i].w, h: boxes[i].h }; });
+    var others = (sheet.objects || []).filter(function (o) { return boms.indexOf(o) < 0; }).map(bomObjBox);
+    if (others.some(function (r) { return !r; })) { return false; }   // 크기를 모르는 것(돌린 그림 등)이 있으면 손대지 않는다
+    others = others.concat(partFormBoxes(sheet));
+    if (target.some(function (t) { return others.some(function (r) { return t.x < r.x + r.w && r.x < t.x + t.w && t.y < r.y + r.h && r.y < t.y + t.h; }); })) { return false; }
+    var moved = boms.some(function (o, i) { return o.x !== target[i].x || o.y !== target[i].y; });
+    boms.forEach(function (o, i) { o.x = target[i].x; o.y = target[i].y; });
+    form.bom_row = '1';
+    return moved;
+  }
+
+  /** 객체 상자(돌리지 않은 것만 — 돌렸으면 null): 글자 = bomTextBox, 선 · 화살표 · 펜 = 점들, 타원 = 가운데 기준, 그림 · 네모 = x y w h. */
+  function bomObjBox(o) {
+    if (normalizeRotation(o.rotation)) { return null; }
+    if (o.type === 'text') { var t = bomTextBox(o); return { x: o.x, y: o.y, w: t.w, h: t.h }; }
+    if (o.points && o.points.length >= 2) {
+      var xs = [], ys = [];
+      for (var i = 0; i + 1 < o.points.length; i += 2) { xs.push(o.points[i] + (o.x || 0)); ys.push(o.points[i + 1] + (o.y || 0)); }
+      var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+      return { x: x0, y: y0, w: Math.max.apply(null, xs) - x0 + 1, h: Math.max.apply(null, ys) - y0 + 1 };
+    }
+    if (o.type === 'ellipse') { return { x: o.x - (o.w || 0) / 2, y: o.y - (o.h || 0) / 2, w: o.w || 0, h: o.h || 0 }; }
+    return isFiniteNum(o.w) && isFiniteNum(o.h) ? { x: o.x, y: o.y, w: o.w, h: o.h } : null;
   }
 
   /** 라벨만 있고 아직 내용을 안 쓴 프리셋 텍스트(자리표)인가. */
@@ -5272,7 +5329,7 @@
         if (!sheet.objects.length) { sheet.objects = seedPresetObjects(); }
         sheet.presets_seeded = true;
       }
-      if (canSave) { moveLegacySeedRight(sheet.objects); }
+      if (canSave) { moveBomRowTop(sheet); }
       return sheet;
     });
     // 빈 배열은 그대로 반환 — 기본 시트 자동 생성 없음(제품 클릭/+시트로만 생성).
