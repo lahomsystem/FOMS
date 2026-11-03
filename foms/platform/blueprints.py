@@ -298,6 +298,15 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_statements_staff_api_bp)
     app.register_blueprint(erp_partner_statements_page_bp)
 
+    # --- Lane: 협력사 거래명세서 협력사 쪽(화면 /partner/statements · JSON /api/partner/statements — 설계서
+    # 2026-11-03-partner-statement §5.6). 협력사 계정만(partner_required · 문지기 허용 목록). 경로가 고유해 shadowing 이
+    # 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.partner.statements import partner_statements_api_bp
+    from foms.web.partner.statements import partner_statements_portal_bp
+
+    app.register_blueprint(partner_statements_api_bp)
+    app.register_blueprint(partner_statements_portal_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

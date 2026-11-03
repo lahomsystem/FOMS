@@ -1,0 +1,45 @@
+{% extends "partner/layout.html" %}
+{#- 협력사 거래명세서 월 장부 /partner/statements(설계서 2026-11-03-partner-statement §5.6). 값은
+    foms/services/partners/statement_partner.py partner_ledger — 발행 · 취소 명세서만, 금액은 발행 스냅샷 그대로. -#}
+{% block title %}거래명세서{% endblock %}
+{% block mobile_title %}거래명세서{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-statement.css') }}">{% endblock %}
+{% block content %}
+{% macro won(n) %}{{ '{:,}'.format(n) }}{% endmacro %}
+<div class="pp-st">
+    <div class="pp-st__month">
+        <a class="pp-st__step" href="{{ url_for('partner_statements_portal.ledger', month=ledger.prev) }}" aria-label="지난달"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+        <h1 class="pp-st__title">{{ ledger.month[:4] }}년 {{ ledger.month[5:]|int }}월 거래명세서</h1>
+        <a class="pp-st__step" href="{{ url_for('partner_statements_portal.ledger', month=ledger.next) }}" aria-label="다음 달"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+    </div>
+    <dl class="pp-st__sum">
+        <div><dt>지난달까지 이월</dt><dd>{{ won(ledger.carry) }}원</dd></div>
+        <div><dt>이달 판매</dt><dd>{{ won(ledger.sales) }}원</dd></div>
+        <div><dt>이달 입금</dt><dd>{{ won(ledger.paid) }}원</dd></div>
+        <div class="pp-st__sum-now"><dt>지금 잔액</dt><dd>{{ won(ledger.balance) }}원</dd></div>
+    </dl>
+    {% if ledger.rows %}
+    <ul class="pp-st__rows">
+        {% for r in ledger.rows %}
+        <li class="pp-st__row{% if r.status == 'VOID' %} pp-st__row--void{% endif %}">
+            <a class="pp-st__link" href="{{ url_for('partner_statements_portal.view', statement_id=r.id) }}">
+                <span class="pp-st__date">{{ r.date }}</span>
+                <span class="pp-st__who">{{ r.customer_name }} <small>{{ r.doc_no }}</small></span>
+                <span class="pp-st__amount">{{ won(r.total) }}원</span>
+                <span class="pp-st__badge pp-st__badge--{{ 'new' if r.status_text == '새 명세서' else 'void' if r.status == 'VOID' else 'ok' }}">{{ r.status_text }}</span>
+            </a>
+            {% if r.products|length > 1 %}
+            <details class="pp-st__products"><summary>제품 {{ r.products|length }}개</summary>
+                <ul>{% for p in r.products %}<li><span>{{ p.title }}</span><span>{{ won(p.subtotal) }}원</span></li>{% endfor %}</ul>
+            </details>
+            {% endif %}
+            {% if r.balance is not none %}<div class="pp-st__balance">잔액 {{ won(r.balance) }}원</div>{% endif %}
+            {% if r.status == 'VOID' and r.reason %}<div class="pp-st__reason">취소 이유: {{ r.reason }}</div>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="pp-st__empty">이달에 나온 거래명세서가 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

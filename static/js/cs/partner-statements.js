@@ -89,7 +89,7 @@
       cell(tr, r.org_name);
       cell(tr, r.customer_name);
       cell(tr, won(r.total), 'foms-ps__num');
-      cell(tr, r.status_text + (r.acked ? ' · 협력사 확인함' : '') + (r.reason ? ' · ' + r.reason : ''));
+      cell(tr, r.status_text + (r.acked ? ' · 협력사 확인함' : '') + (r.open_questions ? ' · 답할 문의 ' + r.open_questions : '') + (r.reason ? ' · ' + r.reason : ''));
       var a = el('a', 'foms-ps__btn', '보기');
       a.href = root.getAttribute('data-page') + '/' + r.id;
       tr.appendChild(el('td')).appendChild(a);

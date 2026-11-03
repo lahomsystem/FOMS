@@ -193,9 +193,29 @@
     }));
   }
 
+  function drawQuestions() {
+    var box = root.querySelector('[data-pse-questions]');
+    box.replaceChildren();
+    box.hidden = !(stmt.questions || []).length;
+    if (box.hidden) return;
+    box.appendChild(el('h2', 'h6', '협력사 금액 문의'));
+    stmt.questions.forEach(function (q) {
+      var item = box.appendChild(el('div', 'foms-pse__question'));
+      item.appendChild(el('div', 'small text-muted', q.line + ' · ' + q.asked_by + ' · ' + q.asked_at));
+      item.appendChild(el('div', null, q.text));
+      var reply = input('foms-pse__reason', q.answer, '문의 답');
+      reply.placeholder = '답 (협력사에게 보임)';
+      item.appendChild(reply);
+      item.appendChild(button(q.answer ? '답 고치기' : '답 보내기', null, function () {
+        return act('/questions/' + q.id + '/answer', { text: reply.value }).then(function (d) { if (d) status('답을 보냈습니다.'); });
+      }));
+    });
+  }
+
   function draw() {
     drawHead();
     drawGroups();
+    drawQuestions();
     drawActions();
   }
 

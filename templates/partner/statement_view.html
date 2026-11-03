@@ -1,0 +1,65 @@
+{% extends "partner/layout.html" %}
+{#- 협력사 거래명세서 보기 /partner/statements/<id>(설계서 2026-11-03-partner-statement §5.6). 양식 한 장(partials/statement_sheet.html)
+    + 제품별 최종 도면 + "명세서 확인했어요" · "금액 문의"(줄 골라 묻기) · 인쇄. 확인 · 문의는 static/js/partner/partner-statement.js 가
+    /api/partner/statements/<id>/ack · /questions 로 보낸다. -#}
+{% block title %}거래명세서 {{ stmt.doc_no }}{% endblock %}
+{% block mobile_title %}거래명세서{% endblock %}
+{% block main_class %}pp-main--wide{% endblock %}
+{% block mobile_back %}{{ url_for('partner_statements_portal.ledger', month=stmt.date[:7]) }}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-statement-form.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-statement.css') }}">{% endblock %}
+{% block content %}
+<div class="pp-sv" data-pp-statement data-ack-url="{{ url_for('partner_statements_api.ack', statement_id=stmt.id) }}"
+     data-ask-url="{{ url_for('partner_statements_api.ask', statement_id=stmt.id) }}">
+    <div class="pp-sv__bar">
+        <a class="pp-sv__btn" href="{{ url_for('partner_statements_portal.ledger', month=stmt.date[:7]) }}"><i class="fas fa-chevron-left" aria-hidden="true"></i> 월 장부</a>
+        <a class="pp-sv__btn" href="{{ url_for('partner_statements_portal.print_form', statement_id=stmt.id) }}" target="_blank" rel="noopener"><i class="fas fa-print" aria-hidden="true"></i> 인쇄 · PDF</a>
+        {% if stmt.status == 'ISSUED' %}
+        {% if stmt.partner_ack_at %}<span class="pp-sv__acked"><i class="fas fa-check" aria-hidden="true"></i> {{ stmt.partner_ack_at }} 확인함</span>
+        {% else %}<button type="button" class="pp-sv__btn pp-sv__btn--primary" data-pp-statement-ack><i class="fas fa-check" aria-hidden="true"></i> 명세서 확인했어요</button>{% endif %}
+        {% endif %}
+    </div>
+    <p class="pp-sv__status" data-pp-statement-status role="status" aria-live="polite"></p>
+    <div class="pp-sv__grid">
+        <div class="pp-sv__sheet">
+            {% set copy = '공급받는자용' %}
+            {% include 'partner/partials/statement_sheet.html' %}
+            {% if accounts %}
+            <div class="pp-sv__accounts">
+                {% for a in accounts %}<button type="button" class="pp-sv__btn" data-pp-copy="{{ a }}"><i class="far fa-copy" aria-hidden="true"></i> {{ a }} 복사</button>{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <aside class="pp-sv__side">
+            <section class="pp-sv__box" aria-labelledby="ppSvDrawings">
+                <h2 class="pp-sv__h" id="ppSvDrawings">최종 도면{% if stmt.drawing_round %} ({{ stmt.drawing_round }}차){% endif %}</h2>
+                {% if drawings %}<ul class="pp-sv__files">{% for d in drawings %}<li><a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.name }}</a></li>{% endfor %}</ul>
+                {% else %}<p class="pp-sv__muted">도면 파일이 없습니다.</p>{% endif %}
+                <a class="pp-sv__muted" href="{{ url_for('partner_portal.order_detail', order_id=order_id) }}#drawing">주문 화면에서 보기</a>
+            </section>
+            <section class="pp-sv__box" aria-labelledby="ppSvAsk">
+                <h2 class="pp-sv__h" id="ppSvAsk">금액 문의</h2>
+                <ul class="pp-sv__questions" data-pp-statement-questions>
+                    {% for q in questions %}
+                    <li><div class="pp-sv__muted">{{ q.line }} · {{ q.asked_at }}</div><div>{{ q.text }}</div>
+                        {% if q.answer %}<div class="pp-sv__answer">답: {{ q.answer }}</div>{% else %}<div class="pp-sv__muted">답을 기다리는 중</div>{% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% if stmt.status == 'ISSUED' %}
+                <form class="pp-sv__ask" data-pp-statement-ask>
+                    <label class="pp-sv__muted" for="ppSvLine">어느 줄인가요?</label>
+                    <select id="ppSvLine" class="pp-sv__input" name="line_ref">
+                        <option value="">명세서 전체</option>
+                        {% for g in stmt.groups %}{% for l in g.lines %}<option value="{{ l.ref }}">{{ g.ref }}. {{ g.title }} · {{ l.name }}</option>{% endfor %}{% endfor %}
+                    </select>
+                    <label class="visually-hidden" for="ppSvText">물어볼 내용</label>
+                    <textarea id="ppSvText" class="pp-sv__input" name="text" rows="3" maxlength="500" placeholder="예: 거울 도어가 1짝인데 2짝으로 들어갔어요"></textarea>
+                    <button type="submit" class="pp-sv__btn pp-sv__btn--primary">문의 보내기</button>
+                </form>
+                {% endif %}
+            </section>
+        </aside>
+    </div>
+</div>
+<script src="{{ asset_url('js/partner/partner-statement.js') }}" defer></script>
+{% endblock %}
