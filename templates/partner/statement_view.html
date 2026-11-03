@@ -33,7 +33,7 @@
         <aside class="pp-sv__side">
             <section class="pp-sv__box" aria-labelledby="ppSvDrawings">
                 <h2 class="pp-sv__h" id="ppSvDrawings">최종 도면{% if stmt.drawing_round %} ({{ stmt.drawing_round }}차){% endif %}</h2>
-                {% if drawings %}<ul class="pp-sv__files">{% for d in drawings %}<li><a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.name }}</a></li>{% endfor %}</ul>
+                {% if drawings %}<ul class="pp-sv__files">{% for d in drawings %}<li{% if d.is_image %} class="pp-sv__thumb"{% endif %}><a href="{{ d.url }}" target="_blank" rel="noopener">{% if d.is_image %}<img src="{{ d.url }}" alt="{{ d.name }}" loading="lazy"><span>{{ d.name }}</span>{% else %}{{ d.name }}{% endif %}</a></li>{% endfor %}</ul>
                 {% else %}<p class="pp-sv__muted">도면 파일이 없습니다.</p>{% endif %}
                 <a class="pp-sv__muted" href="{{ url_for('partner_portal.order_detail', order_id=order_id) }}#drawing">주문 화면에서 보기</a>
             </section>
