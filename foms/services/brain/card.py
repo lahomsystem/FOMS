@@ -181,6 +181,9 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
     warnings = empty_notices(item, item["type"]) + [
         {"code": "retired_target:" + t["key"], "text": f"은퇴 항목을 가리킴 — {t['name']}", "key": t["key"]}
         for t in retired_targets(session, viewer, key, today=today)]
+    raw = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+    labels = {"pref": raw["pref_label"].strip() if isinstance(raw.get("pref_label"), str) and raw["pref_label"].strip()
+              else None, "aliases": [a for a in (raw.get("aliases") or []) if isinstance(a, str)][:20]}  # 설계서 7.9 화면 6
     item.pop("payload", None)  # 실음 칸 통째(지식 문서 꼴 · 내부 값)는 싣지 않는다 — 틀 칸만 위 두 묶음으로
     open_changes = open_change_count(session, key)
     conflicts = open_conflict_counts(session, [key], today).get(key, 0)  # 이 항목에 대한 열린 엇갈림(점검 지금 8)
@@ -191,7 +194,7 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
                  "usage_count": int(item.get("usage_count") or 0) + sum(readers.values()), "usage_readers": readers,
                  "recorded_at": _kst(item.get("recorded_at"))},
         "created_by": actor_label(item.get("created_by"), names),
-        "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values,
+        "approver": approver_label(item, names), "key_fields": keys, "payload_values": payload_values, "labels": labels,
         "links": link_groups(session, viewer, key, today=today),
         "external": ref_cards(session, viewer, external_chips(session, key, today), layer=item["layer"]),
         "missing_links": gaps, "link_rules": rules, "warnings": warnings,
