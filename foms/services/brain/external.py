@@ -75,6 +75,11 @@ def _catalog() -> Optional[Catalog]:
         return None
 
 
+def current_catalog() -> Optional[Catalog]:
+    """지금 끼운 읽는 함수로 읽은 계산기 정본(못 읽으면 ``None``) — 이름으로 옵션 id 를 찾는 도구(자료 계획 제안)가 쓴다."""
+    return _catalog()
+
+
 def _option(catalog: Catalog, path: str) -> Optional[dict[str, Any]]:
     """``<카테고리 id>:<옵션 id>`` → {"name", "price"}(없으면 ``None``)."""
     category_id, _, option_id = path.partition(":")
