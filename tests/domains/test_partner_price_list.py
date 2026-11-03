@@ -118,7 +118,7 @@ def test_clean_sheet_turns_typed_prices_into_won_and_blocks_bad_values():
     with pytest.raises(PriceListError) as exc:
         clean_sheet(bad)
     text = " | ".join(exc.value.errors)
-    assert "숫자가 아닌 값" in text and "'슬라이딩' 이(가) 여러 줄" in text and "없는 제품" in text
+    assert "숫자가 아닌 값" in text and "여러 줄에 겹칩니다: 슬라이딩" in text and "없는 제품" in text
 
 
 def test_band_group_may_share_one_pick_name():

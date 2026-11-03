@@ -15,7 +15,7 @@
     <div>
       <a href="{{ url_for('admin.partners') }}" class="foms-pl__back"><i class="fas fa-chevron-left me-1"></i>협력사 관리</a>
       <h1 class="h4 mb-0 mt-1">{{ org.name }} 단가표</h1>
-      <p class="text-muted small mb-0">단가는 VAT 포함입니다. 저장하면 새 판이 되고, 이미 나간 명세서는 그때 판 값을 그대로 갖습니다. 라운즈에게는 이름만 보이고 금액은 명세서에만 나옵니다.</p>
+      <p class="text-muted small mb-0">단가는 VAT 포함입니다. 저장하면 새 판이 되고, 이미 나간 명세서 금액은 바뀌지 않습니다. {{ org.name }} 화면에는 이름만 보이고 금액은 명세서에만 나옵니다.</p>
     </div>
   </div>
 
@@ -37,10 +37,10 @@
         <input class="form-control form-control-sm" id="pl-label" maxlength="40" required placeholder="예: 11월판" data-pl-label>
       </div>
       <div>
-        <label class="form-label small mb-1" for="pl-from">적용 시작일 (이 날 출고분부터)</label>
+        <label class="form-label small mb-1" for="pl-from">적용 시작일 (이날 출고부터)</label>
         <input class="form-control form-control-sm" id="pl-from" type="date" required data-pl-from>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">이 판으로 저장</button>
+      <button type="submit" class="btn btn-primary btn-sm">새 판 저장</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" data-pl-save-cancel>취소</button>
     </div>
   </form>
@@ -55,7 +55,7 @@
         <div class="foms-pl__col" data-pl-side="right"></div>
       </div>
       <p class="foms-pl__empty text-muted" data-pl-empty hidden>아직 저장한 단가표가 없습니다. "단가표 HTML 불러오기"로 쓰시던 통합 단가표 파일을 넣어 주세요.</p>
-      <p class="foms-pl__hint small text-muted">품목 이름 옆 이름표 = 계산 방법. 이름을 누르면 오른쪽에서 계산 정보를 고칩니다. "편집하기"를 누르면 이름 · 금액을 바로 고치고 줄을 넣거나 뺄 수 있습니다.</p>
+      <p class="foms-pl__hint small text-muted">이름 옆 작은 표시는 계산 방법입니다. 이름을 누르면 오른쪽에서 고칠 수 있습니다. "편집하기"를 누르면 이름 · 금액을 고치고 줄을 넣거나 뺄 수 있습니다.</p>
     </div>
     <aside class="foms-pl__panel card" data-pl-panel aria-label="줄 계산 정보">
       <div class="card-body">

@@ -13,7 +13,7 @@
   'use strict';
 
   var SPECIAL = { none: '옵션 없음', later: '상담 후 정함' };
-  var CUSTOM = '커스텀 (직접 적기)';
+  var CUSTOM = '커스텀(직접 적기)';
 
   function readJson(selector, attr, fallback) {
     var node = document.querySelector(selector);
@@ -66,8 +66,8 @@
     var row = el('div', 'pp-optline');
     row.appendChild(el('span', 'pp-optline__name', line.name));
     var qty = el('span', 'pp-optline__qty');
-    var minus = button(null, '−', line.name + ' 하나 빼기');
-    var plus = button(null, '+', line.name + ' 하나 더하기');
+    var minus = button(null, '−', line.name + ' 수 줄이기');
+    var plus = button(null, '+', line.name + ' 수 늘리기');
     qty.appendChild(minus);
     qty.appendChild(el('b', null, line.qty));
     qty.appendChild(plus);
@@ -78,11 +78,11 @@
     var memo = el('input', 'pp-optline__memo');
     memo.value = line.memo || '';
     memo.maxLength = 60;
-    memo.placeholder = '위치 (선택)';
+    memo.placeholder = '위치(선택)';
     memo.setAttribute('aria-label', line.name + ' 위치');
     memo.addEventListener('input', function () { line.memo = memo.value; });
     row.appendChild(memo);
-    var del = button('pp-optline__del', '✕', line.name + ' 빼기');
+    var del = button('pp-optline__del', '✕', line.name + ' 지우기');
     del.addEventListener('click', function () { st.lines.splice(i, 1); if (!st.lines.length && !st.customs.length) st.state = null; render(field); });
     row.appendChild(del);
     return row;
@@ -94,11 +94,11 @@
     var text = el('input', 'pp-optline__memo');
     text.value = custom.text || '';
     text.maxLength = 200;
-    text.placeholder = '무엇을 어떻게 (저희가 따로 견적)';
+    text.placeholder = '무엇을 어떻게 할지 적어 주세요';
     text.setAttribute('aria-label', '커스텀 내용');
     text.addEventListener('input', function () { custom.text = text.value; });
     row.appendChild(text);
-    var del = button('pp-optline__del', '✕', '커스텀 빼기');
+    var del = button('pp-optline__del', '✕', '커스텀 지우기');
     del.addEventListener('click', function () { st.customs.splice(i, 1); if (!st.lines.length && !st.customs.length) st.state = null; render(field); });
     row.appendChild(del);
     return row;
@@ -111,7 +111,7 @@
     if (st.state === 'none' || st.state === 'later') {
       var row = el('div', 'pp-optline pp-optline--special');
       row.appendChild(el('span', 'pp-optline__name', SPECIAL[st.state]));
-      var del = button('pp-optline__del ms-auto', '✕', SPECIAL[st.state] + ' 빼기');
+      var del = button('pp-optline__del ms-auto', '✕', '고른 것 지우기');
       del.addEventListener('click', function () { st.state = null; render(field); });
       row.appendChild(del);
       box.appendChild(row);
@@ -137,7 +137,7 @@
     if (!window.ErpSpecPicker) return;
     var st = stateOf(field);
     var product = productOf(field);
-    var groups = [{ label: '선택 없음', items: [
+    var groups = [{ label: '없거나 아직 모를 때', items: [
       { key: 's:none', label: SPECIAL.none, meta: '', payload: { kind: 'none' } },
       { key: 's:later', label: SPECIAL.later, meta: '', payload: { kind: 'later' } }] }];
     catalog.forEach(function (g) {
@@ -220,7 +220,8 @@
     if (railItem && window.matchMedia('(min-width: 768px)').matches) railItem.click();
     var box = bad[0].querySelector('[data-pp-optfield]');
     if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    showStatus('항목 ' + no + ' 옵션을 골라 주세요. 없으면 "옵션 없음"을 고르면 됩니다. 커스텀은 내용을 적어 주세요.');
+    showStatus(bad[0].querySelector('.pp-optline--custom') ? '항목 ' + no + ' 커스텀 칸에 내용을 적어 주세요.'
+      : '항목 ' + no + ' 옵션을 골라 주세요. 없으면 "옵션 없음"을 고르세요.');
     return true;
   }
 
@@ -241,7 +242,7 @@
     ev.preventDefault();
     ev.stopImmediatePropagation();
     if (blockIfMissing('[data-pp-confirm-options] .pp-item')) return;
-    if (!window.confirm(btn.getAttribute('data-pp-approve-confirm') || '이 도면과 옵션대로 제작을 시작할까요?')) return;
+    if (!window.confirm(btn.getAttribute('data-pp-approve-confirm') || '이 도면과 옵션대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.')) return;
     var options = {};
     Array.prototype.forEach.call(cards, function (card) { options[card.getAttribute('data-pp-uid')] = read(card); });
     btn.disabled = true;
@@ -249,12 +250,14 @@
       var res = await fetch(btn.getAttribute('data-pp-approve-url'), { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idempotency_key: 'pp-approve-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), options: options }) });
-      var data = await res.json();
-      if (!data || !data.success) throw new Error((data && data.error) || '처리하지 못했습니다. 잠시 뒤 다시 해 주세요.');
+      var data = null;
+      try { data = await res.json(); } catch (_) { data = null; }
+      if (!data || !data.success) throw new Error((data && data.error) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+      if (data.data && data.data.push_note) window.alert(data.data.push_note);  // 승인 뒤 발주방 자동 전송 결과(partner-portal.js 와 같게)
       window.location.reload();
     } catch (err) {
       btn.disabled = false;
-      showStatus(err.message);
+      showStatus(err instanceof TypeError ? '보내지 못했습니다. 인터넷 연결을 확인해 주세요.' : err.message);
     }
   }, true);
 

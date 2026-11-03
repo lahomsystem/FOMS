@@ -100,7 +100,7 @@ def _base_lines(index, info, item, rules, needs):
             dim = depth if by_depth else width
             chosen, over_mm = _band_pick(index, info, dim)
             label = "깊이" if by_depth else "가로"
-            basis = f"{label} {dim:,} → 구간 줄" if dim is not None else f"{label} 치수 없음 — 고른 줄 그대로"
+            basis = f"{label} {dim:,}mm에 맞는 구간" if dim is not None else f"{label} 치수가 없어 고른 줄 그대로"
             lines.append(_line(chosen, Decimal(1), spec=spec, basis=basis))
             if over_mm:
                 lines.extend(_over_line(index, chosen, over_mm, needs))
@@ -112,7 +112,7 @@ def _base_lines(index, info, item, rules, needs):
 def _over_line(index, band_info, over_mm, needs):
     over = index.get((band_info.get("cond") or {}).get("over_key") or "")
     if not over:
-        needs.append(f"{band_info['name']}: 구간보다 {over_mm}mm 큽니다 — 넘친 만큼 줄을 단가표에서 이어 주세요")
+        needs.append(f"{band_info['name']}: 가장 큰 구간보다 {over_mm}mm 큽니다. 단가표에서 이 줄의 '넘치면 이 줄'을 정해 주세요")
         return []
     per = int((over.get("cond") or {}).get("per") or 100)
     count = math.ceil(over_mm / per)
@@ -127,7 +127,7 @@ def _option_lines(index, item, notes, needs):
     for picked in item.get("lines") or []:
         info = index.get(str(picked.get("key") or ""))
         if info is None:
-            needs.append(f"단가표에 없는 옵션이 있습니다({picked.get('key')})")
+            needs.append(f"단가표에 없는 옵션이 있습니다: {picked.get('name') or picked.get('key')}")
             continue
         try:
             qty = Decimal(str(picked.get("qty") or 1))

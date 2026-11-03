@@ -1553,7 +1553,7 @@
     {
       "path": "foms/api/partner_price_list.py",
       "endpoint": "api_import_price_list",
-      "lineno": 112,
+      "lineno": 117,
       "methods": [
         "POST"
       ],
@@ -1562,7 +1562,7 @@
     {
       "path": "foms/api/partner_price_list.py",
       "endpoint": "api_save_price_list",
-      "lineno": 139,
+      "lineno": 144,
       "methods": [
         "POST"
       ],
