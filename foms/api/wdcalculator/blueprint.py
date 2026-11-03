@@ -18,6 +18,7 @@ from foms.web.auth import log_access, login_required
 from foms.services.audit_message_display import describe_action
 # 서버 계산은 서비스 함수로 옮겼다(플랜 C10-6). 이 두 이름은 /api/wdcalculator/calculate 의 옛 값 그대로이고, 직원 화면
 # 계산(pricing-core.js)과 같은 값은 ``foms.services.wdcalculator.pricing.compute_estimate`` 다(CI 계약 시험).
+from foms.services.wdcalculator.display_order import name_key, sorted_categories
 from foms.services.wdcalculator.pricing import apply_coupon, calculate_estimate
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import (
@@ -472,12 +473,12 @@ def wdcalculator():
     """견적 계산 메인 페이지"""
     try:
         categories = load_additional_option_categories()
-        categories = clean_categories_data(categories or [])
+        categories = sorted_categories(clean_categories_data(categories or []))  # 한글 먼저, 그다음 영문
     except Exception:
         categories = []
     try:
         notes_categories = load_notes_categories()
-        notes_categories = clean_categories_data(notes_categories or [])
+        notes_categories = sorted_categories(clean_categories_data(notes_categories or []))
     except Exception:
         notes_categories = []
     return render_template('wdcalculator/calculator.html', categories=categories, notes_categories=notes_categories)
@@ -491,19 +492,19 @@ def wdcalculator_product_settings():
         products = load_products() or []
     except Exception:
         products = []
-    # 제품 목록 정렬: 카테고리 → 제품명 순(미분류는 맨 뒤).
+    # 제품 목록 정렬: 카테고리 → 제품명 순(미분류는 맨 뒤) — 한글(ㄱㄴㄷ) 먼저, 그다음 영문(abc).
     def _product_sort_key(product):
         category = str((product or {}).get('category') or '').strip()
-        return (category == '', category, str((product or {}).get('name') or ''))
+        return (category == '', name_key(category), name_key((product or {}).get('name')))
     products = sorted(products, key=_product_sort_key)
     try:
         categories = load_additional_option_categories()
-        categories = clean_categories_data(categories or [])
+        categories = sorted_categories(clean_categories_data(categories or []))  # 한글 먼저, 그다음 영문
     except Exception:
         categories = []
     try:
         notes_categories = load_notes_categories()
-        notes_categories = clean_categories_data(notes_categories or [])
+        notes_categories = sorted_categories(clean_categories_data(notes_categories or []))
     except Exception:
         notes_categories = []
     try:
@@ -626,7 +627,7 @@ def api_wdcalculator_calculate():
 @wdcalculator_bp.route('/api/wdcalculator/additional-options/categories', methods=['GET'])
 @login_required
 def api_wdcalculator_get_categories():
-    categories = load_additional_option_categories()
+    categories = sorted_categories(load_additional_option_categories())  # 화면과 같은 차례
     return jsonify({'success': True, 'categories': categories})
 
 
