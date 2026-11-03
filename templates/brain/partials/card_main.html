@@ -1,6 +1,12 @@
-{#- 카드 '내용' 탭 — 글 · 핵심 칸 · 고칠 말 · 은퇴 · 지우기 제안 · 링크 종류 · 방향별 '관련(수)' · 근거 · 만든 이 · 승인자 ·
-    바깥 정본 칩 · 사본 목록. -#}
+{#- 카드 '한눈에' 탭(설계서 7.9 화면 6) — 맨 위는 어디 지식인지 · 글 · 어디에 쓰이나 · 찾는 말 · 기다리는 수정 · 고치기 단추,
+    나머지(핵심 칸 · 근거 · 만든 이 · 승인자 · 링크 종류별 '관련(수)' · 바깥 정본 칩 · 사본 목록 · 빠진 링크)는 '자세히 보기' 안. -#}
+<p class="brain-empty mb-1">{{ brand_labels.get(it.brand, it.brand) }} {{ layer_labels.get(it.layer, it.layer) }} · {{ type_display.get(it.type, (it.type,))[0] }}</p>
 {% if it.text %}<p class="brain-card__text">{{ it.text }}</p>{% endif %}
+<dl class="brain-fields" data-brain-glance>
+  <dt>어디에 쓰이나</dt><dd>{{ 'AI 상담 · 챗봇이 ' ~ it.usage_count ~ '번 썼어요' if it.usage_count else '아직 쓰인 적 없어요' }}</dd>
+  <dt>이런 말로도 찾을 수 있어요</dt><dd>{% for word in card.labels.aliases %}「{{ word }}」 {% else %}(없음){% endfor %}</dd>
+  {% if it.open_changes %}<dt>승인을 기다리는 수정</dt><dd>{{ it.open_changes }}개 — <a href="{{ url_for('brain_web.index', tab='inbox') }}">확인할 것에서 보기</a></dd>{% endif %}
+</dl>
 {#- 기본 읽기 거르기(점검 지금 1)가 빼는 항목 — 카드는 보이되 표시를 단다(챗봇 · 찾기 · 이웃 · 수에는 안 나온다). -#}
 {% if not card.effect.effective %}
 <p class="brain-card__effect" data-brain-effect>
@@ -12,6 +18,16 @@
 {% endif %}
 {% if card.open_conflicts %}<p class="brain-card__effect"><span class="brain-badge brain-badge--check" data-brain-open-conflicts>열린 엇갈림 {{ card.open_conflicts }}건 — 확인 필요</span></p>{% endif %}
 
+{% include "brain/partials/card_propose.html" %}
+
+<details class="brain-prop__drawer" data-brain-card-more>
+<summary>자세히 보기 (볼 수 있는 사람 · 근거 · 연결된 지식 · 바깥 자리)</summary>
+<p class="mb-2">
+  <span class="brain-badge brain-badge--{{ it.confidence }}">확신 {{ confidence_labels.get(it.confidence, it.confidence) }}</span>
+  {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing" data-brain-missing="{{ gap.kind }}">빠진 링크 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
+  {% for warn in card.warnings %}<span class="brain-badge brain-badge--missing" data-brain-warning="{{ warn.code }}">{{ warn.text }}</span>{% endfor %}
+  <span class="brain-card__key">{{ it.key }} · 판 {{ it.version }}</span>
+</p>
 <dl class="brain-fields">
   <dt>층 · 브랜드</dt><dd>{{ layer_labels.get(it.layer, it.layer) }} · {{ brand_labels.get(it.brand, it.brand) }}</dd>
   <dt>위험 등급</dt><dd>{{ grade_labels.get(it.risk_grade, '—') if it.risk_grade else '—' }}</dd>
@@ -24,8 +40,6 @@
   {% endfor %}
   <dt>판</dt><dd>판 {{ it.release_no if it.release_no is not none else '—' }}에서 반영 · 기록 {{ it.recorded_at or '—' }}</dd>
 </dl>
-
-{% include "brain/partials/card_propose.html" %}
 
 <section class="brain-section" aria-labelledby="brain-card-evidence">
   <h2 id="brain-card-evidence">근거 · 만든 이 · 승인자</h2>
@@ -105,3 +119,4 @@
   <p class="brain-empty">적힌 사본이 없습니다.</p>
   {% endif %}
 </section>
+</details>

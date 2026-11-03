@@ -262,3 +262,30 @@ def test_answer_codes_are_known_reject_codes_and_hidden_from_plain_reject_chips(
     card = (ROOT_JS / "brain-inbox-card.js").read_text(encoding="utf-8")
     assert all(f"'{code}'" in question for code in ANSWER_CODES)
     assert "FOMS_BRAIN_INBOX_QUESTION" in card and "answers.indexOf(choice.value) < 0" in card
+
+
+# ── 5단계: 지식 한 개 화면(설계서 7.9 화면 6) ────────────────────────────
+def test_item_page_puts_people_words_first_and_machine_detail_inside_more(app):
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")
+    db_session.commit()
+    from foms.services.brain.decide import apply_decision
+    row = current_object(db_session, "lahom/tpl")
+    after_aliases = {**(row.payload or {}), "aliases": ["인사말", "안녕하세요"]}
+    apply_decision(db_session, tpl.id, actor=admin, base_version=tpl.base_version, now=LATER,
+                   confirm={"field": "payload.pref_label", "value": "첫인사 상용구"})
+    db_session.commit()
+    row = current_object(db_session, "lahom/tpl")
+    propose_update(db_session, key="lahom/tpl", base_version=row.version, after={"payload": after_aliases},
+                          reason=REASON, proposer=Proposer.user(admin.id), now=LATER, known="")
+    db_session.commit()
+    html = _client(app, admin.id).get("/brain/items/lahom/tpl").get_data(as_text=True)
+    head, rest = html.split('<details class="brain-prop__drawer" data-brain-card-more>', 1)
+    assert '<h1 class="brain-card__title">첫인사 상용구</h1>' in head  # 영어 키(greeting)가 아니라 한글 이름
+    assert "사용 중" in head and "승인을 기다리는 수정 1개" in head and "안녕하세요" in head
+    assert "라홈 상담 · 상용구" in head and "어디에 쓰이나" in head and "data-brain-propose-open" in head
+    assert "확신 " not in head and "lahom/tpl · 판" not in head  # 기계 칸은 자세히 보기 안
+    assert "확신 " in rest and "lahom/tpl · 판" in rest and "근거 · 만든 이 · 승인자" in rest
+    assert "한눈에" in html and "수정 기록(" in html and "연결된 지식(" in html
