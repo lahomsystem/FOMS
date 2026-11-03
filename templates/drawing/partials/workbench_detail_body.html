@@ -1879,6 +1879,18 @@
             <i class="fas fa-check-square"></i> 전체 선택
           </button>
         </div>
+        {% if order.partner_org_id %}
+        {#- 협력사 주문 옵션 확인(설계서 2026-11-03-partner-statement §5.3) — partner-option-review.js 가 창이 열릴 때 채운다.
+            옵션 줄이 없는 주문이면 숨은 채로 있다(지금 전달 그대로). -#}
+        <link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+        <link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">
+        <div class="mb-3" data-po-review data-url="/api/orders/{{ order.id }}/partner-options" hidden>
+          <label class="form-label fw-bold mb-1">옵션 확인 <span class="text-muted small fw-normal">협력사가 고른 옵션 — 도면과 다르면 고쳐 주세요(금액은 명세서에서)</span></label>
+          <div data-po-review-list></div>
+        </div>
+        <script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+        <script src="{{ asset_url('js/drawing/partner-option-review.js') }}" defer></script>
+        {% endif %}
         <div class="mb-3">
           <label class="form-label fw-bold">메모</label>
           <textarea id="dw-transfer-note" class="form-control" rows="3" placeholder="전달 메모"></textarea>
@@ -2841,6 +2853,12 @@
         showWorkbenchToast('전달할 도면이 없습니다. 저장된 대기 도면을 선택하거나 파일을 추가해주세요.', 'error');
         return;
       }
+      // 협력사 주문 옵션 확인 — 달라진 품목은 까닭이 있어야 보낸다(partner-option-review.js, 설계서 2026-11-03 §5.3).
+      const optionReview = window.FomsPartnerOptionReview ? window.FomsPartnerOptionReview.collect() : { ok: true, data: null };
+      if (!optionReview.ok) {
+        showWorkbenchToast(optionReview.error, 'error');
+        return;
+      }
 
       const totalNew = files.length + pendingSheetIds.length;
       const isRetransfer = (drawingStatus === 'RETURNED') || (mode === 'REPLACE') || (mode === 'REPLACE_ALL');
@@ -2895,6 +2913,7 @@
           is_retransfer: isRetransfer,
           replace_target_keys: replaceTargetKeys.length > 0 ? replaceTargetKeys : null,
           pending_sheet_ids: pendingSheetIds.length > 0 ? pendingSheetIds : null,
+          partner_options: optionReview.data,
         };
         const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
           method: 'POST',

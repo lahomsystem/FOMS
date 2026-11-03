@@ -17,6 +17,7 @@ from models import Order, OrderAttachment, Notification, OrderEvent, User
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.auth.partner_scope import is_partner_sd
+from foms.services.partners.item_options import ItemOptionsError, prepare_review_options
 from foms.services.partners.notify import notify_partner_drawing_ready
 from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.error_logging import log_handled_exception
@@ -624,11 +625,21 @@ def api_order_transfer_drawing(order_id):
         # 저장된 대기 도면(primary)을 앞에, 직접 올린 파일(supplementary)을 뒤에 둔다.
         files = pending_files + manual_files
         stale_keys = []
+        # 협력사 주문: 도면팀이 전달 창에서 고친 옵션(설계서 2026-11-03-partner-statement §5.3) — 검사는 지금,
+        # 쓰기는 전달 쓰기와 같은 트랜잭션(prepare_structured)에서.
+        try:
+            review = prepare_review_options(db, order, data.get('partner_options'))
+        except ItemOptionsError as exc:
+            db.rollback()
+            return jsonify({'success': False, 'message': str(exc)}), 400
         prepare = None
-        if pending_sheet_ids:
+        if pending_sheet_ids or review:
             def prepare(sd):
-                stage_pending_snapshot(sd, order_id, current_user,
-                                       sheet_ids=pending_sheet_ids, stale_keys=stale_keys)
+                if pending_sheet_ids:
+                    stage_pending_snapshot(sd, order_id, current_user,
+                                           sheet_ids=pending_sheet_ids, stale_keys=stale_keys)
+                if review:
+                    review(sd, session.get('user_id'))
 
         payload, status = perform_drawing_transfer(
             db, order, order_id, current_user, session.get('user_id'),

@@ -317,7 +317,7 @@ def approve_drawing(order_id: int):
     payload = request.get_json(silent=True) or {}
     key = str(payload.get("idempotency_key") or request.headers.get("Idempotency-Key") or "")[:64] or None
     try:
-        approve_partner_drawing(db, g.current_user, order_id, idempotency_key=key)
+        approve_partner_drawing(db, g.current_user, order_id, idempotency_key=key, options=payload.get("options"))
         db.commit()
     except PartnerConfirmError as exc:
         db.rollback()

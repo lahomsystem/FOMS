@@ -206,8 +206,8 @@
   }
 
   /** 빈 옵션 칸이 있으면 true — 빨간 테두리 · 그 품목으로 옮기기 · 안내 글. */
-  function blockIfMissing() {
-    var cards = Array.prototype.slice.call(document.querySelectorAll('[data-pp-items] .pp-item'));
+  function blockIfMissing(scope) {
+    var cards = Array.prototype.slice.call(document.querySelectorAll(scope || '[data-pp-items] .pp-item'));
     var bad = cards.filter(missing);
     cards.forEach(function (card) {
       var box = card.querySelector('[data-pp-optfield] .pp-optbox');
@@ -215,11 +215,12 @@
     });
     if (!bad.length) return false;
     var index = cards.indexOf(bad[0]);
-    var railItem = document.querySelectorAll('[data-pp-rail-list] .rail-item')[index];
+    var no = bad[0].getAttribute('data-pp-item-no') || String(index + 1);
+    var railItem = !scope && document.querySelectorAll('[data-pp-rail-list] .rail-item')[index];
     if (railItem && window.matchMedia('(min-width: 768px)').matches) railItem.click();
     var box = bad[0].querySelector('[data-pp-optfield]');
     if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    showStatus('항목 ' + (index + 1) + ' 옵션을 골라 주세요. 없으면 "옵션 없음"을 고르면 됩니다. 커스텀은 내용을 적어 주세요.');
+    showStatus('항목 ' + no + ' 옵션을 골라 주세요. 없으면 "옵션 없음"을 고르면 됩니다. 커스텀은 내용을 적어 주세요.');
     return true;
   }
 
@@ -229,6 +230,32 @@
   }, true);
   document.addEventListener('click', function (ev) {
     if (ev.target.closest && ev.target.closest('[data-pp-items-url]') && blockIfMissing()) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+  }, true);
+
+  // 도면 탭 "이대로 만들어 주세요"(설계서 §5.4): "상담 후 정함" 품목을 여기서 고르면 그 값을 함께 보낸다. 고를 것이 없으면
+  // 지금 승인 스크립트(partner-portal.js) 그대로.
+  document.addEventListener('click', async function (ev) {
+    var btn = ev.target.closest && ev.target.closest('[data-pp-approve-url]');
+    var cards = document.querySelectorAll('[data-pp-confirm-options] .pp-item');
+    if (!btn || !cards.length || (btn.getAttribute('data-pp-approve-url') || '').indexOf('/approve-drawing') === -1) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if (blockIfMissing('[data-pp-confirm-options] .pp-item')) return;
+    if (!window.confirm(btn.getAttribute('data-pp-approve-confirm') || '이 도면과 옵션대로 제작을 시작할까요?')) return;
+    var options = {};
+    Array.prototype.forEach.call(cards, function (card) { options[card.getAttribute('data-pp-uid')] = read(card); });
+    btn.disabled = true;
+    try {
+      var res = await fetch(btn.getAttribute('data-pp-approve-url'), { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idempotency_key: 'pp-approve-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), options: options }) });
+      var data = await res.json();
+      if (!data || !data.success) throw new Error((data && data.error) || '처리하지 못했습니다. 잠시 뒤 다시 해 주세요.');
+      window.location.reload();
+    } catch (err) {
+      btn.disabled = false;
+      showStatus(err.message);
+    }
   }, true);
 
   function renderAll() {
