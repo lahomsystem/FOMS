@@ -30,10 +30,12 @@ import json
 import re
 from typing import Any, Iterable, Mapping, Optional
 
-from foms.persistence.brain.models import BrainObject
+from sqlalchemy import select, update
+
+from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    BRAND_COMMON, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, OP_CREATE, OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE,
-    SCOPE_ADMIN, SCOPE_ALL, STATUS_ACTIVE, TYPE_KINDS,
+    BRAND_COMMON, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_CREATE,
+    OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, STATUS_ACTIVE, TYPE_KINDS,
 )
 from foms.services.brain.errors import BrainShapeError
 from foms.services.brain.plan_links import (
@@ -42,6 +44,7 @@ from foms.services.brain.plan_links import (
     step_link, value_links,
 )
 from foms.services.brain.proposals import IMPORT_PROPOSER, after_values, known_text, propose_create, propose_update
+from models import SecurityLog
 from foms.services.brain.schemas import ERP_STAGES, payload_props
 from foms.services.brain.store import current_object, values_of
 from foms.services.datetime_kst import now_utc_naive
@@ -109,7 +112,8 @@ def _update(run: Run, row: BrainObject, item: Mapping[str, Any], price: Optional
 def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, parent: Optional[BrainObject],
                 why: str) -> Optional[tuple[str, str]]:
     """새 지식 문서 항목(가격 규칙 나눔 자식 · 새 가격 규칙) — 문서 id · 승인 칸, 의도 · 꼬리표 · 근거 파일 · 보기 범위는 부모에서
-    (부모가 없으면 비움 · '내부 모두'). 글은 대표 이름뿐이라 승인 때 고쳐 넣는다. 정본 · 사본 링크는 반영 뒤 다음 차례.
+    (부모가 없으면 비움 · '내부 모두'). 글은 계획의 ``text``(없으면 대표 이름 — 승인 때 고쳐 넣는다). 정본 · 사본 링크는 반영 뒤
+    다음 차례.
     (키, 유형)을 돌려준다(꼴이 틀리면 ``None``)."""
     if kind not in KIND_TYPES or not isinstance(cid, str) or not _DOC_ID.fullmatch(cid):
         run.skipped["shape"] += 1
@@ -123,7 +127,8 @@ def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, pare
     key = f"{(parent.item_key.split('/')[0] if parent is not None else run.brand.lower())}/{cid}"
     _create(run, key=key, brand=parent.brand if parent is not None else run.brand, layer=layer, item_type=item_type,
             ref_id=cid, why=why,
-            values={"name": label, "text": label, "visibility": parent.visibility if parent is not None else SCOPE_ALL,
+            values={"name": label, "text": one_line(block.get("text"), MAX_TEXT) or label,
+                    "visibility": parent.visibility if parent is not None else SCOPE_ALL,
                     "checked_at": run.today, "payload": payload})
     if basis:
         value_links(run, key, item_type, block.get("value_from_hint"), basis, cid)
@@ -227,7 +232,8 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
                 continue
             payload["erp_stage"], refs = stage, [f"erp:stage/{stage.lower()}"]
         _create(run, key=key, brand=BRAND_COMMON, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
-                values={"name": label, "text": label if item_type == "spec" else None, "visibility": SCOPE_ALL,
+                values={"name": label, "visibility": SCOPE_ALL,
+                        "text": one_line(new.get("text"), MAX_TEXT) or (label if item_type == "spec" else None),
                         "payload": payload or None},
                 why=reason(f"새 {NEW_TYPES[item_type]} 항목", decisions_in(new.get("why"))))
         value_links(run, key, item_type, refs, None, key)
@@ -304,3 +310,22 @@ def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool,
     return {"applied": bool(apply), "brand": brand,
             "plan": {name: len(plan.get(name) or []) for name in ("items", "new_items", "conflicts")},
             **run.summary()}
+
+
+def withdraw_open(session: Any, *, source: str, now: datetime.datetime) -> int:
+    """이 계획(근거 자리 ``plan:<source>#``)이 넣고 **아직 아무도 결정하지 않은** 옮기기 제안을 거둔다 — '기간 끝남'으로 닫고
+    ``decided_action='withdraw'`` · 감사 한 줄. 결정된(반영 · 거절) 제안 · 다른 근거 · 사람 · AI 제안은 건드리지 않는다.
+    계획을 고친 뒤 다시 넣기 전에 쓴다(같은 제안이 둘 뜨지 않게). 거둔 수를 돌려준다."""
+    prefix = f"plan:{source}#"
+    rows = session.execute(select(BrainChange.id, BrainChange.evidence).where(
+        BrainChange.status == CHANGE_OPEN, BrainChange.proposed_by == IMPORT_PROPOSER.name)).all()
+    ids = [change_id for change_id, evidence in rows
+           if isinstance(evidence, list) and any(isinstance(e, str) and e.startswith(prefix) for e in evidence)]
+    if ids:
+        session.execute(update(BrainChange).where(BrainChange.id.in_(ids), BrainChange.status == CHANGE_OPEN)
+                        .values(status=CHANGE_EXPIRED, decided_at=now, decided_action="withdraw")
+                        .execution_options(synchronize_session="fetch"))
+        session.add(SecurityLog(user_id=None, action="BRAIN_WITHDRAW", target_type="brain_change", target_id=None,
+                                timestamp=now, message=f"BRAIN_WITHDRAW count={len(ids)}",
+                                detail={"count": len(ids), "source": source[:60]}))
+    return len(ids)

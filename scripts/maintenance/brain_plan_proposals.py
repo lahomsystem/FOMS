@@ -29,7 +29,8 @@ from db import DB_URL, db_session  # noqa: E402
 from foms.platform.sentry_setup import resolve_environment  # noqa: E402
 from foms.services.brain.errors import BrainError  # noqa: E402
 from foms.services.brain.plan_links import source_name  # noqa: E402
-from foms.services.brain.plan_proposals import file_plan  # noqa: E402
+from foms.services.brain.plan_proposals import file_plan, withdraw_open  # noqa: E402
+from foms.services.datetime_kst import now_utc_naive  # noqa: E402
 from foms.services.cs_agent.knowledge import KNOWN_BRANDS  # noqa: E402
 
 EXIT_OK, EXIT_REFUSED = 0, 1
@@ -57,6 +58,9 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     parser.add_argument("--apply", action="store_true", help="실제로 제안을 넣는다(기본은 모의 실행)")
     parser.add_argument("--i-have-owner-approval", dest="owner_approval", action="store_true",
                         help="local · staging 밖(운영)에 넣을 때 꼭: 사장님이 자료 계획을 승인했다")
+    parser.add_argument("--withdraw-open", dest="withdraw_open", action="store_true",
+                        help="넣기 전에 이 계획이 넣고 아직 아무도 결정하지 않은 제안을 거둔다(계획을 고친 뒤 다시 넣을 때 — "
+                             "결정된 제안은 건드리지 않는다)")
     return parser.parse_args(argv)
 
 
@@ -90,6 +94,8 @@ def run(argv: Optional[list] = None) -> int:
         plan, source = read_plan(args.plan)
         with app.app_context():
             try:
+                if args.withdraw_open:  # 모의 실행이면 거둔 수만 세고 아래 rollback 이 되돌린다
+                    out["withdrawn"] = withdraw_open(db_session, source=source, now=now_utc_naive())
                 out.update(file_plan(db_session, plan, brand=args.brand, apply=args.apply, source=source))
                 if args.apply:
                     db_session.commit()
