@@ -15,7 +15,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = [ROOT / f"static/js/brain/{name}" for name in ("brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox.js")]
+SCRIPTS = [ROOT / f"static/js/brain/{name}"
+           for name in ("brain-inbox-card.js", "brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox.js")]
 NODE = pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 
 BOOT = r"""
@@ -36,14 +37,14 @@ function stub() {
 const root = stub();
 const window = {
   FOMS_BRAIN_CTX: { root: root, display: {}, actions: [] },
-  FOMS_BRAIN_DOM: stub(), FOMS_BRAIN_REVIEW: stub(), FOMS_BRAIN_INBOX_CARD: stub(),
+  FOMS_BRAIN_DOM: stub(), FOMS_BRAIN_REVIEW: stub(), FOMS_BRAIN_VIEW: stub(),
   matchMedia: () => ({ matches: false, addEventListener() {} }),
   performance: { now: () => 0 },
 };
 const context = vm.createContext({ window: window, console: console });
 for (const file of JSON.parse(process.argv[1])) vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
 process.stdout.write(JSON.stringify({ bound: !!window.__FOMS_BRAIN_INBOX_BOUND, bins: !!window.FOMS_BRAIN_INBOX_BINS,
-                                      table: !!window.FOMS_BRAIN_INBOX_TABLE }));
+                                      table: !!window.FOMS_BRAIN_INBOX_TABLE, card: !!window.FOMS_BRAIN_INBOX_CARD }));
 """
 
 
@@ -52,4 +53,4 @@ def test_inbox_scripts_boot_without_errors_in_load_order():
     out = subprocess.run(["node", "-e", BOOT, json.dumps([str(p) for p in SCRIPTS])], capture_output=True, text=True,
                          encoding="utf-8", timeout=60)
     assert out.returncode == 0, out.stderr[-400:]
-    assert json.loads(out.stdout) == {"bound": True, "bins": True, "table": True}
+    assert json.loads(out.stdout) == {"bound": True, "bins": True, "table": True, "card": True}

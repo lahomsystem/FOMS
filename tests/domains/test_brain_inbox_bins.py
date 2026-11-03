@@ -185,3 +185,29 @@ def test_copy_targets_read_as_place_names():
     assert ref_label("form:lahom-option-table") == "기본 옵션표"
     assert ref_label("store:lahom-main") == "스마트스토어 상세 · lahom-main"
     assert ref_label("lahom/ep") == "lahom/ep" and ref_label(None) == ""
+
+
+# ── 3단계: ② 문장 카드 ───────────────────────────────────────────────────
+def test_content_card_carries_sentence_price_line_and_who_can_see(app):
+    from foms.services.brain.external import catalog_source
+    from foms.services.brain.proposals import propose_create
+    from tests.support.brain_support import synth_catalog, values
+
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    made = propose_create(db_session, key="common/handle-extra", brand="COMMON", layer="common", item_type="price_rule",
+                          values=values("손잡이 추가비", text="손잡이를 바꾸는 옵션이에요. 금액은 견적 계산기 값을 따라요.",
+                                        checked_at="2026-11-03", payload={"doc_id": "handle-extra", "basis": "calc",
+                                                                         "approved_by": "합성", "approved_at": "2026-11-03"}),
+                          reason=REASON, proposer=Proposer.user(admin.id), now=NOW, known="",
+                          evidence=["plan:synth#handle", "calc:option/3:5"])
+    db_session.commit()
+    with catalog_source(synth_catalog):
+        cards = {c["main"]["id"]: c for c in inbox(db_session, viewer_of(admin), now=LATER)["cards"]}
+    main = cards[made.id]["main"]
+    assert cards[made.id]["bin"] == "content"
+    assert main["sentence"] == "손잡이를 바꾸는 옵션이에요. 금액은 견적 계산기 값을 따라요."
+    assert len(main["prices"]) == 1 and main["prices"][0]["exists"] is True and "300" in main["prices"][0]["value"]
+    assert main["visible_to"] == "내부 모두"
+    shipping = cards[world["changes"]["price"]]["main"]  # 글 고침 제안 — 새 글, 계산기 자리 없음(대조군)
+    assert shipping["sentence"] == "지역별 운임 새 기준" and shipping["prices"] == []
