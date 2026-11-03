@@ -2,8 +2,9 @@
  * 제안함 카드 그리기(HAUD master brain 설계서 7.5 화면 4 · 승인 흐름) — 카드 하나의 DOM 만 만든다(글은 textContent 만 ·
  * 인라인 스타일 없음). 결정 단추는 data-brain-act 로 표시하고 누름은 brain-inbox.js 가 받는다.
  *
- * 차례: 머리(유형 칩 · 이름 · 사람/AI · 등급 · 동작) → 한 줄 요약 → 기준 판 바뀜 경고 → 승인의 뜻 → 칸별 전 → 후 →
- * 사람 까닭 · 사진 먼저, AI 일반화 다음 → 근거 서랍(근거 id 만) → 비슷한 사례 · 함께 닿는 항목 → 관문 → 등급 B 확인 →
+ * 차례: 머리(유형 칩 · 한글 이름 · 사람/AI · 동작) → 한 줄 요약 → 기준 판 바뀜 경고 → 승인의 뜻 → 칸별 전 → 후 →
+ * 사람 까닭 · 사진 먼저, AI 까닭 다음 → 근거 서랍(근거 id 만) → 비슷한 사례 · 함께 닿는 항목 → 걸린 자동 검사(문제일 때만 —
+ * 설계서 7.9) → 등급 B 확인 →
  * 고쳐 넣기 칸(처음엔 숨김) → 결정 단추(휴대폰은 칸 하나 넣기 · PC 에서 볼게요만) → 같은 항목에 붙은 제안.
  */
 (function () {
@@ -29,12 +30,11 @@
     var head = el('div', { cls: 'brain-icard__head' });
     var href = card.exists ? view.itemHref(ctx.itemBase, card.key) : null;
     head.appendChild(dom.typeChip(ctx.display, card.type, href));
-    head.appendChild(el(href ? 'a' : 'span', { cls: 'brain-icard__name', text: card.name, attrs: { href: href } }));
+    head.appendChild(el(href ? 'a' : 'span', { cls: 'brain-icard__name', text: card.title || card.name,
+                                               attrs: { href: href } }));
     var main = card.main;
     head.appendChild(el('span', { cls: 'brain-badge ' + (main.ai ? 'brain-badge--ai' : 'brain-badge--human'),
                                   text: main.ai ? 'AI 제안' : '사람 제안' }));
-    head.appendChild(el('span', { cls: 'brain-badge brain-badge--grade-' + main.grade,
-                                  text: '등급 ' + ((ctx.display.grades || {})[main.grade] || main.grade) }));
     if (main.rollback_of !== null && main.rollback_of !== undefined) {
       head.appendChild(el('span', { cls: 'brain-badge', text: '되돌리기' }));
     }
@@ -73,13 +73,13 @@
   function reasons(prop) {
     var box = el('div', { cls: 'brain-prop__reasons' });
     var reasonBlock = el('p', { cls: 'brain-prop__reason', children: [
-      el('strong', { text: prop.ai ? 'AI 일반화 · ' : '사람 까닭 · ' }), el('span', { text: prop.reason }),
+      el('strong', { text: prop.ai ? 'AI가 제안한 까닭 · ' : '제안한 까닭 · ' }), el('span', { text: prop.reason }),
       el('span', { cls: 'brain-empty', text: ' — ' + prop.proposer + (prop.created_at ? ' · ' + prop.created_at : '') })] });
     if (!prop.ai) box.appendChild(reasonBlock);
     if (prop.photos.length) box.appendChild(photoChips(prop));
     if (prop.ai) box.appendChild(reasonBlock);
     var drawer = el('details', { cls: 'brain-prop__drawer' });
-    drawer.appendChild(el('summary', { text: '근거 ' + prop.evidence.length + '개 (가린 근거 id)' }));
+    drawer.appendChild(el('summary', { text: '근거 ' + prop.evidence.length + '개' }));
     var list = el('ul');
     prop.evidence.forEach(function (ref) { list.appendChild(el('li', { cls: 'brain-prop__ref', text: ref })); });
     if (!prop.evidence.length) list.appendChild(el('li', { cls: 'brain-empty', text: '적힌 근거가 없어요' }));
@@ -88,20 +88,24 @@
     return box;
   }
 
+  /** 걸린 자동 검사만(통과 · 아직 안 돌림은 안 보인다 — 설계서 7.9). 걸린 것이 없으면 ``null``. */
   function gates(prop, ctx) {
-    var list = el('ul', { cls: 'brain-gates', attrs: { 'aria-label': '자동 관문 결과' } });
-    review.gateRows(prop.gates, ctx.display).forEach(function (gate) {
+    var failed = review.gateRows(prop.gates, ctx.display).filter(function (gate) { return gate.cls === 'is-fail'; });
+    if (!failed.length) return null;
+    var list = el('ul', { cls: 'brain-gates', attrs: { 'aria-label': '자동 검사에서 걸린 것' } });
+    failed.forEach(function (gate) {
       list.appendChild(el('li', { cls: 'brain-gate ' + gate.cls, text: gate.label + ' ' + gate.text }));
     });
     return list;
   }
 
   function confirmBox(prop, ctx) {
-    var label = (ctx.display.fields || {})[prop.confirm.field] || prop.confirm.field;
+    var row = (prop.fields || []).filter(function (r) { return r.field === prop.confirm.field; })[0];
+    var label = (row && row.label) || (ctx.display.fields || {})[prop.confirm.field] || '바뀌는 값';
     var input = el('input', { attrs: { type: 'checkbox', 'data-brain-confirm': '1' } });
     var shown = review.valueText(prop.confirm.field, prop.confirm.value, ctx.display);  // 보이는 글만 이름으로(보내는 값은 그대로)
     return el('label', { cls: 'brain-prop__confirm', children: [input, el('span', {
-      text: '등급 B — 핵심 값을 직접 확인했어요 · ' + label + ': ' + shown })] });
+      text: '중요한 값이에요 — 직접 보고 맞는지 확인했어요 · ' + label + ': ' + shown })] });
   }
 
   /** 고칠 칸 하나 — 자료형(속성 틀)에 맞는 입력(글 · 날짜 · 수 · 고르기 · 쉼표 목록). */
@@ -140,7 +144,10 @@
     var row = el('div', { cls: 'brain-prop__chips', attrs: { 'data-brain-reject-box': '1', role: 'group',
                                                                  'aria-label': '거절 까닭' } });
     row.hidden = true;
-    review.actionChoices(ctx.actions, 'reject', 'code').forEach(function (choice) {
+    var answers = (window.FOMS_BRAIN_INBOX_QUESTION || { codes: [] }).codes;  // ③ 질문 답 까닭은 보통 거절 칩에 안 보인다
+    review.actionChoices(ctx.actions, 'reject', 'code').filter(function (choice) {
+      return answers.indexOf(choice.value) < 0;
+    }).forEach(function (choice) {
       var chip = button(choice.label, 'reject-code', 'brain-chip-btn');
       chip.setAttribute('data-reject-code', choice.value);
       row.appendChild(chip);
@@ -154,16 +161,45 @@
     if (allowed.apply) bar.appendChild(button(label(ctx, 'apply'), 'apply', 'brain-btn--primary'));
     if (allowed.edit) bar.appendChild(button(label(ctx, 'edit_apply'), 'edit'));
     if (allowed.edit) {
-      var save = button('고친 값으로 넣기', 'edit-apply', 'brain-btn--primary');
+      var save = button('고친 값으로 승인', 'edit-apply', 'brain-btn--primary');
       save.hidden = true;
       bar.appendChild(save);
     }
     if (allowed.reject) bar.appendChild(button(label(ctx, 'reject'), 'reject'));
-    if (allowed.later) bar.appendChild(button(phone ? 'PC 에서 볼게요' : '나중에 볼게요', 'later'));
+    if (allowed.later) bar.appendChild(button(phone ? 'PC 에서 볼게요' : '나중에', 'later'));
     var wrap = el('div', { children: [bar] });
     if (allowed.reject) wrap.appendChild(rejectChips(ctx));
     if (allowed.hint) wrap.appendChild(el('p', { cls: 'brain-prop__hint', text: '이 제안은 PC 에서 결정해요(칸이 여럿이거나 새 항목 · 은퇴 · 지우기 · 링크).' }));
     return wrap;
+  }
+
+  /** 계산기 금액 한 줄(값을 볼 수 없는 사람에게는 이름만). */
+  function priceLine(price) {
+    if (price.exists === false) return '금액: 견적 계산기에서 이 옵션을 찾지 못했어요 — 계산기 이름을 확인해 주세요.';
+    var value = price.hidden ? '(금액은 가격 재량이 있는 사람만 보여요)' : '지금 ' + (price.value || '값 없음');
+    return "금액: 견적 계산기 '" + (price.label || '') + "' — " + value;
+  }
+
+  /** ② 문장 카드 — AI와 직원이 알게 될 글 · 금액 줄 · 제안한 까닭(시안 화면 3). */
+  function sentenceBlock(prop) {
+    var box = el('div', { cls: 'brain-prop__reasons' });
+    if (prop.sentence) {
+      box.appendChild(el('p', { cls: 'brain-prop__meaning', text: 'AI와 직원이 이렇게 알게 돼요' }));
+      box.appendChild(el('p', { cls: 'brain-icard__summary', text: '“' + prop.sentence + '”' }));
+    }
+    var prices = prop.prices || [];
+    prices.forEach(function (price) { box.appendChild(el('p', { cls: 'brain-prop__fact', text: priceLine(price) })); });
+    if (prices.length) box.appendChild(el('p', { cls: 'brain-empty', text: '계산기 값을 바꾸면 이 지식도 같이 바뀌어요.' }));
+    box.appendChild(el('p', { cls: 'brain-prop__reason', children: [el('strong', { text: '제안한 까닭 · ' }),
+                                                                     el('span', { text: prop.reason })] }));
+    return box;
+  }
+
+  /** 카드 밑 한 줄 — 볼 수 있는 사람 · 자동 검사. */
+  function footer(prop) {
+    var failed = (prop.gates || []).filter(function (g) { return g.value === 'fail'; }).length;
+    return (prop.visible_to ? '볼 수 있는 사람: ' + prop.visible_to + ' · ' : '') +
+      '자동 검사: ' + (failed ? '걸린 것 ' + failed + '개(위에 적었어요)' : '문제 없음');
   }
 
   /** 제안 하나(카드의 첫 제안 또는 붙은 제안). */
@@ -173,17 +209,26 @@
     if (!primary) box.appendChild(el('p', { cls: 'brain-prop__sub', text: review.summary({ main: prop, type: card.type, name: card.name }, ctx.display) }));
     var warn = review.conflictText(prop);
     if (warn) box.appendChild(el('p', { cls: 'brain-prop__warn', text: warn, attrs: { role: 'note' } }));
-    if (primary) box.appendChild(el('p', { cls: 'brain-prop__meaning', text: '승인의 뜻 — ' + prop.meaning }));
-    box.appendChild(diffTable(prop, ctx));
-    box.appendChild(reasons(prop));
-    if (primary) {
-      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
-      box.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
+    var sentence = primary && card.bin === 'content';  // ② 문장 카드 — 칸 표 · 근거는 '자세히 보기' 안(설계서 7.9)
+    var detail = sentence ? el('details', { cls: 'brain-prop__drawer' }) : box;
+    if (sentence) {
+      box.appendChild(sentenceBlock(prop));
+      detail.appendChild(el('summary', { text: '자세히 보기 (바뀌는 칸 · 근거 · 수정 기록)' }));
     }
-    box.appendChild(gates(prop, ctx));
+    if (primary) detail.appendChild(el('p', { cls: 'brain-prop__meaning', text: '승인의 뜻 — ' + prop.meaning }));
+    detail.appendChild(diffTable(prop, ctx));
+    detail.appendChild(reasons(prop));
+    if (primary) {
+      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.similarText(card.similar) }));
+      detail.appendChild(el('p', { cls: 'brain-prop__fact', text: review.touchText(card.touches, card.copies, ctx.display) }));
+    }
+    if (sentence) box.appendChild(detail);
+    var failed = gates(prop, ctx);
+    if (failed) box.appendChild(failed);
     if (prop.confirm && !(prop.base && prop.base.changed)) box.appendChild(confirmBox(prop, ctx));
     if (!phone) box.appendChild(editBox(prop, ctx));
     box.appendChild(actions(prop, ctx, phone));
+    if (sentence) box.appendChild(el('p', { cls: 'brain-empty', text: footer(prop) }));
     box.appendChild(el('p', { cls: 'brain-status-line', attrs: { 'data-brain-prop-status': '1', role: 'status', 'aria-live': 'polite' } }));
     return box;
   }

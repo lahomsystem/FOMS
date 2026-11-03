@@ -41,7 +41,7 @@ from foms.services.brain.errors import BrainShapeError
 from foms.services.brain.plan_links import (
     EVIDENCE_KIND, LABEL_KEYS, RETYPE_NAMES, Link, Run, copy_links, decided_links, decisions_in, file_link, file_one,
     file_retire, held, is_decision_no, labels_for, one_line, open_changes, plan_problems, reason, source_name,
-    step_link, value_links,
+    resolve, step_link, value_links,
 )
 from foms.services.brain.proposals import IMPORT_PROPOSER, after_values, known_text, propose_create, propose_update
 from models import SecurityLog
@@ -52,13 +52,17 @@ from foms.services.datetime_kst import now_utc_naive
 APPROVED_BY = "D130 자료 계획"  # 나눈 지식 문서 항목의 승인 칸(실제 승인은 카드 승인)
 NEW_TYPES: dict[str, str] = {"process_step": "공정 단계", "spec": "규격", "term": "용어"}
 CONFLICT_TYPES: dict[str, str] = {"supersede": "conflict", "conflict_item": "conflict", "edit_text": "question"}
+CALC_PREFIX, ABOUT_PREFIX = "calc:", "about:"
 _DOC_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
 _PAYLOAD = "payload."
 
 
 def _create(run: Run, *, key: str, brand: str, layer: str, item_type: str, values: dict[str, Any], ref_id: str,
-            why: str) -> None:
-    """만들기 제안(이미 있거나 열린 만들기가 있으면 넘김). 상태 '반영' · 근거 종류 ``document`` 가 기본."""
+            why: str, extra: tuple[str, ...] = ()) -> None:
+    """만들기 제안(이미 있거나 열린 만들기가 있으면 넘김). 상태 '반영' · 근거 종류 ``document`` 가 기본.
+
+    ``extra`` = 근거에 함께 싣는 자리 — 금액을 가져올 계산기 자리(② 문장 카드의 '지금 값' 한 줄) · 엇갈림이 다루는 항목
+    (``about:<키>`` — ③ 질문 카드가 두 글을 나란히 보인다). 링크는 반영 뒤 다음 차례라 그 전엔 알 길이 없다(설계서 7.9)."""
     if not KEY_RE.fullmatch(key):
         run.skipped["shape"] += 1
     elif current_object(run.session, key) is not None:
@@ -69,7 +73,7 @@ def _create(run: Run, *, key: str, brand: str, layer: str, item_type: str, value
         values = {"status": STATUS_ACTIVE, "evidence_kind": EVIDENCE_KIND, "evidence_ref": run.ref(ref_id), **values}
         file_one(run, OP_CREATE, lambda: propose_create(
             run.session, key=key, brand=brand, layer=layer, item_type=item_type, values=values, reason=why,
-            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id)], now=run.now, known=run.known))
+            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id), *extra], now=run.now, known=run.known))
 
 
 # ── 항목(지식 문서에서 옮긴 것) ─────────────────────────────────────────
@@ -85,27 +89,34 @@ def _row(run: Run, doc_id: Any) -> Optional[BrainObject]:
 
 
 def _update(run: Run, row: BrainObject, item: Mapping[str, Any], price: Optional[Mapping[str, Any]]) -> None:
-    """이름표 · 근거 종류(+ 계획에 적힌 가격 규칙 틀 칸) · 결정 번호를 실음 칸 고침 하나로."""
+    """이름표 · 근거 종류(+ 계획에 적힌 가격 규칙 틀 칸) · 결정 번호 · 글 고침(``text_fix``)을 고침 하나로."""
     want = labels_for(item, row.item_type)
-    heads, decisions = (["이름표"] if want else []), []
+    heads, decisions = (["한글 이름과 찾는 말을 붙여요"] if want else []), []
     if price is not None and price.get("basis") in PRICE_BASES:
         names = [p.path[len(_PAYLOAD):] for p in payload_props(PRICE_RULE_TYPE)]
         want.update({name: price[name] for name in names if name in price and name not in LABEL_KEYS})
-        heads.append("근거 종류")
+        heads.append("금액을 어디서 가져오는지 적어요")
         decisions.append("D115")
     if row.item_type == "owner_decision" and is_decision_no(item.get("decision_no")):
         want["decision_no"] = item["decision_no"]
-        heads.append("결정 번호")
+        heads.append("사장님 결정 번호를 적어요")
     payload = dict(row.payload or {})
     new = {**payload, **want}
-    if not want or new == payload:
+    after: dict[str, Any] = {"payload": new} if want and new != payload else {}
+    heads = heads if after else []
+    fix = one_line(item.get("text_fix"), MAX_TEXT)  # 승인된 글 고침(D147 맞춤법만 · D148 · D149) — 같으면 싣지 않는다
+    if fix is not None and fix != values_of(row)["text"]:
+        after["text"] = fix
+        heads.append("승인된 글의 맞춤법 · 뜻을 고쳐요")
+        decisions += decisions_in(item.get("text_fix_why"))
+    if not after:
         run.skipped["same"] += 1
-    elif any(after_values(c.fields) == {"payload": new} for c in open_changes(run.session, OP_UPDATE, row.item_key)):
+    elif any(after_values(c.fields) == after for c in open_changes(run.session, OP_UPDATE, row.item_key)):
         run.skipped["open_proposal"] += 1
     else:
         file_one(run, OP_UPDATE, lambda: propose_update(
-            run.session, key=row.item_key, base_version=row.version, after={"payload": new},
-            reason=reason(" · ".join(heads) + " 채움", decisions), proposer=IMPORT_PROPOSER,
+            run.session, key=row.item_key, base_version=row.version, after=after,
+            reason=reason(" · ".join(heads), decisions), proposer=IMPORT_PROPOSER,
             evidence=[run.ref(item["id"])], now=run.now, known=run.known))
 
 
@@ -125,8 +136,10 @@ def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, pare
                "tags": list(base.get("tags") or []), "source": base.get("source"), "approved_by": APPROVED_BY,
                "approved_at": run.today, **({"basis": basis} if basis else {})}
     key = f"{(parent.item_key.split('/')[0] if parent is not None else run.brand.lower())}/{cid}"
+    prices = tuple(r for r in (resolve(run, h) for h in (block.get("value_from_hint") or []) if basis)
+                   if r and r.startswith(CALC_PREFIX))[:3]
     _create(run, key=key, brand=parent.brand if parent is not None else run.brand, layer=layer, item_type=item_type,
-            ref_id=cid, why=why,
+            ref_id=cid, why=why, extra=prices,
             values={"name": label, "text": one_line(block.get("text"), MAX_TEXT) or label,
                     "visibility": parent.visibility if parent is not None else SCOPE_ALL,
                     "checked_at": run.today, "payload": payload})
@@ -140,7 +153,7 @@ def _child(run: Run, parent: BrainObject, item: Mapping[str, Any], child: Any) -
     """가격 규칙 나눔 자식 하나(:func:`_doc_create` — 키 머리 · 브랜드는 부모 것)."""
     if isinstance(child, Mapping) and not held(run, child):
         _doc_create(run, child, kind=child.get("kind") or item.get("kind"), cid=child.get("id"), parent=parent,
-                    why=reason(f"나눔 — {parent.item_key} 에서 하나씩", ("D115",)))
+                    why=reason("한 글에 여러 값이 섞여 있어서 값마다 나눠요", ("D115",)))
 
 
 def _retype(run: Run, row: BrainObject, item: Mapping[str, Any], target: str) -> str:
@@ -155,7 +168,7 @@ def _retype(run: Run, row: BrainObject, item: Mapping[str, Any], target: str) ->
     _create(run, key=key, brand=row.brand, layer=LAYER_COMMON, item_type=target, ref_id=item["id"],
             values={"name": one_line(item.get("pref_label"), 200) or item["id"], "text": old["text"],
                     "visibility": old["visibility"], "checked_at": old["checked_at"], "payload": payload or None},
-            why=reason(f"사실 → {RETYPE_NAMES[target]} 나눔", ("D103",)))
+            why=reason(f"사실 글을 {RETYPE_NAMES[target]} 지식으로 옮겨요", ("D103",)))
     run.retires.append((row.item_key, key, target, item["id"]))
     return key
 
@@ -216,7 +229,7 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
         if item_type in TYPE_KINDS and KEY_RE.fullmatch(key):  # 지식 문서 유형(새 가격 규칙 등) — 나눔 자식과 같은 길
             made = _doc_create(run, new, kind=TYPE_KINDS[item_type], cid=key.rsplit("/", 1)[-1],
                                parent=_row(run, new.get("parent_hint")),
-                               why=reason("새 지식 문서 항목", decisions_in(new.get("decided"), new.get("why"))))
+                               why=reason("새로 알게 된 지식이에요", decisions_in(new.get("decided"), new.get("why"))))
             if made is not None:
                 decided_links(run, *made, new.get("decided"), made[0].rsplit("/", 1)[-1])
             continue
@@ -235,7 +248,7 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
                 values={"name": label, "visibility": SCOPE_ALL,
                         "text": one_line(new.get("text"), MAX_TEXT) or (label if item_type == "spec" else None),
                         "payload": payload or None},
-                why=reason(f"새 {NEW_TYPES[item_type]} 항목", decisions_in(new.get("why"))))
+                why=reason(f"새로 정리한 {NEW_TYPES[item_type]}이에요", decisions_in(new.get("why"))))
         value_links(run, key, item_type, refs, None, key)
 
 
@@ -268,7 +281,8 @@ def _conflicts(run: Run, rows: Iterable[Any]) -> None:
                         "visibility": scopes.pop() if len(scopes) == 1 else SCOPE_ADMIN,
                         "payload": {"plan_action": conflict["action"],
                                     **({"decisions": list(decisions)} if decisions else {})}},
-                why=reason("엇갈림 정리" if item_type == "conflict" else "글 고칠 것", decisions))
+                why=reason("두 곳에 다르게 적혀 있어요" if item_type == "conflict" else "글을 고칠 곳이 있어요", decisions),
+                extra=tuple(f"{ABOUT_PREFIX}{r.item_key}" for r in found[:3]))
         run.links += [Link("about", key, item_type, r.item_key, r.item_type, ref_id) for r in found]
 
 

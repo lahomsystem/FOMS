@@ -49,7 +49,7 @@
     var type = (labels(display, 'types')[card.type] || {}).label || card.type;
     var names = diffRows(view.fields, display).map(function (r) { return r.label; });
     var tail = view.op === 'update' && names.length ? ' — ' + names.join(' · ') : '';
-    return op + ' · ' + type + ' · ' + card.name + tail;
+    return op + ' · ' + type + ' · ' + (card.title || card.name) + tail;
   }
 
   /** 관문 줄 — [{label, text, cls}](통과 · 안 됨 · 아직). */
@@ -122,7 +122,7 @@
     if (!view.base || !view.base.changed) return '';
     var was = view.base_version === null || view.base_version === undefined ? '없음' : '판 ' + view.base_version;
     var now = view.base.current === null || view.base.current === undefined ? '없음' : '판 ' + view.base.current;
-    return '제안을 만든 뒤 항목이 바뀌었어요(기준 ' + was + ' → 지금 ' + now + '). 넣을 수 없어요 — 거절하거나 카드에서 새로 제안해 주세요.';
+    return '제안을 만든 뒤 이 지식이 바뀌었어요(기준 ' + was + ' → 지금 ' + now + '). 승인할 수 없어요 — 거절하거나 지식 화면에서 새로 제안해 주세요.';
   }
 
   /** 근거 사진 주소 — 'photo:<상담 차례>/<번호>' 만(그 밖 근거 id 는 글로만 — 가린 글 자리). */
@@ -154,9 +154,8 @@
   /** 제안함 맨 위 줄 · AI 자리 줄. */
   function inboxStatus(data) {
     var cards = (data && data.cards) || [];
-    if (!cards.length) return '내가 결정할 제안이 없어요.';
-    var open = (data.counts && data.counts.open) || cards.length;
-    return '카드 ' + cards.length + '장 · 제안 ' + open + '건 — 사람 제안 먼저, AI 제안은 쓰인 횟수 순';
+    if (!cards.length) return '확인할 것이 없어요.';
+    return '확인할 것 ' + cards.length + '개';
   }
 
   function aiLine(data) {

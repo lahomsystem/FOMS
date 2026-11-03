@@ -27,13 +27,15 @@ from foms.services.brain.access import approval_problem, approver_layers
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
     AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
-    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES,
+    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
-from foms.services.brain.display import GATE_LABELS, approval_meaning
+from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
+from foms.services.brain.external import ref_cards
+from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, ref_label
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
-from foms.services.brain.schemas import diff_rows, payload_props, prop_of
+from foms.services.brain.schemas import diff_rows, edit_prop, edit_props
 from foms.services.brain.scope import Viewer, allowed_scopes
-from foms.services.brain.store import LINK_FIELDS, OBJECT_FIELDS, is_current
+from foms.services.brain.store import LINK_FIELDS, OBJECT_FIELDS, current_object, is_current
 from foms.services.brain.usage import usage_of, usage_total
 from foms.services.datetime_kst import format_datetime_kst
 
@@ -256,10 +258,10 @@ def _diff(change: BrainChange) -> list[dict[str, Any]]:
     ordered = {name: fields[name] for name in [n for n in order if n in fields] + sorted(n for n in fields
                                                                                        if n not in order)}
     editable_op = change.op in (OP_CREATE, OP_UPDATE)
-    editable = set(HUMAN_EDIT_FIELDS) | {p.path for p in payload_props(change.item_type)}
+    editable = set(HUMAN_EDIT_FIELDS) | {p.path for p in edit_props(change.item_type)}
     rows = []
     for row in diff_rows(change.item_type, ordered):
-        prop = prop_of(change.item_type, row["field"])
+        prop = edit_prop(change.item_type, row["field"])
         row.update(editable=editable_op and row["field"] in editable,
                    datatype=prop.datatype if prop else ("date" if row["field"] in ("valid_from", "valid_to") else "text"),
                    choices=list(prop.choices) if prop else [])
@@ -280,8 +282,49 @@ def _base_changed(change: BrainChange, cur: Optional[BrainObject], links: dict[t
     return {"changed": current != change.base_version or flagged, "current": current, "flagged_at": stamp}
 
 
+CALC_REF, ABOUT_REF = "calc:", "about:"
+
+
+def _sentence(change: BrainChange, cur: Optional[BrainObject]) -> str:
+    """② 문장 카드의 'AI와 직원이 이렇게 알게 돼요' 글 — 제안의 새 글, 글을 안 바꾸면 지금 글(링크는 빈 글)."""
+    after = ((change.fields or {}).get("text") or {}).get("after")
+    if isinstance(after, str) and after.strip():
+        return after.strip()
+    return (cur.text or "").strip() if cur is not None and change.op not in LINK_OPS else ""
+
+
+def _visible_to(change: BrainChange, cur: Optional[BrainObject]) -> Optional[str]:
+    """볼 수 있는 사람(제안의 새 보기 범위, 없으면 지금 범위)."""
+    value = ((change.fields or {}).get("visibility") or {}).get("after") or (cur.visibility if cur is not None else None)
+    return visibility_label(value) if isinstance(value, str) else None
+
+
+def price_cards(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) -> dict[str, dict[str, Any]]:
+    """제안 근거에 실린 계산기 자리 → 이름 · 지금 값(볼 수 있는 사람만 — :func:`.external.ref_cards`). 한 번에 읽는다."""
+    refs = sorted({e for c in changes for e in (c.evidence or []) if isinstance(e, str) and e.startswith(CALC_REF)})
+    if not refs:
+        return {}
+    chips = [{"ref": r, "kind": "value_from", "ext_type": external_type(r)} for r in refs]
+    return {card["ref"]: card for card in ref_cards(session, viewer, chips)}
+
+
+def about_items(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) -> dict[str, dict[str, Any]]:
+    """엇갈림 · 질문 제안 근거의 다루는 항목(``about:<키>``) → 이름 · 지금 글 · 판(볼 수 있는 것만 — ③ 질문 카드)."""
+    keys = sorted({e[len(ABOUT_REF):] for c in changes for e in (c.evidence or [])
+                   if isinstance(e, str) and e.startswith(ABOUT_REF)})
+    scopes = allowed_scopes(viewer)
+    out = {}
+    for key in keys:
+        row = current_object(session, key)
+        if row is not None and (scopes is None or row.visibility in scopes):
+            out[key] = {"key": key, "title": card_title_of(row), "text": row.text or "", "version": row.version}
+    return out
+
+
 def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int, str],
-                links: dict[tuple[str, str, str], int]) -> dict[str, Any]:
+                links: dict[tuple[str, str, str], int], admin: bool = False,
+                prices: Optional[dict[str, dict[str, Any]]] = None,
+                about: Optional[dict[str, dict[str, Any]]] = None) -> dict[str, Any]:
     """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id)."""
     field, value = confirm_value(change.op, change.fields, change.item_type)
     evidence = [str(e) for e in (change.evidence or [])]
@@ -294,12 +337,21 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "evidence": [e for e in evidence if not e.startswith(PHOTO_PREFIX)],
         "fields": _diff(change), "base_version": change.base_version, "base": _base_changed(change, cur, links),
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
-        "meaning": approval_meaning(change.op, change.item_type),
+        "meaning": approval_meaning(change.op, change.item_type,
+                                    card_bin(change.op, change.item_type, change.fields, change.link_kind)),
         "confirm": {"field": field, "value": value} if change.grade == GRADE_B else None,
-        "phone_ok": phone_ok(change.op, change.fields), "bulk_ok": change.grade == GRADE_A,
+        "phone_ok": phone_ok(change.op, change.fields),
+        "bulk_ok": change.grade == GRADE_A or (admin and bulk_ok_any_grade(change.op, change.item_type, change.fields,
+                                                                            change.link_kind)),
         "rollback_of": change.rollback_of_version, "link": ({"kind": change.link_kind, "from": change.link_from,
-                                                            "to": change.link_to} if change.op in LINK_OPS else None),
+                                                            "to": change.link_to, "to_label": ref_label(change.link_to)}
+                                                           if change.op in LINK_OPS else None),
         "created_at": format_datetime_kst(change.created_at, "%Y-%m-%d %H:%M") if change.created_at else None,
+        "sentence": _sentence(change, cur), "visible_to": _visible_to(change, cur),
+        "prices": [{"label": p["label"], "value": p["value"], "hidden": p["value_hidden"], "exists": p["exists"]}
+                   for p in ((prices or {}).get(e) for e in evidence) if p is not None],
+        "about": [a for a in ((about or {}).get(e[len(ABOUT_REF):]) for e in evidence if e.startswith(ABOUT_REF))
+                  if a is not None],
     }
 
 
@@ -310,15 +362,34 @@ def _group_key(change: BrainChange) -> tuple:
     return ("item", change.item_key)
 
 
+def card_title_of(row: BrainObject) -> str:
+    """지금 항목의 한글 대표 이름(없으면 이름)."""
+    label = (row.payload or {}).get("pref_label") if isinstance(row.payload, dict) else None
+    return label.strip() if isinstance(label, str) and label.strip() else row.name
+
+
+def card_title(change: BrainChange, cur: Optional[BrainObject], name: str) -> str:
+    """카드 제목 — 한글 대표 이름(제안의 '후' → 지금 항목 순), 없으면 이름(설계서 7.9 — 영어 키 제목을 앞에 두지 않는다)."""
+    after = ((change.fields or {}).get("payload") or {}).get("after")
+    for payload in (after, cur.payload if cur is not None else None):
+        label = payload.get("pref_label") if isinstance(payload, dict) else None
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    return name
+
+
 def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[str, Any]) -> dict[str, Any]:
     """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
     main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
     change, cur = group[main_index]
-    views = [change_view(c, r, extra["names"], extra["links"]) for c, r in group]
+    views = [change_view(c, r, extra["names"], extra["links"], extra["admin"], extra["prices"], extra["about"])
+             for c, r in group]
     after_name = ((change.fields or {}).get("name") or {}).get("after")
     key = change.item_key or ""
+    name = cur.name if cur is not None else (after_name or key)
     return {
-        "id": change.id, "key": key, "name": cur.name if cur is not None else (after_name or key),
+        "id": change.id, "key": key, "name": name, "title": card_title(change, cur, name),
+        "bin": card_bin(change.op, change.item_type, change.fields, change.link_kind),
         "type": change.item_type, "layer": change.layer, "brand": change.brand,
         "usage_count": (int(cur.usage_count or 0) + extra["usage"].get(key, 0)) if cur is not None else 0,
         "version": cur.version if cur is not None else None, "exists": cur is not None,
@@ -346,6 +417,8 @@ def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, 
               and c.proposed_by[5:].isdigit()}
     extra = {"names": people_names(session, people), "links": link_versions(session, [c for c, _r in rows]),
              "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys),
-             "usage": usage_of(session, item_keys)}
+             "usage": usage_of(session, item_keys), "admin": viewer.is_admin,
+             "prices": price_cards(session, viewer, [c for c, _r in rows]),
+             "about": about_items(session, viewer, [c for c, _r in rows])}
     cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)
     return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now, viewer)}

@@ -283,3 +283,46 @@ def test_plan_text_goes_into_new_items_and_withdraw_refiles_only_undecided(admin
     assert texts["term/synth-word"] == f"{MARK} 낱말 뜻 글"
     assert texts["lahom/p-split-a"] == f"{MARK} 가 나눔 글"
     assert texts["spec/synth-limit"] == f"{MARK} 한도"  # 글이 없으면 대표 이름(규격)
+
+
+def test_text_fix_files_a_text_edit_once_and_skips_same_text(admin):
+    """``text_fix`` 는 승인된 글의 고침을 고침 제안 '글' 칸으로 싣는다(D147 맞춤법만) — 지금 글과 같으면 싣지 않고,
+    다시 돌려도 같은 제안이 둘 열리지 않는다."""
+    from foms.services.brain.store import current_object, values_of
+
+    document = plan()
+    document["items"][6].update(text_fix=f"{MARK} 고친 글", text_fix_why="D147 — 합성 맞춤법만")  # pol
+    document["items"][8]["text_fix"] = values_of(current_object(db_session, "lahom/tpl"))["text"]  # 대조군: 같은 글
+    run_plan(document)
+    rows = db_session.execute(select(BrainChange).where(BrainChange.proposed_by == "import", BrainChange.op == "update",
+                                                         BrainChange.status == "open")).scalars().all()
+    fixed = [c for c in rows if c.item_key == "lahom/pol"]
+    assert len(fixed) == 1 and fixed[0].fields["text"]["after"] == f"{MARK} 고친 글"
+    assert "payload" in fixed[0].fields and "맞춤법 · 뜻을 고쳐요" in fixed[0].reason and "D147" in fixed[0].reason
+    assert not any("text" in (c.fields or {}) for c in rows if c.item_key == "lahom/tpl")  # 같은 글은 싣지 않는다
+    before = changes()
+    run_plan(document)
+    assert changes() == before  # 다시 돌려도 그대로
+
+
+def test_price_creates_carry_their_calculator_place_and_reasons_read_as_sentences(admin):
+    """새 가격 규칙 만들기 제안은 근거에 계산기 자리를 함께 싣는다(카드가 '지금 값' 한 줄 — 설계서 7.9 ② 문장 카드).
+    못 찾은 이름(띄어쓰기 다름)은 싣지 않는다. 까닭은 사람이 읽는 문장 + 사장님 결정 번호."""
+    run_plan()
+    rows = {c.item_key: c for c in db_session.execute(select(BrainChange).where(
+        BrainChange.proposed_by == "import", BrainChange.op == "create")).scalars()}
+    split_a, split_b = rows["lahom/p-split-a"], rows["lahom/p-split-b"]
+    assert [e for e in split_a.evidence if e.startswith("calc:")] == [e for e in split_a.evidence[1:]]
+    assert len(split_a.evidence) == 2 and split_a.evidence[1].startswith("calc:option/")
+    assert split_b.evidence == split_b.evidence[:1]  # 못 찾은 자리는 안 싣는다(대조군)
+    assert split_a.reason.startswith("한 글에 여러 값이 섞여 있어서 값마다 나눠요 (자료 정리 · 사장님 결정 D115")
+    assert "채움" not in " ".join(c.reason for c in rows.values()) and "자료 계획 —" not in split_a.reason
+
+
+def test_conflict_proposals_carry_the_items_they_are_about(admin):
+    """엇갈림 · 질문 제안은 근거에 다루는 항목(``about:<키>``)을 싣는다 — ③ 질문 카드가 두 글을 나란히(설계서 7.9)."""
+    run_plan()
+    rows = db_session.execute(select(BrainChange).where(BrainChange.proposed_by == "import",
+                                                         BrainChange.item_type.in_(("conflict", "question")))).scalars().all()
+    about = {c.item_type: [e for e in c.evidence if e.startswith("about:")] for c in rows}
+    assert about == {"conflict": ["about:lahom/p-calc"], "question": ["about:lahom/pol"]}  # 없는 'gone' 은 빠진다

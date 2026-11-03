@@ -59,9 +59,9 @@ _CHECKED = Prop("checked_at", "마지막 확인", "date", key=True)
 _LEAD = Prop("payload.lead_days", "제작 기간", "int", low=1, high=180, unit="일", key=True)
 #: SKOS 꼴 이름표(7.7 · D105 · 점검 '지금 4') — 대표 이름(비우면 ``name``) · 다른 이름 · 숨은 이름(잘못 쓴 말 · 줄임 —
 #: 찾기만 보고 화면에 안 보임) · 위 낱말. 실음 칸이라 :mod:`.labels` 가 찾기 · 벡터 글에 쓴다.
-_PREF = Prop("payload.pref_label", "대표 이름", "text", max_len=60, key=True)
-_ALIASES = Prop("payload.aliases", "다른 이름", "list", max_items=20, max_len=60, key=True)
-_HIDDEN = Prop("payload.hidden_labels", "숨은 이름", "list", max_items=20, max_len=60)
+_PREF = Prop("payload.pref_label", "한글 이름", "text", max_len=60, key=True)
+_ALIASES = Prop("payload.aliases", "찾는 말", "list", max_items=20, max_len=60, key=True)
+_HIDDEN = Prop("payload.hidden_labels", "숨은 찾는 말", "list", max_items=20, max_len=60)
 _BROADER = Prop("payload.broader", "위 낱말", "text", max_len=60)
 #: 이름표 칸 넷. 옮긴 지식 문서 항목(가격 규칙 · 사실 · 사장님 결정)과 규격에도 둔다 — 설계서 7.8 자료 '옮긴 72개에 사람용 한글
 #: 이름 · 다른 이름'(점검 '지금 3' · D130). 지식 문서로는 나가지 않는 brain 만의 칸이다(:func:`brain_payload_keys`).
@@ -185,6 +185,16 @@ def prop_of(item_type: Optional[str], path: str) -> Optional[Prop]:
 def payload_props(item_type: Optional[str]) -> tuple[Prop, ...]:
     """그 유형 틀의 실음 칸 속성들(화면이 고칠 칸으로 쓴다)."""
     return tuple(p for p in TYPE_SCHEMAS.get(item_type or "", ()) if p.path.startswith(PAYLOAD))
+
+
+def edit_props(item_type: Optional[str]) -> tuple[Prop, ...]:
+    """'고쳐서 승인'으로 고칠 수 있는 실음 칸 속성 — 유형 틀, 틀이 없는 유형(상용구 등)은 이름표 칸만(설계서 7.9 ① 이름 표)."""
+    return payload_props(item_type) or _LABELS
+
+
+def edit_prop(item_type: Optional[str], path: str) -> Optional[Prop]:
+    """고칠 칸 하나의 자리(유형 틀 먼저, 없으면 이름표 칸)."""
+    return prop_of(item_type, path) or next((p for p in edit_props(item_type) if p.path == path), None)
 
 
 def brain_payload_keys(item_type: Optional[str]) -> frozenset[str]:
@@ -313,11 +323,15 @@ def key_fields(values: Mapping[str, Any], item_type: Optional[str]) -> list[dict
 
 
 def diff_rows(item_type: Optional[str], fields: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """제안 ``fields`` 의 실음 칸을 틀 칸마다 펼친 전 → 후 줄(틀 밖 실음 칸은 한 줄로). 줄 칸은 이름 · 단위만 붙인다."""
+    """제안 ``fields`` 의 실음 칸을 틀 칸마다 펼친 전 → 후 줄(틀 밖 실음 칸은 한 줄로). 줄 칸은 이름 · 단위만 붙인다.
+
+    틀이 없는 유형(상용구 등)도 이름표 칸(한글 이름 · 찾는 말 · 숨은 찾는 말)은 칸마다 펼친다 — 화면에 실음 칸 JSON 을 그대로
+    내놓지 않게(설계서 7.9)."""
     rows = []
     for name, entry in fields.items():
         entry = entry or {}
-        if name != "payload" or not payload_props(item_type):
+        props = payload_props(item_type) or _LABELS
+        if name != "payload":
             prop = prop_of(item_type, name)
             rows.append({"field": name, "before": entry.get("before"), "after": entry.get("after"),
                          **({"proposed": entry["proposed"]} if "proposed" in entry else {}),
@@ -325,16 +339,16 @@ def diff_rows(item_type: Optional[str], fields: Mapping[str, Any]) -> list[dict[
             continue
         before = entry.get("before") if isinstance(entry.get("before"), dict) else {}
         after = entry.get("after") if isinstance(entry.get("after"), dict) else {}
-        for prop in payload_props(item_type):
+        for prop in props:
             sub = prop.path[len(PAYLOAD):]
             if before.get(sub) != after.get(sub):
                 unit = unit_of(prop, {"payload": after}) or unit_of(prop, {"payload": before})
                 rows.append({"field": prop.path, "before": before.get(sub), "after": after.get(sub),
                              "label": prop.label, "unit": unit})
-        known = {p.path[len(PAYLOAD):] for p in payload_props(item_type)}
+        known = {p.path[len(PAYLOAD):] for p in props}
         if any(before.get(k) != after.get(k) for k in set(before) | set(after) if k not in known):
             rows.append({"field": "payload", "before": {k: v for k, v in before.items() if k not in known},
-                         "after": {k: v for k, v in after.items() if k not in known}, "label": "실음 칸(그 밖)",
+                         "after": {k: v for k, v in after.items() if k not in known}, "label": "그 밖 세부 칸",
                          "unit": None})
     return rows
 

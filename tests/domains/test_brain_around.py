@@ -121,7 +121,7 @@ def test_card_page_renders_the_neighbour_list_and_hides_the_3d_tab(app, people):
     html = _client(app, people["cs_mgr"]).get("/brain/items/common/door").get_data(as_text=True)
     assert 'data-brain-nb-key="common/fit"' in html  # 서버가 그린 1걸음 목록(진짜 화면)
     assert "drawing/rule" not in html and "문짝 재량 규칙" not in html  # 범위 밖은 목록에도 없다
-    assert "이웃 지도(1)" in html and 'hidden data-brain3d-tab-item' in html
+    assert "연결된 지식(1)" in html and 'hidden data-brain3d-tab-item' in html
     assert 'data-three-url="/static/vendor/three-0.187.0/three.module.js"' in html  # 폴더가 판 — ?v= 없음
     admin = _client(app, people["admin"]).get("/brain/items/common/door").get_data(as_text=True)
-    assert "이웃 지도(3)" in admin and 'data-brain-nb-key="drawing/rule"' in admin  # 대조군
+    assert "연결된 지식(3)" in admin and 'data-brain-nb-key="drawing/rule"' in admin  # 대조군

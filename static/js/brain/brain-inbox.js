@@ -2,7 +2,9 @@
  * 회사 지식 '제안함' 탭(HAUD master brain 설계서 7.5 화면 4 · 승인 흐름 · 사장님 D101 · D103) — 읽기 GET /api/brain/inbox,
  * 결정 POST /api/brain/proposals/<id>/apply · reject · bulk-apply. fetch 는 brain-dom.js 한 곳(try/catch + data.success).
  *
- * - 넣기: 기준 판 · 화면이 잰 결정 시간(카드를 보인 뒤 누를 때까지) · 등급 B 확인 글을 같이 보낸다(서버가 다시 본다).
+ * - 첫 화면은 네 묶음 한 줄씩(brain-inbox-bins.js · 설계서 7.9), '열기'를 누르면 그 묶음 카드만 · '← 확인할 것'으로 돌아간다.
+ * - ① 이름 · ④ 표시 묶음은 관리자 PC 에서 표 한 장(brain-inbox-table.js · D151) — 안 고친 줄은 한꺼번에, 고친 줄은 하나씩.
+ * - 승인: 기준 판 · 화면이 잰 결정 시간(카드를 보인 뒤 누를 때까지) · 등급 B 확인 글을 같이 보낸다(서버가 다시 본다).
  * - 고쳐 넣기: 한 번 누르면 고칠 칸이 열리고, '고친 값으로 넣기' 한 번이면 넣는다(넣기만큼 쉽게).
  * - 거절: 까닭 칩 하나를 누르면 끝(남겨서 같은 제안이 다시 오지 않게). 'PC 에서 볼게요'는 이 화면에서만 접는다(서버 쓰기 없음).
  * - 휴대폰 폭(640px 이하)이면 칸 하나 고침의 넣기와 'PC 에서 볼게요'만 그리고, 폭이 바뀌면 다시 그린다.
@@ -17,7 +19,11 @@
   var dom = window.FOMS_BRAIN_DOM;
   var review = window.FOMS_BRAIN_REVIEW;
   var cardKit = window.FOMS_BRAIN_INBOX_CARD;
+  var bins = window.FOMS_BRAIN_INBOX_BINS;
+  var tableKit = window.FOMS_BRAIN_INBOX_TABLE;
+  var questionKit = window.FOMS_BRAIN_INBOX_QUESTION;
   var root = ctx.root;
+  var isAdmin = root.getAttribute('data-is-admin') === '1';
   var list = root.querySelector('[data-brain-inbox]');
   var laterList = root.querySelector('[data-brain-later]');
   var laterBox = root.querySelector('[data-brain-later-box]');
@@ -25,7 +31,11 @@
   var status = root.querySelector('[data-brain-inbox-status]');
   var aiLine = root.querySelector('[data-brain-inbox-ai]');
   var bulk = root.querySelector('[data-brain-bulk]');
-  if (!list || !cardKit || !review) return;
+  var binList = root.querySelector('[data-brain-bins]');
+  var binIntro = root.querySelector('[data-brain-bins-intro]');
+  var binBar = root.querySelector('[data-brain-binbar]');
+  var binTitle = root.querySelector('[data-brain-bin-title]');
+  if (!list || !cardKit || !review || !bins || !binList) return;
 
   var urls = { inbox: root.getAttribute('data-inbox-url'), proposals: root.getAttribute('data-proposals-url'),
                bulk: root.getAttribute('data-bulk-url') };
@@ -33,6 +43,7 @@
   var data = null;
   var loaded = false;
   var deferred = {};
+  var openBin = '';
 
   function isPhone() {
     return phoneQuery.matches;
@@ -55,27 +66,43 @@
     return null;
   }
 
+  /** 첫 화면(묶음 목록)과 묶음 안(카드)을 갈라 보인다 — 연 묶음이 비면 첫 화면으로. */
+  function showBins(all) {
+    if (openBin && !bins.inBin(all, openBin).length) openBin = '';
+    binList.hidden = !!openBin;
+    if (binIntro) binIntro.hidden = !!openBin || !all.length;
+    if (binBar) binBar.hidden = !openBin;
+    if (binTitle) binTitle.textContent = openBin ? bins.title(openBin, bins.inBin(all, openBin).length) : '';
+    if (!openBin) bins.renderOverview(binList, all);
+    return openBin ? bins.inBin(all, openBin) : [];
+  }
+
   function render() {
     var phone = isPhone();
     root.classList.toggle('is-phone', phone);
     dom.clear(list);
     dom.clear(laterList);
-    var cards = (data && data.cards) || [];
+    var all = (data && data.cards) || [];
+    var cards = showBins(all);
     var later = 0;
+    var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
+    if (asTable) tableKit.render(list, cards, openBin);
+    var asQuestion = !!questionKit && !phone && openBin === 'decide';
     cards.forEach(function (card) {
-      var node = cardKit.build(card, ctx, phone);
+      if (asTable) return;
+      var node = asQuestion ? questionKit.build(card) : cardKit.build(card, ctx, phone);
       if (deferred[card.id]) { laterList.appendChild(node); later += 1; } else { list.appendChild(node); }
     });
     if (laterBox) laterBox.hidden = !later;
     if (laterTitle) laterTitle.textContent = (phone ? 'PC 에서 볼 것 ' : '나중에 볼 것 ') + later + '장';
     dom.setStatus(status, review.inboxStatus(data));
-    if (aiLine) aiLine.textContent = review.aiLine(data);
+    if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '확인할 것'에서 안 보인다(설계서 7.9)
     var ids = review.bulkIds(cards.filter(function (card) { return !deferred[card.id]; }));
     if (bulk) {
-      bulk.hidden = phone || ids.length < 2;
-      bulk.textContent = '등급 A 모두 넣기 (' + ids.length + '건)';
+      bulk.hidden = phone || asTable || asQuestion || ids.length < 2;  // ③ 질문은 답으로만 닫는다
+      bulk.textContent = '등급 A 모두 승인 (' + ids.length + '건)';
     }
-    setCount(cards.length);
+    setCount(all.length);
   }
 
   async function load() {
@@ -110,6 +137,35 @@
     }
     propStatus(box, (res.data && res.data.message) || '했어요.');
     await load();
+  }
+
+  /** 표의 체크한 줄 승인 — 안 고친 줄은 한꺼번에(50개씩), 이름을 고친 줄은 하나씩 '고쳐서 승인'. */
+  async function applyTable(button) {
+    var tableStatus = list.querySelector('[data-brain-table-status]');
+    var pick = tableKit.collect(list);
+    if (!pick.ids.length && !pick.edits.length) { dom.setStatus(tableStatus, '체크한 줄이 없어요.', 'error'); return; }
+    button.disabled = true;
+    dom.setStatus(tableStatus, '승인하는 중…');
+    var done = 0;
+    var failed = 0;
+    for (var i = 0; i < pick.ids.length; i += 50) {
+      var part = pick.ids.slice(i, i + 50);
+      var res = await dom.postJson(urls.bulk, { ids: part });
+      if (!res.ok) { failed += part.length; continue; }
+      done += res.data.applied.length;
+      failed += (res.data.failed || []).length;
+    }
+    for (var j = 0; j < pick.edits.length; j += 1) {
+      var view = findView(pick.edits[j].id);
+      var edits = {};
+      edits[tableKit.prefField] = pick.edits[j].name;
+      var one = view && await dom.postJson(urls.proposals + '/' + view.id + '/apply',
+                                           review.applyBody(view, { viewMs: 0, confirmed: true, edits: edits }));
+      if (one && one.ok) done += 1; else failed += 1;
+    }
+    await load();
+    dom.setStatus(status, '승인 ' + done + '건' + (failed ? ' · 못 함 ' + failed + '건(카드로 하나씩 봐 주세요)' : ''),
+                  failed ? 'error' : undefined);
   }
 
   function viewMs(box) {
@@ -160,7 +216,7 @@
     else if (act === 'edit') toggleEdit(box, true);
     else if (act === 'edit-apply') {
       var edits = readEdits(box, prop);
-      if (!edits) { propStatus(box, '고친 값이 처음 제안과 같아요 — 그대로면 넣기를 눌러 주세요.', 'error'); return; }
+      if (!edits) { propStatus(box, '고친 값이 처음 제안과 같아요 — 그대로면 승인을 눌러 주세요.', 'error'); return; }
       apply(box, prop, edits);
     } else if (act === 'reject') {
       var chips = box.querySelector('[data-brain-reject-box]');
@@ -176,6 +232,23 @@
   }
 
   root.addEventListener('click', function (event) {
+    var answer = event.target.closest('[data-brain-answer]');
+    if (answer && root.contains(answer) && questionKit) {
+      questionKit.answer(answer, { urls: urls, findView: findView, reload: load,
+                                   done: function (text) { dom.setStatus(status, text); } });
+      return;
+    }
+    var tableApply = event.target.closest('[data-brain-table-apply]');
+    if (tableApply && root.contains(tableApply)) {
+      applyTable(tableApply);
+      return;
+    }
+    var binButton = event.target.closest('[data-brain-bin-open], [data-brain-bin-back]');
+    if (binButton && root.contains(binButton)) {
+      openBin = binButton.getAttribute('data-brain-bin-open') || '';
+      render();
+      return;
+    }
     var button = event.target.closest('[data-brain-act]');
     if (!button || !root.contains(button) || !button.closest('#brain-tab-inbox')) return;
     onAct(button);
@@ -183,8 +256,9 @@
 
   if (bulk) {
     bulk.addEventListener('click', async function () {
-      var ids = review.bulkIds(((data && data.cards) || []).filter(function (card) { return !deferred[card.id]; }));
-      if (!ids.length || !window.confirm('등급 A 제안 ' + ids.length + '건을 한꺼번에 넣을까요?')) return;
+      var shown = openBin ? bins.inBin((data && data.cards) || [], openBin) : [];
+      var ids = review.bulkIds(shown.filter(function (card) { return !deferred[card.id]; }));
+      if (!ids.length || !window.confirm('등급 A 제안 ' + ids.length + '건을 한꺼번에 승인할까요?')) return;
       bulk.disabled = true;
       var res = await dom.postJson(urls.bulk, { ids: ids });
       bulk.disabled = false;
@@ -194,7 +268,7 @@
       }
       await load();
       var failed = (res.data.failed || []).length;
-      dom.setStatus(status, '넣음 ' + res.data.applied.length + '건' + (failed ? ' · 못 넣음 ' + failed + '건(새로 보고 하나씩)' : ''));
+      dom.setStatus(status, '승인 ' + res.data.applied.length + '건' + (failed ? ' · 못 함 ' + failed + '건(새로 보고 하나씩)' : ''));
     });
   }
 

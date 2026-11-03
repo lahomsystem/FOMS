@@ -26,33 +26,31 @@
     <div class="brain-card__head">
       <a class="brain-chip" href="{{ url_for('brain_web.index', tab='table', type=it.type) }}"
          title="{{ td[0] }} 지식 표로"><i class="fas {{ td[2] }} brain-chip__icon" aria-hidden="true"></i>{{ td[0] }}</a>
-      <h1 class="brain-card__title">{{ it.name }}</h1>
+      <h1 class="brain-card__title">{{ card.labels.pref or it.name }}</h1>
     </div>
+    {#- 설계서 7.9 화면 6 — 맨 위는 사람이 읽는 것만(사용 중 · 기간 끝남 · 낡음 · 기다리는 수정). 확신 · 빠진 링크 · 키 · 판은
+        '한눈에' 탭의 '자세히 보기' 안. -#}
     <p class="mb-2">
-      <span class="brain-badge brain-badge--{{ it.status }}">{{ status_labels.get(it.status, it.status) }}</span>
-      <span class="brain-badge brain-badge--{{ it.confidence }}">확신 {{ confidence_labels.get(it.confidence, it.confidence) }}</span>
+      <span class="brain-badge brain-badge--{{ it.status }}">{{ '사용 중' if it.status == 'active' else status_labels.get(it.status, it.status) }}</span>
       {% if it.ended %}<span class="brain-badge brain-badge--ended">기간 끝남 — {{ it.valid_to }}까지였어요</span>{% endif %}
       {% if it.stale %}<span class="brain-badge brain-badge--stale">낡음 — 다시 확인할 때</span>{% endif %}
-      {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing" data-brain-missing="{{ gap.kind }}">빠진 링크 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
-      {% for warn in card.warnings %}<span class="brain-badge brain-badge--missing" data-brain-warning="{{ warn.code }}">{{ warn.text }}</span>{% endfor %}
-      {% if it.needs_check %}<span class="brain-badge brain-badge--check">확인 필요 — 열린 제안 {{ it.open_changes }}건</span>{% endif %}
-      <span class="brain-card__key">{{ it.key }} · 판 {{ it.version }}</span>
+      {% if it.needs_check %}<span class="brain-badge brain-badge--check">승인을 기다리는 수정 {{ it.open_changes }}개</span>{% endif %}
     </p>
   </div>
 
   <ul class="nav nav-tabs brain-tabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="brain-card-main-btn" data-bs-toggle="tab" data-bs-target="#brain-card-main"
-              type="button" role="tab" aria-controls="brain-card-main" aria-selected="true">내용</button>
+              type="button" role="tab" aria-controls="brain-card-main" aria-selected="true">한눈에</button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="brain-card-history-btn" data-bs-toggle="tab" data-bs-target="#brain-card-history"
-              type="button" role="tab" aria-controls="brain-card-history" aria-selected="false">이력({{ card.history|length }})</button>
+              type="button" role="tab" aria-controls="brain-card-history" aria-selected="false">수정 기록({{ card.history|length }})</button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="brain-card-neighbours-btn" data-bs-toggle="tab" data-bs-target="#brain-card-neighbours"
               type="button" role="tab" aria-controls="brain-card-neighbours" aria-selected="false"
-              data-brain-tab-name="neighbours">이웃 지도({{ around.total }})</button>
+              data-brain-tab-name="neighbours">연결된 지식({{ around.total }})</button>
     </li>
     {#- 뇌 보기 — 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 숨긴 채(brain3d-tab.js 가 판정해 보인다). -#}
     <li class="nav-item" role="presentation" hidden data-brain3d-tab-item>
