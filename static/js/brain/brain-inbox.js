@@ -3,6 +3,7 @@
  * 결정 POST /api/brain/proposals/<id>/apply · reject · bulk-apply. fetch 는 brain-dom.js 한 곳(try/catch + data.success).
  *
  * - 첫 화면은 네 묶음 한 줄씩(brain-inbox-bins.js · 설계서 7.9), '열기'를 누르면 그 묶음 카드만 · '← 확인할 것'으로 돌아간다.
+ * - ① 이름 · ④ 표시 묶음은 관리자 PC 에서 표 한 장(brain-inbox-table.js · D151) — 안 고친 줄은 한꺼번에, 고친 줄은 하나씩.
  * - 승인: 기준 판 · 화면이 잰 결정 시간(카드를 보인 뒤 누를 때까지) · 등급 B 확인 글을 같이 보낸다(서버가 다시 본다).
  * - 고쳐 넣기: 한 번 누르면 고칠 칸이 열리고, '고친 값으로 넣기' 한 번이면 넣는다(넣기만큼 쉽게).
  * - 거절: 까닭 칩 하나를 누르면 끝(남겨서 같은 제안이 다시 오지 않게). 'PC 에서 볼게요'는 이 화면에서만 접는다(서버 쓰기 없음).
@@ -19,6 +20,8 @@
   var review = window.FOMS_BRAIN_REVIEW;
   var cardKit = window.FOMS_BRAIN_INBOX_CARD;
   var bins = window.FOMS_BRAIN_INBOX_BINS;
+  var tableKit = window.FOMS_BRAIN_INBOX_TABLE;
+  var isAdmin = root.getAttribute('data-is-admin') === '1';
   var root = ctx.root;
   var list = root.querySelector('[data-brain-inbox]');
   var laterList = root.querySelector('[data-brain-later]');
@@ -81,17 +84,20 @@
     var all = (data && data.cards) || [];
     var cards = showBins(all);
     var later = 0;
+    var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
+    if (asTable) tableKit.render(list, cards, openBin);
     cards.forEach(function (card) {
+      if (asTable) return;
       var node = cardKit.build(card, ctx, phone);
       if (deferred[card.id]) { laterList.appendChild(node); later += 1; } else { list.appendChild(node); }
     });
     if (laterBox) laterBox.hidden = !later;
     if (laterTitle) laterTitle.textContent = (phone ? 'PC 에서 볼 것 ' : '나중에 볼 것 ') + later + '장';
     dom.setStatus(status, review.inboxStatus(data));
-    if (aiLine) aiLine.textContent = openBin ? review.aiLine(data) : '';
+    if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '확인할 것'에서 안 보인다(설계서 7.9)
     var ids = review.bulkIds(cards.filter(function (card) { return !deferred[card.id]; }));
     if (bulk) {
-      bulk.hidden = phone || ids.length < 2;
+      bulk.hidden = phone || asTable || ids.length < 2;
       bulk.textContent = '등급 A 모두 승인 (' + ids.length + '건)';
     }
     setCount(all.length);
@@ -129,6 +135,35 @@
     }
     propStatus(box, (res.data && res.data.message) || '했어요.');
     await load();
+  }
+
+  /** 표의 체크한 줄 승인 — 안 고친 줄은 한꺼번에(50개씩), 이름을 고친 줄은 하나씩 '고쳐서 승인'. */
+  async function applyTable(button) {
+    var tableStatus = list.querySelector('[data-brain-table-status]');
+    var pick = tableKit.collect(list);
+    if (!pick.ids.length && !pick.edits.length) { dom.setStatus(tableStatus, '체크한 줄이 없어요.', 'error'); return; }
+    button.disabled = true;
+    dom.setStatus(tableStatus, '승인하는 중…');
+    var done = 0;
+    var failed = 0;
+    for (var i = 0; i < pick.ids.length; i += 50) {
+      var part = pick.ids.slice(i, i + 50);
+      var res = await dom.postJson(urls.bulk, { ids: part });
+      if (!res.ok) { failed += part.length; continue; }
+      done += res.data.applied.length;
+      failed += (res.data.failed || []).length;
+    }
+    for (var j = 0; j < pick.edits.length; j += 1) {
+      var view = findView(pick.edits[j].id);
+      var edits = {};
+      edits[tableKit.prefField] = pick.edits[j].name;
+      var one = view && await dom.postJson(urls.proposals + '/' + view.id + '/apply',
+                                           review.applyBody(view, { viewMs: 0, confirmed: true, edits: edits }));
+      if (one && one.ok) done += 1; else failed += 1;
+    }
+    await load();
+    dom.setStatus(status, '승인 ' + done + '건' + (failed ? ' · 못 함 ' + failed + '건(카드로 하나씩 봐 주세요)' : ''),
+                  failed ? 'error' : undefined);
   }
 
   function viewMs(box) {
@@ -195,6 +230,11 @@
   }
 
   root.addEventListener('click', function (event) {
+    var tableApply = event.target.closest('[data-brain-table-apply]');
+    if (tableApply && root.contains(tableApply)) {
+      applyTable(tableApply);
+      return;
+    }
     var binButton = event.target.closest('[data-brain-bin-open], [data-brain-bin-back]');
     if (binButton && root.contains(binButton)) {
       openBin = binButton.getAttribute('data-brain-bin-open') || '';

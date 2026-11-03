@@ -187,6 +187,16 @@ def payload_props(item_type: Optional[str]) -> tuple[Prop, ...]:
     return tuple(p for p in TYPE_SCHEMAS.get(item_type or "", ()) if p.path.startswith(PAYLOAD))
 
 
+def edit_props(item_type: Optional[str]) -> tuple[Prop, ...]:
+    """'고쳐서 승인'으로 고칠 수 있는 실음 칸 속성 — 유형 틀, 틀이 없는 유형(상용구 등)은 이름표 칸만(설계서 7.9 ① 이름 표)."""
+    return payload_props(item_type) or _LABELS
+
+
+def edit_prop(item_type: Optional[str], path: str) -> Optional[Prop]:
+    """고칠 칸 하나의 자리(유형 틀 먼저, 없으면 이름표 칸)."""
+    return prop_of(item_type, path) or next((p for p in edit_props(item_type) if p.path == path), None)
+
+
 def brain_payload_keys(item_type: Optional[str]) -> frozenset[str]:
     """그 유형 틀의 실음 칸 이름 — 지식 문서 유형에서는 **brain 만의 칸**(문서로 나가지 않고, 옮기기를 다시 돌려도 남는다)."""
     return frozenset(p.path[len(PAYLOAD):] for p in payload_props(item_type)) - _DOC_KEYS
