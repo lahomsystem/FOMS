@@ -21,8 +21,8 @@
   var cardKit = window.FOMS_BRAIN_INBOX_CARD;
   var bins = window.FOMS_BRAIN_INBOX_BINS;
   var tableKit = window.FOMS_BRAIN_INBOX_TABLE;
-  var isAdmin = root.getAttribute('data-is-admin') === '1';
   var root = ctx.root;
+  var isAdmin = root.getAttribute('data-is-admin') === '1';
   var list = root.querySelector('[data-brain-inbox]');
   var laterList = root.querySelector('[data-brain-later]');
   var laterBox = root.querySelector('[data-brain-later-box]');
