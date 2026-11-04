@@ -1324,6 +1324,23 @@ def test_common_mobile_attachments_select_upload_immediately() -> None:
     assert "erpUploadSelectedAttachments(this);" in shared_js
 
 
+def test_common_mobile_gallery_input_lets_ios_convert_heic_to_jpeg() -> None:
+    """갤러리 input 이 .heic/.heif 를 직접 받으면 iOS 가 JPEG 변환을 건너뛰어
+    Windows 크롬에서 안 보이는 HEIC 원본이 R2 에 올라간다."""
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    mobile_partial = (
+        root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    match = re.search(r'<input[^>]*id="erp-attachments-gallery-input"[^>]*>', mobile_partial, re.S)
+    assert match, "gallery input missing"
+    tag = match.group(0).lower()
+    assert "image/*" in tag
+    assert "heic" not in tag
+    assert "heif" not in tag
+
+
 def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> None:
     """대시보드/실측 상세 금액 표시도 ERP Order payment.deposit와 final totals를 우선 사용한다."""
     root = Path(__file__).resolve().parents[2]
