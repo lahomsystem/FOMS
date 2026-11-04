@@ -35,13 +35,39 @@
     });
   }
 
+  /** 칸에 못 넣은 파일 — 예전에는 안내 없이 빠졌다(사용자 11-04 업로드 점검). 사진 20MB(서버 한도) · 동영상 50MB(한 번 보내기 한도). */
+  function tooBig(f) {
+    var video = String(f.type || '').indexOf('video/') === 0;
+    return f.size > (video ? 50 : 20) * 1024 * 1024 ? (video ? '동영상|50MB' : '사진 · 파일|20MB') : '';
+  }
+
+  function note(zone, skip) {
+    var msgs = [];
+    if (skip.full) msgs.push(skip.full + '개는 한 칸 ' + MAX_FILES + '개를 넘어 넣지 못했습니다');
+    Object.keys(skip.big).forEach(function (k) {
+      var part = k.split('|');
+      msgs.push(part[0] + ' ' + skip.big[k] + '개는 ' + part[1] + '를 넘어 넣지 못했습니다');
+    });
+    if (skip.type) msgs.push(skip.type + '개는 올릴 수 없는 형식입니다');
+    var box = zone.querySelector('[data-pp-photo-note]');
+    if (!box) return;
+    box.textContent = msgs.join(' · ');
+    box.hidden = !msgs.length;
+  }
+
   function add(zone, files) {
     if (!zone) return;
     var list = filesOf(zone);
+    var skip = { full: 0, type: 0, big: {} };
     Array.prototype.forEach.call(files || [], function (f) {
-      if (list.length < MAX_FILES && accepts(zone, f)) list.push(f);
+      var big = accepts(zone, f) ? tooBig(f) : '';
+      if (!accepts(zone, f)) skip.type += 1;
+      else if (big) skip.big[big] = (skip.big[big] || 0) + 1;
+      else if (list.length >= MAX_FILES) skip.full += 1;
+      else list.push(f);
     });
     render(zone);
+    note(zone, skip);
   }
 
   function cards() {
@@ -85,7 +111,7 @@
     var el = document.createElement('div');
     el.className = 'pp-tile border rounded bg-white p-1 d-flex align-items-center gap-1';
     var media;
-    if (String(file.type).indexOf('image/') === 0) {
+    if (String(file.type).indexOf('image/') === 0 && !/\.(heic|heif)$/i.test(file.name)) {  // HEIC 는 PC 브라우저가 못 그려 아이콘
       media = document.createElement('img');
       media.className = 'pp-tile__thumb';
       media.alt = file.name;

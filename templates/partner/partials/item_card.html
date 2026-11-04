@@ -73,7 +73,7 @@
                 </div>
                 {% elif not editable %}<div class="small text-muted mt-1">이 제품에 붙인 사진이 없습니다.</div>{% endif %}
             </div>{% endif %}
-            {% if editable %}{{ photo_zone('item', '이 제품 실측 사진', 'image/*,video/*', '아직 고른 사진이 없습니다.') }}{% endif %}
+            {% if editable %}{{ photo_zone('item', '이 제품 실측 사진', 'image/*,video/*,.heic,.heif', '아직 고른 사진이 없습니다.') }}{% endif %}
         </div>
     </div>
 </div>
