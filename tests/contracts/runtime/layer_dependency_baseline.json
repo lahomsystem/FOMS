@@ -82,6 +82,7 @@
     "foms/api/share.py::foms.web.auth",
     "foms/api/shipment/change_ack.py::foms.web.auth",
     "foms/api/shipment/packing.py::foms.web.auth",
+    "foms/api/shipment/partner_request.py::foms.web.auth",
     "foms/api/shipment/recommendations.py::foms.web.auth",
     "foms/api/shipment/settings.py::foms.web.auth",
     "foms/api/tasks.py::foms.web.auth",

@@ -100,7 +100,8 @@ def test_shipment_panel_counts_request(app, world):
     asked = _order(app, world["partner_a"], day)
     admin = _client(app, db_session.get(User, world["admin"]))
     page = admin.get("/erp/shipment").get_data(as_text=True)
-    assert _panel_count(page, day) == 1 and "날짜별 시공 건수 · 자수 · 그날 목록에 들어가 있습니다" in page
+    # 긴 안내 문장은 2주 판으로 바꾸며 뺐다(설계서 2026-11-04-shipment-partner-request-board) — 그날 칸에 단추로 보인다.
+    assert _panel_count(page, day) == 1 and f'data-prb-cell="{day}"' in page and f'data-prb-chip="{asked}"' in page
     staff = _client(app, db_session.get(User, world["staff"]))
     assert _panel_count(staff.get("/erp/shipment?mine=1").get_data(as_text=True), day) == 0
     _confirm(asked, day)

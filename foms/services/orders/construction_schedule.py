@@ -17,12 +17,22 @@ from typing import Any
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.error_logging import log_handled_exception
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.notifications.drawing_order_change import (
+    apply_drawing_order_change_alert,
+    finalize_drawing_order_change_alert,
+)
+from foms.services.notifications.production_change import (
+    apply_production_change_alert,
+    finalize_production_change_alert,
+)
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.structured_diff import diff_structured
-from foms.services.partners.schedule_request import clean_date
+from foms.services.partners.schedule_request import clean_date, request_open
+from foms.services.production_change_alerts import _date_to_md
 
 #: 판 · 주문 화면에서 고르는 시공시간(주문 화면의 '직접 입력'은 CS · 영업 폼 저장으로만).
 TIME_CHOICES = ("", "오전", "오후", "종일")
@@ -97,8 +107,6 @@ def write_construction_schedule(
     actor_name = getattr(user, "name", None) or "SYSTEM"
     notifications: list[tuple[str, Any, bool]] = []
     try:
-        from foms.services.notifications.drawing_order_change import apply_drawing_order_change_alert
-
         notif, created = apply_drawing_order_change_alert(
             db, order, old_sd, sd, actor_user_id=actor_id, actor_name=actor_name,
             old_notes=getattr(order, "notes", None), new_notes=getattr(order, "notes", None),
@@ -108,22 +116,15 @@ def write_construction_schedule(
         )
         notifications.append(("drawing", notif, created))
     except Exception:  # noqa: BLE001 — 도면팀 알림 실패가 시공일 저장을 막으면 안 된다(field_update 와 같다)
-        from foms.services.error_logging import log_handled_exception
-
         log_handled_exception("construction schedule drawing alert")
     if before_date != date:
         try:
-            from foms.services.notifications.production_change import apply_production_change_alert
-            from foms.services.production_change_alerts import _date_to_md
-
             notif, created = apply_production_change_alert(
                 db, order, "construction_date", f"{_date_to_md(before_date or None)} → {_date_to_md(date)}",
                 actor_user_id=actor_id, actor_name=actor_name,
             )
             notifications.append(("production", notif, created))
         except Exception:  # noqa: BLE001 — 생산팀 알림 실패도 저장을 막지 않는다
-            from foms.services.error_logging import log_handled_exception
-
             log_handled_exception("construction schedule production alert")
 
     order.structured_data = sd
@@ -148,16 +149,10 @@ def finalize_schedule_notifications(db, result: ScheduleWrite) -> None:
     for kind, notif, created in result.notifications:
         try:
             if kind == "drawing":
-                from foms.services.notifications.drawing_order_change import finalize_drawing_order_change_alert
-
                 finalize_drawing_order_change_alert(db, notif, created_new=created)
             else:
-                from foms.services.notifications.production_change import finalize_production_change_alert
-
                 finalize_production_change_alert(db, notif, created_new=created)
         except Exception:  # noqa: BLE001 — 커밋은 끝났다, 알림 마무리 실패는 기록만
-            from foms.services.error_logging import log_handled_exception
-
             log_handled_exception("construction schedule notify finalize")
 
 
@@ -171,8 +166,6 @@ def confirm_partner_request(db, order: Any, user: Any, *, date: Any, time: Any) 
     부르는 쪽이 ``lock_order_row`` 로 잠그고 협력사 주문인지 본다. 이미 시공일이 있거나 시공이 시작된
     단계면 :class:`ScheduleConflict`. 시공시간이 이미 있으면 그대로 둔다(바꾸면 사유 대상이 된다).
     """
-    from foms.services.partners.schedule_request import request_open
-
     clean, text = validate_schedule_input(date, time)
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     if str(getattr(order, "erp_construction_date", "") or "").strip() or not request_open(sd, order.erp_stage_code or ""):
