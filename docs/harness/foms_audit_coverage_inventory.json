@@ -1634,7 +1634,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_answer",
-      "lineno": 288,
+      "lineno": 291,
       "methods": [
         "POST"
       ],
@@ -1643,7 +1643,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_discard",
-      "lineno": 245,
+      "lineno": 248,
       "methods": [
         "POST"
       ],
@@ -1652,7 +1652,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue",
-      "lineno": 198,
+      "lineno": 201,
       "methods": [
         "POST"
       ],
@@ -1661,7 +1661,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue_complete",
-      "lineno": 261,
+      "lineno": 264,
       "methods": [
         "POST"
       ],
@@ -1670,7 +1670,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_open_draft",
-      "lineno": 146,
+      "lineno": 149,
       "methods": [
         "POST"
       ],
@@ -1679,7 +1679,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_recalc",
-      "lineno": 179,
+      "lineno": 182,
       "methods": [
         "POST"
       ],
@@ -1688,7 +1688,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_revise",
-      "lineno": 214,
+      "lineno": 217,
       "methods": [
         "POST"
       ],
@@ -1697,7 +1697,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_save",
-      "lineno": 163,
+      "lineno": 166,
       "methods": [
         "POST"
       ],
@@ -1706,7 +1706,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_void",
-      "lineno": 230,
+      "lineno": 233,
       "methods": [
         "POST"
       ],
@@ -1967,7 +1967,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_orders_wdc_estimate_sync",
-      "lineno": 1290,
+      "lineno": 1291,
       "methods": [
         "POST"
       ],
@@ -1994,7 +1994,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_notes_category",
-      "lineno": 821,
+      "lineno": 822,
       "methods": [
         "DELETE"
       ],
@@ -2003,7 +2003,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_notes_option",
-      "lineno": 868,
+      "lineno": 869,
       "methods": [
         "DELETE"
       ],
@@ -2012,7 +2012,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_option",
-      "lineno": 760,
+      "lineno": 761,
       "methods": [
         "DELETE"
       ],
@@ -2030,7 +2030,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_spec_field_preset",
-      "lineno": 965,
+      "lineno": 966,
       "methods": [
         "DELETE"
       ],
@@ -2039,7 +2039,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_estimate",
-      "lineno": 1130,
+      "lineno": 1131,
       "methods": [
         "DELETE"
       ],
@@ -2048,7 +2048,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_match_order",
-      "lineno": 1156,
+      "lineno": 1157,
       "methods": [
         "POST"
       ],
@@ -2066,7 +2066,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_estimate",
-      "lineno": 984,
+      "lineno": 985,
       "methods": [
         "POST"
       ],
@@ -2075,7 +2075,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_notes_category",
-      "lineno": 785,
+      "lineno": 786,
       "methods": [
         "POST"
       ],
@@ -2084,7 +2084,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_notes_option",
-      "lineno": 835,
+      "lineno": 836,
       "methods": [
         "POST"
       ],
@@ -2111,7 +2111,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_spec_field_preset",
-      "lineno": 912,
+      "lineno": 913,
       "methods": [
         "POST"
       ],
@@ -2120,7 +2120,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_unmatch_order",
-      "lineno": 1226,
+      "lineno": 1227,
       "methods": [
         "POST"
       ],
