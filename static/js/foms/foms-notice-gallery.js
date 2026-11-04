@@ -24,6 +24,8 @@
   var index = 0;
   var trigger = null;
   var touch = null;
+  // 두 손가락 확대 · 확대한 뒤 끌어 옮기기(사용자 11-04 — 미리보기 확대 뒤 이동이 안 돼 사진을 못 봄). 넘기기는 1배일 때만.
+  var zoom = { scale: 1, tx: 0, ty: 0, dist: 0, pan: null, pinched: false };
 
   function safeJsonParse(val, fb) {
     try {
@@ -120,21 +122,68 @@
     parts.next.addEventListener('click', function () { show(index + 1); });
     parts.stage.addEventListener('touchstart', function (ev) {
       var t = ev.touches && ev.touches[0];
+      if (ev.touches.length === 2) {
+        zoom.pinched = true;
+        zoom.pan = null;
+        zoom.dist = gap(ev.touches);
+        return;
+      }
+      if (ev.touches.length === 1) zoom.pinched = false;
       touch = t ? { x: t.clientX, y: t.clientY } : null;
+      zoom.pan = t && zoom.scale > 1.05 ? { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty } : null;
     }, { passive: true });
+    parts.stage.addEventListener('touchmove', function (ev) {
+      if (ev.touches.length === 2 && zoom.dist) {
+        var d = gap(ev.touches);
+        zoom.scale = Math.min(4, Math.max(1, zoom.scale * d / zoom.dist));
+        zoom.dist = d;
+        if (zoom.scale <= 1.05) { zoom.tx = 0; zoom.ty = 0; }
+        applyZoom();
+        ev.preventDefault();
+      } else if (ev.touches.length === 1 && zoom.pan) {
+        zoom.tx = zoom.pan.tx + ev.touches[0].clientX - zoom.pan.x;
+        zoom.ty = zoom.pan.ty + ev.touches[0].clientY - zoom.pan.y;
+        applyZoom();
+        ev.preventDefault();
+      }
+    }, { passive: false });
     parts.stage.addEventListener('touchend', function (ev) {
       var t = ev.changedTouches && ev.changedTouches[0];
-      if (!touch || !t) return;
+      if (ev.touches.length) return;
+      zoom.dist = 0;
+      zoom.pan = null;
+      if (!touch || !t || zoom.pinched || zoom.scale > 1.05) { touch = null; return; }
       var dx = t.clientX - touch.x;
       var dy = t.clientY - touch.y;
       touch = null;
       if (Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) show(index + (dx < 0 ? 1 : -1));
     }, { passive: true });
+    parts.img.addEventListener('dblclick', function () { setZoom(zoom.scale > 1 ? 1 : 2); });
+  }
+
+  function gap(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+
+  /** 옮긴 만큼을 그림이 칸 밖으로 다 나가지 않게 묶고 그린다. */
+  function applyZoom() {
+    var box = parts.stage.getBoundingClientRect();
+    var mx = Math.max(0, (parts.img.offsetWidth * zoom.scale - box.width) / 2);
+    var my = Math.max(0, (parts.img.offsetHeight * zoom.scale - box.height) / 2);
+    zoom.tx = Math.min(mx, Math.max(-mx, zoom.tx));
+    zoom.ty = Math.min(my, Math.max(-my, zoom.ty));
+    parts.img.style.transform = zoom.scale > 1 ? 'translate(' + zoom.tx + 'px,' + zoom.ty + 'px) scale(' + zoom.scale + ')' : '';
+  }
+
+  function setZoom(scale) {
+    zoom.scale = scale;
+    zoom.tx = 0;
+    zoom.ty = 0;
+    applyZoom();
   }
 
   function show(i) {
     if (!items.length) return;
     index = Math.max(0, Math.min(i, items.length - 1));
+    setZoom(1);
     var photo = items[index];
     var full = photo.url;
     parts.img.classList.add('is-loading');
