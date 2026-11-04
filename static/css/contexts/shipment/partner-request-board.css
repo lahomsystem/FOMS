@@ -1,6 +1,10 @@
 /* 출고 화면 협력사 희망 시공일 2주 판 — templates/shipment/partials/partner_request_board.html
    설계서 docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md §2.1 · 목업 E안. */
 .prb .card-header { gap: 8px; }
+/* 머리 줄 어디를 눌러도 접고 편다(사용자 11-04) */
+.prb-head { cursor: pointer; user-select: none; }
+.prb-head:hover { background: #f8fafc !important; }
+.prb-head:focus-visible { outline: 2px solid var(--erp-primary); outline-offset: -2px; }
 .prb-note { font-size: 12px; color: var(--erp-text-muted); }
 .prb-muted { color: var(--erp-text-muted); }
 .prb-soon { color: #dc2626; font-weight: 600; margin-left: 4px; font-size: 12px; }
@@ -15,16 +19,16 @@
 .prb.is-folded .prb-when-open { display: none; }
 .prb.is-folded .prb-body { display: none; }
 
-.prb-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 8px; }
-.prb-cell { border: 1px solid var(--erp-border); border-radius: 6px; background: #fff; min-height: 96px; display: flex; flex-direction: column; }
+/* 낮은 한 줄 판(E-2) — 14칸을 한 줄에, 칸 안에는 이름만 */
+.prb-board { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 3px; padding: 6px 8px; }
+.prb-cell { border: 1px solid var(--erp-border); border-radius: 6px; background: #fff; min-width: 0; display: flex; flex-direction: column; }
 .prb-cell.is-off { background: #fffaf0; }
 .prb-cell.is-over { outline: 2px dashed var(--erp-primary); outline-offset: -2px; }
-.prb-cell__head { padding: 4px 6px; font-size: 12px; border-bottom: 1px solid var(--erp-border-light); }
-.prb-cell__top { display: flex; justify-content: space-between; font-weight: 600; gap: 4px; }
-.prb-cell__bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 3px; overflow: hidden; }
-.prb-cell__bar i { display: block; height: 100%; width: var(--prb-fill, 0%); background: #10b981; }
-.prb-cell__bar i.is-tight { background: #ef4444; }
-.prb-cell__body { padding: 4px; display: flex; flex-direction: column; gap: 3px; }
+.prb-cell__head { padding: 2px 4px; font-size: 11px; line-height: 1.3; border-bottom: 1px solid var(--erp-border-light); }
+.prb-cell__head b { font-size: 12px; }
+.prb-cell__rem { display: block; }
+.prb-cell__body { padding: 2px; display: flex; flex-direction: column; gap: 2px; }
+.prb-cell .prb-chip { font-size: 11px; padding: 0 4px; }
 
 .prb-chip { display: block; font-size: 12px; border: 1px solid #bfdbfe; background: var(--erp-primary-bg, #eff6ff); color: #1d4ed8; border-radius: 4px; padding: 1px 6px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prb-chip[draggable="true"] { cursor: grab; }
@@ -33,9 +37,14 @@
 .prb-later { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding: 4px 10px 10px; font-size: 12px; }
 .prb-later .prb-chip { display: inline-block; }
 
-.prb-log { border-top: 1px solid var(--erp-border-light); padding: 6px 10px 8px; font-size: 12px; }
-.prb-log__head { font-weight: 600; margin-bottom: 3px; }
-.prb-log__row { padding: 2px 0; }
+/* 기록 — 평소 마지막 1줄, [N건 보기]로 펼침 */
+.prb-log { border-top: 1px solid var(--erp-border-light); padding: 5px 10px; font-size: 12px; }
+.prb-log .prb-log__more { display: none; }
+.prb-log.is-open .prb-log__more { display: flex; }
+.prb-log .prb-when-log-open { display: none; }
+.prb-log.is-open .prb-when-log-open { display: inline; }
+.prb-log.is-open .prb-when-log-closed { display: none; }
+.prb-log__row { padding: 2px 0; display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
 .prb-moved { font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 0 5px; }
 
 /* 시공일 정하기 작은 창 · 알림 */

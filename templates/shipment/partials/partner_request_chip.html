@@ -1,6 +1,8 @@
-{# 협력사 희망 판 주문 단추 하나(partner_request_board.html 이 부른다). 값은 data-* 로만 넘긴다. #}
+{# 협력사 희망 판 주문 단추 하나(partner_request_board.html 이 부른다). 값은 data-* 로만 넘긴다.
+   판 칸 안에서는 이름만 보이고(낮은 한 줄 판, 사용자 11-04 E-2) 번호 · 제품 · 자수 · 시간은 title 에 둔다. #}
+{% set _units = (p.units|round|int) %}
 <a class="prb-chip" href="{{ url_for('order_edit.edit_order', order_id=p.id, open='erp-order') }}"
   data-prb-chip="{{ p.id }}" data-name="{{ p.customer_name }}" data-hope="{{ p.date }}" data-time="{{ p.time }}"
   data-units="{{ p.units }}" data-product="{{ p.product }}" data-address="{{ p.address[:24] }}"
   data-partner="{{ p.partner_name }}"{% if can_set_construction_schedule %} draggable="true"{% endif %}
-  title="{{ p.product }}{% if p.address %} · {{ p.address[:24] }}{% endif %}">{% if later_chip and p.date %}{{ p.date[5:] }} {% endif %}#{{ p.id }} {{ p.customer_name }}{% if p.label_partner %} ({{ p.label_partner }}){% endif %}{% if not later_chip %} <span class="prb-muted">{{ p.units|round(1)|string|replace('.0', '') }}자{% if p.time in ('오전', '오후', '종일') %} {{ p.time }}{% endif %}</span>{% endif %}</a>
+  title="#{{ p.id }} {{ p.customer_name }} · {{ p.product or '제품' }} {% if _units > 0 %}{{ _units }}자{% else %}자수 모름{% endif %}{% if p.time %} · {{ p.time }}{% endif %}{% if p.address %} · {{ p.address[:24] }}{% endif %}">{% if later_chip %}{% if p.date %}{{ p.date[5:] }} {% endif %}#{{ p.id }} {% endif %}{{ p.customer_name }}{% if p.label_partner %} ({{ p.label_partner }}){% endif %}</a>
