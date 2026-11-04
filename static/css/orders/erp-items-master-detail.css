@@ -510,3 +510,8 @@
   display: flex;
   gap: var(--erp-space-sm);
 }
+
+/* "◀ 이전 · 다음 항목 ▶"이 태블릿 폭(768px)에서 "이 / 전"으로 꺾이던 것(사용자 11-04 정렬 전수 점검). */
+.erp-items-master-detail-shell .item-detail__actions .btn {
+  white-space: nowrap;
+}

@@ -79,3 +79,13 @@
   .foms-pse .foms-pse__custom td { background: none; }
   .foms-pse .foms-pse__reason { min-width: 0; }
 }
+/* 휴대폰 명세서 목록(사용자 11-04 정렬 전수 점검): 표 칸이 좁아 "예시 / 고객"처럼 글자가 꺾이던 것 — 칸 글은 한 줄,
+   표는 제 상자 안에서 옆으로 민다(화면 전체는 밀리지 않는다). 한 장 화면(.foms-pse)은 위의 줄 카드 규칙. */
+@media (max-width: 600px) {
+  .foms-ps:not(.foms-pse) [data-ps-pending], .foms-ps:not(.foms-pse) [data-ps-fill-list],
+  .foms-ps:not(.foms-pse) [data-ps-issued], .foms-ps:not(.foms-pse) [data-pay-list] { overflow-x: auto; }
+  .foms-ps:not(.foms-pse) .foms-ps__table th, .foms-ps:not(.foms-pse) .foms-ps__table td { white-space: nowrap; }
+}
+/* 도면 고르기 칸의 이름은 두 줄까지(긴 제품 이름이 칸을 길게 늘이던 것). 전체 이름은 칸의 title. */
+.foms-pse__dthumb span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+

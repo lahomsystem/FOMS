@@ -40,7 +40,7 @@
 .foms-pl-f.form-check{display:flex;gap:6px;align-items:center;padding-left:0}
 .foms-pl-f.form-check .form-check-input{margin:0}
 .foms-pl-cond{border-left:2px solid var(--foms-color-neutral-200,#dde1e6);padding-left:10px}
-.foms-pl-kb{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px;vertical-align:middle;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-color-neutral-600,#4b525d)}
+.foms-pl-kb{display:inline-block;white-space:nowrap;margin-left:6px;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px;vertical-align:middle;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-color-neutral-600,#4b525d)}
 .foms-pl-kb--ja,.foms-pl-kb--meter{background:#e6e8ff;color:#3a4490}
 .foms-pl-kb--band,.foms-pl-kb--over{background:#e0f2fe;color:#075985}
 .foms-pl-kb--count,.foms-pl-kb--fixed{background:#ecfdf5;color:#047857}
@@ -70,3 +70,6 @@
 .foms-pl-tree-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .foms-pl-tree__move { margin-left: 4px; padding: 0 6px; border: 1px solid rgba(255, 255, 255, .5); border-radius: 4px; background: none; color: inherit; font-size: 12px; cursor: pointer; }
 .foms-pl-tree__move:disabled { opacity: .35; cursor: default; }
+/* 휴대폰(사용자 11-04 정렬 전수 점검): 한 줄에 품목이 둘인 표(4칸)가 좁아 이름이 한두 글자씩 꺾이던 것 — 표 칸 안에서 옆으로 민다. */
+@media (max-width: 600px) { .foms-pl__col .foms-pl__tab:has(tr > :nth-child(4)) { min-width: 560px; } }
+
