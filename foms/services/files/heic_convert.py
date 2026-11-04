@@ -17,19 +17,24 @@ logger = logging.getLogger(__name__)
 HEIC_EXTS = frozenset({"heic", "heif"})
 #: 풀었을 때 화소 상한 — 아이폰 48MP 원본도 들어오고, 일부러 부풀린 파일은 막는다.
 MAX_PIXELS = 80_000_000
+#: 우리 직원 화면이 올리기 전에 사진을 줄이는 규격(static/js/runtime/upload-progress.js compressImageFile · 품질 0.8)과 같게.
+LONG_SIDE = 1920
+JPEG_QUALITY = 80
 ERR_OPEN = "HEIC 사진을 열지 못했습니다. jpg 로 바꿔 올려 주세요."
 ERR_PIXELS = "사진이 너무 큽니다. 크기를 줄여 올려 주세요."
 
 
 def heic_to_jpeg(data: bytes) -> bytes:
-    """HEIC 바이트 → JPEG 바이트(품질 90, 방향은 HEIC 정보대로). 못 열면 ``ValueError``(사용자 문구)."""
+    """HEIC 바이트 → JPEG 바이트(긴 변 1920px · 품질 80, 방향은 HEIC 정보대로). 못 열면 ``ValueError``(사용자 문구)."""
     if not data or not pillow_heif.is_supported(data):
         raise ValueError(ERR_OPEN)
     heif = pillow_heif.open_heif(data, convert_hdr_to_8bit=True)
     if heif.size[0] * heif.size[1] > MAX_PIXELS:
         raise ValueError(ERR_PIXELS)
+    image = heif.to_pillow().convert("RGB")
+    image.thumbnail((LONG_SIDE, LONG_SIDE))  # 우리 화면 사진 줄이기와 같은 규격(긴 변 1920px · 품질 80)
     out = io.BytesIO()
-    heif.to_pillow().convert("RGB").save(out, "JPEG", quality=90, optimize=True)
+    image.save(out, "JPEG", quality=JPEG_QUALITY, optimize=True)
     return out.getvalue()
 
 

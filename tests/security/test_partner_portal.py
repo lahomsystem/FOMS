@@ -141,6 +141,15 @@ def test_partner_heic_photo_is_saved_as_jpeg_and_broken_heic_is_refused(app, wor
     broken = client.post(f"/api/partner/orders/{order_id}/files", content_type="multipart/form-data",
                          data={"kind": "photo", "file": (io.BytesIO(b"not heic" * 10), "x.heic")})
     assert broken.status_code == 400 and "HEIC" in broken.get_json()["error"]
+    # 우리 화면과 같은 줄이기 규격(긴 변 1920px) — 큰 HEIC 도 1920 으로, 작은 것은 그대로
+    from foms.services.files.heic_convert import heic_to_jpeg
+    big = io.BytesIO()
+    pillow_heif.from_pillow(Image.new("RGB", (3000, 2000), (10, 120, 200))).save(big, quality=60)
+    assert Image.open(io.BytesIO(heic_to_jpeg(big.getvalue()))).size == (1920, 1280)
+    assert Image.open(io.BytesIO(heic_to_jpeg(buf.getvalue()))).size == (64, 48)
+    # 협력사 화면은 우리 직원 화면과 같은 사진 줄이기(compressImageFile)를 싣는다
+    page = client.get("/partner/orders/new").get_data(as_text=True)
+    assert "js/runtime/upload-progress.js" in page and "js/partner/partner-upload-shrink.js" in page
 
 
 def test_partner_cannot_upload_to_other_or_started_orders(app, world, fake_storage):

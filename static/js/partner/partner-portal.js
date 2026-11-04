@@ -45,6 +45,7 @@
   }
 
   async function uploadOne(url, file, kind, itemIndex) {
+    if (window.PartnerShrink) file = await window.PartnerShrink.file(file);  // 우리 화면과 같은 사진 줄이기(partner-upload-shrink.js)
     var form = new FormData();
     form.append('file', file);
     form.append('kind', kind);
@@ -207,7 +208,7 @@
       form.querySelector('button[type="submit"]').disabled = true;
       show('보내는 중…');
       try {
-        var body = new FormData(form);
+        var body = window.PartnerShrink ? await window.PartnerShrink.formData(form) : new FormData(form);
         body.append('idempotency_key', 'pp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
         var resp = await fetch(form.getAttribute('data-pp-post-url'), { method: 'POST', body: body, credentials: 'same-origin' });
         var data = null;
