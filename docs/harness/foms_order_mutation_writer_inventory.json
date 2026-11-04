@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 82,
-    "external": 32
+    "total": 83,
+    "external": 33
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
     "CANONICAL": 43,
-    "EXTERNAL": 32,
+    "EXTERNAL": 33,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 78,
+    "flag_modified_structured_data": 79,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -162,6 +162,12 @@
       "owner": "BLUEPRINT-01"
     },
     {
+      "path": "foms/services/orders/construction_schedule.py",
+      "lineno": 131,
+      "kind": "flag_modified_structured_data",
+      "owner": "UNASSIGNED"
+    },
+    {
       "path": "foms/services/orders/cs_complete_service.py",
       "lineno": 182,
       "kind": "flag_modified_structured_data",
@@ -205,7 +211,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 490,
+      "lineno": 494,
       "kind": "flag_modified_structured_data",
       "owner": "ORDER-CREATE-01"
     }
@@ -639,6 +645,13 @@
       "owner": "BLUEPRINT-01"
     },
     {
+      "path": "foms/services/orders/construction_schedule.py",
+      "lineno": 131,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "UNASSIGNED"
+    },
+    {
       "path": "foms/services/orders/cs_complete_service.py",
       "lineno": 182,
       "kind": "flag_modified_structured_data",
@@ -780,7 +793,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 490,
+      "lineno": 494,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "ORDER-CREATE-01"

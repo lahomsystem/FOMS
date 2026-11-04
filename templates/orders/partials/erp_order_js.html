@@ -33,6 +33,8 @@
 <link rel="stylesheet" href="{{ asset_url('css/orders/erp-name-chips.css') }}">
 <script src="{{ asset_url('js/orders/erp-name-chips.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-order-shared.js') }}" defer></script>
+{# 출고팀 읽기 화면(시공일 · 시공시간만) — #erp-order-config[data-erp-construction-only] 가 참일 때만 움직인다. #}
+<script src="{{ asset_url('js/orders/erp-construction-only.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-measure-done.js') }}" defer></script>
 {# ORDER-REASON-00: 저장 성공 뒤 사유를 받는 표면(전체 저장=시트, 인라인=배너). #}
 <script src="{{ asset_url('js/orders/order-change-reason.js') }}" defer></script>

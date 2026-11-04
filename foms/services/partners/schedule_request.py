@@ -15,8 +15,9 @@ from typing import Any
 
 from sqlalchemy import and_, or_
 
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.notifications.recipients import fan_out_new_notification
-from models import Notification, Order, OrderScheduleDate, PartnerOrg
+from models import Notification, Order, OrderFieldChange, OrderScheduleDate, PartnerOrg, User
 
 TIME_LIMIT = 20
 # 출고 화면 확정 대기 칸이 훑는 협력사 주문 수(최근 순) — 시공일 없는 시공 전 주문만이라 몇 건이다.
@@ -174,10 +175,15 @@ def pending_request_texts(db, order_ids: set[int]) -> dict[int, str]:
     return {order_id: text for order_id, text in texts.items() if text}
 
 
-def shipment_pending_requests(db, limit: int = 30) -> list[dict[str, Any]]:
-    """출고 화면 '협력사 희망 시공일 · 확정 대기' 칸 — 희망일이 이른 순(날짜 없는 건 뒤)."""
+def shipment_pending_requests(db, limit: int = _SHIPMENT_SCAN_LIMIT) -> list[dict[str, Any]]:
+    """출고 화면 '협력사 희망 시공일 · 확정 대기' 판 — 희망일이 이른 순(날짜 없는 건 뒤).
+
+    판(설계서 2026-11-04-shipment-partner-request-board §2.5)이 쓰는 제품 이름 · 현장 주소 · 협력사 시간 글도
+    싣는다. 자수는 라우트가 붙인다(판 안 건은 이미 읽은 주문, 나머지만 따로 — :func:`pending_units`).
+    """
     rows = _unconfirmed_partner_orders(
-        db.query(Order.id, Order.customer_name, PartnerOrg.name.label("partner_name"), _REQUEST_DATE, _REQUEST_TIME)
+        db.query(Order.id, Order.customer_name, Order.product, Order.address,
+                 PartnerOrg.name.label("partner_name"), _REQUEST_DATE, _REQUEST_TIME)
         .join(PartnerOrg, PartnerOrg.id == Order.partner_org_id)
     ).order_by(Order.id.desc()).limit(_SHIPMENT_SCAN_LIMIT).all()
     items = []
@@ -186,6 +192,42 @@ def shipment_pending_requests(db, limit: int = 30) -> list[dict[str, Any]]:
         text = request_text(request)
         if text:
             items.append({"id": r.id, "customer_name": r.customer_name or "", "partner_name": r.partner_name or "",
-                          "date": request["date"], "text": text})
+                          "date": request["date"], "time": request["time"], "text": text,
+                          "product": (r.product or "").split(",")[0].strip(), "address": (r.address or "").strip()})
     items.sort(key=lambda item: (item["date"] == "", item["date"], item["id"]))
     return items[:limit]
+
+
+#: 판 아래 '최근 정한 기록'이 보는 기간 · 줄 수(설계서 §2.1).
+HISTORY_DAYS = 7
+HISTORY_LIMIT = 50
+
+
+def recent_partner_schedule_changes(db, *, days: int = HISTORY_DAYS, limit: int = HISTORY_LIMIT) -> list[dict[str, Any]]:
+    """협력사 주문의 시공일이 정해지거나 바뀐 기록 — 변경 원장(``order_field_changes``) 최근 days 일, 새것 먼저.
+
+    판에서 정한 것 · 주문 화면에서 정한 것이 같은 원장에 남는다. 시공일을 지운 줄은 뺀다.
+    """
+    since = now_utc_naive() - datetime.timedelta(days=days)
+    rows = (
+        db.query(OrderFieldChange.order_id, OrderFieldChange.before_value, OrderFieldChange.after_value,
+                 OrderFieldChange.created_at, Order.customer_name, Order.structured_data["schedule"]["construction"]["time"].as_string().label("time"),
+                 _REQUEST_DATE, User.name.label("actor_name"), User.team.label("actor_team"))
+        .join(Order, Order.id == OrderFieldChange.order_id)
+        .outerjoin(User, User.id == OrderFieldChange.actor_user_id)
+        .filter(OrderFieldChange.path_template == "schedule.construction.date",
+                OrderFieldChange.created_at >= since,
+                Order.partner_org_id.isnot(None), Order.active_filter())
+        .order_by(OrderFieldChange.created_at.desc(), OrderFieldChange.id.desc())
+        .limit(limit).all()
+    )
+    out = []
+    for r in rows:
+        after = clean_date(r.after_value)
+        if not after:
+            continue
+        out.append({"order_id": int(r.order_id), "customer_name": r.customer_name or "",
+                    "before": clean_date(r.before_value), "after": after, "hope": clean_date(r.date),
+                    "time": clean_time(r.time), "at": r.created_at,
+                    "actor_name": r.actor_name or "", "actor_team": r.actor_team or ""})
+    return out

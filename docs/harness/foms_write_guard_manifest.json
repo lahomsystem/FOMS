@@ -659,6 +659,14 @@
       "mode": "guard",
       "rule": "/api/erp/shipment/as-recommendations/prewarm"
     },
+    "erp_shipment.api_confirm_partner_request": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/partner-requests/<int:order_id>/confirm"
+    },
+    "erp_shipment.api_set_construction_schedule": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/construction-schedule"
+    },
     "erp_shipment.api_shipment_change_ack": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/shipment/change-ack"
