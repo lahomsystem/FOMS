@@ -124,6 +124,34 @@ def test_partner_upload_accepts_real_phone_photo_and_video_size(app, world, fake
         assert resp.status_code == 200, (name, resp.status_code, resp.get_json())
 
 
+def test_partner_heic_photo_is_saved_as_jpeg_and_broken_heic_is_refused(app, world, fake_storage):
+    """아이폰 원본(HEIC)은 JPEG 로 바꿔 받는다(2026-11-04 업로드 점검) — 예전에는 "올릴 수 없는 파일 형식" 400."""
+    import pillow_heif
+    from PIL import Image
+
+    buf = io.BytesIO()
+    pillow_heif.from_pillow(Image.new("RGB", (64, 48), (200, 30, 30))).save(buf, quality=80)
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    resp = client.post(f"/api/partner/orders/{order_id}/files", content_type="multipart/form-data",
+                       data={"kind": "photo", "file": (io.BytesIO(buf.getvalue()), "IMG_0001.HEIC")})
+    assert resp.status_code == 200, resp.get_json()
+    row = db_session.get(OrderAttachment, resp.get_json()["data"]["attachment_id"])
+    assert row.filename == "IMG_0001.jpg" and row.file_type == "image" and row.storage_key.endswith("IMG_0001.jpg")
+    broken = client.post(f"/api/partner/orders/{order_id}/files", content_type="multipart/form-data",
+                         data={"kind": "photo", "file": (io.BytesIO(b"not heic" * 10), "x.heic")})
+    assert broken.status_code == 400 and "HEIC" in broken.get_json()["error"]
+    # 우리 화면과 같은 줄이기 규격(긴 변 1920px) — 큰 HEIC 도 1920 으로, 작은 것은 그대로
+    from foms.services.files.heic_convert import heic_to_jpeg
+    big = io.BytesIO()
+    pillow_heif.from_pillow(Image.new("RGB", (3000, 2000), (10, 120, 200))).save(big, quality=60)
+    assert Image.open(io.BytesIO(heic_to_jpeg(big.getvalue()))).size == (1920, 1280)
+    assert Image.open(io.BytesIO(heic_to_jpeg(buf.getvalue()))).size == (64, 48)
+    # 협력사 화면은 우리 직원 화면과 같은 사진 줄이기(compressImageFile)를 싣는다
+    page = client.get("/partner/orders/new").get_data(as_text=True)
+    assert "js/runtime/upload-progress.js" in page and "js/partner/partner-upload-shrink.js" in page
+
+
 def test_partner_cannot_upload_to_other_or_started_orders(app, world, fake_storage):
     other = _create(app, world["partner_b"]).get_json()["data"]["order_id"]
     own = _create(app, world["partner_a"]).get_json()["data"]["order_id"]

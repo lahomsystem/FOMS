@@ -30,6 +30,7 @@ from foms.services.common.dashboard_cache import (
     invalidate_dashboard_families,
 )
 from foms.services.error_logging import log_handled_exception
+from foms.services.files.heic_convert import jpeg_if_heic
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
@@ -136,6 +137,9 @@ def upload_file(order_id: int):
     file = request.files.get("file")
     if not file or not file.filename:
         return _fail("파일이 없습니다.", 400)
+    file, heic_error = jpeg_if_heic(file)  # 아이폰 원본(HEIC)은 JPEG 로 바꿔 받는다(2026-11-04)
+    if heic_error:
+        return _fail(heic_error, 400)
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in allowed_exts:
         return _fail(f"올릴 수 없는 파일 형식입니다. 가능: {', '.join(sorted(allowed_exts))}", 400)
