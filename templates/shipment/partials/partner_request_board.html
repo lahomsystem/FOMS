@@ -4,7 +4,7 @@
    움직임은 static/js/shipment/partner-request-board.js(shipment-entry.js 가 싣는다). #}
 {% set b = partner_request_board %}
 {% if b and (b.count or b.history) %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261104c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261105a">
 <div class="card border-0 shadow-sm erp-scheduler-card prb mb-3" data-partner-pending-requests data-prb
   data-can-set="{{ '1' if can_set_construction_schedule else '0' }}"
   data-partner="{{ b.single_partner }}" data-tight="{{ b.tight_units }}">
