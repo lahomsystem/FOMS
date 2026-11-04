@@ -1634,7 +1634,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_answer",
-      "lineno": 288,
+      "lineno": 291,
       "methods": [
         "POST"
       ],
@@ -1643,7 +1643,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_discard",
-      "lineno": 245,
+      "lineno": 248,
       "methods": [
         "POST"
       ],
@@ -1652,7 +1652,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue",
-      "lineno": 198,
+      "lineno": 201,
       "methods": [
         "POST"
       ],
@@ -1661,7 +1661,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue_complete",
-      "lineno": 261,
+      "lineno": 264,
       "methods": [
         "POST"
       ],
@@ -1670,7 +1670,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_open_draft",
-      "lineno": 146,
+      "lineno": 149,
       "methods": [
         "POST"
       ],
@@ -1679,7 +1679,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_recalc",
-      "lineno": 179,
+      "lineno": 182,
       "methods": [
         "POST"
       ],
@@ -1688,7 +1688,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_revise",
-      "lineno": 214,
+      "lineno": 217,
       "methods": [
         "POST"
       ],
@@ -1697,7 +1697,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_save",
-      "lineno": 163,
+      "lineno": 166,
       "methods": [
         "POST"
       ],
@@ -1706,7 +1706,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_void",
-      "lineno": 230,
+      "lineno": 233,
       "methods": [
         "POST"
       ],

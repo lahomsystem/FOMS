@@ -4987,7 +4987,7 @@
     },
     {
       "path": "foms/services/orders/construction_schedule.py",
-      "lineno": 110,
+      "lineno": 118,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4996,7 +4996,7 @@
     },
     {
       "path": "foms/services/orders/construction_schedule.py",
-      "lineno": 124,
+      "lineno": 127,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5005,7 +5005,7 @@
     },
     {
       "path": "foms/services/orders/construction_schedule.py",
-      "lineno": 158,
+      "lineno": 155,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5905,7 +5905,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 539,
+      "lineno": 543,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5914,7 +5914,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 584,
+      "lineno": 588,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5923,7 +5923,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 628,
+      "lineno": 632,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
