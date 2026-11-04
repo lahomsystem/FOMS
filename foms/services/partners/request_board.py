@@ -9,7 +9,17 @@ import datetime
 from typing import Any
 
 from foms.services.orders.team_labels import team_label
-from foms.services.partners.schedule_request import pending_units, recent_partner_schedule_changes
+from foms.services.shipment_dashboard_helpers import order_spec_units
+from foms.services.partners.schedule_request import recent_partner_schedule_changes
+from models import Order
+
+def pending_units(db, order_ids: set[int]) -> dict[int, float]:
+    """주문 번호별 자수(W/300 합) — 판 밖 확정 대기 건만 따로 읽을 때. 몇 건이라 주문째 읽는다."""
+    if not order_ids:
+        return {}
+    orders = db.query(Order).filter(Order.id.in_(sorted(order_ids))).all()
+    return {int(o.id): round(order_spec_units(o), 1) for o in orders}
+
 
 BOARD_DAYS = 14
 DOW = ("월", "화", "수", "목", "금", "토", "일")
@@ -36,8 +46,6 @@ def build_request_board(
     today: datetime.date,
 ) -> dict[str, Any]:
     """판 자료 ``{days, later, single_partner, history, history_more, count}``. pending 은 ``shipment_pending_requests``."""
-    from foms.services.shipment_dashboard_helpers import order_spec_units
-
     units = {int(o.id): round(order_spec_units(o, target_date=day), 1) for o, day in partner_pending}
     missing = {p["id"] for p in pending if p["id"] not in units}
     units.update(pending_units(db, missing))

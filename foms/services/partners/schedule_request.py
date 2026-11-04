@@ -198,16 +198,6 @@ def shipment_pending_requests(db, limit: int = _SHIPMENT_SCAN_LIMIT) -> list[dic
     return items[:limit]
 
 
-def pending_units(db, order_ids: set[int]) -> dict[int, float]:
-    """주문 번호별 자수(W/300 합) — 판 밖 확정 대기 건만 따로 읽을 때. 몇 건이라 주문째 읽는다."""
-    if not order_ids:
-        return {}
-    from foms.services.shipment_dashboard_helpers import order_spec_units
-
-    orders = db.query(Order).filter(Order.id.in_(sorted(order_ids))).all()
-    return {int(o.id): round(order_spec_units(o), 1) for o in orders}
-
-
 #: 판 아래 '최근 정한 기록'이 보는 기간 · 줄 수(설계서 §2.1).
 HISTORY_DAYS = 7
 HISTORY_LIMIT = 50
