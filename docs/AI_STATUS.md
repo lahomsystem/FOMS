@@ -10,7 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-11-04] **출고 화면 협력사 희망 2주 판 · 출고팀 시공일(deploy)** — 판에서 정하기 · 5초 되돌리기 · 접기 · 최근 정한 기록, 출고팀 주문 화면은 시공일만. 잔여: 스테이징 실화면. SPEC `2026-11-04-shipment-partner-request-board`
+- [2026-11-04] **출고 협력사 희망 2주 판 · 출고팀 시공일(deploy)** — 잔여: 스테이징 실화면. SPEC `2026-11-04-shipment-partner-request-board`
 - [2026-11-03] **도면 양식 발주 리스트 칸(PR #712 · #713 dbfc54cf)** — 체크리스트 대신 빨간 칸 · 자재표 줄 칸 앞 · V2 배치가 칸을 비켜 감 · 그림 뜬 뒤 배치
 - [2026-11-04] **협력사 명세서(#716 · #718) · 주문 지우기(#720)** — 운영 반영 끝
 - [2026-11-03] **마법사 그림 자르기(PR #707)** — `image-crop.js`
@@ -34,10 +34,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
 - [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
-- [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
-- [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 판정은 `check_quest_approvals_complete` 하나로. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
-- [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -214,6 +211,9 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 판정은 `check_quest_approvals_complete` 하나로. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
+- [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
+- [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 - [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
