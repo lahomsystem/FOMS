@@ -8,7 +8,8 @@
 {% block title %}새 주문 등록{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
-<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-product-picker.css') }}">{% endif %}
 {% if option_catalog is not none %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">{% endif %}
 {% include "partner/partials/flatpickr_head.html" %}{% endblock %}
@@ -104,6 +105,7 @@
 {{ pp_item_templates(pick, opts) }}
 {% if pick %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>{% endif %}
 {% if pick or opts %}<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{% if pick %}<script src="{{ asset_url('js/partner/partner-product-picker.js') }}" defer></script>{% endif %}
 {% if opts %}<div hidden data-pp-option-catalog='{{ option_catalog | tojson }}'></div>
 <script src="{{ asset_url('js/partner/partner-item-options.js') }}" defer></script>{% endif %}
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>

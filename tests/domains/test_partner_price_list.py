@@ -121,6 +121,28 @@ def test_clean_sheet_turns_typed_prices_into_won_and_blocks_bad_values():
     assert "숫자가 아닌 값" in text and "여러 줄에 겹칩니다: 슬라이딩" in text and "없는 제품" in text
 
 
+def test_product_tree_is_kept_for_products_only():
+    # 제품 분류 대분류 · 중분류(설계서 2026-11-04-partner-product-tree §2.1) — 중분류가 비면 대분류 이름, 옵션 줄은 버린다.
+    sheet = import_sheets(_html())["sheets"]["test"]
+    items = [item for _c, _row, item in iter_items(sheet)]
+    product = next(item for item in items if item["role"] == "product")
+    option = next(item for item in items if item["role"] == "option")
+    product["tree"] = ["  붙박이장 ", ""]
+    option["tree"] = ["옵션", "줄"]
+    out = {item["key"]: item for _c, _row, item in iter_items(clean_sheet(sheet))}
+    assert out[product["key"]]["tree"] == ["붙박이장", "붙박이장"] and "tree" not in out[option["key"]]
+    product["tree"] = ["가" * 40, "나"]
+    assert clean_sheet(sheet)["categories"][0]["rows"][0]["items"][0]["tree"] == ["가" * 30, "나"]
+    product["tree"] = ["", "여닫이"]  # 대분류가 없으면 분류 없음
+    assert "tree" not in clean_sheet(sheet)["categories"][0]["rows"][0]["items"][0]
+    product["pick_names"] = ["가", "나"]
+    product["tree_by_name"] = {"나": ["침대 붙박이", ""], "없는 이름": ["x", "y"], "가": ["", ""]}
+    sheet["tree_order"] = ["침대 붙박이", "  ", "침대 붙박이", "붙박이장"]
+    out = clean_sheet(sheet)
+    assert out["categories"][0]["rows"][0]["items"][0]["tree_by_name"] == {"나": ["침대 붙박이", "침대 붙박이"]}
+    assert out["tree_order"] == ["침대 붙박이", "붙박이장"]
+
+
 def test_band_group_may_share_one_pick_name():
     sheet = import_sheets(_html())["sheets"]["test"]
     for _c, row, item in iter_items(sheet):

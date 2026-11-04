@@ -1,0 +1,42 @@
+/* 협력사 제품 고르기 창 — 대분류 › 중분류 › 제품 3단(설계서 docs/specs/2026-11-04-partner-product-tree_SPEC.md §2.2).
+   PC 는 세 칸 나란히, 휴대폰(600px 이하)은 data-level 칸 하나만. 동작은 static/js/partner/partner-product-picker.js. */
+html.ppp-open { overflow: hidden; }
+.ppp { position: fixed; inset: 0; z-index: 1085; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.ppp__backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
+.ppp__panel { position: relative; display: flex; flex-direction: column; gap: .5rem; width: min(52rem, 100%); max-height: calc(100dvh - 2rem);
+  padding: 1rem; border-radius: 1rem; background: var(--foms-surface, #fff); box-shadow: 0 20px 50px rgba(15, 23, 42, .25); }
+.ppp__head { display: flex; align-items: center; gap: .5rem; }
+.ppp__title { flex: 1 1 auto; margin: 0; font-size: 1.05rem; font-weight: 700; }
+.ppp__back, .ppp__close { border: 0; background: none; color: var(--foms-text-link, #1d3f99); font-size: .95rem; padding: .25rem .5rem; cursor: pointer; }
+.ppp__back[hidden] { display: none; }
+.ppp__close { font-size: 1.4rem; line-height: 1; color: #475569; }
+.ppp__cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.5fr); min-height: 0; flex: 1 1 auto;
+  border: 1px solid var(--foms-border, #e2e8f0); border-radius: .75rem; overflow: hidden; }
+.ppp__col { display: flex; flex-direction: column; gap: 2px; min-height: 18rem; max-height: calc(100dvh - 12rem); overflow-y: auto; padding: .25rem;
+  border-right: 1px solid var(--foms-border, #e2e8f0); }
+.ppp__col:last-child { border-right: 0; }
+.ppp__col[data-col="2"]:has(.ppp-custom) { grid-column: span 2; border-right: 0; }
+.ppp__col[data-col="3"]:empty { display: none; }
+.ppp[data-level="search"] .ppp__col[data-col="1"], .ppp[data-level="search"] .ppp__col[data-col="2"] { display: none; }
+.ppp[data-level="search"] .ppp__col[data-col="3"] { grid-column: 1 / -1; }
+.ppp-item { display: grid; gap: 1px; width: 100%; padding: .55rem .7rem; border: 0; border-radius: .5rem; background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }
+.ppp-item:hover { background: #f1f5f9; }
+.ppp-item.is-on { background: #1f4fd1; color: #fff; }
+.ppp-item__sub { font-size: .75rem; opacity: .7; }
+.ppp-item--custom { color: #92400e; font-weight: 700; }
+.ppp-item--custom.is-on { background: #92400e; color: #fff; }
+.ppp-custom { display: grid; gap: .5rem; padding: .75rem; }
+.ppp-custom__title { margin: 0; font-weight: 700; }
+.ppp-custom__hint { margin: 0; padding: .5rem .75rem; border-radius: .5rem; background: #fffbeb; color: #92400e; font-weight: 700; }
+.ppp-custom__note { margin: 0; font-size: .8rem; color: #64748b; }
+.ppp-custom .btn { justify-self: start; }
+@media (max-width: 600px) {
+  .ppp { align-items: flex-end; padding: 0; }
+  .ppp__panel { width: 100%; max-height: 88dvh; border-radius: 1rem 1rem 0 0; }
+  .ppp__cols { grid-template-columns: minmax(0, 1fr); }
+  .ppp__col { display: none; min-height: 14rem; max-height: calc(88dvh - 9rem); border-right: 0; }
+  .ppp__col[data-col="2"]:has(.ppp-custom) { grid-column: auto; }
+  .ppp[data-level="1"] .ppp__col[data-col="1"], .ppp[data-level="2"] .ppp__col[data-col="2"], .ppp[data-level="custom"] .ppp__col[data-col="2"],
+  .ppp[data-level="3"] .ppp__col[data-col="3"], .ppp[data-level="search"] .ppp__col[data-col="3"] { display: flex; }
+}
