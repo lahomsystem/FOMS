@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import io
+import logging
 from typing import Any, Optional
 
 import pillow_heif
 from werkzeug.datastructures import FileStorage
 
+logger = logging.getLogger(__name__)
 HEIC_EXTS = frozenset({"heic", "heif"})
 #: 풀었을 때 화소 상한 — 아이폰 48MP 원본도 들어오고, 일부러 부풀린 파일은 막는다.
 MAX_PIXELS = 80_000_000
@@ -41,6 +43,7 @@ def jpeg_if_heic(file: Any) -> tuple[Any, Optional[str]]:
         data = heic_to_jpeg(file.read())
     except ValueError as exc:
         return file, str(exc)
-    except Exception:  # noqa: BLE001 - 깨진 HEIC 는 사용자 문구로만 돌려준다
+    except Exception:  # noqa: BLE001 - 깨진 HEIC 는 사용자 문구로 돌려주고 기록만 남긴다
+        logger.warning("[HEIC] JPEG 로 바꾸지 못함 name=%s", name, exc_info=True)
         return file, ERR_OPEN
     return FileStorage(stream=io.BytesIO(data), filename=name.rsplit(".", 1)[0] + ".jpg", content_type="image/jpeg"), None
