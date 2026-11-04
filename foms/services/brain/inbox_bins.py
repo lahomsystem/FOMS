@@ -1,4 +1,4 @@
-"""'확인할 것' 네 묶음(설계서 7.9 · 사장님 11-03 · D151) — 제안 하나가 어느 묶음인지 서버가 정한다(순수 함수).
+"""'승인 대기' 네 묶음(설계서 7.9 · 사장님 11-03 · D151) — 제안 하나가 어느 묶음인지 서버가 정한다(순수 함수).
 
 - ``names`` ① 한글 이름 붙이기 — 고침인데 바뀐 칸이 실음 칸의 이름표(대표 이름 · 다른 이름 · 숨은 이름)뿐.
 - ``content`` ② 새로 들어가거나 바뀌는 지식 — 만들기 · 글 · 값 · 규칙 고침 · 은퇴 · 지우기 · 그 밖 링크(한 장씩).
@@ -6,6 +6,7 @@
 - ``mark`` ④ 같은 값이 적힌 곳 표시 — 사본 자리 링크(``copy_in``) 더하기.
 
 ①과 ④ 는 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151).
+① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`).
 """
 
 from __future__ import annotations
@@ -14,12 +15,14 @@ from typing import Any, Mapping, Optional
 
 from foms.services.brain.constants import AGENT_WORK_TYPES, OP_CREATE, OP_LINK_ADD, OP_UPDATE
 
-__all__ = ["BINS", "BIN_CONTENT", "BIN_DECIDE", "BIN_MARK", "BIN_NAMES", "LABEL_KEYS", "bulk_ok_any_grade", "card_bin",
-           "ref_label"]
+__all__ = ["ADMIN_WIDE_BINS", "BINS", "BIN_CONTENT", "BIN_DECIDE", "BIN_MARK", "BIN_NAMES", "LABEL_KEYS",
+           "bulk_ok_any_grade", "card_bin", "label_only_change", "ref_label"]
 
 BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK = "names", "content", "decide", "mark"
 #: 화면 차례.
 BINS: tuple[str, ...] = (BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK)
+#: 관리자가 등급과 상관없이 한꺼번에 승인하는 묶음(D151).
+ADMIN_WIDE_BINS: frozenset[str] = frozenset({BIN_NAMES, BIN_MARK})
 #: 이름표 칸(실음 칸 안) — 찾기 · 이름만 바꾸고 답 글 · 금액은 건드리지 않는다.
 LABEL_KEYS: frozenset[str] = frozenset({"pref_label", "aliases", "hidden_labels"})
 COPY_LINK = "copy_in"
@@ -41,7 +44,7 @@ def _label_only(fields: Optional[Mapping[str, Any]]) -> bool:
 
 def card_bin(op: str, item_type: Optional[str], fields: Optional[Mapping[str, Any]], link_kind: Optional[str]) -> str:
     """제안 하나의 묶음."""
-    if op == OP_UPDATE and _label_only(fields):
+    if label_only_change(op, fields):
         return BIN_NAMES
     if op == OP_CREATE and item_type in AGENT_WORK_TYPES:
         return BIN_DECIDE
@@ -50,10 +53,15 @@ def card_bin(op: str, item_type: Optional[str], fields: Optional[Mapping[str, An
     return BIN_CONTENT
 
 
+def label_only_change(op: str, fields: Optional[Mapping[str, Any]]) -> bool:
+    """이름표 칸만 바뀌는 고침(①)인가 — 상담팀장도 결정하는 제안(D167)."""
+    return op == OP_UPDATE and _label_only(fields)
+
+
 def bulk_ok_any_grade(op: str, item_type: Optional[str], fields: Optional[Mapping[str, Any]],
-                      link_kind: Optional[str]) -> bool:
-    """등급과 상관없이 관리자가 한꺼번에 승인할 수 있나 — ① 이름표만 · ④ 사본 링크만(D151)."""
-    return card_bin(op, item_type, fields, link_kind) in (BIN_NAMES, BIN_MARK)
+                      link_kind: Optional[str], bins: frozenset[str] = ADMIN_WIDE_BINS) -> bool:
+    """등급과 상관없이 한꺼번에 승인할 수 있나 — 이 사람의 넓은 묶음(관리자 ① · ④ — D151, 상담팀장 ① — D167) 안이면."""
+    return card_bin(op, item_type, fields, link_kind) in bins
 
 
 def ref_label(ref: Optional[str]) -> str:

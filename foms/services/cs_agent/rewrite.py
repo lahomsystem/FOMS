@@ -151,7 +151,7 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
         return _give_up(session, turn_id, getattr(exc, "code", None) or type(exc).__name__.lower(), now)
     if result.refused or result.handoff or not result.draft.strip():
         return _give_up(session, turn_id, "handoff", now)
-    allowed = (*(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text), *quote_allowed)
+    allowed = (*knowledge.spoken_texts(), *quote_allowed)
     human_only = {item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text}
     check = check_draft(result.draft, brand=MEMO_BRAND, medium=medium, allowed_numbers=allowed,
                         private_snippets=(*memo_snippets(lines), result.staff_note),

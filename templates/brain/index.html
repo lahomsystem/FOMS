@@ -25,19 +25,20 @@
      data-recheck-url="{{ url_for('brain_review_api.brain_recheck') }}"
      data-recheck-confirm-url="{{ url_for('brain_review_api.brain_recheck_confirm') }}"
      data-is-admin="{{ '1' if is_admin else '0' }}"
+     data-wide-bins="{{ wide_bins|join(' ') }}"
      data-actions="{{ actions|tojson|forceescape }}">
 
   <div class="brain-head">
     <div>
       <h1 class="h4 mb-1"><i class="fas fa-brain me-1" aria-hidden="true"></i>회사 지식</h1>
       <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 지식이에요. 내가 볼 수 있는 {{ tmap.total }}개만 보여요.
-        고칠 말은 지식 화면에서 올리고, '확인할 것'에서 승인 · 거절해요.</p>
+        고칠 말은 지식 화면에서 올리고, '승인 대기'에서 승인 · 거절해요.</p>
     </div>
   </div>
 
-  {#- 위 탭은 확인할 것 · 지식 찾기 · 물어보기 셋 + '더 보기'(지식 표 · 다시 확인 · 판 · 유형 지도) — 설계서 7.9. 더 보기 안도
+  {#- 위 탭은 승인 대기 · 지식 찾기 · 물어보기 셋 + '더 보기'(지식 표 · 다시 확인 · 판 · 유형 지도) — 설계서 7.9. 더 보기 안도
       Bootstrap 탭 단추라 brain-page.js 의 'brain:tab' 흐름이 그대로 돈다. -#}
-  {% set main_tabs = [('inbox', '확인할 것', 'fa-inbox'), ('search', '지식 찾기', 'fa-magnifying-glass')]
+  {% set main_tabs = [('inbox', '승인 대기', 'fa-inbox'), ('search', '지식 찾기', 'fa-magnifying-glass')]
                      + ([('ask', '물어보기', 'fa-comments')] if chat_tab else []) %}
   {% set more_tabs = [('table', '지식 표', 'fa-table-list'), ('recheck', '다시 확인', 'fa-rotate'),
                       ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')] %}

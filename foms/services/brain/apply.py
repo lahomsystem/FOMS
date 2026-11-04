@@ -42,6 +42,7 @@ from foms.services.brain.errors import (
 )
 from foms.services.brain.external import require_refs
 from foms.services.brain.gates import link_problems, object_problems
+from foms.services.brain.inbox_bins import label_only_change
 from foms.services.brain.link_rules import check_link_rules, superseded_end
 from foms.services.brain.proposals import IMPORT_PROPOSER, link_target_type
 from foms.services.brain.quality import check_link_limit
@@ -67,17 +68,18 @@ class ApplyResult:
 
 
 def check_permission(actor: Any, *, op: str, layer: Optional[str], types: Iterable[Optional[str]],
-                     visibilities: Iterable[Optional[str]] = ()) -> int:
+                     visibilities: Iterable[Optional[str]] = (), label_only: bool = False) -> int:
     """반영 · 거절 권한을 확인하고 사람 id 를 돌려준다(판정은 :func:`.access.approval_problem` 하나 + 보기 범위).
 
     Args:
         visibilities: 닿는 줄들의 보기 범위(지금 줄 · 새 값 · 링크 양 끝) — 하나라도 볼 수 없으면 권한 없음.
+        label_only: 이름표 칸만 바뀌는 고침(고쳐 넣기 뒤 값으로 — 상담팀장도 결정, D167).
 
     Raises:
         BrainPermissionError: 사람 아님 · 꺼짐 · 바깥 역할 · 사장님 몫 · 층 승인자 아님 · 볼 수 없는 항목.
     """
     viewer = viewer_of(actor)
-    problem = approval_problem(viewer, op=op, layer=layer, types=types)
+    problem = approval_problem(viewer, op=op, layer=layer, types=types, label_only=label_only)
     if problem is not None or viewer.user_id is None:
         raise BrainPermissionError(problem or "켜진 내부 사람 계정만 반영한다")
     if not all(can_see(viewer, v) for v in visibilities if v):
@@ -208,7 +210,8 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
         values = {**base, **_after(change)}
         values["confidence"] = settled_confidence(change.item_type, values.get("confidence"), as_import=as_import)
     seen = [current.visibility if current is not None else None, (values or {}).get("visibility")]
-    actor_id = check_permission(actor, op=change.op, layer=change.layer, types=[change.item_type], visibilities=seen)
+    actor_id = check_permission(actor, op=change.op, layer=change.layer, types=[change.item_type], visibilities=seen,
+                                label_only=label_only_change(change.op, change.fields))
     _check_object_target(change, current)
     if values is not None:
         problems = object_problems(values, brand=change.brand, layer=change.layer, item_type=change.item_type)
@@ -381,7 +384,8 @@ def reject_change(session: Any, change_id: int, *, actor: Any, code: str, now: O
     change = _open_change(session, change_id)
     types = [change.item_type] + ([link_target_type(session, change.link_to)] if change.link_to else [])
     actor_id = check_permission(actor, op=change.op, layer=change.layer, types=types,
-                                visibilities=_reject_visibilities(session, change))
+                                visibilities=_reject_visibilities(session, change),
+                                label_only=label_only_change(change.op, change.fields))
     change.status, change.reject_code, change.decided_by, change.decided_at = CHANGE_REJECTED, code, actor_id, now
     change.decided_action = "reject"
     _audit(session, actor_id, change, "REJECT", {"code": code, "action": "reject", **dict(detail or {})}, now)

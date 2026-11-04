@@ -39,7 +39,6 @@ from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.case_memory import EDIT_REASONS, OUTCOME_DISCARDED
 from foms.services.cs_agent.channel_read import ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.checks import REASONS, check_draft
-from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK
 from foms.services.cs_agent.drafting_read import freshness, memo_draft, memo_snippets, read_lines, read_medium
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
@@ -302,7 +301,7 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     quote_allowed = allowed_from(row.quote_lines)  # 그 차례 계산기 값 — '계산됨 · 확인됨'일 때만(C10-6 · R17-1)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
     args = {"brand": row.brand, "medium": medium, "private_snippets": memo_snippets(lines),
-            "allowed_numbers": (*(i.text for i in knowledge.items if HUMAN_ONLY_MARK not in i.text), *quote_allowed)}
+            "allowed_numbers": (*knowledge.spoken_texts(), *quote_allowed)}
     check = check_draft(text, **args)
     kept = set(check_draft(ai_draft, **args).codes) if edited and ai_draft else set()  # AI 초안의 문제는 고쳐도 막는다
     hard = [p for p in check.problems if not edited or p.code in HARD_CODES or p.code in kept]

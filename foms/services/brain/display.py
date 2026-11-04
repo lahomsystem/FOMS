@@ -129,7 +129,7 @@ OP_MEANING: dict[str, str] = {
 }
 #: 묶음 ① · ④ 는 글 · 금액이 안 바뀐다(설계서 7.9) — 유형 경고(가격 '금액이 바뀔 수 있어요' 등) 대신 이 한 줄.
 BIN_MEANING: dict[str, str] = {
-    "names": "이름 · 찾는 말만 바뀌어요. 글 · 금액은 그대로예요.",
+    "names": "이름 · 비슷한 말만 바뀌어요. 글 · 금액은 그대로예요.",
     "mark": "표시만 해요. 글 · 금액은 그대로예요.",
 }
 TYPE_MEANING: dict[str, str] = {
@@ -139,14 +139,14 @@ TYPE_MEANING: dict[str, str] = {
     "drawing_rule": "도면팀 · AI 도면팀원이 따라요.",
 }
 APPROVAL_NOTE = "승인은 '명백한 문제가 없다'는 확인이에요."
-#: '확인할 것' 위에 한 번만 — 카드마다 되풀이하지 않는다(사장님 11-04 "반복되는 말이 너무 많아").
+#: '승인 대기' 위에 한 번만 — 카드마다 되풀이하지 않는다(사장님 11-04 "반복되는 말이 너무 많아").
 INBOX_NOTE = "승인하면 바로 반영되고, 바뀌기 전 내용은 수정 기록에 남아요. 승인 전에는 아무것도 바뀌지 않아요."
 
 
 def approval_meaning(op: str, item_type: str | None, bin_name: str | None = None) -> str:
     """제안 카드의 주의 한 줄 — ① · ④ 묶음 줄, 아니면 유형 줄(가격 · 정책 · 상용구 · 도면 규칙), 없으면 빈 글.
 
-    동작 줄(:data:`OP_MEANING`) · 승인 뜻(:data:`APPROVAL_NOTE`)은 모든 카드에 같아 '확인할 것' 위에 한 번만
+    동작 줄(:data:`OP_MEANING`) · 승인 뜻(:data:`APPROVAL_NOTE`)은 모든 카드에 같아 '승인 대기' 위에 한 번만
     (:data:`INBOX_NOTE` — 사장님 11-04 "반복되는 말이 너무 많아")."""
     kind = BIN_MEANING.get(bin_name or "") or TYPE_MEANING.get(item_type or "", "")
     parts = [kind]
