@@ -44,6 +44,26 @@
 
   function cell(tr, text, className) { return tr.appendChild(el('td', className, text)); }
 
+  // 찾기(사용자 11-04) — 줄마다 고객 · 협력사 · 주문번호 · 문서번호를 data-ps-q 로 달고, 찾는 말이 없는 줄은 숨긴다.
+  function norm(text) { return String(text || '').toLowerCase().replace(/\s+/g, ''); }
+
+  function row(tbody, r, className) {
+    var tr = tbody.appendChild(el('tr', className || null));
+    tr.setAttribute('data-ps-q', norm([r.customer_name, r.org_name, r.order_id, '#' + r.order_id, r.doc_no].join(' ')));
+    return tr;
+  }
+
+  function applySearch(root) {
+    var q = norm(root.querySelector('[data-ps-search]').value);
+    var rows = root.querySelectorAll('tr[data-ps-q]');
+    var shown = 0;
+    rows.forEach(function (tr) {
+      tr.hidden = !!q && tr.getAttribute('data-ps-q').indexOf(q) < 0;
+      if (!tr.hidden) shown += 1;
+    });
+    root.querySelector('[data-ps-search-count]').textContent = q ? shown + '건 찾음' : '';
+  }
+
   function drawPending(root, rows, api) {
     var box = root.querySelector('[data-ps-pending]');
     box.replaceChildren();
@@ -54,7 +74,7 @@
       box.appendChild(el('h3', 'foms-ps__bucket', b[1] + ' · ' + list.length + '건'));
       var t = table(['출고일', '협력사', '고객', '제품', '합계', '상태', '']);
       list.forEach(function (r) {
-        var tr = t.tBodies[0].appendChild(el('tr'));
+        var tr = row(t.tBodies[0], r);
         cell(tr, r.date || '-');
         cell(tr, r.org_name);
         cell(tr, r.customer_name);
@@ -84,7 +104,7 @@
     if (!rows.length) { box.appendChild(el('p', 'text-muted small', '아직 발행한 명세서가 없습니다.')); return; }
     var t = table(['일자', '문서번호', '협력사', '고객', '합계', '상태', '']);
     rows.forEach(function (r) {
-      var tr = t.tBodies[0].appendChild(el('tr', r.status === 'VOID' ? 'foms-ps__void' : null));
+      var tr = row(t.tBodies[0], r, r.status === 'VOID' ? 'foms-ps__void' : null);
       cell(tr, r.date);
       cell(tr, r.doc_no);
       cell(tr, r.org_name);
@@ -106,7 +126,7 @@
     if (!rows.length) return;
     var t = table(['출고일', '협력사', '고객', '단계', '비어 있는 품목', '']);
     rows.forEach(function (r) {
-      var tr = t.tBodies[0].appendChild(el('tr'));
+      var tr = row(t.tBodies[0], r);
       cell(tr, r.date || '-');
       cell(tr, r.org_name);
       cell(tr, r.customer_name);
@@ -129,12 +149,14 @@
     if (fill.ok) drawFill(root, fill.data.rows || []);
     var issued = await call(api + '/issued');
     if (issued.ok) drawIssued(root, issued.data.rows || []);
+    applySearch(root);
   }
 
   function init() {
     var root = document.querySelector('[data-ps-root]');
     if (!root || root.dataset.psReady) return;
     root.dataset.psReady = '1';
+    root.querySelector('[data-ps-search]').addEventListener('input', function () { applySearch(root); });
     root.querySelector('[data-ps-bulk]').addEventListener('click', async function (ev) {
       var btn = ev.currentTarget;
       if (!window.confirm('금액이 다 찬 대기 주문을 모두 발행할까요? 발행하면 협력사 화면에 보입니다.')) return;

@@ -137,7 +137,8 @@ def test_only_cs_team_and_admin(app, priced):
     assert admin.get(f"{API}/pending").status_code == 200  # 대조군
     accounting = _client(app, _user(team="ACCOUNTING"))
     assert accounting.get(f"{API}/pending").status_code == 200  # 회계팀은 CS 권한을 잇는다
-    assert _cs(app).get("/erp/partner-statements").status_code == 200
+    page = _cs(app).get("/erp/partner-statements")
+    assert page.status_code == 200 and "data-ps-search" in page.get_data(as_text=True)  # 찾기 칸(사용자 11-04)
 
 
 def test_pending_list_and_bulk_issue_only_complete(app, priced):

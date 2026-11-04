@@ -16,6 +16,14 @@
   {% set erp_sub_nav_active = 'partner_statements' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
+  {#- 찾기(사용자 11-04) — 발행 대기 · 옵션 채울 주문 · 발행함 줄을 고객 · 협력사 · 주문번호 · 문서번호로 바로 거른다(화면 안에서만). -#}
+  <div class="foms-ps__bar foms-ps__section">
+    <label class="visually-hidden" for="ps-search">명세서 찾기</label>
+    <input type="search" class="foms-pse__input foms-ps__grow" id="ps-search" data-ps-search autocomplete="off"
+      placeholder="고객 이름 · 협력사 · 주문번호 · 문서번호로 찾기">
+    <span class="small text-muted" data-ps-search-count role="status" aria-live="polite"></span>
+  </div>
+
   <section class="foms-ps__section" aria-labelledby="ps-pending-title">
     <div class="foms-ps__bar">
       <h2 class="h6 mb-0" id="ps-pending-title">발행 대기</h2>
