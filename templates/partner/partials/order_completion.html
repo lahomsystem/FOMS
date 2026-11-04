@@ -1,12 +1,12 @@
 {# 완공 사진 탭 + AS(2단계 내용을 탭으로 옮김, 설계서 §3.6). 시공이 시작되기 전에는 비어 있다(탭도 꺼짐). #}
 {% macro photo_grid(photos, selectable) %}
-<ul class="pp-photos">
+<ul class="pp-photos" data-foms-lightbox-gallery>
     {% for p in photos %}
     <li class="pp-photo">
         {% if selectable %}<label class="pp-photo__pick">{% endif %}
         {% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}<span class="pp-photo__file">{{ p.filename }}</span>{% endif %}
         {% if selectable %}<input type="checkbox" name="construction_photo_ids" value="{{ p.id }}" aria-label="{{ p.filename }} 를 AS 에 붙이기"></label>{% endif %}
-        <a class="pp-photo__open" href="{{ p.url }}" target="_blank" rel="noopener">크게 보기</a>
+        <a class="pp-photo__open" href="{{ p.url }}"{% if p.is_image %} data-foms-lightbox-src="{{ p.url }}"{% else %} target="_blank" rel="noopener"{% endif %}>크게 보기</a>
     </li>
     {% endfor %}
 </ul>
