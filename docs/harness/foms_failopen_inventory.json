@@ -4015,7 +4015,7 @@
     },
     {
       "path": "foms/services/files/heic_convert.py",
-      "lineno": 46,
+      "lineno": 51,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
