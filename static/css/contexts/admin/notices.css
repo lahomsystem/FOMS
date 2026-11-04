@@ -234,7 +234,7 @@
 .foms-notice-phone[data-side="partner"] .foms-notice-phone__popup { border-top-color: var(--notice-partner-strong); }
 .foms-notice-phone__popup-head { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--notice-muted); margin-bottom: 6px; }
 .foms-notice-phone__title { display: block; color: var(--foms-color-neutral-900, #14171c); margin-bottom: 6px; overflow-wrap: anywhere; }
-.foms-notice-phone__body { font-size: 0.8125rem; color: var(--foms-color-neutral-700, #353a44); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: hidden; }
+.foms-notice-phone__body { font-size: 0.8125rem; color: var(--foms-color-neutral-700, #353a44); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; overscroll-behavior: contain; }
 
 .foms-notice-phone__ok {
   display: block;
