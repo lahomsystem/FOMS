@@ -56,6 +56,17 @@
   border-bottom: 1px solid var(--erp-border);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* 스크롤해도 전역 메뉴 바로 밑에 붙어 있는다(2026-11-04). 전역 메뉴 높이는
+     erp-sub-nav-sticky.js 가 --foms-global-nav-sticky-h 로 넣는다. */
+  position: sticky;
+  top: var(--foms-global-nav-sticky-h, 0px);
+  z-index: 101;
+}
+
+/* 머리+탭을 감싼 짧은 상자 안에서는 sticky 가 상자 끝에서 풀린다 — 상자를 풀어
+   탭이 페이지 본문 상자 기준으로 붙게 한다. 숨김 규칙은 !important 라 그대로 이긴다. */
+.foms-shell-desktop-only:has(> .erp-pro-nav) {
+  display: contents;
 }
 
 .erp-pro-nav::-webkit-scrollbar {

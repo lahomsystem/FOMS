@@ -4,7 +4,7 @@
    대가: 핀을 안 올린 배포는 최대 하루 staleness. 하지만 ?v= 값을 갱신하면 새 URL=캐시 미스로
    즉시 반영되므로, 이 파일 편집 시 자식 ?v= 도 함께 올리는 게 배포 신선도 계약이다. */
 @import url("erp-pro/01-intro-tokens.css?v=20261002t");
-@import url("erp-pro/02-base-layout.css?v=20260703a");
+@import url("erp-pro/02-base-layout.css?v=20261104a");
 @import url("erp-pro/03-card-pipeline.css?v=20260703a");
 @import url("erp-pro/04-filter-table-badges-buttons.css?v=20261014a");
 @import url("erp-pro/05-date-through-toast.css?v=20260703a");
@@ -12,7 +12,7 @@
 @import url("erp-pro/07-forms-responsive-filters.css?v=20260703a");
 @import url("../contexts/orders/erp-order-measurement-panel.css?v=20260814e");
 @import url("erp-pro/08-order-list-page.css?v=20260914a");
-@import url("erp-pro/09-mobile-erp-optimization.css?v=20260713a");
+@import url("erp-pro/09-mobile-erp-optimization.css?v=20261104a");
 @import url("erp-pro/10-erp-mobile-v2-shell.css?v=20260724a");
 @import url("erp-pro/11-queue-family-mobile.css?v=20260715b");
 @import url("erp-pro/12-runtime-shell-loading.css?v=20260703a");
