@@ -79,7 +79,7 @@
     }
     dom.clear(box);
     box.appendChild(document.createTextNode(res.data.message + ' '));
-    box.appendChild(dom.el('a', { text: '확인할 것에서 보기', attrs: { href: inboxPage } }));
+    box.appendChild(dom.el('a', { text: '승인 대기에서 보기', attrs: { href: inboxPage } }));
     return true;
   }
 

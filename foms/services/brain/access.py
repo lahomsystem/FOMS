@@ -7,14 +7,16 @@
   모두' + 자기 팀 범위만, 가격 재량 · 관리 항목은 ADMIN 만).
 - **결정(반영 · 거절) 판정은 :func:`approval_problem` 하나**다(5절 · D101) — 반영 동작(:mod:`.apply`)과 제안함 · 다시 확인
   질의(:func:`approver_layers`)가 같은 규칙을 쓴다: ADMIN 은 모두, 가격 규칙 · 정책 · 사장님 결정과 공통 바탕 은퇴 · 지우기는
-  ADMIN 만, 그 밖은 그 층 승인자 팀의 MANAGER.
+  ADMIN 만, 그 밖은 그 층 승인자 팀의 MANAGER. 이름표 칸만 바뀌는 고침은 상담팀장도(층 · 유형 상관없이 — D167).
 """
 
 from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
-from foms.services.brain.constants import LAYER_APPROVER_TEAMS, LAYER_COMMON, OP_DELETE, OP_RETIRE, OWNER_ONLY_TYPES
+from foms.services.brain.constants import (LAYER_APPROVER_TEAMS, LAYER_COMMON, NAME_APPROVER_TEAM, OP_DELETE, OP_RETIRE,
+                                           OWNER_ONLY_TYPES)
+from foms.services.brain.inbox_bins import ADMIN_WIDE_BINS, BIN_NAMES
 from foms.services.brain.scope import ROLE_MANAGER, Viewer, viewer_of
 
 #: 화면을 여는 MANAGER 의 팀(층 승인자 팀).
@@ -43,8 +45,20 @@ def can_open_screen(user: Any) -> bool:
     return screen_viewer(user) is not None
 
 
+def name_approver(viewer: Viewer) -> bool:
+    """이름표 칸만 바뀌는 고침을 층 · 유형과 상관없이 결정하는 상담팀장인가(D167 — ADMIN 은 따로 모두)."""
+    return viewer.internal and viewer.role == ROLE_MANAGER and viewer.team == NAME_APPROVER_TEAM
+
+
+def wide_bins(viewer: Viewer) -> frozenset[str]:
+    """등급과 상관없이 한꺼번에 승인하는 묶음 — 관리자 ① · ④(D151), 상담팀장 ①(D167), 그 밖은 없음(등급 A 만)."""
+    if viewer.internal and viewer.is_admin:
+        return ADMIN_WIDE_BINS
+    return frozenset({BIN_NAMES}) if name_approver(viewer) else frozenset()
+
+
 def approval_problem(viewer: Viewer, *, op: str, layer: Optional[str],
-                     types: Iterable[Optional[str]]) -> Optional[str]:
+                     types: Iterable[Optional[str]], label_only: bool = False) -> Optional[str]:
     """이 사람이 이 제안을 결정(반영 · 거절)할 수 없는 까닭 — 할 수 있으면 ``None``.
 
     Args:
@@ -52,13 +66,14 @@ def approval_problem(viewer: Viewer, *, op: str, layer: Optional[str],
         op: 제안 동작.
         layer: 제안의 층(링크면 시작 항목의 층).
         types: 닿는 유형들(링크면 양 끝 유형).
+        label_only: 이름표 칸만 바뀌는 고침인가(:func:`.inbox_bins.label_only_change`) — 상담팀장도 결정(D167).
 
     Returns:
         정한 글 하나(사람 아님 · 사장님 몫 · 층 승인자 아님) 또는 ``None``.
     """
     if not viewer.internal or viewer.user_id is None:
         return "켜진 내부 사람 계정만 반영한다"
-    if viewer.is_admin:
+    if viewer.is_admin or (label_only and name_approver(viewer)):
         return None
     if any(t in OWNER_ONLY_TYPES for t in types) or (op in (OP_RETIRE, OP_DELETE) and layer == LAYER_COMMON):
         return "사장님(ADMIN)만 반영한다 — 가격 · 정책 · 사장님 결정 · 공통 바탕 은퇴 · 지우기"

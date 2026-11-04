@@ -735,7 +735,8 @@ def api_wdcalculator_save_option(category_id):
             found = False
             for i, option in enumerate(category.get('options', [])):
                 if option.get('id') == option_id:
-                    category['options'][i] = option_data
+                    # 고쳐도 옵션 id 는 그대로 — 회사 지식 계산기 자리(calc:option/<카테고리>:<옵션>)가 id 로 가리킨다
+                    category['options'][i] = {**option_data, 'id': option_id}
                     found = True
                     break
             if not found:

@@ -1,4 +1,4 @@
-{#- 카드 '한눈에' 탭(설계서 7.9 화면 6) — 맨 위는 어디 지식인지 · 글 · 어디에 쓰이나 · 찾는 말 · 기다리는 수정 · 고치기 단추,
+{#- 카드 '한눈에' 탭(설계서 7.9 화면 6) — 맨 위는 어디 지식인지 · 글 · 어디에 쓰이나 · 비슷한 말 · 기다리는 수정 · 고치기 단추,
     나머지(핵심 칸 · 근거 · 만든 이 · 승인자 · 링크 종류별 '관련(수)' · 바깥 정본 칩 · 사본 목록 · 빠진 링크)는 '자세히 보기' 안. -#}
 {#- 유형은 위 칩에 있다 — 여기는 브랜드 · 층만('공통 공통 바탕'처럼 겹치면 층만). -#}
 {% set brand_name = brand_labels.get(it.brand, it.brand) or '' %}{% set layer_name = layer_labels.get(it.layer, it.layer) or '' %}
@@ -6,8 +6,8 @@
 {% if it.text %}<p class="brain-card__text">{{ it.text }}</p>{% endif %}
 <dl class="brain-fields" data-brain-glance>
   <dt>어디에 쓰이나</dt><dd>{{ 'AI 상담 · 챗봇이 ' ~ it.usage_count ~ '번 썼어요' if it.usage_count else '아직 안 쓰였어요' }}</dd>
-  <dt>찾는 말</dt><dd>{% for word in card.labels.aliases %}「{{ word }}」 {% else %}없음{% endfor %}</dd>
-  {% if it.open_changes %}<dt>기다리는 수정</dt><dd><a href="{{ url_for('brain_web.index', tab='inbox') }}">확인할 것에서 보기</a></dd>{% endif %}
+  <dt>비슷한 말</dt><dd>{% for word in card.labels.aliases %}「{{ word }}」 {% else %}없음{% endfor %}</dd>
+  {% if it.open_changes %}<dt>기다리는 수정</dt><dd><a href="{{ url_for('brain_web.index', tab='inbox') }}">승인 대기에서 보기</a></dd>{% endif %}
 </dl>
 {#- 기본 읽기 거르기(점검 지금 1)가 빼는 항목 — 카드는 보이되 표시를 단다(챗봇 · 찾기 · 이웃 · 수에는 안 나온다). -#}
 {% if not card.effect.effective %}
@@ -35,7 +35,7 @@
   <dt>유효 기간</dt><dd>{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '계속' }}</dd>
   <dt>마지막 확인</dt><dd>{{ it.checked_at or '없음' }}{% if it.stale_after %} · 다시 볼 날 {{ it.stale_after }}{% endif %}</dd>
   <dt>볼 수 있는 사람</dt><dd>{{ visibility }}</dd>
-  {#- 한글 이름 · 찾는 말은 제목 · '찾는 말' 줄에 이미 있다. -#}
+  {#- 한글 이름 · 비슷한 말은 제목 · '비슷한 말' 줄에 이미 있다. -#}
   {% for kf in card.key_fields if kf.path not in ('payload.pref_label', 'payload.aliases') %}
   <dt>{{ kf.label }}</dt><dd data-brain-key-field="{{ kf.path }}">{{ kf.value or '—' }}</dd>
   {% endfor %}

@@ -91,7 +91,7 @@ def _row(run: Run, doc_id: Any) -> Optional[BrainObject]:
 def _update(run: Run, row: BrainObject, item: Mapping[str, Any], price: Optional[Mapping[str, Any]]) -> None:
     """이름표 · 근거 종류(+ 계획에 적힌 가격 규칙 틀 칸) · 결정 번호 · 글 고침(``text_fix``)을 고침 하나로."""
     want = labels_for(item, row.item_type)
-    heads, decisions = (["한글 이름과 찾는 말을 붙여요"] if want else []), []
+    heads, decisions = (["한글 이름과 비슷한 말을 붙여요"] if want else []), []
     if price is not None and price.get("basis") in PRICE_BASES:
         names = [p.path[len(_PAYLOAD):] for p in payload_props(PRICE_RULE_TYPE)]
         want.update({name: price[name] for name in names if name in price and name not in LABEL_KEYS})

@@ -1397,6 +1397,17 @@ def test_wdcalculator_additional_options_persist_in_db_after_seed_file_changes(w
     )
 
 
+def test_wdcalculator_option_rename_keeps_its_id(wdcalculator_settings_env, login):
+    """Renaming an option keeps its id — brain calc refs point at calc:option/<category id>:<option id>."""
+    client = login
+    url = "/api/wdcalculator/additional-options/categories/1/options"
+    assert client.post(url, json={"name": "두 번째 옵션", "price": 7000}).get_json()["success"] is True
+    response = client.post(url, json={"id": 1000, "name": "기본 추가 옵션", "price": 5000})
+    assert response.get_json()["success"] is True
+    options = client.get("/api/wdcalculator/additional-options/categories").get_json()["categories"][0]["options"]
+    assert sorted((o["id"], o["name"]) for o in options) == [(1000, "기본 추가 옵션"), (1001, "두 번째 옵션")]
+
+
 def test_wdcalculator_notes_persist_in_db_after_seed_file_changes(wdcalculator_settings_env, login):
     """Notes categories must keep DB state even if seed files change."""
     client = login

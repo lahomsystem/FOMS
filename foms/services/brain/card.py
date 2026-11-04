@@ -31,6 +31,7 @@ from foms.services.brain.schemas import empty_notices, key_fields, payload_props
 from foms.services.brain.scope import Viewer, scope_clause
 from foms.services.brain.store import OBJECT_FIELDS, in_force, is_current
 from foms.services.brain.usage import usage_by_reader
+from foms.services.cs_agent.knowledge_doc import INTERNAL_MARK
 from foms.services.datetime_kst import format_datetime_kst
 from models import User
 
@@ -191,6 +192,7 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
     return {
         "item": {**item, "stale": bool(stale_after and datetime.date.fromisoformat(stale_after) < today),
                  "needs_check": open_changes > 0 or conflicts > 0, "open_changes": open_changes,
+                 "internal": INTERNAL_MARK in str(item.get("text") or ""),  # 손님에게 말하지 않는 규칙(D164)
                  "usage_count": int(item.get("usage_count") or 0) + sum(readers.values()), "usage_readers": readers,
                  "recorded_at": _kst(item.get("recorded_at"))},
         "created_by": actor_label(item.get("created_by"), names),

@@ -176,6 +176,7 @@
 .brain-badge--retired { background: #e5e7eb; color: #6b7280; }
 .brain-badge--stale { background: #fff7ed; color: #9a3412; border: 1px solid var(--brain-stale); }
 .brain-badge--check { background: #fef2f2; color: #991b1b; }
+.brain-badge--internal { background: #f3f4f6; color: #374151; }
 
 /* ── 찾기 ── */
 .brain-search { display: flex; flex-wrap: wrap; gap: 8px; max-width: 720px; }

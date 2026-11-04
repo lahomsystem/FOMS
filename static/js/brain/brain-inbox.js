@@ -2,7 +2,7 @@
  * 회사 지식 '제안함' 탭(HAUD master brain 설계서 7.5 화면 4 · 승인 흐름 · 사장님 D101 · D103) — 읽기 GET /api/brain/inbox,
  * 결정 POST /api/brain/proposals/<id>/apply · reject · bulk-apply. fetch 는 brain-dom.js 한 곳(try/catch + data.success).
  *
- * - 첫 화면은 네 묶음 한 줄씩(brain-inbox-bins.js · 설계서 7.9), '열기'를 누르면 그 묶음 카드만 · '← 확인할 것'으로 돌아간다.
+ * - 첫 화면은 네 묶음 한 줄씩(brain-inbox-bins.js · 설계서 7.9), '열기'를 누르면 그 묶음 카드만 · '← 승인 대기'로 돌아간다.
  * - ① 이름 · ④ 표시 묶음은 관리자 PC 에서 표 한 장(brain-inbox-table.js · D151) — 안 고친 줄은 한꺼번에, 고친 줄은 하나씩.
  * - 승인: 기준 판 · 화면이 잰 결정 시간(카드를 보인 뒤 누를 때까지) · 등급 B 확인 글을 같이 보낸다(서버가 다시 본다).
  * - 고쳐 넣기: 한 번 누르면 고칠 칸이 열리고, '고친 값으로 넣기' 한 번이면 넣는다(넣기만큼 쉽게).
@@ -23,7 +23,8 @@
   var tableKit = window.FOMS_BRAIN_INBOX_TABLE;
   var questionKit = window.FOMS_BRAIN_INBOX_QUESTION;
   var root = ctx.root;
-  var isAdmin = root.getAttribute('data-is-admin') === '1';
+  // 등급과 상관없이 한꺼번에 승인하는 묶음(서버 판정 — 관리자 ① · ④, 상담팀장 ①: 설계서 7.9 · D151 · D167)
+  var tableBins = (root.getAttribute('data-wide-bins') || '').split(' ');
   var list = root.querySelector('[data-brain-inbox]');
   var laterList = root.querySelector('[data-brain-later]');
   var laterBox = root.querySelector('[data-brain-later-box]');
@@ -85,7 +86,7 @@
     var all = (data && data.cards) || [];
     var cards = showBins(all);
     var later = 0;
-    var asTable = !!tableKit && isAdmin && !phone && (openBin === 'names' || openBin === 'mark');
+    var asTable = !!tableKit && !phone && tableBins.indexOf(openBin) >= 0;
     if (asTable) tableKit.render(list, cards, openBin);
     var asQuestion = !!questionKit && openBin === 'decide';  // 질문 카드는 휴대폰에서도(사장님이 폰으로 정한다)
     cards.forEach(function (card) {
@@ -96,7 +97,7 @@
     if (laterBox) laterBox.hidden = !later;
     if (laterTitle) laterTitle.textContent = (phone ? 'PC 에서 볼 것 ' : '나중에 볼 것 ') + later + '장';
     dom.setStatus(status, review.inboxStatus(data));
-    if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '확인할 것'에서 안 보인다(설계서 7.9)
+    if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '승인 대기'에서 안 보인다(설계서 7.9)
     var ids = review.bulkIds(cards.filter(function (card) { return !deferred[card.id]; }));
     if (bulk) {
       bulk.hidden = phone || asTable || asQuestion || ids.length < 2;  // ③ 질문은 답으로만 닫는다

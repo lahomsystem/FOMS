@@ -24,7 +24,7 @@ from flask import Blueprint, abort, g, redirect, render_template, request, url_f
 
 from db import get_db
 from foms.services.brain import actions
-from foms.services.brain.access import can_open_screen, screen_viewer
+from foms.services.brain.access import can_open_screen, screen_viewer, wide_bins
 from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, type_map
 from foms.services.brain.card import item_card
@@ -94,7 +94,7 @@ def _chat_open() -> bool:
 @brain_web_bp.route("/brain")
 @login_required
 def index():
-    """회사 지식 — 탭(첫 탭은 내가 결정할 제안이 있으면 '확인할 것', 없으면 찾기 — 설계서 7.9). ``?tab=table&type=<유형>`` 으로
+    """회사 지식 — 탭(첫 탭은 내가 결정할 제안이 있으면 '승인 대기', 없으면 찾기 — 설계서 7.9). ``?tab=table&type=<유형>`` 으로
     지식 표를 바로 연다. 화면을 못 열지만 물어보기 단계 안인 직원은 물어보기 화면으로 보낸다."""
     viewer = screen_viewer(getattr(g, "current_user", None))
     if viewer is None:
@@ -119,7 +119,7 @@ def index():
         start_type=request.args.get("type", "") if request.args.get("type", "") in TYPES else "",
         start_query=request.args.get("q", "")[:100], tmap=tmap, display=display_table(), options=_filter_options(),
         type_display=TYPE_DISPLAY, link_display=LINK_DISPLAY, layer_labels=LAYER_LABELS, counts=counts,
-        is_admin=viewer.is_admin, actions=_screen_actions(viewer))
+        is_admin=viewer.is_admin, wide_bins=sorted(wide_bins(viewer)), actions=_screen_actions(viewer))
 
 
 @brain_web_bp.route("/brain/items/<path:key>")

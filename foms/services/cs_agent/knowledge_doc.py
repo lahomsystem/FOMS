@@ -37,6 +37,11 @@ KINDS: tuple[str, ...] = (KIND_TEMPLATE, KIND_FACT, KIND_POLICY, KIND_PRICE_RULE
 STATUS_DRAFT, STATUS_APPROVED, STATUS_RETIRED = "draft", "approved", "retired"
 STATUSES: tuple[str, ...] = (STATUS_DRAFT, STATUS_APPROVED, STATUS_RETIRED)
 
+#: 지식 글 속 표시 — 사람만 말하는 항목(지방 운임 · 맞춤 제작 등)과 손님에게 말하지 않는 회사 안 규칙(사장님 D164 — 예:
+#: 네이버 벌점). 두 표시 항목의 글은 초안 숫자 허용 목록에 넣지 않는다(:meth:`ApprovedKnowledge.spoken_texts`).
+HUMAN_ONLY_MARK = "[사람]"
+INTERNAL_MARK = "[내부]"
+
 MAX_ITEMS = 500
 MAX_TEXT_LEN = 2000
 MAX_INTENTS = 20
@@ -287,6 +292,10 @@ class ApprovedKnowledge:
     def get(self, item_id: str) -> Optional[KnowledgeItem]:
         """id 의 승인 항목(없거나 승인 안 됐으면 ``None``)."""
         return next((i for i in self.items if i.item_id == item_id), None)
+
+    def spoken_texts(self) -> tuple[str, ...]:
+        """초안 숫자 허용 목록이 되는 승인 항목 글 — [사람] · [내부] 표시 항목 글은 뺀다(손님 예산 맞춤 · 내부 규칙 새기)."""
+        return tuple(i.text for i in self.items if HUMAN_ONLY_MARK not in i.text and INTERNAL_MARK not in i.text)
 
 
 # ── 개수 · 차이(글 없음) ─────────────────────────────────────────────────
