@@ -23,6 +23,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.api.files.routes import build_file_view_url
+from foms.services.orders.drawing_confirm_partial import file_item_uids
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본)
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.statement_partner import answer, questions
@@ -84,8 +85,10 @@ def _log(db, actor: Any, action: str, stmt: PartnerStatement, message: str, **de
 
 def _full(db, stmt: PartnerStatement) -> dict[str, Any]:
     order = db.get(Order, stmt.order_id)
-    drawings = [drawing_card(i, f) for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1)
-                if f.get("key")]
+    sd = order.structured_data if order is not None and isinstance(order.structured_data, dict) else {}
+    # 도면마다 묶인 품목 uid(마법사 제품 시트 · 명시 연결) — 화면이 고른 도면의 묶음만 보인다. 모르면 빈 목록 = 전체.
+    drawings = [{**drawing_card(i, f), "no": i, "uids": file_item_uids(sd, f)}
+                for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1) if f.get("key")]
     return {**statement_json(db, stmt), "drawings": drawings, "questions": questions(db, stmt)}
 
 

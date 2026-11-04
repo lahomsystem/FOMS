@@ -14,6 +14,8 @@
   var id = root.getAttribute('data-id');
   var stmt = null;
   var edits = {};
+  var pick = 0;
+  var bigAt = 0;
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -81,11 +83,76 @@
     td.appendChild(reason);
   }
 
+  // 도면 50 : 표 50(사용자 11-04) — pick = 고른 도면(0부터, -1 = 전체), bigAt = 큰 그림 자리의 도면.
+  function linked(d) { return stmt.groups.filter(function (g) { return (d.uids || []).indexOf(g.item_uid) >= 0; }); }
+
+  function scopeUids() {
+    var d = (stmt.drawings || [])[pick];
+    var shown = d ? linked(d) : [];
+    var box = root.querySelector('[data-pse-scope]');
+    box.hidden = !d || stmt.groups.length < 2;
+    if (d) {
+      box.textContent = shown.length ? d.no + '번 도면의 제품 ' + shown.length + '개만 보는 중 · 전체 제품 ' + stmt.groups.length + '개 · 합계와 발행은 전체 기준'
+        : d.no + '번 도면에 묶인 제품을 찾지 못해 전체 제품 ' + stmt.groups.length + '개를 보입니다.';
+    }
+    return shown.length ? d.uids : null;
+  }
+
+  function thumb(strip, i) {
+    var d = (stmt.drawings || [])[i];
+    var b = strip.appendChild(el('button', 'foms-pse__dthumb' + (i === pick ? ' is-on' : '')));
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(i === pick));
+    if (d && d.is_image) {
+      var img = b.appendChild(el('img'));
+      img.src = d.url;
+      img.alt = '';
+      img.loading = 'lazy';
+    } else b.appendChild(el('b', null, d ? '파일' : '전체'));
+    var names = d ? linked(d).map(function (g) { return g.title; }) : [];
+    b.appendChild(el('span', null, d ? [d.no + '번'].concat(names).join(' · ') : '제품 ' + stmt.groups.length + '개'));
+    b.title = d ? d.name : '모든 제품 보기';
+    b.addEventListener('click', function () {
+      pick = i;
+      if (d) bigAt = i;
+      drawDrawings();
+      drawGroups();
+    });
+  }
+
+  function drawDrawings() {
+    var list = stmt.drawings || [];
+    var big = root.querySelector('[data-pse-dbig]');
+    var strip = root.querySelector('[data-pse-drawings]');
+    if (bigAt >= list.length) bigAt = 0;
+    if (pick >= list.length) pick = list.length ? 0 : -1;
+    big.replaceChildren();
+    strip.replaceChildren();
+    root.querySelector('[data-pse-dcount]').textContent = list.length > 1 ? (bigAt + 1) + ' / ' + list.length : '';
+    if (!list.length) { big.appendChild(el('p', 'small text-muted mb-0', '도면 파일이 없습니다.')); return; }
+    var d = list[bigAt];
+    var a = big.appendChild(el('a', 'foms-pse__dbig'));
+    a.href = d.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    if (d.is_image) {
+      var img = a.appendChild(el('img'));
+      img.src = d.url;
+      img.alt = d.name;
+    }
+    a.appendChild(el('span', 'small text-muted', d.name + ' · 누르면 원본'));
+    if (list.length < 2 && stmt.groups.length < 2) return;
+    thumb(strip, -1);
+    list.forEach(function (_d, i) { thumb(strip, i); });
+  }
+
   function drawGroups() {
     var box = root.querySelector('[data-pse-groups]');
+    var uids = scopeUids();
     box.replaceChildren();
     stmt.groups.forEach(function (group) {
       var card = box.appendChild(el('section', 'foms-pse__group'));
+      card.hidden = !!uids && uids.indexOf(group.item_uid) < 0;
       card.appendChild(el('h2', 'foms-pse__group-title', group.ref + '. ' + group.title + ' · 소계 ' + won(group.subtotal) + '원'));
       var t = card.appendChild(el('table', 'foms-ps__table'));
       var head = t.appendChild(el('thead')).appendChild(el('tr'));
@@ -111,21 +178,6 @@
     if (stmt.issued_at) meta.push('발행 ' + stmt.issued_at + (stmt.issued_by ? ' · ' + stmt.issued_by : ''));
     if (stmt.partner_ack_at) meta.push('협력사 확인 ' + stmt.partner_ack_at);
     root.querySelector('[data-pse-meta]').textContent = meta.join(' · ');
-    var list = root.querySelector('[data-pse-drawings]');
-    list.replaceChildren();
-    (stmt.drawings || []).forEach(function (d) {
-      var a = list.appendChild(el('li', d.is_image ? 'foms-pse__thumb' : null)).appendChild(el('a', null, d.is_image ? null : d.name));
-      a.href = d.url;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      if (!d.is_image) return;
-      var img = a.appendChild(el('img'));
-      img.src = d.url;
-      img.alt = d.name;
-      img.loading = 'lazy';
-      a.appendChild(el('span', null, d.name));
-    });
-    if (!(stmt.drawings || []).length) list.appendChild(el('li', 'text-muted', '도면 파일이 없습니다.'));
     var needs = root.querySelector('[data-pse-needs]');
     needs.replaceChildren();
     needs.hidden = !stmt.needs.length;
@@ -220,6 +272,7 @@
 
   function draw() {
     drawHead();
+    drawDrawings();
     drawGroups();
     drawQuestions();
     drawActions();
