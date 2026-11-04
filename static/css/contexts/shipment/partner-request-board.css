@@ -39,7 +39,7 @@
 
 /* 기록 — 평소 마지막 1줄, [N건 보기]로 펼침 */
 .prb-log { border-top: 1px solid var(--erp-border-light); padding: 5px 10px; font-size: 12px; }
-.prb-log__more { display: none; }
+.prb-log .prb-log__more { display: none; }
 .prb-log.is-open .prb-log__more { display: flex; }
 .prb-log .prb-when-log-open { display: none; }
 .prb-log.is-open .prb-when-log-open { display: inline; }
