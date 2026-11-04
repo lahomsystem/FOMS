@@ -135,10 +135,19 @@ def test_custom_is_an_empty_amount_line_and_summary_is_incomplete():
     assert summarize([group])["complete"] is True
 
 
-def test_missing_base_and_unknown_option_are_needs():
+def test_product_not_in_list_is_a_custom_product_line_and_unknown_option_a_need():
+    # 목록에 없는 제품(설계서 2026-11-04-partner-product-tree §2.3): 경고 대신 금액 빈 커스텀 제품 줄 — CS 가 금액을 넣는다.
     group = _calc(base_key=None, lines=[{"key": "r99", "qty": 1}])
-    assert group["lines"] == [] and len(group["needs"]) == 2
+    product = group["lines"][0]
+    assert (product["name"], product["source"], product["amount"], product["unit"], product["spec"]) == (
+        "슬라이딩", "custom", None, "식", "3700*620*2290")
+    assert product["note"] == "목록에 없는 제품" and len(group["needs"]) == 1  # 모르는 옵션만 남는다
     assert summarize([group])["complete"] is False
+    priced = _calc(base_key=None)
+    priced["lines"][0]["amount"] = 1500000
+    assert summarize([priced])["complete"] is True  # 금액을 넣으면 다 찬다(대조군)
+    blank = calc_item(SHEET, {"uid": "u-2", "title": "  ", "base_key": None, "spec_rows": [{}], "lines": [], "customs": []})
+    assert blank["lines"] == [] and blank["needs"] == ["품목: 제품명이 단가표 줄과 이어져 있지 않습니다"]
 
 
 def test_retired_row_still_prices_old_selection():

@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import copy
 import html as htmllib
 import json
 import re
@@ -173,10 +174,33 @@ def _attr(html: str, name: str) -> str:
     return json.dumps(json.loads(htmllib.unescape(match.group(1))), ensure_ascii=False) if match else ""
 
 
+def test_product_tree_groups_classified_products_and_puts_the_rest_under_etc():
+    # 3단 고르기(설계서 2026-11-04-partner-product-tree §2.2) — 분류 없는 제품은 맨 뒤 "기타", 금액은 싣지 않는다.
+    assert pick_lists(SHEET)["tree"] == [{"label": "기타", "groups": [
+        {"label": "여닫이 / 몰딩, 무몰딩", "items": ["몰딩 여닫이", "무몰딩 여닫이"]},
+        {"label": "기본 제품 가격", "items": ["슬라이딩", "침대 붙박이장"]}]}]
+    sheet = copy.deepcopy(SHEET)
+    sheet["categories"][0]["rows"][1]["items"][0]["tree"] = ["붙박이장", "슬라이딩"]
+    sheet["categories"][0]["rows"][0]["items"][0]["tree"] = ["붙박이장", "여닫이"]
+    tree = pick_lists(sheet)["tree"]
+    assert tree == [{"label": "붙박이장", "groups": [{"label": "여닫이", "items": ["몰딩 여닫이", "무몰딩 여닫이"]},
+                                                  {"label": "슬라이딩", "items": ["슬라이딩"]}]},
+                    {"label": "기타", "groups": [{"label": "기본 제품 가격", "items": ["침대 붙박이장"]}]}]
+    assert not any(price in repr(tree) for price in PRICES)
+    # 한 줄의 이름마다 다른 분류(같은 단가 — TV 월플렉스 · 침대 붙박이 따로) · 대분류 차례(tree_order)
+    sheet["categories"][0]["rows"][0]["items"][0]["tree_by_name"] = {"무몰딩 여닫이": ["무몰딩", "무몰딩"]}
+    sheet["tree_order"] = ["무몰딩", "붙박이장"]
+    assert [(b["label"], [(g["label"], g["items"]) for g in b["groups"]]) for b in pick_lists(sheet)["tree"]] == [
+        ("무몰딩", [("무몰딩", ["무몰딩 여닫이"])]),
+        ("붙박이장", [("여닫이", ["몰딩 여닫이"]), ("슬라이딩", ["슬라이딩"])]),
+        ("기타", [("기본 제품 가격", ["침대 붙박이장"])])]
+
+
 def test_new_order_page_ships_names_only(app, priced):
     html = _client(app, db_session.get(User, priced["partner_a"])).get("/partner/orders/new").get_data(as_text=True)
     assert "data-pp-option-catalog" in html and "data-pp-optfield" in html and "partner-item-options.js" in html
     assert "몰딩 여닫이" in _attr(html, "data-pp-product-names") and "측면 마감판(EP)" in _attr(html, "data-pp-option-catalog")
+    assert '"tree"' in _attr(html, "data-pp-product-names") and "partner-product-picker.js" in html  # 3단 고르기 창
     assert not any(price in html for price in PRICES)
     other = _client(app, db_session.get(User, priced["partner_b"])).get("/partner/orders/new").get_data(as_text=True)
     assert "data-pp-option-catalog" not in other and "data-pp-optfield" not in other  # 대조군

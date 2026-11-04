@@ -81,7 +81,36 @@ def pick_lists(sheet: dict[str, Any]) -> dict[str, Any]:
             products.append({"label": category.get("title") or "제품", "items": singles})
         if opt_items:
             options.append({"label": category.get("title") or "옵션", "items": opt_items})
-    return {"products": products, "options": options}
+    return {"products": products, "options": options, "tree": product_tree(sheet)}
+
+
+def product_tree(sheet: dict[str, Any]) -> list[dict[str, Any]]:
+    """제품 3단 ``[{label: 대분류, groups: [{label: 중분류, items: [이름]}]}]`` — 금액 없음(설계서 2026-11-04-partner-product-tree §2.2).
+
+    이름마다 ``tree_by_name`` → 줄의 ``tree`` 차례로 본다. 대분류 차례는 판의 ``tree_order``(없으면 처음 나온 차례).
+    분류가 없는 제품은 맨 뒤 "기타" 밑에 지금 묶음 이름(이름이 여럿인 줄 = 줄 이름, 나머지 = 표 제목)으로 둔다.
+    """
+    tree: dict[str, dict[str, list[str]]] = {}
+    seen: set[str] = set()
+    for category in sheet.get("categories") or []:
+        for row in category.get("rows") or []:
+            for item in row.get("items") or []:
+                if item.get("role") != "product" or item.get("pickable") is False:
+                    continue
+                names = [n for n in _names(row, item) if n]
+                fresh = [n for n in names if n not in seen]
+                if not fresh:
+                    continue
+                seen.update(fresh)
+                etc = ("기타", _label(row, item) if len(names) > 1 else category.get("title") or "제품")
+                for name in fresh:
+                    path = (item.get("tree_by_name") or {}).get(name) or item.get("tree") or []
+                    big, mid = (path[0], path[-1]) if path else etc
+                    tree.setdefault(big, {}).setdefault(mid, []).append(name)
+    rank = {big: i for i, big in enumerate(sheet.get("tree_order") or [])}
+    ordered = sorted(tree.items(), key=lambda kv: (kv[0] == "기타", rank.get(kv[0], len(rank))))
+    return [{"label": big, "groups": [{"label": mid, "items": items} for mid, items in mids.items()]}
+            for big, mids in ordered]
 
 
 def _index(sheet: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:

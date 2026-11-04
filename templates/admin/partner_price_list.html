@@ -55,6 +55,7 @@
         <div class="foms-pl__col" data-pl-side="right"></div>
       </div>
       <p class="foms-pl__empty text-muted" data-pl-empty hidden>아직 저장한 단가표가 없습니다. "단가표 HTML 불러오기"로 쓰시던 통합 단가표 파일을 넣어 주세요.</p>
+      <section class="foms-pl-tree" data-pl-tree hidden aria-label="제품 분류"></section>
       <p class="foms-pl__hint small text-muted">이름 옆 작은 표시는 계산 방법입니다. 이름을 누르면 오른쪽에서 고칠 수 있습니다. "편집하기"를 누르면 이름 · 금액을 고치고 줄을 넣거나 뺄 수 있습니다.</p>
     </div>
     <aside class="foms-pl__panel card" data-pl-panel aria-label="줄 계산 정보">
@@ -69,5 +70,6 @@
 
 {% block scripts %}
 <script src="{{ asset_url('js/admin/partner-price-list-panel.js') }}" defer></script>
+<script src="{{ asset_url('js/admin/partner-price-list-tree.js') }}" defer></script>
 <script src="{{ asset_url('js/admin/partner-price-list.js') }}" defer></script>
 {% endblock %}

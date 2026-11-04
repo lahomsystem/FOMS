@@ -201,6 +201,7 @@
     $('[data-pl-logo]').textContent = state.sheet ? (state.sheet.brand || '').toUpperCase() : '';
     $('[data-pl-sheet]').classList.toggle('is-editing', state.editing);
     $('[data-pl-edit]').textContent = state.editing ? '편집 끝' : '편집하기';
+    if (window.FomsPriceListTree) window.FomsPriceListTree.render(state.sheet, ctx);  // 제품 분류로 보기(2026-11-04)
     $('[data-pl-edit]').disabled = !editable();
     $('[data-pl-save-open]').disabled = !state.sheet || !editable();
     if (!state.sheet) return;

@@ -48,6 +48,23 @@ def _lines(data):
             for g in data["groups"]]
 
 
+def test_product_not_in_list_becomes_custom_product_line_cs_prices_then_issues(app, priced):
+    # 목록에 없는 제품(설계서 2026-11-04-partner-product-tree §2.3) — 금액 빈 줄이라 발행 409, CS 가 넣으면 200(대조군).
+    oid = _confirmed_order(app, priced, [_item(name="드레스룸 ㄷ자", lines=[{"key": "r4", "qty": 1}])])
+    client = _cs(app)
+    data = _draft(client, oid)
+    assert _lines(data) == [("드레스룸 ㄷ자", [("드레스룸 ㄷ자", "1", None, None, "custom"),
+                                            ("슬라이딩 거울 도어", "1", 176543, 176543, "auto")])]
+    assert data["groups"][0]["lines"][0]["note"] == "목록에 없는 제품" and data["needs"] == []
+    pending = client.get(f"{API}/pending").get_json()["data"]["rows"]
+    assert [(r["order_id"], r["complete"], r["custom_open"]) for r in pending] == [(oid, False, 1)]
+    assert client.post(f"{API}/{data['id']}/issue", json={"version": data["version"]}).status_code == 409
+    saved = client.post(f"{API}/{data['id']}/save", json={"version": data["version"],
+                                                          "edits": [{"ref": "1-1", "amount": "1,200,000"}]}).get_json()["data"]
+    assert saved["complete"] is True and saved["total"] == 1200000 + 176543
+    assert client.post(f"{API}/{data['id']}/issue", json={"version": saved["version"]}).status_code == 200
+
+
 def test_draft_amounts_custom_blocks_issue_then_issue_locks_and_numbers(app, priced):
     oid = _confirmed_order(app, priced, [_item(lines=[{"key": "r4", "qty": 1}], customs=[{"text": "선반 하나 더"}])])
     client = _cs(app)

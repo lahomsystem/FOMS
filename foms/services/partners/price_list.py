@@ -6,7 +6,11 @@
 
     {"key": "r12", "name_col": 0, "price_col": 1, "role": "product" | "option",
      "unit": "자", "kind": "ja", "cond": {...}, "partner_label": "", "pick_names": [...],
-     "for_products": [...], "pickable": true}
+     "for_products": [...], "pickable": true, "tree": ["붙박이장", "여닫이"], "tree_by_name": {"침대 붙박이장": [...]}}
+
+- ``tree`` 는 제품 줄에만 있는 분류(대분류 · 중분류 — 설계서 docs/specs/2026-11-04-partner-product-tree_SPEC.md §2.1).
+  한 줄에 이름이 여럿이면(같은 단가) ``tree_by_name`` 으로 이름마다 다르게 둘 수 있다. 없으면 협력사 고르기 창에서 "기타"
+  밑에 지금 묶음 그대로 보인다.
 
 - ``key`` 는 판이 바뀌어도 이어지는 줄 열쇠다. 새 판은 옛 판 열쇠를 그대로 쓰고, 지운 줄은 ``retired`` 에 남긴다
   (옛 선택 · 옛 명세서가 끊기지 않게 — 설계서 §10).
@@ -281,6 +285,13 @@ def _cond(kind: str, raw: Any) -> dict[str, Any]:
     return cond
 
 
+def _tree(raw: Any) -> list[str]:
+    """제품 분류 ``[대분류, 중분류]`` — 대분류가 없으면 빈 목록, 중분류가 비면 대분류 이름을 그대로 쓴다."""
+    parts = [_text(v, 30) for v in raw[:2]] if isinstance(raw, list) else []
+    big = parts[0] if parts else ""
+    return [big, (parts[1] if len(parts) > 1 else "") or big] if big else []
+
+
 def _clean_item(raw: dict[str, Any], ncells: int, errors: list[str]) -> Optional[dict[str, Any]]:
     key = _text(raw.get("key"), 20)
     kind = raw.get("kind") if raw.get("kind") in KINDS else None
@@ -297,11 +308,20 @@ def _clean_item(raw: dict[str, Any], ncells: int, errors: list[str]) -> Optional
     except (TypeError, ValueError):
         errors.append("크기 구간 · 넘친 만큼의 mm 값은 숫자로 적어 주세요.")
         return None
-    return {"key": key, "name_col": name_col, "price_col": price_col,
+    item = {"key": key, "name_col": name_col, "price_col": price_col,
             "role": raw.get("role") if raw.get("role") in ROLES else "option",
             "unit": unit, "kind": kind, "cond": cond, "partner_label": _text(raw.get("partner_label"), 60),
             "pick_names": _names(raw.get("pick_names")), "for_products": _names(raw.get("for_products")),
             "pickable": bool(raw.get("pickable", True))}
+    if item["role"] == "product":
+        tree = _tree(raw.get("tree"))
+        by_name = raw.get("tree_by_name") if isinstance(raw.get("tree_by_name"), dict) else {}
+        by_name = {name: _tree(by_name.get(name)) for name in item["pick_names"] if _tree(by_name.get(name))}
+        if tree:
+            item["tree"] = tree
+        if by_name:
+            item["tree_by_name"] = by_name
+    return item
 
 
 def _check_names(sheet: dict[str, Any], errors: list[str]) -> None:
@@ -332,6 +352,9 @@ def clean_sheet(raw: Any) -> dict[str, Any]:
     errors: list[str] = []
     keys: set[str] = set()
     out = {"schema": 1, "brand": _text(raw.get("brand"), 20), "categories": [], "retired": [], "seq": 0}
+    order = [_text(v, 30) for v in raw.get("tree_order") or [] if isinstance(raw.get("tree_order"), list)]
+    if any(order):
+        out["tree_order"] = list(dict.fromkeys(v for v in order if v))[:30]  # 제품 대분류 차례(2026-11-04)
     count = 0
     for cat in raw["categories"]:
         cat = cat if isinstance(cat, dict) else {}
