@@ -4,6 +4,7 @@
  * - GET {api}/pending · {api}/issued 를 받아 갈래(내일까지 출고 · 다음 출고 · 출고일 없음)별 표로 그린다. 금액은 서버 값 그대로.
  * - "열기" = POST {api}/orders/<id>/draft(없으면 초안을 만든다) → 명세서 화면으로 간다.
  * - "자동 완성만 한꺼번에 발행" = POST {api}/issue-complete. 글은 textContent 로만 넣는다.
+ * - GET {api}/fill = 단가표 전 주문 중 옵션이 빈 품목이 남은 것 — "옵션 채우기" 화면으로 간다(결정 12).
  */
 (function () {
   'use strict';
@@ -97,12 +98,35 @@
     box.appendChild(t);
   }
 
+  function drawFill(root, rows) {
+    var section = root.querySelector('[data-ps-fill]');
+    var box = root.querySelector('[data-ps-fill-list]');
+    section.hidden = !rows.length;
+    box.replaceChildren();
+    if (!rows.length) return;
+    var t = table(['출고일', '협력사', '고객', '단계', '비어 있는 품목', '']);
+    rows.forEach(function (r) {
+      var tr = t.tBodies[0].appendChild(el('tr'));
+      cell(tr, r.date || '-');
+      cell(tr, r.org_name);
+      cell(tr, r.customer_name);
+      cell(tr, r.stage + (r.confirmed ? ' · 도면 확정됨' : ''));
+      cell(tr, r.missing + ' / ' + r.items + '개');
+      var a = el('a', 'foms-ps__btn', '옵션 채우기');
+      a.href = root.getAttribute('data-page') + '/orders/' + r.order_id + '/options';
+      tr.appendChild(el('td')).appendChild(a);
+    });
+    box.appendChild(t);
+  }
+
   function status(root, text) { root.querySelector('[data-ps-status]').textContent = text || ''; }
 
   async function load(root) {
     var api = root.getAttribute('data-api');
     var pending = await call(api + '/pending');
     if (pending.ok) drawPending(root, pending.data.rows || [], api); else status(root, pending.error);
+    var fill = await call(api + '/fill');
+    if (fill.ok) drawFill(root, fill.data.rows || []);
     var issued = await call(api + '/issued');
     if (issued.ok) drawIssued(root, issued.data.rows || []);
   }

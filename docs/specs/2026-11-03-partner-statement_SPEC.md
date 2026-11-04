@@ -18,6 +18,7 @@
 10. 단가표 제품 이름 "TV 월플렉스, 침대 벽박이장"은 "침대 붙박이장"으로 바꿔 쓴다(협력사가 고르는 이름도 "침대 붙박이장"). 단가 자료는 DB 에만 있으므로 단가표를 불러온 뒤 편집기에서 이름을 고친다.
 11. "여닫이 통 추가 (한통)"은 기본 포함이 아니다 — 값을 정해 단가표에 넣는다.
 12. 진행 중인 협력사 주문은 우리 CS 가 사진 · 도면을 보고 옵션을 채운다(CS 화면에 같은 고르기 부품).
+    - **구현(11-04)**: `/erp/partner-statements` 의 "옵션 채울 주문"(단가표가 있는 협력사 주문 중 옵션 줄 없는 품목이 남은 것) → `/erp/partner-statements/orders/<id>/options`. 품목마다 "단가표 제품"(제품명 ▾ 목록) + 옵션(같은 고르기 창). 생산 · 시공 · 완료 단계면 PARTNER · CURRENT · CONFIRMED 를 같이 써서 바로 발행 대기, 그 전 단계면 PARTNER · CURRENT 만(확정은 협력사 도면 확인 — "상담 후 정함"도 고를 수 있다). 옵션 줄이 이미 있는 품목은 덮지 않고, 품목 JSON 은 건드리지 않는다. 로직 `foms/services/partners/option_fill.py` · API `foms/api/partner_option_fill_staff.py`(정책 `PARTNER_STATEMENT`, 감사 `PARTNER_OPTIONS_FILLED`).
 
 ## 1. 지금 코드 · 운영의 사실
 
