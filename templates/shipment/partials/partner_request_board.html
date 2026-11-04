@@ -4,30 +4,28 @@
    움직임은 static/js/shipment/partner-request-board.js(shipment-entry.js 가 싣는다). #}
 {% set b = partner_request_board %}
 {% if b and (b.count or b.history) %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261104a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261104b">
 <div class="card border-0 shadow-sm erp-scheduler-card prb mb-3" data-partner-pending-requests data-prb
   data-can-set="{{ '1' if can_set_construction_schedule else '0' }}"
   data-partner="{{ b.single_partner }}" data-tight="{{ b.tight_units }}">
-  <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-2 prb-head" data-prb-fold role="button" tabindex="0" aria-expanded="true">
     <div class="fw-bold small text-nowrap"><i class="fas fa-handshake" aria-hidden="true"></i> 협력사 희망 시공일 · 확정 대기<span class="badge bg-primary ms-1" data-prb-count>{{ b.count }}</span></div>
     <div class="d-flex align-items-center gap-2">
       <span class="prb-note prb-when-open">{% if can_set_construction_schedule and b.count %}주문을 누르거나 다른 날로 끌어 놓으면 시공일을 정해요{% elif b.count %}주문을 누르면 주문 화면으로 가요{% endif %}</span>
       {% if b.earliest %}<span class="prb-note prb-when-folded">가장 빠른 날 {{ b.earliest.label }}{% if b.earliest.is_tomorrow %} 내일{% endif %} {{ b.earliest['items']|length }}건</span>{% endif %}
-      <button type="button" class="prb-textbtn" data-prb-fold aria-expanded="true"><span class="prb-when-open">접기 ▴</span><span class="prb-when-folded">펼치기 ▾</span></button>
+      <span class="prb-textbtn"><span class="prb-when-open">접기 ▴</span><span class="prb-when-folded">펼치기 ▾</span></span>
     </div>
   </div>
   <div class="card-body p-0 prb-body">
     {% if b.count %}
     <div class="prb-board">
       {% for day in b.days %}
+      {% set _rem = day.remaining|round|int %}
       <div class="prb-cell{% if day.is_off %} is-off{% endif %}" data-prb-cell="{{ day.date }}" data-label="{{ day.label }}"
         data-remaining="{{ day.remaining }}" data-holiday="{{ '1' if day.is_holiday else '0' }}">
         <div class="prb-cell__head">
-          <div class="prb-cell__top">
-            <span>{{ day.label }}{% if day.is_tomorrow %}<span class="prb-soon">내일</span>{% endif %}</span>
-            <span class="{{ 'text-danger' if day.tight else 'prb-muted' }}">남은 {{ day.remaining|round(1)|string|replace('.0', '') }}</span>
-          </div>
-          <div class="prb-cell__bar"><i class="{{ 'is-tight' if day.tight else '' }}" data-prb-fill="{{ day.fill }}"></i></div>
+          <b>{{ day.date[5:7]|int }}/{{ day.date[8:10]|int }}</b> {{ day.label[-2:-1] }}{% if day.is_tomorrow %}<span class="prb-soon">내일</span>{% endif %}
+          <span class="prb-cell__rem {{ 'text-danger fw-semibold' if day.tight else 'prb-muted' }}">{% if _rem < 0 %}넘침 {{ -_rem }}{% else %}남은 {{ _rem }}{% endif %}</span>
         </div>
         <div class="prb-cell__body">
           {% for p in day['items'] %}{% include 'shipment/partials/partner_request_chip.html' %}{% endfor %}
@@ -36,24 +34,25 @@
       {% endfor %}
     </div>
     {% if b.later %}
-    <div class="prb-later"><span class="prb-muted me-1">판 밖 · 날짜 없음</span>
+    <div class="prb-later"><span class="prb-muted me-1">판 밖 · 날짜 없음 {{ b.later|length }}</span>
       {% for p in b.later %}{% set later_chip = true %}{% include 'shipment/partials/partner_request_chip.html' %}{% endfor %}
     </div>
     {% endif %}
     {% endif %}
-    {% if b.history %}
-    <div class="prb-log">
-      <div class="prb-log__head">최근 정한 기록 <span class="prb-muted fw-normal">7일 · 주문 화면에서 정한 것도 같이</span></div>
-      {% for h in b.history + b.history_more %}
-      <div class="prb-log__row{% if loop.index > b.history|length %} d-none{% endif %}"{% if loop.index > b.history|length %} data-prb-more-row{% endif %}>
+    {% set _hist = b.history + b.history_more %}
+    {% if _hist %}
+    <div class="prb-log" data-prb-log>
+      {% for h in _hist %}
+      <div class="prb-log__row{% if not loop.first %} prb-log__more{% endif %}">
+        {% if loop.first %}<b class="me-1">최근 정한 기록</b>{% endif %}
         <span class="prb-muted">{{ h.at_text }}</span>
         <a class="prb-link" href="{{ url_for('order_edit.edit_order', order_id=h.order_id, open='erp-order') }}">#{{ h.order_id }} {{ h.customer_name }}</a>
         {% if h.before %}{{ h.before_text }} → <b>{{ h.after_text }}{% if h.time %} {{ h.time }}{% endif %}</b> 바뀜
         {% else %}{% if h.hope %}희망 {{ h.hope_text }}{% else %}희망 날짜 없음{% endif %} → <b>{{ h.after_text }}{% if h.time %} {{ h.time }}{% endif %}</b>{% if h.moved %} <span class="prb-moved">옮김</span>{% endif %}{% endif %}
         {% if h.actor %}· {{ h.actor }}{% endif %}
+        {% if loop.first and _hist|length > 1 %}<button type="button" class="prb-textbtn ms-auto" data-prb-log-toggle aria-expanded="false"><span class="prb-when-log-closed">{{ _hist|length }}건 보기 ▾</span><span class="prb-when-log-open">접기 ▴</span></button>{% endif %}
       </div>
       {% endfor %}
-      {% if b.history_more %}<button type="button" class="prb-textbtn" data-prb-more>더 보기 ({{ b.history_more|length }})</button>{% endif %}
     </div>
     {% endif %}
   </div>

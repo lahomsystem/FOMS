@@ -60,9 +60,14 @@
     b.classList.toggle('is-folded', folded);
     var btn = b.querySelector('[data-prb-fold]');
     if (btn) btn.setAttribute('aria-expanded', folded ? 'false' : 'true');
-    [].forEach.call(b.querySelectorAll('[data-prb-fill]'), function (el) {
-      el.style.setProperty('--prb-fill', (parseInt(el.getAttribute('data-prb-fill'), 10) || 0) + '%');
-    });
+  }
+
+  // 머리 줄 어디를 눌러도 접고 편다(사용자 11-04). 접힘은 사람마다 브라우저에 기억한다.
+  function toggleFold(head) {
+    var b = board(), folded = !b.classList.contains('is-folded');
+    b.classList.toggle('is-folded', folded);
+    head.setAttribute('aria-expanded', folded ? 'false' : 'true');
+    try { window.localStorage.setItem(FOLD_KEY, folded ? '1' : '0'); } catch (err) { /* 저장 못 해도 이번 화면은 접힌다 */ }
   }
 
   // ── 알림 ──
@@ -86,7 +91,7 @@
       var n = parseFloat(c.getAttribute('data-remaining') || '0') - (s !== it.hope ? it.units : 0);
       n = Math.round(n * 10) / 10;
       tight = n < tightAt;
-      text += ' 남은 자수 ' + n + (n < 0 ? ' — 자수가 넘쳐요' : tight ? ' — 거의 찼어요' : '');
+      text += n < 0 ? ' 자수 넘침 ' + Math.round(-n) + ' — 자리가 없어요' : ' 남은 자수 ' + Math.round(n) + (tight ? ' — 거의 찼어요' : '');
     }
     if (c && c.getAttribute('data-holiday') === '1') text += ' · 휴일이에요';
     else if (isOff(s)) text += ' · ' + mdDow(s).slice(-2, -1) + '요일이에요';
@@ -184,11 +189,11 @@
   document.addEventListener('click', function (e) {
     var t = e.target, el;
     if (t.closest('[data-prb-undo]')) return undo();
-    if ((el = t.closest('[data-prb-fold]'))) {
-      var b = board(), folded = !b.classList.contains('is-folded');
-      b.classList.toggle('is-folded', folded);
-      el.setAttribute('aria-expanded', folded ? 'false' : 'true');
-      try { window.localStorage.setItem(FOLD_KEY, folded ? '1' : '0'); } catch (err) { /* 저장 못 해도 이번 화면은 접힌다 */ }
+    if ((el = t.closest('[data-prb-fold]'))) return toggleFold(el);
+    if ((el = t.closest('[data-prb-log-toggle]'))) {
+      var log = el.closest('[data-prb-log]'), open = !log.classList.contains('is-open');
+      log.classList.toggle('is-open', open);
+      el.setAttribute('aria-expanded', open ? 'true' : 'false');
       return;
     }
     if ((el = t.closest('[data-prb-more]'))) {
@@ -203,7 +208,11 @@
     }
     if (!t.closest('#prb-pop')) closePop();
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closePop();
+    var head = e.target.closest && e.target.closest('[data-prb-fold]');
+    if (head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleFold(head); }
+  });
   document.addEventListener('dragstart', function (e) {
     var c = e.target.closest && e.target.closest('[data-prb-chip]');
     if (!c || !canSet()) return;
