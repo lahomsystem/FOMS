@@ -3,6 +3,7 @@
 - ``GET /erp/partner-statements`` 발행 대기 · 발행함 목록(ERP 셸 탭이면 body partial 만).
 - ``GET /erp/partner-statements/<id>`` 명세서 한 장 고치기 · 발행(초안) / 보기 · 수정본 · 취소(발행본).
 - ``GET /erp/partner-statements/<id>/print`` 양식(공급받는자용 · 공급자용 2장) — 브라우저 인쇄 · PDF.
+- ``GET /erp/partner-statements/orders/<order_id>/options`` 단가표 전 주문 옵션 채우기(결정 12).
 
 GET 은 쓰기 정책 가드에 닿지 않아 핸들러가 :func:`can_manage_statements` 로 직접 본다(정산 화면과 같은 관례).
 값은 화면에서 ``/api/partner-statements`` 로 가져간다. 이 모듈은 읽기 전용이다.
@@ -63,5 +64,20 @@ def erp_partner_statement_print(statement_id: int):
     if stmt is None or order is None:
         abort(404)
     response = make_response(render_template("partner/statement_form.html", **form_context(db, stmt, order)))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@erp_partner_statements_page_bp.route("/partner-statements/orders/<int:order_id>/options")
+@login_required
+def erp_partner_option_fill(order_id: int):
+    """단가표 전 협력사 주문 — 품목마다 단가표 제품 · 옵션 채우기."""
+    _guard()
+    order = get_db().query(Order.id).filter(Order.id == order_id, Order.active_filter(),
+                                             Order.partner_org_id.isnot(None)).first()
+    if order is None:
+        abort(404)
+    response = make_response(render_template("cs/partner_option_fill.html", order_id=order_id,
+                                             erp_sub_nav_active="partner_statements"))
     response.headers["Cache-Control"] = "private, no-store"
     return response

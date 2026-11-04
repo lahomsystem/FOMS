@@ -299,6 +299,10 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_statements_staff_api_bp)
     # 입금 장부(5단계 — /api/partner-payments): 명세서와 같은 권한 · 정책.
     app.register_blueprint(partner_payments_staff_api_bp)
+    # 단가표 전 주문 옵션 채우기(결정 12 — /api/partner-statements/fill · /orders/<id>/options): 같은 권한 · 정책.
+    from foms.api.partner_option_fill_staff import partner_option_fill_api_bp
+
+    app.register_blueprint(partner_option_fill_api_bp)
     app.register_blueprint(erp_partner_statements_page_bp)
 
     # --- Lane: 협력사 거래명세서 협력사 쪽(화면 /partner/statements · JSON /api/partner/statements — 설계서
