@@ -20,7 +20,7 @@ from flask import (
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import login_required, role_required, log_access, get_request_user, get_user_by_id
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import can_edit_construction_schedule, can_edit_erp
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_sync_columns import sync_as_axis_column, sync_erp_flat_columns
@@ -250,11 +250,15 @@ def edit_order(order_id):
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
         return redirect(url_for('order_pages.index'))
 
+    # 출고팀은 ERP 주문을 시공일 · 시공시간만 바꾸는 읽기 화면으로 연다(설계서 2026-11-04-shipment-partner-request-board §2.3-b).
+    construction_only = False
     if is_erp_order_record(order):
         user = get_request_user(session['user_id'])
         if not can_edit_erp(user):
-            flash('ERP Order 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
-            return redirect(url_for('order_pages.index'))
+            if request.method != 'GET' or not can_edit_construction_schedule(user):
+                flash('ERP Order 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
+                return redirect(url_for('order_pages.index'))
+            construction_only = True
 
     option_type = 'online'
     online_options = ""
@@ -669,6 +673,7 @@ def edit_order(order_id):
             mobile_shell_show_back=True,
             mobile_shell_back_href=mobile_shell_back_href,
             erp_sub_nav_active='dashboard',
+            erp_construction_only=construction_only,
             **ctx,
         )
     )
