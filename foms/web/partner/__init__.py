@@ -27,6 +27,7 @@ from foms.services.partners.notices import pending_partner_notices
 from foms.services.notices.service import notice_summary, visible_notices
 from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_tab import build_partner_drawing_tab
+from foms.services.partners.order_delete import partner_delete_open
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
 from foms.services.partners.item_options import current_options, option_review, pick_lists
@@ -183,6 +184,7 @@ def order_detail(order_id: int):
     cycle = current_cycle(order.structured_data or {})
     as_open = cycle is not None and cycle_status(cycle) in (AS_RECEIVED, AS_IN_PROGRESS)
     finals = _final_drawings(order)
+    statements = order_statements(db, order.partner_org_id, order.id)
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
     can_approve = stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None
     # 저희가 보낸 도면을 협력사가 확인(받음) — FOMS 영업 "도면 수령 확인"과 같은 자리(사용자 2026-10-28).
@@ -214,7 +216,9 @@ def order_detail(order_id: int):
         drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
         option_review=option_review(db, order) if stage in ("DRAWING", "CONFIRM") and finals else None,
-        statements=order_statements(db, order.partner_org_id, order.id),
+        statements=statements,
+        # 주문 지우기(2026-11-04) — "이대로 만들어 주세요" 전 · 발행 명세서 없음(서버가 다시 본다).
+        can_delete=partner_delete_open(order) and not statements,
         **(dict(_pick_context(db, order.partner_org_id), item_options=current_options(db, order.id))
            if view["items_editable"] else {"product_names": [], "option_catalog": None, "item_options": {}}),
         **_completion_context(db, order, stage),

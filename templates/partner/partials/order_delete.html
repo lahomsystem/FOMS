@@ -1,0 +1,18 @@
+{#- 주문 지우기(설계서 2026-11-04-partner-order-delete) — "이대로 만들어 주세요" 전까지만 보인다(서버가 다시 판정한다).
+    누르면 이유 칸이 펼쳐지고, static/js/partner/partner-order-delete.js 가 POST data-url {reason} 뒤 목록으로 간다. -#}
+{% if can_delete %}
+<section class="mt-4 pt-3 border-top" data-pp-delete data-url="{{ url_for('partner_order_delete.delete_order', order_id=view.id) }}" aria-label="주문 지우기">
+    <button type="button" class="btn btn-sm btn-outline-danger" data-pp-delete-open><i class="far fa-trash-can" aria-hidden="true"></i> 이 주문 지우기</button>
+    <div class="mt-2 col-12 col-md-8 col-lg-6 px-0" data-pp-delete-form hidden>
+        <p class="small text-muted mb-2">지우면 목록에서 빠지고 저희에게 알림이 갑니다. 잘못 지웠으면 저희에게 연락해 주세요. 되살릴 수 있습니다.</p>
+        <label class="form-label mb-1" for="ppDeleteReason">지우는 이유</label>
+        <input type="text" id="ppDeleteReason" class="form-control form-control-sm" maxlength="200" placeholder="예: 고객이 취소함 · 중복으로 올림">
+        <div class="d-flex gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-danger" data-pp-delete-go>지우기</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pp-delete-cancel>그만두기</button>
+        </div>
+        <p class="pp-status mb-0 mt-1" data-pp-delete-status role="status" aria-live="polite"></p>
+    </div>
+</section>
+<script src="{{ asset_url('js/partner/partner-order-delete.js') }}" defer></script>
+{% endif %}

@@ -44,6 +44,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.change_manager",
     "partner_api.update_items",
     "partner_api.update_info",
+    # 주문 지우기(2026-11-04): 자기 회사 주문만 · "이대로 만들어 주세요" 전까지 · 이유 필수 — 조건은 서버가 본다.
+    "partner_order_delete.delete_order",
     # 5-3 보낸 실측 사진 제품 연결 · 해제(접수 확인 중 · 자기 회사 · 협력사가 보낸 실측 사진만).
     "partner_api.link_attachment",
     # 18-2 시공 달력 숫자(읽기만): 전체 시공 건수 · 자기 회사 출고가만.
