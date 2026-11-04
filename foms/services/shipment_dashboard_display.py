@@ -200,6 +200,8 @@ def build_shipment_mobile_queue_rows(
                 ),
                 # P6: 출발 보고 완료 여부(카드 라벨을 "출발 보고됨"으로 전환).
                 "packing_departed": _packing_departed,
+                # 협력사 주문 "입금 대기"(설계서 2026-11-03-partner-statement §5.7) — 라우트가 행에 붙인 값(PC 표 · 태블릿과 같은 값).
+                "partner_payment_pending": bool(getattr(order, "partner_payment_pending", False)),
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows
