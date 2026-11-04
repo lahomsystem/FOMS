@@ -173,3 +173,20 @@ def test_shipment_page_renders_board_and_history(app, world):
     viewer = _client(app, _user(team="CONSTRUCTION")).get("/erp/shipment").get_data(as_text=True)
     if "data-prb" in viewer:
         assert 'data-can-set="0"' in viewer and 'draggable="true"' not in viewer
+
+
+def test_shipment_team_opens_order_screen_in_construction_only_mode(app, world):
+    order_id = _order(app, world["partner_a"])
+    shipment = _client(app, _user(team="SHIPMENT"))
+    page = shipment.get(f"/edit/{order_id}?open=erp-order")
+    assert page.status_code == 200
+    body = page.get_data(as_text=True)
+    assert 'data-erp-construction-only="true"' in body and "erp-construction-only.js" in body
+    # 폼 POST(옛 편집 저장)는 출고팀이 못 한다
+    assert shipment.post(f"/edit/{order_id}", data={"customer_name": "바꿈"}).status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).customer_name == "희망고객"
+    # CS 는 그대로 전체 편집, 시공팀은 못 연다(대조군)
+    cs = _client(app, db_session.get(User, world["staff"])).get(f"/edit/{order_id}?open=erp-order").get_data(as_text=True)
+    assert 'data-erp-construction-only="false"' in cs
+    assert _client(app, _user(team="CONSTRUCTION")).get(f"/edit/{order_id}?open=erp-order").status_code == 302
