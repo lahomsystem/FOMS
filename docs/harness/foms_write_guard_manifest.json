@@ -990,6 +990,10 @@
       "mode": "guard",
       "rule": "/api/admin/cs-agent/switch/loop"
     },
+    "partner_order_delete.delete_order": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/delete"
+    },
     "partner_channel_push.send_channel_push": {
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/channel-push"
