@@ -190,3 +190,15 @@ def test_shipment_team_opens_order_screen_in_construction_only_mode(app, world):
     cs = _client(app, db_session.get(User, world["staff"])).get(f"/edit/{order_id}?open=erp-order").get_data(as_text=True)
     assert 'data-erp-construction-only="false"' in cs
     assert _client(app, _user(team="CONSTRUCTION")).get(f"/edit/{order_id}?open=erp-order").status_code == 302
+
+
+def test_low_board_header_toggle_and_collapsed_history(app, world):
+    """낮은 한 줄 판(사용자 11-04 E-2) — 머리 줄이 접기 단추 · 기록은 1줄 + [N건 보기] · 남은 자수는 정수(넘치면 '넘침')."""
+    ids = [_order(app, world["partner_a"], hope=_day(2), name=f"기록{i}") for i in range(3)]
+    for oid in ids[:2]:
+        assert _confirm(app, world["staff"], oid, _day(2)).status_code == 200
+    page = _client(app, db_session.get(User, world["staff"])).get("/erp/shipment").get_data(as_text=True)
+    assert 'prb-head" data-prb-fold role="button"' in page
+    assert "data-prb-log-toggle" in page and "2건 보기" in page and page.count("prb-log__more") == 1
+    board = page[page.index("data-prb"):page.index("prb-log")]
+    assert "남은 -" not in board and ".0</span>" not in board and "prb-cell__rem" in board
