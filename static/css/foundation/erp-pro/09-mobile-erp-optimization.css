@@ -182,7 +182,6 @@
 /* 5. ERP 서브 네비 모바일 (작업 2-5) */
 @media (max-width: 992px) {
   .erp-pro-nav {
-    position: relative;
     padding-right: 28px;
   }
   .erp-pro-nav::after {
