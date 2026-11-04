@@ -51,6 +51,7 @@ def test_list_view_then_fill_after_confirm_goes_to_pending(app, world):
     assert [(i["no"], i["title"], i["base"], i["spec"], i["filled"]) for i in view["items"]] == [
         (1, "슬라이딩", "슬라이딩", "3700*620*2290", False), (2, "붙박이장", "", "3700*620*2290", False)]
     assert not any(price in repr(view) for price in PRICES)  # 목록은 이름만
+    assert [g["label"] for g in view["tree"]] == ["기타"]  # 3단 고르기 창 목록(분류 없는 판 = 기타 — 2026-11-04)
     body = _body(oid, {"base": "슬라이딩", "lines": [{"key": "r4", "name": "슬라이딩 거울 도어", "qty": 2}]},
                  {"base": "침대 붙박이장", "lines": [{"key": "r7", "qty": 1}], "customs": [{"text": "선반 하나"}]})
     resp = cs.post(f"{API}/orders/{oid}/options", json=body)
