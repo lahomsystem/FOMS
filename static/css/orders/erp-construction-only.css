@@ -1,0 +1,12 @@
+/* 출고팀 주문 화면(시공일 · 시공시간만 연다) — erp-construction-only.js 가 잠근 단추를 흐리게 보여
+   눌러도 안 된다는 걸 바로 알게 한다(사용자 11-04). 입력 칸은 읽어야 하니 그대로 두고 단추만 흐린다.
+   잠금 표시는 JS 가 붙이는 data-erp-co-locked 하나만 본다. */
+button[data-erp-co-locked],
+input[type="file"][data-erp-co-locked],
+button[data-erp-co-locked]:hover,
+button[data-erp-co-locked]:focus {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  box-shadow: none;
+}
