@@ -132,11 +132,13 @@ def test_drawing_tab_gallery_for_images_and_file_rows_for_pdf(app, world):
     assert "1차 · 10-20 14:05 올라옴" in html and "js/foms/lightbox.js" in html
 
 
-def test_drawing_tab_without_images_skips_gallery_and_lightbox(app, world):
+def test_drawing_tab_without_images_skips_gallery(app, world):
     order_id = _order(app, world["partner_a"])
     _to_stage(order_id, "CONFIRM")
     _patch_sd(order_id, drawing_status="TRANSFERRED",
               drawing_current_files=[{"key": f"orders/{order_id}/drawing/final.pdf", "filename": "final.pdf"}])
     html = _client(app, db_session.get(User, world["partner_a"])).get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert "data-pp-drawing-gallery" not in html and "js/foms/lightbox.js" not in html
+    assert "data-pp-drawing-gallery" not in html
+    # 실측 · 완공 사진도 같은 확대 창으로 연다(11-04 핫픽스) — 도면 그림이 없어도 늘 싣는다.
+    assert "js/foms/lightbox.js" in html
     assert "data-pp-drawing-files" in html and "final.pdf" in html

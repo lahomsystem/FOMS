@@ -180,3 +180,14 @@ def test_push_textarea_opens_tall() -> None:
     """보낼 글 칸은 변환 전에도 기본 높이가 높다."""
     css = Path("static/css/contexts/partner/partner-portal.css").read_text(encoding="utf-8")
     assert ".pp-push-text" in css and "min-height: 425px" in css
+
+
+def test_partner_photos_open_in_page_lightbox_not_new_window(app, world):
+    """11-04 핫픽스: 앱(웹뷰)에서 새 창으로 열면 뒤로 가기에 튕긴다 — 그림은 같은 화면 확대 창으로."""
+    order_id = _order(app, world)
+    _attach(order_id, "partner_measurement", "measurement", "site.jpg")
+    html = _client(app, db_session.get(User, world["partner_a"])).get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "js/foms/lightbox.js" in html and "data-foms-lightbox-gallery" in html
+    link = html[html.rindex("<a", 0, html.index(f"orders/{order_id}/partner_measurement/site.jpg")):]
+    link = link[:link.index(">") + 1]
+    assert "data-foms-lightbox-src=" in link and "_blank" not in link

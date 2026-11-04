@@ -16,10 +16,10 @@
 {% if loose %}
 <div class="mb-3">
     <div class="small fw-semibold text-muted mb-1">보낸 공통 실측 사진 — 제품에 붙이려면 "제품 연결"을 고르세요</div>
-    <div class="d-flex flex-wrap gap-1">
+    <div class="d-flex flex-wrap gap-1" data-foms-lightbox-gallery>
         {% for f in loose %}
         <div class="pp-tile border rounded bg-white p-1 d-flex align-items-center gap-1">
-            <a href="{{ f.url }}" target="_blank" rel="noopener">{% if f.is_image %}<img class="pp-tile__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">{% else %}<span class="pp-tile__thumb pp-tile__thumb--file"><i class="fas fa-file-alt"></i></span>{% endif %}</a>
+            <a href="{{ f.url }}"{% if f.is_image %} data-foms-lightbox-src="{{ f.url }}"{% else %} target="_blank" rel="noopener"{% endif %}>{% if f.is_image %}<img class="pp-tile__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">{% else %}<span class="pp-tile__thumb pp-tile__thumb--file"><i class="fas fa-file-alt"></i></span>{% endif %}</a>
             <div class="small text-truncate flex-grow-1 pp-tile__name" title="{{ f.filename }}">{{ f.filename }}</div>
             <select class="form-select form-select-sm pp-tile__link" data-pp-att-link="{{ f.id }}" aria-label="{{ f.filename }} 제품 연결">
                 <option value="">제품 연결</option>
