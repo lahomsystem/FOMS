@@ -61,6 +61,11 @@
   .pp-sv__sheet .psf-head__qr { width: 18mm; height: 18mm; }
   .pp-sv__sheet .psf-lines th:nth-child(7), .pp-sv__sheet .psf-lines td:nth-child(7) { display: none; }
   .pp-sv__sheet .psf-lines td:first-child { min-width: 84px; }
+  /* 제품 묶음 접기(partner-statement.js 가 제품이 둘 이상일 때만 is-folded · role 을 붙인다). */
+  .pp-sv__sheet .psf-lines tbody.is-folded tr:not(.psf-lines__group):not(.psf-lines__sub) { display: none; }
+  .pp-sv__sheet .psf-lines__group th[role="button"] { cursor: pointer; }
+  .pp-sv__sheet .psf-lines__group th[role="button"]::after { content: " ▾"; color: #6b7280; }
+  .pp-sv__sheet .psf-lines tbody.is-folded .psf-lines__group th[role="button"]::after { content: " ▸"; }
 }
 .pp-st__tools { margin: 0 0 8px; text-align: right; }
 .pp-st__dl { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #166534; font-size: 13px; text-decoration: none; }

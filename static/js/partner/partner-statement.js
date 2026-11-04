@@ -1,6 +1,7 @@
 /**
  * 협력사 거래명세서 보기(templates/partner/statement_view.html, 설계서 2026-11-03-partner-statement §5.6).
- * "명세서 확인했어요" = POST data-ack-url · "금액 문의" = POST data-ask-url {line_ref, text} · 입금 계좌 복사.
+ * "명세서 확인했어요" = POST data-ack-url · "금액 문의" = POST data-ask-url {line_ref, text} · 입금 계좌 복사 ·
+ * 휴대폰은 제품 묶음 접기(제품 줄 · 소계만, 누르면 편다).
  * 글은 textContent 로만 넣는다.
  */
 (function () {
@@ -67,6 +68,26 @@
       form.elements.text.value = '';
       drawQuestions(res.data.questions || []);
       status('문의를 보냈습니다. 저희가 답을 달면 여기에 보입니다.');
+    });
+  }
+
+  // 휴대폰(600px 이하): 제품이 둘 이상이면 묶음을 접는다 — 제품 줄 · 소계만 보이고, 제품 줄을 누르면 편다(설계서 §5.6).
+  var groups = root.querySelectorAll('.pp-sv__sheet .psf-lines tbody');
+  if (groups.length > 1 && window.matchMedia('(max-width: 600px)').matches) {
+    groups.forEach(function (tbody) {
+      var head = tbody.querySelector('.psf-lines__group th');
+      if (!head) return;
+      tbody.classList.add('is-folded');
+      head.setAttribute('role', 'button');
+      head.setAttribute('aria-expanded', 'false');
+      head.tabIndex = 0;
+      var toggle = function () {
+        head.setAttribute('aria-expanded', tbody.classList.toggle('is-folded') ? 'false' : 'true');
+      };
+      head.addEventListener('click', toggle);
+      head.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
+      });
     });
   }
 

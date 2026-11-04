@@ -26,6 +26,15 @@
     <div data-ps-pending><p class="text-muted small">불러오는 중…</p></div>
   </section>
 
+  {#- 단가표 전 주문 옵션 채우기(결정 12). 채울 주문이 없으면 칸째 숨는다. -#}
+  <section class="foms-ps__section" aria-labelledby="ps-fill-title" data-ps-fill hidden>
+    <div class="foms-ps__bar">
+      <h2 class="h6 mb-0" id="ps-fill-title">옵션 채울 주문</h2>
+      <span class="small text-muted">단가표를 넣기 전에 들어온 주문입니다. 주문 화면의 사진 · 도면을 보고 옵션을 채우면 발행할 수 있습니다.</span>
+    </div>
+    <div data-ps-fill-list></div>
+  </section>
+
   {#- 입금 장부(5단계 — 설계서 §5.7). static/js/cs/partner-payments.js 가 /api/partner-payments 로 읽고 쓴다. -#}
   <section class="foms-ps__section" aria-labelledby="ps-pay-title" data-pay-root data-api="/api/partner-payments">
     <div class="foms-ps__bar">

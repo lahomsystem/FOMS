@@ -1150,6 +1150,10 @@
       "mode": "guard",
       "rule": "/api/partner-statements/<int:statement_id>/questions/<int:question_id>/answer"
     },
+    "partner_option_fill_api.fill_save": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/orders/<int:order_id>/options"
+    },
     "partner_payments_staff_api.record": {
       "mode": "guard",
       "rule": "/api/partner-payments"

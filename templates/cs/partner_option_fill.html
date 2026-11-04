@@ -1,0 +1,28 @@
+{% extends "cs/layout.html" %}
+{% block content %}
+{#- 단가표 전 협력사 주문 — 우리 CS 옵션 채우기(설계서 2026-11-03-partner-statement 결정 12).
+    값은 static/js/cs/partner-option-fill.js 가 GET /api/partner-statements/orders/<id>/options 로 읽는다. 사진 · 도면은
+    주문 화면에서 본다(새 창). 고르기 창은 협력사 옵션 칸 · 도면팀 전달 창과 같은 부품이다. -#}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/cs/partner-statements.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">
+<div class="container-fluid erp-dashboard erp-pro foms-ps foms-pof" data-pof-root data-api="/api/partner-statements"
+  data-order="{{ order_id }}" data-list="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title"><i class="fas fa-list-check"></i><span>옵션 채우기</span></h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_edit.edit_order', order_id=order_id) }}" target="_blank" rel="noopener">주문 화면 (사진 · 도면)</a>
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">목록</a>
+    </div>
+  </header>
+  <p class="foms-pse__meta small" data-pof-meta></p>
+  <div class="foms-pof__list" data-pof-items><p class="text-muted small">불러오는 중…</p></div>
+  <div class="foms-pse__actions">
+    <button type="button" class="foms-ps__btn foms-ps__btn--primary" data-pof-save hidden>저장</button>
+  </div>
+  <p class="foms-ps__status small" data-pof-status role="status" aria-live="polite"></p>
+</div>
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/partner-option-fill.js') }}" defer></script>
+{% endblock %}

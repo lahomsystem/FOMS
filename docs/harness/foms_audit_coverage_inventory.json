@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 286,
+    "total": 287,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 245,
+    "AUDITED": 246,
     "EXEMPT": 39,
     "UNAUDITED": 2
   },
@@ -1563,6 +1563,15 @@
       "path": "foms/api/partner/statements.py",
       "endpoint": "api_ask",
       "lineno": 59,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner_option_fill_staff.py",
+      "endpoint": "api_fill_save",
+      "lineno": 76,
       "methods": [
         "POST"
       ],
