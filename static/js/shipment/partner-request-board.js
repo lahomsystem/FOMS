@@ -34,6 +34,13 @@
     var p = s.split('-'), w = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
     return w === 0 || w === 6;
   }
+  /** 받침에 맞춘 '로' · '으로'(받침 없음 · ㄹ 받침 = 로). 끝의 괄호는 건너뛰고 본다. */
+  function ro(text) {
+    var t = String(text || '').replace(/[)\s]+$/, ''), c = t.charCodeAt(t.length - 1) - 0xAC00;
+    if (c < 0 || c > 11171) return text + '로';
+    var jong = c % 28;
+    return text + (jong === 0 || jong === 8 ? '로' : '으로');
+  }
   function cellOf(s) { return s ? document.querySelector('[data-prb-cell="' + s + '"]') : null; }
   function chipData(chip) {
     return {
@@ -134,7 +141,7 @@
     chip.classList.add('is-saving');
     pending = { id: it.id, name: it.name, partner: it.partner, date: date, time: time, chip: chip };
     pending.timer = setTimeout(function () { flush(false); }, UNDO_MS);
-    toast('#' + it.id + ' ' + it.name + ' 시공일을 ' + mdDow(date) + (time ? ' ' + time : '') + '로 정해요 · 5초 뒤 저장', true);
+    toast('#' + it.id + ' ' + it.name + ' 시공일을 ' + ro(mdDow(date) + (time ? ' ' + time : '')) + ' 정해요 · 5초 뒤 저장', true);
   }
   function undo() {
     if (!pending) return;
@@ -158,7 +165,7 @@
       .then(function (r) {
         if (r.data && r.data.success === true) {
           var d = r.data.data || {};
-          toast('#' + job.id + ' ' + job.name + ' 시공일을 ' + mdDow(d.date) + (d.time ? ' ' + d.time : '') + '로 정했어요. ' + job.partner + '에 알림이 갔어요.', false);
+          toast('#' + job.id + ' ' + job.name + ' 시공일을 ' + ro(mdDow(d.date) + (d.time ? ' ' + d.time : '')) + ' 정했어요. ' + job.partner + '에 알림이 갔어요.', false);
           setTimeout(function () { window.location.reload(); }, 1500);
           return;
         }

@@ -66,7 +66,7 @@
         btn.disabled = false;
         if (!data || data.success !== true) { note((data && (data.error || data.message)) || '저장하지 못했어요.', true); return; }
         var d = data.data || {};
-        note('시공일을 ' + d.date + (d.time ? ' ' + d.time : '') + '로 저장했어요.', false);
+        note('저장했어요 — 시공일 ' + d.date + (d.time ? ' ' + d.time : ''), false);
         if (d.change_reason_required === true && d.change_set) {
           document.dispatchEvent(new CustomEvent('foms:change-reason-required', {
             detail: { orderId: orderId, changeSet: d.change_set, mode: 'full' }
