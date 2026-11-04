@@ -1225,6 +1225,11 @@
       "policy_id": "ADMIN_OPS",
       "rule": "/api/admin/cs-agent/switch/loop"
     },
+    "partner_order_delete.delete_order": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/delete"
+    },
     "partner_channel_push.send_channel_push": {
       "mode": "guard",
       "policy_id": "PARTNER_PORTAL",
