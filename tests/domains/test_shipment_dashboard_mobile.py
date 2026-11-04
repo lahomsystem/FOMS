@@ -298,3 +298,46 @@ def test_shipment_mobile_gate_follows_shell_matrix() -> None:
         "@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {"
         in norm
     )
+
+
+def _partner_ship_order(today: str) -> Order:
+    from models import PartnerOrg
+
+    org = PartnerOrg(name="입금 시험 협력사")
+    db_session.add(org)
+    db_session.flush()
+    order = Order(
+        received_date=today, customer_name="입금 대기 고객", phone="010-3000-4000", address="서울시 입금로 1",
+        product="붙박이장", status="IN_CONSTRUCTION", scheduled_date=today, is_erp_order=True, partner_org_id=org.id,
+        structured_data={"workflow": {"stage": "SHIPMENT"}, "parties": {"customer": {"name": "입금 대기 고객"}},
+                         "schedule": {"construction": {"date": today}}, "items": [{"product_name": "붙박이장"}]},
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(OrderScheduleDate(order_id=order.id, kind="construction", date=today, source="shipment_mobile_test"))
+    db_session.commit()
+    return order
+
+
+def test_shipment_mobile_card_shows_partner_unpaid(client, monkeypatch) -> None:
+    """협력사 주문 "입금 대기"는 휴대폰 출고 카드에도 보인다(PC 표 · 태블릿과 같은 값). 대조군: 다 받은 주문은 없음."""
+    import foms.web.shipment.dashboard as dashboard
+
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _partner_ship_order(get_today_kst().strftime("%Y-%m-%d"))
+    seen: list[list[int]] = []
+
+    def unpaid(_db, ids):
+        seen.append(list(ids))
+        return {order.id}
+
+    monkeypatch.setattr(dashboard, "unpaid_order_ids", unpaid)
+    body = client.get("/erp/shipment").get_data(as_text=True)
+    assert seen and order.id in seen[0]
+    assert 'data-shipment-mobile-detail-row="partner_unpaid"' in body and "입금 대기" in body
+
+    monkeypatch.setattr(dashboard, "unpaid_order_ids", lambda _db, _ids: set())
+    paid = client.get("/erp/shipment").get_data(as_text=True)
+    assert "입금 대기 고객" in paid and 'data-shipment-mobile-detail-row="partner_unpaid"' not in paid
