@@ -99,16 +99,21 @@ def test_final_drawings_show_as_thumbnails(app, priced):
     from models import Order
 
     cs = _cs(app)
-    oid = _confirmed_order(app, priced, [_item(lines=[{"key": "r4", "qty": 1}])])
+    oid = _confirmed_order(app, priced, [_item(lines=[{"key": "r4", "qty": 1}]), _item(lines=[{"key": "r4", "qty": 2}])])
     order = db_session.get(Order, oid)
     sd = dict(order.structured_data)
-    sd["drawing_current_files"] = [{"key": f"orders/{oid}/drawing/final.png", "filename": "final.png"},
+    uids = [it["uid"] for it in sd["items"]]
+    # 1번 = 마법사 제품 시트(둘째 품목) · 2번 = 어느 품목 것인지 모르는 파일 — 화면은 고른 도면의 묶음만 보인다(사용자 11-04).
+    sd["drawing_wizard"] = {"sheets": [{"id": "s-2", "product_index": 1}]}
+    sd["drawing_current_files"] = [{"key": f"orders/{oid}/drawing/final.png", "filename": "final.png", "sheet_id": "s-2"},
                                    {"key": f"orders/{oid}/drawing/final.pdf", "filename": "final.pdf"}]
     order.structured_data = sd
     flag_modified(order, "structured_data")
     db_session.commit()
     data = _draft(cs, oid)
     assert [(d["name"], d["is_image"]) for d in data["drawings"]] == [("1번 · final.png", True), ("2번 · final.pdf", False)]
+    assert [(d["no"], d["uids"]) for d in data["drawings"]] == [(1, [uids[1]]), (2, [])]
+    assert [g["item_uid"] for g in data["groups"]] == uids
     issued = cs.post(f"{API}/{data['id']}/issue", json={"version": data["version"]}).get_json()["data"]
     page = _partner(app, priced).get(f"/partner/statements/{issued['id']}").get_data(as_text=True)
     assert 'class="pp-sv__thumb"' in page and 'alt="1번 · final.png"' in page and "2번 · final.pdf" in page
