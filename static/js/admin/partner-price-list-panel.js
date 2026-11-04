@@ -103,6 +103,40 @@
     }
   }
 
+  /** 제품 분류 — 대분류 · 중분류(설계서 2026-11-04-partner-product-tree §2.1). 협력사 고르기 창이 이 3단으로 묶는다.
+      이름이 여럿인 줄(같은 단가)은 이름마다 다르게 둘 수 있다(tree_by_name — 비우면 줄 분류를 따른다). */
+  function treePair(path, onSave, holder) {
+    var big = input((path || [])[0] || '');
+    var mid = input((path || [])[1] || '');
+    big.placeholder = (holder || [])[0] || '예: 붙박이장';
+    mid.placeholder = (holder || [])[1] || '예: 여닫이';
+    function save() { var b = big.value.trim(); onSave(b ? [b, mid.value.trim() || b] : null); }
+    big.addEventListener('input', save);
+    mid.addEventListener('input', save);
+    return [big, mid];
+  }
+
+  function treeFields(item, ctx, body) {
+    var pair = treePair(item.tree, function (path) { if (path) item.tree = path; else delete item.tree; ctx.changed(); });
+    body.appendChild(field('분류 — 대분류', pair[0], '비우면 협력사 고르기 창의 "기타"에 보입니다.'));
+    body.appendChild(field('분류 — 중분류', pair[1], '비우면 대분류 이름을 그대로 씁니다.'));
+    var names = item.pick_names || [];
+    if (names.length < 2) return;
+    names.forEach(function (name) {
+      var own = (item.tree_by_name || {})[name];
+      var p = treePair(own, function (path) {
+        var map = Object.assign({}, item.tree_by_name || {});
+        if (path) map[name] = path; else delete map[name];
+        if (Object.keys(map).length) item.tree_by_name = map; else delete item.tree_by_name;
+        ctx.changed();
+      }, item.tree);
+      var row = el('div', 'foms-pl-tree-pair');
+      row.appendChild(p[0]);
+      row.appendChild(p[1]);
+      body.appendChild(field('"' + name + '"만 다른 분류', row, '비우면 위 분류를 따릅니다.'));
+    });
+  }
+
   function render(item, ctx) {
     var body = document.querySelector('[data-pl-panel-body]');
     var empty = document.querySelector('[data-pl-panel-empty]');
@@ -148,6 +182,8 @@
     var picks = lines(item.pick_names);
     picks.addEventListener('input', function () { item.pick_names = splitLines(picks.value); ctx.changed(); });
     body.appendChild(field('협력사가 고르는 이름 (한 줄에 하나)', picks, '예: 몰딩 여닫이, 무몰딩 여닫이 — 모두 이 줄 단가로 계산합니다.'));
+
+    if (item.role === 'product') treeFields(item, ctx, body);
 
     if (item.role === 'option') {
       var only = lines(item.for_products);

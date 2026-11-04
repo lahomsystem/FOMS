@@ -54,3 +54,19 @@
 .foms-sp__box { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
 .foms-sp__box > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; }
 .foms-sp__field textarea { min-height: 64px; }
+
+/* 제품 분류로 보기 — 대분류 › 중분류 › 제품(설계서 2026-11-04-partner-product-tree §2.1, static/js/admin/partner-price-list-tree.js) */
+.foms-pl-tree { margin-top: 16px; }
+.foms-pl-tree__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.foms-pl-tree__head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.foms-pl-tree__big { margin-bottom: 8px; border: 1px solid var(--erp-border, #d1d5db); border-radius: 8px; overflow: hidden; }
+.foms-pl-tree__big > summary { display: flex; gap: 8px; padding: 7px 10px; background: #1f2937; color: #fff; font-weight: 700; cursor: pointer; }
+.foms-pl-tree__big--etc > summary { background: #6b7280; }
+.foms-pl-tree__count { margin-left: auto; font-size: 12px; font-weight: 400; opacity: .8; }
+.foms-pl-tree__mid { margin: 0; padding: 5px 10px 5px 20px; background: #f3f4f6; font-size: 13px; font-weight: 700; }
+.foms-pl-tree__row { display: flex; gap: 8px; align-items: center; padding: 4px 10px 4px 32px; border-top: 1px solid #f1f5f9; font-size: 13px; }
+.foms-pl-tree__name { flex: 1 1 auto; }
+.foms-pl-tree__price { white-space: nowrap; color: #374151; }
+.foms-pl-tree-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.foms-pl-tree__move { margin-left: 4px; padding: 0 6px; border: 1px solid rgba(255, 255, 255, .5); border-radius: 4px; background: none; color: inherit; font-size: 12px; cursor: pointer; }
+.foms-pl-tree__move:disabled { opacity: .35; cursor: default; }

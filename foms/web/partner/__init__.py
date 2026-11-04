@@ -79,7 +79,7 @@ def _pick_context(db, org_id: int) -> dict:
     if price_list is None:
         return {"product_names": _product_names(), "option_catalog": None}
     lists = pick_lists(price_list.sheet)
-    return {"product_names": {"groups": lists["products"]} if lists["products"] else [],
+    return {"product_names": {"groups": lists["products"], "tree": lists["tree"]} if lists["products"] else [],
             "option_catalog": lists["options"]}
 
 

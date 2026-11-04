@@ -155,8 +155,15 @@ def calc_item(sheet: dict[str, Any], item: dict[str, Any], rules: Optional[dict[
     needs: list[str] = []
     lines: list[dict[str, Any]] = []
     base = index.get(str(item.get("base_key") or ""))
-    if base is None:
-        needs.append(f"{item.get('title') or '품목'}: 제품명이 단가표 줄과 이어져 있지 않습니다")
+    title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()[:100]
+    if base is None and title:
+        # 목록에 없는 제품(커스텀 제품 — 설계서 2026-11-04-partner-product-tree §2.3): 금액 빈 줄, CS 가 초안에서 넣는다.
+        notes.append("목록에 없는 제품")
+        lines.append({"key": None, "name": title, "spec": _spec_text((item.get("spec_rows") or [{}])[0]), "unit": "식",
+                      "qty": "1", "unit_price": None, "amount": None, "source": "custom",
+                      "basis": "목록에 없는 제품 — 금액을 넣어 주세요"})
+    elif base is None:
+        needs.append("품목: 제품명이 단가표 줄과 이어져 있지 않습니다")
     elif base.get("price") is None:
         needs.append(f"{base['name']}: 단가표 금액이 빈칸입니다")
     else:

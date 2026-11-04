@@ -6,7 +6,8 @@
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">
 {% if view.items_editable or view.request_editable %}{% include "partner/partials/flatpickr_head.html" %}{% endif %}
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
-<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-product-picker.css') }}">{% endif %}
 {% if option_catalog is not none or option_review %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">{% endif %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
@@ -78,6 +79,7 @@
 {{ pp_item_templates(product_names | length > 0, option_catalog is not none) }}
 {% if product_names %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>{% endif %}
 {% if product_names or option_catalog is not none %}<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
+{% if product_names %}<script src="{{ asset_url('js/partner/partner-product-picker.js') }}" defer></script>{% endif %}
 {% if option_catalog is not none %}<div hidden data-pp-option-catalog='{{ option_catalog | tojson }}'></div>
 <div hidden data-pp-item-options='{{ item_options | tojson }}'></div>
 <script src="{{ asset_url('js/partner/partner-item-options.js') }}" defer></script>{% endif %}
