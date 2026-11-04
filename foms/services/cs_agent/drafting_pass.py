@@ -24,6 +24,7 @@ from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.image_step import turn_hook as image_hook
 from foms.services.cs_agent.knowledge import ApprovedKnowledge
+from foms.services.cs_agent.knowledge_doc import HUMAN_ONLY_MARK
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
@@ -37,7 +38,6 @@ logger = logging.getLogger("foms.services.cs_agent.drafting")
 
 __all__ = ["HUMAN_ONLY_MARK", "DraftPass", "pending_customer_lines"]
 
-HUMAN_ONLY_MARK = "[사람]"  # 승인 지식에서 사람만 말하는 항목 표시 — 그 글의 숫자는 허용 목록에 넣지 않는다
 
 
 def pending_customer_lines(lines: Sequence[ChatLine]) -> list[ChatLine]:
@@ -58,7 +58,8 @@ class DraftPass:
                  quoter: Optional[Callable[..., Any]] = None, catalog_reader: Optional[Callable[[], Any]] = None,
                  image_client: Any = None, image_transport: Any = None,
                  image_sleep: Optional[Callable[[float], None]] = None) -> None:
-        """재료를 담는다. 허용 목록은 승인 지식 글만 — [사람] 항목 글 · 손님 글 금액은 넣지 않는다(손님 예산에 맞춰 주게 된다).
+        """재료를 담는다. 허용 목록은 승인 지식 글만 — [사람] · [내부] 항목 글 · 손님 글 금액은 넣지 않는다(손님 예산에 맞춰
+        주게 된다 · 내부 규칙이 샌다 — D164).
 
         견적 계산 넣기(C10-6)가 켜진 차례만 계산기 값 줄이 그 차례 허용 목록에 더해진다(:meth:`quote`). ``quoter`` ·
         ``catalog_reader`` 는 뽑기 두뇌 · 계산기 설정 읽기, ``image_client`` · ``image_transport`` · ``image_sleep`` 은 그림 읽기
@@ -66,7 +67,7 @@ class DraftPass:
         """
         self.session, self.reader, self.now, self.stop, self.mode = session, reader, now, stop, mode
         self.brain, self.poster, self.knowledge, self.daytime, self.summary = brain, poster, knowledge, daytime, summary
-        self.allowed = tuple(item.text for item in knowledge.items if HUMAN_ONLY_MARK not in item.text)
+        self.allowed = knowledge.spoken_texts()
         self.human_only = frozenset(item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text)
         self.owner = claim_owner(self.owner_kind)
         self.clock = clock  # 빠른 길이 선점 시각을 잴 때 쓴다(15분 바퀴는 시간 상한 시계를 여기서 읽지 않는다)

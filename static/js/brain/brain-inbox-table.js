@@ -1,6 +1,6 @@
 /**
- * '확인할 것' ① 이름 표 · ④ 표시 표(HAUD master brain 설계서 7.9 단계 2 · D151) — 그 묶음 카드를 표 한 장으로 그린다.
- * ① 은 줄마다 체크 · 지금 이름 · 새 한글 이름(눌러 고침) · 찾는 말, ④ 는 지식 · 같은 값이 적힌 곳. 글은 textContent 만 · 인라인
+ * '승인 대기' ① 이름 표 · ④ 표시 표(HAUD master brain 설계서 7.9 단계 2 · D151) — 그 묶음 카드를 표 한 장으로 그린다.
+ * ① 은 줄마다 체크 · 지금 이름 · 새 한글 이름(눌러 고침) · 비슷한 말, ④ 는 지식 · 같은 값이 적힌 곳. 글은 textContent 만 · 인라인
  * 스타일 없음. 누름(체크한 것 승인)은 brain-inbox.js 가 받고, 이 파일은 그리기와 고른 줄 모으기만 한다.
  */
 (function () {
@@ -19,7 +19,7 @@
     return null;
   }
 
-  /** 찾는 말 — 앞 세 개만 「」로, 나머지는 +수. */
+  /** 비슷한 말 — 앞 세 개만 「」로, 나머지는 +수. */
   function words(list) {
     var all = Array.isArray(list) ? list : [];
     var out = all.slice(0, SHOWN_WORDS).map(function (w) { return '「' + w + '」'; }).join(' ');
@@ -73,14 +73,14 @@
     var names = bin === 'names';
     var table = el('table', { cls: 'brain-diff' });
     table.appendChild(el('caption', { cls: 'visually-hidden', text: names ? '한글 이름 붙이기' : '같은 값이 적힌 곳 표시' }));
-    table.appendChild(head(names ? ['승인', '지금 이름', '새 한글 이름', '찾는 말'] : ['승인', '지식', '같은 값이 적힌 곳']));
+    table.appendChild(head(names ? ['승인', '지금 이름', '새 한글 이름', '비슷한 말'] : ['승인', '지식', '같은 값이 적힌 곳']));
     var body = el('tbody');
     cards.forEach(function (card) { body.appendChild(names ? nameRow(card) : markRow(card)); });
     table.appendChild(body);
     var ready = cards.filter(function (card) { return usable(card.main); }).length;
     var li = el('li', { cls: 'brain-icard', children: [el('div', { cls: 'brain-table-wrap', children: [table] })] });
     li.appendChild(el('p', { cls: 'brain-icard__summary', text: names
-      ? '이름 칸을 눌러 고칠 수 있어요. 찾는 말로 물어도 이 지식을 찾아요. 체크를 끈 줄은 승인하지 않아요.'
+      ? '이름 칸을 눌러 고칠 수 있어요. 비슷한 말로 물어도 이 지식을 찾아요. 체크를 끈 줄은 승인하지 않아요.'
       : '값을 바꿀 때 같이 고칠 곳을 알려 줘요.' }));
     var apply = el('button', { cls: 'brain-btn brain-btn--primary', attrs: { type: 'button', 'data-brain-table-apply': bin },
                                text: names ? '체크한 줄 승인' : ready + '개 모두 승인' });

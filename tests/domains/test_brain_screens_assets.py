@@ -40,7 +40,7 @@ SCRIPT_NAMES = {"brain-view.js", "brain-dom.js", "brain-page.js", "brain-table.j
                 "brain-item-actions.js", "brain-graph-view.js", "brain-neighbours.js", "brain3d-core.js",
                 "brain3d-layout.js", "brain3d-shell.js", "brain3d-nodes.js", "brain3d-labels.js", "brain3d-scene.js",
                 "brain3d-tab.js", "brain-ask-view.js", "brain-ask.js", "brain-ask-admin.js",
-                "brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox-question.js"}  # '확인할 것'(설계서 7.9)
+                "brain-inbox-bins.js", "brain-inbox-table.js", "brain-inbox-question.js"}  # '승인 대기'(설계서 7.9)
 #: 그림 라이브러리를 import() 하는 화면 파일 — 유형 지도 · 이웃 지도(Cytoscape) · 뇌 보기(three.js · 그리기 파일).
 IMPORTERS = ["brain-map.js", "brain-neighbours.js", "brain3d-tab.js"]
 

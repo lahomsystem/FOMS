@@ -60,8 +60,8 @@ _LEAD = Prop("payload.lead_days", "제작 기간", "int", low=1, high=180, unit=
 #: SKOS 꼴 이름표(7.7 · D105 · 점검 '지금 4') — 대표 이름(비우면 ``name``) · 다른 이름 · 숨은 이름(잘못 쓴 말 · 줄임 —
 #: 찾기만 보고 화면에 안 보임) · 위 낱말. 실음 칸이라 :mod:`.labels` 가 찾기 · 벡터 글에 쓴다.
 _PREF = Prop("payload.pref_label", "한글 이름", "text", max_len=60, key=True)
-_ALIASES = Prop("payload.aliases", "찾는 말", "list", max_items=20, max_len=60, key=True)
-_HIDDEN = Prop("payload.hidden_labels", "숨은 찾는 말", "list", max_items=20, max_len=60)
+_ALIASES = Prop("payload.aliases", "비슷한 말", "list", max_items=20, max_len=60, key=True)
+_HIDDEN = Prop("payload.hidden_labels", "숨은 비슷한 말", "list", max_items=20, max_len=60)
 _BROADER = Prop("payload.broader", "위 낱말", "text", max_len=60)
 #: 이름표 칸 넷. 옮긴 지식 문서 항목(가격 규칙 · 사실 · 사장님 결정)과 규격에도 둔다 — 설계서 7.8 자료 '옮긴 72개에 사람용 한글
 #: 이름 · 다른 이름'(점검 '지금 3' · D130). 지식 문서로는 나가지 않는 brain 만의 칸이다(:func:`brain_payload_keys`).
@@ -325,7 +325,7 @@ def key_fields(values: Mapping[str, Any], item_type: Optional[str]) -> list[dict
 def diff_rows(item_type: Optional[str], fields: Mapping[str, Any]) -> list[dict[str, Any]]:
     """제안 ``fields`` 의 실음 칸을 틀 칸마다 펼친 전 → 후 줄(틀 밖 실음 칸은 한 줄로). 줄 칸은 이름 · 단위만 붙인다.
 
-    틀이 없는 유형(상용구 등)도 이름표 칸(한글 이름 · 찾는 말 · 숨은 찾는 말)은 칸마다 펼친다 — 화면에 실음 칸 JSON 을 그대로
+    틀이 없는 유형(상용구 등)도 이름표 칸(한글 이름 · 비슷한 말 · 숨은 비슷한 말)은 칸마다 펼친다 — 화면에 실음 칸 JSON 을 그대로
     내놓지 않게(설계서 7.9)."""
     rows = []
     for name, entry in fields.items():

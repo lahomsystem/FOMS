@@ -189,6 +189,8 @@ OWNER_ONLY_TYPES: frozenset[str] = frozenset({"price_rule", "policy", "owner_dec
 #: 층 승인자 팀(5절 '그 층 승인자' · 사장님 D101 — 그 팀 팀장). 그 팀의 켜진 MANAGER 가 사장님 몫이 아닌 제안을 반영한다.
 #: 공통 바탕은 승인자 팀이 없다(ADMIN 만).
 LAYER_APPROVER_TEAMS: dict[str, str] = {LAYER_CS: "CS", LAYER_DRAWING: "DRAWING", LAYER_PRODUCTION: "PRODUCTION"}
+#: 이름표 칸만 바뀌는 고침(승인 대기 ①)을 층 · 유형과 상관없이 결정하는 팀의 MANAGER(사장님 D167 — 상담팀장).
+NAME_APPROVER_TEAM = "CS"
 #: 다시 확인 주기(7.5 '다시 확인' · 사장님 D103) — 가격 규칙 14일 · 제작 조건 · 정책 90일 · 도면 규칙 180일 · 용어 1년.
 #: 없는 유형은 낡음 날을 두지 않는다.
 STALE_DAYS: dict[str, int] = {"price_rule": 14, "build_rule": 90, "policy": 90, "drawing_rule": 180, "term": 365}

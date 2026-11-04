@@ -23,7 +23,7 @@ from sqlalchemy import and_, case, false, func, literal, not_, or_, select, true
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
-from foms.services.brain.access import approval_problem, approver_layers
+from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
     AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
@@ -31,7 +31,7 @@ from foms.services.brain.constants import (
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
 from foms.services.brain.external import ref_cards
-from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, ref_label
+from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, label_only_change, ref_label
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
 from foms.services.brain.schemas import diff_rows, edit_prop, edit_props
 from foms.services.brain.scope import Viewer, allowed_scopes
@@ -52,15 +52,25 @@ def agent_clause() -> Any:
 
 
 def decidable_clause(viewer: Viewer) -> Any:
-    """이 사람이 결정할 수 있는 제안(질의 조건 — :func:`.access.approval_problem` 과 같은 규칙)."""
+    """이 사람이 결정할 수 있는 제안(질의 조건 — :func:`.access.approval_problem` 과 같은 규칙).
+
+    상담팀장은 모든 고침을 후보로 넣는다 — 이름표 칸만 바뀌는지는 실음 칸 안을 견줘야 해서 :func:`decidable` 이 거른다(D167)."""
     layers = approver_layers(viewer)
     if layers is None:
         return true()
+    names = BrainChange.op == OP_UPDATE if name_approver(viewer) else false()
     if not layers:
-        return false()
+        return names
     owner_end = select(BrainObject.id).where(BrainObject.item_key == BrainChange.link_to, is_current(BrainObject),
                                              BrainObject.item_type.in_(sorted(OWNER_ONLY_TYPES))).exists()
-    return and_(BrainChange.layer.in_(layers), BrainChange.item_type.notin_(sorted(OWNER_ONLY_TYPES)), not_(owner_end))
+    return or_(and_(BrainChange.layer.in_(layers), BrainChange.item_type.notin_(sorted(OWNER_ONLY_TYPES)),
+                    not_(owner_end)), names)
+
+
+def decidable(viewer: Viewer, change: Any) -> bool:
+    """질의로 거른 제안 하나를 파이썬으로 다시 — :func:`.access.approval_problem` 그대로(이름표만 고침 포함)."""
+    return approval_problem(viewer, op=change.op, layer=change.layer, types=[change.item_type],
+                            label_only=label_only_change(change.op, change.fields)) is None
 
 
 def visible_clause(viewer: Viewer, cur: Any) -> Any:
@@ -137,18 +147,19 @@ def open_rows(session: Any, viewer: Viewer, now: datetime.datetime) -> list[tupl
         .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur),
                _in_box(session, now))
         .order_by(BrainChange.created_at, BrainChange.id).limit(MAX_CHANGES)).all()
-    return [(change, row) for change, row in rows
-            if approval_problem(viewer, op=change.op, layer=change.layer, types=[change.item_type]) is None]
+    return [(change, row) for change, row in rows if decidable(viewer, change)]
 
 
 def inbox_counts(session: Any, viewer: Viewer, now: datetime.datetime) -> dict[str, int]:
     """제안함 수(보기 범위 · 결정 가능으로 거른 것) — ``{"open", "cards", "ai_waiting"}``. 알림 수 API 가 쓴다."""
     cur = aliased(BrainObject)
-    base = (select(BrainChange.id, BrainChange.item_key, BrainChange.link_kind, BrainChange.link_to, agent_clause().label("ai"))
+    base = (select(BrainChange.id, BrainChange.item_key, BrainChange.link_kind, BrainChange.link_to, BrainChange.op,
+                   BrainChange.layer, BrainChange.item_type, BrainChange.fields, agent_clause().label("ai"))
             .outerjoin(cur, current_join(cur))
             .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur)))
     shown = set(shown_ai_ids(session, now))
-    rows = [r for r in session.execute(base.where(or_(not_(agent_clause()), BrainChange.created_at >= ai_cutoff(now))))]
+    rows = [r for r in session.execute(base.where(or_(not_(agent_clause()), BrainChange.created_at >= ai_cutoff(now))))
+            if decidable(viewer, r)]
     boxed = [r for r in rows if not r.ai or r.id in shown]
     return {"open": len(boxed), "cards": len({(r.item_key, r.link_kind, r.link_to) for r in boxed}),
             "ai_waiting": len([r for r in rows if r.ai and r.id not in shown])}
@@ -322,7 +333,7 @@ def about_items(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) ->
 
 
 def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int, str],
-                links: dict[tuple[str, str, str], int], admin: bool = False,
+                links: dict[tuple[str, str, str], int], wide: frozenset[str] = frozenset(),
                 prices: Optional[dict[str, dict[str, Any]]] = None,
                 about: Optional[dict[str, dict[str, Any]]] = None) -> dict[str, Any]:
     """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id)."""
@@ -339,11 +350,11 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
         "meaning": approval_meaning(change.op, change.item_type,
                                     card_bin(change.op, change.item_type, change.fields, change.link_kind)),
-        "confirm": ({"field": field, "value": value} if change.grade == GRADE_B and not (
-            admin and bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind)) else None),
+        "confirm": ({"field": field, "value": value} if change.grade == GRADE_B and not bulk_ok_any_grade(
+            change.op, change.item_type, change.fields, change.link_kind, wide) else None),
         "phone_ok": phone_ok(change.op, change.fields),
-        "bulk_ok": change.grade == GRADE_A or (admin and bulk_ok_any_grade(change.op, change.item_type, change.fields,
-                                                                            change.link_kind)),
+        "bulk_ok": change.grade == GRADE_A or bulk_ok_any_grade(change.op, change.item_type, change.fields,
+                                                                 change.link_kind, wide),
         "rollback_of": change.rollback_of_version, "link": ({"kind": change.link_kind, "from": change.link_from,
                                                             "to": change.link_to, "to_label": ref_label(change.link_to)}
                                                            if change.op in LINK_OPS else None),
@@ -383,7 +394,7 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
     main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
     change, cur = group[main_index]
-    views = [change_view(c, r, extra["names"], extra["links"], extra["admin"], extra["prices"], extra["about"])
+    views = [change_view(c, r, extra["names"], extra["links"], extra["wide"], extra["prices"], extra["about"])
              for c, r in group]
     after_name = ((change.fields or {}).get("name") or {}).get("after")
     key = change.item_key or ""
@@ -418,7 +429,7 @@ def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, 
               and c.proposed_by[5:].isdigit()}
     extra = {"names": people_names(session, people), "links": link_versions(session, [c for c, _r in rows]),
              "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys),
-             "usage": usage_of(session, item_keys), "admin": viewer.is_admin,
+             "usage": usage_of(session, item_keys), "wide": wide_bins(viewer),
              "prices": price_cards(session, viewer, [c for c, _r in rows]),
              "about": about_items(session, viewer, [c for c, _r in rows])}
     cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)

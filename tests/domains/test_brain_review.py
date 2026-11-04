@@ -388,7 +388,7 @@ def test_card_shows_scoped_similar_cases_touches_meaning_and_phone_rule(world):
                                                       "name": "사진 먼저 받은 사례", "type": "case"}]}
     main = card["main"]
     assert main["phone_ok"] is True and main["bulk_ok"] is True and main["confirm"] is None
-    assert main["meaning"] == ""  # 모든 카드에 같은 '승인의 뜻'은 '확인할 것' 위에 한 번만(사장님 11-04) — 배운 점은 주의 줄 없음
+    assert main["meaning"] == ""  # 모든 카드에 같은 '승인의 뜻'은 '승인 대기' 위에 한 번만(사장님 11-04) — 배운 점은 주의 줄 없음
     assert [g["name"] for g in main["gates"]] == ["form", "mask", "hanja", "numbers", "conflict", "evidence", "eval"]
     assert main["fields"] == [{"field": "name", "before": "사진 먼저 받기", "after": "사진 먼저 꼭 받기", "label": None,
                                "unit": None, "editable": True, "datatype": "text", "choices": []}]

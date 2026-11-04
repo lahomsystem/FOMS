@@ -1,4 +1,4 @@
-"""'확인할 것' 네 묶음 · 한글 제목 · 첫 탭 · 쉬운 말(설계서 7.9 단계 1 · 사장님 11-03 "사용법이 너무 어려워").
+"""'승인 대기' 네 묶음 · 한글 제목 · 첫 탭 · 쉬운 말(설계서 7.9 단계 1 · 사장님 11-03 "사용법이 너무 어려워").
 
 묶음은 서버가 정한다 — 이름표 칸만 바뀌는 고침 ① · 엇갈림 · 질문 만들기 ③ · 사본 자리 링크 ④ · 그 밖 ②(대조군: 이름표 + 다른 칸,
 글 고침, 다른 링크는 ②). ① · ④ 는 '금액이 바뀔 수 있어요' 대신 '글과 금액은 그대로'를 보인다.
@@ -60,7 +60,7 @@ def test_bins_are_decided_by_what_changes(op, item_type, fields, link_kind, want
 def test_meaning_is_one_warning_line_and_drops_the_price_warning_when_amounts_cannot_change():
     from foms.services.brain.display import INBOX_NOTE
     names = approval_meaning("update", "price_rule", "names")
-    assert names == "이름 · 찾는 말만 바뀌어요. 글 · 금액은 그대로예요." and "금액이 바뀔 수 있어요" not in names
+    assert names == "이름 · 비슷한 말만 바뀌어요. 글 · 금액은 그대로예요." and "금액이 바뀔 수 있어요" not in names
     assert approval_meaning("update", "price_rule", "content") == "손님에게 가는 금액이 바뀔 수 있어요. 숫자를 확인해 주세요."
     assert approval_meaning("link_add", None, "mark") == "표시만 해요. 글 · 금액은 그대로예요."
     assert approval_meaning("create", "template") == "손님에게 그대로 나가는 글이에요."
@@ -70,7 +70,7 @@ def test_meaning_is_one_warning_line_and_drops_the_price_warning_when_amounts_ca
 
 def test_label_changes_of_a_type_without_schema_are_shown_as_named_rows_not_json():
     rows = diff_rows("template", LABELS_ONLY)
-    assert [(r["label"], r["after"]) for r in rows] == [("한글 이름", "첫인사 상용구"), ("찾는 말", ["인사말"])]
+    assert [(r["label"], r["after"]) for r in rows] == [("한글 이름", "첫인사 상용구"), ("비슷한 말", ["인사말"])]
     mixed = diff_rows("template", _payload({"doc_id": "x"}, {"doc_id": "y", "pref_label": "가"}))
     assert [r["label"] for r in mixed] == ["한글 이름", "그 밖 세부 칸"]  # 이름표 밖 칸은 한 줄로(대조군)
 
@@ -108,10 +108,10 @@ def test_first_tab_is_inbox_only_when_there_is_something_to_decide(app):
     db_session.commit()
     html = _client(app, who["admin"].id).get("/brain").get_data(as_text=True)
     assert 'nav-link active" id="brain-tab-inbox-btn"' in html
-    assert "확인할 것" in html and "지식 찾기" in html and "더 보기" in html and "brain-inbox-bins.js" in html
+    assert "승인 대기" in html and "지식 찾기" in html and "더 보기" in html and "brain-inbox-bins.js" in html
     assert html.index('id="brain-tab-inbox-btn"') < html.index('id="brain-tab-search-btn"') < html.index("더 보기")
     assert 'class="dropdown-item" id="brain-tab-table-btn"' in html  # 지식 표는 더 보기 안
-    assert "넣기" not in html.split('id="brain-tab-inbox"')[1].split("</section>")[0]  # 확인할 것 칸 글에 '넣기' 없음
+    assert "넣기" not in html.split('id="brain-tab-inbox"')[1].split("</section>")[0]  # 승인 대기 칸 글에 '넣기' 없음
 
 
 # ── 2단계: ① 이름 표 · ④ 한 번에(D151) ──────────────────────────────────
@@ -143,8 +143,8 @@ def test_admin_bulk_approves_label_only_changes_of_any_grade_and_refuses_mixed_b
     assert {tpl.grade, price.grade} == {"B"}
     with pytest.raises(BrainShapeError):  # 글이 바뀌는 등급 B(운임 글 고침)가 섞이면 통째 거절
         bulk_apply(db_session, [tpl.id, world["changes"]["price"]], actor=admin, now=LATER)
-    with pytest.raises(BrainShapeError):  # 관리자가 아니면 이름표만이어도 등급 A 만
-        bulk_apply(db_session, [tpl.id], actor=cs_mgr, now=LATER)
+    with pytest.raises(BrainShapeError):  # 상담팀장도 ④ · 글 고침은 못 넓힌다 — 글이 바뀌는 등급 B 가 섞이면 통째 거절
+        bulk_apply(db_session, [tpl.id, world["changes"]["price"]], actor=cs_mgr, now=LATER)
     db_session.rollback()
     assert db_session.get(BrainChange, tpl.id).status == "open"  # 아무것도 안 썼다
     out = bulk_apply(db_session, [tpl.id, price.id], actor=admin, now=LATER)
@@ -310,3 +310,43 @@ def test_admin_approves_a_label_only_b_change_without_confirm_but_others_still_n
     assert current_object(db_session, "lahom/tpl").payload["pref_label"] == "첫인사 상용구"
     with pytest.raises(BrainConfirmError):  # 글이 바뀌는 등급 B 는 여전히 확인 글이 있어야 한다(대조군)
         apply_decision(db_session, world["changes"]["price"], actor=admin, base_version=1, now=LATER)
+
+
+def test_cs_manager_decides_label_only_changes_of_any_layer_and_type_but_nothing_else(app):
+    """D167 — ① 이름표만 고침은 상담팀장도(가격 규칙 · 공통 바탕 포함). 글 고침 · 다른 팀장 · 볼 수 없는 항목은 대조군."""
+    from foms.persistence.brain.models import BrainChange
+    from foms.services.brain.decide import apply_decision, bulk_apply
+    from foms.services.brain.errors import BrainPermissionError, BrainShapeError
+    from foms.services.brain.inbox import inbox_counts
+
+    world = review_world(db_session)
+    admin, cs_mgr, dr_mgr = (world["people"][k] for k in ("admin", "cs_mgr", "dr_mgr"))
+    price = _label_change(admin, "common/shipping", "운임 추가비")  # 사장님 몫 유형 · 공통 바탕
+    door = _label_change(admin, "common/door", "여닫이 문")  # 공통 바탕(층 승인자 없음)
+    hidden = _label_change(admin, "drawing/rule/final", "최종 도면만")  # 도면팀만 보는 항목
+    db_session.commit()
+
+    box = inbox(db_session, viewer_of(cs_mgr), now=LATER)
+    mine = {c["main"]["id"]: c for c in box["cards"]}
+    assert {price.id, door.id} <= set(mine) and mine[price.id]["bin"] == "names"
+    assert mine[price.id]["main"]["bulk_ok"] is True and mine[price.id]["main"]["confirm"] is None
+    assert world["changes"]["price"] not in mine and hidden.id not in mine  # 글 고침 · 볼 수 없는 항목은 그대로 안 보인다
+    assert inbox_counts(db_session, viewer_of(cs_mgr), LATER)["cards"] == len(box["cards"])
+    assert door.id not in {c["main"]["id"] for c in inbox(db_session, viewer_of(dr_mgr), now=LATER)["cards"]}
+
+    with pytest.raises(BrainShapeError):  # 도면팀장은 이름표만이어도 등급 A 만(대조군)
+        bulk_apply(db_session, [door.id], actor=dr_mgr, now=LATER)
+    with pytest.raises(BrainPermissionError):
+        apply_decision(db_session, door.id, actor=dr_mgr, base_version=door.base_version, now=LATER)
+    db_session.rollback()
+    with pytest.raises(BrainPermissionError):  # 고쳐 넣기로 글이 섞이면 상담팀장 권한은 사라진다(반영 동작이 다시 본다)
+        apply_decision(db_session, price.id, actor=cs_mgr, base_version=price.base_version, now=LATER,
+                       edits={"text": "운임 새 글"}, confirm={"field": "text", "value": "운임 새 글"})
+    db_session.rollback()
+    assert db_session.get(BrainChange, price.id).status == "open"
+
+    out = bulk_apply(db_session, [price.id, door.id], actor=cs_mgr, now=LATER)
+    db_session.commit()
+    assert sorted(a["id"] for a in out["applied"]) == sorted([price.id, door.id]) and out["failed"] == []
+    assert current_object(db_session, "common/shipping").payload["pref_label"] == "운임 추가비"
+    assert current_object(db_session, "common/shipping").text == "지역별 운임 기준"  # 글은 그대로
