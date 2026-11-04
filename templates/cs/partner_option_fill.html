@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-product-picker.css') }}">
 <div class="container-fluid erp-dashboard erp-pro foms-ps foms-pof" data-pof-root data-api="/api/partner-statements"
   data-order="{{ order_id }}" data-list="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}">
   <header class="erp-pro-header">
@@ -24,5 +25,6 @@
   <p class="foms-ps__status small" data-pof-status role="status" aria-live="polite"></p>
 </div>
 <script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-product-picker.js') }}" defer></script>
 <script src="{{ asset_url('js/cs/partner-option-fill.js') }}" defer></script>
 {% endblock %}

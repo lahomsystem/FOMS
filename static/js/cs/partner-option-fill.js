@@ -2,7 +2,7 @@
  * 단가표 전 협력사 주문 — 우리 CS 옵션 채우기(설계서 docs/specs/2026-11-03-partner-statement_SPEC.md 결정 12).
  *
  * - GET {api}/orders/<id>/options 로 품목마다 예전 글 칸 · 고를 목록(이름만)을 받아 그린다.
- * - 품목마다 "단가표 제품"(제품명 ▾ 와 같은 목록 — ErpSpecPicker.openSingle)과 옵션(같은 여러 개 고르기 창 openMulti ·
+ * - 품목마다 "단가표 제품"(협력사와 같은 3단 고르기 창 PartnerProductPicker — 분류가 없으면 ErpSpecPicker.openSingle)과 옵션(같은 여러 개 고르기 창 openMulti ·
  *   이름 · 수 · 위치 · 커스텀 · 옵션 없음)을 고른다. 이미 옵션이 있는 품목은 건드리지 않는다.
  * - "저장" = POST 같은 주소 {items: {uid: {base, state, lines, customs}}}. 검사는 서버가 다시 한다. 글은 textContent 로만 넣는다.
  */
@@ -85,18 +85,25 @@
   }
 
   function pickBase(item, anchor) {
+    var onPick = function (value) {
+      item.base = value;
+      item.lines = item.lines.filter(function (l) { return !(l.only || []).length || l.only.indexOf(value) !== -1; });
+      fixState(item);
+      draw();
+    };
+    var title = '단가표 제품 — 항목 ' + item.no;
+    // 협력사 주문 입력과 같은 3단 고르기 창(대분류 › 중분류 › 제품 · 찾기 — 설계서 2026-11-04-partner-product-tree). 단가표 제품만.
+    if (window.PartnerProductPicker && (state.tree || []).length) {
+      window.PartnerProductPicker.open({ tree: state.tree, current: item.base, onPick: onPick, title: title, allowCustom: false });
+      return;
+    }
     if (!window.ErpSpecPicker) return;
     window.ErpSpecPicker.openSingle({
-      title: '단가표 제품 — 항목 ' + item.no, anchor: anchor, current: item.base,
+      title: title, anchor: anchor, current: item.base,
       groups: (state.products || []).map(function (g) {
         return { label: g.label, items: (g.items || []).map(function (n) { return { value: n, text: n }; }) };
       }),
-      onPick: function (value) {
-        item.base = value;
-        item.lines = item.lines.filter(function (l) { return !(l.only || []).length || l.only.indexOf(value) !== -1; });
-        fixState(item);
-        draw();
-      }
+      onPick: onPick
     });
   }
 

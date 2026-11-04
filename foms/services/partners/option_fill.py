@@ -99,7 +99,7 @@ def fill_view(db, order: Order) -> dict[str, Any]:
     stage = _stage(order)
     return {"order_id": order.id, "customer_name": build_partner_order_view(order)["customer_name"],
             "stage": _STAGE_TEXT.get(stage, stage), "confirmed": stage in CONFIRMED_STAGES,
-            "products": lists["products"], "catalog": lists["options"], "items": items}
+            "products": lists["products"], "tree": lists["tree"], "catalog": lists["options"], "items": items}
 
 
 def fill_options(db, order_id: int, raw: Any, user_id: Optional[int]) -> dict[str, Any]:

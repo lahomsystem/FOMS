@@ -85,6 +85,19 @@
       "translate(" + this.tx + "px," + this.ty + "px) scale(" + this.scale + ") rotate(" + rot + "deg)";
   };
 
+  /** 옮긴 만큼을 그림이 화면 밖으로 다 나가지 않는 안쪽으로 묶는다(돌린 그림은 가로 · 세로를 바꿔 잰다). */
+  FomsLightbox.prototype._clampPan = function () {
+    if (!this.img) return;
+    var stage = this.img.parentNode.getBoundingClientRect();
+    var turned = Math.abs(this.rotation || 0) % 180 === 90;
+    var w = (turned ? this.img.offsetHeight : this.img.offsetWidth) * this.scale;
+    var h = (turned ? this.img.offsetWidth : this.img.offsetHeight) * this.scale;
+    var mx = Math.max(0, (w - stage.width) / 2);
+    var my = Math.max(0, (h - stage.height) / 2);
+    this.tx = Math.min(mx, Math.max(-mx, this.tx));
+    this.ty = Math.min(my, Math.max(-my, this.ty));
+  };
+
   FomsLightbox.prototype._resetTransform = function () {
     this.scale = 1;
     this.tx = 0;
@@ -148,30 +161,62 @@
       ev.preventDefault();
       var delta = ev.deltaY > 0 ? -0.1 : 0.1;
       self.scale = Math.min(4, Math.max(1, self.scale + delta));
+      if (self.scale <= 1.05) { self.tx = 0; self.ty = 0; } else { self._clampPan(); }
       self._applyTransform();
     }, { passive: false });
+    // 확대한 뒤 한 손가락(마우스)으로 끌어 옮긴다(사용자 11-04: 핀치 확대 뒤 이동이 안 돼 사진을 못 봄).
+    var pan = null;
+    function startPan(x, y) { pan = self.scale > 1.05 ? { x: x, y: y, tx: self.tx, ty: self.ty } : null; }
+    function movePan(x, y) {
+      if (!pan) return false;
+      self.tx = pan.tx + (x - pan.x);
+      self.ty = pan.ty + (y - pan.y);
+      self._clampPan();
+      self._applyTransform();
+      return true;
+    }
     stage.addEventListener("touchstart", function (ev) {
       if (ev.touches.length === 2) {
+        self.pinched = true;
+        pan = null;
         lastDist = Math.hypot(
           ev.touches[0].clientX - ev.touches[1].clientX,
           ev.touches[0].clientY - ev.touches[1].clientY
         );
+      } else if (ev.touches.length === 1) {
+        startPan(ev.touches[0].clientX, ev.touches[0].clientY);
       }
     }, { passive: true });
     stage.addEventListener("touchmove", function (ev) {
-      if (ev.touches.length !== 2 || self.shell.hidden) return;
+      if (self.shell.hidden) return;
+      if (ev.touches.length === 1) {
+        if (movePan(ev.touches[0].clientX, ev.touches[0].clientY)) ev.preventDefault();
+        return;
+      }
+      if (ev.touches.length !== 2) return;
       var dist = Math.hypot(
         ev.touches[0].clientX - ev.touches[1].clientX,
         ev.touches[0].clientY - ev.touches[1].clientY
       );
       if (lastDist) {
         self.scale = Math.min(4, Math.max(1, self.scale + (dist - lastDist) * 0.01));
+        if (self.scale <= 1.05) { self.tx = 0; self.ty = 0; }
+        self._clampPan();
         self._applyTransform();
       }
       lastDist = dist;
+      ev.preventDefault();
+    }, { passive: false });
+    stage.addEventListener("touchend", function (ev) {
+      if (ev.touches.length === 1) startPan(ev.touches[0].clientX, ev.touches[0].clientY);  // 두 손가락 중 하나만 뗌
+      if (!ev.touches.length) { lastDist = 0; pan = null; }
     }, { passive: true });
+    stage.addEventListener("mousedown", function (ev) { if (ev.button === 0) { startPan(ev.clientX, ev.clientY); if (pan) ev.preventDefault(); } });
+    window.addEventListener("mousemove", function (ev) { if (pan && !self.shell.hidden) movePan(ev.clientX, ev.clientY); });
+    window.addEventListener("mouseup", function () { pan = null; });
     stage.addEventListener("dblclick", function () {
       self.scale = self.scale > 1 ? 1 : 2;
+      if (self.scale === 1) { self.tx = 0; self.ty = 0; }
       self._applyTransform();
     });
   };
@@ -181,10 +226,11 @@
     var self = this;
     var startX = 0;
     this.shell.querySelector(".foms-lightbox__stage").addEventListener("touchstart", function (ev) {
-      if (ev.touches.length === 1) startX = ev.touches[0].clientX;
+      if (ev.touches.length === 1) { startX = ev.touches[0].clientX; self.pinched = false; }
     }, { passive: true });
     this.shell.querySelector(".foms-lightbox__stage").addEventListener("touchend", function (ev) {
-      if (!ev.changedTouches.length || self.scale > 1.05) return;
+      // 확대 중이거나 이번 손짓에 두 손가락(핀치)이 있었으면 다음 그림으로 넘기지 않는다 — 끌기 · 줄이기와 겹치지 않게.
+      if (!ev.changedTouches.length || ev.touches.length || self.scale > 1.05 || self.pinched) return;
       var dx = ev.changedTouches[0].clientX - startX;
       if (Math.abs(dx) < 48) return;
       self.open(dx < 0 ? self.index + 1 : self.index - 1);

@@ -7,7 +7,8 @@
  * - "목록에 없는 제품"은 이름을 직접 적는다. 금액은 명세서 때 우리 CS 가 넣는다(커스텀 제품 줄).
  * - 이름만 다룬다(금액 없음). 글은 textContent 로만 넣는다.
  *
- * 쓰기: window.PartnerProductPicker.open({ tree: [{label, groups: [{label, items: [이름]}]}], current, onPick(name) })
+ * 쓰기: window.PartnerProductPicker.open({ tree: [{label, groups: [{label, items: [이름]}]}], current, onPick(name),
+ *       title?, allowCustom? })  — 우리 CS 옵션 채우기는 allowCustom:false(단가표 제품만, 설계서 2026-11-03 결정 12).
  */
 (function () {
   'use strict';
@@ -92,6 +93,7 @@
       });
     });
     if (list.children.length) return;
+    if (!state.allowCustom) { list.appendChild(el('p', 'ppp-custom__note ppp-empty', '찾는 제품이 없습니다.')); return; }
     button(list, '찾는 제품이 없으면 "목록에 없는 제품"', null, { custom: true, click: function () {
       state.customText = state.search.value.trim();
       state.search.value = '';
@@ -111,7 +113,7 @@
     state.tree.forEach(function (big, i) {
       button(cols[0], big.label, null, { on: i === state.big, click: function () { state.big = i; state.mid = 0; state.level = 2; draw(); } });
     });
-    button(cols[0], '목록에 없는 제품', '이름 직접 적기', { on: state.big < 0, custom: true, click: function () { state.big = -1; state.level = 2; draw(); } });
+    if (state.allowCustom) button(cols[0], '목록에 없는 제품', '이름 직접 적기', { on: state.big < 0, custom: true, click: function () { state.big = -1; state.level = 2; draw(); } });
     if (state.big < 0) { drawCustom(cols[1]); return; }
     var groups = state.tree[state.big].groups;
     groups.forEach(function (mid, i) {
@@ -122,18 +124,18 @@
     });
   }
 
-  function build() {
+  function build(title) {
     var root = el('div', 'ppp');
     root.appendChild(el('div', 'ppp__backdrop')).addEventListener('click', close);
     var panel = root.appendChild(el('div', 'ppp__panel'));
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'true');
-    panel.setAttribute('aria-label', '제품 선택');
+    panel.setAttribute('aria-label', title);
     var head = panel.appendChild(el('div', 'ppp__head'));
     var back = head.appendChild(el('button', 'ppp__back', '‹ 뒤로'));
     back.type = 'button';
     back.addEventListener('click', function () { state.level = Math.max(1, state.level - 1); if (state.level === 1 && state.big < 0) state.big = 0; draw(); });
-    head.appendChild(el('h2', 'ppp__title', '제품 선택'));
+    head.appendChild(el('h2', 'ppp__title', title));
     var x = head.appendChild(el('button', 'ppp__close', '×'));
     x.type = 'button';
     x.setAttribute('aria-label', '닫기');
@@ -156,15 +158,17 @@
     close();
     var tree = (opts && opts.tree) || [];
     var current = String((opts && opts.current) || '').trim();
+    var allowCustom = !(opts && opts.allowCustom === false);
     var at = current ? locate(tree, current) : null;
-    var parts = build();
+    if (!at && !allowCustom) current = '';
+    var parts = build((opts && opts.title) || '제품 선택');
     state = {
       root: parts.root, cols: parts.cols, search: parts.search, backBtn: parts.backBtn,
       tree: tree, current: current, onPick: opts.onPick || function () {},
       big: at ? at[0] : (current ? -1 : 0), mid: at ? at[1] : 0, level: at || current ? (at ? 3 : 2) : 1,
-      customText: at ? '' : current, focusBack: document.activeElement
+      customText: at ? '' : current, focusBack: document.activeElement, allowCustom: allowCustom
     };
-    if (!tree.length) state.big = -1;
+    if (!tree.length && allowCustom) state.big = -1;
     state.onKey = function (ev) { if (ev.key === 'Escape') close(); };
     document.addEventListener('keydown', state.onKey);
     document.documentElement.classList.add('ppp-open');

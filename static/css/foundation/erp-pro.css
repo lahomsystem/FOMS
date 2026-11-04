@@ -879,3 +879,11 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
 .foms-partner-filter-sheet .list-group-item {
   min-height: 44px;
 }
+
+/* 전역 메뉴(templates/partials/shared/layout_nav.html) — 768~1199px 폭에서 "휴 / 지 / 통"처럼 메뉴 이름이 한두 글자씩
+   꺾이던 것(사용자 11-04 정렬 전수 점검). 이름은 한 줄로 두고, 자리가 모자라면 메뉴가 통째로 다음 줄로 넘어간다. */
+@media (min-width: 768px) {
+  .layout-global-nav .nav-link { white-space: nowrap; }
+  .layout-global-nav .layout-nav-collapse,
+  .layout-global-nav .layout-nav-collapse > .navbar-nav { flex-wrap: wrap; }
+}
