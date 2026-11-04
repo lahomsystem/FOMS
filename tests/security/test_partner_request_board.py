@@ -156,3 +156,20 @@ def test_history_only_partner_orders_within_window(app, world):
     db_session.commit()
     ids = {h["order_id"] for h in recent_partner_schedule_changes(db_session)}
     assert order_id in ids and other_id not in ids and plain_id not in ids
+
+
+def test_shipment_page_renders_board_and_history(app, world):
+    order_id = _order(app, world["partner_a"], hope=_day(2), name="판고객")
+    later_id = _order(app, world["partner_a"], hope=_day(30), name="먼고객")
+    done_id = _order(app, world["partner_a"], hope=_day(3), name="정한고객")
+    assert _confirm(app, world["staff"], done_id, _day(4), "오후").status_code == 200
+    page = _client(app, db_session.get(User, world["staff"])).get("/erp/shipment").get_data(as_text=True)
+    assert "data-prb" in page and 'data-can-set="1"' in page
+    assert f'data-prb-cell="{_day(2)}"' in page and f'data-prb-chip="{order_id}"' in page
+    assert f'data-prb-chip="{later_id}"' in page   # 판 밖 줄
+    assert "최근 정한 기록" in page and "정한고객" in page and "옮김" in page
+    assert 'draggable="true"' in page
+    # 시공팀은 보기만(끌기 없음 · 정하기 권한 없음)
+    viewer = _client(app, _user(team="CONSTRUCTION")).get("/erp/shipment").get_data(as_text=True)
+    if "data-prb" in viewer:
+        assert 'data-can-set="0"' in viewer and 'draggable="true"' not in viewer

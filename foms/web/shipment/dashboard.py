@@ -14,7 +14,8 @@ from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.partners.payments import unpaid_order_ids
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
-from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
+from foms.services.erp_permissions import can_edit_construction_schedule, can_edit_erp, is_order_related_to_user
+from foms.services.partners.request_board import build_request_board
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.partners.schedule_request import (
     pending_request,
@@ -692,6 +693,7 @@ def erp_shipment_dashboard():
         else []
     )
 
+    _pending_requests = shipment_pending_requests(db)
     template_name = (
         'shipment/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -718,7 +720,10 @@ def erp_shipment_dashboard():
         # 상단 배너 요약({count, chips, overflow}). 행 배지는 r.shipment_change_alerts.
         shipment_change_banner=shipment_change_banner,
         # 협력사 희망 시공일 · 확정 대기(우리 시공일 없는 협력사 주문 — 출고 담당자가 정한다).
-        partner_pending_requests=shipment_pending_requests(db),
+        partner_pending_requests=_pending_requests,
+        # 협력사 희망 2주 판(설계서 2026-11-04-shipment-partner-request-board) — 날짜 칸은 위 잔여 패널 값 그대로.
+        partner_request_board=build_request_board(db, _pending_requests, partner_pending, remaining_panel_dates, today_kst),
+        can_set_construction_schedule=can_edit_construction_schedule(current_user),
         # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
         # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
         kakao_js_key=KAKAO_JS_API_KEY,

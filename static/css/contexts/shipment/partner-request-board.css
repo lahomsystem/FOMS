@@ -1,0 +1,57 @@
+/* 출고 화면 협력사 희망 시공일 2주 판 — templates/shipment/partials/partner_request_board.html
+   설계서 docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md §2.1 · 목업 E안. */
+.prb .card-header { gap: 8px; }
+.prb-note { font-size: 12px; color: var(--erp-text-muted); }
+.prb-muted { color: var(--erp-text-muted); }
+.prb-soon { color: #dc2626; font-weight: 600; margin-left: 4px; font-size: 12px; }
+.prb-link { color: var(--erp-primary); text-decoration: none; }
+.prb-link:hover { text-decoration: underline; }
+.prb-textbtn { border: 0; background: none; color: var(--erp-text-secondary); font-size: 12px; padding: 2px 4px; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.prb-textbtn:hover { color: var(--erp-primary); }
+
+/* 접기 — 머리 한 줄만 남긴다(사람마다 브라우저에 기억) */
+.prb .prb-when-folded { display: none; }
+.prb.is-folded .prb-when-folded { display: inline; }
+.prb.is-folded .prb-when-open { display: none; }
+.prb.is-folded .prb-body { display: none; }
+
+.prb-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 8px; }
+.prb-cell { border: 1px solid var(--erp-border); border-radius: 6px; background: #fff; min-height: 96px; display: flex; flex-direction: column; }
+.prb-cell.is-off { background: #fffaf0; }
+.prb-cell.is-over { outline: 2px dashed var(--erp-primary); outline-offset: -2px; }
+.prb-cell__head { padding: 4px 6px; font-size: 12px; border-bottom: 1px solid var(--erp-border-light); }
+.prb-cell__top { display: flex; justify-content: space-between; font-weight: 600; gap: 4px; }
+.prb-cell__bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 3px; overflow: hidden; }
+.prb-cell__bar i { display: block; height: 100%; width: var(--prb-fill, 0%); background: #10b981; }
+.prb-cell__bar i.is-tight { background: #ef4444; }
+.prb-cell__body { padding: 4px; display: flex; flex-direction: column; gap: 3px; }
+
+.prb-chip { display: block; font-size: 12px; border: 1px solid #bfdbfe; background: var(--erp-primary-bg, #eff6ff); color: #1d4ed8; border-radius: 4px; padding: 1px 6px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prb-chip[draggable="true"] { cursor: grab; }
+.prb-chip:hover { border-color: var(--erp-primary); color: #1d4ed8; }
+.prb-chip.is-saving { opacity: .5; pointer-events: none; }
+.prb-later { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding: 4px 10px 10px; font-size: 12px; }
+.prb-later .prb-chip { display: inline-block; }
+
+.prb-log { border-top: 1px solid var(--erp-border-light); padding: 6px 10px 8px; font-size: 12px; }
+.prb-log__head { font-weight: 600; margin-bottom: 3px; }
+.prb-log__row { padding: 2px 0; }
+.prb-moved { font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 0 5px; }
+
+/* 시공일 정하기 작은 창 · 알림 */
+.prb-pop { position: absolute; z-index: 1990; width: 320px; background: #fff; border: 1px solid var(--erp-border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 10px; }
+.prb-pop__title { font-weight: 700; font-size: 14px; }
+.prb-pop__row { display: flex; align-items: center; gap: 8px; }
+.prb-pop__row > label { flex: 0 0 36px; color: var(--erp-text-muted); margin: 0; }
+.prb-pop .form-control { padding: 3px 8px !important; font-size: 13px !important; border-radius: 6px !important; min-height: 0 !important; height: auto !important; }
+.prb-pop .btn { padding: 3px 10px !important; font-size: 12px !important; line-height: 1.4 !important; }
+.prb-pop__load { font-size: 12px; color: var(--erp-text-muted); }
+.prb-pop__load.is-tight { color: #dc2626; font-weight: 600; }
+.prb-pop__btns { display: flex; justify-content: flex-end; gap: 6px; }
+.prb-seg { display: inline-flex; border: 1px solid var(--erp-border); border-radius: 6px; overflow: hidden; }
+.prb-seg button { border: 0; background: #fff; padding: 5px 14px; font-size: 13px; border-left: 1px solid var(--erp-border); }
+.prb-seg button:first-child { border-left: 0; }
+.prb-seg button.is-on { background: var(--erp-primary); color: #fff; }
+.prb-seg button:disabled { opacity: .6; }
+.prb-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 2100; display: flex; gap: 14px; align-items: center; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+.prb-toast button { background: none; border: 0; color: #93c5fd; font-weight: 600; padding: 0; }
