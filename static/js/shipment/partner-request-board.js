@@ -22,7 +22,7 @@
 
   function board() { return document.querySelector('[data-prb]'); }
   function canSet() { var b = board(); return !!b && b.getAttribute('data-can-set') === '1'; }
-  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function mdDow(s) {
     if (!s) return '';
     var p = s.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
