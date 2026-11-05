@@ -28,7 +28,7 @@ from sqlalchemy import and_, or_, select, update
 
 from foms.persistence.main.models import CsAgentMessage, CsAgentTurn
 from foms.services.cs_agent.case_material import current_question
-from foms.services.cs_agent.case_memory import OUTCOME_AS_IS, OUTCOME_EDITED, text_similarity
+from foms.services.cs_agent.case_memory import OUTCOME_AS_IS, OUTCOME_EDITED, prior_context, text_similarity
 from foms.services.cs_agent.channel_read import (
     ChannelReadError, DerivedMessage, OpenApiReader, channel_for_brand, derive_message, naive_utc,
 )
@@ -60,11 +60,13 @@ NOT_DELIVERED_AFTER = datetime.timedelta(minutes=5)
 NOT_DELIVERED = "not_delivered"
 _TURNS = CsAgentTurn.__table__
 _MSGS = CsAgentMessage.__table__
-_CASE_FIELDS = ("outcome", "edit_ratio", "edit_reason", "staff_reply_masked", "masked_question", "waiting_since")
+_CASE_FIELDS = ("outcome", "edit_ratio", "edit_reason", "staff_reply_masked", "masked_question", "waiting_since",
+                "masked_context")
 
 
 class SentCase(dict):
-    """보낸 글의 사례 칸(끝난 꼴 · 고친 정도 · 까닭 · 가린 보낸 글 · 가린 질문 · 첫 미답 손님 글 시각) — 글 원문은 없다."""
+    """보낸 글의 사례 칸(끝난 꼴 · 고친 정도 · 까닭 · 가린 보낸 글 · 가린 질문 · 첫 미답 손님 글 시각 · 가린 앞 대화) — 글 원문은
+    없다."""
 
     def __repr__(self) -> str:
         """글 없이 끝난 꼴만."""
@@ -91,9 +93,11 @@ def sent_case(lines: Sequence[ChatLine], *, ai_draft: Optional[str], sent_text: 
     except MaskLeak as exc:
         logger.warning("[CS 보내기] 보낸 글이 가림 검사를 못 넘어 사례 글을 비운다 counts=%s", exc.counts)
         reply = None
+    after = max((i for i, line in enumerate(lines) if line.meta.is_answer), default=-1)
     return SentCase(outcome=OUTCOME_EDITED if edited else OUTCOME_AS_IS, edit_ratio=ratio,
                     edit_reason=edit_reason if edited else None, staff_reply_masked=reply,
-                    masked_question=current_question(lines), waiting_since=waiting_since(lines))
+                    masked_question=current_question(lines), waiting_since=waiting_since(lines),
+                    masked_context=prior_context(lines, after + 1))
 
 
 # ── 조건부 쓰기(한 문장 — 바뀐 줄 1) ─────────────────────────────────────

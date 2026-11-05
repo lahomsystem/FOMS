@@ -87,8 +87,8 @@ def _quoted(text: Optional[str]) -> list[str]:
 def _turn_rows(session: Any, since: datetime.datetime) -> list[Any]:
     """지난 7일 '고침' 차례(떼어 둔 줄 제외) — 가린 칸 · 코드만."""
     turn = CsAgentTurn
-    stmt = (select(turn.id, turn.chat_id, turn.sent_by_user_id, turn.intent, turn.edit_reason, turn.edit_detail_masked,
-                   turn.masked_question, turn.staff_reply_masked)
+    stmt = (select(turn.id, turn.chat_id, turn.sent_by_user_id, turn.desk_manager_id, turn.intent, turn.edit_reason,
+                   turn.edit_detail_masked, turn.masked_question, turn.staff_reply_masked, turn.masked_context)
             .where(turn.brand == SEND_BRAND, turn.outcome == "edited", turn.held_out.is_(False),
                    turn.sent_at.isnot(None), turn.sent_at >= since)
             .order_by(turn.id))
@@ -108,6 +108,14 @@ def _photo_notes(session: Any, ids: Sequence[int]) -> dict[int, list[str]]:
     return notes
 
 
+def _staff(row: Any) -> Any:
+    """보낸 사람 — FOMS 직원 번호, 없으면 채널톡 작은 창으로 보낸 상담원 번호(설계서 17.2.2 — FOMS 짝이 없는 상담원도 근거
+    관문의 '직원 수'에 든다)."""
+    if row.sent_by_user_id is not None:
+        return row.sent_by_user_id
+    return f"m:{row.desk_manager_id}" if row.desk_manager_id else None
+
+
 def collect_groups(session: Any, now: datetime.datetime) -> list[Group]:
     """읽기 · 묶기(모듈 설명 1 · 2) — 근거 관문 전 묶음 전부(의도 · 까닭 순)."""
     rows = _turn_rows(session, naive_utc(now - LOOKBACK))
@@ -117,9 +125,9 @@ def collect_groups(session: Any, now: datetime.datetime) -> list[Group]:
         if not (row.edit_reason or row.edit_detail_masked or notes.get(row.id)):
             continue
         groups[(row.intent or "unknown", row.edit_reason or "none")].append({
-            "turn_id": row.id, "chat_id": row.chat_id, "staff": row.sent_by_user_id, "question": row.masked_question,
+            "turn_id": row.id, "chat_id": row.chat_id, "staff": _staff(row), "question": row.masked_question,
             "sent": row.staff_reply_masked, "reason": row.edit_reason, "detail": row.edit_detail_masked,
-            "photos": notes.get(row.id, [])[:2]})
+            "photos": notes.get(row.id, [])[:2], "context": row.masked_context})
     return [Group(intent, reason, tuple(cases)) for (intent, reason), cases in sorted(groups.items())]
 
 
@@ -132,6 +140,8 @@ def _group_lines(index: int, group: Group) -> list[str]:
     """묶음 하나의 줄 — 머리표는 줄 맨 앞, 사례 글은 앞표."""
     lines = [f"묶음 {index} 의도={group.intent} 고친 까닭={group.reason} 사례 {len(group.cases)}개:"]
     for case in group.cases[:MAX_CASES]:
+        if case.get("context"):  # 질문 앞 대화(설계서 17.2.2 — 이미 준 치수 · 지역 · 앞서 안내한 값을 알게)
+            lines += [f"사례 {case['turn_id']} 앞 대화(그 손님과 이미 나눈 말):", *_quoted(case["context"])]
         lines += [f"사례 {case['turn_id']} 손님 글:", *_quoted(case["question"]),
                   f"사례 {case['turn_id']} 사람 답(AI 초안을 고쳐 보냄):", *_quoted(case["sent"])]
         if case["detail"]:
