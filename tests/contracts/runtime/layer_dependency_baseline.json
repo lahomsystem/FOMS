@@ -233,6 +233,7 @@
     "foms/platform/blueprints.py::foms.web.cs",
     "foms/platform/blueprints.py::foms.web.cs.partner_statements",
     "foms/platform/blueprints.py::foms.web.cs_agent_send",
+    "foms/platform/blueprints.py::foms.web.cs_draft_wam",
     "foms/platform/blueprints.py::foms.web.drawing",
     "foms/platform/blueprints.py::foms.web.measurement",
     "foms/platform/blueprints.py::foms.web.notices",

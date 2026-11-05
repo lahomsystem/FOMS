@@ -38,6 +38,7 @@ from typing import Any, Callable, Iterable, Optional, Sequence
 from sqlalchemy import and_, select
 
 from foms.persistence.main.models import CsAgentChat, CsAgentMessage, CsAgentTurn
+from foms.services.cs_agent.brain_prompt import SPEAKERS
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.drafting_read import FILE_NOTE, ChatLine, read_lines
 from foms.services.cs_agent.masking import MaskLeak, leak_counts, mask
@@ -48,9 +49,10 @@ from foms.services.cs_agent.turns import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "COPY_SIMILARITY", "EDIT_REASONS", "EDIT_SIMILARITY", "LEARNING_OUTCOMES", "OUTCOMES", "PASS_LIMITS",
-    "REPLY_SETTLE", "REPLY_STATES", "TICK_LIMITS", "AttachLimits", "AttachSummary", "attach_staff_replies",
-    "judge_reply", "line_text", "masked_join", "text_similarity",
+    "CONTEXT_CHARS", "CONTEXT_LINE_CHARS", "CONTEXT_LINES", "COPY_SIMILARITY", "EDIT_REASONS", "EDIT_SIMILARITY",
+    "LEARNING_OUTCOMES", "OUTCOMES", "PASS_LIMITS", "REPLY_SETTLE", "REPLY_STATES", "TICK_LIMITS", "AttachLimits",
+    "AttachSummary", "attach_staff_replies", "judge_reply", "line_text", "masked_join", "prior_context",
+    "text_similarity",
 ]
 
 # ── 꼴 ───────────────────────────────────────────────────────────────────
@@ -73,6 +75,8 @@ EDIT_SIMILARITY = 0.6
 SIMILARITY_TEXT_LIMIT = 4000  # 글자 비슷함을 재는 글 길이 상한(셈 시간 상한)
 #: 마지막 직원 글 뒤 이만큼 조용하면(또는 다음 손님 글이 오면) 직원 답이 끝난 것으로 본다.
 REPLY_SETTLE = datetime.timedelta(seconds=120)
+#: 사례 질문 앞 대화(설계서 17.2.2 — 사장님 11-05 '이전 대화 맥락을 이해하면서') — 최근 줄 수 · 한 줄 글자 · 전체 글자 상한.
+CONTEXT_LINES, CONTEXT_LINE_CHARS, CONTEXT_CHARS = 6, 200, 800
 #: 이 안에 바뀐 차례만 본다(긴 연휴를 덮는 넓이 — 빠른 길 고르기 창과 같다).
 ATTACH_WINDOW = datetime.timedelta(days=7)
 _CHUNK = 500
@@ -162,6 +166,27 @@ def masked_join(lines: Iterable[ChatLine]) -> Optional[str]:
     return joined if joined and not any(leak_counts(joined).values()) else None
 
 
+def prior_context(lines: Sequence[ChatLine], end: int) -> Optional[str]:
+    """사례 질문 **앞** 공개 대화(``lines[:end]``) — 손님 · 직원 공개 글만(비공개 메모 · AI 메모 · 기록 · 확인코드 글은 뺀다)
+    가려 줄마다 ``[손님]`` · ``[직원]`` 머리표를 붙인 최근 :data:`CONTEXT_LINES` 줄(한 줄 :data:`CONTEXT_LINE_CHARS` 자,
+    합 :data:`CONTEXT_CHARS` 자 — 넘으면 오래된 줄부터 뺀다). 가림 검사를 넘은 줄만이고 이은 글도 한 번 더 본다 — 없으면
+    ``None``. 글은 메모리에서만 다룬다(로그 · 예외에 싣지 않는다)."""
+    out: list[str] = []
+    for line in lines[:max(0, int(end))]:
+        meta = line.meta
+        if meta.is_private or meta.is_log or meta.is_code_message or meta.person_type not in SPEAKERS:
+            continue
+        masked = _clean(line_text(line))
+        if masked:
+            body = " ".join(masked.split())
+            out.append(f"{SPEAKERS[meta.person_type]} {body[:CONTEXT_LINE_CHARS].rstrip()}")
+    out = out[-CONTEXT_LINES:]
+    while out and len("\n".join(out)) > CONTEXT_CHARS:
+        out.pop(0)
+    joined = "\n".join(out)
+    return joined if joined and not any(leak_counts(joined).values()) else None
+
+
 @dataclass(frozen=True)
 class _Found:
     """읽은 상담에서 찾은 한 차례의 짝 — 직원 답 원문은 메모리에만(repr 없음)."""
@@ -171,6 +196,7 @@ class _Found:
     reply: str
     manager_id: Optional[str]
     missing: Optional[str]
+    context: Optional[str] = None  # 질문 앞 공개 대화(가린 글 — :func:`prior_context`)
 
     def __repr__(self) -> str:
         """글 없이 코드만."""
@@ -194,7 +220,7 @@ def _find(lines: Sequence[ChatLine], anchor_id: str, sent: set[str]) -> _Found:
     manager = next((line.person_id for line in replies if line.person_id), None)
     ids = tuple(line.meta.message_id for line in asked) or (anchor_id,)
     missing = NO_REPLY_TEXT if not reply else FILE_ONLY if not reply.replace(FILE_NOTE, "").strip() else None
-    return _Found(ids, masked_join(asked), "" if missing else reply, manager, missing)
+    return _Found(ids, masked_join(asked), "" if missing else reply, manager, missing, prior_context(lines, start))
 
 
 # ── DB 로 가르기 ─────────────────────────────────────────────────────────
@@ -357,7 +383,7 @@ def _attach_one(session: Any, item: _Pending, lines: Optional[Sequence[ChatLine]
                                                                                  None, DELETED_CHAT)
     outcome, ratio = judge_reply(_batch_drafts(session, item.chat_id, found.asked_ids), mask(found.reply))
     case = {"masked_question": found.question, "outcome": outcome, "edit_ratio": ratio,
-            "desk_manager_id": found.manager_id}
+            "desk_manager_id": found.manager_id, "masked_context": found.context}
     _write_case(session, item, summary, now=now, reply=found.reply or None, case=case, missing=found.missing)
 
 

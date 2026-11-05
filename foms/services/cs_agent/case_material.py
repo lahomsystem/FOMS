@@ -18,6 +18,10 @@
   :class:`~.brain_cases.CaseItem` 으로 낸다 — 고르기에는 쓰지 않는다(견줄 것은 질문뿐). 비슷한 사례부터 덧붙은 글 합
   :data:`~.brain_cases.EXTRA_LIMIT` 자까지 채우고, 가림 검사가 0 이 아닌 덧붙은 글은 뺀다. 사진 설명은 차례 id 묶음 한 번에
   읽는다(N+1 없음). 거짓이면 예전 짝 그대로다.
+- **앞 대화(설계서 17.2.2)**: '고침' · '직접 답' 사례에 적힌 질문 앞 대화(``masked_context``)가 있으면 최근
+  :data:`~.brain_cases.CONTEXT_CASE_LINES` 줄을 :class:`~.brain_cases.CaseItem` 의 ``context`` 로 싣는다(비슷한 사례부터 합
+  :data:`~.brain_cases.CONTEXT_LIMIT` 자까지, 가림 검사가 0 이 아닌 줄은 뺀다). '그대로' 사례 · 앞 대화가 없는 옛 사례는
+  예전 꼴 그대로다. 고르기에는 쓰지 않는다.
 - **사례에만 있는 이름(R14-3)**: 가림이 놓친 이름꼴(직함 · 맺음말 · '저는 …' 문맥의 세 글자 이름)이 사례에만 있고 지금 상담 ·
   승인 지식에는 없으면 :func:`case_only_names` 가 돌려준다 — 초안 차례가 보내기 전 검사의 '예시에만 있는 낱말'로 넘겨, 다른
   손님 · 다른 직원 이름을 새 초안에 옮기면 막힌다.
@@ -34,9 +38,10 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.persistence.main.models import CsAgentTurn, CsAgentTurnPhoto
 from foms.services.cs_agent.brain_cases import (
-    DETAIL_LIMIT, EXTRA_LIMIT, MAX_CASES, MAX_PHOTO_NOTES, PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem,
+    CONTEXT_CASE_LINES, CONTEXT_LIMIT, CONTEXT_LINE_LIMIT, DETAIL_LIMIT, EXTRA_LIMIT, MAX_CASES, MAX_PHOTO_NOTES,
+    PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem,
 )
-from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, masked_join
+from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, OUTCOME_DIRECT, OUTCOME_EDITED, masked_join
 from foms.services.cs_agent.drafting_read import FILE_NOTE, ChatLine
 from foms.services.cs_agent.masking import leak_counts, looks_like_name
 
@@ -131,7 +136,7 @@ def _names_in(value: str) -> set[str]:
 
 def _case_text(item: Any) -> str:
     """사례 하나의 글 전부(질문 · 답 · 덧붙은 이유 · 사진 설명)."""
-    extra = [item.detail or "", *item.photo_notes] if isinstance(item, CaseItem) else []
+    extra = [item.detail or "", *item.photo_notes, *item.context] if isinstance(item, CaseItem) else []
     return "\n".join([item[0], item[1], *extra])
 
 
@@ -151,7 +156,9 @@ def _usable(brand: str) -> tuple[Any, ...]:
 
 
 _COLUMNS = (CsAgentTurn.id, CsAgentTurn.masked_question, CsAgentTurn.staff_reply_masked, CsAgentTurn.outcome,
-            CsAgentTurn.edit_reason, CsAgentTurn.edit_detail_masked)
+            CsAgentTurn.edit_reason, CsAgentTurn.edit_detail_masked, CsAgentTurn.masked_context)
+#: 앞 대화를 싣는 끝난 꼴 — 사람이 고쳤거나 직접 쓴 답(그대로 보낸 답은 AI 초안과 같아 앞 대화가 더 알려 주는 것이 적다).
+CONTEXT_OUTCOMES = (OUTCOME_EDITED, OUTCOME_DIRECT)
 
 
 def _pg_statement(brand: str, query: str, limit: int) -> Any:
@@ -245,13 +252,38 @@ def _enriched(session: Any, chosen: list[tuple[tuple[str, str], Any]]) -> tuple[
     return tuple(out)
 
 
+def _context_lines(value: Any, room: int) -> tuple[str, ...]:
+    """적힌 앞 대화 → 최근 :data:`~.brain_cases.CONTEXT_CASE_LINES` 줄(줄마다 자르고 가림 검사 0 인 줄만, 남은 자리
+    ``room`` 자 안 — 넘으면 오래된 줄부터 뺀다)."""
+    if not isinstance(value, str) or room <= 0:
+        return ()
+    kept = [cut for line in value.splitlines() if (cut := _clean(line, CONTEXT_LINE_LIMIT))][-CONTEXT_CASE_LINES:]
+    while kept and sum(len(line) for line in kept) > room:
+        kept.pop(0)
+    return tuple(kept)
+
+
+def _with_contexts(items: Sequence[Any], rows: Sequence[Any]) -> tuple[Any, ...]:
+    """'고침' · '직접 답' 사례에 앞 대화를 비슷한 사례부터 :data:`~.brain_cases.CONTEXT_LIMIT` 자까지 붙인다."""
+    room, out = CONTEXT_LIMIT, []
+    for item, row in zip(items, rows):
+        context = _context_lines(row.masked_context, room) if row.outcome in CONTEXT_OUTCOMES else ()
+        if context:
+            room -= sum(len(line) for line in context)
+            item = (item._replace(context=context) if isinstance(item, CaseItem)
+                    else CaseItem(item[0], item[1], context=context))
+        out.append(item)
+    return tuple(out)
+
+
 def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit: int = MAX_CASES,
                   with_reasons: bool = False) -> tuple[Any, ...]:
     """다음 초안 재료 — 같은 브랜드 비슷한 지난 사례 (가린 질문, 사람이 보낸 가린 답), 비슷한 것부터 ``limit`` 개까지.
 
     지금 손님 글(:func:`current_question`)이 없으면 빈 튜플. 다듬기(모듈 설명)를 지나 남은 사례만 돌려준다(두뇌가 실을 때
     가림 검사를 한 번 더 본다). DB 를 읽기만 한다 — 커밋은 부르는 쪽(두뇌가 곧 커밋한다). DB 오류면 되돌리고 빈 튜플.
-    ``with_reasons`` 면 '고침' 사례를 :class:`~.brain_cases.CaseItem` 으로 넓힌다(모듈 설명).
+    ``with_reasons`` 면 '고침' 사례를 :class:`~.brain_cases.CaseItem` 으로 넓힌다(모듈 설명). 앞 대화가 적힌 '고침' · '직접
+    답' 사례는 스위치와 상관없이 앞 대화를 붙인다(설계서 17.2.2).
     """
     query = current_question(lines)
     if not query:
@@ -261,7 +293,8 @@ def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit:
         rows = pick(session, brand, query, int(limit))
         chosen = [(pair, row) for row in rows
                   if (pair := _trimmed(row.masked_question, row.staff_reply_masked)) is not None]
-        return _enriched(session, chosen) if with_reasons else tuple(pair for pair, _row in chosen)
+        items = _enriched(session, chosen) if with_reasons else tuple(pair for pair, _row in chosen)
+        return _with_contexts(items, [row for _pair, row in chosen])
     except SQLAlchemyError as exc:
         session.rollback()
         logger.warning("[CS 사례] 비슷한 사례를 못 읽어 사례 없이 초안을 쓴다 code=%s error=%s", CASES_FAILED,

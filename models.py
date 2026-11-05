@@ -4523,6 +4523,9 @@ class CsAgentTurn(Base):
     edit_detail_masked = Column(Text, nullable=True)
     edit_detail_by = Column(Integer, nullable=True)
     edit_detail_at = Column(DateTime, nullable=True)
+    # 사례 질문 앞 대화(csagent_07 — 설계서 17.2.2, 사장님 11-05 '이전 대화 맥락을 이해하면서'): 질문 앞 공개 손님 · 직원 글을
+    # 가려 줄마다 [손님] · [직원] 머리표, 최근 6줄 · 800자(가림 검사를 넘은 줄만). 보관 · 권한은 masked_question 과 같다.
+    masked_context = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 

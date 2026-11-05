@@ -11,9 +11,13 @@
 
 disable gate(``CHANNEL_FUNCTION_ENABLED`` false·미설정=기본)는 provider 를 호출하기
 **전에** 404 로 닫는다(provider-first). enable 상태에서 signing key/channel 미설정은
-**fail-start**(앱 기동 실패, 조용한 우회 금지)다. read-only Function 이므로 어떤 경로도
+**fail-start**(앱 기동 실패, 조용한 우회 금지)다. ``/foms`` 명령은 read-only 라 어떤 경로도
 Order 를 변경하지 않는다(PII/mutation 0). 성공·거부·오류 모두 HTTP 200 provider 봉투
 (``{result|error}``)로 답하고, transport 실패만 401/400/404/405 로 분기한다.
+
+예외 하나: AI 초안 작은 창 함수(``cs.draft.*`` — 설계서 17.2.2)는 서명된 상담원이 누른 [보내기] · [버리기]를 받아
+상담 에이전트 차례 줄을 쓰고 손님께 글을 보낸다. 권한 · 한 번만 · 검사는 FOMS 화면 길과 같은
+:func:`foms.services.cs_agent.send_flow.send_turn` 이 보고, Order 는 건드리지 않는다.
 """
 
 from __future__ import annotations
@@ -24,7 +28,11 @@ import hmac
 import logging
 import os
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
+
+from db import get_db
+from foms.services.cs_agent import wam_functions
+from foms.services.datetime_kst import now_kst
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +42,7 @@ _ENABLED_ENV = "CHANNEL_FUNCTION_ENABLED"
 _SIGNING_KEY_ENV = "CHANNEL_FUNCTION_SIGNING_KEY"
 _CHANNEL_ID_ENV = "CHANNEL_FUNCTION_CHANNEL_ID"
 _SIGNATURE_HEADER = "x-signature"
+_GET_FUNCTIONS = "extension.core.function.getFunctions"
 _MIN_KEY_BYTES = 32
 _OFFICIAL_METHOD = "PUT"
 
@@ -122,12 +131,20 @@ def verify_function_signature(raw_body: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected, signature)
 
 
+def _function_list() -> dict:
+    """함수 목록 답(공식 꼴 ``{result: {functions, success, errorMessage}}``) — ``/foms`` 명령 + AI 초안 작은 창 함수."""
+    functions = [{"name": "foms", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}}},
+                 *wam_functions.FUNCTION_SCHEMAS]
+    return {"result": {"functions": functions, "success": True, "errorMessage": ""}}
+
+
 def _generic_error_result() -> dict:
     """존재 여부·PII 를 노출하지 않는 generic provider 오류 봉투(``{error}``)."""
     return {"error": {"message": _GENERIC_ERROR}}
 
 
 @channel_functions_bp.route('', methods=['GET', 'POST', 'PUT'])
+@channel_functions_bp.route('/v1', methods=['GET', 'POST', 'PUT'])
 def handle_function():
     """ChannelTalk Function 요청을 검증하고 read-only provider 로 위임한다.
 
@@ -135,6 +152,10 @@ def handle_function():
     (3) 서명 검증 → 401, (4) JSON 파싱 → 400, (5) signed context channel exact → 401,
     (6) caller exact 추출. 성공/거부/오류 모두 HTTP 200 provider 봉투(``{result|error}``)로
     답하며 Order 를 변경하지 않는다(read-only, PII/mutation 0).
+
+    채널톡은 등록한 주소 뒤에 ``/v1`` 을 붙여 부른다(공식 SDK 약속) — 두 주소를 같은 처리로 받는다. 함수 목록 물음
+    (``extension.core.function.getFunctions``)에 답하고, AI 초안 작은 창 함수(``cs.draft.*`` — 설계서 17.2.2)는
+    :mod:`foms.services.cs_agent.wam_functions` 로 넘긴다.
     """
     # provider(도메인 로직)는 quick_actions 정본에서만 온다.
     from foms.services.channel_quick_actions import process_foms_command
@@ -163,6 +184,15 @@ def handle_function():
     manager_id = caller.get("id") if caller.get("type") == "manager" else None
 
     method = payload.get("method")
+    if method == _GET_FUNCTIONS:
+        return jsonify(_function_list()), 200
+    if method in wam_functions.METHODS:
+        try:
+            return jsonify(wam_functions.handle(method, payload.get("params"), manager_id, session=get_db(),
+                                                secret_key=current_app.secret_key, now=now_kst())), 200
+        except Exception:  # trust-boundary sanitizer — 원문 예외를 채널톡에 싣지 않는다
+            logger.exception("[ChannelFunction] cs draft function failed")
+            return jsonify(_generic_error_result()), 200
     if method not in REGISTERED_FUNCTION_METHODS:
         return jsonify(_generic_error_result()), 200
 

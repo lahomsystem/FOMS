@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>AI 초안</title>
+    {#- 설계서 17.2.2 — 채널톡 데스크 안 작은 창(WAM). 글 · 데이터 없는 빈 틀이고, 글은 static/js/cs-agent/wam-draft.js 가
+        채널톡 다리(window.ChannelIOWam)로 서명 함수를 불러 받는다. 인라인 스크립트 · 스타일 없음. -#}
+    {#- 채널톡은 이 화면을 자기 주소(app-store-api.channel.io/public/v1/apps/<앱>/wams/cs-draft/)로 거쳐 연다 — 맨 앞이 / 인
+        주소는 채널톡 쪽으로 풀린다. 파일은 이 화면 아래 상대 주소로만(cs_draft_wam.py 가 같은 경로에서 내준다). -#}
+    <link rel="stylesheet" href="app.css?v=20261105e">
+    <script src="app.js?v=20261105e" defer></script>
+</head>
+<body class="cs-wam-body">
+<main class="cs-wam" id="cs-wam" data-app-id="{{ app_id }}">
+    <div class="cs-wam__head">
+        <p class="cs-wam__status" id="cs-wam-status" role="status" aria-live="polite">불러오는 중이에요.</p>
+        <button type="button" class="cs-wam__close" id="cs-wam-close" aria-label="닫기">닫기</button>
+    </div>
+    <div class="cs-wam__notes" id="cs-wam-notes" hidden></div>
+    <div class="cs-wam__edit" id="cs-wam-edit" hidden>
+        <textarea class="cs-wam__text" id="cs-wam-text" rows="9" maxlength="1000" aria-label="손님께 보낼 답"></textarea>
+        <p class="cs-wam__label" id="cs-wam-reasons-label">고친 까닭(안 골라도 돼요)</p>
+        <div class="cs-wam__chips" id="cs-wam-reasons" role="group" aria-labelledby="cs-wam-reasons-label"></div>
+    </div>
+    <div class="cs-wam__actions">
+        <button type="button" class="cs-wam__btn cs-wam__btn--main" id="cs-wam-send" hidden>보내기</button>
+        <button type="button" class="cs-wam__btn cs-wam__btn--main" id="cs-wam-confirm" hidden>그래도 보내기</button>
+        <button type="button" class="cs-wam__btn cs-wam__btn--main" id="cs-wam-retry" hidden>다시 보내기</button>
+        <button type="button" class="cs-wam__btn" id="cs-wam-to-edit" hidden>고치기</button>
+        <button type="button" class="cs-wam__btn" id="cs-wam-discard" hidden>버리기</button>
+    </div>
+</main>
+</body>
+</html>

@@ -145,7 +145,7 @@ def memo_allowed(chat_id: str, *, environment: Optional[str] = None,
 
 def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optional[str] = None,
                       allowed_chat_ids: Optional[Iterable[str]] = None,
-                      reader: Optional[Any] = None, buttons: Sequence[tuple[str, str]] = ()) -> MemoResult:
+                      reader: Optional[Any] = None, buttons: Sequence[tuple[str, Any]] = ()) -> MemoResult:
     """AI 초안을 그 상담의 내부 메모(비공개)로 올리고, 다시 읽어 비공개인지 확인한다.
 
     거르는 순서: 브랜드(라홈만) → 상담 id 꼴 → 빈 글 → 환경(운영 밖은 허용 목록만). 하나라도 걸리면 채널톡을
@@ -158,7 +158,8 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
         environment: :func:`is_production` 과 같다(더 막는 쪽으로만).
         allowed_chat_ids: :func:`memo_allowed` 와 같다.
         reader: 다시 읽기에 쓸 Open API 읽기 도우미(``read_messages`` 꼴). 없으면 올린 뒤에 기본 도우미를 만든다.
-        buttons: 메모에 달 링크 버튼 ``[(이름, https 주소), ...]``(2개까지). 꼴이 틀리면 채널톡을 부르지 않고 ``bad_buttons``.
+        buttons: 메모에 달 버튼 ``[(이름, https 주소 또는 작은 창 칸), ...]``(2개까지 — :func:`.send.memo_buttons`). 꼴이
+            틀리면 채널톡을 부르지 않고 ``bad_buttons``.
 
     Returns:
         :class:`MemoResult`.

@@ -5,9 +5,10 @@ R10-16 · D68 · D69. 화면(``foms/web/cs_agent_send.py``)과 JSON API(``foms/a
 
 :func:`send_turn` 순서(고정):
 
-0. **앞 확인(쓰기 없음)** — 서명 표(그 차례 · 그 직원 · 지금 메모 · 30분) · 라홈만(하우드는 쓰기 허락 전) · 운영 밖은 시험 상담
-   허용 목록만 · 스위치(관리 화면 '[보내기] · [수정하기] 버튼' 켬 · 비상 정지 아님) · 차례(메모 올림 · 끝난 꼴 없음 · 아직 안
-   보냄).
+0. **앞 확인(쓰기 없음)** — 서명 표(그 차례 · 그 직원 · 지금 메모 · 30분) 또는 서명된 채널톡 상담원(작은 창 길 — 앱 함수 받는
+   곳이 서명 · 라홈 채널 · 상담원 caller 를 이미 봤다, 설계서 17.2.2 — 이때는 작은 창이 받은 상담 id 가 차례와 같아야 한다) ·
+   라홈만(하우드는 쓰기 허락 전) · 운영 밖은 시험 상담 허용 목록만 · 스위치(관리 화면 '[보내기] · [수정하기] 버튼' 켬 · 비상
+   정지 아님) · 차례(메모 올림 · 끝난 꼴 없음 · 아직 안 보냄).
 1. **한 번만** — '보내는 중'을 조건부 쓰기로 먼저 커밋한다(:func:`.send_record.start_sending` — 두 번 누름 · 두 사람 동시엔 하나).
 2. **최신인가** — 채널톡 Open API 로 그 상담 최근 글을 읽어 선점한 손님 글이 아직 마지막이고 그 뒤 공개 직원 답이 없을 때만
    (DB 상태 표는 늦다 — R10-11). 아니면 되돌리고 '새 글이 있어요'.
@@ -118,28 +119,44 @@ class FlowResult:
 
 @dataclass(frozen=True)
 class SendRequest:
-    """[보내기] 요청 — 고친 글은 repr 에 싣지 않는다."""
+    """[보내기] 요청 — 고친 글은 repr 에 싣지 않는다.
+
+    FOMS 화면 길은 ``user_id`` + ``token``(서명 표). 채널톡 작은 창 길은 ``manager_id``(서명된 caller — 앱 함수 받는 곳만 채운다)
+    + ``chat_id``(작은 창이 받은 상담 id)이고 ``user_id`` 는 FOMS 짝이 있을 때만이다. ``manager_id`` 가 비면 늘 표를 본다.
+    """
 
     turn_id: int
-    user_id: int
-    token: str = field(repr=False)
+    user_id: Optional[int]
+    token: str = field(default="", repr=False)
     mode: str = MODE_AS_IS
     text: Optional[str] = field(default=None, repr=False)
     edit_reason: Optional[str] = None
     confirm: Any = None  # '확인 후 보내기' 확인표(needs_confirm 응답의 confirm — 참 · 거짓 칸이 아니다, R15-1)
     shown_ms: Optional[int] = None
+    manager_id: Optional[str] = None
+    chat_id: Optional[str] = None
+
+    @property
+    def who(self) -> Any:
+        """확인표가 묶는 사람 — FOMS 직원 번호, 작은 창 길이면 채널톡 상담원 번호."""
+        return self.user_id if self.manager_id is None else f"m:{self.manager_id}"
 
 
 def _fail(code: str, status: int, **data: Any) -> FlowResult:
     return FlowResult(code, status, data)
 
 
-def _audited(session: Any, action: str, turn_id: int, user_id: int, result: FlowResult) -> FlowResult:
-    """감사 원장 한 줄(누가 · 어느 차례 · 결과 코드 — 글 없음)을 남기고 결과를 그대로 돌려준다. 못 남겨도 결과는 그대로다."""
+def _audited(session: Any, action: str, turn_id: int, user_id: Optional[int], result: FlowResult, *,
+             manager_id: Optional[str] = None) -> FlowResult:
+    """감사 원장 한 줄(누가 · 어느 차례 · 결과 코드 — 글 없음)을 남기고 결과를 그대로 돌려준다. 못 남겨도 결과는 그대로다.
+    작은 창 길은 채널톡 상담원 번호를 같이 적는다(FOMS 짝이 없으면 직원 번호는 비운다)."""
+    detail: dict[str, Any] = {"code": result.code, "status": result.status}
+    if manager_id is not None:
+        detail.update(via="wam", channel_manager=str(manager_id))
     try:
-        session.add(SecurityLog(user_id=int(user_id), action=action, target_type="cs_agent_turn", target_id=int(turn_id),
-                                message=f"{action} turn={int(turn_id)} code={result.code}",
-                                detail={"code": result.code, "status": result.status}))
+        session.add(SecurityLog(user_id=None if user_id is None else int(user_id), action=action,
+                                target_type="cs_agent_turn", target_id=int(turn_id),
+                                message=f"{action} turn={int(turn_id)} code={result.code}", detail=detail))
         session.commit()
     except SQLAlchemyError:
         session.rollback()
@@ -159,16 +176,23 @@ def turn_status(row: Any) -> dict[str, Any]:
             "memo_id": row.memo_message_id}
 
 
-def _gate(session: Any, turn_id: int, user_id: int, token: Any, secret_key: Any, *,
-          need_switch: bool = True) -> tuple[Optional[Any], Optional[FlowResult]]:
-    """앞 확인(쓰기 없음) — 차례 · 표 · 라홈 · 허용 목록 · 스위치. ``(줄, None)`` 또는 ``(None, 결과)``."""
+def _gate(session: Any, turn_id: int, user_id: Optional[int], token: Any, secret_key: Any, *,
+          need_switch: bool = True, manager_id: Optional[str] = None,
+          chat_id: Optional[str] = None) -> tuple[Optional[Any], Optional[FlowResult]]:
+    """앞 확인(쓰기 없음) — 차례 · 표(또는 서명된 상담원 + 같은 상담) · 라홈 · 허용 목록 · 스위치. ``(줄, None)`` 또는
+    ``(None, 결과)``."""
     row = session.get(CsAgentTurn, int(turn_id), populate_existing=True)
     if row is None:
         return None, _fail("not_found", 404)
-    try:
-        check_send_token(secret_key, token, turn_id=row.id, user_id=user_id, memo_id=row.memo_message_id)
-    except SendTokenError as exc:
-        return None, _fail("token", 403, reason=exc.code)
+    if manager_id is None:
+        if user_id is None:
+            return None, _fail("token", 403, reason="no_user")
+        try:
+            check_send_token(secret_key, token, turn_id=row.id, user_id=user_id, memo_id=row.memo_message_id)
+        except SendTokenError as exc:
+            return None, _fail("token", 403, reason=exc.code)
+    elif not isinstance(chat_id, str) or chat_id != row.chat_id:  # 작은 창이 연 상담의 차례가 아니면 없는 차례로
+        return None, _fail("not_found", 404)
     if row.brand != SEND_BRAND or not memo_allowed(row.chat_id):
         return None, _fail("not_allowed", 403)
     if need_switch and not switch_on(session):
@@ -223,7 +247,7 @@ def send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: datet
               sender: Callable[..., Any] = send_reply) -> FlowResult:
     """[보내기] 한 번 + 감사 원장 한 줄(:func:`_send_turn`)."""
     result = _send_turn(session, request, secret_key=secret_key, now=now, reader=reader, sender=sender)
-    return _audited(session, "CS_AGENT_SEND", request.turn_id, request.user_id, result)
+    return _audited(session, "CS_AGENT_SEND", request.turn_id, request.user_id, result, manager_id=request.manager_id)
 
 
 def _send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: datetime.datetime, reader: Any,
@@ -241,7 +265,8 @@ def _send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: date
     Returns:
         :class:`FlowResult`.
     """
-    row, denied = _gate(session, request.turn_id, request.user_id, request.token, secret_key)
+    row, denied = _gate(session, request.turn_id, request.user_id, request.token, secret_key,
+                        manager_id=request.manager_id, chat_id=request.chat_id)
     if denied is not None:
         session.rollback()
         return denied
@@ -250,7 +275,8 @@ def _send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: date
         session.rollback()
         return closed
     previous = row.send_state
-    if not start_sending(session, row, user_id=request.user_id, click_ms=_shown_ms(request.shown_ms), now=now):
+    if not start_sending(session, row, user_id=request.user_id, manager_id=request.manager_id,
+                         click_ms=_shown_ms(request.shown_ms), now=now):
         session.rollback()
         return _fail("already", 409)
     session.commit()  # ① '보내는 중'을 채널톡을 부르기 전에 커밋한다 — 두 번 누름 · 두 사람 동시엔 하나만 여기를 지난다
@@ -308,7 +334,7 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     soft = [p for p in check.problems if p not in hard]
     if hard:
         return _back(session, row, previous, "check_failed", now, _fail("blocked", 422, problems=_problems(hard)))
-    stamp = {"turn_id": row.id, "user_id": request.user_id, "text": text, "codes": [p.code for p in soft]}
+    stamp = {"turn_id": row.id, "user_id": request.who, "text": text, "codes": [p.code for p in soft]}
     if soft and not confirm_matches(secret_key, request.confirm, **stamp):
         return _back(session, row, previous, "needs_confirm", now, _fail(
             "needs_confirm", 409, warnings=_problems(soft), confirm=confirm_stamp(secret_key, **stamp)))
@@ -356,10 +382,12 @@ def _record(session: Any, row: Any, sent: Any, case: Any, *, text: str, now: dat
 
 
 # ── 버리기 · 고칠 말 · 결과 맞추기 ───────────────────────────────────────
-def discard_turn(session: Any, *, turn_id: int, user_id: int, token: Any, secret_key: Any,
-                 now: datetime.datetime) -> FlowResult:
-    """버리기 — 끝난 꼴 '버림'(학습 무게 0). 손님께는 아무것도 가지 않는다. 커밋한다."""
-    row, denied = _gate(session, turn_id, user_id, token, secret_key, need_switch=False)
+def discard_turn(session: Any, *, turn_id: int, user_id: Optional[int], token: Any, secret_key: Any,
+                 now: datetime.datetime, manager_id: Optional[str] = None, chat_id: Optional[str] = None) -> FlowResult:
+    """버리기 — 끝난 꼴 '버림'(학습 무게 0). 손님께는 아무것도 가지 않는다. 커밋한다. 작은 창 길은 ``manager_id`` · ``chat_id``
+    (:class:`SendRequest` 와 같다)."""
+    row, denied = _gate(session, turn_id, user_id, token, secret_key, need_switch=False, manager_id=manager_id,
+                        chat_id=chat_id)
     closed = denied or _closed(row)
     if closed is not None:
         session.rollback()
@@ -370,7 +398,7 @@ def discard_turn(session: Any, *, turn_id: int, user_id: int, token: Any, secret
     session.commit()
     logger.info("[CS 보내기] 버림 turn=%s done=%s", turn_id, done)
     return _audited(session, "CS_AGENT_DISCARD", turn_id, user_id,
-                    _fail("discarded", 200) if done else _fail("already", 409))
+                    _fail("discarded", 200) if done else _fail("already", 409), manager_id=manager_id)
 
 
 def request_rewrite(session: Any, *, turn_id: int, user_id: int, token: Any, note: Any, secret_key: Any,
