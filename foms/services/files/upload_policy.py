@@ -9,14 +9,16 @@ CHAT_ALLOWED_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xlsx', 'xls', 'txt', 'zip', 'rar'
 }
 
+# heic/heif = 아이폰 원본 — 받은 뒤 서버가 JPEG 로 바꾼다(SPEC 2026-11-04-heic-to-jpeg).
 ERP_MEDIA_ALLOWED_EXTENSIONS = {
-    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
     'mp4', 'mov', 'avi', 'mkv', 'webm',
 }
 
 # Phase D: Direct upload 세션 발급 시 허용 Content-Type (보안)
 DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES = frozenset({
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'image/heic', 'image/heif',
     'video/mp4', 'video/quicktime', 'video/x-msvideo',
     'video/x-matroska', 'video/webm',
     'application/pdf', 'application/msword',

@@ -1,6 +1,6 @@
-# 아이폰 사진(HEIC) 서버에서 JPG로 바꾸기 SPEC (2026-11-04 초안 · 승인 전)
+# 아이폰 사진(HEIC) 서버에서 JPG로 바꾸기 SPEC (2026-11-04 사용자 결정 · 승인)
 
-등급: 코어 변경(파일 업로드 API · R2 저장 · 백그라운드 작업). 아래 §4 결정을 받은 뒤 구현한다.
+등급: 코어 변경(파일 업로드 API · R2 저장 · 백그라운드 작업). §4 결정 4개를 묻고 받은 답(모두 추천안)을 승인으로 본다.
 선행: `docs/specs/2026-11-02-foms-notices_SPEC.md`(공지 사진 — HEIC 를 이미 서버에서 다시 그린다).
 같이 들어간 첫 단계: 주문 모바일 갤러리 업로드 `accept` 에서 `.heic,.heif` 제거(커밋 33a1e74).
 
@@ -45,15 +45,19 @@
 4. 변환 작업:
    - R2 에서 HEIC 를 읽는다 → `heic_to_jpeg` → 같은 폴더 `<이름>.jpg` 새 key 로 올린다.
    - 첨부 줄을 잠그고(`FOR UPDATE`) `storage_key`·`filename`(.jpg)·`file_size` 를 바꾼다. 줄이 이미 지워졌으면 새 JPG 를 지우고 끝낸다.
-   - 첨부 이벤트 `ATTACHMENT_CONVERTED`(새로 추가, 이전 key → 새 key)를 남긴다.
+   - 첨부 이벤트는 새 종류를 만들지 않고 `ATTACHMENT_META_UPDATED`(payload `change: heic_to_jpeg`, `converted_from: <이전 key>`)를 남긴다 — 표시 문구 · 감사 목록을 건드리지 않는다. services → api import 가 금지라 이벤트 줄을 서비스가 직접 만든다.
+   - 그 사이 이전 key 를 도면 기록 등이 쓰기 시작했으면(`referenced_keys`) 바꾸지 않는다.
    - 이어서 JPG 썸네일을 만든다(기존 함수 재사용).
-   - 원본 HEIC 처리는 §4 결정 1 에 따른다.
+   - 원본 HEIC 는 기존 `STORAGE_DELETE` 지연 삭제(7일 유예, 지울 때 다시 쓰이는지 확인)로 예약한다(결정 1).
    - 대시보드 첨부 캐시 무효화(`ATTACHMENT_DASHBOARD_FAMILIES`).
    - 실패하면 HEIC 를 그대로 두고 오류만 기록한다(업로드 자체는 성공 상태 유지).
-5. 변환이 끝나기 전 몇 초 동안은 PC 에서 파일 아이콘으로 보일 수 있다. 화면은 이번에 따로 바꾸지 않는다.
+5. 변환이 끝나기 전 몇 초 동안은 PC 에서 깨진 그림으로 보일 수 있다. 화면은 이번에 따로 바꾸지 않는다.
+6. HEIC 변환은 `ASYNC_ATTACHMENT_THUMBNAIL` 설정과 상관없이 돈다.
+7. 업로드 세션 응답에 서버가 서명한 `content_type` 을 싣고 공용 업로드(`upload-progress.js`)가 PUT 에 그 값을 쓴다 — PC 크롬은 HEIC 의 `file.type` 을 비워 보내 서명이 어긋났다.
+8. 폼 업로드(`POST /api/orders/<id>/attachments`, direct 실패 시 대체 길)는 서버가 바이트를 받으므로 올리기 전에 바로 바꾼다.
 
-### 2-3. 협력사 수정 요청 사진
-- 서버가 바이트를 직접 받는 길이라 **올리기 전에 바로** `heic_to_jpeg` 로 바꾸고 `.jpg` 이름으로 저장한다(최대 10장, 작업 예약 불필요).
+### 2-3. 협력사 사진(수정 요청 · AS 접수 · `/api/partner/orders/<id>/files`)
+- 서버가 바이트를 직접 받는 길이라 **올리기 전에 바로** `heic_to_jpeg` 로 바꾸고 `.jpg` 이름으로 저장한다(작업 예약 불필요). `/files` 는 주문 첨부 허용 목록을 같이 써서 이번에 HEIC 를 받게 되므로 같이 바꾼다.
 - 바꾸지 못하면 "사진을 읽지 못했습니다. JPG 로 다시 올려 주세요." 400.
 
 ### 2-4. 이번에 하지 않는 것
@@ -69,9 +73,18 @@
 - 앱: `python -c "import app; print('APP_OK')"`, `scripts/ops/pre_push_smoke.ps1`.
 - 스테이징: 아이폰(사파리)과 PC 크롬에서 각각 HEIC 를 주문 첨부로 올려 PC 크롬에서 보이는지 확인.
 
-## 4. 사용자 결정 (받아야 함)
+## 4. 사용자 결정 (2026-11-04 받음 — 모두 추천안)
 
 1. **원본 HEIC 를 남길까?** — 추천: **지운다.** 화질 차이가 거의 없고, 위치정보가 담긴 원본이 남지 않는다. (남기면 R2 용량이 사진 1장당 2~5MB 늘어난다.)
 2. **바꾼 JPG 크기** — 추천: **긴 변 2560px · 품질 85.** (PC 화면에서 확대해도 충분. 클라이언트 압축의 1920px 보다 조금 크게 둔다.)
 3. **범위** — 추천: **주문 첨부 + 협력사 사진.** 채팅은 다음에.
-4. **이미 R2 에 있는 협력사 HEIC 도 바꿀까?** — 추천: 먼저 개수를 세어 보고 정한다(postgres 연결 후 `OrderAttachment`·수정 요청 기록에서 `.heic` 수 조회).
+4. **이미 R2 에 있는 협력사 HEIC 도 바꿀까?** — 추천: 먼저 개수를 세어 보고 정한다. 읽기 전용 `tools/ops/count_heic_files.py` 를 만들었다(첨부 행 + 주문 기록에만 있는 key). 이 세션은 DB 연결이 없어 아직 돌리지 못했다.
+
+## 5. 구현 위치
+
+- 변환 함수: `foms/services/files/heic_convert.py`
+- 주문 첨부 백그라운드 변환: `foms/services/order_attachment_heic.py`, RQ `foms/services/jobs/queue.py::enqueue_heic_conversion` · `tasks.py::convert_heic_attachment`
+- 연결: `foms/api/files/direct_upload.py`(완료 · 세션 `content_type`), `foms/api/files/order_routes.py`(폼 업로드), `foms/api/partner/__init__.py`(파일 · 사진)
+- 받는 형식: `upload_policy.py`, `storage.py`(형식 · Content-Type), `api/files/common.py`(크기 상한)
+- 브라우저: `static/js/runtime/upload-progress.js`(PUT Content-Type)
+- 테스트: `tests/domains/test_heic_convert.py`

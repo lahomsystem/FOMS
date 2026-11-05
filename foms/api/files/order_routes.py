@@ -46,6 +46,7 @@ from foms.services.orders.drawing_key_safety import (
     split_deletable_keys,
 )
 from foms.services.files.purge_policy import ATTACHMENT_PURGE_GRACE
+from foms.services.files.heic_convert import HEIC_FAILED_MESSAGE, HeicConvertError, convert_upload_if_heic
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
@@ -433,12 +434,18 @@ def api_order_attachments_upload(order_id):
         # attachments/ 를 도면으로 보지 않아 전달 창에서 올린 도면이 전달에서 빠졌다.
         # 썸네일도 같은 folder 를 쓴다.
         folder = f"orders/{order_id}/drawing" if category == "drawing" else f"orders/{order_id}/attachments"
-        result = storage.upload_file(file, file.filename, folder)
+        # 아이폰 원본(HEIC)은 올리기 전에 JPEG 로 바꾼다(SPEC 2026-11-04-heic-to-jpeg §2-2).
+        try:
+            upload_stream, filename, converted_size = convert_upload_if_heic(file, file.filename)
+        except HeicConvertError:
+            return jsonify({"success": False, "message": HEIC_FAILED_MESSAGE}), 400
+        if converted_size is not None:
+            file_size = converted_size
+        result = storage.upload_file(upload_stream, filename, folder)
         if not result.get("success"):
             return jsonify({"success": False, "message": "파일 업로드 실패: " + result.get("message", "알 수 없는 오류")}), 500
 
         storage_key = result.get("key")
-        filename = file.filename
         file_type = storage.get_file_type(filename)
         if category == "drawing":
             if file_type not in ["image", "video", "file"]:
@@ -451,8 +458,8 @@ def api_order_attachments_upload(order_id):
             if file_type == "image" and hasattr(storage, "_generate_thumbnail") and not ASYNC_ATTACHMENT_THUMBNAIL:
                 unique_filename = storage_key.rsplit("/", 1)[-1] if storage_key else None
                 if unique_filename:
-                    file.seek(0)
-                    storage._generate_thumbnail(file, unique_filename, folder, "image", storage_key=storage_key)
+                    upload_stream.seek(0)
+                    storage._generate_thumbnail(upload_stream, unique_filename, folder, "image", storage_key=storage_key)
                     thumbnail_key = f"{folder}/thumb_{unique_filename}"
         except Exception:
             thumbnail_key = None

@@ -32,6 +32,7 @@ from foms.services.common.dashboard_cache import (
 from foms.services.error_logging import log_handled_exception
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_permissions import is_partner_original_key
+from foms.services.files.heic_convert import HEIC_FAILED_MESSAGE, HeicConvertError, upload_converting_heic
 from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError
@@ -148,15 +149,18 @@ def upload_file(order_id: int):
 
     storage = get_storage()
     folder = f"orders/{order.id}/{folder_name}"
-    result = storage.upload_file(file, file.filename, folder)
+    try:  # 아이폰 원본(HEIC)은 JPEG 로 바꿔 올린다(SPEC 2026-11-04-heic-to-jpeg §2-3)
+        result, filename, file_size = upload_converting_heic(storage, file, file.filename, folder, file_size)
+    except HeicConvertError:
+        return _fail(HEIC_FAILED_MESSAGE, 400)
     if not result.get("success"):
         return _fail("파일을 올리지 못했습니다. 잠시 뒤 다시 시도해 주세요.", 502)
     storage_key = result.get("key")
-    file_type = storage.get_file_type(file.filename)
+    file_type = storage.get_file_type(filename)
     try:
         attachment = OrderAttachment(
             order_id=order.id,
-            filename=file.filename,
+            filename=filename,
             file_type=file_type,
             category=category,
             item_index=item_index,
@@ -354,7 +358,7 @@ def confirm_drawing_receipt(order_id: int):
 
 
 MAX_PHOTOS = 10
-_PHOTO_EXTS = frozenset({"jpg", "jpeg", "png", "webp", "heic", "gif"})
+_PHOTO_EXTS = frozenset({"jpg", "jpeg", "png", "webp", "heic", "heif", "gif"})
 
 
 def _upload_photos(order_id: int, folder: str) -> list[dict]:
@@ -377,11 +381,14 @@ def _upload_photos(order_id: int, folder: str) -> list[dict]:
         f.seek(0)
         if size > get_erp_media_max_size(f.filename):
             raise PartnerRevisionError("사진이 너무 큽니다.", 400)
-        result = storage.upload_file(f, f.filename, f"orders/{order_id}/{folder}")
+        try:  # 아이폰 원본(HEIC)은 JPEG 로 — 우리 PC 크롬에서 보이게(SPEC 2026-11-04-heic-to-jpeg §2-3)
+            result, filename, size = upload_converting_heic(storage, f, f.filename, f"orders/{order_id}/{folder}", size)
+        except HeicConvertError:
+            raise PartnerRevisionError(HEIC_FAILED_MESSAGE, 400) from None
         if not result.get("success"):
             raise PartnerRevisionError("사진을 올리지 못했습니다. 잠시 뒤 다시 시도해 주세요.", 502)
-        out.append({"key": result.get("key"), "filename": f.filename,
-                    "file_type": storage.get_file_type(f.filename), "size": size})
+        out.append({"key": result.get("key"), "filename": filename,
+                    "file_type": storage.get_file_type(filename), "size": size})
     return out
 
 
