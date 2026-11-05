@@ -172,6 +172,8 @@
 - 발행: 일자(출고일) · 번호 · 잠금 · 잔액 스냅샷 · 협력사 화면에 보임. 수정본 · 취소(VOID)는 이유 필수.
 - **4단계 구현(11-03)**: 화면 `/erp/partner-statements`(ERP 하위 메뉴 "협력사 명세서" — 정책 `PARTNER_STATEMENT` 로 숨김) · 한 장 `/erp/partner-statements/<id>` · 양식 `/<id>/print`(`templates/partner/statement_form.html`, 공급받는자용 · 공급자용 2장). API `/api/partner-statements`(`foms/api/partner_statements_staff.py`). 권한 = ADMIN, 또는 CS 권한 팀(회계팀 포함)의 STAFF · MANAGER(게이트 `statements.can_manage_statements`). 일자 = 출고 대시보드와 같은 시공일, 단가표 판 = 적용 시작일이 그 날 이전인 가장 새 판. 갈래는 "내일까지 출고(지난 날 포함) · 다음 출고 · 출고일 없음". 발행은 사람이 누른다(열린 질문 7 기본값). 잔액은 발행 명세서 합 − 입금 합(5단계).
 
+- **발행 알림(11-05, 결정 13)**: 워커 알림 루프(`scripts/maintenance/run_notification_escalation.py`, 1분)에 얹은 `foms/services/partners/statement_reminder.py`. KST 9시 이후, 단가표가 있는 협력사의 지우지 않은 주문 중 발행 명세서가 없고 출고일이 내일 이하 · 7일 안인 것을 CS 팀에 주문마다 한 번 알린다(`PARTNER_STATEMENT_DUE`, 휴대폰 푸시 포함). 옵션이 없는 주문도 알린다. 알린 열쇠(주문 · 출고일)는 SystemSetting `partner_statement_reminder_state` — 출고일이 바뀌면 다시 알린다. 명세서를 만들거나 발행하지는 않는다.
+
 ### 5.6 협력사 — 거래명세서 메뉴
 - 월 장부: 지난달 이월 · 이달 판매 · 이달 입금 · 지금 잔액. 줄 = 일자 · 문서번호 · 고객(현장) · 제품 수 · 판매 · 입금 · 잔액 · 상태(새 명세서 · 확인함 · 입금 대기 · 수정본). 제품 여러 개 주문은 ▾ 로 제품별 금액. 엑셀 받기.
 - 명세서 보기: 양식(5.8) + 오른쪽 제품별 최종 도면 + "명세서 확인했어요" + "금액 문의"(줄 골라 묻기) + 인쇄(공급받는자용 · 공급자용 2장) · PDF(브라우저 인쇄). 휴대폰은 제품 묶음 접기 · 입금 계좌 복사.
