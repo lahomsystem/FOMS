@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from sqlalchemy import and_, func, or_, select, update
 
@@ -93,11 +93,14 @@ def set_skip(row: CsAgentImageRead, code: str, now: datetime.datetime, *, state:
 def finish(rows: Sequence[CsAgentImageRead], *, result: dict[str, Any], state: str, confidence: str,
            personal: Sequence[str], usage: Optional[dict[str, Any]], now: datetime.datetime,
            shas: Sequence[str], turn_id: Optional[int] = None) -> None:
-    """묶음 결과를 줄마다 쓴다(같은 결과 · 선점 놓기). 토큰 · 돈은 첫 줄에만(합이 한 번만 세이게). 커밋은 부르는 쪽."""
+    """묶음 결과를 줄마다 쓴다(같은 결과 · 선점 놓기). 토큰 · 돈은 첫 줄에만(합이 한 번만 세이게). 커밋은 부르는 쪽.
+    ``turn_id`` 가 없으면(미리 읽기) 줄에 이미 적힌 차례 번호를 지우지 않는다 — 사례 학습이 차례 번호로 잇는다(17.11.1)."""
     for number, (row, sha) in enumerate(zip(rows, shas)):
         row.state, row.skip_code = state, DISCARDED_FACE if state == DISCARDED else None
         row.result, row.confidence, row.personal_codes = dict(result), confidence, list(personal)
-        row.sha256, row.read_at, row.turn_id = sha, _naive(now), turn_id
+        row.sha256, row.read_at = sha, _naive(now)
+        if turn_id is not None:
+            row.turn_id = turn_id
         row.claim_owner = row.claim_expires_at = None
         lead = usage if number == 0 and usage else {}
         row.model, row.effort = (usage or {}).get("model"), (usage or {}).get("effort")
@@ -113,12 +116,15 @@ def sent_today(session: Any, day_start: datetime.datetime, *, chat_id: Optional[
     return int(session.scalar(stmt) or 0)
 
 
-def reuse_by_sha(session: Any, chat_id: str, shas: Sequence[str]) -> Optional[CsAgentImageRead]:
-    """같은 상담에서 같은 그림 묶음(sha256 차례가 같음)을 이미 읽은 줄 — 같은 그림 재전송은 앞 결과를 쓴다(사진 교훈 1-12)."""
+def reuse_by_sha(session: Any, chat_id: str, shas: Sequence[str],
+                 usable: Callable[[str, Any], bool] = lambda _state, _result: True) -> Optional[CsAgentImageRead]:
+    """같은 상담에서 같은 그림 묶음(sha256 차례가 같음)을 이미 읽은 줄 — 같은 그림 재전송은 앞 결과를 쓴다(사진 교훈 1-12).
+    ``usable(상태, 결과)`` 가 거짓인 줄(옛 판 결과 — :func:`.image_read.current`)은 건너뛴다."""
     stmt = (select(_T).where(_T.chat_id == chat_id, _T.state.in_((DONE, DISCARDED)), _T.sha256.in_(set(shas)))
             .order_by(_T.read_at.desc()))
     for row in session.scalars(stmt):
-        if isinstance(row.result, dict) and list(row.result.get("batch") or ()) == list(shas):
+        if (isinstance(row.result, dict) and list(row.result.get("batch") or ()) == list(shas)
+                and usable(row.state, row.result)):
             return row
     return None
 

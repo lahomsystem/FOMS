@@ -9,7 +9,7 @@
   시각 · 상담 id · 손님 글은 넣지 않는다. 지식은 문서 순서 그대로 ``[id] (종류) 글`` 줄로 쓴다(기준 답 문구는 종류 뒤에
   의도 id 를 붙인다).
 - **뒷부분(바뀌는 값)**: 사용자 글 하나(:func:`task_text`) — 이번 일 · 상담 id · 매체 · 지금 · 계산 결과 · 비슷한 지난 상담
-  (사례가 있을 때만 — :mod:`.brain_cases`) · 가린 상담 글.
+  (사례가 있을 때만 — :mod:`.brain_cases`) · 손님이 보낸 사진(읽은 것이 있을 때만 — :mod:`.brain_photos`) · 가린 상담 글.
   상담 글은 줄 맨 앞 ``[손님]`` · ``[직원]`` 만 말한 사람 표시다. 글 안의 줄바꿈은 들여 써서 손님 글이 표시를 흉내 내지
   못한다(:func:`render_conversation`).
 - **출력**: JSON 스키마(:func:`output_schema`) — 의도 · 근거 id · 넘김 까닭은 정한 값 가운데서만 고른다(enum).
@@ -34,6 +34,7 @@ from typing import Any, Mapping, Optional, Sequence
 from foms.services.cs_agent.brain_cases import case_lines, case_pairs, rewrite_lines, rewrite_pair
 from foms.services.cs_agent.brain_instructions import INSTRUCTIONS, LENGTH_DEFAULT, length_rule
 from foms.services.cs_agent.brain_media import media_tokens
+from foms.services.cs_agent.brain_photos import photo_block, photo_entries, with_rule
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
 
@@ -131,6 +132,7 @@ class DraftRequest:
     calculator_lines: Sequence[str] = field(default=(), repr=False)
     cases: Sequence[tuple[str, str]] = field(default=(), repr=False)  # 비슷한 지난 상담(가린 질문, 사람이 보낸 가린 답)
     rewrite: Sequence[str] = field(default=(), repr=False)  # [수정하기] 다시 쓰기 — (앞 초안, 고칠 말), 가림은 두뇌가 한다
+    photos: Sequence[Any] = field(default=(), repr=False)  # 손님이 보낸 사진(읽은 것 — :class:`.brain_photos.PhotoEntry`)
     realtime: bool = False
 
     def __post_init__(self) -> None:
@@ -150,6 +152,7 @@ class DraftRequest:
         object.__setattr__(self, "messages", _turns(self.messages))
         object.__setattr__(self, "cases", case_pairs(self.cases))
         object.__setattr__(self, "rewrite", rewrite_pair(self.rewrite))
+        object.__setattr__(self, "photos", photo_entries(self.photos))
         for name in ("customer_names", "staff_names", "calculator_lines"):
             object.__setattr__(self, name, _texts(getattr(self, name), name))
 
@@ -201,9 +204,11 @@ def evidence_choices(knowledge: ApprovedKnowledge) -> tuple[str, ...]:
     return tuple(item.item_id for item in knowledge.items)
 
 
-def instructions(brand: str, length: int = LENGTH_DEFAULT) -> str:
-    """지시문 블록 글(코드에 있는 일반 지시 — 브랜드 이름 · 답 길이 문장만 바뀐다). 켠 브랜드 · 있는 단계가 아니면 ``KeyError``."""
-    return INSTRUCTIONS.format(label=ENABLED_BRANDS[brand], length=length_rule(length))
+def instructions(brand: str, length: int = LENGTH_DEFAULT, photos: bool = False) -> str:
+    """지시문 블록 글(코드에 있는 일반 지시 — 브랜드 이름 · 답 길이 문장만 바뀐다). 켠 브랜드 · 있는 단계가 아니면 ``KeyError``.
+    ``photos`` 면 사진 칸 지시 한 줄(:data:`.brain_photos.PHOTO_RULE` — 패널 '사진 · 그림 읽기'가 '초안에 씀'일 때)을 붙인다."""
+    text = INSTRUCTIONS.format(label=ENABLED_BRANDS[brand], length=length_rule(length))
+    return with_rule(text) if photos else text
 
 
 def knowledge_text(knowledge: ApprovedKnowledge) -> str:
@@ -217,7 +222,7 @@ def knowledge_text(knowledge: ApprovedKnowledge) -> str:
 
 
 def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Optional[str],
-                  length: int = LENGTH_DEFAULT) -> list[dict[str, Any]]:
+                  length: int = LENGTH_DEFAULT, photos: bool = False) -> list[dict[str, Any]]:
     """``system`` 칸 — [지시문, 승인 지식(교훈 포함)]. ``cache_ttl``(1h · 5m)이면 마지막 블록에만 그 길이로 캐시 표시를 단다.
 
     표시는 바뀌지 않는 앞부분 끝에 하나만 단다 — 시각 · 상담 id · 손님 글은 ``messages`` (뒷부분, :func:`task_text`)에만 있다.
@@ -226,7 +231,7 @@ def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Option
     if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
         raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
     blocks: list[dict[str, Any]] = [
-        {"type": "text", "text": instructions(brand, length)},
+        {"type": "text", "text": instructions(brand, length, photos)},
         {"type": "text", "text": knowledge_text(knowledge)},
     ]
     if cache_ttl is not None:
@@ -263,7 +268,7 @@ def render_conversation(turns: Sequence[tuple[str, str]]) -> str:
 
 def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.datetime,
               calculator_lines: Sequence[str], conversation: str, cases: Sequence[tuple[str, str]] = (),
-              rewrite: Sequence[str] = ()) -> str:
+              rewrite: Sequence[str] = (), photos: Sequence[Any] = ()) -> str:
     """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각). 사례 글은 가림 검사를 다시 지난다."""
     task = "답 초안 쓰기" if purpose == PURPOSE_DRAFT else "의도 고르기 — draft 는 빈 글로 둔다"
     talk = " · 네이버 톡톡 규칙" if not medium or is_naver_talk(medium) else ""
@@ -276,6 +281,7 @@ def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.d
         *calc,
         *case_lines(cases),
         *rewrite_lines(rewrite),
+        *photo_block(photos),
         "상담 글(가린 글 · 오래된 것부터):",
         conversation,
     ])

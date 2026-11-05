@@ -2,7 +2,7 @@
 
 - ``GET  /api/admin/cs-agent/fix-proposals`` — 제안 목록(새 것부터, 가린 글 · 관문 · 근거 차례 id · 결정).
 - ``POST /api/admin/cs-agent/fix-proposals/<id>/decide`` ``{"decision": "approve" | "reject", "note"?}`` — 사장님 결정.
-  승인이면 기준 답 문서 새 판(:func:`.weekly_fix_store.decide`), 거절이면 한 줄 까닭.
+  승인이면 회사 지식에 반영하고 지식 문서는 표에서 다시 쓴다(:func:`.weekly_fix_store.decide`), 거절이면 한 줄 까닭.
 
 결정한 사람은 **로그인한 사용자에서만** 받는다 — 본문의 ``approved_by`` · ``user_id`` 같은 칸은 읽지 않는다(R10-18). 자동 반영
 길은 없다 — 이 승인 동작이 고침 안을 넣는 유일한 길이다. 미인증 401 · ADMIN 아님 403(JSON). 쓰기 정책은 manifest 의
@@ -27,11 +27,13 @@ cs_agent_fix_api_bp = Blueprint("cs_agent_fix_api", __name__)
 
 _PREFIX = "/api/admin/cs-agent/fix-proposals"
 _MESSAGES = {
-    "approved": "승인했어요 — 기준 답 문서 새 판으로 넣었어요.",
+    "approved": "승인했어요 — 회사 지식에 넣었고, AI 상담 기준 답도 새 판으로 바뀌었어요.",
     "rejected": "거절했어요 — 같은 안은 다시 올리지 않아요.",
     "already": "이미 결정한 안이에요.",
     "not_found": "안을 찾지 못했어요.",
-    "apply_failed": "기준 답 문서에 넣지 못했어요(문서가 그사이 바뀜 · 항목 없음) — 새로 불러온 뒤 다시 눌러 주세요.",
+    "apply_failed": ("넣지 못했어요(그사이 바뀜 · 회사 지식에 그 기준 답이 없음 · 지식 문서가 회사 지식과 다름) — "
+                     "새로 불러온 뒤 다시 눌러 주세요."),
+    "common_item": "두 브랜드가 같이 쓰는 기준 답이라 여기서 바꾸지 않아요 — 회사 지식 화면에서 고칠 말 제안으로 올려 주세요.",
     "bad_request": "decision 은 approve 또는 reject 입니다.",
     "forbidden": "관리자만 쓸 수 있습니다.",
 }

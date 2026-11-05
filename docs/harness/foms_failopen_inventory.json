@@ -57,8 +57,8 @@
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:328",
-    "foms/services/cs_agent/rewrite.py:114",
+    "foms/services/cs_agent/drafting.py:331",
+    "foms/services/cs_agent/rewrite.py:116",
     "foms/services/cs_agent/send_flow.py:288",
     "foms/services/integrations/naver_commerce/client.py:1257",
     "foms/services/integrations/naver_commerce/client.py:1359",
@@ -3718,7 +3718,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 328,
+      "lineno": 331,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3763,7 +3763,7 @@
     },
     {
       "path": "foms/services/cs_agent/rewrite.py",
-      "lineno": 114,
+      "lineno": 116,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

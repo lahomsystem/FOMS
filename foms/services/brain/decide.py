@@ -31,7 +31,7 @@ from foms.services.brain.constants import (
 from foms.services.brain.errors import (
     BrainConfirmError, BrainConflictError, BrainError, BrainPermissionError, BrainShapeError, BrainTargetError,
 )
-from foms.services.brain.gates import text_gates
+from foms.services.brain.gates import merge_gates, payload_gates, text_gates
 from foms.services.brain.inbox import agent_clause, current_join, link_versions, visible_clause
 from foms.services.brain.inbox_bins import bulk_ok_any_grade, label_only_change
 from foms.services.brain.proposals import known_text, link_target_type
@@ -153,7 +153,10 @@ def _apply_edits(session: Any, change: BrainChange, edits: Mapping[str, Any]) ->
     change.fields = fields
     flag_modified(change, "fields")
     texts = [(fields.get(n) or {}).get("after") for n in ("name", "text") if n in fields]
-    change.gates = {**(change.gates or {}), **text_gates(texts, known_text(session))}
+    payload = fields.get("payload") or {}
+    rechecked = merge_gates(text_gates(texts, known_text(session)),
+                            payload_gates(payload.get("after"), payload.get("before")) if "payload" in fields else {})
+    change.gates = {**(change.gates or {}), **rechecked}
     flag_modified(change, "gates")
     session.flush()  # 반영 동작이 제안을 DB 에서 다시 읽는다(populate_existing) — 고친 값을 먼저 내려 둔다
 

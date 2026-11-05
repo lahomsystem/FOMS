@@ -100,6 +100,24 @@ class BrainGateError(BrainError):
         self.failed: tuple[str, ...] = tuple(failed)
 
 
+class BrainDocSyncError(BrainError):
+    """반영과 같이 상담 지식 문서를 표에서 다시 쓸 수 없다 — 반영째 멈춘다(설계서 7.5 '반영 때마다 다시 만든다').
+
+    ``reason`` 은 코드만: ``drift``(이 반영 밖에서 문서가 표와 다름 — 옮기기 · 맞추기 먼저) · ``stored_invalid``(저장된 문서 꼴이
+    틀림) · ``regenerate_invalid``(다시 만든 문서가 문서 꼴이 아님) · 지식 저장 코드(버전 엇갈림 등). ``ids`` 는 문서 id 만."""
+
+    code = "BRAIN_DOC_SYNC"
+
+    def __init__(self, brand: str, reason: str, ids: Sequence[str] = ()) -> None:
+        """브랜드 · 까닭 코드 · 다른 문서 id 를 싣는다."""
+        shown = list(ids[:MAX_PROBLEMS])
+        tail = f" — {', '.join(shown)}" if shown else ""
+        super().__init__(f"상담 지식 문서({brand})를 표와 맞출 수 없다: {reason}{tail}")
+        self.brand = brand
+        self.reason = reason
+        self.ids: tuple[str, ...] = tuple(shown)
+
+
 class BrainLinkLimitError(BrainTargetError):
     """연결 개수 상한을 넘는다(7.7 · D105 — 허용 짝의 최대). ``kind`` · ``limit`` 는 종류 이름 · 수만."""
 

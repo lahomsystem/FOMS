@@ -36,7 +36,9 @@ from foms.services.brain.errors import (
     BrainConflictError, BrainGateError, BrainRejectedError, BrainShapeError, BrainTargetError,
 )
 from foms.services.brain.external import require_refs
-from foms.services.brain.gates import FAIL, end_key_problems, key_problems, link_problems, object_problems, text_gates
+from foms.services.brain.gates import (
+    FAIL, end_key_problems, key_problems, link_problems, merge_gates, object_problems, payload_gates, text_gates,
+)
 from foms.services.brain.link_rules import check_link_rules
 from foms.services.brain.store import (
     LINK_FIELDS, OBJECT_FIELDS, current_link, current_object, is_current, kst_day, object_version, values_of,
@@ -95,15 +97,24 @@ def _common_problems(reason: Any, evidence: Any, grade: Any) -> list[str]:
 
 
 def _gates(texts: Iterable[Optional[str]], known: str, proposer: Proposer,
-           item_type: Optional[str] = None) -> dict[str, str]:
-    """글 관문 결과. 에이전트 제안이 떨어지면 넣지 않는다 — 에이전트 일 유형(엇갈림 · 물어볼 것)은 지식이 아니라 알림이라
-    숫자 출처 관문은 결과만 남기고 막지 않는다(직원 고칠 말의 숫자 — 가림 · 한자는 그대로 막는다)."""
-    result = text_gates(texts, known)
+           item_type: Optional[str] = None, payload: Optional[Mapping[str, str]] = None) -> dict[str, str]:
+    """글 관문 결과(이름 · 글 + 실음 칸 글 — :func:`.gates.payload_gates`). 에이전트 제안이 떨어지면 넣지 않는다 — 에이전트 일
+    유형(엇갈림 · 물어볼 것)은 지식이 아니라 알림이라 숫자 출처 관문은 결과만 남기고 막지 않는다(직원 고칠 말의 숫자 — 가림 ·
+    한자는 그대로 막는다)."""
+    result = merge_gates(text_gates(texts, known), payload or {})
     failed = [name for name, value in result.items()
               if value == FAIL and not (name == "numbers" and item_type in AGENT_WORK_TYPES)]
     if proposer.agent and failed:
         raise BrainGateError(failed)
     return {"form": "pass", **result, **_NOT_RUN}
+
+
+def _payload_only(payload: Mapping[str, str], proposer: Proposer) -> dict[str, str]:
+    """글 칸이 없는 제안(링크)의 실음 칸 글 관문 — 에이전트 제안이 떨어지면 넣지 않는다. 실음 칸 글이 없으면 결과 칸도 없다."""
+    failed = [name for name, value in payload.items() if value == FAIL]
+    if proposer.agent and failed:
+        raise BrainGateError(failed)
+    return {"form": "pass", **payload, **_NOT_RUN}
 
 
 def _ai_gates(session: Any, gates: dict[str, str], proposer: Proposer, **kwargs: Any) -> dict[str, str]:
@@ -175,7 +186,8 @@ def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type:
         raise BrainShapeError(problems)
     if current_object(session, key) is not None:
         raise BrainTargetError(f"이미 지금 판이 있는 키다: {key}")
-    gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer, item_type)
+    gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer, item_type,
+                   payload_gates(full["payload"]))
     gates = _ai_gates(session, gates, proposer, op=OP_CREATE, key=key, item_type=item_type,
                       texts=[full["name"] or "", full["text"] or ""], evidence=evidence, after=full)
     return _insert(session, now=now, op=OP_CREATE, item_key=key, brand=brand, layer=layer, item_type=item_type,
@@ -209,7 +221,8 @@ def propose_update(session: Any, *, key: str, base_version: int, after: Mapping[
     if problems:
         raise BrainShapeError(problems)
     texts = [new[name] for name in ("name", "text") if name in changed]
-    gates = _gates(texts, known_text(session) if known is None else known, proposer)
+    gates = _gates(texts, known_text(session) if known is None else known, proposer,
+                   payload=payload_gates(new["payload"], before["payload"]) if "payload" in changed else {})
     gates = _ai_gates(session, gates, proposer, op=OP_UPDATE, key=key, item_type=current.item_type,
                       texts=[t or "" for t in texts], evidence=evidence, before=before, after=new)
     return _insert(session, now=now, op=OP_UPDATE, item_key=key, brand=current.brand, layer=current.layer,
@@ -305,8 +318,9 @@ def propose_link(session: Any, *, op: str, kind: str, from_key: str, to_key: str
                    brand=source.brand, layer=source.layer, item_type=source.item_type,
                    base_version=link.version if link is not None else None, fields=fields, reason=reason.strip(),
                    evidence=evidence, proposed_by=proposer.name,
-                   gates=_ai_gates(session, {"form": "pass", **_NOT_RUN}, proposer, op=op, key=from_key,
-                                   item_type=source.item_type, texts=[], evidence=evidence),
+                   gates=_ai_gates(session, _payload_only(payload_gates(full["payload"]) if adding else {}, proposer),
+                                   proposer, op=op, key=from_key, item_type=source.item_type, texts=[],
+                                   evidence=evidence),
                    rollback_of_version=rollback_of, action=action,
                    grade=heavier_grade(grade or GRADE_A, TYPE_GRADES[source.item_type],
                                        GRADE_B if op == OP_LINK_REMOVE else GRADE_A))

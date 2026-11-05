@@ -1,7 +1,8 @@
 """그림 읽기 규칙 — 구조화 출력 스키마 · 읽기 · 벽 범위(D90 · D96) · 벽 고르기 · 공간 짝 · 직원 참고 줄(순수 함수).
 
-설계서 17.11 (c) · (d). 모델은 숫자 · 고른 값만 낸다 — **글 칸이 없다**(단지명 · 동호수 · 이름이 그림에 있어도 결과로
-돌아올 자리가 없다). 범위 셈은 코드가 한다 — 모델은 '어느 기준 치수인가'(``basis``)와 '벽 끝이 벽에 닿았나'(``ends``)만
+설계서 17.11 (c) · (d). 모델은 숫자 · 고른 값만 낸다 — 글 칸은 사진마다 가린 짧은 설명 두 칸(``summary`` ·
+``about_question`` — 17.11.1 의 2 · D172, 가림 검사 0 이 아니면 그 칸만 비운다 — :mod:`.image_notes`)뿐이다. 단지명 · 동호수 ·
+이름은 옮기지 않게 지시하고, 옮겼으면 그 칸이 비워진다. 범위 셈은 코드가 한다 — 모델은 '어느 기준 치수인가'(``basis``)와 '벽 끝이 벽에 닿았나'(``ends``)만
 고른다:
 
 - ``center_line``(벽 포함 · 중심선 — 실제 안쪽보다 넓게 적힘): 벽 쪽마다 :data:`WALL_SIDE_MM` 를 뺀다(양쪽 벽 = 300mm).
@@ -23,6 +24,7 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, Mapping, Optional, Sequence
 
+from foms.services.cs_agent.image_notes import ImageNote, note_json, parse_notes
 from foms.services.cs_agent.quote_brain import DOORS, HANDLES, SPACES
 
 __all__ = [
@@ -100,6 +102,7 @@ class ImageRead:
     reasons: tuple[str, ...]
     personal_seen: tuple[str, ...]
     other_question: bool
+    notes: tuple[ImageNote, ...] = ()  # 사진마다 종류 · 확신 · 가린 설명(17.11.1 — 옛 결과는 빈 튜플)
 
     @property
     def face_seen(self) -> bool:
@@ -132,7 +135,7 @@ def _object(properties: dict[str, Any]) -> dict[str, Any]:
 
 
 def image_schema() -> dict[str, Any]:
-    """``output_config.format`` JSON 스키마 — 글 칸이 하나도 없다(숫자 · 참거짓 · 고른 값뿐)."""
+    """``output_config.format`` JSON 스키마 — 숫자 · 참거짓 · 고른 값, 글 칸은 사진마다 짧은 설명 두 칸뿐(17.11.1)."""
     wall = _object({"side": _enum(SIDES), "usable": {"type": "boolean"}, "marked": {"type": "boolean"},
                     "blocked_by": _list(BLOCKERS), "read_min_mm": {"type": "integer"},
                     "read_max_mm": {"type": "integer"}, "source": _enum(SOURCES), "basis": _enum(BASES),
@@ -141,7 +144,8 @@ def image_schema() -> dict[str, Any]:
                      "mark_kinds": _list(MARKS), "walls": {"type": "array", "items": wall},
                      "door": _enum(tuple(DOORS)), "handle": _enum(tuple(HANDLES)), "molding": _enum(MOLDINGS),
                      "height_mm": {"type": "integer"}})
-    image = _object({"index": {"type": "integer"}, "kind": _enum(KINDS)})
+    image = _object({"index": {"type": "integer"}, "kind": _enum(KINDS), "confidence": _enum(CONFIDENCES),
+                     "summary": {"type": "string"}, "about_question": {"type": "string"}})  # 글자 상한은 코드가 자른다
     return _object({"images": {"type": "array", "items": image}, "is_drawing": {"type": "boolean"},
                     "spaces": {"type": "array", "items": space}, "confidence": _enum(CONFIDENCES),
                     "reasons": _list(REASONS), "personal_seen": _list(PERSONAL), "other_question": {"type": "boolean"}})
@@ -214,13 +218,14 @@ def read_result(text: str) -> ImageRead:
     kinds = tuple(item["kind"] for item in images[:MAX_IMAGES]
                   if isinstance(item, Mapping) and item.get("kind") in KINDS)
     read_spaces = tuple(s for s in (_space(item) for item in spaces) if s is not None)[:MAX_SPACES]
+    notes = parse_notes(images, kinds=KINDS, confidences=CONFIDENCES, max_images=MAX_IMAGES)
     return ImageRead(kinds=kinds, is_drawing=data["is_drawing"], spaces=read_spaces, confidence=data["confidence"],
                      reasons=reasons, personal_seen=tuple(p for p in personal if p != "none"),
-                     other_question=data["other_question"])
+                     other_question=data["other_question"], notes=notes)
 
 
 def result_json(read: ImageRead) -> dict[str, Any]:
-    """표 ``result`` 칸에 남길 JSON(숫자 · 고른 값만 — 글 칸이 없다)."""
+    """표 ``result`` 칸에 남길 JSON(숫자 · 고른 값 + 사진마다 가린 설명 두 칸 — 빈 칸은 싣지 않는다)."""
     def wall(w: Wall) -> dict[str, Any]:
         return {"side": w.side, "usable": w.usable, "marked": w.marked, "blocked_by": list(w.blocked_by),
                 "read_min_mm": w.read_min_mm, "read_max_mm": w.read_max_mm, "source": w.source, "basis": w.basis,
@@ -229,7 +234,9 @@ def result_json(read: ImageRead) -> dict[str, Any]:
     spaces = [{"room": s.room, "room_basis": list(s.room_basis), "target": s.target, "mark_kinds": list(s.mark_kinds),
                "walls": [wall(w) for w in s.walls], "door": s.door, "handle": s.handle, "molding": s.molding,
                "height_mm": s.height_mm} for s in read.spaces]
-    return {"images": [{"index": i, "kind": k} for i, k in enumerate(read.kinds)], "is_drawing": read.is_drawing,
+    images = ([note_json(note) for note in read.notes] if read.notes
+              else [{"index": i, "kind": k} for i, k in enumerate(read.kinds)])
+    return {"images": images, "is_drawing": read.is_drawing,
             "spaces": spaces, "confidence": read.confidence, "reasons": list(read.reasons),
             "personal_seen": list(read.personal_seen) or ["none"], "other_question": read.other_question}
 

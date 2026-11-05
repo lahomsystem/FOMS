@@ -2,7 +2,8 @@
 
 - **글 관문**(:func:`text_gates`): 개인정보 꼴 0(:func:`foms.services.cs_agent.masking.leak_counts`) · 가림 표시 0
   (:func:`foms.services.cs_agent.checks_rules.mask_marker_count`) · 한자 0 · 숫자(금액 · 날짜 · 기간)는 승인 지식 글과
-  계산기 값에 이미 있는 숫자만(학습한 숫자가 허용 목록으로 세탁되지 않게 — R10-19). 결과는 관문 이름 → ``pass`` · ``fail``.
+  계산기 값에 이미 있는 숫자만(학습한 숫자가 허용 목록으로 세탁되지 않게 — R10-19). 숫자는 조각 통째로 같은 수여야 한다
+  (:func:`numbers_known` — 글자 일부 겹침이 아니다). 결과는 관문 이름 → ``pass`` · ``fail``.
 - **꼴 검사**(:func:`object_problems`): 값 목록 · 길이 · 날짜 · 유형과 층 · 보기 범위 · 사본 목록 · 유형별 속성 틀
   (:mod:`.schemas` — 제안 때와 반영 때 같은 검사). 지식 문서 유형
   (:data:`.constants.DOC_TYPES`)은 그 항목을 지식 문서 꼴로 바꿔 :func:`foms.services.cs_agent.knowledge_doc.validate_document`
@@ -14,6 +15,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping, Optional
 
 from foms.services.brain.constants import (
@@ -42,10 +44,20 @@ def hanja_count(text: str) -> int:
     return len(_HANJA.findall(text or ""))
 
 
+def _number_value(token: str) -> Any:
+    """숫자 조각 → 견줄 값 — 쉼표(천 단위)를 떼고 수로(``2,400`` = ``2400`` · ``1.50`` = ``1.5``). 수가 아닌 꼴(``1.2.3``)은 글 그대로."""
+    plain = token.replace(",", "")
+    try:
+        return Decimal(plain)
+    except InvalidOperation:
+        return plain
+
+
 def numbers_known(text: str, known: str) -> bool:
-    """글 속 숫자가 모두 승인 지식 글 · 계산기 값에 이미 있나(쉼표는 떼고 견준다)."""
-    plain = (known or "").replace(",", "")
-    return all(number.replace(",", "") in plain for number in _NUMBER.findall(text or ""))
+    """글 속 숫자가 모두 승인 지식 글 · 계산기 값에 **같은 수로** 이미 있나 — 숫자 조각끼리 통째로 견준다(``240`` 은 ``2400`` 에
+    들어 있어도 아는 수가 아니다). 쉼표는 떼고 견준다."""
+    allowed = {_number_value(token) for token in _NUMBER.findall(known or "")}
+    return all(_number_value(token) in allowed for token in _NUMBER.findall(text or ""))
 
 
 def text_gates(texts: Iterable[Optional[str]], known: str) -> dict[str, str]:
@@ -55,6 +67,56 @@ def text_gates(texts: Iterable[Optional[str]], known: str) -> dict[str, str]:
     return {"mask": PASS if mask_ok else FAIL,
             "hanja": PASS if all(hanja_count(t) == 0 for t in rows) else FAIL,
             "numbers": PASS if all(numbers_known(t, known) for t in rows) else FAIL}
+
+
+#: 실음 칸 글 관문 상한 — 깊이 · 글 조각 수. 실음 칸은 :data:`MAX_PAYLOAD_CHARS` 자 이하라 넉넉하고, 넘으면 관문 실패로 본다
+#: (보지 못한 글을 통과시키지 않는다).
+PAYLOAD_MAX_DEPTH, PAYLOAD_MAX_TEXTS = 8, 2000
+
+
+def payload_texts(payload: Any, before: Any = None) -> Optional[list[str]]:
+    """실음 칸(항목 · 링크) 안의 글 값을 모두(재귀). ``before`` 와 같은 자리 같은 값은 뺀다(고침 제안은 새로 들어온 글만 —
+    목록은 앞 목록에 있던 글도 뺀다). 깊이 · 개수 상한을 넘으면 ``None``."""
+    out: list[str] = []
+
+    def walk(value: Any, old: Any, depth: int) -> bool:
+        if depth > PAYLOAD_MAX_DEPTH:
+            return False
+        if isinstance(value, str):
+            if value != old:
+                out.append(value)
+            return len(out) <= PAYLOAD_MAX_TEXTS
+        if isinstance(value, dict):
+            olds = old if isinstance(old, dict) else {}
+            return all(walk(v, olds.get(k), depth + 1) for k, v in value.items())
+        if isinstance(value, (list, tuple)):
+            olds = list(old) if isinstance(old, (list, tuple)) else []
+            return all(walk(v, v if isinstance(v, str) and v in olds else (olds[i] if i < len(olds) else None),
+                            depth + 1) for i, v in enumerate(value))
+        return True
+
+    return out if walk(payload, before, 0) else None
+
+
+def payload_gates(payload: Any, before: Any = None) -> dict[str, str]:
+    """실음 칸 글 관문 — 개인정보 꼴 · 가림 표시(``mask``) · 한자(``hanja``). 숫자 출처는 보지 않는다(날짜 · 차례 · 계산기 id 같은
+    꼴 값이 든다). 새로 들어온 글이 없으면 빈 dict, 상한을 넘으면 둘 다 실패."""
+    texts = payload_texts(payload, before)
+    if texts is None:
+        return {"mask": FAIL, "hanja": FAIL}
+    if not texts:
+        return {}
+    result = text_gates(texts, "")
+    return {"mask": result["mask"], "hanja": result["hanja"]}
+
+
+def merge_gates(*results: Mapping[str, str]) -> dict[str, str]:
+    """관문 결과 합치기 — 같은 관문이 하나라도 ``fail`` 이면 ``fail``."""
+    out: dict[str, str] = {}
+    for result in results:
+        for name, value in result.items():
+            out[name] = FAIL if FAIL in (value, out.get(name)) else out.get(name, value)
+    return out
 
 
 # ── 꼴 검사 ──────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""그림 미리 읽기 길 — 손님 그림이 온 순간 따로 읽어 두는 2초 차례(설계서 17.11 (b) · D96 의 6).
+"""그림 미리 읽기 길 — 손님 사진 · 그림이 온 순간 따로 읽어 두는 2초 차례(설계서 17.11 (b) · 17.11.1 의 1 · D172).
 
 WORKER 감독자 자식 ``cs_image_read``(``scripts/maintenance/run_cs_image_read.py`` — env ``FOMS_CS_IMAGE_READ_ENABLED=1``
 일 때만 뜬다)가 :data:`TICK_SECONDS` 마다 :func:`run_preread_tick` 을 부른다. 빠른 길 차례 안에서는 읽지 않는다 — 한 번에
@@ -6,13 +6,14 @@ WORKER 감독자 자식 ``cs_image_read``(``scripts/maintenance/run_cs_image_rea
 
 차례 하나:
 
-0. **켜짐** — 패널 '그림 읽기'가 끔이 아님 · 견적 계산 넣기 켬 · 비상 정지 아님 · 초안 스위치 끔이 아님. 아니면 일 0.
+0. **켜짐** — 패널 '사진 · 그림 읽기'가 끔이 아님 · 비상 정지 아님 · 초안 스위치 끔이 아님. 아니면 일 0. 견적 계산 넣기와는
+   상관없다(17.11.1 의 1 — 처음엔 견적 계산 넣기가 켜져야 돌았다).
 1. **볼 상담** — 라홈 · 마지막 손님 글이 24시간 안 · 그 뒤 공개 직원 글 없음(색인 ``ix_cs_agent_chats_brand_last_user_at``)
    가운데, 아직 그림 줄이 없는 손님 파일 글이 있고 마지막 손님 글 뒤 :data:`SETTLE` 가 지난 상담(같이 보낸 그림이 다 오게)을
    새 것부터 :data:`MAX_CHATS` 개.
-2. **미리 읽을지** — 그 상담 24시간 안 손님 글에 견적 말(:data:`.quote_step.QUOTE_CUE`)이 있거나, 그림이 상담 첫 글
-   묶음(직원 공개 답 전)일 때만. 아니면 그 그림 줄을 ``not_preread``(무른 건너뜀 — 초안 차례가 필요하면 그 자리에서 읽는다).
-3. **읽기** — :func:`.image_read.read_batch`(미리 읽기 시간 상한 · 같은 선점 · 같은 하루 상한 · 부르기 전 스위치 다시 읽기).
+2. **읽기** — 파일이 온 상담이면 모두(견적 말 · 첫 글 묶음 조건은 17.11.1 에서 뗐다 — 하자 · 배송 사진도 질문과 같이 본다)
+   :func:`.image_read.read_batch`(미리 읽기 시간 상한 · 같은 선점 · 같은 하루 상한 · 부르기 전 스위치 다시 읽기). 조용 기다림
+   (15초) 안에 끝나면 초안 차례는 읽은 결과를 그대로 쓴다.
 
 글 · 파일 key 는 메모리에만 — 로그 · 요약엔 숫자 · 코드만.
 """
@@ -33,9 +34,7 @@ from foms.services.cs_agent.drafting_read import conversation, read_lines
 from foms.services.cs_agent.image_fetch import pending_files
 from foms.services.cs_agent.image_read import read_batch
 from foms.services.cs_agent.image_settings import MODE_OFF, image_mode
-from foms.services.cs_agent.image_store import PENDING, SKIP_NOT_PREREAD, ensure_rows, set_skip
 from foms.services.cs_agent.loop import PassStopped, StopFlag, leader_lock
-from foms.services.cs_agent.quote_step import SETTING as QUOTE_SETTING, looks_like_quote
 from foms.services.cs_agent.settings import PanelSettings, read_settings
 from foms.services.cs_agent.state import KST
 from foms.services.cs_agent.turns import DRAFT_OFF, claim_owner, draft_mode, read_switch
@@ -81,7 +80,7 @@ class PrereadResult:
     chats: int = 0
     read: int = 0  # 두뇌를 부른 묶음
     reused: int = 0
-    not_preread: int = 0
+    not_preread: int = 0  # 예전 칸(17.11.1 부터 늘 0 — 요약 꼴을 그대로 둔다)
     failed: int = 0
 
     def summary(self) -> dict[str, Any]:
@@ -89,10 +88,9 @@ class PrereadResult:
 
 
 def switched_on(session: Any, cfg: Optional[PanelSettings] = None) -> bool:
-    """미리 읽어도 되나 — 그림 읽기 켬 · 견적 계산 넣기 켬 · 비상 정지 아님 · 초안 끔 아님(DB 에서 새로 읽는다)."""
+    """미리 읽어도 되나 — 사진 · 그림 읽기 켬 · 비상 정지 아님 · 초안 끔 아님(DB 에서 새로 읽는다). 견적 계산 넣기와 상관없다."""
     cfg = cfg or read_settings(session, log=False)
-    return (image_mode(cfg) != MODE_OFF and bool(cfg.get(QUOTE_SETTING)) and read_switch(session)
-            and draft_mode(session) != DRAFT_OFF)
+    return image_mode(cfg) != MODE_OFF and read_switch(session) and draft_mode(session) != DRAFT_OFF
 
 
 def _waiting_chats(session: Any, now: datetime.datetime) -> list[tuple[str, datetime.datetime]]:
@@ -111,13 +109,6 @@ def _waiting_chats(session: Any, now: datetime.datetime) -> list[tuple[str, date
     return [(row.chat_id, row.last_user_at) for row in session.execute(stmt)]
 
 
-def _eligible(lines: Any, now: datetime.datetime) -> bool:
-    """견적 말이 24시간 안 손님 글에 있거나, 공개 직원 답이 한 번도 없는 첫 글 묶음인가(D96 의 6)."""
-    since = now - WINDOW
-    texts = [line.text for line in lines if line.meta.is_customer_signal and line.meta.created_at >= since]
-    return looks_like_quote(texts) or not any(line.meta.is_answer for line in lines)
-
-
 def _one_chat(session: Any, chat_id: str, *, reader: Any, cfg: PanelSettings, now: datetime.datetime,
               result: PrereadResult, stop: StopFlag, deps: dict[str, Any]) -> bool:
     """상담 하나 — 읽었으면(또는 건너뜀을 적었으면) 참, 파일 정보가 없으면 거짓."""
@@ -125,14 +116,6 @@ def _one_chat(session: Any, chat_id: str, *, reader: Any, cfg: PanelSettings, no
     refs = pending_files(lines, limit=int(cfg.get("image_per_turn")))
     if not refs:
         return False
-    if not _eligible(lines, now):
-        rows = ensure_rows(session, BRAND, chat_id, refs, now)
-        for row in rows:
-            if row.state == PENDING:
-                set_skip(row, SKIP_NOT_PREREAD, now)
-        session.commit()
-        result.not_preread += 1
-        return True
     outcome = read_batch(session, reader=reader, brand=BRAND, chat_id=chat_id, refs=refs, turns=conversation(lines),
                          cfg=cfg, now=now, owner=claim_owner("image"),
                          deadline_s=float(cfg.get("image_preread_timeout_s")),

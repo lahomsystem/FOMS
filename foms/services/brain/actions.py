@@ -11,7 +11,8 @@
 - 코드(에이전트) 길 액션은 :data:`AGENT_ACTION_TYPES` — 챗봇 '틀림' 신고 묶음(``report_conflict``)이 이 꼴로 선언되고
   :func:`foms.services.brain.action_runner.perform_agent` 로만 돈다(화면 단추 · HTTP 길 없음).
 - 제안 · 결정 줄의 ``action`` · ``decided_action`` 칸(마이그레이션 ``brain_01``)이 여기 이름을 쓴다. 사람이 누르는 단추가
-  아닌 이름(옮기기 ``import`` · 기간 끝남 ``expire``)은 :data:`SYSTEM_ACTIONS`, 에이전트 길(새 항목 · 링크 제안)은
+  아닌 이름(옮기기 ``import`` · 기간 끝남 ``expire`` · 다른 화면의 주간 고침 안 승인 ``weekly_fix``)은 :data:`SYSTEM_ACTIONS`,
+  에이전트 길(새 항목 · 링크 제안)은
   :data:`AGENT_ACTIONS`.
 """
 
@@ -70,10 +71,11 @@ FAILURES: dict[str, str] = {
     "BRAIN_LINK_LIMIT": "이 종류 링크는 더 이을 수 없어요(연결 개수 상한) — 앞 링크를 먼저 빼 주세요.",
     "BRAIN_EXTERNAL_MISSING": "가리킨 계산기 · 설정 자리가 없거나 지금 확인할 수 없어요 — 키를 확인해 주세요.",
     "BRAIN_LINK_RULE": "이 링크는 이을 수 없어요(근거 종류와 맞지 않는 자리 · 필요와 제외를 함께 · 고리) — 앞 링크를 확인해 주세요.",
+    "BRAIN_DOC_SYNC": "AI 상담이 읽는 지식 문서가 회사 지식과 달라서 넣지 않았어요 — 관리자에게 둘을 맞춰 달라고 알려 주세요.",
     "BRAIN_ERROR": "처리하지 못했어요 — 새로 불러온 뒤 다시 해 주세요.",
 }
-#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계).
-SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire")
+#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계) · 주간 고침 안 승인(그 화면 단추 — :mod:`.template_fix`).
+SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire", "weekly_fix")
 #: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 — 화면 단추 없음).
 AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict")
 #: 에이전트(모델)에게 도구로 내놓은 쓰기 액션 — 지금은 없다(읽기만 — 설계서 5절 · 10.1 '챗봇은 쓰지 않는다').
@@ -89,7 +91,8 @@ _SEE = "볼 수 있는 항목(보기 범위)"
 _DECIDE = ("결정 권한(층 승인자 · 사장님 몫 — D101)", _SEE, "열린 제안")
 _PROPOSE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_BASE_CHANGED", "BRAIN_REJECTED_BEFORE", "BRAIN_TARGET")
 _DECIDE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_BASE_CHANGED", "BRAIN_CONFIRM",
-                "BRAIN_LINK_LIMIT", "BRAIN_EXTERNAL_MISSING")  # 링크 더하기 — 연결 개수 상한 · 바깥 정본 실재(D105)
+                "BRAIN_LINK_LIMIT", "BRAIN_EXTERNAL_MISSING",  # 링크 더하기 — 연결 개수 상한 · 바깥 정본 실재(D105)
+                "BRAIN_DOC_SYNC")  # 지식 문서 유형 — 상담 지식 문서를 같이 다시 쓴다(7.5)
 _PROPOSALS = "brain_review_api.brain_propose"
 
 ACTIONS: dict[str, ActionType] = {a.name: a for a in (
@@ -124,7 +127,7 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
     ActionType("recheck", "아직 맞음", "확인 날 · 낡음 날만 오늘로 미는 제안을 만들어 곧바로 넣는다.", "decide",
                "brain_review_api.brain_recheck_confirm", (_KEY, Param("version", "int", "지금 판"), _MS),
                ("결정 권한", _SEE, "지금 판 = 화면 판", "열린 제안 없음"),
-               ("BRAIN_FORBIDDEN", "BRAIN_BASE_CHANGED", "BRAIN_OPEN_PROPOSAL"),
+               ("BRAIN_FORBIDDEN", "BRAIN_BASE_CHANGED", "BRAIN_OPEN_PROPOSAL", "BRAIN_DOC_SYNC"),
                "확인했어요 — 다음 확인 날이 뒤로 밀렸어요.", phone=True),
     ActionType("release_rollback", "판 되돌리기", "한 판의 한 층을 그 판 앞으로 되돌린다(되돌린 판도 이력에 남음).", "decide",
                "brain_review_api.brain_release_rollback",
@@ -132,7 +135,7 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
                 Param("confirm_number", "int", "판 번호 확인")),
                ("사장님(ADMIN)만", "판 0 아님", "뒤 판이 같은 항목을 안 고침"),
                ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_ROLLBACK_BLOCKED", "BRAIN_LINK_LIMIT",
-                "BRAIN_EXTERNAL_MISSING"),  # 뺀 링크를 다시 더할 때 — 연결 개수 상한 · 바깥 정본 실재(D105)
+                "BRAIN_EXTERNAL_MISSING", "BRAIN_DOC_SYNC"),  # 뺀 링크를 다시 더할 때 — 연결 개수 상한 · 바깥 정본 실재(D105)
                "판을 되돌렸어요 — 되돌린 판도 이력에 남아요.", admin_only=True),
 )}
 
