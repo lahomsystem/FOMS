@@ -50,7 +50,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--pp-border);
   border-radius: 8px;
@@ -97,13 +97,15 @@
 .pp-field { display: grid; gap: 4px; font-size: 14px; color: var(--pp-muted); }
 .pp-field input, .pp-field textarea, .pp-field select {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 10px;
   border: 1px solid var(--pp-border);
   border-radius: 8px;
   background: var(--pp-bg);
   color: var(--pp-text);
   font: inherit;
+  /* 16px 보다 작으면 아이폰이 누를 때 화면을 키운다. */
+  font-size: 16px;
 }
 
 .pp-spec__no { flex-basis: 100%; font-weight: 600; }
@@ -138,9 +140,12 @@
 /* 실측 · 도면 썸네일(order_files.html) — 제품 실측 사진 칸과 같은 72px 칸. */
 .pp-gal__grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .pp-gal__cell { width: 72px; margin: 0; }
-.pp-gal__cap { margin-top: 2px; font-size: 11px; line-height: 1.3; color: var(--pp-muted); overflow-wrap: anywhere; }
+.pp-gal__cap { margin-top: 2px; font-size: 12px; line-height: 1.3; color: var(--pp-muted); overflow-wrap: anywhere; }
 .pp-thumb__file { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 72px; height: 72px; padding: 4px; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-bg); color: var(--pp-muted); }
-.pp-thumb__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; font-size: 10px; line-height: 1.2; text-align: center; }
+.pp-thumb__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; font-size: 12px; line-height: 1.2; text-align: center; }
+/* 그림 칸 · 파일 칸 아래 번호가 같은 줄에 오게(inline-block 이면 글자 줄 여백이 그림 칸에만 붙는다). */
+.pp-gal__cell .pp-thumb { display: block; }
+.pp-gal .badge { font-size: 12px; }
 
 /* 아래 고정 줄 — 우리 화면 저장 자리의 단계 버튼. */
 .pp-actions {
@@ -159,6 +164,10 @@
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
 }
 .pp-actions__buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+/* 빈 상태 줄이 사이 띄움을 먹어 단추가 안쪽으로 밀렸다. */
+.pp-actions .pp-status:empty { display: none; }
+/* 주문 명세서 탭 — 뒤 상태 글("새 명세서")이 낱말 가운데서 꺾이지 않게. */
+[data-pp-tab-panel="statements"] li .small { white-space: nowrap; }
 
 /* 주문 목록 — 우리 ERP 대시보드 모양(프로세스 맵 · 필터 줄 · 작업 큐). 우리 화면의 인라인 크기 · 색을 클래스로 옮겼다. */
 .pp-board, .pp-queue { margin-bottom: 16px; }
@@ -236,6 +245,9 @@
 .pp-status { min-height: 1.5em; margin: 0; color: var(--pp-muted); }
 .pp-status--error { color: var(--pp-danger); }
 
+@media (min-width: 993px) {
+  .pp-brand { font-size: 20px; font-weight: 700; }
+}
 @media (max-width: 992px) {
   .pp-header { padding: 0.5rem 0.75rem; }
   .pp-brand { overflow: hidden; font-size: 1rem; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
@@ -250,8 +262,14 @@
   .pp-user { display: none; }
   .pp-push__btn span { display: none; }
   .pp-main--wide { padding: 12px 12px 24px; }
-  .pp-actions__buttons { margin-left: 0; }
-  .pp-actions__buttons .btn { flex: 1 1 auto; }
+  .pp-actions__buttons { margin-left: 0; flex: 1 1 100%; }
+  .pp-actions__buttons .btn { flex: 1 1 auto; min-height: 44px !important; }
+  /* 휴대폰 작은 단추(btn-sm)도 손가락 칸 44px — 전역 .btn 이 !important 라 같이 쓴다. */
+  .pp-order .btn-sm { min-height: 44px !important; }
+  /* 본사 보내기 — 단추 셋을 한 줄 같은 폭으로("변환"만 아래로 떨어졌다), 머리 · 본문 왼쪽 선을 8px 로 맞춘다. */
+  [data-pp-channel-push] .card-header { padding-left: 8px !important; padding-right: 8px !important; }
+  [data-pp-channel-push] .card-header > .d-flex { flex: 1 1 100%; flex-wrap: nowrap !important; }
+  [data-pp-channel-push] .pp-push-btn { flex: 1 1 0; min-width: 0; padding-left: 6px !important; padding-right: 6px !important; white-space: nowrap; }
 }
 
 /* 3-3 도면 갤러리 — 고객 공유 화면과 같은 카드(우리 조각), 저장 단추 규칙은 공유 화면 것을 협력사 칸에 가둬 옮겼다. */
@@ -353,6 +371,7 @@ body.pp-sheet-open { overflow: hidden; }
     border-bottom: 1px solid var(--foms-border-subtle);
   }
   .pp-mtabs .foms-chip:disabled { opacity: 0.5; }
+  body.erp-mobile-v2-layout .pp-mtabs .foms-chip { flex: 1 1 0; justify-content: center; min-width: 0; min-height: 44px; font-size: 15px; white-space: nowrap; }
   .pp-order > .card-header, .pp-order > .pp-tabs { display: none; }
   .pp-order { border: 0; }
   .pp-as-open { display: block; margin: 8px 0; }
@@ -406,7 +425,9 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-cal-wrap { margin-bottom: 16px; }
 .pp-cal .foms-tower__cal-arrow.is-off { opacity: 0.35; }
 /* 칸을 누르면 그날 내 회사 주문 시트(2026-10-30). 내 회사 주문 수 = 파란 원(전체 시공 = 주황 네모). */
-.pp-cal .foms-tower__cal-cell { cursor: pointer; }
+.pp-cal .foms-tower__cal-cell { height: 76px; cursor: pointer; }
+.pp-cal .foms-tower__cal-cell.is-today { height: 82px; }
+.pp-cal .foms-tower__cal-legend { font-size: 12px; }
 .pp-cal__own, .pp-cal__own-mark { color: var(--pp-primary); }
 .pp-cal__own-mark { border-radius: 50%; }
 .pp-cal__cell--own { background: color-mix(in srgb, var(--pp-primary) 7%, transparent); }
@@ -551,9 +572,15 @@ body.pp-sheet-open { overflow: hidden; }
 /* 휴대폰 목록 칸 폭 — .pp-mlist 는 grid 라 줄바꿈 없는 칸(정렬 단추 · 줄 글)이 칸 폭을 밀어 화면이 옆으로 넘쳤다(431px). */
 .pp-mlist { grid-template-columns: minmax(0, 1fr); }
 .pp-sort__btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* 도면 갤러리 — 우리 셸 본문 여백(아래 탭 자리 76px)이 갤러리에도 붙어 그림 아래가 비었다. 도면은 두 줄 칸으로 크게. */
+/* 도면 갤러리 — 우리 셸 본문 여백(위 12 · 옆 16 · 아래 탭 자리 76px, body.erp-mobile-v2-layout .foms-shell-body)이
+   갤러리에도 붙어 그림이 안쪽으로 들어가고 아래가 비었다. 그쪽 우선순위를 넘어야 먹는다. 도면은 두 줄 칸으로 크게. */
+body.erp-mobile-v2-layout .pp-drawing-gallery .foms-drawing-mobile-v2,
 .pp-drawing-gallery .foms-drawing-mobile-v2 { padding: 0 0 4px; }
 .pp-drawing-gallery .foms-drawing-card-grid.foms-attach-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* PC 는 두 칸 고정이면 그림 하나가 676px 로 커지고 셋째가 혼자 내려간다 — 한 줄에 여러 칸. */
+@media (min-width: 992px) {
+  .pp-drawing-gallery .foms-drawing-card-grid.foms-attach-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
 /* PC 작업 큐 위 정렬 단추 — 휴대폰 단추와 같은 모양, 폭만 줄인다. */
 .pp-sort--pc { margin: 8px 16px; max-width: 480px; }
 /* 홈 대시보드 — 오늘 요약(우리 foms-tower__today) 아래 바로 가기 세 칸(2026-10-30). */
@@ -594,8 +621,18 @@ body.pp-notice-open { overflow: hidden; }
 @media (max-width: 767.98px) {
   /* 휴대폰: 제품 속성 이름은 작은 글씨로 위, 입력 칸은 아래 한 줄 꽉(이름이 왼쪽이면 칸이 너무 작다 — 사용자 2026-11-03).
      협력사 화면에만 둔다(우리 직원 화면은 그대로). */
-  .pp-items-md .erp-preset-sheet .erp-preset-row { display: block !important; grid-template-columns: none !important; padding: 6px 10px 8px !important; }
-  .pp-items-md .erp-preset-sheet .erp-preset-row__label { display: block !important; width: auto !important; min-width: 0 !important; max-width: none !important; font-size: 11px !important; font-weight: 600 !important; line-height: 1.3 !important; color: var(--foms-color-neutral-500, #6b7380) !important; padding: 0 0 3px !important; margin: 0 !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row { display: block !important; grid-template-columns: none !important; padding: 6px 8px 8px !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row__label { display: block !important; width: auto !important; min-width: 0 !important; max-width: none !important; font-size: 13px !important; font-weight: 600 !important; line-height: 1.35 !important; color: var(--foms-color-neutral-700, #353a44) !important; padding: 0 0 3px !important; margin: 0 !important; }
+  /* 항목 칸이 바깥 칸보다 16px 더 들어가 세 겹이 됐다 — 항목 칸을 바깥 선에 맞춘다. */
+  .pp-items-md .item-detail__scroll { padding: 12px 0 !important; }
   .pp-items-md .erp-preset-sheet .erp-preset-row__value { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
   .pp-items-md .erp-preset-sheet .erp-preset-row__value .form-control { width: 100% !important; }
+}
+
+/* 항목 제목("항목 1")을 칸 이름("제품명" 14px 굵게)보다 한 단계 크게. */
+.pp-items-md .erp-item-title { font-size: 16px; }
+/* PC 제품 속성 줄 — 이름을 옆 48px 입력 칸 가운데 높이에 맞춘다(우리 직원 화면은 그대로). */
+@media (min-width: 768px) {
+  .pp-items-md .erp-preset-sheet .erp-preset-row { align-items: center !important; }
+  .pp-items-md .erp-preset-sheet .erp-preset-row__label { padding-top: 0 !important; }
 }

@@ -34,3 +34,17 @@
   .pp-optline__memo { order: 5; flex: 1 1 50px; }
   .pp-optline--custom .pp-optline__memo { flex: 1 1 100%; }
 }
+/* 협력사 품목 카드(새 주문 · 주문 탭) — 옵션 칸을 옆 입력 칸(48px · 회색 바탕 · 16px)과 같은 모양으로.
+   우리 직원 화면(CS 옵션 채우기 · 도면 전달 창)은 그대로 둔다. 지우기 ✕ 는 협력사 화면에서 손가락 칸 44px. */
+.pp-items-md .pp-optbox { display: flex; flex-direction: column; justify-content: center; min-height: 48px; padding: 2px 12px; border-color: var(--foms-input-border, #e5e5ea); border-radius: 12px; background: var(--foms-input-bg, #f2f2f7); }
+.pp-items-md .pp-optbox.is-error { border-color: var(--foms-color-danger-600, #dc2626); }
+.pp-items-md .pp-optempty { min-height: 44px; padding: 0 4px; font-size: 16px; }
+.pp-items-md .pp-optmore { min-height: 44px; font-size: 15px; }
+.pp-items-md .pp-optline--special { padding: 0; }
+.pp-items-md .pp-optline--special .pp-optline__name { font-size: 16px; }
+.pp-body .pp-optline__unit { font-size: 12px; }
+.pp-body .pp-optline__del { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+@media (max-width: 767.98px) {
+  /* ✕ 칸이 44px 로 넓어진 만큼 이름 칸 자리를 줄여 같은 줄에 둔다. */
+  .pp-body .pp-optline__name { flex-basis: calc(100% - 50px); }
+}

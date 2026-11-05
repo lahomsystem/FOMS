@@ -41,6 +41,7 @@ from foms.services.notifications.escalation import (  # noqa: E402
 )
 from foms.api.notifications import invalidate_badge_cache_for_user_ids  # noqa: E402
 from foms.services.notifications import draft_send_reminder  # noqa: E402
+from foms.services.partners import statement_reminder  # noqa: E402
 from foms.services.notifications.push_sender import enqueue_push_for_notification  # noqa: E402
 from foms.services.notifications.realtime_notifications import (  # noqa: E402
     emit_erp_notification_to_users,
@@ -98,6 +99,7 @@ def _sweep_once(dry_run: bool) -> dict:
         )
         result["draft_reminder"] = _draft_reminder_once(db)
         result["draft_idle_reminder"] = _idle_draft_reminder_once(db)
+        result["partner_statement_reminder"] = _partner_statement_reminder_once(db)
         return result
     except Exception:
         db.rollback()
@@ -107,6 +109,7 @@ def _sweep_once(dry_run: bool) -> dict:
 def _deliver_draft_reminders(
     db, notification_ids, recipient_user_ids,
     notification_type=draft_send_reminder.NOTIFICATION_TYPE,
+    title=draft_send_reminder.TITLE,
 ) -> int:
     """커밋된 미등록 알림의 배지 무효화 + 실시간 + 웹푸시 enqueue. 푸시 enqueue 수를 준다."""
     recipients = sorted({int(x) for x in (recipient_user_ids or [])})
@@ -115,7 +118,7 @@ def _deliver_draft_reminders(
         emit_erp_notification_to_users(
             recipients,
             {
-                "title": draft_send_reminder.TITLE,
+                "title": title,
                 "message": "",
                 "notification_type": notification_type,
                 "kind": "erp_notification",
@@ -177,6 +180,22 @@ def _idle_draft_reminder_once(db) -> dict:
         "owner_reminded": reminder["owner_reminded"],
         "pushed": pushed,
     }
+
+
+def _partner_statement_reminder_once(db) -> dict:
+    """협력사 명세서 발행 대기 CS 알림(출고 전날 9시 · 주문마다 한 번) — 같은 루프, 실패는 기록만(설계서 2026-11-03 0.1-13)."""
+    try:
+        reminder = statement_reminder.remind_unissued_partner_statements(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _LOGGER.exception("[partner-statement-reminder] sweep failed")
+        return {"error": "sweep_failed"}
+    pushed = _deliver_draft_reminders(
+        db, reminder["created_notification_ids"], reminder["recipient_user_ids"],
+        notification_type=statement_reminder.NOTIFICATION_TYPE, title=statement_reminder.TITLE,
+    )
+    return {"checked": reminder["checked"], "reminded": reminder["reminded"], "pushed": pushed}
 
 
 def _print_result(result: dict, as_json: bool) -> None:

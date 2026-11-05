@@ -29,7 +29,7 @@ from foms.services.orders.drawing_customer_send import drawing_round_info
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.statement_calc import calc_item, round_half_up, summarize
-from foms.services.partners.statement_profile import load_profile
+from foms.services.partners.statement_profile import doc_prefix_for, load_profile
 from foms.services.shipment_dashboard_helpers import _get_order_construction_date
 from models import OrderItemOption, PartnerOrg, PartnerPayment, PartnerPriceList, PartnerStatement
 
@@ -286,7 +286,7 @@ def issue(db, statement_id: int, user_id: Optional[int], *, base_version: Any = 
     if old is not None:
         old.status, old.voided_at, old.voided_by = VOID, now, user_id
         old.reason = old.reason or stmt.reason
-    prefix = load_profile(db)["supplier"]["doc_prefix"]
+    prefix = doc_prefix_for(load_profile(db), stmt.partner_org_id)
     stmt.status, stmt.statement_date = ISSUED, on_date
     stmt.total, stmt.supply, stmt.vat = totals["total"], totals["supply"], totals["vat"]
     stmt.prev_balance, stmt.after_balance = prev, prev + totals["total"]
