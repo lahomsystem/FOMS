@@ -33,13 +33,18 @@
 {% else %}
 <p class="small text-muted">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
 {% endif %}
+{# 실측 · 도면 — 파일 이름 줄 대신 썸네일(사용자 11-05). 그림은 공통 확대 창(lightbox.js — 휴대폰은 바깥 흐림 보기),
+   그림이 아닌 파일(PDF · 동영상 등)만 새 창. #}
 {% macro group(title, files, empty) %}
 <div class="pp-gal">
     <div class="pp-gal__head">{{ title }} <span class="badge bg-secondary">{{ files | length }}</span></div>
     {% if files %}
-    <ul class="pp-files">
-        {% for f in files %}<li>{% if f.kind %}<span class="text-muted small">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</span> {% endif %}<a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>{% endfor %}
-    </ul>
+    <div class="pp-gal__grid" data-foms-lightbox-gallery>
+        {% for f in files %}<figure class="pp-gal__cell">
+            <a class="pp-thumb" href="{{ f.url }}" title="{{ f.filename }}"{% if f.is_image %} data-foms-lightbox-src="{{ f.url }}" data-foms-lightbox-name="{{ f.filename }}"{% if f.download_url %} data-foms-lightbox-download="{{ f.download_url }}"{% endif %}{% else %} target="_blank" rel="noopener"{% endif %}>{% if f.is_image %}<img src="{{ f.thumb_url or f.url }}" alt="{{ f.filename }}" loading="lazy">{% else %}<span class="pp-thumb__file"><i class="fas fa-file-alt"></i><span class="pp-thumb__name">{{ f.filename }}</span></span>{% endif %}</a>
+            {% if f.kind %}<figcaption class="pp-gal__cap">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</figcaption>{% endif %}
+        </figure>{% endfor %}
+    </div>
     {% else %}<p class="small text-muted mb-0">{{ empty }}</p>{% endif %}
 </div>
 {% endmacro %}

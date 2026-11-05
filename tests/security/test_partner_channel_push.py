@@ -191,3 +191,8 @@ def test_partner_photos_open_in_page_lightbox_not_new_window(app, world):
     link = html[html.rindex("<a", 0, html.index(f"orders/{order_id}/partner_measurement/site.jpg")):]
     link = link[:link.index(">") + 1]
     assert "data-foms-lightbox-src=" in link and "_blank" not in link
+    # 11-05: 공통 첨부 "실측" 묶음도 파일 이름 줄 대신 썸네일 + 확대 창.
+    group = html[html.index('<div class="pp-gal__head">실측'):]
+    group = group[:group.index("</figure>")]
+    assert 'class="pp-gal__grid" data-foms-lightbox-gallery' in group and "<img " in group
+    assert "data-foms-lightbox-src=" in group and "_blank" not in group and "pp-files" not in group
