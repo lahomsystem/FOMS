@@ -43,7 +43,8 @@ def cs_draft_wam():
 _ASSETS = {"app.js": "js/cs-agent/wam-draft.js", "app.css": "css/contexts/cs/cs-wam.css"}
 
 
-@cs_draft_wam_bp.route("/channel/wam/cs-draft/<any('app.js', 'app.css'):name>", methods=["GET"])
+@cs_draft_wam_bp.route("/channel/wam/cs-draft/app.js", methods=["GET"], defaults={"name": "app.js"})
+@cs_draft_wam_bp.route("/channel/wam/cs-draft/app.css", methods=["GET"], defaults={"name": "app.css"})
 def cs_draft_wam_asset(name: str):
     """작은 창 꾸밈 · 스크립트 — 채널톡이 거쳐 여는 주소에서도 풀리게 화면 아래에서 내준다(정해진 두 파일만)."""
     response = send_from_directory(current_app.static_folder, _ASSETS[name], max_age=300)
