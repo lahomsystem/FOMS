@@ -1,6 +1,8 @@
 /**
  * 채널톡 안 작은 창(WAM) — AI 초안 [보내기] · [수정하기](설계서 17.2.2 · 사장님 11-05).
  *
+ * 채널톡은 이 화면을 자기 주소로 거쳐 연다 — 서버로 가는 주소는 늘 상대 주소(앞에 / 없음)로 쓴다.
+ *
  * 단계 S1(시험 장치): 채널톡 다리(window.ChannelIOWam)가 있는지, 받은 칸 이름이 무엇인지, 서명 함수(cs.draft.ping)를
  * 부를 수 있는지만 보여 준다. 값은 차례 번호 말고는 꼴(있음 · 없음)만 — 상담원 번호 · 상담 번호는 화면에 찍지 않는다.
  * 글은 textContent 로만 넣는다.
@@ -25,7 +27,7 @@
 
   // S1 시험 신호 — 단계 코드만(값 · 글 없음) 같은 출처로 남긴다. 교차 출처 창이라 화면을 직접 못 읽어서 둔다(S2 에서 뺀다).
   function beacon(code) {
-    try { fetch('/channel/wam/cs-draft/beacon?c=' + encodeURIComponent(String(code).slice(0, 160)), { credentials: 'omit' }); } catch (e) { /* 무시 */ }
+    try { fetch('beacon?c=' + encodeURIComponent(String(code).slice(0, 160)), { credentials: 'omit' }); } catch (e) { /* 무시 */ }
   }
 
   function read(wam, key) {

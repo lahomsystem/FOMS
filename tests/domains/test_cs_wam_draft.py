@@ -87,7 +87,13 @@ def test_wam_page_is_an_empty_frame_allowed_only_inside_channel_desks(app, clien
     assert response.status_code == 200 and response.headers["Cache-Control"] == "no-store"
     policy = response.headers["Content-Security-Policy"]
     assert "https://*.channel.works" in policy and "https://desk.channel.io" in policy
-    assert 'data-app-id="app-public-1"' in html and "wam-draft.js" in html
+    assert 'data-app-id="app-public-1"' in html and 'src="app.js' in html and 'href="app.css' in html
+    assert 'src="/' not in html and 'href="/' not in html  # 채널톡이 거쳐 열어 / 로 시작하는 주소는 채널톡 쪽으로 풀린다
+    js = client.get("/channel/wam/cs-draft/app.js")
+    css = client.get("/channel/wam/cs-draft/app.css")
+    assert js.status_code == 200 and "ChannelIOWam" in js.get_data(as_text=True) and "javascript" in js.mimetype
+    assert css.status_code == 200 and ".cs-wam" in css.get_data(as_text=True) and css.mimetype == "text/css"
+    assert client.get("/channel/wam/cs-draft/other.js").status_code == 404  # 정해진 두 파일만
     assert 'id="cs-wam-close"' in html  # 채널톡 작은 창엔 닫기가 없어 화면이 단다(사장님 11-05)
     assert "<script>" not in html and "style=" not in html  # 인라인 스크립트 · 스타일 없음
     slash = client.get("/channel/wam/cs-draft/")  # 채널톡은 끝에 / 를 붙여 연다(스테이징 실측 11-05)
