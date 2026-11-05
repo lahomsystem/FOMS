@@ -49,6 +49,20 @@ def _text(value: Any) -> str:
     return str(value).strip()
 
 
+#: 네이버 안심번호(0502·0503·0504·0505·0506·0507·0508 등 050X). 고객 실제 번호가 아니라
+#: 주문 뒤 일정 기간이 지나면 끊기는 중계 번호다(사용자 11-05 핫픽스).
+_SAFE_NUMBER_RE = re.compile(r"^050\d")
+
+
+def _customer_phone(order: dict, shipping: dict) -> str:
+    """고객 연락처 — 수취인 번호가 안심번호면 주문자 실제 번호를 쓴다."""
+    tel1 = _text(shipping.get("tel1"))
+    orderer_tel = _text(order.get("ordererTel"))
+    if tel1 and _SAFE_NUMBER_RE.match(re.sub(r"\D", "", tel1)) and orderer_tel:
+        return orderer_tel
+    return tel1 or orderer_tel
+
+
 def _int(value: Any) -> int:
     """금액류를 정수로. 콤마·소수점·빈 값을 견딘다(파싱 실패는 0)."""
     raw = _text(value).replace(",", "")
@@ -1165,7 +1179,7 @@ def build_structured_data(detail: dict) -> dict:
         "parties": {
             "customer": {
                 "name": _text(shipping.get("name")) or _text(order.get("ordererName")),
-                "phone": _text(shipping.get("tel1")) or _text(order.get("ordererTel")),
+                "phone": _customer_phone(order, shipping),
                 # 보조 연락처(실측 47건 중 6건). 첫 번호로 연락이 안 될 때 쓰는 값이라
                 # 버리면 다시 구할 방법이 없다. Order.phone 은 그대로 tel1 이다.
                 "phone2": _text(shipping.get("tel2")),
@@ -1239,7 +1253,7 @@ def build_order_fields(detail: dict, *, today: str) -> dict[str, Any]:
         "received_date": received_date or today,
         "received_time": received_time,
         "customer_name": _text(shipping.get("name")) or _text(order.get("ordererName")),
-        "phone": _text(shipping.get("tel1")) or _text(order.get("ordererTel")),
+        "phone": _customer_phone(order, shipping),
         "address": build_address(shipping),
         "product": _text(product_order.get("productName")),
         "options": _text(product_order.get("productOption")) or None,
