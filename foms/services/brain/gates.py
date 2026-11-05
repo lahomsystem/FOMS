@@ -69,6 +69,56 @@ def text_gates(texts: Iterable[Optional[str]], known: str) -> dict[str, str]:
             "numbers": PASS if all(numbers_known(t, known) for t in rows) else FAIL}
 
 
+#: 실음 칸 글 관문 상한 — 깊이 · 글 조각 수. 실음 칸은 :data:`MAX_PAYLOAD_CHARS` 자 이하라 넉넉하고, 넘으면 관문 실패로 본다
+#: (보지 못한 글을 통과시키지 않는다).
+PAYLOAD_MAX_DEPTH, PAYLOAD_MAX_TEXTS = 8, 2000
+
+
+def payload_texts(payload: Any, before: Any = None) -> Optional[list[str]]:
+    """실음 칸(항목 · 링크) 안의 글 값을 모두(재귀). ``before`` 와 같은 자리 같은 값은 뺀다(고침 제안은 새로 들어온 글만 —
+    목록은 앞 목록에 있던 글도 뺀다). 깊이 · 개수 상한을 넘으면 ``None``."""
+    out: list[str] = []
+
+    def walk(value: Any, old: Any, depth: int) -> bool:
+        if depth > PAYLOAD_MAX_DEPTH:
+            return False
+        if isinstance(value, str):
+            if value != old:
+                out.append(value)
+            return len(out) <= PAYLOAD_MAX_TEXTS
+        if isinstance(value, dict):
+            olds = old if isinstance(old, dict) else {}
+            return all(walk(v, olds.get(k), depth + 1) for k, v in value.items())
+        if isinstance(value, (list, tuple)):
+            olds = list(old) if isinstance(old, (list, tuple)) else []
+            return all(walk(v, v if isinstance(v, str) and v in olds else (olds[i] if i < len(olds) else None),
+                            depth + 1) for i, v in enumerate(value))
+        return True
+
+    return out if walk(payload, before, 0) else None
+
+
+def payload_gates(payload: Any, before: Any = None) -> dict[str, str]:
+    """실음 칸 글 관문 — 개인정보 꼴 · 가림 표시(``mask``) · 한자(``hanja``). 숫자 출처는 보지 않는다(날짜 · 차례 · 계산기 id 같은
+    꼴 값이 든다). 새로 들어온 글이 없으면 빈 dict, 상한을 넘으면 둘 다 실패."""
+    texts = payload_texts(payload, before)
+    if texts is None:
+        return {"mask": FAIL, "hanja": FAIL}
+    if not texts:
+        return {}
+    result = text_gates(texts, "")
+    return {"mask": result["mask"], "hanja": result["hanja"]}
+
+
+def merge_gates(*results: Mapping[str, str]) -> dict[str, str]:
+    """관문 결과 합치기 — 같은 관문이 하나라도 ``fail`` 이면 ``fail``."""
+    out: dict[str, str] = {}
+    for result in results:
+        for name, value in result.items():
+            out[name] = FAIL if FAIL in (value, out.get(name)) else out.get(name, value)
+    return out
+
+
 # ── 꼴 검사 ──────────────────────────────────────────────────────────────
 def key_problems(key: Any, where: str = "키") -> list[str]:
     """항목 · 링크 키 꼴(소문자 · 숫자 · ``_.:/-`` · 120자 이하)."""
