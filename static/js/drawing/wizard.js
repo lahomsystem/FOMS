@@ -5583,12 +5583,12 @@
           return true;   // 자동 저장: PNG 도면 탭 갱신 생략, 조용히 성공
         }
         // 수동 저장: 상태 확정 후 PNG 를 도면 탭에 반영(버튼 재활성·토스트는 내부에서).
-        return saveSheetPng(sheet).then(function () {
+        return saveSheetPng(sheet).then(function (queued) {
           saveInFlight = false;
           renderSaveStatus();
           refreshPending();   // 전달 대기함에 새 시트 반영 → 미리보기 패널 갱신
           showReview(memos);
-          return true;
+          return queued === true;   // 저장 창(save-send.js)이 대기함에 못 넣은 시트를 전달하지 않게
         });
       }
       els.saveBtn.disabled = false;
@@ -5688,17 +5688,19 @@
       els.saveBtn.disabled = false;
       toast((SS ? SS.queueFailToast(name) : '전달 대기함에 넣지 못했어요') +
         ' — 저장하는 사이 다른 시트로 옮겼어요. 그 시트에서 [저장]을 다시 눌러 주세요.', { error: true });
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
     var sig = SS ? SS.sheetSig(cs) : '';   // 화면에 그려진 시트(되돌리기로 객체가 바뀌어도 그림은 cs 다)
     return pushSheetPng(sheet, sig).then(function () {
       els.saveBtn.disabled = false;
       noteQueued(sheet, sig);
       toast(SS ? SS.queuedToast(name) : '전달 대기함에 넣었어요');
+      return true;
     }, function (err) {
       els.saveBtn.disabled = false;
       console.warn('[dws] sheet-png export', err);
       toast(SS ? SS.queueFailToast(name) : '전달 대기함에 넣지 못했어요', { error: true, retry: function () { save(); } });
+      return false;
     });
   }
 
@@ -5761,16 +5763,16 @@
    * PUT 은 1회만(무한루프 금지). 개별 시트 PNG 실패는 스킵·집계. 완료 후 원 시트 복귀.
    */
   function saveAll() {
-    if (!canSave || saveInFlight) { return; }
+    if (!canSave || saveInFlight) { return Promise.resolve(null); }
     if (!hydrated) {   // save() 와 같은 계약 — 못 불러온 상태를 서버에 써 넣지 않는다
       toast(loadFailed
         ? '불러오기에 실패했습니다. 새로고침해 다시 불러와 주세요.'
         : '도면을 불러오는 중입니다. 잠시 후 저장해 주세요.');
-      return;
+      return Promise.resolve(null);
     }
     if (!state.sheets.length) {
       toast('저장할 도면이 없습니다. 제품을 선택해 도면을 먼저 만드세요.');
-      return;
+      return Promise.resolve(null);
     }
     if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
@@ -5781,7 +5783,7 @@
     if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
     var memos = reviewSheets(state.sheets);
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: false };
-    jsonFetch(API_BASE + '/drawing-wizard', {
+    return jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
       if (!(r.status === 200 && r.data && r.data.success)) {
@@ -5789,7 +5791,7 @@
         finishSaveAll();
         if (r.status === 409) { handleConflict(r.data); }
         else { toast(failureText('일괄 저장 실패', r), { error: true, retry: saveAll }); }
-        return;
+        return null;
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
       dirty = false;
@@ -5813,12 +5815,14 @@
           : ('일괄 저장 · ' + res.ok + '/' + res.total + ' 시트를 전달 대기함에 넣었어요');
         if (res.fail.length) { toast(msg, { error: true, retry: saveAll }); } else { toast(msg); }
         showReview(memos);
+        return res;
       });
     }, function (err) {
       saveFailed = true;
       finishSaveAll();
       console.warn('[dws] save-all', err);
       toast(failureText('일괄 저장 실패', null), { error: true, retry: saveAll });
+      return null;
     });
   }
 
@@ -6271,8 +6275,8 @@
     });
     document.getElementById('dws-btn-undo').addEventListener('click', undo);
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
-    els.saveBtn.addEventListener('click', function () { save(); });
-    if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', saveAll); }
+    els.saveBtn.addEventListener('click', function () { if (!openSaveSend('one')) { save(); } });
+    if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', function () { if (!openSaveSend('all')) { saveAll(); } }); }
     if (els.restoreBtn) { els.restoreBtn.addEventListener('click', restoreBackup); }
     if (els.restoreDiscardBtn) { els.restoreDiscardBtn.addEventListener('click', discardBackup); }
     if (els.roomPushBtn) { els.roomPushBtn.addEventListener('click', pushDrawingRoom); }
@@ -6911,19 +6915,21 @@
     });
   }
 
-  /** 앱바 [도면방 PUSH] 클릭 — 사전 점검 → 확인 → 전송(재전송이면 변경 내용 1회 회수). */
-  function pushDrawingRoom() {
+  /** 앱바 [도면방 PUSH] 클릭 — 사전 점검 → 확인 → 전송(재전송이면 변경 내용 1회 회수).
+      opts.skipConfirm = 저장 창(save-send.js)에서 이미 골랐다 — 첫 확인만 건너뛴다. 돌려주는 값 = 보냈는지. */
+  function pushDrawingRoom(opts) {
     var btn = els.roomPushBtn;
-    if (!btn || btn.disabled) { return; }
+    if (!btn || btn.disabled) { return Promise.resolve(false); }
     btn.disabled = true;
-    fetchRoomPushPreview().then(function (pre) {
+    return fetchRoomPushPreview().then(function (pre) {
       var count = (pre.data && pre.data.files_count) || 0;
       if (!pre.data || pre.data.success !== true || !count) {
         toast(serverErrorText(pre, '전달된 도면이 없습니다. 도면을 먼저 전달해주세요.'));
         btn.title = '전달된 도면이 없습니다. 도면을 먼저 전달해주세요.';
         return;   // finally 에서 다시 열린다
       }
-      if (!confirm('현재 전달본 도면 ' + count + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) { return; }
+      if (!(opts && opts.skipConfirm === true) &&
+          !confirm('현재 전달본 도면 ' + count + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) { return; }
       var allowWithoutManager = false;
       return sendRoomPush(null).then(function (r) {
         // 담당자 개인방을 못 찾으면(담당자 비었음·계정 없는 이름) 서버가 보내기 전에 멈춘다.
@@ -6955,16 +6961,20 @@
         } else {
           toast('도면방으로 도면 ' + sentCount + '장을 보냈습니다.');
         }
+        return true;
       });
     }).catch(function (err) {
       console.warn('[dws] drawing room push', err);
       toast(failureText('도면방 PUSH 실패', null), { error: true, retry: pushDrawingRoom });
-    }).then(function () { btn.disabled = !canSave; });
+    }).then(function (sent) { btn.disabled = !canSave; return sent === true; });
   }
 
   /** 나가기 — 도면 작업실 상세로 복귀. 미저장(dirty)이면 확인 후 이동한다(기존 dirty
    *  가드 재사용). 의도적 이탈이므로 leaving 플래그로 beforeunload 중복 프롬프트를 막는다.
    *  order id 가 없으면 history.back → 작업실 대시보드 순으로 폴백한다. */
+  /** [저장]·[일괄 저장] 단추 → 같이 할 일 고르기 창(save-send.js, 설계서 2026-11-05-wizard-save-send-options). 창을 열었으면 true. */
+  function openSaveSend(kind) { return !!(window.FomsSaveSend && window.FomsSaveSend.open(kind)); }
+
   function exitWizard() {
     if (dirty && !confirm('저장하지 않은 변경사항이 있습니다. 저장하지 않고 나가시겠습니까?')) { return; }
     leaving = true;
@@ -7228,6 +7238,9 @@
       setZoom: setZoom,
       fitZoom: fitZoom,
       save: save,
+      saveAll: saveAll,
+      pushRoom: pushDrawingRoom,
+      refreshPending: refreshPending,
       setTool: setAnnoMode,
       editing: function () { return !!(editingTextarea || editCtx); },
       dragging: function () { return !!dragActive; }   // 끌기 · 크기 바꾸기 중 — V2 다시 배치가 끝날 때까지 기다린다

@@ -15,6 +15,8 @@ from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
+from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
+from foms.services.orders.erp_policy_permissions import can_transfer_drawing
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
 
 
@@ -32,6 +34,19 @@ def _wizard_ui() -> str:
         if raw in _WIZARD_UIS:
             return raw
     return 'v1'
+
+
+def _save_send_config(current_user: Any, order: Order) -> dict:
+    """[저장] 창(save-send.js)이 칸을 잠그고 숨기는 데 쓰는 값 — 화면 표시용이다. 전달·PUSH 권한은 서버가 다시 검사한다.
+
+    설계서 ``docs/specs/2026-11-05-wizard-save-send-options_SPEC.md`` §5.
+    """
+    return {
+        'user_id': int(getattr(current_user, 'id', 0) or 0),
+        'can_transfer': bool(current_user and can_transfer_drawing(current_user, order)),
+        'hotfix_stage': bool(is_drawing_hotfix_stage(order)),
+        'is_partner': bool(getattr(order, 'partner_org_id', None)),
+    }
 
 
 @erp_drawing_workbench_bp.route('/drawing-workbench/<int:order_id>/wizard')
@@ -57,7 +72,8 @@ def erp_drawing_workbench_wizard(order_id: int) -> Any:
     # 그림 종류 기억(실시간 학습) 켜고 끄기 — 문턱은 서버가 판정한다(설계서 2026-10-26-drawing-part-memory-spec §3.7).
     memory = load_part_memory_policy(db)
     wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui,
-                     'part_memory': {k: bool(memory[k]) for k in ('store', 'follow', 'spread')}}
+                     'part_memory': {k: bool(memory[k]) for k in ('store', 'follow', 'spread')},
+                     'save_send': _save_send_config(current_user, order)}
     return render_template(
         'drawing/wizard.html',
         order=order,
