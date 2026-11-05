@@ -26,15 +26,14 @@ from typing import Any, Optional, Sequence
 
 from sqlalchemy import select
 
-from foms.services.cs_agent.brain_photos import KIND_LABELS, PhotoEntry
+from foms.services.cs_agent.brain_photos import PhotoEntry
 from foms.services.cs_agent.drafting_read import MEMO_IMAGE_HEAD, conversation
 from foms.services.cs_agent.image_fetch import pending_files
-from foms.services.cs_agent.image_notes import parse_notes
 from foms.services.cs_agent.image_prep import SKIP_CAP, SKIP_FACE, SKIP_FORMAT, SKIP_PDF, SKIP_SIZE
 from foms.services.cs_agent.image_read import BatchOutcome, current, read_batch
-from foms.services.cs_agent.image_rules import CONFIDENCES, MAX_IMAGES
 from foms.services.cs_agent.image_settings import MODE_DRAFT, MODE_OFF, image_mode
 from foms.services.cs_agent.image_store import DISCARDED, DONE, SKIP_NOT_PREREAD, SKIP_SWITCH, ensure_rows
+from foms.services.cs_agent.image_summaries import row_note
 from foms.services.cs_agent.settings import read_settings
 from models import CsAgentImageRead
 
@@ -111,11 +110,7 @@ def _entry(number: int, row: Any) -> PhotoEntry:
     result = row.result if isinstance(row.result, dict) else {}
     if row.state != DONE or not current(row.state, result):
         return PhotoEntry(number, unread=unread_code(row.state, row.skip_code))
-    batch = list(result.get("batch") or ())
-    index = batch.index(row.sha256) if row.sha256 in batch else -1
-    notes = parse_notes(result.get("images") or [], kinds=tuple(KIND_LABELS), confidences=CONFIDENCES,
-                        max_images=MAX_IMAGES)
-    note = next((n for n in notes if n.index == index), None)
+    note = row_note(row)
     if note is None:
         return PhotoEntry(number, unread="error")
     text = " — ".join(part for part in (note.summary, note.about) if part)

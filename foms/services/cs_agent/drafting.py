@@ -78,6 +78,7 @@ from foms.services.cs_agent.drafting_read import (
 )
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.edit_detail_settings import CASE_REASONS_FIELD, switch_value
+from foms.services.cs_agent.image_settings import MODE_OFF as PHOTOS_OFF, image_mode
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
@@ -381,8 +382,9 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     if repost:  # 이 읽기가 직전 다시 읽기다 — 두뇌를 다시 부르지 않는다
         return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=stored, note="", reread=False,
                                 extra_allowed=allowed_from(row.quote_lines))  # 그 차례 계산기 값(R17-2)
+    cfg = read_settings(ctx.session, log=False)
     cases = similar_cases(ctx.session, BRAND, lines,  # L0 사례(DB 오류면 빈 사례) — 허용 목록엔 넣지 않는다
-                          with_reasons=switch_value(read_settings(ctx.session, log=False), CASE_REASONS_FIELD))
+                          with_reasons=switch_value(cfg, CASE_REASONS_FIELD), with_photos=image_mode(cfg) != PHOTOS_OFF)
     try:
         request = DraftRequest(brand=BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=ctx.daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(),
