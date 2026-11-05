@@ -156,11 +156,13 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
     return HALT_PUBLIC if guard == DRAFT_OFF else HALT_UNVERIFIED
 
 
-def _buttons(ctx: Any, row: Any, chat_id: str) -> tuple[tuple[str, str], ...]:
-    """초안 메모의 [보내기] · [수정하기] 링크(관리 화면 버튼 스위치가 켜졌을 때만 — 처음 끔, 플랜 C10-3)."""
-    if not read_settings(ctx.session, log=False).get("send_buttons_enabled"):
+def _buttons(ctx: Any, row: Any, chat_id: str) -> tuple[Any, ...]:
+    """초안 메모의 [보내기] · [수정하기] 단추(관리 화면 버튼 스위치가 켜졌을 때만 — 처음 끔, 플랜 C10-3). 여는 곳(링크 · 채널톡
+    안 작은 창 — 설계서 17.2.2)은 관리 화면 칸을 따른다."""
+    cfg = read_settings(ctx.session, log=False)
+    if not cfg.get("send_buttons_enabled"):
         return ()
-    return memo_buttons(row.id, chat_id)
+    return memo_buttons(row.id, chat_id, path=cfg.get("send_button_path"))
 
 
 def _notify_staff(ctx: Any, row: Any, chat_id: str) -> None:

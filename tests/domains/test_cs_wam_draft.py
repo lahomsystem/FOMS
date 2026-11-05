@@ -102,9 +102,5 @@ def test_wam_page_is_an_empty_frame_allowed_only_inside_channel_desks(app, clien
     assert "channel.works" not in (other.headers.get("Content-Security-Policy") or "")
 
 
-def test_s1_beacon_logs_only_short_codes(app, client, caplog):
-    caplog.set_level("INFO", logger="foms.web.cs_draft_wam")
-    assert client.get("/channel/wam/cs-draft/beacon?c=keys:appId,chatId").status_code == 204
-    assert client.get("/channel/wam/cs-draft/beacon?c=<b>안녕</b>").status_code == 204
-    logged = [r.getMessage() for r in caplog.records if r.name == "foms.web.cs_draft_wam"]
-    assert logged == ["[CS 작은 창] S1 신호 keys:appId,chatId"]  # 꼴이 틀린 신호(글 · 태그)는 남기지 않는다
+def test_the_s1_beacon_is_gone(client):
+    assert client.get("/channel/wam/cs-draft/beacon?c=keys:appId").status_code == 404  # S1 시험 신호는 S2 에서 뺐다

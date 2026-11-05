@@ -112,13 +112,17 @@ def open_turn(turn_id: int, memo_id: Optional[str] = None) -> tuple[Any, ...]:
     return where if memo_id is None else (*where, _TURNS.c.memo_message_id == memo_id)
 
 
-def start_sending(session: Any, row: Any, *, user_id: int, click_ms: Optional[int], now: datetime.datetime) -> bool:
-    """'보내는 중' — 열린 차례 · 화면이 본 그 메모 · '고칠 말' 처리 중 아님일 때만(두 번 누름 · 동시엔 하나만)."""
+def start_sending(session: Any, row: Any, *, user_id: Optional[int], click_ms: Optional[int], now: datetime.datetime,
+                  manager_id: Optional[str] = None) -> bool:
+    """'보내는 중' — 열린 차례 · 화면이 본 그 메모 · '고칠 말' 처리 중 아님일 때만(두 번 누름 · 동시엔 하나만). 누른 사람 =
+    FOMS 직원 번호(있으면) · 채널톡 상담원 번호(작은 창 길 — ``desk_manager_id``, 설계서 17.2.2)."""
     at = naive_utc(now)
     stmt = (update(_TURNS)
             .where(*open_turn(row.id, row.memo_message_id),
                    or_(_TURNS.c.rewrite_state.is_(None), _TURNS.c.rewrite_state != REWRITE_WORKING))
-            .values(send_state=SEND_SENDING, send_started_at=at, sent_by_user_id=int(user_id), click_ms=click_ms,
+            .values(send_state=SEND_SENDING, send_started_at=at,
+                    sent_by_user_id=None if user_id is None else int(user_id),
+                    desk_manager_id=None if manager_id is None else str(manager_id)[:64], click_ms=click_ms,
                     send_error=None, updated_at=at))
     return _one(session, stmt)
 
@@ -126,7 +130,7 @@ def start_sending(session: Any, row: Any, *, user_id: int, click_ms: Optional[in
 def revert_sending(session: Any, turn_id: int, *, back_to: Optional[str], error: str, now: datetime.datetime) -> bool:
     """보내지 않고 되돌린다(새 글 · 검사 · 확인 필요 · 읽기 실패) — 누른 직원 · 밀리초는 지운다(보낸 사람이 아니다)."""
     stmt = (update(_TURNS).where(_TURNS.c.id == turn_id, _TURNS.c.send_state == SEND_SENDING)
-            .values(send_state=back_to, send_error=error, sent_by_user_id=None, click_ms=None,
+            .values(send_state=back_to, send_error=error, sent_by_user_id=None, desk_manager_id=None, click_ms=None,
                     send_started_at=None if back_to is None else _TURNS.c.send_started_at, updated_at=naive_utc(now)))
     return _one(session, stmt)
 
@@ -157,7 +161,7 @@ def mark_send_failed(session: Any, turn_id: int, *, error: str, now: datetime.da
                      states: Sequence[str] = (SEND_SENDING,)) -> bool:
     """못 보냄(확실히 — 다시 누를 수 있다) — 사례 칸 · 누른 직원을 비운다."""
     values: dict[str, Any] = {"send_state": SEND_FAILED, "send_error": error, "sent_by_user_id": None,
-                              "click_ms": None, "updated_at": naive_utc(now)}
+                              "desk_manager_id": None, "click_ms": None, "updated_at": naive_utc(now)}
     values.update({name: None for name in _CASE_FIELDS})
     stmt = update(_TURNS).where(_TURNS.c.id == turn_id, _TURNS.c.send_state.in_(tuple(states))).values(values)
     return _one(session, stmt)

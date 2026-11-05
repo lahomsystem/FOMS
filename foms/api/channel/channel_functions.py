@@ -11,9 +11,13 @@
 
 disable gate(``CHANNEL_FUNCTION_ENABLED`` false·미설정=기본)는 provider 를 호출하기
 **전에** 404 로 닫는다(provider-first). enable 상태에서 signing key/channel 미설정은
-**fail-start**(앱 기동 실패, 조용한 우회 금지)다. read-only Function 이므로 어떤 경로도
+**fail-start**(앱 기동 실패, 조용한 우회 금지)다. ``/foms`` 명령은 read-only 라 어떤 경로도
 Order 를 변경하지 않는다(PII/mutation 0). 성공·거부·오류 모두 HTTP 200 provider 봉투
 (``{result|error}``)로 답하고, transport 실패만 401/400/404/405 로 분기한다.
+
+예외 하나: AI 초안 작은 창 함수(``cs.draft.*`` — 설계서 17.2.2)는 서명된 상담원이 누른 [보내기] · [버리기]를 받아
+상담 에이전트 차례 줄을 쓰고 손님께 글을 보낸다. 권한 · 한 번만 · 검사는 FOMS 화면 길과 같은
+:func:`foms.services.cs_agent.send_flow.send_turn` 이 보고, Order 는 건드리지 않는다.
 """
 
 from __future__ import annotations
@@ -24,9 +28,11 @@ import hmac
 import logging
 import os
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
+from db import get_db
 from foms.services.cs_agent import wam_functions
+from foms.services.datetime_kst import now_kst
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +188,8 @@ def handle_function():
         return jsonify(_function_list()), 200
     if method in wam_functions.METHODS:
         try:
-            return jsonify(wam_functions.handle(method, payload.get("params"), manager_id)), 200
+            return jsonify(wam_functions.handle(method, payload.get("params"), manager_id, session=get_db(),
+                                                secret_key=current_app.secret_key, now=now_kst())), 200
         except Exception:  # trust-boundary sanitizer — 원문 예외를 채널톡에 싣지 않는다
             logger.exception("[ChannelFunction] cs draft function failed")
             return jsonify(_generic_error_result()), 200

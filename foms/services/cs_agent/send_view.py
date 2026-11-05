@@ -29,7 +29,7 @@ from foms.services.cs_agent.send_record import SEND_SENDING, SEND_UNKNOWN_STATE
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["EDIT_REASON_LABELS", "STATUS_LABELS", "screen_view"]
+__all__ = ["EDIT_REASON_LABELS", "STATUS_LABELS", "screen_view", "wam_view"]
 
 #: 고친 까닭(설계서 17.2 — 틀린 사실 · 약속 · 말투 · 빠짐 · 기타). 코드는 :data:`.case_memory.EDIT_REASONS` 순서.
 EDIT_REASON_LABELS: dict[str, str] = dict(zip(EDIT_REASONS, ("틀린 사실", "약속", "말투", "빠짐", "기타")))
@@ -61,15 +61,8 @@ def _detail_view(session: Any) -> Optional[dict[str, Any]]:
     return {"photos": on.photos, "max_detail": MAX_DETAIL, "max_photos": MAX_PHOTOS, "max_photo_bytes": PHOTO_MAX_BYTES}
 
 
-def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret_key: Any, now: datetime.datetime,
-                reader: Any = None) -> Optional[dict[str, Any]]:
-    """화면 재료 — 차례가 없거나 링크의 상담 id 가 다르면 ``None``(404). DB 는 읽기만 한다(읽기 트랜잭션은 닫는다).
-
-    Returns:
-        ``{"turn_id", "desk_url", "status": {...}, "blocked": 까닭 글 | None, "draft": 보낼 글 | None, "fresh_note",
-        "token", "edit_reasons", "rewrite_left", "max_text", "max_note", "detail"}`` — 상담 글은 보낼 초안(직원이 보낼 글)만
-        싣는다. ``detail`` 은 '왜 고쳤나요(자세히) · 사진' 칸 재료(꺼졌으면 ``None``).
-    """
+def _open(session: Any, turn_id: int, chat_hint: Any) -> Optional[tuple[Any, dict[str, Any]]]:
+    """차례 줄 + 화면 기본 재료(보낼 글 · 표 없음) — 차례가 없거나 상담 id 가 다르면 ``None``. DB 는 읽기만 한다."""
     row = session.get(CsAgentTurn, int(turn_id), populate_existing=True)
     session.rollback()
     if row is None or not isinstance(chat_hint, str) or chat_hint != row.chat_id:
@@ -81,18 +74,17 @@ def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret
     if blocked is None and not switch_on(session):
         blocked = MESSAGES["switch_off"]
     session.rollback()
-    view: dict[str, Any] = {
+    return row, {
         "turn_id": row.id, "desk_url": desk_link(row.brand, row.chat_id), "status": status, "blocked": blocked,
         "draft": None, "fresh_note": None, "token": None, "checking": status["send_state"] in (SEND_SENDING,
                                                                                                SEND_UNKNOWN_STATE),
         "edit_reasons": list(EDIT_REASON_LABELS.items()), "rewrite_left": max(0, MAX_REWRITES - status["rewrite_count"]),
         "max_text": MAX_TEXT, "max_note": MAX_NOTE, "detail": None,
     }
-    if view["checking"] or blocked is None:
-        view["token"] = issue_send_token(secret_key, turn_id=row.id, user_id=int(user.id), memo_id=row.memo_message_id)
-    if blocked is not None:
-        return view
-    view["detail"] = _detail_view(session)
+
+
+def _with_draft(view: dict[str, Any], row: Any, reader: Any) -> dict[str, Any]:
+    """그 상담 메모를 다시 읽어 '손님께 보낼 답'을 싣는다(읽기 실패면 막음 글 · 표 없음). 새 손님 글이 있으면 알림 글."""
     try:
         lines = read_lines(reader if reader is not None else OpenApiReader(), row.brand, row.chat_id)
     except ChannelReadError as exc:
@@ -105,3 +97,34 @@ def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret
     if stale:
         view["fresh_note"] = MESSAGES["new_message"]
     return view
+
+
+def screen_view(session: Any, turn_id: int, user: Any, *, chat_hint: Any, secret_key: Any, now: datetime.datetime,
+                reader: Any = None) -> Optional[dict[str, Any]]:
+    """화면 재료 — 차례가 없거나 링크의 상담 id 가 다르면 ``None``(404). DB 는 읽기만 한다(읽기 트랜잭션은 닫는다).
+
+    Returns:
+        ``{"turn_id", "desk_url", "status": {...}, "blocked": 까닭 글 | None, "draft": 보낼 글 | None, "fresh_note",
+        "token", "edit_reasons", "rewrite_left", "max_text", "max_note", "detail"}`` — 상담 글은 보낼 초안(직원이 보낼 글)만
+        싣는다. ``detail`` 은 '왜 고쳤나요(자세히) · 사진' 칸 재료(꺼졌으면 ``None``).
+    """
+    opened = _open(session, turn_id, chat_hint)
+    if opened is None:
+        return None
+    row, view = opened
+    if view["checking"] or view["blocked"] is None:
+        view["token"] = issue_send_token(secret_key, turn_id=row.id, user_id=int(user.id), memo_id=row.memo_message_id)
+    if view["blocked"] is not None:
+        return view
+    view["detail"] = _detail_view(session)
+    return _with_draft(view, row, reader)
+
+
+def wam_view(session: Any, turn_id: int, *, chat_hint: Any, reader: Any = None) -> Optional[dict[str, Any]]:
+    """채널톡 작은 창 [수정하기] 재료(설계서 17.2.2) — :func:`screen_view` 와 같되 표 · 자세한 이유 칸이 없다(부른 사람은 앱
+    함수 서명이 정한다). 차례가 없거나 작은 창이 받은 상담 id 가 다르면 ``None``."""
+    opened = _open(session, turn_id, chat_hint)
+    if opened is None:
+        return None
+    row, view = opened
+    return view if view["blocked"] is not None else _with_draft(view, row, reader)

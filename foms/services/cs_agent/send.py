@@ -22,7 +22,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 
 from foms.services import channel_send
 from foms.services.cs_agent.channel_read import SENT_REPLY_REQUEST_PREFIX, _created_at
@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "REASON_BRAND", "REASON_EMPTY", "REASON_NO_CHAT", "REASON_STAGING", "SEND_BOT_NAME", "SEND_BRAND", "SEND_CHANNEL_ID",
-    "SEND_PREFIX", "SEND_UNKNOWN", "SendResult", "memo_buttons", "request_id_for", "send_reply",
+    "SEND_PREFIX", "SEND_UNKNOWN", "BUTTON_PATHS", "PATH_LINK", "PATH_WAM", "WAM_APP_ENV", "WAM_NAME", "SendResult",
+    "memo_buttons", "request_id_for", "send_reply",
 ]
 
 #: 손님께 보내는 브랜드 — 하우드는 쓰기 허락 전이라 막는다.
@@ -78,17 +79,44 @@ class SendResult:
 #: 메모 링크 버튼 이름 · 화면 경로(``foms/web/cs_agent_send.py``).
 BUTTON_SEND, BUTTON_EDIT = "보내기", "수정하기"
 BASE_URL_ENV = "FOMS_BASE_URL"
+#: 단추가 여는 곳(관리 화면 칸 ``send_button_path``) — 링크(FOMS 새 창) · 채널톡 안 작은 창(설계서 17.2.2).
+PATH_LINK, PATH_WAM = "link", "wam"
+BUTTON_PATHS = (PATH_LINK, PATH_WAM)
+#: 작은 창 앱 id(채널톡 앱 'FOMS 연동' — 공개 id) · 작은 창 이름(:data:`foms.services.channel_memo.WAM_NAMES`).
+WAM_APP_ENV, WAM_NAME = "CS_WAM_APP_ID", "cs-draft"
+_APP_ID = re.compile(r"[A-Za-z0-9]{8,64}")
+
+Button = tuple[str, Union[str, dict[str, Any]]]
 
 
-def memo_buttons(turn_id: int, chat_id: str) -> tuple[tuple[str, str], ...]:
-    """초안 메모의 [보내기] · [수정하기] 링크 — FOMS 기본 주소(env :data:`BASE_URL_ENV`, https 만) + 차례 id + 상담 id(``c``).
+def _wam_buttons(turn_id: int) -> Optional[tuple[Button, ...]]:
+    """작은 창 단추 둘 — 앱 id(env)가 없거나 꼴이 틀리면 ``None``(부르는 쪽이 링크로 단다). ``wamArgs`` 는 데스크 브라우저에
+    그대로 보여 차례 번호 · 할 일만 싣는다(누른 사람은 서명된 caller 로만 안다)."""
+    app_id = (os.environ.get(WAM_APP_ENV) or "").strip()
+    if not _APP_ID.fullmatch(app_id):
+        return None
+    return tuple((title, {"wam": WAM_NAME, "app_id": app_id, "args": {"turn": int(turn_id), "mode": mode}})
+                 for title, mode in ((BUTTON_SEND, "send"), (BUTTON_EDIT, "edit")))
 
-    주소에 서명 표를 넣지 않는다(메신저 미리 읽기 · 기록에 남는다 — 권한은 화면 안 POST 의 로그인 · CSRF · 서명 표). 상담 id 는
-    다른 환경의 같은 차례 번호로 잘못 들어온 링크를 화면이 거르는 표지다. env 가 없거나 https 가 아니면 버튼을 달지 않는다(운영
-    주소로 빠지면 스테이징 메모가 운영 화면을 연다).
+
+def memo_buttons(turn_id: int, chat_id: str, *, path: Any = PATH_LINK) -> tuple[Button, ...]:
+    """초안 메모의 [보내기] · [수정하기] 단추 — 처음 값은 링크, 관리 화면이 '채널톡 안 작은 창'이면 작은 창 단추.
+
+    링크 = FOMS 기본 주소(env :data:`BASE_URL_ENV`, https 만) + 차례 id + 상담 id(``c``). 주소에 서명 표를 넣지 않는다(메신저
+    미리 읽기 · 기록에 남는다 — 권한은 화면 안 POST 의 로그인 · CSRF · 서명 표). 상담 id 는 다른 환경의 같은 차례 번호로 잘못
+    들어온 링크를 화면이 거르는 표지다. env 가 없거나 https 가 아니면 버튼을 달지 않는다(운영 주소로 빠지면 스테이징 메모가
+    운영 화면을 연다). 작은 창은 앱 id(env :data:`WAM_APP_ENV`)가 없으면 링크로 단다(단추가 아예 없어지지 않게).
     """
+    if not isinstance(chat_id, str) or not _CHAT_ID.fullmatch(chat_id):
+        logger.warning("[CS 보내기] 상담 id 꼴이 아니라 메모에 버튼을 달지 않는다 turn=%s", turn_id)
+        return ()
+    if path == PATH_WAM:
+        wam = _wam_buttons(turn_id)
+        if wam is not None:
+            return wam
+        logger.warning("[CS 보내기] 작은 창 앱 id(env)가 없어 링크 단추로 단다 turn=%s", turn_id)
     base = (os.environ.get(BASE_URL_ENV) or "").strip().rstrip("/")
-    if not base.startswith("https://") or not isinstance(chat_id, str) or not _CHAT_ID.fullmatch(chat_id):
+    if not base.startswith("https://"):
         logger.warning("[CS 보내기] FOMS 기본 주소(https)가 없어 메모에 버튼을 달지 않는다 turn=%s", turn_id)
         return ()
     return ((BUTTON_SEND, base + send_path(turn_id, chat_id)), (BUTTON_EDIT, base + edit_path(turn_id, chat_id)))

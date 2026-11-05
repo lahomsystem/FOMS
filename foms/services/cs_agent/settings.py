@@ -131,6 +131,10 @@ FIELDS: tuple[Field, ...] = (
     Field("send_buttons_enabled", "[보내기] · [수정하기] 버튼", KIND_BOOL, False, GROUP_SEND,
           help="켜면 초안 메모에 버튼 둘이 붙고, 직원이 누르면 손님께 봇 이름으로 실제 글이 가요(시험 서버는 시험 상담 · "
                "라홈만). 끄면 버튼이 없고 보내기 · AI 다시 쓰기도 막아요"),
+    Field("send_button_path", "버튼이 여는 곳", KIND_CHOICE, "link", GROUP_SEND,
+          (("link", "FOMS 새 창(링크)"), ("wam", "채널톡 안 작은 창")),
+          help="채널톡 안 작은 창이면 [보내기]는 누르자마자 보내고 [수정하기]는 데스크 안 작은 창에서 고쳐요(채널톡 앱 "
+               "설정이 된 서버만 — 안 되어 있으면 링크로 달려요). 새로 올리는 메모부터 바뀌어요"),
     Field("staff_push_enabled", "상담 직원 알림", KIND_BOOL, False, GROUP_SEND,
           help="켜면 초안 메모가 뜰 때 알림을 구독한 상담 직원에게 FOMS 앱 알림이 가요(구독 수는 기록 탭). "
                "알림엔 손님 글 · 초안 없이 화면 주소만 있어요"),

@@ -81,6 +81,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "max_brain_calls_per_pass": drafting.MAX_BRAIN_CALLS, "max_wait_business_days": drafting.MAX_WAIT_BUSINESS_DAYS,
         "realtime_enabled": False, "quiet_wait_s": 15, "max_wait_s": 60,  # 빠른 길(C10-1) — 처음 끔 · D65 15초
         "send_buttons_enabled": False,  # [보내기] · [수정하기](C10-3) — 처음 끔
+        "send_button_path": "link",  # 버튼이 여는 곳(설계서 17.2.2) — 처음 링크(지금과 같다)
         "staff_push_enabled": False,  # 상담 직원 알림(C10-5) — 처음 끔
         "quote_calc_enabled": False,  # 견적 계산 넣기(C10-6) — 처음 끔
         # 그림 읽기(설계서 17.11 (i)) — 처음 끔(D89) · Sonnet 5.5(D92) · PDF 3쪽(D96)
