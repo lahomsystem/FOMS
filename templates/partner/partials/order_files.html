@@ -42,7 +42,8 @@
     <div class="pp-gal__grid" data-foms-lightbox-gallery>
         {% for f in files %}<figure class="pp-gal__cell">
             <a class="pp-thumb" href="{{ f.url }}" title="{{ f.filename }}"{% if f.is_image %} data-foms-lightbox-src="{{ f.url }}" data-foms-lightbox-name="{{ f.filename }}"{% if f.download_url %} data-foms-lightbox-download="{{ f.download_url }}"{% endif %}{% else %} target="_blank" rel="noopener"{% endif %}>{% if f.is_image %}<img src="{{ f.thumb_url or f.url }}" alt="{{ f.filename }}" loading="lazy">{% else %}<span class="pp-thumb__file"><i class="fas fa-file-alt"></i><span class="pp-thumb__name">{{ f.filename }}</span></span>{% endif %}</a>
-            {% if f.kind %}<figcaption class="pp-gal__cap">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</figcaption>{% endif %}
+            {% if f.kind %}<figcaption class="pp-gal__cap">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</figcaption>
+            {% elif f.no %}<figcaption class="pp-gal__cap">{{ f.no }}번</figcaption>{% endif %}
         </figure>{% endfor %}
     </div>
     {% else %}<p class="small text-muted mb-0">{{ empty }}</p>{% endif %}
