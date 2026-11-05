@@ -613,6 +613,53 @@ CEO 도전(원장 F1-4)과 단순화 심판(원장 R2)을 반영해 지시서의
 - **링크 길의 앞 일 — 이미 있던 보안 구멍(R10-15)**: 로그인 뒤 되돌아가기 `foms/services/post_auth_navigation.py:71` 은 `//` 로 시작하는 주소만 막고 `/\` 로 시작하는 주소는 통과시킨다. werkzeug 2.3.8 은 Location 에 역슬래시를 그대로 두고(10-30 직접 확인), 브라우저는 이것을 바깥 주소로 읽는다 → 로그인 화면 주소 하나로 바깥 사이트로 보낼 수 있다. 링크 길보다 먼저 고친다(C10-0).
 - **토큰(R10-17)**: 채널톡 토큰 캐시가 프로세스마다 따로라(`foms/services/channel_client.py:49`) web · WORKER · cs_loop · 빠른 길 · SIDEFX 가 각자 발급한다(앱마다 30분 10번 — F12-5). 배포 직후 한도에 닿으면 보내기가 실패한다 → Redis 공유 캐시 + 잠금으로 바꾼다.
 
+#### 17.2.2 채널톡 안에서 보내기 · 고치기 — WAM 길 다시 (사장님 11-05 "보내기 누르면 바로 · 수정하기는 채널톡 모달")
+
+지금 링크 길은 [보내기] · [수정하기]를 누르면 크롬 새 창이 뜨고 FOMS 로그인이 필요하다. 사장님 요청: 채널톡 안에서 바로 보내고, 고치기는
+채널톡 안 작은 창으로.
+
+**확인한 것(공식 자료 11-05 — 원장 F12-4 를 바로잡는다)**
+- 메시지 단추 동작은 셋이다: `web`(주소) · `wam`(`appId` · `name` · `wamArgs` — 앱 작은 창 열기) · `command`(`appId` · `name` ·
+  `params`). Open API v5 글 쓰기(`POST /open/v5/user-chats/{id}/messages`)의 단추 칸이 그대로 받는다(채널톡 공식 swagger
+  `message.action.Action$WAMAction`). 비공개 글에 단추를 다는 것은 Open API 로 이미 된다(C10-2).
+- WAM 은 데스크 안 iframe(`{WAM 주소}/{name}`)이다. 다리 `window.ChannelIOWam`(`getWamData` · `setSize` · `callFunction` ·
+  `callNativeFunction` · `close`)은 **채널톡이 넣어 준다** — 공식 예제 화면이 스크립트를 불러오지 않고 바로 쓴다. 그래서 React ·
+  새 패키지 없이 FOMS 화면(Jinja + 순수 JS)으로 만든다(F12-4 'React 만'은 틀림).
+- `callFunction` 은 앱의 함수 받는 곳으로 서명된 `PUT` 을 보낸다 — `context.caller = {type: manager, id}` · `context.channel.id`.
+  서명은 hex 열쇠 HMAC-SHA256 → Base64(`x-signature`), 이미 있는 `foms/api/channel/channel_functions.py` 검증과 같다.
+- `wamArgs` 는 브라우저에서 그대로 보인다 → 차례 번호만 싣는다(글 · 표 · 비밀 없음). 누른 사람은 서명된 caller 로만 안다.
+- 글을 지우거나 고치는 Open API 는 없다(보낸 뒤 메모는 그대로 남는다 — 지금과 같다).
+
+**흐름**
+1. 메모 단추: 관리 화면 '단추 길'(새 칸 — 링크 · 채널톡 안, 처음 값 링크)이 '채널톡 안'이면 단추 둘을 `wam` 동작으로 단다:
+   `{"appId": <앱 id>, "name": "cs-draft", "wamArgs": {"turn": <차례 번호>, "mode": "send" | "edit"}}`.
+2. WAM 화면 `GET /channel/wam/cs-draft`: 글 · 데이터 없는 빈 틀(채널톡 출처만 iframe 허용 — 이미 있는 `/channel/wam` 규칙).
+   스크립트가 `wamArgs` 를 읽고 서명 함수를 부른다.
+3. **[보내기]**: 창이 열리자마자 `cs.draft.send`(그대로)를 부른다 → 보냄이면 '보냈어요' 한 줄 뒤 1초 만에 닫힘. '확인 후 보내기'
+   경고면 경고 줄 + [그래도 보내기]. 막힘(새 손님 글 · 이미 보냄 · 검사)이면 까닭 한 줄 + [고치기].
+4. **[수정하기]**: `cs.draft.get` 으로 손님께 보낼 답을 받아 글 칸에 넣고, [보내기](`cs.draft.send` 고침 · 고친 까닭 칩) · [버리기].
+   '고칠 말'(AI 다시 쓰기)은 링크 화면에 그대로 둔다.
+5. 서버: 함수 받는 곳에 이름 둘(`cs.draft.get` · `cs.draft.send`)을 더한다. 서명 · 채널(라홈) · caller 가 상담원인지 본 뒤,
+   `send_turn` 0~5 단계를 그대로 탄다 — 바뀌는 것은 '앞 확인'의 서명 표 자리에 '서명된 상담원'이 들어가는 것뿐이다
+   (한 번만 · 최신인가 · 검사 · 봇 이름 공개 글 · requestId · 결과 기록은 같다). 서명에 시각이 없어 같은 요청을 다시 보내도
+   '차례당 한 번'(보내는 중 상태)이 막는다.
+6. 누가 보냈나: 서명된 채널톡 상담원 번호를 차례 줄 새 칸 `sent_by_channel_manager`(글 64자, 비워도 됨 — 마이그레이션 하나)에
+   적는다. FOMS 짝(`channel_manager_links`)이 있으면 `sent_by_user_id` 도 적는다. 권한은 라홈 채널 상담원 — 데스크에서 손으로
+   답을 쓸 수 있는 사람과 같다.
+
+**설정(한 번)** — 채널톡 개발자 화면(앱): 앱 id 확인 · Function 주소 `https://<운영>/api/channel/functions` · WAM 주소
+`https://<운영>/channel/wam` · 서명 열쇠 발급. Railway web env: `CHANNEL_FUNCTION_ENABLED` · `CHANNEL_FUNCTION_SIGNING_KEY` ·
+`CHANNEL_FUNCTION_CHANNEL_ID`(라홈) · 새 `CS_WAM_APP_ID`. 앱 주소는 하나라 시험 동안만 스테이징을 가리키고 끝나면 운영으로 돌린다
+(그 사이 `/foms` 명령도 스테이징이 받는다).
+
+**시험(스테이징 시험 상담 · PC 데스크 · 휴대폰 채널톡 앱)** — 문서에 없는 것: ① 비공개 메모의 `wam` 단추가 눌리고 창이 어디에
+뜨나(작은 창 · 옆 칸) ② `getWamData` 에 `wamArgs` · `chatId` · `managerId` 가 오나 ③ `callFunction` 이 서명 · caller 를 달고 오나
+④ 휴대폰 앱에서 되나 ⑤ `command` 단추로 창 없이 바로 보내기가 되나(되면 [보내기]를 창 없는 길로). 휴대폰에서 안 되면 휴대폰용
+링크 길을 남긴다(관리 화면 스위치).
+
+**단계** — S1 시험 장치(빈 WAM 화면이 받은 칸 이름만 찍기 · 함수 ping) → 실측 → S2 [보내기] → S3 [수정하기] → 스테이징 실화면 →
+운영(사장님 확인). 이 길에서 안 바뀌는 것: 보내기 전 검사 전부 · 한 번만 보내기 · 봇 이름 공개 글(D68) · 링크 길(스위치로 남김).
+
 ### 17.3 실시간 10~90초
 
 | 구간(마지막 손님 글부터) | 시간 | 어떻게 |
