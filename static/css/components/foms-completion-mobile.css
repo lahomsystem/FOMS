@@ -27,6 +27,11 @@
   min-width: 0;
 }
 
+/* 줄 안 결과·자가 실측 뱃지: 부트스트랩 0.75em 은 이 줄(0.9rem)에서 10.8px 이라 12px 로 고정(디자인 점검 2026-11-06). */
+.erp-completion-summary .badge {
+  font-size: 0.75rem;
+}
+
 .erp-completion-gallery {
   display: flex;
   gap: 0.5rem;

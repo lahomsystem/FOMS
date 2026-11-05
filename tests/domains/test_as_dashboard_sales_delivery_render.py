@@ -27,6 +27,8 @@ from models import Order, OrderScheduleDate, User
 _ROOT = Path(__file__).resolve().parents[2]
 _TODAY = date.today().strftime("%Y-%m-%d")
 _ASSET_PIN = "20261105s"
+# 2026-11-06 PC 작은 단추 28px — CSS 만 다시 올렸다(JS 는 그대로).
+_CSS_PIN = "20261106b"
 
 
 def _login_as_admin(client, username: str = "sales-delivery-render-admin") -> None:
@@ -341,9 +343,9 @@ def test_touched_asset_pins_are_bumped_and_in_sync():
     """as-dashboard.js / as-dashboard-body.css 핀이 이번 변경분으로 함께 올라갔다."""
     body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
 
-    for asset in ("js/cs/as-dashboard.js", "css/contexts/cs/as-dashboard-body.css"):
+    for asset, want in (("js/cs/as-dashboard.js", _ASSET_PIN), ("css/contexts/cs/as-dashboard-body.css", _CSS_PIN)):
         pins = set(re.findall(re.escape(asset) + r"'\s*\)\s*\}\}\?v=([A-Za-z0-9._-]+)", body))
-        assert pins == {_ASSET_PIN}, (asset, pins)
+        assert pins == {want}, (asset, pins)
 
 
 def test_table_colgroup_and_head_have_thirteen_matching_columns():

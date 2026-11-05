@@ -398,7 +398,7 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color:
 .foms-tower__stage-dot--cs { background: var(--foms-stage-cs); }
 .foms-tower__stage-badges { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
 .foms-tower__mini { min-width: 14px; height: 14px; padding: 0 3px; border-radius: var(--foms-radius-full); font-size: 8px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; }
-.foms-tower .foms-tower__mini { min-width: 16px; height: 16px; font-size: 10px; }   /* 14px·8px → 16px·10px(디자인 점검 2026-11-05) */
+.foms-tower .foms-tower__mini { min-width: 18px; height: 18px; padding: 0 4px; font-size: 12px; }   /* 14px·8px → 16px·10px(2026-11-05) → 18px·12px(2026-11-06, 폰 보조 글 12px 이상) */
 .foms-tower__mini--overdue { background: var(--foms-color-danger-500); }
 .foms-tower__mini--imminent { background: var(--foms-color-warning-500); }
 .foms-tower__all-queue { display: block; text-align: center; margin-top: var(--foms-space-3); font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); }

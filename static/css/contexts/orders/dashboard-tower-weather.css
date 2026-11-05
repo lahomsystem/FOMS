@@ -138,9 +138,10 @@
   font-size: 8.5px; font-weight: 700; line-height: 9.5px; color: #2c2c2e; letter-spacing: -0.3px; white-space: nowrap;
   font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-/* 우리 모바일 홈(.foms-tower 안)만 기온 8.5px → 10px(디자인 점검 2026-11-05). 높이 20px·줄 10px 두 줄로
-   날짜 원과 같은 높이를 지키고, 좌우 여백 1px 로 폭 360px 폰에서도 날짜와 붙지 않게 한다. 협력사 달력(.pp-cal)은 그대로. */
-.foms-tower .foms-tower__cal-temp { font-size: 10px; line-height: 10px; padding: 0 1px; letter-spacing: -0.4px; }
+/* 우리 모바일 홈(.foms-tower 안)만 기온 8.5px → 10px(2026-11-05) → 12px(2026-11-06 점검: 폰 보조 글 12px 이상).
+   두 줄 줄 11px 로 받침 높이 22px(= 머리 줄 최소 높이 22px)라 아래 건수 줄이 내려가지 않는다. 폭은 받침 최소 21px 와
+   거의 같아(21.5px) 390px 폰에서 날짜와 5.9px 띄운다. 협력사 달력(.pp-cal)은 그대로. */
+.foms-tower .foms-tower__cal-temp { font-size: 12px; line-height: 11px; height: 22px; padding: 0 1px; letter-spacing: -0.5px; }
 /* 최고 위·최저 아래 두 줄 — 한 줄 '12°/20°' 는 폭 40px 칸에서 날짜와 겹친다 */
 .foms-tower__cal-temp b { font-weight: 700; }
 .foms-tower__cal-temp .is-min { color: #1d4ed8; }

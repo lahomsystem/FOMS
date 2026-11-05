@@ -2216,3 +2216,43 @@
   font-weight: 600;
   text-align: center;
 }
+
+/* 마우스 PC 표 안 작은 단추는 28px 이상(디자인 점검 2026-11-06 — 미결 20px · 타임라인 20px · 가능시간 23px · 재적용/무시 24px).
+   가능시간 칩은 방문일 칸 높이를 정하므로(99px 줄), 위 여백 4→2px · 아래 -3px 로 칸 높이를 예전 그대로 둔다. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+  .erp-as-pending-btn,
+  .erp-as-avail-chip,
+  .erp-as-drift-action {
+    min-height: 28px;
+  }
+
+  .erp-as-avail-chip {
+    margin-top: 2px;
+    margin-bottom: -3px;
+  }
+
+  /* 미결 단추(칸 오른쪽 아래)가 긴 가능시간 글을 덮지 않게, 그 칸에서만 칩 폭을 단추 자리만큼 줄인다(넘치는 글은 … 처리). */
+  .erp-as-visit-cell:has(> .erp-as-pending-btn) > .erp-as-avail-chip {
+    max-width: calc(100% - 27px);
+  }
+
+  .erp-as-visit-cell:has(> .erp-as-pending-btn--active) > .erp-as-avail-chip {
+    max-width: calc(100% - 58px);
+  }
+
+  .erp-as-pending-btn {
+    display: inline-flex;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* 타임라인 단추는 AS 내용 칸 맨 아래 줄 — 위아래 -4px 로 누르는 넓이만 28px, 칸 높이는 예전 20px 줄 그대로. */
+  .as-tl-cell__expand,
+  .as-tl-cell__empty {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    margin-block: -4px;
+  }
+}
