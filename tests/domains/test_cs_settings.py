@@ -93,6 +93,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "edit_detail_enabled": False, "edit_photos_enabled": False, "photo_desc_enabled": False,
         "photo_desc_model": bp.MODEL_HAIKU, "case_reasons_enabled": False, "weekly_fix_enabled": False,
         "weekly_fix_model": bp.MODEL_SONNET,
+        "photo_learn_enabled": False,  # 사진 학습 → 회사 지식 제안(설계서 17.11.1 의 7) — 처음 끔
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
