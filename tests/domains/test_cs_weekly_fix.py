@@ -15,6 +15,9 @@ from db import db_session
 from foms.services.cs_agent import brain_spend, turns, weekly_fix, weekly_fix_gates, weekly_fix_store
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.edit_detail_settings import DETAIL_FIELDS, WEEKLY_FIELD
+from foms.persistence.brain.models import BrainObject
+from foms.services.brain import doc_bridge, doc_import
+from foms.services.brain.store import current_object
 from foms.services.cs_agent.knowledge import load_approved, read_stored
 from models import CsAgentTurn, CsAgentTurnPhoto, SystemSetting
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture(승인 지식 · 두뇌 env · 진짜 SDK 막기)
@@ -181,10 +184,18 @@ def test_a_conflict_or_a_missing_verdict_fails_the_proposal(two_by_two, judge):
 
 
 # ── 사장님 결정(로그인 ADMIN 만) ─────────────────────────────────────────
-def _one_pending(two_by_two):
-    weekly_fix.run_weekly_fix(db_session, now=NOW, client=FakeAnthropic(proposal(two_by_two), NO_CONFLICT))
+def _one_pending(two_by_two, **kwargs):
+    weekly_fix.run_weekly_fix(db_session, now=NOW, client=FakeAnthropic(proposal(two_by_two, **kwargs), NO_CONFLICT))
     (item,) = stored()
     return item["id"]
+
+
+def into_brain(admin):
+    """저장된 지식 문서를 회사 지식 표로 옮긴다(운영처럼 — 옮긴 뒤에는 표가 정본)."""
+    versions, problems = doc_import.load_documents(db_session)
+    assert problems == {}
+    doc_import.run_import(db_session, versions, actor=admin, apply=True, now=naive(NOW))
+    db_session.commit()
 
 
 def test_only_a_logged_in_admin_decides_and_approval_makes_a_new_knowledge_version(two_by_two):
@@ -194,13 +205,55 @@ def test_only_a_logged_in_admin_decides_and_approval_makes_a_new_knowledge_versi
     assert weekly_fix_store.decide(db_session, pid, decision="approve", user=None, note=None, now=NOW).status == 403
     assert stored()[0]["state"] == "pending_owner" and read_stored(db_session, "LAHOM").version == 1
     admin = user(role="ADMIN", team=None, name="owner")
+    into_brain(admin)
     result = weekly_fix_store.decide(db_session, pid, decision="approve", user=admin, note=None, now=NOW)
     assert (result.code, result.version) == ("approved", 2)
     item = stored()[0]
     assert (item["state"], item["decided_by_user_id"], item["applied_version"]) == ("approved", admin.id, 2)
     assert load_approved(db_session, "LAHOM").get("hours-day").text == NEW_TEXT
+    row = current_object(db_session, "lahom/hours-day")  # 정본은 표 — 문서는 표에서 다시 쓴 사본
+    assert (row.text, row.human_approver_id, row.version) == (NEW_TEXT, admin.id, 2)
+    assert doc_bridge.shadow_compare(db_session, "LAHOM")["equal"] is True
     again = weekly_fix_store.decide(db_session, pid, decision="reject", user=admin, note="x", now=NOW)
     assert again.code == "already"
+
+
+def test_approval_never_writes_the_document_alone(two_by_two):
+    """표에 그 기준 답이 없으면(옮기기 전) 문서만 고치지 않는다 — 두 번째 정본을 만들지 않는다."""
+    pid = _one_pending(two_by_two)
+    admin = user(role="ADMIN", team=None, name="owner")
+    before = read_stored(db_session, "LAHOM")
+    result = weekly_fix_store.decide(db_session, pid, decision="approve", user=admin, note=None, now=NOW)
+    assert (result.code, result.status) == ("apply_failed", 409) and stored()[0]["state"] == "pending_owner"
+    after = read_stored(db_session, "LAHOM")
+    assert (after.version, after.document) == (before.version, before.document)
+
+
+def test_a_new_template_is_added_through_the_brain(two_by_two):
+    pid = _one_pending(two_by_two, item_id="")
+    admin = user(role="ADMIN", team=None, name="owner")
+    into_brain(admin)
+    result = weekly_fix_store.decide(db_session, pid, decision="approve", user=admin, note=None, now=NOW)
+    assert (result.code, result.version) == ("approved", 2)
+    doc_id = f"fix-{pid.lower()}"
+    row = current_object(db_session, f"lahom/{doc_id}")
+    assert (row.item_type, row.brand, row.text, row.human_approver_id) == ("template", "LAHOM", NEW_TEXT, admin.id)
+    added = load_approved(db_session, "LAHOM").get(doc_id)
+    assert added.intents == ("hours",) and added.text == NEW_TEXT and "weekly-fix" in added.tags
+
+
+def test_a_common_template_is_not_changed_from_one_brand_fix(two_by_two):
+    pid = _one_pending(two_by_two)
+    admin = user(role="ADMIN", team=None, name="owner")
+    into_brain(admin)
+    row = current_object(db_session, "lahom/hours-day")
+    row.brand = "COMMON"  # 두 브랜드 공통 항목인 경우(합성 — 정체 칸만 바꿈)
+    db_session.commit()
+    before = read_stored(db_session, "LAHOM").version
+    result = weekly_fix_store.decide(db_session, pid, decision="approve", user=admin, note=None, now=NOW)
+    assert (result.code, result.status) == ("common_item", 409) and stored()[0]["state"] == "pending_owner"
+    assert read_stored(db_session, "LAHOM").version == before
+    assert db_session.get(BrainObject, row.id).version == 1
 
 
 def test_a_rejected_proposal_is_not_proposed_again(two_by_two):
@@ -232,6 +285,7 @@ def test_the_decide_route_ignores_a_free_text_approver(app, client, two_by_two):
     admin = user(role="ADMIN", team=None, name="owner")
     with client.session_transaction() as sess:
         sess["user_id"] = admin.id
+    into_brain(admin)
     no_decision = client.post(url, json={"approved_by": "사장님", "approved": True})
     assert no_decision.status_code == 400 and stored()[0]["state"] == "pending_owner"
     listed = client.get("/api/admin/cs-agent/fix-proposals").get_json()
