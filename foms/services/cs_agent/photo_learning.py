@@ -10,6 +10,9 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 주간 고침 안과 �
    답 · 사진 설명 · 의도.
 2. **묶기 · 근거 관문**: (사진 종류, 의도)로 묶고(사진 종류가 여럿인 차례는 종류마다), 서로 다른 손님 2 **그리고** 직원 2 이상인
    묶음만(:func:`.weekly_fix_gates.evidence_ok` — 주간 고침 안과 같은 규칙) 학습 두뇌에 보낸다. 못 넘은 묶음은 수만 센다.
+   **전체 대화(설계서 17.11.2 · D173)**: 패널 '전체 대화 글 수 상한'이 0 이 아니고 읽기 도우미가 있으면(감시 바퀴) 묶음마다
+   최근 사례부터 '사진 학습 묶음당 사례 수'만 남긴 뒤 관문을 보고, 보낼 사례마다 그 상담 전체 대화(가린 글 · 상한 — :mod:`.full_conversation`)에 사진 표시 줄
+   (``▶ 사진 N (손님) 종류: 설명``)을 그 사진이 온 글 자리(모르면 질문 뒤)에 끼워 싣는다. 못 읽은 사례는 예전 재료 그대로.
 3. **두뇌(학습 모델 — 주간 고침 안 모델 칸)**: 회사 지식 목록과 견줘 제안 안(상황 · 제작 조건 새로 만들기 · 고치기, 제품 ·
    옵션에 '비슷한 말', 상황 → 제품 링크)을 구조화 출력으로(:mod:`.photo_learning_prompt`).
 4. **관문(우리 쪽)**: 꼴 · 가림(개인정보 꼴 · 가림 표시 0) · 숫자(회사 지식 · 상담 승인 지식에 이미 있는 숫자만 — 학습한 숫자
@@ -44,11 +47,14 @@ from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.checks_rules import mask_marker_count
 from foms.services.cs_agent.edit_detail_settings import PHOTO_LEARN_FIELD, WEEKLY_MODEL_FIELD
+from foms.services.cs_agent.full_conversation import learn_cases, talk_on, with_talks
 from foms.services.cs_agent.image_summaries import summaries_by_turn
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.learning_brain import call_learning, off_reason
 from foms.services.cs_agent.masking import MaskLeak, leak_counts
-from foms.services.cs_agent.photo_learning_prompt import build_params, knowledge_lines, knowledge_rows, raw_proposals
+from foms.services.cs_agent.photo_learning_prompt import (
+    MAX_CASES, build_params, knowledge_lines, knowledge_rows, raw_proposals,
+)
 from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.weekly_fix import LOOKBACK, in_window, staff_of, week_id
 from foms.services.cs_agent.weekly_fix_gates import evidence_ok
@@ -81,15 +87,24 @@ def _turn_rows(session: Any, since: datetime.datetime) -> list[Any]:
     """지난 7일 끝난 꼴(고침 · 직접 답 · 그대로) 차례 — 떼어 둔 줄 제외, 가린 칸 · 코드만."""
     turn = CsAgentTurn
     stmt = (select(turn.id, turn.chat_id, turn.sent_by_user_id, turn.desk_manager_id, turn.intent,
-                   turn.masked_question, turn.staff_reply_masked)
+                   turn.masked_question, turn.staff_reply_masked, turn.last_user_message_id)
             .where(turn.brand == SEND_BRAND, turn.outcome.in_(LEARNING_OUTCOMES), turn.held_out.is_(False),
                    turn.staff_reply_masked.isnot(None), turn.updated_at >= since)
             .order_by(turn.id))
     return list(session.execute(stmt))
 
 
-def collect_photo_groups(session: Any, now: datetime.datetime) -> list[PhotoGroup]:
-    """읽기 · 묶기(모듈 설명 1 · 2) — 근거 관문 전 묶음 전부((사진 종류, 의도) 순)."""
+def _marks(lines: Sequence[Any]) -> dict[str, list[str]]:
+    """차례가 읽은 사진들 → 메시지 id → 전체 대화에 끼울 표시 줄 ``▶ 사진 N (손님) 종류: 설명``(설계서 17.11.2)."""
+    marks: dict[str, list[str]] = defaultdict(list)
+    for number, line in enumerate(lines, start=1):
+        marks[line.message_id].append(f"▶ 사진 {number} (손님) {line.text}")
+    return dict(marks)
+
+
+def collect_photo_groups(session: Any, now: datetime.datetime, *, cases_cap: Optional[int] = None) -> list[PhotoGroup]:
+    """읽기 · 묶기(모듈 설명 1 · 2) — 근거 관문 전 묶음 전부((사진 종류, 의도) 순). ``cases_cap`` 이면 묶음마다 최근 사례부터
+    그 수만(전체 대화를 실을 때 — 설계서 17.11.2)."""
     rows = _turn_rows(session, naive_utc(now - LOOKBACK))
     seen = summaries_by_turn(session, [row.id for row in rows])
     groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -100,8 +115,10 @@ def collect_photo_groups(session: Any, now: datetime.datetime) -> list[PhotoGrou
         for kind, texts in by_kind.items():
             groups[(kind, row.intent or "unknown")].append({
                 "turn_id": row.id, "chat_id": row.chat_id, "staff": staff_of(row), "question": row.masked_question,
-                "sent": row.staff_reply_masked, "photos": texts[:2]})
-    return [PhotoGroup(kind, intent, tuple(cases)) for (kind, intent), cases in sorted(groups.items())]
+                "sent": row.staff_reply_masked, "photos": texts[:2], "marks": _marks(seen[row.id]),
+                "anchor": row.last_user_message_id})
+    return [PhotoGroup(kind, intent, tuple(cases[-cases_cap:] if cases_cap else cases))
+            for (kind, intent), cases in sorted(groups.items())]
 
 
 def claim_week(session: Any, week: str) -> bool:
@@ -253,8 +270,11 @@ def _known(session: Any) -> str:
     return "\n".join([known_text(session), *(item.text for item in cs.items)])
 
 
-def run_photo_learning(session: Any, *, now: datetime.datetime, client: Any = None) -> dict[str, Any]:
-    """사진 학습 한 번(모듈 설명). 커밋한다. 숫자 · 코드만 돌려준다 — 반영하는 일은 하지 않는다(승인은 사람)."""
+def run_photo_learning(session: Any, *, now: datetime.datetime, client: Any = None,
+                       reader: Any = None) -> dict[str, Any]:
+    """사진 학습 한 번(모듈 설명). 커밋한다. 숫자 · 코드만 돌려준다 — 반영하는 일은 하지 않는다(승인은 사람).
+
+    ``reader`` 는 전체 대화를 읽는 채널톡 읽기 도우미(감시 바퀴가 넘긴다 — 없으면 전체 대화 없이 예전 재료)."""
     if not in_window(now):
         return {"off": "not_window"}
     off, cfg = off_reason(session, PHOTO_LEARN_FIELD)
@@ -264,8 +284,11 @@ def run_photo_learning(session: Any, *, now: datetime.datetime, client: Any = No
     week = week_id(now)
     if not claim_week(session, week):
         return {"off": "already_this_week"}
-    groups = collect_photo_groups(session, now)
+    talks = talk_on(cfg) and reader is not None  # 전체 대화를 실을 때만 묶음당 사례 수를 줄인다(아니면 예전 그대로)
+    groups = collect_photo_groups(session, now, cases_cap=learn_cases(cfg) if talks else None)
+    session.commit()  # 채널톡 읽기 동안 읽기 트랜잭션을 열어 두지 않는다
     ready = [group for group in groups if evidence_ok(group.cases)][:MAX_GROUPS]
+    ready = with_talks(ready, reader, cfg, brand=SEND_BRAND, shown=MAX_CASES) if ready and talks else ready
     counts: dict[str, Any] = {"week": week, "groups": len(groups), "evidence_ok": len(ready), "proposed": 0,
                               "filed": 0, "blocked": {}, "halted": None}
     if ready:

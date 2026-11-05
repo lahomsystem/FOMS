@@ -367,7 +367,7 @@ def _work(session: Any, result: PassResult, *, config: LoopConfig, stop: StopFla
     realtime_on = bool(read_settings(session, log=False).get("realtime_enabled"))
     session.commit()
     if mode != DRAFT_OFF:  # 학습 몫(17.6.1) — 15분 바퀴만(빠른 길 아님), 길마다 자기 스위치 · 학습 돈 상한을 본다
-        result.learning = run_learning(session, now=now, stop_check=stop.check)
+        result.learning = run_learning(session, now=now, stop_check=stop.check, reader=reader)
     if mode == DRAFT_OFF or realtime_on:  # 빠른 길이 켜져 있으면 초안은 빠른 길 몫(보정 · 아침 보고만 — 설계서 17.3)
         result.realtime_drafting = realtime_on and mode != DRAFT_OFF
         return
