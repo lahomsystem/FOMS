@@ -130,6 +130,11 @@ def test_drawing_tab_gallery_for_images_and_file_rows_for_pdf(app, world):
     files = html[html.index("data-pp-drawing-files"):]
     assert f"/api/files/view/{base}/detail.pdf" in files[:400]
     assert "1차 · 10-20 14:05 올라옴" in html and "js/foms/lightbox.js" in html
+    # 11-05: 공통 첨부 "도면" 묶음 — 썸네일 밑 번호(수정 요청 때 "2번 도면"), PDF 는 아이콘 칸.
+    common = html[html.index('<div class="pp-gal__head">도면'):]
+    common = common[:common.index('<div class="pp-gal__head">시공')]
+    assert [c for c in ("1번", "2번", "3번") if f'<figcaption class="pp-gal__cap">{c}</figcaption>' in common] == ["1번", "2번", "3번"]
+    assert common.count("data-foms-lightbox-src=") == 2 and "pp-thumb__file" in common
 
 
 def test_drawing_tab_without_images_skips_gallery(app, world):

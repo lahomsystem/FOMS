@@ -246,6 +246,7 @@ def _final_drawings(order: Order) -> list[dict]:
         name = f.get("filename") or f.get("key", "").rsplit("/", 1)[-1]
         rows.append({
             "filename": name,
+            "no": no,  # 공통 첨부 도면 썸네일 밑 "1번"(사용자 11-05)
             "label": f"{no}번 · {name}",  # 우리 도면 작업실처럼 번호로 부른다(수정 요청 때 "2번 도면")
             "url": build_file_view_url(f["key"]),
             "download_url": build_file_download_url(f["key"]),
