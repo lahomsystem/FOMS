@@ -373,6 +373,9 @@ def _upload_photos(order_id: int, folder: str) -> list[dict]:
     storage = get_storage()
     out = []
     for f in files:
+        f, heic_error = jpeg_if_heic(f)  # 수정 요청 · AS 사진도 HEIC 는 JPEG 로(SPEC 2026-11-04-heic-to-jpeg §2-3)
+        if heic_error:
+            raise PartnerRevisionError(heic_error, 400)
         ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
         if ext not in _PHOTO_EXTS:
             raise PartnerRevisionError("사진(jpg · png · webp)만 올릴 수 있습니다.", 400)

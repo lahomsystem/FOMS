@@ -89,6 +89,7 @@ _init_worker_sentry()
 
 __all__ = [
     "create_thumbnail_for_attachment",
+    "convert_heic_attachment",
     "geocode_order_address",
     "push_order_to_channeltalk",
     "process_channeltalk_inbound",
@@ -132,6 +133,18 @@ def create_thumbnail_for_attachment(attachment_id, storage_key):
     except Exception as e:
         logger.error(f"[RQ] create_thumbnail_for_attachment error: {e}", exc_info=True)
         raise
+
+
+def convert_heic_attachment(attachment_id, storage_key):
+    """주문 첨부 HEIC → JPEG 변환(worker 전용). 끝나면 썸네일 job 을 이어서 예약한다.
+
+    판정 · 저장 규칙은 :func:`foms.services.order_attachment_heic.convert_order_attachment_heic` 가 정본이다.
+    """
+    if not attachment_id or not storage_key:
+        return None
+    from foms.services.order_attachment_heic import convert_order_attachment_heic
+
+    return convert_order_attachment_heic(int(attachment_id), storage_key)
 
 
 def geocode_order_address(order_id):

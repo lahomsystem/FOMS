@@ -1,6 +1,8 @@
-# 아이폰 사진(HEIC) 서버에서 JPG로 바꾸기 SPEC (2026-11-04 초안 · 승인 전)
+# 아이폰 사진(HEIC) 서버에서 JPG로 바꾸기 SPEC (2026-11-04 사용자 결정 · 11-05 다른 창 작업에 맞춤)
 
-등급: 코어 변경(파일 업로드 API · R2 저장 · 백그라운드 작업). 아래 §4 결정을 받은 뒤 구현한다.
+등급: 코어 변경(파일 업로드 API · R2 저장 · 백그라운드 작업). §4 결정을 묻고 받은 답을 승인으로 본다.
+
+**11-05 합침:** 다른 창(업로드 점검, deploy `08a16d15f`·`dbec8d452`·`0d7a30fb6`)이 같은 이름 `foms/services/files/heic_convert.py` 로 협력사 파일 올리기의 HEIC 변환(긴 변 1920px · 품질 80)을 먼저 넣었다. 사용자 결정(11-05): **그 파일과 규격을 그대로 쓰고**, 이 SPEC 은 그쪽에 없는 부분(주문 첨부 · 협력사 수정 요청/AS 사진 · PC 크롬 PUT 형식)만 얹는다. 아래 §2-1 의 2560px · 85 와 새 변환 함수 설계는 이 결정으로 대체됐다.
 선행: `docs/specs/2026-11-02-foms-notices_SPEC.md`(공지 사진 — HEIC 를 이미 서버에서 다시 그린다).
 같이 들어간 첫 단계: 주문 모바일 갤러리 업로드 `accept` 에서 `.heic,.heif` 제거(커밋 33a1e74).
 
@@ -69,9 +71,19 @@
 - 앱: `python -c "import app; print('APP_OK')"`, `scripts/ops/pre_push_smoke.ps1`.
 - 스테이징: 아이폰(사파리)과 PC 크롬에서 각각 HEIC 를 주문 첨부로 올려 PC 크롬에서 보이는지 확인.
 
-## 4. 사용자 결정 (받아야 함)
+## 4. 사용자 결정 (2026-11-04 받음 · 2번은 11-05 바뀜)
 
 1. **원본 HEIC 를 남길까?** — 추천: **지운다.** 화질 차이가 거의 없고, 위치정보가 담긴 원본이 남지 않는다. (남기면 R2 용량이 사진 1장당 2~5MB 늘어난다.)
-2. **바꾼 JPG 크기** — 추천: **긴 변 2560px · 품질 85.** (PC 화면에서 확대해도 충분. 클라이언트 압축의 1920px 보다 조금 크게 둔다.)
+2. **바꾼 JPG 크기** — 11-04 에는 2560px · 85 로 정했으나, 11-05 "다른 창 것에 맞추기"로 **긴 변 1920px · 품질 80**(다른 창 `heic_convert.py` · 우리 화면 사진 줄이기와 같은 규격).
 3. **범위** — 추천: **주문 첨부 + 협력사 사진.** 채팅은 다음에.
-4. **이미 R2 에 있는 협력사 HEIC 도 바꿀까?** — 추천: 먼저 개수를 세어 보고 정한다(postgres 연결 후 `OrderAttachment`·수정 요청 기록에서 `.heic` 수 조회).
+4. **이미 R2 에 있는 협력사 HEIC 도 바꿀까?** — 먼저 개수를 센다. 읽기 전용 `tools/ops/count_heic_files.py`(첨부 행 + 주문 기록에만 있는 key). 이 세션은 DB 연결이 없어 아직 돌리지 못했다.
+
+## 5. 실제 구현 (11-05, deploy 위)
+
+- 변환: 다른 창의 `heic_convert.heic_to_jpeg` · `jpeg_if_heic` 를 그대로 쓴다(이 SPEC 은 그 파일을 고치지 않는다).
+- 주문 첨부 direct 업로드: `/attachments/complete` 뒤 `foms/services/order_attachment_heic.py` 가 RQ(`enqueue_heic_conversion` → `tasks.convert_heic_attachment`, 없으면 ThreadPool)로 R2 의 HEIC 를 읽어 JPEG 로 바꾸고 첨부 줄의 key · 이름 · 크기를 바꾼다 → `ATTACHMENT_META_UPDATED`(payload `change: heic_to_jpeg`, `converted_from`) → 옛 HEIC 는 `STORAGE_DELETE` 7일 유예(지울 때 다시 쓰이는지 확인) → 썸네일. 첨부가 지워졌거나 key 가 바뀌었거나 도면 기록이 그 key 를 쓰면 건너뛴다. 실패하면 HEIC 를 그대로 둔다. `ASYNC_ATTACHMENT_THUMBNAIL` 설정과 상관없이 돈다. 바뀌기 전 몇 초는 PC 에서 깨진 그림일 수 있다.
+- 받는 형식: `ERP_MEDIA_ALLOWED_EXTENSIONS` · `DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES` · `storage.get_file_type`/`_get_content_type` · 크기 상한(20MB)에 heic/heif.
+- 업로드 세션 응답에 서명한 `content_type`, `upload-progress.js` PUT 이 그 값을 먼저 쓴다(PC 크롬은 HEIC `file.type` 이 빈 값).
+- 주문 폼 업로드(`POST /api/orders/<id>/attachments`)와 협력사 수정 요청 · AS 사진(`_upload_photos`)은 다른 창의 협력사 파일 올리기처럼 확장자 검사 전에 `jpeg_if_heic`.
+- 이벤트 · 지연 삭제 줄은 서비스가 직접 만든다(services → api import 금지).
+- 테스트: `tests/domains/test_heic_convert.py`.

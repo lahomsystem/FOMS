@@ -616,7 +616,8 @@ class StorageAdapter:
     def get_file_type(self, filename: str) -> str:
         """파일 타입 반환 (image, video, file). Public API."""
         ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
-        image_exts = ["jpg", "jpeg", "png", "gif", "webp"]
+        # heic/heif: 아이폰 원본. 주문 첨부는 올린 뒤 서버가 JPEG 로 바꾼다(foms/services/files/heic_convert.py).
+        image_exts = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"]
         video_exts = ["mp4", "mov", "avi", "mkv", "webm"]
         if ext in image_exts:
             return "image"
@@ -637,6 +638,8 @@ class StorageAdapter:
             "png": "image/png",
             "gif": "image/gif",
             "webp": "image/webp",
+            "heic": "image/heic",
+            "heif": "image/heif",
             "mp4": "video/mp4",
             "mov": "video/quicktime",
             "avi": "video/x-msvideo",
