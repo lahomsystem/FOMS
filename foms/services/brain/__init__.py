@@ -1,6 +1,7 @@
 """HAUD master brain — 회사 지식 정본(설계서 2026-11-02-haud-master-brain). 판 1 ⑤-1: 표 · 저장 · 반영 동작 하나 ·
 지식 문서 옮기기와 그림자 견주기. ⑤-2: '회사 지식' 읽기 화면 · 읽기 API(:mod:`foms.web.brain` · :mod:`foms.api.brain`).
-⑤-3: 제안함 · 다시 확인 · 판 되돌리기 · 결정 숫자(:mod:`foms.api.brain_review`). 상담 두뇌 읽기 바꾸기는 아직 없다.
+⑤-3: 제안함 · 다시 확인 · 판 되돌리기 · 결정 숫자(:mod:`foms.api.brain_review`). 상담 두뇌는 여전히 지식 문서를 읽고, 그
+문서는 반영 때마다 표에서 다시 쓴다(:mod:`.doc_sync` — 7.5).
 
 - :mod:`.constants` — 유형 · 층 · 링크 · 허용 짝 · 값 목록(코드 + 설계서로만 바꾼다).
 - :mod:`.scope` — 보기 범위(찾는 단계에서 거른다).
@@ -8,7 +9,8 @@
 - :mod:`.gates` — 꼴 · 글 관문(개인정보 0 · 한자 0 · 숫자는 승인 지식 · 계산기 값에서만).
 - :mod:`.proposals` — 제안 만들기 · 되돌리기 제안 · 거절.
 - :mod:`.apply` — **정본을 쓰는 유일한 동작**(권한 · 꼴 · 대상 · 기준 판 다시 확인 → 새 판 줄 · 앞 줄 닫기 · 판에 붙이기).
-- :mod:`.doc_bridge` · :mod:`.doc_import` — 지식 문서 ↔ 표(옮기기 · 다시 만들기 · 견주기).
+- :mod:`.doc_bridge` · :mod:`.doc_import` · :mod:`.doc_sync` — 지식 문서 ↔ 표(옮기기 — 사람 판은 덮지 않음 · 다시 만들기 ·
+  견주기 · 반영 때 문서 다시 쓰기 · 맞추기). :mod:`.template_fix` — 주간 고침 안 승인도 표를 거친다.
 - :mod:`.access` — 화면 · API 를 여는 사람(ADMIN · 층 승인자 팀 MANAGER — D101, 그 밖 404).
 - :mod:`.display` — 유형마다 색 · 아이콘 · 이름 하나(모든 화면 같은 표).
 - :mod:`.browse` · :mod:`.card` · :mod:`.release_view` — 찾기 묶음 · 지식 표 · 유형 지도 · 항목 카드 · 판 목록과 차이(읽기만,
