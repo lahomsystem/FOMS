@@ -121,17 +121,17 @@
   /* Unread badge overlaid on the header bell. */
   body.erp-mobile-v2-layout .erp-mobile-shell-header__notify-badge {
     position: absolute;
-    top: 6px;
-    right: 6px;
-    min-width: 16px;
-    height: 16px;
+    top: 3px; /* 6 → 3px: 커진 원이 종을 더 덮지 않게 위·오른쪽으로 3px 옮김(2026-11-06) */
+    right: 3px;
+    min-width: 18px;
+    height: 18px;
     padding: 0 4px;
     border-radius: var(--foms-radius-full);
     background: var(--foms-status-danger, #dc3545);
     color: #fff;
-    font-size: 10px;
+    font-size: 12px; /* 10px → 12px · 원 16 → 18px(디자인 점검 2026-11-06, 폰 보조 글 12px 이상) */
     font-weight: var(--foms-font-weight-bold);
-    line-height: 16px;
+    line-height: 18px;
     text-align: center;
     box-shadow: 0 0 0 2px var(--foms-surface-base);
     pointer-events: none;

@@ -23,6 +23,6 @@ def test_overlay_fab_script_toggles_html_class_on_bootstrap_events():
 def test_shell_css_hides_fab_while_overlay_open_and_pins_bumped():
     css = _read("static/css/foundation/foms-shell.css")
     assert "html.foms-overlay-open body.erp-mobile-v2-layout .foms-shell-fab" in css
-    assert "foms-shell.css?v=20261105s" in _read("static/css/foundation/foms-mobile-surfaces.css")
-    assert "foms-mobile-surfaces.css') }}?v=20261106a" in _read("templates/partials/shared/layout_head.html")
+    assert "foms-shell.css?v=20261106b" in _read("static/css/foundation/foms-mobile-surfaces.css")
+    assert "foms-mobile-surfaces.css') }}?v=20261106b" in _read("templates/partials/shared/layout_head.html")
     assert "js/foms/foms-overlay-fab.js') }}?v=" in _read("templates/partials/shared/layout_scripts.html")
