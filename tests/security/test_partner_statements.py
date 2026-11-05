@@ -12,6 +12,7 @@ from db import db_session
 from foms.services.partners.item_options import confirm_partner_options
 from foms.services.partners.price_list import save_price_list
 from foms.services.partners.statement_view import korean_amount
+from foms.services.partners.statement_profile import doc_prefix_for, load_profile
 from models import Order, PartnerStatement, SecurityLog, User
 from tests.security.partner_fixtures import _PAYLOAD, _client, _create, _user, world  # noqa: F401
 from tests.security.test_partner_item_options import SHEET, _item, priced  # noqa: F401 — 단가표 판 준비물 재사용
@@ -204,6 +205,24 @@ def test_profile_admin_only_prefix_and_print(app, priced):
     page = client.get(f"/erp/partner-statements/{data['id']}/print").get_data(as_text=True)
     assert "가짜공급" in page and "가나대표" in page and "가짜은행 000-0" in page
     assert korean_amount(issued["total"]) in page and "공급받는자용" in page and "공급자용" in page
+    assert "달마다 말일 기준" in page  # 세금계산서 안내를 비워 두면 기본 글(사용자 결정 11-05)
+
+
+def test_profile_receiver_prefix_per_partner(app, priced):
+    """협력사마다 문서번호 머리(사용자 결정 11-05) — 정한 협력사만 바뀌고, 비우면 공급자 것(대조군)."""
+    admin = _client(app, db_session.get(User, priced["admin"]))
+    url = f"/api/admin/partners/{priced['org_a']}/statement-profile"
+    bad = {"version": 0, "supplier": {"doc_prefix": "HD"}, "receiver": {"doc_prefix": "r1"}}
+    assert admin.post(url, json=bad).status_code == 400
+    saved = admin.post(url, json={**bad, "receiver": {"doc_prefix": "rd"}}).get_json()["data"]
+    assert saved["receiver"]["doc_prefix"] == "RD"
+    client = _cs(app)
+    data = _draft(client, _confirmed_order(app, priced, [_item(lines=[{"key": "r4", "qty": 1}])]))
+    issued = client.post(f"{API}/{data['id']}/issue", json={"version": data["version"]}).get_json()["data"]
+    assert issued["doc_no"] == "RD-20261110-01"
+    profile = load_profile(db_session)
+    assert doc_prefix_for(profile, priced["org_a"]) == "RD"
+    assert doc_prefix_for(profile, 999999) == "HD"
 
 
 def test_korean_amount():
