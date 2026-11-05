@@ -181,7 +181,7 @@
     },
     {
       "path": "foms/services/partners/drawing_confirm.py",
-      "lineno": 134,
+      "lineno": 142,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -730,7 +730,7 @@
     },
     {
       "path": "foms/services/partners/drawing_confirm.py",
-      "lineno": 134,
+      "lineno": 142,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

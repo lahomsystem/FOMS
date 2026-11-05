@@ -87,8 +87,8 @@ def _full(db, stmt: PartnerStatement) -> dict[str, Any]:
     order = db.get(Order, stmt.order_id)
     sd = order.structured_data if order is not None and isinstance(order.structured_data, dict) else {}
     # 도면마다 묶인 품목 uid(마법사 제품 시트 · 명시 연결) — 화면이 고른 도면의 묶음만 보인다. 모르면 빈 목록 = 전체.
-    drawings = [{**drawing_card(i, f), "no": i, "uids": file_item_uids(sd, f)}
-                for i, f in enumerate(final_drawings_for_partner(order) if order else [], start=1) if f.get("key")]
+    drawings = [{**drawing_card(f["no"], f), "no": f["no"], "uids": file_item_uids(sd, f)}
+                for f in (final_drawings_for_partner(order) if order else []) if f.get("key")]
     return {**statement_json(db, stmt), "drawings": drawings, "questions": questions(db, stmt)}
 
 

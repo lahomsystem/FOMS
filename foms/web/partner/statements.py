@@ -65,7 +65,7 @@ def view(statement_id: int):
     stmt, order = _statement_or_404(db, statement_id)
     mark_viewed(stmt)
     db.commit()
-    drawings = [drawing_card(i, f) for i, f in enumerate(final_drawings_for_partner(order), start=1) if f.get("key")]
+    drawings = [drawing_card(f["no"], f) for f in final_drawings_for_partner(order) if f.get("key")]
     return render_template("partner/statement_view.html", org=_org(), drawings=drawings,
                            questions=questions(db, stmt), **_context(db, stmt, order))
 
