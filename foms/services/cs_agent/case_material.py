@@ -22,6 +22,10 @@
   :data:`~.brain_cases.CONTEXT_CASE_LINES` 줄을 :class:`~.brain_cases.CaseItem` 의 ``context`` 로 싣는다(비슷한 사례부터 합
   :data:`~.brain_cases.CONTEXT_LIMIT` 자까지, 가림 검사가 0 이 아닌 줄은 뺀다). '그대로' 사례 · 앞 대화가 없는 옛 사례는
   예전 꼴 그대로다. 고르기에는 쓰지 않는다.
+- **손님이 보낸 사진(설계서 17.11.1 의 6)**: ``with_photos`` 면(패널 '사진 · 그림 읽기'가 끔이 아님) '고침' · '직접 답' 사례의
+  차례가 읽은 손님 사진 설명(:func:`.image_summaries.summaries_by_turn` — 차례 번호로 잇는다, 한 번에 읽음)을 사례마다
+  :data:`~.brain_cases.MAX_PHOTO_NOTES` 줄까지 붙인다 — 비슷한 사례부터, 덧붙은 글 합 :data:`~.brain_cases.EXTRA_LIMIT` 자의
+  남은 자리 안. 가림 검사가 0 이 아닌 줄은 뺀다. 고르기에는 쓰지 않는다.
 - **사례에만 있는 이름(R14-3)**: 가림이 놓친 이름꼴(직함 · 맺음말 · '저는 …' 문맥의 세 글자 이름)이 사례에만 있고 지금 상담 ·
   승인 지식에는 없으면 :func:`case_only_names` 가 돌려준다 — 초안 차례가 보내기 전 검사의 '예시에만 있는 낱말'로 넘겨, 다른
   손님 · 다른 직원 이름을 새 초안에 옮기면 막힌다.
@@ -39,10 +43,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from foms.persistence.main.models import CsAgentTurn, CsAgentTurnPhoto
 from foms.services.cs_agent.brain_cases import (
     CONTEXT_CASE_LINES, CONTEXT_LIMIT, CONTEXT_LINE_LIMIT, DETAIL_LIMIT, EXTRA_LIMIT, MAX_CASES, MAX_PHOTO_NOTES,
-    PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem,
+    PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem, extra_chars,
 )
 from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, OUTCOME_DIRECT, OUTCOME_EDITED, masked_join
 from foms.services.cs_agent.drafting_read import FILE_NOTE, ChatLine
+from foms.services.cs_agent.image_summaries import summaries_by_turn
 from foms.services.cs_agent.masking import leak_counts, looks_like_name
 
 logger = logging.getLogger(__name__)
@@ -136,7 +141,8 @@ def _names_in(value: str) -> set[str]:
 
 def _case_text(item: Any) -> str:
     """사례 하나의 글 전부(질문 · 답 · 덧붙은 이유 · 사진 설명)."""
-    extra = [item.detail or "", *item.photo_notes, *item.context] if isinstance(item, CaseItem) else []
+    extra = ([item.detail or "", *item.photo_notes, *item.context, *item.customer_photos]
+             if isinstance(item, CaseItem) else [])
     return "\n".join([item[0], item[1], *extra])
 
 
@@ -276,14 +282,33 @@ def _with_contexts(items: Sequence[Any], rows: Sequence[Any]) -> tuple[Any, ...]
     return tuple(out)
 
 
+def _with_photos(session: Any, items: Sequence[Any], rows: Sequence[Any]) -> tuple[Any, ...]:
+    """'고침' · '직접 답' 사례에 그 차례가 읽은 손님 사진 설명을 비슷한 사례부터 덧붙은 글 남은 자리까지 붙인다(17.11.1 의 6)."""
+    found = summaries_by_turn(session, [row.id for row in rows if row.outcome in CONTEXT_OUTCOMES])
+    room = EXTRA_LIMIT - sum(extra_chars(item) for item in items)
+    out = []
+    for item, row in zip(items, rows):
+        kept: list[str] = []
+        for line in found.get(row.id, []):
+            cut = _clean(line.text, min(PHOTO_NOTE_LIMIT, room)) if len(kept) < MAX_PHOTO_NOTES and room > 0 else None
+            if cut:
+                kept.append(cut)
+                room -= len(cut)
+        if kept:
+            item = (item._replace(customer_photos=tuple(kept)) if isinstance(item, CaseItem)
+                    else CaseItem(item[0], item[1], customer_photos=tuple(kept)))
+        out.append(item)
+    return tuple(out)
+
+
 def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit: int = MAX_CASES,
-                  with_reasons: bool = False) -> tuple[Any, ...]:
+                  with_reasons: bool = False, with_photos: bool = False) -> tuple[Any, ...]:
     """다음 초안 재료 — 같은 브랜드 비슷한 지난 사례 (가린 질문, 사람이 보낸 가린 답), 비슷한 것부터 ``limit`` 개까지.
 
     지금 손님 글(:func:`current_question`)이 없으면 빈 튜플. 다듬기(모듈 설명)를 지나 남은 사례만 돌려준다(두뇌가 실을 때
     가림 검사를 한 번 더 본다). DB 를 읽기만 한다 — 커밋은 부르는 쪽(두뇌가 곧 커밋한다). DB 오류면 되돌리고 빈 튜플.
     ``with_reasons`` 면 '고침' 사례를 :class:`~.brain_cases.CaseItem` 으로 넓힌다(모듈 설명). 앞 대화가 적힌 '고침' · '직접
-    답' 사례는 스위치와 상관없이 앞 대화를 붙인다(설계서 17.2.2).
+    답' 사례는 스위치와 상관없이 앞 대화를 붙인다(설계서 17.2.2). ``with_photos`` 면 그 두 꼴 사례에 손님 사진 설명 줄(17.11.1).
     """
     query = current_question(lines)
     if not query:
@@ -294,7 +319,8 @@ def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit:
         chosen = [(pair, row) for row in rows
                   if (pair := _trimmed(row.masked_question, row.staff_reply_masked)) is not None]
         items = _enriched(session, chosen) if with_reasons else tuple(pair for pair, _row in chosen)
-        return _with_contexts(items, [row for _pair, row in chosen])
+        items = _with_contexts(items, [row for _pair, row in chosen])
+        return _with_photos(session, items, [row for _pair, row in chosen]) if with_photos else items
     except SQLAlchemyError as exc:
         session.rollback()
         logger.warning("[CS 사례] 비슷한 사례를 못 읽어 사례 없이 초안을 쓴다 code=%s error=%s", CASES_FAILED,

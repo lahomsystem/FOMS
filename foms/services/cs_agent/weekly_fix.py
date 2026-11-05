@@ -6,7 +6,8 @@ WORKER 15분 바퀴가 **월요일 새벽(KST :data:`WINDOW_HOURS`)** 에 부르
 
 1. **읽기(글만)**: 지난 7일 끝난 꼴 '고침' 차례 가운데 고친 까닭 · 가린 자세한 이유 · 설명을 마친 사진(``done``) 중 하나라도
    있는 것. 시험용 떼어 둔 줄 · 복사 · 버림 · 직접 답은 읽지 않는다(R10-20). 차례마다 가린 질문 · 가린 보낸 글 · 까닭 · 가린
-   이유 · 가린 사진 설명 · 의도.
+   이유 · 가린 사진 설명 · 의도. 패널 '사진 · 그림 읽기'가 끔이 아니면 그 차례가 읽은 손님 사진 설명(가린 글 — 설계서 17.11.1
+   의 6, :mod:`.image_summaries`)도 두 줄까지 같이 싣는다(차례를 고르는 데는 쓰지 않는다).
 2. **묶기 · 근거 관문**: (의도, 까닭)으로 묶고, 서로 다른 손님(상담) 2명 이상 **그리고** 서로 다른 직원 2명 이상인 묶음만
    두뇌에 보낸다(R10-19 — 한 손님 · 한 직원의 버릇만으로는 못 넘는다). 못 넘은 묶음은 수만 센다.
 3. **두뇌(학습 모델 칸)**: 승인 지식과 견줘 '기준 답 고침 안'(바꿀 항목 id · 고친 글 · 왜 · 근거 차례 id)을 구조화 출력으로.
@@ -34,6 +35,8 @@ from foms.services.cs_agent import brain_prompt as prompt
 from foms.services.cs_agent.brain_spend import BrainError
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.edit_detail_settings import WEEKLY_FIELD, WEEKLY_MODEL_FIELD
+from foms.services.cs_agent.image_settings import MODE_OFF as PHOTOS_OFF, image_mode
+from foms.services.cs_agent.image_summaries import summaries_by_turn
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.learning_brain import call_learning, off_reason
 from foms.services.cs_agent.masking import MaskLeak, require_masked
@@ -108,7 +111,7 @@ def _photo_notes(session: Any, ids: Sequence[int]) -> dict[int, list[str]]:
     return notes
 
 
-def _staff(row: Any) -> Any:
+def staff_of(row: Any) -> Any:
     """보낸 사람 — FOMS 직원 번호, 없으면 채널톡 작은 창으로 보낸 상담원 번호(설계서 17.2.2 — FOMS 짝이 없는 상담원도 근거
     관문의 '직원 수'에 든다)."""
     if row.sent_by_user_id is not None:
@@ -116,18 +119,20 @@ def _staff(row: Any) -> Any:
     return f"m:{row.desk_manager_id}" if row.desk_manager_id else None
 
 
-def collect_groups(session: Any, now: datetime.datetime) -> list[Group]:
-    """읽기 · 묶기(모듈 설명 1 · 2) — 근거 관문 전 묶음 전부(의도 · 까닭 순)."""
+def collect_groups(session: Any, now: datetime.datetime, *, with_photos: bool = False) -> list[Group]:
+    """읽기 · 묶기(모듈 설명 1 · 2) — 근거 관문 전 묶음 전부(의도 · 까닭 순). ``with_photos`` 면 손님 사진 설명도 싣는다."""
     rows = _turn_rows(session, naive_utc(now - LOOKBACK))
     notes = _photo_notes(session, [row.id for row in rows])
+    seen = summaries_by_turn(session, [row.id for row in rows], per_turn=2) if with_photos else {}
     groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         if not (row.edit_reason or row.edit_detail_masked or notes.get(row.id)):
             continue
         groups[(row.intent or "unknown", row.edit_reason or "none")].append({
-            "turn_id": row.id, "chat_id": row.chat_id, "staff": _staff(row), "question": row.masked_question,
+            "turn_id": row.id, "chat_id": row.chat_id, "staff": staff_of(row), "question": row.masked_question,
             "sent": row.staff_reply_masked, "reason": row.edit_reason, "detail": row.edit_detail_masked,
-            "photos": notes.get(row.id, [])[:2], "context": row.masked_context})
+            "photos": notes.get(row.id, [])[:2], "context": row.masked_context,
+            "customer_photos": [line.text for line in seen.get(row.id, [])]})
     return [Group(intent, reason, tuple(cases)) for (intent, reason), cases in sorted(groups.items())]
 
 
@@ -148,6 +153,8 @@ def _group_lines(index: int, group: Group) -> list[str]:
             lines += [f"사례 {case['turn_id']} 고친 이유(직원):", *_quoted(case["detail"])]
         for note in case["photos"]:
             lines += [f"사례 {case['turn_id']} 사진 설명(직원이 붙임):", *_quoted(note)]
+        for note in case.get("customer_photos") or ():
+            lines += [f"사례 {case['turn_id']} 손님이 보낸 사진(읽은 것):", *_quoted(note)]
     return lines
 
 
@@ -243,7 +250,7 @@ def run_weekly_fix(session: Any, *, now: datetime.datetime, client: Any = None) 
     week = week_id(now)
     if not claim_week(session, week):
         return {"off": "already_this_week"}
-    groups = collect_groups(session, now)
+    groups = collect_groups(session, now, with_photos=image_mode(cfg) != PHOTOS_OFF)
     session.commit()
     ready = [group for group in groups if evidence_ok(group.cases)][:MAX_GROUPS]
     counts: dict[str, Any] = {"week": week, "groups": len(groups), "evidence_ok": len(ready), "proposed": 0,
