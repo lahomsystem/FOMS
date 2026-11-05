@@ -31,10 +31,12 @@ LINE_LIMIT, PER_TURN, CHUNK = 120, 4, 500
 
 @dataclass(frozen=True)
 class PhotoSummary:
-    """차례가 읽은 사진 하나 — 종류 코드 · 가린 한 줄(``종류: 설명 — 이어지는 점``)."""
+    """차례가 읽은 사진 하나 — 종류 코드 · 가린 한 줄(``종류: 설명 — 이어지는 점``) · 그 사진이 온 글의 메시지 id(전체 대화 속
+    자리 — 설계서 17.11.2)."""
 
     kind: str
     text: str = field(repr=False)
+    message_id: str = field(default="", repr=False)
 
 
 def row_note(row: Any) -> Optional[ImageNote]:
@@ -56,7 +58,7 @@ def _summary(row: Any, limit: int) -> Optional[PhotoSummary]:
         return None
     body = " — ".join(part for part in (note.summary, note.about) if part)
     text = f"{KIND_LABELS[note.kind]}: {body}"[:limit].strip()
-    return PhotoSummary(note.kind, text) if not any(leak_counts(text).values()) else None
+    return PhotoSummary(note.kind, text, str(row.message_id or "")) if not any(leak_counts(text).values()) else None
 
 
 def summaries_by_turn(session: Any, turn_ids: Sequence[int], *, per_turn: int = PER_TURN,
@@ -66,7 +68,7 @@ def summaries_by_turn(session: Any, turn_ids: Sequence[int], *, per_turn: int = 
     out: dict[int, list[PhotoSummary]] = {}
     for start in range(0, len(ids), CHUNK):
         stmt = (select(CsAgentImageRead.turn_id, CsAgentImageRead.state, CsAgentImageRead.sha256,
-                       CsAgentImageRead.result)
+                       CsAgentImageRead.result, CsAgentImageRead.message_id)
                 .where(CsAgentImageRead.turn_id.in_(ids[start:start + CHUNK]), CsAgentImageRead.state == DONE,
                        CsAgentImageRead.result.isnot(None))
                 .order_by(CsAgentImageRead.turn_id, CsAgentImageRead.id))

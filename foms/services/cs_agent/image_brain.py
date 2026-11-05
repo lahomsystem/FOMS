@@ -2,7 +2,8 @@
 
 17.11.1(사장님 D172 — 11-05): 견적 도면만이 아니라 **모든 손님 사진**을 손님 최근 질문(가린 글 — 마지막 직원 답 뒤 손님 글)과
 같이 읽고, 사진마다 가린 짧은 설명 두 칸(무엇이 보이나 · 질문과 이어지는 점 — :mod:`.image_notes`)을 더 낸다. 견적 치수 길
-(17.11 (d))은 같은 결과를 쓴다 — 부르기는 묶음마다 한 번.
+(17.11 (d))은 같은 결과를 쓴다 — 부르기는 묶음마다 한 번. 17.11.2(D173): 상담 글 칸에는 최근 30줄 대신 상담 전체 대화(가린 글
+· 패널 상한 — :mod:`.full_conversation`)를 싣는다. 읽기 실패 · 끔이면 예전 그대로 최근 30줄이다(지시문은 같다).
 
 부르기 · 예약 · 바로잡기 · 오류 꼴은 두뇌 한 곳(:func:`.brain._send`)을 그대로 쓴다. 도구 없음 · 생각 adaptive · effort 는 늘
 적음 · 구조화 출력(그림 · 문서 블록과 같이 써도 된다 — 공식 structured outputs 문서는 인용 · 미리 채우기만 함께 못 쓴다고
@@ -33,7 +34,10 @@ from foms.services.cs_agent.settings import PanelSettings
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["INSTRUCTIONS", "BrainRead", "build_params", "merged", "read_images", "recent_question"]
+__all__ = ["FULL_HEAD", "INSTRUCTIONS", "BrainRead", "build_params", "merged", "read_images", "recent_question"]
+
+#: 전체 대화를 보낼 때의 머리말(설계서 17.11.2) — ``▶`` 줄은 그 자리에 온 그림, 맨 앞 괄호 줄은 줄인 앞 대화다.
+FULL_HEAD = "상담 전체 대화(가린 글 · 처음부터 · ▶ 줄은 그 자리에 온 그림 · 맨 앞 괄호 줄은 줄인 앞 대화):"
 
 INSTRUCTIONS = """\
 너는 가구 브랜드 라홈의 채팅 상담에서 손님이 보낸 사진 · 그림(평면도 · 손그림 · 현장 사진 · 예시 사진 · 제품 화면 · 견적 \
@@ -94,15 +98,16 @@ def _blocks(prepared: Sequence[Prepared]) -> list[dict[str, Any]]:
 
 
 def build_params(prepared: Sequence[Prepared], *, conversation: str, chat_id: str, now: datetime.datetime,
-                 cfg: PanelSettings, question: str = "") -> dict[str, Any]:
+                 cfg: PanelSettings, question: str = "", full: bool = False) -> dict[str, Any]:
     """``beta.messages.create`` 인자 — 그림 읽기 칸의 모델 · 깊이 · 출력, 구조화 출력, 도구 · 캐시 표시 없음.
 
-    ``question`` 은 손님 최근 질문(가린 글 — 마지막 직원 답 뒤 손님 글, :func:`recent_question`)이다."""
+    ``question`` 은 손님 최근 질문(가린 글 — 마지막 직원 답 뒤 손님 글, :func:`recent_question`)이다. ``full`` 이면
+    ``conversation`` 은 상담 전체 대화(설계서 17.11.2 — 줄임 · 그림 표시 줄이 있다)라 머리말만 바꾼다(지시문은 그대로)."""
     model = str(cfg.get("image_model"))
+    head = FULL_HEAD if full else "상담 글(가린 글 · 오래된 것부터):"
     task = "\n".join(["이번 일: 손님 사진 · 그림 읽기(설명 · 설치 자리 · 벽 길이)", f"상담 id: {chat_id}",
                       f"지금(KST): {now:%Y-%m-%d %H:%M}", f"그림 수: {len(prepared)}",
-                      "손님 최근 질문(가린 글 — 마지막 직원 답 뒤):", question or "(없음)",
-                      "상담 글(가린 글 · 오래된 것부터):", conversation])
+                      "손님 최근 질문(가린 글 — 마지막 직원 답 뒤):", question or "(없음)", head, conversation])
     params: dict[str, Any] = {
         "model": model,
         "max_tokens": int(cfg.get("image_max_tokens")),
@@ -155,13 +160,15 @@ def _answer(response: Any, *, model: str, effort: str, tokens: prompt.Tokens, co
 
 def read_images(prepared: Sequence[Prepared], turns: Sequence[tuple[str, str]], *, brand: str, chat_id: str,
                 session: Any, cfg: PanelSettings, now: datetime.datetime, timeout_s: float,
-                client: Any = None) -> BrainRead:
+                client: Any = None, full: Optional[str] = None) -> BrainRead:
     """읽기 한 번 — 준비 확인 → 돈 확인 → 가림(검사 0) → 예약 · 부르기 → 바로잡기 → 결과.
 
     Args:
         prepared: 보낼 그림 · PDF(얼굴 거르기를 지난 것만).
-        turns: (말한 사람, 가리기 전 글) — 그 상담의 공개 글(초안 재료와 같은 것).
+        turns: (말한 사람, 가리기 전 글) — 그 상담의 공개 글(초안 재료와 같은 것). 손님 최근 질문은 늘 여기서 낸다.
         timeout_s: 이번 부르기 시간 상한(초 — 그 자리 읽기는 남은 시간).
+        full: 상담 전체 대화(가린 글 — :mod:`.full_conversation`, 설계서 17.11.2). 있으면 ``turns`` 대신 상담 글 칸에 싣는다
+            (가림 검사를 다시 지난다). 없으면 예전 그대로(최근 30줄).
 
     Raises:
         BrainNotReady · SpendCapReached · MaskLeak · BrainUnavailable: 초안 두뇌와 같은 뜻(부르는 쪽이 그림 없이 간다).
@@ -176,10 +183,10 @@ def read_images(prepared: Sequence[Prepared], turns: Sequence[tuple[str, str]], 
 
     def call(masked: list[str]) -> BrainRead:
         pairs = list(zip(roles, masked))
-        conversation = prompt.render_conversation(pairs)
+        conversation = full if full else prompt.render_conversation(pairs)
         require_masked(conversation)
         params = build_params(prepared, conversation=conversation, chat_id=chat_id, now=now, cfg=cfg,
-                              question=require_masked(recent_question(pairs)))
+                              question=require_masked(recent_question(pairs)), full=bool(full))
         api = client if client is not None else brain._default_client()  # noqa: SLF001
         try:
             response, latency_ms, reserved = brain._send(api, params, realtime=True, session=session, cap=cap,  # noqa: SLF001
