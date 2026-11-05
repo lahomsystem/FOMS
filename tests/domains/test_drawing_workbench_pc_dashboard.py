@@ -414,3 +414,17 @@ def test_no_new_db_query_in_row_loop() -> None:
     loop = route.split("    for o in orders:")[1].split("    # 프로세스 맵 카운트는")[0]
     for banned in ("db.query(", ".first()", ".all()"):
         assert banned not in loop, f"행 루프에 신규 DB 조회 유입: {banned}"
+
+
+def test_construction_cell_shows_partner_requested_date_when_unconfirmed() -> None:
+    """협력사 희망 시공일(확정 대기)은 우리 시공일이 없을 때 시공일 칸에 '희망'으로 보인다(사용자 11-05)."""
+    route = _read(WORKBENCH)
+    assert "'construction_requested': construction_requested," in route
+    assert "request_text(pending_request(sd, o.erp_stage_code or ''))" in route
+    body = _read(BODY)
+    assert "희망 {{ r.construction_requested }}" in body
+    from foms.services.partners.schedule_request import pending_request, request_text
+    sd = {"partner_intake": {"requested_construction": {"date": "2026-11-20", "time": "오전"}}}
+    assert request_text(pending_request(sd, "DRAWING")) == "2026-11-20 오전"
+    sd["schedule"] = {"construction": {"date": "2026-11-21"}}
+    assert request_text(pending_request(sd, "DRAWING")) == ""
