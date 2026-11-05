@@ -146,7 +146,7 @@ def get_erp_media_max_size(filename):
     if "." not in filename:
         return 10 * 1024 * 1024
     ext = filename.rsplit(".", 1)[1].lower()
-    image_exts = ["jpg", "jpeg", "png", "gif", "webp"]
+    image_exts = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"]
     video_exts = ["mp4", "mov", "avi", "mkv", "webm"]
     if ext in image_exts:
         return 20 * 1024 * 1024
