@@ -238,7 +238,7 @@
                 {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
                 {% set _clevel = r.construction_badge_level|default('none') %}
                 {% for _d in _cparts %}<span class="badge dw-cdate-badge is-{{ _clevel }} me-1">{{ _d }}</span>{% endfor %}
-                {% if not _cparts and r.construction_requested %}<span class="badge dw-cdate-badge is-none me-1" title="협력사 희망 시공일 · 확정 대기">희망 {{ r.construction_requested }}</span>
+                {% if not _cparts and r.construction_requested %}<span class="badge dw-cdate-badge is-info me-1" title="협력사 희망 시공일 · 확정 대기">희망 {{ r.construction_requested }}</span>
                 {% elif not _cparts %}<span class="text-muted">-</span>{% endif %}
               </td>
               <td class="small dw-next-action is-{{ r.next_action_tone|default('mine') }}">{{ r.next_action }}</td>
