@@ -420,10 +420,12 @@ def test_construction_cell_shows_partner_requested_date_when_unconfirmed() -> No
     """협력사 희망 시공일(확정 대기)은 우리 시공일이 없을 때 시공일 칸에 '희망'으로 보인다(사용자 11-05)."""
     route = _read(WORKBENCH)
     assert "'construction_requested': construction_requested," in route
-    assert "request_text(pending_request(sd, o.erp_stage_code or ''))" in route
+    assert "_req = None if construction_date else pending_request(sd, o.erp_stage_code or '')" in route
     body = _read(BODY)
     assert "희망 {{ r.construction_requested }}" in body
-    assert 'dw-cdate-badge is-info me-1" title="협력사 희망 시공일' in body  # 파란 배지(사용자 11-05)
+    # 날짜 있으면 파랑, '시공일 미정'처럼 날짜 없으면 회색(사용자 11-05).
+    assert "dw-cdate-badge is-{{ r.construction_requested_level|default('info') }} me-1" in body
+    assert "construction_requested_level = 'info' if str((_req or {}).get('date') or '').strip() else 'none'" in route
     from foms.services.partners.schedule_request import pending_request, request_text
     sd = {"partner_intake": {"requested_construction": {"date": "2026-11-20", "time": "오전"}}}
     assert request_text(pending_request(sd, "DRAWING")) == "2026-11-20 오전"
