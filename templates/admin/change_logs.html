@@ -87,16 +87,31 @@
   opacity: 0.7;
 }
 
+/* 카드 머리 줄(고객 이름 · 시각) — 폰에서 이름이 길면 한 줄에 둘 다 못 들어가 이름이
+   두 줄로 꺾이고 시각도 세로로 눌렸다. 자리가 모자라면 시각을 다음 줄로 넘긴다. */
+.event-card > .card-body > .d-flex:first-child {
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 2px;
+}
+
+/* 글자 단계: 이름 16px · 본문 14px · 시각 13px · 꼬리표 12px.
+   이름 크기는 JS(buildEventCard)가 인라인 1.1rem 을 박아 넣어 !important 로만 덮인다. */
+.event-card strong.text-primary {
+  font-size: 1rem !important;
+}
+
 .event-meta {
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
   color: #6c757d;
+  white-space: nowrap;
 }
 
 .event-change {
   background-color: #f8f9fa;
   padding: 0.5rem;
   border-radius: 0.25rem;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
@@ -106,7 +121,7 @@
   padding: 0.75rem;
   margin: 0.5rem 0;
   border-radius: 0.25rem;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
 }
 
 .event-reason strong {

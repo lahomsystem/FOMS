@@ -48,7 +48,8 @@
   border: 1px solid var(--foms-border-default);
   background: var(--foms-surface-base);
   color: var(--foms-text-primary);
-  font-size: 14px;
+  /* 16px 미만이면 아이폰이 눌렀을 때 화면을 확대한다(디자인 점검 2026-11-05, 14px → 16px). */
+  font-size: 16px;
 }
 
 .erp-shipment-mobile-controls__submit,
@@ -146,6 +147,16 @@
   color: var(--foms-text-primary);
   font-size: 18px;
   font-weight: 700;
+}
+
+/* 큐 제목은 공용 `.foms-section-header__title`(12px 대문자 머리말, foms-queue-card-v2.css)도 달고 있어
+   그쪽이 이겨 '출고 일정' 이 12px 로 보였다 — 선택자를 한 단계 세게 해 날짜 제목(18px)과 맞춘다(디자인 점검 2026-11-05). */
+body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue__title.foms-section-header__title {
+  color: var(--foms-text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .erp-shipment-mobile-dates__count,

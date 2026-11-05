@@ -184,8 +184,8 @@ def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
         root / "templates/production/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-v2-domain-heroes.css') }}?v=20260712a",
-        "foms-production-steps.css') }}?v=20260713b",
+        "foms-v2-domain-heroes.css') }}?v=20261105s",
+        "foms-production-steps.css') }}?v=20261105s",
     ):
         assert token in dash
         assert token in frag_src

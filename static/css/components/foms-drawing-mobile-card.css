@@ -177,13 +177,13 @@
 
 .foms-drawing-queue-card__id {
   flex-shrink: 0;
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--foms-text-tertiary, #6b7380);
 }
 
 .foms-drawing-queue-card__sub {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--foms-text-secondary, #4b525d);
 }
 
@@ -194,7 +194,7 @@
   gap: 0.35rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 800;
   background: var(--foms-color-info-50, #eff6ff);
   color: var(--foms-color-info-600, #2563eb);
@@ -219,7 +219,7 @@
 .foms-drawing-queue-card__chip {
   padding: 0.12rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   background: var(--foms-surface-overlay, #eef0f3);
   color: var(--foms-text-secondary, #4b525d);
@@ -273,7 +273,7 @@
   min-width: 0;
   padding: 0.28rem 0.5rem;
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   background: var(--foms-color-warning-50, #fffbeb);
   color: var(--foms-color-warning-700, #b45309);
@@ -340,7 +340,7 @@
 }
 
 .foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   padding-inline: 0.45rem;
 }
 
@@ -370,22 +370,25 @@
     gap: var(--foms-space-2, 8px);
   }
 
+  /* 검색 줄 44px(누르는 칸) · 글자 16px(아이폰 자동 확대 방지) — 2026-11-05 점검. */
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search .erp-pro-input {
-    min-height: 40px;
+    min-height: 44px;
     border-radius: 8px;
+    font-size: 16px;
+    text-overflow: ellipsis; /* 16px 에서 긴 안내 글이 낱말 가운데서 잘리지 않게 '…' 로 끝낸다. */
     background: var(--foms-surface-base, #fff);
   }
 
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search .erp-pro-btn {
     flex: 0 0 44px;
     min-width: 44px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 0;
     border-radius: 8px;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__filter-btn {
-    min-height: 40px;
+    min-height: 44px;
     border-radius: 8px;
     background: var(--foms-surface-base, #fff);
   }

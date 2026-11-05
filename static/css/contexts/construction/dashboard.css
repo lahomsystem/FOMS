@@ -372,7 +372,7 @@
       #erp-grid thead th,
       #erp-grid tbody td {
         padding: 0.75rem 0.5rem;
-        font-size: 0.9rem;
+        font-size: 0.875rem;
         white-space: normal;
         word-wrap: break-word;
         overflow-wrap: break-word;
@@ -422,11 +422,11 @@
         min-width: 180px;
       }
 
-      /* 고객 컬럼 - 최소화 */
+      /* 고객 컬럼 — 90px 이면 이름(+발주사 로고)이 한 글자씩 세로로 꺾였다(2026-11-05 점검). */
       #erp-grid thead th:nth-child(4),
       #erp-grid tbody td:nth-child(4) {
-        width: 90px;
-        min-width: 90px;
+        width: 120px;
+        min-width: 120px;
       }
 
       /* 연락처 컬럼 - 최소화 */
@@ -473,6 +473,12 @@
       #erp-grid tbody td:nth-child(9) {
         width: 100px;
         min-width: 100px;
+      }
+
+      /* 실측일·시공일 날짜 뱃지는 단계·경보 뱃지와 같은 0.85rem(#erp-grid .badge 0.95rem 은 본문보다 컸다). */
+      #erp-grid tbody td:nth-child(8) .badge,
+      #erp-grid tbody td:nth-child(9) .badge {
+        font-size: 0.85rem;
       }
 
       /* 담당 컬럼 - 최소화 */
@@ -1476,4 +1482,15 @@
 
 #erp-grid tbody .erp-c-selfmeasure {
   width: fit-content;
+}
+
+/* PC(993px~) 표의 셀 글자는 머리와 같은 0.875rem — 1.1rem(17.6px)이면 고객·연락처 칸이 세로로 꺾이고
+   표가 화면을 넘었다(2026-11-05 점검). 폰 카드형(~992px)은 위 1.1rem 그대로.
+   위와 같은 #erp-grid tbody 스코프([1,1,1])를 뒤에 둬서 이긴다 — 스코프를 빼면 `#erp-grid tbody td` 에 진다. */
+@media (min-width: 993px) {
+  #erp-grid tbody .erp-c-cell,
+  #erp-grid tbody .erp-c-cell--strong,
+  #erp-grid tbody .erp-c-muted {
+    font-size: 0.875rem;
+  }
 }
