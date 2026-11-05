@@ -41,7 +41,8 @@ __all__ = [
     "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
     "freshness",
-    "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "read_lines", "read_medium",
+    "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "parse_lines", "public_turn", "read_lines",
+    "read_medium",
 ]
 
 CONVERSATION_LIMIT = 30  # 두뇌에 넣는 최근 공개 글 수(설계서 5절 '최근 30개 안팎')
@@ -105,9 +106,20 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
     Raises:
         ChannelReadError: 읽기 실패(한도는 :class:`~.channel_read.ChannelRateLimited`).
     """
-    channel = channel_for_brand(brand)
+    channel_for_brand(brand)  # 모르는 브랜드는 읽기 전에 거절(ValueError)
     data = _get(reader, brand, f"{_chat_path(chat_id)}/messages", {"limit": MESSAGE_PAGE_LIMIT, "sortOrder": "desc"})
-    items = data.get("messages")
+    return sorted(parse_lines(brand, chat_id, data.get("messages")), key=lambda line: line.key)
+
+
+def parse_lines(brand: str, chat_id: str, items: Any) -> list[ChatLine]:
+    """Open API 글 목록 한 쪽(``messages``) → 글들(받은 차례 그대로 — 꼴이 틀린 글 · 다른 상담 글은 뺀다).
+
+    :func:`read_lines` 와 전체 대화 읽기(:mod:`.full_conversation`)가 같이 쓴다.
+
+    Raises:
+        ValueError: 모르는 브랜드.
+    """
+    channel = channel_for_brand(brand)
     lines: list[ChatLine] = []
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, Mapping):
@@ -122,7 +134,7 @@ def read_lines(reader: Any, brand: str, chat_id: str) -> list[ChatLine]:
                                   person_id if _PERSON_ID.fullmatch(person_id) else None,
                                   request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None,
                                   files))
-    return sorted(lines, key=lambda line: line.key)
+    return lines
 
 
 def read_medium(reader: Any, brand: str, chat_id: str) -> Optional[str]:
@@ -177,16 +189,19 @@ def no_text_reason(lines: Sequence[ChatLine]) -> Optional[str]:
     return SKIP_PHOTO_ONLY if any(line.meta.has_file for line in pending) else SKIP_NO_TEXT
 
 
+def public_turn(line: ChatLine) -> Optional[tuple[str, str]]:
+    """글 하나 → (말한 사람, 글) — 공개 손님 · 직원 글만(내부 메모 · 기록 · 봇 · 확인코드 글 · 빈 글은 ``None``). 첨부는 왔다는
+    표시(:data:`FILE_NOTE`)만 붙인다. 두뇌 재료(:func:`conversation`)와 전체 대화(:mod:`.full_conversation`)가 같은 규칙이다."""
+    meta = line.meta
+    if meta.is_private or meta.is_log or meta.person_type not in SPEAKERS or meta.is_code_message:
+        return None
+    text = "\n".join(part for part in (line.text.strip(), FILE_NOTE if meta.has_file else "") if part)
+    return (meta.person_type, text) if text else None
+
+
 def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
     """두뇌 재료 — 공개 손님 · 직원 글만(내부 메모 · 기록 · 봇 · 확인코드 글을 뺀다), 최근 :data:`CONVERSATION_LIMIT` 개."""
-    turns: list[tuple[str, str]] = []
-    for line in lines:
-        meta = line.meta
-        if meta.is_private or meta.is_log or meta.person_type not in SPEAKERS or meta.is_code_message:
-            continue
-        text = "\n".join(part for part in (line.text.strip(), FILE_NOTE if meta.has_file else "") if part)
-        if text:
-            turns.append((meta.person_type, text))
+    turns = [turn for turn in (public_turn(line) for line in lines) if turn is not None]
     return turns[-CONVERSATION_LIMIT:]
 
 

@@ -12,7 +12,8 @@
 
 고르기: 마지막 공개 직원 글 뒤 손님 파일 — 읽는 것은 새 것부터 차례당 상한(17.11 상한 그대로), 넘는 사진은 '상한'으로 칸에
 남긴다. 시간 상한은 그 자리 읽기 상한(넘으면 사진 없이 — 늦은 초안보다 낫다). 읽은 그림 줄에는 그 차례 번호(``turn_id``)를
-적는다 — 사례 학습(:mod:`.image_summaries`)이 차례 번호로 잇는다. 로그 · 요약엔 숫자 · 코드만.
+적는다 — 사례 학습(:mod:`.image_summaries`)이 차례 번호로 잇는다. 그림 읽기 두뇌에는 상담 전체 대화(설계서 17.11.2 —
+:func:`.full_conversation.picture_talk`, 두뇌를 부를 때만 읽음)를 주고, 초안 두뇌는 지금처럼 최근 30줄이다. 로그 · 요약엔 숫자 · 코드만.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from sqlalchemy import select
 
 from foms.services.cs_agent.brain_photos import CONFIDENCE_LABELS, PhotoEntry
 from foms.services.cs_agent.drafting_read import MEMO_IMAGE_HEAD, conversation
+from foms.services.cs_agent.full_conversation import picture_talk
 from foms.services.cs_agent.image_fetch import pending_files
 from foms.services.cs_agent.image_prep import SKIP_CAP, SKIP_FACE, SKIP_FORMAT, SKIP_PDF, SKIP_SIZE
 from foms.services.cs_agent.image_read import BatchOutcome, current, read_batch
@@ -143,7 +145,7 @@ def turn_read(ctx: Any, row: Any, lines: Sequence[Any], cfg: Any) -> Optional[Ba
         ctx.session, reader=ctx.reader, brand=row.brand, chat_id=row.chat_id, refs=refs, turns=conversation(lines),
         cfg=cfg, now=ctx.now, owner=ctx.owner, deadline_s=float(cfg.get("image_inline_timeout_s")), still_on=still_on,
         clock=ctx.clock, sleep=ctx.image_sleep or time.sleep, client=ctx.image_client, transport=ctx.image_transport,
-        turn_id=row.id, stop=ctx.stop)
+        turn_id=row.id, stop=ctx.stop, full_talk=picture_talk(ctx.reader, row.brand, row.chat_id, cfg))
     seen[row.id] = outcome
     return outcome
 
