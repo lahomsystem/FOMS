@@ -1,8 +1,8 @@
 /* 협력사 거래명세서 월 장부 · 보기(templates/partner/statements.html · statement_view.html, 설계서 2026-11-03-partner-statement §5.6).
    전역 .btn !important 를 피해 자체 단추 클래스. 양식 한 장은 partner-statement-form.css 가 그린다. */
-.pp-st { max-width: 860px; margin: 0 auto; padding: 12px; }
+.pp-st { max-width: 860px; margin: 0 auto; padding: 12px 20px; }
 .pp-st__month { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
-.pp-st__title { margin: 0; font-size: 18px; font-weight: 700; }
+.pp-st__title { margin: 0; font-size: 20px; font-weight: 700; }
 .pp-st__step { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border: 1px solid #d1d5db; border-radius: 50%; color: inherit; }
 .pp-st__sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 14px; }
 .pp-st__sum div { padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
@@ -46,6 +46,10 @@
 .pp-sv__answer { margin-top: 2px; color: #1f4fd1; }
 .pp-sv__ask { display: grid; gap: 6px; }
 .pp-sv__input { width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+/* PC: 위 단추 줄과 종이를 바깥 틀 선에 붙인다(넓은 폭은 그대로). */
+@media (min-width: 992px) {
+  .pp-sv { padding: 10px 0; }
+}
 @media (max-width: 991.98px) {
   .pp-sv__grid { grid-template-columns: 1fr; }
   .pp-sv__sheet .psf-sheet { min-width: 0; padding: 10px; }
@@ -61,6 +65,12 @@
   .pp-sv__sheet .psf-head__qr { width: 18mm; height: 18mm; }
   .pp-sv__sheet .psf-lines th:nth-child(7), .pp-sv__sheet .psf-lines td:nth-child(7) { display: none; }
   .pp-sv__sheet .psf-lines td:first-child { min-width: 84px; }
+  .pp-sv__sheet .psf-lines__sub td:last-child { display: none; }
+  .pp-sv__btn { min-height: 44px; }
+  .pp-sv__input { min-height: 44px; font-size: 16px; }
+  .pp-st { padding: 12px 16px; }
+  .pp-st__step { width: 44px; height: 44px; }
+  .pp-st__dl { min-height: 44px; padding: 10px 12px; font-size: 14px; }
   /* 제품 묶음 접기(partner-statement.js 가 제품이 둘 이상일 때만 is-folded · role 을 붙인다). */
   .pp-sv__sheet .psf-lines tbody.is-folded tr:not(.psf-lines__group):not(.psf-lines__sub) { display: none; }
   .pp-sv__sheet .psf-lines__group th[role="button"] { cursor: pointer; }
