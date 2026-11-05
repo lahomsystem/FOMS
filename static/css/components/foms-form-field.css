@@ -1261,7 +1261,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
     line-height: 1.3;
   }
   body.erp-mobile-v2-layout .erp-order-mobile-form {
-    --erp-mobile-input-h: 40px;
+    --erp-mobile-input-h: 44px; /* 2026-11-06 사용자 결정: 40→44px(손가락 누름 칸). 07-01 의 40px 압축을 되돌림 */
     --erp-mobile-input-lh: 1.25;
     --erp-mobile-input-pad-y: calc((var(--erp-mobile-input-h) - 1em * var(--erp-mobile-input-lh)) / 2);
   }
@@ -1278,8 +1278,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
     line-height: var(--erp-mobile-input-lh);
   }
 
-  /* 2026-11-05 점검 A5(최소): 이 압축 폼은 칸이 40px 인데 ▾ 트리거(erp-spec-calc.css 기본 44px)가 칸 아래로
-     4px 삐져나왔다. 이 폼에서만 칸 높이를 따른다. 40px 칸 높이 자체(07-01 결정)는 사용자 확인 전이라 그대로 둔다. */
+  /* 2026-11-05 점검 A5: ▾ 트리거는 이 폼의 칸 높이를 그대로 따른다(11-06 사용자 결정으로 칸 44px). */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-calc-trigger {
     height: var(--erp-mobile-input-h);
   }
