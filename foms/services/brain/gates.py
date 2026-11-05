@@ -2,7 +2,8 @@
 
 - **글 관문**(:func:`text_gates`): 개인정보 꼴 0(:func:`foms.services.cs_agent.masking.leak_counts`) · 가림 표시 0
   (:func:`foms.services.cs_agent.checks_rules.mask_marker_count`) · 한자 0 · 숫자(금액 · 날짜 · 기간)는 승인 지식 글과
-  계산기 값에 이미 있는 숫자만(학습한 숫자가 허용 목록으로 세탁되지 않게 — R10-19). 결과는 관문 이름 → ``pass`` · ``fail``.
+  계산기 값에 이미 있는 숫자만(학습한 숫자가 허용 목록으로 세탁되지 않게 — R10-19). 숫자는 조각 통째로 같은 수여야 한다
+  (:func:`numbers_known` — 글자 일부 겹침이 아니다). 결과는 관문 이름 → ``pass`` · ``fail``.
 - **꼴 검사**(:func:`object_problems`): 값 목록 · 길이 · 날짜 · 유형과 층 · 보기 범위 · 사본 목록 · 유형별 속성 틀
   (:mod:`.schemas` — 제안 때와 반영 때 같은 검사). 지식 문서 유형
   (:data:`.constants.DOC_TYPES`)은 그 항목을 지식 문서 꼴로 바꿔 :func:`foms.services.cs_agent.knowledge_doc.validate_document`
@@ -14,6 +15,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping, Optional
 
 from foms.services.brain.constants import (
@@ -42,10 +44,20 @@ def hanja_count(text: str) -> int:
     return len(_HANJA.findall(text or ""))
 
 
+def _number_value(token: str) -> Any:
+    """숫자 조각 → 견줄 값 — 쉼표(천 단위)를 떼고 수로(``2,400`` = ``2400`` · ``1.50`` = ``1.5``). 수가 아닌 꼴(``1.2.3``)은 글 그대로."""
+    plain = token.replace(",", "")
+    try:
+        return Decimal(plain)
+    except InvalidOperation:
+        return plain
+
+
 def numbers_known(text: str, known: str) -> bool:
-    """글 속 숫자가 모두 승인 지식 글 · 계산기 값에 이미 있나(쉼표는 떼고 견준다)."""
-    plain = (known or "").replace(",", "")
-    return all(number.replace(",", "") in plain for number in _NUMBER.findall(text or ""))
+    """글 속 숫자가 모두 승인 지식 글 · 계산기 값에 **같은 수로** 이미 있나 — 숫자 조각끼리 통째로 견준다(``240`` 은 ``2400`` 에
+    들어 있어도 아는 수가 아니다). 쉼표는 떼고 견준다."""
+    allowed = {_number_value(token) for token in _NUMBER.findall(known or "")}
+    return all(_number_value(token) in allowed for token in _NUMBER.findall(text or ""))
 
 
 def text_gates(texts: Iterable[Optional[str]], known: str) -> dict[str, str]:
