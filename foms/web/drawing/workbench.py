@@ -44,6 +44,7 @@ from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
+from foms.services.partners.schedule_request import pending_request, request_text
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.orders.drawing_revision_source import (
     is_customer_request,
@@ -916,6 +917,8 @@ def erp_drawing_workbench_dashboard():
         )
 
         construction_date = _resolve_construction_date_display(o, sd)
+        # 협력사(라운즈 등) 주문은 우리 시공일 전엔 보낸 희망 시공일을 보인다(사용자 11-05). sd 는 이미 읽었다.
+        construction_requested = '' if construction_date else request_text(pending_request(sd, o.erp_stage_code or ''))
         # 제품 요약(고객·제품 카드용) — 이미 로드된 sd['items']에서 파생(추가 쿼리 없음).
         _sd_items = active_items(sd)  # 취소 품목은 카드 요약에서 뺀다
         product_summary = ', '.join(
@@ -929,6 +932,7 @@ def erp_drawing_workbench_dashboard():
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
             'construction_date': construction_date,
+            'construction_requested': construction_requested,
             'product_summary': product_summary,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
