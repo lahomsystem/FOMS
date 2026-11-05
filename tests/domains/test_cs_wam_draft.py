@@ -89,5 +89,7 @@ def test_wam_page_is_an_empty_frame_allowed_only_inside_channel_desks(app, clien
     assert "https://*.channel.works" in policy and "https://desk.channel.io" in policy
     assert 'data-app-id="app-public-1"' in html and "wam-draft.js" in html
     assert "<script>" not in html and "style=" not in html  # 인라인 스크립트 · 스타일 없음
+    slash = client.get("/channel/wam/cs-draft/")  # 채널톡은 끝에 / 를 붙여 연다(스테이징 실측 11-05)
+    assert slash.status_code == 200 and slash.get_data(as_text=True) == html
     other = client.get("/orders")  # 다른 화면은 여전히 같은 출처만(대조군)
     assert "channel.works" not in (other.headers.get("Content-Security-Policy") or "")
