@@ -26,7 +26,7 @@ from typing import Any, Optional, Sequence
 
 from sqlalchemy import select
 
-from foms.services.cs_agent.brain_photos import PhotoEntry
+from foms.services.cs_agent.brain_photos import CONFIDENCE_LABELS, PhotoEntry
 from foms.services.cs_agent.drafting_read import MEMO_IMAGE_HEAD, conversation
 from foms.services.cs_agent.image_fetch import pending_files
 from foms.services.cs_agent.image_prep import SKIP_CAP, SKIP_FACE, SKIP_FORMAT, SKIP_PDF, SKIP_SIZE
@@ -114,8 +114,8 @@ def _entry(number: int, row: Any) -> PhotoEntry:
     if note is None:
         return PhotoEntry(number, unread="error")
     text = " — ".join(part for part in (note.summary, note.about) if part)
-    return PhotoEntry(number, kind=note.kind, confidence=note.confidence or str(result.get("confidence") or ""),
-                      text=text)
+    sure = note.confidence or str(result.get("confidence") or "")  # 옛 결과는 전체 확신
+    return PhotoEntry(number, kind=note.kind, confidence=sure if sure in CONFIDENCE_LABELS else "", text=text)
 
 
 def _usage(outcome: Optional[BatchOutcome]) -> Any:
