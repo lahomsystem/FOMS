@@ -20,6 +20,7 @@
 .foms-pl__tab th{background:var(--foms-color-neutral-100,#eef0f3);font-weight:600;padding:5px 8px;border-bottom:1px solid var(--foms-color-neutral-300,#c1c7d0);text-align:left}
 .foms-pl__tab td{padding:4px 8px;border-bottom:1px solid var(--foms-color-neutral-100,#eef0f3);vertical-align:middle}
 .foms-pl__tab .foms-pl__pr{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.foms-pl__tab th.foms-pl__pr{white-space:normal;width:76px;line-height:1.25}
 .foms-pl__tab td.foms-pl__pick{cursor:pointer}
 .foms-pl__tab td.foms-pl__pick:hover{background:var(--foms-color-brand-50,#f3f4ff)}
 .foms-pl__tab td.is-selected{background:var(--foms-color-brand-100,#e6e8ff);box-shadow:inset 3px 0 0 var(--foms-color-brand-500,#5a67d8)}
@@ -40,7 +41,7 @@
 .foms-pl-f.form-check{display:flex;gap:6px;align-items:center;padding-left:0}
 .foms-pl-f.form-check .form-check-input{margin:0}
 .foms-pl-cond{border-left:2px solid var(--foms-color-neutral-200,#dde1e6);padding-left:10px}
-.foms-pl-kb{display:inline-block;white-space:nowrap;margin-left:6px;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px;vertical-align:middle;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-color-neutral-600,#4b525d)}
+.foms-pl-kb{display:inline-block;white-space:nowrap;margin-left:6px;font-size:12px;font-weight:600;line-height:16px;border-radius:999px;padding:1px 6px;vertical-align:middle;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-color-neutral-600,#4b525d)}
 .foms-pl-kb--ja,.foms-pl-kb--meter{background:#e6e8ff;color:#3a4490}
 .foms-pl-kb--band,.foms-pl-kb--over{background:#e0f2fe;color:#075985}
 .foms-pl-kb--count,.foms-pl-kb--fixed{background:#ecfdf5;color:#047857}
@@ -60,16 +61,21 @@
 .foms-pl-tree__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .foms-pl-tree__head h2 { margin: 0; font-size: 15px; font-weight: 700; }
 .foms-pl-tree__big { margin-bottom: 8px; border: 1px solid var(--erp-border, #d1d5db); border-radius: 8px; overflow: hidden; }
-.foms-pl-tree__big > summary { display: flex; gap: 8px; padding: 7px 10px; background: #1f2937; color: #fff; font-weight: 700; cursor: pointer; }
+.foms-pl-tree__big > summary { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #1f2937; color: #fff; font-weight: 700; cursor: pointer; }
 .foms-pl-tree__big--etc > summary { background: #6b7280; }
 .foms-pl-tree__count { margin-left: auto; font-size: 12px; font-weight: 400; opacity: .8; }
 .foms-pl-tree__mid { margin: 0; padding: 5px 10px 5px 20px; background: #f3f4f6; font-size: 13px; font-weight: 700; }
 .foms-pl-tree__row { display: flex; gap: 8px; align-items: center; padding: 4px 10px 4px 32px; border-top: 1px solid #f1f5f9; font-size: 13px; }
-.foms-pl-tree__name { flex: 1 1 auto; }
-.foms-pl-tree__price { white-space: nowrap; color: #374151; }
+.foms-pl-tree__name { flex: 1 1 auto; word-break: keep-all; }
+.foms-pl-tree__price { min-width: 150px; white-space: nowrap; color: #374151; font-variant-numeric: tabular-nums; text-align: right; }
 .foms-pl-tree-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
-.foms-pl-tree__move { margin-left: 4px; padding: 0 6px; border: 1px solid rgba(255, 255, 255, .5); border-radius: 4px; background: none; color: inherit; font-size: 12px; cursor: pointer; }
+.foms-pl-tree__move { min-height: 24px; margin-left: 4px; padding: 0 6px; border: 1px solid rgba(255, 255, 255, .5); border-radius: 4px; background: none; color: inherit; font-size: 12px; cursor: pointer; }
 .foms-pl-tree__move:disabled { opacity: .35; cursor: default; }
 /* 휴대폰(사용자 11-04 정렬 전수 점검): 한 줄에 품목이 둘인 표(4칸)가 좁아 이름이 한두 글자씩 꺾이던 것 — 표 칸 안에서 옆으로 민다. */
-@media (max-width: 600px) { .foms-pl__col .foms-pl__tab:has(tr > :nth-child(4)) { min-width: 560px; } }
+@media (max-width: 600px) {
+  .foms-pl__col .foms-pl__tab:has(tr > :nth-child(4)) { min-width: 560px; }
+  .foms-pl-kb { margin-left: 4px; }
+  .foms-pl-tree__price { min-width: 0; }  /* 좁은 화면은 이름 칸이 꺾이지 않게 고정 폭을 푼다 */
+  .foms-pl-tree__move { min-width: 36px; height: 32px; }
+}
 
