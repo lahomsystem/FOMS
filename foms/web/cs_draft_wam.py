@@ -6,6 +6,10 @@
 (``static/js/cs-agent/wam-draft.js``)가 채널톡 다리(``window.ChannelIOWam.callFunction``)로 서명 함수를 불러 받는다(누른
 상담원은 채널톡이 서명한다 — :mod:`foms.services.cs_agent.wam_functions`). 앱 id 는 env ``CS_WAM_APP_ID``(공개 값).
 
+채널톡은 이 화면을 자기 주소(``app-store-api.channel.io/public/v1/apps/<앱>/wams/cs-draft/``)로 거쳐 연다(스테이징 실측 11-05 —
+채널톡 다리 ``ChannelIOWam`` 도 그래야 붙는다). 그래서 화면의 꾸밈 · 스크립트는 ``/static`` 이 아니라 이 화면 아래 상대 주소
+(``app.css`` · ``app.js``)로 같은 경로에서 내준다.
+
 옛 WAM 화면(:mod:`foms.api.channel.channel_wam` — 410 퇴역)과 블루프린트가 따로라 그쪽 앞 검사를 타지 않는다.
 """
 
@@ -15,7 +19,7 @@ import logging
 import os
 import re
 
-from flask import Blueprint, make_response, render_template, request
+from flask import Blueprint, current_app, make_response, render_template, request, send_from_directory
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,18 @@ def cs_draft_wam():
     """빈 틀 — 앱 id 만 싣는다(글 · 차례 · 사람 정보 없음). 캐시하지 않는다."""
     response = make_response(render_template("cs/cs_agent_wam.html", app_id=os.environ.get(APP_ID_ENV, "").strip()))
     response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+#: 이 화면 아래에서 내주는 파일(상대 주소 이름 → static 안 자리).
+_ASSETS = {"app.js": "js/cs-agent/wam-draft.js", "app.css": "css/contexts/cs/cs-wam.css"}
+
+
+@cs_draft_wam_bp.route("/channel/wam/cs-draft/<any('app.js', 'app.css'):name>", methods=["GET"])
+def cs_draft_wam_asset(name: str):
+    """작은 창 꾸밈 · 스크립트 — 채널톡이 거쳐 여는 주소에서도 풀리게 화면 아래에서 내준다(정해진 두 파일만)."""
+    response = send_from_directory(current_app.static_folder, _ASSETS[name], max_age=300)
+    response.headers["Cache-Control"] = "public, max-age=300"
     return response
 
 
