@@ -15,19 +15,13 @@
 
 from __future__ import annotations
 
-import logging
 import os
-import re
 
-from flask import Blueprint, current_app, make_response, render_template, request, send_from_directory
-
-logger = logging.getLogger(__name__)
+from flask import Blueprint, current_app, make_response, render_template, send_from_directory
 
 cs_draft_wam_bp = Blueprint("cs_draft_wam", __name__)
 
 APP_ID_ENV = "CS_WAM_APP_ID"
-#: S1 시험 신호 — 영문 · 숫자 · 짧은 기호만(값 · 글 없음). 다른 꼴은 버린다.
-_BEACON = re.compile(r"[A-Za-z0-9_.:,|-]{1,160}")
 
 
 @cs_draft_wam_bp.route("/channel/wam/cs-draft", methods=["GET"])
@@ -51,12 +45,3 @@ def cs_draft_wam_asset(name: str):
     response.headers["Cache-Control"] = "public, max-age=300"
     return response
 
-
-@cs_draft_wam_bp.route("/channel/wam/cs-draft/beacon", methods=["GET"])
-def cs_draft_wam_beacon():
-    """S1 시험 신호 — 작은 창 스크립트가 단계 코드(다리 있음 · 받은 칸 이름 · 함수 결과)만 남긴다. 교차 출처 창이라 화면을 직접
-    못 읽어서 둔다(S2 에서 뺀다). 꼴이 틀리면 버리고 늘 204."""
-    code = request.args.get("c", "")
-    if _BEACON.fullmatch(code):
-        logger.info("[CS 작은 창] S1 신호 %s", code)
-    return "", 204

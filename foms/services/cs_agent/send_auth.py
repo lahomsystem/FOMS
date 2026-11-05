@@ -105,14 +105,16 @@ def normalized(text: str) -> str:
     return " ".join((text or "").split())
 
 
-def confirm_stamp(secret_key: Any, *, turn_id: int, user_id: int, text: str, codes: Iterable[str]) -> str:
-    """'확인 후 보내기' 확인표 — 그 차례 · 그 직원 · 그 글 · 그 경고 코드에 묶인 HMAC(앞 40자)."""
+def confirm_stamp(secret_key: Any, *, turn_id: int, user_id: Any, text: str, codes: Iterable[str]) -> str:
+    """'확인 후 보내기' 확인표 — 그 차례 · 그 직원 · 그 글 · 그 경고 코드에 묶인 HMAC(앞 40자). 직원은 FOMS 번호(정수) 또는
+    작은 창 길의 채널톡 상담원 표지(글 — ``m:<번호>``, :attr:`.send_flow.SendRequest.who`)."""
     key = hashlib.sha256(SIGN_SALT.encode("utf-8") + b":confirm:" + str(secret_key).encode("utf-8")).digest()
-    body = json.dumps([int(turn_id), int(user_id), sorted(set(codes)), normalized(text)], ensure_ascii=False)
+    who = user_id if isinstance(user_id, str) else int(user_id)
+    body = json.dumps([int(turn_id), who, sorted(set(codes)), normalized(text)], ensure_ascii=False)
     return hmac.new(key, body.encode("utf-8"), hashlib.sha256).hexdigest()[:40]
 
 
-def confirm_matches(secret_key: Any, stamp: Any, *, turn_id: int, user_id: int, text: str,
+def confirm_matches(secret_key: Any, stamp: Any, *, turn_id: int, user_id: Any, text: str,
                     codes: Iterable[str]) -> bool:
     """두 번째 누름의 확인표가 지금 글 · 지금 경고에 맞는가(글자열이 아니면 아니다)."""
     if not isinstance(stamp, str) or not stamp:

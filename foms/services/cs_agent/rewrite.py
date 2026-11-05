@@ -166,9 +166,10 @@ def _post(session: Any, turn_id: int, chat_id: str, result: Any, *, now: datetim
     """새 메모를 올리고(버튼 포함) 줄을 새 메모로 바꾼다. 공개 · 확인 못 함이면 초안 메모와 같은 막는 장치."""
     if not _switch_ready(session):  # 두뇌를 부르는 동안 꺼졌으면 올리지 않는다
         return _give_up(session, turn_id, "switched_off", now)
+    path = read_settings(session, log=False).get("send_button_path")
     session.commit()
     sent = poster(chat_id, memo_text(result.draft, result.staff_note), brand=MEMO_BRAND, reader=reader,
-                  buttons=memo_buttons(turn_id, chat_id))
+                  buttons=memo_buttons(turn_id, chat_id, path=path))
     if not sent.posted:
         return _give_up(session, turn_id, "memo_unknown" if sent.outcome_unknown else "memo_failed", now)
     message_id = sent.message_id if isinstance(sent.message_id, str) and ID_PATTERN.fullmatch(sent.message_id) else None
