@@ -110,7 +110,8 @@ def test_wizard_js_asset_pin_bumped() -> None:
     assert "js/drawing/wizard.js') }}?v=20261027f" not in tpl   # 2026-10-28 주 그림 크게 · 손으로 옮기면 나머지 다시 배치
     assert "js/drawing/wizard.js') }}?v=20261028a" not in tpl   # 2026-10-28 줄여 그린 그림 고운 필터(image-smooth.js)
     assert "js/drawing/wizard.js') }}?v=20261029b" not in tpl   # 2026-10-30 베니시모 발주사 로고
-    assert "js/drawing/wizard.js') }}?v=20261103e" in tpl
+    assert "js/drawing/wizard.js') }}?v=20261103e" not in tpl   # 2026-11-05 저장 창(save-send.js) 고리
+    assert "js/drawing/wizard.js') }}?v=20261105a" in tpl
 
 
 def test_wizard_js_calls_push_manual_and_preview_with_drawing_room_kind() -> None:
