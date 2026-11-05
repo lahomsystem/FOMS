@@ -52,6 +52,7 @@ from foms.services.cs_agent.brain_spend import (  # 코드 · 돈 줄 이름은 
     SPEND_RECORD_INVALID, TIMEOUT, BrainError, BrainNotReady, BrainUnavailable, SpendCapReached, add_spend,
     check_budget, daily_cap_usd, kst_now, reserve_spend, settle_spend, spent_today,
 )
+from foms.services.cs_agent.image_settings import MODE_DRAFT as PHOTOS_IN_DRAFT, image_mode
 from foms.services.cs_agent.knowledge_doc import ApprovedKnowledge
 from foms.services.cs_agent.masking import call_with_masked, require_masked
 from foms.services.cs_agent.settings import PanelSettings, read_settings
@@ -181,11 +182,11 @@ def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
         "output_config": {"effort": cfg.effort_for(request.purpose),
                           "format": {"type": "json_schema", "schema": prompt.output_schema(knowledge)}},
         "system": prompt.system_blocks(request.brand, knowledge, cache_ttl=cfg.cache_ttl_for(request.daytime),
-                                       length=cfg.get("draft_length")),
+                                       length=cfg.get("draft_length"), photos=image_mode(cfg) == PHOTOS_IN_DRAFT),
         "messages": [{"role": "user", "content": prompt.task_text(
             purpose=request.purpose, chat_id=request.chat_id, medium=request.medium, now=now,
             calculator_lines=request.calculator_lines, conversation=conversation, cases=request.cases,
-            rewrite=rewrite)}],
+            rewrite=rewrite, photos=request.photos)}],
     }
     if cfg.fallback_on(model):  # Haiku 5.5 는 서버 쪽 대체가 없다 — 보내지 않는다
         params.update(betas=[FALLBACK_BETA], fallbacks=FALLBACKS)

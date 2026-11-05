@@ -269,7 +269,9 @@ def test_claim_ttl_adds_the_inline_read_worst_time_only_when_it_is_on():
 
     assert realtime.claim_ttl(cfg(image_read_mode="off")) == datetime.timedelta(seconds=45 + 20 + 45)
     assert realtime.claim_ttl(cfg(image_read_mode="note")) == datetime.timedelta(seconds=45 + 20 + 35 + 45)  # 145초
-    assert realtime.claim_ttl(cfg(image_read_mode="draft", quote_calc_enabled=False)) == datetime.timedelta(seconds=90)
+    assert realtime.claim_ttl(cfg(image_read_mode="draft", quote_calc_enabled=False)) == datetime.timedelta(
+        seconds=45 + 35 + 45)  # 17.11.1 — 사진 읽기는 견적 계산 넣기와 상관없이 돈다
+    assert realtime.claim_ttl(cfg(image_read_mode="off", quote_calc_enabled=False)) == datetime.timedelta(seconds=90)
     assert LEGACY_CLAIM_AFTER > realtime.claim_ttl(cfg(image_read_mode="draft", image_inline_timeout_s=60))
 
 

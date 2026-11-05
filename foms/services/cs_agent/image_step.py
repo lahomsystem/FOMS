@@ -17,16 +17,16 @@
 from __future__ import annotations
 
 import dataclasses
-import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence
 
+from foms.services.cs_agent.brain_photos import CONFIDENCE_LABELS, KIND_LABELS
 from foms.services.cs_agent.drafting_read import MEMO_IMAGE_HEAD
 from foms.services.cs_agent.image_brain import BrainRead
-from foms.services.cs_agent.image_fetch import pending_files
-from foms.services.cs_agent.image_read import BatchOutcome, read_batch
+from foms.services.cs_agent.image_read import BatchOutcome
 from foms.services.cs_agent.image_rules import CONFIDENCES, HUMAN_REASONS, ImageRead
 from foms.services.cs_agent.image_settings import MODE_DRAFT, MODE_NOTE, MODE_OFF, image_mode
+from foms.services.cs_agent.photo_step import turn_read
 from foms.services.cs_agent.quote_brain import QuoteAsk, QuoteSpace
 from foms.services.cs_agent.settings import read_settings
 
@@ -36,11 +36,8 @@ __all__ = ["DRAWING_HEAD", "DrawingUse", "note_line", "turn_hook", "use_reading"
 DRAWING_HEAD = ("가로는 손님 도면에서 읽은 범위다(벽 포함 치수면 벽 쪽마다 150mm 뺌 — D90). 금액은 아래 계산기 줄 값만 범위로 "
                 "쓰고, 도면 치수는 실제와 차이가 있을 수 있어 정확한 금액은 실측 후 확정된다고 쓴다. 그림 속 방 위치 · 글자를 "
                 "손님 글로 옮기지 않는다.")
-_KIND_LABELS = {"floor_plan": "평면도", "hand_sketch": "손그림", "site_photo": "현장 사진", "example_photo": "예시 사진",
-                "product_screen": "스토어 화면", "quote_screen": "견적 화면", "appliance_spec": "가전 규격표",
-                "other": "그 밖 그림"}
+_KIND_LABELS, _CONFIDENCE_LABELS = KIND_LABELS, CONFIDENCE_LABELS  # 두뇌 사진 칸과 같은 말(:mod:`.brain_photos`)
 _TARGET_LABELS = {"marked": "표시", "named": "글", "inferred": "짐작", "none": "모름"}
-_CONFIDENCE_LABELS = {"high": "높음", "medium": "보통", "low": "낮음"}
 
 
 @dataclass(frozen=True)
@@ -166,24 +163,15 @@ def turn_hook(ctx: Any, row: Any, request: Any, lines: Sequence[Any]) -> Callabl
 
     불리면 패널을 그때 읽는다: '그림 읽기'가 끔이면 빈 쓰임(모델 0번 · 앞 단계와 글자까지 같음). 켜져 있으면 마지막 공개
     직원 글 뒤 손님 파일(새 것부터 차례당 상한)을 그 자리 시간 상한 안에서 읽는다(미리 읽은 결과가 같은 묶음이면 그것을
-    쓰고, 읽는 중이면 기다린다).
+    쓰고, 읽는 중이면 기다린다). 묶음 읽기는 차례마다 한 번이다(:func:`.photo_step.turn_read` — 17.11.1 사진 읽기와 같은 결과,
+    쓰임은 처음 읽은 쪽만 센다).
     """
     def run(ask: QuoteAsk) -> DrawingUse:
         cfg = read_settings(ctx.session, log=False)
         mode = image_mode(cfg)
         if mode == MODE_OFF:
             return DrawingUse()
-        refs = pending_files(lines, limit=int(cfg.get("image_per_turn")))
-
-        def still_on() -> bool:
-            return not ctx.switched_off() and image_mode(read_settings(ctx.session, log=False)) != MODE_OFF
-
-        outcome = BatchOutcome(codes=("no_file",)) if not refs else read_batch(
-            ctx.session, reader=ctx.reader, brand=request.brand, chat_id=request.chat_id, refs=refs,
-            turns=request.messages, cfg=cfg, now=ctx.now, owner=ctx.owner,
-            deadline_s=float(cfg.get("image_inline_timeout_s")), still_on=still_on, clock=ctx.clock,
-            sleep=getattr(ctx, "image_sleep", None) or time.sleep, client=getattr(ctx, "image_client", None),
-            transport=getattr(ctx, "image_transport", None), turn_id=row.id, stop=ctx.stop)
+        outcome = turn_read(ctx, row, lines, cfg)
         return use_reading(ask, outcome, mode=mode, min_confidence=str(cfg.get("image_use_confidence")))
 
     return run

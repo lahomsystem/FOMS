@@ -20,7 +20,8 @@
    :func:`.turns.claim_turn` 으로 잡아 바로 커밋한다. 뒤 쓰기는 모두 조건부라(R7-8) 그사이 다른 바퀴가 줄을 바꿨으면 올리지 않는다.
 3. **읽기** — 매체(이메일이면 건너뜀) · 최근 글. 선점한 손님 글이 아직 마지막 손님 글이고 그 뒤 공개 직원 글이 없어야 한다
    (선점한 글이 읽기에 아직 없으면 다시 집을 실패 — R13-6). 재료는 공개 손님 · 직원 글만(R1-12). 손님 글에 글자가 없으면
-   (사진만) 건너뜀. 손님이 'AI 냐 사람이냐' 물으면 두뇌 없이 사람에게(:mod:`.drafting_pass` — 두 길 공통, 설계서 17.8).
+   (사진만) 건너뜀 — 패널 '사진 · 그림 읽기'가 '초안에 씀'이고 읽은 사진이 있으면 쓴다(설계서 17.11.1 — :mod:`.photo_step`, 두뇌
+   전에 사진 칸 · 직원 참고 줄). 손님이 'AI 냐 사람이냐' 물으면 두뇌 없이 사람에게(:mod:`.drafting_pass` — 두 길 공통, 17.8).
 4. **두뇌** — ``purpose="draft"`` · 라홈 운영 시간이면 ``daytime`` · 15분 루프면 ``realtime=False``(빠른 길은 참) · 재료에 같은 브랜드
    비슷한 지난 사례(:func:`.case_material.similar_cases` — L0, 허용 목록에 넣지 않고 사례에만 있는 이름은 검사의 예시 낱말로).
    두뇌는 세션을 여러 번 커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만
@@ -72,7 +73,8 @@ from foms.services.cs_agent.checks import check_draft
 from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK, DraftPass as _Pass  # noqa: F401 — 예전 이름
 from foms.services.cs_agent.drafting_post import is_send_failure, place
 from foms.services.cs_agent.drafting_read import (
-    MEDIUM_EMAIL, ChatLine, conversation, freshness, memo_snippets, no_text_reason, read_lines, read_medium,
+    MEDIUM_EMAIL, SKIP_PHOTO_ONLY, ChatLine, conversation, freshness, memo_snippets, no_text_reason, read_lines,
+    read_medium,
 )
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.edit_detail_settings import CASE_REASONS_FIELD, switch_value
@@ -370,6 +372,8 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         return halt
     stored = row.masked_draft if repost else None
     early = freshness(lines, claimed_id) or no_text_reason(lines)
+    if early == SKIP_PHOTO_ONLY and ctx.photo_only_ok(row, lines):  # 읽은 사진이 있으면 초안(설계서 17.11.1 의 4)
+        early = None
     if early:
         return ctx.skip(row, early, masked=stored)
     if ctx.asks_human(lines):  # 'AI 냐 사람이냐' 물음이면 두 길 모두 두뇌 · 초안 없이 사람에게(설계서 17.1 · 17.8)
@@ -391,8 +395,9 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     try:
         quote = ctx.quote(row, request, lines)  # 견적 계산 넣기(C10-6) — 끔 · 견적 말 없음이면 None(예전 그대로)
         if quote is None or quote.human is None:
+            request = ctx.with_photos(row, quote.apply(request) if quote else request, lines)  # 손님 사진(17.11.1)
             ctx.summary.brain_calls += 1
-            result = ctx.brain(quote.apply(request) if quote else request, session=ctx.session, now=ctx.now)
+            result = ctx.brain(request, session=ctx.session, now=ctx.now)
     except SpendCapReached as exc:
         return ctx.release(row, exc.code, halt=HALT_SPEND)
     except BrainNotReady as exc:
@@ -404,9 +409,9 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         return ctx.fail(row, exc.code, halt=None if exc.code == BAD_RESPONSE else HALT_BRAIN)
     ctx.stop.check()  # TERM 이 두뇌를 부르는 동안 왔으면 답을 버린다(R4-4)
     if quote is not None and quote.human is not None:  # 견적 계산이 안 됨(0원 · 가격 방식 · 제작 조건 …) — 사람에게
-        record_brain_result(row, _quote_only(quote))
+        record_brain_result(row, ctx.photo_usage(row, _quote_only(quote)))
         return ctx.quote_to_human(row, chat_id, quote.human)
-    result = merge_usage(result, quote)  # 뽑기 호출의 토큰 · 돈 · 시간까지 차례 줄에
+    result = ctx.photo_usage(row, merge_usage(result, quote))  # 뽑기 · 사진 읽기 호출의 토큰 · 돈 · 시간까지 차례 줄에
     ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
     count_doc_reads(ctx.session, BRAND, result.evidence_ids, now=now_utc_naive())  # 회사 지식 쓰인 횟수(D105 — 따로 센다)
@@ -415,7 +420,8 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     names = case_only_names(cases, (*(line.text for line in lines), *(item.text for item in ctx.knowledge.items)))
     return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=result.draft,
                             note=result.staff_note, evidence=result.evidence_ids, examples=names,
-                            extra_allowed=quote.allowed if quote else (), quote_note=quote.note if quote else "")
+                            extra_allowed=quote.allowed if quote else (),
+                            quote_note=ctx.photo_note(row, quote.note if quote else ""))
 
 
 def _quote_only(quote: Any) -> Any:

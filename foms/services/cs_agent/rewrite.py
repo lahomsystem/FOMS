@@ -7,6 +7,7 @@
 2. 스위치(비상 정지 아님 · 초안 메모 · 빠른 길 · [보내기] 버튼) — 꺼졌으면 '못 함'.
 3. 상담 글 다시 읽기 — 선점한 손님 글이 아직 마지막이고 직원 답이 없을 때만(아니면 '못 함').
 4. 지금 메모의 '손님께 보낼 답'(앞 초안)과 가린 고칠 말을 두뇌 재료에 싣는다(가림은 두뇌가 한다 — 앞 초안도 다시 가린다).
+   그 차례가 읽은 손님 사진 칸(설계서 17.11.1 — '초안에 씀'일 때만, :func:`.photo_step.stored_photos`)도 같이 싣는다.
    두뇌 → 초안과 같은 보내기 전 검사(걸리면 '못 함').
 5. 새 메모(링크 버튼 포함)를 올리고 다시 읽어 비공개 확인 → 차례 줄의 메모 id · 가린 초안을 새것으로(그사이 보냄 · 버림이면 쓰지
    않는다). 공개로 보이면 초안 스위치를 끄고 · 확인 못 함이면 '저장만'으로 + 관리자 알림(초안 메모와 같은 막는 장치).
@@ -38,6 +39,7 @@ from foms.services.cs_agent.drafting_read import (
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE
+from foms.services.cs_agent.photo_step import stored_photos
 from foms.services.cs_agent.quote_record import allowed_from, lines_from
 from foms.services.cs_agent.send import memo_buttons
 from foms.services.cs_agent.send_record import REWRITE_WORKING, open_turn
@@ -141,7 +143,8 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
     try:
         request = DraftRequest(brand=MEMO_BRAND, chat_id=chat_id, medium=medium, purpose=PURPOSE_DRAFT, daytime=daytime,
                                messages=conversation(lines), customer_names=(), staff_names=(), knowledge=knowledge,
-                               realtime=True, rewrite=(previous, note), calculator_lines=quote_lines)
+                               realtime=True, rewrite=(previous, note), calculator_lines=quote_lines,
+                               photos=stored_photos(session, turn_id, read_settings(session, log=False)))
     except ValueError:
         return _give_up(session, turn_id, "bad_request", now)
     stop.check()  # 두뇌 전
