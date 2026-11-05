@@ -175,8 +175,92 @@ def test_import_leaves_items_made_elsewhere_alone(app):
     create(db_session, admin, "lahom/extra", item_type="fact", brand="LAHOM",
            payload={"doc_id": "extra-fact", "approved_by": "합성", "approved_at": "2026-10-20"})
     db_session.commit()
+    out = import_now(admin, apply=False)  # 반영이 문서를 다시 썼다 — 그림자 같음이라 옮길 것이 없다
+    assert out["shadow_equal"] is True and (out["create"], out["delete"], out["unmanaged"]) == (0, 0, [])
+    drop_from_document(admin, "LAHOM", "extra-fact")  # 문서에서만 빼도 다른 길로 만든 항목은 지우지 않는다
     out = import_now(admin, apply=False)
     assert out["unmanaged"] == ["lahom/extra"] and out["delete"] == 0
+
+
+# ── 표가 정본(3.1 규칙 1) — 옮기기를 다시 돌려도 사람이 승인한 판 · 링크를 덮지 않는다 ─────────────
+def edit_document(admin, brand, doc_id, **fields):
+    """문서를 직접 고친다(표를 거치지 않는 옛 길 — 그림자가 갈라진다)."""
+    stored = kn.read_stored(db_session, brand)
+    document = copy.deepcopy(stored.document)
+    next(i for i in document["items"] if i["id"] == doc_id).update(fields)
+    kn.save_document(db_session, brand, document, actor_user_id=admin.id, expected_version=stored.version)
+    db_session.commit()
+
+
+def drop_from_document(admin, brand, doc_id):
+    stored = kn.read_stored(db_session, brand)
+    document = copy.deepcopy(stored.document)
+    document["items"] = [i for i in document["items"] if i["id"] != doc_id]
+    kn.save_document(db_session, brand, document, actor_user_id=admin.id, expected_version=stored.version)
+    db_session.commit()
+
+
+def human(admin, change):
+    from foms.services.brain.apply import apply_change
+    apply_change(db_session, change.id, actor=admin, now=NOW)
+    db_session.commit()
+
+
+def human_edit(admin, key, text):
+    from foms.services.brain.proposals import Proposer, propose_update
+    row = current_object(db_session, key)
+    human(admin, propose_update(db_session, key=key, base_version=row.version, after={"text": text}, reason="합성",
+                                proposer=Proposer.user(admin.id), known=""))
+
+
+def test_reimport_never_reverts_a_human_edit(app):
+    admin = person(db_session, "im_admin")
+    store_docs(admin, docs())
+    import_now(admin)
+    old = current_object(db_session, "lahom/lahom-only").text
+    human_edit(admin, "lahom/lahom-only", "합성 사람이 고친 사실")
+    from foms.services.brain.proposals import Proposer, propose_delete
+    human(admin, propose_delete(db_session, key="lahom/old-rule", base_version=1, reason="합성",
+                                proposer=Proposer.user(admin.id)))  # 뒤 항목들의 문서 차례가 당겨진다
+    before = written()
+    out = import_now(admin)  # 반영이 문서를 다시 써서 그림자가 같다 — 쓰기 0
+    assert out["shadow_equal"] is True and (out["create"], out["update"], out["delete"]) == (0, 0, 0)
+    assert written() == before
+    edit_document(admin, "LAHOM", "lahom-only", text=old)  # 옛 글을 문서에 직접 되돌려 넣음
+    out = import_now(admin)
+    assert out["protected"] == ["lahom/lahom-only"] and "lahom/lahom-only" not in out["keys"]["update"]
+    row = current_object(db_session, "lahom/lahom-only")
+    assert (row.text, row.version) == ("합성 사람이 고친 사실", 2)  # 사람이 승인한 글 그대로
+
+
+def test_reimport_does_not_split_a_linked_common_item(app):
+    from tests.support.brain_support import create, link
+    admin = person(db_session, "im_admin")
+    store_docs(admin, docs())
+    import_now(admin)
+    create(db_session, admin, "common/synth-situation", item_type="situation", layer="cs")
+    link(db_session, admin, "answers", "common/shared-hours", "common/synth-situation")
+    db_session.commit()
+    edit_document(admin, "HAUD", "shared-hours", text=f"{MARK} 합성 안내 하우드만 바뀜")  # 두 브랜드가 갈라짐
+    out = import_now(admin)
+    assert out["unmanaged"] == ["common/shared-hours"] and out["delete"] == 0
+    assert out["protected"] == ["haud/shared-hours", "lahom/shared-hours"]
+    assert current_object(db_session, "common/shared-hours").version == 1  # 공통 항목 · 링크 그대로
+    from foms.services.brain.store import current_link
+    assert current_link(db_session, "answers", "common/shared-hours", "common/synth-situation") is not None
+
+
+def test_reimport_with_a_human_edited_common_item_does_not_fail(app):
+    admin = person(db_session, "im_admin")
+    store_docs(admin, docs())
+    import_now(admin)
+    human_edit(admin, "common/shared-hours", "합성 공통 사람 고침")
+    edit_document(admin, "HAUD", "shared-hours", text=f"{MARK} 합성 안내 하우드만 바뀜")
+    out = import_now(admin)  # 예전에는 브랜드 항목을 만들다 공통 항목과 문서 id 가 겹쳐 멈췄다
+    assert out["unmanaged"] == ["common/shared-hours"] and out["create"] == 0
+    assert out["protected"] == ["haud/shared-hours", "lahom/shared-hours"]
+    assert current_object(db_session, "common/shared-hours").text == "합성 공통 사람 고침"
+    assert current_object(db_session, "haud/shared-hours") is None
 
 
 # ── 관리자 스크립트 ──────────────────────────────────────────────────────
