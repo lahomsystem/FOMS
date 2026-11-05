@@ -9,6 +9,8 @@
 - 사진 설명 뽑기(D94 — 직원이 '손님 정보 안 보임'을 켠 사진만): WORKER 15분 바퀴(:mod:`.photo_desc`).
 - 사례 재료에 이유 싣기: '고침' 사례에 까닭 · 자세한 이유 · 사진 설명 줄을 더한다(:mod:`.brain_cases`). 끄면 옛 꼴 그대로.
 - 주간 고침 안(D94 — 사장님 승인 뒤에만 넣는다): 월요일 새벽 WORKER(:mod:`.weekly_fix`). 자동 반영 길은 없다.
+- 사진 학습 → 회사 지식 제안(설계서 17.11.1 의 7 · D172): 같은 월요일 새벽(:mod:`.photo_learning`), master brain 제안 길로만
+  '승인 대기' 카드를 만든다(자동 반영 없음). 모델은 주간 고침 안 모델 칸을 같이 쓴다.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from foms.services.cs_agent.settings_field import KIND_BOOL, KIND_CHOICE, MODEL_
 
 __all__ = [
     "CASE_REASONS_FIELD", "DETAIL_FIELD", "DETAIL_FIELDS", "GROUP_DETAIL", "PHOTO_DESC_FIELD", "PHOTO_DESC_MODEL_FIELD",
-    "PHOTOS_FIELD", "WEEKLY_FIELD", "WEEKLY_MODEL_FIELD", "switch_value",
+    "PHOTOS_FIELD", "PHOTO_LEARN_FIELD", "WEEKLY_FIELD", "WEEKLY_MODEL_FIELD", "switch_value",
 ]
 
 GROUP_DETAIL = "고친 까닭 · 사진 · 학습"
@@ -31,6 +33,7 @@ PHOTO_DESC_MODEL_FIELD = "photo_desc_model"
 CASE_REASONS_FIELD = "case_reasons_enabled"
 WEEKLY_FIELD = "weekly_fix_enabled"
 WEEKLY_MODEL_FIELD = "weekly_fix_model"
+PHOTO_LEARN_FIELD = "photo_learn_enabled"
 
 DETAIL_FIELDS: tuple[Field, ...] = (
     Field(DETAIL_FIELD, "자세한 이유 칸", KIND_BOOL, False, GROUP_DETAIL,
@@ -51,6 +54,10 @@ DETAIL_FIELDS: tuple[Field, ...] = (
                "근거). 사장님이 승인하기 전엔 아무것도 안 바뀌어요"),
     Field(WEEKLY_MODEL_FIELD, "주간 고침 안 모델", KIND_CHOICE, MODEL_SONNET, GROUP_DETAIL, MODEL_CHOICES,
           help="사장님 확인 전 임시 값이에요"),
+    Field(PHOTO_LEARN_FIELD, "사진 학습 → 회사 지식 제안", KIND_BOOL, False, GROUP_DETAIL,
+          help="월요일 새벽, 지난 7일 손님 사진을 읽은 끝난 상담을 (사진 종류, 의도)로 묶어(손님 2명 · 직원 2명 이상 근거) "
+               "회사 지식 제안(상황 · 제작 조건 · 비슷한 말 · 링크)을 만들어요. '승인 대기' 카드로만 들어가고 승인 "
+               "전엔 아무것도 안 바뀌어요(모델은 주간 고침 안 모델 · 학습 돈 상한 안)"),
 )
 
 
