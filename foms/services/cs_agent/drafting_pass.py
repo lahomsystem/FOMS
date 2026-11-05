@@ -8,6 +8,8 @@
 - **'AI 냐 사람이냐'(R13-9 · 설계서 17.1 · 17.8 '늘 사람에게')**: 두 길 모두 두뇌 전에 :mod:`.ask_human` 으로 거른다. 두뇌 없이 넘김
   까닭만 적고, 메모 스위치면 비공개 한 줄 메모 — 같은 미답 묶음에 그 메모가 이미 있으면 다시 올리지 않는다.
 - **안 보이는 손님 글(R13-6)**: 선점한 글이 채널톡 읽기에 아직 없으면 건너뜀이 아니라 다시 집을 실패다.
+- **손님 사진(설계서 17.11.1)**: 차례마다 한 번 읽어(:mod:`.photo_step`) 결과를 들고 있다 — 사진만 온 글 판정 · 두뇌 사진 칸 ·
+  견적 도면 길 · 직원 참고 줄 · 차례 줄 쓰임이 같은 결과를 쓴다.
 """
 
 from __future__ import annotations
@@ -22,11 +24,13 @@ from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO, ASK_HUMAN_MEMO_HEAD
 from foms.services.cs_agent.drafting_post import memo_on, post_note
 from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine
 from foms.services.cs_agent.drafting_summary import DraftSummary
+from foms.services.cs_agent.image_settings import MODE_DRAFT as PHOTOS_IN_DRAFT, image_mode
 from foms.services.cs_agent.image_step import turn_hook as image_hook
 from foms.services.cs_agent.knowledge import ApprovedKnowledge
 from foms.services.cs_agent.knowledge_doc import HUMAN_ONLY_MARK
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
+from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos, with_usage
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
@@ -73,6 +77,34 @@ class DraftPass:
         self.clock = clock  # 빠른 길이 선점 시각을 잴 때 쓴다(15분 바퀴는 시간 상한 시계를 여기서 읽지 않는다)
         self.quoter, self.catalog_reader = quoter, catalog_reader
         self.image_client, self.image_transport, self.image_sleep = image_client, image_transport, image_sleep
+        self.photo_reads: dict[int, Optional[PhotoRead]] = {}  # 차례 줄 id → 사진 읽기(차례마다 한 번)
+        self.image_outcomes: dict[int, Any] = {}  # 차례 줄 id → 묶음 읽기 결과(:func:`.photo_step.turn_read`)
+
+    def photos(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> Optional[PhotoRead]:
+        """손님 사진 읽기(:func:`.photo_step.read_photos` — 끔 · 파일 없음이면 ``None``). 같은 차례면 앞 결과."""
+        if row.id not in self.photo_reads:
+            self.photo_reads[row.id] = read_photos(self, row, lines)
+        return self.photo_reads[row.id]
+
+    def photo_only_ok(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> bool:
+        """사진만 온 글에 초안을 써도 되나 — '초안에 씀'이고 읽은 사진이 하나라도 있을 때만(17.11.1 의 4)."""
+        if image_mode(read_settings(self.session, log=False)) != PHOTOS_IN_DRAFT:
+            return False
+        photo = self.photos(row, lines)
+        return photo is not None and photo.read > 0
+
+    def with_photos(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Any:
+        """초안 재료에 사진 칸('초안에 씀'일 때만 — 끔 · 직원 참고만이면 그대로)."""
+        photo = self.photos(row, lines)
+        return photo.apply(request) if photo is not None else request
+
+    def photo_usage(self, row: CsAgentTurn, base: Any) -> Any:
+        """쓰임에 이번 차례 사진 읽기의 토큰 · 돈 · 시간을 더한다(읽지 않았으면 그대로)."""
+        return with_usage(base, self.photo_reads.get(row.id))
+
+    def photo_note(self, row: CsAgentTurn, quote_note: str) -> str:
+        """직원 참고 줄 — 사진 줄(:func:`.photo_step.note_line`) 뒤에 견적 계산 줄(없으면 빈 글 — 예전 그대로)."""
+        return "\n".join(part for part in (note_line(self.photo_reads.get(row.id)), quote_note) if part)
 
     def quote(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
         """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다.
@@ -89,7 +121,7 @@ class DraftPass:
             return None
         self.stop.check()  # 쓰기 전
         record_quote(row, quote_lines=step.record() if step is not None else None,
-                     usage=step.usage if step is not None else None)
+                     usage=self.photo_usage(row, step.usage) if step is not None else None)
         self.session.commit()
         return step
 
