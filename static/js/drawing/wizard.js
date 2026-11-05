@@ -6257,6 +6257,32 @@
     sel.addRange(range);
   }
 
+  /* 글자 편집 중 복사한 조각의 색·굵기 — 브라우저 클립보드엔 글자만 남으므로 따로 기억한다.
+     붙여넣을 때 클립보드 글자가 같으면 이 런으로 넣는다(다르면 바깥에서 복사한 글 = 플레인). */
+  var styledClip = null;
+  function rememberStyledSelection() {
+    styledClip = null;
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) { return; }
+    var holder = document.createElement('div');
+    holder.style.cssText = editCtx.area.style.cssText;
+    holder.style.position = 'fixed'; holder.style.left = '-9999px'; holder.style.top = '0';
+    holder.appendChild(sel.getRangeAt(0).cloneContents());
+    document.body.appendChild(holder);
+    var runs = extractRuns(holder);
+    document.body.removeChild(holder);
+    styledClip = { text: String(sel), runs: runs };
+  }
+  function insertStyledRuns(runs) {
+    var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+    var html = runs.map(function (r) {
+      if (r.t === '\n') { return '<br>'; }
+      return '<span style="color:' + colorOrDefault(r.c) + ';font-weight:' + (r.b ? '700' : '400') + '">' +
+        esc(r.t).replace(/\n/g, '<br>') + '</span>';
+    }).join('');
+    try { document.execCommand('insertHTML', false, html); } catch (_) { insertPlainText(runs.map(function (r) { return r.t; }).join('')); }
+  }
+
   function wireStatic() {
     // 앱바 나가기(항상 노출 — 편집 권한 무관, 열람 전용도 복귀 가능)
     var exitBtn = document.getElementById('dws-btn-exit');
@@ -6485,7 +6511,12 @@
       if (!cd) { return; }
       if (ae && ae.isContentEditable) {
         e.preventDefault();
-        insertPlainText(cd.getData('text/plain'));
+        var ptext = cd.getData('text/plain');
+        if (editCtx && ae === editCtx.area && styledClip && styledClip.text === ptext) {
+          insertStyledRuns(styledClip.runs);   // 편집 중 복사한 글자 = 고른 색·굵기 그대로
+        } else {
+          insertPlainText(ptext);
+        }
         if (ae.getAttribute && ae.getAttribute('data-dws-form-key')) {
           if (!ae._dwsPushed) { recordUndo(); ae._dwsPushed = true; }
           syncEditable(ae);
@@ -6515,6 +6546,7 @@
 
     // 캔버스 객체 복사/잘라내기 — 글자 편집 중이거나 화면 글자를 드래그 선택했으면 브라우저 기본.
     function onCopyCut(e, isCut) {
+      if (editCtx && selectionInside(editCtx.area)) { rememberStyledSelection(); return; }
       if (!selectedIds.length) { return; }
       var ae = document.activeElement;
       if (ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT')) { return; }
