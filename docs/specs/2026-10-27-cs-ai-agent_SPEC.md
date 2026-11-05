@@ -660,7 +660,8 @@ CEO 도전(원장 F1-4)과 단순화 심판(원장 R2)을 반영해 지시서의
 
 **설정(한 번)** — 채널톡 개발자 화면(앱): 앱 id 확인 · Function 주소 `https://<운영>/api/channel/functions` · WAM 주소
 `https://<운영>/channel/wam` · 서명 열쇠 발급. Railway web env: `CHANNEL_FUNCTION_ENABLED` · `CHANNEL_FUNCTION_SIGNING_KEY` ·
-`CHANNEL_FUNCTION_CHANNEL_ID`(라홈) · 새 `CS_WAM_APP_ID`. 앱 주소는 하나라 시험 동안만 스테이징을 가리키고 끝나면 운영으로 돌린다
+`CHANNEL_FUNCTION_CHANNEL_ID`(라홈) · 새 `CS_WAM_APP_ID`(web 과 WORKER 둘 다 — 메모 단추는 WORKER 가 단다, 11-05
+스테이징 실측) · 관리 화면 '버튼이 여는 곳' = 채널톡 안 작은 창. 앱 주소는 하나라 시험 동안만 스테이징을 가리키고 끝나면 운영으로 돌린다
 (그 사이 `/foms` 명령도 스테이징이 받는다).
 
 **시험(스테이징 시험 상담 · PC 데스크 · 휴대폰 채널톡 앱)** — 문서에 없는 것: ① 비공개 메모의 `wam` 단추가 눌리고 창이 어디에
