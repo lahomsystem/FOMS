@@ -216,6 +216,11 @@
   color: var(--erp-text-white);
 }
 
+/* 직원 화면 순번 11→12px(디자인 점검 2026-11-06). 22px 동그라미 안에 두 자리까지 들어간다. 협력사 화면은 그대로 둔다. */
+body:not(.pp-body) .erp-items-master-detail-shell .rail-item__index {
+  font-size: 0.75rem;
+}
+
 .erp-items-master-detail-shell .rail-item__main {
   flex: 1 1 auto;
   min-width: 0;
