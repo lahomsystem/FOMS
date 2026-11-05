@@ -86,7 +86,7 @@ def test_weather_band_colors_reach_partner_calendar_outside_tower():
         assert "dashboard-tower-weather.css?v=20261105s" in fh.read()
     for path in ("templates/partner/layout.html", "templates/partials/shared/layout_head.html"):
         with open(path, encoding="utf-8") as fh:
-            assert "foms-mobile-surfaces.css') }}?v=20261105s" in fh.read(), path
+            assert "foms-mobile-surfaces.css') }}?v=20261106a" in fh.read(), path
 
 
 def test_calendar_only_on_unfiltered_list(app, world):
