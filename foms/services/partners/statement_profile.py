@@ -5,7 +5,7 @@
 
     {"supplier": {name, ceo, biz_no, address, biz_type, biz_item, phone, accounts, doc_prefix,
                   pay_deadline, tax_notice, caution},
-     "receivers": {"<협력사 id>": {ceo, address, biz_type, biz_item}}}
+     "receivers": {"<협력사 id>": {ceo, address, biz_type, biz_item, doc_prefix}}}
 
 공급받는자의 상호 · 등록번호는 협력사 정보(``PartnerOrg.name`` · ``biz_reg_no``)를 그대로 쓴다. 발행한 명세서는 그때 값을
 ``groups`` 옆 스냅샷으로 갖지 않고 이 값을 읽는다 — 양식 정보는 금액이 아니라서 바뀌면 옛 명세서에도 새 값이 보인다.
@@ -22,6 +22,8 @@ from models import SystemSetting
 SETTINGS_KEY = "partner_statement_profile"
 DEFAULT_PREFIX = "HD"
 DEFAULT_DEADLINE = "출고 전날 16:00"
+#: 세금계산서 안내를 비워 두면 쓰는 글(사용자 결정 2026-11-05 — 달마다 한 번).
+DEFAULT_TAX_NOTICE = "세금계산서는 달마다 말일 기준으로 한 번에 발행합니다."
 
 #: (이름, 화면 이름, 최대 글자 수, 여러 줄)
 SUPPLIER_FIELDS: tuple[tuple[str, str, int, bool], ...] = (
@@ -43,6 +45,7 @@ RECEIVER_FIELDS: tuple[tuple[str, str, int, bool], ...] = (
     ("address", "주소", 120, False),
     ("biz_type", "업태", 40, False),
     ("biz_item", "종목", 40, False),
+    ("doc_prefix", "이 협력사 문서번호 머리(영문 대문자, 비우면 공급자 것)", 6, False),
 )
 _PREFIX_RE = re.compile(r"^[A-Z]{1,6}$")
 
@@ -79,6 +82,7 @@ def load_profile(db) -> dict[str, Any]:
     supplier = _clean(value.get("supplier"), SUPPLIER_FIELDS)
     supplier["doc_prefix"] = supplier["doc_prefix"] or DEFAULT_PREFIX
     supplier["pay_deadline"] = supplier["pay_deadline"] or DEFAULT_DEADLINE
+    supplier["tax_notice"] = supplier["tax_notice"] or DEFAULT_TAX_NOTICE
     receivers = value.get("receivers") if isinstance(value.get("receivers"), dict) else {}
     return {"supplier": supplier,
             "receivers": {str(k): _clean(v, RECEIVER_FIELDS) for k, v in receivers.items()},
@@ -89,6 +93,12 @@ def receiver_block(profile: dict[str, Any], org: Any) -> dict[str, str]:
     """공급받는자 블록 — 상호 · 등록번호는 협력사 정보, 나머지는 양식 정보."""
     extra = profile["receivers"].get(str(org.id)) or _clean({}, RECEIVER_FIELDS)
     return {"name": org.name or "", "biz_no": org.biz_reg_no or "", **extra}
+
+
+def doc_prefix_for(profile: dict[str, Any], org_id: Any) -> str:
+    """문서번호 머리 — 협력사마다 정한 것, 없으면 공급자 것(사용자 결정 2026-11-05: 협력사마다 다르게)."""
+    own = (profile["receivers"].get(str(org_id)) or {}).get("doc_prefix") or ""
+    return own or profile["supplier"]["doc_prefix"]
 
 
 def save_profile(db, org_id: int, raw: Any, *, base_version: Any) -> tuple[int, list[str]]:
@@ -102,6 +112,9 @@ def save_profile(db, org_id: int, raw: Any, *, base_version: Any) -> tuple[int, 
     if not _PREFIX_RE.match(supplier["doc_prefix"]):
         raise ProfileError("문서번호 머리는 영문 대문자 1~6자로 적어 주세요(예: HD).")
     receiver = _clean(raw.get("receiver"), RECEIVER_FIELDS)
+    receiver["doc_prefix"] = receiver["doc_prefix"].upper()
+    if receiver["doc_prefix"] and not _PREFIX_RE.match(receiver["doc_prefix"]):
+        raise ProfileError("이 협력사 문서번호 머리는 영문 대문자 1~6자로 적어 주세요(예: RD). 공급자 것을 쓰려면 비워 두세요.")
     row = db.query(SystemSetting).filter(SystemSetting.setting_key == SETTINGS_KEY).with_for_update().first()
     current = int(row.version or 1) if row is not None else 0
     try:
