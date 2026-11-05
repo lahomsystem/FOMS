@@ -35,12 +35,12 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain import releases
 from foms.services.brain.access import approval_problem
 from foms.services.brain.ai_gates import sources
-from foms.services.brain.doc_sync import sync_documents
 from foms.services.brain.constants import (
     BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
     OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
     external_type, is_doc_item, link_allowed,
 )
+from foms.services.brain.doc_sync import sync_documents
 from foms.services.brain.errors import (
     BrainConflictError, BrainPermissionError, BrainShapeError, BrainTargetError,
 )

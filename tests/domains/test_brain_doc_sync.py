@@ -148,6 +148,17 @@ def test_a_failed_document_write_rolls_the_whole_approval_back(app, monkeypatch)
     assert db_session.get(BrainChange, change.id).status == "open" and _versions() == (1, 1) and _equal_both()
 
 
+def test_the_api_answers_a_stopped_approval_with_its_own_code(app):
+    from foms.api.brain_review import _error_reply
+    from foms.services.brain import actions
+    with app.test_request_context():
+        response, status = _error_reply(BrainDocSyncError("LAHOM", "drift", ["diff-text"]))
+    body = response.get_json()
+    assert status == 409 and body["success"] is False and body["error"] == actions.FAILURES["BRAIN_DOC_SYNC"]
+    assert body["data"] == {"code": "BRAIN_DOC_SYNC", "brand": "LAHOM", "reason": "drift"}
+    assert all("BRAIN_DOC_SYNC" in actions.ACTIONS[name].failures for name in ("apply", "edit_apply", "recheck"))
+
+
 def test_spoken_and_internal_marks_survive_the_rewrite(app):
     admin = _ready()
     apply_change(db_session, _edit(admin, "lahom/lahom-only", {"text": "[내부] 합성 내부 규칙"}).id, actor=admin, now=NOW)
