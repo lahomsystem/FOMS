@@ -25,6 +25,7 @@ __all__ = [
     "get_rq_worker_count",
     "get_rq_runtime_status",
     "enqueue_thumbnail_generation",
+    "enqueue_heic_conversion",
     "enqueue_geocode_order_address",
     "enqueue_channeltalk_inbound",
     "enqueue_naver_order_sync",
@@ -165,6 +166,27 @@ def enqueue_thumbnail_generation(attachment_id, storage_key):
         return True
     except Exception as e:
         logger.error(f"[RQ] enqueue_thumbnail error: {e}", exc_info=True)
+        return False
+
+
+def enqueue_heic_conversion(attachment_id, storage_key):
+    """주문 첨부 HEIC → JPEG 변환 job enqueue(SPEC 2026-11-04-heic-to-jpeg).
+
+    RQ 활성화 시 큐에 넣고 True, 아니면 False(호출측이 ThreadPool 로 돌린다).
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.convert_heic_attachment",
+            int(attachment_id),
+            storage_key,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_heic_conversion error: {e}", exc_info=True)
         return False
 
 

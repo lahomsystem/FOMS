@@ -339,6 +339,7 @@
     "foms/services/jobs/tasks.py::foms.services.jobs.queue",
     "foms/services/jobs/tasks.py::foms.services.notifications.escalation",
     "foms/services/jobs/tasks.py::foms.services.notifications.push_sender",
+    "foms/services/jobs/tasks.py::foms.services.order_attachment_heic",
     "foms/services/jobs/tasks.py::foms.services.storage",
     "foms/services/loop_heartbeat.py::foms.platform.sentry_setup",
     "foms/services/map_snapshot.py::foms.persistence.main.models",

@@ -27,9 +27,7 @@ from foms.services.files.upload_authz import (
 from foms.services.files.drawing_upload_guard import ACK_FIELD as DRAWING_ACK_FIELD, drawing_final_ack_block
 from foms.services.files.upload_policy import DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 from db import get_db
-from foms.services.order_attachment_thumbnail import (
-    schedule_order_attachment_thumbnail_generation,
-)
+from foms.services.order_attachment_heic import is_heic_filename, schedule_order_attachment_post_upload
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment
 
@@ -123,6 +121,8 @@ def api_upload_session():
                 "success": True,
                 "upload_url": upload_url,
                 "key": key,
+                # PUT 은 서명한 Content-Type 과 같아야 한다 — PC 크롬은 HEIC 의 file.type 을 비워 보낸다.
+                "content_type": ct,
                 "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
             }
         )
@@ -188,6 +188,7 @@ def api_upload_session_batch():
                 "filename": filename,
                 "upload_url": upload_url,
                 "key": key,
+                "content_type": ct,
                 "expires_at": expires_at_str,
             }
             if client_id:
@@ -304,8 +305,11 @@ def api_order_attachments_complete(order_id):
         db.refresh(attachment)
         storage_key = getattr(attachment, "storage_key", None)
         thumbnail_key = getattr(attachment, "thumbnail_key", None)
-        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == "image" and storage_key and not thumbnail_key:
-            schedule_order_attachment_thumbnail_generation(attachment.id, storage_key)
+        # HEIC 는 썸네일 설정과 상관없이 JPEG 로 바꾼다(끝나면 썸네일까지) — SPEC 2026-11-04-heic-to-jpeg §2-2.
+        if file_type == "image" and storage_key and not thumbnail_key and (
+            ASYNC_ATTACHMENT_THUMBNAIL or is_heic_filename(storage_key)
+        ):
+            schedule_order_attachment_post_upload(attachment.id, storage_key)
 
         payload = serialize_attachment(
             attachment,

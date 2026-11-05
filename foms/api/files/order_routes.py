@@ -46,6 +46,7 @@ from foms.services.orders.drawing_key_safety import (
     split_deletable_keys,
 )
 from foms.services.files.purge_policy import ATTACHMENT_PURGE_GRACE
+from foms.services.files.heic_convert import jpeg_if_heic
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
@@ -381,6 +382,10 @@ def api_order_attachments_upload(order_id):
         file = request.files["file"]
         if not file or file.filename == "":
             return jsonify({"success": False, "message": "파일명이 없습니다."}), 400
+        # 아이폰 원본(HEIC)은 JPEG 로 바꿔 받는다 — 협력사 업로드와 같은 공용 변환(SPEC 2026-11-04-heic-to-jpeg §2-2).
+        file, heic_error = jpeg_if_heic(file)
+        if heic_error:
+            return jsonify({"success": False, "message": heic_error}), 400
 
         category = normalize_attachment_category(request.form.get("category", "measurement"))
         if not category:

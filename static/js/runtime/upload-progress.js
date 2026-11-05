@@ -463,7 +463,8 @@
           try {
             var putRes = await fetch(session.upload_url, {
               method: 'PUT',
-              headers: { 'Content-Type': entry.file.type || 'application/octet-stream' },
+              // 서버가 서명한 Content-Type 을 먼저 쓴다(PC 크롬은 HEIC 의 file.type 이 빈 값).
+              headers: { 'Content-Type': session.content_type || entry.file.type || 'application/octet-stream' },
               body: entry.file
             });
             if (putRes.ok) {

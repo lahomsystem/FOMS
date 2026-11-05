@@ -660,6 +660,8 @@ def test_namespaced_jobs_queue_shim_preserves_canonical_contract() -> None:
         "get_rq_worker_count",
         "get_rq_runtime_status",
         "enqueue_thumbnail_generation",
+        # HEIC-JPEG(2026-11-04): 주문 첨부 아이폰 사진 변환도 썸네일과 같은 RQ 길.
+        "enqueue_heic_conversion",
         "enqueue_geocode_order_address",
         "enqueue_channeltalk_inbound",
         # NAVER-INGEST-01 §3.1: web 은 enqueue 만 한다(네이버 HTTP 는 WORKER 단일 출구).
@@ -678,6 +680,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
     """The legacy jobs tasks module should re-export the canonical worker tasks."""
     expected_public_names = [
         "create_thumbnail_for_attachment",
+        # HEIC-JPEG(2026-11-04): 주문 첨부 아이폰 사진 → JPEG 변환 worker 태스크.
+        "convert_heic_attachment",
         "geocode_order_address",
         "push_order_to_channeltalk",
         "process_channeltalk_inbound",
