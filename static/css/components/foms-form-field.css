@@ -965,6 +965,11 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   /* foms-sticky-action-bar negative margin-bottom pulls over the last field; reset for ERP mobile footer. */
   .erp-order-mobile-form .erp-mobile-sticky-action-bar.foms-sticky-action-bar {
     margin-bottom: 0;
+    /* 2026-11-05 점검 A4: 폰 편집 화면에서 고정된 것(머리 48 · 칩 줄 56 · 이 막대 111 · 아래 메뉴 60)이
+       275px(화면 33%)였다. 막대 위아래 여백 12→8px, 발송 기록 줄과 단추 줄 사이 12→6px. */
+    padding-top: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    row-gap: 6px;
   }
 }
 
@@ -999,6 +1004,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   white-space: nowrap;
   padding-left: var(--foms-space-2);
   padding-right: var(--foms-space-2);
+  /* 2026-11-05 점검 A4: 늘 떠 있는 단추라 공용 48px 대신 터치 기준 44px. */
+  min-height: 44px;
 }
 
 .erp-order-mobile-form #erp-items .form-control.form-control-sm,
@@ -1139,7 +1146,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   border-radius: 999px;
   background: var(--foms-surface-subtle, #f8fafc);
   color: var(--foms-text-secondary);
-  font-size: 12px;
+  /* 2026-11-05 점검 A4: 12px 은 본문(16px)보다 너무 작았다. 두 글자 이름이라 52px 칩에 14px 가 들어간다. */
+  font-size: 14px;
   line-height: 1.2;
   font-weight: var(--foms-font-weight-medium);
   white-space: nowrap;
@@ -1268,6 +1276,12 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
     padding-top: var(--erp-mobile-input-pad-y);
     padding-bottom: var(--erp-mobile-input-pad-y);
     line-height: var(--erp-mobile-input-lh);
+  }
+
+  /* 2026-11-05 점검 A5(최소): 이 압축 폼은 칸이 40px 인데 ▾ 트리거(erp-spec-calc.css 기본 44px)가 칸 아래로
+     4px 삐져나왔다. 이 폼에서만 칸 높이를 따른다. 40px 칸 높이 자체(07-01 결정)는 사용자 확인 전이라 그대로 둔다. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-calc-trigger {
+    height: var(--erp-mobile-input-h);
   }
 
   /* 73a4e48d input→textarea 후 .foms-textarea { min-height:80px }가 메인 폼까지 적용되던 회귀 차단.
@@ -1439,7 +1453,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   /* sticky full-bleed: 가로만 음수 마진(음수 top 금지 — iOS 흔들림). */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-secnav {
     margin: 0 calc(-1 * var(--foms-space-2)) var(--foms-space-2);
-    padding: var(--foms-space-2);
+    /* 2026-11-05 점검 A4: 위아래 8→4px(칩 줄 56→48px). 좌우는 그대로. */
+    padding: 4px var(--foms-space-2);
     background: var(--foms-surface-overlay, #eef2f7);
     border-bottom: 0;
   }

@@ -60,6 +60,32 @@
     padding-right: var(--foms-space-4, 1rem);
   }
 
+  /* 목록 위 세 줄(촬영 바 · 이력 안내 · 일정 변경 알림)도 카드 목록과 같은 16px 선에 맞춘다.
+     예전엔 12px · 0px(화면 끝에 붙음) · 0px 라 왼쪽 선이 세 갈래였다.
+     768px 미만만: 촬영 바와 카드 목록(d-md-none)이 그 아래에서만 보인다. 768~991px 는 PC 표가
+     나오고 그 표·요약 칸은 화면 끝(0px)에서 시작하므로 알림 띠도 거기에 그대로 둔다.
+     촬영 바 규칙은 v2 표면 묶음(foms-as-camera.css)에 있지만 이 바는 AS 화면에만 있어
+     AS 화면 범위로 여기서 맞춘다. */
+  @media (max-width: 767.98px) {
+    body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .foms-as-camera-bar {
+      padding-left: var(--foms-space-4, 1rem);
+      padding-right: var(--foms-space-4, 1rem);
+    }
+
+    body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .foms-as-camera-bar__eyebrow {
+      font-size: 0.75rem;
+    }
+
+    /* 화면 끝까지 닿던 띠가 좌우 16px 안쪽 상자가 되므로 위에도 12px 띄운다(촬영 바 밑선에
+       붙지 않게). 두 상자 사이는 위아래 여백이 겹쳐 지금처럼 12px 그대로다. */
+    body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-timeline-hint,
+    body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-schedule-drift-banner {
+      margin-top: var(--foms-space-3, 0.75rem);
+      margin-left: var(--foms-space-4, 1rem);
+      margin-right: var(--foms-space-4, 1rem);
+    }
+  }
+
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-list__sticky {
     position: sticky;
     top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
@@ -208,7 +234,8 @@
     justify-content: center;
     gap: 0.25rem;
     min-width: 0;
-    min-height: 34px;
+    /* 손가락 터치 기준 44px(카드 단추·검색칸과 같은 높이). 34px 는 탭이 빗나갔다. */
+    min-height: 44px;
     padding: 0 0.375rem;
     border: 0;
     border-radius: var(--foms-radius-md, 8px);
@@ -247,7 +274,7 @@
     border-radius: var(--foms-radius-full, 9999px);
     background: var(--foms-surface-raised, #f7f8fa);
     color: inherit;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 18px;
     text-align: center;
     font-variant-numeric: tabular-nums;
@@ -255,7 +282,7 @@
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__search {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 40px 68px;
+    grid-template-columns: minmax(0, 1fr) 44px 68px;
     gap: 0.375rem;
     align-items: center;
     margin: 0;
@@ -265,7 +292,7 @@
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__submit,
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__open {
     min-width: 0;
-    min-height: 40px;
+    min-height: 44px;
     border: 1px solid var(--foms-border-default, #c1c7d0);
     border-radius: var(--foms-radius-md, 8px);
     background: var(--foms-surface-base, #fff);
@@ -276,6 +303,8 @@
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__input {
     width: 100%;
     padding: 0 0.625rem;
+    /* 16px 미만이면 아이폰이 검색칸을 누를 때 화면을 확대한다. */
+    font-size: 1rem;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__submit,
@@ -416,18 +445,28 @@
     font-size: 0.75rem;
   }
 
+  /* 전화가 두 개면('010-… / 010-…') 한 줄에 '담당'이 들어갈 자리가 없다. 예전엔 담당 칸이
+     10px 폭으로 눌려 '담/당' 세로 글자가 됐다 → 줄을 넘겨 담당을 다음 줄로 보낸다.
+     넘어간 줄 맨 앞에 구분선이 남지 않게: 줄 전체를 왼쪽으로 7px 내밀고(overflow 로 잘라 냄)
+     전화는 그만큼 되밀어 제자리, 담당은 -1px 로 구분선을 잘리는 쪽에 둔다.
+     한 줄일 때 전화 끝 → '담당' 글자 간격(13px)은 예전과 같다. */
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__contact-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.375rem;
+    gap: 2px 0.375rem;
     min-width: 0;
+    margin-left: -7px;
+    overflow: hidden;
     color: var(--foms-text-secondary, #4b525d);
     font-size: 0.75rem;
     line-height: 1.2;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__phone {
+    margin-left: 7px;
     color: var(--foms-text-link, #4a55b8);
+    font-size: 0.8125rem;
     font-weight: var(--foms-font-weight-semibold, 600);
     text-decoration: none;
     font-variant-numeric: tabular-nums;
@@ -439,13 +478,16 @@
     align-items: center;
     gap: 0.25rem;
     min-width: 0;
-    padding-left: 0.375rem;
+    margin-left: -1px;
+    padding-left: 7px;
     border-left: 1px solid var(--foms-border-subtle, #dde1e6);
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__manager-label {
+    flex: 0 0 auto;
     color: var(--foms-text-tertiary, #6b7380);
     font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__manager-value {
@@ -598,7 +640,7 @@
     border-radius: 9px;
     background: var(--foms-color-warning-50, #fffbeb);
     color: var(--foms-color-warning-700, #b45309);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: var(--foms-font-weight-bold, 700);
     line-height: 1;
     font-variant-numeric: tabular-nums;
@@ -625,8 +667,11 @@
     text-overflow: ellipsis;
   }
 
+  /* 빈 칸 '날짜 선택'은 안내 글이다 — 값(16px)보다 한 단계 작게 둬 고객 이름(15px)보다
+     커 보이지 않게 한다. */
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-date-tile.is-empty .erp-as-date-tile__value {
     color: var(--foms-text-link, #4a55b8);
+    font-size: 0.875rem;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-date-tile.is-readonly.is-empty .erp-as-date-tile__value {
@@ -739,7 +784,7 @@
     min-width: 0;
     margin: 0;
     color: var(--foms-text-primary, #14171c);
-    font-size: 0.78125rem;
+    font-size: 0.8125rem;
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -753,13 +798,14 @@
     align-items: center;
     justify-content: center;
     gap: 0.25rem;
-    min-height: 30px;
-    padding: 0 0.5rem;
+    /* 아래 동작 단추와 같은 44px · 13px. 30px 는 주소 칸 안에서 손가락이 빗나갔다. */
+    min-height: 44px;
+    padding: 0 0.75rem;
     border: 1px solid var(--foms-border-subtle, #dde1e6);
     border-radius: var(--foms-radius-md, 8px);
     background: var(--foms-surface-base, #fff);
     color: var(--foms-text-primary, #14171c);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: var(--foms-font-weight-bold, 700);
     white-space: nowrap;
   }
@@ -791,7 +837,7 @@
     border-radius: var(--foms-radius-md, 8px);
     background: var(--foms-surface-base, #fff);
     color: var(--foms-text-primary, #14171c);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: var(--foms-font-weight-bold, 700);
     line-height: 1;
     text-decoration: none;
@@ -835,6 +881,21 @@
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__action.as-photos-btn--no-photos {
     color: var(--foms-text-tertiary, #6b7380);
+  }
+
+  /* 일정 변경 줄 단추(재적용·무시·연결 해제) — PC 표의 24px 크기를 그대로 받아 폰에서
+     손가락이 빗나갔다. 카드 단추와 같은 44px · 13px 로 맞추고, 카드 안 세로 간격은
+     .erp-as-mobile-card__schedule 의 gap 이 맡으니 PC 용 위·왼쪽 4px 여백은 뺀다.
+     카드 안 단추만 고친다(768~991px 에 나오는 PC 표 칸의 단추는 그대로). */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__schedule .erp-as-drift-actions {
+    gap: 0.375rem;
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__schedule .erp-as-drift-action {
+    min-height: 44px;
+    padding: 0 0.75rem;
+    font-size: 0.8125rem;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__blueprint input {
@@ -958,7 +1019,7 @@
     min-height: 20px;
     padding: 1px 8px;
     border-radius: var(--foms-radius-full, 9999px);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: var(--foms-font-weight-bold, 700);
     line-height: 1.4;
     white-space: nowrap;
@@ -996,7 +1057,7 @@
     padding: 0.3125rem 0.5rem;
     border-radius: var(--foms-radius-md, 8px);
     background: color-mix(in srgb, var(--erp-as-cycle-accent, #8b5cf6) 7%, transparent);
-    font-size: 0.71875rem;
+    font-size: 0.75rem;
     line-height: 1.35;
   }
 

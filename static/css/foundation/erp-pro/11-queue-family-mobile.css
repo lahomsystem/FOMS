@@ -93,10 +93,11 @@
     background: var(--foms-surface-base);
   }
 
+  /* 16px 미만이면 아이폰이 검색칸을 누를 때 화면을 확대한다(2026-11-05 점검). */
   .erp-mobile-queue-filters__input {
     width: 100%;
     padding: 0 0.875rem;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .erp-mobile-queue-filters__submit,
@@ -179,11 +180,16 @@
     letter-spacing: 0.04em;
   }
 
-  .erp-mobile-queue-section__title {
+  /* 같은 h2 에 붙은 공용 .foms-section-header__title(12px 대문자 눈썹, foms-queue-card-v2.css)이
+     body 스코프로 이겨 생산·시공 목록 제목이 12px 로 줄었다 — 같은 두 클래스로 눌러 16px 제목을 지킨다. */
+  .erp-mobile-queue-section__title,
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__title.foms-section-header__title {
     margin: 0;
     font-size: 16px;
     font-weight: 700;
     color: var(--foms-text-primary);
+    text-transform: none;
+    letter-spacing: 0;
   }
 
   .erp-mobile-queue-section__count {
@@ -483,7 +489,7 @@
     padding: 0 0.875rem;
     border: 1px solid #c9d6e4;
     background: var(--foms-surface-base);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--foms-text-primary);
   }
 

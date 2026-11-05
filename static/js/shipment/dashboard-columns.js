@@ -16,10 +16,10 @@
   var SHIPMENT_COLUMN_SCHEMA = {
     detail:               { defaultWidth: 60,  minWidth: 48,  resizable: true },
     customer:             { defaultWidth: 90,  minWidth: 80,  resizable: true },
-    orderer:              { defaultWidth: 90,  minWidth: 80,  resizable: true },
+    orderer:              { defaultWidth: 110, minWidth: 80,  resizable: true },
     product:              { defaultWidth: 100, minWidth: 60,  resizable: true },
-    spec:                 { defaultWidth: 84,  minWidth: 70,  resizable: true },
-    address:              { defaultWidth: 320, minWidth: 180, resizable: true, flexible: true },
+    spec:                 { defaultWidth: 106, minWidth: 70,  resizable: true },
+    address:              { defaultWidth: 278, minWidth: 180, resizable: true, flexible: true },
     construction_time:    { defaultWidth: 150, minWidth: 140, resizable: true },
     drawing_managers:     { defaultWidth: 170, minWidth: 150, resizable: true },
     construction_workers: { defaultWidth: 170, minWidth: 150, resizable: true },

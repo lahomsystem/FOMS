@@ -127,7 +127,7 @@ def test_the_screen_script_no_longer_demands_a_reason_and_reveals_the_notice():
     for rule in (".cs-send__grow {", ".cs-send__grow.is-fit {", ".cs-send__note {", ".cs-send__notice {"):
         assert rule in css, rule
     html = TEMPLATE.read_text(encoding="utf-8")
-    assert "send-screen.js') }}?v=20261104a" in html and "erp-pro.css') }}?v=20261102b" in html  # 17.6.1 에서 올림
+    assert "send-screen.js') }}?v=20261104a" in html and "erp-pro.css') }}?v=20261105s" in html  # 17.6.1 에서 올림
 
 
 # ── JS 순수 함수(node) ──────────────────────────────────────────────────

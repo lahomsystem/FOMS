@@ -461,17 +461,18 @@
     }
 
     #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
-      font-size: 0.7rem !important;
+      font-size: 0.75rem !important;   /* 11.2px → 12px(디자인 점검 2026-11-05) */
       padding: 0.2em 0.35em !important;
       margin: 0;
       white-space: nowrap;
       line-height: 1.2;
     }
 
-    /* 단계 컬럼: 배지 겹침 방지 */
+    /* 단계 컬럼: 배지 겹침 방지. 다른 칸처럼 위에 붙인다 — 가운데 정렬이면 높은 줄에서 단계 배지만
+       아래로 떠 '할 일'·고객 이름과 줄이 어긋났다(디자인 점검 2026-11-05). */
     #erp-grid tbody td:nth-child(2) {
-      padding: 0.5rem 0.75rem;
-      vertical-align: middle;
+      padding: 0.75rem 0.75rem 0.5rem;
+      vertical-align: top;
     }
 
     #erp-grid tbody td:nth-child(2) .badge {
@@ -564,7 +565,7 @@
       }
 
       #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         padding: 0.2rem 0.35rem;
       }
 
@@ -786,6 +787,29 @@
     #erp-filters-form .btn {
       font-size: 0.85rem;
       padding: 0.3rem 0.45rem;
+    }
+
+    /* 위 규칙은 전역 .form-control·.form-select·.btn(style-pro-max.css, !important)에 져서 PC 필터가 50px
+       높이·16px 글자로 커지고, 담당팀 select 는 화살표가 글자를 덮었다(디자인 점검 2026-11-05).
+       PC(마우스)에서만 !important 로 의도한 값을 살린다 — 손가락 태블릿은 foms-tablet-landscape.css 가 맡는다. */
+    @media (min-width: 993px) and (hover: hover) and (pointer: fine) {
+      #erp-filters-form .form-control,
+      #erp-filters-form .form-select,
+      #erp-filters-form .btn {
+        font-size: 0.85rem !important;
+        padding: 0.3rem 0.45rem !important;
+      }
+
+      #erp-filters-form .form-select {
+        padding-right: 1.75rem !important;
+        background-position: right 0.45rem center !important;
+      }
+
+      /* 돋보기 단추가 29px 폭으로 눌려 보여 좌우만 넓힌다(입력 32px 높이와 비슷한 정사각에 가깝게). */
+      #erp-filters-form .input-group .btn {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
     }
 
     #erp-filters-form .form-control {

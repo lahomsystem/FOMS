@@ -398,6 +398,14 @@
   line-height: 1.35;
 }
 
+/* 2026-11-05 점검 A13: 값 칸이 전역 .form-control(12px 여백 !important)이라 위 padding-top 맞춤이
+   어긋나 이름이 칸 가운데보다 8px 위에 떴다. 직원 화면만 칸 세로 가운데에 맞춘다.
+   협력사 화면(body.pp-body)도 이 파일을 쓰지만 손대지 않는다. */
+body:not(.pp-body) .erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__label {
+  align-self: center;
+  padding-top: 0;
+}
+
 .erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value {
   min-width: 0;
   width: 100%;

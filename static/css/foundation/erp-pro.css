@@ -5,16 +5,16 @@
    즉시 반영되므로, 이 파일 편집 시 자식 ?v= 도 함께 올리는 게 배포 신선도 계약이다. */
 @import url("erp-pro/01-intro-tokens.css?v=20261002t");
 @import url("erp-pro/02-base-layout.css?v=20261104a");
-@import url("erp-pro/03-card-pipeline.css?v=20260703a");
+@import url("erp-pro/03-card-pipeline.css?v=20261105s");
 @import url("erp-pro/04-filter-table-badges-buttons.css?v=20261014a");
 @import url("erp-pro/05-date-through-toast.css?v=20260703a");
 @import url("erp-pro/06-mobile-print-utilities.css?v=20260703a");
-@import url("erp-pro/07-forms-responsive-filters.css?v=20260703a");
+@import url("erp-pro/07-forms-responsive-filters.css?v=20261105s");
 @import url("../contexts/orders/erp-order-measurement-panel.css?v=20260814e");
-@import url("erp-pro/08-order-list-page.css?v=20260914a");
+@import url("erp-pro/08-order-list-page.css?v=20261105s");
 @import url("erp-pro/09-mobile-erp-optimization.css?v=20261104a");
 @import url("erp-pro/10-erp-mobile-v2-shell.css?v=20260724a");
-@import url("erp-pro/11-queue-family-mobile.css?v=20260715b");
+@import url("erp-pro/11-queue-family-mobile.css?v=20261105s");
 @import url("erp-pro/12-runtime-shell-loading.css?v=20260703a");
 @import url("erp-pro/13-foms-shell-bridge.css?v=20260825a");
 @import url("erp-pro/14-drawing-ok-scope.css?v=20261022a");
@@ -886,4 +886,34 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   .layout-global-nav .nav-link { white-space: nowrap; }
   .layout-global-nav .layout-nav-collapse,
   .layout-global-nav .layout-nav-collapse > .navbar-nav { flex-wrap: wrap; }
+}
+
+/* 직원 화면 점검(2026-11-05) — PC 위 막대(layout_nav.html)의 28px 제목이 화면 제목보다 컸고, 막대가 86px 였다.
+   993px 이상만(좁은 화면은 layout_head.html 의 모바일 규칙). py-3 유틸이 !important 라 같이 쓴다. 협력사 머리는 제외. */
+@media (min-width: 993px) {
+  body:not(.pp-body) .layout-header {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  body:not(.pp-body) .layout-header .layout-header__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+}
+
+/* #main-content 바로 아래 .row 의 음수 여백(-12px)이 화면 밖으로 나가 가로로 12px 넘쳤다(알림 발송 · 관리자 · 내 정보). */
+#main-content > .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* 알림 발송 '영업 휴대폰 알림 상태' 표(push-subscription-status.js) — 폰에서 이름이 한 글자씩 세로로 꺾였다.
+   칸은 한 줄로 두고 넘치면 표가 옆으로 밀린다(.table-responsive). */
+[data-push-status-table] .table th,
+[data-push-status-table] .table td {
+  padding: 8px 12px !important;
+  white-space: nowrap;
+}
+[data-push-status-table] .table td {
+  font-size: 0.875rem;
 }

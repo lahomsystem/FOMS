@@ -83,6 +83,13 @@ h6 {
     letter-spacing: -0.025em;
 }
 
+/* 직원 화면 점검(2026-11-05) — 빈 목록 안내(큰 아이콘 + h5.text-muted)가 20px 굵은 글자라 카드 제목(16px)보다 컸다
+   (수납장 · 지방 · 수도권 · 자가실측 · 제품 설정). */
+:where(body:not(.pp-body)) .fa-3x ~ h5.text-muted {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
 /* 3. GLASSMORPHISM UTILITIES */
 .glass {
     background: var(--bg-glass);
@@ -155,6 +162,34 @@ h6 {
     border-color: #D1D1D6 !important;
 }
 
+/* 직원 화면 점검(2026-11-05) — 위 .btn 의 padding · border !important 가 Bootstrap 의 크기(.btn-sm) ·
+   여백 유틸(.py-0) · outline 테두리를 덮었다. :where() 로 특이도를 .btn 과 같은 (0,1,0) 에 두어 이 파일의
+   .btn 만 이기고, 뒤에 실리는 화면별 규칙은 그대로 이기게 한다. 협력사 화면(body.pp-body)은 제외. */
+/* PC .btn-sm 이 41~46px 로 커졌다 → 작은 단추 높이(약 29~31px). 마우스 PC 만 — 폰 · 터치 태블릿은 손가락 크기를 그대로 둔다. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+    :where(body:not(.pp-body)) :where(.btn).btn-sm {
+        padding: 4px 10px !important;
+    }
+}
+
+/* .btn.py-0 이 안 먹어 같은 줄 칸 높이가 어긋났다(주문 상세 · 출고 · 실측). .btn-sm 보다 뒤에 둔다.
+   마우스 PC 만, 높이는 PC 가장 작은 누름 칸 28px 아래로 내려가지 않게 — 폰 · 터치 태블릿은 손가락 크기 그대로. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+    :where(body:not(.pp-body)) :where(.btn).py-0 {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        min-height: 28px;
+    }
+}
+
+/* .btn-outline-warning 은 테두리가 지워지고 노란 글자(#ffc107)만 남아 흰 바탕 대비 1.6:1 이었다.
+   글자 · 테두리 색만 변수로 바꿔, 눌림(.active · 체크) · 올림(hover) 색은 Bootstrap 것을 그대로 쓴다. */
+:where(body:not(.pp-body)) .btn-outline-warning {
+    --bs-btn-color: #b45309;
+    --bs-btn-border-color: #f59e0b;
+    border: 1px solid var(--bs-btn-border-color) !important;
+}
+
 /* Floating Navbar */
 .navbar {
     background: rgba(255, 255, 255, 0.8) !important;
@@ -185,6 +220,50 @@ h6 {
     background-color: var(--foms-input-bg-focus, white) !important;
     border-color: var(--brand-primary) !important;
     box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15) !important;
+}
+
+/* 직원 화면 점검(2026-11-05) — 특이도는 위 입력칸 규칙과 같은 (0,1,0)(:where) 라 화면별 규칙이 그대로 이긴다.
+   위 padding 12px 16px !important 가 Bootstrap .form-select 의 오른쪽 ▾ 자리(2.25rem)를 지워 글자가 ▾ 와 겹쳤다. */
+:where(body:not(.pp-body)) .form-select:where(:not([multiple], [size]:not([size="1"]))) {
+    padding-right: 36px !important;
+}
+
+/* PC 표 안 -sm 입력칸이 위 규칙으로 50px · 16px 로 커져(날짜칸 180x50) 표 줄이 세로로 길게 꺾였다(지방 · 수도권 · 수납장).
+   마우스 PC 만, 여백은 모두 줄이고 글자는 14px. 단 ERP 대시보드 작업 큐 날짜칸(.erp-dashboard-date-input, 칸에 1rem 을 적어 둠)은
+   큐 본문 17.6px 결정에 맞춰 글자를 줄이지 않는다.
+   특이도는 모두 (0,1,0) — 템플릿의 .status-dropdown 같은 화면별 !important 규칙이 그대로 이긴다. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+    :where(body:not(.pp-body)) :where(.table) .form-control-sm,
+    :where(body:not(.pp-body)) :where(.table) .form-select-sm {
+        padding: 4px 8px !important;
+    }
+
+    :where(body:not(.pp-body)) :where(.table) .form-control-sm:where(:not(.erp-dashboard-date-input)),
+    :where(body:not(.pp-body)) :where(.table) .form-select-sm {
+        font-size: 0.875rem !important;
+    }
+
+    :where(body:not(.pp-body)) :where(.table) .form-select-sm {
+        padding-right: 28px !important;
+        background-position: right 8px center;
+    }
+
+    /* 진행 단계 체크 이름이 '실측완/료'처럼 낱말 가운데서 꺾였다 → 띄어쓰기에서만 꺾는다. */
+    :where(body:not(.pp-body)) :where(.table) td .form-check-label {
+        word-break: keep-all;
+        overflow-wrap: break-word;
+    }
+}
+
+/* 폰에서 표 상태 고르기(템플릿 .status-dropdown 12~12.8px, 폭 80~100px 고정)를 누르면 iOS 가 화면을 확대했다(16px 미만).
+   16px 로 키우고, 커진 글자가 ▾ 에 덮이지 않게 폭은 글자에 맞춘다(표는 이미 옆으로 밀리는 칸). */
+@media (max-width: 991.98px) {
+    :where(body:not(.pp-body)) select.status-dropdown {
+        font-size: 16px !important;
+        width: auto !important;
+        padding-right: 28px !important;
+        background-position: right 8px center;
+    }
 }
 
 /* Badges */
@@ -264,6 +343,21 @@ h6 {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--space-4);
+}
+
+/* 직원 화면 점검(2026-11-05) — 검색 줄(form.d-flex: 입력칸 + [검색])에서 입력칸에 밀려 단추 글자가
+   '검/색' 두 줄로 꺾였다(수도권 · 수납장). 단추는 줄지 않고, 입력칸이 줄어든다. */
+:where(body:not(.pp-body)) form.d-flex > .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* 요약 카드 5장이 col-lg-3(한 줄 4칸)이라 1장이 혼자 다음 줄로 떨어졌다(수도권) — 정확히 5장인 줄은 넓은 화면에서 5칸. */
+@media (min-width: 1200px) {
+    :where(body:not(.pp-body)) .row > .col-lg-3:first-child:nth-last-child(5),
+    :where(body:not(.pp-body)) .row > .col-lg-3:first-child:nth-last-child(5) ~ .col-lg-3 {
+        width: 20%;
+    }
 }
 
 /* MOBILE RESPONSIVE (2026-03 ERP 최적화) */

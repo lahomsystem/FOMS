@@ -233,8 +233,30 @@
     --erp-completion-media-play-size: 0.75rem;
   }
 
+  /* 왼쪽 선 하나(16px): 바깥 틀(container-fluid) 12px + 4px = 16px.
+     예전엔 상자 안쪽 여백 16px 이 또 붙어 설명 글·카드가 28px 에서 시작했고(여백 두 겹)
+     제목 글자만 12px(띠 끝에 붙음)에 있었다. 이제 제목 · 설명 · 카드가 같은 16px 선이다. */
   .erp-completion[data-erp-mobile-v2='true'] .erp-pro-card__body {
-    padding: 1rem;
+    padding: 1rem 4px;
+  }
+
+  .erp-completion[data-erp-mobile-v2='true'] .foms-completion-photo-review > .foms-section-header {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  /* 이 화면의 제목 자리다. 공용 .foms-section-header__title(12px 회색 대문자 꼬리표)을
+     그대로 쓰면 아래 설명 글보다 작아진다 → AS 목록 제목(15px 굵게)과 같은 단계로 올린다. */
+  body.erp-mobile-v2-layout .erp-completion[data-erp-mobile-v2='true'] .foms-completion-photo-review .foms-section-header__title {
+    color: var(--foms-text-primary);
+    font-size: 0.9375rem;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .erp-completion[data-erp-mobile-v2='true'] .foms-completion-photo-review .erp-pro-card__body > p.text-muted {
+    font-size: 0.8125rem;
+    line-height: 1.5;
   }
 
   .erp-completion[data-erp-mobile-v2='true'] .erp-completion-row--desktop {

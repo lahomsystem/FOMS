@@ -1,5 +1,14 @@
 /* PC ERP Order + WDCalculator split view. Mobile keeps the existing tab flow. */
 @media (min-width: 992px) {
+  /* 2026-11-05 점검 A3: 편집 칸이 col-md-8(66%)이라 1440 화면에서 카드 936px · 제품 상세 510px 로
+     안이 비좁았다(좌우 252px 빈 바탕). 1200px 까지 넓히고 좁은 창 · 태블릿 분할 조각에서는 칸을 다 쓴다.
+     계산기 같이 보기(50%) · 네이버 도크는 아래 더 센 선택자가 그대로 덮는다. */
+  .erp-edit-shell > .erp-edit-col {
+    flex: 0 0 auto;
+    width: min(100%, 1200px);
+    max-width: 1200px;
+  }
+
   .erp-edit-shell--erp-order.is-wdc-split-open {
     --erp-wdc-split-height: calc(100vh - 126px);
     align-items: stretch;
@@ -78,6 +87,48 @@
     color: #fff;
     background: #0dcaf0;
     border-color: #0dcaf0;
+  }
+}
+
+/* 2026-11-05 점검 A7: PC(마우스) 주문 편집이 폰 크기였다 — 전역 .form-control/.form-select
+   (style-pro-max: 1rem · 12px 16px !important)라 sm 입력칸이 16px 글자 50px 높이, 라벨도 16px.
+   마우스 PC 에서만 14px 글자 · 35px 높이로 줄인다(좌우 여백은 전역 16px · 접수 3칸 10px 그대로).
+   터치 화면(아이패드 등)은 16px 미만이면 누를 때 확대되므로 그대로 둔다.
+   라벨 줄(접수 3칸 라벨 | 긴급 체크 줄)은 높이를 같이 줄여 긴급 사유 칸이 접수 칸과 한 줄에 선다. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+  .erp-edit-col .form-control-sm,
+  .erp-edit-col .form-select-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.5;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .erp-edit-col .form-label,
+  .erp-edit-col .erp-urgent-head {
+    font-size: 0.875rem;
+  }
+
+  .erp-edit-col .erp-urgent-head {
+    min-height: 1.3125rem;
+  }
+
+  /* 14px 라벨(inline-block)은 16px 칸의 줄 높이(24px)에 실려 입력칸이 2px 내려앉는다 —
+     접수인(d-block span) 칸과 높이를 맞추려 3칸 라벨을 블록으로 둔다. */
+  .erp-edit-col .erp-received-trio .form-label {
+    display: block;
+  }
+
+  /* 실측일 · 시공일 달력 단추(전역 .btn 10px 20px !important)가 입력칸을 43px 로 늘렸다 — 같은 35px 로. */
+  .erp-edit-col .input-group-sm > .btn {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .erp-edit-col .erp-received-by {
+    min-height: calc(1.3125rem + 12px + 2px);
+    padding: 6px 12px;
+    font-size: 0.875rem;
   }
 }
 

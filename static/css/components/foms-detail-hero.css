@@ -58,7 +58,8 @@
     background: var(--foms-surface-overlay);
     border: none;
     border-radius: var(--foms-radius-md);
-    font-size: 11px;
+    /* 2026-11-05 점검 A10: 11px 은 아래 줄 이름(13px)보다 작았고, 단추로 된 '복사' 만 16px 였다. 넷 다 13px. */
+    font-size: 13px;
     color: var(--foms-text-secondary);
     cursor: pointer;
     min-height: 56px;
@@ -83,12 +84,14 @@
     margin-bottom: var(--foms-space-3);
   }
 
+  /* 2026-11-05 점검 A10: 묶음 제목(12px · 옅은 회색)이 그 안의 줄 이름(.foms-kv-row__label 13px · 같은 회색)보다
+     작아 위계가 뒤집혀 있었다. 14px · 한 단계 진한 회색으로 줄 이름 위에 세운다. */
   body.erp-mobile-v2-layout .foms-detail-section__title {
-    font-size: var(--foms-font-size-xs);
+    font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--foms-text-tertiary);
+    color: var(--foms-text-secondary);
     margin: 0;
   }
 
@@ -130,7 +133,9 @@
   body.erp-mobile-v2-layout .foms-quick-action--button {
     border: none;
     background: var(--foms-surface-overlay);
-    font: inherit;
+    /* 2026-11-05 점검 A10: `font: inherit` 가 위 13px 를 16px 로 되돌렸다 — 글꼴 · 줄 높이만 물려받는다. */
+    font-family: inherit;
+    line-height: inherit;
   }
 
   body.erp-mobile-v2-layout .foms-quick-action--disabled {

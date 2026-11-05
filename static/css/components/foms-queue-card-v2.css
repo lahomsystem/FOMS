@@ -225,6 +225,16 @@
     font-size: var(--foms-font-size-sm);
   }
 
+  /* 직원 큐 카드(생산·시공·실측·주문): 왼쪽 주소가 두 줄에서 잘리고 오른쪽(연락처·담당)은 남아서
+     1.4 : 1 로 나눈다(2026-11-05 점검). 협력사(pp-body)와 출고(주소가 한 줄 전체)는 반반 그대로. */
+  body.erp-mobile-v2-layout:not(.pp-body) .foms-queue-card-v2__meta {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-v2 .foms-queue-card-v2__meta {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
   body.erp-mobile-v2-layout .queue-card__meta > div,
   body.erp-mobile-v2-layout .foms-queue-card-v2__meta > div {
     min-width: 0;

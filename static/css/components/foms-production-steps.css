@@ -8,7 +8,9 @@
   gap: var(--foms-space-2, 8px);
   width: 100%;
   min-height: var(--foms-touch-target-min, 44px);
-  margin: calc(var(--foms-space-2, 8px) * -1) 0 0;
+  /* 목록 칸 사이(--foms-prod-steps-list-gap)를 그대로 되돌려 카드 바닥에 붙인다.
+     -8px 이면 v2 목록(16px)에서 8px 떠서 '공정 N/5' 띠가 카드와 따로 놀았다(2026-11-05 점검). */
+  margin: calc(var(--foms-prod-steps-list-gap, 0.875rem) * -1) 0 0;
   padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
   border: 1px solid var(--foms-border-subtle, #e2e6ea);
   border-top: none;
@@ -16,6 +18,7 @@
   background: var(--foms-surface-base, #fff);
   color: var(--foms-text-secondary, #64748b);
   font: inherit;
+  font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
 }
@@ -41,11 +44,31 @@
   font-size: 0.75rem;
 }
 
+/* 띠가 붙는 카드는 아래 모서리를 펴서 띠의 둥근 바닥과 한 덩어리로 보이게 한다. */
+.erp-mobile-queue-section__list > .queue-card:has(+ .foms-prod-steps-open) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* 띠 아래 'QR 라벨' 은 자기 카드 쪽으로 당기고 다음 카드와는 한 칸 더 띄운다. */
+.foms-prod-steps-bar + .foms-qr-label-link {
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 칸 사이 값 — 기본 목록 0.875rem(11-queue-family-mobile.css), v2 셸 목록 --foms-space-4(foms-queue-card-v2.css). */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  body.erp-mobile-v2-layout .foms-mobile-queue-list {
+    --foms-prod-steps-list-gap: var(--foms-space-4, 16px);
+  }
+}
+
 /* --- C: 카드 미니 진행바(버튼 하단 2px, width=done/5) ------------------------- */
 .foms-prod-steps-bar {
   position: relative;
   height: 2px;
-  margin: -2px 0 0;
+  /* 목록 칸 사이 + 2px 를 되돌려 띠 단추 바닥 2px 위에 겹친다(떠 있는 회색 줄 방지). */
+  margin: calc(var(--foms-prod-steps-list-gap, 0.875rem) * -1 - 2px) 0 0;
   border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
   background: var(--foms-border-subtle, #e2e6ea);
   overflow: hidden;

@@ -52,7 +52,7 @@
     position: absolute;
     right: 4px;
     bottom: 4px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     padding: 2px 6px;
     line-height: 1.2;
     background-color: #fff9c4 !important;
@@ -177,7 +177,8 @@
      (초기화 = 인라인 제거 → 이 값 복귀). 드래그 하한은 <col> 에 min-width 가 먹지
      않아 JS MIN_WIDTHS 가 소유한다 — 두 값의 역할이 다르니 중복이 아니다. */
   #as-dashboard-table col[data-col-key="order"] { width: 76px; }
-  #as-dashboard-table col[data-col-key="received"] { width: 104px; }
+  /* 접수일 '2026-09-23' 은 14px 에서 76px + 칸 좌우 여백 32px = 108px. 104px 면 두 줄로 꺾였다. */
+  #as-dashboard-table col[data-col-key="received"] { width: 112px; }
   #as-dashboard-table col[data-col-key="visit"] { width: 190px; }
   #as-dashboard-table col[data-col-key="completed"] { width: 186px; }
   #as-dashboard-table col[data-col-key="manager"] { width: 88px; }
@@ -268,12 +269,13 @@
     cursor: pointer;
   }
 
+  /* AS 내용 칸 글자는 표 본문 14px · 보조 13px 두 단계만 쓴다(예전 14.1 · 13.4 · 13.1 · 12.8px 네 가지). */
   .as-tl-cell__anchor {
-    font-size: 0.88rem;
+    font-size: 0.875rem;
   }
 
   .as-tl-cell__recent {
-    font-size: 0.84rem;
+    font-size: 0.8125rem;
     color: #475569;
   }
 
@@ -281,7 +283,7 @@
     border: 0;
     background: none;
     color: #2563eb;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 0;
     cursor: pointer;
@@ -292,7 +294,7 @@
     border: 0;
     background: none;
     padding: 0;
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     text-align: left;
     cursor: pointer;
   }
@@ -484,8 +486,13 @@
   /* 상태 배지(AS 접수/완료/미결) — 전역 .erp-pro-badge 는 --erp-font-size-xs 라 작다.
      타 페이지 파급 없이 이 대시보드에서만 한 단계 키운다. */
   .erp-as-dashboard .erp-pro-badge {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 600;
+  }
+
+  /* 고객 칸 '자가실측' 같은 Bootstrap .badge 는 0.75em(= 표 14px 의 10.5px)이라 너무 작다. */
+  #as-dashboard-table .badge {
+    font-size: 0.75rem;
   }
 
   /* 상태 셀 비용 배지. 무상 확정은 렌더되지 않는다(무배지) — 서버 _as_billing_badge 소관. */
@@ -494,7 +501,7 @@
     margin-top: 3px;
     padding: 1px 7px;
     border-radius: 4px;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-weight: 700;
     line-height: 1.45;
   }
@@ -574,7 +581,7 @@
   }
 
   .as-schedule-drift-banner__overflow {
-    font-size: 0.86rem;
+    font-size: 0.875rem;
     font-weight: 700;
     opacity: 0.9;
   }
@@ -590,7 +597,7 @@
     border-radius: 999px;
     background: var(--erp-text-white);
     color: var(--erp-danger-dark);
-    font-size: 0.86rem;
+    font-size: 0.875rem;
     font-weight: 700;
     line-height: 1.3;
     text-decoration: none;
@@ -684,7 +691,7 @@
     padding: 4px 10px;
     border: 1px solid transparent;
     border-radius: 8px;
-    font-size: 0.86rem;
+    font-size: 0.875rem;
     font-weight: 700;
     line-height: 1.3;
     overflow-wrap: anywhere;
@@ -749,7 +756,7 @@
   }
 
   /* 2026-07-30 T5: 드리프트 행 액션(재적용/무시/연결 해제).
-     배지가 1차 상태 칩(0.86rem)으로 커진 만큼 버튼도 한 단계 키워 배지 옆에서
+     배지가 1차 상태 칩(0.875rem)으로 커진 만큼 버튼도 한 단계 키워 배지 옆에서
      짓눌려 보이지 않게 한다 — 세 표면(PC 셀·모바일 v2 카드·legacy 카드) 모두 같은
      컨테이너 폭 제약을 받으므로 표면별 분기 없이 wrap 으로 흘린다. */
   .erp-as-drift-actions {
@@ -768,7 +775,7 @@
     border-radius: 6px;
     background: #fff;
     color: #495057;
-    font-size: 0.76rem;
+    font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.5;
     white-space: nowrap;
@@ -1252,15 +1259,16 @@
    색 규약(목업 §1): 건(N번째 AS)=보라 알약 · 왼쪽 주문 칸 / 회차(N차)=회색 네모 ·
    오른쪽 내용 칸 / 재발=빨강 알약 — 색·모양·자리 셋이 전부 달라야 두 숫자가 안 헷갈린다.
    1번째 건은 배지 자체가 없으므로 "보라색이 보이면 전에도 있었다"가 곧바로 읽힌다. */
+/* 12px 글자 + 좌우 6px: '3번째 AS'(60px)가 주문 칸(76px − 왼쪽 여백 16px) 안에 그대로 들어간다. */
 .erp-as-cycle-badge {
   display: inline-block;
   margin-top: 3px;
-  padding: 1px 8px;
+  padding: 1px 6px;
   border: 1px solid #6d28d9;
   border-radius: 999px;
   background: #f1ebfd;
   color: #6d28d9;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.6;
   white-space: nowrap;
@@ -1270,12 +1278,12 @@
 .erp-as-cycle-legacy {
   display: inline-block;
   margin-top: 3px;
-  padding: 1px 8px;
+  padding: 1px 6px;
   border: 1px solid #d4dae2;
   border-radius: 999px;
   background: #eef1f5;
   color: #4b5563;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.6;
   white-space: nowrap;
@@ -1290,7 +1298,7 @@
   border-radius: 6px;
   background: #eef1f5;
   color: #6b7280;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 

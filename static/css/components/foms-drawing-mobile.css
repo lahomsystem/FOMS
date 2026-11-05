@@ -426,7 +426,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    min-height: 2.25rem;
+    min-height: var(--foms-touch-target-min, 44px);
     font-weight: 800;
   }
 
@@ -760,7 +760,7 @@
     border-radius: 8px;
     background: var(--foms-surface-base, #fff);
     color: var(--foms-text-primary, #14171c);
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 800;
     line-height: 1.05;
     text-align: center;
