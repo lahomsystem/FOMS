@@ -1,4 +1,5 @@
-"""관리 패널 '그림 읽기' 칸 묶음 — 설계서 17.11 (i) · 사장님 결정 D89(처음 끔) · D92(Sonnet) · D96(PDF 쪽 상한).
+"""관리 패널 '사진 · 그림 읽기' 칸 묶음 — 설계서 17.11 (i) · 17.11.1 · 사장님 결정 D89(처음 끔) · D92(Sonnet) · D96(PDF 쪽 상한) ·
+D172(모든 사진을 질문과 같이 — 칸 값은 그대로, 이름 · 뜻만 넓힘).
 
 칸은 :mod:`.settings` 의 ``FIELDS`` 끝에 붙는다(같은 읽기 · 쓰기 · 수정 기록 길). 처음 값은 모두 **끔**이거나 손님께 아무것도
 닿지 않는 값이다 — '직원 참고만'은 직원 참고 줄에만 쓰고 계산 · 초안 금액에는 넣지 않는다(운영 첫 2주 — D96 의 5). 정답
@@ -16,7 +17,7 @@ __all__ = [
     "GROUP_IMAGE", "IMAGE_FIELDS", "MODE_DRAFT", "MODE_FIELD", "MODE_NOTE", "MODE_OFF", "MODES", "image_mode",
 ]
 
-GROUP_IMAGE = "그림 읽기(손님 도면 · 예시)"
+GROUP_IMAGE = "사진 · 그림 읽기(손님 사진 · 도면 · 예시)"
 MODE_FIELD = "image_read_mode"
 MODE_OFF, MODE_NOTE, MODE_DRAFT = "off", "note", "draft"
 MODES: tuple[str, ...] = (MODE_OFF, MODE_NOTE, MODE_DRAFT)
@@ -24,24 +25,25 @@ _MODE_CHOICES = ((MODE_OFF, "끔"), (MODE_NOTE, "직원 참고만"), (MODE_DRAFT
 _CONFIDENCE_CHOICES = (("medium", "보통 이상"), ("high", "높음만"))
 
 IMAGE_FIELDS: tuple[Field, ...] = (
-    Field(MODE_FIELD, "그림 읽기", KIND_CHOICE, MODE_OFF, GROUP_IMAGE, _MODE_CHOICES,
-          help="견적 계산 넣기가 켜져 있고 손님이 '크기는 도면 참고'라 할 때만 그림 · PDF 를 읽어요. '직원 참고만'은 "
-               "읽은 치수 범위만 직원에게(금액 없음), '초안에 씀'은 그 가로 범위로 금액을 내요. 그림은 저장 안 하고 "
-               "숫자만 남겨요(비상 정지 · 초안 끔이면 같이 멈춤)"),
+    Field(MODE_FIELD, "사진 · 그림 읽기", KIND_CHOICE, MODE_OFF, GROUP_IMAGE, _MODE_CHOICES,
+          help="손님이 보낸 사진 · 그림 · PDF 를 질문과 같이 읽어요(견적 계산과 상관없이). '직원 참고만'은 읽은 장수만 "
+               "직원 참고 줄에 적어요(초안 · 금액 그대로). '초안에 씀'은 읽은 짧은 설명을 초안 두뇌에 주고, 사진만 온 "
+               "글에도 초안을 써요. 견적에서 '크기는 도면 참고'면 읽은 가로 범위로 금액도 내요. 사진은 저장 안 하고 가린 "
+               "짧은 설명 · 숫자만 남겨요(비상 정지 · 초안 끔이면 같이 멈춤)"),
     Field("image_model", "그림 읽기 모델", KIND_CHOICE, MODEL_SONNET, GROUP_IMAGE, MODEL_CHOICES,
           help="Opus 보다 값이 약 절반이고 더 빨라요(시험 1건)"),
     Field("image_effort", "그림 읽기 생각 깊이", KIND_CHOICE, "high", GROUP_IMAGE, EFFORT_CHOICES),
     Field("image_max_tokens", "그림 읽기 최대 출력", KIND_INT, 8000, GROUP_IMAGE, low=2000, high=16000, unit="토큰"),
     Field("image_preread_timeout_s", "미리 읽기 시간 상한", KIND_INT, 60, GROUP_IMAGE, low=30, high=120, unit="초",
-          help="그림이 오자마자 따로 읽어요(견적 말이 있는 상담 · 첫 글 묶음 그림만)"),
+          help="사진이 오자마자 따로 읽어요(사진이 온 상담 모두 — 조용 기다림 동안)"),
     Field("image_inline_timeout_s", "그 자리 읽기 시간 상한", KIND_INT, 35, GROUP_IMAGE, low=20, high=60, unit="초",
-          help="미리 읽은 결과가 없으면 초안 차례에 바로 읽어요(받기 포함). 넘으면 그림 없이 '확인 후 안내'로 가요"),
+          help="미리 읽은 결과가 없으면 초안 차례에 바로 읽어요(받기 포함). 넘으면 사진 없이 초안을 써요"),
     Field("image_use_confidence", "금액에 쓸 확신", KIND_CHOICE, "medium", GROUP_IMAGE, _CONFIDENCE_CHOICES,
           help="이보다 낮으면 금액에 안 쓰고 직원 참고 줄에만 적어요"),
     Field("image_per_turn", "차례당 장수", KIND_INT, 4, GROUP_IMAGE, low=1, high=6, unit="장"),
     Field("image_per_chat_day", "상담당 하루 장수", KIND_INT, 8, GROUP_IMAGE, low=1, high=20, unit="장"),
     Field("image_per_day", "전체 하루 장수", KIND_INT, 150, GROUP_IMAGE, low=10, high=500, unit="장",
-          help="넘으면 그림 없이 '확인 후 안내'로 가요"),
+          help="넘으면 그 사진은 '상한'으로 두고 사진 없이 초안을 써요"),
     Field("image_pdf_pages", "PDF 쪽 상한", KIND_INT, 3, GROUP_IMAGE, low=1, high=10, unit="쪽",
           help="이보다 긴 PDF 는 앞쪽만 읽지 않고 아예 건너뛰어요"),
     Field("image_pdf_max_mb", "PDF 크기 상한", KIND_INT, 10, GROUP_IMAGE, low=1, high=20, unit="MB"),

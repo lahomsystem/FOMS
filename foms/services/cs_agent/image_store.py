@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from sqlalchemy import and_, func, or_, select, update
 
@@ -113,12 +113,15 @@ def sent_today(session: Any, day_start: datetime.datetime, *, chat_id: Optional[
     return int(session.scalar(stmt) or 0)
 
 
-def reuse_by_sha(session: Any, chat_id: str, shas: Sequence[str]) -> Optional[CsAgentImageRead]:
-    """같은 상담에서 같은 그림 묶음(sha256 차례가 같음)을 이미 읽은 줄 — 같은 그림 재전송은 앞 결과를 쓴다(사진 교훈 1-12)."""
+def reuse_by_sha(session: Any, chat_id: str, shas: Sequence[str],
+                 usable: Callable[[str, Any], bool] = lambda _state, _result: True) -> Optional[CsAgentImageRead]:
+    """같은 상담에서 같은 그림 묶음(sha256 차례가 같음)을 이미 읽은 줄 — 같은 그림 재전송은 앞 결과를 쓴다(사진 교훈 1-12).
+    ``usable(상태, 결과)`` 가 거짓인 줄(옛 판 결과 — :func:`.image_read.current`)은 건너뛴다."""
     stmt = (select(_T).where(_T.chat_id == chat_id, _T.state.in_((DONE, DISCARDED)), _T.sha256.in_(set(shas)))
             .order_by(_T.read_at.desc()))
     for row in session.scalars(stmt):
-        if isinstance(row.result, dict) and list(row.result.get("batch") or ()) == list(shas):
+        if (isinstance(row.result, dict) and list(row.result.get("batch") or ()) == list(shas)
+                and usable(row.state, row.result)):
             return row
     return None
 

@@ -1,5 +1,6 @@
 """그림 읽기 규칙(설계서 17.11 (c) · (d) · D90 · D96) — 벽 쪽마다 150 빼기 · 내경 그대로 · 기준 모름 두 끝 · 표시 벽만 ·
-합친 범위 · 1.5배 넘으면 안 씀 · 10mm 내림/올림 · 한 값 '약 ○mm' · 꼴 검사 · 글 칸 없음 · 공간 짝 · 손님 글이 그림을 이김.
+합친 범위 · 1.5배 넘으면 안 씀 · 10mm 내림/올림 · 한 값 '약 ○mm' · 꼴 검사 · 글 칸은 사진 설명 두 칸뿐(17.11.1) · 공간 짝 ·
+손님 글이 그림을 이김.
 
 순수 함수 시험(네트워크 · DB 없음). 값은 합성 mm 뿐 — 금액은 적지 않는다.
 """
@@ -89,9 +90,10 @@ def _string_leaves(schema, path=""):
             yield from _string_leaves(value, path)
 
 
-def test_the_schema_has_no_free_text_field_anywhere():
+def test_the_only_free_text_fields_are_the_two_masked_photo_notes():
     schema = ir.image_schema()
-    assert list(_string_leaves(schema)) == []  # 단지명 · 동호수 · 이름이 돌아올 자리가 없다
+    image = ".properties.images.items.properties"
+    assert list(_string_leaves(schema)) == [f"{image}.summary", f"{image}.about_question"]  # 17.11.1 — 가린 짧은 설명뿐
     assert schema["additionalProperties"] is False and set(schema["required"]) == set(schema["properties"])
     assert schema["properties"]["spaces"]["items"]["properties"]["room"]["enum"][:2] == ["안방", "작은방"]
 

@@ -292,8 +292,9 @@ def test_a_read_in_progress_elsewhere_is_waited_for_then_reused_or_given_up(chan
         clock.sleep(seconds)
         other = db_session.get(CsAgentImageRead, row.id)
         other.state, other.sha256, other.claim_owner = "done", "a" * 64, None
-        other.result = {**GOOD, "batch": ["a" * 64], "ranges": [{"room": "안방", "target": "named", "low": 2400,
-                                                                  "high": 2700, "walls": 1, "deducted": [300]}]}
+        other.result = {**GOOD, "batch": ["a" * 64], "rules_version": image_read.RULES_VERSION,
+                        "ranges": [{"room": "안방", "target": "named", "low": 2400, "high": 2700, "walls": 1,
+                                    "deducted": [300]}]}
         db_session.commit()
 
     got = image_read.read_batch(db_session, sleep=finished_elsewhere, **common)
@@ -320,8 +321,8 @@ def test_preread_reads_quote_chats_and_the_turn_then_reuses_it(chan):
     assert preread(chan, client).chats == 0  # 줄이 있는 그림은 다시 보지 않는다
 
 
-def test_preread_skips_chats_without_a_quote_cue_after_a_staff_answer(chan):
-    image_switch("note")
+def test_preread_no_longer_needs_quote_calc_and_reads_non_quote_photos_too(chan):
+    image_switch("note", quote_calc_enabled=False)  # 17.11.1 의 1 — 견적 계산 넣기 · 견적 말 조건을 뗐다
     set_switch({"draft": "memo"})
     payload = encoded(plan_image())
     customer(chan, "uc-2", text="배송 문의드려요", when=at(2, 8, 0),
@@ -330,8 +331,8 @@ def test_preread_skips_chats_without_a_quote_cue_after_a_staff_answer(chan):
                     {"files": [file_item(chan.store.put("pub-file/defect.jpg", payload), payload)]})])
     client = FakeAnthropic(GOOD)
     got = preread(chan, client)
-    assert (got.not_preread, client.params) == (1, [])  # 돈 — 하자 · 배송 사진은 미리 읽지 않는다
-    assert [(r.state, r.skip_code) for r in image_rows()] == [("skipped", "not_preread")]
+    assert (got.read, got.not_preread, len(client.params)) == (1, 0, 1)  # 하자 · 배송 사진도 질문과 같이 본다
+    assert [(r.state, r.skip_code) for r in image_rows()] == [("done", None)]
 
 
 def test_preread_is_idle_when_switched_off(chan):
