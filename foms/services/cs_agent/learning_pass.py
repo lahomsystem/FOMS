@@ -33,13 +33,13 @@ def _quiet(result: dict[str, Any]) -> bool:
 
 
 def run_learning(session: Any, *, now: datetime.datetime, stop_check: Callable[[], None],
-                 client: Any = None, storage: Any = None) -> Optional[dict[str, Any]]:
+                 client: Any = None, storage: Any = None, reader: Any = None) -> Optional[dict[str, Any]]:
     """학습 몫 한 번. 돈 길이 있으면 ``{"photo_desc": {...}, "weekly_fix": {...}, "photo_learning": {...}}``(숫자 · 코드만),
-    모두 꺼졌으면 ``None``."""
+    모두 꺼졌으면 ``None``. ``reader`` 는 상담 전체 대화(설계서 17.11.2)를 읽는 감시 바퀴의 채널톡 읽기 도우미다."""
     out: dict[str, Any] = {}
     steps = (("photo_desc", lambda: run_photo_desc(session, now=now, client=client, storage=storage)),
-             ("weekly_fix", lambda: run_weekly_fix(session, now=now, client=client)),
-             ("photo_learning", lambda: run_photo_learning(session, now=now, client=client)))
+             ("weekly_fix", lambda: run_weekly_fix(session, now=now, client=client, reader=reader)),
+             ("photo_learning", lambda: run_photo_learning(session, now=now, client=client, reader=reader)))
     for name, step in steps:
         stop_check()  # 길마다 앞에서 TERM 을 본다(멈춤은 그대로 올라간다)
         try:
