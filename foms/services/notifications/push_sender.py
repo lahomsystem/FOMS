@@ -123,6 +123,8 @@ _DEFAULT_P1_TYPES = frozenset(
         "MEASURE_SAME_DAY_ADDED",
         # AI 상담 초안이 떴다(플랜 C10-5) — 구독한 상담 직원에게만 만든다(cs_agent.staff_alert).
         NOTIFY_DRAFT_READY,
+        # 협력사 명세서 발행 대기(출고 전날 9시, 주문마다 한 번) — 입금 기한(출고 전날 16:00) 전에 발행해야 한다.
+        "PARTNER_STATEMENT_DUE",
     }
 )
 
