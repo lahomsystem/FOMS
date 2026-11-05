@@ -10,6 +10,9 @@
   포함한 전체다 — 넘으면 그림 없이 간다(늦은 초안보다 사람이 낫다 — 11.1 의 5).
 - **실패는 조용히 앞 단계로**: 받기 · 두뇌 오류 · 가림 · 돈 상한이면 줄을 실패로 적고 ``None`` 결과를 돌려준다(초안 차례는
   앞 단계 '되묻지 않기' 그대로). 로그엔 상담 id · 코드 · 숫자만.
+- **전체 대화(설계서 17.11.2 · D173)**: 부르는 쪽이 읽기 함수(:func:`.full_conversation.picture_talk`)를 주면 두뇌를 부르기
+  바로 전에만 상담 전체 대화를 읽어(시간 상한에서 :data:`TALK_KEEP_S` 를 남긴 만큼) 상담 글 칸에 싣는다. 이번에 보낸 그림은 그
+  글 자리에 표시 줄로 둔다. 못 읽으면 예전 그대로(최근 30줄) — 다시 쓴 결과 · 상한이면 읽지 않는다.
 - **판 번호(:data:`RULES_VERSION`)**: 지시문 · 스키마를 바꾸면 올린다. 다시 쓰기(같은 묶음 · 같은 sha256)는 지금 판 결과만 쓴다
   — 판 1(도면만 · 설명 칸 없음) 결과를 설명이 있는 것처럼 쓰지 않고 다시 읽는다. 단 얼굴로 버린 결과(``discarded``)는 판과
   상관없이 다시 쓴다(얼굴이 보인 그림을 모델에 다시 보내지 않게).
@@ -25,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Sequence
 
 from foms.services.cs_agent.brain_spend import BrainError
+from foms.services.cs_agent.full_conversation import PictureTalk
 from foms.services.cs_agent.image_brain import BrainRead, read_images
 from foms.services.cs_agent.image_fetch import FetchError, fetch_bytes
 from foms.services.cs_agent.image_files import FileRef
@@ -41,12 +45,13 @@ from foms.services.cs_agent.state import KST
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CLAIM_MARGIN_S", "MIN_CALL_S", "RULES_VERSION", "BatchOutcome", "current", "read_batch"]
+__all__ = ["CLAIM_MARGIN_S", "MIN_CALL_S", "RULES_VERSION", "TALK_KEEP_S", "BatchOutcome", "current", "read_batch"]
 
 #: 결과 판 번호(지시문 · 스키마 · 범위 규칙을 바꾸면 올린다) — 2 = 모든 사진 · 사진마다 가린 설명 두 칸(17.11.1 · D172).
 RULES_VERSION = 2
 CLAIM_MARGIN_S = 45  # 선점 만료 = 시간 상한 + 이 여유
 MIN_CALL_S = 5  # 두뇌에 남은 시간이 이보다 짧으면 부르지 않는다
+TALK_KEEP_S = 20  # 전체 대화 쪽 넘김이 두뇌 몫으로 남겨 두는 시간(초) — 그보다 적게 남으면 쪽을 더 넘기지 않는다
 POLL_S = 1.0
 UTC = datetime.timezone.utc
 
@@ -128,6 +133,7 @@ class _Job:
     transport: Any = None
     turn_id: Optional[int] = None
     stop: Any = None
+    full_talk: Optional[PictureTalk] = None
     started: float = 0.0
     codes: list[str] = field(default_factory=list)
 
@@ -188,10 +194,21 @@ def _over_cap(job: _Job, count: int) -> bool:
             or total + count > int(job.cfg.get("image_per_day")))
 
 
+def _full_text(job: _Job, rows: Sequence[Any]) -> Optional[str]:
+    """두뇌 바로 전 상담 전체 대화(가린 글) — 읽기 함수가 없거나 못 읽으면 ``None``(예전 그대로). 그림 차례는 보낸 차례다."""
+    if job.full_talk is None:
+        return None
+    pictures: dict[str, list[int]] = {}
+    for index, row in enumerate(rows):
+        pictures.setdefault(str(row.message_id), []).append(index)
+    return job.full_talk(lambda: job.left() - TALK_KEEP_S, pictures)
+
+
 def _call(job: _Job, used: Sequence[tuple[Any, Prepared]]) -> BatchOutcome:
     """하루 상한 · 스위치 · 남은 시간을 보고 두뇌를 부르고 결과를 쓴다."""
     rows, shas = [row for row, _ in used], [item.sha256 for _, item in used]
     skip = SKIP_CAP if _over_cap(job, len(used)) else SKIP_SWITCH if not job.still_on() else None
+    full = _full_text(job, rows) if skip is None else None
     if skip is None and job.left() < MIN_CALL_S:
         skip = "no_time"
     if skip is not None:
@@ -203,7 +220,8 @@ def _call(job: _Job, used: Sequence[tuple[Any, Prepared]]) -> BatchOutcome:
         job.stop.check()  # 두뇌 전
     try:
         answer = read_images([item for _, item in used], job.turns, brand=job.brand, chat_id=job.chat_id,
-                             session=job.session, cfg=job.cfg, now=job.now, timeout_s=job.left(), client=job.client)
+                             session=job.session, cfg=job.cfg, now=job.now, timeout_s=job.left(), client=job.client,
+                             full=full)
     except (BrainError, MaskLeak) as exc:
         code = getattr(exc, "code", None) or "mask_leak"
         for row in rows:
@@ -258,14 +276,16 @@ def read_batch(session: Any, *, reader: Any, brand: str, chat_id: str, refs: Seq
                turns: Sequence[tuple[str, str]], cfg: PanelSettings, now: datetime.datetime, owner: str,
                deadline_s: float, still_on: Callable[[], bool], clock: Callable[[], float] = time.monotonic,
                sleep: Callable[[float], None] = time.sleep, client: Any = None, transport: Any = None,
-               turn_id: Optional[int] = None, stop: Any = None) -> Optional[BatchOutcome]:
-    """묶음 읽기 한 번(모듈 설명). 남이 읽는 중인데 시간 상한을 넘으면 ``None``(그림 없이).
+               turn_id: Optional[int] = None, stop: Any = None,
+               full_talk: Optional[PictureTalk] = None) -> Optional[BatchOutcome]:
+    """묶음 읽기 한 번(모듈 설명). 남이 읽는 중인데 시간 상한을 넘으면 ``None``(그림 없이). ``full_talk`` 은 전체 대화 읽기
+    함수(없으면 ``turns`` 만 — 예전 그대로).
 
     Raises:
         PassStopped: 두뇌 전 TERM 깃발(선점은 만료가 지나면 다른 길이 다시 집는다).
     """
     job = _Job(session, reader, brand, chat_id, turns, cfg, now, owner, deadline_s, clock, sleep, still_on, client,
-               transport, turn_id, stop, started=clock())
+               transport, turn_id, stop, full_talk, started=clock())
     pairs = _prechecked(job, refs)
     if not pairs:
         return BatchOutcome(codes=tuple(job.codes))

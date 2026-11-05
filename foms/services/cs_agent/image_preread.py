@@ -13,7 +13,8 @@ WORKER 감독자 자식 ``cs_image_read``(``scripts/maintenance/run_cs_image_rea
    새 것부터 :data:`MAX_CHATS` 개.
 2. **읽기** — 파일이 온 상담이면 모두(견적 말 · 첫 글 묶음 조건은 17.11.1 에서 뗐다 — 하자 · 배송 사진도 질문과 같이 본다)
    :func:`.image_read.read_batch`(미리 읽기 시간 상한 · 같은 선점 · 같은 하루 상한 · 부르기 전 스위치 다시 읽기). 조용 기다림
-   (15초) 안에 끝나면 초안 차례는 읽은 결과를 그대로 쓴다.
+   (15초) 안에 끝나면 초안 차례는 읽은 결과를 그대로 쓴다. 그림 읽기 두뇌에는 상담 전체 대화(설계서 17.11.2 — 두뇌를 부를
+   때만 읽음, 못 읽으면 최근 30줄)를 준다.
 
 글 · 파일 key 는 메모리에만 — 로그 · 요약엔 숫자 · 코드만.
 """
@@ -31,6 +32,7 @@ from sqlalchemy import and_, or_, select
 
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.drafting_read import conversation, read_lines
+from foms.services.cs_agent.full_conversation import picture_talk
 from foms.services.cs_agent.image_fetch import pending_files
 from foms.services.cs_agent.image_read import read_batch
 from foms.services.cs_agent.image_settings import MODE_OFF, image_mode
@@ -119,7 +121,8 @@ def _one_chat(session: Any, chat_id: str, *, reader: Any, cfg: PanelSettings, no
     outcome = read_batch(session, reader=reader, brand=BRAND, chat_id=chat_id, refs=refs, turns=conversation(lines),
                          cfg=cfg, now=now, owner=claim_owner("image"),
                          deadline_s=float(cfg.get("image_preread_timeout_s")),
-                         still_on=lambda: switched_on(session), stop=stop, **deps)
+                         still_on=lambda: switched_on(session), stop=stop,
+                         full_talk=picture_talk(reader, BRAND, chat_id, cfg), **deps)
     if outcome is None or (outcome.read is None and outcome.usage is None and not outcome.reused):
         result.failed += 1
     elif outcome.reused:
