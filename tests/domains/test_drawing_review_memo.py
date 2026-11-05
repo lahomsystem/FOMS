@@ -244,7 +244,7 @@ def test_template_loads_review_scripts_before_wizard_and_css():
     tpl = TPL.read_text(encoding="utf-8")
     memo = tpl.index("js/drawing/review-memo.js') }}?v=20261027c")
     card = tpl.index("js/drawing/review-card.js') }}?v=20261027c")
-    assert memo < card < tpl.index("js/drawing/wizard.js') }}?v=20261105a")
+    assert memo < card < tpl.index("js/drawing/wizard.js') }}?v=20261106a")
     assert "css/contexts/drawing/wizard.css') }}?v=20261105a" in tpl
     assert "js/drawing/save-status.js') }}?v=20261103a" in tpl
     css = CSS.read_text(encoding="utf-8")
