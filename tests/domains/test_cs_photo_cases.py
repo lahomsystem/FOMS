@@ -13,7 +13,7 @@ import datetime
 import pytest
 
 from db import db_session
-from foms.services.cs_agent import brain_cases, case_material, weekly_fix
+from foms.services.cs_agent import brain_cases, case_material, image_store, weekly_fix
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.brain_cases import CASES_PHOTO_HEAD, QUOTE, CaseItem
 from foms.services.cs_agent.image_read import RULES_VERSION
@@ -140,3 +140,14 @@ def test_weekly_fix_material_carries_the_turn_photo_lines_when_the_panel_is_on(c
     counts = weekly_fix.run_weekly_fix(db_session, now=MONDAY, client=client)
     assert counts["evidence_ok"] == 1 and f"| 현장 사진: {SEEN}" in client.params[0]["messages"][0]["content"][0]["text"]
 
+
+
+def test_a_preread_finish_keeps_the_turn_link_and_a_turn_read_moves_it(app):
+    read_row(7)
+    row = db_session.query(CsAgentImageRead).one()
+    common = dict(result=dict(row.result), state="done", confidence="medium", personal=[], usage=None,
+                  now=datetime.datetime(2026, 11, 2, 1, 0), shas=[row.sha256])
+    image_store.finish([row], **common)  # 미리 읽기(차례 없음) — 사례 학습 고리를 지우지 않는다
+    assert row.turn_id == 7
+    image_store.finish([row], turn_id=9, **common)
+    assert row.turn_id == 9

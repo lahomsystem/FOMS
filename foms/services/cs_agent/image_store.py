@@ -93,11 +93,14 @@ def set_skip(row: CsAgentImageRead, code: str, now: datetime.datetime, *, state:
 def finish(rows: Sequence[CsAgentImageRead], *, result: dict[str, Any], state: str, confidence: str,
            personal: Sequence[str], usage: Optional[dict[str, Any]], now: datetime.datetime,
            shas: Sequence[str], turn_id: Optional[int] = None) -> None:
-    """묶음 결과를 줄마다 쓴다(같은 결과 · 선점 놓기). 토큰 · 돈은 첫 줄에만(합이 한 번만 세이게). 커밋은 부르는 쪽."""
+    """묶음 결과를 줄마다 쓴다(같은 결과 · 선점 놓기). 토큰 · 돈은 첫 줄에만(합이 한 번만 세이게). 커밋은 부르는 쪽.
+    ``turn_id`` 가 없으면(미리 읽기) 줄에 이미 적힌 차례 번호를 지우지 않는다 — 사례 학습이 차례 번호로 잇는다(17.11.1)."""
     for number, (row, sha) in enumerate(zip(rows, shas)):
         row.state, row.skip_code = state, DISCARDED_FACE if state == DISCARDED else None
         row.result, row.confidence, row.personal_codes = dict(result), confidence, list(personal)
-        row.sha256, row.read_at, row.turn_id = sha, _naive(now), turn_id
+        row.sha256, row.read_at = sha, _naive(now)
+        if turn_id is not None:
+            row.turn_id = turn_id
         row.claim_owner = row.claim_expires_at = None
         lead = usage if number == 0 and usage else {}
         row.model, row.effort = (usage or {}).get("model"), (usage or {}).get("effort")
