@@ -11,7 +11,8 @@
 - 코드(에이전트) 길 액션은 :data:`AGENT_ACTION_TYPES` — 챗봇 '틀림' 신고 묶음(``report_conflict``)이 이 꼴로 선언되고
   :func:`foms.services.brain.action_runner.perform_agent` 로만 돈다(화면 단추 · HTTP 길 없음).
 - 제안 · 결정 줄의 ``action`` · ``decided_action`` 칸(마이그레이션 ``brain_01``)이 여기 이름을 쓴다. 사람이 누르는 단추가
-  아닌 이름(옮기기 ``import`` · 기간 끝남 ``expire``)은 :data:`SYSTEM_ACTIONS`, 에이전트 길(새 항목 · 링크 제안)은
+  아닌 이름(옮기기 ``import`` · 기간 끝남 ``expire`` · 다른 화면의 주간 고침 안 승인 ``weekly_fix``)은 :data:`SYSTEM_ACTIONS`,
+  에이전트 길(새 항목 · 링크 제안)은
   :data:`AGENT_ACTIONS`.
 """
 
@@ -73,8 +74,8 @@ FAILURES: dict[str, str] = {
     "BRAIN_DOC_SYNC": "AI 상담이 읽는 지식 문서가 회사 지식과 달라서 넣지 않았어요 — 관리자에게 둘을 맞춰 달라고 알려 주세요.",
     "BRAIN_ERROR": "처리하지 못했어요 — 새로 불러온 뒤 다시 해 주세요.",
 }
-#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계).
-SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire")
+#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계) · 주간 고침 안 승인(그 화면 단추 — :mod:`.template_fix`).
+SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire", "weekly_fix")
 #: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 — 화면 단추 없음).
 AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict")
 #: 에이전트(모델)에게 도구로 내놓은 쓰기 액션 — 지금은 없다(읽기만 — 설계서 5절 · 10.1 '챗봇은 쓰지 않는다').
