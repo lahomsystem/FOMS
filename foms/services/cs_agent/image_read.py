@@ -10,6 +10,9 @@
   포함한 전체다 — 넘으면 그림 없이 간다(늦은 초안보다 사람이 낫다 — 11.1 의 5).
 - **실패는 조용히 앞 단계로**: 받기 · 두뇌 오류 · 가림 · 돈 상한이면 줄을 실패로 적고 ``None`` 결과를 돌려준다(초안 차례는
   앞 단계 '되묻지 않기' 그대로). 로그엔 상담 id · 코드 · 숫자만.
+- **판 번호(:data:`RULES_VERSION`)**: 지시문 · 스키마를 바꾸면 올린다. 다시 쓰기(같은 묶음 · 같은 sha256)는 지금 판 결과만 쓴다
+  — 판 1(도면만 · 설명 칸 없음) 결과를 설명이 있는 것처럼 쓰지 않고 다시 읽는다. 단 얼굴로 버린 결과(``discarded``)는 판과
+  상관없이 다시 쓴다(얼굴이 보인 그림을 모델에 다시 보내지 않게).
 """
 
 from __future__ import annotations
@@ -38,9 +41,10 @@ from foms.services.cs_agent.state import KST
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CLAIM_MARGIN_S", "MIN_CALL_S", "RULES_VERSION", "BatchOutcome", "read_batch"]
+__all__ = ["CLAIM_MARGIN_S", "MIN_CALL_S", "RULES_VERSION", "BatchOutcome", "current", "read_batch"]
 
-RULES_VERSION = 1  # 결과 판 번호(지시문 · 스키마 · 범위 규칙을 바꾸면 올린다)
+#: 결과 판 번호(지시문 · 스키마 · 범위 규칙을 바꾸면 올린다) — 2 = 모든 사진 · 사진마다 가린 설명 두 칸(17.11.1 · D172).
+RULES_VERSION = 2
 CLAIM_MARGIN_S = 45  # 선점 만료 = 시간 상한 + 이 여유
 MIN_CALL_S = 5  # 두뇌에 남은 시간이 이보다 짧으면 부르지 않는다
 POLL_S = 1.0
@@ -87,9 +91,15 @@ def _from_result(result: Any, *, codes: Sequence[str], images: int, reused: bool
                         discarded=discarded, ranges=ranges)
 
 
+def current(state: str, result: Any) -> bool:
+    """다시 써도 되는 결과인가 — 지금 판 결과이거나 얼굴로 버린 결과(모듈 설명 '판 번호')."""
+    return state == DISCARDED or (isinstance(result, dict) and result.get("rules_version") == RULES_VERSION)
+
+
 def _same_batch(rows: Sequence[Any]) -> Optional[Any]:
-    """묶음의 모든 줄이 같은 결과(같은 sha256 묶음)를 가지면 그 첫 줄."""
-    if not rows or any(row.state not in (DONE, DISCARDED) or not isinstance(row.result, dict) for row in rows):
+    """묶음의 모든 줄이 같은 결과(같은 sha256 묶음 · 다시 써도 되는 판)를 가지면 그 첫 줄."""
+    if not rows or any(row.state not in (DONE, DISCARDED) or not isinstance(row.result, dict)
+                       or not current(row.state, row.result) for row in rows):
         return None
     batch = rows[0].result.get("batch")
     if not isinstance(batch, list) or len(batch) != len(rows):
@@ -234,7 +244,7 @@ def _prechecked(job: _Job, refs: Sequence[FileRef]) -> list[tuple[FileRef, Any]]
 def _reused(job: _Job, used: Sequence[tuple[Any, Prepared]]) -> Optional[BatchOutcome]:
     """같은 상담에서 같은 그림 묶음을 이미 읽었으면 그 결과를 줄에 옮겨 쓰고 돌려준다(두뇌 0번)."""
     shas = [item.sha256 for _, item in used]
-    prior = reuse_by_sha(job.session, job.chat_id, shas)
+    prior = reuse_by_sha(job.session, job.chat_id, shas, usable=current)
     if prior is None:
         return None
     finish([row for row, _ in used], result=prior.result, state=prior.state, confidence=prior.confidence or "",
