@@ -139,6 +139,9 @@ def test_photo_zones_on_new_order_and_editable_order(app, world, catalog):
     assert 'data-pp-photo-zone="common"' in html and 'data-pp-photo-zone="draft"' in html
     draft = re.search(r'data-pp-photo-zone="draft".*?data-pp-photo-empty', html, re.S).group(0)
     assert "capture=" not in draft and 'accept="image/*,.pdf,.dwg,.dxf,.zip"' in draft
+    # 11-05 갤럭시 폴드8: 안드로이드 "앨범"은 사진 밖 형식을 섞은 칸 — 크롬 구글 사진 선택기 대신 기기 갤러리. 초안 도면은 없다.
+    assert 'data-pp-photo-album accept="image/*,video/*,application/x-foms-gallery"' in template
+    assert "data-pp-photo-album" not in draft
     assert 'name="photos"' not in html and 'name="drafts"' not in html  # 옛 파일 칸은 걷었다
     assert "js/partner/partner-photo-stage.js" in html
 

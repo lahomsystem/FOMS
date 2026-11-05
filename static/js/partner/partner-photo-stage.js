@@ -14,6 +14,7 @@
 
   var MAX_FILES = 50;
   var WIDE = window.matchMedia('(min-width: 768px)');
+  var ANDROID = /Android/i.test(navigator.userAgent || '');
 
   function filesOf(zone) {
     if (!zone._ppFiles) zone._ppFiles = [];
@@ -182,7 +183,8 @@
       var hit = function (attr) { return ev.target.closest('[' + attr + ']'); };
       var at = function (el, attr) { return parseInt(el.getAttribute(attr), 10); };
       var el;
-      if (hit('data-pp-photo-pick')) zone.querySelector('[data-pp-photo-input]').click();
+      // 안드로이드 "앨범"은 기기 갤러리로 가는 칸(photo_zone.html data-pp-photo-album 설명). 초안 도면 칸은 없다.
+      if (hit('data-pp-photo-pick')) (ANDROID && zone.querySelector('[data-pp-photo-album]') || zone.querySelector('[data-pp-photo-input]')).click();
       else if (hit('data-pp-photo-shoot')) zone.querySelector('[data-pp-photo-camera]').click();
       else if ((el = hit('data-pp-photo-remove'))) { filesOf(zone).splice(at(el, 'data-pp-photo-remove'), 1); render(zone); }
       else if ((el = hit('data-pp-photo-unlink'))) move(zone, zoneOf(document, 'common'), at(el, 'data-pp-photo-unlink'));
@@ -199,7 +201,7 @@
     document.addEventListener('change', function (ev) {
       var zone = ev.target.closest('[data-pp-photo-zone]');
       if (!zone) return;
-      if (ev.target.matches('[data-pp-photo-input], [data-pp-photo-camera]')) {
+      if (ev.target.matches('[data-pp-photo-input], [data-pp-photo-album], [data-pp-photo-camera]')) {
         add(zone, ev.target.files);
         ev.target.value = '';
       } else if (ev.target.matches('[data-pp-photo-link]') && ev.target.value !== '') {

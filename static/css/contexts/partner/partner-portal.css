@@ -135,6 +135,12 @@
 .pp-tabs .nav-link:disabled { opacity: 0.6; }
 .pp-gal { padding: 8px 0; border-top: 1px solid var(--pp-border); }
 .pp-gal__head { margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+/* 실측 · 도면 썸네일(order_files.html) — 제품 실측 사진 칸과 같은 72px 칸. */
+.pp-gal__grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.pp-gal__cell { width: 72px; margin: 0; }
+.pp-gal__cap { margin-top: 2px; font-size: 11px; line-height: 1.3; color: var(--pp-muted); overflow-wrap: anywhere; }
+.pp-thumb__file { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 72px; height: 72px; padding: 4px; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-bg); color: var(--pp-muted); }
+.pp-thumb__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; font-size: 10px; line-height: 1.2; text-align: center; }
 
 /* 아래 고정 줄 — 우리 화면 저장 자리의 단계 버튼. */
 .pp-actions {
