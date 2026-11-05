@@ -52,10 +52,18 @@ class PartnerConfirmError(ValueError):
 
 
 def final_drawings_for_partner(order: Any) -> list[dict[str, Any]]:
-    """협력사에게 보여 줄 우리 최종 도면 — 도면팀이 넘긴 현재 파일만(협력사 초안은 제외)."""
+    """협력사에게 보여 줄 우리 최종 도면 — 도면팀이 넘긴 현재 파일만(협력사 초안은 제외).
+
+    ``no`` 는 우리 ERP 도면 번호 — ``drawing_current_files`` 안 자리(1부터, 수정 요청 "2번 도면"과 같은 셈).
+    협력사 초안 같은 줄을 걸러도 번호를 다시 세지 않는다(사용자 2026-11-05 "도면 번호와 썸네일 번호가 같아야").
+    """
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    numbers: dict[str, int] = {}
+    for idx, raw in enumerate(sd.get("drawing_current_files") or [], start=1):
+        key = str((raw or {}).get("key") or "").strip() if isinstance(raw, dict) else ""
+        numbers.setdefault(key, idx)
     return [
-        f for f in resolve_final_drawing_files(sd)
+        {**f, "no": numbers.get(f.get("key") or "", 0)} for f in resolve_final_drawing_files(sd)
         if _is_drawing_key(order.id, f.get("key") or "")
     ]
 

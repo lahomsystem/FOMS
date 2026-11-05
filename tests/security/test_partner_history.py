@@ -147,3 +147,27 @@ def test_drawing_tab_without_images_skips_gallery(app, world):
     # 실측 · 완공 사진도 같은 확대 창으로 연다(11-04 핫픽스) — 도면 그림이 없어도 늘 싣는다.
     assert "js/foms/lightbox.js" in html
     assert "data-pp-drawing-files" in html and "final.pdf" in html
+
+
+def test_partner_drawing_numbers_follow_erp_numbers_when_rows_are_filtered(app, world):
+    """11-05: 도면 번호 = 우리 ERP 번호(drawing_current_files 자리). 협력사 초안 줄을 걸러도 다시 세지 않는다."""
+    order_id = _order(app, world["partner_a"])
+    _to_stage(order_id, "CONFIRM")
+    base = f"orders/{order_id}"
+    _patch_sd(
+        order_id,
+        drawing_status="TRANSFERRED",
+        drawing_current_files=[
+            {"key": f"{base}/partner_draft/draft.png", "filename": "draft.png"},  # ERP 1번 — 협력사에게는 안 보인다
+            {"key": f"{base}/drawing/plan-a.png", "filename": "plan-a.png"},       # ERP 2번
+            {"key": f"{base}/drawing/plan-b.png", "filename": "plan-b.png"},       # ERP 3번
+        ],
+        drawing_transfer_history=[{"action": "TRANSFER", "transferred_at": "2026-10-20 05:05:00", "files_count": 3}],
+    )
+    html = _client(app, db_session.get(User, world["partner_a"])).get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    common = html[html.index('<div class="pp-gal__head">도면'):]
+    common = common[:common.index('<div class="pp-gal__head">시공')]
+    caps = [c for c in ("1번", "2번", "3번") if f'<figcaption class="pp-gal__cap">{c}</figcaption>' in common]
+    assert caps == ["2번", "3번"] and "draft.png" not in common
+    gallery = html[html.index("data-pp-drawing-gallery"):]
+    assert 'aria-label="2번 · plan-a.png"' in gallery and 'aria-label="3번 · plan-b.png"' in gallery
