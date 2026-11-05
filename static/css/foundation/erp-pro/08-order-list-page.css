@@ -126,6 +126,15 @@
   color: var(--erp-text-muted);
 }
 
+/* 마우스 PC 돋보기 단추가 30x22px 로 옆 입력칸(36px)보다 작았다(디자인 점검 2026-11-06).
+   입력칸과 같은 36px 정사각으로 맞춘다 — 검색 칸 높이는 이미 36px 라 줄 높이는 그대로다. */
+@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+  .order-list-search .erp-pro-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
 .order-list-filter-actions {
   display: flex;
   align-items: center;
