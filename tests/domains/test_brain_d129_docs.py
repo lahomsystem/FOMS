@@ -1,7 +1,7 @@
 """온톨로지 바로잡기(설계서 7.8) — 지식 문서와 오가는 쪽: brain 만의 칸 · 제작 조건 지식 문서 종류(다음 9) · 옮긴 결정 번호.
 
-- 가격 규칙 · 사장님 결정의 brain 만의 칸(근거 종류 · 결정 번호 …)은 옮기기를 다시 돌려도 남고, 다시 만든 지식 문서로 나가지
-  않는다(다시 만든 문서 = 옛 문서).
+- 가격 규칙 · 사장님 결정의 brain 만의 칸(근거 종류 · 결정 번호 …)은 옮기기를 다시 돌려도 남고(사람이 고친 판은 옮기기가
+  손대지 않는다 — 3.1 규칙 1), 다시 만든 지식 문서로 나가지 않는다(다시 만든 문서 = 옛 문서).
 - 제작 조건(``build_rule``)이 지식 문서 종류가 되어 상담 견적 검사가 읽는다 — 안 맞으면 사람에게 넘길 까닭만(값은 그대로).
   문서 id 가 없는 brain 만의 제작 조건은 문서로 나가지 않고 옮기기가 건드리지 않는다.
 합성 두 브랜드 문서 · 합성 계정만(금액 숫자 없음).
@@ -93,12 +93,18 @@ def test_brain_only_fields_survive_reimport_and_never_reach_the_document(app):
     for brand in changed:
         changed[brand]["items"][0]["text"] = "합성 글 고친 규칙"
     store(admin, changed)
-    again = import_now(admin)
-    assert again["keys"]["update"] == ["common/unit-fee"]
-    payload = current_object(db_session, "common/unit-fee").payload
-    assert (payload["basis"], payload["stage"], payload["unit"]) == ("brain", "extra", "회")  # 따라 맞추기에서 남음
+    again = import_now(admin)  # 사람이 고친 판은 문서 값으로 되돌리지 않는다(표가 정본 — 3.1 규칙 1)
+    assert again["protected"] == ["common/unit-fee"] and again["update"] == 0
+    unit_fee = current_object(db_session, "common/unit-fee")
+    assert unit_fee.text != "합성 글 고친 규칙"
+    payload = unit_fee.payload
+    assert (payload["basis"], payload["stage"], payload["unit"]) == ("brain", "extra", "회")  # brain 만의 칸 그대로
     assert current_object(db_session, "common/decide-one").payload["decision_no"] == "D7"
+    from foms.services.brain.doc_sync import publish_documents
+    publish_documents(db_session, actor_id=admin.id, now=NOW)  # 맞추기(표 → 문서) — brain 만의 칸은 문서로 안 나간다
+    db_session.commit()
     for brand in ("LAHOM", "HAUD"):
+        assert kn.read_stored(db_session, brand).document == stored[brand]
         assert doc_bridge.shadow_compare(db_session, brand)["equal"] is True
 
 

@@ -155,6 +155,8 @@ def test_import_scope_override_and_account_numbers_never_embedded(app):
     create(db_session, admin, "lahom/basic-account", item_type="owner_decision", brand="LAHOM",
            name="basic-account", text="합성 입금 안내", evidence_ref="합성",
            payload={"doc_id": "basic-account", "approved_by": "합성", "approved_at": "2026-10-30", "decision_no": "D2"})
+    imported = current_object(db_session, "lahom/basic-account")
+    imported.created_by, imported.human_approver_id, imported.evidence_kind = "import", None, "import"  # 옮긴 줄 꼴(합성)
     db_session.commit()
     docs = {"LAHOM": {"schema_version": 1, "brand": "LAHOM", "items": [item]}}
     plan = plan_import(db_session, desired_items(docs))
@@ -165,6 +167,9 @@ def test_import_scope_override_and_account_numbers_never_embedded(app):
     try:
         narrowed = {w.key: a for w, _r, a in plan_import(db_session, desired_items(docs)).updates}
         assert narrowed["lahom/basic-account"]["visibility"] == SCOPE_ADMIN
+        imported.human_approver_id = admin.id  # 사람이 승인한 판이면 옮기기는 범위를 바꾸지 않고 알린다(표가 정본 — 3.1 규칙 1)
+        held = plan_import(db_session, desired_items(docs))
+        assert held.protected == ["lahom/basic-account"] and held.updates == []
     finally:
         doc_bridge.IMPORT_SCOPE_OVERRIDES["basic-account"] = SCOPE_ALL
     row = current_object(db_session, "lahom/basic-account")
