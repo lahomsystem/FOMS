@@ -38,6 +38,16 @@
   color: var(--foms-text-tertiary, #6b7280);
   font-size: 1rem;
   line-height: 1;
+  /* 2026-11-05 점검 A15: 펼침 단추가 글자 크기(21x18px)뿐이었다. 누르는 자리를 44x44px 로 넓히되
+     머리 줄 여백(위아래 0.65rem · 오른쪽 0.75rem) 안으로만 넓혀 머리 줄 높이는 그대로 둔다. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px -12px -10px 0;
+  border-radius: 999px;
 }
 
 /* 제품 카드 삭제(마법사) — 카드가 2개 이상일 때만 노출(hidden 속성은 JS가 제어) */

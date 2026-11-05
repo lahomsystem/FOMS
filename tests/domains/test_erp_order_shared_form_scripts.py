@@ -1462,8 +1462,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20261005r" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20261028a" in layout_head
+    assert "../components/foms-form-field.css?v=20261106a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20261106a" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
@@ -1480,7 +1480,7 @@ def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
         "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
     )
     compact_block = css_text[compact_idx : compact_idx + 1200]
-    assert "--erp-mobile-input-h: 40px" in css_text
+    assert "--erp-mobile-input-h: 44px" in css_text
     assert "min-height: var(--erp-mobile-input-h)" in compact_block
     assert "resize: none" in compact_block
 

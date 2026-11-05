@@ -424,7 +424,7 @@ def test_list_approve_restores_place_instead_of_removing_the_card() -> None:
     surfaces = (
         ROOT / "static" / "css" / "foundation" / "foms-mobile-surfaces.css"
     ).read_text(encoding="utf-8")
-    assert "foms-queue-card-v2.css?v=20260910a" in surfaces
+    assert "foms-queue-card-v2.css?v=20261105s" in surfaces
 
 
 def test_manager_name_fallback_does_not_beat_the_team_gate() -> None:

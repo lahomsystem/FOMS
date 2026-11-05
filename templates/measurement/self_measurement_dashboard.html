@@ -106,6 +106,26 @@
         box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
         outline: none;
     }
+
+    /* 표 묶음 .row 의 음수 여백(-12px)을 받아 줄 바깥 여백이 없어 화면이 가로로 12px 넘쳤다 —
+       칸 사이를 0 으로 두어 위 검색 카드·요약 칸과 왼쪽 끝도 맞춘다(2026-11-05 점검). */
+    .self-measurement-dashboard > .row {
+        --bs-gutter-x: 0;
+    }
+
+    /* 표 안 작은 단추 — 전역 .btn 좌우 20px(!important) 때문에 '도면 작업실'이 세 줄로 꺾였다. */
+    .self-measurement-dashboard td .btn-sm {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        white-space: nowrap;
+    }
+
+    /* 폰 검색칸 16px — 16px 미만이면 아이폰이 누를 때 화면을 확대한다. */
+    @media (max-width: 991.98px) {
+        .self-measurement-dashboard .erp-pro-filter-form .erp-pro-input {
+            font-size: 16px;
+        }
+    }
 </style>
 {% endblock %}
 

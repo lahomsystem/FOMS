@@ -20,6 +20,12 @@
     flex-shrink: 0;
   }
 
+  /* 직원 화면 칩은 손가락 높이 44px(디자인 점검 2026-11-05, 36px → 44px). 협력사 화면(body.pp-body)은 36px 그대로. */
+  body.erp-mobile-v2-layout:not(.pp-body) .chip,
+  body.erp-mobile-v2-layout:not(.pp-body) .foms-chip {
+    min-height: 44px;
+  }
+
   body.erp-mobile-v2-layout .chip.is-active,
   body.erp-mobile-v2-layout .foms-chip.is-active {
     background: var(--foms-color-brand-50);

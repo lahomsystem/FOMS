@@ -588,7 +588,7 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     ).read_text(encoding="utf-8")
     for token in (
         "foms-construction-mobile-card.css') }}",
-        "foms-v2-domain-heroes.css') }}?v=20260712a",
+        "foms-v2-domain-heroes.css') }}?v=20261105s",
         "foms-complete-gate.css') }}?v=20260712a",
         "foms-packing.css') }}?v=20260714a",
     ):

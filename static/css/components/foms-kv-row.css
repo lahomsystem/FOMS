@@ -12,6 +12,8 @@
   gap: 8px 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+  /* 2026-11-05 점검 A15: 칩(36px)이 붙은 줄에서 이름이 값보다 위로 떴다 — 이름과 값의 첫 줄 글자선을 맞춘다. */
+  align-items: baseline;
 }
 
 .foms-kv-row__label {
@@ -45,9 +47,16 @@
   gap: 6px;
 }
 
+/* 2026-11-05 점검 A15: 전화 · 지도 · 복사 칩이 39x24px · 12px 였다(폰 주문 상세). 누르기 쉽게
+   36px(늘 보이는 작은 칩 기준 — 발송 상태 칩과 같다) · 13px 로 키우고 글자를 가운데 둔다. */
 .foms-kv-row__action {
-  font-size: 0.75rem;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--foms-border-default, #d1d5db);
   background: var(--foms-surface-raised, #f9fafb);

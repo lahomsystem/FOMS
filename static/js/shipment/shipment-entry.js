@@ -10,7 +10,7 @@
  * 스왑마다 다시 실행되고 perf_scan fragment-multi-script 가 파샬 수정(엔트리 핀 범프)을 막는다.
  */
 (function () {
-  var SHIP_JS_V = '20260730e';
+  var SHIP_JS_V = '20261105s';
   var CHAIN = [
     '/static/js/shipment/image-export.js?v=' + SHIP_JS_V,
     '/static/js/shipment/dashboard-columns.js?v=' + SHIP_JS_V,

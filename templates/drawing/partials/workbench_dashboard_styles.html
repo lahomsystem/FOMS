@@ -14,10 +14,10 @@
     overflow: visible;
   }
   
-  /* 마지막 컬럼에 충분한 공간 확보 */
+  /* 마지막 컬럼 오른쪽 여백 — 표 감싸개(30px)·카드(20px) 여백이 따로 있어 50px 은 다음 액션 칸 폭을 먹었다(2026-11-05 점검). */
   .erp-drawing-workbench-table-wrap th:last-child,
   .erp-drawing-workbench-table-wrap td:last-child {
-    padding-right: 50px !important;
+    padding-right: 12px !important;
     white-space: nowrap;
   }
   
@@ -275,7 +275,7 @@
     border: 1px solid #d9d9d9;
     background: #f4f4f5;
     color: #52525b;
-    font-size: 0.7rem;
+    font-size: 0.75rem; /* 0.7rem(11.2px)은 다른 뱃지(12px)보다 작았다(2026-11-05 점검). */
     font-weight: 700;
     line-height: 1.45;
     white-space: nowrap;
@@ -300,6 +300,10 @@
   .dw-cdate-cell {
     font-size: 1rem;
     color: #495057;
+  }
+  /* 일정 없음 '-' 은 다른 칸 본문(0.875rem)과 같은 크기 — 셀 1rem 은 뱃지(em) 크기를 지키려고 둔다. */
+  .dw-cdate-cell > .text-muted {
+    font-size: 0.875rem;
   }
   .dw-cdate-badge {
     border: 1px solid transparent;
@@ -351,7 +355,7 @@
      고정 레이아웃(table-layout)은 금지 — 긴 최근 이벤트 셀이 깨진다. 폭 힌트 + nowrap 조합만.
      컬럼 순서: 1 체크 · 2 주문/고객 · 3 시공일 · 4 다음 액션 · 5 도면 담당 · 6 상태
                 · 7 대상 번호 · 8 최근 이벤트 · 9 SLA · 10 미확인 · 11 열기
-     (2·4·8 은 가변 유지) */
+     (2·4·8 은 가변 유지 — 4 는 아래 .dw-next-action 에 바닥 폭만 둔다) */
   .erp-drawing-workbench-table-wrap th:nth-child(3),
   .erp-drawing-workbench-table-wrap td:nth-child(3) {
     width: 110px;
@@ -359,6 +363,10 @@
   .erp-drawing-workbench-table-wrap th:nth-child(5),
   .erp-drawing-workbench-table-wrap td:nth-child(5) {
     width: 90px;
+  }
+  /* 도면 담당 이름은 표 기본(1rem) 대신 다른 칸 본문과 같은 0.875rem. */
+  .erp-drawing-workbench-table-wrap td:nth-child(5) > span {
+    font-size: 0.875rem;
   }
   .erp-drawing-workbench-table-wrap th:nth-child(6),
   .erp-drawing-workbench-table-wrap td:nth-child(6) {
@@ -393,6 +401,13 @@
   .erp-drawing-workbench-table-wrap th:nth-child(10),
   .erp-drawing-workbench-table-wrap td:nth-child(10) {
     white-space: nowrap;
+  }
+
+  /* 다음 액션 칸은 최근 이벤트 칸에 밀려 '도면 담당 전달 진/행'처럼 낱말 가운데서 꺾였다(2026-11-05 점검).
+     폭은 가변 그대로 두고 '도면 담당자 지정 필요' 한 줄 바닥(9.5rem)만 준다. 더 긴 문구는 낱말 사이에서 꺾는다. */
+  .erp-drawing-workbench-table-wrap td.dw-next-action {
+    min-width: 9.5rem;
+    word-break: keep-all;
   }
 
   /* 다음 액션 턴 시각화 — 내 턴은 진하게, 상대 턴은 흐리게, 담당 미지정은 경고 톤. */

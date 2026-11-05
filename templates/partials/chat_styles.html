@@ -139,10 +139,16 @@
         min-height: 0;
     }
     
+    /* 페이지 제목 '채팅' — 예전엔 여백 0 이라 화면 왼쪽 끝(x=0)에 붙었고, 브라우저 기본 h2(PC 32px)라
+       아래 '채팅방'(20px)·위 막대 제목보다 컸다. 왼쪽 16px 는 아래 채팅방 카드 제목 선과 같다. */
     .chat-page-title {
         flex-shrink: 0;
-        padding: 0 !important;
+        padding: 8px 16px !important;
         margin: 0 !important;
+    }
+
+    .chat-page-title h2 {
+        font-size: 1.25rem;
     }
     
     .chat-page-content {
@@ -980,12 +986,14 @@
 
     /* ========== 채팅 모바일 최적화 (2026-03 계획) ========== */
     @media (max-width: 992px) {
+        /* 폰에선 목록이 화면 전체를 덮으므로 PC 두 칸 사이 간격(오른쪽 8px)이 오른쪽 끝 빈 띠로만 남았다. */
         .chat-page-content .col-lg-3 {
             position: absolute;
             left: 0;
             top: 0;
             bottom: 0;
             width: 100%;
+            padding-right: 0 !important;
             z-index: 10;
             transition: transform 0.2s ease;
         }

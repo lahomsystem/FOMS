@@ -8,6 +8,13 @@
   overflow: hidden;
 }
 
+/* 2026-11-05 — .erp-pro-card 는 Bootstrap .card 가 아니라, 안에 둔 .card-body 의 여백 변수(--bs-card-spacer-*)가
+   비어 왼쪽 여백 0 으로 글이 테두리에 붙었다(PC 도면 작업실 상세 · 출고). Bootstrap .card 와 같은 1rem 을 준다. */
+body:not(.pp-body) .erp-pro-card {
+  --bs-card-spacer-x: 1rem;
+  --bs-card-spacer-y: 1rem;
+}
+
 .erp-pro-card__header {
   display: flex;
   justify-content: space-between;
@@ -159,6 +166,13 @@
   margin-bottom: var(--erp-space-lg);
 }
 
+/* 2026-11-05 — 타일이 3장뿐인 줄(자가실측)은 4칸 틀에 넣으면 오른쪽 한 칸이 빈다 → 3칸. */
+@media (min-width: 1201px) {
+  .erp-pro-alerts:has(> .erp-pro-alert:nth-child(3):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1200px) {
   .erp-pro-alerts {
     grid-template-columns: repeat(2, 1fr);
@@ -249,6 +263,13 @@
   font-size: var(--erp-font-size-sm);
   font-weight: 500;
   color: var(--erp-text-primary);
+}
+
+/* 2026-11-05 — 머리 안 타일(--with-alerts)이 아닌 낱 타일(자가실측 요약)은 값 글자 규칙이 없어 16px 로
+   이름과 같은 크기였다. 숫자를 한 단계 크게(머리 안 타일 · 태블릿 타일은 자기 규칙이 더 강해 그대로). */
+.erp-pro-alert__value {
+  font-size: var(--erp-font-size-2xl);
+  font-weight: 700;
 }
 
 .erp-pro-alert__count {
