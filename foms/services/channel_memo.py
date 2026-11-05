@@ -37,8 +37,29 @@ def _require_private(options: list[str], name: str) -> None:
         raise PrivateOptionMissing(f"내부 메모에 비공개 옵션({name})이 없다 — 보내지 않는다")
 
 
+#: 메모 단추가 열 수 있는 앱 작은 창(WAM) 이름 — 설계서 17.2.2. 다른 이름은 네트워크 전에 거절한다.
+WAM_NAMES = frozenset({"cs-draft"})
+_WAM_ARG_MAX = 64
+
+
+def _wam_action(target: Any) -> dict[str, Any]:
+    """``{"wam": 이름, "app_id": 앱 id, "args": {...}}`` → Open API 단추 동작(``type: wam``). 꼴이 틀리면 ``ValueError``.
+
+    ``wamArgs`` 는 데스크 브라우저에서 그대로 보인다 — 숫자 · 짧은 글만 받는다(글 원문 · 표 · 비밀을 싣지 못하게)."""
+    name, app_id, args = target.get("wam"), target.get("app_id"), target.get("args") or {}
+    if name not in WAM_NAMES:
+        raise ValueError("모르는 작은 창 이름이다")
+    if not isinstance(app_id, str) or not app_id.strip() or len(app_id) > _WAM_ARG_MAX:
+        raise ValueError("앱 id 가 없다")
+    if not isinstance(args, dict) or len(args) > 4 or not all(
+            isinstance(k, str) and isinstance(v, (int, str)) and not isinstance(v, bool) and len(str(v)) <= _WAM_ARG_MAX
+            for k, v in args.items()):
+        raise ValueError("작은 창 인자는 짧은 숫자 · 글 넷까지다")
+    return {"type": "wam", "attributes": {"appId": app_id.strip(), "name": name, "wamArgs": dict(args)}}
+
+
 def _memo_buttons(buttons: Any) -> list[dict[str, Any]]:
-    """링크 버튼 ``[(이름, https 주소), ...]`` → Open API 버튼 칸. 꼴이 틀리면 ``ValueError``(네트워크 전)."""
+    """단추 ``[(이름, https 주소 또는 작은 창 칸), ...]`` → Open API 버튼 칸. 꼴이 틀리면 ``ValueError``(네트워크 전)."""
     items = list(buttons or ())
     if len(items) > _MEMO_BUTTON_MAX:
         raise ValueError(f"메모 버튼은 {_MEMO_BUTTON_MAX}개까지다")
@@ -49,6 +70,9 @@ def _memo_buttons(buttons: Any) -> list[dict[str, Any]]:
         title, url = item
         if not isinstance(title, str) or not 1 <= len(title.strip()) <= _MEMO_BUTTON_TITLE_MAX:
             raise ValueError("메모 버튼 이름은 1~30자다")
+        if isinstance(url, dict):
+            out.append({"title": title.strip(), "colorVariant": "cobalt", "action": _wam_action(url)})
+            continue
         if not isinstance(url, str) or not url.startswith("https://"):
             raise ValueError("메모 버튼 주소는 https 주소만 받는다")
         out.append({"title": title.strip(), "colorVariant": "cobalt",
@@ -93,7 +117,7 @@ def send_private_memo(
         bot_name: 보낸 이로 보일 봇 이름.
         channel_id: 상담이 있는 채널(앱 함수 길).
         private: 늘 ``True``.
-        buttons: ``[(버튼 이름, https 주소), ...]`` — 2개까지(``None`` 은 버튼 없음).
+        buttons: ``[(버튼 이름, https 주소 또는 {"wam", "app_id", "args"}), ...]`` — 2개까지(``None`` 은 버튼 없음).
 
     Returns:
         ``{'success': bool, 'message_id': str | None, 'error': str | None}``.

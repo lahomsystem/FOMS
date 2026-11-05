@@ -245,6 +245,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(cs_agent_send_page_bp)
     app.register_blueprint(cs_agent_send_api_bp)
 
+    # --- Lane: AI 초안 채널톡 안 작은 창(WAM — 설계서 17.2.2) — 빈 틀 화면(/channel/wam/cs-draft, 로그인 없음 · 글 없음).
+    # 글 · 보내기는 서명된 앱 함수(/api/channel/functions)로만. 옛 /channel/wam 블루프린트와 따로라 그 410 앞 검사를 타지
+    # 않는다. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.web.cs_draft_wam import cs_draft_wam_bp
+
+    app.register_blueprint(cs_draft_wam_bp)
+
     # --- Lane: [수정하기] '왜 고쳤나요(자세히)' · 사진(설계서 17.6.1 · D94) — JSON(/api/cs-agent/turns/<id>/edit-detail ·
     # edit-photos, 쓰기는 CSRF · 정책 CS_AGENT_SEND) + 주간 고침 안 승인(/api/admin/cs-agent/fix-proposals, ADMIN 만 · 정책
     # ADMIN_OPS). 사진 원본 보기는 위 화면 블루프린트(/cs-agent/turns/<id>/photos/<seq>)다. 경로가 고유해 shadowing 이 없고

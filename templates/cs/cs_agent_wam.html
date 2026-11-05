@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>AI 초안</title>
+    {#- 설계서 17.2.2 — 채널톡 데스크 안 작은 창(WAM). 글 · 데이터 없는 빈 틀이고, 글은 static/js/cs-agent/wam-draft.js 가
+        채널톡 다리(window.ChannelIOWam)로 서명 함수를 불러 받는다. 인라인 스크립트 · 스타일 없음. -#}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261105a">
+    <script src="{{ url_for('static', filename='js/cs-agent/wam-draft.js') }}?v=20261105a" defer></script>
+</head>
+<body class="cs-wam-body">
+<main class="cs-wam" id="cs-wam" data-app-id="{{ app_id }}">
+    <p class="cs-wam__status" id="cs-wam-status">불러오는 중이에요.</p>
+    <div class="cs-wam__log" id="cs-wam-log"></div>
+</main>
+</body>
+</html>

@@ -19,7 +19,8 @@ from typing import Any
 # 퇴역했지만(foms/api/channel/channel_wam.py) 데스크 앱 설정에 남은 WAM 주소가 여전히
 # 이 경로를 열 수 있어, 퇴역 안내가 데스크 안에서 보이도록 채널톡 출처를 허용한다.
 CHANNEL_FRAME_PATH_PREFIX = "/channel/wam"
-CHANNEL_FRAME_ORIGINS = ("https://desk.channel.io", "https://*.channel.io")
+# 우리 데스크 주소는 channel.works(채널웍스) — AI 초안 작은 창(설계서 17.2.2)이 그 안에 뜬다.
+CHANNEL_FRAME_ORIGINS = ("https://desk.channel.io", "https://*.channel.io", "https://channel.works", "https://*.channel.works")
 
 FRAME_ANCESTORS_DEFAULT = "frame-ancestors 'self'"
 FRAME_ANCESTORS_CHANNEL = "frame-ancestors 'self' " + " ".join(CHANNEL_FRAME_ORIGINS)
