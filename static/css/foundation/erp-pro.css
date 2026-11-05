@@ -899,9 +899,27 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   padding: 12px 14px;
 }
 
+.cs-wam__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .cs-wam__status {
-  margin: 0 0 8px;
+  margin: 0;
   font-weight: 600;
+}
+
+.cs-wam__close {
+  flex: none;
+  min-height: 36px;
+  padding: 4px 14px;
+  border: 1px solid var(--foms-border, #d0d5dd);
+  border-radius: 8px;
+  background: var(--foms-surface, #fff);
+  font-size: 14px;
 }
 
 .cs-wam__line {

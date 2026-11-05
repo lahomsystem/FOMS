@@ -35,6 +35,13 @@
   }
 
   var wam = window.ChannelIOWam;
+  // 채널톡 작은 창에는 닫기 단추가 없다 — 화면이 직접 단다(ChannelIOWam.close, 사장님 11-05 "창을 삭제하는 버튼이 없네").
+  var closeButton = document.getElementById('cs-wam-close');
+  if (closeButton) {
+    closeButton.addEventListener('click', function () {
+      try { if (wam && typeof wam.close === 'function') wam.close(); } catch (e) { /* 닫기를 못 해도 화면은 그대로 */ }
+    });
+  }
   if (!wam || typeof wam.callFunction !== 'function') {
     status.textContent = '채널톡 밖에서 열었어요. 채널톡 메모의 단추로 열어 주세요.';
     return;
