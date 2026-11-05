@@ -242,10 +242,12 @@ def _measurement_push_count(db, order_id: int) -> int:
 def _final_drawings(order: Order) -> list[dict]:
     """최종 도면 — 그림은 고객 공유 화면과 같은 갤러리 카드(``url`` · ``label`` · ``download_url``), 그 밖은 파일 줄."""
     rows = []
-    for no, f in enumerate(final_drawings_for_partner(order), start=1):
+    for f in final_drawings_for_partner(order):
+        no = f["no"]  # 우리 ERP 도면 번호(걸러진 줄이 있어도 다시 세지 않는다)
         name = f.get("filename") or f.get("key", "").rsplit("/", 1)[-1]
         rows.append({
             "filename": name,
+            "no": no,  # 공통 첨부 도면 썸네일 밑 "1번"(사용자 11-05)
             "label": f"{no}번 · {name}",  # 우리 도면 작업실처럼 번호로 부른다(수정 요청 때 "2번 도면")
             "url": build_file_view_url(f["key"]),
             "download_url": build_file_download_url(f["key"]),

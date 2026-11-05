@@ -24,7 +24,8 @@ def _sheets(order: Order) -> tuple[list[dict[str, Any]], int]:
     """번호 붙은 도면 그림(그림만, 6장까지)과 전체 장수."""
     finals = final_drawings_for_partner(order)
     out = []
-    for no, f in enumerate(finals, start=1):
+    for f in finals:
+        no = f["no"]  # 우리 ERP 도면 번호(drawing_confirm.final_drawings_for_partner)
         key = str(f.get("key") or "")
         name = str(f.get("filename") or key.rsplit("/", 1)[-1])
         if name.lower().endswith(_IMAGE_EXT) and len(out) < MAX_SHEETS:
