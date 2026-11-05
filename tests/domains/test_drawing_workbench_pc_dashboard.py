@@ -423,6 +423,7 @@ def test_construction_cell_shows_partner_requested_date_when_unconfirmed() -> No
     assert "request_text(pending_request(sd, o.erp_stage_code or ''))" in route
     body = _read(BODY)
     assert "희망 {{ r.construction_requested }}" in body
+    assert 'dw-cdate-badge is-info me-1" title="협력사 희망 시공일' in body  # 파란 배지(사용자 11-05)
     from foms.services.partners.schedule_request import pending_request, request_text
     sd = {"partner_intake": {"requested_construction": {"date": "2026-11-20", "time": "오전"}}}
     assert request_text(pending_request(sd, "DRAWING")) == "2026-11-20 오전"
