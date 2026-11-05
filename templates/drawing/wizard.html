@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261103c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261105a">
   {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261103a">{% endif %}
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
@@ -154,8 +154,30 @@
         <span class="dws-part-status" id="dws-part-status" hidden></span>
         {# 저장 상태 칩 — wizard.js renderSaveStatus 가 지금 시트 기준으로 채운다(글은 save-status.js chip: '전달 대기함 HH:MM'·'자동 저장 HH:MM'·'전달본 없음'·'전달본 예전 것'·'저장 중…'·'저장 안 됨'·'저장 실패') #}
         <span class="dws-save-status" id="dws-save-status" role="status" aria-live="polite" hidden></span>
-        <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save" title="지금 시트를 전달 대기함에 넣기 (Ctrl+S)">저장</button>
-        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장">일괄 저장</button>
+        {# [저장]·[일괄 저장] 을 누르면 같이 할 일(도면 발송 = 영업 전달 · 도면방 PUSH)을 고르는 창이 단추 밑에 뜬다(save-send.js,
+           설계서 docs/specs/2026-11-05-wizard-save-send-options_SPEC.md). Ctrl+S 는 창 없이 저장만. #}
+        <div class="dws-savesend-anchor">
+        <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save" title="지금 시트를 전달 대기함에 넣기 (Ctrl+S)" aria-haspopup="dialog" aria-controls="dws-savesend">저장</button>
+        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장" aria-haspopup="dialog" aria-controls="dws-savesend">일괄 저장</button>
+        <div class="dws-savesend" id="dws-savesend" role="dialog" aria-labelledby="dws-savesend-head" hidden>
+          <div class="dws-savesend-head" id="dws-savesend-head">지금 시트 저장</div>
+          <div class="dws-savesend-sub">저장하면서 같이 할 일을 골라요</div>
+          <label class="dws-savesend-opt" data-savesend-row="send">
+            <input type="checkbox" data-savesend="send">
+            <span><span class="dws-savesend-name">도면 발송</span><span class="dws-savesend-desc">영업에게 전달해요 (전달본으로 올려요)</span></span>
+          </label>
+          <label class="dws-savesend-opt" data-savesend-row="push">
+            <input type="checkbox" data-savesend="push">
+            <span><span class="dws-savesend-name">도면방 PUSH</span><span class="dws-savesend-desc">채널톡 도면방에도 올려요 · 켜면 발송도 같이 켜져요</span></span>
+          </label>
+          <div class="dws-savesend-lock" data-savesend-lock hidden>도면 담당자만 전달할 수 있어요</div>
+          <div class="dws-savesend-foot">
+            <button type="button" class="dws-btn" data-savesend-cancel>취소</button>
+            <button type="button" class="dws-btn dws-btn-primary" data-savesend-go>저장만</button>
+          </div>
+          <label class="dws-savesend-remember"><input type="checkbox" data-savesend-remember checked> 다음에도 이대로 고르기</label>
+        </div>
+        </div>
 
         <div class="dws-dropdown">
           <button type="button" class="dws-btn" id="dws-btn-export">
@@ -730,7 +752,8 @@
   {# 줄여 그린 그림 고운 필터(Chrome · Edge) — 그림 노드 sceneFunc. 2026-10-28 '컴퍼넌트를 줄이면 화질이 떨어진다'. #}
   <script src="{{ url_for('static', filename='js/drawing/image-smooth.js') }}?v=20261028b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/zoom-sharp.js') }}?v=20261028a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261103e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261105a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/save-send.js') }}?v=20261105a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/image-crop.js') }}?v=20261103a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
   {% if wizard_ui == 'v2' %}

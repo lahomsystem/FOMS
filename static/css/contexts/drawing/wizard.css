@@ -3080,3 +3080,49 @@ button.dws-sheet-renaming { display: none; }
 @media (max-width: 760px) {
   .dws-review-card { bottom: 88px; }
 }
+
+/* ---- [저장]·[일괄 저장] → 같이 할 일 고르기 창(save-send.js, 설계서 docs/specs/2026-11-05-wizard-save-send-options_SPEC.md) ---- */
+.dws-savesend-anchor { position: relative; display: inline-flex; align-items: center; gap: inherit; }
+.dws-savesend {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 264px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  color: #1d1d1f;
+  font-size: 13px;
+  text-align: left;
+}
+.dws-savesend[hidden] { display: none; }
+.dws-savesend-head { font-weight: 600; }
+.dws-savesend-sub { margin: 2px 0 10px; font-size: 12px; color: #6e6e73; }
+.dws-savesend-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 6px;
+  padding: 9px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+.dws-savesend-opt[hidden] { display: none; }
+.dws-savesend-opt:hover { background: #f7f9fc; }
+.dws-savesend-opt.is-on { border-color: #0071e3; background: #eef5ff; }
+.dws-savesend-opt input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: #0071e3; flex: none; }
+.dws-savesend-opt input:disabled + span { opacity: 0.45; }
+.dws-savesend-name { display: block; font-weight: 500; }
+.dws-savesend-desc { display: block; margin-top: 1px; font-size: 12px; color: #6e6e73; }
+.dws-savesend-lock { margin: 2px 0 6px; font-size: 12px; color: #b25000; }
+.dws-savesend-lock[hidden] { display: none; }
+.dws-savesend-foot { display: flex; gap: 6px; margin-top: 10px; }
+.dws-savesend-foot .dws-btn { flex: 1; justify-content: center; }
+.dws-savesend-remember { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: #6e6e73; cursor: pointer; }
