@@ -16,7 +16,10 @@
 '확정', 관찰 유형은 늘 '관찰'. 같은 항목 · 링크의 다른 열린 제안에는 '기준 판 바뀜' 시각을 적는다(``base_changed_at``).
 닫은 액션 이름(``decided_action`` — :mod:`.actions`)을 제안 줄에 남긴다.
 은퇴(새 판 · 상태 ``retired``) · 지우기(지금 판 닫기 + 닿은 링크 닫기)도 이 길이다. 거절은 :func:`reject_change`.
-커밋은 호출자 몫이다(``flush`` 만). 다시 확인에서 멈추면 그 반영의 쓰기는 저장점으로 되돌리고 제안은 열린 채 둔다.
+**지식 문서 유형 항목을 바꾸면 상담 두뇌가 읽는 지식 문서도 같은 저장점에서 표로 다시 쓴다**(:mod:`.doc_sync` — 7.5 '반영
+때마다 표에서 다시 만든다'). 옮기기(``as_import`` — 문서 → 표)는 문서를 쓰지 않는다.
+커밋은 호출자 몫이다(``flush`` 만). 다시 확인 · 지식 문서 다시 쓰기에서 멈추면 그 반영의 쓰기는 저장점으로 되돌리고 제안은
+열린 채 둔다.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain import releases
 from foms.services.brain.access import approval_problem
 from foms.services.brain.ai_gates import sources
+from foms.services.brain.doc_sync import sync_documents
 from foms.services.brain.constants import (
     BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
     OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
@@ -345,21 +349,24 @@ def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[date
         action: 이 반영을 부른 액션 이름(:mod:`.actions` — 제안 줄 ``decided_action`` · 감사 줄).
 
     Raises:
-        BrainTargetError · BrainPermissionError · BrainShapeError · BrainConflictError.
+        BrainTargetError · BrainPermissionError · BrainShapeError · BrainConflictError · BrainDocSyncError.
     """
     now = now or now_utc_naive()
     change = _open_change(session, change_id)
     if as_import and change.proposed_by != IMPORT_PROPOSER.name:
         raise BrainTargetError("옮기기 반영은 옮기기 제안만 받는다")
     run = _apply_object if change.op in OBJECT_OPS else _apply_link
-    with session.begin_nested():  # 다시 확인에서 멈추면 판 줄 · 앞 줄 닫기가 반쯤 남지 않게
+    # 다시 확인 · 지식 문서 다시 쓰기에서 멈추면 판 줄 · 앞 줄 닫기 · 문서 새 판이 반쯤 남지 않게 — 한 저장점
+    with session.begin_nested():
         actor_id, version, release_no = run(session, change, actor, now=now, as_import=as_import)
+        docs = {} if as_import else sync_documents(session, change, actor_id=actor_id, result_version=version, now=now)
     change.status, change.decided_by, change.decided_at = CHANGE_APPLIED, actor_id, now
     change.result_version, change.release_no = version, release_no
     change.decided_action = "import" if as_import else action
     _flag_siblings(session, change, now)
     _audit(session, actor_id, change, "APPLY", {"version": version, "release": release_no,
-                                                "action": change.decided_action, **dict(detail or {})}, now)
+                                                "action": change.decided_action, **({"docs": docs} if docs else {}),
+                                                **dict(detail or {})}, now)
     session.flush()
     return ApplyResult(change.id, change.op, change.item_key, version, release_no)
 

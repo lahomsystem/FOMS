@@ -31,7 +31,7 @@ from foms.services.brain import actions
 from foms.services.brain.access import screen_viewer
 from foms.services.brain.action_runner import perform
 from foms.services.brain.errors import (
-    BrainConfirmError, BrainConflictError, BrainError, BrainPermissionError, BrainRejectedError,
+    BrainConfirmError, BrainConflictError, BrainDocSyncError, BrainError, BrainPermissionError, BrainRejectedError,
     BrainRollbackBlockedError, BrainShapeError,
 )
 from foms.services.brain.inbox import inbox, inbox_counts
@@ -86,6 +86,8 @@ def _error_reply(exc: BrainError) -> tuple[Any, int]:
         data["reject_code"] = exc.reject_code
     elif isinstance(exc, BrainRollbackBlockedError):
         data["count"] = exc.count
+    elif isinstance(exc, BrainDocSyncError):
+        data["brand"], data["reason"] = exc.brand, exc.reason
     elif isinstance(exc, BrainShapeError):
         data["problems"], status = list(exc.problems), 400
     return _reply(status, data, actions.message(data["code"]))

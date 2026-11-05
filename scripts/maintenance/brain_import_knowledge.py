@@ -8,14 +8,18 @@
 - ``--apply`` 에는 ``--actor``(켜진 ADMIN 아이디)가 꼭 있어야 한다. 운영 막기는 기준 답 스크립트
   (``tools/ops/cs_agent_knowledge.py``)의 환경 판정을 그대로 쓴다 — local · staging 밖은 ``--i-have-owner-approval`` 없이 쓰지 않는다.
 - ``--compare`` 는 읽기만 한다(견줌만).
-- **아직 하지 않는 것**: 상담 두뇌가 표를 읽게 바꾸기 · 표에서 지식 문서(SystemSetting)를 쓰기 — 그림자 견줌이 깨끗해진 뒤
-  스위치 뒤에서 한다.
+- **표가 정본이다**(3.1 규칙 1): 옮기기는 사람이 승인한 판 · 링크가 닿은 항목을 고치거나 지우거나 나누지 않고(``unmanaged`` ·
+  ``protected`` 로 알림), 표에서 다시 만든 문서가 저장된 문서와 같으면 아무것도 하지 않는다. 반영 동작은 지식 문서 유형 항목을
+  바꿀 때마다 지식 문서를 표에서 다시 쓴다(:mod:`foms.services.brain.doc_sync`).
+- ``--publish`` = 맞추기(표 → 문서): 브랜드마다 표에서 다시 만든 문서를 새 버전으로 넣는다(문서를 직접 고쳐 반영이 멈출 때 —
+  ``BRAIN_DOC_SYNC``). 문서에만 있던 글은 빠진다(수정 기록에는 남는다). ``--apply`` 와 같은 막기(``--actor`` · 운영 승인 표시).
 
 사용 예 (PowerShell 5.x)::
 
     python scripts/maintenance/brain_import_knowledge.py
     python scripts/maintenance/brain_import_knowledge.py --compare --brand LAHOM
     python scripts/maintenance/brain_import_knowledge.py --apply --actor <ADMIN 아이디>
+    python scripts/maintenance/brain_import_knowledge.py --publish --actor <ADMIN 아이디>
 """
 import argparse
 import importlib.util
@@ -30,7 +34,7 @@ sys.path.insert(0, ROOT)
 from app import app  # noqa: E402
 from db import DB_URL, db_session  # noqa: E402
 from foms.platform.sentry_setup import resolve_environment  # noqa: E402
-from foms.services.brain import doc_bridge, doc_import  # noqa: E402
+from foms.services.brain import doc_bridge, doc_import, doc_sync  # noqa: E402
 from foms.services.brain.errors import BrainError  # noqa: E402
 from foms.services.cs_agent.knowledge import KNOWN_BRANDS  # noqa: E402
 
@@ -54,20 +58,23 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     """CLI 인자."""
     parser = argparse.ArgumentParser(description="master brain — import knowledge documents (default dry-run) / compare.")
     parser.add_argument("--compare", action="store_true", help="견줌만(읽기만)")
-    parser.add_argument("--brand", choices=sorted(KNOWN_BRANDS), help="--compare 할 브랜드(없으면 모두)")
+    parser.add_argument("--brand", choices=sorted(KNOWN_BRANDS), help="--compare · --publish 할 브랜드(없으면 모두)")
     parser.add_argument("--apply", action="store_true", help="실제로 옮긴다(기본은 모의 실행)")
-    parser.add_argument("--actor", help="--apply 때 꼭: 반영하는 사람(켜진 ADMIN 아이디)")
+    parser.add_argument("--publish", action="store_true", help="맞추기: 표에서 다시 만든 지식 문서를 넣는다(표 → 문서)")
+    parser.add_argument("--actor", help="--apply · --publish 때 꼭: 반영하는 사람(켜진 ADMIN 아이디)")
     parser.add_argument("--i-have-owner-approval", dest="owner_approval", action="store_true",
                         help="local · staging 밖(운영)에 쓸 때 꼭: 사장님이 옮기기를 승인했다")
     return parser.parse_args(argv)
 
 
 def check_apply(args: argparse.Namespace, environment: str) -> None:
-    """``--apply`` 앞 검사 — DB 를 건드리기 전에 모두 본다."""
+    """``--apply`` · ``--publish`` 앞 검사 — DB 를 건드리기 전에 모두 본다."""
     if args.compare:
-        raise Refused("APPLY_WITH_COMPARE", "--apply 는 --compare 와 같이 쓰지 않는다")
+        raise Refused("APPLY_WITH_COMPARE", "--apply · --publish 는 --compare 와 같이 쓰지 않는다")
+    if args.apply and args.publish:
+        raise Refused("APPLY_WITH_PUBLISH", "--apply(문서 → 표)와 --publish(표 → 문서)는 같이 쓰지 않는다")
     if not args.actor:
-        raise Refused("ACTOR_REQUIRED", "--apply 에는 --actor(켜진 ADMIN 아이디)가 있어야 한다")
+        raise Refused("ACTOR_REQUIRED", "--apply · --publish 에는 --actor(켜진 ADMIN 아이디)가 있어야 한다")
     if TOOL.needs_owner_approval(environment) and not args.owner_approval:
         raise Refused("OWNER_APPROVAL_REQUIRED",
                       f"{environment} 에는 사장님 승인 표시(--i-have-owner-approval) 없이 쓰지 않는다")
@@ -78,10 +85,22 @@ def compare(session: Any, brands: list) -> list:
     return [doc_bridge.shadow_compare(session, brand) for brand in brands]
 
 
+def publish(session: Any, args: argparse.Namespace) -> dict:
+    """맞추기(표 → 문서) — 브랜드마다 새 버전 · 차이(항목 id · 칸 이름만) 뒤 견줌."""
+    actor_id = TOOL.resolve_actor(session, args.actor)
+    brands = [args.brand] if args.brand else sorted(KNOWN_BRANDS)
+    out: dict = {"mode": "publish", "publish": doc_sync.publish_documents(session, actor_id=actor_id, brands=brands)}
+    session.commit()
+    out["compare"] = compare(session, brands)
+    return out
+
+
 def work(session: Any, args: argparse.Namespace) -> dict:
-    """모의 실행 · 옮기기 · 견줌."""
+    """모의 실행 · 옮기기 · 맞추기 · 견줌."""
     if args.compare:
         return {"mode": "compare", "compare": compare(session, [args.brand] if args.brand else sorted(KNOWN_BRANDS))}
+    if args.publish:
+        return publish(session, args)
     versions, problems = doc_import.load_documents(session)
     out: dict = {"mode": "import", "documents": {b: v for b, (v, _doc) in sorted(versions.items())},
                  "document_problems": problems}
@@ -114,7 +133,7 @@ def run(argv: Optional[list] = None) -> int:
                                           os.environ.get("RAILWAY_SERVICE_ID"))
     out: dict = {"environment": environment, "applied": False}
     try:
-        if args.apply:
+        if args.apply or args.publish:
             check_apply(args, environment)
         with app.app_context():
             try:
@@ -129,7 +148,8 @@ def run(argv: Optional[list] = None) -> int:
         _print(out)
         return EXIT_REFUSED
     out["ok"] = True
-    out["applied"] = bool(out.get("import", {}).get("applied"))
+    published = any(entry.get("diff") for entry in out.get("publish", {}).values())
+    out["applied"] = bool(out.get("import", {}).get("applied")) or published
     _print(out)
     return EXIT_OK
 

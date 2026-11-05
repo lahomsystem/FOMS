@@ -108,12 +108,20 @@ def test_regenerated_documents_equal_the_stored_ones(app):
         assert doc_bridge.regenerate_document(db_session, brand) == stored  # 항목 · 칸 · 차례 모두
         compared = doc_bridge.shadow_compare(db_session, brand)
         assert compared["equal"] is True and not any(compared["diff"][k] for k in ("added", "removed", "changed"))
-    # 음성 대조군: 표를 한 칸 바꾸면 견주기가 그 항목 · 칸을 잡는다(사람 반영 길로)
+    # 사람 반영은 그 브랜드 문서를 같이 다시 쓴다(7.5) — 견주기는 계속 같음
     from foms.services.brain.apply import apply_change
     from foms.services.brain.proposals import Proposer, propose_update
     change = propose_update(db_session, key="lahom/lahom-only", base_version=1, after={"text": "합성 고친 사실"},
                             reason="합성", proposer=Proposer.user(admin.id), known="")
     apply_change(db_session, change.id, actor=admin, now=NOW)
+    db_session.commit()
+    assert doc_bridge.shadow_compare(db_session, "LAHOM")["equal"] is True
+    assert kn.read_stored(db_session, "LAHOM").version == 2 and kn.read_stored(db_session, "HAUD").version == 1
+    # 음성 대조군: 문서를 직접 고치면 견주기가 그 항목 · 칸을 잡는다
+    direct = kn.read_stored(db_session, "LAHOM")
+    document = copy.deepcopy(direct.document)
+    next(i for i in document["items"] if i["id"] == "lahom-only")["text"] = "합성 문서만 고침"
+    kn.save_document(db_session, "LAHOM", document, actor_user_id=admin.id, expected_version=direct.version)
     db_session.commit()
     compared = doc_bridge.shadow_compare(db_session, "LAHOM")
     assert compared["equal"] is False and compared["diff"]["changed"] == {"lahom-only": ["text"]}

@@ -268,7 +268,8 @@ def save_document(session: Any, brand: str, doc: Any, *, actor_user_id: int, exp
         session: DB 세션.
         brand: 브랜드(키를 정한다 — 문서의 ``brand`` 와 같아야 한다).
         doc: 넣을 문서(신뢰하지 않는다).
-        actor_user_id: 넣는 사람(켜진 ADMIN — 수정 기록 · 감사 주체).
+        actor_user_id: 넣는 사람(수정 기록 · 감사 주체 — 관리자 스크립트는 켜진 ADMIN, 회사 지식 반영이 다시 쓸 때는 그 반영을
+            승인한 사람 :mod:`foms.services.brain.doc_sync`).
         expected_version: 모의 실행에서 읽은 지금 버전(넣은 적 없으면 0).
         now: 시험 주입(UTC naive).
 
