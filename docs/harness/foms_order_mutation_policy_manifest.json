@@ -1080,6 +1080,21 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/quest/status"
     },
+    "sales_commission_api.cancel_closing": {
+      "mode": "guard",
+      "policy_id": "SALES_COMMISSION_WRITE",
+      "rule": "/api/sales-commission/closings/<int:closing_id>"
+    },
+    "sales_commission_api.close_month": {
+      "mode": "guard",
+      "policy_id": "SALES_COMMISSION_WRITE",
+      "rule": "/api/sales-commission/closings"
+    },
+    "sales_commission_api.mark_closing_paid": {
+      "mode": "guard",
+      "policy_id": "SALES_COMMISSION_WRITE",
+      "rule": "/api/sales-commission/closings/<int:closing_id>/paid"
+    },
     "sales_commission_api.save_input": {
       "mode": "guard",
       "policy_id": "SALES_COMMISSION_WRITE",

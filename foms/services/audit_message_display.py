@@ -335,6 +335,10 @@ ACTION_LABELS: dict[str, str] = {
     "SALES_FREELANCER_RATE_ADDED": "프리랜서 요율 바꾸기",
     # 수수료 탭 시공비 · 요율 지정 칸 저장(설계서 §9 PUT /api/sales-commission/inputs/<order_id>).
     "SALES_COMMISSION_INPUT_SAVED": "수수료 시공비 · 요율 저장",
+    # 수수료 달 마감 · 지급 완료 · 마감 취소(설계서 §8 — /api/sales-commission/closings).
+    "SALES_COMMISSION_CLOSED": "영업 수수료 마감",
+    "SALES_COMMISSION_PAID": "영업 수수료 지급 완료",
+    "SALES_COMMISSION_CLOSING_CANCELLED": "영업 수수료 마감 취소",
     "PARTNER_STATEMENT_DRAFT_OPENED": "협력사 명세서 초안 열기",
     "PARTNER_STATEMENT_DRAFT_SAVED": "협력사 명세서 초안 고침",
     "PARTNER_STATEMENT_DRAFT_DISCARDED": "협력사 명세서 초안 지움",

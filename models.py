@@ -1451,6 +1451,38 @@ class SalesCommissionInput(Base):
     )
 
 
+class SalesCommissionClosing(Base):
+    """FCOMM-01: 프리랜서 한 명 · 달 하나의 수수료 마감(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.3 · §8).
+
+    마감할 때 줄(``lines`` — 주문별 계산 결과 스냅샷)과 합계 · 세금을 한 번에 굳힌다. 한 주문이 어느 마감에든 들어가면
+    그 뒤 누구의 일반 줄에도 다시 나오지 않는다(J9 — 주인 · 거래구분이 굳는다). CLOSED(마감) → PAID(지급 완료, 그 뒤로는
+    못 되돌림). 지급 전 마감 취소는 줄을 지우고 감사 기록만 남긴다(VOID 상태 없음). 줄 모양은
+    :mod:`foms.services.sales_commission.closing`. 주문을 FK 로 잡지 않는다 — 주문이 지워져도 지급한 기록은 남아야 한다.
+    """
+    __tablename__ = 'sales_commission_closings'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    month = Column(String(7), nullable=False)
+    status = Column(String(8), nullable=False, default='CLOSED', server_default='CLOSED')
+    gross = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_income = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_local = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    vat = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    net = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_type = Column(String(16), nullable=False)
+    lines = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    closed_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    closed_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    paid_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('CLOSED','PAID')", name='ck_sales_commission_closings_status'),
+        UniqueConstraint('user_id', 'month', name='uq_sales_commission_closings_user_month'),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
