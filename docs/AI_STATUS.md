@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-06] **프리랜서 영업 수수료 1단계 deploy(FCOMM-01 `a6548ca3`)** — 설정·수수료 탭·내 수수료·차감 보강·마감(T9). 원장 `2026-11-06-freelancer-commission-ledger`
 - [2026-11-06] **직원 화면 디자인 점검 고침 운영(PR #746 · #747 · #749 `3f830b6e`)** — 주문·홈·실측·도면·AS 글자·비례·단추 · 폰 주문 편집 칸 44px · 보관 흰 제목 · 보라 강조 그대로 · 남은 것 99+ 알림 숫자 10px · 순번 11px
 - [2026-11-04] **출고 협력사 희망 2주 판 · 출고팀 시공일 운영 반영(PR #725 · 낮은 한 줄 판 #727 · 잠긴 단추 흐리게 #729)** — 스테이징 · 운영 실화면 통과. SPEC `2026-11-04-shipment-partner-request-board`
 - [2026-11-03] **도면 양식 발주 리스트 칸(PR #712 · #713 dbfc54cf)** — 체크리스트 대신 빨간 칸 · 자재표 줄 칸 앞 · V2 배치가 칸을 비켜 감 · 그림 뜬 뒤 배치
@@ -34,7 +35,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-29] **할 일 묶음 운영 반영(PR #454 · production `1554f917f`)** — 워커 감독자·SQLAlchemy 2.0.54·파일 버전 시범·ci_watch. 잔여: 정지 감시 재가동 결정, 시범 측정
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
-- [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
 
 ## 알려진 이슈
@@ -212,6 +212,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 판정은 `check_quest_approvals_complete` 하나로. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`

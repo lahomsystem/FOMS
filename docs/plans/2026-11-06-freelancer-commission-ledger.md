@@ -35,11 +35,11 @@
 | T2 | DONE | `4b08a6616` — fcomm_00, SQLite 11 · PG 왕복·FK 13 통과(에이전트 실행, 메인이 SQLite 재실행 확인) |
 | T3 | DONE | `6630f7f54` 계산 함수 + 시험 42. 읽기 모델은 T5 로. 차감 취소 판정은 T4 공용 함수로 바꿀 것 |
 | T4 | DONE | `56b34ac2a` 차감 보강. 메인 재실행: 관련 domains 2,247 · 기능·권한·래칫 432 통과. 바뀐 동작: 태블릿·실무 탭에서 '영업' 귀속은 사람 칸이 없어 400(설계 S10 수용) |
-| T5 | DONE | `4efe97dfb` rows·inputs API. 남은 것: COMMISSION_SD_SPEC 의 PG SQL ↔ 파이썬 동등 시험(T9 PG 레인 때) |
+| T5 | DONE | `4efe97dfb` rows·inputs API. PG 투영 동등 시험 `15ec27e3c`(로컬 PG17 2 passed) |
 | T6 | DONE | `a3efac4d2` 수수료 탭. 메인 재실행 렌더 216 · 합동 401 통과. 실브라우저 미확인 → T8 |
 | T7 | DONE | `08ecaa545` 내 수수료 화면 · 서랍 링크 · 발주사 선택지. 태블릿 실측 폼은 직접 입력으로 둠 |
-| T8 | PENDING | |
-| T9 | PENDING | |
+| T8 | DONE | deploy `a6548ca37`(smoke PASSED 16,501 · CI 4종 green · Railway staging SUCCESS). 스테이징 실화면 체크 1~9 통과(가상 주문 6건 · 시험 계정 id97, 정리 끝). 결함 3 고침 `d46734589`(차감 창 버튼 색 · 알림 달 주소 · 폰 셸) — 재배포 뒤 다시 볼 것 |
+| T9 | DONE | `5589282ee` 마감 표 fcomm_01 · 서비스 · API 5개, 시험 27 · PG 왕복 15 통과. 남은 것: 저장 직후 줄이 마감 여부를 모름(T10·T12) |
 | T10 | PENDING | |
 | T11 | PENDING | |
 | T12 | PENDING | 2027-01-10 전 |
