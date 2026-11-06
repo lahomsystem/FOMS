@@ -28,6 +28,8 @@
     'schedule.measurement.date': '실측일을',
     'schedule.construction.date': '시공일을',
     'totals.shipping_price': '출고가를',
+    'parties.manager.name': '대표 담당을',
+    'parties.manager.names': '담당 명단을',
   };
   C.STALE_MESSAGE = '그사이 다른 사람이 고쳤어요. 새 값으로 바꿔 놓았어요.';
   C.NETWORK_MESSAGE = '연결이 끊겼어요. 잠시 뒤 다시 해 주세요.';
