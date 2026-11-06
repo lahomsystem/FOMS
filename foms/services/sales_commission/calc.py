@@ -30,6 +30,7 @@ from foms.services.estimate_service import (
 )
 from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.sales_commission.names import normalize_name
+from foms.services.settlement_deductions import valid_deductions
 
 # 거래구분(§3.1). 요율 이력의 칸 이름은 :data:`RATE_FIELD_BY_DEAL` 이 정한다.
 DEAL_LAHOM = "LAHOM"
@@ -300,8 +301,8 @@ def _as_int(value: Any) -> int | None:
 def sales_deduction_total(sd: Any, user_id: Any) -> int:
     """프리랜서 귀속 영업 차감 합(§3.4 · D13).
 
-    ``settlement.deductions[]`` 중 부서 SALES · 귀속 사람 = ``user_id`` · 취소 표시(``voided_at``)
-    없음인 기록의 금액 절대값을 더한다. 차감 금액은 음수로 저장된다.
+    유효한 차감(:func:`foms.services.settlement_deductions.valid_deductions` — 취소 표시 없음) 중
+    부서 SALES · 귀속 사람 = ``user_id`` 인 기록의 금액 절대값을 더한다. 차감 금액은 음수로 저장된다.
 
     Args:
         sd: 주문 structured_data.
@@ -311,13 +312,10 @@ def sales_deduction_total(sd: Any, user_id: Any) -> int:
         차감 합(0 이상 원). 칸이 없거나 모양이 틀리면 0.
     """
     target = _as_int(user_id)
-    deductions = _nested(sd, "settlement", "deductions")
-    if target is None or not isinstance(deductions, list):
+    if target is None:
         return 0
     total = 0
-    for entry in deductions:
-        if not isinstance(entry, dict) or entry.get("voided_at"):
-            continue
+    for entry in valid_deductions(sd):
         if str(entry.get("department") or "").strip().upper() != _SALES_DEPARTMENT:
             continue
         if _as_int(entry.get("charge_to_user_id")) != target:

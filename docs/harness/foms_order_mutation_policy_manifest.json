@@ -545,6 +545,11 @@
       "policy_id": "FINANCE_MUTATION",
       "rule": "/api/orders/<int:order_id>/cash-receipt/issue"
     },
+    "erp_orders_completion.api_settlement_deduction_void": {
+      "mode": "guard",
+      "policy_id": "SALES_COMMISSION_WRITE",
+      "rule": "/api/orders/<int:order_id>/settlement/deductions/<ded_id>/void"
+    },
     "erp_orders_completion.api_settlement_issue": {
       "mode": "guard",
       "policy_id": "FINANCE_MUTATION",
@@ -1074,6 +1079,11 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/quest/status"
+    },
+    "sales_commission_api.save_input": {
+      "mode": "guard",
+      "policy_id": "SALES_COMMISSION_WRITE",
+      "rule": "/api/sales-commission/inputs/<int:order_id>"
     },
     "sales_freelancers_admin_api.add_rate": {
       "mode": "guard",

@@ -51,6 +51,7 @@ from foms.services.estimate_service import (
     _balance_after_payments,
     _overpaid_after_payments,
 )
+from foms.services.settlement_deductions import has_valid_deduction, settlement_valid_deductions
 from foms.services.settlement_source import fetch_settlement_rows
 # 완료 대시보드 파생 SSOT 를 재구현하지 않고 그대로 쓴다(비트 단위 파리티).
 # SETTLEMENT_DEPARTMENT_OPTIONS 는 `foms.api.cs.dashboard.SETTLEMENT_DEPARTMENTS` 와
@@ -398,21 +399,16 @@ def _deduction_entries(settlement: Any) -> list[tuple[str, int]]:
     부호를 뒤집는다). 집계는 **절대값(양수)** 으로 내고 "차감"이라는 사실은 키 이름
     (``deductions_by_department``)이 말한다.
 
+    취소한 차감(``voided_at``)은 뺀다 — 유효 판정 정본은 :mod:`foms.services.settlement_deductions`.
+
     Args:
         settlement: ``sd["settlement"]`` 값.
 
     Returns:
         (부서코드 대문자, 금액 절대값) 튜플 리스트. 금액이 int 가 아니면 0.
     """
-    if not isinstance(settlement, dict):
-        return []
-    deductions = settlement.get("deductions")
-    if not isinstance(deductions, list):
-        return []
     entries: list[tuple[str, int]] = []
-    for ded in deductions:
-        if not isinstance(ded, dict):
-            continue
+    for ded in settlement_valid_deductions(settlement):
         amount = ded.get("amount")
         entries.append((
             str(ded.get("department") or "").strip().upper(),
@@ -567,9 +563,7 @@ def _settlement_row(order: Any, channel: str) -> dict:
         **_row_amounts(sd),
         # 미수 판정은 truthiness — 저장값이 bool 로 강제되지 않아 "Y" 같은 값이 온다.
         "paid": bool(isinstance(payment, dict) and payment.get("balance_confirmed")),
-        "settlement_issued": bool(
-            isinstance(settlement, dict) and settlement.get("deductions")
-        ),
+        "settlement_issued": has_valid_deduction(settlement),
         "cash_receipt_state": _cash_receipt_state(cash_receipt, issued),
         "cash_receipt_issued": issued,
         "deductions": _deduction_entries(settlement),

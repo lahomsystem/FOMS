@@ -125,6 +125,8 @@ _DEFAULT_P1_TYPES = frozenset(
         NOTIFY_DRAFT_READY,
         # 협력사 명세서 발행 대기(출고 전날 9시, 주문마다 한 번) — 입금 기한(출고 전날 16:00) 전에 발행해야 한다.
         "PARTNER_STATEMENT_DUE",
+        # 프리랜서 영업 차감이 생기거나 취소됨(FCOMM-01 §7 · D17) — 프리랜서는 회사 화면을 늘 보지 않는다.
+        "SALES_COMMISSION_DEDUCTION",
     }
 )
 
@@ -244,6 +246,9 @@ def _deep_link(notif: Notification) -> str:
         if ntype == "MEASURE_SAME_DAY_ADDED":
             # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
             return measure_same_day_link(oid, notif.created_at)
+        if ntype == "SALES_COMMISSION_DEDUCTION":
+            # 프리랜서는 주문 상세가 아니라 내 수수료 화면에서 차감을 본다(FCOMM-01 §2.2-3).
+            return "/erp/my-commission"
         return f"/erp/orders/{oid}"
     if (notif.notification_type or "").strip().upper() == NOTIFY_DRAFT_READY:
         return cs_send_link(notif.message) or "/erp"
@@ -277,6 +282,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "자동 처리가 다시 시작됐습니다"
     if ntype == NOTIFY_DRAFT_READY:
         return "상담 초안"
+    if ntype == "SALES_COMMISSION_DEDUCTION":
+        return "수수료 차감"
     return "새 알림"
 
 
@@ -304,6 +311,9 @@ def _generic_body(urgent: bool, ntype: str) -> str:
     if ntype == NOTIFY_DRAFT_READY:
         # 손님 글 · 초안은 싣지 않는다(잠금화면) — 눌러서 보내기 화면을 연다.
         return "새 상담 초안이 떴어요 — 눌러서 보내기 화면을 여세요"
+    if ntype == "SALES_COMMISSION_DEDUCTION":
+        # 금액 · 사유는 잠금 화면에 싣지 않는다 — 눌러서 내 수수료 화면에서 본다.
+        return "수수료 차감이 바뀌었어요 — 눌러서 확인해 주세요"
     return "확인이 필요한 새 알림이 있습니다."
 
 
@@ -361,6 +371,8 @@ def _order_bound_text(
             return f"도면 전달 취소 · {name}", f"{label} 도면 전달이 취소됐어요"
         if ntype == "MEASURE_SAME_DAY_ADDED":
             return "긴급 실측 추가", f"{name} 실측이 오늘 긴급 추가됐어요"
+        if ntype == "SALES_COMMISSION_DEDUCTION":
+            return f"수수료 차감 · {name}", f"{name} 주문 수수료 차감이 바뀌었어요"
     return (
         f"{_generic_title(urgent, ntype)} · {name}",
         f"{label} {_generic_body(urgent, ntype)}",
