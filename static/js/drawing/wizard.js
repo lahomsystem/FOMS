@@ -5733,14 +5733,17 @@
    * @param {string} label 진행 토스트 접두어("일괄 저장" 등)
    * @returns {Promise<{ok:number, fail:string[], total:number}>}
    */
-  function eachSheetToBlob(handler, label) {
-    var total = state.sheets.length;
+  function eachSheetToBlob(handler, label, onlyIds) {
+    var picked = state.sheets.map(function (s, i) { return i; }).filter(function (i) {
+      return !onlyIds || onlyIds.indexOf(state.sheets[i].id) >= 0;   // onlyIds = 저장 창이 고른 시트만(설계서 2026-11-06 §2.2)
+    });
+    var total = picked.length;
     var okCount = 0;
     var failNames = [];
     var chain = Promise.resolve();
-    state.sheets.forEach(function (s, i) {
+    picked.forEach(function (i, n) {
       chain = chain.then(function () {
-        toast(label + ' ' + (i + 1) + '/' + total + ' 처리 중…', { key: 'sheet-batch' });   // 진행 알림은 하나를 고쳐 쓴다(시트마다 쌓이지 않게)
+        toast(label + ' ' + (n + 1) + '/' + total + ' 처리 중…', { key: 'sheet-batch' });   // 진행 알림은 하나를 고쳐 쓴다(시트마다 쌓이지 않게)
         switchSheet(i);
         return waitForSheetImages(IMG_SETTLE_MS)
           .then(withExportMode)
@@ -5823,6 +5826,31 @@
       console.warn('[dws] save-all', err);
       toast(failureText('일괄 저장 실패', null), { error: true, retry: saveAll });
       return null;
+    });
+  }
+
+  /** 저장 창(save-send.js) — 전달본과 달라진 다른 시트를 그려 전달 대기함에 넣는다. 상태 PUT 은 부른 쪽(save)이 이미 했다.
+      끝나면 원래 시트로 돌아온다. 돌려주는 값 = {ok, fail, total}(설계서 docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md). */
+  function queueSheets(ids) {
+    if (!canSave || saveInFlight || !ids || !ids.length) { return Promise.resolve({ ok: 0, fail: [], total: 0 }); }
+    saveInFlight = true;
+    els.saveBtn.disabled = true;
+    if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
+    var origIdx = current;
+    var SS = window.FomsSaveStatus;
+    return eachSheetToBlob(function (blob, s) {
+      var sig = SS ? SS.sheetSig(s) : '';
+      return postSheetPngBlob(blob, s, sig).then(function () { noteQueued(s, sig); });
+    }, '바뀐 시트 넣는 중', ids).then(function (res) {
+      switchSheet(origIdx);
+      finishSaveAll();
+      refreshPending();
+      return res;
+    }, function (err) {
+      console.warn('[dws] queue-sheets', err);
+      switchSheet(origIdx);
+      finishSaveAll();
+      return { ok: 0, fail: ids.slice(), total: ids.length };
     });
   }
 
@@ -7275,6 +7303,7 @@
       fitZoom: fitZoom,
       save: save,
       saveAll: saveAll,
+      queueSheets: queueSheets,
       pushRoom: pushDrawingRoom,
       refreshPending: refreshPending,
       setTool: setAnnoMode,

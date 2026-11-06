@@ -34,6 +34,7 @@ from foms.services.orders.revision import (
 )
 from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
+from foms.services.orders.drawing_transfer import clean_sheet_id, clean_sheet_sig
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
@@ -1457,7 +1458,24 @@ def api_get_drawing_wizard_pending(order_id):
     order = _load_order(db, order_id)
     if not order:
         return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
-    return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
+    sd = _load_structured_data(order)
+    return jsonify({'success': True, 'data': {'pending': _pending_list(sd), 'current': _current_sigs(sd)}})
+
+
+def _current_sigs(sd: dict) -> list[dict]:
+    """지금 전달본의 시트별 그림 지문 [{sheet_id, sig}] — 지문이 없는 옛 전달본은 ``sig`` 가 ``None``.
+
+    저장 창(save-send.js)이 [저장] + 발송 때 전달본과 달라진 다른 시트를 다시 그려 함께 보낸다
+    (설계서 ``docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md`` §2.2). 시트 id 가 없는 항목은 뺀다.
+    """
+    out = []
+    for f in (sd.get('drawing_current_files') or []) if isinstance(sd, dict) else []:
+        if not isinstance(f, dict):
+            continue
+        sid = clean_sheet_id(f.get('sheet_id'))
+        if sid:
+            out.append({'sheet_id': sid, 'sig': clean_sheet_sig(f.get('sig')) or None})
+    return out
 
 
 def _enqueue_pending_export_delete(db, order_id: int, entry: dict, owner_user_id: int | None):
@@ -1669,7 +1687,7 @@ def api_post_drawing_wizard_transfer_pending(order_id):
         if not pending_items:
             return jsonify({'success': False, 'message': '전달할 대기 도면이 없습니다.'}), 400
 
-        files = [{'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id']}
+        files = [{'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id'], 'sig': p.get('sig') or ''}
                  for p in pending_items]
         # 대기 시트 전체의 버전 스냅샷 + pending 비움을 전달 쓰기에 실어 한 트랜잭션으로(리뷰 P2).
         stale_keys: list = []
