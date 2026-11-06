@@ -150,7 +150,9 @@ def _block_reason(db, user_id: int, month: str, gross: int) -> Optional[tuple[st
     if month > current_month_kst():
         return MSG_FUTURE, 400
     latest = latest_closed_month(db, user_id)
-    if latest is not None and latest >= month:
+    if latest is not None and latest == month:
+        return "이 달은 이미 마감했어요. 고치려면 마감을 취소하고 다시 마감해 주세요.", 409
+    if latest is not None and latest > month:
         return f"이미 그 뒤 달까지 마감했어요({latest} 마감 있음). 그 다음 달만 마감할 수 있어요.", 409
     if gross <= 0:
         return MSG_NOTHING, 400
