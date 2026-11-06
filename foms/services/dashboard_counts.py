@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import func
 
 from db import get_db
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.erp_permissions import (
     _MINE_SCOPE_BY_TEAM,
     build_mine_sql_filter,
@@ -65,6 +66,13 @@ def _mine_only_for_user(user: Any) -> bool:
     return bool(user and (getattr(user, "team", None) or "") in MINE_ONLY_TEAMS)
 
 
+def _resolve_mine_only(user: Any, mine_only: bool | None) -> bool:
+    """생략이면 팀 기준. 켜진 프리랜서는 넘긴 값과 무관하게 늘 내 것만(연결 표, FCOMM-01 §6.3 겹 3)."""
+    if is_list_freelancer(user):
+        return True
+    return _mine_only_for_user(user) if mine_only is None else bool(mine_only)
+
+
 def _badge_mine_scope(user: Any) -> str:
     """배지 "내 차례" 범위는 관리자 역할이어도 소속 팀 기준으로 정한다.
 
@@ -100,8 +108,7 @@ def compute_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dic
     if user is None:
         return {nav_id: 0 for nav_id in NAV_STATUS_BUCKETS}
 
-    if mine_only is None:
-        mine_only = _mine_only_for_user(user)
+    mine_only = _resolve_mine_only(user, mine_only)
 
     db = get_db()
     q = db.query(Order.status, func.count(Order.id)).filter(
@@ -129,8 +136,8 @@ def get_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dict[st
     if user is None:
         return {nav_id: 0 for nav_id in NAV_STATUS_BUCKETS}
 
-    if mine_only is None:
-        mine_only = _mine_only_for_user(user)
+    mine_only = _resolve_mine_only(user, mine_only)
+    # 사용자 id 가 열쇠에 있어 남의 배지를 받지 않는다. 프리랜서는 mine_only 가 늘 True 라 열쇠가 바뀐다.
     cache_key = (int(user.id), mine_only)
     now = time.monotonic()
 

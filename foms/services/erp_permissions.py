@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from flask import jsonify, session
 
+from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, freelancer_order_related, is_list_freelancer
 from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
 from foms.services.orders.manager_names import order_manager_match_names
 from foms.web.auth import get_user_by_id
@@ -163,6 +164,8 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
     """Return whether an order is explicitly assigned to the user in the requested domain."""
     if not order or not user:
         return False
+    if is_list_freelancer(user):  # FCOMM-01 §6.1: 프리랜서는 연결 표 하나만(이름 · 담당 id 판정 안 씀)
+        return freelancer_order_related(user, order)
 
     identities = _normalized_identity_values(user)
     try:
@@ -309,6 +312,8 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
     """
     from foms.persistence.main.models import Order
 
+    if is_list_freelancer(user):  # FCOMM-01 §6.1: 프리랜서 "내 주문" = 연결 표 하나(scope 무관)
+        return freelancer_mine_sql_filter(user)
     dialect_name = _current_dialect_name()
     u_name = (user.name or "").strip()
     u_username = (user.username or "").strip()

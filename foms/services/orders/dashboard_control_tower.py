@@ -32,6 +32,7 @@ from foms.services.erp_display import (
 )
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until, get_holidays_kr
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from foms.services.measurement_time import measurement_glance_time_key
 from foms.services.orders.calendar_amount_colors import DEFAULT_COLORS, load_colors, tone_for
@@ -215,9 +216,15 @@ def _business_window_dates(today: datetime.date, *, max_business_days: int, wind
 # ───────── 섹션 빌더 ─────────
 
 def _tower_base_query(db: Any, current_user: Any):
-    """대시보드와 동일: 최근 60일 활성 ERP 주문. 시공팀은 본인 담당만."""
+    """대시보드와 동일: 최근 60일 활성 ERP 주문. 시공팀 · 켜진 프리랜서(연결 표, FCOMM-01 §6.3 겹 3)는 본인 것만.
+
+    프리랜서는 라우트가 ``tower_mine`` 을 강제로 켜지만, 이 base 를 쓰는 새 호출부가 생겨도 남의 주문 수 ·
+    금액 · 고객명이 섞이지 않게 여기서도 막는다(달력 칸 합계 · 오늘 요약 · 위험 카드 · 그날 목록 모두 이 base).
+    """
     q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
-    if current_user and (getattr(current_user, "team", None) or "") == "CONSTRUCTION":
+    if current_user and (
+        (getattr(current_user, "team", None) or "") == "CONSTRUCTION" or is_list_freelancer(current_user)
+    ):
         conds = build_mine_sql_filter(current_user)
         if conds:
             q = q.filter(mine_membership_clause(conds, scope_conds=[q.whereclause]))
