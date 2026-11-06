@@ -25,8 +25,8 @@
 
   var mounts = C.mounts = C.mounts || [];
 
-  /** 조각 4개가 다 실렸는지 — 스왑 재실행 순서가 흔들려도 덜 실린 채 마운트하지 않는다. */
-  function partsReady() { return !!(C.core && C.table && C.edit && C.deduct); }
+  /** 조각 5개가 다 실렸는지 — 스왑 재실행 순서가 흔들려도 덜 실린 채 마운트하지 않는다. */
+  function partsReady() { return !!(C.core && C.table && C.edit && C.deduct && C.closing); }
 
   function collectEls(root) {
     var q = function (sel) { return root.querySelector(sel); };
@@ -66,6 +66,7 @@
     if (ctx.els.dateHead) ctx.els.dateHead.textContent = s.basis === 'measurement' ? '실측일' : '시공일';
     if (ctx.els.month && s.month) ctx.els.month.value = s.month;
     if (ctx.els.user && s.userId) ctx.els.user.value = String(s.userId);
+    C.syncClose(ctx);
   }
 
   function fillFreelancers(ctx) {
@@ -122,6 +123,7 @@
       ctx.state.userId = String(ctx.state.freelancers[0].user_id);
       syncControls(ctx);
       C.load(ctx);
+      C.loadClosings(ctx);
     } catch (err) {
       ctx.state.loaded = false;   // 다음에 탭을 열 때 다시 시도한다
       showState(ctx, 'empty', err.message);
@@ -146,6 +148,7 @@
     els.user.addEventListener('change', function () {
       ctx.state.userId = els.user.value;
       reload(ctx);
+      C.loadClosings(ctx);
     });
     els.month.addEventListener('change', function () {
       if (!C.monthOk(els.month.value)) return;
@@ -162,6 +165,7 @@
     });
     C.bindEdit(ctx);
     C.bindDeduct(ctx);
+    C.bindClose(ctx);
   }
 
   function watchTabActivation(ctx) {
@@ -188,12 +192,14 @@
         rows: root.getAttribute('data-settlement-cm-rows-api'),
         input: root.getAttribute('data-settlement-cm-input-api'),
         order: root.getAttribute('data-settlement-cm-order-api'),
+        closings: root.getAttribute('data-settlement-cm-closings-api'),
+        exportCsv: root.getAttribute('data-settlement-cm-export-api'),
       },
       observer: null,
       queue: {},
       state: {
         freelancers: [], userId: null, month: '', basis: 'completion', rows: [], seq: 0,
-        loaded: false, dedOrderId: null, dedBusy: false,
+        loaded: false, dedOrderId: null, dedBusy: false, closings: [], closingSeq: 0,
       },
     };
     if (!ctx.els.user || !ctx.els.month || !ctx.els.rows) return;

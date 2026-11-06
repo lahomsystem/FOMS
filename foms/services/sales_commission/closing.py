@@ -50,6 +50,7 @@ __all__ = [
     "STATUS_PAID",
     "cancel_closing",
     "close_month",
+    "closing_for_month",
     "closing_payload",
     "current_month_kst",
     "list_closings",
@@ -252,6 +253,17 @@ def preview_closing(db, user_id: Any, month: Any) -> dict[str, Any]:
         "can_close": block is None,
         "block_reason": block[0] if block else None,
     }
+
+
+def closing_for_month(db, user_id: Any, month: Any) -> Optional[dict[str, Any]]:
+    """한 프리랜서 · 달 하나의 마감(줄 스냅샷 포함). 형식이 틀렸거나 마감이 없으면 None — 내려받기 · 내 수수료가 쓴다."""
+    try:
+        uid, text = _check_user_id(user_id), _check_month(month)
+    except ClosingError:
+        return None
+    row = (db.query(SalesCommissionClosing)
+           .filter(SalesCommissionClosing.user_id == uid, SalesCommissionClosing.month == text).first())
+    return closing_payload(row) if row is not None else None
 
 
 def list_closings(db, user_id: Any) -> list[dict[str, Any]]:

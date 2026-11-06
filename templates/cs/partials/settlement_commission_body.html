@@ -19,7 +19,9 @@
   data-settlement-cm-freelancers-api="/api/sales-commission/freelancers"
   data-settlement-cm-rows-api="/api/sales-commission/rows"
   data-settlement-cm-input-api="/api/sales-commission/inputs/"
-  data-settlement-cm-order-api="/api/orders/">
+  data-settlement-cm-order-api="/api/orders/"
+  data-settlement-cm-closings-api="/api/sales-commission/closings"
+  data-settlement-cm-export-api="/api/sales-commission/export.csv">
 
   <section class="s-ops-panel">
     <div class="s-ops-head s-cm-bar">
@@ -36,6 +38,8 @@
         <button type="button" class="s-ops-chip" data-settlement-cm-basis="measurement" aria-pressed="false">실측일</button>
       </span>
       <span class="s-ops-spacer"></span>
+      {# 마감은 지급 기준(시공 완료)에서만 — 실측일 기준에서는 commission-close.js 가 감춘다(§2.1-7 · D7). #}
+      <button type="button" class="s-ops-btn s-ops-btn--primary" data-settlement-cm-close-open>마감</button>
       <a class="s-ops-btn" href="/admin/sales-freelancers">요율 · 시작 달 설정</a>
     </div>
 
@@ -73,6 +77,27 @@
     </div>
   </section>
 
+  {# 마감 기록 — 최근 달 먼저. [내려받기] CSV · [지급 완료](마감만) · [마감 취소](가장 최근 마감만). commission-close.js 가 채운다. #}
+  <section class="s-ops-panel s-cm-closings" data-settlement-cm-closings hidden>
+    <div class="s-ops-head"><span class="s-ops-title">마감 기록</span></div>
+    <p class="s-cm-state" data-settlement-cm-closings-empty hidden>아직 마감한 달이 없어요.</p>
+    <div class="s-ops-gridwrap s-cm-gridwrap" data-settlement-cm-closings-wrap hidden>
+      <table class="s-ops-grid s-cm-grid">
+        <thead>
+          <tr>
+            <th scope="col">달</th>
+            <th scope="col" class="s-ops-num">줄 수</th>
+            <th scope="col" class="s-ops-num">합계</th>
+            <th scope="col" class="s-ops-num">실지급</th>
+            <th scope="col">상태</th>
+            <th scope="col"><span class="visually-hidden">할 일</span></th>
+          </tr>
+        </thead>
+        <tbody data-settlement-cm-closings-rows></tbody>
+      </table>
+    </div>
+  </section>
+
   {# 차감 작은 창 — 부서는 영업, 사람은 고른 프리랜서로 고정이다(§2.1-5). 내용은 commission-deduct.js 가 채운다. #}
   <dialog class="s-cm-dialog" id="foms-settle-cm-dialog" data-settlement-cm-dialog aria-labelledby="foms-settle-cm-dialog-title">
     <div class="s-cm-dialog-body">
@@ -94,6 +119,21 @@
       <div class="s-cm-dialog-actions">
         <button type="button" class="s-ops-btn" data-settlement-cm-ded-close>닫기</button>
         <button type="button" class="s-ops-btn s-ops-btn--primary" data-settlement-cm-ded-add>차감 넣기</button>
+      </div>
+    </div>
+  </dialog>
+
+  {# 마감 확인 창 — 미리 보기(줄 수 · 합계 · 세금 · 실지급)를 보고 [마감하기]. 막는 이유가 있으면 그 글을 보이고 버튼을 끈다. #}
+  <dialog class="s-cm-dialog" id="foms-settle-cm-close-dialog" data-settlement-cm-close-dialog aria-labelledby="foms-settle-cm-close-title">
+    <div class="s-cm-dialog-body">
+      <h3 class="s-cm-dialog-title" id="foms-settle-cm-close-title" data-settlement-cm-close-title>마감</h3>
+      <p class="s-cm-dialog-sub" data-settlement-cm-close-sub>마감하면 이 숫자로 굳어요. 지급 완료 전에는 취소할 수 있어요.</p>
+      <dl class="s-cm-close-sum" data-settlement-cm-close-sum></dl>
+      <p class="s-cm-dialog-sub" data-settlement-cm-close-waiting hidden></p>
+      <p class="s-cm-dialog-msg" data-settlement-cm-close-msg role="alert" hidden></p>
+      <div class="s-cm-dialog-actions">
+        <button type="button" class="s-ops-btn" data-settlement-cm-close-cancel>닫기</button>
+        <button type="button" class="s-ops-btn s-ops-btn--primary" data-settlement-cm-close-confirm disabled>마감하기</button>
       </div>
     </div>
   </dialog>

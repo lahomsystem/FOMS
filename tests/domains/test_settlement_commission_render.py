@@ -5,7 +5,7 @@ API 숫자 · 권한은 `test_sales_commission_api.py`(서버 쪽)가 잡는다.
 
 1. 탭 ↔ pane 배선(id · aria · hidden)과 자리(맨 끝), 파셜 include 1회. 회계팀 밖은 화면째 403.
 2. 루트 훅(`data-foms-settlement-commission` · `data-settlement-cm-*-api`) — JS 가 화면과 API 를 찾는 길.
-3. 자산 핀 — 수수료 사슬(CSS 1 + JS 5)은 한 값, 셸 안 1번, 저장소 전역 1값(서비스워커 cache-first).
+3. 자산 핀 — 수수료 사슬(CSS 1 + JS 6)은 한 값, 셸 안 1번, 저장소 전역 1값(서비스워커 cache-first).
 4. JS 가 API 경로 · 본문 칸 이름을 맞게 쓰고, 탭 활성화 속성을 관찰하며, fetch 를 try/catch +
    `success === true` 로 감싼다(무음 실패 금지). 주문마다 저장 줄을 세운다(빠른 입력 경합).
 5. 위생 — 인라인 style · jQuery · innerHTML 없음, CSS 는 `.foms-settle` 아래만, 파일당 300줄 미만.
@@ -46,6 +46,7 @@ JS_ASSETS = (
     "js/settlement/commission-table.js",
     "js/settlement/commission-edit.js",
     "js/settlement/commission-deduct.js",
+    "js/settlement/commission-close.js",
     "js/settlement/commission.js",
 )
 ALL_ASSETS = (CSS_ASSET,) + JS_ASSETS
@@ -76,6 +77,18 @@ PARTIAL_HOOKS = (
     "data-settlement-cm-ded-amount",
     "data-settlement-cm-ded-reason",
     "data-settlement-cm-ded-add",
+    # T10 달 마감 · 마감 기록
+    'data-settlement-cm-closings-api="/api/sales-commission/closings"',
+    'data-settlement-cm-export-api="/api/sales-commission/export.csv"',
+    "data-settlement-cm-close-open",
+    "data-settlement-cm-closings",
+    "data-settlement-cm-closings-rows",
+    "data-settlement-cm-closings-empty",
+    "data-settlement-cm-close-dialog",
+    "data-settlement-cm-close-sum",
+    "data-settlement-cm-close-waiting",
+    "data-settlement-cm-close-msg",
+    "data-settlement-cm-close-confirm",
 )
 
 #: 표 머리 — 회계팀 엑셀과 같은 순서(설계서 §2.1-2).
@@ -94,8 +107,9 @@ def _all_js() -> str:
 
 
 def _pane_html(html: str) -> str:
+    """수수료 pane 시작부터 마지막 창(마감 확인 창)이 닫힐 때까지."""
     start = html.index(f'id="{PANE_ID}"')
-    end = html.index("</dialog>", start)
+    end = html.index("</dialog>", html.index("data-settlement-cm-close-dialog", start))
     return html[start:end]
 
 
@@ -148,6 +162,20 @@ def test_settings_link_points_to_the_freelancer_page(client, app):
     pane = _pane_html(_fragment_html(client))
     assert 'href="/admin/sales-freelancers"' in pane
     assert "요율 · 시작 달 설정" in pane
+
+
+def test_close_button_and_closing_list_markup(client, app):
+    """[마감]은 위 줄 한 개, 확인 창의 [마감하기]는 미리 보기 전까지 꺼져 있고, 마감 기록은 처음엔 숨는다."""
+    _login_allowed(client)
+
+    pane = _pane_html(_fragment_html(client))
+    assert pane.count("data-settlement-cm-close-open") == 1
+    assert re.search(r"<button[^>]*data-settlement-cm-close-confirm[^>]*\sdisabled[\s>]", pane)
+    tag = re.search(r"<section[^>]*data-settlement-cm-closings\s[^>]*>", pane).group(0)
+    assert _HIDDEN_ATTR_RE.search(tag), "마감 기록이 기본으로 열려 있다"
+    assert "마감 기록" in pane
+    heads = [re.sub(r"<[^>]+>", "", h).strip() for h in _TH_RE.findall(pane)]
+    assert ["달", "줄 수", "합계", "실지급", "상태"] == heads[len(COLUMNS) + 1:len(COLUMNS) + 6], heads
 
 
 def test_shell_includes_the_partial_once():
@@ -220,6 +248,27 @@ def test_js_uses_the_api_contract():
                    "department: 'SALES'", "charge_to_user_id", "default_month", "near_misses",
                    "self_edits", "data.current", "data.row"):
         assert needle in js, needle
+
+
+def test_close_js_uses_the_closing_contract():
+    """마감 조각이 미리 보기 · 마감 · 지급 완료 · 마감 취소 · 내려받기 경로와 서버 판정(can_close)을 쓴다."""
+    close = _js("js/settlement/commission-close.js")
+    for needle in ("'/preview?'", "can_close", "block_reason", "waiting_counts", "WAIT_COST",
+                   "'/paid'", "'DELETE'", "reason: reason", "ctx.urls.exportCsv", "window.confirm(",
+                   "window.prompt(", "WITHHOLD_3_3", "VAT_10", "tax_income", "tax_local", "vat", "net",
+                   "다음 마감으로 넘어가요", "C.loadClosings", "C.syncClose", "basis !== 'completion'"):
+        assert needle in close, needle
+    main = _js("js/settlement/commission.js")
+    for needle in ("C.closing", "C.bindClose(ctx)", "C.syncClose(ctx)", "C.loadClosings(ctx)",
+                   "data-settlement-cm-closings-api", "data-settlement-cm-export-api"):
+        assert needle in main, needle
+
+
+def test_cancel_is_offered_only_on_the_latest_open_closing():
+    """[마감 취소]는 가장 최근 마감(목록 첫 줄)이 아직 지급 전일 때만 — 서버도 같은 규칙으로 막는다."""
+    close = _js("js/settlement/commission-close.js")
+    assert "closingRow(ctx, item, i === 0)" in close
+    assert "if (!paid && isLatest)" in close
 
 
 def test_js_watches_the_tab_attribute_and_mounts_once():
