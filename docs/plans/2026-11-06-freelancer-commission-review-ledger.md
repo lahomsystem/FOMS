@@ -56,3 +56,19 @@
 | F4 | 틀림 | §5 `create_order` 위치 → `foms/services/orders/order_create.py:140`(초안은 `erp_orders_structured.py:1970`) | 반영 — §5 경로 정정(CREATOR 로 대체) |
 | F5 | 못 함 | §6.2 230·18·13 어림수(GET 규칙 264, mine 호출 22곳/14파일, read_model 파일 9개) | 반영 — §6.2 "약" 표기 유지 |
 | F6 | 참고 | "실제 매출" 모집단에 CS 단계는 안 들어감(COMPLETED·AS 만) — J1 은 "같은 달 키"만 주장이라 맞음. `received_date` 는 String NOT NULL(빈 글자 가능). origin/deploy 는 `5f714be` 로 1커밋 전진, 마이그레이션 변화 없음 | 반영 — §3.2 received_date 빈 글자면 created_at |
+
+## ④ 3단계 반증 재검수 (T18, 2026-11-07, HEAD ca13493af — 재현 시험 3개 통과로 높음 1~3 실재 확인)
+
+| # | 심각도 | 내용 | 처리 |
+|---|---|---|---|
+| R1 | 높음 | 내 주문 `schedule.as_visit.schedule_link` 에 남의 주문 번호 → 편집 화면·모바일 상세 AS 배너에 남의 고객명·시공일, 없는 번호면 존재 여부까지(`foms/api/erp_orders_structured.py:561-568` 깊은 합치기, `foms/services/as_dashboard_display.py:368-487`) | 대기 |
+| R2 | 높음 | structured PUT 으로 `settlement.deductions` 를 지우거나 취소 표시 → 차감 회피(모든 직원에게도 구멍, `SERVER_LOCKED_KEYS` 에 settlement 없음) | 대기 |
+| R3 | 높음 | 부 담당 프리랜서가 대표 담당 이름을 자기로 → 수수료 가로채기 · 원래 담당 연결 삭제. `SELF_EDIT_PATHS` 에도 없음 | 대기 — 사용자 결정 D21 막기 |
+| R4 | 중간 | structured PUT 이 `payment.*_confirmed/_by/_by_user_id` 통째 덮음 → 입금 확인 위조(모든 직원) | 대기 |
+| R5 | 중간 | 실측일·시공일·출고가 바꾸기는 표시만(설계상 허용) — 시공 완료 뒤 변경 거부 또는 마감 때 확인 | 보류 — 표시 유지, 마감 확인은 다음 |
+| R6 | 낮음 | ERP 초안 토큰 4길이 초안 주인 확인 안 함(무작위 UUID) | 대기 |
+| R7 | 낮음 | 마법사 등록 중복 확인이 남의 주문 번호를 돌려줄 수 있음(`erp_order_draft.py:634`) | 대기 |
+| R8 | 낮음 | 마법사 첨부 key `..` 정리 판정 한쪽만, 첨부 승격이 앞부분 검사 안 함(파일 관문이 지금은 막음) | 대기 |
+| R9 | 낮음 | 되채우기 CREATOR 가 손님 값 `OrderDraft.order_id` 를 믿음 | 대기 |
+
+막힘 확인(음성 대조군): 남의 주문 편집 직접 열기 404 · 내 수수료 ?order=/?user_id= · 파일 관문 `..` 400 · draft 표시로 발주사 잠금 우회 불가 · 정규화 우회 불가 · 실측 판 집계 · 마법사 발송 4종 · 변경 이력 본인만 · 이벤트 속 다른 주문 번호는 404.
