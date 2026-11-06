@@ -456,3 +456,14 @@ def test_accounting_view_of_closed_month_keeps_user_id(app, closing_today):
     content = _content(_html(client, f"month=2030-03&user_id={world['fl'].id}"))
     assert "확정" in content and f"{MATCH} 님 화면을 보고 있어요." in content
     assert f"user_id={world['fl'].id}" in content[content.index("지난 지급"):]
+
+
+def test_order_param_ignored_for_orders_the_viewer_cannot_read(app, monkeypatch):
+    """남의 주문 번호로는 달도 알려 주지 않는다 — 읽을 수 없으면 기본 달(지난달)로 연다."""
+    import foms.web.sales_commission as page
+    monkeypatch.setattr(page, "get_today_kst", lambda: datetime.date(2030, 6, 15))
+    fl = _seed()["fl"]
+    other = _order(customer="남의삼월", manager=OTHER_MATCH, orderer="하우드", construction="2030-03-20")
+    monkeypatch.setattr(page, "user_can_read_order", lambda user, order: False)
+    html = _html(_client(app, fl), f"order={other}")
+    assert "2030년 5월" in html and "2030년 3월" not in html

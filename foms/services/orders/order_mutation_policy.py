@@ -351,6 +351,8 @@ FREELANCER_DENIED_POLICIES = frozenset({"FINANCE_MUTATION"})
 #: 프리랜서 판정 함수. 설정 모듈이 이 모듈의 :func:`normalize_team` 을 가져가므로 게이트와 같은 문자열
 #: 경로로 첫 호출에 해석한다(최상단 import 는 순환이 된다).
 _FREELANCER_CHECK = "foms.services.sales_commission.settings:is_freelancer"
+#: 프리랜서 주문 단위 판정(FCOMM-01 겹 2 — 연결 표 · 내가 만든 초안). 같은 까닭으로 문자열 경로로 해석한다.
+_FREELANCER_ORDER_CHECK = "foms.services.auth.freelancer_orders:freelancer_can_read_order"
 
 
 def _is_active_freelancer(user: Any, role: str) -> bool:
@@ -454,15 +456,17 @@ def user_can_read_order(user: Any, order: Any = None) -> bool:
     """일반 Order detail(``@login_required``)과 동일한 canonical read scope.
 
     §2.1 line 144: 인증된 active FOMS 사용자는 team·assignment 와 무관하게 모든 Order 를
-    조회할 수 있다(VIEWER 포함, GET/HEAD 조회 허용). 예외: 외부 협력사 계정(role PARTNER)은
-    ``order.partner_org_id`` 가 자기 협력사와 같을 때만 읽는다(PARTNER-01). 이 함수는 그 read 판정의 단일
+    조회할 수 있다(VIEWER 포함, GET/HEAD 조회 허용). 예외 둘: 외부 협력사 계정(role PARTNER)은
+    ``order.partner_org_id`` 가 자기 협력사와 같을 때만 읽는다(PARTNER-01). 켜진 프리랜서 영업 계정은
+    ``order_freelancer_links`` 에 (주문, 나) 줄이 있거나 내가 만든 아직 초안인 주문만 읽는다(FCOMM-01 §6.1 ·
+    :mod:`foms.services.auth.freelancer_orders`). 이 함수는 그 read 판정의 단일
     chokepoint 이며, manager-mapped Channel quick action 등 cookie-auth 밖 surface 도
     PII 조회 **전에** 재사용한다(CHANNEL-AUTH-01).
 
     Args:
         user: 조회 주체. ``None``(미인증) 또는 비활성 계정은 거부한다.
         order: 대상 Order. 우리 직원은 order-무관 전역 read 라 보지 않는다. 협력사 계정은
-            이 주문의 ``partner_org_id`` 로 판정한다(``None`` 이면 거부).
+            이 주문의 ``partner_org_id`` 로, 켜진 프리랜서는 이 주문의 id 로 판정한다(``None`` 이면 거부).
 
     Returns:
         조회 허용이면 True. 미인증/비활성/role 부재는 False.
@@ -475,6 +479,9 @@ def user_can_read_order(user: Any, order: Any = None) -> bool:
     # PARTNER-01: 외부 협력사 계정은 자기 협력사 주문만 읽는다(우리 직원은 전역 read 그대로).
     if is_partner_user(user):
         return partner_can_read_order(user, order)
+    # FCOMM-01 겹 2: 켜진 프리랜서는 자기 주문만(연결 표 하나). 직원 · 영업팀이 아니면 설정을 읽지 않는다.
+    if _is_active_freelancer(user, role):
+        return bool(_resolve_gate(_FREELANCER_ORDER_CHECK)(user, order))
     return bool(role)
 
 

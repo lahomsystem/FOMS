@@ -5,22 +5,31 @@
 endpoint 수백 개가 ``@login_required`` 만 보고 모든 주문을 열어 주므로, 화면을 하나씩 막지 않고
 기본 거부로 간다. 새 라우트가 생겨도 저절로 막힌다(협력사 문지기 :mod:`foms.services.auth.partner_scope` 와 같은 틀).
 
-허용 목록은 URL 접두어가 아니라 **endpoint 이름**이다. 허용한 endpoint 도 주문 단위 판정(겹 2, T15)과
-목록 강제 거르기(겹 3, T16)를 따로 받아야 한다 — 이 모듈은 "어느 문을 열어 두나"만 정한다.
-허용 목록 밖 쓰기는 여기서 모두 막히므로 쓰기 정책 엔진에 프리랜서 허용 정책 목록을 따로 두지 않는다.
+허용 목록은 URL 접두어가 아니라 **endpoint 이름**이다. 허용 목록 밖 쓰기는 여기서 모두 막히므로 쓰기 정책
+엔진에 프리랜서 허용 정책 목록을 따로 두지 않는다.
+
+겹 2(T15) — 허용한 문에 실린 **주문 번호**도 여기서 본다. endpoint 마다 주문 번호가 실리는 자리를 적어 둔다
+(추측하지 않는다): URL 인자(:data:`FREELANCER_ORDER_VIEW_ARGS`), query string(:data:`FREELANCER_ORDER_QUERY_ARGS`),
+본문(:data:`FREELANCER_ORDER_BODY_CHECKS`). 내 주문이 아니면(없는 주문도) 404 — 존재 여부를 알리지 않는다.
+"내 주문" 판정은 :func:`foms.services.auth.freelancer_orders.freelancer_can_access_order` 하나다. 파일 관문
+3종(``files.*``)은 key 에서 주문을 찾는 일이 핸들러 안에 있어 거기서 ``user_can_read_order`` 로 본다.
+목록 강제 거르기(겹 3, T16)는 따로다.
 
 꺼진 프리랜서(``active: false``)는 막지 않는다 — 보통 영업 직원과 같다(설계서 §6.3 "켜진 프리랜서").
 
-스펙: docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §6.3 겹 1 · §6.5
-시험: tests/security/test_freelancer_gate.py (모든 URL 규칙 막힘 전수)
+스펙: docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §6.3 겹 1 · 겹 2 · §6.5
+시험: tests/security/test_freelancer_gate.py (모든 URL 규칙 막힘 전수),
+      tests/security/test_freelancer_order_scope.py (허용 endpoint 의 주문 번호 전수)
 """
 from __future__ import annotations
 
-from typing import Any
+import posixpath
+from typing import Any, Callable, Optional
 
-from flask import g, jsonify, redirect, request, url_for
+from flask import abort, g, jsonify, redirect, request, url_for
 
 from db import get_db
+from foms.services.auth.freelancer_orders import freelancer_can_access_order
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.settings import is_freelancer
 
@@ -124,7 +133,112 @@ FREELANCER_METHOD_LIMITS: dict[str, frozenset[str]] = {
     "order_pages.add_order": frozenset({"GET"}),
 }
 
+# ── 겹 2: 허용 endpoint 에 실린 주문 번호 ─────────────────────────────────────────────────────────
+#: URL 인자 중 주문 번호. 허용 endpoint 의 정수 URL 인자는 모두 여기 있거나 주문이 아닌 것(공지 · 알림 번호)이어야
+#: 한다 — 시험(tests/security/test_freelancer_order_scope.py)이 url_map 으로 강제한다.
+FREELANCER_ORDER_VIEW_ARGS: dict[str, tuple[str, ...]] = {
+    "erp_dashboard.erp_order_mobile_detail": ("order_id",),
+    "order_edit.edit_order": ("order_id",),
+    "order_edit.redirect_legacy_erp_order_detail": ("order_id",),
+    "foms_fragment.order_edit_fragment": ("order_id",),
+    "foms_fragment.order_timeline_fragment": ("order_id",),
+    "erp_orders_structured.api_get_order_structured": ("order_id",),
+    "erp_orders_structured.api_put_order_structured": ("order_id",),
+    "events.api_order_events": ("order_id",),
+    "events.api_order_field_changes": ("order_id",),
+    "events.api_order_change_events": ("order_id",),
+    "events.api_set_order_change_reason": ("order_id",),
+    "attachments.api_order_attachments_list": ("order_id",),
+    "attachments.api_order_attachments_upload": ("order_id",),
+    # 본문 key 는 핸들러가 URL 주문과 같은지 본다(validate_upload_key) — URL 하나만 보면 된다.
+    "attachments.api_order_attachments_complete": ("order_id",),
+}
+
+#: query string 중 주문 번호(정수로 읽히는 값만 — 핸들러도 그 밖은 버린다).
+FREELANCER_ORDER_QUERY_ARGS: dict[str, tuple[str, ...]] = {
+    # 검색 딥링크 ?focus_order= 는 mine · 60일 창과 무관하게 그 주문 줄을 끼워 넣는다(검수 원장 A2).
+    # ?order= 는 나눠 보기에서 고른 카드 강조뿐이지만 주문 번호라 같은 판정을 한다.
+    "erp_dashboard.erp_dashboard": ("focus_order", "order"),
+    # 실측 판 딥링크 — 날짜창 밖이어도 그 주문 줄을 끼워 넣는다.
+    "erp_measurement_dashboard.erp_measurement_dashboard": ("focus_order",),
+    # 일부러 뺀 것: 내 수수료 ?order= — 그 주문이 든 달을 고를 뿐 주문 내용은 내보내지 않고(언제나 내 줄만),
+    # 담당에서 빠진 뒤에도 차감 알림 링크는 열려야 한다(§6.1 규칙 4 "쌓인 수수료 기록은 남는다").
+}
+
+
+def _body_json() -> dict[str, Any]:
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
+def _key_order_ids(value: Any) -> list[int]:
+    """저장소 key · 폴더 ``orders/<id>/...`` 의 주문 번호 — 정리 전 · 뒤를 다 본다(핸들러가 어느 쪽을 쓰든)."""
+    if not isinstance(value, str) or not value.strip():
+        return []
+    raw = value.strip()
+    out: list[int] = []
+    for candidate in {raw, posixpath.normpath(raw)}:
+        parts = candidate.split("/")
+        if len(parts) >= 2 and parts[0] == "orders" and parts[1].isdigit():
+            out.append(int(parts[1]))
+    return out
+
+
+def _upload_folder_order_ids(user: Any) -> Optional[list[int]]:
+    """올리기 세션(1장 · 여러 장) 본문 ``folder`` = ``orders/<id>/<칸>``."""
+    return _key_order_ids(_body_json().get("folder"))
+
+
+def _draft_attachment_keys(body: dict[str, Any]) -> list[str]:
+    """마법사 초안 본문의 첨부 ``tmp_key``(PUT 은 ``payload`` 또는 본문 자체, 등록은 ``payload``)."""
+    keys: list[str] = []
+    for source in (body.get("payload"), body):
+        data = source.get("data") if isinstance(source, dict) else None
+        items = data.get("items") if isinstance(data, dict) else None
+        for item in items if isinstance(items, list) else []:
+            attachments = item.get("attachments") if isinstance(item, dict) else None
+            for raw in attachments if isinstance(attachments, list) else []:
+                key = str(raw.get("tmp_key") or "").strip() if isinstance(raw, dict) else ""
+                if key:
+                    keys.append(key)
+    return keys
+
+
+def _wizard_draft_order_ids(user: Any) -> Optional[list[int]]:
+    """마법사 초안 저장 · 등록 본문.
+
+    * ``order_id``(PUT) — 초안 표에 그대로 들어가고 되채우기가 ``CREATOR`` 근거로 읽는다(``links.creator_links``).
+      남의 번호를 적으면 그 주문이 내 것이 된다.
+    * 첨부 ``tmp_key`` — 등록이 그 key 로 새 주문의 첨부 줄을 만든다(``promote_draft_attachments``). 내 초안 폴더
+      ``order-drafts/<나>/`` 밖이면 거부, ``orders/<id>/`` 꼴이면 그 주문 판정.
+
+    Returns:
+        판정할 주문 번호 목록. 내 초안 폴더 밖 key 가 있으면 None(바로 거부).
+    """
+    body = _body_json()
+    raw_order = body.get("order_id")
+    ids = [int(raw_order)] if raw_order is not None and str(raw_order).isdigit() else []
+    own_prefix = f"order-drafts/{getattr(user, 'id', '')}/"
+    for key in _draft_attachment_keys(body):
+        key_orders = _key_order_ids(key)
+        if key_orders:
+            ids.extend(key_orders)
+        elif posixpath.normpath(key) != key or not key.startswith(own_prefix):
+            return None
+    return ids
+
+
+#: 본문에 주문 번호를 싣는 허용 endpoint → 본문에서 판정할 주문 번호를 뽑는 함수(None = 바로 거부).
+FREELANCER_ORDER_BODY_CHECKS: dict[str, Callable[[Any], Optional[list[int]]]] = {
+    "attachments.api_upload_session": _upload_folder_order_ids,
+    "attachments.api_upload_session_batch": _upload_folder_order_ids,
+    "erp_order_draft.api_put_order_draft": _wizard_draft_order_ids,
+    "erp_order_draft.api_submit_order_draft": _wizard_draft_order_ids,
+}
+
 FREELANCER_DENIED_MSG = "프리랜서 계정으로는 열 수 없는 화면이에요."
+#: 남의 주문 · 없는 주문 — 같은 문구(존재 여부를 알리지 않는다).
+FREELANCER_ORDER_NOT_FOUND_MSG = "주문을 찾을 수 없어요."
 FREELANCER_HOME_ENDPOINT = "erp_dashboard.erp_dashboard"
 
 
@@ -163,7 +277,8 @@ def freelancer_gate() -> Any | None:
     직원 · 영업팀이 아닌 계정과 정적 파일은 설정을 읽지 않고 지나간다.
 
     Returns:
-        막을 때 응답(API · 쓰기 = 403 JSON, 화면 = 프리랜서 홈으로 302), 통과면 ``None``.
+        막을 때 응답(허용 목록 밖: API · 쓰기 = 403 JSON, 화면 = 프리랜서 홈으로 302 / 남의 주문 번호: API · 쓰기 =
+        404 JSON, 화면 = 404 화면), 통과면 ``None``.
     """
     user = getattr(g, "current_user", None)
     if not could_be_freelancer(user) or request.endpoint == "static":
@@ -171,8 +286,46 @@ def freelancer_gate() -> Any | None:
     if not is_freelancer(get_db(), user):
         return None
     if is_freelancer_request_allowed(request.endpoint, request.method):
-        return None
-    # API 네임스페이스(``/api/``·``/erp/api/``)는 302 가 아니라 JSON 이어야 한다(협력사 문지기와 같은 기준).
-    if "/api/" in (request.path or "") or request.method not in ("GET", "HEAD"):
+        return freelancer_order_scope_denial(user)
+    if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_DENIED_MSG}), 403
     return redirect(url_for(FREELANCER_HOME_ENDPOINT))
+
+
+def _wants_json() -> bool:
+    """API 네임스페이스(``/api/``·``/erp/api/``) · 쓰기는 302 · 화면이 아니라 JSON(협력사 문지기와 같은 기준)."""
+    return "/api/" in (request.path or "") or request.method not in ("GET", "HEAD")
+
+
+def requested_order_ids(user: Any, endpoint: str | None) -> Optional[list[int]]:
+    """이 요청이 가리키는 주문 번호(URL · query · 본문). 본문이 내 것이 아닌 key 를 실으면 None."""
+    ids: list[Any] = []
+    view_args = request.view_args or {}
+    ids.extend(view_args[name] for name in FREELANCER_ORDER_VIEW_ARGS.get(endpoint or "", ()) if name in view_args)
+    for name in FREELANCER_ORDER_QUERY_ARGS.get(endpoint or "", ()):
+        for raw in request.args.getlist(name):
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                continue  # 핸들러도 정수가 아니면 버린다
+            if value > 0:  # 0 은 "고른 주문 없음"(``int(... or 0) or None``)
+                ids.append(value)
+    body_check = FREELANCER_ORDER_BODY_CHECKS.get(endpoint or "")
+    if body_check is not None:
+        body_ids = body_check(user)
+        if body_ids is None:
+            return None
+        ids.extend(body_ids)
+    return [int(i) for i in ids]
+
+
+def freelancer_order_scope_denial(user: Any) -> Any | None:
+    """겹 2 — 허용 endpoint 에 실린 주문 번호가 모두 내 주문인가. 아니면 404(JSON 또는 화면), 맞으면 None."""
+    ids = requested_order_ids(user, request.endpoint)
+    if ids is not None:
+        db = get_db()
+        if all(freelancer_can_access_order(db, user, oid) for oid in ids):
+            return None
+    if _wants_json():
+        return jsonify({"success": False, "data": None, "error": FREELANCER_ORDER_NOT_FOUND_MSG}), 404
+    abort(404)
