@@ -24,6 +24,10 @@ from foms.services.erp_display import (
     erp_payment_amount_from_structured,
     erp_shipping_price_from_structured,
 )
+from foms.services.estimate_service import (
+    _extract_discount_amount,
+    _extract_free_input_amount,
+)
 from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.sales_commission.names import normalize_name
 
@@ -278,11 +282,6 @@ def commission_shipping_price(sd: Any) -> int | None:
         return None
     cancelled_total = sum(_erp_coerce_item_price_krw(it) for it in cancelled)
     active_total = max(0, int(items_total) - cancelled_total)
-    # 원본 함수와 같은 지역 import(모듈 로드 순환 방지 — erp_display 와 같은 이유).
-    from foms.services.estimate_service import (
-        _extract_discount_amount,
-        _extract_free_input_amount,
-    )
     free_input = int(_extract_free_input_amount(sd) or 0)
     discount = int(_extract_discount_amount(sd) or 0)
     return max(0, active_total + free_input - discount)
