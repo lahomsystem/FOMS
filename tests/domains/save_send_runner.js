@@ -1,6 +1,7 @@
 // save-send.js 를 작은 가짜 화면에서 돌려 보낸 요청을 적는다(node 로 실행 — tests/domains/test_drawing_wizard_save_send.py).
 // 입력(stdin JSON): {kind, sheets:[id], current:id, pending:[id], send, push,
-//   sent:{id: 전달본 지문|null}(전달본 있는 시트), sigs:{id: 지금 지문}, queueFail:bool}
+//   sent:{id: 전달본 지문|null}(전달본 있는 시트), sigs:{id: 지금 지문}, pendingSigs:{id: 대기함 지문}, empty:[빈 시트 id],
+//   queueFail:bool}
 // 출력(stdout JSON): {calls:[{url, method, body}], toasts:[...]}
 'use strict';
 const fs = require('fs');
@@ -45,7 +46,7 @@ global.document = { getElementById: (id) => byId[id] || null, addEventListener()
 global.window = global;
 global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; }, removeItem: (k) => { delete store[k]; } };
 global.confirm = () => true;
-const sheets = input.sheets.map((id) => ({ id }));
+const sheets = input.sheets.map((id) => ({ id, objects: (input.empty || []).indexOf(id) >= 0 ? [] : [{ id: 'o-' + id }] }));
 global.FomsWizardCore = {
   canSave: () => true,
   hydrated: () => true,
@@ -72,7 +73,7 @@ global.fetch = (url, opts) => {
   if (method === 'GET' && /\/drawing-wizard\/pending$/.test(url)) {
     const sent = input.sent || {};
     data = { success: true, data: {
-      pending: input.pending.map((id) => ({ sheet_id: id, key: 'k-' + id })),
+      pending: input.pending.map((id) => ({ sheet_id: id, key: 'k-' + id, sig: (input.pendingSigs || {})[id] || undefined })),
       current: Object.keys(sent).map((id) => ({ sheet_id: id, sig: sent[id] })),
     } };
   }

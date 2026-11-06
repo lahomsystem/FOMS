@@ -55,7 +55,7 @@ def test_popover_markup_sits_with_save_buttons_and_has_no_inline_style():
 
 
 def test_save_send_script_loads_after_wizard_core():
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261106c") < TPL.index("js/drawing/save-send.js') }}?v=20261106b")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261106c") < TPL.index("js/drawing/save-send.js') }}?v=20261106c")
 
 
 def test_buttons_open_popover_but_ctrl_s_saves_directly():
@@ -134,7 +134,7 @@ def test_single_save_send_ignores_waiting_entries_of_deleted_sheets():
 
 
 def test_single_save_send_when_only_current_sheet_waits():
-    out = _run({"kind": "one", "sheets": ["s-1", "s-2"], "current": "s-2",
+    out = _run({"kind": "one", "sheets": ["s-1", "s-2"], "current": "s-2", "empty": ["s-1"],
                 "pending": ["s-2"], "send": True, "push": False})
     assert _transfer_body(out)["pending_sheet_ids"] == ["s-2"]
     assert not any(c["url"] == "pushRoom" for c in out["calls"])
@@ -166,11 +166,21 @@ def test_send_treats_sent_drawing_without_signature_as_changed():
     assert _transfer_body(out)["pending_sheet_ids"] == ["s-a", "s-b"]
 
 
-def test_send_leaves_never_sent_sheet_alone():
-    out = _run({"kind": "one", "sheets": ["s-a", "s-new"], "current": "s-a", "pending": ["s-a"],
-                "sent": {}, "sigs": {"s-a": "a1", "s-new": "n1"}, "send": True, "push": False})
-    assert _calls(out, "queueSheets") == []
-    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a"]
+def test_send_draws_never_sent_sheet_but_skips_empty_one():
+    """운영 4909(11-06): [저장]을 안 한 '투도어 2'가 빠져 5장 중 4장만 나갔다 — 새 시트도 그려 보낸다(빈 시트만 뺀다)."""
+    out = _run({"kind": "one", "sheets": ["s-a", "s-new", "s-blank"], "current": "s-a", "pending": ["s-a"],
+                "empty": ["s-blank"], "sent": {}, "sigs": {"s-a": "a1", "s-new": "n1", "s-blank": "b1"},
+                "send": True, "push": False})
+    assert [c["body"] for c in _calls(out, "queueSheets")] == [["s-new"]]
+    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a", "s-new"]
+
+
+def test_send_redraws_waiting_sheet_edited_after_it_was_queued():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-b", "s-c"], "current": "s-a", "pending": ["s-a", "s-b", "s-c"],
+                "pendingSigs": {"s-b": "v2:b0", "s-c": "v2:c0"}, "sigs": {"s-a": "a1", "s-b": "b0", "s-c": "c5"},
+                "send": True, "push": False})
+    assert [c["body"] for c in _calls(out, "queueSheets")] == [["s-c"]]   # s-b 대기함 그림은 지금과 같다 — 그대로 쓴다
+    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a", "s-b", "s-c"]
 
 
 def test_send_stops_when_changed_sheet_cannot_be_redrawn():
