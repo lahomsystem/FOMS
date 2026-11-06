@@ -163,6 +163,9 @@ def run_auto_init(app) -> None:
       replica never serves against an unmigrated schema (and never self-heals).
     * ``register_date_sync_listener`` — pure SQLAlchemy listener wiring (no DB
       write) for KST date synchronization.
+    * ``register_freelancer_link_listener`` — pure SQLAlchemy listener wiring
+      (no DB write at startup) that keeps ``order_freelancer_links`` in step with
+      order name fields on every flush (FCOMM-01 §5). Startup never notifies.
     * ``register_payment_sync_listener`` — pure SQLAlchemy listener wiring (no
       DB write) for the ``PAYMENT_CHANGED`` audit-event SSOT.
     * ``register_dashboard_cache_invalidation_listener`` — pure SQLAlchemy listener
@@ -191,6 +194,12 @@ def run_auto_init(app) -> None:
             from foms.services.order_date_sync import register_date_sync_listener
 
             register_date_sync_listener()
+
+            from foms.services.sales_commission.link_hook import (
+                register_freelancer_link_listener,
+            )
+
+            register_freelancer_link_listener()
 
             from foms.services.order_payment_sync import register_payment_sync_listener
 

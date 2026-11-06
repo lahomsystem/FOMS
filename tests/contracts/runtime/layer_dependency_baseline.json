@@ -252,6 +252,7 @@
     "foms/services/app_init.py::foms.services.erp_sync_columns",
     "foms/services/app_init.py::foms.services.order_date_sync",
     "foms/services/app_init.py::foms.services.order_payment_sync",
+    "foms/services/app_init.py::foms.services.sales_commission.link_hook",
     "foms/services/audit_message_display.py::foms.services.notifications.drawing_order_change",
     "foms/services/audit_writer.py::foms.services.datetime_kst",
     "foms/services/audit_writer.py::foms.services.db_url_resolver",

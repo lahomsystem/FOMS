@@ -3,6 +3,7 @@
 - ``GET  /api/admin/sales-freelancers`` — 설정 version · 프리랜서 목록(계정 이름 · 지금 요율 · 이력) · 추가할 수 있는 계정.
   회계팀 · 관리자(:func:`~foms.services.settlement_channel_access.is_accounting_or_admin`).
 - ``POST /api/admin/sales-freelancers`` ``{user_id, match_name, start_month, tax_type, active, rate?, version}`` — 추가 · 고치기.
+  같은 트랜잭션에서 그 사람의 주문 ↔ 프리랜서 연결을 다시 맞춘다(:func:`~foms.services.sales_commission.links.resync_freelancer_links`).
 - ``POST /api/admin/sales-freelancers/<user_id>/rates`` ``{effective_month, lahom_bp, haud_bp, personal_bp, version}``
   — 요율 한 줄 더하기.
 
@@ -20,6 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.sales_commission.links import resync_freelancer_links
 from foms.services.sales_commission.settings import (
     TAX_TYPES,
     FreelancerSettingsError,
@@ -126,10 +128,13 @@ def api_save_freelancer():
     try:
         version, config, changed = save_freelancer(db, body.get("user_id"), body, base_version=body.get("version"),
                                                    actor_user_id=actor_id)
+        # 3단계 보기 범위: 맞출 이름 · 켜고 끔이 바뀌면 그 사람의 주문 연결을 같은 트랜잭션에서 다시 맞춘다(알림 없음).
+        links = resync_freelancer_links(db, config.user_id)
         db.add(SecurityLog(
             user_id=actor_id, action="SALES_FREELANCER_SAVED", target_type="user", target_id=config.user_id,
             message=f"프리랜서 설정 저장: {config.match_name}",
-            detail={"user_id": config.user_id, "version": version, "changed": changed},
+            detail={"user_id": config.user_id, "version": version, "changed": changed,
+                    "links_added": links["added"], "links_removed": links["removed"]},
         ))
         db.commit()
     except FreelancerSettingsError as exc:

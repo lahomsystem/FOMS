@@ -1483,6 +1483,35 @@ class SalesCommissionClosing(Base):
     )
 
 
+class OrderFreelancerLink(Base):
+    """FCOMM-01 3단계: 주문 ↔ 프리랜서 계정 연결(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.4 · §5).
+
+    주문 이름 칸(대표 담당 · 다른 담당 · 발주사)과 설정의 맞출 이름이 완전히 같을 때 생기는 **투영**이다(J8 · J10).
+    정본은 주문 ``structured_data`` 이고, 전역 before_flush 훅(:mod:`foms.services.sales_commission.link_hook`)이
+    주문 저장 때마다 이 줄을 맞춘다. ``CREATOR``(프리랜서가 직접 등록한 주문)만은 이름과 무관하게 한 번 생기면
+    지우지 않는다. 프리랜서 보기 범위("내 주문")는 이 표 하나만 본다(§6.1). 주문이 하드 삭제되면 같이 지워진다
+    (``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+    """
+    __tablename__ = 'order_freelancer_links'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    relation = Column(String(16), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    # 새 주문(아직 id 없음)에 훅이 연결을 붙일 때 쓴다 — flush 가 주문 INSERT 뒤 order_id 를 채운다. backref 없음.
+    order = relationship('Order', foreign_keys=[order_id])
+
+    __table_args__ = (
+        CheckConstraint(
+            "relation IN ('MANAGER_PRIMARY','MANAGER','ORDERER','CREATOR')",
+            name='ck_order_freelancer_links_relation',
+        ),
+        UniqueConstraint('order_id', 'user_id', 'relation', name='uq_order_freelancer_links_order_user_rel'),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
