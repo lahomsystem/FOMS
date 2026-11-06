@@ -1,8 +1,9 @@
 /**
  * 정산 대시보드 · 탭 "영업 수수료" — 달 마감 · 마감 기록(설계서 §2.1-7 · §2.1-8 · §8 — 플랜 T10).
  *
- * - [마감](위 줄, 시공 완료 기준에서만 보임) → `GET /closings/preview` 로 확인 창을 채운다(줄 수 · 합계 · 세금 ·
- *   실지급, 시공비 · 요율을 기다리는 줄은 다음 마감으로 넘어간다는 한 줄). 서버가 `can_close: false` 면
+ * - [마감](위 줄, 시공 완료 기준에서만 보임) → `GET /closings/preview` 로 확인 창을 채운다(줄 수 · 조정 N건 · 합 ±X원
+ *   (T12 §8.2) · 합계 · 세금 · 실지급, 시공비 · 요율을 기다리는 줄은 다음 마감으로 넘어간다는 말과 조정하지 않는
+ *   주문(지워짐 · 단계 되돌림 · 시공비 빈칸) 한 줄). 서버가 `can_close: false` 면
  *   `block_reason` 을 보이고 [마감하기]를 끈다. [마감하기] → `POST /closings` → 표(마감된 줄이 빠진다)와 기록을 다시 읽는다.
  * - 마감 기록(표 아래): 달 · 줄 수 · 합계 · 실지급 · 상태 · [내려받기](CSV 링크) · [지급 완료](마감만, 확인 창) ·
  *   [마감 취소](가장 최근 마감이 아직 마감 상태일 때만, 이유 입력). 끝나면 기록을 다시 읽는다.
@@ -54,10 +55,30 @@
     list.appendChild(C.el('dd', '', value));
   }
 
+  /** 조정 합 — 더하면 "+6,000", 빼면 "−6,000". */
+  function signedWon(v) {
+    var n = Number(v) || 0;
+    return (n > 0 ? '+' : n < 0 ? '−' : '') + C.won(Math.abs(n));
+  }
+
+  /** 조정하지 않는 주문을 까닭별로 센 한 문장. 없으면 빈 글. */
+  function skippedText(list) {
+    var order = [];
+    var counts = {};
+    (list || []).forEach(function (s) {
+      var key = s.reason_text || '다시 셀 수 없는 주문';
+      if (!counts[key]) { counts[key] = 0; order.push(key); }
+      counts[key] += 1;
+    });
+    if (!order.length) return '';
+    return order.map(function (k) { return k + ' ' + counts[k] + '건'; }).join(' · ') + '은 조정하지 않아요.';
+  }
+
   function fillPreview(e, data) {
     var t = data.totals || {};
     e.sum.textContent = '';
     sumRow(e.sum, '줄 수', (data.lines || []).length + '줄');
+    if (data.adjust_count) sumRow(e.sum, '조정', data.adjust_count + '건 · 합 ' + signedWon(data.adjust_total) + '원');
     sumRow(e.sum, '합계', C.won(t.gross) + '원');
     if (data.tax_type === 'WITHHOLD_3_3') {
       sumRow(e.sum, '소득세', C.won(t.tax_income) + '원');
@@ -70,8 +91,12 @@
     var parts = [];
     if (counts.WAIT_COST) parts.push('시공비 기다리는 ' + counts.WAIT_COST + '건');
     if (counts.WAIT_RATE) parts.push('요율 정할 ' + counts.WAIT_RATE + '건');
-    e.waiting.textContent = parts.length ? parts.join(' · ') + '은 다음 마감으로 넘어가요.' : '';
-    C.hide(e.waiting, !parts.length);
+    var notes = [];
+    if (parts.length) notes.push(parts.join(' · ') + '은 다음 마감으로 넘어가요.');
+    var skipped = skippedText(data.adjust_skipped);
+    if (skipped) notes.push(skipped);
+    e.waiting.textContent = notes.join(' ');
+    C.hide(e.waiting, !notes.length);
     if (!data.can_close) say(e, data.block_reason || '이 달은 마감할 수 없어요.');
     e.confirm.disabled = !data.can_close;
   }

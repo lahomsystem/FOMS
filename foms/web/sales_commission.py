@@ -91,6 +91,13 @@ def _won(value: Optional[int]) -> str:
     return f"{int(value or 0):,}"
 
 
+def _signed_won(value: Optional[int]) -> str:
+    """조정 금액 — 더하면 "+6,000", 빼면 "−6,000"(계산식과 같은 빼기 기호)."""
+    number = int(value or 0)
+    sign = "+" if number > 0 else ("−" if number < 0 else "")
+    return f"{sign}{abs(number):,}"
+
+
 def _percent(bp: int) -> str:
     """basis point → "4%" · "4.5%" · "4.25%"."""
     return f"{bp / 100:.2f}".rstrip("0").rstrip(".") + "%"
@@ -160,7 +167,10 @@ def _month_word(month: Optional[str]) -> str:
 
 
 def _line_view(line: dict[str, Any]) -> dict[str, Any]:
-    """마감 스냅샷 줄 하나 → 화면 줄(마감 때 굳힌 값 그대로, 다시 계산하지 않는다)."""
+    """마감 스냅샷 줄 하나 → 화면 줄(마감 때 굳힌 값 그대로, 다시 계산하지 않는다).
+
+    조정 줄(``ADJUST`` — 지난 마감 뒤 차감 · 시공비 · 품목이 바뀌어 생긴 차액)은 금액에 + · − 를 붙인다.
+    """
     deal = DEAL_LABELS.get(line.get("deal_type"), "")
     adjust = line.get("kind") == "ADJUST"
     month_word = _month_word(line.get("completion_month"))
@@ -168,9 +178,9 @@ def _line_view(line: dict[str, Any]) -> dict[str, Any]:
         "customer_name": line.get("label") or "-",
         "date": f"{month_word} 시공" if month_word else "",
         "deal": f"조정 · {deal}" if adjust else deal,
-        "status": f"{_won(line.get('commission'))}원",
+        "status": f"{_signed_won(line.get('commission')) if adjust else _won(line.get('commission'))}원",
         "is_done": True,
-        "formula": "지난 마감 뒤 바뀐 금액이에요." if adjust else _formula(line),
+        "formula": f"지난 마감 뒤 바뀐 몫 {_signed_won(line.get('commission'))}원" if adjust else _formula(line),
         "deductions": [],
     }
 
