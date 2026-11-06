@@ -179,11 +179,11 @@ def test_waiting_row_joins_a_later_closing_once_cost_is_entered(world):
 # --------------------------------------------------------------------------
 def test_months_close_in_ascending_order_only(world):
     _close(world["fl"], "2030-03")
-    for month in ("2030-02", "2030-03"):
+    for month, words in (("2030-02", "이미 그 뒤 달까지 마감했어요"), ("2030-03", "이 달은 이미 마감했어요")):
         with pytest.raises(ClosingError) as err:
             close_month(db_session, world["fl"], month, actor_user_id=None)
         db_session.rollback()
-        assert err.value.status == 409 and "이미 그 뒤 달까지 마감했어요" in str(err.value)
+        assert err.value.status == 409 and words in str(err.value)
     preview = preview_closing(db_session, world["fl"], "2030-02")
     assert preview["can_close"] is False and preview["latest_closed_month"] == "2030-03"
     assert db_session.query(SalesCommissionClosing).count() == 1

@@ -197,14 +197,17 @@ def test_month_and_basis_links(app, monkeypatch):
     assert 'href="/erp/my-commission?month=2030-02&amp;basis=completion"' in content
     assert 'href="/erp/my-commission?month=2030-03&amp;basis=measurement"' in content
     assert 'aria-current="page">시공 완료 기준' in content
-    assert "month=2030-04" not in content  # 이번 달 다음은 링크가 없다
+    # 마감 뒤 넘어간 줄을 보러 이번 달 다음 달까지는 갈 수 있다(T11), 그 뒤는 링크가 없다.
+    assert 'href="/erp/my-commission?month=2030-04&amp;basis=completion"' in content
+    later = _content(_html(_client(app, world["fl"]), "month=2030-04"))
+    assert "month=2030-05" not in later
 
 
 def test_measurement_basis_shows_forecast(app):
     world = _seed()
     html = _html(_client(app, world["fl"]), "month=2030-03&basis=measurement")
 
-    assert "3월 실측 — 앞으로 들어올 돈 미리 보기" in html
+    assert "3월 실측분 — 마감 전 줄은 예상이에요" in html
     assert "예상고객" in html
     assert "예상 120,000원" in html
     assert "라홈고객" not in html  # 실측 1월 줄은 3월 실측 화면에 없다
@@ -318,7 +321,7 @@ def test_order_param_opens_that_orders_month(app):
     html = _html(client, f"order={done}")
     assert "2030년 3월" in html and "삼월완료" in _content(html)
     html = _html(client, f"order={early}")
-    assert "2030년 4월" in html and "사월예상" in _content(html) and "앞으로 들어올 돈" in html
+    assert "2030년 4월" in html and "사월예상" in _content(html) and "마감 전 줄은 예상이에요" in html
     # 달을 주면 달이 이긴다
     assert "2030년 1월" in _html(client, f"order={done}&month=2030-01")
 

@@ -258,7 +258,7 @@ def my_commission():
 
     month_no = int(month[5:7])
     if basis == BASIS_MEASUREMENT:
-        heading = f"{month_no}월 실측 — 앞으로 들어올 돈 미리 보기"
+        heading = f"{month_no}월 실측분 — 마감 전 줄은 예상이에요"
     elif month == last_month:
         heading = "이번 10일 받을 돈"
     else:
@@ -293,7 +293,7 @@ def my_commission():
         unclosed = basis == BASIS_COMPLETION and (latest is None or latest < month)
         view = {
             "heading": heading,
-            "total_text": ("예상 " if basis == BASIS_MEASUREMENT else "") + f"{_won(total)}원",
+            "total_text": f"{_won(total)}원",
             "tax_line": _tax_line(total, data["freelancer"]["tax_type"]),
             "paid_text": "",
             "pending_note": "아직 마감 전이라 바뀔 수 있어요." if unclosed else "",
@@ -308,7 +308,8 @@ def my_commission():
         viewing_name=name,
         month_label=f"{month[:4]}년 {month_no}월",
         prev_url=link(month=_shift_month(month, -1)),
-        next_url=link(month=next_month) if next_month <= this_month else "",
+        # 마감 뒤 넘어간 줄(시공비 기다림)은 다음 달 화면에 나오므로 이번 달 다음 달까지 갈 수 있게 둔다(T11).
+        next_url=link(month=next_month) if next_month <= _shift_month(this_month, 1) else "",
         basis_links=[
             {"label": "시공 완료 기준", "url": link(basis=BASIS_COMPLETION), "active": basis == BASIS_COMPLETION},
             {"label": "실측일 기준", "url": link(basis=BASIS_MEASUREMENT), "active": basis == BASIS_MEASUREMENT},

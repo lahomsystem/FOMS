@@ -14,7 +14,7 @@
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
 <div class="foms-mc">
-    <h1 class="foms-mc__title">내 수수료</h1>
+    {% if not erp_mobile_v2_enabled %}<h1 class="foms-mc__title">내 수수료</h1>{% endif %}
     {% if viewing_name %}<p class="foms-mc__viewing">{{ viewing_name }} 님 화면을 보고 있어요.</p>{% endif %}
 
     <section class="foms-mc__total" aria-label="합계">
