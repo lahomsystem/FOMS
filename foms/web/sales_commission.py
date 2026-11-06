@@ -25,6 +25,8 @@ from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission import calc
+from foms.services.sales_commission.closing import STATUS_PAID, closing_payload
+from foms.services.sales_commission.export import DEAL_LABELS
 from foms.services.sales_commission.read_model import (
     BASES,
     BASIS_COMPLETION,
@@ -38,16 +40,11 @@ from foms.services.sales_commission.read_model import (
 from foms.services.sales_commission.settings import active_freelancers, is_freelancer
 from foms.services.settlement_channel_access import is_accounting_or_admin
 from foms.web.auth import login_required
-from models import Order
+from models import Order, SalesCommissionClosing
 
 sales_commission_web_bp = Blueprint("sales_commission_web", __name__, url_prefix="/erp")
 
-DEAL_LABELS = {
-    calc.DEAL_LAHOM: "라홈",
-    calc.DEAL_HAUD: "하우드",
-    calc.DEAL_PERSONAL: "개인영업",
-    calc.DEAL_MANUAL: "회계팀 지정",
-}
+RECENT_CLOSINGS = 6
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 _DATE_RE = re.compile(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})")
 _G_NAMES_ATTR = "_sales_freelancer_orderer_names"
@@ -147,12 +144,51 @@ def _row_view(row: dict[str, Any], basis: str) -> dict[str, Any]:
     }
 
 
-def _tax_line(total: int, tax_type: str) -> str:
+def _tax_line(total: int, tax_type: str, net: Optional[int] = None) -> str:
+    """세금 뺀(부가세는 더한) 실제 금액 한 줄. 마감한 달은 굳힌 ``net`` 을 그대로 쓴다."""
     if total <= 0 or tax_type not in calc.TAX_TYPES or tax_type == calc.TAX_NONE:
         return ""
-    net = calc.tax_breakdown(total, tax_type)["net"]
+    if net is None:
+        net = calc.tax_breakdown(total, tax_type)["net"]
     word = "부가세 더해" if tax_type == calc.TAX_VAT_10 else "세금 빼고"
     return f"{word} {_won(net)}원"
+
+
+def _month_word(month: Optional[str]) -> str:
+    """``"2030-02"`` → ``"2월"``. 못 읽으면 빈 글."""
+    return f"{int(month[5:7])}월" if month and _MONTH_RE.match(month) else ""
+
+
+def _line_view(line: dict[str, Any]) -> dict[str, Any]:
+    """마감 스냅샷 줄 하나 → 화면 줄(마감 때 굳힌 값 그대로, 다시 계산하지 않는다)."""
+    deal = DEAL_LABELS.get(line.get("deal_type"), "")
+    adjust = line.get("kind") == "ADJUST"
+    month_word = _month_word(line.get("completion_month"))
+    return {
+        "customer_name": line.get("label") or "-",
+        "date": f"{month_word} 시공" if month_word else "",
+        "deal": f"조정 · {deal}" if adjust else deal,
+        "status": f"{_won(line.get('commission'))}원",
+        "is_done": True,
+        "formula": "지난 마감 뒤 바뀐 금액이에요." if adjust else _formula(line),
+        "deductions": [],
+    }
+
+
+def _closings(db, user_id: int) -> list[SalesCommissionClosing]:
+    """한 프리랜서의 마감(최근 달 먼저) — 프리랜서 한 명은 한 해 12줄 남짓이라 한 번에 읽는다."""
+    return (db.query(SalesCommissionClosing).filter(SalesCommissionClosing.user_id == user_id)
+            .order_by(SalesCommissionClosing.month.desc(), SalesCommissionClosing.id.desc()).all())
+
+
+def _recent_view(rows: list[SalesCommissionClosing], link) -> list[dict[str, str]]:
+    """"지난 지급" — 달 · 실지급 · 지급 완료/마감. 달을 누르면 그 달 확정 화면."""
+    return [{
+        "label": f"{row.month[:4]}년 {_month_word(row.month)}",
+        "net": f"{_won(row.net)}원",
+        "status": "지급 완료" if row.status == STATUS_PAID else "마감",
+        "url": link(month=row.month, basis=BASIS_COMPLETION),
+    } for row in rows[:RECENT_CLOSINGS]]
 
 
 # --------------------------------------------------------------------------
@@ -206,13 +242,9 @@ def my_commission():
     month = month if _MONTH_RE.match(month) else last_month
     basis = basis if basis in BASES else BASIS_COMPLETION
 
-    data = commission_rows(db, target_id, month, basis)
-    rows = data["rows"]
-    if basis == BASIS_MEASUREMENT:
-        total = sum(int(r["commission"]) for r in rows
-                    if r["commission"] is not None and r["state"] in (STATE_DONE, STATE_FORECAST))
-    else:
-        total = int(data["summary"]["total_commission"])
+    closings = _closings(db, target_id)
+    closed = next((c for c in closings if c.month == month), None) if basis == BASIS_COMPLETION else None
+    latest = closings[0].month if closings else None
 
     month_no = int(month[5:7])
     if basis == BASIS_MEASUREMENT:
@@ -227,13 +259,43 @@ def my_commission():
     def link(**args: str) -> str:
         return url_for("sales_commission_web.my_commission", **{"month": month, "basis": basis, **args, **extra})
 
+    if closed is not None:  # 마감한 달 — 굳힌 스냅샷만 보인다(회계팀 내려받기 파일과 같은 숫자)
+        snap = closing_payload(closed)
+        total = int(snap["gross"])
+        view = {
+            "heading": f"{heading} · 확정",
+            "total_text": f"{_won(total)}원",
+            "tax_line": _tax_line(total, snap["tax_type"], net=int(snap["net"])),
+            "paid_text": f"지급 완료 {_short_date(snap['paid_at'])}" if snap["status"] == STATUS_PAID else "",
+            "pending_note": "",
+            "rows": [_line_view(line) for line in snap["lines"] if isinstance(line, dict)],
+        }
+        name = active_freelancers(db)[target_id].match_name if on_behalf else ""
+    else:
+        data = commission_rows(db, target_id, month, basis)
+        rows = data["rows"]
+        if basis == BASIS_MEASUREMENT:
+            total = sum(int(r["commission"]) for r in rows
+                        if r["commission"] is not None and r["state"] in (STATE_DONE, STATE_FORECAST))
+        else:
+            total = int(data["summary"]["total_commission"])
+        # 이 달보다 늦은 마감이 있으면 이 달 몫은 이미 그 마감에 들어갔다 — "마감 전" 이 아니다.
+        unclosed = basis == BASIS_COMPLETION and (latest is None or latest < month)
+        view = {
+            "heading": heading,
+            "total_text": ("예상 " if basis == BASIS_MEASUREMENT else "") + f"{_won(total)}원",
+            "tax_line": _tax_line(total, data["freelancer"]["tax_type"]),
+            "paid_text": "",
+            "pending_note": "아직 마감 전이라 바뀔 수 있어요." if unclosed else "",
+            "rows": [_row_view(r, basis) for r in rows],
+        }
+        name = data["freelancer"]["match_name"] if on_behalf else ""
+
     next_month = _shift_month(month, 1)
     return render_template(
         "sales_commission/my_commission.html",
-        heading=heading,
-        total_text=("예상 " if basis == BASIS_MEASUREMENT else "") + f"{_won(total)}원",
-        tax_line=_tax_line(total, data["freelancer"]["tax_type"]),
-        viewing_name=data["freelancer"]["match_name"] if on_behalf else "",
+        **view,
+        viewing_name=name,
         month_label=f"{month[:4]}년 {month_no}월",
         prev_url=link(month=_shift_month(month, -1)),
         next_url=link(month=next_month) if next_month <= this_month else "",
@@ -241,5 +303,5 @@ def my_commission():
             {"label": "시공 완료 기준", "url": link(basis=BASIS_COMPLETION), "active": basis == BASIS_COMPLETION},
             {"label": "실측일 기준", "url": link(basis=BASIS_MEASUREMENT), "active": basis == BASIS_MEASUREMENT},
         ],
-        rows=[_row_view(r, basis) for r in rows],
+        recent=_recent_view(closings, link),
     )

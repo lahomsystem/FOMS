@@ -26,3 +26,14 @@
 .foms-mc__formula{margin:0;font-size:.9rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .foms-mc__ded{margin:4px 0 0;font-size:.88rem;color:var(--foms-color-danger-700,#b91c1c)}
 .foms-mc__empty{margin:16px 0;color:#6d8598;text-align:center}
+.foms-mc__paid{margin:6px 0 0;font-size:.92rem;font-weight:600;color:var(--foms-color-success-700,#15803d)}
+.foms-mc__note{margin:6px 0 0;font-size:.85rem;color:#6d8598}
+.foms-mc__recent{margin-top:20px}
+.foms-mc__recent-title{margin:0 0 8px;font-size:1rem;font-weight:700}
+.foms-mc__recent-list{margin:0;padding:0;list-style:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;overflow:hidden}
+.foms-mc__recent-row{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.foms-mc__recent-row+.foms-mc__recent-row{border-top:1px solid #edf1f5}
+.foms-mc__recent-month{flex:1 1 auto;min-height:24px;color:#33465a;font-weight:600;text-decoration:none}
+.foms-mc__recent-net{font-variant-numeric:tabular-nums;font-weight:600}
+.foms-mc__recent-state{flex:0 0 auto;font-size:.85rem;color:#6d8598;white-space:nowrap}
+.foms-mc__recent-state.is-paid{color:var(--foms-color-success-700,#15803d)}

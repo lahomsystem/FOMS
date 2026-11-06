@@ -8,6 +8,8 @@
 - 달 마감(2단계 T9, :mod:`foms.services.sales_commission.closing`): ``GET /closings?user_id=`` 목록 ·
   ``GET /closings/preview?user_id=&month=`` 미리 보기 · ``POST /closings`` ``{user_id, month}`` 마감 ·
   ``POST /closings/<id>/paid`` 지급 완료 · ``DELETE /closings/<id>`` ``{reason}`` 지급 전 마감 취소.
+- ``GET /api/sales-commission/export.csv?user_id=&month=`` — 마감 · 지급 완료 스냅샷 CSV(T10,
+  :mod:`foms.services.sales_commission.export`). 마감이 없는 달은 404, 응답 전에 감사 한 줄.
 
 권한은 정산 화면과 같다 — :func:`~foms.services.settlement_channel_access.is_accounting_or_admin`(ADMIN,
 MANAGER/STAFF + 회계팀). 협력사 계정 · 프리랜서(STAFF + 영업팀)는 거부된다. 쓰기는 공용 CSRF · Origin 가드 뒤이고
@@ -19,7 +21,7 @@ import logging
 import re
 from typing import Any, Optional
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import get_db
@@ -28,11 +30,13 @@ from foms.services.sales_commission.closing import (
     ClosingError,
     cancel_closing,
     close_month,
+    closing_for_month,
     closing_payload,
     list_closings,
     mark_paid,
     preview_closing,
 )
+from foms.services.sales_commission.export import build_closing_csv, export_filename
 from foms.services.sales_commission.read_model import (
     BASES,
     BASIS_COMPLETION,
@@ -340,3 +344,51 @@ def api_cancel_closing(closing_id: int):
         return failed
     db.rollback()
     return _ok({"cancelled": snapshot})
+
+
+# --------------------------------------------------------------------------
+# 내려받기(T10 — 설계서 §2.1-8 · J2)
+# --------------------------------------------------------------------------
+EXPORT_AUDIT_ACTION = "SALES_COMMISSION_EXPORT_CSV"
+
+
+@sales_commission_api_bp.route("/export.csv", methods=["GET"], endpoint="export_csv")
+def api_export_csv():
+    """마감한 달의 CSV(BOM · CRLF). 마감 · 지급 완료 스냅샷만 — 파일 숫자 = 실제로 준 돈.
+
+    권한 거부는 JSON 403(빈 파일을 주지 않는다), 마감이 없는 달은 JSON 404. 감사 한 줄을 커밋한 뒤 파일을 준다.
+    """
+    actor, denied = _accounting_user()
+    if denied:
+        return denied
+    raw_user = (request.args.get("user_id") or "").strip()
+    month = (request.args.get("month") or "").strip()
+    if not raw_user.isdigit():
+        return _fail(400, "프리랜서를 골라 주세요.")
+    if not _MONTH_RE.match(month):
+        return _fail(400, "달은 2026-11 처럼 연도-월로 적어 주세요.")
+    user_id = int(raw_user)
+    db = get_db()
+    closing = closing_for_month(db, user_id, month)
+    if closing is None:
+        db.rollback()
+        return _fail(404, "이 달은 아직 마감하지 않았어요. 마감한 달만 내려받을 수 있어요.")
+    filename = export_filename(user_id, month)
+    body = build_closing_csv(closing)
+    try:
+        db.add(SecurityLog(
+            user_id=int(actor.id), action=EXPORT_AUDIT_ACTION, target_type="sales_commission_closing",
+            target_id=closing["id"], message=f"영업 수수료 CSV 내려받기: 프리랜서 {user_id} {month}",
+            detail={"user_id": user_id, "month": month, "status": closing["status"],
+                    "line_count": closing["line_count"], "filename": filename},
+        ))
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("[SALES_COMMISSION] 내려받기 감사 기록 실패 user=%s month=%s", user_id, month)
+        return _fail(500, "내려받지 못했어요. 잠시 뒤 다시 해 주세요.")
+    return Response(body, mimetype="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+    })

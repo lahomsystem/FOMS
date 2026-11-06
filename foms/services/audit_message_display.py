@@ -339,6 +339,8 @@ ACTION_LABELS: dict[str, str] = {
     "SALES_COMMISSION_CLOSED": "영업 수수료 마감",
     "SALES_COMMISSION_PAID": "영업 수수료 지급 완료",
     "SALES_COMMISSION_CLOSING_CANCELLED": "영업 수수료 마감 취소",
+    # 마감한 달 CSV 내려받기(설계서 §9 GET /api/sales-commission/export.csv).
+    "SALES_COMMISSION_EXPORT_CSV": "영업 수수료 CSV 내려받기",
     "PARTNER_STATEMENT_DRAFT_OPENED": "협력사 명세서 초안 열기",
     "PARTNER_STATEMENT_DRAFT_SAVED": "협력사 명세서 초안 고침",
     "PARTNER_STATEMENT_DRAFT_DISCARDED": "협력사 명세서 초안 지움",

@@ -1,11 +1,12 @@
 /**
  * 정산 대시보드 · 탭 "영업 수수료" — 공용 조각(표기 · DOM · fetch) (FCOMM-01 §2.1 · 플랜 T6).
  *
- * 이 탭의 스크립트는 5개로 나뉜다(파일당 300줄 래칫 — tests/harness/test_file_size_ratchet.py):
+ * 이 탭의 스크립트는 6개로 나뉜다(파일당 300줄 래칫 — tests/harness/test_file_size_ratchet.py):
  *   commission-core.js    표기 · DOM 만들기 · fetch 도우미(이 파일)
  *   commission-table.js   표 · 합계 줄 · 비슷한 이름 경고 그리기
  *   commission-edit.js    시공비 · 회계팀 지정 요율 자동 저장(주문마다 줄 세우기) · Enter 이동
  *   commission-deduct.js  차감 작은 창(넣기 · 취소)
+ *   commission-close.js   달 마감 확인 창 · 마감 기록(내려받기 · 지급 완료 · 마감 취소)
  *   commission.js         마운트 · 조회 · 조작(진입점)
  * 서로는 전역 이름공간 `window.FomsSettleCommission` 하나로만 만난다. 프래그먼트 스왑 때 셸이
  * `<script src>` 를 다시 실행해도 같은 함수를 다시 대입할 뿐이라 누적되는 것이 없다.

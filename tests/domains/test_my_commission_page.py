@@ -345,3 +345,111 @@ def test_deduction_notification_links_to_its_order_month():
     assert _deep_link(notif) == "/erp/my-commission?order=4242"
     resolved = _resolve_notification_deep_link(notif, None)
     assert resolved["deep_link_url"] == "/erp/my-commission?order=4242"
+
+
+# --------------------------------------------------------------------------
+# T10 마감 확정 · 지급 완료 · 지난 지급 · "마감 전" 안내
+# --------------------------------------------------------------------------
+@pytest.fixture
+def closing_today(monkeypatch):
+    """마감 서비스 오늘 = 2030-04-10, 화면 오늘 = 2030-04-03(지난달 = 2030-03)."""
+    import foms.web.sales_commission as page
+    from foms.services.sales_commission import closing as closing_mod
+    monkeypatch.setattr(closing_mod, "get_today_kst", lambda: datetime.date(2030, 4, 10))
+    monkeypatch.setattr(page, "get_today_kst", lambda: datetime.date(2030, 4, 3))
+
+
+def _close(user_id: int, month: str = "2030-03"):
+    from foms.services.sales_commission.closing import close_month
+    row = close_month(db_session, user_id, month, actor_user_id=None)
+    db_session.commit()
+    return row
+
+
+_PENDING = "아직 마감 전이라 바뀔 수 있어요."
+
+
+def test_unclosed_completion_month_says_it_may_change_once(app, closing_today):
+    world = _seed()
+    content = _content(_html(_client(app, world["fl"])))
+    assert "이번 10일 받을 돈" in content and "확정" not in content
+    assert content.count(_PENDING) == 1
+    assert "지난 지급" not in content  # 마감이 없으면 목록도 없다
+    measured = _content(_html(_client(app, world["fl"]), "month=2030-03&basis=measurement"))
+    assert _PENDING not in measured  # 실측일 기준은 이미 "미리 보기"라고 말한다
+
+
+def test_closed_month_shows_the_snapshot_as_confirmed(app, closing_today):
+    world = _seed()
+    fl_id = world["fl"].id
+    _close(fl_id)
+    # 마감 뒤에 시공비를 고쳐도 확정 화면은 마감 때 숫자다
+    for row in db_session.query(SalesCommissionInput).all():
+        row.install_cost = 0
+    db_session.commit()
+
+    content = _content(_html(_client(app, world["fl"])))
+
+    assert "이번 10일 받을 돈 · 확정" in content
+    assert "176,000원" in content
+    assert _PENDING not in content
+    assert "라홈고객 · 가짜장" in content and "개인고객 · 가짜장" in content
+    assert "출고가 2,500,000 − 시공비 1,000,000 − 차감 100,000 = 1,400,000 × 4% = 56,000원" in content
+    assert "3월 시공 · 라홈" in content
+    assert "숨고고객" not in content and "하우드고객" not in content  # 기다리는 줄은 다음 마감으로
+    assert "지급 완료" not in content.split("지난 지급")[0]
+    recent = content[content.index("지난 지급"):]
+    assert "2030년 3월" in recent and "176,000원" in recent and "마감" in recent
+    assert 'href="/erp/my-commission?month=2030-03&amp;basis=completion"' in recent
+
+
+def test_paid_closing_shows_paid_date_and_net_from_snapshot(app, closing_today):
+    from foms.services.sales_commission.closing import mark_paid
+    world = _seed("WITHHOLD_3_3")
+    row = _close(world["fl"].id)
+    mark_paid(db_session, row.id, actor_user_id=None)
+    db_session.commit()
+
+    content = _content(_html(_client(app, world["fl"])))
+
+    total = content[:content.index("</section>")]
+    assert "확정" in total and "176,000원" in total
+    assert "세금 빼고 170,200원" in total
+    assert re.search(r"지급 완료 \d{1,2}월 \d{1,2}일", total)
+    recent = content[content.index("지난 지급"):]
+    assert "170,200원" in recent and "지급 완료" in recent
+
+
+def test_month_inside_a_later_closing_has_no_pending_note(app, closing_today):
+    """3월 마감에 들어간 2월 몫 — 2월 화면은 "마감 전"이라 하지 않는다."""
+    world = _seed()
+    _close(world["fl"].id)
+    content = _content(_html(_client(app, world["fl"]), "month=2030-02&basis=completion"))
+    assert _PENDING not in content and "확정" not in content
+    content = _content(_html(_client(app, world["fl"]), "month=2030-04&basis=completion"))
+    assert _PENDING in content  # 대조군: 마감 뒤 달은 아직 마감 전
+
+
+def test_recent_list_keeps_six_latest(app, closing_today):
+    from models import SalesCommissionClosing
+    world = _seed()
+    fl_id = world["fl"].id
+    for i in range(7):  # 2029-07 … 2030-01, 실지급 1,000 · 2,000 …
+        month = f"{2029 + (6 + i) // 12}-{(6 + i) % 12 + 1:02d}"
+        db_session.add(SalesCommissionClosing(user_id=fl_id, month=month, status="PAID", gross=1000 * (i + 1),
+                                              net=1000 * (i + 1), tax_type="NONE", lines=[]))
+    db_session.commit()
+    content = _content(_html(_client(app, world["fl"])))
+    recent = content[content.index("지난 지급"):]
+    assert recent.count("foms-mc__recent-row") == 6
+    assert "2030년 1월" in recent and "2029년 8월" in recent
+    assert "2029년 7월" not in recent  # 일곱 번째(가장 오래된)는 빠진다
+
+
+def test_accounting_view_of_closed_month_keeps_user_id(app, closing_today):
+    world = _seed()
+    _close(world["fl"].id)
+    client = _client(app, _make_user("STAFF", "ACCOUNTING"))
+    content = _content(_html(client, f"month=2030-03&user_id={world['fl'].id}"))
+    assert "확정" in content and f"{MATCH} 님 화면을 보고 있어요." in content
+    assert f"user_id={world['fl'].id}" in content[content.index("지난 지급"):]
