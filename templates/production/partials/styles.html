@@ -742,6 +742,16 @@
       font-size: 0.95rem;
     }
 
+    /* 마우스 PC 는 누르는 넓이 28px(디자인 점검 2026-11-06, 아이콘만 15px). 배경이 없어 보이는 모양은 그대로다.
+       사방 -6.5px 로 자리는 예전 15px 그대로 차지해 아이콘 위치 · 줄 높이가 안 바뀌고, 넓어진 넓이는 칸 여백(8px) 안에 든다. */
+    @media (min-width: 992px) and (hover: hover) and (pointer: fine) {
+      .erp-open-btn-icon {
+        min-width: 28px;
+        min-height: 28px;
+        margin: -6.5px;
+      }
+    }
+
     /* 미니멀 아이콘/텍스트 크기 통일 */
     .erp-dashboard .fas,
     .erp-dashboard .far {

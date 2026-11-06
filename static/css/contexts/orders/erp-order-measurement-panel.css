@@ -39,6 +39,27 @@
   color: #fff;
 }
 
+/* 실측 일정 아래 '전체 · 지방 · 수도권' 안내 배지 10.5→12px(디자인 점검 2026-11-06). 주문 수정 · 실측 대시보드가 같이 쓴다.
+   주문 수정 화면에서는 바탕색이 없어 흰 글자가 흰 바탕에 묻혀 안 보였다 — 실측 대시보드와 같은 색을 준다. */
+.small > .badge.erp-scheduler-count--total,
+.small > .badge.erp-scheduler-count--regional,
+.small > .badge.erp-scheduler-count--metro {
+  font-size: 0.75rem;
+  color: #fff;
+}
+
+.small > .badge.erp-scheduler-count--total {
+  background-color: #0d6efd;
+}
+
+.small > .badge.erp-scheduler-count--regional {
+  background-color: #fd7e14;
+}
+
+.small > .badge.erp-scheduler-count--metro {
+  background-color: #198754;
+}
+
 #erp-order-measurement-panel.measurement-panel-list {
   max-height: 360px;
   overflow-y: auto;
