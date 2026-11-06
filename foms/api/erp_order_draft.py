@@ -9,10 +9,11 @@ import re
 from typing import Any
 
 from flask import Blueprint, jsonify, request, session
+from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Order, OrderDraft
+from models import Order, OrderDraft, OrderEvent
 from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.api.files.routes import build_file_view_url
 from foms.services.order_draft_attachments import (
@@ -42,7 +43,7 @@ from foms.services.orders.estimate_defaults import (
 )
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.initial_workflow_stage import resolve_initial_workflow_stage
-from foms.services.orders.order_create import create_order
+from foms.services.orders.order_create import CREATED_EVENT, create_order
 from foms.services.orders.status_constants import STATUS
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.web.auth import log_access, login_required, role_required
@@ -631,19 +632,30 @@ WIZARD_DRAFT_KEY_META = "wizard_draft_key"
 _RESUBMIT_LOOKBACK = datetime.timedelta(days=1)
 
 
-def _already_submitted_order_id(db: Session, *, draft_key: str, customer_name: str) -> int | None:
-    """이 초안 키로 최근 하루 안에 만든(지우지 않은) 주문 번호. 없으면 None.
+def _already_submitted_order_id(
+    db: Session, *, draft_key: str, customer_name: str, user_id: int
+) -> int | None:
+    """이 초안 키로 **내가** 최근 하루 안에 만든(지우지 않은) 주문 번호. 없으면 None.
+
+    T18 R7: 초안 키는 브라우저가 보내는 값이다. 만든 사람(``ORDER_CREATED`` 작성자)을 보지 않으면 남의 초안 키 ·
+    고객명을 실어 남의 주문 번호를 돌려받을 수 있었다. 같은 초안을 두 번 누른 것은 늘 같은 사람이다.
 
     Args:
         db: 활성 세션.
         draft_key: 제출된 초안 키.
         customer_name: 고객명(flat 컬럼으로 후보를 먼저 좁힌다).
+        user_id: 제출자(이 사람이 만든 주문만 본다).
 
     Returns:
         이미 만든 주문 번호 또는 None.
     """
     # Order.created_at 기본값이 datetime.now 라 같은 시계로 자른다.
     cutoff = datetime.datetime.now() - _RESUBMIT_LOOKBACK
+    created_by_me = exists().where(
+        OrderEvent.order_id == Order.id,
+        OrderEvent.event_type == CREATED_EVENT,
+        OrderEvent.created_by_user_id == user_id,
+    )
     rows = (
         db.query(Order.id, Order.structured_data)
         .filter(
@@ -651,6 +663,7 @@ def _already_submitted_order_id(db: Session, *, draft_key: str, customer_name: s
             Order.deleted_at.is_(None),
             Order.customer_name == customer_name,
             Order.created_at >= cutoff,
+            created_by_me,
         )
         .order_by(Order.id.desc())
         .limit(5)
@@ -738,7 +751,7 @@ def api_submit_order_draft() -> tuple[Any, int]:
         )
 
     existing_order_id = _already_submitted_order_id(
-        db, draft_key=draft_key, customer_name=cust_name
+        db, draft_key=draft_key, customer_name=cust_name, user_id=uid
     )
     if existing_order_id is not None:
         if row is not None:

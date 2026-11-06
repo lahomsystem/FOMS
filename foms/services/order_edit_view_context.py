@@ -136,7 +136,7 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
         "erp_order_active": bool(is_erp_order_record(order)),
         "order_creator": build_order_creator(get_db(), order.id),
         "as_schedule_drift": build_schedule_link_drift(
-            getattr(order, "structured_data", None), get_db()
+            getattr(order, "structured_data", None), get_db(), viewer=user
         ),
         # "실측 끝 · 도면 넘기기"(2026-11-02) — 대시보드 "도면 단계로 넘기기"와 같은 판정(실측 단계 · 승인 권한).
         # 화면이 저장 → 도면 단계 → 영발을 한 번에 부른다(erp-measure-done.js).

@@ -14,7 +14,7 @@ from typing import Any, List, Mapping, Optional, Tuple
 from flask import Blueprint, g, has_request_context, request, jsonify, session
 
 logger = logging.getLogger(__name__)
-from sqlalchemy import text
+from sqlalchemy import exists, text
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -91,6 +91,7 @@ from foms.services.orders.revision import (
     lock_order_row,
 )
 from foms.services.orders.structured_form_projection import project_structured_form
+from foms.services.orders.structured_put_guards import guard_payment_confirmation, guard_schedule_link_ref
 
 #: structured PUT 저장의 mutation 정책 id(receipt policy_id·OrderEvent scope). AUTH-01 manifest
 #: 는 이 엔드포인트를 STAFF_MUTATION guard 로 이미 enforce 하므로 route 는 정책 id 만 공유한다.
@@ -144,12 +145,23 @@ def _lock_draft_token_if_supported(db: Session, draft_token: str) -> None:
 
 
 def _find_existing_draft_by_token(db: Session, draft_token: str) -> Optional[Order]:
-    """Find a still-open draft created by the same browser-page token."""
-    if not draft_token:
+    """Find a still-open draft created by the same browser-page token **and the current user**.
+
+    T18 R6: 토큰은 브라우저가 보내는 값이라 남의 토큰을 실으면 남의 초안에 묶였다(세션 · 자동 저장 · 버리기).
+    초안을 만든 기록(``ORDER_DRAFT_CREATED`` 작성자)이 지금 사용자인 초안만 찾는다 — 아니면 없는 것으로 보고
+    부르는 쪽이 새 초안을 만든다.
+    """
+    actor_user_id = _event_actor_user_id()
+    if not draft_token or actor_user_id is None:
         return None
+    created_by_me = exists().where(
+        OrderEvent.order_id == Order.id,
+        OrderEvent.event_type == ORDER_DRAFT_CREATED_EVENT,
+        OrderEvent.created_by_user_id == actor_user_id,
+    )
     candidates = (
         db.query(Order)
-        .filter(Order.status == 'DRAFT', Order.not_deleted_filter())
+        .filter(Order.status == 'DRAFT', Order.not_deleted_filter(), created_by_me)
         .order_by(Order.id.desc())
         .limit(50)
         .all()
@@ -1594,6 +1606,16 @@ def api_put_order_structured(order_id):
                 normalize_manager_party(structured_data)
                 # DATA-01 정본 projection: partial allowlist · provenance lock · server pricing.
                 project_structured_form(old_sd, structured_data)
+                # T18 R4 · R1: 결제 확인 칸은 결제 확인 API 소유(첫 등록만 누가 · 언제를 서버가 찍어 받는다),
+                # AS 기준 일정 링크는 지금 사용자가 읽을 수 있는 주문만(structured_put_guards).
+                put_user = getattr(g, 'current_user', None)
+                guard_payment_confirmation(
+                    old_sd, structured_data,
+                    draft=is_erp_order_draft(o) or is_erp_draft_structured_data(old_sd), user=put_user,
+                    actor_name=str(getattr(put_user, 'name', None) or session.get('username') or 'SYSTEM'),
+                    now_iso=now_utc_naive().isoformat(),
+                )
+                guard_schedule_link_ref(sess, old_sd, structured_data, put_user)
 
                 # STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다. workflow.stage 는
                 # _pin_form_stage_to_server 가 이미 서버값으로 고정했고, 단계 전이는

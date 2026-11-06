@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from foms.api.files import build_file_view_url
@@ -18,6 +19,7 @@ from foms.services.as_content_safety import as_content_html_to_text, sanitize_as
 from foms.services.orders.as_availability import as_availability_label
 from foms.services.orders.as_cycle_view import project_as_cycle_row
 from foms.services.orders.as_log import build_as_timeline_view
+from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.orders.as_schedule_link import (
     evaluate_drift,
     read_as_visit_date,
@@ -369,9 +371,10 @@ def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, d
     """기준 주문들의 현재 시공일 스냅샷을 단일 in_() 쿼리로 배치 조회 (N+1 금지).
 
     JSONB 필터 없이 `id, status, deleted_at, erp_construction_date, scheduled_date,
-    customer_name` 6개 컬럼만 읽는다(스펙 §3.3·§8 — 무인덱스 JSONB 스캔 금지).
+    customer_name, partner_org_id` 7개 컬럼만 읽는다(스펙 §3.3·§8 — 무인덱스 JSONB 스캔 금지).
     customer_name 은 배지 표시용(UI 개선: id 대신 고객명 노출) — 별도 쿼리를 만들지 않고
-    이미 열려 있는 배치 조회에 컬럼만 추가한다.
+    이미 열려 있는 배치 조회에 컬럼만 추가한다. partner_org_id 는 보는 사람이 그 주문을 읽을 수
+    있는지(협력사 계정) 판정용이다(T18 R1, :func:`_viewer_can_read_ref`).
 
     Args:
         ref_ids: 조회할 기준 주문 id 집합.
@@ -379,7 +382,7 @@ def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, d
 
     Returns:
         ``{ref_order_id: {"current_date": str|None, "missing": bool,
-        "customer_name": str|None}}``. missing=True 는 DELETED 상태이거나
+        "customer_name": str|None, "partner_org_id": int|None}}``. missing=True 는 DELETED 상태이거나
         soft-delete(``deleted_at`` 존재)된 경우. 결과에 없는 id 는 호출측이
         "조회 불가(orphan)"로 처리한다.
     """
@@ -393,19 +396,42 @@ def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, d
             Order.erp_construction_date,
             Order.scheduled_date,
             Order.customer_name,
+            Order.partner_org_id,
         )
         .filter(Order.id.in_(ref_ids))
         .all()
     )
     snapshot: dict[int, dict[str, Any]] = {}
-    for oid, status, deleted_at, erp_date, sched_date, customer_name in query_rows:
+    for oid, status, deleted_at, erp_date, sched_date, customer_name, partner_org_id in query_rows:
         missing = bool(deleted_at) or str(status or "") == "DELETED"
         snapshot[int(oid)] = {
             "current_date": erp_date or sched_date or None,
             "missing": missing,
             "customer_name": customer_name or None,
+            "partner_org_id": partner_org_id,
         }
     return snapshot
+
+
+def _viewer_can_read_ref(viewer: Any, ref_id: Any, ref_snapshot: dict[int, dict[str, Any]]) -> bool:
+    """보는 사람이 기준 주문을 읽을 수 있나 — 정본 판정 ``user_can_read_order`` 에 스냅샷 값만 넘긴다(쿼리 0).
+
+    T18 R1: 링크는 주문 structured_data 안의 값이라, 판정 없이 그리면 남의 주문 고객명 · 시공일(없는 번호면 존재
+    여부)이 배너로 샌다. 우리 직원은 지금처럼 전부 읽고(없는 번호는 "찾을 수 없습니다" 그대로), 켜진 프리랜서 ·
+    협력사 계정은 읽을 수 있는 주문만 — 없는 번호도 남의 주문과 같은 답(못 읽음)이다.
+
+    Args:
+        viewer: 화면을 보는 사람(None 이면 못 읽음).
+        ref_id: 링크의 기준 주문 id.
+        ref_snapshot: :func:`_batch_load_ref_schedule_snapshot` 결과.
+
+    Returns:
+        읽을 수 있으면 True.
+    """
+    info = ref_snapshot.get(ref_id) if isinstance(ref_id, int) else None
+    # 판정이 읽는 칸(id · partner_org_id)만 담은 얇은 대리 — Order 행을 다시 읽지 않는다.
+    ref = SimpleNamespace(id=ref_id, partner_org_id=info.get("partner_org_id")) if info is not None else None
+    return user_can_read_order(viewer, ref)
 
 
 def _short_md(iso_date: Any) -> str:
@@ -464,7 +490,7 @@ def _evaluate_link_drift(link, ref_snapshot: dict[int, dict[str, Any]], as_visit
     return drift
 
 
-def build_schedule_link_drift(structured_data: Any, db: Any) -> dict:
+def build_schedule_link_drift(structured_data: Any, db: Any, *, viewer: Any) -> dict:
     """단건 주문의 기준 일정 드리프트 (주문 상세 최상단 배너용).
 
     목록 경로(`apply_schedule_link_drift_fields`)와 동일한 배치 스냅샷·판정 함수를 쓴다 —
@@ -474,6 +500,7 @@ def build_schedule_link_drift(structured_data: Any, db: Any) -> dict:
     Args:
         structured_data: 주문 structured_data(dict 가 아니면 링크 없음으로 취급).
         db: SQLAlchemy 세션.
+        viewer: 화면을 보는 사람. 기준 주문을 못 읽으면 링크가 없는 것처럼 그린다(T18 R1).
 
     Returns:
         `_evaluate_link_drift` 결과. 링크가 없으면 `state == 'none'`(템플릿이 렌더 생략).
@@ -484,6 +511,8 @@ def build_schedule_link_drift(structured_data: Any, db: Any) -> dict:
     ref_snapshot = (
         _batch_load_ref_schedule_snapshot({ref_id}, db) if isinstance(ref_id, int) else {}
     )
+    if link is not None and not _viewer_can_read_ref(viewer, ref_id, ref_snapshot):
+        link, ref_snapshot = None, {}
     return _evaluate_link_drift(link, ref_snapshot, read_as_visit_date(sd))
 
 

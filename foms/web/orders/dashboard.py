@@ -866,7 +866,7 @@ def erp_order_mobile_detail(order_id: int):
         mobile_delete=mobile_delete,
         mobile_shell_more=mobile_delete['can'],
         timeline=load_order_timeline(db, order),
-        as_schedule_drift=build_schedule_link_drift(order.structured_data, db),
+        as_schedule_drift=build_schedule_link_drift(order.structured_data, db, viewer=current_user),
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',

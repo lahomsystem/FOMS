@@ -62,6 +62,9 @@ SELF_EDIT_PATHS = (
     "schedule.measurement.date",
     "schedule.construction.date",
     "totals.shipping_price",
+    # T18 R3: 대표 담당 · 담당 명단은 수수료 주인을 정한다(바꾸기 막음은 겹 4 — 그래도 기록은 남긴다).
+    "parties.manager.name",
+    "parties.manager.names",
 )
 
 NEAR_MISS_LIMIT = 20

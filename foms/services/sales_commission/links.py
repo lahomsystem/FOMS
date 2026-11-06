@@ -25,7 +25,7 @@ from foms.services.orders.manager_names import order_manager_names
 from foms.services.sales_commission.names import normalize_name
 from foms.services.sales_commission.settings import active_freelancers
 from foms.services.settlement_source import fetch_settlement_rows
-from models import Order, OrderDraft, OrderEvent, OrderFreelancerLink
+from models import Order, OrderEvent, OrderFreelancerLink
 
 REL_MANAGER_PRIMARY = "MANAGER_PRIMARY"
 REL_MANAGER = "MANAGER"
@@ -235,8 +235,12 @@ def _in_start_month(created_at: Any, start_month: str) -> bool:
 
 
 def creator_links(db, order_ids: list[int], snapshot: LinkSnapshot) -> dict[int, set[LinkKey]]:
-    """되채우기용 ``CREATOR`` — 주문 생성 이벤트 작성자 · 마법사 초안 주인이 켜진 프리랜서이고, 그 일이 그 사람의
-    시작 달 이후일 때만(회사 직원일 때 등록한 옛 주문은 넣지 않는다). 쿼리 2번."""
+    """되채우기용 ``CREATOR`` — 주문 생성 이벤트(:data:`CREATOR_EVENT_TYPES`) 작성자가 켜진 프리랜서이고, 그 일이
+    그 사람의 시작 달 이후일 때만(회사 직원일 때 등록한 옛 주문은 넣지 않는다). 쿼리 1번.
+
+    마법사 초안 표(``order_drafts``)는 근거로 쓰지 않는다(T18 R9) — 그 표의 ``order_id`` 는 클라이언트가 초안 저장
+    본문으로 넣는 값이라, 근거로 삼으면 남의 주문 번호를 적어 넣는 것만으로 되채우기가 그 주문을 내 것으로 묶는다.
+    마법사 등록은 ``create_order`` 가 ``ORDER_CREATED`` 를 남기므로 이벤트만으로 빠지는 주문이 없다."""
     starts = snapshot.start_months
     if not order_ids or not starts:
         return {}
@@ -244,9 +248,7 @@ def creator_links(db, order_ids: list[int], snapshot: LinkSnapshot) -> dict[int,
     events = (db.query(OrderEvent.order_id, OrderEvent.created_by_user_id, OrderEvent.created_at)
               .filter(OrderEvent.order_id.in_(order_ids), OrderEvent.event_type.in_(CREATOR_EVENT_TYPES),
                       OrderEvent.created_by_user_id.in_(sorted(starts))).all())
-    drafts = (db.query(OrderDraft.order_id, OrderDraft.user_id, OrderDraft.created_at)
-              .filter(OrderDraft.order_id.in_(order_ids), OrderDraft.user_id.in_(sorted(starts))).all())
-    for order_id, uid, created_at in [*events, *drafts]:
+    for order_id, uid, created_at in events:
         if order_id is None or uid is None or not _in_start_month(created_at, starts.get(int(uid), "")):
             continue
         out.setdefault(int(order_id), set()).add((int(uid), REL_CREATOR))
