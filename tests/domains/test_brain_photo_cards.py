@@ -245,3 +245,27 @@ def test_script_refuses_remote_apply_without_owner_approval(admin, capsys, monke
     assert (code, out["error"]) == (1, "OWNER_APPROVAL_REQUIRED") and written() == before
     code, out = run_script(script, capsys, str(path))  # 미리 보기는 막지 않는다(쓰기 0)
     assert code == 0 and written() == before
+
+
+def test_photo_cards_skip_the_weekly_cap_and_do_not_expire(admin):
+    """D175 '사진 카드만 다 보이기' — 주 상한(층마다 20)을 넘어도 다 보이고, 4주가 지나도 닫히지 않고, 결정해도 그 층 주 자리를
+    쓰지 않는다. 다른 AI 제안은 그대로 상한 · 닫힘을 받는다."""
+    import datetime
+
+    from foms.services.brain.constants import AI_WEEKLY_CAP
+    from foms.services.brain.decide import expire_ai_proposals
+    from foms.services.brain.inbox import ai_week, inbox
+    from foms.services.brain.scope import viewer_of
+
+    many = [card("bulk-" + chr(97 + n // 26) + chr(97 + n % 26)) for n in range(AI_WEEKLY_CAP + 3)]  # 숫자 없는 슬러그(숫자 관문)
+    assert run(many)["filed"] == AI_WEEKLY_CAP + 3
+    rows = filed()
+    assert {c.action for c in rows.values()} == {"photo_relearn"}
+    later = NOW + datetime.timedelta(days=40)
+    shown = [c for c in inbox(db_session, viewer_of(admin), now=later)["cards"] if c["key"].startswith("lahom/photo-bulk-")]
+    assert len(shown) == AI_WEEKLY_CAP + 3
+    assert expire_ai_proposals(db_session, now=later) == 0
+    first = rows["lahom/photo-bulk-aa"]
+    apply_change(db_session, first.id, actor=admin, now=NOW)
+    db_session.commit()
+    assert ai_week(db_session, NOW)["layers"]["common"] == {"used": 0, "left": AI_WEEKLY_CAP}

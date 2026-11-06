@@ -203,6 +203,9 @@ RECHECK_SOON_DAYS = 7
 AI_WEEKLY_CAP = 20
 #: AI 제안은 만든 뒤 이 날 수가 지나면 '기간 끝남'으로 저절로 닫힌다(사람 제안은 닫지 않는다).
 AI_EXPIRE_DAYS = 28
+#: 주 상한 · 4주 닫힘에서 빼는 AI 제안 액션 — 다시 배운 사진 교훈 카드(CS 설계서 17.11.3 · 사장님 11-06 D175 '사진 카드만 다
+#: 보이기'). 사람 제안처럼 제안함에 다 보이고 닫히지 않으며, 그 층 주 자리도 쓰지 않는다. 관문 · 승인 방식은 그대로다.
+UNCAPPED_AI_ACTIONS: tuple[str, ...] = ("photo_relearn",)
 #: 사람이 화면에서 고칠 말을 제안할 수 있는 칸(정체 · 보기 범위 · 실음 칸은 설계서 · 코드 길로만).
 HUMAN_EDIT_FIELDS: tuple[str, ...] = ("name", "text", "valid_from", "valid_to")
 #: 한꺼번에 넣기 상한(등급 A 만).

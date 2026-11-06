@@ -53,6 +53,8 @@ from foms.services.datetime_kst import now_utc_naive
 
 #: 제안한 이 — 주간 사진 학습(:data:`foms.services.cs_agent.photo_learning.AGENT`)과 같은 이름(시험이 맞춘다).
 AGENT = "cs_photo"
+#: 제안 액션 이름 — 주 상한 · 4주 닫힘에서 빠진다(:data:`.constants.UNCAPPED_AI_ACTIONS` · 사장님 D175 '사진 카드만 다 보이기').
+ACTION = "photo_relearn"
 APPROVED_BY = "D174 사진 다시 학습"  # 지식 문서 승인 칸(실제 승인은 카드 승인)
 TAG, SOURCE, REF_PREFIX, ABOUT_PREFIX = "photo-relearn", "photo_relearn", "photo_relearn:", "about:"
 DIFFERS_LINE = "승인된 규칙과 다름"
@@ -159,7 +161,7 @@ def _doc_values(card: Card, today: str) -> dict[str, Any]:
 
 def _propose(session: Any, card: Card, *, known: str, now: datetime.datetime) -> Optional[str]:
     """제안 하나를 넣는다(flush 만). 부딪침 카드의 다루는 항목이 없으면 그 까닭 코드, 넣었으면 ``None``."""
-    common = dict(reason=reason_of(card), proposer=Proposer.agent_named(AGENT), now=now, known=known)
+    common = dict(reason=reason_of(card), proposer=Proposer.agent_named(AGENT), now=now, known=known, action=ACTION)
     if card.about is None:
         item_type, layer = KIND_TYPES[TYPE_KINDS[card.item_type]]
         propose_create(session, key=card.key, brand=card.brand, layer=layer, item_type=item_type,
