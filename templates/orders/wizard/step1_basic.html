@@ -24,6 +24,8 @@
       <option value="라홈">라홈</option>
       <option value="하우드">하우드</option>
       <option value="숨고">숨고</option>
+      {# FCOMM-01 D3: 켜진 프리랜서 맞출 이름 — 고르면 그 프리랜서 개인영업 주문(foms/web/sales_commission.py). #}
+      {% for fl_name in sales_freelancer_orderer_names() %}<option value="{{ fl_name }}">{{ fl_name }}</option>{% endfor %}
       <option value="__custom__">직접 입력</option>
     </select>
     <input class="foms-input foms-wizard__combo-custom" id="wiz-orderer-custom" placeholder="발주사 직접 입력" hidden />

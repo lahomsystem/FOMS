@@ -342,6 +342,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(sales_commission_api_bp)
 
+    # --- Lane: 프리랜서 "내 수수료" 화면(HTML — /erp/my-commission, 설계서 2026-11-06-freelancer-sales-commission §2.2 · §9).
+    # 켜진 프리랜서는 본인 것만, 회계팀 · 관리자는 ?user_id= 로 대신 보기. 템플릿 전역 함수(서랍 링크 · 발주사 선택지)도
+    # 이 블루프린트가 붙인다. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.web.sales_commission import sales_commission_web_bp
+
+    app.register_blueprint(sales_commission_web_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_chat_socketio_handlers=register_chat_socketio_handlers,
