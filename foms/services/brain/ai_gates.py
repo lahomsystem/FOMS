@@ -29,7 +29,7 @@ from foms.services.brain.chat_model import build_params, call_model
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.chat_tools import score_values, search_objects, terms
 from foms.services.brain.constants import (
-    AGENT_WORK_TYPES, CONFIRMED, OP_CREATE, OP_DELETE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE,
+    AGENT_WORK_TYPES, BRAND_COMMON, CONFIRMED, OP_CREATE, OP_DELETE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE,
 )
 from foms.services.brain.embeddings import HELD_SCOPES, account_like
 from foms.services.brain.eval_set import stored_questions
@@ -123,8 +123,18 @@ def _judge() -> Judge:
     return _JUDGES[-1] if _JUDGES else default_judge
 
 
-def related_knowledge(session: Any, *, key: str, texts: list[str], today: datetime.date) -> list[str]:
-    """제안과 가까운 승인 지식 글 — 같은 항목의 지금 글 + 찾기 앞 몇 개(반영 · 확정만, 다른 키)."""
+def same_brand(proposal_brand: Optional[str], hit_brand: Any) -> bool:
+    """견줄 브랜드인가 — 브랜드 제안(라홈 · 하우드)은 그 브랜드 + 공통 지식하고만 견준다(다른 브랜드 전용 규칙은 그 브랜드에서만
+    맞다 — 사장님 11-06 D176, 하우드 카드 수수료 카드가 라홈 '카드도 같은 값'에 막힘). 공통 · 모르는 브랜드 제안은 모두와 견준다."""
+    if not proposal_brand or proposal_brand == BRAND_COMMON:
+        return True
+    return hit_brand in (proposal_brand, BRAND_COMMON)
+
+
+def related_knowledge(session: Any, *, key: str, texts: list[str], today: datetime.date,
+                      brand: Optional[str] = None) -> list[str]:
+    """제안과 가까운 승인 지식 글 — 같은 항목의 지금 글 + 찾기 앞 몇 개(반영 · 확정만, 다른 키, 견줄 브랜드만 —
+    :func:`same_brand`)."""
     def sendable(visibility: Any, body: str) -> bool:  # 가격 재량 · 관리 글 · 개인정보 · 계좌 같은 번호는 판정자에게도 안 보낸다
         return visibility not in HELD_SCOPES and not any(leak_counts(body).values()) and not account_like(body)
 
@@ -135,17 +145,18 @@ def related_knowledge(session: Any, *, key: str, texts: list[str], today: dateti
         out.append(f"{current.name}: {current.text}")
     for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=RELATED_LIMIT * 2):
         if (hit["key"] != key and hit["confidence"] == CONFIRMED and hit["score"] >= MIN_RELATED_SCORE
+                and same_brand(brand, hit.get("brand"))
                 and len(out) < RELATED_LIMIT + 1 and sendable(hit["visibility"], hit["text"])):
             out.append(f"{hit['name']}: {hit['text']}")
     return out
 
 
 def conflict_gate(session: Any, *, op: str, key: str, item_type: Optional[str], texts: list[str],
-                  today: datetime.date) -> str:
+                  today: datetime.date, brand: Optional[str] = None) -> str:
     """관문 ② — 두 순서로 판정(둘 다 '없음'일 때만 통과). 견줄 승인 지식이 없으면 통과."""
     if item_type in AGENT_WORK_TYPES or op not in (OP_CREATE, OP_UPDATE) or not any(texts):
         return SKIPPED
-    approved = related_knowledge(session, key=key, texts=[t for t in texts if t], today=today)
+    approved = related_knowledge(session, key=key, texts=[t for t in texts if t], today=today, brand=brand)
     if not approved:
         return PASS
     proposal, known = "\n".join(t for t in texts if t), "\n".join(approved)
@@ -187,10 +198,11 @@ def eval_gate(session: Any, *, op: str, key: str, before: Optional[Mapping[str, 
 
 def run_ai_gates(session: Any, *, op: str, key: str, item_type: Optional[str], texts: list[str],
                  evidence: Iterable[Any], before: Optional[Mapping[str, Any]] = None,
-                 after: Optional[Mapping[str, Any]] = None) -> dict[str, str]:
+                 after: Optional[Mapping[str, Any]] = None, brand: Optional[str] = None) -> dict[str, str]:
     """관문 셋 결과 — ``{"conflict", "evidence", "eval"}``."""
     today = get_today_kst()
-    return {"conflict": conflict_gate(session, op=op, key=key, item_type=item_type, texts=texts, today=today),
+    return {"conflict": conflict_gate(session, op=op, key=key, item_type=item_type, texts=texts, today=today,
+                                      brand=brand),
             "evidence": evidence_gate(evidence),
             "eval": eval_gate(session, op=op, key=key, before=before, after=after)}
 
