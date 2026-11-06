@@ -96,7 +96,7 @@
     var editable = ctx.state.basis === 'completion';
     var tr = C.el('tr', '');
     tr.setAttribute('data-settlement-cm-row', String(row.order_id));
-    tr.appendChild(td('', row.construction_date || '—'));
+    tr.appendChild(td('', (editable ? row.construction_date : row.measurement_date) || '—'));
     var cust = td('');
     cust.appendChild(orderLink(row.order_id, row.customer_name));
     tr.appendChild(cust);

@@ -38,6 +38,7 @@ from foms.services.sales_commission.read_model import (
 from foms.services.sales_commission.settings import active_freelancers, is_freelancer
 from foms.services.settlement_channel_access import is_accounting_or_admin
 from foms.web.auth import login_required
+from models import Order
 
 sales_commission_web_bp = Blueprint("sales_commission_web", __name__, url_prefix="/erp")
 
@@ -112,8 +113,8 @@ def _status_text(row: dict[str, Any]) -> str:
     state, commission = row["state"], row["commission"]
     if state == STATE_DONE:
         return f"{_won(commission)}원"
-    if state == STATE_FORECAST and commission is not None:
-        return f"예상 {_won(commission)}원"
+    if state == STATE_FORECAST:
+        return f"예상 {_won(commission)}원" if commission is not None else "예상"
     if state == STATE_WAIT_COST or row["install_cost"] is None:
         return "시공비 기다림"
     return "요율 정하는 중"
@@ -171,6 +172,24 @@ def _target_user_id(db, user: Any) -> tuple[int, bool]:
     return target, True
 
 
+def _month_for_order(db, order_id: Optional[int]) -> Optional[tuple[str, str]]:
+    """주문이 들어가는 달과 기준 — 시공 완료면 (시공 달, 시공 완료), 아니면 (실측 달, 실측일). 없으면 None.
+
+    달만 정하고 주문 내용은 내보내지 않는다(남의 주문 번호를 넣어도 그 달의 내 줄만 보인다).
+    """
+    if not order_id:
+        return None
+    order = db.get(Order, order_id)
+    if order is None:
+        return None
+    fields = calc.extract_order_fields(order.structured_data if isinstance(order.structured_data, dict) else {})
+    done = calc.completion_month(order.erp_stage_code, fields["construction_date"])
+    if done:
+        return done, BASIS_COMPLETION
+    measured = calc.measurement_month(fields["measurement_date"], order.received_date, order.created_at)
+    return (measured, BASIS_MEASUREMENT) if measured else None
+
+
 @sales_commission_web_bp.route("/my-commission")
 @login_required
 def my_commission():
@@ -180,8 +199,11 @@ def my_commission():
     this_month = get_today_kst().strftime("%Y-%m")
     last_month = _shift_month(this_month, -1)
     month = request.args.get("month", "")
-    month = month if _MONTH_RE.match(month) else last_month
     basis = request.args.get("basis", "")
+    order_month = _month_for_order(db, request.args.get("order", type=int)) if not month else None
+    if order_month:  # 차감 알림에서 왔다 — 그 주문이 든 달을 연다(D17 · T8 스테이징 지적)
+        month, basis = order_month
+    month = month if _MONTH_RE.match(month) else last_month
     basis = basis if basis in BASES else BASIS_COMPLETION
 
     data = commission_rows(db, target_id, month, basis)

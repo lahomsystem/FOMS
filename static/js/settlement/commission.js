@@ -35,6 +35,7 @@
       month: q('[data-settlement-cm-month]'),
       basis: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-cm-basis]')),
       forecastNote: q('[data-settlement-cm-forecast-note]'),
+      dateHead: q('[data-settlement-cm-date-head]'),
       near: q('[data-settlement-cm-near]'),
       nearText: q('[data-settlement-cm-near-text]'),
       nearList: q('[data-settlement-cm-near-list]'),
@@ -62,6 +63,7 @@
       btn.setAttribute('aria-pressed', String(btn.getAttribute('data-settlement-cm-basis') === s.basis));
     });
     C.hide(ctx.els.forecastNote, s.basis !== 'measurement');
+    if (ctx.els.dateHead) ctx.els.dateHead.textContent = s.basis === 'measurement' ? '실측일' : '시공일';
     if (ctx.els.month && s.month) ctx.els.month.value = s.month;
     if (ctx.els.user && s.userId) ctx.els.user.value = String(s.userId);
   }

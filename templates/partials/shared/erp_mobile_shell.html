@@ -54,6 +54,11 @@
   {% set _ = _all_items.append({'id': 'partner_statements', 'label': '협력사 명세서', 'icon': 'fas fa-file-invoice', 'href': url_for('erp_partner_statements_page.erp_partner_statements')}) %}
   {% set _ = _allowed_ids.append('partner_statements') %}
 {% endif %}
+{# 프리랜서 "내 수수료"(FCOMM-01 §2.2) — 켜진 프리랜서에게만. 판정은 foms/web/sales_commission.py 템플릿 전역 함수(요청당 한 번 읽음). #}
+{% if current_user and is_sales_freelancer() %}
+  {% set _ = _all_items.append({'id': 'my_commission', 'label': '내 수수료', 'icon': 'fas fa-coins', 'href': url_for('sales_commission_web.my_commission')}) %}
+  {% set _ = _allowed_ids.append('my_commission') %}
+{% endif %}
 {% set _drawer_items = [] %}
 {% set _current = namespace(item=None) %}
 {% for item in _all_items %}

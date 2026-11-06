@@ -248,7 +248,7 @@ def _deep_link(notif: Notification) -> str:
             return measure_same_day_link(oid, notif.created_at)
         if ntype == "SALES_COMMISSION_DEDUCTION":
             # 프리랜서는 주문 상세가 아니라 내 수수료 화면에서 차감을 본다(FCOMM-01 §2.2-3).
-            return "/erp/my-commission"
+            return f"/erp/my-commission?order={oid}"
         return f"/erp/orders/{oid}"
     if (notif.notification_type or "").strip().upper() == NOTIFY_DRAFT_READY:
         return cs_send_link(notif.message) or "/erp"
