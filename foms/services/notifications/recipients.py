@@ -17,18 +17,35 @@ resolve 로직은 `foms.api.notifications._build_user_notification_filter`(사�
 `target_role` 경로(NOTIF-ROLE-01)는 "관리자 전원에게" 같은 사건을 수신자 수만큼의
 Notification row 로 복제하지 않기 위한 것으로, 알림을 만든 쪽이 역할을 **명시**했을
 때만 동작한다(암묵적인 ADMIN 팬아웃이 아니다).
+
+받는 사람 공통 규칙(FCOMM-01 겹 5 · 검수 원장 A4) — 이 파일의 :func:`broad_recipient_ids` ·
+:func:`manager_name_recipient_ids` 두 함수가 정본이다. state 줄(종 · 폰 알림)을 만드는
+:func:`resolve_recipients_for_notification` 과 실시간 소켓 전송 · 배지 무효화 대상을 고르는
+``foms.api.notifications.resolve_notification_recipient_user_ids`` 가 둘 다 이 두 함수만 쓴다.
+
+- 넓은 경로(전체 · 역할 · 팀)는 우리 직원만 받는다. 협력사 계정(:data:`INTERNAL_USERS_ONLY`)과
+  켜진 프리랜서는 뺀다.
+- 담당 이름 경로는 이름이 같은 직원이 받는다. 켜진 프리랜서는 이름만으로는 받지 않는다 — 그 주문에
+  연결 줄(``order_freelancer_links``)이 있어야 받는다(J8). 주문을 모르면 프리랜서는 받지 않는다.
+- 사람 지정(``target_user_id``) 경로는 그대로다(배정 알림 · 차감 알림이 이 길로 간다).
+
+스펙: docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §6.3 겹 5
+시험: tests/security/test_freelancer_notifications.py
 """
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from sqlalchemy import func
 
 from foms.services.orders.order_mutation_policy import _TEAM_NORMALIZE, normalize_team
 from foms.services.orders.manager_names import normalize_name_list
+from foms.services.sales_commission.links import cached_snapshot
+from foms.services.sales_commission.names import normalize_name
 from models import (
     NotificationEvent,
     NotificationEventType,
     NotificationRecipientSource,
     NotificationUserState,
+    OrderFreelancerLink,
     User,
 )
 
@@ -70,10 +87,97 @@ def expand_team_codes(team: str) -> Tuple[str, ...]:
     return (normalized,) + aliases
 
 
+def team_condition(team: Any):
+    """팀 경로 SQL 조건 — 그 팀으로 정규화되는 모든 표기(:func:`expand_team_codes`). 빈 팀이면 None."""
+    codes = expand_team_codes(team or "")
+    return func.upper(User.team).in_(codes) if codes else None
+
+
+def active_freelancer_ids(db) -> frozenset:
+    """켜진 프리랜서 id 묶음 — 요청 안이면 한 번만 읽는다(주문 저장 훅과 같은 캐시)."""
+    return cached_snapshot(db).active_ids
+
+
+def broad_recipient_ids(db, *conditions) -> Set[int]:
+    """넓은 경로(전체 · 역할 · 팀 · 관리자 포함) 받는 사람 — 켜진 우리 직원 중 조건에 맞는 사람.
+
+    협력사 계정과 켜진 프리랜서는 뺀다(FCOMM-01 겹 5). 조건을 여러 개 주면 모두 맞아야 한다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        *conditions: ``User`` 에 거는 SQL 조건(없으면 켜진 우리 직원 전체).
+
+    Returns:
+        user id 집합.
+    """
+    rows = db.query(User.id).filter(
+        User.is_active == True, INTERNAL_USERS_ONLY, *conditions  # noqa: E712
+    ).yield_per(500)
+    ids = {int(uid) for (uid,) in rows}
+    if not ids:
+        return ids
+    return ids - active_freelancer_ids(db)
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def manager_name_recipient_ids(db, target_manager_name: Any, order_id: Any = None) -> Set[int]:
+    """담당 이름 경로 받는 사람.
+
+    이름이 같은 켜진 우리 직원(협력사 아님)이 받는다. 켜진 프리랜서는 이름(계정 이름 또는 설정의 맞출 이름)이
+    대상 이름에 있고 **그 주문에 연결 줄이 있을 때만** 받는다 — 이름만 같으면 남의 주문 알림이 간다(J8).
+    ``order_id`` 가 없으면 프리랜서는 받지 않는다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        target_manager_name: 담당 이름(여러 명이면 ``"김의종, 한용희"`` 처럼 이어 쓴 값 · 목록).
+        order_id: 알림이 가리키는 주문 번호(없으면 None).
+
+    Returns:
+        user id 집합.
+    """
+    names = normalize_name_list(target_manager_name)
+    if not names:
+        return set()
+    rows = db.query(User.id).filter(
+        User.name.in_(names), User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
+    ).yield_per(500)
+    by_name = {int(uid) for (uid,) in rows}
+    snapshot = cached_snapshot(db)
+    freelancers = snapshot.active_ids
+    staff = by_name - freelancers
+    oid = _int_or_none(order_id)
+    if not freelancers or oid is None:
+        return staff
+    wanted = {normalize_name(n) for n in names}
+    candidates = (by_name & freelancers) | {uid for name, uid in snapshot.match_map.items() if name in wanted}
+    if not candidates:
+        return staff
+    linked = (
+        db.query(OrderFreelancerLink.user_id)
+        .join(User, User.id == OrderFreelancerLink.user_id)
+        .filter(
+            OrderFreelancerLink.order_id == oid,
+            OrderFreelancerLink.user_id.in_(sorted(candidates)),
+            User.is_active == True,  # noqa: E712
+            INTERNAL_USERS_ONLY,
+        )
+        .distinct()
+        .all()
+    )
+    return staff | {int(uid) for (uid,) in linked}
+
+
 def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str]]:
     """Notification row -> dedupe 된 (user_id, recipient_source) 목록.
 
-    inactive 사용자는 제외한다. 한 사용자가 여러 경로에 해당하면 가장 구체적인
+    inactive 사용자는 제외한다. 넓은 경로 · 담당 이름 경로는 공통 규칙(:func:`broad_recipient_ids` ·
+    :func:`manager_name_recipient_ids`)을 따른다. 한 사용자가 여러 경로에 해당하면 가장 구체적인
     경로(target_user > target_manager_name > target_team > target_role > target_all)를
     채택한다. 각 경로는 넓은 것부터 좁은 것 순으로 평가되어 뒤의 경로가 앞의 것을 덮어쓴다.
 
@@ -86,35 +190,22 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
 
     ttype = (notification.target_type or '').strip().upper()
     if ttype == 'ALL':
-        for (uid,) in db.query(User.id).filter(User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500):  # noqa: E712
-            source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ALL
+        for uid in broad_recipient_ids(db):
+            source_by_user[uid] = NotificationRecipientSource.TARGET_ALL
 
     role = (notification.target_role or '').strip().upper()
     if role:
-        rows = db.query(User.id).filter(
-            func.upper(User.role) == role, User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
-        ).yield_per(500)
-        for (uid,) in rows:
-            source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ROLE
+        for uid in broad_recipient_ids(db, func.upper(User.role) == role):
+            source_by_user[uid] = NotificationRecipientSource.TARGET_ROLE
 
-    team = (notification.target_team or '').strip().upper()
-    if team:
-        rows = db.query(User.id).filter(
-            func.upper(User.team).in_(expand_team_codes(team)),
-            User.is_active == True,  # noqa: E712
-            INTERNAL_USERS_ONLY,
-        ).yield_per(500)
-        for (uid,) in rows:
-            source_by_user[int(uid)] = NotificationRecipientSource.TARGET_TEAM
+    team_cond = team_condition(notification.target_team)
+    if team_cond is not None:
+        for uid in broad_recipient_ids(db, team_cond):
+            source_by_user[uid] = NotificationRecipientSource.TARGET_TEAM
 
-    # MULTI-MGR-01: 담당자 여러 명 알림은 "김의종, 한용희" 처럼 이어 넣는다.
-    managers = normalize_name_list(notification.target_manager_name)
-    if managers:
-        rows = db.query(User.id).filter(
-            User.name.in_(managers), User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
-        ).yield_per(500)
-        for (uid,) in rows:
-            source_by_user[int(uid)] = NotificationRecipientSource.TARGET_MANAGER_NAME
+    # MULTI-MGR-01: 담당자 여러 명 알림은 "김의종, 한용희" 처럼 이어 넣는다. 프리랜서는 연결 줄이 있어야 받는다.
+    for uid in manager_name_recipient_ids(db, notification.target_manager_name, notification.order_id):
+        source_by_user[uid] = NotificationRecipientSource.TARGET_MANAGER_NAME
 
     if notification.target_user_id is not None:
         active = db.query(User.id).filter(
