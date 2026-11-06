@@ -55,7 +55,7 @@ def test_popover_markup_sits_with_save_buttons_and_has_no_inline_style():
 
 
 def test_save_send_script_loads_after_wizard_core():
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261106b") < TPL.index("js/drawing/save-send.js') }}?v=20261106a")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261106c") < TPL.index("js/drawing/save-send.js') }}?v=20261106b")
 
 
 def test_buttons_open_popover_but_ctrl_s_saves_directly():
@@ -140,6 +140,53 @@ def test_single_save_send_when_only_current_sheet_waits():
     assert not any(c["url"] == "pushRoom" for c in out["calls"])
 
 
+
+# ---- 2026-11-06 운영 5862: 자동 저장만 된 다른 시트가 옛 전달본으로 나갔다 ----
+# 설계서 docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md §2.2
+
+def _calls(out, url):
+    return [c for c in out["calls"] if c["url"] == url or c["url"].endswith(url)]
+
+
+def test_send_redraws_sheet_whose_drawing_changed_since_sent():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-b", "s-c", "s-d"], "current": "s-a", "pending": ["s-a"],
+                "sent": {"s-a": "v2:a0", "s-b": "v2:b0", "s-c": "v2:c0", "s-d": "v2:d0"},
+                "sigs": {"s-a": "a1", "s-b": "b0", "s-c": "c9", "s-d": "d0"}, "send": True, "push": True})
+    assert [c["body"] for c in _calls(out, "queueSheets")] == [["s-c"]]   # 달라진 s-c 만 다시 그린다
+    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a", "s-c"]
+    urls = [c["url"] for c in out["calls"]]
+    assert urls.index("queueSheets") < urls.index("/api/orders/77/transfer-drawing") < urls.index("pushRoom")
+    assert any("고친 다른 시트 1장 포함" in t for t in out["toasts"]), out["toasts"]
+
+
+def test_send_treats_sent_drawing_without_signature_as_changed():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-b"], "current": "s-a", "pending": ["s-a"],
+                "sent": {"s-b": None}, "sigs": {"s-a": "a1", "s-b": "b0"}, "send": True, "push": False})
+    assert [c["body"] for c in _calls(out, "queueSheets")] == [["s-b"]]
+    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a", "s-b"]
+
+
+def test_send_leaves_never_sent_sheet_alone():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-new"], "current": "s-a", "pending": ["s-a"],
+                "sent": {}, "sigs": {"s-a": "a1", "s-new": "n1"}, "send": True, "push": False})
+    assert _calls(out, "queueSheets") == []
+    assert _transfer_body(out)["pending_sheet_ids"] == ["s-a"]
+
+
+def test_send_stops_when_changed_sheet_cannot_be_redrawn():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-b"], "current": "s-a", "pending": ["s-a"],
+                "sent": {"s-b": "v2:b0"}, "sigs": {"s-a": "a1", "s-b": "b1"}, "send": True, "push": True,
+                "queueFail": True})
+    assert _calls(out, "/transfer-drawing") == [] and _calls(out, "pushRoom") == []
+    assert any("전달은 하지 않았어요" in t for t in out["toasts"]), out["toasts"]
+
+
+def test_save_only_does_not_redraw_or_read_box():
+    out = _run({"kind": "one", "sheets": ["s-a", "s-b"], "current": "s-a", "pending": [],
+                "sent": {"s-b": "v2:b0"}, "sigs": {"s-a": "a1", "s-b": "b9"}, "send": False, "push": False})
+    assert out["calls"] == []
+
+
 class _UniqueStorage:
     """실제 storage 처럼 올릴 때마다 새 key."""
 
@@ -197,3 +244,48 @@ def test_server_replaces_both_waiting_sheets_and_keeps_the_rest(client, monkeypa
     cur = db_session.query(Order).filter_by(id=oid).first().structured_data["drawing_current_files"]
     assert [(f["sheet_id"], f["key"]) for f in cur] == [
         ("s-a", new_a), ("s-b", new_b), ("s-c", old["s-c"]), ("s-d", old["s-d"])]
+
+
+def test_transfer_keeps_sheet_signature_and_pending_reports_it(client, monkeypatch):
+    """[저장] 때 지문(sig)이 전달본 항목에 옮겨 적히고, GET /pending 의 current 로 돌아온다(설계서 2026-11-06 §2.1)."""
+    import copy
+    import io
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from db import db_session
+    from models import Order
+    from tests.domains.test_drawing_wizard_api import _login_participant_admin, _order_with_assignee
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: _UniqueStorage())
+    user = _login_participant_admin(client, username="save-send-sig")
+    order = _order_with_assignee(user.id)
+    oid = order.id
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_wizard"] = {"v": 1, "sheets": [{"id": i, "name": i, "form": {}, "objects": []} for i in ("s-a", "s-b", "s-c")]}
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    for sid, sig in (("s-a", "v2:aaa1"), ("s-b", "bad sig"), ("s-c", "v2:ccc1")):
+        resp = client.post(f"/api/orders/{oid}/drawing-wizard/sheet-png", content_type="multipart/form-data",
+                           data={"file": (io.BytesIO(b"PNG"), f"{sid}.png"), "sheet_id": sid, "sig": sig})
+        assert resp.status_code == 200, resp.get_json()
+    resp = client.post(f"/api/orders/{oid}/transfer-drawing",
+                       json={"note": "", "files": [], "pending_sheet_ids": ["s-a", "s-b"], "mode": ""})
+    assert resp.get_json()["success"] is True, resp.get_json()
+    resp = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={"note": "", "mode": "APPEND"})
+    assert resp.get_json()["success"] is True, resp.get_json()
+
+    db_session.expire_all()
+    cur = db_session.query(Order).filter_by(id=oid).first().structured_data["drawing_current_files"]
+    assert {f["sheet_id"]: f.get("sig") for f in cur} == {"s-a": "v2:aaa1", "s-b": None, "s-c": "v2:ccc1"}
+    data = client.get(f"/api/orders/{oid}/drawing-wizard/pending").get_json()["data"]
+    assert data["pending"] == []
+    assert data["current"] == [{"sheet_id": "s-a", "sig": "v2:aaa1"}, {"sheet_id": "s-b", "sig": None},
+                               {"sheet_id": "s-c", "sig": "v2:ccc1"}]
+
+
+def test_queue_sheets_hook_renders_only_given_sheets():
+    assert "function eachSheetToBlob(handler, label, onlyIds) {" in JS
+    assert "queueSheets: queueSheets," in JS
+    assert "}, '바뀐 시트 넣는 중', ids).then(function (res) {" in JS

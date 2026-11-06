@@ -60,7 +60,7 @@ def test_wizard_toast_uses_stack():
 
 
 def test_batch_progress_rewrites_one_toast():
-    each = _fn_slice(JS, "function eachSheetToBlob(handler, label) {")
+    each = _fn_slice(JS, "function eachSheetToBlob(handler, label, onlyIds) {")
     assert "' 처리 중…', { key: 'sheet-batch' })" in each
     assert "window.FomsWizardToast.drop('sheet-batch')" in each   # 마무리 알림 전에 진행 알림을 닫는다
 
