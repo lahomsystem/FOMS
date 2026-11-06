@@ -49,6 +49,20 @@ def is_drawing_hotfix_stage(order: Any) -> bool:
     return (read_main_stage(order) or "") in DRAWING_HOTFIX_STAGES
 
 
+#: [저장] 때 남기는 시트 그림 지문 모양(save-status.js tagSig — 'v2:…'). 대기함 → 전달본으로 옮겨 적는다.
+_SHEET_SIG_RE = re.compile(r"^v\d{1,2}:[0-9a-z.]{1,32}$")
+
+
+def clean_sheet_sig(value: Any) -> str:
+    """시트 그림 지문을 검증해 돌려준다(모양이 다르면 빈 문자열).
+
+    다시 연 마법사가 "전달본이 지금 시트와 같은가"를 가리는 기준일 뿐이라 틀리면 거절하지 않고 버린다
+    (설계서 ``docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md`` §2.1).
+    """
+    text = str(value or "").strip()
+    return text if _SHEET_SIG_RE.match(text) else ""
+
+
 def clean_sheet_id(value: Any) -> str:
     """도면 파일 엔트리의 ``sheet_id`` 를 검증해 돌려준다(모양이 다르면 빈 문자열)."""
     text = str(value or "").strip()
@@ -198,6 +212,7 @@ def materialize_pending_snapshot(order: Any) -> list[dict]:
             "filename": entry.get("filename") or key.rsplit("/", 1)[-1],
             "at": entry.get("at") or "",
             "sheet_name": entry.get("sheet_name") or sheet_id,
+            "sig": clean_sheet_sig(entry.get("sig")),
         })
     return snapshot
 
@@ -251,5 +266,9 @@ def materialize_transfer_attachments(order_id: int, files: Any) -> list[dict]:
         sheet_id = clean_sheet_id(f.get("sheet_id"))
         if sheet_id:
             entry["sheet_id"] = sheet_id
+            # [저장] 때 그림 지문 — 다시 연 마법사가 이 전달본이 지금 시트와 같은지 가린다(2026-11-06 설계서 §2.1).
+            sig = clean_sheet_sig(f.get("sig"))
+            if sig:
+                entry["sig"] = sig
         out.append(entry)
     return out

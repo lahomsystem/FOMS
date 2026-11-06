@@ -618,7 +618,7 @@ def api_order_transfer_drawing(order_id):
         if pending_sheet_ids:
             wanted = set(pending_sheet_ids)
             pending_files = [
-                {'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id']}
+                {'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id'], 'sig': p.get('sig') or ''}
                 for p in materialize_pending_snapshot(order)
                 if p['sheet_id'] in wanted
             ]

@@ -11,6 +11,10 @@
  * - 한 장 저장 + 전달은 지금 시트와 함께 **대기함에 먼저 넣어 둔 다른 시트도** 보낸다(2026-11-06 보고, 운영 주문 5862 · 5803:
  *   시트 A 를 고쳐 [저장]만 → 시트 B 에서 [저장 + 전달 + 도면방] → B 만 전달돼 도면방에 A 의 옛 전달본이 나갔다).
  *   대기함 목록은 저장 뒤 서버에서 다시 읽는다(GET /pending) — 지운 시트의 옛 항목은 지금 시트 목록으로 거른다.
+ * - 대기함에도 없고 [저장]도 안 했지만 **전달본과 내용이 달라진 다른 시트**도 그림을 다시 만들어 함께 보낸다(2026-11-06,
+ *   운영 주문 5862: 자동 저장만 된 '미드웨이 수납장'이 11-03 옛 그림으로 나갔다). 기준 = 전달본의 그림 지문(GET /pending 의
+ *   current). 지문이 없는 옛 전달본은 달라진 것으로 본다. 한 번도 안 보낸 새 시트는 건드리지 않는다
+ *   (설계서 docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md).
  * - Ctrl+S 는 이 창을 거치지 않는다(wizard.js 단축키가 save() 를 바로 부른다).
  * 권한 · 잠금 · 알림은 기존 서버 경로가 다시 검사한다 — 여기 값(save_send)은 칸을 잠그고 숨기는 화면 표시용이다.
  */
@@ -129,16 +133,24 @@
     });
   }
 
-  /** 한 장 저장 뒤 보낼 시트 id — 지금 시트 + 대기함에 있는 다른 시트(지금 시트 순서). 못 읽으면 null. */
-  function waitingIds(sheets, curId) {
+  /** 한 장 저장 뒤 보낼 시트 — {send: 보낼 id(지금 시트 순서), redraw: 그 가운데 다시 그릴 id}. 대기함을 못 읽으면 null.
+      보냄 = 지금 시트 · 대기함에 있는 시트 · 전달본과 지문이 다르거나 없는 시트(다시 그림). 전달본도 대기함도 없는 시트는 뺀다. */
+  function planIds(sheets, curId) {
     return window.fetch('/api/orders/' + ORDER_ID + '/drawing-wizard/pending', {
       credentials: 'same-origin', headers: { 'Accept': 'application/json' }
     }).then(function (resp) { return resp.json(); }).then(function (data) {
       if (!data || data.success !== true) { return null; }
-      var waiting = {};
+      var waiting = {}, sent = {}, SS = window.FomsSaveStatus;
       ((data.data && data.data.pending) || []).forEach(function (p) { waiting[p.sheet_id] = true; });
-      waiting[curId] = true;
-      return sheets.map(function (s) { return s.id; }).filter(function (id) { return waiting[id]; });
+      ((data.data && data.data.current) || []).forEach(function (f) { sent[f.sheet_id] = f.sig || ''; });
+      var plan = { send: [], redraw: [] };
+      sheets.forEach(function (s) {
+        if (s.id === curId || waiting[s.id]) { plan.send.push(s.id); return; }
+        if (!Object.prototype.hasOwnProperty.call(sent, s.id)) { return; }   // 한 번도 안 보낸 시트 — 아직 그리는 중일 수 있다
+        var now = SS ? SS.tagSig(SS.sheetSig(s)) : '';
+        if (!sent[s.id] || !now || sent[s.id] !== now) { plan.send.push(s.id); plan.redraw.push(s.id); }
+      });
+      return plan;
     }, function () { return null; });
   }
 
@@ -190,16 +202,27 @@
     busy = true;
     saving.then(function (saved) {
       if (!saved || !ids.length) { return false; }
-      return (kind === 'one' ? waitingIds(sheets, ids[0]) : Promise.resolve(ids)).then(function (sendIds) {
-        if (!sendIds) {
+      var redrawn = 0;
+      return (kind === 'one' ? planIds(sheets, ids[0]) : Promise.resolve({ send: ids, redraw: [] })).then(function (plan) {
+        if (!plan) {
           say('저장은 됐어요 · 전달 못 함: 전달 대기함을 읽지 못했어요. 다시 눌러 주세요.', { error: true });
           return false;
         }
-        ids = sendIds;
-        return transfer(ids);
+        ids = plan.send;
+        if (!plan.redraw.length) { return transfer(ids); }
+        return c.queueSheets(plan.redraw).then(function (res) {
+          if (!res || (res.fail && res.fail.length) || res.ok !== plan.redraw.length) {
+            say('저장은 됐어요 · 고친 다른 시트를 대기함에 못 넣어서 전달은 하지 않았어요' +
+              (res && res.fail && res.fail.length ? ' (' + res.fail.join(', ') + ')' : ''), { error: true });
+            return false;
+          }
+          redrawn = res.ok;
+          return transfer(ids);
+        });
       }).then(function (sent) {
         if (!sent) { return false; }
-        var what = '저장했어요 · 영업에게 ' + (ids.length > 1 ? ids.length + '장 ' : '') + '전달했어요';
+        var what = '저장했어요 · 영업에게 ' + (ids.length > 1 ? ids.length + '장 ' : '') + '전달했어요' +
+          (redrawn ? ' (고친 다른 시트 ' + redrawn + '장 포함)' : '');
         if (!push) {
           say(what, { key: 'savesend' });
           return true;
