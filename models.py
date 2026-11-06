@@ -1423,6 +1423,34 @@ class PartnerStatementQuestion(Base):
     answered_at = Column(DateTime, nullable=True)
 
 
+class SalesCommissionInput(Base):
+    """FCOMM-01: 회계팀이 주문마다 넣는 프리랜서 수수료 입력값(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.2).
+
+    시공비 · 회계팀 지정 요율(bp, 10000 = 100%) · 메모를 주문 한 건에 한 줄로 둔다. 주문의 큰 ``structured_data``
+    JSONB 밖에 따로 두는 까닭: 회계팀이 칸 하나를 고칠 때마다 주문 JSON 을 통째로 다시 쓰지 않고, 같은 때 주문 화면
+    저장과 부딪혀 서로 값을 지우지 않게 하려는 것이다. ``version`` 은 칸 저장 경합 막기(화면이 본 값과 같을 때만 쓴다).
+    주문이 하드 삭제되면 이 줄도 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+    """
+    __tablename__ = 'sales_commission_inputs'
+
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), primary_key=True, autoincrement=False)
+    install_cost = Column(BigInteger, nullable=True)
+    rate_override_bp = Column(Integer, nullable=True)
+    note = Column(Text, nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    updated_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint('install_cost IS NULL OR install_cost >= 0', name='ck_sales_commission_inputs_install_cost'),
+        CheckConstraint(
+            'rate_override_bp IS NULL OR (rate_override_bp >= 0 AND rate_override_bp <= 10000)',
+            name='ck_sales_commission_inputs_rate_bp',
+        ),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
