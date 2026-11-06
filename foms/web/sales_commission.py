@@ -9,10 +9,11 @@
   켜진 프리랜서 한 명을 대신 본다(없거나 프리랜서가 아니면 404).
 - 그 밖(협력사 계정 포함) → 403.
 
-템플릿 전역 함수 두 개도 여기서 붙인다 — ``context_processors.py`` 가 500줄 래칫에 닿아 있어서다.
-둘 다 템플릿이 부를 때만 설정을 읽고, 요청 안에서는 flask ``g`` 에 한 번만 읽어 둔다.
+템플릿 전역 함수 세 개도 여기서 붙인다 — ``context_processors.py`` 가 500줄 래칫에 닿아 있어서다.
+앞의 둘은 템플릿이 부를 때만 설정을 읽고, 요청 안에서는 flask ``g`` 에 한 번만 읽어 둔다.
 - ``is_sales_freelancer()``: 지금 사용자가 켜진 프리랜서인지(모바일 서랍 "내 수수료" 링크).
 - ``sales_freelancer_orderer_names()``: 켜진 프리랜서 맞출 이름 목록(발주사 선택지, D3).
+- ``freelancer_nav_items()``: 켜진 프리랜서 PC 위 메뉴 항목(설정을 읽지 않는다 — 부르는 쪽이 먼저 판정).
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from typing import Any, Optional
 from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
+from foms.services.auth.freelancer_menu import freelancer_menu_items
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import normalize_team, user_can_read_order
 from foms.services.sales_commission import calc
@@ -77,6 +79,8 @@ def sales_freelancer_orderer_names() -> list[str]:
 
 sales_commission_web_bp.add_app_template_global(is_sales_freelancer, "is_sales_freelancer")
 sales_commission_web_bp.add_app_template_global(sales_freelancer_orderer_names, "sales_freelancer_orderer_names")
+# PC 위 메뉴의 프리랜서 항목(FCOMM-01 겹 5 메뉴) — layout_nav.html 이 켜진 프리랜서일 때만 부른다.
+sales_commission_web_bp.add_app_template_global(freelancer_menu_items, "freelancer_nav_items")
 
 
 # --------------------------------------------------------------------------

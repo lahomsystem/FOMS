@@ -23,9 +23,9 @@
       {% endfor %}
       {# 네이버 수집 — 데스크톱 nav(menu_config 'naver_orders')에만 있고 모바일 서랍엔 없던 진입점.
          _all_items 는 ERP 단계 목록(헤더 제목·하단 탭·레일과 한 쌍)이라 거기 넣지 않고 따로 둔다.
-         게이트 = 라우트 role_required(ADMIN·MANAGER·STAFF) + inject_menu 의 시공팀 제외.
+         게이트 = 라우트 role_required(ADMIN·MANAGER·STAFF) + inject_menu 의 시공팀 제외. 켜진 프리랜서도 뺀다(문지기 허용 목록 밖).
          배지는 foms-nav-triage-badge.js 가 채운다(서랍은 프래그먼트 안이라 교체 뒤 다시 칠한다). #}
-      {% if current_user and current_user.role in ['ADMIN', 'MANAGER', 'STAFF'] and (current_user.team or '') != 'CONSTRUCTION' %}
+      {% if current_user and current_user.role in ['ADMIN', 'MANAGER', 'STAFF'] and (current_user.team or '') != 'CONSTRUCTION' and not _sales_freelancer %}
         <a
           class="erp-mobile-menu-drawer__link erp-mobile-menu-drawer__link--naver position-relative"
           href="{{ url_for('admin.naver_ingest_triage') }}"

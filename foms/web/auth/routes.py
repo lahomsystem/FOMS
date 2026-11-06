@@ -24,6 +24,7 @@ from foms.services.security.account_requests import (
     submit_password_reset_request,
 )
 from foms.services.audit_writer import normalize_security_detail
+from foms.services.auth.freelancer_edit_guards import freelancer_profile_name
 from foms.services.channel_manager_room import normalize_channel_group_id
 from foms.services.user_deletion import (
     UserDeletionBlockedError,
@@ -1246,7 +1247,8 @@ def profile():
         current_password = request.form.get("current_password")
         new_password = request.form.get("new_password")
         confirm_password = request.form.get("confirm_password")
-        name = request.form.get("name")
+        # J8 · 검토 A1: 켜진 프리랜서는 이름을 못 바꾼다(비밀번호는 바꾼다).
+        name = freelancer_profile_name(user, request.form.get("name"))
 
         if not name:
             flash("이름을 입력해주세요.", "error")
