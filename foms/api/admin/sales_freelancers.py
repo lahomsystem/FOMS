@@ -4,6 +4,8 @@
   회계팀 · 관리자(:func:`~foms.services.settlement_channel_access.is_accounting_or_admin`).
 - ``POST /api/admin/sales-freelancers`` ``{user_id, match_name, start_month, tax_type, active, rate?, version}`` — 추가 · 고치기.
   같은 트랜잭션에서 그 사람의 주문 ↔ 프리랜서 연결을 다시 맞춘다(:func:`~foms.services.sales_commission.links.resync_freelancer_links`).
+  켜진 프리랜서로 저장하면 같은 트랜잭션에서 채팅방 회원을 풀고 옛 알림을 숨긴다(겹 5 —
+  :func:`~foms.services.auth.freelancer_designation.apply_designation_side_effects`), 커밋 뒤 열린 실시간 연결을 끊는다.
 - ``POST /api/admin/sales-freelancers/<user_id>/rates`` ``{effective_month, lahom_bp, haud_bp, personal_bp, version}``
   — 요율 한 줄 더하기.
 
@@ -19,6 +21,8 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
+from foms.api.notifications import invalidate_badge_cache_for_user_ids
+from foms.services.auth.freelancer_designation import apply_designation_side_effects, disconnect_realtime
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.links import resync_freelancer_links
@@ -130,11 +134,14 @@ def api_save_freelancer():
                                                    actor_user_id=actor_id)
         # 3단계 보기 범위: 맞출 이름 · 켜고 끔이 바뀌면 그 사람의 주문 연결을 같은 트랜잭션에서 다시 맞춘다(알림 없음).
         links = resync_freelancer_links(db, config.user_id)
+        # 겹 5: 켜진 프리랜서면 채팅방 회원 해제 · 옛 알림 숨김(연결을 다시 맞춘 뒤 — 남길 알림 판정이 새 연결을 본다).
+        side = (apply_designation_side_effects(db, config.user_id, actor_id) if config.active
+                else {"chat_memberships_removed": 0, "notifications_hidden": 0})
         db.add(SecurityLog(
             user_id=actor_id, action="SALES_FREELANCER_SAVED", target_type="user", target_id=config.user_id,
             message=f"프리랜서 설정 저장: {config.match_name}",
             detail={"user_id": config.user_id, "version": version, "changed": changed,
-                    "links_added": links["added"], "links_removed": links["removed"]},
+                    "links_added": links["added"], "links_removed": links["removed"], **side},
         ))
         db.commit()
     except FreelancerSettingsError as exc:
@@ -144,6 +151,9 @@ def api_save_freelancer():
         db.rollback()
         logger.exception("[SALES_FREELANCER] 설정 저장 실패 user=%s", body.get("user_id"))
         return _fail(500, _SAVE_FAILED)
+    if config.active:
+        invalidate_badge_cache_for_user_ids([config.user_id])  # 숨긴 알림이 종 숫자에 남지 않게
+        disconnect_realtime(config.user_id)  # 이미 들어가 있던 채팅방 방송을 끊는다(다시 연결하면 개인 방만)
     data = _state(db)
     db.rollback()
     return _ok(data)

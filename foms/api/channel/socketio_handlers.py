@@ -1,4 +1,9 @@
-"""채팅 SocketIO 이벤트 핸들러 등록."""
+"""채팅 SocketIO 이벤트 핸들러 등록.
+
+방 들어가기 · 입력 중 · 보내기 · 읽음은 :mod:`foms.services.chat_room_access` 한 곳에서 판정한다 — 개인 알림 방
+``user_<id>`` 는 본인만(연결 때 서버가 넣는다), 채팅방은 회원만, 켜진 프리랜서는 채팅 이벤트를 모두 못 쓴다
+(설계서 FCOMM-01 §6.4 · §6.3 겹 5, D19). 시험: tests/security/test_socket_room_membership.py
+"""
 import datetime
 from foms.services.error_logging import log_handled_exception
 from flask import session, request
@@ -7,11 +12,27 @@ from db import get_db
 from models import ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, User
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
 from foms.services.auth.partner_scope import is_partner_user
+from foms.services.chat_room_access import (
+    DENY_LOGIN,
+    chat_member_fanout_ids,
+    chat_room_denial,
+    user_room,
+)
 
 
 def _session_user(user_id):
     """세션 user_id 의 사용자 행(없으면 None)."""
     return get_db().query(User).filter(User.id == user_id).first()
+
+
+def _room_value(data):
+    """이벤트 본문의 방 값(본문이 dict 가 아니면 None)."""
+    return data.get('room_id') if isinstance(data, dict) else None
+
+
+def _chat_access(user_id, room_value):
+    """채팅 이벤트 판정 → ``(room_id, None)`` 허용 / ``(None, 이유)`` 거부."""
+    return chat_room_denial(get_db(), _session_user(user_id), room_value)
 
 
 def register_chat_socketio_handlers(socketio):
@@ -31,7 +52,7 @@ def register_chat_socketio_handlers(socketio):
             return False
         if user_id:
             print(f"[SocketIO] 사용자 {user_id} 연결됨")
-            join_room(f'user_{user_id}')
+            join_room(user_room(user_id))
             print(f"[SocketIO] 사용자 {user_id}가 자신의 전용 room에 입장: user_{user_id}")
             emit('connected', {'user_id': user_id, 'message': '연결되었습니다.'})
         else:
@@ -47,35 +68,47 @@ def register_chat_socketio_handlers(socketio):
 
     @socketio.on('join_room')
     def handle_join_room(data):
-        """채팅방 입장"""
+        """방 입장 — 내 개인 알림 방, 또는 내가 회원인 채팅방만."""
         user_id = session.get('user_id')
         if not user_id:
-            emit('error', {'message': '인증이 필요합니다.'})
+            emit('error', {'message': DENY_LOGIN})
             return
-        room_id = data.get('room_id')
-        if room_id:
-            join_room(str(room_id))
-            print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_id}에 입장")
-            emit('joined_room', {'room_id': room_id, 'user_id': user_id})
-            socketio.emit('user_joined', {
-                'room_id': room_id,
-                'user_id': user_id
-            }, room=str(room_id))
+        room_value = _room_value(data)
+        if not room_value:
+            return
+        if str(room_value) == user_room(user_id):
+            join_room(user_room(user_id))  # 연결 때 이미 들어가 있다 — 다시 들어가도 같다
+            emit('joined_room', {'room_id': room_value, 'user_id': user_id})
+            return
+        room_id, reason = _chat_access(user_id, room_value)
+        if reason:
+            emit('error', {'message': reason})
+            return
+        join_room(str(room_id))
+        print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_id}에 입장")
+        emit('joined_room', {'room_id': room_value, 'user_id': user_id})
+        socketio.emit('user_joined', {
+            'room_id': room_value,
+            'user_id': user_id
+        }, room=str(room_id))
 
     @socketio.on('leave_room')
     def handle_leave_room(data):
-        """채팅방 퇴장"""
+        """채팅방 퇴장 — 나가기는 늘 된다. 방 사람들에게 알리는 것은 회원일 때만."""
         user_id = session.get('user_id')
         if not user_id:
-            emit('error', {'message': '인증이 필요합니다.'})
+            emit('error', {'message': DENY_LOGIN})
             return
-        room_id = data.get('room_id')
-        if room_id:
-            leave_room(str(room_id))
-            print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_id}에서 퇴장")
-            emit('left_room', {'room_id': room_id, 'user_id': user_id})
+        room_value = _room_value(data)
+        if not room_value or str(room_value) == user_room(user_id):
+            return  # 개인 알림 방은 나가지 않는다(나가면 실시간 알림이 끊긴다)
+        leave_room(str(room_value))
+        print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_value}에서 퇴장")
+        emit('left_room', {'room_id': room_value, 'user_id': user_id})
+        room_id, reason = _chat_access(user_id, room_value)
+        if reason is None:
             socketio.emit('user_left', {
-                'room_id': room_id,
+                'room_id': room_value,
                 'user_id': user_id
             }, room=str(room_id))
 
@@ -84,10 +117,11 @@ def register_chat_socketio_handlers(socketio):
         """메시지 전송"""
         user_id = session.get('user_id')
         if not user_id:
-            emit('error', {'message': '인증이 필요합니다.'})
+            emit('error', {'message': DENY_LOGIN})
             return
+        db = get_db()
         try:
-            db = get_db()
+            data = data if isinstance(data, dict) else {}
             room_id = data.get('room_id')
             message_type = data.get('message_type', 'text')
             content = data.get('content', '').strip()
@@ -99,12 +133,9 @@ def register_chat_socketio_handlers(socketio):
             if not room:
                 emit('error', {'message': '채팅방을 찾을 수 없습니다.'})
                 return
-            member = db.query(ChatRoomMember).filter(
-                ChatRoomMember.room_id == room_id,
-                ChatRoomMember.user_id == user_id
-            ).first()
-            if not member:
-                emit('error', {'message': '채팅방에 접근할 권한이 없습니다.'})
+            room_id, reason = _chat_access(user_id, room_id)
+            if reason:
+                emit('error', {'message': reason})
                 return
             new_message = ChatMessage(
                 room_id=room_id,
@@ -142,9 +173,8 @@ def register_chat_socketio_handlers(socketio):
                 message_data['attachments'] = [a.to_dict() for a in attachments]
             socketio.emit('new_message', message_data, room=str(room_id))
             members = db.query(ChatRoomMember).filter(ChatRoomMember.room_id == room_id).all()  # perf-ok: single-room member list
-            for m in members:
-                if m.user_id != user_id:
-                    socketio.emit('new_message', message_data, room=f'user_{m.user_id}')
+            for member_id in chat_member_fanout_ids(db, room_id, user_id, members):
+                socketio.emit('new_message', message_data, room=user_room(member_id))
             room.updated_at = datetime.datetime.now()
             db.commit()
             print(f"[SocketIO] 메시지 전송: 사용자 {user_id} -> 방 {room_id}")
@@ -155,18 +185,22 @@ def register_chat_socketio_handlers(socketio):
 
     @socketio.on('typing')
     def handle_typing(data):
-        """타이핑 중 알림"""
+        """타이핑 중 알림 — 회원인 채팅방에만."""
         user_id = session.get('user_id')
         if not user_id:
             return
-        room_id = data.get('room_id')
-        is_typing = data.get('is_typing', False)
-        if room_id:
-            socketio.emit('user_typing', {
-                'room_id': room_id,
-                'user_id': user_id,
-                'is_typing': is_typing
-            }, room=str(room_id), skip_sid=request.sid)
+        room_value = _room_value(data)
+        if not room_value:
+            return
+        room_id, reason = _chat_access(user_id, room_value)
+        if reason:
+            emit('error', {'message': reason})
+            return
+        socketio.emit('user_typing', {
+            'room_id': room_value,
+            'user_id': user_id,
+            'is_typing': data.get('is_typing', False)
+        }, room=str(room_id), skip_sid=request.sid)
 
     @socketio.on('mark_read')
     def handle_mark_read(data):
@@ -174,10 +208,14 @@ def register_chat_socketio_handlers(socketio):
         user_id = session.get('user_id')
         if not user_id:
             return
+        db = get_db()
         try:
-            db = get_db()
-            room_id = data.get('room_id')
-            if room_id:
+            room_value = _room_value(data)
+            if room_value:
+                room_id, reason = _chat_access(user_id, room_value)
+                if reason:
+                    emit('error', {'message': reason})
+                    return
                 member = db.query(ChatRoomMember).filter(
                     ChatRoomMember.room_id == room_id,
                     ChatRoomMember.user_id == user_id
@@ -186,7 +224,7 @@ def register_chat_socketio_handlers(socketio):
                     member.last_read_at = datetime.datetime.now()
                     db.commit()
                     socketio.emit('message_read', {
-                        'room_id': room_id,
+                        'room_id': room_value,
                         'user_id': user_id
                     }, room=str(room_id))
         except Exception as e:

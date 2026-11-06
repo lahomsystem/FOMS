@@ -4,17 +4,32 @@ import datetime
 from foms.services.error_logging import log_handled_exception
 import os
 
-from flask import jsonify, redirect, request, send_file, session
+from flask import g, jsonify, redirect, request, send_file, session
 
+from db import get_db
 from foms.web.auth import log_access, login_required
 from foms.api.channel.blueprint import chat_bp
 from foms.api.channel.utils import allowed_chat_file, get_chat_file_max_size
 from foms.api.files.routes import build_file_view_url
+from foms.services.chat_room_access import chat_file_denial
 from foms.services.files.upload_policy import (
     CHAT_ALLOWED_EXTENSIONS,
     DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES,
 )
 from foms.services.storage import get_storage
+
+
+def _deny_chat_file(storage_key):
+    """채팅 파일 key 범위 판정(내가 회원인 방에 처음 올라온 ``chat/`` 첨부만) → 거부 응답 또는 None.
+
+    설계서 FCOMM-01 §6.4(D19): 예전에는 로그인만 하면 아무 저장소 key 에나 서명했다.
+    시험: tests/security/test_chat_file_key_scope.py
+    """
+    denied = chat_file_denial(get_db(), getattr(g, "current_user", None), storage_key)
+    if denied is None:
+        return None
+    status, message = denied
+    return jsonify({"success": False, "message": message}), status
 
 
 @chat_bp.route("/api/chat/upload/session", methods=["POST"])
@@ -209,6 +224,9 @@ def api_chat_download(storage_key):
     try:
         if ".." in storage_key or storage_key.startswith("/"):
             return jsonify({"success": False, "message": "잘못된 파일 경로입니다."}), 400
+        denied = _deny_chat_file(storage_key)
+        if denied:
+            return denied
         storage = get_storage()
         if storage.storage_type in ["r2", "s3"]:
             url = storage.get_download_url(storage_key, expires_in=3600)
@@ -234,6 +252,9 @@ def api_chat_preview(storage_key):
     try:
         if ".." in storage_key or storage_key.startswith("/"):
             return jsonify({"success": False, "message": "잘못된 파일 경로입니다."}), 400
+        denied = _deny_chat_file(storage_key)
+        if denied:
+            return denied
         storage = get_storage()
         filename = storage_key.rsplit("/", 1)[-1] if "/" in storage_key else storage_key
         file_type = storage.get_file_type(filename)

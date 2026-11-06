@@ -23,10 +23,15 @@ from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, 
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
-from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
+from foms.services.notifications.recipients import (
+    INTERNAL_USERS_ONLY,
+    broad_recipient_ids,
+    fan_out_new_notification,
+    manager_name_recipient_ids,
+    team_condition,
+)
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
-from foms.services.orders.manager_names import normalize_name_list
 from db import get_db
 from models import (
     Notification,
@@ -73,9 +78,9 @@ def invalidate_badge_cache_for_user_ids(user_ids):
 
 def resolve_notification_recipient_user_ids(
     db, target_type=None, target_team=None, target_manager_name=None,
-    target_user_ids=None, include_admin=True, target_role=None
+    target_user_ids=None, include_admin=True, target_role=None, order_id=None
 ):
-    """알림 타겟 기준으로 수신 사용자 ID 집합을 계산.
+    """알림 타겟 기준으로 수신 사용자 ID 집합을 계산(실시간 소켓 전송 · 배지 무효화 대상).
 
     target_type:
       ALL  -> 전체 활성 사용자
@@ -84,22 +89,19 @@ def resolve_notification_recipient_user_ids(
       USER -> target_user_ids 직접 지정
       ORDER/None -> 기존 방식 (target_team/target_manager_name)
 
-    `resolve_recipients_for_notification`(state 물질화)의 역할 경로와 같은 집합을 내야
-    배지 무효화 대상이 실제 수신자와 어긋나지 않는다.
+    `resolve_recipients_for_notification`(state 물질화)과 같은 공통 규칙(``recipients.broad_recipient_ids`` ·
+    ``recipients.manager_name_recipient_ids``)만 쓴다 — 넓은 경로는 협력사 · 켜진 프리랜서를 빼고, 담당 이름
+    경로의 프리랜서는 ``order_id`` 주문에 연결 줄이 있어야 받는다(FCOMM-01 겹 5 · 검수 A4). 그래야 소켓 전송 ·
+    배지 무효화 대상이 실제 state 수신자와 어긋나지 않는다. ``include_admin`` 은 관리자(ADMIN)를 더한다.
     """
     ttype = (target_type or "").strip().upper()
 
     if ttype == "ALL":
-        return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
+        return broad_recipient_ids(db)
 
     role = (target_role or "").strip().upper()
     if ttype == "ROLE" and role:
-        return {
-            int(r[0])
-            for r in db.query(User.id)
-            .filter(func.upper(User.role) == role, User.is_active == True, INTERNAL_USERS_ONLY)  # noqa: E712
-            .yield_per(500)
-        }
+        return broad_recipient_ids(db, func.upper(User.role) == role)
 
     if ttype == "USER" and target_user_ids:
         out = set()
@@ -110,25 +112,17 @@ def resolve_notification_recipient_user_ids(
                 continue
         return out
 
-    team = (target_team or "").strip().upper()
-    manager_name = (target_manager_name or "").strip()
-
-    conditions = []
-    if team:
-        # MEASURE 표기 계정도 영업(SALES)으로 받는다 — recipients 팀 경로와 같은 집합(배지 무효화 일치).
-        from foms.services.notifications.recipients import expand_team_codes
-
-        conditions.append(func.upper(User.team).in_(expand_team_codes(team)))
-    if manager_name:
-        # MULTI-MGR-01: "김의종, 한용희" = 담당자 여러 명(recipients 와 같은 규칙).
-        conditions.append(User.name.in_(normalize_name_list(manager_name)))
+    # MEASURE 표기 계정도 영업(SALES)으로 받는다 — recipients 팀 경로와 같은 집합(배지 무효화 일치).
+    broad = []
+    team_cond = team_condition(target_team)
+    if team_cond is not None:
+        broad.append(team_cond)
     if include_admin:
-        conditions.append(User.role == "ADMIN")
-
-    if not conditions:
-        return set()
-
-    return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
+        broad.append(User.role == "ADMIN")
+    out = broad_recipient_ids(db, or_(*broad)) if broad else set()
+    # MULTI-MGR-01: "김의종, 한용희" = 담당자 여러 명(recipients 와 같은 규칙).
+    out |= manager_name_recipient_ids(db, target_manager_name, order_id)
+    return out
 
 
 def _ensure_dict(data):
