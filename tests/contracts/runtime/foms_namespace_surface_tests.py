@@ -2264,6 +2264,8 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         # PARTNER-01: 외부 협력사 전용 화면(공용 레이아웃을 쓰지 않는 단독 템플릿).
         "partner",
         "production",
+        # FCOMM-01: 프리랜서 "내 수수료" 화면 /erp/my-commission(설계서 2026-11-06-freelancer-sales-commission §2.2).
+        "sales_commission",
         "shipment",
         "wdcalculator",
     }

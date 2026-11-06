@@ -2213,7 +2213,9 @@ async function erpLoadStructured(bootstrapData, options) {
         const selectEl = document.getElementById('erp-orderer-select');
         const inputEl = document.getElementById('erp-orderer');
         const directCb = document.getElementById('erp-orderer-direct');
-        if (ordererName === '라홈' || ordererName === '하우드' || ordererName === '숨고') {
+        // 선택지에 있는 이름이면(라홈 · 하우드 · 숨고 · 켜진 프리랜서 맞출 이름 — FCOMM-01 D3) 고르고, 아니면 직접 입력.
+        const inSelect = !!(ordererName && selectEl && Array.prototype.some.call(selectEl.options, function (o) { return o.value === ordererName; }));
+        if (inSelect) {
             if (selectEl) selectEl.value = ordererName;
             if (directCb) directCb.checked = false;
             if (inputEl) inputEl.value = '';
