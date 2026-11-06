@@ -97,6 +97,24 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "attachments.api_order_attachments_complete",
     "attachments.api_upload_session",
     "attachments.api_upload_session_batch",
+    # 첨부 지우기 · 제품에 잇기(D23). 첨부가 URL 주문 것인지는 핸들러가 본다(order_id 로 같이 찾는다),
+    # 누가 지울 수 있는지는 can_delete/can_modify_order_attachment(주문 담당 · 올린 사람).
+    "attachments.api_order_attachments_delete",
+    "attachments.api_order_attachments_patch",
+    # ── 주문 화면 보내기(D22): 실측 예약 알림톡 미리보기 · 보내기 · 나간 채널 확인, 채널톡 PUSH.
+    #    PUSH 종류는 영발 · 실측만(겹 4 — freelancer_edit_guards.freelancer_push_kind_denial).
+    "kakao.api_alimtalk_preview",
+    "kakao.api_alimtalk_send_manual",
+    "kakao.api_alimtalk_confirm_channel",
+    "channel_integration.api_channel_push_manual",
+    # ── 실측 일(D23): 도면으로 넘기기(퀘스트 승인 — 실측 단계만, 겹 4) · 실측 판 칸 고치기(담당자는 등록 뒤
+    #    잠금, 겹 4) · 방문 체크
+    "quest.api_order_quest_approve",
+    "erp_measurement.api_erp_measurement_update",
+    "orders.api_order_measurement_visit",
+    # 긴급 호출(D23) — 받는 사람 목록(직원 이름 · 팀) · 보내기(주문을 고르면 내 주문만)
+    "notifications.api_urgent_targets",
+    "notifications.api_urgent_call",
     # 파일 관문 3종 — 안에서 user_can_read_order 로 주문 단위 판정(겹 2 가 프리랜서 분기를 넣는다)
     "files.view",
     "files.presigned_urls",
@@ -151,6 +169,15 @@ FREELANCER_ORDER_VIEW_ARGS: dict[str, tuple[str, ...]] = {
     "attachments.api_order_attachments_upload": ("order_id",),
     # 본문 key 는 핸들러가 URL 주문과 같은지 본다(validate_upload_key) — URL 하나만 보면 된다.
     "attachments.api_order_attachments_complete": ("order_id",),
+    # attachment_id 는 주문 번호가 아니다 — 핸들러가 (attachment_id, order_id) 둘 다로 찾는다.
+    "attachments.api_order_attachments_delete": ("order_id",),
+    "attachments.api_order_attachments_patch": ("order_id",),
+    "kakao.api_alimtalk_preview": ("order_id",),
+    "kakao.api_alimtalk_send_manual": ("order_id",),
+    "kakao.api_alimtalk_confirm_channel": ("order_id",),
+    "quest.api_order_quest_approve": ("order_id",),
+    "erp_measurement.api_erp_measurement_update": ("order_id",),
+    "orders.api_order_measurement_visit": ("order_id",),
 }
 
 #: query string 중 주문 번호(정수로 읽히는 값만 — 핸들러도 그 밖은 버린다).
@@ -170,22 +197,41 @@ def _body_json() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _key_order_ids(value: Any) -> list[int]:
-    """저장소 key · 폴더 ``orders/<id>/...`` 의 주문 번호 — 정리 전 · 뒤를 다 본다(핸들러가 어느 쪽을 쓰든)."""
+def _key_order_ids(value: Any) -> Optional[list[int]]:
+    """저장소 key · 폴더 ``orders/<id>/...`` 의 주문 번호.
+
+    정규형이 아닌 key(``..`` · ``.`` · ``//`` · 끝 ``/`` — ``posixpath.normpath`` 결과가 다르면)는 앞머리를 믿지 않고
+    None(바로 거부)이다(검수 R8). 정규형이면 ``orders/<id>/`` 꼴일 때 그 번호, 아니면 빈 목록.
+    """
     if not isinstance(value, str) or not value.strip():
         return []
     raw = value.strip()
-    out: list[int] = []
-    for candidate in {raw, posixpath.normpath(raw)}:
-        parts = candidate.split("/")
-        if len(parts) >= 2 and parts[0] == "orders" and parts[1].isdigit():
-            out.append(int(parts[1]))
-    return out
+    if posixpath.normpath(raw) != raw:
+        return None
+    parts = raw.split("/")
+    if len(parts) >= 2 and parts[0] == "orders" and parts[1].isdigit():
+        try:
+            return [int(parts[1])]
+        except ValueError:  # isdigit 는 맞지만 int 가 못 읽는 글자(위 첨자 숫자 등)
+            return None
+    return []
 
 
 def _upload_folder_order_ids(user: Any) -> Optional[list[int]]:
-    """올리기 세션(1장 · 여러 장) 본문 ``folder`` = ``orders/<id>/<칸>``."""
+    """올리기 세션(1장 · 여러 장) 본문 ``folder`` = ``orders/<id>/<칸>``. 정규형이 아니면 None."""
     return _key_order_ids(_body_json().get("folder"))
+
+
+def _body_order_id(user: Any) -> Optional[list[int]]:
+    """본문 ``order_id``(채널톡 PUSH · 긴급 호출). 핸들러와 같은 ``int()`` 로 읽는다 — 소수 · 참값도 핸들러가 읽는
+    번호 그대로 본다. 비었거나 못 읽으면 빈 목록(핸들러가 400 · 500 으로 끝내 주문을 읽지 않는다)."""
+    raw = _body_json().get("order_id")
+    if raw is None or raw == "":
+        return []
+    try:
+        return [int(raw)]
+    except (TypeError, ValueError, OverflowError):
+        return []
 
 
 def _draft_attachment_keys(body: dict[str, Any]) -> list[str]:
@@ -206,7 +252,7 @@ def _draft_attachment_keys(body: dict[str, Any]) -> list[str]:
 def _wizard_draft_order_ids(user: Any) -> Optional[list[int]]:
     """마법사 초안 저장 · 등록 본문.
 
-    * ``order_id``(PUT) — 초안 표에 그대로 들어가고 되채우기가 ``CREATOR`` 근거로 읽는다(``links.creator_links``).
+    * ``order_id``(PUT) — 손님이 적는 값이라 초안 표에 남의 번호가 들어가지 않게 막는다(되채우기 ``CREATOR`` 는 이제 생성 이벤트만 근거로 쓴다 — R9).
       남의 번호를 적으면 그 주문이 내 것이 된다.
     * 첨부 ``tmp_key`` — 등록이 그 key 로 새 주문의 첨부 줄을 만든다(``promote_draft_attachments``). 내 초안 폴더
       ``order-drafts/<나>/`` 밖이면 거부, ``orders/<id>/`` 꼴이면 그 주문 판정.
@@ -220,9 +266,11 @@ def _wizard_draft_order_ids(user: Any) -> Optional[list[int]]:
     own_prefix = f"order-drafts/{getattr(user, 'id', '')}/"
     for key in _draft_attachment_keys(body):
         key_orders = _key_order_ids(key)
+        if key_orders is None:
+            return None
         if key_orders:
             ids.extend(key_orders)
-        elif posixpath.normpath(key) != key or not key.startswith(own_prefix):
+        elif not key.startswith(own_prefix):
             return None
     return ids
 
@@ -233,6 +281,9 @@ FREELANCER_ORDER_BODY_CHECKS: dict[str, Callable[[Any], Optional[list[int]]]] = 
     "attachments.api_upload_session_batch": _upload_folder_order_ids,
     "erp_order_draft.api_put_order_draft": _wizard_draft_order_ids,
     "erp_order_draft.api_submit_order_draft": _wizard_draft_order_ids,
+    "channel_integration.api_channel_push_manual": _body_order_id,
+    # 주문 없이도 보낸다(맨 위 줄 ⚡) — order_id 가 있을 때만 내 주문인지 본다.
+    "notifications.api_urgent_call": _body_order_id,
 }
 
 FREELANCER_DENIED_MSG = "프리랜서 계정으로는 열 수 없는 화면이에요."

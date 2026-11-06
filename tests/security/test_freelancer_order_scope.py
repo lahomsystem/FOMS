@@ -55,6 +55,9 @@ _NON_ORDER_INT_ARGS: dict[str, set[str]] = {
     "notifications.api_notification_ack": {"notification_id"},
     "notifications.api_notification_archive": {"notification_id"},
     "notifications.api_notification_mark_read": {"notification_id"},
+    # 첨부 번호 — 핸들러가 (attachment_id, URL order_id) 둘 다로 찾는다(남의 주문 첨부는 없는 것).
+    "attachments.api_order_attachments_delete": {"attachment_id"},
+    "attachments.api_order_attachments_patch": {"attachment_id"},
 }
 # 주문 번호를 핸들러가 key 에서 찾아 ``user_can_read_order`` 로 보는 것(파일 관문 3종).
 _HANDLER_CHECKED = {"files.view", "files.presigned_urls", "files.download"}
@@ -81,6 +84,7 @@ _NO_ORDER_ID = {
     "erp_order_draft_send.api_draft_alimtalk_send", "erp_order_draft_send.api_draft_channel_push_preview",
     "erp_order_draft_send.api_draft_channel_push_send", "address.search",
     "erp_orders_structured.api_parse_order_text", "events.api_change_reason_codes",
+    "notifications.api_urgent_targets",
 }
 
 
@@ -138,8 +142,10 @@ def _client(app, user: User):
 @pytest.fixture
 def world(app):
     fl = _freelancer()
-    own, other = _order(), _order()
-    _link(own, fl)
+    # 내 주문은 담당 뱃지도 나다 — 저장 훅이 연결 줄을 다시 셀 때(퀘스트 승인 등 실제 저장) 그대로 남는다.
+    own, other = _order(manager=fl.match_name), _order()
+    if not _links(own, fl):
+        _link(own, fl)
     return {"fl": fl, "own": own, "other": other}
 
 
@@ -241,8 +247,15 @@ def test_url_order_id_gate_own_passes_other_404(app, world):
     assert leaks == []
 
 
-def test_url_order_id_real_requests(app, world):
-    """실제 요청: 내 주문은 범위 404 가 아니다(핸들러의 보통 검증 오류는 괜찮다). 남의 주문은 404."""
+def test_url_order_id_real_requests(app, world, monkeypatch):
+    """실제 요청: 내 주문은 범위 404 가 아니다(핸들러의 보통 검증 오류는 괜찮다). 남의 주문은 404.
+
+    알림톡 보내기 · 채널 확인은 바깥(Solapi)을 부르지 않게 바꿔 둔다(D22 로 연 문)."""
+    import foms.api.kakao as kakao_api
+
+    monkeypatch.setattr(kakao_api, "is_configured", lambda *a, **k: True)
+    monkeypatch.setattr(kakao_api, "send_alimtalk", lambda *a, **k: {"sent": False, "error": "test_stub"})
+    monkeypatch.setattr(kakao_api, "confirm_channel", lambda *a, **k: {"error": "no_history", "checked": False})
     client = _client(app, world["fl"])
     wrong = []
     for rule, method in _url_order_cases(app):
