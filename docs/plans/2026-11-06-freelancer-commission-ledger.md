@@ -41,7 +41,7 @@
 | T8 | DONE | deploy `a6548ca37`(smoke PASSED 16,501 · CI 4종 green · Railway staging SUCCESS). 스테이징 실화면 체크 1~9 통과(가상 주문 6건 · 시험 계정 id97, 정리 끝). 결함 3 고침 `d46734589`(차감 창 버튼 색 · 알림 달 주소 · 폰 셸) — 재배포 뒤 다시 볼 것 |
 | T9 | DONE | `5589282ee` 마감 표 fcomm_01 · 서비스 · API 5개, 시험 27 · PG 왕복 15 통과. 남은 것: 저장 직후 줄이 마감 여부를 모름(T10·T12) |
 | T10 | DONE | 마감 단추·확인 창·마감 기록·CSV·내 수수료 확정 표시. 메인 재실행 197 통과. 실브라우저 미확인 → T11 |
-| T11 | PENDING | |
+| T11 | IN_PROGRESS | 11-06 deploy `819faa394`(smoke PASSED 16,581). CI·배포 확인 뒤 스테이징 마감 화면 확인 + T8 결함 3 재확인 |
 | T12 | PENDING | 2027-01-10 전 |
 | T13 | PENDING | |
 | T14 | PENDING | |
