@@ -6266,6 +6266,10 @@
     if (!sel || !sel.rangeCount) { return; }
     var holder = document.createElement('div');
     holder.style.cssText = editCtx.area.style.cssText;
+    // 색 조각 안쪽만 고르면 복사본에 감싼 span 이 안 딸려 온다 → 고른 자리의 실제 색·굵기를 바깥 틀에 입힌다.
+    var anc = sel.getRangeAt(0).commonAncestorContainer;
+    var cs = window.getComputedStyle(anc.nodeType === 1 ? anc : anc.parentNode);
+    holder.style.color = cs.color; holder.style.fontWeight = cs.fontWeight;
     holder.style.position = 'fixed'; holder.style.left = '-9999px'; holder.style.top = '0';
     holder.appendChild(sel.getRangeAt(0).cloneContents());
     document.body.appendChild(holder);
