@@ -168,8 +168,9 @@
     var box = el('div', { cls: 'brain-prop__edit', attrs: { 'data-brain-edit-box': '1' } });
     box.hidden = true;
     var labels = {};
-    review.diffRows(prop.fields, ctx.display).forEach(function (r) { labels[r.field] = r.label; });
-    prop.fields.filter(function (r) { return review.editableFields(prop).indexOf(r.field) >= 0; }).forEach(function (row) {
+    var rows = review.editRows(prop);  // 바꾼 칸 + 바꾸지 않은 내용 칸(D177)
+    review.diffRows(rows, ctx.display).forEach(function (r) { labels[r.field] = r.label; });
+    rows.forEach(function (row) {
       box.appendChild(el('label', { cls: 'brain-propose__field', children: [
         el('span', { text: labels[row.field] + (row.unit ? '(' + row.unit + ')' : '') + ' — 고친 값' }), editInput(row)] }));
     });

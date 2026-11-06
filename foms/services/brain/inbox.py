@@ -286,6 +286,17 @@ def _diff(change: BrainChange) -> list[dict[str, Any]]:
     return rows
 
 
+def _edit_extra(change: BrainChange, cur: Optional[BrainObject]) -> list[dict[str, Any]]:
+    """제안이 바꾸지 않지만 고쳐 넣기로 고칠 수 있는 칸 — 고침 제안에 내용(``text``)이 없으면 지금 내용 한 줄(사장님 11-06 D177
+    '이름표만 바꾸는 카드도 내용을 고쳐 승인'). 전 → 후 줄 · 한 줄 요약에는 넣지 않고 고칠 칸에만 보인다."""
+    if change.op != OP_UPDATE or "text" in (change.fields or {}) or cur is None or not cur.text:
+        return []
+    rows = diff_rows(change.item_type, {"text": {"before": cur.text, "after": cur.text}})
+    for row in rows:
+        row.update(editable=True, datatype="text", choices=[], unchanged=True)
+    return rows
+
+
 def _base_changed(change: BrainChange, cur: Optional[BrainObject], links: dict[tuple[str, str, str], int]) -> dict:
     """기준 판 비교 — ``{"changed", "current"}``(만들기는 지금 줄이 생겼으면 바뀜)."""
     if change.op in LINK_OPS:
@@ -352,7 +363,8 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "proposer": actor_label(change.proposed_by, names), "reason": change.reason or "",
         "photos": [e for e in evidence if e.startswith(PHOTO_PREFIX)],
         "evidence": [e for e in evidence if not e.startswith(PHOTO_PREFIX)],
-        "fields": _diff(change), "base_version": change.base_version, "base": _base_changed(change, cur, links),
+        "fields": _diff(change), "edit_extra": _edit_extra(change, cur), "base_version": change.base_version,
+        "base": _base_changed(change, cur, links),
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
         "meaning": approval_meaning(change.op, change.item_type,
                                     card_bin(change.op, change.item_type, change.fields, change.link_kind)),

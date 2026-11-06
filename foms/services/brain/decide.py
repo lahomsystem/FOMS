@@ -175,11 +175,15 @@ def _edit_payload(fields: dict[str, Any], current: Mapping[str, Any], sub: str, 
     fields["payload"] = entry
 
 
-def _check_confirm(change: BrainChange, confirm: Optional[Mapping[str, Any]]) -> None:
-    """등급 B — 핵심 값 하나를 화면이 보낸 글과 견준다(고쳐 넣기면 고친 값)."""
+def _check_confirm(change: BrainChange, confirm: Optional[Mapping[str, Any]],
+                   typed: Optional[Mapping[str, Any]] = None) -> None:
+    """등급 B — 핵심 값 하나를 화면이 보낸 글과 견준다(고쳐 넣기면 고친 값). 그 핵심 칸을 사람이 직접 고쳐 넣었으면(``typed``)
+    고쳐 쓴 것이 확인이다(사장님 D177 — 이름표만 바꾸는 카드에서 내용을 고치면 핵심 칸이 내용으로 바뀐다)."""
     if change.grade != GRADE_B:
         return
     field, value = confirm_value(change.op, change.fields, change.item_type)
+    if typed and field in typed:
+        return
     got = confirm or {}
     if got.get("field") != field or str(got.get("value", "")) != value:
         raise BrainConfirmError(field)
@@ -202,7 +206,7 @@ def apply_decision(session: Any, change_id: Any, *, actor: Any, base_version: An
     if edits:
         _apply_edits(session, change, edits)
     if not bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind, wide_bins(viewer_of(actor))):
-        _check_confirm(change, confirm)  # ① 이름표만 · ④ 사본 링크만은 확인할 핵심 값(글 · 금액)이 없다(D151 · D167)
+        _check_confirm(change, confirm, edits)  # ① 이름표만 · ④ 사본 링크만은 확인할 핵심 값(글 · 금액)이 없다(D151 · D167)
     detail = _timing(change, view_ms, now, edited=bool(edits), bulk=bulk)
     action = "bulk_apply" if bulk else ("edit_apply" if edits else "apply")
     return apply_change(session, change.id, actor=actor, now=now, detail=detail, action=action)

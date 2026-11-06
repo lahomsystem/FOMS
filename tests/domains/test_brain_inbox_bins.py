@@ -350,3 +350,27 @@ def test_cs_manager_decides_label_only_changes_of_any_layer_and_type_but_nothing
     assert sorted(a["id"] for a in out["applied"]) == sorted([price.id, door.id]) and out["failed"] == []
     assert current_object(db_session, "common/shipping").payload["pref_label"] == "운임 추가비"
     assert current_object(db_session, "common/shipping").text == "지역별 운임 기준"  # 글은 그대로
+
+
+def test_label_only_change_also_opens_the_current_text_and_approves_an_edited_text(app):
+    """사장님 D177 — 이름표만 바꾸는 고침 제안도 지금 내용을 고칠 칸(edit_extra)으로 열고, 고친 내용으로 승인하면 항목 글이 바뀐다.
+    내용이 바뀌는 제안은 edit_extra 가 없다(대조군 — 내용 칸은 이미 전 → 후 줄에 있다)."""
+    from foms.services.brain.decide import apply_decision
+
+    world = review_world(db_session)
+    admin = world["people"]["admin"]
+    _tpl(admin)
+    tpl = _label_change(admin, "lahom/tpl", "첫인사 상용구")
+    db_session.commit()
+    cards = inbox(db_session, viewer_of(admin), now=LATER)["cards"]
+    main = next(c for c in cards if c["main"]["id"] == tpl.id)["main"]
+    assert [r["field"] for r in main["fields"]] == ["payload.pref_label"]
+    assert [(r["field"], r["before"], r["after"], r["editable"]) for r in main["edit_extra"]] == [
+        ("text", "안녕하세요", "안녕하세요", True)]
+    price = next(c for c in cards if c["main"]["id"] == world["changes"]["price"])["main"]
+    assert price["edit_extra"] == []
+    apply_decision(db_session, tpl.id, actor=admin, base_version=tpl.base_version, now=LATER,
+                   edits={"payload.pref_label": "첫인사 상용구", "text": "안녕하세요, 반갑습니다"})
+    db_session.commit()
+    row = current_object(db_session, "lahom/tpl")
+    assert row.text == "안녕하세요, 반갑습니다" and row.payload["pref_label"] == "첫인사 상용구"
