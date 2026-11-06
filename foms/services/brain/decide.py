@@ -32,7 +32,7 @@ from foms.services.brain.errors import (
     BrainConfirmError, BrainConflictError, BrainError, BrainPermissionError, BrainShapeError, BrainTargetError,
 )
 from foms.services.brain.gates import merge_gates, payload_gates, text_gates
-from foms.services.brain.inbox import agent_clause, current_join, link_versions, visible_clause
+from foms.services.brain.inbox import capped_clause, current_join, link_versions, visible_clause
 from foms.services.brain.inbox_bins import bulk_ok_any_grade, label_only_change
 from foms.services.brain.proposals import known_text, link_target_type
 from foms.services.brain.review_rules import ai_cutoff, clamp_ms, confirm_value
@@ -46,7 +46,7 @@ from models import SecurityLog
 def expire_ai_proposals(session: Any, *, now: datetime.datetime) -> int:
     """만든 뒤 4주가 지난 **AI 제안만** '기간 끝남'으로 닫는다(사람 제안은 그대로). 닫은 수를 돌려주고 감사 한 줄."""
     result = session.execute(update(BrainChange).where(
-        BrainChange.status == CHANGE_OPEN, agent_clause(), BrainChange.created_at < ai_cutoff(now),
+        BrainChange.status == CHANGE_OPEN, capped_clause(), BrainChange.created_at < ai_cutoff(now),
     ).values(status=CHANGE_EXPIRED, decided_at=now, decided_action="expire")
         .execution_options(synchronize_session="fetch"))
     count = int(result.rowcount or 0)
