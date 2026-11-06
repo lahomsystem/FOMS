@@ -42,6 +42,7 @@ __all__ = [
     "closed_order_ids",
     "commission_row_for_order",
     "commission_rows",
+    "current_values",
     "input_payload",
 ]
 
@@ -443,3 +444,34 @@ def commission_row_for_order(db, order_id: int) -> Optional[dict[str, Any]]:
     edits = _self_edits(db, [int(order.id)], cfg.user_id).get(int(order.id), [])
     return _build_row(order, sd, fields, cfg=cfg, deal_type=deal_type, basis=BASIS_COMPLETION,
                       input_row=input_row, self_edits=edits)
+
+
+def current_values(db, order_ids: Iterable[int], user_id: int) -> dict[int, dict[str, Any]]:
+    """마감에 들어간 주문들의 지금 값 — 조정 줄 다시 계산용(설계서 §8.2 · J9 — 플랜 T12).
+
+    조회는 주문 1번 · 시공비 입력 1번. 주인 · 거래구분 · 대상 여부는 다시 판정하지 않는다(마감 때 굳힌 값을 쓴다).
+    차감은 ``user_id``(굳힌 주인)에게 붙은 유효 영업 차감만 더한다. 지워졌거나 초안 · 협력사 주문은 결과에 없다.
+
+    Returns:
+        ``{order_id: {stage_done, shipping_price, install_cost, rate_override_bp, deduction_total,
+        customer_name, product_summary}}``.
+    """
+    ids = sorted({int(i) for i in order_ids})
+    if not ids:
+        return {}
+    orders = fetch_settlement_rows(db, _ORDER_COLUMNS, _scope_filters() + (Order.id.in_(ids),), COMMISSION_SD_SPEC)
+    inputs = _inputs(db, [int(order.id) for order in orders])
+    out: dict[int, dict[str, Any]] = {}
+    for order in orders:
+        sd = _ensure_dict(order.structured_data)
+        saved = input_payload(int(order.id), inputs.get(int(order.id)))
+        out[int(order.id)] = {
+            "stage_done": str(order.erp_stage_code or "").strip().upper() in calc.COMPLETED_STAGES,
+            "shipping_price": calc.commission_shipping_price(sd),
+            "install_cost": saved["install_cost"],
+            "rate_override_bp": saved["rate_override_bp"],
+            "deduction_total": calc.sales_deduction_total(sd, user_id),
+            "customer_name": _customer_name(sd, order),
+            "product_summary": _product_summary(sd),
+        }
+    return out

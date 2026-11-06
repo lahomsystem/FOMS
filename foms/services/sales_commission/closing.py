@@ -7,8 +7,9 @@
   (``WAIT_RATE``)을 기다리는 줄은 빠지고, 값이 들어간 뒤의 마감에 저절로 들어간다(넘김 칸 없음, 검수 A15).
   시작 달(D8)이 아래 한계라 엑셀로 지급한 달은 들어오지 않는다.
 - 줄은 마감 때 값으로 굳힌다(``lines`` 스냅샷). 한 번 마감에 들어간 주문은 뒤에 대표 담당 · 발주사가 바뀌어도
-  누구의 일반 줄에도 다시 나오지 않는다(J9, 검수 A14). 그 뒤 바뀐 금액은 다음 마감의 조정 줄(``ADJUST`` — T12)
-  몫이다. 지금은 :func:`_adjust_lines` 가 빈 목록을 돌려준다 — T12 는 그 함수 몸통만 채우면 되고 부르는 쪽은 그대로다.
+  누구의 일반 줄에도 다시 나오지 않는다(J9, 검수 A14). 그 뒤 바뀐 금액은 다음 마감의 조정 줄(``ADJUST``) 몫이다 —
+  :func:`foms.services.sales_commission.adjust.compute_adjustments` 가 F 의 앞선 마감 주문을 굳힌 주인 · 거래구분 ·
+  요율로 다시 계산해 차액을 싣는다(§8.2 · T12). 지워졌거나 단계가 되돌려진 주문은 조정하지 않고 미리 보기에 알린다.
 - 달은 오름차순으로만 마감한다. 마감 · 마감 취소는 트랜잭션 맨 앞에서 설정 줄(``SystemSetting``)을 ``FOR UPDATE``
   로 잡아 줄 세운다 — 같은 F 의 두 달 동시 마감 · 마감과 취소의 엇갈림을 막는다(검수 A16).
 - 합계(일반 + 조정)가 0 이하면 마감하지 않는다. 세금은 합계에 한 번 매긴다(§3.5, :func:`calc.tax_breakdown`).
@@ -27,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive
 from foms.services.sales_commission import calc
+from foms.services.sales_commission.adjust import KIND_ADJUST, KIND_NORMAL, compute_adjustments, line_label
 from foms.services.sales_commission.read_model import (
     BASIS_COMPLETION,
     STATE_DONE,
@@ -60,8 +62,6 @@ __all__ = [
 
 STATUS_CLOSED = "CLOSED"
 STATUS_PAID = "PAID"
-KIND_NORMAL = "NORMAL"
-KIND_ADJUST = "ADJUST"  # T12 조정 줄
 REASON_MAX = 500
 TARGET_TYPE = "sales_commission_closing"
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -106,12 +106,6 @@ def _check_user_id(user_id: Any) -> int:
         raise ClosingError("프리랜서를 골라 주세요.") from None
 
 
-def _label(row: dict[str, Any]) -> str:
-    """내려받기용 "고객명 · 품목" 스냅샷."""
-    parts = [str(row.get("customer_name") or "").strip(), str(row.get("product_summary") or "").strip()]
-    return " · ".join(p for p in parts if p) or "-"
-
-
 def _normal_line(row: dict[str, Any]) -> dict[str, Any]:
     """``DONE`` 줄 하나 → 굳힌 마감 줄(§4.3 줄 모양 + 시공 완료 달)."""
     return {
@@ -123,24 +117,16 @@ def _normal_line(row: dict[str, Any]) -> dict[str, Any]:
         "deduction_total": int(row["deduction_total"] or 0),
         "rate_bp": int(row["rate_bp"] or 0),
         "commission": int(row["commission"] or 0),
-        "label": _label(row),
+        "label": line_label(row),
         "completion_month": row.get("completion_month"),
     }
 
 
-def _adjust_lines(db, cfg: FreelancerConfig, month: str) -> list[dict[str, Any]]:
-    """조정 줄(설계서 §8.2 — T12). 지금은 없다.
-
-    T12 가 이 몸통만 채운다: ``closed_order_ids(db, cfg.user_id)`` 의 주문을 굳힌 주인 · 거래구분으로 다시 계산해
-    ``지금 값 − 지금까지 그 주문에 마감된 줄 합 ≠ 0`` 이면 ``kind=ADJUST`` 줄. 부르는 쪽(:func:`_compute`)은 그대로다.
-    첫 지급(12-10)은 앞선 마감이 없어 조정이 없다.
-    """
-    del db, cfg, month
-    return []
-
-
 def _compute(db, cfg: FreelancerConfig, month: str) -> dict[str, Any]:
-    """마감 줄 · 합계 · 세금 · 기다리는 줄(쿼리는 :func:`commission_rows` 한 번 + 조정)."""
+    """마감 줄 · 합계 · 세금 · 기다리는 줄 · 조정에서 빠진 주문(쿼리는 :func:`commission_rows` 한 번 + 조정 3번).
+
+    조정 줄(§8.2)은 F 의 앞선 마감 전부를 다시 센다 — 첫 마감은 앞선 마감이 없어 조정이 없다.
+    """
     data = commission_rows(db, cfg.user_id, month, BASIS_COMPLETION)
     normal: list[dict[str, Any]] = []
     waiting: list[dict[str, Any]] = []
@@ -148,13 +134,15 @@ def _compute(db, cfg: FreelancerConfig, month: str) -> dict[str, Any]:
         if row["state"] == STATE_DONE:
             normal.append(_normal_line(row))
         elif row["state"] in _WAITING_STATES:
-            waiting.append({"order_id": int(row["order_id"]), "state": row["state"], "label": _label(row),
+            waiting.append({"order_id": int(row["order_id"]), "state": row["state"], "label": line_label(row),
                             "completion_month": row.get("completion_month")})
-    lines = normal + _adjust_lines(db, cfg, month)
-    gross = sum(int(line["commission"]) for line in lines)
+    adjust, skipped = compute_adjustments(db, cfg.user_id)
+    lines = normal + adjust
+    gross = sum(int(line["commission"]) for line in lines)  # 일반 + 조정. 0 이하면 마감 거부(§8.1)
     totals = calc.tax_breakdown(gross, cfg.tax_type)
     counts = {state: sum(1 for w in waiting if w["state"] == state) for state in _WAITING_STATES}
-    return {"lines": lines, "totals": totals, "waiting": waiting, "waiting_counts": counts}
+    return {"lines": lines, "totals": totals, "waiting": waiting, "waiting_counts": counts,
+            "adjust_skipped": skipped}
 
 
 def _block_reason(db, user_id: int, month: str, gross: int) -> Optional[tuple[str, int]]:
@@ -226,8 +214,10 @@ def preview_closing(db, user_id: Any, month: Any) -> dict[str, Any]:
     """마감하면 들어갈 줄 · 합계 · 세금 미리 보기(쓰기 없음).
 
     Returns:
-        ``{user_id, month, tax_type, lines, adjust_count, totals{gross, tax_income, tax_local, vat, net},
-        waiting[], waiting_counts{WAIT_COST, WAIT_RATE}, latest_closed_month, can_close, block_reason}``.
+        ``{user_id, month, tax_type, lines, adjust_count, adjust_total, adjust_skipped[],
+        totals{gross, tax_income, tax_local, vat, net}, waiting[], waiting_counts{WAIT_COST, WAIT_RATE},
+        latest_closed_month, can_close, block_reason}``. ``adjust_skipped`` 는 앞선 마감에 있지만 지금 다시 셀 수
+        없어 조정하지 않는 주문(``{order_id, reason, reason_text, label, completion_month}``).
 
     Raises:
         ClosingError: 달 형식이 틀렸거나(400) 켜진 프리랜서가 아니다(404).
@@ -240,12 +230,15 @@ def preview_closing(db, user_id: Any, month: Any) -> dict[str, Any]:
     _check_tax_type(cfg)
     result = _compute(db, cfg, month)
     block = _block_reason(db, uid, month, result["totals"]["gross"])
+    adjust = [line for line in result["lines"] if line["kind"] == KIND_ADJUST]
     return {
         "user_id": uid,
         "month": month,
         "tax_type": cfg.tax_type,
         "lines": result["lines"],
-        "adjust_count": sum(1 for line in result["lines"] if line["kind"] == KIND_ADJUST),
+        "adjust_count": len(adjust),
+        "adjust_total": sum(int(line["commission"]) for line in adjust),
+        "adjust_skipped": result["adjust_skipped"],
         "totals": result["totals"],
         "waiting": result["waiting"],
         "waiting_counts": result["waiting_counts"],
@@ -308,10 +301,13 @@ def close_month(db, user_id: Any, month: Any, *, actor_user_id: Any) -> SalesCom
         db.flush()
     except IntegrityError as exc:  # 잠금 밖에서 같은 달이 먼저 들어간 경우(정상 경로에선 위 순서 검사가 먼저 막는다)
         raise ClosingError("그사이 다른 사람이 이 달을 마감했어요. 새로 고친 뒤 다시 봐 주세요.", 409) from exc
+    detail = _audit_detail(row)
+    # 조정에서 빠진 주문(지워짐 · 단계 되돌림 · 시공비 빈칸)도 남긴다 — 번호와 까닭만(고객명 없음).
+    detail["adjust_skipped"] = [{"order_id": s["order_id"], "reason": s["reason"]} for s in result["adjust_skipped"]]
     db.add(SecurityLog(
         user_id=_actor_id(actor_user_id), action="SALES_COMMISSION_CLOSED", target_type=TARGET_TYPE,
         target_id=row.id, message=f"영업 수수료 마감: {cfg.match_name} {month} · 줄 {len(result['lines'])}개",
-        detail=_audit_detail(row),
+        detail=detail,
     ))
     db.flush()
     return row
