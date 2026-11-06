@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import posixpath
 import re
 from typing import Any
 
@@ -13,6 +15,8 @@ from foms.services.storage import get_storage
 from models import OrderAttachment
 
 _DRAFT_KEY_SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
+
+logger = logging.getLogger(__name__)
 
 
 def sanitize_draft_key_for_storage(draft_key: str) -> str:
@@ -40,6 +44,17 @@ def validate_draft_attachment_upload(filename: str, file_size: int) -> str | Non
     return None
 
 
+def is_own_draft_attachment_key(tmp_key: str, user_id: int | None) -> bool:
+    """``tmp_key`` 가 부른 사람의 초안 폴더(``order-drafts/<나>/``) 아래 정규형 key 인가(검수 R8).
+
+    마법사 첨부 올리기(:func:`draft_attachment_folder`)가 만드는 key 는 언제나 이 꼴이다. 그 밖의 key — 남의 초안 ·
+    다른 주문 파일 · ``..`` 로 폴더를 벗어나는 key — 를 새 주문 첨부 줄로 만들면 남의 파일이 내 주문에 붙는다.
+    """
+    if user_id is None or not tmp_key:
+        return False
+    return posixpath.normpath(tmp_key) == tmp_key and tmp_key.startswith(f"order-drafts/{int(user_id)}/")
+
+
 def promote_draft_attachments(
     db: Session,
     *,
@@ -47,7 +62,10 @@ def promote_draft_attachments(
     items: list[dict[str, Any]],
     user_id: int | None,
 ) -> None:
-    """Create OrderAttachment rows from wizard draft tmp_key references."""
+    """Create OrderAttachment rows from wizard draft tmp_key references.
+
+    부른 사람의 초안 폴더 밖 key 는 건너뛴다(:func:`is_own_draft_attachment_key`).
+    """
     storage = get_storage()
     for item_index, item in enumerate(items):
         if not isinstance(item, dict):
@@ -61,6 +79,9 @@ def promote_draft_attachments(
             tmp_key = str(raw.get("tmp_key") or "").strip()
             filename = str(raw.get("filename") or "").strip()
             if not tmp_key or not filename:
+                continue
+            if not is_own_draft_attachment_key(tmp_key, user_id):
+                logger.warning("초안 폴더 밖 첨부 key 를 승격하지 않음 (order_id=%s, user_id=%s)", order_id, user_id)
                 continue
             if not storage.object_exists(tmp_key):
                 continue

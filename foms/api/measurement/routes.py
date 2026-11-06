@@ -37,6 +37,7 @@ from foms.services.measurement_undated import build_measurement_undated_payload
 from foms.services.measurement_time import parse_measurement_time_minutes
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.orders.manager_names import normalize_manager_party, normalize_name_list
+from foms.services.auth.freelancer_edit_guards import freelancer_manager_change_denial
 
 
 def normalize_address_for_sort(address):
@@ -437,6 +438,9 @@ def api_erp_measurement_update(order_id):
     if field == 'manager':
         from foms.services.erp_display import clean_dict_like_name
         value = clean_dict_like_name(value)
+        # FCOMM-01 D21: 켜진 프리랜서는 등록된 주문의 담당자 명단을 못 바꾼다(초안은 된다).
+        if (manager_denial := freelancer_manager_change_denial(order, normalize_name_list(value))) is not None:
+            return manager_denial
 
     # optional If-Match(mutation_version) 낙관 잠금 — 형식 오류는 삼키지 않고 400.
     if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')

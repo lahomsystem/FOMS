@@ -721,7 +721,12 @@ def test_order_draft_submit_promotes_attachments(client, app, wizard_enabled, mo
     monkeypatch.setattr("foms.services.order_draft_attachments.get_storage", lambda: DummyStorage())
 
     key = "new.test-attach-submit"
-    tmp_key = "order-drafts/1/new.test-attach-submit/measure.jpg"
+    with app.app_context():
+        from models import User
+
+        uid = db_session.query(User.id).filter_by(username="wizard_attach_submit").scalar()
+    # 승격은 등록하는 사람의 초안 폴더(order-drafts/<나>/) 안 key 만 받는다(검수 R8).
+    tmp_key = f"order-drafts/{uid}/new.test-attach-submit/measure.jpg"
     payload = {
         "schema_version": 1,
         "step": 4,
