@@ -127,6 +127,8 @@ _DEFAULT_P1_TYPES = frozenset(
         "PARTNER_STATEMENT_DUE",
         # 프리랜서 영업 차감이 생기거나 취소됨(FCOMM-01 §7 · D17) — 프리랜서는 회사 화면을 늘 보지 않는다.
         "SALES_COMMISSION_DEDUCTION",
+        # 프리랜서가 주문 담당으로 새로 들어감(FCOMM-01 §5 · §7) — 당일 추가 주문도 바로 알아야 한다(§6.1-2).
+        "SALES_ORDER_ASSIGNED",
     }
 )
 
@@ -249,6 +251,9 @@ def _deep_link(notif: Notification) -> str:
         if ntype == "SALES_COMMISSION_DEDUCTION":
             # 프리랜서는 주문 상세가 아니라 내 수수료 화면에서 차감을 본다(FCOMM-01 §2.2-3).
             return f"/erp/my-commission?order={oid}"
+        if ntype == "SALES_ORDER_ASSIGNED":
+            # 프리랜서는 휴대폰이 주 화면이다 — 모바일 주문 상세로 연다(FCOMM-01 §6.3 허용 화면).
+            return f"/erp/orders/{oid}/mobile"
         return f"/erp/orders/{oid}"
     if (notif.notification_type or "").strip().upper() == NOTIFY_DRAFT_READY:
         return cs_send_link(notif.message) or "/erp"
@@ -284,6 +289,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "상담 초안"
     if ntype == "SALES_COMMISSION_DEDUCTION":
         return "수수료 차감"
+    if ntype == "SALES_ORDER_ASSIGNED":
+        return "새 주문 배정"
     return "새 알림"
 
 
@@ -314,6 +321,8 @@ def _generic_body(urgent: bool, ntype: str) -> str:
     if ntype == "SALES_COMMISSION_DEDUCTION":
         # 금액 · 사유는 잠금 화면에 싣지 않는다 — 눌러서 내 수수료 화면에서 본다.
         return "수수료 차감이 바뀌었어요 — 눌러서 확인해 주세요"
+    if ntype == "SALES_ORDER_ASSIGNED":
+        return "새 주문이 배정됐어요 — 눌러서 확인해 주세요"
     return "확인이 필요한 새 알림이 있습니다."
 
 
@@ -373,6 +382,8 @@ def _order_bound_text(
             return "긴급 실측 추가", f"{name} 실측이 오늘 긴급 추가됐어요"
         if ntype == "SALES_COMMISSION_DEDUCTION":
             return f"수수료 차감 · {name}", f"{name} 주문 수수료 차감이 바뀌었어요"
+        if ntype == "SALES_ORDER_ASSIGNED":
+            return f"새 주문 배정 · {name}", f"{name} 주문이 배정됐어요"
     return (
         f"{_generic_title(urgent, ntype)} · {name}",
         f"{label} {_generic_body(urgent, ntype)}",
