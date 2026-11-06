@@ -153,6 +153,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "SETTLEMENT_CHANNEL_SYNC": _p("SETTLEMENT_CHANNEL_SYNC", teams=("ACCOUNTING",),
                                   gate="foms.services.settlement_channel_access:is_accounting_or_admin",
                                   description="채널 정산 '지금 동기화' enqueue — READ 와 같은 판정, 핸들러가 게이트로 재검사."),
+    # 프리랜서 영업 수수료 쓰기(설계서 FCOMM-01 §9): 시공비 · 요율 지정 칸 저장 · 차감 취소 · (2단계) 마감 · 지급 완료.
+    # 정산 화면과 같은 집합(회계팀 + ADMIN). MANAGER 가 팀 검사보다 먼저 통과하므로 게이트 함수가 판정한다.
+    "SALES_COMMISSION_WRITE": _p("SALES_COMMISSION_WRITE", teams=("ACCOUNTING",),
+                                 gate="foms.services.settlement_channel_access:is_accounting_or_admin",
+                                 description="영업 수수료 시공비 · 요율 지정 · 차감 취소 · 마감 — ADMIN, 또는 team=ACCOUNTING 인 MANAGER/STAFF. CS/SALES · 프리랜서 · VIEWER deny(FCOMM-01)."),
 
     # --- 주문 form/estimate/일반 (CS/SALES team-wide) -----------------------
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),
@@ -340,6 +345,22 @@ def _resolve_gate(spec: str) -> Any:
 
 _GATE_CACHE: dict[str, Any] = {}
 
+#: 프리랜서가 못 쓰는 정책(설계서 FCOMM-01 §10.6) — 3단계 문지기 전에도 자기 · 남의 차감 · 입금 확인 ·
+#: 현금영수증을 못 쓰게 한다.
+FREELANCER_DENIED_POLICIES = frozenset({"FINANCE_MUTATION"})
+#: 프리랜서 판정 함수. 설정 모듈이 이 모듈의 :func:`normalize_team` 을 가져가므로 게이트와 같은 문자열
+#: 경로로 첫 호출에 해석한다(최상단 import 는 순환이 된다).
+_FREELANCER_CHECK = "foms.services.sales_commission.settings:is_freelancer"
+
+
+def _is_active_freelancer(user: Any, role: str) -> bool:
+    """켜진 프리랜서인지 — 프리랜서는 STAFF · 영업팀 계정만 될 수 있어(설정 저장이 강제) 그 밖은 조회하지 않는다."""
+    if role != "STAFF" or normalize_team(getattr(user, "team", None)) != "SALES":
+        return False
+    from db import db_session
+
+    return bool(_resolve_gate(_FREELANCER_CHECK)(db_session, user))
+
 
 def evaluate_policy(
     policy: Policy,
@@ -374,6 +395,11 @@ def evaluate_policy(
         if policy.policy_id in PARTNER_ALLOWED_POLICIES:
             return _ALLOW
         return Decision(False, 403, "FORBIDDEN", "협력사 계정으로는 이 작업을 할 수 없습니다.")
+
+    # 1-a'. 프리랜서(FCOMM-01 §10.6) — 금융 쓰기(차감 · 입금 확인 · 현금영수증)는 못 한다. 팀이 SALES 라
+    # 아래 4단계를 통과하므로 여기서 끊는다.
+    if policy.policy_id in FREELANCER_DENIED_POLICIES and _is_active_freelancer(user, role):
+        return Decision(False, 403, "FORBIDDEN", "프리랜서 계정으로는 이 작업을 할 수 없어요.")
 
     # 1-b. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다.
     if policy.gate is not None:

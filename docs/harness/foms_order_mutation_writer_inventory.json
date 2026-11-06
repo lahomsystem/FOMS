@@ -4,12 +4,12 @@
   "scope": "foms/**.py",
   "baselines": {
     "total": 83,
-    "external": 33
+    "external": 32
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 43,
-    "EXTERNAL": 33,
+    "CANONICAL": 44,
+    "EXTERNAL": 32,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
@@ -19,13 +19,7 @@
   "external_sites": [
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 367,
-      "kind": "flag_modified_structured_data",
-      "owner": "STATE-CONST-CS-01"
-    },
-    {
-      "path": "foms/api/cs/dashboard.py",
-      "lineno": 453,
+      "lineno": 327,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
@@ -268,14 +262,7 @@
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 367,
-      "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "STATE-CONST-CS-01"
-    },
-    {
-      "path": "foms/api/cs/dashboard.py",
-      "lineno": 453,
+      "lineno": 327,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
@@ -776,6 +763,13 @@
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/settlement_deduction_service.py",
+      "lineno": 106,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "FCOMM-01"
     },
     {
       "path": "foms/services/shipment/as_recommendation.py",

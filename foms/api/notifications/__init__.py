@@ -226,6 +226,15 @@ def _resolve_notification_deep_link(
             "deep_link_url": measure_same_day_link(oid, getattr(notification, "created_at", None)),
         }
 
+    if n_type == "SALES_COMMISSION_DEDUCTION":
+        # 프리랜서 영업 차감(FCOMM-01 §7) — 폰 알림과 같은 곳(내 수수료 화면)으로 연다.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": "/erp/my-commission",
+        }
+
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
         return {
             "deep_tab": None,

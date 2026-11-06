@@ -226,6 +226,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "AS_RECOMMENDATION_APPLIED": "AS 권고 적용",
         "AS_RECOMMENDATION_CANCELLED": "AS 권고 취소",
         "SETTLEMENT_ISSUE_RAISED": "정산 이슈 등록",
+        # 차감은 지우지 않고 취소 표시만 한다(FCOMM-01 §10.2). 미등재면 '기타 변경'.
+        "SETTLEMENT_DEDUCTION_VOIDED": "정산 차감 취소",
         "SHIPMENT_SCHEDULED": "출고 예정",
         "SHIPMENT_COMPLETED": "출고 완료",
         "CHANGE_REVERTED": "변경 되돌림",
@@ -610,6 +612,8 @@ def generate_change_description(
         return f"담당팀을 '{to_team}'(으)로 변경했습니다" if to_team else "담당팀을 변경했습니다"
     if event_type == "SETTLEMENT_ISSUE_RAISED":
         return "정산 이슈를 등록했습니다"
+    if event_type == "SETTLEMENT_DEDUCTION_VOIDED":
+        return "정산 차감을 취소했습니다"
     if event_type == "AS_RECOMMENDATION_APPLIED":
         return "AS 권고를 적용했습니다"
     if event_type == "AS_RECOMMENDATION_CANCELLED":

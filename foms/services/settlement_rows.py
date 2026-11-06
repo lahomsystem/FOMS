@@ -56,6 +56,7 @@ from foms.services.settlement_aggregation import (
     completion_day_key,
     parse_day_range,
 )
+from foms.services.settlement_deductions import has_valid_deduction
 from foms.services.settlement_source import fetch_settlement_rows
 from foms.web.cs.completion_dashboard import (
     _cash_receipt_issued,
@@ -357,9 +358,7 @@ def _settlement_row(
         "aging_label": _AGING_LABELS.get(aging_code, ""),
         # 요청 자유텍스트 원문은 내지 않는다 — 파생 상태 코드만.
         "cash_receipt_state": _cash_receipt_state(cash_receipt_text, issued),
-        "settlement_issued": bool(
-            isinstance(settlement, dict) and settlement.get("deductions")
-        ),
+        "settlement_issued": has_valid_deduction(settlement),
     }
     if include_naver_settlement:
         row["naver_settlement"] = _naver_settlement_cell(channel, naver_settle)

@@ -2,7 +2,8 @@
 시공 완료 대시보드용 API.
 계획서: docs/plans/2026-03-02-construction-completion-dashboard-plan.md
 - GET /api/orders/completion: 완료·AS 건 목록 + 시공 사진(category=construction) + 시공자 코멘트.
-- POST /api/orders/<id>/settlement/issue: 비용 청구/차감 이벤트 기록 (structured_data.settlement).
+- POST /api/orders/<id>/settlement/issue · .../deductions/<id>/void: 같은 블루프린트, 라우트는
+  `foms/api/cs/settlement_deductions.py`(쓰기 본체 `foms/services/settlement_deduction_service.py`).
 """
 import copy
 from foms.services.error_logging import log_handled_exception
@@ -41,7 +42,8 @@ from foms.services.request_utils import get_search_query_arg
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.manager_names import manager_label_from_parties
-from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
+from foms.services.settlement_deduction_service import SETTLEMENT_DEPARTMENTS  # noqa: F401 — 재내보내기
+from models import Order, OrderAttachment, OrderEvent, SecurityLog
 
 # 완료 대시보드 대상: 시공 완료·AS 접수 등 (정책 상수는 `foms.services.erp_policy` SSOT)
 TARGET_STATUSES = ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
@@ -63,9 +65,6 @@ def _apply_mine_filter(query, user, *, mine_only: bool):
         return query.filter(Order.id == -1)
     # 범위(완료 큐 바깥 조건)를 넣은 UNION + 무거운 갈래만 OR (HYBRID)
     return query.filter(mine_membership_clause(mine_conds, scope_conds=[query.whereclause]))
-
-# 비용 청구 귀속 대상 (계획서 3.1)
-SETTLEMENT_DEPARTMENTS = ("SALES", "DRAWING", "PRODUCTION", "CONSTRUCTION", "CUSTOMER")
 
 erp_orders_completion_bp = Blueprint(
     "erp_orders_completion",
@@ -278,131 +277,6 @@ def api_orders_completion():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@erp_orders_completion_bp.route("/<int:order_id>/settlement/issue", methods=["POST"])
-@login_required
-def api_settlement_issue(order_id):
-    """비용 청구/차감 이벤트 기록. structured_data.settlement에 deductions 추가, status=ISSUE_RAISED."""
-    db = None
-    try:
-        user = get_user_by_id(session.get("user_id"))
-        if user and getattr(user, "team", None) == "CONSTRUCTION":
-            return jsonify({"success": False, "message": "시공팀은 비용 청구를 등록할 수 없습니다."}), 403
-
-        db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
-        if not order:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-        if order.status not in TARGET_STATUSES:
-            return jsonify({"success": False, "message": "완료·AS 건에만 비용 청구를 등록할 수 있습니다."}), 400
-
-        data = request.get_json() or {}
-        department = (data.get("department") or "").strip().upper()
-        amount = data.get("amount")
-        reason = (data.get("reason") or "").strip()
-        charge_to_user_id = data.get("charge_to_user_id")
-
-        if department not in SETTLEMENT_DEPARTMENTS:
-            return jsonify({"success": False, "message": "귀속 대상이 올바르지 않습니다. (SALES, DRAWING, PRODUCTION, CONSTRUCTION, CUSTOMER)"}), 400
-        if amount is None:
-            return jsonify({"success": False, "message": "청구 금액을 입력해주세요."}), 400
-        try:
-            amount = int(amount)
-        except (TypeError, ValueError):
-            return jsonify({"success": False, "message": "청구 금액을 숫자로 입력해주세요."}), 400
-        if amount > 0:
-            amount = -amount
-        if not reason:
-            return jsonify({"success": False, "message": "사유를 입력해주세요."}), 400
-
-        charge_to_name = None
-        if charge_to_user_id is not None and charge_to_user_id != "":
-            if department == "CUSTOMER":
-                charge_to_user_id = None
-            else:
-                try:
-                    uid = int(charge_to_user_id)
-                except (TypeError, ValueError):
-                    return jsonify({"success": False, "message": "귀속 인원이 올바르지 않습니다."}), 400
-                charge_user = db.query(User).filter(User.id == uid, User.is_active == True).first()
-                if not charge_user:
-                    return jsonify({"success": False, "message": "해당 귀속 인원을 찾을 수 없거나 비활성입니다."}), 400
-                if (charge_user.team or "").strip().upper() != department:
-                    return jsonify({"success": False, "message": "선택한 인원이 해당 부서 소속이 아닙니다."}), 400
-                charge_to_user_id = uid
-                charge_to_name = str(charge_user.name) if charge_user.name is not None else None
-
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
-        created_by = user.name if user else "Unknown"
-        now_iso = datetime.datetime.now().isoformat()
-        ded_id = f"DED-{order_id}-{int(datetime.datetime.now().timestamp() * 1000)}"
-
-        sd = _ensure_dict(order.structured_data)
-        settlement = sd.get("settlement")
-        if not isinstance(settlement, dict):
-            settlement = {"status": "PENDING", "base_cost": None, "deductions": [], "final_cost": None}
-        deductions = settlement.get("deductions")
-        if not isinstance(deductions, list):
-            deductions = []
-        ded_item = {
-            "id": ded_id,
-            "department": department,
-            "amount": amount,
-            "reason": reason,
-            "created_at": now_iso,
-            "created_by": created_by,
-        }
-        if charge_to_user_id is not None:
-            ded_item["charge_to_user_id"] = charge_to_user_id
-        if charge_to_name:
-            ded_item["charge_to_name"] = charge_to_name
-        deductions.append(ded_item)
-        settlement["deductions"] = deductions
-        settlement["status"] = "ISSUE_RAISED"
-        base = settlement.get("base_cost")
-        if base is not None and isinstance(base, (int, float)):
-            settlement["final_cost"] = base + sum(d.get("amount", 0) for d in deductions)
-        sd["settlement"] = settlement
-        order.structured_data = copy.deepcopy(sd)  # type: ignore[assignment]
-        flag_modified(order, "structured_data")
-
-        event_payload = {
-            "deduction_id": ded_id,
-            "department": department,
-            "amount": amount,
-            "reason": reason,
-            "created_by": created_by,
-        }
-        if charge_to_user_id is not None:
-            event_payload["charge_to_user_id"] = charge_to_user_id
-        if charge_to_name:
-            event_payload["charge_to_name"] = charge_to_name
-        db.add(OrderEvent(
-            order_id=order_id,
-            event_type="SETTLEMENT_ISSUE_RAISED",
-            payload=event_payload,
-            created_by_user_id=user_id,
-        ))
-        log_msg = f"주문 #{order_id} 비용 청구: {department}"
-        if charge_to_name:
-            log_msg += f" {charge_to_name}({charge_to_user_id})"
-        log_msg += f" {amount}원 - {reason[:50]}"
-        db.add(SecurityLog(user_id=user_id, message=log_msg))
-        db.commit()
-
-        return jsonify({
-            "success": True,
-            "message": "비용 청구가 등록되었습니다.",
-            "deduction_id": ded_id,
-            "settlement": settlement,
-        })
-    except Exception as e:
-        if db is not None:
-            db.rollback()
-        log_handled_exception()
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
 @erp_orders_completion_bp.route("/<int:order_id>/cash-receipt/issue", methods=["POST"])
 @login_required
 def api_cash_receipt_issue(order_id):
@@ -471,6 +345,5 @@ def api_cash_receipt_issue(order_id):
 __all__ = [
     "erp_orders_completion_bp",
     "api_orders_completion",
-    "api_settlement_issue",
     "api_cash_receipt_issue",
 ]
