@@ -5,6 +5,9 @@
   "비슷한 이름" 경고(:func:`foms.services.sales_commission.read_model.commission_rows`).
 - ``PUT /api/sales-commission/inputs/<order_id>`` ``{install_cost, rate_override_bp, note, version}`` — 시공비 ·
   회계팀 지정 요율 · 메모 저장. 본문에 없는 칸은 그대로 둔다(칸마다 자동 저장). version 이 다르면 409.
+- 달 마감(2단계 T9, :mod:`foms.services.sales_commission.closing`): ``GET /closings?user_id=`` 목록 ·
+  ``GET /closings/preview?user_id=&month=`` 미리 보기 · ``POST /closings`` ``{user_id, month}`` 마감 ·
+  ``POST /closings/<id>/paid`` 지급 완료 · ``DELETE /closings/<id>`` ``{reason}`` 지급 전 마감 취소.
 
 권한은 정산 화면과 같다 — :func:`~foms.services.settlement_channel_access.is_accounting_or_admin`(ADMIN,
 MANAGER/STAFF + 회계팀). 협력사 계정 · 프리랜서(STAFF + 영업팀)는 거부된다. 쓰기는 공용 CSRF · Origin 가드 뒤이고
@@ -21,6 +24,15 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
+from foms.services.sales_commission.closing import (
+    ClosingError,
+    cancel_closing,
+    close_month,
+    closing_payload,
+    list_closings,
+    mark_paid,
+    preview_closing,
+)
 from foms.services.sales_commission.read_model import (
     BASES,
     BASIS_COMPLETION,
@@ -223,3 +235,108 @@ def api_save_input(order_id: int):
     data = {"row": commission_row_for_order(db, order_id), "input": after}
     db.rollback()
     return _ok(data)
+
+
+# --------------------------------------------------------------------------
+# 달 마감 · 지급 완료 · 마감 취소(2단계 T9 — 설계서 §8)
+# --------------------------------------------------------------------------
+@sales_commission_api_bp.route("/closings", methods=["GET"], endpoint="list_closings")
+def api_list_closings():
+    """한 프리랜서의 마감 목록(최근 달 먼저, 줄 스냅샷 포함)."""
+    _actor, denied = _accounting_user()
+    if denied:
+        return denied
+    raw_user = (request.args.get("user_id") or "").strip()
+    if not raw_user.isdigit():
+        return _fail(400, "프리랜서를 골라 주세요.")
+    db = get_db()
+    data = list_closings(db, int(raw_user))
+    db.rollback()
+    return _ok({"closings": data})
+
+
+@sales_commission_api_bp.route("/closings/preview", methods=["GET"], endpoint="preview_closing")
+def api_preview_closing():
+    """마감하면 들어갈 줄 · 합계 · 세금 · 기다리는 줄 · 마감 가능 여부(쓰기 없음)."""
+    _actor, denied = _accounting_user()
+    if denied:
+        return denied
+    raw_user = (request.args.get("user_id") or "").strip()
+    month = (request.args.get("month") or "").strip() or _last_month()
+    if not raw_user.isdigit():
+        return _fail(400, "프리랜서를 골라 주세요.")
+    db = get_db()
+    try:
+        data = preview_closing(db, int(raw_user), month)
+    except ClosingError as exc:
+        db.rollback()
+        return _fail(exc.status, str(exc))
+    db.rollback()
+    return _ok(data)
+
+
+def _closing_write(action, log_label: str):
+    """마감 쓰기 공통 — 한 트랜잭션으로 돌리고 커밋. 거부는 한글 문장 그대로, DB 오류는 500."""
+    db = get_db()
+    try:
+        result = action(db)
+        db.commit()
+    except ClosingError as exc:
+        db.rollback()
+        return db, None, _fail(exc.status, str(exc))
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("[SALES_COMMISSION] %s 실패", log_label)
+        return db, None, _fail(500, _SAVE_FAILED)
+    return db, result, None
+
+
+@sales_commission_api_bp.route("/closings", methods=["POST"], endpoint="close_month")
+def api_close_month():
+    """프리랜서 한 명의 달 마감(줄 스냅샷 + 합계 + 세금). 달은 오름차순으로만."""
+    actor, denied = _accounting_user()
+    if denied:
+        return denied
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _fail(400, "보낸 값이 비었어요.")
+    actor_id = int(actor.id)
+    db, row, failed = _closing_write(
+        lambda db: close_month(db, body.get("user_id"), body.get("month"), actor_user_id=actor_id), "마감")
+    if failed:
+        return failed
+    data = closing_payload(row)
+    db.rollback()
+    return _ok(data, 201)
+
+
+@sales_commission_api_bp.route("/closings/<int:closing_id>/paid", methods=["POST"], endpoint="mark_closing_paid")
+def api_mark_closing_paid(closing_id: int):
+    """지급 완료(CLOSED → PAID). 그 뒤로는 마감 취소가 막힌다."""
+    actor, denied = _accounting_user()
+    if denied:
+        return denied
+    actor_id = int(actor.id)
+    db, row, failed = _closing_write(lambda db: mark_paid(db, closing_id, actor_user_id=actor_id), "지급 완료")
+    if failed:
+        return failed
+    data = closing_payload(row, with_lines=False)
+    db.rollback()
+    return _ok(data)
+
+
+@sales_commission_api_bp.route("/closings/<int:closing_id>", methods=["DELETE"], endpoint="cancel_closing")
+def api_cancel_closing(closing_id: int):
+    """지급 전 마감 취소(가장 최근 마감만) — 줄 삭제 + 감사. 본문 ``{reason}`` 필수."""
+    actor, denied = _accounting_user()
+    if denied:
+        return denied
+    body = request.get_json(silent=True)
+    reason = body.get("reason") if isinstance(body, dict) else None
+    actor_id = int(actor.id)
+    db, snapshot, failed = _closing_write(
+        lambda db: cancel_closing(db, closing_id, actor_user_id=actor_id, reason=reason), "마감 취소")
+    if failed:
+        return failed
+    db.rollback()
+    return _ok({"cancelled": snapshot})

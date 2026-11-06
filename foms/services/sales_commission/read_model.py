@@ -30,7 +30,7 @@ from foms.services.sales_commission.names import normalize_name
 from foms.services.sales_commission.settings import FreelancerConfig, active_freelancers
 from foms.services.settlement_deductions import valid_deductions
 from foms.services.settlement_source import ARRAY_ITEMS, fetch_settlement_rows
-from models import ExternalOrderLink, Order, OrderFieldChange, SalesCommissionInput
+from models import ExternalOrderLink, Order, OrderFieldChange, SalesCommissionClosing, SalesCommissionInput
 
 __all__ = [
     "BASIS_COMPLETION",
@@ -92,14 +92,24 @@ _ORDER_COLUMNS = (
 # --------------------------------------------------------------------------
 # 작은 도우미
 # --------------------------------------------------------------------------
-def closed_order_ids(db, user_id: int) -> set[int]:
-    """이 프리랜서의 마감에 이미 들어간 주문 번호.
+def closed_order_ids(db, user_id: Optional[int] = None) -> set[int]:
+    """마감에 이미 들어간 주문 번호(줄 스냅샷 ``lines[].order_id``).
 
-    마감 표(``sales_commission_closings``)는 2단계 T9 에서 생긴다. 그 전까지는 늘 빈 집합이라 시공 완료
-    달 ≤ 고른 달인 대상 주문이 모두 "이번 마감에 들어갈 줄"로 나온다. T9 가 이 함수 몸통만 바꾸면 된다.
+    ``user_id`` 가 없으면 **모든 프리랜서**의 마감을 본다 — 시공 완료 기준 줄은 이것으로 거른다(J9: 한 번 F 의
+    마감에 들어간 주문은 뒤에 대표 담당 · 발주사가 바뀌어도 누구의 일반 줄에도 다시 나오지 않는다. 그 뒤 차액은
+    굳힌 주인의 조정 줄 몫이다 — T12). ``user_id`` 를 주면 그 프리랜서의 마감만 본다(조정 줄 다시 계산용).
+    마감 표는 프리랜서 수 × 달 수 줄이라 작다 — ``lines`` 칸만 읽는다.
     """
-    del db, user_id
-    return set()
+    query = db.query(SalesCommissionClosing.lines)
+    if user_id is not None:
+        query = query.filter(SalesCommissionClosing.user_id == int(user_id))
+    out: set[int] = set()
+    for (lines,) in query.all():
+        for line in lines if isinstance(lines, list) else []:
+            order_id = calc._as_int(line.get("order_id")) if isinstance(line, dict) else None
+            if order_id is not None:
+                out.add(order_id)
+    return out
 
 
 def _next_month(month: str) -> str:
@@ -359,7 +369,7 @@ def commission_rows(db, user_id: int, month: str, basis: str = BASIS_COMPLETION)
     match_map = {c.match_name: uid for uid, c in configs.items() if c.match_name}
 
     criteria = _scope_filters() + _window_filters(month, basis, cfg.start_month)
-    closed = closed_order_ids(db, cfg.user_id) if basis == BASIS_COMPLETION else set()
+    closed = closed_order_ids(db) if basis == BASIS_COMPLETION else set()  # 모든 프리랜서의 마감(J9)
     if closed:
         criteria = criteria + (Order.id.notin_(sorted(closed)),)
     orders = fetch_settlement_rows(db, _ORDER_COLUMNS, criteria, COMMISSION_SD_SPEC)

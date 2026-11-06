@@ -18,12 +18,13 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_kst
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.names import normalize_name
-from models import SystemSetting, User
+from models import SalesCommissionClosing, SystemSetting, User
 
 SETTINGS_KEY = "sales_freelancer_settings"
 TAX_TYPES: tuple[str, ...] = ("WITHHOLD_3_3", "VAT_10", "NONE")
@@ -171,14 +172,27 @@ def is_freelancer(db, user: Any) -> bool:
     return uid in ids
 
 
-def latest_closed_month(db, user_id: int) -> Optional[str]:
-    """이 프리랜서의 가장 늦은 마감 달(YYYY-MM). 마감 표(``sales_commission_closings``)는 2단계 T9 에서 생긴다.
+def load_settings_locked(db) -> tuple[int, dict[int, FreelancerConfig]]:
+    """설정 줄을 ``FOR UPDATE`` 로 잡고 읽는다 → ``(version, {user_id: FreelancerConfig})``.
 
-    그 전까지는 늘 None 이다 — 곧 "마감된 달 이하 적용 달 거부" 검사는 T9 전에는 건너뛴다. T9 가 이 함수 몸통만
-    마감 표 조회로 바꾸면 검사가 켜진다.
+    마감 · 마감 취소(:mod:`foms.services.sales_commission.closing`)가 트랜잭션 맨 앞에서 부른다 — 같은 프리랜서의
+    두 달을 동시에 마감하거나, 마감과 취소가 엇갈려 달 순서가 깨지는 일을 한 줄 잠금으로 줄 세운다(설계서 §8.1).
     """
-    del db, user_id
-    return None
+    row = _row(db, lock=True)
+    return _version(row), _configs_from_row(row)
+
+
+def latest_closed_month(db, user_id: int) -> Optional[str]:
+    """이 프리랜서의 가장 늦은 마감 달(YYYY-MM). 마감이 없으면 None.
+
+    요율 저장의 "마감된 달 이하 적용 달 거부" 검사와 마감의 "달은 오름차순으로만" 검사가 같이 쓴다(설계서 §4.1 · §8.1).
+    """
+    uid = _int_or_none(user_id)
+    if uid is None:
+        return None
+    found = (db.query(func.max(SalesCommissionClosing.month))
+             .filter(SalesCommissionClosing.user_id == uid).scalar())
+    return str(found) if found else None
 
 
 # --------------------------------------------------------------------------

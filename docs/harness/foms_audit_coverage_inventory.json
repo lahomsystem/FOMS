@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 294,
+    "total": 297,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 253,
+    "AUDITED": 256,
     "EXEMPT": 39,
     "UNAUDITED": 2
   },
@@ -1858,8 +1858,35 @@
     },
     {
       "path": "foms/api/sales_commission.py",
+      "endpoint": "api_cancel_closing",
+      "lineno": 329,
+      "methods": [
+        "DELETE"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_close_month",
+      "lineno": 295,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_mark_closing_paid",
+      "lineno": 314,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
       "endpoint": "api_save_input",
-      "lineno": 173,
+      "lineno": 185,
       "methods": [
         "PUT"
       ],
