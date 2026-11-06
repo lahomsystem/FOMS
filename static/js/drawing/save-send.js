@@ -8,6 +8,9 @@
  *   앞 단계가 실패하면 뒤 단계는 하지 않는다. 일괄 저장은 한 장이라도 대기함에 못 넣으면 전달하지 않는다.
  * - 한 장 저장 + 전달은 mode 'APPEND' 를 꼭 보낸다 — 비우면 영업 확정 전(TRANSFERRED)에 서버가 전체 교체로 보고
  *   다른 장이 전부 빠진다. APPEND 면 서버의 같은 시트 자리 교체 규칙이 그 시트 옛 판만 바꾼다.
+ * - 한 장 저장 + 전달은 지금 시트와 함께 **대기함에 먼저 넣어 둔 다른 시트도** 보낸다(2026-11-06 보고, 운영 주문 5862 · 5803:
+ *   시트 A 를 고쳐 [저장]만 → 시트 B 에서 [저장 + 전달 + 도면방] → B 만 전달돼 도면방에 A 의 옛 전달본이 나갔다).
+ *   대기함 목록은 저장 뒤 서버에서 다시 읽는다(GET /pending) — 지운 시트의 옛 항목은 지금 시트 목록으로 거른다.
  * - Ctrl+S 는 이 창을 거치지 않는다(wizard.js 단축키가 save() 를 바로 부른다).
  * 권한 · 잠금 · 알림은 기존 서버 경로가 다시 검사한다 — 여기 값(save_send)은 칸을 잠그고 숨기는 화면 표시용이다.
  */
@@ -126,6 +129,19 @@
     });
   }
 
+  /** 한 장 저장 뒤 보낼 시트 id — 지금 시트 + 대기함에 있는 다른 시트(지금 시트 순서). 못 읽으면 null. */
+  function waitingIds(sheets, curId) {
+    return window.fetch('/api/orders/' + ORDER_ID + '/drawing-wizard/pending', {
+      credentials: 'same-origin', headers: { 'Accept': 'application/json' }
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (!data || data.success !== true) { return null; }
+      var waiting = {};
+      ((data.data && data.data.pending) || []).forEach(function (p) { waiting[p.sheet_id] = true; });
+      waiting[curId] = true;
+      return sheets.map(function (s) { return s.id; }).filter(function (id) { return waiting[id]; });
+    }, function () { return null; });
+  }
+
   /** 방금 저장한 시트(들)를 영업에게 전달한다. 성공이면 true. */
   function transfer(sheetIds) {
     var body = { note: '', files: [], pending_sheet_ids: sheetIds, mode: kind === 'one' ? 'APPEND' : '' };
@@ -174,13 +190,21 @@
     busy = true;
     saving.then(function (saved) {
       if (!saved || !ids.length) { return false; }
-      return transfer(ids).then(function (sent) {
+      return (kind === 'one' ? waitingIds(sheets, ids[0]) : Promise.resolve(ids)).then(function (sendIds) {
+        if (!sendIds) {
+          say('저장은 됐어요 · 전달 못 함: 전달 대기함을 읽지 못했어요. 다시 눌러 주세요.', { error: true });
+          return false;
+        }
+        ids = sendIds;
+        return transfer(ids);
+      }).then(function (sent) {
         if (!sent) { return false; }
+        var what = '저장했어요 · 영업에게 ' + (ids.length > 1 ? ids.length + '장 ' : '') + '전달했어요';
         if (!push) {
-          say('저장했어요 · 영업에게 전달했어요', { key: 'savesend' });
+          say(what, { key: 'savesend' });
           return true;
         }
-        say('저장했어요 · 영업에게 전달했어요 · 도면방에 올리는 중…', { key: 'savesend' });
+        say(what + ' · 도면방에 올리는 중…', { key: 'savesend' });
         return c.pushRoom({ skipConfirm: true });   // 끝 알림은 도면방 PUSH 가 띄운다
       });
     }).catch(function (err) {
