@@ -11,7 +11,7 @@
 @import url("erp-pro/06-mobile-print-utilities.css?v=20260703a");
 @import url("erp-pro/07-forms-responsive-filters.css?v=20261105s");
 @import url("../contexts/orders/erp-order-measurement-panel.css?v=20261106c");
-@import url("erp-pro/08-order-list-page.css?v=20261106c");
+@import url("erp-pro/08-order-list-page.css?v=20261106d");
 @import url("erp-pro/09-mobile-erp-optimization.css?v=20261104a");
 @import url("erp-pro/10-erp-mobile-v2-shell.css?v=20260724a");
 @import url("erp-pro/11-queue-family-mobile.css?v=20261105s");
@@ -888,19 +888,6 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   .layout-global-nav .layout-nav-collapse > .navbar-nav { flex-wrap: wrap; }
 }
 
-/* 직원 화면 점검(2026-11-05) — PC 위 막대(layout_nav.html)의 28px 제목이 화면 제목보다 컸고, 막대가 86px 였다.
-   993px 이상만(좁은 화면은 layout_head.html 의 모바일 규칙). py-3 유틸이 !important 라 같이 쓴다. 협력사 머리는 제외. */
-@media (min-width: 993px) {
-  body:not(.pp-body) .layout-header {
-    padding-top: 8px !important;
-    padding-bottom: 8px !important;
-  }
-  body:not(.pp-body) .layout-header .layout-header__title {
-    font-size: 1.125rem;
-    font-weight: 600;
-  }
-}
-
 /* #main-content 바로 아래 .row 의 음수 여백(-12px)이 화면 밖으로 나가 가로로 12px 넘쳤다(알림 발송 · 관리자 · 내 정보). */
 #main-content > .row {
   margin-left: 0;
@@ -916,4 +903,13 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
 }
 [data-push-status-table] .table td {
   font-size: 0.875rem;
+}
+
+/* 2026-11-06 사용자 결정 — PC 를 80% 배율로 넓게 보면(1920 화면이면 CSS 폭 2400px) 글자가 실제 11px 정도로 작아진다.
+   CSS 폭 2000px 이상일 때만(1920 화면 100% 배율은 해당 없음) rem 기준을 16px 에서 18px 로 올려 글자 · 칸을 한 단계 키운다.
+   한 화면에 보이는 칸 수는 넓은 배율 그대로다. 협력사 화면(body.pp-body)은 제외. */
+@media (min-width: 2000px) {
+  html:has(> body:not(.pp-body)) {
+    font-size: 18px;
+  }
 }

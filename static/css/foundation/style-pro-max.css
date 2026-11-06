@@ -162,26 +162,6 @@ h6 {
     border-color: #D1D1D6 !important;
 }
 
-/* 직원 화면 점검(2026-11-05) — 위 .btn 의 padding · border !important 가 Bootstrap 의 크기(.btn-sm) ·
-   여백 유틸(.py-0) · outline 테두리를 덮었다. :where() 로 특이도를 .btn 과 같은 (0,1,0) 에 두어 이 파일의
-   .btn 만 이기고, 뒤에 실리는 화면별 규칙은 그대로 이기게 한다. 협력사 화면(body.pp-body)은 제외. */
-/* PC .btn-sm 이 41~46px 로 커졌다 → 작은 단추 높이(약 29~31px). 마우스 PC 만 — 폰 · 터치 태블릿은 손가락 크기를 그대로 둔다. */
-@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
-    :where(body:not(.pp-body)) :where(.btn).btn-sm {
-        padding: 4px 10px !important;
-    }
-}
-
-/* .btn.py-0 이 안 먹어 같은 줄 칸 높이가 어긋났다(주문 상세 · 출고 · 실측). .btn-sm 보다 뒤에 둔다.
-   마우스 PC 만, 높이는 PC 가장 작은 누름 칸 28px 아래로 내려가지 않게 — 폰 · 터치 태블릿은 손가락 크기 그대로. */
-@media (min-width: 992px) and (hover: hover) and (pointer: fine) {
-    :where(body:not(.pp-body)) :where(.btn).py-0 {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        min-height: 28px;
-    }
-}
-
 /* .btn-outline-warning 은 테두리가 지워지고 노란 글자(#ffc107)만 남아 흰 바탕 대비 1.6:1 이었다.
    글자 · 테두리 색만 변수로 바꿔, 눌림(.active · 체크) · 올림(hover) 색은 Bootstrap 것을 그대로 쓴다. */
 :where(body:not(.pp-body)) .btn-outline-warning {

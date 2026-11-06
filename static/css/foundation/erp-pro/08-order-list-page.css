@@ -280,7 +280,7 @@
 .order-list-table-container .table-fixed-header .column-filter-row .form-control.column-filter,
 .order-list-table-container .table-fixed-header .column-filter-row .form-select.column-filter {
   padding: 4px 8px !important;
-  font-size: 0.8125rem !important;
+  font-size: 0.875rem !important; /* 11-06 사용자 '작아졌다' — 13 → 14px(32px 칸 안에 그대로 든다) */
   line-height: 1.3;
 }
 .order-list-table-container .table-fixed-header .column-filter-row .form-select.column-filter {
