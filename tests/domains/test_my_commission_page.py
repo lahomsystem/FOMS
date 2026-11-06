@@ -283,3 +283,65 @@ def test_no_inline_style_and_no_script(app):
     assert not re.search(r"\sstyle=", src)
     assert "<script" not in src
     assert "css/contexts/sales_commission/my-commission.css" in src
+
+
+# --------------------------------------------------------------------------
+# T8 스테이징 지적 고침: 모바일 셸 · 차감 알림에서 그 달 열기 · 예상 글
+# --------------------------------------------------------------------------
+_MOBILE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
+
+def test_mobile_shell_wraps_the_page(app, monkeypatch):
+    """폰 셸(서랍 · 머리줄)이 실려 다른 화면으로 돌아갈 길이 있다. 서랍의 "내 수수료"는 한 번만."""
+    fl = _seed()["fl"]
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(fl.id))
+    client = _client(app, fl)
+    html = client.get(f"{PAGE}?month=2030-03", headers={"User-Agent": _MOBILE_UA}).get_data(as_text=True)
+    assert 'id="erp-mobile-menu-drawer"' in html
+    drawer = html[html.index('id="erp-mobile-menu-drawer"'):]
+    assert drawer.count('href="/erp/my-commission"') == 1
+    assert "56,000" in _content(html)
+
+
+def test_order_param_opens_that_orders_month(app):
+    """차감 알림 주소(``?order=``)는 그 주문이 든 달 · 기준을 연다(달을 안 주면 지난달이 열렸다)."""
+    fl = _seed()["fl"]
+    done = _order(customer="삼월완료", manager=MATCH, orderer="하우드", construction="2030-03-20",
+                  install_cost=1_000_000)
+    early = _order(customer="사월예상", manager=MATCH, orderer="하우드", stage="PRODUCTION", construction=None,
+                   measurement="2030-04-02")
+    client = _client(app, fl)
+    html = _html(client, f"order={done}")
+    assert "2030년 3월" in html and "삼월완료" in _content(html)
+    html = _html(client, f"order={early}")
+    assert "2030년 4월" in html and "사월예상" in _content(html) and "앞으로 들어올 돈" in html
+    # 달을 주면 달이 이긴다
+    assert "2030년 1월" in _html(client, f"order={done}&month=2030-01")
+
+
+def test_forecast_without_amount_says_forecast(app):
+    """실측일 기준에서 시공 전 · 시공비 없는 줄은 "예상"(PC 와 같은 말) — "시공비 기다림"이 아니다."""
+    fl = _seed()["fl"]
+    _order(customer="시공비없는예상", manager=MATCH, orderer="하우드", stage="PRODUCTION", construction=None,
+           measurement="2030-03-07")
+    content = _content(_html(_client(app, fl), "month=2030-03&basis=measurement"))
+    row = content[content.index("시공비없는예상"):]
+    row = row[:row.index("</summary>")]
+    assert "예상" in row and "시공비 기다림" not in row
+
+
+def test_deduction_notification_links_to_its_order_month():
+    """알림 목록 · 폰 푸시 모두 ``/erp/my-commission?order=<주문>`` 으로 연다."""
+    from foms.api.notifications import _resolve_notification_deep_link
+    from foms.services.notifications.push_sender import _deep_link
+    from models import Notification
+
+    notif = Notification(order_id=4242, notification_type="SALES_COMMISSION_DEDUCTION", target_type="USER",
+                         target_user_id=1, title="수수료 차감", message="가짜")
+    assert _deep_link(notif) == "/erp/my-commission?order=4242"
+    resolved = _resolve_notification_deep_link(notif, None)
+    assert resolved["deep_link_url"] == "/erp/my-commission?order=4242"

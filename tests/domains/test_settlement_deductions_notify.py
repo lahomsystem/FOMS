@@ -115,7 +115,9 @@ def test_type_reaches_phones_and_opens_my_commission():
     notif = SimpleNamespace(id=9, order_id=5, notification_type=ntype, is_urgent=False,
                             created_at=None, message="가상고객 주문에 차감 50,000원이 생겼어요 — 비밀 사유",
                             title="수수료 차감", target_user_id=1)
-    assert push_sender._deep_link(notif) == deduction_notify.MY_COMMISSION_URL == "/erp/my-commission"
+    # 그 주문이 든 달을 연다(T8 스테이징: 달 없는 주소는 지난달을 열었다).
+    assert deduction_notify.MY_COMMISSION_URL == "/erp/my-commission"
+    assert push_sender._deep_link(notif) == "/erp/my-commission?order=5"
 
     named = push_sender._build_payload(notif, "가상고객")
     generic = push_sender._build_payload(notif, "")
@@ -123,11 +125,11 @@ def test_type_reaches_phones_and_opens_my_commission():
     assert generic["title"] == "수수료 차감"
     for payload in (named, generic):
         assert "비밀 사유" not in payload["body"], "잠금 화면에 사유를 싣지 않는다"
-        assert payload["data"]["deep_link"] == "/erp/my-commission"
+        assert payload["data"]["deep_link"] == "/erp/my-commission?order=5"
 
 
 def test_bell_list_link_matches_the_phone_link():
     from foms.api.notifications import _resolve_notification_deep_link
 
     notif = SimpleNamespace(notification_type="SALES_COMMISSION_DEDUCTION", order_id=5, created_at=None)
-    assert _resolve_notification_deep_link(notif, {})["deep_link_url"] == "/erp/my-commission"
+    assert _resolve_notification_deep_link(notif, {})["deep_link_url"] == "/erp/my-commission?order=5"

@@ -24,6 +24,12 @@
 }
 .foms-settle .s-cm-select { min-width: 140px; }
 .foms-settle .s-cm-seg { display: inline-flex; gap: 4px; }
+/* 실무 탭 버튼(.s-ops-btn)을 같이 쓰므로 그 색 토큰을 이 탭에도 둔다 — 토큰이 .s-ops 안에만 있어
+   차감 창의 [차감 넣기] 버튼이 흰 글자 · 투명 바탕으로 사라졌다(T8 스테이징 확인). */
+.foms-settle .s-cm {
+  --s-ops-blue: #2563eb;
+  --s-ops-blue-soft: #eaf1ff;
+}
 .foms-settle .s-cm-bar a.s-ops-btn { text-decoration: none; }
 
 /* ── 한 줄 안내 · 경고 · 상태 ─────────────────────────────────── */

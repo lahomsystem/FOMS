@@ -232,7 +232,7 @@ def _resolve_notification_deep_link(
             "deep_tab": None,
             "deep_event_id": None,
             "deep_target_no": None,
-            "deep_link_url": "/erp/my-commission",
+            "deep_link_url": f"/erp/my-commission?order={oid}" if oid else "/erp/my-commission",
         }
 
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
