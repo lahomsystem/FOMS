@@ -61,14 +61,14 @@
 
 | # | 심각도 | 내용 | 처리 |
 |---|---|---|---|
-| R1 | 높음 | 내 주문 `schedule.as_visit.schedule_link` 에 남의 주문 번호 → 편집 화면·모바일 상세 AS 배너에 남의 고객명·시공일, 없는 번호면 존재 여부까지(`foms/api/erp_orders_structured.py:561-568` 깊은 합치기, `foms/services/as_dashboard_display.py:368-487`) | 대기 |
-| R2 | 높음 | structured PUT 으로 `settlement.deductions` 를 지우거나 취소 표시 → 차감 회피(모든 직원에게도 구멍, `SERVER_LOCKED_KEYS` 에 settlement 없음) | 대기 |
-| R3 | 높음 | 부 담당 프리랜서가 대표 담당 이름을 자기로 → 수수료 가로채기 · 원래 담당 연결 삭제. `SELF_EDIT_PATHS` 에도 없음 | 대기 — 사용자 결정 D21 막기 |
-| R4 | 중간 | structured PUT 이 `payment.*_confirmed/_by/_by_user_id` 통째 덮음 → 입금 확인 위조(모든 직원) | 대기 |
+| R1 | 높음 | 내 주문 `schedule.as_visit.schedule_link` 에 남의 주문 번호 → 편집 화면·모바일 상세 AS 배너에 남의 고객명·시공일, 없는 번호면 존재 여부까지(`foms/api/erp_orders_structured.py:561-568` 깊은 합치기, `foms/services/as_dashboard_display.py:368-487`) | 반영 `55c14eb21` — 저장 때 못 읽는 주문 링크 거부 · 배너는 보는 사람 판정 |
+| R2 | 높음 | structured PUT 으로 `settlement.deductions` 를 지우거나 취소 표시 → 차감 회피(모든 직원에게도 구멍, `SERVER_LOCKED_KEYS` 에 settlement 없음) | 반영 `55c14eb21` — settlement 서버 잠금(모든 직원) |
+| R3 | 높음 | 부 담당 프리랜서가 대표 담당 이름을 자기로 → 수수료 가로채기 · 원래 담당 연결 삭제. `SELF_EDIT_PATHS` 에도 없음 | 반영 `f981ea903`(D21 막기) · `55c14eb21`(본인 수정 표시) |
+| R4 | 중간 | structured PUT 이 `payment.*_confirmed/_by/_by_user_id` 통째 덮음 → 입금 확인 위조(모든 직원) | 반영 `55c14eb21` — 입금 확인 칸 10개 서버 고정(모든 직원) |
 | R5 | 중간 | 실측일·시공일·출고가 바꾸기는 표시만(설계상 허용) — 시공 완료 뒤 변경 거부 또는 마감 때 확인 | 보류 — 표시 유지, 마감 확인은 다음 |
-| R6 | 낮음 | ERP 초안 토큰 4길이 초안 주인 확인 안 함(무작위 UUID) | 대기 |
-| R7 | 낮음 | 마법사 등록 중복 확인이 남의 주문 번호를 돌려줄 수 있음(`erp_order_draft.py:634`) | 대기 |
-| R8 | 낮음 | 마법사 첨부 key `..` 정리 판정 한쪽만, 첨부 승격이 앞부분 검사 안 함(파일 관문이 지금은 막음) | 대기 |
-| R9 | 낮음 | 되채우기 CREATOR 가 손님 값 `OrderDraft.order_id` 를 믿음 | 대기 |
+| R6 | 낮음 | ERP 초안 토큰 4길이 초안 주인 확인 안 함(무작위 UUID) | 반영 `55c14eb21` — 토큰 초안은 작성자 = 나 |
+| R7 | 낮음 | 마법사 등록 중복 확인이 남의 주문 번호를 돌려줄 수 있음(`erp_order_draft.py:634`) | 반영 `55c14eb21` — 중복 확인은 내가 만든 주문만 |
+| R8 | 낮음 | 마법사 첨부 key `..` 정리 판정 한쪽만, 첨부 승격이 앞부분 검사 안 함(파일 관문이 지금은 막음) | 반영 `f981ea903` — 정규형 key 만 · 승격은 내 초안 폴더 |
+| R9 | 낮음 | 되채우기 CREATOR 가 손님 값 `OrderDraft.order_id` 를 믿음 | 반영 `55c14eb21` — 생성 이벤트만 근거 |
 
 막힘 확인(음성 대조군): 남의 주문 편집 직접 열기 404 · 내 수수료 ?order=/?user_id= · 파일 관문 `..` 400 · draft 표시로 발주사 잠금 우회 불가 · 정규화 우회 불가 · 실측 판 집계 · 마법사 발송 4종 · 변경 이력 본인만 · 이벤트 속 다른 주문 번호는 404.
