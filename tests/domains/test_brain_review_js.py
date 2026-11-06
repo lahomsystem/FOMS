@@ -140,3 +140,16 @@ def test_edits_use_the_schema_datatype_and_editable_flag():
     assert got[0] == ["payload.value"]
     assert got[1] == {"payload.value": 640}  # 고칠 수 없는 칸은 빠지고 수는 수로
     assert got[2] is None
+
+
+@NODE
+def test_unchanged_text_row_is_editable_but_not_a_diff_row():
+    """사장님 D177 — 이름표만 바꾸는 고침 제안도 지금 내용(edit_extra)을 고칠 칸으로 연다. 전 → 후 줄 · 요약에는 넣지 않는다."""
+    prop = _prop(op="update", fields=[{"field": "payload.pref_label", "before": None, "after": "합성 이름", "editable": True}],
+                 edit_extra=[{"field": "text", "before": "지금 글", "after": "지금 글", "editable": True, "unchanged": True}])
+    got = _node("[r.editableFields(data.p), r.editsFrom(data.p, {text: '고친 지금 글'}), r.editsFrom(data.p, {text: '지금 글'}),"
+                " r.actionsFor(data.p, false).edit, r.diffRows(data.p.fields, {}).length]", {"p": prop})
+    assert got[0] == ["payload.pref_label", "text"]
+    assert got[1] == {"text": "고친 지금 글"}
+    assert got[2] is None
+    assert got[3] is True and got[4] == 1

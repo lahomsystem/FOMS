@@ -75,17 +75,22 @@
     return row.editable === undefined ? EDITABLE.indexOf(row.field) >= 0 : !!row.editable;
   }
 
-  /** 고쳐 넣기로 고칠 수 있는 칸(서버가 속성 틀로 표시 — 이름 · 글 · 유효 기간 · 실음 칸 틀 칸). */
+  /** 고칠 칸 줄 — 제안이 바꾼 칸 가운데 고칠 수 있는 것 + 제안이 바꾸지 않은 내용 칸(서버 edit_extra — 사장님 D177). */
+  function editRows(view) {
+    return (view.fields || []).filter(isEditable).concat((view.edit_extra || []).filter(isEditable));
+  }
+
+  /** 고쳐 넣기로 고칠 수 있는 칸(서버가 속성 틀로 표시 — 이름 · 글 · 유효 기간 · 실음 칸 틀 칸 · 바꾸지 않은 내용 칸). */
   function editableFields(view) {
-    return (view.fields || []).filter(isEditable).map(function (row) { return row.field; });
+    return editRows(view).map(function (row) { return row.field; });
   }
 
   /** 고친 칸 글 모음 → 자료형 값으로 바꿔 처음 '후' 값과 다른 칸만(빈 칸은 null). */
   function editsFrom(view, values) {
     var out = {};
     var count = 0;
-    (view.fields || []).forEach(function (row) {
-      if (!isEditable(row) || !Object.prototype.hasOwnProperty.call(values || {}, row.field)) return;
+    editRows(view).forEach(function (row) {
+      if (!Object.prototype.hasOwnProperty.call(values || {}, row.field)) return;
       var datatype = row.datatype || (DATE_FIELDS.indexOf(row.field) >= 0 ? 'date' : 'text');
       var value = row.field === 'text' || row.field === 'name' ? values[row.field] : fieldValue(datatype, values[row.field]);
       if (JSON.stringify(value === undefined ? null : value) !== JSON.stringify(row.after === undefined ? null : row.after)) {
@@ -223,7 +228,7 @@
   }
 
   var api = { valueText: valueText, diffRows: diffRows, summary: summary, gateRows: gateRows, actionsFor: actionsFor,
-              editableFields: editableFields, editsFrom: editsFrom, applyBody: applyBody, bulkIds: bulkIds,
+              editableFields: editableFields, editRows: editRows, editsFrom: editsFrom, applyBody: applyBody, bulkIds: bulkIds,
               conflictText: conflictText, evidenceHref: evidenceHref, similarText: similarText, touchText: touchText,
               inboxStatus: inboxStatus, aiLine: aiLine, recheckWhen: recheckWhen, rollbackText: rollbackText,
               elapsed: elapsed, fieldValue: fieldValue, changedAfter: changedAfter, actionLabel: actionLabel,
