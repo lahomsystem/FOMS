@@ -13,8 +13,9 @@
  *   대기함 목록은 저장 뒤 서버에서 다시 읽는다(GET /pending) — 지운 시트의 옛 항목은 지금 시트 목록으로 거른다.
  * - 대기함에도 없고 [저장]도 안 했지만 **전달본과 내용이 달라진 다른 시트**도 그림을 다시 만들어 함께 보낸다(2026-11-06,
  *   운영 주문 5862: 자동 저장만 된 '미드웨이 수납장'이 11-03 옛 그림으로 나갔다). 기준 = 전달본의 그림 지문(GET /pending 의
- *   current). 지문이 없는 옛 전달본은 달라진 것으로 본다. 한 번도 안 보낸 새 시트는 건드리지 않는다
- *   (설계서 docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md).
+ *   current). 지문이 없는 옛 전달본은 달라진 것으로 본다(설계서 docs/specs/2026-11-06-wizard-send-stale-sheets_SPEC.md).
+ * - 한 번도 안 보낸 시트도 그려서 함께 보낸다 — 그림이 하나도 없는 빈 시트만 뺀다(2026-11-06 운영 4909: [저장]을 안 한
+ *   '투도어 2'가 빠져 5장 중 4장만 도면방에 갔다). 대기함 그림도 넣은 뒤 다시 고쳤으면(지문이 다르면) 다시 그린다.
  * - Ctrl+S 는 이 창을 거치지 않는다(wizard.js 단축키가 save() 를 바로 부른다).
  * 권한 · 잠금 · 알림은 기존 서버 경로가 다시 검사한다 — 여기 값(save_send)은 칸을 잠그고 숨기는 화면 표시용이다.
  */
@@ -134,21 +135,26 @@
   }
 
   /** 한 장 저장 뒤 보낼 시트 — {send: 보낼 id(지금 시트 순서), redraw: 그 가운데 다시 그릴 id}. 대기함을 못 읽으면 null.
-      보냄 = 지금 시트 · 대기함에 있는 시트 · 전달본과 지문이 다르거나 없는 시트(다시 그림). 전달본도 대기함도 없는 시트는 뺀다. */
+      화면의 시트가 그대로 나가게 한다: 대기함 · 전달본 그림이 지금 시트와 지문이 같으면 그 그림을 쓰고(대기함) 또는 두고(전달본),
+      다르거나 지문이 없거나 둘 다 없으면 다시 그린다. 그림이 하나도 없는 빈 새 시트만 뺀다. */
   function planIds(sheets, curId) {
     return window.fetch('/api/orders/' + ORDER_ID + '/drawing-wizard/pending', {
       credentials: 'same-origin', headers: { 'Accept': 'application/json' }
     }).then(function (resp) { return resp.json(); }).then(function (data) {
       if (!data || data.success !== true) { return null; }
-      var waiting = {}, sent = {}, SS = window.FomsSaveStatus;
-      ((data.data && data.data.pending) || []).forEach(function (p) { waiting[p.sheet_id] = true; });
+      var waiting = {}, sent = {}, SS = window.FomsSaveStatus, has = Object.prototype.hasOwnProperty;
+      ((data.data && data.data.pending) || []).forEach(function (p) { waiting[p.sheet_id] = p.sig || ''; });
       ((data.data && data.data.current) || []).forEach(function (f) { sent[f.sheet_id] = f.sig || ''; });
       var plan = { send: [], redraw: [] };
       sheets.forEach(function (s) {
-        if (s.id === curId || waiting[s.id]) { plan.send.push(s.id); return; }
-        if (!Object.prototype.hasOwnProperty.call(sent, s.id)) { return; }   // 한 번도 안 보낸 시트 — 아직 그리는 중일 수 있다
+        if (s.id === curId) { plan.send.push(s.id); return; }   // 방금 [저장]으로 넣었다
         var now = SS ? SS.tagSig(SS.sheetSig(s)) : '';
-        if (!sent[s.id] || !now || sent[s.id] !== now) { plan.send.push(s.id); plan.redraw.push(s.id); }
+        var inBox = has.call(waiting, s.id), inSent = has.call(sent, s.id);
+        if (inBox && now && waiting[s.id] === now) { plan.send.push(s.id); return; }   // 대기함 그림 = 지금 시트
+        if (!inBox && inSent && now && sent[s.id] === now) { return; }                // 전달본 = 지금 시트 — 그대로
+        if (!inBox && !inSent && !(s.objects && s.objects.length)) { return; }        // 그림 하나 없는 빈 새 시트
+        plan.send.push(s.id);
+        plan.redraw.push(s.id);
       });
       return plan;
     }, function () { return null; });
