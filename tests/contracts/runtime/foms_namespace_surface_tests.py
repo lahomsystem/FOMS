@@ -2335,6 +2335,8 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "orders",
         "partners",  # PARTNER-02: 외부 협력사
         "production",
+        # FCOMM-01: 프리랜서 영업 수수료(설계서 2026-11-06-freelancer-sales-commission — 계산 · 설정 · 마감 한 패키지).
+        "sales_commission",
         "security",
         "shipment",
         "wdcalculator",

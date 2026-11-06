@@ -328,6 +328,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(health_bp)
 
+    # --- Lane: 프리랜서 영업 수수료 설정(JSON — /api/admin/sales-freelancers, 설계서 2026-11-06-freelancer-sales-commission
+    # §2.3 · §9). 읽기 회계팀 · 관리자, 쓰기 ADMIN(CSRF · 정책 ADMIN_OPS). 화면(/admin/sales-freelancers)은 admin_bp 에 붙는다.
+    # 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.admin import sales_freelancers_admin_api_bp
+
+    app.register_blueprint(sales_freelancers_admin_api_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_chat_socketio_handlers=register_chat_socketio_handlers,

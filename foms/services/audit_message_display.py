@@ -330,6 +330,9 @@ ACTION_LABELS: dict[str, str] = {
     # --- 협력사 단가표(2026-11-03 설계서 2026-11-03-partner-statement §5.1) ---
     "PARTNER_PRICE_LIST_SAVED": "협력사 단가표 새 판 저장",
     "PARTNER_STATEMENT_PROFILE_SAVED": "거래명세서 양식 정보 저장",
+    # --- 프리랜서 영업 수수료 설정(2026-11-06 설계서 2026-11-06-freelancer-sales-commission §2.3) ---
+    "SALES_FREELANCER_SAVED": "프리랜서 수수료 설정 저장",
+    "SALES_FREELANCER_RATE_ADDED": "프리랜서 요율 바꾸기",
     "PARTNER_STATEMENT_DRAFT_OPENED": "협력사 명세서 초안 열기",
     "PARTNER_STATEMENT_DRAFT_SAVED": "협력사 명세서 초안 고침",
     "PARTNER_STATEMENT_DRAFT_DISCARDED": "협력사 명세서 초안 지움",

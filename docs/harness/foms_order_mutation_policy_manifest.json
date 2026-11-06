@@ -1075,6 +1075,16 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/quest/status"
     },
+    "sales_freelancers_admin_api.add_rate": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/sales-freelancers/<int:user_id>/rates"
+    },
+    "sales_freelancers_admin_api.save_freelancer": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/admin/sales-freelancers"
+    },
     "settlement_channel_api.api_settlement_channel_sync": {
       "mode": "guard",
       "policy_id": "SETTLEMENT_CHANNEL_SYNC",

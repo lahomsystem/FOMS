@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 290,
+    "total": 292,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 249,
+    "AUDITED": 251,
     "EXEMPT": 39,
     "UNAUDITED": 2
   },
@@ -67,6 +67,24 @@
       "path": "foms/api/admin/cs_agent.py",
       "endpoint": "cs_agent_switch_loop",
       "lineno": 86,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/admin/sales_freelancers.py",
+      "endpoint": "api_add_rate",
+      "lineno": 148,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/admin/sales_freelancers.py",
+      "endpoint": "api_save_freelancer",
+      "lineno": 118,
       "methods": [
         "POST"
       ],
