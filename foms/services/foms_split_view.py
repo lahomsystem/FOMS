@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from flask import has_request_context
+
+from foms.services.auth.freelancer_menu import freelancer_menu_items
+from foms.services.auth.freelancer_scope import could_be_freelancer, is_freelancer_user
 from foms.services.common.erp_navigation_contract import (
     ERP_PRIMARY_NAV_PATHS,
     ERP_TAB_IDS,
@@ -103,6 +107,11 @@ def _is_construction_team(user: Any) -> bool:
     return (getattr(user, "team", None) or "") == "CONSTRUCTION"
 
 
+def _is_active_freelancer(user: Any) -> bool:
+    """켜진 프리랜서인지(FCOMM-01 겹 5 메뉴). 요청 밖(순수 함수 시험)이거나 직원 · 영업팀이 아니면 설정을 읽지 않는다."""
+    return has_request_context() and could_be_freelancer(user) and is_freelancer_user(user)
+
+
 def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") -> list[dict[str, Any]]:
     """Build permission-scoped side-rail items for the tablet split shell.
 
@@ -118,6 +127,12 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
     Returns:
         Side-tab descriptors with ``id``/``label``/``icon``/``href``/``active``.
     """
+    if _is_active_freelancer(user):
+        # 켜진 프리랜서는 문지기 허용 목록 안 메뉴만(홈 · 실측 · 내 수수료), 계산기 없음.
+        return [
+            {"id": it["id"], "label": it["label"], "icon": it["icon"], "href": it["href"], "active": it["id"] == active_id}
+            for it in freelancer_menu_items()
+        ]
     construction = _is_construction_team(user)
     items: list[dict[str, Any]] = []
     for path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):

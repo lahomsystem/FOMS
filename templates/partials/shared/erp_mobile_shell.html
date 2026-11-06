@@ -21,6 +21,9 @@
   {% set _active = 'dashboard' %}
 {% endif %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
+{# 켜진 프리랜서(FCOMM-01 겹 5 메뉴) — 문지기 허용 목록 안(홈 · 실측 · 내 수수료)만. 판정은 요청당 한 번 읽는다.
+   이 주석 · 아래 set 의 끝 빼기 기호는 다른 사용자 출력이 한 글자도 바뀌지 않게 한다(tests/domains/test_freelancer_menus.py). -#}
+{% set _sales_freelancer = current_user and is_sales_freelancer() -%}
 {# 영업 통합(SALES)·도면(DRAWING)은 도면 창구가 일일 소통 채널 → primary 승격, 시공은 drawer로.
    MEASURE는 레거시 계정 방어용. 시공팀 3중 정합(primary+drawer+badge) 패턴 복제. #}
 {% set _sales_drawing_cohort = current_user and (current_user.team or '') in ['SALES', 'DRAWING', 'MEASURE'] %}
@@ -35,7 +38,10 @@
   {'id': 'completion', 'label': '완료', 'icon': 'fas fa-clipboard-check', 'href': url_for('erp_completion_page.erp_completion_dashboard')},
   {'id': 'history', 'label': '이력', 'icon': 'fas fa-history', 'href': url_for('erp_history.history_dashboard')}
 ] %}
-{% if _construction_only %}
+{% if _sales_freelancer %}
+  {% set _primary_ids = ['dashboard', 'measurement', 'my_commission'] %}
+  {% set _allowed_ids = ['dashboard', 'measurement'] %}
+{% elif _construction_only %}
   {% set _primary_ids = ['shipment', 'construction', 'completion', 'history'] %}
   {% set _allowed_ids = ['shipment', 'construction', 'completion', 'history'] %}
 {% elif _sales_drawing_cohort %}
@@ -46,16 +52,16 @@
   {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}
 {% endif %}
 {% set _primary_items = [] %}
-{% if policy_can('SETTLEMENT_DASHBOARD_READ') %}
+{% if not _sales_freelancer and policy_can('SETTLEMENT_DASHBOARD_READ') %}
   {% set _ = _all_items.append({'id': 'settlement', 'label': '정산', 'icon': 'fas fa-coins', 'href': url_for('erp_settlement_page.erp_settlement_dashboard')}) %}
   {% set _ = _allowed_ids.append('settlement') %}
 {% endif %}
-{% if policy_can('PARTNER_STATEMENT') %}
+{% if not _sales_freelancer and policy_can('PARTNER_STATEMENT') %}
   {% set _ = _all_items.append({'id': 'partner_statements', 'label': '협력사 명세서', 'icon': 'fas fa-file-invoice', 'href': url_for('erp_partner_statements_page.erp_partner_statements')}) %}
   {% set _ = _allowed_ids.append('partner_statements') %}
 {% endif %}
 {# 프리랜서 "내 수수료"(FCOMM-01 §2.2) — 켜진 프리랜서에게만. 판정은 foms/web/sales_commission.py 템플릿 전역 함수(요청당 한 번 읽음). #}
-{% if current_user and is_sales_freelancer() %}
+{% if _sales_freelancer %}
   {% set _ = _all_items.append({'id': 'my_commission', 'label': '내 수수료', 'icon': 'fas fa-coins', 'href': url_for('sales_commission_web.my_commission')}) %}
   {% set _ = _allowed_ids.append('my_commission') %}
 {% endif %}

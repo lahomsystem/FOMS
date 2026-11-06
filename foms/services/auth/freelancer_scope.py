@@ -42,7 +42,8 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 브라우저가 스스로 부르는 아이콘 · 모든 화면이 보내는 익명 화면 속도 기록(읽는 것 없음)
     "favicon",
     "foms_rum.ingest_rum_event",
-    # 내 정보 — 보기만. 저장(이름 · 비밀번호 한 폼)은 FREELANCER_METHOD_LIMITS 가 막는다(J8 · 검토 A1).
+    # 내 정보 — 보기 · 비밀번호 바꾸기. 같은 폼의 이름은 핸들러가 지금 이름으로 되돌린다(J8 · 검토 A1,
+    # foms.services.auth.freelancer_edit_guards.freelancer_profile_name).
     "auth.profile",
     # ── 알림: 모두 내 알림 state 만 다룬다(목록 · 배지 · 읽음 · 확인 · 보관 · 다시 띄울 미확인 알림)
     "notifications.api_notifications_list",
@@ -81,7 +82,7 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "order_edit.redirect_legacy_erp_order_detail",
     "foms_fragment.order_edit_fragment",
     "foms_fragment.order_timeline_fragment",
-    # 주문 읽기 · 저장(발주사 바꾸기 거부는 겹 4, T17)
+    # 주문 읽기 · 저장(등록된 주문의 발주사 바꾸기 거부는 겹 4 — freelancer_edit_guards)
     "erp_orders_structured.api_get_order_structured",
     "erp_orders_structured.api_put_order_structured",
     # 이벤트 · 변경 이력, 저장 직후 서버가 묻는 일정 · 금액 변경 사유(사유 목록 · 사유 적기)
@@ -126,8 +127,6 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
 
 # 허용한 endpoint 중 일부 방법만 여는 것. GET 을 열면 HEAD 도 연다.
 FREELANCER_METHOD_LIMITS: dict[str, frozenset[str]] = {
-    # 이름 저장 거부(J8 — 화면 표시 이름도 관리자만). 같은 폼의 비밀번호 바꾸기도 함께 막힌다.
-    "auth.profile": frozenset({"GET"}),
     # 옛(비 ERP) 주문 폼 저장 · 옛 주문 만들기 — ERP 저장 길(structured PUT · 초안)만 쓴다.
     "order_edit.edit_order": frozenset({"GET"}),
     "order_pages.add_order": frozenset({"GET"}),

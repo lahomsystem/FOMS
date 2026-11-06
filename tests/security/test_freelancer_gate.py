@@ -11,7 +11,7 @@
   (연결 줄)으로 준다 — 남의 주문 404 는 겹 2 시험(test_freelancer_order_scope.py)이 본다.
   같은 자리에서 막힌 endpoint 하나를 음성 대조군으로 본다.
 * 대표 허용 화면은 실제 요청으로 200: 홈 · 실측 판 · 내 수수료 · 알림 목록 · 주문 모바일 상세.
-* 내 정보는 보기만 — 이름 저장은 403, 이름은 그대로.
+* 내 정보 저장은 문지기를 지난다(비밀번호 바꾸기) — 이름은 핸들러가 그대로 둔다(T17).
 * 대조군: 프리랜서가 아닌 영업 직원 · 관리자 · 꺼진 프리랜서는 막히지 않는다.
 * 비용: 직원 · 영업팀이 아닌 계정과 정적 파일은 프리랜서 설정을 읽지 않는다.
 """
@@ -230,17 +230,19 @@ def test_freelancer_is_sent_home_from_denied_pages_and_can_logout(app):
         assert "user_id" not in sess
 
 
-def test_profile_is_view_only_for_freelancer(app):
+def test_profile_post_passes_gate_but_name_stays(app):
+    """T17: 비밀번호를 바꾸려고 저장(POST)은 문지기를 지난다. 이름은 핸들러가 그대로 둔다
+    (자세한 시험: tests/security/test_freelancer_edit_guards.py)."""
     fl = _freelancer()
-    before = fl.name
+    fl_id, before = fl.id, fl.name
     client = _client(app, fl)
     assert client.get("/profile").status_code == 200
 
     resp = client.post("/profile", data={"name": "직원이름흉내"})
-    assert resp.status_code == 403
-    assert resp.get_json()["error"] == FREELANCER_DENIED_MSG
+    assert not _is_gate_response(resp), resp.status_code
+    assert resp.status_code == 302
     db_session.expire_all()
-    assert db_session.get(User, fl.id).name == before
+    assert db_session.get(User, fl_id).name == before
 
 
 # --------------------------------------------------------------------------
