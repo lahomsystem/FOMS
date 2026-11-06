@@ -219,6 +219,7 @@
     "foms/platform/blueprints.py::foms.api.partner_statements_staff",
     "foms/platform/blueprints.py::foms.api.production",
     "foms/platform/blueprints.py::foms.api.quest",
+    "foms/platform/blueprints.py::foms.api.sales_commission",
     "foms/platform/blueprints.py::foms.api.share",
     "foms/platform/blueprints.py::foms.api.shipment",
     "foms/platform/blueprints.py::foms.api.tasks",
