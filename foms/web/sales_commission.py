@@ -23,6 +23,7 @@ from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission import calc
 from foms.services.sales_commission.read_model import (
     BASES,
@@ -58,6 +59,11 @@ def is_sales_freelancer() -> bool:
     """지금 로그인한 사용자가 켜진 프리랜서인지(요청당 한 번 읽음)."""
     user = getattr(g, "current_user", None)
     if user is None or getattr(user, "partner_org_id", None) is not None:
+        return False
+    # 프리랜서는 STAFF · 영업팀 계정만 될 수 있다(설정 저장이 강제) — 그 밖은 설정을 읽지 않는다.
+    if str(getattr(user, "role", "") or "").strip().upper() != "STAFF":
+        return False
+    if normalize_team(getattr(user, "team", None)) != "SALES":
         return False
     return is_freelancer(get_db(), user)
 
