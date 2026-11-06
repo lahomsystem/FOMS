@@ -7,7 +7,8 @@
   새 라우트는 자동으로 검사된다. 빼는 규칙은 허용 목록에 있는 것뿐이다(협력사 시험과 같은 구조).
   로그인 없이 쓰는 공개 주소(웹훅 · 고객 공유 링크 · healthz)도 빼지 않는다 — 그런 요청은 프리랜서 세션을
   싣지 않아 문지기가 상관하지 않고, 프리랜서 세션으로 열면 막히는 것이 맞다.
-* 허용 목록의 (endpoint, 방법)마다 문지기가 통과시킨다(핸들러는 부르지 않고 문지기 함수만 — 주문 단위 판정은 T15).
+* 허용 목록의 (endpoint, 방법)마다 문지기가 통과시킨다(핸들러는 부르지 않고 문지기 함수만). 주문 번호는 내 주문
+  (연결 줄)으로 준다 — 남의 주문 404 는 겹 2 시험(test_freelancer_order_scope.py)이 본다.
   같은 자리에서 막힌 endpoint 하나를 음성 대조군으로 본다.
 * 대표 허용 화면은 실제 요청으로 200: 홈 · 실측 판 · 내 수수료 · 알림 목록 · 주문 모바일 상세.
 * 내 정보는 보기만 — 이름 저장은 403, 이름은 그대로.
@@ -30,7 +31,7 @@ from foms.services.auth.freelancer_scope import (
     freelancer_gate,
 )
 from foms.services.sales_commission.settings import add_rate, load_settings, save_freelancer
-from models import Order, User
+from models import Order, OrderFreelancerLink, User
 from tests.domains.test_auth_finance import _login, _make_user
 
 _match_seq = itertools.count(1)
@@ -79,6 +80,12 @@ def _order() -> int:
     db_session.add(order)
     db_session.commit()
     return order.id
+
+
+def _link(order_id: int, user: User) -> None:
+    """주문을 이 프리랜서의 담당 주문으로 만든다(연결 줄 — 겹 2 가 보는 "내 주문")."""
+    db_session.add(OrderFreelancerLink(order_id=order_id, user_id=user.id, relation="MANAGER_PRIMARY"))
+    db_session.commit()
 
 
 def _client(app, user: User):
@@ -165,6 +172,7 @@ def test_every_allowlisted_endpoint_passes_the_gate(app):
     """허용한 (endpoint, 방법)은 문지기를 지난다. 같은 자리의 막힌 endpoint 가 음성 대조군."""
     fl = _freelancer()
     order_id = _order()
+    _link(order_id, fl)
     blocked = []
     checked = 0
     for rule in app.url_map.iter_rules():
@@ -202,9 +210,11 @@ def test_representative_allowed_screens_open_for_freelancer(app, path):
 
 
 def test_order_mobile_detail_passes_gate_for_freelancer(app):
-    """주문 화면 자체는 문지기를 지난다(내 주문인지는 겹 2 · T15 가 본다)."""
-    client = _client(app, _freelancer())
+    """내 주문 화면은 문지기를 지난다(남의 주문 404 는 겹 2 시험이 본다)."""
+    fl = _freelancer()
+    client = _client(app, fl)
     order_id = _order()
+    _link(order_id, fl)
     resp = client.get(f"/erp/orders/{order_id}/mobile")
     assert resp.status_code == 200, resp.status_code
     assert not _is_gate_response(client.get(f"/api/orders/{order_id}/structured"))

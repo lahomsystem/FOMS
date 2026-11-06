@@ -23,7 +23,7 @@ from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
-from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.order_mutation_policy import normalize_team, user_can_read_order
 from foms.services.sales_commission import calc
 from foms.services.sales_commission.closing import STATUS_PAID, closing_payload
 from foms.services.sales_commission.export import DEAL_LABELS
@@ -218,7 +218,7 @@ def _target_user_id(db, user: Any) -> tuple[int, bool]:
     return target, True
 
 
-def _month_for_order(db, order_id: Optional[int]) -> Optional[tuple[str, str]]:
+def _month_for_order(db, order_id: Optional[int], viewer: Any = None) -> Optional[tuple[str, str]]:
     """주문이 들어가는 달과 기준 — 시공 완료면 (시공 달, 시공 완료), 아니면 (실측 달, 실측일). 없으면 None.
 
     달만 정하고 주문 내용은 내보내지 않는다(남의 주문 번호를 넣어도 그 달의 내 줄만 보인다).
@@ -226,7 +226,8 @@ def _month_for_order(db, order_id: Optional[int]) -> Optional[tuple[str, str]]:
     if not order_id:
         return None
     order = db.get(Order, order_id)
-    if order is None:
+    # 볼 수 없는 주문이면 달조차 알려 주지 않는다(남의 주문 번호로 시공 달 · 완료 여부를 캐는 길 — T15 지적).
+    if order is None or not user_can_read_order(viewer, order):
         return None
     fields = calc.extract_order_fields(order.structured_data if isinstance(order.structured_data, dict) else {})
     done = calc.completion_month(order.erp_stage_code, fields["construction_date"])
@@ -246,7 +247,8 @@ def my_commission():
     last_month = _shift_month(this_month, -1)
     month = request.args.get("month", "")
     basis = request.args.get("basis", "")
-    order_month = _month_for_order(db, request.args.get("order", type=int)) if not month else None
+    order_month = (_month_for_order(db, request.args.get("order", type=int), getattr(g, "current_user", None))
+                   if not month else None)
     if order_month:  # 차감 알림에서 왔다 — 그 주문이 든 달을 연다(D17 · T8 스테이징 지적)
         month, basis = order_month
     month = month if _MONTH_RE.match(month) else last_month
