@@ -26,7 +26,7 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
-    AI_WEEKLY_CAP, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
+    AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
     HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
@@ -49,6 +49,12 @@ PHOTO_PREFIX = "photo:"
 def agent_clause() -> Any:
     """에이전트 제안 조건."""
     return BrainChange.proposed_by.like(AGENT_PREFIX + "%")
+
+
+def capped_clause() -> Any:
+    """주 상한 · 4주 닫힘을 받는 AI 제안 조건 — 에이전트 제안 가운데 :data:`.constants.UNCAPPED_AI_ACTIONS` 가 아닌 것(D175).
+    뺀 제안(다시 배운 사진 교훈 카드)은 사람 제안처럼 제안함에 다 보이고 닫히지 않는다."""
+    return and_(agent_clause(), func.coalesce(BrainChange.action, "").notin_(UNCAPPED_AI_ACTIONS))
 
 
 def decidable_clause(viewer: Viewer) -> Any:
@@ -99,7 +105,7 @@ def current_join(cur: Any) -> Any:
 def _used_by_layer(session: Any, now: datetime.datetime) -> dict[str, int]:
     """이번 주 층마다 결정한 AI 제안 수."""
     rows = session.execute(select(BrainChange.layer, func.count()).where(
-        agent_clause(), BrainChange.status.in_((CHANGE_APPLIED, CHANGE_REJECTED)),
+        capped_clause(), BrainChange.status.in_((CHANGE_APPLIED, CHANGE_REJECTED)),
         BrainChange.decided_at >= week_start(now)).group_by(BrainChange.layer)).all()
     return {layer: int(n) for layer, n in rows if layer}
 
@@ -126,7 +132,7 @@ def shown_ai_ids(session: Any, now: datetime.datetime) -> list[int]:
         if not slot["left"]:
             continue
         query = (select(BrainChange.id).outerjoin(cur, current_join(cur))
-                 .where(BrainChange.status == CHANGE_OPEN, agent_clause(), BrainChange.layer == layer,
+                 .where(BrainChange.status == CHANGE_OPEN, capped_clause(), BrainChange.layer == layer,
                         BrainChange.created_at >= ai_cutoff(now))
                  .order_by(usage_total(cur).desc(), BrainChange.created_at, BrainChange.id).limit(slot["left"]))
         shown.extend(int(i) for i in session.execute(query).scalars())
@@ -136,7 +142,7 @@ def shown_ai_ids(session: Any, now: datetime.datetime) -> list[int]:
 def _in_box(session: Any, now: datetime.datetime) -> Any:
     """제안함에 드는 제안 — 사람 제안 전부 + 보일 AI 제안."""
     shown = shown_ai_ids(session, now)
-    return or_(not_(agent_clause()), BrainChange.id.in_(shown) if shown else false())
+    return or_(not_(capped_clause()), BrainChange.id.in_(shown) if shown else false())
 
 
 def open_rows(session: Any, viewer: Viewer, now: datetime.datetime) -> list[tuple[BrainChange, Optional[BrainObject]]]:
@@ -154,11 +160,11 @@ def inbox_counts(session: Any, viewer: Viewer, now: datetime.datetime) -> dict[s
     """제안함 수(보기 범위 · 결정 가능으로 거른 것) — ``{"open", "cards", "ai_waiting"}``. 알림 수 API 가 쓴다."""
     cur = aliased(BrainObject)
     base = (select(BrainChange.id, BrainChange.item_key, BrainChange.link_kind, BrainChange.link_to, BrainChange.op,
-                   BrainChange.layer, BrainChange.item_type, BrainChange.fields, agent_clause().label("ai"))
+                   BrainChange.layer, BrainChange.item_type, BrainChange.fields, capped_clause().label("ai"))
             .outerjoin(cur, current_join(cur))
             .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur)))
     shown = set(shown_ai_ids(session, now))
-    rows = [r for r in session.execute(base.where(or_(not_(agent_clause()), BrainChange.created_at >= ai_cutoff(now))))
+    rows = [r for r in session.execute(base.where(or_(not_(capped_clause()), BrainChange.created_at >= ai_cutoff(now))))
             if decidable(viewer, r)]
     boxed = [r for r in rows if not r.ai or r.id in shown]
     return {"open": len(boxed), "cards": len({(r.item_key, r.link_kind, r.link_to) for r in boxed}),

@@ -76,8 +76,8 @@ FAILURES: dict[str, str] = {
 }
 #: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계) · 주간 고침 안 승인(그 화면 단추 — :mod:`.template_fix`).
 SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire", "weekly_fix")
-#: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 — 화면 단추 없음).
-AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict")
+#: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 · 다시 배운 사진 교훈 카드 — 화면 단추 없음).
+AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict", "photo_relearn")
 #: 에이전트(모델)에게 도구로 내놓은 쓰기 액션 — 지금은 없다(읽기만 — 설계서 5절 · 10.1 '챗봇은 쓰지 않는다').
 AGENT_EXPOSED_WRITES: tuple[str, ...] = ()
 
