@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import text
 
 from db import db_session
+import foms.services.auth.freelancer_scope as freelancer_scope
 from foms.services import settlement_deduction_service as service
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.sales_commission.calc import sales_deduction_total
@@ -335,11 +336,21 @@ def test_void_removes_amount_from_final_cost_and_resets_status(app):
     ("/api/orders/{oid}/payment-confirm", {"type": "deposit", "confirmed": True}),
     ("/api/orders/{oid}/cash-receipt/issue", {"note": "가상"}),
 ])
-def test_freelancer_is_denied_finance_mutation(client, app, policy_on, path, body):  # noqa: F811
+def test_freelancer_is_denied_finance_mutation(client, app, policy_on, monkeypatch, path, body):  # noqa: F811
+    """두 겹: 3단계 문지기(겹 1)가 먼저 막고, 문지기를 지나도 쓰기 정책 엔진이 막는다(§10.6)."""
     oid = _order_with([])
     _login(client, _freelancer())
+    url = path.format(oid=oid)
 
-    resp = client.post(path.format(oid=oid), json=body)
+    gated = client.post(url, json=body)
+    assert gated.status_code == 403
+    assert gated.get_json()["error"] == freelancer_scope.FREELANCER_DENIED_MSG
+
+    # 문지기 허용 목록에 잘못 들어가도 정책 엔진이 막는지 — 그 endpoint 만 허용한 셈으로 다시 부른다.
+    endpoint, _args = app.url_map.bind("localhost").match(url, method="POST")
+    monkeypatch.setattr(freelancer_scope, "FREELANCER_ALLOWED_ENDPOINTS",
+                        freelancer_scope.FREELANCER_ALLOWED_ENDPOINTS | {endpoint})
+    resp = client.post(url, json=body)
 
     assert resp.status_code == 403 and resp.headers.get("X-Auth-Policy") == "denied"
     assert resp.get_json()["success"] is False

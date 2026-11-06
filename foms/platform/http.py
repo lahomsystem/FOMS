@@ -11,6 +11,7 @@ from typing import Any, Callable
 from werkzeug.exceptions import HTTPException
 
 from foms.platform.security_headers import apply_security_headers
+from foms.services.auth.freelancer_scope import freelancer_gate
 from foms.services.auth.partner_scope import partner_gate
 from foms.services.common.ept_b7_profile import format_phases
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
@@ -248,6 +249,9 @@ def register_http_bootstrap(
 
     # PARTNER-01: 외부 협력사 계정은 허용 목록 endpoint 만(기본 거부). _set_current_user 바로 뒤여야 한다.
     app.before_request(partner_gate)
+    # FCOMM-01 겹 1: 켜진 프리랜서 영업 계정도 허용 목록 endpoint 만(기본 거부). partner_gate 바로 뒤여야 한다 —
+    # 둘 다 _set_current_user 가 채운 g.current_user 를 읽고, 협력사 계정은 앞 문지기가 먼저 맡는다.
+    app.before_request(freelancer_gate)
 
     @app.before_request
     def _touch_last_seen() -> None:
