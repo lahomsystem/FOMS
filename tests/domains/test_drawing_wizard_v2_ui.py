@@ -180,7 +180,7 @@ def test_v2_assets_pinned_after_rearrange_fix():
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-slots.js", "js/drawing/v2-layout.js",
                   "js/drawing/v2-plan.js", "js/drawing/v2-paper.js", "js/drawing/v2-right.js", "js/drawing/v2-chrome.js",
                   "js/drawing/v2-shell.js"):
-        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a", "20261103b", "20261103c", "20261103d", "20261103e", "20261105a")), asset
+        assert any(f"{asset}') }}}}?v={v}" in TPL for v in ("20261027d", "20261027e", "20261027f", "20261028a", "20261028b", "20261028c", "20261028d", "20261028e", "20261029a", "20261029b", "20261030a", "20261103a", "20261103b", "20261103c", "20261103d", "20261103e", "20261105a", "20261106a", "20261106b")), asset
     right = (ROOT / "templates/drawing/partials/wizard_v2_right.html").read_text(encoding="utf-8")
     assert right.index('class="dws-v2-right-body"') < right.index('class="dws-v2-right-foot"')   # 바닥은 굴러가는 몸통 밖(늘 보임)
     assert "style=" not in right and 'id="dws-v2-rearrange"' in TPL
