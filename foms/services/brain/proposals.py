@@ -189,7 +189,7 @@ def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type:
     gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer, item_type,
                    payload_gates(full["payload"]))
     gates = _ai_gates(session, gates, proposer, op=OP_CREATE, key=key, item_type=item_type,
-                      texts=[full["name"] or "", full["text"] or ""], evidence=evidence, after=full)
+                      texts=[full["name"] or "", full["text"] or ""], evidence=evidence, after=full, brand=brand)
     return _insert(session, now=now, op=OP_CREATE, item_key=key, brand=brand, layer=layer, item_type=item_type,
                    fields={n: {"before": None, "after": v} for n, v in full.items() if v is not None},
                    reason=reason.strip(), evidence=evidence, gates=gates, rollback_of_version=rollback_of,
@@ -224,7 +224,8 @@ def propose_update(session: Any, *, key: str, base_version: int, after: Mapping[
     gates = _gates(texts, known_text(session) if known is None else known, proposer,
                    payload=payload_gates(new["payload"], before["payload"]) if "payload" in changed else {})
     gates = _ai_gates(session, gates, proposer, op=OP_UPDATE, key=key, item_type=current.item_type,
-                      texts=[t or "" for t in texts], evidence=evidence, before=before, after=new)
+                      texts=[t or "" for t in texts], evidence=evidence, before=before, after=new,
+                      brand=current.brand)
     return _insert(session, now=now, op=OP_UPDATE, item_key=key, brand=current.brand, layer=current.layer,
                    item_type=current.item_type, base_version=current.version,
                    fields={n: {"before": before[n], "after": new[n]} for n in changed}, reason=reason.strip(),
