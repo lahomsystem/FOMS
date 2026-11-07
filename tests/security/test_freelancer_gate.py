@@ -288,3 +288,68 @@ def test_gate_reads_settings_only_for_sales_staff(app, monkeypatch):
     # 양성 대조군: 영업 직원의 일반 요청은 설정을 한 번 본다(요청 안에서는 g 에 한 번만).
     sales_client.get("/erp/api/notifications/badge")
     assert calls == [sales.id]
+
+
+# --------------------------------------------------------------------------
+# 주문 폼 라홈 제품 고르기 — 계산기 설정 목록 읽기(스테이징 QA 결함 1)
+# --------------------------------------------------------------------------
+# static/js/orders/erp-spec-calc.js 가 주문 편집 · 등록 화면에서 부르는 것 전부(GET).
+_CATALOG_READS = {
+    "/api/wdcalculator/products": ("wdcalculator.api_wdcalculator_get_products", "products"),
+    "/api/wdcalculator/spec-field-presets": ("wdcalculator.api_wdcalculator_get_spec_field_presets",
+                                             "spec_field_presets"),
+    "/api/wdcalculator/additional-options/categories": ("wdcalculator.api_wdcalculator_get_categories", "categories"),
+}
+# 계산기에서 계속 막는 것 — 견적 · 주문 찾기 · 주문 견적 · 견적 잇기 · 설정 바꾸기 · 계산기 화면.
+_WDC_STILL_DENIED = (
+    ("GET", "/api/wdcalculator/search-orders?q=x"),
+    ("GET", "/api/wdcalculator/search-estimates?customer_name=x"),
+    ("GET", "/api/wdcalculator/order-estimates/{oid}"),
+    ("GET", "/api/wdcalculator/estimate/1"),
+    ("POST", "/api/wdcalculator/match-order"),
+    ("POST", "/api/wdcalculator/unmatch-order"),
+    ("POST", "/api/wdcalculator/save-estimate"),
+    ("POST", "/api/wdcalculator/calculate"),
+    ("POST", "/api/orders/{oid}/wdc-estimate-sync"),
+    ("POST", "/api/wdcalculator/products"),
+    ("POST", "/api/wdcalculator/spec-field-presets"),
+    ("POST", "/api/wdcalculator/additional-options/categories"),
+    ("GET", "/api/wdcalculator/notes/categories"),
+    ("GET", "/wdcalculator"),
+)
+
+
+def test_order_form_catalog_reads_open_for_freelancer(app):
+    """주문 폼 제품 고르기가 쓰는 계산기 설정 목록 3개는 열리고, 돌려주는 것은 설정 목록 한 칸뿐이다."""
+    rules = {}
+    for rule in app.url_map.iter_rules():
+        if rule.rule in _CATALOG_READS:
+            rules.setdefault(rule.rule, {})[rule.endpoint] = rule.methods - {"HEAD", "OPTIONS"}
+    for path, (endpoint, _key) in _CATALOG_READS.items():
+        assert endpoint in FREELANCER_ALLOWED_ENDPOINTS, endpoint
+        assert rules[path][endpoint] == {"GET"}, (path, rules[path])  # GET 전용 라우트(쓰기는 다른 endpoint)
+        assert endpoint not in FREELANCER_METHOD_LIMITS
+
+    fl = _freelancer()
+    order_id = _order()
+    _link(order_id, fl)
+    client = _client(app, fl)
+    for path, (_endpoint, key) in _CATALOG_READS.items():
+        resp = client.get(path)
+        assert resp.status_code == 200, (path, resp.status_code)
+        body = resp.get_json()
+        assert body["success"] is True and set(body) == {"success", key}, (path, sorted(body))
+
+    # 계산기의 견적 · 주문 쪽과 설정 바꾸기는 그대로 막힌다(내 주문 번호여도).
+    for method, path in _WDC_STILL_DENIED:
+        resp = client.open(path.format(oid=order_id), method=method, json={} if method == "POST" else None)
+        assert _is_gate_response(resp), (method, path, resp.status_code)
+
+
+def test_catalog_reads_unchanged_for_normal_sales(app):
+    """대조군: 프리랜서 아닌 영업 직원은 전과 같이 열린다(문지기가 상관하지 않는다)."""
+    _freelancer()
+    client = _client(app, _make_user("STAFF", "SALES"))
+    for path in _CATALOG_READS:
+        assert client.get(path).status_code == 200, path
+    assert not _is_gate_response(client.get("/api/wdcalculator/search-orders?q=x"))

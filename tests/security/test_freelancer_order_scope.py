@@ -85,6 +85,9 @@ _NO_ORDER_ID = {
     "erp_order_draft_send.api_draft_channel_push_send", "address.search",
     "erp_orders_structured.api_parse_order_text", "events.api_change_reason_codes",
     "notifications.api_urgent_targets",
+    # 계산기 설정 목록(제품 · 규격 선택지 · 추가 옵션) — 주문 폼 제품 고르기용 읽기, 주문 번호 없음.
+    "wdcalculator.api_wdcalculator_get_products", "wdcalculator.api_wdcalculator_get_spec_field_presets",
+    "wdcalculator.api_wdcalculator_get_categories",
 }
 
 

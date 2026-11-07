@@ -139,6 +139,12 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "erp_order_draft_send.api_draft_channel_push_send",
     "address.search",
     "erp_orders_structured.api_parse_order_text",
+    # 주문 폼 라홈 제품 고르기(static/js/orders/erp-spec-calc.js) — 계산기 설정 목록 읽기 3개(GET 전용 라우트).
+    # 제품 · 단가표, 규격 칸 선택지, 추가 옵션 묶음만 돌려준다(주문 · 고객 · 견적을 읽지 않는다). 견적 찾기 ·
+    # 주문 견적 · 견적 잇기 · 계산기 화면은 열지 않는다.
+    "wdcalculator.api_wdcalculator_get_products",
+    "wdcalculator.api_wdcalculator_get_spec_field_presets",
+    "wdcalculator.api_wdcalculator_get_categories",
     # ── 수수료: 내 수수료 화면(언제나 본인 것)
     "sales_commission_web.my_commission",
 })

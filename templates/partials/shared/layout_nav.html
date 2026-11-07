@@ -26,7 +26,7 @@
                     </button>
                 </div>
                 {% endif %}
-                {% if current_user.role != 'PARTNER' %}
+                {% if current_user.role != 'PARTNER' and not _fl_nav %}{# 켜진 프리랜서: 협력사 이름 목록 · 거르기 숨김(FCOMM-01 QA) #}
                 {% set partner_menu = partner_filter_menu() %}
                 <div class="dropdown">
                     <button class="btn btn-link p-0 border-0 {{ 'text-primary' if partner_menu.active else 'text-secondary' }}"
