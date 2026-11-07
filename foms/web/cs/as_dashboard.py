@@ -175,15 +175,15 @@ def erp_as_card_detail(order_id: int):
     )
     if order is None:
         abort(404)
+    current_user = getattr(g, 'current_user', None)
     # 대시보드와 동일한 표시필드 보강(시공자·AS 내용 HTML·영업택배). 썸네일은 상세에 없어 게이트 off.
-    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False, viewer=current_user)
     # T15c: 상세 타임라인 표면은 ver7 회차 차트로 교체 — 단건 lazy 라우트에서만 조립한다
     # (목록 hot path 는 기존 as_timeline_view 셀 요약 그대로).
     order.as_round_chart_view = build_as_round_chart_view(
         order.structured_data,
         attachments_by_log_id=_as_attachments_by_log_id(db, order.id),
     )
-    current_user = getattr(g, 'current_user', None)
     return render_template(
         'cs/partials/as_card_detail_partial.html',
         r=order,
@@ -216,14 +216,14 @@ def erp_as_timeline(order_id: int):
     )
     if order is None:
         abort(404)
-    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    current_user = getattr(g, 'current_user', None)
+    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False, viewer=current_user)
     # T15c: PC 확장 표면 = ver7 회차 차트. 구 '더보기'(?full=1)는 표면과 함께 퇴역 —
     # 차트는 회차별 전량을 내되 회차당 상한(_ROUND_ENTRY_LIMIT)이 fragment 폭증을 막는다.
     order.as_round_chart_view = build_as_round_chart_view(
         order.structured_data,
         attachments_by_log_id=_as_attachments_by_log_id(db, order.id),
     )
-    current_user = getattr(g, 'current_user', None)
     readonly = request.args.get('readonly') == '1'
     return render_template(
         'cs/partials/as_timeline_partial.html',
@@ -435,7 +435,11 @@ def erp_as_dashboard():
     # T4: 반환값 = 렌더된 행 중 기준 일정 드리프트(ref_moved/both_moved) 배너 요약
     # (count + 점프 칩 + 초과 건수). 같은 행 루프에서 모으므로 추가 쿼리·재평가 없음.
     with phase("row_display"):
-        drift_banner = apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
+        # 켜진 프리랜서는 행이 가리키는 다른 주문(기준 일정 · 전달 배정의 기준 실측 주문)을 읽기 판정으로 거른다
+        # (FCOMM-01 §6.3 겹 3 — 목록 자체는 위 mine 강제로 연결 표 범위다).
+        drift_banner = apply_as_dashboard_row_display_fields(
+            rows, db, mobile_v2_active=mobile_v2_active, viewer=current_user
+        )
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 

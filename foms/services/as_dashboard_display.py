@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.ept_b7_profile import phase, record_phase
 from foms.services.feature_flags import env_bool_or_mobile_v2
 from foms.services.erp_display import (
@@ -434,6 +435,30 @@ def _viewer_can_read_ref(viewer: Any, ref_id: Any, ref_snapshot: dict[int, dict[
     return user_can_read_order(viewer, ref)
 
 
+def _freelancer_ref_reader(viewer: Any) -> Any:
+    """목록 행이 가리키는 다른 주문(기준 일정 · 전달 배정의 기준 실측 주문)을 거를 판정 함수.
+
+    켜진 프리랜서(FCOMM-01 §6.3 겹 3)만 거른다 — 프리랜서가 아니면 None(거르지 않음, 직원 · 협력사 화면은 그대로).
+    판정은 정본 ``user_can_read_order`` 다(프리랜서 갈래는 주문 번호만 본다). 없는 번호 · 정수가 아닌 값도 못 읽음
+    — 남의 주문과 같은 답이라 존재 여부가 새지 않는다.
+
+    Args:
+        viewer: 화면을 보는 사람(None 이면 거르지 않음).
+
+    Returns:
+        ``ref_id -> bool`` 함수 또는 None.
+    """
+    if viewer is None or not is_list_freelancer(viewer):
+        return None
+
+    def can_read(ref_id: Any) -> bool:
+        if not isinstance(ref_id, int) or isinstance(ref_id, bool):
+            return False
+        return user_can_read_order(viewer, SimpleNamespace(id=ref_id, partner_org_id=None))
+
+    return can_read
+
+
 def _short_md(iso_date: Any) -> str:
     """'YYYY-MM-DD' → 'M/D'(0 패딩 없음). 파싱 실패/None 이면 빈 문자열."""
     parsed = _parse_iso_date(iso_date)
@@ -540,7 +565,7 @@ def _drift_banner_chip(row: Any, drift: dict) -> dict[str, Any]:
     }
 
 
-def apply_schedule_link_drift_fields(rows, db: Any) -> dict[str, Any]:
+def apply_schedule_link_drift_fields(rows, db: Any, *, viewer: Any = None) -> dict[str, Any]:
     """행마다 `schedule_link_drift` 를 부착하고, 상단 배너용 요약을 반환한다.
 
     렌더된 행 집합에 한정해 기준 주문을 `in_()` 1회 배치 조회한다(전체 미완료 AS
@@ -551,18 +576,24 @@ def apply_schedule_link_drift_fields(rows, db: Any) -> dict[str, Any]:
         rows: structured_data 가 이미 dict 로 정규화되고 `as_visit_date` 가 채워진
             Order 리스트(`apply_erp_display_fields_to_orders` 이후 호출 전제).
         db: SQLAlchemy 세션.
+        viewer: 화면을 보는 사람. 켜진 프리랜서면 못 읽는 기준 주문은 링크가 없는 것처럼 그린다
+            (단건 배너 :func:`build_schedule_link_drift` 와 같은 규칙). 그 밖은 거르지 않는다.
 
     Returns:
         `{"count": 경고 행 총수, "chips": 상한(_DRIFT_BANNER_CHIP_LIMIT)까지의 칩 리스트,
         "overflow": 칩으로 못 낸 나머지 건수}`. 경고가 없으면 count=0(템플릿이 배너 생략).
     """
+    can_read = _freelancer_ref_reader(viewer)
     ref_ids = _collect_schedule_link_ref_ids(rows)
+    if can_read is not None:
+        ref_ids = {ref_id for ref_id in ref_ids if can_read(ref_id)}
     ref_snapshot = _batch_load_ref_schedule_snapshot(ref_ids, db)
     chips: list[dict[str, Any]] = []
     for r in rows:
-        drift = _evaluate_link_drift(
-            read_link(r.structured_data), ref_snapshot, getattr(r, "as_visit_date", None)
-        )
+        link = read_link(r.structured_data)
+        if link is not None and can_read is not None and not can_read(link.get("ref_order_id")):
+            link = None
+        drift = _evaluate_link_drift(link, ref_snapshot, getattr(r, "as_visit_date", None))
         r.schedule_link_drift = drift
         if drift["state"] in _DRIFT_WARN_STATES:
             chips.append(_drift_banner_chip(r, drift))
@@ -753,7 +784,7 @@ def _sales_delivery_chip(link: dict | None, ref_info: dict[str, Any] | None) -> 
     }
 
 
-def apply_sales_delivery_display_fields(rows, db: Any) -> dict[str, int]:
+def apply_sales_delivery_display_fields(rows, db: Any, *, viewer: Any = None) -> dict[str, int]:
     """행마다 영업 전달 배정 4필드를 부착하고, 요약 pill 집계를 반환한다(스펙 §6.1).
 
     부착 필드: `sales_delivery_state`(unassigned|assigned|delivered|parcel),
@@ -764,18 +795,26 @@ def apply_sales_delivery_display_fields(rows, db: Any) -> dict[str, int]:
     Args:
         rows: structured_data 가 이미 dict 로 정규화된 Order 리스트.
         db: SQLAlchemy 세션.
+        viewer: 화면을 보는 사람. 켜진 프리랜서면 못 읽는 기준 실측 주문(다른 주문)의 칸 — 번호 · 고객명 ·
+            담당 · 실측일 · 일정 변경 — 을 비운다. 내 AS 건의 배정 상태(배정 · 전달완료 · 택배)는 그대로 둔다.
+            그 밖은 거르지 않는다.
 
     Returns:
         `{"unassigned", "assigned", "delivered", "parcel", "drift"}` 건수 dict.
         `drift` 는 조치가 필요한(ref_moved/ref_gone) 배정 행 수다.
     """
-    ref_snapshot = _batch_load_ref_measurement_snapshot(
-        _collect_sales_delivery_ref_ids(rows), db
-    )
+    can_read = _freelancer_ref_reader(viewer)
+    ref_ids = _collect_sales_delivery_ref_ids(rows)
+    if can_read is not None:
+        ref_ids = {ref_id for ref_id in ref_ids if can_read(ref_id)}
+    ref_snapshot = _batch_load_ref_measurement_snapshot(ref_ids, db)
     summary = {"unassigned": 0, "assigned": 0, "delivered": 0, "parcel": 0, "drift": 0}
     for r in rows:
         sd = r.structured_data
         link = sd_read_link(sd)
+        hidden = link is not None and can_read is not None and not can_read(link.get("ref_order_id"))
+        if hidden:
+            link = None
         ref_info = ref_snapshot.get(link.get("ref_order_id")) if link else None
         # 기준 주문이 삭제됐거나 조회 불가면 현재 실측일이 없는 것으로 본다 → ref_gone.
         ref_current = (
@@ -783,7 +822,7 @@ def apply_sales_delivery_display_fields(rows, db: Any) -> dict[str, int]:
             if (ref_info and not ref_info.get("missing"))
             else None
         )
-        drift = sd_evaluate_drift(sd, ref_current)
+        drift = sd_evaluate_drift(None if hidden else sd, ref_current)
         drift["ref_customer_name"] = (ref_info or {}).get("customer_name") if link else None
         drift["ref_label"] = _ref_label(drift.get("ref_order_id"), drift.get("ref_customer_name"))
         drift["ref_date_md"] = _short_md(drift.get("ref_date"))
@@ -801,7 +840,7 @@ def apply_sales_delivery_display_fields(rows, db: Any) -> dict[str, int]:
     return summary
 
 
-def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
+def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active, viewer=None):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
     structured_data 정규화 + ERP 표시 필드 + AS 사진 보유/대기/도면/영업택배 플래그 +
@@ -813,6 +852,8 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         rows: 현재 페이지 Order 객체 리스트.
         db: SQLAlchemy 세션.
         mobile_v2_active: ERP mobile v2 cohort 활성 여부(썸네일 게이트).
+        viewer: 화면을 보는 사람 — 켜진 프리랜서면 행이 가리키는 다른 주문(기준 일정 · 전달 배정)을 읽기
+            판정으로 거른다(FCOMM-01 §6.3 겹 3). None 이거나 프리랜서가 아니면 지금과 같다.
 
     Returns:
         상단 배너 요약 dict(`apply_schedule_link_drift_fields` 반환값 그대로 —
@@ -919,10 +960,10 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     record_phase("rd_sanitize", _t_sanitize * 1000)
     record_phase("rd_timeline", _t_timeline * 1000)
     with phase("rd_drift"):
-        banner = apply_schedule_link_drift_fields(rows, db)
+        banner = apply_schedule_link_drift_fields(rows, db, viewer=viewer)
     # 영업 전달 배정(스펙 §6.1). 요약 pill 숫자는 라우트를 고치지 않고 이 반환 dict 에
     # 얹어 템플릿까지 나른다 — 집계 구현이 파이썬 한 곳에만 있게 하려는 의도다
     # (템플릿에서 다시 세면 셀 상태와 pill 숫자가 갈라진다).
     with phase("rd_sales_delivery"):
-        banner["sales_delivery_summary"] = apply_sales_delivery_display_fields(rows, db)
+        banner["sales_delivery_summary"] = apply_sales_delivery_display_fields(rows, db, viewer=viewer)
     return banner

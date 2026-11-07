@@ -61,6 +61,9 @@ _NON_ORDER_INT_ARGS: dict[str, set[str]] = {
 }
 # 주문 번호를 핸들러가 key 에서 찾아 ``user_can_read_order`` 로 보는 것(파일 관문 3종).
 _HANDLER_CHECKED = {"files.view", "files.presigned_urls", "files.download"}
+# AS 주문만 그리는 조각 — 실측 단계 시드는 핸들러 404(범위 404 와 같은 모양)라 내 주문은 문지기 통과로 본다(내 AS 주문
+# 200 은 tests/security/test_freelancer_screen_completion.py).
+_STAGE_ONLY_HANDLERS = {"erp_as_page.erp_as_card_detail", "erp_as_page.erp_as_timeline"}
 # query 에 주문 번호가 있지만 일부러 열어 둔 것 — 달만 고르고 주문 내용은 내보내지 않는다(문지기 주석 참고).
 _QUERY_EXEMPT = {"sales_commission_web.my_commission"}
 # 주문 번호를 받지 않는 허용 endpoint(초안 토큰 · 초안 키 · 알림 · 공지 번호는 모두 본인 것만 다룬다).
@@ -267,7 +270,8 @@ def test_url_order_id_real_requests(app, world, monkeypatch):
     wrong = []
     for rule, method in _url_order_cases(app):
         mine = client.open(_path(rule, world["own"]), method=method, json={} if method != "GET" else None)
-        if _resp_is_scope_404(mine) or mine.status_code >= 500:
+        if (_gate(app, world["fl"], method, _path(rule, world["own"])) is not None if rule.endpoint in _STAGE_ONLY_HANDLERS
+                else _resp_is_scope_404(mine)) or mine.status_code >= 500:
             wrong.append(("own", rule.endpoint, method, mine.status_code))
         theirs = client.open(_path(rule, world["other"]), method=method, json={} if method != "GET" else None)
         if theirs.status_code != 404:
