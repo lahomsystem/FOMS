@@ -266,7 +266,7 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         redis_url=os.environ.get("REDIS_URL"),
         socketio_available=socketio_available,
         init_limiter=init_limiter,
-        register_chat_socketio_handlers=blueprint_bindings.register_chat_socketio_handlers,
+        register_realtime_socketio_handlers=blueprint_bindings.register_realtime_socketio_handlers,
     )
 
     app.config["TEMPLATES_AUTO_RELOAD"] = not (is_production or is_railway)

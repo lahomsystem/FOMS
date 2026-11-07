@@ -26,12 +26,6 @@
     },
     {
       "path": "foms/services/auth/freelancer_designation.py",
-      "func": "remove_chat_memberships",
-      "signal": "UNTRACKED_TABLE",
-      "reason": "chat_room_members delete only (FCOMM-01 freelancer designation)."
-    },
-    {
-      "path": "foms/services/auth/freelancer_designation.py",
       "func": "hide_stale_notifications",
       "signal": "UNTRACKED_TABLE",
       "reason": "notification_user_states.archived_at only (FCOMM-01 freelancer designation)."

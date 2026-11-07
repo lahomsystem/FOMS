@@ -335,56 +335,6 @@
       "reason": "ChannelTalk provider webhook - HMAC x-signature 검증이 인증(쿠키 세션 미사용).",
       "rule": "/api/channel/webhooks"
     },
-    "chat.api_chat_mark_read": {
-      "mode": "guard",
-      "policy_id": "MARK_ROOM_READ",
-      "rule": "/api/chat/rooms/<int:room_id>/mark-read"
-    },
-    "chat.api_chat_rooms_add_member": {
-      "mode": "guard",
-      "policy_id": "CHAT_ROOM",
-      "rule": "/api/chat/rooms/<int:room_id>/members"
-    },
-    "chat.api_chat_rooms_create": {
-      "mode": "guard",
-      "policy_id": "CHAT_ROOM",
-      "rule": "/api/chat/rooms"
-    },
-    "chat.api_chat_rooms_delete": {
-      "mode": "guard",
-      "policy_id": "CHAT_ROOM",
-      "rule": "/api/chat/rooms/<int:room_id>"
-    },
-    "chat.api_chat_rooms_remove_member": {
-      "mode": "guard",
-      "policy_id": "CHAT_ROOM",
-      "rule": "/api/chat/rooms/<int:room_id>/members/<int:member_user_id>"
-    },
-    "chat.api_chat_rooms_update": {
-      "mode": "guard",
-      "policy_id": "CHAT_ROOM",
-      "rule": "/api/chat/rooms/<int:room_id>"
-    },
-    "chat.api_chat_send_message": {
-      "mode": "guard",
-      "policy_id": "SEND_CHAT_MESSAGE",
-      "rule": "/api/chat/messages"
-    },
-    "chat.api_chat_upload": {
-      "mode": "guard",
-      "policy_id": "UPLOAD_CHAT_ATTACHMENT",
-      "rule": "/api/chat/upload"
-    },
-    "chat.api_chat_upload_complete": {
-      "mode": "guard",
-      "policy_id": "UPLOAD_CHAT_ATTACHMENT",
-      "rule": "/api/chat/upload/complete"
-    },
-    "chat.api_chat_upload_session": {
-      "mode": "guard",
-      "policy_id": "UPLOAD_CHAT_ATTACHMENT",
-      "rule": "/api/chat/upload/session"
-    },
     "erp_dashboard.erp_dashboard_calendar_colors_save": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",

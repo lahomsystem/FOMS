@@ -37,12 +37,11 @@ from tests.domains.test_auth_finance import _login, _make_user
 _match_seq = itertools.count(1)
 _RATE = {"effective_month": "2030-01", "lahom_bp": 400, "haud_bp": 600, "personal_bp": 800}
 _HOME = "/erp/dashboard"
-# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 주문 복사 · 채팅 · 지도 · 옛 목록.
+# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 주문 복사 · 지도 · 옛 목록(사내 채팅은 CHAT-DEL-01 로 지움).
 # 이력 검색은 11-07 결정으로 내 주문만 거른 뒤 열었다(freelancer_screens/history.py).
 _DENIED_SAMPLE = (
     ("GET", "/api/foms/search/fragment?q=x"),
     ("POST", "/api/orders/copy"),
-    ("GET", "/api/chat/rooms"),
     ("GET", "/map_view"),
     ("GET", "/"),
 )

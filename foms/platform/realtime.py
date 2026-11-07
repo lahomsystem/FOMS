@@ -66,7 +66,7 @@ def init_realtime_bootstrap(
     redis_url: str | None,
     socketio_available: bool,
     init_limiter: Callable[[Flask], Any],
-    register_chat_socketio_handlers: Callable[..., Any],
+    register_realtime_socketio_handlers: Callable[..., Any],
 ) -> RealtimeBindings:
     """Initialize the limiter, Socket.IO, and related app config in existing order."""
     limiter = init_limiter(app)
@@ -240,7 +240,7 @@ def init_realtime_bootstrap(
             socketio = _SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
     if socketio_available and socketio:
-        register_chat_socketio_handlers(socketio)
+        register_realtime_socketio_handlers(socketio)
         app.config["SOCKETIO_AVAILABLE"] = True
         app.config["_SOCKETIO_INSTANCE"] = socketio
     else:

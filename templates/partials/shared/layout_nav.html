@@ -194,7 +194,7 @@
                     </li>
                     {% endif %}
                 </ul>
-                <!-- 도구 섹션 (시공팀은 ERP/WDPLANNER/WDCalculator만 숨기고 채팅은 노출) -->
+                <!-- 도구 섹션 (시공팀은 ERP/WDCalculator 숨김) -->
                 <ul class="navbar-nav ms-auto border-start ps-3">
                     {% if (current_user.team or '') != 'CONSTRUCTION' %}
                     <li class="nav-item">
@@ -208,11 +208,6 @@
                         </a>
                     </li>{% endif %}
                     {% endif %}
-                    {% if not _fl_nav %}<li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('channel_chat_pages.chat') }}">
-                            <i class="fas fa-comments"></i> 채팅
-                        </a>
-                    </li>{% endif %}
                 </ul>
             </div>
             <div id="layout-nav-loading-status" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>

@@ -154,9 +154,9 @@ def test_static_gate_every_mutation_route_classified(app):
             assert pid in POLICY_REGISTRY, f"미등록 policy_id({pid}) — {ep}"
 
 
-def test_ancillary_allowlist_is_exactly_nine(app):
-    """§2.1 line 155 ancillary allowlist 는 정확히 9종이고 전부 viewer 허용이다."""
-    assert len(ANCILLARY_ALLOWLIST) == 9
+def test_ancillary_allowlist_is_exactly_six(app):
+    """§2.1 line 155 ancillary allowlist 는 정확히 6종이고 전부 viewer 허용이다(9종 중 채팅 3종은 CHAT-DEL-01 로 지움)."""
+    assert len(ANCILLARY_ALLOWLIST) == 6
     for pid in ANCILLARY_ALLOWLIST:
         assert POLICY_REGISTRY[pid].viewer is True
 
@@ -216,14 +216,13 @@ def test_viewer_calculate_allowed_pure_calc(client, app, policy_on):
 # VIEWER ancillary allowlist 9종 — 통과 (P1-24)
 # --------------------------------------------------------------------------
 def test_viewer_allowed_ancillary_surfaces(client, app, policy_on):
-    """VIEWER 는 자기 notification/subscription/room/urgent-call ancillary 는 통과."""
+    """VIEWER 는 자기 notification/subscription/urgent-call ancillary 는 통과(사내 채팅은 CHAT-DEL-01 로 지움)."""
     _login(client, _make_user("viewer-anc", role="VIEWER"))
     oid = _make_order()
     for method, path, body in [
         ("POST", "/erp/api/notifications/1/read", {}),
         ("POST", "/erp/api/notifications/1/ack", {}),
         ("POST", "/erp/api/notifications/push/subscribe", {"endpoint": "x"}),
-        ("POST", "/api/chat/messages", {"room_id": 1, "text": "hi"}),
         ("POST", "/erp/api/urgent-call", {"target_user_id": 1, "order_id": oid}),
     ]:
         resp = client.open(path, method=method, json=body)
