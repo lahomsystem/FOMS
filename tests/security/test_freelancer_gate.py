@@ -37,10 +37,10 @@ from tests.domains.test_auth_finance import _login, _make_user
 _match_seq = itertools.count(1)
 _RATE = {"effective_month": "2030-01", "lahom_bp": 400, "haud_bp": 600, "personal_bp": 800}
 _HOME = "/erp/dashboard"
-# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 이력 검색 · 주문 복사 · 채팅 · 지도 · 옛 목록.
+# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 주문 복사 · 채팅 · 지도 · 옛 목록.
+# 이력 검색은 11-07 결정으로 내 주문만 거른 뒤 열었다(freelancer_screens/history.py).
 _DENIED_SAMPLE = (
     ("GET", "/api/foms/search/fragment?q=x"),
-    ("GET", "/erp/history/"),
     ("POST", "/api/orders/copy"),
     ("GET", "/api/chat/rooms"),
     ("GET", "/map_view"),
@@ -56,7 +56,7 @@ def _freelancer(*, active: bool = True) -> User:
     user = _make_user("STAFF", "SALES")
     version, _cfg, _changed = save_freelancer(
         db_session, user.id,
-        {"match_name": f"가짜문지기{next(_match_seq)}", "start_month": "2030-01", "tax_type": "NONE",
+        {"match_name": f"가짜문지기{next(_match_seq)}", "start_month": "2020-01", "tax_type": "NONE",
          "active": active},
         base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()
@@ -278,16 +278,18 @@ def test_gate_reads_settings_only_for_sales_staff(app, monkeypatch):
         return real(db, user)
 
     monkeypatch.setattr(scope, "is_freelancer", counting)
-    for role, team in (("ADMIN", None), ("STAFF", "CS"), ("STAFF", "CONSTRUCTION"), ("MANAGER", "SALES")):
+    for role, team in (("ADMIN", None), ("STAFF", "CS"), ("STAFF", "CONSTRUCTION"), ("MANAGER", "CS")):
         _client(app, _make_user(role, team)).get("/erp/api/notifications/badge")
     sales = _make_user("STAFF", "SALES")
     sales_client = _client(app, sales)
     sales_client.get("/static/css/foundation/erp-pro.css")
     assert calls == []
 
-    # 양성 대조군: 영업 직원의 일반 요청은 설정을 한 번 본다(요청 안에서는 g 에 한 번만).
+    # 양성 대조군: 영업 직원 · 영업 매니저(D27 — 매니저 등급도 프리랜서가 될 수 있다)의 일반 요청은 설정을 한 번 본다.
     sales_client.get("/erp/api/notifications/badge")
-    assert calls == [sales.id]
+    manager = _make_user("MANAGER", "SALES")
+    _client(app, manager).get("/erp/api/notifications/badge")
+    assert calls == [sales.id, manager.id]
 
 
 # --------------------------------------------------------------------------
@@ -300,21 +302,16 @@ _CATALOG_READS = {
                                              "spec_field_presets"),
     "/api/wdcalculator/additional-options/categories": ("wdcalculator.api_wdcalculator_get_categories", "categories"),
 }
-# 계산기에서 계속 막는 것 — 견적 · 주문 찾기 · 주문 견적 · 견적 잇기 · 설정 바꾸기 · 계산기 화면.
+# 계산기에서 계속 막는 것 — 제품 설정 화면 · 설정 바꾸기 · 비고 묶음 읽기(설정 화면용). 계산기 화면 · 견적 ·
+# 주문 찾기 · 잇기는 화면 묶음으로 열었다(freelancer_screens/wdcalculator.py — 내 견적 · 내 주문만, 11-07).
 _WDC_STILL_DENIED = (
-    ("GET", "/api/wdcalculator/search-orders?q=x"),
-    ("GET", "/api/wdcalculator/search-estimates?customer_name=x"),
-    ("GET", "/api/wdcalculator/estimate/1"),
-    ("POST", "/api/wdcalculator/match-order"),
-    ("POST", "/api/wdcalculator/unmatch-order"),
-    ("POST", "/api/wdcalculator/save-estimate"),
-    ("POST", "/api/wdcalculator/calculate"),
-    ("POST", "/api/orders/{oid}/wdc-estimate-sync"),
     ("POST", "/api/wdcalculator/products"),
+    ("DELETE", "/api/wdcalculator/products/1"),
     ("POST", "/api/wdcalculator/spec-field-presets"),
     ("POST", "/api/wdcalculator/additional-options/categories"),
+    ("POST", "/api/wdcalculator/notes/categories"),
     ("GET", "/api/wdcalculator/notes/categories"),
-    ("GET", "/wdcalculator"),
+    ("GET", "/wdcalculator/product-settings"),
 )
 
 
@@ -339,7 +336,7 @@ def test_order_form_catalog_reads_open_for_freelancer(app):
         body = resp.get_json()
         assert body["success"] is True and set(body) == {"success", key}, (path, sorted(body))
 
-    # 계산기의 견적 찾기 · 견적 잇기 · 계산 · 설정 바꾸기는 그대로 막힌다(내 주문에 이은 견적 목록 읽기만 열림 — 11-07).
+    # 계산기 설정 바꾸기 · 설정 화면은 그대로 막힌다.
     for method, path in _WDC_STILL_DENIED:
         resp = client.open(path.format(oid=order_id), method=method, json={} if method == "POST" else None)
         assert _is_gate_response(resp), (method, path, resp.status_code)

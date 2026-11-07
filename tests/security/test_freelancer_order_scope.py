@@ -43,55 +43,16 @@ from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.sales_commission.settings import add_rate, load_settings, save_freelancer
 from models import Order, OrderEvent, OrderFreelancerLink, PartnerOrg, User
 from tests.domains.test_auth_finance import _login, _make_user
+from tests.support.freelancer_order_scope_tables import (
+    HANDLER_CHECKED as _HANDLER_CHECKED,
+    NO_ORDER_ID as _NO_ORDER_ID,
+    NON_ORDER_INT_ARGS as _NON_ORDER_INT_ARGS,
+    QUERY_EXEMPT as _QUERY_EXEMPT,
+    STAGE_ONLY_HANDLERS as _STAGE_ONLY_HANDLERS,
+)
 
 _seq = itertools.count(1)
 _RATE = {"effective_month": "2030-01", "lahom_bp": 400, "haud_bp": 600, "personal_bp": 800}
-
-# 허용 endpoint 의 정수 URL 인자 중 주문 번호가 아닌 것(내 알림 state · 공지 — 핸들러가 본인 것만 다룬다).
-_NON_ORDER_INT_ARGS: dict[str, set[str]] = {
-    "notices_api.ack_notice": {"notice_id"},
-    "notices_api.read_notice": {"notice_id"},
-    "notices_api.notice_image": {"notice_id", "idx"},
-    "notifications.api_notification_ack": {"notification_id"},
-    "notifications.api_notification_archive": {"notification_id"},
-    "notifications.api_notification_mark_read": {"notification_id"},
-    # 첨부 번호 — 핸들러가 (attachment_id, URL order_id) 둘 다로 찾는다(남의 주문 첨부는 없는 것).
-    "attachments.api_order_attachments_delete": {"attachment_id"},
-    "attachments.api_order_attachments_patch": {"attachment_id"},
-}
-# 주문 번호를 핸들러가 key 에서 찾아 ``user_can_read_order`` 로 보는 것(파일 관문 3종).
-_HANDLER_CHECKED = {"files.view", "files.presigned_urls", "files.download"}
-# query 에 주문 번호가 있지만 일부러 열어 둔 것 — 달만 고르고 주문 내용은 내보내지 않는다(문지기 주석 참고).
-_QUERY_EXEMPT = {"sales_commission_web.my_commission"}
-# 주문 번호를 받지 않는 허용 endpoint(초안 토큰 · 초안 키 · 알림 · 공지 번호는 모두 본인 것만 다룬다).
-_NO_ORDER_ID = {
-    "static", "favicon", "auth.logout", "auth.switch_back", "auth.profile", "foms_rum.ingest_rum_event",
-    "notifications.api_notifications_list", "notifications.api_notifications_badge",
-    "notifications.api_notification_mark_read", "notifications.api_notifications_mark_all_read",
-    "notifications.api_notification_ack", "notifications.api_notification_archive",
-    "notifications.api_notifications_archive_all", "notifications.api_notifications_pending_interrupts",
-    "notifications.api_notifications_pending_urgent", "notifications_push.vapid_public_key",
-    "notifications_push.subscribe", "notifications_push.push_test", "notifications_push.push_event",
-    "notifications_push_state.mobile_state", "notices_web.notice_list", "notices_api.list_notices",
-    "notices_api.read_notice", "notices_api.ack_notice", "notices_api.notice_image",
-    "erp_dashboard.erp_dashboard_field_calendar", "erp_dashboard.erp_dashboard_field_ops",
-    "erp_measurement.api_erp_measurement_summary", "erp_measurement.api_erp_measurement_undated",
-    "order_pages.add_order", "erp_orders_structured.api_erp_create_draft",
-    "erp_orders_structured.api_erp_draft_autosave", "erp_orders_structured.api_erp_get_draft",
-    "erp_orders_structured.api_erp_discard_draft", "erp_order_draft.api_get_order_draft",
-    "erp_order_draft.api_delete_order_draft", "erp_order_draft.api_list_order_drafts",
-    "erp_order_draft.api_upload_order_draft_attachment", "erp_order_draft_send.api_draft_alimtalk_preview",
-    "erp_order_draft_send.api_draft_alimtalk_send", "erp_order_draft_send.api_draft_channel_push_preview",
-    "erp_order_draft_send.api_draft_channel_push_send", "address.search",
-    "erp_orders_structured.api_parse_order_text", "events.api_change_reason_codes",
-    "notifications.api_urgent_targets",
-    # 통합 검색 JSON(긴급 호출 주문 고르기) — 검색어만 받는다. 결과는 서비스가 연결 표의 내 주문으로 좁힌다.
-    "foms_search.api_foms_search",
-    # 계산기 설정 목록(제품 · 규격 선택지 · 추가 옵션) — 주문 폼 제품 고르기용 읽기, 주문 번호 없음.
-    "wdcalculator.api_wdcalculator_get_products", "wdcalculator.api_wdcalculator_get_spec_field_presets",
-    "wdcalculator.api_wdcalculator_get_categories",
-}
-
 
 # --------------------------------------------------------------------------
 # 시드(가짜 값)
@@ -101,7 +62,7 @@ def _freelancer(*, active: bool = True) -> User:
     user.match_name = f"가짜범위담당{next(_seq)}"
     version, _cfg, _changed = save_freelancer(
         db_session, user.id,
-        {"match_name": user.match_name, "start_month": "2030-01", "tax_type": "NONE", "active": active},
+        {"match_name": user.match_name, "start_month": "2020-01", "tax_type": "NONE", "active": active},
         base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()
     add_rate(db_session, user.id, _RATE, base_version=version, actor_user_id=None)
@@ -265,7 +226,8 @@ def test_url_order_id_real_requests(app, world, monkeypatch):
     wrong = []
     for rule, method in _url_order_cases(app):
         mine = client.open(_path(rule, world["own"]), method=method, json={} if method != "GET" else None)
-        if _resp_is_scope_404(mine) or mine.status_code >= 500:
+        if (_gate(app, world["fl"], method, _path(rule, world["own"])) is not None if rule.endpoint in _STAGE_ONLY_HANDLERS
+                else _resp_is_scope_404(mine)) or mine.status_code >= 500:
             wrong.append(("own", rule.endpoint, method, mine.status_code))
         theirs = client.open(_path(rule, world["other"]), method=method, json={} if method != "GET" else None)
         if theirs.status_code != 404:

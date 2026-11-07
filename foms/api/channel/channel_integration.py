@@ -22,7 +22,6 @@ from models import Order, OrderAttachment, OrderEvent
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.attachment_sort import attachment_sort_key
 from foms.services.audit_message_display import describe_order_action
-from foms.services.auth.freelancer_edit_guards import freelancer_push_kind_denial
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.channel_as_attachments import (
     last_pushed_max_attachment_id,
@@ -861,9 +860,6 @@ def api_channel_push_manual():
         {success: bool, files_count: int, error: str}
     """
     payload = request.get_json(silent=True) or {}
-    # FCOMM-01 D22: 켜진 프리랜서는 영발 · 실측 PUSH 만(내 주문인지는 문지기가 이미 봤다).
-    if (kind_denial := freelancer_push_kind_denial(payload)) is not None:
-        return kind_denial
     body, status = run_manual_push(get_db(), payload, getattr(g, "current_user", None))
     return jsonify(body), status
 

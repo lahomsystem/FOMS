@@ -71,7 +71,7 @@ def _order(customer: str, *, manager: str = "아무개", measure: bool = True, c
 
 
 def _designate(user, match: str, *, active: bool = True) -> None:
-    save_freelancer(db_session, user.id, {"match_name": match, "start_month": "2030-01", "tax_type": "NONE",
+    save_freelancer(db_session, user.id, {"match_name": match, "start_month": "2020-01", "tax_type": "NONE",
                                           "active": active},
                     base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()

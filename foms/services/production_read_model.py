@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query
 
 from models import Order, ProductionRun
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.partner_order_filter import partner_order_clause
 from foms.services.common.dashboard_cache import KEY_VERSION as DASHBOARD_CACHE_KEY_VERSION
 from foms.services.common.dashboard_cache import build_dashboard_cache_key
@@ -320,7 +321,11 @@ def apply_production_dashboard_sort(_q: Query, sort: str, sort_dir: str) -> Quer
 
 
 def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_only: bool, partner_org: str = '') -> str:
-    """숫자판 조각(``production/summary_counts``) 캐시 키 — 렌더와 렌더 전 304 키가 같은 키를 읽는다."""
+    """숫자판 조각(``production/summary_counts``) 캐시 키 — 렌더와 렌더 전 304 키가 같은 키를 읽는다.
+
+    켜진 프리랜서는 "내 것" 이 연결 표라 표시를 하나 더 넣는다(FCOMM-01 §6.3 겹 3) — 같은 계정이 프리랜서로
+    지정된 직후 이름 판정으로 채운 숫자(같은 사용자 · 같은 mine)를 받지 않는다. 다른 사용자의 열쇠는 그대로다.
+    """
     fingerprint = {
         "v": DASHBOARD_CACHE_KEY_VERSION,
         "uid": user.id if user else None,
@@ -331,6 +336,8 @@ def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_onl
     }
     if partner_org:
         fingerprint["partner_org"] = partner_org
+    if is_list_freelancer(user):
+        fingerprint["freelancer"] = True
     return build_dashboard_cache_key("production", "summary_counts", fingerprint)
 
 

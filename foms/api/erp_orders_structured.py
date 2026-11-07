@@ -33,7 +33,6 @@ from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
 from foms.services.audit_writer import record_access_denied
-from foms.services.auth.freelancer_edit_guards import freelancer_orderer_change_denial
 from foms.services.integrations.naver_commerce.auto_assign import (
     auto_assign_sales_owner_from_manager,
 )
@@ -1462,10 +1461,6 @@ def api_put_order_structured(order_id):
 
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
-        # FCOMM-01 겹 4: 켜진 프리랜서는 등록된 주문의 발주사를 못 바꾼다(초안 · 첫 등록은 된다).
-        if (orderer_denial := freelancer_orderer_change_denial(order, structured_data)) is not None:
-            return orderer_denial
-
         # 요청 검증(락 전, 400 경로): 필수값 누락은 write 전에 거부한다.
         if structured_data is not None:
             _missing = _missing_required_structured_fields(structured_data)

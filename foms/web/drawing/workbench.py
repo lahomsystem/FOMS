@@ -8,6 +8,7 @@ from flask import Blueprint, make_response, render_template, request, url_for, r
 from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.datetime_kst import format_datetime_kst, parse_datetime_utc
@@ -704,6 +705,10 @@ def erp_drawing_workbench_dashboard():
         "partner_org": partner_org,
         "confirmed": bool(include_confirmed),
     }
+    # 켜진 프리랜서는 "내 것"이 연결 표라(FCOMM-01 §6.1) 표시를 하나 더 넣는다 — 같은 계정이 프리랜서로 지정된
+    # 직후 TTL 동안 직원 범위로 센 '누적 완료' 숫자를 받지 않게. 다른 사용자의 키는 그대로다.
+    if is_list_freelancer(current_user):
+        _seed_fp["freelancer"] = True
     _seed_key = build_dashboard_cache_key("drawing", "workbench_queue_ids", _seed_fp)
     # EPT-B7 구간(원장 P3-2): 이 화면은 서버 시간 헤더가 없어 어느 몫이 큰지 갈라 볼 수 없었다.
     # 블록을 다시 들여쓰지 않으려고 phase() 대신 시각을 찍어 record_phase 로 넘긴다.

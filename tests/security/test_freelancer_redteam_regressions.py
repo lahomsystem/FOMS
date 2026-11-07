@@ -48,7 +48,7 @@ def _freelancer() -> SimpleNamespace:
     match_name = f"가짜재검담당{next(_seq)}"
     version, _cfg, _changed = save_freelancer(
         db_session, user.id,
-        {"match_name": match_name, "start_month": "2030-01", "tax_type": "NONE", "active": True},
+        {"match_name": match_name, "start_month": "2020-01", "tax_type": "NONE", "active": True},
         base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()
     add_rate(db_session, user.id, _RATE, base_version=version, actor_user_id=None)
@@ -287,15 +287,15 @@ def test_first_registration_keeps_confirm_but_server_stamps_who(app):
     assert pay["deposit_confirmed_at"] != _CONFIRM_FORGERY["deposit_confirmed_at"]
 
 
-def test_freelancer_first_registration_cannot_confirm_payment(app):
-    """결제 확인 API 를 못 부르는 켜진 프리랜서는 첫 등록에서도 확인을 싣지 못한다."""
+def test_freelancer_first_registration_confirms_payment_like_staff(app):
+    """D27(11-07): 프리랜서도 자기 주문은 회사 영업 직원과 같다 — 첫 등록의 입금 확인을 싣고, 누가 했는지는 서버가 찍는다."""
     fl = _freelancer()
     client = _client(app, fl)
     draft_id = _new_draft(client)
     assert _put_sd(client, draft_id, _registration_sd(fl.match_name)).status_code == 200
     pay = _own_sd(draft_id)["payment"]
     assert pay["deposit"] == 50000
-    assert not pay.get("deposit_confirmed") and not pay.get("deposit_confirmed_by_user_id")
+    assert pay.get("deposit_confirmed") is True and pay.get("deposit_confirmed_by_user_id") == fl.id
 
 
 # --------------------------------------------------------------------------

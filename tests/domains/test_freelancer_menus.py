@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
-from flask import g
+from flask import g, url_for
 
 from foms.services.auth.freelancer_menu import FREELANCER_MENU
 from foms.services.auth.freelancer_scope import FREELANCER_ALLOWED_ENDPOINTS, is_freelancer_request_allowed
@@ -36,6 +36,11 @@ _MOBILE_UA = (
 )
 _PAGES = ("/erp/dashboard", "/erp/measurement")
 _STAGE_LABELS = ["대시보드", "실측", "도면", "생산", "출고", "AS", "시공", "완료", "이력"]
+#: D27 — 프리랜서 메뉴는 문지기가 여는 화면만(판 화면 묶음이 열리면 저절로 나타난다).
+_FL_MENU = [(item_id, label) for item_id, label, endpoint, _icon in FREELANCER_MENU
+            if endpoint in FREELANCER_ALLOWED_ENDPOINTS]
+_FL_IDS = [item_id for item_id, _label in _FL_MENU]
+_FL_LABELS = [label for _item_id, label in _FL_MENU]
 
 
 # --------------------------------------------------------------------------
@@ -116,8 +121,9 @@ def _labels(region: str, cls: str) -> list[str]:
 # --------------------------------------------------------------------------
 # 프리랜서 — 허용 목록 안 링크만
 # --------------------------------------------------------------------------
-def test_menu_catalog_is_inside_allowlist():
-    assert [endpoint for _id, _label, endpoint, _icon in FREELANCER_MENU if endpoint not in FREELANCER_ALLOWED_ENDPOINTS] == []
+def test_menu_catalog_keeps_base_items_and_only_shows_allowed():
+    assert {"dashboard", "measurement", "my_commission"} <= set(_FL_IDS)
+    assert _FL_IDS[0] == "dashboard" and _FL_IDS[-1] == "my_commission"
 
 
 @pytest.mark.parametrize("path", [*_PAGES, "/erp/my-commission"])
@@ -135,7 +141,7 @@ def test_freelancer_mobile_menus_only_link_allowed_endpoints(app, monkeypatch, p
     assert re.findall(r"<span>([^<]+)</span>", _cut(regions["drawer"], "erp-mobile-menu-drawer__account-links", "</nav>")) \
         == ["내 정보", "공지사항", "로그아웃"]
     # 태블릿 레일(/erp 전 화면): 같은 셋 + 알림. 계산기 없음.
-    assert _labels(regions["tablet_rail"], "foms-tablet-rail__label") == ["대시보드", "실측", "내 수수료", "알림"]
+    assert _labels(regions["tablet_rail"], "foms-tablet-rail__label") == [*_FL_LABELS, "알림"]
 
 
 @pytest.mark.parametrize("path", _PAGES)
@@ -149,7 +155,7 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
         assert absent not in regions["global_nav"], absent
     assert "내 변경 로그" not in regions["user_menu"]
     assert 'href="/profile"' in regions["user_menu"] and "공지사항" in regions["user_menu"]
-    assert re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"]) == ["대시보드", "실측", "내 수수료"]
+    assert re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"]) == _FL_LABELS
 
 
 def test_tablet_rail_items_for_freelancer(app, monkeypatch):
@@ -158,7 +164,7 @@ def test_tablet_rail_items_for_freelancer(app, monkeypatch):
     with app.test_request_context("/erp/measurement"):
         g.current_user = fl
         items = build_split_side_items(fl, active_id="measurement")
-    assert [i["id"] for i in items] == ["dashboard", "measurement", "my_commission"]
+    assert [i["id"] for i in items] == _FL_IDS
     assert [i["id"] for i in items if i["active"]] == ["measurement"]
 
 
@@ -171,8 +177,9 @@ def test_checker_finds_blocked_links_for_normal_sales(app, monkeypatch):
     user = _make_user("STAFF", "SALES")
     mobile = _outside_allowlist(app, _mobile_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=True)))
     desktop = _outside_allowlist(app, _desktop_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=False)))
-    assert {"bottom_nav", "drawer"} <= {name for name, *_ in mobile}
-    assert {"global_nav", "user_menu", "erp_sub_nav"} <= {name for name, *_ in desktop}
+    # D27 로 판 화면이 열리며 아래 탭의 링크는 모두 허용 목록 안이 됐다 — 서랍(네이버 수집 등)은 아직 밖이다.
+    assert "drawer" in {name for name, *_ in mobile}
+    assert {"global_nav", "user_menu"} <= {name for name, *_ in desktop}  # ERP 서브 내비는 D27 로 모두 열림
 
 
 def test_normal_sales_mobile_menus_unchanged(app, monkeypatch):
@@ -296,7 +303,10 @@ def _simulate_prefetch(allow: str | None, current: list[str]) -> list[dict]:
 @pytest.mark.parametrize("mobile", [True, False])
 def test_freelancer_prefetch_allow_lists_own_menu(app, monkeypatch, mobile):
     html = _render(app, monkeypatch, _freelancer(), "/erp/dashboard", mobile=mobile)
-    assert _PREFETCH_ATTR.findall(html) == ["/erp/dashboard /erp/measurement /erp/my-commission"]
+    with app.test_request_context("/"):
+        expected = " ".join(url_for(endpoint) for item_id, _label, endpoint, _icon in FREELANCER_MENU if item_id in _FL_IDS)
+    assert _PREFETCH_ATTR.findall(html) == [expected]
+    assert "/erp/my-commission" in expected and "/erp/settlement" not in expected
 
 
 @pytest.mark.parametrize("role,team", [("STAFF", "SALES"), ("ADMIN", None)])

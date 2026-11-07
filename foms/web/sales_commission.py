@@ -39,7 +39,7 @@ from foms.services.sales_commission.read_model import (
     STATE_WAIT_RATE,
     commission_rows,
 )
-from foms.services.sales_commission.settings import active_freelancers, is_freelancer
+from foms.services.sales_commission.settings import FREELANCER_ROLES, active_freelancers, is_freelancer
 from foms.services.settlement_channel_access import is_accounting_or_admin
 from foms.web.auth import login_required
 from models import Order, SalesCommissionClosing
@@ -60,8 +60,8 @@ def is_sales_freelancer() -> bool:
     user = getattr(g, "current_user", None)
     if user is None or getattr(user, "partner_org_id", None) is not None:
         return False
-    # 프리랜서는 STAFF · 영업팀 계정만 될 수 있다(설정 저장이 강제) — 그 밖은 설정을 읽지 않는다.
-    if str(getattr(user, "role", "") or "").strip().upper() != "STAFF":
+    # 프리랜서는 직원 · 매니저 등급 영업팀 계정만 될 수 있다(설정 저장이 강제) — 그 밖은 설정을 읽지 않는다.
+    if str(getattr(user, "role", "") or "").strip().upper() not in FREELANCER_ROLES:
         return False
     if normalize_team(getattr(user, "team", None)) != "SALES":
         return False
