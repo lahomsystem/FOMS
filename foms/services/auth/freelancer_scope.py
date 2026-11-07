@@ -158,6 +158,14 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 견적서 칸이 structured PUT 으로 저장한다(위 허용). 11-07 운영: 이 둘이 막혀 견적서 금액을 못 고쳤다.
     "erp_estimates.get_estimate_preview",
     "wdcalculator.api_wdcalculator_get_order_estimates",
+    # 고객 공유 링크(주문 화면 "공유 링크 관리") — 문자 · 알림톡 보내기 · 회수 · 열람 이력. 주소에 주문 번호가 아닌
+    # 링크 · 이력 줄 번호가 있어 핸들러가 그 줄의 주문을 user_can_read_order 로 보고, 남의 주문이면 없는 줄과 같은 답
+    # (foms.api.share._share_hidden_from_user). 만들기 · 목록은 주문 일 API(freelancer_order_rights). 11-07 D27 후속.
+    "share_api.api_share_send_sms",
+    "share_api.api_share_send_alimtalk",
+    "share_api.api_share_revoke",
+    "share_api.api_share_history",
+    "share_api.api_share_history_page",
     # ── 수수료: 내 수수료 화면(언제나 본인 것)
     "sales_commission_web.my_commission",
 })

@@ -19,7 +19,7 @@ import urllib.parse
 import zipfile
 from typing import Any, Iterator, Optional
 
-from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
+from flask import Blueprint, Response, g, jsonify, render_template, request, session, url_for
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
@@ -30,6 +30,7 @@ from foms.services import order_share as share_service
 from foms.services import order_share_history as share_history
 from foms.services import share_consult
 from foms.services.audit_message_display import describe_order_action
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.audit_writer import record_file_access
@@ -41,6 +42,7 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_customer_send import (resolve_send_phone, send_event_tags,
                                                         share_doc_label, share_round_label)
 from foms.services.orders.drawing_transfer import _is_drawing_key
+from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.orders.revision import lock_order_row
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
@@ -816,6 +818,20 @@ def _envelope(data: Any, error: Optional[str], status: int = 200):
     return jsonify({'success': error is None, 'data': data, 'error': error}), status
 
 
+def _share_hidden_from_user(row: Any) -> bool:
+    """줄 번호(``share_id`` · ``snapshot_id``)로 여는 공유 API 에서 이 줄이 지금 사용자에게 없는 것인가.
+
+    주소에 주문 번호가 없어 문지기(겹 2)가 주문을 못 본다 — 그래서 핸들러가 본다. 켜진 프리랜서(FCOMM-01 D27)는
+    자기 주문의 공유 줄만 보내고 · 회수하고 · 열람 이력을 본다 — 그 줄(``row.order_id``)의 주문을
+    :func:`user_can_read_order` 로 보고, 남의 주문이면 없는 줄과 똑같이 답한다(존재 여부를 알리지 않는다).
+    다른 직원은 판정하지 않는다(언제나 False — 이전과 같다).
+    """
+    user = getattr(g, 'current_user', None)
+    if not is_list_freelancer(user):
+        return False
+    return not user_can_read_order(user, db_session.get(Order, row.order_id))
+
+
 @share_api_bp.route('/create/<int:order_id>', methods=['POST'])
 @login_required
 @role_required(_SHARE_ROLES)
@@ -948,6 +964,9 @@ def api_share_history(share_id: int):
         ``data = {'items': [{snapshot_id, content_hash, source, first_viewed_at,
         last_viewed_at, view_count, summary}]}`` 최신순 50건.
     """
+    token = db_session.get(OrderShareToken, share_id)
+    if token is not None and _share_hidden_from_user(token):
+        return _envelope({'items': []}, None)  # 없는 링크와 같은 답
     rows = share_history.list_rows(db_session, share_id)
     items = [{
         'snapshot_id': int(row.id),
@@ -986,7 +1005,8 @@ def api_share_history_page(snapshot_id: int):
         .filter(OrderShareSnapshot.id == snapshot_id)
         .one_or_none()
     )
-    if row is None or not isinstance(row.snapshot, dict) or not row.snapshot:
+    if (row is None or not isinstance(row.snapshot, dict) or not row.snapshot
+            or _share_hidden_from_user(row)):
         return _error_page('요청하신 기록을 찾을 수 없습니다.', 404)
 
     viewed_at = format_datetime_kst(row.first_viewed_at, '%Y-%m-%d %H:%M') or ''
@@ -1188,7 +1208,7 @@ def api_share_send_sms(share_id: int):
         토큰 불일치 400, 죽은 링크 410, 미설정 503.
     """
     row = db_session.get(OrderShareToken, share_id)
-    if row is None:
+    if row is None or _share_hidden_from_user(row):
         return _envelope(None, 'share_not_found', 404)
 
     body = request.get_json(silent=True) or {}
@@ -1538,7 +1558,7 @@ def api_share_send_alimtalk(share_id: int):
         토큰 불일치 400, 죽은 링크 410, 미설정 503.
     """
     row = db_session.get(OrderShareToken, share_id)
-    if row is None:
+    if row is None or _share_hidden_from_user(row):
         return _envelope(None, 'share_not_found', 404)
 
     body = request.get_json(silent=True) or {}
@@ -1696,7 +1716,7 @@ def api_share_revoke(share_id: int):
         ``data = {'share_id', 'revoked_at'}``.
     """
     row = db_session.get(OrderShareToken, share_id)
-    if row is None:
+    if row is None or _share_hidden_from_user(row):
         return _envelope(None, 'share_not_found', 404)
 
     share_service.revoke_token(row)
