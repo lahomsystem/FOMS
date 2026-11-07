@@ -29,6 +29,7 @@ from typing import Any, Callable, Optional
 from flask import abort, g, jsonify, redirect, request, url_for
 
 from db import get_db
+from foms.services.auth import freelancer_screens as _screens
 from foms.services.auth.freelancer_orders import freelancer_can_access_order
 from foms.services.auth.freelancer_legacy import legacy_order_request_allowed, mark_if_legacy
 from foms.services.orders.order_mutation_policy import normalize_team
@@ -302,6 +303,12 @@ FREELANCER_ORDER_BODY_CHECKS: dict[str, Callable[[Any], Optional[list[int]]]] = 
     # 주문 없이도 보낸다(맨 위 줄 ⚡) — order_id 가 있을 때만 내 주문인지 본다.
     "notifications.api_urgent_call": _body_order_id,
 }
+
+# 화면 묶음(판 화면 — 자기 주문만 거르기를 넣고 연 것)을 더한다. 묶음 파일은 foms/services/auth/freelancer_screens/.
+FREELANCER_ALLOWED_ENDPOINTS = FREELANCER_ALLOWED_ENDPOINTS | _screens.ALLOWED_ENDPOINTS
+FREELANCER_METHOD_LIMITS = {**FREELANCER_METHOD_LIMITS, **_screens.METHOD_LIMITS}
+FREELANCER_ORDER_VIEW_ARGS = {**FREELANCER_ORDER_VIEW_ARGS, **_screens.ORDER_VIEW_ARGS}
+FREELANCER_ORDER_QUERY_ARGS = {**FREELANCER_ORDER_QUERY_ARGS, **_screens.ORDER_QUERY_ARGS}
 
 #: 긴급 호출(D23) 받는 사람 — 켜진 프리랜서에게는 내 주문을 맡는 이 팀 직원만 보여 주고(이름 · 팀, 직급 뺌) 이 사람들에게만
 #: 보낼 수 있다(foms.api.notifications ``_freelancer_urgent_target_ok``). 상담(CS) · 도면 · 출고 · 회계.
