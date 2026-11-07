@@ -36,8 +36,8 @@ QUEST_STAGE_LOCKED_MSG = "프리랜서 계정은 실측을 마치고 도면으�
 
 #: 프리랜서가 보낼 수 있는 채널톡 PUSH 종류(D22 — 영발 · 실측). 발주 · AS · 도면방은 직원 몫.
 FREELANCER_PUSH_KINDS: frozenset[str] = frozenset({"measurement", "measure_room"})
-#: 프리랜서가 승인할 수 있는 단계(D23 — 실측 끝 · 도면으로 넘기기).
-FREELANCER_QUEST_STAGES: frozenset[str] = frozenset({"MEASURE"})
+#: 프리랜서가 승인할 수 있는 단계 — 실측 끝 · 도면으로 넘기기(D23), 고객 컨펌 승인 · 생산으로 넘기기(D25, 11-07).
+FREELANCER_QUEST_STAGES: frozenset[str] = frozenset({"MEASURE", "CONFIRM"})
 
 #: "이 저장은 발주사 · 담당자를 건드리지 않는다" 표식(저장이 옛 값을 그대로 남기는 경우).
 _UNCHANGED = object()

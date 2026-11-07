@@ -258,21 +258,28 @@ def test_quest_approve_measure_stage_own_order(w):
     assert client.get(f"/api/orders/{own}/structured").status_code == 200  # 넘긴 뒤에도 내 주문
 
 
-def _confirm_stage(order_id: int) -> None:
+def _confirm_stage(order_id: int, stage: str = "CONFIRM") -> None:
     order = db_session.get(Order, order_id)
     sd = copy.deepcopy(order.structured_data)
-    sd["workflow"]["stage"] = "CONFIRM"
-    order.structured_data, order.erp_stage_code = sd, "CONFIRM"
+    sd["workflow"]["stage"] = stage
+    order.structured_data, order.erp_stage_code = sd, stage
     flag_modified(order, "structured_data")
     db_session.commit()
 
 
-def test_quest_approve_other_stage_locked_for_freelancer_only(app, w):
+def test_quest_approve_confirm_stage_own_order_allowed(w):
+    """D25(11-07): 자기 주문의 고객 컨펌 승인도 프리랜서가 누른다 — 단계 잠금에 걸리지 않는다."""
     _confirm_stage(w["own"])
+    resp = w["client"].post(f"/api/orders/{w['own']}/quest/approve", json={})
+    assert (resp.get_json() or {}).get("error") != QUEST_STAGE_LOCKED_MSG, resp.get_json()
+
+
+def test_quest_approve_other_stage_locked_for_freelancer_only(app, w):
+    _confirm_stage(w["own"], "PRODUCTION")
     resp = w["client"].post(f"/api/orders/{w['own']}/quest/approve", json={})
     assert resp.status_code == 403 and resp.get_json()["error"] == QUEST_STAGE_LOCKED_MSG
     staff_order = _order("남의담당")
-    _confirm_stage(staff_order)
+    _confirm_stage(staff_order, "PRODUCTION")
     staff_resp = _client(app, _make_user("STAFF", "SALES")).post(f"/api/orders/{staff_order}/quest/approve", json={})
     assert (staff_resp.get_json() or {}).get("error") != QUEST_STAGE_LOCKED_MSG, staff_resp.get_json()
 
