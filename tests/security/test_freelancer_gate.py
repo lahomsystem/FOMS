@@ -302,21 +302,16 @@ _CATALOG_READS = {
                                              "spec_field_presets"),
     "/api/wdcalculator/additional-options/categories": ("wdcalculator.api_wdcalculator_get_categories", "categories"),
 }
-# 계산기에서 계속 막는 것 — 견적 · 주문 찾기 · 주문 견적 · 견적 잇기 · 설정 바꾸기 · 계산기 화면.
+# 계산기에서 계속 막는 것 — 제품 설정 화면 · 설정 바꾸기 · 비고 묶음 읽기(설정 화면용). 계산기 화면 · 견적 ·
+# 주문 찾기 · 잇기는 화면 묶음으로 열었다(freelancer_screens/wdcalculator.py — 내 견적 · 내 주문만, 11-07).
 _WDC_STILL_DENIED = (
-    ("GET", "/api/wdcalculator/search-orders?q=x"),
-    ("GET", "/api/wdcalculator/search-estimates?customer_name=x"),
-    ("GET", "/api/wdcalculator/estimate/1"),
-    ("POST", "/api/wdcalculator/match-order"),
-    ("POST", "/api/wdcalculator/unmatch-order"),
-    ("POST", "/api/wdcalculator/save-estimate"),
-    ("POST", "/api/wdcalculator/calculate"),
-    ("POST", "/api/orders/{oid}/wdc-estimate-sync"),
     ("POST", "/api/wdcalculator/products"),
+    ("DELETE", "/api/wdcalculator/products/1"),
     ("POST", "/api/wdcalculator/spec-field-presets"),
     ("POST", "/api/wdcalculator/additional-options/categories"),
+    ("POST", "/api/wdcalculator/notes/categories"),
     ("GET", "/api/wdcalculator/notes/categories"),
-    ("GET", "/wdcalculator"),
+    ("GET", "/wdcalculator/product-settings"),
 )
 
 
@@ -341,7 +336,7 @@ def test_order_form_catalog_reads_open_for_freelancer(app):
         body = resp.get_json()
         assert body["success"] is True and set(body) == {"success", key}, (path, sorted(body))
 
-    # 계산기의 견적 찾기 · 견적 잇기 · 계산 · 설정 바꾸기는 그대로 막힌다(내 주문에 이은 견적 목록 읽기만 열림 — 11-07).
+    # 계산기 설정 바꾸기 · 설정 화면은 그대로 막힌다.
     for method, path in _WDC_STILL_DENIED:
         resp = client.open(path.format(oid=order_id), method=method, json={} if method == "POST" else None)
         assert _is_gate_response(resp), (method, path, resp.status_code)

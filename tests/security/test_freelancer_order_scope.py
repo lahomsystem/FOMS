@@ -97,6 +97,11 @@ _NO_ORDER_ID = {
     "erp_shipment_page.erp_shipment_dashboard",
 }
 
+# 화면 묶음 · 계산기(freelancer_screens/wdcalculator.py) — 견적 번호는 주문 아님, 본문 주문 · 견적은 핸들러가 본다.
+_NON_ORDER_INT_ARGS["wdcalculator.api_wdcalculator_estimate"] = {"estimate_id"}
+_HANDLER_CHECKED |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("save_estimate", "match_order", "unmatch_order")}
+_NO_ORDER_ID |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("calculate", "search_estimates", "estimate", "search_orders")}
+
 
 # --------------------------------------------------------------------------
 # 시드(가짜 값)

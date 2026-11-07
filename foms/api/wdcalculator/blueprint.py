@@ -19,6 +19,16 @@ from foms.services.audit_message_display import describe_action
 # 서버 계산은 서비스 함수로 옮겼다(플랜 C10-6). 이 두 이름은 /api/wdcalculator/calculate 의 옛 값 그대로이고, 직원 화면
 # 계산(pricing-core.js)과 같은 값은 ``foms.services.wdcalculator.pricing.compute_estimate`` 다(CI 계약 시험).
 from foms.services.wdcalculator.display_order import name_key, sorted_categories
+from foms.services.wdcalculator.freelancer_estimates import (
+    ORDER_NOT_FOUND_MSG,
+    can_read_estimate,
+    can_use_order,
+    can_write_estimate,
+    current_freelancer,
+    own_order_filters,
+    readable_estimate_ids,
+    remember_created,
+)
 from foms.services.wdcalculator.pricing import apply_coupon, calculate_estimate
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import (
@@ -79,6 +89,11 @@ def clean_categories_data(categories):
                 cleaned_category['options'].append(cleaned_option)
         cleaned.append(cleaned_category)
     return cleaned
+
+
+def _not_found(message):
+    """404 JSON — 켜진 프리랜서의 남의 · 없는 견적/주문(같은 답), 주문에 안 이은 견적 맞추기."""
+    return jsonify({'success': False, 'data': None, 'error': message, 'message': message}), 404
 
 
 def _deepcopy_json(value, default):
@@ -996,16 +1011,21 @@ def api_wdcalculator_save_estimate():
         if not estimate_data:
             return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
         db = get_wdcalculator_db()
+        freelancer = current_freelancer()
         if order_id:
             try:
                 order_id = int(order_id)
             except (TypeError, ValueError):
                 return jsonify({'success': False, 'message': '주문 ID가 올바르지 않습니다.'})
+            if freelancer is not None and not can_use_order(freelancer, order_id):
+                return _not_found(ORDER_NOT_FOUND_MSG)
             foms_db = get_db()
             order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
             if not order:
                 return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         if estimate_id:
+            if freelancer is not None and not can_write_estimate(db, freelancer, estimate_id):
+                return _not_found('수정할 견적을 찾을 수 없습니다.')
             estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
             if not estimate:
                 return jsonify({'success': False, 'message': '수정할 견적을 찾을 수 없습니다.'})
@@ -1022,6 +1042,8 @@ def api_wdcalculator_save_estimate():
             message = '견적이 저장되었습니다.'
         matched = False
         db.commit()
+        if freelancer is not None and not estimate_id:
+            remember_created(freelancer, estimate.id)
         log_access(
             describe_action("ESTIMATE_SAVED", target_label=f"견적 #{estimate.id}",
                             note=customer_name),
@@ -1116,6 +1138,12 @@ def api_wdcalculator_search_estimates():
         search_q = (request.args.get('customer_name') or request.args.get('q') or '').strip()
         db = get_wdcalculator_db()
         query = db.query(Estimate)
+        freelancer = current_freelancer()
+        if freelancer is not None:  # 켜진 프리랜서 — 내 견적만(freelancer_estimates)
+            visible = readable_estimate_ids(db, freelancer)
+            if not visible:
+                return jsonify({'success': True, 'estimates': [], 'count': 0})
+            query = query.filter(Estimate.id.in_(sorted(visible)))
         predicate = _build_estimate_multi_field_filter(search_q)
         if predicate is not None:
             query = query.filter(predicate)
@@ -1131,6 +1159,11 @@ def api_wdcalculator_search_estimates():
 def api_wdcalculator_estimate(estimate_id):
     try:
         db = get_wdcalculator_db()
+        freelancer = current_freelancer()
+        if freelancer is not None:  # 켜진 프리랜서 — 열기는 내 견적, 지우기는 모두 내 주문에 이은 견적만
+            allowed = can_write_estimate if request.method == 'DELETE' else can_read_estimate
+            if not allowed(db, freelancer, estimate_id):
+                return _not_found('견적을 찾을 수 없습니다.')
         estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
         if not estimate:
             return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
@@ -1162,6 +1195,12 @@ def api_wdcalculator_match_order():
         if not estimate_id or not order_id:
             return jsonify({'success': False, 'message': '견적 ID와 주문 ID가 필요합니다.'})
         wd_db = get_wdcalculator_db()
+        freelancer = current_freelancer()
+        if freelancer is not None:  # 켜진 프리랜서 — 내 주문에, 내가 볼 수 있는 견적만 잇는다
+            if not can_use_order(freelancer, order_id):
+                return _not_found(ORDER_NOT_FOUND_MSG)
+            if not can_read_estimate(wd_db, freelancer, estimate_id):
+                return _not_found('견적을 찾을 수 없습니다.')
         estimate = wd_db.query(Estimate).filter(Estimate.id == estimate_id).first()
         if not estimate:
             return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
@@ -1237,6 +1276,9 @@ def api_wdcalculator_unmatch_order():
         order_id = data.get('order_id')
         if not order_id:
             return jsonify({'success': False, 'message': '주문 ID가 필요합니다.'})
+        freelancer = current_freelancer()
+        if freelancer is not None and not can_use_order(freelancer, order_id):  # 내 주문의 이음만 푼다
+            return _not_found(ORDER_NOT_FOUND_MSG)
         order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
@@ -1294,6 +1336,7 @@ def api_orders_wdc_estimate_sync(order_id):
     과거 클라이언트/캐시 호환을 위해 견적(:class:`Estimate`) upsert만 수행한다.
     자동 주문 매칭과 ``structured_data.meta.wdc_estimate_id`` 기록은 하지 않는다.
     견적 연결은 사용자가 계산기 탭에서 명시적으로 매칭 버튼을 눌렀을 때만 만든다.
+    본문 ``estimate_id`` 는 이 주문에 이은 견적(``EstimateOrderMatch``)일 때만 고친다 — 아니면 404.
 
     Args:
         order_id: 매칭 대상 FOMS 주문 id (URL).
@@ -1316,10 +1359,25 @@ def api_orders_wdc_estimate_sync(order_id):
         if not customer_name:
             customer_name = (getattr(order, 'customer_name', None) or '고객').strip() or '고객'
         wd_db = get_wdcalculator_db()
-        # 1) Estimate upsert
+        freelancer = current_freelancer()
+        # 1) Estimate upsert — 본문 견적은 이 URL 주문에 이은 것만 고친다(보안 검토: 전에는 번호만 맞으면 남의 주문
+        #    견적도 덮어썼다). 켜진 프리랜서는 그 견적이 이어진 주문이 모두 내 주문이어야 한다.
         estimate = None
         if estimate_id:
+            try:
+                estimate_id = int(estimate_id)
+            except (TypeError, ValueError):
+                return _not_found('이 주문에 이은 견적을 찾을 수 없습니다.')
+            match = wd_db.query(EstimateOrderMatch).filter(
+                EstimateOrderMatch.estimate_id == estimate_id,
+                EstimateOrderMatch.order_id == order_id,
+            ).first()
+            if match is None or (freelancer is not None
+                                 and not can_write_estimate(wd_db, freelancer, estimate_id)):
+                return _not_found('이 주문에 이은 견적을 찾을 수 없습니다.')
             estimate = wd_db.query(Estimate).filter(Estimate.id == estimate_id).first()
+            if estimate is None:
+                return _not_found('이 주문에 이은 견적을 찾을 수 없습니다.')
         if estimate:
             try:
                 wd_db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
@@ -1332,6 +1390,8 @@ def api_orders_wdc_estimate_sync(order_id):
             wd_db.add(estimate)
         wd_db.flush()  # estimate.id 확보
         wd_db.commit()
+        if freelancer is not None and not estimate_id:
+            remember_created(freelancer, estimate.id)
         log_access(
             describe_action("ESTIMATE_SYNCED_TO_ORDER", target_label=f"주문 #{order_id}",
                             note=f"견적 #{estimate.id}"),
@@ -1388,8 +1448,12 @@ def api_wdcalculator_search_orders():
         foms_db = get_db()
         search_term = f'%{customer_name}%'
         structured_customer_name = Order.structured_data[('parties', 'customer', 'name')].as_string()
+        freelancer = current_freelancer()
+        # 켜진 프리랜서 — 내 주문만(목록 강제 거르기와 같은 연결 표 조건).
+        scope = own_order_filters(freelancer) if freelancer is not None else []
         orders = foms_db.query(Order).filter(
             Order.active_filter(),
+            *scope,
             or_(
                 Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
                 structured_customer_name.ilike(search_term),  # perf-ok: ix_orders_sd_customer_name_trgm
