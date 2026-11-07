@@ -103,6 +103,21 @@ def ci_shard_plan(test_paths, total: int) -> dict[str, int]:
     return plan
 
 
+# --- 큰 시험 줄 서기(2026-11-07, docs/specs/2026-11-07-test-run-speed_SPEC.md §2.1) ------
+# 같은 PC 의 여러 창이 전체 스위트를 겹쳐 돌리면 각자 5배 느려지고 MemoryError 로 죽었다.
+# xdist 일꾼 2개 이상인 실행만 컴퓨터 전체에서 한 번에 하나씩 돈다(윈도 전용, CI 무변화).
+from tests import _big_run_lock  # noqa: E402
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config):
+    _big_run_lock.configure(config)
+
+
+def pytest_unconfigure(config):
+    _big_run_lock.unconfigure(config)
+
+
 def pytest_collection_modifyitems(config, items):
     spec = os.environ.get("FOMS_TEST_SHARD", "").strip()
     if not spec:

@@ -18,7 +18,7 @@
 ## Git (절대 규칙 — 코드 가드가 함께 강제)
 - 기본 push 대상은 `deploy`. **production push 는 사용자가 명시 요청할 때만.** "deploy 푸쉬" 는 절대 production 을 포함하지 않는다.
 - production 승격 = 이 세션이 만든 커밋만 cherry-pick + PR(`python tools/harness/promote_own_to_production.py --session-id <id>`). deploy 전체 merge 는 "전체 푸쉬" 명시 시에만. cherry-pick 충돌 = 타 세션 의존 신호, 임의 해결 금지.
-- push 직전 `scripts/ops/pre_push_smoke.ps1` exit 0. push 뒤 CI green 까지가 완료(훅이 안내). 세션 격리 훅이 ask 하면 "전체 포함" 승인 또는 자기 몫만(`push_own_session_commits.py`).
+- push 직전 `scripts/ops/pre_push_smoke.ps1` exit 0 — 전체 시험은 이 한 번뿐(그 전엔 바뀐 파일에 닿는 시험만, 승격 가지는 PR CI 몫). push 뒤 CI green 까지가 완료(훅이 안내). 세션 격리 훅이 ask 하면 "전체 포함" 승인 또는 자기 몫만(`push_own_session_commits.py`).
 - 절차 전문·헬퍼·워크트리 함정: `AGENTS.md` §브랜치·푸시.
 
 ## 코딩 규약 (프로젝트 고유)
