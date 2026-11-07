@@ -269,3 +269,21 @@ def test_photo_cards_skip_the_weekly_cap_and_do_not_expire(admin):
     apply_change(db_session, first.id, actor=admin, now=NOW)
     db_session.commit()
     assert ai_week(db_session, NOW)["layers"]["common"] == {"used": 0, "left": AI_WEEKLY_CAP}
+
+
+def test_owner_picked_card_skips_the_ai_gates_but_not_mask(admin, monkeypatch):
+    """D178 — 사장님이 질문 창에서 고른 카드는 부딪침 판정이 막아도 넣고(까닭 맨 앞 표시 · 제안한 이 이름 그대로), 글의 가림은 그대로
+    막는다. 고르지 않은 카드는 예전처럼 판정이 막는다(대조군)."""
+    from foms.services.brain import ai_gates
+    monkeypatch.setattr(ai_gates, "related_knowledge", lambda *_a, **_k: ["합성 승인 규칙: 합성 승인 규칙 글"])
+    rows = [card("door-sag"), card("film-wrap"), card("phone", text=f"{MARK} 합성 연락처 {PHONE}")]
+    with ai_gates.judge_source(lambda _s, _a, _b: True):
+        out = file_cards(db_session, rows, apply=True, now=NOW,
+                         owner_picked=["lahom/photo-door-sag", "lahom/photo-phone"])
+    by_key = {r["key"]: (r["result"], r["codes"]) for r in out["results"]}
+    assert by_key["lahom/photo-door-sag"] == ("filed", [])
+    assert by_key["lahom/photo-film-wrap"] == ("blocked", ["conflict"])
+    assert by_key["lahom/photo-phone"][0] == "blocked" and "mask" in by_key["lahom/photo-phone"][1]
+    door = filed()["lahom/photo-door-sag"]
+    assert door.proposed_by == "agent:cs_photo" and door.action == "photo_relearn"
+    assert door.reason.startswith(photo_cards.OWNER_PICKED_LINE)

@@ -58,6 +58,10 @@ ACTION = "photo_relearn"
 APPROVED_BY = "D174 사진 다시 학습"  # 지식 문서 승인 칸(실제 승인은 카드 승인)
 TAG, SOURCE, REF_PREFIX, ABOUT_PREFIX = "photo-relearn", "photo_relearn", "photo_relearn:", "about:"
 DIFFERS_LINE = "승인된 규칙과 다름"
+#: 사장님이 질문 창에서 직접 고른 카드(D178) — 제안 까닭 맨 앞 표시. AI 관문(부딪침 · 근거 · 평가)은 넘기고 글 관문의 가림 · 한자는
+#: 그대로 막는다(제안한 이 이름은 그대로 ``agent:cs_photo`` — 화면은 AI 제안으로 보이고 까닭에 고른 사람이 보인다).
+OWNER_PICKED_LINE = "사장님이 고름(자동 판정 넘김)"
+OWNER_PICKED_BLOCKING = ("mask", "hanja")
 CARD_TYPES: tuple[str, ...] = ("policy", "fact")
 CARD_BRANDS: dict[str, str] = {"lahom": "LAHOM", "haud": "HAUD"}
 MAX_TITLE, MAX_CARD_TEXT, MAX_NOTE = 40, 400, 300
@@ -127,9 +131,10 @@ def parse_card(raw: Any) -> Optional[Card]:
                 people=tuple(dict.fromkeys(given)) if valid else (), about=about)
 
 
-def reason_of(card: Card) -> str:
-    """제안 까닭 — 사진 + 상담 전체 대화 다시 학습 · 근거 상담 수(대략) · 부딪침이면 그 표시 · 메모(상한 안)."""
+def reason_of(card: Card, *, owner_picked: bool = False) -> str:
+    """제안 까닭 — (사장님이 고름) · 사진 + 상담 전체 대화 다시 학습 · 근거 상담 수(대략) · 부딪침이면 그 표시 · 메모(상한 안)."""
     head = f"사진 + 상담 전체 대화 다시 학습 · 근거 상담 약 {card.support}곳"
+    head = f"{OWNER_PICKED_LINE} · {head}" if owner_picked else head
     line = f"{head} · {DIFFERS_LINE}" if card.about else head
     line = f"{line} — {card.note}" if card.note else line
     return line if len(line) <= MAX_REASON else line[:MAX_REASON - 1] + "…"
@@ -159,9 +164,13 @@ def _doc_values(card: Card, today: str) -> dict[str, Any]:
                         "approved_by": APPROVED_BY, "approved_at": today, "pref_label": card.title}}
 
 
-def _propose(session: Any, card: Card, *, known: str, now: datetime.datetime) -> Optional[str]:
-    """제안 하나를 넣는다(flush 만). 부딪침 카드의 다루는 항목이 없으면 그 까닭 코드, 넣었으면 ``None``."""
-    common = dict(reason=reason_of(card), proposer=Proposer.agent_named(AGENT), now=now, known=known, action=ACTION)
+def _propose(session: Any, card: Card, *, known: str, now: datetime.datetime, owner_picked: bool = False) -> Optional[str]:
+    """제안 하나를 넣는다(flush 만). 부딪침 카드의 다루는 항목이 없으면 그 까닭 코드, 넣었으면 ``None``. ``owner_picked`` 면
+    에이전트 관문을 돌리지 않는 같은 이름의 제안한 이(D178)."""
+    proposer = Proposer.agent_named(AGENT)
+    proposer = Proposer(proposer.name, agent=False) if owner_picked else proposer
+    common = dict(reason=reason_of(card, owner_picked=owner_picked), proposer=proposer, now=now, known=known,
+                  action=ACTION)
     if card.about is None:
         item_type, layer = KIND_TYPES[TYPE_KINDS[card.item_type]]
         propose_create(session, key=card.key, brand=card.brand, layer=layer, item_type=item_type,
@@ -180,7 +189,7 @@ def _propose(session: Any, card: Card, *, known: str, now: datetime.datetime) ->
 
 
 def file_card(session: Any, raw: Any, *, known: str, now: datetime.datetime,
-              seen: set[str]) -> tuple[str, tuple[str, ...]]:
+              seen: set[str], owner_picked: Iterable[str] = ()) -> tuple[str, tuple[str, ...]]:
     """카드 하나 → (``filed`` · ``skipped`` · ``blocked``, 까닭 코드 · 관문 이름). 넣으면 flush 만(끝맺음은 부르는 쪽)."""
     card = parse_card(raw)
     if card is None:
@@ -192,16 +201,19 @@ def file_card(session: Any, raw: Any, *, known: str, now: datetime.datetime,
     seen.add(card.target_key)
     if len(people(card.people)) < MIN_SOURCES:
         return BLOCKED, ("evidence",)
+    picked = card.about is None and card.key in set(owner_picked)
     failed = side_gates(card, known)
+    if picked:  # 사장님이 고른 카드도 글의 가림 · 한자는 막는다(에이전트 관문 대신)
+        failed += [n for n, v in text_gates([card.text], known).items() if v == FAIL and n in OWNER_PICKED_BLOCKING]
     if failed:
-        return BLOCKED, tuple(failed)
+        return BLOCKED, tuple(sorted(set(failed)))
     if current_object(session, card.target_key) is not None or (
             card.about is None and doc_row(session, card.brand, card.doc_id) is not None):
         return SKIPPED, ("existing",)
     if _open_change(session, card.target_key):
         return SKIPPED, ("open_proposal",)
     try:
-        missing = _propose(session, card, known=known, now=now)
+        missing = _propose(session, card, known=known, now=now, owner_picked=picked)
     except BrainGateError as exc:
         return BLOCKED, tuple(sorted(set(exc.failed)))
     except BrainRejectedError:
@@ -220,12 +232,14 @@ def _shown_key(raw: Any) -> Optional[str]:
 
 
 def file_cards(session: Any, cards: Sequence[Any], *, apply: bool, now: Optional[datetime.datetime] = None,
-               only_keys: Iterable[str] = (), limit: Optional[int] = None) -> dict[str, Any]:
+               only_keys: Iterable[str] = (), limit: Optional[int] = None,
+               owner_picked: Iterable[str] = ()) -> dict[str, Any]:
     """카드 파일을 열린 제안으로 넣는다(반영 없음). ``apply`` 가 아니면 카드마다 되돌린다(brain 쓰기 0 — 수는 넣을 때와 같다).
 
     Args:
         only_keys: 이 카드 키만(스테이징 시험 — 비우면 모두).
         limit: 앞에서부터 이 수만(미리 보기 — 부딪침 판정자 돈을 아낀다).
+        owner_picked: 사장님이 질문 창에서 고른 보통 카드 키(D178) — 에이전트 관문 대신 가림 · 한자만 본다.
 
     Returns:
         ``{"applied", "cards", "filed", "skipped", "blocked", "results": [{"index", "key", "result", "codes"}]}`` —
@@ -236,13 +250,14 @@ def file_cards(session: Any, cards: Sequence[Any], *, apply: bool, now: Optional
     chosen = [(i, raw) for i, raw in enumerate(cards) if not wanted or _shown_key(raw) in wanted]
     chosen = chosen[:limit] if limit is not None else chosen
     known = known_text(session)
+    picked_keys = frozenset(owner_picked)
     seen: set[str] = set()
     counts: dict[str, Counter[str]] = {SKIPPED: Counter(), BLOCKED: Counter()}
     results, filed = [], 0
     for index, raw in chosen:
         committed = False
         try:
-            result, codes = file_card(session, raw, known=known, now=now, seen=seen)
+            result, codes = file_card(session, raw, known=known, now=now, seen=seen, owner_picked=picked_keys)
             if apply and result == FILED:
                 session.commit()
                 committed = True
