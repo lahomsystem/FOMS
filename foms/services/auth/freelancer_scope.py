@@ -30,6 +30,7 @@ from flask import abort, g, jsonify, redirect, request, url_for
 
 from db import get_db
 from foms.services.auth.freelancer_orders import freelancer_can_access_order
+from foms.services.auth.freelancer_legacy import legacy_order_request_allowed, mark_if_legacy
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.settings import is_freelancer
 
@@ -358,6 +359,9 @@ def freelancer_gate() -> Any | None:
         return None
     if is_freelancer_request_allowed(request.endpoint, request.method):
         return freelancer_order_scope_denial(user)
+    # D26 — 허용 목록 밖이어도 예전 담당 주문의 주문 일 API 는 보통 영업 직원과 같게(freelancer_legacy).
+    if legacy_order_request_allowed(get_db(), user, request.endpoint):
+        return None
     if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_DENIED_MSG}), 403
     return redirect(url_for(FREELANCER_HOME_ENDPOINT))
@@ -396,6 +400,7 @@ def freelancer_order_scope_denial(user: Any) -> Any | None:
     if ids is not None:
         db = get_db()
         if all(freelancer_can_access_order(db, user, oid) for oid in ids):
+            mark_if_legacy(db, user, ids)  # D26 — 모두 예전 주문이면 사람 단위 막기를 풀 표시
             return None
     if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_ORDER_NOT_FOUND_MSG}), 404

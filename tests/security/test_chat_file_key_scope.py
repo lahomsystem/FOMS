@@ -185,7 +185,7 @@ def test_freelancer_is_403_even_as_member(app, world, storage):
     fl = _value(_make_user("STAFF", "SALES"))
     db_session.add(ChatRoomMember(room_id=world.room, user_id=fl.id))
     db_session.commit()
-    save_freelancer(db_session, fl.id, {"match_name": "가짜프리파일", "start_month": "2030-01", "tax_type": "NONE",
+    save_freelancer(db_session, fl.id, {"match_name": "가짜프리파일", "start_month": "2020-01", "tax_type": "NONE",
                                         "active": True},
                     base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()

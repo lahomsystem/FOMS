@@ -39,7 +39,7 @@ def _freelancer(*, active: bool = True) -> User:
     user.match_name = f"가짜수정담당{next(_seq)}"
     version, _cfg, _changed = save_freelancer(
         db_session, user.id,
-        {"match_name": user.match_name, "start_month": "2030-01", "tax_type": "NONE", "active": active},
+        {"match_name": user.match_name, "start_month": "2020-01", "tax_type": "NONE", "active": active},
         base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()
     add_rate(db_session, user.id, _RATE, base_version=version, actor_user_id=None)

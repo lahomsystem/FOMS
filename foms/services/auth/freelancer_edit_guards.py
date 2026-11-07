@@ -10,6 +10,8 @@
   고치기(``erp_measurement.api_erp_measurement_update``) 두 길. 초안 · 첫 등록은 된다.
 * 이름(``User.name``) — 내 정보 화면에서 이름을 바꿀 수 없다(검토 원장 A1). 같은 폼의 비밀번호 바꾸기는 된다.
 * 열어 준 일의 범위(D22 · D23): 채널톡 PUSH 는 영발 · 실측만, 퀘스트 승인은 실측 단계(도면으로 넘기기)만.
+* 예전 담당 주문(D26 — 시작 달 전 실측, :mod:`foms.services.auth.freelancer_legacy`)에는 이름 고정 말고는 아무것도
+  걸지 않는다 — 보통 영업 직원과 같다.
 
 스펙: docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §1.2 J8 · §6.3 겹 4 · §6.5, 사용자 결정 D21~D23
 시험: tests/security/test_freelancer_edit_guards.py · tests/security/test_freelancer_decisions.py
@@ -21,7 +23,9 @@ from typing import Any, Optional
 
 from flask import flash, g, jsonify, request, session
 
+from db import get_db
 from foms.services.audit_writer import record_access_denied
+from foms.services.auth.freelancer_legacy import freelancer_legacy_order, freelancer_request_is_legacy
 from foms.services.auth.freelancer_scope import could_be_freelancer, is_freelancer_user
 from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.orders.confirm_drawing_gate import normalize_stage_code
@@ -166,7 +170,7 @@ def freelancer_party_change_denial(order: Any, structured_data: Any) -> Optional
     orderer_changed = _orderer_changed(order, structured_data)
     if not orderer_changed and not _managers_changed(order, structured_data):
         return None
-    if not is_freelancer_user(user):
+    if not is_freelancer_user(user) or freelancer_legacy_order(get_db(), user, getattr(order, "id", None)):
         return None
     order_id = int(getattr(order, "id", 0) or 0)
     if orderer_changed:
@@ -193,6 +197,8 @@ def freelancer_manager_change_denial(order: Any, new_names: list[str]) -> Option
         return None
     if _names_key(list(new_names or [])) == _names_key(_stored_manager_names(order)) or not is_freelancer_user(user):
         return None
+    if freelancer_legacy_order(get_db(), user, getattr(order, "id", None)):
+        return None
     order_id = int(getattr(order, "id", 0) or 0)
     return _deny(MANAGER_LOCKED_MSG, "MANAGER_LOCKED", f"프리랜서 담당자 변경 거부(주문 {order_id})", order_id)
 
@@ -205,7 +211,7 @@ def freelancer_push_kind_denial(payload: Any) -> Optional[tuple[Any, int]]:
     user = getattr(g, "current_user", None)
     kind = (payload.get("push_kind") if isinstance(payload, dict) else None) or "measurement"
     allowed = isinstance(kind, str) and kind in FREELANCER_PUSH_KINDS  # 글자가 아닌 값(목록 등)은 거부
-    if not could_be_freelancer(user) or allowed or not is_freelancer_user(user):
+    if not could_be_freelancer(user) or allowed or not is_freelancer_user(user) or freelancer_request_is_legacy():
         return None
     return _deny(PUSH_KIND_LOCKED_MSG, "PUSH_KIND_LOCKED", f"프리랜서 PUSH 종류 거부({str(kind)[:40]})")
 
@@ -215,6 +221,8 @@ def freelancer_quest_stage_denial(stage_code: Any) -> Optional[tuple[Any, int]]:
     user = getattr(g, "current_user", None)
     stage = normalize_stage_code(stage_code)
     if not could_be_freelancer(user) or stage in FREELANCER_QUEST_STAGES or not is_freelancer_user(user):
+        return None
+    if freelancer_request_is_legacy():
         return None
     return _deny(QUEST_STAGE_LOCKED_MSG, "QUEST_STAGE_LOCKED", f"프리랜서 퀘스트 승인 단계 거부({stage[:40]})")
 
