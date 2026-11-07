@@ -1,13 +1,10 @@
-"""FCOMM-01 사용자 결정 D21~D23 · 검수 R8 계약 (2026-11-07).
+"""FCOMM-01 사용자 결정 D21~D23 → D27 · 검수 R8 계약 (2026-11-07).
 
 설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §6.3 겹 2 · 겹 4, 3단계 반증 재검수 원장 R8 · D21~D23.
 
-* D21 담당자 뱃지: 켜진 프리랜서는 **등록된** 주문의 담당자 명단(사람 · 순서)을 못 바꾼다 — structured PUT 과 실측 판 칸
-  고치기 두 길 모두 403. 초안 · 첫 등록은 된다. 같은 명단(띄어쓰기만 다름)은 바꾼 것이 아니다. 보통 직원은 그대로.
-* D22 보내기: 내 주문의 알림톡 미리보기 · 보내기 · 채널 확인, 채널톡 PUSH(영발 · 실측)는 문지기를 지난다. 남의 주문은 404.
-  발주 · AS PUSH 는 403. 바깥(Solapi · 채널톡)은 부르지 않는다 — 보내는 함수를 바꿔 둔다.
-* D23 실측 일: 도면으로 넘기기(실측 단계 승인) · 방문 체크 · 첨부 지우기 · 제품 잇기 · 긴급 호출은 내 주문만.
-  실측이 아닌 단계 승인은 403.
+* D27(11-07, D21~D25 를 넓힘): 켜진 프리랜서도 자기 주문에서는 회사 영업 직원과 같다 — 담당자 명단 바꾸기
+  (structured PUT · 실측 판 칸), 모든 종류의 채널톡 PUSH · PUSH 미리보기 · 견적서 PUSH, 모든 단계 퀘스트 승인. 남의 주문은
+  404 그대로. 자기를 담당에서 빼면 다음 요청부터 내 주문이 아니다. 바깥(Solapi · 채널톡)은 부르지 않는다.
 * R8: 정규형이 아닌 key(``..`` · ``//`` · ``./`` · 끝 ``/``)는 내 주문을 가리켜도 거부. 마법사 승격은 내 초안 폴더 key 만.
 """
 from __future__ import annotations
@@ -22,14 +19,6 @@ import foms.api.channel.channel_integration as channel_api
 import foms.api.kakao as kakao_api
 import foms.services.order_draft_attachments as draft_attachments
 from db import db_session
-from foms.services.auth.freelancer_edit_guards import (
-    MANAGER_LOCKED_MSG,
-    PUSH_KIND_LOCKED_MSG,
-    QUEST_STAGE_LOCKED_MSG,
-    _UNCHANGED,
-    _incoming_party,
-    _managers_changed,
-)
 from foms.services.auth.freelancer_scope import (
     FREELANCER_ALLOWED_ENDPOINTS,
     FREELANCER_DENIED_MSG,
@@ -87,54 +76,19 @@ def w(app):
 # --------------------------------------------------------------------------
 # D21 — structured PUT
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("change", ["swap", "add", "clear", "reorder", "non_dict"])
-def test_freelancer_cannot_change_managers_of_registered_order(w, change):
+def test_freelancer_changes_managers_of_own_order_like_staff(w):
     fl, oid, client = w["fl"], w["own"], w["client"]
     _set_managers(oid, [fl.match_name, "동료담당"])
-    manager = {
-        "swap": {"name": "다른담당", "names": ["다른담당"]},
-        "add": {"name": fl.match_name, "names": [fl.match_name, "동료담당", "셋째담당"]},
-        "clear": {"name": "", "names": []},
-        "reorder": {"name": "동료담당", "names": ["동료담당", fl.match_name]},
-        "non_dict": "다른담당",
-    }[change]
-    resp = _put_manager(client, oid, manager)
-    assert resp.status_code == 403, resp.get_json()
-    assert resp.get_json() == {"success": False, "data": None, "error": MANAGER_LOCKED_MSG}
-    assert _managers(oid) == {"name": fl.match_name, "names": [fl.match_name, "동료담당"]}
-
-
-def test_same_managers_are_not_a_change(w):
-    fl, oid, client = w["fl"], w["own"], w["client"]
-    _set_managers(oid, [fl.match_name, "동료담당"])
-    assert _put_manager(client, oid, {"name": fl.match_name, "names": [fl.match_name, "동료담당"]}).status_code == 200
-    # 대표만 다시 싣고 명단은 안 실음(합치기로 옛 명단이 남는다) · 앞뒤 공백만 다름
-    assert _put_manager(client, oid, {"name": f"  {fl.match_name} "}).status_code == 200
-    assert _put_manager(client, oid, {"name": fl.match_name, "names": [f" {fl.match_name}", "동료담당 "]}).status_code == 200
-    # 담당자를 안 싣는 저장
-    assert client.put(f"/api/orders/{oid}/structured", json={"notes": "메모만"}).status_code == 200
-
-
-def test_freelancer_sets_managers_on_draft_and_first_registration(w):
-    fl, oid, client = w["fl"], w["draft"], w["client"]
-    resp = _put_manager(client, oid, {"name": fl.match_name, "names": [fl.match_name, "동료담당"]})
+    resp = _put_manager(client, oid, {"name": fl.match_name, "names": [fl.match_name, "동료담당", "셋째담당"]})
     assert resp.status_code == 200, resp.get_json()
-    assert _sd(oid)["meta"]["draft"] is False  # 이 저장이 첫 등록이었다
-    assert _put_manager(client, oid, {"name": "다른담당", "names": ["다른담당"]}).status_code == 403
+    assert _managers(oid)["names"] == [fl.match_name, "동료담당", "셋째담당"]
 
 
-def test_negative_control_without_guard_the_change_goes_through(w, monkeypatch):
-    """음성 대조군: 판정을 끄면 같은 요청이 저장된다 — 위 403 시험이 실제로 이 판정을 본다는 증거."""
-    import foms.api.measurement.routes as measurement_routes
-    import foms.services.auth.freelancer_edit_guards as guards
-
-    monkeypatch.setattr(guards, "_managers_changed", lambda order, sd: False)
-    monkeypatch.setattr(measurement_routes, "freelancer_manager_change_denial", lambda order, names: None)
-    second = _order(w["fl"].match_name)
+def test_removing_self_from_managers_drops_access_next_request(w):
+    """자기를 뱃지에서 빼면 연결 줄도 빠져 다음 요청부터 내 주문이 아니다(회사 직원과 다른 유일한 점 = 주문 범위)."""
     assert _put_manager(w["client"], w["own"], {"name": "다른담당", "names": ["다른담당"]}).status_code == 200
-    assert _inline(w["client"], second, "manager", "또다른담당").status_code == 200
-    # 뱃지에서 빠지면 연결 줄도 빠져 다음 요청부터 내 주문이 아니다 — D21 이 막는 까닭
     assert _scope_404(w["client"].get(f"/api/orders/{w['own']}/structured"))
+    assert _scope_404(_put_manager(w["client"], w["other"], {"name": "새담당", "names": ["새담당"]}))
 
 
 @pytest.mark.parametrize("who", ["sales", "inactive"])
@@ -146,26 +100,6 @@ def test_non_freelancers_still_change_managers(app, who):
     assert _managers(oid)["names"] == ["새담당", "남의담당"]
 
 
-class _Row:
-    def __init__(self, sd, manager_name=None):
-        self.structured_data, self.manager_name, self.id = sd, manager_name, 1
-
-
-@pytest.mark.parametrize("payload,changed", [
-    (None, False), ({}, False), ({"parties": None}, False), ({"parties": {"customer": {"name": "x"}}}, False),
-    ({"parties": {"manager": {"phone": "010"}}}, False),
-    ({"parties": {"manager": {"name": "가"}}}, False),
-    ({"parties": {"manager": {"name": "나"}}}, True),
-    ({"parties": {"manager": None}}, True),
-    ({"parties": ["x"]}, True),
-])
-def test_manager_change_follows_put_merge_rules(payload, changed):
-    row = _Row({"parties": {"manager": {"name": "가", "names": ["가", "나"]}}})
-    assert _managers_changed(row, payload) is changed
-    if not changed and "manager" not in str(payload):
-        assert _incoming_party(payload, "manager") is _UNCHANGED
-
-
 # --------------------------------------------------------------------------
 # D21 — 실측 판 칸 고치기
 # --------------------------------------------------------------------------
@@ -173,14 +107,10 @@ def _inline(client, order_id: int, field: str, value: str):
     return client.post(f"/api/erp/measurement/update/{order_id}", json={"field": field, "value": value})
 
 
-def test_measurement_inline_manager_change_locked_for_freelancer(w):
+def test_measurement_inline_manager_change_own_order_like_staff(w):
     fl, oid, client = w["fl"], w["own"], w["client"]
-    resp = _inline(client, oid, "manager", "다른담당")
-    assert resp.status_code == 403 and resp.get_json()["error"] == MANAGER_LOCKED_MSG
-    assert _inline(client, oid, "manager", f"{fl.match_name}, 동료담당").status_code == 403
-    assert _managers(oid)["name"] == fl.match_name
-    # 같은 명단 · 다른 칸(주소)은 된다(초안은 이 핸들러가 누구에게나 404 — active_filter 가 초안을 뺀다)
-    assert _inline(client, oid, "manager", f" {fl.match_name} ").status_code == 200
+    assert _inline(client, oid, "manager", f"{fl.match_name}, 동료담당").status_code == 200
+    assert _managers(oid)["names"] == [fl.match_name, "동료담당"]
     assert _inline(client, oid, "address", "가짜시 새로 2").status_code == 200
     assert _scope_404(_inline(client, w["other"], "manager", fl.match_name))
 
@@ -219,16 +149,13 @@ def test_alimtalk_own_order_reachable_other_404(w, senders):
     assert senders["alimtalk"] == [own] and senders["confirm"] == [own]
 
 
-def test_channel_push_measurement_kinds_only_own_order(w, senders):
+def test_channel_push_any_kind_own_order_only(w, senders):
     client, own, other = w["client"], w["own"], w["other"]
-    for kind in ("measurement", "measure_room", None):
+    for kind in ("measurement", "measure_room", None, "drawing", "as", "drawing_room"):
         assert client.post("/api/channel/push-manual", json={"order_id": own, "push_kind": kind}).status_code == 200
-    for kind in ("drawing", "as", "drawing_room", ["measurement"]):
-        resp = client.post("/api/channel/push-manual", json={"order_id": own, "push_kind": kind})
-        assert resp.status_code == 403 and resp.get_json()["error"] == PUSH_KIND_LOCKED_MSG, kind
     for raw in (other, str(other), float(other)):
-        assert _scope_404(client.post("/api/channel/push-manual", json={"order_id": raw, "push_kind": "measurement"}))
-    assert [p["order_id"] for p in senders["push"]] == [own, own, own]
+        assert _scope_404(client.post("/api/channel/push-manual", json={"order_id": raw, "push_kind": "drawing"}))
+    assert [p["order_id"] for p in senders["push"]] == [own] * 6
 
 
 def test_channel_push_for_staff_unchanged(app, senders):
@@ -238,13 +165,17 @@ def test_channel_push_for_staff_unchanged(app, senders):
     assert senders["push"] == [{"order_id": oid, "push_kind": "drawing"}]
 
 
-def test_unopened_send_doors_stay_closed(w):
-    """문서화: PUSH 미리보기(AS · 도면방 전용) · 견적서 PUSH 는 열지 않았다 — 문지기 403."""
-    assert "channel_integration.api_channel_push_preview" not in FREELANCER_ALLOWED_ENDPOINTS
-    resp = w["client"].get(f"/api/channel/push-preview?order_id={w['own']}&push_kind=as")
-    assert resp.status_code == 403 and resp.get_json()["error"] == FREELANCER_DENIED_MSG
-    resp = w["client"].post("/api/channel/push-estimate", data={"order_id": str(w["own"])})
-    assert resp.status_code == 403 and resp.get_json()["error"] == FREELANCER_DENIED_MSG
+def test_push_preview_and_estimate_push_open_for_own_order_only(w):
+    """D27: PUSH 미리보기(query) · 견적서 이미지 PUSH(form)도 자기 주문이면 문지기를 지난다. 남의 주문은 404."""
+    for endpoint in ("channel_integration.api_channel_push_preview", "channel_integration.api_channel_push_estimate"):
+        assert endpoint in FREELANCER_ALLOWED_ENDPOINTS
+    client = w["client"]
+    mine = client.get(f"/api/channel/push-preview?order_id={w['own']}&push_kind=as")
+    assert (mine.get_json(silent=True) or {}).get("error") != FREELANCER_DENIED_MSG and mine.status_code != 404
+    assert _scope_404(client.get(f"/api/channel/push-preview?order_id={w['other']}&push_kind=as"))
+    mine = client.post("/api/channel/push-estimate", data={"order_id": str(w["own"])})
+    assert mine.status_code == 400  # 그림이 없어 핸들러가 거절 — 문지기는 지났다
+    assert _scope_404(client.post("/api/channel/push-estimate", data={"order_id": str(w["other"])}))
 
 
 # --------------------------------------------------------------------------
@@ -271,17 +202,18 @@ def test_quest_approve_confirm_stage_own_order_allowed(w):
     """D25(11-07): 자기 주문의 고객 컨펌 승인도 프리랜서가 누른다 — 단계 잠금에 걸리지 않는다."""
     _confirm_stage(w["own"])
     resp = w["client"].post(f"/api/orders/{w['own']}/quest/approve", json={})
-    assert (resp.get_json() or {}).get("error") != QUEST_STAGE_LOCKED_MSG, resp.get_json()
+    assert "프리랜서" not in str((resp.get_json() or {}).get("error")), resp.get_json()
 
 
-def test_quest_approve_other_stage_locked_for_freelancer_only(app, w):
+def test_quest_approve_any_stage_same_as_staff(app, w):
+    """D27: 다른 단계 승인도 회사 영업 직원과 같은 답(프리랜서라서 막히지 않는다)."""
     _confirm_stage(w["own"], "PRODUCTION")
     resp = w["client"].post(f"/api/orders/{w['own']}/quest/approve", json={})
-    assert resp.status_code == 403 and resp.get_json()["error"] == QUEST_STAGE_LOCKED_MSG
     staff_order = _order("남의담당")
     _confirm_stage(staff_order, "PRODUCTION")
     staff_resp = _client(app, _make_user("STAFF", "SALES")).post(f"/api/orders/{staff_order}/quest/approve", json={})
-    assert (staff_resp.get_json() or {}).get("error") != QUEST_STAGE_LOCKED_MSG, staff_resp.get_json()
+    assert resp.status_code == staff_resp.status_code, (resp.get_json(), staff_resp.get_json())
+    assert "프리랜서" not in str((resp.get_json() or {}).get("error"))
 
 
 def test_measurement_visit_own_order(w):

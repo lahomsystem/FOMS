@@ -28,6 +28,8 @@ from models import SalesCommissionClosing, SystemSetting, User
 
 SETTINGS_KEY = "sales_freelancer_settings"
 TAX_TYPES: tuple[str, ...] = ("WITHHOLD_3_3", "VAT_10", "NONE")
+#: 프리랜서가 될 수 있는 역할 — 회사 영업 때 등급(매니저)을 그대로 둘 수 있다(D27, 11-07 사용자).
+FREELANCER_ROLES: frozenset[str] = frozenset({"STAFF", "MANAGER"})
 RATE_FIELDS: tuple[str, ...] = ("lahom_bp", "haud_bp", "personal_bp")
 BP_MAX = 10000
 MATCH_NAME_MAX = 40
@@ -231,8 +233,8 @@ def _target_user(db, user_id: Any, *, require_eligible: bool) -> User:
         raise FreelancerSettingsError("꺼진 계정은 프리랜서로 정할 수 없어요.")
     if getattr(user, "partner_org_id", None) is not None:
         raise FreelancerSettingsError("협력사 계정은 프리랜서로 정할 수 없어요.")
-    if str(user.role or "").strip().upper() != "STAFF" or normalize_team(user.team) != "SALES":
-        raise FreelancerSettingsError("직원 · 영업팀 계정만 프리랜서로 정할 수 있어요.")
+    if str(user.role or "").strip().upper() not in FREELANCER_ROLES or normalize_team(user.team) != "SALES":
+        raise FreelancerSettingsError("직원 · 매니저 등급의 영업팀 계정만 프리랜서로 정할 수 있어요.")
     return user
 
 

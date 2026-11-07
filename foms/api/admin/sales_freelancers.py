@@ -27,6 +27,7 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.links import resync_freelancer_links
 from foms.services.sales_commission.settings import (
+    FREELANCER_ROLES,
     TAX_TYPES,
     FreelancerSettingsError,
     add_rate,
@@ -100,7 +101,7 @@ def _state(db) -> dict[str, Any]:
             "user_active": bool(user.is_active) if user is not None else False,
             "current_rate": current.as_dict() if current is not None else None,
         })
-    staff = db.query(User).filter(User.is_active.is_(True), User.role == "STAFF",
+    staff = db.query(User).filter(User.is_active.is_(True), User.role.in_(tuple(FREELANCER_ROLES)),
                                   User.partner_org_id.is_(None)).order_by(User.name).all()
     candidates = [{"user_id": u.id, "name": u.name, "username": u.username}
                   for u in staff if normalize_team(u.team) == "SALES" and u.id not in configs]

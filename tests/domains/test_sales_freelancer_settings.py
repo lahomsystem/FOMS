@@ -123,8 +123,8 @@ def test_match_name_duplicate_with_other_active_user_rejected(app):
 
 
 @pytest.mark.parametrize("role,team,active", [
-    ("MANAGER", "SALES", True), ("STAFF", "CS", True), ("STAFF", "ACCOUNTING", True), ("ADMIN", None, True),
-    ("STAFF", "SALES", False),
+    ("MANAGER", "CS", True), ("STAFF", "CS", True), ("STAFF", "ACCOUNTING", True), ("ADMIN", None, True),
+    ("STAFF", "SALES", False), ("MANAGER", "SALES", False),
 ])
 def test_only_active_staff_sales_accounts(app, role, team, active):
     user = _make_user(role, team)
@@ -327,15 +327,16 @@ def test_admin_menu_links_to_page(app):
 
 
 def test_no_user_rows_leak_into_candidates(app):
-    """추가 후보는 켜진 직원 · 영업팀만(대조군: 영업 매니저 · 꺼진 영업 · CS 직원은 빠진다)."""
+    """추가 후보는 켜진 영업팀 직원 · 매니저만(D27 — 운영 영업 계정은 매니저 등급. 대조군: 꺼진 영업 · CS 직원 · CS 매니저)."""
     keep = _make_user("STAFF", "SALES").id
     manager = _make_user("MANAGER", "SALES").id
     cs = _make_user("STAFF", "CS").id
+    cs_manager = _make_user("MANAGER", "CS").id
     gone = _make_user("STAFF", "SALES")
     gone.is_active = False
     db_session.commit()
     gone = gone.id
     client, _user = _as(app, "ADMIN", None)
     ids = [c["user_id"] for c in client.get(API).get_json()["data"]["candidates"]]
-    assert keep in ids and not {manager, cs, gone} & set(ids)
-    assert db_session.query(User).count() == 5
+    assert {keep, manager} <= set(ids) and not {cs, cs_manager, gone} & set(ids)
+    assert db_session.query(User).count() == 6

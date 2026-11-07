@@ -21,8 +21,6 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import load_only
 
-from foms.services.auth.freelancer_legacy import freelancer_request_is_legacy
-from foms.services.auth.freelancer_scope import is_freelancer_request_allowed, is_freelancer_user
 from foms.services.orders.as_schedule_link import LINK_PATH, read_link
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.orders.structured_form_projection import lock_payment_confirmation
@@ -30,18 +28,9 @@ from models import Order
 
 logger = logging.getLogger(__name__)
 
-#: 결제 확인 API endpoint — 이 endpoint 를 부를 수 있는 사람만 첫 등록에서 결제 확인을 싣는다.
-PAYMENT_CONFIRM_ENDPOINT = "erp_orders_structured.api_payment_confirm"
-
-
 def can_confirm_payment(user: Any) -> bool:
-    """결제 확인 API 를 부를 수 있는 사람인가 — 켜진 프리랜서는 문지기 허용 목록을 따른다."""
-    if user is None:
-        return False
-    if is_freelancer_user(user):
-        # D26 — 예전 담당 주문 저장이면 보통 영업 직원과 같다.
-        return is_freelancer_request_allowed(PAYMENT_CONFIRM_ENDPOINT, "POST") or freelancer_request_is_legacy()
-    return True
+    """결제 확인 API 를 부를 수 있는 사람인가 — 로그인한 직원이면 된다(프리랜서도 자기 주문은 회사 직원과 같다, D27)."""
+    return user is not None
 
 
 def guard_payment_confirmation(old_sd: dict, structured_data: dict, *, draft: bool, user: Any,
@@ -106,7 +95,6 @@ def guard_schedule_link_ref(db: Any, old_sd: dict, structured_data: dict, user: 
 
 
 __all__ = [
-    "PAYMENT_CONFIRM_ENDPOINT",
     "can_confirm_payment",
     "can_read_ref_order",
     "guard_payment_confirmation",

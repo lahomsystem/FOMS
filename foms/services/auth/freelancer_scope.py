@@ -31,9 +31,9 @@ from flask import abort, g, jsonify, redirect, request, url_for
 from db import get_db
 from foms.services.auth import freelancer_screens as _screens
 from foms.services.auth.freelancer_orders import freelancer_can_access_order
-from foms.services.auth.freelancer_legacy import legacy_order_request_allowed, mark_if_legacy
+from foms.services.auth.freelancer_order_rights import own_order_request_allowed
 from foms.services.orders.order_mutation_policy import normalize_team
-from foms.services.sales_commission.settings import is_freelancer
+from foms.services.sales_commission.settings import FREELANCER_ROLES, is_freelancer
 
 # 프리랜서 세션이 쓸 수 있는 endpoint(분류마다 한 줄 이유).
 FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
@@ -109,6 +109,9 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "kakao.api_alimtalk_send_manual",
     "kakao.api_alimtalk_confirm_channel",
     "channel_integration.api_channel_push_manual",
+    # D27 — PUSH 미리보기(주문 번호 = query) · 견적서 이미지 PUSH(주문 번호 = form) 도 내 주문이면 회사 직원과 같게.
+    "channel_integration.api_channel_push_preview",
+    "channel_integration.api_channel_push_estimate",
     # ── 실측 일(D23): 도면으로 넘기기(퀘스트 승인 — 실측 단계만, 겹 4) · 실측 판 칸 고치기(담당자는 등록 뒤
     #    잠금, 겹 4) · 방문 체크
     "quest.api_order_quest_approve",
@@ -207,6 +210,8 @@ FREELANCER_ORDER_QUERY_ARGS: dict[str, tuple[str, ...]] = {
     "erp_measurement_dashboard.erp_measurement_dashboard": ("focus_order",),
     # 일부러 뺀 것: 내 수수료 ?order= — 그 주문이 든 달을 고를 뿐 주문 내용은 내보내지 않고(언제나 내 줄만),
     # 담당에서 빠진 뒤에도 차감 알림 링크는 열려야 한다(§6.1 규칙 4 "쌓인 수수료 기록은 남는다").
+    # PUSH 미리보기 — 핸들러가 int(order_id or 0) 로 읽는다.
+    "channel_integration.api_channel_push_preview": ("order_id",),
 }
 
 
@@ -244,6 +249,17 @@ def _body_order_id(user: Any) -> Optional[list[int]]:
     """본문 ``order_id``(채널톡 PUSH · 긴급 호출). 핸들러와 같은 ``int()`` 로 읽는다 — 소수 · 참값도 핸들러가 읽는
     번호 그대로 본다. 비었거나 못 읽으면 빈 목록(핸들러가 400 · 500 으로 끝내 주문을 읽지 않는다)."""
     raw = _body_json().get("order_id")
+    if raw is None or raw == "":
+        return []
+    try:
+        return [int(raw)]
+    except (TypeError, ValueError, OverflowError):
+        return []
+
+
+def _form_order_id(user: Any) -> Optional[list[int]]:
+    """form 의 ``order_id``(견적서 이미지 PUSH). 핸들러와 같은 ``int()`` 로 읽는다. 비었거나 못 읽으면 빈 목록."""
+    raw = request.form.get("order_id")
     if raw is None or raw == "":
         return []
     try:
@@ -300,6 +316,7 @@ FREELANCER_ORDER_BODY_CHECKS: dict[str, Callable[[Any], Optional[list[int]]]] = 
     "erp_order_draft.api_put_order_draft": _wizard_draft_order_ids,
     "erp_order_draft.api_submit_order_draft": _wizard_draft_order_ids,
     "channel_integration.api_channel_push_manual": _body_order_id,
+    "channel_integration.api_channel_push_estimate": _form_order_id,
     # 주문 없이도 보낸다(맨 위 줄 ⚡) — order_id 가 있을 때만 내 주문인지 본다.
     "notifications.api_urgent_call": _body_order_id,
 }
@@ -322,13 +339,13 @@ FREELANCER_HOME_ENDPOINT = "erp_dashboard.erp_dashboard"
 
 
 def could_be_freelancer(user: Any) -> bool:
-    """프리랜서가 될 수 있는 계정인지 — 직원(STAFF) · 영업팀(MEASURE 포함) · 협력사 아님. 설정은 읽지 않는다.
+    """프리랜서가 될 수 있는 계정인지 — 직원 · 매니저 등급(D27) · 영업팀(MEASURE 포함) · 협력사 아님. 설정은 읽지 않는다.
 
     설정 저장(``settings._target_user``)이 같은 조건을 강제하므로 그 밖의 계정은 프리랜서일 수 없다.
     """
     if user is None or getattr(user, "partner_org_id", None) is not None:
         return False
-    if str(getattr(user, "role", "") or "").strip().upper() != "STAFF":
+    if str(getattr(user, "role", "") or "").strip().upper() not in FREELANCER_ROLES:
         return False
     return normalize_team(getattr(user, "team", None)) == "SALES"
 
@@ -366,8 +383,8 @@ def freelancer_gate() -> Any | None:
         return None
     if is_freelancer_request_allowed(request.endpoint, request.method):
         return freelancer_order_scope_denial(user)
-    # D26 — 허용 목록 밖이어도 예전 담당 주문의 주문 일 API 는 보통 영업 직원과 같게(freelancer_legacy).
-    if legacy_order_request_allowed(get_db(), user, request.endpoint):
+    # D27 — 허용 목록 밖이어도 내 주문의 주문 일 API 는 회사 영업 직원과 같게(freelancer_order_rights).
+    if own_order_request_allowed(get_db(), user, request.endpoint):
         return None
     if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_DENIED_MSG}), 403
@@ -407,7 +424,6 @@ def freelancer_order_scope_denial(user: Any) -> Any | None:
     if ids is not None:
         db = get_db()
         if all(freelancer_can_access_order(db, user, oid) for oid in ids):
-            mark_if_legacy(db, user, ids)  # D26 — 모두 예전 주문이면 사람 단위 막기를 풀 표시
             return None
     if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_ORDER_NOT_FOUND_MSG}), 404

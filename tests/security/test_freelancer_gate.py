@@ -278,16 +278,18 @@ def test_gate_reads_settings_only_for_sales_staff(app, monkeypatch):
         return real(db, user)
 
     monkeypatch.setattr(scope, "is_freelancer", counting)
-    for role, team in (("ADMIN", None), ("STAFF", "CS"), ("STAFF", "CONSTRUCTION"), ("MANAGER", "SALES")):
+    for role, team in (("ADMIN", None), ("STAFF", "CS"), ("STAFF", "CONSTRUCTION"), ("MANAGER", "CS")):
         _client(app, _make_user(role, team)).get("/erp/api/notifications/badge")
     sales = _make_user("STAFF", "SALES")
     sales_client = _client(app, sales)
     sales_client.get("/static/css/foundation/erp-pro.css")
     assert calls == []
 
-    # 양성 대조군: 영업 직원의 일반 요청은 설정을 한 번 본다(요청 안에서는 g 에 한 번만).
+    # 양성 대조군: 영업 직원 · 영업 매니저(D27 — 매니저 등급도 프리랜서가 될 수 있다)의 일반 요청은 설정을 한 번 본다.
     sales_client.get("/erp/api/notifications/badge")
-    assert calls == [sales.id]
+    manager = _make_user("MANAGER", "SALES")
+    _client(app, manager).get("/erp/api/notifications/badge")
+    assert calls == [sales.id, manager.id]
 
 
 # --------------------------------------------------------------------------

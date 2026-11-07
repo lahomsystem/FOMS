@@ -30,7 +30,7 @@ from foms.services.settlement_deductions import (
 )
 from foms.services.settlement_rows import list_settlement_rows
 from foms.web.cs.completion_dashboard import _completion_row, _completion_settlement_memo
-from models import Order, OrderEvent, OrderMutationReceipt, SecurityLog
+from models import OrderFreelancerLink, Order, OrderEvent, OrderMutationReceipt, SecurityLog
 from tests.domains.test_auth_finance import _login, _make_user, policy_on  # noqa: F401 — 픽스처 재사용
 from tests.domains.test_settlement_aggregation import _seed_order
 
@@ -336,37 +336,29 @@ def test_void_removes_amount_from_final_cost_and_resets_status(app):
     ("/api/orders/{oid}/payment-confirm", {"type": "deposit", "confirmed": True}),
     ("/api/orders/{oid}/cash-receipt/issue", {"note": "가상"}),
 ])
-def test_freelancer_is_denied_finance_mutation(client, app, policy_on, monkeypatch, path, body):  # noqa: F811
-    """두 겹: 3단계 문지기(겹 1)가 먼저 막고, 문지기를 지나도 쓰기 정책 엔진이 막는다(§10.6)."""
-    oid = _order_with([])
-    _login(client, _freelancer())
-    url = path.format(oid=oid)
-
-    gated = client.post(url, json=body)
-    assert gated.status_code == 403
-    assert gated.get_json()["error"] == freelancer_scope.FREELANCER_DENIED_MSG
-
-    # 문지기 허용 목록에 잘못 들어가도 정책 엔진이 막는지 — 그 endpoint 만 허용한 셈으로 다시 부른다.
-    endpoint, _args = app.url_map.bind("localhost").match(url, method="POST")
-    monkeypatch.setattr(freelancer_scope, "FREELANCER_ALLOWED_ENDPOINTS",
-                        freelancer_scope.FREELANCER_ALLOWED_ENDPOINTS | {endpoint})
-    resp = client.post(url, json=body)
-
-    assert resp.status_code == 403 and resp.headers.get("X-Auth-Policy") == "denied"
-    assert resp.get_json()["success"] is False
-    assert db_session.query(OrderEvent).filter(OrderEvent.order_id == oid).count() == 0
-
-
-def test_engine_denies_freelancer_only_for_finance(app):
+def test_freelancer_finance_on_own_order_like_staff(client, app, policy_on, path, body):  # noqa: F811
+    """D27(11-07): 자기 주문이면 금융 쓰기도 회사 영업 직원과 같다 — 문지기 · 정책 엔진 어느 쪽도 프리랜서라서 막지 않는다.
+    남의 주문은 문지기 응답 그대로(정책 엔진까지 가지 않는다)."""
     freelancer = _freelancer()
-    decision = evaluate_policy(POLICY_REGISTRY["FINANCE_MUTATION"], freelancer)
+    own, other = _order_with([]), _order_with([])
+    db_session.add(OrderFreelancerLink(order_id=own, user_id=freelancer.id, relation="MANAGER_PRIMARY"))
+    db_session.commit()
+    _login(client, freelancer)
 
-    assert (decision.allowed, decision.status, decision.reason) == (
-        False, 403, "프리랜서 계정으로는 이 작업을 할 수 없어요.")
-    assert evaluate_policy(POLICY_REGISTRY["ERP_EDIT"], freelancer).allowed, "다른 업무는 3단계 전까지 그대로"
+    mine = client.post(path.format(oid=own), json=body)
+    assert mine.headers.get("X-Auth-Policy") != "denied", (mine.status_code, mine.get_json())
+    assert (mine.get_json(silent=True) or {}).get("error") != freelancer_scope.FREELANCER_DENIED_MSG
+
+    theirs = client.post(path.format(oid=other), json=body)
+    assert theirs.status_code == 403 and theirs.get_json()["error"] == freelancer_scope.FREELANCER_DENIED_MSG
+    assert db_session.query(OrderEvent).filter(OrderEvent.order_id == other).count() == 0
+
+
+def test_engine_treats_freelancer_like_sales_for_finance(app):
+    freelancer = _freelancer()
     plain_seller = _make_user(role="STAFF", team="SALES")
-    assert evaluate_policy(POLICY_REGISTRY["FINANCE_MUTATION"], plain_seller).allowed, "대조군 — 일반 영업"
-    # 영업팀이 아닌 계정은 설정을 읽지 않는다(DB 없이 도는 판정 시험이 그대로 통과해야 한다).
+    for policy_id in ("FINANCE_MUTATION", "ERP_EDIT"):
+        assert evaluate_policy(POLICY_REGISTRY[policy_id], freelancer).allowed is             evaluate_policy(POLICY_REGISTRY[policy_id], plain_seller).allowed, policy_id
     accounting = SimpleNamespace(id=freelancer.id, role="STAFF", team="ACCOUNTING", is_active=True)
     assert evaluate_policy(POLICY_REGISTRY["FINANCE_MUTATION"], accounting).allowed
 
