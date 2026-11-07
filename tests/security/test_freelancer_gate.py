@@ -39,7 +39,7 @@ _RATE = {"effective_month": "2030-01", "lahom_bp": 400, "haud_bp": 600, "persona
 _HOME = "/erp/dashboard"
 # 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 이력 검색 · 주문 복사 · 채팅 · 지도 · 옛 목록.
 _DENIED_SAMPLE = (
-    ("GET", "/api/foms/search?q=x"),
+    ("GET", "/api/foms/search/fragment?q=x"),
     ("GET", "/erp/history/"),
     ("POST", "/api/orders/copy"),
     ("GET", "/api/chat/rooms"),
@@ -189,7 +189,7 @@ def test_every_allowlisted_endpoint_passes_the_gate(app):
     assert checked >= len(FREELANCER_ALLOWED_ENDPOINTS), checked
     assert blocked == []
 
-    denied = _gate_result(app, fl, "GET", "/api/foms/search?q=x")
+    denied = _gate_result(app, fl, "GET", "/api/foms/search/fragment?q=x")
     assert denied is not None and denied[1] == 403
 
 
@@ -254,7 +254,7 @@ def test_non_freelancers_are_not_gated(app, role, team):
     user = _make_user(role, team)
     for method, path in _DENIED_SAMPLE:
         assert _gate_result(app, user, method, path) is None, (role, team, method, path)
-    resp = _client(app, user).get("/api/foms/search?q=x")
+    resp = _client(app, user).get("/api/foms/search/fragment?q=x")
     assert not _is_gate_response(resp), resp.status_code
 
 
@@ -263,7 +263,7 @@ def test_inactive_freelancer_is_treated_as_normal_staff(app):
     off = _freelancer(active=False)
     for method, path in _DENIED_SAMPLE:
         assert _gate_result(app, off, method, path) is None, (method, path)
-    assert not _is_gate_response(_client(app, off).get("/api/foms/search?q=x"))
+    assert not _is_gate_response(_client(app, off).get("/api/foms/search/fragment?q=x"))
 
 
 # --------------------------------------------------------------------------

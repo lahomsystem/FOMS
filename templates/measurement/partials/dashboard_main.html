@@ -92,7 +92,7 @@
             <input type="date" class="erp-pro-input" name="date_to" id="measurement-date-to" value="{{ date_to }}">
           </div>
         </div>
-        <div class="erp-pro-filter-group">
+        {% if not (current_user and is_sales_freelancer()) %}{# 켜진 프리랜서: 실측 담당자 명단(직원 이름)을 안 보인다 — 담당자는 못 바꾸고(D21) 내 주문만 본다 #}<div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">담당자</label>
           <select class="erp-pro-input" name="manager_filter">
             <option value="">전체</option>
@@ -100,7 +100,7 @@
             <option value="{{ opt.name }}" {% if manager_filter and manager_filter|lower == opt.name|lower %}selected{% endif %}>{{ opt.name }}</option>
             {% endfor %}
           </select>
-        </div>
+        </div>{% endif %}
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
             <i class="fas fa-search"></i>

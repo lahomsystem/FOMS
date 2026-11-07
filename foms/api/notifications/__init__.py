@@ -20,6 +20,8 @@ from foms.services.audit_message_display import describe_action, describe_order_
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
+from foms.services.auth.freelancer_lists import is_list_freelancer
+from foms.services.auth.freelancer_scope import FREELANCER_URGENT_TARGET_MSG, FREELANCER_URGENT_TARGET_TEAMS
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
@@ -868,11 +870,20 @@ def api_users_list_for_mention():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-def _urgent_targets_payload(db, user_id):
+def _freelancer_urgent_target_ok(u: User) -> bool:
+    """켜진 프리랜서가 부를 수 있는 사람 — 내 주문을 맡는 팀(``FREELANCER_URGENT_TARGET_TEAMS``) 직원, 시스템 계정 빼고."""
+    return (str(u.team or "").strip().upper() in FREELANCER_URGENT_TARGET_TEAMS
+            and u.username not in (ACTOR_USERNAME, OWNER_USERNAME))
+
+
+def _urgent_targets_payload(db, user_id, *, freelancer: bool = False):
     """긴급 호출 후보 목록 — 활성 사용자 전원(자기 자신 제외), 팀 표시순→이름순.
 
     ``/urgent-targets`` 가 쓴다(옛 주문 문맥 ``/orders/<id>/urgent-targets`` 는 2026-10-06 삭제 —
     운영 기록 4일간 호출 0건). 각 항목에 team_label(팀 라벨, 팀 미등록/미상=기타)을 붙인다.
+
+    ``freelancer`` (켜진 프리랜서, FCOMM-01): 창은 사람을 골라 보내므로 이름은 남기되, 내 주문을 맡는 팀 직원만
+    주고 직급(role)은 뺀다 — 직원 명단 · 팀 · 직급 전체가 바깥 사람에게 나가지 않게.
     """
     # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
     # (지연 import 로 auth↔notifications 순환 의존 회피)
@@ -884,8 +895,11 @@ def _urgent_targets_payload(db, user_id):
     targets = [
         _urgent_target_payload(u)
         for u in active_users
-        if u.id != user_id
+        if u.id != user_id and (not freelancer or _freelancer_urgent_target_ok(u))
     ]
+    if freelancer:
+        for t in targets:
+            t.pop("role", None)
     # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
     team_index = {code: idx for idx, code in enumerate(TEAMS)}
     targets.sort(key=lambda t: (
@@ -907,7 +921,8 @@ def api_urgent_targets():
         user = getattr(g, "current_user", None)
         if not user:
             return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
-        return jsonify({"success": True, "targets": _urgent_targets_payload(db, session.get("user_id"))})
+        targets = _urgent_targets_payload(db, session.get("user_id"), freelancer=is_list_freelancer(user))
+        return jsonify({"success": True, "targets": targets})
     except Exception as e:
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1153,6 +1168,8 @@ def _send_urgent_call(db: Any, sender: User, data: dict[str, Any], order: Order 
         return {"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}, 422
     if any(u.partner_org_id is not None for u in targets):
         return {"success": False, "message": "내부 직원에게만 긴급 호출을 보낼 수 있습니다."}, 422
+    if is_list_freelancer(sender) and not all(_freelancer_urgent_target_ok(u) for u in targets):
+        return {"success": False, "message": FREELANCER_URGENT_TARGET_MSG}, 422
     order_id = order.id if order is not None else None
     if _urgent_rate_exceeded(db, sender.id, order_id, len(ids)):
         return {"success": False, "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다."}, 429
