@@ -65,6 +65,8 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     parser.add_argument("--only-key", dest="only_keys", action="append", default=[], metavar="KEY",
                         help="이 카드 키만(여러 번 줄 수 있다 — 스테이징 시험)")
     parser.add_argument("--limit", type=_positive, help="앞에서부터 이 수만(부딪침 판정자 돈을 아낀다)")
+    parser.add_argument("--owner-picked", dest="owner_picked", action="append", default=[], metavar="KEY",
+                        help="사장님이 질문 창에서 고른 카드 키(여러 번) — AI 관문 대신 가림 · 한자만 본다(D178)")
     parser.add_argument("--i-have-owner-approval", dest="owner_approval", action="store_true",
                         help="local · staging 밖(운영)에 넣을 때 꼭: 사장님이 카드 넣기를 승인했다")
     return parser.parse_args(argv)
@@ -100,7 +102,7 @@ def run(argv: Optional[list] = None) -> int:
         with app.app_context():
             try:
                 out.update(file_cards(db_session, cards, apply=args.apply, only_keys=args.only_keys,
-                                      limit=args.limit))
+                                      limit=args.limit, owner_picked=args.owner_picked))
             finally:
                 db_session.rollback()  # 미리 보기 · 멈춤의 트랜잭션을 닫는다(넣은 것은 카드마다 이미 커밋)
                 db_session.remove()
