@@ -7,7 +7,7 @@
 * 담당 이름 대상: 이름이 같아도 연결 줄이 없는 주문이면 프리랜서는 받지 않는다(J8). 연결된 주문이면 받는다.
 * 사람 지정(USER) 대상: 그대로 받는다.
 * 공지 팀 펼침(``/erp/api/notifications/send``): 프리랜서 줄 · 소켓 전송 0.
-* 지정: 채팅방 회원 해제 · 옛 알림 숨김 · 감사 줄 숫자 · 두 번 저장해도 같음 · 열린 실시간 연결 끊김.
+* 지정: 옛 알림 숨김 · 감사 줄 숫자 · 두 번 저장해도 같음 · 열린 실시간 연결 끊김(사내 채팅은 CHAT-DEL-01 로 지움).
 대조군(같은 모집단): 프리랜서 아닌 영업 직원 · 관리자. 모든 이름은 가짜 값이다.
 """
 from __future__ import annotations
@@ -23,8 +23,6 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.notifications.recipients import fan_out_new_notification, resolve_recipients_for_notification
 from foms.services.sales_commission.settings import load_settings, save_freelancer
 from models import (
-    ChatRoom,
-    ChatRoomMember,
     Notification,
     NotificationRecipientSource,
     NotificationUserState,
@@ -220,7 +218,7 @@ def test_notice_user_target_still_reaches_freelancer(app, world):
 
 
 # --------------------------------------------------------------------------
-# 지정 옆길 — 채팅 회원 해제 · 옛 알림 숨김 · 감사 · 두 번 저장 · 실시간 연결 끊기
+# 지정 옆길 — 옛 알림 숨김 · 감사 · 두 번 저장 · 실시간 연결 끊기
 # --------------------------------------------------------------------------
 def test_keeps_notification_rule():
     linked = {10}
@@ -253,13 +251,6 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
     _login(admin_client, world.admin)
     own = _order("지정본인고객", match)            # 지정하면 연결된다
     other = _order("지정남고객", "아무개")
-    for name in ("방1", "방2"):
-        room = ChatRoom(name=name, created_by=world.staff.id)
-        db_session.add(room)
-        db_session.commit()
-        db_session.add_all([ChatRoomMember(room_id=room.id, user_id=sales.id),
-                            ChatRoomMember(room_id=room.id, user_id=world.staff.id)])
-    db_session.commit()
     keep = {
         "direct": _state(sales.id, target_type="USER", target_user_id=sales.id),
         "direct_own": _state(sales.id, target_type="USER", target_user_id=sales.id, order_id=own),
@@ -285,8 +276,6 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
     assert resp.status_code == 200, resp.get_json()
     db_session.expire_all()
 
-    assert db_session.query(ChatRoomMember).filter_by(user_id=sales.id).count() == 0
-    assert db_session.query(ChatRoomMember).filter_by(user_id=world.staff.id).count() == 2   # 대조군
     states = {s.id: s for s in db_session.query(NotificationUserState).filter_by(user_id=sales.id)}
     assert all(states[sid].archived_at is None for sid in keep.values()), keep
     assert all(states[sid].archived_at is not None for sid in hide.values()), hide
@@ -294,7 +283,7 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
         NotificationUserState.user_id == world.staff.id,
         NotificationUserState.archived_at.is_(None)).count() == staff_states_before   # 남의 state 는 그대로
     log = db_session.query(SecurityLog).filter_by(action="SALES_FREELANCER_SAVED", target_id=sales.id).one()
-    assert log.detail["chat_memberships_removed"] == 2 and log.detail["notifications_hidden"] == len(hide)
+    assert log.detail["notifications_hidden"] == len(hide) and "chat_memberships_removed" not in log.detail
     assert ws.is_connected() is False                   # 열린 실시간 연결을 끊었다
     assert not list(socketio.server.manager.get_participants("/", f"user_{sales.id}"))
 
@@ -303,7 +292,7 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
     badge = sales_client.get("/erp/api/notifications/badge").get_json()
     assert badge["count"] == len(keep)
 
-    # 두 번 저장해도 같다(이미 지운 회원 · 이미 숨긴 알림은 다시 세지 않는다).
+    # 두 번 저장해도 같다(이미 숨긴 알림은 다시 세지 않는다).
     archived_at = {sid: states[sid].archived_at for sid in hide.values()}
     resp = admin_client.post(API, json={"user_id": sales.id, "match_name": match, "start_month": "2020-01",
                                         "tax_type": "NONE", "active": True, "version": version + 1})
@@ -311,23 +300,20 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
     db_session.expire_all()
     logs = db_session.query(SecurityLog).filter_by(action="SALES_FREELANCER_SAVED", target_id=sales.id) \
         .order_by(SecurityLog.id).all()
-    assert logs[-1].detail["chat_memberships_removed"] == 0 and logs[-1].detail["notifications_hidden"] == 0
+    assert logs[-1].detail["notifications_hidden"] == 0
     again = {s.id: s.archived_at for s in db_session.query(NotificationUserState).filter_by(user_id=sales.id)}
     assert {sid: again[sid] for sid in hide.values()} == archived_at
 
 
-def test_turning_off_does_not_touch_memberships(app, world):
+def test_turning_off_does_not_hide_notifications(app, world):
     """끄는 저장(active=false)은 옆길 정리를 하지 않는다(대조군 — 지정할 때만)."""
     sales = _named("STAFF", "SALES", "끌영업N")
-    room = ChatRoom(name="끌방", created_by=sales.id)
-    db_session.add(room)
-    db_session.commit()
-    db_session.add(ChatRoomMember(room_id=room.id, user_id=sales.id))
-    db_session.commit()
+    team = _state(sales.id, target_type="TEAM", target_team="SALES")
     admin_client = app.test_client()
     _login(admin_client, world.admin)
     resp = admin_client.post(API, json={"user_id": sales.id, "match_name": "끌영업N", "start_month": "2020-01",
                                         "tax_type": "NONE", "active": False,
                                         "version": load_settings(db_session)[0]})
     assert resp.status_code == 200, resp.get_json()
-    assert db_session.query(ChatRoomMember).filter_by(user_id=sales.id).count() == 1
+    db_session.expire_all()
+    assert db_session.get(NotificationUserState, team).archived_at is None

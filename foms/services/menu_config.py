@@ -59,7 +59,6 @@ def _default_menu_config() -> dict[str, Any]:
                 "url": "/self_measurement_dashboard",
             },
             {"id": "trash", "name": "휴지통", "url": "/trash"},
-            {"id": "chat", "name": "채팅", "url": "/chat"},
         ],
         "admin_menu": [
             {"id": "user_management", "name": "사용자 관리", "url": "/admin/users"},

@@ -174,8 +174,8 @@ def test_wave8_retired_realtime_notification_compat_modules_absent() -> None:
 
 
 def test_realtime_notifications_canonical_package_public_api() -> None:
-    """Canonical notifications package exports the single public helper."""
-    expected_public_names = ["emit_erp_notification_to_users"]
+    """Canonical notifications package exports the emit helper + realtime connect handlers (CHAT-DEL-01 이후 소켓 연결 정본)."""
+    expected_public_names = ["emit_erp_notification_to_users", "register_realtime_socketio_handlers", "user_room"]
     assert pkg_realtime_notifications.__all__ == expected_public_names
 
 
@@ -721,8 +721,9 @@ def test_wr_h1_blueprint_registry_foms_api_only_b11b() -> None:
 
     assert "from foms.api.notifications import notifications_bp" in bp_text
     assert "from foms.api.attachments import attachments_bp" in bp_text
-    assert "from foms.api.channel import" in bp_text and "chat_bp" in bp_text
     assert "from foms.api.channel import" in bp_text
+    # 사내 채팅(chat_bp · /chat)은 CHAT-DEL-01(2026-11-07)로 지웠다 — 다시 붙지 않는다.
+    assert "chat_bp" not in bp_text and "channel_chat_pages_bp" not in bp_text
 
     forbidden = (
         "from apps.api.notifications",
@@ -738,11 +739,10 @@ def test_wr_h1_blueprint_registry_foms_api_only_b11b() -> None:
 
 
 def test_b11b_canonical_api_cluster_importable() -> None:
-    """B11B: notifications/attachments/chat/channel/aux API surfaces resolve from foms.api only."""
+    """B11B: notifications/attachments/channel/aux API surfaces resolve from foms.api only(사내 채팅은 CHAT-DEL-01 로 지움)."""
     assert find_spec_or_none("apps.api") is None
 
     from foms.api import notifications, attachments
-    from foms.api.channel import chat_bp, register_chat_socketio_handlers
     from foms.api.channel.channel_integration import channel_integration_bp
     from foms.api.channel.channel_webhooks import channel_webhooks_bp
     from foms.api.channel.channel_functions import channel_functions_bp
@@ -755,8 +755,6 @@ def test_b11b_canonical_api_cluster_importable() -> None:
 
     assert notifications.notifications_bp is not None
     assert attachments.attachments_bp is not None
-    assert chat_bp is not None
-    assert register_chat_socketio_handlers is not None
     assert channel_integration_bp is not None
     assert channel_webhooks_bp is not None
     assert channel_functions_bp is not None
@@ -805,16 +803,16 @@ def test_b11b_canonical_erp_orders_lane_importable() -> None:
 
 
 def test_b11b_files_and_channel_chat_submodules_importable() -> None:
-    """B11B: attachment helpers + chat submodules live under foms.api.files / foms.api.channel."""
+    """B11B: attachment helpers live under foms.api.files. 사내 채팅 하위 모듈은 CHAT-DEL-01(2026-11-07)로 지웠다."""
     import foms.api.files.common as att_common
     import foms.api.files.blueprint as att_bp
-    import foms.api.channel.routes as chat_routes
-    import foms.api.channel.utils as chat_utils
 
     assert att_common is not None
     assert att_bp.attachments_bp is not None
-    assert chat_routes is not None
-    assert chat_utils is not None
+    for gone in ("foms.api.channel.routes", "foms.api.channel.utils", "foms.api.channel.rooms",
+                 "foms.api.channel.messages", "foms.api.channel.files", "foms.api.channel.socketio_handlers",
+                 "foms.web.channel", "foms.services.chat_room_access"):
+        assert find_spec_or_none(gone) is None, gone
 
 
 def test_canonical_jobs_queue_uses_namespaced_rq_task_path_prefix() -> None:
@@ -1452,8 +1450,6 @@ def test_app_and_api_modules_use_canonical_storage_imports() -> None:
         "foms.web.admin.routes",
         "foms.api.attachments",
         "foms.api.channel.channel_integration",
-        "foms.api.channel.routes",
-        "foms.api.channel.utils",
         "foms.api.erp_orders_blueprint",
         "foms.api.drawing.erp_orders_draftsman",
         "foms.api.drawing.erp_orders_drawing",
@@ -2275,7 +2271,6 @@ _SLG_FOMS_WEB_TOP_LEVEL_ALLOWED = frozenset(
     {
         "admin",
         "auth",
-        "channel",
         "construction",
         "cs",
         "drawing",

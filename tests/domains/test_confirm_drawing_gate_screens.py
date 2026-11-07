@@ -218,7 +218,7 @@ def test_asset_pins_bumped_to_20260929i():
     assert ".foms-gate-blocked-reason" in _read("static/css/foundation/erp-pro.css")
     assert "erp-dashboard-entry.js') }}?v=20261012a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-dashboard-detail-dom.js?v=20261001a" in _read("static/js/orders/erp-dashboard-entry.js")
-    for rel in ("templates/orders/dashboard.html", "templates/channel/chat.html",
+    for rel in ("templates/orders/dashboard.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
         assert "erp-stage-override.js') }}?v=20260929i" in _read(rel), rel

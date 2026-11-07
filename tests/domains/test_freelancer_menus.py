@@ -153,7 +153,7 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
     regions = _desktop_regions(_render(app, monkeypatch, fl, path, mobile=False))
     assert all(regions.values()), [k for k, v in regions.items() if not v]
     assert _outside_allowlist(app, regions) == []
-    # 링크 글로 본다(주석에도 "WDCalculator" · "채팅" 이 있다)
+    # 링크 글로 본다(주석에도 "WDCalculator" 가 있다). 사내 채팅은 CHAT-DEL-01 로 모두에게서 지움
     for absent in ("</i> WDCalculator", "</i> 채팅", "네이버 수집", "휴지통", "전체 주문"):
         assert absent not in regions["global_nav"], absent
     assert "내 변경 로그" not in regions["user_menu"]
@@ -202,7 +202,7 @@ def test_normal_desktop_menus_unchanged(app, monkeypatch, role, team):
     _freelancer()
     user = _make_user(role, team)
     regions = _desktop_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=False))
-    for present in ("</i> WDCalculator", "</i> 채팅", "</i> ERP 대시보드", "전체 주문"):
+    for present in ("</i> WDCalculator", "</i> ERP 대시보드", "전체 주문"):
         assert present in regions["global_nav"], present
     assert "내 변경 로그" in regions["user_menu"]
     sub = re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"])

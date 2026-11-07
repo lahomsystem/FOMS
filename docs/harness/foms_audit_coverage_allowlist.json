@@ -75,10 +75,6 @@
       "reason": "푸시 전달 결과 콜백 — 브라우저가 부른다."
     },
     {
-      "key": "foms/api/channel/messages.py::api_chat_mark_read",
-      "reason": "채팅 읽음 표시 — 화면 상태."
-    },
-    {
       "key": "foms/api/shipment/recommendations.py::api_shipment_as_recommendations",
       "reason": "AS 추천 조회(POST 는 필터 본문 때문) — 읽기 경로다."
     },
@@ -121,10 +117,6 @@
     {
       "key": "foms/api/erp_order_draft.py::api_upload_order_draft_attachment",
       "reason": "제출 전 임시 첨부 업로드 — 제출 시 실제 첨부로 승격되며 그때 기록된다."
-    },
-    {
-      "key": "foms/api/channel/files.py::api_chat_upload_session",
-      "reason": "채팅 첨부 presigned 세션 발급 — 실제 발송은 메시지 전송 경로가 기록한다."
     },
     {
       "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_import_attachment",

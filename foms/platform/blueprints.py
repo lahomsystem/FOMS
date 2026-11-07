@@ -23,7 +23,7 @@ class BlueprintBindings:
     """
 
     get_user_by_id: Callable[..., Any]
-    register_chat_socketio_handlers: Callable[..., Any]
+    register_realtime_socketio_handlers: Callable[..., Any]
 
 
 def register_blueprints(app: Flask) -> BlueprintBindings:
@@ -98,10 +98,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         channel_wam_api_bp,
         channel_wam_bp,
         channel_webhooks_bp,
-        chat_bp,
-        register_chat_socketio_handlers,
     )
-    from foms.web.channel import channel_chat_pages_bp
+    from foms.services.notifications.realtime_notifications import register_realtime_socketio_handlers
     from foms.api.kakao import kakao_bp
     from foms.api.share import share_api_bp, share_view_bp
     from foms.api.erp_estimates import erp_estimates_bp
@@ -143,10 +141,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_cs_bp)
     app.register_blueprint(erp_orders_as_bp)
     app.register_blueprint(erp_orders_completion_bp)
-    # Storage UI, chat (Socket.IO handler binding imported with chat_bp), WD calculator
+    # Storage UI, WD calculator (사내 채팅 chat · /chat 은 CHAT-DEL-01 2026-11-07 삭제)
     app.register_blueprint(storage_dashboard_bp)
-    app.register_blueprint(channel_chat_pages_bp)
-    app.register_blueprint(chat_bp)
     app.register_blueprint(wdcalculator_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(ops_ingest_bp)
@@ -351,5 +347,5 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
-        register_chat_socketio_handlers=register_chat_socketio_handlers,
+        register_realtime_socketio_handlers=register_realtime_socketio_handlers,
     )

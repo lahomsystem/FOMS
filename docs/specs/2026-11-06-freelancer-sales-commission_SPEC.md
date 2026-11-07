@@ -244,8 +244,8 @@ unique(order_id, user_id, relation). 부분 인덱스를 쓰면 `postgresql_wher
 
 **겹 5 — 옆길**
 - 알림 받는 사람: `recipients.py:73-128` 와 실시간 알림 쪽 `foms/api/notifications/__init__.py:74-131` 두 함수를 하나로 모아 같은 규칙을 쓴다 — ALL·ROLE·TEAM 대상에서 프리랜서 제외(협력사 `INTERNAL_USERS_ONLY` 선례), 담당 이름 대상은 연결 표로. 공지의 팀 펼침(`:943-1010`)도 같은 규칙. 시험은 소켓 전송 대상까지 본다.
-- Socket.IO: 프리랜서는 채팅 이벤트(`join_room`·`send_message`·`typing`) 거부, 개인 알림 방만 허용.
-- 프리랜서로 지정할 때: 채팅방 회원 해제, 지정 전 받은 팀 알림 state 를 숨김 처리.
+- Socket.IO: 프리랜서는 채팅 이벤트(`join_room`·`send_message`·`typing`) 거부, 개인 알림 방만 허용. → **11-07 사내 채팅 자체를 지움(CHAT-DEL-01, `2026-11-07-internal-chat-removal_SPEC.md`)** — 채팅 이벤트가 없어 모든 계정이 개인 알림 방만 쓴다.
+- 프리랜서로 지정할 때: 지정 전 받은 팀 알림 state 를 숨김 처리(채팅방 회원 해제는 채팅 삭제로 없앰, 11-07).
 - 메뉴: 모바일 하단 탭 프리랜서 분기(홈 · 주문 등록 · 내 수수료 · 알림), 데스크톱 상단 메뉴도 허용 목록 밖 링크 숨김.
 
 ### 6.4 이미 있는 구멍 두 개 (프리랜서와 별개, 지금도 있음 — 코드로 확인)

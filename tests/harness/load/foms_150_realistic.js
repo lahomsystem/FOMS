@@ -29,8 +29,10 @@ const SOAK_RAMP_UP = __ENV.SOAK_RAMP_UP || '5m';
 const SOAK_RAMP_DOWN = __ENV.SOAK_RAMP_DOWN || '3m';
 
 const ERP_WEIGHT = Number(__ENV.ERP_WEIGHT || 0.5);
-const CHAT_WEIGHT = Number(__ENV.CHAT_WEIGHT || 0.25);
-const FILE_WEIGHT = Number(__ENV.FILE_WEIGHT || 0.05);
+// 사내 채팅 API(/api/chat/*)는 CHAT-DEL-01(2026-11-07)로 지웠다 — chat · file 흐름(채팅 업로드)은 기본 0.
+// 켜면(CHAT_WEIGHT · FILE_WEIGHT) 404 로 실패한다.
+const CHAT_WEIGHT = Number(__ENV.CHAT_WEIGHT || 0);
+const FILE_WEIGHT = Number(__ENV.FILE_WEIGHT || 0);
 const IDLE_WEIGHT = Number(__ENV.IDLE_WEIGHT || 0.2);
 
 const TRACE_ERRORS = (__ENV.TRACE_ERRORS || 'true').toLowerCase() === 'true';
@@ -59,7 +61,6 @@ const erpApiRoutes = [
   { name: 'notif_badge', path: '/erp/api/notifications/badge' },
   { name: 'notif_list', path: '/erp/api/notifications?limit=10' },
   { name: 'orders_list', path: '/api/orders?limit=200' },
-  { name: 'chat_rooms_list', path: '/api/chat/rooms' },
 ];
 
 const uploadBytes = open('./fixtures/upload_sample.txt', 'b');
@@ -132,10 +133,10 @@ const flowWeights =
         idle: _wIdle / _wSum,
       }
     : {
-        erp: 0.5,
-        chat: 0.25,
-        file: 0.05,
-        idle: 0.2,
+        erp: 0.7,
+        chat: 0,
+        file: 0,
+        idle: 0.3,
       };
 
 function buildStagesByProfile() {
@@ -373,7 +374,7 @@ function fileFlow() {
 }
 
 export function userJourney() {
-  // 기본 현실형 분포(환경변수로 조정 가능): ERP 50%, 채팅 25%, 파일 5%, 유휴 20%
+  // 기본 현실형 분포(환경변수로 조정 가능): ERP 50 : 유휴 20 비율(채팅 · 파일 0 — 사내 채팅 삭제)
   const roll = Math.random();
   const erpCut = flowWeights.erp;
   const chatCut = erpCut + flowWeights.chat;

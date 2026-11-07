@@ -27,12 +27,6 @@ def _assert_deferred(html: str, needle: str) -> None:
     assert re.search(r"\bdefer\b", tag), tag
 
 
-def test_chat_page_route_script_is_deferred() -> None:
-    html = _read("templates/channel/chat.html")
-
-    _assert_deferred(html, "channel_chat_pages.chat_scripts_js")
-
-
 def test_measurement_dashboard_uses_single_deferred_entry_not_inline_bundles() -> None:
     """실측 fragment 는 entry 1개(defer)만 로드하고, 7개 번들 <script src>는 fragment 밖(entry가 순차 로드).
 
