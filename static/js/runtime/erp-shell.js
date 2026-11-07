@@ -73,6 +73,21 @@
   var FOCUS_REFRESH_MIN_GAP_MS = 15 * 1000;
   // 셸 warm-cache 를 강제로 건너뛸 경로. 현재는 없음(실측은 FRESH_TTL_PATHS 로 이동).
   var NO_FRAGMENT_CACHE_PATHS = [];
+  /**
+   * 미리 받기 허용 경로 — 서버가 이 스크립트 태그에 data-foms-prefetch-allow(공백으로 나눈 경로)를 그리면 그
+   * 경로만 미리 받는다(하트비트 · 첫 웜업 · 복귀 재수혈 · 누름/올림 모두). 켜진 프리랜서는 자기 메뉴 href 만
+   * 실린다(layout_scripts.html) — 못 여는 탭(도면 · 생산 …)을 받으면 문지기가 홈으로 302 를 돌려 헛걸음이다.
+   * 속성이 없으면(보통 직원) null = 지금처럼 모두 받는다.
+   */
+  var PREFETCH_ALLOW_PATHS = readPrefetchAllowPaths();
+
+  function readPrefetchAllowPaths() {
+    var el = document.querySelector('script[data-foms-prefetch-allow]');
+    if (!el) {
+      return null;
+    }
+    return String(el.getAttribute('data-foms-prefetch-allow') || '').split(/\s+/).filter(Boolean);
+  }
 
   /** pathname+search cache key — sorted query keys, stable for warm hit / scroll memory. */
   var fragmentHtmlCache = Object.create(null);
@@ -873,6 +888,9 @@
       return;
     }
     if (!isFragmentCacheable(canonical.href)) {
+      return;
+    }
+    if (PREFETCH_ALLOW_PATHS && PREFETCH_ALLOW_PATHS.indexOf(canonical.pathname) < 0) {
       return;
     }
     var key = getCacheKey(canonical.href);

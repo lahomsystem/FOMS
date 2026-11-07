@@ -28,7 +28,7 @@
     <div class="erp-mobile-shell-header__context">
       <div class="erp-mobile-shell-header__title-row">
       <strong class="erp-mobile-shell-header__title foms-shell-title">{{ mobile_shell_title or (_current.item.label if _current.item else '홈') }}</strong>
-      {% if current_user and current_user.role != 'PARTNER' %}
+      {% if current_user and current_user.role != 'PARTNER' and not is_sales_freelancer() %}{# 켜진 프리랜서: 협력사 거르기 숨김(FCOMM-01 QA) #}
       {% set _partner_active = partner_filter_current() %}
       <button class="foms-icon-btn erp-mobile-shell-header__partner{{ ' is-active' if _partner_active else '' }}"
         type="button" data-foms-partner-open aria-label="협력사 주문 필터"
@@ -62,13 +62,13 @@
       <i class="fas fa-user-check" aria-hidden="true"></i>
     </a>
     {% endif %}
-    <button
+    {% if not (current_user and is_sales_freelancer()) %}{# 켜진 프리랜서: 통합 검색은 문지기가 막는다 #}<button
       class="erp-mobile-shell-header__search foms-icon-btn"
       type="button"
       data-foms-search-open
       aria-label="통합 검색">
       <i class="fas fa-search" aria-hidden="true"></i>
-    </button>
+    </button>{% endif %}
     <button
       class="erp-mobile-shell-header__notify foms-icon-btn"
       type="button"

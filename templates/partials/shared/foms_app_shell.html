@@ -28,6 +28,6 @@
 {# Fixed overlays: must NOT live under .erp-mobile-shell-chrome (display:contents) or
    Bootstrap offcanvas z-index breaks vs backdrop → theme toggle taps blocked. #}
 {% include 'partials/shared/erp_mobile_menu_drawer.html' %}
-{% include 'partials/shared/foms_search_overlay.html' %}
+{% if not (current_user and is_sales_freelancer()) %}{% include 'partials/shared/foms_search_overlay.html' %}{% endif %}
 {# 알림 센터 패널/JS 는 layout_scripts.html 로 승격(PC topnav·모바일·태블릿 단일 센터). #}
 {% include 'partials/shared/erp_mobile_order_timeline_sheet.html' %}

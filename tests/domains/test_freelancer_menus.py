@@ -5,13 +5,20 @@
 * 폰 아래 탭 · "더보기" 서랍 · 태블릿 레일 · PC 위 메뉴 · 사용자 메뉴 · ERP 서브 내비를 실제 화면으로 그려, 그 안의
   **모든** 링크(href)와 폼(action)의 endpoint 가 허용 목록 안이고 그 방법이 열려 있는지 본다.
 * 음성 대조군: 같은 검사기를 프리랜서 아닌 영업 직원 화면에 돌리면 허용 목록 밖 링크를 찾아야 한다(검사기가 살아 있다).
+* 막힌 문으로 가는 머리 단추(통합 검색 · 협력사 거르기)와 실측 판 지도 · 이력 검색 링크는 숨긴다. 셸 미리 받기는
+  내 메뉴 화면만 받는다(스테이징 QA 결함 2 · 3).
 * 프리랜서 아닌 영업 직원 · 관리자 화면은 그대로다 — 늘 보던 항목이 그대로 있다. (바이트 단위 비교는 작업 때 바꾸기 전 ·
   뒤 화면 30개로 했다. 시험에는 항목 목록으로 남긴다 — 다른 작업이 화면을 바꿔도 이 시험이 깨지지 않게.)
 """
 from __future__ import annotations
 
 import html as html_lib
+import json
+import os
 import re
+import shutil
+import subprocess
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -191,3 +198,84 @@ def test_normal_desktop_menus_unchanged(app, monkeypatch, role, team):
     sub = re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"])
     assert sub[:4] == ["대시보드", "실측", "도면작업실", "생산"] and sub[-1] == "과거 이력 검색"
     assert "내 수수료" not in sub
+
+
+# --------------------------------------------------------------------------
+# 머리 단추 · 실측 판 링크 — 막힌 문으로 가는 것은 숨긴다(스테이징 QA 결함 2)
+# --------------------------------------------------------------------------
+# (표식, 이름) — 통합 검색(단추 · 검색 창, 입력이 /api/foms/search/fragment 를 부른다), 협력사 거르기
+# (폰 단추 · PC 목록 — 협력사 이름이 실린다), 실측 판 지도(PC · 폰 칩 · 태블릿 — 지도 화면으로 넘긴다),
+# 실측 판 "모든 날짜에서 찾기"(이력 검색).
+_HIDDEN_FOR_FREELANCER = (
+    ("data-foms-search-open", "폰 통합 검색 단추"),
+    ('id="foms-search-overlay"', "통합 검색 창"),
+    ("data-foms-partner-open", "폰 협력사 거르기 단추"),
+    ("global-partner-filter-btn", "PC 협력사 거르기 목록"),
+    ("open_map=1", "실측 판 지도 링크"),
+    ("foms-tablet-measure-list__map", "태블릿 실측 지도 단추"),
+    ("모든 날짜에서 찾기", "실측 판 이력 검색 링크"),
+)
+_MEASURE_SEARCH = "/erp/measurement?q=x"
+
+
+@pytest.mark.parametrize("mobile", [True, False])
+@pytest.mark.parametrize("path", ["/erp/dashboard", _MEASURE_SEARCH])
+def test_freelancer_hides_blocked_header_buttons(app, monkeypatch, path, mobile):
+    html = _render(app, monkeypatch, _freelancer(), path, mobile=mobile)
+    assert [name for marker, name in _HIDDEN_FOR_FREELANCER if marker in html] == []
+    # 남는 것: 긴급 호출 · 알림(허용 목록 안)
+    assert "data-foms-urgent-open" in html and "data-foms-notif-open" in html
+
+
+def test_normal_sales_keeps_header_buttons(app, monkeypatch):
+    """대조군: 프리랜서 아닌 영업 직원 화면에는 전부 그대로 있다(바꾸기 전 · 뒤 바이트 비교는 작업 때 18화면으로 했다)."""
+    _freelancer()
+    user = _make_user("STAFF", "SALES")
+    mobile = _render(app, monkeypatch, user, _MEASURE_SEARCH, mobile=True)
+    desktop = _render(app, monkeypatch, user, _MEASURE_SEARCH, mobile=False)
+    assert [name for marker, name in _HIDDEN_FOR_FREELANCER if marker not in mobile] == []
+    assert "global-partner-filter-btn" in desktop and "open_map=1" in desktop
+
+
+# --------------------------------------------------------------------------
+# 셸 미리 받기 — 내 메뉴 화면만(스테이징 QA 결함 3)
+# --------------------------------------------------------------------------
+_PREFETCH_ATTR = re.compile(r'erp-shell\.js\?v=[^"]+" data-foms-prefetch-allow="([^"]*)" defer')
+_SIM_JS = Path(__file__).resolve().parents[2] / "tests" / "support" / "erp_shell_heartbeat_schedule_node_checks.js"
+
+
+def _simulate_prefetch(allow: str | None, current: list[str]) -> list[dict]:
+    """erp-shell.js 를 가짜 창 · 가짜 시계로 한 시간 돌려 미리 받은 경로를 센다(하트비트 시험과 같은 도구)."""
+    node = shutil.which("node")
+    assert node, "node must be on PATH"
+    env = {**os.environ, "FOMS_SIM_CURRENT": ",".join(current)}
+    env.pop("FOMS_SIM_PREFETCH_ALLOW", None)
+    if allow is not None:
+        env["FOMS_SIM_PREFETCH_ALLOW"] = allow
+    proc = subprocess.run([node, str(_SIM_JS)], capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    return json.loads(proc.stdout)
+
+
+@pytest.mark.parametrize("mobile", [True, False])
+def test_freelancer_prefetch_allow_lists_own_menu(app, monkeypatch, mobile):
+    html = _render(app, monkeypatch, _freelancer(), "/erp/dashboard", mobile=mobile)
+    assert _PREFETCH_ATTR.findall(html) == ["/erp/dashboard /erp/measurement /erp/my-commission"]
+
+
+@pytest.mark.parametrize("role,team", [("STAFF", "SALES"), ("ADMIN", None)])
+def test_normal_staff_prefetch_unrestricted(app, monkeypatch, role, team):
+    _freelancer()
+    html = _render(app, monkeypatch, _make_user(role, team), "/erp/dashboard", mobile=False)
+    assert "data-foms-prefetch-allow" not in html
+    assert "js/runtime/erp-shell.js?v=" in html
+
+
+def test_shell_prefetches_only_allowed_paths():
+    """켜진 프리랜서 목록이면 도면 · 생산 · 출고 … 를 한 번도 받지 않는다. 목록이 없으면(보통 직원) 아홉 탭을 다 받는다."""
+    allow = "/erp/dashboard /erp/measurement /erp/my-commission"
+    for run in _simulate_prefetch(allow, ["/erp/dashboard", "/erp/my-commission"]):
+        assert set(run["perPath"]) <= {"/erp/dashboard", "/erp/measurement"}, run
+        assert run["perPath"].get("/erp/measurement"), run  # 허용 경로는 계속 미리 받는다
+    staff = _simulate_prefetch(None, ["/erp/dashboard"])[0]["perPath"]
+    assert {"/erp/drawing-workbench", "/erp/production/dashboard", "/erp/shipment", "/erp/history/"} <= set(staff)
