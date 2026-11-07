@@ -21,13 +21,14 @@ import re
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, g, jsonify, render_template, request, session
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, log_access, login_required
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.structured_put_guards import can_read_ref_order
 from db import get_db
 from foms.services.as_content_safety import (
     load_structured_data_dict_or_raise,
@@ -1444,7 +1445,8 @@ def _resolve_schedule_link_ref(db: Session, raw_ref_id: object, *, as_order_id: 
         return None, (
             jsonify({"success": False, "message": "자기 자신을 기준으로 매칭할 수 없습니다."}), 400)
     ref, err = _load_active_order(db, ref_id)
-    if err:
+    # 읽을 수 없는 주문(프리랜서의 남의 주문 등)은 없는 주문과 같은 답 — 시공일 · 존재가 새지 않는다(D27 검토 2).
+    if err or not can_read_ref_order(db, getattr(g, "current_user", None), ref_id):
         return None, (jsonify({"success": False, "message": "기준 주문을 찾을 수 없습니다."}), 404)
     try:
         return (ref_id, _ref_construction_date(ref)), None
@@ -1729,7 +1731,8 @@ def _resolve_sales_delivery_ref(db: Session, raw_ref_id: object, *, as_order_id:
         return None, (
             jsonify({"success": False, "message": "자기 자신에게 전달을 배정할 수 없습니다."}), 400)
     ref, err = _load_active_order(db, ref_id)
-    if err:
+    # 읽을 수 없는 주문은 없는 주문과 같은 답 — 실측일 · 담당자 · 존재가 새지 않는다(D27 검토 2).
+    if err or not can_read_ref_order(db, getattr(g, "current_user", None), ref_id):
         return None, (
             jsonify({"success": False, "message": "기준 실측 주문을 찾을 수 없습니다."}), 404)
     ref_date = _ref_measurement_date(ref)
