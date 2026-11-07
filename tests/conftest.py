@@ -63,6 +63,21 @@ from models import (
 import foms.persistence.designer.models  # noqa: F401
 
 
+# --- 큰 시험 줄 서기(2026-11-07, docs/specs/2026-11-07-test-run-speed_SPEC.md §2.1) ------
+# 같은 PC 의 여러 창이 전체 스위트를 겹쳐 돌리면 각자 5배 느려지고 MemoryError 로 죽었다.
+# xdist 일꾼 2개 이상인 실행만 컴퓨터 전체에서 한 번에 하나씩 돈다(윈도 전용, CI 무변화).
+from tests import _big_run_lock  # noqa: E402
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config):
+    _big_run_lock.configure(config)
+
+
+def pytest_unconfigure(config):
+    _big_run_lock.unconfigure(config)
+
+
 # --- CI-SCHEMA-01: 스키마는 세션에 한 번, 데이터만 테스트마다 비운다 ------------
 # 예전에는 `app` fixture 가 테스트마다 83 개 테이블을 create_all 하고 drop_all 했다
 # (1 사이클 65.9ms x 2,234 회 = 약 146 초, CI `Run tests` 의 17%).

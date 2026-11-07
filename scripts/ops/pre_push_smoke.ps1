@@ -207,12 +207,29 @@ if (Test-Path $ssotPath) {
     Write-StepSkip "tools/design/ssot_lint.py not found"
 }
 
+# 문서만 바뀐 푸시의 빠른 길(2026-11-07, docs/specs/2026-11-07-test-run-speed_SPEC.md §2.2).
+# docs/**/*.md 만 바뀌었으면 전체 스위트 대신 docs 를 읽는 시험 파일만 돈다(목록은 도구가 매번 찾는다).
+# -Full · -Visual 이면 쓰지 않는다. 푸시 뒤 CI 는 여전히 전체를 돈다.
+$docsOnlyTests = @()
+$docsOnlyScript = Join-Path $root "tools\harness\smoke_docs_only.py"
+if (-not $Full -and -not $Visual -and (Test-Path $docsOnlyScript)) {
+    $prevErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $docsOnlyOut = & python tools/harness/smoke_docs_only.py --since-ref origin/deploy 2>$null
+    if ($LASTEXITCODE -eq 0 -and $docsOnlyOut) {
+        $docsOnlyTests = @($docsOnlyOut | Where-Object { $_ })
+    }
+    $ErrorActionPreference = $prevErrorAction
+}
+
 # 인벤토리 자동 재생성 — 사람이 재생성 명령 5개를 기억할 필요를 없앤다.
 # 생성물이 낡으면 계약 테스트가 red 를 내는데(test_inventory_matches_fresh_scan 등),
 # 2026-09 CI red 의 반복 원인이었다. 탐지는 아래 전체 스위트가 하고, 여기서는 먼저 고쳐 둔다.
 # 줄번호만 밀린 무의미한 변화는 도구가 되돌리므로 커밋이 더러워지지 않는다(도구 docstring 참조).
 $refreshPath = Join-Path $root "tools/harness/refresh_inventories.py"
-if (Test-Path $refreshPath) {
+if ($docsOnlyTests.Count -gt 0) {
+    Write-StepSkip "문서만 바뀜 — 인벤토리 재생성 건너뜀(코드에서 만드는 파일이라 바뀔 것이 없다)"
+} elseif (Test-Path $refreshPath) {
     Write-StepHeader "인벤토리 자동 재생성 (docs/harness/*.json)"
     & python tools/harness/refresh_inventories.py 2>&1 | ForEach-Object { Write-Host "  $_" }
 } else {
@@ -231,15 +248,33 @@ if (Test-Path $refreshPath) {
 #
 # 분할이 loadfile 인 이유는 CI-XDIST-01 과 같다: 같은 파일의 테스트를 한 워커에 머물게 해
 # 모듈 스코프 fixture 가 워커 경계에서 갈리지 않게 한다.
-Invoke-SmokeStep -Name "Pytest 전체 스위트 (visual·harness 제외, -n auto)" -Action {
-    Invoke-PythonCommand "-m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile"
+# 큰 시험 줄 서기(2026-11-07, §2.1) — pytest 가 컴퓨터 전체에서 큰 실행을 하나씩 돌린다(tests/_big_run_lock.py).
+# 이 스크립트는 pytest 출력을 끝날 때 한꺼번에 보이므로, 기다릴 수 있다는 것을 미리 알린다.
+$bigRunInfo = Join-Path $env:TEMP "foms_pytest_big_run.json"
+if (Test-Path $bigRunInfo) {
+    try {
+        $holder = Get-Content $bigRunInfo -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (Get-Process -Id $holder.pid -ErrorAction SilentlyContinue) {
+            Write-Host "  [줄 서기] 다른 창의 큰 시험이 도는 중(PID $($holder.pid) · $($holder.cwd) · $($holder.started) 시작) — 끝나면 이어서 시작합니다." -ForegroundColor Yellow
+        }
+    } catch {}
 }
 
-# tests/visual 은 목록 없이 통째로 돌린다. 브라우저 픽스처(page/browser/context)를 쓰는
-# 테스트는 tests/visual/conftest.py 의 pytest_collection_modifyitems 가 skip 으로 떨어뜨린다
-# — 예전처럼 "브라우저 없이 도는 파일" 목록을 손으로 유지하지 않는다.
-Invoke-SmokeStep -Name "Pytest UI 구조 (tests/visual, 브라우저 테스트는 skip)" -Action {
-    Invoke-PythonCommand "-m pytest -q tests/visual -p no:playwright -n auto --dist loadfile"
+if ($docsOnlyTests.Count -gt 0) {
+    Invoke-SmokeStep -Name "[FAST] 문서만 바뀜 — 문서를 읽는 시험 $($docsOnlyTests.Count)개 파일만" -Action {
+        Invoke-PythonCommand ("-m pytest -q -p no:playwright -n auto --dist loadfile " + ($docsOnlyTests -join " "))
+    }
+} else {
+    Invoke-SmokeStep -Name "Pytest 전체 스위트 (visual·harness 제외, -n auto)" -Action {
+        Invoke-PythonCommand "-m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile"
+    }
+
+    # tests/visual 은 목록 없이 통째로 돌린다. 브라우저 픽스처(page/browser/context)를 쓰는
+    # 테스트는 tests/visual/conftest.py 의 pytest_collection_modifyitems 가 skip 으로 떨어뜨린다
+    # — 예전처럼 "브라우저 없이 도는 파일" 목록을 손으로 유지하지 않는다.
+    Invoke-SmokeStep -Name "Pytest UI 구조 (tests/visual, 브라우저 테스트는 skip)" -Action {
+        Invoke-PythonCommand "-m pytest -q tests/visual -p no:playwright -n auto --dist loadfile"
+    }
 }
 
 # tests/harness 는 Harness CI 잡이 전담하고 로컬에서 118초로 가장 무겁다(red 8/147 로 드물다).
