@@ -20,13 +20,20 @@ from foms.services.audit_message_display import describe_action, describe_order_
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
+from foms.services.auth.freelancer_lists import is_list_freelancer
+from foms.services.auth.freelancer_scope import FREELANCER_URGENT_TARGET_MSG, FREELANCER_URGENT_TARGET_TEAMS
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
-from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
+from foms.services.notifications.recipients import (
+    INTERNAL_USERS_ONLY,
+    broad_recipient_ids,
+    fan_out_new_notification,
+    manager_name_recipient_ids,
+    team_condition,
+)
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
-from foms.services.orders.manager_names import normalize_name_list
 from db import get_db
 from models import (
     Notification,
@@ -73,9 +80,9 @@ def invalidate_badge_cache_for_user_ids(user_ids):
 
 def resolve_notification_recipient_user_ids(
     db, target_type=None, target_team=None, target_manager_name=None,
-    target_user_ids=None, include_admin=True, target_role=None
+    target_user_ids=None, include_admin=True, target_role=None, order_id=None
 ):
-    """알림 타겟 기준으로 수신 사용자 ID 집합을 계산.
+    """알림 타겟 기준으로 수신 사용자 ID 집합을 계산(실시간 소켓 전송 · 배지 무효화 대상).
 
     target_type:
       ALL  -> 전체 활성 사용자
@@ -84,22 +91,19 @@ def resolve_notification_recipient_user_ids(
       USER -> target_user_ids 직접 지정
       ORDER/None -> 기존 방식 (target_team/target_manager_name)
 
-    `resolve_recipients_for_notification`(state 물질화)의 역할 경로와 같은 집합을 내야
-    배지 무효화 대상이 실제 수신자와 어긋나지 않는다.
+    `resolve_recipients_for_notification`(state 물질화)과 같은 공통 규칙(``recipients.broad_recipient_ids`` ·
+    ``recipients.manager_name_recipient_ids``)만 쓴다 — 넓은 경로는 협력사 · 켜진 프리랜서를 빼고, 담당 이름
+    경로의 프리랜서는 ``order_id`` 주문에 연결 줄이 있어야 받는다(FCOMM-01 겹 5 · 검수 A4). 그래야 소켓 전송 ·
+    배지 무효화 대상이 실제 state 수신자와 어긋나지 않는다. ``include_admin`` 은 관리자(ADMIN)를 더한다.
     """
     ttype = (target_type or "").strip().upper()
 
     if ttype == "ALL":
-        return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
+        return broad_recipient_ids(db)
 
     role = (target_role or "").strip().upper()
     if ttype == "ROLE" and role:
-        return {
-            int(r[0])
-            for r in db.query(User.id)
-            .filter(func.upper(User.role) == role, User.is_active == True, INTERNAL_USERS_ONLY)  # noqa: E712
-            .yield_per(500)
-        }
+        return broad_recipient_ids(db, func.upper(User.role) == role)
 
     if ttype == "USER" and target_user_ids:
         out = set()
@@ -110,25 +114,17 @@ def resolve_notification_recipient_user_ids(
                 continue
         return out
 
-    team = (target_team or "").strip().upper()
-    manager_name = (target_manager_name or "").strip()
-
-    conditions = []
-    if team:
-        # MEASURE 표기 계정도 영업(SALES)으로 받는다 — recipients 팀 경로와 같은 집합(배지 무효화 일치).
-        from foms.services.notifications.recipients import expand_team_codes
-
-        conditions.append(func.upper(User.team).in_(expand_team_codes(team)))
-    if manager_name:
-        # MULTI-MGR-01: "김의종, 한용희" = 담당자 여러 명(recipients 와 같은 규칙).
-        conditions.append(User.name.in_(normalize_name_list(manager_name)))
+    # MEASURE 표기 계정도 영업(SALES)으로 받는다 — recipients 팀 경로와 같은 집합(배지 무효화 일치).
+    broad = []
+    team_cond = team_condition(target_team)
+    if team_cond is not None:
+        broad.append(team_cond)
     if include_admin:
-        conditions.append(User.role == "ADMIN")
-
-    if not conditions:
-        return set()
-
-    return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
+        broad.append(User.role == "ADMIN")
+    out = broad_recipient_ids(db, or_(*broad)) if broad else set()
+    # MULTI-MGR-01: "김의종, 한용희" = 담당자 여러 명(recipients 와 같은 규칙).
+    out |= manager_name_recipient_ids(db, target_manager_name, order_id)
+    return out
 
 
 def _ensure_dict(data):
@@ -224,6 +220,24 @@ def _resolve_notification_deep_link(
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": measure_same_day_link(oid, getattr(notification, "created_at", None)),
+        }
+
+    if n_type == "SALES_COMMISSION_DEDUCTION":
+        # 프리랜서 영업 차감(FCOMM-01 §7) — 폰 알림과 같은 곳(내 수수료 화면)으로 연다.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": f"/erp/my-commission?order={oid}" if oid else "/erp/my-commission",
+        }
+
+    if n_type == "SALES_ORDER_ASSIGNED" and oid:
+        # 프리랜서 배정 알림(FCOMM-01 §7) — 폰 알림과 같은 곳(모바일 주문 상세)으로 연다.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": f"/erp/orders/{oid}/mobile",
         }
 
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
@@ -856,11 +870,20 @@ def api_users_list_for_mention():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-def _urgent_targets_payload(db, user_id):
+def _freelancer_urgent_target_ok(u: User) -> bool:
+    """켜진 프리랜서가 부를 수 있는 사람 — 내 주문을 맡는 팀(``FREELANCER_URGENT_TARGET_TEAMS``) 직원, 시스템 계정 빼고."""
+    return (str(u.team or "").strip().upper() in FREELANCER_URGENT_TARGET_TEAMS
+            and u.username not in (ACTOR_USERNAME, OWNER_USERNAME))
+
+
+def _urgent_targets_payload(db, user_id, *, freelancer: bool = False):
     """긴급 호출 후보 목록 — 활성 사용자 전원(자기 자신 제외), 팀 표시순→이름순.
 
     ``/urgent-targets`` 가 쓴다(옛 주문 문맥 ``/orders/<id>/urgent-targets`` 는 2026-10-06 삭제 —
     운영 기록 4일간 호출 0건). 각 항목에 team_label(팀 라벨, 팀 미등록/미상=기타)을 붙인다.
+
+    ``freelancer`` (켜진 프리랜서, FCOMM-01): 창은 사람을 골라 보내므로 이름은 남기되, 내 주문을 맡는 팀 직원만
+    주고 직급(role)은 뺀다 — 직원 명단 · 팀 · 직급 전체가 바깥 사람에게 나가지 않게.
     """
     # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
     # (지연 import 로 auth↔notifications 순환 의존 회피)
@@ -872,8 +895,11 @@ def _urgent_targets_payload(db, user_id):
     targets = [
         _urgent_target_payload(u)
         for u in active_users
-        if u.id != user_id
+        if u.id != user_id and (not freelancer or _freelancer_urgent_target_ok(u))
     ]
+    if freelancer:
+        for t in targets:
+            t.pop("role", None)
     # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
     team_index = {code: idx for idx, code in enumerate(TEAMS)}
     targets.sort(key=lambda t: (
@@ -895,7 +921,8 @@ def api_urgent_targets():
         user = getattr(g, "current_user", None)
         if not user:
             return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
-        return jsonify({"success": True, "targets": _urgent_targets_payload(db, session.get("user_id"))})
+        targets = _urgent_targets_payload(db, session.get("user_id"), freelancer=is_list_freelancer(user))
+        return jsonify({"success": True, "targets": targets})
     except Exception as e:
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1141,6 +1168,8 @@ def _send_urgent_call(db: Any, sender: User, data: dict[str, Any], order: Order 
         return {"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}, 422
     if any(u.partner_org_id is not None for u in targets):
         return {"success": False, "message": "내부 직원에게만 긴급 호출을 보낼 수 있습니다."}, 422
+    if is_list_freelancer(sender) and not all(_freelancer_urgent_target_ok(u) for u in targets):
+        return {"success": False, "message": FREELANCER_URGENT_TARGET_MSG}, 422
     order_id = order.id if order is not None else None
     if _urgent_rate_exceeded(db, sender.id, order_id, len(ids)):
         return {"success": False, "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다."}, 429

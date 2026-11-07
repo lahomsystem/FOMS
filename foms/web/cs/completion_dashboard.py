@@ -31,6 +31,7 @@ from foms.services.estimate_service import (
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.request_utils import get_search_query_arg
 from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.settlement_deductions import has_valid_deduction, settlement_valid_deductions
 from models import Order, OrderAttachment
 
 erp_completion_page_bp = Blueprint(
@@ -183,9 +184,7 @@ def _completion_row(order) -> dict:
     )
     paid = bool(isinstance(payment, dict) and payment.get("balance_confirmed"))
     settlement = sd.get("settlement")
-    settlement_issued = bool(
-        isinstance(settlement, dict) and settlement.get("deductions")
-    )
+    settlement_issued = has_valid_deduction(settlement)
     cash_receipt_issued = _cash_receipt_issued(settlement)
     return {
         "id": order.id,
@@ -440,7 +439,7 @@ def _completion_construction_photos(db, order_id: int) -> list[dict]:
 
 
 def _completion_settlement_memo(settlement: dict | None) -> list[dict]:
-    """정산 deductions → 시트 표시용 메모 리스트.
+    """정산 deductions → 시트 표시용 메모 리스트. 취소한 차감은 뺀다(유효 판정 정본 settlement_deductions).
 
     Args:
         settlement: sd["settlement"] dict 또는 None.
@@ -448,15 +447,8 @@ def _completion_settlement_memo(settlement: dict | None) -> list[dict]:
     Returns:
         [{department, amount_display, reason, created_by}] 리스트(음수 콤마 포맷).
     """
-    if not isinstance(settlement, dict):
-        return []
-    deductions = settlement.get("deductions")
-    if not isinstance(deductions, list):
-        return []
     memo: list[dict] = []
-    for ded in deductions:
-        if not isinstance(ded, dict):
-            continue
+    for ded in settlement_valid_deductions(settlement):
         amount = ded.get("amount")
         memo.append({
             "department": ded.get("department") or "-",
@@ -527,9 +519,7 @@ def _completion_sheet_context(db, order, user) -> dict:
         "cash_receipt": cash_receipt,
         "cash_receipt_issued": cash_receipt_issued,
         "cash_receipt_note": cash_receipt_note,
-        "settlement_issued": bool(
-            isinstance(settlement, dict) and settlement.get("deductions")
-        ),
+        "settlement_issued": has_valid_deduction(settlement),
         "settlement_memo": _completion_settlement_memo(settlement),
         "construction_photos": _completion_construction_photos(db, order.id),
         "is_construction_team": bool(

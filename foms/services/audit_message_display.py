@@ -330,6 +330,17 @@ ACTION_LABELS: dict[str, str] = {
     # --- 협력사 단가표(2026-11-03 설계서 2026-11-03-partner-statement §5.1) ---
     "PARTNER_PRICE_LIST_SAVED": "협력사 단가표 새 판 저장",
     "PARTNER_STATEMENT_PROFILE_SAVED": "거래명세서 양식 정보 저장",
+    # --- 프리랜서 영업 수수료 설정(2026-11-06 설계서 2026-11-06-freelancer-sales-commission §2.3) ---
+    "SALES_FREELANCER_SAVED": "프리랜서 수수료 설정 저장",
+    "SALES_FREELANCER_RATE_ADDED": "프리랜서 요율 바꾸기",
+    # 수수료 탭 시공비 · 요율 지정 칸 저장(설계서 §9 PUT /api/sales-commission/inputs/<order_id>).
+    "SALES_COMMISSION_INPUT_SAVED": "수수료 시공비 · 요율 저장",
+    # 수수료 달 마감 · 지급 완료 · 마감 취소(설계서 §8 — /api/sales-commission/closings).
+    "SALES_COMMISSION_CLOSED": "영업 수수료 마감",
+    "SALES_COMMISSION_PAID": "영업 수수료 지급 완료",
+    "SALES_COMMISSION_CLOSING_CANCELLED": "영업 수수료 마감 취소",
+    # 마감한 달 CSV 내려받기(설계서 §9 GET /api/sales-commission/export.csv).
+    "SALES_COMMISSION_EXPORT_CSV": "영업 수수료 CSV 내려받기",
     "PARTNER_STATEMENT_DRAFT_OPENED": "협력사 명세서 초안 열기",
     "PARTNER_STATEMENT_DRAFT_SAVED": "협력사 명세서 초안 고침",
     "PARTNER_STATEMENT_DRAFT_DISCARDED": "협력사 명세서 초안 지움",

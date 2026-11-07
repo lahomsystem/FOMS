@@ -1636,10 +1636,14 @@
        ＋ 버튼이 /erp/ 밖 화면(실측·도면·생산·CS 대시보드)에도 있어 로그인 공통으로 싣는다.
        안드로이드에서는 스크립트가 아무것도 만들지 않는다(iOS 판별 후 즉시 반환). #}
     {% endif %}
-    {% if request.path.startswith('/erp/') %}
+    {#- 켜진 프리랜서: 셸 미리 받기를 자기 메뉴 화면으로 좁힌다(erp-shell.js PREFETCH_ALLOW_PATHS). 조건은 /erp/ 묶음
+    밖에서 정한다 — 묶음 안의 endif 가 다른 계약 시험의 구간 자르기를 깨뜨린다. -#}
+{% set _foms_prefetch_allow = (freelancer_nav_items()|map(attribute='href')|join(' ')) if (current_user and is_sales_freelancer()) else '' %}
+{% set _foms_prefetch_allow_attr = (' data-foms-prefetch-allow="%s"'|format(_foms_prefetch_allow|e))|safe if _foms_prefetch_allow else '' %}
+{% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260930b" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261005h" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261107a"{{ _foms_prefetch_allow_attr }} defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20261012a" defer></script>
     {# 주문·생산·시공 상세 펼침의 제품 여러 건 목록+상세 공용 도우미. 조각(fragment)에 두면 탭 전환마다 다시 읽혀 여기서 한 번만 싣는다. #}
     <script src="{{ url_for('static', filename='js/foms/order-items-md.js') }}?v=20260929a" defer></script>

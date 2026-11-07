@@ -26,8 +26,9 @@ from models import Order, OrderEvent, SecurityLog, User
 # 세 금융 endpoint: (method, path 템플릿, 잘 구성된 body)
 # --------------------------------------------------------------------------
 _FINANCE_SURFACES = [
+    # 영업(SALES) 귀속은 사람을 골라야 한다(FCOMM-01 §10.5) — 권한 매트릭스는 사람이 필요 없는 고객 귀속으로 본다.
     ("POST", "/api/orders/{oid}/settlement/issue",
-     {"department": "SALES", "amount": 1000, "reason": "재방문 비용"}),
+     {"department": "CUSTOMER", "amount": 1000, "reason": "재방문 비용"}),
     ("POST", "/api/orders/{oid}/cash-receipt/issue", {"note": "지류 발행"}),
     ("POST", "/api/orders/{oid}/payment-confirm", {"type": "deposit", "confirmed": True}),
 ]

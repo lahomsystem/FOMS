@@ -39,7 +39,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="name" class="form-label">이름 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="name" name="name" value="{{ current_user.name }}" required autocomplete="name">
+                        <input type="text" class="form-control" id="name" name="name" value="{{ current_user.name }}" required autocomplete="name"{% if is_sales_freelancer() %} readonly{% endif %}>
                     </div>
                     <hr>
                     <h6 class="mb-3">비밀번호 변경 (선택 사항)</h6>

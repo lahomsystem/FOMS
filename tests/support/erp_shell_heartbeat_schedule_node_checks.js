@@ -8,6 +8,11 @@
  *
  * 출력: 화면 경로별 JSON 한 줄 — {current, perPath: {경로: {schedule: 횟수}}}.
  * 판정은 파이썬 테스트(tests/domains/test_erp_shell_heartbeat_schedule.py)가 한다.
+ *
+ * 환경 변수(없으면 보통 직원 그대로):
+ *   FOMS_SIM_PREFETCH_ALLOW — 스크립트 태그 data-foms-prefetch-allow 값(켜진 프리랜서 흉내, 공백으로 나눈 경로).
+ *   FOMS_SIM_CURRENT — 쉼표로 나눈 지금 화면 경로 목록.
+ *   (tests/domains/test_freelancer_menus.py 의 미리 받기 시험)
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +23,10 @@ const SHELL_JS = fs.readFileSync(path.join(ROOT, 'static/js/runtime/erp-shell.js
 const ORIGIN = 'https://foms.test';
 const SIM_SECONDS = 3600;
 const ACTIVITY_EVERY_MS = 30 * 1000;
+const PREFETCH_ALLOW = process.env.FOMS_SIM_PREFETCH_ALLOW;
+const CURRENT_PATHS = process.env.FOMS_SIM_CURRENT
+  ? process.env.FOMS_SIM_CURRENT.split(',')
+  : ['/erp/production/dashboard', '/erp/shipment'];
 
 async function simulate(currentPath) {
   let clock = 1700000000000;
@@ -59,7 +68,14 @@ async function simulate(currentPath) {
     getElementById: function () {
       return null;
     },
-    querySelector: function () {
+    querySelector: function (selector) {
+      if (PREFETCH_ALLOW !== undefined && selector === 'script[data-foms-prefetch-allow]') {
+        return {
+          getAttribute: function () {
+            return PREFETCH_ALLOW;
+          },
+        };
+      }
       return null;
     },
   };
@@ -169,7 +185,7 @@ async function simulate(currentPath) {
 
 (async function main() {
   const out = [];
-  for (const current of ['/erp/production/dashboard', '/erp/shipment']) {
+  for (const current of CURRENT_PATHS) {
     out.push(await simulate(current));
   }
   process.stdout.write(JSON.stringify(out) + '\n');

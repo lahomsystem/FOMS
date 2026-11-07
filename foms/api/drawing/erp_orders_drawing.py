@@ -552,6 +552,7 @@ def perform_drawing_transfer(
         target_team=target_team,
         target_manager_name=target_manager_name,
         include_admin=True,
+        order_id=order_id,  # 담당 이름 경로의 프리랜서는 이 주문 연결 줄이 있어야 받는다(state 와 같은 규칙)
     )
     invalidate_badge_cache_for_user_ids(recipient_user_ids)
     emit_erp_notification_to_users(
@@ -912,7 +913,7 @@ def api_order_cancel_transfer(order_id):
                 enqueue_push_for_notification(cancel_notif.id, db=db)
                 _rids = resolve_notification_recipient_user_ids(
                     db, target_team=cancel_target_team,
-                    target_manager_name=cancel_target_manager, include_admin=True,
+                    target_manager_name=cancel_target_manager, include_admin=True, order_id=order_id,
                 )
                 invalidate_badge_cache_for_user_ids(_rids)
                 emit_erp_notification_to_users(_rids, {

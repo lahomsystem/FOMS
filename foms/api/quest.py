@@ -37,6 +37,7 @@ from foms.services.erp_policy import (
     get_next_stage_for_completed_quest,
 )
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
+from foms.services.auth.freelancer_edit_guards import freelancer_quest_stage_denial
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.orders.cs_complete_service import (
     complete_order_as_cs,
@@ -410,6 +411,9 @@ def api_order_quest_approve(order_id):
 
         if not current_stage_code:
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
+        # FCOMM-01 D23: 켜진 프리랜서는 실측 단계 승인(도면으로 넘기기)만 — 다른 단계는 403.
+        if (stage_denial := freelancer_quest_stage_denial(current_stage_code)) is not None:
+            return stage_denial
 
         # DRAWING 단독 승인은 전용 경로(도면 전달·수령확정)로만 — command-required 거부.
         # 관리자가 admin_override 를 켜면 이 게이트만 건너뛴다. 하류 전이가 409 를 내면

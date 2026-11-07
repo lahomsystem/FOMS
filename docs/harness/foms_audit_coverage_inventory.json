@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 290,
+    "total": 297,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 249,
+    "AUDITED": 256,
     "EXEMPT": 39,
     "UNAUDITED": 2
   },
@@ -73,6 +73,24 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/admin/sales_freelancers.py",
+      "endpoint": "api_add_rate",
+      "lineno": 148,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/admin/sales_freelancers.py",
+      "endpoint": "api_save_freelancer",
+      "lineno": 118,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask",
       "lineno": 106,
@@ -102,7 +120,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_apply",
-      "lineno": 178,
+      "lineno": 180,
       "methods": [
         "POST"
       ],
@@ -111,7 +129,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_bulk_apply",
-      "lineno": 191,
+      "lineno": 193,
       "methods": [
         "POST"
       ],
@@ -120,7 +138,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_propose",
-      "lineno": 171,
+      "lineno": 173,
       "methods": [
         "POST"
       ],
@@ -129,7 +147,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_recheck_confirm",
-      "lineno": 197,
+      "lineno": 199,
       "methods": [
         "POST"
       ],
@@ -138,7 +156,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_reject",
-      "lineno": 185,
+      "lineno": 187,
       "methods": [
         "POST"
       ],
@@ -147,7 +165,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_release_rollback",
-      "lineno": 203,
+      "lineno": 205,
       "methods": [
         "POST"
       ],
@@ -156,7 +174,7 @@
     {
       "path": "foms/api/channel/channel_functions.py",
       "endpoint": "handle_function",
-      "lineno": 131,
+      "lineno": 148,
       "methods": [
         "POST",
         "PUT"
@@ -472,16 +490,7 @@
     {
       "path": "foms/api/cs/dashboard.py",
       "endpoint": "api_cash_receipt_issue",
-      "lineno": 408,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/cs/dashboard.py",
-      "endpoint": "api_settlement_issue",
-      "lineno": 283,
+      "lineno": 282,
       "methods": [
         "POST"
       ],
@@ -491,6 +500,24 @@
       "path": "foms/api/cs/settlement_channel.py",
       "endpoint": "api_settlement_channel_sync",
       "lineno": 357,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs/settlement_deductions.py",
+      "endpoint": "api_settlement_deduction_void",
+      "lineno": 98,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/cs/settlement_deductions.py",
+      "endpoint": "api_settlement_issue",
+      "lineno": 68,
       "methods": [
         "POST"
       ],
@@ -526,7 +553,7 @@
     {
       "path": "foms/api/cs_agent_fix_proposals.py",
       "endpoint": "cs_agent_fix_decide",
-      "lineno": 70,
+      "lineno": 72,
       "methods": [
         "POST"
       ],
@@ -1012,7 +1039,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_order_attachments_complete",
-      "lineno": 205,
+      "lineno": 206,
       "methods": [
         "POST"
       ],
@@ -1021,7 +1048,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session",
-      "lineno": 73,
+      "lineno": 71,
       "methods": [
         "POST"
       ],
@@ -1039,7 +1066,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 674,
+      "lineno": 679,
       "methods": [
         "DELETE"
       ],
@@ -1048,7 +1075,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 500,
+      "lineno": 505,
       "methods": [
         "PATCH"
       ],
@@ -1057,7 +1084,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_reorder",
-      "lineno": 599,
+      "lineno": 604,
       "methods": [
         "POST"
       ],
@@ -1066,7 +1093,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 757,
+      "lineno": 762,
       "methods": [
         "POST"
       ],
@@ -1075,7 +1102,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 376,
+      "lineno": 377,
       "methods": [
         "POST"
       ],
@@ -1219,7 +1246,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 769,
+      "lineno": 778,
       "methods": [
         "POST"
       ],
@@ -1228,7 +1255,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 683,
+      "lineno": 692,
       "methods": [
         "POST"
       ],
@@ -1237,7 +1264,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 599,
+      "lineno": 608,
       "methods": [
         "POST"
       ],
@@ -1246,7 +1273,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 720,
+      "lineno": 729,
       "methods": [
         "POST"
       ],
@@ -1255,7 +1282,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 800,
+      "lineno": 809,
       "methods": [
         "POST"
       ],
@@ -1264,7 +1291,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 640,
+      "lineno": 649,
       "methods": [
         "POST"
       ],
@@ -1273,7 +1300,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 907,
+      "lineno": 916,
       "methods": [
         "POST"
       ],
@@ -1282,7 +1309,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1206,
+      "lineno": 1215,
       "methods": [
         "POST"
       ],
@@ -1472,7 +1499,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 434,
+      "lineno": 437,
       "methods": [
         "POST"
       ],
@@ -1481,7 +1508,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 394,
+      "lineno": 397,
       "methods": [
         "POST"
       ],
@@ -1824,6 +1851,42 @@
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
       "lineno": 808,
+      "methods": [
+        "PUT"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_cancel_closing",
+      "lineno": 329,
+      "methods": [
+        "DELETE"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_close_month",
+      "lineno": 295,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_mark_closing_paid",
+      "lineno": 314,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/sales_commission.py",
+      "endpoint": "api_save_input",
+      "lineno": 185,
       "methods": [
         "PUT"
       ],

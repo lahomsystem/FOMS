@@ -443,6 +443,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/cash-receipt/issue"
     },
+    "erp_orders_completion.api_settlement_deduction_void": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/settlement/deductions/<ded_id>/void"
+    },
     "erp_orders_completion.api_settlement_issue": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/settlement/issue"
@@ -869,6 +873,30 @@
     "quest.api_order_quest_update_status": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/quest/status"
+    },
+    "sales_commission_api.cancel_closing": {
+      "mode": "guard",
+      "rule": "/api/sales-commission/closings/<int:closing_id>"
+    },
+    "sales_commission_api.close_month": {
+      "mode": "guard",
+      "rule": "/api/sales-commission/closings"
+    },
+    "sales_commission_api.mark_closing_paid": {
+      "mode": "guard",
+      "rule": "/api/sales-commission/closings/<int:closing_id>/paid"
+    },
+    "sales_commission_api.save_input": {
+      "mode": "guard",
+      "rule": "/api/sales-commission/inputs/<int:order_id>"
+    },
+    "sales_freelancers_admin_api.add_rate": {
+      "mode": "guard",
+      "rule": "/api/admin/sales-freelancers/<int:user_id>/rates"
+    },
+    "sales_freelancers_admin_api.save_freelancer": {
+      "mode": "guard",
+      "rule": "/api/admin/sales-freelancers"
     },
     "settlement_channel_api.api_settlement_channel_sync": {
       "mode": "guard",

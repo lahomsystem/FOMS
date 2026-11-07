@@ -75,6 +75,7 @@ from foms.services.erp_dashboard_search import (
 )
 from foms.services.orders.sales_delivery_map import build_sales_delivery_by_ref
 from foms.services.auth.partner_scope import partner_mark_name
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 from foms.services.orders.manager_names import order_manager_match_names
 
@@ -96,15 +97,18 @@ def _erp_order_search_filter(query, q):
 
 
 def _measurement_user_visibility_fingerprint(current_user) -> dict:
-    """실측 대시보드 캐시 키용 사용자·팀 식별."""
+    """실측 대시보드 캐시 키용 사용자·팀 식별. 켜진 프리랜서는 "내 것"이 연결 표라 표시를 하나 더 넣는다."""
     if not current_user:
         return {"user_id": None, "role": None, "username": None, "team": None}
-    return {
+    fingerprint = {
         "user_id": getattr(current_user, "id", None),
         "role": getattr(current_user, "role", None),
         "username": getattr(current_user, "username", None),
         "team": getattr(current_user, "team", None),
     }
+    if is_list_freelancer(current_user):
+        fingerprint["freelancer"] = True
+    return fingerprint
 
 
 def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
@@ -471,9 +475,13 @@ def erp_measurement_dashboard():
 
     # 동행 전달(스펙 §6.2): AS 영업/택배 전달 건 -> 기준 실측 주문 역방향 맵을 **1회** 읽어
     # 렌더되는 행에 그대로 붙인다. 캐시 슬라이스 키(_panel_fp/_main_fp)에는 넣지 않는다.
+    # 켜진 프리랜서는 끈다(FCOMM-01 §6.3 겹 3): 전달 항목은 **다른 주문**(AS 고객명 · 주소 · 전화)이고,
+    # 날짜 칸 "전달 N" 은 사용자 무관 전체 맵에서 센다 — 둘 다 연결 표 밖이다.
+    freelancer_viewer = is_list_freelancer(current_user)
     with phase("sales_delivery"):
-        _sales_delivery_map = build_sales_delivery_by_ref(
-            db, cap=MEASUREMENT_SALES_DELIVERY_CAP, partner_org=partner_org
+        _sales_delivery_map = (
+            {"by_ref": {}, "total": 0, "truncated": False} if freelancer_viewer
+            else build_sales_delivery_by_ref(db, cap=MEASUREMENT_SALES_DELIVERY_CAP, partner_org=partner_org)
         )
     _sales_delivery_by_ref = _sales_delivery_map["by_ref"]
     for o in rows:
@@ -588,8 +596,11 @@ def erp_measurement_dashboard():
         else 'measurement/dashboard.html'
     )
     # render_template 인자로 바로 부르면 그 시간이 템플릿 구간에 섞인다(인자 선평가) — 먼저 잰다.
+    # 네이버 일괄 발송 띠는 사용자 무관하게 그날 네이버 주문 전체 고객명을 싣는다 — 프리랜서는 끈다(검수 A3).
     with phase("naver_preview"):
-        _bulk_dispatch = None if partner_org else _naver_dispatch_preview(selected_date, today_date)
+        _bulk_dispatch = (
+            None if partner_org or freelancer_viewer else _naver_dispatch_preview(selected_date, today_date)
+        )
     _t0 = time.perf_counter()
     response = make_response(
         render_template(

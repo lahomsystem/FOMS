@@ -2,7 +2,19 @@
 {# 시공팀(CONSTRUCTION)은 출고·시공만 표시 #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
-<nav class="erp-pro-nav" aria-label="ERP 메뉴">
+{# 켜진 프리랜서(FCOMM-01 겹 5 메뉴)는 문지기 허용 목록 안 메뉴만(foms/services/auth/freelancer_menu.py). 이 주석 · 아래 set 의 끝 빼기 기호와
+   프리랜서 nav 끝과 같은 줄의 else 는 다른 사용자 출력을 한 글자도 바꾸지 않는다(tests/domains/test_freelancer_menus.py). -#}
+{% set _sales_freelancer = current_user and is_sales_freelancer() -%}
+{% if _sales_freelancer %}<nav class="erp-pro-nav" aria-label="ERP 메뉴">
+  {% for item in freelancer_nav_items() %}
+  <a class="erp-pro-nav-item {% if _active == item.id %}active{% endif %}"
+    href="{{ item.href }}"{% if item.id != 'my_commission' %}
+    data-foms-erp-fast-tab="1"{% endif %}>
+    <i class="{{ item.icon }}"></i>
+    <span>{{ item.label }}</span>
+  </a>
+  {% endfor %}
+</nav>{% else %}<nav class="erp-pro-nav" aria-label="ERP 메뉴">
   {% if not _construction_only %}
   <a class="erp-pro-nav-item {% if _active == 'dashboard' %}active{% endif %}"
     href="{{ url_for('erp_dashboard.erp_dashboard') }}"
@@ -73,4 +85,4 @@
     <i class="fas fa-history"></i>
     <span>과거 이력 검색</span>
   </a>
-</nav>
+</nav>{% endif %}

@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261105s">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-products.css') }}?v=20261105s">
 {% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261105s">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-commission.css') }}?v=20261107cm5">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -110,6 +111,13 @@
         <span class="s-tab-name">네이버 정산</span>
         <span class="s-tab-hint">정산 예정일 기준</span>
       </button>{% endif %}
+      {# 탭 · 영업 수수료(FCOMM-01 §2.1, 2026-11-06 승인). 화면 전체가 이미 회계팀 · 관리자 전용이라 게이트가
+         따로 없다 — 내용은 settlement_commission_body.html, 동작은 commission*.js 가 소유한다. #}
+      <button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-commission" data-settlement-tab="commission"
+        aria-controls="foms-settle-pane-commission" aria-selected="false" tabindex="-1">
+        <span class="s-tab-name">영업 수수료</span>
+      </button>
       </div>
       {# 집중 모드 토글 — role=tab 이 아니고 data-settlement-tab 도 없다(탭 순회·activateTab 대상 아님).
          720px 이하에서는 CSS 가 감춘다(모바일 셸은 접을 크롬이 다르다). #}
@@ -474,6 +482,15 @@
       {% include 'cs/partials/settlement_channel_body.html' %}
     </div>{% endif %}
 
+    {# 영업 수수료 pane. 내용물은 별도 파셜이 소유한다(실무·채널 탭과 같은 관례) — pane 의 role/aria-*/hidden
+       배선은 셸 소유라 파셜이 건드리지 않는다. 기간 바는 이 탭에서 CSS 로 감춘다(달 하나 단위). #}
+    <div class="s-pane" role="tabpanel" id="foms-settle-pane-commission"
+      data-settlement-pane="commission" aria-labelledby="foms-settle-tab-commission" tabindex="0" hidden>
+      <div class="s-pane-mount" id="foms-settle-commission-mount">
+        {% include 'cs/partials/settlement_commission_body.html' %}
+      </div>
+    </div>
+
     {# 툴팁은 pane 밖 루트 직속이다 — `position: fixed` 라 어느 탭에서든 같은 노드를 쓴다. #}
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
@@ -486,3 +503,9 @@
 <script src="{{ url_for('static', filename='js/settlement/products-quality.js') }}?v=20261105s" defer></script>
 <script src="{{ url_for('static', filename='js/settlement/products.js') }}?v=20261105s" defer></script>
 {% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261105s" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/commission-core.js') }}?v=20261107cm5" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-table.js') }}?v=20261107cm5" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-edit.js') }}?v=20261107cm5" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-deduct.js') }}?v=20261107cm5" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-close.js') }}?v=20261107cm5" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission.js') }}?v=20261107cm5" defer></script>

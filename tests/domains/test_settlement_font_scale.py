@@ -69,6 +69,8 @@ CSS_FILES = (
     "static/css/settlement/settlement-channel.css",
     # 제품별 탭(2026-10-07)도 같은 배율을 문다.
     "static/css/settlement/settlement-products.css",
+    # 영업 수수료 탭(2026-11-06, FCOMM-01)도 같은 배율을 문다.
+    "static/css/settlement/settlement-commission.css",
 )
 
 #: 조절기 훅 3종 + 그룹 훅. id 가 아니라 `data-settlement-*` 인 이유: 프래그먼트 스왑으로

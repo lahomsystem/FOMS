@@ -1,0 +1,39 @@
+/* 프리랜서 "내 수수료" 화면(설계서 2026-11-06-freelancer-sales-commission §2.2) — 390px 폭 먼저, PC 에서는 가운데 좁은 칸. */
+.foms-mc{max-width:640px;margin:0 auto;padding:16px}
+.foms-mc__title{margin:0 0 8px;font-size:1.25rem;font-weight:700}
+.foms-mc__viewing{margin:0 0 8px;font-size:.88rem;color:var(--foms-color-neutral-700,#353a44)}
+.foms-mc__total{background:#fff;border:1px solid var(--foms-color-neutral-200,#dde1e6);border-radius:12px;padding:16px;margin-bottom:12px}
+.foms-mc__heading{margin:0;font-size:.95rem;color:var(--foms-color-neutral-700,#353a44)}
+.foms-mc__amount{margin:4px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums}
+.foms-mc__tax{margin:2px 0 0;font-size:.95rem;color:var(--foms-color-neutral-700,#353a44)}
+.foms-mc__month{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.foms-mc__month-label{font-weight:600}
+.foms-mc__step{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid #d0d7e2;border-radius:999px;background:#fff;color:#33465a;text-decoration:none}
+.foms-mc__step.is-off{visibility:hidden}
+.foms-mc__basis{display:flex;gap:6px;margin-bottom:12px}
+.foms-mc__basis-btn{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:6px 12px;border:1px solid #d0d7e2;border-radius:999px;background:#fff;color:#33465a;text-decoration:none;font-size:.92rem}
+.foms-mc__basis-btn.is-active{border-color:var(--foms-color-brand-500,#5a67d8);background:var(--foms-color-brand-50,#f3f4ff);color:var(--foms-color-brand-700,#3a4490);font-weight:600}
+.foms-mc__list{margin:0;padding:0;list-style:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;overflow:hidden}
+.foms-mc__row+.foms-mc__row{border-top:1px solid #edf1f5}
+.foms-mc__sum{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;list-style:none}
+.foms-mc__sum::-webkit-details-marker{display:none}
+.foms-mc__main{display:flex;flex-direction:column;min-width:0}
+.foms-mc__name{font-weight:600;overflow-wrap:anywhere}
+.foms-mc__meta{font-size:.85rem;color:#6d8598}
+.foms-mc__status{flex:0 0 auto;font-size:.92rem;color:#6d8598;text-align:right;white-space:nowrap}
+.foms-mc__status.is-done{color:#1f2937;font-weight:700;font-variant-numeric:tabular-nums}
+.foms-mc__body{padding:0 14px 12px}
+.foms-mc__formula{margin:0;font-size:.9rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.foms-mc__ded{margin:4px 0 0;font-size:.88rem;color:var(--foms-color-danger-700,#b91c1c)}
+.foms-mc__empty{margin:16px 0;color:#6d8598;text-align:center}
+.foms-mc__paid{margin:6px 0 0;font-size:.92rem;font-weight:600;color:var(--foms-color-success-700,#15803d)}
+.foms-mc__note{margin:6px 0 0;font-size:.85rem;color:#6d8598}
+.foms-mc__recent{margin-top:20px}
+.foms-mc__recent-title{margin:0 0 8px;font-size:1rem;font-weight:700}
+.foms-mc__recent-list{margin:0;padding:0;list-style:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;overflow:hidden}
+.foms-mc__recent-row{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.foms-mc__recent-row+.foms-mc__recent-row{border-top:1px solid #edf1f5}
+.foms-mc__recent-month{flex:1 1 auto;min-height:24px;color:#33465a;font-weight:600;text-decoration:none}
+.foms-mc__recent-net{font-variant-numeric:tabular-nums;font-weight:600}
+.foms-mc__recent-state{flex:0 0 auto;font-size:.85rem;color:#6d8598;white-space:nowrap}
+.foms-mc__recent-state.is-paid{color:var(--foms-color-success-700,#15803d)}

@@ -1,0 +1,81 @@
+{% extends "orders/layout.html" %}
+{#- 프리랜서 "내 수수료" /erp/my-commission — 설계서 2026-11-06-freelancer-sales-commission §2.2. 서버가 다 그린다(스크립트 없음).
+    글은 foms/web/sales_commission.py 가 만든다: heading · total_text · tax_line · paid_text · pending_note ·
+    rows(customer_name · date · deal · status · formula · deductions) · recent(label · net · status · url).
+    마감한 달은 굳힌 스냅샷(확정), 아니면 지금 계산(마감 전). -#}
+{% block head %}<title>내 수수료 - 가구 주문 관리 시스템</title>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/sales_commission/my-commission.css') }}">{% endblock %}
+{% block content %}
+{#- 모바일 셸(위 머리줄 · 아래 탭 · 더보기 서랍)을 다른 ERP 화면처럼 싣는다 — 없으면 홈 화면 앱에서 돌아갈 길이 없다(T8). -#}
+<div class="erp-dashboard erp-pro erp-mobile-shell foms-mc-page"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% set erp_sub_nav_active = 'my_commission' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+<div class="foms-mc">
+    {% if not erp_mobile_v2_enabled %}<h1 class="foms-mc__title">내 수수료</h1>{% endif %}
+    {% if viewing_name %}<p class="foms-mc__viewing">{{ viewing_name }} 님 화면을 보고 있어요.</p>{% endif %}
+
+    <section class="foms-mc__total" aria-label="합계">
+        <p class="foms-mc__heading">{{ heading }}</p>
+        <p class="foms-mc__amount">{{ total_text }}</p>
+        {% if tax_line %}<p class="foms-mc__tax">{{ tax_line }}</p>{% endif %}
+        {% if paid_text %}<p class="foms-mc__paid">{{ paid_text }}</p>{% endif %}
+        {% if pending_note %}<p class="foms-mc__note">{{ pending_note }}</p>{% endif %}
+    </section>
+
+    <nav class="foms-mc__month" aria-label="달 바꾸기">
+        <a class="foms-mc__step" href="{{ prev_url }}" aria-label="이전 달"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+        <span class="foms-mc__month-label">{{ month_label }}</span>
+        {% if next_url %}<a class="foms-mc__step" href="{{ next_url }}" aria-label="다음 달"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>{% else %}<span class="foms-mc__step is-off" aria-hidden="true"></span>{% endif %}
+    </nav>
+    <nav class="foms-mc__basis" aria-label="기준 바꾸기">
+        {% for b in basis_links %}
+        <a class="foms-mc__basis-btn{% if b.active %} is-active{% endif %}" href="{{ b.url }}" aria-current="{{ 'page' if b.active else 'false' }}">{{ b.label }}</a>
+        {% endfor %}
+    </nav>
+
+    {% if rows %}
+    <ul class="foms-mc__list">
+        {% for r in rows %}
+        <li class="foms-mc__row">
+            <details class="foms-mc__item">
+                <summary class="foms-mc__sum">
+                    <span class="foms-mc__main">
+                        <span class="foms-mc__name">{{ r.customer_name }}</span>
+                        <span class="foms-mc__meta">{% if r.date %}{{ r.date }} · {% endif %}{{ r.deal }}</span>
+                    </span>
+                    <span class="foms-mc__status{% if r.is_done %} is-done{% endif %}">{{ r.status }}</span>
+                </summary>
+                <div class="foms-mc__body">
+                    <p class="foms-mc__formula">{{ r.formula }}</p>
+                    {% for d in r.deductions %}
+                    <p class="foms-mc__ded">차감 · {{ d.reason }} {{ d.amount }}원</p>
+                    {% endfor %}
+                </div>
+            </details>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="foms-mc__empty">이 달에는 수수료 줄이 없어요.</p>
+    {% endif %}
+
+    {% if recent %}
+    <section class="foms-mc__recent" aria-labelledby="foms-mc-recent-title">
+        <h2 class="foms-mc__recent-title" id="foms-mc-recent-title">지난 지급</h2>
+        <ul class="foms-mc__recent-list">
+            {% for c in recent %}
+            <li class="foms-mc__recent-row">
+                <a class="foms-mc__recent-month" href="{{ c.url }}">{{ c.label }}</a>
+                <span class="foms-mc__recent-net">{{ c.net }}</span>
+                <span class="foms-mc__recent-state{% if c.status == '지급 완료' %} is-paid{% endif %}">{{ c.status }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+</div>
+</div>
+{% endblock %}

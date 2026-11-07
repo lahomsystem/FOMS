@@ -328,6 +328,27 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(health_bp)
 
+    # --- Lane: 프리랜서 영업 수수료 설정(JSON — /api/admin/sales-freelancers, 설계서 2026-11-06-freelancer-sales-commission
+    # §2.3 · §9). 읽기 회계팀 · 관리자, 쓰기 ADMIN(CSRF · 정책 ADMIN_OPS). 화면(/admin/sales-freelancers)은 admin_bp 에 붙는다.
+    # 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.admin import sales_freelancers_admin_api_bp
+
+    app.register_blueprint(sales_freelancers_admin_api_bp)
+
+    # --- Lane: 프리랜서 영업 수수료 탭(JSON — /api/sales-commission, 설계서 2026-11-06-freelancer-sales-commission §2.1 · §9).
+    # 읽기 · 쓰기 모두 회계팀 · 관리자(is_accounting_or_admin), 쓰기는 CSRF · 정책 SALES_COMMISSION_WRITE. 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.sales_commission import sales_commission_api_bp
+
+    app.register_blueprint(sales_commission_api_bp)
+
+    # --- Lane: 프리랜서 "내 수수료" 화면(HTML — /erp/my-commission, 설계서 2026-11-06-freelancer-sales-commission §2.2 · §9).
+    # 켜진 프리랜서는 본인 것만, 회계팀 · 관리자는 ?user_id= 로 대신 보기. 템플릿 전역 함수(서랍 링크 · 발주사 선택지)도
+    # 이 블루프린트가 붙인다. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.web.sales_commission import sales_commission_web_bp
+
+    app.register_blueprint(sales_commission_web_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_chat_socketio_handlers=register_chat_socketio_handlers,

@@ -11,6 +11,7 @@ from foms.services.foms_unified_search import is_chosung_query
 from sqlalchemy import and_, text
 from foms.services.common.partner_order_filter import partner_filter_args, partner_filter_value, partner_order_clause
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, is_list_freelancer
 from foms.services.orders.mobile_delete_guard import build_mobile_delete_context
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
@@ -122,16 +123,23 @@ def _history_more_link(db, f_q: str, dashboard_total: int):
 
 
 def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
-    """대시보드 _q_stats / mine / 팀 가시성에 쓰이는 사용자 식별자."""
+    """대시보드 _q_stats / mine / 팀 가시성에 쓰이는 사용자 식별자.
+
+    켜진 프리랜서는 "내 것" 판정이 연결 표로 바뀌므로(FCOMM-01 §6.1) 표시를 하나 더 넣는다 — 같은 계정이
+    프리랜서로 지정되거나 풀린 직후 TTL 동안 옛 범위로 계산한 값을 받지 않게. 다른 사용자의 키는 그대로다.
+    """
     if not current_user:
         return {"user_id": None, "role": None, "username": None, "name": None, "is_admin": bool(is_admin)}
-    return {
+    fingerprint = {
         "user_id": getattr(current_user, "id", None),
         "role": getattr(current_user, "role", None),
         "username": getattr(current_user, "username", None),
         "name": getattr(current_user, "name", None),
         "is_admin": bool(is_admin),
     }
+    if is_list_freelancer(current_user):
+        fingerprint["freelancer"] = True
+    return fingerprint
 
 
 def _channel_desk_url() -> str:
@@ -153,6 +161,9 @@ def erp_dashboard():
     if current_user and current_user.role == 'ADMIN':
         is_admin = True
     can_edit_erp_flag = can_edit_erp(current_user)
+    # FCOMM-01 §6.3 겹 3: 켜진 프리랜서는 목록이 연결 표로 강제된다(mine 강제는 erp_mine_filter). 여기서는
+    # mine 밖에서 계산되는 조각(이력 검색 건수 · 이력으로 보내기 · 검색 카드 강제 주입)을 끈다.
+    is_freelancer_viewer = is_list_freelancer(current_user)
 
     # Batch 2a: request.args 파싱/정규화는 parse_orders_dashboard_filters로 분리(동작 보존).
     # 값·검증 규칙(MEASURED→MEASURE, sort 화이트리스트, date ISO, risk 키, focus_order int)은
@@ -205,13 +216,14 @@ def erp_dashboard():
         and request.args.get('from_history') != '1'
         and request.args.get('from_dashboard') != '1'
         and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
+        and not is_freelancer_viewer  # 이력 검색은 프리랜서에게 닫혀 있고, 남의 주문까지 찾는다
     ):
         return _redirect_to_history_for_dashboard_search(f_q)
 
     # 대시보드 범위 밖(오래된 완료 등) 이력 검색 결과 수 — 결과 위에 '과거 이력에 N건 더' 링크.
     history_more = (
         _history_more_link(db, f_q, total_orders)
-        if f_q and page == 1 and not focus_order_id and not f_risk
+        if f_q and page == 1 and not focus_order_id and not f_risk and not is_freelancer_viewer
         and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
         else None
     )
@@ -220,10 +232,12 @@ def erp_dashboard():
 
     # 검색 카드 딥링크: 단건이 60일 창/페이지/술어와 무관하게 항상 페이지에 포함되도록 강제 주입.
     if focus_order_id and focus_order_id not in {o.id for o in orders}:
+        # 프리랜서는 연결 표에 있는 주문만 끼워 넣는다(문지기의 주문 번호 판정과 별개로 한 번 더).
+        focus_scope = freelancer_mine_sql_filter(current_user) if is_freelancer_viewer else []
         focus_o = (
             db.query(Order)
             .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True),
-                    partner_order_clause(_filters.partner_org))
+                    partner_order_clause(_filters.partner_org), *focus_scope)
             .first()
         )
         if focus_o is not None:
@@ -852,7 +866,7 @@ def erp_order_mobile_detail(order_id: int):
         mobile_delete=mobile_delete,
         mobile_shell_more=mobile_delete['can'],
         timeline=load_order_timeline(db, order),
-        as_schedule_drift=build_schedule_link_drift(order.structured_data, db),
+        as_schedule_drift=build_schedule_link_drift(order.structured_data, db, viewer=current_user),
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',

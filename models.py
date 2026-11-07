@@ -1423,6 +1423,95 @@ class PartnerStatementQuestion(Base):
     answered_at = Column(DateTime, nullable=True)
 
 
+class SalesCommissionInput(Base):
+    """FCOMM-01: 회계팀이 주문마다 넣는 프리랜서 수수료 입력값(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.2).
+
+    시공비 · 회계팀 지정 요율(bp, 10000 = 100%) · 메모를 주문 한 건에 한 줄로 둔다. 주문의 큰 ``structured_data``
+    JSONB 밖에 따로 두는 까닭: 회계팀이 칸 하나를 고칠 때마다 주문 JSON 을 통째로 다시 쓰지 않고, 같은 때 주문 화면
+    저장과 부딪혀 서로 값을 지우지 않게 하려는 것이다. ``version`` 은 칸 저장 경합 막기(화면이 본 값과 같을 때만 쓴다).
+    주문이 하드 삭제되면 이 줄도 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+    """
+    __tablename__ = 'sales_commission_inputs'
+
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), primary_key=True, autoincrement=False)
+    install_cost = Column(BigInteger, nullable=True)
+    rate_override_bp = Column(Integer, nullable=True)
+    note = Column(Text, nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    updated_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint('install_cost IS NULL OR install_cost >= 0', name='ck_sales_commission_inputs_install_cost'),
+        CheckConstraint(
+            'rate_override_bp IS NULL OR (rate_override_bp >= 0 AND rate_override_bp <= 10000)',
+            name='ck_sales_commission_inputs_rate_bp',
+        ),
+    )
+
+
+class SalesCommissionClosing(Base):
+    """FCOMM-01: 프리랜서 한 명 · 달 하나의 수수료 마감(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.3 · §8).
+
+    마감할 때 줄(``lines`` — 주문별 계산 결과 스냅샷)과 합계 · 세금을 한 번에 굳힌다. 한 주문이 어느 마감에든 들어가면
+    그 뒤 누구의 일반 줄에도 다시 나오지 않는다(J9 — 주인 · 거래구분이 굳는다). CLOSED(마감) → PAID(지급 완료, 그 뒤로는
+    못 되돌림). 지급 전 마감 취소는 줄을 지우고 감사 기록만 남긴다(VOID 상태 없음). 줄 모양은
+    :mod:`foms.services.sales_commission.closing`. 주문을 FK 로 잡지 않는다 — 주문이 지워져도 지급한 기록은 남아야 한다.
+    """
+    __tablename__ = 'sales_commission_closings'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    month = Column(String(7), nullable=False)
+    status = Column(String(8), nullable=False, default='CLOSED', server_default='CLOSED')
+    gross = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_income = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_local = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    vat = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    net = Column(BigInteger, nullable=False, default=0, server_default=text('0'))
+    tax_type = Column(String(16), nullable=False)
+    lines = Column(JSONColumn, nullable=False, default=list, server_default=text("'[]'"))
+    closed_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    closed_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    paid_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('CLOSED','PAID')", name='ck_sales_commission_closings_status'),
+        UniqueConstraint('user_id', 'month', name='uq_sales_commission_closings_user_month'),
+    )
+
+
+class OrderFreelancerLink(Base):
+    """FCOMM-01 3단계: 주문 ↔ 프리랜서 계정 연결(설계서 docs/specs/2026-11-06-freelancer-sales-commission_SPEC.md §4.4 · §5).
+
+    주문 이름 칸(대표 담당 · 다른 담당 · 발주사)과 설정의 맞출 이름이 완전히 같을 때 생기는 **투영**이다(J8 · J10).
+    정본은 주문 ``structured_data`` 이고, 전역 before_flush 훅(:mod:`foms.services.sales_commission.link_hook`)이
+    주문 저장 때마다 이 줄을 맞춘다. ``CREATOR``(프리랜서가 직접 등록한 주문)만은 이름과 무관하게 한 번 생기면
+    지우지 않는다. 프리랜서 보기 범위("내 주문")는 이 표 하나만 본다(§6.1). 주문이 하드 삭제되면 같이 지워진다
+    (``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+    """
+    __tablename__ = 'order_freelancer_links'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    relation = Column(String(16), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    # 새 주문(아직 id 없음)에 훅이 연결을 붙일 때 쓴다 — flush 가 주문 INSERT 뒤 order_id 를 채운다. backref 없음.
+    order = relationship('Order', foreign_keys=[order_id])
+
+    __table_args__ = (
+        CheckConstraint(
+            "relation IN ('MANAGER_PRIMARY','MANAGER','ORDERER','CREATOR')",
+            name='ck_order_freelancer_links_relation',
+        ),
+        UniqueConstraint('order_id', 'user_id', 'relation', name='uq_order_freelancer_links_order_user_rel'),
+    )
+
+
 # PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
 # 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
 # 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.

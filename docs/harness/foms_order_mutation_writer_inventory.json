@@ -4,12 +4,12 @@
   "scope": "foms/**.py",
   "baselines": {
     "total": 83,
-    "external": 33
+    "external": 32
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 43,
-    "EXTERNAL": 33,
+    "CANONICAL": 44,
+    "EXTERNAL": 32,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
@@ -19,13 +19,7 @@
   "external_sites": [
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 367,
-      "kind": "flag_modified_structured_data",
-      "owner": "STATE-CONST-CS-01"
-    },
-    {
-      "path": "foms/api/cs/dashboard.py",
-      "lineno": 453,
+      "lineno": 327,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
@@ -67,19 +61,19 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 195,
+      "lineno": 196,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 680,
+      "lineno": 684,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 879,
+      "lineno": 883,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -219,7 +213,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 354,
+      "lineno": 355,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -268,14 +262,7 @@
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 367,
-      "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "STATE-CONST-CS-01"
-    },
-    {
-      "path": "foms/api/cs/dashboard.py",
-      "lineno": 453,
+      "lineno": 327,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
@@ -303,14 +290,14 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 817,
+      "lineno": 818,
       "kind": "flag_modified_structured_data",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 819,
+      "lineno": 820,
       "kind": "mutation_version_bump",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
@@ -352,42 +339,42 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 216,
+      "lineno": 217,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 963,
+      "lineno": 964,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1164,
+      "lineno": 1177,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1641,
+      "lineno": 1667,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1917,
+      "lineno": 1943,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2366,
+      "lineno": 2392,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -401,7 +388,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 479,
+      "lineno": 483,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-MEASUREMENT-01"
@@ -492,21 +479,21 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 195,
+      "lineno": 196,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 680,
+      "lineno": 684,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 879,
+      "lineno": 883,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
@@ -776,6 +763,13 @@
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/settlement_deduction_service.py",
+      "lineno": 106,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "FCOMM-01"
     },
     {
       "path": "foms/services/shipment/as_recommendation.py",

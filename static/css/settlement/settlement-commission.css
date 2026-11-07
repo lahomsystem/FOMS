@@ -1,0 +1,137 @@
+/*
+ * 정산 대시보드 · 탭 "영업 수수료" (FCOMM-01 §2.1 · 플랜 T6).
+ *
+ * 표 · 버튼 · 칩은 실무 탭 어휘(`.s-ops-grid` · `.s-ops-btn` · `.s-ops-chip`)를 그대로 빌려 쓰고, 이 파일은
+ * 수수료 탭에만 있는 것(위 줄 · 입력 칸 · 합계 줄 · 차감 창 · 본인 수정 표시)만 `.s-cm-*` 이름으로 더한다.
+ * 전역 선택자는 건드리지 않는다 — 모든 규칙이 `.foms-settle` 아래다. 글자 크기는 셸 배율(`--s-fs`)을 문다.
+ */
+
+/* 이 탭은 달 하나 단위라 셸의 기간 바(날짜 범위)를 쓰지 않는다 — 보이면 고른 달과 따로 놀아 헷갈린다. */
+.foms-settle[data-settlement-active-tab="commission"] .s-filterbar { display: none; }
+
+/* `hidden` 이 `.s-empty` 같은 display 규칙에 지지 않게(Bootstrap 에 기대지 않는다). */
+.foms-settle .s-cm [hidden] { display: none; }
+
+/* ── 위 줄: 프리랜서 · 달 · 기준 · 설정 링크 ─────────────────────── */
+.foms-settle .s-cm-bar { flex-wrap: wrap; gap: 10px; }
+.foms-settle .s-cm-field { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.foms-settle .s-cm-field--grow { flex: 1; }
+.foms-settle .s-cm-field-name { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-cm-select,
+.foms-settle .s-cm-month {
+  border: 1px solid var(--s-line); border-radius: 7px; background: var(--s-surface); color: var(--s-text);
+  padding: 4px 8px; font-size: calc(12.5px * var(--s-fs, 1)); font-family: inherit;
+}
+.foms-settle .s-cm-select { min-width: 140px; }
+.foms-settle .s-cm-seg { display: inline-flex; gap: 4px; }
+/* 실무 탭 버튼(.s-ops-btn)을 같이 쓰므로 그 색 토큰을 이 탭에도 둔다 — 토큰이 .s-ops 안에만 있어
+   차감 창의 [차감 넣기] 버튼이 흰 글자 · 투명 바탕으로 사라졌다(T8 스테이징 확인). */
+.foms-settle .s-cm {
+  --s-ops-blue: #2563eb;
+  --s-ops-blue-soft: #eaf1ff;
+}
+.foms-settle .s-cm-bar a.s-ops-btn { text-decoration: none; }
+
+/* ── 한 줄 안내 · 경고 · 상태 ─────────────────────────────────── */
+.foms-settle .s-cm-note,
+.foms-settle .s-cm-msg,
+.foms-settle .s-cm-state {
+  margin: 0; padding: 8px 12px; font-size: calc(12px * var(--s-fs, 1));
+  border-bottom: 1px solid var(--s-line-soft);
+}
+.foms-settle .s-cm-note { color: var(--s-muted); }
+.foms-settle .s-cm-state { color: var(--s-faint); }
+.foms-settle .s-cm-msg { color: var(--s-text); background: var(--s-surface-soft); }
+.foms-settle .s-cm-msg--error { color: var(--s-bad); background: var(--s-ops-red-soft); }
+.foms-settle .s-cm-near {
+  padding: 8px 12px; font-size: calc(12px * var(--s-fs, 1));
+  background: var(--s-amber-soft); color: var(--s-amber); border-bottom: 1px solid var(--s-line-soft);
+}
+.foms-settle .s-cm-near summary { cursor: pointer; font-weight: 600; }
+.foms-settle .s-cm-near-list { margin: 6px 0 0; padding-left: 18px; color: var(--s-text); }
+.foms-settle .s-cm-near-list li { margin: 2px 0; }
+.foms-settle .s-cm .s-empty { margin: 12px; }
+
+/* ── 표 ───────────────────────────────────────────────────────── */
+.foms-settle .s-cm-grid td.s-cm-product {
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+}
+.foms-settle .s-cm-grid a.s-cm-cust { color: var(--s-text); font-weight: 700; text-decoration: none; }
+.foms-settle .s-cm-grid a.s-cm-cust:hover { text-decoration: underline; }
+.foms-settle .s-cm-wait { color: var(--s-amber); font-weight: 600; }
+.foms-settle .s-cm-forecast { color: var(--s-muted); }
+.foms-settle .s-cm-dim { color: var(--s-faint); }
+
+/* 합계 한 줄 — 표 맨 위, 머리줄 바로 아래. */
+.foms-settle .s-cm-total td {
+  background: var(--s-accent-soft); font-weight: 700; border-bottom: 1px solid var(--s-line);
+  font-size: calc(12.5px * var(--s-fs, 1));
+}
+.foms-settle .s-cm-total .s-cm-total-wait { font-weight: 600; color: var(--s-amber); margin-left: 8px; }
+
+/* 입력 칸(시공비 · 회계팀 지정 요율). 실패하면 그 칸만 빨갛게. */
+.foms-settle .s-cm-input {
+  width: 110px; text-align: right; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--s-line); border-radius: 6px; background: var(--s-surface); color: var(--s-text);
+  padding: 3px 6px; font-size: calc(12.5px * var(--s-fs, 1)); font-family: inherit;
+}
+.foms-settle .s-cm-input--rate { width: 64px; }
+.foms-settle .s-cm-input--text { width: 100%; text-align: left; }
+.foms-settle .s-cm-input:focus { outline: 2px solid var(--s-accent); outline-offset: 0; border-color: var(--s-accent); }
+.foms-settle td.s-cm-cell--saving .s-cm-input { background: var(--s-surface-soft); }
+.foms-settle td.s-cm-cell--error { background: var(--s-ops-red-soft); }
+.foms-settle td.s-cm-cell--error .s-cm-input { border-color: var(--s-bad); color: var(--s-bad); }
+
+/* 차감 칸 — 누르면 작은 창. 표 글자처럼 보이되 버튼이다. */
+.foms-settle .s-cm-ded-btn {
+  border: none; background: transparent; padding: 0; cursor: pointer; font-family: inherit;
+  font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-ops-blue); font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+}
+.foms-settle .s-cm-ded-btn:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+
+/* 본인 수정 표시 — 누르면 무엇을 언제 바꿨는지. */
+.foms-settle .s-cm-self { position: relative; }
+.foms-settle .s-cm-self summary {
+  cursor: pointer; list-style: none; color: var(--s-amber); font-weight: 600;
+  font-size: calc(11.5px * var(--s-fs, 1));
+}
+.foms-settle .s-cm-self summary::-webkit-details-marker { display: none; }
+.foms-settle .s-cm-self ul {
+  position: absolute; right: 0; top: 100%; z-index: 3; margin: 4px 0 0; padding: 8px 12px 8px 24px;
+  background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .12); white-space: nowrap;
+  font-size: calc(12px * var(--s-fs, 1)); color: var(--s-text);
+}
+
+/* ── 차감 작은 창 ─────────────────────────────────────────────── */
+.foms-settle .s-cm-dialog {
+  border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 0; width: min(440px, 92vw);
+  color: var(--s-text); box-shadow: 0 12px 32px rgba(15, 23, 42, .2);
+}
+.foms-settle .s-cm-dialog::backdrop { background: rgba(15, 23, 42, .25); }
+.foms-settle .s-cm-dialog-body { padding: 16px 18px; }
+.foms-settle .s-cm-dialog-title { margin: 0 0 4px; font-size: calc(15px * var(--s-fs, 1)); font-weight: 700; }
+.foms-settle .s-cm-dialog-sub { margin: 0 0 10px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted); }
+.foms-settle .s-cm-ded-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.foms-settle .s-cm-ded-list li {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--s-line-soft);
+  font-size: calc(12.5px * var(--s-fs, 1));
+}
+.foms-settle .s-cm-ded-amount { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 80px; text-align: right; }
+.foms-settle .s-cm-ded-reason { flex: 1; color: var(--s-muted); overflow-wrap: anywhere; }
+.foms-settle .s-cm-ded-add { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.foms-settle .s-cm-dialog-msg { margin: 0 0 10px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-bad); }
+.foms-settle .s-cm-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── 달 마감 확인 창 · 마감 기록(T10) ───────────────────────────── */
+.foms-settle .s-cm-close-sum {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0 0 12px;
+  font-size: calc(12.5px * var(--s-fs, 1));
+}
+.foms-settle .s-cm-close-sum dt { color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-cm-close-sum dd { margin: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.foms-settle .s-cm-closings { margin-top: 12px; }
+.foms-settle .s-cm-paid { color: var(--s-good); font-weight: 600; }
+.foms-settle .s-cm-closing-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.foms-settle .s-cm-closing-actions a.s-ops-btn { text-decoration: none; }

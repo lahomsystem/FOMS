@@ -1,0 +1,14 @@
+/* 프리랜서 수수료 설정 화면(설계서 2026-11-06-freelancer-sales-commission §2.3) — 목록 · 추가 폼 · 요율 이력. */
+.foms-sf__box{background:#fff;border:1px solid var(--foms-color-neutral-200,#dde1e6);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.foms-sf__table{margin-bottom:6px;font-size:13px}
+.foms-sf__table .foms-sf__num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.foms-sf__table tr.is-selected td{background:var(--foms-color-brand-50,#f3f4ff)}
+.foms-sf__form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.foms-sf__field{display:flex;flex-direction:column;min-width:120px;margin:0}
+.foms-sf__check{display:flex;align-items:center;gap:6px;font-size:13px;margin:0 0 6px}
+.foms-sf__rates{display:flex;flex-wrap:wrap;gap:10px;border:0;padding:0;margin:0}
+.foms-sf__rates legend{width:100%;float:none;margin:0 0 2px;font-weight:600}
+.foms-sf__rates .foms-sf__field{min-width:90px;max-width:110px}
+.foms-sf__actions{display:flex;gap:6px;margin-bottom:2px}
+.foms-sf__status{min-height:1.4em;color:var(--foms-color-neutral-700,#353a44)}
+.foms-sf__status.is-error{color:var(--foms-color-danger-700,#b91c1c);font-weight:600}

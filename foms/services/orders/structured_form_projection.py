@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from foms.services.auth.partner_scope import is_partner_sd
+from foms.services.orders.balance_payment_method import normalize_balance_method
 from foms.services.orders.discount_items import normalize_payment_discounts
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,10 @@ SERVER_LOCKED_KEYS = frozenset({
     "drawing_wizard",
     "blueprint",
     "quests",
+    # 정산 묶음(차감 · 현금영수증 · 정산 상태)은 전용 API 만 쓴다(차감 넣기 · 취소, 현금영수증 발행).
+    # 폼은 이 키를 렌더하지도 보내지도 않는다. 잠그지 않으면 주문 저장 한 번에 차감을 지우거나
+    # 취소 표시를 붙여 수수료 · 시공비 차감을 피할 수 있었다(T18 R2 — 모든 직원에게 열린 구멍).
+    "settlement",
 })
 
 #: 부모 키 안에서 잠그는 하위 키. 도면 배정은 도면 전달 권한의 기준값이고(도면 담당 지정 API 만
@@ -95,6 +100,17 @@ SERVER_LOCKED_KEYS = frozenset({
 SERVER_LOCKED_SUBKEYS = {
     "assignments": ("drawing_assignee_user_ids", "drawing_assignees"),
 }
+
+#: ``payment`` 안에서 결제 확인 API(``POST /api/orders/<id>/payment-confirm``)만 쓰는 칸(T18 R4).
+#: 예약금 · 잔금 금액 · 할인 · 자유입력 같은 나머지 ``payment`` 칸은 지금처럼 폼 값이 들어간다.
+PAYMENT_CONFIRM_GROUPS = {
+    "deposit": ("deposit_confirmed", "deposit_confirmed_at", "deposit_confirmed_by",
+                "deposit_confirmed_by_user_id"),
+    "balance": ("balance_confirmed", "balance_confirmed_at", "balance_confirmed_by",
+                "balance_confirmed_by_user_id", "balance_method", "balance_method_text"),
+}
+PAYMENT_CONFIRM_SUBKEYS = tuple(key for keys in PAYMENT_CONFIRM_GROUPS.values() for key in keys)
+_TRUTHY_STRINGS = frozenset({"true", "1", "yes", "on"})
 
 
 def _lock_mapping(old: dict, new: dict, keys, prefix: str) -> list[str]:
@@ -152,6 +168,76 @@ def lock_server_owned_keys(old_sd: dict, structured_data: dict) -> list[str]:
         ignored.extend(_lock_mapping(old_parties, new_parties, ["orderer", "manager"], "parties."))
     if ignored:
         logger.warning("[DATA-01] ignored client values for server-locked keys: %s", ignored)
+    return ignored
+
+
+def _confirmed(value: Any) -> bool:
+    """결제 확인 값의 참 판정(화면 ``_erpBoolConfirmed`` · ``balance_payment_method`` 와 같은 규칙)."""
+    if isinstance(value, str):
+        return value.strip().lower() in _TRUTHY_STRINGS
+    return value is True
+
+
+def _stamp_draft_payment_confirmation(new_pay: dict, actor: tuple) -> None:
+    """첫 등록: 확인했는지 · 잔금 수단만 폼 값으로 받고, 누가 · 언제는 서버 값으로 찍는다."""
+    user_id, name, now_iso = actor
+    for flag, at_key, by_key, uid_key in (keys[:4] for keys in PAYMENT_CONFIRM_GROUPS.values()):
+        confirmed = _confirmed(new_pay.get(flag))
+        new_pay[flag] = confirmed
+        new_pay[at_key] = now_iso if confirmed else None
+        new_pay[by_key] = name if confirmed else None
+        new_pay[uid_key] = user_id if confirmed else None
+    method, text = (None, None)
+    if new_pay["balance_confirmed"]:
+        method, text = normalize_balance_method(new_pay.get("balance_method"), new_pay.get("balance_method_text"))
+    new_pay["balance_method"], new_pay["balance_method_text"] = method, text
+
+
+def lock_payment_confirmation(old_sd: dict, structured_data: dict, *, draft: bool = False,
+                              actor: Optional[tuple] = None) -> list[str]:
+    """결제 확인 칸(:data:`PAYMENT_CONFIRM_GROUPS`)을 서버 소유로 다룬다(in-place). 무시한 칸 경로를 반환한다.
+
+    * 등록된 주문: 저장 순간의 서버값으로 고정한다(old-wins, 서버에 없으면 폼 값을 버린다). 폼은 페이지를 연 순간의
+      값을 되실어 보내므로, 잠그지 않으면 확인 위조뿐 아니라 그 사이 다른 사람이 누른 확인을 낡은 탭이 되돌린다.
+    * 첫 등록(``draft=True``): 새 주문 화면은 저장 전에 결제 확인을 누르고 첫 등록에 싣는다
+      (``erpToggleLocalPaymentState``). 확인했는지 · 잔금 수단만 받고 누가 · 언제는 ``actor`` 로 다시 찍는다.
+      ``actor`` 가 None 이면(결제 확인을 못 하는 사람) 등록된 주문처럼 잠근다.
+
+    Args:
+        old_sd: 저장 전 서버 structured_data.
+        structured_data: in-place 로 고칠 projection 대상 dict.
+        draft: 이 저장이 초안의 첫 등록인가.
+        actor: 첫 등록 때 찍을 ``(user_id, 이름, 시각 ISO 문자열)``.
+
+    Returns:
+        폼이 서버와 다른 값을 보내 무시된 ``payment.*`` 경로 목록(첫 등록에서 다시 찍은 칸은 넣지 않는다).
+    """
+    if not isinstance(structured_data, dict):
+        return []
+    existing = old_sd if isinstance(old_sd, dict) else {}
+    old_pay = existing.get("payment") if isinstance(existing.get("payment"), dict) else {}
+    new_pay = structured_data.get("payment")
+    if not isinstance(new_pay, dict):
+        if not any(key in old_pay for key in PAYMENT_CONFIRM_SUBKEYS):
+            return []
+        new_pay = {}
+        structured_data["payment"] = new_pay
+    if draft and actor is not None:
+        _stamp_draft_payment_confirmation(new_pay, actor)
+        return []
+    ignored: list[str] = []
+    for key in PAYMENT_CONFIRM_SUBKEYS:
+        if key in old_pay:
+            if key in new_pay and new_pay[key] != old_pay[key]:
+                ignored.append("payment." + key)
+            new_pay[key] = copy.deepcopy(old_pay[key])
+        elif key in new_pay:
+            # 폼은 확인 전 주문에도 빈 값(False · None)을 늘 싣는다 — 그건 바꾸려던 것이 아니다.
+            if new_pay[key] not in (None, False, ""):
+                ignored.append("payment." + key)
+            del new_pay[key]
+    if ignored:
+        logger.warning("[DATA-01] ignored client values for payment confirmation: %s", ignored)
     return ignored
 
 
@@ -343,10 +429,13 @@ __all__ = [
     "SERVER_OWNED_REMOVABLE_KEYS",
     "SERVER_LOCKED_KEYS",
     "SERVER_LOCKED_SUBKEYS",
+    "PAYMENT_CONFIRM_GROUPS",
+    "PAYMENT_CONFIRM_SUBKEYS",
     "preserve_non_form_keys",
     "enforce_form_allowlist",
     "lock_provenance",
     "lock_server_owned_keys",
+    "lock_payment_confirmation",
     "recompute_totals",
     "project_structured_form",
 ]
