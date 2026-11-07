@@ -76,7 +76,7 @@ def test_sync_creates_estimate_without_matching_order(wdcalculator_settings_env,
 
 
 def test_sync_is_idempotent_on_resave(wdcalculator_settings_env, login):
-    """같은 estimate_id로 재호출하면 견적은 갱신, 매칭은 중복 생성되지 않는다."""
+    """이 주문에 이은 estimate_id로 재호출하면 견적은 갱신, 매칭은 중복 생성되지 않는다."""
     client = login
     order = _create_order(customer_name="재저장 고객")
     order_id = order.id
@@ -86,6 +86,9 @@ def test_sync_is_idempotent_on_resave(wdcalculator_settings_env, login):
         json={"customer_name": "재저장 고객", "estimate_data": _estimate_data()},
     ).get_json()
     estimate_id = first["estimate_id"]
+    # 고치기는 이 주문에 이은 견적만(보안 검토 — 안 이은 견적 번호는 404, test_sync_rejects_estimate_not_matched_to_order).
+    wd_calculator_session.add(EstimateOrderMatch(estimate_id=estimate_id, order_id=order_id))
+    wd_calculator_session.commit()
 
     updated = _estimate_data()
     updated["totalPrice"] = 2000
@@ -108,12 +111,53 @@ def test_sync_is_idempotent_on_resave(wdcalculator_settings_env, login):
     matches = wd_calculator_session.query(EstimateOrderMatch).filter(
         EstimateOrderMatch.order_id == order_id
     ).all()
-    assert matches == []  # 자동 매칭 금지
+    assert [m.estimate_id for m in matches] == [estimate_id]  # 손으로 이은 1건 그대로(자동 매칭 금지)
 
     histories = wd_calculator_session.query(EstimateHistory).filter(
         EstimateHistory.estimate_id == estimate_id
     ).all()
     assert len(histories) == 1  # 갱신 시 직전 스냅샷 1건
+
+
+def test_sync_rejects_estimate_not_matched_to_order(wdcalculator_settings_env, login):
+    """보안 검토 회귀: 본문 estimate_id 가 URL 주문에 이어져 있지 않으면(다른 주문 견적 · 안 이은 견적 · 없는 번호)
+    404 이고 견적은 그대로다 — 전에는 번호만 맞으면 아무 견적이나 덮어썼다."""
+    client = login
+    order_id = _create_order(customer_name="내 주문 고객").id
+    other_order_id = _create_order(customer_name="다른 주문 고객").id
+    other = Estimate(customer_name="다른 주문 고객", estimate_data=_estimate_data())
+    loose = Estimate(customer_name="안 이은 고객", estimate_data=_estimate_data())
+    wd_calculator_session.add_all([other, loose])
+    wd_calculator_session.flush()
+    wd_calculator_session.add(EstimateOrderMatch(estimate_id=other.id, order_id=other_order_id))
+    wd_calculator_session.commit()
+    other_id, loose_id = other.id, loose.id
+
+    tampered = _estimate_data()
+    tampered["totalPrice"] = 1
+    for estimate_id in (other_id, loose_id, 999999, "abc"):
+        resp = client.post(
+            f"/api/orders/{order_id}/wdc-estimate-sync",
+            json={"estimate_id": estimate_id, "customer_name": "덮어쓰기", "estimate_data": tampered},
+        )
+        assert resp.status_code == 404, estimate_id
+        assert resp.get_json()["success"] is False
+
+    wd_calculator_session.expire_all()
+    for estimate_id in (other_id, loose_id):
+        row = wd_calculator_session.query(Estimate).filter(Estimate.id == estimate_id).first()
+        assert row.estimate_data["totalPrice"] == 1000 and row.customer_name != "덮어쓰기"
+    assert wd_calculator_session.query(EstimateHistory).count() == 0
+    assert wd_calculator_session.query(Estimate).count() == 2  # 새 견적도 만들지 않는다
+
+    # 대조군: 같은 견적을 그 견적이 이어진 주문 URL 로 부르면 고쳐진다.
+    ok = client.post(
+        f"/api/orders/{other_order_id}/wdc-estimate-sync",
+        json={"estimate_id": other_id, "customer_name": "다른 주문 고객", "estimate_data": tampered},
+    )
+    assert ok.status_code == 200 and ok.get_json()["estimate_id"] == other_id
+    wd_calculator_session.expire_all()
+    assert wd_calculator_session.query(Estimate).filter(Estimate.id == other_id).first().estimate_data["totalPrice"] == 1
 
 
 def test_sync_rejects_missing_order(wdcalculator_settings_env, login):
