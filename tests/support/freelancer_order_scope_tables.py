@@ -54,6 +54,8 @@ NO_ORDER_ID = {
     "wdcalculator.api_wdcalculator_get_categories",
     # 출고 판(화면 묶음 freelancer_screens/shipment.py) — 날짜 · 검색어만 받는다. 목록은 화면이 연결 표로 거른다.
     "erp_shipment_page.erp_shipment_dashboard",
+    # 도면 묶음(freelancer_screens/drawing.py) — 마법사가 읽는 도면팀 전역 설정(프리셋 · 자재표 숫자), 주문 번호 없음.
+    "erp_orders_drawing_wizard.api_get_drawing_wizard_presets", "erp_orders_drawing_wizard.api_get_drawing_wizard_bom_rules",
 }
 
 # 화면 묶음 · 계산기(freelancer_screens/wdcalculator.py) — 견적 번호는 주문 아님, 본문 주문 · 견적은 핸들러가 본다.

@@ -177,8 +177,9 @@ def test_checker_finds_blocked_links_for_normal_sales(app, monkeypatch):
     user = _make_user("STAFF", "SALES")
     mobile = _outside_allowlist(app, _mobile_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=True)))
     desktop = _outside_allowlist(app, _desktop_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=False)))
-    assert {"bottom_nav", "drawer"} <= {name for name, *_ in mobile}
-    assert {"global_nav", "user_menu", "erp_sub_nav"} <= {name for name, *_ in desktop}
+    # D27 로 판 화면이 열리며 아래 탭의 링크는 모두 허용 목록 안이 됐다 — 서랍(네이버 수집 등)은 아직 밖이다.
+    assert "drawer" in {name for name, *_ in mobile}
+    assert {"global_nav", "user_menu"} <= {name for name, *_ in desktop}  # ERP 서브 내비는 D27 로 모두 열림
 
 
 def test_normal_sales_mobile_menus_unchanged(app, monkeypatch):
