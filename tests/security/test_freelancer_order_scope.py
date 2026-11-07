@@ -90,6 +90,8 @@ _NO_ORDER_ID = {
     # 계산기 설정 목록(제품 · 규격 선택지 · 추가 옵션) — 주문 폼 제품 고르기용 읽기, 주문 번호 없음.
     "wdcalculator.api_wdcalculator_get_products", "wdcalculator.api_wdcalculator_get_spec_field_presets",
     "wdcalculator.api_wdcalculator_get_categories",
+    # 출고 판(화면 묶음 freelancer_screens/shipment.py) — 날짜 · 검색어만 받는다. 목록은 화면이 연결 표로 거른다.
+    "erp_shipment_page.erp_shipment_dashboard",
 }
 
 

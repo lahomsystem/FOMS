@@ -35,7 +35,7 @@
     <a class="chip foms-chip{% if selected_date == today_date and not use_date_range %} is-active{% endif %}" href="{{ shipment_today_url }}">
       <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
     </a>
-    {% if can_edit_shipment %}
+    {% if can_edit_shipment and not shipment_freelancer_view %}
     <button type="button" class="chip foms-chip" id="shipment-as-recommend-mobile-btn" data-shipment-as-recommend-open>
       <i class="fas fa-magic" aria-hidden="true"></i>AS추천
     </button>

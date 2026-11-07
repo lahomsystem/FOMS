@@ -10,6 +10,7 @@ import json
 from sqlalchemy import or_, and_, inspect
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm.attributes import set_committed_value
+from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, is_list_freelancer
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.partners.payments import unpaid_order_ids
@@ -82,15 +83,18 @@ erp_shipment_page_bp = Blueprint(
 
 
 def _shipment_user_visibility_fingerprint(current_user) -> dict:
-    """출고 대시보드 캐시 키용 사용자 식별."""
+    """출고 대시보드 캐시 키용 사용자 식별. 켜진 프리랜서는 "내 것"이 연결 표라 표시를 하나 더 넣는다."""
     if not current_user:
         return {"user_id": None, "role": None, "username": None, "team": None}
-    return {
+    fingerprint = {
         "user_id": getattr(current_user, "id", None),
         "role": getattr(current_user, "role", None),
         "username": getattr(current_user, "username", None),
         "team": getattr(current_user, "team", None),
     }
+    if is_list_freelancer(current_user):
+        fingerprint["freelancer"] = True
+    return fingerprint
 
 
 def _shipment_dashboard_order_scope():
@@ -381,6 +385,11 @@ def erp_shipment_dashboard():
 
     partner_org = partner_filter_value(request)
     base_query = db.query(Order).filter(Order.active_filter(), partner_order_clause(partner_org))
+    # FCOMM-01(사용자 결정 2026-11-07): 켜진 프리랜서는 모든 조회의 바닥부터 연결 표의 내 주문만 — 검색 날짜 고르기 ·
+    # 14일 패널 · 목록 · 협력사 희망일 주문이 모두 이 쿼리에서 나온다(아래 mine 강제 · is_order_related_to_user 와 겹친다).
+    freelancer_viewer = is_list_freelancer(current_user)
+    if freelancer_viewer:
+        base_query = base_query.filter(*freelancer_mine_sql_filter(current_user))
     base_query = _erp_order_search_filter(base_query, search_q)
 
     scoped_for_search = base_query.filter(_shipment_dashboard_order_scope())
@@ -654,6 +663,10 @@ def erp_shipment_dashboard():
         )
 
     enrich_shipment_rows(rows)
+    if freelancer_viewer:
+        # AS 추천 연결(추천 취소 단추)은 기준 출고 주문 번호(남의 주문일 수 있다)를 싣고, 추천 API 는 닫혀 있다.
+        for r in rows:
+            r.shipment_as_recommendation_link = None
     # 협력사 주문 "입금 대기"(설계서 2026-11-03-partner-statement §5.7) — 발행 명세서만큼 다 받지 못했으면 표시만(막지 않음).
     _unpaid = unpaid_order_ids(db, [r.id for r in rows if getattr(r, 'partner_org_id', None)])
     for r in rows:
@@ -693,7 +706,9 @@ def erp_shipment_dashboard():
         else []
     )
 
-    _pending_requests = shipment_pending_requests(db)
+    # 협력사 희망일 판은 회사 전체 확정 대기 협력사 주문 · 최근 정한 기록 · 회사 잔여 용량을 싣는다 — 프리랜서는 끈다.
+    # 내 주문이 확정 대기면 위 목록 줄(partner_request_text)에 그대로 보인다.
+    _pending_requests = [] if freelancer_viewer else shipment_pending_requests(db)
     template_name = (
         'shipment/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -722,8 +737,13 @@ def erp_shipment_dashboard():
         # 협력사 희망 시공일 · 확정 대기(우리 시공일 없는 협력사 주문 — 출고 담당자가 정한다).
         partner_pending_requests=_pending_requests,
         # 협력사 희망 2주 판(설계서 2026-11-04-shipment-partner-request-board) — 날짜 칸은 위 잔여 패널 값 그대로.
-        partner_request_board=build_request_board(db, _pending_requests, partner_pending, remaining_panel_dates, today_kst),
+        partner_request_board=(
+            None if freelancer_viewer
+            else build_request_board(db, _pending_requests, partner_pending, remaining_panel_dates, today_kst)
+        ),
         can_set_construction_schedule=can_edit_construction_schedule(current_user),
+        # 켜진 프리랜서 — 회사 전체로 세는 칸(날짜별 잔여 시공 · 잔여 자수 띠) · AS 일정 추천 · 출고 설정 링크를 숨긴다.
+        shipment_freelancer_view=freelancer_viewer,
         # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
         # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
         kakao_js_key=KAKAO_JS_API_KEY,
@@ -787,7 +807,9 @@ def erp_shipment_tablet_sheet(order_id):
 
     settings = load_erp_shipment_settings()
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
-    remaining_by_team = compute_team_remaining_units_for_date(
+    # 시공팀별 잔여 자수는 그날 회사 전체 주문으로 센다 — 켜진 프리랜서에게는 세지도 보이지도 않는다(팀 이름만).
+    freelancer_viewer = is_list_freelancer(current_user)
+    remaining_by_team = {} if freelancer_viewer else compute_team_remaining_units_for_date(
         db, target_date or None, worker_settings
     )
     teams = []
@@ -796,9 +818,9 @@ def erp_shipment_tablet_sheet(order_id):
         remaining = remaining_by_team.get(name, float(w.get('capacity') or 0))
         teams.append({
             'name': name,
-            'remaining': f"{remaining:.1f}",
+            'remaining': None if freelancer_viewer else f"{remaining:.1f}",
             'is_current': bool(first_current_norm) and _normalize_worker_name(name) == first_current_norm,
-            'is_short': remaining < units,
+            'is_short': (not freelancer_viewer) and remaining < units,
         })
 
     response = make_response(render_template(

@@ -22,7 +22,7 @@
         <i class="fas fa-file-image"></i>
         <span class="d-none d-md-inline">이미지 저장</span>
       </button>
-      {% if not is_construction_team %}
+      {% if not is_construction_team and not shipment_freelancer_view %}
       <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_shipment.erp_shipment_settings') }}">
         <i class="fas fa-cog"></i>
         <span class="d-none d-md-inline">설정</span>
@@ -88,7 +88,7 @@
          data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
       {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
-      {% if can_edit_shipment %}
+      {% if can_edit_shipment and not shipment_freelancer_view %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
               title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
         <i class="fas fa-magic" aria-hidden="true"></i><span>AS 추천</span>
@@ -149,7 +149,7 @@
             <i class="fas fa-search"></i>
             <span>조회</span>
           </button>
-          {% if can_edit_shipment %}
+          {% if can_edit_shipment and not shipment_freelancer_view %}
           <button type="button" id="shipment-as-recommend-btn" class="erp-pro-btn erp-pro-btn--secondary ms-2" title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
             <i class="fas fa-magic"></i>
             <span>AS일정 추천</span>
@@ -158,7 +158,7 @@
         </div>
       </form>
     </div>
-    {% if can_edit_shipment %}
+    {% if can_edit_shipment and not shipment_freelancer_view %}
     <div class="modal fade" id="shipmentAsRecommendModal" tabindex="-1" aria-labelledby="shipmentAsRecommendModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable">
         <div class="modal-content">
@@ -276,7 +276,7 @@
               <div class="small text-muted mt-1 px-1">14일 (시공)</div>
             </div>
           </div>
-          {% if not is_construction_team %}
+          {% if not is_construction_team and not shipment_freelancer_view %}
           <div class="card border-0 shadow-sm mt-2 erp-scheduler-card">
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center">
               <div class="fw-bold small"><i class="fas fa-chart-line"></i> 날짜별 잔여 시공</div>
@@ -318,7 +318,7 @@
            코호트에서 은닉하고 이 클린 스트립이 대체한다. remaining_panel_dates(서버 기존
            집계, 신규 쿼리 없음) 재소비: 프로그레스 = used/total, ok/warn/off 색은
            is_weekend·holiday·alert_capacity 로 파생. base-hidden → 코호트 가로에서만 표시. #}
-        <aside class="foms-ship-cap-strip" aria-label="잔여 자수 용량">
+        {% if not shipment_freelancer_view %}<aside class="foms-ship-cap-strip" aria-label="잔여 자수 용량">
           <div class="foms-ship-cap-strip__head">
             {% set _cm = (selected_date or today_date)[5:7]|int %}
             {% set _cd = (selected_date or today_date)[8:10]|int %}
@@ -344,12 +344,12 @@
             </a>
             {% endfor %}
           </div>
-          {% if not is_construction_team %}
+          {% if not is_construction_team and not shipment_freelancer_view %}
           <a class="foms-ship-cap-strip__settings" href="{{ url_for('erp_shipment.erp_shipment_settings') }}">
             <i class="fas fa-cog" aria-hidden="true"></i><span>출고 설정</span>
           </a>
           {% endif %}
-        </aside>
+        </aside>{% endif %}
         <div class="col-12 col-lg erp-shipment-table-col">
           {# 태블릿 가로 클린 그리드(목업 06) — base-hidden, 코호트에서만 표시하며 아래 PC 테이블
              래퍼(.shipment-table-wrapper)를 코호트에서 은닉한다. 자체 .cap 힌트를 포함하므로
@@ -743,7 +743,7 @@
   <datalist id="datalist-drawing-manager"></datalist>
   <datalist id="datalist-construction-workers"></datalist>
 
-  <div id="shipment-dashboard-config" class="d-none" data-can-edit="{{ 'true' if can_edit_shipment else 'false' }}" data-selected-date="{{ selected_date|default('', true)|e }}"></div>
+  <div id="shipment-dashboard-config" class="d-none" data-can-edit="{{ 'true' if can_edit_shipment and not shipment_freelancer_view else 'false' }}" data-selected-date="{{ selected_date|default('', true)|e }}"></div>
   {# 지도 모듈은 shipment-dashboard.js 보다 먼저(defer 는 문서 순서 유지) — 실제 호출은 클릭 시점이라
      순서 의존은 없지만, 프래그먼트 경로에서도 함께 실려야 지도 버튼이 죽지 않는다. #}
   <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
