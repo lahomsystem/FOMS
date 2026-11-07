@@ -479,3 +479,16 @@ def test_access_is_cached_per_request(app, world, monkeypatch):
     assert len(calls) == 1
     freelancer_can_access_order(db_session, world["fl"], world["own"])  # 요청 밖은 저장하지 않는다
     assert len(calls) == 2
+
+
+def test_estimate_pane_reads_open_for_own_order(app, world):
+    """11-07 운영 회귀: 주문 화면 "견적서" 칸(미리보기 · 이은 계산기 견적)이 막혀 견적서 금액을 못 고쳤다.
+
+    내 주문은 열리고(200), 남의 주문은 범위 404 그대로.
+    """
+    client = _client(app, world["fl"])
+    for path in ("/api/orders/{}/estimate-preview", "/api/wdcalculator/order-estimates/{}"):
+        mine = client.get(path.format(world["own"]))
+        assert mine.status_code == 200, (path, mine.status_code)
+        theirs = client.get(path.format(world["other"]))
+        assert theirs.status_code == 404 and theirs.get_json()["error"] == FREELANCER_ORDER_NOT_FOUND_MSG, path
