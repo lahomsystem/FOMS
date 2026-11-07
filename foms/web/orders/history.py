@@ -21,6 +21,7 @@ from foms.services.common.dashboard_cache import (
     get_or_compute_dashboard_slice,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, is_list_freelancer
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.common.fragment_revalidation import (
@@ -174,9 +175,11 @@ def history_dashboard():
     f_date_to = (request.args.get('date_to') or '').strip()
     from_dashboard = (request.args.get('from_dashboard') or '') == '1'
     from_search = (request.args.get('from_search') or '') == '1'
+    # 켜진 프리랜서(FCOMM-01 §6.3 겹 3)는 목록이 늘 연결 표의 내 주문만이다 — 통합 검색 결과도 끌 수 없다.
+    is_freelancer_viewer = is_list_freelancer(user)
     # 통합 검색 결과(검색 키·최근 검색·"전체 결과 보기")는 '내 담당만 보기'와 상관없이 전체에서
-    # 찾는다(2026-09-29 사용자 결정 — 미리보기와 같은 폭). 시공팀은 권한상 늘 자기 담당만.
-    if from_search and not is_construction_team:
+    # 찾는다(2026-09-29 사용자 결정 — 미리보기와 같은 폭). 시공팀 · 켜진 프리랜서는 권한상 늘 자기 담당만.
+    if from_search and not is_construction_team and not is_freelancer_viewer:
         mine_only = False
     else:
         mine_only = erp_mine_only_for_construction(request, user)
@@ -226,7 +229,9 @@ def history_dashboard():
         # 낱말 규칙(띄어 친 전화번호는 한 낱말, "#5335" 는 5335)은 미리보기와 한 곳에서 정한다.
         if is_chosung_query(f_q):
             # 초성(ㅅㅈㄱ)은 ILIKE 로 못 찾는다 — 미리보기와 같은 이름 초성 스캔 결과로 좁힌다.
-            _q = _q.filter(Order.id.in_(chosung_matching_order_ids(db, f_q) or [-1]))
+            # 프리랜서는 내 주문 안에서만 훑는다(남의 주문이 초성 결과 상한을 채워 내 주문이 빠지지 않게).
+            chosung_scope = and_(*freelancer_mine_sql_filter(user)) if is_freelancer_viewer else None
+            _q = _q.filter(Order.id.in_(chosung_matching_order_ids(db, f_q, scope=chosung_scope) or [-1]))
         else:
             _q = _q.filter(
                 and_(*[visible_order_search_clause(tok) for tok in search_query_tokens(f_q)])
@@ -275,6 +280,9 @@ def history_dashboard():
             "page": page,
             "auto_browse": bool(auto_browse_mine),
         }
+        if is_freelancer_viewer:
+            # 지정 · 해제 직후 TTL 동안 이름 판정으로 센 옛 조각(같은 uid · 같은 mine)을 받지 않게(다른 사용자 열쇠는 그대로).
+            _page_fp["freelancer"] = True
         _page_key = build_dashboard_cache_key("history", "page_rows", _page_fp)
         _page_blob = get_or_compute_dashboard_slice(
             _page_key,
