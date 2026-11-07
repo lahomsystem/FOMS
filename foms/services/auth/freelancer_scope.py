@@ -149,6 +149,10 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "wdcalculator.api_wdcalculator_get_products",
     "wdcalculator.api_wdcalculator_get_spec_field_presets",
     "wdcalculator.api_wdcalculator_get_categories",
+    # 주문 화면 "견적서" 칸 — 그 주문 하나의 견적서 미리보기와 그 주문에 이은 계산기 견적 목록(읽기). 금액 고치기는
+    # 견적서 칸이 structured PUT 으로 저장한다(위 허용). 11-07 운영: 이 둘이 막혀 견적서 금액을 못 고쳤다.
+    "erp_estimates.get_estimate_preview",
+    "wdcalculator.api_wdcalculator_get_order_estimates",
     # ── 수수료: 내 수수료 화면(언제나 본인 것)
     "sales_commission_web.my_commission",
 })
@@ -188,6 +192,8 @@ FREELANCER_ORDER_VIEW_ARGS: dict[str, tuple[str, ...]] = {
     "quest.api_order_quest_approve": ("order_id",),
     "erp_measurement.api_erp_measurement_update": ("order_id",),
     "orders.api_order_measurement_visit": ("order_id",),
+    "erp_estimates.get_estimate_preview": ("order_id",),
+    "wdcalculator.api_wdcalculator_get_order_estimates": ("order_id",),
 }
 
 #: query string 중 주문 번호(정수로 읽히는 값만 — 핸들러도 그 밖은 버린다).

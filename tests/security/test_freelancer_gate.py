@@ -304,7 +304,6 @@ _CATALOG_READS = {
 _WDC_STILL_DENIED = (
     ("GET", "/api/wdcalculator/search-orders?q=x"),
     ("GET", "/api/wdcalculator/search-estimates?customer_name=x"),
-    ("GET", "/api/wdcalculator/order-estimates/{oid}"),
     ("GET", "/api/wdcalculator/estimate/1"),
     ("POST", "/api/wdcalculator/match-order"),
     ("POST", "/api/wdcalculator/unmatch-order"),
@@ -340,7 +339,7 @@ def test_order_form_catalog_reads_open_for_freelancer(app):
         body = resp.get_json()
         assert body["success"] is True and set(body) == {"success", key}, (path, sorted(body))
 
-    # 계산기의 견적 · 주문 쪽과 설정 바꾸기는 그대로 막힌다(내 주문 번호여도).
+    # 계산기의 견적 찾기 · 견적 잇기 · 계산 · 설정 바꾸기는 그대로 막힌다(내 주문에 이은 견적 목록 읽기만 열림 — 11-07).
     for method, path in _WDC_STILL_DENIED:
         resp = client.open(path.format(oid=order_id), method=method, json={} if method == "POST" else None)
         assert _is_gate_response(resp), (method, path, resp.status_code)
