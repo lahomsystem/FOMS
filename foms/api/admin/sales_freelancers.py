@@ -135,9 +135,9 @@ def api_save_freelancer():
                                                    actor_user_id=actor_id)
         # 3단계 보기 범위: 맞출 이름 · 켜고 끔이 바뀌면 그 사람의 주문 연결을 같은 트랜잭션에서 다시 맞춘다(알림 없음).
         links = resync_freelancer_links(db, config.user_id)
-        # 겹 5: 켜진 프리랜서면 채팅방 회원 해제 · 옛 알림 숨김(연결을 다시 맞춘 뒤 — 남길 알림 판정이 새 연결을 본다).
+        # 겹 5: 켜진 프리랜서면 옛 알림 숨김(연결을 다시 맞춘 뒤 — 남길 알림 판정이 새 연결을 본다).
         side = (apply_designation_side_effects(db, config.user_id, actor_id) if config.active
-                else {"chat_memberships_removed": 0, "notifications_hidden": 0})
+                else {"notifications_hidden": 0})
         db.add(SecurityLog(
             user_id=actor_id, action="SALES_FREELANCER_SAVED", target_type="user", target_id=config.user_id,
             message=f"프리랜서 설정 저장: {config.match_name}",
@@ -154,7 +154,7 @@ def api_save_freelancer():
         return _fail(500, _SAVE_FAILED)
     if config.active:
         invalidate_badge_cache_for_user_ids([config.user_id])  # 숨긴 알림이 종 숫자에 남지 않게
-        disconnect_realtime(config.user_id)  # 이미 들어가 있던 채팅방 방송을 끊는다(다시 연결하면 개인 방만)
+        disconnect_realtime(config.user_id)  # 열린 실시간 연결을 끊는다(다시 연결하면 개인 알림 방만)
     data = _state(db)
     db.rollback()
     return _ok(data)

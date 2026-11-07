@@ -400,11 +400,11 @@ def test_settlement_policy_denies_anonymous_like_finance():
 def test_settlement_policy_not_in_ancillary_allowlist():
     """정산 열람은 ancillary(자기 알림/구독 등 VIEWER 예외) 가 아니다.
 
-    ``ANCILLARY_ALLOWLIST`` 길이 9 는 별도 게이트가 단언한다(§2.1 line 155). 정산이
+    ``ANCILLARY_ALLOWLIST`` 길이 6 은 별도 게이트가 단언한다(§2.1 line 155, 채팅 3종 삭제 뒤). 정산이
     실수로 여기 들어가면 VIEWER 가 통과하므로 두 가지를 함께 못박는다.
     """
     assert SETTLEMENT_POLICY_ID not in ANCILLARY_ALLOWLIST
-    assert len(ANCILLARY_ALLOWLIST) == 9
+    assert len(ANCILLARY_ALLOWLIST) == 6
 
 
 # ==========================================================================

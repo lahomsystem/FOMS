@@ -2,13 +2,6 @@
 
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
 
-# 채팅 파일 업로드용 확장자
-CHAT_ALLOWED_EXTENSIONS = {
-    'jpg', 'jpeg', 'png', 'gif', 'webp',
-    'mp4', 'mov', 'avi', 'mkv', 'webm',
-    'pdf', 'doc', 'docx', 'xlsx', 'xls', 'txt', 'zip', 'rar'
-}
-
 # heic/heif = 아이폰 원본 — 받은 뒤 서버가 JPEG 로 바꾼다(SPEC 2026-11-04-heic-to-jpeg).
 ERP_MEDIA_ALLOWED_EXTENSIONS = {
     'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',

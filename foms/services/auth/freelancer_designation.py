@@ -3,13 +3,14 @@
 관리자 설정 저장(``POST /api/admin/sales-freelancers``)이 켜진 프리랜서를 저장할 때 **같은 트랜잭션에서** 부른다.
 여러 번 불러도 결과가 같다(이미 지운 회원 · 이미 숨긴 알림은 다시 세지 않는다).
 
-- 채팅방 회원 해제 — 프리랜서는 채팅을 쓰지 않는다. 남아 있으면 새 메시지 사본이 개인 방으로 간다.
 - 옛 알림 숨김(``archived_at``) — 지정 전에 받은 알림 중 남기는 것은 둘뿐이다:
   나를 콕 집은 알림(``target_user``)과 담당 이름 알림(``target_manager_name``) 중 **내가 연결된 주문**의 것,
   그리고 주문이 없는 나를 콕 집은 알림(팀 펼침 공지 — ``target_team`` 이 적힌 것 — 은 뺀다).
   전체 · 역할 · 팀 경로로 받은 알림, 연결되지 않은 주문의 알림은 모두 숨긴다.
-- 커밋 뒤: 이 사람의 열린 실시간 연결을 끊는다(이미 들어가 있던 채팅방 방송을 계속 받지 않게). 다시 연결하면
-  개인 알림 방만 들어간다. 이 서버에 붙은 연결만 끊을 수 있다 — 다른 서버의 연결은 다음 재연결 때 닫힌다.
+- 커밋 뒤: 이 사람의 열린 실시간 연결을 끊는다(다시 연결하면 숨긴 알림 뒤 상태로 새로 받는다). 이 서버에 붙은
+  연결만 끊을 수 있다 — 다른 서버의 연결은 다음 재연결 때 닫힌다.
+
+사내 채팅은 CHAT-DEL-01(2026-11-07)로 지워 채팅방 회원 해제는 없앴다(남은 빈 표는 아무 데도 쓰이지 않는다).
 """
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from flask import current_app, has_app_context
 
 from foms.services.datetime_kst import now_utc_naive
 from models import (
-    ChatRoomMember,
     Notification,
     NotificationEvent,
     NotificationEventType,
@@ -55,16 +55,6 @@ def keeps_notification(source: Any, order_id: Any, target_team: Any, linked_orde
     if order_id is not None:
         return int(order_id) in linked_order_ids
     return source == NotificationRecipientSource.TARGET_USER and not str(target_team or "").strip()
-
-
-def remove_chat_memberships(db: Any, user_id: int) -> int:
-    """이 사람의 채팅방 회원 줄을 모두 지운다 → 지운 수."""
-    return int(
-        db.query(ChatRoomMember)
-        .filter(ChatRoomMember.user_id == int(user_id))
-        .delete(synchronize_session=False)
-        or 0
-    )
 
 
 def hide_stale_notifications(db: Any, user_id: int, actor_user_id: Optional[int] = None) -> int:
@@ -115,12 +105,11 @@ def apply_designation_side_effects(db: Any, user_id: int, actor_user_id: Optiona
     연결 다시 맞추기(``resync_freelancer_links``) **뒤에** 불러야 "연결된 주문" 판정이 새 연결을 본다.
 
     Returns:
-        ``{"chat_memberships_removed": n, "notifications_hidden": m}`` — 감사 줄에 그대로 싣는다.
+        ``{"notifications_hidden": m}`` — 감사 줄에 그대로 싣는다.
     """
-    removed = remove_chat_memberships(db, user_id)
     hidden = hide_stale_notifications(db, user_id, actor_user_id)
     db.flush()
-    return {"chat_memberships_removed": removed, "notifications_hidden": hidden}
+    return {"notifications_hidden": hidden}
 
 
 def disconnect_realtime(user_id: int) -> int:
@@ -147,5 +136,4 @@ __all__ = [
     "disconnect_realtime",
     "hide_stale_notifications",
     "keeps_notification",
-    "remove_chat_memberships",
 ]

@@ -8,12 +8,12 @@
     "log_access"
   ],
   "baselines": {
-    "total": 297,
+    "total": 287,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 256,
-    "EXEMPT": 39,
+    "AUDITED": 248,
+    "EXEMPT": 37,
     "UNAUDITED": 2
   },
   "coverage_percent": 99.2,
@@ -75,7 +75,7 @@
     {
       "path": "foms/api/admin/sales_freelancers.py",
       "endpoint": "api_add_rate",
-      "lineno": 148,
+      "lineno": 164,
       "methods": [
         "POST"
       ],
@@ -84,7 +84,7 @@
     {
       "path": "foms/api/admin/sales_freelancers.py",
       "endpoint": "api_save_freelancer",
-      "lineno": 118,
+      "lineno": 125,
       "methods": [
         "POST"
       ],
@@ -184,7 +184,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 1072,
+      "lineno": 1073,
       "methods": [
         "POST"
       ],
@@ -216,96 +216,6 @@
         "POST"
       ],
       "classification": "EXEMPT"
-    },
-    {
-      "path": "foms/api/channel/files.py",
-      "endpoint": "api_chat_upload",
-      "lineno": 131,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/files.py",
-      "endpoint": "api_chat_upload_complete",
-      "lineno": 82,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/files.py",
-      "endpoint": "api_chat_upload_session",
-      "lineno": 22,
-      "methods": [
-        "POST"
-      ],
-      "classification": "EXEMPT"
-    },
-    {
-      "path": "foms/api/channel/messages.py",
-      "endpoint": "api_chat_mark_read",
-      "lineno": 132,
-      "methods": [
-        "POST"
-      ],
-      "classification": "EXEMPT"
-    },
-    {
-      "path": "foms/api/channel/messages.py",
-      "endpoint": "api_chat_send_message",
-      "lineno": 178,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/rooms.py",
-      "endpoint": "api_chat_rooms_add_member",
-      "lineno": 314,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/rooms.py",
-      "endpoint": "api_chat_rooms_create",
-      "lineno": 122,
-      "methods": [
-        "POST"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/rooms.py",
-      "endpoint": "api_chat_rooms_delete",
-      "lineno": 291,
-      "methods": [
-        "DELETE"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/rooms.py",
-      "endpoint": "api_chat_rooms_remove_member",
-      "lineno": 356,
-      "methods": [
-        "DELETE"
-      ],
-      "classification": "AUDITED"
-    },
-    {
-      "path": "foms/api/channel/rooms.py",
-      "endpoint": "api_chat_rooms_update",
-      "lineno": 262,
-      "methods": [
-        "PUT"
-      ],
-      "classification": "AUDITED"
     },
     {
       "path": "foms/api/construction/orders.py",
@@ -346,7 +256,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 1058,
+      "lineno": 1059,
       "methods": [
         "POST"
       ],
@@ -355,7 +265,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 973,
+      "lineno": 974,
       "methods": [
         "POST"
       ],
@@ -364,7 +274,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 918,
+      "lineno": 919,
       "methods": [
         "POST"
       ],
@@ -373,7 +283,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 1155,
+      "lineno": 1156,
       "methods": [
         "POST"
       ],
@@ -382,7 +292,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1325,
+      "lineno": 1326,
       "methods": [
         "POST"
       ],
@@ -391,7 +301,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 1265,
+      "lineno": 1266,
       "methods": [
         "PATCH"
       ],
@@ -400,7 +310,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_register",
-      "lineno": 518,
+      "lineno": 519,
       "methods": [
         "POST"
       ],
@@ -409,7 +319,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 945,
+      "lineno": 946,
       "methods": [
         "POST"
       ],
@@ -418,7 +328,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_sales_delivery",
-      "lineno": 1872,
+      "lineno": 1875,
       "methods": [
         "POST"
       ],
@@ -427,7 +337,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 809,
+      "lineno": 810,
       "methods": [
         "POST"
       ],
@@ -436,7 +346,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1547,
+      "lineno": 1549,
       "methods": [
         "POST"
       ],
@@ -445,7 +355,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 891,
+      "lineno": 892,
       "methods": [
         "POST"
       ],
@@ -454,7 +364,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 863,
+      "lineno": 864,
       "methods": [
         "POST"
       ],
@@ -463,7 +373,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_upload_anchor",
-      "lineno": 1118,
+      "lineno": 1119,
       "methods": [
         "POST"
       ],
@@ -472,7 +382,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 1200,
+      "lineno": 1201,
       "methods": [
         "POST"
       ],
@@ -625,7 +535,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 1009,
+      "lineno": 1010,
       "methods": [
         "POST"
       ],
@@ -634,7 +544,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 964,
+      "lineno": 965,
       "methods": [
         "POST"
       ],
@@ -643,7 +553,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 670,
+      "lineno": 671,
       "methods": [
         "POST"
       ],
@@ -652,7 +562,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 598,
+      "lineno": 599,
       "methods": [
         "POST"
       ],
@@ -715,7 +625,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_delete_drawing_wizard_pending",
-      "lineno": 1549,
+      "lineno": 1567,
       "methods": [
         "DELETE"
       ],
@@ -724,7 +634,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_asset",
-      "lineno": 1051,
+      "lineno": 1052,
       "methods": [
         "POST"
       ],
@@ -733,7 +643,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_bom_rules",
-      "lineno": 1973,
+      "lineno": 1991,
       "methods": [
         "POST"
       ],
@@ -742,7 +652,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_import_attachment",
-      "lineno": 1119,
+      "lineno": 1120,
       "methods": [
         "POST"
       ],
@@ -751,7 +661,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory",
-      "lineno": 2043,
+      "lineno": 2061,
       "methods": [
         "POST"
       ],
@@ -760,7 +670,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory_match",
-      "lineno": 2072,
+      "lineno": 2090,
       "methods": [
         "POST"
       ],
@@ -769,7 +679,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1895,
+      "lineno": 1913,
       "methods": [
         "POST"
       ],
@@ -778,7 +688,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_sheet_png",
-      "lineno": 1185,
+      "lineno": 1186,
       "methods": [
         "POST"
       ],
@@ -787,7 +697,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_transfer_pending",
-      "lineno": 1637,
+      "lineno": 1655,
       "methods": [
         "POST"
       ],
@@ -796,7 +706,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1703,
+      "lineno": 1721,
       "methods": [
         "POST"
       ],
@@ -805,7 +715,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_put_drawing_wizard",
-      "lineno": 896,
+      "lineno": 897,
       "methods": [
         "PUT"
       ],
@@ -868,7 +778,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_delete_order_draft",
-      "lineno": 500,
+      "lineno": 501,
       "methods": [
         "DELETE"
       ],
@@ -877,7 +787,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_put_order_draft",
-      "lineno": 364,
+      "lineno": 365,
       "methods": [
         "PUT"
       ],
@@ -886,7 +796,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_submit_order_draft",
-      "lineno": 669,
+      "lineno": 682,
       "methods": [
         "POST"
       ],
@@ -895,7 +805,7 @@
     {
       "path": "foms/api/erp_order_draft.py",
       "endpoint": "api_upload_order_draft_attachment",
-      "lineno": 530,
+      "lineno": 531,
       "methods": [
         "POST"
       ],
@@ -949,7 +859,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1970,
+      "lineno": 1991,
       "methods": [
         "POST"
       ],
@@ -958,7 +868,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 2429,
+      "lineno": 2450,
       "methods": [
         "POST"
       ],
@@ -967,7 +877,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 2302,
+      "lineno": 2323,
       "methods": [
         "POST"
       ],
@@ -976,7 +886,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1849,
+      "lineno": 1870,
       "methods": [
         "POST"
       ],
@@ -985,7 +895,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 1086,
+      "lineno": 1098,
       "methods": [
         "PATCH"
       ],
@@ -994,7 +904,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1871,
+      "lineno": 1892,
       "methods": [
         "POST"
       ],
@@ -1003,7 +913,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 1375,
+      "lineno": 1387,
       "methods": [
         "PUT"
       ],
@@ -1246,7 +1156,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 778,
+      "lineno": 783,
       "methods": [
         "POST"
       ],
@@ -1255,7 +1165,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 692,
+      "lineno": 697,
       "methods": [
         "POST"
       ],
@@ -1264,7 +1174,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 608,
+      "lineno": 613,
       "methods": [
         "POST"
       ],
@@ -1273,7 +1183,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 729,
+      "lineno": 734,
       "methods": [
         "POST"
       ],
@@ -1282,7 +1192,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 809,
+      "lineno": 814,
       "methods": [
         "POST"
       ],
@@ -1291,7 +1201,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 649,
+      "lineno": 654,
       "methods": [
         "POST"
       ],
@@ -1300,7 +1210,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 916,
+      "lineno": 934,
       "methods": [
         "POST"
       ],
@@ -1309,7 +1219,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1215,
+      "lineno": 1235,
       "methods": [
         "POST"
       ],
@@ -1850,7 +1760,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
-      "lineno": 808,
+      "lineno": 807,
       "methods": [
         "PUT"
       ],
@@ -1859,7 +1769,7 @@
     {
       "path": "foms/api/sales_commission.py",
       "endpoint": "api_cancel_closing",
-      "lineno": 329,
+      "lineno": 333,
       "methods": [
         "DELETE"
       ],
@@ -1868,7 +1778,7 @@
     {
       "path": "foms/api/sales_commission.py",
       "endpoint": "api_close_month",
-      "lineno": 295,
+      "lineno": 299,
       "methods": [
         "POST"
       ],
@@ -1877,7 +1787,7 @@
     {
       "path": "foms/api/sales_commission.py",
       "endpoint": "api_mark_closing_paid",
-      "lineno": 314,
+      "lineno": 318,
       "methods": [
         "POST"
       ],
@@ -1886,7 +1796,7 @@
     {
       "path": "foms/api/sales_commission.py",
       "endpoint": "api_save_input",
-      "lineno": 185,
+      "lineno": 189,
       "methods": [
         "PUT"
       ],
@@ -1895,7 +1805,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_create",
-      "lineno": 822,
+      "lineno": 838,
       "methods": [
         "POST"
       ],
@@ -1904,7 +1814,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 1687,
+      "lineno": 1707,
       "methods": [
         "POST"
       ],
@@ -1913,7 +1823,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_alimtalk",
-      "lineno": 1522,
+      "lineno": 1542,
       "methods": [
         "POST"
       ],
@@ -1922,7 +1832,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 1172,
+      "lineno": 1192,
       "methods": [
         "POST"
       ],
@@ -2048,7 +1958,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_orders_wdc_estimate_sync",
-      "lineno": 1291,
+      "lineno": 1333,
       "methods": [
         "POST"
       ],
@@ -2057,7 +1967,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_calculate",
-      "lineno": 607,
+      "lineno": 622,
       "methods": [
         "POST"
       ],
@@ -2066,7 +1976,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_category",
-      "lineno": 707,
+      "lineno": 722,
       "methods": [
         "DELETE"
       ],
@@ -2075,7 +1985,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_notes_category",
-      "lineno": 822,
+      "lineno": 837,
       "methods": [
         "DELETE"
       ],
@@ -2084,7 +1994,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_notes_option",
-      "lineno": 869,
+      "lineno": 884,
       "methods": [
         "DELETE"
       ],
@@ -2093,7 +2003,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_option",
-      "lineno": 761,
+      "lineno": 776,
       "methods": [
         "DELETE"
       ],
@@ -2102,7 +2012,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_product",
-      "lineno": 593,
+      "lineno": 608,
       "methods": [
         "DELETE"
       ],
@@ -2111,7 +2021,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_delete_spec_field_preset",
-      "lineno": 966,
+      "lineno": 981,
       "methods": [
         "DELETE"
       ],
@@ -2120,7 +2030,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_estimate",
-      "lineno": 1131,
+      "lineno": 1159,
       "methods": [
         "DELETE"
       ],
@@ -2129,7 +2039,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_match_order",
-      "lineno": 1157,
+      "lineno": 1190,
       "methods": [
         "POST"
       ],
@@ -2138,7 +2048,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_category",
-      "lineno": 636,
+      "lineno": 651,
       "methods": [
         "POST"
       ],
@@ -2147,7 +2057,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_estimate",
-      "lineno": 985,
+      "lineno": 1000,
       "methods": [
         "POST"
       ],
@@ -2156,7 +2066,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_notes_category",
-      "lineno": 786,
+      "lineno": 801,
       "methods": [
         "POST"
       ],
@@ -2165,7 +2075,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_notes_option",
-      "lineno": 836,
+      "lineno": 851,
       "methods": [
         "POST"
       ],
@@ -2174,7 +2084,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_option",
-      "lineno": 721,
+      "lineno": 736,
       "methods": [
         "POST"
       ],
@@ -2183,7 +2093,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_product",
-      "lineno": 568,
+      "lineno": 583,
       "methods": [
         "POST"
       ],
@@ -2192,7 +2102,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_save_spec_field_preset",
-      "lineno": 913,
+      "lineno": 928,
       "methods": [
         "POST"
       ],
@@ -2201,7 +2111,7 @@
     {
       "path": "foms/api/wdcalculator/blueprint.py",
       "endpoint": "api_wdcalculator_unmatch_order",
-      "lineno": 1227,
+      "lineno": 1266,
       "methods": [
         "POST"
       ],
@@ -2543,7 +2453,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 813,
+      "lineno": 814,
       "methods": [
         "POST"
       ],
@@ -2552,7 +2462,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1097,
+      "lineno": 1098,
       "methods": [
         "POST"
       ],
@@ -2561,7 +2471,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 1021,
+      "lineno": 1022,
       "methods": [
         "POST"
       ],
@@ -2570,7 +2480,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 875,
+      "lineno": 876,
       "methods": [
         "POST"
       ],
@@ -2579,7 +2489,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1186,
+      "lineno": 1187,
       "methods": [
         "POST"
       ],
@@ -2588,7 +2498,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 423,
+      "lineno": 424,
       "methods": [
         "POST"
       ],
@@ -2597,7 +2507,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 515,
+      "lineno": 516,
       "methods": [
         "POST"
       ],
@@ -2606,7 +2516,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 725,
+      "lineno": 726,
       "methods": [
         "POST"
       ],
@@ -2615,7 +2525,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1234,
+      "lineno": 1235,
       "methods": [
         "POST"
       ],
@@ -2624,7 +2534,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 620,
+      "lineno": 621,
       "methods": [
         "POST"
       ],
@@ -2633,7 +2543,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1150,
+      "lineno": 1151,
       "methods": [
         "POST"
       ],
@@ -2642,7 +2552,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 591,
+      "lineno": 592,
       "methods": [
         "POST"
       ],
@@ -2651,7 +2561,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 541,
+      "lineno": 542,
       "methods": [
         "POST"
       ],
@@ -2660,7 +2570,7 @@
     {
       "path": "foms/web/orders/dashboard.py",
       "endpoint": "erp_dashboard_calendar_colors_save",
-      "lineno": 780,
+      "lineno": 794,
       "methods": [
         "POST"
       ],

@@ -116,6 +116,10 @@ def _resulting_version(outcome: Any, order_id: int) -> Optional[int]:
 # --------------------------------------------------------------------------
 # 넣기
 # --------------------------------------------------------------------------
+#: 귀속 인원 번호가 이 부서의 활성 직원이 아닐 때(없음 · 비활성 · 다른 부서 모두 같은 문구).
+CHARGE_USER_NOT_FOUND_MSG = "선택한 사람을 이 부서에서 찾을 수 없어요."
+
+
 def _clean_issue_fields(db, data: Mapping[str, Any]) -> dict[str, Any]:
     """요청 본문 검사 → ``{department, amount(음수), reason, charge_to_user_id, charge_to_name}``."""
     department = str(data.get("department") or "").strip().upper()
@@ -141,10 +145,9 @@ def _clean_issue_fields(db, data: Mapping[str, Any]) -> dict[str, Any]:
         except (TypeError, ValueError):
             raise DeductionError("귀속 인원이 올바르지 않습니다.") from None
         charge_user = db.query(User).filter(User.id == uid, User.is_active.is_(True)).first()
-        if charge_user is None:
-            raise DeductionError("해당 귀속 인원을 찾을 수 없거나 비활성입니다.")
-        if (charge_user.team or "").strip().upper() != department:
-            raise DeductionError("선택한 인원이 해당 부서 소속이 아닙니다.")
+        # 없음 · 비활성 · 다른 부서를 한 문구로 — 번호를 바꿔 보내 직원 번호 · 부서를 알아내지 못하게(FCOMM-01 D29).
+        if charge_user is None or (charge_user.team or "").strip().upper() != department:
+            raise DeductionError(CHARGE_USER_NOT_FOUND_MSG)
         charge_to_user_id = uid
         charge_to_name = str(charge_user.name) if charge_user.name is not None else None
     if department == _SALES and charge_to_user_id is None:

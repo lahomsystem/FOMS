@@ -255,15 +255,3 @@ def test_order_date_only_display_does_not_construct_utc_date() -> None:
         source = (ROOT / relative).read_text(encoding="utf-8")
         assert "new Date(dateString)" not in source
         assert "String(dateString).split('-').map(Number)" in source
-
-
-def test_chat_datetime_scripts_parse_kst_strings_explicitly() -> None:
-    utils = (ROOT / "templates/partials/chat_scripts_utils.html").read_text(encoding="utf-8")
-    notifications = (ROOT / "templates/partials/chat_scripts_notifications.html").read_text(encoding="utf-8")
-
-    assert "function parseKstDateTime" in utils
-    assert "Date.UTC(year, month, day, hour - 9" in utils
-    assert "timeZone: 'Asia/Seoul'" in utils
-    assert "new Date(dateString)" not in utils
-    assert "parseKstDateTime(dateString)" in notifications
-    assert "timeZone: 'Asia/Seoul'" in notifications

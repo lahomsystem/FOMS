@@ -244,8 +244,8 @@ unique(order_id, user_id, relation). 부분 인덱스를 쓰면 `postgresql_wher
 
 **겹 5 — 옆길**
 - 알림 받는 사람: `recipients.py:73-128` 와 실시간 알림 쪽 `foms/api/notifications/__init__.py:74-131` 두 함수를 하나로 모아 같은 규칙을 쓴다 — ALL·ROLE·TEAM 대상에서 프리랜서 제외(협력사 `INTERNAL_USERS_ONLY` 선례), 담당 이름 대상은 연결 표로. 공지의 팀 펼침(`:943-1010`)도 같은 규칙. 시험은 소켓 전송 대상까지 본다.
-- Socket.IO: 프리랜서는 채팅 이벤트(`join_room`·`send_message`·`typing`) 거부, 개인 알림 방만 허용.
-- 프리랜서로 지정할 때: 채팅방 회원 해제, 지정 전 받은 팀 알림 state 를 숨김 처리.
+- Socket.IO: 프리랜서는 채팅 이벤트(`join_room`·`send_message`·`typing`) 거부, 개인 알림 방만 허용. → **11-07 사내 채팅 자체를 지움(CHAT-DEL-01, `2026-11-07-internal-chat-removal_SPEC.md`)** — 채팅 이벤트가 없어 모든 계정이 개인 알림 방만 쓴다.
+- 프리랜서로 지정할 때: 지정 전 받은 팀 알림 state 를 숨김 처리(채팅방 회원 해제는 채팅 삭제로 없앰, 11-07).
 - 메뉴: 모바일 하단 탭 프리랜서 분기(홈 · 주문 등록 · 내 수수료 · 알림), 데스크톱 상단 메뉴도 허용 목록 밖 링크 숨김.
 
 ### 6.4 이미 있는 구멍 두 개 (프리랜서와 별개, 지금도 있음 — 코드로 확인)
@@ -277,7 +277,10 @@ D19: 3단계(T17)에서 같이 고친다.
 - **매니저 등급도 프리랜서가 될 수 있다**(`settings.FREELANCER_ROLES = {STAFF, MANAGER}`) — 운영 영업 계정은 모두 매니저 등급이다(11-07 운영 집계). 문지기 · 주문 범위는 등급과 무관하게 같고, 자기 주문 안에서는 매니저 권한(예: 휴지통으로 보내기)이 그대로 산다.
 - **수수료 위험(사용자 수용)**: 자기 주문의 발주사 · 담당자 · 실측일을 바꿔 거래구분(개인영업 요율이 가장 높음) · 대상 여부를 바꿀 수 있다. 수수료 탭 "본인 수정" 표시 · 변경 기록으로 회계팀이 보고, 마감 뒤에는 J9 로 굳는다.
 - **D27 반증 검토에서 고친 것**: AS 기준 일정 잇기 · 영업 전달 배정의 기준 주문을 `can_read_ref_order` 로 확인(남의 주문 = 없는 주문과 같은 404 — 날짜 · 담당자가 새지 않음). 계산기 견적 동기화(`wdc-estimate-sync`)는 본문 견적 번호가 그 주문에 이은 견적인지 핸들러가 확인한 뒤 연다(모든 직원 공통 구멍).
-- 시험: `tests/security/test_freelancer_own_order_rights.py`(목록 전수 · 매니저 등급 · AS 기준 주문 음성 대조군), `test_freelancer_decisions.py` · `test_freelancer_edit_guards.py` · `test_settlement_deductions.py` 를 D27 로 바꿈.
+- **고객 공유 링크(D28, 11-07 사용자 "열기")**: 만들기 · 목록(주문 번호 API)에 더해 문자 · 알림톡 보내기 · 회수 · 열람 이력(목록 · 그때 화면)도 연다. 이 다섯은 주소에 링크 · 이력 줄 번호만 있어 겹 2 가 주문을 못 보므로 핸들러가 그 줄의 주문을 `user_can_read_order` 로 보고(`foms.api.share._share_hidden_from_user`), 남의 주문이면 없는 줄과 **같은 답**(보내기 · 회수 404 `share_not_found`, 이력 목록 빈 목록, 그때 화면 404)을 준다 — 번호만 바꿔 남의 링크를 끊거나 있는지 알아내지 못한다. 회사 직원은 이전과 같다(판정 안 함).
+- **휴대폰 아래 탭 · 서랍(D30, 11-07 사용자 "기존 영업과 똑같이 + 수수료 탭")**: 아래 탭 = 회사 영업과 같은 탭(대시보드 · 실측 · 도면 · 출고) + 내 수수료 · 계산기 · 더보기. 서랍 = PC 메뉴와 같은 목록(`freelancer_nav_items` — 문지기가 여는 판 화면만, 계산기는 탭에).
+- **차감 귀속 인원 오류 문구(D29, 모든 직원 공통)**: 없는 번호 · 비활성 · 다른 부서 사람을 한 문구("선택한 사람을 이 부서에서 찾을 수 없어요.")로 — 번호를 바꿔 직원 명단 · 부서를 알아내지 못한다.
+- 시험: `tests/security/test_freelancer_own_order_rights.py`(목록 전수 · 매니저 등급 · AS 기준 주문 음성 대조군), `test_freelancer_share_links.py`(공유 링크 — 남의 줄 = 없는 줄 음성 대조군), `test_freelancer_decisions.py` · `test_freelancer_edit_guards.py` · `test_settlement_deductions.py` 를 D27 로 바꿈.
 
 ## 7. 알림
 

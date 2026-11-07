@@ -257,6 +257,20 @@ def test_sales_deduction_requires_a_person(client, app):
     assert _issue(client, oid, department="SALES", charge_to_user_id=seller.id).status_code == 200
 
 
+def test_charge_person_errors_do_not_tell_missing_from_other_team(client, app):
+    """D29: 없는 번호 · 다른 부서 사람 · 비활성 사람이 같은 답 — 번호를 바꿔 직원 명단 · 부서를 알아내지 못한다."""
+    from foms.services.settlement_deduction_service import CHARGE_USER_NOT_FOUND_MSG
+    oid = _order_with([])
+    _login(client, _make_user(role="STAFF", team="ACCOUNTING"))
+    drawer = _make_user(role="STAFF", team="DRAWING")
+    gone = _make_user(role="STAFF", team="SALES")
+    gone.is_active = False
+    db_session.commit()
+    answers = [_issue(client, oid, department="SALES", charge_to_user_id=uid) for uid in (99_999_999, drawer.id, gone.id)]
+    assert [(r.status_code, r.get_json()["message"]) for r in answers] == [(400, CHARGE_USER_NOT_FOUND_MSG)] * 3
+    assert _reload(oid).structured_data["settlement"]["deductions"] == []
+
+
 def test_two_sequential_issues_both_persist_and_bump_version(client, app, monkeypatch):
     """잠금 길을 탄다 — 잠금 조회를 부르고, 버전이 1씩 오르고, FINANCE_MUTATION receipt 가 남는다."""
     locked: list[int] = []

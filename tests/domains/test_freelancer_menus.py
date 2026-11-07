@@ -132,15 +132,18 @@ def test_freelancer_mobile_menus_only_link_allowed_endpoints(app, monkeypatch, p
     regions = _mobile_regions(_render(app, monkeypatch, fl, path, mobile=True))
     assert regions["bottom_nav"] and regions["drawer"], "폰 셸이 안 그려졌다"
     assert _outside_allowlist(app, regions) == []
-    # 아래 탭: 홈 · 실측 · 내 수수료 + 더보기. 계산기 없음.
-    assert re.findall(r'data-foms-nav-id="(\w+)"', regions["bottom_nav"]) == ["dashboard", "measurement", "my_commission"]
-    assert "계산기" not in regions["bottom_nav"] and "더보기" in regions["bottom_nav"]
-    # 서랍: 같은 셋 + 내 정보 · 공지사항 · 로그아웃. 네이버 수집 없음.
-    assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == ["대시보드", "실측", "내 수수료"]
+    # 아래 탭(D30): 회사 영업과 같은 탭 + 내 수수료 · 계산기 · 더보기.
+    assert re.findall(r'data-foms-nav-id="(\w+)"', regions["bottom_nav"]) == [
+        "dashboard", "measurement", "drawing_workbench", "shipment", "my_commission"]
+    assert "계산기" in regions["bottom_nav"] and "더보기" in regions["bottom_nav"]
+    # 서랍: 문지기가 여는 판 화면(PC 메뉴와 같은 셋, 계산기는 탭에) + 내 정보 · 공지사항 · 로그아웃. 네이버 수집 없음.
+    assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [
+        label for label in _FL_LABELS if label != "견적 계산기"]
+    assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [*_STAGE_LABELS, "내 수수료"]
     assert "네이버 수집" not in regions["drawer"]
     assert re.findall(r"<span>([^<]+)</span>", _cut(regions["drawer"], "erp-mobile-menu-drawer__account-links", "</nav>")) \
         == ["내 정보", "공지사항", "로그아웃"]
-    # 태블릿 레일(/erp 전 화면): 같은 셋 + 알림. 계산기 없음.
+    # 태블릿 레일(/erp 전 화면): PC 메뉴와 같은 셋(견적 계산기 포함) + 알림.
     assert _labels(regions["tablet_rail"], "foms-tablet-rail__label") == [*_FL_LABELS, "알림"]
 
 
@@ -150,7 +153,7 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
     regions = _desktop_regions(_render(app, monkeypatch, fl, path, mobile=False))
     assert all(regions.values()), [k for k, v in regions.items() if not v]
     assert _outside_allowlist(app, regions) == []
-    # 링크 글로 본다(주석에도 "WDCalculator" · "채팅" 이 있다)
+    # 링크 글로 본다(주석에도 "WDCalculator" 가 있다). 사내 채팅은 CHAT-DEL-01 로 모두에게서 지움
     for absent in ("</i> WDCalculator", "</i> 채팅", "네이버 수집", "휴지통", "전체 주문"):
         assert absent not in regions["global_nav"], absent
     assert "내 변경 로그" not in regions["user_menu"]
@@ -159,7 +162,7 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
 
 
 def test_tablet_rail_items_for_freelancer(app, monkeypatch):
-    """태블릿 레일(build_split_side_items)도 같은 셋 · 계산기 없음."""
+    """태블릿 레일(build_split_side_items)도 PC 메뉴와 같은 셋."""
     fl = _freelancer()
     with app.test_request_context("/erp/measurement"):
         g.current_user = fl
@@ -199,7 +202,7 @@ def test_normal_desktop_menus_unchanged(app, monkeypatch, role, team):
     _freelancer()
     user = _make_user(role, team)
     regions = _desktop_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=False))
-    for present in ("</i> WDCalculator", "</i> 채팅", "</i> ERP 대시보드", "전체 주문"):
+    for present in ("</i> WDCalculator", "</i> ERP 대시보드", "전체 주문"):
         assert present in regions["global_nav"], present
     assert "내 변경 로그" in regions["user_menu"]
     sub = re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"])

@@ -2,7 +2,7 @@
 
 ## 목적
 
-채널·채팅·Socket.IO·WAM 등 **API·실시간** surface의 canonical owner를 둔다. human-facing 페이지가 분리되어 있으면 `foms/web/channel/` 과 짝을 이룬다.
+채널톡 연동(PUSH·웹훅·함수·WAM) **API** surface의 canonical owner를 둔다. 사내 채팅(`chat` blueprint · `/chat` · Socket.IO 채팅 이벤트)은 CHAT-DEL-01(2026-11-07)로 지웠다 — 실시간 알림 연결은 `foms/services/notifications/realtime_notifications.py`.
 
 ## 주요 모듈
 
@@ -21,5 +21,5 @@
 
 ## 금지 의존성
 
-- `chat` blueprint 이름으로의 page `url_for` (PAC: `channel_chat_pages.*` 사용).
+- 사내 채팅 되살리기(`chat` blueprint · `/chat`) — 삭제 결정 `docs/specs/2026-11-07-internal-chat-removal_SPEC.md`.
 - quarantine 트리 import 금지.

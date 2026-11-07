@@ -61,8 +61,8 @@ _TEAM_CAPABILITY_ALIASES: dict[str, tuple[str, ...]] = {"ACCOUNTING": ("CS",)}
 
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
-#: §2.1 line 155: role hard deny 의 exact ancillary 예외 9종. VIEWER 도 자기
-#: notification/subscription/room/urgent-call 에만 이 allowlist 를 쓸 수 있고, 각 route 가
+#: §2.1 line 155: role hard deny 의 exact ancillary 예외 6종(채팅 3종은 CHAT-DEL-01 로 지움). VIEWER 도 자기
+#: notification/subscription/urgent-call 에만 이 allowlist 를 쓸 수 있고, 각 route 가
 #: owner/membership/order scope 를 재검사한다(AUTH-01 은 게이트만; owner 재검사는 route).
 ANCILLARY_ALLOWLIST = frozenset({
     "MARK_OWN_NOTIFICATION_READ",
@@ -70,9 +70,6 @@ ANCILLARY_ALLOWLIST = frozenset({
     "ACK_OWN_NOTIFICATION",
     "CREATE_OWN_PUSH_SUBSCRIPTION",
     "DELETE_OWN_PUSH_SUBSCRIPTION",
-    "MARK_ROOM_READ",
-    "SEND_CHAT_MESSAGE",
-    "UPLOAD_CHAT_ATTACHMENT",
     "SEND_URGENT_CALL",
 })
 
@@ -229,15 +226,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "MASTER_MUTATION": _p("MASTER_MUTATION", teams=(),
                           description="product/category/notes/spec-preset master — ADMIN/MANAGER(WDC-AUTH-01). VIEWER·STAFF deny."),
 
-    # --- 채팅 room lifecycle (§2.1 line 156) --------------------------------
-    "CHAT_ROOM": _p("CHAT_ROOM", teams="*",
-                    description="chat room create/manage — ADMIN/MANAGER 또는 STAFF. VIEWER admin deny."),
-
     # --- 자기-scope 푸시 telemetry (self, VIEWER 허용, 업무 mutation 아님) ---
     "OWN_PUSH_SELF": _p("OWN_PUSH_SELF", teams="*", viewer=True,
                         description="자기 push test/event 기록 — self telemetry(§2.1 '자기 subscription/notification' 취지). Order business 아님."),
 
-    # --- ancillary allowlist 9종 (§2.1 line 155, VIEWER 허용, owner 재검사는 route) ---
+    # --- ancillary allowlist 6종 (§2.1 line 155, VIEWER 허용, owner 재검사는 route) ---
     "MARK_OWN_NOTIFICATION_READ": _p("MARK_OWN_NOTIFICATION_READ", teams="*", viewer=True,
                                      description="자기 notification read — ancillary."),
     "ARCHIVE_OWN_NOTIFICATION": _p("ARCHIVE_OWN_NOTIFICATION", teams="*", viewer=True,
@@ -248,12 +241,6 @@ POLICY_REGISTRY: dict[str, Policy] = {
                                        description="자기 push subscription create/delete — ancillary."),
     "DELETE_OWN_PUSH_SUBSCRIPTION": _p("DELETE_OWN_PUSH_SUBSCRIPTION", teams="*", viewer=True,
                                        description="자기 push subscription delete — ancillary(subscribe endpoint 공유)."),
-    "MARK_ROOM_READ": _p("MARK_ROOM_READ", teams="*", viewer=True,
-                         description="active member room mark-read — ancillary."),
-    "SEND_CHAT_MESSAGE": _p("SEND_CHAT_MESSAGE", teams="*", viewer=True,
-                            description="active member 메시지 전송 — ancillary."),
-    "UPLOAD_CHAT_ATTACHMENT": _p("UPLOAD_CHAT_ATTACHMENT", teams="*", viewer=True,
-                                 description="chat 첨부 업로드 — ancillary."),
     "SEND_URGENT_CALL": _p("SEND_URGENT_CALL", teams="*", viewer=True,
                            description="read-scope Order urgent call — ancillary(participant/target/rate 재검사는 route)."),
 }

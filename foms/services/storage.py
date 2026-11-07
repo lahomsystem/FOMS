@@ -220,37 +220,6 @@ class StorageAdapter:
         else:
             return self._upload_to_local(file_obj, filename, folder)
 
-    def upload_chat_file(self, file_obj, filename, message_id, generate_thumbnail=True):
-        """채팅 파일 업로드 (썸네일 생성 포함)"""
-        file_type = self.get_file_type(filename)
-        folder = f"chat/{message_id}"
-
-        # 파일 업로드
-        result = self.upload_file(file_obj, filename, folder)
-        if not result.get("success"):
-            return result
-
-        key = result.get("key")
-        # upload_file()이 생성한 고유 파일명(타임스탬프 포함)을 썸네일 키에도 사용해야
-        # 로컬/클라우드 모두에서 경로 충돌/불일치 문제가 없다.
-        unique_filename = result.get("filename") or (key.rsplit("/", 1)[-1] if key else filename)
-
-        # 이미지/동영상인 경우 썸네일 생성
-        thumbnail_url = None
-        thumbnail_key = None
-        if file_type in ["image", "video"] and generate_thumbnail and PILLOW_AVAILABLE:
-            thumbnail_key = f"{folder}/thumb_{unique_filename}"
-            thumbnail_url = self._generate_thumbnail(file_obj, unique_filename, folder, file_type, key)
-
-        return {
-            "success": True,
-            "key": key,
-            "url": result.get("url"),
-            "thumbnail_url": thumbnail_url,
-            "thumbnail_key": thumbnail_key,
-            "file_type": file_type,
-        }
-
     def generate_thumbnail_from_storage_key(self, storage_key):
         """기존 업로드 파일(storage_key)에서 썸네일을 생성해 반환"""
         if not PILLOW_AVAILABLE:

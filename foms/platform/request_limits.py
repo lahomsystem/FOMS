@@ -114,7 +114,6 @@ _MANIFEST: tuple[BodyCap, ...] = (
     BodyCap(r"^/channel/wam/api/telemetry$", _TELEMETRY_CAP, 0, "telemetry"),
     BodyCap(r"^/login$", _LOGIN_CAP, 0, "login"),
     BodyCap(r"^/api/orders/\d+/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
-    BodyCap(r"^/api/chat/upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     BodyCap(
         r"^/api/orders/\d+/drawing-wizard/(asset|sheet-png)$",
         _WIZARD_IMAGE_CAP,
@@ -142,8 +141,6 @@ _MANIFEST: tuple[BodyCap, ...] = (
 _EXCLUDED_PATTERNS: tuple[str, ...] = (
     r"^/api/upload/session",
     r"^/api/orders/\d+/attachments/complete$",
-    r"^/api/chat/upload/session$",
-    r"^/api/chat/upload/complete$",
     r"^/api/files/presigned-urls/",
 )
 
