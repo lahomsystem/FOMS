@@ -2,7 +2,7 @@
 
 PC 위 메뉴 · ERP 서브 내비(``layout_nav.html`` · ``erp_sub_nav.html`` 의 ``freelancer_nav_items()``)와 태블릿 레일
 (:func:`foms.services.foms_split_view.build_split_side_items`)이 이 목록을 쓴다. 휴대폰 아래 탭 · 서랍
-(``erp_mobile_shell.html``)은 같은 셋(홈 · 실측 · 내 수수료)을 id 로 적는다.
+(``erp_mobile_shell.html``)도 이 목록으로 서랍을 채우고, 아래 탭은 회사 영업과 같은 탭 + 내 수수료다(D30).
 허용 목록(:data:`foms.services.auth.freelancer_scope.FREELANCER_ALLOWED_ENDPOINTS`) 밖 항목은 싣지 않는다
 (시험: tests/domains/test_freelancer_menus.py).
 

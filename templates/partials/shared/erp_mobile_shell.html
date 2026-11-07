@@ -21,7 +21,8 @@
   {% set _active = 'dashboard' %}
 {% endif %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
-{# 켜진 프리랜서(FCOMM-01 겹 5 메뉴) — 문지기 허용 목록 안(홈 · 실측 · 내 수수료)만. 판정은 요청당 한 번 읽는다.
+{# 켜진 프리랜서(FCOMM-01 겹 5 메뉴 · D30) — 회사 영업과 같은 탭 + 내 수수료. 서랍은 문지기가 여는 화면만(freelancer_nav_items,
+   PC 메뉴와 같은 목록 — 도면은 id 'drawing'). 판정은 요청당 한 번 읽는다.
    이 주석 · 아래 set 의 끝 빼기 기호는 다른 사용자 출력이 한 글자도 바뀌지 않게 한다(tests/domains/test_freelancer_menus.py). -#}
 {% set _sales_freelancer = current_user and is_sales_freelancer() -%}
 {# 영업 통합(SALES)·도면(DRAWING)은 도면 창구가 일일 소통 채널 → primary 승격, 시공은 drawer로.
@@ -39,8 +40,11 @@
   {'id': 'history', 'label': '이력', 'icon': 'fas fa-history', 'href': url_for('erp_history.history_dashboard')}
 ] %}
 {% if _sales_freelancer %}
-  {% set _primary_ids = ['dashboard', 'measurement', 'my_commission'] %}
-  {% set _allowed_ids = ['dashboard', 'measurement'] %}
+  {% set _primary_ids = ['dashboard', 'measurement', 'drawing_workbench', 'shipment', 'my_commission'] %}
+  {% set _allowed_ids = [] %}
+  {% for _fl_item in freelancer_nav_items() %}
+    {% set _ = _allowed_ids.append('drawing_workbench' if _fl_item.id == 'drawing' else _fl_item.id) %}
+  {% endfor %}
 {% elif _construction_only %}
   {% set _primary_ids = ['shipment', 'construction', 'completion', 'history'] %}
   {% set _allowed_ids = ['shipment', 'construction', 'completion', 'history'] %}

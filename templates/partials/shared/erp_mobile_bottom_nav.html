@@ -16,7 +16,7 @@
     </a>
   {% endfor %}
   {% if not _construction_only %}
-  {% if not _sales_freelancer %}{# 계산기(켜진 프리랜서는 문지기가 막아 숨김): ERP shell 탭이 아닌 별도 도구 페이지 → data-foms-nav-id 없이 항상 풀 내비게이션
+  {% if not _sales_freelancer or 'wdcalculator' in _allowed_ids %}{# 계산기(켜진 프리랜서는 문지기가 계산기 화면을 열 때만 — D30): ERP shell 탭이 아닌 별도 도구 페이지 → data-foms-nav-id 없이 항상 풀 내비게이션
      (HTMX bottom-nav가 fragment로 가로채지 않도록). #}
   <a
     class="erp-mobile-bottom-nav__item"
