@@ -235,16 +235,19 @@ def test_qr_label_and_svg_own_opens_other_404(world, app):
 
 
 # --------------------------------------------------------------------------
-# 쓰기는 그대로 닫혀 있다
+# 쓰기 — D27: 자기 주문은 회사 영업 직원과 같은 답, 남의 주문은 문지기 응답
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("path", [
     "/api/orders/{id}/production/start",
     "/api/orders/{id}/production/steps",
     "/api/orders/{id}/production/hold",
 ])
-def test_production_writes_stay_closed_even_for_own_order(world, app, path):
-    resp = _client(app, world.fl).post(path.format(id=world.own_id), json={})
-    assert resp.status_code == 403 and resp.get_json()["error"] == FREELANCER_DENIED_MSG
+def test_production_writes_follow_staff_rules_on_own_order_only(world, app, path):
+    mine = _client(app, world.fl).post(path.format(id=world.own_id), json={})
+    assert (mine.get_json(silent=True) or {}).get("error") != FREELANCER_DENIED_MSG
+    assert mine.headers.get("X-Auth-Policy") != "denied", mine.get_json()  # 프리랜서라서 막히지 않는다
+    theirs = _client(app, world.fl).post(path.format(id=world.other_id), json={})
+    assert theirs.status_code == 403 and theirs.get_json()["error"] == FREELANCER_DENIED_MSG
 
 
 # --------------------------------------------------------------------------
