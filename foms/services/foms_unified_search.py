@@ -7,6 +7,7 @@ from typing import Any, Literal
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.erp_dashboard_search import (
     erp_order_dashboard_search_predicate,
     search_query_tokens,
@@ -52,8 +53,14 @@ def construction_scope_user(user: Any) -> Any:
 
     시공팀은 과거 이력·시공 화면에서 늘 자기 담당만 본다(``erp_mine_only_for_construction``).
     통합 검색 미리보기만 모든 주문의 이름·전화·주소를 보여 주던 구멍을 같은 규칙으로 막는다.
+
+    켜진 프리랜서(FCOMM-01)도 같은 자리에서 좁힌다 — ``build_mine_sql_filter`` ·
+    ``is_order_related_to_user`` 가 프리랜서에게는 연결 표(``order_freelancer_links``) 하나만 보므로
+    고객 · 주문 · 도면 세 묶음 모두 내 주문만 나온다(세 묶음 모두 주문 줄에서만 만든다).
     """
-    if user is not None and getattr(user, "team", None) == "CONSTRUCTION":
+    if user is None:
+        return None
+    if getattr(user, "team", None) == "CONSTRUCTION" or is_list_freelancer(user):
         return user
     return None
 

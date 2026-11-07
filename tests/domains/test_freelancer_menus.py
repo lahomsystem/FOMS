@@ -238,6 +238,42 @@ def test_normal_sales_keeps_header_buttons(app, monkeypatch):
 
 
 # --------------------------------------------------------------------------
+# 실측 판 담당자 거르기 — 실측 담당자 명단(직원 이름)은 프리랜서에게 안 보인다(스테이징 T18 남은 것 3)
+# --------------------------------------------------------------------------
+_FAKE_MEASURER = "가짜실측담당명단"
+
+
+def _seed_measurer_roster(monkeypatch) -> None:
+    import foms.web.measurement.dashboard as measurement_dashboard
+    from foms.services.erp_shipment_settings import load_erp_shipment_settings
+
+    def _with_roster():
+        settings = dict(load_erp_shipment_settings())
+        settings["measurement_manager"] = [{"name": _FAKE_MEASURER, "sort_order": 1}]
+        return settings
+
+    monkeypatch.setattr(measurement_dashboard, "load_erp_shipment_settings", _with_roster)
+
+
+def test_freelancer_measurement_board_hides_manager_roster(app, monkeypatch):
+    _seed_measurer_roster(monkeypatch)
+    html = _render(app, monkeypatch, _freelancer(), "/erp/measurement", mobile=False)
+    assert 'name="manager_filter"' not in html
+    assert _FAKE_MEASURER not in html
+    assert 'name="date_from"' in html  # 같은 거르기 줄의 나머지는 그대로(빈 화면으로 통과하는 것이 아니다)
+
+
+@pytest.mark.parametrize("role,team", [("STAFF", "SALES"), ("ADMIN", None)])
+def test_staff_measurement_board_keeps_manager_roster(app, monkeypatch, role, team):
+    """대조군: 프리랜서 아닌 영업 직원 · 관리자는 담당자 거르기와 명단을 그대로 본다."""
+    _freelancer()
+    _seed_measurer_roster(monkeypatch)
+    html = _render(app, monkeypatch, _make_user(role, team), "/erp/measurement", mobile=False)
+    assert 'name="manager_filter"' in html
+    assert f'<option value="{_FAKE_MEASURER}" >{_FAKE_MEASURER}</option>' in html
+
+
+# --------------------------------------------------------------------------
 # 셸 미리 받기 — 내 메뉴 화면만(스테이징 QA 결함 3)
 # --------------------------------------------------------------------------
 _PREFETCH_ATTR = re.compile(r'erp-shell\.js\?v=[^"]+" data-foms-prefetch-allow="([^"]*)" defer')

@@ -115,6 +115,10 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 긴급 호출(D23) — 받는 사람 목록(직원 이름 · 팀) · 보내기(주문을 고르면 내 주문만)
     "notifications.api_urgent_targets",
     "notifications.api_urgent_call",
+    # 긴급 호출 창의 주문 고르기(static/js/foms/urgent-call-order.js)가 부르는 통합 검색 JSON. 켜진 프리랜서는
+    # 서비스가 연결 표의 내 주문으로만 좁힌다(foms_unified_search.construction_scope_user). 주문 번호를 받지 않는다.
+    # 머리 검색 창 조각(api_foms_search_fragment)은 열지 않는다 — "전체 결과 보기"가 막힌 이력 화면으로 간다.
+    "foms_search.api_foms_search",
     # 파일 관문 3종 — 안에서 user_can_read_order 로 주문 단위 판정(겹 2 가 프리랜서 분기를 넣는다)
     "files.view",
     "files.presigned_urls",
@@ -291,6 +295,11 @@ FREELANCER_ORDER_BODY_CHECKS: dict[str, Callable[[Any], Optional[list[int]]]] = 
     # 주문 없이도 보낸다(맨 위 줄 ⚡) — order_id 가 있을 때만 내 주문인지 본다.
     "notifications.api_urgent_call": _body_order_id,
 }
+
+#: 긴급 호출(D23) 받는 사람 — 켜진 프리랜서에게는 내 주문을 맡는 이 팀 직원만 보여 주고(이름 · 팀, 직급 뺌) 이 사람들에게만
+#: 보낼 수 있다(foms.api.notifications ``_freelancer_urgent_target_ok``). 상담(CS) · 도면 · 출고 · 회계.
+FREELANCER_URGENT_TARGET_TEAMS: frozenset[str] = frozenset({"CS", "DRAWING", "SHIPMENT", "ACCOUNTING"})
+FREELANCER_URGENT_TARGET_MSG = "프리랜서 계정은 상담 · 도면 · 출고 · 회계팀 직원에게만 긴급 호출을 보낼 수 있어요."
 
 FREELANCER_DENIED_MSG = "프리랜서 계정으로는 열 수 없는 화면이에요."
 #: 남의 주문 · 없는 주문 — 같은 문구(존재 여부를 알리지 않는다).
