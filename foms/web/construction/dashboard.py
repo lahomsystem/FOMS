@@ -10,6 +10,7 @@ from flask import Blueprint, g, make_response, render_template, request
 
 from foms.web.auth import login_required
 from db import get_db
+from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
     TTL_ATTACHMENT_COUNT_MAP,
@@ -104,6 +105,9 @@ def erp_construction_dashboard():
     if mine_only:
         _summary_fp["uid"] = user.id if user else None
         _summary_fp["role"] = getattr(user, "role", None) if user else None
+        # 켜진 프리랜서(FCOMM-01)는 mine 이 늘 켜지고 "내 것"이 연결 표다 — 지정 직후 이름 판정 캐시를 받지 않게 표시.
+        if is_list_freelancer(user):
+            _summary_fp["freelancer"] = True
     _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
     # 숫자판(긴급 발주·시공 D-3·단계별 건수)은 시공 대시보드의 것이므로 시공 표시단계
     # 주문만 센다. 목록과 같은 스코프(apply_construction_list_scope_filter)를 써서
