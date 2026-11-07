@@ -60,5 +60,15 @@ NO_ORDER_ID = {
 
 # 화면 묶음 · 계산기(freelancer_screens/wdcalculator.py) — 견적 번호는 주문 아님, 본문 주문 · 견적은 핸들러가 본다.
 NON_ORDER_INT_ARGS["wdcalculator.api_wdcalculator_estimate"] = {"estimate_id"}
+
+# 고객 공유 링크(11-07 D27 후속) — 링크 · 이력 줄 번호. 핸들러가 그 줄의 주문을 보고 남의 것은 없는 줄과 같게 답한다
+# (foms.api.share._share_hidden_from_user, 시험 tests/security/test_freelancer_share_links.py).
+_SHARE_ROW_ARGS = {
+    "share_api.api_share_send_sms": {"share_id"}, "share_api.api_share_send_alimtalk": {"share_id"},
+    "share_api.api_share_revoke": {"share_id"}, "share_api.api_share_history": {"share_id"},
+    "share_api.api_share_history_page": {"snapshot_id"},
+}
+NON_ORDER_INT_ARGS.update(_SHARE_ROW_ARGS)
+HANDLER_CHECKED |= set(_SHARE_ROW_ARGS)
 HANDLER_CHECKED |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("save_estimate", "match_order", "unmatch_order")}
 NO_ORDER_ID |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("calculate", "search_estimates", "estimate", "search_orders")}

@@ -277,7 +277,8 @@ D19: 3단계(T17)에서 같이 고친다.
 - **매니저 등급도 프리랜서가 될 수 있다**(`settings.FREELANCER_ROLES = {STAFF, MANAGER}`) — 운영 영업 계정은 모두 매니저 등급이다(11-07 운영 집계). 문지기 · 주문 범위는 등급과 무관하게 같고, 자기 주문 안에서는 매니저 권한(예: 휴지통으로 보내기)이 그대로 산다.
 - **수수료 위험(사용자 수용)**: 자기 주문의 발주사 · 담당자 · 실측일을 바꿔 거래구분(개인영업 요율이 가장 높음) · 대상 여부를 바꿀 수 있다. 수수료 탭 "본인 수정" 표시 · 변경 기록으로 회계팀이 보고, 마감 뒤에는 J9 로 굳는다.
 - **D27 반증 검토에서 고친 것**: AS 기준 일정 잇기 · 영업 전달 배정의 기준 주문을 `can_read_ref_order` 로 확인(남의 주문 = 없는 주문과 같은 404 — 날짜 · 담당자가 새지 않음). 계산기 견적 동기화(`wdc-estimate-sync`)는 본문 견적 번호가 그 주문에 이은 견적인지 핸들러가 확인한 뒤 연다(모든 직원 공통 구멍).
-- 시험: `tests/security/test_freelancer_own_order_rights.py`(목록 전수 · 매니저 등급 · AS 기준 주문 음성 대조군), `test_freelancer_decisions.py` · `test_freelancer_edit_guards.py` · `test_settlement_deductions.py` 를 D27 로 바꿈.
+- **고객 공유 링크(D28, 11-07 사용자 "열기")**: 만들기 · 목록(주문 번호 API)에 더해 문자 · 알림톡 보내기 · 회수 · 열람 이력(목록 · 그때 화면)도 연다. 이 다섯은 주소에 링크 · 이력 줄 번호만 있어 겹 2 가 주문을 못 보므로 핸들러가 그 줄의 주문을 `user_can_read_order` 로 보고(`foms.api.share._share_hidden_from_user`), 남의 주문이면 없는 줄과 **같은 답**(보내기 · 회수 404 `share_not_found`, 이력 목록 빈 목록, 그때 화면 404)을 준다 — 번호만 바꿔 남의 링크를 끊거나 있는지 알아내지 못한다. 회사 직원은 이전과 같다(판정 안 함).
+- 시험: `tests/security/test_freelancer_own_order_rights.py`(목록 전수 · 매니저 등급 · AS 기준 주문 음성 대조군), `test_freelancer_share_links.py`(공유 링크 — 남의 줄 = 없는 줄 음성 대조군), `test_freelancer_decisions.py` · `test_freelancer_edit_guards.py` · `test_settlement_deductions.py` 를 D27 로 바꿈.
 
 ## 7. 알림
 
