@@ -353,6 +353,8 @@ FREELANCER_DENIED_POLICIES = frozenset({"FINANCE_MUTATION"})
 _FREELANCER_CHECK = "foms.services.sales_commission.settings:is_freelancer"
 #: 프리랜서 주문 단위 판정(FCOMM-01 겹 2 — 연결 표 · 내가 만든 초안). 같은 까닭으로 문자열 경로로 해석한다.
 _FREELANCER_ORDER_CHECK = "foms.services.auth.freelancer_orders:freelancer_can_read_order"
+#: D26 — 문지기가 이 요청을 "예전 담당 주문만 다룸"으로 표시했는가(그러면 금융 쓰기도 보통 영업 직원과 같다).
+_FREELANCER_LEGACY_CHECK = "foms.services.auth.freelancer_legacy:freelancer_request_is_legacy"
 
 
 def _is_active_freelancer(user: Any, role: str) -> bool:
@@ -400,7 +402,8 @@ def evaluate_policy(
 
     # 1-a'. 프리랜서(FCOMM-01 §10.6) — 금융 쓰기(차감 · 입금 확인 · 현금영수증)는 못 한다. 팀이 SALES 라
     # 아래 4단계를 통과하므로 여기서 끊는다.
-    if policy.policy_id in FREELANCER_DENIED_POLICIES and _is_active_freelancer(user, role):
+    if (policy.policy_id in FREELANCER_DENIED_POLICIES and _is_active_freelancer(user, role)
+            and not _resolve_gate(_FREELANCER_LEGACY_CHECK)()):
         return Decision(False, 403, "FORBIDDEN", "프리랜서 계정으로는 이 작업을 할 수 없어요.")
 
     # 1-b. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다.

@@ -50,7 +50,7 @@ def _events(received, name: str) -> list:
 
 
 def _designate(user, match: str) -> None:
-    save_freelancer(db_session, user.id, {"match_name": match, "start_month": "2030-01", "tax_type": "NONE",
+    save_freelancer(db_session, user.id, {"match_name": match, "start_month": "2020-01", "tax_type": "NONE",
                                           "active": True},
                     base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()

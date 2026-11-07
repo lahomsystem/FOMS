@@ -135,6 +135,23 @@ def is_eligible(measurement_date: Any, received_date: Any, created_at: Any, star
     return ymd >= f"{start_month.strip()}-01"
 
 
+def is_before_start(measurement_date: Any, received_date: Any, created_at: Any, start_month: Any) -> bool:
+    """시작 달 전에 실측한 예전 주문인가(D26 — 프리랜서가 보통 영업 직원처럼 다루는 주문).
+
+    :func:`is_eligible` 의 정확한 반대쪽이다 — 다만 시작 달이 형식에 안 맞거나 기준 날짜가 없으면 둘 다 거짓
+    (권한을 푸는 쪽이라 모를 때는 풀지 않는다).
+
+    Returns:
+        기준 날짜 < 시작 달 1일이면 True.
+    """
+    if not isinstance(start_month, str) or not _MONTH_RE.match(start_month.strip()):
+        return False
+    ymd = eligibility_date(measurement_date, received_date, created_at)
+    if ymd is None:
+        return False
+    return ymd < f"{start_month.strip()}-01"
+
+
 def completion_month(stage_code: Any, construction_date: Any) -> str | None:
     """시공 완료 달(§3.3 · J1). 지급 기준 달이다.
 

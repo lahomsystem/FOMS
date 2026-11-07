@@ -53,7 +53,7 @@ def _order(customer: str, manager: str) -> int:
 
 
 def _designate(user_id: int, match: str) -> None:
-    save_freelancer(db_session, user_id, {"match_name": match, "start_month": "2030-01", "tax_type": "NONE",
+    save_freelancer(db_session, user_id, {"match_name": match, "start_month": "2020-01", "tax_type": "NONE",
                                           "active": True},
                     base_version=load_settings(db_session)[0], actor_user_id=None)
     db_session.commit()
@@ -280,7 +280,7 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
     assert ws.is_connected() is True
 
     version = load_settings(db_session)[0]
-    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": match, "start_month": "2030-01",
+    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": match, "start_month": "2020-01",
                                         "tax_type": "NONE", "active": True, "version": version})
     assert resp.status_code == 200, resp.get_json()
     db_session.expire_all()
@@ -305,7 +305,7 @@ def test_designation_removes_memberships_and_hides_old_states(app, world):
 
     # 두 번 저장해도 같다(이미 지운 회원 · 이미 숨긴 알림은 다시 세지 않는다).
     archived_at = {sid: states[sid].archived_at for sid in hide.values()}
-    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": match, "start_month": "2030-01",
+    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": match, "start_month": "2020-01",
                                         "tax_type": "NONE", "active": True, "version": version + 1})
     assert resp.status_code == 200, resp.get_json()
     db_session.expire_all()
@@ -326,7 +326,7 @@ def test_turning_off_does_not_touch_memberships(app, world):
     db_session.commit()
     admin_client = app.test_client()
     _login(admin_client, world.admin)
-    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": "끌영업N", "start_month": "2030-01",
+    resp = admin_client.post(API, json={"user_id": sales.id, "match_name": "끌영업N", "start_month": "2020-01",
                                         "tax_type": "NONE", "active": False,
                                         "version": load_settings(db_session)[0]})
     assert resp.status_code == 200, resp.get_json()

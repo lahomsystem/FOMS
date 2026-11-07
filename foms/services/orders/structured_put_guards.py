@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import load_only
 
+from foms.services.auth.freelancer_legacy import freelancer_request_is_legacy
 from foms.services.auth.freelancer_scope import is_freelancer_request_allowed, is_freelancer_user
 from foms.services.orders.as_schedule_link import LINK_PATH, read_link
 from foms.services.orders.order_mutation_policy import user_can_read_order
@@ -38,7 +39,8 @@ def can_confirm_payment(user: Any) -> bool:
     if user is None:
         return False
     if is_freelancer_user(user):
-        return is_freelancer_request_allowed(PAYMENT_CONFIRM_ENDPOINT, "POST")
+        # D26 — 예전 담당 주문 저장이면 보통 영업 직원과 같다.
+        return is_freelancer_request_allowed(PAYMENT_CONFIRM_ENDPOINT, "POST") or freelancer_request_is_legacy()
     return True
 
 
