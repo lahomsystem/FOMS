@@ -118,11 +118,28 @@ def spec_w300_filter(value):
     return round(n / 300, 1) if n else ''
 
 
+def _format_seoul_02(digits: str) -> str | None:
+    """서울 국번 02 번호를 2-3-4(9자리) · 2-4-4(10자리)로 끊는다. 02 번호가 아니면 None.
+
+    국번이 두 자리라 3-3-4 로 끊으면 ``02-0000-0000`` 이 ``020-000-0000`` 이 된다(2026-11-08 점검).
+    """
+    if not digits.startswith('02'):
+        return None
+    if len(digits) == 9:
+        return f"{digits[:2]}-{digits[2:5]}-{digits[5:]}"
+    if len(digits) == 10:
+        return f"{digits[:2]}-{digits[2:6]}-{digits[6:]}"
+    return None
+
+
 def format_phone_filter(value):
-    """전화번호 포맷 (01012345678 -> 010-1234-5678)"""
+    """전화번호 포맷 (01012345678 -> 010-1234-5678, 0212345678 -> 02-1234-5678)"""
     if not value:
         return '-'
     digits = re.sub(r'[^0-9]', '', str(value))
+    seoul = _format_seoul_02(digits)
+    if seoul:
+        return seoul
     if len(digits) == 11:
         return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
     if len(digits) == 10:
@@ -142,7 +159,8 @@ def format_phone_no_prefix(value) -> str:
     Returns:
         - 11자리이고 '010'으로 시작: ``{국번4}-{번호4}`` (예 '9263-9140')
         - 그 외 11자리: 3-4-4 (``format_phone_filter``와 동일)
-        - 10자리: 지역번호 유지 3-3-4
+        - 서울 02 번호: 2-3-4(9자리) · 2-4-4(10자리)
+        - 그 밖의 10자리: 지역번호 유지 3-3-4
         - 빈 값: '' (format_phone_filter의 '-'와 달리 빈 문자열)
         - 그 밖의 길이: 원문 그대로.
     """
@@ -153,6 +171,9 @@ def format_phone_no_prefix(value) -> str:
     if len(parts) > 1:
         return '\n'.join(format_phone_no_prefix(p.strip()) for p in parts)
     digits = re.sub(r'[^0-9]', '', str(value))
+    seoul = _format_seoul_02(digits)
+    if seoul:
+        return seoul
     if len(digits) == 11:
         if digits.startswith('010'):
             return f"{digits[3:7]}-{digits[7:]}"

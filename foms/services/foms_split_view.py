@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import has_request_context
+from flask import has_request_context, request
 
 from foms.services.auth.freelancer_menu import freelancer_menu_items
 from foms.services.auth.freelancer_scope import could_be_freelancer, is_freelancer_user
@@ -112,6 +112,20 @@ def _is_active_freelancer(user: Any) -> bool:
     return has_request_context() and could_be_freelancer(user) and is_freelancer_user(user)
 
 
+#: 프리랜서 메뉴 id → 레일 판정 id(:func:`resolve_tablet_rail_active_id` 가 돌려주는 값). 이름이 달라 도면 · 견적 계산기에서
+#: 레일 강조가 빠졌다(11-08 점검). 내 수수료는 ERP 경로 계약 밖이라 주소로 본다.
+_FREELANCER_RAIL_ALIASES = {"drawing": "drawing_workbench", "wdcalculator": "calculator"}
+
+
+def _freelancer_item_active(item: dict[str, Any], active_id: str) -> bool:
+    """프리랜서 레일 칸이 지금 화면인지."""
+    if item["id"] == active_id or _FREELANCER_RAIL_ALIASES.get(item["id"]) == active_id:
+        return True
+    if item["id"] != "my_commission" or not has_request_context():
+        return False
+    return (request.path or "").rstrip("/") == str(item["href"]).rstrip("/")
+
+
 def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") -> list[dict[str, Any]]:
     """Build permission-scoped side-rail items for the tablet split shell.
 
@@ -128,9 +142,10 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
         Side-tab descriptors with ``id``/``label``/``icon``/``href``/``active``.
     """
     if _is_active_freelancer(user):
-        # 켜진 프리랜서는 문지기 허용 목록 안 메뉴만(홈 · 실측 · 내 수수료), 계산기 없음.
+        # 켜진 프리랜서는 문지기가 여는 화면만(PC 메뉴와 같은 목록 — 판 화면 · 견적 계산기 · 내 수수료).
         return [
-            {"id": it["id"], "label": it["label"], "icon": it["icon"], "href": it["href"], "active": it["id"] == active_id}
+            {"id": it["id"], "label": it["label"], "icon": it["icon"], "href": it["href"],
+             "active": _freelancer_item_active(it, active_id)}
             for it in freelancer_menu_items()
         ]
     construction = _is_construction_team(user)

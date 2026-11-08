@@ -444,7 +444,13 @@
 
         // ── 5. 담당자 목록 로드 ──
 
-        fetch('/api/erp/shipment-settings')
+        // 켜진 프리랜서는 설정 API(직원 명단)가 문지기에 막힌다 — 의도(foms/services/auth/freelancer_screens/completion.py).
+        // 부르면 콘솔에 403 이 남아(11-08 점검) 셸이 프리랜서에게만 그리는 표식(erp-shell.js 의 data-foms-prefetch-allow)을 보고
+        // 빈 답으로 대신한다 — 담당자 목록 · 색은 화면에 이미 그려진 값으로 남는다.
+        var settingsRequest = document.querySelector('script[data-foms-prefetch-allow]')
+            ? Promise.resolve({ json: function () { return { success: false }; } })
+            : fetch('/api/erp/shipment-settings');
+        settingsRequest
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data && data.success && data.settings && Array.isArray(data.settings.measurement_manager)) {

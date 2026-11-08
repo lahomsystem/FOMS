@@ -1311,6 +1311,8 @@
     text-align: center;
   }
 
+  /* 머리줄이 흰 바탕이 된 뒤에도 옛 어두운 머리줄 값(흰 글자 · 반투명 흰 바탕)이 남아 종 아이콘이
+     흰 바탕 위 흰색으로 안 보였다(배지만 보임, 2026-11-08 점검). 옆 [홈] 단추(secondary)와 같은 색으로. */
   .erp-pro-btn--icon {
     position: relative;
     width: 40px;
@@ -1319,15 +1321,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: white;
+    background: var(--erp-bg-card);
+    border: 1px solid var(--erp-border);
+    color: var(--erp-text-primary);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .erp-pro-btn--icon:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--erp-bg-sidebar);
   }
 
   .notification-panel {

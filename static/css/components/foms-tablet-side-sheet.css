@@ -378,7 +378,9 @@ tr.foms-tablet-sheet-active > * {
 
   /* 본문 우측 320px 예약(레일 좌측 패딩 미러). body 스코프 클래스로 오더 대시보드 도킹
      활성일 때만 적용 → 타 페이지·비도킹 무영향. */
-  body.foms-tablet-dock-active #main-content {
+  body.foms-tablet-dock-active #main-content,
+  /* 안내 묶음(.layout-flash)은 #main-content 밖이라 닫기(X)가 도킹 시트 밑에 숨었다(2026-11-08 점검). */
+  body.foms-tablet-dock-active .layout-flash {
     padding-right: 320px;
   }
 }

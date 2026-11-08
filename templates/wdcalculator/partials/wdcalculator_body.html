@@ -59,9 +59,12 @@
                 <i class="fas fa-history"></i> 저장된 견적
             </button>
             {% endif %}
+            {#- 켜진 프리랜서는 제품 설정 화면이 문지기에 막혀 눌러도 대시보드로 튕겼다 — 단추를 숨긴다(11-08 점검). -#}
+            {% if not (current_user and is_sales_freelancer()) %}
             <a href="{{ url_for('wdcalculator.wdcalculator_product_settings') }}" class="btn btn-info">
                 <i class="fas fa-cog"></i> 제품 설정
             </a>
+            {% endif %}
         </div>
     </div>
 

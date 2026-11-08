@@ -7,6 +7,7 @@ from foms.services.erp_template_filters import (
     coerce_deposit_amount,
     eval_spec_width_mm,
     format_phone_filter,
+    format_phone_no_prefix,
     item_spec_w300_display,
     item_spec_w300_value,
     lahom_deposit_gold,
@@ -41,6 +42,24 @@ def test_phone_and_payment_filters_normalize_values() -> None:
     assert payment_confirmed_bool("false") is False
     assert payment_confirmed_bool(1) is True
     assert payment_confirmed_bool(2) is False
+
+
+def test_format_phone_splits_seoul_02_numbers_by_two_digit_area_code() -> None:
+    """서울 02 번호는 국번이 두 자리다 — 10자리를 3-3-4 로 끊으면 ``02-0000-0000`` 이
+    ``020-000-0000`` 이 됐다(2026-11-08 점검). 9자리는 2-3-4, 10자리는 2-4-4.
+    대조군: 휴대폰 11자리 · 다른 지역 10자리(031) · 0505 같은 02 아닌 번호는 그대로다."""
+    assert format_phone_filter("0200000000") == "02-0000-0000"
+    assert format_phone_filter("02-0000-0000") == "02-0000-0000"
+    assert format_phone_filter("021234567") == "02-123-4567"
+    assert format_phone_filter("0212345678") == "02-1234-5678"
+    assert format_phone_no_prefix("0212345678") == "02-1234-5678"
+    assert format_phone_no_prefix("021234567") == "02-123-4567"
+    # 대조군
+    assert format_phone_filter("01012345678") == "010-1234-5678"
+    assert format_phone_filter("0311234567") == "031-123-4567"
+    assert format_phone_filter("05051234567") == "050-5123-4567"
+    assert format_phone_no_prefix("01092639140") == "9263-9140"
+    assert format_phone_no_prefix("0311234567") == "031-123-4567"
 
 
 def test_lahom_deposit_gold_matches_front_standard_amounts() -> None:

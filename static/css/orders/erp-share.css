@@ -18,3 +18,14 @@
 .erp-share-actions .btn i {
   margin-right: 0.15rem;
 }
+
+/* "링크 발급" 단추 — 앞 시트(고객에게 보내기)의 주 단추와 같은 색. foms-btn 클래스는 휴대폰 화면 묶음에서만 실려
+   주문 화면 전부에 쓸 수 없어(/add · 회사 PC) 이 파일(공유 창이 실리는 모든 화면)에서 Bootstrap 단추 변수만 바꾼다(11-08 점검). */
+#erp-share-create-btn {
+  --bs-btn-bg: var(--foms-interactive-primary, #5a67d8);
+  --bs-btn-border-color: var(--foms-interactive-primary, #5a67d8);
+  --bs-btn-hover-bg: var(--foms-interactive-primary-hover, #4c51bf);
+  --bs-btn-hover-border-color: var(--foms-interactive-primary-hover, #4c51bf);
+  --bs-btn-active-bg: var(--foms-interactive-primary-hover, #4c51bf);
+  --bs-btn-active-border-color: var(--foms-interactive-primary-hover, #4c51bf);
+}

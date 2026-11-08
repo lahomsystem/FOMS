@@ -23,6 +23,7 @@ from db import db_session
 from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS
 from foms.services.auth.freelancer_scope import (
     FREELANCER_DENIED_MSG,
+    FREELANCER_ORDER_NOT_FOUND_MSG,
     could_be_freelancer,
     freelancer_gate,
     is_freelancer_request_allowed,
@@ -207,7 +208,11 @@ def test_closed_api_opens_for_own_order(app, world):
         resp = client.get(f"/api/orders/{own}/quest")
         assert (resp.get_json(silent=True) or {}).get("error") != FREELANCER_DENIED_MSG and resp.status_code != 302
     other = client.get(f"/api/orders/{world['other']}/quest")
-    assert other.status_code == 403 and other.get_json()["error"] == FREELANCER_DENIED_MSG
+    missing = client.get("/api/orders/99999999/quest")
+    # 남의 주문 = 없는 주문 = 다른 주문 API 와 같은 404 문구(11-08 점검 — 예전에는 403 "열 수 없는 화면").
+    assert other.status_code == missing.status_code == 404
+    assert other.get_json() == missing.get_json()
+    assert other.get_json()["error"] == FREELANCER_ORDER_NOT_FOUND_MSG
     assert not is_freelancer_request_allowed("quest.api_order_quest_get", "GET")  # 허용 목록이 아니라 내 주문 규칙으로 열림
 
 

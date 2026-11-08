@@ -15,6 +15,8 @@
     { id: "construction", prefix: "/erp/construction" },
     { id: "completion", prefix: "/erp/completion" },
     { id: "history", prefix: "/erp/history" },
+    // 프리랜서 아래 탭 "내 수수료"(D30) — 빠져 있으면 화면을 읽은 뒤 강조가 지워졌다(11-08 점검).
+    { id: "my_commission", prefix: "/erp/my-commission" },
   ];
 
   var NAV_LABELS = {
@@ -27,6 +29,7 @@
     construction: "시공",
     completion: "완료",
     history: "이력",
+    my_commission: "내 수수료",
   };
 
   function pathToNavId(pathname) {

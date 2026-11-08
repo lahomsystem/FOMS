@@ -24,10 +24,12 @@ from flask import g
 
 import foms.services.auth.freelancer_scope as scope
 from db import db_session
+from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS
 from foms.services.auth.freelancer_scope import (
     FREELANCER_ALLOWED_ENDPOINTS,
     FREELANCER_DENIED_MSG,
     FREELANCER_METHOD_LIMITS,
+    FREELANCER_ORDER_NOT_FOUND_MSG,
     freelancer_gate,
 )
 from foms.services.sales_commission.settings import add_rate, load_settings, save_freelancer
@@ -37,10 +39,10 @@ from tests.domains.test_auth_finance import _login, _make_user
 _match_seq = itertools.count(1)
 _RATE = {"effective_month": "2030-01", "lahom_bp": 400, "haud_bp": 600, "personal_bp": 800}
 _HOME = "/erp/dashboard"
-# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 통합 검색 · 주문 복사 · 지도 · 옛 목록(사내 채팅은 CHAT-DEL-01 로 지움).
+# 프리랜서가 못 여는 대표(설계서 "허용하지 않는 것"): 주문 복사 · 지도 · 옛 목록(사내 채팅은 CHAT-DEL-01 로 지움, 통합 검색은
+# 11-08 점검으로 내 주문만 거른 채 엶).
 # 이력 검색은 11-07 결정으로 내 주문만 거른 뒤 열었다(freelancer_screens/history.py).
 _DENIED_SAMPLE = (
-    ("GET", "/api/foms/search/fragment?q=x"),
     ("POST", "/api/orders/copy"),
     ("GET", "/map_view"),
     ("GET", "/"),
@@ -157,7 +159,13 @@ def test_every_rule_outside_allowlist_is_blocked_for_freelancer(app):
                 continue
             resp = client.open(path, method=method)
             checked += 1
-            if "/api/" in path or method != "GET":
+            if rule.endpoint in OWN_ORDER_ENDPOINTS:
+                # 주문 일 API(D27) — 이 주문은 내 것이 아니라 다른 주문 API 와 같은 404 "주문을 찾을 수 없어요."(11-08).
+                body = resp.get_json(silent=True) or {}
+                json_like = "/api/" in path or method != "GET"
+                if resp.status_code != 404 or (json_like and body.get("error") != FREELANCER_ORDER_NOT_FOUND_MSG):
+                    leaks.append((rule.endpoint, method, path, resp.status_code))
+            elif "/api/" in path or method != "GET":
                 body = resp.get_json(silent=True) or {}
                 if resp.status_code != 403 or body.get("error") != FREELANCER_DENIED_MSG:
                     leaks.append((rule.endpoint, method, path, resp.status_code))
@@ -188,7 +196,7 @@ def test_every_allowlisted_endpoint_passes_the_gate(app):
     assert checked >= len(FREELANCER_ALLOWED_ENDPOINTS), checked
     assert blocked == []
 
-    denied = _gate_result(app, fl, "GET", "/api/foms/search/fragment?q=x")
+    denied = _gate_result(app, fl, "POST", "/api/orders/copy")
     assert denied is not None and denied[1] == 403
 
 

@@ -364,7 +364,7 @@ def test_freelancer_finance_on_own_order_like_staff(client, app, policy_on, path
     assert (mine.get_json(silent=True) or {}).get("error") != freelancer_scope.FREELANCER_DENIED_MSG
 
     theirs = client.post(path.format(oid=other), json=body)
-    assert theirs.status_code == 403 and theirs.get_json()["error"] == freelancer_scope.FREELANCER_DENIED_MSG
+    assert theirs.status_code == 404 and theirs.get_json()["error"] == freelancer_scope.FREELANCER_ORDER_NOT_FOUND_MSG
     assert db_session.query(OrderEvent).filter(OrderEvent.order_id == other).count() == 0
 
 

@@ -418,7 +418,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
         ROOT / "templates/measurement/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-v2-domain-heroes.css') }}?v=20261105s",
+        "foms-v2-domain-heroes.css') }}?v=20261108a",
         "foms-route-strip.css') }}?v=20260901a",
     ):
         assert token in dash

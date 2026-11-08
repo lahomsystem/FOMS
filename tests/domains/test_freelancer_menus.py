@@ -213,18 +213,16 @@ def test_normal_desktop_menus_unchanged(app, monkeypatch, role, team):
 # --------------------------------------------------------------------------
 # 머리 단추 · 실측 판 링크 — 막힌 문으로 가는 것은 숨긴다(스테이징 QA 결함 2)
 # --------------------------------------------------------------------------
-# (표식, 이름) — 통합 검색(단추 · 검색 창, 입력이 /api/foms/search/fragment 를 부른다), 협력사 거르기
-# (폰 단추 · PC 목록 — 협력사 이름이 실린다), 실측 판 지도(PC · 폰 칩 · 태블릿 — 지도 화면으로 넘긴다),
-# 실측 판 "모든 날짜에서 찾기"(이력 검색).
+# (표식, 이름) — 협력사 거르기(폰 단추 · PC 목록 — 협력사 이름이 실린다), 실측 판 지도(PC · 폰 칩 · 태블릿 — 지도
+# 화면으로 넘긴다). 통합 검색 단추 · 창과 실측 판 "모든 날짜에서 찾기"는 11-08 점검으로 열었다(내 주문만 — 이력 화면이
+# D27 로 열림) — 아래 _SHOWN_FOR_FREELANCER.
 _HIDDEN_FOR_FREELANCER = (
-    ("data-foms-search-open", "폰 통합 검색 단추"),
-    ('id="foms-search-overlay"', "통합 검색 창"),
     ("data-foms-partner-open", "폰 협력사 거르기 단추"),
     ("global-partner-filter-btn", "PC 협력사 거르기 목록"),
     ("open_map=1", "실측 판 지도 링크"),
     ("foms-tablet-measure-list__map", "태블릿 실측 지도 단추"),
-    ("모든 날짜에서 찾기", "실측 판 이력 검색 링크"),
 )
+_SHOWN_FOR_FREELANCER = (('id="foms-search-overlay"', "통합 검색 창"),)
 _MEASURE_SEARCH = "/erp/measurement?q=x"
 
 
@@ -233,6 +231,9 @@ _MEASURE_SEARCH = "/erp/measurement?q=x"
 def test_freelancer_hides_blocked_header_buttons(app, monkeypatch, path, mobile):
     html = _render(app, monkeypatch, _freelancer(), path, mobile=mobile)
     assert [name for marker, name in _HIDDEN_FOR_FREELANCER if marker in html] == []
+    if mobile:  # 폰 셸에만 있는 통합 검색 단추 · 창(PC 는 회사 직원도 없다)
+        assert [name for marker, name in _SHOWN_FOR_FREELANCER if marker not in html] == []
+        assert "data-foms-search-open" in html
     # 남는 것: 긴급 호출 · 알림(허용 목록 안)
     assert "data-foms-urgent-open" in html and "data-foms-notif-open" in html
 

@@ -1,6 +1,9 @@
 /* 프리랜서 수수료 설정 화면(설계서 2026-11-06-freelancer-sales-commission §2.3) — 목록 · 추가 폼 · 요율 이력. */
 .foms-sf__box{background:#fff;border:1px solid var(--foms-color-neutral-200,#dde1e6);border-radius:10px;padding:14px 16px;margin-bottom:14px}
 .foms-sf__table{margin-bottom:6px;font-size:13px}
+/* 머리 · 내용 시작선 맞추기: 전역 `.table thead th { padding: 12px !important }`(style-pro-max)가 table-sm 내용 칸(좌우 4px)보다
+   머리 글자를 8px 더 안쪽에서 시작시켰다(2026-11-08 점검). 좌우만 내용 칸과 같게 둔다. */
+.foms-sf .foms-sf__table thead th{padding-left:.25rem !important;padding-right:.25rem !important}
 .foms-sf__table .foms-sf__num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .foms-sf__table tr.is-selected td{background:var(--foms-color-brand-50,#f3f4ff)}
 .foms-sf__form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}

@@ -48,7 +48,7 @@ NO_ORDER_ID = {
     "erp_orders_structured.api_parse_order_text", "events.api_change_reason_codes",
     "notifications.api_urgent_targets",
     # 통합 검색 JSON(긴급 호출 주문 고르기) — 검색어만 받는다. 결과는 서비스가 연결 표의 내 주문으로 좁힌다.
-    "foms_search.api_foms_search",
+    "foms_search.api_foms_search", "foms_search.api_foms_search_fragment",
     # 계산기 설정 목록(제품 · 규격 선택지 · 추가 옵션) — 주문 폼 제품 고르기용 읽기, 주문 번호 없음.
     "wdcalculator.api_wdcalculator_get_products", "wdcalculator.api_wdcalculator_get_spec_field_presets",
     "wdcalculator.api_wdcalculator_get_categories",

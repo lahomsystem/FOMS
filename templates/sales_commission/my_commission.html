@@ -9,12 +9,18 @@
 {#- 모바일 셸(위 머리줄 · 아래 탭 · 더보기 서랍)을 다른 ERP 화면처럼 싣는다 — 없으면 홈 화면 앱에서 돌아갈 길이 없다(T8). -#}
 <div class="erp-dashboard erp-pro erp-mobile-shell foms-mc-page"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% set erp_sub_nav_active = 'my_commission' %}
   {% if erp_mobile_v2_enabled %}
-    {% set erp_sub_nav_active = 'my_commission' %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
+  {#- PC: 다른 판 화면처럼 제목 줄 + ERP 서브 메뉴(휴대폰 · 태블릿 세로에서는 셸 CSS 가 숨기고 위 머리줄이 제목) — 11-08 점검. -#}
+  <div class="foms-shell-desktop-only">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title"><i class="fas fa-coins"></i><span>내 수수료</span></h1>
+  </header>
+  {% include 'partials/shared/erp_sub_nav.html' %}
+  </div>
 <div class="foms-mc">
-    {% if not erp_mobile_v2_enabled %}<h1 class="foms-mc__title">내 수수료</h1>{% endif %}
     {% if viewing_name %}<p class="foms-mc__viewing">{{ viewing_name }} 님 화면을 보고 있어요.</p>{% endif %}
 
     <section class="foms-mc__total" aria-label="합계">
@@ -59,7 +65,7 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p class="foms-mc__empty">이 달에는 수수료 줄이 없어요.</p>
+    <p class="foms-mc__empty">이 달에는 수수료 내역이 없어요.</p>
     {% endif %}
 
     {% if recent %}
