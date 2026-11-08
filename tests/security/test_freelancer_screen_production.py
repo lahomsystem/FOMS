@@ -247,7 +247,7 @@ def test_production_writes_follow_staff_rules_on_own_order_only(world, app, path
     assert (mine.get_json(silent=True) or {}).get("error") != FREELANCER_DENIED_MSG
     assert mine.headers.get("X-Auth-Policy") != "denied", mine.get_json()  # 프리랜서라서 막히지 않는다
     theirs = _client(app, world.fl).post(path.format(id=world.other_id), json={})
-    assert theirs.status_code == 403 and theirs.get_json()["error"] == FREELANCER_DENIED_MSG
+    assert theirs.status_code == 404 and theirs.get_json()["error"] == FREELANCER_ORDER_NOT_FOUND_MSG
 
 
 # --------------------------------------------------------------------------

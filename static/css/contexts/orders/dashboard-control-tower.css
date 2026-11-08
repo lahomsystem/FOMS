@@ -369,6 +369,8 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color:
 /* 빈 상태 */
 .foms-tower__empty { padding: var(--foms-space-4); text-align: center; font-size: var(--foms-font-size-sm); color: var(--foms-text-tertiary); background: var(--foms-surface-base); border: 1px dashed var(--foms-border-default); border-radius: var(--foms-radius-lg); }
 .foms-tower__empty--ok { color: var(--foms-color-success-600); border-color: var(--foms-color-success-500); background: var(--foms-color-success-50); }
+/* 어두운 테마: 연초록 바탕(success-50)이 흰 상자로 남았다(2026-11-08 점검) — 위 fsec-alert 와 같은 반투명 바탕 방식. */
+[data-theme='dark'] .foms-tower__empty--ok { background: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .45); color: #6ee7b7; }
 
 /* (E) 처리 대기 */
 .foms-tower__quick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--foms-space-2); }

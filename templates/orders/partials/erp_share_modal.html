@@ -7,7 +7,9 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="erp-share-title">고객 공유 링크</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                {# 닫기(X) 눌림 영역: 부트스트랩 기본(그림 1em + 여백 0.5rem×2)은 32px 라 손가락에 작다.
+                   p-3(여백 1rem×2) 로 48px — X 그림 크기는 그대로(2026-11-08 점검). #}
+                <button type="button" class="btn-close p-3" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning py-2 px-2 mb-2 small d-none" id="erp-share-notice" role="alert" data-foms-no-autodismiss></div>

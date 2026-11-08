@@ -2300,7 +2300,7 @@ async function erpLoadStructured(bootstrapData, options) {
     erpRefreshItemRowIndices();
     erpOpenFirstItemRow();
 
-    erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
+    erpSetStatus('불러오기 완료');
     const paymentData = _erpNormalizePaymentData(sd);
     sd.payment = paymentData;
     window.__erpLastStructuredData = sd;

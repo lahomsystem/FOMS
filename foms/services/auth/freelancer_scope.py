@@ -31,7 +31,7 @@ from flask import abort, g, jsonify, redirect, request, url_for
 from db import get_db
 from foms.services.auth import freelancer_screens as _screens
 from foms.services.auth.freelancer_orders import freelancer_can_access_order
-from foms.services.auth.freelancer_order_rights import own_order_request_allowed
+from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS, own_order_request_allowed
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.sales_commission.settings import FREELANCER_ROLES, is_freelancer
 
@@ -80,6 +80,9 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # ── 주문 1건: 모바일 상세 · 편집 화면(보기만 — 저장은 structured PUT) · 옛 상세 주소(편집으로 보냄) ·
     #    편집/타임라인 조각. 내 주문인지는 겹 2 주문 단위 판정(T15)이 본다.
     "erp_dashboard.erp_order_mobile_detail",
+    # 태블릿 가로 대시보드에서 주문 줄을 누르면 여는 오른쪽 창(주문 1건 요약 조각). 빠져 있어 302 로 대시보드가 통째로
+    # 창에 들어갔다(11-08 점검). 생산 · 출고 · 이력 판의 같은 창과 같이 URL 주문 번호로 판정.
+    "erp_dashboard.erp_dashboard_tablet_sheet",
     "order_edit.edit_order",
     "order_edit.redirect_legacy_erp_order_detail",
     "foms_fragment.order_edit_fragment",
@@ -122,8 +125,10 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "notifications.api_urgent_call",
     # 긴급 호출 창의 주문 고르기(static/js/foms/urgent-call-order.js)가 부르는 통합 검색 JSON. 켜진 프리랜서는
     # 서비스가 연결 표의 내 주문으로만 좁힌다(foms_unified_search.construction_scope_user). 주문 번호를 받지 않는다.
-    # 머리 검색 창 조각(api_foms_search_fragment)은 열지 않는다 — "전체 결과 보기"가 막힌 이력 화면으로 간다.
+    # 머리 검색 창 조각(api_foms_search_fragment)도 같은 거르기(construction_scope_user)로 내 주문만 그린다 — 예전에는
+    # "전체 결과 보기"가 막힌 이력 화면으로 가서 닫았는데, D27 로 이력 화면이 열려 같이 연다(11-08 점검).
     "foms_search.api_foms_search",
+    "foms_search.api_foms_search_fragment",
     # 파일 관문 3종 — 안에서 user_can_read_order 로 주문 단위 판정(겹 2 가 프리랜서 분기를 넣는다)
     "files.view",
     "files.presigned_urls",
@@ -182,6 +187,7 @@ FREELANCER_METHOD_LIMITS: dict[str, frozenset[str]] = {
 #: 한다 — 시험(tests/security/test_freelancer_order_scope.py)이 url_map 으로 강제한다.
 FREELANCER_ORDER_VIEW_ARGS: dict[str, tuple[str, ...]] = {
     "erp_dashboard.erp_order_mobile_detail": ("order_id",),
+    "erp_dashboard.erp_dashboard_tablet_sheet": ("order_id",),
     "order_edit.edit_order": ("order_id",),
     "order_edit.redirect_legacy_erp_order_detail": ("order_id",),
     "foms_fragment.order_edit_fragment": ("order_id",),
@@ -394,6 +400,12 @@ def freelancer_gate() -> Any | None:
     # D27 — 허용 목록 밖이어도 내 주문의 주문 일 API 는 회사 영업 직원과 같게(freelancer_order_rights).
     if own_order_request_allowed(get_db(), user, request.endpoint):
         return None
+    # 주문 일 API 인데 남의 · 없는 주문 — 다른 주문 API(겹 2)와 같은 404 "주문을 찾을 수 없어요." 로 답한다.
+    # 예전에는 403 "열 수 없는 화면"이라 같은 남의 주문에 API 마다 답이 갈렸다(11-08 점검).
+    if request.endpoint in OWN_ORDER_ENDPOINTS:
+        if _wants_json():
+            return jsonify({"success": False, "data": None, "error": FREELANCER_ORDER_NOT_FOUND_MSG}), 404
+        abort(404)
     if _wants_json():
         return jsonify({"success": False, "data": None, "error": FREELANCER_DENIED_MSG}), 403
     return redirect(url_for(FREELANCER_HOME_ENDPOINT))

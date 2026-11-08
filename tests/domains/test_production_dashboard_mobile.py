@@ -168,7 +168,7 @@ def test_production_mobile_completed_shows_status_not_stage_edit_cta(client, mon
     assert 'data-action="completeProduction"' not in body
     assert 'data-action="startProduction"' not in body
     assert 'aria-label="제작완료 단계 ERP 주문 열기"' not in body
-    assert "ERP 편집" in body
+    assert "주문 수정" in body
     assert "?open=erp-order" in body
 
 
@@ -184,7 +184,7 @@ def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
         root / "templates/production/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-v2-domain-heroes.css') }}?v=20261105s",
+        "foms-v2-domain-heroes.css') }}?v=20261108a",
         "foms-production-steps.css') }}?v=20261105s",
     ):
         assert token in dash

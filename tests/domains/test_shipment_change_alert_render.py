@@ -481,4 +481,4 @@ def test_shipment_entry_chain_keeps_pin_and_excludes_ack_client():
 def test_tablet_bundle_pin_untouched():
     """태블릿 번들은 건드리지 않았다(계약 테스트 2곳 락스텝 대상 — 범프 시 동반 수정 필요)."""
     head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-tablet-bundle.css') }}?v=20260727d" in head
+    assert "foms-tablet-bundle.css') }}?v=20261108a" in head

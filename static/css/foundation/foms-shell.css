@@ -56,6 +56,21 @@
     z-index: var(--foms-z-sticky);
   }
 
+  /* 머리줄 폭 맞추기(2026-11-08 점검): 바깥 틀이 Bootstrap .container-fluid(좌우 12px)인 화면
+     (대시보드 · 생산 · 시공 · 완료 · 이력 · 정산 · 협력사 명세서)은 머리줄이 그 여백 안에 갇혀
+     360 폭에서 336px 이 되고, 틀이 없는 실측 · 출고 · 도면 · 내 수수료는 360px 이라 탭을 오갈 때
+     머리줄이 들썩였다. 머리줄만 같은 여백만큼 밖으로 펴서 화면 폭에 맞춘다 — 본문 12px 여백은
+     그대로 둔다(완료 화면 16px 선 등이 그 여백을 전제로 한다). 크롬 래퍼는 display:contents 라
+     머리줄의 상자 부모가 곧 바깥 틀이다. 고정(fixed, left/right 0) 머리줄을 쓰는 주문 상세 ·
+     편집(.foms-detail-page-wrap)은 여백을 주면 왼쪽으로 밀리므로 뺀다. */
+  body.erp-mobile-v2-layout
+    .container-fluid.erp-mobile-shell:not(.foms-detail-page-wrap)
+    > .erp-mobile-shell-chrome
+    > .erp-mobile-shell-header {
+    margin-left: calc(var(--bs-gutter-x, 1.5rem) * -0.5);
+    margin-right: calc(var(--bs-gutter-x, 1.5rem) * -0.5);
+  }
+
   body.erp-mobile-v2-layout .erp-mobile-shell-header__inner {
     display: contents;
   }
@@ -248,6 +263,12 @@
   body.erp-mobile-v2-layout .erp-mobile-bottom-nav__item.is-active {
     color: var(--foms-interactive-primary);
     font-weight: var(--foms-font-weight-semibold);
+  }
+
+  /* 어두운 테마: brand-500 글자는 아래 탭 바탕(neutral-1000) 위 대비 4.07 로 12px 기준 4.5 에 못 미쳤다
+     (2026-11-08 점검). 한 단계 밝은 brand-400 = 5.82. */
+  [data-theme='dark'] body.erp-mobile-v2-layout .erp-mobile-bottom-nav__item.is-active {
+    color: var(--foms-color-brand-400);
   }
 
   /* FAB */

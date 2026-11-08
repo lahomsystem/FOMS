@@ -36,10 +36,12 @@
   .wd-hero__label { font-size: 13px; color: var(--foms-text-secondary); font-weight: 600; }
   .wd-hero__val { font-size: 34px; font-weight: 800; line-height: 1.05; margin: 2px 0 8px;
     font-variant-numeric: tabular-nums; display: inline-block; color: var(--foms-color-brand-700); }
+  /* 어두운 테마: 짙은 남색 금액이 검은 바탕에 묻힌다(대비 2.2) — 밝은 남색으로. */
+  [data-theme='dark'] .wd-hero__val { color: var(--foms-color-brand-300); }
   .wd-hero__val.wd-pulse { animation: wdHeroPulse .5s ease-out; }
   @keyframes wdHeroPulse { 0% { transform: scale(1.08); } 100% { transform: scale(1); } }
   .wd-hero__meta { display: flex; gap: 8px; flex-wrap: wrap; }
-  .wd-hero__pill { background: var(--foms-color-neutral-100); color: var(--foms-text-secondary);
+  .wd-hero__pill { background: var(--foms-surface-muted); color: var(--foms-text-secondary);
     border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
 
   /* ===== INLINE 슬라이드다운 에디터 ===== */
@@ -60,7 +62,7 @@
   .wd-esec__head { display: flex; align-items: center; gap: 7px; padding: 9px 12px; background: var(--foms-color-neutral-50);
     border-bottom: 1px solid var(--foms-border-subtle); font-size: 14px; font-weight: 700; color: var(--foms-text-primary); }
   .wd-esec__badge { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--foms-text-secondary);
-    background: var(--foms-color-neutral-100); border-radius: 999px; padding: 1px 9px; }
+    background: var(--foms-surface-muted); border-radius: 999px; padding: 1px 9px; }
   .wd-esec__badge:empty { display: none; }
   .wd-esec--collapsible .wd-esec__head { cursor: pointer; }
   .wd-esec--collapsible .wd-esec__head::after { content: "▾"; margin-left: 2px; color: var(--foms-text-tertiary);

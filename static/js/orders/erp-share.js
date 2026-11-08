@@ -253,7 +253,8 @@ var _KST_FMT = (function () {
     /** POST create — 토큰 원문은 이 응답에서만 존재한다. */
     async function _create() {
         if (_busy) return;
-        var kindInput = document.querySelector('input[name="erp-share-kind"]:checked');
+        // 보이는 창(_modalEl)의 동그라미를 읽는다 — 문서 첫 번째 checked 는 다른 표면 것일 수 있다.
+        var kindInput = (_modalEl() || document).querySelector('input[name="erp-share-kind"]:checked');
         var kind = kindInput ? kindInput.value : 'drawing';
         _busy = true;
         // 저장이 먼저다 — 신규·draft 주문도 여기서 저장(승격)된 뒤 id 를 읽는다.
@@ -613,6 +614,26 @@ var _KST_FMT = (function () {
             .catch(function () { _setNotice('회수 실패 — ' + _label('network')); });
     }
 
+    /**
+     * 공유 종류 동그라미가 하나도 안 골라져 있으면 서식 기본값(checked 속성 = 도면)을 다시 고른다.
+     *
+     * 모바일 v2 코호트 주문 화면(edit_order_body.html)은 PC·휴대폰 조각을 둘 다 싣고 인라인
+     * 스크립트로 한쪽을 지운다. 두 벌의 동그라미는 <form> 조상이 없어 같은 name 이 문서 전체
+     * 한 묶음이 되고, 파싱 중 뒤 벌의 checked 가 앞 벌을 풀어 PC 에 남은 창은 둘 다 빈 채로
+     * 열렸다(defaultChecked:true / checked:false — AS 접수 무상·유상 동그라미와 같은 원인,
+     * erp-order-shared.js ensureBillingSelection). 직원이 이미 고른 값은 건드리지 않는다.
+     */
+    function _ensureKindChecked() {
+        var el = _modalEl();
+        if (!el) return;
+        var radios = Array.prototype.slice.call(el.querySelectorAll('input[name="erp-share-kind"]'));
+        if (!radios.length || radios.some(function (r) { return r.checked; })) return;
+        var pick = radios.filter(function (r) { return r.defaultChecked; })[0]
+            || radios.filter(function (r) { return r.value === 'drawing'; })[0]
+            || radios[0];
+        pick.checked = true;
+    }
+
     /** 버튼 클릭 진입점: 이력 조회 → 모달 표시. */
     function erpOpenShareModal() {
         var orderId = _orderId();
@@ -620,6 +641,7 @@ var _KST_FMT = (function () {
         _issued = null;
         _showIssued('');
         _setNotice('');
+        _ensureKindChecked();
         _refreshList().then(function () {
             var modal = _modal();
             if (modal) modal.show();

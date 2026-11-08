@@ -175,7 +175,7 @@ def test_close_button_and_closing_list_markup(client, app):
     assert _HIDDEN_ATTR_RE.search(tag), "마감 기록이 기본으로 열려 있다"
     assert "마감 기록" in pane
     heads = [re.sub(r"<[^>]+>", "", h).strip() for h in _TH_RE.findall(pane)]
-    assert ["달", "줄 수", "합계", "실지급", "상태"] == heads[len(COLUMNS) + 1:len(COLUMNS) + 6], heads
+    assert ["달", "건수", "합계", "실지급", "상태"] == heads[len(COLUMNS) + 1:len(COLUMNS) + 6], heads
 
 
 def test_shell_includes_the_partial_once():

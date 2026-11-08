@@ -28,6 +28,29 @@
   --foms-v2dh-st-completed: #047857;
 }
 
+/* 어두운 테마(2026-11-08 점검): 위 밝은 값이 그대로 남아 실측 "오늘 예정 실측 없음" 같은 상자가
+   어두운 화면 위 흰 상자로 떴다. 바탕 · 글자는 공용 토큰(어두운 값이 따로 있다)을 쓰고, 단계 색은
+   어두운 바탕 위에서 읽히게 한 단계 밝힌다(대비 6 이상). 단계 색을 바탕으로 쓰는 주 단추는
+   글자를 어둡게 바꾼다(아래). */
+[data-theme='dark'] .foms-v2dh-strip,
+[data-theme='dark'] .foms-v2dh-hero,
+[data-theme='dark'] .foms-v2dh-status {
+  --foms-v2dh-bg0: var(--foms-surface-base);
+  --foms-v2dh-bg1: var(--foms-surface-raised);
+  --foms-v2dh-bg2: var(--foms-surface-overlay);
+  --foms-v2dh-tx0: var(--foms-text-primary);
+  --foms-v2dh-tx1: var(--foms-text-secondary);
+  --foms-v2dh-tx2: var(--foms-text-tertiary);
+  --foms-v2dh-line: var(--foms-border-default);
+  --foms-v2dh-danger: #f87171;
+  --foms-v2dh-warn: #fbbf24;
+  --foms-v2dh-st-measure: #4ade80;
+  --foms-v2dh-st-confirm: #818cf8;
+  --foms-v2dh-st-production: #fbbf24;
+  --foms-v2dh-st-construction: #fb923c;
+  --foms-v2dh-st-completed: #34d399;
+}
+
 /* data-st 기반 액센트 (히어로/스탯/상태 공용) */
 .foms-v2dh-strip [data-st="measure"],
 [data-st="measure"].foms-v2dh-hero,
@@ -192,6 +215,7 @@
   color: #fff;
 }
 .foms-v2dh-btn--primary:hover { filter: brightness(1.06); }
+[data-theme='dark'] .foms-v2dh-btn--primary { color: var(--foms-color-neutral-1000); }
 
 /* ---- 0건 소형 상태 (오늘 예정 없음 · 다음 예정) ------------------------- */
 .foms-v2dh-status {
