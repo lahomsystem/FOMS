@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 내 수수료 명세서 — 주문 세부내역 + 도면 (목업)</title>
+<link rel="stylesheet" href="_tokens.css" />
+<style>
+/* 목업 전용. 실제 화면 클래스(foms-mc__*)의 값은 static/css/contexts/sales_commission/my-commission.css 를 그대로 옮겼다.
+   데이터는 모두 가짜(고객 · 품목 · 금액 · 요율). */
+body{margin:0;background:#e9edf2;color:#1f2937;font-family:Pretendard,-apple-system,"Segoe UI","Malgun Gothic",sans-serif}
+.page{max-width:1480px;margin:0 auto;padding:24px 16px 64px}
+.page h1{margin:0 0 4px;font-size:1.5rem}
+.page .lead{margin:0 0 20px;color:#4b5563}
+.card{background:#fff;border:1px solid #dde1e6;border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card h2{margin:0 0 8px;font-size:1.05rem}
+.card p,.card li{font-size:.95rem;line-height:1.6;margin:0}
+.card ul{margin:0;padding-left:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.tag{display:inline-block;font-size:.8rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef0f3;color:#353a44;margin-right:6px}
+.tag.rec{background:#e6f6ee;color:#15803d}
+.frames{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin:8px 0 28px}
+.frame-wrap{display:flex;flex-direction:column;align-items:center}
+.frame-cap{font-size:.9rem;color:#4b5563;margin:8px 0 0;text-align:center;max-width:390px}
+.phone{width:390px;height:844px;background:#f4f6f9;border:8px solid #0f1115;border-radius:36px;overflow:hidden;position:relative;box-shadow:0 12px 32px rgba(15,17,21,.18)}
+.phone .scroll{position:absolute;inset:52px 0 64px 0;overflow-y:auto}
+.topbar{position:absolute;top:0;left:0;right:0;height:52px;background:#fff;border-bottom:1px solid #dde1e6;display:flex;align-items:center;justify-content:center;font-weight:700}
+.topbar .back{position:absolute;left:12px;font-size:1.1rem;color:#33465a}
+.botnav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid #dde1e6;display:grid;grid-template-columns:repeat(7,1fr);font-size:.68rem;color:#6b7380}
+.botnav span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.botnav i{width:20px;height:20px;border-radius:6px;background:#dde1e6;display:block}
+.botnav .on{color:#3a4490;font-weight:700}.botnav .on i{background:#5a67d8}
+
+/* ── 실제 화면 클래스 (my-commission.css 그대로) ── */
+.foms-mc{max-width:640px;margin:0 auto;padding:16px}
+.foms-mc__total{background:#fff;color:#1f2937;border:1px solid #dde1e6;border-radius:12px;padding:16px;margin-bottom:12px}
+.foms-mc__heading{margin:0;font-size:.95rem;color:#353a44}
+.foms-mc__amount{margin:4px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums}
+.foms-mc__tax{margin:2px 0 0;font-size:.95rem;color:#353a44}
+.foms-mc__month{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.foms-mc__month-label{font-weight:600}
+.foms-mc__step{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid #d0d7e2;border-radius:999px;background:#fff;color:#33465a}
+.foms-mc__basis{display:flex;gap:6px;margin-bottom:12px}
+.foms-mc__basis-btn{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;min-height:40px;border:1px solid #d0d7e2;border-radius:999px;background:#fff;color:#33465a;font-size:.92rem}
+.foms-mc__basis-btn.is-active{border-color:#5a67d8;background:#f3f4ff;color:#3a4490;font-weight:600}
+.foms-mc__list{margin:0;padding:0;list-style:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#1f2937;overflow:hidden}
+.foms-mc__row+.foms-mc__row{border-top:1px solid #edf1f5}
+.foms-mc__sum{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;list-style:none}
+.foms-mc__sum::-webkit-details-marker{display:none}
+.foms-mc__main{display:flex;flex-direction:column;min-width:0}
+.foms-mc__name{font-weight:600}
+.foms-mc__meta{font-size:.85rem;color:#6d8598}
+.foms-mc__status{flex:0 0 auto;font-size:.92rem;color:#6d8598;text-align:right;white-space:nowrap}
+.foms-mc__status.is-done{color:#1f2937;font-weight:700;font-variant-numeric:tabular-nums}
+.foms-mc__body{padding:0 14px 12px}
+.foms-mc__formula{margin:0;font-size:.9rem;font-variant-numeric:tabular-nums}
+.foms-mc__ded{margin:4px 0 0;font-size:.88rem;color:#b91c1c}
+
+/* ── 새로 더하는 것: 펼친 칸(foms-mc__body) 안의 글 줄뿐 — 새 상자 · 칩 없음 ── */
+.foms-mc__items{margin:0 0 8px;padding:0;list-style:none;font-size:.9rem;font-variant-numeric:tabular-nums}
+.foms-mc__it{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px dashed #e5e9ef}
+.foms-mc__it-name{min-width:0}
+.foms-mc__it-spec{display:block;font-size:.82rem;color:#6d8598}
+.foms-mc__it-won{flex:0 0 auto;white-space:nowrap}
+.foms-mc__it.is-cancel s{color:#9aa3af}
+.foms-mc__it.is-extra{color:#353a44}
+.foms-mc__it.is-sum{border-bottom:0;font-weight:700}
+.foms-mc__drawings{display:flex;gap:8px;margin:10px 0 2px;overflow-x:auto}
+.foms-mc__dw{flex:0 0 auto;width:96px;height:72px;border:1px solid #dde1e6;border-radius:8px;background:#fff;padding:0;overflow:hidden;position:relative}
+.foms-mc__dw svg{width:100%;height:100%;display:block}
+.foms-mc__dw-no{position:absolute;right:4px;bottom:3px;font-size:.72rem;color:#4b5563;background:rgba(255,255,255,.85);padding:0 4px;border-radius:4px}
+.foms-mc__nodraw{margin:10px 0 2px;font-size:.88rem;color:#6d8598}
+.foms-mc__open{display:inline-block;margin-top:8px;font-size:.9rem;color:#3a4490;font-weight:600;text-decoration:none}
+.foms-mc__changed{margin:6px 0 0;font-size:.85rem;color:#92400e}
+
+/* 크게 보기 — 공용 사진 보기(공지 사진 창과 같은 모양: 바깥 흐림 · 두 손가락 확대) */
+.viewer{position:absolute;inset:0;background:rgba(10,12,16,.97);display:flex;flex-direction:column;color:#fff;z-index:5}
+.viewer__top{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:.95rem}
+.viewer__x{width:44px;height:44px;border-radius:999px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+.viewer__img{flex:1;display:flex;align-items:center;justify-content:center;padding:12px}
+.viewer__img svg{width:100%;height:auto;background:#fff;border-radius:6px}
+.viewer__hint{text-align:center;font-size:.82rem;color:#c1c7d0;padding:10px 0 18px}
+
+/* 안 B 비교용 시트 */
+.sheet-dim{position:absolute;inset:0;background:rgba(10,12,16,.45);z-index:4}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:78%;background:#fff;border-radius:16px 16px 0 0;z-index:5;padding:10px 16px 16px;overflow:auto}
+.sheet__grab{width:40px;height:4px;border-radius:4px;background:#c1c7d0;margin:0 auto 10px}
+.sheet h3{margin:0 0 2px;font-size:1.1rem}
+.sheet .sub{margin:0 0 10px;font-size:.85rem;color:#6d8598}
+.sheet .seg{display:flex;gap:6px;margin-bottom:10px}
+.sheet .seg span{flex:1;text-align:center;min-height:36px;display:flex;align-items:center;justify-content:center;border:1px solid #d0d7e2;border-radius:999px;font-size:.9rem}
+.sheet .seg .on{border-color:#5a67d8;background:#f3f4ff;color:#3a4490;font-weight:600}
+
+/* PC 틀 (1366 · 80% 배율로 보이는 크기 그대로 — 글자 줄이지 않음) */
+.pc{width:1100px;background:#f4f6f9;border:1px solid #c1c7d0;border-radius:10px;overflow:hidden;box-shadow:0 12px 32px rgba(15,17,21,.12)}
+.pc__nav{height:46px;background:#fff;border-bottom:1px solid #dde1e6;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:.95rem;color:#353a44}
+.pc__head{background:#fff;border-bottom:1px solid #dde1e6;padding:14px 18px;font-weight:700}
+.pc__sub{background:#fff;border-bottom:1px solid #dde1e6;padding:8px 18px;font-size:.88rem;color:#4b5563;display:flex;gap:18px}
+.pc__sub .on{color:#3a4490;font-weight:700}
+.pc .foms-mc{max-width:640px}
+.pc .foms-mc__body-cols{display:grid;grid-template-columns:1fr 212px;gap:16px;align-items:start}
+.pc .foms-mc__drawings{flex-wrap:wrap;margin-top:0}
+.pc .foms-mc__dw{width:100px;height:76px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="dw1" viewBox="0 0 320 220">
+      <rect x="0" y="0" width="320" height="220" fill="#fff"/>
+      <rect x="40" y="30" width="240" height="160" fill="none" stroke="#1f2937" stroke-width="2"/>
+      <line x1="100" y1="30" x2="100" y2="190" stroke="#1f2937" stroke-width="1.5"/>
+      <line x1="160" y1="30" x2="160" y2="190" stroke="#1f2937" stroke-width="1.5"/>
+      <line x1="220" y1="30" x2="220" y2="190" stroke="#1f2937" stroke-width="1.5"/>
+      <line x1="40" y1="70" x2="280" y2="70" stroke="#1f2937" stroke-width="1"/>
+      <circle cx="94" cy="120" r="2.5" fill="#1f2937"/><circle cx="106" cy="120" r="2.5" fill="#1f2937"/>
+      <circle cx="214" cy="120" r="2.5" fill="#1f2937"/><circle cx="226" cy="120" r="2.5" fill="#1f2937"/>
+      <line x1="40" y1="205" x2="280" y2="205" stroke="#dc2626" stroke-width="1"/>
+      <text x="160" y="216" font-size="11" text-anchor="middle" fill="#dc2626">2400</text>
+      <line x1="22" y1="30" x2="22" y2="190" stroke="#dc2626" stroke-width="1"/>
+      <text x="16" y="114" font-size="11" text-anchor="middle" fill="#dc2626" transform="rotate(-90 16 114)">2300</text>
+      <text x="160" y="22" font-size="11" text-anchor="middle" fill="#4b5563">안방 붙박이장 · 정면</text>
+    </symbol>
+    <symbol id="dw2" viewBox="0 0 320 220">
+      <rect x="0" y="0" width="320" height="220" fill="#fff"/>
+      <rect x="60" y="40" width="200" height="140" fill="none" stroke="#1f2937" stroke-width="2"/>
+      <rect x="80" y="60" width="70" height="100" fill="none" stroke="#1f2937" stroke-width="1"/>
+      <rect x="170" y="60" width="70" height="45" fill="none" stroke="#1f2937" stroke-width="1"/>
+      <rect x="170" y="115" width="70" height="45" fill="none" stroke="#1f2937" stroke-width="1"/>
+      <text x="160" y="28" font-size="11" text-anchor="middle" fill="#4b5563">안방 붙박이장 · 내부</text>
+      <text x="160" y="205" font-size="11" text-anchor="middle" fill="#dc2626">600(깊이)</text>
+    </symbol>
+    <symbol id="dw3" viewBox="0 0 320 220">
+      <rect x="0" y="0" width="320" height="220" fill="#fff"/>
+      <rect x="70" y="40" width="180" height="150" fill="none" stroke="#1f2937" stroke-width="2"/>
+      <line x1="160" y1="40" x2="160" y2="190" stroke="#1f2937" stroke-width="1.5"/>
+      <line x1="70" y1="120" x2="250" y2="120" stroke="#1f2937" stroke-width="1"/>
+      <text x="160" y="28" font-size="11" text-anchor="middle" fill="#4b5563">현관 신발장 · 정면</text>
+      <text x="160" y="208" font-size="11" text-anchor="middle" fill="#dc2626">1200</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <h1>내 수수료 명세서 — 주문마다 세부내역 + 도면 (목업)</h1>
+  <p class="lead">요청: "프리랜서가 명세서 각 주문 건의 세부내역 + 도면을 볼 수 있게". 데이터는 모두 가짜다. 실제 화면 /erp/my-commission 의 칸과 색을 그대로 옮겨 그렸다.</p>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>프리랜서 인물 (persona)</h2>
+      <ul>
+        <li><b>누구</b>: 회사 밖에서 일하는 영업 프리랜서. 하루 대부분 현장 · 이동 중이고 휴대폰으로 본다. 월말 · 지급일에 PC 로 한 번 더 맞춰 본다.</li>
+        <li><b>이 화면에 오는 까닭</b>: "이번 달 얼마?" 다음은 늘 "<b>이 건은 왜 이 금액?</b>"과 "<b>이게 어느 집이었지?</b>"다.</li>
+        <li><b>지금 막히는 곳</b>: 펼치면 계산 한 줄(출고가 − 시공비 − 차감 × 요율)만 나온다. 출고가가 어떤 품목으로 이뤄졌는지, 취소 · 할인이 빠졌는지 알 수 없다. 집을 떠올리려면 주문 화면을 따로 찾아 들어가야 한다.</li>
+        <li><b>원하는 것</b>: 줄 하나 펼치면 그 자리에서 <b>품목 · 금액</b>과 <b>확정 도면</b>을 본다. 손가락 하나로 크게 본다. 고칠 일은 없다(보기만).</li>
+      </ul>
+    </section>
+    <section class="card">
+      <h2>GUI 마스터 판단</h2>
+      <ul>
+        <li><b>새 상자 · 칩 없이</b> 이미 있는 "펼친 칸"(줄 아래 글 자리) 안에 글 줄을 더한다 — 사용자 취향(기존 칸 하나만 바꾸기)에 맞다.</li>
+        <li>순서는 <b>돈이 만들어지는 순서</b>: 품목 → (배송 · 할인) → 출고가 → 지금 계산 줄(그대로) → 도면. 맨 아래 합이 위 계산 줄 첫 숫자와 같아야 믿는다.</li>
+        <li>취소 품목은 <b>줄긋기 + "· 취소"</b>로 남긴다 — 빼 버리면 "내 품목이 왜 없지?"가 된다.</li>
+        <li>도면은 <b>확정본만</b>(ERP 원칙), 작은 그림 → 누르면 공지 사진 창과 같은 크게 보기(두 손가락 확대). 그림은 펼칠 때만 받는다(목록이 무거워지지 않게).</li>
+        <li><b>마감한 달 함정</b>: 줄 금액은 마감 때 굳힌 값인데 품목은 지금 주문이다. 마감 뒤 품목이 바뀌었으면 한 줄로 알린다 — 숫자가 안 맞아 보이는 혼란을 막는다.</li>
+        <li>PC 는 글자를 줄이지 않는다(80% 배율). 같은 칸 안에서 품목 왼쪽 · 도면 오른쪽 두 줄로만 바꾼다.</li>
+      </ul>
+    </section>
+  </div>
+
+  <h2 style="margin:8px 0 0"><span class="tag rec">추천</span>안 A — 펼친 줄 안에서 바로 보기 (휴대폰)</h2>
+  <div class="frames">
+    <!-- A-1 펼친 줄 -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="topbar"><span class="back">‹</span>내 수수료</div>
+        <div class="scroll" data-scroll-to="232">
+          <div class="foms-mc">
+            <section class="foms-mc__total">
+              <p class="foms-mc__heading">10월 시공 완료 기준 · 마감 전</p>
+              <p class="foms-mc__amount">357,500원</p>
+              <p class="foms-mc__tax">세금 빼고 345,703원</p>
+            </section>
+            <nav class="foms-mc__month"><span class="foms-mc__step">‹</span><span class="foms-mc__month-label">2030년 10월</span><span class="foms-mc__step">›</span></nav>
+            <nav class="foms-mc__basis"><span class="foms-mc__basis-btn">실측 기준</span><span class="foms-mc__basis-btn is-active">시공 완료 기준</span></nav>
+            <ul class="foms-mc__list">
+              <li class="foms-mc__row">
+                <details class="foms-mc__item" open>
+                  <summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">홍길동</span><span class="foms-mc__meta">10월 14일 · 라홈</span></span><span class="foms-mc__status is-done">137,500원</span></summary>
+                  <div class="foms-mc__body">
+                    <ul class="foms-mc__items" aria-label="품목">
+                      <li class="foms-mc__it"><span class="foms-mc__it-name">안방 붙박이장<span class="foms-mc__it-spec">2400 × 2300 · 화이트 · 1개</span></span><span class="foms-mc__it-won">3,200,000</span></li>
+                      <li class="foms-mc__it"><span class="foms-mc__it-name">현관 신발장<span class="foms-mc__it-spec">1200 × 2300 · 오크 · 1개</span></span><span class="foms-mc__it-won">900,000</span></li>
+                      <li class="foms-mc__it is-cancel"><span class="foms-mc__it-name"><s>드레스룸 선반</s><span class="foms-mc__it-spec">900 · 3단 · 취소한 품목이라 빠져요</span></span><span class="foms-mc__it-won"><s>350,000</s></span></li>
+                      <li class="foms-mc__it is-extra"><span class="foms-mc__it-name">배송</span><span class="foms-mc__it-won">+50,000</span></li>
+                      <li class="foms-mc__it is-extra"><span class="foms-mc__it-name">할인</span><span class="foms-mc__it-won">−150,000</span></li>
+                      <li class="foms-mc__it is-sum"><span class="foms-mc__it-name">출고가</span><span class="foms-mc__it-won">4,000,000</span></li>
+                    </ul>
+                    <p class="foms-mc__formula">출고가 4,000,000 − 시공비 1,200,000 − 차감 50,000 = 2,750,000 × 5% = 137,500원</p>
+                    <p class="foms-mc__ded">차감 · 자재 파손 50,000원</p>
+                    <div class="foms-mc__drawings" aria-label="확정 도면">
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw1"/></svg><span class="foms-mc__dw-no">1</span></button>
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw2"/></svg><span class="foms-mc__dw-no">2</span></button>
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw3"/></svg><span class="foms-mc__dw-no">3</span></button>
+                    </div>
+                    <a class="foms-mc__open" href="#">주문 열기 ›</a>
+                  </div>
+                </details>
+              </li>
+              <li class="foms-mc__row"><details class="foms-mc__item"><summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">김철수</span><span class="foms-mc__meta">10월 21일 · 개인영업</span></span><span class="foms-mc__status is-done">220,000원</span></summary></details></li>
+              <li class="foms-mc__row"><details class="foms-mc__item"><summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">이영희</span><span class="foms-mc__meta">10월 28일 · 하우드</span></span><span class="foms-mc__status">시공비 기다림</span></summary></details></li>
+            </ul>
+          </div>
+        </div>
+        <div class="botnav"><span><i></i>대시보드</span><span><i></i>실측</span><span><i></i>도면</span><span><i></i>출고</span><span class="on"><i></i>내 수수료</span><span><i></i>계산기</span><span><i></i>더보기</span></div>
+      </div>
+      <p class="frame-cap">① 줄을 누르면 그 자리에서 펼쳐진다. 품목 합이 계산 줄 첫 숫자(출고가)와 같다. 취소 품목은 줄을 그어 남긴다.</p>
+    </div>
+
+    <!-- A-2 크게 보기 -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="viewer">
+          <div class="viewer__top"><span>홍길동 · 도면 1 / 3</span><span class="viewer__x">×</span></div>
+          <div class="viewer__img"><svg viewBox="0 0 320 220"><use href="#dw1"/></svg></div>
+          <p class="viewer__hint">두 손가락으로 크게 · 옆으로 밀면 다음 장 · 바깥을 누르면 닫힘</p>
+        </div>
+        <div class="botnav"><span><i></i>대시보드</span><span><i></i>실측</span><span><i></i>도면</span><span><i></i>출고</span><span class="on"><i></i>내 수수료</span><span><i></i>계산기</span><span><i></i>더보기</span></div>
+      </div>
+      <p class="frame-cap">② 작은 도면을 누르면 공지 사진 창과 같은 크게 보기. 새 창을 따로 만들지 않고 공용 사진 보기를 쓴다.</p>
+    </div>
+
+    <!-- A-3 상태들 -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="topbar"><span class="back">‹</span>내 수수료</div>
+        <div class="scroll">
+          <div class="foms-mc">
+            <nav class="foms-mc__month"><span class="foms-mc__step">‹</span><span class="foms-mc__month-label">2030년 9월 · 마감</span><span class="foms-mc__step">›</span></nav>
+            <ul class="foms-mc__list">
+              <li class="foms-mc__row">
+                <details class="foms-mc__item" open>
+                  <summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">박민수</span><span class="foms-mc__meta">9월 시공 · 라홈</span></span><span class="foms-mc__status is-done">90,000원</span></summary>
+                  <div class="foms-mc__body">
+                    <ul class="foms-mc__items">
+                      <li class="foms-mc__it"><span class="foms-mc__it-name">거실장<span class="foms-mc__it-spec">2000 × 450 · 월넛 · 1개</span></span><span class="foms-mc__it-won">2,100,000</span></li>
+                      <li class="foms-mc__it is-sum"><span class="foms-mc__it-name">지금 출고가</span><span class="foms-mc__it-won">2,100,000</span></li>
+                    </ul>
+                    <p class="foms-mc__formula">출고가 2,300,000 − 시공비 500,000 − 차감 0 = 1,800,000 × 5% = 90,000원</p>
+                    <p class="foms-mc__changed">마감 뒤 품목이 바뀌었어요. 바뀐 몫은 다음 달 조정 줄에 들어가요.</p>
+                    <div class="foms-mc__drawings"><button class="foms-mc__dw" type="button"><svg><use href="#dw3"/></svg><span class="foms-mc__dw-no">1</span></button></div>
+                    <a class="foms-mc__open" href="#">주문 열기 ›</a>
+                  </div>
+                </details>
+              </li>
+              <li class="foms-mc__row">
+                <details class="foms-mc__item" open>
+                  <summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">이영희</span><span class="foms-mc__meta">9월 30일 · 하우드</span></span><span class="foms-mc__status">시공비 기다림</span></summary>
+                  <div class="foms-mc__body">
+                    <ul class="foms-mc__items">
+                      <li class="foms-mc__it"><span class="foms-mc__it-name">주방 상부장<span class="foms-mc__it-spec">3000 · 화이트 · 1개</span></span><span class="foms-mc__it-won">1,800,000</span></li>
+                      <li class="foms-mc__it is-sum"><span class="foms-mc__it-name">출고가</span><span class="foms-mc__it-won">1,800,000</span></li>
+                    </ul>
+                    <p class="foms-mc__formula">출고가 1,800,000원 · 시공비가 들어오면 계산해요.</p>
+                    <p class="foms-mc__nodraw">도면이 아직 확정되지 않았어요.</p>
+                    <a class="foms-mc__open" href="#">주문 열기 ›</a>
+                  </div>
+                </details>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="botnav"><span><i></i>대시보드</span><span><i></i>실측</span><span><i></i>도면</span><span><i></i>출고</span><span class="on"><i></i>내 수수료</span><span><i></i>계산기</span><span><i></i>더보기</span></div>
+      </div>
+      <p class="frame-cap">③ 마감한 달은 줄 금액이 굳은 값이라, 지금 품목과 다르면 한 줄로 알린다. 도면이 아직이면 그림 대신 한 줄.</p>
+    </div>
+  </div>
+
+  <h2 style="margin:8px 0 0"><span class="tag rec">추천</span>안 A — PC (1366 화면 · 80% 배율에서 보이는 크기, 글자 그대로)</h2>
+  <div class="frames">
+    <div class="frame-wrap">
+      <div class="pc">
+        <div class="pc__nav"><span>내 수수료</span><span>ERP 대시보드 · WDCalculator</span></div>
+        <div class="pc__head">내 수수료</div>
+        <div class="pc__sub"><span>대시보드</span><span>실측</span><span>도면</span><span>생산</span><span>출고</span><span>AS</span><span>시공</span><span>완료</span><span>이력</span><span>견적 계산기</span><span class="on">내 수수료</span></div>
+        <div class="foms-mc">
+          <ul class="foms-mc__list">
+            <li class="foms-mc__row">
+              <details class="foms-mc__item" open>
+                <summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">홍길동</span><span class="foms-mc__meta">10월 14일 · 라홈</span></span><span class="foms-mc__status is-done">137,500원</span></summary>
+                <div class="foms-mc__body">
+                  <div class="foms-mc__body-cols">
+                    <div>
+                      <ul class="foms-mc__items">
+                        <li class="foms-mc__it"><span class="foms-mc__it-name">안방 붙박이장<span class="foms-mc__it-spec">2400 × 2300 · 화이트 · 1개</span></span><span class="foms-mc__it-won">3,200,000</span></li>
+                        <li class="foms-mc__it"><span class="foms-mc__it-name">현관 신발장<span class="foms-mc__it-spec">1200 × 2300 · 오크 · 1개</span></span><span class="foms-mc__it-won">900,000</span></li>
+                        <li class="foms-mc__it is-cancel"><span class="foms-mc__it-name"><s>드레스룸 선반</s><span class="foms-mc__it-spec">900 · 3단 · 취소한 품목이라 빠져요</span></span><span class="foms-mc__it-won"><s>350,000</s></span></li>
+                        <li class="foms-mc__it is-extra"><span class="foms-mc__it-name">배송</span><span class="foms-mc__it-won">+50,000</span></li>
+                        <li class="foms-mc__it is-extra"><span class="foms-mc__it-name">할인</span><span class="foms-mc__it-won">−150,000</span></li>
+                        <li class="foms-mc__it is-sum"><span class="foms-mc__it-name">출고가</span><span class="foms-mc__it-won">4,000,000</span></li>
+                      </ul>
+                      <p class="foms-mc__formula">출고가 4,000,000 − 시공비 1,200,000 − 차감 50,000 = 2,750,000 × 5% = 137,500원</p>
+                      <p class="foms-mc__ded">차감 · 자재 파손 50,000원</p>
+                      <a class="foms-mc__open" href="#">주문 열기 ›</a>
+                    </div>
+                    <div class="foms-mc__drawings">
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw1"/></svg><span class="foms-mc__dw-no">1</span></button>
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw2"/></svg><span class="foms-mc__dw-no">2</span></button>
+                      <button class="foms-mc__dw" type="button"><svg><use href="#dw3"/></svg><span class="foms-mc__dw-no">3</span></button>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </li>
+            <li class="foms-mc__row"><details class="foms-mc__item"><summary class="foms-mc__sum"><span class="foms-mc__main"><span class="foms-mc__name">김철수</span><span class="foms-mc__meta">10월 21일 · 개인영업</span></span><span class="foms-mc__status is-done">220,000원</span></summary></details></li>
+          </ul>
+        </div>
+      </div>
+      <p class="frame-cap" style="max-width:none">④ PC 는 같은 펼친 칸 안에서 품목 왼쪽 · 도면 오른쪽. 칸 폭(640px)과 글자 크기는 지금 그대로.</p>
+    </div>
+  </div>
+
+  <h2 style="margin:8px 0 0"><span class="tag">비교</span>안 B — "자세히" 를 누르면 아래에서 올라오는 창</h2>
+  <div class="frames">
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="topbar"><span class="back">‹</span>내 수수료</div>
+        <div class="scroll"></div>
+        <div class="sheet-dim"></div>
+        <div class="sheet">
+          <div class="sheet__grab"></div>
+          <h3>홍길동</h3>
+          <p class="sub">10월 14일 · 라홈 · 137,500원</p>
+          <div class="seg"><span class="on">세부내역</span><span>도면 3</span></div>
+          <ul class="foms-mc__items">
+            <li class="foms-mc__it"><span class="foms-mc__it-name">안방 붙박이장<span class="foms-mc__it-spec">2400 × 2300 · 화이트 · 1개</span></span><span class="foms-mc__it-won">3,200,000</span></li>
+            <li class="foms-mc__it"><span class="foms-mc__it-name">현관 신발장<span class="foms-mc__it-spec">1200 × 2300 · 오크 · 1개</span></span><span class="foms-mc__it-won">900,000</span></li>
+            <li class="foms-mc__it is-cancel"><span class="foms-mc__it-name"><s>드레스룸 선반</s><span class="foms-mc__it-spec">900 · 3단 · 취소한 품목이라 빠져요</span></span><span class="foms-mc__it-won"><s>350,000</s></span></li>
+            <li class="foms-mc__it is-sum"><span class="foms-mc__it-name">출고가</span><span class="foms-mc__it-won">4,000,000</span></li>
+          </ul>
+          <p class="foms-mc__formula">출고가 4,000,000 − 시공비 1,200,000 − 차감 50,000 = 2,750,000 × 5% = 137,500원</p>
+        </div>
+        <div class="botnav"><span><i></i>대시보드</span><span><i></i>실측</span><span><i></i>도면</span><span><i></i>출고</span><span class="on"><i></i>내 수수료</span><span><i></i>계산기</span><span><i></i>더보기</span></div>
+      </div>
+      <p class="frame-cap">세부내역과 도면을 두 칸으로 가른다. 넓게 보이지만 누르는 횟수가 하나 늘고(펼치기 → 자세히 → 도면 칸), 새 창 · 새 칸이 생긴다.</p>
+    </div>
+    <section class="card" style="max-width:420px">
+      <h2>안 C — 줄을 누르면 지금 주문 화면으로</h2>
+      <p>새로 만들 것이 거의 없다(이미 자기 주문은 열 수 있다). 하지만 주문 화면은 고치는 화면이라 칸이 수십 개이고 무겁다. "이 건 금액 확인 · 어느 집" 이라는 목적에 비해 멀다. 안 A 에서는 맨 아래 "주문 열기 ›" 한 줄로만 남긴다.</p>
+      <h2 style="margin-top:14px">정할 것</h2>
+      <ul>
+        <li>품목 금액까지 보일지(추천: 보인다 — 자기 주문이고 출고가를 믿게 하는 근거다).</li>
+        <li>조정 줄(마감 뒤 바뀐 몫)도 펼치면 같은 세부내역을 보일지(추천: 보인다 — 무엇이 바뀌었는지가 궁금한 줄이다).</li>
+        <li>회사 직원이 "프리랜서 화면 보기"로 볼 때도 같게(추천: 같게).</li>
+      </ul>
+    </section>
+  </div>
+</div>
+<script>
+/* 목업 전용: 첫 틀을 펼친 줄이 다 보이게 내려 둔다. */
+document.querySelectorAll('[data-scroll-to]').forEach(function (el) { el.scrollTop = Number(el.dataset.scrollTo) || 0; });
+</script>
+</body>
+</html>
