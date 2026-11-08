@@ -83,8 +83,35 @@ HANDLES: tuple[str, ...] = ("push", "bar", "other")
 SPEC_BASES: tuple[str, ...] = ("inner", "wall_incl", "outer")
 PRICE_STAGES: tuple[str, ...] = ("base", "extra", "discount")
 POLICY_KINDS: tuple[str, ...] = ("general", "promotion", "install", "shipping")
+PRICE_KINDS: tuple[str, ...] = ("included", "extra", "quote")
+RULE_KINDS: tuple[str, ...] = ("requires", "excludes", "limit")
 #: 공정 단계 → ERP 주문 단계 정본 값(:data:`foms.services.orders.erp_policy_constants.STAGE_LABELS` 의 키).
 ERP_STAGES: tuple[str, ...] = tuple(STAGE_LABELS)
+
+#: 고르기 값 → 화면 이름표(점검 F03 · F11 — **저장 값은 그대로**, 화면 글만 바꾼다). 칸 자리마다 하나이고, 같은 자리를 두 유형이
+#: 쓰면(``payload.basis`` = 규격 치수 기준 · 가격 규칙 근거 종류) 값이 겹치지 않아 한 표로 합친다(시험이 겹침을 막는다).
+#: 저장소에 있던 말을 먼저 쓴다 — 문 방식 · 손잡이 = 견적 뽑기 이름(:data:`foms.services.cs_agent.quote_brain.DOORS` ·
+#: ``HANDLES``), 견적 규칙 종류 = 계산기 제품 설정 화면 이름(``templates/wdcalculator/product_settings.html``), 내경 = 사장님
+#: D158, 근거 종류 = D115 낱말, ERP 단계 = 주문 단계 이름(:data:`STAGE_LABELS`). 단위(mm · 자 · 통 …)는 이미 사람 말이라 없다.
+CHOICE_LABELS: dict[str, dict[str, str]] = {
+    "payload.door_kinds": {"hinged": "여닫이", "sliding": "슬라이딩", "folding": "폴딩", "none": "문 없음"},
+    "payload.quote_kind": {"hinge": "여닫이", "slide": "슬라이딩", "linear": "cm 비례", "none": "최소 없음"},
+    "payload.molding_default": {"molding": "몰딩 있음", "no_molding": "몰딩 없음"},
+    "payload.handle_default": {"push": "푸쉬", "bar": "바 손잡이", "other": "그 밖"},
+    "payload.price_kind": {"included": "기본 포함", "extra": "추가 금액", "quote": "따로 견적"},
+    "payload.rule_kind": {"requires": "필요", "excludes": "함께 못 함", "limit": "한도"},
+    "payload.policy_kind": {"general": "일반", "promotion": "판촉", "install": "시공", "shipping": "배송"},
+    "payload.stage": {"base": "기본 금액", "extra": "추가 금액", "discount": "할인"},
+    "payload.basis": {"inner": "내경(안쪽 치수)", "wall_incl": "벽 포함 치수", "outer": "외경(바깥 치수)",
+                      "calc": "견적 계산기 값", "brain": "회사 지식에 적은 값", "derived": "두 값의 차이",
+                      "setting": "설정 값"},
+    "payload.erp_stage": dict(STAGE_LABELS),
+}
+
+
+def choice_label(path: str, value: Any) -> str:
+    """고르기 값 하나 → 화면 이름표(이름표가 없으면 값 그대로)."""
+    return CHOICE_LABELS.get(path, {}).get(value, str(value)) if isinstance(value, str) else str(value)
 
 #: 유형 → 속성 틀(차례 = 카드 · 제안함 차례).
 TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
@@ -97,7 +124,7 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
                      Prop("payload.min_width_mm", "최소 가로", "int", low=0, high=_MM, unit="mm", key=True),
                      Prop("payload.max_width_mm", "최대 가로", "int", low=0, high=_MM, unit="mm", key=True),
                      *_LABELS),
-    "option": (_desc(), Prop("payload.price_kind", "값 방식", "enum", choices=("included", "extra", "quote"), key=True),
+    "option": (_desc(), Prop("payload.price_kind", "값 방식", "enum", choices=PRICE_KINDS, key=True),
                _LEAD, Prop("payload.unit", "단위", "enum", choices=UNITS, key=True),
                Prop("payload.category", "옵션 묶음", "text", max_len=60, key=True),
                Prop("payload.door_kinds", "맞는 문 방식", "list", choices=DOOR_KINDS, max_items=4), *_LABELS),
@@ -106,8 +133,7 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
              Prop("payload.low", "아래 끝", "number", low=0, high=_MM),
              Prop("payload.high", "위 끝", "number", low=0, high=_MM),
              Prop("payload.basis", "치수 기준", "enum", choices=SPEC_BASES, key=True), *_LABELS),
-    "build_rule": (_desc("조건"), Prop("payload.rule_kind", "조건 꼴", "enum", choices=("requires", "excludes", "limit"),
-                                       key=True), _CHECKED),
+    "build_rule": (_desc("조건"), Prop("payload.rule_kind", "조건 꼴", "enum", choices=RULE_KINDS, key=True), _CHECKED),
     "policy": (_desc("정책 글"), _CHECKED, Prop("valid_from", "유효 시작", "date", key=True),
                Prop("valid_to", "유효 끝", "date", key=True),
                Prop("payload.policy_kind", "정책 종류", "enum", choices=POLICY_KINDS, key=True), *_LABELS),
@@ -316,10 +342,21 @@ def value_label(prop: Prop, value: Any, unit: Optional[str] = None) -> str:
     return f"{text}{unit}" if unit and prop.datatype in ("int", "number") else text
 
 
+def shown_label(prop: Prop, value: Any, unit: Optional[str] = None) -> str:
+    """화면 글 — :func:`value_label` 과 같되 고르기 값은 이름표로(:data:`CHOICE_LABELS` — 저장 값 · 챗봇 글은 그대로)."""
+    if prop.choices and prop.path in CHOICE_LABELS and not _empty(value):
+        items = value if isinstance(value, list) else [value]
+        return " · ".join(choice_label(prop.path, v) for v in items)
+    return value_label(prop, value, unit)
+
+
 def key_fields(values: Mapping[str, Any], item_type: Optional[str]) -> list[dict[str, Any]]:
-    """카드 '눈에 띄는 칸' — 틀의 ``key`` 칸 차례대로(값이 없으면 빈 글 · 글 칸은 카드 본문이 보여 빼고)."""
+    """카드 '눈에 띄는 칸' — 틀의 ``key`` 칸 차례대로(값이 없으면 빈 글 · 글 칸은 카드 본문이 보여 빼고).
+
+    ``value`` 는 값 글(챗봇 재료 — :mod:`.chat_retrieve`), ``shown`` 은 화면 글(고르기 값은 한글 이름표)."""
     return [{"path": p.path, "label": p.label, "value": value_label(p, get(values, p.path), unit_of(p, values)),
-             "unit": unit_of(p, values)} for p in TYPE_SCHEMAS.get(item_type or "", ()) if p.key and p.path != "text"]
+             "shown": shown_label(p, get(values, p.path), unit_of(p, values)), "unit": unit_of(p, values)}
+            for p in TYPE_SCHEMAS.get(item_type or "", ()) if p.key and p.path != "text"]
 
 
 def diff_rows(item_type: Optional[str], fields: Mapping[str, Any]) -> list[dict[str, Any]]:

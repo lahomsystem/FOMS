@@ -100,8 +100,10 @@
       el('strong', { text: prop.ai ? 'AI가 제안한 까닭 · ' : '까닭 · ' }), el('span', { text: reasonText(prop) })] });
   }
 
-  /** 사람이 읽을 근거만(사진 · 사례) — 계획 · 계산기 · 다루는 항목 자리는 기계 근거라 안 보인다. */
-  var MACHINE_REF = /^(plan|calc|about|setting|erp|form|macro|store|screen):/;
+  /** 사람이 읽을 근거만 — 'xxx:' 머리가 붙은 자리(계획 · 계산기 · 다루는 항목 · 손님 customer · 상담 case · 사람 person ·
+   *  물어보기 brain_questions · 사진 다시 배우기 photo_relearn …)와 지식 문서 판(…@v3)은 기계 근거라 안 보인다(점검 F02 —
+   *  까닭 줄에 '근거 상담 약 N곳'이 이미 있다). 바깥 주소(https://)는 보인다. */
+  var MACHINE_REF = /^[a-z][a-z0-9_]*:(?!\/\/)|@v\d+$/;
 
   /** '자세히 보기' 안 — 사진 · 사람 근거 · 비슷한 사례 · 함께 닿는 항목(있을 때만) · 누가 언제. */
   function detailBits(prop, card, ctx, primary) {
@@ -144,14 +146,15 @@
       text: label + ' 확인했어요: ' + shown })] });
   }
 
-  /** 고칠 칸 하나 — 자료형(속성 틀)에 맞는 입력(글 · 날짜 · 수 · 고르기 · 쉼표 목록). */
-  function editInput(row) {
+  /** 고칠 칸 하나 — 자료형(속성 틀)에 맞는 입력(글 · 날짜 · 수 · 고르기 · 쉼표 목록). 고르기 글은 이름표(값은 그대로). */
+  function editInput(row, display) {
     var kind = row.datatype || 'text';
     var input;
     if (kind === 'enum') {
       input = el('select', { cls: 'form-select form-select-sm', attrs: { 'data-brain-edit': row.field } });
       [''].concat(row.choices || []).forEach(function (choice) {
-        input.appendChild(el('option', { text: choice || '(없음)', attrs: { value: choice } }));
+        input.appendChild(el('option', { text: choice ? review.valueText(row.field, choice, display) : '(없음)',
+                                         attrs: { value: choice } }));
       });
     } else {
       var type = { date: 'date', int: 'number', number: 'number' }[kind] || (row.field === 'text' ? null : 'text');
@@ -172,7 +175,7 @@
     review.diffRows(rows, ctx.display).forEach(function (r) { labels[r.field] = r.label; });
     rows.forEach(function (row) {
       box.appendChild(el('label', { cls: 'brain-propose__field', children: [
-        el('span', { text: labels[row.field] + (row.unit ? '(' + row.unit + ')' : '') + ' — 고친 값' }), editInput(row)] }));
+        el('span', { text: labels[row.field] + (row.unit ? '(' + row.unit + ')' : '') + ' — 고친 값' }), editInput(row, ctx.display)] }));
     });
     return box;
   }

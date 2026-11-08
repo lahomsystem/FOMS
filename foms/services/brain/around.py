@@ -19,6 +19,7 @@ from foms.persistence.brain.models import BrainObject
 from foms.services.brain.constants import (
     KEY_RE, LINK_KINDS, MAX_BRAIN_POINTS, MAX_NEIGHBOUR_DEPTH, MAX_NEIGHBOUR_LIMIT, STATUS_DRAFT, STATUS_RETIRED, TYPES,
 )
+from foms.services.brain.labels import pref_of
 from foms.services.brain.read import current_item, neighbours, visible_clauses
 from foms.services.brain.scope import Viewer
 from foms.services.brain.usage import usage_total
@@ -66,10 +67,10 @@ def parse_around(args: Mapping[str, Any]) -> AroundQuery:
 
 
 def light(item: Mapping[str, Any], today: datetime.date) -> dict[str, Any]:
-    """그림 · 목록 줄 하나(글 · 실음 칸 · 사람 칸 없음)."""
+    """그림 · 목록 줄 하나(글 · 실음 칸 · 사람 칸 없음). 이름은 카드 제목과 같은 규칙(한글 이름표 먼저 — 읽은 줄의 실음 칸에서)."""
     stale_after = item.get("stale_after")
-    return {"key": item["key"], "name": item["name"], "type": item["type"], "layer": item["layer"],
-            "status": item["status"], "confidence": item.get("confidence"),
+    return {"key": item["key"], "name": pref_of(item["name"], item.get("payload")), "type": item["type"],
+            "layer": item["layer"], "status": item["status"], "confidence": item.get("confidence"),
             "usage_count": int(item.get("usage_count") or 0), "ended": bool(item.get("ended")),
             "stale": bool(stale_after and datetime.date.fromisoformat(stale_after) < today)}
 

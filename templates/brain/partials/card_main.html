@@ -28,16 +28,18 @@
   <span class="brain-badge brain-badge--{{ it.confidence }}">확신 {{ confidence_labels.get(it.confidence, it.confidence) }}</span>
   {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing" data-brain-missing="{{ gap.kind }}">빠진 연결 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
   {% for warn in card.warnings %}<span class="brain-badge brain-badge--missing" data-brain-warning="{{ warn.code }}">{{ warn.text }}</span>{% endfor %}
-  <span class="brain-card__key">{{ it.key }} · 버전 {{ it.version }}</span>
+  <span class="brain-card__key">버전 {{ it.version }}</span>{#- 키(영어 자리 이름)는 주소에만 — 점검 F12 -#}
 </p>
 <dl class="brain-fields">
   <dt>위험 등급</dt><dd>{{ grade_labels.get(it.risk_grade, '—') if it.risk_grade else '—' }}</dd>
   <dt>유효 기간</dt><dd>{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '계속' }}</dd>
   <dt>마지막 확인</dt><dd>{{ it.checked_at or '없음' }}{% if it.stale_after %} · 다시 볼 날 {{ it.stale_after }}{% endif %}</dd>
   <dt>볼 수 있는 사람</dt><dd>{{ visibility }}</dd>
-  {#- 한글 이름 · 비슷한 말은 제목 · '비슷한 말' 줄에 이미 있다. -#}
-  {% for kf in card.key_fields if kf.path not in ('payload.pref_label', 'payload.aliases') %}
-  <dt>{{ kf.label }}</dt><dd data-brain-key-field="{{ kf.path }}">{{ kf.value or '—' }}</dd>
+  {#- 한글 이름 · 비슷한 말은 제목 · '비슷한 말' 줄에, 유효 시작 · 끝 · 마지막 확인은 위 두 줄에, 근거 위치는 아래 근거 줄에 이미
+      있다 — 같은 칸을 두 번 보이지 않는다(점검 F12). 고르기 값은 한글 이름표(shown — schemas.CHOICE_LABELS). -#}
+  {% for kf in card.key_fields if kf.path not in ('payload.pref_label', 'payload.aliases', 'valid_from', 'valid_to',
+                                                  'checked_at', 'evidence_ref') %}
+  <dt>{{ kf.label }}</dt><dd data-brain-key-field="{{ kf.path }}">{{ kf.shown or '—' }}</dd>
   {% endfor %}
   <dt>바뀐 때</dt><dd>{{ it.recorded_at or '—' }}{% if it.release_no is not none %} · 판 {{ it.release_no }}{% endif %}</dd>
 </dl>
@@ -46,7 +48,7 @@
   <h2 id="brain-card-evidence">근거 · 만든 이 · 승인자</h2>
   <p class="mb-0">
     근거 {{ evidence_labels.get(it.evidence_kind, '없음') if it.evidence_kind else '없음' }}{% if it.evidence_count %}({{ it.evidence_count }}개){% endif %}
-    · 만든 이 {{ card.created_by }} · 승인자 {{ card.approver }}{% if it.evidence_ref %} · 근거 위치 {{ it.evidence_ref }}{% endif %}
+    · 만든 이 {{ card.created_by }} · 승인자 {{ card.approver }}{% if card.evidence_place %} · 근거 위치 {{ card.evidence_place }}{% endif %}
   </p>
 </section>
 
