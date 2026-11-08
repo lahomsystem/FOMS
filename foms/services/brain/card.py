@@ -22,7 +22,7 @@ from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
-from foms.services.brain.browse import pref_name
+from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
 from foms.services.brain.display import agent_label
@@ -65,7 +65,7 @@ def _ranked_links(session: Any, viewer: Viewer, key: str, today: datetime.date) 
     """두 방향 링크를 (종류, 방향)마다 앞 :data:`MAX_LINKS_PER_GROUP` 개 + 그 묶음 전체 수로 읽는다(한 질의)."""
     both = union_all(_link_query(viewer, key, "out", today), _link_query(viewer, key, "in", today)).subquery("both")
     group = (both.c.kind, both.c.direction)
-    rank = func.row_number().over(partition_by=group, order_by=(both.c.name, both.c.key)).label("rank")
+    rank = func.row_number().over(partition_by=group, order_by=(name_order(both.c.name), both.c.key)).label("rank")
     size = func.count().over(partition_by=group).label("size")
     ranked = select(both, rank, size).subquery("ranked")
     return session.execute(select(ranked).where(ranked.c.rank <= MAX_LINKS_PER_GROUP)

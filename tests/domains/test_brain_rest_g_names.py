@@ -105,7 +105,7 @@ def test_shown_name_expression_fits_sqlite_and_postgresql():
     assert "other.payload ->> 'pref_label'" in _sql(pref_name(aliased(BrainObject, name="other")), pg)
     order = _sql(select(BrainObject.id).order_by(*_table_order("name")), pg)
     assert order.endswith("ORDER BY coalesce(nullif(trim(CAST(brain_objects.payload ->> 'pref_label' AS VARCHAR)), ''), "
-                          "brain_objects.name), brain_objects.item_key")
+                          "brain_objects.name) COLLATE \"C\", brain_objects.item_key")  # 한글 가나다 순(PG 기본 정렬 규칙은 한글 무게 없음)
     assert "->>" in _sql(pref_name(), postgresql.dialect())  # 기본 PG 방언도 같은 꼴
 
 
