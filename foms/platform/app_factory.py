@@ -8,12 +8,12 @@ from typing import Any
 
 from datetime import timedelta
 
-from flask import Flask
+from flask import Flask, request_started
 from flask_compress import Compress
 from whitenoise import WhiteNoise
 
 from foms.services.files.storage_paths import UPLOAD_FOLDER
-from db import close_db, engine as main_db_engine
+from db import close_db, engine as main_db_engine, mark_request_db_state, release_request_db_session
 from wdcalculator_db import close_wdcalculator_db
 
 from .blueprints import register_blueprints
@@ -288,6 +288,9 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         close_wdcalculator_db=close_wdcalculator_db,
         register_context_processors=register_context_processors,
     )
+    # get_db() 를 안 부른 요청(로그인 없는 공유 링크 등)도 끝나면 DB 연결을 돌려놓는다(DB-LEAK 11-08).
+    request_started.connect(mark_request_db_state, app)
+    app.teardown_request(release_request_db_session)
 
     # WRITE-GUARD-01: 공용 CSRF+Origin before_request 가드 + csrf_token context processor.
     # (manifest 부재 시 여기서 loud fail — startup 차단.)
