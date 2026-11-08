@@ -2,7 +2,7 @@
  * 회사 지식 물어보기 순수 함수(HAUD master brain 설계서 10절 · D88 · ⑤-5 — DOM 을 만지지 않는다).
  *
  * 받은 답(POST /api/brain/chat/ask) → 화면 값: 모름 표시 · 답 글 · 근거 칩(이름 · 유형 · 마지막 확인 — 카드를 열 수 있는 사람만
- * 링크) · 확인 중 항목 · 확신 줄(근거 확신 + 답 확신). 피드백 본문 · 남은 질문 글 · 설정 칸(ADMIN) · 빈 지식 줄.
+ * 링크) · 확인 중 항목 · 확신 줄(근거 + 답이 맞을 가능성). 피드백 본문 · 남은 질문 글 · 설정 칸(ADMIN) · 빈 지식 줄.
  * 표시 표(display)는 서버 display.py 가 data-display 로 싣는다. window.FOMS_BRAIN_ASK_VIEW · node 에서는 module.exports
  * — tests/domains/test_brain_chat_js.py.
  */
@@ -26,12 +26,12 @@
              meta: meta };
   }
 
-  /** 확신 줄 — '근거 확신: 확정 · 답 확신: 높음'(모름이면 빈 글). */
+  /** 확신 줄 — '근거: 확정 · 답이 맞을 가능성: 높음'(모름이면 빈 글). */
   function confidenceLine(data, display) {
     if (!data || data.unknown) return '';
     var parts = [];
-    if (data.confidence) parts.push('근거 확신: ' + (labels(display, 'confidences')[data.confidence] || data.confidence));
-    if (data.certainty) parts.push('답 확신: ' + (CERTAINTY[data.certainty] || data.certainty));
+    if (data.confidence) parts.push('근거: ' + (labels(display, 'confidences')[data.confidence] || data.confidence));
+    if (data.certainty) parts.push('답이 맞을 가능성: ' + (CERTAINTY[data.certainty] || data.certainty));
     return parts.join(' · ');
   }
 

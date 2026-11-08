@@ -46,7 +46,7 @@ def test_answer_view_chips_links_and_confidence():
                 {"a": ANSWER, "d": display})
     shown, staff, unknown = got
     assert shown["cls"] == "is-answer" and shown["badge"] == "" and shown["text"] == "합성 규격 650mm 입니다."
-    assert shown["confidence"] == "근거 확신: 확정 · 답 확신: 높음"
+    assert shown["confidence"] == "근거: 확정 · 답이 맞을 가능성: 높음"
     assert shown["chips"] == [{"key": "common/sliding", "name": "슬라이딩 깊이", "type": "spec",
                                "href": "/brain/items/common/sliding", "meta": "확정 · 마지막 확인 2026-10-30"}]
     assert shown["checks"] == "확인 중이라 안 쓴 지식: 옛 몰딩 조건(확인 날이 지남)"

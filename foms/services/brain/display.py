@@ -108,7 +108,7 @@ AGENT_LABELS: dict[str, str] = {"cs_photo": "AI(사진 다시 배우기)", "brai
 AGENT_FALLBACK = "AI"
 #: 값 칸 이름(이력 탭의 '바뀐 칸').
 FIELD_LABELS: dict[str, str] = {
-    "name": "이름", "text": "글", "status": "상태", "confidence": "확신", "risk_grade": "위험 등급", "valid_from": "유효 시작",
+    "name": "이름", "text": "글", "status": "상태", "confidence": "확실한 정도", "risk_grade": "위험 등급", "valid_from": "유효 시작",
     "valid_to": "유효 끝", "checked_at": "마지막 확인", "evidence_kind": "근거 종류", "evidence_ref": "근거 위치",
     "visibility": "보기 범위", "copies": "사본 목록", "payload": "세부 칸",
 }

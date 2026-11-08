@@ -25,7 +25,7 @@
 <details class="brain-prop__drawer" data-brain-card-more>
 <summary>자세히 보기</summary>
 <p class="mb-2">
-  <span class="brain-badge brain-badge--{{ it.confidence }}">확신 {{ confidence_labels.get(it.confidence, it.confidence) }}</span>
+  <span class="brain-badge brain-badge--{{ it.confidence }}">{{ confidence_labels.get(it.confidence, it.confidence) }}</span>
   {% for gap in card.missing_links %}<span class="brain-badge brain-badge--missing" data-brain-missing="{{ gap.kind }}">빠진 연결 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>{% endfor %}
   {% for warn in card.warnings %}<span class="brain-badge brain-badge--missing" data-brain-warning="{{ warn.code }}">{{ warn.text }}</span>{% endfor %}
   <span class="brain-card__key">버전 {{ it.version }}</span>{#- 키(영어 자리 이름)는 주소에만 — 점검 F12 -#}

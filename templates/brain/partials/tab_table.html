@@ -1,10 +1,10 @@
-{#- 화면 2 지식 표 — 유형 하나 · 거르기(층 · 브랜드 · 상태 · 등급 · 확신 · 확인 필요/낡음) · 정렬(쓰인 횟수 · 마지막 확인) · 쪽.
+{#- 화면 2 지식 표 — 유형 하나 · 거르기(쓰는 팀(층) · 브랜드 · 상태 · 등급 · 확실한 정도(확신) · 확인 필요/낡음) · 정렬(쓰인 횟수 · 마지막 확인) · 쪽.
     값 목록은 서버(코드 상수)가 그리고, 줄은 brain-table.js 가 GET /api/brain/table 로 읽어 그린다. -#}
 <section class="tab-pane fade{{ ' show active' if tab == 'table' else '' }} brain-pane" id="brain-tab-table" role="tabpanel"
          aria-labelledby="brain-tab-table-btn" tabindex="0">
   <form class="brain-filters" data-brain-table-form>
-    {% for name, label in [('type', '유형'), ('layer', '층'), ('brand', '브랜드'), ('status', '상태'), ('grade', '위험 등급'),
-                           ('confidence', '확신'), ('check', '확인'), ('sort', '정렬')] %}
+    {% for name, label in [('type', '유형'), ('layer', '쓰는 팀'), ('brand', '브랜드'), ('status', '상태'), ('grade', '위험 등급'),
+                           ('confidence', '확실한 정도'), ('check', '확인'), ('sort', '정렬')] %}
     <label class="brain-filters__field{{ ' brain-filters__field--wide' if name in ('type', 'sort') else '' }}">{{ label }}
       <select class="form-select form-select-sm" name="{{ name }}" data-brain-filter="{{ name }}">
         {% if name not in ('type', 'sort') %}<option value="">모두</option>{% endif %}
@@ -22,8 +22,8 @@
       <caption class="visually-hidden">지식 표 — 고른 유형</caption>
       <thead>
         <tr>
-          <th scope="col">이름</th><th scope="col">층</th><th scope="col">브랜드</th><th scope="col">상태</th>
-          <th scope="col">확신</th><th scope="col">등급</th><th scope="col" class="brain-num">쓰인 횟수</th>
+          <th scope="col">이름</th><th scope="col">쓰는 팀</th><th scope="col">브랜드</th><th scope="col">상태</th>
+          <th scope="col">확실한 정도</th><th scope="col">등급</th><th scope="col" class="brain-num">쓰인 횟수</th>
           <th scope="col">마지막 확인</th><th scope="col">다시 볼 날</th>
         </tr>
       </thead>
