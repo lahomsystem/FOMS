@@ -42,6 +42,10 @@ from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.erp_display import (
+    erp_deposit_amount_from_structured,
+    erp_shipping_price_from_structured,
+)
 from foms.services.integrations.naver_commerce.ghost_orders import stage_label
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
@@ -1094,13 +1098,6 @@ def _order_view(order: Order, *, score: int, reason: str,
     Returns:
         후보 표 1행 dict.
     """
-    # 함수 지역 import — erp_display 는 estimate_service 를 끌고 와 모듈 로드 순환 위험이 있다
-    # (repay_reconcile.deposit_guidance 와 같은 방식).
-    from foms.services.erp_display import (
-        erp_deposit_amount_from_structured,
-        erp_shipping_price_from_structured,
-    )
-
     facts = facts or {}
     trash = read_order_trash(order)
     old_amount = int(facts.get("amount_total") or 0)
