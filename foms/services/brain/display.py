@@ -97,7 +97,7 @@ LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "draw
 BRAND_LABELS: dict[str, str] = {"LAHOM": "라홈", "HAUD": "하우드", BRAND_COMMON: "공통"}
 STATUS_LABELS: dict[str, str] = {"draft": "초안", "active": "사용 중", "retired": "은퇴"}
 CONFIDENCE_LABELS: dict[str, str] = {"confirmed": "확정", "evidenced": "근거 있음", "observed": "관찰"}
-GRADE_LABELS: dict[str, str] = {"A": "A", "B_LIGHT": "B 가벼움", "B": "B"}
+GRADE_LABELS: dict[str, str] = {"A": "A", "B_LIGHT": "B(가벼움)", "B": "B"}
 EVIDENCE_LABELS: dict[str, str] = {"import": "지식 문서에서 옮김", "decision": "사장님 결정", "document": "문서",
                                    "case": "사례", "observation": "관찰", "person": "사람 확인"}
 OP_LABELS: dict[str, str] = {"create": "새로 만듦", "update": "고침", "retire": "은퇴", "delete": "지움",

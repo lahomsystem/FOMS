@@ -106,7 +106,7 @@ def _bulk(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -
 def _recheck(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
     result = confirm_still_true(session, p["key"], actor=actor, version=p["version"], view_ms=p["view_ms"], now=now)
     if result is None:
-        return {"already": True, "version": p["version"], "message": "오늘 이미 확인한 항목이에요."}
+        return {"already": True, "version": p["version"], "message": "오늘 이미 확인한 지식이에요."}
     return {"version": result.version, "release": result.release_no}
 
 

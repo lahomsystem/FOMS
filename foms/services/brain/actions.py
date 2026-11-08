@@ -60,11 +60,11 @@ class ActionType:
 #: 실패 코드 → 화면 말(서비스 오류 ``code`` 와 같은 이름 — 오류 글은 이 말만 나간다).
 FAILURES: dict[str, str] = {
     "BRAIN_FORBIDDEN": "찾을 수 없습니다.",
-    "BRAIN_BASE_CHANGED": "제안을 만든 뒤 항목이 바뀌었어요 — 새로 불러온 뒤 다시 봐 주세요.",
-    "BRAIN_CONFIRM": "등급 B 는 핵심 값을 직접 확인해야 넣어요.",
+    "BRAIN_BASE_CHANGED": "제안을 만든 뒤 지식이 바뀌었어요 — 새로 불러온 뒤 다시 봐 주세요.",
+    "BRAIN_CONFIRM": "등급 B 는 핵심 값 확인 칸을 눌러야 승인돼요.",
     "BRAIN_REJECTED_BEFORE": "같은 제안이 이미 거절됐어요 — 다시 올리지 않아요.",
-    "BRAIN_OPEN_PROPOSAL": "이 항목에 열린 제안이 있어요 — 제안함에서 먼저 결정해 주세요.",
-    "BRAIN_ROLLBACK_BLOCKED": "뒤 판이 같은 항목을 또 고쳐 판째 되돌릴 수 없어요 — 항목마다 되돌려 주세요.",
+    "BRAIN_OPEN_PROPOSAL": "이 지식에 승인을 기다리는 제안이 있어요 — '승인 대기'에서 먼저 정해 주세요.",
+    "BRAIN_ROLLBACK_BLOCKED": "뒤 판이 같은 지식을 또 고쳐 판째 되돌릴 수 없어요 — 지식마다 되돌려 주세요.",
     "BRAIN_SHAPE": "값이 맞지 않아요 — 칸을 확인해 주세요.",
     "BRAIN_TARGET": "지금 상태와 맞지 않아요 — 이미 결정됐거나 바뀐 것이 없어요. 새로 불러와 주세요.",
     "BRAIN_GATE": "글 관문을 넘지 못했어요(개인정보 · 한자 · 숫자 출처).",
@@ -96,16 +96,16 @@ _DECIDE_FAIL = ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_BASE_CH
 _PROPOSALS = "brain_review_api.brain_propose"
 
 ACTIONS: dict[str, ActionType] = {a.name: a for a in (
-    ActionType("propose_edit", "고칠 말 제안", "이름 · 글 · 유효 기간 · 속성 틀 칸을 고치는 제안을 제안함에 넣는다.", "propose",
+    ActionType("propose_edit", "고칠 말 제안", "고칠 내용을 '승인 대기'에 올려요. 승인되면 바뀌어요.", "propose",
                _PROPOSALS, (_KEY, _BASE, Param("after", "fields", "고칠 칸"), _REASON),
                (_SEE, "기준 판 = 지금 판", "같은 제안이 거절된 적 없음", "속성 틀(7.7)"), _PROPOSE_FAIL,
                "'승인 대기'에 올렸어요."),
-    ActionType("propose_retire", "은퇴 제안", "항목을 은퇴시키는 제안(승인되면 에이전트가 더는 쓰지 않음).", "propose",
+    ActionType("propose_retire", "은퇴 제안", "승인되면 AI 가 이 지식을 더는 쓰지 않아요.", "propose",
                _PROPOSALS, (_KEY, _BASE, _REASON), (_SEE, "기준 판 = 지금 판", "아직 은퇴 안 함"), _PROPOSE_FAIL,
                "'승인 대기'에 올렸어요."),
-    ActionType("propose_delete", "지우기 제안", "항목을 지우는 제안(이력은 남음 — 지우기도 승인을 거친다).", "propose",
+    ActionType("propose_delete", "지우기 제안", "승인되면 이 지식을 지워요(수정 기록은 남아요).", "propose",
                _PROPOSALS, (_KEY, _BASE, _REASON), (_SEE, "기준 판 = 지금 판"), _PROPOSE_FAIL, "'승인 대기'에 올렸어요."),
-    ActionType("item_rollback", "항목 되돌리기 제안", "옛 판의 값을 새 제안으로 제안함에 넣는다(바로 바뀌지 않음).", "propose",
+    ActionType("item_rollback", "이 버전으로 되돌리기 제안", "옛 판의 값을 새 제안으로 제안함에 넣는다(바로 바뀌지 않음).", "propose",
                _PROPOSALS, (_KEY, Param("to_version", "int", "되돌릴 판"), _REASON), (_SEE, "그 판을 볼 수 있음"),
                _PROPOSE_FAIL, "'승인 대기'에 올렸어요."),
     ActionType("apply", "승인", "제안을 그대로 넣는다(새 판).", "decide", "brain_review_api.brain_apply",

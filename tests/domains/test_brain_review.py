@@ -265,7 +265,7 @@ def test_still_true_bumps_checked_and_stale_dates_through_the_apply_action(world
     fit = admin_list["items"][0]
     assert (fit["overdue"], fit["stale_after"], fit["open"]) == (True, "2026-09-29", False)
     assert admin_list["counts"] == {"overdue": 1, "soon": 1, "total": 2,
-                                    "line": "다시 볼 항목 2개 — 확인 날 지남 1개 · 7일 안 1개"}
+                                    "line": "다시 볼 지식 2개 — 확인 날 지남 1개 · 7일 안 1개"}
     assert recheck_list(db_session, viewer_of(who["cs_mgr"]), today=TODAY)["items"] == []  # 공통 바탕은 ADMIN 몫
     result = confirm_still_true(db_session, "common/fit", actor=who["admin"], version=1, view_ms=900, now=LATER)
     row = current_object(db_session, "common/fit")

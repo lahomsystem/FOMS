@@ -69,8 +69,8 @@ def recheck_counts(session: Any, viewer: Viewer, *, today: datetime.date) -> dic
 def summary_line(counts: dict[str, int]) -> str:
     """묶음 알림 한 줄(폰 알림이 붙으면 이 글 하나만 보낸다)."""
     if not counts.get("total"):
-        return "다시 볼 항목이 없어요."
-    return (f"다시 볼 항목 {counts['total']}개 — 확인 날 지남 {counts['overdue']}개 · "
+        return "다시 볼 지식이 없어요."
+    return (f"다시 볼 지식 {counts['total']}개 — 확인 날 지남 {counts['overdue']}개 · "
             f"{RECHECK_SOON_DAYS}일 안 {counts['soon']}개")
 
 

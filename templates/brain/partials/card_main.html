@@ -54,9 +54,11 @@
 
 <section class="brain-section" aria-labelledby="brain-card-links">
   <h2 id="brain-card-links">연결된 지식</h2>
-  {% if card.link_rules %}
+  {#- 연결 규칙 줄 — 최소 · 최대가 모두 0 인 규칙(뜻 없는 줄)은 빼고, 최대 수 끝에 '개'. -#}
+  {% set shown_rules = [] %}{% for rule in card.link_rules or [] if rule.min != 0 or rule.max != 0 %}{% set _ = shown_rules.append(rule) %}{% endfor %}
+  {% if shown_rules %}
   <p class="brain-rules">연결 규칙:
-    {% for rule in card.link_rules %}{{ link_display.get(rule.kind, (rule.kind,))[0] }} {{ rule.min }} ~ {{ rule.max if rule.max is not none else '여럿' }}{{ ' · ' if not loop.last }}{% endfor %}
+    {% for rule in shown_rules %}{{ link_display.get(rule.kind, (rule.kind,))[0] }} {{ rule.min }} ~ {{ rule.max ~ '개' if rule.max is not none else '여럿' }}{{ ' · ' if not loop.last }}{% endfor %}
   </p>
   {% endif %}
   {% if card.links %}
