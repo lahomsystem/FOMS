@@ -278,13 +278,15 @@ def test_allowed_with_policy_guard_on(app):
 # 마크업 규약
 # --------------------------------------------------------------------------
 def test_no_inline_style_and_no_script(app):
+    """인라인 스타일 · 인라인 스크립트 없음. 스크립트는 도면을 전역 모달로 여는 파일 하나뿐(D31)."""
     world = _seed()
     content = _content(_html(_client(app, world["fl"])))
     assert 'style="' not in content
     assert "<script" not in content
     src = open("templates/sales_commission/my_commission.html", encoding="utf-8").read()
     assert not re.search(r"\sstyle=", src)
-    assert "<script" not in src
+    scripts = re.findall(r"<script\b[^>]*>", src)
+    assert scripts == ["<script src=\"{{ asset_url('js/sales_commission/my-commission-drawings.js') }}\" defer>"]
     assert "css/contexts/sales_commission/my-commission.css" in src
 
 

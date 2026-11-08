@@ -1,8 +1,11 @@
 {% extends "orders/layout.html" %}
-{#- 프리랜서 "내 수수료" /erp/my-commission — 설계서 2026-11-06-freelancer-sales-commission §2.2. 서버가 다 그린다(스크립트 없음).
+{#- 프리랜서 "내 수수료" /erp/my-commission — 설계서 2026-11-06-freelancer-sales-commission §2.2. 서버가 다 그린다.
     글은 foms/web/sales_commission.py 가 만든다: heading · total_text · tax_line · paid_text · pending_note ·
-    rows(customer_name · date · deal · status · formula · deductions) · recent(label · net · status · url).
-    마감한 달은 굳힌 스냅샷(확정), 아니면 지금 계산(마감 전). -#}
+    rows(customer_name · date · deal · status · formula · deductions · detail) · recent(label · net · status · url).
+    마감한 달은 굳힌 스냅샷(확정), 아니면 지금 계산(마감 전).
+    detail(D31, 목업 docs/design/mockups/freelancer-commission-statement-detail.html 안 A): 펼친 칸 안에 품목 · 금액 ·
+    추가 금액 · 할인 · 출고가 → 계산 줄 → 확정 도면 작은 그림(누르면 FOMS 전역 모달) → 주문 열기. 새 상자 · 칩 없음.
+    그림은 닫힌 줄 안이라 펼칠 때만 받는다(loading=lazy). 스크립트는 도면을 모달로 여는 파일 하나뿐. -#}
 {% block head %}<title>내 수수료 - 가구 주문 관리 시스템</title>{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/sales_commission/my-commission.css') }}">{% endblock %}
 {% block content %}
@@ -54,11 +57,44 @@
                     </span>
                     <span class="foms-mc__status{% if r.is_done %} is-done{% endif %}">{{ r.status }}</span>
                 </summary>
-                <div class="foms-mc__body">
+                {% set dt = r.detail %}
+                <div class="foms-mc__body{% if dt and dt.drawings %} has-drawings{% endif %}">
+                    <div class="foms-mc__detail">
+                    {% if dt and (dt.lines or dt.extras) %}
+                    <ul class="foms-mc__items" aria-label="품목">
+                        {% for it in dt.lines %}
+                        <li class="foms-mc__it{% if it.cancelled %} is-cancel{% endif %}">
+                            <span class="foms-mc__it-name">{% if it.cancelled %}<s>{{ it.name }}</s>{% else %}{{ it.name }}{% endif %}{% if it.spec or it.cancelled %}<span class="foms-mc__it-spec">{{ it.spec }}{% if it.cancelled %}{% if it.spec %} · {% endif %}취소한 품목이라 빠져요{% endif %}</span>{% endif %}</span>
+                            <span class="foms-mc__it-won">{% if it.cancelled %}<s>{{ it.won }}</s>{% else %}{{ it.won }}{% endif %}</span>
+                        </li>
+                        {% endfor %}
+                        {% for x in dt.extras %}
+                        <li class="foms-mc__it"><span class="foms-mc__it-name">{{ x.name }}{% if x.spec %}<span class="foms-mc__it-spec">{{ x.spec }}</span>{% endif %}</span><span class="foms-mc__it-won">{{ x.won }}</span></li>
+                        {% endfor %}
+                        {% if dt.shipping %}<li class="foms-mc__it is-sum"><span class="foms-mc__it-name">{{ dt.shipping_label }}</span><span class="foms-mc__it-won">{{ dt.shipping }}</span></li>{% endif %}
+                    </ul>
+                    {% endif %}
                     <p class="foms-mc__formula">{{ r.formula }}</p>
                     {% for d in r.deductions %}
                     <p class="foms-mc__ded">차감 · {{ d.reason }} {{ d.amount }}원</p>
                     {% endfor %}
+                    {% if dt and dt.changed_note %}<p class="foms-mc__changed">{{ dt.changed_note }}</p>{% endif %}
+                    {% if dt and not dt.drawings %}<p class="foms-mc__nodraw">도면이 아직 없어요.</p>{% endif %}
+                    </div>
+                    {% if dt and dt.drawings %}
+                    <div class="foms-mc__drawings" data-foms-mc-drawings aria-label="확정 도면">
+                        {% for f in dt.drawings %}
+                        {% if f.is_image %}
+                        <a class="foms-mc__dw" href="{{ f.view_url }}" target="_blank" rel="noopener" data-foms-mc-drawing
+                           data-view-url="{{ f.view_url }}" data-download-url="{{ f.download_url }}" data-filename="{{ f.filename }}"
+                           data-key="{{ f.key }}" aria-label="도면 {{ loop.index }} 크게 보기"><img src="{{ f.view_url }}" alt="" loading="lazy" decoding="async"><span class="foms-mc__dw-no">{{ loop.index }}</span></a>
+                        {% else %}
+                        <a class="foms-mc__dw is-file" href="{{ f.view_url }}" target="_blank" rel="noopener" aria-label="도면 {{ loop.index }} 파일 열기"><i class="fas fa-file-alt" aria-hidden="true"></i><span class="foms-mc__dw-file">{{ f.filename }}</span><span class="foms-mc__dw-no">{{ loop.index }}</span></a>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if dt %}<a class="foms-mc__open" href="{{ dt.order_url }}">주문 열기 ›</a>{% endif %}
                 </div>
             </details>
         </li>
@@ -83,5 +119,7 @@
     </section>
     {% endif %}
 </div>
+{#- 도면 작은 그림 → FOMS 전역 모달(D31). 본문 안에 두어 아래 탭 조각 바꾸기(#main-content)에서도 다시 실행된다. -#}
+<script src="{{ asset_url('js/sales_commission/my-commission-drawings.js') }}" defer></script>
 </div>
 {% endblock %}
