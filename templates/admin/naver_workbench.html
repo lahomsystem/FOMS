@@ -23,7 +23,7 @@
    불러와서 효과가 없었다. media 가 폰 폭이라 PC 는 이 시트를 늦게 받아도 쓰지 않고, 글꼴 파일은 폰에서만 내려온다
    (PC 뿌리 글꼴에는 Pretendard 가 없다). 주소는 layout_head 의 /erp 셸과 같은 한 벌. #}
 <link rel="stylesheet" media="(max-width: 767.98px)" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20261108a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20261108b">
 {% endblock %}
 
 {% block content %}
@@ -253,7 +253,7 @@
                         <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
                         {% endfor %}
                         {# 위 줄 주문번호가 그 pane 링크다 — 사용법을 다시 말하지 않는다. #}
-                        <div class="wb-ghost__dim"><span class="wb-dk">큐에 대기</span><span class="wb-ph">처리 목록에 있어요</span></div>
+                        <div class="wb-ghost__dim"><span class="wb-dk">처리 대기</span><span class="wb-ph">처리 목록에 있어요</span></div>
                         {% else %}
                         <span class="wb-ghost__dim">없음</span>
                         {% endif %}
@@ -1772,5 +1772,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20261108a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20261108b" defer></script>
 {% endblock %}

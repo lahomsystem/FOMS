@@ -53,3 +53,32 @@ def test_no_visible_queue_jargon(rel):
     html = _read(rel)
     for word in ("> 작업 큐", ">작업 큐", "실측 큐<", "출고 큐<", "작업 큐</"):
         assert word not in html, (rel, word)
+
+
+# 11-08 사용자 "네이버 도구 글자 고치기" — 관리자 네이버 도구 상태 글의 "큐" · "워커", 휴대폰 홈 타워 링크를
+# 그리는 스크립트(서버 서식은 이미 "작업 목록에서"). 핀도 함께 올려야 기기에 닿는다.
+@pytest.mark.parametrize("rel", [
+    "templates/admin/naver_ingest.html",
+    "static/js/admin/naver-workbench.js",
+    "templates/partials/shared/naver_bulk_dispatch_button.html",
+    "static/js/foms/mobile-tower.js",
+])
+def test_no_visible_queue_jargon_in_status_text(rel):
+    import re
+    src = _read(rel)
+    shown = re.findall(r"(?:show\('\w+', |setRunNote\(|setBackfillNote\(|lines\.push\(|textContent = )'([^']*)'", src)
+    assert shown, rel
+    assert [t for t in shown if "큐" in t or "워커" in t] == [], rel
+    # 따옴표 안 글 전체(확인 창 · 안내 줄 포함)에도 "큐"가 없다 — 주석 줄은 뺀다.
+    code_lines = [line for line in src.splitlines() if not line.lstrip().startswith(("//", "*", "/*", "{#"))]
+    quoted = [t for line in code_lines for t in re.findall(r"'([^']*)'", line)]
+    assert [t for t in quoted if "큐" in t] == [], rel
+
+
+def test_naver_workbench_repay_label_plain():
+    assert '<span class="wb-dk">처리 대기</span>' in _read("templates/admin/naver_workbench.html")
+
+
+def test_status_text_script_pins_bumped():
+    assert "naver-workbench.js') }}?v=20261108b" in _read("templates/admin/naver_workbench.html")
+    assert "mobile-tower.js') }}?v=20261108a" in _read("templates/partials/shared/foms_app_shell.html")

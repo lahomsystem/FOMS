@@ -4055,7 +4055,7 @@
         // 틀어진다 — 저장 직전에 **어느 관계인지**를 가장 먼저 다시 말한다(2026-09-04).
         var head = fork === 'DISCARD'
             ? '주문 #' + orderId + ' 을 휴지통으로 보냅니다(복구할 수 있습니다).'
-                + '\n새 주문은 붙이지 않습니다 — 큐에 그대로 남습니다.'
+                + '\n새 주문은 붙이지 않습니다 — 처리 목록에 그대로 남습니다.'
             : '이 건을 [' + label + '] 로 정리합니다.'
                 + '\n새 결제를 주문 #' + orderId + ' 에 붙이고, 주문은 그대로 둡니다.'
                 + '\n예약금은 안내만 합니다 — 정리한 뒤 주문 화면에서 직접 적어야 합니다.';
@@ -4186,7 +4186,7 @@
             var hint = document.createElement('div');
             hint.className = 'wb-plan__d';
             // + 주문 만들기 버튼이 같은 화면에 열려 있다.
-            hint.textContent = '새 주문은 큐에 그대로 있습니다.';
+            hint.textContent = '새 주문은 처리 목록에 그대로 있습니다.';
             done.appendChild(hint);
         }
         var close = document.createElement('button');
@@ -4712,7 +4712,7 @@
      */
     async function submitRunNow(btn) {
         btn.disabled = true;
-        setRunNote('작업 큐에 넣는 중…');
+        setRunNote('수집 요청을 보내는 중…');
         const result = await postJson('/admin/naver-ingest/run', {});
         if (!result.ok) {
             // 워커가 하나도 없으면 서버가 503 + 사유를 준다. 넣지도 못했으니 기다릴 결과가
@@ -4725,7 +4725,7 @@
         if (!rev) {
             // 기준 지문이 없으면 무엇이 바뀌었는지 판정할 수 없다. 없는 기준으로 90초를
             // 도는 대신 예전 안내로 정직하게 끝낸다(폴링을 흉내 내지 않는다).
-            setRunNote('수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
+            setRunNote('수집을 요청했습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
             enableRunNow();
             return;
         }
@@ -4753,7 +4753,7 @@
             return;
         }
         btn.disabled = true;
-        setBackfillNote('작업 큐에 넣는 중…');
+        setBackfillNote('지난 기간 수집 요청을 보내는 중…');
         const result = await postJson(BACKFILL_URL, { from: fromValue, to: toValue });
         if (!result.ok) {
             // 구간 오류·워커 없음·큐 장애 — 넣지 못했으니 기다릴 결과가 없다.
@@ -4850,7 +4850,7 @@
         stopRunWatch();
         var mine = runToken;
         var deadline = Date.now() + RUN_POLL_TIMEOUT_MS;
-        setRunNote('수집 작업을 큐에 넣었습니다. 워커 결과를 기다리는 중…');
+        setRunNote('수집을 요청했습니다. 결과를 기다리는 중…');
         runTimer = window.setTimeout(tick, RUN_POLL_INTERVAL_MS);
 
         async function tick() {

@@ -126,7 +126,7 @@
           }
           if (queueEl && data.queue_href) {
             queueEl.setAttribute('href', data.queue_href);
-            queueEl.textContent = '작업 큐에서 ' + data.count + '건 보기 →';
+            queueEl.textContent = '작업 목록에서 ' + data.count + '건 보기 →';
           }
           setCounts(data);
         })
