@@ -3,7 +3,7 @@
  *
  * - data-* 를 safeJsonParse 로 읽어 window.FOMS_BRAIN_CTX 를 만든다(표시 표 · API 주소 · 항목 주소 머리 · 그림 라이브러리 주소).
  * - 탭: Bootstrap 탭이 바뀌면 'brain:tab' {tab} 를 쏜다(지식 표 · 판 · 유형 지도 스크립트가 받는다). 첫 탭은 서버가 고른다.
- *   주소(?tab=&type=&q=)는 history.replaceState 로 맞춘다 — 새로 고침 · 링크 나눔이 같은 화면을 연다.
+ *   주소(?tab=&type=&q=&bin=)는 history.replaceState 로 맞춘다 — 새로 고침 · 링크 나눔이 같은 화면을 연다.
  * - 'brain:open-table' {type} 를 받으면 지식 표 탭으로 옮긴다(유형 지도 · 찾기 묶음의 '표에서 모두 보기').
  * - 찾기: GET /api/brain/search?q= → 유형별 묶음. fetch 는 try/catch + data.success 확인(brain-dom.js getJson), 글은 textContent 만.
  */
@@ -63,9 +63,10 @@
   root.querySelectorAll('[data-brain-tab]').forEach(function (button) {
     button.addEventListener('shown.bs.tab', function () {
       ctx.current = button.getAttribute('data-brain-tab');
-      fire('brain:tab', { tab: ctx.current });
+      // 주소를 먼저 맞추고 탭 이벤트를 쏜다 — 받는 탭이 제 몫을 덧붙인다(승인 대기 bin — F07 · 지식 표 type)
       if (ctx.current === 'search') syncUrl({ q: ctx.query });
       else if (ctx.current !== 'table') syncUrl();
+      fire('brain:tab', { tab: ctx.current });
     });
   });
 
