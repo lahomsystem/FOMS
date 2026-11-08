@@ -326,7 +326,8 @@ html.foms-notice-open {
 
 /* ---- 공지 사진(설계서 §8) — 썸네일 줄 · 사진 창(foms-notice-gallery.js) ----
  * 사진 창 z-index 105460: 공지 창(105450) 위 · 도면 수정 확인창(105500) · 긴급 오버레이(106000) 아래.
- * 바깥은 흐림 + 어둡게, 카드는 공지 창과 같은 흰 바탕 · 둥근 모서리 · 보라 윗줄.
+ * 모양은 공용 사진 보기(#global-image-viewer, layout_scripts.html)와 같다(사용자 11-08): 카드 없이 화면 전체
+ * 흐림(rgba(15,23,42,.22) + blur(14px) saturate(120%)) 위에 사진만. 둥근 X · 둥근 좌우 단추 · 위 가운데 "n / N".
  */
 .foms-notice-thumbs {
   display: flex;
@@ -387,10 +388,6 @@ html.foms-notice-gallery-open {
   position: fixed;
   inset: 0;
   z-index: 105460;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
 }
 
 .foms-notice-gallery[hidden] {
@@ -400,64 +397,112 @@ html.foms-notice-gallery-open {
 .foms-notice-gallery__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.22);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: blur(14px) saturate(120%);
 }
 
-.foms-notice-gallery__card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: min(100%, 720px);
-  max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
-  background: #fff;
-  color: #1b2733;
-  border-radius: 12px;
-  border-top: 5px solid var(--foms-color-brand-500, #5a67d8);
-  box-shadow: 0 18px 48px rgba(16, 32, 44, 0.35);
-  overflow: hidden;
-}
-
-.foms-notice-gallery__head {
+/* 무대 = 화면 전체. 사진 바깥을 누르면 닫힌다(foms-notice-gallery-zoom.js). */
+.foms-notice-gallery__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px 10px 16px;
-  font-size: 0.85rem;
-  color: #6d8598;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none; /* 누르기 확대 · 두 손가락 확대 · 끌기 · 넘기기는 스크립트가 한다 — 브라우저 화면 확대를 막는다 */
+}
+
+.foms-notice-gallery__img {
+  display: block;
+  max-width: 95vw;
+  max-height: 90vh;
+  max-height: 90dvh;
+  object-fit: contain;
+  transform-origin: center center;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, opacity 0.15s ease;
+}
+
+.foms-notice-gallery__img.is-zoomed {
+  cursor: grab;
+}
+
+.foms-notice-gallery__img.is-dragging {
+  cursor: grabbing;
+}
+
+/* 손가락 · 마우스로 움직이는 동안은 바로 따라오게 */
+.foms-notice-gallery__img.is-gesture {
+  transition: opacity 0.15s ease;
+}
+
+.foms-notice-gallery__img.is-loading {
+  opacity: 0.85;
+}
+
+/* 위 가운데: "n / N" 알약 + 사진 이름(작은 글씨, 상자 없음) */
+.foms-notice-gallery__top {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100vw - 160px);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .foms-notice-gallery__count {
-  font-weight: 700;
-  color: var(--foms-color-brand-600, #4a55b8);
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 13px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.foms-notice-gallery__count:empty,
+.foms-notice-gallery__name:empty {
+  display: none;
 }
 
 .foms-notice-gallery__name {
-  flex: 1 1 auto;
-  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: #fff;
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .foms-notice-gallery__close {
-  display: inline-flex;
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 3;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border: 0;
   border-radius: 50%;
-  background: #f1f2fb;
-  color: #33465a;
-  font-size: 1.1rem;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 24px;
   cursor: pointer;
-}
-
-.foms-notice-gallery__close:hover {
-  background: #e4e6fa;
+  transition: all 0.2s ease;
 }
 
 .foms-notice-gallery__close:focus-visible,
@@ -466,65 +511,80 @@ html.foms-notice-gallery-open {
   outline-offset: 2px;
 }
 
-.foms-notice-gallery__stage {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: 0 12px 12px;
-  overflow: hidden;
-  touch-action: none; /* 두 손가락 확대 · 끌기 · 넘기기는 foms-notice-gallery.js 가 한다(2026-11-04) */
-}
-
-.foms-notice-gallery__img {
-  display: block;
-  max-width: 100%;
-  max-height: calc(100vh - 140px);
-  max-height: calc(100dvh - 140px);
-  border-radius: 8px;
-  object-fit: contain;
-  background: #f3f4fb;
-  user-select: none;
-  transition: opacity 0.15s ease;
-}
-
-.foms-notice-gallery__img.is-loading {
-  opacity: 0.85;
-}
-
 .foms-notice-gallery__nav {
   position: absolute;
   top: 50%;
-  display: inline-flex;
+  z-index: 2;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin-top: -28px;
+  width: 56px;
+  height: 56px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--foms-color-brand-600, #4a55b8);
-  box-shadow: 0 4px 14px rgba(16, 32, 44, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 24px;
   cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: all 0.2s ease;
 }
 
 .foms-notice-gallery__nav[hidden] {
   display: none !important;
 }
 
-.foms-notice-gallery__nav:disabled {
-  opacity: 0.35;
+/* 컴퓨터: 창 위에 마우스가 있거나 키보드로 고르면 보인다(공용 사진 보기와 같다) */
+.foms-notice-gallery:hover .foms-notice-gallery__nav,
+.foms-notice-gallery__nav:focus-visible {
+  opacity: 1;
+}
+
+.foms-notice-gallery .foms-notice-gallery__nav:disabled {
+  opacity: 0.25;
   cursor: default;
+  pointer-events: none;
 }
 
 .foms-notice-gallery__nav--prev {
-  left: 20px;
+  left: 24px;
 }
 
 .foms-notice-gallery__nav--next {
-  right: 20px;
+  right: 24px;
+}
+
+/* :hover 는 진짜 마우스가 있는 기기에서만(아이폰은 누른 단추에 hover 가 눌러붙는다) */
+@media (hover: hover) {
+  .foms-notice-gallery__close:hover {
+    background: rgba(255, 59, 48, 0.8);
+    transform: rotate(90deg);
+  }
+
+  .foms-notice-gallery__nav:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-50%) scale(1.1);
+  }
+}
+
+/* 휴대폰 · 터치: 좌우 단추는 늘 보이고 작게(공용 사진 보기와 같다) */
+@media (max-width: 768px), (pointer: coarse) {
+  .foms-notice-gallery__nav {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    background: rgba(15, 23, 42, 0.35);
+    opacity: 1;
+  }
+
+  .foms-notice-gallery__nav--prev {
+    left: 8px;
+  }
+
+  .foms-notice-gallery__nav--next {
+    right: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

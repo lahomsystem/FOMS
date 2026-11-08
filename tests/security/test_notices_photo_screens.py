@@ -3,6 +3,8 @@
 - 받는 사람 화면(본사 /notices · 협력사 /partner/notices · 두 공지 창)과 관리자 쓰기 화면에 썸네일 줄 · 사진 창 훅이 있다.
 - 사진 창 스크립트(정적 검사): Esc · 바깥 · X 로 닫기, 좌우 넘기기(단추 · 화살표 · 밀기), window 잡기 단계로 공지 창의 초점
   가두기(document 잡기 단계)보다 먼저 받기, 두 공지 창 스크립트가 열린 사진 창을 보고 가두기를 쉼, 층(z-index) 순서.
+- 사진 창 모양 · 손짓(11-08): 공용 사진 보기(#global-image-viewer)와 같은 흐림 바탕 · 카드 없음, 누르기 2배 · 두 손가락
+  1~4배 · 확대 중 끌기, 무대 touch-action: none(foms-notice-gallery-zoom.js 가 사진 창보다 먼저 실린다).
 - 대조군: 사진 없는 공지는 썸네일 줄을 그리지 않고, 다른 협력사 공지 사진 주소는 협력사 화면에 없다.
 """
 from __future__ import annotations
@@ -18,6 +20,9 @@ from tests.security.partner_fixtures import _client, world  # noqa: F401 — pyt
 
 ROOT = Path(__file__).resolve().parents[2]
 GALLERY_JS = ROOT / "static/js/foms/foms-notice-gallery.js"
+ZOOM_JS = ROOT / "static/js/foms/foms-notice-gallery-zoom.js"
+GALLERY_TEMPLATES = ("templates/partials/shared/notice_popup.html", "templates/partner/notices.html",
+                     "templates/partner/partials/notice_modal.html")
 _IMG = {"key": "notices/images/202611/" + "a" * 32 + ".jpg", "thumb_key": "notices/images/202611/" + "a" * 32 + "_thumb.jpg",
         "name": "현장.jpg", "width": 2000, "height": 1500, "size": 1234}
 
@@ -90,7 +95,8 @@ def test_gallery_script_closes_navigates_and_preempts_popup_trap() -> None:
     js = GALLERY_JS.read_text(encoding="utf-8")
     assert len(js.splitlines()) <= 300 and "innerHTML" not in js
     assert "'Escape'" in js and "ArrowLeft" in js and "ArrowRight" in js
-    assert "touchstart" in js and "touchend" in js and "data-gallery-close" in js
+    assert "data-gallery-close" in js and "onOutside: close" in js and "onSwipe" in js
+    assert "zoomer.reset()" in js and "foms-notice-gallery__card" not in js  # 흰 카드 없음 · 열기 · 닫기 · 넘기기에 확대를 푼다
     assert "window.addEventListener('keydown', onKeyDown, true)" in js
     assert "window.addEventListener('focusin', onFocusIn, true)" in js
     assert "stopPropagation" in js and "back.focus()" in js  # 닫으면 누른 썸네일로 초점
@@ -107,6 +113,23 @@ def test_gallery_script_closes_navigates_and_preempts_popup_trap() -> None:
     assert "FomsNoticeImages.payload()" in form and "FomsNoticeImages.busy()" in form
 
 
+def test_gallery_zoom_gestures_match_shared_viewer() -> None:
+    """누르기 2배 · 두 손가락 1~4배(가운데 기준) · 확대 중 끌기(묶기) · 1배에서만 넘기기 · 바퀴 · 마우스 끌기."""
+    js = ZOOM_JS.read_text(encoding="utf-8")
+    assert len(js.splitlines()) <= 300 and "innerHTML" not in js
+    assert "if (window.FomsNoticeGalleryZoom) return;" in js
+    assert "function tapAt(" in js and "function zoomAt(" in js and "function clampPan(" in js
+    assert "var MAX = 4;" in js and "var TAP_SCALE = 2;" in js
+    assert "touchstart" in js and "touchmove" in js and "touchend" in js and "gap(ts)" in js and "mid(ts)" in js
+    assert "stage.addEventListener('touchmove', onTouchMove, { passive: false })" in js
+    assert "!zoomed() && o.onSwipe" in js  # 넘기기는 1배일 때만
+    assert "'wheel'" in js and "'mousedown'" in js and "skipClick" in js
+    for rel in GALLERY_TEMPLATES:  # 손짓 파일이 사진 창보다 먼저 실린다
+        text = _read(rel)
+        assert text.index("asset_url('js/foms/foms-notice-gallery-zoom.js')") < text.index(
+            "asset_url('js/foms/foms-notice-gallery.js')"), rel
+
+
 def test_gallery_layer_sits_above_popup_below_drawing_and_urgent() -> None:
     def z(rel: str, selector: str) -> int:
         css = _read(rel)
@@ -121,7 +144,12 @@ def test_gallery_layer_sits_above_popup_below_drawing_and_urgent() -> None:
     assert max(popup, partner) < gallery < drawing < urgent
     css = _read("static/css/components/foms-notice.css")
     backdrop = css[css.index(".foms-notice-gallery__backdrop {"):]
-    assert "backdrop-filter: blur(" in backdrop[:backdrop.index("}")]
+    backdrop = backdrop[:backdrop.index("}")]
+    # 공용 사진 보기(#global-image-viewer)와 같은 흐림 바탕
+    assert "backdrop-filter: blur(14px) saturate(120%)" in backdrop and "rgba(15, 23, 42, 0.22)" in backdrop
+    stage = css[css.index(".foms-notice-gallery__stage {"):]
+    assert "touch-action: none" in stage[:stage.index("}")]  # 브라우저 화면 확대 대신 스크립트 손짓
+    assert ".foms-notice-gallery__card" not in css  # 흰 카드 없음
 
 
 def test_photo_templates_have_no_inline_style() -> None:
