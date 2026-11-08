@@ -104,6 +104,31 @@ def freelancer_can_access_order(db: Any, user: Any, order_id: Any) -> bool:
     return allowed
 
 
+def prime_freelancer_access(db: Any, user: Any, order_ids: Any) -> None:
+    """한 화면이 주문 여러 개를 볼 때 연결 줄을 한 번에 읽어 요청 캐시에 채운다(D31 명세서 세부내역).
+
+    연결 줄이 있는 주문만 참으로 채운다 — 없는 주문은 그대로 두어 :func:`freelancer_can_access_order` 가
+    하나씩 판정한다("내가 만든 초안" 규칙까지 같은 답). 요청 밖이거나 계정 · 번호가 없으면 아무것도 안 한다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        user: 판정할 계정(``id`` 를 읽는다). 프리랜서가 아니어도 해가 없다(캐시는 프리랜서 판정만 읽는다).
+        order_ids: 주문 번호들.
+    """
+    cache = _request_cache()
+    uid = _int_or_none(getattr(user, "id", None)) if user is not None else None
+    if cache is None or uid is None:
+        return
+    wanted = sorted({oid for oid in (_int_or_none(i) for i in (order_ids or ())) if oid and oid > 0
+                     and (uid, oid) not in cache})
+    if not wanted:
+        return
+    rows = (db.query(OrderFreelancerLink.order_id)
+            .filter(OrderFreelancerLink.user_id == uid, OrderFreelancerLink.order_id.in_(wanted)).all())
+    for (oid,) in rows:
+        cache[(uid, int(oid))] = True
+
+
 def freelancer_can_read_order(user: Any, order: Any) -> bool:
     """``user_can_read_order`` 의 프리랜서 분기 — 주문 객체로 판정한다(없거나 id 가 없으면 거짓)."""
     if order is None:
@@ -116,4 +141,5 @@ __all__ = [
     "DRAFT_STATUS",
     "freelancer_can_access_order",
     "freelancer_can_read_order",
+    "prime_freelancer_access",
 ]

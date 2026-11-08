@@ -38,3 +38,26 @@
 .foms-mc__recent-net{font-variant-numeric:tabular-nums;font-weight:600}
 .foms-mc__recent-state{flex:0 0 auto;font-size:.85rem;color:#6d8598;white-space:nowrap}
 .foms-mc__recent-state.is-paid{color:var(--foms-color-success-700,#15803d)}
+/* 펼친 칸 세부내역(D31, 목업 docs/design/mockups/freelancer-commission-statement-detail.html 안 A) — 새 상자 · 칩 없이 글 줄만.
+   PC(768px 이상)는 같은 칸 안에서 품목 왼쪽 · 도면 오른쪽. 글자 크기는 지금 줄과 같은 단계(줄이지 않는다). */
+.foms-mc__items{margin:0 0 8px;padding:0;list-style:none;font-size:.9rem;font-variant-numeric:tabular-nums}
+.foms-mc__it{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px dashed #e5e9ef}
+.foms-mc__it-name{min-width:0;overflow-wrap:anywhere}
+.foms-mc__it-spec{display:block;font-size:.82rem;color:#6d8598}
+.foms-mc__it-won{flex:0 0 auto;white-space:nowrap}
+.foms-mc__it.is-cancel s{color:#8a96a3}
+.foms-mc__it.is-sum{border-bottom:0;font-weight:700}
+.foms-mc__changed{margin:6px 0 0;font-size:.85rem;color:#92400e}
+.foms-mc__nodraw{margin:10px 0 0;font-size:.88rem;color:#6d8598}
+.foms-mc__drawings{display:flex;gap:8px;margin:10px 0 2px;overflow-x:auto}
+.foms-mc__dw{position:relative;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:96px;height:72px;border:1px solid #dde1e6;border-radius:8px;background:#fff;color:#33465a;overflow:hidden;text-decoration:none}
+.foms-mc__dw img{width:100%;height:100%;object-fit:cover;display:block}
+.foms-mc__dw-no{position:absolute;right:4px;bottom:3px;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.88);color:#4b5563;font-size:.72rem}
+.foms-mc__dw.is-file{padding:6px}
+.foms-mc__dw-file{max-width:100%;font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.foms-mc__open{display:inline-block;margin-top:8px;font-size:.9rem;font-weight:600;color:var(--foms-color-brand-700,#3a4490);text-decoration:none}
+@media (min-width:768px){
+.foms-mc__body.has-drawings{display:grid;grid-template-columns:minmax(0,1fr) 212px;column-gap:16px;align-items:start}
+.foms-mc__body.has-drawings .foms-mc__drawings{flex-wrap:wrap;margin-top:0;overflow:visible}
+.foms-mc__body.has-drawings .foms-mc__open{grid-column:1}
+}

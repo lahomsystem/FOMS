@@ -1,7 +1,9 @@
 """프리랜서 "내 수수료" 화면(``/erp/my-commission``) — 설계서 FCOMM-01 §2.2 · §9 · §11.2 (플랜 T7).
 
-서버가 다 그린다(스크립트 없음). 줄 계산은 :func:`foms.services.sales_commission.read_model.commission_rows`
-한 곳이고, 여기서는 화면 글(금액 · 상태 · 계산식 한 줄)만 만든다.
+서버가 다 그린다. 줄 계산은 :func:`foms.services.sales_commission.read_model.commission_rows`
+한 곳이고, 여기서는 화면 글(금액 · 상태 · 계산식 한 줄)만 만든다. 줄을 펼치면 보이는 주문 세부내역(품목 · 금액 ·
+확정 도면, D31)은 :func:`foms.services.sales_commission.statement_detail.order_details` 가 읽고 — 볼 수 있는
+주문만 — 스크립트는 도면을 전역 모달로 여는 작은 파일 하나뿐이다(``js/sales_commission/my-commission-drawings.js``).
 
 누가 보나:
 - 켜진 프리랜서 → 언제나 본인 것. ``user_id`` 는 무시한다.
@@ -40,6 +42,7 @@ from foms.services.sales_commission.read_model import (
     commission_rows,
 )
 from foms.services.sales_commission.settings import FREELANCER_ROLES, active_freelancers, is_freelancer
+from foms.services.sales_commission.statement_detail import order_details, shipping_changed
 from foms.services.settlement_channel_access import is_accounting_or_admin
 from foms.web.auth import login_required
 from models import Order, SalesCommissionClosing
@@ -142,7 +145,32 @@ def _formula(row: dict[str, Any]) -> str:
     return f"{head} × {_percent(int(row['rate_bp']))} = {_won(row['commission'])}원"
 
 
-def _row_view(row: dict[str, Any], basis: str) -> dict[str, Any]:
+_CHANGED_NOTE = "마감 뒤 품목이 바뀌었어요. 바뀐 몫은 다음 달 조정 줄에 들어가요."
+
+
+def _detail_view(order_id: Any, detail: Optional[dict[str, Any]], *, changed: bool = False) -> Optional[dict[str, Any]]:
+    """펼친 칸 세부내역 글(D31) — 품목 · 추가 금액 · 할인 · 출고가 · 확정 도면 · 주문 열기. 볼 수 없으면 None."""
+    if not detail:
+        return None
+    extras = []
+    if detail["free_amount"]:
+        extras.append({"name": "추가 금액", "spec": detail["free_text"], "won": f"+{_won(detail['free_amount'])}"})
+    if detail["discount"]:
+        extras.append({"name": "할인", "spec": "", "won": f"−{_won(detail['discount'])}"})
+    shipping = detail["shipping_price"]
+    return {
+        "lines": [{"name": it["name"], "spec": it["spec"], "won": _won(it["price"]), "cancelled": it["cancelled"]}
+                  for it in detail["items"]],
+        "extras": extras,
+        "shipping": _won(shipping) if shipping is not None else "",
+        "shipping_label": "지금 출고가" if changed else "출고가",
+        "changed_note": _CHANGED_NOTE if changed else "",
+        "drawings": detail["drawings"],
+        "order_url": url_for("order_edit.edit_order", order_id=int(order_id)),
+    }
+
+
+def _row_view(row: dict[str, Any], basis: str, detail: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     date_text = row["construction_date"] if basis == BASIS_COMPLETION else row["measurement_date"]
     return {
         "customer_name": row["customer_name"],
@@ -152,6 +180,7 @@ def _row_view(row: dict[str, Any], basis: str) -> dict[str, Any]:
         "is_done": row["state"] == STATE_DONE,
         "formula": _formula(row),
         "deductions": [{"reason": d["reason"] or "사유 없음", "amount": _won(d["amount"])} for d in row["deductions"]],
+        "detail": _detail_view(row["order_id"], detail),
     }
 
 
@@ -170,10 +199,11 @@ def _month_word(month: Optional[str]) -> str:
     return f"{int(month[5:7])}월" if month and _MONTH_RE.match(month) else ""
 
 
-def _line_view(line: dict[str, Any]) -> dict[str, Any]:
+def _line_view(line: dict[str, Any], detail: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """마감 스냅샷 줄 하나 → 화면 줄(마감 때 굳힌 값 그대로, 다시 계산하지 않는다).
 
     조정 줄(``ADJUST`` — 지난 마감 뒤 차감 · 시공비 · 품목이 바뀌어 생긴 차액)은 금액에 + · − 를 붙인다.
+    세부내역(D31)은 지금 주문이다 — 지금 출고가가 굳힌 출고가와 다르면 한 줄로 알린다.
     """
     deal = DEAL_LABELS.get(line.get("deal_type"), "")
     adjust = line.get("kind") == "ADJUST"
@@ -186,6 +216,8 @@ def _line_view(line: dict[str, Any]) -> dict[str, Any]:
         "is_done": True,
         "formula": f"지난 마감 뒤 바뀐 몫 {_signed_won(line.get('commission'))}원" if adjust else _formula(line),
         "deductions": [],
+        "detail": _detail_view(line.get("order_id"), detail,
+                               changed=shipping_changed(detail, line.get("shipping_price"))),
     }
 
 
@@ -284,8 +316,11 @@ def my_commission():
             "tax_line": _tax_line(total, snap["tax_type"], net=int(snap["net"])),
             "paid_text": f"지급 완료 {_short_date(snap['paid_at'])}" if snap["status"] == STATUS_PAID else "",
             "pending_note": "",
-            "rows": [_line_view(line) for line in snap["lines"] if isinstance(line, dict)],
+            "rows": [],
         }
+        lines = [line for line in snap["lines"] if isinstance(line, dict)]
+        details = order_details(db, getattr(g, "current_user", None), [line.get("order_id") for line in lines])
+        view["rows"] = [_line_view(line, details.get(calc._as_int(line.get("order_id")) or 0)) for line in lines]
         name = active_freelancers(db)[target_id].match_name if on_behalf else ""
     else:
         data = commission_rows(db, target_id, month, basis)
@@ -303,8 +338,10 @@ def my_commission():
             "tax_line": _tax_line(total, data["freelancer"]["tax_type"]),
             "paid_text": "",
             "pending_note": "아직 마감 전이라 바뀔 수 있어요." if unclosed else "",
-            "rows": [_row_view(r, basis) for r in rows],
+            "rows": [],
         }
+        details = order_details(db, getattr(g, "current_user", None), [r["order_id"] for r in rows])
+        view["rows"] = [_row_view(r, basis, details.get(int(r["order_id"]))) for r in rows]
         name = data["freelancer"]["match_name"] if on_behalf else ""
 
     next_month = _shift_month(month, 1)
