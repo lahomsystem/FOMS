@@ -552,6 +552,9 @@ input.wb-pick:disabled,
 /* 금액은 자릿수가 많다(1,178,100). 마지막 열만 한 치수 넓게. */
 .wb-cmp th.wb-cmp__num:last-child,
 .wb-cmp td.wb-cmp__num:last-child { width: calc(128px * var(--wb-fs, 1)); }
+/* 후보 표 금액 칸은 FOMS 총 견적 · 예약금 두 줄을 더 든다(2026-11-08) — "예약금 12,800,000" 이 접히지 않는 폭. */
+.wb-cmp--cand th.wb-cmp__num,
+.wb-cmp--cand td.wb-cmp__num { width: calc(120px * var(--wb-fs, 1)); }
 /* ── 상품주문 대조표 폭 ────────────────────────────────────────────────
    좁은 화면에서 **열을 짜내지 않는다**(이력 표 `.wb-hist` 와 같은 규칙). 열을 줄이면
    제품명이 한 글자씩 세로로 서고 `우리 접수 2026-09-01 23:33` 이 시각 한가운데서 접힌다.
@@ -821,6 +824,17 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
     font-size: calc(12px * var(--wb-fs, 1));
 }
+
+/* 금액 견주기 칸 아래 두 줄 = 이 FOMS 주문의 돈(총 견적 · 예약금, 2026-11-08). 위 세 줄
+   (네이버 돈)과 점선 하나로만 가른다 — 칩·색을 더하지 않는다(사용자 "복잡 · 시인성 낮음"). */
+.wb-cand__erp {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--wb-line);
+    font-size: calc(12px * var(--wb-fs, 1));
+    font-variant-numeric: tabular-nums;
+}
+.wb-cand__erp > div { white-space: nowrap; }
 
 /* ── 유령 주문 띠 (R-2 · 2026-08-25) ──────────────────────────────────
    실패 띠(빨강 alert)와 **다른 무게**여야 한다. 실패는 방금 누른 것의 결과라 급하고,
@@ -3543,8 +3557,17 @@ input.wb-pick:disabled,
         border-block: 1px solid var(--wb-line-soft);
     }
     /* 옛 결제 금액이 없으면 칸에 '–' 하나뿐이다 — 빈 회색 띠를 남기지 않는다. */
-    .wb-cmp--cand td.wb-cmp__num:not(:has(.wb-cand__delta)) { display: none; }
+    /* FOMS 총 견적 · 예약금(.wb-cand__erp)이 있으면 옛 결제가 없어도 띠를 낸다(2026-11-08). */
+    .wb-cmp--cand td.wb-cmp__num:not(:has(.wb-cand__delta, .wb-cand__erp)) { display: none; }
     .wb-cmp--cand td.wb-cmp__num .wb-cand__delta { margin-left: auto; font-size: calc(13px * var(--wb-fs, 1)); }
+    /* 폰: 네이버 세 숫자는 첫 줄, FOMS 총 견적 · 예약금은 점선 아래 둘째 줄에 나란히. */
+    .wb-cmp--cand td.wb-cmp__num .wb-cand__erp {
+        flex-basis: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin-top: 0;
+    }
     .wb-cmp--cand td.text-end { grid-area: act; text-align: left; display: flex; flex-direction: column; gap: 6px; }
     .naver-workbench .wb-cmp--cand td.text-end .btn,
     .wb-cmp--cand td.text-end .btn {

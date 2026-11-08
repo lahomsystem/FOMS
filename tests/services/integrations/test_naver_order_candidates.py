@@ -304,3 +304,29 @@ def test_name_scan_cap_is_reported_not_silent(app, caplog, monkeypatch):
     with caplog.at_level("WARNING"):
         find_order_candidates(db_session, _incident_link(external_id="PO-CAP"))
     assert any("이름 스캔 캡" in rec.getMessage() for rec in caplog.records)
+
+
+def test_candidate_carries_erp_total_and_deposit(app):
+    """관계 표 금액 칸이 후보 주문의 총 견적(출고가)과 예약금을 함께 싣는다(2026-11-08).
+
+    추가결제(예약금 + 새 결제 ≈ 총 견적)와 재결제(새 결제 ≈ 총 견적)를 금액으로도
+    가늠하게 하는 재료다. 견적이 없는 주문은 None — 화면이 "없음"으로 말한다(음성 대조군).
+    """
+    with_estimate = _order()
+    with_estimate.structured_data = {
+        "items": [{"price": 1_500_000}, {"price": 300_000}],
+        "payment": {"deposit": "500,000"},
+    }
+    db_session.commit()
+    link = _link()
+    got = find_order_candidates(db_session, link)
+    row = next(r for r in got if r["order_id"] == with_estimate.id)
+    assert row["erp_total"] == 1_800_000
+    assert row["erp_deposit"] == 500_000
+
+    with_estimate.structured_data = None
+    db_session.commit()
+    got = find_order_candidates(db_session, link)
+    row = next(r for r in got if r["order_id"] == with_estimate.id)
+    assert row["erp_total"] is None
+    assert row["erp_deposit"] is None
