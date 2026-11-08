@@ -70,7 +70,7 @@ _STATE_UNAVAILABLE = "unavailable"
 
 #: 감사 메시지 꼬리 — reason 별. 큐 부재에 "(이미 대기 중)"이 붙던 결함이 F-02 다.
 _SYNC_AUDIT_SUFFIX = {_STATE_QUEUED: "", _STATE_DUPLICATE: "(이미 대기 중)",
-                      _STATE_UNAVAILABLE: "(큐 연결 불가)"}
+                      _STATE_UNAVAILABLE: "(연결 안 됨)"}
 
 #: 감사 행위 코드. 라벨은 ``foms/services/audit_message_display.py`` ACTION_LABELS 에 등재.
 SETTLE_SYNC_AUDIT_ACTION = "NAVER_SETTLE_SYNC_REQUEST"
