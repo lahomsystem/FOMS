@@ -9,7 +9,7 @@
   돕는 쪽)은 서버가 그리고, 그림 · 걸음 · 종류 칩은 ``brain-neighbours.js`` 가 탭을 열 때 Cytoscape 를 ``import()`` 해 단다.
   뇌 보기(7.6)는 ``brain3d-tab.js`` 가 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 탭을 숨기고, 열 때만 three.js 를 ``import()``.
 - 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐, 그 밖은 404(:func:`foms.services.brain.access.screen_viewer`).
-  메뉴 항목도 같은 판정(:func:`brain_nav_allowed` — DB 를 읽지 않는다).
+  메뉴 항목은 이 판정(DB 를 읽지 않는다) + 물어보기 화면을 여는 직원(:func:`brain_nav_allowed` — 설정 한 줄을 요청에 한 번만).
 - **물어보기 탭**(설계서 10절 · ⑤-5) — 탭은 :func:`foms.services.brain.chat_access.page_viewer` 가 열 때만(ADMIN 은 늘 —
   꺼져 있어도 설정을 보려고 · 층 승인자 MANAGER 는 단계 ``leads`` 이상 · 켬). 회사 지식 화면을 못 여는 직원이 여는 단계 안이면
   ``/brain`` 이 물어보기만 있는 ``/brain/ask`` 로 보낸다(그 밖 404). 답 · 근거 칩 · 피드백은 ``brain-ask.js`` 가 JSON API
@@ -28,7 +28,7 @@ from foms.services.brain.access import can_open_screen, screen_viewer, wide_bins
 from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, type_map
 from foms.services.brain.card import item_card
-from foms.services.brain.chat_access import page_viewer
+from foms.services.brain.chat_access import page_open_without_settings, page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.constants import (
     BRANDS, CONFIDENCES, GRADES, LAYERS, LINK_KINDS, MAX_NEIGHBOUR_DEPTH, OBJECT_STATUSES, TYPES,
@@ -47,12 +47,38 @@ from foms.web.auth import login_required
 brain_web_bp = Blueprint("brain_web", __name__)
 
 TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "ask")
+#: 물어보기 화면을 열 수 있나를 요청 하나에 한 번만 판정해 두는 ``flask.g`` 칸 — (사용자 번호, 답).
+_G_CHAT_PAGE = "brain_chat_page_open"
 
 
 @brain_web_bp.app_template_global("brain_nav_allowed")
 def brain_nav_allowed() -> bool:
-    """메뉴에 '회사 지식'을 보일지(로그인 사용자 · 같은 판정)."""
-    return can_open_screen(getattr(g, "current_user", None))
+    """메뉴에 '회사 지식'을 보일지 — 화면을 여는 사람(DB 를 읽지 않는다) 또는 물어보기 화면을 여는 직원(F28 · D99 3단계).
+
+    물어보기만 여는 직원도 같은 주소(``/brain``)로 간다 — 그 사람에게는 :func:`index` 가 ``/brain/ask`` 로 보낸다.
+    """
+    user = getattr(g, "current_user", None)
+    return can_open_screen(user) or chat_page_open(user)
+
+
+def chat_page_open(user: Any) -> bool:
+    """물어보기 화면을 열 수 있나 — :func:`page_viewer` 와 같은 판정. 메뉴가 모든 화면에서 부르므로 설정 한 줄
+    (:func:`read_chat_settings`)은 답이 설정에 달린 내부 직원일 때만 · 요청에 한 번만(``flask.g``) 읽는다.
+
+    ADMIN · 바깥 역할 · 꺼진 계정 · 로그인 안 함 · 어느 단계에도 없는 역할은 읽지 않는다(:func:`page_open_without_settings`).
+    """
+    known = page_open_without_settings(user)
+    if known is not None:
+        return known
+    user_id = getattr(user, "id", None)
+    memo = g.get(_G_CHAT_PAGE)
+    if memo is not None and memo[0] == user_id:
+        return memo[1]
+    db = get_db()
+    with db.no_autoflush:  # 메뉴를 그리다 요청이 아직 안 보낸 변경을 밀어 넣지 않는다(읽기만)
+        opened = page_viewer(user, read_chat_settings(db)) is not None
+    setattr(g, _G_CHAT_PAGE, (user_id, opened))
+    return opened
 
 
 def _viewer_or_404() -> Any:
@@ -83,10 +109,10 @@ def _screen_actions(viewer: Any) -> list[dict[str, Any]]:
 
 
 def _chat_open() -> bool:
-    """물어보기를 열 수 있나(여는 단계 · 스위치 — 설정 한 줄을 읽는다)."""
+    """물어보기를 열 수 있나(여는 단계 · 스위치 — 설정 한 줄을 요청에 한 번만, 메뉴와 같은 기억 :func:`chat_page_open`)."""
     db = get_db()
     try:
-        return page_viewer(getattr(g, "current_user", None), read_chat_settings(db)) is not None
+        return chat_page_open(getattr(g, "current_user", None))
     finally:
         db.rollback()
 

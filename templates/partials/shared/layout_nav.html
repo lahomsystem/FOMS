@@ -77,8 +77,10 @@
                         {# FOMS 공지사항(2026-11-02) — 안 읽음 수는 foms-notice-popup.js 가 채운다. #}
                         <li><a class="dropdown-item" href="{{ url_for('notices_web.notice_list') }}"><i
                                     class="fas fa-bullhorn"></i> 공지사항<span class="foms-notice-badge" data-foms-notice-unread hidden></span></a></li>
-                        {# 회사 지식(HAUD master brain 7.5) — ADMIN · 층 승인자 팀 MANAGER 만(D101). 판정은 DB 를 읽지 않는다. #}
-                        {% if brain_nav_allowed() %}
+                        {# 회사 지식(HAUD master brain 7.5) — 화면을 여는 ADMIN · 층 승인자 팀 MANAGER(D101, DB 를 읽지 않는다) +
+                           물어보기를 여는 직원(F28 · D99 — 설정 한 줄을 요청에 한 번만, 주소는 같고 /brain 이 /brain/ask 로 보낸다).
+                           켜진 프리랜서는 문지기 허용 목록 밖이라 뺀다. #}
+                        {% if not _fl_nav and brain_nav_allowed() %}
                         <li><a class="dropdown-item" href="{{ url_for('brain_web.index') }}" data-foms-nav-brain><i
                                     class="fas fa-brain"></i> 회사 지식</a></li>
                         {% endif %}
