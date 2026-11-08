@@ -2,6 +2,8 @@
  * 회사 지식 '판' 탭(HAUD master brain 설계서 7.5 화면 6) — 판 목록 · 층별 동작 수 · 차이 요약. GET /api/brain/releases ·
  * /api/brain/releases/<번호>(수 · 차이는 내 보기 범위 안의 바뀜만). 층 되돌리기는 ADMIN 만(data-is-admin) — 한 번 누르면
  * 확인 줄이 열리고 '되돌리기'를 한 번 더 눌러야 POST /api/brain/releases/<번호>/rollback {layer, confirm_number} 를 보낸다.
+ * 확인 줄에는 무엇이 되돌아가는지 한 줄(ROLLBACK_NOTE — rollback.py 의 실제 동작: 이 판에서 만든 지식은 지우기, 고친 ·
+ * 은퇴한 · 지운 지식과 더하거나 뺀 연결은 이 판 전으로, 되돌림도 새 판으로 남음). 지식 이름은 한글 이름 먼저(``title``).
  * 되돌린 층은 '되돌림 — 판 N 에서' 표시로 남는다(이력). 글은 textContent 만, 탭이 처음 보일 때 읽는다.
  */
 (function () {
@@ -25,6 +27,8 @@
   var loaded = false;
   var canRollback = root.getAttribute('data-is-admin') === '1';
   var review = window.FOMS_BRAIN_REVIEW;
+  var ROLLBACK_NOTE = '이 판에서 새로 만든 지식은 지워지고, 고친 · 은퇴한 · 지운 지식과 연결은 이 판 전으로 돌아가요. ' +
+    '기록은 남아요.';
 
   function layerLabel(layer) {
     return (ctx.display.layers || {})[layer] || layer || '층 없음';
@@ -35,14 +39,15 @@
     return item.import ? title + ' · 문서에서 옮겨 옴' : title;
   }
 
-  /** 바뀜 한 줄 글 — '고침 · 이름' 또는 '링크 더함 · 적용: 시작 → 끝'(키는 화면에 내지 않는다). */
+  /** 바뀜 한 줄 글 — '고침 · 이름' 또는 '링크 더함 · 적용: 시작 → 끝'. 이름은 카드 제목과 같게 한글 이름 먼저(``title``). */
   function changeText(change) {
     var op = (ctx.display.ops || {})[change.op] || change.op;
+    var name = change.title || change.name || change.key;
     if (change.link_kind) {
       var kind = view.linkInfo(ctx.display, change.link_kind).label;
-      return op + ' · ' + kind + ': ' + (change.name || change.key) + ' → ' + (change.link_to_name || change.link_to);
+      return op + ' · ' + kind + ': ' + name + ' → ' + (change.link_to_title || change.link_to_name || change.link_to);
     }
-    return op + ' · ' + (change.name || change.key);
+    return op + ' · ' + name;
   }
 
   function renderDiff(box, data) {
@@ -104,17 +109,21 @@
     return li;
   }
 
-  /** 층 되돌리기 — 첫 누름은 확인 줄만 연다(같은 판 번호를 다시 보내 확인). */
+  /** 층 되돌리기 — 첫 누름은 확인 줄만 연다(무엇이 되돌아가는지 한 줄 + 같은 판 번호를 다시 보내 확인). */
   function rollbackControl(number, layer) {
     var box = dom.el('span', { cls: 'brain-release__rollback' });
     var start = dom.el('button', { cls: 'brain-btn', text: '이 층 ' + review.actionLabel(ctx.actions, 'release_rollback'),
                                    attrs: { type: 'button' } });
     var ask = dom.el('span', { cls: 'brain-release__ask' });
     ask.hidden = true;
+    var noteId = 'brain-release-undo-' + number + '-' + layer;
+    var what = dom.el('span', { cls: 'brain-empty', text: ROLLBACK_NOTE,
+                                attrs: { id: noteId, 'data-brain-rollback-note': '1' } });
     var yes = dom.el('button', { cls: 'brain-btn brain-btn--danger', text: '판 ' + number + ' ' + layerLabel(layer) + ' 되돌리기',
-                                 attrs: { type: 'button' } });
+                                 attrs: { type: 'button', 'aria-describedby': noteId } });
     var no = dom.el('button', { cls: 'brain-btn', text: '취소', attrs: { type: 'button' } });
     var note = dom.el('span', { cls: 'brain-status-line', attrs: { role: 'status', 'aria-live': 'polite' } });
+    ask.appendChild(what);
     ask.appendChild(yes);
     ask.appendChild(no);
     box.appendChild(start);
