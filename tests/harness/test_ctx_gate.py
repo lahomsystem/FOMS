@@ -6,6 +6,7 @@
   - 판정 축 = 마지막 assistant `message.usage`의 창 점유(파일 크기 아님).
     도구 결과로 transcript가 아무리 커져도 점유가 낮으면 안 뜬다(헛알림 회귀 방지)
   - compact로 점유가 내려가면 baseline 보정 없이 저절로 미발동
+  - compact 직후 첫 프롬프트(경계 뒤 새 응답 없음)는 압축 전 usage 를 읽지 않는다(11-08 64% 오판)
   - usage 없는 transcript / 부재·손상 payload → fail-open(exit 0, 무출력, 사유 기록)
   - 타 세션 상태 파일의 쿨다운 무시
 """
@@ -176,6 +177,46 @@ def test_compact_drop_needs_no_baseline(tmp_path: Path, monkeypatch) -> None:
 
     assert _run(module, {"session_id": "s1", "transcript_path": transcript}) == 0
     assert emitted == [], "옛 턴의 높은 점유를 최신으로 읽었다"
+
+
+def _append_lines(path: str, *entries: dict) -> None:
+    """transcript 끝에 JSON 줄을 덧붙인다."""
+    with open(path, "a", encoding="utf-8") as handle:
+        for entry in entries:
+            handle.write(json.dumps(entry, ensure_ascii=False))
+            handle.write(chr(10))
+
+
+_BOUNDARY = {"type": "system", "subtype": "compact_boundary", "content": "Conversation compacted"}
+_SUMMARY = {"type": "user", "message": {"role": "user", "content": "This session is being continued..."}}
+
+
+def test_first_prompt_after_compact_ignores_pre_compact_usage(tmp_path: Path, monkeypatch) -> None:
+    """압축 직후 첫 프롬프트: 경계 뒤 새 응답이 없으면 압축 전 높은 점유로 발동하지 않는다.
+
+    2026-11-08 실측: 압축 전 645,230(64%)을 읽어 주입 → 실제 8.5% 인데 모델이 "/compact" 를 거듭 권함.
+    """
+    module = _load_ctx_gate("ctx_gate_post_compact_first_prompt")
+    _, emitted, logged = _prepare(module, tmp_path, monkeypatch)
+    transcript = _transcript(tmp_path, 800)
+    _append_lines(transcript, _BOUNDARY, _SUMMARY)
+
+    assert _run(module, {"session_id": "s1", "transcript_path": transcript}) == 0
+    assert emitted == [], "압축 전 usage 를 지금 점유로 읽었다"
+    assert any("압축" in msg for msg in logged), "건너뛴 까닭이 기록되지 않았다"
+
+
+def test_usage_after_compact_boundary_still_counts(tmp_path: Path, monkeypatch) -> None:
+    """대조군: 경계 뒤에 새 응답이 높은 점유를 남겼으면 그대로 발동한다."""
+    module = _load_ctx_gate("ctx_gate_post_compact_real")
+    _, emitted, _ = _prepare(module, tmp_path, monkeypatch)
+    transcript = _transcript(tmp_path, 100)
+    _append_lines(transcript, _BOUNDARY, _SUMMARY)
+    _append_lines(transcript, {"type": "assistant", "message": {"model": "claude-opus-5", "usage": {
+        "input_tokens": 2, "cache_read_input_tokens": 798, "cache_creation_input_tokens": 0, "output_tokens": 10}}})
+
+    assert _run(module, {"session_id": "s1", "transcript_path": transcript}) == 0
+    assert "[CTX-GATE]" in _injected(emitted)
 
 
 def test_transcript_without_usage_is_fail_open(tmp_path: Path, monkeypatch) -> None:
