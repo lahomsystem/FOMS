@@ -153,9 +153,15 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
     regions = _desktop_regions(_render(app, monkeypatch, fl, path, mobile=False))
     assert all(regions.values()), [k for k, v in regions.items() if not v]
     assert _outside_allowlist(app, regions) == []
-    # 링크 글로 본다(주석에도 "WDCalculator" 가 있다). 사내 채팅은 CHAT-DEL-01 로 모두에게서 지움
-    for absent in ("</i> WDCalculator", "</i> 채팅", "네이버 수집", "휴지통", "전체 주문"):
+    # 링크 글로 본다. 사내 채팅은 CHAT-DEL-01 로 모두에게서 지움
+    for absent in ("</i> 채팅", "네이버 수집", "휴지통", "전체 주문"):
         assert absent not in regions["global_nav"], absent
+    # 위 줄 = 회사 영업과 같은 모양(11-08): 판 메뉴는 ERP 서브 내비에만, 위 왼쪽은 "내 수수료" 하나,
+    # 오른쪽은 ERP 대시보드 · WDCalculator.
+    left = _cut(regions["global_nav"], '<ul class="navbar-nav">', "</ul>")
+    assert [html_lib.unescape(t).strip() for t in re.findall(r'class="nav-link"[^>]*>([^<]+)</a>', left)] == ["내 수수료"]
+    for present in ("</i> WDCalculator", "</i> ERP 대시보드"):
+        assert present in regions["global_nav"], present
     assert "내 변경 로그" not in regions["user_menu"]
     assert 'href="/profile"' in regions["user_menu"] and "공지사항" in regions["user_menu"]
     assert re.findall(r"<span>([^<]+)</span>", regions["erp_sub_nav"]) == _FL_LABELS
@@ -246,6 +252,33 @@ def test_normal_sales_keeps_header_buttons(app, monkeypatch):
     desktop = _render(app, monkeypatch, user, _MEASURE_SEARCH, mobile=False)
     assert [name for marker, name in _HIDDEN_FOR_FREELANCER if marker not in mobile] == []
     assert "global-partner-filter-btn" in desktop and "open_map=1" in desktop
+
+
+# 판 머리 "홈" 단추(order_pages.index = "/") — 프리랜서는 "/" 가 대시보드로 돌아와 제자리 단추였다(11-08 점검 · 사용자
+# "프리랜서만 숨기기"). 회사 직원은 그대로 "전체 주문"으로 간다.
+_HOME_BTN = 'erp-pro-btn--secondary" href="/"'
+_HOME_TEMPLATES = (
+    "templates/orders/partials/dashboard_main.html",
+    "templates/orders/partials/history_dashboard_body.html",
+    "templates/production/partials/dashboard_body.html",
+    "templates/construction/partials/dashboard_body.html",
+    "templates/cs/partials/completion_dashboard_body.html",
+    "templates/cs/partials/settlement_dashboard_body.html",
+)
+
+
+def test_board_home_button_hidden_for_freelancer_only(app, monkeypatch):
+    _freelancer()
+    assert _HOME_BTN not in _render(app, monkeypatch, _freelancer(), "/erp/dashboard", mobile=False)
+    assert _HOME_BTN in _render(app, monkeypatch, _make_user("STAFF", "SALES"), "/erp/dashboard", mobile=False)
+
+
+@pytest.mark.parametrize("rel", _HOME_TEMPLATES)
+def test_every_board_home_button_is_guarded(rel):
+    src = (Path(__file__).resolve().parents[2] / rel).read_text(encoding="utf-8")
+    i = src.index("url_for('order_pages.index')")
+    guard = src.rfind("{% if not is_sales_freelancer() %}", 0, i)
+    assert guard >= 0 and "{% endif %}" not in src[guard:i], rel
 
 
 # --------------------------------------------------------------------------

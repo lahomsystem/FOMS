@@ -41,10 +41,12 @@
         <i class="fas fa-plus"></i>
         <span>주문 생성</span>
       </a>
+      {% if not is_sales_freelancer() %}{# 프리랜서는 '/' 가 대시보드로 돌아온다 — 홈 단추 숨김(11-08) #}
       <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
         <i class="fas fa-home"></i>
         <span class="d-none d-md-inline">홈</span>
       </a>
+      {% endif %}
     </div>
   </header>
   {% set erp_sub_nav_active = 'dashboard' %}
