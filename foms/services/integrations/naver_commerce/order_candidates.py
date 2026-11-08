@@ -42,6 +42,10 @@ from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.erp_display import (
+    erp_deposit_amount_from_structured,
+    erp_shipping_price_from_structured,
+)
 from foms.services.integrations.naver_commerce.ghost_orders import stage_label
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
@@ -1097,6 +1101,8 @@ def _order_view(order: Order, *, score: int, reason: str,
     facts = facts or {}
     trash = read_order_trash(order)
     old_amount = int(facts.get("amount_total") or 0)
+    # 이미 읽힌 행의 JSONB 에서 파생만 한다 — 추가 조회 없음.
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     return {
         "order_id": int(order.id),
         "customer_name": order.customer_name,
@@ -1168,6 +1174,12 @@ def _order_view(order: Order, *, score: int, reason: str,
         "naver_amount_total": old_amount,
         "new_amount_total": int(new_amount or 0),
         "amount_delta": int(new_amount or 0) - old_amount,
+        # ④ 후보 주문의 ERP 금액(2026-11-08 사용자 요청) — 추가결제/재결제를 금액으로도
+        # 가늠하게 한다: 예약금 + 새 결제 ≈ 총 견적이면 추가결제, 새 결제 ≈ 총 견적이면
+        # 재결제. 총 견적 = 출고가(품목합 + 자유입력 − 할인, ERP 주문 탭과 같은 식).
+        # 견적이 없는 주문(수기 접수 등)은 None — 화면이 "없음"으로 말한다.
+        "erp_total": erp_shipping_price_from_structured(sd),
+        "erp_deposit": erp_deposit_amount_from_structured(sd),
     }
 
 

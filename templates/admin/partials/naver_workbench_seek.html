@@ -115,6 +115,19 @@
                 <div class="wb-cand__delta">
                     {{ '+' if row.amount_delta > 0 else '' }}{{ '{:,}'.format(row.amount_delta) }}
                 </div>
+                {% elif row.erp_total is not none or row.erp_deposit is not none %}
+                <div>새 {{ '{:,}'.format(row.new_amount_total) }}</div>
+                {% endif %}
+                {# 이 FOMS 주문의 돈(2026-11-08 사용자 요청) — 예약금 + 새 ≈ 총 견적이면 추가결제,
+                   새 ≈ 총 견적이면 재결제. 네이버 옛 결제가 없는 수기 주문도 낸다(재결제를 놓치기
+                   쉬운 바로 그 경우다). 둘 다 없고 옛 결제도 없으면 예전처럼 '–' 하나. #}
+                {% if row.erp_total is not none or row.erp_deposit is not none %}
+                <div class="wb-cand__erp">
+                    <div>총 견적 {{ '{:,}'.format(row.erp_total) if row.erp_total is not none else '–' }}</div>
+                    <div>예약금 {{ '{:,}'.format(row.erp_deposit) if row.erp_deposit is not none else '–' }}</div>
+                </div>
+                {% elif row.naver_amount_total %}
+                <div class="wb-cand__erp"><div>견적 없음</div></div>
                 {% else %}
                 <span class="wb-relation__reason">–</span>
                 {% endif %}
