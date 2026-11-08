@@ -40,6 +40,7 @@ __all__ = [
     "SELF_EDIT_PATHS",
     "STATES",
     "closed_order_ids",
+    "scope_filters",
     "commission_row_for_order",
     "commission_rows",
     "current_values",
@@ -246,6 +247,11 @@ def _scope_filters() -> tuple:
         Order.is_erp_order.is_(True),
         Order.partner_org_id.is_(None),
     )
+
+
+def scope_filters() -> tuple:
+    """:func:`_scope_filters` 공개 이름 — 명세서 세부내역(:mod:`statement_detail`)도 같은 모집단만 읽는다."""
+    return _scope_filters()
 
 
 def _window_filters(month: str, basis: str, start_month: str) -> tuple:
