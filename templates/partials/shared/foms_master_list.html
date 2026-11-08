@@ -1,7 +1,7 @@
 {# P1-05 master order list pane #}
 <div class="foms-split-master" data-foms-master-list>
   <header class="foms-split-master__head">
-    <h2 class="foms-split-master__title">작업 큐</h2>
+    <h2 class="foms-split-master__title">작업 목록</h2>
     <span class="foms-split-master__count">{{ master_cards|default([])|length }}건</span>
   </header>
   {% for card in master_cards | default([]) %}
