@@ -50,7 +50,8 @@
     var op = labels(display, 'ops')[view.op] || view.op;
     if (view.link) {
       var kind = (labels(display, 'links')[view.link.kind] || {}).label || view.link.kind;
-      return op + ' · ' + kind + ': ' + view.link.from + ' → ' + view.link.to;
+      return op + ' · ' + kind + ': ' + (view.link.from_label || view.link.from) + ' → ' +
+        (view.link.to_label || view.link.to);
     }
     var type = (labels(display, 'types')[card.type] || {}).label || card.type;
     var names = diffRows(view.fields, display).map(function (r) { return r.label; });
@@ -156,10 +157,10 @@
     if (items.length) {
       var names = items.map(function (t) { return t.name; }).join(', ');
       var more = touches.total > items.length ? ' 그 밖 ' + (touches.total - items.length) + '개' : '';
-      parts.push('이어진 항목 ' + touches.total + '개: ' + names + more);
+      parts.push('이어진 지식 ' + touches.total + '개: ' + names + more);
     }
     if (copies) parts.push('사본 ' + copies + '곳(매크로 · 스토어 상세 같은 곳 — 함께 고칠 일)');
-    return parts.length ? parts.join(' · ') : '함께 닿는 항목 없음';
+    return parts.length ? parts.join(' · ') : '함께 닿는 지식 없음';
   }
 
   /** 제안함 맨 위 줄 · AI 자리 줄. */

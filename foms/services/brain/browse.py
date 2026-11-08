@@ -37,6 +37,17 @@ CHECKS: tuple[str, ...] = ("needs_check", "stale")
 SNIPPET = 120
 
 
+PREF_LABEL = "pref_label"
+
+
+def pref_name(row: Any = BrainObject) -> Any:
+    """화면 이름 SQL 식 — :func:`.labels.pref_of` 와 같은 규칙(실음 칸 ``pref_label`` 의 앞뒤 빈칸을 뺀 글이 있으면 그것, 없으면
+    이름). SQLite ``coalesce(nullif(trim(JSON_EXTRACT(payload, '$."pref_label"')), ''), name)`` · PostgreSQL
+    ``coalesce(nullif(trim(CAST(payload ->> 'pref_label' AS VARCHAR)), ''), name)``. 같은 질의 안의 칸 식이라 읽는 줄 수 · 질의 수가 그대로다
+    (정렬 · 창 함수 차례도 이 식으로 — 화면 이름과 차례가 맞는다)."""
+    return func.coalesce(func.nullif(func.trim(row.payload[PREF_LABEL].as_string()), ""), row.name)
+
+
 class TableQueryError(ValueError):
     """지식 표 물음 값이 정한 값 목록 밖이다(화면에는 정한 글만)."""
 
@@ -162,11 +173,12 @@ def _table_conditions(query: TableQuery, viewer: Viewer, today: datetime.date) -
 def _table_order(sort: str) -> tuple[Any, ...]:
     """정렬 — 쓰인 횟수 많은 순 · 오래 확인 안 한 순(확인 날 없음 먼저) · 이름 순. 끝은 늘 키(쪽이 흔들리지 않게).
 
-    이름 순은 저장 이름 칸 순이다(화면 이름 = 한글 이름표가 아님) — 한글 이름표로 정렬하면 걸린 줄 모두의 실음 칸을 읽어야 한다."""
+    이름 순은 화면 이름 순이다(:func:`pref_name` — 한글 이름표가 있으면 그것, 없으면 저장 이름 · 점검 G1). DB 가 같은 질의
+    안에서 걸린 줄의 이름표 칸만 꺼내 정렬한다(줄을 더 읽거나 질의를 더하지 않는다)."""
     if sort == "checked":
         return BrainObject.checked_at.asc().nulls_first(), BrainObject.item_key
     if sort == "name":
-        return BrainObject.name, BrainObject.item_key
+        return pref_name(), BrainObject.item_key
     return usage_total().desc(), BrainObject.item_key
 
 
