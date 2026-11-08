@@ -2,7 +2,8 @@
 
 - ``names`` ① 한글 이름 붙이기 — 고침인데 바뀐 칸이 실음 칸의 이름표(대표 이름 · 다른 이름 · 숨은 이름)뿐.
 - ``content`` ② 새로 들어가거나 바뀌는 지식 — 만들기 · 글 · 값 · 규칙 고침 · 은퇴 · 지우기 · 그 밖 링크(한 장씩).
-- ``decide`` ③ 사장님이 정해 주실 것 — 엇갈림 · 질문 항목 만들기.
+- ``decide`` ③ 사장님이 정해 주실 것 — 엇갈림 · 질문 항목 만들기. **ADMIN 만 보고 정한다**(D167 '① 만 상담팀장, 나머지는
+  사장님' — 판정은 :func:`.access.approval_problem`, 이 묶음인지는 :func:`owner_decides`).
 - ``mark`` ④ 같은 값이 적힌 곳 표시 — 사본 자리 링크(``copy_in``) 더하기.
 
 ①과 ④ 는 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151).
@@ -16,7 +17,7 @@ from typing import Any, Mapping, Optional
 from foms.services.brain.constants import AGENT_WORK_TYPES, OP_CREATE, OP_LINK_ADD, OP_UPDATE
 
 __all__ = ["ADMIN_WIDE_BINS", "BINS", "BIN_CONTENT", "BIN_DECIDE", "BIN_MARK", "BIN_NAMES", "LABEL_KEYS",
-           "bulk_ok_any_grade", "card_bin", "label_only_change", "ref_label"]
+           "bulk_ok_any_grade", "card_bin", "label_only_change", "owner_decides", "ref_label"]
 
 BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK = "names", "content", "decide", "mark"
 #: 화면 차례.
@@ -46,11 +47,16 @@ def card_bin(op: str, item_type: Optional[str], fields: Optional[Mapping[str, An
     """제안 하나의 묶음."""
     if label_only_change(op, fields):
         return BIN_NAMES
-    if op == OP_CREATE and item_type in AGENT_WORK_TYPES:
+    if owner_decides(op, item_type):
         return BIN_DECIDE
     if op == OP_LINK_ADD and link_kind == COPY_LINK:
         return BIN_MARK
     return BIN_CONTENT
+
+
+def owner_decides(op: str, item_type: Optional[str]) -> bool:
+    """③ 사장님이 정해 주실 것(엇갈림 · 물어볼 것 항목 만들기)인가 — ADMIN 만 보고 정한다(D167). 그 항목의 고침 · 은퇴 · 링크는 ②."""
+    return op == OP_CREATE and item_type in AGENT_WORK_TYPES
 
 
 def label_only_change(op: str, fields: Optional[Mapping[str, Any]]) -> bool:

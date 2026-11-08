@@ -369,7 +369,7 @@
   .brain-filters__field--wide { grid-column: auto; }
   .brain-map__canvas { height: 420px; }
   .brain-fields { grid-template-columns: 1fr; }
-  .brain-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+  .brain-tabs { flex-wrap: wrap; }  /* 탭 줄을 감싸 '더 보기'까지 다 보이게(옆으로 밀기 없음 — F06) */
   .brain-tabs .nav-link { white-space: nowrap; }
   .brain-inbox__phone-note { display: block; color: var(--brain-muted); font-size: 0.8125rem; margin: 0 0 8px; }
   .brain-icard,

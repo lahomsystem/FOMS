@@ -1,14 +1,15 @@
 {#- 화면 4 '승인 대기'(제안함 — 설계서 7.9) — 첫 화면은 네 묶음 한 줄씩(brain-inbox-bins.js), '열기'를 누르면 그 묶음 카드만.
     내가 결정할 수 있고 볼 수 있는 제안만, 항목마다 카드 하나(두 번째 제안은 같은 카드에 붙음).
     카드는 brain-inbox-card.js 가 그리고 결정(승인 · 고쳐서 승인 · 거절 까닭 칩 · 나중에 · 등급 A 한꺼번에)은 brain-inbox.js
-    가 POST /api/brain/proposals/<id>/… 로 보낸다. 휴대폰 폭에서는 칸 하나 고침의 승인만 보이고 나머지는 'PC 에서 볼게요'. -#}
+    가 POST /api/brain/proposals/<id>/… 로 보낸다. 휴대폰 폭에서는 칸 하나 고침의 승인만 보이고, 승인할 수 없는 카드는
+    처음부터 아래 'PC 에서 볼 것' 접힘 칸에 들어간다(③ 질문은 휴대폰에서도 그대로). -#}
 <section class="tab-pane fade{{ ' show active' if tab == 'inbox' else '' }} brain-pane" id="brain-tab-inbox" role="tabpanel"
          aria-labelledby="brain-tab-inbox-btn" tabindex="0">
   <div class="brain-inbox__bar">
     <p class="brain-status-line" data-brain-inbox-status role="status" aria-live="polite"></p>
     <button type="button" class="brain-btn brain-inbox__bulk" data-brain-bulk hidden>등급 A 모두 승인</button>
   </div>
-  <p class="brain-inbox__ai" data-brain-bins-intro>승인하면 바로 반영되고, 바뀌기 전 내용은 수정 기록에 남아요.</p>
+  <p class="brain-inbox__ai" data-brain-bins-intro>승인하면 바로 바뀌고, 바뀌기 전 내용은 수정 기록에 남아요.</p>
   <ol class="brain-inbox" data-brain-bins></ol>
   <div class="brain-inbox__bar" data-brain-binbar hidden>
     <button type="button" class="brain-btn" data-brain-bin-back>← 승인 대기</button>

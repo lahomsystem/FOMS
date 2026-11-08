@@ -24,6 +24,8 @@ STAGE_ROLES: dict[str, frozenset[str]] = {
     STAGE_LEADS: frozenset({ROLE_ADMIN, ROLE_MANAGER}),
     STAGE_ALL: frozenset({ROLE_ADMIN, ROLE_MANAGER, "STAFF", "VIEWER"}),
 }
+#: 어느 단계에서든 묻는 역할 — 이 밖 역할은 단계 · 스위치와 상관없이 못 연다(설정을 읽을 까닭이 없다).
+ANY_STAGE_ROLES: frozenset[str] = frozenset().union(*STAGE_ROLES.values())
 
 
 def _internal(user: Any) -> Optional[Viewer]:
@@ -48,3 +50,15 @@ def page_viewer(user: Any, cfg: ChatSettings) -> Optional[Viewer]:
     if viewer.is_admin:
         return viewer
     return ask_viewer(user, cfg)
+
+
+def page_open_without_settings(user: Any) -> Optional[bool]:
+    """설정을 읽지 않고도 :func:`page_viewer` 의 답을 알면 그 답(화면을 열 수 있나), 설정에 달렸으면 ``None``.
+
+    모든 화면 메뉴처럼 자주 부르는 곳이 설정 줄을 덜 읽게 한다 — 바깥 역할 · 꺼진 계정 · 로그인 안 함 · 어느 단계에도 없는
+    역할은 ``False``, ADMIN 은 ``True``(꺼져 있어도 설정을 보려고 연다), 그 밖 내부 직원은 ``None``(여는 단계 · 스위치를 봐야 안다).
+    """
+    viewer = _internal(user)
+    if viewer is None or viewer.role not in ANY_STAGE_ROLES:
+        return False
+    return True if viewer.is_admin else None

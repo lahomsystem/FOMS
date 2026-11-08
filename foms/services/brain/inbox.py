@@ -1,8 +1,8 @@
 """제안함 '내 승인 대기'(설계서 7.5 화면 4 · 승인 흐름 · 사장님 D101 · D103) — 읽기만. 결정은 :mod:`.decide`.
 
 **질의 단계에서 두 번 거른다**: ① 이 사람이 결정할 수 있는 제안만(:func:`.access.approver_layers` — 층 승인자 MANAGER 는 자기
-층 · 사장님 몫 유형 빼고, ADMIN 은 모두) ② 보기 범위 안의 제안만(항목 동작은 지금 줄과 새 보기 범위 둘 다, 링크는 양 끝 — 4절 ·
-12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
+층 · 사장님 몫 유형 · ③ 엇갈림 · 물어볼 것 만들기 빼고, ADMIN 은 모두) ② 보기 범위 안의 제안만(항목 동작은 지금 줄과 새 보기
+범위 둘 다, 링크는 양 끝 — 4절 · 12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
 
 - **항목당 카드 하나**: 같은 항목(링크는 같은 링크)에 열린 제안이 둘 이상이면 처음 것이 카드, 나머지는 같은 카드에 붙는다.
 - **AI 제안**: **층마다**(사장님 D106 — 공통 · 상담 · 도면 · 생산) 이번 주 남은 자리(:data:`AI_WEEKLY_CAP` − 이번 주 그 층에서
@@ -24,10 +24,11 @@ from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
+from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
-    AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
-    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
+    AGENT_WORK_TYPES, AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES,
+    GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
 from foms.services.brain.external import ref_cards
@@ -60,7 +61,8 @@ def capped_clause() -> Any:
 def decidable_clause(viewer: Viewer) -> Any:
     """이 사람이 결정할 수 있는 제안(질의 조건 — :func:`.access.approval_problem` 과 같은 규칙).
 
-    상담팀장은 모든 고침을 후보로 넣는다 — 이름표 칸만 바뀌는지는 실음 칸 안을 견줘야 해서 :func:`decidable` 이 거른다(D167)."""
+    상담팀장은 모든 고침을 후보로 넣는다 — 이름표 칸만 바뀌는지는 실음 칸 안을 견줘야 해서 :func:`decidable` 이 거른다(D167).
+    ③ 엇갈림 · 물어볼 것 만들기(:func:`.inbox_bins.owner_decides`)는 ADMIN 만 — 층 승인자 MANAGER 의 목록 · 수에서 빠진다."""
     layers = approver_layers(viewer)
     if layers is None:
         return true()
@@ -69,8 +71,9 @@ def decidable_clause(viewer: Viewer) -> Any:
         return names
     owner_end = select(BrainObject.id).where(BrainObject.item_key == BrainChange.link_to, is_current(BrainObject),
                                              BrainObject.item_type.in_(sorted(OWNER_ONLY_TYPES))).exists()
+    owner_bin = and_(BrainChange.op == OP_CREATE, BrainChange.item_type.in_(AGENT_WORK_TYPES))
     return or_(and_(BrainChange.layer.in_(layers), BrainChange.item_type.notin_(sorted(OWNER_ONLY_TYPES)),
-                    not_(owner_end)), names)
+                    not_(owner_end), not_(owner_bin)), names)
 
 
 def decidable(viewer: Viewer, change: Any) -> bool:
@@ -145,15 +148,20 @@ def _in_box(session: Any, now: datetime.datetime) -> Any:
     return or_(not_(capped_clause()), BrainChange.id.in_(shown) if shown else false())
 
 
-def open_rows(session: Any, viewer: Viewer, now: datetime.datetime) -> list[tuple[BrainChange, Optional[BrainObject]]]:
-    """이 사람의 열린 제안(+ 그 항목 지금 줄) — 결정 가능 · 보기 범위 · AI 자리로 거른 것, 오래된 순."""
-    cur = aliased(BrainObject)
+def open_rows(session: Any, viewer: Viewer,
+              now: datetime.datetime) -> list[tuple[BrainChange, Optional[BrainObject], Optional[str]]]:
+    """이 사람의 열린 제안(+ 그 항목 지금 줄 + 링크 끝 항목의 화면 이름) — 결정 가능 · 보기 범위 · AI 자리로 거른 것, 오래된 순.
+
+    링크 끝 이름은 같은 질의의 칸 하나(끝 키의 지금 줄을 붙여 :func:`.browse.pref_name` — 점검 G2). 끝이 바깥 자리이거나 항목
+    동작이면 ``None``. 끝 항목은 :func:`visible_clause` 가 이미 보기 범위로 걸렀다."""
+    cur, far = aliased(BrainObject), aliased(BrainObject)
     rows = session.execute(
-        select(BrainChange, cur).outerjoin(cur, current_join(cur))
+        select(BrainChange, cur, pref_name(far).label("end_name")).outerjoin(cur, current_join(cur))
+        .outerjoin(far, and_(far.item_key == BrainChange.link_to, is_current(far)))
         .where(BrainChange.status == CHANGE_OPEN, decidable_clause(viewer), visible_clause(viewer, cur),
                _in_box(session, now))
         .order_by(BrainChange.created_at, BrainChange.id).limit(MAX_CHANGES)).all()
-    return [(change, row) for change, row in rows if decidable(viewer, change)]
+    return [(change, row, end) for change, row, end in rows if decidable(viewer, change)]
 
 
 def inbox_counts(session: Any, viewer: Viewer, now: datetime.datetime) -> dict[str, int]:
@@ -224,7 +232,7 @@ def _touch_query(viewer: Viewer, keys: list[str], direction: str) -> Any:
     near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
     scopes = allowed_scopes(viewer)
     query = (select(near.label("near"), BrainLink.kind.label("kind"), literal(direction).label("direction"),
-                    other.item_key.label("key"), other.name.label("name"), other.item_type.label("type"))
+                    other.item_key.label("key"), pref_name(other).label("name"), other.item_type.label("type"))
              .join(other, and_(other.item_key == far, is_current(other)))
              .where(near.in_(keys), is_current(BrainLink)))
     if scopes is not None:
@@ -233,12 +241,14 @@ def _touch_query(viewer: Viewer, keys: list[str], direction: str) -> Any:
 
 
 def touched_items(session: Any, viewer: Viewer, keys: Iterable[str]) -> dict[str, dict[str, Any]]:
-    """항목 → 함께 닿는 항목(링크 양쪽 · 볼 수 있는 것) 수와 앞 :data:`TOUCH_PER_CARD` 개(한 질의 — 창 함수)."""
+    """항목 → 함께 닿는 항목(링크 양쪽 · 볼 수 있는 것) 수와 앞 :data:`TOUCH_PER_CARD` 개(한 질의 — 창 함수).
+
+    이름은 화면 이름(한글 이름표 먼저 — :func:`.browse.pref_name` · 점검 G2)이고 차례도 그 이름 순이다."""
     wanted = sorted(set(keys))
     if not wanted:
         return {}
     both = union_all(_touch_query(viewer, wanted, "out"), _touch_query(viewer, wanted, "in")).subquery("both")
-    rank = func.row_number().over(partition_by=both.c.near, order_by=(both.c.kind, both.c.name, both.c.key))
+    rank = func.row_number().over(partition_by=both.c.near, order_by=(both.c.kind, name_order(both.c.name), both.c.key))
     size = func.count().over(partition_by=both.c.near)
     ranked = select(both, rank.label("rank"), size.label("size")).subquery("ranked")
     out: dict[str, dict[str, Any]] = {}
@@ -352,8 +362,11 @@ def about_items(session: Any, viewer: Viewer, changes: Iterable[BrainChange]) ->
 def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int, str],
                 links: dict[tuple[str, str, str], int], wide: frozenset[str] = frozenset(),
                 prices: Optional[dict[str, dict[str, Any]]] = None,
-                about: Optional[dict[str, dict[str, Any]]] = None) -> dict[str, Any]:
-    """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id)."""
+                about: Optional[dict[str, dict[str, Any]]] = None, end_name: Optional[str] = None) -> dict[str, Any]:
+    """제안 하나의 화면 재료(글은 제안 · 항목에 있는 것만 — 가린 글 · 근거 id).
+
+    링크 두 끝 이름(``from_label`` · ``to_label``)은 카드 제목과 같은 규칙 — 시작은 지금 항목의 한글 이름(:func:`card_title_of`),
+    끝은 ``end_name``(:func:`open_rows` 의 칸), 바깥 자리 끝은 사본 자리 이름표(:func:`.inbox_bins.ref_label`) · 점검 G2."""
     field, value = confirm_value(change.op, change.fields, change.item_type)
     evidence = [str(e) for e in (change.evidence or [])]
     gates = change.gates or {}
@@ -373,9 +386,10 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "phone_ok": phone_ok(change.op, change.fields),
         "bulk_ok": change.grade == GRADE_A or bulk_ok_any_grade(change.op, change.item_type, change.fields,
                                                                  change.link_kind, wide),
-        "rollback_of": change.rollback_of_version, "link": ({"kind": change.link_kind, "from": change.link_from,
-                                                            "to": change.link_to, "to_label": ref_label(change.link_to)}
-                                                           if change.op in LINK_OPS else None),
+        "rollback_of": change.rollback_of_version, "link": ({
+            "kind": change.link_kind, "from": change.link_from, "to": change.link_to,
+            "from_label": card_title_of(cur) if cur is not None else ref_label(change.link_from),
+            "to_label": end_name or ref_label(change.link_to)} if change.op in LINK_OPS else None),
         "created_at": format_datetime_kst(change.created_at, "%Y-%m-%d %H:%M") if change.created_at else None,
         "sentence": _sentence(change, cur), "visible_to": _visible_to(change, cur),
         "prices": [{"label": p["label"], "value": p["value"], "hidden": p["value_hidden"], "exists": p["exists"]}
@@ -412,8 +426,8 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     """묶음 → 카드(처음 사람 제안, 없으면 처음 제안이 카드 · 나머지는 붙음)."""
     main_index = next((i for i, (c, _r) in enumerate(group) if not is_agent(c.proposed_by)), 0)
     change, cur = group[main_index]
-    views = [change_view(c, r, extra["names"], extra["links"], extra["wide"], extra["prices"], extra["about"])
-             for c, r in group]
+    views = [change_view(c, r, extra["names"], extra["links"], extra["wide"], extra["prices"], extra["about"],
+                         extra["ends"].get(c.id)) for c, r in group]
     after_name = ((change.fields or {}).get("name") or {}).get("after")
     key = change.item_key or ""
     name = cur.name if cur is not None else (after_name or key)
@@ -438,7 +452,8 @@ def _card_order(card: dict[str, Any]) -> tuple:
 
 def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, Any]:
     """제안함 — ``{"cards", "counts", "ai"}``. 카드는 항목(링크)마다 하나."""
-    rows = open_rows(session, viewer, now)
+    picked = open_rows(session, viewer, now)
+    rows = [(change, cur) for change, cur, _end in picked]
     groups: dict[tuple, list[tuple[BrainChange, Optional[BrainObject]]]] = {}
     for change, cur in rows:
         groups.setdefault(_group_key(change), []).append((change, cur))
@@ -449,6 +464,7 @@ def inbox(session: Any, viewer: Viewer, *, now: datetime.datetime) -> dict[str, 
              "similar": similar_cases(session, viewer, item_keys), "touches": touched_items(session, viewer, item_keys),
              "usage": usage_of(session, item_keys), "wide": wide_bins(viewer),
              "prices": price_cards(session, viewer, [c for c, _r in rows]),
-             "about": about_items(session, viewer, [c for c, _r in rows])}
+             "about": about_items(session, viewer, [c for c, _r in rows]),
+             "ends": {change.id: end for change, _cur, end in picked if end}}
     cards = sorted((_card(group, extra) for group in groups.values()), key=_card_order)
     return {"cards": cards, "counts": inbox_counts(session, viewer, now), "ai": ai_week(session, now, viewer)}

@@ -109,7 +109,7 @@ def test_bulk_ids_warnings_links_and_lines():
     assert got[6] == "비슷한 사례 2건 (2026-10-01 ~ 2026-10-20)" and got[7].startswith("비슷한 사례 없음")
     assert got[8:11] == ["확인 날 3일 지남", "오늘이 확인 날", "5일 뒤 확인"]
     assert got[11] == "되돌림 — 판 4에서(2026-11-03)" and got[12] == 251
-    assert got[13].startswith("이어진 항목 3개: 가, 나 그 밖 1개 · 사본 2곳")
+    assert got[13].startswith("이어진 지식 3개: 가, 나 그 밖 1개 · 사본 2곳")
 
 
 @NODE

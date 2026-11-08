@@ -16,6 +16,7 @@ from foms.services.brain.constants import (
     EXT_CALCULATOR, EXT_ERP_STAGE, EXT_FORM, EXT_MACRO, EXT_SCREEN, EXT_SETTING, EXT_STORE, LINK_KINDS,
     OBSERVATION_TYPES, SCOPE_ADMIN, SCOPE_ALL, SCOPE_PRICE, SCOPE_TEAM_PREFIX, TEAMS, TYPES,
 )
+from foms.services.brain.schemas import CHOICE_LABELS
 from foms.services.orders.team_labels import team_label
 
 #: 유형 → (이름, 색, Font Awesome 6 아이콘). 바깥 정본 자리(계산기 · 설정)는 brain 항목이 아니라 가리키기만 한다.
@@ -96,14 +97,18 @@ LAYER_LABELS: dict[str, str] = {"common": "공통 바탕", "cs": "상담", "draw
 BRAND_LABELS: dict[str, str] = {"LAHOM": "라홈", "HAUD": "하우드", BRAND_COMMON: "공통"}
 STATUS_LABELS: dict[str, str] = {"draft": "초안", "active": "사용 중", "retired": "은퇴"}
 CONFIDENCE_LABELS: dict[str, str] = {"confirmed": "확정", "evidenced": "근거 있음", "observed": "관찰"}
-GRADE_LABELS: dict[str, str] = {"A": "A", "B_LIGHT": "B 가벼움", "B": "B"}
+GRADE_LABELS: dict[str, str] = {"A": "A", "B_LIGHT": "B(가벼움)", "B": "B"}
 EVIDENCE_LABELS: dict[str, str] = {"import": "지식 문서에서 옮김", "decision": "사장님 결정", "document": "문서",
                                    "case": "사례", "observation": "관찰", "person": "사람 확인"}
 OP_LABELS: dict[str, str] = {"create": "새로 만듦", "update": "고침", "retire": "은퇴", "delete": "지움",
                              "link_add": "연결 더함", "link_remove": "연결 뺌"}
+#: 에이전트 이름(``agent:<이름>`` — 만든 이 · 제안한 이) → 화면 이름(점검 F13 — 코드 이름을 보이지 않는다). 모르는 이름은
+#: :data:`AGENT_FALLBACK`. 이름 정본은 :data:`foms.services.brain.photo_cards.AGENT` · ``chat_reports.CHAT_AGENT``(시험이 맞춘다).
+AGENT_LABELS: dict[str, str] = {"cs_photo": "AI(사진 다시 배우기)", "brain_chat": "AI(물어보기 틀림 신고)"}
+AGENT_FALLBACK = "AI"
 #: 값 칸 이름(이력 탭의 '바뀐 칸').
 FIELD_LABELS: dict[str, str] = {
-    "name": "이름", "text": "글", "status": "상태", "confidence": "확신", "risk_grade": "위험 등급", "valid_from": "유효 시작",
+    "name": "이름", "text": "글", "status": "상태", "confidence": "확실한 정도", "risk_grade": "위험 등급", "valid_from": "유효 시작",
     "valid_to": "유효 끝", "checked_at": "마지막 확인", "evidence_kind": "근거 종류", "evidence_ref": "근거 위치",
     "visibility": "보기 범위", "copies": "사본 목록", "payload": "세부 칸",
 }
@@ -189,4 +194,10 @@ def display_table() -> dict[str, Any]:
         "fields": FIELD_LABELS, "gates": GATE_LABELS, "gate_values": GATE_VALUE_LABELS, "rejects": REJECT_LABELS,
         "visibilities": {v: visibility_label(v) for v in (SCOPE_ALL, SCOPE_PRICE, SCOPE_ADMIN,
                                                            *(SCOPE_TEAM_PREFIX + t for t in TEAMS))},
+        "choices": CHOICE_LABELS,  # 고르기 값 이름표(칸 자리 → 값 → 이름 — 고칠 말 · 승인 대기 칸 표 · 확인 칸)
     }
+
+
+def agent_label(name: str) -> str:
+    """에이전트 이름 → 화면 이름(모르면 'AI')."""
+    return AGENT_LABELS.get(name, AGENT_FALLBACK)

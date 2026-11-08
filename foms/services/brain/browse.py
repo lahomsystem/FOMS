@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 from sqlalchemy import exists, func, or_, select
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.visitors import InternalTraversal
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
@@ -22,6 +25,7 @@ from foms.services.brain.constants import (
     OBJECT_STATUSES, SAME_TYPE_KINDS, TYPE_LAYERS, TYPES, link_allowed,
 )
 from foms.services.brain.display import TYPE_GROUPS, display_table
+from foms.services.brain.labels import pref_of
 from foms.services.brain.read import (
     MAX_QUERY, count_items, effective_clauses, search_match, search_type_counts, visible_clauses,
 )
@@ -34,6 +38,46 @@ SEARCH_PER_TYPE = 5
 SORTS: tuple[str, ...] = ("usage", "checked", "name")
 CHECKS: tuple[str, ...] = ("needs_check", "stale")
 SNIPPET = 120
+
+
+PREF_LABEL = "pref_label"
+
+
+def pref_name(row: Any = BrainObject) -> Any:
+    """화면 이름 SQL 식 — :func:`.labels.pref_of` 와 같은 규칙(실음 칸 ``pref_label`` 의 앞뒤 빈칸을 뺀 글이 있으면 그것, 없으면
+    이름). SQLite ``coalesce(nullif(trim(JSON_EXTRACT(payload, '$."pref_label"')), ''), name)`` · PostgreSQL
+    ``coalesce(nullif(trim(CAST(payload ->> 'pref_label' AS VARCHAR)), ''), name)``. 같은 질의 안의 칸 식이라 읽는 줄 수 · 질의 수가 그대로다
+    (정렬 · 창 함수 차례도 이 식으로 — 화면 이름과 차례가 맞는다)."""
+    return func.coalesce(func.nullif(func.trim(row.payload[PREF_LABEL].as_string()), ""), row.name)
+
+
+class _NameOrder(ColumnElement):
+    """정렬 차례용 이름 식 — PostgreSQL 에서만 ``COLLATE "C"``(글자 번호 순 = 한글 가나다 순)를 붙인다.
+
+    운영 · 스테이징 DB 기본 정렬 규칙(en_US.utf8 — glibc)은 한글 글자에 무게가 없어 '이름 순'이 가나다가 아니었다
+    (스테이징 실측 11-08). SQLite 는 기본이 글자 번호 순이라 그대로 둔다."""
+
+    inherit_cache = True
+    _traverse_internals = [("expr", InternalTraversal.dp_clauseelement)]
+
+    def __init__(self, expr: Any) -> None:
+        self.expr = expr
+        self.type = expr.type
+
+
+@compiles(_NameOrder)
+def _name_order_default(element: _NameOrder, compiler: Any, **kw: Any) -> str:
+    return compiler.process(element.expr, **kw)
+
+
+@compiles(_NameOrder, "postgresql")
+def _name_order_pg(element: _NameOrder, compiler: Any, **kw: Any) -> str:
+    return compiler.process(element.expr, **kw) + ' COLLATE "C"'
+
+
+def name_order(expr: Any) -> Any:
+    """이름 정렬 식(한글 가나다 순 — :class:`_NameOrder`)."""
+    return _NameOrder(expr)
 
 
 class TableQueryError(ValueError):
@@ -97,9 +141,13 @@ def _open_change() -> Any:
 
 def light_item(row: BrainObject, *, today: datetime.date, needs_check: bool = False,
                used: Optional[int] = None) -> dict[str, Any]:
-    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음). ``used`` = 따로 센 쓰인 수(:mod:`.usage`)."""
+    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음). ``used`` = 따로 센 쓰인 수(:mod:`.usage`).
+
+    ``name`` 은 카드 제목과 같은 규칙 — 한글 이름(실음 칸 ``pref_label``)이 있으면 그것, 없으면 이름(:func:`.labels.pref_of` ·
+    점검 F01). 이미 읽은 줄의 실음 칸에서 꺼낸다(질의 · 읽는 칸 그대로). 키는 링크용으로 그대로."""
     text = (row.text or "").strip()
-    return {"key": row.item_key, "name": row.name, "type": row.item_type, "layer": row.layer, "brand": row.brand,
+    return {"key": row.item_key, "name": pref_of(row.name, row.payload), "type": row.item_type, "layer": row.layer,
+            "brand": row.brand,
             "status": row.status, "confidence": row.confidence, "grade": row.risk_grade, "version": row.version,
             "usage_count": int(row.usage_count or 0) + int(used or 0),
             "checked_at": row.checked_at.isoformat() if row.checked_at else None,
@@ -155,11 +203,14 @@ def _table_conditions(query: TableQuery, viewer: Viewer, today: datetime.date) -
 
 
 def _table_order(sort: str) -> tuple[Any, ...]:
-    """정렬 — 쓰인 횟수 많은 순 · 오래 확인 안 한 순(확인 날 없음 먼저) · 이름 순. 끝은 늘 키(쪽이 흔들리지 않게)."""
+    """정렬 — 쓰인 횟수 많은 순 · 오래 확인 안 한 순(확인 날 없음 먼저) · 이름 순. 끝은 늘 키(쪽이 흔들리지 않게).
+
+    이름 순은 화면 이름 순이다(:func:`pref_name` — 한글 이름표가 있으면 그것, 없으면 저장 이름 · 점검 G1). DB 가 같은 질의
+    안에서 걸린 줄의 이름표 칸만 꺼내 정렬한다(줄을 더 읽거나 질의를 더하지 않는다)."""
     if sort == "checked":
         return BrainObject.checked_at.asc().nulls_first(), BrainObject.item_key
     if sort == "name":
-        return BrainObject.name, BrainObject.item_key
+        return name_order(pref_name()), BrainObject.item_key
     return usage_total().desc(), BrainObject.item_key
 
 

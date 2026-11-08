@@ -16,14 +16,20 @@
     return (display && display[group]) || {};
   }
 
-  /** 칸 값 → 보이는 글(없음 · 목록 · 실음 칸 · 값 목록 이름 · 수에 단위). */
+  /** 칸 값 → 보이는 글(없음 · 목록 · 실음 칸 · 값 목록 이름 · 수에 단위). 고르기 값은 이름표(display.choices — 서버
+   *  schemas.CHOICE_LABELS · 보내는 값은 그대로). 확인 칸 글은 목록이 ' · ' 로 이어 와서 마디마다 바꾼다. */
   function valueText(field, value, display, unit) {
     if (value === null || value === undefined || value === '') return '(없음)';
-    if (Array.isArray(value)) return value.length ? value.map(String).join(' · ') : '(빈 목록)';
+    var choices = labels(display, 'choices')[field] || null;
+    var named = function (v) {
+      return choices && Object.prototype.hasOwnProperty.call(choices, v) ? choices[v] : String(v);
+    };
+    if (Array.isArray(value)) return value.length ? value.map(named).join(' · ') : '(빈 목록)';
     if (typeof value === 'object') return '실음 칸 ' + Object.keys(value).length + '개 칸';
     if (typeof value === 'number' && unit) return String(value) + unit;
     var group = { status: 'statuses', confidence: 'confidences', risk_grade: 'grades', visibility: 'visibilities' }[field];
-    return group ? (labels(display, group)[value] || String(value)) : String(value);
+    if (group) return labels(display, group)[value] || String(value);
+    return choices ? String(value).split(' · ').map(named).join(' · ') : String(value);
   }
 
   /** 칸별 전 → 후 줄 — [{field, label, before, after, proposed}](이름 · 단위는 서버 속성 틀이 준 것 먼저 ·
@@ -44,7 +50,8 @@
     var op = labels(display, 'ops')[view.op] || view.op;
     if (view.link) {
       var kind = (labels(display, 'links')[view.link.kind] || {}).label || view.link.kind;
-      return op + ' · ' + kind + ': ' + view.link.from + ' → ' + view.link.to;
+      return op + ' · ' + kind + ': ' + (view.link.from_label || view.link.from) + ' → ' +
+        (view.link.to_label || view.link.to);
     }
     var type = (labels(display, 'types')[card.type] || {}).label || card.type;
     var names = diffRows(view.fields, display).map(function (r) { return r.label; });
@@ -150,10 +157,10 @@
     if (items.length) {
       var names = items.map(function (t) { return t.name; }).join(', ');
       var more = touches.total > items.length ? ' 그 밖 ' + (touches.total - items.length) + '개' : '';
-      parts.push('이어진 항목 ' + touches.total + '개: ' + names + more);
+      parts.push('이어진 지식 ' + touches.total + '개: ' + names + more);
     }
     if (copies) parts.push('사본 ' + copies + '곳(매크로 · 스토어 상세 같은 곳 — 함께 고칠 일)');
-    return parts.length ? parts.join(' · ') : '함께 닿는 항목 없음';
+    return parts.length ? parts.join(' · ') : '함께 닿는 지식 없음';
   }
 
   /** 제안함 맨 위 줄 · AI 자리 줄. */

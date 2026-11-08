@@ -47,6 +47,7 @@ from foms.services.common.fragment_prerender import (
     shell_material,
     values_version,
 )
+from foms.services.brain.chat_settings import SETTINGS_KEY as BRAIN_CHAT_SETTINGS_KEY
 from foms.services.erp_shipment_settings import ERP_SHIPMENT_SETTINGS_KEY
 from foms.services.sales_commission.settings import SETTINGS_KEY as SALES_FREELANCER_SETTINGS_KEY
 from foms.services.production_change_alerts import (
@@ -74,8 +75,11 @@ KEY_TABLES: Final[frozenset[str]] = frozenset(
     {"orders", "order_attachments", "production_runs", "order_events", "users", "system_settings"}
 )
 #: 셸 서랍의 "내 수수료" 링크(FCOMM-01 T7)가 프리랜서 설정을 읽으므로 그 값도 열쇠에 든다 — 프리랜서를
-#: 켜거나 끄면 미리 그린 조각이 새로 그려진다.
-KEY_SETTING_KEYS: Final[tuple[str, ...]] = (ERP_SHIPMENT_SETTINGS_KEY, SALES_FREELANCER_SETTINGS_KEY)
+#: 켜거나 끄면 미리 그린 조각이 새로 그려진다. 서랍 '회사 지식' 줄도 물어보기 설정(스위치 · 여는 단계)에 달려
+#: (:func:`foms.web.brain.chat_page_open` — 내부 직원일 때만 읽는다) 그 값도 열쇠에 든다.
+KEY_SETTING_KEYS: Final[tuple[str, ...]] = (
+    ERP_SHIPMENT_SETTINGS_KEY, SALES_FREELANCER_SETTINGS_KEY, BRAIN_CHAT_SETTINGS_KEY,
+)
 CONTROL_KEYS: Final[dict[str, tuple[str, ...]]] = {
     "no_order_rows": ("data", "window"),
     "no_order_events": ("data", "events"),

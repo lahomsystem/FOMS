@@ -31,7 +31,8 @@
   <div class="brain-head">
     <div>
       <h1 class="h4 mb-1"><i class="fas fa-brain me-1" aria-hidden="true"></i>회사 지식</h1>
-      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 지식이에요. 내가 볼 수 있는 {{ tmap.total }}개만 보여요.
+      <p class="brain-head__note">상담 · 도면 · 생산이 같이 쓰는 지식이에요.
+        {%- if is_admin %} 회사 지식 {{ tmap.total }}개가 있어요.{% else %} 내가 볼 수 있는 {{ tmap.total }}개만 보여요.{% endif %}
         고칠 말은 지식 화면에서 올리고, '승인 대기'에서 승인 · 거절해요.</p>
     </div>
   </div>

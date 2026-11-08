@@ -21,6 +21,7 @@ from foms.services.brain.access import approver_layers
 from foms.services.brain.apply import ApplyResult, apply_change
 from foms.services.brain.constants import CHANGE_OPEN, OWNER_ONLY_TYPES, RECHECK_SOON_DAYS, STATUS_ACTIVE
 from foms.services.brain.errors import BrainConflictError, BrainOpenProposalError, BrainPermissionError
+from foms.services.brain.labels import pref_of
 from foms.services.brain.proposals import Proposer, propose_update
 from foms.services.brain.read import visible_clauses
 from foms.services.brain.usage import usage_sum, usage_total
@@ -68,18 +69,21 @@ def recheck_counts(session: Any, viewer: Viewer, *, today: datetime.date) -> dic
 def summary_line(counts: dict[str, int]) -> str:
     """묶음 알림 한 줄(폰 알림이 붙으면 이 글 하나만 보낸다)."""
     if not counts.get("total"):
-        return "다시 볼 항목이 없어요."
-    return (f"다시 볼 항목 {counts['total']}개 — 확인 날 지남 {counts['overdue']}개 · "
+        return "다시 볼 지식이 없어요."
+    return (f"다시 볼 지식 {counts['total']}개 — 확인 날 지남 {counts['overdue']}개 · "
             f"{RECHECK_SOON_DAYS}일 안 {counts['soon']}개")
 
 
 def recheck_list(session: Any, viewer: Viewer, *, today: datetime.date, limit: int = MAX_ROWS) -> dict[str, Any]:
-    """다시 확인 목록 — 쓰인 횟수 많은 순(같으면 낡음 날 이른 순). 줄마다 열린 제안 여부(같은 질의)."""
+    """다시 확인 목록 — 쓰인 횟수 많은 순(같으면 낡음 날 이른 순). 줄마다 열린 제안 여부(같은 질의).
+
+    이름은 카드 제목과 같은 규칙(한글 이름표 먼저 — :func:`.labels.pref_of` · 이미 읽은 줄의 실음 칸에서)."""
     rows = session.execute(select(BrainObject, _open_change().label("open"), usage_sum().label("used"))
                            .where(*_conditions(viewer, today))
                            .order_by(usage_total().desc(), BrainObject.stale_after, BrainObject.item_key)
                            .limit(max(1, min(int(limit), MAX_ROWS)))).all()
-    items = [{"key": row.item_key, "name": row.name, "type": row.item_type, "layer": row.layer, "brand": row.brand,
+    items = [{"key": row.item_key, "name": pref_of(row.name, row.payload), "type": row.item_type, "layer": row.layer,
+              "brand": row.brand,
               "version": row.version, "usage_count": int(row.usage_count or 0) + int(used or 0),
               "checked_at": row.checked_at.isoformat() if row.checked_at else None,
               "stale_after": row.stale_after.isoformat(), "overdue": row.stale_after < today,

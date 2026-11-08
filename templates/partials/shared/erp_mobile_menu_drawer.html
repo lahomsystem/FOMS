@@ -50,6 +50,13 @@
             <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('notices_web.notice_list') }}">
               <i class="fas fa-bullhorn" aria-hidden="true"></i><span>공지사항</span><span class="foms-notice-badge" data-foms-notice-unread hidden></span>
             </a>
+            {# 회사 지식 — PC 메뉴(layout_nav.html)와 같은 판정(화면을 여는 ADMIN · 층 승인자는 DB 를 읽지 않고, 물어보기를 여는 직원은
+               설정 한 줄을 요청에 한 번만 — F28). 켜진 프리랜서는 문지기 허용 목록 밖이라 뺀다. #}
+            {% if not _sales_freelancer and brain_nav_allowed() %}
+            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('brain_web.index') }}" data-foms-nav-brain>
+              <i class="fas fa-brain" aria-hidden="true"></i><span>회사 지식</span>
+            </a>
+            {% endif %}
             {% if current_user.role == 'ADMIN' %}
             <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('admin.admin') }}">
               <i class="fas fa-cog" aria-hidden="true"></i><span>관리자</span>

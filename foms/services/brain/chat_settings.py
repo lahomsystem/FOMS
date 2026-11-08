@@ -47,34 +47,35 @@ CASE_FIELD = "cs_case_embeddings_enabled"
 
 FIELDS: tuple[Field, ...] = (
     Field("enabled", "물어보기 스위치", KIND_BOOL, False, GROUP_OPEN,
-          help="끄면 아무도 묻지 못한다(ADMIN 은 이 설정만 본다)"),
+          help="끄면 아무도 묻지 못해요. 관리자는 꺼져 있어도 이 설정을 봐요"),
     Field("stage", "여는 단계", KIND_CHOICE, STAGE_ADMIN, GROUP_OPEN,
-          ((STAGE_ADMIN, "ADMIN 만"), (STAGE_LEADS, "팀장(MANAGER)까지"), (STAGE_ALL, "내부 직원 전부")),
-          help="ADMIN 2주 → 팀장 → 내부 직원 전부(D99). 협력사 등 바깥 역할은 어느 단계에서도 못 연다"),
-    Field("model", "챗봇 모델", KIND_CHOICE, MODEL_SONNET, GROUP_MODEL, MODEL_CHOICES, help="처음 Sonnet 5.5(D99)"),
+          ((STAGE_ADMIN, "관리자만"), (STAGE_LEADS, "팀장까지"), (STAGE_ALL, "내부 직원 전부")),
+          help="관리자만 2주 → 팀장까지 → 내부 직원 전부 차례로 열어요. 협력사 같은 바깥 사람은 어느 단계에서도 못 써요"),
+    Field("model", "챗봇 모델", KIND_CHOICE, MODEL_SONNET, GROUP_MODEL, MODEL_CHOICES, help="처음엔 Sonnet 5.5 를 써요"),
     Field("effort", "생각 깊이", KIND_CHOICE, "low", GROUP_MODEL, EFFORT_CHOICES),
     Field("max_tokens", "최대 출력", KIND_INT, 4000, GROUP_MODEL, low=1000, high=16000, unit="토큰"),
     Field("timeout_s", "시간 상한", KIND_INT, 30, GROUP_LIMIT, low=10, high=60, unit="초",
-          help="넘으면 답 없이 끝낸다(다시 보내지 않는다)"),
+          help="이 시간을 넘으면 답 없이 끝내요(다시 묻지 않아요)"),
     Field("daily_cap_usd", "하루 돈 상한", KIND_MONEY, None, GROUP_LIMIT, high=int(MONEY_MAX), unit="달러",
-          help="비우면 부르지 않는다. 상담 초안 하루 상한과 따로 센다(빈 지식 묶기 · 부딪침 판정도 이 안)"),
+          help="비우면 AI 를 부르지 않아요. 상담 초안 하루 상한과 따로 계산해요(빈 지식 묶기 · 부딪침 판정도 여기에 들어가요)"),
     Field("per_person_daily", "사람마다 하루 질문 수", KIND_INT, 20, GROUP_LIMIT, low=1, high=200, unit="번"),
     Field("gap_enabled", "빈 지식 묶기(주 1회)", KIND_BOOL, False, GROUP_HELP,
-          help="'모름' · '틀림' 질문을 뜻으로 묶어 층별 빈 지식 목록을 만든다(밤 단계 · 월요일 · 보조 모델)"),
+          help="'모름' · '틀림' 질문을 뜻이 비슷한 것끼리 묶어, 비어 있는 지식 목록을 한 주에 한 번 밤에 만들어요(보조 모델)"),
     Field("judge_enabled", "AI 제안 부딪침 판정", KIND_BOOL, False, GROUP_HELP,
-          help="에이전트 제안이 승인 지식과 부딪치는지 두 순서로 판정한다. 끄면 에이전트 제안은 제안함에 들어가지 않는다"),
+          help="AI 가 낸 제안이 승인된 지식과 부딪치는지 순서를 바꿔 두 번 봐요. 끄면 AI 제안은 '승인 대기'에 들어가지 않아요"),
     Field("helper_model", "보조 모델", KIND_CHOICE, MODEL_HAIKU, GROUP_HELP, MODEL_CHOICES,
-          help="빈 지식 묶기 · 부딪침 판정(처음 Haiku 5.5)"),
+          help="빈 지식 묶기 · 부딪침 판정에 써요(처음엔 Haiku 5.5)"),
     Field(EMBED_FIELD, "의미 찾기", KIND_BOOL, False, GROUP_EMBED,
-          help="켜면 찾기가 글자 · 다른 이름에 뜻 비슷함(벡터)을 더해 섞는다. 켜기 전 개인정보 처리방침 국외 이전 항목에 Voyage "
-               "AI 를 올려야 한다(사장님 확인). 열쇠 env 가 없거나 실패하면 글자 찾기로 조용히 물러난다"),
+          help="켜면 글자 · 비슷한 말로 찾을 때 뜻이 비슷한 지식도 함께 찾아요. 켜기 전에 개인정보 처리방침의 '국외 이전'에 "
+               "Voyage AI 를 올려야 해요(사장님 확인). 연결 열쇠가 없거나 실패하면 글자로만 찾아요"),
     Field("embed_daily_cap_usd", "의미 찾기 하루 돈 상한", KIND_MONEY, None, GROUP_EMBED, high=int(MONEY_MAX), unit="달러",
-          help="비우면 벡터를 만들지 않는다(질문 · 항목 모두). 챗봇 돈 줄과 따로 센다"),
+          help="비우면 뜻 찾기 자료를 만들지 않아요(질문 · 지식 모두). 물어보기 하루 상한과 따로 계산해요"),
     Field("embed_timeout_s", "의미 찾기 시간 상한", KIND_INT, 8, GROUP_EMBED, low=3, high=30, unit="초",
-          help="한 번 부를 때 이만큼 넘으면 그 질문은 글자 찾기로만"),
+          help="한 번 부를 때 이 시간을 넘으면 그 질문은 글자로만 찾아요"),
     Field(CASE_FIELD, "상담 사례 벡터(백필만)", KIND_BOOL, False, GROUP_EMBED,
-          help="가린 손님 질문 + 가린 직원 답을 벡터로(백필 스크립트만 — 상담 초안의 사례 고르기는 그대로). 켜기 전 처리방침 국외 "
-               "이전에 Voyage AI 와 '상담 글'을 올려야 한다(사장님 확인)"),
+          help="개인정보를 가린 손님 질문과 직원 답으로 뜻 찾기 자료를 만들어요(지난 상담을 한꺼번에 채울 때만 — 상담 초안이 "
+               "비슷한 사례를 고르는 방식은 그대로예요). 켜기 전에 개인정보 처리방침의 '국외 이전'에 Voyage AI 와 '상담 글'을 "
+               "올려야 해요(사장님 확인)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

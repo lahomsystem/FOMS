@@ -15,14 +15,17 @@
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
+from foms.services.brain.display import agent_label
 from foms.services.brain.external import ref_cards
 from foms.services.brain.quality import item_rules, missing_links, retired_targets
 from foms.services.brain.read import current_item, effect_state, item_history
@@ -39,14 +42,19 @@ MAX_LINKS_PER_GROUP = 30
 MAX_EXTERNAL = 30
 HISTORY_LIMIT = 20
 IMPORT_ACTOR = "import"
+#: 기계 자리 꼴 — 콜론 · 밑줄이 든 근거 위치(``plan:…`` · ``photo_relearn:…`` · ``cs_agent_knowledge_lahom``)는 화면에 안 보인다.
+_MACHINE_PLACE = re.compile(r"[:_]")
 
 
 def _link_query(viewer: Viewer, key: str, direction: str, today: datetime.date) -> Any:
-    """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신)."""
+    """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신).
+
+    이름은 카드 제목과 같은 화면 이름(한글 이름표 먼저 — :func:`.browse.pref_name` · 점검 G2) — 같은 질의의 칸 식이라 묶음 안
+    차례도 화면 이름 순이다."""
     other = aliased(BrainObject)
     near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
     return (select(BrainLink.kind.label("kind"), literal(direction).label("direction"), other.item_key.label("key"),
-                   other.name.label("name"), other.item_type.label("type"), other.status.label("status"),
+                   pref_name(other).label("name"), other.item_type.label("type"), other.status.label("status"),
                    other.stale_after.label("stale_after"), BrainLink.confidence.label("confidence"))
             .join(other, and_(other.item_key == far, is_current(other)))
             .where(near == key, is_current(BrainLink), scope_clause(viewer, other.visibility),
@@ -57,7 +65,7 @@ def _ranked_links(session: Any, viewer: Viewer, key: str, today: datetime.date) 
     """두 방향 링크를 (종류, 방향)마다 앞 :data:`MAX_LINKS_PER_GROUP` 개 + 그 묶음 전체 수로 읽는다(한 질의)."""
     both = union_all(_link_query(viewer, key, "out", today), _link_query(viewer, key, "in", today)).subquery("both")
     group = (both.c.kind, both.c.direction)
-    rank = func.row_number().over(partition_by=group, order_by=(both.c.name, both.c.key)).label("rank")
+    rank = func.row_number().over(partition_by=group, order_by=(name_order(both.c.name), both.c.key)).label("rank")
     size = func.count().over(partition_by=group).label("size")
     ranked = select(both, rank, size).subquery("ranked")
     return session.execute(select(ranked).where(ranked.c.rank <= MAX_LINKS_PER_GROUP)
@@ -110,16 +118,22 @@ def people_names(session: Any, ids: Iterable[int]) -> dict[int, str]:
 
 
 def actor_label(created_by: Optional[str], names: dict[int, str]) -> str:
-    """만든 이 글 → 화면 이름(사람 · 에이전트 · 옮김)."""
+    """만든 이 글 → 화면 이름(사람 · 에이전트 · 옮김). 에이전트는 코드 이름 대신 한글 이름표(:func:`.display.agent_label`)."""
     value = created_by or ""
     if value == IMPORT_ACTOR:
         return "지식 문서에서 옮김"
     if value.startswith("agent:"):
-        return "에이전트 " + value[6:]
+        return agent_label(value[6:])
     ids = _user_ids(value)
     if ids:
         return names.get(next(iter(ids)), "지운 계정")
     return value or "모름"
+
+
+def evidence_place(ref: Any) -> Optional[str]:
+    """카드 '근거 위치' 화면 글 — 사람이 읽는 글만(기계 꼴 :data:`_MACHINE_PLACE` 이면 ``None`` — 값은 그대로 저장)."""
+    text = ref.strip() if isinstance(ref, str) else ""
+    return text if text and not _MACHINE_PLACE.search(text) else None
 
 
 def approver_label(item: dict[str, Any], names: dict[int, str]) -> str:
@@ -203,4 +217,5 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
         "copies": list(item.get("copies") or []),
         "history": history_rows(session, viewer, key, names),
         "effect": effect_state(session, item, today), "open_conflicts": conflicts,
+        "evidence_place": evidence_place(item.get("evidence_ref")),  # 기계 꼴 근거 위치는 화면에 안 보인다(점검 F12)
     }

@@ -289,8 +289,8 @@ def test_item_page_puts_people_words_first_and_machine_detail_inside_more(app):
     assert '<h1 class="brain-card__title">첫인사 상용구</h1>' in head  # 영어 키(greeting)가 아니라 한글 이름
     assert "사용 중" in head and "승인을 기다리는 수정 1개" in head and "안녕하세요" in head
     assert "라홈 상담<" in head and "어디에 쓰이나" in head and "data-brain-propose-open" in head  # 유형은 칩에만(한 번)
-    assert "확신 " not in head and "lahom/tpl · 버전" not in head  # 기계 칸은 자세히 보기 안
-    assert "확신 " in rest and "lahom/tpl · 버전" in rest and "근거 · 만든 이 · 승인자" in rest
+    assert "brain-badge--confirmed" not in head and "lahom/tpl · 버전" not in head  # 기계 칸은 자세히 보기 안(확신 배지는 값만 — H2)
+    assert "brain-badge--confirmed" in rest and "버전 " in rest and "lahom/tpl · 버전" not in rest and "근거 · 만든 이 · 승인자" in rest  # 키는 주소에만(F12)
     assert "한눈에" in html and "수정 기록(" in html and "연결된 지식(" in html
 
 

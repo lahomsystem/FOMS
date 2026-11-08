@@ -30,12 +30,14 @@
         <input class="form-control form-control-sm" type="date" name="valid_to" data-brain-field="valid_to"
                data-datatype="date"></label>
       {% for prop in props %}
+      {#- 고르기 값은 한글 이름표로 보이고 값은 그대로 보낸다(display.choices — schemas.CHOICE_LABELS · 점검 F11). -#}
+      {% set names = (display or {}).get('choices', {}).get(prop.path, {}) %}
       <label class="brain-propose__field brain-propose__field--half">{{ prop.label }}{% if prop.unit %}({{ prop.unit }}){% endif %}
         {% if prop.datatype == 'enum' %}
         <select class="form-select form-select-sm" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
                 data-datatype="enum">
           <option value="">(없음)</option>
-          {% for choice in prop.choices %}<option value="{{ choice }}">{{ choice }}</option>{% endfor %}
+          {% for choice in prop.choices %}<option value="{{ choice }}">{{ names.get(choice, choice) }}</option>{% endfor %}
         </select>
         {% elif prop.datatype in ('int', 'number') %}
         <input class="form-control form-control-sm" type="number" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
@@ -44,7 +46,7 @@
         {% else %}
         <input class="form-control form-control-sm" name="{{ prop.path }}" data-brain-field="{{ prop.path }}"
                data-datatype="{{ prop.datatype }}" autocomplete="off"
-               {%- if prop.datatype == 'list' %} placeholder="쉼표로 나눠 적기{% if prop.choices %} — {{ prop.choices|join(', ') }}{% endif %}"{% endif %}>
+               {%- if prop.datatype == 'list' %} placeholder="쉼표로 나눠 적기{% if prop.choices %} — {% for c in prop.choices %}{{ c }}({{ names.get(c, c) }}){{ ', ' if not loop.last }}{% endfor %}{% endif %}"{% endif %}>
         {% endif %}
       </label>
       {% endfor %}

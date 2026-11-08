@@ -71,6 +71,12 @@
     return bin ? bin.title + ' · ' + n + '개' : '';
   }
 
+  /** 주소의 묶음(?bin=names|content|decide|mark — F07) — 네 묶음 이름이 아니면 빈 글(목록으로). */
+  function fromQuery(search) {
+    var match = /[?&]bin=([a-z]+)(?:&|$)/.exec(String(search || ''));
+    return match && KEYS.indexOf(match[1]) >= 0 ? match[1] : '';
+  }
+
   window.FOMS_BRAIN_INBOX_BINS = { counts: counts, renderOverview: renderOverview, inBin: inBin, title: title,
-                                   keys: KEYS.slice() };
+                                   fromQuery: fromQuery, keys: KEYS.slice() };
 })();
