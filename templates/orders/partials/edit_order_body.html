@@ -598,7 +598,20 @@
                         var mobile = document.getElementById('erp-order-form-mobile');
                         if (!legacy || !mobile) return;
                         // Duplicate ERP ids across both surfaces → keep exactly one.
-                        (window.matchMedia(GATE).matches ? legacy : mobile).remove();
+                        var kept = window.matchMedia(GATE).matches ? mobile : legacy;
+                        (kept === mobile ? legacy : mobile).remove();
+                        // 두 표면에 같은 name 의 라디오가 있으면(<form> 조상 없음 → 문서 한 묶음) 파싱 중 뒤 표면의
+                        // checked 가 앞 표면 것을 풀어, PC 에 남긴 표면은 아무것도 안 골라진 채 열렸다(공유 종류 ·
+                        // AS 무상/유상 — 2026-11-08 점검). 남긴 표면에서 비어 있는 묶음만 서식 기본값(checked 속성)으로 되돌린다.
+                        var radioGroups = {};
+                        Array.prototype.forEach.call(kept.querySelectorAll('input[type="radio"][name]'), function (r) {
+                            (radioGroups[r.name] = radioGroups[r.name] || []).push(r);
+                        });
+                        Object.keys(radioGroups).forEach(function (name) {
+                            var group = radioGroups[name];
+                            if (group.some(function (r) { return r.checked; })) return;
+                            group.forEach(function (r) { if (r.defaultChecked) r.checked = true; });
+                        });
                     })();
                     </script>
                     <script src="{{ url_for('static', filename='js/orders/erp-order-cohort.js') }}?v=20260724a" defer></script>

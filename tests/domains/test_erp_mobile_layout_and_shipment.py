@@ -130,7 +130,7 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert 'id="shipment-dashboard-table"' in body
     assert "shipment-dashboard-columns.css" in body
     assert "erp-shipment-mobile-summary__eyebrow" in body
-    assert "출고 큐" in body
+    assert "erp-shipment-mobile-summary__title" in body and "출고 큐" not in body  # 11-08: 기계 말 "큐" 뺌
     # 편집 행 마크업은 static 모듈이 클라이언트에서 생성(서버 HTML 미포함)
     assert "input-group input-group-sm flex-nowrap" in _shipment_dashboard_surface()
     assert body.count('value=""\n                            placeholder="도면담당자"') == 0
