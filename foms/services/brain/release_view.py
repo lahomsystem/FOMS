@@ -9,6 +9,8 @@
 - 링크 동작 — ADMIN 은 모두, 그 밖은 양 끝(바깥 정본 키는 늘 보임)의 지금 줄을 모두 볼 수 있을 때만.
 
 판 날짜는 판 줄에서 읽는다. 볼 수 있는 바뀜이 하나도 없는 판은 목록에 나오지 않는다(ADMIN 은 모두 본다).
+차이 줄의 지식 이름(``title`` · ``link_to_title``)은 카드 제목과 같은 규칙 — 실음 칸 한글 이름(``pref_label``)이 있으면 그것,
+없으면 이름(:func:`.inbox.card_title_of` 와 같다 — 영어 키 이름을 앞에 두지 않는다).
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ from foms.services.brain.store import is_current
 
 DEFAULT_PER_PAGE, MAX_PER_PAGE = 10, 30
 MAX_DIFF_ROWS = 200
+PREF_LABEL = "pref_label"
+
+
+def shown_name(label: Any, name: Optional[str]) -> Optional[str]:
+    """화면 이름 — 한글 대표 이름(실음 칸 ``pref_label``)이 있으면 그것, 없으면 이름(카드 제목 규칙)."""
+    return label.strip() if isinstance(label, str) and label.strip() else name
 
 
 def _object_changes(viewer: Viewer) -> Any:
@@ -34,7 +42,8 @@ def _object_changes(viewer: Viewer) -> Any:
     version = func.coalesce(BrainChange.result_version, BrainChange.base_version)
     return (select(BrainChange.id.label("change_id"), BrainChange.release_no.label("release_no"),
                    BrainChange.layer.label("layer"), BrainChange.op.label("op"),
-                   BrainChange.item_key.label("item_key"), row.name.label("name"), row.item_type.label("item_type"),
+                   BrainChange.item_key.label("item_key"), row.name.label("name"),
+                   row.payload[PREF_LABEL].as_string().label("label"), row.item_type.label("item_type"),
                    cast(literal(None), String(16)).label("link_kind"), cast(literal(None), String(120)).label("link_to"))
             .join(row, and_(row.item_key == BrainChange.item_key, row.version == version))
             .where(BrainChange.status == CHANGE_APPLIED, BrainChange.op.in_(OBJECT_OPS),
@@ -46,6 +55,7 @@ def _link_changes(viewer: Viewer) -> Any:
     query = (select(BrainChange.id.label("change_id"), BrainChange.release_no.label("release_no"),
                     BrainChange.layer.label("layer"), BrainChange.op.label("op"),
                     BrainChange.link_from.label("item_key"), cast(literal(None), String(200)).label("name"),
+                    cast(literal(None), String(200)).label("label"),
                     cast(literal(None), String(32)).label("item_type"), BrainChange.link_kind.label("link_kind"),
                     BrainChange.link_to.label("link_to"))
              .where(BrainChange.status == CHANGE_APPLIED, BrainChange.op.in_(LINK_OPS)))
@@ -111,13 +121,14 @@ def release_page(session: Any, viewer: Viewer, *, page: int = 1,
     return {"items": items, "total": total, "page": page, "pages": pages, "per_page": per_page}
 
 
-def _current_names(session: Any, viewer: Viewer, keys: set[str]) -> dict[str, str]:
-    """링크 끝 키 → 지금 이름(볼 수 있는 것만 — 한 질의)."""
+def _current_names(session: Any, viewer: Viewer, keys: set[str]) -> dict[str, tuple[str, Optional[str]]]:
+    """링크 끝 키 → (지금 이름, 화면 이름)(볼 수 있는 것만 — 한 질의)."""
     if not keys:
         return {}
-    rows = session.execute(select(BrainObject.item_key, BrainObject.name).where(
+    rows = session.execute(select(BrainObject.item_key, BrainObject.name,
+                                  BrainObject.payload[PREF_LABEL].as_string()).where(
         BrainObject.item_key.in_(sorted(keys)), is_current(BrainObject), scope_clause(viewer, BrainObject.visibility)))
-    return {key: name for key, name in rows}
+    return {key: (name, shown_name(label, name)) for key, name, label in rows}
 
 
 def release_diff(session: Any, viewer: Viewer, number: int, *, limit: int = MAX_DIFF_ROWS) -> Optional[dict[str, Any]]:
@@ -134,9 +145,11 @@ def release_diff(session: Any, viewer: Viewer, number: int, *, limit: int = MAX_
         r.link_to for r in rows if r.link_kind and r.link_to})
     by_layer: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
+        start, end = names.get(r.item_key, (None, None)), names.get(r.link_to or "", (None, None))
         by_layer.setdefault(r.layer or "", []).append({
-            "op": r.op, "key": r.item_key, "name": r.name or names.get(r.item_key), "type": r.item_type,
-            "link_kind": r.link_kind, "link_to": r.link_to, "link_to_name": names.get(r.link_to or "")})
+            "op": r.op, "key": r.item_key, "name": r.name or start[0],
+            "title": shown_name(r.label, r.name) if r.name else start[1], "type": r.item_type,
+            "link_kind": r.link_kind, "link_to": r.link_to, "link_to_name": end[0], "link_to_title": end[1]})
     layers = [{"layer": layer, "total": total, "changes": by_layer.get(layer, []),
                "more": max(0, total - len(by_layer.get(layer, [])))} for layer, total in sorted(counts.items())]
     return {"number": int(number), "day": _days(session, [int(number)]).get(int(number)),

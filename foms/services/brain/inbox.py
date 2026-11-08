@@ -1,8 +1,8 @@
 """제안함 '내 승인 대기'(설계서 7.5 화면 4 · 승인 흐름 · 사장님 D101 · D103) — 읽기만. 결정은 :mod:`.decide`.
 
 **질의 단계에서 두 번 거른다**: ① 이 사람이 결정할 수 있는 제안만(:func:`.access.approver_layers` — 층 승인자 MANAGER 는 자기
-층 · 사장님 몫 유형 빼고, ADMIN 은 모두) ② 보기 범위 안의 제안만(항목 동작은 지금 줄과 새 보기 범위 둘 다, 링크는 양 끝 — 4절 ·
-12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
+층 · 사장님 몫 유형 · ③ 엇갈림 · 물어볼 것 만들기 빼고, ADMIN 은 모두) ② 보기 범위 안의 제안만(항목 동작은 지금 줄과 새 보기
+범위 둘 다, 링크는 양 끝 — 4절 · 12절, 모아 센 수 포함). 볼 수 없는 제안은 카드에도 수에도 0 이다.
 
 - **항목당 카드 하나**: 같은 항목(링크는 같은 링크)에 열린 제안이 둘 이상이면 처음 것이 카드, 나머지는 같은 카드에 붙는다.
 - **AI 제안**: **층마다**(사장님 D106 — 공통 · 상담 · 도면 · 생산) 이번 주 남은 자리(:data:`AI_WEEKLY_CAP` − 이번 주 그 층에서
@@ -26,8 +26,8 @@ from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
-    AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES, GRADE_A, GRADE_B,
-    HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
+    AGENT_WORK_TYPES, AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES,
+    GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
 from foms.services.brain.external import ref_cards
@@ -60,7 +60,8 @@ def capped_clause() -> Any:
 def decidable_clause(viewer: Viewer) -> Any:
     """이 사람이 결정할 수 있는 제안(질의 조건 — :func:`.access.approval_problem` 과 같은 규칙).
 
-    상담팀장은 모든 고침을 후보로 넣는다 — 이름표 칸만 바뀌는지는 실음 칸 안을 견줘야 해서 :func:`decidable` 이 거른다(D167)."""
+    상담팀장은 모든 고침을 후보로 넣는다 — 이름표 칸만 바뀌는지는 실음 칸 안을 견줘야 해서 :func:`decidable` 이 거른다(D167).
+    ③ 엇갈림 · 물어볼 것 만들기(:func:`.inbox_bins.owner_decides`)는 ADMIN 만 — 층 승인자 MANAGER 의 목록 · 수에서 빠진다."""
     layers = approver_layers(viewer)
     if layers is None:
         return true()
@@ -69,8 +70,9 @@ def decidable_clause(viewer: Viewer) -> Any:
         return names
     owner_end = select(BrainObject.id).where(BrainObject.item_key == BrainChange.link_to, is_current(BrainObject),
                                              BrainObject.item_type.in_(sorted(OWNER_ONLY_TYPES))).exists()
+    owner_bin = and_(BrainChange.op == OP_CREATE, BrainChange.item_type.in_(AGENT_WORK_TYPES))
     return or_(and_(BrainChange.layer.in_(layers), BrainChange.item_type.notin_(sorted(OWNER_ONLY_TYPES)),
-                    not_(owner_end)), names)
+                    not_(owner_end), not_(owner_bin)), names)
 
 
 def decidable(viewer: Viewer, change: Any) -> bool:

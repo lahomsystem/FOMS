@@ -8,6 +8,8 @@
 - **결정(반영 · 거절) 판정은 :func:`approval_problem` 하나**다(5절 · D101) — 반영 동작(:mod:`.apply`)과 제안함 · 다시 확인
   질의(:func:`approver_layers`)가 같은 규칙을 쓴다: ADMIN 은 모두, 가격 규칙 · 정책 · 사장님 결정과 공통 바탕 은퇴 · 지우기는
   ADMIN 만, 그 밖은 그 층 승인자 팀의 MANAGER. 이름표 칸만 바뀌는 고침은 상담팀장도(층 · 유형 상관없이 — D167).
+  **승인 대기 ③(엇갈림 · 물어볼 것 항목 만들기)은 ADMIN 만**(D167 '① 만 상담팀장, 나머지는 사장님' · D152 — 층과 상관없이).
+  ③ 질문 카드의 답(회사 지식이 맞음 · 바깥 글이 맞음 · 둘 다)은 그 제안의 거절이라 같은 판정을 지난다.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from typing import Any, Iterable, Optional
 
 from foms.services.brain.constants import (LAYER_APPROVER_TEAMS, LAYER_COMMON, NAME_APPROVER_TEAM, OP_DELETE, OP_RETIRE,
                                            OWNER_ONLY_TYPES)
-from foms.services.brain.inbox_bins import ADMIN_WIDE_BINS, BIN_NAMES
+from foms.services.brain.inbox_bins import ADMIN_WIDE_BINS, BIN_NAMES, owner_decides
 from foms.services.brain.scope import ROLE_MANAGER, Viewer, viewer_of
 
 #: 화면을 여는 MANAGER 의 팀(층 승인자 팀).
@@ -71,9 +73,14 @@ def approval_problem(viewer: Viewer, *, op: str, layer: Optional[str],
     Returns:
         정한 글 하나(사람 아님 · 사장님 몫 · 층 승인자 아님) 또는 ``None``.
     """
+    types = tuple(types)
     if not viewer.internal or viewer.user_id is None:
         return "켜진 내부 사람 계정만 반영한다"
-    if viewer.is_admin or (label_only and name_approver(viewer)):
+    if viewer.is_admin:
+        return None
+    if any(owner_decides(op, t) for t in types):
+        return "사장님(ADMIN)만 정한다 — 승인 대기 ③ 엇갈림 · 물어볼 것"
+    if label_only and name_approver(viewer):
         return None
     if any(t in OWNER_ONLY_TYPES for t in types) or (op in (OP_RETIRE, OP_DELETE) and layer == LAYER_COMMON):
         return "사장님(ADMIN)만 반영한다 — 가격 · 정책 · 사장님 결정 · 공통 바탕 은퇴 · 지우기"
@@ -86,7 +93,8 @@ def approval_problem(viewer: Viewer, *, op: str, layer: Optional[str],
 def approver_layers(viewer: Viewer) -> Optional[tuple[str, ...]]:
     """질의 거르기용 — ``None`` = 모든 층(ADMIN), 아니면 이 사람이 결정하는 층들(빈 묶음 = 없음).
 
-    층 승인자 MANAGER 라도 사장님 몫 유형(:data:`OWNER_ONLY_TYPES`)은 따로 빼야 한다(호출자 몫).
+    층 승인자 MANAGER 라도 사장님 몫 유형(:data:`OWNER_ONLY_TYPES`)과 ③ 엇갈림 · 물어볼 것 만들기(:func:`.inbox_bins.owner_decides`)는
+    따로 빼야 한다(호출자 몫).
     """
     if not viewer.internal or viewer.user_id is None:
         return ()
