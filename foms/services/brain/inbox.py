@@ -24,7 +24,7 @@ from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.access import approval_problem, approver_layers, name_approver, wide_bins
-from foms.services.brain.browse import pref_name
+from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
     AGENT_WORK_TYPES, AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES,
@@ -248,7 +248,7 @@ def touched_items(session: Any, viewer: Viewer, keys: Iterable[str]) -> dict[str
     if not wanted:
         return {}
     both = union_all(_touch_query(viewer, wanted, "out"), _touch_query(viewer, wanted, "in")).subquery("both")
-    rank = func.row_number().over(partition_by=both.c.near, order_by=(both.c.kind, both.c.name, both.c.key))
+    rank = func.row_number().over(partition_by=both.c.near, order_by=(both.c.kind, name_order(both.c.name), both.c.key))
     size = func.count().over(partition_by=both.c.near)
     ranked = select(both, rank.label("rank"), size.label("size")).subquery("ranked")
     out: dict[str, dict[str, Any]] = {}

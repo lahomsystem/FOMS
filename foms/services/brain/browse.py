@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 from sqlalchemy import exists, func, or_, select
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.visitors import InternalTraversal
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
@@ -46,6 +49,35 @@ def pref_name(row: Any = BrainObject) -> Any:
     ``coalesce(nullif(trim(CAST(payload ->> 'pref_label' AS VARCHAR)), ''), name)``. 같은 질의 안의 칸 식이라 읽는 줄 수 · 질의 수가 그대로다
     (정렬 · 창 함수 차례도 이 식으로 — 화면 이름과 차례가 맞는다)."""
     return func.coalesce(func.nullif(func.trim(row.payload[PREF_LABEL].as_string()), ""), row.name)
+
+
+class _NameOrder(ColumnElement):
+    """정렬 차례용 이름 식 — PostgreSQL 에서만 ``COLLATE "C"``(글자 번호 순 = 한글 가나다 순)를 붙인다.
+
+    운영 · 스테이징 DB 기본 정렬 규칙(en_US.utf8 — glibc)은 한글 글자에 무게가 없어 '이름 순'이 가나다가 아니었다
+    (스테이징 실측 11-08). SQLite 는 기본이 글자 번호 순이라 그대로 둔다."""
+
+    inherit_cache = True
+    _traverse_internals = [("expr", InternalTraversal.dp_clauseelement)]
+
+    def __init__(self, expr: Any) -> None:
+        self.expr = expr
+        self.type = expr.type
+
+
+@compiles(_NameOrder)
+def _name_order_default(element: _NameOrder, compiler: Any, **kw: Any) -> str:
+    return compiler.process(element.expr, **kw)
+
+
+@compiles(_NameOrder, "postgresql")
+def _name_order_pg(element: _NameOrder, compiler: Any, **kw: Any) -> str:
+    return compiler.process(element.expr, **kw) + ' COLLATE "C"'
+
+
+def name_order(expr: Any) -> Any:
+    """이름 정렬 식(한글 가나다 순 — :class:`_NameOrder`)."""
+    return _NameOrder(expr)
 
 
 class TableQueryError(ValueError):
@@ -178,7 +210,7 @@ def _table_order(sort: str) -> tuple[Any, ...]:
     if sort == "checked":
         return BrainObject.checked_at.asc().nulls_first(), BrainObject.item_key
     if sort == "name":
-        return pref_name(), BrainObject.item_key
+        return name_order(pref_name()), BrainObject.item_key
     return usage_total().desc(), BrainObject.item_key
 
 
