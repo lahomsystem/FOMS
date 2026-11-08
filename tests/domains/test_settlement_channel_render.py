@@ -83,7 +83,8 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: (JS 만, 20260908a → 20260908c; 셸 6줄 동반 이동).
 #: 2026-10-06 공통 기간 바 — 셸 루트의 날짜 범위를 따른다(JS + CSS, 20260909a → 20261006a; 셸 6줄 동반 이동).
 #: 2026-10-07 제품별 탭 추가 — 셸 자산 사슬 전체 범프(20261007a → 20261007b; 채널 자산 내용 무변경).
-_CHANNEL_PIN = "20261105s"
+#: 2026-11-08 동기화 불가 문구에서 기계 말 "큐" 뺌(JS 만, CSS 는 동반 이동, 20261105s → 20261108a).
+_CHANNEL_PIN = "20261108a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1427,7 +1428,7 @@ def test_bucket_mixed_predicate_only_needs_a_settled_share():
 # 계약 — CFO 백로그 3차 (2026-09-06): 503 문구(F-02) · AMOUNT_DIFF 배지(D-03) · 확정 구간 부제(B-01)
 # ==========================================================================
 def test_sync_unavailable_503_goes_to_the_state_line_with_the_fixed_wording():
-    """동기화 POST 가 503 이면 헤더 상태줄에 고정 문구 "지금은 동기화할 수 없습니다(큐 연결 불가)" 를 낸다(F-02).
+    """동기화 POST 가 503 이면 헤더 상태줄에 고정 문구 "지금은 동기화할 수 없습니다. 잠시 뒤 다시 시도하세요." 를 낸다(F-02).
 
     큐 부재·Redis 장애를 옛 코드는 200 `queued=False` 로 받아 "이미 대기 중" 이라고 말했다.
     이제 서버가 3상태(queued/duplicate/unavailable)를 503 으로 가르므로 화면은 `err.status` 로
@@ -1443,7 +1444,8 @@ def test_sync_unavailable_503_goes_to_the_state_line_with_the_fixed_wording():
     assert "err.status === 503" in sync and "SYNC_UNAVAILABLE_TEXT" in sync, "503 갈래가 없다"
     assert sync.find("} catch") < sync.find("err.status === 503"), "503 판정이 catch 블록 밖이다"
     assert re.search(r"notice\(ctx,\s*\w+\s*\?\s*SYNC_UNAVAILABLE_TEXT", sync), "503 문구가 상태줄(notice)로 가지 않는다"
-    assert "var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다(큐 연결 불가)';" in source
+    assert "var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다. 잠시 뒤 다시 시도하세요.';" in source
+    assert "큐" not in source.split("var SYNC_UNAVAILABLE_TEXT = ")[1].split(";")[0], "기계 말(11-08)"
     assert "renderSync(ctx)" in note, "notice 가 헤더 상태줄을 안 그린다"
     assert "동기화 큐가 아직 준비되지 않았습니다" not in source, "옛 별도 503 문구가 JS 에 있다"
 
