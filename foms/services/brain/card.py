@@ -22,6 +22,7 @@ from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
+from foms.services.brain.browse import pref_name
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
 from foms.services.brain.display import agent_label
@@ -46,11 +47,14 @@ _MACHINE_PLACE = re.compile(r"[:_]")
 
 
 def _link_query(viewer: Viewer, key: str, direction: str, today: datetime.date) -> Any:
-    """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신)."""
+    """한 방향 링크 + 끝 항목(지금 줄 · 볼 수 있는 것만) — (종류, 방향, 끝 키, 이름, 유형, 상태, 낡음 날, 링크 확신).
+
+    이름은 카드 제목과 같은 화면 이름(한글 이름표 먼저 — :func:`.browse.pref_name` · 점검 G2) — 같은 질의의 칸 식이라 묶음 안
+    차례도 화면 이름 순이다."""
     other = aliased(BrainObject)
     near, far = (BrainLink.from_key, BrainLink.to_key) if direction == "out" else (BrainLink.to_key, BrainLink.from_key)
     return (select(BrainLink.kind.label("kind"), literal(direction).label("direction"), other.item_key.label("key"),
-                   other.name.label("name"), other.item_type.label("type"), other.status.label("status"),
+                   pref_name(other).label("name"), other.item_type.label("type"), other.status.label("status"),
                    other.stale_after.label("stale_after"), BrainLink.confidence.label("confidence"))
             .join(other, and_(other.item_key == far, is_current(other)))
             .where(near == key, is_current(BrainLink), scope_clause(viewer, other.visibility),
