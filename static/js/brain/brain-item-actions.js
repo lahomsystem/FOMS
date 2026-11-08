@@ -8,6 +8,7 @@
  * - '은퇴 제안' · '지우기 제안': 까닭만 받아 {action: 'propose_retire' | 'propose_delete'}.
  * - 이력의 되돌리기 단추: 옛 값을 새 제안으로 {action: 'item_rollback', to_version}.
  * 쓰기는 brain-dom.js postJson 한 곳(try/catch + data.success, CSRF 는 공용 부트스트랩). 글은 textContent · value 로만.
+ * 꼴 오류의 문제 글은 칸 이름표(data-display) · 해요체로 바꿔 붙인다(brain-view.js problemLine).
  */
 (function () {
   'use strict';
@@ -16,12 +17,14 @@
   var root = document.querySelector('[data-brain-card]');
   var dom = window.FOMS_BRAIN_DOM;
   var review = window.FOMS_BRAIN_REVIEW;
-  if (!root || !dom || !review) return;
+  var view = window.FOMS_BRAIN_VIEW;
+  if (!root || !dom || !review || !view) return;
   window.__FOMS_BRAIN_ITEM_ACTIONS_BOUND = true;
 
   var key = root.getAttribute('data-brain-key');
   var version = Number(root.getAttribute('data-brain-version'));
   var current = dom.safeJsonParse(root.getAttribute('data-current'), {});
+  var display = dom.safeJsonParse(root.getAttribute('data-display'), {});
   var url = root.getAttribute('data-proposals-url');
   var inboxPage = root.getAttribute('data-inbox-page');
   var rollbackAction = root.getAttribute('data-rollback-action') || 'item_rollback';
@@ -72,9 +75,8 @@
   }
 
   function done(res, box) {
-    if (!res.ok) {
-      var problems = res.data && res.data.problems ? ' (' + res.data.problems.join(' · ') + ')' : '';
-      dom.setStatus(box, res.error + problems, 'error');
+    if (!res.ok) {  // 문제 글은 칸 이름표 · 해요체로(서버 글은 '칸 자리: 까닭' 그대로 — brain-view.js problemText)
+      dom.setStatus(box, view.problemLine(res.error, res.data && res.data.problems, display), 'error');
       return false;
     }
     dom.clear(box);

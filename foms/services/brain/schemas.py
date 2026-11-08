@@ -235,18 +235,26 @@ def _number(value: Any, datatype: str) -> bool:
     return datatype != "int" or float(value).is_integer()
 
 
+def _bound(value: Optional[float]) -> str:
+    """범위 끝 글 — 천 단위 쉼표(``1e+08`` 같은 지수 꼴을 화면에 내지 않는다 — 점검 후보 15)."""
+    if value is None:
+        return ""
+    return f"{value:,.0f}" if float(value).is_integer() else f"{value:,g}"
+
+
 def _value_problem(prop: Prop, value: Any) -> Optional[str]:
-    """값 하나가 틀에 맞지 않는 까닭(맞으면 ``None``)."""
+    """값 하나가 틀에 맞지 않는 까닭(맞으면 ``None``). 글은 '칸 자리: 까닭' 꼴의 까닭 — 화면은 이름표 · 해요체로 바꿔 보인다
+    (``static/js/brain/brain-view.js`` ``problemText``)."""
     kind = prop.datatype
     if kind in ("int", "number"):
         if not _number(value, kind):
             return "정수여야 한다" if kind == "int" else "수여야 한다"
         if (prop.low is not None and value < prop.low) or (prop.high is not None and value > prop.high):
-            return f"{prop.low:g} ~ {prop.high:g}{prop.unit or ''} 안이어야 한다"
+            return f"{_bound(prop.low)} ~ {_bound(prop.high)}{prop.unit or ''} 안이어야 한다"
     elif kind == "date" and not _is_day(value):
         return "날짜(YYYY-MM-DD)여야 한다"
     elif kind == "datetime" and not _is_moment(value):
-        return "시각(YYYY-MM-DDTHH:MM — ISO)이어야 한다"
+        return "시각(YYYY-MM-DD HH:MM)이어야 한다"
     elif kind == "enum" and value not in prop.choices:
         return f"{' / '.join(prop.choices)} 가운데 하나여야 한다"
     elif kind == "text" and (not isinstance(value, str) or (prop.max_len and len(value) > prop.max_len)):

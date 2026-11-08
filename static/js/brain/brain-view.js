@@ -85,6 +85,43 @@
     }).join(' · ');
   }
 
+  /** 서버 문제 글 끝(반말) → 해요체 — 차례대로 처음 맞는 것 하나. */
+  var PROBLEM_ENDS = [[/(어|여)야 한다$/, '$1야 해요'], [/않는다$/, '않아요'], [/늦다$/, '늦어요'], [/크다$/, '커요'],
+                      [/아니다$/, '아니에요'], [/이다$/, '이에요'], [/둔다$/, '둬요'], [/한다$/, '해요']];
+  /** 액션 매개변수 칸 이름(foms/services/brain/actions.py Param 이름표 — 시험이 맞춘다). 값 칸은 display.fields. */
+  var PARAM_LABELS = { key: '항목 키', base_version: '기준 판', after: '고칠 칸', reason: '까닭', to_version: '되돌릴 판' };
+
+  function own(map, name) {
+    return map && Object.prototype.hasOwnProperty.call(map, name) ? map[name] : null;
+  }
+
+  /** 서버 문제 글 하나('칸 자리: 까닭' — 칸 코드 · 반말) → 화면 글(칸 이름표 · 해요체 · 결정 번호 뺌). 서버 꼴은 그대로 둔다
+   *  (같은 글을 시험 · 옮기기 도구 · 지식 문서 다시 만들기가 칸 자리로 읽는다). 실음 칸 문제는 서버 글에 이름표가 이미 있다. */
+  function problemText(problem, display) {
+    var d = display || {};
+    var s = String(problem || '');
+    var at = s.indexOf(': ');
+    var path = at > 0 ? s.slice(0, at) : '';
+    var choices = own(d.choices, path) || {};
+    var rest = (at > 0 ? s.slice(at + 2) : s).replace(/\s*\(D[\d\\][^)]*\)/g, '').trim();  // (D124) · (D\d{1,5})
+    rest = rest.replace(/[A-Za-z][A-Za-z0-9_]*(?:\.[a-z0-9_]+)*/g, function (code) {  // 칸 코드 · 고르기 값 · 유형 → 이름
+      var type = own(d.types, code);
+      return own(d.fields, code) || own(PARAM_LABELS, code) || own(choices, code) || (type && type.label) || code;
+    }).replace(/ 보다 /g, '보다 ');
+    var end = PROBLEM_ENDS.filter(function (pair) { return pair[0].test(rest); })[0];
+    if (end) rest = rest.replace(end[0], end[1]);
+    // 속성 틀 글('<이름> — …' · '<이름> 칸이 …')과 이름이 든 글에는 이름표를 다시 붙이지 않는다(한 글자 이름은 맨 앞만 본다)
+    var label = path.indexOf('payload.') === 0 ? '' : own(d.fields, path) || own(PARAM_LABELS, path) || '';
+    var named = / — |칸이 /.test(rest) || (label.length > 1 ? rest.indexOf(label) >= 0 : rest.indexOf(label) === 0);
+    return ((label && !named ? label + ' — ' : '') + rest).replace(/항목/g, '지식');  // 틀 글과 같은 '<이름> — …' 꼴
+  }
+
+  /** 쓰기 실패 줄 — 정한 실패 말 + (문제 글을 화면 글로 ' · ' 로 이어). */
+  function problemLine(error, problems, display) {
+    var list = (problems || []).map(function (p) { return problemText(p, display); });
+    return String(error || '') + (list.length ? ' (' + list.join(' · ') + ')' : '');
+  }
+
   /** 유형 목록을 줄인다 — 묶음을 통째로 덮으면 묶음 노드 id 하나('g:키'), 나머지는 유형 노드 id('t:유형'). */
   function compressEnds(types, groups) {
     var wanted = {};
@@ -174,8 +211,8 @@
   }
 
   var api = { typeInfo: typeInfo, linkInfo: linkInfo, stateClasses: stateClasses, badges: badges, tableParams: tableParams,
-              pager: pager, itemHref: itemHref, countsText: countsText, compressEnds: compressEnds, mapElements: mapElements,
-              mapStyle: mapStyle };
+              pager: pager, itemHref: itemHref, countsText: countsText, problemText: problemText, problemLine: problemLine,
+              compressEnds: compressEnds, mapElements: mapElements, mapStyle: mapStyle };
   root.FOMS_BRAIN_VIEW = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
