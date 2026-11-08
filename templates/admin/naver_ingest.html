@@ -353,7 +353,7 @@
 
     button.addEventListener('click', async function () {
         button.disabled = true;
-        show('info', '작업 큐에 넣는 중…');
+        show('info', '수집 요청을 보내는 중…');
         try {
             const response = await fetch('{{ url_for("admin.naver_ingest_run_now") }}', {
                 method: 'POST',
@@ -365,7 +365,7 @@
                 show('danger', data.error || '수집 요청에 실패했습니다.');
                 return;
             }
-            show('success', '수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
+            show('success', '수집을 요청했습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
         } catch (error) {
             show('danger', '요청 중 오류가 발생했습니다: ' + error);
         } finally {
