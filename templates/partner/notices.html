@@ -9,6 +9,7 @@
     {% set filter_url = url_for('partner_portal.notices') %}
     {% include "notices/_items.html" %}
 </div>
+<script src="{{ asset_url('js/foms/foms-notice-gallery-zoom.js') }}" defer></script>
 <script src="{{ asset_url('js/foms/foms-notice-gallery.js') }}" defer></script>
 <script src="{{ asset_url('js/foms/foms-notice-popup.js') }}" defer></script>
 {% endblock %}
