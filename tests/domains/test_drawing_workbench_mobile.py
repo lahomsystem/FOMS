@@ -290,7 +290,7 @@ def test_drawing_workbench_mobile_queue_card_renders_erp_edit_cta(client, monkey
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "foms-drawing-queue-card__erp-edit" in body
-    assert "ERP수정" in body
+    assert "주문 수정" in body
     assert "open=erp-order" in body
     assert "return_to=erp_drawing_workbench_dashboard" in body
     card_actions = body[body.index("foms-drawing-queue-card__actions") : body.index("foms-drawing-queue-card__actions") + 1200]

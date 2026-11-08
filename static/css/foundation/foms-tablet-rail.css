@@ -45,8 +45,11 @@
        잠겨 있어 외부 CSS(!important 포함)로도 이동 불가하다. 잠기지 않은 유일한 콘텐츠
        래퍼인 #main-content 에 좌측 패딩을 준다. #main-content 는 Bootstrap reboot 의
        box-sizing:border-box 이므로 padding-left 가 총폭을 늘리지 않아 100vw 컨테이너에서
-       가로 스크롤이 생기지 않는다(전 11개 /erp 레이아웃이 #main-content 를 렌더). */
-    body:has(.foms-tablet-rail) #main-content {
+       가로 스크롤이 생기지 않는다(전 11개 /erp 레이아웃이 #main-content 를 렌더).
+       안내 묶음(.layout-flash, layout_flash.html — "OO님, 환영합니다!" 등)은 #main-content 의
+       형제라 이 여백을 못 받아 레일 밑에 깔렸다(2026-11-08 점검) — 같은 72px 를 준다. */
+    body:has(.foms-tablet-rail) #main-content,
+    body:has(.foms-tablet-rail) .layout-flash {
       padding-left: 72px;
     }
   }
@@ -159,4 +162,30 @@
 }
 .foms-tablet-rail__avatar:hover {
   background: var(--foms-color-brand-100, #dbeafe);
+}
+
+/* --- 긴 레일(메뉴 11칸 이상) 줄이기 ---
+   켜진 프리랜서 레일은 회사 영업 10칸 + 내 수수료 = 11칸이라 1024×768 가로에서 높이 835px 가 되어
+   알림 · 내 정보 단추가 화면 아래로 밀렸다(레일을 굴려야 보임, 2026-11-08 점검). 칸 수로만 갈라
+   회사 직원 레일(10칸)은 한 픽셀도 바꾸지 않고, 11칸 이상일 때만 맨 위 "F" 칸 · 위아래 여백 · 칸 안쪽
+   여백을 줄인다(칸 높이 54 → 50px, 손가락 기준 44px 이상 유지 · 합계 약 757px).
+   판정: 12번째 자식이 메뉴 칸이면 11칸 이상이다(1번째 자식은 "F" 칸, 10칸 레일의 12번째 자식은
+   빈칸 spacer). 레일은 :has 지원 브라우저에서만 보이므로(위 @supports) :has 를 써도 빈틈이 없다. */
+.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) {
+  padding-top: var(--foms-space-1, 4px);
+}
+
+.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__brand {
+  height: 28px;
+  margin-bottom: var(--foms-space-1, 4px);
+}
+
+.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__item {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  min-height: 48px;
+}
+
+.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__avatar {
+  margin: var(--foms-space-1, 4px) 0 var(--foms-space-2, 8px);
 }

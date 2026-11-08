@@ -62,13 +62,14 @@
       <i class="fas fa-user-check" aria-hidden="true"></i>
     </a>
     {% endif %}
-    {% if not (current_user and is_sales_freelancer()) %}{# 켜진 프리랜서: 통합 검색은 문지기가 막는다 #}<button
+    {#- 켜진 프리랜서도 같다 — 검색 결과는 서비스가 내 주문으로 좁힌다(11-08 점검으로 엶). -#}
+    <button
       class="erp-mobile-shell-header__search foms-icon-btn"
       type="button"
       data-foms-search-open
       aria-label="통합 검색">
       <i class="fas fa-search" aria-hidden="true"></i>
-    </button>{% endif %}
+    </button>
     <button
       class="erp-mobile-shell-header__notify foms-icon-btn"
       type="button"

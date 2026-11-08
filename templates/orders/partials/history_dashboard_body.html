@@ -112,7 +112,7 @@
     <header class="erp-pro-header">
       <h1 class="erp-pro-header__title">
         <i class="fas fa-history"></i>
-        <span>과거 이력 검색 (Inquiry)</span>
+        <span>과거 이력 검색</span>
       </h1>
       <div class="erp-pro-header__actions">
         <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
@@ -302,7 +302,7 @@
       </div>
     {% elif auto_browse_mine|default(false) %}
       <div class="alert alert-light border py-2 mb-0" role="status">
-        본인 시공 이력 최근 {{ total_orders }}건을 표시합니다.
+        내 담당 주문 최근 {{ total_orders }}건입니다.
       </div>
     {% endif %}
 
@@ -321,7 +321,7 @@
       <div class="erp-history-mobile-list foms-mobile-queue-list">
         <div class="erp-history-mobile-list__summary">
           <div>
-            <span class="erp-history-mobile-list__eyebrow">이력 큐</span>
+            <span class="erp-history-mobile-list__eyebrow">주문 목록</span>
             <h3 class="erp-history-mobile-list__title">검색 결과</h3>
           </div>
           <span class="erp-history-mobile-list__count">{{ total_orders }}건</span>

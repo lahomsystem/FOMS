@@ -5,7 +5,8 @@
 * 긴급 호출 창의 주문 고르기(static/js/foms/urgent-call-order.js)는 통합 검색 JSON(``/api/foms/search?group=all``)을
   부른다. 켜진 프리랜서에게 그 문이 막혀 주문을 못 골랐다 → 문을 열고, 서비스가 연결 표의 내 주문으로만 좁힌다.
 * 고객 · 주문 · 도면 세 묶음 모두 내 주문만 — 남의 주문과 고객 이름 · 전화 · 초성이 같아도, 남의 주문 번호를 쳐도.
-* 음성 대조군(같은 자료): 직원(CS)은 남의 주문도 본다. 머리 검색 창 조각(``/search/fragment``)은 여전히 막힌다.
+* 음성 대조군(같은 자료): 직원(CS)은 남의 주문도 본다. 머리 검색 창 조각(``/search/fragment``)도 11-08 점검으로 열었다 —
+  같은 거르기로 내 주문만 그린다(남의 주문 번호가 HTML 어디에도 없다).
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from db import db_session
-from foms.services.auth.freelancer_scope import FREELANCER_ALLOWED_ENDPOINTS, FREELANCER_DENIED_MSG
+from foms.services.auth.freelancer_scope import FREELANCER_ALLOWED_ENDPOINTS
 from foms.services.foms_unified_search import construction_scope_user, search_unified
 from models import Order
 from tests.domains.test_auth_finance import _make_user
@@ -137,11 +138,16 @@ def test_unlinked_order_disappears_from_freelancer_search(w):
     assert _ids_by_group(_get(w["client"], w["customer"])) == {group: set() for group in _GROUPS}
 
 
-def test_header_search_fragment_stays_blocked(w):
-    resp = w["client"].get("/api/foms/search/fragment", query_string={"q": w["customer"]})
-    assert resp.status_code == 403
-    assert resp.get_json()["error"] == FREELANCER_DENIED_MSG
-    assert "foms_search.api_foms_search_fragment" not in FREELANCER_ALLOWED_ENDPOINTS
+def test_header_search_fragment_shows_only_own_orders(w):
+    assert "foms_search.api_foms_search_fragment" in FREELANCER_ALLOWED_ENDPOINTS
+    for query in (w["customer"], w["address"], str(w["other"])):
+        html = w["client"].get("/api/foms/search/fragment", query_string={"q": query}).get_data(as_text=True)
+        assert f"#{w['other']}" not in html and f"/{w['other']}" not in html, query
+    html = w["client"].get("/api/foms/search/fragment", query_string={"q": w["customer"]}).get_data(as_text=True)
+    assert f"#{w['own']}" in html
+    # 음성 대조군: 직원은 같은 검색어로 남의 주문도 본다.
+    staff = w["staff_client"].get("/api/foms/search/fragment", query_string={"q": w["customer"]}).get_data(as_text=True)
+    assert f"#{w['other']}" in staff and f"#{w['own']}" in staff
 
 
 def test_urgent_picker_endpoint_is_the_allowed_one(app):

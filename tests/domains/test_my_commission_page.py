@@ -218,7 +218,7 @@ def test_measurement_basis_shows_forecast(app):
 def test_empty_month_message(app):
     world = _seed()
     html = _html(_client(app, world["fl"]), "month=2030-01")
-    assert "이 달에는 수수료 줄이 없어요" in html
+    assert "이 달에는 수수료 내역이 없어요" in html
 
 
 def test_bad_params_fall_back(app):
@@ -306,7 +306,10 @@ def test_mobile_shell_wraps_the_page(app, monkeypatch):
     html = client.get(f"{PAGE}?month=2030-03", headers={"User-Agent": _MOBILE_UA}).get_data(as_text=True)
     assert 'id="erp-mobile-menu-drawer"' in html
     drawer = html[html.index('id="erp-mobile-menu-drawer"'):]
+    drawer = drawer[:drawer.index("erp-mobile-menu-drawer__account")]  # 서랍만(뒤의 PC 서브 메뉴 빼고)
     assert drawer.count('href="/erp/my-commission"') == 1
+    # PC: 다른 판 화면처럼 제목 줄 + ERP 서브 메뉴(11-08 점검 — 예전에는 둘 다 없었다).
+    assert '<span>내 수수료</span>' in html and "foms-shell-desktop-only" in html
     assert "56,000" in _content(html)
 
 

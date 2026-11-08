@@ -77,7 +77,7 @@
   function fillPreview(e, data) {
     var t = data.totals || {};
     e.sum.textContent = '';
-    sumRow(e.sum, '줄 수', (data.lines || []).length + '줄');
+    sumRow(e.sum, '건수', (data.lines || []).length + '건');
     if (data.adjust_count) sumRow(e.sum, '조정', data.adjust_count + '건 · 합 ' + signedWon(data.adjust_total) + '원');
     sumRow(e.sum, '합계', C.won(t.gross) + '원');
     if (data.tax_type === 'WITHHOLD_3_3') {

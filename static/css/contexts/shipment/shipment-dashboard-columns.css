@@ -332,6 +332,14 @@ body.col-resizing-active {
 
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
+  /* --- 좌우 여백: 생산 · 시공 · 이력 판은 바깥 .container-fluid(좌우 12px) 안에 놓이는데 출고 판
+     뿌리(.erp-dashboard-shipment)엔 그 틀이 없어 pcbar · 요약 상자 · 표가 레일 끝과 화면 끝에
+     붙었다(2026-11-08 점검). 같은 12px 를 준다. PC(fine) · 폰 · 세로는 이 MQ 밖이라 무영향. --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment {
+    padding-left: var(--foms-space-3, 0.75rem);
+    padding-right: var(--foms-space-3, 0.75rem);
+  }
+
   /* --- PC 크롬 은닉: erp-pro-header(제목/버튼) + 스케줄러 패널 열(잔여 스트립이 대체) ---
      !important: 마크업 Bootstrap 유틸 특이도 패배 방지(orders/production 전례). */
   body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-pro-header {

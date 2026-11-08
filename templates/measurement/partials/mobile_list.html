@@ -145,7 +145,7 @@
 <section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정"{% if mobile_queue_rows %} data-meas-card-origin hidden{% endif %}>
   <div class="erp-measurement-mobile-list__summary foms-section-header section-header">
     <div>
-      <span class="erp-measurement-mobile-list__eyebrow">실측 작업 큐</span>
+      <span class="erp-measurement-mobile-list__eyebrow">작업 목록</span>
       <h2 class="erp-measurement-mobile-list__title foms-section-header__title">실측 일정</h2>
     </div>
     <span class="erp-measurement-mobile-list__count foms-section-header__count">{{ mobile_queue_rows|length }}건</span>
@@ -192,8 +192,14 @@
   {% else %}
     <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>
+      {# 이 화면엔 칩 필터가 없다. 다른 날 실측은 위 "오늘 예정 실측 없음 · 다음 예정" 줄이 알려 주므로
+         여기서는 검색했을 때만 되돌리는 길을 적는다(아래 탭 배지는 날짜와 상관없는 실측 단계 주문 수). #}
+      {% if search_q %}
       <p class="mb-1">조건에 맞는 실측 일정이 없습니다.</p>
-      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
+      <small>위 날짜를 바꾸거나 검색어를 지워 보세요.</small>
+      {% else %}
+      <p class="mb-1">고른 날짜에 잡힌 실측 일정이 없습니다.</p>
+      {% endif %}
     </div>
   {% endif %}
 </section>

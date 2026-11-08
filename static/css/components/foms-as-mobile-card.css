@@ -1451,6 +1451,14 @@
   line-height: var(--foms-line-height-tight, 1.25);
 }
 
+/* 어두운 테마: 연파랑 바탕(info-50)이 흰 상자로 남았다(2026-11-08 점검) — 토큰 파일의
+   어두운 정보 바탕(--foms-chip-badge-info-bg 와 같은 반투명 파랑)으로 바꾼다. */
+[data-theme='dark'] .as-timeline-hint {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #bfdbfe;
+}
+
 .as-timeline-hint__text {
   flex: 1 1 auto;
 }

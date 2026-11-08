@@ -1,5 +1,5 @@
             <!-- Flash messages -->
-            <div aria-live="polite" aria-atomic="true">
+            <div class="layout-flash" aria-live="polite" aria-atomic="true">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% for category, message in messages %}
