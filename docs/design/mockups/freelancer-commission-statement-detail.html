@@ -74,7 +74,7 @@ body{margin:0;background:#e9edf2;color:#1f2937;font-family:Pretendard,-apple-sys
 .foms-mc__open{display:inline-block;margin-top:8px;font-size:.9rem;color:#3a4490;font-weight:600;text-decoration:none}
 .foms-mc__changed{margin:6px 0 0;font-size:.85rem;color:#92400e}
 
-/* 크게 보기 — 공용 사진 보기(공지 사진 창과 같은 모양: 바깥 흐림 · 두 손가락 확대) */
+/* 크게 보기 — FOMS 전역 모달 GlobalImageViewer 를 흉내만 냄(바깥 흐림 · 두 손가락 확대 · 축소) */
 .viewer{position:absolute;inset:0;background:rgba(10,12,16,.97);display:flex;flex-direction:column;color:#fff;z-index:5}
 .viewer__top{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:.95rem}
 .viewer__x{width:44px;height:44px;border-radius:999px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:1.3rem}
@@ -162,7 +162,7 @@ body{margin:0;background:#e9edf2;color:#1f2937;font-family:Pretendard,-apple-sys
         <li><b>새 상자 · 칩 없이</b> 이미 있는 "펼친 칸"(줄 아래 글 자리) 안에 글 줄을 더한다 — 사용자 취향(기존 칸 하나만 바꾸기)에 맞다.</li>
         <li>순서는 <b>돈이 만들어지는 순서</b>: 품목 → (배송 · 할인) → 출고가 → 지금 계산 줄(그대로) → 도면. 맨 아래 합이 위 계산 줄 첫 숫자와 같아야 믿는다.</li>
         <li>취소 품목은 <b>줄긋기 + "· 취소"</b>로 남긴다 — 빼 버리면 "내 품목이 왜 없지?"가 된다.</li>
-        <li>도면은 <b>확정본만</b>(ERP 원칙), 작은 그림 → 누르면 공지 사진 창과 같은 크게 보기(두 손가락 확대). 그림은 펼칠 때만 받는다(목록이 무거워지지 않게).</li>
+        <li>도면은 <b>확정본만</b>(ERP 원칙), 작은 그림 → 누르면 FOMS 전역 모달(바깥 흐림 · 두 손가락 확대 · 축소). 그림은 펼칠 때만 받는다(목록이 무거워지지 않게).</li>
         <li><b>마감한 달 함정</b>: 줄 금액은 마감 때 굳힌 값인데 품목은 지금 주문이다. 마감 뒤 품목이 바뀌었으면 한 줄로 알린다 — 숫자가 안 맞아 보이는 혼란을 막는다.</li>
         <li>PC 는 글자를 줄이지 않는다(80% 배율). 같은 칸 안에서 품목 왼쪽 · 도면 오른쪽 두 줄로만 바꾼다.</li>
       </ul>
@@ -228,7 +228,7 @@ body{margin:0;background:#e9edf2;color:#1f2937;font-family:Pretendard,-apple-sys
         </div>
         <div class="botnav"><span><i></i>대시보드</span><span><i></i>실측</span><span><i></i>도면</span><span><i></i>출고</span><span class="on"><i></i>내 수수료</span><span><i></i>계산기</span><span><i></i>더보기</span></div>
       </div>
-      <p class="frame-cap">② 작은 도면을 누르면 공지 사진 창과 같은 크게 보기. 새 창을 따로 만들지 않고 공용 사진 보기를 쓴다.</p>
+      <p class="frame-cap">② 작은 도면을 누르면 FOMS 전역 모달(GlobalImageViewer — 바깥 흐림 · 두 손가락 확대 · 축소). 새 보기 창은 만들지 않는다.</p>
     </div>
 
     <!-- A-3 상태들 -->
