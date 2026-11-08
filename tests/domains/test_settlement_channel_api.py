@@ -740,7 +740,7 @@ def test_sync_unavailable_is_503_with_the_fixed_message_and_audited(client, app,
     assert set(log.detail) == _SYNC_DETAIL_KEYS
     assert log.detail["reason"] == "unavailable"
     assert log.detail["queued"] is False and log.detail["job_id"] is None
-    assert str(log.message).endswith("(큐 연결 불가)")
+    assert str(log.message).endswith("(연결 안 됨)")
     assert "(이미 대기 중)" not in str(log.message)
 
 

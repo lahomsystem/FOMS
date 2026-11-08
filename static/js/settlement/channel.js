@@ -81,7 +81,7 @@
   var POLL_MAX_TRIES_BACKFILL = 60; // 소급 적재는 창을 여러 개 돌아 오래 걸린다(90일 ≈ 2분, 250일 ≈ 6분) — 10분
   var BACKFILL_MINUTES_PER_DAY = 0.025; // 실측(2026-09-03): 하루치 ≈ 1.5초 — 배너의 예상 시간용
   // 동기화 POST 가 503 이면 큐 부재·Redis 장애(서버 3상태의 unavailable, 감사 F-02) — 큐 docstring·API 503 본문과 같은 뜻.
-  var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다(큐 연결 불가)';
+  var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다. 잠시 뒤 다시 시도하세요.';
   // "확정 구간" 부제(감사 B-01) — 확정은 FOMS 의 30일 가정이라 그 이전 정정은 백필로만 들어온다.
   var FINAL_BEFORE_NOTE = '(이 날짜 이전 정정은 [이 구간 받아오기]로만 반영 · 매월 1일 자동 백필)';
   var SEARCH_DEBOUNCE_MS = 350;
@@ -963,7 +963,7 @@
     if (!res.ok || !body || body.success !== true) {
       var err = new Error(failureReason(res, body));
       err.handled = true;
-      err.status = res ? res.status : 0; // 호출부가 503(큐 연결 불가)을 다른 실패와 가른다(F-02)
+      err.status = res ? res.status : 0; // 호출부가 503(동기화 연결 안 됨)을 다른 실패와 가른다(F-02)
       throw err;
     }
     return body;
