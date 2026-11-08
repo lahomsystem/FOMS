@@ -4,8 +4,9 @@
  *
  * - 썸네일 줄: [data-foms-notice-images] 안의 [data-foms-notice-thumb] 단추. 서버가 그린 줄은 data-images(JSON
  *   [{url, thumb_url, name}])로, 스크립트가 그린 줄은 FomsNoticeGallery.render(상자, 사진들)로 사진 목록을 갖는다.
- * - 사진 창: 썸네일을 누르면 가운데 흰 카드로 크게. 바깥은 흐림 + 어둡게. 여러 장이면 좌우 단추 · 화살표 키 · 밀기로 넘긴다.
- *   닫기 = X · 바깥 누르기 · Esc. 닫으면 누른 썸네일로 초점을 돌려준다(공지 창은 그대로 남는다).
+ * - 사진 창: 썸네일을 누르면 공용 사진 보기(GlobalImageViewer)처럼 화면 전체 흐림 위에 사진만 크게(카드 없음, 11-08).
+ *   사진 누르기 = 2배 · 두 손가락 = 1~4배 · 확대 중 끌기 = 옮기기(foms-notice-gallery-zoom.js).
+ *   여러 장이면 좌우 단추 · 화살표 키 · 1배에서 밀기로 넘긴다. 닫기 = X · 사진 바깥 누르기 · Esc. 닫으면 누른 썸네일로 초점을 돌려준다(공지 창은 그대로 남는다).
  * - 공지 창(확인을 눌러야 닫히는 창)과 같이 뜬다: 공지 창은 document 잡기 단계에서 초점 · Esc 를 가둔다. 사진 창은 그보다
  *   먼저 도는 window 잡기 단계에서 keydown · focusin 을 받아 처리하고 더 내려보내지 않는다(사진 창 안 초점은 사진 창이 가둔다).
  *   공지 창 스크립트도 열린 사진 창(.foms-notice-gallery:not([hidden]))을 "더 위 창"으로 보고 가두기를 쉰다.
@@ -17,15 +18,13 @@
   if (window.FomsNoticeGallery) return; // 한 화면에 두 번 실려도(협력사 공지 목록 + 공지 창) 한 벌만 돈다
 
   var HIGHER = '#foms-urgent-alert, .foms-drawing-alert:not([hidden])';
-  var SWIPE_MIN = 40;
+  var NO_ZOOM = { reset: function () {} };
   var shell = null;
   var parts = {};
   var items = [];
   var index = 0;
   var trigger = null;
-  var touch = null;
-  // 두 손가락 확대 · 확대한 뒤 끌어 옮기기(사용자 11-04 — 미리보기 확대 뒤 이동이 안 돼 사진을 못 봄). 넘기기는 1배일 때만.
-  var zoom = { scale: 1, tx: 0, ty: 0, dist: 0, pan: null, pinched: false };
+  var zoomer = NO_ZOOM; // 누르기 확대 · 두 손가락 확대 · 옮기기(사용자 11-04 · 11-08). 넘기기는 1배일 때만.
 
   function safeJsonParse(val, fb) {
     try {
@@ -84,6 +83,8 @@
   }
 
   // ---- 사진 창 ----
+  // 공용 사진 보기(GlobalImageViewer)와 같은 모양(사용자 11-08): 카드 없이 화면 전체 흐림 위에 사진만 띄운다.
+  // 확대 · 옮기기 · 넘기기 손짓은 foms-notice-gallery-zoom.js(이 파일보다 먼저 싣는다).
   function build() {
     if (shell) return;
     shell = el('div', 'foms-notice-gallery', {
@@ -91,28 +92,21 @@
     });
     shell.hidden = true;
     var backdrop = el('div', 'foms-notice-gallery__backdrop', { 'data-gallery-close': '' });
-    var card = el('div', 'foms-notice-gallery__card');
-    var head = el('div', 'foms-notice-gallery__head');
-    parts.count = el('span', 'foms-notice-gallery__count');
-    parts.name = el('span', 'foms-notice-gallery__name');
-    parts.close = el('button', 'foms-notice-gallery__close', { type: 'button', 'aria-label': '닫기', 'data-gallery-close': '' });
-    parts.close.appendChild(icon('fa-xmark'));
-    head.appendChild(parts.count);
-    head.appendChild(parts.name);
-    head.appendChild(parts.close);
     parts.stage = el('div', 'foms-notice-gallery__stage');
     parts.img = el('img', 'foms-notice-gallery__img', { alt: '', draggable: 'false' });
+    parts.stage.appendChild(parts.img);
+    var top = el('div', 'foms-notice-gallery__top');
+    parts.count = el('span', 'foms-notice-gallery__count', { 'aria-live': 'polite' });
+    parts.name = el('span', 'foms-notice-gallery__name');
+    top.appendChild(parts.count);
+    top.appendChild(parts.name);
+    parts.close = el('button', 'foms-notice-gallery__close', { type: 'button', 'aria-label': '닫기', 'data-gallery-close': '' });
+    parts.close.appendChild(icon('fa-xmark'));
     parts.prev = el('button', 'foms-notice-gallery__nav foms-notice-gallery__nav--prev', { type: 'button', 'aria-label': '앞 사진' });
     parts.prev.appendChild(icon('fa-chevron-left'));
     parts.next = el('button', 'foms-notice-gallery__nav foms-notice-gallery__nav--next', { type: 'button', 'aria-label': '다음 사진' });
     parts.next.appendChild(icon('fa-chevron-right'));
-    parts.stage.appendChild(parts.img);
-    parts.stage.appendChild(parts.prev);
-    parts.stage.appendChild(parts.next);
-    card.appendChild(head);
-    card.appendChild(parts.stage);
-    shell.appendChild(backdrop);
-    shell.appendChild(card);
+    [backdrop, parts.stage, top, parts.close, parts.prev, parts.next].forEach(function (node) { shell.appendChild(node); });
     document.body.appendChild(shell);
 
     shell.addEventListener('click', function (ev) {
@@ -120,70 +114,19 @@
     });
     parts.prev.addEventListener('click', function () { show(index - 1); });
     parts.next.addEventListener('click', function () { show(index + 1); });
-    parts.stage.addEventListener('touchstart', function (ev) {
-      var t = ev.touches && ev.touches[0];
-      if (ev.touches.length === 2) {
-        zoom.pinched = true;
-        zoom.pan = null;
-        zoom.dist = gap(ev.touches);
-        return;
-      }
-      if (ev.touches.length === 1) zoom.pinched = false;
-      touch = t ? { x: t.clientX, y: t.clientY } : null;
-      zoom.pan = t && zoom.scale > 1.05 ? { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty } : null;
-    }, { passive: true });
-    parts.stage.addEventListener('touchmove', function (ev) {
-      if (ev.touches.length === 2 && zoom.dist) {
-        var d = gap(ev.touches);
-        zoom.scale = Math.min(4, Math.max(1, zoom.scale * d / zoom.dist));
-        zoom.dist = d;
-        if (zoom.scale <= 1.05) { zoom.tx = 0; zoom.ty = 0; }
-        applyZoom();
-        ev.preventDefault();
-      } else if (ev.touches.length === 1 && zoom.pan) {
-        zoom.tx = zoom.pan.tx + ev.touches[0].clientX - zoom.pan.x;
-        zoom.ty = zoom.pan.ty + ev.touches[0].clientY - zoom.pan.y;
-        applyZoom();
-        ev.preventDefault();
-      }
-    }, { passive: false });
-    parts.stage.addEventListener('touchend', function (ev) {
-      var t = ev.changedTouches && ev.changedTouches[0];
-      if (ev.touches.length) return;
-      zoom.dist = 0;
-      zoom.pan = null;
-      if (!touch || !t || zoom.pinched || zoom.scale > 1.05) { touch = null; return; }
-      var dx = t.clientX - touch.x;
-      var dy = t.clientY - touch.y;
-      touch = null;
-      if (Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) show(index + (dx < 0 ? 1 : -1));
-    }, { passive: true });
-    parts.img.addEventListener('dblclick', function () { setZoom(zoom.scale > 1 ? 1 : 2); });
-  }
-
-  function gap(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
-
-  /** 옮긴 만큼을 그림이 칸 밖으로 다 나가지 않게 묶고 그린다. */
-  function applyZoom() {
-    var box = parts.stage.getBoundingClientRect();
-    var mx = Math.max(0, (parts.img.offsetWidth * zoom.scale - box.width) / 2);
-    var my = Math.max(0, (parts.img.offsetHeight * zoom.scale - box.height) / 2);
-    zoom.tx = Math.min(mx, Math.max(-mx, zoom.tx));
-    zoom.ty = Math.min(my, Math.max(-my, zoom.ty));
-    parts.img.style.transform = zoom.scale > 1 ? 'translate(' + zoom.tx + 'px,' + zoom.ty + 'px) scale(' + zoom.scale + ')' : '';
-  }
-
-  function setZoom(scale) {
-    zoom.scale = scale;
-    zoom.tx = 0;
-    zoom.ty = 0;
-    applyZoom();
+    var Zoom = window.FomsNoticeGalleryZoom;
+    zoomer = Zoom ? Zoom.attach({
+      stage: parts.stage,
+      img: parts.img,
+      onSwipe: function (step) { show(index + step); },
+      onOutside: close // 사진 바깥(흐린 곳) 누르기 = 닫기
+    }) : NO_ZOOM;
   }
 
   function show(i) {
     if (!items.length) return;
     index = Math.max(0, Math.min(i, items.length - 1));
-    setZoom(1);
+    zoomer.reset(); // 다른 사진을 열면 확대를 푼다
     var photo = items[index];
     var full = photo.url;
     parts.img.classList.add('is-loading');
@@ -225,6 +168,7 @@
   function close() {
     if (!isOpen()) return;
     shell.hidden = true;
+    zoomer.reset(); // 닫으면 확대를 푼다
     document.documentElement.classList.remove('foms-notice-gallery-open');
     parts.img.removeAttribute('src');
     items = [];
