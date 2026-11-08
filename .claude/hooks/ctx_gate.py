@@ -9,6 +9,12 @@ JSONL 끝에서 가장 최근 assistant 항목의 `message.usage`를 읽어 **�
 이 값은 모델이 실제로 받은 창이라, compaction이 창을 비우면 다음 응답에서 저절로
 내려간다 — baseline 보정이 필요 없다.
 
+단, compaction **직후 첫 프롬프트**에는 아직 새 응답이 없어 끝에서 가장 가까운 usage 가
+압축 **전** 값이다. 2026-11-08 실측: 압축 전 645,230 토큰(64%)을 읽어 "정리하라"를 주입했고,
+압축 뒤 실제 점유는 85,151(8.5%)이었다 — 모델이 그 숫자를 믿고 "/compact" 를 거듭 권했다.
+그래서 거꾸로 훑다가 ``compact_boundary`` 를 usage 보다 먼저 만나면 "아직 모름"으로 보고
+발동하지 않는다(다음 응답이 새 점유를 남긴다).
+
 핵심 함정(옛 구현이 밟은 것): transcript 파일 크기는 append-only 누적 I/O라
 컨텍스트 점유가 아니다. 도구 결과 원문·훅 출력처럼 창에 남지 않는 바이트까지
 세므로 도구를 많이 쓴 세션은 실제의 몇 배로 뜬다. 실측 사례 = 점유 11%인 세션에
@@ -99,12 +105,19 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-def _latest_context_tokens(transcript_path: str) -> int | None:
+#: compaction 경계 줄 표식(``{"type": "system", "subtype": "compact_boundary", ...}``).
+COMPACT_BOUNDARY = "compact_boundary"
+
+
+def _latest_context_tokens(transcript_path: str) -> tuple[int | None, str]:
     """transcript 끝에서 가장 최근 assistant 항목의 창 점유 토큰수를 읽는다.
+
+    압축 경계를 usage 보다 먼저 만나면(압축 뒤 아직 응답이 없음) 점유를 모른다고 본다 —
+    경계 앞 usage 는 압축 전 창이라 실제보다 몇 배 크다.
 
     파라미터:
         transcript_path: transcript JSONL 절대 경로.
-    반환: 점유 토큰수(input + cache_read + cache_creation). 못 찾으면 None.
+    반환: (점유 토큰수 또는 None, None 일 때 까닭 "compacted" · "no_usage").
     """
     size = os.path.getsize(transcript_path)
     with open(transcript_path, "rb") as handle:
@@ -112,12 +125,17 @@ def _latest_context_tokens(transcript_path: str) -> int | None:
         chunk = handle.read()
     for line in reversed(chunk.decode("utf-8", "ignore").splitlines()):
         line = line.strip()
-        if not line.startswith("{") or '"usage"' not in line:
+        if not line.startswith("{"):
+            continue
+        has_usage = '"usage"' in line
+        if not has_usage and COMPACT_BOUNDARY not in line:
             continue
         try:
             entry = json.loads(line)
         except (ValueError, TypeError):
             continue  # tail 첫 줄은 잘려 있을 수 있다 — 다음 줄로
+        if entry.get("type") == "system" and entry.get("subtype") == COMPACT_BOUNDARY:
+            return None, "compacted"
         if entry.get("type") != "assistant":
             continue
         usage = (entry.get("message") or {}).get("usage") or {}
@@ -128,8 +146,8 @@ def _latest_context_tokens(transcript_path: str) -> int | None:
             except (ValueError, TypeError):
                 continue
         if total > 0:
-            return total
-    return None
+            return total, ""
+    return None, "no_usage"
 
 
 def _process(payload: dict) -> None:
@@ -148,9 +166,12 @@ def _process(payload: dict) -> None:
     if now - last_fire < COOLDOWN_SEC:
         return
 
-    used = _latest_context_tokens(transcript_path)
+    used, why = _latest_context_tokens(transcript_path)
     if used is None:
-        hook_log("transcript에 assistant usage 없음 — 게이트 스킵", tag="ctx_gate")
+        if why == "compacted":
+            hook_log("압축 직후 — 새 응답 usage 전이라 점유를 모름, 게이트 스킵", tag="ctx_gate")
+        else:
+            hook_log("transcript에 assistant usage 없음 — 게이트 스킵", tag="ctx_gate")
         return
 
     threshold = _env_int("FOMS_CTX_GATE_PCT", DEFAULT_PCT)
