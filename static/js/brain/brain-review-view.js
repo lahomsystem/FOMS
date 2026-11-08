@@ -16,14 +16,20 @@
     return (display && display[group]) || {};
   }
 
-  /** 칸 값 → 보이는 글(없음 · 목록 · 실음 칸 · 값 목록 이름 · 수에 단위). */
+  /** 칸 값 → 보이는 글(없음 · 목록 · 실음 칸 · 값 목록 이름 · 수에 단위). 고르기 값은 이름표(display.choices — 서버
+   *  schemas.CHOICE_LABELS · 보내는 값은 그대로). 확인 칸 글은 목록이 ' · ' 로 이어 와서 마디마다 바꾼다. */
   function valueText(field, value, display, unit) {
     if (value === null || value === undefined || value === '') return '(없음)';
-    if (Array.isArray(value)) return value.length ? value.map(String).join(' · ') : '(빈 목록)';
+    var choices = labels(display, 'choices')[field] || null;
+    var named = function (v) {
+      return choices && Object.prototype.hasOwnProperty.call(choices, v) ? choices[v] : String(v);
+    };
+    if (Array.isArray(value)) return value.length ? value.map(named).join(' · ') : '(빈 목록)';
     if (typeof value === 'object') return '실음 칸 ' + Object.keys(value).length + '개 칸';
     if (typeof value === 'number' && unit) return String(value) + unit;
     var group = { status: 'statuses', confidence: 'confidences', risk_grade: 'grades', visibility: 'visibilities' }[field];
-    return group ? (labels(display, group)[value] || String(value)) : String(value);
+    if (group) return labels(display, group)[value] || String(value);
+    return choices ? String(value).split(' · ').map(named).join(' · ') : String(value);
   }
 
   /** 칸별 전 → 후 줄 — [{field, label, before, after, proposed}](이름 · 단위는 서버 속성 틀이 준 것 먼저 ·

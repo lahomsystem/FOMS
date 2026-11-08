@@ -22,6 +22,7 @@ from foms.services.brain.constants import (
     OBJECT_STATUSES, SAME_TYPE_KINDS, TYPE_LAYERS, TYPES, link_allowed,
 )
 from foms.services.brain.display import TYPE_GROUPS, display_table
+from foms.services.brain.labels import pref_of
 from foms.services.brain.read import (
     MAX_QUERY, count_items, effective_clauses, search_match, search_type_counts, visible_clauses,
 )
@@ -97,9 +98,13 @@ def _open_change() -> Any:
 
 def light_item(row: BrainObject, *, today: datetime.date, needs_check: bool = False,
                used: Optional[int] = None) -> dict[str, Any]:
-    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음). ``used`` = 따로 센 쓰인 수(:mod:`.usage`)."""
+    """목록 줄 하나(글은 앞 :data:`SNIPPET` 자만 · 실음 칸 없음). ``used`` = 따로 센 쓰인 수(:mod:`.usage`).
+
+    ``name`` 은 카드 제목과 같은 규칙 — 한글 이름(실음 칸 ``pref_label``)이 있으면 그것, 없으면 이름(:func:`.labels.pref_of` ·
+    점검 F01). 이미 읽은 줄의 실음 칸에서 꺼낸다(질의 · 읽는 칸 그대로). 키는 링크용으로 그대로."""
     text = (row.text or "").strip()
-    return {"key": row.item_key, "name": row.name, "type": row.item_type, "layer": row.layer, "brand": row.brand,
+    return {"key": row.item_key, "name": pref_of(row.name, row.payload), "type": row.item_type, "layer": row.layer,
+            "brand": row.brand,
             "status": row.status, "confidence": row.confidence, "grade": row.risk_grade, "version": row.version,
             "usage_count": int(row.usage_count or 0) + int(used or 0),
             "checked_at": row.checked_at.isoformat() if row.checked_at else None,
@@ -155,7 +160,9 @@ def _table_conditions(query: TableQuery, viewer: Viewer, today: datetime.date) -
 
 
 def _table_order(sort: str) -> tuple[Any, ...]:
-    """정렬 — 쓰인 횟수 많은 순 · 오래 확인 안 한 순(확인 날 없음 먼저) · 이름 순. 끝은 늘 키(쪽이 흔들리지 않게)."""
+    """정렬 — 쓰인 횟수 많은 순 · 오래 확인 안 한 순(확인 날 없음 먼저) · 이름 순. 끝은 늘 키(쪽이 흔들리지 않게).
+
+    이름 순은 저장 이름 칸 순이다(화면 이름 = 한글 이름표가 아님) — 한글 이름표로 정렬하면 걸린 줄 모두의 실음 칸을 읽어야 한다."""
     if sort == "checked":
         return BrainObject.checked_at.asc().nulls_first(), BrainObject.item_key
     if sort == "name":

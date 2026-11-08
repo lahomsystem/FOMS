@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import and_, func, literal, or_, select, union_all
@@ -23,6 +24,7 @@ from sqlalchemy.orm import aliased
 from foms.persistence.brain.models import BrainChange, BrainLink, BrainObject
 from foms.services.brain.conflicts import open_conflict_counts
 from foms.services.brain.constants import CHANGE_OPEN, EXTERNAL_PREFIXES, LINK_KINDS, external_type
+from foms.services.brain.display import agent_label
 from foms.services.brain.external import ref_cards
 from foms.services.brain.quality import item_rules, missing_links, retired_targets
 from foms.services.brain.read import current_item, effect_state, item_history
@@ -39,6 +41,8 @@ MAX_LINKS_PER_GROUP = 30
 MAX_EXTERNAL = 30
 HISTORY_LIMIT = 20
 IMPORT_ACTOR = "import"
+#: 기계 자리 꼴 — 콜론 · 밑줄이 든 근거 위치(``plan:…`` · ``photo_relearn:…`` · ``cs_agent_knowledge_lahom``)는 화면에 안 보인다.
+_MACHINE_PLACE = re.compile(r"[:_]")
 
 
 def _link_query(viewer: Viewer, key: str, direction: str, today: datetime.date) -> Any:
@@ -110,16 +114,22 @@ def people_names(session: Any, ids: Iterable[int]) -> dict[int, str]:
 
 
 def actor_label(created_by: Optional[str], names: dict[int, str]) -> str:
-    """만든 이 글 → 화면 이름(사람 · 에이전트 · 옮김)."""
+    """만든 이 글 → 화면 이름(사람 · 에이전트 · 옮김). 에이전트는 코드 이름 대신 한글 이름표(:func:`.display.agent_label`)."""
     value = created_by or ""
     if value == IMPORT_ACTOR:
         return "지식 문서에서 옮김"
     if value.startswith("agent:"):
-        return "에이전트 " + value[6:]
+        return agent_label(value[6:])
     ids = _user_ids(value)
     if ids:
         return names.get(next(iter(ids)), "지운 계정")
     return value or "모름"
+
+
+def evidence_place(ref: Any) -> Optional[str]:
+    """카드 '근거 위치' 화면 글 — 사람이 읽는 글만(기계 꼴 :data:`_MACHINE_PLACE` 이면 ``None`` — 값은 그대로 저장)."""
+    text = ref.strip() if isinstance(ref, str) else ""
+    return text if text and not _MACHINE_PLACE.search(text) else None
 
 
 def approver_label(item: dict[str, Any], names: dict[int, str]) -> str:
@@ -203,4 +213,5 @@ def item_card(session: Any, viewer: Viewer, key: str, *, today: datetime.date) -
         "copies": list(item.get("copies") or []),
         "history": history_rows(session, viewer, key, names),
         "effect": effect_state(session, item, today), "open_conflicts": conflicts,
+        "evidence_place": evidence_place(item.get("evidence_ref")),  # 기계 꼴 근거 위치는 화면에 안 보인다(점검 F12)
     }
