@@ -1,4 +1,4 @@
-"""PARTNER-FOMS 3-2: 협력사 주문 목록(우리 ERP 대시보드 모양) — 프로세스 맵 · 필터 · 작업 큐 · 내 차례.
+"""PARTNER-FOMS 3-2: 협력사 주문 목록(우리 ERP 대시보드 모양) — 프로세스 맵 · 필터 · 작업 목록 · 내 차례.
 
 스펙 docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.1 · §3.2.
 각 필터에는 걸러져야 할 대조군(다른 단계 · 다른 담당 · 다른 회사)을 같이 둔다.
@@ -75,7 +75,7 @@ def test_list_page_renders_board_and_hides_other_company(app, world):
     ids = _seed(app, world)
     client = _client(app, db_session.get(User, world["partner_a"]))
     html = client.get("/partner").get_data(as_text=True)
-    assert "프로세스 맵" in html and "작업 큐" in html and "pp-pipe--turn" in html
+    assert "프로세스 맵" in html and "작업 목록" in html and "pp-pipe--turn" in html
     assert f'data-pp-row-href="/partner/orders/{ids["confirm"]}"' in html and "남의고객" not in html
     filtered = client.get("/partner?stage=완료").get_data(as_text=True)
     assert "완료고객" in filtered and "접수고객" not in filtered
