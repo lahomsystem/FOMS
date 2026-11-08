@@ -483,11 +483,15 @@ def test_as_modal_cohort_variants_are_mutually_exclusive_at_runtime():
     body = (ROOT / "templates/orders/partials/edit_order_body.html").read_text(encoding="utf-8")
     legacy_idx = body.index('id="erp-order-form-legacy"')
     mobile_idx = body.index('id="erp-order-form-mobile"')
-    remove_idx = body.index("(window.matchMedia(GATE).matches ? legacy : mobile).remove();")
+    remove_idx = body.index("(kept === mobile ? legacy : mobile).remove();")
     assert legacy_idx < mobile_idx < remove_idx
     script_open = body.rindex("<script", 0, remove_idx)
     script_tag = body[script_open:body.index(">", script_open) + 1]
     assert "defer" not in script_tag and "async" not in script_tag
+    # 지운 뒤 남긴 표면의 빈 라디오 묶음을 서식 기본값으로 되돌린다 — 같은 name 이 두 벌이라 파싱 중 PC 쪽이
+    # 풀렸다(2026-11-08 점검: AS 무상/유상 · 공유 종류). 같은 동기 스크립트 안, remove 뒤.
+    restore_idx = body.index("group.forEach(function (r) { if (r.defaultChecked) r.checked = true; });")
+    assert remove_idx < restore_idx < body.index("</script>", remove_idx)
 
 
 def test_shared_js_sends_billing_type_and_conditional_amount():

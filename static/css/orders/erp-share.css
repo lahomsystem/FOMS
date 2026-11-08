@@ -29,3 +29,8 @@
   --bs-btn-active-bg: var(--foms-interactive-primary-hover, #4c51bf);
   --bs-btn-active-border-color: var(--foms-interactive-primary-hover, #4c51bf);
 }
+
+/* 어두운 테마: 닫기(X) 검은 그림 → 밝게(erp-channel-push.css 고객에게 보내기 창과 같은 이유 · 같은 필터). */
+[data-theme='dark'] #erpShareModal .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}

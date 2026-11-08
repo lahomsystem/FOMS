@@ -38,6 +38,17 @@
     font-variant-numeric: tabular-nums; display: inline-block; color: var(--foms-color-brand-700); }
   /* 어두운 테마: 짙은 남색 금액이 검은 바탕에 묻힌다(대비 2.2) — 밝은 남색으로. */
   [data-theme='dark'] .wd-hero__val { color: var(--foms-color-brand-300); }
+  /* 어두운 테마 나머지(11-08 점검 후속): 같은 짙은 남색 금액(구성 가격 · 소계 · 견적 카드 단가 · 합계 · 아래 바 합계)은
+     밝은 남색으로, 밝은 회색으로 고정한 바탕(편집 닫기 · 섹션 머리 · 견적 카드 줄)은 테마 따라 바뀌는 면 색으로. */
+  [data-theme='dark'] body.wd-builder .wd-esec .wd-bc-price,
+  [data-theme='dark'] body.wd-builder .wd-esec .wd-bc-subval,
+  [data-theme='dark'] body.wd-builder #estimatesListContainer .wd-estimate-unit-meta,
+  [data-theme='dark'] .wd-fab__sum-v { color: var(--foms-color-brand-300); }
+  [data-theme='dark'] body.wd-builder #estimatesListContainer .estimate-total-price { color: var(--foms-color-brand-300) !important; }
+  [data-theme='dark'] .wd-editor__close,
+  [data-theme='dark'] .wd-esec__head,
+  [data-theme='dark'] body.wd-builder #estimatesListContainer .card[data-estimate-id] .estimate-card-item,
+  [data-theme='dark'] body.wd-builder #estimatesListContainer .card[data-estimate-id]:active { background: var(--foms-surface-muted); }
   .wd-hero__val.wd-pulse { animation: wdHeroPulse .5s ease-out; }
   @keyframes wdHeroPulse { 0% { transform: scale(1.08); } 100% { transform: scale(1); } }
   .wd-hero__meta { display: flex; gap: 8px; flex-wrap: wrap; }
