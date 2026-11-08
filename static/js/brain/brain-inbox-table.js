@@ -39,10 +39,37 @@
     return el('td', { children: [box] });
   }
 
-  function head(titles) {
-    var tr = el('tr');
+  /** 머리 — 첫 칸은 '모두 고르기' 체크 상자(사장님 11-08 · 처음엔 꺼짐), 나머지는 칸 이름. */
+  function head(titles, ready) {
+    var all = el('input', { cls: 'form-check-input', attrs: { type: 'checkbox', 'data-brain-check-all': '1',
+                                                              'aria-label': '모두 고르기' } });
+    all.checked = false;
+    all.disabled = !ready;
+    var tr = el('tr', { children: [el('th', { attrs: { scope: 'col' }, children: [all] })] });
     titles.forEach(function (t) { tr.appendChild(el('th', { text: t, attrs: { scope: 'col' } })); });
     return el('thead', { children: [tr] });
+  }
+
+  /** 쓸 수 있는(disabled 아닌) 줄 상자. */
+  function rowBoxes(table) {
+    return Array.prototype.slice.call(table.querySelectorAll('[data-brain-row-check]'))
+      .filter(function (box) { return !box.disabled; });
+  }
+
+  /** 머리 상자가 줄을 따라간다 — 모두 체크면 체크 · 일부면 반쯤(indeterminate) · 없으면 꺼짐. */
+  function syncAll(table) {
+    var all = table.querySelector('[data-brain-check-all]');
+    var boxes = rowBoxes(table);
+    var on = boxes.filter(function (box) { return box.checked; }).length;
+    all.checked = !!boxes.length && on === boxes.length;
+    all.indeterminate = on > 0 && on < boxes.length;
+  }
+
+  /** 머리 상자를 누르면 쓸 수 있는 줄을 모두 켜거나 끈다 — 승인은 여전히 '체크한 줄 승인' → 확인 창 뒤에만. */
+  function onChange(table, target) {
+    var head = target.hasAttribute('data-brain-check-all');
+    if (head) rowBoxes(table).forEach(function (box) { box.checked = target.checked; });
+    if (head || target.hasAttribute('data-brain-row-check')) syncAll(table);
   }
 
   function nameRow(card) {
@@ -73,13 +100,14 @@
     dom.clear(list);
     if (!cards || !cards.length) return;
     var names = bin === 'names';
+    var ready = cards.filter(function (card) { return usable(card.main); }).length;
     var table = el('table', { cls: 'brain-diff' });
     table.appendChild(el('caption', { cls: 'visually-hidden', text: names ? '한글 이름 붙이기' : '같은 값이 적힌 곳 표시' }));
-    table.appendChild(head(names ? ['승인', '지금 이름', '새 한글 이름', '비슷한 말'] : ['승인', '지식', '같은 값이 적힌 곳']));
+    table.appendChild(head(names ? ['지금 이름', '새 한글 이름', '비슷한 말'] : ['지식', '같은 값이 적힌 곳'], ready));
     var body = el('tbody');
     cards.forEach(function (card) { body.appendChild(names ? nameRow(card) : markRow(card)); });
     table.appendChild(body);
-    var ready = cards.filter(function (card) { return usable(card.main); }).length;
+    table.addEventListener('change', function (event) { onChange(table, event.target); });
     var li = el('li', { cls: 'brain-icard', children: [el('div', { cls: 'brain-table-wrap', children: [table] })] });
     li.appendChild(el('p', { cls: 'brain-icard__summary', text: names
       ? '이름 칸을 눌러 고칠 수 있어요. 비슷한 말로 물어도 이 지식을 찾아요. 체크한 줄만 승인해요.'

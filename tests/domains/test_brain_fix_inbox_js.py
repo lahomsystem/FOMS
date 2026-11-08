@@ -328,7 +328,7 @@ def test_phone_folds_cards_it_cannot_decide_into_the_pc_box():
     body = """return { list: api.ids('[data-brain-inbox]'), later: api.ids('[data-brain-later]'),
                        box: api.shown(api.q('[data-brain-later-box]')), title: api.text(api.q('[data-brain-later-title]')) };"""
     phone = _run(body, cards=content, phone=True, search="?tab=inbox&bin=content")
-    assert phone == {"list": ["c1"], "later": ["c2", "c3"], "box": True, "title": "PC 에서 볼 것 2장"}
+    assert phone == {"list": ["c1"], "later": ["c2", "c3"], "box": True, "title": "PC 에서 볼 것 2개"}
     pc = _run(body, cards=content, phone=False, search="?tab=inbox&bin=content")
     assert pc["list"] == ["c1", "c2", "c3"] and pc["later"] == [] and pc["box"] is False
     question = _run(body, cards=[_card(4, "decide", phone_ok=False)], phone=True, search="?tab=inbox&bin=decide")

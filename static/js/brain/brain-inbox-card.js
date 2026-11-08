@@ -137,13 +137,17 @@
     return list;
   }
 
+  /** 확인 칸 글에 값을 붙이지 않는 긴 값 — 글 칸이거나 이만큼 넘는 글(값은 바로 위 글 · 표에 이미 있다 — 점검 F04). */
+  var LONG_CONFIRM = 40;
+
   function confirmBox(prop, ctx) {
     var row = (prop.fields || []).filter(function (r) { return r.field === prop.confirm.field; })[0];
     var label = (row && row.label) || (ctx.display.fields || {})[prop.confirm.field] || '바뀌는 값';
     var input = el('input', { attrs: { type: 'checkbox', 'data-brain-confirm': '1' } });
     var shown = review.valueText(prop.confirm.field, prop.confirm.value, ctx.display);  // 보이는 글만 이름으로(보내는 값은 그대로)
+    var isLong = prop.confirm.field === 'text' || String(shown).length > LONG_CONFIRM;
     return el('label', { cls: 'brain-prop__confirm', children: [input, el('span', {
-      text: label + ' 확인했어요: ' + shown })] });
+      text: label + ' 확인했어요' + (isLong ? '' : ': ' + shown) })] });
   }
 
   /** 고칠 칸 하나 — 자료형(속성 틀)에 맞는 입력(글 · 날짜 · 수 · 고르기 · 쉼표 목록). 고르기 글은 이름표(값은 그대로). */
@@ -209,7 +213,7 @@
     if (allowed.later) bar.appendChild(button(phone ? 'PC 에서 볼게요' : '나중에', 'later'));
     var wrap = el('div', { children: [bar] });
     if (allowed.reject) wrap.appendChild(rejectChips(ctx));
-    if (allowed.hint) wrap.appendChild(el('p', { cls: 'brain-prop__hint', text: '이 제안은 PC 에서 결정해요(칸이 여럿이거나 새 항목 · 은퇴 · 지우기 · 링크).' }));
+    if (allowed.hint) wrap.appendChild(el('p', { cls: 'brain-prop__hint', text: '이 제안은 PC 에서 결정해요(칸이 여럿이거나 새 지식 · 은퇴 · 지우기 · 연결).' }));
     return wrap;
   }
 
@@ -266,7 +270,7 @@
     li.appendChild(proposal(card.main, card, ctx, phone, true));
     if (card.attached.length) {
       var more = el('details', { cls: 'brain-icard__attached' });
-      more.appendChild(el('summary', { text: '같은 항목에 붙은 제안 ' + card.attached.length + '건' }));
+      more.appendChild(el('summary', { text: '같은 지식에 붙은 제안 ' + card.attached.length + '개' }));
       card.attached.forEach(function (prop) { more.appendChild(proposal(prop, card, ctx, phone, false)); });
       li.appendChild(more);
     }

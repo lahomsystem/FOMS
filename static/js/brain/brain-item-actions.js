@@ -32,7 +32,7 @@
   var rollbackStatus = root.querySelector('[data-brain-rollback-status]');
   var TITLES = { propose_edit: '고칠 칸만 바꿔 주세요.',
                  propose_retire: '승인되면 AI 가 더는 쓰지 않아요.',
-                 propose_delete: '승인되면 이 지식과 연결이 닫혀요. 수정 기록은 남아요.' };
+                 propose_delete: '승인되면 이 지식을 AI · 직원이 더는 못 써요. 연결도 끊기고, 수정 기록은 남아요.' };
   var action = 'propose_edit';
   if (!form) return;
 

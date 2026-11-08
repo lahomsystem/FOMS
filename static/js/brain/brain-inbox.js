@@ -101,13 +101,13 @@
       if (deferred[card.id] || pcOnly) { laterList.appendChild(node); later += 1; } else { list.appendChild(node); }
     });
     if (laterBox) laterBox.hidden = !later;
-    if (laterTitle) laterTitle.textContent = (phone ? 'PC 에서 볼 것 ' : '나중에 볼 것 ') + later + '장';
+    if (laterTitle) laterTitle.textContent = (phone ? 'PC 에서 볼 것 ' : '나중에 볼 것 ') + later + '개';
     dom.setStatus(status, review.inboxStatus(data));
     if (aiLine) aiLine.textContent = '';  // AI 제안 자리 수는 기계 정보라 '승인 대기'에서 안 보인다(설계서 7.9)
     var ids = review.bulkIds(cards.filter(function (card) { return !deferred[card.id]; }));
     if (bulk) {
       bulk.hidden = phone || asTable || asQuestion || ids.length < 2;  // ③ 질문은 답으로만 닫는다
-      bulk.textContent = '등급 A 모두 승인 (' + ids.length + '건)';
+      bulk.textContent = '등급 A 모두 승인 (' + ids.length + '개)';
     }
     setCount(all.length);
     if (ctx.current === 'inbox') ctx.syncUrl({ bin: openBin });  // 연 묶음을 주소에 — 닫거나 비면 bin 이 빠진다(F07)
@@ -173,7 +173,7 @@
       if (one && one.ok) done += 1; else failed += 1;
     }
     await load();
-    dom.setStatus(status, '승인 ' + done + '건' + (failed ? ' · 못 함 ' + failed + '건(카드로 하나씩 봐 주세요)' : ''),
+    dom.setStatus(status, '승인 ' + done + '개' + (failed ? ' · 못 함 ' + failed + '개(카드로 하나씩 봐 주세요)' : ''),
                   failed ? 'error' : undefined);
   }
 
@@ -270,7 +270,7 @@
     bulk.addEventListener('click', async function () {
       var shown = openBin ? bins.inBin((data && data.cards) || [], openBin) : [];
       var ids = review.bulkIds(shown.filter(function (card) { return !deferred[card.id]; }));
-      if (!ids.length || !window.confirm('등급 A 제안 ' + ids.length + '건을 한꺼번에 승인할까요?')) return;
+      if (!ids.length || !window.confirm('등급 A 제안 ' + ids.length + '개를 한꺼번에 승인할까요?')) return;
       bulk.disabled = true;
       var res = await dom.postJson(urls.bulk, { ids: ids });
       bulk.disabled = false;
@@ -280,7 +280,7 @@
       }
       await load();
       var failed = (res.data.failed || []).length;
-      dom.setStatus(status, '승인 ' + res.data.applied.length + '건' + (failed ? ' · 못 함 ' + failed + '건(새로 보고 하나씩)' : ''));
+      dom.setStatus(status, '승인 ' + res.data.applied.length + '개' + (failed ? ' · 못 함 ' + failed + '개(카드로 하나씩 봐 주세요)' : ''));
     });
   }
 

@@ -112,7 +112,9 @@
       minZoom: 0.3, maxZoom: 3, boxSelectionEnabled: false, autoungrabify: true
     });
     bindCanvas();
-    dom.setStatus(status, '유형 ' + cy.nodes('.brain-map-type').length + '가지 — 마우스를 올리면 선 이름이 보여요.');
+    // 지식 유형만 센다 — 묶음 마디(.brain-map-group)와 바깥 정본 · 사본 마디(.is-external)는 빼서 표 · 칩 수와 같게(점검 F18)
+    var kinds = cy.nodes('.brain-map-type').filter(function (node) { return !node.data('external'); }).length;
+    dom.setStatus(status, '유형 ' + kinds + '가지 — 마우스를 올리면 선 이름이 보여요.');
   }
 
   bindList();
