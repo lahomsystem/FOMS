@@ -18,7 +18,7 @@ from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
 from foms.services.production_home_read_model import (
-    build_production_home_rows,
+    build_production_home,
     production_home_counts,
     production_home_groups,
     production_home_inbox,
@@ -58,7 +58,7 @@ def erp_production_home():
     tab = request.args.get('tab') or 'all'
     if tab not in _HOME_TABS:
         tab = 'all'
-    rows = build_production_home_rows(db, user)
+    rows, stats = build_production_home(db, user)
     today = get_today_kst()
     now_kst = datetime.datetime.now(_KST)
     # 탭 "이번 주"(안 4)·"내 공정"(안 3)은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다.
@@ -67,7 +67,7 @@ def erp_production_home():
         'production/home.html',
         tab=tab,
         rows=rows,
-        groups=production_home_groups(rows, today),
+        groups=production_home_groups(rows, today, past_hidden=stats['past_hidden']),
         counts=production_home_counts(rows),
         week=production_home_week(rows, today, request.args.get('week')) if tab == 'week' else None,
         inbox=production_home_inbox(rows, tombstones) if tab == 'week' else [],

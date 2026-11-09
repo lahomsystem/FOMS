@@ -16,6 +16,9 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
+from sqlalchemy import or_
+
+from models import Order
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.production_change_alerts import collect_production_change_alerts
@@ -136,8 +139,11 @@ PRODUCTION_HOME_PAST_DAYS = 7
 PAST_GROUP_KEY = 'past'
 
 
-def production_home_groups(rows: list[dict[str, Any]], today: datetime.date | None = None) -> list[dict[str, Any]]:
+def production_home_groups(
+    rows: list[dict[str, Any]], today: datetime.date | None = None, *, past_hidden: int = 0
+) -> list[dict[str, Any]]:
     """날짜 묶음(모바일 실측 탭처럼 접었다 펴는 단위). 행은 이미 시공일 순이라 연속 구간만 자른다.
+    ``past_hidden`` = 캡에 밀려 안 읽은 지난 주문 수(``build_production_home``) — 지난 묶음 머리줄에 적는다.
 
     - 시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 시공일" 한 묶음(접힘)으로.
       일주일 안에 지난 것은 아직 급한 일이라 제자리(맨 위)에 둔다.
@@ -172,9 +178,11 @@ def production_home_groups(rows: list[dict[str, Any]], today: datetime.date | No
             groups[-1]['changed'] += 1
     if groups and not any(g['is_open'] for g in groups):
         groups[0]['is_open'] = True
-    if past['rows']:
+    if past['rows'] or past_hidden:
         for row in past['rows']:
             row['day_key'] = PAST_GROUP_KEY  # 카드의 data-day 가 묶음 키와 같아야 거르기가 맞다
+        if past_hidden:
+            past['sub'] = f"더 오래된 {past_hidden}건은 안 보여요"
         groups.append(past)
     for group in groups:
         group['count'] = len(group['rows'])
@@ -308,13 +316,41 @@ def production_home_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
 def build_production_home_rows(
     db: Any, user: Any, *, partner_org: str = '', today: datetime.date | None = None
 ) -> list[dict[str, Any]]:
-    """첫 화면 행 전부(시공일 순, 캡 ``PRODUCTION_KANBAN_MAX_ROWS``). 쿼리 3회 + run id 1회."""
+    """``build_production_home`` 의 행만(시험·호환)."""
+    return build_production_home(db, user, partner_org=partner_org, today=today)[0]
+
+
+def build_production_home(
+    db: Any, user: Any, *, partner_org: str = '', today: datetime.date | None = None
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """첫 화면 행 + 통계 ``{'past_hidden'}``. 쿼리 4회 + run id 1회.
+
+    시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 안이거나 앞날·미정인 주문은 **전부** 읽는다(일거리). 그보다 지난 주문은
+    최근 것부터 ``PRODUCTION_KANBAN_MAX_ROWS`` 에 남는 자리만 채운다 — 운영 실측(2026-11-09)에서 옛 주문이
+    300건을 넘어 시공일 오름차순 캡이 최근·앞날 주문을 통째로 잘랐다(이번 주·내 공정 탭이 0).
+    ``erp_construction_date`` 는 'YYYY-MM-DD' 문자열이라 ISO 문자열 비교가 날짜 비교와 같다(빈 문자열은 미정).
+    """
     today = today or get_today_kst()
-    query = build_production_orders_query(
+    cutoff = (today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)).isoformat()
+    base = build_production_orders_query(
         db, user, '', '', False, partner_org, stage_codes=PRODUCTION_HOME_STAGE_CODES
     )
-    query = apply_production_dashboard_sort(query, '', '')
-    orders = query.limit(PRODUCTION_KANBAN_MAX_ROWS).all()
+    live_q = base.filter(or_(
+        Order.erp_construction_date.is_(None), Order.erp_construction_date == '',
+        Order.erp_construction_date >= cutoff,
+    ))
+    orders = apply_production_dashboard_sort(live_q, '', '').all()
+    past_q = base.filter(Order.erp_construction_date < cutoff)
+    past_total = past_q.order_by(None).count()
+    room = max(0, PRODUCTION_KANBAN_MAX_ROWS - len(orders))
+    if room and past_total:
+        orders += (
+            past_q.order_by(None)
+            .order_by(Order.erp_construction_date.desc(), Order.created_at.desc())
+            .limit(room)
+            .all()
+        )
+    stats = {'past_hidden': max(0, past_total - min(room, past_total))}
     run_ids = fetch_production_current_run_ids(db, orders)
     rows = build_production_home_enriched_rows(orders, run_ids)
     alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None)
@@ -348,4 +384,4 @@ def build_production_home_rows(
                 row.get('address'), row.get('phone'), big,
             ) if part
         ).lower()
-    return rows
+    return rows, stats
