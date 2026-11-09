@@ -13,14 +13,13 @@ from typing import Any
 from flask import Blueprint, abort, make_response, render_template, request, g
 
 from db import get_db
-from models import Order, ProductionRun
+from models import Order
 from foms.web.auth import login_required
 
 from foms.services.datetime_kst import get_today_kst
-from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.production_sheet_view import _prod_sheet_total_units, build_production_sheet_view
 from foms.services.orders.drawing_confirm_partial import active_items, is_item_cancelled
 from foms.services.erp_template_filters import (
-    eval_spec_width_mm,
     item_spec_w300_value,
 )
 
@@ -44,8 +43,6 @@ from foms.services.production_fragment_version import ROUTE_ID as FRAGVER_ROUTE_
 from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
     build_production_process_steps,
-    _production_quest_sales_state,
-    _production_stage_label_from_stage,
 )
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
@@ -325,86 +322,6 @@ def _compute_tablet_prod_kpis(orders: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-_PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
-
-
-def _prod_item_total_w_mm(item: dict[str, Any]) -> float:
-    """항목의 총 가로 폭(mm). spec_rows 있으면 각 행 W 합, 없으면 spec_width/spec 평가.
-
-    ``item_spec_w300_value``와 동일 규칙(÷300 이전의 원 폭값).
-    """
-    if not isinstance(item, dict):
-        return 0.0
-    spec_rows = item.get('spec_rows')
-    if spec_rows and isinstance(spec_rows, list):
-        total = 0.0
-        for row in spec_rows:
-            if isinstance(row, dict):
-                total += eval_spec_width_mm(row.get('spec_width') or row.get('w') or '')
-        return total
-    return eval_spec_width_mm(item.get('spec_width') or item.get('spec') or '')
-
-
-def _prod_sheet_spec_rows_view(items: list[Any]) -> list[dict[str, Any]]:
-    """규격 미니테이블 행: {label(품목), w(가로 mm 표시), qty(수량)}."""
-    view: list[dict[str, Any]] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        w_mm = _prod_item_total_w_mm(item)
-        view.append({
-            'label': item.get('product_name') or item.get('name') or '품목',
-            'w': ('%g' % w_mm) if w_mm else '-',
-            'qty': item.get('quantity') or item.get('qty') or 1,
-        })
-    return view
-
-
-def _prod_sheet_total_units(items: list[Any]) -> str:
-    """총 자수(모든 항목 W/300 합)을 소수 1자리 문자열로."""
-    total = 0.0
-    for item in items:
-        total += item_spec_w300_value(item)
-    return f"{total:.1f}"
-
-
-def _prod_sheet_load_md(value: Any) -> str:
-    """시공(상차) 예정일 → 'M/D'. 미정/파싱 실패 시 '-'."""
-    norm = _normalize_date_to_yyyymmdd(value)
-    if not norm:
-        return '-'
-    try:
-        d = datetime.datetime.strptime(norm, '%Y-%m-%d').date()
-    except (TypeError, ValueError):
-        return '-'
-    return f"{d.month}/{d.day}"
-
-
-def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
-    """도면 전달본 썸네일: resolve_final_drawing_files(수령 확정과 같은 함수)의 첫 이미지.
-
-    전달 API 가 계산해 둔 현재 도면 목록(``drawing_current_files``, view_url/download_url
-    same-origin)을 쓴다 — 수령 확정본과 같은 답이다. 이미지 파일을 우선 정렬해 <img> 렌더가
-    가능한 항목을 앞세운다.
-    """
-    files = resolve_final_drawing_files(sd)
-    ordered = sorted(
-        files,
-        key=lambda f: 0 if (f.get('filename') or '').lower().endswith(_PROD_SHEET_IMG_EXT) else 1,
-    )
-    for f in ordered:
-        view = (f.get('view_url') or '').strip()
-        if not view:
-            continue
-        return {
-            'thumb': view,
-            'view': view,
-            'download': (f.get('download_url') or view).strip(),
-            'label': f.get('filename') or '도면 전달본',
-        }
-    return None
-
-
 @erp_production_page_bp.route('/production/tablet-sheet/<int:order_id>')
 @login_required
 def erp_production_tablet_sheet(order_id: int):
@@ -423,46 +340,7 @@ def erp_production_tablet_sheet(order_id: int):
     if order is None:
         abort(404)
     user = getattr(g, 'current_user', None)
-    sd = _ensure_dict(order.structured_data)
-    items = active_items(sd)  # 취소 품목은 생산 시트에서 뺀다(DRAWING-PARTIAL-CONFIRM)
-    construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
-    notes_raw = sd.get('notes')
-    _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
-    _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
-    _rework = _prod.get('rework') if isinstance(_prod.get('rework'), dict) else {}
-    # 전이 버튼 조건 렌더용 stage/승인 상태(read-model 버킷 매핑·row 규약과 동일 헬퍼 재사용).
-    # 버킷 = 단계 + current run(단건 조회 1회).
-    has_run = (
-        db.query(ProductionRun.id)
-        .filter(ProductionRun.order_id == order.id, ProductionRun.is_current.is_(True))
-        .first()
-        is not None
-    )
-    stage_label = _production_stage_label_from_stage(order.erp_stage_code, has_run) or '기타'
-    is_sales_approved = _production_quest_sales_state(sd, stage_label, order.erp_stage_code)[0]
-    sheet = {
-        'id': order.id,
-        'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
-        'load_md': _prod_sheet_load_md(construction_date),
-        'total_units_display': _prod_sheet_total_units(items),
-        'spec_rows_view': _prod_sheet_spec_rows_view(items),
-        'notes_text': notes_raw.strip() if isinstance(notes_raw, str) else '',
-        'drawing_thumb': _prod_sheet_drawing_thumb(sd),
-        'hold_active': bool(_hold.get('active')),
-        'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
-        'rework_active': bool(_rework.get('active')),
-        'rework_reason': (_rework.get('reason') or '').strip() if isinstance(_rework.get('reason'), str) else '',
-        'rework_count': int(_rework.get('count') or 0),
-        # 완료 이력(E-d): 시트 무채 이력 섹션이 '보류 이력 N건' 을 파생. 해제된 보류 기록 리스트.
-        'hold_history': _prod.get('hold_history') if isinstance(_prod.get('hold_history'), list) else [],
-        'stage': stage_label,
-        'is_sales_approved': bool(is_sales_approved),
-    }
-    attach_production_drawing_gate(db, [sheet], {order.id: order})
-    _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
-    sheet['change_alerts'] = _sc['alerts']
-    sheet['has_changes'] = bool(_sc['alerts'])
-    sheet['change_history'] = _sc['history']
-    sheet['has_change_history'] = bool(_sc['history'])
+    # 뷰 모델은 전체 화면 시트(home.py)와 같은 함수 — 설계서 §12.2.
+    sheet = build_production_sheet_view(db, order, user)
     return render_template('production/partials/tablet_sheet.html', order=sheet,
                            is_admin=bool(user and user.role == 'ADMIN'))

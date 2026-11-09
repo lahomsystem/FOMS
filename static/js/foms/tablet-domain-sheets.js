@@ -638,9 +638,10 @@
 
   // ---- 단일 document 'click' 위임 --------------------------------------------
   document.addEventListener("click", function (ev) {
-    if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
+    // 전체 화면 작업 시트(/erp/production/sheet/<id>, 설계서 §12.2)는 기기 무관 — 코호트 게이트를 타지 않는다.
+    if (!cohortActive() && !target.closest("[data-foms-prod-sheet-page]")) return;
 
     // F-3 전체화면 토글 — 진입(필터 바) / 복원(플로팅) 버튼 공용. 현재 상태는 저장값이 아니라
     // 실제 DOM(board.is-fullscreen)에서 읽어 플립한다 — localStorage 불가 환경에서 read 가

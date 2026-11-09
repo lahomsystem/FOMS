@@ -122,8 +122,8 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert html.count('data-view="prod"') == 2
     # 금액은 어디에도 없다(D7)
     assert "1234000" not in html and "1,234,000" not in html
-    # 카드는 모바일 상세로 간다(전체 화면 작업 시트 전까지)
-    assert "/erp/orders/" in html and "/mobile" in html
+    # 카드는 전체 화면 작업 시트로 간다(설계서 §12.2)
+    assert "/erp/production/sheet/" in html
     # 자산: 첫 화면 CSS·JS 핀
     assert "css/contexts/production/home.css" in html
     assert "js/production/foms-production-home.js" in html
