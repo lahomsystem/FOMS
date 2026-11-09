@@ -236,8 +236,7 @@
                 {'label': '손잡이', 'value': item.handle or '-'},
                 {'label': '기타·설치', 'value': item.misc or '-'},
                 {'label': '추가입력', 'value': item.extra_input or '-', 'pre_line': True},
-                {'label': '품목 금액', 'value': item.price_label or '-'},
-              ]) }}
+              ] + ([{'label': '품목 금액', 'value': item.price_label or '-'}] if show_amounts | default(true) else [])) }}
               {% if item.attachment_categories %}
                 <div class="product-item__photos foms-product-item__photos">
                   {{ mobile_attach_category_panel(item.attachment_categories, order.id) }}
@@ -249,6 +248,7 @@
       </section>
     {% endif %}
 
+    {% if show_amounts | default(true) %}{# 생산팀(D7)은 금액 절이 없다 — 값도 서버에서 안 보낸다 #}
     <section class="foms-detail-section" aria-labelledby="foms-detail-amount-title">
       <div class="foms-detail-section__head">
         <h2 class="foms-detail-section__title" id="foms-detail-amount-title">금액</h2>
@@ -260,6 +260,7 @@
         {'label': '잔금', 'value': amount.balance_label or '-'},
       ] + ([{'label': '과입금', 'value': amount.overpaid_label}] if amount.overpaid_label else [])) }}
     </section>
+    {% endif %}
 
     {% if order.board_state %}
       {% set bs = order.board_state %}
