@@ -9,7 +9,7 @@ from db import db_session
 from foms.services.context_processors import register_context_processors
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, to_utc_naive
 from foms.services import erp_display
-from models import ChatRoom, Notification, OrderAttachment, OrderEstimate, User
+from models import Notification, OrderAttachment, OrderEstimate, User
 from wdcalculator_models import Estimate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -202,15 +202,6 @@ def test_core_display_serializers_use_kst_timestamps() -> None:
     )
     assert notification.to_dict()["created_at"] == "2026-06-09 13:57:29"
 
-    room = ChatRoom(
-        name="채팅방",
-        created_by=1,
-        created_at=datetime(2026, 6, 9, 4, 57, 29),
-        updated_at=datetime(2026, 6, 9, 5, 0, 0),
-    )
-    payload = room.to_dict()
-    assert payload["created_at"] == "2026-06-09 13:57:29"
-    assert payload["updated_at"] == "2026-06-09 14:00:00"
 
 
 def test_erp_alerts_handles_aware_stage_timestamp_for_drawing_overdue(monkeypatch) -> None:

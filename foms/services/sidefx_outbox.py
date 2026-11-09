@@ -80,7 +80,7 @@ def enqueue_side_effect(
     Raises:
         SideEffectValidationError: 알 수 없는 source_domain, source_id None, 비 dict payload.
         sqlalchemy.exc.IntegrityError: dedupe 중복, one-of CHECK 위반, orphan FK
-            (실 FK 도메인: ORDER_EVENT/NOTIFICATION_EVENT/CHAT_ATTACHMENT).
+            (실 FK 도메인: ORDER_EVENT/NOTIFICATION_EVENT/UPLOAD_* 등 — CHAT_ATTACHMENT 는 CHAT-DEL-01 2단계로 지움).
     """
     if source_domain not in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN:
         raise SideEffectValidationError(

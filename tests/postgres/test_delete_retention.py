@@ -49,7 +49,6 @@ def _reset(pg_engine):
     s = sessionmaker(bind=pg_engine)()
     try:
         s.execute(text("DELETE FROM order_mutation_read_resources"))
-        s.execute(text("UPDATE chat_rooms SET order_id = NULL"))
         s.execute(text("DELETE FROM orders"))
         s.execute(text("DELETE FROM ops_approval_requests"))
         s.commit()

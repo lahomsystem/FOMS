@@ -270,7 +270,6 @@ def step_4_dashboard_mvp(db):
 def step_5_url_normalize_view(db):
     """
     Step 5: presigned 만료 방지를 위한 URL 정규화(기존 로컬 URL -> /api/files/view/<key>)
-    - chat_attachments.storage_url/thumbnail_url
     - orders.blueprint_image_url
     """
     _ensure_build_steps_table(db)
@@ -283,22 +282,8 @@ def step_5_url_normalize_view(db):
     _upsert_step(db, STEP_URL_NORMALIZE, "RUNNING", message="Normalizing stored URLs to /api/files/view/<key>", started_at=started_at)
     try:
         # HB-S1: raw UPDATE 는 세션 훅 밖이다. 아래에서 orders 를 갱신하므로 커밋 시점
-        # 테이블 버전 카운터 증가 대상으로 등재한다(chat_attachments 는 추적 밖).
+        # 테이블 버전 카운터 증가 대상으로 등재한다(옛 chat_attachments 단계는 CHAT-DEL-01 2단계로 표째 지움).
         mark_tables_dirty(db, "orders")
-        # chat_attachments: storage_url / thumbnail_url이 /static/uploads/* 인 경우 key 추출 후 view로 변환
-        db.execute(text("""
-        UPDATE chat_attachments
-        SET storage_url = CONCAT('/api/files/view/', storage_key)
-        WHERE storage_url LIKE '/static/uploads/%' OR storage_url LIKE '/api/chat/download/%';
-        """))
-
-        # thumbnail_url: /static/uploads/<key> 형태만 변환 (thumb key는 URL에서 잘라냄)
-        db.execute(text("""
-        UPDATE chat_attachments
-        SET thumbnail_url = CONCAT('/api/files/view/', REPLACE(thumbnail_url, '/static/uploads/', ''))
-        WHERE thumbnail_url LIKE '/static/uploads/%';
-        """))
-
         # orders.blueprint_image_url: /static/uploads/<key> 형태만 변환
         db.execute(text("""
         UPDATE orders

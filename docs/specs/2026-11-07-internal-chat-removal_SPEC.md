@@ -1,6 +1,6 @@
 # FOMS 사내 채팅 삭제 (CHAT-DEL-01)
 
-- 상태: **1단계 승인 · 구현**(11-07 사용자 "코드만 지금 지우기") · 2단계(표 지우기)는 따로 승인
+- 상태: **1단계 운영(#762)** · **2단계(표 지우기) 설계 11-09 — 승인 대기**(11-09 사용자 "채팅 표 지우기 2단계" 선택, 설계서 먼저)
 - 결정 원장: `docs/plans/2026-11-06-freelancer-commission-ledger.md` "채팅" 줄
 - 범위 밖: 채널톡(ChannelTalk — `foms/api/channel/channel_*.py`, `foms/services/channel_*.py`, 공유 상담), 브레인 채팅(`/api/brain/chat`), 휴대폰 주문 화면의 "채팅"(= 문자 `sms:` 링크)
 
@@ -50,9 +50,47 @@
 - 모델 4개(`ChatRoom` · `ChatRoomMember` · `ChatMessage` · `ChatAttachment`)와 표, 작업 대기열(`domain_side_effect_outbox`)의 `chat_attachment_id` 칸 · 한-칸-만 규칙(CHECK). 표를 지우려면 이 CHECK 를 다시 써야 해서 위험이 코드 삭제와 다른 급이다. 표는 비어 있는 것과 같고 남아도 비용이 없다.
 - 옛 운영 스크립트(`scripts/ops/db_admin.py` · `erp_build_step_runner.py` · `scripts/migrations/migrate_local_uploads_to_r2.py`)의 채팅 표 이름 — 표가 남아 있으니 그대로 돈다.
 
-## 4. 2단계 — 표 지우기(선택, 따로 승인)
+## 4. 2단계 — 표 지우기(11-09 설계, 승인 대기)
 
-새 마이그레이션 하나: 대기열 CHECK 에서 `CHAT_ATTACHMENT` 를 뺀 식으로 다시 쓰기 → `chat_attachment_id` 칸 지우기 → trgm 색인 2개 · 표 4개 지우기. 되돌리기는 빈 표 · 칸 · 옛 CHECK 다시 만들기. 운영 대기열에 `CHAT_ATTACHMENT` 줄이 0인지 먼저 센다. 모델 · `DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN` · 직원 지우기 · 옛 스크립트 정리도 이때.
+### 4.1 실측(11-09, 운영 읽기 전용 — 글 내용은 읽지 않음)
+
+- `chat_rooms` 1 · `chat_room_members` 1 · `chat_messages` 2(둘 다 2026-02-20, 시험으로 보임) · `chat_attachments` 0. 네 표 합 200kB.
+  주문에 붙은 방 0.
+- 대기열 `domain_side_effect_outbox` 의 `CHAT_ATTACHMENT` 줄 0(칸 · 도메인 둘 다).
+- 채팅 표를 **바깥에서** 가리키는 FK 는 대기열 `chat_attachment_id` 하나(`domain_side_effect_outbox_chat_attachment_id_fkey`).
+  채팅 표가 바깥을 가리키는 FK: `users` 3 · `orders` 1(지우면 같이 없어진다).
+- 운영 alembic head `fcomm_02`.
+- 백업: 11-09 06:28(KST) 오프사이트 덤프 69.5MB 검증 통과 · R2 업로드 완료(`foms-ops-backup`, 환경변수 스냅샷 단계만 실패 —
+  Railway 토큰, 알려진 이슈). 지우는 3줄은 이 덤프에 남는다.
+
+### 4.2 마이그레이션 `chat_drop_01`(down `fcomm_02`)
+
+upgrade:
+1. 대기열 CHECK 두 개(`ck_dseo_source_one_of` · `ck_dseo_source_domain`)를 `CHAT_ATTACHMENT` 를 뺀 7도메인으로 다시 쓴다
+   (선례 `order_import_00` — 작성 시점 스냅샷 dict, models 를 import 하지 않음, ORM 식과 byte-identical).
+2. FK `domain_side_effect_outbox_chat_attachment_id_fkey` → 칸 `chat_attachment_id` 지우기.
+3. 표 4개 지우기: `chat_attachments` → `chat_messages` → `chat_room_members` → `chat_rooms`(색인 · trgm 색인 같이 없어짐).
+
+downgrade: 빈 표 4개 · 색인(trgm 2개 포함) · 칸 · FK · 8도메인 CHECK 를 다시 만든다. **지운 3줄은 돌아오지 않는다**(백업에 있음).
+
+### 4.3 코드(같은 커밋 — 필수)
+
+배포는 새 빌드에서 predeploy `alembic upgrade head` → `tools/ops/ensure_schema.py` 순이다. 모델이 남아 있으면 ensure_schema 가
+표를 되살리므로 모델 삭제와 마이그레이션을 **한 커밋**에 넣는다.
+
+- `models.py`: 모델 4개, `DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN` 의 `CHAT_ATTACHMENT`, 대기열 `chat_attachment_id` 칸.
+- `db.py` `init_db` import, `foms/services/user_deletion.py` 채팅 3줄 · `_purge_owned_chat_rooms`.
+- 옛 운영 스크립트: `scripts/ops/db_admin.py` 표 목록, `scripts/ops/erp_build_step_runner.py` 의 `chat_attachments` UPDATE,
+  `scripts/migrations/migrate_local_uploads_to_r2.py` 채팅 단계.
+- 시험: `test_user_delete` · `test_user_deletion` · `test_format_datetime_kst` · `tests/postgres/test_sidefx_outbox` · `test_delete_retention`.
+- 남기는 것: 컷오버 이름 `CHAT_SCOPE`, 감사 문구 `CHAT_MESSAGE_SENT`(옛 감사 줄 표시), 옛 마이그레이션 파일(불변).
+
+### 4.4 순서 · 확인 · 위험
+
+- 시험 → smoke → deploy → PG 레인(빈 PG 에 `alembic upgrade head` + 모델과 스키마 대조) 초록 → 스테이징 배포 뒤 스테이징 DB 에
+  표 · 칸이 없는지 읽기 전용 확인 → 운영 승격 PR(predeploy 가 운영에서 upgrade) → 운영 DB 읽기 전용 확인.
+- 위험: 배포 전환 몇 초 사이 옛 replica 가 직원 지우기를 부르면 오류(드묾, 다시 누르면 됨). 채팅 첨부 파일은 0건이라 R2 정리 없음.
+- 되돌리기: 코드 `git revert` + `alembic downgrade fcomm_02`(빈 표로 돌아옴).
 
 ## 5. 확인
 
