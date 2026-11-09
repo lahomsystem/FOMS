@@ -118,6 +118,7 @@ def replace_same_sheet_files(
     옛 엔트리의 시트는 ``sheet_id`` 로 판정한다. ``sheet_id`` 가 없는 옛 엔트리(2026-10-04
     이전 전달)는 마법사 시트가 정확히 1개이고 key 가 마법사 산출물 경로일 때만 그 시트로 본다.
     같은 시트 옛 엔트리가 여럿이면(예전 APPEND 누적) 첫 자리에 새 판을 넣고 나머지는 뺀다.
+    ``sheet_id`` 가 지금 마법사 시트 목록에 없는 옛 엔트리(지운 시트)도 뺀다(2026-11-09 주문 5896).
 
     Args:
         old_files: 현재 ``drawing_current_files``.
@@ -143,7 +144,16 @@ def replace_same_sheet_files(
 
     old_sheets = [_old_sheet(f) for f in old_files]
     slot_new: dict[int, dict] = {}
-    dropped: set[int] = set()
+    # 마법사에서 지운 시트의 옛 판은 뺀다(2026-11-09 주문 5896: "침대 수납장" 시트를 지우고
+    # "침대 수납장 2" 를 새로 만들어 다시 보냈더니 지운 시트의 11-02 판이 남아 3장이 됐다).
+    # 시트 신원이 있는 엔트리만 — sheet_id 없는 판(직접 올린 파일·옛 판)과 시트 목록이 빈
+    # 주문은 건드리지 않는다.
+    live = set(sheets)
+    dropped: set[int] = {
+        i for i, f in enumerate(old_files)
+        if live and isinstance(f, dict)
+        and clean_sheet_id(f.get("sheet_id")) and clean_sheet_id(f.get("sheet_id")) not in live
+    }
     rest: list[dict] = []
     for nf in new_files:
         sid = clean_sheet_id((nf or {}).get("sheet_id"))
