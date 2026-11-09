@@ -108,6 +108,8 @@
           for (var i = 0; i < FS_TABS.length; i++) {
             if (p === FS_TABS[i][0] || p.indexOf(FS_TABS[i][0] + '/') === 0) { tab = FS_TABS[i][1]; break; }
           }
+          /* 주문 수정 옆 계산기(embedded)는 좁은 칸이라 계산기 탭과 값을 따로 둔다(11-10 사용자). */
+          if (tab === 'calc' && u.searchParams.get('embedded') === '1') tab = 'calc-side';
         }
         return tab ? 'foms-fs:' + (uid || 'anon') + ':' + kind + ':' + tab : null;
       };
