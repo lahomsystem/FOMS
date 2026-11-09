@@ -97,12 +97,6 @@
       "reason": "notification_events + notification_user_states only."
     },
     {
-      "path": "foms/services/user_deletion.py",
-      "func": "_purge_owned_chat_rooms",
-      "signal": "UNTRACKED_TABLE",
-      "reason": "chat_messages + chat_room_members only."
-    },
-    {
       "path": "scripts/maintenance/naver_claim_drill.py",
       "func": "_delete_notifications",
       "signal": "UNTRACKED_TABLE",

@@ -9,7 +9,7 @@ hard delete + 모든 참조 NULL" 을 단언했다. 그 설계는 ``security_log
 * ``users`` row 는 남고 ``is_active=False`` + username 익명화 + 로그인 차단,
 * 감사 actor 4종은 **그대로 보존**,
 * 운영 참조(담당·수신·견적·채널 링크)는 종전대로 NULL,
-* Chat 3종은 종전대로 hard delete.
+* 옛 사내 채팅 3종은 CHAT-DEL-01 2단계로 표째 지웠다.
 
 hard delete 자체는 가입 신청 거절(``reject_user``) 경로에만 남아 있다. 그래서 삭제
 차단(``UserDeletionBlockedError``) 계약도 이 파일에서는 거절 라우트로 검증한다.
@@ -28,9 +28,6 @@ from models import (
     ChannelCreateFlag,
     ChannelInboundKeyState,
     ChannelManagerLink,
-    ChatMessage,
-    ChatRoom,
-    ChatRoomMember,
     FeatureCutoverMarker,
     InstallationWorker,
     Notification,
@@ -91,12 +88,8 @@ def _seed_order() -> Order:
     return order
 
 
-def _seed_references(order: Order, target: User, coworker: User) -> ChatRoom:
-    """감사 actor 4종 + 운영 참조 + Chat 3종을 target 사용자에 물려 둔다."""
-    room = ChatRoom(name="삭제 테스트 채팅방", created_by=target.id)
-    db_session.add(room)
-    db_session.commit()
-
+def _seed_references(order: Order, target: User, coworker: User) -> None:
+    """감사 actor 4종 + 운영 참조를 target 사용자에 물려 둔다(사내 채팅 표는 CHAT-DEL-01 2단계로 지움)."""
     db_session.add_all(
         [
             SecurityLog(user_id=target.id, message="감사 보존 대상 행"),
@@ -139,24 +132,9 @@ def _seed_references(order: Order, target: User, coworker: User) -> ChatRoom:
                 user_id=target.id,
                 deactivated_by_user_id=target.id,
             ),
-            ChatMessage(
-                room_id=room.id,
-                user_id=target.id,
-                message_type="text",
-                content="삭제 테스트 메시지",
-            ),
-            ChatMessage(
-                room_id=room.id,
-                user_id=coworker.id,
-                message_type="text",
-                content="동료 메시지",
-            ),
-            ChatRoomMember(room_id=room.id, user_id=target.id),
-            ChatRoomMember(room_id=room.id, user_id=coworker.id),
         ]
     )
     db_session.commit()
-    return room
 
 
 def test_delete_user_deactivates_and_preserves_audit_actor(client):
@@ -167,8 +145,7 @@ def test_delete_user_deactivates_and_preserves_audit_actor(client):
 
     order = _seed_order()
     order_id = order.id
-    room = _seed_references(order, target, coworker)
-    room_id = room.id
+    _seed_references(order, target, coworker)
     target_id = target.id
 
     _login_as(client, admin.id)
@@ -221,11 +198,6 @@ def test_delete_user_deactivates_and_preserves_audit_actor(client):
     )
     assert manager_link.user_id is None
     assert manager_link.deactivated_by_user_id is None
-
-    # 4) Chat 3종은 여전히 hard delete.
-    assert db_session.query(ChatRoom).filter(ChatRoom.id == room_id).count() == 0
-    assert db_session.query(ChatMessage).count() == 0
-    assert db_session.query(ChatRoomMember).count() == 0
 
 
 def _create_order(customer_name: str) -> Order:

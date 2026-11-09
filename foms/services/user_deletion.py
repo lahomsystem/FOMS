@@ -11,8 +11,8 @@ AUDIT-LOG T11(스펙 §8 결정 ⑤): 관리자 "사용자 삭제"는 더 이상
   건드리지 않는다. row 가 남으므로 FK 도 그대로 유효하다.
 * **운영 참조** (:data:`_OPERATIONAL_USER_REFERENCE_FIELDS`) — 담당자·수신자처럼
   "지금 일하는 사람"을 가리키는 값이라 끊어야 한다(NULL).
-* **동반 삭제** (:data:`_DELETE_USER_REFERENCE_FIELDS`) — Chat 3종은 종전대로 hard
-  delete(대화 기록은 감사 원장이 아니다).
+* **동반 삭제** (:data:`_DELETE_USER_REFERENCE_FIELDS`) — 개인 기기 구독 · 일시 receipt 처럼
+  사람이 사라지면 의미를 잃는 행(옛 사내 채팅 3종은 CHAT-DEL-01 2단계로 표째 지웠다).
 
 :func:`detach_user_references_for_delete` 는 **row 자체가 사라지는 유일한 경로**
 (가입 신청 거절 ``reject_user`` — ACCOUNT-SELF-01 은 재신청을 허용하려고 PENDING row 를
@@ -35,9 +35,6 @@ from models import (
     ChannelCreateFlag,
     ChannelInboundKeyState,
     ChannelManagerLink,
-    ChatMessage,
-    ChatRoom,
-    ChatRoomMember,
     FeatureCutoverMarker,
     InstallationWorker,
     Notification,
@@ -122,9 +119,6 @@ _NULLABLE_USER_REFERENCE_FIELDS: tuple[tuple[Any, str], ...] = (
 )
 
 _DELETE_USER_REFERENCE_FIELDS: tuple[tuple[Any, str], ...] = (
-    (ChatMessage, "user_id"),
-    (ChatRoom, "created_by"),
-    (ChatRoomMember, "user_id"),
     # --- deploy 신규 테이블: 사람이 사라지면 행 자체가 의미를 잃는다 ---
     (NotificationPushSubscription, "user_id"),  # 개인 기기 구독
     (SecurityPrincipalVersion, "user_id"),      # PK — NULL 불가, 사용자당 1행 카운터
@@ -218,29 +212,6 @@ def _detach_notification_user_states(db: Any, user_id: int) -> dict[str, int]:
     }
 
 
-def _purge_owned_chat_rooms(db: Any, user_id: int, summary: dict[str, int]) -> None:
-    """user 가 만든 채팅방의 메시지·멤버를 먼저 지운다(방 삭제 FK 선행 정리).
-
-    :param db: SQLAlchemy 세션.
-    :param user_id: 대상 사용자 id.
-    :param summary: 처리 건수를 누적할 dict(제자리 갱신).
-    """
-    owned_room_ids = [room_id for (room_id,) in db.query(ChatRoom.id).filter(ChatRoom.created_by == user_id).all()]  # perf-ok: single-user owned room ids
-    if not owned_room_ids:
-        return
-
-    summary["chat_messages.room_id"] = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.room_id.in_(owned_room_ids))
-        .delete(synchronize_session=False)
-    ) or 0
-    summary["chat_room_members.room_id"] = (
-        db.query(ChatRoomMember)
-        .filter(ChatRoomMember.room_id.in_(owned_room_ids))
-        .delete(synchronize_session=False)
-    ) or 0
-
-
 def _nullify_references(
     db: Any,
     fields: tuple[tuple[Any, str], ...],
@@ -273,7 +244,7 @@ def _delete_references(
     user_id: int,
     summary: dict[str, int],
 ) -> None:
-    """``fields`` 가 가리키는 행을 삭제한다(Chat 3종 동반 삭제).
+    """``fields`` 가 가리키는 행을 삭제한다(동반 삭제 — 기기 구독 · 일시 receipt 등).
 
     :param db: SQLAlchemy 세션.
     :param fields: ``(모델, 컬럼명)`` 튜플 목록.
@@ -310,7 +281,6 @@ def detach_user_references_for_delete(db: Any, user_id: int) -> dict[str, int]:
 
     summary: dict[str, int] = {}
     summary.update(_detach_notification_user_states(db, user_id))
-    _purge_owned_chat_rooms(db, user_id, summary)
     _nullify_references(db, _NULLABLE_USER_REFERENCE_FIELDS, user_id, summary)
     _delete_references(db, _DELETE_USER_REFERENCE_FIELDS, user_id, summary)
     return summary
@@ -320,8 +290,8 @@ def detach_user_references_for_deactivate(db: Any, user_id: int) -> dict[str, in
     """비활성화(탈퇴 처리) 전에 **운영 참조만** 끊는다 — 감사 actor 는 보존한다.
 
     :func:`detach_user_references_for_delete` 와의 유일한 차이가 감사 컬럼 4종
-    (:data:`_AUDIT_ACTOR_USER_REFERENCE_FIELDS`)을 건드리지 않는 것이다. Chat 3종은
-    종전대로 동반 hard delete 한다.
+    (:data:`_AUDIT_ACTOR_USER_REFERENCE_FIELDS`)을 건드리지 않는 것이다. 동반 삭제
+    대상(:data:`_DELETE_USER_REFERENCE_FIELDS`)은 종전대로 hard delete 한다.
 
     :data:`_BLOCKING_USER_REFERENCE_FIELDS` 검사도 하지 않는다 — 그 차단은 row 소멸로
     FK 가 깨지는 경우의 방어이고, 여기서는 ``users`` row 가 남아 FK 가 계속 유효하다
@@ -334,7 +304,6 @@ def detach_user_references_for_deactivate(db: Any, user_id: int) -> dict[str, in
     :return: ``{"테이블.컬럼": 처리 건수}`` 요약 dict.
     """
     summary: dict[str, int] = {}
-    _purge_owned_chat_rooms(db, user_id, summary)
     _nullify_references(db, _OPERATIONAL_USER_REFERENCE_FIELDS, user_id, summary)
     _delete_references(db, _DELETE_USER_REFERENCE_FIELDS, user_id, summary)
     return summary

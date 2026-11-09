@@ -28,7 +28,6 @@ def fix_sequences():
         session = db_session()
         tables = [
             'users', 'orders', 'access_logs', 'security_logs', 
-            'chat_rooms', 'chat_messages', 'chat_room_members', 'chat_attachments',
             'order_events', 'order_tasks', 'order_attachments'
         ]
         results = []

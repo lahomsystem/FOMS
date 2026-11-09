@@ -59,7 +59,6 @@ def init_db():
     try:
         from models import (
             Order, User, AccessLog, SecurityLog,
-            ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment,
             OrderAttachment, OrderEvent, OrderTask,
             SystemSetting
         )

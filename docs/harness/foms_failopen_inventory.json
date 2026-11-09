@@ -41,7 +41,7 @@
     "web": 12
   },
   "fail_closed_sites": [
-    "db.py:68",
+    "db.py:67",
     "foms/api/channel/channel_integration.py:395",
     "foms/api/channel/channel_integration.py:1206",
     "foms/api/orders/stage_override_admin.py:144",
@@ -90,7 +90,7 @@
   "catches": [
     {
       "path": "db.py",
-      "lineno": 68,
+      "lineno": 67,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "runtime",

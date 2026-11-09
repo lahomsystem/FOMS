@@ -1708,121 +1708,6 @@ class PasswordResetRequest(Base):
         }
 
 
-# ============================================
-# 채팅 시스템 모델 (Quest 1)
-# ============================================
-
-class ChatRoom(Base):
-    """채팅방"""
-    __tablename__ = 'chat_rooms'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)  # 채팅방 이름
-    description = Column(Text, nullable=True)  # 설명
-    order_id = Column(Integer, ForeignKey('orders.id'), nullable=True)  # 주문 연결 (선택)
-    created_by = Column(Integer, ForeignKey('users.id'), nullable=False)  # 생성자
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=True)
-    
-    # 관계
-    messages = relationship('ChatMessage', backref='room', lazy='dynamic', cascade='all, delete-orphan')
-    members = relationship('ChatRoomMember', backref='room', lazy='dynamic', cascade='all, delete-orphan')
-    creator = relationship('User', foreign_keys=[created_by])
-    order = relationship('Order', foreign_keys=[order_id])
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'description': self.description,
-            'order_id': self.order_id,
-            'created_by': self.created_by,
-            'created_at': format_datetime_kst(self.created_at),
-            'updated_at': format_datetime_kst(self.updated_at)
-        }
-
-
-class ChatRoomMember(Base):
-    """채팅방 멤버"""
-    __tablename__ = 'chat_room_members'
-    
-    id = Column(Integer, primary_key=True)
-    room_id = Column(Integer, ForeignKey('chat_rooms.id', ondelete='CASCADE'), nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    joined_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
-    last_read_at = Column(DateTime, nullable=True)  # 마지막 읽은 시간
-    
-    # 관계
-    user = relationship('User', foreign_keys=[user_id])
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'room_id': self.room_id,
-            'user_id': self.user_id,
-            'joined_at': format_datetime_kst(self.joined_at),
-            'last_read_at': format_datetime_kst(self.last_read_at)
-        }
-
-
-class ChatMessage(Base):
-    """채팅 메시지"""
-    __tablename__ = 'chat_messages'
-    
-    id = Column(Integer, primary_key=True)
-    room_id = Column(Integer, ForeignKey('chat_rooms.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    message_type = Column(String(20), default='text', nullable=False)  # text, image, video, file
-    content = Column(Text, nullable=True)  # 텍스트 메시지 내용
-    file_info = Column(JSONColumn, nullable=True)  # 파일 정보 (JSON 형태)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
-    
-    # 관계
-    user = relationship('User', foreign_keys=[user_id])
-    attachments = relationship('ChatAttachment', backref='message', lazy='dynamic', cascade='all, delete-orphan')
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'room_id': self.room_id,
-            'user_id': self.user_id,
-            'user_name': self.user.name if self.user else None,
-            'message_type': self.message_type,
-            'content': self.content,
-            'file_info': self.file_info,  # JSONB는 자동으로 dict로 변환됨
-            'created_at': format_datetime_kst(self.created_at)
-        }
-
-
-class ChatAttachment(Base):
-    """채팅 첨부파일"""
-    __tablename__ = 'chat_attachments'
-    
-    id = Column(Integer, primary_key=True)
-    message_id = Column(Integer, ForeignKey('chat_messages.id', ondelete='CASCADE'), nullable=False, index=True)
-    filename = Column(String(255), nullable=False)  # 원본 파일명
-    file_type = Column(String(50), nullable=False)  # image, video, file
-    file_size = Column(Integer, nullable=False)  # 바이트 단위
-    storage_key = Column(String(500), nullable=False)  # 클라우드 스토리지 키
-    storage_url = Column(String(1000), nullable=False)  # 다운로드 URL
-    thumbnail_url = Column(String(1000), nullable=True)  # 썸네일 URL (이미지/동영상)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'message_id': self.message_id,
-            'filename': self.filename,
-            'file_type': self.file_type,
-            'file_size': self.file_size,
-            'storage_key': self.storage_key,
-            'storage_url': self.storage_url,
-            'url': self.storage_url,  # 호환성을 위해 추가
-            'thumbnail_url': self.thumbnail_url,
-            'created_at': format_datetime_kst(self.created_at)
-        } 
-
-
 class Notification(Base):
     """알림 시스템 - 담당 팀/영업사원/특정 사용자에게 알림 전달
 
@@ -2952,8 +2837,8 @@ event.listen(
 #
 # source_domain 은 정확히 자기 FK 컬럼 하나만 non-null 이어야 한다(one-of matrix,
 # ck_dseo_source_one_of). 부모 테이블이 존재하는 4 도메인이 실 FK 로 orphan 을 거부하고
-# (order_events·notification_events·chat_attachments·**upload_drafts** — 마지막은
-# UPLOAD-INTENT-01 이 additive 로 부착), 나머지 3 도메인(address_learning·wizard_pending·
+# (order_events·notification_events·**upload_drafts** — 마지막은
+# UPLOAD-INTENT-01 이 additive 로 부착; chat_attachments 는 CHAT-DEL-01 2단계로 표째 지움), 나머지 3 도메인(address_learning·wizard_pending·
 # upload_ticket)은 소유 packet 이 자기 business table 과 FK 를 additive migration 으로
 # 등록한다(ORDER-IMPORT-01 이 8번째 ORDER_IMPORT_ARTIFACT 를 그렇게 추가하는 선례와 동일).
 # SIDEFX-00 은 그 business table 들을 선행 생성하지 않는다.
@@ -2964,7 +2849,7 @@ DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN = {
     'WIZARD_PENDING': 'wizard_pending_id',
     'UPLOAD_TICKET': 'upload_ticket_id',
     'UPLOAD_DRAFT': 'upload_draft_id',
-    'CHAT_ATTACHMENT': 'chat_attachment_id',
+    # CHAT_ATTACHMENT 는 사내 채팅 삭제 2단계(CHAT-DEL-01, 마이그레이션 chat_drop_01)로 칸 · 부모 표째 지웠다.
     # ORDER-IMPORT-01: 8번째 도메인. order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부
     # (one-of matrix 유지). SIDEFX-00 이 남겨둔 선례대로 소유 packet 이 additive 로 추가한다.
     'ORDER_IMPORT_ARTIFACT': 'order_import_artifact_id',
@@ -3022,8 +2907,6 @@ class DomainSideEffectOutbox(Base):
     # UPLOAD-INTENT-01: upload_drafts 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
     upload_draft_id = Column(
         Integer, ForeignKey('upload_drafts.id', ondelete='CASCADE'), nullable=True)
-    chat_attachment_id = Column(
-        Integer, ForeignKey('chat_attachments.id', ondelete='CASCADE'), nullable=True)
     # ORDER-IMPORT-01: order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부(8번째 도메인).
     order_import_artifact_id = Column(
         Integer, ForeignKey('order_import_artifacts.id', ondelete='CASCADE'), nullable=True)

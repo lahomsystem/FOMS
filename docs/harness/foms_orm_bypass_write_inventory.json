@@ -3,18 +3,18 @@
   "summary": "ORM-bypass write inventory for foms/ and scripts/. The table version counter's signal source is a global SQLAlchemy session hook, which only sees writes that go through ORM entity state. Query-level update()/delete(), bulk_*_mappings and raw execute(text(DML)) bypass it. Every such site is classified MARKED (its enclosing function calls mark_tables_dirty / bump_table_versions), UNTRACKED_TABLE / TEMP_TABLE (writes a table outside VERSIONED_TABLES — allowlisted with a reason), or UNSIGNALED. Gate target: UNSIGNALED == 0. A new bypass write with no signal turns the gate red.",
   "scope": "foms/**.py, scripts/**.py",
   "baselines": {
-    "total": 47,
+    "total": 41,
     "unsignaled": 0
   },
   "signal_counts": {
-    "MARKED": 21,
-    "UNTRACKED_TABLE": 26
+    "MARKED": 17,
+    "UNTRACKED_TABLE": 24
   },
   "kind_counts": {
     "bulk_mappings": 1,
-    "query_bulk_delete": 11,
+    "query_bulk_delete": 9,
     "query_bulk_update": 12,
-    "raw_dml": 23
+    "raw_dml": 19
   },
   "unsignaled_sites": [],
   "sites": [
@@ -212,7 +212,7 @@
     },
     {
       "path": "foms/services/user_deletion.py",
-      "lineno": 206,
+      "lineno": 200,
       "kind": "query_bulk_update",
       "func": "_detach_notification_user_states",
       "signal": "UNTRACKED_TABLE",
@@ -220,7 +220,7 @@
     },
     {
       "path": "foms/services/user_deletion.py",
-      "lineno": 211,
+      "lineno": 205,
       "kind": "query_bulk_delete",
       "func": "_detach_notification_user_states",
       "signal": "UNTRACKED_TABLE",
@@ -228,23 +228,7 @@
     },
     {
       "path": "foms/services/user_deletion.py",
-      "lineno": 233,
-      "kind": "query_bulk_delete",
-      "func": "_purge_owned_chat_rooms",
-      "signal": "UNTRACKED_TABLE",
-      "reason": "chat_messages + chat_room_members only."
-    },
-    {
-      "path": "foms/services/user_deletion.py",
-      "lineno": 238,
-      "kind": "query_bulk_delete",
-      "func": "_purge_owned_chat_rooms",
-      "signal": "UNTRACKED_TABLE",
-      "reason": "chat_messages + chat_room_members only."
-    },
-    {
-      "path": "foms/services/user_deletion.py",
-      "lineno": 263,
+      "lineno": 234,
       "kind": "query_bulk_update",
       "func": "_nullify_references",
       "signal": "MARKED",
@@ -252,7 +236,7 @@
     },
     {
       "path": "foms/services/user_deletion.py",
-      "lineno": 288,
+      "lineno": 259,
       "kind": "query_bulk_delete",
       "func": "_delete_references",
       "signal": "MARKED",
@@ -316,23 +300,7 @@
     },
     {
       "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
-      "lineno": 232,
-      "kind": "raw_dml",
-      "func": "main",
-      "signal": "MARKED",
-      "reason": ""
-    },
-    {
-      "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
-      "lineno": 280,
-      "kind": "raw_dml",
-      "func": "main",
-      "signal": "MARKED",
-      "reason": ""
-    },
-    {
-      "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
-      "lineno": 332,
+      "lineno": 212,
       "kind": "raw_dml",
       "func": "main",
       "signal": "MARKED",
@@ -364,7 +332,7 @@
     },
     {
       "path": "scripts/ops/erp_build_step_runner.py",
-      "lineno": 289,
+      "lineno": 288,
       "kind": "raw_dml",
       "func": "step_5_url_normalize_view",
       "signal": "MARKED",
@@ -372,23 +340,7 @@
     },
     {
       "path": "scripts/ops/erp_build_step_runner.py",
-      "lineno": 296,
-      "kind": "raw_dml",
-      "func": "step_5_url_normalize_view",
-      "signal": "MARKED",
-      "reason": ""
-    },
-    {
-      "path": "scripts/ops/erp_build_step_runner.py",
-      "lineno": 303,
-      "kind": "raw_dml",
-      "func": "step_5_url_normalize_view",
-      "signal": "MARKED",
-      "reason": ""
-    },
-    {
-      "path": "scripts/ops/erp_build_step_runner.py",
-      "lineno": 390,
+      "lineno": 375,
       "kind": "raw_dml",
       "func": "step_7_backfill_workflow",
       "signal": "MARKED",

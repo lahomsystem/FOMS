@@ -6,9 +6,8 @@
   - DB의 URL을 영구 링크로 통일: `/api/files/view/<storage_key>`
 
 대상:
-  - chat_attachments (storage_key, storage_url, thumbnail_url)
-  - chat_messages.file_info (url/storage_url/thumbnail_url)  ※ 일부 UI/호환성용
   - orders.blueprint_image_url (로컬 경로인 경우만)
+  (옛 chat_attachments · chat_messages 단계는 CHAT-DEL-01 2단계로 표째 지워 뺐다)
 
 안전 장치:
   - 기본은 dry-run (업로드/DB 변경 없음)
@@ -30,7 +29,6 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 import argparse
-import json
 import os
 from typing import Optional, Tuple
 
@@ -157,12 +155,6 @@ def main():
 
     # 통계
     stats = {
-        "attachments_total": 0,
-        "attachments_uploaded_ok": 0,
-        "attachments_missing_files": 0,
-        "attachments_db_updated": 0,
-        "messages_total": 0,
-        "messages_db_updated": 0,
         "orders_total": 0,
         "orders_uploaded_ok": 0,
         "orders_missing_files": 0,
@@ -171,119 +163,7 @@ def main():
     }
 
     with engine.begin() as conn:
-        # 1) chat_attachments
-        rows = conn.execute(
-            text(
-                """
-                SELECT id, storage_key, storage_url, thumbnail_url
-                FROM chat_attachments
-                ORDER BY id
-                """
-            )
-        ).fetchall()
-
-        if args.limit:
-            rows = rows[: args.limit]
-
-        stats["attachments_total"] = len(rows)
-        print(f"[chat_attachments] rows={len(rows)}")
-
-        for r in rows:
-            att_id = r.id
-            storage_key = r.storage_key
-
-            # 업로드(원본)
-            local_path = os.path.join(upload_folder, storage_key)
-            if args.execute:
-                assert bucket is not None
-                ok, msg = upload_file_to_r2(client, bucket, storage_key, local_path, skip_if_exists=args.skip_existing)
-                if ok:
-                    if msg == "uploaded":
-                        stats["attachments_uploaded_ok"] += 1
-                else:
-                    stats["attachments_missing_files"] += 1
-                    print(f"  [WARN] attachment#{att_id} original upload failed: {msg}")
-            else:
-                # dry-run: 파일 존재만 체크
-                if not os.path.exists(local_path):
-                    stats["attachments_missing_files"] += 1
-                    print(f"  [WARN] attachment#{att_id} missing original: {local_path}")
-
-            # 썸네일 업로드(있으면)
-            thumb_key = extract_storage_key_from_url(r.thumbnail_url)
-            if thumb_key:
-                thumb_path = os.path.join(upload_folder, thumb_key)
-                if args.execute:
-                    assert bucket is not None
-                    ok2, msg2 = upload_file_to_r2(client, bucket, thumb_key, thumb_path, skip_if_exists=args.skip_existing)
-                    if not ok2:
-                        stats["attachments_missing_files"] += 1
-                        print(f"  [WARN] attachment#{att_id} thumb upload failed: {msg2}")
-                else:
-                    if not os.path.exists(thumb_path):
-                        stats["attachments_missing_files"] += 1
-                        print(f"  [WARN] attachment#{att_id} missing thumb: {thumb_path}")
-
-            # DB URL 통일 (미리보기용)
-            new_storage_url = build_permanent_view_url(storage_key)
-            new_thumb_url = build_permanent_view_url(thumb_key) if thumb_key else None
-
-            if args.execute:
-                conn.execute(
-                    text(
-                        """
-                        UPDATE chat_attachments
-                        SET storage_url = :storage_url,
-                            thumbnail_url = :thumbnail_url
-                        WHERE id = :id
-                        """
-                    ),
-                    {"storage_url": new_storage_url, "thumbnail_url": new_thumb_url, "id": att_id},
-                )
-                stats["attachments_db_updated"] += 1
-
-        # 2) chat_messages.file_info (호환성/일관성)
-        msg_rows = conn.execute(
-            text(
-                """
-                SELECT id, file_info
-                FROM chat_messages
-                WHERE file_info IS NOT NULL
-                ORDER BY id
-                """
-            )
-        ).fetchall()
-
-        if args.limit:
-            msg_rows = msg_rows[: args.limit]
-
-        stats["messages_total"] = len(msg_rows)
-        print(f"[chat_messages.file_info] rows={len(msg_rows)}")
-
-        for mr in msg_rows:
-            mid = mr.id
-            fi = mr.file_info
-            if not isinstance(fi, dict):
-                continue
-
-            key = fi.get("key") or fi.get("storage_key")
-            if not key:
-                continue
-
-            thumb_key = extract_storage_key_from_url(fi.get("thumbnail_url"))
-            fi["url"] = build_permanent_view_url(key)
-            fi["storage_url"] = fi["url"]
-            if thumb_key:
-                fi["thumbnail_url"] = build_permanent_view_url(thumb_key)
-
-            if args.execute:
-                conn.execute(
-                    text("UPDATE chat_messages SET file_info = CAST(:fi AS jsonb) WHERE id = :id"),
-                    {"fi": json.dumps(fi, ensure_ascii=False), "id": mid},
-                )
-                stats["messages_db_updated"] += 1
-
-        # 3) orders.blueprint_image_url
+        # orders.blueprint_image_url
         order_rows = conn.execute(
             text(
                 """

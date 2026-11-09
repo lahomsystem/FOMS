@@ -3,7 +3,7 @@
 typed-domain side-effect outbox 의 정본 계약을 실 PostgreSQL 다중 커밋 세션으로 고정한다:
 
 * one-of FK CHECK matrix — 각 source_domain 이 자기 FK 만 허용, mismatch/다중/전무 거부,
-  실 FK 도메인(order_event/notification_event/chat_attachment)의 orphan 거부.
+  실 FK 도메인(order_event/notification_event/upload 등)의 orphan 거부(chat_attachment 는 CHAT-DEL-01 2단계로 지움).
 * dedupe unique ``(effect_type, dedupe_key)`` — 중복 insert 거부, NULL 은 다행 허용,
   effect_type 로 scope.
 * queue/lease — ``FOR UPDATE SKIP LOCKED`` PENDING pickup, lease 획득/만료 reclaim,
@@ -52,7 +52,6 @@ NO_FK_DOMAINS = [
 FK_DOMAINS = [
     ("ORDER_EVENT", "order_event_id"),
     ("NOTIFICATION_EVENT", "notification_event_id"),
-    ("CHAT_ATTACHMENT", "chat_attachment_id"),
     ("UPLOAD_DRAFT", "upload_draft_id"),
     ("UPLOAD_TICKET", "upload_ticket_id"),
     ("ORDER_IMPORT_ARTIFACT", "order_import_artifact_id"),
