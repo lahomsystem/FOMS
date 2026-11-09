@@ -36,19 +36,13 @@ class _FakeModel:
         cls.__tablename__ = table_name
 
 
-class _FakeChatRoom(_FakeModel, table_name="chat_rooms"):
-    id = _FakeColumn("chat_rooms", "id")
-    created_by = _FakeColumn("chat_rooms", "created_by")
+# 동반 삭제 대상(사람이 사라지면 행이 의미를 잃는 표). 옛 사내 채팅 3종은 CHAT-DEL-01 2단계로 표째 지웠다.
+class _FakePushSubscription(_FakeModel, table_name="notification_push_subscriptions"):
+    user_id = _FakeColumn("notification_push_subscriptions", "user_id")
 
 
-class _FakeChatMessage(_FakeModel, table_name="chat_messages"):
-    room_id = _FakeColumn("chat_messages", "room_id")
-    user_id = _FakeColumn("chat_messages", "user_id")
-
-
-class _FakeChatRoomMember(_FakeModel, table_name="chat_room_members"):
-    room_id = _FakeColumn("chat_room_members", "room_id")
-    user_id = _FakeColumn("chat_room_members", "user_id")
+class _FakeReceipt(_FakeModel, table_name="system_setting_receipts"):
+    actor_user_id = _FakeColumn("system_setting_receipts", "actor_user_id")
 
 
 class _FakeNotification(_FakeModel, table_name="notifications"):
@@ -114,8 +108,6 @@ class _FakeQuery:
         return self
 
     def all(self):
-        if self.target is _FakeChatRoom.id:
-            return [(room_id,) for room_id in self.room_ids]
         if self.target is _FakeNotificationUserState.id:
             return [(state_id,) for state_id in self.state_ids]
         raise AssertionError(f"Unexpected all() target: {self.target}")
@@ -145,9 +137,6 @@ class _FakeReferenceDb:
 
 
 def test_detach_user_references_for_delete_returns_summary_and_applies_expected_operations(monkeypatch):
-    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
-    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
-    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
     monkeypatch.setattr(user_deletion, "NotificationUserState", _FakeNotificationUserState)
     monkeypatch.setattr(user_deletion, "NotificationEvent", _FakeNotificationEvent)
     monkeypatch.setattr(user_deletion, "_BLOCKING_USER_REFERENCE_FIELDS", ())
@@ -164,45 +153,35 @@ def test_detach_user_references_for_delete_returns_summary_and_applies_expected_
         user_deletion,
         "_DELETE_USER_REFERENCE_FIELDS",
         (
-            (_FakeChatMessage, "user_id"),
-            (_FakeChatRoom, "created_by"),
-            (_FakeChatRoomMember, "user_id"),
+            (_FakePushSubscription, "user_id"),
+            (_FakeReceipt, "actor_user_id"),
         ),
     )
 
     db = _FakeReferenceDb(
         counts={
-            ("chat_messages", "room_id", "in"): 2,
-            ("chat_room_members", "room_id", "in"): 3,
             ("notifications", "created_by_user_id", "eq"): 4,
             ("notifications", "read_by_user_id", "eq"): 5,
             ("order_attachments", "user_id", "eq"): 6,
-            ("chat_messages", "user_id", "eq"): 7,
-            ("chat_rooms", "created_by", "eq"): 8,
-            ("chat_room_members", "user_id", "eq"): 9,
+            ("notification_push_subscriptions", "user_id", "eq"): 7,
+            ("system_setting_receipts", "actor_user_id", "eq"): 8,
         },
-        room_ids=[101, 202],
+        room_ids=[],
     )
 
     summary = user_deletion.detach_user_references_for_delete(db, user_id=55)
 
     assert summary == {
-        "chat_messages.room_id": 2,
-        "chat_room_members.room_id": 3,
         "notifications.created_by_user_id": 4,
         "notifications.read_by_user_id": 5,
         "order_attachments.user_id": 6,
-        "chat_messages.user_id": 7,
-        "chat_rooms.created_by": 8,
-        "chat_room_members.user_id": 9,
+        "notification_push_subscriptions.user_id": 7,
+        "system_setting_receipts.actor_user_id": 8,
     }
 
 
 def test_detach_user_references_unlinks_notification_events_before_deleting_states(monkeypatch):
     """상태 행 삭제 전에 감사 로그의 user_state_id 링크를 먼저 끊어야 FK 위반이 없다."""
-    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
-    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
-    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
     monkeypatch.setattr(user_deletion, "NotificationUserState", _FakeNotificationUserState)
     monkeypatch.setattr(user_deletion, "NotificationEvent", _FakeNotificationEvent)
     monkeypatch.setattr(user_deletion, "_BLOCKING_USER_REFERENCE_FIELDS", ())
@@ -248,9 +227,6 @@ def test_detach_user_references_refuses_when_blocking_audit_rows_remain(monkeypa
 
 def test_detach_user_references_does_not_refuse_when_no_blocking_rows(monkeypatch):
     """차단 대상 테이블에 행이 없으면 삭제는 그대로 진행된다."""
-    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
-    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
-    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
     monkeypatch.setattr(user_deletion, "NotificationUserState", _FakeNotificationUserState)
     monkeypatch.setattr(user_deletion, "NotificationEvent", _FakeNotificationEvent)
     monkeypatch.setattr(
@@ -280,9 +256,6 @@ def test_blocking_reference_fields_cover_non_detachable_audit_columns():
 
 def test_detach_user_references_for_deactivate_skips_blocking_check(monkeypatch):
     """비활성화는 차단 검사를 통과할 필요가 없다 — row 가 남아 FK 가 계속 유효하다."""
-    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
-    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
-    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
     monkeypatch.setattr(
         user_deletion,
         "_BLOCKING_USER_REFERENCE_FIELDS",
@@ -299,9 +272,6 @@ def test_detach_user_references_for_deactivate_skips_blocking_check(monkeypatch)
 
 def test_detach_user_references_for_deactivate_skips_audit_actor_columns(monkeypatch):
     """비활성화 경로는 운영 참조만 끊는다 — 감사 actor 컬럼은 UPDATE 대상이 아니다."""
-    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
-    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
-    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
     monkeypatch.setattr(
         user_deletion,
         "_OPERATIONAL_USER_REFERENCE_FIELDS",
@@ -315,27 +285,23 @@ def test_detach_user_references_for_deactivate_skips_audit_actor_columns(monkeyp
     monkeypatch.setattr(
         user_deletion,
         "_DELETE_USER_REFERENCE_FIELDS",
-        ((_FakeChatMessage, "user_id"),),
+        ((_FakePushSubscription, "user_id"),),
     )
 
     db = _FakeReferenceDb(
         counts={
-            ("chat_messages", "room_id", "in"): 2,
-            ("chat_room_members", "room_id", "in"): 3,
             ("notifications", "created_by_user_id", "eq"): 4,
             ("order_attachments", "user_id", "eq"): 6,
-            ("chat_messages", "user_id", "eq"): 7,
+            ("notification_push_subscriptions", "user_id", "eq"): 7,
         },
-        room_ids=[101],
+        room_ids=[],
     )
 
     summary = user_deletion.detach_user_references_for_deactivate(db, user_id=55)
 
     assert summary == {
-        "chat_messages.room_id": 2,
-        "chat_room_members.room_id": 3,
         "notifications.created_by_user_id": 4,
-        "chat_messages.user_id": 7,
+        "notification_push_subscriptions.user_id": 7,
     }
     assert "order_attachments.user_id" not in summary
 
