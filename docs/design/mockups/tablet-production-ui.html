@@ -1,0 +1,1295 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>생산 태블릿 화면 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;
+  --accent:#4a55b8;--accent-soft:#e6e8ff;--tag-now:#6b7380;--tag-after:#4a55b8;
+  --mk:#dc2626;--mk-ring:#ffffff;--mk-text:#ffffff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;--app-inverse:#ffffff;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;--app-brand-100:#e6e8ff;--app-brand-300:#9ea4ff;
+  --app-danger:#dc2626;--app-danger-50:#fef2f2;--app-warn:#d97706;--app-warn-border:#f59e0b;--app-warn-50:#fffbeb;
+  --app-amber-bg:#fef3c7;--app-amber-text:#92400e;--app-success:#059669;--app-success-50:#ecfdf5;
+  --app-info:#2563eb;--app-info-50:#eff6ff;--app-stage-prod:#f59e0b;--app-stage-received:#6b7380;
+  --app-black:#0a0c10;--app-overlay-chip:rgba(255,255,255,.16);--app-dwg-dark:#e5e7eb;
+  --paper:#ffffff;--ink:#111318;--ink2:#4b525d;--ink3:#9aa3af;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+    --accent:#9ea4ff;--accent-soft:#232a52;--tag-now:#8a93a3;--tag-after:#9ea4ff;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+  --accent:#9ea4ff;--accent-soft:#232a52;--tag-now:#8a93a3;--tag-after:#9ea4ff;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:2400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,p,ul,ol,dl{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em}
+.lead{max-width:76ch;color:var(--muted);margin-top:10px}
+.toc{margin-top:16px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:56px;scroll-margin-top:16px}
+.frame h2{font-size:22px;font-weight:800;margin-bottom:4px}
+.frame .what{color:var(--muted);font-size:15px;margin-bottom:12px}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,600px),1fr));gap:16px;align-items:start}
+.board{min-width:0}
+.blabel{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;margin-bottom:6px}
+.tag{font-size:12px;font-weight:700;color:#fff;padding:2px 8px;border-radius:999px;background:var(--tag-now)}
+.tag.after{background:var(--tag-after)}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.stage.mini{max-width:640px}
+.flow{display:flex;flex-direction:column;gap:6px}
+.arrow{text-align:center;color:var(--muted);font-size:22px;line-height:1}
+.art{position:absolute;left:0;top:0;transform-origin:0 0;width:1280px;height:800px;background:var(--app-bg);color:var(--app-text);font-size:14px;line-height:1.4;overflow:hidden}
+.art.portrait{width:800px;height:1280px}
+.art.a4{width:794px;height:1123px;background:var(--paper);color:var(--ink)}
+.changes{list-style:none;margin-top:12px;display:grid;gap:6px}
+.changes li{display:flex;gap:10px;align-items:flex-start;font-size:15px}
+.changes li.plain{color:var(--muted);padding-left:38px}
+.n{flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:var(--mk);color:var(--mk-text);font-weight:800;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.keep{margin-top:10px;font-size:14px;color:var(--muted);padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.keep b{color:var(--fg)}
+.note-now{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:20px;color:var(--muted);font-size:15px;min-height:160px;display:flex;align-items:center;justify-content:center;text-align:center}
+.ask{margin-top:56px;padding:16px 18px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.ask h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.ask ol{padding-left:22px;display:grid;gap:4px;font-size:15px}
+.decided{margin-top:10px;font-size:13px;color:var(--muted)}
+.mk{position:absolute;z-index:6;width:28px;height:28px;border-radius:50%;background:var(--mk);color:var(--mk-text);font-weight:800;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--mk-ring),0 2px 6px rgba(0,0,0,.25);top:-12px;left:-12px}
+.mk.r{left:auto;right:-12px}
+.mk.b{top:auto;bottom:-12px}
+.zoomer .mk{left:auto;right:-26px;top:-10px}
+.v-cnt .mk{left:-38px;top:-6px}
+.pcbar h3 .mk{left:-36px;top:-4px}
+.sh-contact .mk{left:-6px;top:0}
+.sh-contact.pl{padding-left:26px}
+.sh-box > .mk{left:-8px;top:-8px}
+.sh-box > .mk + h4{padding-left:16px}
+.sh-links .mk{left:4px;top:-2px}
+.tab .mk{left:50%;margin-left:-48px;top:-6px}
+.paper .mk{left:-36px;top:-4px}
+.side-ro .mk{left:-14px;top:-14px}
+.rel{position:relative}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ic.sm{width:16px;height:16px}
+.ic.xs{width:13px;height:13px}
+.ic.lg{width:28px;height:28px}
+
+/* ─── 앱 셸(가로): 레일 + 본문 ─── */
+.rail{position:absolute;left:0;top:0;bottom:0;width:72px;background:var(--app-raised);border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:2px;z-index:2}
+.rail-brand{height:48px;display:flex;align-items:center;font-size:20px;font-weight:800;color:var(--app-brand-dark);margin-bottom:6px}
+.ri{width:100%;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--app-text3);position:relative;flex-shrink:0}
+.ri.on{color:var(--app-brand);font-weight:700;background:var(--app-brand-50)}
+.ri.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--app-brand);border-radius:0 4px 4px 0}
+.rail-sp{flex:1}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin:6px 0 10px;flex-shrink:0}
+.zoomer{display:flex;flex-direction:column;align-items:center;gap:2px;margin:4px 0 2px;position:relative;flex-shrink:0}
+.zoomer span{width:40px;height:28px;border:1px solid var(--app-line2);background:var(--app-surface);border-radius:6px;font-size:18px;line-height:1;color:var(--app-text2);display:flex;align-items:center;justify-content:center;font-weight:700}
+.zoomer .zv{border:0;background:transparent;font-size:11px;height:16px;color:var(--app-text2)}
+.main{position:absolute;left:72px;top:0;right:0;bottom:0;display:flex;flex-direction:column}
+.pcbar{height:52px;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--app-surface);border-bottom:1px solid var(--app-line);flex-shrink:0}
+.pcbar h3{font-size:18px;font-weight:800;position:relative}
+.pcbar .sub{font-size:13px;color:var(--app-text3);white-space:nowrap}
+.kpis{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-left:8px}
+.kpi{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 10px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-surface);font-size:13px;color:var(--app-text2);white-space:nowrap}
+.kpi .ic{width:18px;height:18px;color:var(--app-text3)}
+.kpi b{font-size:18px;color:var(--app-text)}
+.kpi.bad b{color:var(--app-danger)}
+.filt{display:flex;gap:8px;padding:8px 16px;align-items:center;flex-shrink:0}
+.sel,.srch,.fbtn{min-height:44px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-surface);padding:0 12px;font-size:15px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.srch{flex:1;color:var(--app-text3)}
+.fbtn{font-weight:700}
+.fbtn.reset{background:var(--app-bg);color:var(--app-text2)}
+.fbtn.chg{border-color:var(--app-warn-border);background:var(--app-warn-50);color:var(--app-amber-text)}
+.kanban{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:4px 16px 16px;min-height:0}
+.col{background:var(--app-surface);border-radius:12px;border:1px solid var(--app-line);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.col-h{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--app-line);font-weight:800;font-size:17px;flex-shrink:0}
+.col-h span{color:var(--app-text3);font-weight:700;font-size:15px}
+.col-b{padding:12px;display:flex;flex-direction:column;gap:12px;background:var(--app-bg);flex:1;overflow:hidden}
+.card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;position:relative;flex-shrink:0}
+.card.changed{border:2px solid var(--app-danger);background:var(--app-danger-50)}
+.card.held{border-left:4px solid var(--app-warn-border)}
+.strip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-left:3px solid var(--app-info);background:var(--app-info-50);font-size:13px;font-weight:700;color:var(--app-info);border-radius:4px}
+.strip .to{color:var(--app-danger)}
+.strip.hold{border-left-color:var(--app-warn-border);background:var(--app-amber-bg);color:var(--app-amber-text)}
+.ctop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cname{font-size:19px;font-weight:800}
+.cid{font-size:14px;color:var(--app-text3);font-weight:600;display:flex;gap:6px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:999px;font-size:12px;font-weight:700;background:var(--app-danger-50);color:var(--app-danger)}
+.cprod{font-size:14px;color:var(--app-text2)}
+.cdim{font-size:22px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.ccolor{font-size:13px;color:var(--app-text3)}
+.cmeta{display:flex;gap:12px;font-size:13px;color:var(--app-text3);padding-top:8px;border-top:1px solid var(--app-line);align-items:center}
+.cmeta b{color:var(--app-text)}
+.clip{display:inline-flex;align-items:center;gap:2px}
+.cfoot{display:flex;justify-content:space-between;align-items:center;margin-top:2px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:999px;background:var(--app-bg);color:var(--app-text2);font-size:12px;font-weight:700;white-space:nowrap}
+.chip b{font-size:15px}
+.chip.soon{background:var(--app-warn-50);color:var(--app-warn)}
+.chip.late{background:var(--app-danger-50);color:var(--app-danger)}
+.mv{height:44px;padding:0 16px;border-radius:8px;background:var(--app-brand);color:var(--app-inverse);font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+
+/* ─── 작업 시트(400px) ─── */
+.sheet{position:absolute;top:0;right:0;bottom:0;width:400px;background:var(--app-surface);border-left:1px solid var(--app-line);box-shadow:-8px 0 24px rgba(0,0,0,.12);padding:8px 14px 0;display:flex;flex-direction:column;gap:4px;overflow:hidden;z-index:4}
+.sh-x{position:absolute;top:8px;right:8px;width:40px;height:40px;border-radius:8px;background:var(--app-raised);box-shadow:0 2px 8px rgba(0,0,0,.16);display:flex;align-items:center;justify-content:center;color:var(--app-text2)}
+.sh-title{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;padding-right:44px;position:relative;row-gap:0}
+.sh-name{font-size:21px;font-weight:800;display:flex;align-items:center;gap:8px}
+.sh-id{font-size:13px;color:var(--app-text3);white-space:nowrap;margin-left:auto}
+.sh-contact{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--app-text2);position:relative;white-space:nowrap}
+.sh-contact .addr{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pill{height:28px;padding:0 8px;border:1px solid var(--app-line2);border-radius:999px;display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--app-brand);font-weight:700;background:var(--app-surface);flex-shrink:0}
+.sh-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.sh-box{border:1px solid var(--app-line);border-radius:12px;padding:8px 12px;position:relative;flex-shrink:0}
+.sh-box h4{font-size:13px;font-weight:700;color:var(--app-text2);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.sh-box.alert{border-color:var(--app-warn-border);background:var(--app-warn-50)}
+.sh-box.alert .strip{background:var(--app-surface);height:28px}
+.sh-box.hl{background:var(--app-brand-50);display:flex;flex-direction:column;gap:1px}
+.sh-box.hl .v{font-size:22px;font-weight:800;color:var(--app-brand);line-height:1.1}
+.sh-box.hl h4{margin:0}
+.ack{height:34px;padding:0 14px;border-radius:8px;background:var(--app-warn);color:var(--app-inverse);font-weight:700;font-size:14px;display:inline-flex;align-items:center;margin-top:6px;align-self:flex-start}
+.spec{width:100%;border-collapse:collapse;font-size:14px}
+.spec th{font-size:12px;color:var(--app-text3);text-align:left;padding:2px 0;border-bottom:1px solid var(--app-line);font-weight:700}
+.spec td{padding:4px 0;border-bottom:1px solid var(--app-line)}
+.spec th:nth-child(n+2),.spec td:nth-child(n+2){text-align:right}
+.spec tr:last-child td{border-bottom:0}
+.steps5{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
+.st{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--app-text2)}
+.st i{width:48px;height:48px;border:2px solid var(--app-line2);border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--app-surface);color:transparent}
+.st.done i{background:var(--app-success);border-color:var(--app-success);color:var(--app-inverse)}
+.defect{margin-top:4px;height:26px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--app-danger)}
+.thumb{height:62px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.thumb.one{height:120px}
+.thumb .dwg{width:100%;height:100%;color:var(--app-text2)}
+.strip3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sh-links{display:flex;justify-content:center;gap:14px;font-size:13px;color:var(--app-brand);font-weight:600;position:relative;padding:1px 0}
+.sh-foot{display:flex;gap:8px;padding:6px 0 8px;border-top:1px solid var(--app-line);background:var(--app-surface);flex-shrink:0}
+.b{height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;gap:6px}
+.b.hold{flex:1;background:var(--app-bg);color:var(--app-text2)}
+.b.pri{flex:2;background:var(--app-brand);color:var(--app-inverse)}
+.notes{font-size:13px;color:var(--app-text)}
+
+/* ─── 도면 전체화면 보기 ─── */
+.viewer{position:absolute;inset:0;background:var(--app-black);display:flex;align-items:center;justify-content:center}
+.viewer .dwg{width:900px;height:630px;color:var(--app-dwg-dark)}
+.v-x{position:absolute;top:16px;right:16px;width:44px;height:44px;border-radius:50%;background:var(--app-overlay-chip);color:var(--app-inverse);display:flex;align-items:center;justify-content:center}
+.v-cnt{position:absolute;top:22px;left:50%;transform:translateX(-50%);color:var(--app-inverse);font-size:15px;font-weight:600;letter-spacing:.04em;opacity:.9;white-space:nowrap}
+.v-nav{position:absolute;top:50%;width:56px;height:56px;margin-top:-28px;border-radius:50%;background:var(--app-overlay-chip);color:var(--app-inverse);display:flex;align-items:center;justify-content:center}
+.v-nav.l{left:24px}.v-nav.r{right:24px}
+
+/* ─── 세로(폰 셸) ─── */
+.pt-top{height:56px;display:flex;align-items:center;padding:0 16px;background:var(--app-surface);border-bottom:1px solid var(--app-line);gap:12px}
+.pt-top h3{flex:1;text-align:center;font-size:20px;font-weight:800}
+.pt-icons{display:flex;gap:18px;color:var(--app-text)}
+.pt-search{display:flex;gap:8px;padding:12px 16px}
+.pt-in{flex:1;height:48px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface);display:flex;align-items:center;padding:0 14px;color:var(--app-text3);font-size:16px}
+.pt-ib{height:48px;min-width:48px;padding:0 12px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface);display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;font-size:16px;color:var(--app-brand)}
+.pt-ib.plain{color:var(--app-text)}
+.pt-chips{display:flex;justify-content:center;gap:10px;padding:12px;background:var(--app-surface)}
+.pchip{height:42px;padding:0 16px;border-radius:999px;background:var(--app-bg);font-size:16px;font-weight:600;display:flex;align-items:center;border:1px solid transparent}
+.pchip.on{background:var(--app-brand-50);border-color:var(--app-brand-300);color:var(--app-brand)}
+.pt-lh{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 16px 10px}
+.pt-lh small{display:block;font-size:12px;font-weight:700;color:var(--app-text2)}
+.pt-lh b{font-size:18px;font-weight:800}
+.pt-pill{height:34px;padding:0 14px;border-radius:999px;background:var(--app-surface);border:1px solid var(--app-line);font-size:13px;font-weight:700;display:flex;align-items:center}
+.pt-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 16px}
+.stat{background:var(--app-surface);border-radius:12px;border:1px solid var(--app-line);border-top:4px solid var(--app-brand);padding:12px 14px;min-height:88px;font-size:13px;font-weight:600;color:var(--app-text2)}
+.stat b{font-size:28px;display:block;color:var(--app-brand);line-height:1.1}
+.stat.p2{border-top-color:var(--app-warn)}.stat.p2 b{color:var(--app-warn)}
+.stat.p3{border-top-color:var(--app-success)}.stat.p3 b{color:var(--app-success)}
+.stat .late{color:var(--app-danger);display:flex;align-items:center;gap:4px;margin-top:4px}
+.mcard{margin:16px 16px 0;background:var(--app-surface);border-radius:12px;border:1px solid var(--app-line);overflow:hidden}
+.mcard-b{padding:16px}
+.mrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.mbadge{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;background:var(--app-stage-prod);color:var(--app-inverse);font-size:13px;font-weight:700}
+.mid{display:flex;align-items:center;gap:12px;color:var(--app-text3);font-size:15px}
+.mstep{width:40px;height:40px;border:1px solid var(--app-line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--app-text2)}
+.mname{font-size:18px;font-weight:800;margin-bottom:8px}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:15px}
+.mgrid small{display:block;font-size:12px;font-weight:700;color:var(--app-text3)}
+.mgrid .lk{color:var(--app-info);text-decoration:underline}
+.mbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--app-line)}
+.mb{height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;gap:6px;position:relative}
+.mb.pri{background:var(--app-brand);color:var(--app-inverse)}
+.mb.ghost{color:var(--app-text)}
+.mb.full{grid-column:1/-1}
+.mcard-f{padding:10px 16px;border-top:1px solid var(--app-line);font-size:14px;color:var(--app-text3)}
+.qrbar{margin:16px 16px 0;height:48px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:600;font-size:15px}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--app-surface);border-top:1px solid var(--app-line);display:flex;z-index:3}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--app-text3);position:relative}
+.tab.on{color:var(--app-brand);font-weight:700}
+.tbadge{position:absolute;top:5px;left:50%;margin-left:2px;background:var(--app-danger);color:var(--app-inverse);border-radius:999px;font-size:11px;font-weight:700;padding:0 6px;height:18px;display:flex;align-items:center}
+.fab{position:absolute;right:16px;bottom:84px;width:56px;height:56px;border-radius:50%;background:var(--app-brand);color:var(--app-inverse);display:flex;align-items:center;justify-content:center;z-index:3}
+
+/* ─── 로그인 · 컨트롤타워 ─── */
+.login{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--app-bg)}
+.login-card{width:400px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+.login-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:8px}
+.login-logo b{width:44px;height:44px;border-radius:12px;background:var(--app-brand);color:var(--app-inverse);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+.login-logo span{font-size:22px;font-weight:800}
+.login-in{height:48px;border:1px solid var(--app-line2);border-radius:8px;display:flex;align-items:center;padding:0 14px;color:var(--app-text3);font-size:15px}
+.login-bt{height:48px;border-radius:8px;background:var(--app-brand);color:var(--app-inverse);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;margin-top:4px}
+.ct{position:absolute;left:72px;top:0;right:320px;bottom:0;display:flex;flex-direction:column;padding:12px 16px;gap:10px;overflow:hidden}
+.ct-h{display:flex;align-items:center;gap:12px}
+.ct-h h3{font-size:20px;font-weight:800}
+.ct-h .sub{font-size:14px;color:var(--app-text3);flex:1}
+.ct-bt{height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--app-line);background:var(--app-surface);font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px}
+.ct-bt.pri{background:var(--app-brand);color:var(--app-inverse);border-color:transparent}
+.ct-k{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.ct-k div{background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--app-text2)}
+.ct-k b{display:block;font-size:26px;color:var(--app-text);line-height:1.1}
+.ct-k .o b{color:var(--app-warn)}.ct-k .d b{color:var(--app-danger)}
+.ct-f{background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;font-size:14px}
+.ct-f .in{height:40px;flex:0 0 220px;border:1px solid var(--app-line);border-radius:8px;display:flex;align-items:center;padding:0 12px;color:var(--app-text3)}
+.ct-f .dd{height:40px;padding:0 12px;border-radius:8px;background:var(--app-bg);display:flex;align-items:center;gap:6px;font-weight:600}
+.ct-f .cb{display:flex;align-items:center;gap:6px;color:var(--app-text2)}
+.ct-f .cb i{width:18px;height:18px;border:1px solid var(--app-line2);border-radius:4px;background:var(--app-surface)}
+.ct-t{flex:1;background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;overflow:hidden}
+.ct-t table{width:100%;border-collapse:collapse;font-size:14px}
+.ct-t th{text-align:left;font-weight:600;color:var(--app-text2);padding:10px 12px;border-bottom:1px solid var(--app-line);font-size:13px}
+.ct-t td{padding:11px 12px;border-bottom:1px solid var(--app-line);white-space:nowrap}
+.ct-t tr.hit td{background:var(--app-brand-50)}
+.stg{display:inline-flex;align-items:center;height:26px;padding:0 8px;border-radius:6px;background:var(--app-stage-received);color:var(--app-inverse);font-size:12px;font-weight:700}
+.stg.p{background:var(--app-stage-prod)}
+.ct-side{position:absolute;right:0;top:0;bottom:0;width:320px;background:var(--app-surface);border-left:1px solid var(--app-line);padding:12px 16px;display:flex;flex-direction:column;gap:14px}
+.pipe{display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--app-line)}
+.pipe span{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--app-text3);width:34px}
+.pipe i{width:22px;height:22px;border-radius:50%;border:1px solid var(--app-line2);display:flex;align-items:center;justify-content:center;font-size:11px;font-style:normal;font-weight:700;background:var(--app-surface)}
+.pipe span.on i{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.pipe span.on{color:var(--app-brand);font-weight:700}
+.side-msg{font-size:16px;font-weight:600}
+.side-bt{height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--app-line2);background:var(--app-surface);font-weight:700;font-size:15px;display:inline-flex;align-items:center;align-self:flex-start;gap:6px}
+.side-ro{background:var(--app-bg);border:1px solid var(--app-line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;position:relative}
+.side-ro .msg{display:flex;gap:8px;font-size:15px;font-weight:600;line-height:1.4;color:var(--app-text)}
+.side-ro .msg .ic{color:var(--app-text3);margin-top:2px}
+
+/* ─── 종이(작업지시서) ─── */
+.paper{position:absolute;inset:0;padding:40px 44px;display:flex;flex-direction:column;font-size:13px}
+.p-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:8px;position:relative}
+.p-head h3{font-size:24px;font-weight:800}
+.p-head span{font-size:12px;color:var(--ink2)}
+.p-info{display:grid;grid-template-columns:84px 1fr 84px 1fr;gap:7px 10px;margin:14px 0 6px;position:relative}
+.p-info dt{color:var(--ink2);font-weight:700}
+.p-info dd{margin:0;font-weight:600}
+.p-sec{margin-top:12px;position:relative}
+.p-sec h4{font-size:13px;margin-bottom:6px;font-weight:800;color:var(--ink)}
+.p-table{width:100%;border-collapse:collapse}
+.p-table th,.p-table td{border:1px solid var(--ink3);padding:6px 8px;text-align:left}
+.p-table th{background:var(--app-raised);font-weight:700;font-size:12px}
+.p-table th:nth-child(n+2),.p-table td:nth-child(n+2){text-align:right}
+.p-dwg{border:1px solid var(--ink3);height:360px;display:flex;align-items:center;justify-content:center}
+.p-dwg .dwg{width:92%;height:92%;color:var(--ink2)}
+.p-checks{display:flex;gap:26px;margin-top:4px}
+.p-checks span{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.p-checks i{width:22px;height:22px;border:2px solid var(--ink);display:inline-block;border-radius:3px}
+.p-foot{margin-top:auto;display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);border-top:1px solid var(--ink3);padding-top:8px}
+.dwg{display:block}
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-dash" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 13 10 5 10-5"/></symbol>
+  <symbol id="i-measure" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v4M15 8v3"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 24 24"><path d="m3 21 4-1L18 9l-3-3L4 17l-1 4Z"/><path d="m14 7 3 3"/></symbol>
+  <symbol id="i-prod" viewBox="0 0 24 24"><path d="M3 21V9l5 3V9l5 3V9l5 3v9H3Z"/><path d="M17 9V4h3v8"/></symbol>
+  <symbol id="i-ship" viewBox="0 0 24 24"><path d="M1 7h12v10H1zM13 10h5l3 3v4h-8"/><circle cx="5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-as" viewBox="0 0 24 24"><path d="M21 7a5 5 0 0 1-7 4L5 20l-1-1 9-9a5 5 0 0 1 4-7l-2 3 2 2 3-2Z"/></symbol>
+  <symbol id="i-build" viewBox="0 0 24 24"><path d="m14 4 6 6-2 2-6-6 2-2ZM12 8 3 17l3 3 9-9"/></symbol>
+  <symbol id="i-done" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM8 13l3 3 5-5"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="i-calc" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h4M8 16h2M12 16h4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4l2-2ZM10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8L7 4Z" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21 11-9 9a5 5 0 0 1-7-7l9-9a3 3 0 0 1 4 4l-9 9a1 1 0 0 1-2-2l8-8"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="17" r="2" fill="currentColor"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></symbol>
+  <symbol id="i-steps" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M12 7v4M6 17v-3h12v3"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="18" cy="12" r="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="m3 11 4-4 5 2 5-2 4 4-3 4-4 3-4-2-3 1-4-6Z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M15 12l2 2 4-4"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-mappin" viewBox="0 0 24 24"><path d="M3 6v14l6-2 6 2 6-2V4l-6 2-6-2-6 2Z"/><path d="M9 4v14M15 6v14"/></symbol>
+  <symbol id="dwg" viewBox="0 0 400 290">
+    <rect x="40" y="40" width="320" height="200" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M146 40v200M253 40v200" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6"/>
+    <path d="M40 62h320" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6"/>
+    <path d="M62 150h60M278 150h60" stroke="currentColor" stroke-width="2" stroke-opacity=".45"/>
+    <path d="M40 252v12M360 252v12M40 258h320" stroke="currentColor" stroke-width="1"/>
+    <path d="M372 40h12M372 240h12M378 40v200" stroke="currentColor" stroke-width="1"/>
+    <text x="200" y="280" font-size="14" text-anchor="middle" fill="currentColor" font-family="inherit">W 3100</text>
+    <text x="396" y="148" font-size="14" fill="currentColor" text-anchor="middle" transform="rotate(90 396 148)" font-family="inherit">H 2300</text>
+    <text x="44" y="30" font-size="12" fill="currentColor" fill-opacity=".7" font-family="inherit">D 500</text>
+  </symbol>
+</svg>
+
+<div class="wrap">
+  <div class="hd">
+    <h1>생산 태블릿 화면 시안</h1>
+    <p class="lead">생산팀 직원이 갤럭시 탭(가로, 장갑 낀 손, 사람마다 계정과 태블릿)으로 하루 일을 끝내게 하는 화면이에요. 기존 FOMS 화면은 그대로 두고 바뀌는 칸에만 번호 동그라미를 붙였어요. 프레임마다 왼쪽이 <b>지금</b> 화면, 오른쪽이 <b>바뀐 뒤</b> 화면이고, 번호가 붙은 칸만 달라져요. 이름·전화·주소는 모두 가짜 값이에요. 리뷰 3명(반증·단순화·사실 확인) 반영판이에요.</p>
+    <ul class="toc">
+      <li><a href="#f1">F1 생산 보드(가로)</a></li>
+      <li><a href="#f2">F2 작업 시트</a></li>
+      <li><a href="#f3">F3 도면 전체화면 보기</a></li>
+      <li><a href="#f6">F6 세로 화면</a></li>
+      <li><a href="#f7">F7 첫 화면</a></li>
+      <li><a href="#f8">F8 작업지시서 인쇄</a></li>
+      <li><a href="#ask">정한 것</a></li>
+    </ul>
+  </div>
+  <!-- ───────── F1 ───────── -->
+  <section class="frame" id="f1">
+    <h2>F1 생산 보드(가로)</h2>
+    <p class="what">태블릿을 가로로 들었을 때 생산팀이 하루 종일 보는 화면이에요.</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>생산 보드</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <nav class="rail">
+              <b class="rail-brand">F</b>
+              <span class="ri"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+              <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+              <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+              <span class="ri on"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+              <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+              <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+              <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+              <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+              <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+              <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+              <span class="rail-sp"></span>
+              <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+              <span class="avatar">CL</span>
+            </nav>
+            <div class="main">
+              <div class="pcbar"><h3>생산 보드</h3><span class="sub">전체 24건 · 오늘 라인 3</span>
+                <div class="kpis">
+                  <div class="kpi"><svg class="ic"><use href="#i-prod"/></svg>오늘 라인 <b>3</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-ship"/></svg>오늘 상차 <b>2</b></div>
+                  <div class="kpi bad"><svg class="ic"><use href="#i-warn"/></svg>지연 <b>1</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-measure"/></svg>이번 주 자수 <b>96.4</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-pause"/></svg>보류 <b>1</b></div>
+                </div>
+              </div>
+              <div class="filt">
+                <div class="sel">전체 <svg class="ic sm"><use href="#i-chev-d"/></svg></div>
+                <div class="srch">검색</div>
+                <div class="fbtn chg"><svg class="ic sm"><use href="#i-warn"/></svg>변경 1</div>
+                <div class="fbtn reset">초기화</div>
+                <div class="fbtn"><svg class="ic sm"><use href="#i-expand"/></svg>전체화면</div>
+              </div>
+              <div class="kanban">
+                <div class="col"><div class="col-h">제작대기<span>9</span></div><div class="col-b">
+                  <article class="card changed">
+                    <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                    <div class="ctop"><span class="cname">김하늘</span><span class="cid">#5103</span></div>
+                    <div class="cprod">거실장, 몰딩 벽박이장</div>
+                    <div class="cdim">W3100 × D500 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>28.3</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>3</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/13 D-3</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5107</span></div>
+                    <div class="cprod">슬라이딩 붙박이장</div>
+                    <div class="cdim">W2740 × D700 × H2330</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>9.1</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/18 D-8</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작중<span>3</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">이도윤</span><span class="cid">#5099</span></div>
+                    <div class="cprod">냉장고장</div>
+                    <div class="cdim">W1200 × D650 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>4.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip soon">시공 <b>11/11 D-1</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">최유진</span><span class="cid">#5097</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W2160 × D600 × H2300</div>
+                    <div class="ccolor">샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>7.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/15 D-5</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작완료<span>12</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">정하린</span><span class="cid">#5095</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W4260 × D620 × H2305</div>
+                    <div class="ccolor">클린화이트, 샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>14.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/14 D-4</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                  <article class="card held">
+                    <div class="strip hold"><svg class="ic sm"><use href="#i-pause"/></svg>보류 &nbsp;자재 입고 대기</div>
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5091 <span class="badge"><svg class="ic xs"><use href="#i-pause"/></svg>보류 D-6</span></span></div>
+                    <div class="cprod">거실장</div>
+                    <div class="cdim">W2400 × D450 × H800</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>8.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/16 D-6</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                </div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>생산 보드</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <nav class="rail">
+              <b class="rail-brand">F</b>
+              <div class="zoomer"><span class="mk">1</span><span>+</span><span class="zv">100%</span><span>−</span></div>
+              <span class="ri"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+              <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+              <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+              <span class="ri on"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+              <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+              <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+              <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+              <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+              <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+              <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+              <span class="rail-sp"></span>
+              <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+              <span class="avatar">CL</span>
+            </nav>
+            <div class="main">
+              <div class="pcbar"><h3>생산 보드</h3><span class="sub">전체 24건 · 오늘 라인 3</span>
+                <div class="kpis">
+                  <div class="kpi"><svg class="ic"><use href="#i-prod"/></svg>오늘 라인 <b>3</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-ship"/></svg>오늘 상차 <b>2</b></div>
+                  <div class="kpi bad"><svg class="ic"><use href="#i-warn"/></svg>지연 <b>1</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-measure"/></svg>이번 주 자수 <b>96.4</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-pause"/></svg>보류 <b>1</b></div>
+                </div>
+              </div>
+              <div class="filt">
+                <div class="sel">전체 <svg class="ic sm"><use href="#i-chev-d"/></svg></div>
+                <div class="srch">검색</div>
+                <div class="fbtn chg"><svg class="ic sm"><use href="#i-warn"/></svg>변경 1</div>
+                <div class="fbtn reset">초기화</div>
+                <div class="fbtn"><svg class="ic sm"><use href="#i-expand"/></svg>전체화면</div>
+              </div>
+              <div class="kanban">
+                <div class="col"><div class="col-h">제작대기<span>9</span></div><div class="col-b">
+                  <article class="card changed">
+                    <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                    <div class="ctop"><span class="cname">김하늘</span><span class="cid">#5103</span></div>
+                    <div class="cprod">거실장, 몰딩 벽박이장</div>
+                    <div class="cdim">W3100 × D500 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>28.3</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>3</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/13 D-3</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5107</span></div>
+                    <div class="cprod">슬라이딩 붙박이장</div>
+                    <div class="cdim">W2740 × D700 × H2330</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>9.1</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/18 D-8</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작중<span>3</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">이도윤</span><span class="cid">#5099</span></div>
+                    <div class="cprod">냉장고장</div>
+                    <div class="cdim">W1200 × D650 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>4.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip soon">시공 <b>11/11 D-1</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">최유진</span><span class="cid">#5097</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W2160 × D600 × H2300</div>
+                    <div class="ccolor">샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>7.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/15 D-5</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작완료<span>12</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">정하린</span><span class="cid">#5095</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W4260 × D620 × H2305</div>
+                    <div class="ccolor">클린화이트, 샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>14.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/14 D-4</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                  <article class="card held">
+                    <div class="strip hold"><svg class="ic sm"><use href="#i-pause"/></svg>보류 &nbsp;자재 입고 대기</div>
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5091 <span class="badge"><svg class="ic xs"><use href="#i-pause"/></svg>보류 D-6</span></span></div>
+                    <div class="cprod">거실장</div>
+                    <div class="cdim">W2400 × D450 × H800</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>8.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/16 D-6</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                </div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>레일 맨 위 F 아래에 화면 크기 단추(− 100% +)를 둬요. 세로 화면 위 막대의 것과 같은 값이라 한쪽에서 바꾸면 다른 쪽도 같아요. 130%로 키워도 스크롤 없이 보이는 자리예요.</span></li>
+      <li class="plain">그림 없음 — 변경 브리핑 창은 130% 배율에서도 목록이 닫기 단추 밑에 안 깔리게 높이만 고쳐요.</li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 위 막대와 숫자 5칸, 검색 줄, 세 열 카드(공정 진행은 시트에서 봐요), 단추 글자와 색은 전부 그대로예요.</p>
+  </section>
+  <!-- ───────── F2 ───────── -->
+  <section class="frame" id="f2">
+    <h2>F2 작업 시트(가로)</h2>
+    <p class="what">보드에서 카드를 누르면 오른쪽에 열리는 400px 시트예요. 시트 뒤 보드는 F1과 같아요.</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>작업 시트</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <nav class="rail">
+              <b class="rail-brand">F</b>
+              <span class="ri"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+              <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+              <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+              <span class="ri on"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+              <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+              <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+              <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+              <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+              <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+              <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+              <span class="rail-sp"></span>
+              <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+              <span class="avatar">CL</span>
+            </nav>
+            <div class="main">
+              <div class="pcbar"><h3>생산 보드</h3><span class="sub">전체 24건 · 오늘 라인 3</span>
+                <div class="kpis">
+                  <div class="kpi"><svg class="ic"><use href="#i-prod"/></svg>오늘 라인 <b>3</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-ship"/></svg>오늘 상차 <b>2</b></div>
+                  <div class="kpi bad"><svg class="ic"><use href="#i-warn"/></svg>지연 <b>1</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-measure"/></svg>이번 주 자수 <b>96.4</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-pause"/></svg>보류 <b>1</b></div>
+                </div>
+              </div>
+              <div class="filt">
+                <div class="sel">전체 <svg class="ic sm"><use href="#i-chev-d"/></svg></div>
+                <div class="srch">검색</div>
+                <div class="fbtn chg"><svg class="ic sm"><use href="#i-warn"/></svg>변경 1</div>
+                <div class="fbtn reset">초기화</div>
+                <div class="fbtn"><svg class="ic sm"><use href="#i-expand"/></svg>전체화면</div>
+              </div>
+              <div class="kanban">
+                <div class="col"><div class="col-h">제작대기<span>9</span></div><div class="col-b">
+                  <article class="card changed">
+                    <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                    <div class="ctop"><span class="cname">김하늘</span><span class="cid">#5103</span></div>
+                    <div class="cprod">거실장, 몰딩 벽박이장</div>
+                    <div class="cdim">W3100 × D500 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>28.3</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>3</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/13 D-3</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5107</span></div>
+                    <div class="cprod">슬라이딩 붙박이장</div>
+                    <div class="cdim">W2740 × D700 × H2330</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>9.1</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/18 D-8</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작중<span>3</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">이도윤</span><span class="cid">#5099</span></div>
+                    <div class="cprod">냉장고장</div>
+                    <div class="cdim">W1200 × D650 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>4.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip soon">시공 <b>11/11 D-1</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">최유진</span><span class="cid">#5097</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W2160 × D600 × H2300</div>
+                    <div class="ccolor">샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>7.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/15 D-5</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작완료<span>12</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">정하린</span><span class="cid">#5095</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W4260 × D620 × H2305</div>
+                    <div class="ccolor">클린화이트, 샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>14.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/14 D-4</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                </div></div>
+              </div>
+            </div>
+            <aside class="sheet">
+              <span class="sh-x"><svg class="ic"><use href="#i-close"/></svg></span>
+              <div class="sh-title"><span class="sh-name">김하늘</span><span class="sh-id">#5103 · 상차 11/12</span></div>
+              <div class="sh-body">
+                <div class="sh-box alert">
+                  <h4>변경 알림</h4>
+                  <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                  <span class="ack">변경 확인</span>
+                </div>
+                <div class="sh-box hl"><h4>총 자수 (W/300)</h4><span class="v">28.3</span></div>
+                <div class="sh-box"><h4>규격</h4>
+                  <table class="spec"><thead><tr><th>품목</th><th>W</th><th>수량</th></tr></thead>
+                  <tbody><tr><td>거실장</td><td>3100</td><td>1</td></tr><tr><td>몰딩 벽박이장</td><td>2160</td><td>1</td></tr></tbody></table>
+                </div>
+                <div class="sh-box"><h4>특이사항</h4><p class="notes">천장 몰딩 간섭 — 상부 15mm 여유 두기</p></div>
+                <div class="sh-box"><h4>도면 전달본</h4>
+                  <div class="thumb one"><svg class="dwg"><use href="#dwg"/></svg></div>
+                </div>
+              </div>
+              <div class="sh-foot"><span class="b hold">보류</span><span class="b pri">제작 시작</span></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>작업 시트</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <nav class="rail">
+              <b class="rail-brand">F</b>
+              <div class="zoomer"><span>+</span><span class="zv">100%</span><span>−</span></div>
+              <span class="ri"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+              <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+              <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+              <span class="ri on"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+              <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+              <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+              <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+              <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+              <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+              <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+              <span class="rail-sp"></span>
+              <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+              <span class="avatar">CL</span>
+            </nav>
+            <div class="main">
+              <div class="pcbar"><h3>생산 보드</h3><span class="sub">전체 24건 · 오늘 라인 3</span>
+                <div class="kpis">
+                  <div class="kpi"><svg class="ic"><use href="#i-prod"/></svg>오늘 라인 <b>3</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-ship"/></svg>오늘 상차 <b>2</b></div>
+                  <div class="kpi bad"><svg class="ic"><use href="#i-warn"/></svg>지연 <b>1</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-measure"/></svg>이번 주 자수 <b>96.4</b></div>
+                  <div class="kpi"><svg class="ic"><use href="#i-pause"/></svg>보류 <b>1</b></div>
+                </div>
+              </div>
+              <div class="filt">
+                <div class="sel">전체 <svg class="ic sm"><use href="#i-chev-d"/></svg></div>
+                <div class="srch">검색</div>
+                <div class="fbtn chg"><svg class="ic sm"><use href="#i-warn"/></svg>변경 1</div>
+                <div class="fbtn reset">초기화</div>
+                <div class="fbtn"><svg class="ic sm"><use href="#i-expand"/></svg>전체화면</div>
+              </div>
+              <div class="kanban">
+                <div class="col"><div class="col-h">제작대기<span>9</span></div><div class="col-b">
+                  <article class="card changed">
+                    <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                    <div class="ctop"><span class="cname">김하늘</span><span class="cid">#5103</span></div>
+                    <div class="cprod">거실장, 몰딩 벽박이장</div>
+                    <div class="cdim">W3100 × D500 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>28.3</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>3</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/13 D-3</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">박서준</span><span class="cid">#5107</span></div>
+                    <div class="cprod">슬라이딩 붙박이장</div>
+                    <div class="cdim">W2740 × D700 × H2330</div>
+                    <div class="ccolor">포그그레이</div>
+                    <div class="cmeta"><span>자수 <b>9.1</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/18 D-8</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작중<span>3</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">이도윤</span><span class="cid">#5099</span></div>
+                    <div class="cprod">냉장고장</div>
+                    <div class="cdim">W1200 × D650 × H2300</div>
+                    <div class="ccolor">클린화이트</div>
+                    <div class="cmeta"><span>자수 <b>4.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip soon">시공 <b>11/11 D-1</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                  <article class="card">
+                    <div class="ctop"><span class="cname">최유진</span><span class="cid">#5097</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W2160 × D600 × H2300</div>
+                    <div class="ccolor">샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>7.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/15 D-5</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                  </article>
+                </div></div>
+                <div class="col"><div class="col-h">제작완료<span>12</span></div><div class="col-b">
+                  <article class="card">
+                    <div class="ctop"><span class="cname">정하린</span><span class="cid">#5095</span></div>
+                    <div class="cprod">몰딩 벽박이장</div>
+                    <div class="cdim">W4260 × D620 × H2305</div>
+                    <div class="ccolor">클린화이트, 샤이엔</div>
+                    <div class="cmeta"><span>자수 <b>14.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                    <div class="cfoot"><span class="chip">시공 <b>11/14 D-4</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                  </article>
+                </div></div>
+              </div>
+            </div>
+            <aside class="sheet">
+              <span class="sh-x"><svg class="ic"><use href="#i-close"/></svg></span>
+              <div class="sh-title"><span class="sh-name">김하늘</span><span class="sh-id">#5103 · 상차 11/12</span></div>
+              <div class="sh-contact pl"><span class="mk">1</span><span>010-0000-1234</span><span>·</span><span class="addr">서울 강서구 화곡로 12, 101동 1203호</span><span class="pill"><svg class="ic xs"><use href="#i-phone"/></svg>전화</span><span class="pill"><svg class="ic xs"><use href="#i-map"/></svg>지도</span></div>
+              <div class="sh-body">
+                <div class="sh-box alert">
+                  <h4>변경 알림</h4>
+                  <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                  <span class="ack">변경 확인</span>
+                </div>
+                <div class="sh-box hl"><h4>총 자수 (W/300)</h4><span class="v">28.3</span></div>
+                <div class="sh-box"><h4>규격</h4>
+                  <table class="spec"><thead><tr><th>품목</th><th>W</th><th>수량</th></tr></thead>
+                  <tbody><tr><td>거실장</td><td>3100</td><td>1</td></tr><tr><td>몰딩 벽박이장</td><td>2160</td><td>1</td></tr></tbody></table>
+                </div>
+                <div class="sh-box"><span class="mk">2</span><h4>공정 체크 2/5</h4>
+                  <div class="steps5">
+                    <span class="st done"><i><svg class="ic"><use href="#i-check"/></svg></i>재단</span>
+                    <span class="st done"><i><svg class="ic"><use href="#i-check"/></svg></i>엣지</span>
+                    <span class="st"><i><svg class="ic"><use href="#i-check"/></svg></i>도장</span>
+                    <span class="st"><i><svg class="ic"><use href="#i-check"/></svg></i>조립</span>
+                    <span class="st"><i><svg class="ic"><use href="#i-check"/></svg></i>검수</span>
+                  </div>
+                  <span class="defect"><svg class="ic sm"><use href="#i-warn"/></svg>불량 보고</span>
+                </div>
+                <div class="sh-box"><h4>특이사항</h4><p class="notes">천장 몰딩 간섭 — 상부 15mm 여유 두기</p></div>
+                <div class="sh-box"><span class="mk">3</span><h4>도면 전달본</h4>
+                  <div class="strip3">
+                    <div class="thumb"><svg class="dwg"><use href="#dwg"/></svg></div>
+                    <div class="thumb"><svg class="dwg"><use href="#dwg"/></svg></div>
+                    <div class="thumb"><svg class="dwg"><use href="#dwg"/></svg></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sh-links"><span class="mk">4</span><span>상세 · 인쇄</span></div>
+              <div class="sh-foot"><span class="b hold">보류</span><span class="b pri">제작 시작</span></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>이름 바로 아래 한 줄에 전화번호와 주소, 그 옆에 [전화][지도] — 모바일 주문 상세에 있는 칸을 그대로 옮겨요.</span></li>
+      <li><span class="n">2</span><span>규격 표 아래 "공정 체크 2/5": 재단·엣지·도장·조립·검수 체크 칸(장갑 손가락 크기)을 한 줄 5칸으로, 그 아래 작은 [불량 보고] — 세로 화면 공정 체크 부품 그대로예요.</span></li>
+      <li><span class="n">3</span><span>도면 전달본: 한 장 대신 3장을 나란히. 탭하면 크게 보여요(F3). 도면이 바뀐 건 위 변경 알림 상자가 이미 말해 줘요.</span></li>
+      <li><span class="n">4</span><span>아래 단추 줄 위에 작은 글 "상세" — 세로 카드의 [상세]와 같은 말이고, 모바일 주문 상세로 가요.</span></li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 이름과 번호, 상차 11/12, 변경 알림 상자와 [변경 확인], 총 자수, 규격 표, 특이사항, 아래 단추 줄([보류][제작 시작]). 시트 뒤 보드는 F1 바뀐 뒤와 같아요. 시트가 길어지면 지금처럼 위아래로 넘겨요.</p>
+  </section>
+  <!-- ───────── F3 ───────── -->
+  <section class="frame" id="f3">
+    <h2>F3 도면 전체화면 보기</h2>
+    <p class="what">시트의 도면을 누르면 화면 가득 열리는 그림 보기예요.</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>그림 보기(전역)</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <div class="viewer">
+              <svg class="dwg"><use href="#dwg"/></svg>
+              <span class="v-x"><svg class="ic"><use href="#i-close"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>그림 보기(여러 장)</div>
+        <div class="stage" data-w="1280" data-h="800">
+          <div class="art">
+            <div class="viewer">
+              <svg class="dwg"><use href="#dwg"/></svg>
+              <span class="v-cnt"><span class="mk">1</span>2 / 3</span>
+              <span class="v-x"><svg class="ic"><use href="#i-close"/></svg></span>
+              <span class="v-nav l"><span class="mk">2</span><svg class="ic lg"><use href="#i-chev-l"/></svg></span>
+              <span class="v-nav r"><svg class="ic lg"><use href="#i-chev-r"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>위 가운데 작은 글 "2 / 3" — 그림 보기에 원래 있는 장수 표시예요. 몇 장째인지 보여요.</span></li>
+      <li><span class="n">2</span><span>좌우 단추로 장을 넘겨요. 닫으면 바로 시트로 돌아와요. 새 그림 보기를 만들지 않아요.</span></li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 검은 배경, 닫기 ×, 손가락으로 키우기.</p>
+  </section>
+
+  <!-- ───────── F6 ───────── -->
+  <section class="frame" id="f6">
+    <h2>F6 세로 화면(800×1280)</h2>
+    <p class="what">태블릿을 세로로 들면 폰과 같은 큐 카드 화면이 나와요.</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>세로 생산 큐</div>
+        <div class="stage" data-w="800" data-h="1280">
+          <div class="art portrait">
+            <div class="pt-top"><svg class="ic"><use href="#i-menu"/></svg><h3>생산</h3>
+              <div class="pt-icons"><svg class="ic"><use href="#i-hand"/></svg><svg class="ic"><use href="#i-bolt"/></svg><svg class="ic"><use href="#i-user"/></svg><svg class="ic"><use href="#i-search"/></svg><svg class="ic"><use href="#i-bell"/></svg></div>
+            </div>
+            <div class="pt-search"><div class="pt-in">전체 검색...</div><div class="pt-ib"><svg class="ic"><use href="#i-search"/></svg></div><div class="pt-ib plain"><svg class="ic"><use href="#i-filter"/></svg>필터</div></div>
+            <div class="pt-chips"><span class="pchip on">전체 24</span><span class="pchip">제작대기 9</span><span class="pchip">제작중 3</span></div>
+            <div class="pt-lh"><div><small>작업 목록</small><b>제작 대기·진행</b></div><span class="pt-pill">24 / 전체 24건</span></div>
+            <div class="pt-stats">
+              <div class="stat"><b>9</b>제작대기<span class="late"><svg class="ic xs"><use href="#i-warn"/></svg>지연 1</span></div>
+              <div class="stat p2"><b>3</b>제작중</div>
+              <div class="stat p3"><b>12</b>제작완료</div>
+            </div>
+            <div class="mcard">
+              <div class="mcard-b">
+                <div class="mrow"><span class="mbadge">제작대기</span><span class="mid">#5103 <span class="mstep"><svg class="ic sm"><use href="#i-steps"/></svg></span></span></div>
+                <div class="mname">김하늘</div>
+                <div class="mgrid">
+                  <div><small>주소</small><span class="lk">서울 강서구 화곡로 12, 101동 1203호</span></div>
+                  <div><small>연락처</small><span class="lk">010-0000-1234</span></div>
+                  <div><small>시공</small>2026-11-13</div>
+                  <div><small>담당</small><span class="lk">한지우</span></div>
+                </div>
+                <div class="mbtns"><span class="mb ghost">상세</span><span class="mb pri"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span><span class="mb pri full">전화</span></div>
+              </div>
+              <div class="mcard-f">공정 0/5</div>
+            </div>
+            <div class="qrbar"><svg class="ic"><use href="#i-qr"/></svg>QR 라벨</div>
+            <div class="mcard">
+              <div class="mcard-b">
+                <div class="mrow"><span class="mbadge">제작대기</span><span class="mid">#5107 <span class="mstep"><svg class="ic sm"><use href="#i-steps"/></svg></span></span></div>
+                <div class="mname">박서준</div>
+                <div class="mgrid">
+                  <div><small>주소</small><span class="lk">경기 성남시 분당구 판교로 34, 203동 702호</span></div>
+                  <div><small>연락처</small><span class="lk">010-0000-5678</span></div>
+                  <div><small>시공</small>2026-11-18</div>
+                  <div><small>담당</small><span class="lk">한지우</span></div>
+                </div>
+                <div class="mbtns"><span class="mb ghost">상세</span><span class="mb pri"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span><span class="mb pri full">전화</span></div>
+              </div>
+              <div class="mcard-f">공정 0/5</div>
+            </div>
+            <span class="fab"><svg class="ic lg"><use href="#i-plus"/></svg></span>
+            <nav class="tabs">
+              <span class="tab"><svg class="ic"><use href="#i-dash"/></svg>대시보드<span class="tbadge">3</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-measure"/></svg>실측<span class="tbadge">12</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-ship"/></svg>출고<span class="tbadge">5</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-build"/></svg>시공<span class="tbadge">8</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+              <span class="tab"><svg class="ic"><use href="#i-more"/></svg>더보기</span>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>세로 생산 큐</div>
+        <div class="stage" data-w="800" data-h="1280">
+          <div class="art portrait">
+            <div class="pt-top"><svg class="ic"><use href="#i-menu"/></svg><h3>생산</h3>
+              <div class="pt-icons"><svg class="ic"><use href="#i-hand"/></svg><svg class="ic"><use href="#i-bolt"/></svg><svg class="ic"><use href="#i-user"/></svg><svg class="ic"><use href="#i-search"/></svg><svg class="ic"><use href="#i-bell"/></svg></div>
+            </div>
+            <div class="pt-search"><div class="pt-in">전체 검색...</div><div class="pt-ib"><svg class="ic"><use href="#i-search"/></svg></div><div class="pt-ib plain"><svg class="ic"><use href="#i-filter"/></svg>필터</div></div>
+            <div class="pt-chips"><span class="pchip on">전체 24</span><span class="pchip">제작대기 9</span><span class="pchip">제작중 3</span></div>
+            <div class="pt-lh"><div><small>작업 목록</small><b>제작 대기·진행</b></div><span class="pt-pill">24 / 전체 24건</span></div>
+            <div class="pt-stats">
+              <div class="stat"><b>9</b>제작대기<span class="late"><svg class="ic xs"><use href="#i-warn"/></svg>지연 1</span></div>
+              <div class="stat p2"><b>3</b>제작중</div>
+              <div class="stat p3"><b>12</b>제작완료</div>
+            </div>
+            <div class="mcard">
+              <div class="mcard-b">
+                <div class="mrow"><span class="mbadge">제작대기</span><span class="mid">#5103 <span class="mstep"><svg class="ic sm"><use href="#i-steps"/></svg></span></span></div>
+                <div class="mname">김하늘</div>
+                <div class="mgrid">
+                  <div><small>주소</small><span class="lk">서울 강서구 화곡로 12, 101동 1203호</span></div>
+                  <div><small>연락처</small><span class="lk">010-0000-1234</span></div>
+                  <div><small>시공</small>2026-11-13</div>
+                  <div><small>담당</small><span class="lk">한지우</span></div>
+                </div>
+                <div class="mbtns"><span class="mb ghost">상세</span><span class="mb pri"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span><span class="mb pri full">전화</span></div>
+              </div>
+              <div class="mcard-f">공정 0/5</div>
+            </div>
+            <div class="qrbar"><svg class="ic"><use href="#i-qr"/></svg>QR 라벨</div>
+            <div class="mcard">
+              <div class="mcard-b">
+                <div class="mrow"><span class="mbadge">제작대기</span><span class="mid">#5107 <span class="mstep"><svg class="ic sm"><use href="#i-steps"/></svg></span></span></div>
+                <div class="mname">박서준</div>
+                <div class="mgrid">
+                  <div><small>주소</small><span class="lk">경기 성남시 분당구 판교로 34, 203동 702호</span></div>
+                  <div><small>연락처</small><span class="lk">010-0000-5678</span></div>
+                  <div><small>시공</small>2026-11-18</div>
+                  <div><small>담당</small><span class="lk">한지우</span></div>
+                </div>
+                <div class="mbtns"><span class="mb ghost">상세</span><span class="mb pri"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span><span class="mb pri full">전화</span></div>
+              </div>
+              <div class="mcard-f">공정 0/5</div>
+            </div>
+            <span class="fab"><svg class="ic lg"><use href="#i-plus"/></svg></span>
+            <nav class="tabs">
+              <span class="tab on"><span class="mk">1</span><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+              <span class="tab"><svg class="ic"><use href="#i-ship"/></svg>출고<span class="tbadge">5</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-build"/></svg>시공<span class="tbadge">8</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-dash"/></svg>대시보드<span class="tbadge">3</span></span>
+              <span class="tab"><svg class="ic"><use href="#i-more"/></svg>더보기</span>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>아래 탭을 생산·출고·시공·대시보드·더보기로 — 생산팀이면 생산이 첫 탭이에요. 실측·계산기는 더보기 안으로 들어가요.</span></li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 위 막대, 검색과 필터, 칩, 세 칸 숫자, 카드 안 글(주소·연락처·시공·담당), [상세][제작 시작][전화], "공정 0/5", 카드 사이 QR 라벨 막대.</p>
+  </section>
+  <!-- ───────── F7 ───────── -->
+  <section class="frame" id="f7">
+    <h2>F7 첫 화면</h2>
+    <p class="what">로그인한 뒤 생산팀 계정이 처음 보는 화면이에요(작게).</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>로그인 → 컨트롤타워</div>
+        <div class="flow">
+          <div class="stage mini" data-w="1280" data-h="800">
+            <div class="art">
+              <div class="login"><div class="login-card">
+                <div class="login-logo"><b>F</b><span>FOMS</span></div>
+                <div class="login-in">아이디</div><div class="login-in">비밀번호</div>
+                <div class="login-bt">로그인</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="stage mini" data-w="1280" data-h="800">
+            <div class="art">
+              <nav class="rail">
+                <b class="rail-brand">F</b>
+                <span class="ri on"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+                <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+                <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+                <span class="ri"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+                <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+                <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+                <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+                <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+                <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+                <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+                <span class="rail-sp"></span>
+                <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+                <span class="avatar">CL</span>
+              </nav>
+              <div class="ct">
+                <div class="ct-h"><h3>주문 대시보드</h3><span class="sub">128건 · 2026-11-10</span><span class="ct-bt"><svg class="ic sm"><use href="#i-mappin"/></svg>지도 생성</span><span class="ct-bt pri"><svg class="ic sm"><use href="#i-plus"/></svg>주문 생성</span></div>
+                <div class="ct-k"><div>전체<b>128</b></div><div class="d">긴급<b>1</b></div><div class="o">실측 임박 D-4<b>0</b></div><div class="o">시공 임박 D-3<b>2</b></div><div class="d">도면 지연<b>5</b></div></div>
+                <div class="ct-f"><svg class="ic sm"><use href="#i-filter"/></svg>필터<span class="in">전체 검색...</span><span class="dd">단계: 전체 <svg class="ic xs"><use href="#i-chev-d"/></svg></span><span class="dd">담당팀: 전체 <svg class="ic xs"><use href="#i-chev-d"/></svg></span><span class="cb"><i></i>긴급만</span><span class="cb"><i></i>경보만</span><span class="cb"><i></i>내 담당</span></div>
+                <div class="ct-t"><table>
+                  <thead><tr><th>단계</th><th>고객</th><th>현재 작업</th><th>제품</th><th>실측일</th><th>시공일</th><th>담당</th><th>첨부</th></tr></thead>
+                  <tbody>
+                    <tr class="hit"><td><span class="stg p">생산</span></td><td><b>김하늘</b></td><td>제작대기</td><td>거실장 외 1건</td><td>11/02</td><td>11/13</td><td>한지우</td><td>3</td></tr>
+                    <tr><td><span class="stg">접수</span></td><td><b>박서준</b></td><td>접수 확인</td><td>슬라이딩 붙박이장</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><span class="stg">도면</span></td><td><b>이도윤</b></td><td>도면 작성</td><td>냉장고장</td><td>11/09</td><td>11/11</td><td>한지우</td><td>2</td></tr>
+                    <tr><td><span class="stg p">생산</span></td><td><b>최유진</b></td><td>제작중</td><td>몰딩 벽박이장</td><td>11/05</td><td>11/15</td><td>한지우</td><td>1</td></tr>
+                    <tr><td><span class="stg">시공</span></td><td><b>정하린</b></td><td>시공 예정</td><td>몰딩 벽박이장</td><td>11/03</td><td>11/14</td><td>한지우</td><td>2</td></tr>
+                    <tr><td><span class="stg">접수</span></td><td><b>박서준</b></td><td>접수 확인</td><td>거실장</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><span class="stg">실측</span></td><td><b>이도윤</b></td><td>실측 예정</td><td>냉장고장</td><td>11/12</td><td>11/20</td><td>한지우</td><td>-</td></tr>
+                  </tbody></table></div>
+              </div>
+              <aside class="ct-side">
+                <div class="pipe"><span class="on"><i>1</i>접수</span><span><i>2</i>실측</span><span><i>3</i>도면</span><span><i>4</i>고객컨펌</span><span><i>5</i>생산</span><span><i>6</i>시공</span><span><i>7</i>CS/AS</span><span><i>8</i>완료</span></div>
+                <p class="side-msg">내용을 불러오지 못했습니다.</p>
+                <span class="side-bt">다시 시도</span>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>로그인 → 생산 보드 · 컨트롤타워는 보기만</div>
+        <div class="flow">
+          <div class="stage mini" data-w="1280" data-h="800">
+            <div class="art">
+              <div class="login"><div class="login-card">
+                <div class="login-logo"><b>F</b><span>FOMS</span></div>
+                <div class="login-in">아이디</div><div class="login-in">비밀번호</div>
+                <div class="login-bt">로그인</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="stage mini" data-w="1280" data-h="800">
+            <div class="art">
+              <nav class="rail">
+                <b class="rail-brand">F</b>
+                <div class="zoomer"><span>+</span><span class="zv">100%</span><span>−</span></div>
+                <span class="ri"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+                <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+                <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+                <span class="ri on"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+                <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+                <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+                <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+                <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+                <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+                <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+                <span class="rail-sp"></span>
+                <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+                <span class="avatar">CL</span>
+              </nav>
+              <div class="main">
+                <div class="pcbar"><h3><span class="mk">1</span>생산 보드</h3><span class="sub">전체 24건 · 오늘 라인 3</span>
+                  <div class="kpis">
+                    <div class="kpi"><svg class="ic"><use href="#i-prod"/></svg>오늘 라인 <b>3</b></div>
+                    <div class="kpi"><svg class="ic"><use href="#i-ship"/></svg>오늘 상차 <b>2</b></div>
+                    <div class="kpi bad"><svg class="ic"><use href="#i-warn"/></svg>지연 <b>1</b></div>
+                    <div class="kpi"><svg class="ic"><use href="#i-measure"/></svg>이번 주 자수 <b>96.4</b></div>
+                    <div class="kpi"><svg class="ic"><use href="#i-pause"/></svg>보류 <b>1</b></div>
+                  </div>
+                </div>
+                <div class="filt">
+                  <div class="sel">전체 <svg class="ic sm"><use href="#i-chev-d"/></svg></div>
+                  <div class="srch">검색</div>
+                  <div class="fbtn chg"><svg class="ic sm"><use href="#i-warn"/></svg>변경 1</div>
+                  <div class="fbtn reset">초기화</div>
+                  <div class="fbtn"><svg class="ic sm"><use href="#i-expand"/></svg>전체화면</div>
+                </div>
+                <div class="kanban">
+                  <div class="col"><div class="col-h">제작대기<span>9</span></div><div class="col-b">
+                    <article class="card changed">
+                      <div class="strip"><svg class="ic sm"><use href="#i-cal"/></svg>시공일 변경 11/12 → <span class="to">11/13</span></div>
+                      <div class="ctop"><span class="cname">김하늘</span><span class="cid">#5103</span></div>
+                      <div class="cprod">거실장, 몰딩 벽박이장</div>
+                      <div class="cdim">W3100 × D500 × H2300</div>
+                      <div class="ccolor">클린화이트</div>
+                      <div class="cmeta"><span>자수 <b>28.3</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>3</span></div>
+                      <div class="cfoot"><span class="chip">시공 <b>11/13 D-3</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                    </article>
+                    <article class="card">
+                      <div class="ctop"><span class="cname">박서준</span><span class="cid">#5107</span></div>
+                      <div class="cprod">슬라이딩 붙박이장</div>
+                      <div class="cdim">W2740 × D700 × H2330</div>
+                      <div class="ccolor">포그그레이</div>
+                      <div class="cmeta"><span>자수 <b>9.1</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                      <div class="cfoot"><span class="chip">시공 <b>11/18 D-8</b></span><span class="mv"><svg class="ic sm"><use href="#i-play"/></svg>제작 시작</span></div>
+                    </article>
+                  </div></div>
+                  <div class="col"><div class="col-h">제작중<span>3</span></div><div class="col-b">
+                    <article class="card">
+                      <div class="ctop"><span class="cname">이도윤</span><span class="cid">#5099</span></div>
+                      <div class="cprod">냉장고장</div>
+                      <div class="cdim">W1200 × D650 × H2300</div>
+                      <div class="ccolor">클린화이트</div>
+                      <div class="cmeta"><span>자수 <b>4.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                      <div class="cfoot"><span class="chip soon">시공 <b>11/11 D-1</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                    </article>
+                    <article class="card">
+                      <div class="ctop"><span class="cname">최유진</span><span class="cid">#5097</span></div>
+                      <div class="cprod">몰딩 벽박이장</div>
+                      <div class="cdim">W2160 × D600 × H2300</div>
+                      <div class="ccolor">샤이엔</div>
+                      <div class="cmeta"><span>자수 <b>7.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                      <div class="cfoot"><span class="chip">시공 <b>11/15 D-5</b></span><span class="mv"><svg class="ic sm"><use href="#i-check"/></svg>제작 완료</span></div>
+                    </article>
+                  </div></div>
+                  <div class="col"><div class="col-h">제작완료<span>12</span></div><div class="col-b">
+                    <article class="card">
+                      <div class="ctop"><span class="cname">정하린</span><span class="cid">#5095</span></div>
+                      <div class="cprod">몰딩 벽박이장</div>
+                      <div class="cdim">W4260 × D620 × H2305</div>
+                      <div class="ccolor">클린화이트, 샤이엔</div>
+                      <div class="cmeta"><span>자수 <b>14.2</b></span><span>하우드</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>2</span></div>
+                      <div class="cfoot"><span class="chip">시공 <b>11/14 D-4</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                    </article>
+                    <article class="card held">
+                      <div class="strip hold"><svg class="ic sm"><use href="#i-pause"/></svg>보류 &nbsp;자재 입고 대기</div>
+                      <div class="ctop"><span class="cname">박서준</span><span class="cid">#5091 <span class="badge"><svg class="ic xs"><use href="#i-pause"/></svg>보류 D-6</span></span></div>
+                      <div class="cprod">거실장</div>
+                      <div class="cdim">W2400 × D450 × H800</div>
+                      <div class="ccolor">포그그레이</div>
+                      <div class="cmeta"><span>자수 <b>8.0</b></span><span>라홈</span><span class="clip"><svg class="ic sm"><use href="#i-clip"/></svg>1</span></div>
+                      <div class="cfoot"><span class="chip">시공 <b>11/16 D-6</b></span><span class="mv"><svg class="ic sm"><use href="#i-redo"/></svg>수정 제작</span></div>
+                    </article>
+                  </div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="arrow">컨트롤타워에서 줄을 눌렀을 때</div>
+          <div class="stage mini" data-w="1280" data-h="800">
+            <div class="art">
+              <nav class="rail">
+                <b class="rail-brand">F</b>
+                <div class="zoomer"><span>+</span><span class="zv">100%</span><span>−</span></div>
+                <span class="ri on"><svg class="ic"><use href="#i-dash"/></svg>대시보드</span>
+                <span class="ri"><svg class="ic"><use href="#i-measure"/></svg>실측</span>
+                <span class="ri"><svg class="ic"><use href="#i-draw"/></svg>도면</span>
+                <span class="ri"><svg class="ic"><use href="#i-prod"/></svg>생산</span>
+                <span class="ri"><svg class="ic"><use href="#i-ship"/></svg>출고</span>
+                <span class="ri"><svg class="ic"><use href="#i-as"/></svg>AS</span>
+                <span class="ri"><svg class="ic"><use href="#i-build"/></svg>시공</span>
+                <span class="ri"><svg class="ic"><use href="#i-done"/></svg>완료</span>
+                <span class="ri"><svg class="ic"><use href="#i-hist"/></svg>이력</span>
+                <span class="ri"><svg class="ic"><use href="#i-calc"/></svg>계산기</span>
+                <span class="rail-sp"></span>
+                <span class="ri"><svg class="ic"><use href="#i-bell"/></svg>알림</span>
+                <span class="avatar">CL</span>
+              </nav>
+              <div class="ct">
+                <div class="ct-h"><h3>주문 대시보드</h3><span class="sub">128건 · 2026-11-10</span><span class="ct-bt"><svg class="ic sm"><use href="#i-mappin"/></svg>지도 생성</span><span class="ct-bt pri"><svg class="ic sm"><use href="#i-plus"/></svg>주문 생성</span></div>
+                <div class="ct-k"><div>전체<b>128</b></div><div class="d">긴급<b>1</b></div><div class="o">실측 임박 D-4<b>0</b></div><div class="o">시공 임박 D-3<b>2</b></div><div class="d">도면 지연<b>5</b></div></div>
+                <div class="ct-f"><svg class="ic sm"><use href="#i-filter"/></svg>필터<span class="in">전체 검색...</span><span class="dd">단계: 전체 <svg class="ic xs"><use href="#i-chev-d"/></svg></span><span class="dd">담당팀: 전체 <svg class="ic xs"><use href="#i-chev-d"/></svg></span><span class="cb"><i></i>긴급만</span><span class="cb"><i></i>경보만</span><span class="cb"><i></i>내 담당</span></div>
+                <div class="ct-t"><table>
+                  <thead><tr><th>단계</th><th>고객</th><th>현재 작업</th><th>제품</th><th>실측일</th><th>시공일</th><th>담당</th><th>첨부</th></tr></thead>
+                  <tbody>
+                    <tr class="hit"><td><span class="stg p">생산</span></td><td><b>김하늘</b></td><td>제작대기</td><td>거실장 외 1건</td><td>11/02</td><td>11/13</td><td>한지우</td><td>3</td></tr>
+                    <tr><td><span class="stg">접수</span></td><td><b>박서준</b></td><td>접수 확인</td><td>슬라이딩 붙박이장</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><span class="stg">도면</span></td><td><b>이도윤</b></td><td>도면 작성</td><td>냉장고장</td><td>11/09</td><td>11/11</td><td>한지우</td><td>2</td></tr>
+                    <tr><td><span class="stg p">생산</span></td><td><b>최유진</b></td><td>제작중</td><td>몰딩 벽박이장</td><td>11/05</td><td>11/15</td><td>한지우</td><td>1</td></tr>
+                    <tr><td><span class="stg">시공</span></td><td><b>정하린</b></td><td>시공 예정</td><td>몰딩 벽박이장</td><td>11/03</td><td>11/14</td><td>한지우</td><td>2</td></tr>
+                    <tr><td><span class="stg">접수</span></td><td><b>박서준</b></td><td>접수 확인</td><td>거실장</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><span class="stg">실측</span></td><td><b>이도윤</b></td><td>실측 예정</td><td>냉장고장</td><td>11/12</td><td>11/20</td><td>한지우</td><td>-</td></tr>
+                  </tbody></table></div>
+              </div>
+              <aside class="ct-side">
+                <div class="pipe"><span><i>1</i>접수</span><span><i>2</i>실측</span><span><i>3</i>도면</span><span><i>4</i>고객컨펌</span><span class="on"><i>5</i>생산</span><span><i>6</i>시공</span><span><i>7</i>CS/AS</span><span><i>8</i>완료</span></div>
+                <div class="side-ro"><span class="mk">2</span>
+                  <p class="msg"><svg class="ic"><use href="#i-eye"/></svg><span>이 주문은 보기만 할 수 있어요.</span></p>
+                  <span class="side-bt">상세</span>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>로그인하면 생산 보드가 바로 열려요. 지금은 컨트롤타워가 먼저 열리고 생산을 한 번 더 눌러야 해요.</span></li>
+      <li><span class="n">2</span><span>컨트롤타워에서 줄을 누르면 오른쪽에 "이 주문은 보기만 할 수 있어요." 와 [상세] 단추 하나만 보여요. 지금은 "내용을 불러오지 못했습니다"가 떠요.</span></li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 로그인 화면, 컨트롤타워의 표·숫자·필터.</p>
+  </section>
+
+  <!-- ───────── F8 ───────── -->
+  <section class="frame" id="f8">
+    <h2>F8 작업지시서 인쇄(A4 세로 1장)</h2>
+    <p class="what">새 화면이 아니라 생산 주문을 종이 한 장으로 뽑은 거예요. 사용자 결정(11-09)으로 이번에 같이 만들어요(D8). 시트의 "인쇄" 링크가 이 종이를 새 탭에 열어요.</p>
+    <div class="pair">
+      <div class="board">
+        <div class="blabel"><span class="tag">지금</span>종이 · 카톡</div>
+        <div class="note-now">지금은 ERP 밖이에요. 손으로 적은 종이나 카톡으로 보낸 사진으로 작업해요.</div>
+      </div>
+      <div class="board">
+        <div class="blabel"><span class="tag after">바뀐 뒤</span>작업지시서 한 장</div>
+        <div class="stage" data-w="794" data-h="1123">
+          <div class="art a4">
+            <div class="paper">
+              <div class="p-head"><h3>작업지시서</h3><span>2026-11-10 인쇄 · 생산팀</span></div>
+              <dl class="p-info"><span class="mk">1</span>
+                <dt>주문번호</dt><dd>#5103</dd><dt>고객</dt><dd>김하늘</dd>
+                <dt>전화</dt><dd>010-0000-1234</dd><dt>발주사</dt><dd>하우드</dd>
+                <dt>주소</dt><dd>서울 강서구 화곡로 12, 101동 1203호</dd><dt>상차 / 시공</dt><dd>11/12 · 11/13</dd>
+                <dt>크기 · 색</dt><dd>W3100 × D500 × H2300 · 클린화이트</dd><dt>총 자수</dt><dd>28.3</dd>
+              </dl>
+              <div class="p-sec"><span class="mk">2</span><h4>규격</h4>
+                <table class="p-table"><thead><tr><th>품목</th><th>W</th><th>수량</th></tr></thead>
+                <tbody><tr><td>거실장</td><td>3100</td><td>1</td></tr><tr><td>몰딩 벽박이장</td><td>2160</td><td>1</td></tr></tbody></table>
+              </div>
+              <div class="p-sec"><h4>특이사항</h4><p>천장 몰딩 간섭 — 상부 15mm 여유 두기</p></div>
+              <div class="p-sec"><span class="mk">3</span><h4>도면</h4><div class="p-dwg"><svg class="dwg"><use href="#dwg"/></svg></div></div>
+              <div class="p-sec"><span class="mk">4</span><h4>공정 체크</h4>
+                <div class="p-checks"><span><i></i>재단</span><span><i></i>엣지</span><span><i></i>도장</span><span><i></i>조립</span><span><i></i>검수</span></div>
+              </div>
+              <div class="p-foot"><span>작업자 확인: ____________</span><span>#5103 · 1/1</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span>위 정보: 주문번호·고객·전화·주소·발주사·상차/시공일·규격·총 자수 — F2 시트에 있는 값 그대로예요.</span></li>
+      <li><span class="n">2</span><span>규격 표 — F2 규격 표와 같아요.</span></li>
+      <li><span class="n">3</span><span>도면 1장 크게.</span></li>
+      <li><span class="n">4</span><span>공정 체크 빈 네모 5개 — 종이에 손으로 표시해요.</span></li>
+    </ol>
+    <p class="keep"><b>그대로 두는 것</b> 화면은 아무것도 안 바뀌어요. 금액은 종이에 안 들어가요.</p>
+  </section>
+
+  <section class="ask" id="ask">
+    <h2>정한 것 (사용자, 2026-11-09)</h2>
+    <ol>
+      <li>완료 보드와 주문 상세의 금액은 생산팀에게 가려요(D7). 열과 줄 자체를 빼요.</li>
+      <li>작업지시서 인쇄(F8)는 이번에 같이 만들어요(D8). 시트 링크는 "상세 · 인쇄".</li>
+      <li>레일 탭은 지금처럼 9개 그대로, 변경 브리핑 창도 지금처럼, 컨트롤타워는 문구만 바꿔요.</li>
+    </ol>
+    <p class="decided">그 뒤 작업자 시안 4장에서 생산팀 전용 첫 화면(전체 주문 한 줄)을 따로 두기로 했어요(D10~D13) — 별도 시안 문서를 보세요.</p>
+  </section>
+</div>
+<script>
+(function(){
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w'))||1280,h=parseFloat(s.getAttribute('data-h'))||800;
+      var sw=s.clientWidth;if(!sw){return;}
+      var k=Math.min(1,sw/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+  if(window.ResizeObserver){new ResizeObserver(fit).observe(document.body);}
+})();
+</script>
+</body>
+</html>

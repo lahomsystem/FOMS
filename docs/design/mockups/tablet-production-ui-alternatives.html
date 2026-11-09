@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>생산 작업자 화면 시안 넷</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 설명 글 한 단 + 1280×800 태블릿 틀 4장(가로 꽉, 축소 표시). 색·글꼴은 앞선 시안(tablet-production-ui.html)과 같은 토큰. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;
+  --accent:#4a55b8;--accent-soft:#e6e8ff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;--app-inverse:#ffffff;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;--app-brand-100:#e6e8ff;--app-brand-300:#9ea4ff;
+  --app-danger:#dc2626;--app-danger-50:#fef2f2;--app-warn:#d97706;--app-warn-border:#f59e0b;--app-warn-50:#fffbeb;
+  --app-amber-bg:#fef3c7;--app-amber-text:#92400e;--app-success:#059669;--app-success-dark:#047857;--app-success-50:#ecfdf5;
+  --app-info:#2563eb;--app-info-50:#eff6ff;--app-dwg:#2b2f36;--app-dwg-line:#d5d9e0;--app-dwg-dim:#9ea4ff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+    --accent:#9ea4ff;--accent-soft:#232a52;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+  --accent:#9ea4ff;--accent-soft:#232a52;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:76ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.rules{margin-top:14px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-wrap:wrap;gap:6px 22px;list-style:none;font-size:15px}
+.rules li b{color:var(--accent)}
+.toc{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:56px;scroll-margin-top:16px}
+.frame h2{font-size:22px;font-weight:800;margin-bottom:2px;text-wrap:balance}
+.frame .who{color:var(--muted);font-size:15px;margin-bottom:12px}
+.frame .who b{color:var(--fg)}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.art{position:absolute;left:0;top:0;transform-origin:0 0;width:1280px;height:800px;background:var(--app-bg);color:var(--app-text);font-size:14px;line-height:1.4;overflow:hidden;font-variant-numeric:tabular-nums}
+.art *{box-sizing:border-box}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:14px}
+.col h3{font-size:15px;font-weight:800;margin-bottom:6px}
+.col ul{padding-left:20px;display:grid;gap:4px;font-size:15px;color:var(--muted)}
+.col ul b{color:var(--fg)}
+.pick{margin-top:56px;padding:18px 20px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.pick h2{font-size:20px;font-weight:800;margin-bottom:10px}
+.pick p{font-size:15px;color:var(--muted);max-width:80ch}
+.pick p b{color:var(--fg)}
+.pick .cols{margin-top:12px}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ic.lg{width:30px;height:30px}
+.ic.xl{width:40px;height:40px;stroke-width:2.5}
+
+/* ─── 앱 공통(틀 안) ─── */
+.bar{height:64px;display:flex;align-items:center;gap:14px;padding:0 20px;background:var(--app-surface);border-bottom:1px solid var(--app-line);flex-shrink:0}
+.bar h3{font-size:22px;font-weight:800;white-space:nowrap}
+.bar .date{font-size:16px;color:var(--app-text2);white-space:nowrap}
+.bar .sp{flex:1}
+.sync{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--app-text3);white-space:nowrap}
+.sync::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--app-success)}
+.sync.stale::before{background:var(--app-warn-border)}
+.btn{min-height:48px;padding:0 18px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--app-text);white-space:nowrap}
+.btn.pri{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.btn.ok{background:var(--app-success);border-color:var(--app-success);color:var(--app-inverse)}
+.btn.bad{border-color:var(--app-danger);color:var(--app-danger);background:var(--app-danger-50)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--app-text2)}
+.btn.off{background:var(--app-raised);border-color:var(--app-line);color:var(--app-text3)}
+.btn.big{min-height:64px;font-size:20px;border-radius:12px}
+.btn.huge{min-height:96px;font-size:28px;border-radius:14px;font-weight:800}
+.ava{width:44px;height:44px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
+.seg{display:flex;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:var(--app-surface)}
+.seg span{min-width:120px;height:48px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--app-text2);border-right:1px solid var(--app-line2)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--app-brand);color:var(--app-inverse)}
+.seg span small{font-size:14px;font-weight:700;opacity:.8}
+.steps{display:flex;gap:10px}
+.st{width:60px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;color:var(--app-text3);font-weight:700}
+.st i{width:52px;height:52px;border-radius:12px;border:2px solid var(--app-line2);background:var(--app-surface);display:flex;align-items:center;justify-content:center;color:var(--app-inverse)}
+.st.done i{background:var(--app-brand);border-color:var(--app-brand)}
+.st.done{color:var(--app-brand-dark)}
+.st.now i{border:3px solid var(--app-brand);background:var(--app-brand-50)}
+.st.now{color:var(--app-brand-dark)}
+.st.bad i{background:var(--app-danger);border-color:var(--app-danger)}
+.st.bad{color:var(--app-danger)}
+
+/* ─── 안 1. 오늘 할 일 ─── */
+.a1 .list{padding:10px 16px 0;display:flex;flex-direction:column;gap:8px}
+.a1 .dh2{height:34px;display:flex;align-items:center;gap:12px;font-size:17px;font-weight:800;color:var(--app-text2);padding:0 6px}
+.a1 .dh2 b.today{color:var(--app-brand-dark)}
+.a1 .dh2 small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a1 .job{height:100px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;display:grid;grid-template-columns:150px 1fr 360px 130px;align-items:center;padding:0 20px 0 0;position:relative;overflow:hidden}
+.a1 .job.changed{border-color:var(--app-danger)}
+.a1 .job.changed::before{content:"";position:absolute;left:0;top:0;bottom:0;width:8px;background:var(--app-danger)}
+.a1 .stg{display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid var(--app-line);height:100%;gap:2px;padding:0 8px;text-align:center}
+.a1 .stg b{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--app-brand-dark)}
+.a1 .stg span{font-size:14px;color:var(--app-text3);font-weight:700}
+.a1 .job.soon .stg b{color:var(--app-text3)}
+.a1 .job.soon .st i{border-style:dashed}
+.a1 .who{padding:0 22px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.a1 .nm{font-size:22px;font-weight:800;display:flex;align-items:baseline;gap:10px;line-height:1.2}
+.a1 .nm small{font-size:15px;color:var(--app-text3);font-weight:700}
+.a1 .pr{font-size:15px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a1 .pr b{color:var(--app-text);font-weight:700}
+.a1 .chg{font-size:15px;color:var(--app-danger);font-weight:700}
+.a1 .dw{display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:var(--app-text2);font-size:15px;font-weight:700}
+.a1 .dw b{font-size:22px;color:var(--app-text)}
+.a1 .dw .ic{color:var(--app-text3)}
+
+/* ─── 안 2. 도면 먼저 작업 화면 ─── */
+.a2 .bar .crumb{display:flex;align-items:center;gap:6px;font-size:16px;color:var(--app-text2);font-weight:700;white-space:nowrap}
+.a2 .bar h3{font-size:20px}
+.a2 .bar .due{font-size:16px;font-weight:800;color:var(--app-brand-dark);white-space:nowrap;padding:6px 12px;border-radius:8px;background:var(--app-brand-50)}
+.a2 .body{position:absolute;top:64px;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 500px}
+.a2 .dwg{position:relative;background:var(--app-dwg);color:var(--app-dwg-line);overflow:hidden}
+.a2 .dwg svg.sheet{position:absolute;left:90px;top:40px;width:600px;height:560px}
+.a2 .nav{position:absolute;top:50%;transform:translateY(-50%);width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;color:#fff}
+.a2 .nav.l{left:12px}.a2 .nav.r{right:12px}
+.a2 .cap{position:absolute;left:0;right:0;top:12px;text-align:center;font-size:17px;font-weight:700;color:#fff}
+.a2 .thumbs{position:absolute;left:0;right:0;bottom:0;height:104px;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;gap:12px}
+.a2 .th{width:112px;height:76px;border-radius:8px;background:#3a3f48;border:2px solid transparent;display:flex;align-items:flex-end;justify-content:flex-start;padding:6px 8px;font-size:13px;font-weight:700;color:#cfd4dc;position:relative}
+.a2 .th::before{content:"";position:absolute;left:14px;top:10px;right:14px;height:36px;border:1.5px solid #8b929e;border-radius:2px}
+.a2 .th.on{border-color:var(--app-brand-300);background:#444a56;color:#fff}
+.a2 .th.pdf::before{border-style:dashed}
+.a2 .side{background:var(--app-surface);border-left:1px solid var(--app-line);display:flex;flex-direction:column;padding:14px 18px 12px;gap:10px;overflow:hidden}
+.a2 .box{border:1px solid var(--app-line);border-radius:12px;padding:10px 14px}
+.a2 .box h4{font-size:14px;font-weight:800;color:var(--app-text3);letter-spacing:.02em;margin-bottom:6px}
+.a2 .row{display:flex;align-items:center;gap:12px;min-height:44px}
+.a2 .row .v{flex:1;min-width:0;font-size:17px;font-weight:700}
+.a2 .row .v small{display:block;font-size:14px;color:var(--app-text2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a2 .row .btn{min-height:44px;padding:0 14px;font-size:15px}
+.a2 .items div{display:flex;justify-content:space-between;gap:12px;font-size:16px;padding:4px 0}
+.a2 .items div span:first-child{font-weight:700}
+.a2 .items div span:last-child{color:var(--app-text2);white-space:nowrap}
+.a2 .items .clr{color:var(--app-text3);font-size:14px;justify-content:flex-start}
+.a2 .pst{display:flex;flex-direction:column}
+.a2 .pst .r{display:flex;align-items:center;gap:14px;height:52px;border-top:1px solid var(--app-line);font-size:18px;font-weight:700}
+.a2 .pst .r:first-of-type{border-top:0}
+.a2 .pst .r i{width:40px;height:40px;border-radius:10px;border:2px solid var(--app-line2);display:flex;align-items:center;justify-content:center;color:var(--app-inverse);flex-shrink:0}
+.a2 .pst .r.done i{background:var(--app-brand);border-color:var(--app-brand)}
+.a2 .pst .r.now{color:var(--app-brand-dark)}
+.a2 .pst .r.now i{border:3px solid var(--app-brand)}
+.a2 .pst .r span{flex:1}
+.a2 .pst .r small{font-size:14px;color:var(--app-text3);font-weight:500;white-space:nowrap}
+.a2 .acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.a2 .status{display:flex;justify-content:space-between;font-size:14px;color:var(--app-text3);padding-top:2px}
+
+/* ─── 안 3. 내 공정 줄 ─── */
+.a3 .slim{height:44px;display:flex;align-items:center;gap:14px;padding:0 20px;background:var(--app-raised);border-bottom:1px solid var(--app-line);font-size:15px;color:var(--app-text2)}
+.a3 .slim b{color:var(--app-text);font-size:16px}
+.a3 .tabs{display:grid;grid-template-columns:repeat(5,1fr);height:76px;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+.a3 .tab{display:flex;align-items:center;justify-content:center;gap:12px;font-size:22px;font-weight:800;color:var(--app-text3);border-right:1px solid var(--app-line);position:relative}
+.a3 .tab:last-child{border-right:0}
+.a3 .tab b{font-size:18px;min-width:34px;height:34px;padding:0 8px;border-radius:17px;background:var(--app-bg);color:var(--app-text2);display:inline-flex;align-items:center;justify-content:center}
+.a3 .tab.on{color:var(--app-brand-dark);background:var(--app-brand-50)}
+.a3 .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--app-brand)}
+.a3 .tab.on b{background:var(--app-brand);color:var(--app-inverse)}
+.a3 .body{position:absolute;top:120px;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 470px}
+.a3 .q{padding:12px 16px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.a3 .qh{display:flex;justify-content:space-between;font-size:15px;color:var(--app-text3);font-weight:700;padding:0 4px 2px}
+.a3 .qr{height:96px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;display:grid;grid-template-columns:64px 1fr 170px;align-items:center;padding-right:18px}
+.a3 .qr.on{border:3px solid var(--app-brand);background:var(--app-brand-50)}
+.a3 .qr .n{font-size:28px;font-weight:800;color:var(--app-text3);text-align:center}
+.a3 .qr.on .n{color:var(--app-brand-dark)}
+.a3 .qr .nm{font-size:22px;font-weight:800;line-height:1.2}
+.a3 .qr .nm small{font-size:15px;color:var(--app-text2);font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a3 .qr .due{text-align:right;font-size:16px;color:var(--app-text2);font-weight:700}
+.a3 .qr .due b{display:block;font-size:22px;color:var(--app-text)}
+.a3 .qr .due b.hot{color:var(--app-danger)}
+.a3 .qr.wait{opacity:.55}
+.a3 .pane{background:var(--app-surface);border-left:1px solid var(--app-line);display:flex;flex-direction:column;padding:16px 18px 14px;gap:12px}
+.a3 .pane .nm{font-size:26px;font-weight:800;display:flex;align-items:baseline;gap:10px}
+.a3 .pane .nm small{font-size:16px;color:var(--app-text3);font-weight:700}
+.a3 .pane .sub{font-size:16px;color:var(--app-text2);margin-top:-6px}
+.a3 .thumb{height:150px;border-radius:12px;background:var(--app-dwg);position:relative;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;color:#fff;font-size:15px;font-weight:700}
+.a3 .thumb::before{content:"";position:absolute;left:60px;right:60px;top:18px;height:84px;border:1.5px solid #8b929e;border-radius:2px}
+.a3 .thumb::after{content:"";position:absolute;left:50%;top:18px;height:84px;border-left:1.5px solid #8b929e}
+.a3 .spec{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:16px}
+.a3 .spec span{color:var(--app-text3)}
+.a3 .spec b{font-weight:700}
+.a3 .sp{flex:1}
+.a3 .next{font-size:15px;color:var(--app-text3);text-align:center}
+.a3 .next b{color:var(--app-text2)}
+
+/* ─── 안 4. 일정과 바뀐 것 ─── */
+.a4 .nav2{display:flex;align-items:center;gap:6px}
+.a4 .nav2 .btn{min-width:48px;padding:0}
+.a4 .nav2 b{font-size:18px;font-weight:800;padding:0 10px;white-space:nowrap}
+.a4 .body{position:absolute;top:64px;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 500px}
+.a4 .week{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:14px 12px 14px 16px;min-height:0}
+.a4 .day{background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.a4 .day.today{border:3px solid var(--app-brand)}
+.a4 .day.past{opacity:.6}
+.a4 .dh{padding:10px 12px 8px;border-bottom:1px solid var(--app-line);display:flex;flex-direction:column;gap:0}
+.a4 .dh b{font-size:22px;font-weight:800}
+.a4 .dh b small{font-size:15px;color:var(--app-text2);font-weight:700;margin-left:4px}
+.a4 .day.today .dh b{color:var(--app-brand-dark)}
+.a4 .dh span{font-size:14px;color:var(--app-text3);font-weight:700}
+.a4 .db{padding:8px;display:flex;flex-direction:column;gap:6px}
+.a4 .ev{min-height:52px;border-radius:8px;background:var(--app-bg);padding:6px 10px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.a4 .ev b{font-size:17px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a4 .ev span{font-size:13px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a4 .ev.ship{border-left:4px solid var(--app-info)}
+.a4 .ev.build{border-left:4px solid var(--app-success)}
+.a4 .ev.chg{border-left:4px solid var(--app-danger);background:var(--app-danger-50)}
+.a4 .ev.chg span{color:var(--app-danger);font-weight:700}
+.a4 .none{color:var(--app-text3);font-size:15px;text-align:center;padding-top:16px}
+.a4 .legend{grid-column:1/-1;display:flex;gap:18px;font-size:14px;color:var(--app-text3);align-items:center;padding:0 4px}
+.a4 .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+.a4 .inbox{background:var(--app-surface);border-left:1px solid var(--app-line);padding:14px 18px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.a4 .inbox h4{font-size:20px;font-weight:800;display:flex;align-items:center;gap:10px}
+.a4 .inbox h4 b{font-size:16px;min-width:30px;height:30px;padding:0 8px;border-radius:15px;background:var(--app-danger);color:var(--app-inverse);display:inline-flex;align-items:center;justify-content:center}
+.a4 .al{border:1px solid var(--app-line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr 150px;gap:4px 12px;align-items:center}
+.a4 .al .k{font-size:17px;font-weight:800;color:var(--app-danger)}
+.a4 .al .k.dw{color:var(--app-info)}
+.a4 .al .k.cx{color:var(--app-amber-text)}
+.a4 .al .n{font-size:20px;font-weight:800}
+.a4 .al .n small{font-size:15px;color:var(--app-text3);font-weight:700;margin-left:6px}
+.a4 .al .m{font-size:14px;color:var(--app-text3)}
+.a4 .al .btn{grid-row:1/4;min-height:56px;font-size:17px}
+.a4 .al.done{opacity:.55}
+.a4 .al.done .btn{display:none}
+.a4 .al.done .ok{grid-row:1/4;text-align:center;font-size:15px;color:var(--app-text3)}
+.a4 .more{font-size:15px;color:var(--app-text3);text-align:center;padding-top:2px}
+.a4 .more u{color:var(--app-brand);text-underline-offset:3px}
+.a2 .bar h3 small{font-weight:700;color:var(--app-text3);font-size:15px}
+.a2 .row .v.addr{font-size:15px;font-weight:500;color:var(--app-text2)}
+.a3 .thumb .ic{vertical-align:-5px}
+.a3 .acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.a4 .legend i.s{background:var(--app-info)}.a4 .legend i.b{background:var(--app-success)}.a4 .legend i.c{background:var(--app-danger)}
+</style>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 24 24"><path d="m3 21 4-1L18 9l-3-3L4 17l-1 4Z"/><path d="m14 7 3 3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>생산 작업자 화면 시안 넷</h1>
+  <p class="lead">지금 만들어 둔 태블릿 화면(왼쪽 레일 + 칸반 + 옆에서 나오는 시트)은 <b>관리자가 PC 에서 보던 판을 태블릿에 옮긴 것</b>이에요. 이 네 장은 반대로 <b>작업대 앞에 선 사람</b>이 하루에 실제로 하는 일에서 출발했어요. "전체 주문이 어디까지 왔나 → 도면 보며 만들고 체크 → 내 기계에 온 줄 처리 → 일정·바뀐 것 확인" 순서예요. 데이터는 전부 가짜예요.</p>
+  <ul class="rules">
+    <li><b>기종</b> 갤럭시 탭 가로 1280×800</li>
+    <li><b>장갑</b> 단추 56px 이상, 글자 16px 이상, 끌기 없음</li>
+    <li><b>연결</b> 마지막 받은 시각 표시 + [다시 받기]</li>
+    <li><b>금액</b> 어디에도 없음(결정 D7)</li>
+    <li><b>인쇄</b> 작업 화면에 단추(결정 D8)</li>
+  </ul>
+  <ul class="toc">
+    <li><a href="#a1">안 1. 전체 주문</a></li>
+    <li><a href="#a2">안 2. 도면 먼저 작업 화면</a></li>
+    <li><a href="#a3">안 3. 내 공정 줄</a></li>
+    <li><a href="#a4">안 4. 일정과 바뀐 것</a></li>
+    <li><a href="#pick">어떻게 고를까</a></li>
+  </ul>
+
+  <!-- ───────────── 안 1 ───────────── -->
+  <section class="frame" id="a1">
+    <h2>안 1. 전체 주문 — 시공일 순 한 줄</h2>
+    <p class="who">누구에게: <b>생산팀 모두의 첫 화면</b>. 사용자 결정(11-09) "첫 화면은 전체 주문을 볼 수 있게". 도면 기다리는 것부터 시공 중인 것까지 전부가 시공일 순서로 한 줄이고, 왼쪽 큰 글자가 지금 단계예요. 칸반·KPI 는 없어요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a1">
+        <div class="bar">
+          <h3>전체 주문</h3><span class="date">23건 · 11월 9일 (월)</span>
+          <div class="seg"><span class="on">전체 <small>23</small></span><span>생산 중 <small>7</small></span><span>바뀐 것 <small>3</small></span></div>
+          <span class="btn"><svg class="ic"><use href="#i-search"/></svg>찾기</span>
+          <div class="sp"></div>
+          <span class="sync">방금 받음 · 09:41</span>
+          <span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          <span class="ava">이철</span>
+        </div>
+        <div class="list">
+          <div class="dh2"><b class="today">오늘 11/9 (월)</b><small>시공 1</small></div>
+          <div class="job">
+            <div class="stg"><b>시공 중</b><span>출고 11/2 끝</span></div>
+            <div class="who"><div class="nm">정수아 <small>#5110</small></div><div class="pr"><b>주방 상부장, 하부장, 키큰장</b> · 화이트 오크</div><div class="pr">하남시 미사강변대로 20, 1105동 401호 · 시공 박성민</div></div>
+            <div class="steps"><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>재단</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>엣지</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>도장</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>조립</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>검수</div></div>
+            <div class="dw"><b>도면 6장</b><svg class="ic"><use href="#i-chev-r"/></svg></div>
+          </div>
+          <div class="dh2"><b>11/12 (목) · D-3</b><small>시공 2 · 출고 11/11</small></div>
+          <div class="job">
+            <div class="stg"><b>엣지 중</b><span>생산</span></div>
+            <div class="who"><div class="nm">박서준 <small>#5107</small></div><div class="pr"><b>슬라이딩 붙박이장</b> · W2740 × D700 × H2330 · 그레이</div><div class="pr">성남시 분당구 판교로 12, 503동 1801호</div></div>
+            <div class="steps"><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>재단</div><div class="st now"><i></i>엣지</div><div class="st"><i></i>도장</div><div class="st"><i></i>조립</div><div class="st"><i></i>검수</div></div>
+            <div class="dw"><b>도면 3장</b><svg class="ic"><use href="#i-chev-r"/></svg></div>
+          </div>
+          <div class="job changed">
+            <div class="stg"><b>도장 중</b><span>생산</span></div>
+            <div class="who"><div class="nm">김하늘 <small>#5103</small></div><div class="pr"><b>거실장, 몰딩 벽박이장</b> · W3100 × D500 × H2300 · 화이트 오크</div><div class="chg">시공일 11/10 → 11/12 로 바뀜 · 영업 이서연 · 2시간 전</div></div>
+            <div class="steps"><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>재단</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>엣지</div><div class="st now"><i></i>도장</div><div class="st"><i></i>조립</div><div class="st"><i></i>검수</div></div>
+            <div class="dw"><b>도면 4장</b><svg class="ic"><use href="#i-chev-r"/></svg></div>
+          </div>
+          <div class="dh2"><b>11/13 (금) · D-4</b><small>시공 1 · 출고 11/12</small></div>
+          <div class="job">
+            <div class="stg"><b>조립 중</b><span>생산</span></div>
+            <div class="who"><div class="nm">이도윤 <small>#5099</small></div><div class="pr"><b>냉장고장</b> · W1200 × D650 × H2300 · 화이트</div><div class="pr">서울 송파구 올림픽로 300, 101동 1203호</div></div>
+            <div class="steps"><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>재단</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>엣지</div><div class="st done"><i><svg class="ic lg"><use href="#i-check"/></svg></i>도장</div><div class="st now"><i></i>조립</div><div class="st"><i></i>검수</div></div>
+            <div class="dw"><b>도면 2장</b><svg class="ic"><use href="#i-chev-r"/></svg></div>
+          </div>
+          <div class="dh2"><b>11/20 (금) · D-11</b><small>시공 1</small></div>
+          <div class="job soon">
+            <div class="stg"><b>도면 기다림</b><span>도면팀</span></div>
+            <div class="who"><div class="nm">서지호 <small>#5118</small></div><div class="pr"><b>신발장, 중문 옆 수납</b> · 크림</div><div class="pr">고양시 덕양구 행신로 5, 302동 1502호 · 실측 11/4 끝</div></div>
+            <div class="steps"><div class="st"><i></i>재단</div><div class="st"><i></i>엣지</div><div class="st"><i></i>도장</div><div class="st"><i></i>조립</div><div class="st"><i></i>검수</div></div>
+            <div class="dw"><b>도면 없음</b><svg class="ic"><use href="#i-chev-r"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>사용자 결정: 첫 화면은 <b>전체 주문</b>. 그래서 오늘·내일 칸이 아니라 날짜 머리줄로 나눈 긴 한 줄이에요. 아래로 밀면 다음 주, 그 뒤까지 이어져요.</li>
+        <li>왼쪽 큰 글자가 <b>지금 단계</b>("엣지 중", "도면 기다림", "시공 중"). 생산 전·후 주문도 같은 줄에 있어서 "그 집 어디까지 갔어?"에 바로 답해요.</li>
+        <li>카드 한 장 100px, 장갑 낀 손으로 아무 데나 눌러도 그 주문이 열려요(안 2). 공정 다섯 칸은 열지 않아도 보여요.</li>
+        <li>바뀐 주문은 왼쪽 붉은 띠 + 한 줄 글. 새 칩이나 요약 상자는 없어요.</li>
+      </ul></div>
+      <div class="col"><h3>지금 화면과 다른 점</h3><ul>
+        <li>레일 9탭·KPI 5칸·칸반 3열이 없어요. 생산팀 계정만 이 화면을 첫 화면으로 받아요.</li>
+        <li>위 세 칸은 전체 / 생산 중 / 바뀐 것. "생산 중"이 지금 칸반의 대기+진행과 같아요. 찾기는 단추 하나.</li>
+        <li>연결이 얼면 위 초록 점이 노랗게 바뀌고 "09:41 에 받은 것" 이라고 적혀요.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로 만들 수 있나</h3><ul>
+        <li>컨트롤타워가 쓰는 전체 주문 목록 + 단계 값 그대로, 정렬만 시공일. 금액 칸은 보내지 않아요(D7).</li>
+        <li>공정 5칸은 공정 API(steps GET) 값. 변경 띠는 브리핑 모달이 쓰는 변경 알림 데이터.</li>
+        <li>새 라우트 1개(생산팀 홈) + 템플릿 1장. JS 는 "다시 받기"·세 칸 전환·카드 탭 이동만.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 2 ───────────── -->
+  <section class="frame" id="a2">
+    <h2>안 2. 도면 먼저 작업 화면 — 종이 도면을 대신하는 전체 화면</h2>
+    <p class="who">누구에게: <b>만드는 중인 모든 사람</b>. 안 1 이나 안 3 에서 주문을 누르면 이 화면이 통째로 열려요. 지금의 400px 옆 시트가 아니라 화면 전체예요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a2">
+        <div class="bar">
+          <span class="crumb"><svg class="ic"><use href="#i-chev-l"/></svg>전체 주문</span>
+          <h3>김하늘 <small>#5103</small> · 거실장, 몰딩 벽박이장</h3>
+          <span class="due">시공 11/12 (목)</span>
+          <div class="sp"></div>
+          <span class="btn"><svg class="ic"><use href="#i-print"/></svg>인쇄</span>
+          <span class="btn ghost">상세</span>
+        </div>
+        <div class="body">
+          <div class="dwg">
+            <div class="cap">도면 2 / 4 · 거실장 정면</div>
+            <svg class="sheet" viewBox="0 0 600 560" aria-hidden="true">
+              <g fill="none" stroke="var(--app-dwg-line)" stroke-width="2">
+                <rect x="60" y="80" width="480" height="380"/>
+                <line x1="60" y1="300" x2="540" y2="300"/>
+                <rect x="70" y="90" width="150" height="200"/><rect x="230" y="90" width="150" height="200"/><rect x="390" y="90" width="140" height="200"/>
+                <rect x="70" y="310" width="230" height="140"/><rect x="310" y="310" width="220" height="140"/>
+                <line x1="140" y1="130" x2="140" y2="250"/><line x1="300" y1="130" x2="300" y2="250"/>
+                <circle cx="185" cy="380" r="4"/><circle cx="415" cy="380" r="4"/>
+              </g>
+              <g fill="none" stroke="var(--app-dwg-dim)" stroke-width="1.5">
+                <line x1="60" y1="500" x2="540" y2="500"/><line x1="60" y1="492" x2="60" y2="508"/><line x1="540" y1="492" x2="540" y2="508"/>
+                <line x1="30" y1="80" x2="30" y2="460"/><line x1="22" y1="80" x2="38" y2="80"/><line x1="22" y1="460" x2="38" y2="460"/>
+                <line x1="60" y1="52" x2="300" y2="52"/><line x1="60" y1="44" x2="60" y2="60"/><line x1="300" y1="44" x2="300" y2="60"/>
+              </g>
+              <g fill="var(--app-dwg-dim)" font-family="Noto Sans KR, sans-serif" font-size="16" font-weight="700">
+                <text x="300" y="524" text-anchor="middle">3100</text>
+                <text x="180" y="40" text-anchor="middle">1540</text>
+                <text x="16" y="275" text-anchor="middle" transform="rotate(-90 16 275)">2300</text>
+              </g>
+            </svg>
+            <span class="nav l"><svg class="ic xl"><use href="#i-chev-l"/></svg></span>
+            <span class="nav r"><svg class="ic xl"><use href="#i-chev-r"/></svg></span>
+            <div class="thumbs"><div class="th">1 평면</div><div class="th on">2 정면</div><div class="th">3 측면</div><div class="th pdf">4 PDF</div></div>
+          </div>
+          <div class="side">
+            <div class="box">
+              <h4>고객</h4>
+              <div class="row"><div class="v">김하늘<small>010-1234-5678</small></div><span class="btn"><svg class="ic"><use href="#i-phone"/></svg>전화</span></div>
+              <div class="row"><div class="v addr">서울 송파구 올림픽로 300, 101동 1203호<small>실측 10/28 · 출고 11/11 (수)</small></div><span class="btn"><svg class="ic"><use href="#i-map"/></svg>지도</span></div>
+            </div>
+            <div class="box items">
+              <h4>만들 것</h4>
+              <div><span>거실장</span><span>W3100 × D500 × H2300 · 1</span></div>
+              <div><span>몰딩 벽박이장</span><span>W2160 × D600 × H2300 · 1</span></div>
+              <div class="clr">화이트 오크 · 손잡이 블랙 · 경첩 소프트</div>
+            </div>
+            <div class="box pst">
+              <h4>공정</h4>
+              <div class="r done"><i><svg class="ic"><use href="#i-check"/></svg></i><span>재단</span><small>이철호 · 11/9 09:12</small></div>
+              <div class="r done"><i><svg class="ic"><use href="#i-check"/></svg></i><span>엣지</span><small>이철호 · 11/9 10:40</small></div>
+              <div class="r now"><i></i><span>도장</span><small>지금 여기</small></div>
+              <div class="r"><i></i><span>조립</span><small></small></div>
+              <div class="r"><i></i><span>검수</span><small></small></div>
+            </div>
+            <div class="acts">
+              <span class="btn bad"><svg class="ic"><use href="#i-warn"/></svg>불량 알리기</span>
+              <span class="btn"><svg class="ic"><use href="#i-pause"/></svg>보류</span>
+            </div>
+            <span class="btn big off">제작 완료 — 검수까지 끝나면 눌러요</span>
+            <div class="status"><span>저장됨 10:40</span><span>연결 좋음</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>작업자가 가장 오래 보는 건 <b>도면</b>이에요. 지금은 종이를 들고 다녀요. 그래서 도면이 화면의 6할, 나머지가 옆 줄이에요.</li>
+        <li>넘기기 단추 72px 둥근 것 두 개와 아래 썸네일. 두 손가락으로 확대. 장갑으로도 넘겨요.</li>
+        <li>전화·주소·실측일·출고일이 한 상자. 시공팀에 전화할 일, 주소 확인할 일이 여기서 끝나요.</li>
+        <li>공정 다섯 줄은 체크하면 <b>누가 몇 시에</b>가 남아요. "제작 완료"는 검수까지 끝나기 전엔 회색이에요.</li>
+      </ul></div>
+      <div class="col"><h3>지금 화면과 다른 점</h3><ul>
+        <li>옆에서 400px 만 나오는 시트가 아니라 전체 화면. 돌아가기는 왼쪽 위 한 번.</li>
+        <li>설계서의 F2·F3(전화·주소·공정 블록·도면 N장)가 다 들어 있어요. 다른 건 <b>배치</b>만이에요.</li>
+        <li>인쇄 단추는 위 막대. 종이가 필요한 사람은 여기서 뽑아요(D8).</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로 만들 수 있나</h3><ul>
+        <li>작업 시트 라우트(<code>/erp/production/tablet-sheet/&lt;id&gt;</code>)의 뷰 모델에 전화·주소·도면 목록 2키만 더하면 돼요(플랜 T2-1·T3-2).</li>
+        <li>공정 체크는 공정 API 그대로. 뷰어는 첨부 미리보기 마운터 재사용.</li>
+        <li>전체 화면 템플릿 1장이 새로 생겨요. 옆 시트와 둘 다 두거나, 생산팀만 이걸 받게 할 수 있어요.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 3 ───────────── -->
+  <section class="frame" id="a3">
+    <h2>안 3. 내 공정 줄 — 기계 하나를 맡은 사람의 화면</h2>
+    <p class="who">누구에게: <b>재단기·엣지기·도장 부스처럼 한 공정만 맡는 사람</b>. 그 공정에 와 있는 주문만 줄로 보고, 큰 단추 하나로 넘겨요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a3">
+        <div class="slim"><b>내 공정</b><span>이철호</span><span class="sp"></span><span>11월 9일 (월)</span><span class="sync">방금 받음</span></div>
+        <div class="tabs">
+          <div class="tab">재단 <b>6</b></div>
+          <div class="tab on">엣지 <b>4</b></div>
+          <div class="tab">도장 <b>3</b></div>
+          <div class="tab">조립 <b>5</b></div>
+          <div class="tab">검수 <b>2</b></div>
+        </div>
+        <div class="body">
+          <div class="q">
+            <div class="qh"><span>엣지에 와 있는 것 4건 · 시공일 순</span><span>재단 끝나면 여기로 와요</span></div>
+            <div class="qr on"><div class="n">1</div><div class="nm">박서준<small>#5107 · 슬라이딩 붙박이장 · 그레이</small></div><div class="due">시공<b class="hot">11/12 (목)</b></div></div>
+            <div class="qr"><div class="n">2</div><div class="nm">김하늘<small>#5103 · 거실장, 몰딩 벽박이장 · 화이트 오크</small></div><div class="due">시공<b class="hot">11/12 (목)</b></div></div>
+            <div class="qr"><div class="n">3</div><div class="nm">한지우<small>#5112 · 키큰장 · 화이트</small></div><div class="due">시공<b>11/15 (일)</b></div></div>
+            <div class="qr"><div class="n">4</div><div class="nm">오민재<small>#5095 · TV장, 선반 · 월넛</small></div><div class="due">시공<b>11/17 (화)</b></div></div>
+            <div class="qr wait"><div class="n">—</div><div class="nm">최유진<small>#5097 · 몰딩 벽박이장 · 크림 · 아직 재단 중</small></div><div class="due">시공<b>11/14 (토)</b></div></div>
+          </div>
+          <div class="pane">
+            <div class="nm">박서준 <small>#5107</small></div>
+            <div class="sub">슬라이딩 붙박이장 · W2740 × D700 × H2330</div>
+            <div class="thumb"><span>도면 3장</span><span><svg class="ic"><use href="#i-expand"/></svg> 크게</span></div>
+            <div class="spec"><span>색</span><b>그레이 · 손잡이 없음</b><span>엣지</span><b>동색 1T</b><span>앞 공정</span><b>재단 끝 · 09:12</b><span>다음 공정</span><b>도장</b></div>
+            <div class="sp"></div>
+            <span class="btn huge ok"><svg class="ic xl"><use href="#i-check"/></svg>엣지 끝</span>
+            <div class="acts"><span class="btn bad"><svg class="ic"><use href="#i-warn"/></svg>불량</span><span class="btn"><svg class="ic"><use href="#i-pause"/></svg>보류</span></div>
+            <div class="next">끝내면 다음은 <b>김하늘</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>공장은 공정 순서로 돌아요. 엣지기 앞에 선 사람에게 조립 대기 주문은 소음이에요. <b>내 공정 탭 하나</b>만 보여요.</li>
+        <li>줄에는 이름·품목·색·시공일만. 일의 양(판 장수 같은 것)은 보이지 않아요. 사용자 결정(11-09) "일의 양은 안 보여도 돼요".</li>
+        <li>[엣지 끝] 96px 하나. 누르면 그 주문은 도장 탭으로 넘어가고 줄이 당겨져요. 다음 사람 이름이 미리 보여요.</li>
+        <li>아직 재단 중인 것은 줄 맨 아래 흐리게. "곧 올 것"을 알면 자재를 미리 꺼내요.</li>
+      </ul></div>
+      <div class="col"><h3>지금 화면과 다른 점</h3><ul>
+        <li>칸반 열이 대기·진행·완료가 아니라 <b>공정 5탭</b>. 작업자 한 사람에게는 이 쪽이 공장 바닥과 같아요.</li>
+        <li>탭은 사람마다 저장돼요. 엣지 담당 태블릿은 늘 엣지 탭으로 켜져요(계정이 사람마다라서 가능, D2).</li>
+        <li>도면은 썸네일 + [크게]. 크게는 안 2 가 열려요.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로 만들 수 있나</h3><ul>
+        <li>공정 API 의 완료 기록으로 "어느 공정에 와 있나"를 계산해요. 새 저장 칸은 없어요.</li>
+        <li>줄에 보이는 값은 전부 지금 주문에 있는 것(이름·품목·색·시공일). 새로 적는 칸이 없어요.</li>
+        <li>[엣지 끝] = 공정 체크 POST 한 번. 보류·불량은 지금 시트 단추와 같은 API.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 4 ───────────── -->
+  <section class="frame" id="a4">
+    <h2>안 4. 일정과 바뀐 것 — 이번 주 한 장과 받은함</h2>
+    <p class="who">누구에게: <b>반장, 그리고 아침에 하루를 시작하는 모든 사람</b>. 시공일·출고일이 요일 칸에 놓이고, 오른쪽에 바뀐 것이 쌓여요. 카톡 발주방 글과 구두 전달을 대신해요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a4">
+        <div class="bar">
+          <h3>이번 주</h3>
+          <div class="nav2"><span class="btn"><svg class="ic"><use href="#i-chev-l"/></svg></span><b>11/9 (월) – 11/14 (토)</b><span class="btn"><svg class="ic"><use href="#i-chev-r"/></svg></span></div>
+          <div class="seg"><span class="on">시공 · 출고</span><span>생산 마감</span></div>
+          <div class="sp"></div>
+          <span class="sync">방금 받음 · 09:41</span>
+          <span class="ava">이철</span>
+        </div>
+        <div class="body">
+          <div class="week">
+            <div class="day today"><div class="dh"><b>9<small>월</small></b><span>출고 1 · 시공 1</span></div><div class="db">
+              <div class="ev ship"><b>오민재</b><span>출고 · TV장</span></div>
+              <div class="ev build"><b>정수아</b><span>시공 · 주방 (11/2 출고)</span></div>
+            </div></div>
+            <div class="day"><div class="dh"><b>10<small>화</small></b><span>출고 2 · 시공 0</span></div><div class="db">
+              <div class="ev ship"><b>한지우</b><span>출고 · 키큰장</span></div>
+              <div class="ev ship"><b>서지호</b><span>출고 · 신발장</span></div>
+            </div></div>
+            <div class="day"><div class="dh"><b>11<small>수</small></b><span>출고 2 · 시공 1</span></div><div class="db">
+              <div class="ev ship"><b>김하늘</b><span>출고 · 거실장</span></div>
+              <div class="ev ship"><b>박서준</b><span>출고 · 붙박이장</span></div>
+              <div class="ev build"><b>오민재</b><span>시공 · TV장</span></div>
+            </div></div>
+            <div class="day"><div class="dh"><b>12<small>목</small></b><span>출고 1 · 시공 2</span></div><div class="db">
+              <div class="ev chg"><b>김하늘</b><span>시공 · 11/10 에서 옮겨 옴</span></div>
+              <div class="ev build"><b>박서준</b><span>시공 · 붙박이장</span></div>
+              <div class="ev ship"><b>이도윤</b><span>출고 · 냉장고장</span></div>
+            </div></div>
+            <div class="day"><div class="dh"><b>13<small>금</small></b><span>출고 1 · 시공 1</span></div><div class="db">
+              <div class="ev build"><b>이도윤</b><span>시공 · 냉장고장</span></div>
+              <div class="ev ship"><b>최유진</b><span>출고 · 벽박이장</span></div>
+            </div></div>
+            <div class="day"><div class="dh"><b>14<small>토</small></b><span>출고 0 · 시공 1</span></div><div class="db">
+              <div class="ev build"><b>최유진</b><span>시공 · 벽박이장</span></div>
+            </div></div>
+            <div class="legend"><span><i class="s"></i>출고</span><span><i class="b"></i>시공</span><span><i class="c"></i>바뀐 것</span><span>· 오늘은 굵은 테두리</span></div>
+          </div>
+          <div class="inbox">
+            <h4>바뀐 것 <b>3</b></h4>
+            <div class="al"><div class="k">시공일 11/10 → 11/12</div><div class="n">김하늘<small>#5103</small></div><div class="m">영업 이서연 · 2시간 전 · 도장 전이라 괜찮아요</div><span class="btn pri">확인했어요</span></div>
+            <div class="al"><div class="k dw">도면 바뀜 · 3장 → 4장</div><div class="n">박서준<small>#5107</small></div><div class="m">도면팀 · 어제 17:20 · 측면 1장 추가</div><span class="btn pri">확인했어요</span></div>
+            <div class="al"><div class="k cx">품목 취소 · 몰딩 벽박이장 1</div><div class="n">최유진<small>#5097</small></div><div class="m">CS 김민지 · 어제 16:05 · 거실장만 만들어요</div><span class="btn pri">확인했어요</span></div>
+            <div class="al done"><div class="k">시공일 11/5 → 11/9</div><div class="n">정수아<small>#5110</small></div><div class="m">영업 이서연 · 11/3</div><div class="ok">이철호 확인<br>11/3 14:10</div></div>
+            <div class="more"><u>확인한 것 12건 더 보기</u></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>사용자 결정 D3: 생산도 <b>출고·시공 일정을 봐야</b> 해요. 공장에선 "이번 주"가 단위라 달력 한 달이 아니라 요일 여섯 칸이에요.</li>
+        <li>바뀐 것은 지금 카톡 글과 구두로 와요(D4). 받은함에 사람마다 [확인했어요]를 두면 <b>누가 봤는지</b>가 남아요. 지금 ACK 와 같은 뜻이에요.</li>
+        <li>바뀐 주문은 요일 칸에서도 붉어요. 받은함과 달력이 같은 사실을 두 번 보여 주는 게 아니라, 하나는 "언제", 하나는 "무엇"이에요.</li>
+        <li>품목 취소도 여기 와요(설계서 F-13). 이미 자른 판을 버리지 않게.</li>
+      </ul></div>
+      <div class="col"><h3>지금 화면과 다른 점</h3><ul>
+        <li>브리핑 모달(60vh 목록)이 아니라 <b>항상 보이는 오른쪽 받은함</b>. 모달은 닫으면 사라지고, 130% 배율에서 깔리던 문제가 없어요.</li>
+        <li>출고 보드·시공 일정으로 레일을 오가지 않아도 생산 사람이 알 범위만 한 장.</li>
+        <li>여기선 쓰기가 [확인했어요] 하나뿐이라, 출고 배정 쓰기 403 문제(별건)와 부딪히지 않아요.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로 만들 수 있나</h3><ul>
+        <li>변경 알림 4종 + ACK 는 그대로. 품목 취소 알림만 새로(플랜 T3-3).</li>
+        <li>요일 칸은 출고일·시공일 두 열로 그려요. 둘 다 주문에 이미 있어요.</li>
+        <li>새 라우트 1개 + 템플릿 1장. 안 1 과 같은 첫 화면에 탭 두 개(할 일 / 이번 주)로 묶을 수도 있어요.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 고르기 ───────────── -->
+  <section class="pick" id="pick">
+    <h2>어떻게 고를까</h2>
+    <p>사용자 결정(11-09)으로 <b>첫 화면은 안 1 전체 주문</b>이에요. 주문을 누르면 <b>안 2</b>가 전체 화면으로 열려요. 안 3(내 공정 줄)과 안 4(일정과 바뀐 것)는 첫 화면 위 세 칸 옆에 탭으로 붙이거나 레일에서 여는 후보예요. 지금 승인된 설계서(레일 + 시트 고치기)는 "지금 있는 것을 생산팀이 쓸 수 있게"이고, 이 넷은 "생산팀만의 첫 화면을 따로 두기"예요. 둘은 같이 갈 수 있어요.</p>
+    <div class="cols">
+      <div class="col"><h3>이번에 정한 것(11-09)</h3><ul>
+        <li><b>첫 화면은 전체 주문</b> — 오늘 할 일만이 아니라 도면 기다리는 것부터 시공 중까지 한 줄. 안 1 을 그렇게 고쳤어요.</li>
+        <li><b>일의 양은 안 보여도 돼요</b> — 판 장수 같은 새 값은 넣지 않아요. 안 3 줄에서 뺐어요.</li>
+        <li>아직 안 정한 것: 안 3·안 4 를 첫 화면의 탭으로 둘지, 레일에서만 열지.</li>
+      </ul></div>
+      <div class="col"><h3>앞서 정한 것</h3><ul>
+        <li>금액은 생산팀에게 보이지 않아요(D7). 네 장 어디에도 금액 칸이 없어요.</li>
+        <li>인쇄는 이번에 같이(D8). 안 2 위 막대의 [인쇄].</li>
+        <li>장갑·연결 끊김(D5): 단추 56px 이상, 받은 시각 표시, [다시 받기].</li>
+      </ul></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w'))||1280,h=parseFloat(s.getAttribute('data-h'))||800;
+      var sw=s.clientWidth;if(!sw){return;}
+      var k=Math.min(1,sw/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+  if(window.ResizeObserver){new ResizeObserver(fit).observe(document.body);}
+})();
+</script>
+
+</body>
+</html>
