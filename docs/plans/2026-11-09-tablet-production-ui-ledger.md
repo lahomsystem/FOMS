@@ -161,3 +161,4 @@
 - **T4-1 DONE** `GET /erp/production/print/<id>`(`home.py`, 권한 생산 홈과 같음) → 단독 `production/print_sheet.html`(머리·고객·전화·주소·발주사·실측/시공·시공팀 / 규격 표(취소 품목 제외, 확인 칸) / 특이사항 / 공정 빈 칸 4 / 최종 도면 장마다 1쪽, PDF 는 글로만), CSS `contexts/production/print.css`(@page A4, 화면은 종이 모양 미리보기), JS `foms-production-print.js`(8줄, [인쇄]·`?auto=1`). 시트 두 곳에 [인쇄](새 탭). 시험 `test_production_print_sheet.py` 4. 뷰 모델에 `orderer_name`.
 - 푸시 6: deploy b6473f9c9 → **9585e17b1**(T3-3·T4-1). smoke 17,145 PASS. CI `ci7.log` 감시 중. **설계서 P0~P4 전부 스테이징 반영.** 운영 반영은 사용자 명시 요청 때 이 세션 커밋만 cherry-pick 승격(`promote_own_to_production.py`).
 - 스테이징 확인(9585e17b 배포 SUCCESS): 전체 화면 시트에 [인쇄] 링크 1, `/erp/production/print/<id>` 200(도면 없는 주문이라 1쪽). CI 는 `ci7.log`. **다음은 사용자 선택: 갤럭시 탭 실기기 검수 → 운영 승격(cherry-pick) 또는 고칠 것.**
+- CI(9585e17b1) **ALL GREEN**(`ci7.log`). 사용자 선택(11-09 밤): **여기서 멈추고 검토** — 세션 종료. 재개 시 이 원장 §8.1~§11 + 설계서 §12 + 메모리로.
