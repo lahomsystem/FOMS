@@ -79,8 +79,8 @@
         }
 
         #drawing-gateway-viewer-image {
-          max-width: 90vw;
-          max-height: 82vh;
+          max-width: calc(90vw / var(--foms-ui-zoom, 1));
+          max-height: calc(82vh / var(--foms-ui-zoom, 1));
           width: auto;
           height: auto;
           object-fit: contain;
@@ -110,7 +110,7 @@
           left: 50%;
           transform: translateX(-50%);
           min-width: 280px;
-          max-width: 80vw;
+          max-width: calc(80vw / var(--foms-ui-zoom, 1));
           padding: 8px 14px;
           border-radius: 10px;
           background: rgba(20, 24, 33, 0.55);

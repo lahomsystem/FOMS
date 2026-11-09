@@ -9,7 +9,7 @@
  * 무스코프 적용이 안전하다.
  *
  * 배치 매트릭스:
- *  - 기본(폰 <992 · 태블릿 세로): bottom sheet 85vh, 상단 라운드 — 기존 모바일 모습 유지.
+ *  - 기본(폰 <992 · 태블릿 세로): bottom sheet calc(85vh / var(--foms-ui-zoom, 1)), 상단 라운드 — 기존 모바일 모습 유지.
  *  - 비모바일(≥992 가로 / fine / none — foms-shell.css:11 반대편 열거와 동일):
  *    우상단 드롭다운 패널. 위에서 내려오도록 transform 을 위쪽으로 뒤집는다
  *    (.offcanvas.show 의 transform:none 전환은 Bootstrap 원 규칙 재사용).
@@ -17,8 +17,8 @@
 
 /* ---- 기본 배치: bottom sheet (모바일 기존 모습) ---------------------------- */
 .erp-mobile-notif-sheet.offcanvas-bottom {
-  height: 85vh;
-  max-height: 85vh;
+  height: calc(85vh / var(--foms-ui-zoom, 1));
+  max-height: calc(85vh / var(--foms-ui-zoom, 1));
   border-top-left-radius: var(--foms-radius-lg);
   border-top-right-radius: var(--foms-radius-lg);
   background: var(--foms-surface-base);
@@ -330,9 +330,9 @@
     right: var(--foms-space-3, 12px);
     bottom: auto;
     left: auto;
-    width: min(430px, calc(100vw - 24px));
+    width: min(430px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 24px));
     height: auto;
-    max-height: min(720px, calc(100vh - 24px));
+    max-height: min(720px, calc(calc(100vh / var(--foms-ui-zoom, 1)) - 24px));
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-lg);
     box-shadow: var(--foms-shadow-xl);

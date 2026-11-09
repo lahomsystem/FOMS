@@ -23,8 +23,8 @@
 }
 
 .foms-lightbox__img {
-  max-width: min(96vw, 1200px);
-  max-height: 86vh;
+  max-width: min(calc(96vw / var(--foms-ui-zoom, 1)), 1200px);
+  max-height: calc(86vh / var(--foms-ui-zoom, 1));
   object-fit: contain;
   transform-origin: center center;
   user-select: none;

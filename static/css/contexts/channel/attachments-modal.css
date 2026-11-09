@@ -30,7 +30,7 @@ body.is-attachment-modal-open {
   display: flex;
   flex-direction: column;
   inline-size: min(72rem, 100%);
-  block-size: min(92vh, 72rem);
+  block-size: min(calc(92vh / var(--foms-ui-zoom, 1)), 72rem);
   overflow: hidden;
   border: 1px solid var(--wam-sys-border-strong);
   border-radius: var(--wam-ref-radius-xl);
@@ -173,7 +173,7 @@ body.is-attachment-modal-open {
 
   .wam-attachment-modal__dialog {
     inline-size: 100%;
-    block-size: 100vh;
+    block-size: calc(100vh / var(--foms-ui-zoom, 1));
     max-height: none;
     border-radius: 0;
   }

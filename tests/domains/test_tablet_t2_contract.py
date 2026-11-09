@@ -116,8 +116,8 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20261108a" in layout_head
-    assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20261109a" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20261108a" not in layout_head
 
 
 # --- (3) row 48px / target 44px token locks --------------------------------
@@ -419,7 +419,7 @@ def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
     페이지 스크롤이 없다 — 카드 17건 실측으로 board_bottom 이 뷰포트 안에 드는 확정값이
     265(과소값은 오히려 페이지 스크롤 유발). 240 회귀 차단."""
     css = _norm(_read(KANBAN_CSS))
-    assert "max-height: calc(100dvh - 265px)" in css
+    assert "max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 265px)" in css
     assert "calc(100dvh - 240px)" not in css
 
 
@@ -457,7 +457,7 @@ def test_kanban_css_fullscreen_hides_chrome_and_expands_board() -> None:
     # 열 body 캡 확대(일반 265 → 크롬 사라져 열 헤더+패딩만 상쇄). 카드 15건 실측 확정 90.
     assert (
         "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body "
-        "{ max-height: calc(100dvh - 90px)" in css
+        "{ max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 90px)" in css
     )
 
 
@@ -713,7 +713,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20261108a" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20261109a" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -1229,8 +1229,8 @@ def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
     """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713f 캐시버스터를 가진다.
     (2026-07-13 접힘 스킨 수리로 a→e, 하단 고정 최종견적 바 추가로 e→f, 하단바 가격 정렬 정합으로 f→o 범프.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260716g", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260716g <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20261109a", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20261109a <link> 부재"
 
 
 # =====================================================================
@@ -1478,7 +1478,7 @@ def test_tablet_measure_viewport_offset_is_tight() -> None:
     css = _norm(_read(MEASURE_CSS))
     assert "calc(100dvh - 9rem)" not in css
     m = re.search(
-        r"\.foms-tablet-measure-split\s*\{[^}]*min-height:\s*calc\(100dvh - (\d+)rem\)",
+        r"\.foms-tablet-measure-split\s*\{[^}]*min-height:\s*calc\(calc\(100dvh / var\(--foms-ui-zoom, 1\)\) - (\d+)rem\)",
         css,
     )
     assert m, "실측 split min-height viewport calc 부재"
@@ -1492,7 +1492,7 @@ def test_tablet_construction_viewport_offset_is_tight() -> None:
     css = _norm(_read(CONSTRUCTION_CSS))
     assert "calc(100dvh - 12rem)" not in css
     m = re.search(
-        r"\.foms-construction-workmode\s*\{[^}]*min-height:\s*calc\(100dvh - (\d+)rem\)",
+        r"\.foms-construction-workmode\s*\{[^}]*min-height:\s*calc\(calc\(100dvh / var\(--foms-ui-zoom, 1\)\) - (\d+)rem\)",
         css,
     )
     assert m, "시공 workmode min-height viewport calc 부재"

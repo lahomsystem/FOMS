@@ -18,7 +18,8 @@
         function updateBlueprintTransform() {
             const img = document.getElementById('blueprint-viewer-img');
             if (img) {
-                img.style.transform = `translate(${blueprintZoom.translateX}px, ${blueprintZoom.translateY}px) scale(${blueprintZoom.scale})`;
+                const uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // 옮김은 보이는 px(clientX) — 화면 크기 배율이 붙으면 나눈다
+                img.style.transform = `translate(${blueprintZoom.translateX / uz}px, ${blueprintZoom.translateY / uz}px) scale(${blueprintZoom.scale})`;
                 img.style.transformOrigin = 'center center';
             }
         }

@@ -27,7 +27,7 @@
   border: 1px solid #059a54;
   border-radius: 12px;
   overflow: hidden;
-  max-height: calc(100vh - 40px);
+  max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 40px);
   display: flex;
   flex-direction: column;
 }
@@ -129,7 +129,7 @@ body.erp-mobile-v2-layout .erp-naver-dock-fab {
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(720px, 92vw);
+  width: min(720px, calc(92vw / var(--foms-ui-zoom, 1)));
   max-width: none;
   padding: 0; /* .row > * 거터 패딩 무효화 */
   background: #fff;

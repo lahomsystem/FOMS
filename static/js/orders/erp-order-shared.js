@@ -3521,8 +3521,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 const viewportTargetTop = stickyTop + nav.getBoundingClientRect().height + 8;
                 const targetTop = window.scrollY + target.getBoundingClientRect().top;
                 const top = Math.max(0, targetTop - viewportTargetTop);
-                const tail = Math.max(0, top - (scroller.scrollHeight - window.innerHeight));
-                if (tail) form.style.setProperty('--erp-mobile-secnav-tail', `${Math.ceil(tail)}px`);
+                const uz = window.fomsUiZoom ? window.fomsUiZoom() : 1;  // scrollHeight · style 은 배율 전 px, 나머지는 보이는 px
+                const tail = Math.max(0, top - (scroller.scrollHeight * uz - window.innerHeight));
+                if (tail) form.style.setProperty('--erp-mobile-secnav-tail', `${Math.ceil(tail / uz)}px`);
 
                 requestAnimationFrame(() => {
                     if (gen === scrollGen) window.scrollTo({ top, behavior: 'auto' });

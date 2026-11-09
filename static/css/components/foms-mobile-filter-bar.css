@@ -1,7 +1,7 @@
 /* 모바일 ERP 필터 바 SSOT — 검색/툴바(패딩 유지) + 칩 밴드(뷰포트 full-bleed 흰색).
    모든 workflow 탭(대시보드·실측·생산·시공·출고·도면·AS)이 동일 규칙을 따른다.
    RCA(2026-06-11): shell-body 음수마진(-space-4)만으로는 container-fluid 거터·부모
-   overflow-x:hidden(출고 2d39530e)에서 흰 밴드가 [16,398]처럼 클립됨 → 100vw breakout. */
+   overflow-x:hidden(출고 2d39530e)에서 흰 밴드가 [16,398]처럼 클립됨 → calc(100vw / var(--foms-ui-zoom, 1)) breakout. */
 
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar {
@@ -28,8 +28,8 @@
     overflow-y: visible;
     scrollbar-width: none;
     box-sizing: border-box;
-    width: 100vw;
-    max-width: 100vw;
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+    max-width: calc(100vw / var(--foms-ui-zoom, 1));
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
     padding: var(--foms-space-3) var(--foms-space-4);
@@ -67,4 +67,4 @@
     margin-top: 0;
   }
 }
-
+

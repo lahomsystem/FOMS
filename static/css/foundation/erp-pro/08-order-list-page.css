@@ -156,7 +156,7 @@
 
 /* 테이블 스타일 개선 - 세로/가로 스크롤, 겹침 방지용 stacking context */
 .order-list-table-container .table-fixed-header {
-  max-height: calc(100vh - 280px);
+  max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 280px);
   overflow: auto;
   overflow-x: auto;
   overflow-y: auto;
@@ -166,13 +166,13 @@
 }
 
 /* 2026-11-05 점검 A6(PC 표 화면만 — 992px 이하는 카드 목록이라 그대로):
-   100vh-280px 이면 표 상자 바닥(가로 막대)이 화면 아래 105px 밖에 있었다(1440x900, 네이버 띠 있을 때
+   calc(100vh / var(--foms-ui-zoom, 1))-280px 이면 표 상자 바닥(가로 막대)이 화면 아래 105px 밖에 있었다(1440x900, 네이버 띠 있을 때
    표 위끝 385px). 400px 를 빼면 바닥이 885px 로 화면 안에 든다. 낮은 화면에서도 줄이 몇 개는 보이게
-   320px 아래로는 줄이지 않는다. 또 표는 상자 안에서 스크롤하는데 .erp-pro 의 min-height:100vh 가
+   320px 아래로는 줄이지 않는다. 또 표는 상자 안에서 스크롤하는데 .erp-pro 의 min-height:calc(100vh / var(--foms-ui-zoom, 1)) 가
    목록 위끝부터 화면 높이를 다시 채워 페이지 전체가 그만큼 더 내려가며 표 아래 빈 바탕만 보였다 — 내용 높이만 쓴다. */
 @media (min-width: 993px) {
   .order-list-table-container .table-fixed-header {
-    max-height: max(320px, calc(100vh - 400px));
+    max-height: max(320px, calc(calc(100vh / var(--foms-ui-zoom, 1)) - 400px));
   }
 
   .erp-pro.order-list-container {
@@ -528,7 +528,7 @@
   }
   
   .order-list-table-container .table-fixed-header {
-    max-height: calc(100vh - 320px);
+    max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 320px);
   }
   
   .order-list-table-container .column-filter-row th {

@@ -41,7 +41,7 @@ def _ratio(fg: str, bg: str) -> float:
 def test_pc_confirm_dialog_is_a_centered_card_with_stop_then_go():
     pc = _pc()
     card = _rule(pc, "    .wb-ask[open]")
-    assert "width: min(440px, calc(100vw - 32px));" in card and "border-radius: 12px;" in card
+    assert "width: min(440px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 32px));" in card and "border-radius: 12px;" in card
     assert "background: rgba(20, 23, 28, .45);" in _rule(pc, "    .wb-ask::backdrop")
     foot = _rule(pc, "    .wb-ask .wb-hsheet__foot")
     assert "flex-direction: row-reverse;" in foot, "[그만두기][실행] — 실행이 오른쪽 끝"
@@ -81,4 +81,4 @@ def test_pc_pipe_grey_only_touches_the_not_yet_step():
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert css.count("@media (max-width: 767.98px)") == 1, "폰 블록은 하나(대조군)"
     page = TEMPLATE.read_text(encoding="utf-8")
-    assert page.count("?v=20261108b") == 2 and "?v=20260930f" not in page
+    assert page.count("?v=20261109a") == 2 and "?v=20260930f" not in page

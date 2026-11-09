@@ -323,7 +323,11 @@
             }
 
             function updateTransform() {
-                if (els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+                if (els.image) {
+                    // 옮김(tx · ty)은 보이는 px(rect · clientX) — 화면 크기 배율이 붙으면 style 에 넣을 때 나눈다.
+                    const uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+                    els.image.style.transform = `translate(${state.tx / uz}px, ${state.ty / uz}px) scale(${state.scale})`;
+                }
             }
 
             function stageCenter() {

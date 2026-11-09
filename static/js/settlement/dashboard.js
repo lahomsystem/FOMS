@@ -325,8 +325,9 @@
     var py = y + 16;
     if (px + box.width > window.innerWidth - 8) px = x - box.width - 12;
     if (py + box.height > window.innerHeight - 8) py = y - box.height - 12;
-    tt.style.setProperty('--s-tt-x', Math.max(4, px) + 'px');
-    tt.style.setProperty('--s-tt-y', Math.max(4, py) + 'px');
+    var uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // 화면 크기 배율: 좌표는 보이는 px, fixed 위치는 배율 전 px
+    tt.style.setProperty('--s-tt-x', (Math.max(4, px) / uiZoom) + 'px');
+    tt.style.setProperty('--s-tt-y', (Math.max(4, py) / uiZoom) + 'px');
   }
 
   function hideTip(ctx) {
@@ -341,7 +342,7 @@
      막대 5개 + 값 캡이라 300 고정. 리사이즈는 이미 renderMountedRoots 가 되그린다. */
   var AGING_CHART_HEIGHT = 300;
   function trendChartHeight() {
-    return Math.max(320, Math.min(460, Math.round(window.innerHeight * 0.38)));
+    return Math.max(320, Math.min(460, Math.round(window.innerHeight / (window.fomsUiZoom ? window.fomsUiZoom() : 1) * 0.38)));
   }
 
   /* ── 집중 모드 ────────────────────────────────────────────────────────

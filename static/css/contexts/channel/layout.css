@@ -1,5 +1,5 @@
 .wam-shell {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--foms-ui-zoom, 1));
   --wam-runtime-sticky-bar-height: 0px;
 }
 
@@ -31,7 +31,7 @@
 
 .wam-page[data-page-state='error'] .wam-shell__viewport,
 .wam-page[data-page-state='empty'] .wam-shell__viewport {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--foms-ui-zoom, 1));
 }
 
 .wam-page[data-page-state='error'] .wam-main,

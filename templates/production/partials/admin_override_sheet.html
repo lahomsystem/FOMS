@@ -4,7 +4,7 @@
    싱글턴 가드, 재시도 스크립트는 리스너 없는 함수 묶음이라 셸 스왑 재실행에도 리스너가 쌓이지 않는다). 모바일 큐·칸반이 이미 실은 페이지에서는 다시 싣지 않는다. #}
 {% if not (erp_mobile_v2_enabled and ((mobile_width_surfaces is defined and mobile_width_surfaces) or (coarse_pointer_surfaces is defined and coarse_pointer_surfaces))) %}
 {% include 'partials/shared/foms_reason_sheet.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
 <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
 {% endif %}

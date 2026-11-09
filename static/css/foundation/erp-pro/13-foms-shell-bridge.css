@@ -24,7 +24,7 @@
   top: 140%;
   right: 0;
   width: 420px;
-  max-width: min(420px, calc(100vw - 24px));
+  max-width: min(420px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 24px));
   max-height: 480px;
   overflow-y: auto;
   z-index: 9999;
@@ -55,7 +55,7 @@
      for wide desktop tables) turns this wrapper into a scroll container. Any
      non-visible overflow on an ancestor makes IT the scroll context for
      descendant position:sticky — but this wrapper grows with content (min-height
-     :100vh) and never scrolls (the page/body does), so the shell header sticks
+     :calc(100vh / var(--foms-ui-zoom, 1))) and never scrolls (the page/body does), so the shell header sticks
      to a box that never moves and scrolls away. Desktop tables are hidden on
      mobile v2, so restore visible overflow to give the header a working sticky
      context. */

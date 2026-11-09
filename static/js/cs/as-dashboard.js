@@ -639,10 +639,12 @@
         pop.querySelector('.erp-as-avail-pop__note').value = state.note;
         document.body.appendChild(pop);
         const rect = chip.getBoundingClientRect();
-        const popW = pop.offsetWidth || 240;
+        // 화면 크기(--foms-ui-zoom)가 붙으면 rect · scroll · innerWidth 는 보이는 px, style 은 배율 전 px 다.
+        const uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+        const popW = (pop.offsetWidth || 240) * uiZoom;
         const left = Math.max(8, Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - popW - 8));
-        pop.style.top = `${window.scrollY + rect.bottom + 4}px`;
-        pop.style.left = `${left}px`;
+        pop.style.top = `${(window.scrollY + rect.bottom + 4) / uiZoom}px`;
+        pop.style.left = `${left / uiZoom}px`;
 
         pop.addEventListener('click', async (e) => {
           const seg = e.target.closest('[data-seg]');

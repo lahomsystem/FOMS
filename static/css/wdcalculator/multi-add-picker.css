@@ -41,8 +41,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: min(560px, calc(100vw - 32px));
-    max-height: min(80vh, 720px);
+    width: min(560px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 32px));
+    max-height: min(calc(80vh / var(--foms-ui-zoom, 1)), 720px);
     border-radius: 14px;
 }
 
@@ -53,7 +53,7 @@
     bottom: 0;
     top: auto;
     width: auto;
-    max-height: 85vh;
+    max-height: calc(85vh / var(--foms-ui-zoom, 1));
     border-radius: 16px 16px 0 0;
 }
 

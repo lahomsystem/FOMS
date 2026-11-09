@@ -163,10 +163,12 @@
         top = Math.max(PANEL_MARGIN, r.top - PANEL_GAP - maxHeight);
       }
     }
-    panel.style.width = width + 'px';
-    panel.style.left = left + 'px';
-    panel.style.top = top + 'px';
-    panel.style.maxHeight = Math.max(0, maxHeight) + 'px';
+    // 화면 크기 배율: 위 계산은 보이는 px(rect · innerHeight), style 은 배율 전 px.
+    var uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+    panel.style.width = (width / uiZoom) + 'px';
+    panel.style.left = (left / uiZoom) + 'px';
+    panel.style.top = (top / uiZoom) + 'px';
+    panel.style.maxHeight = (Math.max(0, maxHeight) / uiZoom) + 'px';
     panel.classList.toggle('wd-cat-panel--above', placeAbove);
   }
 

@@ -1101,7 +1101,7 @@
     --erp-as-cycle-accent: var(--foms-stage-drawing, #8b5cf6);
     display: flex;
     flex-direction: column;
-    max-height: 88vh;
+    max-height: calc(88vh / var(--foms-ui-zoom, 1));
     height: auto;
     border-top-left-radius: var(--foms-radius-lg, 12px);
     border-top-right-radius: var(--foms-radius-lg, 12px);

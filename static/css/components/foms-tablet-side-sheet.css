@@ -28,7 +28,7 @@ body.erp-mobile-v2-layout {
   right: 0;
   bottom: 0;
   width: 400px;
-  max-width: 92vw;
+  max-width: calc(92vw / var(--foms-ui-zoom, 1));
   z-index: var(--foms-z-modal, 1070);
   display: flex;
   flex-direction: column;
@@ -348,7 +348,7 @@ tr.foms-tablet-sheet-active > * {
  *
  * 본문 우측 공간 예약은 레일 좌측(foms-tablet-rail.css: #main-content padding-left:72px)의
  * 미러다. body/.container-fluid 는 인라인 padding:0!important 로 잠겨 있어 잠기지 않은 유일한
- * 콘텐츠 래퍼 #main-content 에 padding-right:320px 를 준다(border-box → 총폭 미증가, 100vw
+ * 콘텐츠 래퍼 #main-content 에 padding-right:320px 를 준다(border-box → 총폭 미증가, calc(100vw / var(--foms-ui-zoom, 1))
  * 컨테이너 가로 스크롤 없음 — 레일과 동일 근거). 레일 padding-left 와 공존해도 무해.
  * ========================================================================== */
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {

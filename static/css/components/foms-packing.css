@@ -33,7 +33,7 @@
 
 /* 시트 */
 .foms-packing-sheet {
-  max-height: 88vh;
+  max-height: calc(88vh / var(--foms-ui-zoom, 1));
 }
 
 .foms-packing-summary {

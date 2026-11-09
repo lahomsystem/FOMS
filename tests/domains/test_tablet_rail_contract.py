@@ -162,7 +162,7 @@ def test_cache_chain_versions_bumped() -> None:
     을 더해 두 핀을 함께 20260825a 로 올렸다.
     """
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20261108a" in head
+    assert "foms-tablet-bundle.css') }}?v=20261109a" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
 

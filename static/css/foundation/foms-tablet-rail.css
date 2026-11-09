@@ -44,7 +44,7 @@
     /* 본문 밀어내기: body / .container-fluid 는 인라인 style="padding:0 !important" 로
        잠겨 있어 외부 CSS(!important 포함)로도 이동 불가하다. 잠기지 않은 유일한 콘텐츠
        래퍼인 #main-content 에 좌측 패딩을 준다. #main-content 는 Bootstrap reboot 의
-       box-sizing:border-box 이므로 padding-left 가 총폭을 늘리지 않아 100vw 컨테이너에서
+       box-sizing:border-box 이므로 padding-left 가 총폭을 늘리지 않아 calc(100vw / var(--foms-ui-zoom, 1)) 컨테이너에서
        가로 스크롤이 생기지 않는다(전 11개 /erp 레이아웃이 #main-content 를 렌더).
        안내 묶음(.layout-flash, layout_flash.html — "OO님, 환영합니다!" 등)은 #main-content 의
        형제라 이 여백을 못 받아 레일 밑에 깔렸다(2026-11-08 점검) — 같은 72px 를 준다. */

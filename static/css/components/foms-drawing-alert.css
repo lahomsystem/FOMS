@@ -165,7 +165,7 @@ html.foms-drawing-alert-open {
   display: flex;
   flex-direction: column-reverse;
   gap: 10px;
-  max-width: min(340px, calc(100vw - 36px));
+  max-width: min(340px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 36px));
   pointer-events: none;
 }
 

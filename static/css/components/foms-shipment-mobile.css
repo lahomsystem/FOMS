@@ -582,9 +582,9 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-card .foms-queue-card-v2__workflo
    기본 offcanvas-bottom(~30vh)은 6필드+저장 폼을 가려 스크롤 없이 수정이 어렵다.
    85vh로 키우되(safe-area/노치 반영), 내부 offcanvas-body가 스스로 스크롤한다. */
 #erp-shipment-mobile-edit-sheet.offcanvas-bottom {
-  height: 85vh;
-  height: min(85vh, calc(100dvh - env(safe-area-inset-top, 0px)));
-  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+  height: calc(85vh / var(--foms-ui-zoom, 1));
+  height: min(calc(85vh / var(--foms-ui-zoom, 1)), calc(calc(100dvh / var(--foms-ui-zoom, 1)) - env(safe-area-inset-top, 0px)));
+  max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - env(safe-area-inset-top, 0px));
 }
 
 #erp-shipment-mobile-edit-sheet .offcanvas-body {

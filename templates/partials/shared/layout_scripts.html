@@ -17,7 +17,7 @@
                 <div class="modal-body p-3" id="blueprint-viewer-body"
                     style="overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 400px;">
                     <img id="blueprint-viewer-img" src="" alt="도면"
-                        style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
+                        style="max-width: 100%; max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" onclick="downloadBlueprint()"
@@ -51,7 +51,7 @@
         <div id="global-viewer-stage">
             <img id="global-viewer-image" src="" alt="" draggable="false" style="display:none;">
             <video id="global-viewer-video" src="" controls
-                style="display:none; max-width:100%; max-height:100vh;"></video>
+                style="display:none; max-width:100%; max-height:calc(100vh / var(--foms-ui-zoom, 1));"></video>
         </div>
         <div id="global-viewer-counter" aria-live="polite"></div>
         <!-- 파일명/카운터 제거. 비어 있으면 숨김(:empty). CS 완료 더블체크가 코멘트를 동적 주입. -->
@@ -62,8 +62,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js" defer integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260810a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20260529c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20261109a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20261029a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/ui-zoom.js') }}?v=20261109a" defer></script>
 {# SW subject 통지용 구성: 현재 로그인 사용자 id 를 sync.js 가 읽어 SW 에 postMessage 한다
    → SW 가 subject 변경(전환/재로그인/로그아웃) 시 API 캐시를 purge(공유 기기 PII 잔존 0).
    비로그인=빈 값. #}
@@ -80,7 +81,7 @@
 <script src="{{ url_for('static', filename='js/foms/urgent-call-order.js') }}?v=20261001a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/urgent-call.js') }}?v=20261016a" defer></script>
 {# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20261109a">
 <script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260930a" defer></script>
 {# FOMS 공지 창(가운데 흰 창, 확인으로만 닫힘) · 메뉴 안 읽음 수 — 긴급 빨간 창과 다른 것. 설계서 2026-11-02-foms-notices §5. #}
 {% include 'partials/shared/notice_popup.html' %}
@@ -128,7 +129,8 @@
         function updateBlueprintTransform() {
             const img = document.getElementById('blueprint-viewer-img');
             if (img) {
-                img.style.transform = `translate(${blueprintZoom.translateX}px, ${blueprintZoom.translateY}px) scale(${blueprintZoom.scale})`;
+                const uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // 옮김은 보이는 px(clientX) — 화면 크기 배율이 붙으면 나눈다
+                img.style.transform = `translate(${blueprintZoom.translateX / uz}px, ${blueprintZoom.translateY / uz}px) scale(${blueprintZoom.scale})`;
                 img.style.transformOrigin = 'center center';
             }
         }
@@ -697,7 +699,11 @@
             }
 
             function updateTransform() {
-                if (els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+                if (els.image) {
+                    // 옮김(tx · ty)은 보이는 px(rect · clientX) — 화면 크기 배율이 붙으면 style 에 넣을 때 나눈다.
+                    const uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+                    els.image.style.transform = `translate(${state.tx / uz}px, ${state.ty / uz}px) scale(${state.scale})`;
+                }
             }
 
             function stageCenter() {
@@ -1145,8 +1151,8 @@
         }
 
         #global-viewer-image {
-            max-width: 95vw;
-            max-height: 90vh;
+            max-width: calc(95vw / var(--foms-ui-zoom, 1));
+            max-height: calc(90vh / var(--foms-ui-zoom, 1));
             transform-origin: center center;
             touch-action: none;
             cursor: grab;
@@ -1333,7 +1339,7 @@
             gap: 12px;
             align-items: center;
             z-index: 2;
-            max-width: 90vw;
+            max-width: calc(90vw / var(--foms-ui-zoom, 1));
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
@@ -1350,10 +1356,10 @@
                 left: 0 !important;
                 right: 0 !important;
                 top: 52px !important;
-                width: 100vw !important;
-                max-width: 100vw !important;
-                height: calc(100vh - 52px) !important;
-                max-height: calc(100vh - 52px) !important;
+                width: calc(100vw / var(--foms-ui-zoom, 1)) !important;
+                max-width: calc(100vw / var(--foms-ui-zoom, 1)) !important;
+                height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 52px) !important;
+                max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 52px) !important;
                 border-radius: 12px 12px 0 0 !important;
                 box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
                 display: flex !important;
@@ -1396,8 +1402,8 @@
         @media (max-width: 576px) {
             .global-notification-panel {
                 top: 48px !important;
-                height: calc(100vh - 48px) !important;
-                max-height: calc(100vh - 48px) !important;
+                height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 48px) !important;
+                max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 48px) !important;
             }
         }
 
@@ -1640,7 +1646,7 @@
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260930b" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261107a"{{ _foms_prefetch_allow_attr }} defer></script>
-    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20261012a" defer></script>
+    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20261109a" defer></script>
     {# 주문·생산·시공 상세 펼침의 제품 여러 건 목록+상세 공용 도우미. 조각(fragment)에 두면 탭 전환마다 다시 읽혀 여기서 한 번만 싣는다. #}
     <script src="{{ url_for('static', filename='js/foms/order-items-md.js') }}?v=20260929a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260915a" defer></script>

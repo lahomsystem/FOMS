@@ -55,8 +55,8 @@
     gap: var(--foms-space-4);
     /* 3패널 각자 내부 스크롤 — 페이지가 아니라 패널 내부에서 넘침 처리.
        landscape 크롬 숨김 후 과예약 금지(레일·패딩만 ~2rem). */
-    min-height: calc(100dvh - 2rem);
-    max-height: calc(100dvh - 2rem);
+    min-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 2rem);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 2rem);
     padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-3);
   }
 
