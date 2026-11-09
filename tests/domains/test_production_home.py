@@ -16,6 +16,7 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.production_home_read_model import (
     PRODUCTION_HOME_STEP_DEFS,
     production_home_day,
+    production_home_groups,
     production_home_stage,
     production_home_steps,
 )
@@ -105,6 +106,12 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     positions = [html.index(name) for name in ("정수아", "김하늘", "서지호", "최유진")]
     assert positions == sorted(positions)
     assert "오늘 " in html and "D-3" in html and "D-11" in html and "시공일 없음" in html
+    # 날짜 묶음은 접었다 편다(모바일 실측 탭과 같은 말): 머리줄 단추 4, 오늘만 펼침, 나머지 접힘
+    assert html.count("data-foms-home-tog") == 4
+    assert html.count('data-foms-home-tog aria-expanded="true"') == 1
+    assert html.count('data-foms-home-tog aria-expanded="false"') == 3
+    assert html.count('foms-prod-home__grp is-closed') == 3
+    assert "모두 펼치기" in html and "펼침 <b data-foms-home-open-count>1</b>" in html
 
     # 큰 글자 = 지금 단계
     for label in ("도면 기다림", "도장 중", "제작 대기", "제작 완료", "컨펌 기다림"):
@@ -156,6 +163,26 @@ def test_지금_단계_글자_규칙() -> None:
     assert production_home_stage("CONSTRUCTION", False, steps, False) == ("제작 완료", "시공 대기", "done")
     # 공정 칸이 아직 없는 주문도 5칸 모두 미완으로 그린다
     assert all(not s["done"] for s in production_home_steps({}, mark_now=False))
+
+
+def test_날짜_묶음은_오늘_내일만_펼치고_둘_다_없으면_첫_묶음만() -> None:
+    def _row(key: str, label: str, today: bool = False, changed: bool = False) -> dict:
+        return {"day_key": key, "day_label": label, "day_sub": "", "day_is_today": today, "has_changes": changed}
+
+    groups = production_home_groups([
+        _row("2026-11-09", "오늘 11/9 (월)", today=True),
+        _row("2026-11-10", "내일 11/10 (화)"),
+        _row("2026-11-12", "11/12 (목)", changed=True),
+        _row("2026-11-12", "11/12 (목)"),
+        _row("none", "시공일 없음"),
+    ])
+    assert [g["key"] for g in groups] == ["2026-11-09", "2026-11-10", "2026-11-12", "none"]
+    assert [g["is_open"] for g in groups] == [True, True, False, False]
+    assert groups[2]["count"] == 2 and groups[2]["changed"] == 1
+
+    later = production_home_groups([_row("2026-11-20", "11/20 (금)"), _row("none", "시공일 없음")])
+    assert [g["is_open"] for g in later] == [True, False]
+    assert production_home_groups([]) == []
 
 
 def test_날짜_머리줄_규칙() -> None:
