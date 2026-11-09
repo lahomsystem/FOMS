@@ -8,19 +8,25 @@ from __future__ import annotations
 
 import datetime
 
-from flask import abort, g, render_template
+from flask import abort, g, render_template, request
 
 from db import get_db
 from models import Order
 from foms.api.production.orders import _PRODUCTION_DEFECT_REASONS
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
 from foms.services.production_home_read_model import (
     build_production_home_rows,
     production_home_counts,
     production_home_groups,
+    production_home_inbox,
+    production_home_step_queues,
+    production_home_week,
 )
+
+_HOME_TABS = ('all', 'week', 'steps')
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
@@ -49,14 +55,23 @@ def erp_production_home():
     """
     db = get_db()
     user = _require_home_user()
+    tab = request.args.get('tab') or 'all'
+    if tab not in _HOME_TABS:
+        tab = 'all'
     rows = build_production_home_rows(db, user)
     today = get_today_kst()
     now_kst = datetime.datetime.now(_KST)
+    # 탭 "이번 주"(안 4)·"내 공정"(안 3)은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다.
+    tombstones = collect_production_tombstones(db, user, False) if tab == 'week' else []
     return render_template(
         'production/home.html',
+        tab=tab,
         rows=rows,
         groups=production_home_groups(rows, today),
         counts=production_home_counts(rows),
+        week=production_home_week(rows, today, request.args.get('week')) if tab == 'week' else None,
+        inbox=production_home_inbox(rows, tombstones) if tab == 'week' else [],
+        queues=production_home_step_queues(rows) if tab == 'steps' else None,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),
         loaded_at_iso=now_kst.isoformat(timespec='seconds'),

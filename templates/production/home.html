@@ -1,10 +1,10 @@
 {% extends "production/layout.html" %}
-{# 생산팀 첫 화면 — 전체 주문 한 줄(시공일 순, 큰 글자 = 지금 단계). 설계서 §12 · 결정 D10·D12·D13.
+{# 생산팀 첫 화면 — 탭 셋: 전체 주문(안 1) · 이번 주(안 4) · 내 공정(안 3). 설계서 §12 · 결정 D10·D12·D13.
    날짜 묶음은 모바일 실측 탭(measurement/partials/mobile_list.html)처럼 머리줄 단추로 접었다 편다(사용자 11-09).
-   금액 칸 없음(D7). 단추·카드는 장갑 기준 56px(D5). 글은 해요체·같은 말 한 번. #}
+   금액 칸 없음(D7). 단추·카드는 장갑 기준 56px(D5). 글은 해요체·같은 말 한 번. 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261109b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261109c">
 {% endblock %}
 
 {% block content %}
@@ -14,77 +14,37 @@
     {% set erp_sub_nav_active = 'production' %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
-  {% set _open_n = groups | selectattr('is_open') | list | length %}
-  <section class="foms-prod-home" data-foms-prod-home data-loaded-at="{{ loaded_at_iso }}">
+  <section class="foms-prod-home" data-foms-prod-home data-loaded-at="{{ loaded_at_iso }}" data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
-      <h1 class="foms-prod-home__title">전체 주문</h1>
+      <h1 class="foms-prod-home__title">{% if tab == 'week' %}이번 주{% elif tab == 'steps' %}내 공정{% else %}전체 주문{% endif %}</h1>
       <span class="foms-prod-home__date">{{ counts.all }}건 · {{ today_label }}</span>
-      <div class="foms-prod-home__tabs" role="group" aria-label="보기">
-        <button type="button" class="foms-prod-home__tab is-on" data-foms-home-view="all" aria-pressed="true">전체 <small>{{ counts.all }}</small></button>
-        <button type="button" class="foms-prod-home__tab" data-foms-home-view="prod" aria-pressed="false">생산 중 <small>{{ counts.prod }}</small></button>
-        <button type="button" class="foms-prod-home__tab" data-foms-home-view="changed" aria-pressed="false">바뀐 것 <small>{{ counts.changed }}</small></button>
-      </div>
-      <label class="foms-prod-home__search">
-        <span class="visually-hidden">찾기</span>
-        <input type="search" id="foms-prod-home-q" data-foms-home-q autocomplete="off" placeholder="이름 · 주소 · 번호로 찾기">
-      </label>
+      <nav class="foms-prod-home__nav" aria-label="화면">
+        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home') }}"{% if tab == 'all' %} aria-current="page"{% endif %}>전체 주문</a>
+        <a class="foms-prod-home__navtab{% if tab == 'week' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='week') }}"{% if tab == 'week' %} aria-current="page"{% endif %}>이번 주</a>
+        <a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정</a>
+      </nav>
+      <span class="foms-prod-home__sp"></span>
       <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
-      <a class="foms-prod-home__btn" href="{{ url_for('erp_production_page.erp_production_home') }}">다시 받기</a>
+      <a class="foms-prod-home__btn" href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'all' else None), week=(week.start if week and not week.is_this_week else None)) }}">다시 받기</a>
     </header>
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 {{ loaded_at_hm }} 에 받은 것이에요.</p>
+    <p class="foms-prod-home__status" data-foms-home-status aria-live="polite"></p>
 
-    {% if groups %}
-    <div class="foms-prod-home__ctl" data-foms-home-ctl>
-      <span>날짜 <b>{{ groups | length }}</b> · 펼침 <b data-foms-home-open-count>{{ _open_n }}</b></span>
-      <button type="button" class="foms-prod-home__ctl-all" data-foms-home-all="{{ 'close' if _open_n == groups | length else 'open' }}"><span data-foms-home-all-label>{{ '모두 접기' if _open_n == groups | length else '모두 펼치기' }}</span></button>
-    </div>
+    {% if tab == 'week' %}
+      {% include 'production/partials/home_week.html' %}
+    {% elif tab == 'steps' %}
+      {% include 'production/partials/home_steps.html' %}
+    {% else %}
+      {% include 'production/partials/home_all.html' %}
     {% endif %}
-
-    <div class="foms-prod-home__list" data-foms-home-list>
-      {% for g in groups %}
-      <div class="foms-prod-home__grp{% if not g.is_open %} is-closed{% endif %}{% if g.is_today %} is-today{% endif %}" data-foms-home-grp="{{ g.key }}">
-        <button type="button" class="foms-prod-home__day" data-foms-home-tog aria-expanded="{{ 'true' if g.is_open else 'false' }}" aria-controls="foms-prod-home-rows-{{ loop.index }}">
-          <b>{{ g.label }}</b>{% if g.sub %}<small>{{ g.sub }}</small>{% endif %}
-          <span class="foms-prod-home__gcount" data-foms-home-grp-count>{{ g.count }}건</span>
-          {% if g.changed %}<span class="foms-prod-home__gchg">바뀜 {{ g.changed }}</span>{% endif %}
-          <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
-        {% for r in g.rows %}
-        <a class="foms-prod-home__job{% if r.has_changes %} is-changed{% endif %}{% if r.home_soon %} is-soon{% endif %}"
-           href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}"
-           data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}"
-           data-changed="{{ '1' if r.has_changes else '0' }}" data-q="{{ r.search_text }}">
-          <span class="foms-prod-home__stage"><b>{{ r.home_stage }}</b><span>{{ r.home_stage_sub }}</span></span>
-          <span class="foms-prod-home__who">
-            <span class="foms-prod-home__name">{{ r.customer_name }} <small>#{{ r.id }}</small></span>
-            <span class="foms-prod-home__pr"><b>{{ r.v3_product_label or '품목 없음' }}</b>{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
-            {% if r.has_changes %}
-            <span class="foms-prod-home__chg">{{ r.change_line }}</span>
-            {% else %}
-            <span class="foms-prod-home__pr">{{ r.address }}</span>
-            {% endif %}
-          </span>
-          <span class="foms-prod-home__steps" aria-label="공정">
-            {% for s in r.home_steps %}
-            <span class="foms-prod-home__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"><i>{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}</i>{{ s.label }}</span>
-            {% endfor %}
-          </span>
-          <span class="foms-prod-home__dw"><b>{{ r.drawing_label }}</b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
-        </a>
-        {% endfor %}
-        </div>
-      </div>
-      {% endfor %}
-      {% if not groups %}
-      <p class="foms-prod-home__empty">보여 줄 주문이 없어요.</p>
-      {% endif %}
-    </div>
-    <p class="foms-prod-home__empty" data-foms-home-none hidden>맞는 주문이 없어요.</p>
   </section>
+  {% if tab == 'week' %}
+  {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선(tablet-domain-sheets.js, 이 화면은 기기 무관) #}
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261109b" defer></script>
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261109b" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261109c" defer></script>
 {% endblock %}

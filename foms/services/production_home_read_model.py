@@ -181,6 +181,121 @@ def production_home_groups(rows: list[dict[str, Any]], today: datetime.date | No
     return groups
 
 
+def _monday_of(day: datetime.date) -> datetime.date:
+    return day - datetime.timedelta(days=day.weekday())
+
+
+def production_home_week(
+    rows: list[dict[str, Any]], today: datetime.date, week_start: Any = None
+) -> dict[str, Any]:
+    """탭 "이번 주"(안 4): 월~토 6칸(일요일에 일이 있으면 7칸)에 시공일 기준으로 주문을 놓는다.
+
+    출고·시공은 같은 날짜 키(상차 = 시공일)라 한 칸에 단계 색으로 가른다: 생산 전 / 생산 중 / 제작 완료.
+    ``week_start`` 는 그 주 월요일(ISO 문자열 또는 date). 없거나 못 읽으면 오늘의 주.
+    """
+    start = _parse_date(week_start) if week_start is not None else None
+    start = _monday_of(start or today)
+    by_day: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        key = row.get('construction_date')
+        day = _parse_date(key)
+        if day is None:
+            continue
+        by_day.setdefault(day.isoformat(), []).append(row)
+    days: list[dict[str, Any]] = []
+    for offset in range(7):
+        day = start + datetime.timedelta(days=offset)
+        events = by_day.get(day.isoformat(), [])
+        if offset == 6 and not events:
+            break  # 일요일은 일이 있을 때만
+        days.append({
+            'key': day.isoformat(),
+            'num': day.day,
+            'weekday': _WEEKDAY_KO[day.weekday()],
+            'is_today': day == today,
+            'is_past': day < today,
+            'events': events,
+            'count_wait': sum(1 for r in events if r.get('home_view') == 'wait'),
+            'count_prod': sum(1 for r in events if r.get('home_view') == 'prod'),
+            'count_done': sum(1 for r in events if r.get('home_view') == 'done'),
+        })
+    end = start + datetime.timedelta(days=len(days) - 1 if days else 5)
+    return {
+        'start': start.isoformat(),
+        'label': f"{start.month}/{start.day} ({_WEEKDAY_KO[start.weekday()]}) – {end.month}/{end.day} ({_WEEKDAY_KO[end.weekday()]})",
+        'is_this_week': start == _monday_of(today),
+        'prev': (start - datetime.timedelta(days=7)).isoformat(),
+        'next': (start + datetime.timedelta(days=7)).isoformat(),
+        'this': _monday_of(today).isoformat(),
+        'days': days,
+        'total': sum(len(d['events']) for d in days),
+    }
+
+
+def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """탭 "이번 주" 오른쪽 받은함: 미확인 변경(주문마다 한 장, 알림 여러 줄) + 취소된 주문(묘비).
+
+    [확인했어요] 는 기존 change-ack API(사람마다 확인). 순서 = 시공일 순(행 순서 그대로), 묘비는 뒤.
+    """
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        alerts = row.get('home_alerts') or []
+        if not alerts:
+            continue
+        items.append({
+            'kind': 'change',
+            'id': row['id'],
+            'customer_name': row.get('customer_name') or '-',
+            'product_label': row.get('v3_product_label') or '',
+            'stage': row.get('home_stage') or '',
+            'day_label': row.get('day_label') or '',
+            'alerts': alerts,
+        })
+    for tomb in tombstones or []:
+        items.append({
+            'kind': 'cancelled',
+            'id': tomb.get('id'),
+            'customer_name': tomb.get('customer_name') or '-',
+            'product_label': tomb.get('product_label') or '',
+            'stage': '주문 취소',
+            'day_label': f"취소 {tomb.get('deleted_md')}" if tomb.get('deleted_md') else '취소됨',
+            'alerts': [{'kind': 'cancelled', 'label': '주문 취소', 'detail': '만들고 있었다면 멈춰요'}],
+        })
+    return items
+
+
+def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """탭 "내 공정"(안 3): 공정 5탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
+
+    보류 중인 주문은 줄에 두되 [끝] 단추 없이 '보류' 글만. 제작 대기(run 없음)·검수까지 끝난 주문은
+    줄에 없고 아래 한 줄 숫자로만(시작·제작 완료는 작업 시트에서).
+    """
+    queues = [{'key': key, 'label': label, 'rows': []} for key, label in PRODUCTION_HOME_STEP_DEFS]
+    by_key = {q['key']: q for q in queues}
+    waiting = 0
+    finished = 0
+    for row in rows:
+        if row.get('home_view') != 'prod':
+            continue
+        steps = row.get('home_steps') or []
+        current = next((s for s in steps if s.get('now')), None)
+        if current is None:
+            if row.get('home_stage') == '제작 대기':
+                waiting += 1
+            elif row.get('home_stage') == '검수 끝':
+                finished += 1
+            elif row.get('hold_active'):
+                # 보류는 run 이 있어도 now 표시가 없다 — 첫 미완 공정 줄에 '보류'로 둔다
+                first_undone = next((s for s in steps if not s.get('done')), None)
+                if first_undone is not None:
+                    by_key[first_undone['key']]['rows'].append(row)
+            continue
+        by_key[current['key']]['rows'].append(row)
+    for q in queues:
+        q['count'] = len(q['rows'])
+    return {'queues': queues, 'waiting': waiting, 'finished': finished}
+
+
 def production_home_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 바뀐 것."""
     return {
@@ -224,6 +339,7 @@ def build_production_home_rows(
         row['day_sub'] = day['sub']
         row['day_is_today'] = day['is_today']
         row['has_changes'] = bool(alerts)
+        row['home_alerts'] = alerts
         row['change_line'] = _change_line(alerts)
         row['drawing_label'] = f"도면 {drawing_count}장" if drawing_count else '도면 없음'
         row['search_text'] = ' '.join(

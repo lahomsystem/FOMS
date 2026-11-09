@@ -1,0 +1,28 @@
+{# 탭 "내 공정"(안 3) — 공정 5탭(사람마다 마지막 탭 기억), 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양 없음(D11). #}
+<div class="fph-steptabs" role="tablist" aria-label="공정">
+  {% for q in queues.queues %}
+  <button type="button" class="fph-steptab{% if loop.first %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
+  {% endfor %}
+</div>
+<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>
+{% for q in queues.queues %}
+<div class="fph-q" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if not loop.first %} hidden{% endif %}>
+  {% for r in q.rows %}
+  <div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}" data-foms-home-qrow="{{ r.id }}">
+    <span class="fph-qr__n">{{ loop.index }}</span>
+    <a class="fph-qr__who" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">
+      <b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>
+      <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
+    </a>
+    <span class="fph-qr__due">시공<b>{{ r.day_label }}</b></span>
+    {% if r.hold_active %}
+    <span class="fph-qr__hold">보류</span>
+    {% else %}
+    <button type="button" class="fph-qr__done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="foms-prod-home__empty">{{ q.label }}에 와 있는 주문이 없어요.</p>
+  {% endfor %}
+</div>
+{% endfor %}
