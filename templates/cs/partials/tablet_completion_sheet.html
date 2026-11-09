@@ -8,6 +8,7 @@
     <p class="foms-completion-sheet__meta">완료일 {{ completion_md }}</p>
   </header>
 
+  {% if show_amounts | default(true) %}{# 생산팀(D7)은 금액 절이 없다 #}
   <section class="foms-completion-sheet__section foms-completion-sheet__amounts">
     <dl class="foms-completion-sheet__amount-grid">
       <div class="foms-completion-sheet__amount">
@@ -51,6 +52,7 @@
       <div class="foms-completion-sheet__cash-result" data-foms-cash-receipt-result role="status" hidden></div>
     </div>
   </section>
+  {% endif %}
 
   <section class="foms-completion-sheet__section foms-completion-sheet__settlement">
     <h3 class="foms-completion-sheet__section-title">
@@ -66,7 +68,7 @@
       {% for m in settlement_memo %}
       <li class="foms-completion-sheet__memo-item">
         <span class="foms-completion-sheet__memo-dept">{{ m.department }}</span>
-        <span class="foms-completion-sheet__memo-amount">{{ m.amount_display }}</span>
+        {% if show_amounts | default(true) %}<span class="foms-completion-sheet__memo-amount">{{ m.amount_display }}</span>{% endif %}
         <span class="foms-completion-sheet__memo-reason">{{ m.reason }}</span>
         <span class="foms-completion-sheet__memo-by">{{ m.created_by }}</span>
       </li>

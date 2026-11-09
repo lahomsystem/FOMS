@@ -11,6 +11,8 @@ import io
 import time
 
 from flask import Blueprint, g, make_response, render_template, request, url_for
+
+from foms.services.erp_permissions import can_view_order_amounts
 from db import get_db
 from foms.api.files import build_file_view_url
 from foms.web.auth import login_required
@@ -131,7 +133,7 @@ def _cash_receipt_state(cash_receipt_text: str, issued: bool) -> str:
     return "none"
 
 
-def _completion_row(order) -> dict:
+def _completion_row(order, *, with_amounts: bool = True) -> dict:
     """단일 완료 큐 Order → 태블릿 금액 그리드 행 dict.
 
     출고가/예약금은 erp_display SSOT 헬퍼로 **이미 로드된** structured_data 에서
@@ -194,11 +196,12 @@ def _completion_row(order) -> dict:
         "month_key": _completion_month_key(completion_date),
         "customer_name": customer_name,
         "product_summary": product_summary,
-        "shipping_price_display": _format_krw(shipping_price),
-        "deposit_display": _format_krw(deposit),
-        "balance_display": _format_krw(balance),
-        "balance_amount": balance,
-        "overpaid_display": _format_krw(overpaid) if overpaid else "",
+        # 생산팀(D7)에겐 금액 키를 비워 보낸다 — 템플릿은 열 자체를 뺀다. KPI 미수 합계도 0 이 된다.
+        "shipping_price_display": _format_krw(shipping_price) if with_amounts else "",
+        "deposit_display": _format_krw(deposit) if with_amounts else "",
+        "balance_display": _format_krw(balance) if with_amounts else "",
+        "balance_amount": balance if with_amounts else None,
+        "overpaid_display": (_format_krw(overpaid) if overpaid else "") if with_amounts else "",
         "cash_receipt": cash_receipt,
         "cash_receipt_state": _cash_receipt_state(cash_receipt, cash_receipt_issued),
         "cash_receipt_issued": cash_receipt_issued,
@@ -207,7 +210,7 @@ def _completion_row(order) -> dict:
     }
 
 
-def _build_tablet_completion_rows(orders: list) -> list[dict]:
+def _build_tablet_completion_rows(orders: list, with_amounts: bool = True) -> list[dict]:
     """완료 큐 Order 목록 → 태블릿 금액 그리드 행 dict 리스트(신규 쿼리 없음).
 
     Args:
@@ -216,7 +219,7 @@ def _build_tablet_completion_rows(orders: list) -> list[dict]:
     Returns:
         _completion_row 로 파생한 행 dict 리스트.
     """
-    return [_completion_row(order) for order in orders]
+    return [_completion_row(order, with_amounts=with_amounts) for order in orders]
 
 
 def _build_completion_period_options(rows: list[dict]) -> list[dict]:
@@ -336,7 +339,9 @@ def _completion_query_params() -> dict:
     }
 
 
-def _completion_working_and_filtered(user, params: dict) -> tuple[list[dict], list[dict]]:
+def _completion_working_and_filtered(
+    user, params: dict, with_amounts: bool = True
+) -> tuple[list[dict], list[dict]]:
     """완료 큐 로드 → 행 빌드 → AS 토글 → 기간/정산 필터(대시보드·CSV 공용 SSOT).
 
     로드는 사진 리뷰 리스트와 동일 SSOT 로더(_load_completion_orders)로 뽑아 검색·focus·
@@ -361,7 +366,7 @@ def _completion_working_and_filtered(user, params: dict) -> tuple[list[dict], li
         mine_only=erp_mine_only,
         partner_org=partner_filter_value(request),
     )
-    rows = _build_tablet_completion_rows(orders)
+    rows = _build_tablet_completion_rows(orders, with_amounts=with_amounts)
     if not params["as_include"]:
         rows = [row for row in rows if row["status"] != "AS_COMPLETED"]
     filtered = _filter_completion_rows(
@@ -381,7 +386,8 @@ def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], d
         (tablet_completion_rows, tablet_completion_meta).
     """
     params = _completion_query_params()
-    working_set, filtered = _completion_working_and_filtered(user, params)
+    show_amounts = can_view_order_amounts(user)  # 생산팀은 금액 열·미수 합계 없음(D7)
+    working_set, filtered = _completion_working_and_filtered(user, params, with_amounts=show_amounts)
     kpis = _compute_completion_kpis(working_set, get_today_kst())
     period_options = _build_completion_period_options(working_set)
     page_rows, page_meta = _paginate(filtered, params["page"])
@@ -404,6 +410,7 @@ def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], d
         },
         "page": {**page_meta, "period_label": _completion_period_label(params["period"])},
         "export_url": export_url,
+        "show_amounts": show_amounts,
     }
     return page_rows, meta
 
@@ -508,19 +515,21 @@ def _completion_sheet_context(db, order, user) -> dict:
         cr = settlement.get("cash_receipt") if isinstance(settlement, dict) else None
         if isinstance(cr, dict):
             cash_receipt_note = str(cr.get("note") or "").strip()
+    show_amounts = can_view_order_amounts(user)  # 생산팀은 금액 절·차감 금액 없음(D7)
     return {
         "order_id": order.id,
         "customer_name": customer_name,
         "completion_md": _completion_md(completion_date),
-        "shipping_price_display": _format_krw(shipping_price),
-        "deposit_display": _format_krw(deposit),
-        "balance_display": _format_krw(balance),
-        "overpaid_display": _format_krw(overpaid) if overpaid else "",
+        "show_amounts": show_amounts,
+        "shipping_price_display": _format_krw(shipping_price) if show_amounts else "",
+        "deposit_display": _format_krw(deposit) if show_amounts else "",
+        "balance_display": _format_krw(balance) if show_amounts else "",
+        "overpaid_display": (_format_krw(overpaid) if overpaid else "") if show_amounts else "",
         "cash_receipt": cash_receipt,
         "cash_receipt_issued": cash_receipt_issued,
         "cash_receipt_note": cash_receipt_note,
         "settlement_issued": has_valid_deduction(settlement),
-        "settlement_memo": _completion_settlement_memo(settlement),
+        "settlement_memo": _completion_settlement_memo(settlement) if show_amounts else [],
         "construction_photos": _completion_construction_photos(db, order.id),
         "is_construction_team": bool(
             user and getattr(user, "team", None) == "CONSTRUCTION"
@@ -607,22 +616,29 @@ def erp_completion_export():
     (_completion_working_and_filtered SSOT). 페이지네이션 없이 필터 전체를 내보낸다.
     """
     user = getattr(g, "current_user", None)
-    _working, filtered = _completion_working_and_filtered(user, _completion_query_params())
+    show_amounts = can_view_order_amounts(user)  # 생산팀 CSV 엔 금액 열이 없다(D7)
+    _working, filtered = _completion_working_and_filtered(
+        user, _completion_query_params(), with_amounts=show_amounts
+    )
     output = io.StringIO()
     output.write("﻿")  # UTF-8 BOM: Excel 한글 정상 인식
     writer = csv.writer(output)
-    writer.writerow(["완료일", "고객", "제품", "출고가", "예약금", "잔금", "현금영수증", "정산상태"])
+    money_head = ["출고가", "예약금", "잔금"] if show_amounts else []
+    writer.writerow(["완료일", "고객", "제품", *money_head, "현금영수증", "정산상태"])
     for row in filtered:
         completion = row.get("completion_date") or "-"
         if row.get("is_as"):
             completion = f"{completion} (AS)"
+        money_cells = [
+            row.get("shipping_price_display") or "—",
+            row.get("deposit_display") or "—",
+            row.get("balance_display") or "—",
+        ] if show_amounts else []
         writer.writerow([
             completion,
             row.get("customer_name") or "-",
             row.get("product_summary") or "-",
-            row.get("shipping_price_display") or "—",
-            row.get("deposit_display") or "—",
-            row.get("balance_display") or "—",
+            *money_cells,
             row.get("cash_receipt") or "",
             "완료" if row.get("settlement_issued") else "대기",
         ])

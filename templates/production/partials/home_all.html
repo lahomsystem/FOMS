@@ -1,0 +1,61 @@
+{# 탭 "전체 주문"(안 1) — 시공일 순 한 줄, 날짜 묶음 접기/펴기. home.html 이 include. #}
+{% set _open_n = groups | selectattr('is_open') | list | length %}
+<div class="foms-prod-home__filters">
+  <div class="foms-prod-home__tabs" role="group" aria-label="보기">
+    <button type="button" class="foms-prod-home__tab is-on" data-foms-home-view="all" aria-pressed="true">전체 <small>{{ counts.all }}</small></button>
+    <button type="button" class="foms-prod-home__tab" data-foms-home-view="prod" aria-pressed="false">생산 중 <small>{{ counts.prod }}</small></button>
+    <button type="button" class="foms-prod-home__tab" data-foms-home-view="changed" aria-pressed="false">바뀐 것 <small>{{ counts.changed }}</small></button>
+  </div>
+  <label class="foms-prod-home__search">
+    <span class="visually-hidden">찾기</span>
+    <input type="search" id="foms-prod-home-q" data-foms-home-q autocomplete="off" placeholder="이름 · 주소 · 번호로 찾기">
+  </label>
+  {% if groups %}
+  <div class="foms-prod-home__ctl" data-foms-home-ctl>
+    <span>날짜 <b>{{ groups | length }}</b> · 펼침 <b data-foms-home-open-count>{{ _open_n }}</b></span>
+    <button type="button" class="foms-prod-home__ctl-all" data-foms-home-all="{{ 'close' if _open_n == groups | length else 'open' }}"><span data-foms-home-all-label>{{ '모두 접기' if _open_n == groups | length else '모두 펼치기' }}</span></button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="foms-prod-home__list" data-foms-home-list>
+  {% for g in groups %}
+  <div class="foms-prod-home__grp{% if not g.is_open %} is-closed{% endif %}{% if g.is_today %} is-today{% endif %}" data-foms-home-grp="{{ g.key }}">
+    <button type="button" class="foms-prod-home__day" data-foms-home-tog aria-expanded="{{ 'true' if g.is_open else 'false' }}" aria-controls="foms-prod-home-rows-{{ loop.index }}">
+      <b>{{ g.label }}</b>{% if g.sub %}<small>{{ g.sub }}</small>{% endif %}
+      <span class="foms-prod-home__gcount" data-foms-home-grp-count>{{ g.count }}건</span>
+      {% if g.changed %}<span class="foms-prod-home__gchg">바뀜 {{ g.changed }}</span>{% endif %}
+      <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
+    {% for r in g.rows %}
+    <a class="foms-prod-home__job{% if r.has_changes %} is-changed{% endif %}{% if r.home_soon %} is-soon{% endif %}"
+       href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}"
+       data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}"
+       data-changed="{{ '1' if r.has_changes else '0' }}" data-q="{{ r.search_text }}">
+      <span class="foms-prod-home__stage"><b>{{ r.home_stage }}</b><span>{{ r.home_stage_sub }}</span></span>
+      <span class="foms-prod-home__who">
+        <span class="foms-prod-home__name">{{ r.customer_name }} <small>#{{ r.id }}</small></span>
+        <span class="foms-prod-home__pr"><b>{{ r.v3_product_label or '품목 없음' }}</b>{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
+        {% if r.has_changes %}
+        <span class="foms-prod-home__chg">{{ r.change_line }}</span>
+        {% else %}
+        <span class="foms-prod-home__pr">{{ r.address }}</span>
+        {% endif %}
+      </span>
+      <span class="foms-prod-home__steps" aria-label="공정">
+        {% for s in r.home_steps %}
+        <span class="foms-prod-home__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"><i>{% if s.done %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{% endif %}</i>{{ s.label }}</span>
+        {% endfor %}
+      </span>
+      <span class="foms-prod-home__dw"><b>{{ r.drawing_label }}</b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
+    </a>
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if not groups %}
+  <p class="foms-prod-home__empty">보여 줄 주문이 없어요.</p>
+  {% endif %}
+</div>
+<p class="foms-prod-home__empty" data-foms-home-none hidden>맞는 주문이 없어요.</p>

@@ -17,7 +17,7 @@
     // 생산 태블릿 칸반(tablet_kanban_body.html)과 같은 파일·같은 핀 — 캐시 한 벌을 나눠 쓰고,
     // 두 화면에서 모두 실려도 모듈 싱글턴(__FOMS_DOMAIN_SHEETS_BOUND)이 두 번째 실행을 막는다.
     // 핀을 올릴 때는 그 파샬과 함께 올린다.
-    '/static/js/foms/tablet-domain-sheets.js?v=20260921a',
+    '/static/js/foms/tablet-domain-sheets.js?v=20261109c',
     // 협력사 희망 시공일 2주 판(설계서 2026-11-04-shipment-partner-request-board).
     '/static/js/shipment/partner-request-board.js?v=20261109a'
   ];

@@ -284,6 +284,35 @@ def build_production_enriched_rows(
     return enriched
 
 
+def build_production_home_enriched_rows(
+    page_rows: list[Any], current_run_ids: set[int] | None = None,
+) -> list[dict[str, Any]]:
+    """생산팀 첫 화면(설계서 §12)용 — 칸반 변환과 같되 **도면 단계 행도 남긴다**(라벨 '도면').
+
+    첨부 수는 세지 않는다(첫 화면은 미디어 배지를 그리지 않는다). 행마다 ``raw_stage`` 를 덧붙여
+    첫 화면이 큰 글자(지금 단계)를 고를 수 있게 한다.
+    """
+    enriched: list[dict[str, Any]] = []
+    run_ids = current_run_ids or set()
+    manager_phone_map = build_measurement_manager_phone_map()
+    for o in page_rows:
+        sd = _ensure_dict(o.structured_data)
+        raw_stage = _erp_get_stage(o, sd)
+        if not raw_stage:
+            continue
+        stage_label = _production_stage_label_from_stage(raw_stage, o.id in run_ids)
+        if not stage_label:
+            if raw_stage not in ('DRAWING', '도면'):
+                continue
+            stage_label = '도면'
+        row = _enrich_one_production_order(
+            o, sd, stage_label, 0, manager_phone_map, raw_stage=raw_stage
+        )
+        row['raw_stage'] = raw_stage
+        enriched.append(row)
+    return enriched
+
+
 def build_production_process_steps(
     step_stats: dict[str, dict[str, int]]
 ) -> list[dict[str, Any]]:

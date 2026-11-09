@@ -189,3 +189,28 @@
 .foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__avatar {
   margin: var(--foms-space-1, 4px) 0 var(--foms-space-2, 8px);
 }
+
+/* 화면 크기 손잡이(변형 rail, 11-09 F1 ①) — 브랜드 아래 세로 3단. 레일이 숨은 조건에선 함께 숨는다. */
+.foms-tablet-rail .foms-ui-zoom--rail {
+  flex-direction: column;
+  flex-shrink: 0;
+  height: auto;
+  width: 44px;
+  margin: 2px 0 8px;
+  border-radius: 12px;
+}
+.foms-tablet-rail .foms-ui-zoom--rail .foms-ui-zoom__btn {
+  width: 44px;
+  height: 30px;
+  font-size: 18px;
+}
+.foms-tablet-rail .foms-ui-zoom--rail .foms-ui-zoom__now {
+  width: 44px;
+  height: 20px;
+  padding: 0;
+  font-size: 11px;
+  border-left: 0;
+  border-right: 0;
+  border-top: 1px solid #ced4da;
+  border-bottom: 1px solid #ced4da;
+}

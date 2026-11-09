@@ -467,3 +467,16 @@ def erp_construction_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
         )
 
     return wrapped
+
+
+def can_view_order_amounts(user: Any) -> bool:
+    """주문 금액(출고가·예약금·잔금·품목 금액·미수 합계)을 봐도 되는 사람인가 — **생산팀만 못 본다**(설계서 D7, 2026-11-09).
+
+    협력사 계정은 생산팀이 아니라 여기서 가리지 않는다(협력사 범위는 따로 판정). ``user`` 가 None(내부 호출·시험)이면
+    가리지 않는다 — 접근 자체는 ``login_required`` 가 막는다. 화면은 값을 비우지 않고 열·줄 자체를 뺀다(값도 안 보낸다).
+    """
+    if user is None:
+        return True
+    if getattr(user, "partner_org_id", None) is not None:
+        return True
+    return normalize_team(getattr(user, "team", None)) != "PRODUCTION"

@@ -1,0 +1,185 @@
+{% extends "production/layout.html" %}
+{# 생산 전체 화면 작업 시트 — 설계서 §12.2 (2026-11-09, 안 2 "도면 먼저 작업 화면").
+   왼쪽 6할 도면(넘기기·썸네일·PDF 는 파일 열기, 탭하면 전역 뷰어), 오른쪽 고객·만들 것·공정·불량·단추.
+   옆 시트(partials/tablet_sheet.html)와 같은 뷰 모델(production_sheet_view) + 전화·주소·도면 전체·공정.
+   단추 배선은 옆 시트와 같은 tablet-domain-sheets.js(data-tablet-sheet-action — 이 페이지는 기기 무관).
+   공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261109b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-production foms-prod-page-wrap"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% set erp_sub_nav_active = 'production' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+  <section class="foms-prod-page" data-foms-prod-sheet-page data-order-id="{{ order.id }}" data-foms-prod-page-stage="{{ order.stage }}">
+    <header class="foms-prod-page__bar">
+      <a class="foms-prod-page__back" href="{{ url_for('erp_production_page.erp_production_home') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>전체 주문</a>
+      <h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>
+      <span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>
+      {% if order.hold_active %}<span class="foms-prod-page__badge foms-prod-page__badge--hold">보류</span>{% endif %}
+      {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
+      {% if order.drawing_badge %}<span class="foms-prod-page__badge foms-prod-page__badge--drawing" title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>{% endif %}
+      <span class="foms-prod-page__sp"></span>
+      <a class="foms-prod-page__btn" href="{{ url_for('erp_production_page.erp_production_print_sheet', order_id=order.id) }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Z"/></svg>인쇄</a>
+      <a class="foms-prod-page__btn foms-prod-page__btn--ghost" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">상세</a>
+    </header>
+
+    <div class="foms-prod-page__body">
+      {# ── 왼쪽: 도면 ── #}
+      <div class="foms-prod-page__dwg" data-foms-sheet-dwg>
+        {% set _imgs = order.drawing_files | selectattr('kind', 'equalto', 'image') | list %}
+        {% if _imgs %}
+        <p class="foms-prod-page__cap" data-foms-sheet-dwg-cap>도면 1 / {{ _imgs | length }} · {{ _imgs[0].label }}</p>
+        <button type="button" class="foms-prod-page__main-btn" data-foms-sheet-dwg-open aria-label="도면 크게 보기">
+          <img class="foms-prod-page__main" data-foms-sheet-dwg-main src="{{ _imgs[0].view }}" alt="{{ _imgs[0].label }}" decoding="async">
+        </button>
+        {% if _imgs | length > 1 %}
+        <button type="button" class="foms-prod-page__nav foms-prod-page__nav--prev" data-foms-sheet-dwg-prev aria-label="이전 도면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
+        <button type="button" class="foms-prod-page__nav foms-prod-page__nav--next" data-foms-sheet-dwg-next aria-label="다음 도면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+        {% endif %}
+        {% else %}
+        <p class="foms-prod-page__nodwg">도면 전달본이 아직 없어요.</p>
+        {% endif %}
+        {% if order.drawing_files %}
+        <div class="foms-prod-page__thumbs" data-foms-sheet-dwg-thumbs>
+          {% set _k = namespace(i=0) %}
+          {% for f in order.drawing_files %}
+            {% if f.kind == 'image' %}
+            <button type="button" class="foms-prod-page__th{% if _k.i == 0 %} is-on{% endif %}"
+                    data-foms-sheet-dwg-th="{{ _k.i }}"
+                    data-foms-erp-attachment-view-url="{{ f.view }}"
+                    data-foms-erp-attachment-download-url="{{ f.download }}"
+                    data-foms-erp-attachment-label="{{ f.label }}" aria-label="도면 {{ loop.index }} {{ f.label }}">
+              <img src="{{ f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>
+            </button>
+            {% set _k.i = _k.i + 1 %}
+            {% else %}
+            <a class="foms-prod-page__th foms-prod-page__th--file" href="{{ f.view }}" target="_blank" rel="noopener"><span>{{ loop.index }}</span><small>파일 열기</small></a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── 오른쪽 ── #}
+      <div class="foms-prod-page__side">
+        <section class="foms-prod-page__box" aria-label="고객">
+          <h2 class="foms-prod-page__h">고객</h2>
+          <div class="foms-prod-page__row">
+            <div class="foms-prod-page__v">{{ order.customer_name }}<small>{{ order.phone }}</small></div>
+            {% if order.phone_digits %}<a class="foms-prod-page__btn" href="tel:{{ order.phone_digits }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg>전화</a>{% endif %}
+          </div>
+          <div class="foms-prod-page__row">
+            <div class="foms-prod-page__v foms-prod-page__v--addr">{{ order.address }}<small>실측 {{ order.measurement_md }} · 시공 {{ order.construction_label }}{% if order.construction_workers %} · 시공팀 {{ order.construction_workers | join(', ') }}{% endif %}</small></div>
+            {% if order.address and order.address != '-' %}<a class="foms-prod-page__btn" href="https://map.kakao.com/?q={{ order.address | urlencode }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>지도</a>{% endif %}
+          </div>
+        </section>
+
+        <section class="foms-prod-page__box" aria-label="만들 것">
+          <h2 class="foms-prod-page__h">만들 것 <small>총 자수 {{ order.total_units_display }}</small></h2>
+          {% if order.spec_rows_view %}
+          <table class="foms-prod-page__spec">
+            <thead><tr><th scope="col">품목</th><th scope="col">W</th><th scope="col">수량</th></tr></thead>
+            <tbody>
+              {% for r in order.spec_rows_view %}<tr><td>{{ r.label }}</td><td>{{ r.w }}</td><td>{{ r.qty }}</td></tr>{% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="foms-prod-page__muted">규격 정보 없음</p>
+          {% endif %}
+          {% if order.material %}<p class="foms-prod-page__clr">{{ order.material }}</p>{% endif %}
+        </section>
+
+        {% if order.notes_text %}
+        <section class="foms-prod-page__box" aria-label="특이사항">
+          <h2 class="foms-prod-page__h">특이사항</h2>
+          <p class="foms-prod-page__notes">{{ order.notes_text }}</p>
+        </section>
+        {% endif %}
+
+        {% set _alerts = order.change_alerts | default([], true) %}
+        {% if order.has_changes and _alerts %}
+        <section class="foms-prod-page__box foms-prod-page__box--alert" aria-label="변경 알림">
+          <h2 class="foms-prod-page__h">바뀐 것</h2>
+          <ul class="foms-prod-page__changes">
+            {% for a in _alerts %}
+            <li><b>{{ a.label }}</b>{% if a.kind == 'construction_date' and a.to_md %} {{ a.from_md | default('미정', true) }} → <strong>{{ a.to_md }}</strong>{% elif a.detail %} {{ a.detail }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+          <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-kanban-action="change-ack" data-order-id="{{ order.id }}">확인했어요</button>
+        </section>
+        {% endif %}
+
+        {% if order.hold_active and order.hold_reason %}
+        <p class="foms-prod-page__callout foms-prod-page__callout--hold">보류 사유 <strong>{{ order.hold_reason }}</strong></p>
+        {% endif %}
+        {% if order.rework_active and order.rework_reason %}
+        <p class="foms-prod-page__callout foms-prod-page__callout--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유 <strong>{{ order.rework_reason }}</strong></p>
+        {% endif %}
+        {% if order.production_start_blocked %}
+        <p class="foms-gate-blocked-reason" data-production-start-blocked>{{ order.production_start_block_reason }}</p>
+        {% endif %}
+
+        <section class="foms-prod-page__box" aria-label="공정">
+          <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
+          <div class="foms-prod-page__steps">
+            {% for s in order.steps %}
+            <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"
+                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}">
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
+              <span>{{ s.label }}</span>
+              <small data-foms-sheet-step-meta>{{ s.meta }}</small>
+            </button>
+            {% endfor %}
+          </div>
+          <div class="foms-prod-page__defect" data-foms-sheet-defect>
+            <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false" aria-controls="foms-prod-page-defect-reasons"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량 알리기</button>
+            <div class="foms-prod-page__chips" id="foms-prod-page-defect-reasons" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
+              {% for r in defect_reasons %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}
+            </div>
+          </div>
+        </section>
+
+        {# ── 단추: 옆 시트(tablet_sheet.html:176-204)와 같은 data-tablet-sheet-action 계약. 글만 "제작 완료". ── #}
+        <div class="foms-prod-page__acts">
+          <button type="button" class="foms-prod-page__btn{% if order.hold_active %} is-active{% endif %}"
+                  data-tablet-sheet-action="production-hold" data-order-id="{{ order.id }}"
+                  data-hold-active="{{ 1 if order.hold_active else 0 }}" data-hold-reason="{{ order.hold_reason }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
+          {% if order.stage == '제작대기' %}
+            {% if order.is_sales_approved and order.production_start_blocked and not is_admin %}
+            <span class="foms-prod-page__muted" data-tablet-sheet-muted>도면 확정 대기</span>
+            {% elif order.is_sales_approved %}
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri foms-prod-page__btn--big{% if order.production_start_blocked %} foms-prod-page__btn--warn{% endif %}" data-tablet-sheet-action="production-start" data-order-id="{{ order.id }}">제작 시작</button>
+            {% else %}
+            <span class="foms-prod-page__muted" data-tablet-sheet-muted>고객 컨펌 전</span>
+            {% endif %}
+          {% elif order.stage == '제작중' %}
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri foms-prod-page__btn--big" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">제작 완료</button>
+          {% elif order.stage == '제작완료' %}
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
+          {% endif %}
+        </div>
+        <p class="foms-prod-page__status" data-foms-sheet-status aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+  {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261109c" defer></script>
+  {% include 'partials/shared/foms_reason_sheet.html' %}
+  <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261109b" defer></script>
+{% endblock %}

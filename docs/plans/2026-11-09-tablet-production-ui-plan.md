@@ -1,0 +1,51 @@
+# 태블릿 생산 UI — 실행 플랜 (2026-11-09, 리뷰 반영판 · **사용자 승인 2026-11-09, 구현 진행 중**)
+
+> 설계서 `docs/specs/2026-11-09-tablet-production-ui_SPEC.md`. 원장 `…-ledger.md`. 모든 task 는 origin/deploy 기준 세션 워크트리에서 "구현 → 검증 명령 → pathspec 커밋 → 원장 갱신". 한 task = 한 세션 안. 공통: `python -c "import app; print('APP_OK')"`, 바뀐 파일에 닿는 시험만(`grep -rl <파일> tests`), 전체는 push 직전 `scripts/ops/pre_push_smoke.ps1` 한 번. 인라인 스타일 0, `?v=` 핀은 자식·부모 함께, 실화면은 뷰포트 캡처(1280×800 생산팀 + 관리자·PC 대조군).
+
+## P0 생산팀 첫 화면 (설계서 §12 — D10·D12·D13, P1 앞에)
+
+| T | 할 일 | 대상 파일 | 완료 기준(검증) |
+|---|---|---|---|
+| T0-1 | 전체 주문 한 줄 + 착지(기기 무관) | `foms/services/production_home_read_model.py`(새), `production_dashboard_display.py`(공개 함수), `production_read_model.py`(`stage_codes` kwarg), `foms/web/production/dashboard.py`(`/production/home`), `templates/production/home.html`, `static/css/contexts/production/home.css`, `static/js/production/foms-production-home.js`, `post_auth_navigation.py`·`listing.py`·`auth/routes.py` | `tests/domains/test_production_home.py` 새 6 + `test_post_auth_navigation.py` 새 4 초록, 기존 생산 보드·착지 시험 초록, `APP_OK`. 스테이징 실화면 1280×800·800×1280 |
+| T0-2 | 전체 화면 작업 시트(안 2) | `dashboard.py`(뷰 모델 함수 분리 + `/production/sheet/<id>`), `templates/production/sheet.html`(새), `home.css` 또는 `sheet.css`, 공정 JS(F2 ② 스코프 재작성) | 새 시험: 생산팀 200·전화·주소·도면 N·공정 5·불량 칩 4·인라인 style 0, 쿼리 수 단언. 카드 링크 교체 |
+| T0-3 | 탭 "이번 주"(안 4) | `production_home_read_model.py`(출고·시공 요일 묶기), `home.html`(탭 2), 받은함 ACK 는 기존 API | 새 단언: 요일 6칸·오늘 굵게·바뀐 것 n·[확인했어요] POST 200 |
+| T0-4 | 탭 "내 공정"(안 3) | `home.html`(탭 3), `foms-production-home.js`(탭 저장·[끝] POST) | 새 단언: 공정 5탭 숫자 = 첫 미완 공정 집계, POST 뒤 다음 탭으로 이동. 일의 양 칸 없음(D11) |
+
+## P1 착지·권한 (F-01·F-02·F-07)
+
+| T | 할 일 | 대상 파일 | 완료 기준(검증) |
+|---|---|---|---|
+| T1-1 | ~~생산팀 착지 = 생산 보드~~ → **T0-1 이 생산 홈 착지로 대신함(D12)**. 남은 것: 없음. (옛 글) 생산팀 착지 = 생산 보드(기기 무관). 세 곳을 한 함수로: `authenticated_home_url`, `post_auth_navigation.py:100-101`, `listing.py:158-159`; `auth/routes.py:585` switch_user 분기. 조건 `team==PRODUCTION and partner_org_id is None and not 프리랜서` | `foms/services/post_auth_navigation.py`, `foms/web/orders/listing.py`, `foms/web/auth/routes.py` | `tests/domains/test_post_auth_navigation.py` 에 사례 3(로그인·`/`·switch_user, PC UA 포함) 추가 → 초록. 협력사·프리랜서 홈 시험 그대로 초록 |
+| T1-2 | 403 문구 + 상세 링크, 문서 진입 302 | `static/js/foms/fragment-loader.js:92-135`(status 전달·403 분기), `foms/web/orders/dashboard.py:641-642`(비편집자는 모바일 상세로 302) | `test_tablet_dashboard_sheet_contract.py` 초록 + 문구·링크 문자열 단언. 실화면: 생산팀 컨트롤타워 행 탭 → 문구 + [상세] 200 |
+| T1-4 | **생산팀 금액 가리기(D7)** — 완료 보드 PC 표·태블릿 그리드·모바일 카드·CSV·KPI(미수 합계·정산 대기)와 모바일 상세 품목 금액을 팀 PRODUCTION 이면 서버에서 빼기(열·줄 제거, 값 미전송). 술어 1개(`foms/services/erp_permissions.py` 또는 settlement_channel_access 재사용) | `foms/web/cs/completion_dashboard.py`, `templates/cs/partials/completion_dashboard_body.html`·`tablet_completion_grid_body.html`·완료 모바일 카드, `foms/web/orders/dashboard.py:828`(모바일 상세 DTO), `templates/orders/partials/order_detail_mobile_v2.html`·`order_detail_mobile_products.html` | 새 시험: 생산팀 200 응답에 금액 숫자·열 머리글 0, CS 는 그대로. `test_p1_mockup_structure.py:194`(상세 셀렉터) 초록 |
+| T1-3 | 세로 하단 탭 생산팀 분기 | `templates/partials/shared/erp_mobile_shell.html:48-56` | 기존 시험 없음 → 새 시험(렌더 후 PRODUCTION 첫 탭 production, 시공팀·기본 분기 불변). 800×1280 실화면 |
+
+## P2 작업 시트 (F-03 일부·F-04·F-06·D5)
+
+| T | 할 일 | 대상 파일 | 완료 기준 |
+|---|---|---|---|
+| T2-1 | 시트에 전화·주소 줄 + "상세 · 인쇄" 링크(인쇄는 T4-1 라우트, 그 전엔 숨김) + "생산 완료"→"제작 완료" | `foms/web/production/dashboard.py:408-468`(뷰 모델 2키), `templates/production/partials/tablet_sheet.html` | 새 시험 `tests/domains/test_production_tablet_sheet_fragment.py`: 생산팀 200, 전화·주소 문자열·`tel:`·`/erp/orders/<id>/mobile` 링크, **쿼리 수 단언**(시트 라우트 전용). `test_tablet_domain_sheets_contract.py` 초록 |
+| T2-2 | 브리핑 목록 60vh 보정 + 핀 | `static/css/foundation/foms-tablet-production-kanban.css:926`, `foms-tablet-bundle.css`, `templates/partials/shared/layout_head.html` | `test_tablet_t2_contract.py` 보정 줄 단언 추가·초록, CSS 핀 시험(`test_tablet_rail_contract.py`·`test_tablet_as_compare_contract.py`·`test_shipment_change_alert_render.py`) 초록. 130% 실화면 닫기 밑 안 깔림 |
+| T2-3 | 레일 화면 크기 단추(변형 rail, 브랜드 아래) | `templates/partials/shared/foms_ui_zoom_control.html`(변형 1), `templates/partials/shared/foms_tablet_rail.html`, `static/css/foundation/foms-tablet-rail.css` + 핀 | `test_tablet_rail_contract.py` 초록(72px·`__item`), 실화면 가로 80%→130%→100% 전환, 세로 손잡이와 같은 값, 130% 에서 단추 보임 |
+| T2-4 | 실패 문구 통일(D5) | `static/js/foms/tablet-domain-sheets.js:110-134, 257-262`(핀 올림 — `tests/performance/test_entry_chain_parallel_contract.py:243-262` 가 출고 CHAIN 핀과 같아야 함), `static/js/production/foms-production-steps.js:263,296` | `test_tablet_domain_sheets_contract.py` confirm 문구 불변·핀 단언 초록. 네트워크 끊고 단추 → 새 문구 |
+
+## P3 도면·공정·알림 (F-03·F-05·F-13)
+
+| T | 할 일 | 대상 파일 | 완료 기준 |
+|---|---|---|---|
+| T3-1 | 공정 5체크 + 불량 블록을 시트 안에(스코프 JS 재작성) | `static/js/production/foms-production-steps.js`(루트 기준 스코프 객체, id 의존 제거, `loadSteps(id, root)` 를 시트 삽입 이벤트에서), `templates/production/partials/production_steps_sheet.html:15-35`(id → data-속성), `tablet_sheet.html`(블록) | `test_production_steps_api.py` 초록. 새 단언: 시트 fragment 에 `data-foms-prod-steps-sheet` 1·칩 4·id 중복 0, 가로 DOM 에 세로 오프캔버스와 공존해도 시트 목록이 채워짐(Playwright 1회). 실화면: 체크 → POST 200, 세로 바텀시트도 그대로 동작 |
+| T3-2 | 도면 스트립 N장 + 기존 마운터로 뷰어 | `foms/web/production/dashboard.py:383-405`(이미지 전체 목록, `_PROD_SHEET_IMG_EXT` `:328`), `tablet_sheet.html`(갤러리 마크업), 마운터 로드 여부(`foms_mobile_queue_attachment_preview_bundle.html` 포함 확인, 아니면 로드 1줄) | 새 단언: 전달본 3장 → 썸네일 3, PDF 는 "파일 열기" 링크. 실화면(운영 또는 로컬 시드 — 스테이징 파일 깨짐): 탭 → 뷰어 "2 / 3"·넘기기 |
+| T3-3 | 품목 취소 → 생산 변경 알림 | `foms/api/drawing/erp_orders_item_cancel.py`(`_mutate` 안 취소 적용 `:75-76` 뒤·커밋 `:91` 전 호출, 커밋 뒤 finalize), `foms/services/notifications/production_change.py`(`_KIND_LABEL` "품목 취소") | `test_production_change_notification.py` 새 사례(팀 3 row, `merge=False` 로 2건 → 2 row). `python tools/harness/refresh_inventories.py` 후 커밋(REV-99 lineno 핀) |
+
+## P4 인쇄 (D8 — 포함)
+
+| T | 할 일 | 대상 파일 | 완료 기준 |
+|---|---|---|---|
+| T4-1 | 작업지시서 인쇄 페이지 | 새 라우트(`foms/web/production/dashboard.py`, 권한 `_can_edit_production_steps` 재사용), 새 템플릿 `templates/production/print_sheet.html`, 새 CSS `static/css/contexts/production/print.css`(폴더도 새로), 인쇄 단추 JS 외부 파일(≤60줄), 시트 "인쇄" 링크 | 새 시험: 생산팀 200·도면팀 403·취소 품목 제외·도면 장수 = 쪽수·인라인 style/script 0. 갤럭시 탭 인쇄 미리보기 1회(사용자 기기) |
+
+## 뒤로 미룸(기록)
+- 오프라인 저장, 출고 배정 쓰기(출고팀 STAFF 403 별건), AS→재제작, 생산 할 일 보드, 회사 지식 404, 공지·프로필 레일, QR 막대 위치, AS 행 시트 URL(별건 1줄), 다른 팀 태블릿 2차, 장별 "바뀐 도면".
+
+## 원장 규율
+- task 끝나면 그 자리에서 DONE/BLOCKED, 막히면 사유 적고 다음 task.
+- 운영 반영은 스테이징 실화면 통과 뒤 사용자 명시 요청으로 cherry-pick 승격.

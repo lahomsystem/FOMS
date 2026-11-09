@@ -131,7 +131,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 생산 전이 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -259,7 +259,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 생산 보류 토글 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -288,7 +288,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 변경 확인 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -492,7 +492,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 출고 배정 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -638,9 +638,10 @@
 
   // ---- 단일 document 'click' 위임 --------------------------------------------
   document.addEventListener("click", function (ev) {
-    if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
+    // 생산팀 첫 화면·전체 화면 작업 시트(설계서 §12)는 기기 무관 — 코호트 게이트를 타지 않는다.
+    if (!cohortActive() && !target.closest("[data-foms-prod-sheet-page], [data-foms-prod-home]")) return;
 
     // F-3 전체화면 토글 — 진입(필터 바) / 복원(플로팅) 버튼 공용. 현재 상태는 저장값이 아니라
     // 실제 DOM(board.is-fullscreen)에서 읽어 플립한다 — localStorage 불가 환경에서 read 가
