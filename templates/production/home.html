@@ -52,7 +52,7 @@
         <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
         {% for r in g.rows %}
         <a class="foms-prod-home__job{% if r.has_changes %} is-changed{% endif %}{% if r.home_soon %} is-soon{% endif %}"
-           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=r.id) }}"
+           href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}"
            data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}"
            data-changed="{{ '1' if r.has_changes else '0' }}" data-q="{{ r.search_text }}">
           <span class="foms-prod-home__stage"><b>{{ r.home_stage }}</b><span>{{ r.home_stage_sub }}</span></span>
