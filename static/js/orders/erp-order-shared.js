@@ -2842,7 +2842,7 @@ function erpRenderAsReceivePrevCycle(summary) {
  * @param {Object|null} lastClosed - 지난 종결 건 요약(as_cycle.last_closed_cycle).
  * @returns {void}
  */
-function erpApplyAsReceiveMode(mode, lastClosed) {
+function erpApplyAsReceiveMode(mode, lastClosed, keepDraft) {
     const isReintake = mode === 'reintake';
     erpToggleAsReceiveBlock('as-receive-same-cycle-note', mode === 'edit');
     erpToggleAsReceiveBlock('as-receive-hard-warn', isReintake);
@@ -2850,9 +2850,10 @@ function erpApplyAsReceiveMode(mode, lastClosed) {
     erpToggleAsReceiveBlock('as-receive-recurrence-wrap', isReintake && !!lastClosed);
     erpToggleAsReceiveBlock('as-receive-clear-content', false);
     erpToggleAsReceiveBlock('as-receive-load-hint', false);
+    erpRenderAsReceivePrevCycle(isReintake ? lastClosed : null);
+    if (keepDraft) return;
     const recurEl = document.getElementById('as-receive-recurrence');
     if (recurEl) recurEl.checked = false;
-    erpRenderAsReceivePrevCycle(isReintake ? lastClosed : null);
     if (!isReintake) return;
     // 새 건은 지난 건 판정·금액을 물려받지 않는다 — 기본값(무상 추정)에서 다시 고른다.
     document.querySelectorAll('input[name="as-receive-billing"]').forEach(function (r) {
@@ -2916,8 +2917,13 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
     const isReintake = mode === 'reintake';
     const isEdit = mode === 'edit';
     window.__erpAsReceiveMode = mode;
+    // 접수 전 닫힌 창(빈 곳 클릭·취소·X)은 쓰던 글·사진·동영상·비용 선택을 그대로 둔다.
+    // 같은 주문·같은 모드로 다시 열면 이어 쓰고, 접수에 성공해야만 비운다(사용자 11-09).
+    const draftKey = `${targetId}:${mode}`;
+    const keepDraft = window.__erpAsReceiveDraftKey === draftKey;
+    window.__erpAsReceiveDraftKey = draftKey;
 
-    if (contentEl) {
+    if (contentEl && !keepDraft) {
         // D4: 새 건은 지난 증상을 절대 미리 채우지 않는다 — 채워 두면 그게 이번 건의
         // 접수 원문으로 굳어 "저번 증상으로 새 AS 가 열린" 기록이 남는다.
         if (contentEl.dataset.defaultPlaceholder === undefined) {
@@ -2930,10 +2936,12 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
             ? '이번에 생긴 문제를 적어주세요'
             : contentEl.dataset.defaultPlaceholder;
     }
-    if (filesEl) filesEl.value = '';
-    window.__erpAsReceiveClipboardFiles = [];
-    if (previewEl && previewEl._asOrder) previewEl._asOrder.clear();
-    else if (previewEl) previewEl.innerHTML = '';
+    if (!keepDraft) {
+        if (filesEl) filesEl.value = '';
+        window.__erpAsReceiveClipboardFiles = [];
+        if (previewEl && previewEl._asOrder) previewEl._asOrder.clear();
+        else if (previewEl) previewEl.innerHTML = '';
+    }
     if (titleEl) {
         // 건 배지는 2번째부터만 붙인다(1번째 AS 는 소음 — as_cycle_view 표시 규약).
         const badge = modeInfo.cycleNo >= 2
@@ -2950,7 +2958,7 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
             : '<i class="fas fa-check"></i> '
                 + (isEdit ? '수정 내용 저장' : 'AS 접수 확인');
     }
-    erpApplyAsReceiveMode(mode, modeInfo.lastClosed);
+    erpApplyAsReceiveMode(mode, modeInfo.lastClosed, keepDraft);
 
     const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
     const shipDateEl = document.getElementById('as-receive-shipping-date');
@@ -3829,6 +3837,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     }
 
                     window.__erpAsReceiveSubmitted = true;
+                    window.__erpAsReceiveDraftKey = '';
                     if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
                         window.__erpLastStructuredData = {};
                     }
