@@ -257,3 +257,14 @@ html[data-foms-fs] .layout-global-nav {
     font-size: 16px !important;
   }
 }
+
+/* 위 막대 안 배지(고정 6/10px 여백) · 네이버 N 표시(15px 그림)도 되돌림을 상쇄한다 — 70% 에서 커지고 150% 에서 작아지던 것. */
+html[data-foms-fs] .layout-header .badge,
+html[data-foms-fs] .layout-global-nav .badge {
+  padding: calc(6px * var(--foms-fs, 1)) calc(10px * var(--foms-fs, 1));
+}
+
+html[data-foms-fs] .layout-global-nav .foms-nav-mark {
+  width: calc(15px * var(--foms-fs, 1));
+  height: calc(15px * var(--foms-fs, 1));
+}
