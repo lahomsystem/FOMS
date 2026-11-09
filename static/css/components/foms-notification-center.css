@@ -184,7 +184,7 @@
   border-radius: var(--foms-radius-full);
   background: var(--foms-status-danger, #dc3545);
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px * var(--foms-fs, 1));
   font-weight: var(--foms-font-weight-bold);
   vertical-align: middle;
 }

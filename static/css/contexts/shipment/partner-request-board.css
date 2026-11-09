@@ -48,19 +48,19 @@
 .prb-moved { font-size: 0.875rem; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 0 5px; }
 
 /* 시공일 정하기 작은 창 · 알림 */
-.prb-pop { position: absolute; z-index: 1990; width: 320px; background: #fff; border: 1px solid var(--erp-border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 10px; }
-.prb-pop__title { font-weight: 700; font-size: 14px; }
+.prb-pop { position: absolute; z-index: 1990; width: 320px; background: #fff; border: 1px solid var(--erp-border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); padding: 12px 14px; font-size: calc(13px * var(--foms-fs, 1)); display: flex; flex-direction: column; gap: 10px; }
+.prb-pop__title { font-weight: 700; font-size: calc(14px * var(--foms-fs, 1)); }
 .prb-pop__row { display: flex; align-items: center; gap: 8px; }
 .prb-pop__row > label { flex: 0 0 36px; color: var(--erp-text-muted); margin: 0; }
-.prb-pop .form-control { padding: 3px 8px !important; font-size: 13px !important; border-radius: 6px !important; min-height: 0 !important; height: auto !important; }
-.prb-pop .btn { padding: 3px 10px !important; font-size: 12px !important; line-height: 1.4 !important; }
-.prb-pop__load { font-size: 12px; color: var(--erp-text-muted); }
+.prb-pop .form-control { padding: 3px 8px !important; font-size: calc(13px * var(--foms-fs, 1)) !important; border-radius: 6px !important; min-height: 0 !important; height: auto !important; }
+.prb-pop .btn { padding: 3px 10px !important; font-size: calc(12px * var(--foms-fs, 1)) !important; line-height: 1.4 !important; }
+.prb-pop__load { font-size: calc(12px * var(--foms-fs, 1)); color: var(--erp-text-muted); }
 .prb-pop__load.is-tight { color: #dc2626; font-weight: 600; }
 .prb-pop__btns { display: flex; justify-content: flex-end; gap: 6px; }
 .prb-seg { display: inline-flex; border: 1px solid var(--erp-border); border-radius: 6px; overflow: hidden; }
-.prb-seg button { border: 0; background: #fff; padding: 5px 14px; font-size: 13px; border-left: 1px solid var(--erp-border); }
+.prb-seg button { border: 0; background: #fff; padding: 5px 14px; font-size: calc(13px * var(--foms-fs, 1)); border-left: 1px solid var(--erp-border); }
 .prb-seg button:first-child { border-left: 0; }
 .prb-seg button.is-on { background: var(--erp-primary); color: #fff; }
 .prb-seg button:disabled { opacity: .6; }
-.prb-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 2100; display: flex; gap: 14px; align-items: center; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+.prb-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 2100; display: flex; gap: 14px; align-items: center; font-size: calc(14px * var(--foms-fs, 1)); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .prb-toast button { background: none; border: 0; color: #93c5fd; font-weight: 600; padding: 0; }

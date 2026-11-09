@@ -138,7 +138,7 @@
 .erp-discount-box--mobile .erp-discount-row .erp-discount-row__amount {
   height: 2.5rem !important;
   line-height: 2.5rem !important;
-  font-size: 16px !important; /* 아이폰 확대 방지 */
+  font-size: calc(16px * var(--foms-fs, 1)) !important; /* 아이폰 확대 방지 */
 }
 
 .erp-discount-box--mobile .erp-discount-row__remove {

@@ -418,7 +418,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
         ROOT / "templates/measurement/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-v2-domain-heroes.css') }}?v=20261108a",
+        "foms-v2-domain-heroes.css') }}?v=20261109f",
         "foms-route-strip.css') }}?v=20260901a",
     ):
         assert token in dash
@@ -427,7 +427,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     full = client.get("/erp/measurement").get_data(as_text=True)
     assert "foms-v2-domain-heroes.css" in full
     assert "foms-route-strip.css" in full
-    assert "v=20260712a" in full
+    assert "v=20261109f" in full
     assert "v=20260901a" in full
 
     frag_resp = client.get(
@@ -438,6 +438,6 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     frag = frag_resp.get_data(as_text=True)
     assert "foms-v2-domain-heroes.css" in frag
     assert "foms-route-strip.css" in frag
-    assert "v=20260712a" in frag
+    assert "v=20261109f" in frag
     assert "v=20260901a" in frag
     assert "<html" not in frag.lower()

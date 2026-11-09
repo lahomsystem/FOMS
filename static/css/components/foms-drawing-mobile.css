@@ -41,7 +41,7 @@
 
 .foms-drawing-mobile-v2__hint {
   margin: var(--foms-space-2, 8px) 0 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: var(--foms-color-text-muted, #64748b);
 }
 
@@ -69,7 +69,7 @@
 }
 
 .foms-detail-section__edit {
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   color: var(--foms-color-primary, #2563eb);
   text-decoration: none;
 }

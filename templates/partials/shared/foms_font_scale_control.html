@@ -1,0 +1,9 @@
+{# 탭별 글자 크기 조절기(2026-11-09 사용자 — 수집 탭과 같은 − 100% + , 각 탭 제목 줄 오른쪽).
+   값 · 저장 열쇠는 주소(탭)로 정해진다 — layout_head boot(window.fomsFsKey). 동작 static/js/foms/font-scale.js.
+   가운데 숫자를 누르면 100% 로 돌아간다. 위 막대의 '화면 크기'와 헷갈리지 않게 '글자' 라고 적는다. #}
+<span class="foms-fs" role="group" aria-label="글자 크기" data-foms-fs-ctl>
+  <span class="foms-fs__label" aria-hidden="true">글자</span>
+  <button type="button" class="foms-fs__btn" data-foms-fs-step="-1" aria-label="글자 작게" title="글자 작게">−</button>
+  <button type="button" class="foms-fs__now" data-foms-fs-reset aria-live="polite" title="글자 크기 — 누르면 100%">100%</button>
+  <button type="button" class="foms-fs__btn" data-foms-fs-step="1" aria-label="글자 크게" title="글자 크게">+</button>
+</span>

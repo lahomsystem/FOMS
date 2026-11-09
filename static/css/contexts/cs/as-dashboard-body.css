@@ -1544,12 +1544,12 @@
   width: fit-content;
   max-width: calc(calc(100vw / var(--foms-ui-zoom, 1)) - 3rem);
   color: #4c1d95;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
 }
 
 .erp-as-move__ico {
   color: #6d28d9;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 800;
 }
 
@@ -1565,7 +1565,7 @@
   border-radius: 8px;
   background: #6d28d9;
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
@@ -1583,7 +1583,7 @@
   border-radius: 8px;
   background: #fff;
   color: #6d28d9;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   cursor: pointer;
 }

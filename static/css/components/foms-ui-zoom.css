@@ -144,3 +144,81 @@ html[data-foms-ui-zoom] .modal-fullscreen {
   font-size: 16px;
   border-color: var(--foms-border-subtle);
 }
+
+/* ── 탭별 글자 크기(2026-11-09 사용자) ─────────────────────────────
+   boot 가 탭(주소)마다 html[data-foms-fs] + --foms-fs 를 붙인다(100% 면 안 붙음).
+   rem 글자(부트스트랩 포함)는 html 글자 기준으로, px 글자는 calc(Npx * var(--foms-fs, 1)) 로 따라 커진다. */
+html[data-foms-fs] {
+  font-size: calc(100% * var(--foms-fs, 1));
+}
+
+/* erp-pro.css 의 넓은 화면 18px 규칙(2026-11-06)과 겹칠 때도 배율을 곱한다. */
+@media (min-width: 2000px) {
+  html[data-foms-fs]:has(> body:not(.pp-body)) {
+    font-size: calc(18px * var(--foms-fs, 1));
+  }
+}
+
+/* 조절기 자신은 글자 배율을 따르지 않는다(px 고정) — 같이 커지면 손이 따라가야 한다(수집 탭과 같은 규칙). */
+.foms-fs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.foms-fs__label {
+  margin-right: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6c757d;
+}
+
+.foms-fs__btn,
+.foms-fs__now {
+  height: 30px;
+  padding: 0;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: #fff;
+  color: #343a40;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-fs__btn {
+  width: 30px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.foms-fs__now {
+  min-width: 50px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.foms-fs__btn:hover:not(:disabled),
+.foms-fs__now:hover {
+  background: #f1f3f5;
+}
+
+.foms-fs__btn:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.foms-fs__btn:focus-visible,
+.foms-fs__now:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 1px;
+}
+
+[data-theme='dark'] .foms-fs__btn,
+[data-theme='dark'] .foms-fs__now {
+  border-color: #3a3f47;
+  background: #1c1f24;
+  color: #e9ecef;
+}

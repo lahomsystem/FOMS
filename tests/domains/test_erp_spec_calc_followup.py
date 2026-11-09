@@ -203,7 +203,7 @@ def test_mobile_spec_aux_fields_stack_label_above_input() -> None:
 def test_typography_benchmarks_order_detail_density() -> None:
     css = _read(FORM_FIELD_CSS)
     # 라벨 13px (주문상세 .foms-kv-row 기준), 입력 16px(iOS 포커스 줌 방지)
-    assert "font-size: 13px" in css
+    assert "font-size: calc(13px * var(--foms-fs, 1))" in css  # 탭별 글자 배율(2026-11-09)
     assert "max(16px" in css
 
 
@@ -235,8 +235,8 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
-    assert "../components/foms-form-field.css?v=20261109a" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20261109a" in layout_head
+    assert "../components/foms-form-field.css?v=20261109f" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20261109f" in layout_head
 
 
 def test_spec_calc_self_heals_rows_created_before_module_load() -> None:

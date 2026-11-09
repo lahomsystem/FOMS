@@ -68,13 +68,13 @@
 }
 .wd-madd-panel__title {
     font-weight: 700;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     color: #212529;
 }
 .wd-madd-panel__close {
     border: none;
     background: transparent;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     cursor: pointer;
     color: #6c757d;
     width: 36px;
@@ -97,7 +97,7 @@
     padding: 8px 12px;
     border: 1px solid #ced4da;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     color: #212529;
 }
 .wd-madd-search-input:focus {
@@ -117,7 +117,7 @@
     padding: 32px 16px;
     text-align: center;
     color: #6c757d;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
 }
 
 /* 카테고리 아코디언 */
@@ -134,7 +134,7 @@
     padding: 12px;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     font-weight: 700;
     color: #212529;
     min-height: 44px;
@@ -154,7 +154,7 @@
     flex: 0 0 auto;
     color: #6c757d;
     font-weight: 400;
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
 }
 .wd-madd-group__chev {
     display: inline-block;
@@ -180,7 +180,7 @@
     border-radius: 8px;
     cursor: pointer;
     min-height: 46px;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     color: #212529;
 }
 .wd-madd-opt:hover {
@@ -210,7 +210,7 @@
 .wd-madd-opt__meta {
     flex: 0 0 auto;
     color: #6c757d;
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     white-space: nowrap;
 }
 
@@ -229,7 +229,7 @@
     border: 1px solid transparent;
     border-radius: 8px;
     padding: 10px 16px;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     font-weight: 600;
     cursor: pointer;
     min-height: 44px;
@@ -264,7 +264,7 @@ body.wd-madd-open {
 /* 모바일 바텀시트 보정 */
 @media (max-width: 991.98px) {
     .wd-madd-panel__title {
-        font-size: 17px;
+        font-size: calc(17px * var(--foms-fs, 1));
     }
 }
 

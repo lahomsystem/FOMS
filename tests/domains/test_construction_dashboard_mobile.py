@@ -588,9 +588,9 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     ).read_text(encoding="utf-8")
     for token in (
         "foms-construction-mobile-card.css') }}",
-        "foms-v2-domain-heroes.css') }}?v=20261108a",
+        "foms-v2-domain-heroes.css') }}?v=20261109f",
         "foms-complete-gate.css') }}?v=20261109a",
-        "foms-packing.css') }}?v=20261109a",
+        "foms-packing.css') }}?v=20261109f",
     ):
         assert token in dash
         assert token in frag_src

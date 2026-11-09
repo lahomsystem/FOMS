@@ -184,7 +184,7 @@ def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
         root / "templates/production/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-v2-domain-heroes.css') }}?v=20261108a",
+        "foms-v2-domain-heroes.css') }}?v=20261109f",
         "foms-production-steps.css') }}?v=20261105s",
     ):
         assert token in dash
@@ -202,6 +202,6 @@ def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
     frag = frag_resp.get_data(as_text=True)
     assert "foms-v2-domain-heroes.css" in frag
     assert "foms-production-steps.css" in frag
-    assert "v=20260712a" in frag
+    assert "v=20261109f" in frag
     assert "v=20260713b" in frag
     assert "<html" not in frag.lower()

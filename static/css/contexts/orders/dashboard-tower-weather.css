@@ -68,7 +68,7 @@
 .foms-cal-photo-10 { background-color: #c2410c; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-10.webp?v=20261014a"); }
 .foms-cal-photo-11 { background-color: #7a4b28; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-11.webp?v=20261014a"); }
 .foms-cal-photo-12 { background-color: #2b6a4a; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-12.webp?v=20261014a"); }
-.foms-tower__cal-hero .foms-tower__cal-title { color: #fff; font-size: 26px; font-weight: 800; letter-spacing: -0.8px; }
+.foms-tower__cal-hero .foms-tower__cal-title { color: #fff; font-size: calc(26px * var(--foms-fs, 1)); font-weight: 800; letter-spacing: -0.8px; }
 .foms-tower__cal-hero .foms-tower__cal-arrow { color: #fff; }
 .foms-tower__cal-hero .foms-tower__cal-arrow:disabled { opacity: .35; }
 .foms-tower__cal-hero .foms-tower__cal-gear { color: rgba(255, 255, 255, .9); }
@@ -128,20 +128,20 @@
 [data-theme='dark'] .foms-tower__cal-cell.is-today { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); box-shadow: 0 8px 18px rgba(0, 0, 0, .4); }
 /* 기온 받침은 칸 오른쪽 위에 띄운다 — 폭 46px 폰 칸에서 날짜와 한 줄로 두면 잘린다(스테이징 2026-10-14) */
 .foms-tower__cal-head { position: relative; display: flex; align-items: flex-start; min-height: 22px; }
-.foms-tower__cal-cell .foms-tower__cal-date { width: 20px; height: 20px; font-size: 13px; font-weight: 700; }
+.foms-tower__cal-cell .foms-tower__cal-date { width: 20px; height: 20px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; }
 .foms-tower__cal-cell.is-past .foms-tower__cal-date { opacity: .45; }
 .foms-tower__cal-cell.is-today .foms-tower__cal-date { background: var(--foms-color-danger-600); color: #fff; box-shadow: 0 3px 8px rgba(255, 59, 48, .45); }
 .foms-tower__cal-temp {
   /* 날짜 원(20px)과 같은 높이·위치, 위아래 숫자는 가운데 정렬 + 고정폭 숫자(실폰 정렬 2026-10-14) */
   position: absolute; top: 0; right: 0; box-sizing: border-box; min-width: 21px; height: 20px; padding: 0 2px;
   border-radius: 5px; background: rgba(255, 255, 255, .62); box-shadow: 0 1px 2px rgba(28, 28, 30, .08);
-  font-size: 8.5px; font-weight: 700; line-height: 9.5px; color: #2c2c2e; letter-spacing: -0.3px; white-space: nowrap;
+  font-size: calc(8.5px * var(--foms-fs, 1)); font-weight: 700; line-height: 9.5px; color: #2c2c2e; letter-spacing: -0.3px; white-space: nowrap;
   font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 /* 우리 모바일 홈(.foms-tower 안)만 기온 8.5px → 10px(2026-11-05) → 12px(2026-11-06 점검: 폰 보조 글 12px 이상).
    두 줄 줄 11px 로 받침 높이 22px(= 머리 줄 최소 높이 22px)라 아래 건수 줄이 내려가지 않는다. 폭은 받침 최소 21px 와
    거의 같아(21.5px) 390px 폰에서 날짜와 5.9px 띄운다. 협력사 달력(.pp-cal)은 그대로. */
-.foms-tower .foms-tower__cal-temp { font-size: 12px; line-height: 11px; height: 22px; padding: 0 1px; letter-spacing: -0.5px; }
+.foms-tower .foms-tower__cal-temp { font-size: calc(12px * var(--foms-fs, 1)); line-height: 11px; height: 22px; padding: 0 1px; letter-spacing: -0.5px; }
 /* 최고 위·최저 아래 두 줄 — 한 줄 '12°/20°' 는 폭 40px 칸에서 날짜와 겹친다 */
 .foms-tower__cal-temp b { font-weight: 700; }
 .foms-tower__cal-temp .is-min { color: #1d4ed8; }
@@ -150,7 +150,7 @@
 .foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 22px; right: auto; }
 .foms-tower__cal-cell .foms-tower__cal-counts { align-items: flex-start; min-height: 0; padding-left: 2px; }
 /* 건수 숫자 테두리: 띠 그림(해·빗방울·눈) 위에서도 읽히게(운영 실데이터 2026-10-15) */
-.foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 0 2px rgba(255, 255, 255, .95), 0 0 4px rgba(255, 255, 255, .8); }
+.foms-tower__cal-cell .foms-tower__cal-n { font-size: calc(11px * var(--foms-fs, 1)); line-height: 14px; gap: 3px; text-shadow: 0 0 2px rgba(255, 255, 255, .95), 0 0 4px rgba(255, 255, 255, .8); }
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 0 2px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .7); }
 .foms-tower__cal-cell .foms-tower__cal-amt {
   /* 폭 44px 폰 칸에서 "5,158만" 이 넘쳤다(운영 실화면 2026-10-14) → 화면 폭에 맞춰 8~10px */

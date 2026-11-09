@@ -98,7 +98,7 @@
     align-items: center;
     justify-content: center;
     height: 56px;
-    font-size: 20px;
+    font-size: calc(20px * var(--foms-fs, 1));
     font-weight: var(--foms-font-weight-bold, 700);
     color: var(--foms-color-brand-600, #2563eb);
     margin-bottom: var(--foms-space-4, 16px);
@@ -115,7 +115,7 @@
     min-height: 52px;
     flex-shrink: 0;
     width: 100%;
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     color: var(--foms-text-tertiary, #6b7280);
     background: transparent;
     border: none;
@@ -140,7 +140,7 @@
   }
 
   .foms-split-side-tab__icon {
-    font-size: 22px;
+    font-size: calc(22px * var(--foms-fs, 1));
   }
 
   .foms-split-master__head {

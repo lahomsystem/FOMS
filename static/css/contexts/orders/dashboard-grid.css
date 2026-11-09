@@ -22,7 +22,7 @@
     .erp-toast {
       border-radius: 10px;
       padding: 9px 11px;
-      font-size: 13px;
+      font-size: calc(13px * var(--foms-fs, 1));
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
     }
     .erp-toast-success { background: #ecfdf5; border: 1px solid #10b981; color: #065f46; }

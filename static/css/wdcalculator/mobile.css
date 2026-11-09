@@ -26,7 +26,7 @@
   .wd-mhead__actions { display: flex; }
   .wd-mhead__btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
     background: transparent; border: none; cursor: pointer; border-radius: var(--foms-radius-md);
-    color: var(--foms-text-primary); font-size: 18px; text-decoration: none; position: relative; }
+    color: var(--foms-text-primary); font-size: calc(18px * var(--foms-fs, 1)); text-decoration: none; position: relative; }
   .wd-mhead__btn:active { background: var(--foms-interactive-secondary); }
   .wd-mhead__dot:empty { display: none; }
 
@@ -104,7 +104,7 @@
     color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums; line-height: 1.1; }
   .wd-mtotal__acts { display: flex; gap: 6px; flex-shrink: 0; }
   .wd-mtotal__save { min-height: 44px; min-width: 48px; border: 1px solid var(--foms-border-default);
-    background: var(--foms-surface-base); border-radius: var(--foms-radius-md); cursor: pointer; font-size: 18px; }
+    background: var(--foms-surface-base); border-radius: var(--foms-radius-md); cursor: pointer; font-size: calc(18px * var(--foms-fs, 1)); }
   .wd-mtotal__add { min-height: 44px; padding: 0 18px; border: none; background: var(--foms-interactive-primary);
     color: #fff; border-radius: var(--foms-radius-md); font-weight: var(--foms-font-weight-semibold); font-size: var(--foms-font-size-base); cursor: pointer; }
 
@@ -408,13 +408,13 @@
     width: 100% !important;
     min-height: 48px !important;
     height: auto !important;
-    font-size: 18px !important;
+    font-size: calc(18px * var(--foms-fs, 1)) !important;
     font-variant-numeric: tabular-nums;
     box-sizing: border-box !important;
   }
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-price30,
   body.wd-calc-mobile .base-component-row .base-additional-fee-amount {
-    font-size: 20px !important;
+    font-size: calc(20px * var(--foms-fs, 1)) !important;
     font-weight: var(--foms-font-weight-semibold);
   }
   /* 직접 fee: 가로 그리드 → 세로 */
@@ -483,7 +483,7 @@
   }
   body.wd-calc-mobile .wd-bc-mode-seg .base-mode-btn {
     flex: 1; min-width: 0; min-height: 44px;
-    font-size: 13px; padding: 0 4px;
+    font-size: calc(13px * var(--foms-fs, 1)); padding: 0 4px;
   }
   body.wd-calc-mobile .wd-bc-toolbar .base-remove-btn {
     flex-shrink: 0; width: 44px; min-height: 44px;
