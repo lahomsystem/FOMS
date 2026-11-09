@@ -340,10 +340,10 @@ def approve_drawing(order_id: int):
 @partner_api_bp.route("/orders/<int:order_id>/drawing-receipt", methods=["POST"])
 @partner_required
 def confirm_drawing_receipt(order_id: int):
-    """보낸 도면 확인(받음) — 고객컨펌으로(:func:`confirm_partner_drawing_receipt`, FOMS 영업 "도면 수령 확인")."""
+    """보낸 도면 확인(받음) — 고객컨펌으로. 본문 ``final_drawing_keys``(선택)는 진행할 도면만(설계서 2026-11-09)."""
     db = get_db()
     try:
-        confirm_partner_drawing_receipt(db, g.current_user, order_id)
+        confirm_partner_drawing_receipt(db, g.current_user, order_id, request.get_json(silent=True))
         db.commit()
     except PartnerConfirmError as exc:
         db.rollback()

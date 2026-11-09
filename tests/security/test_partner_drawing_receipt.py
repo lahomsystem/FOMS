@@ -185,3 +185,63 @@ def test_drawing_tab_survives_old_history_shapes():
     tab = build_partner_drawing_tab(order, [{"key": "k"}], can_receive=True, can_approve=False)
     assert [e["tag"] for e in tab["thread"]] == ["1차 도면 올림", "수정 요청"]
     assert tab["thread"][0]["note"] == "도면 2장" and tab["turn"]["tone"] == "mine"
+
+
+def _send_two_drawings(order_id, *, partner_draft=False):
+    """저희 도면팀이 두 장을 보냄(김세아 주문처럼 1번 · 2번). ``partner_draft`` 면 협력사에 안 보이는 줄도 하나."""
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    files = [{"key": f"orders/{order_id}/drawing/one.png", "filename": "one.png"},
+             {"key": f"orders/{order_id}/drawing/two.png", "filename": "two.png"}]
+    if partner_draft:
+        files.append({"key": f"orders/{order_id}/partner/draft.png", "filename": "draft.png"})
+    sd["drawing_status"] = "TRANSFERRED"
+    sd["drawing_current_files"] = files
+    sd["drawing_transfer_history"] = [{"action": "TRANSFER", "at": "2026-11-09 10:00:00", "files": files}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    return [f["key"] for f in files]
+
+
+def test_partner_receipt_picks_drawings_like_staff_confirm(app, world, quiet_push):
+    """정명근라운즈 2026-11-09 "2개 중 1번 지워 주세요": 받음 때 고른 도면만 최종으로 남는다.
+    고르기 칸은 두 장 이상일 때만 · 목록 카드는 상세로 보낸다 · 협력사가 못 보는 줄은 남는다."""
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    one, two, draft = _send_two_drawings(order_id, partner_draft=True)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "data-pp-receive-pick" in page and f'data-pp-receive-url="/api/partner/orders/{order_id}/drawing-receipt"' in page
+    assert f'data-pp-approve-url="/api/partner/orders/{order_id}/drawing-receipt"' not in page
+    assert f'value="{two}"' in page and draft not in page
+    board = client.get("/partner?turn=1").get_data(as_text=True)
+    assert "도면 골라 확인" in board
+
+    assert client.post(f"/api/partner/orders/{order_id}/drawing-receipt",
+                       json={"final_drawing_keys": [draft]}).status_code == 400  # 못 보는 줄은 못 고른다
+    assert client.post(f"/api/partner/orders/{order_id}/drawing-receipt",
+                       json={"final_drawing_keys": []}).status_code == 400
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_stage_code == "DRAWING"  # 거절은 아무것도 안 바꾼다
+
+    resp = client.post(f"/api/partner/orders/{order_id}/drawing-receipt", json={"final_drawing_keys": [two]})
+    assert resp.status_code == 200, resp.get_json()
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    current = [f["key"] for f in order.structured_data["drawing_current_files"]]
+    assert order.erp_stage_code == "CONFIRM" and current == [two, draft]
+    log = db_session.query(SecurityLog).filter_by(action="PARTNER_DRAWING_RECEIVED", target_id=order_id).one()
+    assert one in str(log.detail) and "excluded_keys" in str(log.detail)
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "two.png" in page and "one.png" not in page
+
+
+def test_partner_receipt_without_pick_keeps_all(app, world, quiet_push):
+    """대조군: 본문에 고른 도면이 없으면 지금처럼 전부 최종(목록 카드 단추 · 옛 화면)."""
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    keys = _send_two_drawings(order_id)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    assert _receipt(client, order_id).status_code == 200
+    db_session.expire_all()
+    current = [f["key"] for f in db_session.get(Order, order_id).structured_data["drawing_current_files"]]
+    assert current == keys

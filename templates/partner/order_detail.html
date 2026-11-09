@@ -94,4 +94,5 @@
 <script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-order.js') }}" defer></script>
 <script src="{{ asset_url('js/foms/lightbox.js') }}" defer></script>
+{% if can_receive and final_drawings|length > 1 %}<script src="{{ asset_url('js/partner/partner-receive-pick.js') }}" defer></script>{% endif %}
 {% endblock %}

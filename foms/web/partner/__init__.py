@@ -246,6 +246,7 @@ def _final_drawings(order: Order) -> list[dict]:
         no = f["no"]  # 우리 ERP 도면 번호(걸러진 줄이 있어도 다시 세지 않는다)
         name = f.get("filename") or f.get("key", "").rsplit("/", 1)[-1]
         rows.append({
+            "key": f["key"],  # "도면 확인했어요" 때 진행할 도면 고르기(설계서 2026-11-09)
             "filename": name,
             "no": no,  # 공통 첨부 도면 썸네일 밑 "1번"(사용자 11-05)
             "label": f"{no}번 · {name}",  # 우리 도면 작업실처럼 번호로 부른다(수정 요청 때 "2번 도면")

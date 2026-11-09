@@ -636,3 +636,9 @@ body.pp-notice-open { overflow: hidden; }
   .pp-items-md .erp-preset-sheet .erp-preset-row { align-items: center !important; }
   .pp-items-md .erp-preset-sheet .erp-preset-row__label { padding-top: 0 !important; }
 }
+
+/* "도면 확인했어요" 때 진행할 도면 고르기(설계서 2026-11-09) — 도면 목록 바로 아래 체크 줄. */
+.pp-dpick { margin: 0 0 12px; padding: 0; border: 0; }
+.pp-dpick__title { margin: 0 0 4px; font-size: inherit; font-weight: 700; }
+.pp-dpick__row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.pp-dpick__row .form-check-input { margin: 0; flex: none; }
