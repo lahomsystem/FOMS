@@ -2959,6 +2959,8 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
                 + (isEdit ? '수정 내용 저장' : 'AS 접수 확인');
     }
     erpApplyAsReceiveMode(mode, modeInfo.lastClosed, keepDraft);
+    // 새로고침 뒤 처음 여는 창이면 브라우저에 남긴 초안을 되살린다(as-receive-draft.js).
+    if (!keepDraft && window.fomsAsReceiveDraft) window.fomsAsReceiveDraft.restore(targetId, mode);
 
     const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
     const shipDateEl = document.getElementById('as-receive-shipping-date');
@@ -3838,6 +3840,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
                     window.__erpAsReceiveSubmitted = true;
                     window.__erpAsReceiveDraftKey = '';
+                    if (window.fomsAsReceiveDraft) window.fomsAsReceiveDraft.clear(targetId);
                     if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
                         window.__erpLastStructuredData = {};
                     }
@@ -5050,6 +5053,7 @@ function erpAsReceiveOrderCtl() {
                 const filesEl = document.getElementById('as-receive-files');
                 erpSetFileInputFiles(filesEl, files);
                 window.__erpAsReceiveClipboardFiles = files.slice();
+                if (window.fomsAsReceiveDraft) window.fomsAsReceiveDraft.scheduleSave();
             }
         });
     }

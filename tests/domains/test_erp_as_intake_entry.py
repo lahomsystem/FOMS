@@ -111,3 +111,17 @@ def test_as_receive_draft_survives_close_until_submit() -> None:
     assert "filesEl.value = ''" in reset_block
     submitted = js.split("window.__erpAsReceiveSubmitted = true;", 1)[1][:120]
     assert "window.__erpAsReceiveDraftKey = '';" in submitted
+
+
+def test_as_receive_draft_survives_reload() -> None:
+    """새로고침해도 접수 전 초안(글·비용·사진·동영상)이 남는다 — IndexedDB 보관(사용자 11-09)."""
+    draft_js = _read(REPO_ROOT / "static" / "js" / "orders" / "as-receive-draft.js")
+    assert "indexedDB" in draft_js and "window.fomsAsReceiveDraft" in draft_js
+    include = _read(JS_INCLUDE)
+    draft_tag = asset_url_call("js/orders/as-receive-draft.js")
+    shared_tag = asset_url_call("js/orders/erp-order-shared.js")
+    assert draft_tag in include and include.index(draft_tag) < include.index(shared_tag)
+    js = _read(SHARED_JS)
+    assert "window.fomsAsReceiveDraft.restore(targetId, mode)" in js
+    assert "window.fomsAsReceiveDraft.clear(targetId)" in js
+    assert "window.fomsAsReceiveDraft.scheduleSave()" in js
