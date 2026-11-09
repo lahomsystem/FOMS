@@ -130,13 +130,33 @@ def _change_line(alerts: list[dict[str, Any]]) -> str:
     return line
 
 
-def production_home_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+#: 시공일이 이보다 더 지난 주문은 맨 아래 "지난 시공일" 한 묶음으로 모은다(스테이징 실측 11-09: 139일 지난
+#: 도면 대기 주문이 첫 줄에 오고 33묶음 중 대부분이 지난 날짜였다 — 작업자에겐 오늘·이번 주가 먼저다).
+PRODUCTION_HOME_PAST_DAYS = 7
+PAST_GROUP_KEY = 'past'
+
+
+def production_home_groups(rows: list[dict[str, Any]], today: datetime.date | None = None) -> list[dict[str, Any]]:
     """날짜 묶음(모바일 실측 탭처럼 접었다 펴는 단위). 행은 이미 시공일 순이라 연속 구간만 자른다.
 
-    처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
+    - 시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 시공일" 한 묶음(접힘)으로.
+      일주일 안에 지난 것은 아직 급한 일이라 제자리(맨 위)에 둔다.
+    - 처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
     """
+    today = today or get_today_kst()
+    cutoff = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
     groups: list[dict[str, Any]] = []
+    past: dict[str, Any] = {
+        'key': PAST_GROUP_KEY, 'label': f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)", 'sub': '',
+        'is_today': False, 'is_open': False, 'rows': [], 'changed': 0,
+    }
     for row in rows:
+        day = _parse_date(row.get('day_key'))
+        if day is not None and day < cutoff:
+            past['rows'].append(row)
+            if row.get('has_changes'):
+                past['changed'] += 1
+            continue
         if not groups or groups[-1]['key'] != row['day_key']:
             groups.append({
                 'key': row['day_key'],
@@ -152,6 +172,10 @@ def production_home_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             groups[-1]['changed'] += 1
     if groups and not any(g['is_open'] for g in groups):
         groups[0]['is_open'] = True
+    if past['rows']:
+        for row in past['rows']:
+            row['day_key'] = PAST_GROUP_KEY  # 카드의 data-day 가 묶음 키와 같아야 거르기가 맞다
+        groups.append(past)
     for group in groups:
         group['count'] = len(group['rows'])
     return groups

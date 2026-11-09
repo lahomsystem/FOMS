@@ -185,6 +185,28 @@ def test_날짜_묶음은_오늘_내일만_펼치고_둘_다_없으면_첫_묶�
     assert production_home_groups([]) == []
 
 
+def test_일주일_넘게_지난_시공일은_맨_아래_한_묶음으로() -> None:
+    today = datetime.date(2026, 11, 9)
+
+    def _row(key: str, label: str) -> dict:
+        return {"day_key": key, "day_label": label, "day_sub": "", "day_is_today": False, "has_changes": key == "2026-06-23"}
+
+    groups = production_home_groups([
+        _row("2026-06-23", "6/23 (화)"),      # 139일 지남 → 지난 묶음
+        _row("2026-10-31", "10/31 (토)"),     # 9일 지남 → 지난 묶음
+        _row("2026-11-05", "11/5 (목)"),      # 4일 지남 → 제자리(급한 일)
+        _row("2026-11-12", "11/12 (목)"),
+        _row("none", "시공일 없음"),
+    ], today)
+    assert [g["key"] for g in groups] == ["2026-11-05", "2026-11-12", "none", "past"]
+    past = groups[-1]
+    assert past["count"] == 2 and past["changed"] == 1 and past["is_open"] is False
+    assert past["label"].startswith("지난 시공일")
+    assert all(r["day_key"] == "past" for r in past["rows"])
+    # 오늘·내일이 없으니 첫 묶음(4일 지남)만 펼침
+    assert [g["is_open"] for g in groups] == [True, False, False, False]
+
+
 def test_날짜_머리줄_규칙() -> None:
     today = datetime.date(2026, 11, 9)  # 월
     assert production_home_day("2026-11-09", today) == {"key": "2026-11-09", "label": "오늘 11/9 (월)", "sub": "", "is_today": True}
