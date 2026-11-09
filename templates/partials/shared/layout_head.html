@@ -87,7 +87,7 @@
         }
       } catch (e) { /* localStorage 막힘 = 100% */ }
       /* 탭별 글자 크기(2026-11-09 사용자 — 수집 탭처럼 탭마다) — 탭 = 주소. 값은 계정 · 기기 종류 · 탭마다.
-         단계 100/115/130/150%(수집 · 정산과 같은 단계). 수집(/admin/naver-ingest) · 정산은 자기 조절기가 있어 뺀다.
+         단계 70~150% 10% 씩(11-09 사용자: 100% 아래로도 · 10 단위로). 옛 115% 값은 100% 로 돌아간다. 수집(/admin/naver-ingest) · 정산은 자기 조절기가 있어 뺀다.
          단추 · 저장 · ERP 탭 전환 뒤 다시 붙이기는 static/js/foms/font-scale.js. */
       var FS_TABS = [
         ['/regional_dashboard', 'regional'], ['/self_measurement_dashboard', 'self-measure'], ['/trash', 'trash'],
@@ -115,7 +115,7 @@
         var fsKey = window.fomsFsKey(href);
         var fs = 1;
         try { fs = parseFloat(fsKey ? (localStorage.getItem(fsKey) || '') : '') || 1; } catch (e) { fs = 1; }
-        if ([1.15, 1.3, 1.5].indexOf(fs) < 0) fs = 1;
+        if ([0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5].indexOf(fs) < 0) fs = 1;
         if (fsKey) root.setAttribute('data-foms-fs-key', fsKey); else root.removeAttribute('data-foms-fs-key');
         if (fs === 1) {
           root.removeAttribute('data-foms-fs');
@@ -269,7 +269,7 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20261109f">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109g">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109h">
     {# P0-07 토큰(--foms-*)은 아래 erp-pro 번들 링크 바로 앞 이 한 줄로만 싣는다(2026-10-02). 예전엔
        erp-pro/01-intro-tokens.css 가 무버전 @import 로 한 번 더 받아(URL 이 달라 이중 다운로드)
        erp-pro 첫 규칙 앞에 다시 깔았다 — 이 자리가 그 순서를 그대로 잇는다. 핀은 WAM 레이아웃과 같은 값. #}
