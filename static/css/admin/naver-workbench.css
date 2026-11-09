@@ -300,7 +300,7 @@
         top: calc(var(--wb-nav-h, 67px) + 60px + 38px * var(--wb-fs, 1));
         /* 상세가 화면보다 길면 sticky 특성상 아래쪽에 영영 손이 닿지 않는다.
            목록이 아니라 이 칸만 자체 스크롤을 갖는다. */
-        max-height: calc(100vh - var(--wb-nav-h, 67px) - 72px - 38px * var(--wb-fs, 1));
+        max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - var(--wb-nav-h, 67px) - 72px - 38px * var(--wb-fs, 1));
         overflow: auto;
         overscroll-behavior: contain;
     }
@@ -2170,7 +2170,7 @@ input.wb-pick:disabled,
         inset: auto 0 0 0;
         width: 100%;
         max-width: 100%;
-        max-height: 85vh;
+        max-height: calc(85vh / var(--foms-ui-zoom, 1));
         margin: 0;
         padding: 0;
         border: 0;
@@ -3264,7 +3264,7 @@ input.wb-pick:disabled,
         left: 0;
         right: 0;
         z-index: 1062;
-        max-height: calc(100vh - var(--wb-menu-top, 60px));
+        max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - var(--wb-menu-top, 60px));
         overflow-y: auto;
         overscroll-behavior: contain;
         background: #ffffff !important;
@@ -3324,7 +3324,7 @@ input.wb-pick:disabled,
 
     /* ── N-26 이력 원본 = 전체 화면 읽기 전용(처리 탭 상세와 같은 모양) · 표는 세로로 ── */
     #wb-modal-detail .modal-dialog { width: 100%; max-width: none; min-height: 100%; margin: 0; }
-    #wb-modal-detail .modal-content { min-height: 100vh; min-height: 100dvh; border: 0; border-radius: 0; }
+    #wb-modal-detail .modal-content { min-height: calc(100vh / var(--foms-ui-zoom, 1)); min-height: calc(100dvh / var(--foms-ui-zoom, 1)); border: 0; border-radius: 0; }
     #wb-modal-detail .modal-body { overflow-x: hidden; }
     #wb-modal-detail .modal-footer .btn {
         width: 100%;
@@ -3630,7 +3630,7 @@ input.wb-pick:disabled,
 @media (min-width: 768px) {
     /* 확인 창(wb-ask) — 폰은 아래 시트, PC 는 가운데 작은 창. [그만두기][실행] 을 오른쪽 끝에. */
     .wb-ask[open] {
-        width: min(440px, calc(100vw - 32px));
+        width: min(440px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 32px));
         padding: 0;
         border: 1px solid #dde1e6;
         border-radius: 12px;

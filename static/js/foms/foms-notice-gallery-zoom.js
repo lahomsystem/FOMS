@@ -32,15 +32,18 @@
     function zoomed() { return z.scale > 1.01; }
 
     function paint() {
-      img.style.transform = zoomed() ? 'translate(' + z.tx + 'px,' + z.ty + 'px) scale(' + z.scale + ')' : '';
+      // 옮김(tx · ty)은 보이는 px 로 잰다 — 화면 크기 배율이 붙으면 style 에 넣을 때 나눈다.
+      var uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+      img.style.transform = zoomed() ? 'translate(' + (z.tx / uz) + 'px,' + (z.ty / uz) + 'px) scale(' + z.scale + ')' : '';
       img.classList.toggle('is-zoomed', zoomed());
     }
 
     /** 옮긴 만큼을 사진이 무대 밖으로 다 나가지 않게 묶는다. */
     function clampPan() {
       var box = stage.getBoundingClientRect();
-      var mx = Math.max(0, (img.offsetWidth * z.scale - box.width) / 2);
-      var my = Math.max(0, (img.offsetHeight * z.scale - box.height) / 2);
+      var uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // offset 은 배율 전 px, box 는 보이는 px
+      var mx = Math.max(0, (img.offsetWidth * uz * z.scale - box.width) / 2);
+      var my = Math.max(0, (img.offsetHeight * uz * z.scale - box.height) / 2);
       z.tx = Math.min(mx, Math.max(-mx, z.tx));
       z.ty = Math.min(my, Math.max(-my, z.ty));
     }

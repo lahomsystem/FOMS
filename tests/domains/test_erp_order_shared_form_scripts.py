@@ -1445,13 +1445,13 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     assert "foms-global-preview-modal" in css_text
     assert "#erpAttachmentPreviewModal .modal-dialog" in css_text
     assert "#erpEstimatePreviewModal .modal-dialog" in css_text
-    assert "width: 100vw;" in css_text
-    assert "height: 100dvh;" in css_text
+    assert "width: calc(100vw / var(--foms-ui-zoom, 1));" in css_text
+    assert "height: calc(100dvh / var(--foms-ui-zoom, 1));" in css_text
     assert "backdrop-filter: blur(14px) saturate(120%)" in css_text
     assert "#erpAttachmentPreviewModal .modal-header" in css_text
     assert "display: none;" in css_text
     assert "overflow: hidden;" in css_text
-    assert "max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));" in css_text
+    assert "max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 5rem - env(safe-area-inset-bottom));" in css_text
     assert "position: absolute;" in css_text
     assert "background: rgba(15, 23, 42, 0.86);" in css_text
     assert "flex-wrap: nowrap;" in css_text
@@ -1462,8 +1462,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20261106a" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20261108a" in layout_head
+    assert "../components/foms-form-field.css?v=20261109a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20261109a" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:

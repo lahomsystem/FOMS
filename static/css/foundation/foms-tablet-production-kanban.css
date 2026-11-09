@@ -69,8 +69,8 @@
   }
   /* 보드는 완료 정산 그리드(foms-tablet-completion-grid.css:51-60)와 동일한 flex-column
      크롬/스크롤 분리 골격으로 전환한다: 크롬(pcbar·KPI·필터)은 flex:none, 칸반만 flex:1.
-     완료 그리드처럼 보드 자체에는 명시 height 를 두지 않는다(임의 100dvh 가정 금지) —
-     열 내부 스크롤 캡(아래 __body 의 100dvh−265px)이 페이지 오버플로를 막는 SSOT. */
+     완료 그리드처럼 보드 자체에는 명시 height 를 두지 않는다(임의 calc(100dvh / var(--foms-ui-zoom, 1)) 가정 금지) —
+     열 내부 스크롤 캡(아래 __body 의 calc(100dvh / var(--foms-ui-zoom, 1))−265px)이 페이지 오버플로를 막는 SSOT. */
   body.erp-mobile-v2-layout .tablet-prod-board {
     display: flex;
     flex-direction: column;
@@ -298,10 +298,10 @@
   }
   /* 전체화면 시 열 body 캡 확대: 상단 크롬(265px 상수의 대부분)이 사라졌으므로 열 헤더 +
      상하 패딩만 상쇄한다. 카드 15건 실측 확정값 = 90(board_bottom 이 뷰포트 안에 들고
-     페이지 스크롤 없음 — 60은 과소라 30px 넘쳤다). 일반 캡 calc(100dvh - 265px) 대비
+     페이지 스크롤 없음 — 60은 과소라 30px 넘쳤다). 일반 캡 calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 265px) 대비
      회수분이 스크롤 영역이 된다. */
   body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body {
-    max-height: calc(100dvh - 90px);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 90px);
   }
   /* 칸반이 보드의 남는 세로 높이 전부를 차지(flex:1). align-items:stretch 로 3열을
      같은 높이로 늘려(가장 긴 열 기준) 각 열이 남는 높이를 채운다. */
@@ -362,7 +362,7 @@
     padding: var(--foms-space-3);
     align-content: start;
     /* 완료 정산 그리드 __scroll(foms-tablet-completion-grid.css:72-77) 이식:
-       flex:1 + min-height:0 으로 stretched 열의 남는 높이를 받고, 100dvh−Npx 캡으로
+       flex:1 + min-height:0 으로 stretched 열의 남는 높이를 받고, calc(100dvh / var(--foms-ui-zoom, 1))−Npx 캡으로
        페이지가 아닌 열 내부 스크롤을 보장(하드코딩 min-height:280px 제거 — flex 가
        높이를 소유). dvh = 모바일 툴바 보정.
        D-d: pcbar+KPI 통합·필터 접기로 상단 크롬이 233→177px 축소됐으나, 이 캡은 크롬만이
@@ -373,7 +373,7 @@
        바뀌면 이 값도 재실측 필요. */
     flex: 1 1 auto;
     min-height: 0;
-    max-height: calc(100dvh - 265px);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 265px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -889,7 +889,7 @@
     flex-direction: column;
     width: 100%;
     max-width: 560px;
-    max-height: 80vh;
+    max-height: calc(80vh / var(--foms-ui-zoom, 1));
     background: var(--foms-surface-base);
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-xl);

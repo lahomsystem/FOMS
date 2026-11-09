@@ -116,8 +116,10 @@
       '<button type="button" class="btn btn-sm btn-primary" data-prb-pop-ok>확정</button></div>';
     document.body.appendChild(pop);
     var r = chip.getBoundingClientRect();
-    pop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 336)) + 'px';
-    pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+    // 화면 크기 배율: rect · scroll 은 보이는 px, clientWidth · style 은 배율 전 px.
+    var uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+    pop.style.left = Math.max(8, Math.min((window.scrollX + r.left) / uiZoom, window.scrollX / uiZoom + document.documentElement.clientWidth - 336)) + 'px';
+    pop.style.top = ((window.scrollY + r.bottom + 6) / uiZoom) + 'px';
     var input = pop.querySelector('[data-prb-pop-date]');
     function refresh() {
       var l = loadText(it, input.value), el = pop.querySelector('[data-prb-pop-load]');

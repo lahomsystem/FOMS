@@ -7,7 +7,7 @@ html {
 
 body {
   margin: 0;
-  min-height: 100svh;
+  min-height: calc(100svh / var(--foms-ui-zoom, 1));
   background: var(--wam-sys-bg-page);
   color: var(--wam-sys-text-primary);
   font-family: var(--wam-sys-font-family);

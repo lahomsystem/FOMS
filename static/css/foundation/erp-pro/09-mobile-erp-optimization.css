@@ -45,13 +45,13 @@
 
   /* 모달: 모바일 풀스크린 */
   .erp-pro .modal-dialog {
-    max-width: 100vw !important;
+    max-width: calc(100vw / var(--foms-ui-zoom, 1)) !important;
     margin: 0 !important;
-    min-height: 100vh;
+    min-height: calc(100vh / var(--foms-ui-zoom, 1));
   }
   .erp-pro .modal-content {
     border-radius: 0 !important;
-    min-height: 100vh;
+    min-height: calc(100vh / var(--foms-ui-zoom, 1));
   }
 
   /* 상세 패널: 모바일 풀오버레이 */
@@ -61,7 +61,7 @@
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    max-height: 100vh !important;
+    max-height: calc(100vh / var(--foms-ui-zoom, 1)) !important;
     z-index: 1050 !important;
     background: #fff !important;
     overflow-y: auto !important;

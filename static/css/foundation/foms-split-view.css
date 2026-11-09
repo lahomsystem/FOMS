@@ -30,7 +30,7 @@
   /* Grid geometry lives on the base so the escape hatch (forced split) lays out
      correctly too; it is inert until `display: grid` is set below. */
   grid-template-columns: 72px 360px minmax(0, 1fr);
-  min-height: calc(100dvh - 4rem);
+  min-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 4rem);
   background: var(--foms-surface-overlay, #f3f4f6);
 }
 
@@ -71,7 +71,7 @@
        detail) scrolls INSIDE its own track. Without this the grid row grows to the
        tallest column's content, so the rail's own overflow-y:auto never engages and
        a long permission menu pushes the page instead of scrolling in the rail. */
-    max-height: calc(100dvh - 4rem);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 4rem);
     overflow: hidden;
   }
 

@@ -801,7 +801,7 @@
   display: block;
   border-radius: 14px;
   padding: 12px 14px;
-  max-width: min(720px, 92vw);
+  max-width: min(720px, calc(92vw / var(--foms-ui-zoom, 1)));
 }
 
 .foms-viewer-actions {

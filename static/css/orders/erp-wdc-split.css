@@ -12,7 +12,7 @@
   }
 
   .erp-edit-shell--erp-order.is-wdc-split-open {
-    --erp-wdc-split-height: calc(100vh - 126px);
+    --erp-wdc-split-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 126px);
     align-items: stretch;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
@@ -119,12 +119,12 @@
 
 /* Embedded WDCalculator: PC calculator is fixed even when iframe width is below Bootstrap lg. */
 .wdcalculator-container--embedded {
-  --wdcalculator-shell-height: calc(100vh - 1.5rem);
+  --wdcalculator-shell-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 1.5rem);
   padding: 0.75rem !important;
 }
 
 .wdcalculator-embedded-layout > .container-fluid {
-  min-height: 100vh;
+  min-height: calc(100vh / var(--foms-ui-zoom, 1));
   overflow: hidden !important;
 }
 
@@ -206,9 +206,9 @@
   left: 1rem;
   z-index: 1060;
   display: flex !important;
-  width: min(360px, calc(100vw - 2rem));
-  height: calc(100vh - 2rem);
-  max-width: calc(100vw - 2rem);
+  width: min(360px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 2rem));
+  height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 2rem);
+  max-width: calc(calc(100vw / var(--foms-ui-zoom, 1)) - 2rem);
   margin: 0 !important;
 }
 

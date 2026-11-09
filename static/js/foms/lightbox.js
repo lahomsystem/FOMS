@@ -80,18 +80,18 @@
 
   FomsLightbox.prototype._applyTransform = function () {
     if (!this.img) return;
-    var rot = this.rotation || 0;
+    var rot = this.rotation || 0, uz = window.fomsUiZoom ? window.fomsUiZoom() : 1;  // tx · ty 는 보이는 px — 화면 크기 배율이면 나눠 넣는다
     this.img.style.transform =
-      "translate(" + this.tx + "px," + this.ty + "px) scale(" + this.scale + ") rotate(" + rot + "deg)";
+      "translate(" + (this.tx / uz) + "px," + (this.ty / uz) + "px) scale(" + this.scale + ") rotate(" + rot + "deg)";
   };
 
   /** 옮긴 만큼을 그림이 화면 밖으로 다 나가지 않는 안쪽으로 묶는다(돌린 그림은 가로 · 세로를 바꿔 잰다). */
   FomsLightbox.prototype._clampPan = function () {
     if (!this.img) return;
     var stage = this.img.parentNode.getBoundingClientRect();
-    var turned = Math.abs(this.rotation || 0) % 180 === 90;
-    var w = (turned ? this.img.offsetHeight : this.img.offsetWidth) * this.scale;
-    var h = (turned ? this.img.offsetWidth : this.img.offsetHeight) * this.scale;
+    var turned = Math.abs(this.rotation || 0) % 180 === 90, uz = window.fomsUiZoom ? window.fomsUiZoom() : 1;  // offset=배율 전 px, stage=보이는 px
+    var w = (turned ? this.img.offsetHeight : this.img.offsetWidth) * uz * this.scale;
+    var h = (turned ? this.img.offsetWidth : this.img.offsetHeight) * uz * this.scale;
     var mx = Math.max(0, (w - stage.width) / 2);
     var my = Math.max(0, (h - stage.height) / 2);
     this.tx = Math.min(mx, Math.max(-mx, this.tx));

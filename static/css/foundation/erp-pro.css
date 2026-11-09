@@ -4,19 +4,19 @@
    대가: 핀을 안 올린 배포는 최대 하루 staleness. 하지만 ?v= 값을 갱신하면 새 URL=캐시 미스로
    즉시 반영되므로, 이 파일 편집 시 자식 ?v= 도 함께 올리는 게 배포 신선도 계약이다. */
 @import url("erp-pro/01-intro-tokens.css?v=20261002t");
-@import url("erp-pro/02-base-layout.css?v=20261104a");
+@import url("erp-pro/02-base-layout.css?v=20261109a");
 @import url("erp-pro/03-card-pipeline.css?v=20261105s");
 @import url("erp-pro/04-filter-table-badges-buttons.css?v=20261014a");
 @import url("erp-pro/05-date-through-toast.css?v=20260703a");
 @import url("erp-pro/06-mobile-print-utilities.css?v=20260703a");
 @import url("erp-pro/07-forms-responsive-filters.css?v=20261105s");
-@import url("../contexts/orders/erp-order-measurement-panel.css?v=20261106c");
-@import url("erp-pro/08-order-list-page.css?v=20261106d");
-@import url("erp-pro/09-mobile-erp-optimization.css?v=20261104a");
-@import url("erp-pro/10-erp-mobile-v2-shell.css?v=20260724a");
-@import url("erp-pro/11-queue-family-mobile.css?v=20261105s");
+@import url("../contexts/orders/erp-order-measurement-panel.css?v=20261109a");
+@import url("erp-pro/08-order-list-page.css?v=20261109a");
+@import url("erp-pro/09-mobile-erp-optimization.css?v=20261109a");
+@import url("erp-pro/10-erp-mobile-v2-shell.css?v=20261109a");
+@import url("erp-pro/11-queue-family-mobile.css?v=20261109a");
 @import url("erp-pro/12-runtime-shell-loading.css?v=20260703a");
-@import url("erp-pro/13-foms-shell-bridge.css?v=20260825a");
+@import url("erp-pro/13-foms-shell-bridge.css?v=20261109a");
 @import url("erp-pro/14-drawing-ok-scope.css?v=20261022a");
 
 /* 주문 상세 2단 렌더 로딩 영역: 썸네일 행 높이 예약으로 CLS 방지 */
@@ -296,7 +296,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   .foms-urgent-modal .modal-content {
     border: 0;
     border-radius: 16px 16px 0 0;
-    max-height: 90vh;
+    max-height: calc(90vh / var(--foms-ui-zoom, 1));
     overflow-y: auto;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }

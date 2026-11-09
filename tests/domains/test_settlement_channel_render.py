@@ -84,7 +84,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 2026-10-06 공통 기간 바 — 셸 루트의 날짜 범위를 따른다(JS + CSS, 20260909a → 20261006a; 셸 6줄 동반 이동).
 #: 2026-10-07 제품별 탭 추가 — 셸 자산 사슬 전체 범프(20261007a → 20261007b; 채널 자산 내용 무변경).
 #: 2026-11-08 동기화 불가 문구에서 기계 말 "큐" 뺌(JS 만, CSS 는 동반 이동, 20261105s → 20261108a).
-_CHANNEL_PIN = "20261108a"
+_CHANNEL_PIN = "20261109a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"

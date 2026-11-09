@@ -492,7 +492,7 @@ body.col-resizing-active {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-2, 0.5rem);
-    max-height: calc(100dvh - 260px);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 260px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }

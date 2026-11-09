@@ -193,7 +193,7 @@ def test_shipment_dashboard_fragment_runtime_css(client, monkeypatch):
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert "foms-packing.css" in frag
-    assert "v=20260714a" in frag
+    assert "v=20261109a" in frag
     assert "foms-shipment-mobile.css" in frag
     assert "v=20261108a" in frag
 

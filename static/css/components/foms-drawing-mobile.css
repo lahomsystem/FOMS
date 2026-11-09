@@ -52,7 +52,7 @@
 
 .foms-split-detail-panel__body {
   overflow: auto;
-  max-height: calc(100vh - 160px);
+  max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 160px);
 }
 
 .foms-queue-card-v2__attach-thumb[style*="background-image"] {
@@ -81,7 +81,7 @@
      예전엔 여백이 84px 고정이라 이유 줄이 든 바(94px)가 본문 마지막 줄을 가렸다(R12). */
   body.erp-mobile-v2-layout .foms-drawing-handoff {
     --foms-drawing-action-bar-h: 4.5rem;
-    min-height: 100svh;
+    min-height: calc(100svh / var(--foms-ui-zoom, 1));
     background: var(--foms-surface-overlay, #eef0f3);
   }
 

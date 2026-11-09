@@ -228,7 +228,7 @@
 }
 
 .global-viewer-completion-extra {
-  max-width: 90vw;
+  max-width: calc(90vw / var(--foms-ui-zoom, 1));
   word-break: break-word;
 }
 

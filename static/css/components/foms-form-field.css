@@ -789,19 +789,19 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
 
   #erpAttachmentPreviewModal .modal-dialog,
   #erpEstimatePreviewModal .modal-dialog {
-    width: 100vw;
-    max-width: 100vw;
-    height: 100dvh;
-    min-height: 100dvh;
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+    max-width: calc(100vw / var(--foms-ui-zoom, 1));
+    height: calc(100dvh / var(--foms-ui-zoom, 1));
+    min-height: calc(100dvh / var(--foms-ui-zoom, 1));
     margin: 0;
   }
 
   #erpAttachmentPreviewModal .modal-content,
   #erpEstimatePreviewModal .modal-content {
     position: relative;
-    height: 100dvh;
-    min-height: 100dvh;
-    max-height: 100dvh;
+    height: calc(100dvh / var(--foms-ui-zoom, 1));
+    min-height: calc(100dvh / var(--foms-ui-zoom, 1));
+    max-height: calc(100dvh / var(--foms-ui-zoom, 1));
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -851,8 +851,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
     display: block;
     cursor: grab;
-    max-width: 95vw;
-    max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));
+    max-width: calc(95vw / var(--foms-ui-zoom, 1));
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 5rem - env(safe-area-inset-bottom));
     width: auto;
     height: auto;
     padding: 0;

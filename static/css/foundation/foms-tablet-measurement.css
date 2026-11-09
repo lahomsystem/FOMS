@@ -36,8 +36,8 @@
     flex-direction: row;
     gap: var(--foms-space-3, 0.75rem);
     align-items: stretch;
-    min-height: calc(100dvh - 2rem);
-    max-height: calc(100dvh - 2rem);
+    min-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 2rem);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 2rem);
     padding: var(--foms-space-3, 0.75rem);
     box-sizing: border-box;
   }

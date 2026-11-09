@@ -24,7 +24,7 @@
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  max-height: 92vh;
+  max-height: calc(92vh / var(--foms-ui-zoom, 1));
   overflow-y: auto;
   background: var(--foms-surface, #fff);
   color: var(--foms-text, #1f2937);
