@@ -24,7 +24,9 @@
     <div class="pp-tcard__acts">
         <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">주문 열기</a>
         <a class="btn btn-outline-primary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">수정 요청</a>
-        {% if c.kind == 'receive' %}
+        {% if c.kind == 'receive' and c.sheet_count > 1 %}
+        <a class="btn btn-primary" href="{{ url_for('partner_portal.order_detail', order_id=c.id) }}#drawing">도면 골라 확인</a>
+        {% elif c.kind == 'receive' %}
         <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.confirm_drawing_receipt', order_id=c.id) }}" data-pp-approve-confirm="{{ c.customer_name }} 도면을 확인했다고 저희에게 알릴까요? 고객 확인 단계로 넘어갑니다.">확인했어요</button>
         {% else %}
         <button type="button" class="btn btn-success" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=c.id) }}" data-pp-approve-confirm="{{ c.customer_name }} — 이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없고, 발주방에 발주 PUSH 가 자동으로 갑니다.">이대로 만들어 주세요</button>

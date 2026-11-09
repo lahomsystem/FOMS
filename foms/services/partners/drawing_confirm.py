@@ -34,6 +34,7 @@ from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
     find_stage_quest_for_approve,
 )
+from foms.services.orders.drawing_confirm_partial import PartialConfirmError, PartialConfirmPlan, plan_partial_confirm
 from foms.services.orders.drawing_receipt_command import advance_receipt_stage, record_drawing_receipt
 from foms.services.orders.revision import lock_order_row
 from foms.services.orders.state_axes import read_main_stage
@@ -170,15 +171,18 @@ def approve_partner_drawing(db, user: Any, order_id: int, *, idempotency_key: st
     )
 
 
-def confirm_partner_drawing_receipt(db, user: Any, order_id: int) -> str:
+def confirm_partner_drawing_receipt(db, user: Any, order_id: int, request_body: Any = None) -> str:
     """협력사가 저희가 보낸 도면을 확인했다(호출자가 commit) — 고객컨펌(CONFIRM)으로 넘어간다.
 
     FOMS 영업 담당의 "도면 수령 확인"과 같은 한 경로(``advance_receipt_stage`` + ``record_drawing_receipt``)를
     탄다. 협력사 주문은 담당이 협력사 직원이라 이 단추를 협력사가 누른다(사용자 2026-10-28 — 전에는 우리
     CS 가 눌렀다). 그 뒤 고객과 확인하고 "이대로 만들어 주세요"(:func:`approve_partner_drawing`).
 
+    ``request_body`` 의 ``final_drawing_keys`` 가 오면 그 도면만 최종으로 남긴다(우리 영업 확정 창과 같은 ``plan_partial_confirm``,
+    설계서 2026-11-09-partner-receipt-pick-drawings). ``None`` 이면 지금처럼 전부.
+
     Raises:
-        PartnerConfirmError: 주문 없음(404) · 보낸 도면 확인 차례가 아님(409).
+        PartnerConfirmError: 주문 없음(404) · 보낸 도면 확인 차례가 아님(409) · 고른 도면이 틀림(400).
     """
     order = lock_order_row(db, order_id)
     if order is None or not partner_can_read_order(user, order):
@@ -188,11 +192,13 @@ def confirm_partner_drawing_receipt(db, user: Any, order_id: int) -> str:
     old_status = sd.get("drawing_status")
     if old_stage != "DRAWING" or old_status != "TRANSFERRED" or not final_drawings_for_partner(order):
         raise PartnerConfirmError("지금은 도면 확인 차례가 아닙니다. 화면을 새로고침해 주세요.")
+    picked = request_body.get("final_drawing_keys") if isinstance(request_body, dict) else None
+    plan = _partner_pick_plan(order, sd, picked)
     body = {"order_id": order.id, "partner_drawing_receipt": True}
     stage_moved = advance_receipt_stage(db, order, actor_user_id=user.id, body=body)
     next_stage = record_drawing_receipt(
         db, order, actor_user_id=user.id, actor_name=f"{user.name} (협력사)", old_drawing_status=old_status,
-        old_stage=old_stage, stage_moved=stage_moved, body=body, source_screen=_SOURCE_SCREEN)
+        old_stage=old_stage, stage_moved=stage_moved, body=body, partial_plan=plan, source_screen=_SOURCE_SCREEN)
     db.add(SecurityLog(
         user_id=user.id,
         message=f"협력사 도면 확인(받음): #{order.id}",
@@ -202,6 +208,33 @@ def confirm_partner_drawing_receipt(db, user: Any, order_id: int) -> str:
         detail=normalize_security_detail({
             "partner_org_id": order.partner_org_id,
             "drawing_round": getattr(drawing_round_info(sd), "round", None),
+            "final_drawing_keys": plan.final_keys if plan else None,
+            "excluded_keys": [e["key"] for e in plan.excluded] if plan else [],
         }),
     ))
     return next_stage
+
+
+def _partner_pick_plan(order: Any, sd: dict[str, Any], final_drawing_keys: Any) -> PartialConfirmPlan | None:
+    """협력사가 고른 도면으로 부분 확정 계획을 만든다(아무것도 바꾸지 않는다).
+
+    협력사는 화면에 보이는 우리 도면(:func:`final_drawings_for_partner`)만 고를 수 있다. 화면에 안 보이는 줄
+    (협력사 초안 등)은 협력사가 고르지 않아도 그대로 남긴다 — 못 보는 것을 지우지 않게.
+    """
+    if final_drawing_keys is None:
+        return None
+    if not isinstance(final_drawing_keys, list):
+        raise PartnerConfirmError("고른 도면 형식이 올바르지 않습니다. 화면을 새로고침해 주세요.", 400)
+    visible = {str(f.get("key") or "") for f in final_drawings_for_partner(order)}
+    picked = {str(k or "").strip() for k in final_drawing_keys} - {""}
+    if picked - visible:
+        raise PartnerConfirmError("지금 도면 목록에 없는 도면이 있습니다. 화면을 새로고침해 주세요.", 400)
+    if not picked:
+        raise PartnerConfirmError("진행할 도면을 하나 이상 골라 주세요.", 400)
+    current = [str((f or {}).get("key") or "").strip() for f in (sd.get("drawing_current_files") or [])
+               if isinstance(f, dict)]
+    keep = sorted(picked) + [k for k in current if k and k not in visible]
+    try:
+        return plan_partial_confirm(sd, keep, None)
+    except PartialConfirmError as exc:
+        raise PartnerConfirmError(str(exc), 400) from exc
