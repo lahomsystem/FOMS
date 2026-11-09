@@ -95,7 +95,7 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     _add_order("DRAWING", "서지호", _iso(11))
     _add_order("PRODUCTION", "김하늘", _iso(3), steps_done=("cut", "edge"), with_run=True)
     _add_order("PRODUCTION", "박서준", _iso(3))
-    _add_order("CONSTRUCTION", "정수아", _iso(0), steps_done=("cut", "edge", "paint", "assemble", "inspect"))
+    _add_order("CONSTRUCTION", "정수아", _iso(0), steps_done=("cut", "edge", "assemble", "inspect"))
     _add_order("CONFIRM", "최유진", None)
 
     response = client.get(HOME_URL)
@@ -114,9 +114,9 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert "모두 펼치기" in html and "펼침 <b data-foms-home-open-count>1</b>" in html
 
     # 큰 글자 = 지금 단계
-    for label in ("도면 기다림", "도장 중", "제작 대기", "제작 완료", "컨펌 기다림"):
+    for label in ("도면 기다림", "조립 중", "제작 대기", "제작 완료", "컨펌 기다림"):
         assert label in html, label
-    # 탭 숫자: 전체 5 · 생산 중 2(제작 대기 + 도장 중) · 바뀐 것 0
+    # 탭 숫자: 전체 5 · 생산 중 2(제작 대기 + 조립 중) · 바뀐 것 0
     assert 'data-foms-home-view="all" aria-pressed="true">전체 <small>5</small>' in html
     assert '>생산 중 <small>2</small>' in html
     assert html.count('data-view="prod"') == 2
@@ -150,8 +150,8 @@ def test_첫_화면_공정_정의는_API_와_같다() -> None:
 
 def test_지금_단계_글자_규칙() -> None:
     steps = production_home_steps({"production": {"steps": [{"key": "cut", "done": True}]}}, mark_now=True)
-    assert [s["done"] for s in steps] == [True, False, False, False, False]
-    assert [s["now"] for s in steps] == [False, True, False, False, False]
+    assert [s["done"] for s in steps] == [True, False, False, False]
+    assert [s["now"] for s in steps] == [False, True, False, False]
     assert production_home_stage("PRODUCTION", True, steps, False) == ("엣지 중", "생산", "prod")
     assert production_home_stage("PRODUCTION", False, steps, False) == ("제작 대기", "생산", "prod")
     assert production_home_stage("생산", True, steps, True) == ("보류", "생산", "prod")
@@ -161,7 +161,9 @@ def test_지금_단계_글자_규칙() -> None:
     assert production_home_stage("PRODUCTION", True, all_done, False) == ("검수 끝", "생산", "prod")
     assert production_home_stage("도면", False, steps, False) == ("도면 기다림", "도면팀", "wait")
     assert production_home_stage("CONSTRUCTION", False, steps, False) == ("제작 완료", "시공 대기", "done")
-    # 공정 칸이 아직 없는 주문도 5칸 모두 미완으로 그린다
+    # 공정 칸이 아직 없는 주문도 4칸 모두 미완으로 그린다. 옛 주문의 도장(paint) 항목은 걸러진다(D15)
+    legacy = production_home_steps({"production": {"steps": [{"key": "paint", "done": True}, {"key": "cut", "done": True}]}}, mark_now=False)
+    assert [s["key"] for s in legacy] == ["cut", "edge", "assemble", "inspect"] and legacy[0]["done"]
     assert all(not s["done"] for s in production_home_steps({}, mark_now=False))
 
 

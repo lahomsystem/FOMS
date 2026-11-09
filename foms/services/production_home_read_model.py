@@ -6,8 +6,8 @@
 - 큰 글자(지금 단계)는 :func:`production_home_stage` — "도면 기다림 / 컨펌 기다림 / 제작 대기 /
   <공정> 중 / 검수 끝 / 제작 완료 / 보류".
 - 날짜 머리줄은 :func:`production_home_day` — "오늘 11/9 (월)", "11/12 (목) · D-3", "시공일 없음".
-- 공정 5칸은 ``structured_data['production']['steps']`` 그대로(API 가 처음 접근 때 만들기 전이면
-  5칸 모두 미완으로 그린다). 정의는 ``foms/api/production/orders.py`` 의 ``_PRODUCTION_STEP_DEFS``
+- 공정 4칸은 ``structured_data['production']['steps']`` 그대로(API 가 처음 접근 때 만들기 전이면
+  4칸 모두 미완으로 그린다). 정의는 ``foms/api/production/orders.py`` 의 ``_PRODUCTION_STEP_DEFS``
   와 같아야 한다(``tests/domains/test_production_home.py`` 가 고정).
 """
 
@@ -31,11 +31,11 @@ from foms.services.production_read_model import (
 #: 첫 화면에 싣는 단계 — 도면 + 칸반 단계(고객컨펌·생산·시공). 접수·실측은 생산과 무관해 뺀다.
 PRODUCTION_HOME_STAGE_CODES: tuple[str, ...] = ('도면', 'DRAWING') + PRODUCTION_BASE_STAGE_CODES
 
-#: 공정 5단계(key, 라벨). API ``_PRODUCTION_STEP_DEFS`` 와 같은 순서·값.
+#: 공정 4단계(key, 라벨). API ``_PRODUCTION_STEP_DEFS`` 와 같은 순서·값. 도장은 우리 공장에 없어 뺐다(D15, 11-09).
+#: 옛 주문에 남은 ``paint`` 항목은 여기 없으니 자연히 걸러진다.
 PRODUCTION_HOME_STEP_DEFS: tuple[tuple[str, str], ...] = (
     ("cut", "재단"),
     ("edge", "엣지"),
-    ("paint", "도장"),
     ("assemble", "조립"),
     ("inspect", "검수"),
 )
@@ -48,7 +48,7 @@ _CONSTRUCTION_STAGES = ('CONSTRUCTION', '시공')
 
 
 def production_home_steps(sd: dict[str, Any], *, mark_now: bool) -> list[dict[str, Any]]:
-    """공정 5칸 — ``{key, label, done, now}``. ``mark_now`` 면 첫 미완 칸을 '지금 여기'로 표시한다."""
+    """공정 4칸 — ``{key, label, done, now}``. ``mark_now`` 면 첫 미완 칸을 '지금 여기'로 표시한다."""
     prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
     raw = prod.get('steps') if isinstance(prod.get('steps'), list) else []
     done_by_key: dict[str, bool] = {}

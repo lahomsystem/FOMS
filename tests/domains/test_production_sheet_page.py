@@ -106,11 +106,11 @@ def test_생산팀은_전체_화면_시트에서_도면_연락처_공정_단추�
     assert html.count("data-foms-sheet-dwg-th=") == 2
     assert html.count("파일 열기") == 1
     assert "도면 1 / 2" in html and "/api/files/view/drawings/a.png" in html
-    # 공정 5줄: 재단 끝(누가·몇 시), 엣지가 지금 여기
-    assert html.count("data-foms-sheet-step=") == 5
+    # 공정 4줄(도장 없음, D15): 재단 끝(누가·몇 시), 엣지가 지금 여기
+    assert html.count("data-foms-sheet-step=") == 4
     assert 'data-foms-sheet-step="cut" aria-pressed="true"' in html
     assert "이철호 · 11/9 09:12" in html
-    assert 'is-now' in html and ">1/5<" in html
+    assert 'is-now' in html and ">1/4<" in html
     # 불량: 최근 1줄 + 칩 4
     assert "최근 불량 · 파손" in html
     assert html.count("data-foms-sheet-defect-reason=") == 4
