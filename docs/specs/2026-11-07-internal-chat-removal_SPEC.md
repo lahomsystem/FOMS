@@ -1,6 +1,6 @@
 # FOMS 사내 채팅 삭제 (CHAT-DEL-01)
 
-- 상태: **1단계 운영(#762)** · **2단계(표 지우기) 설계 11-09 — 승인 대기**(11-09 사용자 "채팅 표 지우기 2단계" 선택, 설계서 먼저)
+- 상태: **1단계 운영(#762)** · **2단계(표 지우기) 운영 #774 `b010ae67`**(11-09 사용자 승인 "운영까지" — 스테이징 · 운영 DB 읽기 전용 확인: alembic chat_drop_01 · 채팅 표 0 · 대기열 칸 없음)
 - 결정 원장: `docs/plans/2026-11-06-freelancer-commission-ledger.md` "채팅" 줄
 - 범위 밖: 채널톡(ChannelTalk — `foms/api/channel/channel_*.py`, `foms/services/channel_*.py`, 공유 상담), 브레인 채팅(`/api/brain/chat`), 휴대폰 주문 화면의 "채팅"(= 문자 `sms:` 링크)
 
@@ -50,7 +50,7 @@
 - 모델 4개(`ChatRoom` · `ChatRoomMember` · `ChatMessage` · `ChatAttachment`)와 표, 작업 대기열(`domain_side_effect_outbox`)의 `chat_attachment_id` 칸 · 한-칸-만 규칙(CHECK). 표를 지우려면 이 CHECK 를 다시 써야 해서 위험이 코드 삭제와 다른 급이다. 표는 비어 있는 것과 같고 남아도 비용이 없다.
 - 옛 운영 스크립트(`scripts/ops/db_admin.py` · `erp_build_step_runner.py` · `scripts/migrations/migrate_local_uploads_to_r2.py`)의 채팅 표 이름 — 표가 남아 있으니 그대로 돈다.
 
-## 4. 2단계 — 표 지우기(11-09 설계, 승인 대기)
+## 4. 2단계 — 표 지우기(11-09 설계 · 승인 · 운영 #774)
 
 ### 4.1 실측(11-09, 운영 읽기 전용 — 글 내용은 읽지 않음)
 
