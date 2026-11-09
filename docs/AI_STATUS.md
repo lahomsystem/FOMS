@@ -10,13 +10,12 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-09] **화면 크기 70~130%(deploy `2881cfff`)** — 위 막대·폰 메뉴, 계정+기기별. CSS zoom + vh·vw·rect 보정, 스테이징 실측 통과. 잔여: 운영 승격
 - [2026-11-08] **공지 사진 창 운영(PR #764) · DB-LEAK 고침 운영(PR #768)** — 잔여: 아이폰 · 며칠 뒤 DB-LEAK 0 확인 · CSV 5건 · 11-07 시험 줄 서기(`d31a0542b`)
 - [2026-11-07] **프리랜서 영업 수수료 1~3단계 운영(FCOMM-01 PR #757 `3111daae`)** — D27 #760 · D28~D30 · 채팅 삭제 #762 · 점검 #763 · 후속 #766 · 메뉴 #767 · 글자 #769 · #771 · 명세서 세부 D31 #772 · 채팅 표 지움 #774 운영. 원장 `2026-11-06-freelancer-commission-ledger`
 - [2026-11-06] **디자인 점검(PR #746~#749) → PC 80% 작아짐 되돌림(#754)** — 제목·btn-sm·주문 수정 칸 복귀, 폭 2000px↑ html 18px
 - [2026-11-04] **출고 협력사 희망 2주 판 · 출고팀 시공일 운영 반영(PR #725 · 낮은 한 줄 판 #727 · 잠긴 단추 흐리게 #729)** — 스테이징 · 운영 실화면 통과. SPEC `2026-11-04-shipment-partner-request-board`
-- [2026-11-03] **도면 양식 발주 리스트 칸(PR #712 · #713 dbfc54cf)** — 체크리스트 대신 빨간 칸 · 자재표 줄 칸 앞 · V2 배치가 칸을 비켜 감 · 그림 뜬 뒤 배치
 - [2026-11-05] **협력사 업로드(#731)·명세서 결정 5개·화면 점검 운영(PR #743 `ba0af476`)** — 문서번호 머리 협력사마다·세금계산서 기본 글·출고 전날 9시 CS 알림. 잔여: 라운즈 머리 입력(사용자)·실기기
-- [2026-11-03] **마법사 그림 자르기(PR #707)** — `image-crop.js`
 - [2026-11-02] **공지사항(#695·#699 폰·#701 사진)** — `/admin/notices`
 - [2026-11-02] **협력사 실측 예정(PR #688)·실측 끝 버튼(#693)** — 잔여: #5888 수정본
 - [2026-10-30] **담당자·시공자 여러 명 뱃지(MULTI-MGR-01, PR #680 · `c09fc3fa`)** — `parties.manager.names`, 대표=첫 뱃지=`name`·컬럼. 권한·알림·채널톡 방=전체, 정산·실측 색=대표. 잔여: 통합 검색은 대표만
@@ -34,8 +33,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
 - [2026-09-29] **할 일 묶음 운영 반영(PR #454 · production `1554f917f`)** — 워커 감독자·SQLAlchemy 2.0.54·파일 버전 시범·ci_watch. 잔여: 정지 감시 재가동 결정, 시범 측정
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
-- [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
-- [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -212,6 +209,10 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
+- [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
+- [2026-11-03] **도면 양식 발주 리스트 칸(PR #712 · #713 dbfc54cf)** — 체크리스트 대신 빨간 칸 · 자재표 줄 칸 앞 · V2 배치가 칸을 비켜 감 · 그림 뜬 뒤 배치
+- [2026-11-03] **마법사 그림 자르기(PR #707)** — `image-crop.js`
 - [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 판정은 `check_quest_approvals_complete` 하나로. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
