@@ -222,3 +222,29 @@ html[data-foms-fs] {
   background: #1c1f24;
   color: #e9ecef;
 }
+
+/* 위 막대(제목 줄 · 메뉴 줄)는 탭 글자 배율을 따르지 않는다 — 탭을 옮길 때마다 위 막대 크기가 바뀌던 것(스테이징 11-09).
+   rem · 배율 px 글자는 배율만큼 커지므로 막대 전체를 1/배율로 되돌리고, 배율을 안 타는 고정 px(단추 안쪽 여백 ·
+   44px 누름 칸 · 메뉴 줄 위아래 여백 · 화면 크기 손잡이)만 배율을 곱해 되돌림을 상쇄한다. */
+html[data-foms-fs] .layout-header,
+html[data-foms-fs] .layout-global-nav {
+  zoom: calc(1 / var(--foms-fs, 1));
+}
+
+html[data-foms-fs] .layout-header .foms-ui-zoom {
+  zoom: var(--foms-fs, 1);
+}
+
+html[data-foms-fs] .layout-header .btn {
+  padding: calc(10px * var(--foms-fs, 1)) calc(20px * var(--foms-fs, 1)) !important;
+}
+
+html[data-foms-fs] .layout-header .btn-link {
+  min-width: calc(44px * var(--foms-fs, 1));
+  min-height: calc(44px * var(--foms-fs, 1));
+}
+
+html[data-foms-fs] .layout-global-nav {
+  padding-top: calc(12px * var(--foms-fs, 1)) !important;
+  padding-bottom: calc(12px * var(--foms-fs, 1)) !important;
+}
