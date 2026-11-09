@@ -9,7 +9,7 @@ body.erp-mobile-v2-layout .foms-sync-badge {
   margin-left: 6px;
   padding: 2px 8px;
   border-radius: var(--foms-radius-full, 999px);
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   font-weight: var(--foms-font-weight-semibold, 600);
   line-height: 1.4;
   white-space: nowrap;

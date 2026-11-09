@@ -96,7 +96,7 @@
           top: 18px;
           left: 18px;
           padding: 4px 8px;
-          font-size: 12px;
+          font-size: calc(12px * var(--foms-fs, 1));
           color: #fff;
           border-radius: 6px;
           background: rgba(0, 0, 0, 0.45);
@@ -120,14 +120,14 @@
         }
 
         #drawing-gateway-viewer-filename {
-          font-size: 13px;
+          font-size: calc(13px * var(--foms-fs, 1));
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         #drawing-gateway-viewer-counter {
-          font-size: 12px;
+          font-size: calc(12px * var(--foms-fs, 1));
           opacity: 0.85;
           margin-top: 2px;
         }
@@ -160,7 +160,7 @@
           right: -5px;
           background: #ff4757;
           color: white;
-          font-size: 10px;
+          font-size: calc(10px * var(--foms-fs, 1));
           font-weight: bold;
           padding: 2px 6px;
           border-radius: 10px;
@@ -212,14 +212,14 @@
 
         .notification-panel__header h4 {
           margin: 0;
-          font-size: 16px;
+          font-size: calc(16px * var(--foms-fs, 1));
         }
 
         .notification-panel__close {
           background: none;
           border: none;
           color: white;
-          font-size: 18px;
+          font-size: calc(18px * var(--foms-fs, 1));
           cursor: pointer;
           opacity: 0.8;
         }
@@ -265,23 +265,23 @@
         .notification-item__title {
           font-weight: 600;
           color: #333;
-          font-size: 14px;
+          font-size: calc(14px * var(--foms-fs, 1));
         }
 
         .notification-item__time {
-          font-size: 11px;
+          font-size: calc(11px * var(--foms-fs, 1));
           color: #999;
         }
 
         .notification-item__message {
-          font-size: 13px;
+          font-size: calc(13px * var(--foms-fs, 1));
           color: #666;
           line-height: 1.4;
         }
 
         .notification-item__target {
           margin-top: 6px;
-          font-size: 11px;
+          font-size: calc(11px * var(--foms-fs, 1));
           color: #667eea;
         }
 

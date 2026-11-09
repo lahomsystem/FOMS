@@ -32,20 +32,20 @@
 
 .foms-label__order-no {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   color: #666;
 }
 
 .foms-label__customer {
   margin: 0;
-  font-size: 24px;
+  font-size: calc(24px * var(--foms-fs, 1));
   font-weight: 700;
   word-break: break-all;
 }
 
 .foms-label__product {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   color: #333;
   word-break: break-all;
 }
@@ -59,7 +59,7 @@
   border-radius: 8px;
   background: #fff;
   color: #111;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 600;
   cursor: pointer;
 }

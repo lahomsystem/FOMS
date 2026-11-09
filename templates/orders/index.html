@@ -580,7 +580,7 @@
     }
 
     .naver-inbox-strip__count {
-        font-size: 19px;
+        font-size: calc(19px * var(--foms-fs, 1));
         font-weight: 800;
         color: #059a54;
     }
@@ -592,11 +592,11 @@
 
     .naver-inbox-strip__title {
         font-weight: 700;
-        font-size: 13.5px;
+        font-size: calc(13.5px * var(--foms-fs, 1));
     }
 
     .naver-inbox-strip__sub {
-        font-size: 12px;
+        font-size: calc(12px * var(--foms-fs, 1));
         color: #475569;
     }
 
@@ -633,6 +633,8 @@
             <span>주문 관리</span>
         </h1>
         <div class="order-list-page-header__actions">
+          {# 탭별 글자 크기(2026-11-09 사용자) #}
+          {% include 'partials/shared/foms_font_scale_control.html' %}
             <a href="{{ url_for('order_pages.add_order') }}" class="erp-pro-btn erp-pro-btn--primary">
                 <i class="fas fa-plus"></i>
                 <span>새 주문</span>

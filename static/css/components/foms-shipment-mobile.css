@@ -49,7 +49,7 @@
   background: var(--foms-surface-base);
   color: var(--foms-text-primary);
   /* 16px 미만이면 아이폰이 눌렀을 때 화면을 확대한다(디자인 점검 2026-11-05, 14px → 16px). */
-  font-size: 16px;
+  font-size: calc(16px * var(--foms-fs, 1));
 }
 
 .erp-shipment-mobile-controls__submit,
@@ -62,7 +62,7 @@
   border: 1px solid var(--foms-border-default);
   background: var(--foms-surface-base);
   color: var(--foms-text-primary);
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
@@ -71,7 +71,7 @@
 }
 
 .erp-shipment-mobile-controls__open span {
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
 }
 
 .erp-shipment-mobile-controls .foms-chip-strip {
@@ -98,7 +98,7 @@
 
 .erp-shipment-mobile-controls__field label {
   color: var(--foms-text-secondary);
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
@@ -107,7 +107,7 @@
   align-items: center;
   gap: 0.625rem;
   color: var(--foms-text-primary);
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
 }
 
 .erp-shipment-mobile-controls__check input {
@@ -135,7 +135,7 @@
   display: block;
   margin-bottom: 0.125rem;
   color: var(--foms-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -145,7 +145,7 @@
 .erp-shipment-mobile-queue__title {
   margin: 0;
   color: var(--foms-text-primary);
-  font-size: 18px;
+  font-size: calc(18px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
@@ -153,7 +153,7 @@
    그쪽이 이겨 '출고 일정' 이 12px 로 보였다 — 선택자를 한 단계 세게 해 날짜 제목(18px)과 맞춘다(디자인 점검 2026-11-05). */
 body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue__title.foms-section-header__title {
   color: var(--foms-text-primary);
-  font-size: 18px;
+  font-size: calc(18px * var(--foms-fs, 1));
   font-weight: 700;
   letter-spacing: normal;
   text-transform: none;
@@ -169,7 +169,7 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue_
   border-radius: 999px;
   background: var(--foms-surface-accent);
   color: var(--foms-text-link);
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   white-space: nowrap;
 }
@@ -222,7 +222,7 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue_
 }
 
 .erp-shipment-mobile-date-chip__date {
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1.05;
   text-align: center;
@@ -239,7 +239,7 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue_
 
 .erp-shipment-mobile-date-chip__day {
   color: var(--foms-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   line-height: 1;
 }
@@ -254,7 +254,7 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue_
   border-radius: 999px;
   background: var(--foms-surface-accent);
   color: var(--foms-text-link);
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   line-height: 1;
 }
@@ -449,14 +449,14 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-queue .erp-shipment-mobile-queue_
 .erp-shipment-mobile-card__detail dt {
   margin-bottom: 0.125rem;
   color: var(--foms-text-tertiary);
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
 .erp-shipment-mobile-card__detail dd {
   margin: 0;
   color: var(--foms-text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-weight: 600;
   overflow-wrap: anywhere;
 }

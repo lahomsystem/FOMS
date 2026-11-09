@@ -12,6 +12,10 @@
   {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title"><i class="fas fa-file-invoice"></i><span>협력사 명세서</span></h1>
+    <div class="erp-pro-header__actions">
+      {# 탭별 글자 크기(2026-11-09 사용자) #}
+      {% include 'partials/shared/foms_font_scale_control.html' %}
+    </div>
   </header>
   {% set erp_sub_nav_active = 'partner_statements' %}
   {% include 'partials/shared/erp_sub_nav.html' %}

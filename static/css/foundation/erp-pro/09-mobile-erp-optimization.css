@@ -160,7 +160,7 @@
 @media (max-width: 576px) {
   .erp-pro .form-control,
   .erp-pro .form-select {
-    font-size: 16px !important; /* iOS 줌 방지 */
+    font-size: calc(16px * var(--foms-fs, 1)) !important; /* iOS 줌 방지 */
   }
   .erp-pro .erp-alert-col {
     flex: 0 0 50% !important;
@@ -285,7 +285,7 @@
   border-radius: 12px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   line-height: 1.3;
   text-overflow: ellipsis;

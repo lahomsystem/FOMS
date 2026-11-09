@@ -779,7 +779,7 @@
   align-items: center;
   gap: 8px;
   color: #fff;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 700;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   pointer-events: none; /* 핀치·스와이프 제스처를 가로막지 않는다 */
@@ -793,7 +793,7 @@
   border-radius: 999px;
   background: var(--foms-color-warning-500, #f59e0b);
   color: #1f2937;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
 }
 
 /* 액션바가 들어오면 footer 를 알약(CS 코멘트용 기본형) → 판정 패널로 전환. */
@@ -821,7 +821,7 @@
 }
 .foms-viewer-actions__counter {
   margin-right: auto;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
   opacity: 0.85;
   font-variant-numeric: tabular-nums;
@@ -834,7 +834,7 @@
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 700;
   cursor: pointer;
 }
@@ -863,7 +863,7 @@
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: transparent;
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
   cursor: pointer;
 }
@@ -874,7 +874,7 @@
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   resize: vertical;
 }
 .foms-viewer-actions__note::placeholder {
@@ -882,7 +882,7 @@
 }
 .foms-viewer-actions__status {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
 }
 .foms-viewer-actions__status:empty {
   display: none;

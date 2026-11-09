@@ -25,13 +25,13 @@
 }
 .foms-meas-glance__title {
   margin: 0;
-  font-size: 15.5px;
+  font-size: calc(15.5px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1.3;
   color: var(--foms-color-neutral-700);
 }
 .foms-meas-glance__count {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-500);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -43,7 +43,7 @@
   min-height: 38px;
   margin-left: auto;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-weight: 700;
   color: #fff;
   background: var(--foms-color-brand-500);
@@ -63,7 +63,7 @@
   display: none;
   margin: 0;
   padding: 0 14px 10px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-danger-600);
 }
@@ -80,7 +80,7 @@
   align-items: center;
   gap: 8px;
   padding: 7px 14px;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-brand-700);
   background: var(--foms-color-brand-50);
@@ -109,7 +109,7 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   color: var(--foms-color-success-600);
   background: var(--foms-surface-base, #fff);
   border: 1px solid var(--foms-color-brand-200);
@@ -174,7 +174,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: transparent;
   /* neutral-300 은 흰 바탕 대비 1.7:1 이라 햇빛에서 빈 상자가 사라졌다. */
   border: 2px solid var(--foms-color-brand-400);
@@ -206,19 +206,19 @@
   min-width: 0;
 }
 .foms-meas-glance__name {
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1.35;
   color: var(--foms-color-neutral-900);
 }
 .foms-meas-glance__addr {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
   line-height: 1.35;
   color: var(--foms-color-neutral-600);
 }
 .foms-meas-glance__prod {
   overflow: hidden;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   line-height: 1.35;
   color: var(--foms-color-brand-700);
@@ -231,7 +231,7 @@
   align-self: center;
   min-width: 52px;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 800;
   text-align: center;
   color: var(--foms-color-neutral-600);
@@ -351,7 +351,7 @@
 }
 .foms-meas-save-sheet__title {
   margin: 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-neutral-900);
 }
@@ -380,7 +380,7 @@
 .foms-meas-save-sheet__btn {
   min-height: 48px;
   padding: 0 14px;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-brand-700);
   background: var(--foms-surface-base, #fff);
@@ -395,7 +395,7 @@
 }
 .foms-meas-save-sheet__msg {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-success-600);
 }
@@ -407,12 +407,12 @@
 }
 .foms-meas-save-sheet__hint {
   margin: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-600);
 }
 .foms-meas-save-sheet__close {
   min-height: 44px;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-neutral-600);
   background: transparent;
@@ -496,13 +496,13 @@ html.foms-meas-save-sheet-open body {
 }
 .foms-meas-glance__tab-n {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--foms-fs, 1));
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .foms-meas-glance__tab-c {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-neutral-600);
   font-variant-numeric: tabular-nums;
@@ -561,7 +561,7 @@ html.foms-meas-save-sheet-open body {
   min-height: 44px;
   margin: 10px 0 0;
   padding: 0 4px 0 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-600);
   background: var(--foms-surface-base, #fff);
   border: 1px solid var(--foms-color-neutral-200);
@@ -647,7 +647,7 @@ span.foms-meas-glance__gtog,
 .foms-meas-glance__me {
   flex: none;
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   font-weight: 800;
   color: #fff;
   background: var(--foms-color-brand-600, #4a55b8);
@@ -656,7 +656,7 @@ span.foms-meas-glance__gtog,
 .foms-meas-glance__gchev {
   flex: none;
   width: 18px;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   text-align: center;
   color: var(--foms-color-brand-700);
   transition: transform 0.15s;
@@ -709,7 +709,7 @@ span.foms-meas-glance__gtog,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-neutral-600);
   font-variant-numeric: tabular-nums;
@@ -718,7 +718,7 @@ span.foms-meas-glance__gtog,
   position: absolute;
   top: 50%;
   right: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-400);
   transform: translateY(-50%);
 }
@@ -728,7 +728,7 @@ span.foms-meas-glance__gtog,
   gap: 3px;
   margin-left: 4px;
   padding: 1px 7px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-brand-700);
   background: var(--foms-color-brand-100);
@@ -800,7 +800,7 @@ span.foms-meas-glance__gtog,
 }
 .foms-meas-sheet__mgr {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-brand-700);
   text-overflow: ellipsis;
@@ -808,7 +808,7 @@ span.foms-meas-glance__gtog,
 }
 .foms-meas-sheet__pos {
   flex: none;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-neutral-600);
   font-variant-numeric: tabular-nums;
@@ -825,7 +825,7 @@ span.foms-meas-glance__gtog,
   width: 44px;
   height: 44px;
   padding: 0;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-700);
   background: var(--foms-surface-base, #fff);
   border: 1px solid var(--foms-color-neutral-300);
@@ -856,7 +856,7 @@ span.foms-meas-glance__gtog,
   margin: 12px 0 4px;
   padding: 0 14px 0 12px;
   font: inherit;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 800;
   text-align: left;
   color: var(--foms-color-neutral-900);
@@ -871,7 +871,7 @@ span.foms-meas-glance__gtog,
   place-items: center;
   width: 26px;
   height: 26px;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: transparent;
   border: 2px solid var(--foms-color-brand-400);
   border-radius: 7px;
@@ -879,7 +879,7 @@ span.foms-meas-glance__gtog,
 }
 .foms-meas-sheet__vcheck em {
   margin-left: auto;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   font-style: normal;
   font-weight: 700;
   color: var(--foms-color-neutral-600);
@@ -979,12 +979,12 @@ html.foms-meas-sheet-open .foms-shell-fab {
 }
 .foms-meas-sheet__ph-title {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-neutral-900);
 }
 .foms-meas-sheet__ph-count {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
   font-weight: 700;
   color: var(--foms-color-neutral-600);
   font-variant-numeric: tabular-nums;
@@ -1021,7 +1021,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   gap: 3px;
   margin-left: 4px;
   padding: 2px 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1.2;
   color: #fff;
@@ -1047,7 +1047,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   gap: 4px;
   margin: 0 0 8px;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--foms-fs, 1));
   line-height: 1.4;
   color: var(--foms-color-neutral-700);
   background: var(--foms-color-warning-50);
@@ -1112,7 +1112,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-sheet .foms-meas-sheet__vcheck {
   min-height: 48px;
   margin: 8px 0 2px;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--foms-fs, 1));
 }
 .foms-meas-sheet .foms-meas-sheet__vbox {
   width: 24px;
@@ -1146,7 +1146,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   overflow: hidden;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
 }
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row] > dd > a {
   display: inline;
@@ -1171,7 +1171,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   height: 32px;
   margin-top: -16px;
   font-family: "Font Awesome 6 Free";
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   font-weight: 900;
   color: var(--foms-color-brand-700);
   background: var(--foms-color-brand-50, #eff6ff);
@@ -1247,7 +1247,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   height: 20px;
   padding: 0 5px;
   margin-right: 6px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1;
   color: #fff;
@@ -1337,7 +1337,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   z-index: 1; /* 줄 전체 지도·전화 누름 칸(a::before) 위 — 메모를 눌러도 지도·전화가 열리지 않게 */
   margin: 2px 0 0;
   padding: 8px 10px;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   line-height: 1.45;
   color: var(--foms-meas-pink-ink);
   white-space: pre-line;
@@ -1365,7 +1365,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   flex: 1 1 100%;
   margin: 0 0 0 52px; /* dt 40 + gap 12. 오른쪽 아이콘 자리(줄 padding 40)는 비워 둔다 — 넓히면 한 줄 연락처의 전화 아이콘을 가렸다(스테이징 #4752) */
   -webkit-line-clamp: unset;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
 }
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note]::after {
   top: 6px;
@@ -1384,7 +1384,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
 }
 .foms-meas-memo__title {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 800;
   color: var(--foms-color-neutral-900);
 }
@@ -1392,7 +1392,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   min-width: 20px;
   padding: 1px 6px;
   box-sizing: border-box;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 800;
   text-align: center;
   color: var(--foms-meas-pink-700);
@@ -1425,7 +1425,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   align-items: center;
   gap: 5px;
   padding: 3px 9px 3px 7px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--foms-fs, 1));
   font-weight: 800;
   border-radius: 99px;
 }
@@ -1442,12 +1442,12 @@ html.foms-meas-sheet-open .foms-shell-fab {
   background: var(--foms-meas-green-100);
 }
 .foms-meas-memo__src {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: var(--foms-color-neutral-500);
 }
 .foms-meas-memo__text {
   margin: 0;
-  font-size: 15.5px;
+  font-size: calc(15.5px * var(--foms-fs, 1));
   font-weight: 600;
   line-height: 1.5;
   color: var(--foms-color-neutral-900);
@@ -1459,7 +1459,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
   justify-self: start;
   margin-top: 4px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   font-weight: 800;
   line-height: 1.35;
   color: #9d2352;

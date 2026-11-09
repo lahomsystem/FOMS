@@ -221,12 +221,12 @@
   gap: 0.1875rem;
   min-height: 20px;
   padding: 0 0.375rem;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   line-height: 1;
 }
 
 .meas-sd-badge--chip i {
-  font-size: 10px;
+  font-size: calc(10px * var(--foms-fs, 1));
   line-height: 1;
 }
 

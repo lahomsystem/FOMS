@@ -69,7 +69,7 @@
   padding: 0 5px;
   background: var(--foms-color-danger-500, #ef4444);
   color: #fff;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   font-weight: 700;
   line-height: 1;
   border-radius: var(--foms-radius-full, 999px);
@@ -81,5 +81,5 @@
 
 /* 우리 직원 화면 아래 탭 건수는 12px(디자인 점검 2026-11-06, 11px). 협력사(.pp-body)는 그대로. */
 body:not(.pp-body) .erp-mobile-bottom-nav__badge {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
 }

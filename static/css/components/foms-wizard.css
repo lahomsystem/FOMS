@@ -126,7 +126,7 @@
   position: fixed;
   top: 14px;
   right: 60px;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   color: var(--foms-color-success-600, #16a34a);
   background: var(--foms-color-success-50, #f0fdf4);
   padding: 2px 8px;
@@ -255,7 +255,7 @@
   background: var(--foms-surface-base, #fff);
   color: var(--foms-color-danger-500, #ef4444);
   border-radius: var(--foms-radius-md, 8px);
-  font-size: 18px;
+  font-size: calc(18px * var(--foms-fs, 1));
   line-height: 1;
   cursor: pointer;
 }
@@ -355,7 +355,7 @@
 .foms-wizard__attachment-preview[data-empty="true"]::before {
   content: "아직 첨부된 파일이 없습니다";
   color: var(--foms-text-tertiary, #6b7280);
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
 }
 
 .foms-wizard__attachment-thumb {
@@ -367,7 +367,7 @@
   padding: 0;
   overflow: hidden;
   background: var(--foms-surface-muted, #f3f4f6);
-  font-size: 10px;
+  font-size: calc(10px * var(--foms-fs, 1));
   cursor: pointer;
 }
 
@@ -426,7 +426,7 @@
   border-radius: var(--foms-radius-md, 8px);
   background: transparent;
   color: var(--foms-text-tertiary, #6b7280);
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   cursor: pointer;
 }
 .foms-voice-btn:active {
@@ -447,7 +447,7 @@
 .foms-wizard__addon .foms-btn--sm {
   min-height: 44px;
   min-width: 48px;
-  font-size: 18px;
+  font-size: calc(18px * var(--foms-fs, 1));
 }
 .foms-wizard__sub-label {
   margin-top: var(--foms-space-3, 12px);
@@ -726,7 +726,7 @@
 
 .foms-wizard__send-btn-icon {
   flex: 0 0 auto;
-  font-size: 15px;
+  font-size: calc(15px * var(--foms-fs, 1));
   line-height: 1;
 }
 

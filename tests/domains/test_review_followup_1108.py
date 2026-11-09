@@ -36,7 +36,7 @@ def test_calculator_dark_theme_amounts_and_fixed_light_backgrounds():
     for selector in (".wd-esec .wd-bc-price", ".wd-esec .wd-bc-subval", ".wd-fab__sum-v", ".estimate-total-price",
                      ".wd-editor__close", ".wd-esec__head", ".estimate-card-item"):
         assert any(selector in line for line in dark_lines), selector
-    assert "builder.css') }}?v=20261108b" in _read("templates/wdcalculator/calculator.html")
+    assert "builder.css') }}?v=20261109f" in _read("templates/wdcalculator/calculator.html")
 
 
 @pytest.mark.parametrize("rel", [

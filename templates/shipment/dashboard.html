@@ -1,12 +1,12 @@
 {% extends "shipment/layout.html" %}
 
 {% block head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20261109a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20261109f">
 {% endblock %}
 
 {% block styles %}
   {% if erp_mobile_v2_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20261109a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20261109f">
   {% endif %}
   {# AS 타임라인 공용 컴포넌트(SSOT) — AS 일정추천 모달 카드 본문. 셸 변형과 무관하게 항상 필요하다
      (모달은 dashboard_main.html에 무조건 포함).

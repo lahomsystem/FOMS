@@ -40,7 +40,11 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>휴지통</h2>
-        <a href="{{ url_for('order_pages.index') }}" class="btn btn-secondary">돌아가기</a>
+        <div class="d-flex align-items-center gap-2">
+            {# 탭별 글자 크기(2026-11-09 사용자) #}
+            {% include 'partials/shared/foms_font_scale_control.html' %}
+            <a href="{{ url_for('order_pages.index') }}" class="btn btn-secondary">돌아가기</a>
+        </div>
     </div>
     
     <form method="get" class="mb-3">

@@ -48,7 +48,8 @@ LAYOUT_SCRIPTS = "templates/partials/shared/layout_scripts.html"
 ERP_SHELL_JS = "static/js/runtime/erp-shell.js"
 
 #: 통합 화면 이전 운영 CSS 원문(LF 정규화) — 2026-09-23 deploy 4d4df0baf 기준. 이 앞부분은 한 글자도 안 바뀐다.
-GLANCE_CSS_BASE_SHA256 = "ac6115b95466017b047357312ee3401fa4974ce6df58aaa2d1de384265870512"
+# 2026-11-09 탭별 글자 배율: 이전 규칙의 font-size px 를 calc(Npx * var(--foms-fs, 1)) 로 일괄 변환(규칙 내용 그대로)
+GLANCE_CSS_BASE_SHA256 = "0e1e60ceebe5e47ded964ded17b91d9e1ae2595e8baac2f06730e7f1ff645485"
 GLANCE_CSS_APPEND_MARKER = "/* ══ 통합 화면(체크리스트"
 
 

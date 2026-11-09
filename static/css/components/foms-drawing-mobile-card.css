@@ -374,7 +374,7 @@
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search .erp-pro-input {
     min-height: 44px;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     text-overflow: ellipsis; /* 16px 에서 긴 안내 글이 낱말 가운데서 잘리지 않게 '…' 로 끝낸다. */
     background: var(--foms-surface-base, #fff);
   }

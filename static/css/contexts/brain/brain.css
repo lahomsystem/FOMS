@@ -458,9 +458,9 @@
 .brain3d__labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .brain3d-label__box { fill: rgba(11, 15, 26, 0.78); stroke: var(--brain-type); stroke-width: 1; }
 .brain3d-label__dot { fill: var(--brain-type); }
-.brain3d-label__text { fill: #e5e7eb; font-size: 12px; font-weight: 600; }
+.brain3d-label__text { fill: #e5e7eb; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 600; }
 .brain3d-label.is-main .brain3d-label__box { fill: rgba(29, 78, 216, 0.88); stroke: #bfdbfe; }
-.brain3d-label.is-main .brain3d-label__text { fill: #ffffff; font-size: 13px; }
+.brain3d-label.is-main .brain3d-label__text { fill: #ffffff; font-size: calc(13px * var(--foms-fs, 1)); }
 .brain3d-label.is-crowded { opacity: 0.45; }
 .brain3d-label.is-hidden { display: none; }
 .brain3d__side { display: grid; gap: 12px; }

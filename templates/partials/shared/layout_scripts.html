@@ -65,6 +65,7 @@
 <script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20261109a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20261029a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/ui-zoom.js') }}?v=20261109a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/font-scale.js') }}?v=20261109f" defer></script>
 {# SW subject 통지용 구성: 현재 로그인 사용자 id 를 sync.js 가 읽어 SW 에 postMessage 한다
    → SW 가 subject 변경(전환/재로그인/로그아웃) 시 API 캐시를 purge(공유 기기 PII 잔존 0).
    비로그인=빈 값. #}
@@ -1179,7 +1180,7 @@
             opacity: 0;
             pointer-events: none;
             transition: all 0.2s ease;
-            font-size: 24px;
+            font-size: calc(24px * var(--foms-fs, 1));
         }
 
         #global-viewer-prev {
@@ -1235,7 +1236,7 @@
             color: #fff;
             border-radius: 999px;
             padding: 4px 14px;
-            font-size: 13px;
+            font-size: calc(13px * var(--foms-fs, 1));
             pointer-events: none;
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
@@ -1254,7 +1255,7 @@
                 pointer-events: auto;
                 width: 40px;
                 height: 40px;
-                font-size: 18px;
+                font-size: calc(18px * var(--foms-fs, 1));
                 background: rgba(15, 23, 42, 0.35);
             }
 
@@ -1285,7 +1286,7 @@
             background: rgba(0, 0, 0, 0.3);
             color: #fff;
             z-index: 3;
-            font-size: 20px;
+            font-size: calc(20px * var(--foms-fs, 1));
             display: none;
             align-items: center;
             justify-content: center;
@@ -1311,7 +1312,7 @@
             background: rgba(0, 0, 0, 0.3);
             color: #fff;
             z-index: 3;
-            font-size: 24px;
+            font-size: calc(24px * var(--foms-fs, 1));
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1334,7 +1335,7 @@
             color: #fff;
             border-radius: 999px;
             padding: 10px 20px;
-            font-size: 14px;
+            font-size: calc(14px * var(--foms-fs, 1));
             display: flex;
             gap: 12px;
             align-items: center;

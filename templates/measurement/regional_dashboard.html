@@ -60,7 +60,7 @@
     .shipping-alert-today {
         animation: blink-red-simple 0.8s infinite ease-in-out !important;
         font-weight: bold !important;
-        font-size: 18px !important;
+        font-size: calc(18px * var(--foms-fs, 1)) !important;
         letter-spacing: 1px !important;
         display: inline-block !important;
         padding: 6px 12px !important;
@@ -72,7 +72,7 @@
     .shipping-alert-tomorrow {
         animation: blink-yellow-simple 0.9s infinite ease-in-out !important;
         font-weight: bold !important;
-        font-size: 18px !important;
+        font-size: calc(18px * var(--foms-fs, 1)) !important;
         letter-spacing: 1px !important;
         display: inline-block !important;
         padding: 6px 12px !important;
@@ -82,7 +82,7 @@
     }
     
     .shipping-customer-list {
-        font-size: 14px;
+        font-size: calc(14px * var(--foms-fs, 1));
         margin-top: 5px;
         line-height: 1.4;
     }
@@ -377,6 +377,9 @@
     <!-- 제목 + 통합 검색 (한 줄) -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
+        <div class="d-flex align-items-center justify-content-end flex-wrap gap-2 flex-grow-1">
+        {# 탭별 글자 크기(2026-11-09 사용자) #}
+        {% include 'partials/shared/foms_font_scale_control.html' %}
         <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="regional-header-search" role="search">
             <div class="input-group regional-search-group">
                 <input type="text" name="search_query" class="form-control" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" aria-label="지방 주문 통합 검색" value="{{ search_query or '' }}">
@@ -386,6 +389,7 @@
                 <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search" aria-hidden="true"></i> 검색</button>
             </div>
         </form>
+        </div>
     </div>
 
     <!-- 요약·섹션 점프바 (스크롤 시 sticky) -->
@@ -511,7 +515,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
@@ -630,14 +634,14 @@
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
                                     </td>
                                     <td class="emphasized-date">
                                         <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}"
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.shipping_scheduled_date or '' }}"
                                                data-order-id="{{ order.id }}"
                                                data-field="shipping_scheduled_date">
@@ -727,7 +731,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                             <td>
@@ -751,7 +755,7 @@
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date"
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.measurement_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="measurement_date">
@@ -841,14 +845,14 @@
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
                                     </td>
                                     <td class="{% if order.shipping_scheduled_date == today %}emphasized-date{% endif %}">
                                         <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.shipping_scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="shipping_scheduled_date">
@@ -996,7 +1000,7 @@
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <textarea class="form-control form-control-sm auto-resize-textarea"
-                                                          rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                          rows="1" style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                           data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                             </td>
                                             <td>{{ order.customer_name }}{{ factory2_badge(order) }}</td>
@@ -1176,7 +1180,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                             <td>
@@ -1198,7 +1202,7 @@
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date"
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.measurement_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="measurement_date">
@@ -1240,14 +1244,14 @@
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
                                     </td>
                                                                         <td class="{% if order.shipping_scheduled_date == today %}emphasized-date{% endif %}">
                                         <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}"
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.shipping_scheduled_date or '' }}"
                                                data-order-id="{{ order.id }}"
                                                data-field="shipping_scheduled_date">
