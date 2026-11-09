@@ -168,4 +168,6 @@
 - PR #784 → 검사 4개 모두 성공(test 5분 59초 · pg-lane · harness · perf-gate) → 머지 **production 87aa0ec42** → healthz 20:43 그 커밋(Railway 배포 확인). `check_deploy_drift` 는 로컬 ref 가 낡아 "1f8434b2 — 0커밋 뒤" 라 했지만 healthz 가 정본.
 - 운영 실측(claude_master id 57, 잠금 해제 → 측정 → 재잠금 확인 `is_active=False`, 읽기만·직렬·로그아웃 302): 로그인 302, 홈 all/week/steps 200(TTFB 539·419·331ms), 전체 화면 시트 200(공정 4·칩 4·tel·[인쇄]·보류 단추, 금액 글 없음), 인쇄 200(1쪽, 도장 없음), 옆 시트 조각 200(공정 4·인쇄 링크), 칸반 200, 세로 하단 탭 있음, 4xx 0 · JS 오류 0. PNG 는 스크래치패드 `shots/prod_home/` 에만(실제 고객 정보).
 - **운영 실데이터에서 본 결함 ④ (고침)**: 첫 화면이 "지난 시공일 300건" 한 묶음 · 날짜 1 · 이번 주 0 · 내 공정 0. 원인 = `PRODUCTION_KANBAN_MAX_ROWS` 300 캡을 **시공일 오름차순**으로 잘라 옛 미종결 주문(300+)만 남고 최근·앞날이 통째로 빠짐(스테이징은 110건이라 안 드러남). 고침 `build_production_home`: 7일 안·앞날·미정은 전부, 지난 것은 최근부터 남는 자리만, 밀린 수는 머리줄 "더 오래된 N건은 안 보여요"(`past_hidden`). 시험 1(캡 3). 커밋은 deploy 에(아래 푸시 7). **운영 재승격은 사용자 지시 때.**
-- 다음(사용자 선택): 캡 고침 운영 재승격(cherry-pick 1커밋) → 갤럭시 탭 실기기 검수 → 생산팀 운영 계정 만들기(사용자).
+- 푸시 7: deploy ceacbd52b → **6a6e6d2c5**(원장 커밋 2 + 캡 고침 567d7fbcf + §12 기록). smoke 17,150 PASS · CI ALL GREEN(`ci8.log`) · 스테이징 healthz 6a6e6d2c 뒤 실화면 홈 200 · 주문 110 · 4xx 0 · JS 0.
+- **캡 고침 운영 재승격(사용자 "캡 고침도 운영에 올리기")**: 567d7fbcf 하나만 `origin/production` 위 손 cherry-pick(바탕 3파일 md5 운영과 같음) → APP_OK · 홈 시험 26 · smoke **17,137 PASS** → PR #785(검사 4개 성공) → 머지 **production 8c361144a** → healthz 21:51 그 커밋, `check_deploy_drift` 일치 SUCCESS. 운영 첫 화면 재실측은 안 함(계정 잠김 유지, 사용자 지시 때 1회).
+- 다음(사용자 선택): 운영 첫 화면 재실측(마스터 계정 1회) → 갤럭시 탭 실기기 검수 → 생산팀 운영 계정 만들기(사용자).
