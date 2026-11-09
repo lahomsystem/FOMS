@@ -166,7 +166,7 @@
 .foms-prod-home__job {
   position: relative;
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 360px 130px;
+  grid-template-columns: 150px minmax(0, 1fr) 290px 130px;
   align-items: center;
   min-height: 100px;
   padding: 0 20px 0 0;
@@ -286,7 +286,7 @@
 .fph-al .foms-prod-home__btn { min-width: 128px; }
 
 /* ── 내 공정(안 3): 공정 탭 + 줄 ── */
-.fph-steptabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--fph-surface); border-bottom: 1px solid var(--fph-line); }
+.fph-steptabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--fph-surface); border-bottom: 1px solid var(--fph-line); }
 .fph-steptab { min-height: 72px; border: 0; border-right: 1px solid var(--fph-line); background: transparent; color: var(--fph-text3); font: inherit; font-size: 22px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 12px; position: relative; cursor: pointer; }
 .fph-steptab:last-child { border-right: 0; }
 .fph-steptab small { font-size: 18px; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 17px; background: var(--fph-bg); color: var(--fph-text2); display: inline-flex; align-items: center; justify-content: center; }

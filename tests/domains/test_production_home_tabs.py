@@ -111,12 +111,12 @@ def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_�
     assert 'data-foms-home-tab="steps"' in html
     assert 'data-foms-home-steptab="cut" aria-selected="true" aria-controls="fph-q-cut">재단 <small>2</small>' in html
     assert 'data-foms-home-steptab="edge" aria-selected="false" aria-controls="fph-q-edge">엣지 <small>1</small>' in html
-    assert ">도장 <small>0</small>" in html
+    assert ">조립 <small>0</small>" in html and "도장" not in html
     # 줄: 재단 칸에 재단차례(단추) + 보류중(단추 없이 보류), 엣지 칸에 엣지차례
     cut_q = html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0]
     assert "재단차례" in cut_q and "보류중" in cut_q and "엣지차례" not in cut_q
     assert cut_q.count("data-foms-home-step-done") == 1 and ">재단 끝<" in cut_q and ">보류<" in cut_q
-    edge_q = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="paint"')[0]
+    edge_q = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
     assert "엣지차례" in edge_q and 'data-step-key="edge"' in edge_q
     # 줄 밖 숫자: 제작 대기 1 · 검수 끝 1. 도면 주문은 아예 없음
     assert "제작 대기 <b>1</b>건 · 검수까지 끝난 것 <b>1</b>건" in html

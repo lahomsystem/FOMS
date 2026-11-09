@@ -83,7 +83,7 @@ def test_step_check_bumps_version_and_records_event(client):
     data = resp.get_json()
     assert data["success"] is True
     assert next(s for s in data["data"]["steps"] if s["key"] == "cut")["done"] is True
-    assert data["data"]["done_count"] == 1 and data["data"]["total"] == 5
+    assert data["data"]["done_count"] == 1 and data["data"]["total"] == 4  # 도장 삭제(D15, 2026-11-09)
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)

@@ -57,7 +57,7 @@ def _make_order() -> Order:
 
 
 def test_get_derives_default_steps_without_saving(client):
-    """GET 은 스텝 미존재 시 기본 5단계를 파생만 하고 DB 에 저장하지 않는다."""
+    """GET 은 스텝 미존재 시 기본 4단계를 파생만 하고 DB 에 저장하지 않는다."""
     user = _make_user("prod_get_admin", role="ADMIN")
     _login(client, user)
     order_id = _make_order().id
@@ -67,9 +67,9 @@ def test_get_derives_default_steps_without_saving(client):
     data = resp.get_json()
     assert data["success"] is True
     steps = data["data"]["steps"]
-    assert [s["key"] for s in steps] == ["cut", "edge", "paint", "assemble", "inspect"]
+    assert [s["key"] for s in steps] == ["cut", "edge", "assemble", "inspect"]
     assert data["data"]["done_count"] == 0
-    assert data["data"]["total"] == 5
+    assert data["data"]["total"] == 4
     assert all(s["done"] is False for s in steps)
 
     # 파생만 — sd 에 production 노드가 생기지 않아야 한다(쓰기는 POST 소관).
@@ -102,7 +102,7 @@ def test_get_missing_order_returns_404(client):
     assert resp.get_json()["success"] is False
 
 
-def test_first_toggle_seeds_default_five_steps(client):
+def test_first_toggle_seeds_default_four_steps(client):
     user = _make_user("prod_admin", role="ADMIN")
     user_name = user.name
     _login(client, user)
@@ -116,8 +116,8 @@ def test_first_toggle_seeds_default_five_steps(client):
     data = resp.get_json()
     assert data["success"] is True
     steps = data["data"]["steps"]
-    assert [s["key"] for s in steps] == ["cut", "edge", "paint", "assemble", "inspect"]
-    assert data["data"]["total"] == 5
+    assert [s["key"] for s in steps] == ["cut", "edge", "assemble", "inspect"]
+    assert data["data"]["total"] == 4
     assert data["data"]["done_count"] == 1
 
     cut = next(s for s in steps if s["key"] == "cut")
@@ -129,7 +129,7 @@ def test_first_toggle_seeds_default_five_steps(client):
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
     saved_steps = saved.structured_data["production"]["steps"]
-    assert len(saved_steps) == 5
+    assert len(saved_steps) == 4
     assert next(s for s in saved_steps if s["key"] == "cut")["done"] is True
 
 
@@ -138,18 +138,48 @@ def test_toggle_off_clears_at_and_by_name(client):
     _login(client, user)
     order_id = _make_order().id
 
-    client.post(f"/api/orders/{order_id}/production/steps", json={"key": "paint", "done": True})
+    client.post(f"/api/orders/{order_id}/production/steps", json={"key": "assemble", "done": True})
     resp = client.post(
         f"/api/orders/{order_id}/production/steps",
-        json={"key": "paint", "done": False},
+        json={"key": "assemble", "done": False},
     )
     assert resp.status_code == 200
     steps = resp.get_json()["data"]["steps"]
-    paint = next(s for s in steps if s["key"] == "paint")
-    assert paint["done"] is False
-    assert paint["at"] is None
-    assert paint["by_name"] is None
+    assemble = next(s for s in steps if s["key"] == "assemble")
+    assert assemble["done"] is False
+    assert assemble["at"] is None
+    assert assemble["by_name"] is None
     assert resp.get_json()["data"]["done_count"] == 0
+
+
+def test_legacy_paint_step_is_hidden_but_not_rewritten(client):
+    """옛 주문의 저장 목록에 남은 도장(paint)은 GET·POST 응답에서 빠지고(D15, 2026-11-09), 저장 목록은 그대로다.
+    paint 를 체크하려는 POST 는 400."""
+    user = _make_user("prod_legacy_admin", role="ADMIN")
+    _login(client, user)
+    order = _make_order()
+    sd = dict(order.structured_data or {})
+    sd["production"] = {"steps": [
+        {"key": k, "label": l, "done": k in ("cut", "paint"), "at": None, "by_name": None}
+        for k, l in (("cut", "재단"), ("edge", "엣지"), ("paint", "도장"), ("assemble", "조립"), ("inspect", "검수"))
+    ]}
+    order.structured_data = sd
+    db_session.commit()
+    order_id = order.id
+
+    data = client.get(f"/api/orders/{order_id}/production/steps").get_json()["data"]
+    assert [s["key"] for s in data["steps"]] == ["cut", "edge", "assemble", "inspect"]
+    assert data["total"] == 4 and data["done_count"] == 1  # paint 의 done 은 세지 않는다
+
+    assert client.post(f"/api/orders/{order_id}/production/steps", json={"key": "paint", "done": True}).status_code == 400
+
+    resp = client.post(f"/api/orders/{order_id}/production/steps", json={"key": "edge", "done": True})
+    assert resp.status_code == 200
+    out = resp.get_json()["data"]
+    assert [s["key"] for s in out["steps"]] == ["cut", "edge", "assemble", "inspect"] and out["done_count"] == 2
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id).structured_data["production"]["steps"]
+    assert [s["key"] for s in saved] == ["cut", "edge", "paint", "assemble", "inspect"]  # 저장 목록은 손대지 않는다
 
 
 def test_production_team_allowed(client):
