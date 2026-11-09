@@ -55,7 +55,7 @@ def erp_production_home():
     return render_template(
         'production/home.html',
         rows=rows,
-        groups=production_home_groups(rows),
+        groups=production_home_groups(rows, today),
         counts=production_home_counts(rows),
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),
