@@ -95,3 +95,19 @@ def test_shared_js_pin_moved_past_the_removal_commit() -> None:
     assert asset_url_call("js/orders/erp-order-shared.js") in line, line
     # 음성 대조: 손 날짜 핀(옛 모양)으로 되돌아가면 안 된다 — 그 경우 옛 비교 규칙이 다시 필요하다.
     assert "?v=" not in line, f"손 핀이 되살아났다: {line.strip()}"
+
+
+def test_as_receive_draft_survives_close_until_submit() -> None:
+    """AS 접수 창을 접수 전에 닫아도(빈 곳 클릭·취소) 쓰던 글·첨부가 남는다(사용자 11-09).
+
+    같은 주문·같은 모드로 다시 열면 초기화를 건너뛰고, 접수 성공 때만 초안 표식을 지운다.
+    """
+    js = _read(SHARED_JS)
+    assert "const keepDraft = window.__erpAsReceiveDraftKey === draftKey;" in js
+    assert "if (contentEl && !keepDraft) {" in js
+    assert "erpApplyAsReceiveMode(mode, modeInfo.lastClosed, keepDraft);" in js
+    reset_block = js.split("if (!keepDraft) {", 1)[1].split("}", 1)[0]
+    assert "_asOrder.clear()" in js.split("if (!keepDraft) {", 1)[1].split("if (titleEl)", 1)[0]
+    assert "filesEl.value = ''" in reset_block
+    submitted = js.split("window.__erpAsReceiveSubmitted = true;", 1)[1][:120]
+    assert "window.__erpAsReceiveDraftKey = '';" in submitted
