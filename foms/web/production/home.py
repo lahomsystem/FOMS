@@ -102,3 +102,28 @@ def erp_production_sheet_page(order_id: int):
         is_admin=bool(user and user.role == 'ADMIN'),
         defect_reasons=_PRODUCTION_DEFECT_REASONS,
     )
+
+
+@erp_production_page_bp.route('/production/print/<int:order_id>')
+@login_required
+def erp_production_print_sheet(order_id: int):
+    """작업지시서 인쇄(F8, D8): 단독 HTML — 머리(주문·고객·연락처·주소·발주사·일정·시공팀), 규격 표(취소 품목 제외),
+    특이사항, 공정 빈 칸 4, 최종 도면 장마다 1쪽. 새 탭에서 열어 [인쇄]. 금액 없음(D7). 전례 ``erp_order_label``.
+    """
+    db = get_db()
+    user = _require_home_user()
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+        .first()
+    )
+    if order is None:
+        abort(404)
+    sheet = build_production_sheet_view(db, order, user, full=True)
+    now_kst = datetime.datetime.now(_KST)
+    return render_template(
+        'production/print_sheet.html',
+        order=sheet,
+        printed_at=f"{now_kst.month}/{now_kst.day} {now_kst.hour:02d}:{now_kst.minute:02d}",
+        printed_by=(getattr(user, 'name', None) or getattr(user, 'username', '') or ''),
+    )

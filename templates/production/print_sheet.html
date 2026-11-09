@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>작업지시서 #{{ order.id }} {{ order.customer_name }}</title>
+  {# 작업지시서 인쇄(F8, D8 — 2026-11-09): 단독 문서, 새 탭. 1쪽 = 머리·규격·특이사항·공정 빈 칸, 그 뒤 최종 도면 장마다 1쪽.
+     금액 없음(D7). 인라인 style·script 없음 — 단추는 foms-production-print.js. 전례 orders/label.html. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/print.css') }}?v=20261109a">
+</head>
+<body class="foms-print-body">
+  <div class="foms-print__toolbar">
+    <span>작업지시서 · 주문 #{{ order.id }} · {{ order.customer_name }}</span>
+    <button type="button" class="foms-print__btn" data-foms-print>인쇄</button>
+  </div>
+
+  <main class="foms-print" data-foms-print-sheet data-order-id="{{ order.id }}">
+    <section class="foms-print__page foms-print__page--head">
+      <header class="foms-print__head">
+        <h1>작업지시서 <small>#{{ order.id }}</small></h1>
+        <p class="foms-print__meta">뽑은 때 {{ printed_at }}{% if printed_by %} · {{ printed_by }}{% endif %} · 시공 {{ order.construction_label }}</p>
+      </header>
+
+      <dl class="foms-print__facts">
+        <div><dt>고객</dt><dd>{{ order.customer_name }}</dd></div>
+        <div><dt>전화</dt><dd>{{ order.phone }}</dd></div>
+        <div class="is-wide"><dt>주소</dt><dd>{{ order.address }}</dd></div>
+        {% if order.orderer_name %}<div><dt>발주사</dt><dd>{{ order.orderer_name }}</dd></div>{% endif %}
+        <div><dt>실측</dt><dd>{{ order.measurement_md }}</dd></div>
+        <div><dt>시공(상차)</dt><dd>{{ order.construction_label }}</dd></div>
+        {% if order.construction_workers %}<div><dt>시공팀</dt><dd>{{ order.construction_workers | join(', ') }}</dd></div>{% endif %}
+      </dl>
+
+      <h2 class="foms-print__h">만들 것 <small>총 자수 {{ order.total_units_display }}{% if order.material %} · {{ order.material }}{% endif %}</small></h2>
+      {% if order.spec_rows_view %}
+      <table class="foms-print__spec">
+        <thead><tr><th>품목</th><th>W</th><th>수량</th><th>확인</th></tr></thead>
+        <tbody>
+          {% for r in order.spec_rows_view %}
+          <tr><td>{{ r.label }}</td><td class="is-num">{{ r.w }}</td><td class="is-num">{{ r.qty }}</td><td class="foms-print__box-cell"><span class="foms-print__box" aria-hidden="true"></span></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="foms-print__muted">규격 정보 없음</p>
+      {% endif %}
+
+      <h2 class="foms-print__h">특이사항</h2>
+      <p class="foms-print__notes">{{ order.notes_text or '없음' }}</p>
+
+      <h2 class="foms-print__h">공정</h2>
+      <ul class="foms-print__steps">
+        {% for s in order.steps %}
+        <li><span class="foms-print__box" aria-hidden="true"></span><span class="foms-print__step-label">{{ s.label }}</span><span class="foms-print__step-line">{% if s.done %}{{ s.meta }}{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+
+      {% set _imgs = order.drawing_files | selectattr('kind', 'equalto', 'image') | list %}
+      {% set _files = order.drawing_files | rejectattr('kind', 'equalto', 'image') | list %}
+      <p class="foms-print__dwg-note">도면 {{ _imgs | length }}장{% if _files %} · 파일 {{ _files | map(attribute='label') | join(', ') }}(종이엔 안 나와요){% endif %}</p>
+    </section>
+
+    {% for f in _imgs %}
+    <section class="foms-print__page foms-print__page--drawing">
+      <figure class="foms-print__figure">
+        <img src="{{ f.view }}" alt="{{ f.label }}" decoding="async">
+        <figcaption>#{{ order.id }} {{ order.customer_name }} · 도면 {{ loop.index }} / {{ _imgs | length }} · {{ f.label }}</figcaption>
+      </figure>
+    </section>
+    {% endfor %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/production/foms-production-print.js') }}?v=20261109a" defer></script>
+</body>
+</html>

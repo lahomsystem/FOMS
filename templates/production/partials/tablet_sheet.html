@@ -39,7 +39,7 @@
       <span class="foms-prod-sheet__contact-text">{{ order.address }}</span>
       {% if order.address and order.address != '-' %}<a class="foms-prod-sheet__contact-btn" href="https://map.kakao.com/?q={{ order.address | urlencode }}" target="_blank" rel="noopener">지도</a>{% endif %}
     </div>
-    <div class="foms-prod-sheet__contact-meta">실측 {{ order.measurement_md }} · 시공 {{ order.construction_label }}{% if order.construction_workers %} · 시공팀 {{ order.construction_workers | join(', ') }}{% endif %} · <a href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">상세</a></div>
+    <div class="foms-prod-sheet__contact-meta">실측 {{ order.measurement_md }} · 시공 {{ order.construction_label }}{% if order.construction_workers %} · 시공팀 {{ order.construction_workers | join(', ') }}{% endif %} · <a href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">상세</a> · <a href="{{ url_for('erp_production_page.erp_production_print_sheet', order_id=order.id) }}" target="_blank" rel="noopener">인쇄</a></div>
   </div>
   {% endif %}
   {# ── 보류/재제작 사유 콜아웃: 좌보더+틴트 강조, 라벨은 준볼드·사유 본문은 볼드. #}

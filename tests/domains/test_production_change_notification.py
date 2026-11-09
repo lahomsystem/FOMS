@@ -352,3 +352,28 @@ def test_hook_trash_delete_order(client):
     notifs = _notifs(order_id)
     assert len(notifs) == len(TARGET_TEAMS)
     assert all("주문 취소" in n.title for n in notifs)
+
+
+# --- 품목 취소(F-13, 2026-11-09) ----------------------------------------------
+
+
+def test_item_cancel_kind_has_label_and_never_merges(app):
+    """품목 취소는 라벨 '품목 취소'로, merge=False 라 1분 안에 두 번 와도 팀마다 row 가 둘(첫 품목 이름이 안 사라진다)."""
+    from foms.services.notifications.production_change import TARGET_TEAMS, _KIND_LABEL
+
+    assert _KIND_LABEL["item_cancel"] == "품목 취소"
+    actor = _make_user("item_cancel_actor", team="CS")
+    order = _make_order()
+    first, created1 = apply_production_change_alert(
+        db_session, order, "item_cancel", "거실장 취소 · 고객 요청", actor_user_id=actor.id, actor_name=actor.name, merge=False,
+    )
+    second, created2 = apply_production_change_alert(
+        db_session, order, "item_cancel", "몰딩 벽박이장 취소", actor_user_id=actor.id, actor_name=actor.name, merge=False,
+    )
+    db_session.commit()
+    assert created1 and created2
+    rows = _notifs(order.id)
+    assert len(rows) == len(TARGET_TEAMS) * 2
+    messages = {r.message for r in rows}
+    assert any("품목 취소 (거실장 취소 · 고객 요청)" in m for m in messages)
+    assert any("품목 취소 (몰딩 벽박이장 취소)" in m for m in messages)

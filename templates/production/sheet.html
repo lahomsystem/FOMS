@@ -26,6 +26,7 @@
       {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
       {% if order.drawing_badge %}<span class="foms-prod-page__badge foms-prod-page__badge--drawing" title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>{% endif %}
       <span class="foms-prod-page__sp"></span>
+      <a class="foms-prod-page__btn" href="{{ url_for('erp_production_page.erp_production_print_sheet', order_id=order.id) }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Z"/></svg>인쇄</a>
       <a class="foms-prod-page__btn foms-prod-page__btn--ghost" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">상세</a>
     </header>
 
