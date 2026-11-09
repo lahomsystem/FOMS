@@ -131,7 +131,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 생산 전이 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -259,7 +259,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 생산 보류 토글 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -288,7 +288,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 변경 확인 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 
@@ -492,7 +492,7 @@
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 출고 배정 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
+        window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
 

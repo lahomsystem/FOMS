@@ -423,6 +423,14 @@ def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
     assert "calc(100dvh - 240px)" not in css
 
 
+def test_kanban_css_change_modal_list_height_corrects_ui_zoom() -> None:
+    """F-06(11-09): 변경 브리핑 목록 max-height 60vh 는 화면 크기 배율(--foms-ui-zoom)을 되돌린다 —
+    130% 에서 목록이 닫기 단추 밑에 깔리던 것. 맨 60vh 회귀 차단."""
+    css = _norm(_read(KANBAN_CSS))
+    assert "max-height: calc(60vh / var(--foms-ui-zoom, 1))" in css
+    assert "max-height: 60vh;" not in css
+
+
 def test_kanban_body_has_no_label_print_button() -> None:
     """F-2: 미구현 전역 라벨 인쇄 버튼(disabled) 제거 — pcbar actions/label 마크업 부재.
     통합 바가 [lead][KPI] 2요소로 1줄 안정."""
@@ -713,7 +721,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20261109f" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20261109g" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

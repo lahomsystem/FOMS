@@ -406,10 +406,13 @@
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261109b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261109c" defer></script>
 {# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
    하나라도 빠지면 재시도가 무음으로 실패한다. #}
 {% include 'partials/shared/foms_reason_sheet.html' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
+{# 옆 시트 공정 블록·연락처·도면 스트립(F2 ①②③): 전체 화면 시트와 같은 CSS·JS(루트 [data-foms-prod-sheet-page], 스왑마다 재묶음). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261109b">
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261109b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>

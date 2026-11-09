@@ -17,6 +17,7 @@ from models import Order
 from foms.web.auth import login_required
 
 from foms.services.datetime_kst import get_today_kst
+from foms.api.production.orders import _PRODUCTION_DEFECT_REASONS
 from foms.services.production_sheet_view import _prod_sheet_total_units, build_production_sheet_view
 from foms.services.orders.drawing_confirm_partial import active_items, is_item_cancelled
 from foms.services.erp_template_filters import (
@@ -341,6 +342,7 @@ def erp_production_tablet_sheet(order_id: int):
         abort(404)
     user = getattr(g, 'current_user', None)
     # 뷰 모델은 전체 화면 시트(home.py)와 같은 함수 — 설계서 §12.2.
-    sheet = build_production_sheet_view(db, order, user)
+    sheet = build_production_sheet_view(db, order, user, full=True)  # 연락처·도면 전체·공정(F2 ①②③)
     return render_template('production/partials/tablet_sheet.html', order=sheet,
-                           is_admin=bool(user and user.role == 'ADMIN'))
+                           is_admin=bool(user and user.role == 'ADMIN'),
+                           defect_reasons=_PRODUCTION_DEFECT_REASONS)

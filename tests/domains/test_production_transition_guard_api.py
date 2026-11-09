@@ -301,10 +301,10 @@ def _render_sheet(app, **over) -> str:
 
 
 def test_sheet_production_shows_complete_button(app):
-    """제작중 시트 → '생산 완료' primary 버튼(production-complete)."""
+    """제작중 시트 → '제작 완료' primary 버튼(production-complete). 글은 세로 카드와 같은 말(F2 ⑤, 11-09)."""
     html = _render_sheet(app, stage="제작중")
     assert 'data-tablet-sheet-action="production-complete"' in html
-    assert "생산 완료" in html
+    assert "제작 완료" in html and "생산 완료" not in html
     assert 'data-tablet-sheet-action="production-start"' not in html
 
 
