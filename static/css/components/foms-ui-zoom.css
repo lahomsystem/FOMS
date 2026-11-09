@@ -7,6 +7,30 @@ html[data-foms-ui-zoom] {
   zoom: var(--foms-ui-zoom, 1);
 }
 
+/* 부트스트랩(CDN) 이 vw · vh 로 못박은 칸 — 우리 CSS 가 아니라 여기서 덮는다.
+   회색 막(모달 · 오프캔버스)이 70% 에서 화면 70% 만 덮던 것(스테이징 실측 11-09). */
+html[data-foms-ui-zoom] .modal-backdrop,
+html[data-foms-ui-zoom] .offcanvas-backdrop {
+  width: calc(100vw / var(--foms-ui-zoom, 1));
+  height: calc(100vh / var(--foms-ui-zoom, 1));
+}
+
+html[data-foms-ui-zoom] .modal-fullscreen {
+  width: calc(100vw / var(--foms-ui-zoom, 1));
+}
+
+@media (max-width: 575.98px) {
+  html[data-foms-ui-zoom] .modal-fullscreen-sm-down {
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+  }
+}
+
+@media (max-width: 767.98px) {
+  html[data-foms-ui-zoom] .modal-fullscreen-md-down {
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+  }
+}
+
 /* ── 위 막대(PC) ─────────────────────────────────────────────
    전역 .btn { padding: 10px 20px !important } 을 피하려고 .btn 을 쓰지 않는다. */
 .foms-ui-zoom {
