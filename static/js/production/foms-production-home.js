@@ -1,24 +1,34 @@
-/* 생산팀 첫 화면(전체 주문 한 줄) — 날짜 묶음 접기/펴기·탭·찾기·받은 시각·연결 표시. 설계서 §12 (2026-11-09).
- * 서버가 전부 그려 두고, 여기서는 보이기/숨기기만 한다(새 요청 없음). "다시 받기"는 링크(새로고침).
- * 접기/펴기는 모바일 실측 탭(measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기. */
+/* 생산팀 첫 화면 — 탭 셋(전체 주문·이번 주·내 공정) 공통 JS. 설계서 §12 (2026-11-09).
+ * 전체 주문: 날짜 묶음 접기/펴기·보기 칸·찾기(보이기/숨기기만, 새 요청 없음). 접기/펴기는 모바일 실측 탭
+ * (measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기.
+ * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}.
+ * 이번 주의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지. */
 (function () {
   'use strict';
 
   var root = document.querySelector('[data-foms-prod-home]');
   if (!root) { return; }
 
+  var OFFLINE_TEXT = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
+  var STEP_TAB_KEY = 'foms-prod-step-tab';
   function toArr(list) { return [].slice.call(list); }
 
+  var statusEl = root.querySelector('[data-foms-home-status]');
+  function setStatus(text, bad) {
+    if (!statusEl) { return; }
+    statusEl.textContent = text || '';
+    statusEl.classList.toggle('is-bad', !!bad);
+  }
+
+  // ── 전체 주문: 날짜 묶음 접기/펴기 + 보기 칸 + 찾기 ──
   var tabs = toArr(root.querySelectorAll('[data-foms-home-view]'));
   var jobs = toArr(root.querySelectorAll('[data-foms-home-job]'));
   var groups = toArr(root.querySelectorAll('[data-foms-home-grp]'));
   var search = root.querySelector('[data-foms-home-q]');
   var none = root.querySelector('[data-foms-home-none]');
-  var sync = root.querySelector('[data-foms-home-sync]');
   var view = 'all';
   var term = '';
 
-  // ── 날짜 묶음 접기/펴기 ──
   function setOpen(grp, open) {
     grp.classList.toggle('is-closed', !open);
     var tog = grp.querySelector('[data-foms-home-tog]');
@@ -36,8 +46,6 @@
     var label = root.querySelector('[data-foms-home-all-label]');
     if (label) { label.textContent = anyClosed ? '모두 펼치기' : '모두 접기'; }
   }
-
-  // ── 탭·찾기 필터 ──
   function matches(job) {
     if (view === 'prod' && job.getAttribute('data-view') !== 'prod') { return false; }
     if (view === 'changed' && job.getAttribute('data-changed') !== '1') { return false; }
@@ -53,18 +61,73 @@
     });
     var filtering = view !== 'all' || !!term;
     groups.forEach(function (grp) {
-      var rows = toArr(grp.querySelectorAll('[data-foms-home-job]'));
-      var hit = rows.filter(function (job) { return !job.hidden; }).length;
+      var hit = toArr(grp.querySelectorAll('[data-foms-home-job]')).filter(function (j) { return !j.hidden; }).length;
       grp.hidden = hit === 0;
       var count = grp.querySelector('[data-foms-home-grp-count]');
       if (count) { count.textContent = hit + '건'; }
-      // 거르는 중엔 맞는 묶음을 펼쳐 둔다 — 접힌 채로는 찾은 줄이 안 보인다.
-      if (filtering && hit > 0) { setOpen(grp, true); }
+      if (filtering && hit > 0) { setOpen(grp, true); } // 거르는 중엔 맞는 묶음을 펼쳐 둔다
     });
     if (none) { none.hidden = shown > 0 || jobs.length === 0; }
     syncCtl();
   }
+  if (search) {
+    search.addEventListener('input', function () {
+      term = (search.value || '').trim().toLowerCase();
+      apply();
+    });
+  }
 
+  // ── 내 공정: 탭 기억 + [끝] ──
+  var stepTabs = toArr(root.querySelectorAll('[data-foms-home-steptab]'));
+  function selectStepTab(key) {
+    if (!stepTabs.length) { return; }
+    var known = stepTabs.some(function (t) { return t.getAttribute('data-foms-home-steptab') === key; });
+    if (!known) { key = stepTabs[0].getAttribute('data-foms-home-steptab'); }
+    stepTabs.forEach(function (t) {
+      var on = t.getAttribute('data-foms-home-steptab') === key;
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    toArr(root.querySelectorAll('[data-foms-home-stepq]')).forEach(function (q) {
+      q.hidden = q.getAttribute('data-foms-home-stepq') !== key;
+    });
+    try { window.localStorage.setItem(STEP_TAB_KEY, key); } catch (e) { /* 저장 못 해도 화면은 그대로 */ }
+  }
+  if (stepTabs.length) {
+    var saved = null;
+    try { saved = window.localStorage.getItem(STEP_TAB_KEY); } catch (e) { saved = null; }
+    selectStepTab(saved || stepTabs[0].getAttribute('data-foms-home-steptab'));
+  }
+  function mutate(url, body) {
+    var opts = { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) };
+    if (window.fomsMutationFetch) { return window.fomsMutationFetch(url, opts); }
+    return (window.fomsWriteFetch || fetch)(url, opts).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        var ok = !!data && res.ok && data.success !== false;
+        return { ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data || {},
+          message: (data && (data.error || data.message)) || ('HTTP ' + res.status) };
+      });
+    }).catch(function () { return { ok: false, kind: 'network', status: 0, data: {}, message: OFFLINE_TEXT }; });
+  }
+  function finishStep(btn) {
+    if (btn.disabled) { return; }
+    var orderId = btn.getAttribute('data-order-id');
+    var key = btn.getAttribute('data-step-key');
+    btn.disabled = true;
+    setStatus('저장하는 중…');
+    mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/steps', { key: key, done: true })
+      .then(function (result) {
+        if (!result.ok) {
+          btn.disabled = false;
+          setStatus(result.kind === 'network' || result.status === 0 ? OFFLINE_TEXT : ('오류: ' + (result.message || '처리하지 못했어요')), true);
+          return;
+        }
+        setStatus('끝냈어요. 다음 공정으로 옮겨요');
+        window.location.reload(); // 줄·숫자는 서버가 다시 그린다(탭은 기억됨)
+      });
+  }
+
+  // ── 클릭 위임(이 화면 안) ──
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
@@ -90,17 +153,16 @@
         other.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
       apply();
+      return;
     }
+    var stepTab = t.closest('[data-foms-home-steptab]');
+    if (stepTab) { selectStepTab(stepTab.getAttribute('data-foms-home-steptab')); return; }
+    var done = t.closest('[data-foms-home-step-done]');
+    if (done) { finishStep(done); }
   });
 
-  if (search) {
-    search.addEventListener('input', function () {
-      term = (search.value || '').trim().toLowerCase();
-      apply();
-    });
-  }
-
   // ── 받은 시각 — 1분마다 "N분 전에 받음". 10분 넘으면 점이 노랗게. ──
+  var sync = root.querySelector('[data-foms-home-sync]');
   var loadedAt = Date.parse(root.getAttribute('data-loaded-at') || '');
   function tick() {
     if (!sync || isNaN(loadedAt)) { return; }
@@ -111,10 +173,8 @@
   tick();
   window.setInterval(tick, 60000);
 
-  // ── 연결 끊김(D5) — 표시만. 보이는 목록은 받은 시각 것이라고 적어 둔다. ──
-  function onlineState() {
-    root.classList.toggle('is-offline', !navigator.onLine);
-  }
+  // ── 연결 끊김(D5) — 표시만. ──
+  function onlineState() { root.classList.toggle('is-offline', !navigator.onLine); }
   window.addEventListener('online', onlineState);
   window.addEventListener('offline', onlineState);
   onlineState();
