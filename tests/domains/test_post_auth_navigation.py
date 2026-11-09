@@ -11,12 +11,12 @@ IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
 DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
-def _create_user(username: str) -> User:
+def _create_user(username: str, *, team: str = "CS", role: str = "ADMIN") -> User:
     user = User(
         username=username,
         password=generate_password_hash("admin"),
-        role="ADMIN",
-        team="CS",
+        role=role,
+        team=team,
         name=username,
         is_active=True,
     )
@@ -147,3 +147,49 @@ def test_login_with_backslash_next_lands_on_home(client, app) -> None:
     location = response.headers["Location"]
     assert _BS not in location and "evil.example" not in location
     assert urlsplit(location).path == "/" and urlsplit(location).netloc in ("", "localhost")
+
+
+# ── 생산팀 착지 = 생산 홈(설계서 §12, D10·D12) — 기기 무관 ──
+PRODUCTION_HOME = "/erp/production/home"
+
+
+def test_production_login_lands_on_production_home_even_on_desktop(client, app) -> None:
+    _create_user("prod_login_user", team="PRODUCTION", role="STAFF")
+    response = _login(
+        client, username="prod_login_user", follow_redirects=False, headers={"User-Agent": DESKTOP_UA}
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(PRODUCTION_HOME)
+
+
+def test_production_login_with_legacy_next_lands_on_production_home(client, app, monkeypatch) -> None:
+    monkeypatch.setenv("FOMS_WIZARD_NEW_ORDER_ENABLED", "true")
+    _create_user("prod_next_user", team="PRODUCTION", role="STAFF")
+    response = client.post(
+        "/login?next=/",
+        data={"username": "prod_next_user", "password": "admin"},
+        follow_redirects=False,
+        headers={"User-Agent": IPHONE_UA},
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(PRODUCTION_HOME)
+
+
+def test_production_root_redirects_to_production_home(client, app) -> None:
+    user = _create_user("prod_root_user", team="PRODUCTION", role="STAFF")
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    response = client.get("/", follow_redirects=False, headers={"User-Agent": DESKTOP_UA})
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(PRODUCTION_HOME)
+
+
+def test_cs_desktop_login_is_unchanged_by_production_landing(client, app) -> None:
+    _create_user("cs_desktop_user")
+    response = _login(
+        client, username="cs_desktop_user", follow_redirects=False, headers={"User-Agent": DESKTOP_UA}
+    )
+    assert response.status_code == 302
+    assert not response.headers["Location"].endswith(PRODUCTION_HOME)

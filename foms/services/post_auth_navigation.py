@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from flask import Request, redirect, session, url_for
+from flask import Request, g, redirect, session, url_for
 from werkzeug.wrappers import Response
 
 from foms.services.feature_flags import prefers_mobile_wizard_client, wizard_new_order_enabled
+from foms.services.orders.order_mutation_policy import normalize_team
 
 _BACKSLASH = chr(92)
 
@@ -28,6 +29,41 @@ def should_use_erp_mobile_home(user_id: int | None, request: Request) -> bool:
     return mobile_app in {"1", "true", "yes"}
 
 
+def is_production_home_user(user: object | None) -> bool:
+    """생산팀 직원인가 — 첫 화면이 생산 홈(``/erp/production/home``)인 사람(설계서 §12, D10·D12).
+
+    조건 = 팀 PRODUCTION 이고 협력사 계정이 아님. 기기와 무관하다(PC 도 생산 홈). 프리랜서는
+    영업팀만 될 수 있어(``freelancer_scope.could_be_freelancer``) 여기서 따로 보지 않는다.
+    """
+    if user is None:
+        return False
+    if getattr(user, "partner_org_id", None) is not None:
+        return False
+    return normalize_team(getattr(user, "team", None)) == "PRODUCTION"
+
+
+def _is_production_home_user_id(user_id: int | None) -> bool:
+    """id 로 판정 — 같은 요청이 이미 읽은 ``g.current_user`` 가 그 사람이면 다시 읽지 않는다."""
+    if user_id is None:
+        return False
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    current = getattr(g, "current_user", None)
+    if current is not None and getattr(current, "id", None) == uid:
+        return is_production_home_user(current)
+    from db import get_db  # 지연 import: 서비스 모듈 import 순서(DB 바인딩) 유지
+    from models import User
+
+    return is_production_home_user(get_db().get(User, uid))
+
+
+def production_home_url(**url_kwargs: str) -> str:
+    """생산 홈 주소(착지 세 곳 + switch_user 가 같은 함수를 탄다)."""
+    return url_for("erp_production_page.erp_production_home", **url_kwargs)
+
+
 def authenticated_home_url(*, user_id: int | None, request: Request, **url_kwargs: str) -> str:
     """Resolve the default authenticated landing URL for this client.
 
@@ -39,6 +75,8 @@ def authenticated_home_url(*, user_id: int | None, request: Request, **url_kwarg
     Returns:
         Relative URL for ERP mobile home or legacy order list.
     """
+    if _is_production_home_user_id(user_id):
+        return production_home_url(**url_kwargs)
     if should_use_erp_mobile_home(user_id, request):
         return url_for("erp_dashboard.erp_dashboard", **url_kwargs)
     return url_for("order_pages.index", **url_kwargs)
@@ -97,8 +135,11 @@ def resolve_post_login_redirect(
     """
     fallback = authenticated_home_url(user_id=user_id, request=request)
     next_url = normalize_internal_next_url(raw_next, fallback=fallback)
-    if is_legacy_home_path(next_url) and should_use_erp_mobile_home(user_id, request):
-        return url_for("erp_dashboard.erp_dashboard")
+    if is_legacy_home_path(next_url):
+        if _is_production_home_user_id(user_id):
+            return production_home_url()
+        if should_use_erp_mobile_home(user_id, request):
+            return url_for("erp_dashboard.erp_dashboard")
     return next_url
 
 

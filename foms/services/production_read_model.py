@@ -64,8 +64,12 @@ def build_production_orders_query(
     f_q: str,
     erp_mine_only: bool,
     partner_org: str = '',
+    stage_codes: tuple[str, ...] | None = None,
 ) -> Query:
     """필터를 적용한 생산 대시보드용 ERP Order 쿼리(정렬 전).
+
+    ``stage_codes`` 는 생산팀 첫 화면(설계서 §12)만 넓혀 쓴다(도면 단계 포함). None 이면 칸반과
+    같은 ``PRODUCTION_BASE_STAGE_CODES`` — 기존 호출은 바뀌지 않는다.
 
     단계 필터는 flat 컬럼 ``Order.erp_stage_code``(index=True)를 직접 참조한다.
     JSONB path cast(``structured_data['workflow']['stage']``, 인덱스 없음)를 제거해
@@ -76,7 +80,7 @@ def build_production_orders_query(
     _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
     if partner_org:
         _q = _q.filter(partner_order_clause(partner_org))
-    _q = _q.filter(Order.erp_stage_code.in_(list(PRODUCTION_BASE_STAGE_CODES)))
+    _q = _q.filter(Order.erp_stage_code.in_(list(stage_codes or PRODUCTION_BASE_STAGE_CODES)))
 
     if f_stage:
         run = current_production_run_exists()
