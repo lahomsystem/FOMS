@@ -33,6 +33,8 @@ from foms.services.user_deletion import (
     detach_user_references_for_delete,
 )
 from foms.services.post_auth_navigation import (
+    is_production_home_user,
+    production_home_url,
     authenticated_home_url,
     normalize_internal_next_url,
     resolve_post_login_redirect,
@@ -584,6 +586,9 @@ def switch_user(target_user_id):
     # 시공팀 전환 시 출고 대시보드로 직접 이동 (이중 리다이렉트 방지)
     if target.team == 'CONSTRUCTION':
         return redirect(url_for('erp_shipment_page.erp_shipment_dashboard'))
+    if is_production_home_user(target):
+        # 생산팀 전환은 referrer 보다 생산 홈(설계서 §12, D12) — 컨트롤타워로 돌아가면 403 상자(F-01).
+        return redirect(production_home_url())
     return redirect(request.referrer or authenticated_home_url(user_id=target.id, request=request))
 
 

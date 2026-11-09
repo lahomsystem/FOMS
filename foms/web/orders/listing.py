@@ -42,7 +42,7 @@ from foms.services.feature_flags import (
     should_render_new_order_wizard,
     wizard_new_order_enabled,
 )
-from foms.services.post_auth_navigation import redirect_to_authenticated_home, should_use_erp_mobile_home
+from foms.services.post_auth_navigation import redirect_to_authenticated_home, should_use_erp_mobile_home, _is_production_home_user_id, production_home_url
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.auth.partner_scope import partner_mark_name
@@ -156,6 +156,9 @@ def index():
     """메인 주문 목록 페이지."""
     _uid_raw = session.get('user_id')
     _uid = int(_uid_raw) if _uid_raw is not None else None
+    if _is_production_home_user_id(_uid):
+        # 생산팀 첫 화면(설계서 §12, D10·D12) — 기기 무관. 모바일 판정보다 앞.
+        return redirect(production_home_url(**request.args))
     if should_use_erp_mobile_home(_uid, request):
         return redirect(url_for('erp_dashboard.erp_dashboard', **request.args))
     try:
