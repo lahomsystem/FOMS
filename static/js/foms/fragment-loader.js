@@ -90,7 +90,24 @@
       "</div>";
   }
 
-  function renderError(container, url, options) {
+  // 403 = 볼 권한은 있어도 편집 fragment 를 못 받는 사람(생산팀 등, 설계서 F7 ②). 주문 시트 URL 이면
+  // 모바일 상세로 가는 링크를 준다 — 다시 시도해도 같은 답이라 재시도 단추는 두지 않는다.
+  function renderForbidden(container, url) {
+    var m = /\/tablet-sheet\/(\d+)/.exec(url || "");
+    container.innerHTML =
+      '<div class="foms-fragment-state foms-fragment-state--forbidden" role="status">' +
+      "<p>" + (m ? "이 주문은 보기만 할 수 있어요." : "이 내용은 볼 수 없어요.") + "</p>" +
+      (m
+        ? '<a class="foms-fragment-retry foms-tablet-sheet__retry" href="/erp/orders/' + m[1] + '/mobile">상세</a>'
+        : "") +
+      "</div>";
+  }
+
+  function renderError(container, url, options, status) {
+    if (status === 403) {
+      renderForbidden(container, url);
+      return;
+    }
     container.innerHTML =
       '<div class="foms-fragment-state foms-fragment-state--error" role="alert">' +
       "<p>내용을 불러오지 못했습니다.</p>" +
@@ -121,7 +138,11 @@
       },
     })
       .then(function (res) {
-        if (!res.ok) throw new Error("fragment HTTP " + res.status);
+        if (!res.ok) {
+          var httpErr = new Error("fragment HTTP " + res.status);
+          httpErr.status = res.status;
+          throw httpErr;
+        }
         return res.text();
       })
       .then(function (html) {
@@ -145,7 +166,7 @@
       .catch(function (err) {
         if (container.__fomsFragmentToken !== token) return;
         console.error("[foms-fragment-loader] load failed:", err);
-        renderError(container, url, options);
+        renderError(container, url, options, err && err.status);
       });
   }
 

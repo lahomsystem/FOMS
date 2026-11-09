@@ -10,7 +10,7 @@ from foms.services.erp_dashboard_search import search_query_tokens, visible_orde
 from foms.services.foms_unified_search import is_chosung_query
 from sqlalchemy import and_, text
 from foms.services.common.partner_order_filter import partner_filter_args, partner_filter_value, partner_order_clause
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import can_edit_erp, can_view_order_amounts
 from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, is_list_freelancer
 from foms.services.orders.mobile_delete_guard import build_mobile_delete_context
 from foms.services.erp_order_flags import is_erp_order_record
@@ -642,6 +642,9 @@ def erp_dashboard_tablet_sheet(order_id: int):
         정본 edit 페이지로 302(비스타일 partial 노출 방지 — fragment.py 전례).
     """
     if request.headers.get("Sec-Fetch-Dest") == "document":
+        if not can_edit_erp(getattr(g, 'current_user', None)):
+            # 편집 권한이 없는 팀(생산 등)은 edit 페이지로 보내도 다시 막힌다 — 모바일 상세로(설계서 F7 ②, 11-09).
+            return redirect(url_for('erp_dashboard.erp_order_mobile_detail', order_id=order_id))
         return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-order'))
 
     db = get_db()
@@ -851,6 +854,14 @@ def erp_order_mobile_detail(order_id: int):
     _batch_ctx = build_mobile_queue_batch_context(db, [order])
     order_row = build_mobile_queue_order_row(db, order, current_user, batch_ctx=_batch_ctx)
     can_edit_erp_flag = can_edit_erp(current_user)
+    show_amounts = can_view_order_amounts(current_user)
+    if not show_amounts:
+        # 생산팀(D7): 금액 절·품목 금액을 값부터 빼서 보낸다(템플릿 가드와 함께 이중).
+        order_row["amount_summary"] = None
+        for _item in order_row.get("product_items") or []:
+            _item["price_label"] = "-"
+            _size = _item.get("size")
+            _item["summary"] = _size if _size and _size != "-" else str(_item.get("title") or "")
     return_to = (request.args.get('return_to') or '').strip()
     back_endpoint = resolve_edit_return_back_endpoint(return_to)
 
@@ -868,6 +879,7 @@ def erp_order_mobile_detail(order_id: int):
         timeline=load_order_timeline(db, order),
         as_schedule_drift=build_schedule_link_drift(order.structured_data, db, viewer=current_user),
         can_edit_erp=can_edit_erp_flag,
+        show_amounts=show_amounts,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',
         mobile_shell_show_back=True,

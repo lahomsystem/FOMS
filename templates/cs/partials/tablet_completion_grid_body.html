@@ -80,10 +80,12 @@
       <span class="foms-completion-grid__kpi-label">정산 대기</span>
       <span class="foms-completion-grid__kpi-value">{{ meta.kpis.pending }}</span>
     </div>
+    {% if meta.show_amounts | default(true) %}{# 생산팀(D7)은 미수 합계 칸 없음 #}
     <div class="foms-completion-grid__kpi foms-completion-grid__kpi--danger">
       <span class="foms-completion-grid__kpi-label">미수 합계</span>
       <span class="foms-completion-grid__kpi-value">₩{{ meta.kpis.unpaid_total_display }}</span>
     </div>
+    {% endif %}
     <div class="foms-completion-grid__kpi">
       <span class="foms-completion-grid__kpi-label">현금영수증 요청</span>
       <span class="foms-completion-grid__kpi-value">{{ meta.kpis.cash_receipt_requests }}</span>
@@ -101,9 +103,11 @@
           <th scope="col">완료일</th>
           <th scope="col">고객</th>
           <th scope="col">제품</th>
+          {% if meta.show_amounts | default(true) %}{# 생산팀(D7)은 금액 열 자체가 없다 #}
           <th scope="col" class="is-num">출고가</th>
           <th scope="col" class="is-num">예약금</th>
           <th scope="col" class="is-num">잔금</th>
+          {% endif %}
           <th scope="col">현금영수증</th>
           <th scope="col">정산</th>
         </tr>
@@ -118,6 +122,7 @@
           <td>{{ row.completion_date or '-' }}{% if row.is_as %} (AS){% endif %}</td>
           <td class="foms-completion-grid__customer">{{ row.customer_name }}</td>
           <td>{{ row.product_summary }}</td>
+          {% if meta.show_amounts | default(true) %}
           <td class="is-num">{{ row.shipping_price_display }}</td>
           <td class="is-num">{{ row.deposit_display }}</td>
           {# 잔금은 0 에서 잘린다 — 넘친 금액은 그 클램프가 삼킨다. 돌려줄 돈이 있다는
@@ -127,6 +132,7 @@
             <div class="foms-completion-grid__overpaid">과입금 {{ row.overpaid_display }}</div>
             {% endif %}
           </td>
+          {% endif %}
           <td class="foms-completion-grid__receipt-cell">
             {% if row.cash_receipt_state == 'issued' %}
             <span class="foms-completion-grid__receipt-chip is-issued">발행됨</span>

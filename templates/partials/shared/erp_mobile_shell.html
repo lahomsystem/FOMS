@@ -21,6 +21,8 @@
   {% set _active = 'dashboard' %}
 {% endif %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
+{# 생산팀(협력사 아님)은 세로(폰 화면)에서도 생산이 첫 탭이고, 그 탭은 생산 홈으로 간다(설계서 F6·§12, 11-09). -#}
+{% set _production_team = current_user and (current_user.team or '') == 'PRODUCTION' and not (current_user.partner_org_id if current_user.partner_org_id is defined else none) -%}
 {# 켜진 프리랜서(FCOMM-01 겹 5 메뉴 · D30) — 회사 영업과 같은 탭 + 내 수수료. 서랍은 문지기가 여는 화면만(freelancer_nav_items,
    PC 메뉴와 같은 목록 — 도면은 id 'drawing'). 판정은 요청당 한 번 읽는다.
    이 주석 · 아래 set 의 끝 빼기 기호는 다른 사용자 출력이 한 글자도 바뀌지 않게 한다(tests/domains/test_freelancer_menus.py). -#}
@@ -32,7 +34,7 @@
   {'id': 'dashboard', 'label': '대시보드', 'icon': 'fas fa-layer-group', 'href': url_for('erp_dashboard.erp_dashboard')},
   {'id': 'measurement', 'label': '실측', 'icon': 'fas fa-ruler-combined', 'href': url_for('erp_measurement_dashboard.erp_measurement_dashboard')},
   {'id': 'drawing_workbench', 'label': '도면', 'icon': 'fas fa-drafting-compass', 'href': url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard')},
-  {'id': 'production', 'label': '생산', 'icon': 'fas fa-industry', 'href': url_for('erp_production_page.erp_production_dashboard')},
+  {'id': 'production', 'label': '생산', 'icon': 'fas fa-industry', 'href': (url_for('erp_production_page.erp_production_home') if _production_team else url_for('erp_production_page.erp_production_dashboard'))},
   {'id': 'shipment', 'label': '출고', 'icon': 'fas fa-truck-loading', 'href': url_for('erp_shipment_page.erp_shipment_dashboard')},
   {'id': 'as', 'label': 'AS', 'icon': 'fas fa-wrench', 'href': url_for('erp_as_page.erp_as_dashboard')},
   {'id': 'construction', 'label': '시공', 'icon': 'fas fa-hammer', 'href': url_for('erp_construction_page.erp_construction_dashboard')},
@@ -48,6 +50,9 @@
 {% elif _construction_only %}
   {% set _primary_ids = ['shipment', 'construction', 'completion', 'history'] %}
   {% set _allowed_ids = ['shipment', 'construction', 'completion', 'history'] %}
+{% elif _production_team %}
+  {% set _primary_ids = ['production', 'shipment', 'construction', 'dashboard'] %}
+  {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}
 {% elif _sales_drawing_cohort %}
   {% set _primary_ids = ['dashboard', 'measurement', 'drawing_workbench', 'shipment'] %}
   {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}
@@ -82,6 +87,12 @@
     {% endif %}
   {% endif %}
 {% endfor %}
+{% if _production_team -%}
+{# 생산팀만 아래 탭을 _primary_ids 순서(생산 먼저)로 다시 세운다. 다른 팀은 지금처럼 목록 순서 — 출력 불변. -#}
+{% set _ordered = [] -%}
+{% for _pid in _primary_ids %}{% for item in _primary_items %}{% if item.id == _pid %}{% set _ = _ordered.append(item) %}{% endif %}{% endfor %}{% endfor -%}
+{% set _primary_items = _ordered -%}
+{% endif -%}
 {% if not _current.item and _drawer_items %}
   {% set _current.item = _drawer_items[0] %}
 {% endif %}
