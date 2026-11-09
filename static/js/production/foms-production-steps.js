@@ -260,7 +260,7 @@
     });
     setDefectChipsDisabled(false);
     if (!result.ok) {
-      setDefectStatus('보고 실패: ' + result.message);
+      setDefectStatus(result.kind === 'network' ? '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.' : ('보고 실패: ' + result.message));
       return;
     }
     renderDefectRecent((result.data.data && result.data.data.latest) || null);
@@ -293,7 +293,7 @@
     // rollback 대상 DOM 변경이 없다 — 버튼 re-enable만으로 원상태 보존.
     btn.disabled = false;
     if (!result.ok) {
-      alert('공정 저장 실패: ' + result.message);
+      alert(result.kind === 'network' ? '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.' : ('공정 저장 실패: ' + result.message));
       return;
     }
     renderSteps(result.data.data || {});

@@ -1,5 +1,5 @@
 {# 화면 크기 손잡이(2026-11-09 사용자) — 위 막대(PC) · 메뉴 서랍(폰) 공용.
-   호출측: {% set foms_ui_zoom_variant = 'bar' | 'drawer' %} 후 include. 동작은 static/js/foms/ui-zoom.js.
+   호출측: {% set foms_ui_zoom_variant = 'bar' | 'drawer' | 'rail' %} 후 include(rail = 태블릿 레일 세로 3단, 11-09 F1 ①). 동작은 static/js/foms/ui-zoom.js.
    가운데 숫자를 누르면 100% 로 돌아간다. #}
 {% set _uz_variant = foms_ui_zoom_variant|default('bar') %}
 {% if _uz_variant == 'drawer' %}<div class="foms-ui-zoom-row"><span class="foms-ui-zoom-row__label">화면 크기</span>{% endif %}

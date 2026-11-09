@@ -18,6 +18,8 @@
    - 아바타: 이니셜 표시 + 클릭 = 기존 프로필 페이지(auth.profile) 이동(실존 동작만 배선). #}
 <nav class="foms-tablet-rail" aria-label="ERP 단계 메뉴">
   <div class="foms-tablet-rail__brand" aria-hidden="true">F</div>
+  {# 화면 크기 손잡이(F1 ①, 11-09): 브랜드 바로 아래 — 130% 에서도 스크롤 없이 보인다. 동작은 ui-zoom.js(전수 갱신). #}
+  {% set foms_ui_zoom_variant = 'rail' %}{% include 'partials/shared/foms_ui_zoom_control.html' %}
   {% for item in foms_tablet_rail_items() %}
   <a
     class="foms-tablet-rail__item{% if item.active %} is-active{% endif %}"
