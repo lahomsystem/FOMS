@@ -268,3 +268,11 @@ html[data-foms-fs] .layout-global-nav .foms-nav-mark {
   width: calc(15px * var(--foms-fs, 1));
   height: calc(15px * var(--foms-fs, 1));
 }
+
+/* ERP 탭 막대(.erp-pro-nav)도 탭 글자 배율을 따르지 않고 화면 크기에만 따른다(2026-11-09 사용자 "이 bar 는 화면 배율에 연동").
+   막대 안 크기는 rem 토큰이라 1/배율 하나로 100% 와 같아진다(스테이징 70% · 150% 실측). 붙는 위치(top)는
+   막대의 zoom 좌표라 배율을 곱해 둔다. */
+html[data-foms-fs] .erp-pro-nav {
+  zoom: calc(1 / var(--foms-fs, 1));
+  top: calc(var(--foms-global-nav-sticky-h, 0px) * var(--foms-fs, 1));
+}

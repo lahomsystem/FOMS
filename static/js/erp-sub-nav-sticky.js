@@ -15,7 +15,9 @@
                 offset = nav.getBoundingClientRect().height || 0;
             }
         }
-        document.documentElement.style.setProperty('--foms-global-nav-sticky-h', Math.round(offset) + 'px');
+        // 화면 크기 배율(2026-11-09): rect 높이는 보이는 px, CSS 변수는 배율 전 px 다 — 나눠 넣는다.
+        var uiZoom = window.fomsUiZoom ? window.fomsUiZoom() : 1;
+        document.documentElement.style.setProperty('--foms-global-nav-sticky-h', Math.round(offset / uiZoom) + 'px');
     }
 
     function init() {
