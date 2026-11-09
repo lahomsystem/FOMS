@@ -70,7 +70,7 @@
       </div>
       {% else %}
       <div class="drawing-gateway-thumb d-flex align-items-center justify-content-center bg-light text-secondary border"
-        style="font-size:22px;">
+        style="font-size:calc(22px * var(--foms-fs, 1));">
         <i class="fas fa-file"></i>
       </div>
       {% endif %}
@@ -794,7 +794,7 @@
       border-radius: 50%;
       background: rgba(220, 53, 69, 0.9);
       color: #fff;
-      font-size: 13px;
+      font-size: calc(13px * var(--foms-fs, 1));
       line-height: 1;
       cursor: pointer;
       opacity: 0.85;
@@ -873,7 +873,7 @@
       border-radius: 6px;
       background: #fff8e6;
       color: #5c3d00;
-      font-size: 12px;
+      font-size: calc(12px * var(--foms-fs, 1));
       font-weight: 600;
       text-decoration: none;
       vertical-align: middle;

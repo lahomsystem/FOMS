@@ -690,7 +690,7 @@
   /* 320px 폰 안전판: 타일 안쪽이 103px 이하로 좁아지면 값 글자만 한 단계 줄인다. */
   @container (max-width: 103px) {
     body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-date-tile__value {
-      font-size: 15px;
+      font-size: calc(15px * var(--foms-fs, 1));
     }
   }
 
@@ -710,7 +710,7 @@
     background: transparent;
     box-shadow: none;
     opacity: 0;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;

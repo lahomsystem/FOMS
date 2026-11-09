@@ -104,7 +104,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   }
   body.wdc-tablet-v2 .wdc2-topbar__title {
     flex: none;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
     color: var(--wdc2-ink);
@@ -126,7 +126,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   body.wdc-tablet-v2 .wdc2-topbar__cust .form-control {
     height: 44px;
     min-height: 44px;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     font-weight: 700;
     border: 0;
     border-bottom: 2px solid var(--wdc2-ink);
@@ -145,7 +145,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 9px;
     background: var(--wdc2-surface);
     color: #3A3E45;
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
@@ -162,7 +162,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 9px;
     background: var(--wdc2-surface);
     color: #3A3E45;
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     font-weight: 600;
     white-space: nowrap;
   }
@@ -185,8 +185,8 @@ html.wdc-tablet-pending .wdcalculator-container {
     gap: 10px;
     padding: 10px 16px 0;
   }
-  body.wdc-tablet-v2 .wdc2-sec__t { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: var(--wdc2-ink); }
-  body.wdc-tablet-v2 .wdc2-sec__c { font-size: 11px; color: var(--wdc2-muted); font-weight: 600; }
+  body.wdc-tablet-v2 .wdc2-sec__t { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; letter-spacing: -0.01em; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sec__c { font-size: calc(11px * var(--foms-fs, 1)); color: var(--wdc2-muted); font-weight: 600; }
 
   /* 열 헤더 + 행 그리드(기본 구성): 모드 108 | 상세 0.7fr | W(min180) 0.5fr | 단가 156 | ✕ 40.
      모드 select 폭 확보·W 복합식 우선. 제품명 ellipsis 허용. */
@@ -200,7 +200,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   body.wdc-tablet-v2 .wdc2-colhead {
     padding: 7px 16px 2px;
     color: #9AA0A9;
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--foms-fs, 1));
     font-weight: 700;
     letter-spacing: 0.07em;
   }
@@ -223,7 +223,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   }
   body.wdc-tablet-v2 .wdc2-modesel__n {
     flex: none;
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     font-weight: 800;
     color: var(--wdc2-ink);
   }
@@ -238,7 +238,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 8px;
     background: var(--wdc2-subtle);
     padding: 0 6px;
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--foms-fs, 1));
     font-weight: 700;
     color: var(--wdc2-sub);
     cursor: pointer;
@@ -267,7 +267,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     cursor: pointer;
   }
   body.wdc-tablet-v2 .wdc2-prodbtn__nm {
-    font-size: 15.5px;
+    font-size: calc(15.5px * var(--foms-fs, 1));
     font-weight: 700;
     letter-spacing: -0.01em;
     white-space: nowrap;
@@ -275,7 +275,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     text-overflow: ellipsis;
     color: var(--wdc2-ink);
   }
-  body.wdc-tablet-v2 .wdc2-caret { margin-left: auto; color: #B4B0A6; flex: none; font-size: 11px; }
+  body.wdc-tablet-v2 .wdc2-caret { margin-left: auto; color: #B4B0A6; flex: none; font-size: calc(11px * var(--foms-fs, 1)); }
 
   /* MINE 제품명 — 전폭 입력. */
   body.wdc-tablet-v2 .wdc2-dname {
@@ -285,7 +285,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 10px;
     background: var(--wdc2-surface);
     padding: 0 13px;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--wdc2-ink);
@@ -303,7 +303,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     text-align: right;
     padding: 9px 12px;
     font-family: inherit;
-    font-size: 18px;
+    font-size: calc(18px * var(--foms-fs, 1));
     line-height: 24px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
@@ -335,7 +335,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     height: 44px;
     padding: 0 14px;
     color: #C6C2B8;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 700;
   }
   body.wdc-tablet-v2 .wdc2-directcell__nm {
@@ -346,7 +346,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 10px;
     background: var(--wdc2-surface);
     padding: 0 13px;
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--foms-fs, 1));
     font-weight: 700;
     color: var(--wdc2-ink);
   }
@@ -359,7 +359,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     background: var(--wdc2-surface);
     text-align: right;
     padding: 0 12px;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--wdc2-ink);
@@ -371,7 +371,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     height: 44px;
     padding: 0 12px;
     color: #C6C2B8;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     font-weight: 700;
   }
   /* 단가 — read-only 계산 미러(그린 틴트, 만질 수 없는 값). */
@@ -385,7 +385,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     padding: 0 12px;
   }
   body.wdc-tablet-v2 .wdc2-price__v {
-    font-size: 16.5px;
+    font-size: calc(16.5px * var(--foms-fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
     color: var(--wdc2-accent-ink);
@@ -403,7 +403,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 17px;
+    font-size: calc(17px * var(--foms-fs, 1));
     cursor: pointer;
     justify-self: center;
   }
@@ -436,7 +436,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 8px;
     background: var(--wdc2-subtle);
     padding: 0 11px;
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     font-weight: 600;
     color: #3A3E45;
   }
@@ -449,7 +449,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     background: var(--wdc2-surface);
     text-align: right;
     padding: 0 11px;
-    font-size: 13.5px;
+    font-size: calc(13.5px * var(--foms-fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--wdc2-ink);
@@ -459,7 +459,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border: none;
     background: transparent;
     color: #C6C2B8;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     padding: 0 4px;
     cursor: pointer;
   }
@@ -473,7 +473,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     align-items: center;
     gap: 7px;
     padding: 0 12px;
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--foms-fs, 1));
     font-weight: 800;
     color: #3A3E45;
     cursor: pointer;
@@ -488,19 +488,19 @@ html.wdc-tablet-pending .wdcalculator-container {
     background: var(--wdc2-surface);
     text-align: right;
     padding: 0 11px;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--wdc2-ink);
   }
-  body.wdc-tablet-v2 .wdc2-subhint { font-size: 10.5px; color: #9AA0A9; font-weight: 600; }
+  body.wdc-tablet-v2 .wdc2-subhint { font-size: calc(10.5px * var(--foms-fs, 1)); color: #9AA0A9; font-weight: 600; }
 
   body.wdc-tablet-v2 .wdc2-addfee { margin-top: 6px; margin-left: 120px; }
   body.wdc-tablet-v2 .wdc2-addfee__btn {
     border: none;
     background: none;
     color: var(--wdc2-muted);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--foms-fs, 1));
     font-weight: 700;
     padding: 1px 0;
     cursor: pointer;
@@ -520,7 +520,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 10px;
     background: #FCFBF9;
     color: #54595F;
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--foms-fs, 1));
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -568,7 +568,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     font-weight: 800;
     cursor: pointer;
   }
@@ -590,7 +590,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     cursor: pointer;
   }
   body.wdc-tablet-v2 .wdc2-optbtn__nm {
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--foms-fs, 1));
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
@@ -604,7 +604,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 10px;
     background: var(--wdc2-surface);
     padding: 0 13px;
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--foms-fs, 1));
     font-weight: 700;
     color: var(--wdc2-ink);
   }
@@ -616,7 +616,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     background: var(--wdc2-surface);
     text-align: right;
     padding: 0 12px;
-    font-size: 16px;
+    font-size: calc(16px * var(--foms-fs, 1));
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--wdc2-ink);
@@ -639,13 +639,13 @@ html.wdc-tablet-pending .wdcalculator-container {
     gap: 10px;
   }
   body.wdc-tablet-v2 .wdc2-pill__l {
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     font-weight: 800;
     color: var(--wdc2-muted);
     letter-spacing: 0.04em;
     flex: none;
   }
-  body.wdc-tablet-v2 .wdc2-pill__sign { font-size: 14px; font-weight: 800; color: var(--wdc2-danger); }
+  body.wdc-tablet-v2 .wdc2-pill__sign { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-danger); }
   body.wdc-tablet-v2 .wdc2-pill__sign--plus { color: #3A6291; }
   body.wdc-tablet-v2 .wdc2-pill__field .mb-3 { margin: 0 !important; }
   /* 이동해 온 엔진 위젯의 라벨·안내문 은닉. !important 필수 — 배송비 체크 안내문이
@@ -660,7 +660,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 8px;
     text-align: right;
     padding: 0 10px;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
@@ -669,7 +669,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   body.wdc-tablet-v2 .wdc2-pill__chk .form-check { padding-left: 0; display: flex; align-items: center; gap: 6px; }
   body.wdc-tablet-v2 .wdc2-pill__chk .form-check-input { margin: 0; width: 19px; height: 19px; }
   body.wdc-tablet-v2 .wdc2-pill__chk .form-check-label {
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     color: #54595F;
     font-weight: 600;
     white-space: nowrap;
@@ -692,24 +692,24 @@ html.wdc-tablet-pending .wdcalculator-container {
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
   }
   body.wdc-tablet-v2 .wdc2-abar__grow { flex: 1 1 auto; }
-  body.wdc-tablet-v2 .wdc2-abar__label { font-size: 11px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.05em; }
+  body.wdc-tablet-v2 .wdc2-abar__label { font-size: calc(11px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.05em; }
   body.wdc-tablet-v2 .wdc2-abar__row { display: flex; align-items: baseline; gap: 8px; }
   body.wdc-tablet-v2 .wdc2-abar__val {
-    font-size: 25px;
+    font-size: calc(25px * var(--foms-fs, 1));
     font-weight: 900;
     letter-spacing: -0.02em;
     color: var(--wdc2-accent-ink);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  body.wdc-tablet-v2 .wdc2-abar__live { font-size: 10.5px; color: #9AA0A9; }
+  body.wdc-tablet-v2 .wdc2-abar__live { font-size: calc(10.5px * var(--foms-fs, 1)); color: #9AA0A9; }
   body.wdc-tablet-v2 .wdc2-abar__add {
     height: 46px;
     border-radius: 10px;
     border: none;
     background: var(--wdc2-accent);
     color: #fff;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     font-weight: 800;
     padding: 0 22px;
     display: flex;
@@ -740,25 +740,25 @@ html.wdc-tablet-pending .wdcalculator-container {
     padding: 13px 16px 11px;
   }
   body.wdc-tablet-v2 .wdc2-panel__curhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  body.wdc-tablet-v2 .wdc2-panel__curhd b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-panel__curhd b { font-size: calc(12.5px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-ink); }
   body.wdc-tablet-v2 .wdc2-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--wdc2-accent); }
   body.wdc-tablet-v2 .wdc2-bl {
     display: flex;
     justify-content: space-between;
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--foms-fs, 1));
     color: #54595F;
     padding: 3px 0;
   }
   body.wdc-tablet-v2 .wdc2-bl b { font-weight: 700; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
   body.wdc-tablet-v2 .wdc2-bl--minus b { color: var(--wdc2-danger); }
-  body.wdc-tablet-v2 .wdc2-mut { color: #9AA0A9; font-size: 11px; }
+  body.wdc-tablet-v2 .wdc2-mut { color: #9AA0A9; font-size: calc(11px * var(--foms-fs, 1)); }
   body.wdc-tablet-v2 .wdc2-bl--total {
     border-top: 1px solid #EFEDE7;
     margin-top: 6px;
     padding-top: 8px;
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
   }
-  body.wdc-tablet-v2 .wdc2-bl--total b { font-size: 19px; font-weight: 900; color: var(--wdc2-accent-ink); letter-spacing: -0.01em; }
+  body.wdc-tablet-v2 .wdc2-bl--total b { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 900; color: var(--wdc2-accent-ink); letter-spacing: -0.01em; }
 
   body.wdc-tablet-v2 .wdc2-panel__list {
     flex: 1 1 auto;
@@ -768,12 +768,12 @@ html.wdc-tablet-pending .wdcalculator-container {
     padding: 11px 14px 0;
   }
   body.wdc-tablet-v2 .wdc2-panel__lh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  body.wdc-tablet-v2 .wdc2-panel__lh b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
-  body.wdc-tablet-v2 .wdc2-panel__cnt { font-size: 11px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__lh b { font-size: calc(12.5px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-panel__cnt { font-size: calc(11px * var(--foms-fs, 1)); color: var(--wdc2-muted); font-weight: 700; }
   body.wdc-tablet-v2 .wdc2-panel__grow { flex: 1 1 auto; }
   body.wdc-tablet-v2 .wdc2-panel__toggle .wd-unit-price-toggle-wrap { gap: 5px !important; }
   body.wdc-tablet-v2 .wdc2-panel__toggle .form-check-input { margin: 0; }
-  body.wdc-tablet-v2 .wdc2-panel__toggle label { font-size: 10.5px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle label { font-size: calc(10.5px * var(--foms-fs, 1)); color: var(--wdc2-muted); font-weight: 700; }
   body.wdc-tablet-v2 .wdc2-panel__body {
     flex: 1 1 auto;
     min-height: 0;
@@ -796,13 +796,13 @@ html.wdc-tablet-pending .wdcalculator-container {
   /* r1: [견적 N]----[금액]. 금액 flex:none — 절대 잘리지 않음(결함1: 좌측 레일/폭 부족과 무관). */
   body.wdc-tablet-v2 .wdc2-qcard__r1 { display: flex; align-items: baseline; gap: 8px; }
   body.wdc-tablet-v2 .wdc2-qcard__grow { flex: 1 1 auto; }
-  body.wdc-tablet-v2 .wdc2-qcard__no { flex: none; font-size: 11px; font-weight: 800; color: var(--wdc2-muted); white-space: nowrap; }
+  body.wdc-tablet-v2 .wdc2-qcard__no { flex: none; font-size: calc(11px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-muted); white-space: nowrap; }
   /* r2: 제품명/구성명 전폭 — 줄바꿈 허용, ellipsis 금지("무몰딩(푸…" 잘림 결함 제거). */
   body.wdc-tablet-v2 .wdc2-qcard__r2 { display: flex; align-items: flex-start; gap: 4px; margin-top: 2px; }
   body.wdc-tablet-v2 .wdc2-qcard__nm {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--foms-fs, 1));
     font-weight: 700;
     color: var(--wdc2-ink);
     line-height: 1.45;
@@ -815,14 +815,14 @@ html.wdc-tablet-pending .wdcalculator-container {
     border: none;
     background: transparent;
     color: #B4B0A6;
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     padding: 2px 5px;
     cursor: pointer;
   }
   body.wdc-tablet-v2 .wdc2-qcard__amt {
     flex: none;
     margin-left: auto;
-    font-size: 15.5px;
+    font-size: calc(15.5px * var(--foms-fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
     color: var(--wdc2-ink);
@@ -831,22 +831,22 @@ html.wdc-tablet-pending .wdcalculator-container {
   }
   /* 구성/옵션/비고 — 라인당 1줄, 클램프·ellipsis 없음(전부 표시, 스택 스크롤이 흡수). */
   body.wdc-tablet-v2 .wdc2-qcard__ln {
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--foms-fs, 1));
     color: var(--wdc2-sub);
     margin-top: 4px;
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
-  body.wdc-tablet-v2 .wdc2-qcard__unit { font-size: 10.5px; color: var(--wdc2-muted); margin-top: 3px; line-height: 1.4; }
+  body.wdc-tablet-v2 .wdc2-qcard__unit { font-size: calc(10.5px * var(--foms-fs, 1)); color: var(--wdc2-muted); margin-top: 3px; line-height: 1.4; }
   body.wdc-tablet-v2 .wdc2-qcard__opt {
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     color: var(--wdc2-sub);
     margin-top: 3px;
     line-height: 1.45;
     overflow-wrap: anywhere;
   }
   body.wdc-tablet-v2 .wdc2-qcard__note {
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--foms-fs, 1));
     color: var(--wdc2-muted);
     margin-top: 6px;
     padding-top: 5px;
@@ -866,7 +866,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 8px;
     border: 1px solid #E0DDD5;
     background: var(--wdc2-subtle);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--foms-fs, 1));
     font-weight: 700;
     color: #54595F;
     padding: 0 14px;
@@ -886,8 +886,8 @@ html.wdc-tablet-pending .wdcalculator-container {
     align-items: baseline;
     margin-bottom: 10px;
   }
-  body.wdc-tablet-v2 .wdc2-panel__suml { font-size: 11.5px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.04em; }
-  body.wdc-tablet-v2 .wdc2-panel__sumv { font-size: 21px; font-weight: 900; letter-spacing: -0.02em; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
+  body.wdc-tablet-v2 .wdc2-panel__suml { font-size: calc(11.5px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.04em; }
+  body.wdc-tablet-v2 .wdc2-panel__sumv { font-size: calc(21px * var(--foms-fs, 1)); font-weight: 900; letter-spacing: -0.02em; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
   body.wdc-tablet-v2 .wdc2-panel__btns { display: flex; gap: 8px; }
   body.wdc-tablet-v2 .wdc2-panel__new {
     flex: 1 1 0;
@@ -895,7 +895,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 10px;
     border: 1.5px solid var(--wdc2-border-strong);
     background: var(--wdc2-surface);
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     font-weight: 800;
     color: #54595F;
     cursor: pointer;
@@ -907,7 +907,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border: none;
     background: var(--wdc2-ink);
     color: #fff;
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     font-weight: 800;
     cursor: pointer;
   }
@@ -962,7 +962,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-bottom: 1px solid #F0EEE8;
     flex: none;
   }
-  body.wdc-tablet-v2 .wdc2-sheetpicker__title { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__title { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-ink); }
   body.wdc-tablet-v2 .wdc2-sheetpicker__close {
     width: 38px;
     height: 38px;
@@ -994,14 +994,14 @@ html.wdc-tablet-pending .wdcalculator-container {
     padding: 0 15px;
     gap: 2px;
     text-align: left;
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--foms-fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
     color: var(--wdc2-ink);
     cursor: pointer;
   }
-  body.wdc-tablet-v2 .wdc2-sheetpicker__optnm { font-size: 14.5px; font-weight: 800; }
-  body.wdc-tablet-v2 .wdc2-sheetpicker__optmeta { font-size: 11.5px; color: var(--wdc2-muted); font-weight: 600; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optnm { font-size: calc(14.5px * var(--foms-fs, 1)); font-weight: 800; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optmeta { font-size: calc(11.5px * var(--foms-fs, 1)); color: var(--wdc2-muted); font-weight: 600; }
   body.wdc-tablet-v2 .wdc2-sheetpicker__opt.is-selected {
     border-color: var(--wdc2-accent);
     background: var(--wdc2-accent-tint);
@@ -1019,7 +1019,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border: 1.5px solid var(--wdc2-line);
     border-radius: 10px;
     background: var(--wdc2-surface);
-    font-size: 13.5px;
+    font-size: calc(13.5px * var(--foms-fs, 1));
     font-weight: 800;
     color: var(--wdc2-sub);
     cursor: pointer;
@@ -1043,7 +1043,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 11px;
     background: var(--wdc2-surface);
     padding: 0 15px;
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
     font-weight: 700;
     color: var(--wdc2-ink);
   }
@@ -1053,7 +1053,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     border-radius: 11px;
     background: var(--wdc2-accent);
     color: #fff;
-    font-size: 14.5px;
+    font-size: calc(14.5px * var(--foms-fs, 1));
     font-weight: 800;
     cursor: pointer;
   }
@@ -1085,7 +1085,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     padding: 16px 18px 12px;
     flex: none;
   }
-  body.wdc-tablet-v2 .wdc2-saved-overlay__hd b { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__hd b { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--wdc2-ink); }
   body.wdc-tablet-v2 .wdc2-saved-overlay__close {
     margin-left: auto;
     width: 38px;

@@ -117,7 +117,7 @@ def test_grid_and_styles_wire_the_mark() -> None:
 
     styles = _read(STYLES)
     assert CSS_PIN in styles, "마크 CSS 링크 핀(?v=20260913a)이 없다 — 전역 head 와 짝을 이루는 두 자리 중 하나다"
-    assert "?v=20261109a" in styles, "dashboard-grid.css 핀(?v=20261109a)이 없다"
+    assert "?v=20261109f" in styles, "dashboard-grid.css 핀(?v=20261109f)이 없다"
 
     assert (ROOT / CSS).is_file(), "마크 CSS 파일이 없다"
     assert 'style="' not in _read(MACRO), "매크로에 인라인 style 속성 금지"

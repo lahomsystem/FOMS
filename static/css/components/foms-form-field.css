@@ -46,7 +46,7 @@
     background: transparent;
     color: var(--foms-text-secondary);
     font-weight: var(--foms-font-weight-medium, 500);
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
@@ -63,7 +63,7 @@
   }
   /* 계산기 pane: 모바일 가독성(매칭 견적 테이블 가로 스크롤·폰트 축소) */
   body.erp-mobile-v2-layout #calculatorTabContent { padding: 0 2px; }
-  body.erp-mobile-v2-layout #calculatorTabContent .table { font-size: 12px; }
+  body.erp-mobile-v2-layout #calculatorTabContent .table { font-size: calc(12px * var(--foms-fs, 1)); }
   body.erp-mobile-v2-layout #calculatorTabContent .table-responsive { -webkit-overflow-scrolling: touch; }
 }
 
@@ -305,7 +305,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
 @media (max-width: 374.98px) {
   .erp-order-mobile-form .erp-received-trio .foms-input,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select {
-    font-size: 15px;
+    font-size: calc(15px * var(--foms-fs, 1));
   }
 }
 
@@ -696,7 +696,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.82);
   color: #fff;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   line-height: 1;
 }
 
@@ -711,7 +711,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   min-height: 2.4em;
   overflow: hidden;
   color: var(--foms-text-primary);
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   line-height: 1.2;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
@@ -1147,7 +1147,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   background: var(--foms-surface-subtle, #f8fafc);
   color: var(--foms-text-secondary);
   /* 2026-11-05 점검 A4: 12px 은 본문(16px)보다 너무 작았다. 두 글자 이름이라 52px 칩에 14px 가 들어간다. */
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   line-height: 1.2;
   font-weight: var(--foms-font-weight-medium);
   white-space: nowrap;
@@ -1257,7 +1257,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
        (datalist 위해 input으로 치환하면 이 규칙·자동높이가 깨짐 — erp-spec-picker ▾ 트리거 방식 사용) */
   body.erp-mobile-v2-layout .erp-order-mobile-form .field__label,
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label {
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     line-height: 1.3;
   }
   body.erp-mobile-v2-layout .erp-order-mobile-form {
@@ -1503,7 +1503,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section__title > .erp-sec-ico,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-collapse-toggle strong > .erp-sec-ico {
     color: var(--foms-interactive-primary, #4f46e5);
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     width: 16px;
     text-align: center;
   }
@@ -1544,7 +1544,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
     background: var(--foms-interactive-primary, #4f46e5);
     color: #fff;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     font-weight: 700;
     white-space: nowrap;
   }

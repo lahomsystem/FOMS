@@ -59,7 +59,7 @@
     border: none;
     border-radius: var(--foms-radius-md);
     /* 2026-11-05 점검 A10: 11px 은 아래 줄 이름(13px)보다 작았고, 단추로 된 '복사' 만 16px 였다. 넷 다 13px. */
-    font-size: 13px;
+    font-size: calc(13px * var(--foms-fs, 1));
     color: var(--foms-text-secondary);
     cursor: pointer;
     min-height: 56px;
@@ -68,7 +68,7 @@
 
   body.erp-mobile-v2-layout .quick-action__icon,
   body.erp-mobile-v2-layout .foms-quick-action__icon {
-    font-size: 20px;
+    font-size: calc(20px * var(--foms-fs, 1));
   }
 
   body.erp-mobile-v2-layout .foms-detail-section {
@@ -179,7 +179,7 @@
 
   body.erp-mobile-v2-layout .attach-item__label,
   body.erp-mobile-v2-layout .foms-attach-item__label {
-    font-size: 11px;
+    font-size: calc(11px * var(--foms-fs, 1));
     background: rgba(0, 0, 0, 0.55);
     padding: 2px 6px;
     border-radius: var(--foms-radius-sm);
@@ -241,7 +241,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     font-weight: 700;
   }
 

@@ -12,9 +12,9 @@
 @import url("erp-pro/07-forms-responsive-filters.css?v=20261105s");
 @import url("../contexts/orders/erp-order-measurement-panel.css?v=20261109a");
 @import url("erp-pro/08-order-list-page.css?v=20261109a");
-@import url("erp-pro/09-mobile-erp-optimization.css?v=20261109a");
+@import url("erp-pro/09-mobile-erp-optimization.css?v=20261109f");
 @import url("erp-pro/10-erp-mobile-v2-shell.css?v=20261109a");
-@import url("erp-pro/11-queue-family-mobile.css?v=20261109a");
+@import url("erp-pro/11-queue-family-mobile.css?v=20261109f");
 @import url("erp-pro/12-runtime-shell-loading.css?v=20260703a");
 @import url("erp-pro/13-foms-shell-bridge.css?v=20261109a");
 @import url("erp-pro/14-drawing-ok-scope.css?v=20261022a");
@@ -53,7 +53,7 @@
     border: none;
     outline: none;
     white-space: pre-wrap;
-    font-size: 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
     background: var(--foms-surface-base);
 }
 
@@ -103,7 +103,7 @@
     background: rgba(0, 0, 0, 0.75);
     color: #fff;
     padding: 2px 4px;
-    font-size: 10px;
+    font-size: calc(10px * var(--foms-fs, 1));
 }
 
 /* STATE-CONTROLS-02 — 막힌 완료 버튼의 사유(텍스트 노드).
@@ -227,7 +227,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   border-radius: 8px;
   background: var(--erp-surface-muted, #f5f7fb);
   color: var(--erp-link, #2f5fd0);
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 600;
   text-decoration: none;
 }
@@ -258,7 +258,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
 }
 .foms-urgent-picked {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 700;
   color: #b02a37;
 }
@@ -340,7 +340,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   border-radius: 10px;
   background: #fff;
   color: #4b5563;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   text-align: left;
 }
 .foms-urgent-order__add:hover {
@@ -348,7 +348,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   color: #b02a37;
 }
 .foms-urgent-order__optional {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: #6b7280;
 }
 .foms-urgent-order__results {
@@ -376,7 +376,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   font-weight: 500;
 }
 .foms-urgent-order__hit-sub {
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: #6b7280;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -402,7 +402,7 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   flex-wrap: wrap;
   gap: 6px;
   min-height: 34px;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   color: #6b7280;
 }
 .foms-urgent-send {
@@ -910,6 +910,6 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
    한 화면에 보이는 칸 수는 넓은 배율 그대로다. 협력사 화면(body.pp-body)은 제외. */
 @media (min-width: 2000px) {
   html:has(> body:not(.pp-body)) {
-    font-size: 18px;
+    font-size: calc(18px * var(--foms-fs, 1));
   }
 }

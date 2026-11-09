@@ -19,7 +19,7 @@
   }
   .foms-msel-sheet__title { font-size: var(--foms-font-size-lg, 18px); font-weight: var(--foms-font-weight-bold, 700); }
   .foms-msel-sheet__close {
-    width: 36px; height: 36px; border: none; background: transparent; font-size: 18px;
+    width: 36px; height: 36px; border: none; background: transparent; font-size: calc(18px * var(--foms-fs, 1));
     color: var(--foms-text-primary, #212529); border-radius: var(--foms-radius-md, 8px); cursor: pointer;
   }
   .foms-msel-sheet__close:active { background: var(--foms-color-neutral-100, #f1f3f5); }

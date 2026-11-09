@@ -2,7 +2,7 @@
 .cs-wam-body {
   margin: 0;
   background: var(--foms-surface-subtle, #f8f9fa);
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
 }
 
 .cs-wam {
@@ -31,7 +31,7 @@
   border-radius: 8px;
   background: var(--foms-surface, #fff);
   color: inherit;
-  font-size: 14px;
+  font-size: calc(14px * var(--foms-fs, 1));
   cursor: pointer;
 }
 

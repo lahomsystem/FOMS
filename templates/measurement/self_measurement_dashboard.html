@@ -84,7 +84,7 @@
         width: 24px;
         height: 24px;
         padding: 0;
-        font-size: 12px;
+        font-size: calc(12px * var(--foms-fs, 1));
         line-height: 1;
         border-radius: 4px;
         border: 1px solid #dee2e6;
@@ -123,7 +123,7 @@
     /* 폰 검색칸 16px — 16px 미만이면 아이폰이 누를 때 화면을 확대한다. */
     @media (max-width: 991.98px) {
         .self-measurement-dashboard .erp-pro-filter-form .erp-pro-input {
-            font-size: 16px;
+            font-size: calc(16px * var(--foms-fs, 1));
         }
     }
 </style>
@@ -139,6 +139,8 @@
             <span>자가실측 대시보드</span>
         </h1>
         <div class="erp-pro-header__actions">
+          {# 탭별 글자 크기(2026-11-09 사용자) #}
+          {% include 'partials/shared/foms_font_scale_control.html' %}
             <a class="erp-pro-btn erp-pro-btn--info" href="{{ url_for('order_pages.add_order', is_self_measurement='true') }}">
                 <i class="fas fa-plus"></i>
                 <span>새 자가실측</span>
@@ -243,7 +245,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
@@ -331,7 +333,7 @@
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
@@ -340,7 +342,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea" 
                                                   rows="1" 
                                                   placeholder="담당자 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
                                                   data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
@@ -414,7 +416,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
@@ -503,7 +505,7 @@
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
@@ -512,7 +514,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea" 
                                                   rows="1" 
                                                   placeholder="담당자 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
                                                   data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
@@ -586,7 +588,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
@@ -622,20 +624,20 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea" 
                                                   rows="1" 
                                                   placeholder="담당자 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
                                                   data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.as_received_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="as_received_date">
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.as_completed_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="as_completed_date">
@@ -710,7 +712,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
                                                   rows="1" 
                                                   placeholder="메모 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
@@ -764,14 +766,14 @@
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.scheduled_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="scheduled_date">
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
-                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               style="font-size: calc(15px * var(--foms-fs, 1)); padding: .2rem .4rem;"
                                                value="{{ order.completion_date or '' }}" 
                                                data-order-id="{{ order.id }}"
                                                data-field="completion_date">
@@ -780,7 +782,7 @@
                                         <textarea class="form-control form-control-sm auto-resize-textarea" 
                                                   rows="1" 
                                                   placeholder="담당자 입력..." 
-                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  style="font-size: calc(14px * var(--foms-fs, 1)); min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}"
                                                   data-field="manager_name">{{ (order|manager_label) or '' }}</textarea>
                                     </td>

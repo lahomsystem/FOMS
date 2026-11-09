@@ -18,7 +18,7 @@
 
 .foms-as-camera-bar__eyebrow {
   display: block;
-  font-size: 11px;
+  font-size: calc(11px * var(--foms-fs, 1));
   color: var(--foms-color-text-muted, #64748b);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -26,7 +26,7 @@
 
 .foms-as-camera-bar__title {
   margin: 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--foms-fs, 1));
   font-weight: 700;
 }
 
@@ -60,12 +60,12 @@
 
 .foms-as-camera-modal__head h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: calc(18px * var(--foms-fs, 1));
 }
 
 .foms-as-camera-modal__hint {
   margin: var(--foms-space-3, 12px) 0 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--foms-fs, 1));
   color: var(--foms-color-text-muted, #64748b);
 }
 

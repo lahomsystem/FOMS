@@ -144,7 +144,7 @@
     border-radius: var(--foms-radius-full);
     background: var(--foms-status-danger, #dc3545);
     color: #fff;
-    font-size: 12px; /* 10px → 12px · 원 16 → 18px(디자인 점검 2026-11-06, 폰 보조 글 12px 이상) */
+    font-size: calc(12px * var(--foms-fs, 1)); /* 10px → 12px · 원 16 → 18px(디자인 점검 2026-11-06, 폰 보조 글 12px 이상) */
     font-weight: var(--foms-font-weight-bold);
     line-height: 18px;
     text-align: center;
@@ -256,7 +256,7 @@
   }
 
   body.erp-mobile-v2-layout .erp-mobile-bottom-nav__item {
-    font-size: 12px;
+    font-size: calc(12px * var(--foms-fs, 1));
     color: var(--foms-text-tertiary);
   }
 
@@ -286,7 +286,7 @@
     justify-content: center;
     box-shadow: var(--foms-shadow-lg);
     border: none;
-    font-size: 24px;
+    font-size: calc(24px * var(--foms-fs, 1));
     z-index: var(--foms-z-fab);
     cursor: pointer;
     text-decoration: none;

@@ -14,6 +14,8 @@
       <span>시공 완료 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
+      {# 탭별 글자 크기(2026-11-09 사용자) #}
+      {% include 'partials/shared/foms_font_scale_control.html' %}
       <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_construction_page.erp_construction_dashboard') }}">
         <i class="fas fa-hammer"></i>
         <span class="d-none d-md-inline">시공</span>

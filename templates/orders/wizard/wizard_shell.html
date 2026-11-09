@@ -5,8 +5,8 @@
    아니라 layout_head의 foms-mobile-surfaces 번들 조건을 타지 않으므로 직접 로드한다.
    누락 시 입력이 네이티브 기본형으로 렌더되어 plain·가로 오버플로 발생. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-buttons.css') }}?v=20260608a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-form-field.css') }}?v=20261109a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20261109a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-form-field.css') }}?v=20261109f">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20261109f">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20261105s">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260531b">
 {% endblock %}
@@ -57,7 +57,7 @@
 
   <div class="foms-wizard__conflict" id="foms-wizard-conflict" role="dialog" aria-modal="true" aria-label="저장 충돌">
     <div class="foms-wizard__conflict-panel">
-      <h3 class="foms-wizard__title" style="font-size:18px">다른 기기에서 변경됨</h3>
+      <h3 class="foms-wizard__title" style="font-size:calc(18px * var(--foms-fs, 1))">다른 기기에서 변경됨</h3>
       <p class="foms-wizard__subtitle">어떤 내용을 유지할까요?</p>
       <div style="display:grid;gap:8px;margin-top:12px">
         <button type="button" class="foms-btn foms-btn--secondary" data-conflict="mine">내 변경 유지</button>
