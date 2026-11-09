@@ -1,0 +1,46 @@
+/* 작업지시서 인쇄(F8, D8 — 2026-11-09). A4 세로, 1쪽 머리 + 도면 장마다 1쪽. 화면에서는 종이 모양으로 미리 보인다. */
+@page { size: A4 portrait; margin: 12mm; }
+
+.foms-print-body { margin: 0; background: #e9ecef; color: #111; font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", system-ui, sans-serif; font-size: 13px; line-height: 1.45; }
+.foms-print__toolbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #dde1e6; font-weight: 700; }
+.foms-print__btn { min-height: 48px; padding: 0 22px; border: 1px solid #4a55b8; border-radius: 10px; background: #5a67d8; color: #fff; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+.foms-print__btn:hover, .foms-print__btn:focus-visible { background: #4a55b8; }
+.foms-print { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 8px 40px; }
+.foms-print__page { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 12mm; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
+.foms-print__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
+.foms-print__head h1 { margin: 0; font-size: 22px; font-weight: 800; }
+.foms-print__head h1 small { font-size: 16px; font-weight: 700; color: #4b525d; margin-left: 6px; }
+.foms-print__meta { margin: 0; font-size: 12px; color: #4b525d; }
+.foms-print__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 14px; margin: 0 0 12px; }
+.foms-print__facts > div { display: flex; gap: 8px; min-width: 0; border-bottom: 1px solid #dde1e6; padding: 4px 0; }
+.foms-print__facts > div.is-wide { grid-column: 1 / -1; }
+.foms-print__facts dt { flex: 0 0 56px; font-size: 12px; color: #6b7380; font-weight: 700; }
+.foms-print__facts dd { margin: 0; font-size: 15px; font-weight: 700; word-break: keep-all; }
+.foms-print__h { margin: 12px 0 6px; font-size: 14px; font-weight: 800; letter-spacing: .02em; display: flex; justify-content: space-between; align-items: baseline; }
+.foms-print__h small { font-size: 12px; font-weight: 700; color: #4b525d; }
+.foms-print__spec { width: 100%; border-collapse: collapse; font-size: 14px; }
+.foms-print__spec th, .foms-print__spec td { border: 1px solid #9aa3af; padding: 6px 8px; text-align: left; }
+.foms-print__spec th { background: #f1f3f5; font-size: 12px; }
+.foms-print__spec .is-num { text-align: right; white-space: nowrap; }
+.foms-print__box-cell { width: 44px; text-align: center; }
+.foms-print__box { display: inline-block; width: 16px; height: 16px; border: 2px solid #111; border-radius: 3px; vertical-align: middle; }
+.foms-print__muted { color: #6b7380; margin: 0; }
+.foms-print__notes { margin: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #9aa3af; border-radius: 4px; font-size: 14px; font-weight: 700; white-space: pre-wrap; }
+.foms-print__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.foms-print__steps li { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+.foms-print__steps .foms-print__box { width: 20px; height: 20px; }
+.foms-print__step-line { flex: 1; border-bottom: 1px solid #9aa3af; min-height: 18px; font-size: 12px; font-weight: 500; color: #4b525d; }
+.foms-print__dwg-note { margin: 14px 0 0; font-size: 12px; color: #4b525d; }
+.foms-print__page--drawing { display: flex; }
+.foms-print__figure { margin: 0; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.foms-print__figure img { flex: 1; width: 100%; max-height: 255mm; object-fit: contain; }
+.foms-print__figure figcaption { padding-top: 6px; font-size: 12px; color: #4b525d; border-top: 1px solid #dde1e6; }
+
+@media print {
+  .foms-print-body { background: #fff; }
+  .foms-print__toolbar { display: none; }
+  .foms-print { padding: 0; gap: 0; display: block; }
+  .foms-print__page { width: auto; min-height: 0; padding: 0; box-shadow: none; page-break-after: always; break-after: page; }
+  .foms-print__page:last-child { page-break-after: auto; break-after: auto; }
+  .foms-print__figure img { max-height: 250mm; }
+}

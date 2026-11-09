@@ -23,6 +23,10 @@ from foms.services.common.dashboard_cache import (
     invalidate_order_dashboard_families,
 )
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.notifications.production_change import (
+    apply_production_change_alert,
+    finalize_production_change_alert,
+)
 from foms.services.orders.drawing_confirm_partial import (
     CANCEL_SOURCE_AFTER_CONFIRM,
     PartialConfirmError,
@@ -39,6 +43,16 @@ logger = logging.getLogger(__name__)
 ITEM_CANCEL_POLICY_ID = "ERP_EDIT"
 
 erp_orders_item_cancel_bp = Blueprint('erp_orders_item_cancel', __name__, url_prefix='/api/orders')
+
+
+def _cancelled_item_names(sd: dict, at_iso: str) -> list[str]:
+    """방금(at_iso) 취소 표시가 붙은 품목 이름 — 알림 본문용(F-13)."""
+    names: list[str] = []
+    for it in (sd.get("items") or []) if isinstance(sd, dict) else []:
+        cancel = it.get("cancel") if isinstance(it, dict) else None
+        if isinstance(cancel, dict) and str(cancel.get("at") or "") == at_iso:
+            names.append(str(it.get("product_name") or it.get("name") or "품목").strip())
+    return names
 
 
 def _hashes(order_id: int, uid: str, reason: str, note: str) -> tuple[str, str]:
@@ -72,13 +86,27 @@ def api_order_item_cancel_after_confirm(order_id: int, uid: str):
         order = locked[0]
         sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
         plan = plan_after_confirm_cancel(sd, uid, reason, note, exclude_keys)
-        summary = apply_partial_confirm(sd, plan, actor_user_id=user.id, at_iso=now_utc_naive().isoformat(),
+        at_iso = now_utc_naive().isoformat()
+        summary = apply_partial_confirm(sd, plan, actor_user_id=user.id, at_iso=at_iso,
                                         source=CANCEL_SOURCE_AFTER_CONFIRM)
         order.structured_data = sd
         flag_modified(order, "structured_data")
         sess.add(OrderEvent(order_id=order.id, event_type="ITEM_CANCELLED_AFTER_CONFIRM",
                             payload=cancel_event_payload(plan, summary), created_by_user_id=user.id))
         captured["summary"] = summary
+        # 생산 변경 알림(F-13, 설계서 §7 · 2026-11-09): 생산 단계면 CS·영업·생산 팀마다 row 1 + 폰 push.
+        # merge=False — 60초 합치기가 같은 라벨 row 의 본문을 덧써 품목 2개 중 첫 이름이 사라지고 폰도 안 간다.
+        names = _cancelled_item_names(sd, at_iso) or [f"{len(plan.cancels)}개"]
+        detail = ", ".join(names) + " 취소" + (f" · {reason}" if reason else "")
+        try:
+            captured["prod_notif"] = apply_production_change_alert(
+                sess, order, "item_cancel", detail,
+                actor_user_id=user.id, actor_name=(getattr(user, "name", None) or getattr(user, "username", "") or ""),
+                merge=False,
+            )
+        except Exception:  # noqa: BLE001 - 알림 실패가 취소를 막으면 안 된다
+            logger.warning("[ITEM_CANCEL] production change alert failed", exc_info=True)
+            captured["prod_notif"] = ([], False)
         return {order.id: [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]}
 
     db = get_db()
@@ -99,6 +127,12 @@ def api_order_item_cancel_after_confirm(order_id: int, uid: str):
         db.rollback()
         logger.exception("[ITEM_CANCEL] order %s: %s", order_id, exc)
         return jsonify({"success": False, "data": None, "error": "제품을 취소하지 못했어요."}), 500
+
+    prod_notif, prod_notif_created = captured.get("prod_notif") or ([], False)
+    try:
+        finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+    except Exception:  # noqa: BLE001 - push·배지 실패는 취소 결과와 무관
+        logger.warning("[ITEM_CANCEL] production change alert finalize failed", exc_info=True)
 
     order = db.get(Order, order_id)
     if order is not None:

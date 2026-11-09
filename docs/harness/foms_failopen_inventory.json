@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 656,
+    "broad_total": 658,
     "unclassified": 0,
     "swallow_by_control_flow": 159
   },
   "disposition_counts": {
     "FAIL_CLOSED": 44,
     "INTENTIONAL": 20,
-    "LOG_AND_CONTINUE": 433,
+    "LOG_AND_CONTINUE": 435,
     "SWALLOW_BY_CONTROL_FLOW": 159
   },
   "owner_counts": {
-    "api": 250,
+    "api": 252,
     "audit": 2,
     "auth": 17,
     "cache": 30,
@@ -558,7 +558,25 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
-      "lineno": 98,
+      "lineno": 107,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "lineno": 126,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "lineno": 134,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2061,7 +2079,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 903,
+      "lineno": 919,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2070,7 +2088,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 989,
+      "lineno": 1005,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2079,7 +2097,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1143,
+      "lineno": 1159,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2088,7 +2106,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1244,
+      "lineno": 1260,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2097,7 +2115,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1326,
+      "lineno": 1342,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2106,7 +2124,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1393,
+      "lineno": 1409,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2115,7 +2133,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1517,
+      "lineno": 1531,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2124,7 +2142,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1609,
+      "lineno": 1623,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2133,7 +2151,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1724,
+      "lineno": 1738,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2142,7 +2160,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1783,
+      "lineno": 1797,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",

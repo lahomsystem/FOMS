@@ -50,6 +50,8 @@ _KIND_LABEL = {
     # 생산·시공 단계에서 도면팀이 보낸 도면이 영업 확인 없이 바로 최종이 된 것(바로 반영).
     "drawing_hotfix": "도면 바뀜",
     "cancelled": "주문 취소",
+    # 확정 뒤 품목 하나 취소(F-13, 2026-11-09) — 이미 자른 판을 버리지 않게 생산도 알아야 한다. merge=False 로 보낸다.
+    "item_cancel": "품목 취소",
 }
 
 
@@ -115,7 +117,7 @@ def apply_production_change_alert(
     Args:
         db: 활성 세션.
         order: 대상 주문(``is_erp_order``·``erp_stage_code`` 로드 상태).
-        kind: 'construction_date' | 'drawing' | 'drawing_hotfix' | 'cancelled'.
+        kind: 'construction_date' | 'drawing' | 'drawing_hotfix' | 'cancelled' | 'item_cancel'.
         message_detail: 메시지 상세(예 '7/6 → 7/4'). 없으면 빈 문자열.
         actor_user_id: 변경자 id(선택).
         actor_name: 변경자 표시명.

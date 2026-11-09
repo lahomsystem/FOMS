@@ -166,6 +166,7 @@ def _worker_names(sd: dict[str, Any]) -> list[str]:
 
 def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: Any, stage_label: str) -> dict[str, Any]:
     customer = (sd.get('parties') or {}).get('customer') or {}
+    orderer = (sd.get('parties') or {}).get('orderer') or {}
     site = sd.get('site') or {}
     phone = str(customer.get('phone') or '').strip()
     first_item, all_items = _production_first_item(sd)
@@ -184,6 +185,7 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
     latest = defects[-1] if defects and isinstance(defects[-1], dict) else None
     return {
         'phone': phone or '-',
+        'orderer_name': str(orderer.get('name') or '').strip(),
         'phone_digits': re.sub(r'\D', '', phone),
         'address': (site.get('address_full') or site.get('address_main') or '-'),
         'measurement_md': _prod_sheet_load_md(((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
