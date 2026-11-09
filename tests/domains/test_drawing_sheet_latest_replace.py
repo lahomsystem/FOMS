@@ -85,6 +85,26 @@ def test_new_file_without_sheet_goes_to_rest():
     assert base == old and numbers == [] and len(rest) == 1
 
 
+def test_deleted_sheet_old_entry_dropped():
+    """5896 모양: 시트 s-a 를 지우고 s-c 를 새로 만들어 s-b·s-c 를 보냄 → s-a 옛 판은 빠진다."""
+    old = [_entry("o/a1", "s-a"), _entry("o/b1", "s-b")]
+    base, rest, numbers = replace_same_sheet_files(
+        old, [_entry("o/b2", "s-b"), _entry("o/c1", "s-c")], _sheets("s-b", "s-c"))
+    assert [f["key"] for f in base] == ["o/b2"]
+    assert [f["key"] for f in rest] == ["o/c1"]
+    assert numbers == [1, 2]
+
+
+def test_deleted_sheet_rule_skips_untagged_and_no_wizard():
+    """sheet_id 없는 판은 남고, 마법사 시트 목록이 비면 아무것도 빼지 않는다."""
+    old = [_entry("orders/1/drawing/manual.png"), _entry("o/a1", "s-a")]
+    base, _rest, numbers = replace_same_sheet_files(old, [_entry("o/b1", "s-b")], _sheets("s-b"))
+    assert [f["key"] for f in base] == ["orders/1/drawing/manual.png"] and numbers == [2]
+
+    base, _rest, numbers = replace_same_sheet_files(old, [_entry("o/b1", "s-b")], {})
+    assert base == old and numbers == []
+
+
 # ---------------------------------------------------------------------------
 # 전달 — perform_drawing_transfer
 # ---------------------------------------------------------------------------
@@ -167,6 +187,32 @@ def test_retransfer_one_of_two_sheets_keeps_other(app):
     assert _send(app, order, user, [_entry(b2, "s-2")])[1] == 200
 
     assert [f["key"] for f in _current(oid)["drawing_current_files"]] == [a1, b2]
+
+
+@pytest.mark.parametrize("mode,target", [("", False), ("REPLACE", True)])
+def test_retransfer_after_sheet_deleted_drops_old_sheet(app, mode, target):
+    """운영 5896: 시트 하나를 지우고 새 시트로 다시 보내면 지운 시트의 옛 판이 남아 3장이 됐다."""
+    user = _make_user(f"dws_sheet_deleted_{mode or 'none'}")
+    order = _make_order(user.id, _sheets("s-1", "s-2"))
+    oid = order.id
+    a1, b1 = _exp(oid, "a1.png"), _exp(oid, "b1.png")
+    b2, c1 = _exp(oid, "b2.png"), _exp(oid, "c1.png")
+    assert _send(app, order, user, [_entry(a1, "s-1"), _entry(b1, "s-2")])[1] == 200
+    order = _set_status(oid, "CONFIRMED")
+    sd = dict(order.structured_data)
+    sd["drawing_wizard"] = {"sheets": [{"id": "s-2"}, {"id": "s-3"}]}
+    order.structured_data = sd
+    db_session.commit()
+
+    kwargs = {"mode": mode}
+    if target:
+        kwargs["replace_target_keys"] = [b1]
+    payload, status = _send(app, order, user, [_entry(b2, "s-2"), _entry(c1, "s-3")], **kwargs)
+
+    assert status == 200, payload
+    sd = _current(oid)
+    assert [f["key"] for f in sd["drawing_current_files"]] == [b2, c1]
+    assert sd["drawing_transfer_history"][-1]["replace_target_numbers"] == [1, 2]
 
 
 def test_legacy_5407_shape_collapses_to_latest(app):
