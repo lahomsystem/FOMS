@@ -302,7 +302,7 @@ def test_phone_css_turns_history_table_into_cards_and_keeps_desktop():
     assert "z-index: 1;" in _rule(phone, "    .wb-hist tbody tr[data-find] > td:nth-child(7) > a")
     assert "text-overflow: ellipsis;" in _rule(phone, "    .wb-hist tbody tr[data-find] > td:nth-child(3)")
     sheet = _rule(phone, "    .wb-hsheet")
-    assert "max-height: 85vh;" in sheet and "border-radius: 16px 16px 0 0;" in sheet
+    assert "max-height: calc(85vh / var(--foms-ui-zoom, 1));" in sheet and "border-radius: 16px 16px 0 0;" in sheet
     assert ".wb-hsheet::backdrop" in phone
     assert "min-height: 52px;" in _rule(phone, "    .wb-hsheet__opt")
     # 찾기 16px(아이폰 포커스 확대 방지) · 폭 전체.

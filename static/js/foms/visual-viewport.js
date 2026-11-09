@@ -13,7 +13,9 @@
       return;
     }
     var offset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-    root.style.setProperty('--foms-keyboard-h', offset + 'px');
+    // 화면 크기 배율이 붙으면 innerHeight · vv 는 보이는 px, CSS 변수는 배율 전 px 다.
+    var uz = window.fomsUiZoom ? window.fomsUiZoom() : 1;
+    root.style.setProperty('--foms-keyboard-h', Math.round(offset / uz) + 'px');
   }
 
   if (!vv) {

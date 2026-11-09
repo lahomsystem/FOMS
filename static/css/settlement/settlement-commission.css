@@ -106,7 +106,7 @@
 
 /* ── 차감 작은 창 ─────────────────────────────────────────────── */
 .foms-settle .s-cm-dialog {
-  border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 0; width: min(440px, 92vw);
+  border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 0; width: min(440px, calc(92vw / var(--foms-ui-zoom, 1)));
   color: var(--s-text); box-shadow: 0 12px 32px rgba(15, 23, 42, .2);
 }
 .foms-settle .s-cm-dialog::backdrop { background: rgba(15, 23, 42, .25); }

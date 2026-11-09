@@ -5,7 +5,7 @@
   bottom: calc(var(--erp-mobile-shell-nav-height, 72px) + 16px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 1400;
-  max-width: min(92vw, 360px);
+  max-width: min(calc(92vw / var(--foms-ui-zoom, 1)), 360px);
   padding: 10px 16px;
   border-radius: 999px;
   background: rgba(17, 24, 39, 0.92);

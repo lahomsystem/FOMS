@@ -83,7 +83,8 @@ function drawingActionLabel(action) {
         function applyDrawingGatewayViewerTransform() {
           const { image, zoomBadge } = getDrawingGatewayViewerElements();
           if (!image || !zoomBadge) return;
-          image.style.transform = `translate(${__drawingGatewayViewerPanX}px, ${__drawingGatewayViewerPanY}px) scale(${__drawingGatewayViewerScale})`;
+          const uz = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // 옮김은 보이는 px(clientX) — 화면 크기 배율이 붙으면 나눈다
+          image.style.transform = `translate(${__drawingGatewayViewerPanX / uz}px, ${__drawingGatewayViewerPanY / uz}px) scale(${__drawingGatewayViewerScale})`;
           zoomBadge.textContent = `${Math.round(__drawingGatewayViewerScale * 100)}%`;
           zoomBadge.style.display = __drawingGatewayViewerScale === 1 ? 'none' : 'block';
           positionDrawingGatewayViewerNav();
@@ -113,13 +114,14 @@ function drawingActionLabel(action) {
             rightX = Math.min(maxX, rightX + 24);
           }
 
-          prevBtn.style.left = `${leftX}px`;
+          const uzNav = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // rect 는 보이는 px, style 은 배율 전 px
+          prevBtn.style.left = `${leftX / uzNav}px`;
           prevBtn.style.right = 'auto';
-          prevBtn.style.top = `${centerY}px`;
+          prevBtn.style.top = `${centerY / uzNav}px`;
 
-          nextBtn.style.left = `${rightX}px`;
+          nextBtn.style.left = `${rightX / uzNav}px`;
           nextBtn.style.right = 'auto';
-          nextBtn.style.top = `${centerY}px`;
+          nextBtn.style.top = `${centerY / uzNav}px`;
         }
 
         function resetDrawingGatewayViewerTransform() {

@@ -69,7 +69,7 @@
     }
     /* 작업 큐 그리드 스크롤 영역: 유일한 스크롤 컨테이너 → thead sticky 동작 */
     .erp-grid-scroll-wrap {
-      max-height: min(calc(100vh - 280px), 72vh);
+      max-height: min(calc(calc(100vh / var(--foms-ui-zoom, 1)) - 280px), 72vh);
       overflow: auto;
       -webkit-overflow-scrolling: touch;
     }
@@ -80,7 +80,7 @@
     .erp-detail-panel {
       position: sticky;
       top: 76px;
-      max-height: calc(100vh - 92px);
+      max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 92px);
       overflow: auto;
     }
 

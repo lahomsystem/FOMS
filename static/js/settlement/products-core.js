@@ -111,14 +111,16 @@
       tt.appendChild(row);
     });
     tt.classList.add('s-on');
-    var w = tt.offsetWidth, h = tt.offsetHeight;
-    var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    // 화면 크기 배율: x · y · innerHeight 는 보이는 px, offset · clientWidth · style 은 배율 전 px — 보이는 px 로 맞춰 계산 후 나눈다.
+    var uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
+    var w = tt.offsetWidth * uiZoom, h = tt.offsetHeight * uiZoom;
+    var vw = document.documentElement.clientWidth * uiZoom, vh = window.innerHeight;
     var left = x + 14;
     if (left + w > vw - 8) left = Math.max(8, x - w - 14);
     var top = y + 14;
     if (top + h > vh - 8) top = Math.max(8, y - h - 14);
-    tt.style.setProperty('--s-tt-x', left + 'px');
-    tt.style.setProperty('--s-tt-y', top + 'px');
+    tt.style.setProperty('--s-tt-x', (left / uiZoom) + 'px');
+    tt.style.setProperty('--s-tt-y', (top / uiZoom) + 'px');
   };
   P.hideTip = function (ctx) { if (ctx.els.tt) ctx.els.tt.classList.remove('s-on'); };
   /** 노드 하나에 툴팁을 단다. fn() 은 [제목, 줄 배열] 을 돌려준다(그릴 때 값을 읽는다). */

@@ -522,7 +522,7 @@ def test_split_shell_rail_internal_scroll_capped() -> None:
     master/detail columns) scroll inside their own tracks; master/detail get
     min-height:0 so the grid columns can shrink below content (the rail already did)."""
     css = _read(SPLIT_CSS)
-    assert "max-height: calc(100dvh - 4rem)" in css
+    assert "max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 4rem)" in css
     assert "overflow: hidden" in css
     # side-tab (pre-existing) + master + detail each need min-height:0.
     assert _norm(css).count("min-height: 0") >= 3

@@ -589,8 +589,8 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     for token in (
         "foms-construction-mobile-card.css') }}",
         "foms-v2-domain-heroes.css') }}?v=20261108a",
-        "foms-complete-gate.css') }}?v=20260712a",
-        "foms-packing.css') }}?v=20260714a",
+        "foms-complete-gate.css') }}?v=20261109a",
+        "foms-packing.css') }}?v=20261109a",
     ):
         assert token in dash
         assert token in frag_src
@@ -611,6 +611,5 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     assert "foms-complete-gate.css" in frag
     assert "foms-packing.css" in frag
     assert "foms-construction-mobile-card.css" in frag
-    assert "v=20260712a" in frag
-    assert "v=20260714a" in frag
+    assert "v=20261109a" in frag  # 화면 크기 배율 보정(2026-11-09)으로 complete-gate · packing 핀을 함께 올렸다
     assert "<html" not in frag.lower()

@@ -14,7 +14,7 @@ var syncWdCalculatorViewportLayout =
         var bottomGap = 16;
         var availableHeight = Math.max(
             520,
-            Math.floor(window.innerHeight - shellTop - bottomGap)
+            Math.floor((window.innerHeight - shellTop - bottomGap) / (window.fomsUiZoom ? window.fomsUiZoom() : 1))
         );
         container.style.setProperty("--wdcalculator-shell-height", availableHeight + "px");
     };

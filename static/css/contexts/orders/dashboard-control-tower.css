@@ -170,7 +170,7 @@ body.foms-tower-sheet-open { overflow: hidden; }
   border: 0; padding: 0; background: rgba(17, 24, 39, .45); cursor: pointer;
 }
 .foms-tower__sheet-panel {
-  position: absolute; left: 0; right: 0; bottom: 0; height: min(88vh, 760px); max-width: 640px; margin: 0 auto;
+  position: absolute; left: 0; right: 0; bottom: 0; height: min(calc(88vh / var(--foms-ui-zoom, 1)), 760px); max-width: 640px; margin: 0 auto;
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--foms-surface-raised); border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 30px rgba(17, 24, 39, .18);

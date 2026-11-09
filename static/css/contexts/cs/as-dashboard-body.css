@@ -238,7 +238,7 @@
      sticky 는 thead 가 아니라 th 에 건다 — border-collapse:collapse 에서 thead sticky 는
      브라우저별로 배경/경계가 새기 때문이다(태블릿 헤드 고정 da9cbcf6 과 같은 계열의 함정). */
   .erp-as-table-wrapper {
-    max-height: calc(100vh - 190px);
+    max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 190px);
     min-height: 240px;
     overflow-y: auto;
   }
@@ -323,7 +323,7 @@
        뷰포트보다 넓어질 수 없게 상한을 이중으로 건다(T15f 실사용 피드백). 여유 72px:
        100vw는 세로 스크롤바를 포함해 실제 가용폭보다 넓게 계산되고, 셸 래퍼·줌·OS 배율
        오차까지 흡수해야 한다(48px로는 휴지통 아이콘이 잘린 실보고 1건). */
-    max-width: min(720px, calc(100vw - 72px));
+    max-width: min(720px, calc(calc(100vw / var(--foms-ui-zoom, 1)) - 72px));
   }
 
   /* 정보 위계: 판정 헤더 → 앵커 → 입력 → 스트림.
@@ -1365,7 +1365,7 @@
 .erp-as-clear-dialog__card {
   width: 100%;
   max-width: 460px;
-  max-height: 90vh;
+  max-height: calc(90vh / var(--foms-ui-zoom, 1));
   overflow-y: auto;
   padding: 14px 15px;
   border-radius: 12px;
@@ -1542,7 +1542,7 @@
   gap: 10px;
   flex-wrap: wrap;
   width: fit-content;
-  max-width: calc(100vw - 3rem);
+  max-width: calc(calc(100vw / var(--foms-ui-zoom, 1)) - 3rem);
   color: #4c1d95;
   font-size: 12.5px;
 }

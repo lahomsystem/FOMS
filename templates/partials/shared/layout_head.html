@@ -64,6 +64,29 @@
       }
     })();
     </script>
+    {# 화면 크기(2026-11-09 사용자) — 첫 그림 전에 html 에 배율을 붙인다. 값은 사람(계정)마다 ·
+       기기 종류(PC 마우스 / 터치)마다 이 브라우저에 따로 남는다. 범위 70~130%, 100% 면 아무것도 안 붙인다.
+       단추 · 저장은 static/js/foms/ui-zoom.js, 배율에 맞춘 높이 보정은 CSS var(--foms-ui-zoom). #}
+    <script>
+    (function () {
+      var root = document.documentElement;
+      var uid = '{{ current_user.id if current_user else "" }}';
+      var kind = (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) ? 'pc' : 'touch';
+      var key = 'foms-ui-zoom:' + (uid || 'anon') + ':' + kind;
+      root.setAttribute('data-foms-ui-zoom-key', key);
+      window.fomsUiZoom = function () {
+        var z = parseFloat(root.getAttribute('data-foms-ui-zoom') || '');
+        return z > 0 ? z : 1;
+      };
+      try {
+        var pct = parseInt(localStorage.getItem(key) || '', 10);
+        if (pct >= 70 && pct <= 130 && pct !== 100) {
+          root.setAttribute('data-foms-ui-zoom', String(pct / 100));
+          root.style.setProperty('--foms-ui-zoom', String(pct / 100));
+        }
+      } catch (e) { /* localStorage 막힘 = 100% */ }
+    })();
+    </script>
     {# Pointer-hint boot: inline before paint (SSOT copy lives in static/js/runtime/,
        src 아님이라 G1 렌더차단 가드와 무관). `(pointer: coarse)` 매치 여부만 쿠키
        `foms_ptr` 로 남겨, 다음 요청부터 서버가 터치 전용 표면(시공 태블릿 작업 모드,
@@ -204,12 +227,13 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20261106d">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109b">
     {# P0-07 토큰(--foms-*)은 아래 erp-pro 번들 링크 바로 앞 이 한 줄로만 싣는다(2026-10-02). 예전엔
        erp-pro/01-intro-tokens.css 가 무버전 @import 로 한 번 더 받아(URL 이 달라 이중 다운로드)
        erp-pro 첫 규칙 앞에 다시 깔았다 — 이 자리가 그 순서를 그대로 잇는다. 핀은 WAM 레이아웃과 같은 값. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261106d">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261109a">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
        so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
@@ -238,14 +262,14 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20261108a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20261109a">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — erp_mobile_v2_enabled 게이트로 로드(별도 번들).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261108a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261109a">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(2026-07-13 누출 봉합).
        원 소유 hide 규칙이 담긴 foms-shell.css 는 /erp·주문 수정 경로에서만 @import 되므로,
@@ -261,7 +285,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260716a">
     {# 알림 센터 시트 전역 스타일 — 시트 partial 이 layout_scripts 에서 전 페이지
        include 되므로 CSS 도 셸 변형 무관 전역 로드(SSOT, foms-shell.css 에서 이관). #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20260929a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20261109a">
     {# ORDER-REASON-00: 사유 시트/배너는 PC·태블릿·모바일 모두에서 뜬다 — 전역 로드. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-change-reason.css') }}?v=20260813a">
     {# 판매채널 출처 마크 — 대시보드 밖(전체 주문 목록 `/` · 실측 `/erp/measurement`)에도

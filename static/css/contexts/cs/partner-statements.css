@@ -30,10 +30,10 @@
 /* 도면이 없으면(JS 가 dbig 안에 p 하나만 넣는다) 한 줄 상자가 왼쪽 절반을 차지하지 않게 위아래로 놓는다. */
 .foms-pse__grid:has([data-pse-dbig] > p) { grid-template-columns: minmax(0, 1fr); }
 .foms-pse__grid:has([data-pse-dbig] > p) .foms-pse__drawings { position: static; max-height: none; }
-.foms-pse__drawings { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 24px); overflow-y: auto; padding: 10px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
+.foms-pse__drawings { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 8px; max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 24px); overflow-y: auto; padding: 10px; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 8px; }
 .foms-pse__dhead { display: flex; align-items: baseline; gap: 8px; }
 .foms-pse__dbig { display: grid; gap: 4px; color: inherit; text-decoration: none; word-break: break-all; }
-.foms-pse__dbig img { display: block; width: 100%; max-height: calc(100vh - 300px); object-fit: contain; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 6px; background: #fff; }
+.foms-pse__dbig img { display: block; width: 100%; max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 300px); object-fit: contain; border: 1px solid var(--erp-border, #e5e7eb); border-radius: 6px; background: #fff; }
 .foms-pse__dthumbs { display: flex; align-items: flex-start; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .foms-pse__dthumbs:empty { display: none; }
 .foms-pse__dthumb { flex: 0 0 auto; display: grid; align-content: start; justify-items: center; gap: 2px; width: 104px; padding: 3px; border: 2px solid transparent; border-radius: 6px; background: var(--erp-surface, #fff); color: #374151; font: inherit; font-size: 12px; line-height: 1.3; word-break: keep-all; cursor: pointer; }

@@ -1,0 +1,11 @@
+{# 화면 크기 손잡이(2026-11-09 사용자) — 위 막대(PC) · 메뉴 서랍(폰) 공용.
+   호출측: {% set foms_ui_zoom_variant = 'bar' | 'drawer' %} 후 include. 동작은 static/js/foms/ui-zoom.js.
+   가운데 숫자를 누르면 100% 로 돌아간다. #}
+{% set _uz_variant = foms_ui_zoom_variant|default('bar') %}
+{% if _uz_variant == 'drawer' %}<div class="foms-ui-zoom-row"><span class="foms-ui-zoom-row__label">화면 크기</span>{% endif %}
+<span class="foms-ui-zoom foms-ui-zoom--{{ _uz_variant }}" role="group" aria-label="화면 크기" data-foms-ui-zoom-ctl>
+  <button type="button" class="foms-ui-zoom__btn" data-foms-ui-zoom-step="-1" aria-label="화면 작게" title="화면 작게">−</button>
+  <button type="button" class="foms-ui-zoom__now" data-foms-ui-zoom-reset aria-live="polite" title="화면 크기 — 누르면 100%">100%</button>
+  <button type="button" class="foms-ui-zoom__btn" data-foms-ui-zoom-step="1" aria-label="화면 크게" title="화면 크게">+</button>
+</span>
+{% if _uz_variant == 'drawer' %}</div>{% endif %}

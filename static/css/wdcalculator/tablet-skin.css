@@ -932,7 +932,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
-    width: min(720px, 96vw);
+    width: min(720px, calc(96vw / var(--foms-ui-zoom, 1)));
     max-height: 72vh;
     z-index: 2001;
     background: var(--wdc2-surface);
@@ -1069,7 +1069,7 @@ html.wdc-tablet-pending .wdcalculator-container {
     right: 0;
     bottom: 0;
     width: var(--wdc2-overlay-w);
-    max-width: 82vw;
+    max-width: calc(82vw / var(--foms-ui-zoom, 1));
     z-index: 1050;
     background: var(--wdc2-surface);
     border-left: 1px solid var(--wdc2-line);

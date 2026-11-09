@@ -579,7 +579,7 @@
       overflow: hidden;
       position: sticky;
       top: 76px;
-      max-height: calc(100vh - 96px);
+      max-height: calc(calc(100vh / var(--foms-ui-zoom, 1)) - 96px);
     }
 
     .dw-items-md .item-rail__head {

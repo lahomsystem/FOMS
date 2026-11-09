@@ -72,7 +72,7 @@
   body.erp-mobile-v2-layout .foms-completion-grid__scroll {
     flex: 1;
     min-height: 0;
-    max-height: calc(100dvh - 240px);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 240px);
     overflow: auto;
     -webkit-overflow-scrolling: touch;
   }

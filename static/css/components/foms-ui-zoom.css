@@ -1,0 +1,146 @@
+/**
+ * 화면 크기(2026-11-09 사용자) — 사람마다 · 기기 종류마다 70~130%.
+ * 배율은 layout_head 의 첫 그림 전 boot 가 html[data-foms-ui-zoom] + --foms-ui-zoom 으로 붙인다(100% 면 안 붙음).
+ * CSS zoom 은 vh · vw 도 같이 키운다 — 화면 높이 · 폭에 맞춘 칸은 calc(Nvh / var(--foms-ui-zoom, 1)) 로 되돌린다.
+ */
+html[data-foms-ui-zoom] {
+  zoom: var(--foms-ui-zoom, 1);
+}
+
+/* 부트스트랩(CDN) 이 vw · vh 로 못박은 칸 — 우리 CSS 가 아니라 여기서 덮는다.
+   회색 막(모달 · 오프캔버스)이 70% 에서 화면 70% 만 덮던 것(스테이징 실측 11-09). */
+html[data-foms-ui-zoom] .modal-backdrop,
+html[data-foms-ui-zoom] .offcanvas-backdrop {
+  width: calc(100vw / var(--foms-ui-zoom, 1));
+  height: calc(100vh / var(--foms-ui-zoom, 1));
+}
+
+html[data-foms-ui-zoom] .modal-fullscreen {
+  width: calc(100vw / var(--foms-ui-zoom, 1));
+}
+
+@media (max-width: 575.98px) {
+  html[data-foms-ui-zoom] .modal-fullscreen-sm-down {
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+  }
+}
+
+@media (max-width: 767.98px) {
+  html[data-foms-ui-zoom] .modal-fullscreen-md-down {
+    width: calc(100vw / var(--foms-ui-zoom, 1));
+  }
+}
+
+/* ── 위 막대(PC) ─────────────────────────────────────────────
+   전역 .btn { padding: 10px 20px !important } 을 피하려고 .btn 을 쓰지 않는다. */
+.foms-ui-zoom {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  border: 1px solid #ced4da;
+  border-radius: 999px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.foms-ui-zoom__btn {
+  width: 32px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #495057;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-ui-zoom__now {
+  min-width: 52px;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  border-left: 1px solid #e9ecef;
+  border-right: 1px solid #e9ecef;
+  background: transparent;
+  color: #212529;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.foms-ui-zoom__btn:hover:not(:disabled),
+.foms-ui-zoom__now:hover {
+  background: #f1f3f5;
+}
+
+.foms-ui-zoom__btn:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.foms-ui-zoom__btn:focus-visible,
+.foms-ui-zoom__now:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: -2px;
+}
+
+[data-theme='dark'] .foms-ui-zoom {
+  border-color: #3a3f47;
+  background: #1c1f24;
+}
+
+[data-theme='dark'] .foms-ui-zoom__btn,
+[data-theme='dark'] .foms-ui-zoom__now {
+  color: #e9ecef;
+  border-color: #3a3f47;
+}
+
+/* 폰 · 태블릿 세로 폭에서는 위 막대 대신 메뉴 서랍의 줄을 쓴다. */
+@media (max-width: 991.98px) {
+  .foms-ui-zoom--bar {
+    display: none;
+  }
+}
+
+/* ── 메뉴 서랍(폰) — 화면 테마 줄과 같은 모양 ── */
+.foms-ui-zoom-row {
+  margin-top: var(--foms-space-4);
+  padding: var(--foms-space-3);
+  border-radius: var(--foms-radius-lg);
+  border: 1px solid var(--foms-border-subtle);
+  background: var(--foms-surface-raised);
+}
+
+.foms-ui-zoom-row__label {
+  display: block;
+  margin-bottom: var(--foms-space-2);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-secondary);
+}
+
+.foms-ui-zoom-row .foms-ui-zoom {
+  display: flex;
+  width: 100%;
+  height: var(--foms-touch-target-min, 44px);
+  border-color: var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+}
+
+.foms-ui-zoom-row .foms-ui-zoom__btn {
+  flex: 1 1 0;
+  width: auto;
+  color: var(--foms-text-primary);
+  font-size: 20px;
+}
+
+.foms-ui-zoom-row .foms-ui-zoom__now {
+  flex: 1 1 0;
+  color: var(--foms-text-primary);
+  font-size: 16px;
+  border-color: var(--foms-border-subtle);
+}

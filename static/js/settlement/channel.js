@@ -490,8 +490,9 @@
     var py = y + 16;
     if (px + box.width > window.innerWidth - 8) px = x - box.width - 12;
     if (py + box.height > window.innerHeight - 8) py = y - box.height - 12;
-    tip.style.setProperty('--s-ch-tip-x', Math.max(4, px) + 'px');
-    tip.style.setProperty('--s-ch-tip-y', Math.max(4, py) + 'px');
+    var uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);  // 화면 크기 배율: 좌표는 보이는 px, fixed 위치는 배율 전 px
+    tip.style.setProperty('--s-ch-tip-x', (Math.max(4, px) / uiZoom) + 'px');
+    tip.style.setProperty('--s-ch-tip-y', (Math.max(4, py) / uiZoom) + 'px');
   }
 
   function hideTip(ctx) {
@@ -501,7 +502,7 @@
   /* ═══════════════ 3. 차트 (인라인 SVG — 외부 라이브러리 0) ═══════════════ */
 
   function chartHeight(min, max, ratio) {
-    return Math.max(min, Math.min(max, Math.round(window.innerHeight * ratio)));
+    return Math.max(min, Math.min(max, Math.round(window.innerHeight / (window.fomsUiZoom ? window.fomsUiZoom() : 1) * ratio)));
   }
 
   /**

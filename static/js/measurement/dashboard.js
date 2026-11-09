@@ -478,6 +478,8 @@
 
         function positionDropdown(div, anchorEl, editingContainer) {
             const viewportPadding = 8;
+            // 화면 크기 배율: rect · innerWidth 는 보이는 px, style 은 배율 전 px 라 넣을 때 나눈다.
+            const uiZoom = (window.fomsUiZoom ? window.fomsUiZoom() : 1);
             const anchorRect = anchorEl.getBoundingClientRect();
             const containerRect = (editingContainer || anchorEl).getBoundingClientRect();
             const viewportWidth = Math.max(window.innerWidth || 0, 320);
@@ -487,24 +489,24 @@
 
             div.style.top = '';
             div.style.bottom = '';
-            div.style.width = Math.min(preferredWidth, maxWidth) + 'px';
-            div.style.maxWidth = maxWidth + 'px';
+            div.style.width = (Math.min(preferredWidth, maxWidth) / uiZoom) + 'px';
+            div.style.maxWidth = (maxWidth / uiZoom) + 'px';
 
             const dropdownRect = div.getBoundingClientRect();
             const clampedLeft = Math.max(
                 viewportPadding,
                 Math.min(containerRect.left, viewportWidth - dropdownRect.width - viewportPadding)
             );
-            div.style.left = Math.round(clampedLeft) + 'px';
+            div.style.left = Math.round(clampedLeft / uiZoom) + 'px';
 
             const dropdownHeight = Math.min(dropdownRect.height || 0, 240);
             const spaceBelow = viewportHeight - anchorRect.bottom - viewportPadding;
             const openUpward = spaceBelow < dropdownHeight && anchorRect.top > dropdownHeight;
 
             if (openUpward) {
-                div.style.bottom = Math.round(viewportHeight - anchorRect.top + 2) + 'px';
+                div.style.bottom = Math.round((viewportHeight - anchorRect.top + 2) / uiZoom) + 'px';
             } else {
-                div.style.top = Math.round(anchorRect.bottom + 2) + 'px';
+                div.style.top = Math.round((anchorRect.bottom + 2) / uiZoom) + 'px';
             }
         }
 

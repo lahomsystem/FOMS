@@ -72,7 +72,7 @@
 .foms-tl-sheet .fos-skeleton-text { font-size: 12px; color: #8F887D; text-align: center; }
 @keyframes foms-tl-skeleton-shimmer { 100% { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .foms-tl-sheet .sk::after { animation: none; } }
-.foms-tl-sheet.offcanvas-bottom { height: auto; max-height: 82vh; border-radius: 16px 16px 0 0; }
+.foms-tl-sheet.offcanvas-bottom { height: auto; max-height: calc(82vh / var(--foms-ui-zoom, 1)); border-radius: 16px 16px 0 0; }
 
 /* ---- 4. 시트 body 주입 fragment(.fos-*) 스코프 이식 -----------------------
    order_timeline_sheet_body.html 이 쓰는 .fos-* 변수/클래스를 .foms-tl-sheet 하위로만 정의. */
