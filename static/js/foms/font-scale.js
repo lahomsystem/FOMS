@@ -2,12 +2,12 @@
  * 탭별 글자 크기(2026-11-09 사용자 — "각 탭마다, 수집 탭과 마찬가지로").
  * 첫 그림 전 적용 · 탭 → 저장 열쇠는 layout_head boot 의 window.fomsFsKey / window.fomsApplyFs 가 맡는다.
  * 여기서는 제목 줄 조절기(− 100% +) 누름 → 저장 → 다시 붙이기, ERP 탭 전환(프래그먼트 교체) 뒤 다시 붙이기.
- * 단계는 수집 · 정산과 같다: 100 / 115 / 130 / 150%.
+ * 단계 70~150% 를 10% 씩(11-09 사용자: 100% 아래로도 · 10 단위로).
  */
 (function () {
   'use strict';
 
-  var STEPS = [1, 1.15, 1.3, 1.5];
+  var STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5];
   var root = document.documentElement;
 
   function current() {
