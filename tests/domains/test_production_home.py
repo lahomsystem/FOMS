@@ -13,8 +13,10 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.api.production.orders import _PRODUCTION_STEP_DEFS
 from foms.services.datetime_kst import get_today_kst
+import foms.services.production_home_read_model as home_read_model
 from foms.services.production_home_read_model import (
     PRODUCTION_HOME_STEP_DEFS,
+    build_production_home,
     production_home_day,
     production_home_groups,
     production_home_stage,
@@ -207,6 +209,35 @@ def test_일주일_넘게_지난_시공일은_맨_아래_한_묶음으로() -> N
     assert all(r["day_key"] == "past" for r in past["rows"])
     # 오늘·내일이 없으니 첫 묶음(4일 지남)만 펼침
     assert [g["is_open"] for g in groups] == [True, False, False, False]
+
+
+def test_캡은_지난_주문만_오래된_것부터_자른다(client, monkeypatch) -> None:
+    """운영 실측(11-09): 옛 주문 300+ 에 시공일 오름차순 캡 → 최근·앞날이 잘려 이번 주·내 공정 탭이 0.
+    고침: 7일 안·앞날·미정은 전부, 지난 것은 최근부터 남는 자리만, 밀린 수는 지난 묶음 머리줄에."""
+    user = _make_user(client, "home_cap_staff", "PRODUCTION")
+    _add_order("PRODUCTION", "옛주문", _iso(-60))
+    _add_order("PRODUCTION", "덜옛주문", _iso(-30))
+    _add_order("PRODUCTION", "조금옛", _iso(-9))
+    _add_order("PRODUCTION", "앞날", _iso(3), with_run=True)
+    _add_order("CONFIRM", "미정", None)
+    monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 3)
+
+    rows, stats = build_production_home(db_session, user)
+    # 앞날·미정은 전부(오름차순), 지난 것은 최근 1건만 → 60일·30일 지난 둘은 밀림
+    assert [r["customer_name"] for r in rows] == ["앞날", "미정", "조금옛"]
+    assert stats == {"past_hidden": 2}
+    groups = production_home_groups(rows, get_today_kst(), past_hidden=stats["past_hidden"])
+    assert groups[-1]["key"] == "past" and groups[-1]["count"] == 1
+    assert groups[-1]["sub"] == "더 오래된 2건은 안 보여요"
+
+    html = client.get(HOME_URL).get_data(as_text=True)
+    assert "앞날" in html and "조금옛" in html and "옛주문" not in html
+    assert "더 오래된 2건은 안 보여요" in html
+    # 캡이 넉넉하면 전부 보이고 머리줄 글도 없다
+    monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 300)
+    rows, stats = build_production_home(db_session, user)
+    assert len(rows) == 5 and stats == {"past_hidden": 0}
+    assert [r["customer_name"] for r in rows[2:]] == ["조금옛", "덜옛주문", "옛주문"]
 
 
 def test_날짜_머리줄_규칙() -> None:
