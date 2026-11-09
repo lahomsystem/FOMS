@@ -130,6 +130,33 @@ def _change_line(alerts: list[dict[str, Any]]) -> str:
     return line
 
 
+def production_home_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """날짜 묶음(모바일 실측 탭처럼 접었다 펴는 단위). 행은 이미 시공일 순이라 연속 구간만 자른다.
+
+    처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
+    """
+    groups: list[dict[str, Any]] = []
+    for row in rows:
+        if not groups or groups[-1]['key'] != row['day_key']:
+            groups.append({
+                'key': row['day_key'],
+                'label': row['day_label'],
+                'sub': row['day_sub'],
+                'is_today': bool(row['day_is_today']),
+                'is_open': bool(row['day_is_today']) or str(row['day_label']).startswith('내일'),
+                'rows': [],
+                'changed': 0,
+            })
+        groups[-1]['rows'].append(row)
+        if row.get('has_changes'):
+            groups[-1]['changed'] += 1
+    if groups and not any(g['is_open'] for g in groups):
+        groups[0]['is_open'] = True
+    for group in groups:
+        group['count'] = len(group['rows'])
+    return groups
+
+
 def production_home_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 바뀐 것."""
     return {

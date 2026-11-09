@@ -13,7 +13,11 @@ from flask import abort, g, render_template
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.order_mutation_policy import team_has_capability
-from foms.services.production_home_read_model import build_production_home_rows, production_home_counts
+from foms.services.production_home_read_model import (
+    build_production_home_rows,
+    production_home_counts,
+    production_home_groups,
+)
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 _HOME_TEAMS = ('CS', 'SALES', 'PRODUCTION')
@@ -41,6 +45,7 @@ def erp_production_home():
     return render_template(
         'production/home.html',
         rows=rows,
+        groups=production_home_groups(rows),
         counts=production_home_counts(rows),
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),

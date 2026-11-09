@@ -125,3 +125,4 @@
 - 알게 된 것: 시공팀 계정은 전역 문지기가 먼저 302(출고 화면)라 403 단언이 아니라 "200 아님"으로 둠 · `Order` 시드엔 `received_date`·`product`·`manager_name` 이 있어야 안전 · `g.current_user` 가 같은 사람이면 착지 판정이 추가 쿼리 0.
 - 다음: T0-2 전체 화면 작업 시트(`/erp/production/sheet/<id>`), 카드 링크 교체.
 - 첫 시안(`tablet-production-ui.html`)의 D7·D8 전 글("아직 정하지 않았어요"·"묻고 싶은 것" 2문항·F2 링크 "상세")을 결정으로 고치고 Artifact Version 2 로 재발행(같은 URL). T0-1 코드 커밋 `676c9d8cc`.
+- **T0-1b DONE (11-09)** 사용자 지시 "날짜별로 접었다 펼 수 있게 like 모바일 실측 탭" → 실측 탭(`measurement/partials/mobile_list.html`·`mobile-glance-tabs.js`)의 말 그대로: 머리줄 단추 `aria-expanded`·`is-closed`·꺾쇠 회전·[모두 펼치기/접기]·펼침 수. 처음엔 오늘·내일만 펼침(실측 탭은 전부 접지만 생산은 오늘 일이 바로 보여야 해서 둘만 펼침 — 설계자 판단). 거르면 맞는 묶음 자동 펼침. 로컬 Playwright 로 접기·모두 펼치기·탭 전환 확인(5→0→1 접힘, 생산 중 탭에서 묶음 4 숨김·줄 4). 시험 25 초록.
