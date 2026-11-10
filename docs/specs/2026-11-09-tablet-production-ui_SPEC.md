@@ -148,7 +148,10 @@
 - **바뀐 것**: 받은함 = `collect_production_change_alerts` 의 alerts + 취소 주문(묘비), [확인했어요] = `POST /api/orders/<id>/production/change-ack`. 옛 "이번 주" 탭의 요일 칸은 날짜 탭이 대신해 없앴다(`?tab=week` 는 날짜로).
 - **찾기(`?tab=all`)**: 12.1 의 전체 주문 한 줄 목록(찾기 칸·보기 칸·날짜 묶음 접기) 그대로.
 - 머리 숫자 "전체 N건" = 캡과 무관한 실제 총계(`stats['total']`).
+- **11-10 리뷰·실화면 고침(P6, 원장 §16)**: "내 공정" 탭 숫자 = 공정 줄에 선 주문 수(한 규칙 `production_home_queue_key`), 보류 표시는 생산 단계(제작 대기~검수)일 때만 — 도면·컨펌 단계 보류는 기다림. "바뀐 것" 숫자 = 받은함 장 수(취소 주문 포함, 모든 탭에서 셈). [다시 받기] 는 직접 고른 날만 주소에 붙인다(`days.auto`). 날짜 장 글자는 "도면·컨펌 기다림", 지난 시공일 단추는 `N건 +안 읽은 수`. 글자를 키우면 글자가 든 칸 폭도 같이(큰 줄 도면 칸 · 내 공정 시공일 칸 · 도면 파일 칸), 바뀐 줄은 품목 줄 두 줄까지. 칸반 옆 시트 바닥 단추는 넘치면 다음 줄, 붙은 긴 주소는 칸 안에서 끊는다. 작업 시트 뒤로 단추는 "생산" — 첫 화면에서 왔으면 고른 날·탭으로 돌아간다(같은 출처·같은 경로만).
+- 제목 줄 오른쪽(받음 표시 · 글자 손잡이 · [다시 받기])은 한 묶음 `.foms-prod-home__tools` — 줄이 넘치면 셋이 같이 내려간다(단추 하나만 떨어져 한 줄이 비지 않게).
 
 ### 12.4 착지 (F7 ① 갱신)
+- **D19(11-10, 사용자 "누구나 새 첫 화면") 태블릿 레일 "생산" = 첫 화면**: 태블릿 가로 레일(`foms_tablet_rail.html` ← `build_tablet_rail_items`)의 생산 단추는 첫 화면을 볼 수 있는 사람(`can_view_production_home` — `foms/services/production/home_access.py`, 문지기 `_require_home_user` 와 한 규칙: 관리자 · CS · 영업 · 생산, 협력사 제외)이면 `/erp/production/home` 으로 간다. 못 보는 팀과 켜진 프리랜서는 보드 그대로. PC 메뉴 · 폰 아래 메뉴 · split 셸 레일(마우스 좁은 창 전용) · 로그인 뒤 착지는 그대로. `/erp/production` 아래(첫 화면 · 전체 화면 시트)는 전부 레일 생산 강조(`resolve_tablet_rail_active_id`, 조각 이동 뒤에는 `data-foms-rail-match`). 옛 생산 보드는 첫 화면 탭 줄 끝 [보드](`data-foms-home-board`, 온전한 페이지 이동 `data-foms-erp-no-shell`)로 들어간다. 전에는 레일이 누구에게나 보드로 가서 새 첫 화면은 주소를 쳐야만 보였다(운영엔 생산팀 계정이 없어 아무도 못 봄).
 - `is_production_home_user(user)`(`post_auth_navigation.py`) = 팀 PRODUCTION 이고 협력사 아님(프리랜서는 영업팀만 가능해 따로 보지 않음). `authenticated_home_url`·`resolve_post_login_redirect`(legacy `/`)·`listing.py index()`·`routes.py switch_user` 네 곳이 `production_home_url()` 로. 기기 무관. 시험 `tests/domains/test_post_auth_navigation.py` 4 사례(PC 로그인·`next=/`·`/`·CS 대조군).
 - **D15(11-09 저녁) 도장 공정 삭제** — 공정은 재단·엣지·조립·검수 4단계. `_PRODUCTION_STEP_DEFS`(API)·`PRODUCTION_HOME_STEP_DEFS` 에서 paint 제거, 옛 주문의 `production.steps` 에 남은 paint 는 읽을 때(API GET·`_ensure_production_steps`·첫 화면·시트·모바일 큐 "공정 n/N") 걸러 낸다. 데이터 이행 없음. 시안 그림의 도장 칸은 옛 그림.
