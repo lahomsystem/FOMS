@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 658,
+    "broad_total": 659,
     "unclassified": 0,
     "swallow_by_control_flow": 159
   },
   "disposition_counts": {
     "FAIL_CLOSED": 44,
     "INTENTIONAL": 20,
-    "LOG_AND_CONTINUE": 435,
+    "LOG_AND_CONTINUE": 436,
     "SWALLOW_BY_CONTROL_FLOW": 159
   },
   "owner_counts": {
@@ -26,7 +26,7 @@
     "runtime": 3,
     "services": 224,
     "storage": 24,
-    "telemetry": 46,
+    "telemetry": 47,
     "web": 38
   },
   "swallow_by_control_flow_owner_counts": {
@@ -2061,7 +2061,7 @@
     },
     {
       "path": "foms/api/partner/channel_push.py",
-      "lineno": 129,
+      "lineno": 124,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -2070,7 +2070,16 @@
     },
     {
       "path": "foms/api/partner/channel_push.py",
-      "lineno": 150,
+      "lineno": 154,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "telemetry",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/partner/channel_push.py",
+      "lineno": 175,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -2313,7 +2322,7 @@
     },
     {
       "path": "foms/api/shipment/partner_request.py",
-      "lineno": 90,
+      "lineno": 95,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4995,7 +5004,7 @@
     },
     {
       "path": "foms/services/partners/notify.py",
-      "lineno": 102,
+      "lineno": 104,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5004,7 +5013,7 @@
     },
     {
       "path": "foms/services/partners/notify.py",
-      "lineno": 109,
+      "lineno": 111,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5013,7 +5022,7 @@
     },
     {
       "path": "foms/services/partners/notify.py",
-      "lineno": 125,
+      "lineno": 127,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5022,7 +5031,7 @@
     },
     {
       "path": "foms/services/partners/notify_listeners.py",
-      "lineno": 50,
+      "lineno": 51,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5031,7 +5040,7 @@
     },
     {
       "path": "foms/services/partners/notify_listeners.py",
-      "lineno": 59,
+      "lineno": 60,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

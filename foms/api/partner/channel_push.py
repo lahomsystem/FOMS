@@ -113,9 +113,28 @@ def send_channel_push(order_id: int):
     return jsonify({"success": True, "data": {"state": push_state(order)}, "error": None})
 
 
+def _measure_before_drawing(db, user: Any, order: Order) -> str | None:
+    """발주 전에 영발이 한 번도 안 나갔으면 영발방에 먼저 한 번(사용자 결정 2026-11-10 — 주문 5911 · 5891 은
+    도면 단계로 바로 등록돼 영발 없이 발주만 나갔다). 실패해도 발주는 그대로 보낸다. 반환: 실패 안내(없으면 None)."""
+    state = push_state(order)["measurement"]
+    if state["pushed"] or not state["open"]:
+        return None
+    try:
+        ok, _message, _status = _send(db, user, order, "measurement", "")
+    except Exception:  # noqa: BLE001 - 발주는 그래도 보낸다
+        db.rollback()
+        log_handled_exception("partner auto measure before drawing push")
+        ok = False
+    if ok:
+        db.refresh(order)
+        return None
+    return AUTO_MEASURE_FAILED_NOTE
+
+
 def auto_drawing_push(db, user: Any, order_id: int) -> str | None:
-    """"이대로 만들어 주세요" 직후 발주 PUSH 한 번(이미 보냈으면 안 보낸다). 승인은 이미 commit 됐다 —
-    여기서 실패해도 승인을 되돌리지 않고 협력사에게 다시 보내라고 알린다. 반환: 화면에 보일 한 줄(없으면 None).
+    """"이대로 만들어 주세요" 직후 발주 PUSH 한 번(이미 보냈으면 안 보낸다). 영발이 한 번도 안 나간 주문이면
+    영발방에 먼저 보낸다(:func:`_measure_before_drawing`). 승인은 이미 commit 됐다 — 여기서 실패해도 승인을
+    되돌리지 않고 협력사에게 다시 보내라고 알린다. 반환: 화면에 보일 한 줄(없으면 None).
     """
     try:
         order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
@@ -124,8 +143,14 @@ def auto_drawing_push(db, user: Any, order_id: int) -> str | None:
         state = push_state(order)["drawing"]
         if state["pushed"] or not state["open"]:
             return None
+        measure_note = _measure_before_drawing(db, user, order)
+        if measure_note:
+            order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+            if order is None:
+                return measure_note
         ok, _message, _status = _send(db, user, order, "drawing", "")
-        return AUTO_SENT_NOTE if ok else AUTO_FAILED_NOTE
+        note = AUTO_SENT_NOTE if ok else AUTO_FAILED_NOTE
+        return f"{measure_note}\n{note}" if measure_note else note
     except Exception:  # noqa: BLE001 - 승인은 끝났다, 전송 실패만 알린다
         db.rollback()
         log_handled_exception("partner auto drawing push")
