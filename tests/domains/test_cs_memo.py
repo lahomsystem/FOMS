@@ -241,12 +241,35 @@ def test_a_memo_that_is_not_private_or_not_found_is_unverified(send, monkeypatch
     assert any(r.levelno == logging.ERROR and TEST_CHAT in r.getMessage() for r in caplog.records)
     assert post(reader=reader_with(bot_memo("memo-other"))).reason == memo.REASON_NOT_FOUND
     for error in (cr.ChannelReadError("http_500", status=500), cr.OpenApiNotConfigured("LAHOM 키 없음")):
-        result = post(reader=FakeReader(errors={TEST_CHAT: [error]}))
+        result = post(reader=FakeReader(errors={TEST_CHAT: [error] * 3}))
         assert (result.posted, result.verified, result.reason) == (True, False, memo.REASON_READ_FAILED)
     send.result = {"success": True, "message_id": None, "error": None}
     reader = reader_with(bot_memo())
     assert post(reader=reader) == memo.MemoResult(True, reason=memo.REASON_NO_MESSAGE_ID)
     assert reader.calls == []  # id 가 없으면 찾을 것이 없다
+
+
+def test_a_memo_missing_at_first_read_is_read_again_before_giving_up(send, monkeypatch, _no_cs_memo_verify_sleep):
+    """운영 11-06: 올린 직후 글 목록에 메모가 한 번 안 보여 초안 스위치가 '저장만'으로 내려갔다 — 기다렸다 다시 읽는다."""
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+    reader = reader_with()
+    reader.on_read = lambda chat: reader.messages[chat].append(bot_memo()) if len(reader.calls) == 2 else None
+    assert post(reader=reader) == memo.MemoResult(True, verified=True, message_id="memo-1")
+    assert len(reader.calls) == 2 and _no_cs_memo_verify_sleep == [memo.VERIFY_RETRY_WAITS[0]]
+    flaky = FakeReader(messages={TEST_CHAT: [bot_memo()]}, errors={TEST_CHAT: [cr.ChannelReadError("http_500", status=500)]})
+    assert post(reader=flaky).verified is True
+    _no_cs_memo_verify_sleep.clear()
+    never = reader_with()
+    assert post(reader=never).reason == memo.REASON_NOT_FOUND
+    assert len(never.calls) == 1 + len(memo.VERIFY_RETRY_WAITS)
+    assert _no_cs_memo_verify_sleep == list(memo.VERIFY_RETRY_WAITS)
+
+
+def test_a_public_memo_is_not_read_again(send, monkeypatch, _no_cs_memo_verify_sleep):
+    monkeypatch.setenv(memo.TEST_CHAT_IDS_ENV, TEST_CHAT)
+    reader = reader_with(bot_memo(private=False))
+    assert post(reader=reader).reason == memo.REASON_NOT_PRIVATE
+    assert len(reader.calls) == 1 and _no_cs_memo_verify_sleep == []
 
 
 def test_send_failures_keep_the_unknown_outcome_apart(send, monkeypatch):
@@ -278,7 +301,7 @@ def test_the_text_never_reaches_logs_results_or_exceptions(monkeypatch, caplog):
 
     monkeypatch.setattr(channel_client, "_call_native_function", fake_native)
     results = [post(), post(reader=reader_with(bot_memo(private=False))), post(),
-               post(reader=FakeReader(errors={TEST_CHAT: [cr.ChannelReadError("http_500", status=500)]})),
+               post(reader=FakeReader(errors={TEST_CHAT: [cr.ChannelReadError("http_500", status=500)] * 3})),
                memo.post_private_memo(DRAFT, TEST_CHAT, brand="LAHOM"),  # 자리를 바꿔 넘긴 글
                post(brand="HAUD"), post(REAL_CHAT, environment="staging", allowed_chat_ids=[])]
     errors = []
