@@ -32,7 +32,7 @@
     {% endfor %}
     <div class="fph-strip__f">
       {% for d in days.footer %}
-      <button type="button" class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">{{ d.label }} {{ d.total }}건{% if d.hidden %} · {{ d.hidden }}건 더{% endif %}</button>
+      <button type="button" class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">{{ d.label }} {{ d.total }}건{% if d.hidden %}<small>{{ d.hidden }}건 더</small>{% endif %}</button>
       {% endfor %}
     </div>
   </aside>
@@ -57,10 +57,10 @@
       <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
       <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, d.show_day, true) }}{% endfor %}</div>
       {% endif %}
-      {% if d.preview %}
-      <h3 class="fph-pane__g fph-pane__g--next">{{ d.preview.title }} 만들 것 {{ d.preview.make }} <small>{{ d.preview.hint }}</small></h3>
-      {% for r in d.preview.rows %}{{ fph_row(r, d.preview.show_day) }}{% endfor %}
-      {% endif %}
+      {% for p in d.previews %}
+      <h3 class="fph-pane__g fph-pane__g--next">{{ p.title }} <small>{{ p.hint }}</small></h3>
+      {% for r in p.rows %}{{ fph_row(r, p.show_day) }}{% endfor %}
+      {% endfor %}
     </section>
     {% endfor %}
   </div>
