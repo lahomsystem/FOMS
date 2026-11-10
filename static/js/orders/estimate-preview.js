@@ -469,7 +469,7 @@
             }).then(function () {
                 var metrics = _getEstimateCaptureMetrics(exportEl);
                 return _withEagerLazyMedia(function () {
-                    return _withTimeout(html2canvas(exportEl, {
+                    var h2cOpts = {
                         scale: metrics.scale,
                         useCORS: true,
                         imageTimeout: 8000,
@@ -479,7 +479,10 @@
                         height: metrics.height,
                         windowWidth: metrics.width,
                         windowHeight: metrics.height
-                    }), _HTML2CANVAS_RENDER_TIMEOUT_MS, 'html2canvas render timed out');
+                    };
+                    // 화면 크기(배율) 를 바꾼 사람도 원래 크기로 찍히게 — layout_head 의 fomsH2cOptions
+                    if (typeof window.fomsH2cOptions === 'function') h2cOpts = window.fomsH2cOptions(h2cOpts);
+                    return _withTimeout(html2canvas(exportEl, h2cOpts), _HTML2CANVAS_RENDER_TIMEOUT_MS, 'html2canvas render timed out');
                 }).then(function (canvas) {
                     return _canvasToImageUrl(canvas, preferBlobUrl);
                 });
