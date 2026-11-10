@@ -411,7 +411,20 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261110c" in html
+    assert "home.css?v=20261110d" in html
+    # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
+    assert 'data-foms-erp-no-shell="1"' in board.group(0)
+    # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
+    tools = html[html.index('class="foms-prod-home__tools"'):]
+    tools = tools[: tools.index("</header>")]
+    assert "data-foms-home-sync" in tools and "data-foms-fs-ctl" in tools and "data-foms-home-reload" in tools
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    assert ".foms-prod-home__tools { margin-left: auto; display: flex;" in css
+    # 띠: 하루짜리 빈 줄만 '· 없음', 묶음 줄(지난 7일 · 그 뒤)은 날짜 글이 길어 안 붙인다
+    strip = html[html.index('class="fph-strip"'):]
+    strip = strip[: strip.index("</aside>")]
+    recent = re.search(r'data-foms-home-daybtn="recent".*?</button>', strip, re.S).group(0)
+    assert "없음" not in recent
     rail = html[html.index('class="foms-tablet-rail"'):]
     rail = rail[: rail.index("</nav>")]
     prod = re.search(r'<a\s+class="foms-tablet-rail__item[^"]*"\s+href="([^"]+)"\s+title="생산"[^>]*>', rail)

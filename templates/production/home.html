@@ -3,7 +3,7 @@
    제목 줄에 탭별 글자 크기 손잡이(다른 탭과 같은 조각). 금액 칸 없음(D7). 단추·카드는 장갑 기준(D5). 글은 해요체·같은 말 한 번. 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261110c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261110d">
 {% endblock %}
 
 {% block content %}
@@ -25,11 +25,13 @@
         {# 옛 생산 보드(칸반)로 나가는 단추(D19, 11-10) — 태블릿 레일 '생산' 이 이 첫 화면으로 오므로 보드는 여기서 들어간다 #}
         <a class="foms-prod-home__navtab foms-prod-home__navtab--out" data-foms-home-board data-foms-erp-no-shell="1" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">보드 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
       </nav>
-      <span class="foms-prod-home__sp"></span>
-      <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
-      {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
-      {% include 'partials/shared/foms_font_scale_control.html' %}
-      <a class="foms-prod-home__btn" data-foms-home-reload href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'date' else None), day=(days.selected if days and not days.auto else None)) }}">다시 받기</a>
+      {# 오른쪽 묶음 — 줄이 넘치면 셋이 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②) #}
+      <div class="foms-prod-home__tools">
+        <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
+        {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
+        {% include 'partials/shared/foms_font_scale_control.html' %}
+        <a class="foms-prod-home__btn" data-foms-home-reload href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'date' else None), day=(days.selected if days and not days.auto else None)) }}">다시 받기</a>
+      </div>
     </header>
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 {{ loaded_at_hm }} 에 받은 것이에요.</p>
     <p class="foms-prod-home__status" data-foms-home-status aria-live="polite"></p>
