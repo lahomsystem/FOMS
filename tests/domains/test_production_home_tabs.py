@@ -226,14 +226,14 @@ def test_날짜_띠_규칙() -> None:
     assert by["recent"]["total"] == 1 and by["recent"]["show_day"] and by["recent"]["sub"] == "11/4~11/10"
     assert by["past"]["total"] == 1 and by["past"]["note"] == "더 오래된 7건은 안 보여요"
     assert by["later"]["total"] == 1 and by["later"]["sub"] == "11/22~" and by["none"]["total"] == 1
-    # 미리 보기 = 그날 뒤로 만들 것이 있는 첫 날(자기 날은 아님). 지난 7일 장은 오늘부터 찾는다
-    assert wed["preview"]["title"] == "11/14 (토)" and [r["id"] for r in wed["preview"]["rows"]] == [9]
-    assert by["recent"]["preview"]["title"] == "오늘 11/11 (수)" and by["recent"]["preview"]["hint"] == "미리 보기"
-    # 뒤로 만들 것이 없는 끝날·그 뒤 장은 밀린 것(지난 7일)을 단다(M4). 아래 두 장은 안 단다
-    for key in ("2026-11-21", "later"):
-        assert by[key]["preview"]["title"] == "지난 7일" and by[key]["preview"]["hint"] == "밀린 것", key
-        assert [r["id"] for r in by[key]["preview"]["rows"]] == [2] and by[key]["preview"]["show_day"], key
-    assert by["past"]["preview"] is None and by["none"]["preview"] is None
+    # 미리 보기 = 뒤 장들 만들 것을 6줄까지 이어 붙이고 모자라면 밀린 것(M4 §18). 자기 날은 아님
+    def _pv(key: str) -> list:
+        return [(p["title"], p["hint"], [r["id"] for r in p["rows"]]) for p in by[key]["previews"]]
+    assert _pv("2026-11-11") == [("다음에 만들 것 2", "미리 보기", [9, 10]), ("지난 7일 만들 것 1", "밀린 것", [2])]
+    assert _pv("recent") == [("다음에 만들 것 5", "미리 보기", [5, 4, 3, 9, 10])]  # 지난 7일 장은 오늘부터, 밀린 것 없음
+    for key in ("2026-11-21", "later"):  # 뒤로 만들 것이 없는 끝날·그 뒤 장은 밀린 것만
+        assert _pv(key) == [("지난 7일 만들 것 1", "밀린 것", [2])] and by[key]["previews"][0]["show_day"], key
+    assert by["past"]["previews"] == [] and by["none"]["previews"] == []
     # 고른 날: 아는 열쇠만
     assert production_home_days(rows, today, "past")["selected"] == "past"
     assert production_home_days(rows, today, "2026-12-25")["selected"] == "2026-11-11"
@@ -390,10 +390,13 @@ def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기
     assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
     assert "옛주문하나" not in past
     btn = html.split('data-foms-home-daybtn="past"')[1].split("</button>")[0]
-    assert btn.endswith(">지난 시공일 0건 · 2건 더")
-    # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추에 + 없음
+    assert btn.endswith(">지난 시공일 0건<small>2건 더</small>")  # 안 읽은 수는 둘째 줄 작은 글(M5)
+    # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추는 한 줄(small 없음)
     assert "이 날은 시공이 없어요." in _pane(html, "none")
-    assert html.split('data-foms-home-daybtn="none"')[1].split("</button>")[0].endswith(">시공일 없음 0건")
+    none_btn = html.split('data-foms-home-daybtn="none"')[1].split("</button>")[0]
+    assert none_btn.endswith(">시공일 없음 0건") and "<small>" not in none_btn
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    assert ".fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1));" in css
 
 
 def test_작업_시트_뒤로_단추는_생산이고_같은_출처_홈에서만_주소를_되돌린다() -> None:
@@ -417,7 +420,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111a" in html
+    assert "home.css?v=20261111b" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -457,20 +460,36 @@ def test_공정_줄과_곧_올_것은_시공일_빠른_순() -> None:
     assert [r["id"] for r in edge["incoming"]] == [3, 2, 5, 1]  # 재단 줄에서 보류만 뺀 같은 순서
 
 
-def test_날짜_장_미리_보기는_그_뒤까지_보고_없으면_밀린_것_자기_자신은_안_단다(client) -> None:
-    """M4(11-11): 미리 보기 후보에 '그 뒤' 묶음, 그래도 없으면 지난 7일 만들 것(밀린 것). 지난 7일 장은 자기를 안 단다."""
+def test_날짜_장_미리_보기는_6줄까지_뒤_장들을_잇고_모자라면_밀린_것_자기_자신은_안_단다(client) -> None:
+    """M4(11-11 · §18 11-11): 뒤 장들(그 뒤 포함) 만들 것을 6줄까지 잇고, 모자라면 남은 자리만큼 지난 7일(밀린 것).
+    지난 7일 장은 자기를 안 달고, 아래 두 장(지난 시공일 · 시공일 없음)에는 없다."""
     today = datetime.date(2026, 11, 11)
 
-    def _row(rid: int, date: str) -> dict:
+    def _row(rid: int, date: str | None) -> dict:
         return {"id": rid, "construction_date": date, "home_view": "prod", "home_stage": "제작 대기", "home_steps": []}
 
-    by = {b["key"]: b for b in production_home_days([_row(1, "2026-11-08"), _row(2, "2026-11-13"), _row(3, "2026-12-01")], today)["panes"]}
-    assert by["2026-11-11"]["preview"]["title"] == "11/13 (금)" and by["2026-11-11"]["preview"]["hint"] == "미리 보기"
-    assert by["2026-11-13"]["preview"]["title"] == "11/22 뒤" and [r["id"] for r in by["2026-11-13"]["preview"]["rows"]] == [3]
-    assert by["later"]["preview"]["title"] == "지난 7일" and by["later"]["preview"]["hint"] == "밀린 것"
-    alone = {b["key"]: b for b in production_home_days([_row(1, "2026-11-08")], today)["panes"]}
-    assert alone["recent"]["preview"] is None
-    assert alone["2026-11-11"]["preview"]["hint"] == "밀린 것" and [r["id"] for r in alone["2026-11-11"]["preview"]["rows"]] == [1]
+    def _pv(days: dict, key: str) -> list:
+        return [(p["title"], p["hint"], p["show_day"], [r["id"] for r in p["rows"]])
+                for p in next(b for b in days["panes"] if b["key"] == key)["previews"]]
+
+    recent7 = [_row(100 + i, "2026-11-08") for i in range(7)]
+    on13 = [_row(20 + i, "2026-11-13") for i in range(7)]
+    rows = recent7 + on13 + [_row(10, "2026-11-12"), _row(11, "2026-11-12"), _row(30, "2026-11-21"),
+                             _row(40, "2026-12-01"), _row(50, "2026-10-01"), _row(60, None)]
+    days = production_home_days(rows, today)
+    # (가) 뒤 장 하나로 6줄이 차면 그 장 제목, 밀린 것 없음
+    assert _pv(days, "2026-11-12") == [("11/13 (금) 만들 것 7", "미리 보기", False, [20, 21, 22, 23, 24, 25])]
+    # (나) 여러 장을 이으면 "다음에 만들 것 <뒤 장들 합계>", 줄마다 시공일, 6줄 이하
+    assert _pv(days, "2026-11-11") == [("다음에 만들 것 11", "미리 보기", True, [10, 11, 20, 21, 22, 23])]
+    # (다) 뒤가 1줄(그 뒤 묶음) 뿐이면 밀린 것 5줄을 더해 합 6. 그 뒤 장은 뒤가 없어 밀린 것 6줄
+    assert _pv(days, "2026-11-21") == [("11/22 뒤 만들 것 1", "미리 보기", True, [40]),
+                                       ("지난 7일 만들 것 7", "밀린 것", True, [100, 101, 102, 103, 104])]
+    assert _pv(days, "later") == [("지난 7일 만들 것 7", "밀린 것", True, [100, 101, 102, 103, 104, 105])]
+    # (라) 지난 7일 장에는 밀린 것 없음 (마) 아래 두 장에는 미리 보기 없음
+    assert [p[1] for p in _pv(days, "recent")] == ["미리 보기"]
+    assert _pv(days, "past") == [] and _pv(days, "none") == []
+    alone = production_home_days(recent7[:1], today)
+    assert _pv(alone, "recent") == [] and _pv(alone, "2026-11-11") == [("지난 7일 만들 것 1", "밀린 것", True, [100])]
     # 화면: 밀린 것 제목과 줄의 시공일 글
     _make_user(client, "tabs_prod_m4", "PRODUCTION")
     _add_order("PRODUCTION", "밀린주문", -3)

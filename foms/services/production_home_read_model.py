@@ -192,6 +192,7 @@ def production_home_groups(
 
 #: 날짜 탭 왼쪽 띠에 서는 날 수(오늘 포함). 앞에 '지난 7일', 뒤에 '그 뒤' 한 줄씩 붙어 13줄.
 PRODUCTION_HOME_STRIP_DAYS = 11
+PREVIEW_MAX_ROWS = 6  # 날짜 한 장 아래 미리 보기 줄 수 상한(다음에 만들 것 + 밀린 것 합)
 _BAR_ORDER = ('f', 'p', 'w', 'x')  # 막대 색 순서: 제작 완료 · 만드는 중 · 제작 대기 · 도면·컨펌 기다림
 
 
@@ -229,7 +230,7 @@ def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str
         'make': len(make_rows), 'make_rows': make_rows,
         'wait_rows': [r for r in rows if r.get('home_view') == 'wait'],
         'done_rows': [r for r in rows if r.get('home_view') == 'done'],
-        'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'hidden': 0, 'preview': None,
+        'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'hidden': 0, 'previews': [],
     }
     bucket.update(flags)
     return bucket
@@ -242,7 +243,7 @@ def production_home_days(
 
     띠 = 지난 7일(한 줄) · 오늘부터 ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄). 띠 아래 = 지난 시공일(7일 넘음) ·
     시공일 없음. 오른쪽은 그날의 만들 것(제작 대기~검수 끝·보류)을 큰 줄로, 도면·컨펌 기다림과 제작 완료는 작은 칸으로.
-    날짜 한 장 아래에는 다음에 만들 것이 있는 날(그 뒤 포함, 없으면 밀린 지난 7일)을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
+    날짜 한 장 아래에는 뒤 장들(그 뒤 포함)의 만들 것과 모자라면 밀린 지난 7일을 6줄까지 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
     (오늘이 비었으면 일이 있는 가장 가까운 장).
     """
     today = today or get_today_kst()
@@ -294,16 +295,26 @@ def production_home_days(
     ]
     recent = strip[0]
     for index, bucket in enumerate(strip):
-        # 미리 보기 = 이 장 뒤(그 뒤 묶음 포함)로 만들 것이 있는 첫 장. 없으면 밀린 것(지난 7일) — 자기 자신은 안 단다(M4).
-        nxt = next((b for b in strip[index + 1:] if b['make_rows']), None)
-        hint = '미리 보기'
-        if nxt is None and bucket is not recent and recent['make_rows']:
-            nxt, hint = recent, '밀린 것'
-        if nxt is not None:
-            bucket['preview'] = {
-                'title': '지난 7일' if nxt is recent else nxt['title'], 'make': nxt['make'], 'hint': hint,
-                'show_day': nxt['show_day'], 'rows': nxt['make_rows'][:6],
-            }
+        # 미리 보기 = 최대 6줄을 채우는 묶음들(M4 §18): 이 장 뒤 장들(그 뒤 포함)의 만들 것을 띠 순서로 이어 붙이고,
+        # 모자라면 남은 자리만큼 밀린 것(지난 7일). 자기 자신은 안 단다 — 지난 7일 장에는 밀린 것이 없다.
+        after = [b for b in strip[index + 1:] if b['make_rows']]
+        rows_next: list[dict[str, Any]] = []
+        used: list[dict[str, Any]] = []
+        for nxt in after:
+            if len(rows_next) >= PREVIEW_MAX_ROWS:
+                break
+            rows_next += nxt['make_rows'][:PREVIEW_MAX_ROWS - len(rows_next)]
+            used.append(nxt)
+        if len(used) == 1:
+            bucket['previews'].append({'title': f"{used[0]['title']} 만들 것 {used[0]['make']}", 'hint': '미리 보기',
+                                       'show_day': used[0]['show_day'], 'rows': rows_next})
+        elif used:
+            bucket['previews'].append({'title': f"다음에 만들 것 {sum(b['make'] for b in after)}", 'hint': '미리 보기',
+                                       'show_day': True, 'rows': rows_next})
+        room = PREVIEW_MAX_ROWS - len(rows_next)
+        if room and bucket is not recent and recent['make_rows']:
+            bucket['previews'].append({'title': f"지난 7일 만들 것 {recent['make']}", 'hint': '밀린 것',
+                                       'show_day': True, 'rows': recent['make_rows'][:room]})
     panes = strip + footer
     key = str(selected or '')
     auto = not any(p['key'] == key for p in panes)  # True = 사용자가 고른 날이 아니라 자동으로 고른 장(R3)
