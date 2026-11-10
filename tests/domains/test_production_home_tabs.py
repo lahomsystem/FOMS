@@ -290,6 +290,8 @@ def test_글자_크기_손잡이를_따라가는_CSS() -> None:
     # 글자가 커지면 글자가 든 칸 폭도 같이(R8) — 큰 줄 도면 칸 · 내 공정 시공일 칸
     assert "auto calc(92px * var(--foms-fs, 1))" in css
     assert "calc(150px * var(--foms-fs, 1)) 190px" in css
+    # 바뀐 줄은 품목 줄 두 줄까지(S5) — 바뀐 내용이 말줄임에 안 묻힌다
+    assert ".fph-dr.is-chg .fph-dr__pr { white-space: normal;" in css and "-webkit-line-clamp: 2" in css
 
 
 def test_옆_시트는_글자를_크게_키워도_단추와_주소가_안_잘린다() -> None:
@@ -395,3 +397,25 @@ def test_작업_시트_뒤로_단추는_생산이고_같은_출처_홈에서만_
     js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
     assert "document.referrer" in js and "from.origin !== window.location.origin" in js
     assert "from.pathname !== home.pathname" in js and "if (!back || !document.referrer) { return; }" in js
+
+
+def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeypatch) -> None:
+    """D19(11-10): 제목 줄 탭 끝(찾기 뒤)에 옛 보드로 가는 [보드], 태블릿 레일 '생산' 은 첫 화면으로 가고 강조된다."""
+    user = _make_user(client, "tabs_prod_board", "PRODUCTION")
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    html = client.get(HOME).get_data(as_text=True)
+    nav = html[html.index('class="foms-prod-home__nav"'):]
+    nav = nav[: nav.index("</nav>")]
+    board = re.search(r"<a [^>]*data-foms-home-board[^>]*>", nav)
+    assert board and 'href="/erp/production/dashboard"' in board.group(0)
+    assert "foms-prod-home__navtab--out" in board.group(0)
+    assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
+    assert "home.css?v=20261110c" in html
+    rail = html[html.index('class="foms-tablet-rail"'):]
+    rail = rail[: rail.index("</nav>")]
+    prod = re.search(r'<a\s+class="foms-tablet-rail__item[^"]*"\s+href="([^"]+)"\s+title="생산"[^>]*>', rail)
+    assert prod and prod.group(1) == HOME and "is-active" in prod.group(0)
+    assert 'data-foms-rail-match="/erp/production"' in prod.group(0)
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    assert ".foms-prod-home__navtab--out i { font-size: calc(13px * var(--foms-fs, 1)); }" in css

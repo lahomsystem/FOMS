@@ -249,3 +249,77 @@ def test_build_tablet_rail_items_highlights_calculator() -> None:
     items = build_tablet_rail_items(user, "/wdcalculator")
     active = [it for it in items if it["active"]]
     assert [it["id"] for it in active] == ["calculator"]
+
+
+# --- ⑧ D19(2026-11-10): 태블릿 레일 '생산' = 새 첫 화면(볼 수 있는 사람만) ---------------
+
+_HOME = "/erp/production/home"
+_BOARD = "/erp/production/dashboard"
+
+
+def _rail_production(user) -> dict:
+    items = build_tablet_rail_items(user, "/erp/shipment")
+    return next(it for it in items if it["id"] == "production")
+
+
+def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈() -> None:
+    """관리자 · CS · 영업 · 생산(별칭 회계=CS · 옛 실측=영업 포함)은 첫 화면, 그 밖 팀 · 협력사는 보드(403 화면으로 안 보낸다)."""
+    for user in (
+        SimpleNamespace(team=None, role="ADMIN"),
+        SimpleNamespace(team="DRAWING", role="ADMIN"),
+        SimpleNamespace(team="CS", role="STAFF"),
+        SimpleNamespace(team="ACCOUNTING", role="STAFF"),
+        SimpleNamespace(team="SALES", role="STAFF"),
+        SimpleNamespace(team="MEASURE", role="STAFF"),  # 옛 실측팀 = 영업(normalize_team)
+        SimpleNamespace(team="PRODUCTION", role="STAFF"),
+    ):
+        assert _rail_production(user)["href"] == _HOME, user
+    for user in (
+        SimpleNamespace(team="DRAWING", role="STAFF"),
+        SimpleNamespace(team=None, role="STAFF"),
+        SimpleNamespace(team="PRODUCTION", role="STAFF", partner_org_id=3),
+        None,
+    ):
+        assert _rail_production(user)["href"] == _BOARD, user
+    # 강조 접두어는 누구든 같다 — 보드로 조각 이동한 뒤에도 생산이 강조된다(tablet-rail-nav.js).
+    assert _rail_production(SimpleNamespace(team="DRAWING", role="STAFF"))["match"] == "/erp/production"
+
+
+def test_레일_규칙은_첫_화면_문지기와_한_곳() -> None:
+    """레일과 home.py 문지기가 같은 판정 함수를 쓴다(어긋나면 레일이 403 으로 보낸다). 주소 상수 = 라우트."""
+    from foms.services.production import home_access
+
+    home_src = _read("foms/web/production/home.py")
+    assert "can_view_production_home(user)" in home_src and "team_has_capability" not in home_src
+    assert "can_view_production_home" in _read("foms/services/foms_split_view.py")
+    assert home_access.PRODUCTION_HOME_PATH == _HOME
+
+
+def test_시공팀_레일에는_생산_단추가_없다() -> None:
+    items = build_tablet_rail_items(SimpleNamespace(team="CONSTRUCTION", role="STAFF"), "/erp/shipment")
+    assert [it["id"] for it in items] == ["shipment", "construction", "completion", "history"]
+
+
+def test_첫_화면과_전체_화면_시트도_생산이_강조된다() -> None:
+    for path in (_HOME, "/erp/production/sheet/1", "/erp/production/print/1", _BOARD, "/erp/production"):
+        assert resolve_tablet_rail_active_id(path) == "production", path
+    # 접두어가 비슷한 다른 경로는 생산이 아니다(구간 경계)
+    assert resolve_tablet_rail_active_id("/erp/productionx") == ""
+    assert resolve_tablet_rail_active_id("/erp/construction/dashboard") == "construction"
+    items = build_tablet_rail_items(SimpleNamespace(team="PRODUCTION", role="STAFF"), "/erp/production/sheet/1")
+    assert [it["id"] for it in items if it["active"]] == ["production"]
+
+
+def test_split_셸_레일은_그대로_보드() -> None:
+    """split 셸(/erp/dashboard, PC 마우스 좁은 창 전용)은 D19 범위 밖 — 생산은 계약 경로(보드) 그대로."""
+    from foms.services.foms_split_view import build_split_side_items
+
+    items = build_split_side_items(SimpleNamespace(team="PRODUCTION", role="STAFF"))
+    assert next(it for it in items if it["id"] == "production")["href"] == _BOARD
+
+
+def test_레일_동기_JS는_강조_접두어를_먼저_본다() -> None:
+    js = _read(RAIL_NAV_JS)
+    assert "getAttribute('data-foms-rail-match') || items[i].pathname" in js
+    assert 'data-foms-rail-match="{{ item.match }}"' in _read(RAIL_PARTIAL)
+    assert "js/foms/tablet-rail-nav.js') }}?v=20261110a" in _read(LAYOUT_NAV)
