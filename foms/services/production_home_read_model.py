@@ -241,7 +241,8 @@ def production_home_days(
 
     띠 = 지난 7일(한 줄) · 오늘부터 ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄). 띠 아래 = 지난 시공일(7일 넘음) ·
     시공일 없음. 오른쪽은 그날의 만들 것(제작 대기~검수 끝·보류)을 큰 줄로, 도면·컨펌 기다림과 제작 완료는 작은 칸으로.
-    날짜 한 장 아래에는 다음에 만들 것이 있는 날을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘.
+    날짜 한 장 아래에는 다음에 만들 것이 있는 날을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
+    (오늘이 비었으면 일이 있는 가장 가까운 장).
     """
     today = today or get_today_kst()
     recent_from = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
@@ -297,11 +298,12 @@ def production_home_days(
             bucket['preview'] = {'title': nxt['title'], 'make': nxt['make'], 'rows': nxt['make_rows'][:6]}
     panes = strip + footer
     key = str(selected or '')
-    return {
-        'strip': strip, 'footer': footer, 'panes': panes,
-        'selected': key if any(p['key'] == key for p in panes) else today.isoformat(),
-        'today_key': today.isoformat(),
-    }
+    if not any(p['key'] == key for p in panes):
+        # 처음 여는 장 = 오늘. 오늘이 비었으면 일이 있는 가장 가까운 장(오늘 뒤 → 그 뒤 → 지난 7일 → 지난 시공일 → 시공일 없음)
+        # — 스테이징처럼 앞날 주문이 없어도 첫 화면이 빈 장이 아니다(사용자 11-10 ②).
+        nearest = strip[1:] + [strip[0]] + footer
+        key = next((b['key'] for b in nearest if b['total']), today.isoformat())
+    return {'strip': strip, 'footer': footer, 'panes': panes, 'selected': key, 'today_key': today.isoformat()}
 
 
 def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
