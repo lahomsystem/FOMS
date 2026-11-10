@@ -244,8 +244,6 @@
 
 /* ── 바뀐 것: 받은함(미확인 변경 + 취소 주문) ── */
 .fph-inbox { background: var(--fph-surface); border-left: 1px solid var(--fph-line); padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.fph-inbox__h { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; display: flex; align-items: center; gap: 10px; }
-.fph-inbox__h b { font-size: calc(16px * var(--foms-fs, 1)); min-width: 30px; height: 30px; padding: 0 8px; border-radius: 15px; background: var(--fph-danger); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
 .fph-al { border: 1px solid var(--fph-line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
 .fph-al--cancel { border-color: var(--fph-warn); background: var(--fph-warn-50, #fffbeb); }
 .fph-al__body { min-width: 0; }
@@ -271,7 +269,7 @@
 .fph-stepnote b { color: var(--fph-text); }
 .fph-q { padding: 10px 16px 24px; display: flex; flex-direction: column; gap: 8px; }
 .fph-q[hidden] { display: none; }
-.fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) 150px 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
+.fph-qr { min-height: 96px; background: var(--fph-surface); border: 1px solid var(--fph-line); border-radius: 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr) calc(150px * var(--foms-fs, 1)) 190px; align-items: center; padding-right: 16px; gap: 0 10px; }
 .fph-qr.is-chg { border-color: var(--fph-danger); }
 .fph-qr.is-hold { opacity: .7; }
 .fph-qr__n { font-size: calc(28px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text3); text-align: center; }
@@ -360,7 +358,7 @@
 .fph-dr {
   min-height: 74px;
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr) auto 92px;
+  grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) */
   align-items: center;
   gap: 0 12px;
   padding-right: 12px;

@@ -61,8 +61,9 @@ def erp_production_home():
     rows, stats = build_production_home(db, user)
     today = get_today_kst()
     now_kst = datetime.datetime.now(_KST)
-    # 네 탭은 같은 행 집합에서 파생 — 쿼리는 "바뀐 것" 탭의 묘비(취소 주문) 하나만 더한다.
-    tombstones = collect_production_tombstones(db, user, False) if tab == 'changes' else []
+    # 네 탭은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다. 묘비는 모든 탭에서 세어
+    # "바뀐 것" 탭 숫자 = 받은함 장 수가 되게 한다(R2, 11-10).
+    tombstones = collect_production_tombstones(db, user, False)
     past_hidden = stats['past_hidden']
     return render_template(
         'production/home.html',
@@ -71,7 +72,7 @@ def erp_production_home():
         total=stats['total'],
         groups=production_home_groups(rows, today, past_hidden=past_hidden) if tab == 'all' else [],
         days=production_home_days(rows, today, request.args.get('day'), past_hidden=past_hidden) if tab == 'date' else None,
-        counts=production_home_counts(rows),
+        counts=production_home_counts(rows, len(tombstones)),
         inbox=production_home_inbox(rows, tombstones) if tab == 'changes' else [],
         queues=production_home_step_queues(rows) if tab == 'steps' else None,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",

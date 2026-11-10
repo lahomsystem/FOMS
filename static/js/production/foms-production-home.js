@@ -97,7 +97,7 @@
       p.hidden = p.getAttribute('data-foms-home-daypane') !== key;
     });
     var url = window.location.pathname + '?day=' + encodeURIComponent(key);
-    try { window.history.replaceState(null, '', url); } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
+    try { window.history.replaceState(window.history.state, '', url); } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
     var reload = root.querySelector('[data-foms-home-reload]');
     if (reload) { reload.setAttribute('href', url); }
     window.scrollTo(0, 0);

@@ -194,6 +194,20 @@
   function initAll() {
     toArr(document.querySelectorAll('[data-foms-prod-sheet-page]')).forEach(initRoot);
   }
+
+  // 뒤로 단추(전체 화면 시트만): 생산 첫 화면에서 왔으면 그 주소(고른 날·탭)로 돌아간다.
+  // 같은 출처 + 같은 경로일 때만 바꾼다(다른 곳 주소로는 절대 안 보냄). 옆 시트엔 단추가 없어 아무 일도 안 한다.
+  function restoreBackLink() {
+    var back = document.querySelector('[data-foms-prod-back]');
+    if (!back || !document.referrer) { return; }
+    try {
+      var from = new URL(document.referrer);
+      var home = new URL(back.getAttribute('href') || '', window.location.href);
+      if (from.origin !== window.location.origin || from.pathname !== home.pathname) { return; }
+      back.setAttribute('href', from.pathname + from.search);
+    } catch (e) { /* 주소를 못 읽으면 기본 주소 그대로 */ }
+  }
+  restoreBackLink();
   initAll();
   document.addEventListener('foms:erp-shell-fragment-swapped', initAll);
   document.addEventListener('foms:main-content-swapped', initAll);
