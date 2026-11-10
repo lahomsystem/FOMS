@@ -1,5 +1,5 @@
 /**
- * 출고 화면 협력사 희망 시공일 2주 판 — 접기 · 정하기 창 · 끌어 놓기 · 5초 되돌리기.
+ * 출고 화면 협력사 희망 시공일 2주 판 — 접기 · 정하기 창 · 끌어 놓기 · 5초 되돌리기 · 기록 [되돌리기].
  * 마크업: templates/shipment/partials/partner_request_board.html · 설계서
  * docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md §2.1 · §2.2 · §2.4.
  *
@@ -187,10 +187,33 @@
   }
   window.addEventListener('pagehide', function () { if (pending) flush(true); });
 
+  // ── '최근 정한 기록' [되돌리기] — 시공일을 지워 확정 대기로(협력사에 취소 알림이 바로 가서 묻고 보낸다) ──
+  function revert(btn) {
+    var id = btn.getAttribute('data-prb-revert'), name = btn.getAttribute('data-name') || '';
+    if (btn.disabled || !window.confirm('#' + id + ' ' + name + ' 시공일(' + (btn.getAttribute('data-when') || '') +
+      ')을 지우고 확정 대기로 돌릴까요?\n협력사에 시공일 취소 알림이 가요.')) return;
+    btn.disabled = true;
+    fetch('/api/erp/shipment/partner-requests/' + encodeURIComponent(id) + '/revert', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{}'
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data && data.success === true) {
+        toast('#' + id + ' ' + name + ' 시공일을 지웠어요. 다시 확정 대기예요.', false);
+        setTimeout(function () { window.location.reload(); }, 1500);
+        return;
+      }
+      btn.disabled = false;
+      toast((data && (data.error || data.message)) || '되돌리지 못했어요.', false, 5000);
+    }).catch(function () {
+      btn.disabled = false;
+      toast('되돌리지 못했어요. 인터넷 연결을 확인해 주세요.', false, 5000);
+    });
+  }
+
   // ── 이벤트(위임) ──
   document.addEventListener('click', function (e) {
     var t = e.target, el;
     if (t.closest('[data-prb-undo]')) return undo();
+    if ((el = t.closest('[data-prb-revert]'))) return revert(el);
     if ((el = t.closest('[data-prb-fold]'))) return toggleFold(el);
     if ((el = t.closest('[data-prb-log-toggle]'))) {
       var log = el.closest('[data-prb-log]'), open = !log.classList.contains('is-open');

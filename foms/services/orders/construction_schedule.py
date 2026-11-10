@@ -31,7 +31,7 @@ from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.structured_diff import diff_structured
-from foms.services.partners.schedule_request import clean_date, request_open
+from foms.services.partners.schedule_request import REQUEST_CLOSED_STAGES, clean_date, request_open
 from foms.services.production_change_alerts import _date_to_md
 
 #: 판 · 주문 화면에서 고르는 시공시간(주문 화면의 '직접 입력'은 CS · 영업 폼 저장으로만).
@@ -120,7 +120,7 @@ def write_construction_schedule(
     if before_date != date:
         try:
             notif, created = apply_production_change_alert(
-                db, order, "construction_date", f"{_date_to_md(before_date or None)} → {_date_to_md(date)}",
+                db, order, "construction_date", f"{_date_to_md(before_date or None)} → {_date_to_md(date or None)}",
                 actor_user_id=actor_id, actor_name=actor_name,
             )
             notifications.append(("production", notif, created))
@@ -171,3 +171,17 @@ def confirm_partner_request(db, order: Any, user: Any, *, date: Any, time: Any) 
     if str(getattr(order, "erp_construction_date", "") or "").strip() or not request_open(sd, order.erp_stage_code or ""):
         raise ScheduleConflict("다른 사람이 먼저 시공일을 정했어요.")
     return write_construction_schedule(db, order, user, date=clean, time=text, keep_existing_time=True)
+
+
+def revert_to_partner_request(db, order: Any, user: Any) -> ScheduleWrite:
+    """출고 화면 '최근 정한 기록' [되돌리기] — 잠근 협력사 주문의 시공일 · 시공시간을 지워 확정 대기로 돌린다.
+
+    협력사 희망 시공일(``partner_intake.requested_construction``)은 그대로라 판에 다시 뜬다. 시공일이 이미 없거나
+    시공이 시작된 단계면 :class:`ScheduleConflict`. 협력사 "시공일 취소" 알림은 전역 훅(``notify_listeners``)이 한다.
+    """
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    if not _construction(sd).get("date") or not str(getattr(order, "erp_construction_date", "") or "").strip():
+        raise ScheduleConflict("이미 확정 대기예요.")
+    if (order.erp_stage_code or "").upper() in REQUEST_CLOSED_STAGES:
+        raise ScheduleConflict("시공이 시작된 주문은 되돌릴 수 없어요.")
+    return write_construction_schedule(db, order, user, date="", time="")

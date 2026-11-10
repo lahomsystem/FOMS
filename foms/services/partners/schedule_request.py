@@ -206,7 +206,8 @@ HISTORY_LIMIT = 50
 def recent_partner_schedule_changes(db, *, days: int = HISTORY_DAYS, limit: int = HISTORY_LIMIT) -> list[dict[str, Any]]:
     """협력사 주문의 시공일이 정해지거나 바뀐 기록 — 변경 원장(``order_field_changes``) 최근 days 일, 새것 먼저.
 
-    판에서 정한 것 · 주문 화면에서 정한 것이 같은 원장에 남는다. 시공일을 지운 줄은 뺀다.
+    판에서 정한 것 · 주문 화면에서 정한 것이 같은 원장에 남는다. 시공일을 지운 줄(판 [되돌리기])은 ``after`` 가 빈
+    문자열인 "되돌림" 줄로 남긴다.
     """
     since = now_utc_naive() - datetime.timedelta(days=days)
     rows = (
@@ -223,11 +224,11 @@ def recent_partner_schedule_changes(db, *, days: int = HISTORY_DAYS, limit: int 
     )
     out = []
     for r in rows:
-        after = clean_date(r.after_value)
-        if not after:
+        after, before = clean_date(r.after_value), clean_date(r.before_value)
+        if not (after or before):
             continue
         out.append({"order_id": int(r.order_id), "customer_name": r.customer_name or "",
-                    "before": clean_date(r.before_value), "after": after, "hope": clean_date(r.date),
+                    "before": before, "after": after, "hope": clean_date(r.date),
                     "time": clean_time(r.time), "at": r.created_at,
                     "actor_name": r.actor_name or "", "actor_team": r.actor_team or ""})
     return out

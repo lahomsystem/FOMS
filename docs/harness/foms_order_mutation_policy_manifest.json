@@ -775,6 +775,11 @@
       "policy_id": "CONSTRUCTION_SCHEDULE_EDIT",
       "rule": "/api/erp/shipment/partner-requests/<int:order_id>/confirm"
     },
+    "erp_shipment.api_revert_partner_request": {
+      "mode": "guard",
+      "policy_id": "CONSTRUCTION_SCHEDULE_EDIT",
+      "rule": "/api/erp/shipment/partner-requests/<int:order_id>/revert"
+    },
     "erp_shipment.api_set_construction_schedule": {
       "mode": "guard",
       "policy_id": "CONSTRUCTION_SCHEDULE_EDIT",

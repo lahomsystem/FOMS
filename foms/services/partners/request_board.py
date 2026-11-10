@@ -86,9 +86,9 @@ def build_request_board(
         at = h["at"] + _KST if isinstance(h["at"], datetime.datetime) else None
         history.append({
             **h, "at_text": at.strftime("%m-%d %H:%M") if at else "",
-            "hope_text": _md_dow(h["hope"]) if h["hope"] else "", "after_text": _md_dow(h["after"]),
+            "hope_text": _md_dow(h["hope"]) if h["hope"] else "", "after_text": _md_dow(h["after"]) if h["after"] else "",
             "before_text": _md_dow(h["before"]) if h["before"] else "",
-            "moved": bool(h["hope"]) and not h["before"] and h["hope"] != h["after"],
+            "moved": bool(h["hope"]) and bool(h["after"]) and not h["before"] and h["hope"] != h["after"],
             "actor": " ".join(x for x in (h["actor_name"], f"({team_label(h['actor_team'])})" if h["actor_team"] else "") if x),
         })
     return {
