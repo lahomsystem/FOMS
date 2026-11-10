@@ -36,7 +36,8 @@ def _apply_pending(session: Session) -> None:
     ids = session.info.setdefault(_PENDING, set())
     for order_id, change in changes.items():
         order = session.get(Order, order_id)
-        if order is None or order in session.deleted or not order.partner_org_id or not change["to"]:
+        # 시공일을 지운 것(출고 판 [되돌리기])도 알린다 — 이미 받은 '정해졌습니다' 를 바로잡는다(사용자 결정 11-10).
+        if order is None or order in session.deleted or not order.partner_org_id or not (change["to"] or change["from"]):
             continue
         rows = create_partner_notifications(
             session, order, PARTNER_CONSTRUCTION_DATE, {"before": change["from"], "after": change["to"]},

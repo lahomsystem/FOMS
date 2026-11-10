@@ -42,6 +42,8 @@ def partner_message(event: str, order: Order, values: dict[str, Any] | None = No
     head = f"{_customer(order)} 고객(#{order.id})"
     if event == PARTNER_DRAWING_READY:
         return f"{head} 도면이 올라왔습니다. 고객과 확인한 뒤 승인 또는 수정 요청해 주세요."
+    if event == PARTNER_CONSTRUCTION_DATE and v.get("before") and not v.get("after"):
+        return f"{head} 시공일({v['before']})이 취소돼 다시 정하고 있습니다. 정해지면 다시 알려 드릴게요."
     if event == PARTNER_CONSTRUCTION_DATE:
         changed = f" (바뀜: {v['before']} → {v['after']})" if v.get("before") else ""
         return f"{head} 시공일이 {v.get('after') or '-'}로 정해졌습니다{changed}. 고객에게 알려 주세요."

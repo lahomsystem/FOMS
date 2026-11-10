@@ -202,3 +202,57 @@ def test_low_board_header_toggle_and_collapsed_history(app, world):
     assert "data-prb-log-toggle" in page and "2건 보기" in page and page.count("prb-log__more") == 1
     board = page[page.index("data-prb"):page.index("prb-log")]
     assert "남은 -" not in board and ".0</span>" not in board and "prb-cell__rem" in board
+
+
+def _revert(app, user_id, order_id):
+    client = _client(app, db_session.get(User, user_id))
+    return client.post(f"/api/erp/shipment/partner-requests/{order_id}/revert", json={})
+
+
+def test_revert_puts_order_back_on_board_and_tells_partner(app, world):
+    order_id = _order(app, world["partner_a"], hope=_day(3), name="되돌림고객")
+    assert _confirm(app, world["staff"], order_id, _day(4), "오후").status_code == 200
+    resp = _revert(app, world["staff"], order_id)
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["date"] == "" and resp.get_json()["data"]["before_date"] == _day(4)
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    assert not order.erp_construction_date
+    assert order.structured_data["schedule"]["construction"] == {"date": "", "time": ""}
+    assert order.structured_data["partner_intake"]["requested_construction"]["date"] == _day(3)
+    assert any(p["id"] == order_id for p in shipment_pending_requests(db_session))
+    # 협력사 직원마다 취소 알림 1건(정해졌다 알림과 다른 문장)
+    cancel = db_session.query(Notification).filter(Notification.order_id == order_id,
+                                                   Notification.notification_type == "PARTNER_CONSTRUCTION_DATE",
+                                                   Notification.message.contains("취소")).all()
+    assert {n.target_user_id for n in cancel} == {world["partner_a"], world["partner_a2"]}
+    # 기록: 되돌림 줄(after 빈 값)이 맨 위, 정한 줄도 남는다
+    history = [h for h in recent_partner_schedule_changes(db_session) if h["order_id"] == order_id]
+    assert history[0]["after"] == "" and history[0]["before"] == _day(4)
+    assert history[1]["after"] == _day(4)
+    page = _client(app, db_session.get(User, world["staff"])).get("/erp/shipment").get_data(as_text=True)
+    assert "확정 대기로 되돌림" in page and f'data-prb-revert="{order_id}"' in page
+    assert f'data-prb-chip="{order_id}"' in page
+    # 다시 확정하면 새 시간으로 정해진다(지운 시간이 남아 막지 않는다)
+    again = _confirm(app, world["staff"], order_id, _day(5), "오전")
+    assert again.status_code == 200 and again.get_json()["data"]["time"] == "오전"
+
+
+def test_revert_conflicts_and_permissions(app, world):
+    order_id = _order(app, world["partner_a"])
+    unscheduled = _revert(app, world["staff"], order_id)
+    assert unscheduled.status_code == 409 and unscheduled.get_json()["code"] == "NOT_SCHEDULED"
+    assert _confirm(app, world["staff"], order_id, _day(3)).status_code == 200
+    assert _revert(app, _user(team="CONSTRUCTION").id, order_id).status_code == 403
+    assert _revert(app, world["partner_a"], order_id).status_code == 403
+    order = db_session.get(Order, order_id)
+    order.erp_stage_code = "CONSTRUCTION"
+    db_session.commit()
+    assert _revert(app, world["staff"], order_id).status_code == 409
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_construction_date == _day(3)
+    plain_id = _order(app, world["partner_a"], name="우리주문")
+    plain = db_session.get(Order, plain_id)
+    plain.partner_org_id = None
+    db_session.commit()
+    assert _revert(app, world["staff"], plain_id).status_code == 404

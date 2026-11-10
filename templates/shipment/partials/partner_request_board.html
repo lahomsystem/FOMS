@@ -1,10 +1,11 @@
 {# 협력사 희망 시공일 2주 판(설계서 docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md §2.1).
    협력사가 고른 날짜는 희망일이다 — 판에서 누르거나 다른 날로 끌어 놓아 [확정]하면 시공일이 정해지고 이 판에서 빠진다.
+   '최근 정한 기록' [되돌리기]는 시공일을 지워 다시 이 판(확정 대기)으로 돌린다(협력사에 취소 알림, 사용자 11-10).
    날짜 칸 숫자는 왼쪽 "날짜별 잔여 시공"과 같은 값(희망일도 이미 그날 자수에 들어가 있다, 사용자 결정 10-28 · 10-29).
    움직임은 static/js/shipment/partner-request-board.js(shipment-entry.js 가 싣는다). #}
 {% set b = partner_request_board %}
 {% if b and (b.count or b.history) %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261109f">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261110a">
 <div class="card border-0 shadow-sm erp-scheduler-card prb mb-3" data-partner-pending-requests data-prb
   data-can-set="{{ '1' if can_set_construction_schedule else '0' }}"
   data-partner="{{ b.single_partner }}" data-tight="{{ b.tight_units }}">
@@ -47,9 +48,11 @@
         {% if loop.first %}<b class="me-1">최근 정한 기록</b>{% endif %}
         <span class="prb-muted">{{ h.at_text }}</span>
         <a class="prb-link" href="{{ url_for('order_edit.edit_order', order_id=h.order_id, open='erp-order') }}">#{{ h.order_id }} {{ h.customer_name }}</a>
-        {% if h.before %}{{ h.before_text }} → <b>{{ h.after_text }}{% if h.time %} {{ h.time }}{% endif %}</b> 바뀜
+        {% if not h.after %}{{ h.before_text }} → <b>확정 대기로 되돌림</b>
+        {% elif h.before %}{{ h.before_text }} → <b>{{ h.after_text }}{% if h.time %} {{ h.time }}{% endif %}</b> 바뀜
         {% else %}{% if h.hope %}희망 {{ h.hope_text }}{% else %}희망 날짜 없음{% endif %} → <b>{{ h.after_text }}{% if h.time %} {{ h.time }}{% endif %}</b>{% if h.moved %} <span class="prb-moved">옮김</span>{% endif %}{% endif %}
         {% if h.actor %}· {{ h.actor }}{% endif %}
+        {% if can_set_construction_schedule and h.after %}<button type="button" class="prb-textbtn" data-prb-revert="{{ h.order_id }}" data-name="{{ h.customer_name }}" data-when="{{ h.after_text }}" title="시공일을 지우고 확정 대기로 돌려요">되돌리기</button>{% endif %}
         {% if loop.first and _hist|length > 1 %}<button type="button" class="prb-textbtn ms-auto" data-prb-log-toggle aria-expanded="false"><span class="prb-when-log-closed">{{ _hist|length }}건 보기 ▾</span><span class="prb-when-log-open">접기 ▴</span></button>{% endif %}
       </div>
       {% endfor %}

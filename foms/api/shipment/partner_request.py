@@ -3,6 +3,7 @@
 설계서 ``docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md`` §2.3 · §2.3-b.
 
 * ``POST /api/erp/shipment/partner-requests/<order_id>/confirm`` ``{date, time}`` — 확정 대기 협력사 주문의 첫 시공일.
+* ``POST /api/erp/shipment/partner-requests/<order_id>/revert`` — 정한 시공일을 지워 확정 대기로 돌린다.
 * ``POST /api/orders/<order_id>/construction-schedule`` ``{date, time}`` — 시공일 · 시공시간을 정하거나 바꾼다.
 
 권한은 §2.1 ``CONSTRUCTION_SCHEDULE_EDIT``(ERP 편집 팀 + 출고팀)를 handler 안에서 다시 본다 — before_request 가드가
@@ -24,6 +25,7 @@ from foms.services.orders.construction_schedule import (
     ScheduleInputError,
     confirm_partner_request,
     finalize_schedule_notifications,
+    revert_to_partner_request,
     validate_schedule_input,
     write_construction_schedule,
 )
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _SOURCE_BOARD = "shipment_partner_board"
 _SOURCE_ORDER = "order_construction_schedule"
+_SOURCE_REVERT = "shipment_partner_board_revert"
 
 
 def _error(message: str, status: int, code: str = "") -> tuple[Any, int]:
@@ -49,7 +52,7 @@ def _gate():
     return user, None
 
 
-def _save(order_id: int, source: str, *, partner_only: bool):
+def _save(order_id: int, source: str, *, partner_only: bool, revert: bool = False):
     user, denied = _gate()
     if denied is not None:
         return denied
@@ -63,7 +66,9 @@ def _save(order_id: int, source: str, *, partner_only: bool):
         if partner_only and not getattr(order, "partner_org_id", None):
             db.rollback()
             return _error("주문을 찾을 수 없습니다.", 404, "NOT_FOUND")
-        if partner_only:
+        if revert:
+            result = revert_to_partner_request(db, order, user)
+        elif partner_only:
             result = confirm_partner_request(db, order, user, date=body.get("date"), time=body.get("time"))
         else:
             date, time = validate_schedule_input(body.get("date"), body.get("time"))
@@ -86,7 +91,7 @@ def _save(order_id: int, source: str, *, partner_only: bool):
         return _error(str(exc), 400, "INVALID")
     except ScheduleConflict as exc:
         db.rollback()
-        return _error(str(exc), 409, "ALREADY_SCHEDULED")
+        return _error(str(exc), 409, "NOT_SCHEDULED" if revert else "ALREADY_SCHEDULED")
     except Exception:  # noqa: BLE001 — 롤백 뒤 500
         db.rollback()
         logger.exception("[CONSTRUCTION_SCHEDULE] 저장 실패 order=%s", order_id)
@@ -111,3 +116,9 @@ def api_confirm_partner_request(order_id: int):
 def api_set_construction_schedule(order_id: int):
     """시공일 · 시공시간 정하기 · 바꾸기(출고팀 주문 화면). 바꾸면 응답의 ``change_reason_required`` 로 사유를 받는다."""
     return _save(order_id, _SOURCE_ORDER, partner_only=False)
+
+
+@erp_shipment_bp.route("/api/erp/shipment/partner-requests/<int:order_id>/revert", methods=["POST"])
+def api_revert_partner_request(order_id: int):
+    """'최근 정한 기록' [되돌리기] — 협력사 주문의 시공일을 지워 희망 판(확정 대기)으로 돌린다."""
+    return _save(order_id, _SOURCE_REVERT, partner_only=True, revert=True)
