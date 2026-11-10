@@ -474,7 +474,7 @@ def test_shipment_entry_chain_keeps_pin_and_excludes_ack_client():
     (2026-10-02 병렬 로드 전환은 entry 자체 핀만 dashboard_scripts.html 에서 올렸다.)
     """
     entry = _read(SHIP_ENTRY_JS)
-    assert "SHIP_JS_V = '20261105s'" in entry
+    assert "SHIP_JS_V = '20261110a'" in entry
     assert "shipment-change-alert.js" not in entry
 
 

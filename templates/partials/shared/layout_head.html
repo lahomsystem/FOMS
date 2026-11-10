@@ -79,6 +79,26 @@
         var z = parseFloat(root.getAttribute('data-foms-ui-zoom') || '');
         return z > 0 ? z : 1;
       };
+      /* html2canvas 1.4.1 은 CSS zoom 을 모른다 — 그림판은 배율 전 크기로, 내용은 배율 뒤 크기로 그려
+         80% 면 그림 왼쪽 위 80% 에만 찍히고 글자가 겹쳤다(11-10 견적서 저장). 찍을 때만 복사본 문서에서 배율을 뺀다. */
+      window.fomsH2cOptions = function (opts) {
+        opts = opts || {};
+        var z = window.fomsUiZoom();
+        if (z === 1) return opts;
+        var out = {};
+        for (var k in opts) {
+          if (Object.prototype.hasOwnProperty.call(opts, k)) out[k] = opts[k];
+        }
+        var userOnclone = opts.onclone;
+        out.onclone = function (doc, el) {
+          doc.documentElement.removeAttribute('data-foms-ui-zoom');
+          doc.documentElement.style.removeProperty('--foms-ui-zoom');
+          if (typeof userOnclone === 'function') return userOnclone(doc, el);
+        };
+        if (out.windowWidth == null) out.windowWidth = Math.round(window.innerWidth / z);
+        if (out.windowHeight == null) out.windowHeight = Math.round(window.innerHeight / z);
+        return out;
+      };
       try {
         var pct = parseInt(localStorage.getItem(key) || '', 10);
         if (pct >= 70 && pct <= 130 && pct !== 100) {
