@@ -231,6 +231,13 @@ def test_날짜_띠_규칙() -> None:
     assert production_home_days(rows, today, "past")["selected"] == "past"
     assert production_home_days(rows, today, "2026-12-25")["selected"] == "2026-11-11"
     assert production_home_days([], today)["strip"][1]["segs"] == []
+    # 오늘이 비었으면 일이 있는 가장 가까운 장: 오늘 뒤 → 그 뒤 → 지난 7일 → 지난 시공일 → 시공일 없음. 다 비면 오늘
+    assert production_home_days([], today)["selected"] == "2026-11-11"
+    assert production_home_days([rows[0], rows[11]], today)["selected"] == "past"
+    assert production_home_days([rows[0], rows[1], rows[8]], today)["selected"] == "2026-11-14"
+    assert production_home_days([rows[1], rows[10]], today)["selected"] == "later"
+    assert production_home_days([rows[11]], today)["selected"] == "none"
+    assert production_home_days([rows[0]], today, "2026-11-11")["selected"] == "2026-11-11"  # 직접 고른 날은 비어도 그대로
 
 
 def test_받은함과_공정_줄_규칙() -> None:
