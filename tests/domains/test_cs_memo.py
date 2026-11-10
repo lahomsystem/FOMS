@@ -241,12 +241,13 @@ def test_a_memo_that_is_not_private_or_not_found_is_unverified(send, monkeypatch
     assert any(r.levelno == logging.ERROR and TEST_CHAT in r.getMessage() for r in caplog.records)
     assert post(reader=reader_with(bot_memo("memo-other"))).reason == memo.REASON_NOT_FOUND
     for error in (cr.ChannelReadError("http_500", status=500), cr.OpenApiNotConfigured("LAHOM 키 없음")):
-        result = post(reader=FakeReader(errors={TEST_CHAT: [error]}))
+        result = post(reader=FakeReader(errors={TEST_CHAT: [error] * 3}))
         assert (result.posted, result.verified, result.reason) == (True, False, memo.REASON_READ_FAILED)
     send.result = {"success": True, "message_id": None, "error": None}
     reader = reader_with(bot_memo())
     assert post(reader=reader) == memo.MemoResult(True, reason=memo.REASON_NO_MESSAGE_ID)
     assert reader.calls == []  # id 가 없으면 찾을 것이 없다
+
 
 
 def test_send_failures_keep_the_unknown_outcome_apart(send, monkeypatch):
@@ -278,7 +279,7 @@ def test_the_text_never_reaches_logs_results_or_exceptions(monkeypatch, caplog):
 
     monkeypatch.setattr(channel_client, "_call_native_function", fake_native)
     results = [post(), post(reader=reader_with(bot_memo(private=False))), post(),
-               post(reader=FakeReader(errors={TEST_CHAT: [cr.ChannelReadError("http_500", status=500)]})),
+               post(reader=FakeReader(errors={TEST_CHAT: [cr.ChannelReadError("http_500", status=500)] * 3})),
                memo.post_private_memo(DRAFT, TEST_CHAT, brand="LAHOM"),  # 자리를 바꿔 넘긴 글
                post(brand="HAUD"), post(REAL_CHAT, environment="staging", allowed_chat_ids=[])]
     errors = []
