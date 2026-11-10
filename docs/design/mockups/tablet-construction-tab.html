@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>시공팀 태블릿 첫 화면 시안 셋</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* 시공 탭(태블릿 가로 1280×800) 첫 화면 시안 셋 — 2026-11-10 사용자 요청 ① 글자 크기 조절 ② 빈 공간 없이 ③ 날짜별로 한눈에.
+   색·글꼴·틀은 생산 시안(tablet-production-ui-alternatives.html)과 같은 토큰. 데이터는 전부 지어낸 이름·주소. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;
+  --accent:#4a55b8;--accent-soft:#e6e8ff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;--app-inverse:#ffffff;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;--app-brand-100:#e6e8ff;--app-brand-300:#9ea4ff;
+  --app-danger:#dc2626;--app-danger-50:#fef2f2;--app-warn:#d97706;--app-warn-border:#f59e0b;--app-warn-50:#fffbeb;
+  --app-amber-bg:#fef3c7;--app-amber-text:#92400e;--app-success:#059669;--app-success-dark:#047857;--app-success-50:#ecfdf5;
+  --app-info:#2563eb;--app-info-50:#eff6ff;--app-dwg:#2b2f36;--app-dwg-line:#d5d9e0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+    --accent:#9ea4ff;--accent-soft:#232a52;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+  --accent:#9ea4ff;--accent-soft:#232a52;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:76ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.rules{margin-top:14px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-wrap:wrap;gap:6px 22px;list-style:none;font-size:15px}
+.rules li b{color:var(--accent)}
+.toc{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:56px;scroll-margin-top:16px}
+.frame h2{font-size:22px;font-weight:800;margin-bottom:2px;text-wrap:balance}
+.frame .who{color:var(--muted);font-size:15px;margin-bottom:12px}
+.frame .who b{color:var(--fg)}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.art{position:absolute;left:0;top:0;transform-origin:0 0;width:1280px;height:800px;background:var(--app-bg);color:var(--app-text);font-size:14px;line-height:1.4;overflow:hidden;font-variant-numeric:tabular-nums;display:flex}
+.art *{box-sizing:border-box}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:14px}
+.col h3{font-size:15px;font-weight:800;margin-bottom:6px}
+.col ul{padding-left:20px;display:grid;gap:4px;font-size:15px;color:var(--muted)}
+.col ul b{color:var(--fg)}
+.pick{margin-top:56px;padding:18px 20px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.pick h2{font-size:20px;font-weight:800;margin-bottom:10px}
+.pick p{font-size:15px;color:var(--muted);max-width:80ch}
+.pick p b{color:var(--fg)}
+.pick .cols{margin-top:12px}
+.now{margin-top:18px;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;font-size:15px;color:var(--muted);max-width:none}
+.now b{color:var(--fg)}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ic.lg{width:28px;height:28px}
+
+/* ─── 레일(지금 있는 것 그대로: 화면 크기 −/100%/+ 와 9탭) ─── */
+.rail{width:72px;flex-shrink:0;background:var(--app-surface);border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+.rail .logo{font-size:22px;font-weight:800;color:var(--app-brand);height:36px;display:flex;align-items:center}
+.rail .zoom{width:44px;border:1px solid var(--app-line2);border-radius:8px;display:flex;flex-direction:column;align-items:center;font-size:12px;font-weight:800;margin:4px 0 6px}
+.rail .zoom span{height:22px;display:flex;align-items:center}
+.rail .zoom span.v{font-size:11px;color:var(--app-text2)}
+.rail .it{width:64px;height:52px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;color:var(--app-text2);font-weight:700}
+.rail .it i{width:20px;height:14px;border:2px solid currentColor;border-radius:3px;opacity:.75}
+.rail .it.on{background:var(--app-brand-50);color:var(--app-brand-dark);border-left:3px solid var(--app-brand)}
+.rail .sp{flex:1}
+.rail .ava{width:36px;height:36px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+.page{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+
+/* ─── 제목 줄: 글자 크기 손잡이가 다른 탭과 같은 자리 ─── */
+.bar{height:64px;display:flex;align-items:center;gap:14px;padding:0 20px;background:var(--app-surface);border-bottom:1px solid var(--app-line);flex-shrink:0}
+.bar h3{font-size:22px;font-weight:800;white-space:nowrap}
+.bar .date{font-size:16px;color:var(--app-text2);white-space:nowrap}
+.bar .sp{flex:1}
+.fs{display:flex;align-items:center;gap:0;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:var(--app-surface);height:44px}
+.fs span{min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--app-text2);border-right:1px solid var(--app-line2)}
+.fs span.l{font-size:14px;padding:0 10px;color:var(--app-text3)}
+.fs span.v{font-size:15px;min-width:64px}
+.fs span:last-child{border-right:0}
+.btn{min-height:48px;padding:0 18px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--app-text);white-space:nowrap}
+.btn.pri{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.btn.ok{background:var(--app-success);border-color:var(--app-success);color:var(--app-inverse)}
+.btn.sm{min-height:44px;padding:0 14px;font-size:15px}
+.btn.big{min-height:60px;font-size:19px;border-radius:12px;padding:0 24px}
+.seg{display:flex;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:var(--app-surface)}
+.seg span{min-width:104px;height:44px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--app-text2);border-right:1px solid var(--app-line2);padding:0 12px}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--app-brand);color:var(--app-inverse)}
+.seg span small{font-size:14px;font-weight:700;opacity:.8}
+.chip{display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap}
+.chip.wait{background:var(--app-amber-bg);color:var(--app-amber-text)}
+.chip.go{background:var(--app-brand-100);color:var(--app-brand-dark)}
+.chip.done{background:var(--app-success-50);color:var(--app-success-dark)}
+.chip.none{background:var(--app-raised);color:var(--app-text3);border:1px solid var(--app-line)}
+.chip.hot{background:var(--app-danger-50);color:var(--app-danger)}
+.team{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.team i{width:10px;height:10px;border-radius:50%;background:var(--app-info)}
+.team.t2 i{background:var(--app-success)}
+.team.t0 i{background:var(--app-line2)}
+
+/* ─── 안 1. 날짜별 한 줄 ─── */
+.a1 .list{flex:1;min-height:0;padding:10px 16px 0;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.a1 .dh{height:40px;display:flex;align-items:center;gap:12px;padding:0 8px;border-radius:10px;background:var(--app-raised);border:1px solid var(--app-line);font-size:17px;font-weight:800;color:var(--app-text2)}
+.a1 .dh.today{background:var(--app-brand-50);border-color:var(--app-brand-300);color:var(--app-brand-dark)}
+.a1 .dh small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a1 .dh .chev{margin-left:auto;color:var(--app-text3)}
+.a1 .dh.closed .chev{transform:rotate(-90deg)}
+.a1 .dh.empty{height:36px;font-size:15px;color:var(--app-text3);font-weight:700;background:transparent;border-style:dashed}
+.a1 .job{height:72px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;display:grid;grid-template-columns:110px 1fr 300px 170px 128px;align-items:center;padding-right:10px;overflow:hidden}
+.a1 .job.go{border-color:var(--app-brand-300);background:var(--app-brand-50)}
+.a1 .tm{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;border-right:1px solid var(--app-line);font-size:22px;font-weight:800;line-height:1.1}
+.a1 .tm small{font-size:13px;color:var(--app-text3);font-weight:700}
+.a1 .tm.none{color:var(--app-text3);font-size:16px}
+.a1 .who{padding:0 18px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.a1 .nm{font-size:20px;font-weight:800;line-height:1.2;display:flex;align-items:baseline;gap:10px;white-space:nowrap;overflow:hidden}
+.a1 .nm small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a1 .nm .chip{height:26px;font-size:13px}
+.a1 .pr{font-size:15px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a1 .pr b{color:var(--app-text);font-weight:700}
+.a1 .ad{font-size:15px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px;line-height:1.3}
+.a1 .ad b{display:block;font-size:17px;color:var(--app-text);font-weight:800}
+.a1 .tmm{display:flex;flex-direction:column;gap:2px;font-size:14px;color:var(--app-text3)}
+.a1 .act{display:flex;justify-content:flex-end}
+.a1 .act .btn{min-height:48px;padding:0 14px;font-size:15px}
+
+/* ─── 안 2. 두 주 달력판 ─── */
+.a2 .wk{flex:1;min-height:0;padding:10px 16px 10px;display:grid;grid-template-rows:auto 1fr 1fr auto;gap:6px}
+.a2 .dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.a2 .dow span{height:28px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--app-text3)}
+.a2 .dow span.sa{color:var(--app-info)}.a2 .dow span.su{color:var(--app-danger)}
+.a2 .row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-height:0}
+.a2 .day{background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.a2 .day.today{border:3px solid var(--app-brand)}
+.a2 .day.past{background:var(--app-raised)}
+.a2 .day.past .ev{opacity:.7}
+.a2 .dh{height:34px;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--app-line);font-size:17px;font-weight:800;flex-shrink:0}
+.a2 .day.today .dh{color:var(--app-brand-dark);background:var(--app-brand-50)}
+.a2 .dh small{font-size:13px;color:var(--app-text3);font-weight:700;margin-left:auto}
+.a2 .db{padding:6px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+.a2 .ev{min-height:50px;border-radius:8px;background:var(--app-bg);border-left:4px solid var(--app-info);padding:5px 8px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.a2 .ev.t2{border-left-color:var(--app-success)}
+.a2 .ev.t0{border-left-color:var(--app-line2)}
+.a2 .ev.go{background:var(--app-brand-100)}
+.a2 .ev.done{background:var(--app-success-50);border-left-color:var(--app-success)}
+.a2 .ev b{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a2 .ev b small{font-size:13px;color:var(--app-text2);font-weight:700;margin-right:6px}
+.a2 .ev span{font-size:13px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a2 .none{font-size:14px;color:var(--app-text3);text-align:center;padding-top:10px;font-weight:700}
+.a2 .foot{height:44px;display:flex;align-items:center;gap:18px;padding:0 6px;font-size:14px;color:var(--app-text3);font-weight:700}
+.a2 .foot i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.a2 .foot .sp{flex:1}
+.a2 .foot i.l1{background:var(--app-info)}.a2 .foot i.l2{background:var(--app-success)}.a2 .foot i.l0{background:var(--app-line2)}
+.a2 .foot .chip{height:32px;font-size:15px}
+.a2 .nav2{display:flex;align-items:center;gap:6px}
+.a2 .nav2 .btn{min-width:48px;padding:0;min-height:44px}
+.a2 .nav2 b{font-size:17px;font-weight:800;padding:0 8px;white-space:nowrap}
+
+/* ─── 안 3. 오늘 크게 + 날짜 띠 ─── */
+.a3 .body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 400px}
+.a3 .today{padding:12px 14px 12px 16px;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-width:0}
+.a3 .th{height:36px;display:flex;align-items:center;gap:12px;font-size:19px;font-weight:800;color:var(--app-brand-dark)}
+.a3 .th small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a3 .card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:12px 16px;display:grid;grid-template-columns:96px 1fr auto;gap:4px 16px;align-items:center;min-height:118px}
+.a3 .card.go{border:2px solid var(--app-brand-300);background:var(--app-brand-50)}
+.a3 .tm{font-size:26px;font-weight:800;line-height:1.05;display:flex;flex-direction:column;gap:2px}
+.a3 .tm small{font-size:13px;color:var(--app-text3);font-weight:700}
+.a3 .tm.none{font-size:17px;color:var(--app-text3)}
+.a3 .mid{min-width:0;display:flex;flex-direction:column;gap:3px}
+.a3 .nm{font-size:22px;font-weight:800;display:flex;align-items:center;gap:10px;white-space:nowrap;overflow:hidden}
+.a3 .nm small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a3 .pr{font-size:16px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a3 .pr b{color:var(--app-text)}
+.a3 .ad{font-size:16px;color:var(--app-text);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a3 .acts{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.a3 .acts .row{display:flex;gap:6px}
+.a3 .acts .btn{min-height:46px;padding:0 14px;font-size:15px}
+.a3 .acts .btn.big{min-height:52px;font-size:17px;padding:0 20px}
+.a3 .side{border-left:1px solid var(--app-line);background:var(--app-surface);display:flex;flex-direction:column;overflow:hidden}
+.a3 .sh{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--app-line);font-size:17px;font-weight:800}
+.a3 .sh small{font-size:14px;color:var(--app-text3);font-weight:700;margin-left:auto}
+.a3 .dl{display:flex;flex-direction:column;overflow:hidden}
+.a3 .d{display:grid;grid-template-columns:92px 1fr;gap:0 10px;padding:8px 16px;border-bottom:1px solid var(--app-line);min-height:58px;align-items:center}
+.a3 .d.empty{min-height:44px;color:var(--app-text3)}
+.a3 .d.empty .n{font-size:15px;color:var(--app-text3);font-weight:700}
+.a3 .d.wkend .dd{color:var(--app-danger)}
+.a3 .dd{font-size:17px;font-weight:800;line-height:1.15}
+.a3 .dd small{display:block;font-size:13px;color:var(--app-text3);font-weight:700}
+.a3 .n{font-size:15px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.a3 .n b{color:var(--app-text);font-weight:800;font-size:16px}
+.a3 .n .team{font-size:13px;margin-left:6px}
+.a3 .th.nx{margin-top:6px;color:var(--app-text2);font-size:17px}
+.a3 .mini{height:62px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;display:grid;grid-template-columns:84px 230px 1fr 60px auto;align-items:center;gap:0 12px;padding:0 10px 0 16px}
+.a3 .mini b{font-size:20px;font-weight:800}
+.a3 .mini .nm2{font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden}
+.a3 .mini .nm2 small{font-size:13px;color:var(--app-text3);font-weight:700}
+.a3 .mini .nm2 .chip{height:24px;font-size:12px}
+.a3 .mini .ad2{font-size:15px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a3 .more{margin-top:auto;height:52px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--app-brand-dark);font-weight:800;border-top:1px solid var(--app-line)}
+</style>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 24 24"><path d="m3 21 4-1L18 9l-3-3L4 17l-1 4Z"/><path d="m14 7 3 3"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>시공팀 태블릿 첫 화면 시안 셋</h1>
+  <p class="lead">지금 시공 탭은 <b>"오늘 시공" 한 줄 · 큰 도면 · 작업 확인</b> 세 칸이 가로로 늘 떠 있어요. 오늘 일이 없으면 세 칸이 다 비고, 글자 크기 손잡이도 없어요. 이 세 장은 <b>시공 나가는 사람</b>이 아침에 태블릿을 켜서 "오늘·내일·이번 주 어디 가지?"를 한눈에 보는 첫 화면이에요. 어느 안이든 집 한 줄을 누르면 지금 있는 작업 화면(도면 크게 · 전화 · 내비 · 시공 시작 · 완료 사진 · 서명)이 그대로 열려요 — 그 화면은 안 바꿔요.</p>
+  <ul class="rules">
+    <li><b>①</b> 글자 크기 손잡이(글자 − 100% +)를 제목 줄에 — 다른 탭과 같은 자리</li>
+    <li><b>②</b> 빈 칸 없음 — 일이 없는 날은 한 줄로 접히고, 칸은 내용만큼만</li>
+    <li><b>③</b> 첫 화면은 날짜별 — 집을 누르면 지금 작업 화면</li>
+    <li><b>기종</b> 갤럭시 탭 가로 1280×800 · 줄 56px 이상 · 글자 15px 이상</li>
+  </ul>
+  <ul class="toc">
+    <li><a href="#a1">안 1. 날짜별 한 줄</a></li>
+    <li><a href="#a2">안 2. 두 주 달력판</a></li>
+    <li><a href="#a3">안 3. 오늘 크게 + 날짜 띠</a></li>
+    <li><a href="#pick">어떻게 고를까</a></li>
+  </ul>
+  <p class="now"><b>지금 화면에서 본 것(11-10 스테이징 실화면):</b> 왼쪽 "오늘 시공" 300px · 가운데 도면 500px · 오른쪽 "작업 확인" 320px 이 늘 세 칸. 오늘 0건이면 "오늘 시공 일정이 없습니다 / 선택된 시공 건이 없습니다 / 작업 확인(빈 칸)" 세 개가 화면 전부예요. 오늘·내일·주간·전체 칩을 눌러야 다른 날이 보이고, 주간을 눌러도 어느 날인지 날짜 머리줄이 없어요. 레일의 −/100%/+ 는 화면 전체 배율이고, 다른 탭 제목 줄에 있는 "글자 − 100% +" 는 이 화면엔 없어요(제목 줄 자체가 없어서).</p>
+
+  <!-- ───────────── 안 1 ───────────── -->
+  <section class="frame" id="a1">
+    <h2>안 1. 날짜별 한 줄 — 실측 탭·생산 홈과 같은 말</h2>
+    <p class="who">누구에게: <b>시공팀 모두의 첫 화면</b>. 날짜 머리줄 아래 그날 갈 집이 시간 순으로 한 줄씩. 머리줄을 누르면 접히고 펴져요(실측 탭·생산 홈과 같은 손짓). 일이 없는 날은 점선 한 줄로만 남아 빈 칸이 생기지 않아요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a1">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it on"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">최우</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>시공</h3><span class="date">11월 10일 (화) · 이번 주 9건</span>
+            <div class="seg"><span class="on">전체 <small>9</small></span><span>1팀 <small>5</small></span><span>2팀 <small>4</small></span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-search"/></svg>찾기</span>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="list">
+            <div class="dh today">오늘 11/10 (화)<small>3건 · 1팀 2 · 2팀 1</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+            <div class="job go">
+              <div class="tm">09:00<small>시공 중</small></div>
+              <div class="who"><div class="nm">박서준 <small>#5107</small><span class="chip go">시공 중</span></div><div class="pr"><b>슬라이딩 붙박이장</b> · W2740 × D700 × H2330 · 그레이</div></div>
+              <div class="ad"><b>성남 분당구</b>판교로 12, 503동 1801호</div>
+              <div class="tmm"><span class="team">1팀 · 최우진 박성민</span><span>출고 11/9 끝 · 도면 3장</span></div>
+              <div class="act"><span class="btn pri">열기</span></div>
+            </div>
+            <div class="job">
+              <div class="tm">13:30<small>시공 대기</small></div>
+              <div class="who"><div class="nm">김하늘 <small>#5103</small><span class="chip wait">대기</span></div><div class="pr"><b>거실장, 몰딩 벽박이장</b> · W3100 × D500 × H2300 · 화이트 오크</div></div>
+              <div class="ad"><b>서울 송파구</b>올림픽로 300, 101동 1203호</div>
+              <div class="tmm"><span class="team">1팀 · 최우진 박성민</span><span>출고 11/9 끝 · 도면 4장</span></div>
+              <div class="act"><span class="btn">열기</span></div>
+            </div>
+            <div class="job">
+              <div class="tm none">시간<small>미정</small></div>
+              <div class="who"><div class="nm">이도윤 <small>#5099</small><span class="chip wait">대기</span></div><div class="pr"><b>냉장고장</b> · W1200 × D650 × H2300 · 화이트</div></div>
+              <div class="ad"><b>하남</b>미사강변대로 20, 1105동 401호</div>
+              <div class="tmm"><span class="team t2">2팀 · 김태호 이준혁</span><span>출고 11/10 상차 · 도면 2장</span></div>
+              <div class="act"><span class="btn">열기</span></div>
+            </div>
+            <div class="dh">내일 11/11 (수)<small>2건 · 2팀 2</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+            <div class="job">
+              <div class="tm">10:00<small>시공 대기</small></div>
+              <div class="who"><div class="nm">정수아 <small>#5110</small><span class="chip wait">대기</span></div><div class="pr"><b>주방 상부장, 하부장, 키큰장</b> · 화이트 오크</div></div>
+              <div class="ad"><b>인천 연수구</b>송도대로 100, 2103동 702호</div>
+              <div class="tmm"><span class="team t2">2팀 · 김태호 이준혁</span><span>출고 11/10 · 도면 6장</span></div>
+              <div class="act"><span class="btn">열기</span></div>
+            </div>
+            <div class="job">
+              <div class="tm">14:00<small>시공 대기</small></div>
+              <div class="who"><div class="nm">한지민 <small>#5112</small><span class="chip hot">도면 바뀜</span></div><div class="pr"><b>신발장, 중문 옆 수납</b> · 크림</div></div>
+              <div class="ad"><b>고양 덕양구</b>행신로 5, 302동 1502호</div>
+              <div class="tmm"><span class="team t2">2팀 · 김태호 이준혁</span><span>출고 11/10 · 도면 2장(어제 바뀜)</span></div>
+              <div class="act"><span class="btn">열기</span></div>
+            </div>
+            <div class="dh empty">11/12 (목) · 시공 없음</div>
+            <div class="dh closed">11/13 (금)<small>3건 · 1팀 2 · 2팀 1</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+            <div class="dh closed">11/14 (토)<small>1건 · 1팀</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+            <div class="dh closed">다음 주 11/16 (월) ~<small>7건</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+            <div class="dh closed">날짜 없음<small>4건 · 출고만 잡힘</small><svg class="ic chev"><use href="#i-chev-d"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>시공팀은 <b>날짜 → 시간 → 집</b> 순서로 하루를 봐요. 그래서 머리줄이 날짜, 줄의 맨 왼쪽이 시간이에요. 주소는 <b>구 이름을 크게</b> — 어느 동네로 가는지가 먼저예요.</li>
+        <li>일이 없는 날(11/12)은 점선 한 줄. 지난 날·먼 날·날짜 없음은 접힌 머리줄이라 화면 어디에도 빈 칸이 없어요.</li>
+        <li>위 세 칸은 전체 / 1팀 / 2팀 — 팀이 나뉘어 나가면 내 팀 것만 볼 수 있어요. 팀 구분이 없으면 이 칸은 안 그려요.</li>
+        <li>줄을 누르면 지금 작업 화면이 전체로 열리고 위에 [← 11/10] 로 돌아와요. "시공 중"인 집은 파란 줄로 맨 위.</li>
+      </ul></div>
+      <div class="col"><h3>글자 · 빈 칸</h3><ul>
+        <li>제목 줄 오른쪽 <b>글자 − 100% +</b> 가 다른 탭(실측·생산·출고)과 같은 손잡이예요. 저장 열쇠는 탭 주소라 시공 탭만 따로 기억돼요.</li>
+        <li>줄 높이 72px, 글자 15~22px. 150% 로 키우면 한 화면에 5줄쯤 보이고 아래로 밀어요 — 칸이 깨지지 않게 주소·품목은 한 줄 말줄임.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로</h3><ul>
+        <li>시공 보드가 읽는 주문(60일 안 활성) + 시공일·시간·시공팀 값 그대로. 생산 홈의 날짜 묶음 코드(접기·펴기·오늘 펼침)를 그대로 써요.</li>
+        <li>작업 화면(3분할)은 지금 템플릿을 "주문 하나" 모드로 열기만 하면 돼요 — 왼쪽 "오늘 시공" 줄은 그 화면에서 빼거나 좁혀요.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 2 ───────────── -->
+  <section class="frame" id="a2">
+    <h2>안 2. 두 주 달력판 — 벽에 붙인 달력처럼</h2>
+    <p class="who">누구에게: <b>팀장·배차 보는 사람</b>. 이번 주와 다음 주가 요일 칸으로 한 장에 다 보여요. 칸 안의 색 띠가 팀(파랑 1팀 · 초록 2팀), 글자는 시간·이름·동네. 오늘 칸은 굵은 테두리.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a2">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it on"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">최우</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>시공</h3>
+            <div class="nav2"><span class="btn"><svg class="ic"><use href="#i-chev-l"/></svg></span><b>11/9 (월) ~ 11/22 (일)</b><span class="btn"><svg class="ic"><use href="#i-chev-r"/></svg></span><span class="btn sm">오늘</span></div>
+            <div class="seg"><span class="on">전체</span><span>1팀</span><span>2팀</span></div>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="wk">
+            <div class="dow"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sa">토</span><span class="su">일</span></div>
+            <div class="row">
+              <div class="day past"><div class="dh">9<small>2건 끝</small></div><div class="db"><div class="ev done"><b><small>09:00</small>오세훈</b><span>수원 영통구 · 1팀</span></div><div class="ev done t2"><b><small>13:00</small>윤서아</b><span>용인 수지구 · 2팀</span></div></div></div>
+              <div class="day today"><div class="dh">10 오늘<small>3건</small></div><div class="db"><div class="ev go"><b><small>09:00</small>박서준</b><span>성남 분당구 · 1팀 · 시공 중</span></div><div class="ev"><b><small>13:30</small>김하늘</b><span>서울 송파구 · 1팀</span></div><div class="ev t2"><b><small>미정</small>이도윤</b><span>하남 · 2팀</span></div></div></div>
+              <div class="day"><div class="dh">11<small>2건</small></div><div class="db"><div class="ev t2"><b><small>10:00</small>정수아</b><span>인천 연수구 · 2팀</span></div><div class="ev t2"><b><small>14:00</small>한지민</b><span>고양 덕양구 · 2팀 · 도면 바뀜</span></div></div></div>
+              <div class="day"><div class="dh">12<small>없음</small></div><div class="db"><div class="none">—</div></div></div>
+              <div class="day"><div class="dh">13<small>3건</small></div><div class="db"><div class="ev"><b><small>09:00</small>서지호</b><span>서울 강동구 · 1팀</span></div><div class="ev"><b><small>13:00</small>최유진</b><span>서울 강남구 · 1팀</span></div><div class="ev t2"><b><small>미정</small>장민호</b><span>부천 · 2팀</span></div></div></div>
+              <div class="day"><div class="dh">14<small>1건</small></div><div class="db"><div class="ev"><b><small>10:00</small>강민재</b><span>김포 · 1팀</span></div></div></div>
+              <div class="day"><div class="dh">15<small>없음</small></div><div class="db"><div class="none">—</div></div></div>
+            </div>
+            <div class="row">
+              <div class="day"><div class="dh">16<small>2건</small></div><div class="db"><div class="ev"><b><small>09:30</small>임채원</b><span>서울 마포구 · 1팀</span></div><div class="ev t2"><b><small>14:00</small>배수현</b><span>안양 동안구 · 2팀</span></div></div></div>
+              <div class="day"><div class="dh">17<small>1건</small></div><div class="db"><div class="ev t0"><b><small>미정</small>노은우</b><span>화성 동탄 · 팀 미정</span></div></div></div>
+              <div class="day"><div class="dh">18<small>2건</small></div><div class="db"><div class="ev"><b><small>09:00</small>문지호</b><span>서울 서초구 · 1팀</span></div><div class="ev t2"><b><small>13:00</small>송하람</b><span>광명 · 2팀</span></div></div></div>
+              <div class="day"><div class="dh">19<small>없음</small></div><div class="db"><div class="none">—</div></div></div>
+              <div class="day"><div class="dh">20<small>2건</small></div><div class="db"><div class="ev"><b><small>10:00</small>구본준</b><span>서울 노원구 · 1팀</span></div><div class="ev t0"><b><small>미정</small>백하은</b><span>남양주 · 팀 미정</span></div></div></div>
+              <div class="day"><div class="dh">21<small>없음</small></div><div class="db"><div class="none">—</div></div></div>
+              <div class="day"><div class="dh">22<small>없음</small></div><div class="db"><div class="none">—</div></div></div>
+            </div>
+            <div class="foot"><span><i class="l1"></i>1팀 최우진 박성민</span><span><i class="l2"></i>2팀 김태호 이준혁</span><span><i class="l0"></i>팀 미정</span><span class="sp"></span><span class="chip none">날짜 없음 4건 · 출고만 잡힘</span><span class="chip done">지난 2주 끝난 것 11건</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>"이번 주 어디 몇 집?"에 가장 빨라요. 토·일은 색이 다르고, 없는 날은 "없음" 한 글자라 칸이 비어도 작고 고른 격자라 빈 공간으로 안 보여요.</li>
+        <li>두 주를 한 장에 — 배차 짜는 사람은 다음 주까지 봐야 해요. ◀ ▶ 로 2주씩 넘기고 [오늘]로 돌아와요.</li>
+        <li>칸 안의 집을 누르면 작업 화면. 날짜 머리(10 오늘)를 누르면 그날이 안 1 처럼 한 줄 목록으로 펴져요(그 자리에서).</li>
+      </ul></div>
+      <div class="col"><h3>글자 · 빈 칸</h3><ul>
+        <li>글자 손잡이는 같은 자리. 130% 넘으면 칸당 3집까지만 보이고 "+1" 로 접혀요 — 격자는 안 깨져요.</li>
+        <li>솔직한 단점: 달력은 <b>일이 없는 날 칸이 비어요</b>(목·일처럼). 그 빈 칸은 "그날 없음"이라는 뜻이라 지금 화면의 빈 세 칸과는 다르지만, 빈 데 없이 꽉 찬 화면을 원하시면 안 1·안 3 이 맞아요.</li>
+        <li>하루 4집 넘는 날이 잦으면 이 안은 좁아요. 그때는 안 1 이 맞아요.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로</h3><ul>
+        <li>생산 홈 "이번 주" 탭의 요일 칸 코드(월~일, 주 넘기기)를 두 줄로 늘린 것. 데이터는 시공일 기준 같은 주문.</li>
+        <li>끝난 것(시공완료)은 흐리게, 지난 날 칸은 회색 바탕 — 새 값 없이 단계 값만.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 3 ───────────── -->
+  <section class="frame" id="a3">
+    <h2>안 3. 오늘 크게 + 날짜 띠 — 현장 나가는 사람의 아침</h2>
+    <p class="who">누구에게: <b>오늘 현장 뛰는 사람</b>. 왼쪽은 오늘 갈 집이 큰 카드로(전화·내비·열기 바로), 오른쪽은 앞으로 2주가 날짜 띠로. 오늘이 없으면 왼쪽이 "다음 시공 11/11 (수)" 카드로 바뀌어 비지 않아요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a3">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it on"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">최우</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>시공</h3><span class="date">11월 10일 (화)</span>
+            <div class="seg"><span class="on">전체</span><span>1팀</span><span>2팀</span></div>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="body">
+            <div class="today">
+              <div class="th">오늘 11/10 (화) <small>3건 · 1팀 2 · 2팀 1</small></div>
+              <div class="card go">
+                <div class="tm">09:00<small>시공 중</small></div>
+                <div class="mid"><div class="nm">박서준 <small>#5107</small><span class="chip go">시공 중</span><span class="team">1팀 · 최우진 박성민</span></div><div class="pr"><b>슬라이딩 붙박이장</b> · W2740 × D700 × H2330 · 그레이 · 도면 3장</div><div class="ad">성남 분당구 판교로 12, 503동 1801호</div></div>
+                <div class="acts"><span class="btn pri big"><svg class="ic"><use href="#i-draw"/></svg>열기</span><div class="row"><span class="btn"><svg class="ic"><use href="#i-phone"/></svg>전화</span><span class="btn"><svg class="ic"><use href="#i-map"/></svg>내비</span></div></div>
+              </div>
+              <div class="card">
+                <div class="tm">13:30<small>시공 대기</small></div>
+                <div class="mid"><div class="nm">김하늘 <small>#5103</small><span class="chip wait">대기</span><span class="team">1팀 · 최우진 박성민</span></div><div class="pr"><b>거실장, 몰딩 벽박이장</b> · W3100 × D500 × H2300 · 화이트 오크 · 도면 4장</div><div class="ad">서울 송파구 올림픽로 300, 101동 1203호</div></div>
+                <div class="acts"><span class="btn big"><svg class="ic"><use href="#i-draw"/></svg>열기</span><div class="row"><span class="btn"><svg class="ic"><use href="#i-phone"/></svg>전화</span><span class="btn"><svg class="ic"><use href="#i-map"/></svg>내비</span></div></div>
+              </div>
+              <div class="card">
+                <div class="tm none">시간<small>미정</small></div>
+                <div class="mid"><div class="nm">이도윤 <small>#5099</small><span class="chip wait">대기</span><span class="team t2">2팀 · 김태호 이준혁</span></div><div class="pr"><b>냉장고장</b> · W1200 × D650 × H2300 · 화이트 · 도면 2장 · 출고 오늘 상차</div><div class="ad">하남 미사강변대로 20, 1105동 401호</div></div>
+                <div class="acts"><span class="btn big"><svg class="ic"><use href="#i-draw"/></svg>열기</span><div class="row"><span class="btn"><svg class="ic"><use href="#i-phone"/></svg>전화</span><span class="btn"><svg class="ic"><use href="#i-map"/></svg>내비</span></div></div>
+              </div>
+              <div class="th nx">내일 11/11 (수) <small>2건 · 2팀 2 — 오늘 끝나면 다음 갈 곳</small></div>
+              <div class="mini"><b>10:00</b><span class="nm2">정수아 <small>#5110</small></span><span class="ad2">인천 연수구 송도대로 100, 2103동 702호</span><span class="team t2">2팀</span><span class="btn sm">열기</span></div>
+              <div class="mini"><b>14:00</b><span class="nm2">한지민 <small>#5112</small><span class="chip hot">도면 바뀜</span></span><span class="ad2">고양 덕양구 행신로 5, 302동 1502호</span><span class="team t2">2팀</span><span class="btn sm">열기</span></div>
+            </div>
+            <div class="side">
+              <div class="sh">앞으로 2주<small>이번 주 9 · 다음 주 7</small></div>
+              <div class="dl">
+                <div class="d"><div class="dd">11/11<small>수 · 2건</small></div><div class="n"><b>정수아</b> 10:00 인천 연수구<span class="team t2">2팀</span><br><b>한지민</b> 14:00 고양 덕양구<span class="team t2">2팀</span> · 도면 바뀜</div></div>
+                <div class="d empty"><div class="dd">11/12<small>목</small></div><div class="n">없음</div></div>
+                <div class="d"><div class="dd">11/13<small>금 · 3건</small></div><div class="n"><b>서지호</b> 09:00 서울 강동구<span class="team">1팀</span><br><b>최유진</b> 13:00 서울 강남구<span class="team">1팀</span><br><b>장민호</b> 미정 부천<span class="team t2">2팀</span></div></div>
+                <div class="d wkend"><div class="dd">11/14<small>토 · 1건</small></div><div class="n"><b>강민재</b> 10:00 김포<span class="team">1팀</span></div></div>
+                <div class="d"><div class="dd">11/16<small>월 · 2건</small></div><div class="n"><b>임채원</b> 09:30 서울 마포구<span class="team">1팀</span><br><b>배수현</b> 14:00 안양 동안구<span class="team t2">2팀</span></div></div>
+                <div class="d"><div class="dd">11/17<small>화 · 1건</small></div><div class="n"><b>노은우</b> 미정 화성 동탄<span class="team t0">팀 미정</span></div></div>
+                <div class="d"><div class="dd">11/18<small>수 · 2건</small></div><div class="n"><b>문지호</b> 09:00 서울 서초구<span class="team">1팀</span><br><b>송하람</b> 13:00 광명<span class="team t2">2팀</span></div></div>
+                <div class="d"><div class="dd">11/20<small>금 · 2건</small></div><div class="n"><b>구본준</b> 10:00 서울 노원구<span class="team">1팀</span><br><b>백하은</b> 미정 남양주<span class="team t0">팀 미정</span></div></div>
+                <div class="d"><div class="dd">11/23<small>월 · 2건</small></div><div class="n"><b>유채린</b> 09:00 서울 성북구<span class="team">1팀</span><br><b>권도현</b> 13:30 의정부<span class="team t2">2팀</span></div></div>
+                <div class="d"><div class="dd">11/24<small>화 · 1건</small></div><div class="n"><b>신예준</b> 10:00 서울 양천구<span class="team">1팀</span></div></div>
+              </div>
+              <div class="more">날짜 없음 4건 · 지난 시공 보기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>왜 이렇게</h3><ul>
+        <li>현장 사람은 <b>오늘</b>이 9할이에요. 오늘 카드는 전화·내비·열기가 바로 있어 차에서 바로 눌러요. 나머지 날은 오른쪽 띠로 "다음 주까지 몇 집" 만 알면 돼요.</li>
+        <li>오늘이 0건이면 왼쪽이 비는 대신 <b>"다음 시공 11/11 (수)"</b> 카드 두 장이 올라와요 — 지금 화면처럼 세 칸이 비는 일이 없어요.</li>
+        <li>오른쪽 띠의 날짜를 누르면 왼쪽이 그날로 바뀌어요(오늘 머리줄이 "11/13 (금)" 로).</li>
+      </ul></div>
+      <div class="col"><h3>글자 · 빈 칸</h3><ul>
+        <li>글자 손잡이 같은 자리. 카드가 커서 150% 에서도 두 장은 보여요.</li>
+        <li>오른쪽 띠는 일이 없는 날을 44px 한 줄로 두고, 2주 뒤는 접어요.</li>
+      </ul></div>
+      <div class="col"><h3>이미 있는 것으로</h3><ul>
+        <li>지금 작업 모드의 왼쪽 "오늘 시공" 줄 데이터 그대로 — 카드만 키우고 도면·작업 확인 칸을 첫 화면에서 뺀 것. 전화·내비 링크는 지금 pcbar 의 것.</li>
+        <li>오른쪽 띠는 안 1 의 날짜 묶음을 좁게 그린 것.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="pick" id="pick">
+    <h2>어떻게 고를까</h2>
+    <p>셋 다 <b>①글자 손잡이 ②빈 칸 없음 ③날짜별</b> 은 같아요. 다른 건 "하루를 어떤 모양으로 보느냐" 예요. <b>안 1</b> 은 실측 탭·생산 홈과 같은 손짓이라 배울 게 없고 하루에 집이 많아도 돼요. <b>안 2</b> 는 2주 배차를 한 장으로 보는 팀장 화면이에요. <b>안 3</b> 은 오늘 현장 사람 화면이고 앞날은 띠로만 봐요. 안 1 을 첫 화면으로 두고 안 2 를 위 탭("달력")으로 붙이는 것도 돼요 — 생산 홈이 그 모양이에요.</p>
+    <div class="cols">
+      <div class="col"><h3>정해 주실 것</h3><ul>
+        <li>첫 화면은 셋 중 어느 것인지(또는 안 1 + 안 2 탭).</li>
+        <li>팀 칸(전체/1팀/2팀)을 쓸지 — 시공팀이 나뉘어 나가는지.</li>
+        <li>집을 누르면 지금 작업 화면(도면·전화·내비·시공 시작·완료 사진·서명)을 그대로 쓰는 것으로 — 바꿀 데가 있으면 알려 주세요.</li>
+      </ul></div>
+      <div class="col"><h3>세로로 들면</h3><ul>
+        <li>지금처럼 폰 화면(카드 목록 + 아래 탭). 날짜 머리줄 접기는 안 1 그대로 들어가요.</li>
+      </ul></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w'))||1280,h=parseFloat(s.getAttribute('data-h'))||800;
+      var sw=s.clientWidth;if(!sw){return;}
+      var k=Math.min(1,sw/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+  if(window.ResizeObserver){new ResizeObserver(fit).observe(document.body);}
+})();
+</script>
+
+</body>
+</html>

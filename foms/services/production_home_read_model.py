@@ -72,8 +72,9 @@ def production_home_steps(sd: dict[str, Any], *, mark_now: bool) -> list[dict[st
 def production_home_stage(
     raw_stage: str | None, has_run: bool, steps: list[dict[str, Any]], hold_active: bool
 ) -> tuple[str, str, str]:
-    """(큰 글자, 작은 글자, 보기 키). 보기 키는 탭 필터용 ``wait | prod | done``."""
-    if hold_active:
+    """(큰 글자, 작은 글자, 보기 키). 보기 키는 탭 필터용 ``wait | prod | done``.
+    보류는 생산 단계(제작 대기~검수)일 때만 — 도면·컨펌·시공 단계 보류는 그 단계 그대로(R1, 11-10)."""
+    if hold_active and raw_stage in _PRODUCTION_STAGES:
         return '보류', '생산', 'prod'
     if raw_stage in _DRAWING_STAGES:
         return '도면 기다림', '도면팀', 'wait'
@@ -189,59 +190,126 @@ def production_home_groups(
     return groups
 
 
-def _monday_of(day: datetime.date) -> datetime.date:
-    return day - datetime.timedelta(days=day.weekday())
+#: 날짜 탭 왼쪽 띠에 서는 날 수(오늘 포함). 앞에 '지난 7일', 뒤에 '그 뒤' 한 줄씩 붙어 13줄.
+PRODUCTION_HOME_STRIP_DAYS = 11
+_BAR_ORDER = ('f', 'p', 'w', 'x')  # 막대 색 순서: 제작 완료 · 만드는 중 · 제작 대기 · 도면·컨펌 기다림
 
 
-def production_home_week(
-    rows: list[dict[str, Any]], today: datetime.date, week_start: Any = None
-) -> dict[str, Any]:
-    """탭 "이번 주"(안 4): 월~토 6칸(일요일에 일이 있으면 7칸)에 시공일 기준으로 주문을 놓는다.
+def _row_bar_kind(row: dict[str, Any]) -> str:
+    view = row.get('home_view')
+    if view == 'done' or row.get('home_stage') == '검수 끝':
+        return 'f'
+    if view == 'prod':
+        return 'w' if row.get('home_stage') == '제작 대기' else 'p'
+    return 'x'
 
-    출고·시공은 같은 날짜 키(상차 = 시공일)라 한 칸에 단계 색으로 가른다: 생산 전 / 생산 중 / 제작 완료.
-    ``week_start`` 는 그 주 월요일(ISO 문자열 또는 date). 없거나 못 읽으면 오늘의 주.
-    """
-    start = _parse_date(week_start) if week_start is not None else None
-    start = _monday_of(start or today)
-    by_day: dict[str, list[dict[str, Any]]] = {}
+
+def _make_sort_key(row: dict[str, Any]) -> tuple[int, int, int]:
+    """만들 것 줄 순서 — 바뀐 것 먼저, 만드는 중(공정이 많이 간 것부터), 제작 대기."""
+    done_steps = sum(1 for s in (row.get('home_steps') or []) if s.get('done'))
+    return (0 if row.get('has_changes') else 1, {'p': 0, 'w': 1, 'f': 2}.get(_row_bar_kind(row), 3), -done_steps)
+
+
+def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str, Any]], **flags: Any) -> dict[str, Any]:
+    """띠 한 줄 + 오른쪽 한 장. 막대는 SVG 가로 100 기준 좌표(x, w) — 템플릿에 인라인 style 을 쓰지 않으려고."""
+    counts = dict.fromkeys(_BAR_ORDER, 0)
     for row in rows:
-        key = row.get('construction_date')
-        day = _parse_date(key)
-        if day is None:
-            continue
-        by_day.setdefault(day.isoformat(), []).append(row)
-    days: list[dict[str, Any]] = []
-    for offset in range(7):
-        day = start + datetime.timedelta(days=offset)
-        events = by_day.get(day.isoformat(), [])
-        if offset == 6 and not events:
-            break  # 일요일은 일이 있을 때만
-        days.append({
-            'key': day.isoformat(),
-            'num': day.day,
-            'weekday': _WEEKDAY_KO[day.weekday()],
-            'is_today': day == today,
-            'is_past': day < today,
-            'events': events,
-            'count_wait': sum(1 for r in events if r.get('home_view') == 'wait'),
-            'count_prod': sum(1 for r in events if r.get('home_view') == 'prod'),
-            'count_done': sum(1 for r in events if r.get('home_view') == 'done'),
-        })
-    end = start + datetime.timedelta(days=len(days) - 1 if days else 5)
-    return {
-        'start': start.isoformat(),
-        'label': f"{start.month}/{start.day} ({_WEEKDAY_KO[start.weekday()]}) – {end.month}/{end.day} ({_WEEKDAY_KO[end.weekday()]})",
-        'is_this_week': start == _monday_of(today),
-        'prev': (start - datetime.timedelta(days=7)).isoformat(),
-        'next': (start + datetime.timedelta(days=7)).isoformat(),
-        'this': _monday_of(today).isoformat(),
-        'days': days,
-        'total': sum(len(d['events']) for d in days),
+        counts[_row_bar_kind(row)] += 1
+    total = len(rows)
+    segs: list[dict[str, Any]] = []
+    x = 0.0
+    for kind in _BAR_ORDER:
+        if counts[kind]:
+            width = round(100 * counts[kind] / total, 2)
+            segs.append({'k': kind, 'x': round(x, 2), 'w': width})
+            x += width
+    make_rows = sorted((r for r in rows if r.get('home_view') == 'prod'), key=_make_sort_key)
+    bucket = {
+        'key': key, 'label': label, 'sub': sub, 'title': title, 'total': total, 'segs': segs,
+        'make': len(make_rows), 'make_rows': make_rows,
+        'wait_rows': [r for r in rows if r.get('home_view') == 'wait'],
+        'done_rows': [r for r in rows if r.get('home_view') == 'done'],
+        'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'hidden': 0, 'preview': None,
     }
+    bucket.update(flags)
+    return bucket
+
+
+def production_home_days(
+    rows: list[dict[str, Any]], today: datetime.date | None = None, selected: Any = None, *, past_hidden: int = 0
+) -> dict[str, Any]:
+    """탭 "날짜"(안 3, 사용자 11-10 "3안으로"): 왼쪽 2주 띠(시공일마다 막대 + 만들 것/전체) + 오른쪽 고른 날.
+
+    띠 = 지난 7일(한 줄) · 오늘부터 ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄). 띠 아래 = 지난 시공일(7일 넘음) ·
+    시공일 없음. 오른쪽은 그날의 만들 것(제작 대기~검수 끝·보류)을 큰 줄로, 도면·컨펌 기다림과 제작 완료는 작은 칸으로.
+    날짜 한 장 아래에는 다음에 만들 것이 있는 날을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
+    (오늘이 비었으면 일이 있는 가장 가까운 장).
+    """
+    today = today or get_today_kst()
+    recent_from = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
+    last = today + datetime.timedelta(days=PRODUCTION_HOME_STRIP_DAYS - 1)
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        day = _parse_date(row.get('construction_date'))
+        if day is None:
+            key = 'none'
+        elif day < recent_from:
+            key = 'past'
+        elif day < today:
+            key = 'recent'
+        elif day > last:
+            key = 'later'
+        else:
+            key = day.isoformat()
+        by_key.setdefault(key, []).append(row)
+
+    def _md(day: datetime.date) -> str:
+        return f"{day.month}/{day.day}"
+
+    yesterday = today - datetime.timedelta(days=1)
+    strip = [_home_bucket(
+        'recent', '지난 7일', f"{_md(recent_from)}~{_md(yesterday)}", f"지난 7일 {_md(recent_from)}~{_md(yesterday)}",
+        by_key.get('recent', []), show_day=True,
+    )]
+    for offset in range(PRODUCTION_HOME_STRIP_DAYS):
+        day = today + datetime.timedelta(days=offset)
+        weekday = _WEEKDAY_KO[day.weekday()]
+        strip.append(_home_bucket(
+            day.isoformat(),
+            f"오늘 {_md(day)}" if offset == 0 else _md(day),
+            weekday if offset == 0 else f"{weekday} · {'내일' if offset == 1 else f'D-{offset}'}",
+            production_home_day(day, today)['label'],
+            by_key.get(day.isoformat(), []),
+            is_today=offset == 0, is_weekend=day.weekday() >= 5,
+        ))
+    after = last + datetime.timedelta(days=1)
+    strip.append(_home_bucket('later', '그 뒤', f"{_md(after)}~", f"{_md(after)} 뒤", by_key.get('later', []), show_day=True))
+    footer = [
+        _home_bucket(
+            'past', '지난 시공일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
+            by_key.get('past', []), show_day=True,
+            note=f"더 오래된 {past_hidden}건은 안 보여요" if past_hidden else '', hidden=past_hidden,
+        ),
+        _home_bucket('none', '시공일 없음', '', '시공일 없음', by_key.get('none', [])),
+    ]
+    dated = strip[1:-1]
+    for index, bucket in enumerate(strip[:-1]):
+        nxt = next((b for b in dated[index:] if b['make_rows']), None)  # strip[0] = 지난 7일 → dated[0:] 부터
+        if nxt is not None:
+            bucket['preview'] = {'title': nxt['title'], 'make': nxt['make'], 'rows': nxt['make_rows'][:6]}
+    panes = strip + footer
+    key = str(selected or '')
+    auto = not any(p['key'] == key for p in panes)  # True = 사용자가 고른 날이 아니라 자동으로 고른 장(R3)
+    if auto:
+        # 처음 여는 장 = 오늘. 오늘이 비었으면 일이 있는 가장 가까운 장(오늘 뒤 → 그 뒤 → 지난 7일 → 지난 시공일 → 시공일 없음)
+        # — 스테이징처럼 앞날 주문이 없어도 첫 화면이 빈 장이 아니다(사용자 11-10 ②).
+        nearest = strip[1:] + [strip[0]] + footer
+        key = next((b['key'] for b in nearest if b['total']), today.isoformat())
+    return {'strip': strip, 'footer': footer, 'panes': panes, 'selected': key, 'auto': auto, 'today_key': today.isoformat()}
 
 
 def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """탭 "이번 주" 오른쪽 받은함: 미확인 변경(주문마다 한 장, 알림 여러 줄) + 취소된 주문(묘비).
+    """탭 "바뀐 것" 받은함: 미확인 변경(주문마다 한 장, 알림 여러 줄) + 취소된 주문(묘비).
 
     [확인했어요] 는 기존 change-ack API(사람마다 확인). 순서 = 시공일 순(행 순서 그대로), 묘비는 뒤.
     """
@@ -272,44 +340,55 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
     return items
 
 
+def production_home_queue_key(row: dict[str, Any]) -> str | None:
+    """이 주문이 "내 공정" 줄에 서는 공정 키(없으면 None) — 줄과 탭 숫자가 같이 쓰는 한 규칙(R1).
+    지금 공정(now) 이 있으면 그 줄, 보류는 run 이 없어도 첫 미완 공정 줄에 '보류'로."""
+    if row.get('home_view') != 'prod':
+        return None
+    steps = row.get('home_steps') or []
+    current = next((s for s in steps if s.get('now')), None)
+    if current is None and row.get('hold_active'):
+        current = next((s for s in steps if not s.get('done')), None)
+    return current['key'] if current is not None else None
+
+
 def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """탭 "내 공정"(안 3): 공정 5탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
+    """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
+
+    줄 아래 "곧 올 것" = 바로 앞 공정에 와 있는 주문(재단은 제작 대기) — 줄이 적어도 화면이 비지 않는다(사용자 11-10).
 
     보류 중인 주문은 줄에 두되 [끝] 단추 없이 '보류' 글만. 제작 대기(run 없음)·검수까지 끝난 주문은
     줄에 없고 아래 한 줄 숫자로만(시작·제작 완료는 작업 시트에서).
     """
     queues = [{'key': key, 'label': label, 'rows': []} for key, label in PRODUCTION_HOME_STEP_DEFS]
     by_key = {q['key']: q for q in queues}
-    waiting = 0
+    waiting_rows: list[dict[str, Any]] = []
     finished = 0
     for row in rows:
-        if row.get('home_view') != 'prod':
-            continue
-        steps = row.get('home_steps') or []
-        current = next((s for s in steps if s.get('now')), None)
-        if current is None:
-            if row.get('home_stage') == '제작 대기':
-                waiting += 1
-            elif row.get('home_stage') == '검수 끝':
-                finished += 1
-            elif row.get('hold_active'):
-                # 보류는 run 이 있어도 now 표시가 없다 — 첫 미완 공정 줄에 '보류'로 둔다
-                first_undone = next((s for s in steps if not s.get('done')), None)
-                if first_undone is not None:
-                    by_key[first_undone['key']]['rows'].append(row)
-            continue
-        by_key[current['key']]['rows'].append(row)
+        key = production_home_queue_key(row)
+        if key is not None:
+            by_key[key]['rows'].append(row)
+        elif row.get('home_view') == 'prod' and row.get('home_stage') == '제작 대기':
+            waiting_rows.append(row)
+        elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
+            finished += 1
+    prev: dict[str, Any] | None = None
     for q in queues:
         q['count'] = len(q['rows'])
-    return {'queues': queues, 'waiting': waiting, 'finished': finished}
+        q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows'] if not r.get('hold_active')]
+        q['incoming_label'] = '제작 대기' if prev is None else f"{prev['label']} 중"
+        prev = q
+    return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished}
 
 
-def production_home_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 바뀐 것."""
+def production_home_counts(rows: list[dict[str, Any]], tombstone_count: int = 0) -> dict[str, int]:
+    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 내 공정(공정 줄에 선 주문, R1) / 바뀐 것(받은함 장 수 =
+    변경 있는 주문 + 묘비, R2)."""
     return {
         'all': len(rows),
         'prod': sum(1 for r in rows if r.get('home_view') == 'prod'),
-        'changed': sum(1 for r in rows if r.get('has_changes')),
+        'making': sum(1 for r in rows if production_home_queue_key(r) is not None),
+        'changed': sum(1 for r in rows if r.get('has_changes')) + tombstone_count,
     }
 
 
@@ -323,7 +402,7 @@ def build_production_home_rows(
 def build_production_home(
     db: Any, user: Any, *, partner_org: str = '', today: datetime.date | None = None
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """첫 화면 행 + 통계 ``{'past_hidden'}``. 쿼리 4회 + run id 1회.
+    """첫 화면 행 + 통계 ``{'past_hidden', 'total'}``(total = 캡과 무관한 실제 총계). 쿼리 4회 + run id 1회.
 
     시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 안이거나 앞날·미정인 주문은 **전부** 읽는다(일거리). 그보다 지난 주문은
     최근 것부터 ``PRODUCTION_KANBAN_MAX_ROWS`` 에 남는 자리만 채운다 — 운영 실측(2026-11-09)에서 옛 주문이
@@ -342,6 +421,7 @@ def build_production_home(
     orders = apply_production_dashboard_sort(live_q, '', '').all()
     past_q = base.filter(Order.erp_construction_date < cutoff)
     past_total = past_q.order_by(None).count()
+    live_count = len(orders)
     room = max(0, PRODUCTION_KANBAN_MAX_ROWS - len(orders))
     if room and past_total:
         orders += (
@@ -350,7 +430,7 @@ def build_production_home(
             .limit(room)
             .all()
         )
-    stats = {'past_hidden': max(0, past_total - min(room, past_total))}
+    stats = {'past_hidden': max(0, past_total - min(room, past_total)), 'total': live_count + past_total}
     run_ids = fetch_production_current_run_ids(db, orders)
     rows = build_production_home_enriched_rows(orders, run_ids)
     alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None)

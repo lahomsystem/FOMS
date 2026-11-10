@@ -235,6 +235,6 @@
            (레일은 #main-content 밖 layout 소속이라 스왑에 잔존하므로 active 재부여가 필요하다.) #}
         {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.path.startswith('/wdcalculator')) %}
         {% include 'partials/shared/foms_tablet_rail.html' %}
-        <script src="{{ url_for('static', filename='js/foms/tablet-rail-nav.js') }}?v=20260712a" defer></script>
+        <script src="{{ url_for('static', filename='js/foms/tablet-rail-nav.js') }}?v=20261110a" defer></script>
         {% endif %}
 {{ mark('shell_nav') }}

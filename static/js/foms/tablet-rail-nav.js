@@ -67,7 +67,8 @@
     var base;
     for (i = 0; i < items.length; i += 1) {
       // Anchor .pathname resolves the href to its absolute path (segment SSOT parity).
-      base = normalizePath(items[i].pathname || '');
+      // data-foms-rail-match(생산 칸, D19) = 서버 판정과 같은 접두어 — href 가 첫 화면이어도 보드에서 강조.
+      base = normalizePath(items[i].getAttribute('data-foms-rail-match') || items[i].pathname || '');
       if (base && isSegmentPrefix(current, base) && base.length > bestLen) {
         bestLen = base.length;
         best = items[i];

@@ -1,0 +1,20 @@
+{# 탭 "바뀐 것" — 미확인 변경(주문마다 한 장) + 취소된 주문(묘비). [확인했어요] = change-ack(tablet-domain-sheets.js).
+   "이번 주" 탭 오른쪽에 있던 받은함을 한 화면으로 옮겼다(D18 11-10: 요일 칸은 날짜 탭이 대신). home.html 이 include. #}
+<div class="fph-inbox fph-inbox--page" aria-label="바뀐 것">
+  {% for it in inbox %}
+  <div class="fph-al{% if it.kind == 'cancelled' %} fph-al--cancel{% endif %}" data-foms-home-inbox="{{ it.id }}">
+    <div class="fph-al__body">
+      <div class="fph-al__name">{{ it.customer_name }} <small>#{{ it.id }}</small></div>
+      <div class="fph-al__meta">{{ it.stage }}{% if it.product_label %} · {{ it.product_label }}{% endif %}{% if it.day_label %} · {{ it.day_label }}{% endif %}</div>
+      <ul class="fph-al__list">
+        {% for a in it.alerts %}
+        <li class="is-{{ a.kind }}"><b>{{ a.label }}</b>{% if a.kind == 'construction_date' and a.to_md %} {{ a.from_md | default('미정', true) }} → <strong>{{ a.to_md }}</strong>{% elif a.detail %} {{ a.detail }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-kanban-action="change-ack" data-order-id="{{ it.id }}">확인했어요</button>
+  </div>
+  {% else %}
+  <p class="foms-prod-home__empty">새로 바뀐 것이 없어요.</p>
+  {% endfor %}
+</div>

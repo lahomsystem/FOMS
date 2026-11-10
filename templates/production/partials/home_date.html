@@ -1,0 +1,67 @@
+{# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(시공일마다 막대 + 만들 것/전체) + 오른쪽 고른 날. home.html 이 include.
+   날을 누르면 오른쪽 한 장만 바뀐다(새 요청 없음, foms-production-home.js). 막대는 SVG 좌표(인라인 style 없음).
+   만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
+{% macro fph_row(r, show_day) %}
+<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}"
+   href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
+  <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% elif show_day %}<small>{{ r.day_label }}</small>{% endif %}</span>
+  <span class="fph-dr__who">
+    <span class="fph-dr__nm">{{ r.customer_name }} <small>#{{ r.id }}</small></span>
+    <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
+  </span>
+  <span class="fph-dr__steps" aria-label="공정">
+    {% for s in r.home_steps %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"><i></i>{{ s.label }}</span>{% endfor %}
+  </span>
+  <span class="fph-dr__dw">{{ r.drawing_label }}</span>
+</a>
+{% endmacro %}
+{% macro fph_chip(r, show_day, done) %}
+<a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }}{% if show_day %} · {{ r.day_label }}{% endif %} · {{ r.v3_product_label or r.home_stage }}</small></a>
+{% endmacro %}
+
+<div class="fph-date" data-foms-home-date>
+  <aside class="fph-strip" aria-label="시공일 2주">
+    <div class="fph-strip__h">시공일 2주<small>만들 것 / 전체</small></div>
+    {% for d in days.strip %}
+    <button type="button" class="fph-sd{% if d.key == days.selected %} is-on{% endif %}{% if d.is_weekend %} is-wk{% endif %}{% if not d.total %} is-zero{% endif %}"
+            data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">
+      <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ d.sub }}{% if not d.total and not d.show_day %} · 없음{% endif %}</small></span>
+      <svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>
+      <span class="fph-sd__n"><b>{{ d.make }}</b><small> / {{ d.total }}</small></span>
+    </button>
+    {% endfor %}
+    <div class="fph-strip__f">
+      {% for d in days.footer %}
+      <button type="button" class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">{{ d.label }} {{ d.total }}건{% if d.hidden %} +{{ d.hidden }}{% endif %}</button>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <div class="fph-panes">
+    {% for d in days.panes %}
+    {% set _wait_n = d.wait_rows | length %}
+    <section class="fph-pane" data-foms-home-daypane="{{ d.key }}"{% if d.key != days.selected %} hidden{% endif %}>
+      <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+      {% if not d.total and not d.note %}
+      <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+      {% endif %}
+      {% if d.make_rows %}
+      <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
+      {% for r in d.make_rows %}{{ fph_row(r, d.show_day) }}{% endfor %}
+      {% endif %}
+      {% if d.wait_rows %}
+      <h3 class="fph-pane__g">도면·컨펌 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
+      <div class="fph-wg">{% for r in d.wait_rows %}{{ fph_chip(r, d.show_day, false) }}{% endfor %}</div>
+      {% endif %}
+      {% if d.done_rows %}
+      <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
+      <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, d.show_day, true) }}{% endfor %}</div>
+      {% endif %}
+      {% if d.preview %}
+      <h3 class="fph-pane__g fph-pane__g--next">{{ d.preview.title }} 만들 것 {{ d.preview.make }} <small>미리 보기</small></h3>
+      {% for r in d.preview.rows %}{{ fph_row(r, false) }}{% endfor %}
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</div>

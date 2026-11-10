@@ -100,7 +100,7 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     _add_order("CONSTRUCTION", "정수아", _iso(0), steps_done=("cut", "edge", "assemble", "inspect"))
     _add_order("CONFIRM", "최유진", None)
 
-    response = client.get(HOME_URL)
+    response = client.get(HOME_URL + "?tab=all")  # 전체 주문 줄 목록 = "찾기" 탭(첫 화면은 날짜 탭, D18)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
 
@@ -225,7 +225,7 @@ def test_캡은_지난_주문만_오래된_것부터_자른다(client, monkeypat
     rows, stats = build_production_home(db_session, user)
     # 앞날·미정은 전부(오름차순), 지난 것은 최근 1건만 → 60일·30일 지난 둘은 밀림
     assert [r["customer_name"] for r in rows] == ["앞날", "미정", "조금옛"]
-    assert stats == {"past_hidden": 2}
+    assert stats == {"past_hidden": 2, "total": 5}
     groups = production_home_groups(rows, get_today_kst(), past_hidden=stats["past_hidden"])
     assert groups[-1]["key"] == "past" and groups[-1]["count"] == 1
     assert groups[-1]["sub"] == "더 오래된 2건은 안 보여요"
@@ -236,7 +236,7 @@ def test_캡은_지난_주문만_오래된_것부터_자른다(client, monkeypat
     # 캡이 넉넉하면 전부 보이고 머리줄 글도 없다
     monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 300)
     rows, stats = build_production_home(db_session, user)
-    assert len(rows) == 5 and stats == {"past_hidden": 0}
+    assert len(rows) == 5 and stats == {"past_hidden": 0, "total": 5}
     assert [r["customer_name"] for r in rows[2:]] == ["조금옛", "덜옛주문", "옛주문"]
 
 

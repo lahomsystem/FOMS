@@ -43,7 +43,29 @@
 |---|---|---|---|
 | T4-1 | 작업지시서 인쇄 페이지 | 새 라우트(`foms/web/production/dashboard.py`, 권한 `_can_edit_production_steps` 재사용), 새 템플릿 `templates/production/print_sheet.html`, 새 CSS `static/css/contexts/production/print.css`(폴더도 새로), 인쇄 단추 JS 외부 파일(≤60줄), 시트 "인쇄" 링크 | 새 시험: 생산팀 200·도면팀 403·취소 품목 제외·도면 장수 = 쪽수·인라인 style/script 0. 갤럭시 탭 인쇄 미리보기 1회(사용자 기기) |
 
+## P5 생산 첫 화면 다시 그리기 (설계서 §12.3 — D17·D18, 2026-11-10)
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T6-1 | 글자 크기 손잡이 + px 글자 배율 | `home.html`(조각 include), `home.css`·`sheet.css`(calc) | CSS 에 맨 px 글자 0 · 손잡이 표식 |
+| T6-2 | 날짜 탭(안 3: 2주 띠 + 그날) | `production_home_read_model.py`(`production_home_days`), `home.py`(tab·day), `home_date.html`, `foms-production-home.js`(날 고르기) | 띠 13줄+2 · 막대 좌표 · 만들 것 순서 · 미리 보기 · `?day=` |
+| T6-3 | 바뀐 것 탭 · 내 공정 "곧 올 것" · 머리 총계 | `home_changes.html`, `home_steps.html`, 읽기 모델(`incoming`·`total`) | 받은함·곧 올 것(보류 제외)·총계 |
+
+## P6 리뷰·실화면 고침 (원장 §16 — 워커 리뷰 R1~R11 · 실화면 S1~S5, 2026-11-10) — DONE
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T7-1 | 탭 숫자 = 줄 수 · 보류는 생산 단계만 · 바뀐 것에 취소 주문 · 다시 받기는 직접 고른 날만 | `production_home_read_model.py`(`production_home_queue_key`·`auto`·`hidden`), `home.py`, `home.html`, `home_date.html` | 새 시험 6(코드만 되돌리면 실패) |
+| T7-2 | 글자 키울 때 옆 시트 단추·주소 · 칸 폭 배율 · 바뀐 줄 두 줄 | `sheet.css`, `home.css` | CSS 규칙 단언 + 스테이징 실화면 100~150% |
+| T7-3 | 작업 시트 뒤로 단추 "생산" + 온 곳으로 | `sheet.html`, `foms-production-sheet-page.js` | 파일 단언 |
+
+## P7 태블릿 레일 "생산" = 첫 화면 (설계서 §12.4 — D19, 2026-11-10) — DONE
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T8-1 | 레일 생산 주소 = 첫 화면(볼 수 있는 사람) · 한 규칙 | `production/home_access.py`(신규), `foms_split_view.py`, `home.py` | 팀별 주소 · 문지기와 한 곳 · 시공팀 레일 · split 레일 그대로 |
+| T8-2 | 강조 · 조각 이동 뒤 강조 | `foms_split_view.py`, `foms_tablet_rail.html`, `tablet-rail-nav.js` | 강조 id · JS 접두어 |
+| T8-3 | 첫 화면 [보드] · 제목 줄 오른쪽 묶음 | `home.html`, `home.css` | 보드 링크 · 묶음 · 띠 글 |
+
 ## 뒤로 미룸(기록)
+- 원장 §16 R6(장 나누기와 캡 나누기의 날짜 출처 통일) · S3(전체 화면 시트 150% 머리 줄 두 줄) · S4(옆 시트 머리 번호와 닫기 단추 겹침, 원래 있던 것).
 - 오프라인 저장, 출고 배정 쓰기(출고팀 STAFF 403 별건), AS→재제작, 생산 할 일 보드, 회사 지식 404, 공지·프로필 레일, QR 막대 위치, AS 행 시트 URL(별건 1줄), 다른 팀 태블릿 2차, 장별 "바뀐 도면".
 
 ## 원장 규율

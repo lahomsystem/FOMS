@@ -13,6 +13,7 @@ from foms.services.common.erp_navigation_contract import (
     ERP_TAB_IDS,
 )
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+from foms.services.production.home_access import PRODUCTION_HOME_PATH, can_view_production_home
 
 # Rail labels/icons mirror the erp_mobile_shell.html nav catalog (short rail
 # labels); the path/id ordering is the erp_navigation_contract SSOT (parallel
@@ -45,6 +46,8 @@ _RAIL_ICONS: dict[str, str] = {
 _CONSTRUCTION_RAIL_IDS: frozenset[str] = frozenset(
     {"shipment", "construction", "completion", "history"}
 )
+#: 생산 탭의 모든 화면(보드 · 첫 화면 · 전체 화면 시트 · 인쇄)이 이 아래에 있다 — 레일 강조 판정 접두어.
+_PRODUCTION_RAIL_PREFIX = "/erp/production"
 _CALCULATOR_ITEM: dict[str, str] = {
     "id": "calculator",
     "label": "계산기",
@@ -191,6 +194,10 @@ def resolve_tablet_rail_active_id(path: str) -> str:
     # boundary so /wdcalculatorx does not falsely match).
     if normalized == "/wdcalculator" or normalized.startswith("/wdcalculator/"):
         return "calculator"
+    # 생산 첫 화면 · 전체 화면 시트(/erp/production/home · /sheet/<id>)는 계약 경로(보드) 밖이라
+    # 접두어 표에 안 걸린다(D19). /erp/production 아래는 전부 생산 탭이고 다른 탭 경로와 겹치지 않는다.
+    if normalized == _PRODUCTION_RAIL_PREFIX or normalized.startswith(_PRODUCTION_RAIL_PREFIX + "/"):
+        return "production"
     best_id = ""
     best_len = -1
     for nav_path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):
@@ -214,7 +221,21 @@ def build_tablet_rail_items(user: Any = None, path: str = "") -> list[dict[str, 
         user: Current user; needs a ``team`` attribute. ``None`` → full menu.
         path: Current request path used to resolve the active tab.
 
+    D19(2026-11-10): 생산 첫 화면을 볼 수 있는 사람(:func:`can_view_production_home`)이면 생산 단추가
+    첫 화면(``/erp/production/home``)으로 간다 — 옛 보드는 첫 화면 제목 줄 [보드] 단추로. 못 보는 팀은
+    보드 그대로(켜진 프리랜서도 보드 — 문지기 허용 목록). split 셸 레일(``build_split_side_items`` 직접 호출)은 PC 마우스 창 전용이라 바꾸지 않는다.
+    생산 칸에는 ``match``(강조 접두어)를 실어 tablet-rail-nav.js 가 조각 이동 뒤에도 보드 · 첫 화면 모두를
+    생산으로 강조하게 한다.
+
     Returns:
-        Rail item descriptors (``id``/``label``/``icon``/``href``/``active``).
+        Rail item descriptors (``id``/``label``/``icon``/``href``/``active``; 생산 칸은 ``match`` 도).
     """
-    return build_split_side_items(user, active_id=resolve_tablet_rail_active_id(path))
+    items = build_split_side_items(user, active_id=resolve_tablet_rail_active_id(path))
+    # 켜진 프리랜서는 문지기 허용 목록(보드만)이 메뉴를 정한다 — 첫 화면은 허용 목록 밖이라 그대로 둔다.
+    home = can_view_production_home(user) and not _is_active_freelancer(user)
+    for item in items:
+        if item["id"] == "production":
+            item["match"] = _PRODUCTION_RAIL_PREFIX
+            if home:
+                item["href"] = PRODUCTION_HOME_PATH
+    return items
