@@ -248,3 +248,42 @@ def test_날짜_머리줄_규칙() -> None:
     assert production_home_day("2026-11-07", today)["sub"] == "2일 지남"
     assert production_home_day(None, today)["label"] == "시공일 없음"
     assert production_home_day("이상한 값", today)["key"] == "none"
+
+
+def _add_drawing_transfer(order: Order) -> None:
+    """도면 재전달 한 건(주문이 생긴 뒤 시각) — 생산 변경 알림이 읽는 ``drawing_transfer_history``."""
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    sd = copy.deepcopy(order.structured_data)
+    at = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    sd["drawing_transfer_history"] = [{"action": "TRANSFER", "transferred_at": at, "note": "문짝 바꿈"}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
+def test_바뀐_것은_생산_단계_주문만_도면_기다림과_제작_완료는_안_친다(client) -> None:
+    """D20(11-10 "만들 주문만"): 도면 기다림·제작 완료 주문의 변경은 숫자·받은함·테두리·찾기 거르기에 안 잡힌다."""
+    import re
+
+    _make_user(client, "home_prod_d20", "PRODUCTION")
+    for stage, name, run in (("DRAWING", "도면바뀜", False), ("PRODUCTION", "생산바뀜", True), ("CONSTRUCTION", "완료바뀜", False)):
+        _add_drawing_transfer(_add_order(stage, name, _iso(2), with_run=run))
+    day = _iso(2)
+    tab_n = '>바뀐 것 <small class="is-hot">1</small></a>'
+    changes = client.get(HOME_URL + "?tab=changes").get_data(as_text=True)
+    assert tab_n in changes and changes.count("data-foms-home-inbox=") == 1
+    inbox = changes.split("fph-inbox--page")[1]
+    assert "생산바뀜" in inbox and "도면 재전달" in inbox and "도면바뀜" not in inbox and "완료바뀜" not in inbox
+    date = client.get(HOME_URL + f"?day={day}").get_data(as_text=True)
+    assert tab_n in date
+    pane = date.split(f'data-foms-home-daypane="{day}"')[1].split("data-foms-home-daypane=")[0]
+    chips = {m.group(2).strip(): m.group(1) for m in re.finditer(r'<a class="fph-wi([^"]*)"[^>]*>([^<]+)<small>', pane)}
+    assert chips == {"도면바뀜": "", "완료바뀜": " is-done"}
+    big = re.search(r'<a class="fph-dr ([^"]*)"[^>]*>.*?fph-dr__nm">생산바뀜', pane, re.S)
+    assert big and "is-chg" in big.group(1) and "<small>바뀜</small>" in pane
+    found = client.get(HOME_URL + "?tab=all").get_data(as_text=True)
+    flags = dict((q.split(" ")[0], c) for c, q in re.findall(r'data-changed="(\d)" data-q="([^"]*)"', found))
+    assert flags == {"도면바뀜": "0", "생산바뀜": "1", "완료바뀜": "0"}

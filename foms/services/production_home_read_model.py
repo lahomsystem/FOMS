@@ -242,7 +242,7 @@ def production_home_days(
 
     띠 = 지난 7일(한 줄) · 오늘부터 ``PRODUCTION_HOME_STRIP_DAYS`` 일 · 그 뒤(한 줄). 띠 아래 = 지난 시공일(7일 넘음) ·
     시공일 없음. 오른쪽은 그날의 만들 것(제작 대기~검수 끝·보류)을 큰 줄로, 도면·컨펌 기다림과 제작 완료는 작은 칸으로.
-    날짜 한 장 아래에는 다음에 만들 것이 있는 날을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
+    날짜 한 장 아래에는 다음에 만들 것이 있는 날(그 뒤 포함, 없으면 밀린 지난 7일)을 미리 보여 화면이 비지 않게 한다. ``selected`` 가 없거나 모르는 값이면 오늘
     (오늘이 비었으면 일이 있는 가장 가까운 장).
     """
     today = today or get_today_kst()
@@ -292,11 +292,18 @@ def production_home_days(
         ),
         _home_bucket('none', '시공일 없음', '', '시공일 없음', by_key.get('none', [])),
     ]
-    dated = strip[1:-1]
-    for index, bucket in enumerate(strip[:-1]):
-        nxt = next((b for b in dated[index:] if b['make_rows']), None)  # strip[0] = 지난 7일 → dated[0:] 부터
+    recent = strip[0]
+    for index, bucket in enumerate(strip):
+        # 미리 보기 = 이 장 뒤(그 뒤 묶음 포함)로 만들 것이 있는 첫 장. 없으면 밀린 것(지난 7일) — 자기 자신은 안 단다(M4).
+        nxt = next((b for b in strip[index + 1:] if b['make_rows']), None)
+        hint = '미리 보기'
+        if nxt is None and bucket is not recent and recent['make_rows']:
+            nxt, hint = recent, '밀린 것'
         if nxt is not None:
-            bucket['preview'] = {'title': nxt['title'], 'make': nxt['make'], 'rows': nxt['make_rows'][:6]}
+            bucket['preview'] = {
+                'title': '지난 7일' if nxt is recent else nxt['title'], 'make': nxt['make'], 'hint': hint,
+                'show_day': nxt['show_day'], 'rows': nxt['make_rows'][:6],
+            }
     panes = strip + footer
     key = str(selected or '')
     auto = not any(p['key'] == key for p in panes)  # True = 사용자가 고른 날이 아니라 자동으로 고른 장(R3)
@@ -352,6 +359,12 @@ def production_home_queue_key(row: dict[str, Any]) -> str | None:
     return current['key'] if current is not None else None
 
 
+def _due_sort_key(row: dict[str, Any]) -> tuple[int, str, int]:
+    """공정 줄·곧 올 것 순서 = 시공일 빠른 순(지난 날이 맨 앞) · 시공일 없음 맨 뒤 · 같은 날은 주문 번호 순(M2)."""
+    day = _parse_date(row.get('construction_date'))
+    return (0, day.isoformat(), int(row.get('id') or 0)) if day else (1, '', int(row.get('id') or 0))
+
+
 def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
 
@@ -372,8 +385,10 @@ def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
             waiting_rows.append(row)
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
             finished += 1
+    waiting_rows.sort(key=_due_sort_key)
     prev: dict[str, Any] | None = None
     for q in queues:
+        q['rows'].sort(key=_due_sort_key)
         q['count'] = len(q['rows'])
         q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows'] if not r.get('hold_active')]
         q['incoming_label'] = '제작 대기' if prev is None else f"{prev['label']} 중"
@@ -443,7 +458,9 @@ def build_production_home(
         steps = production_home_steps(sd, mark_now=in_production)
         big, sub, view = production_home_stage(raw_stage, has_run, steps, bool(row.get('hold_active')))
         day = production_home_day(row.get('construction_date'), today)
-        alerts = (alerts_by_id.get(row['id']) or {}).get('alerts') or []
+        # 바뀐 것(숫자·받은함·빨간 테두리·정렬·찾기 거르기)은 생산팀이 만들 주문만 — 도면·컨펌 기다림과 제작 완료는
+        # 알림이 있어도 치지 않는다(사용자 D20 11-10 "만들 주문만": 운영 '바뀐 것 218' 대부분이 도면 단계 재전달이었다).
+        alerts = ((alerts_by_id.get(row['id']) or {}).get('alerts') or []) if view == 'prod' else []
         drawing_count = len(resolve_final_drawing_files(sd))
         row['home_steps'] = steps
         row['home_stage'] = big

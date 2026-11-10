@@ -228,8 +228,12 @@ def test_날짜_띠_규칙() -> None:
     assert by["later"]["total"] == 1 and by["later"]["sub"] == "11/22~" and by["none"]["total"] == 1
     # 미리 보기 = 그날 뒤로 만들 것이 있는 첫 날(자기 날은 아님). 지난 7일 장은 오늘부터 찾는다
     assert wed["preview"]["title"] == "11/14 (토)" and [r["id"] for r in wed["preview"]["rows"]] == [9]
-    assert by["recent"]["preview"]["title"] == "오늘 11/11 (수)" and by["2026-11-21"]["preview"] is None
-    assert by["later"]["preview"] is None and by["past"]["preview"] is None
+    assert by["recent"]["preview"]["title"] == "오늘 11/11 (수)" and by["recent"]["preview"]["hint"] == "미리 보기"
+    # 뒤로 만들 것이 없는 끝날·그 뒤 장은 밀린 것(지난 7일)을 단다(M4). 아래 두 장은 안 단다
+    for key in ("2026-11-21", "later"):
+        assert by[key]["preview"]["title"] == "지난 7일" and by[key]["preview"]["hint"] == "밀린 것", key
+        assert [r["id"] for r in by[key]["preview"]["rows"]] == [2] and by[key]["preview"]["show_day"], key
+    assert by["past"]["preview"] is None and by["none"]["preview"] is None
     # 고른 날: 아는 열쇠만
     assert production_home_days(rows, today, "past")["selected"] == "past"
     assert production_home_days(rows, today, "2026-12-25")["selected"] == "2026-11-11"
@@ -291,7 +295,9 @@ def test_글자_크기_손잡이를_따라가는_CSS() -> None:
     assert "auto calc(92px * var(--foms-fs, 1))" in css
     assert "calc(150px * var(--foms-fs, 1)) 190px" in css
     # 바뀐 줄은 품목 줄 두 줄까지(S5) — 바뀐 내용이 말줄임에 안 묻힌다
-    assert ".fph-dr.is-chg .fph-dr__pr { white-space: normal;" in css and "-webkit-line-clamp: 2" in css
+    # 큰 줄 품목·치수 글은 모두 두 줄까지(S5 · M3) — 바뀐 줄 전용 규칙은 없다
+    assert ".fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;" in css
+    assert ".fph-dr.is-chg .fph-dr__pr" not in css and css.count(".fph-dr__pr {") == 1
 
 
 def test_옆_시트는_글자를_크게_키워도_단추와_주소가_안_잘린다() -> None:
@@ -384,7 +390,7 @@ def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기
     assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
     assert "옛주문하나" not in past
     btn = html.split('data-foms-home-daybtn="past"')[1].split("</button>")[0]
-    assert btn.endswith(">지난 시공일 0건 +2")
+    assert btn.endswith(">지난 시공일 0건 · 2건 더")
     # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추에 + 없음
     assert "이 날은 시공이 없어요." in _pane(html, "none")
     assert html.split('data-foms-home-daybtn="none"')[1].split("</button>")[0].endswith(">시공일 없음 0건")
@@ -411,7 +417,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261110d" in html
+    assert "home.css?v=20261111a" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -432,3 +438,42 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert 'data-foms-rail-match="/erp/production"' in prod.group(0)
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".foms-prod-home__navtab--out i { font-size: calc(13px * var(--foms-fs, 1)); }" in css
+
+
+def test_공정_줄과_곧_올_것은_시공일_빠른_순() -> None:
+    """M2(11-11): 지난 날 → 앞날 → 시공일 없음, 같은 날은 주문 번호 순. 보류도 같은 규칙."""
+    def _row(rid: int, date: str | None, stage: str, *, hold: bool = False) -> dict:
+        now = stage == "재단 중"
+        return {"id": rid, "construction_date": date, "home_view": "prod", "home_stage": stage, "hold_active": hold,
+                "home_steps": [{"key": "cut", "done": False, "now": now}, {"key": "edge", "done": False, "now": False}]}
+
+    rows = [_row(5, "2026-11-05", "재단 중"), _row(1, "2026-11-17", "재단 중"), _row(9, None, "보류", hold=True),
+            _row(4, "2026-10-31", "보류", hold=True), _row(2, "2026-11-05", "재단 중"), _row(3, "2026-10-27", "재단 중"),
+            _row(8, None, "제작 대기"), _row(7, "2026-11-20", "제작 대기"), _row(6, "2026-11-01", "제작 대기")]
+    cut = production_home_step_queues(rows)["queues"][0]
+    assert [r["id"] for r in cut["rows"]] == [3, 4, 2, 5, 1, 9]
+    assert [r["id"] for r in cut["incoming"]] == [6, 7, 8]
+    edge = production_home_step_queues(rows)["queues"][1]
+    assert [r["id"] for r in edge["incoming"]] == [3, 2, 5, 1]  # 재단 줄에서 보류만 뺀 같은 순서
+
+
+def test_날짜_장_미리_보기는_그_뒤까지_보고_없으면_밀린_것_자기_자신은_안_단다(client) -> None:
+    """M4(11-11): 미리 보기 후보에 '그 뒤' 묶음, 그래도 없으면 지난 7일 만들 것(밀린 것). 지난 7일 장은 자기를 안 단다."""
+    today = datetime.date(2026, 11, 11)
+
+    def _row(rid: int, date: str) -> dict:
+        return {"id": rid, "construction_date": date, "home_view": "prod", "home_stage": "제작 대기", "home_steps": []}
+
+    by = {b["key"]: b for b in production_home_days([_row(1, "2026-11-08"), _row(2, "2026-11-13"), _row(3, "2026-12-01")], today)["panes"]}
+    assert by["2026-11-11"]["preview"]["title"] == "11/13 (금)" and by["2026-11-11"]["preview"]["hint"] == "미리 보기"
+    assert by["2026-11-13"]["preview"]["title"] == "11/22 뒤" and [r["id"] for r in by["2026-11-13"]["preview"]["rows"]] == [3]
+    assert by["later"]["preview"]["title"] == "지난 7일" and by["later"]["preview"]["hint"] == "밀린 것"
+    alone = {b["key"]: b for b in production_home_days([_row(1, "2026-11-08")], today)["panes"]}
+    assert alone["recent"]["preview"] is None
+    assert alone["2026-11-11"]["preview"]["hint"] == "밀린 것" and [r["id"] for r in alone["2026-11-11"]["preview"]["rows"]] == [1]
+    # 화면: 밀린 것 제목과 줄의 시공일 글
+    _make_user(client, "tabs_prod_m4", "PRODUCTION")
+    _add_order("PRODUCTION", "밀린주문", -3)
+    pane = _pane(client.get(HOME + f"?day={get_today_kst().isoformat()}").get_data(as_text=True), get_today_kst().isoformat())
+    old = production_home_read_model.production_home_day(get_today_kst() - datetime.timedelta(days=3), get_today_kst())["label"]
+    assert "지난 7일 만들 것 1 <small>밀린 것</small>" in pane and "밀린주문" in pane and f"<small>{old}</small>" in pane
