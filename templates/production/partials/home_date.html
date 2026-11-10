@@ -25,7 +25,7 @@
     {% for d in days.strip %}
     <button type="button" class="fph-sd{% if d.key == days.selected %} is-on{% endif %}{% if d.is_weekend %} is-wk{% endif %}{% if not d.total %} is-zero{% endif %}"
             data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">
-      <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ d.sub }}{% if not d.total %} · 없음{% endif %}</small></span>
+      <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ d.sub }}{% if not d.total and not d.show_day %} · 없음{% endif %}</small></span>
       <svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>
       <span class="fph-sd__n"><b>{{ d.make }}</b><small> / {{ d.total }}</small></span>
     </button>
