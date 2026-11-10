@@ -140,9 +140,14 @@
 - 옆 시트 뷰 모델(`erp_production_tablet_sheet`, `dashboard.py:408-468`)을 함수로 빼서 둘이 같이 쓴다. 더하는 키: 전화·주소·실측일·출고일, 도면 이미지 전체 목록(F2 ③), 공정 5줄(누가·몇 시). 왼쪽 6할 도면(넘기기 72px·썸네일·PDF 는 파일 열기, 뷰어는 F3 마운터), 오른쪽 고객·만들 것·공정·[불량 알리기]·[보류]·[제작 완료](검수 전 회색)·위 막대 [인쇄](F8)·[상세]. 쓰기는 전부 기존 API(공정 체크·불량·보류·시작/완료). 공정 JS 는 F2 ② 의 스코프 재작성 결과를 그대로 쓴다.
 - 12.1 카드 링크를 이 라우트로 바꾼다.
 
-### 12.3 첫 화면 탭 "이번 주"(안 4)·"내 공정"(안 3) — T0-3·T0-4 (D13)
-- 이번 주: 요일 6칸에 출고·시공(출고일 키는 T0-3 에서 확정), 오른쪽 받은함 = `collect_production_change_alerts` 의 alerts + 품목 취소(F-13), [확인했어요] = `POST /api/orders/<id>/production/change-ack`.
-- 내 공정: 공정 5탭(사람마다 마지막 탭 localStorage), 그 공정이 첫 미완인 생산 중 주문만, [<공정> 끝] = `POST …/production/steps`. 일의 양은 보이지 않는다(D11).
+### 12.3 첫 화면 탭 — 날짜 · 내 공정 · 바뀐 것 · 찾기 (D13 → D17·D18, 2026-11-10 사용자 "최우선은 생산" · "3안으로")
+- 사용자 세 요청을 생산 첫 화면에: ① 글자 크기 조절 ② 이유 없는 빈 공간 없이 ③ 날짜별로 시공을 한눈에. 시안 `docs/design/mockups/tablet-production-home-v2.html` 안 3.
+- **날짜(첫 화면, `?tab=date` 기본)**: 왼쪽 2주 띠 = 지난 7일(한 줄) · 오늘부터 11일 · 그 뒤(한 줄), 줄마다 막대(제작 완료·만드는 중·제작 대기·도면 기다림, SVG 좌표라 인라인 style 없음)와 "만들 것 / 전체". 띠 아래 = 지난 시공일(7일 넘음)·시공일 없음. 오른쪽 = 고른 날 한 장: 만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄(바뀐 것 → 만드는 중 → 제작 대기 순), 도면·컨펌 기다림과 제작 완료는 작은 칸 3열, 아래에 다음에 만들 것이 있는 날 미리 보기(화면이 비지 않게). 날 고르기는 보이기/숨기기만(`?day=` 로 처음 고른 날, 모르면 오늘). `production_home_days(rows, today, selected, past_hidden=)`.
+- **글자 크기**: 제목 줄에 `foms_font_scale_control.html`(열쇠 `/erp/production`). `home.css`·`sheet.css` 의 px 글자는 전부 `calc(Npx * var(--foms-fs, 1))`. 띠 너비·칸도 배율을 따라가고, 띠 위치는 제목 줄 실제 높이(`--fph-bar-h`, JS 가 잼).
+- **내 공정**: 공정 4탭(사람마다 마지막 탭 localStorage), 그 공정이 첫 미완인 생산 중 주문만, [<공정> 끝] = `POST …/production/steps`. 일의 양은 보이지 않는다(D11). 줄 아래 "곧 올 것" = 바로 앞 공정에 와 있는 주문(재단은 제작 대기) — 줄이 적어도 빈 화면이 아니다.
+- **바뀐 것**: 받은함 = `collect_production_change_alerts` 의 alerts + 취소 주문(묘비), [확인했어요] = `POST /api/orders/<id>/production/change-ack`. 옛 "이번 주" 탭의 요일 칸은 날짜 탭이 대신해 없앴다(`?tab=week` 는 날짜로).
+- **찾기(`?tab=all`)**: 12.1 의 전체 주문 한 줄 목록(찾기 칸·보기 칸·날짜 묶음 접기) 그대로.
+- 머리 숫자 "전체 N건" = 캡과 무관한 실제 총계(`stats['total']`).
 
 ### 12.4 착지 (F7 ① 갱신)
 - `is_production_home_user(user)`(`post_auth_navigation.py`) = 팀 PRODUCTION 이고 협력사 아님(프리랜서는 영업팀만 가능해 따로 보지 않음). `authenticated_home_url`·`resolve_post_login_redirect`(legacy `/`)·`listing.py index()`·`routes.py switch_user` 네 곳이 `production_home_url()` 로. 기기 무관. 시험 `tests/domains/test_post_auth_navigation.py` 4 사례(PC 로그인·`next=/`·`/`·CS 대조군).
