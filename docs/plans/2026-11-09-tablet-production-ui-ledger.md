@@ -202,4 +202,10 @@
   - **안 3 2주 띠 + 그날**: 왼쪽 13일 색 막대(완료·만드는 중·대기·도면 기다림)와 "만들 것 / 전체", 오른쪽 고른 날 큰 줄 + 도면 기다림 세 칸 격자 + 내일 미리 보기.
 - 로컬 렌더 `scratchpad/shot_prod2_mock.py`: 세 틀 넘침 0(안 2 줄 52→50px 로 맞춤).
 - 같이 고칠 것(시안 글에 적음): "내 공정" 빈 화면, 머리 숫자 "전체 300" → 실제 총계.
-- 다음: 사용자 선택(안 1·2·3, 도면 기다림을 작게 줄이는 것이 맞는지) → 설계서 §12 고침 → 구현(T6-1 글자 손잡이 → T6-2 첫 화면 → T6-3 내 공정 빈 화면).
+- **D18 (사용자, 11-10) "3안으로"** — 생산 첫 화면 = 안 3(2주 띠 + 그날). 도면 기다림을 작게 두는 것도 안 3 그대로.
+- **P5 DONE (11-10)** 설계서 §12.3 고침 · 플랜 P5.
+  - T6-1 글자: `home.html` 제목 줄에 `foms_font_scale_control.html`(열쇠 `/erp/production` 은 `FS_TABS` 에 이미 있음). `home.css` 54곳 · `sheet.css` 45곳 px 글자 → `calc(Npx * var(--foms-fs, 1))`(sheet.css 핀 20261110a, 칸반 body·sheet.html·시험 리터럴 lockstep). 띠 너비 `min(42%, calc(316px * fs))`, 띠 칸도 배율, 띠 sticky 위치는 `--fph-bar-h`(JS 가 제목 줄 높이를 잼 — 줄이 접혀도 안 겹침).
+  - T6-2 날짜 탭: `production_home_days`(지난 7일 · 오늘+10일 · 그 뒤 = 13줄, 아래 지난 시공일·시공일 없음 → 장 15개, 막대는 SVG x/width, 만들 것 순서 = 바뀐 것 → 만드는 중(공정 많이 간 것) → 제작 대기, 미리 보기 = 뒤로 만들 것이 있는 첫 날 6줄까지). `home.py` 탭 `date|steps|changes|all`(기본 date, 옛 `week` 는 date 로), `?day=`. `home_date.html`(큰 줄 `fph-dr` · 작은 칸 `fph-wi`), JS 날 고르기(보이기/숨기기 + 주소·[다시 받기] 갱신, 209줄).
+  - T6-3: "이번 주" 탭 삭제(`home_week.html`·`production_home_week`) → 받은함은 `home_changes.html` "바뀐 것" 탭(2열), 내 공정 줄 아래 "곧 올 것"(`incoming` = 앞 공정 줄에서 보류 뺀 것, 재단은 제작 대기), 머리 "전체 N건" = `stats['total']`(실제 총계). "전체 주문" 줄 목록은 탭 "찾기"(`?tab=all`).
+  - 검증: 새·고친 시험(`test_production_home_tabs.py` 8 · `test_production_home.py`) + 생산·태블릿 계약 618 초록. 로컬 렌더(`scratchpad/shot_home_v3.py`, 시드 111건): 1280×800 터치 띠 316×713 · 가로 넘침 없음 · 날 고르기 · 글자 130%(띠 411px, 겹침 없음) · 800×1280(띠 가로 흐름) · 작업 시트 글자 100/130/150% 넘침 없음.
+- 다음: smoke → deploy 푸시 → 스테이징 실화면 → 사용자 확인 뒤 운영 승격(지시 때).

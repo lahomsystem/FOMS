@@ -43,6 +43,13 @@
 |---|---|---|---|
 | T4-1 | 작업지시서 인쇄 페이지 | 새 라우트(`foms/web/production/dashboard.py`, 권한 `_can_edit_production_steps` 재사용), 새 템플릿 `templates/production/print_sheet.html`, 새 CSS `static/css/contexts/production/print.css`(폴더도 새로), 인쇄 단추 JS 외부 파일(≤60줄), 시트 "인쇄" 링크 | 새 시험: 생산팀 200·도면팀 403·취소 품목 제외·도면 장수 = 쪽수·인라인 style/script 0. 갤럭시 탭 인쇄 미리보기 1회(사용자 기기) |
 
+## P5 생산 첫 화면 다시 그리기 (설계서 §12.3 — D17·D18, 2026-11-10)
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T6-1 | 글자 크기 손잡이 + px 글자 배율 | `home.html`(조각 include), `home.css`·`sheet.css`(calc) | CSS 에 맨 px 글자 0 · 손잡이 표식 |
+| T6-2 | 날짜 탭(안 3: 2주 띠 + 그날) | `production_home_read_model.py`(`production_home_days`), `home.py`(tab·day), `home_date.html`, `foms-production-home.js`(날 고르기) | 띠 13줄+2 · 막대 좌표 · 만들 것 순서 · 미리 보기 · `?day=` |
+| T6-3 | 바뀐 것 탭 · 내 공정 "곧 올 것" · 머리 총계 | `home_changes.html`, `home_steps.html`, 읽기 모델(`incoming`·`total`) | 받은함·곧 올 것(보류 제외)·총계 |
+
 ## 뒤로 미룸(기록)
 - 오프라인 저장, 출고 배정 쓰기(출고팀 STAFF 403 별건), AS→재제작, 생산 할 일 보드, 회사 지식 404, 공지·프로필 레일, QR 막대 위치, AS 행 시트 URL(별건 1줄), 다른 팀 태블릿 2차, 장별 "바뀐 도면".
 
