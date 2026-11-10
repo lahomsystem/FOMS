@@ -72,8 +72,9 @@ def production_home_steps(sd: dict[str, Any], *, mark_now: bool) -> list[dict[st
 def production_home_stage(
     raw_stage: str | None, has_run: bool, steps: list[dict[str, Any]], hold_active: bool
 ) -> tuple[str, str, str]:
-    """(큰 글자, 작은 글자, 보기 키). 보기 키는 탭 필터용 ``wait | prod | done``."""
-    if hold_active:
+    """(큰 글자, 작은 글자, 보기 키). 보기 키는 탭 필터용 ``wait | prod | done``.
+    보류는 생산 단계(제작 대기~검수)일 때만 — 도면·컨펌·시공 단계 보류는 그 단계 그대로(R1, 11-10)."""
+    if hold_active and raw_stage in _PRODUCTION_STAGES:
         return '보류', '생산', 'prod'
     if raw_stage in _DRAWING_STAGES:
         return '도면 기다림', '도면팀', 'wait'
@@ -228,7 +229,7 @@ def _home_bucket(key: str, label: str, sub: str, title: str, rows: list[dict[str
         'make': len(make_rows), 'make_rows': make_rows,
         'wait_rows': [r for r in rows if r.get('home_view') == 'wait'],
         'done_rows': [r for r in rows if r.get('home_view') == 'done'],
-        'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'preview': None,
+        'is_today': False, 'is_weekend': False, 'show_day': False, 'note': '', 'hidden': 0, 'preview': None,
     }
     bucket.update(flags)
     return bucket
@@ -287,7 +288,7 @@ def production_home_days(
         _home_bucket(
             'past', '지난 시공일', f"{PRODUCTION_HOME_PAST_DAYS}일 넘음", f"지난 시공일 ({PRODUCTION_HOME_PAST_DAYS}일 넘음)",
             by_key.get('past', []), show_day=True,
-            note=f"더 오래된 {past_hidden}건은 안 보여요" if past_hidden else '',
+            note=f"더 오래된 {past_hidden}건은 안 보여요" if past_hidden else '', hidden=past_hidden,
         ),
         _home_bucket('none', '시공일 없음', '', '시공일 없음', by_key.get('none', [])),
     ]
@@ -298,12 +299,13 @@ def production_home_days(
             bucket['preview'] = {'title': nxt['title'], 'make': nxt['make'], 'rows': nxt['make_rows'][:6]}
     panes = strip + footer
     key = str(selected or '')
-    if not any(p['key'] == key for p in panes):
+    auto = not any(p['key'] == key for p in panes)  # True = 사용자가 고른 날이 아니라 자동으로 고른 장(R3)
+    if auto:
         # 처음 여는 장 = 오늘. 오늘이 비었으면 일이 있는 가장 가까운 장(오늘 뒤 → 그 뒤 → 지난 7일 → 지난 시공일 → 시공일 없음)
         # — 스테이징처럼 앞날 주문이 없어도 첫 화면이 빈 장이 아니다(사용자 11-10 ②).
         nearest = strip[1:] + [strip[0]] + footer
         key = next((b['key'] for b in nearest if b['total']), today.isoformat())
-    return {'strip': strip, 'footer': footer, 'panes': panes, 'selected': key, 'today_key': today.isoformat()}
+    return {'strip': strip, 'footer': footer, 'panes': panes, 'selected': key, 'auto': auto, 'today_key': today.isoformat()}
 
 
 def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
@@ -338,6 +340,18 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
     return items
 
 
+def production_home_queue_key(row: dict[str, Any]) -> str | None:
+    """이 주문이 "내 공정" 줄에 서는 공정 키(없으면 None) — 줄과 탭 숫자가 같이 쓰는 한 규칙(R1).
+    지금 공정(now) 이 있으면 그 줄, 보류는 run 이 없어도 첫 미완 공정 줄에 '보류'로."""
+    if row.get('home_view') != 'prod':
+        return None
+    steps = row.get('home_steps') or []
+    current = next((s for s in steps if s.get('now')), None)
+    if current is None and row.get('hold_active'):
+        current = next((s for s in steps if not s.get('done')), None)
+    return current['key'] if current is not None else None
+
+
 def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
 
@@ -351,22 +365,13 @@ def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
     waiting_rows: list[dict[str, Any]] = []
     finished = 0
     for row in rows:
-        if row.get('home_view') != 'prod':
-            continue
-        steps = row.get('home_steps') or []
-        current = next((s for s in steps if s.get('now')), None)
-        if current is None:
-            if row.get('home_stage') == '제작 대기':
-                waiting_rows.append(row)
-            elif row.get('home_stage') == '검수 끝':
-                finished += 1
-            elif row.get('hold_active'):
-                # 보류는 run 이 있어도 now 표시가 없다 — 첫 미완 공정 줄에 '보류'로 둔다
-                first_undone = next((s for s in steps if not s.get('done')), None)
-                if first_undone is not None:
-                    by_key[first_undone['key']]['rows'].append(row)
-            continue
-        by_key[current['key']]['rows'].append(row)
+        key = production_home_queue_key(row)
+        if key is not None:
+            by_key[key]['rows'].append(row)
+        elif row.get('home_view') == 'prod' and row.get('home_stage') == '제작 대기':
+            waiting_rows.append(row)
+        elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
+            finished += 1
     prev: dict[str, Any] | None = None
     for q in queues:
         q['count'] = len(q['rows'])
@@ -376,13 +381,14 @@ def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished}
 
 
-def production_home_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 바뀐 것."""
+def production_home_counts(rows: list[dict[str, Any]], tombstone_count: int = 0) -> dict[str, int]:
+    """탭 숫자 — 전체 / 생산 중(제작 대기~검수 끝·보류) / 내 공정(공정 줄에 선 주문, R1) / 바뀐 것(받은함 장 수 =
+    변경 있는 주문 + 묘비, R2)."""
     return {
         'all': len(rows),
         'prod': sum(1 for r in rows if r.get('home_view') == 'prod'),
-        'making': sum(1 for r in rows if any(s.get('now') for s in (r.get('home_steps') or []))),
-        'changed': sum(1 for r in rows if r.get('has_changes')),
+        'making': sum(1 for r in rows if production_home_queue_key(r) is not None),
+        'changed': sum(1 for r in rows if r.get('has_changes')) + tombstone_count,
     }
 
 

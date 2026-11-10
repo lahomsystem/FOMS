@@ -32,7 +32,7 @@
     {% endfor %}
     <div class="fph-strip__f">
       {% for d in days.footer %}
-      <button type="button" class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">{{ d.label }} {{ d.total }}건</button>
+      <button type="button" class="fph-sf{% if d.key == days.selected %} is-on{% endif %}" data-foms-home-daybtn="{{ d.key }}" aria-pressed="{{ 'true' if d.key == days.selected else 'false' }}">{{ d.label }} {{ d.total }}건{% if d.hidden %} +{{ d.hidden }}{% endif %}</button>
       {% endfor %}
     </div>
   </aside>
@@ -41,8 +41,8 @@
     {% for d in days.panes %}
     {% set _wait_n = d.wait_rows | length %}
     <section class="fph-pane" data-foms-home-daypane="{{ d.key }}"{% if d.key != days.selected %} hidden{% endif %}>
-      <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
-      {% if not d.total %}
+      <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+      {% if not d.total and not d.note %}
       <p class="fph-pane__none">이 날은 시공이 없어요.</p>
       {% endif %}
       {% if d.make_rows %}
@@ -50,7 +50,7 @@
       {% for r in d.make_rows %}{{ fph_row(r, d.show_day) }}{% endfor %}
       {% endif %}
       {% if d.wait_rows %}
-      <h3 class="fph-pane__g">도면 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
+      <h3 class="fph-pane__g">도면·컨펌 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
       <div class="fph-wg">{% for r in d.wait_rows %}{{ fph_chip(r, d.show_day, false) }}{% endfor %}</div>
       {% endif %}
       {% if d.done_rows %}

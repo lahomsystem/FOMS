@@ -17,8 +17,11 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.api.production.orders import _PRODUCTION_STEP_DEFS
 from foms.services.datetime_kst import get_today_kst
+from foms.services import production_home_read_model
 from foms.services.production_home_read_model import (
+    production_home_counts,
     production_home_days,
+    production_home_stage,
     production_home_inbox,
     production_home_step_queues,
 )
@@ -105,7 +108,7 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     assert html.count('data-foms-home-daypane="') == 15
     assert len(re.findall(r'data-foms-home-daypane="[^"]+" hidden>', html)) == 14
     pane = _pane(html, today_key)
-    assert "시공 2건 · 만들 것 1 · 도면 기다림 1" in pane
+    assert "시공 2건 · 만들 것 1 · 도면·컨펌 기다림 1" in pane
     assert "오늘엣지" in pane and "엣지 중" in pane and "오늘도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 오늘 아래 미리 보기 = 다음에 만들 것이 있는 날(내일은 제작 완료뿐이라 건너뜀)
@@ -284,3 +287,111 @@ def test_글자_크기_손잡이를_따라가는_CSS() -> None:
     assert css.count("var(--foms-fs, 1)") > 60
     # 띠가 화면 높이를 쓸 때는 전역 화면 크기 배율로 나눈다
     assert "calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px))" in css
+    # 글자가 커지면 글자가 든 칸 폭도 같이(R8) — 큰 줄 도면 칸 · 내 공정 시공일 칸
+    assert "auto calc(92px * var(--foms-fs, 1))" in css
+    assert "calc(150px * var(--foms-fs, 1)) 190px" in css
+
+
+def test_옆_시트는_글자를_크게_키워도_단추와_주소가_안_잘린다() -> None:
+    """실화면 S1·S2(11-10): 140% 부터 바닥 단추 셋이 400px 를 넘고, 붙은 긴 주소가 [지도] 밑으로 들어갔다."""
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    assert ".foms-prod-sheet__foot { flex-wrap: wrap; }" in css
+    contact = re.search(r"\.foms-prod-sheet__contact-text \{[^}]*\}", css).group(0)
+    assert "overflow-wrap: anywhere" in contact
+    tile = re.search(r"\.foms-prod-sheet__drawing-file \{[^}]*\}", css).group(0)
+    assert "min-height: 80px" in tile and "height: 80px;" not in tile.replace("min-height: 80px;", "")
+    assert not re.findall(r"font-size:\s*\d+px", css)
+
+
+# ── 리뷰 고침 묶음(원장 §16 R1·R2·R3·R5·R10, 2026-11-10) ──
+
+def _reload_href(html: str) -> str:
+    return re.search(r'data-foms-home-reload href="([^"]*)"', html).group(1)
+
+
+def test_보류는_생산_단계만_도면_컨펌_보류는_기다림() -> None:
+    steps = [{"key": "cut", "label": "재단", "done": False, "now": False}]
+    assert production_home_stage("PRODUCTION", False, steps, True) == ("보류", "생산", "prod")
+    assert production_home_stage("도면", False, steps, True) == ("도면 기다림", "도면팀", "wait")
+    assert production_home_stage("CONFIRM", False, steps, True) == ("컨펌 기다림", "영업", "wait")
+    assert production_home_stage("CONSTRUCTION", True, steps, True) == ("제작 완료", "시공 대기", "done")
+
+
+def test_내_공정_탭_숫자는_공정_줄_합과_같다_보류_run_없음_포함(client) -> None:
+    _make_user(client, "tabs_prod_r1", "PRODUCTION")
+    _add_order("PRODUCTION", "보류런없음", 0, hold=True)
+    _add_order("PRODUCTION", "보류런있음", 0, steps_done=("cut",), with_run=True, hold=True)
+    _add_order("DRAWING", "도면보류", 0, hold=True)
+    _add_order("PRODUCTION", "재단차례", 0, with_run=True)
+    _add_order("PRODUCTION", "아직대기", 0)
+    _add_order("PRODUCTION", "다끝남", 0, steps_done=tuple(k for k, _ in _PRODUCTION_STEP_DEFS), with_run=True)
+
+    steps_html = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    lane_counts = [int(n) for n in re.findall(r'data-foms-home-steptab="[a-z]+"[^>]*>[^<]+<small>(\d+)</small>', steps_html)]
+    assert len(lane_counts) == 4 and sum(lane_counts) == 3  # 재단 = 보류런없음·재단차례, 엣지 = 보류런있음
+    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in steps_html
+    cut_q = steps_html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0].split("fph-q__nextlist")[0]
+    assert "보류런없음" in cut_q and "재단차례" in cut_q and "도면보류" not in steps_html
+    # 날짜 탭: 도면 단계 보류는 큰 줄이 아니라 도면·컨펌 기다림 칸, 큰 줄 클래스 = 제작 대기 w · 만드는 중/보류 p · 검수 끝 f
+    date_html = client.get(HOME).get_data(as_text=True)
+    assert f">내 공정 <small>{sum(lane_counts)}</small></a>" in date_html
+    pane = _pane(date_html, get_today_kst().isoformat())
+    assert "만들 것 5 · 도면·컨펌 기다림 1" in pane and ">도면·컨펌 기다림 1 <small>" in pane
+    big = {m.group(2).strip(): m.group(1) for m in re.finditer(
+        r'<a class="fph-dr is-([wfp])[^"]*"[^>]*>.*?fph-dr__nm">([^<]+)<small>', pane, re.S)}
+    assert big == {"보류런없음": "p", "보류런있음": "p", "재단차례": "p", "아직대기": "w", "다끝남": "f"}
+    assert "도면보류" in pane.split("fph-wg")[1]
+
+
+def test_바뀐_것_숫자에_취소_주문이_모든_탭에서_든다(client) -> None:
+    _make_user(client, "tabs_prod_r2", "PRODUCTION")
+    _add_order("PRODUCTION", "만드는주문", 2, with_run=True)
+    _add_order("PRODUCTION", "취소된주문", 2, deleted=True)
+    changes = client.get(HOME + "?tab=changes").get_data(as_text=True)
+    inbox_n = changes.count("data-foms-home-inbox=")
+    assert inbox_n == 1
+    for url in (HOME, HOME + "?tab=steps", HOME + "?tab=all", HOME + "?tab=changes"):
+        html = client.get(url).get_data(as_text=True)
+        assert f'>바뀐 것 <small class="is-hot">{inbox_n}</small></a>' in html, url
+    assert production_home_counts([{"has_changes": True}, {}], 2)["changed"] == 3
+
+
+def test_다시_받기_주소는_직접_고른_날만_붙인다(client) -> None:
+    _make_user(client, "tabs_prod_r3", "PRODUCTION")
+    _add_order("PRODUCTION", "사흘뒤", 3)  # 오늘이 비어 자동으로 사흘 뒤 장이 열린다
+    today_key = get_today_kst().isoformat()
+    auto = client.get(HOME).get_data(as_text=True)
+    assert 'aria-pressed="true"' in auto.split(f'data-foms-home-daybtn="{(get_today_kst() + datetime.timedelta(days=3)).isoformat()}"')[1].split("</button>")[0]
+    assert _reload_href(auto) == HOME
+    assert _reload_href(client.get(HOME + f"?day={today_key}").get_data(as_text=True)) == f"{HOME}?day={today_key}"
+    assert _reload_href(client.get(HOME + "?day=recent").get_data(as_text=True)) == f"{HOME}?day=recent"
+    assert _reload_href(client.get(HOME + "?day=뭐지").get_data(as_text=True)) == HOME
+    assert _reload_href(client.get(HOME + "?tab=steps").get_data(as_text=True)) == f"{HOME}?tab=steps"
+    days = production_home_days([], datetime.date(2026, 11, 11))
+    assert days["auto"] and not production_home_days([], datetime.date(2026, 11, 11), "2026-11-11")["auto"]
+
+
+def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기고_단추에_같이(client, monkeypatch) -> None:
+    _make_user(client, "tabs_prod_r5", "PRODUCTION")
+    monkeypatch.setattr(production_home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 1)
+    _add_order("PRODUCTION", "오늘대기", 0)
+    _add_order("PRODUCTION", "옛주문하나", -20)
+    _add_order("PRODUCTION", "옛주문둘", -30)
+    html = client.get(HOME + "?day=past").get_data(as_text=True)
+    past = _pane(html, "past")
+    assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
+    assert "옛주문하나" not in past
+    btn = html.split('data-foms-home-daybtn="past"')[1].split("</button>")[0]
+    assert btn.endswith(">지난 시공일 0건 +2")
+    # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추에 + 없음
+    assert "이 날은 시공이 없어요." in _pane(html, "none")
+    assert html.split('data-foms-home-daybtn="none"')[1].split("</button>")[0].endswith(">시공일 없음 0건")
+
+
+def test_작업_시트_뒤로_단추는_생산이고_같은_출처_홈에서만_주소를_되돌린다() -> None:
+    sheet = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
+    back = sheet.split('class="foms-prod-page__back"')[1].split("</a>")[0]
+    assert "data-foms-prod-back" in back and back.endswith(">생산") and "전체 주문" not in back
+    js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
+    assert "document.referrer" in js and "from.origin !== window.location.origin" in js
+    assert "from.pathname !== home.pathname" in js and "if (!back || !document.referrer) { return; }" in js

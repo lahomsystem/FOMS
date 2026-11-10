@@ -224,9 +224,11 @@
 }
 
 /* ── 칸반 옆 시트(400px, .foms-prod-sheet) 안에서 같은 조각을 쓸 때 — 연락처·공정 블록·도면 스트립 (F2 ①②③, 11-09) ── */
+/* 글자를 140% 넘게 키우면 바닥 단추 셋이 시트 폭을 넘는다 → 다음 줄로 넘긴다(실화면 S1, 11-10) */
+.foms-prod-sheet__foot { flex-wrap: wrap; }
 .foms-prod-sheet__contact { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 0 0 10px; border: 1px solid #dde1e6; border-radius: 10px; background: #fff; }
 .foms-prod-sheet__contact-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
-.foms-prod-sheet__contact-text { flex: 1; min-width: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: #14171c; word-break: keep-all; }
+.foms-prod-sheet__contact-text { flex: 1; min-width: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: #14171c; word-break: keep-all; overflow-wrap: anywhere; }
 .foms-prod-sheet__contact-btn { min-height: 48px; min-width: 64px; padding: 0 14px; border: 1px solid #c1c7d0; border-radius: 10px; background: #fff; color: #14171c; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; white-space: nowrap; }
 .foms-prod-sheet__contact-btn:hover, .foms-prod-sheet__contact-btn:focus-visible { background: #f3f4ff; color: #4a55b8; text-decoration: none; }
 .foms-prod-sheet__contact-meta { font-size: calc(13px * var(--foms-fs, 1)); color: #4b525d; }
@@ -256,4 +258,4 @@
 .foms-prod-sheet .foms-prod-page__status:empty { display: none; }
 .foms-prod-sheet__drawing--strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .foms-prod-sheet__drawing--strip .foms-prod-sheet__drawing-thumb { flex: 0 0 auto; width: 112px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #dde1e6; cursor: zoom-in; }
-.foms-prod-sheet__drawing-file { flex: 0 0 auto; width: 112px; height: 80px; border: 1px dashed #c1c7d0; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4a55b8; text-decoration: none; }
+.foms-prod-sheet__drawing-file { flex: 0 0 auto; width: calc(112px * var(--foms-fs, 1)); min-height: 80px; overflow-wrap: anywhere; border: 1px dashed #c1c7d0; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4a55b8; text-decoration: none; }
