@@ -9,6 +9,16 @@ from wdcalculator_db import init_wdcalculator_db, wd_calculator_session
 from wdcalculator_models import Estimate, EstimateHistory, EstimateOrderMatch, WDCalculatorProductSettings
 
 
+@pytest.fixture(autouse=True)
+def _no_cs_memo_verify_sleep(monkeypatch):
+    """CS 초안 메모 다시 읽기의 기다림(``memo.VERIFY_RETRY_WAITS``)을 시험에서는 건너뛴다(부른 초만 남긴다)."""
+    from foms.services.cs_agent import memo
+
+    waits = []
+    monkeypatch.setattr(memo, "_sleep", waits.append)
+    return waits
+
+
 def _write_json(path, payload):
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 

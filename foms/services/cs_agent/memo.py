@@ -14,7 +14,8 @@
   env :data:`TEST_CHAT_IDS_ENV`(쉼표로 나눔) 또는 인자로 받은 시험 상담 id 에만 쓴다 — 목록이 비면 아무 데도 안 쓴다.
   운영 판정은 :func:`is_production` — 맞는 것만(환경 판정이 운영이고 프로젝트 이름이 ``-PRODUCTION`` 으로 끝날 때, R7-6).
 - **올린 뒤 다시 읽기**: Open API 로 그 상담 최근 글을 읽어 올린 글이 비공개인지 본다. 못 찾거나 공개면
-  ``verified=False`` 와 경고(공개면 오류 로그). 초안 바퀴는 공개면 초안 스위치를 끄고, 확인 못 함이면 '저장만'으로 바꾼다
+  ``verified=False`` 와 경고(공개면 오류 로그). 못 찾음 · 읽기 실패는 잠깐 기다려 두 번 더 읽은 뒤에야 그렇게 본다
+  (운영 11-06). 초안 바퀴는 공개면 초안 스위치를 끄고, 확인 못 함이면 '저장만'으로 바꾼다
   (원장 R7-1 · R7-2). 그래서 memo 로 켜기 전에 스테이징에서 우리 봇 메모가 Open API 글 목록에 오는지를 먼저 본다 —
   안 오면 모든 메모가 '못 찾음'이 되어 첫 메모에서 '저장만'으로 돌아간다.
 - 글은 로그 · 예외 · 결과 어디에도 싣지 않는다(상담 id · 메시지 id · 이유 코드만).
@@ -25,6 +26,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional, Sequence
 
@@ -33,6 +35,7 @@ from foms.services import channel_memo
 from foms.services.cs_agent.channel_read import CHANNEL_BRANDS, ChannelReadError, OpenApiReader, channel_for_brand
 
 logger = logging.getLogger(__name__)
+_sleep = time.sleep  # 시험이 바꿔 끼운다
 
 __all__ = [
     "MEMO_BOT_NAME",
@@ -68,6 +71,8 @@ REASON_NOT_FOUND = "memo_not_found"
 REASON_NOT_PRIVATE = "memo_not_private"
 REASON_READ_FAILED = "verify_read_failed"
 REASON_BAD_BUTTONS = "bad_buttons"
+#: 다시 읽기에서 못 찾음 · 읽기 실패일 때 더 기다렸다 읽는 초(차례대로) — 합 10초, 바퀴 하나를 오래 붙잡지 않는다.
+VERIFY_RETRY_WAITS: tuple[float, ...] = (2.0, 8.0)
 #: 보내기 실패 이유는 이 앞말 + channel_client 오류 코드(``send_provider_error`` · ``send_request_failed``).
 SEND_PREFIX = "send_"
 #: 요청이 채널톡에 닿았는지 모르는 실패(시간 초과 등) — 다시 보내면 메모가 둘이 될 수 있다.
@@ -197,7 +202,25 @@ def post_private_memo(chat_id: str, text: str, *, brand: str, environment: Optio
 
 
 def _verify_private(chat_id: str, message_id: str, reader: Any) -> MemoResult:
-    """올린 글을 Open API 로 다시 읽어 비공개인지 본다(GET 한 번 — 최근 글 묶음에서 그 id 를 찾는다)."""
+    """올린 글을 Open API 로 다시 읽어 비공개인지 본다(최근 글 묶음에서 그 id 를 찾는다).
+
+    못 찾거나 읽기가 실패하면 :data:`VERIFY_RETRY_WAITS` 만큼 기다렸다 다시 읽는다 — 채널톡 글 목록은 올린 직후 잠깐 그 글을
+    안 내줄 때가 있다(운영 11-06: 한 번 못 찾아 초안 스위치가 '저장만'으로 내려가 사흘 동안 메모가 안 올라감). 공개로 보이면
+    기다리지 않고 바로 돌려준다(막는 장치가 곧장 끈다)."""
+    result = _verify_once(chat_id, message_id, reader)
+    for wait in VERIFY_RETRY_WAITS:
+        if result.verified or result.reason == REASON_NOT_PRIVATE:
+            return result
+        _sleep(wait)
+        result = _verify_once(chat_id, message_id, reader)
+    if not result.verified and result.reason != REASON_NOT_PRIVATE:
+        logger.warning("[CS 초안] 다시 읽기를 %d번 더 해도 확인 못 했다 chat=%s message=%s reason=%s",
+                       len(VERIFY_RETRY_WAITS), chat_id, message_id, result.reason)
+    return result
+
+
+def _verify_once(chat_id: str, message_id: str, reader: Any) -> MemoResult:
+    """다시 읽기 한 번(GET 한 번)."""
     try:
         messages = reader.read_messages(MEMO_BRAND, chat_id)
     except ChannelReadError as exc:
@@ -206,7 +229,7 @@ def _verify_private(chat_id: str, message_id: str, reader: Any) -> MemoResult:
         return MemoResult(True, message_id=message_id, reason=REASON_READ_FAILED)
     found = next((m for m in messages if m.message_id == message_id), None)
     if found is None:
-        logger.warning("[CS 초안] 올린 메모를 다시 읽어도 못 찾았다 chat=%s message=%s", chat_id, message_id)
+        logger.info("[CS 초안] 올린 메모를 다시 읽어도 아직 못 찾았다 chat=%s message=%s", chat_id, message_id)
         return MemoResult(True, message_id=message_id, reason=REASON_NOT_FOUND)
     if not found.is_private:
         logger.error("[CS 초안] 올린 메모가 비공개가 아니다 — 손님에게 보일 수 있다 chat=%s message=%s",
