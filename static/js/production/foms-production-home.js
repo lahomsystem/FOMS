@@ -1,8 +1,9 @@
-/* 생산팀 첫 화면 — 탭 셋(전체 주문·이번 주·내 공정) 공통 JS. 설계서 §12 (2026-11-09).
+/* 생산팀 첫 화면 — 탭(날짜·내 공정·바뀐 것·찾기) 공통 JS. 설계서 §12 (2026-11-09 · D18 11-10).
+ * 날짜: 왼쪽 띠에서 날을 고르면 오른쪽 한 장만 바뀐다(보이기/숨기기, 새 요청 없음) — 주소와 [다시 받기]도 그날로.
  * 전체 주문: 날짜 묶음 접기/펴기·보기 칸·찾기(보이기/숨기기만, 새 요청 없음). 접기/펴기는 모바일 실측 탭
  * (measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기.
  * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}.
- * 이번 주의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지. */
+ * 바뀐 것의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지. */
 (function () {
   'use strict';
 
@@ -75,6 +76,31 @@
       term = (search.value || '').trim().toLowerCase();
       apply();
     });
+  }
+
+  // ── 날짜(안 3): 띠는 제목 줄 바로 아래에 붙는다 — 제목 줄 높이를 재서 CSS 변수로(줄이 접혀도 안 겹치게) ──
+  var bar = root.querySelector('.foms-prod-home__bar');
+  function syncBarHeight() { if (bar) { root.style.setProperty('--fph-bar-h', bar.offsetHeight + 'px'); } }
+  syncBarHeight();
+  window.addEventListener('resize', syncBarHeight);
+  if (window.ResizeObserver && bar) { new ResizeObserver(syncBarHeight).observe(bar); }
+
+  // ── 날짜(안 3): 날 고르기 ──
+  var dayBtns = toArr(root.querySelectorAll('[data-foms-home-daybtn]'));
+  function selectDay(key) {
+    dayBtns.forEach(function (b) {
+      var on = b.getAttribute('data-foms-home-daybtn') === key;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    toArr(root.querySelectorAll('[data-foms-home-daypane]')).forEach(function (p) {
+      p.hidden = p.getAttribute('data-foms-home-daypane') !== key;
+    });
+    var url = window.location.pathname + '?day=' + encodeURIComponent(key);
+    try { window.history.replaceState(null, '', url); } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
+    var reload = root.querySelector('[data-foms-home-reload]');
+    if (reload) { reload.setAttribute('href', url); }
+    window.scrollTo(0, 0);
   }
 
   // ── 내 공정: 탭 기억 + [끝] ──
@@ -155,6 +181,8 @@
       apply();
       return;
     }
+    var dayBtn = t.closest('[data-foms-home-daybtn]');
+    if (dayBtn) { selectDay(dayBtn.getAttribute('data-foms-home-daybtn')); return; }
     var stepTab = t.closest('[data-foms-home-steptab]');
     if (stepTab) { selectStepTab(stepTab.getAttribute('data-foms-home-steptab')); return; }
     var done = t.closest('[data-foms-home-step-done]');
