@@ -14,7 +14,7 @@ from db import get_db
 from models import Order
 from foms.api.production.orders import _PRODUCTION_DEFECT_REASONS
 from foms.services.datetime_kst import get_today_kst
-from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.production.home_access import can_view_production_home
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
 from foms.services.production_home_read_model import (
@@ -30,17 +30,14 @@ _HOME_TABS = ('date', 'steps', 'changes', 'all')
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
-_HOME_TEAMS = ('CS', 'SALES', 'PRODUCTION')
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 
 
 def _require_home_user():
     """생산 홈·전체 화면 시트를 볼 수 있는 사람(관리자·CS·영업·생산, 협력사 제외). 아니면 403."""
     user = getattr(g, 'current_user', None)
-    allowed = bool(user) and getattr(user, 'partner_org_id', None) is None and (
-        user.role == 'ADMIN' or team_has_capability(getattr(user, 'team', None), _HOME_TEAMS)
-    )
-    if not allowed:
+    # 규칙은 한 곳(home_access) — 태블릿 레일의 생산 단추 주소도 같은 답을 쓴다(D19).
+    if not can_view_production_home(user):
         abort(403)
     return user
 

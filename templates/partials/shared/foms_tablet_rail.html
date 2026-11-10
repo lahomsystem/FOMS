@@ -15,7 +15,9 @@
      mobile-notification.js(layout_scripts 로드)가 알림 시트를 연다. 미읽음 배지는
      data-foms-notif-badge 로, 전역 SSOT(window.FOMSNotificationBadge)의 공유 폴 카운트를
      mobile-notification.js 가 모든 벨 배지에 렌더한다(rail 은 추가 폴/스크립트 없음).
-   - 아바타: 이니셜 표시 + 클릭 = 기존 프로필 페이지(auth.profile) 이동(실존 동작만 배선). #}
+   - 아바타: 이니셜 표시 + 클릭 = 기존 프로필 페이지(auth.profile) 이동(실존 동작만 배선).
+   생산 칸(D19, 11-10): 첫 화면을 볼 수 있는 사람은 href 가 /erp/production/home(조각 아님 → 온전한 페이지 이동).
+   data-foms-rail-match 는 강조 접두어(/erp/production) — 보드로 조각 이동한 뒤에도 생산이 강조된다. #}
 <nav class="foms-tablet-rail" aria-label="ERP 단계 메뉴">
   <div class="foms-tablet-rail__brand" aria-hidden="true">F</div>
   {# 화면 크기 손잡이(F1 ①, 11-09): 브랜드 바로 아래 — 130% 에서도 스크롤 없이 보인다. 동작은 ui-zoom.js(전수 갱신). #}
@@ -25,6 +27,7 @@
     class="foms-tablet-rail__item{% if item.active %} is-active{% endif %}"
     href="{{ item.href }}"
     title="{{ item.label }}"
+    {% if item.match %}data-foms-rail-match="{{ item.match }}"{% endif %}
     {% if item.active %}aria-current="page"{% endif %}
   >
     <i class="{{ item.icon }} foms-tablet-rail__icon" aria-hidden="true"></i>

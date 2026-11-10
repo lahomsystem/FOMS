@@ -229,6 +229,9 @@
 .foms-prod-home__nav { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--fph-bg); }
 .foms-prod-home__navtab { min-height: 48px; padding: 0 18px; border-radius: 9px; display: inline-flex; align-items: center; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); text-decoration: none; white-space: nowrap; }
 .foms-prod-home__navtab:hover, .foms-prod-home__navtab:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
+/* [보드](D19) — 다른 화면으로 나가는 단추: 탭과 같은 모양, 앞에 가는 줄 + 작은 화살표로 탭과 가른다 */
+.foms-prod-home__navtab--out { gap: 6px; margin-left: 4px; border-left: 1px solid var(--fph-line2); border-radius: 0 9px 9px 0; }
+.foms-prod-home__navtab--out i { font-size: calc(13px * var(--foms-fs, 1)); }
 .foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .foms-prod-home__sp { flex: 1; }
 .foms-prod-home__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 20px 0; }
@@ -381,6 +384,8 @@
 .fph-dr__nm small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fph-dr__pr em { font-style: normal; font-weight: 800; color: var(--fph-danger); }
+/* 바뀐 줄은 두 줄까지 — 글자를 키워 이름 칸이 좁아져도 바뀐 내용(새 날짜)이 안 잘린다(실화면 S5, 11-10) */
+.fph-dr.is-chg .fph-dr__pr { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .fph-dr__steps { display: flex; gap: 6px; }
 .fph-dr__st { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-dr__st i { width: 34px; height: 34px; border-radius: 8px; border: 2px solid var(--fph-line2); background: var(--fph-surface); }

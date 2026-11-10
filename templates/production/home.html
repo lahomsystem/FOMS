@@ -3,7 +3,7 @@
    제목 줄에 탭별 글자 크기 손잡이(다른 탭과 같은 조각). 금액 칸 없음(D7). 단추·카드는 장갑 기준(D5). 글은 해요체·같은 말 한 번. 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261110b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261110c">
 {% endblock %}
 
 {% block content %}
@@ -22,6 +22,8 @@
         <a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='changes') }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='all') }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
+        {# 옛 생산 보드(칸반)로 나가는 단추(D19, 11-10) — 태블릿 레일 '생산' 이 이 첫 화면으로 오므로 보드는 여기서 들어간다 #}
+        <a class="foms-prod-home__navtab foms-prod-home__navtab--out" data-foms-home-board data-foms-erp-no-shell="1" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">보드 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
       </nav>
       <span class="foms-prod-home__sp"></span>
       <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
