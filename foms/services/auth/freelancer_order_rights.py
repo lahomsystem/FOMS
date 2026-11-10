@@ -87,6 +87,7 @@ OWN_ORDER_ENDPOINTS: dict[str, tuple[str, ...]] = {endpoint: _ORDER_ID for endpo
     "erp_orders_production.api_production_uncomplete",
     "erp_orders_production.api_set_logistics_status",
     "erp_shipment.api_confirm_partner_request",
+    "erp_shipment.api_revert_partner_request",
     "erp_shipment.api_erp_shipment_update",
     "erp_shipment.api_set_construction_schedule",
     "erp_shipment.api_shipment_change_ack",
