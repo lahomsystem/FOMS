@@ -459,7 +459,9 @@
             };
             prepareExportTable(probeDoc, probe, titleText);
             const rect = probe.getBoundingClientRect();
-            const area = Math.max(1, rect.width) * Math.max(1, rect.height);
+            // rect 는 화면 크기(배율) 뒤 값 — 캡처는 배율 전 크기로 하니 되돌려 잰다
+            const z = typeof window.fomsUiZoom === 'function' ? window.fomsUiZoom() : 1;
+            const area = Math.max(1, rect.width / z) * Math.max(1, rect.height / z);
             return Math.min(2, Math.sqrt(IOS_CANVAS_MAX_AREA / area));
         } catch (err) {
             console.warn('캡처 크기 측정 실패, 배율 1 로 저장:', err);
@@ -497,7 +499,7 @@
                 ? measureOffscreenScale(sourceTable, titleText)
                 : Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
             await ensureHtml2canvas();
-            return await html2canvas(target, {
+            let h2cOpts = {
                 scale: captureScale,
                 useCORS: true,
                 logging: false,
@@ -509,7 +511,10 @@
                     if (clonedHost) clonedHost.classList.add('is-capturing');
                     prepareExportTable(clonedDoc, clonedTable, titleText);
                 }
-            });
+            };
+            // 화면 크기(배율) 를 바꾼 사람도 원래 크기로 찍히게 — layout_head 의 fomsH2cOptions
+            if (typeof window.fomsH2cOptions === 'function') h2cOpts = window.fomsH2cOptions(h2cOpts);
+            return await html2canvas(target, h2cOpts);
         } finally {
             target.removeAttribute('data-meas-export-target');
             if (host && host.parentNode) host.parentNode.removeChild(host);

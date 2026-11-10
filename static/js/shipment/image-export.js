@@ -617,12 +617,15 @@
                 document.body.appendChild(container);
 
                 var captureScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
-                var canvas = await html2canvas(table, {
+                var h2cOpts = {
                     scale: captureScale,
                     useCORS: true,
                     logging: false,
                     backgroundColor: '#ffffff'
-                });
+                };
+                // 화면 크기(배율) 를 바꾼 사람도 원래 크기로 찍히게 — layout_head 의 fomsH2cOptions
+                if (typeof window.fomsH2cOptions === 'function') h2cOpts = window.fomsH2cOptions(h2cOpts);
+                var canvas = await html2canvas(table, h2cOpts);
 
                 var link = document.createElement('a');
                 link.download = '시공일정_' + dateStr + '.png';
