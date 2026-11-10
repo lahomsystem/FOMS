@@ -348,6 +348,7 @@
 .fph-sd__n small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-strip__f { margin-top: auto; flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--fph-line); }
 .fph-sf { min-height: 48px; padding: 0 8px; border: 0; background: transparent; color: var(--fph-text2); font: inherit; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); } /* 안 읽은 수는 둘째 줄(M5) */
 .fph-sf + .fph-sf { border-left: 1px solid var(--fph-line); }
 .fph-sf.is-on { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
 .fph-panes { min-width: 0; padding: 4px 16px 24px 12px; }
