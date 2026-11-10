@@ -122,13 +122,48 @@ def test_approve_sends_drawing_push_once_with_our_final_drawing_only(app, world,
     resp = client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "k-push"})
     assert resp.status_code == 200, resp.get_json()
     assert resp.get_json()["data"]["push_note"] == "발주방에 도면을 보냈습니다."
-    assert len(channel) == 1 and channel[0]["push_kind"] == "drawing"
-    assert _sent_names(channel[0]) == {"final.jpg"}  # 협력사 초안은 발주방에 안 나간다
+    # 영발이 한 번도 안 나간 주문 — 영발방에 먼저, 그다음 발주방(2026-11-10, 주문 5911)
+    assert [d["push_kind"] for d in channel] == ["measurement", "drawing"]
+    assert _sent_names(channel[1]) == {"final.jpg"}  # 협력사 초안은 발주방에 안 나간다
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["channeltalk_push"]["pushed"] is True and sd["channeltalk_push_drawing"]["pushed"] is True
     page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "발주 보냄" in page
     # 다시 보내기는 버튼(바뀐 내용 필요)
     resp = _push(client, order_id, "drawing", note="도면 2차 반영")
-    assert resp.status_code == 200 and len(channel) == 2 and channel[-1]["is_retry"] is True
+    assert resp.status_code == 200 and len(channel) == 3 and channel[-1]["is_retry"] is True
+
+
+def test_approve_skips_measurement_when_already_sent(app, world, channel):
+    """대조군: 영발을 이미 보낸 주문은 지금처럼 발주만 나간다."""
+    order_id = _order(app, world)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    assert _push(client, order_id, "measurement").status_code == 200
+    _to_confirm(order_id)
+    resp = client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "k-once"})
+    assert resp.status_code == 200 and resp.get_json()["data"]["push_note"] == "발주방에 도면을 보냈습니다."
+    assert [d["push_kind"] for d in channel] == ["measurement", "drawing"]
+
+
+def test_approve_still_sends_drawing_when_measurement_push_fails(app, world, channel, monkeypatch):
+    order_id = _order(app, world)
+    _to_confirm(order_id)
+    real = channel_integration.dispatch_order_event
+
+    def _measure_fails(event_type, data, raise_on_error=False):
+        if data.get("push_kind") == "measurement":
+            return {"success": False, "message": "boom"}
+        return real(event_type, data, raise_on_error)
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _measure_fails)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    resp = client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "k-mfail"})
+    assert resp.status_code == 200
+    note = resp.get_json()["data"]["push_note"]
+    assert "영발방 전송은 실패" in note and "발주방에 도면을 보냈습니다." in note
+    assert [d["push_kind"] for d in channel] == ["drawing"]
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["channeltalk_push_drawing"]["pushed"] is True and not (sd.get("channeltalk_push") or {}).get("pushed")
 
 
 def test_approve_still_succeeds_when_channel_push_fails(app, world, channel, monkeypatch):
