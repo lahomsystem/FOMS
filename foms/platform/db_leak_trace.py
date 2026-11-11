@@ -33,7 +33,9 @@ _reported = 0
 _installed_engines: set[int] = set()
 
 #: 저장소 뿌리(운영 ``/app``) — 이 아래 파일만 "앱 코드"로 본다(설치된 패키지 제외).
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + os.sep
+#: 윈도우는 드라이브 글자 대소문자(``C:``/``c:``)가 달라도 같은 경로다 — normcase 로 맞춰 비교한다
+#: (2026-11-11 로컬 전체 시험이 실행 폴더 대소문자에 따라 앱 프레임을 못 찾아 실패). 리눅스(운영)는 그대로.
+_ROOT = os.path.normcase(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + os.sep
 _SKIP_PARTS = (
     "site-packages",
     os.path.join("platform", "db_leak_trace.py"),
@@ -48,7 +50,7 @@ def _app_frames() -> str:
     frame = sys._getframe(2)
     walked = 0
     while frame is not None and walked < _MAX_WALK and len(out) < _MAX_FRAMES:
-        filename = frame.f_code.co_filename
+        filename = os.path.normcase(frame.f_code.co_filename)
         if filename.startswith(_ROOT) and not any(p in filename for p in _SKIP_PARTS):
             short = filename[len(_ROOT):].replace(os.sep, "/")
             out.append(f"{short}:{frame.f_lineno}:{frame.f_code.co_name}")
