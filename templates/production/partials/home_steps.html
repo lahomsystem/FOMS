@@ -11,7 +11,7 @@
   <div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}" data-foms-home-qrow="{{ r.id }}">
     <span class="fph-qr__n">{{ loop.index }}</span>
     <a class="fph-qr__who" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">
-      <b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>
+      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if r.by_line %}<span class="fph-qr__by">{{ r.by_line }}</span>{% endif %}</div>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
     </a>
     <span class="fph-qr__due">시공<b>{{ r.day_label }}</b></span>

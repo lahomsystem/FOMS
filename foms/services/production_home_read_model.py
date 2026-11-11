@@ -134,6 +134,14 @@ def _change_line(alerts: list[dict[str, Any]]) -> str:
     return line
 
 
+def _by_line(row: dict[str, Any]) -> str:
+    """만들 것 줄의 "발주 <발주사> · 담당 <영업 담당>"(사용자 11-11). 빈 쪽은 빼고, 둘 다 없으면 빈 글(요소를 안 그린다)."""
+    orderer = str(row.get('orderer_name') or '').strip()
+    manager = str(row.get('manager_name') or '').strip()
+    parts = [f"발주 {orderer}" if orderer else '', f"담당 {manager}" if manager and manager != '-' else '']
+    return ' · '.join(p for p in parts if p)
+
+
 #: 시공일이 이보다 더 지난 주문은 맨 아래 "지난 시공일" 한 묶음으로 모은다(스테이징 실측 11-09: 139일 지난
 #: 도면 대기 주문이 첫 줄에 오고 33묶음 중 대부분이 지난 날짜였다 — 작업자에겐 오늘·이번 주가 먼저다).
 PRODUCTION_HOME_PAST_DAYS = 7
@@ -349,6 +357,7 @@ def build_production_home(
         row['has_changes'] = bool(alerts)
         row['home_alerts'] = alerts
         row['change_line'] = _change_line(alerts)
+        row['by_line'] = _by_line(row)
         row['drawing_label'] = f"도면 {drawing_count}장" if drawing_count else '도면 없음'
         row['search_text'] = ' '.join(
             str(part) for part in (
