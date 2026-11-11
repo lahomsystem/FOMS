@@ -468,7 +468,7 @@ def test_asset_pins_current():
     # erp-pro.css 핀은 뒤 작업이 올릴 수 있다(2026-10-02 20261002t) — 이 작업 핀보다 오래되지만 않으면 된다.
     erp_pro_pin = _read("templates/partials/shared/layout_head.html").split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
     assert erp_pro_pin >= "20261001d", erp_pro_pin
-    assert "04-filter-table-badges-buttons.css?v=20261014a" in _read("static/css/foundation/erp-pro.css")
+    assert "04-filter-table-badges-buttons.css?v=20261111a" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260930a" in entry
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry

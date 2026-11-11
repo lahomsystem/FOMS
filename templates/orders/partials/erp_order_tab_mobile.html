@@ -243,6 +243,7 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                             </div>
+                            {% if deposit_last_change %}<div class="erp-deposit-who">{{ deposit_last_change.by }} {{ deposit_last_change.at }} 고침</div>{% endif %}
                             <div id="erp-free-input-section" class="erp-mobile-amount-row erp-mobile-amount-row--free-input" style="display: none;">
                                 <div class="erp-mobile-amount-label">
                                     <label for="erp-free-input-text">자유입력</label>
