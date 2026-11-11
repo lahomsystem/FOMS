@@ -120,3 +120,17 @@ def test_card_and_wizard_offer_room_push(client, storage, monkeypatch):
     assert 'data-dw-as-act="room"' in detail and "js/drawing/as-room-push.js" in detail
     wizard = client.get(f"/erp/drawing-workbench/{oid}/wizard").get_data(as_text=True)
     assert "js/drawing/as-room-push.js" in wizard
+
+
+def test_as_dashboard_blueprint_cell_shows_round_status(client, storage, monkeypatch):
+    """AS 화면 'AS도면' 칸 옆 한 줄(설계서 §4.3-5) — 체크 칸 뜻은 그대로, 상태 글과 주문 화면 링크만."""
+    admin = _user("asr_admin_dash", role="ADMIN", team="CS")
+    drafter = _user("asr_draw_dash")
+    oid = _order(name="에이에스화면고객", drawing_ids=[drafter.id])
+    _as(client, admin)
+    assert client.post(f"/api/orders/{oid}/as/register",
+                       json={"as_content": "문 처짐", "drawing_request": {"memo": "문짝"}}).status_code == 200
+
+    html = client.get("/erp/as?tab=incomplete", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130"}).get_data(as_text=True)
+
+    assert "AS 도면 1차 · 도면팀 대기중" in html and f'href="/edit/{oid}"' in html

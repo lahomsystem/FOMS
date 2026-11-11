@@ -20,11 +20,11 @@ from foms.services.orders.as_drawing import (
     current_round,
     is_as_drawing_stage,
     open_as_cycle_id,
-    room_push_round,
     round_no,
     round_sheet_ids,
     rounds,
 )
+from foms.services.orders.as_drawing_views import room_push_round
 from foms.services.orders.as_schedule_link import read_as_visit_date
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 

@@ -395,6 +395,7 @@
               <td class="text-center align-middle">
                 <input type="checkbox" class="form-check-input as-blueprint-checkbox"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
+                {% if r.as_drawing_text %}<a class="d-block small text-nowrap" href="/edit/{{ r.id }}">{{ r.as_drawing_text }}</a>{% endif %}
               </td>
               <td class="erp-as-content-cell">
                 {# 재발 칩은 매크로 바깥(형제)에 둔다 — as-dashboard.js replaceAsCellSummary 는

@@ -34,7 +34,7 @@ from foms.services.channel_drawing_attachments import (
     select_drawing_room_push_attachments,
 )
 from foms.services.channel_drawing_room_message import build_drawing_room_push_text
-from foms.services.orders.as_drawing import (
+from foms.services.orders.as_drawing_views import (
     ROOM_PUSH_HISTORY_KEY as AS_ROOM_PUSH_HISTORY_KEY,
     room_push_round,
     room_push_text as as_room_push_text,
