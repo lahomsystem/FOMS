@@ -34,4 +34,8 @@ def notice_list():
         unread=unread,
         filters=FILTERS,
         current_filter=current,
+        # 모바일 셸(erp_mobile_shell) 위 줄: 제목 + 뒤로 가기(기록 없으면 ERP 대시보드로).
+        mobile_shell_title="공지사항",
+        mobile_shell_show_back=True,
+        mobile_shell_back_href=url_for("erp_dashboard.erp_dashboard"),
     )
