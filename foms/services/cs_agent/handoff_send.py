@@ -38,7 +38,7 @@ from foms.services.cs_agent.drafting_read import (
     MEMO_NOTE_HEAD, ChatLine, customer_texts, memo_snippets, read_lines, read_medium,
 )
 from foms.services.cs_agent.handoff_learning import used_ids
-from foms.services.cs_agent.handoff_memo import reason_text
+from foms.services.cs_agent.handoff_memo import PHOTO_READ_TEXT, REASON_LABEL, reason_text
 from foms.services.cs_agent.handoff_memo_settings import handoff_buttons_on
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.ontology import with_ontology
@@ -130,12 +130,25 @@ def _latest(lines: list[ChatLine]) -> Optional[str]:
     return customers[-1].meta.message_id if customers else None
 
 
+def _memo(lines: list[ChatLine], memo_id: Any) -> Optional[ChatLine]:
+    """그 차례의 넘김 메모 줄(비공개 — 없으면 ``None``)."""
+    return next((line for line in lines if line.meta.message_id == memo_id and line.meta.is_private), None)
+
+
 def _hint(lines: list[ChatLine], memo_id: Any) -> str:
     """넘김 메모의 직원 참고 칸(이미 가린 글 — 없으면 빈 글)."""
-    memo = next((line for line in lines if line.meta.message_id == memo_id and line.meta.is_private), None)
+    memo = _memo(lines, memo_id)
     if memo is None or MEMO_NOTE_HEAD not in memo.text:
         return ""
     return memo.text.split(MEMO_NOTE_HEAD, 1)[1].strip()
+
+
+def _reason(row: Any, lines: list[ChatLine]) -> str:
+    """창의 까닭 — 메모와 같은 말. 사진을 읽었는지는 메모를 올린 차례만 알아서, 메모가 '사진은 읽었지만'이면 그 말을 쓴다."""
+    memo = _memo(lines, row.memo_message_id)
+    read = memo is not None and REASON_LABEL + PHOTO_READ_TEXT in memo.text.splitlines()
+    return reason_text(row.error_code, handoff_reason=row.handoff_reason, check_codes=row.check_codes or (),
+                       photos_read=read)
 
 
 # ── 창 재료(cs.handoff.get) ──────────────────────────────────────────────
@@ -167,12 +180,12 @@ def handoff_view(session: Any, turn_id: int, *, chat_hint: Any, manager_id: Any,
     session.rollback()
     if denied is not None:
         return _as_handoff(denied)
-    reason = reason_text(row.error_code, handoff_reason=row.handoff_reason, check_codes=row.check_codes or ())
     try:
         lines = read_lines(reader if reader is not None else OpenApiReader(), row.brand, row.chat_id)
     except ChannelReadError as exc:
         logger.warning("[CS 배우기] 상담 글 읽기 실패 turn=%s status=%s", row.id, exc.status)
         return _r("read_failed", 503)
+    reason = _reason(row, lines)
     answered = _answered(lines, row.last_user_message_id)
     state = _state(row, answered)
     if state == "write":
