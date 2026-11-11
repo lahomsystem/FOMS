@@ -105,6 +105,7 @@ def test_partner_notice_list_shows_only_our_company(app, world):
     assert "다라가구만" not in html and "본사만 공지" not in html
     assert "foms-notice-popup.js" in html and "foms-notice.css" in html
     assert 'href="/partner/notices"' in html  # 머리줄 · 더보기 링크
+    assert "foms-notice-wrap--shell" in html  # 폰 위 줄이 제목이라 큰 제목은 폰에서 숨긴다(11-11)
     staff = _page(app, world["staff"], "/partner/notices")
     assert staff.status_code in (302, 403)
 
