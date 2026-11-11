@@ -1,6 +1,6 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261111a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112a">
 {# 태블릿 가로 하루치 출고표(시공자 묶음 카드 · 이름판) — 코호트 문지기 안에서만 그린다. 이 파샬은 온전한 페이지와 셸 조각이 함께 싣는다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261111a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
@@ -79,6 +79,8 @@
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
       {# 하루치 출고표 한 줄 요약(설계서 §14.3) — 시공자 없는 줄이 있을 때만 빨간 알약. KPI 네 칸은 걷어 냈다. #}
       {% if tablet_day_sheet and tablet_day_sheet.unassigned %}<span class="foms-ship-pcbar__miss">시공자 없음 {{ tablet_day_sheet.unassigned }}</span>{% endif %}
+      {# 협력사 희망 시공일 판을 위에서 내려오는 서랍으로 여는 단추(설계서 §14.8 P14-6). #}
+      {% include 'shipment/partials/partner_request_drop_button.html' %}
       {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
          카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
          PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은

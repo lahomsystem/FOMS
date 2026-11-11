@@ -199,6 +199,33 @@ body.col-resizing-active {
     border-color: var(--foms-text-primary, #1f2733);
     background: var(--foms-surface-raised, #f7f8fa);
   }
+  /* --- 위 줄 [협력사 희망 N] 알약(설계서 §14.8 · 시안 안 22) — 누르면 협력사 희망 판이 위에서 내려온다
+     (tablet-prb-drop.js · partner-request-board.css). 열려 있으면 실선 · 옅은 칠로 눌린 상태를 보인다. --- */
+  body.erp-mobile-v2-layout .foms-ship-pcbar__prb {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    gap: 8px;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 14px;
+    border: 1.5px dashed var(--foms-border-default, #c7ccd4);
+    border-radius: 999px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__prb[aria-expanded="true"] {
+    border: 2px solid var(--foms-text-primary, #1f2733);
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__prb-soon {
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
   body.erp-mobile-v2-layout .foms-ship-pcbar__btn[disabled] {
     opacity: 0.5;
     cursor: not-allowed;

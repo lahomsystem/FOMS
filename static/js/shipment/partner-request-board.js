@@ -108,6 +108,7 @@
       '<div class="prb-muted">' + esc([it.product && it.product + ' ' + it.units + '자', it.address].filter(Boolean).join(' · ')) +
       ' · 희망 ' + (it.hope ? mdDow(it.hope) : '날짜 없음') + (it.time ? ' ' + esc(it.time) : '') + '</div>' +
       '<div class="prb-pop__row"><label for="prb-pop-date">날짜</label><input id="prb-pop-date" type="date" class="form-control form-control-sm" data-prb-pop-date value="' + esc(date) + '"></div>' +
+      '<div class="prb-muted prb-pop__hint">판의 다른 날 칸을 눌러도 날짜가 바뀌어요.</div>' +
       '<div class="prb-pop__row"><label>시간</label><div class="prb-seg" data-prb-pop-time>' +
       TIMES.map(function (t) { return '<button type="button" class="' + (it.time === t ? 'is-on' : '') + '">' + t + '</button>'; }).join('') + '</div></div>' +
       '<div class="prb-pop__load" data-prb-pop-load></div>' +
@@ -230,6 +231,13 @@
       e.preventDefault();
       if (el.classList.contains('is-saving')) return;
       return openPop(el, '');
+    }
+    // 창이 열린 채 다른 날 칸을 누르면 창을 닫지 않고 그 날로 날짜만 바꾼다(태블릿 서랍 · PC 같이, 설계서 tablet-production-ui §14.8).
+    var popDate = document.querySelector('#prb-pop [data-prb-pop-date]');
+    if (popDate && (el = t.closest('[data-prb-cell]'))) {
+      popDate.value = el.getAttribute('data-prb-cell');
+      popDate.dispatchEvent(new Event('change'));
+      return;
     }
     if (!t.closest('#prb-pop')) closePop();
   });
