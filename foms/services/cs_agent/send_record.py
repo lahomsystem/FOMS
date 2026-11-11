@@ -26,9 +26,11 @@ from typing import Any, Optional, Sequence
 
 from sqlalchemy import and_, or_, select, update
 
-from foms.persistence.main.models import CsAgentMessage, CsAgentTurn
+from foms.persistence.main.models import CsAgentChat, CsAgentMessage, CsAgentTurn
 from foms.services.cs_agent.case_material import current_question
-from foms.services.cs_agent.case_memory import OUTCOME_AS_IS, OUTCOME_EDITED, prior_context, text_similarity
+from foms.services.cs_agent.case_memory import (
+    OUTCOME_AS_IS, OUTCOME_DIRECT, OUTCOME_EDITED, prior_context, text_similarity,
+)
 from foms.services.cs_agent.channel_read import (
     ChannelReadError, DerivedMessage, OpenApiReader, channel_for_brand, derive_message, naive_utc,
 )
@@ -36,16 +38,16 @@ from foms.services.cs_agent.drafting_read import ChatLine, memo_draft, read_line
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.send import request_id_for
 from foms.services.cs_agent.state_store import SOURCE_OPENAPI, _bump_chat_summary, store_messages
-from foms.services.cs_agent.turns import STATE_POSTED
+from foms.services.cs_agent.turns import STATE_POSTED, STATE_SKIPPED
 from foms.services.cs_agent.turns_fields import masked_or_none
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "NOT_DELIVERED_AFTER", "REWRITE_WORKING", "SEND_FAILED", "SEND_SENDING", "SEND_SENT", "SEND_STATES",
-    "SEND_UNKNOWN_STATE", "STUCK_AFTER", "SentCase", "finish_sent", "mark_send_failed", "mark_unknown", "open_turn",
-    "reconcile_sends", "reconcile_turn", "record_answer", "revert_sending", "sent_case", "start_sending",
-    "still_sending", "waiting_since",
+    "HANDOFF_CODES", "NOT_TAUGHT_REASONS", "NOT_DELIVERED_AFTER", "REWRITE_WORKING", "SEND_FAILED", "SEND_SENDING",
+    "SEND_SENT", "SEND_STATES", "SEND_UNKNOWN_STATE", "STUCK_AFTER", "SentCase", "chat_busy", "finish_sent",
+    "mark_send_failed", "mark_unknown", "open_handoff_turn", "open_turn", "reconcile_sends", "reconcile_turn",
+    "record_answer", "revert_sending", "sent_case", "start_sending", "still_sending", "waiting_since",
 ]
 
 SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, SEND_FAILED = "sending", "sent", "unknown", "failed"
@@ -58,10 +60,14 @@ STUCK_AFTER = datetime.timedelta(seconds=60)
 #: 결과를 모르는 보내기가 이만큼 지나도 상담 글에 없으면 못 보냄 — 다시 누를 수 있다.
 NOT_DELIVERED_AFTER = datetime.timedelta(minutes=5)
 NOT_DELIVERED = "not_delivered"
+#: 넘김 메모가 붙는 건너뜀 코드(:data:`.handoff_memo.MEMO_CODES` 와 같다 — 시험이 맞춘다). [배우기]는 이 차례만 연다.
+HANDOFF_CODES: tuple[str, ...] = ("handoff", "check_failed")
+#: [배우기]로 열지 않는 넘긴 까닭 — 'AI 냐 사람이냐'(한 줄 메모 길 :mod:`.ask_human` · 배울 사실이 없다).
+NOT_TAUGHT_REASONS: tuple[str, ...] = ("asked_if_ai",)
 _TURNS = CsAgentTurn.__table__
 _MSGS = CsAgentMessage.__table__
 _CASE_FIELDS = ("outcome", "edit_ratio", "edit_reason", "staff_reply_masked", "masked_question", "waiting_since",
-                "masked_context")
+                "masked_context", "edit_detail_masked", "edit_detail_by", "edit_detail_at")
 
 
 class SentCase(dict):
@@ -81,11 +87,14 @@ def waiting_since(lines: Sequence[ChatLine]) -> Optional[datetime.datetime]:
 
 
 def sent_case(lines: Sequence[ChatLine], *, ai_draft: Optional[str], sent_text: str, edited: bool,
-              edit_reason: Optional[str]) -> SentCase:
-    """보낸 글의 사례 칸 — 고친 정도 = 1 − (가린 AI 초안 ↔ 가린 보낸 글) 글자 비슷함. 가림 검사에 걸린 글은 칸을 비운다."""
+              edit_reason: Optional[str], direct: bool = False) -> SentCase:
+    """보낸 글의 사례 칸 — 고친 정도 = 1 − (가린 AI 초안 ↔ 가린 보낸 글) 글자 비슷함. 가림 검사에 걸린 글은 칸을 비운다.
+    ``direct`` 면 AI 초안 없이 직원이 쓴 답(넘김 메모 [배우기] — 끝난 꼴 '직접 답', 고친 정도 · 까닭 없음)."""
     masked_sent = mask(sent_text)
     ratio: Optional[Decimal] = Decimal("0.000")
-    if edited:
+    if direct:
+        ratio, edited = None, False
+    elif edited:
         ratio = (Decimal(str(round(1.0 - text_similarity(mask(ai_draft), masked_sent), 3)))
                  if ai_draft else None)
     try:
@@ -94,7 +103,8 @@ def sent_case(lines: Sequence[ChatLine], *, ai_draft: Optional[str], sent_text: 
         logger.warning("[CS 보내기] 보낸 글이 가림 검사를 못 넘어 사례 글을 비운다 counts=%s", exc.counts)
         reply = None
     after = max((i for i, line in enumerate(lines) if line.meta.is_answer), default=-1)
-    return SentCase(outcome=OUTCOME_EDITED if edited else OUTCOME_AS_IS, edit_ratio=ratio,
+    outcome = OUTCOME_DIRECT if direct else OUTCOME_EDITED if edited else OUTCOME_AS_IS
+    return SentCase(outcome=outcome, edit_ratio=ratio,
                     edit_reason=edit_reason if edited else None, staff_reply_masked=reply,
                     masked_question=current_question(lines), waiting_since=waiting_since(lines),
                     masked_context=prior_context(lines, after + 1))
@@ -116,13 +126,36 @@ def open_turn(turn_id: int, memo_id: Optional[str] = None) -> tuple[Any, ...]:
     return where if memo_id is None else (*where, _TURNS.c.memo_message_id == memo_id)
 
 
+def open_handoff_turn(turn_id: int, memo_id: Optional[str]) -> tuple[Any, ...]:
+    """아직 열린 넘김 메모 차례 조건([배우기] — 건너뜀 · 넘김 메모 코드 · 'AI 냐' 아님 · 그 메모 · 끝난 꼴 없음 · 안 보냈거나
+    못 보낸 줄). 초안 차례(:func:`open_turn`)와 겹치지 않는다 — 두 길은 서로의 차례를 열지 못한다."""
+    return (_TURNS.c.id == turn_id, _TURNS.c.state == STATE_SKIPPED, _TURNS.c.error_code.in_(HANDOFF_CODES),
+            or_(_TURNS.c.handoff_reason.is_(None), _TURNS.c.handoff_reason.notin_(NOT_TAUGHT_REASONS)),
+            _TURNS.c.memo_message_id.isnot(None), _TURNS.c.memo_message_id == memo_id, _TURNS.c.outcome.is_(None),
+            or_(_TURNS.c.send_state.is_(None), _TURNS.c.send_state == SEND_FAILED))
+
+
+def chat_busy(session: Any, row: Any) -> bool:
+    """같은 상담의 **다른** 차례가 보내는 중 · 결과 모름인가 — 상담 줄을 잠그고(PostgreSQL ``FOR UPDATE``) 본다.
+
+    넘김 메모(건너뜀 차례)와 뒤에 온 초안 메모(올림 차례)는 같이 열려 있을 수 있다. 차례마다 막는 조건부 쓰기만으로는 두 직원이
+    같은 때 두 메모를 누르면 둘 다 '최신인가'를 지나 손님께 두 번 갈 수 있다. 그래서 '보내는 중'을 쓰기 전에 상담 줄을 잠그고 다른
+    차례를 본다 — 잠금은 부르는 쪽 커밋('보내는 중' 커밋)까지 쥔다. 상담 줄이 없으면 잠그지 않고 차례만 본다."""
+    session.execute(select(CsAgentChat.id).where(CsAgentChat.chat_id == row.chat_id).with_for_update())
+    other = select(_TURNS.c.id).where(_TURNS.c.chat_id == row.chat_id, _TURNS.c.id != row.id,
+                                      _TURNS.c.send_state.in_((SEND_SENDING, SEND_UNKNOWN_STATE))).limit(1)
+    return session.execute(other).first() is not None
+
+
 def start_sending(session: Any, row: Any, *, user_id: Optional[int], click_ms: Optional[int], now: datetime.datetime,
-                  manager_id: Optional[str] = None) -> bool:
+                  manager_id: Optional[str] = None, handoff: bool = False) -> bool:
     """'보내는 중' — 열린 차례 · 화면이 본 그 메모 · '고칠 말' 처리 중 아님일 때만(두 번 누름 · 동시엔 하나만). 누른 사람 =
-    FOMS 직원 번호(있으면) · 채널톡 상담원 번호(작은 창 길 — ``desk_manager_id``, 설계서 17.2.2)."""
+    FOMS 직원 번호(있으면) · 채널톡 상담원 번호(작은 창 길 — ``desk_manager_id``, 설계서 17.2.2). ``handoff`` 면 넘김 메모
+    [배우기] 차례 조건(:func:`open_handoff_turn`)."""
     at = naive_utc(now)
+    opened = open_handoff_turn if handoff else open_turn
     stmt = (update(_TURNS)
-            .where(*open_turn(row.id, row.memo_message_id),
+            .where(*opened(row.id, row.memo_message_id),
                    or_(_TURNS.c.rewrite_state.is_(None), _TURNS.c.rewrite_state != REWRITE_WORKING))
             .values(send_state=SEND_SENDING, send_started_at=at,
                     sent_by_user_id=None if user_id is None else int(user_id),
@@ -240,7 +273,8 @@ def reconcile_turn(session: Any, row: Any, *, now: datetime.datetime, reader: An
             memo = next((line for line in lines if line.meta.message_id == row.memo_message_id), None)
             ai = memo_draft(memo.text) if memo is not None else None
             case = sent_case(lines[:at_found], ai_draft=ai, sent_text=found.text,
-                             edited=ai is None or ai != found.text.strip(), edit_reason=None)
+                             edited=ai is None or ai != found.text.strip(), edit_reason=None,
+                             direct=row.state == STATE_SKIPPED)  # 넘김 메모 [배우기] 차례 — 직원이 쓴 답
         if finish_sent(session, row.id, message_id=found.meta.message_id, sent_at=found.meta.created_at, case=case,
                        now=now):
             record_answer(session, brand=row.brand, chat_id=row.chat_id, message_id=found.meta.message_id,

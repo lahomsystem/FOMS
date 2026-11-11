@@ -272,6 +272,7 @@ class ApprovedKnowledge:
     version: int  # 읽은 SystemSetting 버전(0 = 넣은 적 없음)
     items: tuple[KnowledgeItem, ...] = ()
     problem: Optional[str] = None
+    onto: Any = None  # 바꿔 묻기 대응 재료(:class:`.ontology.Ontology` — 관리 칸이 모두 꺼졌으면 None, 사장님 11-11)
 
     def templates_for_intent(self, intent: str) -> tuple[KnowledgeItem, ...]:
         """그 의도의 승인된 기준 답 문구(문서 순서). 3a 자동 답은 이 글만 보낸다."""
@@ -294,8 +295,14 @@ class ApprovedKnowledge:
         return next((i for i in self.items if i.item_id == item_id), None)
 
     def spoken_texts(self) -> tuple[str, ...]:
-        """초안 숫자 허용 목록이 되는 승인 항목 글 — [사람] · [내부] 표시 항목 글은 뺀다(손님 예산 맞춤 · 내부 규칙 새기)."""
-        return tuple(i.text for i in self.items if HUMAN_ONLY_MARK not in i.text and INTERNAL_MARK not in i.text)
+        """초안 숫자 허용 목록이 되는 승인 항목 글 — [사람] · [내부] 표시 항목 글은 뺀다(손님 예산 맞춤 · 내부 규칙 새기).
+        바꿔 묻기 대응 '싣기' 칸이 켜졌으면 덧붙인 용어 · 규격 · 절차 글도(:meth:`.ontology.Ontology.spoken_texts`)."""
+        extra = self.onto.spoken_texts() if self.onto is not None else ()
+        return (*(i.text for i in self.items if HUMAN_ONLY_MARK not in i.text and INTERNAL_MARK not in i.text), *extra)
+
+    def same_values(self) -> bool:
+        """숫자 검사가 같은 값을 알아볼까(관리 칸 '숫자 같은 값 알아보기' — :mod:`.checks_same`)."""
+        return bool(self.onto is not None and self.onto.flags.numbers)
 
 
 # ── 개수 · 차이(글 없음) ─────────────────────────────────────────────────

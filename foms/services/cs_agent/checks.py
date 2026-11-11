@@ -35,6 +35,7 @@ from foms.services.cs_agent.checks_read import (
     split_links,
     squash,
 )
+from foms.services.cs_agent.checks_same import customer_tokens, widen
 from foms.services.cs_agent.checks_rules import (
     MEDIUM_NAVER_TALK,
     check_brand,
@@ -149,8 +150,10 @@ def _account_digits(accounts: Iterable[str]) -> frozenset[str]:
     return frozenset(NON_DIGIT.sub("", normalize(a)) for a in accounts)
 
 
-def _allowed_from(items: Iterable[Allowed], dates: Iterable[datetime.date]) -> _AllowedSet:
-    """허용 목록 만들기 — 숫자 값은 그대로(단위를 가리지 않음), 글은 초안과 같은 규칙으로 읽어 (값, 종류, 단위)로 둔다."""
+def _allowed_from(items: Iterable[Allowed], dates: Iterable[datetime.date], *, same_values: bool = False,
+                  customer_texts: Iterable[str] = ()) -> _AllowedSet:
+    """허용 목록 만들기 — 숫자 값은 그대로(단위를 가리지 않음), 글은 초안과 같은 규칙으로 읽어 (값, 종류, 단위)로 둔다.
+    ``same_values`` 면 손님이 말한 치수 · 개수를 더하고 같은 값(다른 단위)으로 넓힌다(:mod:`.checks_same`)."""
     loose: set[Decimal] = set()
     tokens: dict[Decimal, set[tuple[str, str]]] = {}
     ids: set[str] = set()
@@ -166,6 +169,10 @@ def _allowed_from(items: Iterable[Allowed], dates: Iterable[datetime.date]) -> _
             tokens.setdefault(value, set()).add((kind, unit))
         ids.update(digits for digits, _ in found.ids)
         days.update(found.dates)
+    if same_values:
+        for value, kind, unit in customer_tokens(customer_texts):
+            tokens.setdefault(value, set()).add((kind, unit))
+        tokens = widen(tokens)
     return _AllowedSet(frozenset(loose), tokens, frozenset(ids), frozenset(days))
 
 
@@ -259,6 +266,8 @@ def check_draft(
     human_only_amounts: bool = False,
     allowed_accounts: Iterable[str] = (),
     allowed_link_hosts: Iterable[str] = (),
+    same_values: bool = False,
+    customer_texts: Iterable[str] = (),
 ) -> CheckResult:
     """AI 초안의 '손님께 보낼 답' 칸 보내기 전 검사(모르는 브랜드면 ``ValueError``).
 
@@ -271,6 +280,8 @@ def check_draft(
             읽어 값 · 종류(금액 · 비율 · 수) · 단위(개 · 시 · 일 · cm …)가 맞을 때만 허용한다(R6-5). 손님 글에서 온 금액은
             금액으로 넣지 않는다(손님 예산에 값을 맞춰 주는 약속이 된다) — 손님 규격은 단위 붙은 글로만('가로 1200mm').
         confirmed_dates: 확정된 날(실측 · 시공). 초안 속 날짜와 날짜 확답은 여기 있을 때만 통과한다.
+        same_values: 같은 값 알아보기(관리 칸 '숫자 같은 값 알아보기' — :mod:`.checks_same`). 거짓이면 예전 그대로.
+        customer_texts: 손님 글(``same_values`` 일 때만 — 치수 · 개수만 허용 목록에 더한다).
         private_snippets: 비공개 메모(직원 내부 메모 · 이전 AI 메모의 직원 참고 칸 · 이번 초안의 직원 참고) — 마디가 섞이면 막음.
         example_only_words: 후보 예시에만 있고 이 상담 · 지식에는 없는 고유 낱말(R1-10, 고르는 것은 호출 쪽).
         human_only_amounts: 재료에 사람만 말하는 항목(지식의 [사람] — 지방 운임 · 커스텀 등)이 있으면 True. 초안 속 금액 ·
@@ -284,7 +295,7 @@ def check_draft(
     brand = check_brand(brand)
     body = normalize(text)
     squashed = squash(body)
-    allowed = _allowed_from(allowed_numbers, confirmed_dates)
+    allowed = _allowed_from(allowed_numbers, confirmed_dates, same_values=same_values, customer_texts=customer_texts)
     hosts = tuple(clean_host(h) for h in (*DEFAULT_LINK_HOSTS, *allowed_link_hosts))
     links, unlinked = split_links(body)
     codes = ["empty"] if len(squashed) < 2 else []

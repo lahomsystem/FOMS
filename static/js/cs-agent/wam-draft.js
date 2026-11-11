@@ -19,12 +19,14 @@
   var editBox = $('cs-wam-edit');
   var text = $('cs-wam-text');
   var chips = $('cs-wam-reasons');
+  var detailBox = $('cs-wam-detail-box');
+  var detail = $('cs-wam-detail');
   var buttons = {
     send: $('cs-wam-send'), confirm: $('cs-wam-confirm'), toEdit: $('cs-wam-to-edit'),
     retry: $('cs-wam-retry'), discard: $('cs-wam-discard')
   };
   var wam = window.ChannelIOWam;
-  var HEIGHT = { small: 220, edit: 470 };
+  var HEIGHT = { small: 220, edit: 470, detail: 580 };
   var SENT_CLOSE_MS = 1000;
 
   var state = { turn: null, chat: null, appId: '', editing: false, reason: null, confirm: null, busy: false };
@@ -58,6 +60,7 @@
     state.busy = on;
     Object.keys(buttons).forEach(function (key) { if (buttons[key]) buttons[key].disabled = on; });
     if (text) text.disabled = on;
+    if (detail) detail.disabled = on;
   }
 
   function list(items) {
@@ -109,7 +112,7 @@
     if (result.code === 'needs_confirm') {
       state.confirm = typeof result.confirm === 'string' ? result.confirm : null;
       show(state.editing ? ['confirm', 'send', 'discard'] : ['confirm', 'toEdit']);
-    } else if (result.code === 'blocked' || result.code === 'memo_missing') {
+    } else if (['blocked', 'memo_missing', 'detail_private', 'bad_request'].indexOf(result.code) >= 0) {
       show(state.editing ? ['send', 'discard'] : ['toEdit']);
     } else if (['failed', 'read_failed', 'db_error'].indexOf(result.code) >= 0) {
       show(state.editing ? ['send', 'discard'] : ['retry', 'toEdit']);
@@ -126,6 +129,8 @@
       if (!body) { say('보낼 글을 넣어 주세요.'); return; }
       params = { mode: 'edited', text: body };
       if (state.reason) params.edit_reason = state.reason;
+      var why = detailBox && !detailBox.hidden ? (detail.value || '').trim() : '';
+      if (why) params.edit_detail = why;
     }
     if (withConfirm && state.confirm) params.confirm = state.confirm;
     lock(true);
@@ -172,7 +177,10 @@
         say(result.blocked);
         return;
       }
-      size(HEIGHT.edit);
+      var withDetail = Boolean(result.detail && detailBox);
+      if (detailBox) detailBox.hidden = !withDetail;
+      if (withDetail && result.max_detail) detail.maxLength = result.max_detail;
+      size(withDetail ? HEIGHT.detail : HEIGHT.edit);
       editBox.hidden = false;
       text.maxLength = result.max_text || 1000;
       text.value = result.draft || '';
@@ -208,6 +216,8 @@
     say('어느 초안인지 알 수 없어요. 메모의 단추로 다시 열어 주세요.');
     return;
   }
+  // 넘김 메모 [배우기] · [흘리기] 단추로 열렸으면 wam-handoff.js 가 맡는다(초안 보내기를 부르지 않는다).
+  if (arg('mode') === 'learn' || arg('mode') === 'skip') return;
   buttons.send.addEventListener('click', function () { send(false); });
   buttons.confirm.addEventListener('click', function () { send(true); });
   buttons.retry.addEventListener('click', function () { send(false); });
