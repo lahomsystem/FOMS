@@ -946,11 +946,13 @@ def test_redirect_carries_the_history_filter_over(client, workbench_on):
 # 2026-09-07 사용자 결정으로 열람 집합이 **ADMIN + 회계팀·영업팀**으로 넓어졌다.
 # 넓어진 것은 열람뿐이다 — 수집 상태 카드·지금 수집·소급 수집·전체 다시 읽기는
 # 라우트가 ADMIN 전용이라 화면에서도 ADMIN 에게만 나온다.
+# 2026-11-11 사용자 결정: CS 팀도 이력 탭을 열고 **"지금 수집" 하나만** 누른다
+# (소급 수집·만료일 등록·전체 다시 읽기는 ADMIN 전용 그대로).
 # --------------------------------------------------------------------------- #
 
 def test_history_tab_blocked_for_other_teams(client, workbench_on):
-    """CS STAFF 가 ?tab=all 을 열어도 수집 이력이 나오면 안 된다 — 작업 탭으로 떨어진다."""
-    _login(client, role="STAFF", team="CS")
+    """도면팀 STAFF 가 ?tab=all 을 열어도 수집 이력이 나오면 안 된다 — 작업 탭으로 떨어진다."""
+    _login(client, role="STAFF", team="DRAWING")
     link = _collected(order_no="N-PERM-HIST", product="권한 붙박이장", amount=100000)
     link.sync_status = "FAILED"
     link.failure_reason = "커머스API 인증 만료"
@@ -980,7 +982,7 @@ def test_history_tab_stays_open_for_admin(client, workbench_on):
 
 def test_manager_of_other_team_cannot_open_history_tab(client, workbench_on):
     """팀이 다르면 MANAGER 도 못 연다 — role 만으로 통과하는 문을 만들지 않는다."""
-    _login(client, role="MANAGER", team="CS")
+    _login(client, role="MANAGER", team="PRODUCTION")
     _collected(order_no="N-PERM-MGR", product="매니저 붙박이장", amount=100000)
 
     body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
@@ -1025,6 +1027,39 @@ def test_history_tab_keeps_ingest_controls_admin_only(client, workbench_on, team
     assert 'id="wb-run-now"' not in body, "'지금 수집'은 ADMIN 전용이다"
     assert 'id="wb-backfill-run"' not in body, "소급 수집은 ADMIN 전용이다"
     assert 'id="wb-refresh-all"' not in body, "전체 다시 읽기는 ADMIN 전용이다"
+
+
+@pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
+def test_cs_team_gets_history_tab_and_run_now_only(client, workbench_on, role):
+    """CS 팀은 이력 탭을 열고 `지금 수집` 만 누른다(2026-11-11 사용자 결정).
+
+    같은 카드의 만료일 등록·소급 수집과 전체 다시 읽기는 ADMIN 라우트라 CS 에게는 그리지 않는다 —
+    그리면 눌러서 403 을 받는다.
+    """
+    _login(client, role=role, team="CS")
+    _collected(order_no=f"N-PERM-CS-{role}", product="CS 붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="all"' in body, f"CS {role} 이 이력 탭을 못 열었다"
+    assert 'id="wb-ingest-status"' in body
+    assert 'id="wb-run-now"' in body, "CS 팀은 '지금 수집' 을 눌러야 한다"
+    assert 'id="wb-backfill-run"' not in body, "소급 수집은 ADMIN 전용이다"
+    assert 'id="wb-expiry-edit"' not in body, "만료일 등록은 ADMIN 전용이다"
+    assert 'id="wb-expiry-input"' not in body
+    assert 'id="wb-refresh-all"' not in body, "전체 다시 읽기는 ADMIN 전용이다"
+    assert "관리자만" not in body, "CS 에게 '관리자만' 이라고 써 붙이면 거짓말이다"
+
+
+def test_admin_still_gets_every_ingest_control(client, workbench_on):
+    """ADMIN 화면은 그대로다 — CS 에게 칸을 줄이다 관리자 손잡이를 빼지 않는다(음성 대조군)."""
+    _login(client, role="ADMIN")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    for marker in ('id="wb-run-now"', 'id="wb-backfill-run"', 'id="wb-expiry-edit"',
+                   'id="wb-expiry-input"'):
+        assert marker in body, marker
 
 
 def test_viewer_role_cannot_reach_history_even_in_allowed_team(client, workbench_on):
