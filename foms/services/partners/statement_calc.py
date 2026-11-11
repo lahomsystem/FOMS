@@ -127,6 +127,9 @@ def _option_lines(index, item, notes, needs):
     width = parse_mm(rows[0].get("width"))
     depth = parse_mm(rows[0].get("depth"))
     lines = []
+    # 우리(도면팀 · CS)가 바꾼 줄은 근거 칸에 이유를 보인다(설계서 2026-11-11-partner-confirmed-option-fix §2.4).
+    reasons = {str(c.get("name") or ""): str(c.get("reason") or "").strip()
+               for c in item.get("changes") or [] if isinstance(c, dict) and c.get("to")}
     for picked in item.get("lines") or []:
         info = index.get(str(picked.get("key") or ""))
         if info is None:
@@ -143,7 +146,9 @@ def _option_lines(index, item, notes, needs):
         if not info.get("price"):
             notes.append(f"{info.get('partner_label') or info['name']} 포함")
             continue
-        lines.append(_line(info, qty, spec=str(picked.get("memo") or "").strip()[:60], basis="고른 옵션"))
+        reason = reasons.get(str(picked.get("name") or ""))
+        basis = f"바꾼 옵션 · {reason}"[:80] if reason else "고른 옵션"
+        lines.append(_line(info, qty, spec=str(picked.get("memo") or "").strip()[:60], basis=basis))
     return lines
 
 

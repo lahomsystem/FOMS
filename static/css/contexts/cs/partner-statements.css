@@ -44,6 +44,9 @@
 .foms-pse__group { margin-bottom: 14px; }
 .foms-pse__group-title { margin: 0 0 6px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; }
 .foms-pse__custom td { background: #fffbeb; }
+/* 확정 옵션 고치기 칸(설계서 2026-11-11-partner-confirmed-option-fix) — 묶음 표 자리에 열린다. 줄 모양은 foms-item-options.css 의 pp-optline. */
+.foms-pse__optfix { display: grid; gap: 8px; margin-top: 6px; padding: 10px; border: 1px solid #fcd34d; border-radius: 6px; background: #fffbeb; }
+.foms-pse__optfix-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .foms-pse__input { padding: 4px 6px; border: 1px solid var(--erp-border, #d1d5db); border-radius: 5px; background: var(--erp-surface, #fff); color: inherit; font-size: calc(13px * var(--foms-fs, 1)); }
 .foms-pse__amount { display: inline-block; width: 110px; text-align: right; }
 .foms-pse__reason { display: block; width: 100%; min-width: 160px; margin-top: 4px; }

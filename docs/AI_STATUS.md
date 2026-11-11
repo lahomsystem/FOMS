@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-11] **협력사 명세서 확정 옵션 고치기(deploy)** — SPEC `2026-11-11-partner-confirmed-option-fix`
 - [2026-11-10] **태블릿 생산 UI(`session/tablet-prod-ui`)** — 운영 PR #784·#785·#791~#794: 첫 화면 안 3(2주 띠+그날) · D19 레일 생산=첫 화면 · D20 바뀐 것=만들 주문만
 - [2026-11-09] **협력사 "도면 확인했어요" 때 도면 고르기(PR #782) · 지운 시트 옛 도면이 다시 전달 뒤 남던 빈틈(PR #783 `1f8434b2`, 주문 5896) 운영 반영** — 둘 다 스테이징 실호출 통과. SPEC `2026-11-09-drawing-deleted-sheet-stale-spec`
 - [2026-11-09] **화면 크기 70~130%(#778) · 탭별 글자 70~150% 10%씩(#779·#780) · ERP 탭 막대는 화면 크기만(#781) · 옆 계산기 글자(#786)** — 계정·기기·탭별. vh·rect·px 글자 보정. 스테이징 실측 통과
@@ -32,7 +33,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-10-15] **모바일 홈 달력·날씨 시간 줄 v2(production `fa101723`, PR #551~#563)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 칸 보기 삭제·기상청 강수강도·판정 규칙·여러 날 시공 출고가 나눔. 금액=발주방 PUSH 주문만(PR #652·#654). 태블릿 예산 30,700B
 - [2026-10-08] **도면 마법사 편집 개선 운영 반영(PR #516·#519·#522·#524·#526)** — 실화면 통과. 잔여: 1100px 이하 데스크톱 창 앱바 오른쪽 16px 밀림
 - [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
-- [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -209,6 +209,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면

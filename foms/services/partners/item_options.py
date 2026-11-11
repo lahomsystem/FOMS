@@ -301,8 +301,11 @@ def option_review(db, order: Any) -> Optional[dict[str, Any]]:
         if current is None:
             continue
         partner = _view(rows.get((uid, "PARTNER")), units)
+        # 바뀐 줄마다 그 줄의 이유(도면팀 전달 · CS 확정 옵션 고치기가 줄마다 적는다 — 설계서 2026-11-11 §2.4)
+        why = {(c.get("name"), c.get("to")): c.get("reason") for c in current["changes"] if isinstance(c, dict)}
+        diff = [{**d, "reason": why.get((d["name"], d["to"])) or ""} for d in diff_options(partner, current, units)]
         items.append({"uid": uid, "no": no, "title": str(item.get("product_name") or ""), "current": current,
-                      "partner": partner, "diff": diff_options(partner, current, units),
+                      "partner": partner, "diff": diff,
                       "confirmed": rows.get((uid, "CONFIRMED")) is not None})
     return {"catalog": pick_lists(sheet)["options"], "items": items} if items else None
 

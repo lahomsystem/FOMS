@@ -6,6 +6,8 @@
 - ``POST /orders/<order_id>/draft`` 주문 초안 열기(없으면 확정 옵션으로 만든다) · ``GET /<id>`` 명세서 하나.
 - ``POST /<id>/save`` CS 가 넣은 값 ``{version, edits}`` · ``/recalc`` 다시 계산 · ``/issue`` 발행 ``{version, date?}`` ·
   ``/revise`` 수정본 ``{reason}`` · ``/void`` 취소 ``{reason}`` · ``/discard`` 초안 지우기 ``{version}``.
+- ``GET/POST /<id>/options`` 확정한 옵션 고치기(초안 · 수정본 초안만) ``{version, items: {uid: {state, lines, customs, reason}}}`` —
+  저장하면 같은 트랜잭션에서 초안을 다시 센다(설계서 docs/specs/2026-11-11-partner-confirmed-option-fix_SPEC.md).
 - ``POST /issue-complete`` 금액이 다 찬 대기 주문만 한꺼번에 발행.
 - ``POST /<id>/questions/<question_id>/answer`` 협력사 금액 문의에 답 ``{text}``(협력사 화면에 보인다).
 
@@ -26,6 +28,7 @@ from foms.api.files.routes import build_file_view_url
 from foms.services.orders.drawing_confirm_partial import file_item_uids
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본)
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
+from foms.services.partners.option_correct import correct_options, correction_view
 from foms.services.partners.statement_partner import answer, questions
 from foms.services.partners.statement_view import issued_rows, pending_rows, statement_json
 from foms.services.partners.statements import (
@@ -193,6 +196,38 @@ def api_recalc(statement_id: int):
             raise StatementError("명세서를 찾을 수 없습니다.", 404)
         stmt = recalc_draft(db, order, statement_id, body.get("version"))
         _log(db, actor, "PARTNER_STATEMENT_DRAFT_SAVED", stmt, f"협력사 명세서 다시 계산: 주문 {stmt.order_id}")
+        return _full(db, stmt)
+    return _run(work)
+
+
+@partner_statements_staff_api_bp.route("/<int:statement_id>/options", methods=["GET"], endpoint="options")
+def api_options(statement_id: int):
+    """확정한 옵션 고치기 창 — 품목마다 확정 옵션 · 협력사 원문 · 고를 목록(이름 · 단위만)."""
+    _actor, denied = _staff()
+    if denied:
+        return denied
+    db = get_db()
+    stmt = db.get(PartnerStatement, statement_id)
+    order = _order(db, stmt.order_id) if stmt is not None else None
+    if order is None:
+        return _fail(404, "명세서를 찾을 수 없습니다.")
+    try:
+        return _ok(correction_view(db, stmt, order))
+    except StatementError as exc:
+        return _fail(exc.status, str(exc))
+
+
+@partner_statements_staff_api_bp.route("/<int:statement_id>/options", methods=["POST"], endpoint="correct_options")
+def api_correct_options(statement_id: int):
+    """확정한 옵션 고치기 저장(바뀐 품목은 이유 필수 — 협력사에게 보인다) → 다시 센 명세서."""
+    actor, denied = _staff()
+    if denied:
+        return denied
+    body = _body()
+
+    def work(db):
+        stmt, detail = correct_options(db, statement_id, body.get("items"), body.get("version"), actor.id)
+        _log(db, actor, "PARTNER_OPTIONS_CORRECTED", stmt, f"협력사 확정 옵션 고치기: 주문 {stmt.order_id}", **detail)
         return _full(db, stmt)
     return _run(work)
 
