@@ -17,7 +17,8 @@ WORKER 감독자 자식 ``cs_realtime``(``scripts/maintenance/run_cs_realtime.py
    손님 글이 묵은 상담 기준(관리 화면, 처음 1 운영일) 창 안인 미답 상담을 **새 것부터** 고른다 — 상한에 잘려도 새 상담이
    먼저다(검수 R13-1). 실패 줄은 다시 집기 간격(:func:`.turns.retry_due`) 뒤에만 다시 집는다(R13-3). 마지막 손님 글 뒤
    조용 기다림(``quiet_wait_s``, 처음 15초 — D65)이 찼거나, 첫 미답 손님 글부터 최대 기다림(``max_wait_s``)이 지났고 그 사이
-   이 상담 초안이 한 번도 없었으면 집는다(R4-S1). 같은 상담의 앞 차례(올림 · 저장만)는 손님 새 글을 처음 본 차례에
+   이 상담 초안이 한 번도 없었으면 집는다(R4-S1). 말 끝남 판단(:mod:`.turn_end`, 처음 끔)이 '켬'이면 조용 기다림 대신
+   작은 모델의 판단(끝남 = 짧게 · 이어짐 = 길게)으로 기다린다. 같은 상담의 앞 차례(올림 · 저장만)는 손님 새 글을 처음 본 차례에
    '지난 초안'(``superseded``)으로 바꾼다 — 앞 메모 지우기는 부르는 쪽이 넘기는 ``memo_remover``(기본 ``None`` = 지우지
    않음, C10-2 시험 뒤에 정한다)만 한다.
 5. **초안** — :func:`.drafting.run_drafting` 의 선점 · 두뇌 · 검사 · 직전 다시 읽기 · 놓기를 그대로 쓴다. 바뀐 곳은 :class:`_RealtimePass`
@@ -71,6 +72,7 @@ from foms.services.cs_agent.send_record import reconcile_sends
 from foms.services.cs_agent.settings import PanelSettings, read_settings
 from foms.services.cs_agent.state import KST, BusinessDayFn
 from foms.services.cs_agent.state_store import INBOUND_LOOKBACK_ROWS, compute_open_states, ingest_inbound
+from foms.services.cs_agent.turn_end import judge_pending, quiet_seconds
 from foms.services.cs_agent.turns import (
     CLAIM_EXPIRED, DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, STATE_POSTED,
     STATE_POSTING, STATE_STORED, TurnStateError, draft_mode, expired_claims, mark_failed, mark_staff_replied,
@@ -152,7 +154,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
              is_business_day: Optional[BusinessDayFn] = None, brain: Callable[..., Any] = draft_reply,
              poster: Callable[..., Any] = post_private_memo, ready: Callable[..., Any] = check_ready,
              memo_remover: Optional[Callable[[str, str], Any]] = None,
-             lock_key: str = REALTIME_LOCK_KEY) -> TickResult:
+             lock_key: str = REALTIME_LOCK_KEY, turn_end: Optional[Callable[..., Any]] = None) -> TickResult:
     """빠른 길 한 차례(모듈 설명의 순서). 꺼진 차례 · 대표가 아닌 차례 · 멈춘 차례는 일 0.
 
     Args:
@@ -163,7 +165,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
         now: 지금(시간대 있는 값, 시험 주입). clock: 시간 상한 시계(단조, 시험 주입).
         is_business_day: 운영일 판정(시험 주입). brain · poster · ready: 두뇌 · 메모 감싸개 · 두뇌 준비 확인(시험은 가짜).
         memo_remover: 갈아 끼운 차례의 앞 메모를 지우는 함수 ``(상담 id, 메모 id)`` — 기본 ``None`` 은 지우지 않는다(C10-2).
-        lock_key: 대표 잠금 키(시험이 15분 바퀴 키를 넘겨 음성 대조한다).
+        lock_key: 대표 잠금 키(시험이 15분 바퀴 키를 넘겨 음성 대조한다). turn_end: 말 끝남 판단(시험은 가짜 — :mod:`.turn_end`).
 
     Returns:
         :class:`TickResult`.
@@ -188,7 +190,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
             cal = is_business_day or calendar_is_business_day
             memory.follow_settings(cfg.version)
             picks = _prepare(session, result, memory=memory, cfg=cfg, now=now, stop=stop, cal=cal,
-                             memo_remover=memo_remover)
+                             memo_remover=memo_remover, reader=reader, turn_end=turn_end)
             result.paused = memory.paused(now) if picks else None
             result.rewrites = run_rewrites(session, now=now, stop=stop, reader=reader, brain=brain, poster=poster,
                                            daytime=_daytime(now, cal))  # 직원이 화면에서 기다린다 — 초안보다 먼저
@@ -222,13 +224,15 @@ def claim_ttl(cfg: PanelSettings) -> datetime.timedelta:
 
 
 def _prepare(session: Any, result: TickResult, *, memory: TickMemory, cfg: PanelSettings, now: datetime.datetime,
-             stop: StopFlag, cal: BusinessDayFn, memo_remover: Optional[Callable[[str, str], Any]]) -> list[tuple[str, str]]:
+             stop: StopFlag, cal: BusinessDayFn, memo_remover: Optional[Callable[[str, str], Any]],
+             **judging: Any) -> list[tuple[str, str]]:
     """수신 기록 → 죽은 선점 · 직원 답 정리 → 모아 받기. 집을 (상담, 손님 글 id) 목록(우선순위 순)을 돌려준다."""
     stop.check()
     _ingest(session, result, memory, now)
     _expire_claims(session, result, now, stop)
     _close_answered(session, result, now, stop)
-    return _pick(session, result, memory=memory, cfg=cfg, now=now, stop=stop, cal=cal, memo_remover=memo_remover)
+    return _pick(session, result, memory=memory, cfg=cfg, now=now, stop=stop, cal=cal, memo_remover=memo_remover,
+                 **judging)
 
 
 def _pause_if_halted(memory: TickMemory, summary: DraftSummary, now: datetime.datetime) -> None:
@@ -357,7 +361,8 @@ def _turns_of(session: Any, chat_ids: Sequence[str]) -> dict[str, list[_TurnRow]
 
 
 def _pick(session: Any, result: TickResult, *, memory: TickMemory, cfg: PanelSettings, now: datetime.datetime,
-          stop: StopFlag, cal: BusinessDayFn, memo_remover: Optional[Callable[[str, str], Any]]) -> list[tuple[str, str]]:
+          stop: StopFlag, cal: BusinessDayFn, memo_remover: Optional[Callable[[str, str], Any]],
+          reader: Optional[Any] = None, turn_end: Optional[Callable[..., Any]] = None) -> list[tuple[str, str]]:
     """모아 받기 — 새로 볼 상담만 고르고(판정 기억), 앞 차례를 갈아 끼운 뒤, 조용 · 최대 기다림이 찬 상담만 돌려준다."""
     since = window_start(now, cfg.get("max_wait_business_days"), cal)
     chats = {row.chat_id: row for row in _unanswered_chats(session, since)
@@ -379,7 +384,10 @@ def _pick(session: Any, result: TickResult, *, memory: TickMemory, cfg: PanelSet
         if chat_id not in chosen:
             _decide(memory, chats[chat_id], now)
     waiting = {state.chat_id: state.waiting_since for state in states}
-    out = [pair for pair in picked if _ready(chats[pair[0]], waiting.get(pair[0]), turns.get(pair[0], ()), cfg, now)]
+    verdicts = judge_pending(session, picked, chats, cfg=cfg, now=now, memory=memory.turn_end, stop=stop, reader=reader,
+                             judge=turn_end)  # 말 끝남 판단(끔이면 빈 사전 — 예전 기다림)
+    out = [pair for pair in picked
+           if _ready(chats[pair[0]], waiting.get(pair[0]), turns.get(pair[0], ()), cfg, now, verdicts.get(pair))]
     result.pending, result.picked = len(picked) - len(out), len(out)
     return out
 
@@ -405,10 +413,11 @@ def _still_open(row: Any, turns: Iterable[_TurnRow], memory: TickMemory, now: da
 
 
 def _ready(row: Any, waiting_since: Optional[datetime.datetime], turns: Iterable[_TurnRow], cfg: PanelSettings,
-           now: datetime.datetime) -> bool:
-    """모아 받기 — 마지막 손님 글 뒤 조용 기다림이 찼거나, 첫 미답 글부터 최대 기다림이 지났고 이 묶음 초안이 아직 없음."""
+           now: datetime.datetime, verdict: Optional[str] = None) -> bool:
+    """모아 받기 — 마지막 손님 글 뒤 조용 기다림(말 끝남 판단 '켬'이면 판단의 기다림)이 찼거나, 첫 미답 글부터 최대
+    기다림이 지났고 이 묶음 초안이 아직 없음."""
     at = naive_utc(now)
-    if (at - row.last_user_at).total_seconds() >= int(cfg.get("quiet_wait_s")):
+    if (at - row.last_user_at).total_seconds() >= quiet_seconds(cfg, verdict):
         return True
     if waiting_since is None:
         return False
