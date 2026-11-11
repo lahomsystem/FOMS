@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
+from foms.services.auth.freelancer_scope import is_freelancer_user
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
@@ -1249,8 +1250,14 @@ def _history_mine_clause(user_id: int) -> ColumnElement[bool]:
     """
     from sqlalchemy import select
 
-    from models import OrderAssignment
+    from models import OrderAssignment, OrderFreelancerLink
 
+    if _viewer_is_freelancer():
+        # 켜진 프리랜서의 "내 주문" 정본은 연결 표 하나다(freelancer_orders 모듈 docstring) —
+        # 담당 배정 표가 아니다. 다른 화면(대시보드·이력)과 같은 모집단을 말하게 한다.
+        own = select(OrderFreelancerLink.order_id).where(
+            OrderFreelancerLink.user_id == int(user_id))
+        return ExternalOrderLink.order_id.in_(own)  # perf-ok: 연결 표 user_id 인덱스
     mine = select(OrderAssignment.order_id).where(
         OrderAssignment.active.is_(True),
         OrderAssignment.domain == "SALES",
@@ -2063,6 +2070,10 @@ def naver_ingest_triage():
     db = get_db()
     from foms.services.feature_flags import is_naver_workbench_enabled
 
+    if _viewer_is_freelancer() and not (is_naver_workbench_enabled(session.get("user_id"))
+                                        and _can_view_history()):
+        # 프리랜서에게 여는 것은 워크벤치의 이력 탭뿐이다 — 옛 화면(게이트 OFF)은 처리 큐라 안 연다.
+        abort(404)
     if is_naver_workbench_enabled(session.get("user_id")):
         # 서버 렌더 시간을 응답 헤더로 드러낸다(2026-09-11). 이 화면은 코드가 3주 만에
         # 12배로 커지는 동안 계측이 한 곳도 없어, "탭 왕복이 느리다"는 신고를 숫자로
@@ -2627,8 +2638,9 @@ def _render_workbench(db) -> str:
         groups, work_truncated = [], False
         with phase("wb_tab_count"):
             # 이 함수는 게이트가 켜진 사용자에게만 불린다(`naver_ingest_triage`) — 모집단은
-            # 언제나 워크벤치 쪽이다.
-            actionable = int(get_triage_pending_count(db, workbench=True))
+            # 언제나 워크벤치 쪽이다. 프리랜서는 처리 탭이 없어 그 배지 수도 세지 않는다.
+            actionable = (0 if _viewer_is_freelancer()
+                          else int(get_triage_pending_count(db, workbench=True)))
     # nav 뱃지(`inject_status_list` → `get_triage_pending_count`)는 **템플릿 렌더 중**
     # 돌면서 같은 `_work_groups` 를 한 번 더 계산한다. 30초 캐시가 콜드면 그 두 번째
     # 계산이 통째로 더해진다 — 스테이징 실측 콜드 render 1,387ms 중 nvbadge 가 428ms
@@ -2648,8 +2660,10 @@ def _render_workbench(db) -> str:
     # (2026-09-11 실측: 이력 탭 wb_template 173ms 인데 템플릿 안 마커 합은 6ms 였다).
     with phase("wb_history"):
         history_view = _history_view(db) if active_tab == "all" else {}
+    naver_readonly = _viewer_is_freelancer()
     with phase("wb_failures"):
-        failures_view = _failure_rows(db)
+        # 실패 띠는 처리 손잡이(재시도 · 확인함)라 프리랜서에게는 싣지 않는다.
+        failures_view = [] if naver_readonly else _failure_rows(db)
     with phase("wb_ghosts"):
         ghosts_view = _ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []}
     with phase("wb_partial_claims"):
@@ -2700,6 +2714,8 @@ def _render_workbench(db) -> str:
             pending_count=pending_total,
             work_truncated=work_truncated,
             can_view_history=_can_view_history(),
+            # 켜진 프리랜서 — 처리 탭 · 행의 '처리 탭으로' 링크를 그리지 않는다(이력 보기만).
+            naver_readonly=naver_readonly,
             history=history_view,
             ingest_status=ingest_status,
             # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
@@ -2981,6 +2997,22 @@ def _is_ingest_admin() -> bool:
     return bool(user) and str(getattr(user, "role", "") or "").upper() == "ADMIN"
 
 
+def _viewer_is_freelancer() -> bool:
+    """지금 사용자가 켜진 프리랜서 영업인가(2026-11-11 사용자 결정 — 네이버 **이력만** 연다).
+
+    회사 영업과 같게 이력 탭을 보고('내 담당만' 기본 켜짐 · 꺼서 다른 이름으로도 찾기 —
+    고객이 주문자 아닌 다른 네이버 아이디로 추가 결제하는 일이 있다), 원본 보기(읽기 전용)도
+    연다. 처리 탭 · 처리 단추 · 실패 띠 · 수집 손잡이는 주지 않는다 — 문지기
+    (:mod:`foms.services.auth.freelancer_screens.naver_history`)가 처리 라우트를 막고, 화면은
+    그 길을 그리지 않는다.
+
+    Returns:
+        켜진 프리랜서면 True(요청 안에서는 설정을 한 번만 읽는다).
+    """
+    user = getattr(g, "current_user", None)
+    return bool(user) and is_freelancer_user(user)
+
+
 def _can_view_history() -> bool:
     """전체 이력 탭을 볼 수 있는가 — ADMIN + 회계팀·영업팀(2026-09-07 사용자 결정).
 
@@ -3028,6 +3060,9 @@ def _active_tab() -> str:
     Returns:
         ``work``·``all`` 중 하나.
     """
+    if _viewer_is_freelancer():
+        # 프리랜서는 이력 탭만 있다(처리 탭은 남의 수집분 전체 · 처리 단추라 열지 않는다).
+        return "all" if _can_view_history() else "work"
     raw = (request.args.get("tab") or "").strip().lower()
     tab = raw if raw in WORKBENCH_TABS else "work"
     if tab == "all" and not _can_view_history():
