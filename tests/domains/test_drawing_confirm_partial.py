@@ -129,8 +129,8 @@ def test_form_save_preserve_restores_cancel_by_uid_and_flag():
 
 # ── API ───────────────────────────────────────────────────────────────────
 
-def _user(username):
-    u = User(username=username, password=generate_password_hash("pw"), role="MANAGER", team="SALES",
+def _user(username, role="MANAGER", team="SALES"):
+    u = User(username=username, password=generate_password_hash("pw"), role=role, team=team,
              name=SALES, is_active=True)
     db_session.add(u)
     db_session.commit()
@@ -389,7 +389,7 @@ def test_after_confirm_cancel_rejects_without_change(client, prep, uid, body, co
     assert _sd(oid) == before
 
 
-def _confirmed_page(client, monkeypatch, items):
+def _confirmed_page(client, monkeypatch, items, who="sales"):
     from tests.support.drawing_tab_send_pc_helpers import _bar, _inject, _order as _pc_order, _page, make_people
     people = make_people()
     oid = _pc_order(people["drafter"]["id"], status="CONFIRMED")
@@ -399,7 +399,7 @@ def _confirmed_page(client, monkeypatch, items):
     order.structured_data = sd
     db_session.commit()
     _inject(monkeypatch, {"bar": _bar("send"), "round_text": "1차"})
-    return _page(client, people["sales"], oid)
+    return _page(client, people[who], oid)
 
 
 def test_after_confirm_cancel_button_and_modal_render(client, monkeypatch):
@@ -465,3 +465,34 @@ def test_after_confirm_modal_lists_drawings_prelinked(client, monkeypatch):
                                                  {"uid": UID_B, "product_name": "슬라이딩장"}])
     boxes = soup.select("#dwItemCancelModal [data-item-cancel-dw]")
     assert len(boxes) == 2 and all(b.get("value") for b in boxes)
+
+
+# --- 도면팀도 확정 뒤 제품 취소(설계서 2026-11-11-item-cancel-drawing-team) ---------------------
+
+def test_drawing_staff_can_cancel_after_confirm(client):
+    """운영 주문 5608: 생산 단계에서 도면팀 STAFF 가 제품 하나와 그 도면을 직접 뺀다."""
+    _login(client, _user("after_dw_staff", role="STAFF", team="DRAWING"))
+    oid, k1, k2 = _confirmed_order()
+    res = client.post(f"/api/orders/{oid}/items/{UID_B}/cancel",
+                      json={"reason": "customer_change", "exclude_drawing_keys": [k2]})
+    assert res.status_code == 200, res.get_json()
+    after = _sd(oid)
+    assert after["items"][1]["cancel"]["source"] == "after_confirm"
+    assert [f["key"] for f in after["drawing_current_files"]] == [k1]
+
+
+@pytest.mark.parametrize("team", ["PRODUCTION", "CONSTRUCTION"])
+def test_other_team_staff_still_cannot_cancel_after_confirm(client, team):
+    _login(client, _user(f"after_{team.lower()}_staff", role="STAFF", team=team))
+    oid, _, _ = _confirmed_order()
+    before = _sd(oid)
+    res = client.post(f"/api/orders/{oid}/items/{UID_B}/cancel", json={"reason": "customer_change"})
+    assert res.status_code == 403
+    assert _sd(oid) == before
+
+
+def test_after_confirm_cancel_button_visible_for_drawing_staff(client, monkeypatch):
+    soup = _confirmed_page(client, monkeypatch, [{"uid": UID_A, "product_name": "여닫이장"},
+                                                 {"uid": UID_B, "product_name": "슬라이딩장"}], who="drafter")
+    assert [b["data-item-cancel-name"] for b in soup.select("[data-item-cancel-uid]")] == ["여닫이장", "슬라이딩장"]
+    assert soup.select_one("#dwItemCancelModal") is not None

@@ -627,7 +627,7 @@
     },
     "erp_orders_item_cancel.api_order_item_cancel_after_confirm": {
       "mode": "guard",
-      "policy_id": "ERP_EDIT",
+      "policy_id": "ITEM_CANCEL",
       "rule": "/api/orders/<int:order_id>/items/<uid>/cancel"
     },
     "erp_orders_production.api_production_cancel": {
