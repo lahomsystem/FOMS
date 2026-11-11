@@ -50,9 +50,9 @@ def workbench_on(monkeypatch):
     yield
 
 
-def _login(client, *, role: str = "ADMIN") -> User:
+def _login(client, *, role: str = "ADMIN", team: str = "CS") -> User:
     user = User(username=f"wb3_{role.lower()}_{_uid()}", password=generate_password_hash("pw"),
-                role=role, team="CS", name=f"{role} 사용자", is_active=True)
+                role=role, team=team, name=f"{role} 사용자", is_active=True)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -305,8 +305,11 @@ def test_each_chip_matches_its_predicate(client, workbench_on, name, expected):
 # --------------------------------------------------------------------------- #
 
 def test_staff_never_receives_history_context_on_any_url(client, workbench_on):
-    """STAFF 는 어느 주소로 들어와도 이력·수집 상태를 못 받는다(v3 의 새 주소 포함)."""
-    _login(client, role="STAFF")
+    """이력 팀이 아닌 STAFF 는 어느 주소로 들어와도 이력·수집 상태를 못 받는다(v3 의 새 주소 포함).
+
+    CS 팀은 2026-11-11 사용자 결정으로 이력 탭이 열려서, 막히는 팀의 대표로 도면팀을 쓴다.
+    """
+    _login(client, role="STAFF", team="DRAWING")
     link = _collected(order_no="N-V3-PERM", product="권한 붙박이장")
     link.sync_status = "FAILED"
     link.failure_reason = "커머스API 인증 만료"

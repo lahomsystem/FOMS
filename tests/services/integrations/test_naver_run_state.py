@@ -22,6 +22,7 @@ from __future__ import annotations
 import itertools
 from datetime import datetime, timedelta
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -40,10 +41,10 @@ def _uid() -> int:
     return next(_seq)
 
 
-def _login(client, *, role: str = "ADMIN") -> User:
+def _login(client, *, role: str = "ADMIN", team: str = "CS") -> User:
     """지정 역할로 로그인한 세션을 만든다(로그인 폼을 타지 않는 지름길)."""
     user = User(username=f"rs_{role.lower()}_{_uid()}", password=generate_password_hash("pw"),
-                role=role, team="CS", name=f"{role} 사용자", is_active=True)
+                role=role, team=team, name=f"{role} 사용자", is_active=True)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -245,13 +246,77 @@ def test_run_state_requires_login(app, client):
     assert client.get(STATE_PATH).status_code in (301, 302, 401, 403)
 
 
-def test_run_state_denies_non_admin_roles(app, client):
-    """"지금 수집" 과 같은 ADMIN 권한 — 권한 없는 역할은 못 본다."""
-    _login(client, role="STAFF")
+@pytest.mark.parametrize("role,team", [("STAFF", "SALES"), ("MANAGER", "SALES"),
+                                       ("STAFF", "ACCOUNTING"), ("MANAGER", "ACCOUNTING"),
+                                       ("STAFF", "DRAWING"), ("VIEWER", "CS")])
+def test_run_state_denies_non_admin_roles(app, client, role, team):
+    """"지금 수집" 과 같은 자격(ADMIN + CS 팀) — 그 밖 팀·VIEWER 는 못 본다.
+
+    회계팀은 정책 엔진에서 CS 능력 별칭을 받지만 여기서는 받지 않는다(2026-11-11 결정은 CS 팀만).
+    """
+    _login(client, role=role, team=team)
     assert client.get(STATE_PATH).status_code in (301, 302, 401, 403)
+
+
+@pytest.mark.parametrize("role,team", [("STAFF", "SALES"), ("MANAGER", "ACCOUNTING"),
+                                       ("STAFF", "DRAWING")])
+def test_run_now_denies_other_teams(app, client, monkeypatch, role, team):
+    """CS 가 아닌 팀은 "지금 수집" 을 못 누른다 — 큐에 아무것도 들어가지 않는다."""
+    calls = _with_workers(monkeypatch)
+    _login(client, role=role, team=team)
+
+    response = client.post(RUN_PATH, json={})
+
+    assert response.status_code == 403, response.status_code
+    assert calls == [], "권한 없는 사람이 누른 수집이 큐에 들어갔다"
+
+
+@pytest.mark.parametrize("role", ["STAFF", "MANAGER"])
+def test_cs_team_can_run_now_and_poll(app, client, monkeypatch, role):
+    """CS 팀 STAFF · MANAGER 는 "지금 수집" 을 넣고 끝났는지 물을 수 있다(2026-11-11 사용자 결정)."""
+    calls = _with_workers(monkeypatch)
+    _login(client, role=role, team="CS")
+
+    response = client.post(RUN_PATH, json={})
+    payload = response.get_json()
+
+    assert response.status_code == 200, payload
+    assert payload["success"] is True and payload["data"]["queued"] is True
+    assert calls == [False], "CS 가 누른 수집이 큐에 안 들어갔다"
+    state = client.get(STATE_PATH)
+    assert state.status_code == 200
+    assert state.get_json()["data"]["rev"] == payload["data"]["rev"]
 
 
 def test_run_state_is_read_only_for_post(app, client, monkeypatch):
     """읽기 전용 GET 이다 — POST 로는 존재하지 않는다(쓰기 문을 열지 않았다)."""
     _login(client)
     assert client.post(STATE_PATH, json={}).status_code == 405
+
+
+# --------------------------------------------------------------------------- #
+# 정책 엔진 — 화면·라우트·엔진이 같은 판정(2026-11-11 CS 팀 개방)
+# --------------------------------------------------------------------------- #
+
+def test_run_now_policy_is_the_cs_gate():
+    """엔진의 `NAVER_INGEST_RUN` 이 라우트와 같은 판정을 낸다(매니페스트 등재는 test_naver_refresh_all).
+
+    엔진이 ADMIN 전용으로 남으면 가드가 켜진 운영에서 CS 의 클릭이 엔진에서 403 을 받는다.
+    """
+    from types import SimpleNamespace
+
+    from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+
+    policy = POLICY_REGISTRY["NAVER_INGEST_RUN"]
+
+    def _user(role, team):
+        return SimpleNamespace(id=1, role=role, team=team, is_active=True)
+
+    for role, team in (("ADMIN", None), ("STAFF", "CS"), ("MANAGER", "CS")):
+        assert evaluate_policy(policy, _user(role, team)).allowed, (role, team)
+    for role, team in (("STAFF", "SALES"), ("MANAGER", "SALES"), ("STAFF", "ACCOUNTING"),
+                       ("MANAGER", "ACCOUNTING"), ("STAFF", "DRAWING"), ("VIEWER", "CS")):
+        assert not evaluate_policy(policy, _user(role, team)).allowed, (role, team)
+    # 꺼진 계정은 팀이 맞아도 막힌다.
+    off = SimpleNamespace(id=1, role="STAFF", team="CS", is_active=False)
+    assert not evaluate_policy(policy, off).allowed

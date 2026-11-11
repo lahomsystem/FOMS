@@ -52,6 +52,7 @@ from foms.services.integrations.naver_commerce.mapping import (
 )
 from foms.services.integrations.naver_commerce.fulfillment import claim_blocked_rows
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
+from foms.services.integrations.naver_commerce.run_now_access import can_run_ingest_now
 from foms.services.integrations.naver_commerce.promotion import (
     is_promotable,
     summarize_link_household,
@@ -2066,6 +2067,7 @@ def naver_ingest_triage():
 
     2026-09-07: 전체 이력 탭은 ADMIN 외에 **회계팀·영업팀**도 연다
     (:func:`_can_view_history`). 운영 손잡이는 :func:`_is_ingest_admin` 이 계속 묶는다.
+    2026-11-11: CS 팀도 이력 탭을 열고 "지금 수집" 하나만 누른다(:func:`_can_run_now`).
     """
     db = get_db()
     from foms.services.feature_flags import is_naver_workbench_enabled
@@ -2653,8 +2655,11 @@ def _render_workbench(db) -> str:
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
     # 멈춰도 아무도 모른다. **ADMIN 전용은 그대로다** — 이력 열람이 회계팀·영업팀까지
     # 열린 뒤에도 이 카드(지금 수집·소급 수집·만료일 등록)는 ADMIN 손잡이다.
+    # 2026-11-11: CS 팀도 카드를 받는다 — 단 "지금 수집" 칸만 그린다(``ingest_admin`` 이 False 면
+    # 템플릿이 만료일 등록 · 소급 수집을 빼고, 그 라우트들도 ADMIN 전용 그대로다).
+    ingest_admin = _is_ingest_admin()
     ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
-                     if active_tab == "all" and _is_ingest_admin() else {})
+                     if active_tab == "all" and (ingest_admin or _can_run_now()) else {})
     # 렌더 인자는 **먼저** 만든다 — 인자 식을 `render_template(...)` 괄호 안에 두면
     # 그 조회들이 전부 `wb_template` 으로 계상돼 "템플릿이 300ms" 라는 거짓 판정이 나온다
     # (2026-09-11 실측: 이력 탭 wb_template 173ms 인데 템플릿 안 마커 합은 6ms 였다).
@@ -2718,6 +2723,7 @@ def _render_workbench(db) -> str:
             naver_readonly=naver_readonly,
             history=history_view,
             ingest_status=ingest_status,
+            ingest_admin=ingest_admin,
             # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
             # 끝은 **어제**다 — 오늘 구간은 정상 5분 스윕이 이미 맡고 있다.
             backfill_defaults=_backfill_defaults(),
@@ -2977,7 +2983,9 @@ LEGACY_TAB_FILTERS = {"place": "place", "claim": "claim"}
 #: 전체 이력 탭을 **팀 자격**으로 여는 팀(사용자 결정 2026-09-07). 회계팀은 정산 대조,
 #: 영업팀은 자기 주문의 수집 이력을 확인하려고 연다. ADMIN 은 팀과 무관하게 통과한다.
 #: 팀 코드는 ``foms/web/auth/routes.py`` ``TEAMS`` SSOT 와 같은 값이다.
-HISTORY_VIEW_TEAMS = ("ACCOUNTING", "SALES")
+#: CS 팀은 2026-11-11 사용자 결정으로 더했다 — 이력 탭의 "지금 수집" 을 CS 팀이 쓰게 하려면
+#: 탭부터 보여야 한다(:func:`_can_run_now`).
+HISTORY_VIEW_TEAMS = ("ACCOUNTING", "SALES", "CS")
 
 #: 팀 자격으로 통과할 수 있는 role. VIEWER 는 라우트 자체가 막고, 여기서도 하드 deny 다.
 _HISTORY_TEAM_CAPABLE_ROLES = ("MANAGER", "STAFF")
@@ -2995,6 +3003,19 @@ def _is_ingest_admin() -> bool:
     """
     user = getattr(g, "current_user", None)
     return bool(user) and str(getattr(user, "role", "") or "").upper() == "ADMIN"
+
+
+def _can_run_now() -> bool:
+    """"지금 수집" 단추 자격 — ADMIN, 또는 CS 팀 STAFF · MANAGER(2026-11-11 사용자 결정).
+
+    판정 정본은 :func:`~foms.services.integrations.naver_commerce.run_now_access.can_run_ingest_now`
+    하나다(정책 엔진 ``NAVER_INGEST_RUN`` 의 gate 와 같은 함수). 소급 수집 · 만료일 등록 ·
+    전체 다시 읽기는 계속 :func:`_is_ingest_admin` 이 묶는다.
+
+    Returns:
+        현재 사용자가 "지금 수집" 을 누를 수 있으면 True.
+    """
+    return can_run_ingest_now(getattr(g, "current_user", None))
 
 
 def _viewer_is_freelancer() -> bool:
@@ -6998,7 +7019,7 @@ def naver_ingest_snapshot(link_id: int):
 
 @admin_bp.route("/admin/naver-ingest/run", methods=["POST"])
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_run_now():
     """"지금 수집" — rq 큐에 넣기만 한다(네이버 HTTP 는 WORKER 몫).
 
@@ -7020,7 +7041,11 @@ def naver_ingest_run_now():
         "worker_count_known"}}``. ``worker_count_known`` 이 False 면 ``worker_count`` 의
         0 은 "0대"가 아니라 **"못 셌다"** 는 뜻이다.
         워커 없음(**확실히 0대일 때만**)·큐 장애: 503 + 사람 말로 된 사유.
+        ADMIN 도 CS 팀도 아님: 403(2026-11-11 — CS 팀 STAFF · MANAGER 에게 열었다, :func:`_can_run_now`).
     """
+    if not _can_run_now():
+        return jsonify({"success": False, "data": None,
+                        "error": "지금 수집은 관리자와 CS 팀만 쓸 수 있습니다."}), 403
     db = get_db()
     status = get_rq_runtime_status()
     worker_count = int(status.get("worker_count", 0) or 0)
@@ -7072,7 +7097,7 @@ def naver_ingest_run_now():
 
 @admin_bp.route("/admin/naver-ingest/run-state")
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_run_state():
     """수집 워터마크의 현재 상태만 돌려준다 — "지금 수집" 이 끝났는지 묻는 자리.
 
@@ -7080,14 +7105,18 @@ def naver_ingest_run_state():
     F5 를 기다리는 대신 이 경로를 짧게 폴링해 ``rev`` 가 바뀌면 그때 다시 그린다.
 
     **읽기 전용 GET 이다** — mutation 이 아니라 write manifest 등재도 감사 라벨도 없다.
-    다만 실행 이력은 수집 규모를 드러내므로 권한은 "지금 수집" 과 같은 ADMIN 으로 묶는다
-    (:func:`naver_ingest_run_now`). 판정은 하지 않는다 — 성공/실패를 어떻게 보여줄지는
+    다만 실행 이력은 수집 규모를 드러내므로 권한은 "지금 수집" 과 같은 자격(ADMIN + CS 팀,
+    :func:`_can_run_now`)으로 묶는다(:func:`naver_ingest_run_now`). 판정은 하지 않는다 — 성공/실패를 어떻게 보여줄지는
     화면 몫이고, 여기서는 워커가 쓴 값과 그 지문만 준다.
 
     Returns:
         ``{"success": True, "data": {"rev", "last_run_at", "last_summary", "last_error"},
         "error": None}``. ``last_summary`` 는 화면 문구와 같은 한 줄 문자열이다.
+        자격 없음: 403.
     """
+    if not _can_run_now():
+        return jsonify({"success": False, "data": None,
+                        "error": "수집 상태는 관리자와 CS 팀만 볼 수 있습니다."}), 403
     db = get_db()
     view = _watermark_view(db)
     return jsonify({"success": True, "error": None, "data": {

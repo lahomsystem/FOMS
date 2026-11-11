@@ -166,6 +166,12 @@ POLICY_REGISTRY: dict[str, Policy] = {
                         gate="foms.services.cs_agent.send_auth:can_use_send_screen",
                         description="AI 상담 초안 보내기 · 버리기 · 고칠 말 · 결과 맞추기 — ADMIN, 또는 CS 권한 팀의 STAFF · MANAGER. VIEWER · 다른 팀 deny."),
 
+    # 네이버 "지금 수집"(2026-11-11 사용자 결정): ADMIN, 또는 CS 팀 STAFF · MANAGER(회계팀 별칭 없음 — 정확히 CS).
+    # 소급 수집 · 만료일 · 전체 다시 읽기는 ADMIN_OPS 그대로. 핸들러가 같은 함수로 한 번 더 본다.
+    "NAVER_INGEST_RUN": _p("NAVER_INGEST_RUN", teams=("CS",),
+                           gate="foms.services.integrations.naver_commerce.run_now_access:can_run_ingest_now",
+                           description="네이버 '지금 수집' enqueue — ADMIN, 또는 team=CS 인 STAFF · MANAGER. 회계 · 영업 · VIEWER · 협력사 deny(2026-11-11)."),
+
     # 협력사 거래명세서 만들기 · 발행 · 수정본 · 취소(설계서 2026-11-03-partner-statement §6): ADMIN, 또는 CS 권한 팀의 STAFF ·
     # MANAGER. MANAGER 가 팀 검사보다 먼저 통과하는 엔진 순서를 피해 게이트 함수 하나가 판정한다(라우트가 같은 함수로 다시 본다).
     "PARTNER_STATEMENT": _p("PARTNER_STATEMENT", teams=("CS",),
