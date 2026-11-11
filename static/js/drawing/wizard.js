@@ -118,6 +118,20 @@
     });
   }
 
+  /**
+   * 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §3-3): 서버가 원래 시트·지난 차수 시트를
+   * 저장된 그대로 지켰거나(kept) 새 시트를 버렸으면(dropped) 화면이 서버와 달라졌다. 알리고 다시 읽는다.
+   * @returns {boolean} 다시 읽기로 했으면 true(호출자는 이어지는 PNG 저장을 멈춘다).
+   */
+  function reloadIfSheetsLocked(report) {
+    if (!report || !((report.kept || []).length || (report.dropped || []).length)) { return false; }
+    dirty = false;
+    userDirty = false;
+    toast('시공이 끝난 주문이라 원래 도면은 바뀌지 않아요. AS 시트에 그려 주세요. 화면을 다시 불러올게요.');
+    window.setTimeout(function () { window.location.reload(); }, 2500);
+    return true;
+  }
+
   /** html2canvas lazy-load (image-export.js 패턴 복제, perf guard G2). */
   function ensureHtml2canvas() {
     if (typeof window.html2canvas === 'function') { return Promise.resolve(); }
@@ -5562,6 +5576,7 @@
     }).then(function (r) {
       if (r.status === 200 && r.data && r.data.success) {
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
+        if (reloadIfSheetsLocked(r.data.data && r.data.data.sheet_lock)) { return false; }
         dirty = false;
         userDirty = false;
         saveFailed = false;
@@ -5797,6 +5812,7 @@
         return null;
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
+      if (reloadIfSheetsLocked(r.data.data && r.data.data.sheet_lock)) { finishSaveAll(); return null; }
       dirty = false;
       userDirty = false;
       saveFailed = false;
