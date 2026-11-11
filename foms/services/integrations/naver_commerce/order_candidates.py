@@ -54,7 +54,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     MONEY_BACK_CLAIM_KINDS,
     extract_claim_settlement_facts,
 )
-from foms.services.order_payment_sync import last_deposit_changes
+from foms.services.order_payment_history import last_deposit_changes
 from foms.services.orders.soft_delete import read_order_trash
 from foms.services.phone_search import normalize_phone_digits
 from models import ExternalOrderLink, Order
@@ -1183,7 +1183,7 @@ def _order_view(order: Order, *, score: int, reason: str,
         "erp_deposit": erp_deposit_amount_from_structured(sd),
         # 예약금을 마지막으로 고친 사람·때(2026-11-11 사용자 요청, 운영 #5978 정순현) —
         # 새 결제를 붙이기 전에 담당자가 예약금을 총액으로 먼저 고쳐 두면 "누가 바꿨나"를
-        # 운영 DB 까지 뒤져야 알았다. 값은 호출부가 :func:`foms.services.order_payment_sync.last_deposit_changes` 로 채운다.
+        # 운영 DB 까지 뒤져야 알았다. 값은 호출부가 :func:`foms.services.order_payment_history.last_deposit_changes` 로 채운다.
         "erp_deposit_changed": None,
     }
 
