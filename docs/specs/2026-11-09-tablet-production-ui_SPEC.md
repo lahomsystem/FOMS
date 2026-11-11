@@ -159,7 +159,7 @@
 - `is_production_home_user(user)`(`post_auth_navigation.py`) = 팀 PRODUCTION 이고 협력사 아님(프리랜서는 영업팀만 가능해 따로 보지 않음). `authenticated_home_url`·`resolve_post_login_redirect`(legacy `/`)·`listing.py index()`·`routes.py switch_user` 네 곳이 `production_home_url()` 로. 기기 무관. 시험 `tests/domains/test_post_auth_navigation.py` 4 사례(PC 로그인·`next=/`·`/`·CS 대조군).
 - **D15(11-09 저녁) 도장 공정 삭제** — 공정은 재단·엣지·조립·검수 4단계. `_PRODUCTION_STEP_DEFS`(API)·`PRODUCTION_HOME_STEP_DEFS` 에서 paint 제거, 옛 주문의 `production.steps` 에 남은 paint 는 읽을 때(API GET·`_ensure_production_steps`·첫 화면·시트·모바일 큐 "공정 n/N") 걸러 낸다. 데이터 이행 없음. 시안 그림의 도장 칸은 옛 그림.
 
-## 14. 출고 탭 — 하루치 출고표에서 시공자 배정 (D23~D30, 2026-11-11 — **승인 대기**)
+## 14. 출고 탭 — 하루치 출고표에서 시공자 배정 (D23~D31, 2026-11-11 — **승인됨: "이대로 만들기"**)
 
 ### 14.0 한 줄
 태블릿 가로 출고 탭을 "하루치 출고표 한 장"으로 바꾼다. 줄은 시공자 묶음 카드로 모이고, 맨 끝 시공자 칸을 누르면 이름판이 떠서 누르는 즉시 저장된다. 세부정보는 줄을 누르면 오른쪽 서랍. 시안 = `docs/design/mockups/tablet-shipment-styled-sheet.html` 안 17(누른 모습은 16n 이름판 · 16s AS 서랍).
@@ -169,6 +169,7 @@
 - **D25** 여러 명이 가면 자수는 사람 수로 나눠 센다. **D26** 시공자 배정이 핵심 · 단순 · 직관, AS 일정도 같이 짠다(AS 전담 기사가 있고 가끔 시공팀도 AS 를 간다).
 - **D27** 바탕 = 회사 엑셀 출고일지(칸 9개와 순서). **D28** 표는 단순하게, 세부(특히 AS 내용)는 누르면 서랍 — AS 는 AS 탭에서 받아 온다.
 - **D29** 엑셀 생김새와 본문 칠(주황 · 파랑 · 분홍)은 뺀다, 같은 시공자 색 묶음만 남긴다. **D30** 모양 = 안 17 시공자 묶음 카드. 이름 누르는 곳 = 칸 옆 이름판, 세부 = 오른쪽 서랍(질문 창이 답 없이 닫혀 권고안으로 둠).
+- **D31(11-11 질문 창 "영업팀은 막기")** 출고 배정 · 시공시간 · AS 넣기를 쓸 수 있는 사람 = 관리자 · CS팀 · 출고팀뿐. 영업팀은 PC 를 포함해 출고 탭을 보기만 한다.
 
 ### 14.2 지금 (워커 조사 + 총괄이 코드로 확인)
 - 태블릿 가로의 `/erp/shipment` 는 이미 전용 그리드를 그린다: `templates/shipment/partials/tablet_ship_grid.html`(6칸 · 시공팀 머리줄), 줄을 누르면 오른쪽 배정 시트 `GET /erp/shipment/tablet-sheet/<id>`(`tablet_sheet.html` — 팀 고르기 · 시간 `09:00`/`14:00`/직접 · [배정 적용]). 문지기는 CSS(`static/css/contexts/shipment/shipment-dashboard-columns.css` — `body.erp-mobile-v2-layout` + 터치 가로).
@@ -207,13 +208,13 @@
 - **자수 나누기(D25)** `compute_team_remaining_units_for_date` 도 같은 규칙으로 — 두 명이 간 22.4자 줄은 각자 11.2자. **PC 출고 탭의 사람별 잔여 숫자도 같이 바뀐다**(한 규칙).
 
 ### 14.4 권한 (D24 — 코어 변경)
-- 새 헬퍼 `can_edit_shipment(user)`(`erp_permissions.py`): `can_edit_erp` 이거나 출고팀 STAFF · MANAGER(협력사 · 비활성 제외) — `can_edit_construction_schedule` 과 같은 꼴. 새 데코레이터로 `POST /api/erp/shipment/update/<id>` 와 AS 추천 4종의 `@erp_edit_required` 를 바꾼다. 정책 `SHIPMENT_EDIT`(이미 CS · SALES · SHIPMENT)과 데코레이터가 같아진다.
-- 화면의 `can_edit_shipment` 값(`dashboard_main.html:39`)도 이 헬퍼에서 온다 → 출고팀에게 PC 편집 칸도 열린다.
-- 그대로: 시공팀(읽기만 · 내 것만) · 협력사 · 켜진 프리랜서 · VIEWER 는 쓰기 불가. 영업(SALES)은 지금처럼 쓸 수 있다(D24 는 "주라"는 결정이라 빼지 않음).
+- 새 헬퍼 `can_edit_shipment(user)`(`erp_permissions.py`): 관리자, CS팀, 출고팀 STAFF · MANAGER(협력사 · 비활성 제외). **영업팀(SALES — 실측 `MEASURE` 포함)은 안 된다(D31).** 정책 `SHIPMENT_EDIT` 의 팀도 CS · SHIPMENT 로 고치고 매니페스트를 다시 만든다. 새 데코레이터로 `POST /api/erp/shipment/update/<id>` 와 AS 추천 4종의 `@erp_edit_required` 를 바꾼다. 정책과 데코레이터가 같은 규칙을 본다.
+- 화면의 `can_edit_shipment` 값(`dashboard_main.html:39`)도 이 헬퍼에서 온다 → 출고팀에게 PC 편집 칸도 열리고, 영업팀에게는 PC · 모바일 편집 칸이 닫힌다.
+- 그대로: 시공팀(읽기만 · 내 것만) · 협력사 · 켜진 프리랜서 · VIEWER 는 쓰기 불가. 시공일 쓰기(`can_edit_construction_schedule` — 영업 포함)는 건드리지 않는다.
 - 사용자 몫: 운영에 출고팀 계정이 없다 — 출고 담당 계정의 팀을 출고팀으로 두어야 한다(관리자 · CS 계정은 지금도 된다).
 
 ### 14.5 시험
-- 권한: 출고팀 STAFF 가 배정 저장 · AS 추천/넣기/되돌리기 통과, 시공팀 · 협력사 · VIEWER 403(되돌리면 실패).
+- 권한: 관리자 · CS · 출고팀 STAFF 가 배정 저장 · AS 추천/넣기/되돌리기 통과, 영업팀 · 시공팀 · 협력사 · VIEWER 403(되돌리면 실패).
 - 집계: 묶음 순서(없음 먼저 · 설정 순 · 묶음 안 AS 뒤) · 번호 · 두 명 줄 자수 반씩 · AS 는 건수만 · 잔여 계산(되돌리면 실패).
 - 템플릿: 칸 9개 순서 · `AS` 딱지 · `＋ 시공자` · 본문 칠 클래스 없음 · 금액 없음 · 인라인 style 없음 · 글자 `calc(Npx * var(--foms-fs, 1))` · 자산 핀.
 - 스테이징 실화면(1280×800 터치): 쓰기는 가상 주문 `CLAUDE-TEST-` 로만(배정 저장은 알림이 없다). 시공일 옮기기는 누르지 않는다(실제 직원 방으로 알림).

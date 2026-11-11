@@ -110,10 +110,10 @@
 - task 끝나면 그 자리에서 DONE/BLOCKED, 막히면 사유 적고 다음 task.
 - 운영 반영은 스테이징 실화면 통과 뒤 사용자 명시 요청으로 cherry-pick 승격.
 
-## P14 출고 탭 — 하루치 출고표 · 시공자 배정 (설계서 §14 — D23~D30, 승인 대기)
+## P14 출고 탭 — 하루치 출고표 · 시공자 배정 (설계서 §14 — D23~D31, 승인 11-11)
 | # | 일 | 파일 | 시험 |
 |---|---|---|---|
-| T14-1 | 출고팀 쓰기 열기 | `erp_permissions.py`(`can_edit_shipment` + 데코레이터), `foms/api/shipment/settings.py`, `foms/api/shipment/recommendations.py`, `foms/web/shipment/dashboard.py`(화면 값) | 팀별 통과/403 |
+| T14-1 | 출고팀 쓰기 열기 · 영업팀 막기(D31) | `erp_permissions.py`(`can_edit_shipment` + 데코레이터), `foms/api/shipment/settings.py`, `foms/api/shipment/recommendations.py`, `foms/web/shipment/dashboard.py`(화면 값) | 팀별 통과/403 |
 | T14-2 | 묶음 · 사람별 집계 · 자수 나누기 | `foms/services/shipment/tablet_day_sheet.py`(신규), `dashboard.py`(`compute_team_remaining_units_for_date`) | 순서 · 번호 · 반씩 · AS 건수만 |
 | T14-3 | 표(안 17) + 이름판 | `tablet_ship_grid.html`, `shipment-dashboard-columns.css`(또는 새 CSS), `static/js/shipment/tablet-ship-assign.js`(신규) | 템플릿 단언 + 스테이징 실화면 |
 | T14-4 | 서랍 넓히기 + AS 정보 | `tablet_sheet.html`, `dashboard.py`(시트 값) | 조각 단언 |
