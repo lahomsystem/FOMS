@@ -197,6 +197,13 @@
 .erp-amount-value--deposit::placeholder {
   color: rgba(0, 0, 0, 0.5);
 }
+/* 예약금을 마지막으로 고친 사람·때(2026-11-11) — 예약금 칸 바로 아래 흐린 글 한 줄. 칩·색 없음. */
+.erp-deposit-who {
+  font-size: calc(12px * var(--foms-fs, 1));
+  color: #6b7280;
+  text-align: right;
+  width: 100%;
+}
 .erp-amount-value--discount {
   background: #FF9999;
   color: #000 !important;

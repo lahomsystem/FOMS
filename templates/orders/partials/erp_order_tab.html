@@ -454,6 +454,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <input type="text" id="erp-deposit-amount" data-erp="deposit_amount" inputmode="numeric" placeholder="0원" maxlength="24" class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                         </div>
+                        {% if deposit_last_change %}<div class="erp-deposit-who">{{ deposit_last_change.by }} {{ deposit_last_change.at }} 고침</div>{% endif %}
                         <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <input type="text" id="erp-free-input-text" maxlength="128" placeholder="항목명" class="erp-amount-value erp-amount-value--free-input-text text-end" title="항목명 등 자유 텍스트">
                             <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" placeholder="0원" class="erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">

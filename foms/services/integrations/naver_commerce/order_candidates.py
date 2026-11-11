@@ -41,7 +41,7 @@ from typing import Any, Optional
 from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
-from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
     erp_shipping_price_from_structured,
@@ -54,10 +54,10 @@ from foms.services.integrations.naver_commerce.mapping import (
     MONEY_BACK_CLAIM_KINDS,
     extract_claim_settlement_facts,
 )
-from foms.services.order_payment_sync import PAYMENT_CHANGED_EVENT
+from foms.services.order_payment_sync import last_deposit_changes
 from foms.services.orders.soft_delete import read_order_trash
 from foms.services.phone_search import normalize_phone_digits
-from models import ExternalOrderLink, Order, OrderEvent, User
+from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
@@ -1183,47 +1183,9 @@ def _order_view(order: Order, *, score: int, reason: str,
         "erp_deposit": erp_deposit_amount_from_structured(sd),
         # 예약금을 마지막으로 고친 사람·때(2026-11-11 사용자 요청, 운영 #5978 정순현) —
         # 새 결제를 붙이기 전에 담당자가 예약금을 총액으로 먼저 고쳐 두면 "누가 바꿨나"를
-        # 운영 DB 까지 뒤져야 알았다. 값은 호출부가 :func:`_deposit_changes` 로 채운다.
+        # 운영 DB 까지 뒤져야 알았다. 값은 호출부가 :func:`foms.services.order_payment_sync.last_deposit_changes` 로 채운다.
         "erp_deposit_changed": None,
     }
-
-
-def _deposit_changes(session, order_ids: list[int]) -> dict[int, dict[str, str]]:
-    """주문마다 예약금(``payment.deposit``)을 마지막으로 고친 사람과 때(KST)를 돌려준다.
-
-    ``PAYMENT_CHANGED`` 는 금액 변경의 유일한 기록 지점이다
-    (:mod:`foms.services.order_payment_sync`). 후보·검색 화면 상한(수 건)만큼만 받아
-    한 번에 읽는다 — 주문마다 따로 묻지 않는다.
-
-    Args:
-        session: DB 세션.
-        order_ids: 화면에 낼 주문 id.
-
-    Returns:
-        ``{order_id: {"by": 이름, "at": "MM-DD HH:MM"}}`` — 고친 기록이 없는 주문은 빠진다.
-    """
-    if not order_ids:
-        return {}
-    rows = (
-        session.query(OrderEvent.order_id, OrderEvent.payload, OrderEvent.created_at, User.name)
-        .outerjoin(User, User.id == OrderEvent.created_by_user_id)
-        .filter(OrderEvent.order_id.in_(order_ids),
-                OrderEvent.event_type == PAYMENT_CHANGED_EVENT)
-        .order_by(OrderEvent.created_at.desc(), OrderEvent.id.desc())
-        .all()
-    )
-    found: dict[int, dict[str, str]] = {}
-    for order_id, payload, created_at, user_name in rows:
-        if int(order_id) in found:
-            continue
-        if not isinstance(payload, dict) or payload.get("field") != "payment.deposit":
-            continue
-        found[int(order_id)] = {
-            # 사람 없이 바뀐 기록(시스템 경로)은 '자동' 으로 말한다 — 빈칸이면 "모름"으로 읽힌다.
-            "by": (user_name or "").strip() or "자동",
-            "at": format_datetime_kst(created_at, "%m-%d %H:%M") or "",
-        }
-    return found
 
 
 def find_order_candidates(session, link: ExternalOrderLink, *,
@@ -1361,7 +1323,7 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
         for order_id, (score, reason) in scored.items()
         if order_id in orders
     ]
-    deposit_changes = _deposit_changes(session, [row["order_id"] for row in views])
+    deposit_changes = last_deposit_changes(session, [row["order_id"] for row in views])
     for row in views:
         row["erp_deposit_changed"] = deposit_changes.get(row["order_id"])
     # 점수가 같으면 **살아 있는 주문이 먼저**다(2026-09-07). 휴지통 주문을 모집단에
@@ -1481,7 +1443,7 @@ def _search_views(session, link: ExternalOrderLink, orders: list[Order], *,
             for relation in ("REPAY", "ADDON")
         }
         views.append(view)
-    deposit_changes = _deposit_changes(session, [view["order_id"] for view in views])
+    deposit_changes = last_deposit_changes(session, [view["order_id"] for view in views])
     for view in views:
         view["erp_deposit_changed"] = deposit_changes.get(view["order_id"])
     return views
