@@ -3,7 +3,7 @@
 ``POST /api/orders/<id>/items/<uid>/cancel`` ``{reason, note}`` — 도면 확정 뒤에만.
 품목은 지우지 않고 ``items[].cancel`` 을 붙이고, 그 품목에만 묶인 최종 도면은
 ``drawing_excluded_files`` 로 옮긴다. REV-00 :func:`execute_order_mutation` 한 transaction
-(ERP_EDIT 정책 + If-Match + version bump + idempotency + OrderEvent).
+(ITEM_CANCEL 정책 + If-Match + version bump + idempotency + OrderEvent).
 """
 from __future__ import annotations
 
@@ -40,7 +40,8 @@ from models import Order, OrderEvent
 
 logger = logging.getLogger(__name__)
 
-ITEM_CANCEL_POLICY_ID = "ERP_EDIT"
+# CS·SALES·DRAWING(설계서 2026-11-11-item-cancel-drawing-team) — 도면 작업실 버튼(can_cancel_items)과 같은 정책.
+ITEM_CANCEL_POLICY_ID = "ITEM_CANCEL"
 
 erp_orders_item_cancel_bp = Blueprint('erp_orders_item_cancel', __name__, url_prefix='/api/orders')
 
