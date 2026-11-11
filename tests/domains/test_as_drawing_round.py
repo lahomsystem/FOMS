@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash
 
 import foms.api.drawing.wizard as wizard_api
 from db import db_session
+from foms.services.common import dashboard_cache as dc
 from foms.api.erp_orders_structured import _OPERATIONAL_TOP_LEVEL_KEYS
 from foms.services.orders import as_drawing as asd
 from foms.services.orders.drawing_key_safety import drawing_keys_in_use
@@ -33,6 +34,14 @@ class _Storage:
 
     def delete_file(self, key):
         return True
+
+
+@pytest.fixture(autouse=True)
+def _reset_cache_runtime(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    dc.reset_dashboard_cache_runtime_for_tests()
+    yield
+    dc.reset_dashboard_cache_runtime_for_tests()
 
 
 @pytest.fixture
@@ -55,17 +64,18 @@ def _as(client, user):
         sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
 
 
-def _order(stage="COMPLETED", *, drawing_ids=None, with_wizard=True):
+def _order(stage="COMPLETED", *, drawing_ids=None, with_wizard=True, name="이고객",
+           drawing_status="CONFIRMED"):
     sd = {
-        "parties": {"customer": {"name": "이고객", "phone": "010-1111-2222"},
+        "parties": {"customer": {"name": name, "phone": "010-1111-2222"},
                     "manager": {"name": "영업담당"}},
         "site": {"address_main": "성남", "address_full": "성남"},
         "items": [{"product_name": "냉장고장"}],
         "workflow": {"stage": stage},
-        "drawing_status": "CONFIRMED",
+        "drawing_status": drawing_status,
         "assignments": {"drawing_assignee_user_ids": list(drawing_ids or [])},
     }
-    order = Order(received_date=date.today().strftime("%Y-%m-%d"), customer_name="이고객",
+    order = Order(received_date=date.today().strftime("%Y-%m-%d"), customer_name=name,
                   phone="010-1111-2222", address="성남", product="냉장고장", status=stage,
                   manager_name="영업담당", is_erp_order=True, erp_stage_code=stage, structured_data=sd)
     db_session.add(order)
