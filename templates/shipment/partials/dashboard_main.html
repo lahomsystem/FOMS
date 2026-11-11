@@ -62,11 +62,13 @@
   {% elif erp_mobile_v2_enabled %}
     {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
-  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 추천 + 출고 확정.
+  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 넣기 + 이미지 저장.
      base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css).
      코호트에서 PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다. 신규 쿼리 없음(rows/
-     selected_date/construction_panel_dates 재소비). AS 추천은 기존 위임 트리거(data-*)
-     재사용, 출고 확정은 백엔드 라우트 부재로 disabled. #}
+     selected_date/construction_panel_dates 재소비). AS 넣기는 기존 AS 추천 위임 트리거(data-*) 재사용.
+     [이미지 저장]은 PC 머리 · 모바일과 같은 방아쇠(js-shipment-export-trigger → 숨은 #btn-export-image
+     클릭 → image-export.js). 읽기 기능이라 PC 머리처럼 권한 조건 없이 모두에게 보인다(P14-5).
+     예전 꺼진 [출고 확정](서버 기능 없음)은 뺐다. #}
   {% set _ship_wd = namespace(label='') %}
   {% for _ci in construction_panel_dates %}
     {%- if _ci.date == selected_date %}{% set _ship_wd.label = ['월','화','수','목','금','토','일'][_ci.weekday] %}{% endif %}
@@ -101,13 +103,13 @@
       {% if can_edit_shipment and not shipment_freelancer_view %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
               title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
-        <i class="fas fa-magic" aria-hidden="true"></i><span>AS 추천</span>
-      </button>
-      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri" disabled
-              title="출고 확정 액션/라우트가 아직 없습니다 — 백엔드 미구현">
-        <i class="fas fa-truck-loading" aria-hidden="true"></i><span>출고 확정</span>
+        <i class="fas fa-magic" aria-hidden="true"></i><span>AS 넣기</span>
       </button>
       {% endif %}
+      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri js-shipment-export-trigger"
+              title="오늘 출고표를 그림으로 내려받기">
+        <i class="fas fa-file-image" aria-hidden="true"></i><span>이미지 저장</span>
+      </button>
     </div>
   </div>
   <div class="erp-pro-card erp-shipment-desktop-shell">

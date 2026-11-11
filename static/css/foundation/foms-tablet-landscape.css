@@ -614,6 +614,18 @@
   max-width: 100%;
   overflow-x: auto;
 }
+/* 불러 붙인 AS 탭 조각은 AS 탭(PC)용 작은 글자(0.56~0.8rem)라 태블릿 최소 13px 를 밑돈다.
+   AS 탭 CSS 는 그대로 두고 출고 서랍 안에서만 글자를 13px(본문 14px) 이상으로 올린다(P14-5).
+   선택자 무게 (0,3,0) — 조각이 뒤에 싣는 foms-as-round-chart.css 규칙보다 무겁게. */
+.foms-ship-sheet .foms-ship-sheet__aslog .as-rchart {
+  font-size: calc(14px * var(--foms-fs, 1));
+}
+.foms-ship-sheet .foms-ship-sheet__aslog .as-rchart * {
+  font-size: calc(13px * var(--foms-fs, 1));
+}
+.foms-ship-sheet .foms-ship-sheet__aslog .as-rchart .as-tl-item__body {
+  font-size: calc(14px * var(--foms-fs, 1));
+}
 
 /* 시간 단추 + 입력 */
 .foms-ship-sheet__chips {
