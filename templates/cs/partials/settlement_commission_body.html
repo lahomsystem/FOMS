@@ -60,6 +60,8 @@
         <thead>
           <tr>
             <th scope="col" data-settlement-cm-date-head>시공일</th>
+            {# 실측일 기준일 때만 시공일을 옆에 한 칸 더(11-11 사용자 요청) — commission.js 가 보이고 숨긴다. #}
+            <th scope="col" data-settlement-cm-construction-head hidden>시공일</th>
             <th scope="col">고객명</th>
             <th scope="col">품목</th>
             <th scope="col">거래구분</th>
