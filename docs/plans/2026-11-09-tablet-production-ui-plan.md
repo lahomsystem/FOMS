@@ -84,6 +84,11 @@
 | T11-2 | 날짜 탭 읽기 모델 나누기 | `production_home_days.py`(신규), `production_home_read_model.py`, `home.py` | 글자까지 같은 옮기기 · 기존 시험 그대로 |
 | T11-3 | 시험 파일 나누기 | `test_production_home_fixes.py`(신규), `test_production_home_tabs.py` | 시험 수 18 → 9 + 10 |
 
+## P11 발주사 · 영업 담당 표기 (원장 §21 — D21, 2026-11-11) — DONE(스테이징), 운영은 지시 때
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T12-1 | 만들 것 줄에 발주사·담당 | `production_home_read_model.py`(`_by_line`), `home_date.html`, `home_steps.html`, `home.css` | 네 경우 × 두 줄 · 작은 칸에 없음 · CSS 규칙 |
+
 ## 뒤로 미룸(기록)
 - 원장 §17 R12(변경 알림 기준선 — 컨펌 기다림 때 쌓인 변경이 제작 대기 진입 때 한꺼번에 뜸, 보드·시트·모바일과 같이 정할 일).
 - 원장 §16 R6(장 나누기와 캡 나누기의 날짜 출처 통일) · S3(전체 화면 시트 150% 머리 줄 두 줄) · S4(옆 시트 머리 번호와 닫기 단추 겹침, 원래 있던 것).
