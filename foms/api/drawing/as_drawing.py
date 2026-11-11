@@ -26,6 +26,9 @@ from db import get_db
 from foms.api.cs.as_orders import register_as_from_payload
 from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
+from foms.web.auth import log_access
 from foms.services.auth.partner_scope import is_partner_sd, is_partner_user
 from foms.services.orders.manager_names import order_manager_label
 from foms.services.common.dashboard_cache import (
@@ -104,9 +107,35 @@ def _hashes(command: str, order_id: int, body: dict) -> tuple[str, str]:
     return scope, req
 
 
+#: 명령 → 감사 행위 이름(표시 문장은 audit_message_display 가 만든다).
+_AUDIT_ACTIONS = {
+    "start": "AS_DRAWING_STARTED",
+    "transfer": "AS_DRAWING_TRANSFERRED",
+    "confirm": "AS_DRAWING_CONFIRMED",
+    "request-revision": "AS_DRAWING_REVISION_REQUESTED",
+    "cancel": "AS_DRAWING_CANCELLED",
+}
+
+
+def _audit(db, order_id: int, user: Any, command: str, body: dict, result: dict) -> None:
+    """행위 1건 = 감사 1행(같은 트랜잭션 — 호출자가 commit). 연락처·주소는 싣지 않는다."""
+    order = db.get(Order, order_id)
+    context = order_audit_context(order) if order is not None else {}
+    action = _AUDIT_ACTIONS[command]
+    rnd = (result or {}).get("round") or {}
+    note = str(body.get("note") or body.get("reason") or body.get("memo") or "")[:200] or None
+    log_access(
+        describe_order_action(order_id=order_id, action=action, note=note, **context),
+        user.id, auto_commit=False, action=action, target_type="order", target_id=int(order_id),
+        detail={"round_id": rnd.get("round_id"), "round_no": rnd.get("no"), "status": rnd.get("status"),
+                "note": note, **context},
+        db=db,
+    )
+
+
 def _run(order_id: int, user: Any, command: str, body: dict,
          apply: Callable[[Any, Order, dict], dict]):
-    """잠근 행 위에서 ``apply(sess, order, sd)`` 를 돌리고 commit 한다. 결과 dict 또는 오류 응답."""
+    """잠근 행 위에서 ``apply(sess, order, sd)`` 를 돌리고 감사 1행과 함께 commit 한다. 결과 dict 또는 오류 응답."""
     if_match = (request.headers.get("If-Match") or "").strip().strip('"')
     expected = {order_id: int(if_match)} if if_match.isdigit() else None
     idem = (request.headers.get("Idempotency-Key") or "").strip() or None
@@ -128,6 +157,7 @@ def _run(order_id: int, user: Any, command: str, body: dict,
             expected_versions=expected, idempotency_key=idem,
             scope_hash=scope_hash, request_hash=request_hash, mutation=_mutate,
         )
+        _audit(db, order_id, user, command, body, captured.get("result") or {})
         db.commit()
     except ASDrawingError as exc:
         db.rollback()

@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 289,
+    "total": 294,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 250,
+    "AUDITED": 255,
     "EXEMPT": 37,
     "UNAUDITED": 2
   },
@@ -256,7 +256,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 1059,
+      "lineno": 1162,
       "methods": [
         "POST"
       ],
@@ -265,7 +265,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 974,
+      "lineno": 1077,
       "methods": [
         "POST"
       ],
@@ -274,7 +274,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 919,
+      "lineno": 1022,
       "methods": [
         "POST"
       ],
@@ -283,7 +283,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 1156,
+      "lineno": 1259,
       "methods": [
         "POST"
       ],
@@ -292,7 +292,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1326,
+      "lineno": 1429,
       "methods": [
         "POST"
       ],
@@ -301,7 +301,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 1266,
+      "lineno": 1369,
       "methods": [
         "PATCH"
       ],
@@ -310,7 +310,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_register",
-      "lineno": 519,
+      "lineno": 564,
       "methods": [
         "POST"
       ],
@@ -319,7 +319,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 946,
+      "lineno": 1049,
       "methods": [
         "POST"
       ],
@@ -328,7 +328,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_sales_delivery",
-      "lineno": 1875,
+      "lineno": 1978,
       "methods": [
         "POST"
       ],
@@ -337,7 +337,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 810,
+      "lineno": 913,
       "methods": [
         "POST"
       ],
@@ -346,7 +346,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1549,
+      "lineno": 1652,
       "methods": [
         "POST"
       ],
@@ -355,7 +355,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 892,
+      "lineno": 995,
       "methods": [
         "POST"
       ],
@@ -364,7 +364,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 864,
+      "lineno": 967,
       "methods": [
         "POST"
       ],
@@ -373,7 +373,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_upload_anchor",
-      "lineno": 1119,
+      "lineno": 1222,
       "methods": [
         "POST"
       ],
@@ -382,7 +382,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 1201,
+      "lineno": 1304,
       "methods": [
         "POST"
       ],
@@ -506,6 +506,51 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_cancel",
+      "lineno": 376,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_confirm",
+      "lineno": 324,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_request_revision",
+      "lineno": 349,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_start",
+      "lineno": 230,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_transfer",
+      "lineno": 294,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
       "endpoint": "api_order_assign_draftsman",
       "lineno": 188,
@@ -535,7 +580,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 1010,
+      "lineno": 1024,
       "methods": [
         "POST"
       ],
@@ -544,7 +589,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 965,
+      "lineno": 979,
       "methods": [
         "POST"
       ],
@@ -553,7 +598,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 671,
+      "lineno": 685,
       "methods": [
         "POST"
       ],
@@ -562,7 +607,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 599,
+      "lineno": 613,
       "methods": [
         "POST"
       ],
@@ -625,7 +670,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_delete_drawing_wizard_pending",
-      "lineno": 1567,
+      "lineno": 1582,
       "methods": [
         "DELETE"
       ],
@@ -634,7 +679,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_asset",
-      "lineno": 1052,
+      "lineno": 1067,
       "methods": [
         "POST"
       ],
@@ -643,7 +688,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_bom_rules",
-      "lineno": 1991,
+      "lineno": 2006,
       "methods": [
         "POST"
       ],
@@ -652,7 +697,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_import_attachment",
-      "lineno": 1120,
+      "lineno": 1135,
       "methods": [
         "POST"
       ],
@@ -661,7 +706,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory",
-      "lineno": 2061,
+      "lineno": 2076,
       "methods": [
         "POST"
       ],
@@ -670,7 +715,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory_match",
-      "lineno": 2090,
+      "lineno": 2105,
       "methods": [
         "POST"
       ],
@@ -679,7 +724,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1913,
+      "lineno": 1928,
       "methods": [
         "POST"
       ],
@@ -688,7 +733,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_sheet_png",
-      "lineno": 1186,
+      "lineno": 1201,
       "methods": [
         "POST"
       ],
@@ -697,7 +742,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_transfer_pending",
-      "lineno": 1655,
+      "lineno": 1670,
       "methods": [
         "POST"
       ],
@@ -706,7 +751,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1721,
+      "lineno": 1736,
       "methods": [
         "POST"
       ],
@@ -715,7 +760,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_put_drawing_wizard",
-      "lineno": 897,
+      "lineno": 898,
       "methods": [
         "PUT"
       ],
@@ -859,7 +904,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1991,
+      "lineno": 1995,
       "methods": [
         "POST"
       ],
@@ -868,7 +913,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 2450,
+      "lineno": 2454,
       "methods": [
         "POST"
       ],
@@ -877,7 +922,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 2323,
+      "lineno": 2327,
       "methods": [
         "POST"
       ],
@@ -886,7 +931,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1870,
+      "lineno": 1874,
       "methods": [
         "POST"
       ],
@@ -895,7 +940,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 1098,
+      "lineno": 1102,
       "methods": [
         "PATCH"
       ],
@@ -904,7 +949,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1892,
+      "lineno": 1896,
       "methods": [
         "POST"
       ],
@@ -913,7 +958,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 1387,
+      "lineno": 1391,
       "methods": [
         "PUT"
       ],
