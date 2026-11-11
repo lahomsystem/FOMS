@@ -96,6 +96,8 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "photo_learn_enabled": False,  # 사진 학습 → 회사 지식 제안(설계서 17.11.1 의 7) — 처음 끔
         # 상담 전체 대화(설계서 17.11.2 · D173 — 사장님 승인 '전체 대화로 바꾸기'라 처음부터 켬, 0 이면 예전 재료)
         "full_talk_messages": 300, "full_talk_chars": 12000, "photo_learn_cases": 4,
+        # 말 끝남 판단(사장님 11-11) — 처음 끔(예전 조용 기다림 그대로)
+        "turn_end_mode": "off", "turn_end_fast_wait_s": 4, "turn_end_slow_wait_s": 40,
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)

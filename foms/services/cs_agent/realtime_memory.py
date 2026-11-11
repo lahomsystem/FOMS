@@ -49,6 +49,7 @@ class TickMemory:
         """빈 메모리."""
         self.filtered = _Bounded(limit)
         self.decided = _Bounded(limit)
+        self.turn_end = _Bounded(limit)  # (상담, 손님 글) → 말 끝남 판단(:mod:`.turn_end` — 못 물었으면 'failed')
         self.settings_version: Optional[int] = None
         self.paused_until: Optional[datetime.datetime] = None
         self.paused_code: Optional[str] = None
