@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111g" in html
+    assert "home.css?v=20261111h" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -258,3 +258,55 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     assert "\n.fph-by.is-m { color: var(--fph-brand-dark); }" in css and ".fph-qr__who .fph-by.is-m { color: var(--fph-brand-dark); }" in css
     label = re.search(r"(?m)^\.fph-by i \{[^}]*\}", css).group(0)
     assert "color: var(--fph-text3)" in label and "calc(12px * var(--foms-fs, 1))" in label and "font-style: normal" in label
+
+
+# ── 작은 화면 결함 3건(11-11): 곧 올 것 번호 · 전체 화면 시트 머리 줄(S3) · 옆 시트 머리와 닫기 단추(S4) ──
+
+def _landscape_block(css: str) -> str:
+    """가로 태블릿(레일 + 터치) 미디어 블록 하나 — 다음 빈 줄 앞까지."""
+    head = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {"
+    return css.split(head)[1].split(chr(10) + "}" + chr(10))[0]
+
+
+def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(client) -> None:
+    _make_user(client, "tabs_prod_nx", "PRODUCTION")
+    long_name = "가나다 인테리어 디자인 스튜디오 주식회사 본점"
+    order = _add_order("PRODUCTION", long_name, 2)  # 재단 '곧 올 것' = 제작 대기
+    html = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    nxt = html.split('data-foms-home-stepq="cut"')[1].split("fph-q__nextlist")[1].split("</div>")[0]
+    assert f"<b><i>{long_name}</i> <small>#{order.id}</small></b>" in nxt
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    # 날짜 탭 큰 줄(.fph-dr__nm, M6)과 같은 방식: 칸은 flex, 이름(i)만 말줄임, 번호(small)는 안 준다
+    assert ".fph-nx b { min-width: 0; display: flex; align-items: baseline; gap: 6px;" in css
+    assert ".fph-nx b i { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; }" in css
+    assert ".fph-nx b small { flex-shrink: 0;" in css
+    nx_b = css.split(".fph-nx b {")[1].split("}")[0]
+    assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
+    assert "home.css') }}?v=20261111h" in (ROOT / "templates/production/home.html").read_text(encoding="utf-8")
+
+
+def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
+    """S3: 몸통 높이를 '100dvh - 64px' 로 박아 두면 머리 줄 실제 높이(단추 56 + 8·8 + 선 1 = 73px)와 9px 어긋나고,
+    긴 제목이 줄을 넘기면(150%) 머리 줄이 두 줄 129px 이 되어 페이지가 865px 로 화면(800)을 넘었다."""
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    block = _landscape_block(css)
+    assert ".foms-prod-page { height: calc(100dvh / var(--foms-ui-zoom, 1)); display: flex; flex-direction: column; }" in block
+    assert ".foms-prod-page__bar { flex-wrap: nowrap; flex-shrink: 0; }" in block
+    assert ".foms-prod-page__body { flex: 1 1 auto; height: auto; min-height: 0; }" in block
+    assert "- 64px); min-height: 0; }" not in block
+    # 제목은 줄 수 있는 유일한 칸(말줄임), 이름 · 번호 · 품목 · 단추는 그대로 마크업에 있다
+    assert ".foms-prod-page__title { margin: 0; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in css
+    page = (ROOT / "templates/production/sheet.html").read_text(encoding="utf-8")
+    assert '<h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>' in page
+    assert "sheet.css') }}?v=20261111a" in page
+
+
+def test_옆_시트_머리_줄은_떠_있는_닫기_단추_자리를_비운다() -> None:
+    """S4: 머리 줄 끝 '#번호 · 상차' 글이 우상단에 떠 있는 닫기(44px + 바깥 8px) 밑으로 20×8px 들어갔다."""
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    assert ".foms-tablet-sheet--headless .foms-prod-sheet__titlebar { padding-right: 36px; }" in css
+    frag = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
+    bar = frag.split('<div class="foms-prod-sheet__titlebar">')[1].split("{# ──")[0]
+    assert '<div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>' in bar
+    body = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
+    assert "css/contexts/production/sheet.css') }}?v=20261111a" in body

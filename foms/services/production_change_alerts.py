@@ -56,9 +56,15 @@ PROD_STAGES: frozenset[str] = frozenset(
 
 _TOMBSTONE_DAYS = 14
 _DRAWING_TS_FMT = "%Y-%m-%d %H:%M:%S"
+#: 제작 대기(생산) 또는 그 뒤 단계 — D22(11-11) 바닥선은 이 묶음 **밖에서 안으로** 들어온 순간이다.
+#: 생산→시공(제작 완료)·시공→생산(완료 취소·수정 제작)은 안쪽 이동이라 바닥선을 옮기지 않는다.
+_DOWNSTREAM_STAGES: frozenset[str] = frozenset({"생산", "PRODUCTION", "시공", "CONSTRUCTION"})
+#: 단계를 옮기며 payload ``from``/``to`` 를 남기는 이벤트 — 일반·일괄 단계 변경(``STAGE_CHANGED``) · 강제 단계 변경
+#: (``STAGE_OVERRIDE``) · 고객 컨펌 끝(``CUSTOMER_CONFIRMED``) · 컨펌에서 바로 제작 시작(``PRODUCTION_STARTED``).
+_STAGE_MOVE_EVENT_TYPES = ("STAGE_CHANGED", "STAGE_OVERRIDE", "CUSTOMER_CONFIRMED", "PRODUCTION_STARTED")
 _RELEVANT_EVENT_TYPES = (
     "PRODUCTION_CHANGE_ACK",
-    "STAGE_CHANGED",
+    *_STAGE_MOVE_EVENT_TYPES,
     "CONSTRUCTION_DATE_CHANGED",
 )
 #: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
@@ -105,7 +111,8 @@ def compute_window_start(
 ) -> datetime.datetime | None:
     """주문의 변경 감지 윈도 시작 시각(naive) 계산(사용자 개인별).
 
-    우선순위: ``user_id`` 본인이 낸 최근 ``PRODUCTION_CHANGE_ACK`` → 최근 생산 진입
+    D22(11-11): 지금 생산·시공 단계면 아래 값과 **마지막 생산 진입 시각** 중 늦은 쪽(:func:`_production_entry_floor`)
+    — 컨펌 기다림 동안의 변경은 생산으로 넘어온 뒤 띄우지 않는다. 그 밖의 우선순위: ``user_id`` 본인이 낸 최근 ``PRODUCTION_CHANGE_ACK`` → 최근 생산 진입
     ``STAGE_CHANGED`` (payload.to ∈ PROD_STAGES 이고 from ∉ PROD_STAGES) →
     ``erp_stage_updated_at`` → ``created_at``. ``user_id`` 가 None 이면 개인 ack 가 없는
     것으로 보고 폴백 체인만 사용한다(모든 변경 표시).
@@ -118,6 +125,35 @@ def compute_window_start(
     Returns:
         윈도 시작 naive ``datetime`` 또는 폴백도 없으면 ``None``.
     """
+    floor = _production_entry_floor(order, events)
+    window = _window_before_floor(order, events, user_id)
+    if floor is not None and (window is None or floor > window):
+        return floor
+    return window
+
+
+def _production_entry_floor(order: Order, events: list[OrderEvent]) -> datetime.datetime | None:
+    """D22(사용자 11-11 "제작 대기 뒤 바뀐 것만"): 지금 생산·시공 단계인 주문의 마지막 생산 진입 시각.
+
+    진입 = 단계 이동 이벤트 중 ``to`` 가 생산·시공이고 ``from`` 이 그 밖(고객컨펌 등)인 것. 지금 컨펌 단계인 주문
+    (생산에서 되돌린 것 포함)은 바닥선이 없다 — 컨펌 기다림 알림은 전과 같다.
+    """
+    if getattr(order, "erp_stage_code", None) not in _DOWNSTREAM_STAGES:
+        return None
+    times = []
+    for e in events:
+        if e.event_type not in _STAGE_MOVE_EVENT_TYPES or e.created_at is None:
+            continue
+        payload = e.payload if isinstance(e.payload, dict) else {}
+        if payload.get("to") in _DOWNSTREAM_STAGES and payload.get("from") not in _DOWNSTREAM_STAGES:
+            times.append(e.created_at)
+    return max(times) if times else None
+
+
+def _window_before_floor(
+    order: Order, events: list[OrderEvent], user_id: int | None
+) -> datetime.datetime | None:
+    """D22 전 기준선 — 본인 ack → 파이프라인 진입 → ``erp_stage_updated_at`` → ``created_at``."""
     ack_times = [
         e.created_at
         for e in events

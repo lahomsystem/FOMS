@@ -339,8 +339,12 @@ def build_production_home(
     run_ids = fetch_production_current_run_ids(db, orders)
     rows = build_production_home_enriched_rows(orders, run_ids)
     alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None)
+    # 장 나누기도 캡·정렬과 같은 출처(납작 열)로 — 행의 construction_date 는 JSONB 라 직접 SQL 로 고친 옛 주문에서
+    # 어긋나면 "앞날이라 읽은 주문이 지난 시공일 장에" 선다(R6, 11-11). 이 행 사전은 첫 화면 전용이다.
+    flat_dates = {o.id: o.erp_construction_date for o in orders}
 
     for row in rows:
+        row['construction_date'] = flat_dates.get(row['id'])
         sd = row.get('structured_data') or {}
         raw_stage = row.get('raw_stage')
         has_run = row['id'] in run_ids
