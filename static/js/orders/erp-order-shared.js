@@ -2733,6 +2733,40 @@ function erpNavigateAfterStructuredSave(targetUrl) {
 }
 
 /**
+ * AS 접수 창의 '도면팀에 정확한 도면 부탁' 줄(완료 주문 AS 도면 흐름 1)을 맞춘다.
+ * 시공이 끝난 주문(CS·완료)에서만 보이고, 이미 열린 AS 도면이 있으면 체크 대신 안내만 보인다.
+ * 설계서 docs/specs/2026-11-11-as-drawing-after-completion_SPEC.md §4.1.
+ */
+function erpRefreshAsDrawingRequest() {
+    const wrap = document.getElementById('as-receive-drawing-wrap');
+    if (!wrap) return;
+    const sd = window.__erpLastStructuredData || {};
+    const stage = String((sd.workflow && sd.workflow.stage) || '').trim().toUpperCase();
+    const asStage = stage === 'CS' || stage === 'COMPLETED' || stage === '완료';
+    const openStatuses = ['WAITING', 'IN_PROGRESS', 'TRANSFERRED', 'RETURNED'];
+    const alreadyOpen = openStatuses.indexOf(String(sd.as_drawing_status || '')) >= 0;
+    wrap.classList.toggle('d-none', !asStage);
+    const box = document.getElementById('as-receive-drawing-request');
+    const memoWrap = document.getElementById('as-receive-drawing-memo-wrap');
+    const openNote = document.getElementById('as-receive-drawing-open-note');
+    if (box) {
+        box.checked = false;
+        box.disabled = alreadyOpen;
+        box.closest('.form-check')?.classList.toggle('d-none', alreadyOpen);
+    }
+    if (memoWrap) memoWrap.classList.add('d-none');
+    if (openNote) openNote.classList.toggle('d-none', !alreadyOpen);
+    const memo = document.getElementById('as-receive-drawing-memo');
+    if (memo) memo.value = '';
+    if (box && box.dataset.erpAsDrawingBound !== '1') {
+        box.dataset.erpAsDrawingBound = '1';
+        box.addEventListener('change', function () {
+            if (memoWrap) memoWrap.classList.toggle('d-none', !box.checked);
+        });
+    }
+}
+
+/**
  * AS 접수 모달이 열릴 세 모드 중 하나를 고른다.
  *
  * 판정은 서버 payload(``as_cycle.cycle_status``)로만 한다. 화면이 ``order.status`` 같은
@@ -2917,6 +2951,7 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
     const isReintake = mode === 'reintake';
     const isEdit = mode === 'edit';
     window.__erpAsReceiveMode = mode;
+    erpRefreshAsDrawingRequest();
     // 접수 전 닫힌 창(빈 곳 클릭·취소·X)은 쓰던 글·사진·동영상·비용 선택을 그대로 둔다.
     // 같은 주문·같은 모드로 다시 열면 이어 쓰고, 접수에 성공해야만 비운다(사용자 11-09).
     const draftKey = `${targetId}:${mode}`;
@@ -3767,6 +3802,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 if (recurEl && recurEl.checked && window.__erpAsReceiveMode === 'reintake') {
                     regPayload.recurrence = true;
                 }
+                // 완료 주문 AS 도면 흐름 1: 접수와 같은 저장에서 도면팀에 부탁한다(서버가 같은 mutation 에서 차수를 연다).
+                const drawingReqEl = document.getElementById('as-receive-drawing-request');
+                if (drawingReqEl && drawingReqEl.checked && !drawingReqEl.disabled) {
+                    const drawingMemoEl = document.getElementById('as-receive-drawing-memo');
+                    regPayload.drawing_request = { memo: (drawingMemoEl?.value || '').trim() };
+                }
                 const shipDateEl = document.getElementById('as-receive-shipping-date');
                 const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
                 const shipDateVal = (shipDateEl?.value || '').trim();
@@ -3868,7 +3909,15 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     const saveResult = await erpSaveStructured({ redirect: false });
                     if (saveResult && saveResult.success === true) {
                         erpSetStatus('AS 등록 완료');
-                        erpNotifyAsReceiveResult('AS 접수 완료');
+                        // 흐름 1: 도면팀 부탁 결과를 같은 알림에 붙인다(서버 응답 as_drawing).
+                        const drawingNote = regData.as_drawing === 'opened'
+                            ? ' · 도면팀에 AS 도면을 부탁했어요'
+                            : (regData.as_drawing === 'already_open' ? ' · 도면팀이 이미 AS 도면을 그리고 있어요' : '');
+                        if (drawingNote) {
+                            erpNotifyAsReceiveResult('AS 접수 완료' + drawingNote);
+                        } else {
+                            erpNotifyAsReceiveResult('AS 접수 완료');
+                        }
                     } else {
                         const failMsg = 'AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.';
                         erpSetStatus(failMsg, true);

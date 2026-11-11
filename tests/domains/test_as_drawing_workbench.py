@@ -111,3 +111,24 @@ def test_detail_for_open_drawing_stage_order_has_no_as_card(client):
 
     assert 'id="dw-as-card"' not in body and "data-dw-as-start-open" not in body
     assert "도면 마법사" in body
+
+
+# --------------------------------------------------------------------------
+# 흐름 1 화면 — AS 접수 창 '도면팀에 정확한 도면 부탁' 한 줄(설계서 §4.1)
+# --------------------------------------------------------------------------
+
+def test_as_receive_modal_has_drawing_request_line():
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    for name in ("erp_order_tab.html", "erp_order_tab_mobile.html"):
+        html = (root / "templates" / "orders" / "partials" / name).read_text(encoding="utf-8")
+        assert 'id="as-receive-drawing-request"' in html and "도면팀에 정확한 도면 부탁" in html, name
+        assert 'id="as-receive-drawing-wrap"' in html, name
+    js = (root / "static" / "js" / "orders" / "erp-order-shared.js").read_text(encoding="utf-8")
+    assert "regPayload.drawing_request = { memo:" in js
+    # 시공이 끝난 단계에서만 보이고, 열 때마다 초기화한다.
+    helper = js[js.index("function erpRefreshAsDrawingRequest("):]
+    helper = helper[: helper.index("\n}\n")]
+    assert "'COMPLETED'" in helper and "'CS'" in helper and "box.checked = false" in helper
+    assert "erpRefreshAsDrawingRequest();" in js
