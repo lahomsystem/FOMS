@@ -74,13 +74,14 @@ from foms.services.cs_agent.checks import check_draft
 from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK, DraftPass as _Pass  # noqa: F401 — 예전 이름
 from foms.services.cs_agent.drafting_post import is_send_failure, place
 from foms.services.cs_agent.drafting_read import (
-    MEDIUM_EMAIL, SKIP_PHOTO_ONLY, ChatLine, conversation, freshness, memo_snippets, no_text_reason, read_lines,
-    read_medium,
+    MEDIUM_EMAIL, SKIP_PHOTO_ONLY, ChatLine, conversation, customer_texts, freshness, memo_snippets, no_text_reason,
+    read_lines, read_medium,
 )
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.edit_detail_settings import CASE_REASONS_FIELD, switch_value
 from foms.services.cs_agent.image_settings import MODE_OFF as PHOTOS_OFF, image_mode
 from foms.services.cs_agent.knowledge import load_approved
+from foms.services.cs_agent.ontology import with_ontology
 from foms.services.cs_agent.masking import MaskLeak, mask
 from foms.services.cs_agent.memo import MemoResult, post_private_memo
 from foms.services.cs_agent.quote_brain import QUOTE_INTENT
@@ -266,7 +267,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         return _halted(session, summary, HALT_SPEND)
     if _open_api_headers(BRAND) is None:
         return _halted(session, summary, HALT_NOT_CONFIGURED)
-    knowledge = load_approved(session, BRAND)
+    knowledge = with_ontology(session, load_approved(session, BRAND))  # 바꿔 묻기 대응(관리 칸 — 모두 끔이면 그대로)
     try:
         ready(BRAND, knowledge, session=session, now=now)  # 고르기 · 선점 전 — 안 됐으면 줄을 만들지 않는다(R7-4)
     except BrainNotReady as exc:
@@ -452,7 +453,8 @@ def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str
     memo_note = "\n".join(part for part in (note, quote_note) if part)  # 견적 계산 줄이 없으면 예전 직원 참고 그대로
     check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=(*ctx.allowed, *extra_allowed),
                         private_snippets=(*memo_snippets(lines), note), example_only_words=examples,
-                        human_only_amounts=bool(ctx.human_only.intersection(evidence)))
+                        human_only_amounts=bool(ctx.human_only.intersection(evidence)),
+                        same_values=ctx.knowledge.same_values(), customer_texts=customer_texts(lines))
     masked = mask(draft)
     if not check.ok:  # 검사 걸림 — 건너뜀 + (켜졌으면) 넘김 메모(초안은 싣지 않는다)
         return ctx.hand_off(row, SKIP_CHECK, codes=check.problems, masked=masked, note=memo_note)

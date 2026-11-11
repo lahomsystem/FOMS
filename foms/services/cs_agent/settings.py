@@ -46,6 +46,7 @@ from foms.services.cs_agent.brain_instructions import LENGTH_CHOICES, LENGTH_DEF
 from foms.services.cs_agent.brain_spend import worker_daily_cap
 from foms.services.cs_agent.edit_detail_settings import DETAIL_FIELDS
 from foms.services.cs_agent.handoff_memo_settings import HANDOFF_MEMO_FIELDS
+from foms.services.cs_agent.onto_settings import ONTO_FIELDS
 from foms.services.cs_agent.image_settings import IMAGE_FIELDS
 from foms.services.cs_agent.turn_end_settings import TURN_END_FIELDS
 from foms.services.cs_agent.handoff_learn_settings import HANDOFF_LEARN_FIELDS
@@ -149,6 +150,7 @@ FIELDS: tuple[Field, ...] = (
     *TURN_END_FIELDS,  # 말 끝남 판단(빠른 길 기다림 — 사장님 11-11) — 처음 끔
     *HANDOFF_LEARN_FIELDS,  # 넘긴 상담 배우기 → 회사 지식 제안(사장님 11-11) — 처음 끔
     *HANDOFF_MEMO_FIELDS,  # 넘김 메모(AI 가 초안을 안 쓴 까닭 — 직원에게) — 처음 끔
+    *ONTO_FIELDS,  # 바꿔 묻기 대응(온톨로지 — 사장님 11-11) — 처음 끔
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

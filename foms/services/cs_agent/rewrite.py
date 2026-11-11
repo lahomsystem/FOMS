@@ -34,9 +34,10 @@ from foms.services.cs_agent.checks import check_draft
 from foms.services.cs_agent.drafting_pass import HUMAN_ONLY_MARK
 from foms.services.cs_agent.drafting_post import _alert
 from foms.services.cs_agent.drafting_read import (
-    conversation, freshness, memo_draft, memo_snippets, memo_text, read_lines, read_medium,
+    conversation, customer_texts, freshness, memo_draft, memo_snippets, memo_text, read_lines, read_medium,
 )
 from foms.services.cs_agent.knowledge import load_approved
+from foms.services.cs_agent.ontology import with_ontology
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_NOT_PRIVATE
 from foms.services.cs_agent.photo_step import stored_photos
@@ -128,7 +129,7 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
     quote_lines, quote_allowed = lines_from(row.quote_lines), allowed_from(row.quote_lines)  # 그 차례 계산기 값(R17-1)
     if not _switch_ready(session) or row.brand != MEMO_BRAND or not note:
         return _give_up(session, turn_id, "switched_off", now)
-    knowledge = load_approved(session, row.brand)
+    knowledge = with_ontology(session, load_approved(session, row.brand))
     session.commit()
     try:
         lines = read_lines(reader, MEMO_BRAND, chat_id)
@@ -158,7 +159,8 @@ def _one(session: Any, turn_id: int, *, now: datetime.datetime, stop: Any, reade
     human_only = {item.item_id for item in knowledge.items if HUMAN_ONLY_MARK in item.text}
     check = check_draft(result.draft, brand=MEMO_BRAND, medium=medium, allowed_numbers=allowed,
                         private_snippets=(*memo_snippets(lines), result.staff_note),
-                        human_only_amounts=bool(human_only.intersection(result.evidence_ids)))
+                        human_only_amounts=bool(human_only.intersection(result.evidence_ids)),
+                        same_values=knowledge.same_values(), customer_texts=customer_texts(lines))
     if not check.ok:
         return _give_up(session, turn_id, "check_failed", now)
     return _post(session, turn_id, chat_id, result, now=now, reader=reader, poster=poster)

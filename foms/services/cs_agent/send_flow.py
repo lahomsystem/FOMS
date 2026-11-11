@@ -40,9 +40,12 @@ from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.case_memory import EDIT_REASONS, OUTCOME_DISCARDED
 from foms.services.cs_agent.channel_read import ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.checks import REASONS, check_draft
-from foms.services.cs_agent.drafting_read import freshness, memo_draft, memo_snippets, read_lines, read_medium
+from foms.services.cs_agent.drafting_read import (
+    customer_texts, freshness, memo_draft, memo_snippets, read_lines, read_medium,
+)
 from foms.services.cs_agent.edit_detail import detail_text, switches as detail_switches
 from foms.services.cs_agent.knowledge import load_approved
+from foms.services.cs_agent.ontology import with_ontology
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.quote_record import allowed_from
@@ -335,12 +338,13 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
         return _back(session, row, previous, "memo_missing", now, _fail("memo_missing", 409))
     text = (request.text or "").strip() if edited else ai_draft
     edited = edited and text != (ai_draft or "").strip()
-    knowledge = load_approved(session, row.brand)
+    knowledge = with_ontology(session, load_approved(session, row.brand))  # 초안을 쓴 때와 같은 재료(바꿔 묻기 대응)
     quote_allowed = allowed_from(row.quote_lines)  # 그 차례 계산기 값 — '계산됨 · 확인됨'일 때만(C10-6 · R17-1)
     detail_on = edited and bool(request.edit_detail) and detail_switches(session, with_photos=False).detail
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
     args = {"brand": row.brand, "medium": medium, "private_snippets": memo_snippets(lines),
-            "allowed_numbers": (*knowledge.spoken_texts(), *quote_allowed)}
+            "allowed_numbers": (*knowledge.spoken_texts(), *quote_allowed), "same_values": knowledge.same_values(),
+            "customer_texts": customer_texts(lines)}
     check = check_draft(text, **args)
     kept = set(check_draft(ai_draft, **args).codes) if edited and ai_draft else set()  # AI 초안의 문제는 고쳐도 막는다
     hard = [p for p in check.problems if not edited or p.code in HARD_CODES or p.code in kept]
