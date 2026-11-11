@@ -28,7 +28,6 @@ from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.web.auth import log_access
 from foms.services.auth.partner_scope import is_partner_sd, is_partner_user
 from foms.services.orders.manager_names import order_manager_label
 from foms.services.common.dashboard_cache import (
@@ -57,7 +56,7 @@ from foms.services.orders.as_drawing import (
 from foms.services.orders.as_drawing_notify import notify_as_drawing
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from models import Order
+from models import Order, SecurityLog
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +123,14 @@ def _audit(db, order_id: int, user: Any, command: str, body: dict, result: dict)
     action = _AUDIT_ACTIONS[command]
     rnd = (result or {}).get("round") or {}
     note = str(body.get("note") or body.get("reason") or body.get("memo") or "")[:200] or None
-    log_access(
-        describe_order_action(order_id=order_id, action=action, note=note, **context),
-        user.id, auto_commit=False, action=action, target_type="order", target_id=int(order_id),
+    # SecurityLog 를 같은 세션에 바로 싣는다 — API 층은 웹 층(log_access)을 부르지 않는다(레이어 래칫).
+    db.add(SecurityLog(
+        user_id=user.id,
+        message=describe_order_action(order_id=order_id, action=action, note=note, **context),
+        action=action, target_type="order", target_id=int(order_id),
         detail={"round_id": rnd.get("round_id"), "round_no": rnd.get("no"), "status": rnd.get("status"),
                 "note": note, **context},
-        db=db,
-    )
+    ))
 
 
 def _run(order_id: int, user: Any, command: str, body: dict,
@@ -290,18 +290,14 @@ def api_as_drawing_start(order_id: int):
     return jsonify({"success": True, "error": None, "data": {"registered_as": False, **result}})
 
 
-@erp_orders_as_drawing_bp.route("/<int:order_id>/drawing/as/transfer", methods=["POST"])
-def api_as_drawing_transfer(order_id: int):
-    """이번 차수 AS 시트의 대기함 그림을 차수 파일로 보낸다. 영업 담당 · CS 팀에 알린다."""
-    user, err = _guard(DRAWING_POLICY_ID)
-    if err:
-        return err
-    db = get_db()
-    order, err = _load_order(db, order_id)
-    if err:
-        return err
-    payload = request.get_json(silent=True) or {}
-    note = str(payload.get("note") or "").strip()[:500]
+def run_as_transfer(order_id: int, user: Any, note: str = ""):
+    """이번 차수 AS 시트 대기함 그림을 보낸다 — ``/drawing/as/transfer`` 와 마법사 ``transfer-pending``
+    (시공이 끝난 주문) 이 같이 부른다. 권한은 부르는 쪽이 판정한다.
+
+    Returns:
+        ``(결과 dict, None)`` 또는 ``(None, 오류 응답)``.
+    """
+    note = str(note or "").strip()[:500]
     actor_id, actor_name = _actor(user)
 
     def _apply(sess, locked_order, sd):
@@ -314,7 +310,21 @@ def api_as_drawing_transfer(order_id: int):
                           sales_target=sales_target)
         return {"round": round_view(sd, rnd), "sent": len(out["files"]), "replaced": out["replaced"]}
 
-    result, err = _run(order_id, user, "transfer", {"note": note}, _apply)
+    return _run(order_id, user, "transfer", {"note": note}, _apply)
+
+
+@erp_orders_as_drawing_bp.route("/<int:order_id>/drawing/as/transfer", methods=["POST"])
+def api_as_drawing_transfer(order_id: int):
+    """이번 차수 AS 시트의 대기함 그림을 차수 파일로 보낸다. 영업 담당 · CS 팀에 알린다."""
+    user, err = _guard(DRAWING_POLICY_ID)
+    if err:
+        return err
+    db = get_db()
+    order, err = _load_order(db, order_id)
+    if err:
+        return err
+    payload = request.get_json(silent=True) or {}
+    result, err = run_as_transfer(order_id, user, payload.get("note") or "")
     if err:
         return err
     return jsonify({"success": True, "error": None, "data": result})

@@ -301,6 +301,34 @@ def sheet_png_block_reason(order: Any, sd: Mapping, sheet_id: str) -> Optional[s
     return None
 
 
+def wizard_config_view(order: Any, sd: Mapping) -> Optional[dict]:
+    """마법사 화면(wizard-as.js)이 쓰는 값. 시공이 끝난 주문이 아니면 None.
+
+    ``locked_sheet_ids`` = 지금 저장돼 있는 시트 중 열린 차수 시트가 아닌 것(원래·지난 차수).
+    열린 차수가 있으면 그 밖의 시트(새로 만든 시트 포함)는 AS 시트다 — 서버가 저장 때 표시를 붙인다.
+    """
+    if not is_as_drawing_stage(order):
+        return None
+    cur = current_round(sd)
+    open_id = cur.get("round_id") if cur else None
+    cycle = current_cycle(sd if isinstance(sd, dict) else {}) if open_as_cycle_id(sd) else None
+    schedule = sd.get("schedule") if isinstance(sd.get("schedule"), Mapping) else {}
+    construction = schedule.get("construction") if isinstance(schedule.get("construction"), Mapping) else {}
+    return {
+        "round": None if cur is None else {
+            "round_id": open_id,
+            "no": round_no(sd, cur),
+            "status": cur.get("status"),
+            "opened_at": str(cur.get("opened_at") or "")[:10],
+            "memo": cur.get("memo") or "",
+        },
+        "as_received_date": str((cycle or {}).get("received_date") or ""),
+        "original_construction_date": str(construction.get("date") or ""),
+        "locked_sheet_ids": [str(s.get("id")) for s in _sheets(sd)
+                             if s.get("id") and (not open_id or s.get(SHEET_ROUND_KEY) != open_id)],
+    }
+
+
 def _require_open(sd: Mapping, allowed: Iterable[str], message: str) -> dict:
     cur = current_round(sd)
     if cur is None:
@@ -436,6 +464,6 @@ __all__ = [
     "STATUS_CONFIRMED", "STATUS_CANCELLED", "OPEN_STATUSES",
     "SOURCE_AS_REQUEST", "SOURCE_DRAWING_FIRST", "ASDrawingError",
     "is_as_drawing_stage", "rounds", "current_round", "round_no", "open_as_cycle_id", "open_round",
-    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "transfer_round", "confirm_round",
+    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "wizard_config_view", "transfer_round", "confirm_round",
     "request_revision", "cancel_round", "as_drawing_keys", "round_view",
 ]
