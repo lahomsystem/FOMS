@@ -23,6 +23,8 @@
   글 없음). 실패해도 차례는 그대로다.
 - **한 줄 메모(빠른 길)**: 손님이 'AI 냐 사람이냐' 물으면 초안 없이 '직원이 직접 답해 주세요' 한 줄을 같은 길
   (:func:`post_note` — '올리는 중' 먼저 커밋 · 비공개 확인 · 막는 장치)로 올린다(설계서 17.8).
+- **넘김 메모**: 건너뛴 차례(두뇌 넘김 · 검사 걸림)의 까닭 메모(:mod:`.handoff_memo`)는 차례 줄을 '올리는 중'으로 바꾸지 않고
+  올린 뒤 막는 장치만 같은 규칙으로 건다(:func:`guard_side_memo`).
 - 알림은 감시 보고와 같은 길(:func:`.report.post_admin_notification` — ADMIN 역할 전원 · OS 푸시 없음). 글에는 상담 id ·
   데스크 주소 · 메모 id · 코드만 싣는다(손님 글 · 초안 없음).
 """
@@ -52,7 +54,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "FAIL_SEND", "HALT_PUBLIC", "HALT_SEND_FAILED", "HALT_SEND_UNKNOWN", "HALT_UNVERIFIED", "NOTIFY_MEMO_PUBLIC",
-    "NOTIFY_MEMO_UNVERIFIED", "SKIP_DRAFT_MASK_LEAK", "is_send_failure", "memo_on", "place", "post_note",
+    "NOTIFY_MEMO_UNVERIFIED", "SKIP_DRAFT_MASK_LEAK", "guard_side_memo", "is_send_failure", "memo_on", "place",
+    "post_note",
 ]
 
 #: 알림 유형(``notifications.notification_type``) — 감시 보고(``CS_MORNING_REPORT`` …)와 같은 ``CS_`` 줄기.
@@ -151,6 +154,26 @@ def _post(ctx: Any, row: Any, chat_id: str, *, draft: str, staff_note: str, mask
         return None
     ctx.summary.unverified += 1
     logger.error("[CS 초안] 메모를 올렸지만 비공개를 확인 못 했다 — 초안 스위치를 %s 로 chat=%s message=%s reason=%s",
+                 guard, chat_id, message_id, reason)
+    _alert(ctx, chat_id, message_id, guard, reason)
+    return HALT_PUBLIC if guard == DRAFT_OFF else HALT_UNVERIFIED
+
+
+def guard_side_memo(ctx: Any, chat_id: str, sent: Any) -> Optional[str]:
+    """차례 줄을 바꾸지 않는 메모(건너뛴 차례의 넘김 메모 — :mod:`.handoff_memo`)의 막는 장치 — 초안 메모와 같은 규칙.
+
+    비공개로 확인됐으면 일 0(``None``). 공개로 확인 → 초안 스위치 ``off``, 확인 못 함 → ``store`` 를 쓰고 커밋 → 관리자 알림 →
+    이번 바퀴를 멈출 까닭(R7-1 · R7-2). 스위치를 못 쓰면(DB 오류) 올린다 — 공개였을 수 있는 메모 뒤에 켜진 채 남지 않게.
+    """
+    if sent.verified:
+        return None
+    message_id = sent.message_id if isinstance(sent.message_id, str) and _ID.fullmatch(sent.message_id) else None
+    reason = sent.reason or UNVERIFIED
+    guard = DRAFT_OFF if sent.reason == REASON_NOT_PRIVATE else DRAFT_STORE
+    set_draft_mode(ctx.session, guard, reason=reason, now=ctx.now)
+    ctx.session.commit()
+    ctx.summary.unverified += 1
+    logger.error("[CS 초안] 넘김 메모를 올렸지만 비공개를 확인 못 했다 — 초안 스위치를 %s 로 chat=%s message=%s reason=%s",
                  guard, chat_id, message_id, reason)
     _alert(ctx, chat_id, message_id, guard, reason)
     return HALT_PUBLIC if guard == DRAFT_OFF else HALT_UNVERIFIED

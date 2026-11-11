@@ -51,8 +51,8 @@ __all__ = [
     "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
     "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims", "retry_due",
     "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
-    "read_switch", "record_brain_result", "record_handoff", "record_quote", "record_staff_reply", "release_turn",
-    "set_draft_mode", "stale_posting",
+    "read_switch", "record_brain_result", "record_handoff", "record_note_memo", "record_quote", "record_staff_reply",
+    "release_turn", "set_draft_mode", "stale_posting",
 ]
 
 STATE_CLAIMED, STATE_POSTING, STATE_POSTED = "claimed", "posting", "posted"
@@ -249,6 +249,14 @@ def mark_staff_replied(row: CsAgentTurn, *, masked_draft: Optional[str] = None, 
 def record_handoff(row: CsAgentTurn, *, reason: str) -> None:
     """두뇌 없이 코드가 사람에게 넘긴 까닭(넘김 칸)을 선점한 줄에 적는다 — 예: 손님이 'AI 냐 사람이냐' 물음(설계서 17.8)."""
     _write(row, (STATE_CLAIMED,), {"handoff": True, "handoff_reason": _reason(reason)})
+
+
+def record_note_memo(row: CsAgentTurn, *, memo_message_id: str, now: datetime.datetime) -> None:
+    """건너뛴 차례에 올린 넘김 메모(:mod:`.handoff_memo`)의 채널톡 id — 상태는 ``skipped`` 그대로, 메모 id 가 빈 줄에만(한 번).
+
+    그사이 다른 쪽이 메모 id 를 적었으면 :class:`TurnConflict`(아무것도 안 씀).
+    """
+    _write(row, (STATE_SKIPPED,), {"memo_message_id": _checked_id(memo_message_id)}, now=now, unset="memo_message_id")
 
 
 def expired_claims(session: Any, now: datetime.datetime, *, limit: int = 100) -> list[CsAgentTurn]:
