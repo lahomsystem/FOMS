@@ -329,6 +329,28 @@ def wizard_config_view(order: Any, sd: Mapping) -> Optional[dict]:
     }
 
 
+#: AS 도면 도면방 PUSH 이력 키 — 원래 도면 도면방 이력(``channeltalk_push_drawing_room``)과 섞지 않는다.
+ROOM_PUSH_HISTORY_KEY = "channeltalk_push_as_drawing_room"
+
+
+def room_push_round(sd: Mapping) -> Optional[dict]:
+    """도면방으로 보낼 AS 차수 — 보낸 파일이 있는 열린 차수, 없으면 마지막 확인한 차수(D4)."""
+    cur = current_round(sd)
+    if cur is not None and cur.get("files"):
+        return cur
+    for rnd in reversed(rounds(sd)):
+        if rnd.get("status") == STATUS_CONFIRMED and rnd.get("files"):
+            return rnd
+    return None
+
+
+def room_push_text(customer_text: str, sd: Mapping, rnd: Mapping) -> str:
+    """도면방 본문 — ``[AS] 고객 · AS 도면 N차`` 와 무엇을 그렸는지 한 줄(설계서 D4)."""
+    head = f"[AS] {customer_text} · AS 도면 {round_no(sd, rnd)}차".strip()
+    memo = _clean_text(rnd.get("memo"), 200)
+    return "\n".join([head, memo]) if memo else head
+
+
 def _require_open(sd: Mapping, allowed: Iterable[str], message: str) -> dict:
     cur = current_round(sd)
     if cur is None:
@@ -464,6 +486,7 @@ __all__ = [
     "STATUS_CONFIRMED", "STATUS_CANCELLED", "OPEN_STATUSES",
     "SOURCE_AS_REQUEST", "SOURCE_DRAWING_FIRST", "ASDrawingError",
     "is_as_drawing_stage", "rounds", "current_round", "round_no", "open_as_cycle_id", "open_round",
-    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "wizard_config_view", "transfer_round", "confirm_round",
+    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "wizard_config_view",
+    "ROOM_PUSH_HISTORY_KEY", "room_push_round", "room_push_text", "transfer_round", "confirm_round",
     "request_revision", "cancel_round", "as_drawing_keys", "round_view",
 ]

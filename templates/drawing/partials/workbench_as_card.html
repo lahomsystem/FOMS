@@ -40,6 +40,9 @@
     <button type="button" class="btn btn-sm btn-success" data-dw-as-act="confirm"><i class="fas fa-check"></i> 확인했어요</button>
     <button type="button" class="btn btn-sm btn-outline-danger" data-dw-as-act="revision-open"><i class="fas fa-undo"></i> 고쳐 주세요</button>
     {% endif %}
+    {% if asd.can_room_push %}
+    <button type="button" class="btn btn-sm btn-outline-primary" data-dw-as-act="room">채널톡 도면방에 [AS] 보내기</button>
+    {% endif %}
     {% if asd.can_channel_retry %}
     <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-as-act="channel">채널톡 AS방에 접수 올리기</button>
     {% endif %}
