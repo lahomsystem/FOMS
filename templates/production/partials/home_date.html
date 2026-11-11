@@ -6,7 +6,7 @@
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
   <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% elif show_day %}<small>{{ r.day_label }}</small>{% endif %}</span>
   <span class="fph-dr__who">
-    <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small></span>{% if r.by_line %}<span class="fph-dr__by">{{ r.by_line }}</span>{% endif %}</span>
+    <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small></span>{% if r.by_parts %}<span class="fph-dr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</span>
     <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
   </span>
   <span class="fph-dr__steps" aria-label="공정">
