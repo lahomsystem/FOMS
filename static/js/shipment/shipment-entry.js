@@ -19,7 +19,9 @@
     // 핀을 올릴 때는 그 파샬과 함께 올린다.
     '/static/js/foms/tablet-domain-sheets.js?v=20261109c',
     // 협력사 희망 시공일 2주 판(설계서 2026-11-04-shipment-partner-request-board).
-    '/static/js/shipment/partner-request-board.js?v=20261110a'
+    '/static/js/shipment/partner-request-board.js?v=20261110a',
+    // 태블릿 가로 하루치 출고표 시공자 칸 이름판(설계서 tablet-production-ui §14.3) — 문서 위임 싱글턴.
+    '/static/js/shipment/tablet-ship-assign.js?v=20261111a'
   ];
 
   // 파일마다 로드 Promise 를 기억한다. 실패 뒤 다시 부를 때 이미 실행됐거나 받는 중인

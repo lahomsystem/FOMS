@@ -1,6 +1,8 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261109a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261111a">
+{# 태블릿 가로 하루치 출고표(시공자 묶음 카드 · 이름판) — 코호트 문지기 안에서만 그린다. 이 파샬은 온전한 페이지와 셸 조각이 함께 싣는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261111a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -73,6 +75,8 @@
     <div class="foms-ship-pcbar__lead">
       <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
+      {# 하루치 출고표 한 줄 요약(설계서 §14.3) — 시공자 없는 줄이 있을 때만 빨간 알약. KPI 네 칸은 걷어 냈다. #}
+      {% if tablet_day_sheet and tablet_day_sheet.unassigned %}<span class="foms-ship-pcbar__miss">시공자 없음 {{ tablet_day_sheet.unassigned }}</span>{% endif %}
       {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
          카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
          PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은
@@ -101,39 +105,6 @@
       {% endif %}
     </div>
   </div>
-  {# 태블릿 가로 상단 KPI 4종 — 코호트 CSS 게이트(coarse landscape에서만 display:grid). #}
-  {% if tablet_ship_kpis %}
-  <div class="tablet-ship-kpis erp-pro-alerts" aria-label="출고 요약">
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">총 자수</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.total_units }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-boxes" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">건수</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.order_count }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-users" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">시공팀</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.team_count }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert erp-pro-alert--danger">
-      <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">미배정</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.unassigned }}</span>
-      </div>
-    </div>
-  </div>
-  {% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
