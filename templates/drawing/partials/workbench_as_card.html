@@ -73,6 +73,8 @@
     <p class="small text-muted mb-2">이 주문은 AS 접수가 없어요. 여기서 같이 접수해요.</p>
     <label class="small fw-semibold" for="dw-as-content">AS 내용 (꼭 써요)</label>
     <textarea class="form-control form-control-sm mb-2" id="dw-as-content" rows="2" maxlength="2000" data-dw-as-content></textarea>
+    <label class="small fw-semibold" for="dw-as-photos">사진 (있으면)</label>
+    <input class="form-control form-control-sm mb-2" type="file" id="dw-as-photos" accept="image/*" multiple data-foms-no-capture data-dw-as-photos>
     {% endif %}
     <label class="small fw-semibold" for="dw-as-memo">무엇을 그리나요{% if not asd.open_as %} (비우면 AS 내용){% endif %}</label>
     <input class="form-control form-control-sm mb-2" id="dw-as-memo" maxlength="500" data-dw-as-memo>

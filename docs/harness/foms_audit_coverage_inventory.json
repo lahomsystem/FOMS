@@ -1021,7 +1021,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 679,
+      "lineno": 690,
       "methods": [
         "DELETE"
       ],
@@ -1030,7 +1030,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 505,
+      "lineno": 516,
       "methods": [
         "PATCH"
       ],
@@ -1039,7 +1039,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_reorder",
-      "lineno": 604,
+      "lineno": 615,
       "methods": [
         "POST"
       ],
@@ -1048,7 +1048,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 762,
+      "lineno": 773,
       "methods": [
         "POST"
       ],
@@ -1057,7 +1057,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 377,
+      "lineno": 378,
       "methods": [
         "POST"
       ],

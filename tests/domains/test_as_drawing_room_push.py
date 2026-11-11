@@ -134,3 +134,40 @@ def test_as_dashboard_blueprint_cell_shows_round_status(client, storage, monkeyp
     html = client.get("/erp/as?tab=incomplete", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130"}).get_data(as_text=True)
 
     assert "AS 도면 1차 · 도면팀 대기중" in html and f'href="/edit/{oid}"' in html
+
+
+def _upload(client, oid, as_log_id):
+    import io as _io
+
+    data = {"file": (_io.BytesIO(b"\x89PNG\r\n\x1a\nFAKE"), "photo.png"), "category": "as"}
+    if as_log_id:
+        data["as_log_id"] = as_log_id
+    return client.post(f"/api/orders/{oid}/attachments", data=data, content_type="multipart/form-data")
+
+
+def test_drawing_starter_may_upload_as_photo_only_from_start_window(client, monkeypatch):
+    """사용자 결정 2026-11-11 "AS 도면 시작 창에서만" — 그 밖의 도면팀 AS 사진은 지금처럼 403."""
+    import foms.api.files.order_routes as order_routes
+
+    class _S:
+        def upload_file(self, f, name, folder):
+            return {"success": True, "key": f"{folder}/{name}"}
+
+        def get_file_type(self, name):
+            return "image"
+
+    monkeypatch.setattr(order_routes, "get_storage", lambda: _S())
+    starter = _user("asr_photo_starter")
+    other = _user("asr_photo_other")
+    oid = _order(name="사진시작고객")
+    plain = _order(name="사진다른고객")
+    _as(client, starter)
+    res = _start(client, oid, memo="m", as_register={"content": "문 처짐"})
+    log_id = res.get_json()["data"]["reception_log_id"]
+    assert log_id
+
+    assert _upload(client, oid, log_id).status_code == 200      # 본인이 접수까지 하고 연 차수
+    assert _upload(client, oid, "").status_code == 403          # 접수 기록에 안 묶으면 막힘
+    assert _upload(client, plain, log_id).status_code == 403    # 차수 없는 다른 주문
+    _as(client, other)
+    assert _upload(client, oid, log_id).status_code == 403      # 시작한 사람이 아닌 도면팀
