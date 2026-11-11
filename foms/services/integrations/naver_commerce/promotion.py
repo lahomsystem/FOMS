@@ -33,6 +33,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     map_group,
 )
 from foms.services.orders.order_create import create_order
+from foms.services.orders.state_axes import read_deleted
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
@@ -603,13 +604,25 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                 "추가결제로 붙일 수 없습니다."
             )
 
+    # 휴지통 주문에 묶인 링크는 **풀어서** 옮긴다(2026-11-12 운영 #6098 정광호). 추가결제를
+    # 잘못 "주문 만들기" 한 뒤 그 주문을 휴지통에 넣으면 링크가 접힌 주문을 계속 가리켜,
+    # 되돌리기(NEW 는 거절)도 붙이기(다른 주문 거절)도 못 하는 막다른 길이었다. 풀어 주는
+    # 것은 **NEW(그 링크로 만든 주문)** 뿐이다 — ADDON·REPAY 는 옛 주문에 결제 기록이 남아
+    # 있어 되돌리기(/detach)로 걷어내야 한다. 살아 있는 주문에 붙은 링크는 지금처럼 막는다.
+    released: set[int] = set()
+    for row in siblings:
+        if row.order_id and int(row.order_id) != int(order_id):
+            held_by = session.get(Order, int(row.order_id))
+            if (held_by is not None and read_deleted(held_by) != "DELETED") \
+                    or str(row.relation or "NEW") != "NEW":
+                raise PromotionError(
+                    f"이미 다른 주문(#{row.order_id})에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요."
+                )
+            released.add(int(row.order_id))
+
     attached = 0
     changed = False
     for row in siblings:
-        if row.order_id and int(row.order_id) != int(order_id):
-            raise PromotionError(
-                f"이미 다른 주문(#{row.order_id})에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요."
-            )
         # 이 줄이 실제로 무엇을 바꾸는지 **쓰기 전에** 본다 — 같은 버튼을 두 번 눌렀을 때
         # 호출자가 이력에 줄을 더 쌓지 않게 하는 근거다.
         if (row.order_id is None or int(row.order_id) != int(order_id)
@@ -630,8 +643,9 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                                       relation=relation, actor_user_id=actor_user_id,
                                       now=now or now_utc_naive(),
                                       stamp_base=first_naver_money)
-    logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
-                link_id, attached - 1, order_id, relation, recorded)
+    logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건"
+                " 휴지통 주문에서 풀림=%s",
+                link_id, attached - 1, order_id, relation, recorded, sorted(released))
     # 도크 게이트 켜기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
     # 이력에 남을 값이 있다.
     return (attached, int(order_id), bool(changed or recorded or stamped))
