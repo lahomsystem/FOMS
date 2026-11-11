@@ -64,3 +64,144 @@
 .prb-seg button:disabled { opacity: .6; }
 .prb-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 2100; display: flex; gap: 14px; align-items: center; font-size: calc(14px * var(--foms-fs, 1)); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .prb-toast button { background: none; border: 0; color: #93c5fd; font-weight: 600; padding: 0; }
+
+/* =============================================================
+   태블릿 가로 — 위에서 내려오는 서랍(설계서 2026-11-09-tablet-production-ui §14.8 · 시안 안 22)
+   ------------------------------------------------------------
+   판은 한 벌이다. 태블릿 가로 코호트(코어 MQ + body.erp-mobile-v2-layout)에서는 표 위 자리에서 숨기고,
+   위 줄 [협력사 희망 N]이 출고 뿌리에 .is-prb-drop-open 을 붙이면 위 줄 바로 아래에 고정 서랍으로 보인다
+   (자리 = tablet-prb-drop.js 가 재서 넘기는 --prb-drop-top/left/width, 배율 전 px). 표는 밀리지 않고 뒤에 막이 깔린다.
+   정하기 창(.prb-pop 1990) · 알림(.prb-toast 2100)은 서랍(1070) 위에 뜬다.
+   서랍 안에서는 머리 접기를 쓰지 않는다(늘 펼침). 손가락 크기: 7칸 × 2줄 · 이름 단추 50px · 글자 13px 이상 ·
+   주말 · 휴일은 칠 대신 회색 글자 · 파랑 칠 없음(D29). PC(fine) · 폰 · 세로에서는 아래 기본 숨김 두 줄만 걸린다.
+   ============================================================= */
+.prb-drop-close,
+.prb-drop-scrim { display: none; }
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb { display: none; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment.is-prb-drop-open .prb {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    z-index: 1070;
+    top: var(--prb-drop-top, 0px);
+    left: var(--prb-drop-left, 0px);
+    width: var(--prb-drop-width, 100%);
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - var(--prb-drop-top, 0px) - 12px);
+    overflow-y: auto;
+    margin: 0 !important;
+    border-radius: 0 0 18px 18px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 14px 32px rgba(20, 23, 28, 0.22) !important;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment.is-prb-drop-open .prb-drop-scrim {
+    display: block;
+    position: fixed;
+    z-index: 1069;
+    top: var(--prb-drop-top, 0px);
+    left: var(--prb-drop-left, 0px);
+    width: var(--prb-drop-width, 100%);
+    bottom: 0;
+    background: rgba(20, 23, 28, 0.32);
+  }
+  body.erp-mobile-v2-layout:has(.erp-dashboard-shipment.is-prb-drop-open) { overflow: hidden; }
+
+  /* 머리 — 접기 없이 제목 한 줄(숫자 배지는 칠 없이 글자로) */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-head {
+    pointer-events: none;
+    cursor: default;
+    padding: 12px 16px 8px !important;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-head .fw-bold { font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800 !important; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-head .badge {
+    padding: 0;
+    margin-left: 4px;
+    background: transparent !important;
+    color: inherit;
+    font-size: calc(17px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-head .prb-textbtn,
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb .prb-when-folded { display: none; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb .prb-when-open { display: inline; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb.is-folded .prb-body { display: block; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-note { font-size: calc(14px * var(--foms-fs, 1)); }
+
+  /* 14칸 → 7칸 × 2줄 */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-board {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    padding: 0 16px 8px;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell { border-radius: 10px; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell.is-off { background: var(--foms-surface-base, #fff); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell__head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 9px 4px;
+    font-size: calc(13px * var(--foms-fs, 1));
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell__head b { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell.is-off .prb-cell__head { color: var(--foms-text-tertiary, #6b7380); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell.is-off .prb-cell__head b { font-weight: 700; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-soon { margin-left: 0; font-size: calc(13px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell__rem { display: inline; margin-left: auto; font-size: calc(13px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-cell__body { padding: 5px; gap: 5px; min-height: 60px; }
+
+  /* 이름 단추 — 높이 50px, 이름 아래 줄에 회사(여러 협력사일 때), 칠 없음 */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 50px;
+    padding: 3px 10px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 9px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip:hover { border-color: var(--foms-text-primary, #1f2733); color: var(--foms-text-primary, #1f2733); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip__name,
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip__co { overflow: hidden; text-overflow: ellipsis; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip__co {
+    display: block;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-chip__paren { display: none; }
+
+  /* 판 밖 · 날짜 없음 줄 · 최근 정한 기록 — PC 와 같은 순서, 누름 칸 44px */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-later { gap: 8px 12px; padding: 0 16px 8px; font-size: calc(14px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-later .prb-chip { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; min-height: 44px; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-log { padding: 0 6px 0 16px; font-size: calc(14px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-log__row { align-items: center; min-height: 44px; }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-textbtn { min-height: 44px; padding: 0 10px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; }
+
+  /* 서랍 아래 가장자리 [닫기 ▴] */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment.is-prb-drop-open .prb-drop-close {
+    display: block;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 52px;
+    border: 0;
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-raised, #f7f8fa);
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+  }
+
+  /* 정하기 창(문서 끝에 붙는다) — 같은 창 · 같은 글, 누름 칸만 44px */
+  body.erp-mobile-v2-layout .prb-pop { font-size: calc(14px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .prb-pop .form-control { min-height: 44px !important; font-size: calc(15px * var(--foms-fs, 1)) !important; }
+  body.erp-mobile-v2-layout .prb-pop .btn { min-height: 44px; font-size: calc(14px * var(--foms-fs, 1)) !important; }
+  body.erp-mobile-v2-layout .prb-seg button { min-height: 44px; font-size: calc(14px * var(--foms-fs, 1)); }
+  /* 기록 '옮김' 꼬리표 — 칠 없이 테두리 글자(D29) */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .prb-moved { background: transparent; color: var(--foms-text-secondary, #4b525d); border: 1px solid var(--foms-border-default, #c7ccd4); font-size: calc(13px * var(--foms-fs, 1)); }
+}

@@ -1,0 +1,8 @@
+{# 태블릿 위 줄 [협력사 희망 N] 단추(설계서 2026-11-09-tablet-production-ui §14.8 · 시안 안 22). dashboard_main.html 위 줄이 부른다.
+   판(partner_request_board.html)이 그려질 때만 — 같은 조건(b.count or b.history). 켜진 프리랜서 화면은 판이 없으니 단추도 없다.
+   누르면 같은 판 한 벌이 위 줄 아래로 내려오는 서랍으로 보인다(여닫기 = static/js/shipment/tablet-prb-drop.js).
+   가장 빠른 날이 내일이면 작은 글 '내일 n'. 단추 자신은 pcbar 안이라 PC(fine) · 폰 · 세로에서는 보이지 않는다. #}
+{% set _prb = partner_request_board %}
+{% if _prb and (_prb.count or _prb.history) and not shipment_freelancer_view %}
+<button type="button" class="foms-ship-pcbar__prb" data-prb-drop-toggle aria-expanded="false" aria-controls="foms-prb-drop">협력사 희망 {{ _prb.count }}{% if _prb.earliest and _prb.earliest.is_tomorrow %}<small class="foms-ship-pcbar__prb-soon">내일 {{ _prb.earliest['items']|length }}</small>{% endif %}</button>
+{% endif %}
