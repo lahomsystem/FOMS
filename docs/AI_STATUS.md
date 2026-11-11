@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-11] **완료 주문 AS 도면(deploy)** — 도면팀 부탁·도면팀 시작(AS·채널톡 접수까지), 원래 도면 불변. 잔여: 스테이징 실화면·도면방 [AS]. SPEC `2026-11-11-as-drawing-after-completion`
 - [2026-11-11] **확정 뒤 제품 취소 도면팀도(운영 #797)** — 5608 2번 도면은 도면팀이 화면에서 취소
 - [2026-11-11] **협력사 명세서 확정 옵션 고치기(운영 PR #799)** — SPEC `2026-11-11-partner-confirmed-option-fix`
 - [2026-11-11] **태블릿 생산 UI** — 운영 PR #784·#785·#791~#794·#801·#806·#808(안 3 · D19~D22) · 출고 시안 중
@@ -31,7 +32,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-10-22] **Railway 사고(env 유출)·배포 정지** — 복원 리허설 OK(pgvector)·SIDEFX 백업·Redis 문 닫음. 재개 전 DB Regenerate 금지. 가드 반영·대피 초안 준비됨
 - [2026-10-26] **알림톡 '상담 먼저' 후속 운영 완료(PR #628)** — 카톡 실패→링크 문자 워커(운영 WORKER SOLAPI_* 복사·켬)·공유 창·보내기 창 3칸. 옛 서식 6개·env 삭제. 잔여: 없음(키 교체 시 WORKER 도). SPEC `2026-10-21-consult-sms-fallback-design`
 - [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 8건 운영. 잔여(사용자 결정): 카카오 REST 키 교체·tests/docs 실고객 번호 의심 34개. 원장 `2026-10-18-foms-security-audit-ledger.md`
-- [2026-10-15] **모바일 홈 달력·날씨 시간 줄 v2(production `fa101723`, PR #551~#563)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 칸 보기 삭제·기상청 강수강도·판정 규칙·여러 날 시공 출고가 나눔. 금액=발주방 PUSH 주문만(PR #652·#654). 태블릿 예산 30,700B
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -208,6 +208,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-15] **모바일 홈 달력·날씨 시간 줄 v2(production `fa101723`, PR #551~#563)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 칸 보기 삭제·기상청 강수강도·판정 규칙·여러 날 시공 출고가 나눔. 금액=발주방 PUSH 주문만(PR #652·#654). 태블릿 예산 30,700B
 - [2026-10-08] **도면 마법사 편집 개선 운영 반영(PR #516·#519·#522·#524·#526)** — 실화면 통과. 잔여: 1100px 이하 데스크톱 창 앱바 오른쪽 16px 밀림
 - [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
 - [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
