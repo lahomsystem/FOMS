@@ -223,6 +223,19 @@ def test_route_is_registered_in_both_manifests():
     assert json.loads(policy)["routes"][endpoint]["policy_id"] == "ADMIN_OPS"
 
 
+def test_run_now_manifest_points_at_the_cs_gate():
+    """'지금 수집' 은 CS 팀에게도 열렸다(2026-11-11) — 매니페스트가 ADMIN_OPS 로 남으면 엔진이 403 을 낸다.
+
+    같은 카드의 소급 수집·전체 다시 읽기는 ADMIN_OPS 그대로다(음성 대조군).
+    """
+    policy = json.loads((REPO_ROOT / "docs" / "harness" / "foms_order_mutation_policy_manifest.json")
+                        .read_text(encoding="utf-8"))["routes"]
+
+    assert policy["admin.naver_ingest_run_now"]["policy_id"] == "NAVER_INGEST_RUN"
+    assert policy["admin.naver_ingest_refresh_all"]["policy_id"] == "ADMIN_OPS"
+    assert policy["admin.naver_ingest_backfill"]["policy_id"] == "ADMIN_OPS"
+
+
 def test_audit_action_has_a_korean_label():
     """새 감사 action 은 한글 업무 라벨이 있어야 한다."""
     from foms.services.audit_message_display import ACTION_LABELS

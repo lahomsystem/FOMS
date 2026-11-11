@@ -117,7 +117,7 @@
     },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
-      "policy_id": "ADMIN_OPS",
+      "policy_id": "NAVER_INGEST_RUN",
       "rule": "/admin/naver-ingest/run"
     },
     "admin.naver_ingest_save_reject_templates": {
