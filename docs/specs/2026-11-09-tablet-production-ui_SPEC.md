@@ -245,3 +245,13 @@
 - 권한 · 서버: 바뀌지 않는다. 정하기 문은 그대로 `can_set_construction_schedule`(관리자 · CS · 영업 · 출고팀 — 출고 배정 D31 과 다른 문, 영업팀도 정할 수 있음). 새 API · 새 쓰기 없음.
 - 시험: 템플릿 단언(태블릿 위 줄 단추 · 숫자 · `내일` · 판 DOM 1개 · 막 · 프리랜서는 단추 없음 · 판 없으면 단추 없음), 판 JS 300줄 래칫 · `node --check`, 기존 `tests/security/test_partner_request_board.py` · `test_partner_request_count.py` 초록, CSS 핀. 실화면: 스테이징은 확정 대기 0건이고 협력사 주문을 만들면 실제 방으로 알림이 갈 수 있어, **로컬 준비물 서버**(파일 SQLite + Playwright 1280×800 터치)에서 가짜 협력사 희망 3건으로 열기 · 닫기 · 정하기 창 · 칸 눌러 날짜 바꾸기 · [확정] 뒤 5초 [되돌리기](요청 0번) · 대조군 5초 뒤 저장 1번을 본다. 스테이징은 단추 없음 · 화면 오류 0 만, 운영 실측은 열기 · 창 열고 닫기만(확정 안 누름).
 - 단계: P14-6 (플랜 T14-6).
+
+### 14.9 AS 넣기 때 시공자 이름도 같이 (D35, 2026-11-12 — **승인됨: "이름도 같이 넣기"**)
+
+- 지금(11-12 총괄이 로컬 시험으로 확인): 출고 줄 시공자는 이름 배열(`structured_data.shipment.construction_workers`, 이름판 · PC 칸 · `POST /api/erp/shipment/update`)로만 저장된다. AS 넣기(`apply_as_recommendation`, `foms/services/shipment/as_recommendation.py:218`)는 번호 배정(`OrderInstallationAssignment`, `active_worker_ids` → `replace_workers`)만 옮기는데, 그 번호 배정은 AS 넣기 · 취소 말고는 아무도 쓰지 않아 늘 비어 있다. 결과: 이름판으로 `철수`를 넣은 출고 줄에 AS 넣기 → 응답 `applied_workers=[]`, AS 이름 배열 없음, 번호 배정 없음 → AS 줄이 '시공자 없음' 묶음으로 간다. PC · 운영도 같다(이번에 생긴 것 아님).
+- 바꾸는 것(서버, 화면 무변경):
+  1. **넣기**: 출고 줄 이름 배열(writer 의 정규화 그대로)이 비어 있지 않으면 AS 주문 이름 배열을 **그 이름들로 바꾼다**(이미 다른 이름이 있어도 바꿈). 비어 있으면 AS 이름은 건드리지 않는다. 같은 tx · 같은 AS 쓰기(`_write_ship_recommendations` 의 `as_sd_mutator`)에서 한다. 출고 Order 의 snapshot 에 `previous_names`(넣기 전 AS 이름, 없었으면 null) · `applied_names`(넣은 이름, 안 넣었으면 null)를 더한다. 응답 `applied_workers` 는 넣은 이름(없으면 지금처럼 번호 배정 이름).
+  2. **취소**: snapshot 에 `applied_names` 가 있고 AS 의 지금 이름 배열이 그것과 같으면 `previous_names` 로 되돌린다(null 이면 키를 지운다). 다르면(그 사이 손으로 바꿈) 이름은 그대로 두고 취소는 계속한다(이름 때문에 409 를 내지 않는다). 옛 snapshot(`applied_names` 없음)은 이름을 건드리지 않는다.
+  3. 번호 배정(`replace_workers`) · AS 방문일(`schedule_as_cycle`) · If-Match · 알림은 그대로.
+- 시험: 실제 흐름(이름판 API 로 출고 이름 → 넣기 → AS 이름 = 출고 이름, 대조군 = 지금 코드에서 빈 값) · 덮어쓰기 · 출고 이름 없으면 AS 그대로 · 취소 복원 · 취소 전 손으로 바꾸면 그대로 · 옛 snapshot 취소 · 태블릿 시트에서 AS 줄이 출고 시공자 묶음으로 가는지. structured_data 쓰기 목록(REV-99 인벤토리) 새로 맞춤. 실제로 누르는 확인은 로컬 준비물 서버(스테이징 AS 넣기는 실제 직원 방 알림 위험).
+- 단계: P14-7 (플랜 T14-7).
