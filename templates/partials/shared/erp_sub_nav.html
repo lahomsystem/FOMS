@@ -8,7 +8,7 @@
 {% if _sales_freelancer %}<nav class="erp-pro-nav" aria-label="ERP 메뉴">
   {% for item in freelancer_nav_items() %}
   <a class="erp-pro-nav-item {% if _active == item.id %}active{% endif %}"
-    href="{{ item.href }}"{% if item.id != 'my_commission' %}
+    href="{{ item.href }}"{% if item.id not in ('my_commission', 'naver_history') %}
     data-foms-erp-fast-tab="1"{% endif %}>
     <i class="{{ item.icon }}"></i>
     <span>{{ item.label }}</span>

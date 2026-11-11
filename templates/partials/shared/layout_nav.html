@@ -183,7 +183,7 @@
                     {# 켜진 프리랜서: 판 메뉴는 ERP 서브 내비에만 둔다(11-08 사용자 "회사 영업과 같은 모양") — 위 줄은 "내 수수료" 하나,
                        오른쪽은 회사 영업처럼 ERP 대시보드 · WDCalculator. #}
                     {% set _fl_items = freelancer_nav_items() if _fl_nav else [] %}
-                    {% for item in ((_fl_items | selectattr('id', 'equalto', 'my_commission') | list) if _fl_nav else menu.main_menu) %}
+                    {% for item in ((_fl_items | selectattr('id', 'in', ['naver_history', 'my_commission']) | list) if _fl_nav else menu.main_menu) %}
                     <li class="nav-item">
                         {# '네이버 수집' 탭(T14-A)만 확인 대기 뱃지를 단다 — 카운트는
                            naver_triage_pending 30초 전역 캐시라 nav 렌더 비용 불변. #}
@@ -191,7 +191,7 @@
                            일감이라, 사내 화면들 사이에서 눈으로 즉시 갈라져야 한다.
                            외부 이미지가 아니라 인라인 SVG 다: 네트워크 왕복 0 · CSP 무관 ·
                            자산 핀(?v) 관리 대상이 아니다. #}
-                        <a class="nav-link" href="{{ item.url }}">{% if item.id == 'naver_orders' %}<svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg>{% endif %}{{ item.name }}{% if item.id == 'naver_orders' %}
+                        <a class="nav-link" href="{{ item.url }}">{% if item.id in ('naver_orders', 'naver_history') %}<svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg>{% endif %}{{ item.name }}{% if item.id == 'naver_orders' %}
                             <span class="badge rounded-pill bg-danger" data-foms-nav-triage-badge hidden></span>{% endif %}</a>
                     </li>
                     {% endfor %}
