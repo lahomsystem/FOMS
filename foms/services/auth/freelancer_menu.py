@@ -29,6 +29,8 @@ FREELANCER_MENU: tuple[tuple[str, str, str, str], ...] = (
     ("completion", "완료", "erp_completion_page.erp_completion_dashboard", "fas fa-check-circle"),
     ("history", "이력", "erp_history.history_dashboard", "fas fa-history"),
     ("wdcalculator", "견적 계산기", "wdcalculator.wdcalculator", "fas fa-calculator"),
+    # 네이버 이력(11-11) — 워크벤치 이력 탭만(freelancer_screens/naver_history.py). ERP 셸 밖 화면이라 빠른 탭 이동 없음.
+    ("naver_history", "네이버 이력", "admin.naver_ingest_triage", "fas fa-store"),
     ("my_commission", "내 수수료", "sales_commission_web.my_commission", "fas fa-coins"),
 )
 

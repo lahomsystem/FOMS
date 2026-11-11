@@ -139,7 +139,7 @@ def test_freelancer_mobile_menus_only_link_allowed_endpoints(app, monkeypatch, p
     # 서랍: 문지기가 여는 판 화면(PC 메뉴와 같은 셋, 계산기는 탭에) + 내 정보 · 공지사항 · 로그아웃. 네이버 수집 없음.
     # 네이버는 '이력' 탭만(11-11 사용자 결정 — freelancer_screens/naver_history.py) · 처리 할 일 배지 없음.
     assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [
-        *[label for label in _FL_LABELS if label != "견적 계산기"], "네이버 이력"]
+        *[label for label in _FL_LABELS if label not in ("견적 계산기", "네이버 이력")], "네이버 이력"]
     assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [*_STAGE_LABELS, "내 수수료", "네이버 이력"]
     assert "네이버 수집" not in regions["drawer"]
     assert "data-foms-nav-triage-badge" not in regions["drawer"]
@@ -161,7 +161,11 @@ def test_freelancer_desktop_menus_only_link_allowed_endpoints(app, monkeypatch, 
     # 위 줄 = 회사 영업과 같은 모양(11-08): 판 메뉴는 ERP 서브 내비에만, 위 왼쪽은 "내 수수료" 하나,
     # 오른쪽은 ERP 대시보드 · WDCalculator.
     left = _cut(regions["global_nav"], '<ul class="navbar-nav">', "</ul>")
-    assert [html_lib.unescape(t).strip() for t in re.findall(r'class="nav-link"[^>]*>([^<]+)</a>', left)] == ["내 수수료"]
+    # 11-11: 네이버 이력(채널 표식 + 글, 할 일 배지 없음)이 "내 수수료" 앞에 온다.
+    left_links = [html_lib.unescape(re.sub(r"<[^>]+>", "", t)).strip()
+                  for t in re.findall(r'class="nav-link"[^>]*>(.*?)</a>', left, flags=re.S)]
+    assert left_links == ["네이버 이력", "내 수수료"]
+    assert "data-foms-nav-triage-badge" not in left
     for present in ("</i> WDCalculator", "</i> ERP 대시보드"):
         assert present in regions["global_nav"], present
     assert "내 변경 로그" not in regions["user_menu"]
