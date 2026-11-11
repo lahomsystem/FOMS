@@ -13,9 +13,11 @@
   또 올리지 않는다(직원은 이미 안다 — 'AI 냐' 한 줄 메모와 같은 생각).
 - **글**: 첫 줄 :data:`.drafting_read.HANDOFF_MEMO_HEAD` · ``까닭:`` 한 줄(코드를 쉬운 말로 — 코드 글자는 싣지 않는다) · 두뇌가
   남긴 직원 참고가 있으면 초안 메모와 같은 '직원 참고' 칸(한 번 가려서). 손님께 보낼 답(검사에 걸린 초안 포함)은 싣지 않는다.
-- **메모 길은 하나**: 바퀴가 넘긴 메모 감싸개(:func:`.memo.post_private_memo`) 그대로 — 단추는 달지 않는다([수정하기] 화면 ·
-  보내기 길은 올림 줄과 메모 속 '손님께 보낼 답'을 정본으로 보므로 건너뛴 줄은 열지 않는다). 비공개를 확인 못 하면 초안 메모와
-  같은 막는 장치(:func:`.drafting_post.guard_side_memo` — 스위치 끔 · 저장만 + 관리자 알림 + 바퀴 멈춤).
+- **메모 길은 하나**: 바퀴가 넘긴 메모 감싸개(:func:`.memo.post_private_memo`) 그대로. 단추는 관리 화면 '[배우기] · [흘리기]
+  단추'가 켜지고 초안 [보내기] 단추가 '채널톡 안 작은 창'일 때만 단다(:func:`.send.handoff_buttons` — 누르면
+  :mod:`.handoff_send`; [수정하기] 화면 · 초안 보내기 길은 건너뛴 줄을 열지 않는다). 단추 꼴이 틀려 메모를 못 올리면 단추 없이
+  한 번 더 올린다. 비공개를 확인 못 하면 초안 메모와 같은 막는 장치(:func:`.drafting_post.guard_side_memo` — 스위치 끔 · 저장만
+  + 관리자 알림 + 바퀴 멈춤).
 - **실패해도 바퀴는 그대로**: 읽기 실패 · 올리기 실패 · 닿았는지 모름 · 예상 밖 오류는 상담 id · 코드만 남기고 넘어간다(다시
   올리지 않는다). TERM 은 삼키지 않는다. 글(손님 글 · 직원 참고)은 로그 · 예외 · 요약에 싣지 않는다.
 """
@@ -31,9 +33,10 @@ from foms.services.cs_agent.drafting_post import guard_side_memo, memo_on
 from foms.services.cs_agent.drafting_read import (
     HANDOFF_MEMO_HEAD, MEMO_HEAD, MEMO_NOTE_HEAD, ChatLine, freshness, read_lines,
 )
-from foms.services.cs_agent.handoff_memo_settings import handoff_memo_on
+from foms.services.cs_agent.handoff_memo_settings import handoff_buttons_on, handoff_memo_on
 from foms.services.cs_agent.masking import mask
-from foms.services.cs_agent.memo import MEMO_BRAND, memo_allowed
+from foms.services.cs_agent.memo import MEMO_BRAND, REASON_BAD_BUTTONS, memo_allowed
+from foms.services.cs_agent.send import handoff_buttons
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import STATE_SKIPPED, TurnStateError, record_note_memo
 from foms.services.cs_agent.turns_fields import ID_PATTERN
@@ -174,6 +177,13 @@ def _send(ctx: Any, row: Any, code: str, codes: Sequence[Any], note: Any) -> tup
         if freshness(lines, claimed_id) or _repeated(lines, text):
             return chat_id, None
         ctx.stop.check()  # 쓰기 전
+        buttons = _buttons(ctx, row, chat_id)
+        if not buttons:
+            return chat_id, ctx.poster(chat_id, text, brand=MEMO_BRAND, reader=ctx.reader)
+        sent = ctx.poster(chat_id, text, brand=MEMO_BRAND, reader=ctx.reader, buttons=buttons)
+        if sent.reason != REASON_BAD_BUTTONS:
+            return chat_id, sent
+        logger.warning("[CS 넘김 메모] 단추 꼴이 틀려 단추 없이 다시 올린다 chat=%s", chat_id)
         return chat_id, ctx.poster(chat_id, text, brand=MEMO_BRAND, reader=ctx.reader)
     except Exception as exc:  # 넘김 메모는 덤이다 — 어떤 실패도 초안 바퀴를 멈추지 않는다(TERM 만 올린다)
         ctx.session.rollback()
@@ -182,6 +192,15 @@ def _send(ctx: Any, row: Any, code: str, codes: Sequence[Any], note: Any) -> tup
         logger.warning("[CS 넘김 메모] 못 올렸다 — 차례는 건너뜀 그대로 chat=%s code=%s err=%s", chat_id, code,
                        type(exc).__name__)
         return chat_id, None
+
+
+def _buttons(ctx: Any, row: Any, chat_id: str) -> tuple[Any, ...]:
+    """[배우기] · [흘리기] 단추 — 관리 화면 단추 칸 · '[보내기] 버튼' 켬 · 여는 곳 '채널톡 안 작은 창'일 때만(아니면 빈 값)."""
+    cfg = read_settings(ctx.session, log=False)
+    ctx.session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
+    if not (handoff_buttons_on(cfg) and cfg.get("send_buttons_enabled")):
+        return ()
+    return handoff_buttons(row.id, chat_id, path=cfg.get("send_button_path"))
 
 
 def _remember(ctx: Any, row: Any, chat_id: str, message_id: Any) -> None:

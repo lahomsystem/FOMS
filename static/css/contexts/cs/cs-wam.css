@@ -1,4 +1,4 @@
-/* 채널톡 안 작은 창(WAM) — AI 초안 [보내기] · [수정하기](설계서 17.2.2). 데스크 iframe 폭(약 390px)에 맞춘다. */
+/* 채널톡 안 작은 창(WAM) — AI 초안 [보내기] · [수정하기](설계서 17.2.2) · 넘김 메모 [배우기] · [흘리기]. 데스크 iframe 폭(약 390px)에 맞춘다. */
 .cs-wam-body {
   margin: 0;
   background: var(--foms-surface-subtle, #f8f9fa);
@@ -98,6 +98,31 @@
   border-color: var(--foms-primary, #2563eb);
   background: var(--foms-primary-subtle, #e8efff);
   font-weight: 600;
+}
+
+/* 넘김 메모 [배우기] 창 — AI 가 안 쓴 까닭 · AI 메모(참고만) 칸. */
+.cs-wam__reason {
+  margin: 0 0 6px;
+  color: var(--foms-text-secondary, #495057);
+}
+
+.cs-wam__hint {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--foms-border, #d0d5dd);
+  background: var(--foms-surface, #fff);
+}
+
+.cs-wam__hint .cs-wam__label {
+  margin-top: 0;
+}
+
+.cs-wam__hint-text {
+  margin: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--foms-text-secondary, #495057);
+  white-space: pre-wrap;
 }
 
 [hidden] {

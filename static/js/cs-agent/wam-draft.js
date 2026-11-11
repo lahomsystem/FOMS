@@ -208,6 +208,8 @@
     say('어느 초안인지 알 수 없어요. 메모의 단추로 다시 열어 주세요.');
     return;
   }
+  // 넘김 메모 [배우기] · [흘리기] 단추로 열렸으면 wam-handoff.js 가 맡는다(초안 보내기를 부르지 않는다).
+  if (arg('mode') === 'learn' || arg('mode') === 'skip') return;
   buttons.send.addEventListener('click', function () { send(false); });
   buttons.confirm.addEventListener('click', function () { send(true); });
   buttons.retry.addEventListener('click', function () { send(false); });
