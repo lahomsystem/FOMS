@@ -80,5 +80,5 @@ def test_naver_workbench_repay_label_plain():
 
 
 def test_status_text_script_pins_bumped():
-    assert "naver-workbench.js') }}?v=20261109a" in _read("templates/admin/naver_workbench.html")
+    assert "naver-workbench.js') }}?v=20261111a" in _read("templates/admin/naver_workbench.html")
     assert "mobile-tower.js') }}?v=20261108a" in _read("templates/partials/shared/foms_app_shell.html")

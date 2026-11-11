@@ -156,7 +156,7 @@ def test_status_card_says_expiry_date_and_title_time_is_not_repeated(client, wor
 
 def test_workbench_pins_moved_to_20261108a():
     markup = TEMPLATE.read_text(encoding="utf-8")
-    assert markup.count("?v=20261109a") == 2
+    assert markup.count("?v=20261111a") == 2
     assert "?v=20260930b" not in markup and "?v=20260930a" not in markup
     assert 'style="' not in markup.split("{% block content %}")[1].split("{% endblock %}")[0].replace(
         'style="{{', ""), "인라인 스타일 금지"
