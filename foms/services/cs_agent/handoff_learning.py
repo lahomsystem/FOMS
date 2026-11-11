@@ -21,8 +21,8 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
    밤 · 밀린 사례가 같은 규칙으로 다음 밤에 읽히고, 7일이 지난 사례는 저절로 빠진다(주간 고침 안 · 사진 학습과 같은 7일).
 2. **재료**: 사례마다 가린 손님 글 · 가린 직원 답 · 그 상담 전체 대화에서 그 손님 글을 가운데 둔 앞뒤 대화(직원 답 · 손님 반응
    포함 — :func:`.handoff_learning_prompt.talk_window`, 읽기 :func:`.full_conversation.read_talk`). 대화를 못 읽으면 질문 앞
-   6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``). 보낼 사례가 서로 다른 손님 둘이 안 되면 부르지
-   않는다(근거 관문을 넘을 안이 나올 수 없다 — 다음 밤 사례와 같이 본다).
+   6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``). 보낼 사례가 하나도 없으면 부르지
+   않는다.
 3. **두뇌(학습 모델 — 주간 고침 안 모델 칸 · 학습 돈 상한 · 시간 상한 :data:`TIMEOUT_S`)**: 회사 지식 목록 · 이미 낸 제안과 견줘
    사실 · 정책 새로 만들기 · 고치기 안(:mod:`.handoff_learning_prompt`). 응답이 오면 보낸 사례를 '읽음'으로 적는다(돈을 쓴 사례는
    다시 보내지 않는다 — 부르기가 실패하면 적지 않아 다음 밤에 다시 본다).
@@ -50,7 +50,7 @@ from foms.services.cs_agent.drafting import SKIP_CHECK, SKIP_HANDOFF
 from foms.services.cs_agent.edit_detail_settings import WEEKLY_MODEL_FIELD
 from foms.services.cs_agent.full_conversation import Talk, case_limit, read_talk, talk_on
 from foms.services.cs_agent.handoff_learn_settings import CASES_FIELD, HANDOFF_LEARN_FIELD
-from foms.services.cs_agent.handoff_learning_gates import file_proposals, seen_proposals
+from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, file_proposals, seen_proposals
 from foms.services.cs_agent.handoff_learning_prompt import (
     build_params, case_lines, knowledge_lines, knowledge_rows, pending_lines, raw_proposals, talk_window,
 )
@@ -61,7 +61,6 @@ from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.state import KST
 from foms.services.cs_agent.turns import STATE_SKIPPED
 from foms.services.cs_agent.weekly_fix import LOOKBACK
-from foms.services.cs_agent.weekly_fix_gates import MIN_CUSTOMERS
 from models import CsAgentTurn, SystemSetting
 
 logger = logging.getLogger(__name__)
@@ -157,7 +156,8 @@ def _turn_rows(session: Any, since: datetime.datetime) -> list[Any]:
                     and_(turn.error_code == SKIP_CHECK,
                          or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(HUMAN_ONLY_REASONS))))
     stmt = (select(turn.id, turn.chat_id, turn.intent, turn.error_code, turn.handoff_reason, turn.check_codes,
-                   turn.masked_question, turn.staff_reply_masked, turn.masked_context, turn.last_user_message_id)
+                   turn.masked_question, turn.staff_reply_masked, turn.masked_context, turn.last_user_message_id,
+                   turn.desk_manager_id)
             .where(turn.brand == SEND_BRAND, turn.state == STATE_SKIPPED, learnable,
                    turn.outcome.in_(LEARNING_OUTCOMES), turn.held_out.is_(False), turn.staff_reply_masked.isnot(None),
                    turn.updated_at >= since)
@@ -184,7 +184,7 @@ def collect_cases(session: Any, now: datetime.datetime, *, cap: int) -> list[dic
         out.append({"turn_id": row.id, "chat_id": row.chat_id, "intent": row.intent,
                     "reason": row.handoff_reason if row.error_code == SKIP_HANDOFF else SKIP_CHECK,
                     "question": row.masked_question, "reply": row.staff_reply_masked, "context": row.masked_context,
-                    "anchor": row.last_user_message_id})
+                    "anchor": row.last_user_message_id, "staff": row.desk_manager_id})
         if len(out) >= cap:
             break
     return out
@@ -269,7 +269,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         except MaskLeak:  # 그 사례만 뺀다(가림 검사 — 글은 남기지 않는다)
             dropped.append(case["turn_id"])
     counts.update(mask_dropped=len(dropped), sent=len(sent))
-    if len({case["chat_id"] for case in sent}) < MIN_CUSTOMERS:
+    if len({case["chat_id"] for case in sent}) < EVIDENCE_MIN_CHATS:
         mark_used(session, dropped)
         counts["halted"] = "too_few_customers" if sent else None
     else:

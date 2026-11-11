@@ -45,12 +45,13 @@ _SEQ = itertools.count(1)
 
 
 def handed(chat: str, *, reason="unsure", error="handoff", reply=REPLY, outcome="direct", state="skipped",
-           held_out=False, codes=None, brand="LAHOM", when=None, anchor=None, context=None) -> int:
+           held_out=False, codes=None, brand="LAHOM", when=None, anchor=None, context=None, staff="mgr-1") -> int:
     """넘긴 차례 하나(가린 질문 · 직원이 직접 한 가린 답)."""
     row = CsAgentTurn(brand=brand, chat_id=chat, last_user_message_id=anchor or f"m-{chat}-{next(_SEQ)}", state=state,
                       error_code=error, handoff=error == "handoff", handoff_reason=reason, check_codes=codes,
                       outcome=outcome, intent="spec", held_out=held_out, masked_question="합성 상판 두께가 어떻게 돼요?",
-                      staff_reply_masked=reply, masked_context=context, updated_at=naive(when or at(10, 15)))
+                      staff_reply_masked=reply, masked_context=context, desk_manager_id=staff,
+                      updated_at=naive(when or at(10, 15)))
     db_session.add(row)
     db_session.commit()
     return row.id
@@ -152,13 +153,29 @@ def test_only_learnable_handoffs_with_a_staff_reply_are_read(admin):
     assert [c["turn_id"] for c in hl.collect_cases(db_session, NOW, cap=2)] == wanted[:2]  # 오래된 것부터 상한만
 
 
-def test_cases_from_one_customer_alone_never_reach_the_model(admin):
+def test_no_case_never_reaches_the_model(admin):
     on()
-    handed("uc-1"), handed("uc-1")
     client = FakeAnthropic({"proposals": []})
     counts = run(client)
-    assert (counts["sent"], counts["halted"], client.params) == (2, "too_few_customers", [])
-    assert hl.used_ids(db_session) == frozenset()  # 다음 밤 다른 손님 사례와 같이 본다
+    assert (counts["sent"], client.params) == (0, [])
+
+
+def test_one_customer_case_reaches_the_model_and_a_fact_without_numbers_is_filed(admin):
+    """사장님 11-11 '넘긴 상담마다 배워 다음 상담에' — 한 손님 사례로도 안을 낸다(늘 사장님 승인)."""
+    on()
+    one = handed("uc-1", reply="합성 직원 답 — 양쪽으로 열 수 있어요")
+    client = FakeAnthropic({"proposals": [ask([one], title="합성 열림 방향", text="합성 문은 양쪽으로 열 수 있어요")]})
+    counts = run(client)
+    assert (counts["sent"], counts["filed"], len(client.params)) == (1, 1, 1), counts
+    assert [c.fields["payload"]["after"]["pref_label"] for c in changes()] == ["합성 열림 방향"]
+    assert changes()[0].evidence == [f"case:{one}", "staff:mgr-1"]  # 손님 한 명 + 답한 직원 한 명
+
+
+def test_one_customer_case_without_a_known_staff_is_held_by_the_knowledge_gate(admin):
+    on()
+    one = handed("uc-1", reply="합성 직원 답 — 양쪽으로 열 수 있어요", staff=None)
+    counts = run(FakeAnthropic({"proposals": [ask([one], title="합성 열림 방향", text="합성 문은 양쪽으로 열 수 있어요")]}))
+    assert counts["blocked"] == {"brain_evidence": 1} and changes() == []
 
 
 # ── 재료 ─────────────────────────────────────────────────────────────────
@@ -208,7 +225,7 @@ def test_passing_ideas_land_in_the_inbox_as_open_agent_proposals_and_drafts_lear
     (change,) = changes()
     assert (change.op, change.item_type, change.layer, change.brand, change.status) == (
         "create", "fact", "common", "LAHOM", "open")
-    assert change.item_key == "lahom/handoff-20261111-1" and change.evidence == [f"case:{i}" for i in two]
+    assert change.item_key == "lahom/handoff-20261111-1" and change.evidence == [*(f"case:{i}" for i in two), "staff:mgr-1"]
     assert change.fields["payload"]["after"]["pref_label"] == "합성 상판 두께"
     assert "넘긴 상담 배우기 · 근거 상담 2곳 · 넘긴 까닭 모름" in change.reason
     assert actor_label(change.proposed_by, {}) == AGENT_LABELS[AGENT] == "AI(넘긴 상담 배우기)"
@@ -269,10 +286,10 @@ def test_a_number_said_to_one_customer_only_is_not_learned(admin):
     assert [c.fields["payload"]["after"]["pref_label"] for c in changes()] == ["합성 상판 둘", "합성 선반"]
 
 
-def test_evidence_from_one_customer_is_not_enough(admin):
+def test_evidence_outside_this_run_is_blocked(admin):
     on()
-    ids = [handed("uc-1"), handed("uc-1"), handed("uc-2")]
-    counts = run(FakeAnthropic({"proposals": [ask(ids[:2]), ask(ids[:1])]}))
+    ids = [handed("uc-1"), handed("uc-2")]
+    counts = run(FakeAnthropic({"proposals": [ask([ids[0], 999999]), ask([])]}))
     assert counts["blocked"] == {"evidence": 2} and changes() == []
 
 

@@ -6,7 +6,8 @@
    까닭 1 ~ :data:`MAX_WHY` 자 한 줄.
 2. **가림**: 이름 · 글 · 까닭에 개인정보 꼴 · 가림 표시 · 한자 0(:func:`foms.services.brain.gates.text_gates` — 제안 길이 보지
    않는 까닭 글도 여기서 본다).
-3. **근거**: 근거 차례가 모두 이번에 읽은 사례 안이고 서로 다른 손님(상담) :data:`.weekly_fix_gates.MIN_CUSTOMERS` 이상.
+3. **근거**: 근거 차례가 모두 이번에 읽은 사례 안이고 손님(상담) :data:`EVIDENCE_MIN_CHATS` 곳 이상 — 한 손님 사례로도 안을 낸다
+   (사장님 11-11 '넘긴 상담마다 배워 다음 상담에' — 늘 사장님 승인을 거친다). 숫자만 아래 4번이 두 곳을 본다.
 4. **숫자**: 이름 · 글 · 까닭의 숫자 조각마다(:func:`foms.services.brain.gates.numbers_known` — 조각 통째로 같은 수) 회사 지식 ·
    상담 승인 지식에 이미 있거나, **근거로 고른 직원 답 가운데 서로 다른 손님 :data:`NUMBER_MIN_CHATS` 곳 이상**에 있어야 한다 —
    한 손님에게만 말한 금액 · 날짜(그 손님 몫)가 지식으로 들어오지 않게. 제안 길의 숫자 관문에는 고른 직원 답을 더한 허용 글을
@@ -47,10 +48,9 @@ from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.handoff_learning_prompt import ITEM_TYPES, OPS, REASON_WORDS, updatable
 from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.state import KST
-from foms.services.cs_agent.weekly_fix_gates import MIN_CUSTOMERS
 
 __all__ = [
-    "AGENT", "DUP_SIMILARITY", "MAX_FILED", "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "file_proposals", "seen_proposals",
+    "AGENT", "DUP_SIMILARITY", "EVIDENCE_MIN_CHATS", "MAX_FILED", "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "file_proposals", "seen_proposals",
 ]
 
 #: 제안한 이(``agent:cs_handoff_learning``) — 화면 이름표는 :data:`foms.services.brain.display.AGENT_LABELS`(시험이 맞춘다).
@@ -59,6 +59,8 @@ MAX_FILED, MAX_SEEN = 10, 200
 MAX_TITLE, MAX_TEXT, MAX_WHY = 40, 600, 300
 SAME_SIMILARITY, DUP_SIMILARITY = 0.85, 0.8
 NUMBER_MIN_CHATS = 2
+#: 근거 손님(상담) 수 하한 — 사실 · 정책은 한 손님 사례로도 낸다(승인이 관문). 숫자는 :data:`NUMBER_MIN_CHATS`.
+EVIDENCE_MIN_CHATS = 1
 TAG, SOURCE, REF_PREFIX = "handoff-learn", "handoff_learn", "handoff_learn:"
 APPROVED_BY = "넘긴 상담 배우기 카드"  # 지식 문서 승인 칸(실제 승인은 카드 승인 — 사진 카드와 같은 꼴)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -99,7 +101,14 @@ def _evidence(raw: dict[str, Any], by_id: dict[int, dict[str, Any]]) -> list[int
     if not set(ids) <= set(by_id):
         return []
     chats = {by_id[i]["chat_id"] for i in ids}
-    return sorted(set(ids)) if len(chats) >= MIN_CUSTOMERS else []
+    return sorted(set(ids)) if len(chats) >= EVIDENCE_MIN_CHATS else []
+
+
+def _sources(ids: Sequence[int], by_id: dict[int, dict[str, Any]]) -> list[str]:
+    """제안 근거 — 사례(손님 갈래)마다 ``case:id`` + 답한 직원(채널톡 상담원 id)마다 ``staff:id``. 회사 지식 제안 길의 근거 관문
+    (서로 다른 사람 둘)이 손님 한 명 + 답한 직원 한 명으로도 지나게(사장님 11-11 — 한 손님 사례로도 안을 낸다)."""
+    staff = sorted({str(by_id[i]["staff"]) for i in ids if by_id[i].get("staff")})
+    return [*(f"case:{i}" for i in ids), *(f"staff:{person}" for person in staff)]
 
 
 def _numbers_ok(texts: Sequence[str], known: str, replies: dict[str, list[str]]) -> bool:
@@ -217,7 +226,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
             chats = len({by_id[i]["chat_id"] for i in ids})
             reason = f"넘긴 상담 배우기 · 근거 상담 {chats}곳 · 넘긴 까닭 {' · '.join(reasons)} — {why}"[:500]
             allowed = "\n".join([known, *(by_id[i]["reply"] or "" for i in ids)])
-            common = dict(reason=reason, proposer=Proposer.agent_named(AGENT), evidence=[f"case:{i}" for i in ids],
+            common = dict(reason=reason, proposer=Proposer.agent_named(AGENT), evidence=_sources(ids, by_id),
                           now=naive_utc(now), known=allowed)
             code, make = _filer(session, item, title=title, text=text, number=number, common=common, now=now,
                                 seen=seen, approved=approved)
