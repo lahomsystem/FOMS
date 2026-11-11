@@ -135,6 +135,70 @@ def test_attach_refuses_when_already_on_another_order(auth_client):
     assert _fresh(link_id).order_id == first_order_id
 
 
+def _created_order_link(external_id: str, *, order_no: str, order_id: int) -> int:
+    """'주문 만들기'로 주문이 생긴 수집 링크(관계 NEW·LINKED)."""
+    link_id = _link(external_id, order_no=order_no, status="LINKED")
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.order_id = order_id
+    link.relation = "NEW"
+    db_session.commit()
+    return link_id
+
+
+def test_attach_moves_link_off_a_trashed_created_order(auth_client):
+    """추가결제를 잘못 '주문 만들기' 한 뒤 그 주문을 휴지통에 넣었으면 기존 주문에 붙일 수 있다.
+
+    2026-11-12 운영 #6098(정광호): 되돌리기는 NEW 를 거절하고 붙이기는 '이미 다른 주문'으로
+    거절해, 휴지통 주문에 묶인 수집분을 #6020 에 추가결제로 붙일 길이 없었다.
+    """
+    wrong_order_id = _order()
+    right_order_id = _order()
+    first_id = _created_order_link("PO-TR1", order_no="N-TRASH", order_id=wrong_order_id)
+    second_id = _created_order_link("PO-TR2", order_no="N-TRASH", order_id=wrong_order_id)
+    db_session.get(Order, wrong_order_id).deleted_at = "2026-11-11 08:00:00"
+    db_session.commit()
+
+    response = auth_client.post(f"/admin/naver-ingest/{first_id}/attach",
+                                json={"order_id": right_order_id, "relation": "ADDON"})
+    assert response.status_code == 200, response.get_json()
+    for link_id in (first_id, second_id):
+        link = _fresh(link_id)
+        assert link.order_id == right_order_id
+        assert link.relation == "ADDON"
+        assert link.sync_status == "LINKED"
+
+
+def test_attach_still_refuses_a_living_created_order(auth_client):
+    """살아 있는 주문으로 만든 수집분은 여전히 조용히 옮기지 않는다."""
+    made_order_id = _order()
+    other_order_id = _order()
+    link_id = _created_order_link("PO-LIVE", order_no="N-LIVE", order_id=made_order_id)
+
+    response = auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                                json={"order_id": other_order_id, "relation": "ADDON"})
+    assert response.status_code == 400
+    assert "이미 다른 주문" in response.get_json()["error"]
+    assert _fresh(link_id).order_id == made_order_id
+
+
+def test_attach_does_not_release_an_addon_left_on_a_trashed_order(auth_client):
+    """휴지통 주문에 **추가결제로 붙은** 링크는 풀지 않는다 — 결제 기록은 되돌리기가 걷어낸다."""
+    trashed_order_id = _order()
+    other_order_id = _order()
+    link_id = _link("PO-TRADD", order_no="N-TRADD")
+    assert auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                            json={"order_id": trashed_order_id,
+                                  "relation": "ADDON"}).status_code == 200
+    db_session.expire_all()
+    db_session.get(Order, trashed_order_id).deleted_at = "2026-11-11 08:00:00"
+    db_session.commit()
+
+    response = auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                                json={"order_id": other_order_id, "relation": "ADDON"})
+    assert response.status_code == 400
+    assert _fresh(link_id).order_id == trashed_order_id
+
+
 def test_detach_restores_collected_state(auth_client):
     """되돌리면 수집 직후 상태로 온전히 돌아간다."""
     order_id = _order()

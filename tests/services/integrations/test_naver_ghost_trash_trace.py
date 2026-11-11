@@ -272,3 +272,37 @@ def test_pane_header_is_silent_for_a_living_order(app, client, workbench_on):
     body = _pane(client, int(link.id))
 
     assert TRASH_BADGE not in body, "살아 있는 주문을 접혔다고 말했다"
+
+
+SEEK_INPUT = 'id="wb-seek-q"'
+
+
+def test_pane_offers_attach_when_the_created_order_is_trashed(app, client, workbench_on):
+    """만든 주문을 휴지통에 넣으면 **붙이기 칸이 다시 나온다**(2026-11-12 운영 #6098).
+
+    추가결제를 잘못 '주문 만들기' 하고 그 주문을 지운 뒤에도 수집분이 접힌 주문을
+    가리켜, 기존 주문에 붙일 칸이 화면에 없었다. 서버
+    (``promotion.attach_link_to_order``)는 휴지통 주문의 NEW 링크를 풀어 옮겨 준다.
+    """
+    actor = _login(client)
+    tel = "010-7500-0009"
+    order = _order(tel=tel)
+    link = _link(order_no="N-GT-9", amount=1_332_100, order_id=int(order.id), tel=tel)
+    _trash(order, actor=actor, reason="추가결제 오생성")
+
+    body = _pane(client, int(link.id))
+
+    assert TRASH_BADGE in body
+    assert SEEK_INPUT in body, "휴지통 주문에 묶인 수집분인데 붙이기 칸이 없다"
+
+
+def test_pane_hides_attach_for_a_living_created_order(app, client, workbench_on):
+    """음성 대조군 — 살아 있는 주문으로 만든 수집분에는 붙이기 칸이 없다."""
+    _login(client)
+    tel = "010-7500-0010"
+    order = _order(tel=tel)
+    link = _link(order_no="N-GT-10", amount=520_000, order_id=int(order.id), tel=tel)
+
+    body = _pane(client, int(link.id))
+
+    assert SEEK_INPUT not in body, "살아 있는 주문인데 붙이기 칸이 열렸다"
