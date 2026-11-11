@@ -9,7 +9,7 @@ from models import Order, OrderEvent, User
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
-from foms.services.order_payment_sync import last_deposit_changes
+from foms.services.order_payment_history import last_deposit_changes
 from foms.services.orders.order_create import CREATED_EVENT
 
 
