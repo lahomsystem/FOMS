@@ -23,11 +23,18 @@
       <span>도면 작업실 실행판</span>
     </h1>
     <div class="erp-pro-header__actions d-flex gap-2">
+      {# 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.2): 같은 자리, 글자만 바뀐다. #}
+      {% if as_drawing and as_drawing.can_start %}
+      <button type="button" class="erp-pro-btn erp-pro-btn--primary" data-dw-as-start-open>
+        <i class="fas fa-magic"></i><span>AS 도면 시작</span>
+      </button>
+      {% else %}
       <a class="erp-pro-btn erp-pro-btn--primary"
         href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id) }}"
         target="_blank" rel="noopener">
-        <i class="fas fa-magic"></i><span>도면 마법사</span>
+        <i class="fas fa-magic"></i><span>{{ 'AS 도면 그리기' if (as_drawing and as_drawing.current) else '도면 마법사' }}</span>
       </a>
+      {% endif %}
       <a class="erp-pro-btn erp-pro-btn--secondary"
         href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') }}">
         <i class="fas fa-list"></i><span>목록</span>
@@ -40,6 +47,7 @@
 
   {% set erp_sub_nav_active = 'drawing_workbench' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  {% if as_drawing and as_drawing.show %}{% include 'drawing/partials/workbench_as_card.html' %}{% endif %}
 
   {% macro render_gateway_file_gallery(files, group_key) -%}
   {% if files %}
@@ -3289,6 +3297,7 @@
 <script src="{{ url_for('static', filename='js/foms/drawing-ok-scope.js') }}?v=20261012b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-item-cancel.js') }}?v=20261012b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-stray-files.js') }}?v=20261027b" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/workbench-as.js') }}?v=20261111a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20261012a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20261001b" defer></script>

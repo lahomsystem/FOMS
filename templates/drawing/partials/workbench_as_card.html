@@ -1,0 +1,99 @@
+{# 완료 주문 AS 도면 카드 — 설계서 docs/specs/2026-11-11-as-drawing-after-completion_SPEC.md §4.
+   값은 workbench.build_as_drawing_detail(조회 0). 버튼 동작은 static/js/drawing/workbench-as.js.
+   원래 최종 도면은 이 카드 어디서도 바뀌지 않는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-as.css') }}?v=20261111a">
+{% set asd = as_drawing %}
+<section class="dw-as-card" id="dw-as-card" data-order-id="{{ order.id }}"
+  data-registered-as="{{ '1' if (asd.current and asd.current.registered_as) else '' }}" aria-label="AS 도면">
+  {% if asd.current %}
+  {% set cur = asd.current %}
+  <div class="dw-as-head">
+    <span class="dw-as-badge">AS</span>
+    <strong>AS 도면 {{ cur.no }}차</strong>
+    <span class="dw-as-status is-{{ cur.status|lower }}">{{ cur.status_label }}</span>
+    <span class="small text-muted">{{ cur.opened_by_name }}{% if cur.opened_at %} · {{ cur.opened_at }}{% endif %}</span>
+  </div>
+  {% if cur.memo %}<p class="dw-as-memo mb-1">{{ cur.memo }}</p>{% endif %}
+  {% if asd.open_as %}
+  <p class="small text-muted mb-1">AS 접수 {{ asd.open_as.received_date }} · {{ asd.open_as.content }} · {{ asd.open_as.visit }}</p>
+  {% endif %}
+  {% if cur.last_revision and cur.status == 'RETURNED' %}
+  <p class="small dw-as-revision mb-1">고쳐 달라고 한 것: {{ cur.last_revision }}</p>
+  {% endif %}
+  {% if cur.files %}
+  <ul class="dw-as-files list-unstyled mb-2">
+    {% for f in cur.files %}
+    <li><a href="{{ f.view_url }}" target="_blank" rel="noopener"><img loading="lazy" src="{{ f.view_url }}" alt="{{ f.name }}"><span>{{ f.name }}</span></a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <div class="dw-as-actions">
+    {% if asd.can_draw %}
+    <a class="btn btn-sm btn-primary" href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id) }}" target="_blank" rel="noopener"><i class="fas fa-magic"></i> AS 도면 그리기</a>
+    {% endif %}
+    {% if asd.can_send %}
+    <button type="button" class="btn btn-sm btn-success" data-dw-as-act="transfer" data-count="{{ asd.pending_count }}"><i class="fas fa-paper-plane"></i> AS 도면 보내기 ({{ asd.pending_count }}장)</button>
+    {% elif asd.can_draw and cur.status in ('IN_PROGRESS', 'RETURNED') %}
+    <span class="small text-muted">마법사에서 AS 시트를 그리고 [저장]을 누르면 여기서 보낼 수 있어요.</span>
+    {% endif %}
+    {% if asd.can_review %}
+    <button type="button" class="btn btn-sm btn-success" data-dw-as-act="confirm"><i class="fas fa-check"></i> 확인했어요</button>
+    <button type="button" class="btn btn-sm btn-outline-danger" data-dw-as-act="revision-open"><i class="fas fa-undo"></i> 고쳐 주세요</button>
+    {% endif %}
+    {% if asd.can_channel_retry %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-as-act="channel">채널톡 AS방에 접수 올리기</button>
+    {% endif %}
+    {% if asd.can_cancel %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-as-act="cancel">AS 도면 그만두기</button>
+    {% endif %}
+  </div>
+  {% if asd.can_review %}
+  <div class="dw-as-revision-form d-none" data-dw-as-revision-form>
+    <label class="small fw-semibold" for="dw-as-revision-reason">무엇을 고쳐야 하나요</label>
+    <textarea class="form-control form-control-sm" id="dw-as-revision-reason" rows="2" maxlength="500"></textarea>
+    <button type="button" class="btn btn-sm btn-danger mt-1" data-dw-as-act="revision">고쳐 달라고 보내기</button>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="dw-as-head">
+    <span class="dw-as-badge">AS</span>
+    <strong>시공이 끝난 주문이에요</strong>
+  </div>
+  <p class="small text-muted mb-2">AS 도면은 [AS 도면 시작]으로 따로 그려요. 원래 최종 도면은 바뀌지 않아요.</p>
+  {% if asd.can_start %}
+  <form class="dw-as-start d-none" data-dw-as-start-form novalidate>
+    {% if asd.open_as %}
+    <div class="fw-semibold mb-1">AS 도면 시작</div>
+    <p class="small mb-2">AS 접수 {{ asd.open_as.received_date }} · {{ asd.open_as.content }} 에 묶어요.</p>
+    {% else %}
+    <div class="fw-semibold mb-1">AS 접수하고 도면 시작</div>
+    <p class="small text-muted mb-2">이 주문은 AS 접수가 없어요. 여기서 같이 접수해요.</p>
+    <label class="small fw-semibold" for="dw-as-content">AS 내용 (꼭 써요)</label>
+    <textarea class="form-control form-control-sm mb-2" id="dw-as-content" rows="2" maxlength="2000" data-dw-as-content></textarea>
+    {% endif %}
+    <label class="small fw-semibold" for="dw-as-memo">무엇을 그리나요{% if not asd.open_as %} (비우면 AS 내용){% endif %}</label>
+    <input class="form-control form-control-sm mb-2" id="dw-as-memo" maxlength="500" data-dw-as-memo>
+    {% if not asd.open_as %}
+    <div class="form-check mb-2">
+      <input class="form-check-input" type="checkbox" id="dw-as-channel" data-dw-as-channel checked>
+      <label class="form-check-label small" for="dw-as-channel">채널톡 AS방에 접수 올리기</label>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn-sm btn-primary">{{ '시작하기' if asd.open_as else '접수하고 시작' }}</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-as-start-close>닫기</button>
+  </form>
+  {% endif %}
+  {% endif %}
+  {% if asd.past %}
+  <details class="dw-as-past mt-2">
+    <summary class="small">지난 AS 도면 {{ asd.past|length }}개</summary>
+    <ul class="list-unstyled small mb-0">
+      {% for p in asd.past %}
+      <li>AS {{ p.no }}차 · {{ p.status_label }}{% if p.memo %} · {{ p.memo }}{% endif %}
+        {% for f in p.files %} · <a href="{{ f.view_url }}" target="_blank" rel="noopener">{{ f.name }}</a>{% endfor %}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  <div class="small mt-2 d-none" data-dw-as-status role="status"></div>
+</section>

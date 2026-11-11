@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy import and_, or_
 
+from foms.services.orders.as_drawing import AS_DRAWING_STATUS_KEY, OPEN_STATUSES as AS_DRAWING_OPEN_STATUSES
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,10 @@ DRAWING_STAGE_CODES = ('DRAWING', '도면')
 # 생산 단계 재전달은 [제작 시작]을 막는데(confirm_drawing_gate) 목록에서 빠지면 영업이 확정할
 # 곳을 못 찾는다(2026-10-22 주문 5625). 시공 이후 옛 주문(운영 65건)은 넣지 않는다.
 POST_DRAWING_RECEIPT_STAGE_CODES = ('CONFIRM', '고객컨펌', 'PRODUCTION', '생산')
+
+# 시공이 끝난 단계(완료 주문 AS 도면, 설계서 2026-11-11-as-drawing-after-completion §6.1) — 코드/한글.
+# 검색어가 있을 때만 이 단계 주문을 모집단에 더한다(AS 도면 시작할 주문 찾기). 평소 목록은 그대로다.
+AS_DRAWING_STAGE_CODES = ('CS', 'COMPLETED', '완료')
 
 
 def _drawing_status_exprs():
@@ -70,11 +75,12 @@ def count_confirmed_drawing_orders(base_query) -> int:
     ).count()
 
 
-def build_drawing_queue_filter(*, include_confirmed: bool = False):
+def build_drawing_queue_filter(*, include_confirmed: bool = False, as_search_clause: Any = None):
     """도면 작업실 모집단 술어(SQL) — 라우트 행 필터의 **상위집합(superset)**.
 
     Args:
         include_confirmed: 컨펌(수령확정) 주문 포함 여부(``?include_confirmed=1``).
+        as_search_clause: 검색어 SQL 술어. 있으면 시공이 끝난 단계 주문 중 검색에 맞는 것을 더한다.
 
     Returns:
         SQLAlchemy ``or_`` 절. 도면 단계 ∪ 수정요청(RETURNED, 단계 무관)
@@ -106,6 +112,14 @@ def build_drawing_queue_filter(*, include_confirmed: bool = False):
         Order.erp_stage_code.in_(POST_DRAWING_RECEIPT_STAGE_CODES),
         or_(nested == 'TRANSFERRED', flat == 'TRANSFERRED'),
     ))
+    # 완료 주문 AS 도면 차수 — 차수는 늘 AS 접수에 묶이므로(흐름 1·2) AS 축 부분 색인으로 먼저 좁힌다.
+    as_statuses = list(AS_DRAWING_OPEN_STATUSES) + (['CONFIRMED'] if include_confirmed else [])
+    conditions.append(and_(
+        Order.as_axis_status.isnot(None),
+        Order.structured_data[AS_DRAWING_STATUS_KEY].as_string().in_(as_statuses),
+    ))
+    if as_search_clause is not None:
+        conditions.append(and_(Order.erp_stage_code.in_(AS_DRAWING_STAGE_CODES), as_search_clause))
     return or_(*conditions)
 
 
@@ -114,6 +128,7 @@ def fetch_drawing_seed_order_ids(
     *,
     cap: int = DRAWING_WORKBENCH_SEED_CAP,
     include_confirmed: bool = False,
+    as_search_clause: Any = None,
 ) -> list[int]:
     """도면 모집단으로 선스코프한 뒤 접수순으로 cap 까지 뽑는다.
 
@@ -121,12 +136,14 @@ def fetch_drawing_seed_order_ids(
         orders_query: active/ERP/mine 스코프가 적용된 ``Order`` 쿼리.
         cap: 폭주 가드 상한(모집단 선스코프 후 적용).
         include_confirmed: 컨펌 주문 포함 여부.
+        as_search_clause: 검색어 SQL 술어(:func:`build_drawing_queue_filter`).
 
     Returns:
         접수 최신순 주문 id 목록.
     """
     rows = (
-        orders_query.filter(build_drawing_queue_filter(include_confirmed=include_confirmed))
+        orders_query.filter(build_drawing_queue_filter(
+            include_confirmed=include_confirmed, as_search_clause=as_search_clause))
         .order_by(Order.created_at.desc())
         .with_entities(Order.id)
         .limit(cap)
