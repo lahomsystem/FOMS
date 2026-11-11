@@ -625,6 +625,31 @@
       "policy_id": "DRAWING_ASSIGNED",
       "rule": "/api/orders/<int:order_id>/drawing-wizard"
     },
+    "erp_orders_as_drawing.api_as_drawing_cancel": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/as/cancel"
+    },
+    "erp_orders_as_drawing.api_as_drawing_confirm": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/drawing/as/confirm"
+    },
+    "erp_orders_as_drawing.api_as_drawing_request_revision": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/drawing/as/request-revision"
+    },
+    "erp_orders_as_drawing.api_as_drawing_start": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/as/start"
+    },
+    "erp_orders_as_drawing.api_as_drawing_transfer": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/<int:order_id>/drawing/as/transfer"
+    },
     "erp_orders_item_cancel.api_order_item_cancel_after_confirm": {
       "mode": "guard",
       "policy_id": "ITEM_CANCEL",

@@ -35,6 +35,7 @@ from foms.services.orders.revision import (
 from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
 from foms.services.orders.drawing_transfer import clean_sheet_id, clean_sheet_sig
+from foms.services.orders.as_drawing import apply_sheet_lock
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
@@ -924,7 +925,7 @@ def api_put_drawing_wizard(order_id):
             return jsonify({'success': False, 'message': error}), 400
 
         captured: dict = {'updated_at': None, 'sheets_before': None, 'objects_before': None,
-                          'auto_assigned': None}
+                          'auto_assigned': None, 'sheet_lock': None}
 
         def _mutate(sess: Session, orders: list) -> dict:
             """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
@@ -953,6 +954,19 @@ def api_put_drawing_wizard(order_id):
                 for sh in prev_sheets if isinstance(sh, dict)
             )
             projected = _project_wizard_state(saved, state)
+            # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §3-3): 시공이 끝난 주문은
+            # 원래 시트·지난 차수 시트를 저장된 그대로 지키고, 열린 차수의 새 시트에 차수 표시를 붙인다.
+            # 거절(409) 대신 서버값을 지킨다 — 자동 저장이 실패를 반복하면 도면팀 화면이 멈춘다.
+            locked_sheets, lock_report = apply_sheet_lock(
+                o, sd, prev_sheets, projected.get('sheets'),
+                actor_id=current_user.id, actor_name=current_user.name,
+                now_iso=now_utc_naive().isoformat(),
+            )
+            if any(lock_report.values()):
+                projected['sheets'] = locked_sheets
+                captured['sheet_lock'] = lock_report
+            elif locked_sheets != (projected.get('sheets') or []):
+                projected['sheets'] = locked_sheets
             projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
             projected['updated_by'] = current_user.id
             projected['updated_by_name'] = current_user.name
@@ -1009,7 +1023,8 @@ def api_put_drawing_wizard(order_id):
         resp = jsonify({
             'success': True,
             'data': {'updated_at': captured['updated_at'],
-                     'auto_assigned': captured['auto_assigned']},
+                     'auto_assigned': captured['auto_assigned'],
+                     'sheet_lock': captured['sheet_lock']},
             'mutation_receipt': outcome.read_receipt_id,
             'mutation_version': resources[0].get('resulting_version'),
         })
