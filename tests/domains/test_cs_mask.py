@@ -275,11 +275,17 @@ def test_name_shape_counts_rare_words(name):
 
 
 @pytest.mark.parametrize(
-    "word", ["사이즈", "손잡이", "서랍장", "하부장", "오늘은", "사진은", "배송비", "이렇게", "주말에", "연락처", "경기도", "설치는", "고객님"]
+    "word", ["사이즈", "손잡이", "서랍장", "하부장", "오늘은", "사진은", "배송비", "이렇게", "주말에", "연락처", "경기도", "설치는", "고객님",
+             "방수목", "소나무", "강마루"]
 )
 def test_name_shape_skips_common_words(word):
     """흔한 말 목록 · 이름에 안 오는 끝 글자(조사 · 장 · 님 …)는 이름꼴로 세지 않는다."""
     assert leak_counts(f"{word},\n")["이름꼴"] == 0
+
+
+def test_material_word_before_slash_is_not_a_name():
+    """운영 11-11: 직원 글 '고객님 방수목 / 2번 …'이 이름꼴로 걸려 그 상담 초안이 매번 건너뛰어졌다(자재 이름)."""
+    assert leak_counts(mask("네네 고객님 방수목 / 2번 철근 구조는 가능해요"))["이름꼴"] == 0
 
 
 def test_check_is_wider_than_mask_and_stops_unknown_shapes():
