@@ -216,12 +216,24 @@ def api_as_drawing_get(order_id: int):
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     cur = current_round(sd)
     as_stage = is_as_drawing_stage(order)
+
+    def _view(rnd):
+        out = round_view(sd, rnd)
+        if out:
+            # 저장된 URL 은 믿지 않는다 — key 로만 같은 출처 주소를 만든다(작업실 갤러리와 같은 규칙).
+            for f in out["files"]:
+                f["view_url"] = "/api/files/view/" + str(f.get("key") or "")
+        return out
+
+    review_ok = evaluate_policy(POLICY_REGISTRY[CONFIRM_POLICY_ID], user).allowed
     return jsonify({"success": True, "error": None, "data": {
         "as_stage": as_stage,
         "can_start": bool(as_stage and cur is None),
+        "can_review": bool(review_ok and cur is not None and cur.get("status") == "TRANSFERRED"),
         "open_as": _open_as_view(sd),
-        "current": round_view(sd, cur),
-        "rounds": [round_view(sd, r) for r in rounds(sd)],
+        "current": _view(cur),
+        "rounds": [_view(r) for r in rounds(sd)],
+        "workbench_url": f"/erp/drawing-workbench/{order_id}",
         "mutation_version": getattr(order, "mutation_version", None),
     }})
 

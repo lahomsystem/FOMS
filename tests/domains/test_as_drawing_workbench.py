@@ -205,3 +205,32 @@ def test_main_transfer_function_refuses_wizard_sheet_files_after_completion(app)
             files=[{"key": f"orders/{oid}/drawing_wizard/exports/x.png", "filename": "x.png", "sheet_id": "s-1"}])
     db_session.rollback()
     assert status == 400 and payload["error"] == "USE_AS_TRANSFER"
+
+
+# --------------------------------------------------------------------------
+# 주문 화면 'AS 도면' 묶음(설계서 §4.3-5) — 원래 도면 갤러리와 따로
+# --------------------------------------------------------------------------
+
+def test_order_page_has_as_panel_and_get_view_lets_sales_review(client, storage):
+    drafter = _user("asd_draw50")
+    sales = _user("asd_sales50", team="SALES")
+    admin = _user("asd_admin50", role="ADMIN", team="CS")
+    oid = _order(drawing_ids=[drafter.id], name="주문화면고객")
+    _as(client, admin)
+    page = client.get(f"/edit/{oid}", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130"})
+    html = page.get_data(as_text=True)
+    assert 'id="erp-as-drawing-panel"' in html and "js/orders/erp-as-drawing-panel" in html
+
+    _as(client, drafter)
+    assert _start(client, oid, memo="m", as_register={"content": "c"}).status_code == 200
+    assert _put(client, oid, [{"id": "s-1", "name": "냉장고장", "form": {}, "objects": []},
+                              {"id": "s-2", "name": "AS", "form": {}, "objects": []}]).status_code == 200
+    assert _sheet_png(client, oid, "s-2", "as.png").status_code == 200
+    assert client.post(f"/api/orders/{oid}/drawing/as/transfer", json={}).status_code == 200
+    assert client.get(f"/api/orders/{oid}/drawing/as").get_json()["data"]["can_review"] is False  # 도면팀
+
+    _as(client, sales)
+    data = client.get(f"/api/orders/{oid}/drawing/as").get_json()["data"]
+    assert data["can_review"] is True
+    assert data["current"]["files"][0]["view_url"].startswith(f"/api/files/view/orders/{oid}/")
+    assert data["workbench_url"] == f"/erp/drawing-workbench/{oid}"

@@ -346,6 +346,11 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                             </div>
                         </div>
+                    {# 완료 주문 AS 도면 묶음(설계서 2026-11-11-as-drawing-after-completion §4.3-5) — 원래 도면 갤러리와 따로.
+                       erp-as-drawing-panel.js 가 GET /api/orders/<id>/drawing/as 로 채우고, AS 도면이 없으면 숨긴 채 둔다. #}
+                    {% if order is defined and order and order.id %}
+                    <section class="dw-as-card d-none" id="erp-as-drawing-panel" data-order-id="{{ order.id }}" aria-label="AS 도면"></section>
+                    {% endif %}
                         <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
                         <textarea class="visually-hidden" id="erp-conversion-text" rows="8" readonly aria-hidden="true" tabindex="-1"></textarea>
                         </div>
