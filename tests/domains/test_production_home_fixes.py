@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111d" in html
+    assert "home.css?v=20261111e" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -241,7 +241,8 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-dr__ln { display: flex; flex-wrap: wrap; align-items: baseline;" in css
     assert ("min-width: 0; max-width: 100%; }" in css.split(".fph-dr__nm {")[1].split("}")[0] + "}")
-    assert (".fph-dr__by { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); white-space: nowrap;"
-            " overflow: hidden; text-overflow: ellipsis;") in css
+    # 발주사·담당 글은 말줄임 없이 줄이 넘어간다 — 글자 150% 에서 담당 이름이 "…" 로 잘리던 것(스테이징 실화면)
+    by = re.search(r"\.fph-dr__by \{[^}]*\}", css).group(0)
+    assert "overflow-wrap: anywhere" in by and "nowrap" not in by and "ellipsis" not in by
     assert ".fph-qr__ln { display: flex; flex-wrap: wrap; align-items: baseline;" in css
-    assert ".fph-qr__who .fph-qr__by { max-width: 100%; color: var(--fph-text3); }" in css
+    assert ".fph-qr__who .fph-qr__by { max-width: 100%; color: var(--fph-text3); white-space: normal; overflow-wrap: anywhere; }" in css
