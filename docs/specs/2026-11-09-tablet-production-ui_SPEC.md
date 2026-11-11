@@ -158,3 +158,101 @@
 - **D19(11-10, 사용자 "누구나 새 첫 화면") 태블릿 레일 "생산" = 첫 화면**: 태블릿 가로 레일(`foms_tablet_rail.html` ← `build_tablet_rail_items`)의 생산 단추는 첫 화면을 볼 수 있는 사람(`can_view_production_home` — `foms/services/production/home_access.py`, 문지기 `_require_home_user` 와 한 규칙: 관리자 · CS · 영업 · 생산, 협력사 제외)이면 `/erp/production/home` 으로 간다. 못 보는 팀과 켜진 프리랜서는 보드 그대로. PC 메뉴 · 폰 아래 메뉴 · split 셸 레일(마우스 좁은 창 전용) · 로그인 뒤 착지는 그대로. `/erp/production` 아래(첫 화면 · 전체 화면 시트)는 전부 레일 생산 강조(`resolve_tablet_rail_active_id`, 조각 이동 뒤에는 `data-foms-rail-match`). 옛 생산 보드는 첫 화면 탭 줄 끝 [보드](`data-foms-home-board`, 온전한 페이지 이동 `data-foms-erp-no-shell`)로 들어간다. 전에는 레일이 누구에게나 보드로 가서 새 첫 화면은 주소를 쳐야만 보였다(운영엔 생산팀 계정이 없어 아무도 못 봄).
 - `is_production_home_user(user)`(`post_auth_navigation.py`) = 팀 PRODUCTION 이고 협력사 아님(프리랜서는 영업팀만 가능해 따로 보지 않음). `authenticated_home_url`·`resolve_post_login_redirect`(legacy `/`)·`listing.py index()`·`routes.py switch_user` 네 곳이 `production_home_url()` 로. 기기 무관. 시험 `tests/domains/test_post_auth_navigation.py` 4 사례(PC 로그인·`next=/`·`/`·CS 대조군).
 - **D15(11-09 저녁) 도장 공정 삭제** — 공정은 재단·엣지·조립·검수 4단계. `_PRODUCTION_STEP_DEFS`(API)·`PRODUCTION_HOME_STEP_DEFS` 에서 paint 제거, 옛 주문의 `production.steps` 에 남은 paint 는 읽을 때(API GET·`_ensure_production_steps`·첫 화면·시트·모바일 큐 "공정 n/N") 걸러 낸다. 데이터 이행 없음. 시안 그림의 도장 칸은 옛 그림.
+
+## 14. 출고 탭 — 하루치 출고표에서 시공자 배정 (D23~D31, 2026-11-11 — **승인됨: "이대로 만들기"**)
+
+### 14.0 한 줄
+태블릿 가로 출고 탭을 "하루치 출고표 한 장"으로 바꾼다. 줄은 시공자 묶음 카드로 모이고, 맨 끝 시공자 칸을 누르면 이름판이 떠서 누르는 즉시 저장된다. 세부정보는 줄을 누르면 오른쪽 서랍. 시안 = `docs/design/mockups/tablet-shipment-styled-sheet.html` 안 17(누른 모습은 16n 이름판 · 16s AS 서랍).
+
+### 14.1 결정 (사용자 — 다시 묻지 않는다, 원장 §27)
+- **D23** 출고 탭의 일 = 출고 스케줄 짜기(포장 · 상차 준비는 생산). **D24** 정하는 것 = 누가 가는지 · 몇 시에 · 날짜 옮기기 · 협력사 희망일 확정. 보통 오전/오후 2타임, 한 집에 여러 명이 갈 수 있다. 짜는 사람 = 출고 담당, 권한 = 출고 · 관리자 · CS.
+- **D25** 여러 명이 가면 자수는 사람 수로 나눠 센다. **D26** 시공자 배정이 핵심 · 단순 · 직관, AS 일정도 같이 짠다(AS 전담 기사가 있고 가끔 시공팀도 AS 를 간다).
+- **D27** 바탕 = 회사 엑셀 출고일지(칸 9개와 순서). **D28** 표는 단순하게, 세부(특히 AS 내용)는 누르면 서랍 — AS 는 AS 탭에서 받아 온다.
+- **D29** 엑셀 생김새와 본문 칠(주황 · 파랑 · 분홍)은 뺀다, 같은 시공자 색 묶음만 남긴다. **D30** 모양 = 안 17 시공자 묶음 카드. 이름 누르는 곳 = 칸 옆 이름판, 세부 = 오른쪽 서랍(질문 창이 답 없이 닫혀 권고안으로 둠).
+- **D31(11-11 질문 창 "영업팀은 막기")** 출고 배정 · 시공시간 · AS 넣기를 쓸 수 있는 사람 = 관리자 · CS팀 · 출고팀뿐. 영업팀은 PC 를 포함해 출고 탭을 보기만 한다.
+
+### 14.2 지금 (워커 조사 + 총괄이 코드로 확인)
+- 태블릿 가로의 `/erp/shipment` 는 이미 전용 그리드를 그린다: `templates/shipment/partials/tablet_ship_grid.html`(6칸 · 시공팀 머리줄), 줄을 누르면 오른쪽 배정 시트 `GET /erp/shipment/tablet-sheet/<id>`(`tablet_sheet.html` — 팀 고르기 · 시간 `09:00`/`14:00`/직접 · [배정 적용]). 문지기는 CSS(`static/css/contexts/shipment/shipment-dashboard-columns.css` — `body.erp-mobile-v2-layout` + 터치 가로).
+- 줄 = ORM `Order`(추가 쿼리 없음, `foms/web/shipment/dashboard.py:604-680`). 그날 조건 = 일정 표 `construction` 이 그날, 또는 AS 상태이고 `as_visit` 이 그날. **AS 는 별도 표가 아니라 같은 주문의 상태**다.
+- 저장 `POST /api/erp/shipment/update/<id>`(`foms/api/shipment/settings.py:189`): `construction_workers`(이름 배열 · 최대 10) · `construction_time`(자유 글) · `site_extra`. 동시 수정은 `settings_version`/`If-Match`, 중복은 `Idempotency-Key`. **알림 · 푸시 없음**(이벤트 · 변경 원장 · 감사 로그만).
+- **출고팀은 지금 쓰기 403**: 정책 `SHIPMENT_EDIT` 는 CS · SALES · SHIPMENT 인데(`foms/services/orders/order_mutation_policy.py:209`) 그 앞의 `@erp_edit_required`(관리자 · CS · SALES, `foms/services/erp_permissions.py:366`)가 먼저 막는다 — 정책과 데코레이터가 어긋난 상태. AS 추천 4종(`foms/api/shipment/recommendations.py`)도 같다. 시공일 쓰기만 출고팀이 된다(`can_edit_construction_schedule`).
+- 시공시간 칸이 둘: 출고 표가 보이는 `sd.shipment.construction_time`(자유 글) 과 주문의 `sd.schedule.construction.time`(오전 · 오후 · 종일).
+- 자수: 줄 합 `visible_spec_units`. 사람별 잔여 `compute_team_remaining_units_for_date`(`dashboard.py:305`)는 여러 명이면 사람마다 전부 빼고, `construction` 만 세므로 AS 는 안 센다. 태블릿 묶음 집계 `_compute_shipment_team_group_meta` 는 첫 시공자가 전부 가진다.
+- 시공자 설정 = `{name, capacity(기본 10), off_dates}`(`foms/services/erp_shipment_settings.py:99`) — AS 전담 표시는 없다.
+- AS 넣기 = 기존 추천: 그날 출고건 근처(길 30분 이하 · 건마다 2개)의 방문일 없는 AS. `apply` 는 AS 방문일을 그 출고건 시공일로, 작업자를 그 출고건의 **ID 배정**으로 복사한다(이름 배열은 안 쓴다 — `foms/services/shipment/as_recommendation.py` 머리말).
+- AS 세부를 주는 JSON API 는 없다. HTML 조각 둘: `GET /erp/as/card-detail/<id>` · `GET /erp/as/timeline/<id>?readonly=1`(`foms/web/cs/as_dashboard.py:153,194`).
+- [이미지 저장] `static/js/shipment/image-export.js` 는 PC 표 DOM 을 읽는다(태블릿에서는 숨겨져 있지만 DOM 에 있다).
+- 운영에 SHIPMENT 팀 활성 계정 0명(`foms/services/notifications/shipment_change.py:66` 주석, 08-05 조회).
+
+### 14.3 바꾸는 것 — 주소 · 줄 · 저장 API 는 그대로, 태블릿 그리드와 시트만
+- **표(안 17)** `tablet_ship_grid.html`: 6칸 → 출고일지 9칸. 세로 선 없음 · 왼쪽 맞춤 · 줄 46px. 시공자 묶음마다 카드(시공자 없음 묶음이 맨 위, 그다음 설정에 적힌 시공자 순, 설정에 없는 이름은 뒤). 묶음 안은 일반 줄 뒤에 AS 줄.
+
+  | 칸 | 값 |
+  |---|---|
+  | 번호 | 화면 순서 1..N |
+  | 대리점 | `orderer_name`. AS 줄은 검은 `AS` 딱지 |
+  | 제품명 | 그날 품목 첫 이름 + `외 n` |
+  | 규격 | 줄 자수 합(소수 한 자리). AS 줄은 접수 내용 앞머리 한 줄(넘치면 …) |
+  | 현장주소 | `address` 한 줄(넘치면 …) |
+  | 고객 | 이름만(전화는 서랍) |
+  | 시공시간 | `shipment.construction_time`. 비었으면 주문의 오전 · 오후 · 종일을 흐린 글로 |
+  | 영업 담당 | `manager_label` |
+  | 시공자 | 사람 색 덩어리(10색, 묶음 순서대로 번호 — PC 는 이름 순이라 같은 사람이 PC 와 다른 색일 수 있다), 같은 사람 줄은 위아래로 붙음. 없으면 빨간 점선 `＋ 시공자` |
+
+  본문 칠은 없다(D29). 금액 없음(D7). 위 줄 = 날짜 이동 · `N건` · `시공자 없음 n` · 글자 손잡이 · [AS 넣기] · [이미지 저장].
+  **D32(11-11 "단추로 여닫기")** 예전부터 있던 왼쪽 `날짜별 남은 자수` 띠(260px)는 평소엔 숨기고 위 줄 [날짜별 남은 자수] 단추로 여닫는다(연 상태는 그 태블릿에 기억). 닫힌 표 폭 1150px.
+- **묶음과 사람별 집계** 새 서비스 `foms/services/shipment/tablet_day_sheet.py`(템플릿 안 계산을 서비스로): 묶음 목록(키 = 첫 시공자 — 기존 규칙 그대로) + 사람별 `건수 · 자수`. 자수는 **줄 자수 ÷ 그 줄 시공자 수**(D25), AS 줄은 건수만.
+- **이름판** 새 JS `static/js/shipment/tablet-ship-assign.js`(300줄 안): 시공자 칸을 누르면 그 칸 옆에 판. 이름마다 사람 색 띠 · `n건 · m자`(용량을 넘으면 숫자 빨강 — 막지는 않음, 지금 정책 그대로) · 그날이 `off_dates` 면 `쉼`(흐림). 이름을 누르면 그 줄에 넣기/빼기 → 바로 저장(기존 API, `settings_version` + `Idempotency-Key`). [직접 쓰기](설정에 없는 이름 · 지역 이름) · [비우기]. 판을 닫으면 그날 조각을 다시 받아 묶음을 새로 그린다(묶음 재배치는 서버 한 곳에서). 409 는 "다른 사람이 먼저 고쳤어요" + 다시 받기.
+- **서랍** `tablet_sheet.html` 을 넓힌다(주소 `GET /erp/shipment/tablet-sheet/<id>` 그대로): 고객 · 전화 · 주소 전체 · 품목 전부(이름 · 규격) · 현장 메모(읽기) · 시공시간([오전 8시] · [오후 1시] · 직접 → 같은 저장 API). 시트 안 "팀 고르기 + [배정 적용]" 은 이름판이 대신하므로 뺀다. **AS 줄**이면 `AS 정보` 묶음: AS 탭의 읽기 조각(`/erp/as/timeline/<id>?readonly=1`)을 서랍 안에 불러 붙이고 [AS 탭에서 열기](`/erp/as?focus_order=<id>`).
+- **AS 넣기** 위 줄 단추와 표 아래 `＋ 날짜 없는 AS — 이 날에 넣기`: 누르면 서랍에 기존 추천 목록(고객 · 주소 · 접수 내용 한 줄 · `○○ 현장에서 n분`) + [이 날에 넣기](`apply`) · 넣은 것은 [되돌리기](`cancel`). 새 API 없음.
+- **[이미지 저장]** 기존 `image-export.js` 를 태블릿 위 줄에서 부른다(나오는 그림은 지금 PC 와 같은 출고일지 표).
+- **자수 나누기(D25)** `compute_team_remaining_units_for_date` 도 같은 규칙으로 — 두 명이 간 22.4자 줄은 각자 11.2자. 이 함수를 부르는 곳은 태블릿 시트(`dashboard.py` `erp_shipment_tablet_sheet`) 한 곳이라 **바뀌는 것은 태블릿의 사람별 잔여뿐**이다. PC 패널은 날짜별 합계(`compute_shipment_panel_aggregates` — 주문 자수를 한 번만 셈)라 바뀌지 않는다(초안의 "PC 숫자도 바뀐다"는 틀렸음 — 11-11 워커가 코드로 확인).
+
+### 14.4 권한 (D24 — 코어 변경)
+- 새 헬퍼 `can_edit_shipment(user)`(`erp_permissions.py`): 관리자, CS팀, 출고팀 STAFF · MANAGER(협력사 · 비활성 제외). **영업팀(SALES — 실측 `MEASURE` 포함)은 안 된다(D31).** 정책 `SHIPMENT_EDIT` 의 팀도 CS · SHIPMENT 로 고치고 매니페스트를 다시 만든다. 새 데코레이터로 `POST /api/erp/shipment/update/<id>` 와 AS 추천 4종의 `@erp_edit_required` 를 바꾼다. 정책과 데코레이터가 같은 규칙을 본다.
+- 화면의 `can_edit_shipment` 값(`dashboard_main.html:39`)도 이 헬퍼에서 온다 → 출고팀에게 PC 편집 칸도 열리고, 영업팀에게는 PC · 모바일 편집 칸이 닫힌다.
+- 그대로: 시공팀(읽기만 · 내 것만) · 협력사 · 켜진 프리랜서 · VIEWER 는 쓰기 불가. 시공일 쓰기(`can_edit_construction_schedule` — 영업 포함)는 건드리지 않는다.
+- 사용자 몫: 운영에 출고팀 계정이 없다 — 출고 담당 계정의 팀을 출고팀으로 두어야 한다(관리자 · CS 계정은 지금도 된다).
+
+### 14.5 시험
+- 권한: 관리자 · CS · 출고팀 STAFF 가 배정 저장 · AS 추천/넣기/되돌리기 통과, 영업팀 · 시공팀 · 협력사 · VIEWER 403(되돌리면 실패).
+- 집계: 묶음 순서(없음 먼저 · 설정 순 · 묶음 안 AS 뒤) · 번호 · 두 명 줄 자수 반씩 · AS 는 건수만 · 잔여 계산(되돌리면 실패).
+- 템플릿: 칸 9개 순서 · `AS` 딱지 · `＋ 시공자` · 본문 칠 클래스 없음 · 금액 없음 · 인라인 style 없음 · 글자 `calc(Npx * var(--foms-fs, 1))` · 자산 핀.
+- 스테이징 실화면(1280×800 터치): 쓰기는 가상 주문 `CLAUDE-TEST-` 로만(배정 저장은 알림이 없다). 시공일 옮기기는 누르지 않는다(실제 직원 방으로 알림).
+
+### 14.6 단계 (각 단계 = 스테이징까지, 운영은 지시 때)
+| 단계 | 일 |
+|---|---|
+| P14-1 | 권한: `can_edit_shipment` + 데코레이터 교체 + 시험 |
+| P14-2 | 묶음 · 사람별 집계 서비스 + 자수 나누기(D25) + 시험 |
+| P14-3 | 표(안 17) + 이름판 + CSS · JS |
+| P14-4 | 서랍 넓히기 + AS 정보 |
+| P14-5 | AS 넣기 목록 · [이미지 저장] |
+
+### 14.7 뒤로 · 구현 전에 확인할 것
+- 뒤로: 날짜 옮기기(쓰면 도면 · 생산 · 시공팀과 협력사로 알림이 나간다 — 서랍 단추로 따로) · 협력사 희망일 확정을 태블릿 서랍에(지금은 표 위 2주 판 그대로) · AS 전담 표시(설정에 칸이 없다 — 1차는 설정 순서로만) · [출고 확정] · 이름판에서 순서 바꾸기.
+- 확인: ① AS 넣기는 ID 배정만 복사하므로 넣은 뒤 AS 줄 시공자 칸(이름 배열)에 이름이 보이는지 — 안 보이면 P14-5 전에 따로 보고. ② 출고팀 계정이 AS 탭 읽기 조각을 열 수 있는지. ③ 숨겨진 PC 표에서 [이미지 저장] 이 그대로 되는지.
+
+### 14.8 협력사 희망 시공일 — 위 줄 단추로 내려오는 판 (D33 · D34, 2026-11-12 — **승인됨: "안 22로 만들기"**)
+
+- 결정: 사용자(11-12) "태블릿 목업에는 협력사 관련 기능이 없었는데, 목업 만들어봐" → 7차 시안(`docs/design/mockups/tablet-shipment-partner.html`) → "협력사 희망 버튼 누르면 pc용 메뉴를 상단 drawer drop방식으로 열어주게" → **안 22**. §14.7 의 "협력사 희망일 확정을 태블릿 서랍에"는 이것으로 대신한다.
+- 지금(11-12 확인): PC 협력사 판(`templates/shipment/partials/partner_request_board.html`, 설계서 `2026-11-04-shipment-partner-request-board_SPEC.md`)은 `dashboard_main.html` 196~198줄(시공일 변경 배너 아래)에서 **태블릿에도 PC 모양 그대로** 그려진다 — 확정 대기 1건 이상 또는 기록이 있을 때만. 이름 단추 약 23px · 숫자 10.5px · 주말 노랑 칠 · 끌어 놓기는 HTML 끌기라 손가락으로 안 될 수 있음. 스테이징은 확정 대기 0건(판 안 뜸).
+- 바꾸는 것(태블릿 코호트만, PC 모양 · 동작 그대로 — 아래 ④ 하나만 PC 도 같이):
+  1. **위 줄 단추** `협력사 희망 N` (+ 가장 빠른 날이 내일이면 작은 글 `내일 n`). 판이 그려질 때만(프리랜서는 판이 없으니 단추도 없음). 자리 = `시공자 없음 n` 알약 뒤. 누르면 열고 다시 누르면 닫는다(`aria-expanded`).
+  2. **판은 한 벌만**: 같은 파샬 · 같은 DOM 을 태블릿에서는 표 위 자리에서 숨기고, 단추를 누르면 위 줄 바로 아래에서 **내려오는 서랍**으로 보인다(표를 밀지 않고 위에 덮음, 뒤에 반투명 막). 닫기 = 단추 다시 · 막 누르기 · 서랍 아래 [닫기 ▴] · Esc. 늘 닫힌 채 시작(열림을 기억하지 않음). 서랍 안에서는 판 머리 접기를 쓰지 않는다(늘 펼침).
+  3. **손가락 크기**: 14칸을 7칸 × 2줄, 이름 단추 높이 44px 이상, 글자 13px 이상, 회사 이름(여러 협력사일 때)은 이름 아래 줄. 주말 · 휴일 칸은 노랑 칠 대신 회색 글자, 파랑 칠 없음(D29). 판 밖 · 날짜 없음 줄 · 최근 정한 기록 · [되돌리기] · [N건 보기]는 PC 와 같은 순서.
+  4. **정하기 창**: PC 와 같은 창 · 같은 글 · 같은 저장(`/api/erp/shipment/partner-requests/<id>/confirm`) · 5초 되돌리기 · 확정 뒤 새로 읽기. 창은 서랍 위에 뜬다. **창이 열린 채 다른 날 칸을 누르면 그 날로 날짜가 바뀐다**(PC 도 같이 — 지금은 창이 닫히기만 한다). 날짜 칸(입력)은 그대로 둔다.
+- 권한 · 서버: 바뀌지 않는다. 정하기 문은 그대로 `can_set_construction_schedule`(관리자 · CS · 영업 · 출고팀 — 출고 배정 D31 과 다른 문, 영업팀도 정할 수 있음). 새 API · 새 쓰기 없음.
+- 시험: 템플릿 단언(태블릿 위 줄 단추 · 숫자 · `내일` · 판 DOM 1개 · 막 · 프리랜서는 단추 없음 · 판 없으면 단추 없음), 판 JS 300줄 래칫 · `node --check`, 기존 `tests/security/test_partner_request_board.py` · `test_partner_request_count.py` 초록, CSS 핀. 실화면: 스테이징은 확정 대기 0건이고 협력사 주문을 만들면 실제 방으로 알림이 갈 수 있어, **로컬 준비물 서버**(파일 SQLite + Playwright 1280×800 터치)에서 가짜 협력사 희망 3건으로 열기 · 닫기 · 정하기 창 · 칸 눌러 날짜 바꾸기 · [확정] 뒤 5초 [되돌리기](요청 0번) · 대조군 5초 뒤 저장 1번을 본다. 스테이징은 단추 없음 · 화면 오류 0 만, 운영 실측은 열기 · 창 열고 닫기만(확정 안 누름).
+- 단계: P14-6 (플랜 T14-6).
+
+### 14.9 AS 넣기 때 시공자 이름도 같이 (D35, 2026-11-12 — **승인됨: "이름도 같이 넣기"**)
+
+- 지금(11-12 총괄이 로컬 시험으로 확인): 출고 줄 시공자는 이름 배열(`structured_data.shipment.construction_workers`, 이름판 · PC 칸 · `POST /api/erp/shipment/update`)로만 저장된다. AS 넣기(`apply_as_recommendation`, `foms/services/shipment/as_recommendation.py:218`)는 번호 배정(`OrderInstallationAssignment`, `active_worker_ids` → `replace_workers`)만 옮기는데, 그 번호 배정은 AS 넣기 · 취소 말고는 아무도 쓰지 않아 늘 비어 있다. 결과: 이름판으로 `철수`를 넣은 출고 줄에 AS 넣기 → 응답 `applied_workers=[]`, AS 이름 배열 없음, 번호 배정 없음 → AS 줄이 '시공자 없음' 묶음으로 간다. PC · 운영도 같다(이번에 생긴 것 아님).
+- 바꾸는 것(서버, 화면 무변경):
+  1. **넣기**: 출고 줄 이름 배열(writer 의 정규화 그대로)이 비어 있지 않으면 AS 주문 이름 배열을 **그 이름들로 바꾼다**(이미 다른 이름이 있어도 바꿈). 비어 있으면 AS 이름은 건드리지 않는다. 같은 tx · 같은 AS 쓰기(`_write_ship_recommendations` 의 `as_sd_mutator`)에서 한다. 출고 Order 의 snapshot 에 `previous_names`(넣기 전 AS 이름, 없었으면 null) · `applied_names`(넣은 이름, 안 넣었으면 null)를 더한다. 응답 `applied_workers` 는 넣은 이름(없으면 지금처럼 번호 배정 이름).
+  2. **취소**: snapshot 에 `applied_names` 가 있고 AS 의 지금 이름 배열이 그것과 같으면 `previous_names` 로 되돌린다(null 이면 키를 지운다). 다르면(그 사이 손으로 바꿈) 이름은 그대로 두고 취소는 계속한다(이름 때문에 409 를 내지 않는다). 옛 snapshot(`applied_names` 없음)은 이름을 건드리지 않는다.
+  3. 번호 배정(`replace_workers`) · AS 방문일(`schedule_as_cycle`) · If-Match · 알림은 그대로.
+- 시험: 실제 흐름(이름판 API 로 출고 이름 → 넣기 → AS 이름 = 출고 이름, 대조군 = 지금 코드에서 빈 값) · 덮어쓰기 · 출고 이름 없으면 AS 그대로 · 취소 복원 · 취소 전 손으로 바꾸면 그대로 · 옛 snapshot 취소 · 태블릿 시트에서 AS 줄이 출고 시공자 묶음으로 가는지. structured_data 쓰기 목록(REV-99 인벤토리) 새로 맞춤. 실제로 누르는 확인은 로컬 준비물 서버(스테이징 AS 넣기는 실제 직원 방 알림 위험).
+- 단계: P14-7 (플랜 T14-7).
+- 변경 원장: 넣기 · 취소로 AS 이름이 바뀌면 `shipment.construction_workers` 행을 남긴다(D35-b, 사용자 11-12 '바뀐 칸 기록도 남기기').

@@ -35,8 +35,7 @@
   {% set erp_sub_nav_active = 'shipment' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
   </div>{# /.foms-shell-desktop-only #}
-  {# 시공팀은 출고 대시보드에서 수정 불가 (조회만) #}
-  {% set can_edit_shipment = (can_edit_erp|default(false)) and (not (is_construction_team|default(false))) %}
+  {# 편집 칸은 라우트가 넘기는 can_edit_shipment(관리자 · CS · 출고팀, D31)로만 연다. 주문 수정 링크 · [확인]은 can_edit_order_here. #}
 
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -501,11 +500,14 @@
                   data-team-color-index="{{ ns.worker_index }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-col-key="detail" data-label="상세" style="border-right: 1px solid #e0e0e0;">
-                    {% if can_edit_shipment %}
+                    {% set _row_rec_cancel = can_edit_shipment|default(false) and r.shipment_as_recommendation_link %}
+                    {% if can_edit_order_here|default(false) or _row_rec_cancel %}
                     <div class="d-flex flex-column gap-1 align-items-start">
+                      {% if can_edit_order_here|default(false) %}
                       <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
                         class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
-                      {% if r.shipment_as_recommendation_link %}
+                      {% endif %}
+                      {% if _row_rec_cancel %}
                       <button type="button" class="badge rounded-pill bg-danger text-white border-0 p-1 lh-1 js-shipment-as-rec-cancel"
                         title="출고 추천으로 연결된 AS 일정을 해제" aria-label="추천 취소"
                         data-shipment-order-id="{{ r.shipment_as_recommendation_link.shipment_order_id }}"
@@ -534,7 +536,7 @@
                     {% endif %}
                     {# 시공일 변경 배지 + [확인]. 고객 셀에 두는 이유: PC 표에는 시공일 열이
                        없고(페이지 자체가 날짜로 필터된다) 고객 셀이 행 신원을 읽는 자리다. #}
-                    {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment) }}
+                    {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false)) }}
                   </td>
                   <td data-label="대리점(발주사)" style="border-right: 1px solid #e0e0e0;">
                     {{ orderer or '-' }}

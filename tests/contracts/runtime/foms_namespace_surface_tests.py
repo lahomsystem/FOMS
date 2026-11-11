@@ -1238,6 +1238,10 @@ def test_namespaced_erp_permissions_shim_preserves_canonical_contract() -> None:
         "can_edit_erp_construction",
         "erp_edit_required",
         "erp_construction_edit_required",
+        # can_edit_shipment · shipment_edit_required(2026-11-11 D31): 출고 배정 · AS 추천 쓰기 잣대를
+        # 화면 · 데코레이터 · 정책 SHIPMENT_ASSIGN 이 같은 함수로 쓰기 위해 추가.
+        "can_edit_shipment",
+        "shipment_edit_required",
     ]
 
     assert namespaced_erp_permissions.__all__ == expected_public_names
@@ -1334,9 +1338,13 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
         "foms.api.drawing.erp_orders_revision": {
             "erp_edit_required": namespaced_erp_permissions.erp_edit_required,
         },
+        # 출고 배정 저장 · AS 추천 4종은 출고 쓰기 데코레이터(D31 11-11 — 관리자 · CS · 출고팀).
         "foms.api.shipment.settings": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
-            "erp_edit_required": namespaced_erp_permissions.erp_edit_required,
+            "shipment_edit_required": namespaced_erp_permissions.shipment_edit_required,
+        },
+        "foms.api.shipment.recommendations": {
+            "shipment_edit_required": namespaced_erp_permissions.shipment_edit_required,
         },
         "foms.api.orders": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,

@@ -180,15 +180,21 @@ def test_shipment_mobile_queue_is_scoped(w, app, monkeypatch):
 
 
 def test_shipment_company_wide_panels_and_tools_are_hidden(w, app):
-    """잔여 시공 · 잔여 자수 띠 · 협력사 희망일 판 · AS 추천 · 설정 링크: 직원은 보고 프리랜서는 없다."""
-    company_marks = ("날짜별 잔여 시공", "foms-ship-cap-strip", "협력사 희망 시공일", "shipmentAsRecommendModal",
-                     "data-shipment-as-recommend-open", "/erp/shipment-settings", "data-kakao-js-key=",
-                     'data-can-edit="true"')
+    """잔여 시공 · 잔여 자수 띠 · 협력사 희망일 판 · AS 추천 · 설정 링크: 직원은 보고 프리랜서는 없다.
+
+    AS 추천 · 편집 칸은 출고 쓰기 권한(관리자 · CS · 출고팀, D31 11-11)이라 대조군 영업 직원도 없다 — CS 직원으로 본다.
+    """
+    panel_marks = ("날짜별 잔여 시공", "foms-ship-cap-strip", "협력사 희망 시공일", "/erp/shipment-settings")
+    edit_marks = ("shipmentAsRecommendModal", "data-shipment-as-recommend-open", "data-kakao-js-key=",
+                  'data-can-edit="true"', f'data-shipment-order-id="{w.other}"')
     control = _get(app, w.staff, "/erp/shipment")
-    assert [m for m in company_marks if m not in control] == []
-    assert PARTNER_OTHER in control and f'data-shipment-order-id="{w.other}"' in control
+    assert [m for m in panel_marks if m not in control] == []
+    assert PARTNER_OTHER in control
+    assert [m for m in edit_marks if m in control] == []
+    cs_control = _get(app, _user("STAFF", "CS"), "/erp/shipment")
+    assert [m for m in panel_marks + edit_marks if m not in cs_control] == []
     body = _get(app, w.fl, "/erp/shipment")
-    assert [m for m in company_marks if m in body] == []
+    assert [m for m in panel_marks + edit_marks if m in body] == []
     assert 'data-can-edit="false"' in body
     _assert_only_own(body, w, own_names=(OWN, OWN_AS))
 
