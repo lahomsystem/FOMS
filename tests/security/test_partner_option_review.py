@@ -102,7 +102,7 @@ def test_approve_requires_later_items_and_confirms_with_fingerprint(app, priced)
     partner = _client(app, db_session.get(User, priced["partner_a"]))
     page = partner.get(f"/partner/orders/{oid}").get_data(as_text=True)
     assert "data-pp-confirm-options" in page and "data-pp-optfield" in page and not any(p in page for p in PRICES)
-    assert "저희 도면팀이 바꾼 옵션은" not in page  # 바뀐 품목이 없으면 노란 칸 안내도 없다(대조군)
+    assert "저희가 바꾼 옵션은" not in page  # 바뀐 품목이 없으면 노란 칸 안내도 없다(대조군)
     blocked = partner.post(f"/api/partner/orders/{oid}/approve-drawing", json={"idempotency_key": "k1"})
     assert blocked.status_code == 409 and "상담 후 정함" in blocked.get_json()["error"]
     assert _rows(oid, "CONFIRMED") == {}
@@ -126,8 +126,8 @@ def test_drawing_tab_shows_changed_options_with_reason(app, priced):
         uids[0]: {"lines": [{"key": "r4", "qty": 2}], "reason": "문 폭 때문에 2짝"}}).status_code == 200
     _to_confirm(oid)
     page = _client(app, db_session.get(User, priced["partner_a"])).get(f"/partner/orders/{oid}").get_data(as_text=True)
-    assert "바뀜: 슬라이딩 거울 도어 1짝 → 2짝" in page and "바꾼 이유: 문 폭 때문에 2짝" in page
-    assert "저희 도면팀이 바꾼 옵션은 노란 칸에 보입니다." in page
+    assert "바뀜: 슬라이딩 거울 도어 1짝 → 2짝 · 이유: 문 폭 때문에 2짝" in page  # 이유는 바뀐 줄마다
+    assert "저희가 바꾼 옵션은 노란 칸에 보입니다." in page
     assert "data-pp-optfield" not in page  # 고를 것(상담 후 정함)이 없으면 읽기만
     assert not any(price in page for price in PRICES)
 

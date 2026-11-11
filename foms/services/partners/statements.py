@@ -76,17 +76,20 @@ def _calc_input(no: int, item: dict[str, Any], row: OrderItemOption) -> dict[str
             for r in item.get("spec_rows") or [] if isinstance(r, dict)]
     return {"uid": row.item_uid, "no": no, "title": str(item.get("product_name") or ""), "base_key": row.base_key,
             "spec_rows": rows or [{}], "quantity": item.get("quantity"), "internal": item.get("internal"),
-            "lines": list(row.lines or []), "customs": list(row.customs or [])}
+            "lines": list(row.lines or []), "customs": list(row.customs or []), "changes": list(row.changes or [])}
 
 
-def compute(db, order: Any) -> dict[str, Any]:
-    """확정 옵션 × 그 날짜 단가표 판 → ``{groups, price_list_id, statement_date, drawing_round, drawing_keys}``."""
+def compute(db, order: Any, price_list: Optional[PartnerPriceList] = None) -> dict[str, Any]:
+    """확정 옵션 × 그 날짜 단가표 판 → ``{groups, price_list_id, statement_date, drawing_round, drawing_keys}``.
+
+    ``price_list`` 를 주면 그 판으로 센다(수정본 — 발행본과 같은 판).
+    """
     rows = {r.item_uid: r for r in db.query(OrderItemOption).filter(
         OrderItemOption.order_id == order.id, OrderItemOption.stage == "CONFIRMED").all()}
     if not rows:
         raise StatementError("협력사가 도면 · 옵션을 확정하기 전입니다.", 409)
     on_date = ship_date(order)
-    price_list = price_list_for(db, order.partner_org_id, on_date)
+    price_list = price_list or price_list_for(db, order.partner_org_id, on_date)
     if price_list is None:
         raise StatementError("이 협력사 단가표가 없습니다. 관리 화면에서 단가표를 먼저 저장해 주세요.", 409)
     groups = []
@@ -169,7 +172,7 @@ def draft_of(db, order_id: int) -> Optional[PartnerStatement]:
                                              PartnerStatement.status == DRAFT).first()
 
 
-def _locked_draft(db, statement_id: int, base_version: Any) -> PartnerStatement:
+def locked_draft(db, statement_id: int, base_version: Any) -> PartnerStatement:
     stmt = db.query(PartnerStatement).filter(PartnerStatement.id == statement_id).with_for_update().first()
     if stmt is None:
         raise StatementError("명세서를 찾을 수 없습니다.", 404)
@@ -182,10 +185,22 @@ def _locked_draft(db, statement_id: int, base_version: Any) -> PartnerStatement:
 
 def recalc_draft(db, order: Any, statement_id: int, base_version: Any) -> PartnerStatement:
     """다시 계산 — 지금 확정 옵션 · 단가표로 줄을 새로 만들고 CS 가 넣은 값은 이어 붙인다. 수정본은 다시 계산하지 않는다."""
-    stmt = _locked_draft(db, statement_id, base_version)
+    stmt = locked_draft(db, statement_id, base_version)
     if stmt.revision_of:
         raise StatementError("수정본은 발행본을 복사한 것이라 다시 계산하지 않습니다. 줄 금액을 고쳐 주세요.", 409)
-    data = compute(db, order)
+    return refresh_draft(db, order, stmt)
+
+
+def refresh_draft(db, order: Any, stmt: PartnerStatement) -> PartnerStatement:
+    """잠근 초안 줄을 지금 확정 옵션으로 새로 만든다(CS 가 넣은 값은 같은 줄에 다시 붙음).
+
+    수정본은 옵션을 고쳤을 때만 여기로 온다(설계서 2026-11-11-partner-confirmed-option-fix §2.3) — 발행본과 같은 단가표 판 ·
+    같은 일자를 그대로 둔다(그사이 새 판이 나와도 금액 기준이 바뀌지 않게).
+    """
+    price_list = db.get(PartnerPriceList, stmt.price_list_id) if stmt.revision_of and stmt.price_list_id else None
+    data = compute(db, order, price_list)
+    if stmt.revision_of:
+        data["statement_date"] = stmt.statement_date
     _carry_edits(data["groups"], stmt.groups or [])
     _apply(stmt, data)
     stmt.version = int(stmt.version or 1) + 1
@@ -210,7 +225,7 @@ def save_draft(db, statement_id: int, edits: Any, base_version: Any) -> PartnerS
 
     자동 줄 단가를 바꾸면 이유가 꼭 있어야 하고 원래 단가가 남는다(``edited``). 같은 값으로 되돌리면 자동 줄로 돌아간다.
     """
-    stmt = _locked_draft(db, statement_id, base_version)
+    stmt = locked_draft(db, statement_id, base_version)
     groups = copy.deepcopy(stmt.groups or [])
     for edit in edits if isinstance(edits, list) else []:
         edit = edit if isinstance(edit, dict) else {}
@@ -269,7 +284,7 @@ def issue(db, statement_id: int, user_id: Optional[int], *, base_version: Any = 
     if head is None:
         raise StatementError("명세서를 찾을 수 없습니다.", 404)
     db.query(PartnerOrg).filter(PartnerOrg.id == head.partner_org_id).with_for_update().one()
-    stmt = _locked_draft(db, statement_id, base_version)
+    stmt = locked_draft(db, statement_id, base_version)
     totals = summarize(stmt.groups or [])
     if not stmt.groups:
         raise StatementError("명세서에 제품이 없습니다.", 409)
@@ -347,7 +362,7 @@ def void(db, statement_id: int, user_id: Optional[int], reason: Any) -> PartnerS
 
 def discard_draft(db, statement_id: int, base_version: Any) -> int:
     """초안 지우기(발행 전만) → 주문 id."""
-    stmt = _locked_draft(db, statement_id, base_version)
+    stmt = locked_draft(db, statement_id, base_version)
     order_id = stmt.order_id
     db.delete(stmt)
     db.flush()

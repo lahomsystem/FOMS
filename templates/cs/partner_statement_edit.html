@@ -2,10 +2,13 @@
 {% block content %}
 {#- 협력사 거래명세서 한 장 — 우리 CS 고치기 · 발행 · 수정본 · 취소(설계서 2026-11-03-partner-statement §5.5).
     값은 static/js/cs/partner-statement-edit.js 가 GET /api/partner-statements/<id> 로 읽는다. 자동 줄은 글자(단가 고치기는
-    이유 필수), 커스텀 줄만 금액 칸이다. 금액 · 합계는 저장할 때 서버가 다시 낸다.
+    이유 필수), 커스텀 줄만 금액 칸이다. 초안 묶음마다 "옵션 고치기"(partner-statement-options.js — 확정 옵션 고치기). 금액 · 합계는 저장할 때 서버가 다시 낸다.
     도면 50 : 표 50(사용자 11-04) — 왼쪽에서 도면을 고르면 오른쪽에는 그 도면에 묶인 제품 묶음만 보인다. "전체"는 전부.
     합계 · 발행은 늘 명세서 전체 기준. -#}
 <link rel="stylesheet" href="{{ asset_url('css/contexts/cs/partner-statements.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-item-options.css') }}">
 <div class="container-fluid erp-dashboard erp-pro foms-ps foms-pse" data-pse-root data-api="/api/partner-statements"
   data-id="{{ statement_id }}" data-list="{{ url_for('erp_partner_statements_page.erp_partner_statements') }}"
   data-print="{{ url_for('erp_partner_statements_page.erp_partner_statement_print', statement_id=statement_id) }}">
@@ -33,5 +36,7 @@
     </div>
   </div>
 </div>
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/partner-statement-options.js') }}" defer></script>
 <script src="{{ asset_url('js/cs/partner-statement-edit.js') }}" defer></script>
 {% endblock %}

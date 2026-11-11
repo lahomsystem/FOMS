@@ -6,11 +6,24 @@ import gc
 import logging
 import threading
 
+import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from foms.platform import db_leak_trace
+
+
+@pytest.fixture(autouse=True)
+def _fresh_leak_log(caplog, monkeypatch):
+    """같은 프로세스의 앞선 시험이 남긴 연결을 먼저 치우고 보고 수(최대 200)를 0 으로 — 순서와 무관하게.
+
+    병렬 실행에서 앞 시험의 연결이 이 시험 ``gc.collect()`` 때 회수되면 그 줄이 대신 잡히고, 보고 수가 차 있으면
+    이 시험의 누수는 아예 안 남는다(2026-11-11 전체 시험에서 ``checkout_at=-`` 한 줄로 실패).
+    """
+    gc.collect()
+    caplog.clear()
+    monkeypatch.setattr(db_leak_trace, "_reported", 0)
 
 
 def _engine(tmp_path):
