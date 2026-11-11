@@ -508,7 +508,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_cancel",
-      "lineno": 386,
+      "lineno": 398,
       "methods": [
         "POST"
       ],
@@ -517,7 +517,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_confirm",
-      "lineno": 334,
+      "lineno": 346,
       "methods": [
         "POST"
       ],
@@ -526,7 +526,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_request_revision",
-      "lineno": 359,
+      "lineno": 371,
       "methods": [
         "POST"
       ],
@@ -535,7 +535,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_start",
-      "lineno": 230,
+      "lineno": 242,
       "methods": [
         "POST"
       ],
@@ -544,7 +544,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_transfer",
-      "lineno": 317,
+      "lineno": 329,
       "methods": [
         "POST"
       ],
