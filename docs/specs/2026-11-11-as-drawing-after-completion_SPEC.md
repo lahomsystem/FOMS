@@ -197,12 +197,18 @@
 - 고친 파일: `foms/api/cs/as_orders.py`(접수 본체를 `register_as_from_payload` 로 떼어 냄 + `drawing_request`), `foms/api/drawing/wizard.py`(PUT 잠금), `foms/api/drawing/erp_orders_drawing.py`(`USE_AS_TRANSFER`), `foms/services/orders/drawing_key_safety.py`(`as_drawing_keys`), `foms/api/erp_orders_structured.py`·`foms/services/orders/structured_form_projection.py`(서버 소유 키), 블루프린트·매니페스트.
 - 검증: 새 시험 17 + 관련 기존 시험 889(AS·마법사·도면 전달·권한 목록·폼 저장·파일 보호) 통과, 층 의존·파일 크기·이름공간 래칫 통과, `APP_OK`.
 
+### 2차 화면 (2026-11-11, 같은 브랜치)
+
+- 도면 작업실 목록: 열린 차수를 모집단에 더함(AS 축 부분 색인 + `as_drawing_status`), 검색어가 있으면 시공이 끝난 주문을 검색 SQL 술어로 찾음. 상태·다음 액션·시공일 칸 글자만 바꿈(`foms/services/drawing_workbench_as_rows.py`).
+- 실행판: 맨 위 단추 [AS 도면 시작]/[AS 도면 그리기], AS 카드(`templates/drawing/partials/workbench_as_card.html`, `static/js/drawing/workbench-as.js`, `static/css/contexts/drawing/workbench-as.css`) — 시작(접수·채널톡 AS방 접수 포함), 보내기, 확인/고쳐 주세요, 그만두기, 채널톡 다시 올리기. 영업·CS 확인은 이 카드에서 한다(주문 화면 묶음은 다음).
+- AS 접수 창(PC·모바일) '도면팀에 정확한 도면 부탁' 한 줄과 `drawing_request`.
+- 마법사: `sheet-png` 가 원래 시트 그림을 대기함에 안 넣음(409 `SHEET_LOCKED`), 저장 응답 `sheet_lock` 이면 알리고 다시 읽음. 원래 도면 옮기기는 지금 있는 복사(Ctrl+C)·붙여넣기로 한다.
+- 행위 감사 `AS_DRAWING_*` 5종, 하네스 인벤토리 갱신.
+
 ### 아직 안 한 것 (다음 순서)
 
-1. 도면 작업실 목록·실행판(§6.1): 모집단 `as_drawing_status` · 검색 갈래 · 다음 액션·시공일 칸 · [AS 도면 시작]/[AS 도면 그리기] 단추 · AS 카드.
-2. 마법사 화면(§6.4): `wizard-as.js` 잠금 표시·`AS N` 탭·"AS 시트 만들기" 창·양식 도장, 저장 창 AS 모드(`as/transfer` 경로), 저장 응답 `sheet_lock` 뒤 다시 읽기.
-3. AS 접수 창 체크 줄 · 초안 보관(§4.1), 흐름 2 시작 창(접수 칸 · 사진 · 채널톡 체크)과 [채널톡 다시 보내기].
-4. 주문 화면 도면 칸 'AS 도면 N차' 묶음과 [확인했어요]/[고쳐 주세요], AS 화면 'AS도면' 칸 옆 상태 글.
-5. 채널톡 도면방 PUSH `[AS]` 머리말(D4), 고객 공유 링크 제외 시험.
-6. 스테이징 실화면(§10-6).
-
+1. 마법사 화면 손질(§6.4): `AS N` 탭 표시·잠금 표시·"AS 시트 만들기"(원래 시트 통째 복사) 창·양식 `AS N차` 도장, 저장 창이 AS 단계에서 `as/transfer` 로 바로 보내기.
+2. 주문 화면 도면 칸 'AS 도면 N차' 묶음과 [확인했어요]/[고쳐 주세요], AS 화면 'AS도면' 칸 옆 상태 글.
+3. 흐름 2 시작 창 사진 올리기(지금은 AS 내용·메모·채널톡 체크만).
+4. 채널톡 도면방 PUSH `[AS]` 머리말(D4), 고객 공유 링크 제외 시험, 폰 push.
+5. 스테이징 실화면(§10-6) — 채널톡 AS 그룹이 실제 방인지 먼저 확인.
