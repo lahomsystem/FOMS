@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261109a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-products.css') }}?v=20261109a">
 {% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261109a">{% endif %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-commission.css') }}?v=20261109a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-commission.css') }}?v=20261111a">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -505,9 +505,9 @@
 <script src="{{ url_for('static', filename='js/settlement/products-quality.js') }}?v=20261109a" defer></script>
 <script src="{{ url_for('static', filename='js/settlement/products.js') }}?v=20261109a" defer></script>
 {% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261109a" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/settlement/commission-core.js') }}?v=20261109a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/commission-table.js') }}?v=20261109a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/commission-edit.js') }}?v=20261109a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/commission-deduct.js') }}?v=20261109a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/commission-close.js') }}?v=20261109a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/commission.js') }}?v=20261109a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-core.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-table.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-edit.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-deduct.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission-close.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/commission.js') }}?v=20261111a" defer></script>
