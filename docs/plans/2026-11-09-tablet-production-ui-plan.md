@@ -87,7 +87,12 @@
 ## P11 발주사 · 영업 담당 표기 (원장 §21 — D21, 2026-11-11) — DONE(스테이징), 운영은 지시 때
 | # | 일 | 파일 | 시험 |
 |---|---|---|---|
-| T12-1 | 만들 것 줄에 발주사·담당 | `production_home_read_model.py`(`_by_line`), `home_date.html`, `home_steps.html`, `home.css` | 네 경우 × 두 줄 · 작은 칸에 없음 · CSS 규칙 |
+| T12-1 | 만들 것 줄에 발주사·담당 | `production_home_read_model.py`(`_by_line` → 11-11 `_by_parts`), `home_date.html`, `home_steps.html`, `home.css` | 네 경우 × 두 줄 · 작은 칸에 없음 · CSS 규칙 |
+
+## P12 발주사 · 담당 글 시인성 (원장 §23, 2026-11-11 사용자 "전부 회색이라 구분이 안 돼") — DONE(스테이징), 운영은 지시 때
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T13-1 | 글 한 덩이 → 조각(머리말 회색 작게 · 이름 굵게 · 발주사 진한 글자 · 담당 남색) | `production_home_read_model.py`(`_by_parts`), `home_date.html`, `home_steps.html`, `home.css`(핀 `20261111g`) | 조각 마크업 네 경우 × 두 줄 · CSS 색·굵기·줄바꿈 규칙 |
 
 ## 뒤로 미룸(기록)
 - 원장 §17 R12(변경 알림 기준선 — 컨펌 기다림 때 쌓인 변경이 제작 대기 진입 때 한꺼번에 뜸, 보드·시트·모바일과 같이 정할 일).
