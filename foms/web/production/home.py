@@ -17,10 +17,10 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
+from foms.services.production_home_days import production_home_days
 from foms.services.production_home_read_model import (
     build_production_home,
     production_home_counts,
-    production_home_days,
     production_home_groups,
     production_home_inbox,
     production_home_step_queues,

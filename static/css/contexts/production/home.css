@@ -383,7 +383,9 @@
 .fph-dr.is-chg .fph-dr__sg small { color: var(--fph-danger); }
 .fph-dr__who { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
 .fph-dr__nm { font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; }
-.fph-dr__nm small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+/* 긴 이름(상호 등)은 안쪽 b 만 말줄임으로 줄고 주문 번호는 늘 보인다 — flex 칸 자체엔 text-overflow 가 안 먹는다(M6 11-11) */
+.fph-dr__nm b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }
+.fph-dr__nm small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 /* 품목·치수 글은 두 줄까지 — 글자를 키워 이름 칸이 좁아져도 치수·바뀐 내용이 말줄임에 안 묻힌다(S5 11-10 · M3 11-11) */
 .fph-dr__pr { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .fph-dr__pr em { font-style: normal; font-weight: 800; color: var(--fph-danger); }
