@@ -15,14 +15,15 @@ import pytest
 from sqlalchemy import select
 
 from db import db_session
-from foms.services.cs_agent import brain, drafting, loop, memo, realtime, turns
+from foms.services.cs_agent import brain, drafting, loop, memo, realtime, send, turns
 from foms.services.cs_agent import handoff_memo as hm
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO_HEAD
 from foms.services.cs_agent.brain_prompt import HANDOFF_NONE, HANDOFF_REASONS
 from foms.services.cs_agent.checks import REASONS
 from foms.services.cs_agent.drafting_read import HANDOFF_MEMO_HEAD, MEMO_NOTE_HEAD, ChatLine, memo_snippets
-from foms.services.cs_agent.handoff_memo_settings import HANDOFF_MEMO_FIELD
+from foms.services.cs_agent.handoff_memo_settings import HANDOFF_BUTTONS_FIELD, HANDOFF_MEMO_FIELD
+from foms.services.cs_agent.memo import REASON_BAD_BUTTONS, MemoResult
 from foms.services.cs_agent.masking import MaskLeak, mask
 from models import CsAgentTurn, SystemSetting
 from tests.domains.test_cs_drafting import (  # noqa: F401 — channel 은 fixture
@@ -126,6 +127,45 @@ def test_a_blocked_draft_posts_the_reason_without_the_draft_or_buttons(channel, 
     (row,) = rows()
     assert (row.state, row.error_code, row.check_codes, row.masked_draft, row.memo_message_id) == (
         "skipped", "check_failed", ["number_not_allowed"], mask(BAD), "memo-1")
+
+
+class ButtonsRefused(Poster):
+    """단추 꼴이 틀렸다고 돌려주는 대역(단추가 있을 때만) — 단추 없이 다시 올리는지 본다."""
+
+    def __call__(self, chat_id, text, *, brand, **kwargs):
+        if kwargs.get("buttons"):
+            self.calls.append(SimpleNamespace(chat_id=chat_id, text=text, brand=brand, state="skipped", kwargs=kwargs))
+            return MemoResult(False, reason=REASON_BAD_BUTTONS)
+        return super().__call__(chat_id, text, brand=brand, **kwargs)
+
+
+@pytest.mark.parametrize("path, buttons_field, wanted", [
+    ("wam", True, True), ("link", True, False), ("wam", False, False)])
+def test_learn_and_skip_buttons_ride_only_the_window_path_when_switched_on(channel, monkeypatch, path, buttons_field,
+                                                                          wanted):
+    monkeypatch.setenv(send.WAM_APP_ENV, "app0public0wam01")
+    memo_on(send_buttons_enabled=True, send_button_path=path, **{HANDOFF_BUTTONS_FIELD: buttons_field})
+    poster = Poster()
+    Talk(channel).say("m-1", sec(0))
+    tick(channel, sec(16), realtime.TickMemory(), brain_fn=FakeBrain(HANDOFF), poster=poster)
+    ((call,),) = [poster.memos]
+    (row,) = rows()
+    if not wanted:
+        assert "buttons" not in call.kwargs
+        return
+    assert [(title, target["args"]) for title, target in call.kwargs["buttons"]] == [
+        ("배우기", {"turn": row.id, "mode": "learn"}), ("흘리기", {"turn": row.id, "mode": "skip"})]
+
+
+def test_a_refused_button_shape_posts_the_memo_again_without_buttons(channel, monkeypatch):
+    monkeypatch.setenv(send.WAM_APP_ENV, "app0public0wam01")
+    memo_on(send_buttons_enabled=True, send_button_path="wam", **{HANDOFF_BUTTONS_FIELD: True})
+    poster = ButtonsRefused()
+    Talk(channel).say("m-1", sec(0))
+    tick(channel, sec(16), realtime.TickMemory(), brain_fn=FakeBrain(HANDOFF), poster=poster)
+    assert [bool(call.kwargs.get("buttons")) for call in poster.memos] == [True, False]
+    (row,) = rows()
+    assert row.memo_message_id == "memo-1"  # 메모는 잃지 않는다(단추만 빠진다)
 
 
 def test_store_mode_posts_no_memo(channel):

@@ -48,7 +48,7 @@ from foms.services.cs_agent.quote_record import allowed_from
 from foms.services.cs_agent.send import SEND_BRAND, send_reply
 from foms.services.cs_agent.send_auth import SendTokenError, check_send_token, confirm_matches, confirm_stamp
 from foms.services.cs_agent.send_record import (
-    REWRITE_WORKING, SEND_FAILED, SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, finish_sent, mark_send_failed,
+    REWRITE_WORKING, SEND_FAILED, SEND_SENDING, SEND_SENT, SEND_UNKNOWN_STATE, chat_busy, finish_sent, mark_send_failed,
     mark_unknown, open_turn, reconcile_turn, record_answer, revert_sending, sent_case, start_sending, still_sending,
 )
 from foms.services.cs_agent.settings import read_settings
@@ -147,10 +147,13 @@ def _fail(code: str, status: int, **data: Any) -> FlowResult:
 
 
 def _audited(session: Any, action: str, turn_id: int, user_id: Optional[int], result: FlowResult, *,
-             manager_id: Optional[str] = None) -> FlowResult:
+             manager_id: Optional[str] = None, kind: Optional[str] = None) -> FlowResult:
     """감사 원장 한 줄(누가 · 어느 차례 · 결과 코드 — 글 없음)을 남기고 결과를 그대로 돌려준다. 못 남겨도 결과는 그대로다.
-    작은 창 길은 채널톡 상담원 번호를 같이 적는다(FOMS 짝이 없으면 직원 번호는 비운다)."""
+    작은 창 길은 채널톡 상담원 번호를 같이 적는다(FOMS 짝이 없으면 직원 번호는 비운다). ``kind`` 는 길 표지(넘김 메모
+    [배우기] — ``handoff``)."""
     detail: dict[str, Any] = {"code": result.code, "status": result.status}
+    if kind is not None:
+        detail["kind"] = kind
     if manager_id is not None:
         detail.update(via="wam", channel_manager=str(manager_id))
     try:
@@ -274,6 +277,9 @@ def _send_turn(session: Any, request: SendRequest, *, secret_key: Any, now: date
     if closed is not None:
         session.rollback()
         return closed
+    if chat_busy(session, row):  # 같은 상담의 다른 차례(넘김 메모 [배우기])가 보내는 중 — 손님께 두 번 가지 않게
+        session.rollback()
+        return _fail("checking", 202)
     previous = row.send_state
     if not start_sending(session, row, user_id=request.user_id, manager_id=request.manager_id,
                          click_ms=_shown_ms(request.shown_ms), now=now):

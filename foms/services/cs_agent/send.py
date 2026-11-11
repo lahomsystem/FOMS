@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "REASON_BRAND", "REASON_EMPTY", "REASON_NO_CHAT", "REASON_STAGING", "SEND_BOT_NAME", "SEND_BRAND", "SEND_CHANNEL_ID",
-    "SEND_PREFIX", "SEND_UNKNOWN", "BUTTON_PATHS", "PATH_LINK", "PATH_WAM", "WAM_APP_ENV", "WAM_NAME", "SendResult",
-    "memo_buttons", "request_id_for", "send_reply",
+    "SEND_PREFIX", "SEND_UNKNOWN", "BUTTON_LEARN", "BUTTON_PATHS", "BUTTON_SKIP", "PATH_LINK", "PATH_WAM", "WAM_APP_ENV",
+    "WAM_NAME", "SendResult", "handoff_buttons", "memo_buttons", "request_id_for", "send_reply",
 ]
 
 #: 손님께 보내는 브랜드 — 하우드는 쓰기 허락 전이라 막는다.
@@ -78,6 +78,8 @@ class SendResult:
 
 #: 메모 링크 버튼 이름 · 화면 경로(``foms/web/cs_agent_send.py``).
 BUTTON_SEND, BUTTON_EDIT = "보내기", "수정하기"
+#: 넘김 메모 단추 이름(작은 창 길만 — :func:`handoff_buttons`).
+BUTTON_LEARN, BUTTON_SKIP = "배우기", "흘리기"
 BASE_URL_ENV = "FOMS_BASE_URL"
 #: 단추가 여는 곳(관리 화면 칸 ``send_button_path``) — 링크(FOMS 새 창) · 채널톡 안 작은 창(설계서 17.2.2).
 PATH_LINK, PATH_WAM = "link", "wam"
@@ -89,14 +91,23 @@ _APP_ID = re.compile(r"[A-Za-z0-9]{8,64}")
 Button = tuple[str, Union[str, dict[str, Any]]]
 
 
-def _wam_buttons(turn_id: int) -> Optional[tuple[Button, ...]]:
-    """작은 창 단추 둘 — 앱 id(env)가 없거나 꼴이 틀리면 ``None``(부르는 쪽이 링크로 단다). ``wamArgs`` 는 데스크 브라우저에
-    그대로 보여 차례 번호 · 할 일만 싣는다(누른 사람은 서명된 caller 로만 안다)."""
+def _wam_buttons(turn_id: int, pairs: tuple[tuple[str, str], ...] = ((BUTTON_SEND, "send"), (BUTTON_EDIT, "edit")),
+                 ) -> Optional[tuple[Button, ...]]:
+    """작은 창 단추(이름 · 할 일 짝마다 하나) — 앱 id(env)가 없거나 꼴이 틀리면 ``None``(부르는 쪽이 링크로 단다).
+    ``wamArgs`` 는 데스크 브라우저에 그대로 보여 차례 번호 · 할 일만 싣는다(누른 사람은 서명된 caller 로만 안다)."""
     app_id = (os.environ.get(WAM_APP_ENV) or "").strip()
     if not _APP_ID.fullmatch(app_id):
         return None
     return tuple((title, {"wam": WAM_NAME, "app_id": app_id, "args": {"turn": int(turn_id), "mode": mode}})
-                 for title, mode in ((BUTTON_SEND, "send"), (BUTTON_EDIT, "edit")))
+                 for title, mode in pairs)
+
+
+def handoff_buttons(turn_id: int, chat_id: str, *, path: Any) -> tuple[Button, ...]:
+    """넘김 메모의 [배우기] · [흘리기] 단추 — 채널톡 안 작은 창 길(``path`` 가 작은 창 · 앱 id 있음)일 때만, 아니면 빈 값.
+    링크로 대신 달지 않는다(링크 화면은 초안 차례만 연다 — :mod:`.handoff_send` 는 작은 창 앱 함수만 받는다)."""
+    if path != PATH_WAM or not isinstance(chat_id, str) or not _CHAT_ID.fullmatch(chat_id):
+        return ()
+    return _wam_buttons(turn_id, ((BUTTON_LEARN, "learn"), (BUTTON_SKIP, "skip"))) or ()
 
 
 def memo_buttons(turn_id: int, chat_id: str, *, path: Any = PATH_LINK) -> tuple[Button, ...]:

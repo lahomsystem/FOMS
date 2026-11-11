@@ -89,6 +89,49 @@ def test_if_the_first_press_rolls_back_the_second_one_starts(pg_engine):
     assert outcome["second"] is True
 
 
+def test_two_memos_of_one_chat_pressed_at_once_send_one(pg_engine):
+    """넘김 메모 [배우기](건너뜀 차례)와 뒤 초안 메모 [보내기](올림 차례)를 두 직원이 같이 눌러도 상담 줄 잠금으로 하나만
+    '보내는 중'을 지난다(:func:`.send_record.chat_busy` — 사장님 11-11 [배우기])."""
+    make_session = sessionmaker(bind=pg_engine)
+    chat = "uc-pg-busy"
+    created = datetime.datetime(2026, 11, 2, 0, 0, tzinfo=datetime.timezone.utc)
+    with make_session() as session:
+        store_messages(session, [DerivedMessage(chat_id=chat, message_id=m, channel_id="201824", brand="LAHOM",
+                                                person_type="user", created_at=created + datetime.timedelta(minutes=i))
+                                 for i, m in enumerate(("m-b1", "m-b2"))], source=SOURCE_WEBHOOK,
+                       now=NOW.replace(tzinfo=None))
+        handed = turns.claim_turn(session, "LAHOM", chat, "m-b1", now=NOW)
+        turns.record_handoff(handed, reason="order_lookup")
+        turns.mark_skipped(handed, reason="handoff", now=NOW)
+        session.commit()
+        turns.record_note_memo(handed, memo_message_id="hmemo-b1", now=NOW)
+        drafted = turns.claim_turn(session, "LAHOM", chat, "m-b2", now=NOW)
+        turns.mark_posting(drafted, masked_draft="합성 초안", now=NOW)
+        turns.mark_posted(drafted, memo_message_id="memo-b2", now=NOW)
+        session.commit()
+        handed_id, drafted_id = handed.id, drafted.id
+    holder = make_session()
+    first = holder.get(CsAgentTurn, handed_id)
+    assert send_record.chat_busy(holder, first) is False
+    assert send_record.start_sending(holder, first, user_id=None, manager_id="mgr-1", click_ms=None, now=NOW,
+                                     handoff=True) is True  # 앞 사람([배우기]) — 아직 커밋 전, 상담 줄을 쥐고 있다
+    outcome: dict = {}
+
+    def run() -> None:
+        with make_session() as session:
+            outcome["busy"] = send_record.chat_busy(session, session.get(CsAgentTurn, drafted_id))
+            session.rollback()
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    time.sleep(0.5)
+    assert worker.is_alive()  # 뒤 사람([보내기])은 상담 줄 잠금에서 기다린다
+    holder.commit()
+    worker.join(timeout=10)
+    holder.close()
+    assert outcome["busy"] is True  # 앞 사람이 '보내는 중' — 뒤 사람은 '확인 중'(채널톡을 부르지 않는다)
+
+
 def test_a_bot_row_ingested_first_is_turned_into_an_answer(pg_session):
     created = datetime.datetime(2026, 11, 2, 0, 1, tzinfo=datetime.timezone.utc)
     bot = DerivedMessage(chat_id=CHAT, message_id="sent-1", channel_id="201824", brand="LAHOM", person_type="bot",

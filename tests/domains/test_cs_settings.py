@@ -101,6 +101,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         # 넘긴 상담 배우기 → 회사 지식 제안(사장님 11-11) — 처음 끔 · 한 밤 20 사례
         "handoff_learn_enabled": False, "handoff_learn_cases": 20,
         "handoff_memo_enabled": False,  # 넘김 메모(AI 가 초안을 안 쓴 까닭 — 직원에게) — 처음 끔(예전 기록만 그대로)
+        "handoff_buttons_enabled": False,  # 넘김 메모 [배우기] · [흘리기] 단추(사장님 11-11) — 처음 끔
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)

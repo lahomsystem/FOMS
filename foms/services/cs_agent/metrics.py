@@ -141,7 +141,7 @@ def _brand(brand: str, rows: Iterable[Any], cal: Callable[[datetime.date], bool]
     rows = list(rows)
     placed = [row for row in rows if row.placed_at is not None]
     shown = [s for row in placed if (s := _seconds(row.asked_at, row.placed_at)) is not None]
-    sent = [row for row in rows if row.send_state == "sent"]
+    sent = [row for row in rows if row.send_state == "sent" and row.state != "skipped"]  # 초안 보냄만(넘김 [배우기] 빼고)
     timed = [(row, s) for row in sent if (s := _seconds(row.asked_at, row.sent_at)) is not None]
     inside = [s for row, s in timed if _in_hours(brand, row.asked_at, cal)]
     drafted = [row for row in rows if row.state in _DRAFTED and (row.placed_at is not None or row.latency_ms is not None)]

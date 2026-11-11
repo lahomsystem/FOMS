@@ -14,7 +14,9 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
 1. **읽기(가린 글만)**: 지난 7일(:data:`.weekly_fix.LOOKBACK`) 라홈 차례 가운데 ``skipped`` 이고 (넘김 + 까닭
    :data:`LEARN_REASONS`) 또는 보내기 전 검사에 걸린 것, 가린 직원 답이 있고 끝난 꼴이 학습 재료(복사 · 버림 제외)이며 떼어 둔
    줄이 아닌 것. 늘 사람이 답하는 까닭(:data:`HUMAN_ONLY_REASONS` — 불만 · 주문 조회 · 할인 · 환불 · 사람만 말하는 금액)과 그런
-   검사 코드(:data:`HUMAN_ONLY_CHECKS`) · 견적 계산 차례(금액 정본은 계산기)는 뺀다. **이미 읽은 차례는 다시 읽지 않는다**
+   검사 코드(:data:`HUMAN_ONLY_CHECKS`) · 견적 계산 차례(금액 정본은 계산기)는 뺀다 — 다만 직원이 넘김 메모 [배우기]로 직접
+   보낸 차례(``send_state`` 보냄 — :mod:`.handoff_send`)는 그 까닭이어도 읽는다('AI 냐' 차례 빼고). [흘리기]한 차례는 끝난 꼴
+   '버림'이라 늘 빠진다. **이미 읽은 차례는 다시 읽지 않는다**
    (:func:`used_ids`). 오래된 것부터 패널 '한 번에 읽는 사례 수'만.
    **창을 '지난번 성공한 날부터'가 아니라 늘 7일로 둔 까닭**: 읽은 차례 표가 이미 같은 사례를 두 번 막는다. 움직이는 시작점을
    두면 실패한 밤 · 상한을 넘어 남은 사례 · 밤 뒤에 붙은 직원 답이 시작점과 표 사이에서 조용히 빠진다. 7일 창이면 첫 밤 · 건너뛴
@@ -58,6 +60,7 @@ from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.learning_brain import call_learning, off_reason
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.send import SEND_BRAND
+from foms.services.cs_agent.send_record import NOT_TAUGHT_REASONS, SEND_SENT
 from foms.services.cs_agent.state import KST
 from foms.services.cs_agent.turns import STATE_SKIPPED
 from foms.services.cs_agent.weekly_fix import LOOKBACK
@@ -152,12 +155,15 @@ def mark_used(session: Any, ids: Iterable[int]) -> None:
 def _turn_rows(session: Any, since: datetime.datetime) -> list[Any]:
     """지난 7일 넘김 · 검사 걸림 차례(가린 직원 답이 있는 것 · 떼어 둔 줄 제외) — 가린 칸 · 코드만, 오래된 것부터."""
     turn = CsAgentTurn
+    taught = and_(turn.error_code.in_((SKIP_HANDOFF, SKIP_CHECK)), turn.send_state == SEND_SENT,
+                  or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(NOT_TAUGHT_REASONS)))
     learnable = or_(and_(turn.error_code == SKIP_HANDOFF, turn.handoff_reason.in_(LEARN_REASONS)),
                     and_(turn.error_code == SKIP_CHECK,
-                         or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(HUMAN_ONLY_REASONS))))
+                         or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(HUMAN_ONLY_REASONS))),
+                    taught)
     stmt = (select(turn.id, turn.chat_id, turn.intent, turn.error_code, turn.handoff_reason, turn.check_codes,
                    turn.masked_question, turn.staff_reply_masked, turn.masked_context, turn.last_user_message_id,
-                   turn.desk_manager_id)
+                   turn.desk_manager_id, turn.send_state)
             .where(turn.brand == SEND_BRAND, turn.state == STATE_SKIPPED, learnable,
                    turn.outcome.in_(LEARNING_OUTCOMES), turn.held_out.is_(False), turn.staff_reply_masked.isnot(None),
                    turn.updated_at >= since)
@@ -166,9 +172,10 @@ def _turn_rows(session: Any, since: datetime.datetime) -> list[Any]:
 
 
 def _human_only(row: Any) -> bool:
-    """늘 사람 몫인 검사에 걸린 차례 · 견적 계산 차례(금액 정본은 계산기 — 넘긴 까닭 ``quote_…``)인가."""
+    """늘 사람 몫인 검사에 걸린 차례 · 견적 계산 차례(금액 정본은 계산기 — 넘긴 까닭 ``quote_…``)인가. 직원이 넘김 메모
+    [배우기]로 직접 보낸 차례는 아니다(직원이 배우라고 골랐다 — :mod:`.handoff_send`)."""
     codes = row.check_codes if isinstance(row.check_codes, list) else []
-    if row.error_code != SKIP_CHECK:
+    if row.error_code != SKIP_CHECK or row.send_state == SEND_SENT:
         return False
     return (str(row.handoff_reason or "").startswith(QUOTE_PREFIX)
             or bool(HUMAN_ONLY_CHECKS.intersection(c for c in codes if isinstance(c, str))))
@@ -184,7 +191,8 @@ def collect_cases(session: Any, now: datetime.datetime, *, cap: int) -> list[dic
         out.append({"turn_id": row.id, "chat_id": row.chat_id, "intent": row.intent,
                     "reason": row.handoff_reason if row.error_code == SKIP_HANDOFF else SKIP_CHECK,
                     "question": row.masked_question, "reply": row.staff_reply_masked, "context": row.masked_context,
-                    "anchor": row.last_user_message_id, "staff": row.desk_manager_id})
+                    "anchor": row.last_user_message_id, "staff": row.desk_manager_id,
+                    "taught": row.send_state == SEND_SENT})
         if len(out) >= cap:
             break
     return out

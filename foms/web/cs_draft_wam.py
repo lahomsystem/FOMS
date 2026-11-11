@@ -34,13 +34,15 @@ def cs_draft_wam():
 
 
 #: 이 화면 아래에서 내주는 파일(상대 주소 이름 → static 안 자리).
-_ASSETS = {"app.js": "js/cs-agent/wam-draft.js", "app.css": "css/contexts/cs/cs-wam.css"}
+_ASSETS = {"app.js": "js/cs-agent/wam-draft.js", "app-handoff.js": "js/cs-agent/wam-handoff.js",
+           "app.css": "css/contexts/cs/cs-wam.css"}
 
 
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/app.js", methods=["GET"], defaults={"name": "app.js"})
+@cs_draft_wam_bp.route("/channel/wam/cs-draft/app-handoff.js", methods=["GET"], defaults={"name": "app-handoff.js"})
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/app.css", methods=["GET"], defaults={"name": "app.css"})
 def cs_draft_wam_asset(name: str):
-    """작은 창 꾸밈 · 스크립트 — 채널톡이 거쳐 여는 주소에서도 풀리게 화면 아래에서 내준다(정해진 두 파일만)."""
+    """작은 창 꾸밈 · 스크립트 — 채널톡이 거쳐 여는 주소에서도 풀리게 화면 아래에서 내준다(정해진 파일만)."""
     response = send_from_directory(current_app.static_folder, _ASSETS[name], max_age=300)
     response.headers["Cache-Control"] = "public, max-age=300"
     return response

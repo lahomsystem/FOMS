@@ -9,6 +9,9 @@
 - ``cs.draft.get`` ``{turn, chat}`` — [수정하기] 글 칸 재료(손님께 보낼 답 · 고친 까닭 칩 · 막힘 글).
 - ``cs.draft.send`` ``{turn, chat, mode?, text?, edit_reason?, confirm?, shown_ms?}`` — [보내기](그대로 · 고친 글).
 - ``cs.draft.discard`` ``{turn, chat}`` — [버리기].
+- ``cs.handoff.get`` ``{turn, chat}`` — 넘김 메모 [배우기] 창 재료(상태 · 까닭 · AI 메모 힌트 · 본 마지막 손님 글).
+- ``cs.handoff.send`` ``{turn, chat, text, confirm?, seen?, shown_ms?}`` — [배우기] 창 [보내기](:func:`.handoff_send.send_handoff`).
+- ``cs.handoff.skip`` · ``cs.handoff.unskip`` ``{turn, chat}`` — [흘리기] · [배우기로 바꾸기].
 
 응답 꼴은 채널톡 앱 함수 약속 그대로: 성공 ``{"result": ...}``, 예상한 실패 ``{"error": {"code", "type", "message"}}``.
 흐름 결과(보냄 · 확인 필요 · 막힘 …)는 ``result`` 의 ``code`` · ``message`` 로 싣는다 — 작은 창이 그 글을 그대로 보인다. 로그에는
@@ -25,14 +28,20 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.channel_send import CHAT_ID as _CHAT
+from foms.services.cs_agent.handoff_send import handoff_view, send_handoff, skip_learning, unskip_learning
 from foms.services.cs_agent.send_flow import FlowResult, SendRequest, discard_turn, send_turn
 from foms.services.cs_agent.send_view import wam_view
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["DISCARD", "FUNCTION_SCHEMAS", "GET", "METHODS", "PING", "SEND", "handle"]
+__all__ = [
+    "DISCARD", "FUNCTION_SCHEMAS", "GET", "HANDOFF_GET", "HANDOFF_SEND", "HANDOFF_SKIP", "HANDOFF_UNSKIP", "METHODS",
+    "PING", "SEND", "handle",
+]
 
 PING, GET, SEND, DISCARD = "cs.draft.ping", "cs.draft.get", "cs.draft.send", "cs.draft.discard"
+HANDOFF_GET, HANDOFF_SEND = "cs.handoff.get", "cs.handoff.send"
+HANDOFF_SKIP, HANDOFF_UNSKIP = "cs.handoff.skip", "cs.handoff.unskip"
 _TURN_CHAT = {"turn": {"type": "integer"}, "chat": {"type": "string"}}
 #: 채널톡이 함수 목록을 물을 때(``extension.core.function.getFunctions``) 답하는 꼴(이름 · 입력 틀).
 FUNCTION_SCHEMAS: tuple[dict[str, Any], ...] = (
@@ -46,11 +55,22 @@ FUNCTION_SCHEMAS: tuple[dict[str, Any], ...] = (
          "confirm": {"type": "string"}, "shown_ms": {"type": "integer"}}}},
     {"name": DISCARD, "description": "AI 초안 버리기",
      "inputSchema": {"type": "object", "properties": dict(_TURN_CHAT)}},
+    {"name": HANDOFF_GET, "description": "넘김 메모 배우기 창 재료",
+     "inputSchema": {"type": "object", "properties": dict(_TURN_CHAT)}},
+    {"name": HANDOFF_SEND, "description": "넘김 메모 직원 답 손님께 보내기",
+     "inputSchema": {"type": "object", "properties": {
+         **_TURN_CHAT, "text": {"type": "string"}, "confirm": {"type": "string"}, "seen": {"type": "string"},
+         "shown_ms": {"type": "integer"}}}},
+    {"name": HANDOFF_SKIP, "description": "넘김 메모 상담 배우지 않기",
+     "inputSchema": {"type": "object", "properties": dict(_TURN_CHAT)}},
+    {"name": HANDOFF_UNSKIP, "description": "넘김 메모 상담 다시 배우기",
+     "inputSchema": {"type": "object", "properties": dict(_TURN_CHAT)}},
 )
 METHODS = frozenset(schema["name"] for schema in FUNCTION_SCHEMAS)
 _TURN_MAX = 2 ** 31 - 1
 #: 흐름 결과 ``data`` 가운데 작은 창에 넘기는 칸(코드 · 숫자 · 확인표 · 검사 줄 — 글 · 상담 id 없음).
-_RESULT_KEYS = ("problems", "warnings", "confirm", "outcome", "reason", "field", "send_state")
+_RESULT_KEYS = ("problems", "warnings", "confirm", "outcome", "reason", "field", "send_state", "hint", "seen",
+                "max_text", "note")
 _DB_ERROR = {"code": "db_error", "ok": False, "message": "저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."}
 
 
@@ -109,6 +129,21 @@ def _send(session: Any, turn: int, chat: str, params: dict[str, Any], manager_id
     return _flow(send_turn(session, request, secret_key=secret_key, now=now, reader=reader, **extra))
 
 
+def _handoff(method: str, session: Any, turn: int, chat: str, params: dict[str, Any], manager_id: str, *,
+             secret_key: Any, now: datetime.datetime, reader: Any, sender: Optional[Callable[..., Any]]) -> FlowResult:
+    """넘김 메모 [배우기] · [흘리기] 함수(:mod:`.handoff_send`)."""
+    if method == HANDOFF_GET:
+        return handoff_view(session, turn, chat_hint=chat, manager_id=manager_id, reader=reader)
+    if method == HANDOFF_SEND:
+        request = SendRequest(turn_id=turn, user_id=_user_id(manager_id), manager_id=manager_id, chat_id=chat,
+                              text=params.get("text"), confirm=params.get("confirm"), shown_ms=params.get("shown_ms"))
+        extra = {"sender": sender} if sender is not None else {}
+        return send_handoff(session, request, secret_key=secret_key, now=now, seen=params.get("seen"), reader=reader,
+                            **extra)
+    choose = skip_learning if method == HANDOFF_SKIP else unskip_learning
+    return choose(session, turn_id=turn, chat_id=chat, manager_id=manager_id, user_id=_user_id(manager_id), now=now)
+
+
 def handle(method: str, params: Any, manager_id: Optional[str], *, session: Any = None, secret_key: Any = None,
            now: Optional[datetime.datetime] = None, reader: Any = None,
            sender: Optional[Callable[..., Any]] = None) -> dict[str, Any]:
@@ -130,7 +165,10 @@ def handle(method: str, params: Any, manager_id: Optional[str], *, session: Any 
     if turn is None or chat is None or session is None or now is None:
         return _error(-32602, "invalidParams", "초안 차례를 알 수 없어요.")
     try:
-        if method == GET:
+        if method.startswith("cs.handoff."):
+            result = _flow(_handoff(method, session, turn, chat, params, str(manager_id), secret_key=secret_key,
+                                    now=now, reader=reader, sender=sender))
+        elif method == GET:
             result = _get(session, turn, chat, reader)
         elif method == SEND:
             result = _send(session, turn, chat, params, str(manager_id), secret_key=secret_key, now=now,
