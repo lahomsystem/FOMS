@@ -51,6 +51,26 @@ def test_staff_notice_list_shows_only_staff_notices(app, world):
     assert "본사 전체 공지" in unread and "is-active" in unread
 
 
+def test_staff_notice_list_uses_mobile_shell_with_back(app, world, monkeypatch):
+    """모바일 v2 코호트면 /notices 도 주문 수정처럼 셸(뒤로 가기 줄 · 아래 탭)을 쓴다 — PC 메뉴줄만 남아 ERP 로 못 돌아가던 결함(11-11).
+
+    대조군: 코호트가 꺼진 사용자는 셸 없이 예전 모양 그대로.
+    """
+    _notice("본사 전체 공지", audience_staff_all=True)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(world["staff"]))
+    html = _page(app, world["staff"], "/notices").get_data(as_text=True)
+    assert "erp-mobile-v2-layout" in html
+    assert "data-foms-shell-back" in html and 'data-foms-shell-back-href="/erp/dashboard"' in html
+    assert re.search(r'foms-shell-title">\s*공지사항\s*<', html)
+    assert "foms-notice-wrap--shell" in html and "본사 전체 공지" in html
+
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "0")
+    plain = _page(app, world["staff"], "/notices").get_data(as_text=True)
+    assert "erp-mobile-v2-layout" not in plain and "data-foms-shell-back" not in plain
+    assert "본사 전체 공지" in plain
+
+
 def test_popup_notice_chip_turns_to_done_after_ack(app, world):
     """확인 창 공지는 확인하기 전 '확인 필요', 확인한 뒤 '확인함'(스테이징 실화면 2026-11-02 — 확인 뒤에도 '확인 필요'가 남았다)."""
     from foms.services.notices.service import ack_notice

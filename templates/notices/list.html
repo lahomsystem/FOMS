@@ -4,8 +4,18 @@
 {% block head %}<title>공지사항 - 가구 주문 관리 시스템</title>{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">{% endblock %}
 {% block content %}
+{% set filter_url = url_for('notices_web.notice_list') %}
+{% if erp_mobile_v2_enabled %}
+{# 모바일 v2 코호트: 주문 수정 화면처럼 셸(뒤로 가기 줄 + 아래 탭)로 감싼다 — PC 넓이(>=992px)는 CSS 가 셸을 숨긴다. #}
+<div class="container-fluid erp-pro erp-mobile-shell foms-detail-page-wrap" data-erp-mobile-v2="true">
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+    <div class="foms-notice-wrap foms-notice-wrap--shell">
+        {% include "notices/_items.html" %}
+    </div>
+</div>
+{% else %}
 <div class="foms-notice-wrap">
-    {% set filter_url = url_for('notices_web.notice_list') %}
     {% include "notices/_items.html" %}
 </div>
+{% endif %}
 {% endblock %}
