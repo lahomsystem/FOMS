@@ -3,6 +3,7 @@
  *
  * - GET {api}/<id> 로 묶음 · 줄 · 합계를 그린다. 금액은 서버 값 그대로(저장하면 서버가 다시 낸다).
  * - 초안: 커스텀 줄만 금액 칸, 자동 줄은 "단가 고치기"(이유 필수 — 협력사에게 보인다). 저장 · 다시 계산 · 발행 · 지우기.
+ *   묶음마다 "옵션 고치기"(확정 옵션 고치기 — partner-statement-options.js, 설계서 2026-11-11-partner-confirmed-option-fix).
  * - 발행본: 인쇄 · 수정본 만들기 · 취소(이유 필수). 취소본: 인쇄만. 글은 textContent 로만 넣는다.
  */
 (function () {
@@ -154,6 +155,13 @@
       var card = box.appendChild(el('section', 'foms-pse__group'));
       card.hidden = !!uids && uids.indexOf(group.item_uid) < 0;
       card.appendChild(el('h2', 'foms-pse__group-title', group.ref + '. ' + group.title + ' · 소계 ' + won(group.subtotal) + '원'));
+      if (stmt.status === 'DRAFT' && group.item_uid && window.FomsStatementOptions) {
+        card.appendChild(button('옵션 고치기', 'foms-ps__btn--link', async function () {
+          if (editList().length) { status('고친 값을 먼저 저장해 주세요.'); return; }
+          await window.FomsStatementOptions.open({ card: card, api: api, id: id, uid: group.item_uid, version: stmt.version,
+            status: status, onSaved: function (d) { edits = {}; stmt = d; draw(); } });
+        }));
+      }
       var t = card.appendChild(el('table', 'foms-ps__table'));
       var head = t.appendChild(el('thead')).appendChild(el('tr'));
       ['품목', '규격', '수량', '단가', '금액', '계산 근거 · 비고'].forEach(function (h) { head.appendChild(el('th', null, h)); });

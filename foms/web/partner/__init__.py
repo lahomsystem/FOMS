@@ -215,7 +215,8 @@ def order_detail(order_id: int):
         channel_push=push_state(order),
         drawing_request=drawing_request_state(order),
         measure_file_count=_measurement_push_count(db, order.id),
-        option_review=option_review(db, order) if stage in ("DRAWING", "CONFIRM") and finals else None,
+        # 확정 뒤에도 읽기로 보인다 — 우리 CS 가 확정 옵션을 고친 이유(설계서 2026-11-11-partner-confirmed-option-fix §2.4)
+        option_review=option_review(db, order) if finals else None,
         statements=statements,
         # 주문 지우기(2026-11-04) — "이대로 만들어 주세요" 전 · 발행 명세서 없음(서버가 다시 본다).
         can_delete=partner_delete_open(order) and not statements,

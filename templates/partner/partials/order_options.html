@@ -18,10 +18,9 @@
         </div>
         {% endif %}
         {% if it.diff %}<div class="pp-opt-diff" data-pp-opt-diff>
-            {% for d in it.diff %}<div>바뀜: {{ d.name ~ ' ' if d.name }}{{ d['from'] or '없음' }} → {{ d['to'] or '없음' }}</div>{% endfor %}
-            {% if it.current.changes and it.current.changes[0].reason %}<div>바꾼 이유: {{ it.current.changes[0].reason }}</div>{% endif %}
+            {% for d in it.diff %}<div>바뀜: {{ d.name ~ ' ' if d.name }}{{ d['from'] or '없음' }} → {{ d['to'] or '없음' }}{% if d.reason %} · 이유: {{ d.reason }}{% endif %}</div>{% endfor %}
         </div>{% endif %}
     </div>
     {% endfor %}
-    {% if option_review['items'] | selectattr('diff') | list %}<p class="pp-opt-note">저희 도면팀이 바꾼 옵션은 노란 칸에 보입니다. 맞지 않으면 "수정 요청 보내기"로 알려 주세요.</p>{% endif %}
+    {% if option_review['items'] | selectattr('diff') | list %}<p class="pp-opt-note">저희가 바꾼 옵션은 노란 칸에 보입니다. 맞지 않으면 {% if can_revise %}"수정 요청 보내기"{% else %}거래명세서 "금액 문의"{% endif %}로 알려 주세요.</p>{% endif %}
 </section>

@@ -1114,6 +1114,10 @@
       "mode": "guard",
       "rule": "/api/partner-statements/<int:statement_id>/save"
     },
+    "partner_statements_staff_api.correct_options": {
+      "mode": "guard",
+      "rule": "/api/partner-statements/<int:statement_id>/options"
+    },
     "partner_statements_staff_api.recalc": {
       "mode": "guard",
       "rule": "/api/partner-statements/<int:statement_id>/recalc"
