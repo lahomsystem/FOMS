@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.orders.as_drawing_views import status_text as as_drawing_status_text
 from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.ept_b7_profile import phase, record_phase
 from foms.services.feature_flags import env_bool_or_mobile_v2
@@ -902,6 +903,9 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active, viewer=
         r.as_billing_type = str((_billing or {}).get('type') or 'free') if isinstance(_billing, dict) else 'free'
         r.as_billing_state_text = as_billing_state_text(_billing)
         r.has_as_blueprint = shipment.get('as_blueprint') is True
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3-5): 'AS도면' 칸 옆 상태 글 —
+        # 이미 읽은 structured_data 로만(조회 0). 체크 칸 뜻(약식 도면 표시)은 그대로다.
+        r.as_drawing_text = as_drawing_status_text(r.structured_data)
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.construction_workers = _normalize_construction_worker_names(
             shipment.get('construction_workers')

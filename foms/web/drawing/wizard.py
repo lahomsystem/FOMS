@@ -15,7 +15,7 @@ from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
-from foms.services.orders.as_drawing import wizard_config_view
+from foms.services.orders.as_drawing_views import wizard_config_view
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.orders.erp_policy_permissions import can_transfer_drawing
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
