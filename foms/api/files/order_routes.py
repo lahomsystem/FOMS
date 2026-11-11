@@ -9,6 +9,7 @@ import datetime
 import os
 from typing import Any, Optional
 
+from foms.services.orders.as_drawing import drawing_starter_may_upload_as_photo
 from foms.services.error_logging import log_handled_exception
 
 from flask import has_request_context, jsonify, request, session
@@ -391,8 +392,13 @@ def api_order_attachments_upload(order_id):
         if not category:
             return jsonify({"success": False, "message": "유효하지 않은 첨부 카테고리입니다."}), 400
         # UPLOAD-01: VIEWER 403 + 용도별 role/team (direct 경로와 동일 방어). folder 는 서버 생성.
+        # 완료 주문 AS 도면(사용자 2026-11-11 "AS 도면 시작 창에서만"): 도면팀의 AS 사진은 주문을 읽은 뒤
+        # 본인이 접수까지 하고 연 차수인지 보고 따로 판정한다 — 그 밖은 지금처럼 403.
+        as_starter_check = False
         if not category_upload_allowed(_current_user(), category):
-            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
+            if category != "as":
+                return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
+            as_starter_check = True
         ok, item_index, err = parse_attachment_item_index(request.form.get("item_index"))
         if not ok:
             return jsonify({"success": False, "message": err}), 400
@@ -416,6 +422,11 @@ def api_order_attachments_upload(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        if as_starter_check and not drawing_starter_may_upload_as_photo(
+            _current_user(), order.structured_data if isinstance(order.structured_data, dict) else {},
+            request.form.get("as_log_id"),
+        ):
+            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
         blocked = drawing_final_ack_block(_current_user(), order, category, request.form.get(DRAWING_ACK_FIELD))
         if blocked:
             return jsonify(blocked[0]), blocked[1]

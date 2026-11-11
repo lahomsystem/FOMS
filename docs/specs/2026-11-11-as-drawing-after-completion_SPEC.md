@@ -227,8 +227,12 @@
 - AS 화면 'AS도면' 칸 옆에 `AS 도면 N차 · 도면팀 대기중/작업중/왔어요/고쳐 달라고 함/확인함` 한 줄 + 주문 화면 링크. 체크 칸 뜻은 그대로.
 - 화면 값 함수는 `foms/services/orders/as_drawing_views.py` 로 뗐다(파일 500줄 래칫).
 
+### 7차 시작 창 사진 (2026-11-11, 사용자 결정 "AS 도면 시작 창에서만")
+
+- 실행판 시작 창(AS 접수 없음)에 사진 칸. 시작 → 그 접수 기록(`reception_log_id`)에 사진 업로드 → 채널톡 AS방 접수 순서라 사진도 AS PUSH 에 실린다.
+- 권한: 첨부 업로드(`POST /api/orders/<id>/attachments`)가 AS 사진을 막을 때, 도면팀이 **본인이 접수까지 하고 연 작업중 차수**에 **그 접수 기록으로** 올리는 경우만 통과(`as_drawing.drawing_starter_may_upload_as_photo`). 그 밖의 AS 사진 권한(`CONSTRUCTION_EDIT`)·presigned 경로는 그대로.
+
 ### 아직 안 한 것 (다음 순서)
 
 1. 스테이징 실화면(§10-6): 두 흐름 · 마법사 도장 자리 · 탭 표시 · 주문 화면 묶음 · 도면방 [AS](채널톡 그룹이 실제 방이면 끄고).
-2. 흐름 2 시작 창 사진 올리기 — AS 사진 업로드 권한(`upload_authz` `"as": CONSTRUCTION_EDIT`)이 도면팀에 없어 권한 결정이 먼저다(사용자 승인 필요).
 4. 고객 공유 링크 제외 시험, 폰 push.

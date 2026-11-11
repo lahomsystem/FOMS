@@ -301,6 +301,25 @@ def sheet_png_block_reason(order: Any, sd: Mapping, sheet_id: str) -> Optional[s
     return None
 
 
+def drawing_starter_may_upload_as_photo(user: Any, sd: Mapping, as_log_id: Any) -> bool:
+    """도면팀이 AS 사진을 올려도 되는 단 한 경우 — 사용자 결정 2026-11-11 "AS 도면 시작 창에서만".
+
+    본인이 [AS 도면 시작] 창에서 AS 접수까지 하고 연 차수가 아직 작업중이고, 업로드가 그 접수 기록
+    (``as_log_id``)에 묶일 때만 참이다. 그 밖의 AS 사진 권한(``upload_authz`` ``CONSTRUCTION_EDIT``)은 그대로다.
+    """
+    if user is None or (getattr(user, "team", None) or "").strip() != "DRAWING":
+        return False
+    if not str(as_log_id or "").strip():
+        return False
+    cur = current_round(sd)
+    return bool(
+        cur is not None
+        and cur.get("registered_as")
+        and cur.get("status") == STATUS_IN_PROGRESS
+        and cur.get("opened_by") == getattr(user, "id", None)
+    )
+
+
 def _require_open(sd: Mapping, allowed: Iterable[str], message: str) -> dict:
     cur = current_round(sd)
     if cur is None:
@@ -436,6 +455,7 @@ __all__ = [
     "STATUS_CONFIRMED", "STATUS_CANCELLED", "OPEN_STATUSES",
     "SOURCE_AS_REQUEST", "SOURCE_DRAWING_FIRST", "ASDrawingError",
     "is_as_drawing_stage", "rounds", "current_round", "round_no", "open_as_cycle_id", "open_round",
-    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "transfer_round", "confirm_round",
+    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason",
+    "drawing_starter_may_upload_as_photo", "transfer_round", "confirm_round",
     "request_revision", "cancel_round", "as_drawing_keys", "round_view",
 ]

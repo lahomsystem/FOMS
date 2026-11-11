@@ -53,6 +53,30 @@
 
   function reloadSoon(ms) { window.setTimeout(function () { window.location.reload(); }, ms || 600); }
 
+  /** 시작 창 사진을 방금 만든 AS 접수 기록에 묶어 올린다(도면팀은 이 경우에만 AS 사진을 올릴 수 있다). */
+  async function uploadPhotos(files, receptionLogId) {
+    var c = card();
+    var orderId = c.getAttribute('data-order-id') || '';
+    var failed = 0;
+    for (var i = 0; i < files.length; i += 1) {
+      var fd = new FormData();
+      fd.append('file', files[i]);
+      fd.append('category', 'as');
+      fd.append('as_log_id', receptionLogId);
+      fd.append('sort_order', String(i));
+      try {
+        var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/attachments',
+          { method: 'POST', credentials: 'same-origin', body: fd });
+        var data = {};
+        try { data = await res.json(); } catch (_) { data = {}; }
+        if (!data || !data.success) failed += 1;
+      } catch (e) {
+        failed += 1;
+      }
+    }
+    return failed;
+  }
+
   async function pushChannel() {
     var c = card();
     var orderId = Number(c.getAttribute('data-order-id') || 0);
@@ -80,6 +104,13 @@
       btn.disabled = false;
       setStatus(r.message, false);
       return;
+    }
+    var photosEl = form.querySelector('[data-dw-as-photos]');
+    var photos = photosEl && photosEl.files ? Array.prototype.slice.call(photosEl.files) : [];
+    if (r.data && r.data.registered_as && photos.length && r.data.reception_log_id) {
+      setStatus('사진을 올리고 있어요…', true);
+      var failed = await uploadPhotos(photos, r.data.reception_log_id);
+      if (failed) setStatus('사진 ' + failed + '장을 못 올렸어요. 주문 화면 AS 칸에서 다시 올려 주세요.', false);
     }
     if (r.data && r.data.registered_as && channelEl && channelEl.checked) {
       var p = await pushChannel();
