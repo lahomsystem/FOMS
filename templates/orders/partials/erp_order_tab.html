@@ -749,6 +749,19 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         <li>AS 대시보드에서 이 주문이 <strong>완료 탭에서 미완료 탭으로 옮겨가요.</strong></li>
                     </ol>
                 </div>
+                {# 완료 주문 AS 도면 흐름 1(설계서 2026-11-11-as-drawing-after-completion §4.1): 체크 한 줄.
+                   시공이 끝난 주문에서만 보인다(erpRefreshAsDrawingRequest). 'AS도면' 체크 칸과는 다른 칸이다. #}
+                <div class="border rounded p-2 mt-2 d-none" id="as-receive-drawing-wrap">
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" id="as-receive-drawing-request">
+                        <label class="form-check-label fw-semibold" for="as-receive-drawing-request">도면팀에 정확한 도면 부탁</label>
+                    </div>
+                    <div class="d-none" id="as-receive-drawing-memo-wrap">
+                        <label class="form-label small mb-1" for="as-receive-drawing-memo">무엇을 그려야 하나요 (비우면 AS 내용)</label>
+                        <input type="text" class="form-control form-control-sm" id="as-receive-drawing-memo" maxlength="500">
+                    </div>
+                    <div class="small text-muted d-none" id="as-receive-drawing-open-note">도면팀이 이미 AS 도면을 그리고 있어요.</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
