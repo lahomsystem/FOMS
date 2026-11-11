@@ -2,6 +2,7 @@
 
 > 상태: **운영 적용 완료(2026-09-22, 사용자 승인)** — plan 413 = main 299 + as_stage_only 114(제외 draft 1 · stage_not_main 63), applied 413 · stale 0. 실측 858→478 · 도면 101→69 · 완료 1451→1864. AS 지문 `ec71af89e29f8010` 적용 전후 동일, AS 탭 659/46 불변. 행위자 id57(claude_master). 옛 시공일 표식 5건(#4662·#4664·#5299·#5349·#5352) 포함 적용. 스냅샷·plan 사본 `C:/tmp/foms-backlog-complete-20260922/` + 세션 스크래치패드.
 > **2차(같은 날, 사용자가 실측 단계 시공일을 수동 입력한 뒤)**: `--cutoff-days 0`(시공일 < 오늘) 로 174 = main 145 + as_stage_only 29, applied 174 · stale 0. 실측 395→237 · 도면 63→48 · 완료 1864→2038. AS 지문 `6469ccd2c0646fa0` 동일, AS 탭 659/50 불변. 스냅샷 `prod_snapshot2.json`.
+> **3차(2026-11-11, 사용자 요청 "시공 날짜 어제까지")**: 도면·고객컨펌까지 실사용, 생산부터 미사용이라 끝난 주문이 도면·생산·CS 에 쌓였다. `--cutoff-days 0`(시공일 ≤ 2026-11-10) 506 = main 380 + as_stage_only 126, applied 506 · stale 0. 도면 447→107 · 실측 292→211 · 생산 97→23 · 고객컨펌 2→0 · CS 6→0 · 시공 4→1 · 완료 2058→2564. AS 지문 `860811c36cd0492e` 동일(864건). 옛 시공일 표식 4건(#5646·#5792·#5805·#5900) 포함 적용. 스냅샷 `C:/tmp/foms-backlog-complete-20261111/snapshot_20261111.json`.
 > 도구 `tools/ops/bulk_complete_past_construction.py`(CLI) + `_core.py`(판정·행 단위 쓰기, 500줄 래칫 분리) · 테스트 `tests/domains/test_bulk_complete_past_construction_plan.py`(순수 8) + `tests/postgres/test_bulk_complete_past_construction_pg.py`(PG 레인 2).
 > 배경: 도면 단계까지 도면팀·영업팀이 실사용을 시작한다. 실측 853·도면 100 타일에
 > 이미 끝난 주문이 섞여 있어 "진짜 도면을 만들어야 하는 건"이 안 보인다.
