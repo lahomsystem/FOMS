@@ -35,7 +35,7 @@ from foms.services.orders.revision import (
 from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
 from foms.services.orders.drawing_transfer import clean_sheet_id, clean_sheet_sig
-from foms.services.orders.as_drawing import apply_sheet_lock
+from foms.services.orders.as_drawing import apply_sheet_lock, sheet_png_block_reason
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
@@ -1238,6 +1238,10 @@ def api_post_drawing_wizard_sheet_png(order_id):
         sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id))[:40] or 'sheet'
         sheet_name = str(request.form.get('sheet_name') or sheet_id)[:_MAX_SHEET_NAME_LEN]
         sig = _clean_pending_sig(request.form.get('sig'))
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §3-3): 원래 시트 그림은 대기함에 넣지 않는다.
+        blocked = sheet_png_block_reason(order, _load_structured_data(order), sheet_id)
+        if blocked:
+            return jsonify({'success': False, 'error': 'SHEET_LOCKED', 'message': blocked}), 409
 
         storage = get_storage()
         result = storage.upload_file(

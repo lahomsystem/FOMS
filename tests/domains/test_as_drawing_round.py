@@ -383,7 +383,13 @@ def test_main_transfer_refuses_wizard_sheets_after_completion(client, storage):
     oid = _order(drawing_ids=[drafter.id])
     original = _sd(oid)["drawing_current_files"]
     _as(client, drafter)
-    assert _sheet_png(client, oid, "s-1", "orig-edit.png").status_code == 200
+    # 원래 시트 그림은 이제 대기함에 못 들어간다 — 옛 대기함 항목이 남아 있던 주문을 흉내 낸다.
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_wizard"]["pending"] = {"s-1": {"key": f"orders/{oid}/drawing_wizard/exports/old.png",
+                                               "filename": "old.png", "sheet_name": "냉장고장"}}
+    order.structured_data = sd
+    db_session.commit()
 
     res = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
 
@@ -454,3 +460,20 @@ def test_drawing_keys_in_use_counts_as_drawing_history():
                      "previous_files": [{"key": "k/old.png"}]}]}]}}
     keys = drawing_keys_in_use(sd)
     assert {"k/now.png", "k/old.png"} <= keys
+
+
+def test_sheet_png_refuses_original_sheet_after_completion(client, storage):
+    drafter = _user("asd_draw15")
+    oid = _order(drawing_ids=[drafter.id])
+    _as(client, drafter)
+
+    r0 = _sheet_png(client, oid, "s-1", "x.png")  # 차수 없음
+    assert r0.status_code == 409 and r0.get_json()["error"] == "SHEET_LOCKED"
+    assert "AS 도면 시작" in r0.get_json()["message"]
+
+    assert _start(client, oid, memo="m", as_register={"content": "c"}).status_code == 200
+    r1 = _sheet_png(client, oid, "s-1", "x.png")  # 원래 시트
+    assert r1.status_code == 409 and "AS 시트" in r1.get_json()["message"]
+    assert _sheet_png(client, oid, "s-new", "y.png").status_code == 200  # 아직 저장 안 된 새 시트는 받는다
+    assert "s-1" not in (_sd(oid)["drawing_wizard"].get("pending") or {})
+

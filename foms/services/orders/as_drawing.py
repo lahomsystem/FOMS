@@ -283,6 +283,24 @@ def apply_sheet_lock(order: Any, sd: dict, saved_sheets: Any, incoming_sheets: A
     return result, report
 
 
+def sheet_png_block_reason(order: Any, sd: Mapping, sheet_id: str) -> Optional[str]:
+    """완료 주문에서 이 시트 그림을 대기함에 넣으면 안 되는 이유(되면 None).
+
+    마법사 [저장]은 그림(PNG)을 대기함에 넣는다. 시공이 끝난 주문에서 원래 시트·지난 차수 시트 그림이
+    대기함에 들어가면 도면팀이 원래 도면을 고친 줄 안다. 아직 저장 안 된 새 시트는 열린 차수가 있으면
+    받는다(다음 저장에서 차수 표시가 붙는다).
+    """
+    if not is_as_drawing_stage(order):
+        return None
+    cur = current_round(sd)
+    if cur is None:
+        return "시공이 끝난 주문이에요. 도면 작업실 실행판에서 [AS 도면 시작]을 먼저 눌러 주세요."
+    for sheet in _sheets(sd):
+        if str(sheet.get("id")) == str(sheet_id) and sheet.get(SHEET_ROUND_KEY) != cur.get("round_id"):
+            return "원래 도면은 고칠 수 없어요. AS 시트를 새로 만들어 그려 주세요."
+    return None
+
+
 def _require_open(sd: Mapping, allowed: Iterable[str], message: str) -> dict:
     cur = current_round(sd)
     if cur is None:
@@ -418,6 +436,6 @@ __all__ = [
     "STATUS_CONFIRMED", "STATUS_CANCELLED", "OPEN_STATUSES",
     "SOURCE_AS_REQUEST", "SOURCE_DRAWING_FIRST", "ASDrawingError",
     "is_as_drawing_stage", "rounds", "current_round", "round_no", "open_as_cycle_id", "open_round",
-    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "transfer_round", "confirm_round",
+    "round_sheet_ids", "as_sheet_ids", "apply_sheet_lock", "sheet_png_block_reason", "transfer_round", "confirm_round",
     "request_revision", "cancel_round", "as_drawing_keys", "round_view",
 ]
