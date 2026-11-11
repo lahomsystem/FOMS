@@ -196,6 +196,8 @@ def test_shipment_company_wide_panels_and_tools_are_hidden(w, app):
     body = _get(app, w.fl, "/erp/shipment")
     assert [m for m in panel_marks + edit_marks if m in body] == []
     assert 'data-can-edit="false"' in body
+    # [이미지 저장](태블릿 위 줄 · PC 머리)은 읽기 기능 — 프리랜서 · 편집 불가 직원에게도 있다(P14-5). 대조: CS 직원도 있다.
+    assert all('js-shipment-export-trigger' in page for page in (body, control, cs_control))
     _assert_only_own(body, w, own_names=(OWN, OWN_AS))
 
 

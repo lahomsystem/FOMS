@@ -202,3 +202,36 @@ def test_entry_chain_loads_ship_sheet_js(path) -> None:
     entry = (ROOT / path).read_text(encoding="utf-8")
     assert "'/static/js/shipment/tablet-ship-sheet.js?v=20261111a'" in entry
     assert "'/static/js/foms/tablet-domain-sheets.js?v=20261111a'" in entry
+
+
+# --------------------------------------------------------------------------- #
+# P14-5 — 태블릿 위 줄: 꺼진 [출고 확정] 대신 [이미지 저장], [AS 추천] → [AS 넣기].
+# --------------------------------------------------------------------------- #
+def _pcbar(html: str) -> str:
+    start = html.index('class="foms-ship-pcbar"')
+    return html[start:html.index('class="erp-pro-card erp-shipment-desktop-shell"', start)]
+
+
+@pytest.mark.parametrize("team,can_edit", [("SHIPMENT", True), ("SALES", False)])
+def test_tablet_pcbar_export_and_as_insert(client, team, can_edit) -> None:
+    _login(client, "STAFF", team)
+    _order("위줄단추")
+    resp = client.get(f"/erp/shipment?date={get_today_kst().isoformat()}")
+    assert resp.status_code == 200
+    bar = _pcbar(resp.get_data(as_text=True))
+    # 이미지 저장 = PC 머리 · 모바일과 같은 방아쇠(숨은 #btn-export-image 를 누른다). 읽기 기능이라 권한 무관.
+    assert "js-shipment-export-trigger" in bar and "<span>이미지 저장</span>" in bar
+    assert "출고 확정" not in bar and "disabled" not in bar
+    assert ("data-shipment-as-recommend-open" in bar) is can_edit
+    assert ("<span>AS 넣기</span>" in bar) is can_edit
+    assert "AS 추천</span>" not in bar
+
+
+def test_as_log_font_floor_scoped_to_drawer() -> None:
+    """불러 붙인 AS 탭 조각 글자를 출고 서랍 안에서만 13px 이상으로(AS 탭 CSS 는 그대로)."""
+    css = (ROOT / "static/css/foundation/foms-tablet-landscape.css").read_text(encoding="utf-8")
+    assert ".foms-ship-sheet .foms-ship-sheet__aslog .as-rchart * {" in css
+    block = css[css.index(".foms-ship-sheet .foms-ship-sheet__aslog .as-rchart * {"):]
+    assert "font-size: calc(13px * var(--foms-fs, 1));" in block[:120]
+    bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
+    assert 'foms-tablet-landscape.css?v=20261111b' in bundle
