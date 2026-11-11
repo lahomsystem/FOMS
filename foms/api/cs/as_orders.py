@@ -55,6 +55,17 @@ from foms.services.orders.as_cycle_service import (
     unschedule_as_cycle,
 )
 from foms.services.orders.as_cycle_view import current_cycle_ordinal
+from foms.services.orders.as_drawing import (
+    SOURCE_AS_REQUEST,
+    STATUS_WAITING,
+    current_round as current_drawing_round,
+    is_as_drawing_stage,
+    open_as_cycle_id,
+    open_round as open_drawing_round,
+    round_no as drawing_round_no,
+    round_view as drawing_round_view,
+)
+from foms.services.orders.as_drawing_notify import notify_as_drawing
 from foms.services.orders.as_log import (
     AS_LOG_TEXT_MAX,
     append_client_log,
@@ -184,6 +195,40 @@ def _idempotency_key(body: dict[str, Any]) -> Optional[str]:
     key = request.headers.get("Idempotency-Key") or body.get("idempotency_key")
     key = str(key).strip() if key is not None else ""
     return key[:64] if key else None
+
+
+def _open_drawing_round_on_register(
+    sd: Dict[str, Any], spec: Dict[str, Any], user: Any, *, as_stage: bool,
+) -> str:
+    """접수 mutation 안에서 AS 도면 차수를 연다(설계서 2026-11-11-as-drawing-after-completion §6.2).
+
+    Returns:
+        ``opened`` · ``already_open``(이미 그리는 중) · ``not_as_stage``(시공이 안 끝난 주문).
+    """
+    if not as_stage:
+        return "not_as_stage"
+    if current_drawing_round(sd) is not None:
+        return "already_open"
+    open_drawing_round(
+        sd, source=spec["source"], status=spec["status"], memo=spec.get("memo") or "",
+        actor_id=getattr(user, "id", None), actor_name=getattr(user, "name", "") or "",
+        now_iso=now_utc_naive().isoformat(), cycle_id=open_as_cycle_id(sd),
+        registered_as=bool(spec.get("registered_as")),
+    )
+    return "opened"
+
+
+def _invalidate_drawing_dashboards() -> None:
+    """도면 작업실 목록 캐시를 비운다(실패는 TTL 이 결국 맞춘다)."""
+    try:
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_DRAWING,
+            invalidate_dashboard_families,
+        )
+
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING)
+    except Exception as err:  # noqa: BLE001 - fail-open
+        logger.warning("AS drawing dashboard invalidate failed: %s", err, exc_info=True)
 
 
 def _load_active_order(db, order_id):
@@ -523,12 +568,51 @@ def api_as_register(order_id):
     **새 건**이면 이번 접수에서 고른 as_billing 추정값을 (재)시드한다(모두 cycle 전이와
     같은 tx). 열린 건 재접수는 새 cycle 을 열지 않고 기록만 갱신하며 비용 판정은 잠근다.
     응답의 ``cycle_no``/``is_new_cycle`` 이 프런트 안내 문구를 가른다.
+
+    선택 필드 ``drawing_request: {memo}`` — 접수 창의 '도면팀에 정확한 도면 부탁'(설계서
+    ``2026-11-11-as-drawing-after-completion`` §4.1). 접수와 같은 mutation 안에서 AS 도면 차수를
+    WAITING 으로 연다. 응답 ``as_drawing`` 은 ``opened``·``already_open``·``not_as_stage``.
+    """
+    data = request.get_json(silent=True) or {}
+    return register_as_from_payload(
+        order_id, data, session.get("user_id"), drawing_round=drawing_request_round(data),
+    )
+
+
+def drawing_request_round(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """접수 요청의 ``drawing_request`` 를 차수 사양으로 바꾼다(없거나 형식이 다르면 None)."""
+    req = data.get("drawing_request") if isinstance(data, dict) else None
+    if not isinstance(req, dict):
+        return None
+    return {
+        "source": SOURCE_AS_REQUEST,
+        "status": STATUS_WAITING,
+        "memo": str(req.get("memo") or "").strip()[:500],
+        "registered_as": False,
+    }
+
+
+def register_as_from_payload(order_id, data, user_id, *, drawing_round=None):
+    """AS 접수 본체 — 접수 API 와 도면팀 AS 도면 시작(``/drawing/as/start``)이 같이 부른다.
+
+    권한은 부르는 쪽이 먼저 판정한다(접수 API = ``erp_construction_edit_required``, AS 도면 시작 =
+    도면팀 정책). ``drawing_round`` 가 있으면 접수와 **같은 mutation** 안에서 AS 도면 차수를 연다 —
+    접수만 되고 차수가 빠지는 반쪽 상태가 생기지 않는다.
+
+    Args:
+        order_id: 대상 주문.
+        data: 접수 요청 본문(``as_content``·``billing_type``·``source_screen`` …).
+        user_id: 접수자 id.
+        drawing_round: ``{"source", "status", "memo", "registered_as"}`` 또는 None.
+
+    Returns:
+        Flask 응답(라우트가 그대로 돌려준다).
     """
     db = get_db()
     order, err = _load_active_order(db, order_id)
     if err:
         return err
-    data = request.get_json(silent=True) or {}
+    as_stage = is_as_drawing_stage(order)
     try:
         # 파싱 전 원문 크기 선가드. register 는 자체 sanitize 가 먼저라 _clean_as_log_text
         # 안의 선가드만으로는 거대 페이로드가 이미 한 번 파싱된 뒤다.
@@ -560,7 +644,6 @@ def api_as_register(order_id):
             return jsonify({
                 "success": False, "message": "상차일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}), 409
 
-    user_id = session.get("user_id")
     user = get_user_by_id(user_id)
     today = get_today_kst().strftime("%Y-%m-%d")
     cw_name = (
@@ -713,6 +796,9 @@ def api_as_register(order_id):
                 db, order, sd, rec_id,
                 deleted_by=(user.name if user else "") or "시스템",
             )
+        if drawing_round is not None:
+            captured_register["as_drawing"] = _open_drawing_round_on_register(
+                sd, drawing_round, user, as_stage=as_stage)
 
     def _register_with_ledger(sd: Dict[str, Any]) -> None:
         """새 건 접수 hook: 부수 기록 + 변경 원장(같은 tx·같은 sd 사본).
@@ -781,8 +867,22 @@ def api_as_register(order_id):
 
     _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}",
               extra={"received_date": str(today), "change_set": change_set_id})
+    opened_round = None
+    if captured_register.get("as_drawing") == "opened":
+        db.refresh(order)
+        sd_now = order.structured_data if isinstance(order.structured_data, dict) else {}
+        opened_round = current_drawing_round(sd_now)
+        if opened_round is not None:
+            notify_as_drawing(
+                db, order,
+                "registered" if opened_round.get("registered_as") else "request",
+                round_no=drawing_round_no(sd_now, opened_round), actor=user,
+                text=str(opened_round.get("memo") or ""),
+            )
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_register")
+    if opened_round is not None:
+        _invalidate_drawing_dashboards()
     db.refresh(order)
 
     shipment = (order.structured_data or {}).get("shipment") or {}
@@ -798,6 +898,9 @@ def api_as_register(order_id):
         "new_status": order.status,
         "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
         "construction_workers": shipment.get("construction_workers") or [],
+        "as_drawing": captured_register.get("as_drawing"),
+        "as_drawing_round": drawing_round_view(
+            order.structured_data or {}, current_drawing_round(order.structured_data or {})),
         "draft_cleared": draft_cleared,
         "reception_log_id": captured_register.get("reception_log_id") or "",
         "mutation_version": getattr(order, "mutation_version", None),

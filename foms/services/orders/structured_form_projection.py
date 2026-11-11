@@ -87,6 +87,9 @@ SERVER_LOCKED_KEYS = frozenset({
     "last_drawing_transfer",
     "drawing_assignees",
     "drawing_wizard",
+    # 완료 주문 AS 도면 차수(설계서 2026-11-11-as-drawing-after-completion) — 전용 API 만 쓴다.
+    "as_drawing",
+    "as_drawing_status",
     "blueprint",
     "quests",
     # 정산 묶음(차감 · 현금영수증 · 정산 상태)은 전용 API 만 쓴다(차감 넣기 · 취소, 현금영수증 발행).

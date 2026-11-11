@@ -41,7 +41,9 @@ from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_transfer
 from foms.services.orders.team_labels import team_label
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
+from foms.services.orders.as_drawing import is_as_drawing_stage
 from foms.services.orders.drawing_transfer import (
+    clean_sheet_id,
     is_drawing_hotfix_stage,
     materialize_pending_snapshot,
     materialize_transfer_attachments,
@@ -242,6 +244,18 @@ def perform_drawing_transfer(
         if current_user.role == 'MANAGER':
             msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
         return {'success': False, 'message': msg}, 403
+
+    # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §6.3): 시공이 끝난 주문에서
+    # 마법사 시트 그림은 원래 최종 도면으로 보내지 않는다 — 원래 도면이 AS 도면으로 바뀐다.
+    # AS 시트는 AS 도면 전달(/drawing/as/transfer)로, 원래 시트는 잠겨 있다.
+    if is_as_drawing_stage(order) and any(
+        isinstance(f, dict) and clean_sheet_id(f.get('sheet_id')) for f in (files or [])
+    ):
+        return {
+            'success': False,
+            'error': 'USE_AS_TRANSFER',
+            'message': '시공이 끝난 주문이에요. 마법사 도면은 [AS 도면 보내기]로 보내 주세요. 원래 최종 도면은 바뀌지 않아요.',
+        }, 400
 
     drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
     # 생산·시공 단계 = 도면팀이 보내면 영업 확인 없이 바로 최종(바로 반영, 2026-10-27 결정).

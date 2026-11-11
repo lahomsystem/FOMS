@@ -132,7 +132,30 @@ def drawing_keys_in_use(sd: Any) -> frozenset[str]:
         obj = current.get("object_key")
         if isinstance(obj, str) and obj.strip():
             keys.add(obj.strip())
+    # 완료 주문 AS 도면 차수(설계서 2026-11-11-as-drawing-after-completion §6.5): 차수 파일·이력은
+    # 마법사 대기함에서 옮겨 온 그림이다. 빠지면 마법사 다시 저장 때 R2 에서 지워진다.
+    keys |= as_drawing_keys(sd)
     return frozenset(keys)
+
+
+def as_drawing_keys(sd: Any) -> set[str]:
+    """``as_drawing.rounds[*]`` 의 파일·이력(``files``·``previous_files``)이 가리키는 key 집합.
+
+    차수 규칙 정본은 :mod:`foms.services.orders.as_drawing` 이고, 이 함수는 삭제 판정 쪽이 그
+    모듈을 부르지 않도록(순환 방지) 같은 모양만 읽는다.
+    """
+    keys: set[str] = set()
+    block = sd.get("as_drawing") if isinstance(sd, Mapping) else None
+    items = block.get("rounds") if isinstance(block, Mapping) else None
+    for rnd in items if isinstance(items, list) else []:
+        if not isinstance(rnd, Mapping):
+            continue
+        keys |= _file_keys(rnd.get("files"))
+        for h in rnd.get("history") or []:
+            if isinstance(h, Mapping):
+                keys |= _file_keys(h.get("files"))
+                keys |= _file_keys(h.get("previous_files"))
+    return keys
 
 
 def is_own_order_key(order_id: Any, key: Any) -> bool:

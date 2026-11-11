@@ -280,6 +280,10 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     # 키까지 일반 규칙으로 지키지만, 이 등재는 유지한다 — 이 목록이 "왜 이 키가 서버
     # 소유인지"의 문서이고, 계약 테스트가 이 블록을 문자열로 읽는다.
     'drawing_wizard',
+    # 완료 주문 AS 도면 차수(서버 소유 — /api/orders/<id>/drawing/as/* 와 AS 접수만 쓴다).
+    # 설계서 2026-11-11-as-drawing-after-completion §6.5: 빠지면 폼 저장 한 번에 차수가 사라진다.
+    'as_drawing',
+    'as_drawing_status',
     # Estimate preview manual rows are edited from the contract tab, not the main form.
     'estimate_preview',
     # ChannelTalk manual push history (server-managed on /api/channel/push-manual,
