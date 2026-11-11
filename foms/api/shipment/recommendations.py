@@ -15,7 +15,7 @@ from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
-from foms.services.erp_permissions import erp_edit_required
+from foms.services.erp_permissions import shipment_edit_required
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.schedule_recommendations import (
     get_order_display_customer_name,
@@ -557,7 +557,7 @@ def _build_linked_schedules_for_targets(
 
 @erp_shipment_bp.route("/api/erp/shipment/as-recommendations", methods=["POST"])
 @login_required
-@erp_edit_required
+@shipment_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_shipment_as_recommendations():
     blocked = _construction_team_forbidden()
@@ -609,7 +609,7 @@ def api_shipment_as_recommendations():
 
 @erp_shipment_bp.route("/api/erp/shipment/as-recommendations/prewarm", methods=["POST"])
 @login_required
-@erp_edit_required
+@shipment_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_shipment_as_recommendations_prewarm():
     blocked = _construction_team_forbidden()
@@ -691,9 +691,9 @@ def _finish_asrec_response(
 
 
 def _shipment_edit_decision() -> tuple[Any, Any]:
-    """SHIPMENT_EDIT(per-order 출고 쓰기) 권한을 in-handler 로 강제한다(가드 off 우회 차단)."""
+    """SHIPMENT_ASSIGN(출고 배정 · AS 추천 쓰기) 권한을 in-handler 로 강제한다(가드 off 우회 차단)."""
     user = get_user_by_id(session.get("user_id"))
-    return user, evaluate_policy(POLICY_REGISTRY["SHIPMENT_EDIT"], user)
+    return user, evaluate_policy(POLICY_REGISTRY["SHIPMENT_ASSIGN"], user)
 
 
 def _policy_denied(decision: Any):
@@ -716,12 +716,12 @@ def _opt_int(value: Any) -> int | None:
 
 @erp_shipment_bp.route("/api/erp/shipment/as-recommendations/apply", methods=["POST"])
 @login_required
-@erp_edit_required
+@shipment_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_shipment_as_recommendations_apply():
     """출고 시공일/작업자를 AS 건에 canonical command 로 반영한다(SHIPMENT-WRITER-01).
 
-    권한(SHIPMENT_EDIT)·시공팀 차단 후 :func:`apply_as_recommendation` 오케스트레이터에
+    권한(SHIPMENT_ASSIGN)·시공팀 차단 후 :func:`apply_as_recommendation` 오케스트레이터에
     위임한다: 두 Order ID 순 lock·If-Match·as_cycle_service schedule·crew replace·출고
     snapshot 을 한 tx 에 처리한다(name-array/AS info direct write·blind overwrite 없음).
     """
@@ -770,12 +770,12 @@ def api_shipment_as_recommendations_apply():
 
 @erp_shipment_bp.route("/api/erp/shipment/as-recommendations/cancel", methods=["POST"])
 @login_required
-@erp_edit_required
+@shipment_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_shipment_as_recommendations_cancel():
     """추천으로 반영한 AS 방문일/작업자를 이전 snapshot 으로 복원한다(SHIPMENT-WRITER-01).
 
-    권한(SHIPMENT_EDIT)·시공팀 차단 후 :func:`cancel_as_recommendation` 오케스트레이터에
+    권한(SHIPMENT_ASSIGN)·시공팀 차단 후 :func:`cancel_as_recommendation` 오케스트레이터에
     위임한다: 출고 snapshot 을 찾아 후속 수동 변경이 없을 때만 typed compensation
     (as_cycle_service + crew replace)으로 복원하고 snapshot 을 제거한다.
     """

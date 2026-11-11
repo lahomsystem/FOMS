@@ -208,6 +208,10 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # --- 출고/물류 (§2.1 line 165, STAFF/SHIPMENT) --------------------------
     "SHIPMENT_EDIT": _p("SHIPMENT_EDIT", teams=("CS", "SALES", "SHIPMENT"),
                         description="shipment per-order update/AS-recommendation — CS/SALES/SHIPMENT team-wide."),
+    # 출고 배정 저장 · AS 추천 4종(설계서 2026-11-09-tablet-production-ui §14.4 D31): 관리자 · CS · 출고팀 STAFF · MANAGER, 영업팀은 보기만.
+    "SHIPMENT_ASSIGN": _p("SHIPMENT_ASSIGN", teams=("CS", "SHIPMENT"),
+                          gate="foms.services.erp_permissions:can_edit_shipment",
+                          description="출고 배정 저장(shipment/update) · AS 추천/prewarm/apply/cancel — ADMIN · CS 또는 SHIPMENT 팀 STAFF · MANAGER. SALES(MEASURE) · CONSTRUCTION · VIEWER · 협력사 deny(D31)."),
     # 시공일 · 시공시간 쓰기(설계서 2026-11-04-shipment-partner-request-board 결정 2): ERP 편집 팀 + 출고팀 STAFF · MANAGER.
     "CONSTRUCTION_SCHEDULE_EDIT": _p("CONSTRUCTION_SCHEDULE_EDIT", teams=("CS", "SALES", "SHIPMENT"),
                                      gate="foms.services.erp_permissions:can_edit_construction_schedule",

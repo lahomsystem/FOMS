@@ -123,7 +123,7 @@
         <div class="erp-shipment-mobile-card erp-shipment-mobile-card--with-detail{% if is_as %} erp-shipment-mobile-card--as{% endif %}{% if has_logistics %} erp-shipment-mobile-card--has-logistics{% endif %}">
           {{ render_queue_card_v2(
             o,
-            can_edit_shipment|default(false),
+            can_edit_order_here|default(false),
             None,
             '--drawing' if is_as else '--shipment',
             'AS' if is_as else '출고',

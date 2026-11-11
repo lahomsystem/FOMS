@@ -197,7 +197,7 @@
   | 고객 | 이름만(전화는 서랍) |
   | 시공시간 | `shipment.construction_time`. 비었으면 주문의 오전 · 오후 · 종일을 흐린 글로 |
   | 영업 담당 | `manager_label` |
-  | 시공자 | 사람 색 덩어리(PC 와 같은 색 번호 규칙), 같은 사람 줄은 위아래로 붙음. 없으면 빨간 점선 `＋ 시공자` |
+  | 시공자 | 사람 색 덩어리(10색, 묶음 순서대로 번호 — PC 는 이름 순이라 같은 사람이 PC 와 다른 색일 수 있다), 같은 사람 줄은 위아래로 붙음. 없으면 빨간 점선 `＋ 시공자` |
 
   본문 칠은 없다(D29). 금액 없음(D7). 위 줄 = 날짜 이동 · `N건` · `시공자 없음 n` · 글자 손잡이 · [AS 넣기] · [이미지 저장].
 - **묶음과 사람별 집계** 새 서비스 `foms/services/shipment/tablet_day_sheet.py`(템플릿 안 계산을 서비스로): 묶음 목록(키 = 첫 시공자 — 기존 규칙 그대로) + 사람별 `건수 · 자수`. 자수는 **줄 자수 ÷ 그 줄 시공자 수**(D25), AS 줄은 건수만.
@@ -205,7 +205,7 @@
 - **서랍** `tablet_sheet.html` 을 넓힌다(주소 `GET /erp/shipment/tablet-sheet/<id>` 그대로): 고객 · 전화 · 주소 전체 · 품목 전부(이름 · 규격) · 현장 메모(읽기) · 시공시간([오전 8시] · [오후 1시] · 직접 → 같은 저장 API). 시트 안 "팀 고르기 + [배정 적용]" 은 이름판이 대신하므로 뺀다. **AS 줄**이면 `AS 정보` 묶음: AS 탭의 읽기 조각(`/erp/as/timeline/<id>?readonly=1`)을 서랍 안에 불러 붙이고 [AS 탭에서 열기](`/erp/as?focus_order=<id>`).
 - **AS 넣기** 위 줄 단추와 표 아래 `＋ 날짜 없는 AS — 이 날에 넣기`: 누르면 서랍에 기존 추천 목록(고객 · 주소 · 접수 내용 한 줄 · `○○ 현장에서 n분`) + [이 날에 넣기](`apply`) · 넣은 것은 [되돌리기](`cancel`). 새 API 없음.
 - **[이미지 저장]** 기존 `image-export.js` 를 태블릿 위 줄에서 부른다(나오는 그림은 지금 PC 와 같은 출고일지 표).
-- **자수 나누기(D25)** `compute_team_remaining_units_for_date` 도 같은 규칙으로 — 두 명이 간 22.4자 줄은 각자 11.2자. **PC 출고 탭의 사람별 잔여 숫자도 같이 바뀐다**(한 규칙).
+- **자수 나누기(D25)** `compute_team_remaining_units_for_date` 도 같은 규칙으로 — 두 명이 간 22.4자 줄은 각자 11.2자. 이 함수를 부르는 곳은 태블릿 시트(`dashboard.py` `erp_shipment_tablet_sheet`) 한 곳이라 **바뀌는 것은 태블릿의 사람별 잔여뿐**이다. PC 패널은 날짜별 합계(`compute_shipment_panel_aggregates` — 주문 자수를 한 번만 셈)라 바뀌지 않는다(초안의 "PC 숫자도 바뀐다"는 틀렸음 — 11-11 워커가 코드로 확인).
 
 ### 14.4 권한 (D24 — 코어 변경)
 - 새 헬퍼 `can_edit_shipment(user)`(`erp_permissions.py`): 관리자, CS팀, 출고팀 STAFF · MANAGER(협력사 · 비활성 제외). **영업팀(SALES — 실측 `MEASURE` 포함)은 안 된다(D31).** 정책 `SHIPMENT_EDIT` 의 팀도 CS · SHIPMENT 로 고치고 매니페스트를 다시 만든다. 새 데코레이터로 `POST /api/erp/shipment/update/<id>` 와 AS 추천 4종의 `@erp_edit_required` 를 바꾼다. 정책과 데코레이터가 같은 규칙을 본다.

@@ -15,7 +15,7 @@ from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_filter_value, partner_order_clause
 from foms.services.partners.payments import unpaid_order_ids
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
-from foms.services.erp_permissions import can_edit_construction_schedule, can_edit_erp, is_order_related_to_user
+from foms.services.erp_permissions import can_edit_construction_schedule, can_edit_erp, can_edit_shipment, is_order_related_to_user
 from foms.services.partners.request_board import build_request_board
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.partners.schedule_request import (
@@ -308,6 +308,7 @@ def compute_team_remaining_units_for_date(db, target_date: str | None, worker_se
     대시보드 잔여 패널과 동일 정의(잔여 = 팀 capacity - 사용 자수). 사용 자수는 해당
     날짜의 시공 주문(OrderScheduleDate.kind=='construction') 중 그 팀이 배정된 주문의
     자수 합이다. target_date의 주문을 1회 조회한다(N+1 없음).
+    여러 명이 간 주문은 자수를 그 주문의 유효 시공자 수(중복 제거, 설정에 없는 이름 포함)로 나눠 각자에게서 뺀다(D25).
 
     Args:
         db: SQLAlchemy 세션.
@@ -350,13 +351,13 @@ def compute_team_remaining_units_for_date(db, target_date: str | None, worker_se
     for o in orders_on_date:
         sd = o.structured_data if isinstance(o.structured_data, dict) else {}
         workers = (sd.get('shipment') or {}).get('construction_workers') or []
-        units = order_spec_units(o, target_date=target_date)
-        seen: set[str] = set()
-        for w in workers:
-            norm = _normalize_worker_name(w)
-            if norm and norm in name_by_norm and norm not in seen:
-                seen.add(norm)
-                remaining[name_by_norm[norm]] -= units
+        norms = list(dict.fromkeys(n for n in (_normalize_worker_name(w) for w in workers) if n))
+        if not norms:
+            continue
+        share = order_spec_units(o, target_date=target_date) / len(norms)
+        for norm in norms:
+            if norm in name_by_norm:
+                remaining[name_by_norm[norm]] -= share
     return remaining
 
 
@@ -728,6 +729,10 @@ def erp_shipment_dashboard():
         remaining_panel_dates=remaining_panel_dates,
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
+        # 출고 배정 · 시공시간 · AS 추천 편집 칸(D31 — 관리자 · CS · 출고팀, 영업팀은 보기만). 저장 API 문지기와 같은 함수.
+        can_edit_shipment=can_edit_shipment(current_user),
+        # 주문 수정 링크 · 시공일 변경 [확인] — 주문 편집 팀 판정 그대로(시공팀 제외, 출고 배정 권한과 따로).
+        can_edit_order_here=bool(can_edit_erp(current_user)) and not is_construction,
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
         tablet_ship_kpis=tablet_ship_kpis,
@@ -834,6 +839,8 @@ def erp_shipment_tablet_sheet(order_id):
         construction_date=target_date,
         teams=teams,
         sheet_can_ack=sheet_can_ack,
+        # 배정 입력 · [배정 적용] — 저장 API 문지기와 같은 함수(D31, 영업팀 · 시공팀은 보기만).
+        can_edit_shipment=can_edit_shipment(current_user),
     ))
     apply_erp_shell_fragment_headers(response, request)
     return response

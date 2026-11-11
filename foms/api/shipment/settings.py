@@ -18,7 +18,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from db import get_db
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.erp_permissions import can_edit_erp, erp_edit_required
+from foms.services.erp_permissions import can_edit_erp, shipment_edit_required
 from foms.services.erp_shipment_settings import (
     ERP_SHIPMENT_SETTINGS_KEY,
     load_erp_shipment_settings,
@@ -174,21 +174,21 @@ def _invalidate_reference_caches() -> None:
 
 
 def _shipment_edit_decision() -> tuple[Any, Any]:
-    """SHIPMENT_EDIT(per-order 출고 쓰기) 권한을 payload 파싱 전에 in-handler 강제한다.
+    """SHIPMENT_ASSIGN(per-order 출고 배정 쓰기) 권한을 payload 파싱 전에 in-handler 강제한다.
 
-    before_request 가드가 꺼진 컨텍스트(TESTING 등)에서도 CS/SALES/SHIPMENT 또는
-    ADMIN/MANAGER 만 통과하도록 :func:`evaluate_policy` 를 직접 적용한다.
+    before_request 가드가 꺼진 컨텍스트(TESTING 등)에서도 ADMIN 또는 CS · SHIPMENT 팀
+    STAFF · MANAGER 만 통과하도록(:func:`can_edit_shipment`, D31) :func:`evaluate_policy` 를 직접 적용한다.
 
     Returns:
         ``(user, Decision)`` 튜플.
     """
     user = get_user_by_id(session.get("user_id"))
-    return user, evaluate_policy(POLICY_REGISTRY["SHIPMENT_EDIT"], user)
+    return user, evaluate_policy(POLICY_REGISTRY["SHIPMENT_ASSIGN"], user)
 
 
 @erp_shipment_bp.route("/api/erp/shipment/update/<int:order_id>", methods=["POST"])
 @login_required
-@erp_edit_required
+@shipment_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_erp_shipment_update(order_id: int):
     """per-order 출고 설정 저장(UPDATE_SHIPMENT_SETTINGS canonical).
