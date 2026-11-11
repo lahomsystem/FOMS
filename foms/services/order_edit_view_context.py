@@ -9,6 +9,7 @@ from models import Order, OrderEvent, User
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
+from foms.services.order_payment_sync import last_deposit_changes
 from foms.services.orders.order_create import CREATED_EVENT
 
 
@@ -135,6 +136,12 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
         "erp_bootstrap": erp_bootstrap,
         "erp_order_active": bool(is_erp_order_record(order)),
         "order_creator": build_order_creator(get_db(), order.id),
+        # 예약금을 마지막으로 고친 사람·때(2026-11-11 사용자 요청) — 네이버 관계 표와 같은 한 줄을
+        # 예약금 칸 아래에 낸다. 화면을 연 때의 기록이다(저장 뒤 새로고침하면 바뀐다).
+        "deposit_last_change": (
+            last_deposit_changes(get_db(), [int(order.id)]).get(int(order.id))
+            if is_erp_order_record(order) else None
+        ),
         "as_schedule_drift": build_schedule_link_drift(
             getattr(order, "structured_data", None), get_db(), viewer=user
         ),

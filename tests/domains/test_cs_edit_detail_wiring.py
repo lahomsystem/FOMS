@@ -51,7 +51,7 @@ def test_the_edit_screen_places_the_section_under_the_reason_and_pins_the_script
     assert "edit-detail.js') }}?v=" in html and html.count("defer></script>") == 2
     assert 'accept="image/jpeg,image/png,image/webp" multiple' in html and "<details" in html
     assert "|tojson|forceescape" in html and 'style="' not in html and "onclick" not in html
-    assert "send-screen.js') }}?v=20261104a" in html and "erp-pro.css') }}?v=20261109f" in html
+    assert "send-screen.js') }}?v=20261104a" in html and "erp-pro.css') }}?v=20261111a" in html
     css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
     for rule in (".cs-detail {", ".cs-detail__drop.is-over {", ".cs-detail__thumb {", ".cs-detail__status--warning {"):
         assert rule in css, rule
