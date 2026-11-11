@@ -41,6 +41,7 @@ from foms.services.cs_agent.case_memory import EDIT_REASONS, OUTCOME_DISCARDED
 from foms.services.cs_agent.channel_read import ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.checks import REASONS, check_draft
 from foms.services.cs_agent.drafting_read import freshness, memo_draft, memo_snippets, read_lines, read_medium
+from foms.services.cs_agent.edit_detail import detail_text, switches as detail_switches
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
@@ -91,6 +92,7 @@ MESSAGES: dict[str, str] = {
     "read_failed": "채널톡 글을 읽지 못했어요 — 잠시 뒤 다시 눌러 주세요(보내지 않았어요).",
     "memo_missing": "채널톡에서 이 초안 메모를 찾지 못했어요 — 수정하기로 글을 넣어 보내 주세요.",
     "bad_request": "입력을 확인해 주세요.",
+    "detail_private": "'왜 고쳤나요' 칸에 손님 정보(이름 · 전화 · 주소)가 있어요 — 지우고 다시 눌러 주세요(보내지 않았어요).",
     "not_found": "초안을 찾지 못했어요.",
     "discarded": "초안을 버렸어요.",
     "rewrite_requested": "고칠 말을 받았어요 — AI 가 다시 쓰면 이 화면이 새 초안으로 바뀝니다.",
@@ -135,6 +137,7 @@ class SendRequest:
     shown_ms: Optional[int] = None
     manager_id: Optional[str] = None
     chat_id: Optional[str] = None
+    edit_detail: Any = field(default=None, repr=False)  # 작은 창 '왜 고쳤나요' 글(고친 글일 때만 — 가려서 사례 칸에)
 
     @property
     def who(self) -> Any:
@@ -238,6 +241,9 @@ def _validate(request: SendRequest) -> Optional[FlowResult]:
         reason = edit_reason_or_none(request.edit_reason)
         if reason is not None and reason not in EDIT_REASONS:
             return _fail("bad_request", 400, field="edit_reason")
+        detail = detail_text("" if request.edit_detail is None else request.edit_detail)
+        if not isinstance(detail, (str, type(None))):  # 꼴 · 길이 · 손님 정보 — 보내기 전에 막는다(글은 결과에 없음)
+            return _fail(detail.code, 400, field=detail.data.get("field", "detail"))
     return None
 
 
@@ -331,6 +337,7 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     edited = edited and text != (ai_draft or "").strip()
     knowledge = load_approved(session, row.brand)
     quote_allowed = allowed_from(row.quote_lines)  # 그 차례 계산기 값 — '계산됨 · 확인됨'일 때만(C10-6 · R17-1)
+    detail_on = edited and bool(request.edit_detail) and detail_switches(session, with_photos=False).detail
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
     args = {"brand": row.brand, "medium": medium, "private_snippets": memo_snippets(lines),
             "allowed_numbers": (*knowledge.spoken_texts(), *quote_allowed)}
@@ -354,6 +361,9 @@ def _send_started(session: Any, row: Any, request: SendRequest, *, previous: Opt
     sent = sender(row.chat_id, text, brand=row.brand, turn_id=row.id)
     case = sent_case(lines, ai_draft=ai_draft, sent_text=text, edited=edited,
                      edit_reason=edit_reason_or_none(request.edit_reason) if edited else None)
+    detail = detail_text(request.edit_detail) if detail_on else None
+    if isinstance(detail, str):  # '왜 고쳤나요'(관리 칸 '자세한 이유' 켬) — FOMS 화면 저장(:mod:`.edit_detail`)과 같은 칸
+        case.update(edit_detail_masked=detail, edit_detail_by=request.user_id, edit_detail_at=naive_utc(now))
     return _record(session, row, sent, case, text=text, now=now, warned=[p.code for p in soft])
 
 

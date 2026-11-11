@@ -10,9 +10,9 @@
         인라인 스크립트 · 스타일 없음. -#}
     {#- 채널톡은 이 화면을 자기 주소(app-store-api.channel.io/public/v1/apps/<앱>/wams/cs-draft/)로 거쳐 연다 — 맨 앞이 / 인
         주소는 채널톡 쪽으로 풀린다. 파일은 이 화면 아래 상대 주소로만(cs_draft_wam.py 가 같은 경로에서 내준다). -#}
-    <link rel="stylesheet" href="app.css?v=20261111a">
-    <script src="app.js?v=20261111a" defer></script>
-    <script src="app-handoff.js?v=20261111a" defer></script>
+    <link rel="stylesheet" href="app.css?v=20261111b">
+    <script src="app.js?v=20261111b" defer></script>
+    <script src="app-handoff.js?v=20261111b" defer></script>
 </head>
 <body class="cs-wam-body">
 <main class="cs-wam" id="cs-wam" data-app-id="{{ app_id }}">
@@ -31,6 +31,11 @@
         <div id="cs-wam-reasons-box">
             <p class="cs-wam__label" id="cs-wam-reasons-label">고친 까닭(안 골라도 돼요)</p>
             <div class="cs-wam__chips" id="cs-wam-reasons" role="group" aria-labelledby="cs-wam-reasons-label"></div>
+        </div>
+        <div id="cs-wam-detail-box" hidden>
+            <label class="cs-wam__label" for="cs-wam-detail">왜 고쳤나요(안 적어도 돼요 · 적어 두면 AI가 배워요)</label>
+            <textarea class="cs-wam__text" id="cs-wam-detail" rows="3" maxlength="1000"
+                      placeholder="예: 현금 결제는 안 되고 네이버 결제만 돼요"></textarea>
         </div>
     </div>
     <div class="cs-wam__actions">

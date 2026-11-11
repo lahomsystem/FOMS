@@ -7,7 +7,8 @@
 
 - ``cs.draft.ping`` — 연결 확인(S1 시험 장치 — 글 · 손님 정보 없음).
 - ``cs.draft.get`` ``{turn, chat}`` — [수정하기] 글 칸 재료(손님께 보낼 답 · 고친 까닭 칩 · 막힘 글).
-- ``cs.draft.send`` ``{turn, chat, mode?, text?, edit_reason?, confirm?, shown_ms?}`` — [보내기](그대로 · 고친 글).
+- ``cs.draft.send`` ``{turn, chat, mode?, text?, edit_reason?, edit_detail?, confirm?, shown_ms?}`` — [보내기](그대로 · 고친
+  글). ``edit_detail`` 은 [수정하기]의 '왜 고쳤나요' 글(관리 칸 '자세한 이유' 켬일 때만 가려서 적는다 — 사장님 11-11).
 - ``cs.draft.discard`` ``{turn, chat}`` — [버리기].
 - ``cs.handoff.get`` ``{turn, chat}`` — 넘김 메모 [배우기] 창 재료(상태 · 까닭 · AI 메모 힌트 · 본 마지막 손님 글).
 - ``cs.handoff.send`` ``{turn, chat, text, confirm?, seen?, shown_ms?}`` — [배우기] 창 [보내기](:func:`.handoff_send.send_handoff`).
@@ -28,6 +29,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.channel_send import CHAT_ID as _CHAT
+from foms.services.cs_agent.edit_detail import MAX_DETAIL, switches as detail_switches
 from foms.services.cs_agent.handoff_send import handoff_view, send_handoff, skip_learning, unskip_learning
 from foms.services.cs_agent.send_flow import FlowResult, SendRequest, discard_turn, send_turn
 from foms.services.cs_agent.send_view import wam_view
@@ -52,7 +54,7 @@ FUNCTION_SCHEMAS: tuple[dict[str, Any], ...] = (
     {"name": SEND, "description": "AI 초안 손님께 보내기",
      "inputSchema": {"type": "object", "properties": {
          **_TURN_CHAT, "mode": {"type": "string"}, "text": {"type": "string"}, "edit_reason": {"type": "string"},
-         "confirm": {"type": "string"}, "shown_ms": {"type": "integer"}}}},
+         "edit_detail": {"type": "string"}, "confirm": {"type": "string"}, "shown_ms": {"type": "integer"}}}},
     {"name": DISCARD, "description": "AI 초안 버리기",
      "inputSchema": {"type": "object", "properties": dict(_TURN_CHAT)}},
     {"name": HANDOFF_GET, "description": "넘김 메모 배우기 창 재료",
@@ -114,17 +116,20 @@ def _get(session: Any, turn: int, chat: str, reader: Any) -> dict[str, Any]:
     view = wam_view(session, turn, chat_hint=chat, reader=reader)
     if view is None:
         return {"code": "not_found", "ok": False, "message": "초안을 찾지 못했어요."}
+    detail = detail_switches(session, with_photos=False).detail  # '왜 고쳤나요' 칸(관리 칸 '자세한 이유')
+    session.rollback()
     return {"code": "ok", "ok": True, "blocked": view["blocked"], "draft": view["draft"],
             "fresh_note": view["fresh_note"], "checking": view["checking"],
-            "edit_reasons": [list(item) for item in view["edit_reasons"]], "max_text": view["max_text"]}
+            "edit_reasons": [list(item) for item in view["edit_reasons"]], "max_text": view["max_text"],
+            "detail": bool(detail), "max_detail": MAX_DETAIL}
 
 
 def _send(session: Any, turn: int, chat: str, params: dict[str, Any], manager_id: str, *, secret_key: Any,
           now: datetime.datetime, reader: Any, sender: Optional[Callable[..., Any]]) -> dict[str, Any]:
     request = SendRequest(turn_id=turn, user_id=_user_id(manager_id), manager_id=manager_id, chat_id=chat,
                           mode=params.get("mode") or "as_is", text=params.get("text"),
-                          edit_reason=params.get("edit_reason"), confirm=params.get("confirm"),
-                          shown_ms=params.get("shown_ms"))
+                          edit_reason=params.get("edit_reason"), edit_detail=params.get("edit_detail"),
+                          confirm=params.get("confirm"), shown_ms=params.get("shown_ms"))
     extra = {"sender": sender} if sender is not None else {}
     return _flow(send_turn(session, request, secret_key=secret_key, now=now, reader=reader, **extra))
 

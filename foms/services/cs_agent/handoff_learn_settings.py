@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from foms.services.cs_agent.settings_field import KIND_BOOL, KIND_INT, Field
 
-__all__ = ["CASES_FIELD", "GROUP_HANDOFF_LEARN", "HANDOFF_LEARN_FIELD", "HANDOFF_LEARN_FIELDS"]
+__all__ = ["CASES_FIELD", "EDIT_LEARN_FIELD", "GROUP_HANDOFF_LEARN", "HANDOFF_LEARN_FIELD", "HANDOFF_LEARN_FIELDS"]
 
 GROUP_HANDOFF_LEARN = "넘긴 상담 배우기 → 회사 지식 제안"
 HANDOFF_LEARN_FIELD, CASES_FIELD = "handoff_learn_enabled", "handoff_learn_cases"
+EDIT_LEARN_FIELD = "edit_learn_enabled"
 
 HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
     Field(HANDOFF_LEARN_FIELD, "넘긴 상담 배우기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
@@ -23,4 +24,8 @@ HANDOFF_LEARN_FIELDS: tuple[Field, ...] = (
     Field(CASES_FIELD, "한 번에 읽는 사례 수", KIND_INT, 20, GROUP_HANDOFF_LEARN, low=2, high=40, unit="개",
           help="한 밤에 오래된 사례부터 이만큼만 읽어요. 남은 사례는 다음 밤에 읽고, 한 번 읽은 사례는 다시 안 읽어요. "
                "늘리면 학습 돈이 늘어요"),
+    Field(EDIT_LEARN_FIELD, "고쳐 보낸 상담도 배우기", KIND_BOOL, False, GROUP_HANDOFF_LEARN,
+          help="켜면 같은 밤에 AI 초안을 직원이 고쳐 보내면서 '왜 고쳤나요'를 적은 상담도 읽어요(전체 대화 · AI 초안 · 고친 답 · "
+               "까닭). 회사 지식 제안(사실 · 정책)을 '승인 대기' 카드로만 넣어요. 까닭을 안 적은 상담은 안 읽어요. "
+               "'넘긴 상담 배우기'가 켜져 있어야 돌아요"),
 )

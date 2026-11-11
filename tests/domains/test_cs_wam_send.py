@@ -23,6 +23,7 @@ from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.masking import mask
 from models import ChannelManagerLink, CsAgentTurn, SecurityLog, SystemSetting
 from tests.domains.test_cs_drafting import DRAFT, channel  # noqa: F401 — channel 은 fixture
+from tests.domains.test_cs_photo_read import PHONE
 from tests.domains.test_cs_send import NOW, FakeSender, fresh, posted, ready, switches, user  # noqa: F401 — ready 는 fixture
 from tests.support.cs_agent_fakes import FakeClock, api_message, at, keys, make_reader  # noqa: F401 — keys 는 fixture
 
@@ -199,3 +200,54 @@ def test_a_sent_turn_row_keeps_no_text_beyond_masked_copies(app, ready):
     call(app, ready, "cs.draft.send", {"turn": turn_id, "chat": "uc-1"}, sender=FakeSender(ready))
     row = db_session.get(CsAgentTurn, turn_id)
     assert row.staff_reply_masked == mask(DRAFT) and row.desk_manager_id == "mgr-7"
+
+
+# ── '왜 고쳤나요' 칸(사장님 11-11 — 고친 답 + 까닭을 배우게) ──────────────────
+WHY = "현금 결제는 안 되고 네이버 결제만 된다고 안내해야 해요"
+EDITED = "안녕하세요 고객님, 현금 결제는 어렵고 네이버 결제로 가능합니다."
+
+
+def detail_on(on=True):
+    db_session.merge(SystemSetting(setting_key=st.SETTINGS_KEY, setting_value={
+        **st.DEFAULTS, "send_buttons_enabled": True, "realtime_enabled": True, "edit_detail_enabled": on}))
+    db_session.commit()
+
+
+def test_the_edit_window_sends_the_written_reason_with_the_edited_reply(app, ready):
+    detail_on()
+    turn_id = posted(ready)
+    got = call(app, ready, "cs.draft.get", {"turn": turn_id, "chat": "uc-1"})["result"]
+    assert (got["detail"], got["max_detail"]) == (True, 1000)
+    params = {"turn": turn_id, "chat": "uc-1", "mode": "edited", "text": EDITED, "edit_reason": "wrong_fact",
+              "edit_detail": WHY}
+    sent = call(app, ready, "cs.draft.send", params, sender=FakeSender(ready))["result"]
+    assert sent["code"] == "sent" and WHY not in json.dumps(sent, ensure_ascii=False)
+    row = fresh(turn_id)
+    assert (row.outcome, row.edit_reason, row.edit_detail_masked, row.edit_detail_by) == (
+        "edited", "wrong_fact", mask(WHY), None)  # FOMS 짝이 없는 상담원 — 직원 번호는 비움
+    assert row.edit_detail_at is not None
+
+
+def test_the_reason_is_dropped_when_the_detail_switch_is_off_or_the_text_was_not_changed(app, ready):
+    detail_on(False)
+    turn_id = posted(ready)
+    assert call(app, ready, "cs.draft.get", {"turn": turn_id, "chat": "uc-1"})["result"]["detail"] is False
+    params = {"turn": turn_id, "chat": "uc-1", "mode": "edited", "text": EDITED, "edit_detail": WHY}
+    assert call(app, ready, "cs.draft.send", params, sender=FakeSender(ready))["result"]["code"] == "sent"
+    assert fresh(turn_id).edit_detail_masked is None
+    detail_on()
+    same = posted(ready, chat="uc-2")
+    params = {"turn": same, "chat": "uc-2", "mode": "edited", "text": DRAFT, "edit_detail": WHY}
+    assert call(app, ready, "cs.draft.send", params, sender=FakeSender(ready))["result"]["code"] == "sent"
+    assert (fresh(same).outcome, fresh(same).edit_detail_masked) == ("as_is", None)  # 안 고쳤으면 까닭도 없다
+
+
+def test_customer_details_in_the_reason_block_the_send(app, ready):
+    detail_on()
+    turn_id = posted(ready)
+    sender = FakeSender(ready)
+    params = {"turn": turn_id, "chat": "uc-1", "mode": "edited", "text": EDITED, "edit_detail": f"손님 번호 {PHONE}"}
+    result = call(app, ready, "cs.draft.send", params, sender=sender)["result"]
+    assert (result["code"], result["field"]) == ("detail_private", "detail_private") and not sender.calls
+    assert PHONE not in json.dumps(result, ensure_ascii=False) and fresh(turn_id).send_state is None
+
