@@ -5,7 +5,7 @@
  * 생산 칸반 상단 필터 바(공장·검색·변경·초기화 상시 노출)를 처리한다. 신규 API 없이
  * 기존 워크플로 엔드포인트를 재사용한다:
  *   - 생산 시작/완료/수정 제작: POST /api/orders/<id>/production/start|complete|rework (에러 키 = message)
- *   - 출고 배정: POST /api/erp/shipment/update/<id>          (권한 실패 = 403)
+ *   - 출고 서랍 저장(시간 · 메모): POST /api/erp/shipment/update/<id> (권한 실패 = 403)
  * 성공 시 시트를 닫고 새로고침으로 read-model 을 재조회한다(낙관 갱신은 비범위 — 간단·근본).
  *
  * 활성 게이트(SSOT): MQ (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
@@ -439,32 +439,27 @@
     });
   }
 
-  // 출고 배정 — 시공팀/시공시간/현장 메모를 기존 출고 update 엔드포인트로 저장.
-  // 입력은 시트 본문(.foms-tablet-sheet__body) 범위에서 조회, 없으면 document 폴백.
-  function shipmentAssign(orderId) {
+  // 출고 서랍 저장 — 시공시간 · 현장 메모만 기존 출고 update 엔드포인트로 보낸다.
+  // construction_workers 는 보내지 않는다: 시공자는 표의 이름판이 바로 저장하므로, 여기서 보내면
+  // 이름판에서 방금 고친 값을 옛 값/빈 값으로 덮는다(API 는 없는 키를 그대로 둔다).
+  // 메모는 바뀌었을 때만 보낸다 — 여러 줄 · 색 메모를 한 줄로 합쳐 덮지 않게(defaultValue = 처음 값).
+  function shipmentSave(orderId) {
     if (!orderId) return;
     var scope = document.querySelector(".foms-tablet-sheet__body") || document;
-
-    var teamInput = scope.querySelector('input[name="tablet-assign-team"]:checked');
-    var team = teamInput ? teamInput.value : null;
-    var constructionWorkers = team ? [team] : [];
-
+    var payload = {};
     var timeInput = scope.querySelector("input[data-tablet-assign-time]");
-    var constructionTime = timeInput ? timeInput.value.trim() : "";
-
+    if (timeInput) payload.construction_time = timeInput.value.trim();
     var memoInput = scope.querySelector("input[data-tablet-assign-memo]");
     var memo = memoInput ? memoInput.value.trim() : "";
-    var siteExtra = memo ? [{ text: memo, color: "#334155" }] : [];
+    if (memoInput && memo !== memoInput.defaultValue.trim()) {
+      payload.site_extra = memo ? [{ text: memo, color: "#334155" }] : [];
+    }
 
     fetch("/api/erp/shipment/update/" + encodeURIComponent(orderId), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        construction_workers: constructionWorkers,
-        construction_time: constructionTime,
-        site_extra: siteExtra,
-      }),
+      body: JSON.stringify(payload),
     })
       .then(function (res) {
         var status = res.status;
@@ -491,7 +486,7 @@
         }
       })
       .catch(function (err) {
-        console.error("[foms-domain-sheets] 출고 배정 실패:", err);
+        console.error("[foms-domain-sheets] 출고 서랍 저장 실패:", err);
         window.alert("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.");
       });
   }
@@ -762,9 +757,9 @@
       productionHold(orderId, actionBtn);
       return;
     }
-    if (action === "shipment-assign") {
+    if (action === "shipment-save") {
       ev.preventDefault();
-      shipmentAssign(orderId);
+      shipmentSave(orderId);
       return;
     }
   });

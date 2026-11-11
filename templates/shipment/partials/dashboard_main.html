@@ -93,6 +93,11 @@
          data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
       {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
+      {# 왼쪽 '날짜별 남은 자수' 띠 여닫기(2026-11-11 사용자 "단추로 여닫기"). 평소엔 띠를 숨겨 표가 폭을 다 쓴다.
+         열림 기억 · 클래스 붙이기 = static/js/shipment/tablet-ship-capstrip.js. 띠가 없는 켜진 프리랜서 화면엔 단추도 없다. #}
+      {% if not shipment_freelancer_view %}
+      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__cap-toggle" data-ship-cap-toggle aria-expanded="false" aria-controls="foms-ship-cap-strip">날짜별 남은 자수</button>
+      {% endif %}
       {% if can_edit_shipment and not shipment_freelancer_view %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
               title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
@@ -290,7 +295,7 @@
            코호트에서 은닉하고 이 클린 스트립이 대체한다. remaining_panel_dates(서버 기존
            집계, 신규 쿼리 없음) 재소비: 프로그레스 = used/total, ok/warn/off 색은
            is_weekend·holiday·alert_capacity 로 파생. base-hidden → 코호트 가로에서만 표시. #}
-        {% if not shipment_freelancer_view %}<aside class="foms-ship-cap-strip" aria-label="잔여 자수 용량">
+        {% if not shipment_freelancer_view %}<aside class="foms-ship-cap-strip" id="foms-ship-cap-strip" aria-label="잔여 자수 용량">
           <div class="foms-ship-cap-strip__head">
             {% set _cm = (selected_date or today_date)[5:7]|int %}
             {% set _cd = (selected_date or today_date)[8:10]|int %}

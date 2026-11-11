@@ -164,6 +164,8 @@
     color: var(--foms-interactive-primary, #4a55b8);
   }
   body.erp-mobile-v2-layout .foms-tablet-shipgrid__flag--danger { color: var(--ship-danger); }
+  /* 시공일 변경 [확인] — 표 안 글자는 13px 이상(실화면 12.16px 이었다). */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__ack { font-size: calc(13px * var(--foms-fs, 1)); }
   body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__label,
   body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__old,
   body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__arrow,

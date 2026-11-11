@@ -141,8 +141,9 @@ def test_tablet_sheet_assign_button_follows_helper(client, role, team, editable)
     resp = client.get(f"/erp/shipment/tablet-sheet/{order.id}")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert ('data-tablet-sheet-action="shipment-assign"' in html) is editable
+    assert ('data-tablet-sheet-action="shipment-save"' in html) is editable
     assert ("data-tablet-time-chip" in html) is editable
+    assert ("data-tablet-assign-time" in html) is editable
 
 
 @pytest.mark.parametrize("role,team,editable", [("STAFF", "SHIPMENT", True), ("STAFF", "SALES", False)])

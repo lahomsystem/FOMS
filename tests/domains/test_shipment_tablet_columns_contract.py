@@ -40,6 +40,7 @@ DAY_SHEET_CSS = "static/css/contexts/shipment/tablet-day-sheet.css"
 ASSIGN_JS = "static/js/shipment/tablet-ship-assign.js"
 SHIPMENT_ENTRY_JS = "static/js/shipment/shipment-entry.js"
 DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html"
+CAPSTRIP_JS = "static/js/shipment/tablet-ship-capstrip.js"
 
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
@@ -298,6 +299,47 @@ def test_density_toggle_targets_clean_grid() -> None:
     assert "foms_density_target" in html
     assert "tablet_ship_grid.html" in html
     assert 'id="foms-tablet-ship-grid"' in _read(TABLET_GRID)
+
+
+# --- (2-2) 왼쪽 "날짜별 남은 자수" 띠 = 단추로 여닫기(2026-11-11 사용자 결정) -------------
+
+
+def test_cap_strip_hidden_by_default_and_shown_only_when_open() -> None:
+    """띠는 MQ 밖 기본 숨김이고, 코호트에서도 뿌리에 .is-ship-cap-open 이 붙었을 때만 보인다."""
+    css = _norm(_read(COLUMNS_CSS))
+    base = css[:css.index("@media " + CORE_MEDIA_QUERY + " { /* --- 좌우 여백")]
+    assert ".foms-ship-cap-strip," in base and "{ display: none; }" in base
+    assert "body.erp-mobile-v2-layout .erp-dashboard-shipment.is-ship-cap-open .foms-ship-cap-strip {" in css
+    assert "body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-cap-strip {" not in css
+
+
+def test_cap_strip_toggle_button_markup() -> None:
+    """위 줄 단추: data-ship-cap-toggle · aria-expanded · aria-controls(띠 id) · 프리랜서 화면엔 없음."""
+    html = _read(DASHBOARD_MAIN)
+    m = re.search(r'\{% if not shipment_freelancer_view %\}\s*<button [^>]*data-ship-cap-toggle[^>]*>날짜별 남은 자수</button>', html)
+    assert m, "단추가 없거나 프리랜서 가림 밖에 있다"
+    tag = m.group(0)
+    assert 'aria-expanded="false"' in tag and 'aria-controls="foms-ship-cap-strip"' in tag
+    assert 'id="foms-ship-cap-strip"' in html
+    assert "style=" not in tag
+
+
+def test_cap_strip_js_contract() -> None:
+    """여닫기 JS: 60줄 안쪽 · localStorage 를 try/catch 로 · 조각 바뀜 뒤 다시 적용 · entry CHAIN ?v= 핀."""
+    js = _read(CAPSTRIP_JS)
+    assert len(js.splitlines()) <= 60
+    assert "jQuery" not in js and "$(" not in js
+    assert js.count("try {") >= 2 and js.count("catch (e)") >= 2
+    assert "localStorage.getItem" in js and "localStorage.setItem" in js
+    assert "foms:erp-shell-fragment-swapped" in js and "is-ship-cap-open" in js
+    assert "aria-expanded" in js and "__FOMS_SHIP_CAPSTRIP_BOUND" in js
+    assert re.search(r"'/static/js/shipment/tablet-ship-capstrip\.js\?v=\d{8}[a-z]'", _read(SHIPMENT_ENTRY_JS))
+
+
+def test_ship_change_ack_font_in_grid_at_least_13() -> None:
+    """표 안 시공일 변경 [확인] 글자 = calc(13px * var(--foms-fs, 1)) (실화면 12.16px 이었다)."""
+    css = _norm(_read(DAY_SHEET_CSS))
+    assert ".foms-tablet-shipgrid__customer .erp-ship-change__ack { font-size: calc(13px * var(--foms-fs, 1)); }" in css
 
 
 # --- (3) PC 테이블 마크업은 PC(fine) 리사이즈용으로 유지 ----------------------

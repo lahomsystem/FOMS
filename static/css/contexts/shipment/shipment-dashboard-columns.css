@@ -195,6 +195,10 @@ body.col-resizing-active {
     background: var(--foms-interactive-primary, #5a67d8);
     color: var(--foms-color-neutral-0, #fff);
   }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__cap-toggle[aria-expanded="true"] {
+    border-color: var(--foms-text-primary, #1f2733);
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
   body.erp-mobile-v2-layout .foms-ship-pcbar__btn[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
@@ -244,7 +248,9 @@ body.col-resizing-active {
   }
 
   /* --- 좌측 잔여 자수 스트립(260px) — PC 스케줄러 패널의 코호트 대체 --- */
-  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-cap-strip {
+  /* 띠는 평소 숨김(위 base-hide) — 위 줄 [날짜별 남은 자수] 단추가 뿌리에 .is-ship-cap-open 을 붙였을 때만 보인다
+     (2026-11-11 사용자 "단추로 여닫기", tablet-ship-capstrip.js). */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment.is-ship-cap-open .foms-ship-cap-strip {
     display: flex;
     flex-direction: column;
     flex: 0 0 260px;
