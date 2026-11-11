@@ -285,9 +285,18 @@ def test_every_reason_and_check_code_has_plain_words():
             assert reason in hm.HANDOFF_TEXTS, reason
     blocking = {code for code in REASONS if not code.startswith("tone_")} - {"empty"}
     assert blocking == set(hm.CHECK_WORDS)
-    texts = [*hm.HANDOFF_TEXTS.values(), *hm.CHECK_WORDS.values(), hm.HANDOFF_UNKNOWN, hm.CHECK_EMPTY, hm.CHECK_UNKNOWN]
+    texts = [*hm.HANDOFF_TEXTS.values(), *hm.CHECK_WORDS.values(), hm.HANDOFF_UNKNOWN, hm.CHECK_EMPTY, hm.CHECK_UNKNOWN,
+             hm.PHOTO_READ_TEXT]
     assert not [text for text in texts if re.search(r"[a-z_]{2,}", text)]  # 코드 글자 없음('AI' 는 낱말)
     assert hm.MEMO_CODES == (drafting.SKIP_HANDOFF, drafting.SKIP_CHECK)
+
+
+def test_only_a_photo_handoff_says_the_photo_was_read():
+    line = hm.reason_text
+    assert line("handoff", handoff_reason="photo", photos_read=True) == hm.PHOTO_READ_TEXT
+    assert line("handoff", handoff_reason="photo") == hm.HANDOFF_TEXTS["photo"]  # 읽지 않았으면 예전 말
+    assert line("handoff", handoff_reason="unsure", photos_read=True) == hm.HANDOFF_TEXTS["unsure"]
+    assert line("check_failed", check_codes=["empty"], photos_read=True) == hm.CHECK_EMPTY
 
 
 def test_reason_lines_join_once_and_pick_the_right_particle():
