@@ -137,10 +137,12 @@ def test_freelancer_mobile_menus_only_link_allowed_endpoints(app, monkeypatch, p
         "dashboard", "measurement", "drawing_workbench", "shipment", "my_commission"]
     assert "계산기" in regions["bottom_nav"] and "더보기" in regions["bottom_nav"]
     # 서랍: 문지기가 여는 판 화면(PC 메뉴와 같은 셋, 계산기는 탭에) + 내 정보 · 공지사항 · 로그아웃. 네이버 수집 없음.
+    # 네이버는 '이력' 탭만(11-11 사용자 결정 — freelancer_screens/naver_history.py) · 처리 할 일 배지 없음.
     assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [
-        label for label in _FL_LABELS if label != "견적 계산기"]
-    assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [*_STAGE_LABELS, "내 수수료"]
+        *[label for label in _FL_LABELS if label != "견적 계산기"], "네이버 이력"]
+    assert _labels(regions["drawer"], "erp-mobile-menu-drawer__label") == [*_STAGE_LABELS, "내 수수료", "네이버 이력"]
     assert "네이버 수집" not in regions["drawer"]
+    assert "data-foms-nav-triage-badge" not in regions["drawer"]
     assert re.findall(r"<span>([^<]+)</span>", _cut(regions["drawer"], "erp-mobile-menu-drawer__account-links", "</nav>")) \
         == ["내 정보", "공지사항", "로그아웃"]
     # 태블릿 레일(/erp 전 화면): PC 메뉴와 같은 셋(견적 계산기 포함) + 알림.
@@ -184,9 +186,11 @@ def test_checker_finds_blocked_links_for_normal_sales(app, monkeypatch):
     """음성 대조군: 보통 영업 직원 화면에는 허용 목록 밖 링크가 있다 — 검사기가 실제로 잡는다."""
     _freelancer()
     user = _make_user("STAFF", "SALES")
-    mobile = _outside_allowlist(app, _mobile_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=True)))
     desktop = _outside_allowlist(app, _desktop_regions(_render(app, monkeypatch, user, "/erp/dashboard", mobile=False)))
-    # D27 로 판 화면이 열리며 아래 탭의 링크는 모두 허용 목록 안이 됐다 — 서랍(네이버 수집 등)은 아직 밖이다.
+    # D27 로 판 화면이 열리고 11-11 네이버 이력이 열리며 영업 서랍 링크는 모두 허용 목록 안이 됐다 —
+    # 폰 대조군은 관리자 서랍(정산 등 허용 밖)이다.
+    admin = _make_user("ADMIN", None)  # 렌더가 끝나면 세션이 닫혀 앞 사용자 객체를 다시 못 쓴다 — 쓰기 직전에 만든다
+    mobile = _outside_allowlist(app, _mobile_regions(_render(app, monkeypatch, admin, "/erp/dashboard", mobile=True)))
     assert "drawer" in {name for name, *_ in mobile}
     assert {"global_nav", "user_menu"} <= {name for name, *_ in desktop}  # ERP 서브 내비는 D27 로 모두 열림
 
