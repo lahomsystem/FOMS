@@ -17,6 +17,7 @@ API 숫자 · 권한은 `test_sales_commission_api.py`(서버 쪽)가 잡는다.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -92,7 +93,10 @@ PARTIAL_HOOKS = (
 )
 
 #: 표 머리 — 회계팀 엑셀과 같은 순서(설계서 §2.1-2).
-COLUMNS = ("시공일", "고객명", "품목", "거래구분", "출고가", "시공비", "차감", "요율", "수수료")
+# 둘째 "시공일"은 실측일 기준일 때만 보이는 칸(처음엔 hidden — 첫 칸 글이 '실측일'로 바뀔 때 같이 켜진다, 11-11).
+ROOT = Path(__file__).resolve().parents[2]
+
+COLUMNS = ("시공일", "시공일", "고객명", "품목", "거래구분", "출고가", "시공비", "차감", "요율", "수수료")
 
 _TH_RE = re.compile(r"<th\b[^>]*>(.*?)</th>", re.S)
 _STYLE_ATTR_RE = re.compile(r"\bstyle\s*=\s*['\"]")
@@ -153,6 +157,19 @@ def test_table_columns_follow_the_spreadsheet_order(client, app):
     pane = _pane_html(_fragment_html(client))
     heads = [re.sub(r"<[^>]+>", "", h).strip() for h in _TH_RE.findall(pane)]
     assert tuple(heads[: len(COLUMNS)]) == COLUMNS, heads
+
+
+def test_construction_date_column_only_for_measurement_basis(client, app):
+    """실측일 기준에서만 시공일 칸을 하나 더 보인다 — 머리 칸은 처음엔 숨김, JS 가 줄 · 합계 칸 수를 같이 맞춘다."""
+    _login_allowed(client)
+
+    pane = _pane_html(_fragment_html(client))
+    assert '<th scope="col" data-settlement-cm-construction-head hidden>시공일</th>' in pane
+    table_js = (ROOT / "static/js/settlement/commission-table.js").read_text(encoding="utf-8")
+    assert "if (!editable) tr.appendChild(td('', row.construction_date || '—'));" in table_js
+    assert "label.colSpan = ctx.state.basis === 'completion' ? 8 : 9;" in table_js
+    main_js = (ROOT / "static/js/settlement/commission.js").read_text(encoding="utf-8")
+    assert "C.hide(ctx.els.constructionHead, s.basis !== 'measurement');" in main_js
 
 
 def test_settings_link_points_to_the_freelancer_page(client, app):

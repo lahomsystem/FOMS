@@ -97,6 +97,8 @@
     var tr = C.el('tr', '');
     tr.setAttribute('data-settlement-cm-row', String(row.order_id));
     tr.appendChild(td('', (editable ? row.construction_date : row.measurement_date) || '—'));
+    // 실측일 기준은 시공일도 옆에 보인다(11-11) — 머리 칸은 commission.js syncControls 가 같이 켠다.
+    if (!editable) tr.appendChild(td('', row.construction_date || '—'));
     var cust = td('');
     cust.appendChild(orderLink(row.order_id, row.customer_name));
     tr.appendChild(cust);
@@ -150,7 +152,7 @@
     var sum = summarize(ctx.state.rows);
     var tr = C.el('tr', '');
     var label = C.el('td', '', '합계');
-    label.colSpan = 8;
+    label.colSpan = ctx.state.basis === 'completion' ? 8 : 9;
     var waits = ['WAIT_COST', 'WAIT_RATE', 'FORECAST']
       .filter(function (key) { return sum.counts[key] > 0; })
       .map(function (key) { return C.STATE_LABELS[key] + ' ' + sum.counts[key] + '건'; });
