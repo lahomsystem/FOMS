@@ -121,6 +121,13 @@
       return post(base() + '/drawing/as/cancel', {});
     },
     channel: function () { return pushChannel(); },
+    room: function () {
+      if (!window.FomsAsRoomPush) return null;
+      var c = card();
+      return window.FomsAsRoomPush.send(c.getAttribute('data-order-id'), {
+        toast: function (text, o) { setStatus(text, !(o && o.error)); },
+      }).then(function (sent) { return sent ? { ok: true, data: {} } : { ok: false, message: '' }; });
+    },
   };
 
   var DONE_TEXT = {
@@ -129,6 +136,7 @@
     revision: '고쳐 달라고 보냈어요.',
     cancel: 'AS 도면을 그만뒀어요.',
     channel: '채널톡 AS방에 접수를 올렸어요.',
+    room: '도면방에 [AS] AS 도면을 보냈어요.',
   };
 
   async function act(name, btn) {
@@ -149,7 +157,7 @@
     var r = await pending;
     if (!r.ok) {
       btn.disabled = false;
-      setStatus(r.message, false);
+      if (r.message) setStatus(r.message, false);
       return;
     }
     setStatus(DONE_TEXT[name] || '저장했어요.', true);

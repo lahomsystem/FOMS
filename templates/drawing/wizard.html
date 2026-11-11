@@ -755,7 +755,8 @@
   <script src="{{ url_for('static', filename='js/drawing/zoom-sharp.js') }}?v=20261028a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261111a" defer></script>
   {# 완료 주문 AS 도면 — 탭 표시·AS 시트 만들기·도장(설계서 2026-11-11-as-drawing-after-completion §4.3). #}
-  {% if wizard_config.as_drawing %}<script src="{{ url_for('static', filename='js/drawing/wizard-as.js') }}?v=20261111a" defer></script>{% endif %}
+  {% if wizard_config.as_drawing %}<script src="{{ url_for('static', filename='js/drawing/as-room-push.js') }}?v=20261111a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard-as.js') }}?v=20261111b" defer></script>{% endif %}
   <script src="{{ url_for('static', filename='js/drawing/save-send.js') }}?v=20261106c" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/image-crop.js') }}?v=20261103a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>

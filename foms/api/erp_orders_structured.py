@@ -295,6 +295,8 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'channeltalk_push_as',
     'channeltalk_push_measure_room',
     'channeltalk_push_drawing_room',
+    # 완료 주문 AS 도면 도면방 PUSH 이력(설계서 2026-11-11-as-drawing-after-completion D4) — 원래 도면 이력과 따로.
+    'channeltalk_push_as_drawing_room',
     'channeltalk_push_urgent_measure',
     # 실측 예약 안내 알림톡 이력(서버 소유 — kakao_alimtalk._record_history 만 쓴다).
     # 폼은 이 키를 렌더하지도 보내지도 않으므로 보존 목록에 없으면 **주문을 한 번 저장하는

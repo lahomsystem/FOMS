@@ -20,6 +20,7 @@ from foms.services.orders.as_drawing import (
     current_round,
     is_as_drawing_stage,
     open_as_cycle_id,
+    room_push_round,
     round_no,
     round_sheet_ids,
     rounds,
@@ -189,6 +190,7 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
         "can_cancel": bool(usable and drawing_ok and status in (STATUS_WAITING, STATUS_IN_PROGRESS)
                            and not (current or {}).get("sent")),
         "can_review": bool(usable and review_ok and status == STATUS_TRANSFERRED),
+        "can_room_push": bool(usable and drawing_ok and room_push_round(sd) is not None),
         "can_channel_retry": bool(usable and drawing_ok and current and current.get("registered_as")
                                   and not push_as.get("pushed")),
     }

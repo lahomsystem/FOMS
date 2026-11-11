@@ -7,7 +7,7 @@
  * - 탭: 원래·지난 차수 시트에 잠금 표시(지우기 ×·이름 바꾸기 숨김), AS 시트에 빨간 'AS N'.
  * - 처음 열 때 AS 시트가 없으면 "AS 시트 만들기" 창: 원래 도면 복사(탭 ⧉ 와 같은 복제) / 빈 시트.
  * - 종이 오른쪽 위 'AS N차' 도장 — #dws-stage 안이라 [저장] 그림(PNG)에도 찍힌다.
- * - AS 단계에서는 도면방 PUSH 를 보내지 않는다(지금 도면방 PUSH 는 원래 최종 도면을 보낸다).
+ * - AS 단계의 도면방 PUSH 는 [AS] AS 도면으로 보낸다(as-room-push.js). 차수가 없으면 보내지 않는다.
  */
 (function () {
   'use strict';
@@ -171,10 +171,13 @@
   }
 
   function guardRoomPush() {
-    // [저장] 창의 "도면방에도 보내기"는 지금 원래 최종 도면을 보낸다 — AS 단계에서는 보내지 않는다.
-    core.pushRoom = function () {
-      core.toast('AS 도면은 아직 도면방으로 보내지 않아요. 영업 담당과 AS 담당이 실행판에서 확인해요.');
-      return Promise.resolve(false);
+    // [저장] 창의 "도면방에도 보내기" — 완료 주문은 원래 최종 도면이 아니라 [AS] AS 도면을 보낸다(D4).
+    core.pushRoom = function (opts) {
+      if (!round || !window.FomsAsRoomPush) {
+        core.toast('AS 도면을 먼저 시작해야 도면방으로 보낼 수 있어요.');
+        return Promise.resolve(false);
+      }
+      return window.FomsAsRoomPush.send(core.orderId, { skipConfirm: !!(opts && opts.skipConfirm), toast: core.toast });
     };
   }
 
