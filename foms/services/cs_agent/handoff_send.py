@@ -34,11 +34,14 @@ from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.case_memory import OUTCOME_DIRECT, OUTCOME_DISCARDED
 from foms.services.cs_agent.channel_read import ChannelReadError, OpenApiReader, naive_utc
 from foms.services.cs_agent.checks import check_draft
-from foms.services.cs_agent.drafting_read import MEMO_NOTE_HEAD, ChatLine, memo_snippets, read_lines, read_medium
+from foms.services.cs_agent.drafting_read import (
+    MEMO_NOTE_HEAD, ChatLine, customer_texts, memo_snippets, read_lines, read_medium,
+)
 from foms.services.cs_agent.handoff_learning import used_ids
 from foms.services.cs_agent.handoff_memo import reason_text
 from foms.services.cs_agent.handoff_memo_settings import handoff_buttons_on
 from foms.services.cs_agent.knowledge import load_approved
+from foms.services.cs_agent.ontology import with_ontology
 from foms.services.cs_agent.quote_record import allowed_from
 from foms.services.cs_agent.send import send_reply
 from foms.services.cs_agent.send_auth import confirm_matches, confirm_stamp
@@ -257,11 +260,12 @@ def _started(session: Any, row: Any, request: SendRequest, *, previous: Optional
     if latest != (seen if isinstance(seen, str) and seen else row.last_user_message_id):
         return _back(session, row, previous, "stale", now, _r("new_message", 409, seen=latest))
     text = (request.text or "").strip()
-    knowledge = load_approved(session, row.brand)
+    knowledge = with_ontology(session, load_approved(session, row.brand))
     quote_allowed = allowed_from(row.quote_lines)
     session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
     check = check_draft(text, brand=row.brand, medium=medium, private_snippets=memo_snippets(lines),
-                        allowed_numbers=(*knowledge.spoken_texts(), *quote_allowed))
+                        allowed_numbers=(*knowledge.spoken_texts(), *quote_allowed), same_values=knowledge.same_values(),
+                        customer_texts=customer_texts(lines))
     hard = [p for p in check.problems if p.code in HARD_CODES]
     soft = [p for p in check.problems if p not in hard]
     if hard:

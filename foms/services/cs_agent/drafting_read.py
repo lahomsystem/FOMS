@@ -40,6 +40,7 @@ __all__ = [
     "CONVERSATION_LIMIT", "FILE_NOTE", "HANDOFF_MEMO_HEAD", "MEDIUM_EMAIL", "MEMO_CODE_HEADS", "MEMO_DRAFT_HEAD",
     "MEMO_HEAD", "MEMO_IMAGE_HEAD", "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
+    "customer_texts",
     "freshness",
     "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "parse_lines", "public_turn", "read_lines",
     "read_medium",
@@ -205,6 +206,11 @@ def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
     """두뇌 재료 — 공개 손님 · 직원 글만(내부 메모 · 기록 · 봇 · 확인코드 글을 뺀다), 최근 :data:`CONVERSATION_LIMIT` 개."""
     turns = [turn for turn in (public_turn(line) for line in lines) if turn is not None]
     return turns[-CONVERSATION_LIMIT:]
+
+
+def customer_texts(lines: Sequence[ChatLine]) -> list[str]:
+    """손님 글(공개 · 글 있는 것) — 숫자 검사 '같은 값'이 손님이 말한 치수 · 개수를 허용 목록에 더할 때 쓴다(:mod:`.checks_same`)."""
+    return [line.text for line in lines if line.meta.is_customer_signal and not line.meta.is_private and line.text.strip()]
 
 
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:

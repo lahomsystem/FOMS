@@ -37,6 +37,7 @@ from foms.services.cs_agent.brain_media import media_tokens
 from foms.services.cs_agent.brain_photos import photo_block, photo_entries, with_rule
 from foms.services.cs_agent.checks_rules import is_naver_talk
 from foms.services.cs_agent.knowledge_doc import KIND_TEMPLATE, KNOWN_BRANDS, ApprovedKnowledge
+from foms.services.cs_agent.ontology_text import alias_line, extra_lines, head_line, rule_text
 
 __all__ = [
     "BRAIN_MODELS", "CACHE_CONTROL_DAY", "CACHE_TTLS", "CACHE_TTL_1H", "CACHE_TTL_5M", "ENABLED_BRANDS",
@@ -204,19 +205,21 @@ def evidence_choices(knowledge: ApprovedKnowledge) -> tuple[str, ...]:
     return tuple(item.item_id for item in knowledge.items)
 
 
-def instructions(brand: str, length: int = LENGTH_DEFAULT, photos: bool = False) -> str:
+def instructions(brand: str, length: int = LENGTH_DEFAULT, photos: bool = False, knowledge: Any = None) -> str:
     """지시문 블록 글(코드에 있는 일반 지시 — 브랜드 이름 · 답 길이 문장만 바뀐다). 켠 브랜드 · 있는 단계가 아니면 ``KeyError``.
     ``photos`` 면 사진 칸 지시 한 줄(:data:`.brain_photos.PHOTO_RULE` — 패널 '사진 · 그림 읽기'가 '초안에 씀'일 때)을 붙인다."""
     text = INSTRUCTIONS.format(label=ENABLED_BRANDS[brand], length=length_rule(length))
+    text = rule_text(text, knowledge)  # 바꿔 묻기 대응 '같은 뜻이면 답하기'(사장님 11-11 — 끄면 그대로)
     return with_rule(text) if photos else text
 
 
 def knowledge_text(knowledge: ApprovedKnowledge) -> str:
     """승인 지식 블록 글 — 문서 순서의 ``[id] (종류) 글`` 줄 + 고를 수 있는 의도 id. 같은 묶음이면 같은 바이트."""
-    lines = ["승인 지식 — 근거는 이 항목만 쓴다(줄 맨 앞 대괄호 안이 항목 id):"]
+    lines = [head_line(knowledge)]
     for item in knowledge.items:
         kind = f"{item.kind}: {', '.join(item.intents)}" if item.kind == KIND_TEMPLATE else item.kind
-        lines += _block(f"[{item.item_id}] ({kind})", item.text)
+        lines += [*_block(f"[{item.item_id}] ({kind})", item.text), *alias_line(knowledge, item.item_id, _INDENT)]
+    lines += extra_lines(knowledge, _block)  # 바꿔 묻기 대응 '싣기'(용어 · 규격 · 절차 — 끄면 없음)
     lines.append("고를 수 있는 의도 id: " + ", ".join(intent_choices(knowledge)))
     return "\n".join(lines)
 
@@ -231,7 +234,7 @@ def system_blocks(brand: str, knowledge: ApprovedKnowledge, *, cache_ttl: Option
     if cache_ttl is not None and cache_ttl not in CACHE_TTLS:
         raise ValueError("cache_ttl 은 1h · 5m 가운데 하나다")
     blocks: list[dict[str, Any]] = [
-        {"type": "text", "text": instructions(brand, length, photos)},
+        {"type": "text", "text": instructions(brand, length, photos, knowledge)},
         {"type": "text", "text": knowledge_text(knowledge)},
     ]
     if cache_ttl is not None:

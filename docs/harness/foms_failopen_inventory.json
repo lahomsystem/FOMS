@@ -5,13 +5,13 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 662,
+    "broad_total": 663,
     "unclassified": 0,
     "swallow_by_control_flow": 159
   },
   "disposition_counts": {
     "FAIL_CLOSED": 46,
-    "INTENTIONAL": 20,
+    "INTENTIONAL": 21,
     "LOG_AND_CONTINUE": 437,
     "SWALLOW_BY_CONTROL_FLOW": 159
   },
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 8,
     "runtime": 3,
-    "services": 227,
+    "services": 228,
     "storage": 24,
     "telemetry": 47,
     "web": 38
@@ -56,11 +56,11 @@
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:332",
+    "foms/services/cs_agent/drafting.py:333",
     "foms/services/cs_agent/handoff_memo.py:188",
-    "foms/services/cs_agent/handoff_send.py:232",
-    "foms/services/cs_agent/rewrite.py:116",
-    "foms/services/cs_agent/send_flow.py:300",
+    "foms/services/cs_agent/handoff_send.py:235",
+    "foms/services/cs_agent/rewrite.py:117",
+    "foms/services/cs_agent/send_flow.py:303",
     "foms/services/integrations/naver_commerce/client.py:1257",
     "foms/services/integrations/naver_commerce/client.py:1359",
     "foms/services/integrations/naver_commerce/fulfillment.py:880",
@@ -3512,7 +3512,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 332,
+      "lineno": 333,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3539,12 +3539,21 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_send.py",
-      "lineno": 232,
+      "lineno": 235,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
       "has_logging": true,
       "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/cs_agent/ontology.py",
+      "lineno": 125,
+      "handler_type": "broad_exception",
+      "disposition": "INTENTIONAL",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "바꿔 묻기 재료는 덤이다 — 못 읽으면 예전 재료로 초안을 쓴다"
     },
     {
       "path": "foms/services/cs_agent/panel.py",
@@ -3575,7 +3584,7 @@
     },
     {
       "path": "foms/services/cs_agent/rewrite.py",
-      "lineno": 116,
+      "lineno": 117,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3584,7 +3593,7 @@
     },
     {
       "path": "foms/services/cs_agent/send_flow.py",
-      "lineno": 300,
+      "lineno": 303,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
