@@ -72,3 +72,8 @@ NON_ORDER_INT_ARGS.update(_SHARE_ROW_ARGS)
 HANDLER_CHECKED |= set(_SHARE_ROW_ARGS)
 HANDLER_CHECKED |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("save_estimate", "match_order", "unmatch_order")}
 NO_ORDER_ID |= {f"wdcalculator.api_wdcalculator_{n}" for n in ("calculate", "search_estimates", "estimate", "search_orders")}
+
+# 네이버 수집 이력(11-11 사용자 결정 — freelancer_screens/naver_history.py) — 받는 번호는 수집 링크(link_id)이고 주문 번호가
+# 아니다. 회사 영업과 같게 남의 집도 '내 담당만'을 끄거나 원본 보기로 본다(다른 아이디 추가 결제 찾기). 시험:
+# tests/security/test_freelancer_screen_naver_history.py
+NO_ORDER_ID |= {"admin.naver_ingest_triage", "admin.naver_ingest_triage_detail"}
