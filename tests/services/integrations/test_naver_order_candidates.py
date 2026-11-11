@@ -330,3 +330,35 @@ def test_candidate_carries_erp_total_and_deposit(app):
     row = next(r for r in got if r["order_id"] == with_estimate.id)
     assert row["erp_total"] is None
     assert row["erp_deposit"] is None
+
+
+def test_candidate_carries_last_deposit_editor(app):
+    """예약금을 마지막으로 고친 사람·때를 싣는다(2026-11-11, 운영 #5978 정순현).
+
+    다른 금액 칸(할인 등)의 변경은 예약금 고침으로 세지 않는다(음성 대조군),
+    고친 기록이 없는 주문은 None 이다.
+    """
+    from models import OrderEvent, User
+
+    editor = User(username="dep_editor", password="x", name="정다슬", role="STAFF")
+    db_session.add(editor)
+    db_session.commit()
+    edited = _order()
+    untouched = _order(name="김고객", days_ago=5)
+    base = datetime.datetime(2026, 11, 11, 4, 41, 10)  # UTC → KST 13:41
+    db_session.add_all([
+        OrderEvent(order_id=edited.id, event_type="PAYMENT_CHANGED",
+                   payload={"field": "payment.deposit", "from": 100000, "to": 4344000},
+                   created_by_user_id=editor.id, created_at=base),
+        # 더 나중의 할인 변경 — 예약금 고침이 아니다.
+        OrderEvent(order_id=edited.id, event_type="PAYMENT_CHANGED",
+                   payload={"field": "payment.discount", "from": 0, "to": 1000},
+                   created_by_user_id=None, created_at=base + datetime.timedelta(hours=1)),
+        OrderEvent(order_id=untouched.id, event_type="PAYMENT_CHANGED",
+                   payload={"field": "payment.discount", "from": 0, "to": 1000},
+                   created_by_user_id=editor.id, created_at=base),
+    ])
+    db_session.commit()
+    got = {row["order_id"]: row for row in find_order_candidates(db_session, _link())}
+    assert got[edited.id]["erp_deposit_changed"] == {"by": "정다슬", "at": "11-11 13:41"}
+    assert got[untouched.id]["erp_deposit_changed"] is None
