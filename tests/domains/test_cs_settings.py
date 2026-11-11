@@ -98,6 +98,8 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "full_talk_messages": 300, "full_talk_chars": 12000, "photo_learn_cases": 4,
         # 말 끝남 판단(사장님 11-11) — 처음 끔(예전 조용 기다림 그대로)
         "turn_end_mode": "off", "turn_end_fast_wait_s": 4, "turn_end_slow_wait_s": 40,
+        # 넘긴 상담 배우기 → 회사 지식 제안(사장님 11-11) — 처음 끔 · 한 밤 20 사례
+        "handoff_learn_enabled": False, "handoff_learn_cases": 20,
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
