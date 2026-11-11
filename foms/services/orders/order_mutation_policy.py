@@ -194,6 +194,10 @@ POLICY_REGISTRY: dict[str, Policy] = {
                            description="drawing wizard/transfer/revision/ack — DRAWING + explicit assignee ID(§2.1). backfill 전이면 team 폴백."),
     "DRAWING_TEAM": _p("DRAWING_TEAM", teams=("DRAWING",),
                        description="drawing preset(global) — DRAWING team + Admin(WIZ-PRESET-01)."),
+    # 확정 뒤 제품 취소(설계서 2026-11-11-item-cancel-drawing-team): 생산 단계에서 도면팀이 고객 변경을 받아
+    # 제품 하나와 그 도면을 바로 뺄 수 있게 CS·SALES 에 DRAWING 을 더한다(팀 전체, 배정 확인 없음).
+    "ITEM_CANCEL": _p("ITEM_CANCEL", teams=("CS", "SALES", "DRAWING"),
+                      description="확정 뒤 제품 취소(items/<uid>/cancel) — CS/SALES/DRAWING team-wide(2026-11-11)."),
 
     # --- 출고/물류 (§2.1 line 165, STAFF/SHIPMENT) --------------------------
     "SHIPMENT_EDIT": _p("SHIPMENT_EDIT", teams=("CS", "SALES", "SHIPMENT"),
