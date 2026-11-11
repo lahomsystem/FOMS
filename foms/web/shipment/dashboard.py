@@ -18,6 +18,7 @@ from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_construction_schedule, can_edit_erp, can_edit_shipment, is_order_related_to_user
 from foms.services.partners.request_board import build_request_board
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
+from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.partners.schedule_request import (
     pending_request,
     pending_request_orders,
@@ -733,12 +734,13 @@ def erp_shipment_dashboard():
 @erp_shipment_page_bp.route('/shipment/tablet-sheet/<int:order_id>')
 @login_required
 def erp_shipment_tablet_sheet(order_id):
-    """태블릿 가로 사이드 시트용 출고 배정 fragment (단건).
+    """태블릿 가로 출고 탭의 줄 누름 세부정보 서랍 fragment (단건, 설계서 §14.3 P14-4).
 
-    행 탭 시 tablet-domain-sheets.js가 이 URL을 로드해 사이드 시트 본문에 넣는다.
-    저장은 JS가 /api/erp/shipment/update/<id>로 POST하며(construction_workers/
-    construction_time/site_extra), 시공팀 사용자는 그 API가 403으로 막으므로 시트는
-    조회용으로 렌더한다(GET이라 별도 권한 차단 없음). 주문 미존재 시 404.
+    줄을 누르면 tablet-side-sheet.js 가 이 URL 을 오른쪽 시트에 넣는다. 세부(전화 · 주소 전체 ·
+    품목 전부 · 메모 · AS 정보)를 읽는 곳 + 시공시간 · 현장 메모를 고치는 곳이다. 시공자는 표의
+    이름판이 정하므로 여기서는 읽기만(팀 고르기 · 잔여 계산 없음). 저장은 JS 가
+    /api/erp/shipment/update/<id> 로 construction_time · site_extra 만 보낸다. ``?date=`` 가
+    오면 그날 품목만, 없으면 주문 첫 시공일 기준. 주문 미존재 시 404.
     """
     db = get_db()
     current_user = getattr(g, 'current_user', None)
@@ -764,8 +766,6 @@ def erp_shipment_tablet_sheet(order_id):
         str(w).strip() for w in (shipment.get('construction_workers') or [])
         if str(w or '').strip()
     ]
-    first_current_norm = _normalize_worker_name(current_workers[0]) if current_workers else ''
-    construction_time = str(shipment.get('construction_time') or '')
     memo_parts = []
     for value in (shipment.get('site_extra') or []):
         text_value = (
@@ -774,42 +774,33 @@ def erp_shipment_tablet_sheet(order_id):
         )
         if text_value:
             memo_parts.append(text_value)
-    site_memo = ' / '.join(memo_parts)
 
-    units = _get_order_spec_units(order)
     construction_date_raw = _get_order_construction_date(order) or ''
-    target_date = construction_date_raw.split(',')[0].strip() if construction_date_raw else ''
-
-    settings = load_erp_shipment_settings()
-    worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
-    # 시공팀별 잔여 자수는 그날 회사 전체 주문으로 센다 — 켜진 프리랜서에게는 세지도 보이지도 않는다(팀 이름만).
-    freelancer_viewer = is_list_freelancer(current_user)
-    remaining_by_team = {} if freelancer_viewer else compute_team_remaining_units_for_date(
-        db, target_date or None, worker_settings
+    date_arg = (request.args.get('date') or '').strip()
+    target_date = date_arg if (len(date_arg) == 10 and date_arg[4] == '-' and date_arg[7] == '-') else (
+        construction_date_raw.split(',')[0].strip() if construction_date_raw else ''
     )
-    teams = []
-    for w in worker_settings:
-        name = w['name']
-        remaining = remaining_by_team.get(name, float(w.get('capacity') or 0))
-        teams.append({
-            'name': name,
-            'remaining': None if freelancer_viewer else f"{remaining:.1f}",
-            'is_current': bool(first_current_norm) and _normalize_worker_name(name) == first_current_norm,
-            'is_short': (not freelancer_viewer) and remaining < units,
-        })
+    # 전화 걸기 링크는 첫 번호의 숫자만(여러 번호가 '/'로 이어진 경우가 있다).
+    first_phone = str(order.phone or '').replace(',', '/').split('/')[0]
+    construction_plan = _ensure_dict(_ensure_dict(sd.get('schedule')).get('construction'))
 
     response = make_response(render_template(
         'shipment/partials/tablet_sheet.html',
         order=order,
         customer_name=order.customer_name or '-',
-        product_label=order.product or '-',
-        units=f"{units:.1f}",
-        construction_time=construction_time,
-        site_memo=site_memo,
+        units=f"{_get_order_spec_units(order):.1f}",
+        phone_digits=''.join(ch for ch in first_phone if ch.isdigit()),
+        items=visible_items_for_dates(order, target_date=target_date or None),
+        workers=current_workers,
+        construction_time=str(shipment.get('construction_time') or ''),
+        plan_time=str(construction_plan.get('time') or '').strip(),
+        site_memo=' / '.join(memo_parts),
+        construction_note=str(_ensure_dict(sd.get('notes')).get('construction_note') or '').strip(),
         construction_date=target_date,
-        teams=teams,
+        is_as=is_as_order(order),
+        as_content=as_content_html_to_text(shipment.get('as_content') or '') if is_as_order(order) else '',
         sheet_can_ack=sheet_can_ack,
-        # 배정 입력 · [배정 적용] — 저장 API 문지기와 같은 함수(D31, 영업팀 · 시공팀은 보기만).
+        # 시간 · 메모 입력 · [저장] — 저장 API 문지기와 같은 함수(D31, 영업팀 · 시공팀은 보기만).
         can_edit_shipment=can_edit_shipment(current_user),
     ))
     apply_erp_shell_fragment_headers(response, request)

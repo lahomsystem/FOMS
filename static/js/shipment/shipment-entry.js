@@ -17,11 +17,15 @@
     // 생산 태블릿 칸반(tablet_kanban_body.html)과 같은 파일·같은 핀 — 캐시 한 벌을 나눠 쓰고,
     // 두 화면에서 모두 실려도 모듈 싱글턴(__FOMS_DOMAIN_SHEETS_BOUND)이 두 번째 실행을 막는다.
     // 핀을 올릴 때는 그 파샬과 함께 올린다.
-    '/static/js/foms/tablet-domain-sheets.js?v=20261109c',
+    '/static/js/foms/tablet-domain-sheets.js?v=20261111a',
     // 협력사 희망 시공일 2주 판(설계서 2026-11-04-shipment-partner-request-board).
     '/static/js/shipment/partner-request-board.js?v=20261110a',
     // 태블릿 가로 하루치 출고표 시공자 칸 이름판(설계서 tablet-production-ui §14.3) — 문서 위임 싱글턴.
-    '/static/js/shipment/tablet-ship-assign.js?v=20261111a'
+    '/static/js/shipment/tablet-ship-assign.js?v=20261111a',
+    // 태블릿 가로 왼쪽 '날짜별 남은 자수' 띠 여닫기(열림 기억) — 문서 위임 싱글턴.
+    '/static/js/shipment/tablet-ship-capstrip.js?v=20261111a',
+    // 태블릿 가로 줄 누름 세부정보 서랍 보조(시간 단추 · AS 탭 기록 불러 붙이기, §14.3 P14-4) — 문서 위임 싱글턴.
+    '/static/js/shipment/tablet-ship-sheet.js?v=20261111a'
   ];
 
   // 파일마다 로드 Promise 를 기억한다. 실패 뒤 다시 부를 때 이미 실행됐거나 받는 중인

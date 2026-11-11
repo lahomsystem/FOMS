@@ -1,55 +1,119 @@
-{# 출고 배정 사이드 시트 본문 (태블릿 가로). tablet-domain-sheets.js가 필드를 읽어
-   /api/erp/shipment/update/<id>로 저장한다. 레이아웃 extends 없는 순수 본문 fragment. #}
+{# 출고 세부정보 서랍 본문 (태블릿 가로, 설계서 2026-11-09-tablet-production-ui_SPEC §14.3 P14-4).
+   표는 한 줄에 요점만 — 줄을 누르면 이 서랍에서 세부를 읽고 시공시간 · 현장 메모를 고친다.
+   시공자는 표의 시공자 칸 이름판(tablet-ship-assign.js)이 정한다 — 여기서는 읽기만(팀 고르기 없음).
+   저장: tablet-domain-sheets.js 의 shipment-save 가 /api/erp/shipment/update/<id> 로 construction_time ·
+   site_extra 만 보낸다(construction_workers 는 보내지 않는다 — 이름판에서 방금 고친 값을 덮지 않게).
+   시간 단추 · AS 탭 기록 불러 붙이기 = static/js/shipment/tablet-ship-sheet.js. 금액은 싣지 않는다(D7).
+   레이아웃 extends 없는 순수 본문 fragment, 인라인 style 없음. #}
 {# 시공일 변경 스트립 — PC 행·태블릿 그리드 행과 **같은 매크로**(생산 시트 선례와 같은 자리). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge %}
-{# 배정 입력은 라우트가 넘기는 can_edit_shipment(관리자 · CS · 출고팀, D31)일 때만 연다 — 그 밖은 읽기만. #}
+{# 입력은 라우트가 넘기는 can_edit_shipment(관리자 · CS · 출고팀, D31)일 때만 연다 — 그 밖은 읽기만. #}
 {% set _sheet_edit = can_edit_shipment|default(false, true) %}
-<div class="foms-ship-sheet">
-  <div class="foms-ship-sheet__head">{{ customer_name }} 배정</div>
-  <div class="foms-ship-sheet__count">{{ product_label }} · 자수 {{ units }}</div>
-  {# 현장주소: 태블릿 가로 그리드에서 저우선 열로 숨기므로 배정 시트에서 노출한다. #}
-  <div class="foms-ship-sheet__count"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> {{ order.address or '-' }}</div>
-  {# 배정 전에 "이 건 시공일이 바뀌었다"를 먼저 보게 한다 — 팀/시간 입력 아래로 밀면 못 본다.
-     시트는 대시보드 문서 안으로 주입되므로 확인 클릭은 같은 위임 핸들러가 받고, 성공 시 이
-     스트립과 목록 행 배지·배너 칩이 함께 사라진다(리로드 없음). #}
+{% set _addr = order.address or '' %}
+<div class="foms-ship-sheet" data-order-id="{{ order.id }}">
+  <div class="foms-ship-sheet__titlebar">
+    <div class="foms-ship-sheet__head">{{ customer_name }}{% if is_as %} <span class="foms-ship-sheet__as">AS</span>{% endif %}</div>
+    <div class="foms-ship-sheet__count">#{{ order.id }}{% if construction_date %} · {{ construction_date[5:7]|int }}/{{ construction_date[8:10]|int }} {{ 'AS 방문' if is_as else '출고' }}{% endif %}</div>
+  </div>
+  {# 배정 전에 "이 건 시공일이 바뀌었다"를 먼저 보게 한다. 확인 누름은 대시보드 위임 핸들러가 받는다. #}
   {% set _sheet_alerts = order.shipment_change_alerts if order.shipment_change_alerts is defined else [] %}
   {% if _sheet_alerts %}
   <div class="foms-ship-sheet__change">{{ render_shipment_change_badge(order.id, _sheet_alerts, sheet_can_ack|default(false, true)) }}</div>
   {% endif %}
 
-  <div class="foms-ship-sheet__card">
-    <div class="foms-ship-sheet__card-title">시공팀{% if construction_date %} · {{ construction_date }}{% endif %}</div>
-    <div class="tablet-assign-teams foms-ship-sheet__teams">
-      {% for team in teams %}
-      <label class="foms-ship-sheet__team{% if team.is_short %} is-short{% endif %}">
-        <input type="radio" name="tablet-assign-team" value="{{ team.name }}"{% if team.is_current %} checked{% endif %}{% if not _sheet_edit %} disabled{% endif %}>
-        <span class="foms-ship-sheet__team-name">{{ team.name }}</span>
-        {% if team.remaining is not none %}<span class="foms-ship-sheet__team-remain">잔여 {{ team.remaining }}자수</span>{% endif %}
-        {% if team.is_short %}<span class="foms-ship-sheet__team-warn">경고</span>{% endif %}
-      </label>
-      {% else %}
-      <div class="foms-ship-sheet__empty">등록된 시공팀이 없습니다.</div>
-      {% endfor %}
+  {# 연락처 · 현장주소 전체 — 생산 시트와 같은 방식(전화 tel: · 주소 카카오 지도). #}
+  <section class="foms-ship-sheet__card" aria-label="연락처">
+    <div class="foms-ship-sheet__row">
+      <span class="foms-ship-sheet__k">전화</span>
+      <span class="foms-ship-sheet__v">{{ order.phone|format_phone }}</span>
+      {% if phone_digits %}<a class="foms-ship-sheet__link-btn" href="tel:{{ phone_digits }}">전화 걸기</a>{% endif %}
     </div>
-  </div>
+    <div class="foms-ship-sheet__row">
+      <span class="foms-ship-sheet__k">현장주소</span>
+      <span class="foms-ship-sheet__v">{{ _addr or '-' }}</span>
+      {% if _addr and _addr != '-' %}<a class="foms-ship-sheet__link-btn" href="https://map.kakao.com/?q={{ _addr|urlencode }}" target="_blank" rel="noopener">지도</a>{% endif %}
+    </div>
+    <div class="foms-ship-sheet__meta">대리점 {{ order.orderer_name or '-' }} · 영업 담당 {{ (order|manager_label) or '-' }}</div>
+  </section>
 
-  <div class="foms-ship-sheet__card">
-    <div class="foms-ship-sheet__card-title">시공 시간 · 현장 메모</div>
+  {% if is_as %}
+  {# AS 정보 — 접수 원문 · 접수일은 서버가 바로 그린다. 그 아래 AS 탭 기록은 서랍이 열린 뒤
+     tablet-ship-sheet.js 가 AS 탭의 읽기 조각(/erp/as/timeline/<id>?readonly=1)을 불러 붙인다. #}
+  <section class="foms-ship-sheet__card foms-ship-sheet__card--as" aria-label="AS 정보">
+    <div class="foms-ship-sheet__card-title">AS 정보</div>
+    <div class="foms-ship-sheet__row">
+      <span class="foms-ship-sheet__k">접수일</span>
+      <span class="foms-ship-sheet__v">{{ order.as_received_date or '-' }}</span>
+    </div>
+    <div class="foms-ship-sheet__k">접수 내용</div>
+    <div class="foms-ship-sheet__text">{{ as_content or '적힌 내용이 없어요' }}</div>
+    <div class="foms-ship-sheet__k">AS 탭 기록</div>
+    <div class="foms-ship-sheet__aslog" data-ship-as-log-url="{{ url_for('erp_as_page.erp_as_timeline', order_id=order.id) }}?readonly=1" aria-live="polite">
+      <p class="foms-ship-sheet__muted">AS 기록을 불러오는 중이에요…</p>
+    </div>
+    <a class="foms-ship-sheet__btn foms-ship-sheet__btn--wide" href="{{ url_for('erp_as_page.erp_as_dashboard') }}?focus_order={{ order.id }}" data-foms-erp-no-shell="1">AS 탭에서 열기</a>
+  </section>
+  {# AS 회차 기록 모양(as-rchart-*) — 출고 화면은 foms-as-timeline.css 만 싣는다. AS 탭 · 지도와 같은 파일 · 같은 핀. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260828a">
+  {% endif %}
+
+  {# 품목 전부 — 그날 보이는 품목(라우트가 visible_items_for_dates 로 고른다). 이름 · 규격 · 자수. #}
+  <section class="foms-ship-sheet__card" aria-label="품목">
+    <div class="foms-ship-sheet__card-title">품목 {{ items|length }}개 · 자수 {{ units }}</div>
+    {% for it in items %}
+    {%- set _spec = (it.get('spec_width') or it.get('spec') or '')|string|trim %}
+    {%- set _w = it|item_spec_w300 %}
+    {%- set _qty = it.get('quantity') %}
+    <div class="foms-ship-sheet__item">
+      <span class="foms-ship-sheet__item-name">{{ ((it.get('product_name') or '')|strip_product_w) or '-' }}</span>
+      <span class="foms-ship-sheet__item-spec">{% if _spec %}{{ _spec }}{% endif %}{% if _w %}{% if _spec %} · {% endif %}{{ _w }}자{% endif %}{% if _qty and _qty|string not in ('0', '1') %} · {{ _qty }}개{% endif %}</span>
+    </div>
+    {% else %}
+    <p class="foms-ship-sheet__muted">품목이 없어요</p>
+    {% endfor %}
+  </section>
+
+  {# 시공 — 시공자는 읽기만(표의 이름판에서 고른다), 시공시간은 고칠 수 있다. #}
+  <section class="foms-ship-sheet__card" aria-label="시공">
+    <div class="foms-ship-sheet__card-title">시공</div>
+    <div class="foms-ship-sheet__row">
+      <span class="foms-ship-sheet__k">시공자</span>
+      <span class="foms-ship-sheet__v">{{ workers|join(', ') if workers else '아직 없음' }}</span>
+    </div>
+    <p class="foms-ship-sheet__hint">시공자는 표의 시공자 칸에서 골라요</p>
+    <div class="foms-ship-sheet__row">
+      <span class="foms-ship-sheet__k">시공시간</span>
+      {% if not _sheet_edit %}<span class="foms-ship-sheet__v">{{ construction_time or '-' }}</span>{% endif %}
+      {% if plan_time %}<span class="foms-ship-sheet__plan">영업 메모: {{ plan_time }}</span>{% endif %}
+    </div>
     {% if _sheet_edit %}
     <div class="foms-ship-sheet__chips">
-      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="09:00">09:00</button>
-      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="14:00">14:00</button>
+      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="오전 8시">오전 8시</button>
+      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="오후 1시">오후 1시</button>
       <button type="button" class="foms-ship-sheet__chip" data-tablet-time-custom-trigger>직접</button>
     </div>
+    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-time value="{{ construction_time }}" placeholder="예: 오전 10시" aria-label="시공 시간">
     {% endif %}
-    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-time value="{{ construction_time }}" placeholder="예: 10:00" aria-label="시공 시간"{% if not _sheet_edit %} readonly{% endif %}>
-    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-memo value="{{ site_memo }}" placeholder="현장 메모" aria-label="현장 메모"{% if not _sheet_edit %} readonly{% endif %}>
-  </div>
+  </section>
+
+  {# 현장 메모 — 고치면 site_extra 한 줄로 저장(예전 시트와 같은 기능). 시공 메모(construction_note)는 주문서 값이라 읽기만. #}
+  <section class="foms-ship-sheet__card" aria-label="현장 메모">
+    <div class="foms-ship-sheet__card-title">현장 메모</div>
+    {% if _sheet_edit %}
+    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-memo value="{{ site_memo }}" placeholder="현장 메모" aria-label="현장 메모">
+    {% else %}
+    <div class="foms-ship-sheet__text">{{ site_memo or '-' }}</div>
+    {% endif %}
+    {% if construction_note %}
+    <div class="foms-ship-sheet__k">주문서 시공 메모</div>
+    <div class="foms-ship-sheet__text">{{ construction_note }}</div>
+    {% endif %}
+  </section>
 
   <div class="foms-ship-sheet__foot">
-    <button type="button" class="foms-ship-sheet__btn" data-tablet-sheet-action="sheet-cancel">취소</button>
+    <button type="button" class="foms-ship-sheet__btn" data-tablet-sheet-action="sheet-cancel">{{ '취소' if _sheet_edit else '닫기' }}</button>
     {% if _sheet_edit %}
-    <button type="button" class="foms-ship-sheet__btn foms-ship-sheet__btn--pri" data-tablet-sheet-action="shipment-assign" data-order-id="{{ order.id }}">배정 적용</button>
+    <button type="button" class="foms-ship-sheet__btn foms-ship-sheet__btn--pri" data-tablet-sheet-action="shipment-save" data-order-id="{{ order.id }}">저장</button>
     {% endif %}
   </div>
 </div>

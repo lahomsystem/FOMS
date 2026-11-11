@@ -3,7 +3,7 @@
  * 하루치 출고표(tablet_ship_grid.html)의 시공자 칸 단추(button[data-ship-worker-cell])를 누르면 그 칸 왼쪽에
  * 이름판을 띄운다. 이름을 누르면 그 줄의 이름 배열에 넣거나 빼고 바로 저장한다(POST /api/erp/shipment/update/<id>
  * — 보낸 키만 바뀜, settings_version 으로 동시 수정 막기, Idempotency-Key 로 중복 막기, CSRF 머리글은
- * csrf_bootstrap 이 fetch 를 감싸 싣는다 — tablet-domain-sheets.js 의 shipment-assign 과 같은 길).
+ * csrf_bootstrap 이 fetch 를 감싸 싣는다 — tablet-domain-sheets.js 의 shipment-save 와 같은 길).
  * 판을 닫을 때(바깥 누름 · 닫기 · Esc) 바뀐 것이 있으면 그날 화면을 다시 받아 묶음을 새로 그린다(묶음 · 색은 서버 한 곳).
  * 시트와 안 겹치는 이유: tablet-side-sheet.js 는 줄 안 button 누름을 시트 대상에서 뺀다. 판이 열린 동안의 바깥
  * 누름은 여기서 먼저(capture) 받아 판만 닫고 삼킨다. 문서 위임 + 싱글턴, 실리는 곳 = shipment-entry.js CHAIN.

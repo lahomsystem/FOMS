@@ -63,7 +63,7 @@ def test_브리핑_목록_60vh_보정과_번들_핀() -> None:
     assert "max-height: calc(60vh / var(--foms-ui-zoom, 1))" in css
     bundle = _read("static/css/foundation/foms-tablet-bundle.css")
     assert 'foms-tablet-production-kanban.css?v=20261109b' in bundle and 'foms-tablet-rail.css?v=20261109g' in bundle
-    assert "foms-tablet-bundle.css') }}?v=20261109g" in _read("templates/partials/shared/layout_head.html")
+    assert "foms-tablet-bundle.css') }}?v=20261111a" in _read("templates/partials/shared/layout_head.html")
 
 
 def test_레일_브랜드_아래_화면_크기_단추() -> None:
