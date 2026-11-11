@@ -5,7 +5,7 @@
 {% block mobile_title %}공지사항{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-notice.css') }}">{% endblock %}
 {% block content %}
-<div class="foms-notice-wrap">
+<div class="foms-notice-wrap foms-notice-wrap--shell">
     {% set filter_url = url_for('partner_portal.notices') %}
     {% include "notices/_items.html" %}
 </div>
