@@ -1283,6 +1283,7 @@
                             <div class="wb-cand__erp">
                                 <div>총 견적 {{ '{:,}'.format(cand.erp_total) if cand.erp_total is not none else '–' }}</div>
                                 <div>예약금 {{ '{:,}'.format(cand.erp_deposit) if cand.erp_deposit is not none else '–' }}</div>
+                                {% if cand.erp_deposit_changed %}<div class="wb-cand__erp-who">{{ cand.erp_deposit_changed.by }} {{ cand.erp_deposit_changed.at }} 고침</div>{% endif %}
                             </div>
                             {% elif cand.naver_amount_total %}
                             <div class="wb-cand__erp"><div>견적 없음</div></div>

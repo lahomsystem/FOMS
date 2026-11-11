@@ -835,6 +835,8 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
 }
 .wb-cand__erp > div { white-space: nowrap; }
+/* 예약금을 마지막으로 고친 사람·때(2026-11-11) — 숫자 바로 아래 흐린 글 한 줄. 칩·색 없음. */
+.wb-cand__erp .wb-cand__erp-who { color: var(--wb-muted); }
 
 /* ── 유령 주문 띠 (R-2 · 2026-08-25) ──────────────────────────────────
    실패 띠(빨강 alert)와 **다른 무게**여야 한다. 실패는 방금 누른 것의 결과라 급하고,
