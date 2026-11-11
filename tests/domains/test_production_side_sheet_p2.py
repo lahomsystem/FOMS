@@ -44,10 +44,10 @@ def test_옆_시트에_연락처_도면_전부_공정_블록이_있다(client) -
 
 def test_칸반_body_가_시트_공통_CSS_JS_를_싣고_핀이_같다() -> None:
     body = _read("templates/production/partials/tablet_kanban_body.html")
-    assert "css/contexts/production/sheet.css') }}?v=20261110b" in body
+    assert "css/contexts/production/sheet.css') }}?v=20261111a" in body
     assert "js/production/foms-production-sheet-page.js') }}?v=20261110a" in body
     page = _read("templates/production/sheet.html")
-    assert "css/contexts/production/sheet.css') }}?v=20261110b" in page
+    assert "css/contexts/production/sheet.css') }}?v=20261111a" in page
     assert "js/production/foms-production-sheet-page.js') }}?v=20261110a" in page
     js = _read("static/js/production/foms-production-sheet-page.js")
     assert "foms:erp-shell-fragment-swapped" in js and "data-foms-sheet-init" in js
