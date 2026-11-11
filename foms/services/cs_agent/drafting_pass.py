@@ -7,6 +7,8 @@
   빠른 길이 켜지면 15분 바퀴가, 꺼지면 빠른 길이 그 자리에서 멈춘다(두 길이 같이 초안을 쓰지 않는다).
 - **'AI 냐 사람이냐'(R13-9 · 설계서 17.1 · 17.8 '늘 사람에게')**: 두 길 모두 두뇌 전에 :mod:`.ask_human` 으로 거른다. 두뇌 없이 넘김
   까닭만 적고, 메모 스위치면 비공개 한 줄 메모 — 같은 미답 묶음에 그 메모가 이미 있으면 다시 올리지 않는다.
+- **넘김 메모**: 두뇌 넘김 · 검사 걸림은 예전처럼 건너뜀으로 적은 뒤, 관리 화면 '넘김 메모'(처음 끔)가 켜졌으면 까닭 메모를 한 번
+  올린다(:meth:`DraftPass.hand_off` → :mod:`.handoff_memo` — 두 길 공통, 실패해도 바퀴는 그대로).
 - **안 보이는 손님 글(R13-6)**: 선점한 글이 채널톡 읽기에 아직 없으면 건너뜀이 아니라 다시 집을 실패다.
 - **손님 사진(설계서 17.11.1)**: 차례마다 한 번 읽어(:mod:`.photo_step`) 결과를 들고 있다 — 사진만 온 글 판정 · 두뇌 사진 칸 ·
   견적 도면 길 · 직원 참고 줄 · 차례 줄 쓰임이 같은 결과를 쓴다.
@@ -24,6 +26,7 @@ from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO, ASK_HUMAN_MEMO_HEAD
 from foms.services.cs_agent.drafting_post import memo_on, post_note
 from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine
 from foms.services.cs_agent.drafting_summary import DraftSummary
+from foms.services.cs_agent.handoff_memo import post_handoff_memo
 from foms.services.cs_agent.image_settings import MODE_DRAFT as PHOTOS_IN_DRAFT, image_mode
 from foms.services.cs_agent.image_step import turn_hook as image_hook
 from foms.services.cs_agent.knowledge import ApprovedKnowledge
@@ -159,6 +162,13 @@ class DraftPass:
         if not posted and memo_on(self) and memo_allowed(chat_id):
             return post_note(self, row, chat_id, text=ASK_HUMAN_MEMO)
         return self.skip(row, ASKED_IF_AI)
+
+    def hand_off(self, row: CsAgentTurn, code: str, *, codes: Sequence[Any] = (), masked: Optional[str] = None,
+                 note: str = "") -> Optional[str]:
+        """두뇌 넘김 · 검사 걸림 — 예전처럼 건너뜀(:meth:`skip` — 빠른 길 꼴 그대로)을 적고 커밋한 뒤, 관리 화면 '넘김 메모'가
+        켜졌으면 까닭 메모 한 번(:func:`.handoff_memo.post_handoff_memo` — ``note`` 는 두뇌의 직원 참고). 멈출 까닭을 돌려준다."""
+        halt = self.skip(row, code, codes=codes, masked=masked)
+        return post_handoff_memo(self, row, code, codes=codes, note=note) or halt
 
     def skip(self, row: CsAgentTurn, code: str, *, codes: Sequence[Any] = (), masked: Optional[str] = None,
              halt: Optional[str] = None) -> Optional[str]:

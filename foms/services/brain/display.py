@@ -103,8 +103,10 @@ EVIDENCE_LABELS: dict[str, str] = {"import": "지식 문서에서 옮김", "deci
 OP_LABELS: dict[str, str] = {"create": "새로 만듦", "update": "고침", "retire": "은퇴", "delete": "지움",
                              "link_add": "연결 더함", "link_remove": "연결 뺌"}
 #: 에이전트 이름(``agent:<이름>`` — 만든 이 · 제안한 이) → 화면 이름(점검 F13 — 코드 이름을 보이지 않는다). 모르는 이름은
-#: :data:`AGENT_FALLBACK`. 이름 정본은 :data:`foms.services.brain.photo_cards.AGENT` · ``chat_reports.CHAT_AGENT``(시험이 맞춘다).
-AGENT_LABELS: dict[str, str] = {"cs_photo": "AI(사진 다시 배우기)", "brain_chat": "AI(물어보기 틀림 신고)"}
+#: :data:`AGENT_FALLBACK`. 이름 정본은 :data:`foms.services.brain.photo_cards.AGENT` · ``chat_reports.CHAT_AGENT`` ·
+#: ``foms.services.cs_agent.handoff_learning_gates.AGENT``(시험이 맞춘다).
+AGENT_LABELS: dict[str, str] = {"cs_photo": "AI(사진 다시 배우기)", "brain_chat": "AI(물어보기 틀림 신고)",
+                                "cs_handoff_learning": "AI(넘긴 상담 배우기)"}
 AGENT_FALLBACK = "AI"
 #: 값 칸 이름(이력 탭의 '바뀐 칸').
 FIELD_LABELS: dict[str, str] = {
