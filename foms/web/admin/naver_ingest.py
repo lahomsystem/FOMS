@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
+from foms.services.auth.freelancer_scope import is_freelancer_user
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
@@ -3008,8 +3009,6 @@ def _viewer_is_freelancer() -> bool:
     Returns:
         켜진 프리랜서면 True(요청 안에서는 설정을 한 번만 읽는다).
     """
-    from foms.services.auth.freelancer_scope import is_freelancer_user
-
     user = getattr(g, "current_user", None)
     return bool(user) and is_freelancer_user(user)
 
