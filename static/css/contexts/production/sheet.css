@@ -204,7 +204,11 @@
 
 /* ── 가로 태블릿(레일 + 터치): 화면 높이에 맞추고 오른쪽만 스크롤 — 도면은 늘 보인다 ── */
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
-  .foms-prod-page__body { height: calc(100dvh / var(--foms-ui-zoom, 1) - 64px); min-height: 0; }
+  /* 머리 줄은 한 줄 — 긴 제목만 말줄임으로 줄고 단추가 둘째 줄로 안 내려간다. 몸통은 머리 줄을 뺀 나머지 높이라
+     머리 줄이 64px 가 아니어도(단추 56 + 위아래 8 + 선 1 = 73px) 페이지가 화면을 안 넘는다(S3 11-11: 100% 809px · 150% 865px) */
+  .foms-prod-page { height: calc(100dvh / var(--foms-ui-zoom, 1)); display: flex; flex-direction: column; }
+  .foms-prod-page__bar { flex-wrap: nowrap; flex-shrink: 0; }
+  .foms-prod-page__body { flex: 1 1 auto; height: auto; min-height: 0; }
   .foms-prod-page__dwg { min-height: 0; }
   .foms-prod-page__side { overflow-y: auto; }
   .foms-prod-page__main-btn { padding: 12px 86px; }
@@ -226,6 +230,8 @@
 /* ── 칸반 옆 시트(400px, .foms-prod-sheet) 안에서 같은 조각을 쓸 때 — 연락처·공정 블록·도면 스트립 (F2 ①②③, 11-09) ── */
 /* 글자를 140% 넘게 키우면 바닥 단추 셋이 시트 폭을 넘는다 → 다음 줄로 넘긴다(실화면 S1, 11-10) */
 .foms-prod-sheet__foot { flex-wrap: wrap; }
+/* 머리 줄(이름 · #번호 · 상차)이 떠 있는 닫기 단추 밑으로 안 들어가게 그 자리를 비운다(S4 11-11: 100% 에서 20×8px 겹침) */
+.foms-tablet-sheet--headless .foms-prod-sheet__titlebar { padding-right: 36px; }
 .foms-prod-sheet__contact { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 0 0 10px; border: 1px solid #dde1e6; border-radius: 10px; background: #fff; }
 .foms-prod-sheet__contact-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
 .foms-prod-sheet__contact-text { flex: 1; min-width: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: #14171c; word-break: keep-all; overflow-wrap: anywhere; }

@@ -30,7 +30,7 @@
   <div class="fph-q__nextlist">
     {% for r in q.incoming %}
     <a class="fph-nx{% if r.has_changes %} is-chg{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">
-      <b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>
+      <b><i>{{ r.customer_name }}</i> <small>#{{ r.id }}</small></b>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
       <em>{{ r.day_label }}</em>
     </a>
