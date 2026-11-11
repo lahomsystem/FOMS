@@ -378,25 +378,6 @@ def test_transfer_confirm_and_revision_keep_original_final_drawing(client, stora
         assert sd[key] == original[key], key
 
 
-def test_main_transfer_refuses_wizard_sheets_after_completion(client, storage):
-    drafter = _user("asd_draw12")
-    oid = _order(drawing_ids=[drafter.id])
-    original = _sd(oid)["drawing_current_files"]
-    _as(client, drafter)
-    # 원래 시트 그림은 이제 대기함에 못 들어간다 — 옛 대기함 항목이 남아 있던 주문을 흉내 낸다.
-    order = db_session.get(Order, oid)
-    sd = copy.deepcopy(order.structured_data)
-    sd["drawing_wizard"]["pending"] = {"s-1": {"key": f"orders/{oid}/drawing_wizard/exports/old.png",
-                                               "filename": "old.png", "sheet_name": "냉장고장"}}
-    order.structured_data = sd
-    db_session.commit()
-
-    res = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
-
-    assert res.status_code == 400 and res.get_json()["error"] == "USE_AS_TRANSFER"
-    assert _sd(oid)["drawing_current_files"] == original
-
-
 def test_cancel_only_before_first_send(client, storage):
     drafter = _user("asd_draw13")
     oid = _order(drawing_ids=[drafter.id])

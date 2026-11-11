@@ -358,14 +358,14 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 218,
+      "lineno": 224,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 978,
+      "lineno": 984,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"

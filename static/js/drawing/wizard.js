@@ -7310,6 +7310,11 @@
       },
       split: v2SplitSheet,
       addPresets: v2AddPresets,
+      duplicateSheet: duplicateSheet,   // 완료 주문 AS 시트 만들기(wizard-as.js) — 탭 ⧉ 와 같은 복제
+      addSheet: addSheet,
+      switchSheet: switchSheet,
+      renderTabs: renderTabs,
+      tabbar: function () { return els.tabbar; },
       rid: rid,
       normalize: normalizeObj,
       textSize: loadPreferredTextSize,

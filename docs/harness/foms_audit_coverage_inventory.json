@@ -508,7 +508,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_cancel",
-      "lineno": 376,
+      "lineno": 386,
       "methods": [
         "POST"
       ],
@@ -517,7 +517,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_confirm",
-      "lineno": 324,
+      "lineno": 334,
       "methods": [
         "POST"
       ],
@@ -526,7 +526,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_request_revision",
-      "lineno": 349,
+      "lineno": 359,
       "methods": [
         "POST"
       ],
@@ -544,7 +544,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_transfer",
-      "lineno": 294,
+      "lineno": 317,
       "methods": [
         "POST"
       ],
@@ -670,7 +670,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_delete_drawing_wizard_pending",
-      "lineno": 1586,
+      "lineno": 1592,
       "methods": [
         "DELETE"
       ],
@@ -679,7 +679,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_asset",
-      "lineno": 1067,
+      "lineno": 1073,
       "methods": [
         "POST"
       ],
@@ -688,7 +688,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_bom_rules",
-      "lineno": 2010,
+      "lineno": 2042,
       "methods": [
         "POST"
       ],
@@ -697,7 +697,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_import_attachment",
-      "lineno": 1135,
+      "lineno": 1141,
       "methods": [
         "POST"
       ],
@@ -706,7 +706,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory",
-      "lineno": 2080,
+      "lineno": 2112,
       "methods": [
         "POST"
       ],
@@ -715,7 +715,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory_match",
-      "lineno": 2109,
+      "lineno": 2141,
       "methods": [
         "POST"
       ],
@@ -724,7 +724,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1932,
+      "lineno": 1964,
       "methods": [
         "POST"
       ],
@@ -733,7 +733,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_sheet_png",
-      "lineno": 1201,
+      "lineno": 1207,
       "methods": [
         "POST"
       ],
@@ -742,7 +742,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_transfer_pending",
-      "lineno": 1674,
+      "lineno": 1702,
       "methods": [
         "POST"
       ],
@@ -751,7 +751,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1740,
+      "lineno": 1772,
       "methods": [
         "POST"
       ],
@@ -760,7 +760,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_put_drawing_wizard",
-      "lineno": 898,
+      "lineno": 904,
       "methods": [
         "PUT"
       ],

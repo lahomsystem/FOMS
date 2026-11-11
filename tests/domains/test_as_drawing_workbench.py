@@ -132,3 +132,76 @@ def test_as_receive_modal_has_drawing_request_line():
     helper = helper[: helper.index("\n}\n")]
     assert "'COMPLETED'" in helper and "'CS'" in helper and "box.checked = false" in helper
     assert "erpRefreshAsDrawingRequest();" in js
+
+
+# --------------------------------------------------------------------------
+# 마법사 — 설정값 · [저장] 창 보내기 = AS 도면 보내기(설계서 §4.3)
+# --------------------------------------------------------------------------
+
+import copy  # noqa: E402
+
+from db import db_session  # noqa: E402
+from foms.services.orders import as_drawing as asd  # noqa: E402
+from models import Order, SecurityLog, User  # noqa: E402
+
+
+def _sd(oid):
+    db_session.expire_all()
+    return copy.deepcopy(db_session.get(Order, oid).structured_data or {})
+
+
+def test_wizard_page_carries_as_config_only_after_completion(client):
+    drafter = _user("asd_draw40")
+    done = _order(drawing_ids=[drafter.id], name="마법사완료고객")
+    open_stage = _order(stage="DRAWING", drawing_ids=[drafter.id], name="마법사도면고객")
+    _as(client, drafter)
+
+    body = client.get(f"/erp/drawing-workbench/{done}/wizard").get_data(as_text=True)
+    assert "js/drawing/wizard-as.js" in body and '"as_drawing": {' in body
+    assert '"locked_sheet_ids": ["s-1"]' in body and '"round": null' in body
+
+    other = client.get(f"/erp/drawing-workbench/{open_stage}/wizard").get_data(as_text=True)
+    assert "js/drawing/wizard-as.js" not in other and '"as_drawing": null' in other
+
+
+def test_save_window_send_becomes_as_transfer_after_completion(client, storage):
+    drafter = _user("asd_draw41")
+    oid = _order(drawing_ids=[drafter.id], name="저장창고객")
+    original = _sd(oid)
+    _as(client, drafter)
+
+    r0 = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
+    assert r0.status_code == 400 and r0.get_json()["error"] == "NO_OPEN_ROUND"
+
+    assert _start(client, oid, memo="m", as_register={"content": "c"}).status_code == 200
+    assert _put(client, oid, [{"id": "s-1", "name": "냉장고장", "form": {}, "objects": []},
+                              {"id": "s-2", "name": "AS", "form": {}, "objects": []}]).status_code == 200
+    assert _sheet_png(client, oid, "s-2", "as.png").status_code == 200
+
+    res = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={"note": "확인"})
+
+    body = res.get_json()
+    assert res.status_code == 200, body
+    assert body["data"]["as_drawing"] is True and body["data"]["count"] == 1
+    sd = _sd(oid)
+    assert asd.current_round(sd)["status"] == asd.STATUS_TRANSFERRED
+    for key in ("drawing_current_files", "drawing_status", "drawing_transfer_history"):
+        assert sd[key] == original[key], key
+    # 행위 1건 = 감사 1행(누가 · 어느 주문 · 몇 차).
+    logs = db_session.query(SecurityLog).filter_by(action="AS_DRAWING_TRANSFERRED", target_id=oid).all()
+    assert len(logs) == 1 and logs[0].user_id == drafter.id and logs[0].detail["round_no"] == 1
+
+
+def test_main_transfer_function_refuses_wizard_sheet_files_after_completion(app):
+    from foms.api.drawing.erp_orders_drawing import perform_drawing_transfer
+
+    drafter = _user("asd_draw42")
+    oid = _order(drawing_ids=[drafter.id], name="방어고객")
+    with app.test_request_context():
+        order = db_session.get(Order, oid)
+        user = db_session.get(User, drafter.id)
+        payload, status = perform_drawing_transfer(
+            db_session, order, oid, user, user.id,
+            files=[{"key": f"orders/{oid}/drawing_wizard/exports/x.png", "filename": "x.png", "sheet_id": "s-1"}])
+    db_session.rollback()
+    assert status == 400 and payload["error"] == "USE_AS_TRANSFER"
