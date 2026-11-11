@@ -40,15 +40,20 @@ def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> 
 
 
 def _add_order(stage: str, name: str, day_offset: int | None, *, steps_done=(), with_run=False, hold=False,
-               deleted=False) -> Order:
+               deleted=False, orderer: str | None = None, manager: str | None = None) -> Order:
     today = get_today_kst()
     date = (today + datetime.timedelta(days=day_offset)).isoformat() if day_offset is not None else None
     production = {"steps": [{"key": k, "label": l, "done": k in steps_done, "at": None, "by_name": None} for k, l in _PRODUCTION_STEP_DEFS]}
     if hold:
         production["hold"] = {"active": True, "reason": "자재 대기"}
+    parties = {"customer": {"name": name, "phone": "010-0000-0000"}}
+    if orderer is not None:
+        parties["orderer"] = {"name": orderer}
+    if manager is not None:
+        parties["manager"] = {"name": manager}
     sd = {
         "workflow": {"stage": stage},
-        "parties": {"customer": {"name": name, "phone": "010-0000-0000"}},
+        "parties": parties,
         "site": {"address_full": f"{name} 사는 곳"},
         "schedule": {"construction": {"date": date}},
         "items": [{"product_name": "거실장", "spec_width": "3100", "quantity": 1}],

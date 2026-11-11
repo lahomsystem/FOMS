@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111c" in html
+    assert "home.css?v=20261111f" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -217,3 +217,32 @@ def test_날짜_장_큰_줄_긴_이름은_말줄임으로_줄고_주문_번호�
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-dr__nm b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: inherit; }" in css
     assert ".fph-dr__nm small { flex-shrink: 0;" in css
+
+
+def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에_보인다(client) -> None:
+    """사용자 11-11 "태블릿 생산 탭 메인 > 발주사, 영업 담당 표기": 날짜 큰 줄 · 내 공정 줄만. 빈 쪽은 빼고 둘 다 없으면 안 그린다."""
+    _make_user(client, "tabs_prod_by", "PRODUCTION")
+    both = _add_order("PRODUCTION", "둘다있음", 0, with_run=True, orderer="한샘대리점", manager="김영업")
+    only_o = _add_order("PRODUCTION", "발주만", 0, with_run=True, orderer="리바트")
+    only_m = _add_order("PRODUCTION", "담당만", 0, with_run=True, manager="이담당")
+    none = _add_order("PRODUCTION", "둘다없음", 0, with_run=True, manager="-")
+    _add_order("DRAWING", "도면주문", 0, orderer="작은칸발주", manager="작은칸담당")
+    want = {both.id: "발주 한샘대리점 · 담당 김영업", only_o.id: "발주 리바트", only_m.id: "담당 이담당"}
+    date = client.get(HOME).get_data(as_text=True)
+    pane = _pane(date, get_today_kst().isoformat())
+    steps = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    cut = steps.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0].split("fph-q__nextlist")[0]
+    for oid, text in want.items():
+        assert f'<small>#{oid}</small></span><span class="fph-dr__by">{text}</span></span>' in pane
+        assert f'<small>#{oid}</small></b><span class="fph-qr__by">{text}</span></div>' in cut
+    assert f'<small>#{none.id}</small></span></span>' in pane and f'<small>#{none.id}</small></b></div>' in cut
+    assert pane.count('class="fph-dr__by"') == 3 and cut.count('class="fph-qr__by"') == 3
+    assert "작은칸발주" not in date and "작은칸담당" not in date and "도면주문" in pane.split("fph-wg")[1]
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    assert ".fph-dr__ln { display: flex; flex-wrap: wrap; align-items: baseline;" in css
+    assert ("min-width: 0; max-width: 100%; }" in css.split(".fph-dr__nm {")[1].split("}")[0] + "}")
+    # 발주사·담당 글은 말줄임 없이 줄이 넘어간다 — 글자 150% 에서 담당 이름이 "…" 로 잘리던 것(스테이징 실화면)
+    by = re.search(r"\.fph-dr__by \{[^}]*\}", css).group(0)
+    assert "overflow-wrap: anywhere" in by and "word-break: keep-all" in by and "nowrap" not in by and "ellipsis" not in by
+    assert ".fph-qr__ln { display: flex; flex-wrap: wrap; align-items: baseline;" in css
+    assert ".fph-qr__who .fph-qr__by { max-width: 100%; color: var(--fph-text3); white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }" in css
