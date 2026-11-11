@@ -118,3 +118,4 @@
 | T14-3 | 표(안 17) + 이름판 | `tablet_ship_grid.html`, `shipment-dashboard-columns.css`(또는 새 CSS), `static/js/shipment/tablet-ship-assign.js`(신규) | 템플릿 단언 + 스테이징 실화면 |
 | T14-4 | 서랍 넓히기 + AS 정보 | `tablet_sheet.html`, `dashboard.py`(시트 값) | 조각 단언 |
 | T14-5 | AS 넣기 목록 · 이미지 저장 | `tablet-ship-assign.js` 또는 새 JS, `dashboard_main.html`(위 줄) | 스테이징 실화면(읽기) |
+| T14-6 | 협력사 희망 판 = 위 줄 단추로 내려오는 서랍(설계서 §14.8, D34) | `dashboard_main.html`(위 줄 단추 · 막), `partner_request_board.html` · `partner_request_chip.html`(회사 이름 칸), `static/js/shipment/partner-request-board.js`(칸 눌러 날짜), 새 작은 JS(여닫기), 태블릿 CSS | 템플릿 단언 + 로컬 준비물 서버 실화면 + 스테이징 오류 0 |
