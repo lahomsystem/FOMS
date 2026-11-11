@@ -118,11 +118,11 @@ def test_write_endpoints_forbid_sales_construction_viewer(client, role, team) ->
 # 화면 — 편집 칸은 같은 헬퍼 값으로 열고 닫는다(단추만 남고 403 나는 화면 금지).
 # --------------------------------------------------------------------------- #
 def _make_order():
-    from datetime import date
-
+    from foms.services.datetime_kst import get_today_kst
     from models import Order
 
-    today = date.today().strftime("%Y-%m-%d")
+    # 출고 화면은 한국 날짜로 '오늘'을 고른다 — date.today() 면 CI(UTC) 아침 9시 전에 하루 어긋난다.
+    today = get_today_kst().strftime("%Y-%m-%d")
     order = Order(
         received_date=today, customer_name="출고권한 화면", phone="010-1111-2222", address="Seoul",
         product="장", status="IN_CONSTRUCTION", is_erp_order=True,
