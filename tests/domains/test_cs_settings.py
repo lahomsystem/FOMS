@@ -100,6 +100,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "turn_end_mode": "off", "turn_end_fast_wait_s": 4, "turn_end_slow_wait_s": 40,
         # 넘긴 상담 배우기 → 회사 지식 제안(사장님 11-11) — 처음 끔 · 한 밤 20 사례
         "handoff_learn_enabled": False, "handoff_learn_cases": 20,
+        "edit_learn_enabled": False,  # 고쳐 보낸 상담도 배우기(사장님 11-11 — 까닭을 적은 것만) — 처음 끔
         "handoff_memo_enabled": False,  # 넘김 메모(AI 가 초안을 안 쓴 까닭 — 직원에게) — 처음 끔(예전 기록만 그대로)
         "handoff_buttons_enabled": False,  # 넘김 메모 [배우기] · [흘리기] 단추(사장님 11-11) — 처음 끔
     }

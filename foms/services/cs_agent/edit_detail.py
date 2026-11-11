@@ -41,7 +41,7 @@ from models import SecurityLog
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "MAX_DETAIL", "MESSAGES", "SEQ_MAX", "WINDOW", "DetailResult", "Switches", "add_photo", "delete_photo",
+    "MAX_DETAIL", "MESSAGES", "SEQ_MAX", "WINDOW", "DetailResult", "Switches", "add_photo", "delete_photo", "detail_text",
     "photo_for_view", "photo_rows", "save_detail", "switches",
 ]
 
@@ -163,8 +163,9 @@ def photo_rows(session: Any, turn_id: int) -> list[dict[str, Any]]:
 
 
 # ── 자세한 이유 ──────────────────────────────────────────────────────────
-def _detail_text(detail: Any) -> Union[Optional[str], DetailResult]:
-    """받은 글 → 가린 글(빈 글은 ``None`` — 지움) 또는 실패 결과. 개인정보 꼴이 있으면 저장하지 않는다."""
+def detail_text(detail: Any) -> Union[Optional[str], DetailResult]:
+    """받은 글 → 가린 글(빈 글은 ``None`` — 지움) 또는 실패 결과. 개인정보 꼴이 있으면 저장하지 않는다. 채널톡 작은 창
+    [수정하기]의 '왜 고쳤나요' 칸(:mod:`.send_flow` — 보내기와 함께 받는다)도 같은 규칙이다."""
     if not isinstance(detail, str) or len(detail) > MAX_DETAIL:
         return _fail("bad_request", 400, field="detail")
     if not detail.strip():
@@ -191,7 +192,7 @@ def _save_detail(session: Any, *, turn_id: int, user: Any, detail: Any, now: dat
     if isinstance(row, DetailResult):
         session.rollback()
         return row
-    masked = _detail_text(detail)
+    masked = detail_text(detail)
     if isinstance(masked, DetailResult):
         session.rollback()
         return masked

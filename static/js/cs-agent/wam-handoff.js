@@ -37,6 +37,7 @@
   var hintBox = $('cs-wam-hint');
   var hintText = $('cs-wam-hint-text');
   var reasonsBox = $('cs-wam-reasons-box');
+  var detailBox = $('cs-wam-detail-box');
   var buttons = {
     send: $('cs-wam-send'), confirm: $('cs-wam-confirm'), skip: $('cs-wam-skip'), unskip: $('cs-wam-unskip'),
     retry: $('cs-wam-retry'), toEdit: $('cs-wam-to-edit'), discard: $('cs-wam-discard')
@@ -88,6 +89,7 @@
   function writing(on) {
     editBox.hidden = !on;
     if (reasonsBox) reasonsBox.hidden = true;  // 넘김 답에는 '고친 까닭'이 없다(AI 초안이 없다)
+    if (detailBox) detailBox.hidden = true;  // 직원이 쓴 답 전체를 배운다 — '왜 고쳤나요' 칸이 필요 없다
     if (!on) {
       reasonLine.hidden = true;
       hintBox.hidden = true;

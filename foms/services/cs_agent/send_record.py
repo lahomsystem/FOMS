@@ -67,7 +67,7 @@ NOT_TAUGHT_REASONS: tuple[str, ...] = ("asked_if_ai",)
 _TURNS = CsAgentTurn.__table__
 _MSGS = CsAgentMessage.__table__
 _CASE_FIELDS = ("outcome", "edit_ratio", "edit_reason", "staff_reply_masked", "masked_question", "waiting_since",
-                "masked_context")
+                "masked_context", "edit_detail_masked", "edit_detail_by", "edit_detail_at")
 
 
 class SentCase(dict):

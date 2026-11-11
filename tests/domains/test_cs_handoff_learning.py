@@ -26,7 +26,10 @@ from foms.services.cs_agent import handoff_learning as hl
 from foms.services.cs_agent import learning_pass
 from foms.services.cs_agent.handoff_learn_settings import CASES_FIELD, HANDOFF_LEARN_FIELD
 from foms.services.cs_agent.handoff_learning_gates import AGENT
-from foms.services.cs_agent.handoff_learning_prompt import ANCHOR_MARK, INSTRUCTIONS, TALK_HEAD, TAUGHT_MARK, case_lines
+from foms.services.cs_agent.handoff_learning_prompt import (
+    ANCHOR_MARK, CHIP_WORDS, INSTRUCTIONS, TALK_HEAD, TAUGHT_MARK, case_lines,
+)
+from foms.services.cs_agent.send_view import EDIT_REASON_LABELS
 from foms.services.cs_agent.knowledge import load_approved
 from models import CsAgentTurn
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture(승인 지식 · 두뇌 env · 진짜 SDK 막기)
@@ -46,10 +49,10 @@ _SEQ = itertools.count(1)
 
 def handed(chat: str, *, reason="unsure", error="handoff", reply=REPLY, outcome="direct", state="skipped",
            held_out=False, codes=None, brand="LAHOM", when=None, anchor=None, context=None, staff="mgr-1",
-           send_state=None) -> int:
+           send_state=None, **extra) -> int:
     """넘긴 차례 하나(가린 질문 · 직원이 직접 한 가린 답). ``send_state`` 'sent' = 넘김 메모 [배우기]로 보낸 차례."""
     row = CsAgentTurn(brand=brand, chat_id=chat, last_user_message_id=anchor or f"m-{chat}-{next(_SEQ)}", state=state,
-                      send_state=send_state,
+                      send_state=send_state, **extra,
                       error_code=error, handoff=error == "handoff", handoff_reason=reason, check_codes=codes,
                       outcome=outcome, intent="spec", held_out=held_out, masked_question="합성 상판 두께가 어떻게 돼요?",
                       staff_reply_masked=reply, masked_context=context, desk_manager_id=staff,
@@ -340,4 +343,23 @@ def test_turns_taught_from_the_learn_window_are_read_even_for_human_only_reasons
     head = case_lines({**cases[0], "talk": None})[0]
     assert TAUGHT_MARK in head and "주문 조회" in head
     assert "9. '직원이 배우라고 고름'" in INSTRUCTIONS
+
+
+def test_edited_turns_with_a_written_reason_are_read_only_when_switched_on(channel):  # noqa: F811
+    why = "합성 까닭 — 상판 두께를 틀리게 썼어요"
+    edited = handed("uc-e1", error=None, reason=None, state="posted", outcome="edited", send_state="sent",
+                    staff=None, sent_by_user_id=7, masked_draft="합성 AI 초안 — 상판 두께는 15mm", edit_reason="wrong_fact",
+                    edit_detail_masked=why)
+    handed("uc-e2", error=None, reason=None, state="posted", outcome="edited", send_state="sent")  # 까닭 없음 — 안 읽음
+    handed("uc-e3", error=None, reason=None, state="posted", outcome="as_is", send_state="sent",
+           edit_detail_masked=why)  # 안 고침 — 안 읽음
+    assert hl.collect_cases(db_session, NOW, cap=20) == []  # 패널 '고쳐 보낸 상담도 배우기' 끔(처음 값)
+    (case,) = hl.collect_cases(db_session, NOW, cap=20, edits=True)
+    assert (case["turn_id"], case["reason"], case["staff"], case["chip"], case["why"]) == (
+        edited, "edited", "user-7", "wrong_fact", why)
+    lines = case_lines({**case, "talk": None})
+    assert "직원이 고쳐 보냄" in lines[0] and any("AI 초안(직원이 고치기 전" in line for line in lines)
+    assert any(line.startswith(f"사례 {edited} 직원이 적은 고친 까닭(고른 칸: 틀린 사실)") for line in lines)
+    assert f"| {why}" in lines and "10. 'AI 초안을 직원이 고쳐 보냄'" in INSTRUCTIONS
+    assert CHIP_WORDS == dict(EDIT_REASON_LABELS)
 
