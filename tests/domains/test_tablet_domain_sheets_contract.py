@@ -140,11 +140,14 @@ def test_kanban_body_wires_domain_sheets_and_filter() -> None:
 
 
 def test_shipment_dashboard_main_has_sheet_source_and_kpis() -> None:
-    """출고 대시보드 main 이 시트 URL source + 출고 KPI 스트립을 노출한다.
-    (형제 워커: 출고 대시보드 — 랜딩 전까지 pending.)"""
+    """출고 대시보드 main 이 시트 URL source + 위 줄 요약을 노출한다.
+    (2026-11-11 설계서 tablet-production-ui §14.3: KPI 네 칸 → "N건" + "시공자 없음 n" 알약. 시트 URL 은
+    하루치 출고표 파샬 tablet_ship_grid.html 의 줄이 싣는다.)"""
     body = _read(SHIPMENT_DASHBOARD_MAIN)
-    assert "data-foms-sheet-url" in body
-    assert "tablet-ship-kpis" in body
+    assert "tablet_ship_grid.html" in body
+    assert "data-foms-sheet-url" in _read("templates/shipment/partials/tablet_ship_grid.html")
+    assert "foms-ship-pcbar__miss" in body
+    assert "tablet-ship-kpis" not in body
 
 
 def test_shipment_dashboard_scripts_wires_domain_sheets_deferred() -> None:

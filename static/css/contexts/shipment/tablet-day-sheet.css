@@ -1,0 +1,435 @@
+/* =============================================================
+   태블릿 가로 출고 탭 — 하루치 출고표(시공자 묶음 카드) · 이름판
+   설계서 docs/specs/2026-11-09-tablet-production-ui_SPEC.md §14.3 (시안 안 17 · 16n, 결정 D29 · D30)
+   ------------------------------------------------------------
+   마크업 = templates/shipment/partials/tablet_ship_grid.html, 이름판 = static/js/shipment/tablet-ship-assign.js.
+   이 파일의 모든 규칙은 태블릿 가로 코호트 문지기(코어 MQ + body.erp-mobile-v2-layout) 안에만 둔다 —
+   PC(fine) · 폰 · 세로에서는 아무 규칙도 걸리지 않는다. 감싸는 div 를 보이고 숨기는 것은
+   shipment-dashboard-columns.css 가 맡는다(기본 숨김 → 코호트에서 block).
+   생김새: 세로 격자선 없음 · 왼쪽 맞춤 · 줄 46px · 가는 가로 선. 본문 칠 없음(D29) — 남는 색은
+   시공자 칸의 사람 색(PC 출고 탭 PASTEL_COLORS 순서, 번호 1~10)뿐.
+   글자 = calc(Npx * var(--foms-fs, 1)), 가장 작은 글자 13px.
+   ============================================================= */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 바깥 틀: 흰 판 없이 머리 줄 + 카드 묶음 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid-wrap {
+    --ship-rh: 46px;
+    --ship-line: var(--foms-border-subtle, #dde1e6);
+    --ship-rowline: #e8ebf0;
+    --ship-text: var(--foms-text-primary, #14171c);
+    --ship-text2: var(--foms-text-secondary, #4b525d);
+    --ship-text3: var(--foms-text-tertiary, #6b7380);
+    --ship-danger: var(--foms-color-danger-600, #dc2626);
+    --ship-danger-50: var(--foms-color-danger-50, #fef2f2);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    color: var(--ship-text);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  /* --- 칸 폭(모든 카드 같음) — 시안 안 17 의 비율을 백분율로 옮겼다(왼쪽 잔여 자수 띠가 있어도 · 없어도 같은 비율).
+     현장주소가 남는 폭(약 23%)을 가진다. --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-no { width: 4%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-agency { width: 10.5%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-product { width: 16%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-spec { width: 8%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-customer { width: 8%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-time { width: 9.5%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-sales { width: 8%; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__col-worker { width: 12.5%; }
+
+  /* --- 머리 한 줄(카드 밖) --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--foms-surface-base, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__head th {
+    height: 36px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--foms-border-default, #c1c7d0);
+    text-align: left;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--ship-text3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__head th.foms-tablet-shipgrid__no {
+    padding: 0;
+    text-align: center;
+  }
+
+  /* --- 카드 묶음 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__lbl {
+    margin-bottom: -4px;
+    padding: 0 10px;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--ship-text3);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__card {
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--ship-line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__card--miss {
+    border-color: #f5c2c2;
+  }
+
+  /* --- 줄 · 칸 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row {
+    height: var(--ship-rh);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td {
+    height: var(--ship-rh);
+    padding: 0 8px;
+    border-bottom: 1px solid var(--ship-rowline);
+    vertical-align: middle;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: calc(15px * var(--foms-fs, 1));
+    color: var(--ship-text);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row:last-child > td {
+    border-bottom: 0;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__no {
+    padding: 0;
+    text-align: center;
+    font-size: calc(14px * var(--foms-fs, 1));
+    color: var(--ship-text3);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__agency { font-weight: 600; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__product,
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__spec {
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 700;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__addr,
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__sales {
+    color: var(--ship-text2);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__as-head {
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 600;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__dim { color: var(--ship-text3); }
+  /* AS 줄 표시 = 대리점 칸의 검은 딱지 하나(줄 칠 없음). */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__as {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: #2b303a;
+    color: #fff;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1;
+    vertical-align: middle;
+  }
+
+  /* --- 고객 칸: 이름 + (있을 때만) 협력사 희망 · 입금 대기 · 시공일 변경 작은 표시 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__customer { line-height: 1.2; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer-name { display: block; overflow: hidden; text-overflow: ellipsis; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__flag {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-interactive-primary, #4a55b8);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__flag--danger { color: var(--ship-danger); }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__label,
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__old,
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__arrow,
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__customer .erp-ship-change__count {
+    display: none;
+  }
+
+  /* --- 시트에 열린 줄 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row.foms-tablet-sheet-active > td {
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row.foms-tablet-sheet-active > td.foms-tablet-shipgrid__no {
+    box-shadow: inset 3px 0 0 var(--ship-text);
+    color: var(--ship-text);
+    font-weight: 700;
+  }
+
+  /* --- 시공자 칸: 사람 색 덩어리. 같은 구성의 이어지는 줄은 위아래로 붙는다(is-top · is-bottom 만 둥글게). --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__row > td.foms-tablet-shipgrid__worker {
+    position: relative;
+    padding: 0;
+    border-bottom: 0;
+    overflow: visible;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn {
+    position: absolute;
+    top: 0;
+    right: 6px;
+    bottom: 0;
+    left: 6px;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ship-text);
+    font: inherit;
+    overflow: hidden;
+  }
+  body.erp-mobile-v2-layout button.foms-tablet-shipgrid__wbtn { cursor: pointer; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn.is-top { top: 5px; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn.is-bottom { bottom: 5px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn.is-empty { top: 5px; bottom: 5px; border-radius: 10px; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn.is-open { box-shadow: inset 0 0 0 2px var(--ship-text); }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__wbtn.is-open .foms-tablet-shipgrid__add { border: 2px solid var(--ship-text); }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__who {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 0 4px;
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 두 명이면 위아래 반씩 — 두 이름을 같은 크기로. */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__who:not(:only-child) { font-size: calc(15px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__add {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px dashed var(--ship-danger);
+    border-radius: 10px;
+    background: var(--ship-danger-50);
+    color: var(--ship-danger);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* 사람 색 1~10 = PC 출고 탭 PASTEL_COLORS 순서(shipment-dashboard.js · dashboard_main.html 과 같은 값). */
+  body.erp-mobile-v2-layout [data-ship-color="1"] { --ship-pc: #B8D4E3; }
+  body.erp-mobile-v2-layout [data-ship-color="2"] { --ship-pc: #FFE5CC; }
+  body.erp-mobile-v2-layout [data-ship-color="3"] { --ship-pc: #E8D5E9; }
+  body.erp-mobile-v2-layout [data-ship-color="4"] { --ship-pc: #D5E9D5; }
+  body.erp-mobile-v2-layout [data-ship-color="5"] { --ship-pc: #F0D5D5; }
+  body.erp-mobile-v2-layout [data-ship-color="6"] { --ship-pc: #D5D5E9; }
+  body.erp-mobile-v2-layout [data-ship-color="7"] { --ship-pc: #FFF0D5; }
+  body.erp-mobile-v2-layout [data-ship-color="8"] { --ship-pc: #D5E9E5; }
+  body.erp-mobile-v2-layout [data-ship-color="9"] { --ship-pc: #F5D5E5; }
+  body.erp-mobile-v2-layout [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__who[data-ship-color] { background: var(--ship-pc); }
+
+  /* --- 빈 날 · 표 아래 AS 넣기 단추 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__empty {
+    padding: 24px 16px;
+    border: 1px solid var(--ship-line);
+    border-radius: 12px;
+    background: var(--foms-surface-base, #fff);
+    text-align: center;
+    font-size: calc(15px * var(--foms-fs, 1));
+    color: var(--ship-text3);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__addas {
+    min-height: 44px;
+    border: 1.5px dashed var(--foms-border-default, #c1c7d0);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ship-text2);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* --- 밀도 토글 40/56(46 = 기본). density-toggle.js 가 #foms-tablet-ship-grid 에 data-foms-density 를 붙인다. --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="40"] { --ship-rh: 40px; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="56"] { --ship-rh: 56px; }
+
+  /* --- 위 줄 요약 알약(시공자 없음 n) --- */
+  body.erp-mobile-v2-layout .foms-ship-pcbar__miss {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--foms-color-danger-50, #fef2f2);
+    color: var(--foms-color-danger-600, #dc2626);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* --- 이름판(문서 끝에 붙는 떠 있는 판) --- */
+  body.erp-mobile-v2-layout .foms-ship-names {
+    position: absolute;
+    z-index: 1080;
+    width: 440px;
+    max-width: calc(100vw - 16px);
+    padding: 14px 16px 16px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 16px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 12px 32px rgba(20, 23, 28, 0.18), 0 2px 6px rgba(20, 23, 28, 0.08);
+    color: var(--foms-text-primary, #14171c);
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__top { display: flex; align-items: flex-start; gap: 8px; }
+  body.erp-mobile-v2-layout .foms-ship-names__head { flex: 1 1 auto; min-width: 0; }
+  body.erp-mobile-v2-layout .foms-ship-names__title {
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-text-tertiary, #6b7380);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__hint {
+    margin: 2px 0 12px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__close {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    margin: -10px -10px 0 0;
+    border: 0;
+    background: transparent;
+    font-size: calc(18px * var(--foms-fs, 1));
+    color: var(--foms-text-secondary, #4b525d);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    max-height: calc(calc(100dvh / var(--foms-ui-zoom, 1)) - 260px);
+    overflow-y: auto;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 0;
+    height: 56px;
+    padding: 0 10px 0 16px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: inherit;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6px;
+    background: var(--ship-pc, #e8ebf0);
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb.is-on {
+    border: 2px solid var(--foms-text-primary, #14171c);
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb.is-off { opacity: 0.4; cursor: default; }
+  body.erp-mobile-v2-layout .foms-ship-names__nb b {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb small {
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__nb small.is-over { color: var(--foms-color-danger-600, #dc2626); }
+  body.erp-mobile-v2-layout .foms-ship-names__foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e8ebf0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__write {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__write[hidden] { display: none; }
+  body.erp-mobile-v2-layout .foms-ship-names__input {
+    height: 44px;
+    min-width: 0;
+    padding: 0 12px;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: 10px;
+    font-size: calc(16px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__btn {
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: inherit;
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-names.is-busy .foms-ship-names__grid,
+  body.erp-mobile-v2-layout .foms-ship-names.is-busy .foms-ship-names__foot,
+  body.erp-mobile-v2-layout .foms-ship-names.is-busy .foms-ship-names__write { opacity: 0.55; pointer-events: none; }
+  body.erp-mobile-v2-layout .foms-ship-names__msg {
+    margin-top: 8px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__msg:empty { display: none; }
+}

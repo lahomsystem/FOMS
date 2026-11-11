@@ -35,6 +35,7 @@ from foms.services.shipment_dashboard_helpers import (
     visible_items_for_dates,
     visible_spec_units,
 )
+from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
@@ -220,40 +221,8 @@ def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
     return max(past_only)
 
 
-def _compute_tablet_ship_kpis(rows: list) -> dict:
-    """태블릿 가로 상단 KPI 4종을 그리드 rows에서 계산한다(추가 쿼리 없음).
-
-    Args:
-        rows: erp_shipment_dashboard가 렌더하는 것과 동일한 Order ORM 객체 리스트.
-
-    Returns:
-        {'total_units': str(1-decimal), 'order_count': int,
-         'team_count': int, 'unassigned': int}.
-        total_units=행별 자수 합(선택 날짜의 가시 품목 기준), order_count=행 수,
-        team_count=행 전반에서 등장한 고유 시공팀명 수, unassigned=시공자 미배정 행 수.
-    """
-    total_units = 0.0
-    teams: set[str] = set()
-    unassigned = 0
-    for r in rows:
-        total_units += visible_spec_units(r)
-        sd = r.structured_data if isinstance(r.structured_data, dict) else {}
-        workers = (sd.get('shipment') or {}).get('construction_workers') or []
-        names = [str(w).strip() for w in workers if str(w or '').strip()]
-        if names:
-            teams.update(names)
-        else:
-            unassigned += 1
-    return {
-        'total_units': f"{total_units:.1f}",
-        'order_count': len(rows),
-        'team_count': len(teams),
-        'unassigned': unassigned,
-    }
-
-
 def _compute_shipment_team_group_meta(rows: list, worker_settings: list) -> dict:
-    """태블릿 그룹 헤더용 시공팀별 집계(자수 합계·건수·capacity·잔여). 추가 쿼리 없음.
+    """PC 표 그룹 행(tr.shipment-grp-row)용 시공팀별 집계(자수 합계·건수·capacity·잔여). 추가 쿼리 없음.
 
     이미 정렬·로드된 ``rows``와 ``worker_settings``만 사용한다. 그룹 키는 각 행의 첫
     유효 시공자(raw trim) — ``sort_shipment_rows``/템플릿 파스텔 인덱스와 동일 키다.
@@ -435,7 +404,7 @@ def erp_shipment_dashboard():
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
             Order.status, Order.is_erp_order,
             Order.customer_name, Order.manager_name, Order.phone, Order.address,
-            Order.measurement_date,
+            Order.measurement_date, Order.mutation_version,
         ),
         selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).all()
@@ -624,7 +593,7 @@ def erp_shipment_dashboard():
                 Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
                 Order.structured_data, Order.status, Order.is_erp_order,
                 Order.customer_name, Order.manager_name, Order.phone, Order.address,
-                Order.measurement_date,
+                Order.measurement_date, Order.mutation_version,
             ),
             selectinload(Order.schedule_dates)
         ).order_by(Order.id.desc()).limit(500)
@@ -693,7 +662,8 @@ def erp_shipment_dashboard():
         # 같은 행 부착 패턴 — PC 테이블·태블릿 그리드가 dict 조회 없이 같은 값을 본다).
         r.shipment_change_alerts = (_shipment_change_alerts.get(r.id) or {}).get('alerts') or []
 
-    tablet_ship_kpis = _compute_tablet_ship_kpis(rows)
+    # 태블릿 가로 하루치 출고표(시공자 묶음 · 이름판 사람별 집계) — 이미 있는 rows · 설정만 쓴다(추가 쿼리 0).
+    tablet_day_sheet = build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
     shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
 
     mobile_v2_active = is_mobile_v2_shell(
@@ -735,7 +705,7 @@ def erp_shipment_dashboard():
         can_edit_order_here=bool(can_edit_erp(current_user)) and not is_construction,
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
-        tablet_ship_kpis=tablet_ship_kpis,
+        tablet_day_sheet=tablet_day_sheet,
         shipment_team_group_meta=shipment_team_group_meta,
         # 상단 배너 요약({count, chips, overflow}). 행 배지는 r.shipment_change_alerts.
         shipment_change_banner=shipment_change_banner,
