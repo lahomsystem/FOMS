@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-11-11] **확정 뒤 제품 취소 도면팀도(운영 #797)** — 5608 2번 도면은 도면팀이 화면에서 취소
 - [2026-11-11] **협력사 명세서 확정 옵션 고치기(deploy)** — SPEC `2026-11-11-partner-confirmed-option-fix`
 - [2026-11-10] **태블릿 생산 UI(`session/tablet-prod-ui`)** — 운영 PR #784·#785·#791~#794(안 3 · D19 · D20). D21 발주사·담당 표기 스테이징, 운영은 지시 때
 - [2026-11-09] **협력사 "도면 확인했어요" 때 도면 고르기(PR #782) · 지운 시트 옛 도면이 다시 전달 뒤 남던 빈틈(PR #783 `1f8434b2`, 주문 5896) 운영 반영** — 둘 다 스테이징 실호출 통과. SPEC `2026-11-09-drawing-deleted-sheet-stale-spec`
@@ -31,8 +32,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-10-26] **알림톡 '상담 먼저' 후속 운영 완료(PR #628)** — 카톡 실패→링크 문자 워커(운영 WORKER SOLAPI_* 복사·켬)·공유 창·보내기 창 3칸. 옛 서식 6개·env 삭제. 잔여: 없음(키 교체 시 WORKER 도). SPEC `2026-10-21-consult-sms-fallback-design`
 - [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 8건 운영. 잔여(사용자 결정): 카카오 REST 키 교체·tests/docs 실고객 번호 의심 34개. 원장 `2026-10-18-foms-security-audit-ledger.md`
 - [2026-10-15] **모바일 홈 달력·날씨 시간 줄 v2(production `fa101723`, PR #551~#563)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 칸 보기 삭제·기상청 강수강도·판정 규칙·여러 날 시공 출고가 나눔. 금액=발주방 PUSH 주문만(PR #652·#654). 태블릿 예산 30,700B
-- [2026-10-08] **도면 마법사 편집 개선 운영 반영(PR #516·#519·#522·#524·#526)** — 실화면 통과. 잔여: 1100px 이하 데스크톱 창 앱바 오른쪽 16px 밀림
-- [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -209,6 +208,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-08] **도면 마법사 편집 개선 운영 반영(PR #516·#519·#522·#524·#526)** — 실화면 통과. 잔여: 1100px 이하 데스크톱 창 앱바 오른쪽 16px 밀림
+- [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
 - [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
