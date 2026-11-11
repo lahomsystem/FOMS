@@ -64,10 +64,13 @@ def test_staff_notice_list_uses_mobile_shell_with_back(app, world, monkeypatch):
     assert "data-foms-shell-back" in html and 'data-foms-shell-back-href="/erp/dashboard"' in html
     assert re.search(r'foms-shell-title">\s*공지사항\s*<', html)
     assert "foms-notice-wrap--shell" in html and "본사 전체 공지" in html
+    # 셸 틀만 붙고 꾸밈 CSS 가 빠지면 위 단추가 검은 네모로 나온다(11-11 운영 실화면) — 셸 CSS 묶음까지 실려야 한다.
+    assert "foms-mobile-surfaces.css" in html and "foms-mobile-v2-critical-css" in html
 
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "0")
     plain = _page(app, world["staff"], "/notices").get_data(as_text=True)
     assert "erp-mobile-v2-layout" not in plain and "data-foms-shell-back" not in plain
+    assert "foms-mobile-surfaces.css" not in plain
     assert "본사 전체 공지" in plain
 
 
