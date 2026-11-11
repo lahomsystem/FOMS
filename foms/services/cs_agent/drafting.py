@@ -37,8 +37,9 @@
 오류: 두뇌 안에서 준비 안 됨(:class:`.brain.BrainNotReady` — 401 · 403 포함) · 돈 상한은 **시도를 세지 않고** 돌려놓고
 (:func:`.turns.release_turn`) 이번 바퀴 멈춤 · 가림 검사(:class:`.masking.MaskLeak`)는 그 상담만 건너뜀(로그엔 칸별 숫자만) ·
 두뇌 못 씀은 실패(다시 집음 — 답 꼴만 틀렸으면 다음 상담으로, 그 밖엔 멈춤) · 읽기 실패 · 한도도 실패 + 멈춤 · 메모가 닿았는지
-모름 · 보내기 실패도 멈춤. **넘김 · 거절은 메모 없이 기록만**(``skipped`` — 채널톡 쓰기 0 이 가장 안전하다: AI 가 답하면 안 된다고
-본 상담이고, 직원 참고 칸은 검사를 안 거친 모델 글이며, 그 상담은 이미 아침 보고 '답 필요'에 있다). 넘김 까닭 코드는 남는다.
+모름 · 보내기 실패도 멈춤. **넘김 · 거절은 초안 없이 기록만**(``skipped`` — AI 가 답하면 안 된다고 본 상담이고, 그 상담은 이미
+아침 보고 '답 필요'에 있다). 넘김 까닭 코드는 남는다. 관리 화면 '넘김 메모'(처음 끔)가 켜졌으면 두뇌 넘김 · 검사 걸림에만 까닭
+메모를 한 번 더한다(:mod:`.handoff_memo` — 초안 · 단추 없음, 직원 참고는 초안 메모처럼 가려서).
 
 TERM: 선점 전 · 두뇌 전 · 쓰기 전마다 깃발을 보고, 서 있으면 지금 줄을 ``failed`` 로 돌려놓고 멈춘다(LLM 답은 버린다 — R4-4).
 바퀴 도중 끄기: 선점 전 · 두뇌 전마다 비상 정지(:func:`.turns.read_switch`) · 초안 스위치(:func:`.turns.draft_mode`) · 관리 화면
@@ -417,8 +418,10 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
     count_doc_reads(ctx.session, BRAND, result.evidence_ids, now=now_utc_naive())  # 회사 지식 쓰인 횟수(D105 — 따로 센다)
-    if result.refused or result.handoff:
-        return ctx.skip(row, SKIP_REFUSED if result.refused else SKIP_HANDOFF)
+    if result.refused:
+        return ctx.skip(row, SKIP_REFUSED)
+    if result.handoff:  # 넘김 — 건너뜀 + (켜졌으면) 넘김 메모(:mod:`.handoff_memo`)
+        return ctx.hand_off(row, SKIP_HANDOFF, note=result.staff_note)
     names = case_only_names(cases, (*(line.text for line in lines), *(item.text for item in ctx.knowledge.items)))
     return _check_and_place(ctx, row, chat_id, claimed_id, medium, lines, draft=result.draft,
                             note=result.staff_note, evidence=result.evidence_ids, examples=names,
@@ -451,8 +454,8 @@ def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str
                         private_snippets=(*memo_snippets(lines), note), example_only_words=examples,
                         human_only_amounts=bool(ctx.human_only.intersection(evidence)))
     masked = mask(draft)
-    if not check.ok:
-        return ctx.skip(row, SKIP_CHECK, codes=check.problems, masked=masked)
+    if not check.ok:  # 검사 걸림 — 건너뜀 + (켜졌으면) 넘김 메모(초안은 싣지 않는다)
+        return ctx.hand_off(row, SKIP_CHECK, codes=check.problems, masked=masked, note=memo_note)
     if reread:
         fresh, halt = _read(ctx, row, chat_id, lambda: read_lines(ctx.reader, BRAND, chat_id))
         if halt:

@@ -37,8 +37,8 @@ from foms.services.cs_agent.read_budget import BUCKET_MESSAGE
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CONVERSATION_LIMIT", "FILE_NOTE", "MEDIUM_EMAIL", "MEMO_CODE_HEADS", "MEMO_DRAFT_HEAD", "MEMO_HEAD", "MEMO_IMAGE_HEAD",
-    "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
+    "CONVERSATION_LIMIT", "FILE_NOTE", "HANDOFF_MEMO_HEAD", "MEDIUM_EMAIL", "MEMO_CODE_HEADS", "MEMO_DRAFT_HEAD",
+    "MEMO_HEAD", "MEMO_IMAGE_HEAD", "MEMO_NOTE_HEAD", "MEMO_QUOTE_HEAD",
     "SKIP_HUMAN_REPLIED", "SKIP_NOT_VISIBLE", "SKIP_NO_TEXT", "SKIP_PHOTO_ONLY", "SKIP_STALE", "ChatLine", "conversation",
     "freshness",
     "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "parse_lines", "public_turn", "read_lines",
@@ -51,6 +51,8 @@ FILE_NOTE = "(사진 · 파일 첨부)"  # 모델은 첨부를 못 본다 — �
 MEMO_HEAD = "[AI 초안 · 손님에게 보내지 않음 · 직원이 고쳐서 보내 주세요]"
 MEMO_DRAFT_HEAD = "■ 손님께 보낼 답(초안)"
 MEMO_NOTE_HEAD = "■ 직원 참고(손님에게 보내지 마세요)"
+#: 넘김 메모(초안 없음 — :mod:`.handoff_memo`)의 첫 줄. 'AI 냐' 한 줄 메모(``[AI 초안 없음]``)와 앞이 겹치지 않는다.
+HANDOFF_MEMO_HEAD = "[AI 초안 없음 · 직원이 직접 답해 주세요]"
 #: 직원 참고 칸에 코드가 붙이는 견적 계산 줄의 머리(C10-6) — 계산기 값 · 제품 이름이라 비공개 메모 섞임 재료에서 뺀다.
 MEMO_QUOTE_HEAD = "[견적 계산"
 #: 직원 참고 칸에 코드가 붙이는 그림 읽기 줄의 머리(설계서 17.11 (d)) — 숫자 · 정한 말뿐이라 같은 까닭으로 뺀다.
@@ -208,7 +210,7 @@ def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
     """비공개 메모 글(직원 내부 메모 · 우리 AI 메모의 직원 참고 칸) — 초안에 섞이면 검사가 막는다(R1-12).
 
-    우리 AI 메모는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 · 그림 읽기
+    우리 AI 메모(넘김 메모 포함)는 직원 참고 칸만 넣는다 — 같은 물음에 같은 답이 다시 나오는 것까지 막지 않게. 그 칸의 견적 계산 · 그림 읽기
     줄(:data:`MEMO_CODE_HEADS` — 코드가 쓴 계산기 값 · 읽은 범위)도 뺀다 — 다음 초안이 같은 제품 이름 · 값을 쓰는 것을 막지 않게.
     """
     out: list[str] = []
@@ -216,7 +218,7 @@ def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
         if not line.meta.is_private or line.meta.is_log or not line.text.strip():
             continue
         text = line.text
-        if text.lstrip().startswith(MEMO_HEAD):
+        if text.lstrip().startswith((MEMO_HEAD, HANDOFF_MEMO_HEAD)):
             text = text.split(MEMO_NOTE_HEAD, 1)[1] if MEMO_NOTE_HEAD in text else ""
             text = "\n".join(part for part in text.split("\n") if not part.lstrip().startswith(MEMO_CODE_HEADS))
         out.append(text)
@@ -226,7 +228,7 @@ def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
 def memo_text(draft: str, staff_note: str) -> str:
     """내부 메모 글 — 첫 줄 표지 · 손님께 보낼 답 · 직원 참고(한 번 가려서 싣고, 비었으면 '없음').
 
-    넘김 · 거절은 메모를 쓰지 않으니(:mod:`.drafting` 설명) 올리는 메모에는 넘김 까닭 줄이 없다.
+    넘김 까닭은 이 메모에 싣지 않는다 — 넘긴 차례는 따로 넘김 메모(:mod:`.handoff_memo`, 처음 끔)다.
     """
     note = mask(staff_note).strip() if staff_note.strip() else ""
     return "\n".join((MEMO_HEAD, MEMO_DRAFT_HEAD, draft.strip(), MEMO_NOTE_HEAD, note or "없음"))
