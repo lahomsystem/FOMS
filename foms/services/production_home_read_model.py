@@ -134,12 +134,19 @@ def _change_line(alerts: list[dict[str, Any]]) -> str:
     return line
 
 
-def _by_line(row: dict[str, Any]) -> str:
-    """만들 것 줄의 "발주 <발주사> · 담당 <영업 담당>"(사용자 11-11). 빈 쪽은 빼고, 둘 다 없으면 빈 글(요소를 안 그린다)."""
+def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
+    """만들 것 줄의 발주사 · 영업 담당(사용자 11-11). 빈 쪽은 빼고, 둘 다 없으면 빈 목록(요소를 안 그린다).
+
+    글 한 덩이가 아니라 조각으로 준다 — 화면이 머리말(발주/담당)은 작게, 이름은 굵게, 발주사와 담당은
+    다른 색으로 그린다(사용자 11-11 "전부 회색이라 구분이 안 돼"). ``k`` 는 색을 고르는 열쇠(o 발주사 · m 담당)."""
     orderer = str(row.get('orderer_name') or '').strip()
     manager = str(row.get('manager_name') or '').strip()
-    parts = [f"발주 {orderer}" if orderer else '', f"담당 {manager}" if manager and manager != '-' else '']
-    return ' · '.join(p for p in parts if p)
+    parts = []
+    if orderer:
+        parts.append({'k': 'o', 'label': '발주', 'name': orderer})
+    if manager and manager != '-':
+        parts.append({'k': 'm', 'label': '담당', 'name': manager})
+    return parts
 
 
 #: 시공일이 이보다 더 지난 주문은 맨 아래 "지난 시공일" 한 묶음으로 모은다(스테이징 실측 11-09: 139일 지난
@@ -357,7 +364,7 @@ def build_production_home(
         row['has_changes'] = bool(alerts)
         row['home_alerts'] = alerts
         row['change_line'] = _change_line(alerts)
-        row['by_line'] = _by_line(row)
+        row['by_parts'] = _by_parts(row)
         row['drawing_label'] = f"도면 {drawing_count}장" if drawing_count else '도면 없음'
         row['search_text'] = ' '.join(
             str(part) for part in (

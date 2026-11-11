@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111f" in html
+    assert "home.css?v=20261111g" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -227,7 +227,8 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     only_m = _add_order("PRODUCTION", "담당만", 0, with_run=True, manager="이담당")
     none = _add_order("PRODUCTION", "둘다없음", 0, with_run=True, manager="-")
     _add_order("DRAWING", "도면주문", 0, orderer="작은칸발주", manager="작은칸담당")
-    want = {both.id: "발주 한샘대리점 · 담당 김영업", only_o.id: "발주 리바트", only_m.id: "담당 이담당"}
+    o, m = '<span class="fph-by is-o"><i>발주</i> {}</span>', '<span class="fph-by is-m"><i>담당</i> {}</span>'
+    want = {both.id: o.format("한샘대리점") + " " + m.format("김영업"), only_o.id: o.format("리바트"), only_m.id: m.format("이담당")}
     date = client.get(HOME).get_data(as_text=True)
     pane = _pane(date, get_today_kst().isoformat())
     steps = client.get(HOME + "?tab=steps").get_data(as_text=True)
@@ -243,6 +244,17 @@ def test_만들_것_줄에_발주사와_영업_담당을_이름_줄_오른쪽에
     assert ("min-width: 0; max-width: 100%; }" in css.split(".fph-dr__nm {")[1].split("}")[0] + "}")
     # 발주사·담당 글은 말줄임 없이 줄이 넘어간다 — 글자 150% 에서 담당 이름이 "…" 로 잘리던 것(스테이징 실화면)
     by = re.search(r"\.fph-dr__by \{[^}]*\}", css).group(0)
-    assert "overflow-wrap: anywhere" in by and "word-break: keep-all" in by and "nowrap" not in by and "ellipsis" not in by
+    piece = re.search(r"(?m)^\.fph-by \{[^}]*\}", css).group(0)
+    assert "flex-wrap: wrap" in by and "nowrap" not in by and "ellipsis" not in by
+    assert "overflow-wrap: anywhere" in piece and "word-break: keep-all" in piece and "nowrap" not in piece and "ellipsis" not in piece
     assert ".fph-qr__ln { display: flex; flex-wrap: wrap; align-items: baseline;" in css
-    assert ".fph-qr__who .fph-qr__by { max-width: 100%; color: var(--fph-text3); white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }" in css
+    # 내 공정 줄은 `.fph-qr__who span`(한 줄 말줄임 · 회색)이 조각에도 걸린다 — 묶음과 조각 둘 다 풀어야 150% 에서 안 잘린다
+    qby = re.search(r"\.fph-qr__who \.fph-qr__by \{[^}]*\}", css).group(0)
+    qpiece = re.search(r"\.fph-qr__who \.fph-by \{[^}]*\}", css).group(0)
+    assert "white-space: normal" in qby and "overflow: visible" in qby and "flex-wrap: wrap" in qby
+    assert "white-space: normal" in qpiece and "overflow: visible" in qpiece
+    # 시인성(사용자 11-11 "전부 회색이라 구분이 안 돼"): 이름은 굵고 진하게, 담당은 남색, 머리말만 회색 작게
+    assert "font-weight: 700" in piece and "color: var(--fph-text);" in piece and "--fph-text3" not in piece + by + qby + qpiece
+    assert "\n.fph-by.is-m { color: var(--fph-brand-dark); }" in css and ".fph-qr__who .fph-by.is-m { color: var(--fph-brand-dark); }" in css
+    label = re.search(r"(?m)^\.fph-by i \{[^}]*\}", css).group(0)
+    assert "color: var(--fph-text3)" in label and "calc(12px * var(--foms-fs, 1))" in label and "font-style: normal" in label
