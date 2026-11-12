@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-portal.css') }}">
 </head>
 {% set pp_back = self.mobile_back() | trim %}
-{% set pp_tab = 'notices' if request.endpoint == 'partner_portal.notices' else 'new' if request.endpoint == 'partner_portal.new_order' else ('turn' if request.args.get('turn') == '1' else ('done' if request.args.get('stage') == '완료' else ('home' if (view is defined and view == 'home') else 'orders'))) %}
+{% set pp_tab = 'notices' if request.endpoint == 'partner_portal.notices' else 'ship' if request.endpoint == 'partner_portal.shipments' else 'new' if request.endpoint == 'partner_portal.new_order' else ('turn' if request.args.get('turn') == '1' else ('done' if request.args.get('stage') == '완료' else ('home' if (view is defined and view == 'home') else 'orders'))) %}
 <body class="pp-body erp-mobile-v2-layout">
 <div class="erp-mobile-shell pp-shell" data-erp-mobile-v2="true">
     {# 휴대폰(992px 미만): 우리 위 줄 + 아래 탭 5개(설계서 §3.1 · §16). PC 는 아래 머리줄 · 메뉴 줄(foms-shell-desktop-only). #}
@@ -52,6 +52,7 @@
             {{ tab('orders', url_for('partner_portal.home', view='orders'), 'fa-layer-group', '주문') }}
             {{ tab('turn', url_for('partner_portal.home', turn='1'), 'fa-compass-drafting', '도면 확인', partner_turn_count or 0) }}
             {{ tab('new', url_for('partner_portal.new_order'), 'fa-plus', '새 주문') }}
+            {{ tab('ship', url_for('partner_portal.shipments'), 'fa-truck', '출고') }}
             {{ tab('done', url_for('partner_portal.home', stage='완료'), 'fa-camera', '완공·AS') }}
         </nav>
     </div>
@@ -80,6 +81,7 @@
         <ul class="navbar-nav flex-row flex-wrap gap-3">
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home') }}"><i class="fas fa-layer-group"></i> {{ org.name }} 주문</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home', turn='1') }}"><i class="fas fa-compass-drafting"></i> 도면 확인{% if partner_turn_count %} <span class="badge rounded-pill bg-danger">{{ partner_turn_count }}</span>{% endif %}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.shipments') }}"><i class="fas fa-truck"></i> 출고</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home', stage='완료') }}"><i class="fas fa-camera"></i> 완공 사진 · AS</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.new_order') }}"><i class="fas fa-plus"></i> 새 주문</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_statements_portal.ledger') }}"><i class="fas fa-file-invoice"></i> 거래명세서</a></li>
