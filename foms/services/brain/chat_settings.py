@@ -42,7 +42,8 @@ STAGES: tuple[str, ...] = (STAGE_ADMIN, STAGE_LEADS, STAGE_ALL)
 GROUP_OPEN, GROUP_MODEL, GROUP_LIMIT, GROUP_HELP = "켜기 · 여는 단계", "모델", "돈 · 남용 막기", "빈 지식 · 관문"
 GROUP_EMBED = "의미 찾기(Voyage AI — D114)"
 EMBED_FIELD = "brain_embeddings_enabled"
-#: 상담 사례(가린 손님 질문 + 가린 직원 답) 벡터 — 백필 스크립트만(상담 초안의 비슷한 사례 고르기는 아직 바꾸지 않는다).
+#: 상담 사례(가린 손님 질문 + 가린 직원 답) 벡터 — 백필 스크립트로 채운다. 상담 초안의 비슷한 사례 고르기는 상담 관리 칸
+#: '뜻으로도 비슷한 상담 찾기'(:mod:`foms.services.cs_agent.case_meaning`)가 켜졌을 때만 이 벡터를 쓴다.
 CASE_FIELD = "cs_case_embeddings_enabled"
 
 FIELDS: tuple[Field, ...] = (
@@ -73,8 +74,8 @@ FIELDS: tuple[Field, ...] = (
     Field("embed_timeout_s", "의미 찾기 시간 상한", KIND_INT, 8, GROUP_EMBED, low=3, high=30, unit="초",
           help="한 번 부를 때 이 시간을 넘으면 그 질문은 글자로만 찾아요"),
     Field(CASE_FIELD, "상담 사례 벡터(백필만)", KIND_BOOL, False, GROUP_EMBED,
-          help="개인정보를 가린 손님 질문과 직원 답으로 뜻 찾기 자료를 만들어요(지난 상담을 한꺼번에 채울 때만 — 상담 초안이 "
-               "비슷한 사례를 고르는 방식은 그대로예요). 켜기 전에 개인정보 처리방침의 '국외 이전'에 Voyage AI 와 '상담 글'을 "
+          help="개인정보를 가린 손님 질문과 직원 답으로 뜻 찾기 자료를 만들어요(지난 상담을 한꺼번에 채울 때 — 상담 초안은 상담 "
+               "관리의 '뜻으로도 비슷한 상담 찾기'가 켜졌을 때만 이 자료를 써요). 켜기 전에 개인정보 처리방침의 '국외 이전'에 Voyage AI 와 '상담 글'을 "
                "올려야 해요(사장님 확인)"),
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
