@@ -22,6 +22,7 @@ from foms.services.construction.tablet_first import (
     DAY_ROWS_CAP,
     fetch_day_orders,
     fetch_undated_orders,
+    is_as_status,
     parse_day,
     production_note,
     scope_conditions,
@@ -52,12 +53,18 @@ def day_label(day: str | None) -> str:
     return f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})"
 
 
-def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None) -> str | None:
-    """옛 딥링크(날짜 없음)의 날짜 — 그 주문 시공일 · AS 방문일 중 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1)."""
-    days = sorted({str(d) for (d,) in db.execute(
-        select(OrderScheduleDate.date).where(
+def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None, *, is_as: bool = False) -> str | None:
+    """옛 딥링크(날짜 없음)의 날짜 — 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1).
+
+    첫 화면 짝 규칙(D43)과 같은 종류를 먼저 본다: AS 상태 집 = AS 방문일, 그 밖 = 시공일. 그 종류가 없을 때만 다른 종류.
+    (AS 집을 시공일로 열면 그날 첫 화면에 그 집이 없어 왼쪽 목록과 수가 어긋났다 — 스테이징 11-12.)
+    """
+    rows = db.execute(
+        select(OrderScheduleDate.kind, OrderScheduleDate.date).where(
             OrderScheduleDate.order_id == order_id, OrderScheduleDate.kind.in_(("construction", "as_visit")))
-    ).all() if parse_day(d)})
+    ).all()
+    want = "as_visit" if is_as else "construction"
+    days = sorted({str(d) for k, d in rows if k == want and parse_day(d)}) or sorted({str(d) for _k, d in rows if parse_day(d)})
     if not days:
         return None
     base = (today or get_today_kst()).isoformat()
@@ -76,7 +83,7 @@ def build_detail(db: Any, *, focus: Any, user: Any, mine_only: bool, partner_org
     Returns:
         {'orders': 주문 목록(시간 순), 'date', 'date_label', 'worker', 'focus_id'}.
     """
-    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today)
+    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today, is_as=is_as_status(focus))
     worker = str(worker_arg or "").strip()
     orders: list[Any] = []
     if day:
