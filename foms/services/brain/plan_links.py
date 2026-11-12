@@ -110,7 +110,7 @@ def plan_problems(plan: Any) -> list[str]:
     """계획 꼴 문제(자리만 — 글은 싣지 않는다)."""
     if not isinstance(plan, Mapping):
         return ["계획: 객체여야 한다"]
-    problems = [f"{name}: 목록이어야 한다" for name in ("items", "conflicts", "new_items")
+    problems = [f"{name}: 목록이어야 한다" for name in ("items", "conflicts", "new_items", "labels", "links")
                 if not isinstance(plan.get(name, []), list)]
     if not problems:
         problems += [f"items[{i}]: id 가 있는 객체여야 한다" for i, item in enumerate(plan.get("items") or [])
@@ -178,7 +178,7 @@ def reason(head: str, decisions: Iterable[str]) -> str:
 LINK_REASONS: dict[str, str] = {
     "copy_in": "다른 곳에도 같은 값이 적혀 있다고 표시해요", "value_from": "금액을 가져오는 곳을 이어요",
     "at_step": "어느 단계에서 쓰는 지식인지 이어요", "decided_by": "어느 사장님 결정에서 왔는지 이어요",
-    "about": "어느 지식에 대한 것인지 이어요",
+    "about": "어느 지식에 대한 것인지 이어요", "applies_to": "이 규칙이 걸리는 제품 · 옵션을 이어요",
 }
 
 
