@@ -4202,11 +4202,25 @@
         if (!id) {
             return;
         }
-        if (!window.confirm('붙이기를 되돌립니다. 수집 직후 상태로 돌아갑니다.')) {
+        // 주문 만들기 되돌리기(2026-11-12) — 같은 /detach 가 NEW 를 받으면 만든 주문을 휴지통으로 보낸다.
+        var undo = btn.dataset.undoCreate === '1';
+        var body = {};
+        var ask = undo
+            ? '주문 #' + safeId(btn.dataset.orderId) + ' 을(를) 휴지통으로 보내고, 이 결제를 수집 직후 상태로 돌립니다.\n'
+              + '그다음 기존 주문에 추가결제·재결제로 붙이세요. (휴지통에서 되살릴 수 있습니다)'
+            : '붙이기를 되돌립니다. 수집 직후 상태로 돌아갑니다.';
+        if (!window.confirm(ask)) {
             return;
         }
+        if (undo && btn.dataset.needsReason === '1') {
+            var reason = window.prompt('접수 이후 단계 주문입니다. 왜 되돌리는지 한 줄 적어 주세요 (관리자만).', '');
+            if (!reason || !reason.trim()) {
+                return;
+            }
+            body.reason = reason.trim();
+        }
         btn.disabled = true;
-        const result = await postJson(BASE + id + '/detach', {});
+        const result = await postJson(BASE + id + '/detach', body);
         if (!result.ok) {
             window.alert(result.error);
             btn.disabled = false;

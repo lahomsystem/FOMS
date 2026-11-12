@@ -306,3 +306,33 @@ def test_pane_hides_attach_for_a_living_created_order(app, client, workbench_on)
     body = _pane(client, int(link.id))
 
     assert SEEK_INPUT not in body, "살아 있는 주문인데 붙이기 칸이 열렸다"
+
+
+UNDO_BUTTON = 'data-undo-create="1"'
+
+
+def test_pane_offers_undo_create_for_a_living_created_order(app, client, workbench_on):
+    """살아 있는 주문으로 만든 수집분에는 '주문 만들기 되돌리기' 단추가 있다(2026-11-12)."""
+    _login(client)
+    tel = "010-7500-0011"
+    order = _order(tel=tel)
+    link = _link(order_no="N-GT-11", amount=520_000, order_id=int(order.id), tel=tel)
+
+    body = _pane(client, int(link.id))
+
+    assert UNDO_BUTTON in body
+    assert "주문 만들기 되돌리기" in body
+
+
+def test_pane_has_no_undo_create_once_the_order_is_trashed(app, client, workbench_on):
+    """음성 대조군 — 휴지통 주문이면 되돌리기 대신 붙이기 칸이 나온다."""
+    actor = _login(client)
+    tel = "010-7500-0012"
+    order = _order(tel=tel)
+    link = _link(order_no="N-GT-12", amount=520_000, order_id=int(order.id), tel=tel)
+    _trash(order, actor=actor, reason="정리")
+
+    body = _pane(client, int(link.id))
+
+    assert UNDO_BUTTON not in body
+    assert SEEK_INPUT in body

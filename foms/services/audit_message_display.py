@@ -151,6 +151,7 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_GHOST_REPAY_SETTLED": "네이버 유령 주문 재결제 받음 처리·되돌리기",
     "NAVER_INGEST_REPAY_RECONCILE": "네이버 재결제 정리",
     "NAVER_INGEST_DETACH_ORDER": "네이버 수집분 연결 되돌림",
+    "NAVER_INGEST_UNDO_CREATE": "네이버 주문 만들기 되돌림(휴지통)",
     "NAVER_INGEST_FULFILLMENT_ENQUEUE": "네이버 발주확인·발송처리 요청",
     "NAVER_INGEST_BULK_DISPATCH_ENQUEUE": "네이버 일괄 발송처리 요청(오늘 실측분)",
     "NAVER_INGEST_BULK_DISPATCH_AUTO": "네이버 자동 발송처리(평일 정시)",
