@@ -56,7 +56,7 @@
     "foms/services/channel_dispatch.py:59",
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
-    "foms/services/cs_agent/drafting.py:333",
+    "foms/services/cs_agent/drafting.py:334",
     "foms/services/cs_agent/handoff_memo.py:205",
     "foms/services/cs_agent/handoff_send.py:248",
     "foms/services/cs_agent/rewrite.py:117",
@@ -3539,7 +3539,7 @@
     },
     {
       "path": "foms/services/cs_agent/drafting.py",
-      "lineno": 333,
+      "lineno": 334,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
