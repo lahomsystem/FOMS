@@ -65,7 +65,7 @@ from foms.services.orders.as_drawing import (
     round_no as drawing_round_no,
     round_view as drawing_round_view,
 )
-from foms.services.orders.as_drawing_notify import notify_as_drawing
+from foms.services.orders.as_drawing_notify import enqueue_as_drawing_push, notify_as_drawing
 from foms.services.orders.as_log import (
     AS_LOG_TEXT_MAX,
     append_client_log,
@@ -868,18 +868,20 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None):
     _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}",
               extra={"received_date": str(today), "change_set": change_set_id})
     opened_round = None
+    drawing_notices: list = []
     if captured_register.get("as_drawing") == "opened":
         db.refresh(order)
         sd_now = order.structured_data if isinstance(order.structured_data, dict) else {}
         opened_round = current_drawing_round(sd_now)
         if opened_round is not None:
-            notify_as_drawing(
+            drawing_notices = notify_as_drawing(
                 db, order,
                 "registered" if opened_round.get("registered_as") else "request",
                 round_no=drawing_round_no(sd_now, opened_round), actor=user,
                 text=str(opened_round.get("memo") or ""),
             )
     db.commit()
+    enqueue_as_drawing_push(db, drawing_notices)   # 흐름 1 부탁은 도면 담당 폰에도(커밋 뒤)
     _invalidate_shipment_asrec_caches("api_as_register")
     if opened_round is not None:
         _invalidate_drawing_dashboards()
