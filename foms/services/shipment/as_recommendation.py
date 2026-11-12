@@ -14,6 +14,8 @@ cycle command(schedule/unschedule)과 crew replace command 로 반영/취소하�
   저장되고 번호 배정은 비어 있다. 그래서 넣기 때 출고 이름 배열이 비어 있지 않으면 AS 주문
   이름 배열을 그 이름들로 바꾼다(출고 설정 정본 :func:`apply_shipment_settings` 를 거쳐 같은
   AS 쓰기 · 같은 tx 에서). 취소는 AS 이름이 넣은 그대로일 때만 넣기 전 이름으로 되돌린다.
+  이름이 실제로 바뀌면 AS 주문 변경 원장(``OrderFieldChange``)에 이름판 저장과 같은 점 경로
+  ``shipment.construction_workers`` 행을 같은 mutation 안에서 남긴다(D35-b).
 * **두 Order 를 ID 순 FOR UPDATE** 로 잠그고 **If-Match(version)을 직접 검사**해 blind
   overwrite 를 막는다. ``force`` 는 기존 수동 방문일을 덮되, 덮인 값을 snapshot 에
   보존한다(현재 값 무시 통째 덮어쓰기 0).
@@ -29,6 +31,7 @@ from __future__ import annotations
 import copy
 import datetime
 import hashlib
+import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -44,11 +47,17 @@ from foms.services.orders.as_cycle_service import (
     unschedule_as_cycle,
 )
 from foms.services.orders.as_schedule_link import SOURCE_SHIPMENT, clear_link, read_link, write_link
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.revision import execute_order_mutation
+from foms.services.orders.structured_diff import diff_structured
 from foms.services.shipment.writer import apply_shipment_settings, build_shipment_settings_patch
 from models import InstallationWorker, Order, OrderEvent
 
 _AS_ROW_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
+
+#: 넣기 · 취소가 변경 원장에 남기는 유일한 경로(D35-b). 같은 AS 쓰기 안의 schedule_link 등
+#: 다른 sd 변화는 원장 대상이 아니다 — 이름판 저장(``/api/erp/shipment/update``)과 같은 경로다.
+_AS_NAMES_LEDGER_PATH = "shipment.construction_workers"
 
 
 class ASRecommendationError(RuntimeError):
@@ -194,14 +203,25 @@ def _write_ship_recommendations(
     session: Session, ship_id: int, as_id: int, snapshot: Optional[Dict[str, Any]],
     *, actor_user_id: int, event_type: str, payload: Dict[str, Any],
     now: datetime.datetime, as_sd_mutator: Optional[Callable[[dict], Any]] = None,
-) -> Order:
+    change_set_id: Optional[str] = None,
+) -> int:
     """출고 Order 의 추천 snapshot list 를 갱신한다(REV-00: version/receipt/event 한 tx).
 
     ``snapshot`` 이 있으면 해당 as_id 항목을 upsert, ``None`` 이면 제거한다. ``as_sd_mutator``
     가 주어지면 **같은 mutation·같은 tx** 안에서 AS Order 의 structured_data 도 함께
     ``copy.deepcopy`` + `flag_modified` 로 변형한다(§3.2 schedule_link · §14.9 시공자 이름,
     추가 command/커밋 없음). ``None`` 이면 AS Order 는 잠그지도 건드리지도 않는다.
+
+    ``change_set_id`` 가 있으면 AS 이름 배열(:data:`_AS_NAMES_LEDGER_PATH`)이 실제로 바뀐
+    경우에만 그 경로 변경 행을 :func:`record_field_changes` 로 **같은 mutation 안** 에 싣는다
+    (D35-b). 바깥에서 쓰면 receipt backstop rollback 뒤 원장 행만 남는 유령 행이 생긴다
+    (``foms/api/shipment/settings.py`` AUDIT-GAP-01 주석과 같은 이유).
+
+    Returns:
+        AS 주문에 실린 변경 원장 행 수(이름이 안 바뀌었거나 AS 를 안 건드리면 0).
     """
+    captured: Dict[str, int] = {"rows": 0}
+
     def _mutate(sess: Session, orders: List[Order]) -> Dict[int, List[str]]:
         by_id = {o.id: o for o in orders}
         target = by_id[ship_id]
@@ -221,8 +241,18 @@ def _write_ship_recommendations(
 
         if as_sd_mutator is not None:
             as_order = by_id[as_id]
-            as_sd = copy.deepcopy(as_order.structured_data or {})
+            old_as_sd = as_order.structured_data or {}
+            as_sd = copy.deepcopy(old_as_sd)
             as_sd_mutator(as_sd)
+            if change_set_id:
+                name_changes = [
+                    c for c in diff_structured(old_as_sd, as_sd, max_changes=-1).changes
+                    if c.get("path") == _AS_NAMES_LEDGER_PATH
+                ]
+                captured["rows"] = record_field_changes(
+                    sess, name_changes, order_id=int(as_order.id),
+                    actor_user_id=actor_user_id, change_set_id=change_set_id,
+                )
             as_order.structured_data = as_sd
             flag_modified(as_order, "structured_data")
             families[as_order.id] = [f"ORDER_DETAIL:{as_order.id}"]
@@ -240,7 +270,7 @@ def _write_ship_recommendations(
         request_hash=_hash(f"asrec:{event_type}:{now.isoformat()}"),
         mutation=_mutate, now=now,
     )
-    return session.get(Order, ship_id)
+    return captured["rows"]
 
 
 def _safe_int(value: Any) -> Optional[int]:
@@ -256,6 +286,7 @@ def apply_as_recommendation(
     cycle_id: Optional[str] = None, shipment_version: Optional[int] = None,
     as_version: Optional[int] = None, force: bool = False,
     source_screen: Optional[str] = None, now: Optional[datetime.datetime] = None,
+    change_set_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """출고 시공일/작업자를 AS 건에 canonical command 로 반영한다(한 tx).
 
@@ -264,13 +295,16 @@ def apply_as_recommendation(
     AS 에 복제한다. 출고 시공자 이름 배열이 비어 있지 않으면 AS 이름 배열도 그 이름들로
     바꾼다(§14.9 — 비어 있으면 AS 이름은 그대로). 이전 값 snapshot(``previous_names`` ·
     ``applied_names`` 포함)은 출고 Order 에 보존한다(cancel 복원용). 기존 수동 방문일이
-    다르고 ``force`` 가 아니면 409.
+    다르고 ``force`` 가 아니면 409. AS 이름이 실제로 바뀌면 ``change_set_id``(없으면 새로
+    만든다)로 AS 주문 변경 원장 행을 남긴다(D35-b).
 
     Returns:
         ``{as_order_id, applied_date, applied_workers, applied_worker_ids, as_visit_date,
-        recommendation_transition_id, shipment_version, as_version}``.
+        recommendation_transition_id, shipment_version, as_version, change_set,
+        change_count}``.
     """
     now = now or now_utc_naive()
+    change_set_id = change_set_id or str(uuid.uuid4())
     ship, as_order = _lock_pair(session, shipment_order_id, as_order_id)
     _validate_shipment_target(ship)
     _check_version(ship, shipment_version)
@@ -324,7 +358,7 @@ def apply_as_recommendation(
         if applied_names:
             _write_as_names(sd, applied_names)
 
-    _write_ship_recommendations(
+    change_count = _write_ship_recommendations(
         session, ship.id, as_order.id, snapshot, actor_user_id=actor_user_id,
         event_type="AS_RECOMMENDATION_APPLIED",
         payload={
@@ -334,7 +368,7 @@ def apply_as_recommendation(
             "change_method": "API", "source_screen": source_screen or "erp_shipment_dashboard",
         },
         now=now,
-        as_sd_mutator=_apply_as_mutator,
+        as_sd_mutator=_apply_as_mutator, change_set_id=change_set_id,
     )
     return {
         "as_order_id": as_order.id, "applied_date": ship_date,
@@ -343,6 +377,7 @@ def apply_as_recommendation(
         "applied_worker_ids": list(ship_crew_ids), "as_visit_date": ship_date,
         "recommendation_transition_id": rec_transition_id,
         "shipment_version": ship.mutation_version, "as_version": as_order.mutation_version,
+        "change_set": change_set_id, "change_count": change_count,
     }
 
 
@@ -350,7 +385,7 @@ def cancel_as_recommendation(
     session: Session, *, shipment_order_id: int, as_order_id: int, actor_user_id: int,
     cycle_id: Optional[str] = None, recommendation_transition_id: Optional[int] = None,
     shipment_version: Optional[int] = None, as_version: Optional[int] = None,
-    now: Optional[datetime.datetime] = None,
+    now: Optional[datetime.datetime] = None, change_set_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """추천으로 반영한 AS 방문일/작업자를 이전 snapshot 으로 복원한다(한 tx).
 
@@ -360,13 +395,15 @@ def cancel_as_recommendation(
     제거한다. 후속 변경이 있으면 409(불변). 시공자 이름 배열은 snapshot ``applied_names``
     가 있고 AS 지금 이름이 그것과 같을 때만 ``previous_names`` 로 되돌린다(null 이면 키
     삭제). 그 사이 손으로 바꿨으면 이름은 두고 취소는 계속한다(이름 때문에 409 없음,
-    §14.9). ``applied_names`` 키가 없는 옛 snapshot 은 이름을 건드리지 않는다.
+    §14.9). ``applied_names`` 키가 없는 옛 snapshot 은 이름을 건드리지 않는다. 이름을
+    되돌리면 ``change_set_id``(없으면 새로 만든다)로 AS 주문 변경 원장 행을 남긴다(D35-b).
 
     Returns:
         ``{as_order_id, cleared_visit_date, restored_visit_date, shipment_version,
-        as_version}``.
+        as_version, change_set, change_count}``.
     """
     now = now or now_utc_naive()
+    change_set_id = change_set_id or str(uuid.uuid4())
     ship, as_order = _lock_pair(session, shipment_order_id, as_order_id)
     _check_version(ship, shipment_version)
     _check_version(as_order, as_version)
@@ -430,7 +467,7 @@ def cancel_as_recommendation(
         if restore_names:
             _write_as_names(sd, prev_names)
 
-    _write_ship_recommendations(
+    change_count = _write_ship_recommendations(
         session, ship.id, as_order.id, None, actor_user_id=actor_user_id,
         event_type="AS_RECOMMENDATION_CANCELLED",
         payload={
@@ -441,11 +478,13 @@ def cancel_as_recommendation(
         },
         now=now,
         as_sd_mutator=_cancel_as_mutator if (owns_link or restore_names) else None,
+        change_set_id=change_set_id,
     )
     return {
         "as_order_id": as_order.id, "cleared_visit_date": applied_date,
         "restored_visit_date": prev_date,
         "shipment_version": ship.mutation_version, "as_version": as_order.mutation_version,
+        "change_set": change_set_id, "change_count": change_count,
     }
 
 
