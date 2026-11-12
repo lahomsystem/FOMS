@@ -310,13 +310,23 @@ def test_workmode_skipped_for_fine_pointer_devices(client, monkeypatch) -> None:
 
 
 def test_workmode_rendered_for_coarse_pointer_devices(client, monkeypatch) -> None:
-    """터치 기기(foms_ptr=coarse)에는 기존대로 렌더한다."""
+    """터치 기기(foms_ptr=coarse)에는 태블릿 표면을 렌더한다.
+
+    설계서 tablet-production-ui §13 P13-3: 화면 긴 변 ≥992(태블릿)면 첫 화면(날짜 버튼 + 시공자 묶음)이
+    3분할 대신 서고, 3분할은 상세(?focus_order=)에서 그린다. 폰(긴 변 <992)은 지금처럼 3분할 마크업 그대로.
+    """
     _seed_order(22)
+    oid = db_session.query(Order.id).filter_by(customer_name="시공캐시22").scalar()
     _login_v2_cohort(client, monkeypatch, "ptr_coarse_admin")
     _set_ptr_cookie(client, "coarse")
 
     body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
-    assert "foms-construction-workmode" in body
+    assert "foms-cons-first" in body and "foms-construction-workmode" not in body
+    detail = client.get(f"/erp/construction/dashboard?view=fragment&focus_order={oid}").get_data(as_text=True)
+    assert "foms-construction-workmode" in detail
+    client.set_cookie("foms_scr", "844", domain="localhost")
+    phone = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    assert "foms-construction-workmode" in phone and "foms-cons-first" not in phone
 
 
 def test_workmode_rendered_when_pointer_cookie_absent(client, monkeypatch) -> None:
@@ -328,7 +338,8 @@ def test_workmode_rendered_when_pointer_cookie_absent(client, monkeypatch) -> No
     _login_v2_cohort(client, monkeypatch, "ptr_absent_admin")
 
     body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
-    assert "foms-construction-workmode" in body
+    # 쿠키가 없으면 coarse · 화면 긴 변 둘 다 참(전부 렌더 쪽) → 태블릿 첫 화면(§13 P13-3). 표면이 비지 않는다.
+    assert "foms-cons-first" in body
 
 
 def test_grid_row_markup_has_no_repeated_inline_styles(client, monkeypatch) -> None:

@@ -151,8 +151,14 @@
      data-foms-shell 강제 해치 없음) — 마우스 기기에서는 어떤 뷰포트·방향에서도 표시 불가능한
      죽은 마크업이라 렌더하지 않는다(스테이징 실측 241.8KB = fragment 의 32.4%).
      coarse_pointer_surfaces 는 쿠키 미설정 시 True(현행대로 전부 렌더)라 blank 위험 없음. #}
+  {# 태블릿 가로 첫 화면(설계서 tablet-production-ui §13 P13-3): 라우트가 mode 'first' 로 정하면(코호트 · coarse · 화면 긴 변 ≥992 ·
+     focus_order · q 없음) 3분할 대신 날짜 버튼 + 시공자 묶음 조각을 그린다. 상세(?focus_order=) · 찾기(?q=)는 3분할 그대로. #}
   {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
-    {% include 'construction/partials/tablet_workmode_body.html' %}
+    {% if cons_tablet and cons_tablet.mode == 'first' %}
+      {% include 'construction/partials/tablet_first_body.html' %}
+    {% else %}
+      {% include 'construction/partials/tablet_workmode_body.html' %}
+    {% endif %}
   {% endif %}
   {% if erp_mobile_v2_enabled %}
     {% include 'construction/partials/complete_gate_sheet.html' %}

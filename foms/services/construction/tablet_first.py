@@ -260,6 +260,11 @@ def build_row_view(row: _DayRow) -> dict:
     }
 
 
+def time_sort_key(order: Any) -> tuple[int, int]:
+    """시간 순 정렬 열쇠(시각 글 → 오전 → 오후 → 종일 → 미정) — 첫 화면 묶음 · 상세 왼쪽 목록 공용."""
+    return _time_fields(_sd(order))[2]
+
+
 def build_day_section(day: str, orders: list[Any], worker_settings: list, *, count: int, preview: bool) -> dict:
     """하루 묶음 — 시간 순으로 줄 세운 뒤 출고와 같은 ``build_tablet_day_sheet`` 로 묶고 색을 매긴다."""
     rows = sorted((_DayRow(o, day) for o in orders), key=lambda r: (_time_fields(_sd(r))[2], r.id))
@@ -359,5 +364,6 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         "next_date": preview, "next_count": counts.get(preview, 0) if preview else 0,
         "worker": chosen,
         "worker_options": _worker_options(worker_settings, sections, include_settings=not is_freelancer),
+        "worker_colors": {p["name"]: p["color_index"] for sec in reversed(sections) for p in sec["people"]},  # 고른 날 색 우선
         "sections": sections, "cap": DAY_ROWS_CAP,
     }
