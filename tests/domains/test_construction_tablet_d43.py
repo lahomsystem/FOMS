@@ -306,8 +306,9 @@ def test_workmode_js_reveals_active_card_in_detail_list_only() -> None:
     root = Path(__file__).resolve().parents[2]
     js = (root / "static/js/foms/tablet-construction-workmode.js").read_text(encoding="utf-8")
     body = js[js.index("function revealActiveCard()"):js.index("function onReadyOrSwap()")]
-    assert ".foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline__list" in body
-    assert ".foms-cwork-card.is-active" in body and "list.scrollTop" in body and "clientHeight" in body
+    # 밀리는 상자 = 왼쪽 칸 aside(overflow auto). 안쪽 __list 는 안 밀린다(스테이징 실측) — 그걸 밀면 아무 일도 안 일어난다.
+    assert '.foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline"' in body and "timeline__list" not in body
+    assert ".foms-cwork-card.is-active" in body and "box.scrollTop" in body and "clientHeight" in body
     assert "scrollIntoView" not in js and "window.scroll" not in body
     ready = js[js.index("function onReadyOrSwap()"):]
     assert "revealActiveCard();" in ready[:ready.index("}")]
