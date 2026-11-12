@@ -397,7 +397,8 @@
     var list = document.querySelector(".foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline__list");
     var card = list && list.querySelector(".foms-cwork-card.is-active");
     if (!card || !list.clientHeight) return;
-    var top = card.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    var z = typeof window.fomsUiZoom === "function" ? Number(window.fomsUiZoom()) || 1 : 1; // rect 는 화면 크기 배율이 붙은 값
+    var top = (card.getBoundingClientRect().top - list.getBoundingClientRect().top) / z + list.scrollTop;
     if (top < list.scrollTop || top + card.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = Math.max(0, top - 8);
   }
   // 갤러리 마운트 + 기본 범위 필터 적용을 DOM 준비/스왑 양쪽에서 재실행.
