@@ -14,6 +14,7 @@
     python scripts/maintenance/brain_plan_proposals.py --plan <계획 JSON 경로>
     python scripts/maintenance/brain_plan_proposals.py --plan <계획 JSON 경로> --apply
     python scripts/maintenance/brain_plan_proposals.py --from-catalog            # 견적 계산기 제품 · 옵션(설계서 2026-11-12 온톨로지 4절 1)
+    railway ssh -s web -e production -- python scripts/maintenance/brain_plan_proposals.py --plan - < <계획 JSON>   # 4.2
 
 ``--from-catalog`` 는 계획 파일 대신 지금 계산기 정본에서 제품 라인 · 옵션 계획을 메모리에서 만든다(:mod:`foms.services.brain.catalog_plan`
 — 금액 없음 · 파일 안 남김).
@@ -74,15 +75,20 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
 
 
 def read_plan(path: str) -> tuple[dict, str]:
-    """계획 파일(UTF-8 JSON — 앞 BOM 은 된다)과 근거 자리 이름. 오류에는 파일 글을 싣지 않는다."""
+    """계획 파일(UTF-8 JSON — 앞 BOM 은 된다)과 근거 자리 이름. 오류에는 파일 글을 싣지 않는다.
+
+    ``-`` 이면 표준 입력에서 읽는다(로컬 계획을 ``railway ssh`` 로 운영 컨테이너에 흘려 넣을 때 — 온톨로지 4.2)."""
     try:
-        with open(path, "r", encoding="utf-8-sig") as handle:
-            plan = json.load(handle)
+        if path == "-":
+            plan = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
+        else:
+            with open(path, "r", encoding="utf-8-sig") as handle:
+                plan = json.load(handle)
     except (OSError, ValueError):
         raise Refused("PLAN_UNREADABLE", "계획 파일을 읽지 못했다(경로 · JSON 꼴)") from None
     if not isinstance(plan, dict):
         raise Refused("PLAN_UNREADABLE", "계획 파일이 JSON 객체가 아니다")
-    stem = os.path.splitext(os.path.basename(path))[0]
+    stem = "stdin" if path == "-" else os.path.splitext(os.path.basename(path))[0]
     return plan, source_name(plan if plan.get("schema") else {"schema": stem})
 
 

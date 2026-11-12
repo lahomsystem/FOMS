@@ -10,8 +10,10 @@
   옵션 **만들기**(실음 칸에 금액 칸 없음)와 그 항목에서 ``calc:`` 로 가는 ``value_from`` 링크. 값은 계산기가 정본이라(D179) 글 ·
   금액을 하나씩 확인할 것이 없다.
 
-①과 ④ · ⑤ 는 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151 · D192).
-① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`). ⑤ 는 사장님(관리자)만(D192).
+- ``rules`` ⑥ 규칙 · 제품 잇기(온톨로지 4.2 · D194) — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 링크 더하기.
+
+①과 ④ · ⑤ · ⑥ 은 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151 · D192).
+① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`). ⑤ · ⑥ 은 사장님(관리자)만(D192 · D194).
 """
 
 from __future__ import annotations
@@ -20,18 +22,20 @@ from typing import Any, Mapping, Optional
 
 from foms.services.brain.constants import AGENT_WORK_TYPES, OP_CREATE, OP_LINK_ADD, OP_UPDATE
 
-__all__ = ["ADMIN_WIDE_BINS", "BINS", "BIN_CALC", "BIN_CONTENT", "BIN_DECIDE", "BIN_MARK", "BIN_NAMES", "LABEL_KEYS",
-           "bulk_ok_any_grade", "calc_change", "card_bin", "change_ends", "label_only_change", "owner_decides", "ref_label"]
+__all__ = ["ADMIN_WIDE_BINS", "BINS", "BIN_CALC", "BIN_CONTENT", "BIN_DECIDE", "BIN_MARK", "BIN_NAMES", "BIN_RULES",
+           "LABEL_KEYS", "bulk_ok_any_grade", "calc_change", "card_bin", "change_ends", "label_only_change", "owner_decides",
+           "ref_label", "rule_link_change"]
 
-BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK, BIN_CALC = "names", "content", "decide", "mark", "calc"
+BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK = "names", "content", "decide", "mark"
+BIN_CALC, BIN_RULES = "calc", "rules"
 #: 화면 차례.
-BINS: tuple[str, ...] = (BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK, BIN_CALC)
-#: 관리자가 등급과 상관없이 한꺼번에 승인하는 묶음(D151 · ⑤ 는 D192).
-ADMIN_WIDE_BINS: frozenset[str] = frozenset({BIN_NAMES, BIN_MARK, BIN_CALC})
+BINS: tuple[str, ...] = (BIN_NAMES, BIN_CONTENT, BIN_DECIDE, BIN_MARK, BIN_CALC, BIN_RULES)
+#: 관리자가 등급과 상관없이 한꺼번에 승인하는 묶음(D151 · ⑤ 는 D192 · ⑥ 은 D194).
+ADMIN_WIDE_BINS: frozenset[str] = frozenset({BIN_NAMES, BIN_MARK, BIN_CALC, BIN_RULES})
 #: ⑤ — 계산기에서 만든 항목 유형 · 키 머리(:mod:`.catalog_plan`) · 만든 쪽(:data:`.proposals.IMPORT_PROPOSER` 이름) · 값 링크.
 CALC_TYPES: frozenset[str] = frozenset({"product_line", "option"})
 CALC_KEY_HEADS: tuple[str, ...] = ("product_line/", "option/")
-CALC_PROPOSER, CALC_REF, VALUE_LINK = "import", "calc:", "value_from"
+CALC_PROPOSER, CALC_REF, VALUE_LINK, RULE_LINK = "import", "calc:", "value_from", "applies_to"
 #: ⑤ 에 들지 못하게 하는 실음 칸(금액 · 값 사본 — 계산기 값은 ``value_from`` 으로만 가리킨다, D179).
 _AMOUNT_KEYS: frozenset[str] = frozenset({"price", "prices", "amount", "values", "price_30cm", "price_1cm", "price_1m",
                                           "coupon_value"})
@@ -73,6 +77,13 @@ def calc_change(op: str, item_type: Optional[str], fields: Optional[Mapping[str,
             and str(link_to or "").startswith(CALC_REF))
 
 
+def rule_link_change(op: str, link_kind: Optional[str], *, proposed_by: Optional[str] = None,
+                     link_to: Optional[str] = None) -> bool:
+    """⑥ 규칙 · 제품 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기(허용 짝은 넣을 때 이미 봤다)."""
+    return (proposed_by == CALC_PROPOSER and op == OP_LINK_ADD and link_kind == RULE_LINK
+            and str(link_to or "").startswith(CALC_KEY_HEADS))
+
+
 def change_ends(change: Any) -> dict[str, Any]:
     """제안 줄 → :func:`card_bin` 의 ⑤ 판정 칸(만든 쪽 · 링크 두 끝)."""
     return {"proposed_by": getattr(change, "proposed_by", None), "link_from": getattr(change, "link_from", None),
@@ -84,6 +95,8 @@ def card_bin(op: str, item_type: Optional[str], fields: Optional[Mapping[str, An
     """제안 하나의 묶음. ``ends`` = :func:`change_ends`(없으면 ⑤ 는 판정하지 않는다 — 예전 네 묶음 그대로)."""
     if calc_change(op, item_type, fields, link_kind, **ends):
         return BIN_CALC
+    if rule_link_change(op, link_kind, proposed_by=ends.get("proposed_by"), link_to=ends.get("link_to")):
+        return BIN_RULES
     if label_only_change(op, fields):
         return BIN_NAMES
     if owner_decides(op, item_type):
