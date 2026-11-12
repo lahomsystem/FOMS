@@ -256,6 +256,8 @@
 - **고객 공유 링크 제외 시험**: 고객 링크는 `OrderAttachment(category='drawing')` + `drawing_current_files` 만 모은다(`share._collect_drawing_files`). AS 차수 파일은 첨부 행을 만들지 않고 현재본에도 안 들어가서 원래 섞이지 않는다 — 수집 함수와 실제 `/s/<token>` 화면으로 못 박았다(원래 도면은 보이고 AS 그림은 없음).
 - **폰 알림**: 원래 도면 규칙과 같게 부탁 · 도착 · 수정 요청만 폰에도 간다. 알림 유형을 나눴다 — `AS_DRAWING_REQUEST`(도면 담당) · `AS_DRAWING_TRANSFERRED`(영업 · CS) · `AS_DRAWING_REVISION`(차수 연 사람 · 도면 담당), 접수(CS 팀 전체) · 확인은 그대로 `AS_DRAWING` 벨만. `push_sender` P1 · 높은 긴급도 · 배너 글(`AS 도면 도착 · 고객명` 등) · 바로가기(도면팀 = 작업실 실행판, 영업 = 주문 화면)에 등록, 벨 바로가기도 같은 곳. 줄 세우기는 커밋 뒤(`enqueue_as_drawing_push`).
 
+- 운영 반영: PR #818(`b1787ec80`) — 위 두 가지, 운영 배포 SUCCESS.
+
 ### 아직 안 한 것 (다음 순서)
 
 1. 도면방 [AS] 단추는 화면에서 누르지 않았다(스테이징 방이 실제 방 — 서버 시험만). 운영 첫 실제 사용 때 확인.
