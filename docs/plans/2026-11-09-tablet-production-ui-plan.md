@@ -121,3 +121,13 @@
 | T14-6 | 협력사 희망 판 = 위 줄 단추로 내려오는 서랍(설계서 §14.8, D34) | `dashboard_main.html`(위 줄 단추 · 막), `partner_request_board.html` · `partner_request_chip.html`(회사 이름 칸), `static/js/shipment/partner-request-board.js`(칸 눌러 날짜), 새 작은 JS(여닫기), 태블릿 CSS | 템플릿 단언 + 로컬 준비물 서버 실화면 + 스테이징 오류 0 |
 | T14-7 | AS 넣기 때 시공자 이름도 같이 · 취소 때 되돌림(설계서 §14.9, D35) | `foms/services/shipment/as_recommendation.py`(넣기 · 취소 · snapshot), 인벤토리 | 도메인 시험 + PG 레인 + 로컬 준비물 서버 |
 | T14-8 | 출고표 날짜 = 위 줄 안 날짜 버튼 · 돋보기 · [더보기](설계서 §14.10, D38 안 28) | `dashboard_main.html`(위 줄), 태블릿 CSS, 새 작은 JS(띠 넘기기 · 더보기 · 돋보기) | 템플릿 단언 + 스테이징 실화면 |
+
+## C13 시공 탭 첫 화면 + 상세 (설계서 §13.7 P13-1~5, D39~D42 — 이름 P13-n 은 설계서 단계 번호, 위 "P13 남은 자잘한 것" 과 다름) — 스테이징 완료 11-12
+
+| 작업 | 할 일 | 파일 | 확인 |
+|---|---|---|---|
+| P13-1 | 날짜 띠 · 사람 색 공용 CSS + 날짜 JS 시공에서도 싣기 | `foms-tablet-day-strip.css`, 시공 `styles.html` · `dashboard_body.html` | 출고 화면 그대로 · 공용 시험 |
+| P13-2 | 읽기 서비스(쿼리 A 날짜별 집 수 · B 그날 줄) | `foms/services/construction/tablet_first.py` | 대조군 3종 |
+| P13-3 | 첫 화면 조각 + 위 줄 | `tablet_first_body.html`, `tablet-first.css`, `tablet_view.py`, 라우트 | 템플릿 · 모드 · 쿼리 수(10) |
+| P13-4 | 상세 왼쪽 = 그날 집 · 돌아가기 · 옛 딥링크 · 찾기 · 단추 권한 | `tablet_workmode_body.html`, `tablet_view.py` | 권한 시험(되돌리면 실패) |
+| P13-5 | 스테이징 실화면 · 성능 · 셸 교체 재실행 고침 | `construction/dashboard.js`(const → var) | 실화면 · 조각 −20% |
