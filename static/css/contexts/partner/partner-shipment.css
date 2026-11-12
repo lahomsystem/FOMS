@@ -1,0 +1,96 @@
+/* 협력사 출고 탭(templates/partner/shipments.html, 사용자 2026-11-12) — 우리 출고 탭 하루치 출고표(안 17)를 협력사 화면으로.
+   PC: 머리 한 줄 + 시공자 묶음 카드(모든 카드가 같은 칸 폭). 휴대폰(우리 틀 조건): 같은 줄이 카드로 접힌다.
+   색은 partner-portal.css 의 --pp-* 를 쓰고, 시공자 사람 색은 우리 출고표(tablet-day-sheet.css)와 같은 10색이다. */
+.pp-main--ship { max-width: 1400px; margin: 0 auto; }
+
+.pp-ship__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pp-ship__pick { margin: 0; }
+.pp-ship__pick .form-control { width: auto; min-height: 36px; font-size: 15px; }
+
+/* 날짜 띠 — 우리 출고 탭 날짜 버튼처럼 "12 목 / 3건". 넘치면 옆으로 민다. */
+.pp-ship__days { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 14px; scrollbar-width: thin; }
+.pp-ship__day {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 64px; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 10px;
+  background: var(--pp-surface); color: var(--pp-text); text-decoration: none; line-height: 1.2;
+}
+.pp-ship__day b { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.pp-ship__day em { font-style: normal; font-size: 13px; color: var(--pp-primary); font-weight: 700; }
+.pp-ship__day.is-zero em { color: var(--pp-muted); font-weight: 400; }
+.pp-ship__day.is-off b { color: var(--pp-danger); }
+.pp-ship__day.is-today { border-color: var(--pp-primary); }
+.pp-ship__day.is-selected { background: var(--pp-primary); border-color: var(--pp-primary); color: var(--pp-primary-text); }
+.pp-ship__day.is-selected b, .pp-ship__day.is-selected em { color: var(--pp-primary-text); }
+.pp-ship__day:hover { border-color: var(--pp-primary); }
+
+/* 하루치 표 */
+.pp-ship__sheet { margin-top: 16px; }
+.pp-ship__dayhead { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; font-size: 20px; font-weight: 700; }
+.pp-ship__today { font-size: 13px; padding: 2px 8px; border-radius: 999px; background: var(--pp-stage-bg); color: var(--pp-stage-text); }
+.pp-ship__n { font-size: 16px; color: var(--pp-muted); font-weight: 600; }
+.pp-ship__empty { padding: 24px 16px; border: 1px dashed var(--pp-border); border-radius: 12px; background: var(--pp-surface); color: var(--pp-muted); text-align: center; }
+
+.pp-ship__head, .pp-ship__row {
+  display: grid;
+  grid-template-columns: 44px minmax(120px, 1.2fr) minmax(160px, 2fr) minmax(130px, 1.3fr) 104px 110px minmax(120px, 150px);
+  gap: 0 12px; align-items: center; padding: 8px 14px;
+}
+.pp-ship__head { font-size: 13px; font-weight: 700; color: var(--pp-muted); }
+.pp-ship__card { margin-bottom: 12px; border: 1px solid var(--pp-border); border-radius: 12px; background: var(--pp-surface); overflow: hidden; }
+.pp-ship__card.is-miss { border-color: #f1b4b4; }
+.pp-ship__lbl { margin: 4px 0 6px; font-size: 14px; font-weight: 700; color: var(--pp-danger); }
+.pp-ship__lead { margin: 0; padding: 8px 14px 0; font-size: 14px; font-weight: 700; color: var(--pp-muted); }
+.pp-ship__row { min-height: 52px; color: var(--pp-text); text-decoration: none; font-size: 15px; line-height: 1.35; }
+.pp-ship__row + .pp-ship__row { border-top: 1px solid #eceef2; }
+.pp-ship__row:hover { background: #f4f7fd; color: var(--pp-text); }
+.pp-ship__row > span { min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.pp-ship__no { color: var(--pp-muted); font-variant-numeric: tabular-nums; }
+.pp-ship__as { display: inline-block; padding: 0 6px; border-radius: 4px; background: #1f2328; color: #fff; font-size: 12px; }
+.pp-ship__cust b { font-weight: 700; }
+.pp-ship__id { color: var(--pp-muted); font-size: 13px; }
+.pp-ship__phone { display: block; color: var(--pp-muted); font-size: 14px; white-space: nowrap; }
+.pp-ship__time { font-weight: 700; }
+.pp-ship__time.is-plan { color: var(--pp-muted); font-weight: 600; }
+.pp-ship__flag { display: inline-block; margin-top: 2px; padding: 1px 6px; border-radius: 4px; background: #fff4e0; color: #8a5300; font-size: 12px; font-style: normal; font-weight: 700; white-space: nowrap; }
+.pp-ship__k { display: none; }
+.pp-ship__who { display: flex; flex-wrap: wrap; gap: 4px; }
+.pp-ship__who i, .pp-ship__lead i { padding: 2px 8px; border-radius: 6px; font-style: normal; font-weight: 700; color: #1f2328; background: var(--ship-pc, #eef0f3); white-space: nowrap; }
+.pp-ship__who i.is-empty { background: transparent; color: var(--pp-danger); font-weight: 600; padding: 2px 0; }
+
+/* 우리 출고표와 같은 사람 색 10개(tablet-day-sheet.css) */
+.pp-ship__sheet [data-ship-color="1"] { --ship-pc: #B8D4E3; }
+.pp-ship__sheet [data-ship-color="2"] { --ship-pc: #FFE5CC; }
+.pp-ship__sheet [data-ship-color="3"] { --ship-pc: #E8D5E9; }
+.pp-ship__sheet [data-ship-color="4"] { --ship-pc: #D5E9D5; }
+.pp-ship__sheet [data-ship-color="5"] { --ship-pc: #F0D5D5; }
+.pp-ship__sheet [data-ship-color="6"] { --ship-pc: #D5D5E9; }
+.pp-ship__sheet [data-ship-color="7"] { --ship-pc: #FFF0D5; }
+.pp-ship__sheet [data-ship-color="8"] { --ship-pc: #D5E9E5; }
+.pp-ship__sheet [data-ship-color="9"] { --ship-pc: #F5D5E5; }
+.pp-ship__sheet [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+
+/* 휴대폰 — 우리 틀과 같은 조건. 머리 줄은 숨기고 줄마다 카드: 시간 · 고객 / 주소 / 제품 / 담당 · 시공자. */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  .pp-main--ship { padding: 0 0 16px; }
+  .pp-ship { margin: 0; border-radius: 0; border-left: 0; border-right: 0; }
+  .pp-ship__top { padding: 10px 12px; }
+  .pp-ship__top .erp-pro-card__title { font-size: 17px; }
+  .pp-ship__days { padding: 4px 12px 12px; }
+  .pp-ship__sheet { margin: 12px 12px 0; }
+  .pp-ship__dayhead { font-size: 18px; }
+  .pp-ship__head { display: none; }
+  .pp-ship__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "time cust" "addr addr" "prod prod" "mgr who";
+    gap: 4px 10px; padding: 12px; align-items: start;
+  }
+  .pp-ship__no { display: none; }
+  .pp-ship__time { grid-area: time; font-size: 16px; }
+  .pp-ship__cust { grid-area: cust; font-size: 16px; }
+  .pp-ship__phone { display: inline; margin-left: 4px; }
+  .pp-ship__addr { grid-area: addr; color: var(--pp-text); }
+  .pp-ship__product { grid-area: prod; color: var(--pp-muted); }
+  .pp-ship__mgr { grid-area: mgr; align-self: center; color: var(--pp-muted); font-size: 14px; white-space: nowrap; }
+  .pp-ship__k { display: inline; }
+  .pp-ship__who { grid-area: who; justify-content: flex-end; }
+}

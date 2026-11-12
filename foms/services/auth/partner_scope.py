@@ -67,6 +67,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "notices_api.notice_image",
     # 협력사 공지사항 목록 화면(/partner/notices — partner_required).
     "partner_portal.notices",
+    # 출고 탭(/partner/shipments, 2026-11-12): 읽기만 — 회사는 로그인 계정의 회사로만 정하고 그 회사 주문만 싣는다.
+    "partner_portal.shipments",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
     "address.search",
     # PARTNER-FOMS 6: 협력사 직원 웹 푸시 "알림 받기". 넷 다 자기 것만 다룬다 — 공개 키(읽기),
