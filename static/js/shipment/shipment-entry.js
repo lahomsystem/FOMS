@@ -26,6 +26,8 @@
     '/static/js/shipment/tablet-ship-assign.js?v=20261111a',
     // 태블릿 가로 왼쪽 '날짜별 남은 자수' 띠 여닫기(열림 기억) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-capstrip.js?v=20261111a',
+    // 태블릿 가로 위 줄 날짜 버튼 띠 넘기기 · 돋보기 · [더보기] 여닫기(§14.10 P14-8) — 문서 위임 싱글턴.
+    '/static/js/shipment/tablet-ship-datebar.js?v=20261112b',
     // 태블릿 가로 줄 누름 세부정보 서랍 보조(시간 단추 · AS 탭 기록 불러 붙이기, §14.3 P14-4) — 문서 위임 싱글턴.
     '/static/js/shipment/tablet-ship-sheet.js?v=20261111a'
   ];
