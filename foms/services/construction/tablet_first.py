@@ -37,6 +37,7 @@ from foms.services.erp_permissions import (
     build_mine_sql_filter,
     mine_membership_clause,
 )
+from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
 from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.orders.board_state_display import construction_display_stage
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
@@ -328,7 +329,6 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         today: 시험용(기본 ``get_today_kst()``).
     """
     if worker_settings is None:
-        from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
         worker_settings = normalize_erp_shipment_workers(load_erp_shipment_settings().get("construction_workers", []))
     login_names = [str(getattr(user, a, "") or "") for a in ("name", "username")] if user is not None else []
     base = today or get_today_kst()
