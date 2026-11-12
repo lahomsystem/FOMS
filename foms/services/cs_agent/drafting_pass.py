@@ -38,7 +38,8 @@ from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.onto_block import onto_block
 from foms.services.cs_agent.onto_find import find_items
-from foms.services.cs_agent.onto_settings import onto_graph_on
+from foms.services.cs_agent.onto_meaning import find_by_meaning
+from foms.services.cs_agent.onto_settings import onto_graph_on, onto_meaning_on
 from foms.services.cs_agent.order_step import OrderTurn, lookup_after, lookup_first
 from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos, with_usage
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
@@ -138,11 +139,16 @@ class DraftPass:
 
     def with_onto(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Any:
         """물건 찾아 따라가기(설계서 온톨로지 5절 — 끔이면 설정 한 번 읽기뿐, 그대로). 확인된 주문 품목 이름도 찾기 재료."""
-        if not onto_graph_on(read_settings(self.session, log=False)):
+        cfg = read_settings(self.session, log=False)
+        if not onto_graph_on(cfg):
             return request
         order = self.order_turns.get(row.id)
         extra = order.facts.products if order is not None and order.facts is not None else ()
-        hits = find_items(self.session, customer_texts(lines), brand=row.brand, day=get_today_kst(), extra=extra)
+        texts, day = customer_texts(lines), get_today_kst()
+        hits = find_items(self.session, texts, brand=row.brand, day=day, extra=extra)
+        if not hits and onto_meaning_on(cfg):  # 이름표로 못 찾으면 뜻으로(D197 ② — 가린 글만, 처음 끔)
+            hits = find_by_meaning(self.session, texts, brand=row.brand, day=day, now=self.now,
+                                   customer_names=request.customer_names, staff_names=request.staff_names)
         block = tuple(onto_block(hits))
         if not block:
             return request

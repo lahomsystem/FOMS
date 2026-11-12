@@ -25,7 +25,8 @@ from foms.services.brain.constants import BRAND_COMMON, SCOPE_ALL, STATUS_ACTIVE
 from foms.services.brain.labels import MIN_LABEL, aliases_of, norm, pref_of
 from foms.services.brain.store import in_force, is_current
 
-__all__ = ["ITEM_TYPES", "MAX_ITEMS", "MAX_RULES", "OntoHit", "RULE_TYPES", "find_items", "matches"]
+__all__ = ["ITEM_TYPES", "MAX_ITEMS", "MAX_RULES", "OntoHit", "RULE_TYPES", "find_items", "hits_for", "matches",
+           "visible"]
 
 ITEM_TYPES: tuple[str, ...] = ("product_line", "option")
 RULE_TYPES: tuple[str, ...] = ("policy", "price_rule", "spec")
@@ -44,16 +45,17 @@ class OntoRule:
 
 @dataclass(frozen=True)
 class OntoHit:
-    """찾은 물건 하나 — 키 · 유형 · 대표 이름 · 실음 칸(속성) · 걸린 규칙."""
+    """찾은 물건 하나 — 키 · 유형 · 대표 이름 · 실음 칸(속성) · 걸린 규칙 · 뜻으로 찾았나(:mod:`.onto_meaning`)."""
 
     key: str
     item_type: str
     name: str
     payload: dict
     rules: tuple[OntoRule, ...] = ()
+    by_meaning: bool = False
 
 
-def _visible(model: Any, brand: str, day: datetime.date) -> tuple[Any, ...]:
+def visible(model: Any, brand: str, day: datetime.date) -> tuple[Any, ...]:
     """상담 에이전트가 보는 줄 — 지금 판 · 반영 · 보기 범위 모두 · 그 브랜드와 공통 · 유효 기간 안."""
     return (is_current(model), model.status == STATUS_ACTIVE, model.visibility == SCOPE_ALL,
             model.brand.in_((brand, BRAND_COMMON)), in_force(model, day))
@@ -65,15 +67,28 @@ def _labels(name: str, payload: Any) -> list[str]:
             if len(norm(label)) >= MIN_LABEL]
 
 
+def _ascii_alnum(ch: str) -> bool:
+    """영문 · 숫자 한 글자인가(빈 글은 아님)."""
+    return bool(ch) and ch.isascii() and ch.isalnum()
+
+
+def _cut_inside(body: str, start: int, end: int) -> bool:
+    """이름표 끝이 영문 · 숫자인데 바로 옆도 영문 · 숫자면 더 긴 낱말 안이다('타입1' 은 '타입10' 안에서 맞지 않는다)."""
+    return ((_ascii_alnum(body[start]) and start > 0 and _ascii_alnum(body[start - 1]))
+            or (_ascii_alnum(body[end - 1]) and _ascii_alnum(body[end:end + 1])))
+
+
 def matches(rows: Iterable[tuple[str, str, Any]], texts: Sequence[str]) -> list[str]:
-    """(키, 이름, 실음 칸) 줄 · 원문 → 맞은 키(긴 이름표 먼저 · 겹치면 긴 쪽 · 처음 맞은 순 · 상한 :data:`MAX_ITEMS`)."""
+    """(키, 이름, 실음 칸) 줄 · 원문 → 맞은 키(긴 이름표 먼저 · 겹치면 긴 쪽 · 영문 · 숫자 경계 · 처음 맞은 순 · 상한
+    :data:`MAX_ITEMS`)."""
     body = norm(" ".join(texts))
     found: list[tuple[int, int, int, str]] = []  # (-길이, 시작, 끝, 키)
     for key, name, payload in rows:
         for label in _labels(name, payload):
             needle, start = norm(label), body.find(norm(label))
             while start >= 0:
-                found.append((-len(needle), start, start + len(needle), key))
+                if not _cut_inside(body, start, start + len(needle)):
+                    found.append((-len(needle), start, start + len(needle), key))
                 start = body.find(needle, start + 1)
     taken: list[tuple[int, int]] = []
     picked: dict[str, int] = {}
@@ -91,7 +106,7 @@ def _rules(session: Any, keys: Sequence[str], brand: str, day: datetime.date) ->
         select(BrainLink.to_key, BrainObject.item_key, BrainObject.item_type, BrainObject.name, BrainObject.payload)
         .join(BrainObject, BrainObject.item_key == BrainLink.from_key)
         .where(is_current(BrainLink), BrainLink.kind == "applies_to", BrainLink.to_key.in_(list(keys)),
-               BrainObject.item_type.in_(RULE_TYPES), *_visible(BrainObject, brand, day))
+               BrainObject.item_type.in_(RULE_TYPES), *visible(BrainObject, brand, day))
         .order_by(BrainObject.usage_count.desc(), BrainObject.item_key)).all()
     out: dict[str, list[OntoRule]] = {key: [] for key in keys}
     for to_key, key, item_type, name, payload in rows:
@@ -108,14 +123,31 @@ def find_items(session: Any, texts: Sequence[str], *, brand: str, day: datetime.
     if not any(word.strip() for word in words):
         return []
     rows = session.execute(select(BrainObject.item_key, BrainObject.name, BrainObject.payload, BrainObject.item_type)
-                           .where(BrainObject.item_type.in_(ITEM_TYPES), *_visible(BrainObject, brand, day))).all()
-    kinds = {key: item_type for key, _name, _payload, item_type in rows}
-    by_key = {key: (name, payload) for key, name, payload, _t in rows}
+                           .where(BrainObject.item_type.in_(ITEM_TYPES), *visible(BrainObject, brand, day))).all()
     keys = matches([(key, name, payload) for key, name, payload, _t in rows], words)
+    return _hits(session, rows, keys, brand, day) if keys else []
+
+
+def hits_for(session: Any, keys: Sequence[str], *, brand: str, day: datetime.date,
+             by_meaning: bool = False) -> list[OntoHit]:
+    """정한 키들 → 물건과 걸린 규칙(볼 수 있는 제품 라인 · 옵션만 · 키 순서 그대로)."""
     if not keys:
         return []
+    rows = session.execute(select(BrainObject.item_key, BrainObject.name, BrainObject.payload, BrainObject.item_type)
+                           .where(BrainObject.item_key.in_(list(keys)), BrainObject.item_type.in_(ITEM_TYPES),
+                                  *visible(BrainObject, brand, day))).all()
+    found = {row[0] for row in rows}
+    return _hits(session, rows, [key for key in keys if key in found], brand, day, by_meaning=by_meaning)
+
+
+def _hits(session: Any, rows: Sequence[Any], keys: Sequence[str], brand: str, day: datetime.date, *,
+          by_meaning: bool = False) -> list[OntoHit]:
+    """(키, 이름, 실음 칸, 유형) 줄 · 고른 키 → :class:`OntoHit` 목록."""
+    kinds = {key: item_type for key, _name, _payload, item_type in rows}
+    by_key = {key: (name, payload) for key, name, payload, _t in rows}
     rules = _rules(session, keys, brand, day)
     return [OntoHit(key, kinds[key], pref_of(by_key[key][0], by_key[key][1]),
-                    dict(by_key[key][1] or {}) if isinstance(by_key[key][1], dict) else {}, tuple(rules[key]))
+                    dict(by_key[key][1] or {}) if isinstance(by_key[key][1], dict) else {}, tuple(rules[key]),
+                    by_meaning=by_meaning)
             for key in keys]
 
