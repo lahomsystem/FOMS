@@ -14,6 +14,7 @@
      data-table-url="{{ url_for('brain_api.brain_table') }}"
      data-releases-url="{{ url_for('brain_api.brain_releases') }}"
      data-type-map-url="{{ url_for('brain_api.brain_type_map') }}"
+     data-onto-url="{{ url_for('brain_api.brain_ontology') }}"
      data-page-url="{{ url_for('brain_web.index') }}"
      data-item-base="{{ url_for('brain_web.index') }}/items/"
      data-start-tab="{{ tab }}" data-start-type="{{ start_type }}" data-start-query="{{ start_query }}"
@@ -42,7 +43,8 @@
   {% set main_tabs = [('inbox', '승인 대기', 'fa-inbox'), ('search', '지식 찾기', 'fa-magnifying-glass')]
                      + ([('ask', '물어보기', 'fa-comments')] if chat_tab else []) %}
   {% set more_tabs = [('table', '지식 표', 'fa-table-list'), ('recheck', '다시 확인', 'fa-rotate'),
-                      ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project')] %}
+                      ('releases', '판', 'fa-code-branch'), ('map', '유형 지도', 'fa-diagram-project'),
+                      ('onto', '온톨로지', 'fa-sitemap')] %}
   {% macro tab_count(key) -%}
     {%- if key in counts %} <span class="brain-tab-count{{ ' is-zero' if not counts[key] else '' }}"
           data-brain-count="{{ key }}">{{ counts[key] }}</span>{% endif -%}
@@ -78,6 +80,7 @@
     {% include "brain/partials/tab_recheck.html" %}
     {% include "brain/partials/tab_releases.html" %}
     {% include "brain/partials/tab_map.html" %}
+    {% include "brain/partials/tab_onto.html" %}
     {% if chat_tab %}{% include "brain/partials/tab_ask.html" %}{% endif %}
   </div>
 </div>
@@ -97,6 +100,8 @@
 <script src="{{ asset_url('js/brain/brain-recheck.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-releases.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-map.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-onto-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-onto.js') }}" defer></script>
 {% if chat_tab %}
 <script src="{{ asset_url('js/brain/brain-ask-view.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/brain-ask.js') }}" defer></script>

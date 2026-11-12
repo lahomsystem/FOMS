@@ -10,6 +10,8 @@
 - ``/around?key=&kinds=a,b&depth=1|2&limit=`` 이웃 찾기(Search Around — 7.7 · D105) — 이웃 지도 · 뇌 보기 탭(점 · 선 · 종류별 수).
 - ``/points`` 뇌 보기 바탕 점(키 · 유형 · 상태 표시 · 쓰인 횟수 — 이름 없음 · 상한 5,000).
 - ``/quality`` 연결 개수 규칙 품질 수(최소 미달 · 최대 넘음 — D105).
+- ``/ontology`` 온톨로지 탭 왼쪽 목록(종류 · 연결 · 동작 · 능력 질문 점수) · ``/ontology/types/<유형>`` 오른쪽 상세(속성 틀 · 채움 ·
+  연결 · 예시 — 설계서 2026-11-12 온톨로지 7절 · D187 · D188).
 
 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐(D101 — :func:`foms.services.brain.access.screen_viewer`). 로그인 안 함 401,
 그 밖(다른 역할 · 협력사 직원)은 **404**(있는지도 알리지 않는다). PARTNER 세션은 이 핸들러 앞에서 협력사 문지기
@@ -29,6 +31,7 @@ from foms.services.brain.access import screen_viewer
 from foms.services.brain.around import AroundQueryError, brain_points, parse_around, search_around
 from foms.services.brain.browse import TableQueryError, parse_table_query, search_grouped, table_page, type_map
 from foms.services.brain.card import item_card
+from foms.services.brain.ontology_view import ontology_summary, ontology_type
 from foms.services.brain.quality import quality_counts
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import Viewer
@@ -142,3 +145,15 @@ def brain_points_api() -> tuple[Any, int]:
 def brain_quality() -> tuple[Any, int]:
     """연결 개수 규칙 품질 수 — 볼 수 있는 것만 센다."""
     return _read(lambda db, viewer: quality_counts(db, viewer, today=get_today_kst()))
+
+
+@brain_api_bp.route("/ontology", methods=["GET"])
+def brain_ontology() -> tuple[Any, int]:
+    """온톨로지 탭 왼쪽 목록 — 수는 볼 수 있는 것만."""
+    return _read(lambda db, viewer: ontology_summary(db, viewer, today=get_today_kst()))
+
+
+@brain_api_bp.route("/ontology/types/<item_type>", methods=["GET"])
+def brain_ontology_type(item_type: str) -> tuple[Any, int]:
+    """온톨로지 탭 오른쪽 상세 — 모르는 종류는 404."""
+    return _read(lambda db, viewer: ontology_type(db, viewer, item_type[:40], today=get_today_kst()))
