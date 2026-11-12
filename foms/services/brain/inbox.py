@@ -32,7 +32,7 @@ from foms.services.brain.constants import (
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
 from foms.services.brain.external import ref_cards
-from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, label_only_change, ref_label
+from foms.services.brain.inbox_bins import bulk_ok_any_grade, card_bin, change_ends, label_only_change, ref_label
 from foms.services.brain.review_rules import AGENT_PREFIX, ai_cutoff, confirm_value, is_agent, phone_ok, week_start
 from foms.services.brain.schemas import diff_rows, edit_prop, edit_props
 from foms.services.brain.scope import Viewer, allowed_scopes
@@ -368,6 +368,7 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
     링크 두 끝 이름(``from_label`` · ``to_label``)은 카드 제목과 같은 규칙 — 시작은 지금 항목의 한글 이름(:func:`card_title_of`),
     끝은 ``end_name``(:func:`open_rows` 의 칸), 바깥 자리 끝은 사본 자리 이름표(:func:`.inbox_bins.ref_label`) · 점검 G2."""
     field, value = confirm_value(change.op, change.fields, change.item_type)
+    ends = change_ends(change)  # ⑤ 계산기 제품 · 옵션 판정(만든 쪽 · 링크 끝 — 온톨로지 4.1)
     evidence = [str(e) for e in (change.evidence or [])]
     gates = change.gates or {}
     return {
@@ -380,12 +381,12 @@ def change_view(change: BrainChange, cur: Optional[BrainObject], names: dict[int
         "base": _base_changed(change, cur, links),
         "gates": [{"name": n, "value": gates[n]} for n in GATE_LABELS if n in gates],
         "meaning": approval_meaning(change.op, change.item_type,
-                                    card_bin(change.op, change.item_type, change.fields, change.link_kind)),
+                                    card_bin(change.op, change.item_type, change.fields, change.link_kind, **ends)),
         "confirm": ({"field": field, "value": value} if change.grade == GRADE_B and not bulk_ok_any_grade(
-            change.op, change.item_type, change.fields, change.link_kind, wide) else None),
+            change.op, change.item_type, change.fields, change.link_kind, wide, **ends) else None),
         "phone_ok": phone_ok(change.op, change.fields),
         "bulk_ok": change.grade == GRADE_A or bulk_ok_any_grade(change.op, change.item_type, change.fields,
-                                                                 change.link_kind, wide),
+                                                                 change.link_kind, wide, **ends),
         "rollback_of": change.rollback_of_version, "link": ({
             "kind": change.link_kind, "from": change.link_from, "to": change.link_to,
             "from_label": card_title_of(cur) if cur is not None else ref_label(change.link_from),
@@ -433,7 +434,7 @@ def _card(group: list[tuple[BrainChange, Optional[BrainObject]]], extra: dict[st
     name = cur.name if cur is not None else (after_name or key)
     return {
         "id": change.id, "key": key, "name": name, "title": card_title(change, cur, name),
-        "bin": card_bin(change.op, change.item_type, change.fields, change.link_kind),
+        "bin": card_bin(change.op, change.item_type, change.fields, change.link_kind, **change_ends(change)),
         "type": change.item_type, "layer": change.layer, "brand": change.brand,
         "usage_count": (int(cur.usage_count or 0) + extra["usage"].get(key, 0)) if cur is not None else 0,
         "version": cur.version if cur is not None else None, "exists": cur is not None,

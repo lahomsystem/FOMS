@@ -1,5 +1,6 @@
 /**
- * '승인 대기' ① 이름 표 · ④ 표시 표(HAUD master brain 설계서 7.9 단계 2 · D151) — 그 묶음 카드를 표 한 장으로 그린다.
+ * '승인 대기' ① 이름 표 · ④ 표시 표 · ⑤ 계산기 제품 · 옵션 표(HAUD master brain 설계서 7.9 단계 2 · D151 · 온톨로지 4.1
+ * D191) — 그 묶음 카드를 표 한 장으로 그린다. ⑤ 는 지식 이름 · 종류 · 브랜드(브랜드 → 이름 순 — brain-inbox-bins.js).
  * ① 은 줄마다 체크 · 지금 이름 · 새 한글 이름(눌러 고침) · 비슷한 말, ④ 는 지식 · 같은 값이 적힌 곳. 글은 textContent 만 · 인라인
  * 스타일 없음. 누름(체크한 것 승인)은 brain-inbox.js 가 받고, 이 파일은 그리기와 고른 줄 모으기만 한다.
  * 줄은 처음에 체크를 끈 채로 그린다 — 단추 한 번에 묶음 전체가 승인되던 사고(F24)를 막는다. 카드가 없으면 표를 안 그린다.
@@ -87,6 +88,18 @@
       el('td', { text: words(aliases ? aliases.after : []) })] });
   }
 
+  /** ⑤ 줄 — 지식 이름 · 종류 · 브랜드(만들기) 또는 계산기 값 링크. */
+  var KINDS = { product_line: '제품', option: '옵션' };
+  var BRANDS = { LAHOM: '라홈', HAUD: '하우드', COMMON: '공통' };
+
+  function calcRow(card) {
+    var view = card.main;
+    var kind = view.link ? '계산기 값 잇기' : (KINDS[card.type] || card.type || '');
+    return el('tr', { attrs: { 'data-change-id': view.id }, children: [
+      check(view, card.title || card.name), el('td', { text: card.title || card.name }), el('td', { text: kind }),
+      el('td', { text: BRANDS[card.brand] || card.brand || '' })] });
+  }
+
   function markRow(card) {
     var view = card.main;
     var link = view.link || {};
@@ -100,18 +113,22 @@
     dom.clear(list);
     if (!cards || !cards.length) return;
     var names = bin === 'names';
+    var calc = bin === 'calc';
     var ready = cards.filter(function (card) { return usable(card.main); }).length;
     var table = el('table', { cls: 'brain-diff' });
-    table.appendChild(el('caption', { cls: 'visually-hidden', text: names ? '한글 이름 붙이기' : '같은 값이 적힌 곳 표시' }));
-    table.appendChild(head(names ? ['지금 이름', '새 한글 이름', '비슷한 말'] : ['지식', '같은 값이 적힌 곳'], ready));
+    table.appendChild(el('caption', { cls: 'visually-hidden',
+                                      text: names ? '한글 이름 붙이기' : calc ? '계산기 제품 · 옵션' : '같은 값이 적힌 곳 표시' }));
+    table.appendChild(head(names ? ['지금 이름', '새 한글 이름', '비슷한 말']
+      : calc ? ['지식', '종류', '브랜드'] : ['지식', '같은 값이 적힌 곳'], ready));
     var body = el('tbody');
-    cards.forEach(function (card) { body.appendChild(names ? nameRow(card) : markRow(card)); });
+    cards.forEach(function (card) { body.appendChild(names ? nameRow(card) : calc ? calcRow(card) : markRow(card)); });
     table.appendChild(body);
     table.addEventListener('change', function (event) { onChange(table, event.target); });
     var li = el('li', { cls: 'brain-icard', children: [el('div', { cls: 'brain-table-wrap', children: [table] })] });
     li.appendChild(el('p', { cls: 'brain-icard__summary', text: names
       ? '이름 칸을 눌러 고칠 수 있어요. 비슷한 말로 물어도 이 지식을 찾아요. 체크한 줄만 승인해요.'
-      : '값을 바꿀 때 같이 고칠 곳을 알려 줘요. 체크한 줄만 승인해요.' }));
+      : calc ? '목록을 훑어보고 맞으면 모두 고르기 → 체크한 줄 승인. 금액은 계산기에 그대로 있어요.'
+        : '값을 바꿀 때 같이 고칠 곳을 알려 줘요. 체크한 줄만 승인해요.' }));
     var apply = el('button', { cls: 'brain-btn brain-btn--primary', attrs: { type: 'button', 'data-brain-table-apply': bin },
                                text: '체크한 줄 승인' });
     apply.disabled = !ready;

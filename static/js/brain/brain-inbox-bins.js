@@ -1,6 +1,6 @@
 /**
- * '승인 대기' 첫 화면 네 묶음(HAUD master brain 설계서 7.9 · 사장님 11-03 "사용법이 너무 어려워") — 제안 카드를 서버가 정한
- * 묶음(card.bin)으로 세고, 묶음마다 한 줄(이름 · 수 · 하는 일 · 걸리는 시간 · 열기)을 그린다. 글은 textContent 만 · 인라인
+ * '승인 대기' 첫 화면 묶음(HAUD master brain 설계서 7.9 · 사장님 11-03 "사용법이 너무 어려워" · ⑤ 계산기 제품 · 옵션은
+ * 온톨로지 설계서 4.1 D191) — 제안 카드를 서버가 정한 묶음(card.bin)으로 세고, 묶음마다 한 줄(이름 · 수 · 하는 일 · 걸리는 시간 · 열기)을 그린다. 글은 textContent 만 · 인라인
  * 스타일 없음. 누름(열기 · 돌아가기)은 brain-inbox.js 가 받는다 — 이 파일은 그리기와 거르기만.
  */
 (function () {
@@ -19,8 +19,12 @@
     { key: 'decide', title: '③ 사장님이 정해 주실 것',
       line: '두 곳에 다르게 적힌 내용이에요. 맞는 쪽을 골라 주세요.', secs: 40 },
     { key: 'mark', title: '④ 같은 값이 적힌 곳 표시',
-      line: '같은 값이 적힌 곳을 표시만 해요. 글 · 금액은 그대로예요.', secs: 5 }
+      line: '같은 값이 적힌 곳을 표시만 해요. 글 · 금액은 그대로예요.', secs: 5 },
+    { key: 'calc', title: '⑤ 계산기 제품 · 옵션',
+      line: '견적 계산기 제품 · 옵션을 지식에 넣어요. 금액은 계산기를 가리키기만 해요.', secs: 5 }
   ];
+  /** ⑤ 줄 차례 — 브랜드(라홈 → 하우드 → 공통) → 이름(옵션 이름은 옵션 묶음 이름으로 시작한다). */
+  var BRAND_ORDER = ['LAHOM', 'HAUD', 'COMMON'];
   var KEYS = BINS.map(function (bin) { return bin.key; });
 
   /** 카드의 묶음 — 모르는 값은 ②(한 장씩 보는 쪽)로. */
@@ -62,8 +66,17 @@
     });
   }
 
+  function brandRank(card) {
+    var i = BRAND_ORDER.indexOf(card.brand);
+    return i < 0 ? BRAND_ORDER.length : i;
+  }
+
   function inBin(cards, key) {
-    return (cards || []).filter(function (card) { return binOf(card) === key; });
+    var out = (cards || []).filter(function (card) { return binOf(card) === key; });
+    if (key !== 'calc') return out;
+    return out.slice().sort(function (a, b) {
+      return (brandRank(a) - brandRank(b)) || String(a.title || a.name).localeCompare(String(b.title || b.name), 'ko');
+    });
   }
 
   function title(key, n) {
@@ -71,7 +84,7 @@
     return bin ? bin.title + ' · ' + n + '개' : '';
   }
 
-  /** 주소의 묶음(?bin=names|content|decide|mark — F07) — 네 묶음 이름이 아니면 빈 글(목록으로). */
+  /** 주소의 묶음(?bin=names|content|decide|mark|calc — F07) — 묶음 이름이 아니면 빈 글(목록으로). */
   function fromQuery(search) {
     var match = /[?&]bin=([a-z]+)(?:&|$)/.exec(String(search || ''));
     return match && KEYS.indexOf(match[1]) >= 0 ? match[1] : '';
