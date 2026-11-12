@@ -56,7 +56,7 @@ from foms.services.construction_read_model import (
     paginate_construction_orders,
 )
 from foms.services.construction.tablet_first import build_tablet_first
-from foms.services.construction.tablet_view import build_detail, day_label, tablet_mode
+from foms.services.construction.tablet_view import annotate_rows, build_detail, build_undated, day_label, tablet_mode
 from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
@@ -134,6 +134,15 @@ def erp_construction_dashboard():
     total_orders = 0
     orders: list[Order] = []
 
+    # 태블릿 가로 시공 탭(설계서 tablet-production-ui §13): 첫 화면 = 날짜 버튼 + 시공자 묶음(쿼리 A · B),
+    # 상세(?focus_order=) = 3분할 왼쪽을 그날 · 그 시공자 집으로. 폰 · PC · 코호트 밖은 mode '' — 지금 그대로.
+    current_user = getattr(g, "current_user", None)
+    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
+    mobile_v2_active = is_mobile_v2_shell(shell_variant)
+    cons_tablet: dict[str, Any] = {"mode": tablet_mode(
+        mobile_v2=mobile_v2_active, coarse=wants_coarse_pointer_surfaces(), wide=wants_wide_only_surfaces(),
+        focus_order_id=focus_order_id, q=f_q, undated=request.args.get("undated") == "1")}
+
     if focus_order_id:
         focus = (
             db.query(Order)
@@ -167,7 +176,7 @@ def erp_construction_dashboard():
                 sort=_cf.sort,
                 sort_dir=_cf.sort_dir,
             )
-    else:
+    elif cons_tablet["mode"] != "undated":  # 날짜 미정(§13.10 a51)은 아래에서 목록을 그 집들로 바꾸므로 50건 목록을 받지 않는다
         # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
         # 페이지네이션이 시공 주문 위에서 동작(전체 60일 활성 리스트 newest-N에 시공 주문이
         # 없어 board가 0건 되던 회귀의 근본 차단). 단계 칩 선택 시 해당 단계로 좁혀진다.
@@ -182,14 +191,6 @@ def erp_construction_dashboard():
                 sort_dir=_cf.sort_dir,
             )
 
-    # 태블릿 가로 시공 탭(설계서 tablet-production-ui §13): 첫 화면 = 날짜 버튼 + 시공자 묶음(쿼리 A · B),
-    # 상세(?focus_order=) = 3분할 왼쪽을 그날 · 그 시공자 집으로. 폰 · PC · 코호트 밖은 mode '' — 지금 그대로.
-    current_user = getattr(g, "current_user", None)
-    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
-    mobile_v2_active = is_mobile_v2_shell(shell_variant)
-    cons_tablet: dict[str, Any] = {"mode": tablet_mode(
-        mobile_v2=mobile_v2_active, coarse=wants_coarse_pointer_surfaces(), wide=wants_wide_only_surfaces(),
-        focus_order_id=focus_order_id, q=f_q)}
     if cons_tablet["mode"] == "first":
         with phase("tablet_first"):
             cons_tablet["first"] = build_tablet_first(
@@ -200,6 +201,11 @@ def erp_construction_dashboard():
             cons_tablet["detail"] = build_detail(
                 db, focus=orders[0], user=user, mine_only=mine_only, partner_org=partner_org,
                 date_arg=request.args.get("date"), worker_arg=request.args.get("worker"))
+        orders = cons_tablet["detail"]["orders"]
+        total_orders = len(orders)
+    elif cons_tablet["mode"] == "undated":
+        cons_tablet["detail"] = build_undated(db, user=user, mine_only=mine_only, partner_org=partner_org,
+                                              date_arg=request.args.get("date"), worker_arg=request.args.get("worker"))
         orders = cons_tablet["detail"]["orders"]
         total_orders = len(orders)
 
@@ -228,6 +234,7 @@ def erp_construction_dashboard():
 
     with phase("row_dtos"):
         enriched = build_construction_row_dtos(orders, att_counts, f_stage, keep_production=bool(cons_tablet["mode"]))
+        annotate_rows(enriched)
 
     if f_q or focus_order_id:
         step_stats = {

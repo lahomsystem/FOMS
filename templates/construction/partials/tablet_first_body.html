@@ -58,6 +58,10 @@
             {% if erp_mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
             <button type="submit" class="foms-cons-pop__go">열기</button>
           </form>
+          {# 날짜 미정 집(§13.10 D43 a51) — 0이면 줄 없음. 수는 쿼리 A 와 한 문장(UNION ALL)으로 센다. #}
+          {% if F.undated_count %}
+          <a class="foms-cons-pop__item" href="{{ url_for('erp_construction_page.erp_construction_dashboard', undated=1, date=F.selected, worker=F.worker) }}{% if erp_mine_only %}&mine=1{% endif %}" data-cons-undated>날짜 미정 {{ F.undated_count }}집 보기</a>
+          {% endif %}
           <form class="foms-cons-pop__row" method="get" role="search" aria-label="찾기">
             <label class="foms-cons-pop__label" for="foms-cons-q">찾기</label>
             <input type="search" id="foms-cons-q" class="foms-cons-pop__input" name="q" placeholder="고객 · 주소 · 전화">
@@ -92,7 +96,7 @@
           </div>
           {% for r in g.rows %}
           <a class="foms-cons-row{% if r.now_working %} is-now{% endif %}{% if r.done %} is-done{% endif %}" href="{{ _url(sec.date, F.worker, r.id) }}" data-order-id="{{ r.id }}">
-            <span class="foms-cons-row__c foms-cons-row__time{% if r.time_plan %} is-plan{% endif %}"><b>{{ r.time_text }}</b>{% if r.now_working %}<small>지금 시공중</small>{% elif r.done %}<small>끝남</small>{% endif %}</span>
+            <span class="foms-cons-row__c foms-cons-row__time{% if r.time_plan %} is-plan{% endif %}"><b>{{ r.time_text }}</b>{% if r.as_visit %}<small>AS 방문</small>{% elif r.now_working %}<small>지금 시공중</small>{% elif r.done %}<small>끝남</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__who"><b>{{ r.customer }}</b>{% if r.agency %}<small>{{ r.agency }}</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__prod"><b>{{ r.product }}</b>{% if r.units %}<small>{{ r.units }}자</small>{% endif %}</span>
             <span class="foms-cons-row__c foms-cons-row__addr"><b>{{ r.district or '-' }}</b><small>{{ r.address_rest }}</small></span>
