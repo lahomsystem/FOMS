@@ -16,8 +16,10 @@
    같은 하루 돈 줄 · 상한(WORKER env 천장)에 최악값을 먼저 예약하고 실제 값으로 바로잡는다.
 4. **부르기** — Haiku 5.5 · 생각 끔 · effort low · 구조화 출력 ``{"done": bool}`` · 시간 상한 :data:`TIMEOUT_SECONDS` ·
    다시 하기 0. 오류 · 거절 · 틀린 꼴이면 판단 없음(예전 기다림).
-5. **남기기** — 판단마다 SystemSetting :data:`LOG_KEY` 에 (상담 id · 글 id · 판단 · 방식 · ms · 시각)을 최근
-   :data:`LOG_LIMIT` 개까지(글은 없다). 맞히는 비율은 이 줄과 상태 표 손님 글 시각으로 잰다.
+5. **남기기** — 판단마다 SystemSetting :data:`LOG_KEY` 에 (상담 id · 글 id · 판단 · 방식 · ms · 시각)과 글 모양
+   (:func:`shape` — 이어 쓴 손님 글 수 · 마지막 글 길이 · 끝 글자 갈래 · 파일 · 직원 글 · 조용한 초, 숫자 · 정한 코드만)을
+   최근 :data:`LOG_LIMIT` 개까지(글은 없다). 맞히는 비율은 이 줄과 상태 표 손님 글 시각으로 잰다. 글 모양은 사장님 11-12
+   ('다 썼다'로 본 글의 약 3분의 1 뒤에 손님이 또 씀 — 틀린 글이 어떤 꼴인지 며칠 모아 판단 지시를 고친다).
 
 손님 글 · 가린 글은 로그 · 예외 · 기록 줄에 싣지 않는다 — 상담 id · 코드 · 숫자만.
 """
@@ -49,8 +51,8 @@ from models import SystemSetting
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "DONE", "FAILED", "LOG_KEY", "LOG_LIMIT", "MAX_PER_TICK", "MODEL", "MORE", "SYSTEM_PROMPT", "TIMEOUT_SECONDS",
-    "judge_one", "judge_pending", "quiet_seconds",
+    "DONE", "END_CODES", "FAILED", "LOG_KEY", "LOG_LIMIT", "MAX_PER_TICK", "MODEL", "MORE", "SYSTEM_PROMPT",
+    "TIMEOUT_SECONDS", "end_code", "judge_one", "judge_pending", "quiet_seconds", "shape",
 ]
 
 BRAND = "LAHOM"
@@ -135,7 +137,8 @@ def judge_one(session: Any, chat_id: str, message_id: str, *, reader: Any, cfg: 
     started = time.monotonic()
     try:
         _brain._check_environment(need_key=client is None)  # noqa: SLF001 — 두뇌와 같은 준비(키 · 본문 로거 꺼짐)
-        burst = _burst(read_lines(reader, BRAND, chat_id), message_id, now)
+        lines = read_lines(reader, BRAND, chat_id)
+        burst = _burst(lines, message_id, now)
         if burst is None:
             return None
         verdict = _ask(session, burst, cfg=cfg, now=now, client=client)
@@ -146,8 +149,44 @@ def judge_one(session: Any, chat_id: str, message_id: str, *, reader: Any, cfg: 
     mode = turn_end_mode(cfg)
     logger.info("[CS 말 끝남] chat=%s message=%s verdict=%s mode=%s ms=%d", chat_id, message_id, verdict, mode, ms)
     _record(session, {"chat": chat_id, "message": message_id, "verdict": verdict, "mode": mode, "ms": ms,
-                      "at": naive_utc(now).isoformat(timespec="seconds")})
+                      "at": naive_utc(now).isoformat(timespec="seconds"), **shape(lines, burst, message_id)})
     return verdict
+
+
+#: 마지막 손님 글의 끝 글자 갈래(:func:`end_code`) — 글 대신 남기는 정한 코드.
+END_CODES: tuple[str, ...] = ("empty", "question", "trail", "comma", "period", "exclaim", "emoticon", "yo", "da",
+                              "hangul", "digit", "other")
+
+
+def end_code(text: str) -> str:
+    """글 끝 글자 → 정한 코드(물음표 · 말줄임 · 쉼표 · 마침표 · 느낌표/물결 · 자모 웃음/울음 · '요' · '다' · 다른 한글 ·
+    숫자 · 그 밖). 빈 글(파일만)은 ``empty``."""
+    tail = text.rstrip()
+    if not tail:
+        return "empty"
+    last = tail[-1]
+    if last == "?":
+        return "question"
+    if tail.endswith(("..", "…")):
+        return "trail"
+    simple = {",": "comma", ".": "period", "!": "exclaim", "~": "exclaim", "요": "yo", "다": "da"}
+    if last in simple:
+        return simple[last]
+    if last in "ㅠㅜㅋㅎ^":
+        return "emoticon"
+    if "가" <= last <= "힣":
+        return "hangul"
+    return "digit" if last.isdigit() else "other"
+
+
+def shape(lines: Sequence[Any], burst: Sequence[tuple[str, str, int]], message_id: str) -> dict[str, Any]:
+    """판단 기록에 더할 글 모양 — 숫자 · 정한 코드만(손님 글은 싣지 않는다): ``n`` 직원 글 뒤 손님 글 수(최근
+    :data:`MAX_CUSTOMER_LINES` 개까지) · ``len`` 마지막 손님 글 글자 수 · ``end`` 끝 글자 갈래 · ``file`` 마지막 글에 파일 ·
+    ``staff`` 앞에 직원 글이 있음 · ``quiet`` 판단 때 마지막 손님 글 뒤 조용한 초."""
+    line = next((item for item in lines if item.meta.message_id == message_id), None)
+    last = line.text if line is not None else burst[-1][1]  # 손님이 쓴 글만(물음 글의 파일 표시는 빼고)
+    return {"n": sum(1 for who, _, _ in burst if who == ROLE_USER), "len": len(last.strip()), "end": end_code(last),
+            "file": bool(getattr(line, "files", ())), "staff": burst[0][0] == ROLE_MANAGER, "quiet": burst[-1][2]}
 
 
 def _burst(lines: Sequence[Any], message_id: str, now: datetime.datetime) -> Optional[list[tuple[str, str, int]]]:
@@ -236,7 +275,7 @@ def _record(session: Any, entry: dict[str, Any]) -> None:
     value = {"rows": [*rows, entry]}
     if row is None:
         session.add(SystemSetting(setting_key=LOG_KEY, setting_value=value,
-                                  description="AI 상담팀원 말 끝남 판단 기록(상담 id · 글 id · 판단만 — 맞히는 비율 재기)"))
+                                  description="AI 상담팀원 말 끝남 판단 기록(상담 id · 글 id · 판단 · 글 모양 숫자만 — 맞히는 비율 재기)"))
     else:
         row.setting_value = value
     session.commit()
