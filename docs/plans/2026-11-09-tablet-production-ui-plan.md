@@ -94,7 +94,7 @@
 |---|---|---|---|
 | T13-1 | 글 한 덩이 → 조각(머리말 회색 작게 · 이름 굵게 · 발주사 진한 글자 · 담당 남색) | `production_home_read_model.py`(`_by_parts`), `home_date.html`, `home_steps.html`, `home.css`(핀 `20261111g`) | 조각 마크업 네 경우 × 두 줄 · CSS 색·굵기·줄바꿈 규칙 |
 
-## P13 남은 자잘한 것 정리 (원장 §25, 2026-11-11 사용자 "남은 자잘한 것 정리" · D22) — DONE(스테이징), 운영은 지시 때
+## P13 남은 자잘한 것 정리 (원장 §25, 2026-11-11 사용자 "남은 자잘한 것 정리" · D22) — DONE · 운영 PR #808(원장 §26)
 | # | 일 | 파일 | 시험 |
 |---|---|---|---|
 | T14-1 | 곧 올 것 긴 이름 번호 · S3 작업 시트 머리 줄 · S4 옆 시트 닫기 단추 | `home_steps.html`, `home.css`(핀 `20261111h`), `sheet.css`(핀 `20261111a`) | `test_production_home_fixes.py` 3개 |
@@ -109,3 +109,14 @@
 ## 원장 규율
 - task 끝나면 그 자리에서 DONE/BLOCKED, 막히면 사유 적고 다음 task.
 - 운영 반영은 스테이징 실화면 통과 뒤 사용자 명시 요청으로 cherry-pick 승격.
+
+## P14 출고 탭 — 하루치 출고표 · 시공자 배정 (설계서 §14 — D23~D31, 승인 11-11)
+| # | 일 | 파일 | 시험 |
+|---|---|---|---|
+| T14-1 | 출고팀 쓰기 열기 · 영업팀 막기(D31) | `erp_permissions.py`(`can_edit_shipment` + 데코레이터), `foms/api/shipment/settings.py`, `foms/api/shipment/recommendations.py`, `foms/web/shipment/dashboard.py`(화면 값) | 팀별 통과/403 |
+| T14-2 | 묶음 · 사람별 집계 · 자수 나누기 | `foms/services/shipment/tablet_day_sheet.py`(신규), `dashboard.py`(`compute_team_remaining_units_for_date`) | 순서 · 번호 · 반씩 · AS 건수만 |
+| T14-3 | 표(안 17) + 이름판 | `tablet_ship_grid.html`, `shipment-dashboard-columns.css`(또는 새 CSS), `static/js/shipment/tablet-ship-assign.js`(신규) | 템플릿 단언 + 스테이징 실화면 |
+| T14-4 | 서랍 넓히기 + AS 정보 | `tablet_sheet.html`, `dashboard.py`(시트 값) | 조각 단언 |
+| T14-5 | AS 넣기 목록 · 이미지 저장 | `tablet-ship-assign.js` 또는 새 JS, `dashboard_main.html`(위 줄) | 스테이징 실화면(읽기) |
+| T14-6 | 협력사 희망 판 = 위 줄 단추로 내려오는 서랍(설계서 §14.8, D34) | `dashboard_main.html`(위 줄 단추 · 막), `partner_request_board.html` · `partner_request_chip.html`(회사 이름 칸), `static/js/shipment/partner-request-board.js`(칸 눌러 날짜), 새 작은 JS(여닫기), 태블릿 CSS | 템플릿 단언 + 로컬 준비물 서버 실화면 + 스테이징 오류 0 |
+| T14-7 | AS 넣기 때 시공자 이름도 같이 · 취소 때 되돌림(설계서 §14.9, D35) | `foms/services/shipment/as_recommendation.py`(넣기 · 취소 · snapshot), 인벤토리 | 도메인 시험 + PG 레인 + 로컬 준비물 서버 |

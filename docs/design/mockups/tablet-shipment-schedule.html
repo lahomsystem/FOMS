@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>출고 스케줄 시안 셋</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* 출고 탭(태블릿 가로 1280×800) "출고 스케줄 짜기" 첫 화면 시안 셋 — 2026-11-11.
+   앞 시안(tablet-shipment-tab.html, 포장·상차 중심)은 전제가 틀려 다시 그림: 출고 탭의 일 = 누가 · 몇 시에 · 어느 날 · 협력사 희망일 확정.
+   틀·토큰은 앞 시안과 같음. 이름·주소·번호는 전부 지어낸 것. 금액 없음. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;
+  --accent:#4a55b8;--accent-soft:#e6e8ff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;--app-inverse:#ffffff;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;--app-brand-100:#e6e8ff;--app-brand-300:#9ea4ff;
+  --app-danger:#dc2626;--app-danger-50:#fef2f2;--app-warn:#d97706;--app-warn-border:#f59e0b;--app-warn-50:#fffbeb;
+  --app-amber-bg:#fef3c7;--app-amber-text:#92400e;--app-success:#059669;--app-success-dark:#047857;--app-success-50:#ecfdf5;
+  --app-info:#2563eb;--app-info-50:#eff6ff;--app-info-200:#bfdbfe;--app-danger-200:#fecaca;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+    --accent:#9ea4ff;--accent-soft:#232a52;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;
+  --accent:#9ea4ff;--accent-soft:#232a52;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:80ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.toc{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:56px;scroll-margin-top:16px}
+.frame h2{font-size:22px;font-weight:800;margin-bottom:4px;text-wrap:balance}
+.frame .idea{color:var(--fg);font-size:16px;margin-bottom:8px}
+.pros{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:8px 16px;margin-bottom:14px;list-style:none;padding:0;font-size:15px;color:var(--muted)}
+.pros li{padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.pros li b{color:var(--fg)}
+.pros li.good b{color:var(--accent)}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.art{position:absolute;left:0;top:0;transform-origin:0 0;width:1280px;height:800px;background:var(--app-bg);color:var(--app-text);font-size:14px;line-height:1.4;overflow:hidden;font-variant-numeric:tabular-nums;display:flex}
+.art *{box-sizing:border-box}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ic.sm{width:18px;height:18px}
+
+/* ─── 레일 ─── */
+.rail{width:72px;flex-shrink:0;background:var(--app-surface);border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+.rail .logo{font-size:22px;font-weight:800;color:var(--app-brand);height:36px;display:flex;align-items:center}
+.rail .zoom{width:44px;border:1px solid var(--app-line2);border-radius:8px;display:flex;flex-direction:column;align-items:center;font-size:12px;font-weight:800;margin:4px 0 6px}
+.rail .zoom span{height:22px;display:flex;align-items:center}
+.rail .zoom span.v{font-size:12px;color:var(--app-text2)}
+.rail .it{width:64px;height:52px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--app-text2);font-weight:700}
+.rail .it i{width:20px;height:14px;border:2px solid currentColor;border-radius:3px;opacity:.75}
+.rail .it.on{background:var(--app-brand-50);color:var(--app-brand-dark);border-left:3px solid var(--app-brand)}
+.rail .sp{flex:1}
+.rail .ava{width:36px;height:36px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+.page{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+
+/* ─── 제목 줄 ─── */
+.bar{height:64px;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--app-surface);border-bottom:1px solid var(--app-line);flex-shrink:0}
+.bar h3{font-size:22px;font-weight:800;white-space:nowrap}
+.bar .date{font-size:16px;color:var(--app-text2);white-space:nowrap;margin-right:6px}
+.bar .sp{flex:1}
+.cnt{height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 14px;border-radius:10px;border:1px solid var(--app-line2);background:var(--app-surface);font-size:15px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.cnt b{font-size:20px;font-weight:800}
+.cnt.red{background:var(--app-danger-50);border-color:var(--app-danger-200);color:var(--app-danger)}
+.cnt.blue{background:var(--app-info-50);border-color:var(--app-info-200);color:var(--app-info)}
+.cnt.amb{background:var(--app-warn-50);border-color:var(--app-warn-border);color:var(--app-amber-text)}
+.fs{display:flex;align-items:center;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:var(--app-surface);height:44px}
+.fs span{min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--app-text2);border-right:1px solid var(--app-line2)}
+.fs span.l{font-size:14px;padding:0 10px;color:var(--app-text3)}
+.fs span.v{font-size:15px;min-width:64px}
+.fs span:last-child{border-right:0}
+.btn{min-height:48px;padding:0 18px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--app-text);white-space:nowrap;cursor:pointer}
+.btn.pri{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.btn.sm{min-height:44px;padding:0 14px;font-size:15px}
+.btn.red{background:var(--app-danger-50);border-color:var(--app-danger-200);color:var(--app-danger)}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:7px;font-size:13px;font-weight:800;white-space:nowrap;flex-shrink:0}
+.chip.done{background:var(--app-success-50);color:var(--app-success-dark)}
+.chip.go{background:var(--app-brand-100);color:var(--app-brand-dark)}
+.chip.wait{background:var(--app-amber-bg);color:var(--app-amber-text)}
+.chip.hot{background:var(--app-danger);color:var(--app-inverse)}
+.chip.ptn{background:var(--app-info-50);color:var(--app-info);border:1px solid var(--app-info-200)}
+.chip.chg{background:var(--app-warn-50);color:var(--app-amber-text);border:1px solid var(--app-warn-border)}
+.pp{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:13px;background:var(--app-brand-50);border:1px solid var(--app-brand-300);color:var(--app-brand-dark);font-size:14px;font-weight:800;white-space:nowrap}
+.pp.more{background:var(--app-raised);border-color:var(--app-line2);color:var(--app-text2)}
+.cap{height:10px;border-radius:5px;background:var(--app-line);position:relative;overflow:hidden}
+.cap::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:var(--app-info);border-radius:5px}
+.cap.full::after{background:var(--app-danger)}
+.cap.hi::after{background:var(--app-warn)}
+.ov{color:var(--app-danger)!important}
+[data-pick],[data-toggle]{cursor:pointer}
+
+/* ─── 안 1. 2주 띠 + 그날 판 ─── */
+.a1 .body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr) 330px}
+.a1 .left{background:var(--app-surface);border-right:1px solid var(--app-line);display:flex;flex-direction:column;overflow:hidden}
+.a1 .lh{height:42px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--app-line);font-size:16px;font-weight:800;flex-shrink:0}
+.a1 .lh small{margin-left:auto;font-size:13px;color:var(--app-text3);font-weight:700}
+.a1 .d{height:46px;display:grid;grid-template-columns:62px minmax(0,1fr) 70px 24px;align-items:center;gap:8px;padding:0 12px 0 14px;border-bottom:1px solid var(--app-line);flex-shrink:0}
+.a1 .d.on{background:var(--app-brand-50);box-shadow:inset 4px 0 0 var(--app-brand)}
+.a1 .d .dd{font-size:15px;font-weight:800;line-height:1.1;white-space:nowrap}
+.a1 .d .dd small{display:block;font-size:12px;color:var(--app-text3);font-weight:700}
+.a1 .d .nn{font-size:14px;font-weight:800;text-align:right;white-space:nowrap;color:var(--app-text2)}
+.a1 .d .nn small{font-size:12px;color:var(--app-text3);font-weight:700}
+.a1 .d .dot{width:22px;height:22px;border-radius:50%;background:var(--app-danger);color:var(--app-inverse);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.a1 .d.off{height:30px;grid-template-columns:1fr;color:var(--app-text3);background:var(--app-raised)}
+.a1 .d.off .dd{font-size:13px;display:flex;gap:8px;color:var(--app-text3)}
+.a1 .d.off .dd small{display:inline;font-size:13px}
+.a1 .hope{margin-top:auto;height:58px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--app-info-50);border-top:1px solid var(--app-info-200);color:var(--app-info);font-size:15px;font-weight:800;flex-shrink:0}
+.a1 .hope b{font-size:22px}
+.a1 .hope small{display:block;font-size:12px;font-weight:700;color:var(--app-text2)}
+.a1 .hope .ic{margin-left:auto}
+.a1 .mid{display:flex;flex-direction:column;gap:6px;padding:10px 12px;overflow:hidden;min-width:0}
+.a1 .mh{height:34px;display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;color:var(--app-brand-dark);flex-shrink:0;white-space:nowrap}
+.a1 .mh small{font-size:14px;color:var(--app-text2);font-weight:700}
+.a1 .mh .r{margin-left:auto;font-size:14px;color:var(--app-danger);font-weight:800}
+.a1 .gh{height:32px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:8px;background:var(--app-raised);border:1px solid var(--app-line);font-size:16px;font-weight:800;color:var(--app-text);flex-shrink:0;margin-top:2px}
+.a1 .gh small{font-size:14px;color:var(--app-text2);font-weight:700}
+.a1 .gh .r{margin-left:auto;font-size:13px;color:var(--app-text3);font-weight:700}
+.a1 .gh.nt{color:var(--app-amber-text);background:var(--app-warn-50);border-color:var(--app-warn-border)}
+.a1 .gh.nt .r{color:var(--app-amber-text)}
+.a1 .o{height:62px;flex-shrink:0;background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) 58px 160px;align-items:center;gap:10px;padding:0 10px 0 14px;overflow:hidden}
+.a1 .o.un{box-shadow:inset 5px 0 0 var(--app-danger)}
+.a1 .o.on{border:2px solid var(--app-brand);background:var(--app-brand-50)}
+.a1 .o .t{min-width:0;display:flex;flex-direction:column;gap:3px}
+.a1 .o .nm{display:flex;align-items:center;gap:6px;font-size:18px;font-weight:800;white-space:nowrap;line-height:1.2}
+.a1 .o .nm small{font-size:13px;color:var(--app-text3);font-weight:700}
+.a1 .o .ad{font-size:14px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a1 .o .ad b{font-size:15px;color:var(--app-text);font-weight:800}
+.a1 .o .js{text-align:right;font-size:22px;font-weight:800;line-height:1}
+.a1 .o .js small{display:block;font-size:12px;color:var(--app-text3);font-weight:700;margin-top:2px}
+.a1 .o .ws{display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.a1 .o .ws .btn{min-height:48px;padding:0 20px}
+.a1 .next{margin-top:auto;height:50px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;border-radius:10px;border:1px dashed var(--app-line2);font-size:15px;color:var(--app-text2);font-weight:700;white-space:nowrap}
+.a1 .next b{color:var(--app-text)}
+.a1 .next .btn{margin-left:auto}
+.a1 .rt{background:var(--app-surface);border-left:1px solid var(--app-line);display:flex;flex-direction:column;overflow:hidden}
+.a1 .rh{height:42px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--app-line);font-size:16px;font-weight:800;flex-shrink:0;white-space:nowrap}
+.a1 .rh small{margin-left:auto;font-size:13px;color:var(--app-text3);font-weight:700}
+.a1 .hint{margin:8px 10px 4px;padding:8px 10px;border-radius:8px;background:var(--app-brand-50);border:1px solid var(--app-brand-300);font-size:14px;color:var(--app-brand-dark);font-weight:700;line-height:1.35;flex-shrink:0}
+.a1 .hint b{font-weight:800;color:var(--app-text)}
+.a1 .tm{margin:5px 10px 0;height:58px;flex-shrink:0;border:1px solid var(--app-line);border-radius:10px;display:grid;grid-template-columns:96px minmax(0,1fr) 36px;align-items:center;gap:8px;padding:0 8px 0 10px}
+.a1 .tm .tn{font-size:15px;font-weight:800;line-height:1.2;white-space:nowrap}
+.a1 .tm .tn small{display:block;font-size:12px;color:var(--app-text3);font-weight:700}
+.a1 .tm .bb{display:flex;flex-direction:column;gap:5px;min-width:0}
+.a1 .tm .bl{display:grid;grid-template-columns:28px minmax(0,1fr) 34px;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.a1 .tm .bl b{font-size:13px;color:var(--app-text);text-align:right}
+.a1 .tm .mk{width:36px;height:36px;border-radius:50%;border:2px dashed var(--app-line2);display:flex;align-items:center;justify-content:center;color:var(--app-text3);font-size:20px;font-weight:800}
+.a1 .tm .mk .ic{display:none}
+.a1 .tm.on{border:2px solid var(--app-brand);background:var(--app-brand-50)}
+.a1 .tm.on .mk{border:0;background:var(--app-brand);color:var(--app-inverse)}
+.a1 .tm.on .mk .pl{display:none}
+.a1 .tm.on .mk .ic{display:block}
+.a1 .tm.rest{opacity:.55;grid-template-columns:96px 1fr;background:var(--app-raised);height:40px}
+.a1 .tm.rest .rs{font-size:15px;font-weight:800;color:var(--app-text3)}
+.a1 .as{margin:8px 10px 0;padding:6px 6px 6px 10px;border-radius:8px;border:1px solid var(--app-line);background:var(--app-raised);font-size:13px;color:var(--app-text2);font-weight:700;display:flex;align-items:center;gap:8px;flex-shrink:0;line-height:1.3}
+.a1 .as b{color:var(--app-text);font-size:14px}
+.a1 .as .btn{margin-left:auto;min-height:48px;padding:0 10px;font-size:14px}
+.a1 .acts{margin-top:auto;padding:10px;border-top:1px solid var(--app-line);display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.a1 .acts .seg2{grid-column:1/3;display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden}
+.a1 .acts .seg2 span{height:52px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:var(--app-text2)}
+.a1 .acts .seg2 span+span{border-left:1px solid var(--app-line2)}
+.a1 .acts .seg2 span.on{background:var(--app-brand);color:var(--app-inverse)}
+.a1 .acts .btn{min-height:56px}
+
+/* ─── 안 2. 한 주 판 ─── */
+.a2 .hopes{height:58px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+.a2 .hopes .lb{font-size:16px;font-weight:800;color:var(--app-info);white-space:nowrap;line-height:1.2}
+.a2 .hopes .lb small{display:block;font-size:12px;color:var(--app-text3);font-weight:700}
+.a2 .hc{height:48px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:10px;border:1px solid var(--app-info-200);background:var(--app-info-50);white-space:nowrap}
+.a2 .hc.on{border:2px solid var(--app-info)}
+.a2 .hc .n{font-size:15px;font-weight:800;line-height:1.2}
+.a2 .hc .n small{display:block;font-size:12px;color:var(--app-text3);font-weight:700}
+.a2 .hc .w{font-size:14px;font-weight:800;color:var(--app-info)}
+.a2 .hc .j{font-size:17px;font-weight:800}
+.a2 .hopes .lg{margin-left:auto;display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--app-text3);font-weight:700;white-space:nowrap}
+.a2 .lg span{display:flex;align-items:center;gap:6px}
+.a2 .lg i{display:inline-block;width:18px;height:12px;border-radius:3px;border:2px dashed var(--app-danger)}
+.a2 .lg i.ok{width:14px;height:14px;border:0;border-radius:50%;background:var(--app-brand-100)}
+.a2 .week{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 44px repeat(2,minmax(0,1fr));gap:8px;padding:8px 16px}
+.a2 .col{background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.a2 .col.today{border-color:var(--app-brand-300)}
+.a2 .ch{padding:6px 10px 8px;border-bottom:1px solid var(--app-line);flex-shrink:0}
+.a2 .col.today .ch{background:var(--app-brand-50)}
+.a2 .col.sel{border:2px solid var(--app-brand)}
+.a2 .col.sel .ch{background:var(--app-brand);color:var(--app-inverse)}
+.a2 .col.sel .ch .u,.a2 .col.sel .ch .dn small{color:var(--app-inverse)}
+.a2 .ch .dn{font-size:16px;font-weight:800;display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.a2 .ch .dn small{font-size:12px;color:var(--app-text3);font-weight:700}
+.a2 .ch .u{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;font-size:13px;font-weight:800;color:var(--app-text2);margin-top:3px;white-space:nowrap}
+.a2 .col.off{background:var(--app-raised);align-items:center;justify-content:center}
+.a2 .col.off .v{writing-mode:vertical-rl;font-size:15px;font-weight:800;color:var(--app-text3);letter-spacing:.15em}
+.a2 .zn{padding:2px 6px 4px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.a2 .zn + .zn{border-top:1px dashed var(--app-line2)}
+.a2 .zl{font-size:13px;font-weight:800;color:var(--app-text3);display:flex;justify-content:space-between;padding:0 2px}
+.a2 .k{min-height:48px;border:1px solid var(--app-line2);border-radius:8px;background:var(--app-surface);padding:4px 8px;display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
+.a2 .k .l1{display:flex;align-items:center;gap:4px;font-size:15px;font-weight:800;white-space:nowrap;line-height:1.15}
+.a2 .k .l1 b{margin-left:auto;font-size:16px}
+.a2 .k .l2{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--app-text2);font-weight:700;white-space:nowrap}
+.a2 .k .l2 .g{margin-right:auto}
+.a2 .k .tg{font-size:12px;font-weight:800;padding:0 5px;border-radius:5px;line-height:18px}
+.a2 .k .tg.p{background:var(--app-info-50);color:var(--app-info);border:1px solid var(--app-info-200)}
+.a2 .k .tg.h{background:var(--app-danger);color:var(--app-inverse)}
+.a2 .k .tg.c{background:var(--app-warn-50);color:var(--app-amber-text);border:1px solid var(--app-warn-border)}
+.a2 .k .c1{width:22px;height:22px;border-radius:50%;background:var(--app-brand-100);color:var(--app-brand-dark);font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.a2 .k.un{border:2px dashed var(--app-danger);background:var(--app-danger-50)}
+.a2 .k .nobody{font-size:12px;color:var(--app-danger);font-weight:800}
+.a2 .k.on{border:2px solid var(--app-brand);background:var(--app-brand-50);box-shadow:0 0 0 3px var(--app-brand-100)}
+.a2 .k.un.on{border-style:solid}
+.a2 .nt{margin-top:auto;padding:4px 6px 5px 2px;flex-shrink:0;border-top:1px dashed var(--app-line2);display:flex;align-items:center;gap:2px}
+.a2 .nt .k{flex:1}
+.a2 .nt .zl{color:var(--app-amber-text);writing-mode:vertical-rl;padding:0;letter-spacing:.05em}
+.a2 .nt .k{background:var(--app-warn-50);border-color:var(--app-warn-border)}
+.a2 .fix{height:144px;flex-shrink:0;background:var(--app-surface);border-top:2px solid var(--app-brand);display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;padding:10px 16px}
+.a2 .sum{display:flex;flex-direction:column;justify-content:center;gap:6px;border-right:1px solid var(--app-line);padding-right:12px;min-width:0}
+.a2 .sum .nm{font-size:20px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.a2 .sum .nm small{font-size:13px;color:var(--app-text3);font-weight:700}
+.a2 .sum .ad{font-size:14px;color:var(--app-text2);line-height:1.3}
+.a2 .sum .ad b{color:var(--app-text);font-size:15px}
+.a2 .sum .js{font-size:15px;font-weight:700;color:var(--app-text2);display:flex;align-items:center;gap:6px}
+.a2 .sum .js b{font-size:24px;color:var(--app-text)}
+.a2 .rows{display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:0}
+.a2 .rw{display:flex;align-items:center;gap:6px;min-width:0}
+.a2 .rw .lb{width:46px;flex-shrink:0;font-size:14px;font-weight:800;color:var(--app-text3)}
+.a2 .db{height:58px;flex:1;min-width:0;border:1px solid var(--app-line2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;font-size:15px;font-weight:800;white-space:nowrap}
+.a2 .db small{font-size:13px;font-weight:700;color:var(--app-text2)}
+.a2 .db.on{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.a2 .db.on small{color:var(--app-inverse)}
+.a2 .db.full{background:var(--app-danger-50);border-color:var(--app-danger-200)}
+.a2 .db.full small{color:var(--app-danger)}
+.a2 .db.off{background:var(--app-raised);color:var(--app-text3);flex:.55}
+.a2 .rw .btn.nav{min-width:48px;height:58px;padding:0}
+.a2 .seg2{display:flex;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;flex-shrink:0;margin-left:8px}
+.a2 .seg2 span{width:80px;height:58px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:var(--app-text2)}
+.a2 .seg2 span+span{border-left:1px solid var(--app-line2)}
+.a2 .seg2 span.on{background:var(--app-brand);color:var(--app-inverse)}
+.a2 .tb{height:58px;flex:1;min-width:0;border:1px solid var(--app-line2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;font-size:15px;font-weight:800;white-space:nowrap}
+.a2 .tb small{font-size:13px;font-weight:700;color:var(--app-text2)}
+.a2 .tb.on{background:var(--app-brand-50);border:2px solid var(--app-brand);color:var(--app-brand-dark)}
+.a2 .tb.full{background:var(--app-danger-50);border-color:var(--app-danger-200)}
+.a2 .tb.full small{color:var(--app-danger)}
+.a2 .tb.rest{opacity:.55;background:var(--app-raised)}
+.a2 .rw .btn.save{height:58px;min-width:120px;font-size:18px;flex-shrink:0;margin-left:8px}
+
+/* ─── 안 3. 정할 것부터 ─── */
+.a3 .body{flex:1;min-height:0;display:grid;grid-template-columns:420px minmax(0,1fr)}
+.a3 .left{background:var(--app-surface);border-right:1px solid var(--app-line);display:flex;flex-direction:column;overflow:hidden}
+.a3 .lh{height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--app-line);font-size:18px;font-weight:800;flex-shrink:0}
+.a3 .lh b{color:var(--app-danger)}
+.a3 .lh small{margin-left:auto;font-size:13px;color:var(--app-text3);font-weight:700}
+.a3 .gh{height:27px;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;font-weight:800;flex-shrink:0;background:var(--app-raised);border-bottom:1px solid var(--app-line)}
+.a3 .gh i{width:10px;height:10px;border-radius:50%;background:currentColor}
+.a3 .gh small{margin-left:auto;font-size:14px;font-weight:800}
+.a3 .gh.p{color:var(--app-info)}
+.a3 .gh.u{color:var(--app-danger)}
+.a3 .gh.c{color:var(--app-amber-text)}
+.a3 .gh.f{color:var(--app-danger)}
+.a3 .ti{height:48px;flex-shrink:0;display:grid;grid-template-columns:96px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--app-line)}
+.a3 .ti .dt{font-size:14px;font-weight:800;line-height:1.15;white-space:nowrap}
+.a3 .ti .dt small{display:block;font-size:12px;color:var(--app-text3);font-weight:700}
+.a3 .ti .nm{font-size:16px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;min-width:0}
+.a3 .ti .nm small{font-size:13px;color:var(--app-text2);font-weight:700}
+.a3 .ti .nm .chip{height:22px;font-size:12px;padding:0 6px}
+.a3 .ti .j{font-size:17px;font-weight:800;text-align:right;display:flex;justify-content:flex-end}
+.a3 .ti.on{background:var(--app-brand-50);box-shadow:inset 5px 0 0 var(--app-brand)}
+.a3 .alldone{margin-top:auto;height:48px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;border-top:1px solid var(--app-line);font-size:15px;font-weight:800;color:var(--app-success-dark);background:var(--app-success-50)}
+.a3 .alldone .ic:last-child{margin-left:auto}
+.a3 .right{display:flex;flex-direction:column;padding:12px 18px;gap:12px;overflow:hidden;min-width:0}
+.a3 .top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;padding:10px 14px;border-radius:12px;background:var(--app-surface);border:1px solid var(--app-line);flex-shrink:0}
+.a3 .top .nm{font-size:22px;font-weight:800;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.a3 .top .nm small{font-size:14px;color:var(--app-text3);font-weight:700}
+.a3 .top .ad{font-size:15px;color:var(--app-text2)}
+.a3 .top .ad b{color:var(--app-text);font-size:16px}
+.a3 .top .js{grid-row:1/3;grid-column:2;text-align:right;font-size:30px;font-weight:800;line-height:1;align-self:center}
+.a3 .top .js small{display:block;font-size:13px;color:var(--app-text3);font-weight:700;margin-top:4px}
+.a3 .top .wish{grid-column:1/3;font-size:14px;color:var(--app-info);font-weight:800}
+.a3 .top .wish b{color:var(--app-danger)}
+.a3 .st{flex-shrink:0}
+.a3 .sl{font-size:15px;font-weight:800;color:var(--app-text);margin-bottom:6px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.a3 .sl i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--app-brand);color:var(--app-inverse);font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+.a3 .sl small{font-size:13px;color:var(--app-text3);font-weight:700;margin-left:auto}
+.a3 .days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding-top:4px}
+.a3 .dbt{height:60px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;font-size:15px;font-weight:800;white-space:nowrap;position:relative}
+.a3 .dbt small{font-size:13px;font-weight:700;color:var(--app-text2)}
+.a3 .dbt.on{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.a3 .dbt.on small{color:var(--app-inverse)}
+.a3 .dbt.full{background:var(--app-danger-50);border-color:var(--app-danger-200)}
+.a3 .dbt.full small{color:var(--app-danger)}
+.a3 .dbt.off{background:var(--app-raised);color:var(--app-text3)}
+.a3 .dbt .wt{position:absolute;top:-9px;right:4px;font-size:12px;font-weight:800;line-height:18px;padding:0 6px;border-radius:9px;background:var(--app-info);color:var(--app-inverse)}
+.a3 .ampm{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.a3 .ampm span{height:56px;border:1px solid var(--app-line2);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:19px;font-weight:800;color:var(--app-text2);background:var(--app-surface)}
+.a3 .ampm span small{font-size:14px;font-weight:700}
+.a3 .ampm span.on{background:var(--app-brand);border-color:var(--app-brand);color:var(--app-inverse)}
+.a3 .teams{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.a3 .tb{height:72px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.25;font-size:15px;font-weight:800;white-space:nowrap}
+.a3 .tb small{font-size:13px;font-weight:700;color:var(--app-text2)}
+.a3 .tb .ov2{font-size:12px;font-weight:800;color:var(--app-danger)}
+.a3 .tb .ok2{font-size:12px;font-weight:800;color:var(--app-success-dark)}
+.a3 .tb.on{background:var(--app-brand-50);border:2px solid var(--app-brand);color:var(--app-brand-dark)}
+.a3 .near{border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface);overflow:hidden;flex-shrink:0}
+.a3 .nr{height:42px;display:grid;grid-template-columns:140px minmax(0,1fr) 50px 120px;align-items:center;gap:10px;padding:0 14px;font-size:14px;color:var(--app-text2);font-weight:700;white-space:nowrap}
+.a3 .nr + .nr{border-top:1px solid var(--app-line)}
+.a3 .nr b{color:var(--app-text);font-size:15px}
+.a3 .nr .j{text-align:right;font-size:15px;color:var(--app-text);font-weight:800}
+.a3 .nr .pp{justify-self:end}
+.a3 .nr.as{height:52px}
+.a3 .nr.as .btn{justify-self:end;min-height:44px;padding:0 12px;font-size:14px}
+.a3 .nr.tip{background:var(--app-success-50);color:var(--app-success-dark);grid-template-columns:1fr;height:36px;font-size:14px}
+.a3 .foot{margin-top:auto;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.a3 .foot .note{font-size:14px;color:var(--app-text2);font-weight:700}
+.a3 .foot .note b{color:var(--app-info)}
+.a3 .foot .btn.pri{margin-left:auto;min-height:56px;padding:0 28px;font-size:18px}
+
+/* ─── 아래 고르기 ─── */
+.pick{margin-top:56px;padding:18px 20px;background:var(--card);border:1px solid var(--line);border-radius:12px;scroll-margin-top:16px}
+.pick h2{font-size:20px;font-weight:800;margin-bottom:10px}
+.pick p{font-size:15px;color:var(--muted);max-width:80ch}
+.pick p b{color:var(--fg)}
+.pick ul{margin-top:8px;padding-left:20px;display:grid;gap:4px;font-size:15px;color:var(--muted)}
+.pick ul b{color:var(--fg)}
+</style>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>출고 스케줄 시안 셋</h1>
+  <p class="lead">출고 탭의 첫 화면은 <b>출고 스케줄을 짜는 판</b>이에요. 포장과 상차는 생산에서 다 준비하니 여기엔 없어요. 이 화면에서 정하는 건 네 가지뿐이에요 — <b>누가 가는지</b>(시공자, 여러 명 가능) · <b>오전이냐 오후냐</b> · <b>어느 날 나가는지</b> · <b>협력사가 바란 날 확정하기</b>. 쓰는 사람은 출고 담당(관리자 · CS 팀도). 갤럭시 탭 가로 화면 크기 그대로이고, 이름 · 주소 · 번호는 모두 지어낸 거예요. 오늘은 11월 12일(목)로 그렸어요.</p>
+  <ul class="toc">
+    <li><a href="#a1">안 1. 2주 띠 + 그날 판</a></li>
+    <li><a href="#a2">안 2. 한 주 판</a></li>
+    <li><a href="#a3">안 3. 정할 것부터</a></li>
+    <li><a href="#pick">정해 주실 것</a></li>
+  </ul>
+
+  <!-- ───────────── 안 1 ───────────── -->
+  <section class="frame" id="a1">
+    <h2>안 1. 2주 띠 + 그날 판</h2>
+    <p class="idea">왼쪽에서 날을 고르면, 가운데에 그날 집들이 오전 · 오후로 나뉘어 서고, 오른쪽에서 팀을 눌러 붙여요.</p>
+    <ul class="pros">
+      <li class="good"><b>좋은 점</b> 지금 생산 첫 화면(2주 띠 + 그날)과 같은 틀이라 익히기 쉬워요.</li>
+      <li class="good"><b>좋은 점</b> 팀마다 오전 · 오후가 얼마나 찼는지 바로 보여서, 한 팀이 넘치는 걸 시트를 안 열어도 알아요.</li>
+      <li><b>아쉬운 점</b> 다른 날과 견주려면 왼쪽 날을 하나씩 눌러 봐야 해요.</li>
+    </ul>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a1">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">서연</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>출고 스케줄</h3><span class="date">11월 12일 (목)</span>
+            <span class="cnt red"><b>5</b>아직 안 정한 것</span>
+            <span class="cnt blue"><b>3</b>협력사 희망일</span>
+            <span class="cnt amb"><b>2</b>시공일 바뀜</span>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="body">
+            <div class="left" data-group="d1">
+              <div class="lh">앞으로 2주<small>쓴 자수 / 용량</small></div>
+              <div class="d" data-pick><div class="dd">11/12 목<small>오늘</small></div><div class="cap hi" style="--p:87%"></div><div class="nn">52.4<small>/60</small></div><span></span></div>
+              <div class="d on" data-pick><div class="dd">11/13 금<small>내일</small></div><div class="cap hi" style="--p:92%"></div><div class="nn">55.0<small>/60</small></div><span class="dot">2</span></div>
+              <div class="d" data-pick><div class="dd">11/14 토</div><div class="cap" style="--p:62%"></div><div class="nn">31.0<small>/50</small></div><span class="dot">1</span></div>
+              <div class="d off"><div class="dd">11/15 일<small>쉬는 날</small></div></div>
+              <div class="d" data-pick><div class="dd">11/16 월</div><div class="cap full" style="--p:100%"></div><div class="nn ov">64.2<small>/60</small></div><span class="dot">1</span></div>
+              <div class="d" data-pick><div class="dd">11/17 화</div><div class="cap" style="--p:57%"></div><div class="nn">40.1<small>/70</small></div><span></span></div>
+              <div class="d" data-pick><div class="dd">11/18 수</div><div class="cap" style="--p:31%"></div><div class="nn">22.0<small>/70</small></div><span class="dot">1</span></div>
+              <div class="d" data-pick><div class="dd">11/19 목</div><div class="cap" style="--p:69%"></div><div class="nn">48.0<small>/70</small></div><span></span></div>
+              <div class="d" data-pick><div class="dd">11/20 금</div><div class="cap" style="--p:26%"></div><div class="nn">18.0<small>/70</small></div><span></span></div>
+              <div class="d" data-pick><div class="dd">11/21 토</div><div class="cap" style="--p:24%"></div><div class="nn">12.0<small>/50</small></div><span></span></div>
+              <div class="d off"><div class="dd">11/22 일<small>쉬는 날</small></div></div>
+              <div class="d" data-pick><div class="dd">11/23 월</div><div class="cap" style="--p:13%"></div><div class="nn">9.0<small>/70</small></div><span></span></div>
+              <div class="d off"><div class="dd">11/24 화<small>아직 없음</small></div></div>
+              <div class="d" data-pick><div class="dd">11/25 수</div><div class="cap" style="--p:6%"></div><div class="nn">4.2<small>/70</small></div><span></span></div>
+              <div class="hope" data-pick><b>3</b><div>협력사 희망일<small>날짜를 정해 확정해 주세요</small></div><svg class="ic"><use href="#i-chev-r"/></svg></div>
+            </div>
+
+            <div class="mid" data-group="o1">
+              <div class="mh">11월 13일 (금) · 내일<small>7건 · 자수 55.0 / 60</small><span class="r">시공자 안 정함 2</span></div>
+              <div class="gh">오전<small>3건 · 자수 29.3</small><span class="r">08:30 진입</span></div>
+              <div class="o" data-pick>
+                <div class="t"><div class="nm">박서준 <small>#5107</small><span class="chip done">제작 완료</span></div><div class="ad"><b>분당구</b> 정자동 · 슬라이딩 붙박이장 외 1</div></div>
+                <div class="js">9.1<small>자수</small></div>
+                <div class="ws"><span class="pp">1팀 최우진</span></div>
+              </div>
+              <div class="o on" data-pick>
+                <div class="t"><div class="nm">정수아 <small>#5110</small><span class="chip hot">내일인데 제작 중</span></div><div class="ad"><b>연수구</b> 송도동 · 주방 상부장 · 하부장 · 키큰장</div></div>
+                <div class="js">14.2<small>자수</small></div>
+                <div class="ws"><span class="pp">3팀 박성민</span><span class="pp">4팀 이준혁</span></div>
+              </div>
+              <div class="o un" data-pick>
+                <div class="t"><div class="nm">오세린 <small>#5121</small><span class="chip ptn">협력사</span><span class="chip done">제작 완료</span></div><div class="ad"><b>하남시</b> 미사동 · 드레스룸 시스템장</div></div>
+                <div class="js">6.0<small>자수</small></div>
+                <div class="ws"><span class="btn red">배정</span></div>
+              </div>
+              <div class="gh">오후<small>3건 · 자수 18.4</small><span class="r">13:00 진입</span></div>
+              <div class="o" data-pick>
+                <div class="t"><div class="nm">김하늘 <small>#5103</small><span class="chip chg">시공일 바뀜</span><span class="chip done">제작 완료</span></div><div class="ad"><b>송파구</b> 잠실동 · 거실장 · 벽박이장</div></div>
+                <div class="js">10.3<small>자수</small></div>
+                <div class="ws"><span class="pp">2팀 김태호</span></div>
+              </div>
+              <div class="o" data-pick>
+                <div class="t"><div class="nm">이도윤 <small>#5099</small><span class="chip done">제작 완료</span></div><div class="ad"><b>강동구</b> 고덕동 · 냉장고장 · 키큰장</div></div>
+                <div class="js">4.0<small>자수</small></div>
+                <div class="ws"><span class="pp">3팀 박성민</span></div>
+              </div>
+              <div class="o un" data-pick>
+                <div class="t"><div class="nm">최유진 <small>#5115</small><span class="chip hot">내일인데 제작 대기</span></div><div class="ad"><b>강남구</b> 대치동 · 신발장 · 중문 옆 수납</div></div>
+                <div class="js">4.1<small>자수</small></div>
+                <div class="ws"><span class="btn red">배정</span></div>
+              </div>
+              <div class="gh nt">시간 안 정함<small>1건 · 자수 7.3</small><span class="r">오전 · 오후를 골라 주세요</span></div>
+              <div class="o" data-pick>
+                <div class="t"><div class="nm">윤재희 <small>#5124</small><span class="chip done">제작 완료</span></div><div class="ad"><b>수정구</b> 신흥동 · 붙박이장 · 화장대</div></div>
+                <div class="js">7.3<small>자수</small></div>
+                <div class="ws"><span class="pp">5팀 정민수</span></div>
+              </div>
+              <div class="next">미리 보기 · <b>11/14 (토)</b> 4건 · 자수 31.0 · 시공자 안 정함 1<span class="btn sm">그날 보기<svg class="ic sm"><use href="#i-chev-r"/></svg></span></div>
+            </div>
+
+            <div class="rt">
+              <div class="rh">11/13 (금) 시공자<small>5팀 일함 · 1팀 쉼</small></div>
+              <div class="hint">고른 집: <b>정수아 #5110 · 자수 14.2</b><br>팀 줄을 누르면 붙고, 한 번 더 누르면 떨어져요. 여러 팀을 붙일 수 있어요.</div>
+              <div class="tm" data-toggle><div class="tn">1팀 최우진<small>용량 10</small></div><div class="bb"><div class="bl">오전<div class="cap hi" style="--p:91%"></div><b>9.1</b></div><div class="bl">오후<div class="cap" style="--p:0%"></div><b>0</b></div></div><span class="mk"><span class="pl">+</span><svg class="ic"><use href="#i-check"/></svg></span></div>
+              <div class="tm" data-toggle><div class="tn ov">2팀 김태호<small class="ov">10.3 / 10 넘침</small></div><div class="bb"><div class="bl">오전<div class="cap" style="--p:0%"></div><b>0</b></div><div class="bl">오후<div class="cap full" style="--p:100%"></div><b class="ov">10.3</b></div></div><span class="mk"><span class="pl">+</span><svg class="ic"><use href="#i-check"/></svg></span></div>
+              <div class="tm on" data-toggle><div class="tn">3팀 박성민<small>용량 20 · 큰 조</small></div><div class="bb"><div class="bl">오전<div class="cap" style="--p:36%"></div><b>7.1</b></div><div class="bl">오후<div class="cap" style="--p:20%"></div><b>4.0</b></div></div><span class="mk"><span class="pl">+</span><svg class="ic"><use href="#i-check"/></svg></span></div>
+              <div class="tm on" data-toggle><div class="tn">4팀 이준혁<small>용량 10</small></div><div class="bb"><div class="bl">오전<div class="cap" style="--p:71%"></div><b>7.1</b></div><div class="bl">오후<div class="cap" style="--p:0%"></div><b>0</b></div></div><span class="mk"><span class="pl">+</span><svg class="ic"><use href="#i-check"/></svg></span></div>
+              <div class="tm" data-toggle><div class="tn">5팀 정민수<small>용량 10</small></div><div class="bb"><div class="bl">오전<div class="cap" style="--p:0%"></div><b>0</b></div><div class="bl">미정<div class="cap hi" style="--p:73%"></div><b>7.3</b></div></div><span class="mk"><span class="pl">+</span><svg class="ic"><use href="#i-check"/></svg></span></div>
+              <div class="tm rest"><div class="tn">6팀 한지훈<small>용량 10</small></div><span class="rs">쉼</span></div>
+              <div class="as"><div>근처 날짜 없는 AS<br><b>송도동 · 경첩 손보기</b></div><span class="btn">3팀에 붙이기</span></div>
+              <div class="acts">
+                <div class="seg2" data-group="ap1"><span class="on" data-pick>오전</span><span data-pick>오후</span></div>
+                <span class="btn"><svg class="ic"><use href="#i-cal"/></svg>다른 날로</span>
+                <span class="btn pri">저장</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 2 ───────────── -->
+  <section class="frame" id="a2">
+    <h2>안 2. 한 주 판</h2>
+    <p class="idea">이번 주 7일을 옆으로 나란히 펼쳐 놓고, 작은 주문 칩을 눌러 아래 줄에서 날짜 · 시간 · 팀을 정해요.</p>
+    <ul class="pros">
+      <li class="good"><b>좋은 점</b> 어느 날이 몰렸는지, 어느 날이 비었는지 한눈에 보여요.</li>
+      <li class="good"><b>좋은 점</b> 날짜 옮기기가 쉬워요 — 아래 줄의 날짜 단추에 그날 남은 자수가 같이 있어요.</li>
+      <li><b>아쉬운 점</b> 칩이 작아서 주소 · 품목은 눌러야 아래에 보여요.</li>
+    </ul>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a2">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">서연</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>출고 스케줄</h3><span class="date">11/12 (목) ~ 11/18 (수)</span>
+            <span class="cnt red"><b>5</b>아직 안 정한 것</span>
+            <span class="cnt blue"><b>3</b>협력사 희망일</span>
+            <span class="cnt amb"><b>2</b>시공일 바뀜</span>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="hopes" data-group="h2">
+            <div class="lb">협력사 희망일 3<small>누르면 그날로 가요</small></div>
+            <div class="hc" data-pick><div class="n">문지아 #5130<small>한결인테리어 · 하남시</small></div><span class="w">희망 11/16 월 오후</span><span class="j">8.2</span></div>
+            <div class="hc" data-pick><div class="n">남도윤 #5136<small>새봄공방 · 권선구</small></div><span class="w">희망 11/19 목 오전</span><span class="j">6.4</span></div>
+            <div class="hc" data-pick><div class="n">기서윤 #5137<small>한결인테리어 · 성북구</small></div><span class="w">희망 11/20 금 오후</span><span class="j">11.0</span></div>
+            <div class="lg"><span><i></i>시공자 없음</span><span><i class="ok"></i>시공자 성</span></div>
+          </div>
+          <div class="week" data-group="k2">
+            <div class="col today">
+              <div class="ch"><div class="dn">11/12 목<small>오늘 · 5건</small></div><div class="u"><div class="cap hi" style="--p:87%"></div><span>52.4/60</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>22.4</span></div>
+                <div class="k" data-pick><div class="l1">장민호<b>10.0</b></div><div class="l2"><span class="g">영통구</span><span class="c1">최</span></div></div>
+                <div class="k" data-pick><div class="l1">고은비<b>12.4</b></div><div class="l2"><span class="g">수지구</span><span class="c1">박</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>19.9</span></div>
+                <div class="k" data-pick><div class="l1">서지안<b>9.8</b></div><div class="l2"><span class="g">마포구</span><span class="c1">김</span></div></div>
+                <div class="k" data-pick><div class="l1">나윤호<b>10.1</b></div><div class="l2"><span class="g">일산동구</span><span class="c1">이</span></div></div>
+              </div>
+              <div class="nt"><div class="zl">미정</div><div class="k" data-pick><div class="l1">배수현<b>10.1</b></div><div class="l2"><span class="g">광명시</span><span class="c1">정</span></div></div></div>
+            </div>
+            <div class="col sel">
+              <div class="ch"><div class="dn">11/13 금<small>내일 · 7건</small></div><div class="u"><div class="cap hi" style="--p:92%"></div><span>55.0/60</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>29.3</span></div>
+                <div class="k" data-pick><div class="l1">박서준<b>9.1</b></div><div class="l2"><span class="g">분당구</span><span class="c1">최</span></div></div>
+                <div class="k" data-pick><div class="l1">정수아<span class="tg h">제작 중</span><b>14.2</b></div><div class="l2"><span class="g">연수구</span><span class="c1">박</span><span class="c1">이</span></div></div>
+                <div class="k un on" data-pick><div class="l1">오세린<span class="tg p">협력사</span><b>6.0</b></div><div class="l2"><span class="g">하남시</span><span class="nobody">시공자 없음</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>18.4</span></div>
+                <div class="k" data-pick><div class="l1">김하늘<span class="tg c">바뀜</span><b>10.3</b></div><div class="l2"><span class="g">송파구</span><span class="c1">김</span></div></div>
+                <div class="k" data-pick><div class="l1">이도윤<b>4.0</b></div><div class="l2"><span class="g">강동구</span><span class="c1">박</span></div></div>
+                <div class="k un" data-pick><div class="l1">최유진<span class="tg h">제작 대기</span><b>4.1</b></div><div class="l2"><span class="g">강남구</span><span class="nobody">시공자 없음</span></div></div>
+              </div>
+              <div class="nt"><div class="zl">미정</div><div class="k" data-pick><div class="l1">윤재희<b>7.3</b></div><div class="l2"><span class="g">수정구</span><span class="c1">정</span></div></div></div>
+            </div>
+            <div class="col">
+              <div class="ch"><div class="dn">11/14 토<small>4건</small></div><div class="u"><div class="cap" style="--p:62%"></div><span>31.0/50</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>14.9</span></div>
+                <div class="k" data-pick><div class="l1">하윤서<b>8.8</b></div><div class="l2"><span class="g">연수구</span><span class="c1">박</span></div></div>
+                <div class="k" data-pick><div class="l1">문태윤<b>6.1</b></div><div class="l2"><span class="g">원미구</span><span class="c1">최</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>12.0</span></div>
+                <div class="k un" data-pick><div class="l1">강다인<b>12.0</b></div><div class="l2"><span class="g">은평구</span><span class="nobody">시공자 없음</span></div></div>
+              </div>
+              <div class="nt"><div class="zl">미정</div><div class="k" data-pick><div class="l1">송지후<b>4.1</b></div><div class="l2"><span class="g">의왕시</span><span class="c1">김</span></div></div></div>
+            </div>
+            <div class="col">
+              <div class="ch"><div class="dn">11/16 월<small>6건 · 넘침</small></div><div class="u ov"><div class="cap full" style="--p:100%"></div><span>64.2/60</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>32.3</span></div>
+                <div class="k" data-pick><div class="l1">임채원<b>14.0</b></div><div class="l2"><span class="g">서초구</span><span class="c1">박</span><span class="c1">한</span></div></div>
+                <div class="k" data-pick><div class="l1">권도겸<b>9.9</b></div><div class="l2"><span class="g">중원구</span><span class="c1">최</span></div></div>
+                <div class="k un" data-pick><div class="l1">유하린<b>8.4</b></div><div class="l2"><span class="g">동안구</span><span class="nobody">시공자 없음</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>21.7</span></div>
+                <div class="k" data-pick><div class="l1">남궁별<b>11.5</b></div><div class="l2"><span class="g">동작구</span><span class="c1">김</span></div></div>
+                <div class="k" data-pick><div class="l1">표서진<b>10.2</b></div><div class="l2"><span class="g">군포시</span><span class="c1">이</span></div></div>
+              </div>
+              <div class="nt"><div class="zl">미정</div><div class="k" data-pick><div class="l1">육현서<b>10.2</b></div><div class="l2"><span class="g">과천시</span><span class="c1">정</span></div></div></div>
+            </div>
+            <div class="col off"><span class="v">11/15 일 · 쉬는 날</span></div>
+            <div class="col">
+              <div class="ch"><div class="dn">11/17 화<small>5건</small></div><div class="u"><div class="cap" style="--p:57%"></div><span>40.1/70</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>18.1</span></div>
+                <div class="k" data-pick><div class="l1">백승아<b>9.0</b></div><div class="l2"><span class="g">하남시</span><span class="c1">박</span></div></div>
+                <div class="k" data-pick><div class="l1">진소율<b>9.1</b></div><div class="l2"><span class="g">송파구</span><span class="c1">최</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>14.7</span></div>
+                <div class="k" data-pick><div class="l1">서도현<b>4.1</b></div><div class="l2"><span class="g">강동구</span><span class="c1">김</span></div></div>
+                <div class="k" data-pick><div class="l1">엄지호<span class="tg c">바뀜</span><b>10.6</b></div><div class="l2"><span class="g">광진구</span><span class="c1">이</span></div></div>
+              </div>
+              <div class="nt"><div class="zl">미정</div><div class="k" data-pick><div class="l1">피승연<b>7.3</b></div><div class="l2"><span class="g">구리시</span><span class="c1">정</span></div></div></div>
+            </div>
+            <div class="col">
+              <div class="ch"><div class="dn">11/18 수<small>2건</small></div><div class="u"><div class="cap" style="--p:31%"></div><span>22.0/70</span></div></div>
+              <div class="zn"><div class="zl"><span>오전</span><span>12.0</span></div>
+                <div class="k un" data-pick><div class="l1">탁예준<b>12.0</b></div><div class="l2"><span class="g">남양주시</span><span class="nobody">시공자 없음</span></div></div>
+              </div>
+              <div class="zn"><div class="zl"><span>오후</span><span>10.0</span></div>
+                <div class="k" data-pick><div class="l1">변시아<b>10.0</b></div><div class="l2"><span class="g">노원구</span><span class="c1">한</span></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="fix">
+            <div class="sum">
+              <div class="nm">오세린 <small>#5121</small><span class="chip ptn">협력사</span></div>
+              <div class="ad"><b>하남시</b> 미사동 · 드레스룸 시스템장</div>
+              <div class="js"><b>6.0</b>자수<span class="chip done">제작 완료</span></div>
+            </div>
+            <div class="rows">
+              <div class="rw" data-group="db2">
+                <span class="lb">날짜</span>
+                <span class="btn nav"><svg class="ic"><use href="#i-chev-l"/></svg></span>
+                <span class="db" data-pick>11/12 목<small>남 7.6</small></span>
+                <span class="db on" data-pick>11/13 금<small>남 5.0</small></span>
+                <span class="db" data-pick>11/14 토<small>남 19.0</small></span>
+                <span class="db off">11/15<small>쉼</small></span>
+                <span class="db full" data-pick>11/16 월<small>4.2 넘침</small></span>
+                <span class="db" data-pick>11/17 화<small>남 29.9</small></span>
+                <span class="db" data-pick>11/18 수<small>남 48.0</small></span>
+                <span class="btn nav"><svg class="ic"><use href="#i-chev-r"/></svg></span>
+                <div class="seg2" data-group="ap2"><span class="on" data-pick>오전</span><span data-pick>오후</span></div>
+              </div>
+              <div class="rw">
+                <span class="lb">시공자</span>
+                <span class="tb" data-toggle>1팀 최우진<small>남 0.9</small></span>
+                <span class="tb full" data-toggle>2팀 김태호<small>0.3 넘침</small></span>
+                <span class="tb on" data-toggle>3팀 박성민<small>남 8.9</small></span>
+                <span class="tb" data-toggle>4팀 이준혁<small>남 2.9</small></span>
+                <span class="tb" data-toggle>5팀 정민수<small>남 2.7</small></span>
+                <span class="tb rest">6팀 한지훈<small>쉼</small></span>
+                <span class="btn pri save">저장</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── 안 3 ───────────── -->
+  <section class="frame" id="a3">
+    <h2>안 3. 정할 것부터</h2>
+    <p class="idea">왼쪽에 "아직 정할 것"만 줄 세우고, 하나 골라 오른쪽에서 날짜 → 시간 → 팀 순서로 정한 뒤 다음 것으로 넘어가요.</p>
+    <ul class="pros">
+      <li class="good"><b>좋은 점</b> 빠뜨리는 일이 없어요 — 목록이 0이 되면 스케줄이 다 짜인 거예요.</li>
+      <li class="good"><b>좋은 점</b> 한 건씩 큰 단추로 빨리 끝내고, 근처 집 힌트로 같은 팀에 묶기 쉬워요.</li>
+      <li><b>아쉬운 점</b> 어느 날이 몰렸는지 같은 전체 흐름은 덜 보여요(날짜 단추의 남은 자수로만 보여요).</li>
+    </ul>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a3">
+        <div class="rail">
+          <div class="logo">F</div>
+          <div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div>
+          <div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div>
+          <div class="sp"></div><div class="ava">서연</div>
+        </div>
+        <div class="page">
+          <div class="bar">
+            <h3>출고 스케줄</h3><span class="date">11월 12일 (목)</span>
+            <span class="cnt red"><b>5</b>아직 안 정한 것</span>
+            <span class="cnt blue"><b>3</b>협력사 희망일</span>
+            <span class="cnt amb"><b>2</b>시공일 바뀜</span>
+            <div class="sp"></div>
+            <div class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></div>
+            <span class="btn sm"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span>
+          </div>
+          <div class="body">
+            <div class="left" data-group="l3">
+              <div class="lh">정할 것 <b>11</b><small>가까운 날부터</small></div>
+              <div class="gh p"><i></i>협력사 희망일 확정<small>3</small></div>
+              <div class="ti on" data-pick><div class="dt">희망 11/16<small>월 오후</small></div><div class="nm">문지아 <small>하남시</small><span class="chip ptn">협력사</span></div><div class="j">8.2</div></div>
+              <div class="ti" data-pick><div class="dt">희망 11/19<small>목 오전</small></div><div class="nm">남도윤 <small>권선구</small><span class="chip ptn">협력사</span></div><div class="j">6.4</div></div>
+              <div class="ti" data-pick><div class="dt">희망 11/20<small>금 오후</small></div><div class="nm">기서윤 <small>성북구</small><span class="chip ptn">협력사</span></div><div class="j">11.0</div></div>
+              <div class="gh u"><i></i>시공자 안 정함<small>5</small></div>
+              <div class="ti" data-pick><div class="dt">11/13 금<small>오전 · 내일</small></div><div class="nm">오세린 <small>하남시</small><span class="chip ptn">협력사</span></div><div class="j">6.0</div></div>
+              <div class="ti" data-pick><div class="dt">11/13 금<small>오후 · 내일</small></div><div class="nm">최유진 <small>강남구</small><span class="chip hot">제작 대기</span></div><div class="j">4.1</div></div>
+              <div class="ti" data-pick><div class="dt">11/14 토<small>오후</small></div><div class="nm">강다인 <small>은평구</small></div><div class="j">12.0</div></div>
+              <div class="ti" data-pick><div class="dt">11/16 월<small>오전</small></div><div class="nm">유하린 <small>동안구</small></div><div class="j">8.4</div></div>
+              <div class="ti" data-pick><div class="dt">11/18 수<small>오전</small></div><div class="nm">탁예준 <small>남양주시</small></div><div class="j">12.0</div></div>
+              <div class="gh c"><i></i>시공일 바뀜 — 확인하면 사라져요<small>2</small></div>
+              <div class="ti" data-pick><div class="dt">11/12 → 11/13<small>오후</small></div><div class="nm">김하늘 <small>송파구</small><span class="chip chg">바뀜</span></div><div class="j">10.3</div></div>
+              <div class="ti" data-pick><div class="dt">11/19 → 11/17<small>오후</small></div><div class="nm">엄지호 <small>광진구</small><span class="chip chg">바뀜</span></div><div class="j">10.6</div></div>
+              <div class="gh f"><i></i>용량 넘는 날<small>1</small></div>
+              <div class="ti" data-pick><div class="dt">11/16 월<small>6건</small></div><div class="nm ov">64.2 / 60 <small class="ov">4.2 넘침</small></div><div class="j"><svg class="ic"><use href="#i-chev-r"/></svg></div></div>
+              <div class="alldone"><svg class="ic sm"><use href="#i-check"/></svg>다 정한 것 23건 보기<svg class="ic"><use href="#i-chev-r"/></svg></div>
+            </div>
+            <div class="right">
+              <div class="top">
+                <div class="nm">문지아 <small>#5130</small><span class="chip ptn">협력사 · 한결인테리어</span><span class="chip done">제작 완료</span></div>
+                <div class="ad"><b>하남시</b> 미사강변동 · 붙박이장 3칸 · 신발장</div>
+                <div class="js">8.2<small>자수</small></div>
+                <div class="wish">협력사가 바란 날: 11/16 (월) 오후 — <b>그날은 이미 4.2 넘쳐요</b></div>
+              </div>
+              <div class="st">
+                <div class="sl"><i>1</i>날짜<small>단추 아래 숫자 = 그날 남은 자수</small></div>
+                <div class="days" data-group="d3">
+                  <span class="dbt" data-pick>11/12 목<small>남 7.6</small></span>
+                  <span class="dbt" data-pick>11/13 금<small>남 5.0</small></span>
+                  <span class="dbt" data-pick>11/14 토<small>남 19.0</small></span>
+                  <span class="dbt off">11/15 일<small>쉬는 날</small></span>
+                  <span class="dbt full" data-pick><span class="wt">희망</span>11/16 월<small>4.2 넘침</small></span>
+                  <span class="dbt on" data-pick>11/17 화<small>남 29.9</small></span>
+                  <span class="dbt" data-pick>11/18 수<small>남 48.0</small></span>
+                </div>
+              </div>
+              <div class="st">
+                <div class="sl"><i>2</i>시간</div>
+                <div class="ampm" data-group="ap3"><span data-pick>오전<small>08:30 진입</small></span><span class="on" data-pick>오후<small>13:00 진입</small></span></div>
+              </div>
+              <div class="st">
+                <div class="sl"><i>3</i>시공자 — 11/17 (화) 그날 남은 자수<small>여러 팀을 고를 수 있어요</small></div>
+                <div class="teams">
+                  <span class="tb" data-toggle>1팀 최우진<small>남 0.9</small><span class="ov2">넣으면 넘침</span></span>
+                  <span class="tb" data-toggle>2팀 김태호<small>남 5.9</small><span class="ov2">넣으면 넘침</span></span>
+                  <span class="tb on" data-toggle>3팀 박성민<small>남 11.0</small><span class="ok2">오후 비어 있음</span></span>
+                  <span class="tb" data-toggle>4팀 이준혁<small>0.6 넘침</small><span class="ov2">이미 넘침</span></span>
+                  <span class="tb" data-toggle>5팀 정민수<small>남 2.7</small><span class="ov2">넣으면 넘침</span></span>
+                  <span class="tb" data-toggle>6팀 한지훈<small>남 10.0</small><span class="ok2">하루 비어 있음</span></span>
+                </div>
+              </div>
+              <div class="st">
+                <div class="sl"><i>4</i>같은 날 근처 집<small>같은 팀으로 묶으면 길이 짧아요</small></div>
+                <div class="near">
+                  <div class="nr"><b>하남시 망월동</b><span>백승아 #5126 · 오전</span><span class="j">9.0</span><span class="pp">3팀 박성민</span></div>
+                  <div class="nr"><b>강동구 강일동</b><span>서도현 #5128 · 오후</span><span class="j">4.1</span><span class="pp">2팀 김태호</span></div>
+                  <div class="nr as"><b>하남시 미사동</b><span>날짜 없는 AS · 문 높이 맞추기</span><span class="j">—</span><span class="btn sm">같이 붙이기</span></div>
+                  <div class="nr tip">3팀이 오전에 바로 옆 망월동에 가요 — 오후에 이 집을 붙이면 좋아요.</div>
+                </div>
+              </div>
+              <div class="foot">
+                <span class="note">저장하면 <b>한결인테리어에 확정 알림</b>이 가요 (11/17 화 오후)</span>
+                <span class="btn pri">저장하고 다음<svg class="ic"><use href="#i-chev-r"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pick" id="pick">
+    <h2>정해 주실 것</h2>
+    <p>셋 다 같은 네 가지(누가 · 몇 시 · 어느 날 · 협력사 희망일 확정)를 정해요. 다른 건 <b>어디서부터 보느냐</b>예요 — 안 1 은 하루씩, 안 2 는 한 주를 한눈에, 안 3 은 할 일 목록부터.</p>
+    <ul>
+      <li><b>첫 화면은 셋 중 어느 것인지</b> (섞어도 돼요. 예: 안 2 의 한 주 판 + 안 3 의 할 일 목록).</li>
+      <li><b>여러 팀이 한 집에 가면 자수를 어떻게 셀지</b> — 시안은 반씩 나눠 셌어요(14.2 → 7.1 + 7.1).</li>
+      <li><b>용량을 오전 · 오후로 나눌지</b> — 지금은 하루 용량 하나라서, 시안은 "그날 남은 자수"에 "오후 비어 있음" 같은 말을 덧붙였어요.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function(){
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w'))||1280,h=parseFloat(s.getAttribute('data-h'))||800;
+      var sw=s.clientWidth;if(!sw){return;}
+      var k=Math.min(1,sw/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+  if(window.ResizeObserver){new ResizeObserver(fit).observe(document.body);}
+  /* 가벼운 움직임: 같은 묶음 안에서 누른 줄로 고른 표시가 옮겨 가고, 팀 단추는 눌러서 붙이기 · 떼기 */
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[data-toggle]');
+    if(t){t.classList.toggle('on');return;}
+    var p=e.target.closest('[data-pick]');if(!p){return;}
+    var g=p.closest('[data-group]');if(!g){return;}
+    [].forEach.call(g.querySelectorAll('[data-pick].on'),function(x){x.classList.remove('on');});
+    p.classList.add('on');
+  });
+})();
+</script>
+
+</body>
+</html>
