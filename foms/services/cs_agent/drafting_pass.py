@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import logging
 import time
@@ -26,7 +27,7 @@ from typing import Any, Callable, Optional, Sequence
 from foms.persistence.main.models import CsAgentTurn
 from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO, ASK_HUMAN_MEMO_HEAD, ASKED_IF_AI, any_asks_if_human
 from foms.services.cs_agent.drafting_post import memo_on, post_note
-from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine
+from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine, customer_texts
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.handoff_memo import post_handoff_memo
 from foms.services.cs_agent.image_settings import MODE_DRAFT as PHOTOS_IN_DRAFT, image_mode
@@ -35,6 +36,9 @@ from foms.services.cs_agent.knowledge import ApprovedKnowledge
 from foms.services.cs_agent.knowledge_doc import HUMAN_ONLY_MARK
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
+from foms.services.cs_agent.onto_block import onto_block
+from foms.services.cs_agent.onto_find import find_items
+from foms.services.cs_agent.onto_settings import onto_graph_on
 from foms.services.cs_agent.order_step import OrderTurn, lookup_after, lookup_first
 from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos, with_usage
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
@@ -43,6 +47,7 @@ from foms.services.cs_agent.turns import (
     DRAFT_OFF, LEGACY_CLAIM_AFTER, claim_owner, draft_mode, mark_failed, mark_skipped, read_switch, record_handoff,
     record_quote, release_turn,
 )
+from foms.services.datetime_kst import get_today_kst
 
 logger = logging.getLogger("foms.services.cs_agent.drafting")
 
@@ -86,6 +91,7 @@ class DraftPass:
         self.photo_reads: dict[int, Optional[PhotoRead]] = {}  # 차례 줄 id → 사진 읽기(차례마다 한 번)
         self.image_outcomes: dict[int, Any] = {}  # 차례 줄 id → 묶음 읽기 결과(:func:`.photo_step.turn_read`)
         self.order_turns: dict[int, OrderTurn] = {}  # 차례 줄 id → 주문 확인(:mod:`.order_step`)
+        self.onto_blocks: dict[int, tuple[str, ...]] = {}  # 차례 줄 id → 걸린 물건 칸(:mod:`.onto_block`)
 
     def photos(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> Optional[PhotoRead]:
         """손님 사진 읽기(:func:`.photo_step.read_photos` — 끔 · 파일 없음이면 ``None``). 같은 차례면 앞 결과."""
@@ -125,9 +131,23 @@ class DraftPass:
         return lookup_after(self, row, request, result, lines, medium)
 
     def order_checks(self, row: CsAgentTurn) -> tuple[tuple[Any, ...], tuple[str, ...]]:
-        """이 차례 주문 확인의 (검사 확정 날, 허용 글) — 찾지 않았으면 빈 것."""
+        """이 차례 주문 확인 · 걸린 물건 칸의 (검사 확정 날, 허용 글) — 없으면 빈 것."""
         order = self.order_turns.get(row.id)
-        return (order.dates(), order.allowed()) if order is not None else ((), ())
+        dates, allowed = (order.dates(), order.allowed()) if order is not None else ((), ())
+        return dates, (*allowed, *self.onto_blocks.get(row.id, ()))
+
+    def with_onto(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Any:
+        """물건 찾아 따라가기(설계서 온톨로지 5절 — 끔이면 설정 한 번 읽기뿐, 그대로). 확인된 주문 품목 이름도 찾기 재료."""
+        if not onto_graph_on(read_settings(self.session, log=False)):
+            return request
+        order = self.order_turns.get(row.id)
+        extra = order.facts.products if order is not None and order.facts is not None else ()
+        hits = find_items(self.session, customer_texts(lines), brand=row.brand, day=get_today_kst(), extra=extra)
+        block = tuple(onto_block(hits))
+        if not block:
+            return request
+        self.onto_blocks[row.id] = block
+        return dataclasses.replace(request, onto_lines=block)
 
     def quote(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
         """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다.

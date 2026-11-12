@@ -402,6 +402,7 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         if quote is None or quote.human is None:
             request = ctx.with_photos(row, quote.apply(request) if quote else request, lines)  # 손님 사진(17.11.1)
             request = ctx.order_first(row, request, lines)  # 성함 · 휴대폰을 물은 뒤면 주문 칸(온톨로지 5.6 — 끔이면 그대로)
+            request = ctx.with_onto(row, request, lines)  # 걸린 물건 칸(온톨로지 5절 — 끔이면 그대로)
             ctx.summary.brain_calls += 1
             result = ctx.order_again(row, request, ctx.brain(request, session=ctx.session, now=ctx.now), lines, medium)
     except SpendCapReached as exc:

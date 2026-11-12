@@ -105,7 +105,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "handoff_buttons_enabled": False,  # 넘김 메모 [배우기] · [흘리기] 단추(사장님 11-11) — 처음 끔
         # 바꿔 묻기 대응(온톨로지 — 사장님 11-11) — 세 칸 모두 처음 끔 · 주문 확인해 답하기(온톨로지 5.6 — 11-12) 처음 끔
         "onto_numbers_enabled": False, "onto_labels_enabled": False, "onto_prompt_enabled": False,
-        "onto_order_enabled": False,
+        "onto_order_enabled": False, "onto_graph_enabled": False,  # 물건 찾아 따라가기(온톨로지 5절 — 처음 끔)
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
