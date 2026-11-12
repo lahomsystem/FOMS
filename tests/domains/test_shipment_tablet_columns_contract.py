@@ -285,9 +285,11 @@ def test_day_sheet_render_empty_day(app) -> None:
 
 
 def test_dashboard_main_top_bar_summary_pill() -> None:
-    """위 줄(태블릿 코호트) = N건 + 시공자 없음 알약(0 이면 숨김). KPI 네 칸은 걷어 냈다."""
+    """위 줄(태블릿 코호트) = 시공자 없음 알약(0 이면 숨김). KPI 네 칸은 걷어 냈다.
+    §14.10(P14-8): 제목 · N건 은 고른 날 날짜 버튼(그날 건수)이 대신해 위 줄에서 뺐다."""
     html = _read(DASHBOARD_MAIN)
-    assert "{{ rows|length }}건" in html
+    bar = html[html.index('<div class="foms-ship-pcbar'):html.index('<div class="erp-pro-card erp-shipment-desktop-shell">')]
+    assert "{{ rows|length }}건" not in bar and "foms-ship-pcbar__title" not in bar
     assert "{% if tablet_day_sheet and tablet_day_sheet.unassigned %}" in html
     assert 'class="foms-ship-pcbar__miss">시공자 없음 {{ tablet_day_sheet.unassigned }}' in html
 

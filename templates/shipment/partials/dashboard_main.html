@@ -1,6 +1,6 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112b">
 {# 태블릿 가로 하루치 출고표(시공자 묶음 카드 · 이름판) — 코호트 문지기 안에서만 그린다. 이 파샬은 온전한 페이지와 셸 조각이 함께 싣는다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261111a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
@@ -62,56 +62,78 @@
   {% elif erp_mobile_v2_enabled %}
     {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
-  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 넣기 + 이미지 저장.
-     base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css).
-     코호트에서 PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다. 신규 쿼리 없음(rows/
-     selected_date/construction_panel_dates 재소비). AS 넣기는 기존 AS 추천 위임 트리거(data-*) 재사용.
-     [이미지 저장]은 PC 머리 · 모바일과 같은 방아쇠(js-shipment-export-trigger → 숨은 #btn-export-image
-     클릭 → image-export.js). 읽기 기능이라 PC 머리처럼 권한 조건 없이 모두에게 보인다(P14-5).
-     예전 꺼진 [출고 확정](서버 기능 없음)은 뺐다. #}
-  {% set _ship_wd = namespace(label='') %}
-  {% for _ci in construction_panel_dates %}
-    {%- if _ci.date == selected_date %}{% set _ship_wd.label = ['월','화','수','목','금','토','일'][_ci.weekday] %}{% endif %}
-  {%- endfor %}
-  <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약">
+  {# ── 태블릿 가로 위 줄(pcbar) — 날짜 버튼 띠 + 요약 알약 + [돋보기] · [AS 넣기] · [더보기 ▾] (설계서 §14.10 P14-8 · 시안 안 28).
+     base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css). 코호트에서 PC 머리 · 필터 카드를
+     숨기고 이 줄이 대신한다. 새 쿼리 없음 — 날짜 버튼은 라우트가 이미 넘기는 construction_panel_dates(오늘부터) 앞 14일만 쓴다.
+     날짜 버튼 = <a href="?date=…&q=…"> 라 셸(erp-shell.js 의 a[href] 가로채기)이 조각만 바꿔 연다(폰 날짜 칩과 같은 주소 모양).
+     고른 날이 14일 밖이면 띠 앞에 그 날 버튼 하나(건수 없이). ◀ ▶ · 손가락 밀기 · 더보기 여닫기 = static/js/shipment/tablet-ship-datebar.js.
+     검색칸(돋보기 아래로 펼치는 작은 창)과 [더보기] 안 날짜 칸은 한 폼(.foms-ship-pcbar__filter, GET date · q)이다 — 날짜 칸은
+     form= 으로 묶는다. 위 줄은 늘 한 줄이라 검색칸은 줄 안에 끼우지 않고 아래로 띄운다(검색 중이면 돋보기 옆에 검색어를 보인다).
+     [이미지 저장]은 PC 머리 · 모바일과 같은 방아쇠(js-shipment-export-trigger → 숨은 #btn-export-image). 권한 조건 없음(P14-5). #}
+  {% set _ship_days = construction_panel_dates[:14] %}
+  {% set _ship_day_set = _ship_days | map(attribute='date') | list %}
+  {% set _ship_wdn = ['월','화','수','목','금','토','일'] %}
+  {% macro _ship_day_url(d) -%}
+    {{ url_for('erp_shipment_page.erp_shipment_dashboard', date=d, q=search_q or '') }}{% if erp_mine_only %}&mine=1{% endif %}
+  {%- endmacro %}
+  <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약" data-ship-datebar>
     <div class="foms-ship-pcbar__lead">
-      <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
-      <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
+      <div class="foms-ship-days" role="group" aria-label="출고 날짜 고르기">
+        <button type="button" class="foms-ship-days__nav" data-ship-days-nav="-1" aria-label="앞 7일">&#9664;</button>
+        <div class="foms-ship-days__track" data-ship-days-track>
+          {% if selected_date and selected_date not in _ship_day_set %}
+          <a class="foms-ship-day is-selected is-outside" href="{{ _ship_day_url(selected_date) }}" aria-current="date" data-ship-day="{{ selected_date }}" title="{{ selected_date }}"><b>{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}</b></a>
+          {% endif %}
+          {% for d in _ship_days %}
+          <a class="foms-ship-day{% if d.date == selected_date %} is-selected{% endif %}{% if d.date == today_date %} is-today{% endif %}{% if d.is_holiday or d.is_weekend %} is-off{% endif %}" href="{{ _ship_day_url(d.date) }}"{% if d.date == selected_date %} aria-current="date"{% endif %} data-ship-day="{{ d.date }}" title="{{ d.date }} {{ _ship_wdn[d.weekday] }}요일{% if d.is_holiday %} 휴일{% endif %}{% if d.date == today_date %} 오늘{% endif %}"><b>{{ d.date[8:10]|int }} {{ _ship_wdn[d.weekday] }}</b><em>{{ d.count }}건</em></a>
+          {% endfor %}
+        </div>
+        <button type="button" class="foms-ship-days__nav" data-ship-days-nav="1" aria-label="뒤 7일">&#9654;</button>
+      </div>
       {# 하루치 출고표 한 줄 요약(설계서 §14.3) — 시공자 없는 줄이 있을 때만 빨간 알약. KPI 네 칸은 걷어 냈다. #}
       {% if tablet_day_sheet and tablet_day_sheet.unassigned %}<span class="foms-ship-pcbar__miss">시공자 없음 {{ tablet_day_sheet.unassigned }}</span>{% endif %}
       {# 협력사 희망 시공일 판을 위에서 내려오는 서랍으로 여는 단추(설계서 §14.8 P14-6). #}
       {% include 'shipment/partials/partner_request_drop_button.html' %}
-      {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
-         카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
-         PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은
-         pcbar actions 에 이미 있어 중복 배치하지 않는다. base-hidden(.foms-ship-pcbar__filter)
-         → 코호트에서만 표시라 PC/폰 렌더 무영향. #}
-      <form class="foms-ship-pcbar__filter" method="get" role="search" aria-label="출고 기준일·검색">
-        <input type="date" class="foms-ship-pcbar__filter-date" name="date" value="{{ selected_date or '' }}" aria-label="기준 날짜">
-        <input type="search" class="foms-ship-pcbar__filter-q" name="q" value="{{ search_q or '' }}" placeholder="검색" aria-label="검색">
-        <button type="submit" class="foms-ship-pcbar__filter-go" aria-label="조회"><i class="fas fa-search" aria-hidden="true"></i></button>
-      </form>
     </div>
     <div class="foms-ship-pcbar__actions">
-      {# 밀도 토글 대상: PC 테이블 + 신규 태블릿 클린 그리드(코호트에서 PC 테이블은 은닉되나
-         data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
-      {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
-      {% include 'partials/shared/foms_density_toggle.html' %}
-      {# 왼쪽 '날짜별 남은 자수' 띠 여닫기(2026-11-11 사용자 "단추로 여닫기"). 평소엔 띠를 숨겨 표가 폭을 다 쓴다.
-         열림 기억 · 클래스 붙이기 = static/js/shipment/tablet-ship-capstrip.js. 띠가 없는 켜진 프리랜서 화면엔 단추도 없다. #}
-      {% if not shipment_freelancer_view %}
-      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__cap-toggle" data-ship-cap-toggle aria-expanded="false" aria-controls="foms-ship-cap-strip">날짜별 남은 자수</button>
-      {% endif %}
+      {# 돋보기 — 누르면 아래로 검색칸이 펼쳐진다. PC 필터폼과 같은 GET(date · q) → 백엔드 무변경. #}
+      <div class="foms-ship-find" data-ship-pop data-ship-find>
+        <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__icon{% if search_q %} is-active{% endif %}" data-ship-search-toggle aria-expanded="false" aria-controls="foms-ship-pcbar-filter" aria-label="검색 열기"><i class="fas fa-search" aria-hidden="true"></i>{% if search_q %}<span class="foms-ship-find__q">{{ search_q }}</span>{% endif %}</button>
+        <form class="foms-ship-pcbar__filter" id="foms-ship-pcbar-filter" method="get" role="search" aria-label="출고 검색">
+          <input type="search" class="foms-ship-pcbar__filter-q" name="q" value="{{ search_q or '' }}" placeholder="고객 · 주소 · 전화" aria-label="검색">
+          <button type="submit" class="foms-ship-pcbar__filter-go" aria-label="조회"><i class="fas fa-search" aria-hidden="true"></i></button>
+        </form>
+      </div>
       {% if can_edit_shipment and not shipment_freelancer_view %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
               title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
         <i class="fas fa-magic" aria-hidden="true"></i><span>AS 넣기</span>
       </button>
       {% endif %}
-      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri js-shipment-export-trigger"
-              title="오늘 출고표를 그림으로 내려받기">
-        <i class="fas fa-file-image" aria-hidden="true"></i><span>이미지 저장</span>
-      </button>
+      <div class="foms-ship-more" data-ship-pop data-ship-more>
+        <button type="button" class="foms-ship-pcbar__btn" data-ship-more-toggle aria-expanded="false" aria-controls="foms-ship-more-menu">더보기 &#9662;</button>
+        <div class="foms-ship-more__menu" id="foms-ship-more-menu" aria-label="더보기">
+          <div class="foms-ship-more__item foms-ship-more__row">
+            <label class="foms-ship-more__label" for="foms-ship-pcbar-date">다른 날짜 고르기</label>
+            <input type="date" id="foms-ship-pcbar-date" class="foms-ship-pcbar__filter-date" name="date" form="foms-ship-pcbar-filter" value="{{ selected_date or '' }}" aria-label="기준 날짜">
+            <button type="submit" class="foms-ship-more__go" form="foms-ship-pcbar-filter">열기</button>
+          </div>
+          {# 왼쪽 '날짜별 남은 자수' 띠 여닫기(2026-11-11 사용자 "단추로 여닫기"). 평소엔 띠를 숨겨 표가 폭을 다 쓴다.
+             열림 기억 · 클래스 붙이기 = static/js/shipment/tablet-ship-capstrip.js. 띠가 없는 켜진 프리랜서 화면엔 단추도 없다. #}
+          {% if not shipment_freelancer_view %}
+          <button type="button" class="foms-ship-more__item foms-ship-pcbar__cap-toggle" data-ship-cap-toggle aria-expanded="false" aria-controls="foms-ship-cap-strip">날짜별 남은 자수</button>
+          {% endif %}
+          <div class="foms-ship-more__item foms-ship-more__row">
+            <span class="foms-ship-more__label">줄 높이</span>
+            {# 밀도 토글 대상: PC 테이블 + 태블릿 하루치 출고표(코호트에서 PC 테이블은 숨으나 data-foms-density 는 양쪽에 붙어도 무해). #}
+            {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
+            {% include 'partials/shared/foms_density_toggle.html' %}
+          </div>
+          <button type="button" class="foms-ship-more__item js-shipment-export-trigger" title="오늘 출고표를 그림으로 내려받기">
+            <i class="fas fa-file-image" aria-hidden="true"></i><span>이미지 저장</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="erp-pro-card erp-shipment-desktop-shell">
