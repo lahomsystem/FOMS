@@ -2455,7 +2455,8 @@ def _order_trash_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
     조회가 1회 더 난다. 휴지통 주문도 ``Session.get`` 으로 잡힌다 — soft delete 필터는
     목록 쪽에만 있다.
 
-    **판정 축을 바꾸지 않았다**: 이 두 키는 버튼 조건 어디서도 읽지 않는다.
+    ``order_trashed`` 는 pane 의 **붙이기 칸** 조건 하나에만 쓰인다(2026-11-12 운영 #6098):
+    휴지통 주문에 묶인 수집분은 기존 주문에 다시 붙일 수 있어야 한다. 그 밖의 버튼은 읽지 않는다.
 
     Args:
         db: 요청 스코프 DB 세션.
