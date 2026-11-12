@@ -413,7 +413,7 @@ def _workmode_display_fields(structured_data: dict[str, Any]) -> tuple[str, str]
     return label, spec
 
 
-def build_construction_row_dtos(orders, att_counts, f_stage):
+def build_construction_row_dtos(orders, att_counts, f_stage, *, keep_production=False):
     """시공 대시보드 표시용 row DTO 조립 (구 erp_construction_dashboard enriched 루프). 동작 보존.
 
     자가실측 미완료 / 표시단계 없음 / f_stage 불일치는 기존대로 건너뛴다(verbatim).
@@ -423,6 +423,8 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
         orders: 표시 후보 Order 객체 리스트.
         att_counts: order_id -> 첨부 수.
         f_stage: 단계 필터('' 또는 시공대기/시공중/시공완료).
+        keep_production: 태블릿 시공 첫 화면 · 상세(설계서 tablet-production-ui §13, D42 ①) — 생산 단계 줄도
+            버리지 않고 표시 단계 '생산중' 으로 남긴다(시공일이 잡힌 집).
 
     Returns:
         list[dict]: 원본 enriched와 동일 구조.
@@ -436,6 +438,8 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
             continue
         structured_data = _ensure_dict(order.structured_data)
         display_stage = _display_stage_for_order(order, structured_data)
+        if not display_stage and keep_production and str(order.erp_stage_code or '').strip().upper() in ('PRODUCTION', '생산'):
+            display_stage = '생산중'
         if not display_stage:
             continue
         if f_stage and display_stage != f_stage:
