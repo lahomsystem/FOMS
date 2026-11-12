@@ -278,3 +278,39 @@ def test_old_deeplink_as_house_picks_as_visit_day_not_construction_day() -> None
     assert tv.resolve_focus_day(db_session, oid, is_as=False) == _d(1)
     only_c = _order("가짜딥링크AS시공일만", kinds={"construction": _d(2)}, status="AS_RECEIVED")
     assert tv.resolve_focus_day(db_session, only_c, is_as=True) == _d(2)  # AS 방문일이 없으면 다른 종류로
+
+
+# ── D44 상세 왼쪽 목록 다듬기 ────────────────────────────────────────────────
+
+def test_detail_left_list_puts_as_visit_houses_after_construction(client, monkeypatch) -> None:
+    """시간상 먼저인 AS 방문 집도 시공 집 뒤(첫 화면 묶음 안 순서와 같은 규칙) — 되돌리면 실패."""
+    as_early = _order("가짜이른에이에스", kinds={"as_visit": _d(1)}, stage="AS", status="AS_RECEIVED")
+    cons_late = _order("가짜늦은시공", kinds={"construction": _d(1)})
+    # 구조 자료를 다시 넣으면 일정 표가 다시 맞춰지므로(order_date_sync) 일정 날짜도 같이 적는다.
+    for oid, t, kind in ((as_early, "오전 8시", "as_visit"), (cons_late, "오후 2시", "construction")):
+        o = db_session.get(Order, oid)
+        sd = dict(o.structured_data)
+        sd["shipment"] = {**sd.get("shipment", {}), "construction_time": t}
+        sd["schedule"] = {kind: {"date": _d(1)}}
+        o.structured_data = sd
+    db_session.commit()
+    _login(client, monkeypatch)
+    left = _cut(_get(client, f"?focus_order={as_early}&date={_d(1)}&worker="), 'class="foms-cwork-timeline"', "</aside>")
+    assert re.findall(r'class="foms-cwork-card[^"]*"\s+data-order-id="(\d+)"', left) == [str(cons_late), str(as_early)]
+    assert re.search(rf'foms-cwork-card is-active"\s+data-order-id="{as_early}"', left)  # 누른 집은 그대로 켜짐
+
+
+def test_workmode_js_reveals_active_card_in_detail_list_only() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/foms/tablet-construction-workmode.js").read_text(encoding="utf-8")
+    body = js[js.index("function revealActiveCard()"):js.index("function onReadyOrSwap()")]
+    assert ".foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline__list" in body
+    assert ".foms-cwork-card.is-active" in body and "list.scrollTop" in body and "clientHeight" in body
+    assert "scrollIntoView" not in js and "window.scroll" not in body
+    ready = js[js.index("function onReadyOrSwap()"):]
+    assert "revealActiveCard();" in ready[:ready.index("}")]
+    page = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
+    pin = re.search(r"js/foms/tablet-construction-workmode\.js'\) \}\}\?v=(\d{8}[a-z])", page)
+    assert pin and pin.group(1) >= "20261112e"
