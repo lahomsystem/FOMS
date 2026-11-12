@@ -214,8 +214,12 @@ def test_detach_restores_collected_state(auth_client):
     assert after.sync_status == "COLLECTED"
 
 
-def test_detach_refuses_promoted_links(auth_client):
-    """주문 생성분(NEW)은 되돌리지 않는다 — 그건 주문 삭제 문제다."""
+def test_detach_on_promoted_links_undoes_the_created_order(auth_client):
+    """주문 생성분(NEW)의 되돌리기는 **주문 만들기 되돌리기**다(2026-11-12 사용자 결정).
+
+    예전에는 400 으로 거절했다("주문 삭제 문제"). 그 거절이 운영 #6098 막다른 길의 한 축이었다 —
+    이제 링크를 수집 직후로 돌리고 만든 주문을 휴지통으로 보낸다.
+    """
     order_id = _order()
     link_id = _link("PO-PROMOTED", order_no="N-PROMOTED", status="LINKED")
     link = db_session.get(ExternalOrderLink, link_id)
@@ -223,8 +227,9 @@ def test_detach_refuses_promoted_links(auth_client):
     db_session.commit()
 
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/detach")
-    assert response.status_code == 400
-    assert _fresh(link_id).order_id == order_id
+    assert response.status_code == 200, response.get_json()
+    assert _fresh(link_id).order_id is None
+    assert db_session.get(Order, order_id).deleted_at
 
 
 def test_attach_is_audited(auth_client):
@@ -448,3 +453,4 @@ def test_attach_never_touches_an_existing_source(auth_client):
     data = _order_sd(order_id)
     assert data.get("source") == "OTHER_CHANNEL"
     assert data.get("naver_linked") is True
+

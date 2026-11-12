@@ -23,7 +23,7 @@
    불러와서 효과가 없었다. media 가 폰 폭이라 PC 는 이 시트를 늦게 받아도 쓰지 않고, 글꼴 파일은 폰에서만 내려온다
    (PC 뿌리 글꼴에는 Pretendard 가 없다). 주소는 layout_head 의 /erp 셸과 같은 한 벌. #}
 <link rel="stylesheet" media="(max-width: 767.98px)" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20261111a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20261112a">
 {% endblock %}
 
 {% block content %}
@@ -1557,8 +1557,11 @@
                         </td>
                         <td>
                             {% if row.order_id %}
+                            {# 휴지통 주문(`주문 접음`)은 번호를 지우고 줄을 긋는다(2026-11-12 운영 #6098) —
+                               살아 있는 주문처럼 보이면 사람이 그 번호로 일을 이어 간다. 붙일 곳은 처리 화면이 말한다. #}
                             <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
-                               target="_blank" rel="noopener">#{{ row.order_id }}</a>
+                               target="_blank" rel="noopener"{% if row.foms_state == 'closed' %} class="text-muted text-decoration-line-through"{% endif %}>#{{ row.order_id }}</a>
+                            {% if row.foms_state == 'closed' %}<span class="small text-muted wb-hist__trashed">휴지통</span>{% endif %}
                             {% elif row.pending_link_id and row.claim_blocking %}
                             {# 주문이 왜 없는지만 적는다. 처리 탭으로 가는 링크는 이 칸이
                                아니라 마지막 '열기' 칸에 **모든 행이 같은 자리로** 갖는다 —
@@ -1786,5 +1789,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20261112a" defer></script>
 {% endblock %}

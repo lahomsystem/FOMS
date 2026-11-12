@@ -1386,3 +1386,34 @@ def test_partial_index_condition_matches_the_rendered_predicate():
         want = rendered(clause)
         got = " ".join(source.split())
         assert want in got, (name, want)
+
+
+def test_trashed_order_number_is_struck_and_says_trash(client, workbench_on):
+    """휴지통 주문은 FOMS 주문 칸이 번호에 줄을 긋고 `휴지통` 이라 말한다(2026-11-12 운영 #6098).
+
+    번호만 그대로 두면 살아 있는 주문처럼 읽혀, 사람이 접힌 주문으로 일을 이어 간다.
+    """
+    _login(client)
+    order = _order(product="휴지통 주문")
+    order.deleted_at = "2026-11-12 08:26:00"
+    db_session.commit()
+    _link(order_no="N-HSA-TRASH-NUM", product="붙박이장 휴지통", amount=1332100,
+          relation="NEW", order_id=int(order.id))
+
+    row = _row(_open(client), "N-HSA-TRASH-NUM")
+
+    assert "text-decoration-line-through" in row, row
+    assert "wb-hist__trashed" in row, row
+
+
+def test_living_order_number_is_not_struck(client, workbench_on):
+    """대조군 — 살아 있는 주문 번호에는 줄도 `휴지통` 도 없다."""
+    _login(client)
+    order = _order(product="살아 있는 주문")
+    _link(order_no="N-HSA-LIVE-NUM", product="붙박이장 살아있음", amount=1332100,
+          relation="NEW", order_id=int(order.id))
+
+    row = _row(_open(client), "N-HSA-LIVE-NUM")
+
+    assert "text-decoration-line-through" not in row, row
+    assert "wb-hist__trashed" not in row, row

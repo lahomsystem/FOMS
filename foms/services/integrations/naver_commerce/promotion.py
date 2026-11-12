@@ -23,6 +23,11 @@ from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
+from foms.services.integrations.naver_commerce.ghost_orders import (
+    DISCARDABLE_STATUSES,
+    read_repay_expected,
+    stage_label,
+)
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     build_payment_info,
@@ -33,6 +38,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     map_group,
 )
 from foms.services.orders.order_create import create_order
+from foms.services.orders.soft_delete import soft_delete_order
 from foms.services.orders.state_axes import read_deleted
 from models import ExternalOrderLink, Order
 
@@ -691,6 +697,112 @@ def detach_link_from_order(session: Session, *, link_id: int,
     logger.info("[NAVER] 붙이기 되돌림 link=%s(+%d) order=%s",
                 link_id, len(siblings) - 1, previous_order_id)
     return (len(siblings), previous_order_id)
+
+
+def undo_created_order(session: Session, *, link_id: int, actor_user_id: int,
+                       is_admin: bool, note: str = "",
+                       now: Optional[datetime] = None) -> dict[str, Any]:
+    """**주문 만들기를 되돌린다** — 추가결제·재결제를 새 주문으로 잘못 만든 경우 (2026-11-12).
+
+    운영 #6098(정광호): 추가결제 수집분으로 "주문 만들기" 를 눌러 버렸다. 되돌리기는 NEW 를
+    거절했고, 주문을 지워도 링크가 접힌 주문을 계속 가리켜 기존 주문(#6020)에 붙일 길이
+    없었다. 이 함수가 한 번에 정리한다: 집의 링크를 **수집 직후 상태**로 돌리고, 그 링크로
+    만든 주문은 **휴지통**으로 보낸다(soft delete — 휴지통에서 되살릴 수 있다).
+
+    잠그는 조건(유령 주문 접기 :func:`ghost_orders.judge_discard` 와 같은 문턱):
+
+    * 그 주문에 **다른 네이버 결제**(이 집 밖의 링크)가 붙어 있으면 거절 — 주문을 지우면
+      그 결제가 미아가 된다.
+    * 접수(``RECEIVED``) 이후 단계면 **관리자 + 사유 한 줄**이 있어야 한다 — 실측·도면
+      이력이 붙은 주문을 조용히 지우지 않는다.
+    * 사람이 켠 **재결제 예정** 표시가 있는 주문은 거절 — 재결제를 기다리는 주문이다.
+    * 주문이 이미 휴지통이면 지우지 않고 링크만 푼다(멱등).
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        link_id: 기준 수집 링크 id.
+        actor_user_id: 누른 사람(휴지통 기록).
+        is_admin: 관리자인가(접수 이후 단계 문턱).
+        note: 사람이 적은 사유(접수 이후 단계에서 필수).
+
+    Returns:
+        ``{"order_id", "released", "trashed", "stage"}`` — ``trashed`` 는 이번에
+        휴지통으로 보냈는가(이미 휴지통이었으면 False).
+
+    Raises:
+        PromotionError: 링크·주문이 없거나, NEW 가 아니거나, 위 잠금 조건에 걸릴 때.
+    """
+    link = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
+        .first()
+    )
+    if link is None:
+        raise PromotionError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+    if not link.order_id or str(link.relation or "NEW") != "NEW":
+        raise PromotionError("주문 만들기로 생긴 건이 아닙니다.")
+    order_id = int(link.order_id)
+    # 주문 행을 **먼저** 잠그고 새로 읽는다 — 아래 판정(다른 결제 수·단계)과 휴지통 사이에
+    # 다른 창이 같은 주문에 추가결제를 붙이면 살아 있는 결제가 휴지통 주문에 남는다.
+    order = (session.query(Order).filter(Order.id == order_id)
+             .populate_existing().with_for_update().first())
+    if order is None:
+        raise PromotionError(f"주문을 찾을 수 없습니다 (order {order_id}).")
+    if read_deleted(order) != "DELETED" and read_repay_expected(order):
+        raise PromotionError(
+            f"주문 #{order_id} 은 재결제 예정으로 표시돼 있습니다 — 표시를 풀고 다시 누르세요."
+        )
+
+    siblings = [row for row in _group_siblings_for_attach(session, link)
+                if row.order_id and int(row.order_id) == order_id]
+    sibling_ids = {int(row.id) for row in siblings}
+    others = (
+        session.query(ExternalOrderLink.id)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.order_id == order_id,
+                ExternalOrderLink.id.notin_(sibling_ids))
+        .count()
+    )
+    if others:
+        raise PromotionError(
+            f"주문 #{order_id} 에는 다른 네이버 결제 {others}건도 붙어 있습니다. "
+            "주문을 지우면 그 결제가 갈 곳을 잃습니다 — 주문 화면에서 정리하세요."
+        )
+
+    already_trashed = read_deleted(order) == "DELETED"
+    status = str(order.status or "")
+    note = (note or "").strip()[:500]
+    if not already_trashed and status not in DISCARDABLE_STATUSES:
+        if not is_admin:
+            raise PromotionError(
+                f"주문 #{order_id} 이 {stage_label(status)} 단계라 이력이 붙어 있습니다 — "
+                "관리자만 사유를 적고 되돌릴 수 있습니다."
+            )
+        if not note:
+            raise PromotionError(
+                "왜 되돌리는지 한 줄 적어 주세요 — 접수 이후 단계라 실측·도면 기록이 "
+                "함께 휴지통으로 갑니다."
+            )
+
+    for row in siblings:
+        row.order_id = None
+        row.relation = "NEW"
+        row.sync_status = "COLLECTED"
+        row.failure_reason = None
+    session.flush()
+
+    trashed = False
+    if not already_trashed:
+        reason = "네이버 추가결제·재결제를 새 주문으로 잘못 만듦 — 주문 만들기 되돌림"
+        if note:
+            reason = f"{reason} ({note})"
+        soft_delete_order(session, order_id=order_id, actor_user_id=int(actor_user_id or 0),
+                          reason=reason, now=now)
+        trashed = True
+    logger.info("[NAVER] 주문 만들기 되돌림 link=%s(+%d) order=%s 휴지통=%s",
+                link_id, len(siblings) - 1, order_id, trashed)
+    return {"order_id": order_id, "released": len(siblings), "trashed": trashed,
+            "stage": status}
 
 
 def summarize_link_household(session: Session, *, link_id: int,

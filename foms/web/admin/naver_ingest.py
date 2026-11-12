@@ -1635,6 +1635,7 @@ def _triage_pane(db, link: ExternalOrderLink, *,
         pane 컨텍스트 dict. ``with_candidates`` 가 False 면 ``candidates`` 는 빈 목록이다.
     """
     from foms.services.integrations.naver_commerce.fulfillment import is_partial_canceled
+    from foms.services.integrations.naver_commerce.ghost_orders import DISCARDABLE_STATUSES
     from foms.services.integrations.naver_commerce.mapping import (
         build_payment_info,
         extract_claim,
@@ -1696,6 +1697,10 @@ def _triage_pane(db, link: ExternalOrderLink, *,
         # 집 잠금(`household_claimed`)으로 읽지 않게 — 어느 형제로 열었느냐에 따라
         # 발주확인·발송 버튼이 달라지면 안 된다(M-4).
         "partial_canceled": is_partial_canceled(link),
+        # 주문 만들기 되돌리기(2026-11-12)가 사유를 물어야 하는가 — 접수 이후 단계.
+        # 판정 정본은 :func:`promotion.undo_created_order`(같은 상수)이고 여기는 화면 안내뿐이다.
+        "undo_needs_reason": bool(order is not None
+                                  and str(order.status or "") not in DISCARDABLE_STATUSES),
         "edit_url": (url_for("order_edit.edit_order", order_id=int(link.order_id),
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
@@ -6772,7 +6777,9 @@ def naver_ingest_repay_reconcile(link_id: int):
 def naver_ingest_detach_order(link_id: int):
     """붙이기를 되돌린다 (T16-E) — 관계를 잘못 골랐을 때.
 
-    주문 생성분(``NEW``)은 되돌릴 수 없다. 그건 주문 삭제 문제라 이 경로의 일이 아니다.
+    주문 생성분(``NEW``)은 **주문 만들기 되돌리기**로 간다(2026-11-12, 운영 #6098):
+    링크를 수집 직후로 돌리고 만든 주문은 휴지통으로 보낸다
+    (:func:`promotion.undo_created_order`). 그 뒤 pane 에서 기존 주문에 붙인다.
     """
     from foms.services.integrations.naver_commerce.promotion import (
         ATTACHABLE_RELATIONS,
@@ -6781,6 +6788,9 @@ def naver_ingest_detach_order(link_id: int):
     )
 
     db = get_db()
+    head = _link_by_id(db, link_id)
+    if head is not None and head.order_id and str(head.relation or "NEW") == "NEW":
+        return _undo_created_order_response(db, link_id)
     try:
         # 되돌리기는 붙이기로 연결된 링크만 걷어낸다 — 같은 술어로 요약해야 숫자가 맞는다.
         history = summarize_link_household(db, link_id=link_id,
@@ -6810,6 +6820,44 @@ def naver_ingest_detach_order(link_id: int):
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "order_id": previous_order_id,
                              "detached": detached},
+                    "error": None})
+
+
+def _undo_created_order_response(db, link_id: int):
+    """``/detach`` 의 NEW 갈래 — 주문 만들기 되돌리기 응답을 만든다.
+
+    판정은 :func:`promotion.undo_created_order` 한 곳에 있다. 여기서는 사유를 읽고,
+    커밋하고, 감사 기록을 남긴다.
+    """
+    from foms.services.integrations.naver_commerce.promotion import (
+        PromotionError,
+        undo_created_order,
+    )
+
+    note = str((request.get_json(silent=True) or {}).get("reason") or "").strip()[:500]
+    try:
+        result = undo_created_order(db, link_id=link_id,
+                                    actor_user_id=int(session.get("user_id") or 0),
+                                    is_admin=_request_role() == "ADMIN", note=note)
+        db.commit()
+    except PromotionError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 주문 만들기 되돌리기 실패 link=%s: %s", link_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 주문 만들기 되돌림 (link {link_id} ← order {result['order_id']}, 휴지통)",
+        session.get("user_id"),
+        action="NAVER_INGEST_UNDO_CREATE",
+        target_type="order", target_id=result["order_id"],
+        detail={"link_id": link_id, **result, "note": note},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": result["order_id"],
+                             "detached": result["released"], "trashed": result["trashed"]},
                     "error": None})
 
 
