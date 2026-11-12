@@ -37,6 +37,8 @@ DASHBOARD_MAIN = "templates/shipment/partials/dashboard_main.html"
 TABLET_GRID = "templates/shipment/partials/tablet_ship_grid.html"
 TABLET_SHEET = "templates/shipment/partials/tablet_sheet.html"
 DAY_SHEET_CSS = "static/css/contexts/shipment/tablet-day-sheet.css"
+# 날짜 버튼 띠 · 사람 색 1~10 은 출고 · 시공 탭 공용 파일로 옮겼다(설계서 §13 P13-1).
+DAY_STRIP_CSS = "static/css/components/foms-tablet-day-strip.css"
 ASSIGN_JS = "static/js/shipment/tablet-ship-assign.js"
 SHIPMENT_ENTRY_JS = "static/js/shipment/shipment-entry.js"
 DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html"
@@ -139,12 +141,14 @@ def test_day_sheet_css_font_sizes_scale_and_min_13() -> None:
 def test_day_sheet_css_row_height_density_and_people_colors() -> None:
     """줄 46px(밀도 40/56 은 #foms-tablet-ship-grid 변수로) · 사람 색 1~10 = PC PASTEL_COLORS 순서."""
     css = _norm(_read(DAY_SHEET_CSS))
+    strip = _norm(_read(DAY_STRIP_CSS))
     assert "--ship-rh: 46px;" in css
     assert '#foms-tablet-ship-grid[data-foms-density="40"] { --ship-rh: 40px; }' in css
     assert '#foms-tablet-ship-grid[data-foms-density="56"] { --ship-rh: 56px; }' in css
     pastel = ["#B8D4E3", "#FFE5CC", "#E8D5E9", "#D5E9D5", "#F0D5D5", "#D5D5E9", "#FFF0D5", "#D5E9E5", "#F5D5E5", "#E9E5D5"]
     for i, color in enumerate(pastel, start=1):
-        assert f'[data-ship-color="{i}"] {{ --ship-pc: {color}; }}' in css
+        assert f'[data-ship-color="{i}"] {{ --ship-pc: {color}; }}' in strip
+        assert f'--ship-pc: {color};' not in css  # 한 곳에만(옮긴 뒤 옛 값이 남으면 두 벌)
     assert "table-layout: fixed;" in css
 
 

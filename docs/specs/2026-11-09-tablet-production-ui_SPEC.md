@@ -236,8 +236,8 @@
 
 ### 13.4 자료 — 새 집계가 필요하다 (출고 집계는 쓰지 않는다)
 - 출고 `construction_panel_dates` 를 그대로 부르면 출고 패널 전부(14일 주문, 캐시 놓치면 JSONB 전량)를 시공 탭에서 다시 계산하고 모집단도 다르다(§13.2). 그래서 새 읽기 서비스 `foms/services/construction/tablet_first.py`(500줄 안 · 함수 50줄 안)를 둔다. 쿼리 둘 + 순수 조립.
-- **쿼리 A — 날짜별 집 수**: `order_schedule_dates`(kind = 'construction', 날짜 = 오늘~오늘+13 과 고른 날)를 `orders` 와 이어 `COUNT(DISTINCT order_id) GROUP BY date`. 줄을 싣지 않는다(JSONB 를 안 읽음), 색인 `idx_order_schedule_dates_composite (kind, date, order_id)`(`models.py:339`). 조건 = `Order.active_filter()` · `is_erp_order` · 협력사 칸(`partner_order_clause`) · AS 상태 뺌(`AS_SHIPMENT_STATUSES` 밖, `shipment_dashboard_helpers.py:20`) · 단계 범위(질문 1) · mine 이면 `build_mine_sql_filter(user)`(시공팀 · 켜진 프리랜서 — 지금 목록과 같은 SQL, `dashboard.py:86-91` 와 같은 꼴) · 사람을 골랐으면 `shipment.construction_workers` 이름 조건(같은 `_json_string_token_condition`, `erp_permissions.py:61-78`). 모아 세기라 **캡이 필요 없다**(300건 캡 결함 꼴이 없다). 60일 창(`dashboard_active_filter`)은 쓰지 않는다(앞날 집이 창 밖으로 밀리지 않게).
-- **쿼리 B — 고른 날 + 미리 볼 날의 줄**: 같은 조건 + 날짜 IN (고른 날, 미리 볼 날) → ORM `Order` 전부(structured_data 포함, 출고 시트와 같은 꼴). 미리 볼 날은 A 결과로 정하므로 A → B 순서. 둘 다 0집이면 B 생략. **안전 캡 200**(하루 집 수의 몇 배로 잡은 추정 — 운영 최대치는 안 잼), 넘치면 "안 보여요" 줄. 상세 모드에서도 같은 B(그날 하나)를 쓰고 도면 그림은 그 줄에만 `enrich_construction_mobile_rows` 를 건다.
+- **쿼리 A — 날짜별 집 수**: `order_schedule_dates`(kind = 'construction', 날짜 = 오늘~오늘+13 과 고른 날)를 `orders` 와 이어 `COUNT(DISTINCT order_id) GROUP BY date`. 줄을 싣지 않는다(JSONB 를 안 읽음), 색인 `idx_order_schedule_dates_composite (kind, date, order_id)`(`models.py:339`). 조건 = `Order.active_filter()` · `is_erp_order` · 협력사 칸(`partner_order_clause`) · AS 상태 뺌(`AS_SHIPMENT_STATUSES` 밖, `shipment_dashboard_helpers.py:20`) · 단계 범위 = **생산(`PRODUCTION` · `생산`) + 시공 대시보드 단계 전부**(D42 ① — 시공일이 잡힌 집은 생산 중이어도 넣고 줄에 `생산중`, 생산 전 단계(실측 · 도면 · 컨펌)는 뺀다, 상수 `FIRST_SCREEN_STAGE_CODES`) · mine 이면 `build_mine_sql_filter(user)`(시공팀 · 켜진 프리랜서 — 지금 목록과 같은 SQL, `dashboard.py:86-91` 와 같은 꼴) · 사람을 골랐으면 `shipment.construction_workers` 이름 조건(같은 `_json_string_token_condition`, `erp_permissions.py:61-78`). 모아 세기라 **캡이 필요 없다**(300건 캡 결함 꼴이 없다). 60일 창(`dashboard_active_filter`)은 쓰지 않는다(앞날 집이 창 밖으로 밀리지 않게).
+- **쿼리 B — 고른 날 + 미리 볼 날의 줄**: 같은 조건(생산 단계 포함) + 날짜 IN (고른 날, 미리 볼 날) → ORM `Order` 전부(structured_data 포함, 출고 시트와 같은 꼴). 일정 줄은 (주문, 날짜) 로 먼저 겹침을 없앤 작은 묶음과 잇는다(주문 + 품목 일정 줄이 같은 날 여럿이어도 한 집). 미리 볼 날은 A 결과로 정하므로 A → B 순서. 둘 다 0집이면 B 생략. **안전 캡 200**(하루 집 수의 몇 배로 잡은 추정 — 운영 최대치는 안 잼), 넘치면 "안 보여요" 줄. 상세 모드에서도 같은 B(그날 하나)를 쓰고 도면 그림은 그 줄에만 `enrich_construction_mobile_rows` 를 건다.
 - 설정 시공자 = `load_erp_shipment_settings()`(요청당 캐시 — 쿼리 0) → `normalize_erp_shipment_workers`. 묶음 · 색 = `build_tablet_day_sheet` 를 날마다 따로(고른 날 · 미리 볼 날).
 - **쿼리 수**: 첫 화면 = 지금(주석 실측 6) + A + B = 8 → 계약 상한 8 에 딱 맞다. 상세 = 지금 + B(+ 그 줄 도면 그림). 넘으면 이유를 적어 계약 숫자를 올리거나 지금 50줄 목록 조회와 합칠지 구현 때 실측으로 정한다.
 - **캐시**: 1차는 안 붙인다(A 는 색인만 · 줄 없음). 대시보드 캐시 무효화는 주문 단계 묶음 기준이라(`foms/services/common/dashboard_cache.py:622-643`) 생산 단계 주문의 시공일이 바뀌면 시공 쪽 키가 안 지워질 수 있다 → 붙이면 낡은 숫자 위험. 스테이징 서버 시간(`Server-Timing` · `X-FOMS-DASH-SLICES`)을 보고 필요할 때만 다시 정한다.
@@ -268,8 +268,8 @@
 
 | 단계 | 일 |
 |---|---|
-| P13-1 | 날짜 띠 · 사람 색 모양을 출고 CSS 에서 공용 foundation 파일로 옮김(출고 화면 무변경 — 실화면 전후 대조) + `tablet-ship-datebar.js` 를 시공 화면에서도 싣기 |
-| P13-2 | 읽기 서비스 `tablet_first.py`(쿼리 A · B · 묶음 · 미리 보기 · 0건) + 시험(대조군 포함) + 쿼리 수 계약 |
+| P13-1 | 날짜 띠 · 사람 색 모양을 출고 CSS 에서 공용 `static/css/components/foms-tablet-day-strip.css` 로 옮김(규칙 글자 그대로, 출고 화면 무변경 — 실화면 전후 대조) + `tablet-ship-datebar.js` 를 시공 화면에서도 같은 핀으로 싣기(`construction/partials/dashboard_body.html` defer — 조각 `scripts.html` 묶음은 안 늘림, 시험 `tests/domains/test_tablet_day_strip_shared.py`) |
+| P13-2 | 읽기 서비스 `foms/services/construction/tablet_first.py`(쿼리 A · B · 묶음 · 미리 보기 · 0건, 생산 단계 = `생산중` — D42 ①) + 시험 `tests/domains/test_construction_tablet_first.py`(대조군 포함). 라우트에는 아직 잇지 않는다 — 쿼리 수 계약은 P13-3 에서 |
 | P13-3 | 첫 화면 조각 + 위 줄(날짜 · 시공자 칸 · 글자 · 다시 받기 · 더보기) + CSS + 새 JS(칸 판 여닫기, 300줄 안) |
 | P13-4 | 상세 모드: 왼쪽 목록 = 그날 집 · 돌아가기 · 옛 딥링크 날짜 잡기 · 찾기 · 버튼 권한 맞춤 |
 | P13-5 | 스테이징 실화면 · 성능 게이트 · 원장 · AI_STATUS |

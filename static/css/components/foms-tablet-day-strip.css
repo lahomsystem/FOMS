@@ -1,0 +1,109 @@
+/* =============================================================
+   태블릿 가로 날짜 버튼 띠 · 사람 색 — 출고 탭과 시공 탭 공용 (설계서 docs/specs/2026-11-09-tablet-production-ui_SPEC.md
+   §14.10 · §13 P13-1). 출고 shipment-dashboard-columns.css · tablet-day-sheet.css 에 있던 규칙을 글자 그대로 옮겼다.
+   ------------------------------------------------------------
+   마크업 = .foms-ship-days > [data-ship-days-nav] + [data-ship-days-track] > a.foms-ship-day(b · em),
+   동작 = static/js/shipment/tablet-ship-datebar.js(문서 위임 싱글턴). 사람 색 = [data-ship-color="1~10"] 가
+   변수 --ship-pc 를 준다(칠하는 곳은 각 탭 CSS 가 정한다). 칠 없음(D29) — 고른 날 = 진한 테두리, 오늘 = 점선.
+   모든 규칙은 태블릿 가로 코호트 문지기(코어 MQ + body.erp-mobile-v2-layout) 안 — PC · 폰 · 세로 무영향.
+   글자 = calc(Npx * var(--foms-fs, 1)), 가장 작은 글자 13px.
+   ============================================================= */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 날짜 버튼 띠: [◀] + 14개(한 번에 7개 보임) + [▶]. 띠는 가로로 밀리고 버튼마다 붙어 선다(scroll-snap).
+     ◀ ▶ 는 tablet-ship-datebar.js 가 7개씩 민다(새로 읽지 않음). 칠 없음(D29) — 고른 날 = 진한 테두리,
+     오늘 = 점선, 주말 · 휴일 = 회색 글자. 버튼 폭은 글자 크기 손잡이(--foms-fs)를 따라 같이 커진다. --- */
+  body.erp-mobile-v2-layout .foms-ship-days {
+    --ship-day-w: calc(60px * var(--foms-fs, 1));
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__track {
+    display: flex;
+    gap: 4px;
+    width: calc(var(--ship-day-w) * 7 + 4px * 6);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__track::-webkit-scrollbar {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__nav {
+    flex: 0 0 44px;
+    height: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: var(--foms-radius-md, 8px);
+    background: transparent;
+    color: var(--foms-text-secondary, #4a515b);
+    font-size: calc(15px * var(--foms-fs, 1));
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__nav[disabled] {
+    opacity: 0.3;
+    cursor: default;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day {
+    flex: 0 0 var(--ship-day-w);
+    height: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--foms-text-primary, #1f2733);
+    text-decoration: none;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day b {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day em {
+    font-style: normal;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-off b {
+    font-weight: 700;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-today {
+    border: 1.5px dashed var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-selected {
+    border: 2.5px solid var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-selected em {
+    color: var(--foms-text-primary, #1f2733);
+    font-weight: 800;
+  }
+
+  /* 사람 색 1~10 = PC 출고 탭 PASTEL_COLORS 순서(shipment-dashboard.js · dashboard_main.html 과 같은 값). */
+  body.erp-mobile-v2-layout [data-ship-color="1"] { --ship-pc: #B8D4E3; }
+  body.erp-mobile-v2-layout [data-ship-color="2"] { --ship-pc: #FFE5CC; }
+  body.erp-mobile-v2-layout [data-ship-color="3"] { --ship-pc: #E8D5E9; }
+  body.erp-mobile-v2-layout [data-ship-color="4"] { --ship-pc: #D5E9D5; }
+  body.erp-mobile-v2-layout [data-ship-color="5"] { --ship-pc: #F0D5D5; }
+  body.erp-mobile-v2-layout [data-ship-color="6"] { --ship-pc: #D5D5E9; }
+  body.erp-mobile-v2-layout [data-ship-color="7"] { --ship-pc: #FFF0D5; }
+  body.erp-mobile-v2-layout [data-ship-color="8"] { --ship-pc: #D5E9E5; }
+  body.erp-mobile-v2-layout [data-ship-color="9"] { --ship-pc: #F5D5E5; }
+  body.erp-mobile-v2-layout [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+}
