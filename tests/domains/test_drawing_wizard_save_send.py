@@ -55,7 +55,7 @@ def test_popover_markup_sits_with_save_buttons_and_has_no_inline_style():
 
 
 def test_save_send_script_loads_after_wizard_core():
-    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261106c")
+    assert TPL.index("js/drawing/wizard.js') }}?v=20261111a") < TPL.index("js/drawing/save-send.js') }}?v=20261112a")
 
 
 def test_buttons_open_popover_but_ctrl_s_saves_directly():

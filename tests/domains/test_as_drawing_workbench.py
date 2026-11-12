@@ -6,6 +6,8 @@ API·규칙 시험은 ``test_as_drawing_round.py``.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.domains.test_as_drawing_round import (  # noqa: F401 - 픽스처도 함께 가져온다
     _as,
     _order,
@@ -164,13 +166,22 @@ def test_wizard_page_carries_as_config_only_after_completion(client):
     assert "js/drawing/wizard-as.js" not in other and '"as_drawing": null' in other
 
 
-def test_save_window_send_becomes_as_transfer_after_completion(client, storage):
-    drafter = _user("asd_draw41")
+# 마법사 [저장] 창 '도면 발송'(save-send.js)은 transfer-drawing 에 pending_sheet_ids 를 싣고,
+# 작업실 일괄 전달은 transfer-pending 을 부른다 — 완료 주문이면 둘 다 AS 도면 보내기다(스테이징 실화면 11-12).
+_SAVE_WINDOW_ROUTES = [
+    ("drawing-wizard/transfer-pending", {"note": "확인"}),
+    ("transfer-drawing", {"note": "확인", "files": [], "pending_sheet_ids": ["s-1", "s-2"], "mode": "APPEND"}),
+]
+
+
+@pytest.mark.parametrize("route,body", _SAVE_WINDOW_ROUTES, ids=["transfer-pending", "transfer-drawing"])
+def test_save_window_send_becomes_as_transfer_after_completion(client, storage, route, body):
+    drafter = _user(f"asd_draw41_{len(route)}")
     oid = _order(drawing_ids=[drafter.id], name="저장창고객")
     original = _sd(oid)
     _as(client, drafter)
 
-    r0 = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
+    r0 = client.post(f"/api/orders/{oid}/{route}", json=body)
     assert r0.status_code == 400 and r0.get_json()["error"] == "NO_OPEN_ROUND"
 
     assert _start(client, oid, memo="m", as_register={"content": "c"}).status_code == 200
@@ -178,7 +189,7 @@ def test_save_window_send_becomes_as_transfer_after_completion(client, storage):
                               {"id": "s-2", "name": "AS", "form": {}, "objects": []}]).status_code == 200
     assert _sheet_png(client, oid, "s-2", "as.png").status_code == 200
 
-    res = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={"note": "확인"})
+    res = client.post(f"/api/orders/{oid}/{route}", json=body)
 
     body = res.get_json()
     assert res.status_code == 200, body

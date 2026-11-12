@@ -27,27 +27,39 @@
     background: #d93a3a;
 }
 
-/* 종이 오른쪽 위 도장 — #dws-stage 안이라 [저장] 그림에도 찍힌다. */
+.dws-tab.dws-tab-as,
+.dws-tab.dws-tab-as.dws-tab-active {
+    color: #c62828;
+    font-weight: 700;
+}
+
+/* 종이 왼쪽 위 여백의 한 줄 도장 — #dws-stage 안이라 [저장] 그림에도 찍힌다.
+   오른쪽 위는 '발주 리스트' 칸과 양식 모서리 칸을 가려서 왼쪽 위 여백으로 옮겼다(스테이징 실화면 11-12). */
 .dws-as-stamp {
     position: absolute;
-    top: 14px;
-    right: 18px;
+    top: 6px;
+    left: 40px;
     z-index: 5;
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    padding: 4px 10px;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 10px;
     border: 2px solid #d93a3a;
     border-radius: 4px;
     color: #d93a3a;
     background: rgba(255, 255, 255, 0.92);
     pointer-events: none;
-    transform: rotate(-3deg);
+    white-space: nowrap;
+    transform: rotate(-1.5deg);
+}
+
+/* display:flex 가 [hidden] 을 이기므로 따로 숨긴다 — 원래 시트에서 빈 빨간 상자가 남았다(V2 실화면 11-12). */
+.dws-as-stamp[hidden] {
+    display: none;
 }
 
 .dws-as-stamp strong {
-    font-size: 20px;
+    font-size: 17px;
     letter-spacing: 0.04em;
 }
 
