@@ -437,7 +437,7 @@
   }
 
   // B5 완료 게이트(400)의 missing 코드 → 사람 말. 서버는 코드만 주고, 사람 말은 화면 몫이다.
-  const CONSTRUCTION_GATE_MISSING_LABELS = {
+  var CONSTRUCTION_GATE_MISSING_LABELS = {
     after: '완료 사진 2장',
     signature: '고객 서명'
   };
@@ -468,7 +468,7 @@
   }
 
   // 시공 불가 사유 4종(서버 화이트리스트와 같은 코드·순서).
-  const CONSTRUCTION_FAIL_REASONS = [
+  var CONSTRUCTION_FAIL_REASONS = [
     { code: 'drawing_error', label: '도면 오류' },
     { code: 'measurement_error', label: '실측 오류' },
     { code: 'product_defect', label: '제품 불량' },
