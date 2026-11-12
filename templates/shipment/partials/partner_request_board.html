@@ -2,11 +2,13 @@
    협력사가 고른 날짜는 희망일이다 — 판에서 누르거나 다른 날로 끌어 놓아 [확정]하면 시공일이 정해지고 이 판에서 빠진다.
    '최근 정한 기록' [되돌리기]는 시공일을 지워 다시 이 판(확정 대기)으로 돌린다(협력사에 취소 알림, 사용자 11-10).
    날짜 칸 숫자는 왼쪽 "날짜별 잔여 시공"과 같은 값(희망일도 이미 그날 자수에 들어가 있다, 사용자 결정 10-28 · 10-29).
-   움직임은 static/js/shipment/partner-request-board.js(shipment-entry.js 가 싣는다). #}
+   움직임은 static/js/shipment/partner-request-board.js(shipment-entry.js 가 싣는다).
+   태블릿 가로 코호트에서는 같은 판 한 벌을 평소 숨기고, 위 줄 [협력사 희망 N]을 누르면 위에서 내려오는 서랍으로 보인다
+   (설계서 2026-11-09-tablet-production-ui §14.8 — 여닫기 tablet-prb-drop.js, 뒤 막 · [닫기 ▴]는 PC 에서 늘 숨김). #}
 {% set b = partner_request_board %}
 {% if b and (b.count or b.history) %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261110a">
-<div class="card border-0 shadow-sm erp-scheduler-card prb mb-3" data-partner-pending-requests data-prb
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/partner-request-board.css') }}?v=20261112a">
+<div class="card border-0 shadow-sm erp-scheduler-card prb mb-3" id="foms-prb-drop" data-partner-pending-requests data-prb
   data-can-set="{{ '1' if can_set_construction_schedule else '0' }}"
   data-partner="{{ b.single_partner }}" data-tight="{{ b.tight_units }}">
   <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-2 prb-head" data-prb-fold role="button" tabindex="0" aria-expanded="true">
@@ -59,5 +61,7 @@
     </div>
     {% endif %}
   </div>
+  <button type="button" class="prb-drop-close" data-prb-drop-close>닫기 ▴</button>
 </div>
+<div class="prb-drop-scrim" data-prb-drop-scrim aria-hidden="true"></div>
 {% endif %}

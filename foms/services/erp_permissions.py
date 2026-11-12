@@ -37,6 +37,8 @@ __all__ = [
     "can_edit_erp_construction",
     "erp_edit_required",
     "erp_construction_edit_required",
+    "can_edit_shipment",
+    "shipment_edit_required",
 ]
 
 
@@ -397,6 +399,20 @@ def can_edit_construction_schedule(user: Any) -> bool:
     return role in ("STAFF", "MANAGER") and normalize_team(getattr(user, "team", None)) == "SHIPMENT"
 
 
+def can_edit_shipment(user: Any) -> bool:
+    """출고 배정 · 시공시간 · AS 넣기를 쓸 수 있는가 — 관리자 · CS팀 · 출고팀 STAFF · MANAGER 뿐(D31, 영업팀은 보기만).
+
+    협력사 계정 · 비활성 · VIEWER · 시공팀 · 영업팀(``MEASURE`` 포함)은 안 된다. 정책 ``SHIPMENT_ASSIGN`` 의 문지기도 이 함수다.
+    설계서 ``docs/specs/2026-11-09-tablet-production-ui_SPEC.md`` §14.4. 시공일 쓰기는 :func:`can_edit_construction_schedule`.
+    """
+    if user is None or getattr(user, "partner_org_id", None) is not None or getattr(user, "is_active", True) is False:
+        return False
+    role = str(getattr(user, "role", "") or "").strip().upper()
+    if role == "ADMIN":
+        return True
+    return role in ("STAFF", "MANAGER") and team_has_capability(getattr(user, "team", None), ("CS", "SHIPMENT"))
+
+
 def can_edit_erp_construction(user: Any) -> bool:
     """Return whether the user can edit construction-only ERP actions.
 
@@ -432,15 +448,22 @@ def erp_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
         if not user:
             return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
         if not can_edit_erp(user):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "ERP Order 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)",
-                    }
-                ),
-                403,
-            )
+            return jsonify({"success": False, "message": "ERP Order 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)"}), 403
+        return f(*args, **kwargs)
+
+    return wrapped
+
+
+def shipment_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
+    """출고 쓰기 데코레이터 — :func:`can_edit_shipment` 가 거짓이면 403(:func:`erp_edit_required` 와 같은 응답 꼴)."""
+
+    @wraps(f)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        user = get_user_by_id(session.get("user_id"))
+        if not user:
+            return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+        if not can_edit_shipment(user):
+            return jsonify({"success": False, "message": "출고 수정 권한이 없습니다. (관리자, CS팀, 출고팀만 수정 가능)"}), 403
         return f(*args, **kwargs)
 
     return wrapped
@@ -456,15 +479,7 @@ def erp_construction_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
             return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
         if can_act_construction(user):
             return f(*args, **kwargs)
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "message": "시공 시작/완료 권한이 없습니다. (관리자, 라홈팀, 영업팀 또는 시공팀만 가능)",
-                }
-            ),
-            403,
-        )
+        return jsonify({"success": False, "message": "시공 시작/완료 권한이 없습니다. (관리자, 라홈팀, 영업팀 또는 시공팀만 가능)"}), 403
 
     return wrapped
 

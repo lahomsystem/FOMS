@@ -180,27 +180,37 @@ def test_shipment_mobile_queue_is_scoped(w, app, monkeypatch):
 
 
 def test_shipment_company_wide_panels_and_tools_are_hidden(w, app):
-    """잔여 시공 · 잔여 자수 띠 · 협력사 희망일 판 · AS 추천 · 설정 링크: 직원은 보고 프리랜서는 없다."""
-    company_marks = ("날짜별 잔여 시공", "foms-ship-cap-strip", "협력사 희망 시공일", "shipmentAsRecommendModal",
-                     "data-shipment-as-recommend-open", "/erp/shipment-settings", "data-kakao-js-key=",
-                     'data-can-edit="true"')
+    """잔여 시공 · 잔여 자수 띠 · 협력사 희망일 판 · AS 추천 · 설정 링크: 직원은 보고 프리랜서는 없다.
+
+    AS 추천 · 편집 칸은 출고 쓰기 권한(관리자 · CS · 출고팀, D31 11-11)이라 대조군 영업 직원도 없다 — CS 직원으로 본다.
+    """
+    panel_marks = ("날짜별 잔여 시공", "foms-ship-cap-strip", "data-ship-cap-toggle", "협력사 희망 시공일", "/erp/shipment-settings")
+    edit_marks = ("shipmentAsRecommendModal", "data-shipment-as-recommend-open", "data-kakao-js-key=",
+                  'data-can-edit="true"', f'data-shipment-order-id="{w.other}"')
     control = _get(app, w.staff, "/erp/shipment")
-    assert [m for m in company_marks if m not in control] == []
-    assert PARTNER_OTHER in control and f'data-shipment-order-id="{w.other}"' in control
+    assert [m for m in panel_marks if m not in control] == []
+    assert PARTNER_OTHER in control
+    assert [m for m in edit_marks if m in control] == []
+    cs_control = _get(app, _user("STAFF", "CS"), "/erp/shipment")
+    assert [m for m in panel_marks + edit_marks if m not in cs_control] == []
     body = _get(app, w.fl, "/erp/shipment")
-    assert [m for m in company_marks if m in body] == []
+    assert [m for m in panel_marks + edit_marks if m in body] == []
     assert 'data-can-edit="false"' in body
+    # [이미지 저장](태블릿 위 줄 · PC 머리)은 읽기 기능 — 프리랜서 · 편집 불가 직원에게도 있다(P14-5). 대조: CS 직원도 있다.
+    assert all('js-shipment-export-trigger' in page for page in (body, control, cs_control))
     _assert_only_own(body, w, own_names=(OWN, OWN_AS))
 
 
 def test_tablet_sheet_own_only_without_company_capacity(w, app, monkeypatch):
-    roster = {"construction_workers": [{"name": "가짜시공1팀", "capacity": 40}]}
-    monkeypatch.setattr(shipment_dashboard, "load_erp_shipment_settings", lambda: roster)
+    """세부정보 서랍(11-11 P14-4)은 팀 고르기 · 시공팀 잔여를 아예 세지 않는다 — 누구에게도 없다."""
+    def _no_count(*_a, **_k):
+        raise AssertionError("서랍은 회사 전체 잔여를 세지 않는다")
+    monkeypatch.setattr(shipment_dashboard, "compute_team_remaining_units_for_date", _no_count)
     body = _get(app, w.fl, f"/erp/shipment/tablet-sheet/{w.own}")
-    assert OWN in body and "가짜시공1팀" in body and "foms-ship-sheet__team-remain" not in body
+    assert OWN in body and "foms-ship-sheet__team-remain" not in body
     _get(app, w.fl, f"/erp/shipment/tablet-sheet/{w.other}", status=404)
     control = _get(app, w.staff, f"/erp/shipment/tablet-sheet/{w.other}")
-    assert OTHER in control and "foms-ship-sheet__team-remain" in control
+    assert OTHER in control and "foms-ship-sheet__team-remain" not in control
 
 
 # --------------------------------------------------------------------------

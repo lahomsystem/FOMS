@@ -747,27 +747,27 @@
     },
     "erp_shipment.api_erp_shipment_update": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_ASSIGN",
       "rule": "/api/erp/shipment/update/<int:order_id>"
     },
     "erp_shipment.api_shipment_as_recommendations": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_ASSIGN",
       "rule": "/api/erp/shipment/as-recommendations"
     },
     "erp_shipment.api_shipment_as_recommendations_apply": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_ASSIGN",
       "rule": "/api/erp/shipment/as-recommendations/apply"
     },
     "erp_shipment.api_shipment_as_recommendations_cancel": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_ASSIGN",
       "rule": "/api/erp/shipment/as-recommendations/cancel"
     },
     "erp_shipment.api_shipment_as_recommendations_prewarm": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_ASSIGN",
       "rule": "/api/erp/shipment/as-recommendations/prewarm"
     },
     "erp_shipment.api_confirm_partner_request": {

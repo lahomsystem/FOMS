@@ -1,6 +1,8 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261109a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112a">
+{# 태블릿 가로 하루치 출고표(시공자 묶음 카드 · 이름판) — 코호트 문지기 안에서만 그린다. 이 파샬은 온전한 페이지와 셸 조각이 함께 싣는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261111a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -35,8 +37,7 @@
   {% set erp_sub_nav_active = 'shipment' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
   </div>{# /.foms-shell-desktop-only #}
-  {# 시공팀은 출고 대시보드에서 수정 불가 (조회만) #}
-  {% set can_edit_shipment = (can_edit_erp|default(false)) and (not (is_construction_team|default(false))) %}
+  {# 편집 칸은 라우트가 넘기는 can_edit_shipment(관리자 · CS · 출고팀, D31)로만 연다. 주문 수정 링크 · [확인]은 can_edit_order_here. #}
 
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -61,11 +62,13 @@
   {% elif erp_mobile_v2_enabled %}
     {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
-  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 추천 + 출고 확정.
+  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 넣기 + 이미지 저장.
      base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css).
      코호트에서 PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다. 신규 쿼리 없음(rows/
-     selected_date/construction_panel_dates 재소비). AS 추천은 기존 위임 트리거(data-*)
-     재사용, 출고 확정은 백엔드 라우트 부재로 disabled. #}
+     selected_date/construction_panel_dates 재소비). AS 넣기는 기존 AS 추천 위임 트리거(data-*) 재사용.
+     [이미지 저장]은 PC 머리 · 모바일과 같은 방아쇠(js-shipment-export-trigger → 숨은 #btn-export-image
+     클릭 → image-export.js). 읽기 기능이라 PC 머리처럼 권한 조건 없이 모두에게 보인다(P14-5).
+     예전 꺼진 [출고 확정](서버 기능 없음)은 뺐다. #}
   {% set _ship_wd = namespace(label='') %}
   {% for _ci in construction_panel_dates %}
     {%- if _ci.date == selected_date %}{% set _ship_wd.label = ['월','화','수','목','금','토','일'][_ci.weekday] %}{% endif %}
@@ -74,6 +77,10 @@
     <div class="foms-ship-pcbar__lead">
       <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
+      {# 하루치 출고표 한 줄 요약(설계서 §14.3) — 시공자 없는 줄이 있을 때만 빨간 알약. KPI 네 칸은 걷어 냈다. #}
+      {% if tablet_day_sheet and tablet_day_sheet.unassigned %}<span class="foms-ship-pcbar__miss">시공자 없음 {{ tablet_day_sheet.unassigned }}</span>{% endif %}
+      {# 협력사 희망 시공일 판을 위에서 내려오는 서랍으로 여는 단추(설계서 §14.8 P14-6). #}
+      {% include 'shipment/partials/partner_request_drop_button.html' %}
       {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
          카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
          PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은
@@ -90,51 +97,23 @@
          data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
       {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
+      {# 왼쪽 '날짜별 남은 자수' 띠 여닫기(2026-11-11 사용자 "단추로 여닫기"). 평소엔 띠를 숨겨 표가 폭을 다 쓴다.
+         열림 기억 · 클래스 붙이기 = static/js/shipment/tablet-ship-capstrip.js. 띠가 없는 켜진 프리랜서 화면엔 단추도 없다. #}
+      {% if not shipment_freelancer_view %}
+      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__cap-toggle" data-ship-cap-toggle aria-expanded="false" aria-controls="foms-ship-cap-strip">날짜별 남은 자수</button>
+      {% endif %}
       {% if can_edit_shipment and not shipment_freelancer_view %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
               title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
-        <i class="fas fa-magic" aria-hidden="true"></i><span>AS 추천</span>
-      </button>
-      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri" disabled
-              title="출고 확정 액션/라우트가 아직 없습니다 — 백엔드 미구현">
-        <i class="fas fa-truck-loading" aria-hidden="true"></i><span>출고 확정</span>
+        <i class="fas fa-magic" aria-hidden="true"></i><span>AS 넣기</span>
       </button>
       {% endif %}
+      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri js-shipment-export-trigger"
+              title="오늘 출고표를 그림으로 내려받기">
+        <i class="fas fa-file-image" aria-hidden="true"></i><span>이미지 저장</span>
+      </button>
     </div>
   </div>
-  {# 태블릿 가로 상단 KPI 4종 — 코호트 CSS 게이트(coarse landscape에서만 display:grid). #}
-  {% if tablet_ship_kpis %}
-  <div class="tablet-ship-kpis erp-pro-alerts" aria-label="출고 요약">
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">총 자수</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.total_units }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-boxes" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">건수</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.order_count }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert">
-      <div class="erp-pro-alert__icon"><i class="fas fa-users" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">시공팀</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.team_count }}</span>
-      </div>
-    </div>
-    <div class="erp-pro-alert erp-pro-alert--danger">
-      <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">미배정</span>
-        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.unassigned }}</span>
-      </div>
-    </div>
-  </div>
-  {% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
@@ -320,7 +299,7 @@
            코호트에서 은닉하고 이 클린 스트립이 대체한다. remaining_panel_dates(서버 기존
            집계, 신규 쿼리 없음) 재소비: 프로그레스 = used/total, ok/warn/off 색은
            is_weekend·holiday·alert_capacity 로 파생. base-hidden → 코호트 가로에서만 표시. #}
-        {% if not shipment_freelancer_view %}<aside class="foms-ship-cap-strip" aria-label="잔여 자수 용량">
+        {% if not shipment_freelancer_view %}<aside class="foms-ship-cap-strip" id="foms-ship-cap-strip" aria-label="잔여 자수 용량">
           <div class="foms-ship-cap-strip__head">
             {% set _cm = (selected_date or today_date)[5:7]|int %}
             {% set _cd = (selected_date or today_date)[8:10]|int %}
@@ -501,11 +480,14 @@
                   data-team-color-index="{{ ns.worker_index }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-col-key="detail" data-label="상세" style="border-right: 1px solid #e0e0e0;">
-                    {% if can_edit_shipment %}
+                    {% set _row_rec_cancel = can_edit_shipment|default(false) and r.shipment_as_recommendation_link %}
+                    {% if can_edit_order_here|default(false) or _row_rec_cancel %}
                     <div class="d-flex flex-column gap-1 align-items-start">
+                      {% if can_edit_order_here|default(false) %}
                       <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
                         class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
-                      {% if r.shipment_as_recommendation_link %}
+                      {% endif %}
+                      {% if _row_rec_cancel %}
                       <button type="button" class="badge rounded-pill bg-danger text-white border-0 p-1 lh-1 js-shipment-as-rec-cancel"
                         title="출고 추천으로 연결된 AS 일정을 해제" aria-label="추천 취소"
                         data-shipment-order-id="{{ r.shipment_as_recommendation_link.shipment_order_id }}"
@@ -534,7 +516,7 @@
                     {% endif %}
                     {# 시공일 변경 배지 + [확인]. 고객 셀에 두는 이유: PC 표에는 시공일 열이
                        없고(페이지 자체가 날짜로 필터된다) 고객 셀이 행 신원을 읽는 자리다. #}
-                    {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment) }}
+                    {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false)) }}
                   </td>
                   <td data-label="대리점(발주사)" style="border-right: 1px solid #e0e0e0;">
                     {{ orderer or '-' }}

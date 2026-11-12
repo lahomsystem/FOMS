@@ -1,135 +1,121 @@
-{# 태블릿 가로 출고 클린 그리드 (목업 프레임 06 "출고 대시보드").
+{# 태블릿 가로 출고 탭 — 하루치 출고표(설계서 2026-11-09-tablet-production-ui_SPEC §14.3, 시안 안 17 · 결정 D29 · D30).
    ─────────────────────────────────────────────────────────────────────────────
-   목적: PC 10열 출고 테이블(#shipment-dashboard-table)을 CSS 로 6열만 접던 방식은
-   실기기(iPad)에서 컬럼 순서·라벨이 어긋났다(시간·고객 소실, 규격 숫자 무라벨). CSS 로는
-   열 재정렬·input→plain 변환이 불가하므로, 목업 06 정합 클린 그리드를 템플릿 레벨로 신설한다
-   (frame01 tablet_workqueue_grid.html 과 동일 전략).
+   모양: 머리 한 줄(카드 밖) + 시공자 묶음마다 흰 카드. 시공자 없음 묶음이 맨 위(옅은 빨간 테두리 +
+   위에 "시공자 없음 n건"). 칸 9개 = 번호 · 대리점 · 제품명 · 규격 · 현장주소 · 고객 · 시공시간 ·
+   영업 담당 · 시공자. 모든 카드가 같은 colgroup + table-layout:fixed 라 칸 폭이 같다.
+   본문 칠은 없다(AS 줄도 흰 줄 — 대리점 칸의 검은 AS 딱지 하나). 남는 색은 시공자 칸의 사람 색뿐.
+   금액은 싣지 않는다(D7).
 
-   목업 컬럼(좌→우): 시공일(날짜+시간 스택) · 고객 · 발주사 · 제품 · 자수(우측정렬) · 도면담당.
-   모든 셀 plain (input/button 없음 — PC 인라인 편집기는 PC 전용, 태블릿 편집은 행 탭 → 배정
-   시트). 첫 열은 7열 압박 없이 시공일+시공시간을 한 셀에 스택(현장 스캔용). 행은 시공팀별로
-   묶고 팀 전환 시 그룹 헤더 행(tr.foms-tablet-shipgrid__grp)을 1행 삽입한다:
-   좌 "시공 N팀 · 합계자수" / 우 "잔여 X"(미배정 그룹: 우측 "배정 필요" danger).
+   자료: 라우트가 넘기는 tablet_day_sheet(foms/services/shipment/tablet_day_sheet.py
+   build_tablet_day_sheet — 묶음 순서 · 번호 · 사람 색 · 사람별 건수/자수를 서버 한 곳에서 정한다).
+   이 파일은 그 결과를 그리기만 한다(추가 쿼리 없음).
 
-   데이터: PC 테이블과 동일한 rows(신규 쿼리 0)를 재소비한다. 팀 합계·잔여는 서버가 준비한
-   shipment_team_group_meta(자수합/건수/capacity/잔여 — dashboard.py _compute_shipment_team_group_meta)
-   를 그대로 읽고, 팀 그룹 키(첫 유효 시공자)·파스텔 인덱스는 PC 테이블/정렬(sort_shipment_rows)과
-   동일 규칙으로 파생한다. 행별 자수는 item_spec_w300 필터 합(그룹 meta 합산과 동일 산식).
-
-   표시/은닉: 이 wrap 은 base-hide(display:none)이고 태블릿 가로 코호트(body.erp-mobile-v2-layout
-   + coarse landscape ≥992)에서만 표시된다(같은 게이트가 PC 테이블 래퍼를 은닉).
-   게이트·시각은 shipment-dashboard-columns.css 가 소유.
-
-   행 탭 → 배정 시트(우측 400px)는 tablet-side-sheet.js(수정 금지)가 소유한다. 그 ROW_SELECTOR 은
-   출고 신규 그리드를 오직 ".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id]" 로만
-   선택하므로(신규 id #foms-tablet-ship-grid 는 기존 "#shipment-dashboard-table tbody tr" 셀렉터에
-   안 걸림), wrap 에 코드베이스 공용 클린-그리드 훅 클래스 .foms-tablet-workqueue-wrap 를 병기해
-   행 탭 계약을 만족시킨다(JS 무수정). 각 행 data-foms-sheet-url 이 출고 배정 fragment 를 가리킨다.
-   컨텍스트: rows(Order 리스트), shipment_team_group_meta, 필터/템플릿 필터(item_spec_w300 등). #}
+   계약(지키는 것):
+   - 감싸는 div = .foms-tablet-shipgrid-wrap.foms-tablet-workqueue-wrap. 줄 = tr.erp-main-row
+     [data-order-id][data-foms-sheet-url] — tablet-side-sheet.js(수정 금지)의 ROW_SELECTOR 가 이것으로
+     줄 누름 → 오른쪽 시트를 연다. 줄 id shipment-tgrid-row-<id> = 시공일 변경 배너 점프 착지점
+     (PC 행 shipment-row-<id> 와 같은 문서에 있어 접두어가 다르다).
+   - 시공자 칸 단추(button[data-ship-worker-cell])는 tablet-side-sheet.js 가 줄 안의 button 누름을
+     시트 대상에서 빼므로(INTERACTIVE 가드) 눌러도 시트가 열리지 않는다. 이름판은
+     static/js/shipment/tablet-ship-assign.js 가 문서 위임으로 연다(조각이 바뀌어도 다시 붙일 것 없음).
+   - 이름판 자료(사람별 건수 · 자수 · 용량 · 쉼 · 색)는 감싸는 div 의 data-ship-people(JSON)에 싣는다.
+   - 보이고 숨기는 문지기 = shipment-dashboard-columns.css(이 div 는 기본 숨김, 태블릿 가로 코호트에서만
+     보임). 모양 = tablet-day-sheet.css(같은 문지기 안). #}
 {# 시공일 변경 배지 — PC 행·배정 시트와 **같은 매크로**(표면별 포크 금지, 플랜 T5). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge %}
-{% set _sg_worker_list = [] %}
-{% for r in rows %}
-{%- set _sd = r.structured_data or {} %}
-{%- set _cw = (_sd.get('shipment') or {}).get('construction_workers') or [] %}
-{%- set _nf = namespace(val='') %}
-{%- for _w in _cw %}{% if _w|string|trim and not _nf.val %}{% set _nf.val = _w|string|trim %}{% endif %}{% endfor %}
-{%- if _nf.val and _nf.val not in _sg_worker_list %}{% set _ = _sg_worker_list.append(_nf.val) %}{% endif %}
-{% endfor %}
-<div class="foms-tablet-shipgrid-wrap foms-tablet-workqueue-wrap" aria-label="출고 배정 그리드">
-  {# 목업 06 .tablewrap .cap — 행 탭→배정 시트 안내(기존 .foms-ship-grid-hint 대체·중복 제거). #}
-  <div class="foms-tablet-shipgrid__cap">
-    <i class="fas fa-hand-pointer" aria-hidden="true"></i><span>행 탭 = 배정 시트</span>
-  </div>
-  <table id="foms-tablet-ship-grid" class="foms-tablet-shipgrid">
+{%- macro _ship_cols() -%}
+<colgroup>
+  <col class="foms-tablet-shipgrid__col-no"><col class="foms-tablet-shipgrid__col-agency"><col class="foms-tablet-shipgrid__col-product">
+  <col class="foms-tablet-shipgrid__col-spec"><col class="foms-tablet-shipgrid__col-addr"><col class="foms-tablet-shipgrid__col-customer">
+  <col class="foms-tablet-shipgrid__col-time"><col class="foms-tablet-shipgrid__col-sales"><col class="foms-tablet-shipgrid__col-worker">
+</colgroup>
+{%- endmacro %}
+{% set _sheet = tablet_day_sheet if tablet_day_sheet is defined and tablet_day_sheet else {'groups': [], 'people': [], 'total': 0, 'unassigned': 0} %}
+{% set _can_assign = (can_edit_shipment|default(false, true)) and not (shipment_freelancer_view|default(false, true)) %}
+<div class="foms-tablet-shipgrid-wrap foms-tablet-workqueue-wrap" aria-label="하루치 출고표"
+  data-ship-people='{{ _sheet.people|tojson }}' data-ship-can-assign="{{ 'true' if _can_assign else 'false' }}">
+  <table class="foms-tablet-shipgrid foms-tablet-shipgrid__head" aria-hidden="true">
+    {{ _ship_cols() }}
     <thead>
       <tr>
-        <th scope="col">시공일</th>
+        <th scope="col" class="foms-tablet-shipgrid__no">번호</th>
+        <th scope="col">대리점</th>
+        <th scope="col">제품명</th>
+        <th scope="col">규격</th>
+        <th scope="col">현장주소</th>
         <th scope="col">고객</th>
-        <th scope="col">발주사</th>
-        <th scope="col">제품</th>
-        <th scope="col" class="foms-tablet-shipgrid__num">자수</th>
-        <th scope="col">도면담당</th>
+        <th scope="col">시공시간</th>
+        <th scope="col">영업 담당</th>
+        <th scope="col">시공자</th>
       </tr>
     </thead>
-    <tbody>
-      {% if rows %}
-      {% set grp_ns = namespace(prev='__START__') %}
-      {% for r in rows %}
+  </table>
+  {# 밀도 토글(foms_density_target) 대상 id — 카드 묶음 전체에 data-foms-density 가 붙는다. #}
+  <div id="foms-tablet-ship-grid" class="foms-tablet-shipgrid__list">
+    {% for g in _sheet.groups %}
+    {% if g.unassigned %}<div class="foms-tablet-shipgrid__lbl">시공자 없음 {{ g.rows|length }}건</div>{% endif %}
+    <table class="foms-tablet-shipgrid foms-tablet-shipgrid__card{% if g.unassigned %} foms-tablet-shipgrid__card--miss{% endif %}">
+      {{ _ship_cols() }}
+      <tbody>
+      {% for row in g.rows %}
+      {%- set r = row.order %}
       {%- set sd = r.structured_data or {} %}
       {%- set shipment = sd.get('shipment') or {} %}
-      {%- set _is_as = r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
-      {%- set construction_time = shipment.get('construction_time') or '' %}
-      {#- 시공일 = mobile shipment_meta.primary_date 와 동일 규칙(추가 쿼리 0).
-          AS: as_visit만(원 시공일 폴백 금지). 일반: schedule.construction → scheduled_date. -#}
-      {%- set _sched = sd.get('schedule') or {} %}
-      {%- if _is_as -%}
-        {%- set construction_date = ((_sched.get('as_visit') or {}).get('date') or '')|string|trim -%}
-      {%- else -%}
-        {%- set construction_date = (
-              (_sched.get('construction') or {}).get('date') or r.scheduled_date or ''
-            )|string|trim -%}
-      {%- endif -%}
-      {# 도면담당(빈 값 제거, legacy drawing_manager 폴백). #}
-      {%- set _dm = namespace(values=[]) %}
-      {%- for dm in (shipment.get('drawing_managers') or []) %}{% if dm|string|trim %}{% set _dm.values = _dm.values + [dm|string|trim] %}{% endif %}{% endfor %}
-      {%- if not _dm.values and shipment.get('drawing_manager') %}{% set _dm.values = [shipment.get('drawing_manager')|string|trim] %}{% endif %}
-      {# 팀 그룹 키 = 첫 유효 시공자(정렬/PC 파스텔과 동일 규칙). #}
-      {%- set _wk = namespace(val='') %}
-      {%- for _w in (shipment.get('construction_workers') or []) %}{% if _w|string|trim and not _wk.val %}{% set _wk.val = _w|string|trim %}{% endif %}{% endfor %}
-      {%- set worker_key = _wk.val %}
-      {%- set _wi = namespace(idx=-1) %}
-      {%- for w in _sg_worker_list %}{% if w == worker_key %}{% set _wi.idx = loop.index0 %}{% endif %}{% endfor %}
-      {# 제품/행별 자수(item_spec_w300 필터 합 = 그룹 meta 합산 산식과 동일). #}
-      {#- 선택 날짜에 출고되는 품목만(라우트가 부착). 날짜 판정은 Python 헬퍼 SSOT. -#}
+      {#- 선택 날짜에 출고되는 품목만(라우트가 부착). 날짜 판정은 Python 헬퍼 한 곳. -#}
       {%- set erp_items = r.shipment_visible_items if r.shipment_visible_items is defined else (sd.get('items') or []) %}
-      {%- set _u = namespace(v=0.0) %}
-      {%- for it in erp_items %}{% set _iv = it|item_spec_w300 %}{% if _iv %}{% set _u.v = _u.v + _iv %}{% endif %}{% endfor %}
-      {# 시공팀 그룹 헤더(목업 06 .grp) — 팀 전환 시 1행 삽입. 키 = "<AS여부>|<팀 소문자>". #}
-      {%- set _as_int = 1 if _is_as else 0 %}
-      {%- set _gcomposite = _as_int ~ '|' ~ (worker_key|lower) %}
-      {% if _gcomposite != grp_ns.prev %}
-      {% set grp_ns.prev = _gcomposite %}
-      {% set _gm = shipment_team_group_meta.get(worker_key) or {} %}
-      <tr class="foms-tablet-shipgrid__grp" data-team-color-index="{{ _wi.idx }}">
-        <td class="foms-tablet-shipgrid__grp-label" colspan="5">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %} · {{ _gm.get('units', '0.0') }}자</td>
-        <td class="foms-tablet-shipgrid__grp-remain{% if not worker_key %} foms-tablet-shipgrid__grp-remain--need{% endif %}">
-          {%- if worker_key %}{% if _gm.get('remaining') is not none %}잔여 {{ _gm.get('remaining') }}{% endif %}{% else %}배정 필요{% endif -%}
-        </td>
-      </tr>
-      {% endif %}
-      {# id: 배너 점프 칩(#shipment-tgrid-row-<id>) 착지점. PC 행(#shipment-row-<id>)과 같은
-         문서에 공존하므로 접두어가 다르다(중복 id 면 숨은 PC 행이 점프를 가로챈다). #}
+      {%- set _first = ((erp_items[0].get('product_name') or '')|strip_product_w) if erp_items else '' %}
+      {%- set product_text = (_first ~ (' 외 ' ~ (erp_items|length - 1) if erp_items|length > 1 else '')) if _first else ((r.product or '')|strip_product_w or '-') %}
+      {%- set time_text = (shipment.get('construction_time') or '')|string|trim %}
+      {%- set plan_time = (((sd.get('schedule') or {}).get('construction') or {}).get('time') or '')|string|trim %}
+      {%- set as_head = ((r.as_content_text or '') if r.as_content_text is defined else '')|trim %}
+      {#- 사람 색 덩어리 이음: 같은 묶음에서 시공자 구성이 같은 줄끼리 위아래로 붙는다. -#}
+      {%- set sig = row.workers|map(attribute='name')|join('|') %}
+      {%- set prev_sig = (g.rows[loop.index0 - 1].workers|map(attribute='name')|join('|')) if not loop.first else None %}
+      {%- set next_sig = (loop.nextitem.workers|map(attribute='name')|join('|')) if not loop.last else None %}
+      {%- set blob_cls = ('' if prev_sig == sig else ' is-top') ~ ('' if next_sig == sig else ' is-bottom') %}
       <tr id="shipment-tgrid-row-{{ r.id }}" class="erp-main-row foms-tablet-shipgrid__row" data-order-id="{{ r.id }}"
         data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}">
-        <td class="foms-tablet-shipgrid__time">
-          {%- if construction_date or construction_time -%}
-          <span class="foms-tablet-shipgrid__when">
-            {%- if construction_date -%}
-            <span class="foms-tablet-shipgrid__date tnum">{% if construction_date|length >= 10 %}{{ construction_date[5:7]|int }}/{{ construction_date[8:10]|int }}{% else %}{{ construction_date }}{% endif %}</span>
-            {%- endif -%}
-            {%- if construction_time -%}
-            <span class="foms-tablet-shipgrid__clock">{{ construction_time }}</span>
-            {%- endif -%}
-          </span>
-          {%- else -%}-{%- endif -%}
+        <td class="foms-tablet-shipgrid__no">{{ row.no }}</td>
+        <td class="foms-tablet-shipgrid__agency">{% if row.is_as %}<span class="foms-tablet-shipgrid__as">AS</span>{% else %}{{ r.orderer_name or '-' }}{% endif %}</td>
+        <td class="foms-tablet-shipgrid__product">{{ product_text }}</td>
+        <td class="foms-tablet-shipgrid__spec">
+          {%- if row.is_as %}<span class="foms-tablet-shipgrid__as-head">{{ as_head.split('\n')[0] if as_head else '-' }}</span>
+          {%- elif row.units %}{{ '%.1f'|format(row.units) }}{% else %}-{% endif -%}
         </td>
-        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}{% if r.partner_request_text is defined and r.partner_request_text %}<div class="small text-primary" data-shipment-partner-request>협력사 희망 · 확정 대기</div>{% endif %}{% if r.partner_payment_pending is defined and r.partner_payment_pending %}<div class="small text-danger" data-shipment-partner-unpaid>입금 대기</div>{% endif %}{{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment|default(false, true)) }}</td>
-        <td>{{ r.orderer_name or '-' }}</td>
-        <td class="foms-tablet-shipgrid__product">
-          {%- if _is_as %}{{ r.as_content_text or 'AS' }}
-          {%- elif erp_items %}{% for it in erp_items %}<div class="foms-tablet-shipgrid__line">{{ (it.get('product_name') or '-')|strip_product_w or '-' }}</div>{% endfor %}
-          {%- else %}{{ (r.product or '-')|strip_product_w or '-' }}{% endif -%}
+        <td class="foms-tablet-shipgrid__addr">{{ r.address or '-' }}</td>
+        <td class="foms-tablet-shipgrid__customer">
+          <span class="foms-tablet-shipgrid__customer-name">{{ r.customer_name or '-' }}</span>
+          {%- if r.partner_request_text is defined and r.partner_request_text %}<span class="foms-tablet-shipgrid__flag" data-shipment-partner-request>협력사 희망 · 확정 대기</span>{% endif %}
+          {%- if r.partner_payment_pending is defined and r.partner_payment_pending %}<span class="foms-tablet-shipgrid__flag foms-tablet-shipgrid__flag--danger" data-shipment-partner-unpaid>입금 대기</span>{% endif %}
+          {{- render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false, true)) -}}
         </td>
-        <td class="foms-tablet-shipgrid__num">{% if _u.v %}{{ '%.1f'|format(_u.v) }}{% else %}-{% endif %}</td>
-        <td>{{ _dm.values|join(', ') or '-' }}</td>
+        <td class="foms-tablet-shipgrid__time">{% if time_text %}{{ time_text }}{% elif plan_time %}<span class="foms-tablet-shipgrid__dim">{{ plan_time }}</span>{% endif %}</td>
+        <td class="foms-tablet-shipgrid__sales">{{ (r|manager_label) or '' }}</td>
+        <td class="foms-tablet-shipgrid__worker">
+          {%- set _names = row.workers|map(attribute='name')|list %}
+          {%- if _can_assign %}
+          <button type="button" class="foms-tablet-shipgrid__wbtn{{ blob_cls }}{% if not row.workers %} is-empty{% endif %}" data-ship-worker-cell
+            data-order-id="{{ r.id }}" data-version="{{ r.mutation_version if r.mutation_version is not none else '' }}"
+            data-units="{{ '%.1f'|format(row.units) }}" data-is-as="{{ '1' if row.is_as else '0' }}" data-no="{{ row.no }}"
+            data-label="{{ r.orderer_name or ('AS' if row.is_as else '') }} · {{ product_text }}"
+            data-workers='{{ _names|tojson }}' aria-label="시공자 고르기{% if _names %} — 지금 {{ _names|join(', ') }}{% endif %}">
+          {%- else %}
+          <span class="foms-tablet-shipgrid__wbtn{{ blob_cls }}{% if not row.workers %} is-empty{% endif %}">
+          {%- endif %}
+            {%- if not row.workers %}{% if _can_assign %}<span class="foms-tablet-shipgrid__add">＋ 시공자</span>{% endif %}
+            {%- else %}{% for w in row.workers[:2] %}<span class="foms-tablet-shipgrid__who" data-ship-color="{{ w.color_index }}">{{ w.name }}{% if loop.last and row.workers|length > 2 %} 외 {{ row.workers|length - 2 }}{% endif %}</span>{% endfor %}{% endif -%}
+          {%- if _can_assign %}</button>{% else %}</span>{% endif -%}
+        </td>
       </tr>
       {% endfor %}
-      {% else %}
-      <tr>
-        <td colspan="6" class="foms-tablet-shipgrid__empty">데이터가 없습니다.</td>
-      </tr>
-      {% endif %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+    {% else %}
+    <div class="foms-tablet-shipgrid__empty">이 날 출고가 없어요</div>
+    {% endfor %}
+    {% if _can_assign %}
+    {# 기존 AS 추천 창을 그대로 연다(shipment-dashboard.js 의 data-shipment-as-recommend-open 위임). #}
+    <button type="button" class="foms-tablet-shipgrid__addas" data-shipment-as-recommend-open>＋ 날짜 없는 AS — 이 날에 넣기</button>
+    {% endif %}
+  </div>
 </div>
