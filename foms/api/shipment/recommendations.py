@@ -747,12 +747,21 @@ def api_shipment_as_recommendations_apply():
             as_version=_opt_int(data.get("as_version")), force=bool(data.get("force")),
             source_screen="erp_shipment_dashboard",
         )
+        # D35-b: AS 이름이 바뀌면 서비스가 같은 mutation 안에서 AS 주문 변경 원장 행을 싣는다.
+        # 감사 헤더 ``detail['change_set']`` 이 그 행과 잇는 열쇠다(이름판 저장
+        # ``settings.py`` 와 같은 규약 — 행이 0이어도 열쇠는 늘 넣는다). 응답 모양은 그대로.
+        change_set = result.pop("change_set", None)
+        change_count = result.pop("change_count", 0)
         db.add(SecurityLog(
             user_id=session.get("user_id"),
             message=(
                 f"출고 대시보드 AS 추천 적용: 출고 #{shipment_order_id} → "
                 f"AS #{as_order_id} ({result['applied_date']})"
             ),
+            detail={
+                "change_set": change_set, "change_count": change_count,
+                "shipment_order_id": shipment_order_id, "as_order_id": as_order_id,
+            },
         ))
         db.commit()
     except (ASRecommendationError, ASCycleError) as err:
@@ -801,9 +810,15 @@ def api_shipment_as_recommendations_cancel():
             shipment_version=_opt_int(data.get("shipment_version")),
             as_version=_opt_int(data.get("as_version")),
         )
+        change_set = result.pop("change_set", None)
+        change_count = result.pop("change_count", 0)
         db.add(SecurityLog(
             user_id=session.get("user_id"),
             message=f"출고 대시보드 AS 추천 취소: 출고 #{shipment_order_id} → AS #{as_order_id}",
+            detail={
+                "change_set": change_set, "change_count": change_count,
+                "shipment_order_id": shipment_order_id, "as_order_id": as_order_id,
+            },
         ))
         db.commit()
     except (ASRecommendationError, ASCycleError) as err:

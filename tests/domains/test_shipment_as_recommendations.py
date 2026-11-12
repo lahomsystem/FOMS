@@ -1111,3 +1111,190 @@ def test_d35_tablet_sheet_groups_as_row_with_ship_worker(client) -> None:
     assert [r["order"].id for r in group["rows"]] == [ship_id, as_id]
     assert [r["is_as"] for r in group["rows"]] == [False, True]
     assert [w["name"] for w in group["rows"][1]["workers"]] == ["철수"]
+
+# ---------------------------------------------------------------------------
+# D35-b (사용자 11-12 '바뀐 칸 기록도 남기기') — 넣기 · 취소로 AS 이름이 바뀌면 변경 원장에도
+# ---------------------------------------------------------------------------
+
+_NAMES_PATH = "shipment.construction_workers"
+
+
+def _ledger_rows(order_id: int) -> list:
+    """주문의 변경 원장 행(id 순)을 새로 읽어 값만 떠 둔다(요청 뒤 세션이 닫혀도 읽히게)."""
+    from types import SimpleNamespace
+
+    from models import OrderFieldChange
+
+    db_session.expire_all()
+    cols = ("id", "change_set_id", "path", "path_template", "item_index", "op",
+            "before_value", "after_value", "actor_user_id")
+    rows = (
+        db_session.query(OrderFieldChange)
+        .filter(OrderFieldChange.order_id == order_id)
+        .order_by(OrderFieldChange.id)
+        .all()
+    )
+    return [SimpleNamespace(**{c: getattr(r, c) for c in cols}) for r in rows]
+
+
+def _name_rows(order_id: int) -> list:
+    return [r for r in _ledger_rows(order_id) if r.path == _NAMES_PATH]
+
+
+def _latest_asrec_log(prefix: str):
+    """가장 최근 AS 추천 감사 헤더(``message`` 앞머리로 고른다)."""
+    from types import SimpleNamespace
+
+    from models import SecurityLog
+
+    db_session.expire_all()
+    log = (
+        db_session.query(SecurityLog)
+        .filter(SecurityLog.message.like(f"{prefix}%"))
+        .order_by(SecurityLog.id.desc())
+        .first()
+    )
+    return SimpleNamespace(detail=dict(log.detail or {}))
+
+
+def _history_entries(client, order_id: int) -> list:
+    """주문 화면 '변경 이력' 탭 API 가 내주는 변경 줄(묶음 순서대로 펼침)."""
+    body = client.get(f"/api/orders/{order_id}/field-changes").get_json()
+    assert body["success"] is True, body
+    out = []
+    for change_set in body["data"]["change_sets"]:
+        for entry in change_set["changes"]:
+            out.append({**entry, "actor": change_set["actor"], "change_set": change_set["change_set"]})
+    return out
+
+
+def test_d35b_apply_records_name_ledger_row_same_shape_as_name_board(client) -> None:
+    """넣기로 AS 이름이 영희 → 철수: AS 원장에 이름판 저장과 같은 경로 행 1개, 감사 헤더와 이어짐."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-apply")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_as_names_direct(as_id, ["영희"])
+    _set_ship_names_via_api(client, ship_id, ["철수", "민수"])
+    board_rows = _name_rows(ship_id)  # 이름판 저장이 출고 주문에 남긴 행(견줄 기준)
+    assert len(board_rows) == 1
+    board = board_rows[0]
+    assert _name_rows(as_id) == []
+
+    _apply(client, ship_id, as_id)
+    as_rows = _name_rows(as_id)
+    assert len(as_rows) == 1
+    row = as_rows[0]
+    # 경로 모양 · 값 표현이 이름판 저장과 같다
+    assert (row.path, row.path_template, row.item_index) == (
+        board.path, board.path_template, board.item_index)
+    assert row.after_value == board.after_value
+    assert row.before_value is not None and "영희" in row.before_value
+    assert row.op == "set"
+    assert row.actor_user_id == user_id == board.actor_user_id
+    # 원장에는 이름 경로만(같은 쓰기 안의 schedule_link 는 넣지 않는다)
+    assert [r.path for r in _ledger_rows(as_id)] == [_NAMES_PATH]
+    # 감사 헤더 detail['change_set'] 이 원장 행과 이어진다
+    log = _latest_asrec_log("출고 대시보드 AS 추천 적용")
+    assert log.detail["change_set"] == row.change_set_id
+    assert log.detail["change_count"] == 1
+
+    # 화면(주문 변경 이력 탭)에 이름판 저장 줄과 같은 라벨 · 행위자로 나온다
+    ship_entry = next(e for e in _history_entries(client, ship_id) if e["id"] == board.id)
+    as_entry = next(e for e in _history_entries(client, as_id) if e["id"] == row.id)
+    assert as_entry["label"] == ship_entry["label"]
+    assert as_entry["actor"] == ship_entry["actor"] is not None
+    assert "철수" in as_entry["text"] and "영희" in as_entry["text"]
+
+
+def test_d35b_apply_without_ship_names_records_no_row(client) -> None:
+    """출고 이름이 없어 AS 이름이 그대로면 원장 행 0(감사 헤더 열쇠는 있고 개수 0)."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-none")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_as_names_direct(as_id, ["영희"])
+    _set_ship_names_via_api(client, ship_id, [])
+
+    _apply(client, ship_id, as_id)
+    assert _as_names(as_id) == ["영희"]
+    assert _ledger_rows(as_id) == []
+    log = _latest_asrec_log("출고 대시보드 AS 추천 적용")
+    assert log.detail["change_set"]
+    assert log.detail["change_count"] == 0
+
+
+def test_d35b_apply_same_names_records_no_row(client) -> None:
+    """AS 이름이 이미 출고 이름과 같으면 바뀐 게 없으니 행 0."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-same")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_as_names_direct(as_id, ["철수"])
+    _set_ship_names_via_api(client, ship_id, ["철수"])
+
+    _apply(client, ship_id, as_id)
+    assert _ledger_rows(as_id) == []
+
+
+def test_d35b_cancel_restore_records_reverse_row(client) -> None:
+    """취소로 철수 → 영희 되돌림: 넣기 행의 거꾸로인 행이 하나 더(경로 같음), 헤더와 이어짐."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-cancel")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_as_names_direct(as_id, ["영희"])
+    _set_ship_names_via_api(client, ship_id, ["철수"])
+    _apply(client, ship_id, as_id)
+    applied = _name_rows(as_id)
+    assert len(applied) == 1
+
+    _cancel(client, ship_id, as_id)
+    assert _as_names(as_id) == ["영희"]
+    rows = _name_rows(as_id)
+    assert len(rows) == 2
+    undo = rows[1]
+    assert undo.path == applied[0].path
+    assert undo.before_value == applied[0].after_value
+    assert undo.after_value == applied[0].before_value
+    assert undo.actor_user_id == user_id
+    assert undo.change_set_id != applied[0].change_set_id
+    log = _latest_asrec_log("출고 대시보드 AS 추천 취소")
+    assert log.detail["change_set"] == undo.change_set_id
+    assert log.detail["change_count"] == 1
+
+
+def test_d35b_cancel_to_no_names_records_clear_row(client) -> None:
+    """넣기 전 이름이 없었으면 취소 행은 '지움'(op clear)."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-cancel-clear")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_ship_names_via_api(client, ship_id, ["철수"])
+    _apply(client, ship_id, as_id)
+    first = _name_rows(as_id)
+    assert [r.op for r in first] == ["add"]
+
+    _cancel(client, ship_id, as_id)
+    rows = _name_rows(as_id)
+    assert [r.op for r in rows] == ["add", "clear"]
+    assert rows[1].after_value is None
+
+
+def test_d35b_cancel_keeps_manual_names_records_no_new_row(client) -> None:
+    """취소 전에 손으로 민수로 바꿨으면 이름을 안 되돌리니 취소로 새 행 0."""
+    user = _login_cs_staff(client, "shipment-rec-d35b-cancel-manual")
+    user_id = user.id
+    ship_id, _ = _make_ship_kst_today()
+    as_id = _make_as_order_with_cycle(user_id)
+    _set_as_names_direct(as_id, ["영희"])
+    _set_ship_names_via_api(client, ship_id, ["철수"])
+    _apply(client, ship_id, as_id)
+    _set_as_names_direct(as_id, ["민수"])  # 원장을 거치지 않는 손 변경(준비물)
+    before = [r.id for r in _ledger_rows(as_id)]
+
+    _cancel(client, ship_id, as_id)
+    assert _as_names(as_id) == ["민수"]
+    assert [r.id for r in _ledger_rows(as_id)] == before
+    log = _latest_asrec_log("출고 대시보드 AS 추천 취소")
+    assert log.detail["change_count"] == 0
