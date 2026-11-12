@@ -4,6 +4,7 @@
 * ``first``  — 첫 화면(날짜 버튼 + 시공자 묶음). ``?date=`` · ``?worker=``.
 * ``detail`` — 상세 = 지금 3분할. ``?focus_order=`` (+ ``date`` · ``worker``) — 왼쪽은 그날 · 그 시공자 집.
 * ``search`` — ``?q=`` 찾기 결과를 3분할 왼쪽에(지금 검색 그대로).
+* ``undated`` — ``?undated=1`` 날짜 미정 집(시공 단계 · 시공일 없음)을 3분할 왼쪽에(D43 a51, 캡 200).
 * ``''``     — 태블릿 가로 표면이 아니다(PC · 폰 · 코호트 밖) — 지금 그대로.
 
 판정은 ``erp_mobile_v2 and coarse_pointer and wide_only`` 일 때만 한다. 폰은 화면 긴 변이 992px 보다 짧아
@@ -18,8 +19,11 @@ from typing import Any
 from sqlalchemy import select
 
 from foms.services.construction.tablet_first import (
+    DAY_ROWS_CAP,
     fetch_day_orders,
+    fetch_undated_orders,
     parse_day,
+    production_note,
     scope_conditions,
     time_sort_key,
 )
@@ -29,7 +33,7 @@ from models import OrderScheduleDate
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
 
 
-def tablet_mode(*, mobile_v2: bool, coarse: bool, wide: bool, focus_order_id: Any, q: str) -> str:
+def tablet_mode(*, mobile_v2: bool, coarse: bool, wide: bool, focus_order_id: Any, q: str, undated: bool = False) -> str:
     """태블릿 가로 화면 모드(위 머리말)."""
     if not (mobile_v2 and coarse and wide):
         return ""
@@ -37,7 +41,7 @@ def tablet_mode(*, mobile_v2: bool, coarse: bool, wide: bool, focus_order_id: An
         return "detail"
     if (q or "").strip():
         return "search"
-    return "first"
+    return "undated" if undated else "first"
 
 
 def day_label(day: str | None) -> str:
@@ -49,10 +53,10 @@ def day_label(day: str | None) -> str:
 
 
 def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None) -> str | None:
-    """옛 딥링크(날짜 없음)의 날짜 — 그 주문 시공일 중 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1)."""
+    """옛 딥링크(날짜 없음)의 날짜 — 그 주문 시공일 · AS 방문일 중 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1)."""
     days = sorted({str(d) for (d,) in db.execute(
         select(OrderScheduleDate.date).where(
-            OrderScheduleDate.order_id == order_id, OrderScheduleDate.kind == "construction")
+            OrderScheduleDate.order_id == order_id, OrderScheduleDate.kind.in_(("construction", "as_visit")))
     ).all() if parse_day(d)})
     if not days:
         return None
@@ -81,3 +85,27 @@ def build_detail(db: Any, *, focus: Any, user: Any, mine_only: bool, partner_org
     if all(o.id != focus.id for o in orders):
         orders = [focus] + orders
     return {"orders": orders, "date": day, "date_label": day_label(day), "worker": worker, "focus_id": focus.id}
+
+
+def build_undated(db: Any, *, user: Any, mine_only: bool, partner_org: str, date_arg: Any, worker_arg: Any) -> dict:
+    """``?undated=1`` 상세 왼쪽 = 날짜 미정 집(D43 a51) — 첫 화면과 같은 범위 · 사람 칸, 캡 200(넘치면 ``more``).
+
+    Returns:
+        {'orders', 'count'(보이는 수), 'more'(캡 넘음), 'date', 'worker', 'focus_id'(첫 집)}.
+    """
+    worker = str(worker_arg or "").strip()
+    conds = scope_conditions(user=user, mine_only=mine_only, partner_org=partner_org, worker=worker)
+    rows = fetch_undated_orders(db, conds)
+    more = len(rows) > DAY_ROWS_CAP
+    rows = rows[:DAY_ROWS_CAP]
+    return {"orders": rows, "count": len(rows), "more": more, "date": parse_day(date_arg) or "",
+            "worker": worker, "focus_id": rows[0].id if rows else None}
+
+
+def annotate_rows(rows: list[dict]) -> None:
+    """3분할 줄 DTO 에 상세 가운데 안내 한 줄을 단다(D43 — 같은 말 한 번): 생산중 · AS 방문 집만."""
+    for row in rows:
+        if row.get("stage") == "생산중":
+            row["tablet_note"] = production_note(row.get("structured_data") or {})
+        elif row.get("stage") == "AS 방문":
+            row["tablet_note"] = "AS 방문 집이에요"

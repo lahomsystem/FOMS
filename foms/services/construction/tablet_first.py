@@ -24,12 +24,13 @@ import datetime
 import re
 from typing import Any, Iterable
 
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import and_, distinct, exists, func, literal, or_, select, union_all
+from sqlalchemy.orm import aliased
 
 from foms.services.common.address_query import strip_sido
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.partner_order_filter import partner_order_clause
-from foms.services.construction_read_model import CONSTRUCTION_ALL_STAGE_CODES
+from foms.services.construction_read_model import CONSTRUCTION_ACTIVE_STAGE_CODES, CONSTRUCTION_ALL_STAGE_CODES
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_permissions import (
     _current_dialect_name,
@@ -40,6 +41,7 @@ from foms.services.erp_permissions import (
 from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
 from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.orders.board_state_display import construction_display_stage
+from foms.services.production_home_read_model import production_home_steps
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
@@ -57,6 +59,30 @@ FIRST_SCREEN_STAGE_CODES: tuple[str, ...] = PRODUCTION_STAGE_CODES + tuple(CONST
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CLOCK_RE = re.compile(r"(\d{1,2})\s*[:시]\s*(\d{0,2})")
+#: 쿼리 A 와 한 문장(UNION ALL)으로 센 날짜 미정 집 수의 열쇠(날짜 자리에 들어가는 표식 — 날짜가 아니다, D43 a51).
+UNDATED_KEY = "undated"
+#: 첫 화면에 드는 일정 종류(D43 a52): 시공일(construction) + AS 방문일(as_visit).
+_KINDS = ("construction", "as_visit")
+
+
+def _is_as(entity: Any = Order) -> Any:
+    """AS 상태 주문(출고 판과 같은 목록 ``AS_SHIPMENT_STATUSES``)."""
+    return entity.status.in_(AS_SHIPMENT_STATUSES)
+
+
+def _not_as(entity: Any = Order) -> Any:
+    return or_(entity.status.is_(None), ~entity.status.in_(AS_SHIPMENT_STATUSES))
+
+
+def _kind_pair(entity: Any = Order) -> Any:
+    """일정 줄 종류 ↔ 주문 상태 짝(출고 판 패널과 같은 꼴): AS 아님이면 시공일, AS 면 AS 방문일만.
+
+    AS 상태인데 시공일만 있는 집(as_visit 없음)은 지금처럼 들지 않는다 — AS 를 넣는 기준은 as_visit 날짜뿐(D43).
+    """
+    return or_(
+        and_(OrderScheduleDate.kind == "construction", _not_as(entity)),
+        and_(OrderScheduleDate.kind == "as_visit", _is_as(entity)),
+    )
 
 
 class _DayRow:
@@ -103,8 +129,8 @@ def scope_conditions(*, user: Any, mine_only: bool, partner_org: str, worker: st
         Order.active_filter(),
         Order.is_erp_order.is_(True),
         partner_order_clause(partner_org),
-        or_(Order.status.is_(None), ~Order.status.in_(AS_SHIPMENT_STATUSES)),
-        Order.erp_stage_code.in_(FIRST_SCREEN_STAGE_CODES),
+        # 시공 줄 = AS 아님 + 생산 · 시공 단계(D42 ①), AS 방문 줄 = AS 상태(단계 무관 — 날짜는 as_visit 짝으로만, D43 a52).
+        or_(and_(_not_as(), Order.erp_stage_code.in_(FIRST_SCREEN_STAGE_CODES)), _is_as()),
     ]
     if mine_only:
         mine = build_mine_sql_filter(user) if user is not None else []
@@ -119,18 +145,39 @@ def scope_conditions(*, user: Any, mine_only: bool, partner_org: str, worker: st
     return conds
 
 
-def count_houses_by_date(db: Any, conds: list[Any], dates: Iterable[str]) -> dict[str, int]:
-    """쿼리 A — 날짜마다 시공 집 수(주문 단위, 같은 날 일정 줄이 여럿이어도 1)."""
+def undated_conditions(conds: list[Any]) -> list[Any]:
+    """날짜 미정 집(D43 a51) = 첫 화면 조건 + AS 아님 + 시공대기 · 시공중 단계 + 시공 일정 줄 없음.
+
+    생산 단계 · 완료 단계 · AS 상태 집은 들지 않는다. mine · 협력사 · 사람 칸은 ``conds`` 그대로.
+    """
+    no_date = ~exists().where(OrderScheduleDate.order_id == Order.id, OrderScheduleDate.kind == "construction")
+    return list(conds) + [_not_as(), Order.erp_stage_code.in_(CONSTRUCTION_ACTIVE_STAGE_CODES), no_date]
+
+
+def count_houses_by_date(db: Any, conds: list[Any], dates: Iterable[str], *, with_undated: bool = False) -> dict[str, int]:
+    """쿼리 A — 날짜마다 집 수(주문 단위 — 같은 날 일정 줄이 여럿이거나 시공 · AS 방문 둘 다여도 1).
+
+    ``with_undated`` 면 날짜 미정 집 수를 같은 문장에 UNION ALL 로 붙여 ``UNDATED_KEY`` 열쇠로 돌려준다(쿼리 수 그대로).
+    """
     days = sorted(set(dates))
     if not days:
         return {}
     stmt = (
-        select(OrderScheduleDate.date, func.count(distinct(OrderScheduleDate.order_id)))
+        select(OrderScheduleDate.date.label("d"), func.count(distinct(OrderScheduleDate.order_id)).label("n"))
         .join(Order, Order.id == OrderScheduleDate.order_id)
-        .where(OrderScheduleDate.kind == "construction", OrderScheduleDate.date.in_(days), *conds)
+        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _kind_pair(), *conds)
         .group_by(OrderScheduleDate.date)
     )
+    if with_undated:
+        undated = select(literal(UNDATED_KEY).label("d"), func.count(Order.id).label("n")).where(*undated_conditions(conds))
+        stmt = union_all(stmt, undated)
     return {str(d): int(n) for d, n in db.execute(stmt).all()}
+
+
+def fetch_undated_orders(db: Any, conds: list[Any], cap: int | None = None) -> list[Any]:
+    """날짜 미정 집 줄(주문 번호 순) — ``cap`` + 1 개까지 받아 넘침을 안다(남은 수는 세지 않는다)."""
+    cap = DAY_ROWS_CAP if cap is None else cap
+    return db.query(Order).filter(*undated_conditions(conds)).order_by(Order.id.asc()).limit(cap + 1).all()
 
 
 def fetch_day_orders(db: Any, conds: list[Any], dates: Iterable[str], cap: int | None = None) -> list[tuple[str, Any]]:
@@ -139,9 +186,11 @@ def fetch_day_orders(db: Any, conds: list[Any], dates: Iterable[str], cap: int |
     days = sorted(set(dates))
     if not days:
         return []
+    o2 = aliased(Order)
     pairs = (
         select(OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day"))
-        .where(OrderScheduleDate.kind == "construction", OrderScheduleDate.date.in_(days))
+        .join(o2, o2.id == OrderScheduleDate.order_id)
+        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _kind_pair(o2))
         .distinct()
         .subquery()
     )
@@ -220,10 +269,48 @@ def _product_text(row: _DayRow) -> str:
     return strip_product_w_filter(getattr(row, "product", None) or "") or "-"
 
 
+def production_progress(sd: dict) -> dict | None:
+    """생산 공정 진행(D43 a53) — 기록(``production.steps`` 의 4칸 열쇠)이 하나도 없으면 None(0/4 라고 말하지 않는다).
+
+    Returns:
+        {'done': 끝난 칸 수, 'total': 4, 'last': 순서상 가장 뒤의 끝난 칸 이름('' = 없음)} 또는 None.
+    """
+    prod = sd.get("production") if isinstance(sd.get("production"), dict) else {}
+    raw = prod.get("steps") if isinstance(prod.get("steps"), list) else []
+    steps = production_home_steps(sd, mark_now=False)
+    keys = {s["key"] for s in steps}
+    if not any(isinstance(it, dict) and it.get("key") in keys for it in raw):
+        return None
+    done = [s for s in steps if s["done"]]
+    return {"done": len(done), "total": len(steps), "last": done[-1]["label"] if done else ""}
+
+
+def production_note(sd: dict) -> str:
+    """상세 가운데 안내 — ``아직 생산 중이에요 · 조립까지 끝남``(끝난 칸이 없거나 기록이 없으면 앞말만)."""
+    prog = production_progress(sd)
+    return f"아직 생산 중이에요 · {prog['last']}까지 끝남" if prog and prog["last"] else "아직 생산 중이에요"
+
+
+def is_as_status(order: Any) -> bool:
+    return getattr(order, "status", None) in AS_SHIPMENT_STATUSES
+
+
 def _stage_label(order: Any, sd: dict) -> str:
+    if is_as_status(order):
+        return "AS 방문"
     if str(getattr(order, "erp_stage_code", "") or "").strip().upper() in PRODUCTION_STAGE_CODES:
         return "생산중"
     return construction_display_stage(order, sd) or ""
+
+
+def _ship_cell(stage: str, sd: dict) -> tuple[str, str]:
+    """출고 칸(글, 상태) — AS 방문 집은 '-'(포장 자료 없음), 생산 단계는 '생산 n/4'(기록 없으면 '생산중'), 그 밖은 포장."""
+    if stage == "AS 방문":
+        return "-", "none"
+    if stage == "생산중":
+        prog = production_progress(sd)
+        return (f"생산 {prog['done']}/{prog['total']}" if prog else "생산중"), "production"
+    return _packing_fields(sd)
 
 
 def build_row_view(row: _DayRow) -> dict:
@@ -234,9 +321,9 @@ def build_row_view(row: _DayRow) -> dict:
     address = str(site.get("address_full") or site.get("address_main") or getattr(row, "address", "") or "")
     time_text, time_plan, _ = _time_fields(sd)
     district, address_rest = _district_split(address)
-    packing_text, packing_state = _packing_fields(sd)
     drawing_text, drawing_missing = _drawing_fields(sd)
     stage = _stage_label(row, sd)
+    packing_text, packing_state = _ship_cell(stage, sd)
     return {
         "id": row.id,
         "day": row.day,
@@ -246,15 +333,16 @@ def build_row_view(row: _DayRow) -> dict:
         "in_production": stage == "생산중",
         "now_working": stage == "시공중",
         "done": stage == "시공완료",
+        "as_visit": stage == "AS 방문",
         "customer": str(((parties.get("customer") or {}).get("name")) or getattr(row, "customer_name", "") or "-"),
         "agency": str(((parties.get("orderer") or {}).get("name")) or "").strip(),
         "product": _product_text(row),
-        "units": round(float(visible_spec_units(row) or 0.0), 1),
+        "units": 0.0 if stage == "AS 방문" else round(float(visible_spec_units(row) or 0.0), 1),
         "district": district,
         "address_rest": address_rest,
         "address": address,
-        "packing_text": "생산중" if stage == "생산중" else packing_text,
-        "packing_state": "production" if stage == "생산중" else packing_state,
+        "packing_text": packing_text,
+        "packing_state": packing_state,
         "drawing_text": drawing_text,
         "drawing_missing": drawing_missing,
     }
@@ -344,7 +432,7 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
     chosen = resolve_default_worker(worker, login_names=login_names, option_names=settings_names)
 
     conds = scope_conditions(user=user, mine_only=mine_only, partner_org=partner_org, worker=chosen)
-    counts = count_houses_by_date(db, conds, days + [sel])
+    counts = count_houses_by_date(db, conds, days + [sel], with_undated=True)
     preview = next((d for d in days if d > sel and counts.get(d, 0) > 0), None)
     want = [d for d in (sel, preview) if d and counts.get(d, 0) > 0]
     by_day: dict[str, list[Any]] = {d: [] for d in want}
@@ -365,5 +453,5 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
         "worker": chosen,
         "worker_options": _worker_options(worker_settings, sections, include_settings=not is_freelancer),
         "worker_colors": {p["name"]: p["color_index"] for sec in reversed(sections) for p in sec["people"]},  # 고른 날 색 우선
-        "sections": sections, "cap": DAY_ROWS_CAP,
+        "sections": sections, "cap": DAY_ROWS_CAP, "undated_count": counts.get(UNDATED_KEY, 0),
     }
