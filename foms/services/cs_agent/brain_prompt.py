@@ -134,6 +134,7 @@ class DraftRequest:
     cases: Sequence[tuple[str, str]] = field(default=(), repr=False)  # 비슷한 지난 상담(가린 질문, 사람이 보낸 가린 답)
     rewrite: Sequence[str] = field(default=(), repr=False)  # [수정하기] 다시 쓰기 — (앞 초안, 고칠 말), 가림은 두뇌가 한다
     photos: Sequence[Any] = field(default=(), repr=False)  # 손님이 보낸 사진(읽은 것 — :class:`.brain_photos.PhotoEntry`)
+    order_lines: Sequence[str] = field(default=(), repr=False)  # 본인 확인된 주문 칸(:func:`.order_block.order_block`)
     realtime: bool = False
 
     def __post_init__(self) -> None:
@@ -154,7 +155,7 @@ class DraftRequest:
         object.__setattr__(self, "cases", case_pairs(self.cases))
         object.__setattr__(self, "rewrite", rewrite_pair(self.rewrite))
         object.__setattr__(self, "photos", photo_entries(self.photos))
-        for name in ("customer_names", "staff_names", "calculator_lines"):
+        for name in ("customer_names", "staff_names", "calculator_lines", "order_lines"):
             object.__setattr__(self, name, _texts(getattr(self, name), name))
 
 
@@ -271,8 +272,9 @@ def render_conversation(turns: Sequence[tuple[str, str]]) -> str:
 
 def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.datetime,
               calculator_lines: Sequence[str], conversation: str, cases: Sequence[tuple[str, str]] = (),
-              rewrite: Sequence[str] = (), photos: Sequence[Any] = ()) -> str:
-    """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각). 사례 글은 가림 검사를 다시 지난다."""
+              rewrite: Sequence[str] = (), photos: Sequence[Any] = (), order_lines: Sequence[str] = ()) -> str:
+    """사용자 글 하나 — 마지막 캐시 표시 뒤에 오는 바뀌는 값 전부(``now`` 는 KST 시각). 사례 글은 가림 검사를 다시 지난다.
+    주문 칸(``order_lines`` — 설계서 온톨로지 5.6)은 계산 결과 뒤에 오고, 없으면 줄 자체가 없다(예전 그대로)."""
     task = "답 초안 쓰기" if purpose == PURPOSE_DRAFT else "의도 고르기 — draft 는 빈 글로 둔다"
     talk = " · 네이버 톡톡 규칙" if not medium or is_naver_talk(medium) else ""
     calc = [line for raw in calculator_lines for line in _block("-", raw)] or ["- 없음"]
@@ -282,6 +284,7 @@ def task_text(*, purpose: str, chat_id: str, medium: str | None, now: datetime.d
         f"지금(KST): {now:%Y-%m-%d %H:%M} ({_WEEKDAYS[now.weekday()]})",
         "계산 결과(코드가 낸 값 — 금액은 이 값만 쓴다):",
         *calc,
+        *order_lines,
         *case_lines(cases),
         *rewrite_lines(rewrite),
         *photo_block(photos),

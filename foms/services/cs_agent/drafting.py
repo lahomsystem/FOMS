@@ -27,7 +27,8 @@
    두뇌는 세션을 여러 번 커밋한다 — 우리 쓰기(선점)는 그 전에 커밋해 둔다. 캐시 표시를 실은 요청인데 캐시 읽기 0 인 호출만
    세고(표시 없는 요청 — 방침 끔 · 밤 — 은 빼고, 검수 R9) 바퀴마다 한 번 경고한다(R7-12). 관리 화면 '견적 계산 넣기'가 켜졌고
    손님 글이 견적 문의로 보이면 두뇌 전에 견적 재료 뽑기 · 계산(:mod:`.quote_step` — C10-6): 계산기 값 줄을 재료 · 그 차례
-   허용 목록에 넣고, 계산이 안 되면(0원 · 가격 방식 · 제작 조건) 초안 없이 사람에게. 끄면 예전 그대로.
+   허용 목록에 넣고, 계산이 안 되면(0원 · 가격 방식 · 제작 조건) 초안 없이 사람에게. 끄면 예전 그대로. 관리 화면 '주문 확인해
+   답하기'가 켜졌으면 주문 문의 때만 본인 확인된 ERP 주문 칸을 싣는다(:mod:`.order_step` — 온톨로지 5.6, 두뇌 넘김 뒤 한 번 더).
 5. **검사** — :func:`.checks.check_draft`(브랜드 · 매체를 늘 넘긴다 · 허용 목록은 승인 지식 글만 — 손님 글의 금액도, [사람]
    항목 글도 넣지 않는다). 걸리면 코드만 남기고 올리지 않는다.
 6. **직전 다시 읽기** — 그사이 손님이 더 썼거나(``stale``) 공개 직원 글이 왔으면(``human_replied``) 올리지 않는다.
@@ -400,8 +401,9 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         quote = ctx.quote(row, request, lines)  # 견적 계산 넣기(C10-6) — 끔 · 견적 말 없음이면 None(예전 그대로)
         if quote is None or quote.human is None:
             request = ctx.with_photos(row, quote.apply(request) if quote else request, lines)  # 손님 사진(17.11.1)
+            request = ctx.order_first(row, request, lines)  # 성함 · 휴대폰을 물은 뒤면 주문 칸(온톨로지 5.6 — 끔이면 그대로)
             ctx.summary.brain_calls += 1
-            result = ctx.brain(request, session=ctx.session, now=ctx.now)
+            result = ctx.order_again(row, request, ctx.brain(request, session=ctx.session, now=ctx.now), lines, medium)
     except SpendCapReached as exc:
         return ctx.release(row, exc.code, halt=HALT_SPEND)
     except BrainNotReady as exc:
@@ -451,7 +453,9 @@ def _check_and_place(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str
     재료가 아니다 — 계산기 값 · 제품 이름을 초안이 쓰는 것을 막지 않게).
     """
     memo_note = "\n".join(part for part in (note, quote_note) if part)  # 견적 계산 줄이 없으면 예전 직원 참고 그대로
-    check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=(*ctx.allowed, *extra_allowed),
+    order_dates, order_allowed = ctx.order_checks(row)  # 확인된 주문의 날 · 시간대(온톨로지 5.6 — 없으면 빈 것)
+    check = check_draft(draft, brand=BRAND, medium=medium, allowed_numbers=(*ctx.allowed, *extra_allowed, *order_allowed),
+                        confirmed_dates=order_dates,
                         private_snippets=(*memo_snippets(lines), note), example_only_words=examples,
                         human_only_amounts=bool(ctx.human_only.intersection(evidence)),
                         same_values=ctx.knowledge.same_values(), customer_texts=customer_texts(lines))

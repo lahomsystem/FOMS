@@ -66,6 +66,7 @@ from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.quote_brain import worst_seconds as quote_worst_seconds
 from foms.services.cs_agent.quote_step import SETTING as QUOTE_SETTING
 from foms.services.cs_agent.memo import post_private_memo
+from foms.services.cs_agent.onto_settings import order_lookup_on
 from foms.services.cs_agent.realtime_memory import TickMemory
 from foms.services.cs_agent.rewrite import run_rewrites
 from foms.services.cs_agent.send_record import reconcile_sends
@@ -214,8 +215,9 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
 def claim_ttl(cfg: PanelSettings) -> datetime.timedelta:
     """선점 만료 = 시간 상한 + 여유(R10-2 · R13-8). 견적 계산 넣기가 켜졌으면 뽑기 최악 시간도 더하고(검수 R17-6), 사진 · 그림
     읽기가 켜졌으면 그 자리 읽기 최악 시간(받기 포함 상한 · 다시 시도 0)을 또 더한다(설계서 17.11 (b) — 처음 값 45 + 20 + 35 +
-    45). 17.11.1 부터 사진 읽기는 견적과 상관없이 차례마다 한 번 돈다(견적 도면 길은 그 결과를 다시 쓴다)."""
-    seconds = float(int(cfg.get("realtime_timeout_s")))
+    45). 17.11.1 부터 사진 읽기는 견적과 상관없이 차례마다 한 번 돈다(견적 도면 길은 그 결과를 다시 쓴다). '주문 확인해 답하기'가
+    켜졌으면 두뇌를 한 번 더 부를 수 있어(온톨로지 5.6) 시간 상한을 한 번 더 더한다."""
+    seconds = float(int(cfg.get("realtime_timeout_s"))) * (2 if order_lookup_on(cfg) else 1)
     if cfg.get(QUOTE_SETTING):
         seconds += quote_worst_seconds(cfg)
     if image_mode(cfg) != IMAGE_OFF:
