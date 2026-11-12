@@ -587,7 +587,7 @@ def drawing_request_round(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return {
         "source": SOURCE_AS_REQUEST,
         "status": STATUS_WAITING,
-        "memo": str(req.get("memo") or "").strip()[:500],
+        "memo": str(req.get("memo") or "").strip()[:2000],   # 여러 줄(설계서 §4.4 2판)
         "registered_as": False,
     }
 

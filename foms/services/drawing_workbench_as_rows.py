@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional
 
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.attachment_sort import attachment_sort_key
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.as_cycle_service import current_cycle
 from foms.services.orders.as_drawing import (
@@ -25,8 +26,10 @@ from foms.services.orders.as_drawing import (
     rounds,
 )
 from foms.services.orders.as_drawing_views import room_push_round
+from foms.services.orders.as_log import current_reception_entry
 from foms.services.orders.as_schedule_link import read_as_visit_date
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from models import OrderAttachment
 
 __all__ = ["AS_SEARCH_HIT_BUCKET", "as_round_row_fields", "as_search_hit_row_fields", "build_as_drawing_detail"]
 
@@ -195,3 +198,51 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
                                   and not push_as.get("pushed")),
     }
 
+
+def build_as_media(db: Any, order_id: int, sd: Mapping[str, Any]) -> dict[str, Any]:
+    """실행판 AS 카드의 사진 · 동영상(설계서 §4.4 2판) — 조회 1번.
+
+    AS 첨부(``category='as'``) 중 지금 차수 부탁 기록(``request_log_id``)과 지금 AS 접수 기록에 묶인 것만.
+    흐름 1(접수 창 사진) · 흐름 2(시작 창 사진) · AS 화면 부탁(작은 창 사진)이 모두 여기에 모인다.
+    다른 AS 기록의 사진은 주문 화면 AS 기록에서 본다.
+
+    Returns:
+        ``{"groups": [{"label", "items"}], "total"}`` — 사진은 실행판 이미지 보기(``as_media``)의 차례를 든다.
+    """
+    sd = dict(sd) if isinstance(sd, Mapping) else {}
+    cur = current_round(sd) or {}
+    reception = current_reception_entry(sd) or {}
+    request_id = str(cur.get("request_log_id") or "")
+    reception_id = str(reception.get("id") or "")
+    ids = [i for i in (request_id, reception_id) if i]
+    if not ids:
+        return {"groups": [], "total": 0}
+    rows = (db.query(OrderAttachment)
+            .filter(OrderAttachment.order_id == order_id, OrderAttachment.category == "as",
+                    OrderAttachment.as_log_id.in_(ids))
+            .all())
+    rows.sort(key=attachment_sort_key)
+    viewer_index = 0
+    groups = []
+    for label, log_id in (("도면 부탁 때", request_id), ("AS 접수 때", reception_id)):
+        items = []
+        for att in rows:
+            if not log_id or str(att.as_log_id or "") != log_id or not att.storage_key:
+                continue
+            is_video = str(att.file_type or "") == "video"
+            item = {
+                "filename": att.filename or "file",
+                "is_video": is_video,
+                "key": att.storage_key,
+                "view_url": "/api/files/view/" + att.storage_key,
+                "download_url": "/api/files/download/" + att.storage_key,
+                "thumb_url": "/api/files/view/" + (att.thumbnail_key or att.storage_key),
+                "viewer_index": None,
+            }
+            if not is_video:
+                item["viewer_index"] = viewer_index
+                viewer_index += 1
+            items.append(item)
+        if items:
+            groups.append({"label": label, "items": items})
+    return {"groups": groups, "total": sum(len(g["items"]) for g in groups)}
