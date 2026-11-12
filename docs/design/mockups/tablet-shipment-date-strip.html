@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>출고 날짜 버튼 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 출고 탭(태블릿 가로 1280×800) 표 시안 16 · 17 · 18 — 2026-11-11.
+   지난 시안(안 13~15, 엑셀 출고일지 그대로)에서 엑셀 생김새(검은 격자 · 회색 머리칸 · 가운데 맞춤 · 띄운 제목)와
+   본문 칠(AS 주황 · 파랑 · 분홍)을 뺐다. 남긴 색 = 시공자 칸 사람 색(PC 출고 탭 PASTEL_COLORS) 하나.
+   색 · 글자 기준 = 생산 첫 화면(static/css/contexts/production/home.css) 토큰. 화면 틀은 테마와 무관하게 밝은 한 벌.
+   이름 · 주소 · 전화는 전부 지어낸 것. 금액 없음. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;
+  --accent:#4a55b8;
+  /* 화면 틀(테마 무관 한 벌) */
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;--app-rowline:#e8ebf0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;--app-inverse:#ffffff;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;
+  --app-danger:#dc2626;--app-danger-50:#fef2f2;--app-danger-line:#f5c2c2;--app-chip:#2b303a;
+  /* 사람 색 = PC 출고 탭 PASTEL_COLORS 순서 */
+  --sheet-c1:#B8D4E3;--sheet-c2:#FFE5CC;--sheet-c3:#E8D5E9;--sheet-c4:#D5E9D5;--sheet-c5:#F0D5D5;
+  --sheet-c6:#D5D5E9;--sheet-c7:#FFF0D5;--sheet-c8:#D5E9E5;--sheet-c9:#F5D5E5;--sheet-c10:#E9E5D5;
+  /* 칸 폭: 번호 | 대리점 | 제품명 | 규격 | 현장주소 | 고객 | 시공시간 | 영업 담당 | 시공자 */
+  --cols:44px 120px 190px 92px minmax(0,1fr) 84px 128px 92px 134px;
+  --rh:45px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,p,ul,dl,dd{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:80ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.toc{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:48px;scroll-margin-top:16px}
+.frame h2{font-size:22px;font-weight:800;margin-bottom:4px;text-wrap:balance}
+.frame .idea{color:var(--muted);font-size:16px;margin-bottom:12px}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.art{position:absolute;left:0;top:0;transform-origin:0 0;width:1280px;height:800px;background:var(--app-bg);color:var(--app-text);font-size:15px;line-height:1.3;overflow:hidden;font-variant-numeric:tabular-nums;display:flex;color-scheme:light}
+.art *{box-sizing:border-box}
+[data-pick],[data-w],[data-row]{cursor:pointer}
+
+/* ─── 레일(앞 파일과 같게) ─── */
+.rail{width:72px;flex-shrink:0;background:var(--app-surface);border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+.rail .logo{font-size:22px;font-weight:800;color:var(--app-brand);height:36px;display:flex;align-items:center}
+.rail .zoom{width:44px;border:1px solid var(--app-line2);border-radius:8px;display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:800;margin:4px 0 6px}
+.rail .zoom span{height:22px;display:flex;align-items:center}
+.rail .zoom span.v{font-size:13px;color:var(--app-text2)}
+.rail .it{width:64px;height:52px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13px;color:var(--app-text2);font-weight:700;white-space:nowrap}
+.rail .it i{width:20px;height:14px;border:2px solid currentColor;border-radius:3px;opacity:.75}
+.rail .it.on{background:var(--app-brand-50);color:var(--app-brand-dark);border-left:3px solid var(--app-brand)}
+.rail .sp{flex:1}
+.rail .ava{width:36px;height:36px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+.page{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--app-bg);position:relative}
+
+/* ─── 위 줄(60px) ─── */
+.top{height:60px;flex-shrink:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:0 16px 0 8px;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+.top .tl,.top .tc,.top .tr{display:flex;align-items:center;min-width:0}
+.top .tl{gap:2px}
+.top .tc{gap:10px}
+.top .tr{gap:8px;justify-content:flex-end}
+.top .arw{width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--app-text2)}
+.top .dt{font-size:22px;font-weight:800;white-space:nowrap;letter-spacing:-.01em}
+.top .tl .btn{margin-left:8px}
+.top .cnt{font-size:15px;font-weight:600;color:var(--app-text3);white-space:nowrap}
+.top .miss{height:30px;padding:0 12px;border-radius:999px;background:var(--app-danger-50);color:var(--app-danger);font-size:15px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
+.top .fs{display:flex;align-items:center;font-size:13px;color:var(--app-text3);font-weight:700;margin-right:4px;white-space:nowrap}
+.top .fs span{min-width:36px;height:40px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--app-text2)}
+.btn{height:44px;padding:0 14px;border:1px solid var(--app-line2);border-radius:10px;background:var(--app-surface);font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--app-text);white-space:nowrap}
+.btn .num{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--app-bg);color:var(--app-text2);font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.btn.fill{background:var(--app-brand-dark);border-color:var(--app-brand-dark);color:var(--app-inverse);font-weight:800}
+
+/* ─── 표(공통) ─── */
+.body{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px 16px 4px}
+.hd,.r{display:grid;grid-template-columns:var(--cols)}
+.hd{height:36px;flex-shrink:0;border-bottom:1px solid var(--app-line2)}
+.hd .c{line-height:35px;padding:0 8px;font-size:13px;font-weight:700;color:var(--app-text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd .c.n{text-align:center;padding:0}
+.lbl{height:18px;line-height:18px;padding:0 10px;font-size:13px;font-weight:600;color:var(--app-text3);white-space:nowrap}
+.r{height:var(--rh)}
+.r .c{height:var(--rh);line-height:calc(var(--rh) - 1px);padding:0 8px;border-bottom:1px solid var(--app-rowline);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;color:var(--app-text)}
+.r .c.n{text-align:center;padding:0;font-size:14px;color:var(--app-text3)}
+.r .c.ag{font-weight:600}
+.r .c.pr{font-size:16px;font-weight:700}
+.r .c.sp{font-size:16px;font-weight:700}
+.r .c.ad,.r .c.sl{color:var(--app-text2)}
+.as{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--app-chip);color:#fff;font-size:13px;font-weight:800;line-height:1;vertical-align:middle;letter-spacing:.02em}
+.asw{font-size:15px;font-weight:600}
+
+/* 시공자 칸 = 사람 색 덩어리(같은 사람이 이어지면 위아래로 붙는다) */
+.r .c.w{position:relative;padding:0;border-bottom:0;overflow:visible}
+.blob,.duo{position:absolute;left:6px;right:6px;top:0;bottom:0;color:var(--app-text);font-size:16px;font-weight:800}
+.blob{display:flex;align-items:center;justify-content:center;line-height:1.2;white-space:nowrap}
+.blob.gt,.duo.gt{top:2px;border-top-left-radius:10px;border-top-right-radius:10px}
+.blob.gb,.duo.gb{bottom:2px;border-bottom-left-radius:10px;border-bottom-right-radius:10px}
+.duo{display:grid;grid-template-rows:1fr 1fr;overflow:hidden}
+.duo span{display:flex;align-items:center;justify-content:center;line-height:1.15;white-space:nowrap}
+.c1{background:var(--sheet-c1)}.c2{background:var(--sheet-c2)}.c3{background:var(--sheet-c3)}.c4{background:var(--sheet-c4)}.c5{background:var(--sheet-c5)}
+.c6{background:var(--sheet-c6)}.c7{background:var(--sheet-c7)}.c8{background:var(--sheet-c8)}.c9{background:var(--sheet-c9)}.c10{background:var(--sheet-c10)}
+.add{position:absolute;left:6px;right:6px;top:5px;bottom:5px;display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--app-danger);border-radius:10px;background:var(--app-danger-50);color:var(--app-danger);font-size:15px;font-weight:700;line-height:1.2;white-space:nowrap}
+.add.on{border:2px solid var(--app-text)}
+
+/* 고른 줄 */
+.r.pk .c{background:var(--app-raised)}
+.r.pk .c.n{box-shadow:inset 3px 0 0 var(--app-text);color:var(--app-text);font-weight:700}
+
+.addas{height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--app-line2);border-radius:10px;color:var(--app-text2);font-size:15px;font-weight:600;white-space:nowrap}
+
+/* ─── 안 16 · 18: 흰 카드 하나 ─── */
+.a16 .sheet{flex-shrink:0;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;overflow:hidden}
+.a16 .list .r:last-child .c{border-bottom:0}
+
+/* ─── 안 17: 시공자 묶음 카드 ─── */
+.a17{--rh:46px}
+.a17 .body{padding-bottom:0}
+.a17 .hd{margin:0 1px}
+.a17 .list{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:8px;padding-bottom:8px}
+.a17 .list .lbl{margin-bottom:-6px}
+.a17 .gcard{flex-shrink:0;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;overflow:hidden}
+.a17 .gcard.miss{border-color:var(--app-danger-line)}
+.a17 .gcard .r:last-child .c{border-bottom:0}
+.a17 .blob.gt,.a17 .duo.gt{top:5px}
+.a17 .blob.gb,.a17 .duo.gb{bottom:5px}
+.a17 .addas{margin-top:0}
+
+/* ─── 안 18: 줄 전체 옅은 사람 색 ─── */
+.a18 .r.gl .c{border-bottom-color:var(--app-line2)}
+.a18 .r.t1 .c{background:color-mix(in srgb,var(--sheet-c1) 22%,#fff)}
+.a18 .r.t2 .c{background:color-mix(in srgb,var(--sheet-c2) 22%,#fff)}
+.a18 .r.t3 .c{background:color-mix(in srgb,var(--sheet-c3) 22%,#fff)}
+.a18 .r.t4 .c{background:color-mix(in srgb,var(--sheet-c4) 22%,#fff)}
+.a18 .r.t5 .c{background:color-mix(in srgb,var(--sheet-c5) 22%,#fff)}
+.a18 .r.t6 .c{background:color-mix(in srgb,var(--sheet-c6) 22%,#fff)}
+.a18 .r.t7 .c{background:color-mix(in srgb,var(--sheet-c7) 22%,#fff)}
+.a18 .r.t8 .c{background:color-mix(in srgb,var(--sheet-c8) 22%,#fff)}
+.a18 .r.t9 .c{background:color-mix(in srgb,var(--sheet-c9) 22%,#fff)}
+.a18 .r.t10 .c{background:color-mix(in srgb,var(--sheet-c10) 22%,#fff)}
+
+/* ─── 누른 모습 ①: 칸 옆 이름판 ─── */
+.pop{position:absolute;top:150px;right:157px;width:440px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;box-shadow:0 12px 32px rgba(20,23,28,.18),0 2px 6px rgba(20,23,28,.08);padding:14px 16px 16px}
+.pop .tip{position:absolute;right:-8px;top:33px;width:16px;height:16px;background:var(--app-surface);border-top:1px solid var(--app-line);border-right:1px solid var(--app-line);transform:rotate(45deg)}
+.pop .pt{font-size:13px;font-weight:600;color:var(--app-text3)}
+.pop .ph1{font-size:14px;font-weight:600;color:var(--app-text);margin:2px 0 12px}
+.pop .pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nb{height:56px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:1px;padding:0 10px 0 16px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface)!important;color:var(--app-text);position:relative;overflow:hidden;white-space:nowrap;min-width:0}
+.nb::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px}
+.nb.c1::before{background:var(--sheet-c1)}.nb.c2::before{background:var(--sheet-c2)}.nb.c3::before{background:var(--sheet-c3)}.nb.c4::before{background:var(--sheet-c4)}.nb.c5::before{background:var(--sheet-c5)}
+.nb.c6::before{background:var(--sheet-c6)}.nb.c7::before{background:var(--sheet-c7)}.nb.c8::before{background:var(--sheet-c8)}.nb.c9::before{background:var(--sheet-c9)}.nb.c10::before{background:var(--sheet-c10)}
+.nb b{font-size:16px;font-weight:800;line-height:1.25}
+.nb small{font-size:13px;font-weight:600;color:var(--app-text3);line-height:1.25}
+.nb.rest{opacity:.4;cursor:default}
+.pop .pas{display:grid;grid-template-columns:72px 1fr 1fr;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--app-rowline)}
+.pop .pl{font-size:13px;font-weight:700;color:var(--app-text3)}
+.pop .pbt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+
+/* ─── 누른 모습 ②: AS 서랍 ─── */
+.drawer{position:absolute;top:60px;right:0;bottom:0;width:360px;background:var(--app-surface);border-left:1px solid var(--app-line);border-radius:16px 0 0 16px;box-shadow:-12px 0 32px rgba(20,23,28,.16);display:flex;flex-direction:column;overflow:hidden}
+.drawer .dh{height:56px;flex-shrink:0;display:flex;align-items:center;padding:0 6px 0 20px;border-bottom:1px solid var(--app-rowline)}
+.drawer .dh b{font-size:18px;font-weight:800}
+.drawer .dh .x{margin-left:auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--app-text2)}
+.drawer .dbody{flex:1;min-height:0;overflow:hidden;padding:12px 20px 12px;display:flex;flex-direction:column;gap:12px}
+.drawer .src{font-size:13px;font-weight:600;color:var(--app-text3)}
+.drawer .who{display:flex;align-items:baseline;gap:10px;margin-top:-6px}
+.drawer .who b{font-size:20px;font-weight:800}
+.drawer .who span{font-size:16px;font-weight:600;color:var(--app-text2)}
+.drawer .addr{word-break:keep-all;font-size:15px;color:var(--app-text2);margin-top:-8px;line-height:1.45}
+.drawer dl{display:grid;grid-template-columns:68px minmax(0,1fr);gap:10px 10px;padding:12px 0;border-top:1px solid var(--app-rowline);border-bottom:1px solid var(--app-rowline)}
+.drawer dt{font-size:13px;font-weight:700;color:var(--app-text3);line-height:22px}
+.drawer dd{font-size:15px;line-height:1.45;margin:0;word-break:keep-all;overflow-wrap:anywhere}
+.drawer .photos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.drawer .photos span{height:96px;border-radius:10px;background:var(--app-raised);border:1px solid var(--app-line);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--app-text3);font-weight:600}
+.drawer .hist p{font-size:14px;line-height:1.6;color:var(--app-text)}
+.drawer .hist .hl{font-size:13px;font-weight:700;color:var(--app-text3);margin-bottom:2px}
+.drawer .dfoot{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 20px 16px;border-top:1px solid var(--app-rowline)}
+.drawer .dfoot .btn{height:48px}
+
+/* ════════ 9차 — 출고표 날짜 고르기를 날짜 버튼 띠로 ════════
+   D29: 본문 칠 없음. 색은 시공자 묶음 색뿐, 빨강은 넘침 · 시공자 없음만. 누르는 것(data-tap) 44px 이상, 글자 13px 이상. */
+.art{--cols:44px 108px 172px 92px minmax(0,1fr) 150px 128px 84px 134px}
+.red{color:var(--app-danger)!important;font-weight:700}
+.mut{color:var(--app-text3)}
+.r .c.nm.two{display:flex;flex-direction:column;justify-content:center;line-height:1.2;gap:1px}
+.r .c.nm.two span{overflow:hidden;text-overflow:ellipsis}
+.r .c.nm .flag{font-size:13px;font-weight:700;color:var(--app-text2)}
+
+/* ─── 위 줄(지금 운영과 같은 칸) ─── */
+.bar{height:60px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px 0 14px;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+.bar .bl,.bar .acts{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.bar .ttl{font-size:20px;font-weight:800;white-space:nowrap}
+.bar .sub{font-size:14px;color:var(--app-text3);white-space:nowrap}
+.bar .miss{height:30px;padding:0 12px;border-radius:999px;background:var(--app-danger-50);color:var(--app-danger);font-size:14px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
+.bar .prb{height:44px;padding:0 14px;border:1.5px dashed var(--app-line2);border-radius:22px;display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:800;white-space:nowrap}
+.bar .prb small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.bar .din{height:44px;padding:0 12px;border:1px solid var(--app-line);border-radius:12px;display:inline-flex;align-items:center;font-size:14px}
+.srch{display:inline-flex;gap:6px}
+.srch .q{width:112px;height:44px;padding:0 12px;border:1px solid var(--app-line);border-radius:12px;display:inline-flex;align-items:center;font-size:14px;color:var(--app-text3)}
+.srch .go{width:44px;height:44px;border:1px solid var(--app-line);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--app-text2)}
+.lens{width:18px;height:18px}
+.dens{display:inline-flex;gap:2px;padding:3px;border-radius:8px;background:var(--app-bg)}
+.dens span{min-width:44px;height:44px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--app-text2)}
+.dens span.on{background:var(--app-surface);color:var(--app-text);box-shadow:0 1px 2px rgba(20,23,28,.12)}
+.bar .btn{font-size:14px;font-weight:600;padding:0 14px}
+.bar .btn.fill{font-weight:700}
+.bar .btn.icon{width:44px;padding:0}
+.bar .btn.more.on{border:2px solid var(--app-text);background:var(--app-raised)}
+
+/* ─── 안 26: 날짜 버튼 한 줄 ─── */
+.strip26{flex-shrink:0;display:flex;align-items:stretch;gap:6px;padding:8px 12px 8px 14px;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+.strip26 .nav{flex:0 0 44px;border:1px solid var(--app-line2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--app-text2)}
+.strip26 .nav.dim{color:var(--app-line2);border-color:var(--app-line)}
+.strip26 .sv{flex:1;min-width:0;overflow:hidden}
+.strip26 .srow{display:flex;gap:6px}
+.strip26 .srow.s1{margin-left:calc(-7 * (84px + 6px))}
+.db{flex:0 0 84px;height:70px;border:1px solid var(--app-line2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;white-space:nowrap;background:var(--app-surface)}
+.db b{font-size:15px;font-weight:800;line-height:1.25}
+.db em{font-style:normal;font-size:14px;font-weight:700;line-height:1.3}
+.db span{font-size:13px;color:var(--app-text3);line-height:1.3}
+.db.off b,.db.off em{color:var(--app-text3);font-weight:700}
+.db.today{border-style:dashed;border-color:var(--app-text3)}
+.db.on{border:2.5px solid var(--app-text);background:var(--app-raised)}
+.cal{flex:0 0 64px;min-height:44px;border:1px solid var(--app-line2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--app-text2)}
+
+/* ─── 안 27: 한 주 넓은 버튼 ─── */
+.strip27{flex-shrink:0;padding:6px 12px 10px 14px;background:var(--app-surface);border-bottom:1px solid var(--app-line);display:flex;flex-direction:column;gap:6px}
+.strip27 .wh{display:flex;align-items:center;gap:10px}
+.strip27 .wh b{font-size:17px;font-weight:800;white-space:nowrap}
+.strip27 .wh .mut{font-size:14px;margin-left:6px}
+.strip27 .wnav{height:44px;padding:0 14px;border:1px solid var(--app-line2);border-radius:10px;display:flex;align-items:center;font-size:14px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.strip27 .cal{margin-left:auto;flex:0 0 64px}
+.strip27 .wrow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.wb{height:64px;border:1px solid var(--app-line2);border-radius:12px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:0 12px;white-space:nowrap;min-width:0}
+.wb b{grid-row:1/3;font-size:28px;font-weight:800;line-height:1}
+.wb .wd{font-size:14px;font-weight:700;color:var(--app-text2);align-self:end}
+.wb .wr{display:flex;gap:8px;align-items:baseline;align-self:start}
+.wb .wr em{font-style:normal;font-size:15px;font-weight:800}
+.wb .wr span{font-size:13px;color:var(--app-text3)}
+.wb.off b,.wb.off .wd,.wb.off em{color:var(--app-text3)}
+.wb.on{border:2.5px solid var(--app-text);background:var(--app-raised)}
+
+/* ─── 안 28: 위 줄 안 날짜 버튼 7개 + 넘치는 단추는 [더보기]로 ─── */
+.a28 .bar .bl{gap:4px;flex:1 1 auto}
+.tb{flex:0 0 58px;height:50px;border:1px solid var(--app-line2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;white-space:nowrap}
+.tb b{font-size:14px;font-weight:800;line-height:1.25}
+.tb em{font-style:normal;font-size:13px;color:var(--app-text3);line-height:1.25;font-weight:600}
+.tb.off b{color:var(--app-text3);font-weight:700}
+.tb.on{border:2.5px solid var(--app-text);background:var(--app-raised)}
+.tb.on em{color:var(--app-text);font-weight:800}
+.tnav{flex:0 0 44px;height:50px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--app-text2);border-radius:10px}
+.a28 .bar .miss{margin-left:6px}
+.menu28{position:absolute;top:56px;right:12px;width:300px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;box-shadow:0 12px 32px rgba(20,23,28,.2);padding:6px;display:flex;flex-direction:column;z-index:5}
+.menu28 .mi{min-height:48px;display:flex;align-items:center;padding:0 12px;font-size:15px;font-weight:600;border-radius:8px}
+.menu28 .mi + .mi{border-top:1px solid var(--app-rowline)}
+.menu28 .mi.row{justify-content:space-between}
+.menu28 .ml{font-size:14px;color:var(--app-text2)}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>출고 탭 — 날짜별 버튼으로 출고일정 고르기 (태블릿 9차)</h1>
+  <p class="lead">사용자 말: "협력사 말고 전체 출고일정 보기 편하게 날짜별 버튼을 만들라고". 출고 탭 본문(그날 출고표)의 날짜를 고르는 방법을 날짜 버튼으로 바꾸는 시안이에요. 지금은 위 줄의 <b>날짜 입력칸(달력)</b>으로만 날짜를 바꿔요. 위 줄의 [협력사 희망 N] 단추는 그대로 두었어요.</p><p class="lead">버튼에는 <b>이미 있는 값만</b> 넣었어요: 날짜별 출고 건수(PC 왼쪽 "날짜별 시공" 값)와 날짜별 남은 자수(지금 [날짜별 남은 자수] 띠 값). "시공자 없음"은 그날 표를 열어야 아는 값이라 버튼에는 없고, 고른 날만 위 줄 알약에 나와요. 칠 없이 테두리 · 글자로만 구분하고 빨강은 넘침 · 시공자 없음에만 썼어요. 오늘 11-12(목), 고른 날 11-13(금). 이름 · 주소 · 회사는 모두 지어낸 것이에요.</p>
+  <ul class="toc">
+    <li><a href="#a26">안 26-1. 위 줄 아래 날짜 버튼 한 줄</a></li>
+    <li><a href="#a26b">안 26-2. 다음 주로 넘겨 다른 날 고름</a></li>
+    <li><a href="#a27">안 27. 한 주 넓은 버튼</a></li>
+    <li><a href="#a28">안 28. 위 줄 안에 넣기</a></li>
+  </ul>
+
+  <section class="frame" id="a26">
+    <h2>안 26-1. 위 줄 아래 날짜 버튼 한 줄</h2>
+    <p class="idea">위 줄 아래에 오늘부터 14일 버튼(날짜 · 요일 · 건수 · 남은 자수)이 한 줄로 있고, 옆으로 밀거나 양끝 ◀ ▶ 로 일주일씩 넘겨요. 오늘은 점선, 고른 날은 진한 테두리, 주말은 회색 글자예요. 띠가 남은 자수를 보여 주니 [날짜별 남은 자수] 단추는 빼도 되고, 날짜 입력칸은 띠 끝 [달력] 단추로 줄였어요(그림에서 둘 다 뺌). 장점: 2주 출고량과 남은 자수가 늘 보이고 한 번 눌러 날을 바꿔요. 단점: 띠 높이(약 86px)만큼 표가 두 줄쯤 덜 보여요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a17 a26"><div class="rail"><div class="logo">F</div><div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div><div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div><div class="sp"></div><div class="ava">서연</div></div><div class="page"><div class="bar"><div class="bl"><b class="ttl">11/13(금) 출고</b><span class="sub">14건</span><span class="miss">시공자 없음 3</span><span class="prb" data-tap>협력사 희망 5<small>내일 1</small></span><span class="srch"><span class="q" data-tap>검색</span><span class="go" data-tap><svg class="lens" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></span></div><div class="acts"><span class="dens"><span data-tap>40</span><span class="on" data-tap>48</span><span data-tap>56</span></span><span class="btn" data-tap>AS 넣기</span><span class="btn fill" data-tap>이미지 저장</span></div></div><div class="strip26"><span class="nav" data-tap>◀</span><div class="sv hscroll" data-scroll><div class="srow s0"><span class="db today" data-tap><b>11/12 오늘</b><em>21건</em><span>남은 4</span></span><span class="db on" data-tap><b>11/13 금</b><em>14건</em><span>남은 12</span></span><span class="db off" data-tap><b>11/14 토</b><em>4건</em><span>남은 38</span></span><span class="db off" data-tap><b>11/15 일</b><em>0건</em><span>남은 60</span></span><span class="db" data-tap><b>11/16 월</b><em>23건</em><span class="red">넘침 5</span></span><span class="db" data-tap><b>11/17 화</b><em>19건</em><span>남은 9</span></span><span class="db" data-tap><b>11/18 수</b><em>16건</em><span>남은 22</span></span><span class="db" data-tap><b>11/19 목</b><em>25건</em><span class="red">넘침 2</span></span><span class="db" data-tap><b>11/20 금</b><em>13건</em><span>남은 31</span></span><span class="db off" data-tap><b>11/21 토</b><em>6건</em><span>남은 40</span></span><span class="db off" data-tap><b>11/22 일</b><em>1건</em><span>남은 55</span></span><span class="db" data-tap><b>11/23 월</b><em>17건</em><span>남은 18</span></span><span class="db" data-tap><b>11/24 화</b><em>12건</em><span>남은 35</span></span><span class="db" data-tap><b>11/25 수</b><em>15건</em><span>남은 27</span></span></div></div><span class="nav" data-tap>▶</span><span class="cal" data-tap>달력</span></div><div class="body"><div class="hd"><div class="c n">번호</div><div class="c">대리점</div><div class="c">제품명</div><div class="c">규격</div><div class="c">현장주소</div><div class="c">고객</div><div class="c">시공시간</div><div class="c">영업 담당</div><div class="c w">시공자</div></div><div class="list" data-scroll><div class="lbl">시공자 없음 3건</div><div class="gcard miss"><div class="r" data-row><div class="c n">1</div><div class="c ag">라홈</div><div class="c pr">여닫이 붙박이장</div><div class="c sp">11.3</div><div class="c ad">성남 분당구 정자동 느티마을</div><div class="c nm">박서준</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">2</div><div class="c ag">하우드</div><div class="c pr">냉장고장 외 1</div><div class="c sp">10.3</div><div class="c ad">서울 강남구 대치동 은빛마을</div><div class="c nm">최유진</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">3</div><div class="c ag">한결인테리어</div><div class="c pr">드레스룸</div><div class="c sp">6.0</div><div class="c ad">하남시 미사동 강변마을</div><div class="c nm two"><span>오세린</span><span class="flag">협력사 희망 · 확정 대기</span></div><div class="c tm">오전</div><div class="c sl">한결</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">4</div><div class="c ag">라홈</div><div class="c pr">슬라이딩</div><div class="c sp">9.1</div><div class="c ad">성남 분당구 서현동 시범마을</div><div class="c nm">정하윤</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c1 gt">최우진</span></div></div><div class="r" data-row><div class="c n">5</div><div class="c ag">하우드</div><div class="c pr">수납장</div><div class="c sp">낮은 7.4</div><div class="c ad">용인 수지구 풍덕천동 푸른숲</div><div class="c nm">강다온</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c1">최우진</span></div></div><div class="r" data-row><div class="c n">6</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">붙박이장</div><div class="c sp"><span class="asw">레일 교체</span></div><div class="c ad">성남 분당구 이매동 아름마을</div><div class="c nm">임소율</div><div class="c tm">원시공자 최우진</div><div class="c sl"></div><div class="c w" data-w><span class="blob c1 gb">최우진</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">7</div><div class="c ag">새봄인테리어</div><div class="c pr">여닫이 외 1</div><div class="c sp">11.3</div><div class="c ad">서울 송파구 잠실동 새솔아파트</div><div class="c nm">김하늘</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c2 gt">김태호</span></div></div><div class="r" data-row><div class="c n">8</div><div class="c ag">라홈</div><div class="c pr">거실장</div><div class="c sp">10.3</div><div class="c ad">서울 강동구 고덕동 푸른마을</div><div class="c nm">이도윤</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c2 gb">김태호</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">9</div><div class="c ag">다온가구</div><div class="c pr">주방 상·하부장 외 1</div><div class="c sp">14.2</div><div class="c ad">인천 연수구 송도동 해솔마을</div><div class="c nm">정수아</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="duo gt gb"><span class="c3">박성민</span><span class="c4">이준혁</span></span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">10</div><div class="c ag">라홈</div><div class="c pr">여닫이</div><div class="c sp">13.1</div><div class="c ad">성남 수정구 신흥동 한빛빌라</div><div class="c nm">윤재희</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c5 gt gb">정민수</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">11</div><div class="c ag">라홈</div><div class="c pr">여닫이 외 1</div><div class="c sp">22.4</div><div class="c ad">경남 양산시 물금읍 햇살마을</div><div class="c nm">표서진</div><div class="c tm"></div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c7 gt gb">양산</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">12</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">부엌</div><div class="c sp"><span class="asw">경첩 조정</span></div><div class="c ad">서울 강동구 명일동 솔빛아파트</div><div class="c nm">유하린</div><div class="c tm">오전 일찍</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gt">한지훈</span></div></div><div class="r" data-row><div class="c n">13</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">여닫이</div><div class="c sp"><span class="asw">손잡이 교체</span></div><div class="c ad">서울 송파구 가락동 한솔마을</div><div class="c nm">남도윤</div><div class="c tm">4시 이전</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6">한지훈</span></div></div><div class="r" data-row><div class="c n">14</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">혼합장</div><div class="c sp"><span class="asw">문 높이</span></div><div class="c ad">하남시 망월동 미사숲</div><div class="c nm">문지아</div><div class="c tm"></div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gb">한지훈</span></div></div></div><div class="addas">＋ 날짜 없는 AS 4건 — 이 날에 넣기</div></div></div></div></div>
+    </div>
+  </section>
+  <section class="frame" id="a26b">
+    <h2>안 26-2. 다음 주로 넘겨 다른 날 고름</h2>
+    <p class="idea">▶ 를 눌러 띠를 일주일 넘기고 11/20(금)을 누른 모습이에요. 위 줄 제목 · 건수 · 시공자 없음과 아래 표가 모두 그날 것으로 바뀌어요. 장점: 넘기고 누르는 두 번이면 원하는 날로 가요. 단점: 넘긴 뒤에는 오늘 · 내일 버튼이 화면 밖으로 나가 ◀ 로 돌아와야 하고, 14일 끝이라 띠 오른쪽이 비어요(▶ 흐림).</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a17 a26b"><div class="rail"><div class="logo">F</div><div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div><div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div><div class="sp"></div><div class="ava">서연</div></div><div class="page"><div class="bar"><div class="bl"><b class="ttl">11/20(금) 출고</b><span class="sub">13건</span><span class="miss">시공자 없음 2</span><span class="prb" data-tap>협력사 희망 5<small>내일 1</small></span><span class="srch"><span class="q" data-tap>검색</span><span class="go" data-tap><svg class="lens" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></span></div><div class="acts"><span class="dens"><span data-tap>40</span><span class="on" data-tap>48</span><span data-tap>56</span></span><span class="btn" data-tap>AS 넣기</span><span class="btn fill" data-tap>이미지 저장</span></div></div><div class="strip26"><span class="nav" data-tap>◀</span><div class="sv hscroll" data-scroll><div class="srow s1"><span class="db today" data-tap><b>11/12 오늘</b><em>21건</em><span>남은 4</span></span><span class="db" data-tap><b>11/13 금</b><em>14건</em><span>남은 12</span></span><span class="db off" data-tap><b>11/14 토</b><em>4건</em><span>남은 38</span></span><span class="db off" data-tap><b>11/15 일</b><em>0건</em><span>남은 60</span></span><span class="db" data-tap><b>11/16 월</b><em>23건</em><span class="red">넘침 5</span></span><span class="db" data-tap><b>11/17 화</b><em>19건</em><span>남은 9</span></span><span class="db" data-tap><b>11/18 수</b><em>16건</em><span>남은 22</span></span><span class="db" data-tap><b>11/19 목</b><em>25건</em><span class="red">넘침 2</span></span><span class="db on" data-tap><b>11/20 금</b><em>13건</em><span>남은 31</span></span><span class="db off" data-tap><b>11/21 토</b><em>6건</em><span>남은 40</span></span><span class="db off" data-tap><b>11/22 일</b><em>1건</em><span>남은 55</span></span><span class="db" data-tap><b>11/23 월</b><em>17건</em><span>남은 18</span></span><span class="db" data-tap><b>11/24 화</b><em>12건</em><span>남은 35</span></span><span class="db" data-tap><b>11/25 수</b><em>15건</em><span>남은 27</span></span></div></div><span class="nav dim" data-tap>▶</span><span class="cal" data-tap>달력</span></div><div class="body"><div class="hd"><div class="c n">번호</div><div class="c">대리점</div><div class="c">제품명</div><div class="c">규격</div><div class="c">현장주소</div><div class="c">고객</div><div class="c">시공시간</div><div class="c">영업 담당</div><div class="c w">시공자</div></div><div class="list" data-scroll><div class="lbl">시공자 없음 2건</div><div class="gcard miss"><div class="r" data-row><div class="c n">1</div><div class="c ag">하우드</div><div class="c pr">여닫이 붙박이장</div><div class="c sp">12.0</div><div class="c ad">용인 기흥구 보정동 솔숲마을</div><div class="c nm">김도하</div><div class="c tm">오전</div><div class="c sl">문하준</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">2</div><div class="c ag">라홈</div><div class="c pr">거실장 외 1</div><div class="c sp">8.4</div><div class="c ad">서울 마포구 상암동 하늘마을</div><div class="c nm">이수안</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">3</div><div class="c ag">라홈</div><div class="c pr">슬라이딩</div><div class="c sp">10.3</div><div class="c ad">성남 분당구 금곡동 청솔마을</div><div class="c nm">박지환</div><div class="c tm">오전</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c1 gt">최우진</span></div></div><div class="r" data-row><div class="c n">4</div><div class="c ag">다온가구</div><div class="c pr">드레스룸</div><div class="c sp">7.5</div><div class="c ad">수원 영통구 이의동 광교마을</div><div class="c nm">정해린</div><div class="c tm">오후</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c1 gb">최우진</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">5</div><div class="c ag">하우드</div><div class="c pr">주방 하부장</div><div class="c sp">9.0</div><div class="c ad">화성 동탄 반송동 시범마을</div><div class="c nm">최윤서</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c2 gt">김태호</span></div></div><div class="r" data-row><div class="c n">6</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">붙박이장</div><div class="c sp"><span class="asw">문 처짐</span></div><div class="c ad">서울 송파구 오금동 우성마을</div><div class="c nm">한도율</div><div class="c tm">오후</div><div class="c sl"></div><div class="c w" data-w><span class="blob c2 gb">김태호</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">7</div><div class="c ag">한결인테리어</div><div class="c pr">여닫이</div><div class="c sp">11.3</div><div class="c ad">하남시 풍산동 미사강변</div><div class="c nm">오지후</div><div class="c tm">오전</div><div class="c sl">한결</div><div class="c w" data-w><span class="blob c3 gt">박성민</span></div></div><div class="r" data-row><div class="c n">8</div><div class="c ag">라홈</div><div class="c pr">수납장</div><div class="c sp">6.2</div><div class="c ad">서울 강동구 길동 신동아마을</div><div class="c nm">윤아린</div><div class="c tm"></div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c3 gb">박성민</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">9</div><div class="c ag">새봄인테리어</div><div class="c pr">주방 상·하부장</div><div class="c sp">15.1</div><div class="c ad">인천 남동구 논현동 소래마을</div><div class="c nm">장이준</div><div class="c tm">종일</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="duo gt gb"><span class="c4">이준혁</span><span class="c5">정민수</span></span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">10</div><div class="c ag">라홈</div><div class="c pr">신발장</div><div class="c sp">4.0</div><div class="c ad">광명시 철산동 도덕마을</div><div class="c nm">임서아</div><div class="c tm">오후</div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c8 gt">오승현</span></div></div><div class="r" data-row><div class="c n">11</div><div class="c ag">하우드</div><div class="c pr">여닫이 외 1</div><div class="c sp">13.6</div><div class="c ad">의왕시 내손동 포일마을</div><div class="c nm">신하준</div><div class="c tm"></div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c8 gb">오승현</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">12</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">부엌</div><div class="c sp"><span class="asw">경첩 조정</span></div><div class="c ad">서울 송파구 문정동 법조마을</div><div class="c nm">강라온</div><div class="c tm">오전</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gt">한지훈</span></div></div><div class="r" data-row><div class="c n">13</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">거실장</div><div class="c sp"><span class="asw">서랍 레일</span></div><div class="c ad">성남 수정구 창곡동 위례마을</div><div class="c nm">조은우</div><div class="c tm">4시 이전</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gb">한지훈</span></div></div></div><div class="addas">＋ 날짜 없는 AS 4건 — 이 날에 넣기</div></div></div></div></div>
+    </div>
+  </section>
+  <section class="frame" id="a27">
+    <h2>안 27. 한 주 넓은 버튼</h2>
+    <p class="idea">한 번에 7일만, 버튼을 크게(높이 64px, 날짜 숫자 크게) 보여 줘요. 띠 위에 "11/13 ~ 11/19"와 [◀ 지난주] [다음주 ▶] · [달력]이 있어요. 장점: 글자가 커서 멀리서도 읽히고 잘못 누를 일이 적어요. 단점: 한 주씩만 보여 다음 주 출고량은 넘겨야 보이고, 띠가 두 줄이라 표가 가장 많이 밀려요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a17 a27"><div class="rail"><div class="logo">F</div><div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div><div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div><div class="sp"></div><div class="ava">서연</div></div><div class="page"><div class="bar"><div class="bl"><b class="ttl">11/13(금) 출고</b><span class="sub">14건</span><span class="miss">시공자 없음 3</span><span class="prb" data-tap>협력사 희망 5<small>내일 1</small></span><span class="srch"><span class="q" data-tap>검색</span><span class="go" data-tap><svg class="lens" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></span></div><div class="acts"><span class="dens"><span data-tap>40</span><span class="on" data-tap>48</span><span data-tap>56</span></span><span class="btn" data-tap>AS 넣기</span><span class="btn fill" data-tap>이미지 저장</span></div></div><div class="strip27"><div class="wh"><span class="wnav" data-tap>◀ 지난주</span><b>11/13 ~ 11/19</b><span class="wnav" data-tap>다음주 ▶</span><span class="mut">오늘 11/12(목)</span><span class="cal" data-tap>달력</span></div><div class="wrow"><span class="wb on" data-tap><b>13</b><span class="wd">금</span><span class="wr"><em>14건</em><span>남은 12</span></span></span><span class="wb off" data-tap><b>14</b><span class="wd">토</span><span class="wr"><em>4건</em><span>남은 38</span></span></span><span class="wb off" data-tap><b>15</b><span class="wd">일</span><span class="wr"><em>0건</em><span>남은 60</span></span></span><span class="wb" data-tap><b>16</b><span class="wd">월</span><span class="wr"><em>23건</em><span class="red">넘침 5</span></span></span><span class="wb" data-tap><b>17</b><span class="wd">화</span><span class="wr"><em>19건</em><span>남은 9</span></span></span><span class="wb" data-tap><b>18</b><span class="wd">수</span><span class="wr"><em>16건</em><span>남은 22</span></span></span><span class="wb" data-tap><b>19</b><span class="wd">목</span><span class="wr"><em>25건</em><span class="red">넘침 2</span></span></span></div></div><div class="body"><div class="hd"><div class="c n">번호</div><div class="c">대리점</div><div class="c">제품명</div><div class="c">규격</div><div class="c">현장주소</div><div class="c">고객</div><div class="c">시공시간</div><div class="c">영업 담당</div><div class="c w">시공자</div></div><div class="list" data-scroll><div class="lbl">시공자 없음 3건</div><div class="gcard miss"><div class="r" data-row><div class="c n">1</div><div class="c ag">라홈</div><div class="c pr">여닫이 붙박이장</div><div class="c sp">11.3</div><div class="c ad">성남 분당구 정자동 느티마을</div><div class="c nm">박서준</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">2</div><div class="c ag">하우드</div><div class="c pr">냉장고장 외 1</div><div class="c sp">10.3</div><div class="c ad">서울 강남구 대치동 은빛마을</div><div class="c nm">최유진</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">3</div><div class="c ag">한결인테리어</div><div class="c pr">드레스룸</div><div class="c sp">6.0</div><div class="c ad">하남시 미사동 강변마을</div><div class="c nm two"><span>오세린</span><span class="flag">협력사 희망 · 확정 대기</span></div><div class="c tm">오전</div><div class="c sl">한결</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">4</div><div class="c ag">라홈</div><div class="c pr">슬라이딩</div><div class="c sp">9.1</div><div class="c ad">성남 분당구 서현동 시범마을</div><div class="c nm">정하윤</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c1 gt">최우진</span></div></div><div class="r" data-row><div class="c n">5</div><div class="c ag">하우드</div><div class="c pr">수납장</div><div class="c sp">낮은 7.4</div><div class="c ad">용인 수지구 풍덕천동 푸른숲</div><div class="c nm">강다온</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c1">최우진</span></div></div><div class="r" data-row><div class="c n">6</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">붙박이장</div><div class="c sp"><span class="asw">레일 교체</span></div><div class="c ad">성남 분당구 이매동 아름마을</div><div class="c nm">임소율</div><div class="c tm">원시공자 최우진</div><div class="c sl"></div><div class="c w" data-w><span class="blob c1 gb">최우진</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">7</div><div class="c ag">새봄인테리어</div><div class="c pr">여닫이 외 1</div><div class="c sp">11.3</div><div class="c ad">서울 송파구 잠실동 새솔아파트</div><div class="c nm">김하늘</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c2 gt">김태호</span></div></div><div class="r" data-row><div class="c n">8</div><div class="c ag">라홈</div><div class="c pr">거실장</div><div class="c sp">10.3</div><div class="c ad">서울 강동구 고덕동 푸른마을</div><div class="c nm">이도윤</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c2 gb">김태호</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">9</div><div class="c ag">다온가구</div><div class="c pr">주방 상·하부장 외 1</div><div class="c sp">14.2</div><div class="c ad">인천 연수구 송도동 해솔마을</div><div class="c nm">정수아</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="duo gt gb"><span class="c3">박성민</span><span class="c4">이준혁</span></span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">10</div><div class="c ag">라홈</div><div class="c pr">여닫이</div><div class="c sp">13.1</div><div class="c ad">성남 수정구 신흥동 한빛빌라</div><div class="c nm">윤재희</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c5 gt gb">정민수</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">11</div><div class="c ag">라홈</div><div class="c pr">여닫이 외 1</div><div class="c sp">22.4</div><div class="c ad">경남 양산시 물금읍 햇살마을</div><div class="c nm">표서진</div><div class="c tm"></div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c7 gt gb">양산</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">12</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">부엌</div><div class="c sp"><span class="asw">경첩 조정</span></div><div class="c ad">서울 강동구 명일동 솔빛아파트</div><div class="c nm">유하린</div><div class="c tm">오전 일찍</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gt">한지훈</span></div></div><div class="r" data-row><div class="c n">13</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">여닫이</div><div class="c sp"><span class="asw">손잡이 교체</span></div><div class="c ad">서울 송파구 가락동 한솔마을</div><div class="c nm">남도윤</div><div class="c tm">4시 이전</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6">한지훈</span></div></div><div class="r" data-row><div class="c n">14</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">혼합장</div><div class="c sp"><span class="asw">문 높이</span></div><div class="c ad">하남시 망월동 미사숲</div><div class="c nm">문지아</div><div class="c tm"></div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gb">한지훈</span></div></div></div><div class="addas">＋ 날짜 없는 AS 4건 — 이 날에 넣기</div></div></div></div></div>
+    </div>
+  </section>
+  <section class="frame" id="a28">
+    <h2>안 28. 위 줄 안에 넣기</h2>
+    <p class="idea">위 줄의 제목 · 날짜 입력칸 자리를 날짜 버튼 7개(날짜 · 건수)와 ◀ ▶ 로 바꿔 줄을 늘리지 않았어요. 넘치는 단추는 줄였어요: 검색칸은 돋보기 단추 하나로, 글자 40 48 56 · 날짜별 남은 자수 · 이미지 저장 · 다른 날짜(달력)는 [더보기 ▾] 안으로(그림은 더보기를 연 모습). 장점: 표가 하나도 안 밀려요. 단점: 버튼이 작아 남은 자수를 못 넣었고, 자주 쓰던 [이미지 저장]이 한 번 더 눌러야 나와요.</p>
+    <div class="stage" data-w="1280" data-h="800">
+      <div class="art a17 a28"><div class="rail"><div class="logo">F</div><div class="zoom"><span>−</span><span class="v">100%</span><span>+</span></div><div class="it"><i></i>대시보드</div><div class="it"><i></i>실측</div><div class="it"><i></i>도면</div><div class="it"><i></i>생산</div><div class="it on"><i></i>출고</div><div class="it"><i></i>AS</div><div class="it"><i></i>시공</div><div class="it"><i></i>완료</div><div class="it"><i></i>이력</div><div class="sp"></div><div class="ava">서연</div></div><div class="page"><div class="bar"><div class="bl"><span class="tnav" data-tap>◀</span><span class="tb on" data-tap><b>13 금</b><em>14건</em></span><span class="tb off" data-tap><b>14 토</b><em>4건</em></span><span class="tb off" data-tap><b>15 일</b><em>0건</em></span><span class="tb" data-tap><b>16 월</b><em>23건</em></span><span class="tb" data-tap><b>17 화</b><em>19건</em></span><span class="tb" data-tap><b>18 수</b><em>16건</em></span><span class="tb" data-tap><b>19 목</b><em>25건</em></span><span class="tnav" data-tap>▶</span><span class="miss">시공자 없음 3</span><span class="prb" data-tap>협력사 희망 5<small>내일 1</small></span></div><div class="acts"><span class="btn icon" data-tap><svg class="lens" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="btn" data-tap>AS 넣기</span><span class="btn more on" data-tap>더보기 ▾</span></div></div><div class="body"><div class="hd"><div class="c n">번호</div><div class="c">대리점</div><div class="c">제품명</div><div class="c">규격</div><div class="c">현장주소</div><div class="c">고객</div><div class="c">시공시간</div><div class="c">영업 담당</div><div class="c w">시공자</div></div><div class="list" data-scroll><div class="lbl">시공자 없음 3건</div><div class="gcard miss"><div class="r" data-row><div class="c n">1</div><div class="c ag">라홈</div><div class="c pr">여닫이 붙박이장</div><div class="c sp">11.3</div><div class="c ad">성남 분당구 정자동 느티마을</div><div class="c nm">박서준</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">2</div><div class="c ag">하우드</div><div class="c pr">냉장고장 외 1</div><div class="c sp">10.3</div><div class="c ad">서울 강남구 대치동 은빛마을</div><div class="c nm">최유진</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div><div class="r" data-row><div class="c n">3</div><div class="c ag">한결인테리어</div><div class="c pr">드레스룸</div><div class="c sp">6.0</div><div class="c ad">하남시 미사동 강변마을</div><div class="c nm two"><span>오세린</span><span class="flag">협력사 희망 · 확정 대기</span></div><div class="c tm">오전</div><div class="c sl">한결</div><div class="c w" data-w><span class="add">＋ 시공자</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">4</div><div class="c ag">라홈</div><div class="c pr">슬라이딩</div><div class="c sp">9.1</div><div class="c ad">성남 분당구 서현동 시범마을</div><div class="c nm">정하윤</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c1 gt">최우진</span></div></div><div class="r" data-row><div class="c n">5</div><div class="c ag">하우드</div><div class="c pr">수납장</div><div class="c sp">낮은 7.4</div><div class="c ad">용인 수지구 풍덕천동 푸른숲</div><div class="c nm">강다온</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c1">최우진</span></div></div><div class="r" data-row><div class="c n">6</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">붙박이장</div><div class="c sp"><span class="asw">레일 교체</span></div><div class="c ad">성남 분당구 이매동 아름마을</div><div class="c nm">임소율</div><div class="c tm">원시공자 최우진</div><div class="c sl"></div><div class="c w" data-w><span class="blob c1 gb">최우진</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">7</div><div class="c ag">새봄인테리어</div><div class="c pr">여닫이 외 1</div><div class="c sp">11.3</div><div class="c ad">서울 송파구 잠실동 새솔아파트</div><div class="c nm">김하늘</div><div class="c tm"></div><div class="c sl">윤가람</div><div class="c w" data-w><span class="blob c2 gt">김태호</span></div></div><div class="r" data-row><div class="c n">8</div><div class="c ag">라홈</div><div class="c pr">거실장</div><div class="c sp">10.3</div><div class="c ad">서울 강동구 고덕동 푸른마을</div><div class="c nm">이도윤</div><div class="c tm">오후</div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c2 gb">김태호</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">9</div><div class="c ag">다온가구</div><div class="c pr">주방 상·하부장 외 1</div><div class="c sp">14.2</div><div class="c ad">인천 연수구 송도동 해솔마을</div><div class="c nm">정수아</div><div class="c tm">오전</div><div class="c sl">윤가람</div><div class="c w" data-w><span class="duo gt gb"><span class="c3">박성민</span><span class="c4">이준혁</span></span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">10</div><div class="c ag">라홈</div><div class="c pr">여닫이</div><div class="c sp">13.1</div><div class="c ad">성남 수정구 신흥동 한빛빌라</div><div class="c nm">윤재희</div><div class="c tm"></div><div class="c sl">문하준</div><div class="c w" data-w><span class="blob c5 gt gb">정민수</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">11</div><div class="c ag">라홈</div><div class="c pr">여닫이 외 1</div><div class="c sp">22.4</div><div class="c ad">경남 양산시 물금읍 햇살마을</div><div class="c nm">표서진</div><div class="c tm"></div><div class="c sl">백은솔</div><div class="c w" data-w><span class="blob c7 gt gb">양산</span></div></div></div><div class="gcard"><div class="r" data-row><div class="c n">12</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">부엌</div><div class="c sp"><span class="asw">경첩 조정</span></div><div class="c ad">서울 강동구 명일동 솔빛아파트</div><div class="c nm">유하린</div><div class="c tm">오전 일찍</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gt">한지훈</span></div></div><div class="r" data-row><div class="c n">13</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">여닫이</div><div class="c sp"><span class="asw">손잡이 교체</span></div><div class="c ad">서울 송파구 가락동 한솔마을</div><div class="c nm">남도윤</div><div class="c tm">4시 이전</div><div class="c sl"></div><div class="c w" data-w><span class="blob c6">한지훈</span></div></div><div class="r" data-row><div class="c n">14</div><div class="c ag"><span class="as">AS</span></div><div class="c pr">혼합장</div><div class="c sp"><span class="asw">문 높이</span></div><div class="c ad">하남시 망월동 미사숲</div><div class="c nm">문지아</div><div class="c tm"></div><div class="c sl"></div><div class="c w" data-w><span class="blob c6 gb">한지훈</span></div></div></div><div class="addas">＋ 날짜 없는 AS 4건 — 이 날에 넣기</div></div></div><div class="menu28"><span class="mi" data-tap>다른 날짜 고르기(달력)</span><span class="mi" data-tap>날짜별 남은 자수</span><div class="mi row"><span class="ml">줄 높이</span><span class="dens"><span data-tap>40</span><span class="on" data-tap>48</span><span data-tap>56</span></span></div><span class="mi" data-tap>이미지 저장</span></div></div></div>
+    </div>
+  </section>
+</div>
+<script>
+(function(){
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w'))||1280,h=parseFloat(s.getAttribute('data-h'))||800;
+      var sw=s.clientWidth;if(!sw){return;}
+      var k=Math.min(1,sw/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+  if(window.ResizeObserver){new ResizeObserver(fit).observe(document.body);}
+})();
+</script>
+</body>
+</html>
