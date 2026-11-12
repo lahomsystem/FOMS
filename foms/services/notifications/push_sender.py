@@ -83,6 +83,10 @@ _HIGH_URGENCY_TYPES = frozenset(
         "DRAWING_TRANSFERRED",
         "DRAWING_REVISION",
         "DRAWING_TRANSFER_CANCELLED",
+        # 완료 주문 AS 도면 — 원래 도면과 같은 성질(부탁 · 도착 · 수정 요청).
+        "AS_DRAWING_REQUEST",
+        "AS_DRAWING_TRANSFERRED",
+        "AS_DRAWING_REVISION",
     }
 )
 
@@ -93,6 +97,11 @@ _DEFAULT_P1_TYPES = frozenset(
         "DRAWING_REVISION",
         # 전달 취소도 영업 휴대폰에 알린다 — 받은 도면을 그대로 들고 고객에게 가면 안 된다.
         "DRAWING_TRANSFER_CANCELLED",
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion) — 도면팀 부탁 · 영업에게 도착 ·
+        # 도면팀에 수정 요청. 접수(CS 팀 전체)와 확인은 유형 AS_DRAWING 이라 벨만 간다.
+        "AS_DRAWING_REQUEST",
+        "AS_DRAWING_TRANSFERRED",
+        "AS_DRAWING_REVISION",
         "QUEST_ASSIGNED",
         "ERP_ORDER_CHANGED",
         # 시공일 이동은 상차·차량·팀 배정을 즉시 무효로 만든다 — 화면을 안 보고 있어도 알린다.
@@ -237,6 +246,9 @@ def _deep_link(notif: Notification) -> str:
         if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
             tab = "timeline" if ntype == "DRAWING_TRANSFERRED" else "requests"
             return f"/erp/drawing-workbench/{oid}?tab={tab}"
+        if ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_REVISION"):
+            # 도면팀이 일하는 곳 — 실행판 맨 위 AS 도면 카드.
+            return f"/erp/drawing-workbench/{oid}"
         if ntype == "SHIPMENT_ORDER_CHANGED":
             # 날짜는 붙이지 않는다 — Notification 모델에 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
             # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
@@ -270,6 +282,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면 알림"
     if ntype == "DRAWING_TRANSFER_CANCELLED":
         return "도면 전달 취소"
+    if ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_TRANSFERRED", "AS_DRAWING_REVISION"):
+        return "AS 도면 알림"
     if ntype == "SHIPMENT_ORDER_CHANGED":
         return "출고 일정 변경"
     if ntype == "PRODUCTION_ORDER_CHANGED":
@@ -378,6 +392,12 @@ def _order_bound_text(
             return f"도면 수정 요청 · {name}", f"{label} 도면 수정 요청이 들어왔어요"
         if ntype == "DRAWING_TRANSFER_CANCELLED":
             return f"도면 전달 취소 · {name}", f"{label} 도면 전달이 취소됐어요"
+        if ntype == "AS_DRAWING_REQUEST":
+            return f"AS 도면 부탁 · {name}", f"{label} AS 도면을 부탁했어요"
+        if ntype == "AS_DRAWING_TRANSFERRED":
+            return f"AS 도면 도착 · {name}", f"{label} AS 도면이 왔어요. 확인해 주세요"
+        if ntype == "AS_DRAWING_REVISION":
+            return f"AS 도면 수정 요청 · {name}", f"{label} AS 도면 수정 요청이 들어왔어요"
         if ntype == "MEASURE_SAME_DAY_ADDED":
             return "긴급 실측 추가", f"{name} 실측이 오늘 긴급 추가됐어요"
         if ntype == "SALES_COMMISSION_DEDUCTION":

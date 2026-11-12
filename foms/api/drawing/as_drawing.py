@@ -53,7 +53,7 @@ from foms.services.orders.as_drawing import (
     rounds,
     transfer_round,
 )
-from foms.services.orders.as_drawing_notify import notify_as_drawing
+from foms.services.orders.as_drawing_notify import enqueue_as_drawing_push, notify_as_drawing
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from models import Order, SecurityLog
@@ -145,7 +145,9 @@ def _run(order_id: int, user: Any, command: str, body: dict,
     def _mutate(sess, locked):
         order = locked[0]
         sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
-        captured["result"] = apply(sess, order, sd)
+        result = apply(sess, order, sd)
+        captured["notices"] = result.pop("_notices", None) or []   # 감사 기록에 싣지 않는다
+        captured["result"] = result
         order.structured_data = sd
         flag_modified(order, "structured_data")
         return {order.id: [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]}
@@ -170,6 +172,7 @@ def _run(order_id: int, user: Any, command: str, body: dict,
         logger.exception("[AS_DRAWING] %s order %s: %s", command, order_id, exc)
         return None, _fail("AS 도면을 저장하지 못했어요.", 500)
     _invalidate(order_id)
+    enqueue_as_drawing_push(db, captured.get("notices"))
     return captured.get("result") or {}, None
 
 
@@ -318,9 +321,10 @@ def run_as_transfer(order_id: int, user: Any, note: str = ""):
         locked_order.structured_data = sd  # 알림 본문이 최신 값을 읽게
         # 영업 쪽 수신은 도면 전달 알림과 같은 규칙(담당 영업 본인 · 라홈/하우드는 CS · 협력사는 CS).
         sales_target = _drawing_notice_target(sess, order_manager_label(sd), partner=is_partner_sd(sd))
-        notify_as_drawing(sess, locked_order, "transfer", round_no=round_no(sd, rnd), actor=user, text=note,
-                          sales_target=sales_target)
-        return {"round": round_view(sd, rnd), "sent": len(out["files"]), "replaced": out["replaced"]}
+        notices = notify_as_drawing(sess, locked_order, "transfer", round_no=round_no(sd, rnd), actor=user,
+                                    text=note, sales_target=sales_target)
+        return {"round": round_view(sd, rnd), "sent": len(out["files"]), "replaced": out["replaced"],
+                "_notices": notices}
 
     return _run(order_id, user, "transfer", {"note": note}, _apply)
 
@@ -384,9 +388,9 @@ def api_as_drawing_request_revision(order_id: int):
     def _apply(sess, locked_order, sd):
         rnd = request_revision(sd, actor_id=actor_id, actor_name=actor_name, now_iso=_now(), reason=reason)
         locked_order.structured_data = sd
-        notify_as_drawing(sess, locked_order, "revision", round_no=round_no(sd, rnd), actor=user,
-                          text=reason, opener_id=rnd.get("opened_by"))
-        return {"round": round_view(sd, rnd)}
+        notices = notify_as_drawing(sess, locked_order, "revision", round_no=round_no(sd, rnd), actor=user,
+                                    text=reason, opener_id=rnd.get("opened_by"))
+        return {"round": round_view(sd, rnd), "_notices": notices}
 
     result, err = _run(order_id, user, "request-revision", {"reason": reason}, _apply)
     if err:
