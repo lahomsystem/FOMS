@@ -2284,7 +2284,54 @@
 }
 
 .erp-as-drawing-req-pop {
-  width: 280px;
+  width: 400px;
+  max-width: calc(100vw - 16px);
+}
+
+/* 2판(설계서 §4.4): 여러 줄 글 · 사진 · 동영상. 끌어다 놓기 중이면 테두리로 알린다. */
+.erp-as-drawing-req-pop.is-drop-over {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.erp-as-drawing-req-pop__memo {
+  width: 100%;
+  min-height: 108px;
+  margin-bottom: 8px;
+  font-size: calc(14px * var(--foms-fs, 1));
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.erp-as-drawing-req-pop__bar,
+.erp-as-drawing-req-pop__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.erp-as-drawing-req-pop__bar {
+  margin-bottom: 8px;
+}
+
+.erp-as-drawing-req-pop__foot {
+  justify-content: space-between;
+}
+
+.erp-as-drawing-req-pop__bar .erp-as-drawing-req-pop__hint,
+.erp-as-drawing-req-pop__foot .erp-as-drawing-req-pop__hint {
+  margin: 0;
+}
+
+.erp-as-drawing-req-pop__preview {
+  margin-bottom: 8px;
+}
+
+.erp-as-drawing-req-pop__status {
+  margin-bottom: 8px;
+  color: #3730a3;
+  font-size: calc(12px * var(--foms-fs, 1));
 }
 
 .erp-as-drawing-req-pop__title {

@@ -291,6 +291,9 @@ _AS_LOG_WRITE_CALL_SITES = {
     ("foms/services/orders/as_cycle_service.py", "append_system_log"),  # LEGACY_BRIDGE 전환 기록(서버 고정 리터럴)
     # AS-BIND-01 주차 메모. 본문은 고정 리터럴 '첨부 파일' 이고 append_client_log 가 sanitize 한다.
     ("foms/services/orders/as_upload_anchor.py", "append_client_log"),
+    # AS 화면 [도면팀 부탁] 기록 한 줄(완료 주문 AS 도면 설계서 §4.4 2판) — 본문은 고정 머리말 + 부탁 글이고
+    # append_client_log 가 sanitize 한다. 사진 · 동영상은 이 줄 id 로 묶인다.
+    ("foms/api/drawing/as_drawing.py", "append_client_log"),
     ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client/system/verdict_log 내부
     ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
     # 회차 차트 lazy legacy(읽기 전용·비파괴) — 쓰기가 아니라 표시 시점 변환이다.

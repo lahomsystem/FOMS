@@ -71,6 +71,7 @@ from foms.services.drawing_workbench_as_rows import (
     as_round_row_fields,
     as_search_hit_row_fields,
     build_as_drawing_detail,
+    build_as_media,
 )
 from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
 from foms.services.orders.as_drawing import current_round as current_as_round
@@ -1483,6 +1484,10 @@ def erp_drawing_workbench_detail(order_id):
                 'item_index': item_index,
             })
     measure_photos = []  # 템플릿 호환용 (미사용)
+    # 완료 주문 AS 도면 카드(설계서 §4.4 2판): 값은 조회 0, 사진 · 동영상은 카드가 보일 때만 조회 1번.
+    as_drawing_detail = build_as_drawing_detail(order, s_data, current_user)
+    if as_drawing_detail.get("show"):
+        as_drawing_detail["media"] = build_as_media(db, order_id, s_data)
     # 도면 칸에 따로 올라온 파일(사본) — 도면팀이 여기서 지운다(주문 5690). 도면팀은 ERP 주문
     # 화면을 못 연다(can_edit_erp). PC 상세만 그린다.
     stray_drawing_files = build_stray_drawing_files(db, order, s_data, current_user)
@@ -1544,7 +1549,7 @@ def erp_drawing_workbench_detail(order_id):
         common_measure_photos=common_measure_photos,
         stray_drawing_files=stray_drawing_files,
         # 완료 주문 AS 도면 카드·맨 위 단추(설계서 2026-11-11-as-drawing-after-completion §6.1) — 조회 0.
-        as_drawing=build_as_drawing_detail(order, s_data, current_user),
+        as_drawing=as_drawing_detail,
         # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).
         drawing_hotfix_stage=is_drawing_hotfix_stage(order),
         erp_order_enabled=True,

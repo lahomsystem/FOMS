@@ -2,6 +2,8 @@
 
 AS 접수를 다시 저장하지 않고, 열린 AS 접수에 AS 도면 부탁(차수 WAITING)만 붙인다.
 접수 창 체크(흐름 1)와 같은 차수 · 같은 알림 · 같은 폰 알림이다.
+2판(운영 첫 사용 의견 11-12): 여러 줄 글 · 사진 · 동영상 — 부탁이 AS 기록 한 줄을 더하고, 파일은 지금 AS 기록 첨부와
+같은 길(category 'as' + as_log_id)로 그 줄에 묶인다. 작업실 AS 카드가 부탁 · 접수 사진을 보여 준다.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from pathlib import Path
 import foms.services.orders.as_drawing_notify as notify_mod
 from db import db_session
 from foms.services.orders import as_drawing as asd
-from models import Notification, Order, SecurityLog
+from models import Notification, Order, OrderAttachment, SecurityLog
 from tests.domains.test_as_drawing_round import (  # noqa: F401 - 픽스처도 함께 가져온다
     _as,
     _notices,
@@ -53,7 +55,8 @@ def test_request_opens_waiting_round_without_reregistering_as(client, monkeypatc
     _register(client, oid)
     before = _sd(oid)
 
-    res = _request(client, oid, memo="오른쪽 문짝 1짝")
+    memo = "오른쪽 문짝 1짝, 원래 크기 그대로\n경첩 자리 2곳 표시"
+    res = _request(client, oid, memo=memo)
 
     body = res.get_json()
     assert res.status_code == 200, body
@@ -62,16 +65,22 @@ def test_request_opens_waiting_round_without_reregistering_as(client, monkeypatc
     assert body["data"]["state"]["words"] == ["1차", "대기중"]
     after = _sd(oid)
     rnd = asd.current_round(after)
-    assert rnd["source"] == asd.SOURCE_AS_REQUEST and rnd["memo"] == "오른쪽 문짝 1짝"
+    assert rnd["source"] == asd.SOURCE_AS_REQUEST and rnd["memo"] == memo   # 여러 줄 그대로
     assert rnd["cycle_id"] and rnd["cycle_id"] == asd.open_as_cycle_id(after)
     assert after[asd.AS_DRAWING_STATUS_KEY] == asd.STATUS_WAITING
-    # AS 접수는 다시 저장하지 않는다 — 접수 기록 · AS 내용 · AS 건이 그대로다.
-    assert after["shipment"]["as_log"] == before["shipment"]["as_log"]
+    # AS 접수는 다시 저장하지 않는다 — 앞 기록 · AS 내용 · AS 건이 그대로이고, 부탁 기록 한 줄만 는다.
+    old_log, new_log = before["shipment"]["as_log"], after["shipment"]["as_log"]
+    assert new_log[:len(old_log)] == old_log and len(new_log) == len(old_log) + 1
+    entry = new_log[-1]
+    assert entry["type"] == "memo" and entry["text"].startswith("도면팀에 도면 부탁 (AS 도면 1차)\n")
+    assert "경첩 자리 2곳 표시" in entry["text"]
+    assert rnd["request_log_id"] == entry["id"] == body["data"]["request_log_id"]
     assert after["shipment"].get("as_content") == before["shipment"].get("as_content")
     assert asd.open_as_cycle_id(after) == asd.open_as_cycle_id(before)
     # 도면 담당에게 부탁 알림 + 폰 알림(흐름 1 과 같은 종류).
     notes = _notices(oid)
     assert [(n.title, n.target_type, n.target_user_id) for n in notes] == [("AS 도면 부탁", "USER", drafter.id)]
+    assert "오른쪽 문짝 1짝, 원래 크기 그대로 / 경첩 자리 2곳 표시" in notes[0].message   # 종 · 폰 글은 한 줄로
     assert pushed == ["AS_DRAWING_REQUEST"]
     logs = db_session.query(SecurityLog).filter_by(target_id=oid, action="AS_DRAWING_REQUESTED").all()
     assert len(logs) == 1 and "AS 도면 부탁" in (logs[0].message or "")
@@ -85,8 +94,10 @@ def test_request_without_drawing_assignee_goes_to_drawing_team(client):
 
     assert _request(client, oid).status_code == 200
 
-    rnd = asd.current_round(_sd(oid))
+    sd = _sd(oid)
+    rnd = asd.current_round(sd)
     assert rnd["memo"] == ""   # 비우면 화면이 AS 내용을 대신 보여 준다(흐름 1 과 같다)
+    assert sd["shipment"]["as_log"][-1]["text"] == "도면팀에 도면 부탁 (AS 도면 1차)"
     assert [(n.target_team) for n in _notices(oid)] == ["DRAWING"]
 
 
@@ -161,7 +172,7 @@ def test_dashboard_cell_offers_request_only_when_allowed(client):
     # 'AS도면' 체크 칸 뜻은 그대로다(약식 도면 표시).
     assert 'class="form-check-input as-blueprint-checkbox"' in _row(html, ready)
     assert "js/cs/as-dashboard-drawing-request.js') }}?v=" not in html  # 렌더된 주소
-    assert "/static/js/cs/as-dashboard-drawing-request.js?v=20261112a" in html
+    assert "/static/js/cs/as-dashboard-drawing-request.js?v=20261112b" in html
 
 
 def test_dashboard_request_script_contract():
@@ -171,7 +182,80 @@ def test_dashboard_request_script_contract():
     assert "AS_DRAWING_OPEN" in js                            # 이미 그리는 중이면 칸 글자를 맞춘다
     assert "innerHTML" not in js                              # 글자는 textContent 로만
     assert "__fomsAsDrawingRequestWired" in js                # fragment 재실행 가드
+    # 2판: 여러 줄 · 사진 · 동영상 — 기록 추가 칸과 같은 부품 · 같은 업로드 길.
+    assert "el('textarea'" in js and "maxLength = 2000" in js
+    assert "e.ctrlKey || e.metaKey" in js and "isComposing" in js    # Enter 는 줄바꿈, Ctrl+Enter 는 보내기
+    assert "fomsUploadOrderAttachmentsBatch" in js and "asLogId: logId" in js and "category: 'as'" in js
+    assert "request_log_id" in js and "fomsAsAttachmentOrder.mount" in js
+    assert "'paste'" in js and "'drop'" in js and "image/*,video/*" in js
+    assert "AS 기록의 클립 단추로 다시 올려 주세요" in js       # 업로드만 실패해도 부탁은 그대로
     css = (ROOT / "static/css/contexts/cs/as-dashboard-body.css").read_text(encoding="utf-8")
     assert ".erp-as-drawing-req-btn" in css
     # 칸이 54px 라 안내 글은 칸 안이 아니라 같은 화면 저장 알림(#saveToast)으로 낸다(로컬 실화면 11-12).
     assert "saveToast" in js
+
+
+def test_memo_is_capped_at_2000_and_receive_modal_memo_is_multiline(client):
+    admin = _user("asq_admin6", role="ADMIN", team="CS")
+    oid = _order(name="긴글고객")
+    _as(client, admin)
+    _register(client, oid)
+
+    assert _request(client, oid, memo="가" * 2500).status_code == 200
+
+    assert len(asd.current_round(_sd(oid))["memo"]) == 2000
+    # 주문 화면 AS 접수 창의 같은 칸도 여러 줄(사용자 11-12 "같이 여러 줄로").
+    for name in ("erp_order_tab.html", "erp_order_tab_mobile.html"):
+        tpl = (ROOT / "templates/orders/partials" / name).read_text(encoding="utf-8")
+        assert ('<textarea class="form-control form-control-sm" id="as-receive-drawing-memo" rows="3" '
+                'maxlength="2000"') in tpl
+    other = _order(name="접수창긴글고객")
+    res = client.post(f"/api/orders/{other}/as/register",
+                      json={"as_content": "문", "drawing_request": {"memo": "첫 줄\n둘째 줄" + "나" * 2500}})
+    assert res.status_code == 200
+    memo = asd.current_round(_sd(other))["memo"]
+    assert memo.startswith("첫 줄\n둘째 줄") and len(memo) == 2000
+
+
+def _upload(client, oid, as_log_id, filename):
+    import io as _io
+
+    data = {"file": (_io.BytesIO(b"\x89PNG\r\n\x1a\nFAKE"), filename), "category": "as", "as_log_id": as_log_id}
+    return client.post(f"/api/orders/{oid}/attachments", data=data, content_type="multipart/form-data")
+
+
+def test_request_photos_bind_to_request_line_and_show_on_workbench_card(client, monkeypatch):
+    import foms.api.files.order_routes as order_routes
+
+    class _S:
+        def upload_file(self, f, name, folder):
+            return {"success": True, "key": f"{folder}/{name}"}
+
+        def get_file_type(self, name):
+            return "video" if name.endswith(".mp4") else "image"
+
+    monkeypatch.setattr(order_routes, "get_storage", lambda: _S())
+    admin = _user("asq_admin7", role="ADMIN", team="CS")
+    drafter = _user("asq_draw7")
+    oid = _order(name="사진부탁고객", drawing_ids=[drafter.id])
+    _as(client, admin)
+    _register(client, oid)
+    reception_id = _sd(oid)["shipment"]["as_log"][0]["id"]
+    assert _upload(client, oid, reception_id, "접수사진.png").status_code == 200
+    log_id = _request(client, oid, memo="문짝").get_json()["data"]["request_log_id"]
+
+    # 지금 AS 기록 첨부와 같은 길(category 'as' + as_log_id) — 화면은 fomsUploadOrderAttachmentsBatch 로 같은 값을 보낸다.
+    assert _upload(client, oid, log_id, "처진문.png").status_code == 200
+    assert _upload(client, oid, log_id, "여닫기.mp4").status_code == 200
+    db_session.expire_all()
+    bound = {a.filename: a.as_log_id for a in db_session.query(OrderAttachment).filter_by(order_id=oid)}
+    assert bound["처진문.png"] == log_id and bound["여닫기.mp4"] == log_id
+    assert bound["접수사진.png"] == reception_id
+
+    _as(client, drafter)
+    html = client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True)
+    card = html[html.index('id="dw-as-card"'):]
+    assert "AS 사진 · 동영상 3" in card
+    assert card.index("도면 부탁 때") < card.index("처진문.png") < card.index("AS 접수 때") < card.index("접수사진.png")
+    assert 'data-group-key="as_media"' in card and 'data-dw-as-media="0"' in card   # 실행판 이미지 보기
+    assert "dw-as-media__tile--video" in card                                       # 동영상은 새 탭
