@@ -159,6 +159,133 @@
 - `is_production_home_user(user)`(`post_auth_navigation.py`) = 팀 PRODUCTION 이고 협력사 아님(프리랜서는 영업팀만 가능해 따로 보지 않음). `authenticated_home_url`·`resolve_post_login_redirect`(legacy `/`)·`listing.py index()`·`routes.py switch_user` 네 곳이 `production_home_url()` 로. 기기 무관. 시험 `tests/domains/test_post_auth_navigation.py` 4 사례(PC 로그인·`next=/`·`/`·CS 대조군).
 - **D15(11-09 저녁) 도장 공정 삭제** — 공정은 재단·엣지·조립·검수 4단계. `_PRODUCTION_STEP_DEFS`(API)·`PRODUCTION_HOME_STEP_DEFS` 에서 paint 제거, 옛 주문의 `production.steps` 에 남은 paint 는 읽을 때(API GET·`_ensure_production_steps`·첫 화면·시트·모바일 큐 "공정 n/N") 걸러 낸다. 데이터 이행 없음. 시안 그림의 도장 칸은 옛 그림.
 
+## 13. 시공 탭 — 첫 화면(날짜 버튼 + 시공자 묶음) + 상세(지금 3분할) (D16 · D39~D41, 2026-11-12 — 초안)
+
+### 13.0 한 줄
+태블릿 가로 시공 탭에 들어오면 "고른 날의 시공 집을 시공자 묶음으로" 보는 첫 화면이 뜨고, 집을 누르면 지금 3분할 작업 화면(목록 · 도면 · 작업 확인)이 상세로 열린다. 위 줄은 출고 탭(§14.10)과 같은 날짜 버튼 띠. 시안 = `docs/design/mockups/tablet-construction-first.html` `#a31`(0건 날 `#a31b`) — 시안의 "1팀 최우진 · 박성민" 머리는 이름 묶음 "최우진 · 박성민"으로 읽는다(D40). 주소는 지금 그대로 `/erp/construction/dashboard`, 새 쓰기 없음.
+
+### 13.1 결정 (사용자 — 다시 묻지 않는다, 원장 §13 · D39~D41)
+- 원장 §13 사용자 요구: ① 글자 크기 조절 ② 이유 없는 빈 곳 없음 ③ 첫 화면은 날짜별로 시공을 한눈에.
+- **D16 → D40** 팀 칸 = 시공자 이름 칸(출고 이름판 값 `structured_data.shipment.construction_workers`, 1팀 · 2팀 명부는 만들지 않음). 로그인한 사람 이름과 같은 이름이 있으면 처음부터 그 사람 칸.
+- **D41** 안 31-1: 위 줄 = ◀ 날짜 버튼 7개(날짜 · 요일 · N집) ▶ · 시공자 칸 · 글자 손잡이 · [다시 받기] · [더보기]. 본문 = 그날 집을 시공자 묶음 카드로(칠 없이 왼쪽 시공자 색 띠), 줄 = 시간(+지금 시공중) · 고객 · 대리점 · 품목 · 자수 · 구 이름 크게 + 주소 · 출고 · 도면 · [열기]. 남는 자리 = 내일 미리 보기. 0건 날 = "시공 없음 · 다음 시공 MM/DD(요) N집" 한 줄. 집을 누르면 상세 = 지금 3분할(`tablet_workmode_body.html`) 그대로.
+- 출고 탭과 맞춤: 날짜 버튼 띠(§14.10), 시공자 묶음 순서 · 색 번호(§14.3 `build_tablet_day_sheet`), 본문 칠 금지(D29).
+
+### 13.2 지금 (워커 조사 — 총괄 재확인 전)
+- **라우트** `foms/web/construction/dashboard.py:68-276` `erp_construction_dashboard`(문지기는 `login_required` 뿐). 태블릿 가로도 같은 라우트 · 같은 조각. 3분할은 `templates/construction/partials/dashboard_body.html:154-156` 에서 `erp_mobile_v2_enabled and coarse_pointer_surfaces`(쿠키 `foms_ptr`, 없으면 참 — `foms/services/feature_flags.py:140`)일 때만 넣고, 보이기는 CSS 미디어쿼리 `(min-width: 992px) and (orientation: landscape) and (pointer: coarse)` + 표식 `--foms-tablet-ui:ready`(`static/js/foms/tablet-construction-workmode.js:30-47`, 모양 `static/css/foundation/foms-tablet-construction.css` ← `foms-tablet-bundle.css:20` @import). 같은 응답에 폰 화면(`dashboard_body.html:130-137` `mobile_queue.html`)과 PC 큐(`:145-149`, `wide_only_surfaces`)도 같이 들어간다.
+- **목록 = 서버 렌더 한 번, API 없음.** 바탕 조회 = `dashboard_active_filter(days=60)` + `is_erp_order` + 협력사 칸(`dashboard.py:83-84`), 단계 범위 `erp_stage_code IN (CONSTRUCTION · 시공 · CONSTRUCTING · COMPLETED · 완료 · AS_WAIT · CS)`(`foms/services/construction_read_model.py:36-38, 60-85`). **기본 정렬 = 접수 최신순**(`:161-180`, 시공일 정렬은 `?sort=construction_date` 때만), **한 쪽 50건**(`CONSTRUCTION_DASHBOARD_PAGE_SIZE`, `:30`), 전체 수 캡 300(`CONSTRUCTION_BROWSE_CAP`, `:31` — 수만 자르고 줄은 50) · 검색 500. 3분할은 이 50줄을 왼쪽 카드 · 가운데 도면 칸 · 오른쪽 확인 칸으로 50벌씩 다 그린다(`tablet_workmode_body.html:23-37, 50-136, 152-190`).
+- **칩 오늘 · 내일 · 주간 · 전체 = 새 요청 없이 받은 50줄을 숨기기만**(`tablet-construction-workmode.js:102-111` `matchesRange`, 카드 날짜 = 시공일 첫 값 `tablet_workmode_body.html:28`), 처음 열면 '오늘'(`:213-220`).
+  - **결함(코드로 확인, 운영 수는 안 잼)**: 오늘 시공하는 집이라도 접수가 오래돼 "최신 접수 50건(완료 60일 포함)" 밖이면 '오늘' 칩에 안 나온다 — 생산 홈 300건 캡 결함 ④(원장 §12)와 같은 꼴. 스테이징은 주문이 적어 안 드러난다.
+  - **같은 꼴**: `?focus_order=` 딥링크(`dashboard.py:133-152`, 줄 1건)를 태블릿에서 열면 처음 '오늘' 칩이 그 줄을 숨겨, 시공일이 오늘이 아닌 집은 세 칸이 다 빈다.
+- **줄 값** `foms/services/construction_dashboard_display.py:416-483` `build_construction_row_dtos`: id · structured_data · 고객 · 주소 · 표시 단계(시공대기/시공중/시공완료 — `foms/services/orders/board_state_display.py:22-36`, 그 밖 단계면 줄을 버림) · 대리점 `orderer_name` · 시공일 · 영업 담당 · 전화 · 품목 이름 · 첫 품목 규격(`:391-413`). 도면 그림 = `enrich_construction_mobile_rows`(`:340-389`, 도면만). 전달본 판 수는 템플릿이 `sd.drawing_transfer_history` 로 센다(`tablet_workmode_body.html:51-52, 118-122`). 시공자 이름 · 포장 · 그날 자수는 지금 안 싣지만 자료는 `sd` 안에 있다(`sd.shipment.construction_workers` · `sd.shipment.packing` — 스키마 `foms/api/shipment/packing.py:3-7` · `order_spec_units` `foms/services/shipment_dashboard_helpers.py:169`).
+- **출고 설정 읽기**: 이 라우트는 이미 요청마다 `load_erp_shipment_settings()` 를 한 번 부른다(`construction_dashboard_display.py:433` 실측 담당 전화표). 설정은 요청당 캐시(`foms/services/erp_shipment_settings.py:270-292`)라 시공자 순서를 다시 읽어도 쿼리 0.
+- **글자 손잡이**: `foms_font_scale_control.html` 은 PC 머리 안(`dashboard_body.html:16`, `.foms-shell-desktop-only`)이라 태블릿엔 안 보인다. 저장 열쇠 `FS_TABS` 에 `/erp/construction` 이 이미 있다(`templates/partials/shared/layout_head.html:116`).
+- **출고 탭의 날짜별 수**(`construction_panel_dates`)는 출고 라우트 안에서만 만든다(`foms/web/shipment/dashboard.py:384-412` 14일 `order_schedule_dates` 조회 → `:448-551` 집계 · 파생, `foms/services/shipment_read_model.py:24-77`). 모집단이 시공 탭과 다르다: 출고 범위(`_shipment_dashboard_order_scope` `:102-112`, 비ERP 포함) · AS 뺌(`shipment_read_model.py:43-44`) · 협력사 확정 대기 더함(`dashboard.py:469-487`) · 시공팀은 줄을 받은 뒤 파이썬으로 거름(`:415-420`) · 캐시 놓치면 14일 주문 JSONB 전량을 읽음(`:450-456`).
+- **묶음 · 색**: `foms/services/shipment/tablet_day_sheet.py:56` `build_tablet_day_sheet(rows, worker_settings, date)` — DB 안 씀, 묶음 키 = 첫 시공자, 순서 = 없음 → 설정 순 → 설정 밖 이름(`:99-102`), 색 번호 = 그날 묶음 순서대로(`:111-123`). 사람 색 10색은 `static/css/contexts/shipment/tablet-day-sheet.css:246~`(`data-ship-color`), 날짜 띠 모양은 `shipment-dashboard-columns.css`, 띠 동작은 `static/js/shipment/tablet-ship-datebar.js`(107줄, `shipment-entry.js:30` 이 싣는다).
+- **권한(지금 규칙)**
+  - 시공팀: 페이지 이동은 출고 · 시공 · 완료 · 이력만(`foms/platform/http.py:272-327`). 목록은 늘 "내 것"(`foms/services/common/erp_mine_filter.py:44-47`) = 영업 담당 이름 또는 `shipment.construction_workers` 에 내 이름(`foms/services/erp_permissions.py:294-365`, 그중 `:336`). 이름 맞추기 = 앞뒤 공백 제거 + 소문자(`:105-111`) — 출고 `_normalize_worker_name`(`shipment_dashboard_helpers.py:25-26`)과 같은 규칙. 시공 시작 · 완료 · 불가 됨(`can_edit_erp_construction` `:416-427`).
+  - 관리자 · CS · 영업: 회사 전체(쿠키 · `?mine=1` 이면 내 것), 시공 버튼 됨(`can_act_construction` `:429-439` = `can_edit_erp`(관리자 · CS · SALES, `:18`) 또는 시공팀).
+  - 출고 · 도면 · 생산 · VIEWER: 보기는 되고 시공 버튼은 서버 403. **3분할은 버튼을 권한과 상관없이 늘 그린다**(`tablet_workmode_body.html:124-134, 170-188`) — 폰 화면은 `can_act_construction` 로 가린다(`mobile_queue.html:86-90`). 막다른 길.
+  - 켜진 프리랜서: 허용 화면(`foms/services/auth/freelancer_screens/shipment.py:29`), 늘 내 것(연결 표), `?focus_order=` 는 문지기가 내 주문인지 본다(`:49`). 회사 시공자 명단 · 용량은 출고 탭에서도 숨긴다(같은 파일 머리말). 협력사 계정: 허용 목록에 없어 못 들어옴(`http.py:250-251`).
+- **성능 가드**: 스테이징 성능 게이트 `tools/perf/perf_budgets.json:21-23`(터치 기기 조각 전송 38,983B) · `:70-74`(마우스 23,812B · 서버 114ms). 쿼리 수 계약 `tests/domains/test_construction_dashboard_query_count.py:33-35`(4→12건 차이 ≤2, 절대 ≤8, 주석의 실측 6). 3분할 렌더 문지기 시험 `tests/domains/test_construction_dashboard_cache_key_sharing.py:295-331` · `tests/domains/test_tablet_shell_t0_contract.py:631-645`. `tests/performance` 의 시공 언급은 JSONB 경로 스캔 · defer 계약뿐(시공 전용 perf 시험 없음). JS 300줄 래칫: `tablet-construction-workmode.js` 405줄은 기준선 안(`tests/harness/file_size_baseline.json:209`) — 새 동작은 새 파일(300줄 안)로.
+
+### 13.3 바꾸는 것 — 같은 주소 · 같은 조각, 태블릿 가로 코호트만
+**모드 둘** (새 Blueprint · 새 라우트 없음 → 레일 강조 · 셸 · 프리랜서 허용 표 그대로)
+
+| 주소 | 태블릿 가로가 그리는 것 |
+|---|---|
+| `?date=YYYY-MM-DD&worker=이름` (둘 다 없어도 됨) | **첫 화면** — 새 조각 `construction/partials/tablet_first_body.html` |
+| `?focus_order=<id>&date=…&worker=…` | **상세** — 지금 3분할 `tablet_workmode_body.html` |
+
+- 첫 화면 모드는 3분할을 렌더하지 않는다(지금 50벌 → 0, 전송 바이트가 줄어야 함). 폰 화면 · PC 큐는 지금처럼 같이 렌더(태블릿을 세우면 폰 화면이 되므로).
+- `date` 없음 = 오늘(`get_today_kst`). `worker` 키가 아예 없으면: 로그인 이름(정규화)이 칸 이름 목록에 있으면 그 이름, 아니면 전체. `worker=`(빈 값) = 전체를 일부러 고름.
+
+**위 줄** (늘 한 줄, 출고 §14.10 과 같은 꼴 · 크기)
+1. **◀ 날짜 버튼 띠 ▶**: 오늘부터 14일, 한 번에 7개. 버튼 = `13 금` + `N집`(0이면 `없음`). 오늘 = 점선 + 글 `오늘`, 고른 날 = 진한 테두리, 주말 · 휴일 = 회색 글자(휴일 `get_holidays_kr` — 출고와 같은 함수), 칠 없음. 누르면 `?date=`(worker · mine 유지, 셸 조각 이동). 고른 날이 14일 밖이면 띠 앞에 그 날 버튼 하나(수 없이). ◀ ▶ = 7개씩, 손가락 밀기 = 출고 `tablet-ship-datebar.js` 를 시공 화면에서도 싣고 같은 `data-ship-days-*` 표식을 쓴다(새로 읽지 않음).
+2. **시공자 칸**: 단추 하나 `전체 ▾` / `최우진 ▾`(고른 사람 색 띠). 누르면 아래로 이름 목록(전체 + 이름마다 색 띠). 고르면 `?worker=` 로 이동(날짜 유지). 시안의 세 칸(전체/1팀/2팀) 대신 단추 하나인 까닭: 이름은 10명 넘게 늘 수 있어 칸을 늘어놓으면 1280px 한 줄을 넘는다. 이름 목록 = 출고 설정 시공자(설정 순) + 그날 · 미리 보기 줄에만 있는 이름. **켜진 프리랜서**는 회사 명단을 빼고 자기 줄에 나온 이름만.
+3. **글자 손잡이** `foms_font_scale_control.html`(열쇠 `erp-construction` 그대로). 새 글자 크기는 모두 `calc(Npx * var(--foms-fs, 1))`.
+4. **[다시 받기]** = 지금 주소 링크(생산 홈 `data-foms-home-reload` 와 같은 꼴 — 셸이 조각만 다시 받음).
+5. **[더보기 ▾]** = ① 다른 날짜 고르기(달력 → `?date=`) ② 찾기(고객 · 주소 · 전화, 지금 `?q=` 검색 그대로 — 결과는 상세 왼쪽 목록에).
+
+**본문**
+- 고른 날 머리: `11/12(목) 오늘 · 5집 · 시공자 3명`.
+- **시공자 묶음 카드** = `build_tablet_day_sheet(그날 줄, 설정 시공자, 그날)` 그대로(묶음 = 첫 시공자, 순서 = 없음 → 설정 순 → 밖 이름, 색 번호 같은 규칙). 카드 머리 = 그 묶음 줄에 나온 이름들(나온 순, `최우진 · 박성민`) + `n집`. 시공자 없는 묶음은 맨 위 `시공자 아직 없음 n집`. 왼쪽 띠 = 묶음 주인 색, 카드 · 줄 바탕 칠 없음(D29). 시공자 칸에서 사람을 골랐으면 그 사람이 든 줄만(둘째 시공자여도), 묶음 규칙은 그대로.
+- 묶음 안 줄 순서 = 시간 순(시각 글 → 오전 → 오후 → 종일 → 미정).
+- **줄 칸**(줄 높이 64px 이상, [열기] 44px 이상, 글자 13px 이상)
+
+  | 칸 | 값 | 자료 |
+  |---|---|---|
+  | 시간 | `shipment.construction_time`, 없으면 `schedule.construction.time`(오전 · 오후 · 종일)을 흐린 글로, 없으면 `시간 미정`. 표시 단계가 시공중이면 아래 작은 글 `지금 시공중`, 시공완료면 `끝남` | sd |
+  | 고객 · 대리점 | `parties.customer.name` 크게 + `orderer_name` 작게 | sd |
+  | 품목 · 자수 | 그날 품목 첫 이름 + `외 n`(출고 §14.3 과 같은 규칙, 항목별 시공일로 거름) + `order_spec_units(order, target_date=그날)` 소수 한 자리 `자` | sd |
+  | 구 이름 · 주소 | `strip_sido`(`foms/services/common/address_query.py:155`) 뒤 첫 낱말(구 · 시 · 군)을 크게 + 나머지 주소 작게(넘치면 …) | 주소 |
+  | 출고 | `packing.departed_at` 있으면 `출발 HH:MM`, 체크 항목이 저장돼 있으면 `포장 n/N`, 없으면 `포장 전`(흐림). 시공 전 단계 줄이면 `생산중`(§13.9 질문 1 답에 따라) | `sd.shipment.packing` |
+  | 도면 | `drawing_transfer_history` 길이로 `전달본 vN`, 없으면 `전달본 없음`(경고 글자색만, 칠 없음) | sd |
+  | [열기] | 상세 주소 `?focus_order=<id>&date=<그날>&worker=<칸>` | — |
+
+- **미리 보기**: 고른 날 다음으로 집이 있는 첫 날(14일 띠 안) 하나를 같은 모양으로 아래에, 머리 `내일 11/13(금) · 3집 · 미리 보기`(내일이 아니면 날짜만). 그 줄 [열기]도 된다(그 날 date 로). 띠 안에 없으면 미리 보기 없음.
+- **0건 날**: 본문 맨 위 한 줄 `11/15(일) 시공 없음 · 다음 시공 11/16(월) 2집 [11/16 보기]`(사람을 골랐으면 `최우진 시공 없음`) 뒤에 그 다음 날 미리 보기. 14일 안에 다음 시공이 없으면 `앞으로 2주 시공 없음` 한 줄. → 세 칸이 다 비던 지금 모습(원장 §13 ②)이 없어진다.
+- 그날 줄이 안전 캡을 넘으면 맨 아래 `더 있는 n집은 안 보여요`(위 N집과 맞춤) — 조용히 자르지 않는다.
+
+**상세** (`?focus_order=`)
+- 지금 3분할 그대로: 가운데 도면 · 전화 · 내비 · 시트 칩 · 확대 보기, 오른쪽 체크 · 사진 · 메모 · 완료 게이트, 시공 불가 · AS 접수 · 시작 · 완료(JS · API 무변경).
+- 왼쪽 목록 = §13.9 질문 2 답. **추천안**: 첫 화면에서 고른 날 · 고른 시공자 칸의 집들(누른 집 켜짐). 칩 줄(오늘 · 내일 · 주간 · 전체) 자리에 `◀ 11/13(금) 목록 · n집` 돌아가기 링크(`?date=&worker=`). 칩은 상세에서 뺀다(날짜는 첫 화면이 맡음) → 칩이 줄을 숨겨 생기던 빈 화면도 없어진다.
+- `date` 없이 `focus_order` 만 오는 옛 딥링크(알림 · 찾기 · 다른 탭 링크): 그 주문의 시공일 중 오늘 이후 가장 가까운 날(없으면 가장 최근 날)을 date 로 잡아 같은 규칙. 시공일이 없으면 그 집 하나만.
+- `?q=` 찾기: 왼쪽 목록 = 지금 검색 결과(최대 50, 캡 500) 그대로, 머리 `찾기: 홍길동 · n건` + [첫 화면으로].
+- 돌아가기 = 셸 이동이라 기기 뒤로 단추로도 돌아온다(`static/js/runtime/erp-shell.js:813` pushState · `:1075` popstate).
+- **버튼 권한 맞춤**(화면만, 쓰기 API · 데코레이터 무변경): 3분할의 시작 · 완료 · 불가 · 사진칸 · 메모 · 완료 단추를 `can_act_construction` 일 때만 그린다(폰 화면과 같은 술어). 없으면 그 자리에 `보기만 할 수 있어요` 한 줄. 시공 전 단계 집(질문 1 이 '넣기'면)은 시작 · 완료 대신 `아직 생산 중이에요` 한 줄.
+
+### 13.4 자료 — 새 집계가 필요하다 (출고 집계는 쓰지 않는다)
+- 출고 `construction_panel_dates` 를 그대로 부르면 출고 패널 전부(14일 주문, 캐시 놓치면 JSONB 전량)를 시공 탭에서 다시 계산하고 모집단도 다르다(§13.2). 그래서 새 읽기 서비스 `foms/services/construction/tablet_first.py`(500줄 안 · 함수 50줄 안)를 둔다. 쿼리 둘 + 순수 조립.
+- **쿼리 A — 날짜별 집 수**: `order_schedule_dates`(kind = 'construction', 날짜 = 오늘~오늘+13 과 고른 날)를 `orders` 와 이어 `COUNT(DISTINCT order_id) GROUP BY date`. 줄을 싣지 않는다(JSONB 를 안 읽음), 색인 `idx_order_schedule_dates_composite (kind, date, order_id)`(`models.py:339`). 조건 = `Order.active_filter()` · `is_erp_order` · 협력사 칸(`partner_order_clause`) · AS 상태 뺌(`AS_SHIPMENT_STATUSES` 밖, `shipment_dashboard_helpers.py:20`) · 단계 범위(질문 1) · mine 이면 `build_mine_sql_filter(user)`(시공팀 · 켜진 프리랜서 — 지금 목록과 같은 SQL, `dashboard.py:86-91` 와 같은 꼴) · 사람을 골랐으면 `shipment.construction_workers` 이름 조건(같은 `_json_string_token_condition`, `erp_permissions.py:61-78`). 모아 세기라 **캡이 필요 없다**(300건 캡 결함 꼴이 없다). 60일 창(`dashboard_active_filter`)은 쓰지 않는다(앞날 집이 창 밖으로 밀리지 않게).
+- **쿼리 B — 고른 날 + 미리 볼 날의 줄**: 같은 조건 + 날짜 IN (고른 날, 미리 볼 날) → ORM `Order` 전부(structured_data 포함, 출고 시트와 같은 꼴). 미리 볼 날은 A 결과로 정하므로 A → B 순서. 둘 다 0집이면 B 생략. **안전 캡 200**(하루 집 수의 몇 배로 잡은 추정 — 운영 최대치는 안 잼), 넘치면 "안 보여요" 줄. 상세 모드에서도 같은 B(그날 하나)를 쓰고 도면 그림은 그 줄에만 `enrich_construction_mobile_rows` 를 건다.
+- 설정 시공자 = `load_erp_shipment_settings()`(요청당 캐시 — 쿼리 0) → `normalize_erp_shipment_workers`. 묶음 · 색 = `build_tablet_day_sheet` 를 날마다 따로(고른 날 · 미리 볼 날).
+- **쿼리 수**: 첫 화면 = 지금(주석 실측 6) + A + B = 8 → 계약 상한 8 에 딱 맞다. 상세 = 지금 + B(+ 그 줄 도면 그림). 넘으면 이유를 적어 계약 숫자를 올리거나 지금 50줄 목록 조회와 합칠지 구현 때 실측으로 정한다.
+- **캐시**: 1차는 안 붙인다(A 는 색인만 · 줄 없음). 대시보드 캐시 무효화는 주문 단계 묶음 기준이라(`foms/services/common/dashboard_cache.py:622-643`) 생산 단계 주문의 시공일이 바뀌면 시공 쪽 키가 안 지워질 수 있다 → 붙이면 낡은 숫자 위험. 스테이징 서버 시간(`Server-Timing` · `X-FOMS-DASH-SLICES`)을 보고 필요할 때만 다시 정한다.
+- 로그인 사람 ↔ 시공자 이름 = 공백 제거 + 소문자 글자 같음뿐(`_normalize_worker_name` 과 `_normalized_identity_values` 가 같은 규칙). 동명이인 · 성을 뺀 이름은 못 가린다(자료 없음).
+
+### 13.5 권한 (쓰기 API · 데코레이터 · "시공팀은 늘 내 것" 규칙 무변경)
+
+| 누구 | 첫 화면 | 상세 |
+|---|---|---|
+| 시공팀 | 늘 내 것(영업 담당 이름 또는 시공자 이름에 내 이름) — N집도 내 것만. 칸 처음 = 내 이름(목록에 있으면) | 시작 · 완료 · 불가 됨 |
+| 관리자 · CS · 영업 | 회사 전체(쿠키 `mine` 이면 내 것). 칸 처음 = 전체(이름이 목록에 있으면 그 사람) | 시공 버튼 됨 |
+| 출고 · 도면 · 생산 · VIEWER | 회사 전체 보기 | 보기만(버튼 안 그림 — 지금은 그려 놓고 403) |
+| 켜진 프리랜서 | 연결 표 내 주문만, 칸 이름은 자기 줄에 나온 이름만 | 지금 규칙 그대로(쓰기 결정 D27 은 다른 변경 몫) |
+| 협력사 계정 | 못 들어옴(그대로) | — |
+
+- 새 주소 매개변수 `date` · `worker` 는 주문 번호가 아니라 프리랜서 문지기 표를 고치지 않는다. `focus_order` 는 이미 표에 있다(`freelancer_screens/shipment.py:49`).
+
+### 13.6 시험
+- **서비스**: 쿼리 A 수 = 그날 실제 집 수(여러 날 시공 주문은 날마다 1 · AS 뺌 · 삭제 뺌 · 협력사 칸 · 시공팀 mine · 프리랜서 연결 표 — 남의 집 0), 사람 거름(둘째 시공자 포함), 미리 볼 날 고르기, 0건 날 다음 시공, 캡 넘침 줄. **대조군**: 접수가 오래된 오늘 시공 집을 51번째로 만들어 지금 3분할 '오늘' 칩 목록에는 없고(되돌리면 실패) 새 첫 화면에는 있음.
+- **묶음 · 색**: 출고 시험과 같은 입력이면 같은 묶음 · 색 번호(`build_tablet_day_sheet` 를 그대로 쓰는지).
+- **템플릿 단언**: 위 줄 날짜 버튼 14개 · 오늘 · 고른 날 · `N집`/`없음` · 14일 밖 앞 버튼 · 칸 단추 · 글자 손잡이 · [다시 받기] 주소 · [더보기] 안 둘. 줄 칸 순서 7개 · `지금 시공중` · `전달본 없음` · `포장 전`. 0건 줄 · 다음 시공 · 미리 보기 머리. 본문 칠 클래스 없음 · 금액 없음 · 인라인 style 없음 · 글자 calc · CSS/JS 핀(@import 자식 핀을 바꾸면 부모 `foms-tablet-bundle.css` 핀도).
+- **모드**: 첫 화면 모드에 `foms-construction-workmode` 없음, 상세 모드에 있음 · 칩 없음 · 돌아가기 링크 · 누른 카드 `is-active` · 왼쪽 = 그날 집. 마우스 기기(`foms_ptr=fine`)는 둘 다 없음(지금 시험 `test_workmode_skipped_for_fine_pointer_devices` 유지). 폰 화면 · PC 큐 그대로(대조군).
+- **권한**: 출고팀 계정 상세에 시작 · 완료 버튼 없음, 시공팀 · CS 는 있음(되돌리면 실패).
+- **perf**: 쿼리 수 계약을 첫 화면 · 상세 각각(4→12건 차이 ≤2), 쿼리 A 의 SQL 에 `structured_data` 가 없는지 단언, JS 300줄 래칫 · `node --check`, 스테이징 성능 게이트 터치 조각 바이트(첫 화면은 3분할 50벌이 빠져 줄어야 함 — 늘면 까닭을 적고 seed).
+- **실화면**: 스테이징 1280×800 터치(`claude_master`, 쓰기 없음) — 날짜 버튼 · ◀ ▶ · 칸 고르기 · 0건 날 · 미리 보기 [열기] → 상세 → 돌아가기 · 기기 뒤로, 넘침 0 · 13px 미만 0 · 44px 미만 0. 시공 시작 · 완료 · 불가는 누르지 않는다(알림). 세로 800×1280 은 폰 화면 그대로(대조군).
+
+### 13.7 단계 (각 단계 = 스테이징까지, 운영은 지시 때)
+
+| 단계 | 일 |
+|---|---|
+| P13-1 | 날짜 띠 · 사람 색 모양을 출고 CSS 에서 공용 foundation 파일로 옮김(출고 화면 무변경 — 실화면 전후 대조) + `tablet-ship-datebar.js` 를 시공 화면에서도 싣기 |
+| P13-2 | 읽기 서비스 `tablet_first.py`(쿼리 A · B · 묶음 · 미리 보기 · 0건) + 시험(대조군 포함) + 쿼리 수 계약 |
+| P13-3 | 첫 화면 조각 + 위 줄(날짜 · 시공자 칸 · 글자 · 다시 받기 · 더보기) + CSS + 새 JS(칸 판 여닫기, 300줄 안) |
+| P13-4 | 상세 모드: 왼쪽 목록 = 그날 집 · 돌아가기 · 옛 딥링크 날짜 잡기 · 찾기 · 버튼 권한 맞춤 |
+| P13-5 | 스테이징 실화면 · 성능 게이트 · 원장 · AI_STATUS |
+
+### 13.8 바꾸지 않는 것 · 남는 위험
+- **그대로**: 쓰기 API(시공 시작 · 완료 게이트 · 시공 불가 · AS 접수 · 포장), 권한 데코레이터, 시공팀 늘 내 것 규칙, PC 화면 · 폰 화면 · 태블릿 세로, 레일 · 셸, 출고 탭 동작 · 숫자, 3분할 가운데 · 오른쪽 칸 모양, 출고 설정 화면. 데이터 이행 없음 · 새 칸 없음.
+- **색이 출고 탭과 다를 수 있다**: 색 번호는 그날 줄 묶음 순서로 매긴다(`tablet_day_sheet.py:111-123`). 출고 탭 줄(AS 줄 · 협력사 확정 대기 · 비ERP 포함)과 시공 첫 화면 줄(시공만, 시공팀 · 프리랜서는 내 것만)이 다르면 같은 사람 색이 다를 수 있다. 관리자 · CS 가 보는 AS 없는 날은 같다. 늘 같게 하려면 색을 설정 순서로만 매겨야 하고 출고 탭도 바뀐다(이번 범위 밖).
+- **N집 ≠ 출고 N건일 수 있다**: 출고는 협력사 확정 대기 · 비ERP 주문을 넣는다(글도 `집` / `건` 으로 다름).
+- 쿼리 수 상한 8 에 딱 맞다 — 넘으면 계약 숫자를 올릴 근거가 필요.
+- 시공일이 없는 시공 단계 집(미정)은 첫 화면에 안 나온다 — [더보기] 찾기나 PC · 폰 화면으로. (뒤로: [더보기] 안 `날짜 미정 n집` — 수를 세는 쿼리가 하나 더 든다.)
+- 운영 하루 최대 집 수 · 지금 '오늘 칩 누락' 건수는 재지 않았다(운영 측정은 지시 때 1회).
+
+### 13.9 사용자에게 물을 것 (2)
+1. **생산이 아직 안 끝난 집도 날짜 버튼 수와 목록에 넣을까요?** 지금 시공 탭은 시공 단계(시공대기 · 시공중 · 완료)만 보여서, 내일 갈 집이라도 생산 완료 전이면 안 보인다(생산 완료 때 단계가 시공으로 바뀜 — `foms/api/production/orders.py:294`). **추천: 넣는다** — 첫 화면의 목적이 앞날 시공을 한눈에(원장 §13 ③)이고 출고 탭 수와도 가까워진다. 그런 줄은 출고 칸에 `생산중`, 상세에서 시작 · 완료 대신 안내 한 줄.
+2. **상세(3분할) 왼쪽 목록에 무엇을 둘까요?** **추천: 첫 화면에서 고른 날 · 고른 시공자의 집들**(누른 집 켜짐, 위에 `◀ 11/13(금) 목록` 돌아가기, 오늘 · 내일 · 주간 · 전체 칩은 뺌). 다른 안: 누른 집 하나만(왼쪽이 거의 빈다) / 지금 그대로(최신 접수 50건 + 칩 — 오늘 집이 빠지는 결함이 남는다).
+
 ## 14. 출고 탭 — 하루치 출고표에서 시공자 배정 (D23~D31, 2026-11-11 — **승인됨: "이대로 만들기"**)
 
 ### 14.0 한 줄
