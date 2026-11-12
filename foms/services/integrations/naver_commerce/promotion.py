@@ -23,6 +23,11 @@ from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
+from foms.services.integrations.naver_commerce.ghost_orders import (
+    DISCARDABLE_STATUSES,
+    read_repay_expected,
+    stage_label,
+)
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     build_payment_info,
@@ -33,6 +38,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     map_group,
 )
 from foms.services.orders.order_create import create_order
+from foms.services.orders.soft_delete import soft_delete_order
 from foms.services.orders.state_axes import read_deleted
 from models import ExternalOrderLink, Order
 
@@ -726,13 +732,6 @@ def undo_created_order(session: Session, *, link_id: int, actor_user_id: int,
     Raises:
         PromotionError: 링크·주문이 없거나, NEW 가 아니거나, 위 잠금 조건에 걸릴 때.
     """
-    from foms.services.integrations.naver_commerce.ghost_orders import (
-        DISCARDABLE_STATUSES,
-        read_repay_expected,
-        stage_label,
-    )
-    from foms.services.orders.soft_delete import soft_delete_order
-
     link = (
         session.query(ExternalOrderLink)
         .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
