@@ -99,7 +99,9 @@ def _sd(oid):
 
 def _notices(oid):
     db_session.expire_all()
-    return db_session.query(Notification).filter_by(order_id=oid, notification_type="AS_DRAWING").all()
+    return (db_session.query(Notification)
+            .filter(Notification.order_id == oid, Notification.notification_type.like("AS_DRAWING%"))
+            .all())
 
 
 def _start(client, oid, **body):

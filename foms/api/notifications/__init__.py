@@ -240,6 +240,15 @@ def _resolve_notification_deep_link(
             "deep_link_url": f"/erp/orders/{oid}/mobile",
         }
 
+    if n_type in ("AS_DRAWING_REQUEST", "AS_DRAWING_REVISION") and oid:
+        # 완료 주문 AS 도면 — 폰 알림과 같은 곳(작업실 실행판 AS 도면 카드)으로 연다.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": f"/erp/drawing-workbench/{oid}",
+        }
+
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
         return {
             "deep_tab": None,

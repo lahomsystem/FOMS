@@ -173,3 +173,122 @@ def test_drawing_starter_may_upload_as_photo_only_from_start_window(client, monk
     assert _upload(client, plain, log_id).status_code == 403    # 차수 없는 다른 주문
     _as(client, other)
     assert _upload(client, oid, log_id).status_code == 403      # 시작한 사람이 아닌 도면팀
+
+
+def test_customer_share_link_never_shows_as_drawing(client, storage, monkeypatch):
+    """고객 공유 링크는 원래 최종 도면만 보인다(설계서 §8) — AS 차수 파일은 첨부 행도 현재본도 아니다."""
+    import foms.api.share as share_routes
+    from foms.services import order_share as osvc
+
+    _capture(monkeypatch)
+    oid = _order(name="공유링크고객")
+    _sent_as_drawing(client, oid)
+    sd = _sd(oid)
+    as_keys = {f["key"] for rnd in sd["as_drawing"]["rounds"] for f in (rnd.get("files") or [])}
+    assert as_keys and all(k.endswith("as1.png") for k in as_keys)
+
+    collected = {f["key"] for f in share_routes._collect_drawing_files(db_session.get(Order, oid))}
+    assert collected == {f["key"] for f in sd["drawing_current_files"]}
+    assert collected.isdisjoint(as_keys)
+
+    class _R2(_FakeStorage):
+        storage_type = "r2"
+
+        def get_download_url(self, storage_key, expires_in=3600, response_content_disposition=None):
+            return f"https://cdn.example.com/{storage_key}"
+
+    monkeypatch.setattr(share_routes, "get_storage", lambda: _R2())
+    _row, token = osvc.create_share_token(db_session, oid, "drawing")
+    db_session.commit()
+    res = client.get(f"/s/{token}")
+    assert res.status_code == 200
+    body = res.get_data(as_text=True)
+    assert "as1.png" not in body
+    assert all(f["filename"] in body for f in sd["drawing_current_files"])
+
+
+# --------------------------------------------------------------------------
+# 폰 알림(2026-11-12) — 원래 도면 규칙: 부탁 · 도착 · 수정 요청은 폰에도, 접수 · 확인은 벨만
+# --------------------------------------------------------------------------
+
+def test_phone_push_only_for_request_transfer_revision(client, storage, monkeypatch):
+    import foms.services.orders.as_drawing_notify as notify_mod
+    from models import Notification
+
+    pushed: list = []
+    monkeypatch.setattr(notify_mod, "enqueue_push_for_notification",
+                        lambda nid, db=None: pushed.append(db_session.get(Notification, nid).notification_type))
+    drafter = _user("asr_push_draw")
+    sales = _user("asr_push_sales", team="SALES")
+    admin = _user("asr_push_admin", role="ADMIN", team="CS")
+    oid = _order(name="폰알림고객", drawing_ids=[drafter.id])
+
+    _as(client, admin)   # 흐름 1: AS 담당이 도면팀에 부탁 → 도면 담당 폰
+    assert client.post(f"/api/orders/{oid}/as/register",
+                       json={"as_content": "문 처짐", "drawing_request": {"memo": "문짝"}}).status_code == 200
+    assert pushed == ["AS_DRAWING_REQUEST"]
+
+    _as(client, drafter)
+    assert _put(client, oid, [{"id": "s-1", "name": "냉장고장", "form": {}, "objects": []},
+                              {"id": "s-2", "name": "AS 문짝", "form": {}, "objects": []}]).status_code == 200
+    assert _sheet_png(client, oid, "s-2", "as1.png").status_code == 200
+    pushed.clear()
+    assert client.post(f"/api/orders/{oid}/drawing/as/transfer", json={}).status_code == 200
+    assert pushed and set(pushed) == {"AS_DRAWING_TRANSFERRED"}
+
+    _as(client, sales)
+    pushed.clear()
+    assert client.post(f"/api/orders/{oid}/drawing/as/request-revision",
+                       json={"reason": "손잡이"}).status_code == 200
+    assert pushed and set(pushed) == {"AS_DRAWING_REVISION"}
+
+    _as(client, drafter)
+    assert _sheet_png(client, oid, "s-2", "as2.png").status_code == 200
+    assert client.post(f"/api/orders/{oid}/drawing/as/transfer", json={}).status_code == 200
+    _as(client, sales)
+    pushed.clear()
+    assert client.post(f"/api/orders/{oid}/drawing/as/confirm").status_code == 200
+    assert pushed == []   # 확인은 벨만
+    kinds = {n.notification_type for n in db_session.query(Notification).filter_by(order_id=oid)}
+    assert "AS_DRAWING" in kinds   # 확인 알림(벨)은 그대로 만든다
+
+
+def test_flow2_registration_notice_stays_bell_only(client, storage, monkeypatch):
+    import foms.services.orders.as_drawing_notify as notify_mod
+
+    pushed: list = []
+    monkeypatch.setattr(notify_mod, "enqueue_push_for_notification", lambda nid, db=None: pushed.append(nid))
+    drafter = _user("asr_push_draw2")
+    oid = _order(name="폰알림흐름2")
+    _as(client, drafter)
+    assert _start(client, oid, memo="m", as_register={"content": "문 처짐"}).status_code == 200
+    assert pushed == []   # CS 팀 전체에 가는 접수 알림은 폰으로 보내지 않는다
+
+
+def test_push_sender_knows_as_drawing_types():
+    from types import SimpleNamespace
+
+    from foms.services.notifications import push_sender as ps
+
+    for ntype, link in (("AS_DRAWING_REQUEST", "/erp/drawing-workbench/7"),
+                        ("AS_DRAWING_REVISION", "/erp/drawing-workbench/7"),
+                        ("AS_DRAWING_TRANSFERRED", "/erp/orders/7")):
+        notif = SimpleNamespace(notification_type=ntype, is_urgent=False, order_id=7, message="")
+        assert ps._should_push(notif), ntype
+        assert ps._urgency(notif) == "high", ntype
+        assert ps._deep_link(notif) == link, ntype
+        title, body = ps._order_bound_text(False, ntype, 7, "이영광")
+        assert title.startswith("AS 도면") and "이영광" in title and "주문 #7" in body
+    bell = SimpleNamespace(notification_type="AS_DRAWING", is_urgent=False, order_id=7, message="")
+    assert not ps._should_push(bell)
+
+
+def test_bell_click_opens_workbench_for_drawing_team_as_notices():
+    from types import SimpleNamespace
+
+    from foms.api.notifications import _resolve_notification_deep_link as deep
+
+    for ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_REVISION"):
+        link = deep(SimpleNamespace(notification_type=ntype, order_id=9), {})
+        assert link["deep_link_url"] == "/erp/drawing-workbench/9", ntype
+    assert deep(SimpleNamespace(notification_type="AS_DRAWING_TRANSFERRED", order_id=9), {})["deep_link_url"] is None

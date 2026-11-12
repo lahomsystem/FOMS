@@ -8,20 +8,31 @@
 - ``revision``     영업·AS 담당이 고쳐 달라고 함 → 차수를 연 사람 + 도면 담당.
 - ``confirm``      영업·AS 담당이 확인 → 차수를 연 사람.
 
-폰 push 는 1차에서 보내지 않는다(벨 알림만).
+폰 push 는 원래 도면 알림 규칙을 따른다(2026-11-12): 부탁 · 도착 · 고쳐 달라고 함은 폰에도,
+접수(CS 팀 전체) · 확인은 벨만. 폰으로 가는 종류는 알림 유형을 따로 둔다(``PUSH_TYPES``) —
+push 게이트(``push_sender``)가 유형으로 판정하기 때문이다. 줄 세우기는 커밋 뒤
+(:func:`enqueue_as_drawing_push`)에 부르는 쪽이 한다.
 """
 from __future__ import annotations
 
 import logging
 from typing import Any, Iterable, Optional
 
+from foms.services.notifications.push_sender import enqueue_push_for_notification
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from models import Notification
 
 logger = logging.getLogger(__name__)
 
-NOTIFICATION_TYPE = "AS_DRAWING"
+NOTIFICATION_TYPE = "AS_DRAWING"   # 벨만(접수 · 확인)
+
+#: 폰에도 가는 종류의 알림 유형 — ``push_sender`` P1 · 높은 긴급도 · 바로가기 · 배너 글에 등록돼 있다.
+PUSH_TYPES = {
+    "request": "AS_DRAWING_REQUEST",
+    "transfer": "AS_DRAWING_TRANSFERRED",
+    "revision": "AS_DRAWING_REVISION",
+}
 
 _TITLES = {
     "request": "AS 도면 부탁",
@@ -117,7 +128,7 @@ def notify_as_drawing(db: Any, order: Any, kind: str, *, round_no: int, actor: A
             continue  # 내가 한 일은 나에게 알리지 않는다
         notif = Notification(
             order_id=order.id,
-            notification_type=NOTIFICATION_TYPE,
+            notification_type=PUSH_TYPES.get(kind, NOTIFICATION_TYPE),
             target_type=target.get("target_type") or "ORDER",
             target_team=target.get("target_team"),
             target_manager_name=target.get("target_manager_name"),
@@ -136,3 +147,15 @@ def notify_as_drawing(db: Any, order: Any, kind: str, *, round_no: int, actor: A
     if not created:
         logger.info("[AS_DRAWING] notice %s had no recipients (order %s)", kind, order.id)
     return created
+
+
+def enqueue_as_drawing_push(db: Any, notifications: Iterable[Any]) -> None:
+    """커밋 뒤 폰 알림을 줄 세운다 — 폰으로 가는 유형만. 실패는 로그만(벨 알림은 이미 저장됐다)."""
+    push_types = set(PUSH_TYPES.values())
+    for notif in notifications or []:
+        if getattr(notif, "notification_type", None) not in push_types or not getattr(notif, "id", None):
+            continue
+        try:
+            enqueue_push_for_notification(int(notif.id), db=db)
+        except Exception as exc:  # noqa: BLE001 - 폰 알림 실패가 저장 결과를 바꾸지 않는다
+            logger.warning("[AS_DRAWING] push enqueue failed (notification %s): %s", notif.id, exc)
