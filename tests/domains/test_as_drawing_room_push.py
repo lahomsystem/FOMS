@@ -123,7 +123,7 @@ def test_card_and_wizard_offer_room_push(client, storage, monkeypatch):
 
 
 def test_as_dashboard_blueprint_cell_shows_round_status(client, storage, monkeypatch):
-    """AS 화면 'AS도면' 칸 옆 한 줄(설계서 §4.3-5) — 체크 칸 뜻은 그대로, 상태 글과 주문 화면 링크만."""
+    """AS 화면 'AS도면' 칸 아래 짧은 글(설계서 §4.3-5) — 체크 칸 뜻은 그대로, 상태 글과 주문 화면 링크만."""
     admin = _user("asr_admin_dash", role="ADMIN", team="CS")
     drafter = _user("asr_draw_dash")
     oid = _order(name="에이에스화면고객", drawing_ids=[drafter.id])
@@ -133,7 +133,9 @@ def test_as_dashboard_blueprint_cell_shows_round_status(client, storage, monkeyp
 
     html = client.get("/erp/as?tab=incomplete", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130"}).get_data(as_text=True)
 
-    assert "AS 도면 1차 · 도면팀 대기중" in html and f'href="/edit/{oid}"' in html
+    assert 'title="AS 도면 1차 · 도면팀 대기중"' in html and f'href="/edit/{oid}"' in html
+    # 칸 폭이 54px 이라 짧은 낱말만, 낱말마다 줄바꿈 없이(옆 칸으로 넘치던 것 — 스테이징 실화면 11-12).
+    assert '<span class="text-nowrap">1차</span> <span class="text-nowrap">대기중</span>' in html
 
 
 def _upload(client, oid, as_log_id):

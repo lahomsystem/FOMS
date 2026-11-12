@@ -24,7 +24,8 @@ from foms.services.orders.as_drawing import (
     rounds,
 )
 
-__all__ = ["ROOM_PUSH_HISTORY_KEY", "room_push_round", "room_push_text", "status_text", "wizard_config_view"]
+__all__ = ["ROOM_PUSH_HISTORY_KEY", "room_push_round", "room_push_text", "status_text", "status_view",
+           "wizard_config_view"]
 
 
 def wizard_config_view(order: Any, sd: Mapping) -> Optional[dict]:
@@ -64,18 +65,45 @@ _STATUS_TEXT = {
 }
 
 
-def status_text(sd: Any) -> str:
-    """AS 화면 'AS도면' 칸 옆 한 줄 — ``AS 도면 1차 · 왔어요``. 차수가 없거나 그만뒀으면 빈 글."""
+#: AS 화면 'AS도면' 칸은 폭이 54px 이라 칸 제목과 겹치는 'AS 도면'·'도면팀' 을 뺀 짧은 글을 쓴다(스테이징 실화면 11-12).
+_SHORT_TEXT = {
+    STATUS_WAITING: "대기중",
+    STATUS_IN_PROGRESS: "작업중",
+    STATUS_TRANSFERRED: "왔어요",
+    STATUS_RETURNED: "고치는 중",
+    STATUS_CONFIRMED: "확인함",
+}
+
+
+def _shown_round(sd: Any) -> Optional[dict]:
+    """AS 화면에 보일 차수 — 열린 차수, 없으면 마지막 확인한 차수. 그만둔 차수만 있으면 None."""
     if not isinstance(sd, Mapping):
-        return ""
+        return None
     rnd = current_round(sd)
     if rnd is None:
         items = [r for r in rounds(sd) if r.get("status") == STATUS_CONFIRMED]
         rnd = items[-1] if items else None
-    if rnd is None:
-        return ""
-    label = _STATUS_TEXT.get(str(rnd.get("status") or ""), "")
-    return f"AS 도면 {round_no(sd, rnd)}차 · {label}" if label else ""
+    return rnd
+
+
+def status_text(sd: Any) -> str:
+    """AS 도면 상태 긴 글 — ``AS 도면 1차 · 왔어요``. 차수가 없거나 그만뒀으면 빈 글."""
+    rnd = _shown_round(sd)
+    label = _STATUS_TEXT.get(str((rnd or {}).get("status") or ""), "")
+    return f"AS 도면 {round_no(sd, rnd)}차 · {label}" if rnd is not None and label else ""
+
+
+def status_view(sd: Any) -> Optional[dict]:
+    """AS 화면 'AS도면' 칸 아래 글 — 짧은 낱말들(``['1차', '대기중']``)과 마우스 글(긴 글). 없으면 None.
+
+    낱말마다 줄바꿈 없이 그려, 좁은 칸에서도 낱말 중간이 갈리거나 옆 칸으로 넘치지 않게 한다.
+    """
+    full = status_text(sd)
+    if not full:
+        return None
+    rnd = _shown_round(sd) or {}
+    words = _SHORT_TEXT.get(str(rnd.get("status") or ""), "").split()
+    return {"title": full, "words": [f"{round_no(sd, rnd)}차", *words]}
 
 
 #: AS 도면 도면방 PUSH 이력 키 — 원래 도면 도면방 이력(``channeltalk_push_drawing_room``)과 섞지 않는다.
