@@ -55,9 +55,13 @@ from foms.services.construction_read_model import (
     fetch_construction_attachment_counts,
     paginate_construction_orders,
 )
+from foms.services.construction.tablet_first import build_tablet_first
+from foms.services.construction.tablet_view import build_detail, day_label, tablet_mode
 from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
+    wants_coarse_pointer_surfaces,
+    wants_wide_only_surfaces,
 )
 from foms.services.datetime_kst import get_today_kst
 from models import Order
@@ -178,6 +182,27 @@ def erp_construction_dashboard():
                 sort_dir=_cf.sort_dir,
             )
 
+    # 태블릿 가로 시공 탭(설계서 tablet-production-ui §13): 첫 화면 = 날짜 버튼 + 시공자 묶음(쿼리 A · B),
+    # 상세(?focus_order=) = 3분할 왼쪽을 그날 · 그 시공자 집으로. 폰 · PC · 코호트 밖은 mode '' — 지금 그대로.
+    current_user = getattr(g, "current_user", None)
+    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
+    mobile_v2_active = is_mobile_v2_shell(shell_variant)
+    cons_tablet: dict[str, Any] = {"mode": tablet_mode(
+        mobile_v2=mobile_v2_active, coarse=wants_coarse_pointer_surfaces(), wide=wants_wide_only_surfaces(),
+        focus_order_id=focus_order_id, q=f_q)}
+    if cons_tablet["mode"] == "first":
+        with phase("tablet_first"):
+            cons_tablet["first"] = build_tablet_first(
+                db, user=user, mine_only=mine_only, partner_org=partner_org, selected=request.args.get("date"),
+                worker=request.args.get("worker"), is_freelancer=is_list_freelancer(user))
+    elif cons_tablet["mode"] == "detail" and orders:
+        with phase("tablet_detail"):
+            cons_tablet["detail"] = build_detail(
+                db, focus=orders[0], user=user, mine_only=mine_only, partner_org=partner_org,
+                date_arg=request.args.get("date"), worker_arg=request.args.get("worker"))
+        orders = cons_tablet["detail"]["orders"]
+        total_orders = len(orders)
+
     # 첨부 개수는 주문 id 집합에만 의존한다(fetch_construction_attachment_counts 는 ids 로만
     # 집계). uid/mine/stage/q/page 는 그 ids 를 **고르는** 축일 뿐이라 키에 함께 넣으면
     # 같은 주문 묶음을 화면·사용자별로 다시 집계한다. 결과를 결정하는 축(ids)만 키로 쓴다.
@@ -202,7 +227,7 @@ def erp_construction_dashboard():
     att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
 
     with phase("row_dtos"):
-        enriched = build_construction_row_dtos(orders, att_counts, f_stage)
+        enriched = build_construction_row_dtos(orders, att_counts, f_stage, keep_production=bool(cons_tablet["mode"]))
 
     if f_q or focus_order_id:
         step_stats = {
@@ -220,9 +245,6 @@ def erp_construction_dashboard():
 
     process_steps = build_construction_process_steps(step_stats)
 
-    current_user = getattr(g, "current_user", None)
-    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
-    mobile_v2_active = is_mobile_v2_shell(shell_variant)
     with phase("mobile_enrich"):
         enrich_construction_mobile_rows(
             enriched,
@@ -260,6 +282,8 @@ def erp_construction_dashboard():
             total_pages=total_pages,
             total_orders=total_orders,
             today_iso=get_today_kst().isoformat(),
+            cons_tablet=cons_tablet,
+            cons_day_label=day_label,
         )
     )
     apply_ept_b7_render_headers(

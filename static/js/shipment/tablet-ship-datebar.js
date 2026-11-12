@@ -6,7 +6,8 @@
  * - 처음 열 때(셸 조각이 바뀐 뒤도) 고른 날이 든 7개 묶음이 보이게 띠를 맞춘다.
  * - 아래로 펼치는 작은 창 둘([data-ship-pop]: 돋보기 검색칸 · 더보기) = is-open 을 붙였다 뗀다. 하나를 열면 다른 하나는 닫고,
  *   밖을 누르거나 Esc 면 닫는다. 검색칸을 열면 커서를 둔다. 더보기 안 남은 자수 · 이미지 저장을 누르면 닫는다.
- * 실리는 곳 = shipment-entry.js CHAIN(문서 위임 싱글턴).
+ * 실리는 곳 = 출고 shipment-entry.js CHAIN · 시공 templates/construction/partials/scripts.html(같은 ?v= 핀, 문서 위임 싱글턴
+ *   — 두 탭을 오가도 한 번만 묶인다). 모양 = static/css/components/foms-tablet-day-strip.css(설계서 §13 P13-1).
  */
 (function () {
   'use strict';

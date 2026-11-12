@@ -23,6 +23,7 @@ from models import Order, OrderScheduleDate, User
 ROOT = Path(__file__).resolve().parents[2]
 DATEBAR_JS = "static/js/shipment/tablet-ship-datebar.js"
 COLUMNS_CSS = "static/css/contexts/shipment/shipment-dashboard-columns.css"
+DAY_STRIP_CSS = "static/css/components/foms-tablet-day-strip.css"  # 날짜 띠 모양(출고 · 시공 공용, §13 P13-1)
 DASHBOARD_MAIN = "templates/shipment/partials/dashboard_main.html"
 DAY_RE = re.compile(r'<a class="foms-ship-day[ "][^>]*>.*?</a>', re.S)
 
@@ -181,15 +182,17 @@ def test_js_css_contract() -> None:
     entry = _read("static/js/shipment/shipment-entry.js")
     assert re.search(r"'/static/js/shipment/tablet-ship-datebar\.js\?v=\d{8}[a-z]'", entry)
     css = re.sub(r"\s+", " ", _read(COLUMNS_CSS))
-    sel = css[css.index("body.erp-mobile-v2-layout .foms-ship-day.is-selected {"):]
+    strip = re.sub(r"\s+", " ", _read(DAY_STRIP_CSS))
+    assert ".foms-ship-day {" not in css and ".foms-ship-days {" not in css  # 한 곳에만
+    sel = strip[strip.index("body.erp-mobile-v2-layout .foms-ship-day.is-selected {"):]
     sel = sel[:sel.index("}")]
     assert "solid" in sel and "background" not in sel  # 칠 없음(D29) — 테두리만
-    assert ".foms-ship-day.is-today { border: 1.5px dashed" in css
-    assert "scroll-snap-type: x mandatory;" in css
+    assert ".foms-ship-day.is-today { border: 1.5px dashed" in strip
+    assert "scroll-snap-type: x mandatory;" in strip
     assert "body.erp-mobile-v2-layout .foms-ship-more.is-open .foms-ship-more__menu { display: flex; }" in css
     assert ".foms-ship-find.is-open .foms-ship-pcbar__filter { display: flex;" in css
     # 새 글자 크기는 손잡이 배율을 탄다
-    block = css[css.index(".foms-ship-days {"):css.index(".foms-ship-pcbar__btn {")]
+    block = strip[strip.index(".foms-ship-days {"):]
     assert not re.search(r"font-size: \d+px", block)
 
 

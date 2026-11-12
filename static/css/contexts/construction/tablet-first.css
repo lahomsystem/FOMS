@@ -1,0 +1,324 @@
+/* =============================================================
+   태블릿 가로 시공 탭 첫 화면 — 날짜 버튼 + 시공자 묶음 (설계서 docs/specs/2026-11-09-tablet-production-ui_SPEC.md §13.3 · P13-3)
+   ------------------------------------------------------------
+   마크업 = templates/construction/partials/tablet_first_body.html. 날짜 띠 · 사람 색(--ship-pc) 모양은 공용
+   static/css/components/foms-tablet-day-strip.css, 띠 넘기기 · 판 여닫기([data-ship-pop].is-open)는 static/js/shipment/tablet-ship-datebar.js.
+   기본은 숨김(태블릿 세로 · 그 밖) → 태블릿 가로 코호트 문지기(코어 MQ + body.erp-mobile-v2-layout) 안에서만 보인다.
+   본문 칠 없음(D29) — 남는 색은 묶음 카드 왼쪽 띠(사람 색)뿐. 글자 = calc(Npx * var(--foms-fs, 1)), 가장 작은 글자 13px.
+   ============================================================= */
+.foms-cons-first {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  body.erp-mobile-v2-layout .foms-cons-first {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
+    color: var(--foms-text-primary, #1f2733);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- 위 줄: 날짜 띠 | 시공자 칸 · 글자 · 다시 받기 · 더보기 (늘 한 줄, 넘치면 도구 묶음째 내려간다) --- */
+  body.erp-mobile-v2-layout .foms-cons-first__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+    min-height: 56px;
+    padding-bottom: var(--foms-space-2, 0.5rem);
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-base, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__tools {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  /* 글자 손잡이(공용 부품은 30px)를 이 위 줄에서만 손가락 크기 44px 로. 조절기는 글자 배율을 따르지 않는다(foms-ui-zoom.css). */
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs { margin-right: 0; }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn,
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__now { height: 44px; }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn { width: 44px; }
+  body.erp-mobile-v2-layout .foms-cons-first__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__btn[data-ship-color] {
+    box-shadow: inset 6px 0 0 var(--ship-pc, transparent);
+    padding-left: 18px;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pick__now {
+    max-width: calc(120px * var(--foms-fs, 1));
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* --- 아래로 펼치는 작은 판(시공자 · 더보기) — [data-ship-pop].is-open 일 때만 --- */
+  body.erp-mobile-v2-layout .foms-cons-pop {
+    position: relative;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    min-width: 220px;
+    max-height: calc(60dvh / var(--foms-ui-zoom, 1));
+    overflow-y: auto;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 12px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop.is-open .foms-cons-pop__menu {
+    display: flex;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 600;
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__item[data-ship-color] {
+    box-shadow: inset 6px 0 0 var(--ship-pc, transparent);
+    padding-left: 18px;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__item.is-on {
+    font-weight: 800;
+    outline: 2px solid var(--foms-text-primary, #1f2733);
+    outline-offset: -2px;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__label {
+    flex: 0 0 auto;
+    min-width: 64px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__input {
+    flex: 1 1 auto;
+    min-width: 160px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 8px;
+    font-size: calc(15px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .foms-cons-pop__go {
+    min-height: 44px;
+    min-width: 56px;
+    border: 1px solid var(--foms-text-primary, #1f2733);
+    border-radius: 8px;
+    background: var(--foms-surface-base, #fff);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+  }
+
+  /* --- 본문: 날짜 머리 · 0건 줄 · 묶음 카드 · 줄 --- */
+  body.erp-mobile-v2-layout .foms-cons-first__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__dayh {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 8px 0 0;
+    font-size: calc(18px * var(--foms-fs, 1));
+    font-weight: 800;
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__dayh span {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__dayh.is-preview {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--foms-border-default, #c7ccd4);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__none,
+  body.erp-mobile-v2-layout .foms-cons-first__hidden {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0;
+    min-height: 56px;
+    padding: 8px 16px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 12px;
+    font-size: calc(15px * var(--foms-fs, 1));
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__none b {
+    font-size: calc(16px * var(--foms-fs, 1));
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-cons-first__go {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--foms-text-primary, #1f2733);
+    border-radius: 10px;
+    color: var(--foms-text-primary, #1f2733);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .foms-cons-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-left: 6px solid var(--ship-pc, var(--foms-border-subtle, #dde1e6));
+    border-radius: 12px;
+    background: var(--foms-surface-base, #fff);
+    overflow: hidden;
+  }
+  body.erp-mobile-v2-layout .foms-cons-card.is-unassigned {
+    border-left: 6px dashed var(--foms-color-danger-600, #dc2626);
+  }
+  body.erp-mobile-v2-layout .foms-cons-card__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px 6px;
+    font-size: calc(16px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .foms-cons-card__head span {
+    font-size: calc(14px * var(--foms-fs, 1));
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+
+  body.erp-mobile-v2-layout .foms-cons-row {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1.5fr) 112px 112px 72px;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 6px 14px;
+    border-top: 1px solid #e8ebf0;
+    color: var(--foms-text-primary, #1f2733);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__c {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__c b,
+  body.erp-mobile-v2-layout .foms-cons-row__c small,
+  body.erp-mobile-v2-layout .foms-cons-row__c span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__c b {
+    font-size: calc(16px * var(--foms-fs, 1));
+    font-weight: 800;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__addr b {
+    font-size: calc(18px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__c small {
+    font-size: calc(13px * var(--foms-fs, 1));
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__c span {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__time.is-plan b,
+  body.erp-mobile-v2-layout .foms-cons-row__c .is-none,
+  body.erp-mobile-v2-layout .foms-cons-row.is-done b {
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-cons-row.is-now .foms-cons-row__time small,
+  body.erp-mobile-v2-layout .foms-cons-row__c .is-warn {
+    color: var(--foms-color-danger-600, #dc2626);
+    font-weight: 800;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row.is-now .foms-cons-row__time b {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  body.erp-mobile-v2-layout .foms-cons-row__open {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border: 1px solid var(--foms-text-primary, #1f2733);
+    border-radius: 10px;
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 800;
+  }
+
+  /* --- 상세(3분할) 왼쪽 머리: 칩 대신 돌아가기 · 찾기 머리 (tablet_workmode_body.html) --- */
+  body.erp-mobile-v2-layout .foms-cwork-back {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-back__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 800;
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-back__count {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-note {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px dashed var(--foms-border-default, #c7ccd4);
+    border-radius: 10px;
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--foms-text-secondary, #4a515b);
+  }
+}

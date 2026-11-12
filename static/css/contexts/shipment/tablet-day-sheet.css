@@ -242,17 +242,7 @@
     white-space: nowrap;
   }
 
-  /* 사람 색 1~10 = PC 출고 탭 PASTEL_COLORS 순서(shipment-dashboard.js · dashboard_main.html 과 같은 값). */
-  body.erp-mobile-v2-layout [data-ship-color="1"] { --ship-pc: #B8D4E3; }
-  body.erp-mobile-v2-layout [data-ship-color="2"] { --ship-pc: #FFE5CC; }
-  body.erp-mobile-v2-layout [data-ship-color="3"] { --ship-pc: #E8D5E9; }
-  body.erp-mobile-v2-layout [data-ship-color="4"] { --ship-pc: #D5E9D5; }
-  body.erp-mobile-v2-layout [data-ship-color="5"] { --ship-pc: #F0D5D5; }
-  body.erp-mobile-v2-layout [data-ship-color="6"] { --ship-pc: #D5D5E9; }
-  body.erp-mobile-v2-layout [data-ship-color="7"] { --ship-pc: #FFF0D5; }
-  body.erp-mobile-v2-layout [data-ship-color="8"] { --ship-pc: #D5E9E5; }
-  body.erp-mobile-v2-layout [data-ship-color="9"] { --ship-pc: #F5D5E5; }
-  body.erp-mobile-v2-layout [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+  /* 사람 색 1~10(`data-ship-color` → `--ship-pc`)은 공용 static/css/components/foms-tablet-day-strip.css 에 있다 (출고 · 시공 탭 공용, 설계서 §13 P13-1). 여기서는 칠하는 곳만 정한다. */
   body.erp-mobile-v2-layout .foms-tablet-shipgrid__who[data-ship-color] { background: var(--ship-pc); }
 
   /* --- 빈 날 · 표 아래 AS 넣기 단추 --- */

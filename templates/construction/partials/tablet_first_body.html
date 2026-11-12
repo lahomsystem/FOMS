@@ -1,0 +1,109 @@
+{# 태블릿 가로 시공 탭 첫 화면 — 날짜 버튼 + 시공자 묶음 (설계서 docs/specs/2026-11-09-tablet-production-ui_SPEC.md §13.3 · P13-3,
+   시안 docs/design/mockups/tablet-construction-first.html #a31 · #a31b, 결정 D40 · D41 · D42).
+   자료 = 라우트가 넘긴 cons_tablet.first(foms/services/construction/tablet_first.py — 쿼리 A 날짜별 집 수 · 쿼리 B 그날 + 미리 볼 날 줄).
+   위 줄 = 출고 탭과 같은 날짜 버튼 띠(static/css/components/foms-tablet-day-strip.css · static/js/shipment/tablet-ship-datebar.js —
+   [data-ship-days-*] 넘기기, [data-ship-pop] 판 여닫기를 그대로 쓴다) · 시공자 칸 · 글자 손잡이 · [다시 받기] · [더보기].
+   본문 = 시공자 묶음 카드(칠 없음 — 왼쪽 띠만 사람 색, D29), 줄을 누르면 상세(?focus_order=) = 지금 3분할.
+   모양 = static/css/contexts/construction/tablet-first.css(태블릿 가로 코호트 문지기 안에서만 보인다). #}
+{% set F = cons_tablet.first %}
+{% set _wd = ['월','화','수','목','금','토','일'] %}
+{% macro _url(d, w, focus=None) -%}
+  {{ url_for('erp_construction_page.erp_construction_dashboard', date=d, worker=w, focus_order=focus) }}{% if erp_mine_only %}&mine=1{% endif %}
+{%- endmacro %}
+{% macro _day_head(sec) -%}
+  {%- set _l = cons_day_label(sec.date) %}
+  {%- if sec.preview -%}
+    <b>{% if sec.date == F.days[1].date %}내일 {% endif %}{{ _l }}</b><span>{{ sec.count }}집 · 미리 보기</span>
+  {%- else -%}
+    {%- set _names = [] %}{% for g in sec.groups %}{% for n in g.names %}{% if n not in _names %}{% set _ = _names.append(n) %}{% endif %}{% endfor %}{% endfor %}
+    <b>{{ _l }}{% if sec.date == F.today %} 오늘{% endif %}</b><span>{{ sec.count }}집{% if _names %} · 시공자 {{ _names|length }}명{% endif %}</span>
+  {%- endif -%}
+{%- endmacro %}
+<section class="foms-cons-first" aria-label="시공 첫 화면" data-cons-first data-cons-date="{{ F.selected }}">
+  <div class="foms-cons-first__bar">
+    <div class="foms-ship-days" role="group" aria-label="시공 날짜 고르기">
+      <button type="button" class="foms-ship-days__nav" data-ship-days-nav="-1" aria-label="앞 7일">&#9664;</button>
+      <div class="foms-ship-days__track" data-ship-days-track>
+        {% if not F.selected_in_strip %}
+        <a class="foms-ship-day is-selected is-outside" href="{{ _url(F.selected, F.worker) }}" aria-current="date" data-ship-day="{{ F.selected }}" title="{{ F.selected }}"><b>{{ F.selected[5:7]|int }}/{{ F.selected[8:10]|int }}</b></a>
+        {% endif %}
+        {% for d in F.days %}
+        <a class="foms-ship-day{% if d.is_selected %} is-selected{% endif %}{% if d.is_today %} is-today{% endif %}{% if d.is_holiday or d.is_weekend %} is-off{% endif %}" href="{{ _url(d.date, F.worker) }}"{% if d.is_selected %} aria-current="date"{% endif %} data-ship-day="{{ d.date }}" title="{{ d.date }} {{ d.weekday_label }}요일{% if d.is_holiday %} 휴일{% endif %}{% if d.is_today %} 오늘{% endif %}"><b>{% if d.is_today %}오늘{% else %}{{ d.date[8:10]|int }} {{ d.weekday_label }}{% endif %}</b><em>{% if d.count %}{{ d.count }}집{% else %}없음{% endif %}</em></a>
+        {% endfor %}
+      </div>
+      <button type="button" class="foms-ship-days__nav" data-ship-days-nav="1" aria-label="뒤 7일">&#9654;</button>
+    </div>
+    <div class="foms-cons-first__tools">
+      {# 시공자 칸(D40 · D42 ③ — 단추 하나). 이름마다 사람 색 띠, 누르면 ?worker= 로 이동(날짜 유지). #}
+      <div class="foms-cons-pop foms-cons-pick" data-ship-pop>
+        <button type="button" class="foms-cons-first__btn" data-ship-more-toggle aria-expanded="false" aria-controls="foms-cons-pick-menu"{% if F.worker and F.worker_colors.get(F.worker) %} data-ship-color="{{ F.worker_colors.get(F.worker) }}"{% endif %}>
+          <span class="foms-cons-pick__now">{{ F.worker or '전체' }}</span> &#9662;
+        </button>
+        <div class="foms-cons-pop__menu" id="foms-cons-pick-menu" aria-label="시공자 고르기">
+          <a class="foms-cons-pop__item{% if not F.worker %} is-on{% endif %}" href="{{ _url(F.selected, '') }}">전체</a>
+          {% for name in F.worker_options %}
+          <a class="foms-cons-pop__item{% if name == F.worker %} is-on{% endif %}" href="{{ _url(F.selected, name) }}"{% if F.worker_colors.get(name) %} data-ship-color="{{ F.worker_colors.get(name) }}"{% endif %}>{{ name }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% include 'partials/shared/foms_font_scale_control.html' %}
+      <a class="foms-cons-first__btn" href="{{ _url(F.selected, F.worker) }}" data-cons-reload>다시 받기</a>
+      <div class="foms-cons-pop foms-cons-more" data-ship-pop>
+        <button type="button" class="foms-cons-first__btn" data-ship-more-toggle aria-expanded="false" aria-controls="foms-cons-more-menu">더보기 &#9662;</button>
+        <div class="foms-cons-pop__menu" id="foms-cons-more-menu" aria-label="더보기">
+          <form class="foms-cons-pop__row" method="get" aria-label="다른 날짜 고르기">
+            <label class="foms-cons-pop__label" for="foms-cons-date">다른 날짜</label>
+            <input type="date" id="foms-cons-date" class="foms-cons-pop__input" name="date" value="{{ F.selected }}">
+            <input type="hidden" name="worker" value="{{ F.worker }}">
+            {% if erp_mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
+            <button type="submit" class="foms-cons-pop__go">열기</button>
+          </form>
+          <form class="foms-cons-pop__row" method="get" role="search" aria-label="찾기">
+            <label class="foms-cons-pop__label" for="foms-cons-q">찾기</label>
+            <input type="search" id="foms-cons-q" class="foms-cons-pop__input" name="q" placeholder="고객 · 주소 · 전화">
+            {% if erp_mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
+            <button type="submit" class="foms-cons-pop__go">찾기</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foms-cons-first__body" data-cons-first-body>
+    {% if not F.selected_count %}
+      {% set _who = (F.worker ~ ' ') if F.worker else '' %}
+      <p class="foms-cons-first__none" data-cons-none>
+        <b>{{ cons_day_label(F.selected) }} {{ _who }}시공 없음</b>
+        {% if F.next_date %}
+          <span>다음 시공 {{ cons_day_label(F.next_date) }} {{ F.next_count }}집</span>
+          <a class="foms-cons-first__go" href="{{ _url(F.next_date, F.worker) }}">{{ F.next_date[5:7]|int }}/{{ F.next_date[8:10]|int }} 보기</a>
+        {% else %}
+          <span>앞으로 2주 시공 없음</span>
+        {% endif %}
+      </p>
+    {% endif %}
+    {% for sec in F.sections %}
+      <h2 class="foms-cons-first__dayh{% if sec.preview %} is-preview{% endif %}" data-cons-day="{{ sec.date }}">{{ _day_head(sec) }}</h2>
+      {% for g in sec.groups %}
+        <div class="foms-cons-card{% if g.unassigned %} is-unassigned{% endif %}"{% if g.color_index %} data-ship-color="{{ g.color_index }}"{% endif %}>
+          <div class="foms-cons-card__head">
+            {% if g.unassigned %}<b>시공자 아직 없음</b>{% else %}<b>{{ g.names|join(' · ') }}</b>{% endif %}
+            <span>{{ g.rows|length }}집</span>
+          </div>
+          {% for r in g.rows %}
+          <a class="foms-cons-row{% if r.now_working %} is-now{% endif %}{% if r.done %} is-done{% endif %}" href="{{ _url(sec.date, F.worker, r.id) }}" data-order-id="{{ r.id }}">
+            <span class="foms-cons-row__c foms-cons-row__time{% if r.time_plan %} is-plan{% endif %}"><b>{{ r.time_text }}</b>{% if r.now_working %}<small>지금 시공중</small>{% elif r.done %}<small>끝남</small>{% endif %}</span>
+            <span class="foms-cons-row__c foms-cons-row__who"><b>{{ r.customer }}</b>{% if r.agency %}<small>{{ r.agency }}</small>{% endif %}</span>
+            <span class="foms-cons-row__c foms-cons-row__prod"><b>{{ r.product }}</b>{% if r.units %}<small>{{ r.units }}자</small>{% endif %}</span>
+            <span class="foms-cons-row__c foms-cons-row__addr"><b>{{ r.district or '-' }}</b><small>{{ r.address_rest }}</small></span>
+            <span class="foms-cons-row__c foms-cons-row__ship"><small>출고</small><span class="is-{{ r.packing_state }}">{{ r.packing_text }}</span></span>
+            <span class="foms-cons-row__c foms-cons-row__drw"><small>도면</small><span{% if r.drawing_missing %} class="is-warn"{% endif %}>{{ r.drawing_text }}</span></span>
+            <span class="foms-cons-row__open">열기</span>
+          </a>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      {% if sec.hidden %}<p class="foms-cons-first__hidden">더 있는 {{ sec.hidden }}집은 안 보여요</p>{% endif %}
+    {% endfor %}
+  </div>
+</section>

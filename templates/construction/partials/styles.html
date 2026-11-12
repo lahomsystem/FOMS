@@ -1,3 +1,7 @@
 {# 시공 대시보드 스타일: 외부 CSS (프래그먼트 전송량 감축) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/construction/dashboard.css') }}?v=20261109f">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-items-md.css') }}?v=20260929a">
+{# 날짜 버튼 띠 · 사람 색 모양(출고 탭과 공용 — 설계서 §13 P13-1, 코호트 문지기 안에서만 걸린다). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-tablet-day-strip.css') }}?v=20261112c">
+{# 태블릿 가로 시공 첫 화면 · 상세 왼쪽 머리 모양(설계서 §13 P13-3 · P13-4, 코호트 문지기 안에서만 보인다). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/construction/tablet-first.css') }}?v=20261112e">

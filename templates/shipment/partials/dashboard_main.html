@@ -1,8 +1,10 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20261112c">
+{# 날짜 버튼 띠 · 사람 색 모양(출고 · 시공 탭 공용, 설계서 §13 P13-1). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-tablet-day-strip.css') }}?v=20261112c">
 {# 태블릿 가로 하루치 출고표(시공자 묶음 카드 · 이름판) — 코호트 문지기 안에서만 그린다. 이 파샬은 온전한 페이지와 셸 조각이 함께 싣는다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261111a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/tablet-day-sheet.css') }}?v=20261112c">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
