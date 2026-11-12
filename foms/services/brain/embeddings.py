@@ -293,16 +293,23 @@ def nearest_where(session: Any, vector: list[float], where: Iterable[Any], *, li
     상담 초안의 물건 찾기(:mod:`foms.services.cs_agent.onto_meaning`)는 사람 대신 '보기 범위 모두' 조건을 건다."""
     join = ((brain_embeddings.c.source_key == BrainObject.item_key)
             & (brain_embeddings.c.source_version == BrainObject.version))
-    conditions = (*where, brain_embeddings.c.source_kind == SOURCE_ITEM, brain_embeddings.c.model == MODEL)
+    return nearest_rows(session, vector, source_kind=SOURCE_ITEM, target=BrainObject, on=join, where=where, limit=limit)
+
+
+def nearest_rows(session: Any, vector: list[float], *, source_kind: str, target: Any, on: Any, where: Iterable[Any],
+                 limit: int = 10) -> list[tuple[str, float]]:
+    """가까운 벡터 (근원 키, 비슷함) — 근원 종류 · 이 모델 벡터를 ``target`` 표와 ``on`` 으로 이어 ``where`` 를 SQL 에 건다.
+    회사 지식 항목(:func:`nearest_where`)과 상담 사례(:mod:`foms.services.cs_agent.case_meaning`)가 같이 쓴다."""
+    conditions = (*where, brain_embeddings.c.source_kind == source_kind, brain_embeddings.c.model == MODEL)
     if session.get_bind().dialect.name == "postgresql":
         distance = brain_embeddings.c.embedding.op("<=>", return_type=Float)(
             cast(bindparam("query_vector", _literal(vector), type_=String), _PgVector(DIMENSION)))
         rows = session.execute(select(brain_embeddings.c.source_key, distance.label("d"))
-                               .join_from(brain_embeddings, BrainObject, join)
+                               .join_from(brain_embeddings, target, on)
                                .where(*conditions).order_by(distance).limit(int(limit))).all()
         return [(key, 1.0 - float(d)) for key, d in rows]
     rows = session.execute(select(brain_embeddings.c.source_key, brain_embeddings.c.embedding)
-                           .join_from(brain_embeddings, BrainObject, join).where(*conditions)).all()
+                           .join_from(brain_embeddings, target, on).where(*conditions)).all()
     scored = sorted(((key, _cosine(vector, emb)) for key, emb in rows), key=lambda kv: (-kv[1], kv[0]))
     return scored[:int(limit)]
 

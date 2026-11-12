@@ -6,7 +6,8 @@
   (:func:`.embeddings.store_question_vector`), 여기서는 남지 못한 질문만 채운다. 질문을 1년 뒤 지우면 벡터도 같이 지운다.
 - **상담 사례**(``cs_case``): 가린 손님 질문 + 가린 직원 답 — 사례 기억과 같은 재료 · 같은 다듬기 · 같은 가림 검사
   (:func:`foms.services.cs_agent.case_material.case_pair` — 하나라도 걸리면 그 줄은 건너뜀) + 계좌 같은 번호 검사.
-  **백필만**(설정 ``cs_case_embeddings_enabled`` 처음 끔) — 상담 초안의 비슷한 사례 고르기는 아직 바꾸지 않는다(따로 평가 뒤).
+  **백필만**(설정 ``cs_case_embeddings_enabled`` 처음 끔) — 상담 초안의 비슷한 사례 고르기는 상담 관리 칸 '뜻으로도 비슷한
+  상담 찾기'(:mod:`foms.services.cs_agent.case_meaning`)가 켜졌을 때만 쓴다.
 - 모든 근원이 같은 돈 줄 · 하루 상한 · 시간 상한(:func:`.embeddings.embed_texts`)을 쓴다. ``apply`` 가 거짓이면 세기만(돈 0).
 """
 

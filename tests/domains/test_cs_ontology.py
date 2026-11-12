@@ -117,5 +117,5 @@ def test_with_ontology_follows_the_three_panel_switches(app):
     db_session.commit()
     got = with_ontology(db_session, base)
     assert got.onto.flags == OntoFlags(numbers=True, labels=False, prompt=True) and got.onto.extra == ()
-    assert [f.default for f in ONTO_FIELDS] == [False] * 6  # 넷째 = 주문 확인해 답하기(5.6) · 다섯째 = 물건 찾아 따라가기(5절) · 여섯째 = 뜻으로도 물건 찾기(D197)
+    assert [f.default for f in ONTO_FIELDS] == [False] * 7  # 넷째 = 주문 확인해 답하기(5.6) · 다섯째 = 물건 찾아 따라가기(5절) · 여섯째 = 뜻으로도 물건 찾기(D197) · 일곱째 = 뜻으로도 비슷한 상담(D197 ③)
     assert onto_flags({"onto_labels_enabled": "yes"}) == OntoFlags()  # 참일 때만 켬
