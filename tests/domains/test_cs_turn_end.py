@@ -21,6 +21,7 @@ from models import SystemSetting
 from tests.domains.test_cs_brain import PHONE  # 전화 꼴은 실행 중에 잇는다(공개 저장소 — R6-19)
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture
 from tests.domains.test_cs_realtime import Talk, rows, sec, switch_on, tick, turn_count
+from tests.support.cs_image_support import file_item
 from tests.support.cs_agent_fakes import FakeClock, api_message, keys, make_reader  # noqa: F401 — keys 는 fixture
 
 _REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
@@ -178,11 +179,35 @@ def test_judge_one_sends_masked_recent_lines_to_haiku_and_records_ids_only(chann
     assert client.options == {"timeout": turn_end.TIMEOUT_SECONDS, "max_retries": 0}
     db_session.expire_all()
     (entry,) = db_session.get(SystemSetting, turn_end.LOG_KEY).setting_value["rows"]
-    assert set(entry) == {"chat", "message", "verdict", "mode", "ms", "at"}
+    assert set(entry) == {"chat", "message", "verdict", "mode", "ms", "at", "n", "len", "end", "file", "staff", "quiet"}
     assert (entry["chat"], entry["message"], entry["verdict"], entry["mode"]) == ("uc-1", "m-2", "done", "shadow")
+    assert {k: entry[k] for k in ("n", "end", "file", "staff", "quiet")} == {
+        "n": 2, "end": "yo", "file": False, "staff": True, "quiet": 4}  # 글 모양은 숫자 · 코드만(사장님 11-12)
+    assert entry["len"] == len(f"연락은 {PHONE} 로 주세요") and PHONE not in json.dumps(entry, ensure_ascii=False)
     assert "선반" not in json.dumps(entry, ensure_ascii=False)
     spend = db_session.get(SystemSetting, SPEND_KEY).setting_value
     assert spend["calls"] == 1 and float(spend["reserved"]) == 0
+
+
+@pytest.mark.parametrize("text, code", [
+    ("", "empty"), ("  ", "empty"), ("배송 언제 와요?", "question"), ("그런데...", "trail"), ("그리고…", "trail"),
+    ("음,", "comma"), ("문의드립니다.", "period"), ("감사해요!", "exclaim"), ("네~", "exclaim"), ("ㅠㅠ", "emoticon"),
+    ("부탁드려요", "yo"), ("알겠습니다", "da"), ("화이트로 할게", "hangul"), ("가로 2400", "digit"), ("ok", "other"),
+])
+def test_end_codes_are_fixed_words_only(text, code):
+    assert turn_end.end_code(text) == code and code in turn_end.END_CODES
+
+
+def test_the_shape_marks_a_file_on_the_last_message_without_its_name(channel):
+    _on()
+    _talk(channel, "선반 문의요")
+    item = file_item("pub-file/uc-1/0.jpg", b"x" * 10)
+    channel.messages["uc-1"].append(api_message("m-2", sec(2), "user", "이렇게요", files=[item]))
+    assert _ask(channel, FakeClient()) == turn_end.DONE
+    db_session.expire_all()
+    (entry,) = db_session.get(SystemSetting, turn_end.LOG_KEY).setting_value["rows"]
+    assert (entry["n"], entry["file"], entry["end"], entry["len"]) == (2, True, "yo", 4)
+    assert "synthetic" not in json.dumps(entry) and "pub-file" not in json.dumps(entry)
 
 
 def test_not_done_is_more(channel):
