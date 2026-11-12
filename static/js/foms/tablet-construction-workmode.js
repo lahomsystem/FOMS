@@ -391,10 +391,20 @@
       window.fomsMountErpAttachmentPreviewGalleries(document);
     }
   }
+  // 상세 모드(설계서 tablet-production-ui §13.10 D44): 누른 집 카드가 왼쪽 목록 밖이면 그 목록만 밀어 보이게 한다
+  // (페이지는 안 민다 — scrollTop 만). 이미 보이면 그대로. 숨은 표면(코호트 밖 · 높이 0)은 아무 일 없음.
+  function revealActiveCard() {
+    var list = document.querySelector(".foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline__list");
+    var card = list && list.querySelector(".foms-cwork-card.is-active");
+    if (!card || !list.clientHeight) return;
+    var top = card.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    if (top < list.scrollTop || top + card.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = Math.max(0, top - 8);
+  }
   // 갤러리 마운트 + 기본 범위 필터 적용을 DOM 준비/스왑 양쪽에서 재실행.
   function onReadyOrSwap() {
     mountGalleries();
     initRangeFilter();
+    revealActiveCard();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", onReadyOrSwap);
