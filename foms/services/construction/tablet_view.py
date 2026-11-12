@@ -88,7 +88,7 @@ def build_detail(db: Any, *, focus: Any, user: Any, mine_only: bool, partner_org
     orders: list[Any] = []
     if day:
         conds = scope_conditions(user=user, mine_only=mine_only, partner_org=partner_org, worker=worker)
-        orders = sorted((o for _d, o in fetch_day_orders(db, conds, [day])), key=lambda o: (time_sort_key(o), o.id))
+        orders = sorted((o for _d, o in fetch_day_orders(db, conds, [day])), key=lambda o: (is_as_status(o), time_sort_key(o), o.id))  # 시공 집 먼저 · AS 방문 집 뒤(첫 화면 묶음과 같은 규칙, D44)
     if all(o.id != focus.id for o in orders):
         orders = [focus] + orders
     return {"orders": orders, "date": day, "date_label": day_label(day), "worker": worker, "focus_id": focus.id}

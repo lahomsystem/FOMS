@@ -391,10 +391,23 @@
       window.fomsMountErpAttachmentPreviewGalleries(document);
     }
   }
+  // 상세 모드(설계서 tablet-production-ui §13.10 D44): 누른 집 카드가 왼쪽 목록 밖이면 그 목록만 밀어 보이게 한다
+  // (페이지는 안 민다 — scrollTop 만). 이미 보이면 그대로. 숨은 표면(코호트 밖 · 높이 0)은 아무 일 없음.
+  function revealActiveCard() {
+    // 밀리는 상자는 왼쪽 칸 aside(.foms-cwork-timeline, overflow auto) — 안쪽 __list 는 늘어날 뿐 안 밀린다(스테이징 11-12 실측).
+    var box = document.querySelector(".foms-construction-workmode[data-cwork-mode] .foms-cwork-timeline");
+    var card = box && box.querySelector(".foms-cwork-card.is-active");
+    if (!card || !box.clientHeight) return;
+    var z = typeof window.fomsUiZoom === "function" ? Number(window.fomsUiZoom()) || 1 : 1; // rect 는 화면 크기 배율이 붙은 값
+    var head = box.querySelector(".foms-cwork-back"), hh = head ? head.offsetHeight : 0; // 붙어 있는 돌아가기 줄 아래로
+    var top = (card.getBoundingClientRect().top - box.getBoundingClientRect().top) / z + box.scrollTop;
+    if (top < box.scrollTop + hh || top + card.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - hh - 8);
+  }
   // 갤러리 마운트 + 기본 범위 필터 적용을 DOM 준비/스왑 양쪽에서 재실행.
   function onReadyOrSwap() {
     mountGalleries();
     initRangeFilter();
+    revealActiveCard();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", onReadyOrSwap);
