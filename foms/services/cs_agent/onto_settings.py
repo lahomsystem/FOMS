@@ -9,6 +9,8 @@
 - 다른 말 · 용어 · 규격 싣기: 회사 지식 표의 다른 이름과 지식 문서에 없는 용어 · 규격 · 절차 · 제품 라인 · 옵션 항목을 AI 에게 보여
   준다(그 글의 숫자도 승인 값).
 - 같은 뜻이면 답하기: 지시문 8번을 '낱말이 달라도 뜻이 같으면 그 항목으로 답하고, 정말 없을 때만 넘긴다'로 바꾼다.
+- 주문 확인해 답하기(설계서 2026-11-12 온톨로지 5.6 · D189 · D190): 손님 주문 자료가 있어야 답하는 문의일 때만 본인이 확인된
+  ERP 주문 하나의 단계 · 날짜를 초안 재료에 싣는다(:mod:`.order_step`). 이 칸은 세 칸 묶음(:class:`OntoFlags`) 밖이다.
 :mod:`.settings` 가 이 모듈을 부르므로 여기서는 칸 꼴(:mod:`.settings_field`)만 가져온다.
 """
 
@@ -20,14 +22,15 @@ from typing import Any
 from foms.services.cs_agent.settings_field import KIND_BOOL, Field
 
 __all__ = [
-    "GROUP_ONTO", "ONTO_FIELDS", "ONTO_LABELS_FIELD", "ONTO_NUMBERS_FIELD", "ONTO_OFF", "ONTO_PROMPT_FIELD", "OntoFlags",
-    "onto_flags",
+    "GROUP_ONTO", "ONTO_FIELDS", "ONTO_LABELS_FIELD", "ONTO_NUMBERS_FIELD", "ONTO_OFF", "ONTO_ORDER_FIELD", "ONTO_PROMPT_FIELD",
+    "OntoFlags", "onto_flags", "order_lookup_on",
 ]
 
 GROUP_ONTO = "바꿔 묻기 대응(온톨로지)"
 ONTO_NUMBERS_FIELD = "onto_numbers_enabled"
 ONTO_LABELS_FIELD = "onto_labels_enabled"
 ONTO_PROMPT_FIELD = "onto_prompt_enabled"
+ONTO_ORDER_FIELD = "onto_order_enabled"
 
 ONTO_FIELDS: tuple[Field, ...] = (
     Field(ONTO_NUMBERS_FIELD, "숫자 같은 값 알아보기", KIND_BOOL, False, GROUP_ONTO,
@@ -39,6 +42,10 @@ ONTO_FIELDS: tuple[Field, ...] = (
     Field(ONTO_PROMPT_FIELD, "같은 뜻이면 답하기", KIND_BOOL, False, GROUP_ONTO,
           help="켜면 AI 지시문이 '낱말 · 단위 · 맞춤법이 달라도 뜻이 같으면 그 항목으로 답하고, 회사 지식에 정말 없을 때만 "
                "직원에게 넘긴다'로 바뀌어요. 끄면 예전처럼 '확실하지 않으면 넘긴다'예요"),
+    Field(ONTO_ORDER_FIELD, "주문 확인해 답하기", KIND_BOOL, False, GROUP_ONTO,
+          help="켜면 손님이 일정 · 접수 · 도면 · AS 처럼 그 손님 주문을 봐야 답할 것을 물을 때만, 본인이 확인된 주문 하나의 단계 · "
+               "날짜를 ERP 에서 읽어 초안에 써요. 확인이 안 되면 성함과 휴대폰 번호를 한 번 묻고(톡톡은 묻지 않고 넘겨요), "
+               "일정 바꾸기는 AI 가 하지 않고 담당자에게 넘겨요. 금액 · 주소 · 전화는 AI 에게 주지 않아요"),
 )
 
 
@@ -62,3 +69,8 @@ def onto_flags(cfg: Any) -> OntoFlags:
     """설정 → 세 칸(참일 때만 켬)."""
     return OntoFlags(numbers=cfg.get(ONTO_NUMBERS_FIELD) is True, labels=cfg.get(ONTO_LABELS_FIELD) is True,
                      prompt=cfg.get(ONTO_PROMPT_FIELD) is True)
+
+
+def order_lookup_on(cfg: Any) -> bool:
+    """'주문 확인해 답하기' 칸이 켜졌나(참일 때만)."""
+    return cfg.get(ONTO_ORDER_FIELD) is True

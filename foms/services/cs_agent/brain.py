@@ -186,7 +186,7 @@ def _params(request: DraftRequest, conversation: str, now: datetime.datetime,
         "messages": [{"role": "user", "content": prompt.task_text(
             purpose=request.purpose, chat_id=request.chat_id, medium=request.medium, now=now,
             calculator_lines=request.calculator_lines, conversation=conversation, cases=request.cases,
-            rewrite=rewrite, photos=request.photos)}],
+            rewrite=rewrite, photos=request.photos, order_lines=request.order_lines)}],
     }
     if cfg.fallback_on(model):  # Haiku 5.5 는 서버 쪽 대체가 없다 — 보내지 않는다
         params.update(betas=[FALLBACK_BETA], fallbacks=FALLBACKS)
