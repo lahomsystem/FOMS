@@ -280,6 +280,10 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     # 키까지 일반 규칙으로 지키지만, 이 등재는 유지한다 — 이 목록이 "왜 이 키가 서버
     # 소유인지"의 문서이고, 계약 테스트가 이 블록을 문자열로 읽는다.
     'drawing_wizard',
+    # 완료 주문 AS 도면 차수(서버 소유 — /api/orders/<id>/drawing/as/* 와 AS 접수만 쓴다).
+    # 설계서 2026-11-11-as-drawing-after-completion §6.5: 빠지면 폼 저장 한 번에 차수가 사라진다.
+    'as_drawing',
+    'as_drawing_status',
     # Estimate preview manual rows are edited from the contract tab, not the main form.
     'estimate_preview',
     # ChannelTalk manual push history (server-managed on /api/channel/push-manual,
@@ -291,6 +295,8 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'channeltalk_push_as',
     'channeltalk_push_measure_room',
     'channeltalk_push_drawing_room',
+    # 완료 주문 AS 도면 도면방 PUSH 이력(설계서 2026-11-11-as-drawing-after-completion D4) — 원래 도면 이력과 따로.
+    'channeltalk_push_as_drawing_room',
     'channeltalk_push_urgent_measure',
     # 실측 예약 안내 알림톡 이력(서버 소유 — kakao_alimtalk._record_history 만 쓴다).
     # 폼은 이 키를 렌더하지도 보내지도 않으므로 보존 목록에 없으면 **주문을 한 번 저장하는

@@ -15,6 +15,7 @@ from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.drawing_wizard_part_memory import load_policy as load_part_memory_policy
+from foms.services.orders.as_drawing_views import wizard_config_view
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.orders.erp_policy_permissions import can_transfer_drawing
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
@@ -73,7 +74,9 @@ def erp_drawing_workbench_wizard(order_id: int) -> Any:
     memory = load_part_memory_policy(db)
     wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui,
                      'part_memory': {k: bool(memory[k]) for k in ('store', 'follow', 'spread')},
-                     'save_send': _save_send_config(current_user, order)}
+                     'save_send': _save_send_config(current_user, order),
+                     # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3) — 아니면 None.
+                     'as_drawing': wizard_config_view(order, sd)}
     return render_template(
         'drawing/wizard.html',
         order=order,

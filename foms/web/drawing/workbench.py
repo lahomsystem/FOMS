@@ -4,6 +4,7 @@ import time
 from typing import Any, Mapping
 
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
+from sqlalchemy import and_
 
 from db import get_db
 from models import Order, User, OrderAttachment
@@ -66,6 +67,14 @@ from foms.services.common.dashboard_cache import (
     build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
 )
+from foms.services.drawing_workbench_as_rows import (
+    as_round_row_fields,
+    as_search_hit_row_fields,
+    build_as_drawing_detail,
+)
+from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
+from foms.services.orders.as_drawing import current_round as current_as_round
+from foms.services.orders.as_drawing import is_as_drawing_stage
 from foms.services.drawing_workbench_read_model import (
     fetch_drawing_seed_order_ids,
     hydrate_drawing_orders_by_ids,
@@ -709,6 +718,14 @@ def erp_drawing_workbench_dashboard():
     # 직후 TTL 동안 직원 범위로 센 '누적 완료' 숫자를 받지 않게. 다른 사용자의 키는 그대로다.
     if is_list_freelancer(current_user):
         _seed_fp["freelancer"] = True
+    # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §6.1): 검색어가 있으면 시공이 끝난
+    # 주문도 SQL 로 찾는다(검색어 술어로 좁힌 뒤라 완료 주문 전체를 불러오지 않는다). 키에 검색어를 넣는다.
+    _as_tokens = search_query_tokens(q_raw) if q else []
+    as_search_clause = (
+        and_(*[visible_order_search_clause(tok) for tok in _as_tokens]) if _as_tokens else None
+    )
+    if as_search_clause is not None:
+        _seed_fp["q"] = q
     _seed_key = build_dashboard_cache_key("drawing", "workbench_queue_ids", _seed_fp)
     # EPT-B7 구간(원장 P3-2): 이 화면은 서버 시간 헤더가 없어 어느 몫이 큰지 갈라 볼 수 없었다.
     # 블록을 다시 들여쓰지 않으려고 phase() 대신 시각을 찍어 record_phase 로 넘긴다.
@@ -718,7 +735,7 @@ def erp_drawing_workbench_dashboard():
         TTL_PANEL_ROWS,
         lambda: {
             "order_ids": fetch_drawing_seed_order_ids(
-                orders_query, include_confirmed=include_confirmed
+                orders_query, include_confirmed=include_confirmed, as_search_clause=as_search_clause
             ),
             # '완료' 타일 숫자는 모집단(컨펌 제외)과 무관한 전체 큐 기준이라 따로 센다.
             # seed 와 같은 캐시 슬라이스에 담아 요청당 추가 쿼리가 생기지 않게 한다.
@@ -772,10 +789,15 @@ def erp_drawing_workbench_dashboard():
             drawing_status == 'TRANSFERRED' and stage_code in ('CONFIRM', 'PRODUCTION')
         )
         is_confirmed = (drawing_status == 'CONFIRMED')
+        # 완료 주문 AS 도면: 열린 차수가 있으면 늘 넣고, 검색으로 찾은 완료 주문도 넣는다.
+        as_open = current_as_round(sd) is not None
+        as_search_hit = bool(as_search_clause is not None) and not as_open and is_as_drawing_stage(o)
         # 수령확정 주문은 도면 단계에 남아 있어도(전달·수령확정은 stage 를 안 바꾼다) 기본 목록에서
         # 뺀다 — '전체' 타일(열린 큐 합)과 '전체' 목록 건수가 같은 모집단을 보게 한다.
         # 컨펌 포함(토글·완료 칸·검색)일 때만 단계와 무관하게 넣는다.
-        if is_confirmed:
+        if as_open or as_search_hit:
+            pass
+        elif is_confirmed:
             if not include_confirmed:
                 continue
         elif not (is_drawing_stage or is_active_revision or is_post_drawing_receipt):
@@ -935,7 +957,7 @@ def erp_drawing_workbench_dashboard():
             if isinstance(it, dict) and (it.get('product_name') or '').strip()
         )[:60]
 
-        rows.append({
+        row = {
             'id': o.id,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
@@ -992,7 +1014,13 @@ def erp_drawing_workbench_dashboard():
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
             'search_hay': search_hay,
-        })
+        }
+        if as_open:
+            row.update(as_round_row_fields(
+                sd, is_drawing_assignee=is_drawing_assignee, is_sales_owner=is_sales_owner) or {})
+        elif as_search_hit and not is_active_revision:
+            row.update(as_search_hit_row_fields())
+        rows.append(row)
     record_phase("rows", (time.perf_counter() - _t_phase) * 1000)
     _t_phase = time.perf_counter()
 
@@ -1515,6 +1543,8 @@ def erp_drawing_workbench_detail(order_id):
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
         stray_drawing_files=stray_drawing_files,
+        # 완료 주문 AS 도면 카드·맨 위 단추(설계서 2026-11-11-as-drawing-after-completion §6.1) — 조회 0.
+        as_drawing=build_as_drawing_detail(order, s_data, current_user),
         # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).
         drawing_hotfix_stage=is_drawing_hotfix_stage(order),
         erp_order_enabled=True,

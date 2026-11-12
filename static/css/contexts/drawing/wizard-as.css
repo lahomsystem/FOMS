@@ -1,0 +1,143 @@
+/* 도면 마법사 — 완료 주문 AS 도면 표시(설계서 docs/specs/2026-11-11-as-drawing-after-completion_SPEC.md §4.3).
+   인라인 스타일 금지 규칙 때문에 전용 파일로 둔다. wizard-as.js 가 쓰는 클래스만 있다. */
+.dws-tab-locked {
+    opacity: 0.75;
+}
+
+.dws-tab-locked .dws-tab-x {
+    display: none;
+}
+
+.dws-tab-lock,
+.dws-tab-asmark {
+    font-size: calc(12px * var(--foms-fs, 1));
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 0 5px;
+    margin-right: 4px;
+}
+
+.dws-tab-lock {
+    color: #6b7280;
+    border: 1px solid #c4c9d2;
+}
+
+.dws-tab-asmark {
+    color: #fff;
+    background: #d93a3a;
+}
+
+.dws-tab.dws-tab-as,
+.dws-tab.dws-tab-as.dws-tab-active {
+    color: #c62828;
+    font-weight: 700;
+}
+
+/* 종이 왼쪽 위 여백의 한 줄 도장 — #dws-stage 안이라 [저장] 그림에도 찍힌다.
+   오른쪽 위는 '발주 리스트' 칸과 양식 모서리 칸을 가려서 왼쪽 위 여백으로 옮겼다(스테이징 실화면 11-12). */
+.dws-as-stamp {
+    position: absolute;
+    top: 6px;
+    left: 40px;
+    z-index: 5;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 10px;
+    border: 2px solid #d93a3a;
+    border-radius: 4px;
+    color: #d93a3a;
+    background: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+    white-space: nowrap;
+    transform: rotate(-1.5deg);
+}
+
+/* display:flex 가 [hidden] 을 이기므로 따로 숨긴다 — 원래 시트에서 빈 빨간 상자가 남았다(V2 실화면 11-12). */
+.dws-as-stamp[hidden] {
+    display: none;
+}
+
+.dws-as-stamp strong {
+    font-size: 17px;
+    letter-spacing: 0.04em;
+}
+
+.dws-as-stamp span {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dws-as-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(17, 24, 39, 0.4);
+}
+
+.dws-as-dialog-card {
+    width: min(440px, 100%);
+    background: #fff;
+    color: #1f2937;
+    border-radius: 10px;
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.2);
+}
+
+.dws-as-dialog-card h3 {
+    margin: 0;
+    font-size: calc(17px * var(--foms-fs, 1));
+}
+
+.dws-as-dialog-note {
+    margin: 0;
+    color: #6b7280;
+    font-size: calc(14px * var(--foms-fs, 1));
+}
+
+.dws-as-opt {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 10px;
+    border: 1px solid #e3e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.dws-as-opt small {
+    display: block;
+    color: #6b7280;
+    font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.dws-as-src-sel {
+    margin-top: 6px;
+    max-width: 100%;
+}
+
+.dws-as-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dws-as-btn {
+    border: 1px solid #cdd5e0;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: calc(14px * var(--foms-fs, 1));
+    cursor: pointer;
+}
+
+.dws-as-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}

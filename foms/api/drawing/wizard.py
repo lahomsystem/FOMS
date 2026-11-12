@@ -35,6 +35,13 @@ from foms.services.orders.revision import (
 from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
 from foms.services.orders.drawing_transfer import clean_sheet_id, clean_sheet_sig
+from foms.api.drawing.as_drawing import run_as_transfer
+from foms.services.orders.as_drawing import (
+    apply_sheet_lock,
+    current_round as current_as_round,
+    is_as_drawing_stage,
+    sheet_png_block_reason,
+)
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_DRAWING,
     DASHBOARD_FAMILY_ORDERS,
@@ -924,7 +931,7 @@ def api_put_drawing_wizard(order_id):
             return jsonify({'success': False, 'message': error}), 400
 
         captured: dict = {'updated_at': None, 'sheets_before': None, 'objects_before': None,
-                          'auto_assigned': None}
+                          'auto_assigned': None, 'sheet_lock': None}
 
         def _mutate(sess: Session, orders: list) -> dict:
             """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
@@ -953,6 +960,19 @@ def api_put_drawing_wizard(order_id):
                 for sh in prev_sheets if isinstance(sh, dict)
             )
             projected = _project_wizard_state(saved, state)
+            # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §3-3): 시공이 끝난 주문은
+            # 원래 시트·지난 차수 시트를 저장된 그대로 지키고, 열린 차수의 새 시트에 차수 표시를 붙인다.
+            # 거절(409) 대신 서버값을 지킨다 — 자동 저장이 실패를 반복하면 도면팀 화면이 멈춘다.
+            locked_sheets, lock_report = apply_sheet_lock(
+                o, sd, prev_sheets, projected.get('sheets'),
+                actor_id=current_user.id, actor_name=current_user.name,
+                now_iso=now_utc_naive().isoformat(),
+            )
+            if any(lock_report.values()):
+                projected['sheets'] = locked_sheets
+                captured['sheet_lock'] = lock_report
+            elif locked_sheets != (projected.get('sheets') or []):
+                projected['sheets'] = locked_sheets
             projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
             projected['updated_by'] = current_user.id
             projected['updated_by_name'] = current_user.name
@@ -1009,7 +1029,8 @@ def api_put_drawing_wizard(order_id):
         resp = jsonify({
             'success': True,
             'data': {'updated_at': captured['updated_at'],
-                     'auto_assigned': captured['auto_assigned']},
+                     'auto_assigned': captured['auto_assigned'],
+                     'sheet_lock': captured['sheet_lock']},
             'mutation_receipt': outcome.read_receipt_id,
             'mutation_version': resources[0].get('resulting_version'),
         })
@@ -1223,6 +1244,10 @@ def api_post_drawing_wizard_sheet_png(order_id):
         sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id))[:40] or 'sheet'
         sheet_name = str(request.form.get('sheet_name') or sheet_id)[:_MAX_SHEET_NAME_LEN]
         sig = _clean_pending_sig(request.form.get('sig'))
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §3-3): 원래 시트 그림은 대기함에 넣지 않는다.
+        blocked = sheet_png_block_reason(order, _load_structured_data(order), sheet_id)
+        if blocked:
+            return jsonify({'success': False, 'error': 'SHEET_LOCKED', 'message': blocked}), 409
 
         storage = get_storage()
         result = storage.upload_file(
@@ -1650,6 +1675,30 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         }), 500
 
 
+def transfer_pending_as(db, order, current_user, note: str):
+    """시공이 끝난 주문의 [저장] 창 보내기 → AS 도면 보내기(``as_drawing.run_as_transfer``).
+
+    transfer-pending(작업실 일괄)과 transfer-drawing(마법사 [저장] 창 '도면 발송')이 같이 쓴다.
+
+    응답 모양은 지금 transfer-pending 과 같다(``{success, data:{count, message}}``) — 화면을 고치지 않는다.
+    """
+    db.rollback()  # 첫 조회 행 잠금을 풀고 AS 전달 mutation 이 다시 잠근다
+    if current_as_round(_load_structured_data(order)) is None:
+        return jsonify({'success': False, 'error': 'NO_OPEN_ROUND',
+                        'message': '시공이 끝난 주문이에요. 실행판에서 [AS 도면 시작]을 먼저 눌러 주세요.'}), 400
+    result, err = run_as_transfer(order.id, current_user, note)
+    if err:
+        body, status = err
+        payload = body.get_json(silent=True) or {}
+        return jsonify({'success': False, 'error': payload.get('code') or 'AS_TRANSFER_FAILED',
+                        'message': payload.get('error') or 'AS 도면을 보내지 못했어요.'}), status
+    count = int(result.get('sent') or 0)
+    return jsonify({'success': True, 'data': {
+        'count': count, 'as_drawing': True,
+        'message': f'AS 도면 {count}장을 보냈어요. 영업 담당과 AS 담당이 확인해요.',
+    }})
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/transfer-pending', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_transfer_pending(order_id):
@@ -1678,6 +1727,10 @@ def api_post_drawing_wizard_transfer_pending(order_id):
 
         data = request.get_json(silent=True) or {}
         note = data.get('note') or ''
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3): 시공이 끝난 주문에서
+        # [저장] 창의 보내기는 AS 도면 보내기다 — 원래 최종 도면으로 가지 않는다(화면은 그대로).
+        if is_as_drawing_stage(order):
+            return transfer_pending_as(db, order, current_user, note)
         # 미지정('')이면 perform_drawing_transfer 가 상태로 정한다(확정 전 재전달 = 전체 교체).
         mode = (data.get('mode') or '').upper()
         if mode not in ('APPEND', 'REPLACE_ALL'):

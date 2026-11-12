@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import traceback
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote
 
@@ -33,6 +34,11 @@ from foms.services.channel_drawing_attachments import (
     select_drawing_room_push_attachments,
 )
 from foms.services.channel_drawing_room_message import build_drawing_room_push_text
+from foms.services.orders.as_drawing_views import (
+    ROOM_PUSH_HISTORY_KEY as AS_ROOM_PUSH_HISTORY_KEY,
+    room_push_round,
+    room_push_text as as_room_push_text,
+)
 from foms.services.channel_measure_message import build_measure_push_text
 from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.channel_manager_room import resolve_manager_room
@@ -527,6 +533,11 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
         if push_kind not in _PUSH_KIND_CONFIG:
             return {'success': False, 'message': f'지원하지 않는 push_kind: {push_kind}'}, 400
         kind_config = _PUSH_KIND_CONFIG[push_kind]
+        # 완료 주문 AS 도면 도면방 PUSH(설계서 2026-11-11-as-drawing-after-completion D4): 같은 도면방 길(공용방 ·
+        # 담당자 개인방)로 보내되 본문 앞에 [AS], 첨부는 AS 차수 파일, 이력은 따로 둔다(원래 도면 이력과 안 섞는다).
+        as_room = push_kind == 'drawing_room' and payload.get('as_drawing') is True
+        if as_room:
+            kind_config = {**kind_config, 'history_key': AS_ROOM_PUSH_HISTORY_KEY}
 
         if not order_id:
             return {'success': False, 'message': 'order_id가 없습니다.'}, 400
@@ -594,8 +605,18 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
                     'message': f'AS 접수 내용이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
                 }, 400
 
+        as_round = None
+        if as_room:
+            as_round = room_push_round(order.structured_data or {})
+            if as_round is None:
+                return {
+                    'success': False,
+                    'message': '도면방에 보낼 AS 도면이 없습니다. AS 도면을 먼저 보내 주세요.',
+                }, 400
         if push_kind == 'drawing_room':
             text = build_drawing_room_push_text(order)
+            if text and as_round is not None:
+                text = as_room_push_text(text, order.structured_data or {}, as_round)
             if not text:
                 return {
                     'success': False,
@@ -674,6 +695,13 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
                 attachments = select_as_push_attachments(
                     sd, attachments, sd.get(kind_config['history_key'])
                 )
+        elif as_round is not None:
+            # AS 차수 파일은 첨부 행이 없다(R2 전용) — key 로 같은 모양의 보낼 거리를 만든다.
+            attachments = [
+                SimpleNamespace(id=0, storage_key=str(f.get('key') or ''), filename=f.get('filename') or 'AS.png',
+                                file_type='image')
+                for f in (as_round.get('files') or []) if isinstance(f, dict) and f.get('key')
+            ][:MAX_MANUAL_ATTACHMENTS]
         elif push_kind == 'drawing_room':
             # 도면방은 category='drawing' 전량이 아니라 **현재 전달본**만 보낸다. 전달할
             # 때마다 category 가 'drawing' 으로 표시되므로 옛 전달본 첨부행이 남아 있다.
@@ -716,7 +744,7 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
         # 자른다 — dispatch 의 apply_attachment_policy 도 files[:20] 이지만, 여기까지
         # 21장을 넘기면 이력과 실제 전송이 어긋날 수 있다.
         files = files[:MAX_MANUAL_ATTACHMENTS]
-        sent_attachment_ids = sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
+        sent_attachment_ids = [] if as_round is not None else sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
         sent_attachment_keys = sent_attachment_keys[:MAX_MANUAL_ATTACHMENTS]
         if push_kind == 'drawing_room':
             # 채널톡은 dto.fileName 이 아니라 내려받은 응답의 이름으로 저장한다 — 서명 URL 에

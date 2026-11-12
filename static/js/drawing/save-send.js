@@ -27,9 +27,12 @@
   if (!root || !pop) { return; }
 
   var CFG = {};
+  var AS_LOCKED = {};   // 완료 주문 AS 도면: 원래·지난 차수 시트는 잠겨 있어 보내지 않는다(wizard-as.js)
   try {
     var cfgEl = document.getElementById('drawing-wizard-config');
-    CFG = ((cfgEl && JSON.parse(cfgEl.textContent || '{}')) || {}).save_send || {};
+    var full = (cfgEl && JSON.parse(cfgEl.textContent || '{}')) || {};
+    CFG = full.save_send || {};
+    ((full.as_drawing && full.as_drawing.locked_sheet_ids) || []).forEach(function (id) { AS_LOCKED[String(id)] = true; });
   } catch (e) {
     CFG = {};
   }
@@ -148,6 +151,7 @@
       var plan = { send: [], redraw: [] };
       sheets.forEach(function (s) {
         if (s.id === curId) { plan.send.push(s.id); return; }   // 방금 [저장]으로 넣었다
+        if (AS_LOCKED[String(s.id)]) { return; }                 // 잠긴 원래 시트는 다시 그리지도 보내지도 않는다
         var now = SS ? SS.tagSig(SS.sheetSig(s)) : '';
         var inBox = has.call(waiting, s.id), inSent = has.call(sent, s.id);
         if (inBox && now && waiting[s.id] === now) { plan.send.push(s.id); return; }   // 대기함 그림 = 지금 시트

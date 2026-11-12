@@ -590,6 +590,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             공통 첨부는 아래 갤러리에서 제품 항목으로 연결/해제할 수 있습니다.
                         </div>
                     </div>
+                    {# 완료 주문 AS 도면 묶음(설계서 2026-11-11-as-drawing-after-completion §4.3-5) — 원래 도면 갤러리와 따로.
+                       erp-as-drawing-panel.js 가 GET /api/orders/<id>/drawing/as 로 채우고, AS 도면이 없으면 숨긴 채 둔다. #}
+                    {% if order is defined and order and order.id %}
+                    <section class="dw-as-card d-none" id="erp-as-drawing-panel" data-order-id="{{ order.id }}" aria-label="AS 도면"></section>
+                    {% endif %}
                     <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
                 </div>
 
@@ -748,6 +753,19 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         <li>이 주문의 <strong>AS 접수일이 오늘로 바뀌어요.</strong></li>
                         <li>AS 대시보드에서 이 주문이 <strong>완료 탭에서 미완료 탭으로 옮겨가요.</strong></li>
                     </ol>
+                </div>
+                {# 완료 주문 AS 도면 흐름 1(설계서 2026-11-11-as-drawing-after-completion §4.1): 체크 한 줄.
+                   시공이 끝난 주문에서만 보인다(erpRefreshAsDrawingRequest). 'AS도면' 체크 칸과는 다른 칸이다. #}
+                <div class="border rounded p-2 mt-2 d-none" id="as-receive-drawing-wrap">
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" id="as-receive-drawing-request">
+                        <label class="form-check-label fw-semibold" for="as-receive-drawing-request">도면팀에 정확한 도면 부탁</label>
+                    </div>
+                    <div class="d-none" id="as-receive-drawing-memo-wrap">
+                        <label class="form-label small mb-1" for="as-receive-drawing-memo">무엇을 그려야 하나요 (비우면 AS 내용)</label>
+                        <input type="text" class="form-control form-control-sm" id="as-receive-drawing-memo" maxlength="500">
+                    </div>
+                    <div class="small text-muted d-none" id="as-receive-drawing-open-note">도면팀이 이미 AS 도면을 그리고 있어요.</div>
                 </div>
             </div>
             <div class="modal-footer">
