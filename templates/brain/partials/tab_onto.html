@@ -1,0 +1,13 @@
+{#- 온톨로지 탭 — Palantir Ontology Manager 꼴(설계서 2026-11-12 온톨로지 7절 · D187 · D188). 왼쪽 목록(물건 종류 · 연결 종류 ·
+    동작 · 능력 질문) + 오른쪽 상세(개요 · 속성 · 연결 · 동작 · 질문). 읽기만 — 종류 · 칸은 설계서 + 코드로만 바꾼다. 값은
+    brain-onto.js 가 이 탭을 처음 열 때 GET /api/brain/ontology · /ontology/types/<유형> 으로 읽어 textContent 로만 그린다. -#}
+<section class="tab-pane fade{{ ' show active' if tab == 'onto' else '' }} brain-pane" id="brain-tab-onto" role="tabpanel"
+         aria-labelledby="brain-tab-onto-btn" tabindex="0">
+  <p class="brain-status-line" data-brain-onto-status role="status" aria-live="polite"></p>
+  <div class="brain-onto">
+    <nav class="brain-onto__nav" data-brain-onto-nav aria-label="온톨로지 목록"></nav>
+    <div class="brain-onto__main" data-brain-onto-detail>
+      <p class="brain-empty">왼쪽에서 물건 종류 · 연결 종류 · 능력 질문을 고르세요.</p>
+    </div>
+  </div>
+</section>

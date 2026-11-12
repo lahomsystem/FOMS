@@ -18,10 +18,11 @@ from foms.services.brain.access import can_open_screen, screen_viewer
 from models import PartnerOrg, User
 from tests.support.brain_screen_support import world
 
-PAGES = ("/brain", "/brain?tab=map", "/brain/items/common/door")
+PAGES = ("/brain", "/brain?tab=map", "/brain?tab=onto", "/brain/items/common/door")
 APIS = ("/api/brain/search?q=%EB%AC%B8%EC%A7%9D", "/api/brain/table?type=build_rule", "/api/brain/items/common/door",
         "/api/brain/type-map", "/api/brain/releases", "/api/brain/releases/1",
-        "/api/brain/around?key=common/door&depth=2", "/api/brain/points", "/api/brain/quality")  # ⑤-4 이웃 찾기 · 뇌 보기
+        "/api/brain/around?key=common/door&depth=2", "/api/brain/points", "/api/brain/quality",  # ⑤-4 이웃 찾기 · 뇌 보기
+        "/api/brain/ontology", "/api/brain/ontology/types/product_line")  # 온톨로지 탭(설계서 2026-11-12 7절)
 SECRET_NAMES = ("여닫이 문짝", "문짝 재량 규칙", "문짝 맞춤 규칙")
 
 
