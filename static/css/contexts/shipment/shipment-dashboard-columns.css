@@ -140,7 +140,7 @@ body.col-resizing-active {
     display: none !important;
   }
 
-  /* --- pcbar: 제목 · M/D(요일) 출고·N건 · 밀도 토글 · AS 추천 · 출고 확정 --- */
+  /* --- pcbar(위 줄): 날짜 버튼 띠 · 시공자 없음 · 협력사 희망 | 돋보기 · AS 넣기 · 더보기(설계서 §14.10 · 시안 안 28) --- */
   body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar {
     display: flex;
     align-items: center;
@@ -154,20 +154,94 @@ body.col-resizing-active {
   }
   body.erp-mobile-v2-layout .foms-ship-pcbar__lead {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
     gap: var(--foms-space-2, 0.5rem);
     min-width: 0;
   }
-  body.erp-mobile-v2-layout .foms-ship-pcbar__title {
-    margin: 0;
-    font-size: var(--foms-font-size-xl, 1.25rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-primary, #1f2733);
+  /* --- 날짜 버튼 띠: [◀] + 14개(한 번에 7개 보임) + [▶]. 띠는 가로로 밀리고 버튼마다 붙어 선다(scroll-snap).
+     ◀ ▶ 는 tablet-ship-datebar.js 가 7개씩 민다(새로 읽지 않음). 칠 없음(D29) — 고른 날 = 진한 테두리,
+     오늘 = 점선, 주말 · 휴일 = 회색 글자. 버튼 폭은 글자 크기 손잡이(--foms-fs)를 따라 같이 커진다. --- */
+  body.erp-mobile-v2-layout .foms-ship-days {
+    --ship-day-w: calc(60px * var(--foms-fs, 1));
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
   }
-  body.erp-mobile-v2-layout .foms-ship-pcbar__sub {
-    font-size: var(--foms-font-size-sm, 0.875rem);
+  body.erp-mobile-v2-layout .foms-ship-days__track {
+    display: flex;
+    gap: 4px;
+    width: calc(var(--ship-day-w) * 7 + 4px * 6);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__track::-webkit-scrollbar {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__nav {
+    flex: 0 0 44px;
+    height: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: var(--foms-radius-md, 8px);
+    background: transparent;
+    color: var(--foms-text-secondary, #4a515b);
+    font-size: calc(15px * var(--foms-fs, 1));
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-days__nav[disabled] {
+    opacity: 0.3;
+    cursor: default;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day {
+    flex: 0 0 var(--ship-day-w);
+    height: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--foms-text-primary, #1f2733);
+    text-decoration: none;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day b {
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  body.erp-mobile-v2-layout .foms-ship-day em {
+    font-style: normal;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 600;
+    line-height: 1.25;
     color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-off b {
+    font-weight: 700;
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-today {
+    border: 1.5px dashed var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-selected {
+    border: 2.5px solid var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-day.is-selected em {
+    color: var(--foms-text-primary, #1f2733);
+    font-weight: 800;
   }
   body.erp-mobile-v2-layout .foms-ship-pcbar__actions {
     display: flex;
@@ -195,9 +269,117 @@ body.col-resizing-active {
     background: var(--foms-interactive-primary, #5a67d8);
     color: var(--foms-color-neutral-0, #fff);
   }
-  body.erp-mobile-v2-layout .foms-ship-pcbar__cap-toggle[aria-expanded="true"] {
-    border-color: var(--foms-text-primary, #1f2733);
-    background: var(--foms-surface-raised, #f7f8fa);
+  /* 돋보기(누르면 아래로 검색칸) — 44px 정사각. 검색 중이면(.is-active) 옆에 검색어(넘치면 … ). 펼친 동안 · 더보기
+     열린 동안은 진한 테두리. */
+  body.erp-mobile-v2-layout .foms-ship-pcbar__icon {
+    justify-content: center;
+    min-width: 44px;
+    padding: 0 13px;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__icon.is-active {
+    border: 2px solid var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-find__q {
+    max-width: 7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__icon[aria-expanded="true"],
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn[data-ship-more-toggle][aria-expanded="true"] {
+    border: 2px solid var(--foms-text-primary, #1f2733);
+  }
+  /* --- 아래로 펼치는 작은 창 둘: 돋보기 검색칸 · [더보기 ▾](다른 날짜 고르기 · 날짜별 남은 자수 · 줄 높이 · 이미지 저장).
+     열기 · 닫기(밖 누름 · Esc) = tablet-ship-datebar.js 가 [data-ship-pop] 에 is-open 을 붙였다 뗀다. 칸은 44px 이상 · 글자 13px 이상. --- */
+  body.erp-mobile-v2-layout .foms-ship-more,
+  body.erp-mobile-v2-layout .foms-ship-find {
+    position: relative;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-find.is-open .foms-ship-pcbar__filter {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 1060;
+    padding: 8px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 14px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 12px 32px rgba(20, 23, 28, 0.2);
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 1060;
+    width: 360px;
+    max-width: calc(100vw - 24px);
+    flex-direction: column;
+    padding: 6px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 14px;
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 12px 32px rgba(20, 23, 28, 0.2);
+  }
+  body.erp-mobile-v2-layout .foms-ship-more.is-open .foms-ship-more__menu {
+    display: flex;
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__item {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(15px * var(--foms-fs, 1));
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__item + .foms-ship-more__item {
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6);
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__row {
+    justify-content: space-between;
+    cursor: default;
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__label {
+    margin: 0;
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 600;
+    color: var(--foms-text-secondary, #4a515b);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__row .foms-ship-pcbar__filter-date {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-more__go {
+    min-width: 52px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: calc(14px * var(--foms-fs, 1));
+    font-weight: 700;
+    cursor: pointer;
+  }
+  /* 띠가 열려 있으면 글 끝에 '켜짐'(칠 없음). */
+  body.erp-mobile-v2-layout .foms-ship-more__item.foms-ship-pcbar__cap-toggle[aria-expanded="true"]::after {
+    content: "켜짐";
+    margin-left: auto;
+    font-size: calc(13px * var(--foms-fs, 1));
+    font-weight: 700;
+    color: var(--foms-text-secondary, #4a515b);
   }
   /* --- 위 줄 [협력사 희망 N] 알약(설계서 §14.8 · 시안 안 22) — 누르면 협력사 희망 판이 위에서 내려온다
      (tablet-prb-drop.js · partner-request-board.css). 열려 있으면 실선 · 옅은 칠로 눌린 상태를 보인다. --- */
@@ -231,17 +413,12 @@ body.col-resizing-active {
     cursor: not-allowed;
   }
 
-  /* --- pcbar 컴팩트 필터(기준일+검색) — PC 필터카드 흡수. 슬림 pill(38px·border-subtle·radius-lg).
-     PC 필터폼과 동일 GET 파라미터(date·q) → 백엔드 무변경. --- */
-  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar__filter {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--foms-space-2, 0.5rem);
-  }
+  /* --- pcbar 검색칸 · 날짜 칸 — PC 필터카드 흡수. 검색칸은 돋보기 아래 작은 창(위 .foms-ship-find.is-open), 날짜 칸은
+     [더보기] 안에 있고 form= 으로 같은 폼에 묶인다 → PC 필터폼과 같은 GET 파라미터(date · q), 백엔드 무변경. --- */
   body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date,
   body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
-    height: 38px;
-    min-height: 38px;
+    height: 44px;
+    min-height: 44px;
     padding: 0 var(--foms-space-3, 0.75rem);
     border: 1px solid var(--foms-border-subtle, #dde1e6);
     border-radius: var(--foms-radius-lg, 12px);
@@ -250,8 +427,8 @@ body.col-resizing-active {
     font-size: var(--foms-font-size-sm, 0.875rem);
   }
   body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
-    width: 160px;
-    max-width: 34vw;
+    width: 260px;
+    max-width: 40vw;
   }
   body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date {
     font-variant-numeric: tabular-nums;
@@ -260,9 +437,9 @@ body.col-resizing-active {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
-    min-height: 38px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     border: 1px solid var(--foms-border-subtle, #dde1e6);
     border-radius: var(--foms-radius-lg, 12px);
     background: var(--foms-surface-base, #fff);
