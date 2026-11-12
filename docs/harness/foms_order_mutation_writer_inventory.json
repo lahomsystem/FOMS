@@ -25,7 +25,7 @@
     },
     {
       "path": "foms/api/drawing/as_drawing.py",
-      "lineno": 152,
+      "lineno": 157,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -281,7 +281,7 @@
     },
     {
       "path": "foms/api/drawing/as_drawing.py",
-      "lineno": 152,
+      "lineno": 157,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"

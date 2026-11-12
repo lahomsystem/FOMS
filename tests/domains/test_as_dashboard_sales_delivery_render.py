@@ -28,7 +28,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 _TODAY = date.today().strftime("%Y-%m-%d")
 _ASSET_PIN = "20261109a"
 # 2026-11-06 PC 작은 단추 28px — CSS 만 다시 올렸다(JS 는 그대로).
-_CSS_PIN = "20261109f"
+_CSS_PIN = "20261112a"
 
 
 def _login_as_admin(client, username: str = "sales-delivery-render-admin") -> None:

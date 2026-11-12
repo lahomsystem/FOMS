@@ -635,6 +635,11 @@
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/drawing/as/confirm"
     },
+        "erp_orders_as_drawing.api_as_drawing_request": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/drawing/as/request"
+    },
     "erp_orders_as_drawing.api_as_drawing_request_revision": {
       "mode": "guard",
       "policy_id": "ERP_EDIT",

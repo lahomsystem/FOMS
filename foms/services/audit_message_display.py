@@ -219,6 +219,7 @@ ACTION_LABELS: dict[str, str] = {
     "DRAWING_DELIVERY_CANCELED": "도면 전달 취소",
     # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion)
     "AS_DRAWING_STARTED": "AS 도면 시작",
+    "AS_DRAWING_REQUESTED": "AS 도면 부탁",
     "AS_DRAWING_TRANSFERRED": "AS 도면 보냄",
     "AS_DRAWING_CONFIRMED": "AS 도면 확인",
     "AS_DRAWING_REVISION_REQUESTED": "AS 도면 수정 요청",

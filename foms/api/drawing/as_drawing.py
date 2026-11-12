@@ -2,6 +2,7 @@
 
 - ``GET  /api/orders/<id>/drawing/as``                   지금 차수·지난 차수·시작할 수 있는지
 - ``POST /api/orders/<id>/drawing/as/start``             도면팀이 시작(AS 접수가 없으면 접수까지)
+- ``POST /api/orders/<id>/drawing/as/request``           AS 화면에서 도면팀에 부탁(열린 AS 접수에 붙임)
 - ``POST /api/orders/<id>/drawing/as/transfer``          이번 차수 AS 시트 그림을 보냄
 - ``POST /api/orders/<id>/drawing/as/confirm``           영업·AS 담당이 확인(한 명이면 끝)
 - ``POST /api/orders/<id>/drawing/as/request-revision``  영업·AS 담당이 고쳐 달라고 함
@@ -38,8 +39,10 @@ from foms.services.common.dashboard_cache import (
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_cycle_service import current_cycle
 from foms.services.orders.as_drawing import (
+    SOURCE_AS_REQUEST,
     SOURCE_DRAWING_FIRST,
     STATUS_IN_PROGRESS,
+    STATUS_WAITING,
     ASDrawingError,
     cancel_round,
     confirm_round,
@@ -54,6 +57,7 @@ from foms.services.orders.as_drawing import (
     transfer_round,
 )
 from foms.services.orders.as_drawing_notify import enqueue_as_drawing_push, notify_as_drawing
+from foms.services.orders.as_drawing_views import status_view as as_drawing_status_view
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from models import Order, SecurityLog
@@ -109,6 +113,7 @@ def _hashes(command: str, order_id: int, body: dict) -> tuple[str, str]:
 #: 명령 → 감사 행위 이름(표시 문장은 audit_message_display 가 만든다).
 _AUDIT_ACTIONS = {
     "start": "AS_DRAWING_STARTED",
+    "request": "AS_DRAWING_REQUESTED",
     "transfer": "AS_DRAWING_TRANSFERRED",
     "confirm": "AS_DRAWING_CONFIRMED",
     "request-revision": "AS_DRAWING_REVISION_REQUESTED",
@@ -303,6 +308,52 @@ def api_as_drawing_start(order_id: int):
     if err:
         return err
     return jsonify({"success": True, "error": None, "data": {"registered_as": False, **result}})
+
+
+@erp_orders_as_drawing_bp.route("/<int:order_id>/drawing/as/request", methods=["POST"])
+def api_as_drawing_request(order_id: int):
+    """AS 화면 'AS도면' 칸 [도면팀 부탁] — 열린 AS 접수에 AS 도면 부탁만 붙인다(설계서 §4.4).
+
+    접수 창 체크(흐름 1)와 같은 차수(``AS_REQUEST`` · ``WAITING``) · 같은 알림 · 같은 폰 알림을 쓰지만
+    AS 접수는 다시 저장하지 않는다(접수 기록 · 접수일 · 사진 그대로). 권한은 확인 단추와 같은 영업 · CS.
+    응답의 ``state``(``{title, words}``)로 화면이 칸 글자를 새로고침 없이 바꾼다.
+    """
+    user, err = _guard(CONFIRM_POLICY_ID)
+    if err:
+        return err
+    db = get_db()
+    order, err = _load_order(db, order_id)
+    if err:
+        return err
+    if not is_as_drawing_stage(order):
+        return _fail("시공이 끝난 주문에서만 부탁할 수 있어요.", 409, "NOT_AS_STAGE")
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    if current_round(sd) is not None:
+        # 다른 사람이 먼저 부탁했거나 도면팀이 시작했다 — 화면이 칸 글자를 지금 상태로 맞추게 state 를 싣는다.
+        return jsonify({"success": False, "error": "도면팀이 이미 그리고 있어요.", "code": "AS_DRAWING_OPEN",
+                        "data": {"state": as_drawing_status_view(sd)}}), 409
+    if open_as_cycle_id(sd) is None:
+        return _fail("AS 접수부터 해 주세요.", 409, "AS_NOT_OPEN")
+    payload = request.get_json(silent=True) or {}
+    memo = str(payload.get("memo") or "").strip()[:500]
+    actor_id, actor_name = _actor(user)
+
+    def _apply(sess, locked_order, locked_sd):
+        cycle_id = open_as_cycle_id(locked_sd)
+        if cycle_id is None:  # 잠그기 전 사이에 AS 가 닫혔다
+            raise ASDrawingError("AS_NOT_OPEN", "AS 접수부터 해 주세요.")
+        rnd = open_round(locked_sd, source=SOURCE_AS_REQUEST, status=STATUS_WAITING, memo=memo,
+                         actor_id=actor_id, actor_name=actor_name, now_iso=_now(), cycle_id=cycle_id)
+        locked_order.structured_data = locked_sd  # 알림 본문이 최신 값을 읽게
+        notices = notify_as_drawing(sess, locked_order, "request", round_no=round_no(locked_sd, rnd),
+                                    actor=user, text=memo)
+        return {"round": round_view(locked_sd, rnd), "state": as_drawing_status_view(locked_sd),
+                "_notices": notices}
+
+    result, err = _run(order_id, user, "request", {"memo": memo}, _apply)
+    if err:
+        return err
+    return jsonify({"success": True, "error": None, "data": result})
 
 
 def run_as_transfer(order_id: int, user: Any, note: str = ""):
