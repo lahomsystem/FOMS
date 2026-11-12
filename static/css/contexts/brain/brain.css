@@ -240,6 +240,37 @@
 .brain-map__kind { font-weight: 700; }
 .brain-map__code { color: var(--brain-muted); font-size: 0.75rem; }
 
+/* ── 온톨로지 탭(설계서 2026-11-12 온톨로지 7절 · D187 — Palantir Ontology Manager 꼴: 왼쪽 목록 + 오른쪽 상세) ── */
+.brain-onto { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.brain-onto__nav { display: grid; gap: 12px; border: 1px solid var(--brain-line); border-radius: 10px; padding: 10px; background: #fff; }
+.brain-onto__group { display: grid; gap: 2px; }
+.brain-onto__title { font-size: 0.875rem; font-weight: 700; margin: 0 0 4px; }
+.brain-onto__sub { color: var(--brain-muted); font-size: 0.75rem; margin: 6px 0 2px; }
+.brain-onto__item { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-radius: 6px; padding: 4px 8px;
+  background: none; color: inherit; text-align: left; font-size: 0.875rem; }
+.brain-onto__item:hover, .brain-onto__item:focus-visible { background: var(--foms-color-neutral-100, #f1f3f5); }
+.brain-onto__item.is-active { background: var(--foms-color-neutral-200, #dde1e6); font-weight: 700; }
+.brain-onto__item .brain-chip__icon { color: var(--brain-muted); width: 16px; }
+.brain-onto__label { flex: 1 1 auto; }
+.brain-onto__count { color: var(--brain-muted); font-variant-numeric: tabular-nums; }
+.brain-onto__main { display: grid; gap: 10px; min-width: 0; }
+.brain-onto__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.brain-onto__head [data-onto-open-table] { margin-left: auto; }
+.brain-onto__meta { flex-basis: 100%; color: var(--brain-muted); font-size: 0.875rem; margin: 0; }
+.brain-onto__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.brain-onto__table th { white-space: nowrap; font-size: 0.8125rem; color: var(--brain-muted); }
+.brain-onto__table td { font-size: 0.875rem; vertical-align: top; }
+.brain-onto__table td:first-child { white-space: nowrap; }
+.brain-onto__std { color: var(--brain-muted); font-family: var(--bs-font-monospace, monospace); font-size: 0.8125rem; }
+.brain-onto__fill { white-space: nowrap; }
+.brain-onto__fill meter { width: 72px; margin-right: 6px; vertical-align: middle; }
+.brain-onto__needs { display: flex; flex-wrap: wrap; gap: 4px; }
+.brain-onto__have { background: #dcfce7; color: #166534; }
+.brain-onto__examples { margin: 0; padding-left: 18px; }
+@media (max-width: 767.98px) {
+  .brain-onto { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ── 항목 카드 ── */
 .brain-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 4px; }
 .brain-card__title { font-size: 1.375rem; font-weight: 700; margin: 0; }

@@ -24,6 +24,7 @@
     urls: {
       search: root.getAttribute('data-search-url'), table: root.getAttribute('data-table-url'),
       releases: root.getAttribute('data-releases-url'), typeMap: root.getAttribute('data-type-map-url'),
+      onto: root.getAttribute('data-onto-url'),
       page: root.getAttribute('data-page-url'), cytoscape: root.getAttribute('data-cytoscape-url'),
       dagre: root.getAttribute('data-dagre-url')
     },

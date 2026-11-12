@@ -228,6 +228,19 @@ ERP 를 읽기만 한다(master brain 'ERP 는 읽기만' 원칙 유지).
    합성 자료로 돈다(운영 경로에 새 짐 없음). 새 꾸러미(rdflib · pyshacl — 시험용)는 넣기 전 사장님께 이름 · 까닭을 먼저 알린다.
 3. **품질 점검 칸**: SHACL 위반 수 · 물건에 안 걸린 규칙 수 · 다른 이름 없는 제품 수를 회사 지식 화면 품질 칸에.
 
+## 6.5 온톨로지 탭 — Palantir Ontology Manager 꼴 GUI (사장님 11-12 '팔란티어 스타일로 온톨로지 GUI' · D187 · D188)
+
+'회사 지식' 화면 '더 보기'에 **온톨로지** 탭. 왼쪽 목록 + 오른쪽 상세(D187), 읽기만(종류 · 칸은 설계서 + 코드로만 — master brain 7.7).
+
+- **왼쪽**: 물건 종류(묶음별 · 볼 수 있는 수) · 연결 종류(색 · 수) · 동작 종류(사람 승인 · AI 에이전트) · 능력 질문 점수(D188 —
+  필요한 종류 · 연결이 하나라도 있는 질문 수 / 전체, ERP 물건은 '승인 대기'). 찾기 칸으로 목록을 거른다.
+- **오른쪽(종류)**: 이름 · 표준 이름(schema.org · SKOS · ODRL · PROV-O · SOSA · SHACL) · 수 · 층 · 그 종류가 필요한 능력 질문 수 +
+  작은 탭 넷 — **속성**(칸 · 자료형 · 꼭 · 단위 · 범위 · 고를 값 · 표준 속성 · 채움 막대) · **연결**(나감 · 들어옴 · 상대 종류 · 개수
+  규칙 · 지금 수 · 표준) · **예시**(항목 카드로) · **능력 질문**. '지식 표에서 보기'는 그 종류로 지식 표를 연다.
+- **자료**: `GET /api/brain/ontology` · `/ontology/types/<유형>`(`foms/services/brain/ontology_view.py` — 보기 범위 · 유효 기간 안만
+  센다) · 능력 질문 목록 `foms/services/brain/ontology_cqs.py`(일반화한 글만). 화면 `templates/brain/partials/tab_onto.html` ·
+  `static/js/brain/brain-onto.js` · `brain-onto-view.js` · `brain.css`(인라인 스타일 0 · 채움은 `<meter>`).
+
 ## 7. 저장 · 마이그레이션
 
 마이그레이션 0 — 항목 · 링크 · 실음 칸(`payload`)과 관리 칸(SystemSetting)으로 충분하다. 새 넘김 까닭 코드 `constraint` 는

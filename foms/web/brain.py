@@ -46,7 +46,7 @@ from foms.web.auth import login_required
 
 brain_web_bp = Blueprint("brain_web", __name__)
 
-TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "ask")
+TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "onto", "ask")
 #: 물어보기 화면을 열 수 있나를 요청 하나에 한 번만 판정해 두는 ``flask.g`` 칸 — (사용자 번호, 답).
 _G_CHAT_PAGE = "brain_chat_page_open"
 
