@@ -33,7 +33,7 @@ from foms.services.brain.errors import (
 )
 from foms.services.brain.gates import merge_gates, payload_gates, text_gates
 from foms.services.brain.inbox import capped_clause, current_join, link_versions, visible_clause
-from foms.services.brain.inbox_bins import bulk_ok_any_grade, label_only_change
+from foms.services.brain.inbox_bins import bulk_ok_any_grade, change_ends, label_only_change
 from foms.services.brain.proposals import known_text, link_target_type
 from foms.services.brain.review_rules import ai_cutoff, clamp_ms, confirm_value
 from foms.services.brain.schemas import PAYLOAD, edit_props
@@ -205,8 +205,9 @@ def apply_decision(session: Any, change_id: Any, *, actor: Any, base_version: An
         raise BrainConflictError(_current_version(session, change))
     if edits:
         _apply_edits(session, change, edits)
-    if not bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind, wide_bins(viewer_of(actor))):
-        _check_confirm(change, confirm, edits)  # ① 이름표만 · ④ 사본 링크만은 확인할 핵심 값(글 · 금액)이 없다(D151 · D167)
+    if not bulk_ok_any_grade(change.op, change.item_type, change.fields, change.link_kind, wide_bins(viewer_of(actor)),
+                             **change_ends(change)):
+        _check_confirm(change, confirm, edits)  # ① 이름표만 · ④ 사본 링크만 · ⑤ 계산기 항목은 확인할 핵심 값(글 · 금액)이 없다(D151 · D167 · D192)
     detail = _timing(change, view_ms, now, edited=bool(edits), bulk=bulk)
     action = "bulk_apply" if bulk else ("edit_apply" if edits else "apply")
     return apply_change(session, change.id, actor=actor, now=now, detail=detail, action=action)
@@ -223,8 +224,8 @@ def reject_decision(session: Any, change_id: Any, *, actor: Any, code: str, view
 
 def bulk_apply(session: Any, change_ids: Iterable[Any], *, actor: Any,
                now: Optional[datetime.datetime] = None) -> dict[str, Any]:
-    """한꺼번에 승인 — 등급 A, 또는 관리자의 ① 이름표만 · ④ 사본 링크만 · 상담팀장의 ① 제안(등급 상관없음 — 설계서 7.9 ·
-    D151 · D167).
+    """한꺼번에 승인 — 등급 A, 또는 관리자의 ① 이름표만 · ④ 사본 링크만 · ⑤ 계산기 제품 · 옵션 · 상담팀장의 ① 제안(등급
+    상관없음 — 설계서 7.9 · D151 · D167 · 온톨로지 4.1 D192).
 
     하나라도 받을 수 없는 제안이 섞이면 아무것도 쓰지 않는다. ① · ④ 는 확인할 핵심 값이 글 · 금액이 아니라서 등급 B 확인 글을
     서버가 채운다(표에서 보인 값 그대로). 하나씩 저장점에서 넣고 막힌 것은 코드로 알린다."""
@@ -234,11 +235,14 @@ def bulk_apply(session: Any, change_ids: Iterable[Any], *, actor: Any,
         raise BrainShapeError([f"ids: 제안 번호 1 ~ {BULK_MAX}개여야 한다"])
     rows = {r.id: r for r in session.execute(select(
         BrainChange.id, BrainChange.grade, BrainChange.op, BrainChange.item_type, BrainChange.fields,
-        BrainChange.link_kind).where(BrainChange.id.in_(ids))).all()}
+        BrainChange.link_kind, BrainChange.proposed_by, BrainChange.link_from, BrainChange.link_to)
+        .where(BrainChange.id.in_(ids))).all()}
     bins = wide_bins(viewer_of(actor))
-    wide = {i for i, r in rows.items() if bulk_ok_any_grade(r.op, r.item_type, r.fields, r.link_kind, bins)}
+    wide = {i for i, r in rows.items()
+            if bulk_ok_any_grade(r.op, r.item_type, r.fields, r.link_kind, bins, **change_ends(r))}
     if any(i not in rows or (rows[i].grade != GRADE_A and i not in wide) for i in ids):
-        raise BrainShapeError(["ids: 한꺼번에 승인은 등급 A, 또는 관리자의 이름표만 · 사본 링크만 · 상담팀장의 이름표만 제안만 받는다"])
+        raise BrainShapeError(["ids: 한꺼번에 승인은 등급 A, 또는 관리자의 이름표만 · 사본 링크만 · 계산기 제품 · 옵션 · "
+                               "상담팀장의 이름표만 제안만 받는다"])
     applied, failed = [], []
     for change_id in ids:
         base = session.execute(select(BrainChange.base_version).where(BrainChange.id == change_id)).scalar()
