@@ -160,5 +160,8 @@
   {% include 'construction/partials/modals.html' %}
   <script src="{{ url_for('static', filename='js/foms/attachment-preview-modal-bridge.js') }}?v=20260804a" defer></script>
   <script src="{{ url_for('static', filename='js/orders/order-detail-fragment.js') }}?v=20260804a" defer></script>
+  {# 태블릿 시공 첫 화면 날짜 버튼 띠 넘기기(설계서 §13 P13-1) — 출고 탭과 같은 파일 · 같은 ?v= 핀. 문서 위임 싱글턴이라
+     셸 조각이 바뀌어 다시 실행돼도 곧바로 돌아가고, 출고 탭을 거쳐 이미 묶였으면 다시 묶지 않는다. #}
+  <script src="{{ url_for('static', filename='js/shipment/tablet-ship-datebar.js') }}?v=20261112c" defer></script>
   {% include 'construction/partials/scripts.html' %}
 </div>
