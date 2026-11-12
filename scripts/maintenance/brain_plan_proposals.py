@@ -13,6 +13,10 @@
 
     python scripts/maintenance/brain_plan_proposals.py --plan <계획 JSON 경로>
     python scripts/maintenance/brain_plan_proposals.py --plan <계획 JSON 경로> --apply
+    python scripts/maintenance/brain_plan_proposals.py --from-catalog            # 견적 계산기 제품 · 옵션(설계서 2026-11-12 온톨로지 4절 1)
+
+``--from-catalog`` 는 계획 파일 대신 지금 계산기 정본에서 제품 라인 · 옵션 계획을 메모리에서 만든다(:mod:`foms.services.brain.catalog_plan`
+— 금액 없음 · 파일 안 남김).
 """
 import argparse
 import importlib.util
@@ -27,7 +31,9 @@ sys.path.insert(0, ROOT)
 from app import app  # noqa: E402
 from db import DB_URL, db_session  # noqa: E402
 from foms.platform.sentry_setup import resolve_environment  # noqa: E402
+from foms.services.brain.catalog_plan import PLAN_SCHEMA, catalog_plan  # noqa: E402
 from foms.services.brain.errors import BrainError  # noqa: E402
+from foms.services.brain.external import current_catalog  # noqa: E402
 from foms.services.brain.plan_links import source_name  # noqa: E402
 from foms.services.brain.plan_proposals import file_plan, withdraw_open  # noqa: E402
 from foms.services.datetime_kst import now_utc_naive  # noqa: E402
@@ -53,7 +59,10 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     """CLI 인자."""
     parser = argparse.ArgumentParser(description="master brain — file the approved data plan as open proposals "
                                                  "(default dry-run, never applies).")
-    parser.add_argument("--plan", required=True, help="자료 계획 JSON 경로(저장소 밖)")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--plan", help="자료 계획 JSON 경로(저장소 밖)")
+    source.add_argument("--from-catalog", dest="from_catalog", action="store_true",
+                        help="계획 파일 대신 지금 견적 계산기 정본의 제품 · 옵션으로 계획을 만든다(금액 없음)")
     parser.add_argument("--brand", default="LAHOM", choices=sorted(KNOWN_BRANDS), help="계획의 브랜드(기본 LAHOM)")
     parser.add_argument("--apply", action="store_true", help="실제로 제안을 넣는다(기본은 모의 실행)")
     parser.add_argument("--i-have-owner-approval", dest="owner_approval", action="store_true",
@@ -91,9 +100,14 @@ def run(argv: Optional[list] = None) -> int:
         if args.apply and TOOL.needs_owner_approval(environment) and not args.owner_approval:
             raise Refused("OWNER_APPROVAL_REQUIRED",
                           f"{environment} 에는 사장님 승인 표시(--i-have-owner-approval) 없이 넣지 않는다")
-        plan, source = read_plan(args.plan)
+        plan, source = read_plan(args.plan) if args.plan else ({}, source_name({"schema": PLAN_SCHEMA}))
         with app.app_context():
             try:
+                if args.from_catalog:
+                    catalog = current_catalog()
+                    if catalog is None:
+                        raise Refused("CATALOG_UNREADABLE", "견적 계산기 정본을 읽지 못했다")
+                    plan = catalog_plan(catalog)
                 if args.withdraw_open:  # 모의 실행이면 거둔 수만 세고 아래 rollback 이 되돌린다
                     out["withdrawn"] = withdraw_open(db_session, source=source, now=now_utc_naive())
                 out.update(file_plan(db_session, plan, brand=args.brand, apply=args.apply, source=source))

@@ -34,7 +34,7 @@ from sqlalchemy import select, update
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    BRAND_COMMON, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_CREATE,
+    BRAND_COMMON, BRANDS, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_CREATE,
     OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, STATUS_ACTIVE, TYPE_KINDS,
 )
 from foms.services.brain.errors import BrainShapeError
@@ -50,9 +50,16 @@ from foms.services.brain.store import current_object, values_of
 from foms.services.datetime_kst import now_utc_naive
 
 APPROVED_BY = "D130 자료 계획"  # 나눈 지식 문서 항목의 승인 칸(실제 승인은 카드 승인)
-NEW_TYPES: dict[str, str] = {"process_step": "공정 단계", "spec": "규격", "term": "용어"}
+#: 제품 라인 · 옵션은 견적 계산기 정본에서 만든 계획(:mod:`.catalog_plan` — 설계서 2026-11-12 온톨로지 4절 1 · D179)이 쓴다.
+NEW_TYPES: dict[str, str] = {"process_step": "공정 단계", "spec": "규격", "term": "용어", "product_line": "제품 라인",
+                             "option": "옵션"}
+#: 새 항목이 계획에서 받는 틀 칸(이름표 밖) — 유형마다 이것만(값 칸 · 금액은 받지 않는다).
+NEW_PROPS: dict[str, tuple[str, ...]] = {"product_line": ("price_unit", "door_kinds", "quote_kind"),
+                                         "option": ("category", "price_kind", "option_kind", "unit")}
 CONFLICT_TYPES: dict[str, str] = {"supersede": "conflict", "conflict_item": "conflict", "edit_text": "question"}
 CALC_PREFIX, ABOUT_PREFIX = "calc:", "about:"
+#: 설명 칸이 꼭 있어야 하는 새 유형 — 계획에 글이 없으면 이름을 글로.
+_LABEL_TEXT = frozenset({"spec", "product_line", "option"})
 _DOC_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
 _PAYLOAD = "payload."
 
@@ -221,7 +228,8 @@ def _stage_of(new: Mapping[str, Any]) -> str:
 
 
 def _new_items(run: Run, rows: Iterable[Any]) -> None:
-    """새 항목(공정 단계 · 규격 · 용어 — 공통 층 · 공통 브랜드) + 정본 링크(반영 뒤 다음 차례)."""
+    """새 항목(공정 단계 · 규격 · 용어 · 제품 라인 · 옵션 — 공통 층) + 정본 링크(반영 뒤 다음 차례). 브랜드는 계획 칸
+    ``brand``(라홈 · 하우드 — 제품 라인), 없으면 공통."""
     for new in rows:
         if not isinstance(new, Mapping) or held(run, new):
             continue
@@ -237,6 +245,9 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
             run.skipped["unknown_type" if KEY_RE.fullmatch(key) else "shape"] += 1
             continue
         label, payload = one_line(new.get("pref_label"), 200) or key, labels_for(new, item_type, pref=False)
+        props = new.get("props") if isinstance(new.get("props"), Mapping) else {}
+        payload.update({name: props[name] for name in NEW_PROPS.get(item_type, ()) if props.get(name) not in (None, "", [])})
+        brand = new.get("brand") if new.get("brand") in BRANDS else BRAND_COMMON
         refs = list(new.get("value_from_hint") or [])
         if item_type == "process_step":
             stage = _stage_of(new)
@@ -244,9 +255,9 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
                 run.skipped["shape"] += 1
                 continue
             payload["erp_stage"], refs = stage, [f"erp:stage/{stage.lower()}"]
-        _create(run, key=key, brand=BRAND_COMMON, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
+        _create(run, key=key, brand=brand, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
                 values={"name": label, "visibility": SCOPE_ALL,
-                        "text": one_line(new.get("text"), MAX_TEXT) or (label if item_type == "spec" else None),
+                        "text": one_line(new.get("text"), MAX_TEXT) or (label if item_type in _LABEL_TEXT else None),
                         "payload": payload or None},
                 why=reason(f"새로 정리한 {NEW_TYPES[item_type]}이에요", decisions_in(new.get("why"))))
         value_links(run, key, item_type, refs, None, key)
