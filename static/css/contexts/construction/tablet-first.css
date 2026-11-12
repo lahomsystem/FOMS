@@ -293,6 +293,13 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
+    /* 왼쪽 칸(aside, 안쪽 여백 space-3)이 밀려도 돌아가기 줄은 맨 위에 붙어 있다(D44 — 누른 집으로 밀면 사라지던 것). */
+    position: sticky;
+    top: calc(-1 * var(--foms-space-3, 0.75rem));
+    z-index: 1;
+    margin: calc(-1 * var(--foms-space-3, 0.75rem)) calc(-1 * var(--foms-space-3, 0.75rem)) 0;
+    padding: var(--foms-space-3, 0.75rem);
+    background: var(--foms-surface-subtle, #f4f5f7);
   }
   body.erp-mobile-v2-layout .foms-cwork-back__link {
     display: inline-flex;

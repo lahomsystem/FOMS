@@ -399,8 +399,9 @@
     var card = box && box.querySelector(".foms-cwork-card.is-active");
     if (!card || !box.clientHeight) return;
     var z = typeof window.fomsUiZoom === "function" ? Number(window.fomsUiZoom()) || 1 : 1; // rect 는 화면 크기 배율이 붙은 값
+    var head = box.querySelector(".foms-cwork-back"), hh = head ? head.offsetHeight : 0; // 붙어 있는 돌아가기 줄 아래로
     var top = (card.getBoundingClientRect().top - box.getBoundingClientRect().top) / z + box.scrollTop;
-    if (top < box.scrollTop || top + card.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - 8);
+    if (top < box.scrollTop + hh || top + card.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - hh - 8);
   }
   // 갤러리 마운트 + 기본 범위 필터 적용을 DOM 준비/스왑 양쪽에서 재실행.
   function onReadyOrSwap() {
