@@ -53,7 +53,8 @@ def name_approver(viewer: Viewer) -> bool:
 
 
 def wide_bins(viewer: Viewer) -> frozenset[str]:
-    """등급과 상관없이 한꺼번에 승인하는 묶음 — 관리자 ① · ④(D151), 상담팀장 ①(D167), 그 밖은 없음(등급 A 만)."""
+    """등급과 상관없이 한꺼번에 승인하는 묶음 — 관리자 ① · ④(D151) · ⑤ 계산기 제품 · 옵션(D192), 상담팀장 ①(D167), 그 밖은 없음
+    (등급 A 만)."""
     if viewer.internal and viewer.is_admin:
         return ADMIN_WIDE_BINS
     return frozenset({BIN_NAMES}) if name_approver(viewer) else frozenset()

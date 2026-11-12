@@ -138,6 +138,7 @@ OP_MEANING: dict[str, str] = {
 BIN_MEANING: dict[str, str] = {
     "names": "이름 · 비슷한 말만 바뀌어요. 글 · 금액은 그대로예요.",
     "mark": "표시만 해요. 글 · 금액은 그대로예요.",
+    "calc": "견적 계산기 제품 · 옵션이에요. 금액은 계산기를 가리키기만 해요.",
 }
 TYPE_MEANING: dict[str, str] = {
     "price_rule": "손님에게 가는 금액이 바뀔 수 있어요. 숫자를 확인해 주세요.",
