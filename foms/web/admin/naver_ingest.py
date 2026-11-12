@@ -310,6 +310,22 @@ def _group_key_col():
     return group_key_expression()
 
 
+def _linked_order_trashed_clause() -> ColumnElement[bool]:
+    """링크가 가리키는 주문이 **휴지통**인가 — 이력 칩 `주문 만듦` 에서 빼는 술어 (2026-11-12).
+
+    행 배지(:func:`_history_foms_state`)는 휴지통 주문을 `주문 접음` 이라 말하는데, 칩은
+    ``sync_status == 'LINKED'`` 만 세서 같은 집을 `주문 만듦` 에 넣었다(운영 #6098 정광호:
+    행은 접음, 칩은 만듦 2주문). 휴지통 판정은 :func:`orders.state_axes.read_deleted` 와 같다
+    (``deleted_at`` 또는 legacy ``status='DELETED'``).
+    """
+    from sqlalchemy import exists, or_
+
+    return exists().where(
+        Order.id == ExternalOrderLink.order_id,
+        or_(Order.deleted_at.isnot(None), Order.status == "DELETED"),
+    )
+
+
 def _status_group_counts(db, *, find: str = "",
                          mine_user_id: Optional[int] = None) -> dict[str, int]:
     """상태별 **묶음 수**를 센다 — 필터 버튼 숫자를 표 총계와 같은 단위로 맞춘다.
@@ -328,13 +344,22 @@ def _status_group_counts(db, *, find: str = "",
     Returns:
         ``{상태: 그 상태 링크를 하나 이상 가진 묶음 수}`` (VALID_STATUSES 전 키 포함).
     """
+    from sqlalchemy import and_, case
+
     key_col = _group_key_col()
+    # 휴지통 주문에 붙은 LINKED 는 `주문 만듦` 이 아니다 — 행 배지(`주문 접음`)와 같은 판정.
+    # 칩이 없는 값(``CLOSED``)으로 접어 아래 루프가 세지 않게 한다(쿼리 1회 유지).
+    status_col = case(
+        (and_(ExternalOrderLink.sync_status == "LINKED", _linked_order_trashed_clause()),
+         "CLOSED"),
+        else_=ExternalOrderLink.sync_status,
+    )
     query = (
-        db.query(key_col, ExternalOrderLink.sync_status)
+        db.query(key_col, status_col)
         .filter(ExternalOrderLink.channel == "NAVER")
     )
     query = _apply_history_scope(query, find=find, mine_user_id=mine_user_id)
-    pairs = query.group_by(key_col, ExternalOrderLink.sync_status).all()
+    pairs = query.group_by(key_col, status_col).all()
     counts = {name: 0 for name in VALID_STATUSES}
     for _key, link_status in pairs:
         if link_status in counts:
@@ -1359,6 +1384,9 @@ def _link_rows(db, *, status: Optional[str], page: int,
     )
     if status in VALID_STATUSES:
         key_query = key_query.filter(ExternalOrderLink.sync_status == status)
+        if status == "LINKED":
+            # 칩 숫자(:func:`_status_group_counts`)와 같은 술어 — 휴지통 주문 집은 `주문 만듦` 이 아니다.
+            key_query = key_query.filter(~_linked_order_trashed_clause())
     if place_pending:
         # 상태 필터와 같은 규약: "해당 링크가 하나라도 있는 집"을 고른다.
         key_query = key_query.filter(_place_pending_clause())
