@@ -16,6 +16,7 @@
   사실 → 브랜드는 브랜드 칸 틀이 아직 없어 넘긴다(수만 센다).
 - 링크(``value_from`` · ``copy_in``(``copy_hint`` — 값의 사본이 실린 양식 · 그림) · ``at_step`` · ``decided_by`` · ``about``)와
   은퇴는 :mod:`.plan_links` — 끝이 승인 대기면 다음 차례.
+- 다른 이름(``labels[]``) · 규칙 → 제품 잇기(``links[]`` — ``applies_to``)는 :mod:`.plan_labels`(온톨로지 4.2 — D193 · D194).
 - ``unsure`` · ``waiting`` 이 달린 묶음(항목 · 가격 규칙 · 사실 나눔 · 나눈 자식 · 새 항목 · 엇갈림)은 넣지 않고 센다.
 - **멱등**: 이미 같은 값 · 이미 있는 항목 · 링크 · 같은 열린 제안이면 넣지 않는다. 같은 제안이 거절됐으면 :mod:`.proposals` 가
   막는다(``rejected_before``).
@@ -38,6 +39,7 @@ from foms.services.brain.constants import (
     OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, STATUS_ACTIVE, TYPE_KINDS,
 )
 from foms.services.brain.errors import BrainShapeError
+from foms.services.brain.plan_labels import file_labels, file_rule_links
 from foms.services.brain.plan_links import (
     EVIDENCE_KIND, LABEL_KEYS, RETYPE_NAMES, Link, Run, copy_links, decided_links, decisions_in, file_link, file_one,
     file_retire, held, is_decision_no, labels_for, one_line, open_changes, plan_problems, reason, source_name,
@@ -298,6 +300,10 @@ def _conflicts(run: Run, rows: Iterable[Any]) -> None:
 
 
 # ── 진입점 ───────────────────────────────────────────────────────────────
+#: 계획 칸(요약에 수만 센다).
+PLAN_PARTS: tuple[str, ...] = ("items", "new_items", "conflicts", "labels", "links")
+
+
 def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool, source: Optional[str] = None,
               now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """자료 계획을 열린 제안으로 넣는다(반영 없음). ``apply`` 가 아니면 같은 일을 저장점 안에서 하고 되돌린다(쓰기 0) —
@@ -321,6 +327,8 @@ def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool,
         _items(run, plan.get("items") or [])
         _new_items(run, plan.get("new_items") or [])
         _conflicts(run, plan.get("conflicts") or [])
+        file_labels(run, plan.get("labels") or [])  # 다른 이름 · 규칙 → 제품 잇기(온톨로지 4.2 — D193 · D194)
+        file_rule_links(run, plan.get("links") or [])
         for retire in run.retires:
             file_retire(run, *retire)
         for link in run.links:
@@ -333,7 +341,7 @@ def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool,
     else:
         savepoint.rollback()
     return {"applied": bool(apply), "brand": brand,
-            "plan": {name: len(plan.get(name) or []) for name in ("items", "new_items", "conflicts")},
+            "plan": {name: len(plan.get(name) or []) for name in PLAN_PARTS},
             **run.summary()}
 
 
