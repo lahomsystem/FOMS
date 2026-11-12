@@ -40,7 +40,7 @@
     var tabs = bar.querySelectorAll('.dws-tab');
     Array.prototype.forEach.call(tabs, function (tab, i) {
       var sheet = sheets[i];
-      if (!sheet) return;
+      if (!sheet || tab.querySelector('.dws-tab-lock, .dws-tab-asmark')) return;   // 탭을 다시 안 그리고 부를 때(V2) 두 번 붙지 않게
       if (isLocked(sheet)) {
         tab.classList.add('dws-tab-locked');
         tab.title = '원래 도면 — 고칠 수 없어요. ⧉ 로 복제하면 AS 시트가 돼요.';
@@ -50,6 +50,8 @@
         tab.insertBefore(lock, tab.firstChild);
       } else if (isAsSheet(sheet)) {
         tab.classList.add('dws-tab-as');
+        // 이름이 이미 'AS N' 으로 시작하면 빨간 표를 또 붙이지 않는다(같은 말 두 번 — 스테이징 실화면 11-12).
+        if (String(sheet.name || '').replace(/\s+/g, '').indexOf('AS' + round.no) === 0) return;
         var mark = document.createElement('span');
         mark.className = 'dws-tab-asmark';
         mark.textContent = 'AS ' + round.no;
@@ -109,7 +111,9 @@
     if (sheets.length === before) return;   // 시트 10장 한도 등으로 못 만들었다(엔진이 알렸다)
     var sheet = core.sheet();
     if (sheet && String(sheet.name || '').indexOf('AS' + round.no) !== 0) {
-      sheet.name = ('AS' + round.no + ' ' + String(sheet.name || '')).slice(0, 50);
+      // 복제 이름 끝의 ' 복사' 는 뺀다 — 앞의 'AS N' 이 원래 시트와 가른다.
+      var base = String(sheet.name || '').replace(/ 복사( \d+)?$/, '');
+      sheet.name = ('AS' + round.no + ' ' + base).slice(0, 50);
       core.markDirty();
       core.renderTabs();
     }

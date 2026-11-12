@@ -626,8 +626,12 @@ def api_order_transfer_drawing(order_id):
         # 도면 마법사 [저장]본(pending) 병합 — 재업로드 없이 저장된 대기 도면을 함께 전달.
         # pending_sheet_ids 가 오면 해당 대기 시트의 {key, filename} 을 파일 목록에 병합하고,
         # 그 sheet_id 들만 스냅샷 저장 + pending 제거를 전달 쓰기에 싣는다(없으면 기존 동작 불변).
-        from foms.api.drawing.wizard import delete_stale_version_files, stage_pending_snapshot
+        from foms.api.drawing.wizard import delete_stale_version_files, stage_pending_snapshot, transfer_pending_as
         pending_sheet_ids = [str(x) for x in (data.get('pending_sheet_ids') or []) if str(x)]
+        # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §6.3): 마법사 [저장] 창
+        # '도면 발송'은 AS 도면 보내기로 잇는다 — 원래 최종 도면은 바뀌지 않는다(transfer-pending 과 같은 길).
+        if pending_sheet_ids and is_as_drawing_stage(order):
+            return transfer_pending_as(db, order, current_user, data.get('note', ''))
         manual_files = list(data.get('files') or [])
         pending_files = []
         if pending_sheet_ids:

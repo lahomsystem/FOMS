@@ -107,24 +107,25 @@
     }
     var photosEl = form.querySelector('[data-dw-as-photos]');
     var photos = photosEl && photosEl.files ? Array.prototype.slice.call(photosEl.files) : [];
+    var photoNote = '';   // 사진 실패 안내는 뒤 안내에 덮이지 않게 끝에 붙인다(스테이징 실화면 11-12)
     if (r.data && r.data.registered_as && photos.length && r.data.reception_log_id) {
       setStatus('사진을 올리고 있어요…', true);
       var failed = await uploadPhotos(photos, r.data.reception_log_id);
-      if (failed) setStatus('사진 ' + failed + '장을 못 올렸어요. 주문 화면 AS 칸에서 다시 올려 주세요.', false);
+      if (failed) photoNote = ' 사진 ' + failed + '장을 못 올렸어요. 주문 화면 AS 칸에서 다시 올려 주세요.';
     }
     if (r.data && r.data.registered_as && channelEl && channelEl.checked) {
       var p = await pushChannel();
       if (!p.ok) {
         setStatus('AS 접수와 도면 시작은 됐어요. 채널톡 AS방 접수는 못 했어요: ' + p.message
-          + ' 카드의 [채널톡 AS방에 접수 올리기]로 다시 보내 주세요.', false);
-        reloadSoon(3500);
+          + ' 카드의 [채널톡 AS방에 접수 올리기]로 다시 보내 주세요.' + photoNote, false);
+        reloadSoon(photoNote ? 6000 : 3500);
         return;
       }
-      setStatus('AS 접수, AS 도면 시작, 채널톡 AS방 접수를 했어요.', true);
+      setStatus('AS 접수, AS 도면 시작, 채널톡 AS방 접수를 했어요.' + photoNote, !photoNote);
     } else {
-      setStatus('AS 도면을 시작했어요. [AS 도면 그리기]로 마법사를 여세요.', true);
+      setStatus('AS 도면을 시작했어요. [AS 도면 그리기]로 마법사를 여세요.' + photoNote, !photoNote);
     }
-    reloadSoon(1200);
+    reloadSoon(photoNote ? 4500 : 1200);
   }
 
   var ACTIONS = {

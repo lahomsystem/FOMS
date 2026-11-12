@@ -1675,8 +1675,10 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         }), 500
 
 
-def _transfer_pending_as(db, order, current_user, note: str):
+def transfer_pending_as(db, order, current_user, note: str):
     """시공이 끝난 주문의 [저장] 창 보내기 → AS 도면 보내기(``as_drawing.run_as_transfer``).
+
+    transfer-pending(작업실 일괄)과 transfer-drawing(마법사 [저장] 창 '도면 발송')이 같이 쓴다.
 
     응답 모양은 지금 transfer-pending 과 같다(``{success, data:{count, message}}``) — 화면을 고치지 않는다.
     """
@@ -1728,7 +1730,7 @@ def api_post_drawing_wizard_transfer_pending(order_id):
         # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3): 시공이 끝난 주문에서
         # [저장] 창의 보내기는 AS 도면 보내기다 — 원래 최종 도면으로 가지 않는다(화면은 그대로).
         if is_as_drawing_stage(order):
-            return _transfer_pending_as(db, order, current_user, note)
+            return transfer_pending_as(db, order, current_user, note)
         # 미지정('')이면 perform_drawing_transfer 가 상태로 정한다(확정 전 재전달 = 전체 교체).
         mode = (data.get('mode') or '').upper()
         if mode not in ('APPEND', 'REPLACE_ALL'):
