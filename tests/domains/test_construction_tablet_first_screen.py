@@ -227,3 +227,17 @@ def test_query_count_does_not_grow_with_rows(client, monkeypatch, mode) -> None:
     # 첫 화면은 쿼리 A(색인만 · 줄 없음) · B(그날 + 미리 볼 날, 캡 200) 둘을 더해 10. 상세는 그날 B 가 50건 목록을 갈음해 8.
     cap = {"first": 10, "detail": 8}[mode]
     assert big <= cap, (mode, small, big, cap)
+
+
+def test_construction_dashboard_js_rerun_safe_no_top_level_lexical() -> None:
+    """셸이 시공 조각을 바꿀 때마다 dashboard.js 가 다시 실행된다(파일 머리말 "swap 마다 재실행" 계약).
+
+    최상위 ``const`` · ``let`` · ``class`` 는 두 번째 실행에서 "already been declared" SyntaxError 로
+    파일 전체를 멈춘다(스테이징 11-12: 첫 화면 날짜 버튼을 누를 때마다 났다). 이 파일의 최상위는 2칸 들여쓰기 ``var`` 다.
+    """
+    import re
+    from pathlib import Path
+
+    src = Path("static/js/construction/dashboard.js").read_text(encoding="utf-8")
+    bad = [ln for ln in src.splitlines() if re.match(r"^ {0,2}(const|let|class)\s", ln)]
+    assert not bad, bad

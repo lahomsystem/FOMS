@@ -38,6 +38,11 @@
     align-items: center;
     gap: var(--foms-space-2, 0.5rem);
   }
+  /* 글자 손잡이(공용 부품은 30px)를 이 위 줄에서만 손가락 크기 44px 로. 조절기는 글자 배율을 따르지 않는다(foms-ui-zoom.css). */
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs { margin-right: 0; }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn,
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__now { height: 44px; }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn { width: 44px; }
   body.erp-mobile-v2-layout .foms-cons-first__btn {
     display: inline-flex;
     align-items: center;
