@@ -216,6 +216,17 @@
       if (f) f.classList.add('d-none');
       return;
     }
+    var media = t.closest('[data-dw-as-media]');
+    if (media && media.closest('#dw-as-card')) {
+      // AS 사진(설계서 §4.4 2판) — 실행판 이미지 보기를 그대로 쓴다(as_media 묶음 안의 차례).
+      ev.preventDefault();
+      if (typeof window.openDrawingGatewayImageViewer === 'function') {
+        window.openDrawingGatewayImageViewer('as_media', Number(media.getAttribute('data-dw-as-media')) || 0);
+      } else {
+        window.open(media.getAttribute('data-view-url') || '', '_blank', 'noopener');
+      }
+      return;
+    }
     var btn = t.closest('[data-dw-as-act]');
     if (!btn || !btn.closest('#dw-as-card')) return;
     ev.preventDefault();

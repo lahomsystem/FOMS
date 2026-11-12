@@ -1,7 +1,7 @@
 {# 완료 주문 AS 도면 카드 — 설계서 docs/specs/2026-11-11-as-drawing-after-completion_SPEC.md §4.
    값은 workbench.build_as_drawing_detail(조회 0). 버튼 동작은 static/js/drawing/workbench-as.js.
    원래 최종 도면은 이 카드 어디서도 바뀌지 않는다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-as.css') }}?v=20261111a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/workbench-as.css') }}?v=20261112b">
 {% set asd = as_drawing %}
 <section class="dw-as-card" id="dw-as-card" data-order-id="{{ order.id }}"
   data-registered-as="{{ '1' if (asd.current and asd.current.registered_as) else '' }}" aria-label="AS 도면">
@@ -88,6 +88,32 @@
     <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-as-start-close>닫기</button>
   </form>
   {% endif %}
+  {% endif %}
+  {# 사진 · 동영상(설계서 §4.4 2판): 지금 차수 부탁 기록 + 지금 AS 접수 기록에 묶인 AS 첨부. 사진은 실행판 이미지 보기
+     (data-group-key="as_media"), 동영상은 새 탭. 값은 workbench.build_as_media(조회 1). #}
+  {% set media = asd.get('media') %}
+  {% if media and media.total %}
+  <div class="dw-as-media">
+    <div class="dw-as-media__title">AS 사진 · 동영상 {{ media.total }}</div>
+    {% for group in media.groups %}
+    <div class="dw-as-media__label">{{ group.label }}</div>
+    <ul class="dw-as-media__list list-unstyled">
+      {% for m in group['items'] %}
+      <li>
+        {% if m.is_video %}
+        <a class="dw-as-media__tile dw-as-media__tile--video" href="{{ m.view_url }}" target="_blank" rel="noopener"
+          title="{{ m.filename }}" aria-label="{{ m.filename }} 동영상 보기"><i class="fas fa-play" aria-hidden="true"></i><span>동영상</span></a>
+        {% else %}
+        <button type="button" class="dw-as-media__tile" data-dw-as-media="{{ m.viewer_index }}" data-group-key="as_media"
+          data-view-url="{{ m.view_url }}" data-download-url="{{ m.download_url }}" data-filename="{{ m.filename }}"
+          data-key="{{ m.key }}" title="{{ m.filename }}" aria-label="{{ m.filename }} 크게 보기"><img loading="lazy" src="{{ m.thumb_url }}" alt=""></button>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+    <div class="dw-as-media__more">누르면 크게 봐요 · 다른 AS 기록의 사진은 주문 화면 AS 기록에 있어요</div>
+  </div>
   {% endif %}
   {% if asd.past %}
   <details class="dw-as-past mt-2">

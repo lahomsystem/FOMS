@@ -50,6 +50,11 @@ def _customer_name(order: Any) -> str:
     return str(customer.get("name") or getattr(order, "customer_name", "") or "").strip()
 
 
+def _one_line(text: Any) -> str:
+    """여러 줄 부탁 글을 알림 한 줄로(종 · 폰 배너는 줄바꿈을 못 보여 준다)."""
+    return " / ".join(line.strip() for line in str(text or "").splitlines() if line.strip())
+
+
 def _message(order: Any, kind: str, round_no: int, text: str) -> str:
     head = f"주문 #{order.id}"
     name = _customer_name(order)
@@ -135,7 +140,7 @@ def notify_as_drawing(db: Any, order: Any, kind: str, *, round_no: int, actor: A
             target_role=target.get("target_role"),
             target_user_id=target.get("target_user_id"),
             title=_TITLES[kind],
-            message=_message(order, kind, round_no, (text or "")[:200]),
+            message=_message(order, kind, round_no, _one_line(text)[:200]),
             created_by_user_id=actor_id,
             created_by_name=actor_name,
             is_read=False,

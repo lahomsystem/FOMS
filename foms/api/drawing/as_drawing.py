@@ -24,7 +24,7 @@ from flask import Blueprint, g, jsonify, make_response, request
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from foms.api.cs.as_orders import register_as_from_payload
+from foms.api.cs.as_orders import _invalidate_shipment_asrec_caches, register_as_from_payload
 from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.audit_message_display import describe_order_action
@@ -58,6 +58,7 @@ from foms.services.orders.as_drawing import (
 )
 from foms.services.orders.as_drawing_notify import enqueue_as_drawing_push, notify_as_drawing
 from foms.services.orders.as_drawing_views import status_view as as_drawing_status_view
+from foms.services.orders.as_log import append_client_log
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from models import Order, SecurityLog
@@ -316,7 +317,9 @@ def api_as_drawing_request(order_id: int):
 
     접수 창 체크(흐름 1)와 같은 차수(``AS_REQUEST`` · ``WAITING``) · 같은 알림 · 같은 폰 알림을 쓰지만
     AS 접수는 다시 저장하지 않는다(접수 기록 · 접수일 · 사진 그대로). 권한은 확인 단추와 같은 영업 · CS.
-    응답의 ``state``(``{title, words}``)로 화면이 칸 글자를 새로고침 없이 바꾼다.
+    2판: 같은 저장 안에서 AS 기록 한 줄("도면팀에 도면 부탁")을 더하고 그 id 를 차수 ``request_log_id`` 로
+    남긴다. 화면은 사진 · 동영상을 지금 AS 기록 첨부와 같은 길(``category='as'`` + ``as_log_id``)로 그 줄에 묶는다.
+    응답 ``state``(``{title, words}``)로 칸 글자를, ``request_log_id`` 로 첨부 묶음을 정한다.
     """
     user, err = _guard(CONFIRM_POLICY_ID)
     if err:
@@ -335,7 +338,7 @@ def api_as_drawing_request(order_id: int):
     if open_as_cycle_id(sd) is None:
         return _fail("AS 접수부터 해 주세요.", 409, "AS_NOT_OPEN")
     payload = request.get_json(silent=True) or {}
-    memo = str(payload.get("memo") or "").strip()[:500]
+    memo = str(payload.get("memo") or "").strip()[:2000]
     actor_id, actor_name = _actor(user)
 
     def _apply(sess, locked_order, locked_sd):
@@ -344,15 +347,21 @@ def api_as_drawing_request(order_id: int):
             raise ASDrawingError("AS_NOT_OPEN", "AS 접수부터 해 주세요.")
         rnd = open_round(locked_sd, source=SOURCE_AS_REQUEST, status=STATUS_WAITING, memo=memo,
                          actor_id=actor_id, actor_name=actor_name, now_iso=_now(), cycle_id=cycle_id)
+        no = round_no(locked_sd, rnd)
+        # AS 기록 한 줄 — AS 화면 회차 기록 · 주문 화면 AS 기록에 부탁이 남고, 사진 · 동영상이 이 줄에 묶인다.
+        head = f"도면팀에 도면 부탁 (AS 도면 {no}차)"
+        entry = append_client_log(locked_sd, log_type="memo", text=head + ("\n" + memo if memo else ""),
+                                  by=actor_name, by_id=actor_id)
+        rnd["request_log_id"] = entry["id"]
         locked_order.structured_data = locked_sd  # 알림 본문이 최신 값을 읽게
-        notices = notify_as_drawing(sess, locked_order, "request", round_no=round_no(locked_sd, rnd),
-                                    actor=user, text=memo)
+        notices = notify_as_drawing(sess, locked_order, "request", round_no=no, actor=user, text=memo)
         return {"round": round_view(locked_sd, rnd), "state": as_drawing_status_view(locked_sd),
-                "_notices": notices}
+                "request_log_id": entry["id"], "_notices": notices}
 
     result, err = _run(order_id, user, "request", {"memo": memo}, _apply)
     if err:
         return err
+    _invalidate_shipment_asrec_caches("api_as_drawing_request", record_only=True)   # AS 기록이 한 줄 늘었다
     return jsonify({"success": True, "error": None, "data": result})
 
 
