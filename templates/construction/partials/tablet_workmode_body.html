@@ -25,6 +25,12 @@
       <a class="foms-cwork-back__link" href="{{ _cons_home(_ct_detail.get('date') or today_iso, _ct_detail.get('worker', '')) }}" data-cwork-back>&#9664; {{ _ct_detail.get('date_label') or '날짜' }} 목록</a>
       <span class="foms-cwork-back__count">{% if _ct_detail.get('worker') %}{{ _ct_detail.get('worker') }} · {% endif %}<span data-cwork-count>{{ orders|length }}</span>집</span>
     </div>
+    {% elif _ct_mode == 'undated' %}
+    {# 날짜 미정 집(설계서 §13.10 D43 a51) — 시공 단계인데 시공일 없음. 돌아가기 = 고른 날 · 고른 시공자 첫 화면. #}
+    <div class="foms-cwork-timeline__head foms-cwork-back">
+      <a class="foms-cwork-back__link" href="{{ _cons_home(_ct_detail.get('date') or today_iso, _ct_detail.get('worker', '')) }}" data-cwork-back>&#9664; 날짜 목록</a>
+      <span class="foms-cwork-back__count">날짜 미정 · <span data-cwork-count>{{ orders|length }}</span>집</span>
+    </div>
     {% elif _ct_mode == 'search' %}
     <div class="foms-cwork-timeline__head foms-cwork-back">
       <span class="foms-cwork-back__count">찾기: {{ (filters or {}).get('q') }} · <span data-cwork-count>{{ orders|length }}</span>건</span>
@@ -51,13 +57,14 @@
           data-cwork-date="{{ (o.construction_date or '').split(',')[0].strip()[:10] }}">
           <span class="foms-cwork-card__row">
             <span class="foms-cwork-status foms-cwork-status--{{ 'done' if o.stage=='시공완료' else 'active' if o.stage=='시공중' else 'wait' }}">{{ o.stage }}</span>
-            {% if _ctime %}<span class="foms-cwork-card__time">{{ _ctime }}</span>{% else %}<span class="foms-cwork-card__time foms-cwork-card__time--none">시간 미정</span>{% endif %}
+            {% if _ct_mode == 'undated' %}<span class="foms-cwork-card__time foms-cwork-card__time--none">날짜 미정</span>{% elif _ctime %}<span class="foms-cwork-card__time">{{ _ctime }}</span>{% else %}<span class="foms-cwork-card__time foms-cwork-card__time--none">시간 미정</span>{% endif %}
           </span>
           <span class="foms-cwork-card__name">{{ o.customer_name }}</span>
           <span class="foms-cwork-card__region">{{ o.address }}</span>
           {% if o.workmode_product_label %}<span class="foms-cwork-card__product">{{ o.workmode_product_label }}{% if o.workmode_spec_display %} · {{ o.workmode_spec_display }}{% endif %}</span>{% endif %}
         </button>
       {% endfor %}
+      {% if _ct_mode == 'undated' and _ct_detail.get('more') %}<p class="foms-cwork-note" data-cwork-more>더 있는 집은 안 보여요</p>{% endif %}
       {# 빈 상태 — 서버 orders 자체가 비었거나(초기 hidden 해제), 기간 칩 필터 결과가 0건일 때
          tablet-construction-workmode.js 가 노출하고 제목·힌트(내일/주간 건수)를 채운다. #}
       <div class="foms-cwork-timeline__empty" data-cwork-empty{% if orders %} hidden{% endif %}>
@@ -145,8 +152,9 @@
         {% endif %}
 
         <div class="foms-cwork-actionbar">
-          {% if o.stage == '생산중' %}
-            <p class="foms-cwork-note" data-cwork-note>아직 생산 중이에요</p>
+          {% if o.stage in ('생산중', 'AS 방문') %}
+            {# 생산 단계 = '아직 생산 중이에요 · 조립까지 끝남', AS 방문 집 = 'AS 방문 집이에요'(시공 API 로 단계를 바꾸지 않는다, §13.10). #}
+            <p class="foms-cwork-note" data-cwork-note>{{ o.tablet_note or '아직 생산 중이에요' }}</p>
           {% elif not _can_cons %}
             <p class="foms-cwork-note" data-cwork-note>보기만 할 수 있어요</p>
           {% else %}
@@ -183,7 +191,7 @@
       {% set _after_n = (_cev.get('after') or [])|length %}
       {% set _signed = _cev.get('signature_att_id') %}
       {% set _has_drawing = (o.attachment_preview_items or [])|length > 0 %}
-      {% set _acts = _can_cons and o.stage != '생산중' %}
+      {% set _acts = _can_cons and o.stage not in ('생산중', 'AS 방문') %}
       <div class="foms-cwork-confirm__panel" data-cwork-confirm="{{ o.id }}"{% if o.id != _active_id %} hidden{% endif %}>
         <div class="foms-cwork-cfcard">
           <h3 class="foms-cwork-cfcard__title">완료 체크리스트</h3>
@@ -218,7 +226,8 @@
           <i class="fas fa-clipboard-check" aria-hidden="true"></i> 완료 사진 등록 · 서명
         </button>
         {% else %}
-        <p class="foms-cwork-note">{{ '아직 생산 중이에요' if o.stage == '생산중' else '보기만 할 수 있어요' }} · 완료 사진 {{ _after_n }}장</p>
+        {# 같은 말 한 번(D43): 까닭(생산 중 · AS 방문 · 보기만)은 가운데 단추 자리 한 줄이 말한다 — 여기는 사진 수만. #}
+        <p class="foms-cwork-note" data-cwork-photo-note>완료 사진 {{ _after_n }}장</p>
         {% endif %}
       </div>
     {% endfor %}
