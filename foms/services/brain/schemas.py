@@ -68,6 +68,8 @@ _BROADER = Prop("payload.broader", "위 낱말", "text", max_len=60)
 _LABELS = (_PREF, _ALIASES, _HIDDEN, _BROADER)
 #: 관찰이 일어난 때(7.8 다음 13) — 줄 쓴 때(``recorded_at``)와 따로, 원본(상담 · 그림 · 사진) 시각.
 _OCCURRED = Prop("payload.occurred_at", "일어난 때", "datetime", max_len=40, key=True)
+#: 권역(지역 이름 — 배송 · 시공 정책과 가격 규칙, 부록 A D01). 글 목록이다(지역 이름 정본 표가 아직 없다).
+_REGIONS = Prop("payload.regions", "권역", "list", max_items=30, max_len=30)
 _MM = 100_000
 _WON = 100_000_000
 
@@ -82,7 +84,12 @@ MOLDINGS: tuple[str, ...] = ("molding", "no_molding")
 HANDLES: tuple[str, ...] = ("push", "bar", "other")
 SPEC_BASES: tuple[str, ...] = ("inner", "wall_incl", "outer")
 PRICE_STAGES: tuple[str, ...] = ("base", "extra", "discount")
-POLICY_KINDS: tuple[str, ...] = ("general", "promotion", "install", "shipping")
+#: 결제 · 취소 환불 · AS 보증은 능력 질문(설계서 2026-11-12 온톨로지 부록 A — P04 · P05 · P08 · A03)이 더했다.
+POLICY_KINDS: tuple[str, ...] = ("general", "promotion", "install", "shipping", "payment", "refund", "as_warranty")
+#: 옵션 갈래 — 구성 · 부품 / 서비스(철거 · 폐기 · 전기 이설 · 운반 · 이전 설치 — schema.org ``Service``, 부록 A S10 · S11 · O12 · D02).
+OPTION_KINDS: tuple[str, ...] = ("part", "service")
+#: 되는 요일(공정 단계 — 부록 A S06).
+WEEKDAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 PRICE_KINDS: tuple[str, ...] = ("included", "extra", "quote")
 RULE_KINDS: tuple[str, ...] = ("requires", "excludes", "limit")
 #: 공정 단계 → ERP 주문 단계 정본 값(:data:`foms.services.orders.erp_policy_constants.STAGE_LABELS` 의 키).
@@ -100,7 +107,10 @@ CHOICE_LABELS: dict[str, dict[str, str]] = {
     "payload.handle_default": {"push": "푸쉬", "bar": "바 손잡이", "other": "그 밖"},
     "payload.price_kind": {"included": "기본 포함", "extra": "추가 금액", "quote": "따로 견적"},
     "payload.rule_kind": {"requires": "필요", "excludes": "함께 못 함", "limit": "한도"},
-    "payload.policy_kind": {"general": "일반", "promotion": "판촉", "install": "시공", "shipping": "배송"},
+    "payload.policy_kind": {"general": "일반", "promotion": "판촉", "install": "시공", "shipping": "배송",
+                            "payment": "결제", "refund": "취소 · 환불", "as_warranty": "AS 보증"},
+    "payload.option_kind": {"part": "구성 · 부품", "service": "서비스"},
+    "payload.weekdays": {"mon": "월", "tue": "화", "wed": "수", "thu": "목", "fri": "금", "sat": "토", "sun": "일"},
     "payload.stage": {"base": "기본 금액", "extra": "추가 금액", "discount": "할인"},
     "payload.basis": {"inner": "내경(안쪽 치수)", "wall_incl": "벽 포함 치수", "outer": "외경(바깥 치수)",
                       "calc": "견적 계산기 값", "brain": "회사 지식에 적은 값", "derived": "두 값의 차이",
@@ -127,7 +137,8 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
     "option": (_desc(), Prop("payload.price_kind", "값 방식", "enum", choices=PRICE_KINDS, key=True),
                _LEAD, Prop("payload.unit", "단위", "enum", choices=UNITS, key=True),
                Prop("payload.category", "옵션 묶음", "text", max_len=60, key=True),
-               Prop("payload.door_kinds", "맞는 문 방식", "list", choices=DOOR_KINDS, max_items=4), *_LABELS),
+               Prop("payload.door_kinds", "맞는 문 방식", "list", choices=DOOR_KINDS, max_items=4),
+               Prop("payload.option_kind", "옵션 갈래", "enum", choices=OPTION_KINDS, key=True), *_LABELS),
     "spec": (_desc(), Prop("payload.value", "값", "number", low=0, high=_MM, key=True),
              Prop("payload.unit", "단위", "enum", choices=UNITS, key=True),
              Prop("payload.low", "아래 끝", "number", low=0, high=_MM),
@@ -136,7 +147,7 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
     "build_rule": (_desc("조건"), Prop("payload.rule_kind", "조건 꼴", "enum", choices=RULE_KINDS, key=True), _CHECKED),
     "policy": (_desc("정책 글"), _CHECKED, Prop("valid_from", "유효 시작", "date", key=True),
                Prop("valid_to", "유효 끝", "date", key=True),
-               Prop("payload.policy_kind", "정책 종류", "enum", choices=POLICY_KINDS, key=True), *_LABELS),
+               Prop("payload.policy_kind", "정책 종류", "enum", choices=POLICY_KINDS, key=True), _REGIONS, *_LABELS),
     "price_rule": (_desc("규칙 글"), Prop("checked_at", "마지막 확인", "date", when_active=True, key=True),
                    Prop("evidence_ref", "근거 위치", "text", max_len=200, key=True),
                    Prop("payload.basis", "근거 종류", "enum", choices=PRICE_BASES, key=True),
@@ -145,7 +156,7 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
                    Prop("payload.band_low", "값 아래 끝", "number", low=0, high=_WON, unit="원"),
                    Prop("payload.band_high", "값 위 끝", "number", low=0, high=_WON, unit="원"),
                    Prop("payload.from_price", "'부터' 값", "number", low=0, high=_WON, unit="원"),
-                   Prop("payload.formula", "셈 꼴", "text", max_len=200), *_LABELS),
+                   Prop("payload.formula", "셈 꼴", "text", max_len=200), _REGIONS, *_LABELS),
     "owner_decision": (_desc("결정 글"), Prop("evidence_ref", "결정 근거(원장 번호)", "text", max_len=200, key=True),
                        Prop("valid_from", "유효 시작", "date", key=True),
                        Prop("payload.decision_no", "결정 번호", "text", when_active=True, import_ok=True,
@@ -155,7 +166,13 @@ TYPE_SCHEMAS: dict[str, tuple[Prop, ...]] = {
     "fact": (_desc("사실 글"), _CHECKED, *_LABELS),
     "process_step": (_desc(required=False),
                      Prop("payload.erp_stage", "ERP 단계", "enum", required=True, choices=ERP_STAGES, key=True),
-                     Prop("payload.step_order", "단계 차례", "int", low=1, high=99, key=True), *_LABELS),
+                     Prop("payload.step_order", "단계 차례", "int", low=1, high=99, key=True),
+                     # 일정 질문(부록 A S05 · S06)에 답하는 칸 — 다음 단계까지 걸리는 날 · 그날 걸리는 시간 · 되는 요일 · 시간대 · 쉬는 날
+                     Prop("payload.days_to_next", "다음 단계까지", "int", low=0, high=180, unit="일", key=True),
+                     Prop("payload.duration_hours", "그날 걸리는 시간", "number", low=0, high=24, unit="시간", key=True),
+                     Prop("payload.weekdays", "되는 요일", "list", choices=WEEKDAYS, max_items=7, key=True),
+                     Prop("payload.time_windows", "되는 시간대", "list", max_items=6, max_len=20),
+                     Prop("payload.closed_days", "쉬는 날", "list", max_items=10, max_len=30), *_LABELS),
     "case": (_desc("사례 글", required=False), _OCCURRED),
     "image_read": (_desc("그림 읽기 글", required=False), _OCCURRED),
     "photo_observation": (_desc("사진 관찰 글", required=False), _OCCURRED),
