@@ -12,6 +12,8 @@
 - **안 보이는 손님 글(R13-6)**: 선점한 글이 채널톡 읽기에 아직 없으면 건너뜀이 아니라 다시 집을 실패다.
 - **손님 사진(설계서 17.11.1)**: 차례마다 한 번 읽어(:mod:`.photo_step`) 결과를 들고 있다 — 사진만 온 글 판정 · 두뇌 사진 칸 ·
   견적 도면 길 · 직원 참고 줄 · 차례 줄 쓰임이 같은 결과를 쓴다.
+- **주문 확인(설계서 2026-11-12 온톨로지 5.6)**: 주문 문의 때만 본인 확인된 ERP 주문 칸을 싣는다(:mod:`.order_step` — 끄면 그대로).
+  그 차례 결과를 들고 있다가 검사 확정 날 · 허용 글 · 직원 참고 줄에 쓴다.
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from foms.services.cs_agent.knowledge import ApprovedKnowledge
 from foms.services.cs_agent.knowledge_doc import HUMAN_ONLY_MARK
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
+from foms.services.cs_agent.order_step import OrderTurn, lookup_after, lookup_first
 from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos, with_usage
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
 from foms.services.cs_agent.settings import read_settings
@@ -82,6 +85,7 @@ class DraftPass:
         self.image_client, self.image_transport, self.image_sleep = image_client, image_transport, image_sleep
         self.photo_reads: dict[int, Optional[PhotoRead]] = {}  # 차례 줄 id → 사진 읽기(차례마다 한 번)
         self.image_outcomes: dict[int, Any] = {}  # 차례 줄 id → 묶음 읽기 결과(:func:`.photo_step.turn_read`)
+        self.order_turns: dict[int, OrderTurn] = {}  # 차례 줄 id → 주문 확인(:mod:`.order_step`)
 
     def photos(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> Optional[PhotoRead]:
         """손님 사진 읽기(:func:`.photo_step.read_photos` — 끔 · 파일 없음이면 ``None``). 같은 차례면 앞 결과."""
@@ -106,8 +110,24 @@ class DraftPass:
         return with_usage(base, self.photo_reads.get(row.id))
 
     def photo_note(self, row: CsAgentTurn, quote_note: str) -> str:
-        """직원 참고 줄 — 사진 줄(:func:`.photo_step.note_line`) 뒤에 견적 계산 줄(없으면 빈 글 — 예전 그대로)."""
-        return "\n".join(part for part in (note_line(self.photo_reads.get(row.id)), quote_note) if part)
+        """직원 참고 줄 — 사진 줄(:func:`.photo_step.note_line`) · 주문 확인 줄 뒤에 견적 계산 줄(없으면 빈 글 — 예전 그대로)."""
+        order = self.order_turns.get(row.id)
+        parts = (note_line(self.photo_reads.get(row.id)), order.note() if order is not None else "", quote_note)
+        return "\n".join(part for part in parts if part)
+
+    def order_first(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Any:
+        """두뇌 전 주문 확인(:func:`.order_step.lookup_first` — 끔 · 물은 적 없음이면 그대로)."""
+        return lookup_first(self, row, request, lines)
+
+    def order_again(self, row: CsAgentTurn, request: Any, result: Any, lines: Sequence[ChatLine],
+                    medium: Optional[str]) -> Any:
+        """두뇌가 주문 문의로 넘긴 뒤(:func:`.order_step.lookup_after` — 끔 · 주문 문의 아님이면 그대로)."""
+        return lookup_after(self, row, request, result, lines, medium)
+
+    def order_checks(self, row: CsAgentTurn) -> tuple[tuple[Any, ...], tuple[str, ...]]:
+        """이 차례 주문 확인의 (검사 확정 날, 허용 글) — 찾지 않았으면 빈 것."""
+        order = self.order_turns.get(row.id)
+        return (order.dates(), order.allowed()) if order is not None else ((), ())
 
     def quote(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Optional[QuoteStep]:
         """견적 계산 넣기(:func:`.quote_step.prepare` — 끔 · 견적 말 없음이면 ``None``, 예전 그대로). 두뇌 오류는 올린다.
