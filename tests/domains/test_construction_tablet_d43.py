@@ -266,3 +266,15 @@ def test_query_counts_with_as_and_undated(client, monkeypatch, mode, cap) -> Non
     dc.reset_dashboard_cache_runtime_for_tests()
     big = _count(lambda: client.get(URL + query, headers=SHELL))
     assert big - small <= 2 and big <= cap, (mode, small, big)
+
+
+def test_old_deeplink_as_house_picks_as_visit_day_not_construction_day() -> None:
+    """AS 상태 집의 옛 딥링크는 AS 방문일로 연다 — 시공일로 열면 그날 첫 화면 범위 밖이라 왼쪽 수가 어긋났다(스테이징 11-12).
+
+    시공일(오늘 +1)이 AS 방문일(오늘 +3)보다 가까워도 AS 방문일을 고른다. AS 아닌 집은 시공일.
+    """
+    oid = _order("가짜딥링크AS", kinds={"construction": _d(1), "as_visit": _d(3)}, status="AS_RECEIVED")
+    assert tv.resolve_focus_day(db_session, oid, is_as=True) == _d(3)
+    assert tv.resolve_focus_day(db_session, oid, is_as=False) == _d(1)
+    only_c = _order("가짜딥링크AS시공일만", kinds={"construction": _d(2)}, status="AS_RECEIVED")
+    assert tv.resolve_focus_day(db_session, only_c, is_as=True) == _d(2)  # AS 방문일이 없으면 다른 종류로
