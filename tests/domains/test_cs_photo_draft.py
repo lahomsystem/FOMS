@@ -20,13 +20,16 @@ from foms.services.cs_agent import brain, brain_photos, brain_prompt, image_prep
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.brain_cases import QUOTE
 from foms.services.cs_agent.brain_photos import PHOTO_RULE, PHOTOS_HEAD, PhotoEntry
-from foms.services.cs_agent.drafting_read import MEMO_IMAGE_HEAD
+from foms.services.cs_agent.drafting_read import HANDOFF_MEMO_HEAD, MEMO_IMAGE_HEAD
+from foms.services.cs_agent.handoff_memo import HANDOFF_TEXTS, PHOTO_READ_TEXT
+from foms.services.cs_agent.handoff_memo_settings import HANDOFF_MEMO_FIELD
 from foms.services.cs_agent.image_preread import PrereadMemory, run_preread_tick
 from foms.services.cs_agent.photo_step import PhotoRead, note_line, stored_photos, unread_code
 from models import CsAgentImageRead
 from tests.domains.test_cs_brain import request as brain_request
-from tests.domains.test_cs_drafting import channel, customer, set_switch, turn  # noqa: F401 — channel 은 fixture
-from tests.domains.test_cs_image_flow import chan, drafted, note_lines  # noqa: F401 — chan 은 fixture
+from tests.domains.test_cs_drafting import FakeBrain, channel, customer, result, run, set_switch, turn  # noqa: F401
+from tests.domains.test_cs_handoff_memo import Poster as HandoffPoster
+from tests.domains.test_cs_image_flow import chan, drafted, note_lines, passing  # noqa: F401 — chan 은 fixture
 from tests.domains.test_cs_photo_read import PHONE, photo, with_photos
 from tests.support.cs_agent_fakes import FakeAnthropic, FakeClock, at, keys, make_reader  # noqa: F401
 from tests.support.cs_image_support import FakeDownload, encoded, file_item, image_switch, plan_image
@@ -100,6 +103,19 @@ def test_draft_mode_puts_the_photo_block_before_the_conversation_and_adds_rule_1
     assert text.index("12. ") < text.index(PHOTO_RULE) < text.index("상담 글 읽는 법")
     params = brain._params(brain_request(), "[손님] 합성", NOW, st.PanelSettings({**st.DEFAULTS, "image_read_mode": "draft"}))
     assert params["system"][0]["text"] == text  # 사진이 없는 차례도 같은 앞부분(캐시가 갈리지 않게)
+
+
+@pytest.mark.parametrize("mode, reason", [("draft", PHOTO_READ_TEXT), ("note", HANDOFF_TEXTS["photo"])])
+def test_a_photo_handoff_memo_says_the_photo_was_read_only_when_the_brain_saw_it(chan, mode, reason):
+    """사장님 11-12 '사진 보기를 켰는데 사진을 봐야 답을 할 수 있다니?' — 초안에 씀이면 두뇌가 사진을 봤다. 지시문 13번은
+    그때 photo 대신 진짜 까닭을 고르게 하고, 그래도 photo 면 메모가 '사진은 읽었지만'이라 적는다."""
+    image_switch(mode, quote_calc_enabled=False, **{HANDOFF_MEMO_FIELD: True})
+    photo_chat(chan)
+    brain_fn, poster = FakeBrain(result(draft="", handoff=True, handoff_reason="photo", staff_note="")), HandoffPoster()
+    run(chan, "memo", brain_fn=brain_fn, poster=poster, pass_type=passing(FakeAnthropic(with_photos(photo(0))), chan))
+    assert [call.text for call in poster.memos] == [f"{HANDOFF_MEMO_HEAD}\n까닭: {reason}"]
+    assert (turn().state, turn().handoff_reason) == ("skipped", "photo")  # 두뇌가 고른 코드는 그대로 남긴다
+    assert ("handoff_reason 에 photo 를 쓰지 않는다" in PHOTO_RULE) and len(brain_fn.requests[0].photos) == (mode == "draft")
 
 
 # ── 사진만 온 글 ─────────────────────────────────────────────────────────

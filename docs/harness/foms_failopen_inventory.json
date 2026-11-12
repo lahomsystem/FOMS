@@ -57,8 +57,8 @@
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
     "foms/services/cs_agent/drafting.py:333",
-    "foms/services/cs_agent/handoff_memo.py:188",
-    "foms/services/cs_agent/handoff_send.py:235",
+    "foms/services/cs_agent/handoff_memo.py:205",
+    "foms/services/cs_agent/handoff_send.py:248",
     "foms/services/cs_agent/rewrite.py:117",
     "foms/services/cs_agent/send_flow.py:303",
     "foms/services/integrations/naver_commerce/client.py:1257",
@@ -3530,7 +3530,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_memo.py",
-      "lineno": 188,
+      "lineno": 205,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3539,7 +3539,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_send.py",
-      "lineno": 235,
+      "lineno": 248,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

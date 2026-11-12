@@ -48,7 +48,8 @@ def ready(channel):  # noqa: F811
     return channel
 
 
-def handed(channel, chat="uc-1", *, reason="order_lookup", code="handoff", note=NOTE, check_codes=()):  # noqa: F811
+def handed(channel, chat="uc-1", *, reason="order_lookup", code="handoff", note=NOTE, check_codes=(),  # noqa: F811
+           photos_read=False):
     """넘김 메모가 붙은 건너뜀 차례 — 상태 표 · 가짜 채널톡에 손님 글, 가짜 채널톡에 우리 넘김 메모(비공개)."""
     customer(channel, chat)
     row = turns.claim_turn(db_session, "LAHOM", chat, f"m-{chat}", now=at(2, 8, 51))
@@ -58,7 +59,8 @@ def handed(channel, chat="uc-1", *, reason="order_lookup", code="handoff", note=
     db_session.commit()
     turns.record_note_memo(row, memo_message_id=f"hmemo-{chat}", now=at(2, 8, 52))
     db_session.commit()
-    body = handoff_memo.memo_body(code, handoff_reason=reason, check_codes=check_codes, staff_note=note)
+    body = handoff_memo.memo_body(code, handoff_reason=reason, check_codes=check_codes, staff_note=note,
+                                  photos_read=photos_read)
     channel.messages[chat].append(api_message(f"hmemo-{chat}", at(2, 8, 52), "bot", body, options=["private"]))
     return row.id
 
@@ -94,6 +96,14 @@ def test_the_learn_window_shows_reason_hint_and_sends_once_as_a_direct_reply(app
     assert [(a.detail["code"], a.detail["kind"], a.detail["via"], a.detail["channel_manager"])
             for a in audits("CS_AGENT_SEND")] == [("sent", "handoff", "wam", "mgr-7"),
                                                   ("learn_sent", "handoff", "wam", "mgr-7")]
+
+
+@pytest.mark.parametrize("read", [True, False])
+def test_the_window_reason_matches_the_memo_for_a_photo_handoff(app, ready, read):
+    """사진을 읽었는지는 메모를 올린 차례만 안다 — 창은 메모의 까닭 줄을 따른다(11-12)."""
+    turn_id = handed(ready, reason="photo", photos_read=read)
+    got = call(app, ready, "cs.handoff.get", {"turn": turn_id, "chat": "uc-1"})
+    assert got["reason"] == (handoff_memo.PHOTO_READ_TEXT if read else handoff_memo.HANDOFF_TEXTS["photo"])
 
 
 def test_the_draft_path_and_the_learn_path_never_open_each_others_turns(app, ready):

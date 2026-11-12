@@ -34,6 +34,7 @@ from foms.services.cs_agent.drafting_read import (
     HANDOFF_MEMO_HEAD, MEMO_HEAD, MEMO_NOTE_HEAD, ChatLine, freshness, read_lines,
 )
 from foms.services.cs_agent.handoff_memo_settings import handoff_buttons_on, handoff_memo_on
+from foms.services.cs_agent.image_settings import MODE_DRAFT
 from foms.services.cs_agent.masking import mask
 from foms.services.cs_agent.memo import MEMO_BRAND, REASON_BAD_BUTTONS, memo_allowed
 from foms.services.cs_agent.send import handoff_buttons
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CHECK_EMPTY", "CHECK_UNKNOWN", "CHECK_WORDS", "CODE_CHECK", "CODE_HANDOFF", "HANDOFF_TEXTS", "HANDOFF_UNKNOWN",
-    "MEMO_CODES", "REASON_LABEL", "memo_body", "post_handoff_memo", "reason_text",
+    "MEMO_CODES", "PHOTO_READ_TEXT", "REASON_LABEL", "memo_body", "post_handoff_memo", "reason_text",
 ]
 
 #: 메모를 남기는 건너뜀 코드 — :data:`.drafting.SKIP_HANDOFF` · :data:`.drafting.SKIP_CHECK` 와 같다(drafting 이 이 모듈을 부를
@@ -67,6 +68,10 @@ HANDOFF_TEXTS: dict[str, str] = {
     "other": "AI 가 답하기 어려운 상담이에요",
 }
 HANDOFF_UNKNOWN = "AI 가 답하기 어려운 상담이라 넘겼어요"
+#: 'photo' 넘김인데 그 차례가 사진을 읽어 두뇌에 줬을 때('초안에 씀' · 읽은 사진 하나 이상) — '사진을 봐야'는 사진을 못 본 것처럼
+#: 읽힌다(사장님 11-12 '사진 보기를 켰는데 사진을 봐야 답을 할 수 있다니?'). 지시문 13번도 이때 photo 대신 진짜 까닭을 고르게 한다.
+PHOTO_READ_TEXT = "사진은 읽었지만 담당자가 판단할 상담이에요"
+_PHOTO = "photo"
 #: 보내기 전 검사의 막는 코드(:data:`.checks.REASONS` — 말투 경고는 막지 않아 뺀다) → 초안에 있던 것(이름 꼴). 여럿이면
 #: 겹침 없이 ' · ' 로 잇고 끝에 '이 · 가 있어 막았어요'를 한 번만 붙인다.
 CHECK_WORDS: dict[str, str] = {
@@ -102,8 +107,10 @@ def _subject(word: str) -> str:
     return "이" if "가" <= last <= "힣" and (ord(last) - ord("가")) % 28 else "가"
 
 
-def reason_text(code: str, *, handoff_reason: Any = None, check_codes: Sequence[Any] = ()) -> str:
-    """``까닭:`` 뒤 한 문장 — 검사 걸림은 막은 것들, 두뇌 넘김은 까닭 코드의 쉬운 말(모르는 코드는 두루 쓰는 말)."""
+def reason_text(code: str, *, handoff_reason: Any = None, check_codes: Sequence[Any] = (),
+                photos_read: bool = False) -> str:
+    """``까닭:`` 뒤 한 문장 — 검사 걸림은 막은 것들, 두뇌 넘김은 까닭 코드의 쉬운 말(모르는 코드는 두루 쓰는 말). 사진을 읽어 준
+    차례의 'photo' 는 :data:`PHOTO_READ_TEXT`."""
     if code == CODE_CHECK:
         names = [getattr(item, "code", item) for item in check_codes]
         if "empty" in names:
@@ -112,15 +119,24 @@ def reason_text(code: str, *, handoff_reason: Any = None, check_codes: Sequence[
         if not words:
             return CHECK_UNKNOWN
         return f"초안에 {' · '.join(words)}{_subject(words[-1])} 있어 막았어요"
+    if handoff_reason == _PHOTO and photos_read:
+        return PHOTO_READ_TEXT
     return HANDOFF_TEXTS.get(handoff_reason, HANDOFF_UNKNOWN) if isinstance(handoff_reason, str) else HANDOFF_UNKNOWN
 
 
-def memo_body(code: str, *, handoff_reason: Any = None, check_codes: Sequence[Any] = (), staff_note: Any = "") -> str:
+def memo_body(code: str, *, handoff_reason: Any = None, check_codes: Sequence[Any] = (), staff_note: Any = "",
+              photos_read: bool = False) -> str:
     """넘김 메모 글 — 첫 줄 표지 · 까닭 한 줄 · (직원 참고가 있으면) 초안 메모와 같은 '직원 참고' 칸(한 번 가려서)."""
     note = mask(staff_note).strip() if isinstance(staff_note, str) and staff_note.strip() else ""
-    reason = reason_text(code, handoff_reason=handoff_reason, check_codes=check_codes)
+    reason = reason_text(code, handoff_reason=handoff_reason, check_codes=check_codes, photos_read=photos_read)
     lines = [HANDOFF_MEMO_HEAD, REASON_LABEL + reason]
     return "\n".join([*lines, MEMO_NOTE_HEAD, note] if note else lines)
+
+
+def _photos_read(ctx: Any, row: Any) -> bool:
+    """이 차례가 손님 사진을 읽어 두뇌에 줬나 — '초안에 씀'이고 읽은 사진이 하나라도(:meth:`.drafting_pass.DraftPass.photos`)."""
+    photo = getattr(ctx, "photo_reads", {}).get(row.id)
+    return photo is not None and photo.mode == MODE_DRAFT and photo.read > 0
 
 
 def _head(text: str) -> list[str]:
@@ -171,7 +187,8 @@ def _send(ctx: Any, row: Any, code: str, codes: Sequence[Any], note: Any) -> tup
                 handoff_memo_on(read_settings(ctx.session, log=False)) and memo_on(ctx) and memo_allowed(chat_id)):
             ctx.session.commit()
             return chat_id, None
-        text = memo_body(code, handoff_reason=row.handoff_reason, check_codes=codes, staff_note=note)
+        text = memo_body(code, handoff_reason=row.handoff_reason, check_codes=codes, staff_note=note,
+                         photos_read=_photos_read(ctx, row))
         ctx.session.commit()  # 읽기 트랜잭션을 닫는다 — 채널톡을 부르는 동안 열어 두지 않는다
         lines = read_lines(ctx.reader, MEMO_BRAND, chat_id)
         if freshness(lines, claimed_id) or _repeated(lines, text):
