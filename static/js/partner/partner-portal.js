@@ -260,7 +260,7 @@
   function bindBoard() {
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-autosubmit]'), function (form) {
       form.addEventListener('change', function (ev) {
-        if (ev.target.matches('select, input[type="checkbox"]')) form.submit();
+        if (ev.target.matches('select, input[type="checkbox"], input[type="date"]')) form.submit();
       });
     });
     document.addEventListener('click', function (ev) {

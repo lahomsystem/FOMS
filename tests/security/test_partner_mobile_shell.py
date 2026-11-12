@@ -29,16 +29,17 @@ def _active(html: str) -> list[str]:
     return re.findall(r'erp-mobile-bottom-nav__item is-active" href="[^"]*" data-pp-nav="(\w+)"', html)
 
 
-def test_mobile_chrome_has_our_shell_parts_and_five_tabs(app, world):
+def test_mobile_chrome_has_our_shell_parts_and_six_tabs(app, world):
     html = _html(app, world["partner_a"], "/partner")
     assert 'class="erp-mobile-shell pp-shell" data-erp-mobile-v2="true"' in html
     assert "erp-mobile-v2-layout" in html and "erp-mobile-shell-chrome" in html
     assert "erp-mobile-shell-header foms-shell-header" in html
-    # 2026-10-30: 홈(달력 대시보드) · 주문(목록) 분리. 더보기는 위 줄 왼쪽 단추로.
-    assert _TABS.findall(html) == ["home", "orders", "turn", "new", "done"]
+    # 2026-10-30: 홈(달력 대시보드) · 주문(목록) 분리. 더보기는 위 줄 왼쪽 단추로. 2026-11-12: 출고 탭(우리 출고표 — 자기 회사 것).
+    assert _TABS.findall(html) == ["home", "orders", "turn", "new", "ship", "done"]
     assert 'erp-mobile-shell-header__menu foms-icon-btn" data-pp-sheet-open="ppMoreSheet"' in html and 'id="ppMoreSheet"' in html
     assert _active(html) == ["home"]
     assert _active(_html(app, world["partner_a"], "/partner?view=orders")) == ["orders"]
+    assert _active(_html(app, world["partner_a"], "/partner/shipments")) == ["ship"]
     # PC 머리줄 · 메뉴 줄은 휴대폰에서 우리 규칙으로 숨는다.
     assert html.count("foms-shell-desktop-only") == 2
     # 알림 칸은 PC 와 휴대폰에 하나씩, 판은 공용 조각.

@@ -37,6 +37,7 @@ from foms.services.partners.manager import org_member_choices
 from foms.services.partners.price_list import active_price_list
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.revision import pending_revision_for_partner
+from foms.services.partners.shipment_board import partner_shipment_board
 from foms.services.partners.statement_partner import order_statements
 from foms.services.partners.view import build_partner_order_view, partner_steps
 from models import Order, OrderAttachment, PartnerOrg
@@ -156,6 +157,17 @@ def home():
         sorts=TURN_SORTS if filters["turn"] else SORTS,
         **board,
     )
+
+
+@partner_portal_bp.route("/shipments")
+@partner_required
+def shipments():
+    """출고 탭 — 우리 출고 탭의 하루치 출고표를 자기 회사 주문만(읽기만). 사용자 2026-11-12.
+
+    회사는 로그인한 계정의 회사로만 정한다(주소로 바꿀 수 없다). 줄은 서비스가 만든 dict 만 받는다.
+    """
+    board = partner_shipment_board(get_db(), g.current_user.partner_org_id, request.args.get("date"), get_today_kst())
+    return render_template("partner/shipments.html", org=_org(), board=board)
 
 
 @partner_portal_bp.route("/orders/new")
