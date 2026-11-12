@@ -33,6 +33,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from typing import Any, Iterable, Optional, Sequence
@@ -45,6 +46,7 @@ from foms.services.cs_agent.brain_cases import (
     CONTEXT_CASE_LINES, CONTEXT_LIMIT, CONTEXT_LINE_LIMIT, DETAIL_LIMIT, EXTRA_LIMIT, MAX_CASES, MAX_PHOTO_NOTES,
     PHOTO_NOTE_LIMIT, REASON_LABELS, CaseItem, extra_chars,
 )
+from foms.services.cs_agent.case_meaning import meaning_case_ids, merge_ranks
 from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, OUTCOME_DIRECT, OUTCOME_EDITED, masked_join
 from foms.services.cs_agent.drafting_read import FILE_NOTE, ChatLine
 from foms.services.cs_agent.image_summaries import summaries_by_turn
@@ -301,14 +303,30 @@ def _with_photos(session: Any, items: Sequence[Any], rows: Sequence[Any]) -> tup
     return tuple(out)
 
 
+def _with_meaning(session: Any, brand: str, query: str, rows: list[Any], limit: int,
+                  now: datetime.datetime) -> list[Any]:
+    """③ 뜻으로 찾은 사례를 글자 순위와 섞는다(:mod:`.case_meaning` — 못 쓰면 글자 순위 그대로). 새로 든 사례는 한 번에 읽는다."""
+    ids = meaning_case_ids(session, query, usable=_usable(brand), now=now, limit=limit * 2)
+    if not ids:
+        return rows
+    by_id = {row.id: row for row in rows}
+    missing = [turn_id for turn_id in ids if turn_id not in by_id]
+    if missing:
+        by_id.update({row.id: row for row in session.execute(
+            select(*_COLUMNS).where(CsAgentTurn.id.in_(missing), *_usable(brand)))})
+    return [by_id[turn_id] for turn_id in merge_ranks([row.id for row in rows], ids, limit) if turn_id in by_id]
+
+
 def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit: int = MAX_CASES,
-                  with_reasons: bool = False, with_photos: bool = False) -> tuple[Any, ...]:
+                  with_reasons: bool = False, with_photos: bool = False, meaning: bool = False,
+                  now: Optional[datetime.datetime] = None) -> tuple[Any, ...]:
     """다음 초안 재료 — 같은 브랜드 비슷한 지난 사례 (가린 질문, 사람이 보낸 가린 답), 비슷한 것부터 ``limit`` 개까지.
 
     지금 손님 글(:func:`current_question`)이 없으면 빈 튜플. 다듬기(모듈 설명)를 지나 남은 사례만 돌려준다(두뇌가 실을 때
     가림 검사를 한 번 더 본다). DB 를 읽기만 한다 — 커밋은 부르는 쪽(두뇌가 곧 커밋한다). DB 오류면 되돌리고 빈 튜플.
     ``with_reasons`` 면 '고침' 사례를 :class:`~.brain_cases.CaseItem` 으로 넓힌다(모듈 설명). 앞 대화가 적힌 '고침' · '직접
     답' 사례는 스위치와 상관없이 앞 대화를 붙인다(설계서 17.2.2). ``with_photos`` 면 그 두 꼴 사례에 손님 사진 설명 줄(17.11.1).
+    ``meaning`` 이고 ``now`` 가 있으면 뜻이 가까운 사례도 섞는다(:func:`_with_meaning` — 온톨로지 10절 15, 처음 끔).
     """
     query = current_question(lines)
     if not query:
@@ -316,6 +334,8 @@ def similar_cases(session: Any, brand: str, lines: Sequence[ChatLine], *, limit:
     pick = _pg_cases if session.get_bind().dialect.name == "postgresql" else _py_cases
     try:
         rows = pick(session, brand, query, int(limit))
+        if meaning and now is not None:
+            rows = _with_meaning(session, brand, query, rows, int(limit), now)
         chosen = [(pair, row) for row in rows
                   if (pair := _trimmed(row.masked_question, row.staff_reply_masked)) is not None]
         items = _enriched(session, chosen) if with_reasons else tuple(pair for pair, _row in chosen)

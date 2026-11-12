@@ -107,6 +107,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "onto_numbers_enabled": False, "onto_labels_enabled": False, "onto_prompt_enabled": False,
         "onto_order_enabled": False, "onto_graph_enabled": False,  # 물건 찾아 따라가기(온톨로지 5절 — 처음 끔)
         "onto_meaning_enabled": False,  # 뜻으로도 물건 찾기(D197 ② — 처음 끔)
+        "case_meaning_enabled": False,  # 뜻으로도 비슷한 상담 찾기(D197 ③ — 처음 끔)
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
