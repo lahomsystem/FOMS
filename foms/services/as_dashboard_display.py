@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.orders.as_drawing_views import can_request as as_drawing_can_request
 from foms.services.orders.as_drawing_views import status_view as as_drawing_status_view
 from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.common.ept_b7_profile import phase, record_phase
@@ -906,6 +907,8 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active, viewer=
         # 완료 주문 AS 도면(설계서 2026-11-11-as-drawing-after-completion §4.3-5): 'AS도면' 칸 옆 상태 글 —
         # 이미 읽은 structured_data 로만(조회 0). 체크 칸 뜻(약식 도면 표시)은 그대로다.
         r.as_drawing_state = as_drawing_status_view(r.structured_data)
+        # [도면팀 부탁] 단추(§4.4): 시공이 끝난 주문 · 열린 AS 접수 · 열린 AS 도면 없음.
+        r.as_drawing_can_request = as_drawing_can_request(r)
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.construction_workers = _normalize_construction_worker_names(
             shipment.get('construction_workers')

@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 294,
+    "total": 295,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 255,
+    "AUDITED": 256,
     "EXEMPT": 37,
     "UNAUDITED": 2
   },
@@ -508,7 +508,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_cancel",
-      "lineno": 402,
+      "lineno": 453,
       "methods": [
         "POST"
       ],
@@ -517,7 +517,16 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_confirm",
-      "lineno": 350,
+      "lineno": 401,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/as_drawing.py",
+      "endpoint": "api_as_drawing_request",
+      "lineno": 314,
       "methods": [
         "POST"
       ],
@@ -526,7 +535,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_request_revision",
-      "lineno": 375,
+      "lineno": 426,
       "methods": [
         "POST"
       ],
@@ -535,7 +544,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_start",
-      "lineno": 245,
+      "lineno": 250,
       "methods": [
         "POST"
       ],
@@ -544,7 +553,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_transfer",
-      "lineno": 333,
+      "lineno": 384,
       "methods": [
         "POST"
       ],
