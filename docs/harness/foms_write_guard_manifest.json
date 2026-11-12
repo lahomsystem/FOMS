@@ -515,6 +515,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/as/confirm"
     },
+        "erp_orders_as_drawing.api_as_drawing_request": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing/as/request"
+    },
     "erp_orders_as_drawing.api_as_drawing_request_revision": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/as/request-revision"

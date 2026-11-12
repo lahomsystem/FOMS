@@ -24,8 +24,8 @@ from foms.services.orders.as_drawing import (
     rounds,
 )
 
-__all__ = ["ROOM_PUSH_HISTORY_KEY", "room_push_round", "room_push_text", "status_text", "status_view",
-           "wizard_config_view"]
+__all__ = ["ROOM_PUSH_HISTORY_KEY", "can_request", "room_push_round", "room_push_text", "status_text",
+           "status_view", "wizard_config_view"]
 
 
 def wizard_config_view(order: Any, sd: Mapping) -> Optional[dict]:
@@ -104,6 +104,18 @@ def status_view(sd: Any) -> Optional[dict]:
     rnd = _shown_round(sd) or {}
     words = _SHORT_TEXT.get(str(rnd.get("status") or ""), "").split()
     return {"title": full, "words": [f"{round_no(sd, rnd)}차", *words]}
+
+
+def can_request(order: Any) -> bool:
+    """AS 화면 'AS도면' 칸에 [도면팀 부탁]을 낼 줄인가(설계서 §4.4) — 이미 읽은 값으로만(조회 0).
+
+    시공이 끝난 주문 · 열린 AS 접수 · 열린 AS 도면 없음 · 협력사 주문 아님. 서버 주소
+    ``/drawing/as/request`` 가 같은 조건으로 막는다.
+    """
+    if getattr(order, "partner_org_id", None):
+        return False
+    sd = order.structured_data if isinstance(getattr(order, "structured_data", None), dict) else {}
+    return bool(is_as_drawing_stage(order) and open_as_cycle_id(sd) and current_round(sd) is None)
 
 
 #: AS 도면 도면방 PUSH 이력 키 — 원래 도면 도면방 이력(``channeltalk_push_drawing_room``)과 섞지 않는다.

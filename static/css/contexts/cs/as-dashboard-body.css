@@ -2256,3 +2256,53 @@
     margin-block: -4px;
   }
 }
+
+/* AS 화면 'AS도면' 칸 [도면팀 부탁](완료 주문 AS 도면 설계서 §4.4).
+   칸 폭이 54px 이라 낱말마다 줄을 바꾼다. 작은 창은 방문 가능시간 창(.erp-as-avail-pop)을 그대로 쓴다. */
+.erp-as-drawing-req-btn {
+  /* 칸 안쪽 폭(54px − 여백)보다 단추가 넓어 margin:auto 로는 오른쪽으로 밀린다 — 칸 가운데에 맞춘다. */
+  display: block;
+  width: max-content;
+  margin: 4px 0 0 50%;
+  transform: translateX(-50%);
+  padding: 2px 4px;
+  border: 1px solid #6366f1;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f46e5;
+  font-size: calc(12px * var(--foms-fs, 1));
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.erp-as-drawing-req-btn:hover {
+  background: #eef2ff;
+}
+
+.erp-as-drawing-req-btn .text-nowrap {
+  display: block;
+}
+
+.erp-as-drawing-req-pop {
+  width: 280px;
+}
+
+.erp-as-drawing-req-pop__title {
+  margin-bottom: 4px;
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 700;
+}
+
+.erp-as-drawing-req-pop__hint {
+  margin-bottom: 8px;
+  color: #6c757d;
+  font-size: calc(12px * var(--foms-fs, 1));
+}
+
+.erp-as-drawing-req-pop__label {
+  display: block;
+  margin-bottom: 4px;
+  color: #495057;
+  font-size: calc(12px * var(--foms-fs, 1));
+  font-weight: 600;
+}
