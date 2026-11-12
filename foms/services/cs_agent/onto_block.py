@@ -55,7 +55,8 @@ def _hit_lines(hit: Any) -> list[str]:
     name = _quoted(hit.name)
     if not name:
         return []
-    lines = [f"물건({_TYPE_NAMES.get(hit.item_type, hit.item_type)}):", f"{QUOTE}{name}"]
+    guess = " — 뜻으로 찾음, 손님이 말한 물건이 아닐 수 있다" if getattr(hit, "by_meaning", False) else ""
+    lines = [f"물건({_TYPE_NAMES.get(hit.item_type, hit.item_type)}{guess}):", f"{QUOTE}{name}"]
     props = [f"{label} {_value(key, hit.payload.get(key))}" for key, label in _PROPS
              if _value(key, hit.payload.get(key))]
     if props:

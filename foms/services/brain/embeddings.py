@@ -284,10 +284,16 @@ def _cosine(a: list[float], b: list[float]) -> float:
 def nearest(session: Any, viewer: Viewer, vector: list[float], *, today: datetime.date,
             limit: int = 10) -> list[tuple[str, float]]:
     """가까운 항목 (키, 비슷함) — 보기 범위 · 유효 기간 · 반영 · 정체 유형 · 지금 판을 SQL 에 걸고 그 안에서 순위."""
+    return nearest_where(session, vector, (*effective_clauses(viewer, today), BrainObject.item_type.in_(IDENTITY_TYPES)),
+                         limit=limit)
+
+
+def nearest_where(session: Any, vector: list[float], where: Iterable[Any], *, limit: int = 10) -> list[tuple[str, float]]:
+    """가까운 회사 지식 항목 (키, 비슷함) — 부르는 쪽 조건(``where`` — 보기 범위 · 유형 · 판)을 SQL 에 걸고 그 안에서 순위.
+    상담 초안의 물건 찾기(:mod:`foms.services.cs_agent.onto_meaning`)는 사람 대신 '보기 범위 모두' 조건을 건다."""
     join = ((brain_embeddings.c.source_key == BrainObject.item_key)
             & (brain_embeddings.c.source_version == BrainObject.version))
-    conditions = (*effective_clauses(viewer, today), BrainObject.item_type.in_(IDENTITY_TYPES),
-                  brain_embeddings.c.source_kind == SOURCE_ITEM, brain_embeddings.c.model == MODEL)
+    conditions = (*where, brain_embeddings.c.source_kind == SOURCE_ITEM, brain_embeddings.c.model == MODEL)
     if session.get_bind().dialect.name == "postgresql":
         distance = brain_embeddings.c.embedding.op("<=>", return_type=Float)(
             cast(bindparam("query_vector", _literal(vector), type_=String), _PgVector(DIMENSION)))
