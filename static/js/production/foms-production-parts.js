@@ -73,7 +73,7 @@
     var li = el('li', 'foms-prod-change-modal__item pp-mitem');
     var pic = el('div', 'pp-mimg');
     var img = card.querySelector('.pp-thumb');
-    pic.appendChild(img ? img.cloneNode(false) : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
+    pic.appendChild(img && !img.hidden ? img.cloneNode(false) : img ? el('span', 'pp-broken', '그림을 못 불러왔어요') : el('b', '', (card.querySelector('.pp-file b') || {}).textContent || '파일'));
     var body = el('div', 'foms-prod-change-modal__item-body');
     var head = el('div', 'foms-prod-change-modal__item-head');
     var who = el('span', 'foms-prod-change-modal__item-customer', ((card.querySelector('.fph-dr__nm b') || {}).textContent || '') + ' ');
