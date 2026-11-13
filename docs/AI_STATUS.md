@@ -25,12 +25,11 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-11-02] **공지사항(#695·#699 폰·#701 사진)** — `/admin/notices`
 - [2026-11-02] **협력사 실측 예정(PR #688)·실측 끝 버튼(#693)** — 잔여: #5888 수정본
 - [2026-10-30] **담당자·시공자 여러 명 뱃지(MULTI-MGR-01, PR #680 · `c09fc3fa`)** — `parties.manager.names`, 대표=첫 뱃지=`name`·컬럼. 권한·알림·채널톡 방=전체, 정산·실측 색=대표. 잔여: 통합 검색은 대표만
-- [2026-11-12] **AI 상담팀원 · 온톨로지** — 상담 기능 다섯 켬(PR #790~#816). SPEC `2026-11-12-ontology-grounded-cs`(D179~D198): 탭 #820 · 5.6 #823 · ⑤ #825 · ⑥ #828 · 단계 2 · ② #832 · ③ #833, D199 승인·칸 켬. 11-13 점수 4/61 → SPEC `2026-11-13-ontology-fill-gaps`(D201~D205) 1판 운영 #836 · 공정 단계 43 승인 → 10/61. 잔여: 처리방침 · 연결 고치기 화면(목업·foms-71 협업).
+- [2026-11-12] **AI 상담팀원 · 온톨로지** — 상담 기능 다섯 켬(PR #790~#816). SPEC `2026-11-12-ontology-grounded-cs`(D179~D198): 탭 #820 · 5.6 #823 · ⑤ #825 · ⑥ #828 · 단계 2 · ② #832 · ③ #833, D199 승인·칸 켬 · 톡톡 상품 문의 줄 #840. 11-13 점수 4/61 → SPEC `2026-11-13-ontology-fill-gaps`(D201~D205) 1판 운영 #836 · 공정 단계 43 승인 → 10/61. 잔여: 처리방침 · 연결 고치기 화면(목업·foms-71 협업).
 - [2026-10-28] **생산·시공 도면 바로 반영·생산팀 알림 운영 반영(PR #636 · production `6b2b5bd0`, 10-28 운영 실화면 통과)** — 생산 알림 합치기는 같은 종류만(deploy). 잔여: 생산팀 계정(사용자)·5690 사본. SPEC `2026-10-27-drawing-team-production-fix`
 - [2026-10-27] **마법사 등록 정리 운영(PR #627·#633·#634)** — 버튼 하나·빈 초안·미등록 알림·SIDEFX 처리기. DEAD 6행은 10-28 다시 처리(DONE, 사용자 승인) → 매일 워커 점검 초록
 - [2026-10-29] **AI 도면팀원·V2(PR #632~#651)** — 실계정 점검·루틴·§9 거르기 끝. V2 주 그림 크게~빈자리 채우기·글자 고정 운영. 주 그림 크게 틀 견주기·같은 그림 빈 틀·띠형 위 띠 빈자리 운영(PR #651). 잔여: 루틴 11-02
 - [2026-10-22] **Railway 사고(env 유출)·배포 정지** — 복원 리허설 OK(pgvector)·SIDEFX 백업·Redis 문 닫음. 재개 전 DB Regenerate 금지. 가드 반영·대피 초안 준비됨
-- [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 8건 운영. 잔여(사용자 결정): 카카오 REST 키 교체·tests/docs 실고객 번호 의심 34개. 원장 `2026-10-18-foms-security-audit-ledger.md`
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -207,6 +206,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 8건 운영. 잔여(사용자 결정): 카카오 REST 키 교체·tests/docs 실고객 번호 의심 34개. 원장 `2026-10-18-foms-security-audit-ledger.md`
 - [2026-11-09] **화면 크기 70~130%(#778) · 탭별 글자 70~150% 10%씩(#779·#780) · ERP 탭 막대는 화면 크기만(#781) · 옆 계산기 글자(#786)** — 계정·기기·탭별. vh·rect·px 글자 보정. 스테이징 실측 통과
 - [2026-11-06] **디자인 점검(PR #746~#749) → PC 80% 작아짐 되돌림(#754)** — 제목·btn-sm·주문 수정 칸 복귀, 폭 2000px↑ html 18px
 - [2026-10-26] **알림톡 '상담 먼저' 후속 운영 완료(PR #628)** — 카톡 실패→링크 문자 워커(운영 WORKER SOLAPI_* 복사·켬)·공유 창·보내기 창 3칸. 옛 서식 6개·env 삭제. 잔여: 없음(키 교체 시 WORKER 도). SPEC `2026-10-21-consult-sms-fallback-design`
