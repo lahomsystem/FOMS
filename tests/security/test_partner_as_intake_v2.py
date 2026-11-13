@@ -223,6 +223,9 @@ def test_aftercare_menu_lists_completed_and_open_as_with_buttons(app, world, pus
     assert f'data-pp-as-open="/api/partner/orders/{open_as}/as">AS 접수 수정</button>' in table
     assert f"#{drawing}<" not in table and 'id="ppAsModal"' in html
     assert 'href="/partner?aftercare=1"' in html  # 메뉴 "완공 사진 · AS"
+    # 휴대폰 줄을 누르면 완공 · AS 탭이 바로 열린다(사용자 2026-11-13 "여기서 어디서 볼 수 있다는거야").
+    assert f'href="/partner/orders/{done}#completion"' in html and f'href="/partner/orders/{open_as}#completion"' in html
+    assert "눌러서 완공 사진 · AS 접수" in html
 
 
 # ── AS 내역: 접수 내역 · 완료 내역(사용자 2026-11-13) ─────────────────────────
