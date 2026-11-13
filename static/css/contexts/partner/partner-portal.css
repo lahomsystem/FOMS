@@ -236,6 +236,10 @@
 .pp-photo__pick input { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; accent-color: var(--pp-primary); }
 .pp-photo__open { font-size: 13px; color: var(--pp-primary); }
 .pp-as-progress { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--pp-border); }
+/* AS 내역(지난 건 — 접수 내역 · 완료 내역, 2026-11-13) */
+.pp-as-history__item { padding: 8px 0; border-bottom: 1px dashed var(--pp-border); }
+.pp-as-history__item > summary { cursor: pointer; }
+.pp-as-content { white-space: pre-line; }
 
 /* 한 칸 + 버튼(담당 바꾸기 · 내 연락처). 상태 줄은 아랫줄 전체. */
 .pp-form--inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
