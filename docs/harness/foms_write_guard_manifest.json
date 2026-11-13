@@ -862,6 +862,14 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/files"
     },
+    "production_part_marks.api_part_mark": {
+      "mode": "guard",
+      "rule": "/api/production/part-marks"
+    },
+    "production_part_marks.api_part_marks_basic": {
+      "mode": "guard",
+      "rule": "/api/production/part-marks/basic"
+    },
     "quest.api_order_quest_approve": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/quest/approve"

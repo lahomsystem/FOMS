@@ -185,6 +185,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # --- 생산 (§2.1 line 164, P0-9) -----------------------------------------
     "PRODUCTION_EDIT": _p("PRODUCTION_EDIT", teams=("CS", "SALES", "PRODUCTION"),
                           description="production start/complete/rework/steps/defect/hold/ack — CS/SALES/PRODUCTION team-wide(P0-9 역전 수정). 전이는 STATE-PROD-01."),
+    # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55):
+    # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트만 · 관리자 아무 파트)은 핸들러가
+    # foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.
+    "PRODUCTION_PART_MARK": _p("PRODUCTION_PART_MARK", teams=("PRODUCTION",),
+                               description="생산 파트 표시 한 장 · 재단 일괄 기본 — 파트 계정(생산팀 + 계정 파트)은 자기 파트만, ADMIN 은 아무 파트나(D55). CS/SALES · 파트 없는 생산 · VIEWER · 협력사 · 프리랜서 deny."),
 
     # --- 시공 (§2.1 line 165) -----------------------------------------------
     "CONSTRUCTION_EDIT": _p("CONSTRUCTION_EDIT", teams=("CS", "SALES", "CONSTRUCTION"),

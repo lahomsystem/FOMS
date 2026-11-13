@@ -193,6 +193,7 @@ ACTION_LABELS: dict[str, str] = {
     "PRODUCTION_COMPLETE_CANCELED": "제작 완료 취소",
     "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
     "PRODUCTION_STEP_CHECKED": "생산 공정 체크",
+    "PRODUCTION_PART_MARKED": "생산 파트 체크",
     "PRODUCTION_DEFECT_REPORTED": "생산 불량 보고",
     "PRODUCTION_HOLD_SET": "생산 보류",
     "PRODUCTION_HOLD_RELEASED": "생산 보류 해제",
