@@ -4,8 +4,8 @@
 
 쿼리는 둘뿐이다.
 
-* **A — 날짜별 집 수**: ``order_schedule_dates``(kind='construction') 를 주문과 이어 날짜마다
-  ``COUNT(DISTINCT order_id)``. 줄(JSONB)을 싣지 않고 색인 ``(kind, date, order_id)`` 로 센다.
+* **A — 날짜별 집 수**: ``order_schedule_dates``(kind='construction' · 'as_visit') 의 (주문, 날짜) 묶음을 주문과 이어
+  날짜마다 ``COUNT(DISTINCT order_id)``. 줄(JSONB)을 싣지 않고 색인 ``(kind, date, order_id)`` 로 센다.
   모아 세기라 캡이 없다 — 지금 시공 목록의 "최신 접수 50건" 안에서만 고르던 결함 꼴이 없다.
 * **B — 고른 날 + 미리 볼 날의 줄**: 같은 조건으로 주문 전부(구조 자료 포함)를 날짜 · 번호 순으로,
   합쳐 ``DAY_ROWS_CAP`` 까지. 숨은 수는 A 의 수에서 뺀 값이라 조용히 잘리지 않는다.
@@ -24,7 +24,7 @@ import datetime
 import re
 from typing import Any, Iterable
 
-from sqlalchemy import and_, distinct, exists, func, literal, or_, select, union_all
+from sqlalchemy import and_, case, distinct, exists, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.services.common.address_query import strip_sido
@@ -78,10 +78,36 @@ def _kind_pair(entity: Any = Order) -> Any:
     """일정 줄 종류 ↔ 주문 상태 짝(출고 판 패널과 같은 꼴): AS 아님이면 시공일, AS 면 AS 방문일만.
 
     AS 상태인데 시공일만 있는 집(as_visit 없음)은 지금처럼 들지 않는다 — AS 를 넣는 기준은 as_visit 날짜뿐(D43).
+
+    ``(종류 = 시공 AND AS 아님) OR (종류 = AS 방문 AND AS)`` 와 뜻이 같은 CASE 한 식으로 쓴다(그 밖 종류는 NULL = 빠짐).
+    두 표에 걸친 OR 은 PostgreSQL 계획기가 표마다 OR 조건을 뽑아 색인 묶음(BitmapOr)을 두루 맞춰 보느라 계획 세우기가
+    실행보다 3배 넘게 걸렸다(로컬 PG 17 · 운영 규모 가짜 자료: 쿼리 A 본체 계획 2.2ms → 0.55ms, 쿼리 B 1.8 → 0.65ms).
     """
-    return or_(
-        and_(OrderScheduleDate.kind == "construction", _not_as(entity)),
-        and_(OrderScheduleDate.kind == "as_visit", _is_as(entity)),
+    return case(
+        (OrderScheduleDate.kind == "as_visit", _is_as(entity)),
+        (OrderScheduleDate.kind == "construction", _not_as(entity)),
+    )
+
+
+#: (주문, 날짜) 묶음 안에서 상태만 보는 주문 별칭 · 짝 조건 — 한 번만 만든다. 요청마다 ``aliased(Order)`` 를 새로 만들면
+#: 별칭 열 적응(``corresponding_column``)을 매번 다시 해 식 만들기만 쿼리당 약 1ms 였다(로컬 실측).
+_PAIR_ORDER = aliased(Order)
+_PAIR_JOIN = _PAIR_ORDER.id == OrderScheduleDate.order_id
+_PAIR_KIND = _kind_pair(_PAIR_ORDER)
+
+
+def _day_pairs(days: list[str]) -> Any:
+    """그 날들의 (주문, 날짜) 묶음 — 일정 줄을 주문 번호로만 이어 종류 짝을 보고 겹침을 없앤다(주문 조건은 바깥에서).
+
+    쿼리 A · B 가 같은 꼴을 쓴다: 작은 묶음(색인 ``(kind, date, order_id)`` + 주문 번호 색인)을 먼저 만들고 바깥에서
+    주문 조건(``scope_conditions``)을 건다 — 계획기가 주문 표 전체 훑기를 고르지 않는다.
+    """
+    return (
+        select(OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day"))
+        .join(_PAIR_ORDER, _PAIR_JOIN)
+        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _PAIR_KIND)
+        .distinct()
+        .subquery()
     )
 
 
@@ -162,11 +188,13 @@ def count_houses_by_date(db: Any, conds: list[Any], dates: Iterable[str], *, wit
     days = sorted(set(dates))
     if not days:
         return {}
+    pairs = _day_pairs(days)
     stmt = (
-        select(OrderScheduleDate.date.label("d"), func.count(distinct(OrderScheduleDate.order_id)).label("n"))
-        .join(Order, Order.id == OrderScheduleDate.order_id)
-        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _kind_pair(), *conds)
-        .group_by(OrderScheduleDate.date)
+        select(pairs.c.day.label("d"), func.count(distinct(Order.id)).label("n"))
+        .select_from(pairs)
+        .join(Order, Order.id == pairs.c.oid)
+        .where(*conds)
+        .group_by(pairs.c.day)
     )
     if with_undated:
         undated = select(literal(UNDATED_KEY).label("d"), func.count(Order.id).label("n")).where(*undated_conditions(conds))
@@ -186,14 +214,7 @@ def fetch_day_orders(db: Any, conds: list[Any], dates: Iterable[str], cap: int |
     days = sorted(set(dates))
     if not days:
         return []
-    o2 = aliased(Order)
-    pairs = (
-        select(OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day"))
-        .join(o2, o2.id == OrderScheduleDate.order_id)
-        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _kind_pair(o2))
-        .distinct()
-        .subquery()
-    )
+    pairs = _day_pairs(days)
     rows = (
         db.query(Order, pairs.c.day)
         .join(pairs, pairs.c.oid == Order.id)
