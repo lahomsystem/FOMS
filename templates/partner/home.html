@@ -4,7 +4,7 @@
 {% block main_class %}pp-main--wide pp-main--list{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
 {% block content %}
-{% set filtered = filters.q or filters.stage or filters.manager or filters.turn or filters.mine %}
+{% set filtered = filters.q or filters.stage or filters.manager or filters.turn or filters.mine or filters.aftercare %}
 <div class="erp-pro-card erp-pro-card--process-map pp-board">
     <div class="erp-pro-card__header">
         <h3 class="erp-pro-card__title"><i class="fas fa-project-diagram"></i> {{ org.name }} 주문 <span class="small text-muted fw-normal">프로세스 맵</span></h3>
@@ -13,7 +13,7 @@
     <div class="erp-pro-card__body">
         <div class="erp-pro-pipeline">
             {% for step in pipeline %}
-            <a class="erp-pro-pipeline__stage{% if filters.stage == step.label %} erp-pro-pipeline__stage--active{% endif %}{% if step.turn and step.count %} pp-pipe--turn{% endif %}" href="{{ url_for('partner_portal.home', stage=step.label) }}" title="'{{ step.label }}' 단계만 보기">
+            <a class="erp-pro-pipeline__stage{% if filters.stage == step.label or (filters.aftercare and step.label in ('완료', 'AS 진행 중')) %} erp-pro-pipeline__stage--active{% endif %}{% if step.turn and step.count %} pp-pipe--turn{% endif %}" href="{{ url_for('partner_portal.home', stage=step.label) }}" title="'{{ step.label }}' 단계만 보기">
                 <div class="erp-pro-pipeline__count">{{ step.count }}</div>
                 <div class="erp-pro-pipeline__label">{{ step.label }}</div>
             </a>
@@ -60,6 +60,7 @@
             {% if filters.stage %}<input type="hidden" name="stage" value="{{ filters.stage }}">{% endif %}
             {% if filters.turn %}<input type="hidden" name="turn" value="1">{% endif %}
             {% if filters.mine %}<input type="hidden" name="mine" value="1">{% endif %}
+            {% if filters.aftercare %}<input type="hidden" name="aftercare" value="1">{% endif %}
             <input type="hidden" name="sort" value="{{ sort }}">
             <input type="hidden" name="view" value="orders">
             <label class="visually-hidden" for="ppMobileSearch">검색</label>
@@ -67,7 +68,7 @@
             <button class="erp-mobile-queue-filters__submit" type="submit" aria-label="검색"><i class="fas fa-search" aria-hidden="true"></i></button>
         </form>
         <nav class="chip-strip foms-chip-strip" aria-label="단계">
-            <a class="chip foms-chip{% if not (filters.stage or filters.turn or filters.mine) %} is-active{% endif %}" href="{{ url_for('partner_portal.home', view='orders', q=q) }}">전체 {{ pipeline | sum(attribute='count') }}</a>
+            <a class="chip foms-chip{% if not (filters.stage or filters.turn or filters.mine or filters.aftercare) %} is-active{% endif %}" href="{{ url_for('partner_portal.home', view='orders', q=q) }}">전체 {{ pipeline | sum(attribute='count') }}</a>
             {% for step in pipeline %}
             <a class="chip foms-chip{% if filters.stage == step.label %} is-active{% endif %}{% if step.turn and step.count %} pp-chip--turn{% endif %}" href="{{ url_for('partner_portal.home', stage=step.label, q=q) }}">{{ step.label }} {{ step.count }}</a>
             {% endfor %}
@@ -78,7 +79,7 @@
     <nav class="pp-sort" aria-label="순서">
         <span class="pp-sort__label">순서</span>
         <div class="pp-sort__seg">
-            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=q, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=q, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None, aftercare=filters.aftercare or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
         </div>
     </nav>
     {% if turn_board is not none %}
@@ -101,7 +102,7 @@
     <nav class="pp-sort pp-sort--pc" aria-label="순서">
         <span class="pp-sort__label">순서</span>
         <div class="pp-sort__seg">
-            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=filters.q or None, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None, manager=filters.manager or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+            {% for key, label in sorts %}<a class="pp-sort__btn{% if sort == key %} is-on{% endif %}" href="{{ url_for('partner_portal.home', sort=key, q=filters.q or None, stage=filters.stage or None, turn=filters.turn or None, mine=filters.mine or None, manager=filters.manager or None, aftercare=filters.aftercare or None) }}"{% if sort == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
         </div>
     </nav>
     {% if not orders %}
@@ -114,7 +115,7 @@
                 {% for o in orders %}
                 <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
                     <td><span class="pp-stage">{{ o.badge }}</span></td>
-                    <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% include "partner/partials/drawing_thumbs.html" %}</td>
+                    <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% if o.as_action %} <button type="button" class="btn btn-sm py-0 {{ 'btn-outline-info' if o.as_action == 'AS 접수 수정' else 'btn-outline-primary' }}" data-pp-as-open="{{ url_for('partner_as.as_form', order_id=o.id) }}">{{ o.as_action }}</button>{% endif %}{% include "partner/partials/drawing_thumbs.html" %}</td>
                     <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>
                     <td class="pp-grid__address">{{ o.address or '-' }}</td>
@@ -139,5 +140,6 @@
     </form>
     {% if not me.contact_phone %}<p class="pp-help pp-status--error">연락처가 없습니다. 넣어 두어야 도면에 담당 연락처가 찍힙니다.</p>{% endif %}
 </section>
+{% if orders | selectattr('as_action') | list %}{% include "partner/partials/as_receive_modal.html" %}{% endif %}
 <script src="{{ asset_url('js/foms/lightbox.js') }}" defer></script>
 {% endblock %}

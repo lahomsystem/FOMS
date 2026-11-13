@@ -16,8 +16,9 @@
         {% if can_approve %}
         <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=view.id) }}"><i class="fas fa-check"></i> 이대로 만들어 주세요</button>
         {% endif %}
-        {% if can_as %}
-        <button type="button" class="btn btn-outline-primary" data-pp-goto-tab="completion" data-pp-msheet-open="ppAsSheet">AS 접수</button>
+        {% if can_as or as_open %}
+        {#- AS 접수 창(partials/as_receive_modal.html) — 본사 주문 상세 "AS 접수" · "AS 접수 수정"과 같은 자리(2026-11-13). -#}
+        <button type="button" class="btn btn-outline-primary" data-pp-as-open="{{ url_for('partner_as.as_form', order_id=view.id) }}">{{ 'AS 접수 수정' if as_open else ('AS 재접수' if as_mode == 'reintake' else 'AS 접수') }}</button>
         {% endif %}
         <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.home') }}">목록으로</a>
     </div>

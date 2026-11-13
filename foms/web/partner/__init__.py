@@ -14,11 +14,11 @@ from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
-from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
+from foms.services.partners import as_intake as as_svc
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.channel_push import push_state
@@ -193,8 +193,9 @@ def order_detail(order_id: int):
     view = build_partner_order_view(order)
     partner_files, item_photos = _partner_files(db, order, view["items"])
     stage = view["stage_code"]
-    cycle = current_cycle(order.structured_data or {})
-    as_open = cycle is not None and cycle_status(cycle) in (AS_RECEIVED, AS_IN_PROGRESS)
+    # AS 할 일(설계서 2026-11-13-partner-as-intake-edit-push): 진행 중이면 고치기, 시공 뒤면 접수 · 재접수.
+    as_mode = as_svc.as_mode(order)
+    as_open = as_mode == as_svc.MODE_EDIT
     finals = _final_drawings(order)
     statements = order_statements(db, order.partner_org_id, order.id)
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
@@ -214,8 +215,11 @@ def order_detail(order_id: int):
         can_receive=can_receive,
         can_revise=stage in ("DRAWING", "CONFIRM") and bool(finals)
         and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
-        can_as=stage in AS_OPEN_STAGES and not as_open,
+        can_as=as_mode in (as_svc.MODE_NEW, as_svc.MODE_REINTAKE),
         as_open=as_open,
+        as_mode=as_mode,
+        as_content=as_svc.current_content(order) if as_open else "",
+        as_push=as_svc.push_status(order) if as_open else None,
         drawing_cards=[f for f in finals if f["is_image"]],
         drawing_files=[f for f in finals if not f["is_image"]],
         drawing_round=_drawing_round(order),

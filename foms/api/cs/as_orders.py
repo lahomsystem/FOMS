@@ -592,7 +592,8 @@ def drawing_request_round(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def register_as_from_payload(order_id, data, user_id, *, drawing_round=None):
+def register_as_from_payload(order_id, data, user_id, *, drawing_round=None,
+                              actor_label=None, system_text="AS 접수됨", reception_extra=None):
     """AS 접수 본체 — 접수 API 와 도면팀 AS 도면 시작(``/drawing/as/start``)이 같이 부른다.
 
     권한은 부르는 쪽이 먼저 판정한다(접수 API = ``erp_construction_edit_required``, AS 도면 시작 =
@@ -604,6 +605,10 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None):
         data: 접수 요청 본문(``as_content``·``billing_type``·``source_screen`` …).
         user_id: 접수자 id.
         drawing_round: ``{"source", "status", "memo", "registered_as"}`` 또는 None.
+        actor_label: 접수 줄 ``by`` 에 남길 이름(없으면 접수자 이름). 협력사 접수는 "이름 (협력사)".
+        system_text: 접수 "사실" 시스템 줄 글(협력사 접수는 "AS 접수됨 (협력사)").
+        reception_extra: 새로 쌓는 접수 줄에 더할 칸(협력사 완공 사진 ``ref_attachment_ids`` 만 쓴다).
+            설계서 docs/specs/2026-11-13-partner-as-intake-edit-push_SPEC.md §4.
 
     Returns:
         Flask 응답(라우트가 그대로 돌려준다).
@@ -758,14 +763,16 @@ def register_as_from_payload(order_id, data, user_id, *, drawing_round=None):
         if as_content and not already_logged:
             entry = append_client_log(
                 sd, log_type="reception", text=as_content,
-                by=(user.name if user else ""), by_id=(user.id if user else None))
+                by=(actor_label or (user.name if user else "")), by_id=(user.id if user else None))
+            if reception_extra:
+                entry.update(reception_extra)
             captured_register["reception_log_id"] = entry["id"]
         elif same_text_ids:
             # 무편집 재접수: 방금 올린 첨부는 직전 동일 본문 항목에 붙인다.
             captured_register["reception_log_id"] = same_text_ids[-1]
         # 접수 원문(수기 reception)과 별개로 접수 "사실"을 이벤트로 남긴다 — 원문 없이
         # 접수만 하는 흐름에서도 타임라인 첫 줄이 비지 않는다.
-        append_system_log(sd, text="AS 접수됨")
+        append_system_log(sd, text=system_text)
         # billing 시드 규칙(S4). as_billing 은 주문당 1슬롯이라 무조건 덮으면 위 경고대로
         # 확정된 유상 금액이 free/미확정으로 되돌아간다. 세 경우를 갈라 처리한다:
         #  * 판정이 아직 없다: 그대로 시드(종전 "최초 접수" 동작).

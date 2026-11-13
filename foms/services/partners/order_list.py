@@ -25,6 +25,7 @@ from models import Order, OrderAssignment
 
 PARTNER_PIPELINE = ("실측 예정", "도면 작업 중", "도면 확인 대기", "생산 중", "시공 예정", "완료", "AS 진행 중")
 TURN_LABEL = "도면 확인 대기"
+AFTERCARE_LABELS = ("완료", "AS 진행 중")
 # 진행 막대 칸(주문 화면 진행 단계 6칸과 같은 순서). AS 는 끝 칸.
 _STEP_OF_LABEL = {label: min(i, 5) for i, label in enumerate(PARTNER_PIPELINE)}
 _WORK = {
@@ -58,7 +59,18 @@ def partner_list_filters(args: Any) -> dict[str, str]:
         "manager": manager if manager.isdigit() else "",
         "turn": "1" if args.get("turn") == "1" else "",
         "mine": "1" if args.get("mine") == "1" else "",
+        # 메뉴 "완공 사진 · AS" = 완료 + AS 진행 중 한 목록(사용자 2026-11-13).
+        "aftercare": "1" if args.get("aftercare") == "1" else "",
     }
+
+
+def _as_action(label: str, as_axis_status: Any) -> str:
+    """목록 "현재 작업" 칸의 AS 단추 글(PC). 할 일 판정의 정본은 접수 창을 열 때 서버가 다시 본다(as_intake.as_mode)."""
+    if label == "AS 진행 중":
+        return "AS 접수 수정"
+    if label == "완료":
+        return "AS 재접수" if str(as_axis_status or "").upper() == "COMPLETED" else "AS 접수"
+    return ""
 
 
 def _work_text(label: str, construction_date: Any) -> str:
@@ -121,6 +133,7 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
             "badge": stage_badge_text(label, status), "drawing_status": status or "",
             "work": REVISION_WORK if status == "RETURNED" else _work_text(label, r.erp_construction_date),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
+            "as_action": _as_action(label, r.as_axis_status),
         }
     return list(rows.values())
 
@@ -139,6 +152,7 @@ def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
         row for row in rows
         if (not filters["stage"] or row["stage_label"] == filters["stage"])
         and (not filters["turn"] or row["turn"])
+        and (not filters.get("aftercare") or row["stage_label"] in AFTERCARE_LABELS)
         and (not filters["mine"] or row["manager_id"] == user_id)
         and (not filters["manager"] or str(row["manager_id"]) == filters["manager"])
         and _matches_query(row, filters["q"])

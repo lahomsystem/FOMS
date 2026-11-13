@@ -73,7 +73,8 @@
 .as-rchart-dock__preview.as-attach-order,
 .as-rchart-row__stage-preview.as-attach-order,
 .erp-as-drawing-req-pop__preview.as-attach-order,
-#as-receive-preview.as-attach-order {
+#as-receive-preview.as-attach-order,
+#ppAsPreview.as-attach-order {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
