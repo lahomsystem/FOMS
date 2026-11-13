@@ -259,3 +259,21 @@ def test_completed_as_shows_reception_and_completion_history(app, world, pushes)
     assert "invoice.jpg" not in html and "CLAUDE-TEST-내부 통화" not in html  # 통화 글 · 통화 줄 사진은 우리 몫
     # 대조군: 다른 회사는 이 주문 화면 자체를 못 연다.
     assert _client(app, db_session.get(User, world["partner_b"])).get(f"/partner/orders/{order_id}").status_code == 404
+
+
+def test_list_marks_as_finished_orders_with_as_done_badge(app, world, pushes):
+    """AS 가 끝난 완료 주문은 배지 "AS 완료" · 완료일(사용자 2026-11-13 "AS 완료 건인지 알아야") — 그냥 완료는 대조군."""
+    finished, client = _completed_order(app, world)
+    plain, _ = _completed_order(app, world)
+    order = db_session.get(Order, finished)
+    order.as_completed_date = "2026-11-12"  # 옛 주문처럼 AS 완료일 칸만 남은 경우도 잡는다
+    db_session.commit()
+    html = client.get("/partner?aftercare=1").get_data(as_text=True)
+    row = html[html.index(f'data-pp-order-id="{finished}"'):]
+    row = row[:row.index("</a>")]
+    assert ">AS 완료</span>" in row and "AS 완료 11-12 · 눌러서 AS 내역" in row
+    other = html[html.index(f'data-pp-order-id="{plain}"'):]
+    other = other[:other.index("</a>")]
+    assert ">완료</span>" in other and "AS 완료" not in other
+    detail = client.get(f"/partner/orders/{finished}").get_data(as_text=True)
+    assert '<span class="pp-stage">AS 완료' in detail
