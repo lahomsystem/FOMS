@@ -190,7 +190,8 @@ def confirm_partner_drawing_receipt(db, user: Any, order_id: int, request_body: 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     old_stage = read_main_stage(order)
     old_status = sd.get("drawing_status")
-    if old_stage != "DRAWING" or old_status != "TRANSFERRED" or not final_drawings_for_partner(order):
+    # 고객컨펌(CONFIRM)에서 다시 보낸 도면도 받는다 — 단계는 그대로(advance_receipt_stage 가 건너뜀), 우리 영업 수령 확인과 같다.
+    if old_stage not in ("DRAWING", "CONFIRM") or old_status != "TRANSFERRED" or not final_drawings_for_partner(order):
         raise PartnerConfirmError("지금은 도면 확인 차례가 아닙니다. 화면을 새로고침해 주세요.")
     picked = request_body.get("final_drawing_keys") if isinstance(request_body, dict) else None
     plan = _partner_pick_plan(order, sd, picked)

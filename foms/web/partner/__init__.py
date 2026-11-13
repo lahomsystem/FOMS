@@ -200,7 +200,7 @@ def order_detail(order_id: int):
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
     can_approve = stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None
     # 저희가 보낸 도면을 협력사가 확인(받음) — FOMS 영업 "도면 수령 확인"과 같은 자리(사용자 2026-10-28).
-    can_receive = (stage == "DRAWING" and bool(finals)
+    can_receive = (stage in ("DRAWING", "CONFIRM") and bool(finals)
                    and (order.structured_data or {}).get("drawing_status") == "TRANSFERRED")
     return render_template(
         "partner/order_detail.html",
