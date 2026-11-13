@@ -351,6 +351,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(sales_commission_web_bp)
 
+    # --- Lane: 생산 파트 표시 쓰기(JSON — /api/production/part-marks · /part-marks/basic, 설계서
+    # 2026-11-09-tablet-production-ui §15.4). 파트 계정은 자기 파트만 · 관리자는 아무 파트나, 쓰기는 CSRF · 정책
+    # PRODUCTION_PART_MARK. 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.production import production_part_marks_bp
+
+    app.register_blueprint(production_part_marks_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_realtime_socketio_handlers=register_realtime_socketio_handlers,

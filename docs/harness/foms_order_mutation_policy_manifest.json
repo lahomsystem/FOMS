@@ -1065,6 +1065,16 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/files"
     },
+    "production_part_marks.api_part_mark": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_PART_MARK",
+      "rule": "/api/production/part-marks"
+    },
+    "production_part_marks.api_part_marks_basic": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_PART_MARK",
+      "rule": "/api/production/part-marks/basic"
+    },
     "quest.api_order_quest_approve": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
