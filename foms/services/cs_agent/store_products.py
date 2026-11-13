@@ -9,7 +9,9 @@
   공간에 화장대 TYPE01 하나를 더하고(누드 거울은 화장대 값에 들어 있다), 두뇌 재료에 안내 한 줄(:data:`VANITY_LINE`) · 검사
   허용 글(:data:`VANITY_ALLOWED` — 초안의 '01타입'이 숫자 검사에 막히지 않게)을 붙인다. 계산기에 그 옵션이 없으면 짝을 쓰지
   않는다(화장대가 빠진 금액이 나가지 않게).
-- **표에 없는 상품**(새 상품 · 이름이 바뀐 상품 · 옵션 상품): 예전 그대로 — 뽑기가 상품 문의 줄을 보고 고른다.
+- **옵션만 파는 상품**(:data:`STORE_OPTION_ONLY` — 사장님 11-13 '제품에 옵션 더해 계산'): 손님이 말한 제품 공간마다 그 옵션을
+  하나 더한다. 제품을 안 말했으면 예전처럼 제품을 묻는다.
+- **표에 없는 상품**(새 상품 · 이름이 바뀐 상품): 예전 그대로 — 뽑기가 상품 문의 줄을 보고 고른다.
 
 이름은 지난 라홈 상담의 톡톡 상품 문의 줄 그대로(빈칸은 하나로 접어 맞춘다). 상품 번호는 싣지 않는다 — 짝은 이름으로만 찾는다.
 계산기에 그 id 가 없으면(제품을 지웠으면) 짝을 쓰지 않는다.
@@ -23,7 +25,7 @@ from typing import Any, Optional, Sequence
 from foms.services.cs_agent.brain_prompt import ROLE_STORE
 from foms.services.cs_agent.quote_brain import QuoteAsk, QuoteSpace, option_ids
 
-__all__ = ["HUMAN_STORE_PRODUCT", "STORE_OPTIONS", "STORE_PRODUCTS", "VANITY_ALLOWED", "VANITY_LINE", "StoreChoice",
+__all__ = ["HUMAN_STORE_PRODUCT", "STORE_OPTIONS", "STORE_OPTION_ONLY", "STORE_PRODUCTS", "VANITY_ALLOWED", "VANITY_LINE", "StoreChoice",
            "apply_choice", "store_choice", "with_guide", "without_store"]
 
 #: 사람에게 넘기는 까닭 코드 — 계산기에 없는 스토어 상품의 견적 문의(차례 기록 ``error_code``).
@@ -101,6 +103,15 @@ VANITY_LINE = ("스토어 상품에 화장대가 들어 있다 — 견적에 화
                "있다). 손님께 화장대는 01타입 기본으로 안내드린다고 쓴다.")
 VANITY_ALLOWED = "화장대 01타입(TYPE01)"
 
+#: 옵션만 파는 스토어 상품 → 손님이 말한 제품 공간마다 더할 계산기 옵션(사장님 11-13 '제품에 옵션 더해 계산' — 제품을 안
+#: 말했으면 예전처럼 제품을 묻는다). 화장대는 01타입 기본(위와 같은 안내 줄 · 허용 글).
+STORE_OPTION_ONLY: dict[str, tuple[tuple[str, int], ...]] = {
+    "라홈 화장대 옵션": _VANITY_TYPE01,
+    "라홈 외부 서랍 옵션": (("4:1300", 1),),  # 서랍 > 외부서랍
+    "라홈 스윙 거울도어 옵션": (("5:1400", 1),),  # 거울도어 > 스윙
+    "라홈 거울 EP 옵션": (("2:1101", 1),),  # EP > 거울 EP
+}
+
 
 @dataclasses.dataclass(frozen=True)
 class StoreChoice:
@@ -112,6 +123,7 @@ class StoreChoice:
     options: tuple[tuple[str, int], ...] = ()
     lines: tuple[str, ...] = ()
     allowed: tuple[str, ...] = ()
+    option_only: bool = False  # 옵션만 파는 상품 — 제품은 손님 글로, 옵션은 모든 공간에 더한다
 
 
 def _norm(name: str) -> str:
@@ -120,14 +132,26 @@ def _norm(name: str) -> str:
 
 _BY_NAME = {_norm(name): product_id for name, product_id in STORE_PRODUCTS.items()}
 _OPTIONS_BY_NAME = {_norm(name): options for name, options in STORE_OPTIONS.items()}
+_OPTION_ONLY_BY_NAME = {_norm(name): options for name, options in STORE_OPTION_ONLY.items()}
+
+
+def _guide(options: tuple[tuple[str, int], ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """화장대 TYPE01 을 넣으면 안내 줄 · 허용 글, 아니면 없음."""
+    vanity = any(ref == _VANITY_TYPE01[0][0] for ref, _ in options)
+    return ((VANITY_LINE,), (VANITY_ALLOWED,)) if vanity else ((), ())
 
 
 def store_choice(messages: Sequence[tuple[str, str]], catalog: Any) -> Optional[StoreChoice]:
     """상담 글의 마지막 상품 문의 줄 → 정해 둔 짝. 표에 없거나, 짝 id · 더할 옵션이 계산기에 없으면 ``None``(예전 그대로)."""
     name = next((text for role, text in reversed(list(messages)) if role == ROLE_STORE), None)
-    if name is None or _norm(name) not in _BY_NAME:
+    key = _norm(name) if name is not None else ""
+    if key in _OPTION_ONLY_BY_NAME:
+        only = _OPTION_ONLY_BY_NAME[key]
+        if not {ref for ref, _ in only} <= set(option_ids(catalog)):
+            return None  # 계산기에서 그 옵션을 지웠으면 짝을 쓰지 않는다
+        return StoreChoice(key, None, only, *_guide(only), option_only=True)
+    if key not in _BY_NAME:
         return None
-    key = _norm(name)
     wanted = _BY_NAME[key]
     if wanted is None:
         return StoreChoice(key, None)
@@ -135,8 +159,7 @@ def store_choice(messages: Sequence[tuple[str, str]], catalog: Any) -> Optional[
     options = _OPTIONS_BY_NAME.get(key, ())
     if found is None or not {ref for ref, _ in options} <= set(option_ids(catalog)):
         return None  # 제품이나 옵션을 지웠으면 짝을 쓰지 않는다(빠진 금액이 나가지 않게)
-    guide = (VANITY_LINE,) if options else ()
-    return StoreChoice(key, found, options, guide, (VANITY_ALLOWED,) if options else ())  # id 는 계산기 목록 그대로
+    return StoreChoice(key, found, options, *_guide(options))  # id 는 계산기 목록 그대로
 
 
 def with_guide(step: Any, choice: Optional[StoreChoice]) -> Any:
@@ -155,15 +178,21 @@ def apply_choice(ask: QuoteAsk, choice: StoreChoice) -> tuple[QuoteAsk, bool]:
     """뽑은 견적 재료에 짝을 넣는다 → (고친 재료, 직원에게 넘기나).
 
     손님 글이 제품을 말한 공간은 그대로다. 짝이 ``None`` 이면 제품을 말한 공간이 하나도 없을 때만 직원에게 넘긴다.
+    옵션만 파는 상품이면 모든 공간에 옵션만 더한다(제품이 비면 예전처럼 제품을 묻는다).
     """
+    def with_options(space: QuoteSpace) -> QuoteSpace:
+        have = {ref for ref, _ in space.options}
+        extra = tuple(option for option in choice.options if option[0] not in have)
+        return dataclasses.replace(space, options=(*space.options, *extra))
+
+    if choice.option_only:
+        return dataclasses.replace(ask, spaces=tuple(with_options(space) for space in ask.spaces)), False
     named = any(space.product_ids for space in ask.spaces)
     if choice.product_id is None:
         return ask, not named
 
     def filled(space: QuoteSpace) -> QuoteSpace:
-        have = {ref for ref, _ in space.options}
-        extra = tuple(option for option in choice.options if option[0] not in have)
-        return dataclasses.replace(space, product_ids=(choice.product_id,), options=(*space.options, *extra))
+        return with_options(dataclasses.replace(space, product_ids=(choice.product_id,)))
 
     spaces = tuple(space if space.product_ids else filled(space) for space in ask.spaces)
     if not spaces:
