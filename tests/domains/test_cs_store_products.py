@@ -141,3 +141,31 @@ def test_a_vanity_draft_may_say_type01(channel, store, state):
     (request,) = brain_fn.requests
     assert (sp.VANITY_LINE in request.calculator_lines) is (store == VANITY)
     assert turn().state == state  # 표 밖이면 '01'이 숫자 검사에 막힌다(음성 대조)
+
+
+# ── 옵션만 파는 상품(사장님 11-13 '제품에 옵션 더해 계산') ─────────────────
+DRAWER = "라홈 외부 서랍 옵션"
+MORE_OPTIONS = [{"id": 4, "name": "서랍", "options": [{"id": 1300, "name": "외부서랍", "price": 1}]},
+                {"id": 5, "name": "거울도어", "options": [{"id": 1400, "name": "스윙", "price": 1}]}]
+
+
+def test_option_only_products_add_the_option_to_every_space_and_keep_products():
+    assert set(sp.STORE_OPTION_ONLY) == {"라홈 화장대 옵션", DRAWER, "라홈 스윙 거울도어 옵션", "라홈 거울 EP 옵션"}
+    choice = sp.store_choice(talk(DRAWER), catalog(categories=MORE_OPTIONS))
+    assert (choice.option_only, choice.product_id, choice.options, choice.lines) == (True, None, (("4:1300", 1),), ())
+    both, human = sp.apply_choice(ask(space(MOLD["id"]), space(None)), choice)
+    assert human is False and [s.product_ids for s in both.spaces] == [(MOLD["id"],), ()]  # 제품은 손님 글 그대로
+    assert [s.options for s in both.spaces] == [(("4:1300", 1),), (("4:1300", 1),)]
+    assert sp.store_choice(talk(DRAWER), catalog()) is None  # 계산기에 그 옵션이 없으면 짝을 쓰지 않는다
+    vanity = sp.store_choice(talk("라홈 화장대 옵션"), catalog())
+    assert (vanity.options, vanity.lines, vanity.allowed) == ((("1:1", 1),), (sp.VANITY_LINE,), (sp.VANITY_ALLOWED,))
+
+
+def test_an_option_only_inquiry_without_a_product_still_asks_for_the_product(channel):
+    switch()
+    customer(channel, text=QUOTE_TEXT, more=[bot("라홈 거울 EP 옵션")])
+    quoter = FakeQuoter(ask(space(None), unknown=("product",)))
+    summary = run(channel, brain_fn=FakeBrain(result()), pass_type=quoting(quoter))
+    (sent,) = quoter.calls
+    assert ROLE_STORE not in [role for role, _ in sent.messages]  # 뽑기가 '거울 EP 옵션'으로 제품을 짐작하지 않는다
+    assert summary.quotes == {"ask": 1} and turn().quote_lines["code"] == "product"
