@@ -236,6 +236,9 @@
 .pp-photo__pick input { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; accent-color: var(--pp-primary); }
 .pp-photo__open { font-size: 13px; color: var(--pp-primary); }
 .pp-as-progress { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--pp-border); }
+/* "AS 완료" 배지 — 그냥 완료(회색) · AS 진행 중(빨강)과 다른 청록(흰 글씨 대비 5:1 넘음, 2026-11-13) */
+.foms-stage-badge--as-done { background: #0f766e; }
+.pp-stage.pp-stage--as-done { background: #ccfbf1; color: #0f5e57; }
 /* AS 내역(지난 건 — 접수 내역 · 완료 내역, 2026-11-13) */
 .pp-as-history__item { padding: 8px 0; border-bottom: 1px dashed var(--pp-border); }
 .pp-as-history__item > summary { cursor: pointer; }

@@ -271,9 +271,9 @@ def test_list_marks_as_finished_orders_with_as_done_badge(app, world, pushes):
     html = client.get("/partner?aftercare=1").get_data(as_text=True)
     row = html[html.index(f'data-pp-order-id="{finished}"'):]
     row = row[:row.index("</a>")]
-    assert ">AS 완료</span>" in row and "AS 완료 11-12 · 눌러서 AS 내역" in row
+    assert 'foms-stage-badge--as-done">AS 완료</span>' in row and "AS 완료 11-12 · 눌러서 AS 내역" in row
     other = html[html.index(f'data-pp-order-id="{plain}"'):]
     other = other[:other.index("</a>")]
     assert ">완료</span>" in other and "AS 완료" not in other
     detail = client.get(f"/partner/orders/{finished}").get_data(as_text=True)
-    assert '<span class="pp-stage">AS 완료' in detail
+    assert '<span class="pp-stage pp-stage--as-done">AS 완료' in detail

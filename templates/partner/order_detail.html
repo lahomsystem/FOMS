@@ -33,7 +33,7 @@
 <div class="card border-secondary pp-order" data-pp-tabs="{{ active_tab }}">
     <div class="card-header pp-order__head">
         <div class="fw-bold"><i class="fas fa-layer-group"></i> 주문 <span class="text-muted fw-normal">#{{ view.id }} {{ view.customer_name }}</span></div>
-        <span class="pp-stage">{{ view.badge }}{% if view.stage_label == '시공 예정' and view.construction_date %} · {{ view.construction_date }}{% endif %}</span>
+        <span class="pp-stage{% if view.badge == 'AS 완료' %} pp-stage--as-done{% endif %}">{{ view.badge }}{% if view.stage_label == '시공 예정' and view.construction_date %} · {{ view.construction_date }}{% endif %}</span>
     </div>
     <ul class="nav nav-tabs px-2 pt-2 pp-tabs" role="tablist">
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="order"><i class="fas fa-layer-group"></i> 주문</button></li>
