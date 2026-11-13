@@ -102,3 +102,36 @@ def test_production_home_query_count_does_not_grow_with_orders(client):
     delta = q_big - q_small
     assert delta <= ALLOWED_DELTA, f"N+1 회귀 의심: 주문 8건 더해 쿼리 {delta}건 늘었어요(small={q_small}, big={q_big})"
     assert q_big <= ABS_QUERY_CAP, f"절대 쿼리 상한 넘음: big={q_big} > {ABS_QUERY_CAP}"
+
+
+# 파트 화면(P15-5, 설계서 §15.6 '쿼리 수'): 파트 계정 + 태블릿 코호트는 표시 줄 읽기 한 번(``order_id IN (그날들 생산 주문)``)만
+# 더 쓴다 — 카드 수(주문 4건 = 8장 대 12건 = 24장)가 늘어도 같다.
+PART_SCREEN_EXTRA_QUERIES = 1
+
+
+def test_production_home_part_screen_adds_one_query_only(client, monkeypatch):
+    """재단 계정 + 태블릿: 카드가 그려진 첫 화면도 주문이 늘어 쿼리가 늘지 않고, 상한은 지금 계약 + 1."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    user = User(
+        username="prod_home_qc_part", password=generate_password_hash("x"), role="STAFF",
+        team="PRODUCTION", name="김재단", is_active=True, production_part="cut",
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    for i in range(4):
+        _seed_order(i)
+    assert client.get(HOME_URL).status_code == 200
+    resp_small, q_small = _count_queries(lambda: client.get(HOME_URL))
+    assert resp_small.get_data(as_text=True).count("data-pp-card ") == 8  # 카드가 실제로 섰다(빈 판 재기 방지)
+
+    for i in range(200, 208):
+        _seed_order(i)
+    resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
+    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 24
+
+    assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
+    assert q_big <= ABS_QUERY_CAP + PART_SCREEN_EXTRA_QUERIES, f"파트 화면 쿼리 상한 넘음: big={q_big}"
