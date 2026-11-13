@@ -109,6 +109,15 @@ def test_rule_bin_needs_the_import_proposer_and_a_catalog_end():
     assert card_bin("link_add", None, None, "applies_to", **{**ends, "link_to": "common/other"}) == "content"
 
 
+def test_rule_bin_also_takes_imported_process_step_links_but_not_people_ones():
+    """D202 — 옮기기 묶음의 ``at_step``(규칙 → 공정 단계)도 ⑥ 한꺼번에, 사람 · AI 제안은 ② 그대로(대조군)."""
+    ends = {"proposed_by": "import", "link_from": "common/policy-1", "link_to": "process_step/install"}
+    assert card_bin("link_add", None, None, "at_step", **ends) == BIN_RULES
+    assert card_bin("link_add", None, None, "at_step", **{**ends, "proposed_by": "agent:cs"}) == "content"
+    assert card_bin("link_remove", None, None, "at_step", **ends) == "content"  # 빼기는 한 장씩
+    assert card_bin("link_add", None, None, "requires", **{**ends, "link_to": "product_line/lahom-1"}) == "content"  # D203
+
+
 def test_script_reads_the_plan_from_stdin_and_prints_counts_only(world, capsys, monkeypatch):
     import io
     import json

@@ -128,9 +128,9 @@
     var ready = cards.filter(function (card) { return usable(card.main); }).length;
     var table = el('table', { cls: 'brain-diff' });
     table.appendChild(el('caption', { cls: 'visually-hidden', text: names ? '한글 이름 붙이기'
-      : calc ? '계산기 제품 · 옵션' : rules ? '규칙 · 제품 잇기' : '같은 값이 적힌 곳 표시' }));
+      : calc ? '계산기 제품 · 옵션' : rules ? '규칙 잇기' : '같은 값이 적힌 곳 표시' }));
     table.appendChild(head(names ? ['지금 이름', '새 한글 이름', '비슷한 말'] : calc ? ['지식', '종류', '브랜드']
-      : rules ? ['규칙', '걸리는 제품 · 옵션'] : ['지식', '같은 값이 적힌 곳'], ready));
+      : rules ? ['규칙', '걸리는 제품 · 옵션 · 공정 단계'] : ['지식', '같은 값이 적힌 곳'], ready));
     var body = el('tbody');
     var row = names ? nameRow : calc ? calcRow : rules ? rulesRow : markRow;
     cards.forEach(function (card) { body.appendChild(row(card)); });

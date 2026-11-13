@@ -79,3 +79,17 @@ def test_competency_question_score_rises_when_needed_kinds_exist(who):
 
 def got_row(counts, links, cq_id):
     return next(r for r in _coverage(counts, links)["rows"] if r["id"] == cq_id)
+
+
+def test_d204_question_table_drops_only_the_two_unfillable_links_and_keeps_the_old_demands():
+    """D204 — 상담 질문 뜻으로는 채울 길이 없는 ``part_of`` · ``uses`` 만 뺐고, 빈 자리는 ``applies_to`` 로만 채웠다. 옛 요구는 그대로 남는다."""
+    from foms.services.brain.ontology_cqs import D204_DROPPED, LINKS_BEFORE_D204
+
+    now = {cq.cq_id: set(cq.links) for cq in CQS}
+    assert not any(D204_DROPPED & links for links in now.values())  # 지금 표에는 두 연결이 없다
+    assert set(LINKS_BEFORE_D204) == {i for i, old in LINKS_BEFORE_D204.items() if D204_DROPPED & set(old)}
+    for cq_id, old in LINKS_BEFORE_D204.items():
+        assert set(old) - D204_DROPPED <= now[cq_id]  # 남은 요구는 하나도 빼지 않았다
+        assert now[cq_id] - set(old) <= {"applies_to"}  # 새로 든 것은 '구성 → 적용'뿐
+    untouched = [cq for cq in CQS if cq.cq_id not in LINKS_BEFORE_D204]
+    assert len(untouched) == 61 - len(LINKS_BEFORE_D204) and all(not (D204_DROPPED & set(cq.links)) for cq in untouched)
