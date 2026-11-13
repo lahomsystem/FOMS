@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HOME = "/erp/production/home"
 PARTS_JS = ROOT / "static/js/production/foms-production-parts.js"
 VIEWER_JS = ROOT / "static/js/production/foms-production-parts-viewer.js"
+SYNC_JS = ROOT / "static/js/production/foms-production-parts-sync.js"
 PARTS_CSS = ROOT / "static/css/contexts/production/parts.css"
 TPL_DIR = ROOT / "templates/production/partials"
 _seq = count(1)
@@ -227,7 +228,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     assert '"part": "assemble"' in html.replace("&#34;", '"')
 
 
-def test_readonly_staff_sees_badges_only_no_modal_no_write_js(client, cohort):
+def test_readonly_staff_sees_badges_only_no_modal_no_write_binding(client, cohort):
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     _seed_day(me, park)
     _login(client, _user("상담", team="CS"))
@@ -236,7 +237,10 @@ def test_readonly_staff_sees_badges_only_no_modal_no_write_js(client, cohort):
     assert pane.count("data-pp-card ") == 5
     assert 'data-pp-act="' not in html and '<button type="button" class="foms-prod-home__btn' not in pane.split("pp-grid")[1]
     assert "foms-part-confirm-modal" not in html and "data-pp-modal" not in html
-    assert "foms-production-parts.js" not in html and "foms-production-parts-viewer.js?v=" in html
+    # P15-7: 카드 고치기(parts.js 의 window.FomsPartsCards)를 30초 받아 오기가 같이 쓰므로 읽기 전용에도 싣는다 —
+    # 확인 창이 없어 누름 · 쓰기는 묶이지 않는다(test_production_part_marks_sync.py 가 정적으로 본다).
+    assert "foms-production-parts.js?v=" in html and "foms-production-parts-viewer.js?v=" in html
+    assert "foms-production-parts-sync.js?v=" in html
     assert "작업 필요 · 김재단" in pane and "작업 필요 · 박재단" in pane and "기본 · 박재단" in pane
 
 
@@ -315,12 +319,13 @@ def test_home_template_pins_parts_assets():
     assert re.search(r"css/contexts/production/parts\.css'\) \}\}\?v=\d{8}[a-z]", tpl)
     assert re.search(r"js/production/foms-production-parts-viewer\.js'\) \}\}\?v=\d{8}[a-z]\" defer", tpl)
     assert re.search(r"js/production/foms-production-parts\.js'\) \}\}\?v=\d{8}[a-z]\" defer", tpl)
+    assert re.search(r"js/production/foms-production-parts-sync\.js'\) \}\}\?v=\d{8}[a-z]\" defer", tpl)
 
 
 # --------------------------------------------------------------------------- #
 # JS
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("path", [PARTS_JS, VIEWER_JS], ids=["parts", "viewer"])
+@pytest.mark.parametrize("path", [PARTS_JS, VIEWER_JS, SYNC_JS], ids=["parts", "viewer", "sync"])
 def test_parts_js_syntax_and_size(path):
     lines = path.read_text(encoding="utf-8").splitlines()
     assert len(lines) < 300, f"{path.name} {len(lines)}줄 — 새 JS 300줄 래칫"
@@ -354,6 +359,9 @@ def test_writes_only_go_through_confirm_modal_run_button():
     assert "body.success === true" in _function_body(src, "handle")
     viewer = VIEWER_JS.read_text(encoding="utf-8")
     assert not re.search(r"fetch\s*\(|fomsMutationFetch|XMLHttpRequest|sendBeacon", viewer), "보기 JS 에 쓰기 요청이 있으면 안 된다"
+    sync = SYNC_JS.read_text(encoding="utf-8")
+    assert not re.search(r"POST|fomsMutationFetch|XMLHttpRequest|sendBeacon|part-marks/basic", sync), "받아 오기 JS 는 읽기만"
+
 
 
 # --------------------------------------------------------------------------- #

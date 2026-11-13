@@ -15,8 +15,10 @@
 
 from __future__ import annotations
 
+import datetime
 from typing import Any, Iterable, Optional
 
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.drawing_confirm_partial import file_item_uids, item_ref
 from foms.services.production.part_access import (
@@ -44,6 +46,11 @@ PART_BOARD_CARD_CAP = 200
 #: 그 밖(PDF 등)은 카드에 파일 표 + 누르면 파일 열기(§15.6 '크게 보기').
 PART_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
+#: 30초 받아 오기(P15-7)의 서버 시각 되감기(초). 표시 줄 ``updated_at`` 은 쓰는 쪽이 commit **전에** 찍으므로, 받아 오기가
+#: 그 사이에 돌면 아직 안 보이는 줄의 시각이 다음 ``since`` 보다 앞서 영영 빠진다. 커서를 이만큼 되감아 겹쳐 받는다
+#: (겹친 줄은 화면이 같은 상태면 건너뛴다).
+PART_SYNC_OVERLAP_SECONDS = 15
+
 #: 다른 파트 한 줄 낱말(D51 — 낱말은 그대로, 색은 ``tone`` 으로 화면이 고른다).
 _CUT_WORDS = {"done": "끝", "basic": "기본", "need": "중", "none": "안 봄"}
 _OTHER_WORDS = {"done": "끝", "need": "중", "none": "아직"}
@@ -65,6 +72,22 @@ def other_part_word(part: str, state_key: str) -> dict[str, str]:
     words = _CUT_WORDS if part == PART_CUT else _OTHER_WORDS
     tone = state_key if state_key in words else "none"
     return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": words[tone], "tone": tone}
+
+
+def part_sync_cursor(now: Optional[datetime.datetime] = None) -> str:
+    """30초 받아 오기의 다음 ``since`` — 서버 시각(UTC naive)에서 :data:`PART_SYNC_OVERLAP_SECONDS` 를 뺀 ISO 글.
+
+    화면이 그릴 때(첫 ``since``, ``data-pp-since``)와 ``GET /api/production/part-marks`` 응답(``server_time``)이 같이 쓴다.
+    기기 시계는 쓰지 않는다(어긋난 태블릿 시계가 남의 표시를 빠뜨리지 않게).
+
+    Args:
+        now: 기준 시각(시험용, 없으면 지금).
+
+    Returns:
+        ``YYYY-MM-DDTHH:MM:SS.ffffff`` 꼴 글.
+    """
+    base = now or now_utc_naive()
+    return (base - datetime.timedelta(seconds=PART_SYNC_OVERLAP_SECONDS)).isoformat(timespec="microseconds")
 
 
 def is_part_thumb_image(entry: dict[str, Any]) -> bool:

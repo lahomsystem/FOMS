@@ -63,7 +63,7 @@
         <div class="pp-ln"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small>{% if c.has_changes %}<em class="pp-chg">바뀜</em>{% endif %}</span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></div>
         <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
         {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
-        <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
+        <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
         <div class="pp-actbox" data-pp-actbox>{{ pp_act(c, pb, is_cut, verb) }}</div>
       </article>
       {% endfor %}

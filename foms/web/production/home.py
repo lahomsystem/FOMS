@@ -21,7 +21,7 @@ from foms.services.feature_flags import (
 )
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
-from foms.services.production.part_board import build_part_board
+from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
@@ -66,6 +66,8 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
     판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 탭에서만 만든다(표시 줄 읽기 쿼리 +1).
     """
     board = None
+    # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
+    since = part_sync_cursor()
     if days is not None and surface and ((tab == 'date' and mode == VIEW_PART) or tab == 'parts'):
         board = build_part_board(db, user, days, part=request.args.get('part'))
     name = getattr(user, 'name', None) or getattr(user, 'username', '') or ''
@@ -79,6 +81,7 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
     return {
         'part_board': board,
         'part_config': config,
+        'part_since': since if board is not None else None,
         'parts_tab': surface and mode in (VIEW_ADMIN, VIEW_READONLY),
         'hide_steps_tab': mode == VIEW_PART,
         'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,

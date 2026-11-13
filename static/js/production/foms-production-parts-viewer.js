@@ -1,6 +1,6 @@
 /* 생산 파트 도면 카드 — 보는 쪽(쓰기 없음). 설계서 §15.6 칸 단추 · '크게 보기'(시안 f63), P15-5.
  * 읽기 전용 직원도 싣는다(D55): 칸 단추 셋(보이기/숨기기만, 새 요청 없음) · 크게 보기(원본 한 장 · 같은 주문 장끼리 ◀ ▶ ·
- * 그림을 한 번 더 누르면 GlobalImageViewer 손가락 확대) · 작은 그림을 못 받으면 글 · '도면 카드' 탭의 날 주소.
+ * 그림을 한 번 더 누르면 GlobalImageViewer 손가락 확대) · 그림을 못 받으면(원본 없음 404) 깨진 그림 대신 글 · '도면 카드' 탭의 날 주소.
  * 크게 보기의 큰 단추는 카드 단추를 대신 누른다(같은 확인 창 — 쓰기는 foms-production-parts.js 몫, 이 파일엔 fetch 없음).
  * 설정은 data-foms-parts-config(safeJsonParse). 전역 리스너는 window.__FOMS_PROD_PARTS_BOUND.viewer 로 한 번만. */
 (function () {
@@ -25,6 +25,28 @@
 
   var cfg = safeJsonParse(holder.getAttribute('data-foms-parts-config'), {}) || {};
   var EMPTY_TEXT = { need: '작업 필요 도면이 없어요.', done: '완료한 도면이 없어요.' };
+  var BROKEN_TEXT = '그림을 못 불러왔어요';
+
+  // ── 그림을 못 받을 때: 그림을 숨기고 그 자리에 글(카드 · 크게 보기 같은 글, 인라인 오류 속성 없음) ──
+  function markBroken(img) {
+    var box = img && img.parentNode;
+    if (!box || !img.getAttribute('src')) { return; }
+    img.hidden = true;
+    box.classList.add('is-broken');
+    if (box.querySelector('.pp-broken')) { return; }
+    var note = document.createElement('span');
+    note.className = 'pp-broken';
+    note.textContent = BROKEN_TEXT;
+    box.appendChild(note);
+  }
+  function clearBroken(img) {
+    var box = img && img.parentNode;
+    if (!box) { return; }
+    box.classList.remove('is-broken');
+    var note = box.querySelector('.pp-broken');
+    if (note) { box.removeChild(note); }
+    img.hidden = false;
+  }
 
   // ── 칸 단추 셋: 전체 도면 · 작업 필요 · 완료(보이기/숨기기만) ──
   function paneOf(el) { return el && el.closest('[data-pp-pane]'); }
@@ -103,6 +125,7 @@
     by.textContent = '';
     toArr(src ? src.childNodes : []).forEach(function (n) { by.appendChild(n.cloneNode(true)); });
     var isImage = !!card.querySelector('[data-pp-open]');
+    clearBroken(vImg);
     vImg.hidden = !isImage;
     if (isImage) { vImg.src = card.getAttribute('data-view-url') || ''; }
     viewer.querySelector('[data-pp-v-zoom]').setAttribute('aria-label', isImage ? '손가락으로 크게 보기' : '파일 열기');
@@ -180,11 +203,15 @@
     var modal = root.querySelector('[data-pp-modal]');
     if (e.key === 'Escape' && (!modal || modal.hidden)) { closeViewer(); }
   });
-  // 작은 그림을 못 받으면 빈 네모 대신 글(카드는 그대로 쓸 수 있다)
+  // 카드 작은 그림 · 크게 보기 원본을 못 받으면 글(카드는 그대로 쓸 수 있다). error 는 거품이 안 올라 잡기 단계로 받는다.
   root.addEventListener('error', function (e) {
     var img = e.target;
-    if (img && img.classList && img.classList.contains('pp-thumb') && img.parentNode) { img.parentNode.classList.add('is-broken'); }
+    if (img && img.tagName === 'IMG' && (img.classList.contains('pp-thumb') || img === vImg)) { markBroken(img); }
   }, true);
+  // defer 라 이 파일보다 먼저 실패한 그림(첫 화면 장)은 error 를 놓친다 — 끝난 채 크기 0 인 그림을 한 번 훑는다.
+  toArr(root.querySelectorAll('img.pp-thumb')).forEach(function (img) {
+    if (img.complete && img.naturalWidth === 0) { markBroken(img); }
+  });
   // 쓰기 쪽이 카드를 고치면 열린 크게 보기도 같은 상태로
   document.addEventListener('foms:part-card-updated', function () { if (viewer && !viewer.hidden) { render(); } });
 
