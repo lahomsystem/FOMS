@@ -69,9 +69,11 @@ def build_turn_board(db, rows: list[dict[str, Any]], sort: str) -> dict[str, Any
         raw, arrived = _arrived(order)
         info = drawing_round_info(order.structured_data or {})
         stage = (order.erp_stage_code or "").upper()
+        # 고객컨펌 단계라도 다시 보낸 도면(TRANSFERRED)이면 먼저 '확인했어요'(받음) 차례다.
+        approve = stage == "CONFIRM" and by_id[oid].get("drawing_status") != "TRANSFERRED"
         cards.append({
             **by_id[oid], "sheets": sheets, "sheet_count": count, "arrived_raw": raw, "arrived": arrived,
-            "round": round_text(info.round) if info.round else "", "kind": "approve" if stage == "CONFIRM" else "receive",
+            "round": round_text(info.round) if info.round else "", "kind": "approve" if approve else "receive",
             "prev_request": _last_own_request(order) if (info.round or 0) > 1 else "",
         })
     if sort == "date":

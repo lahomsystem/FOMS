@@ -75,10 +75,12 @@ def partner_stage_label(stage_code: Any, as_axis_status: Any = None, drawing_con
     if str(as_axis_status or "").upper() in ("RECEIVED", "IN_PROGRESS"):
         return "AS 진행 중"
     stage = str(stage_code or "").upper()
+    # 고객컨펌 단계에서 도면팀이 다시 보낸 도면(TRANSFERRED)도 협력사 확인 차례다 — 운영 #5918·#5987(2026-11-13):
+    # 확인(받음) 뒤 재전달되면 "도면 작업 중"에 갇혀 아무도 움직일 수 없었다.
+    if stage in ("DRAWING", "CONFIRM") and drawing_sent:
+        return "도면 확인 대기"
     if stage == "CONFIRM" and drawing_confirmed is False:
         return "도면 작업 중"
-    if stage == "DRAWING" and drawing_sent:
-        return "도면 확인 대기"
     return _PARTNER_STAGE_LABELS.get(stage, "실측 예정")
 
 
