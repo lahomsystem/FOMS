@@ -221,6 +221,45 @@ def test_two_queries_and_count_query_reads_no_structured_data(db) -> None:
     assert "limit" in seen[1].lower()
 
 
+def test_kind_pair_case_keeps_or_meaning_for_unpaired_kinds(db) -> None:
+    """종류 짝을 CASE 한 식으로 바꿔도(계획 세우기 비용) 뜻은 옛 OR 와 같다 — AS 아님 = 시공일, AS = AS 방문일만.
+
+    대조군: 짝이 안 맞는 줄(AS 아닌 집의 AS 방문일 · AS 집의 시공일)은 수에도 줄에도 없다. (상태 NULL 집은 짝 앞에서
+    ``Order.active_filter()`` 의 ``status != 'DELETED'`` 가 이미 뺀다 — 옛 꼴도 같다.)
+    """
+    plain = _order("시공집", day=_d(0))
+    visit = {"schedule": {"as_visit": {"date": _d(0)}}}  # AS 방문 일정 줄은 동기화가 구조 자료에서 만든다
+    as_ok = _order("에이에스", day=None, stage="AS", status="AS_RECEIVED", extra=visit)
+    plain_as_visit = _order("시공집방문일만", day=None, extra=visit)
+    as_construction = _order("에이에스시공일만", day=_d(0), stage="AS", status="AS_RECEIVED")
+    kinds = {(oid, k) for oid, k in db_session.query(OrderScheduleDate.order_id, OrderScheduleDate.kind)}
+    assert {(as_ok, "as_visit"), (plain_as_visit, "as_visit"), (as_construction, "construction"),
+            (plain, "construction")} <= kinds
+    result = _first(_admin(), worker="")
+    assert result["selected_count"] == 2
+    assert sorted(_ids(result)[_d(0)]) == sorted([plain, as_ok])
+
+
+def test_count_and_row_queries_use_case_kind_pair_not_cross_table_or(db) -> None:
+    """쿼리 A · B 의 종류 짝은 CASE 한 식이다 — 두 표에 걸친 OR 로 되돌리면 PG 계획 세우기가 3배 넘게 는다(로컬 PG 17 실측)."""
+    _order("하나", day=_d(0))
+    user = SimpleNamespace(id=1, username="u", name="u", role="ADMIN", team="CS")
+    seen: list[str] = []
+
+    def _on(conn, cursor, statement, *a):
+        seen.append(" ".join(statement.lower().split()))
+
+    event.listen(engine, "before_cursor_execute", _on)
+    try:
+        _first(user)
+    finally:
+        event.remove(engine, "before_cursor_execute", _on)
+    assert len(seen) == 2, seen
+    for sql in seen:
+        assert "case when (order_schedule_dates.kind = " in sql, sql
+        assert "order_schedule_dates.kind = ? and" not in sql and "order_schedule_dates.kind = %(" not in sql.split("case when")[0]
+
+
 def test_bad_date_falls_back_to_today() -> None:
     assert tf.parse_day("2026-02-30") is None and tf.parse_day("x") is None and tf.parse_day("2026-11-13") == "2026-11-13"
     assert tf.resolve_default_worker(None, login_names=[" 최우진 "], option_names=["최우진"]) == "최우진"
