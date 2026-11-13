@@ -1119,7 +1119,10 @@ html.foms-meas-sheet-open .foms-shell-fab {
   height: 24px;
 }
 /* C3: 주소·연락처 한 줄씩 — 줄 전체가 기존 지도·전화 링크의 누름 칸, 오른쪽 끝에 지도 핀·전화 아이콘. */
-.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta {
+/* .foms-queue-card-v2__meta 를 함께 걸어 카드 공통 1.4:1 두 칸 규칙(body…:not(.pp-body) .foms-queue-card-v2__meta, 0-3-1)보다
+   우선한다 — 빠지면 시트에서 주소·연락처가 좌우로 갈라져 전화번호가 세 줄로 꺾였다(2026-11-13). */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta,
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta.foms-queue-card-v2__meta {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
@@ -1137,6 +1140,7 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] > dt {
   flex: none;
   width: 40px;
+  white-space: nowrap; /* "연락처" 가 두 줄로 꺾이지 않게 */
 }
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"] > dd,
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] > dd {
