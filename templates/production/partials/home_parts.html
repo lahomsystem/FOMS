@@ -35,9 +35,6 @@
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=p.key, day=d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}
-    {% if not is_cut and pb.mode != 'part' %}
-    <div class="pp-bulk"><span class="pp-unseen">시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</span></div>
-    {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">
       <span class="pp-unseen" data-pp-unseen-text>{% if pp.counts.unseen %}안 본 도면 <b>{{ pp.counts.unseen }}</b>장{% else %}안 본 도면 없어요{% endif %}</span>
