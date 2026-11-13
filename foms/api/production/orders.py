@@ -12,7 +12,7 @@ from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
 from typing import Any, Callable
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, g, jsonify, request, session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -58,6 +58,14 @@ from foms.services.orders.order_mutation_policy import (
     team_has_capability,
 )
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
+from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
+from foms.services.production.steps import (
+    PRODUCTION_STEP_DEFS,
+    PRODUCTION_STEP_KEYS,
+    ensure_production_steps,
+    normalize_production_steps,
+    set_production_step,
+)
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
 
@@ -69,31 +77,12 @@ erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_pref
 # 안정화되면 erp_permissions.py 의 can_edit_* / *_edit_required 계열로 승격(통합) 검토.
 _PRODUCTION_STEPS_EDIT_TEAMS = ("CS", "SALES", "PRODUCTION")
 
-# 생산 공정 기본 4단계(cut/edge/assemble/inspect). 최초 접근 시 서버가 생성한다.
-# 도장(paint)은 우리 공장에 없어 2026-11-09 뺐다(사용자 결정 D15). 옛 주문의 저장 목록에 남은 paint 는
-# 읽을 때 ``_normalize_production_steps`` 가 걸러 낸다 — 저장 데이터·run 스냅샷은 손대지 않는다(감사 비교 보존).
-_PRODUCTION_STEP_DEFS: tuple[tuple[str, str], ...] = (
-    ("cut", "재단"),
-    ("edge", "엣지"),
-    ("assemble", "조립"),
-    ("inspect", "검수"),
-)
-_PRODUCTION_STEP_KEYS = frozenset(k for k, _ in _PRODUCTION_STEP_DEFS)
-
-
-def _normalize_production_steps(raw: Any) -> list[dict[str, Any]]:
-    """저장된 공정 목록 → 화면·API 가 보는 목록. 정의에 없는 key(옛 도장)는 빼고, 빠진 단계는 미완으로 채운다.
-
-    저장 목록은 바꾸지 않는다(새 리스트). 정의 순서(재단·엣지·조립·검수)로 돌려준다.
-    """
-    by_key: dict[str, dict[str, Any]] = {}
-    for item in raw if isinstance(raw, list) else []:
-        if isinstance(item, dict) and item.get("key") in _PRODUCTION_STEP_KEYS:
-            by_key.setdefault(str(item["key"]), item)
-    return [
-        by_key.get(key) or {"key": key, "label": label, "done": False, "at": None, "by_name": None}
-        for key, label in _PRODUCTION_STEP_DEFS
-    ]
+# 생산 공정 4단계 정의 · 읽기 정규화 · 칸 만들기는 한 곳(``foms/services/production/steps.py``)에 둔다 — 지금 공정 API 와
+# 파트 카드 동기화(설계서 §15.5)가 같은 함수로 칸을 바꾼다. 옛 이름은 이 모듈을 import 하는 시험·화면을 위해 남긴다.
+_PRODUCTION_STEP_DEFS = PRODUCTION_STEP_DEFS
+_PRODUCTION_STEP_KEYS = PRODUCTION_STEP_KEYS
+_normalize_production_steps = normalize_production_steps
+_ensure_production_steps = ensure_production_steps
 
 # 생산 불량 보고 사유 화이트리스트(시트 칩과 1:1)과 이력 캡(최근 20건 유지).
 _PRODUCTION_DEFECT_REASONS = ("자재 불량", "가공 오류", "파손", "기타")
@@ -133,26 +122,6 @@ def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]
         )
 
     return wrapped
-
-
-def _ensure_production_steps(sd: dict[str, Any]) -> list[dict[str, Any]]:
-    """sd['production']['steps'] 를 보장한다(없으면 기본 4단계 미체크로 생성) 후 반환.
-
-    :param sd: 수정 대상 structured_data (deepcopy 된 사본이어야 한다).
-    :return: 공정 스텝 리스트(sd 내부 참조와 동일 객체).
-    """
-    production = sd.get("production")
-    if not isinstance(production, dict):
-        production = {}
-        sd["production"] = production
-    steps = production.get("steps")
-    if not isinstance(steps, list) or not steps:
-        steps = [
-            {"key": key, "label": label, "done": False, "at": None, "by_name": None}
-            for key, label in _PRODUCTION_STEP_DEFS
-        ]
-        production["steps"] = steps
-    return steps
 
 
 def _append_hold_history(production: dict[str, Any], released_by: str | None) -> None:
@@ -1431,6 +1400,8 @@ def api_production_steps_get(order_id: int):
     done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done"))
     defects = production.get("defects") if isinstance(production.get("defects"), list) else []
     latest_defect = defects[-1] if defects else None
+    # 파트 계정은 공정을 도면 카드에서만 체크한다(설계서 §15.4) — 세로 바텀시트가 단추를 읽기 전용으로 그린다.
+    locked = steps_locked_for(getattr(g, "current_user", None))
     return jsonify(
         {
             "success": True,
@@ -1439,6 +1410,8 @@ def api_production_steps_get(order_id: int):
                 "done_count": done_count,
                 "total": len(steps),
                 "latest_defect": latest_defect,
+                "locked": locked,
+                "locked_note": PART_ACCOUNT_STEPS_MESSAGE if locked else None,
             },
         }
     )
@@ -1458,6 +1431,10 @@ def api_production_steps(order_id: int):
     """
     db = get_db()
     try:
+        user = get_user_by_id(session.get("user_id"))
+        if steps_locked_for(user):  # 파트 계정 = 도면 카드 동기화만(두 길이 서로 덮지 않게, 설계서 §15.4 · D53)
+            return jsonify({"success": False, "data": {"code": "PART_ACCOUNT_USE_CARDS"},
+                            "error": PART_ACCOUNT_STEPS_MESSAGE}), 403
         payload = request.get_json(silent=True) or {}
         key = payload.get("key")
         done = payload.get("done")
@@ -1468,24 +1445,14 @@ def api_production_steps(order_id: int):
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
 
-        user = get_user_by_id(session.get("user_id"))
         user_id = session.get("user_id")
         captured: dict[str, Any] = {}
 
         def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
             o = orders[0]
             sd = copy.deepcopy(_ensure_dict(o.structured_data))
-            steps = _ensure_production_steps(sd)
-            # key 는 _PRODUCTION_STEP_KEYS 로 검증됐고 _ensure_production_steps 가 4단계를
-            # 항상 보장하므로 target 은 반드시 존재한다.
-            target = next((s for s in steps if s.get("key") == key), None)
-            if target is None:  # 옛 목록에 그 단계가 없으면 미완으로 추가(정의에 있는 key 만 여기 온다)
-                target = {"key": key, "label": dict(_PRODUCTION_STEP_DEFS)[key], "done": False, "at": None, "by_name": None}
-                steps.append(target)
             now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            target["done"] = done
-            target["at"] = now_iso if done else None
-            target["by_name"] = (user.name if user else None) if done else None
+            steps = set_production_step(sd, key, done, by_name=user.name if user else None, at_iso=now_iso)
             o.structured_data = sd
             flag_modified(o, "structured_data")
             sess.add(

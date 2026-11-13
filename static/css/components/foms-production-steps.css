@@ -115,6 +115,19 @@
   color: var(--foms-color-danger-600, #d64545);
 }
 
+/* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 단추는 흐리지 않고 누를 수만 없다 + 아래 한 줄 */
+.foms-prod-steps__toggle.is-locked:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.foms-prod-steps__locked {
+  padding: var(--foms-space-3, 12px);
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 700;
+  color: var(--foms-text-secondary, #4b525d);
+}
+
 /* 로딩 스켈레톤(행 3개 + 텍스트 폴백) — foms-production-steps.js setLoading 주입.
    라이트 톤(#EFECE6 shape / #F8F6F2 shimmer). */
 .foms-prod-steps__skeleton {

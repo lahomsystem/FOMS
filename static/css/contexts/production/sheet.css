@@ -189,6 +189,9 @@
 .foms-prod-page__step.is-now { color: var(--fpp-brand-dark); }
 .foms-prod-page__step.is-now i { border: 3px solid var(--fpp-brand); background: var(--fpp-brand-50); }
 .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
+/* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 저장 중 흐림이 아니라 그대로 보이고 누를 수만 없다 */
+.foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+.foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
 .foms-prod-page__defect { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--fpp-line); display: flex; flex-direction: column; gap: 8px; }
 .foms-prod-page__defect-recent { margin: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); }
 .foms-prod-page__chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -251,6 +254,8 @@
 .foms-prod-sheet .foms-prod-page__step.is-now { color: #4a55b8; }
 .foms-prod-sheet .foms-prod-page__step.is-now i { border: 3px solid #5a67d8; background: #f3f4ff; }
 .foms-prod-sheet .foms-prod-page__step:disabled { opacity: .6; cursor: wait; }
+.foms-prod-sheet .foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
+.foms-prod-sheet .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #4b525d; }
 .foms-prod-sheet .foms-prod-page__defect { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dde1e6; display: flex; flex-direction: column; gap: 8px; }
 .foms-prod-sheet .foms-prod-page__defect-recent { margin: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: #dc2626; }
 .foms-prod-sheet .foms-prod-page__btn--bad { min-height: 48px; padding: 0 14px; border: 1px solid #dc2626; border-radius: 10px; background: #fef2f2; color: #dc2626; font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }

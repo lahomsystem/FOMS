@@ -158,14 +158,15 @@
     <div class="foms-prod-sheet__card-title">공정 <span class="foms-prod-sheet__card-count" data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</span></div>
     <div class="foms-prod-page__steps">
       {% for s in order.steps %}
-      <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"
-              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}">
+      <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
+              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
         <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
         <span>{{ s.label }}</span>
         <small data-foms-sheet-step-meta>{{ s.meta }}</small>
       </button>
       {% endfor %}
     </div>
+    {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
     <div class="foms-prod-page__defect" data-foms-sheet-defect>
       <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
       <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false">불량 알리기</button>

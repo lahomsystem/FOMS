@@ -22,6 +22,9 @@ VIEW_ADMIN = "admin"
 VIEW_READONLY = "readonly"
 VIEW_NONE = "none"
 
+#: 파트 계정이 주문 공정 칸을 직접 쓰려 할 때의 글(403 ``PART_ACCOUNT_USE_CARDS`` · 시트 단추 아래 한 줄).
+PART_ACCOUNT_STEPS_MESSAGE = "공정은 도면 카드에서 체크해요"
+
 
 def _is_live_staff(user: Any) -> bool:
     """로그인한 활성 계정이고 협력사가 아닌지."""
@@ -94,3 +97,18 @@ def writable_parts(user: Any) -> tuple[str, ...]:
         part = part_account_part(user)
         return (part,) if part else ()
     return ()
+
+
+def steps_locked_for(user: Any) -> bool:
+    """주문 공정 칸(``…/production/steps``)을 직접 못 쓰는 사람인지 — 파트 계정(관리자 아님).
+
+    파트 계정의 공정 칸은 도면 카드 동기화(설계서 §15.5)만 바꾼다. 길이 둘이면 동기화 값과 손 값이 서로 덮고,
+    남의 파트 칸도 켤 수 있어 D53 이 깨진다(§15.4 끝). 공정 API 403 과 시트 단추 읽기 전용이 이 함수 하나를 본다.
+
+    Args:
+        user: 사용자 객체(None 허용).
+
+    Returns:
+        파트 계정이고 관리자가 아니면 True.
+    """
+    return part_account_part(user) is not None and not is_part_admin(user)

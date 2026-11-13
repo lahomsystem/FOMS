@@ -27,6 +27,7 @@ from foms.services.production_dashboard_display import (
 )
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import production_home_steps
+from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -250,4 +251,6 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
     sheet['has_change_history'] = bool(_sc['history'])
     if full:
         sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label))
+        # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
+        sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
     return sheet
