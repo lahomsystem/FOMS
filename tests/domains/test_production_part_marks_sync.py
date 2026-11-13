@@ -341,5 +341,17 @@ def test_confirm_list_shows_broken_note_for_missing_picture():
     import pathlib
 
     src = pathlib.Path("static/js/production/foms-production-parts.js").read_text(encoding="utf-8")
-    assert "img && !img.hidden ? img.cloneNode(false)" in src
+    assert "img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' })" in src
     assert "el('span', 'pp-broken', '그림을 못 불러왔어요')" in src
+
+
+def test_switch_head_fits_one_row_without_waste():
+    """관리자 · 읽기 전용 장 머리: 날짜 · 파트 고르기 · 일괄 · 칸 단추 한 줄(사용자 "쓸데없이 낭비되는 공간 없게", 11-13).
+    일괄 단추가 보이면 '안 본 도면 N장' 글은 뺀다(단추에 장 수), 아랫줄로 미는 규칙(flex-basis 100%)은 없다."""
+    import pathlib
+
+    css = pathlib.Path("static/css/contexts/production/parts.css").read_text(encoding="utf-8")
+    tpl = pathlib.Path("templates/production/partials/home_parts.html").read_text(encoding="utf-8")
+    assert '.pp-head--switch .pp-bulk:has([data-pp-act="bulk"]:not([hidden])) .pp-unseen { display: none; }' in css
+    assert "flex-basis: 100%" not in css.split(".pp-head--switch", 1)[1]
+    assert "pp-head--switch" in tpl
