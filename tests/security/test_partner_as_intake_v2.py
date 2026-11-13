@@ -223,3 +223,36 @@ def test_aftercare_menu_lists_completed_and_open_as_with_buttons(app, world, pus
     assert f'data-pp-as-open="/api/partner/orders/{open_as}/as">AS 접수 수정</button>' in table
     assert f"#{drawing}<" not in table and 'id="ppAsModal"' in html
     assert 'href="/partner?aftercare=1"' in html  # 메뉴 "완공 사진 · AS"
+
+
+# ── AS 내역: 접수 내역 · 완료 내역(사용자 2026-11-13) ─────────────────────────
+
+
+def test_completed_as_shows_reception_and_completion_history(app, world, pushes):
+    order_id, client = _completed_order(app, world)
+    client.post(f"/api/partner/orders/{order_id}/as", data={"content": "문 2짝 처짐"})
+    client.post(f"/api/partner/orders/{order_id}/as/edit", data={"content": "문 3짝 처짐", "change_note": "2→3"})
+    staff = _client(app, db_session.get(User, world["admin"]))
+    assert staff.post(f"/api/orders/{order_id}/as/log", json={"type": "call", "text": "CLAUDE-TEST-내부 통화"}).status_code == 200
+    assert staff.post(f"/api/orders/{order_id}/as/verdict",
+                      json={"verdict": "resolved", "text": "경첩 3개 교체"}).status_code == 200
+    assert staff.post(f"/api/orders/{order_id}/as/start", json={"reason": "방문", "description": "방문"}).status_code == 200
+    assert staff.post(f"/api/orders/{order_id}/as/complete", json={"note": "고객 확인 끝"}).status_code == 200
+    logs = _sd(order_id)["shipment"]["as_log"]
+    by_type = {e["type"]: e["id"] for e in logs}
+    for name, log_type in (("after.jpg", "verdict"), ("invoice.jpg", "call")):
+        db_session.add(OrderAttachment(order_id=order_id, filename=name, file_type="image", category="as",
+                                       as_log_id=by_type[log_type], file_size=10,
+                                       storage_key=f"orders/{order_id}/as/{name}"))
+    db_session.commit()
+    html = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    history = html[html.index("data-pp-as-history"):]
+    assert "1번째 AS" in history and "접수 내역" in history and "완료 내역" in history
+    assert "문 3짝 처짐" in history and "고친 기록 1번" in history and "문 2짝 처짐" in history
+    assert "1차 완결" in history and "완료 2026-" in history
+    # 판정 사유 · 완료 메모는 우리 내부 글(2026-10-19 이력 탭 결정) — 결과(몇 차 완결)만 보인다.
+    assert "경첩 3개 교체" not in html and "고객 확인 끝" not in html
+    assert 'alt="after.jpg"' in history  # 처리 사진
+    assert "invoice.jpg" not in html and "CLAUDE-TEST-내부 통화" not in html  # 통화 글 · 통화 줄 사진은 우리 몫
+    # 대조군: 다른 회사는 이 주문 화면 자체를 못 연다.
+    assert _client(app, db_session.get(User, world["partner_b"])).get(f"/partner/orders/{order_id}").status_code == 404
