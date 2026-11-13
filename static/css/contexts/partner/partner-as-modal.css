@@ -1,0 +1,92 @@
+/* 협력사 AS 접수 창(PARTNER-AS-02) — 안쪽은 부트스트랩 .modal-content 그대로(본사 #asReceiveModal 과 같은 모양),
+   바깥 틀만 협력사 방식이다(협력사 화면엔 부트스트랩 JS 가 없다). PC = 가운데 창, 휴대폰 = 아래에서 올라오는 칸.
+   설계서 docs/specs/2026-11-13-partner-as-intake-edit-push_SPEC.md §5 */
+.pp-asm {
+  /* 부트스트랩은 창 색 · 여백 값을 .modal 에만 정한다(.modal-content 는 그 값을 읽는다). 협력사 창엔 .modal 틀이 없어
+     같은 값을 여기 둔다 — 빠지면 창 바탕이 투명해 뒤 목록 글자가 비친다(2026-11-13 실화면). */
+  --bs-modal-padding: 1rem;
+  --bs-modal-bg: var(--bs-body-bg, #fff);
+  --bs-modal-border-color: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.175));
+  --bs-modal-border-width: var(--bs-border-width, 1px);
+  --bs-modal-border-radius: var(--bs-border-radius-lg, 0.5rem);
+  --bs-modal-box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --bs-modal-inner-border-radius: calc(var(--bs-border-radius-lg, 0.5rem) - var(--bs-border-width, 1px));
+  --bs-modal-header-padding: 1rem 1rem;
+  --bs-modal-header-border-color: var(--bs-border-color, #dee2e6);
+  --bs-modal-header-border-width: var(--bs-border-width, 1px);
+  --bs-modal-title-line-height: 1.5;
+  --bs-modal-footer-gap: 0.5rem;
+  --bs-modal-footer-border-color: var(--bs-border-color, #dee2e6);
+  --bs-modal-footer-border-width: var(--bs-border-width, 1px);
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px;
+  overflow-y: auto;
+}
+
+.pp-asm[hidden] {
+  display: none;
+}
+
+.pp-asm__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pp-asm__dialog {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+}
+
+.pp-asm__paste {
+  cursor: text;
+}
+
+.pp-asm .modal-content {
+  box-shadow: var(--bs-modal-box-shadow);
+}
+
+/* 창 안 완공 사진 고르기는 작게(주문 화면 큰 칸 120px 은 창 폭 500px 에서 세 장이면 꽉 찬다). */
+.pp-asm .pp-photos {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+
+.pp-asm .pp-status,
+.pp-as-content {
+  white-space: pre-line;
+}
+
+body.pp-asm-open {
+  overflow: hidden;
+}
+
+@media (max-width: 991.98px) {
+  .pp-asm {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .pp-asm__dialog {
+    max-width: none;
+  }
+
+  .pp-asm .modal-content {
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .pp-asm .modal-body {
+    overflow-y: auto;
+  }
+
+  .pp-asm .modal-footer .btn-primary {
+    flex: 1 1 auto;
+  }
+}

@@ -57,7 +57,7 @@ def build_partner_push_text(order: Any, prefix: str = "") -> str:
     return f"{prefix}\n{text}" if prefix else text
 
 
-def _sent_label(raw: Any) -> str:
+def sent_label(raw: Any) -> str:
     """이력의 UTC 시각 → '10/29 14:05'(한국 시간). 읽지 못하면 빈 문자열."""
     try:
         at = datetime.datetime.fromisoformat(str(raw))
@@ -79,7 +79,7 @@ def push_state(order: Any) -> dict[str, dict[str, Any]]:
         is_open = measured if kind == "measurement" else drawing_push_open(sd)
         state[kind] = {
             "pushed": bool(history.get("pushed")),
-            "sent_label": _sent_label(history.get("sent_at")) if history.get("pushed") else "",
+            "sent_label": sent_label(history.get("sent_at")) if history.get("pushed") else "",
             "open": is_open,
             "reason": "" if is_open else (MEASURE_CLOSED_REASON if kind == "measurement" else DRAWING_CLOSED_REASON),
         }

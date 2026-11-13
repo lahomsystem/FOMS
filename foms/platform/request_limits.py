@@ -127,7 +127,8 @@ _MANIFEST: tuple[BodyCap, ...] = (
     BodyCap(r"^/api/orders/\d+/drawing-gateway-upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     # 협력사 화면 사진 · 동영상 · 초안 도면(핸들러 상한 20 MiB 이미지 / 동영상)과 수정 요청 · AS 사진.
     # 빠져 있으면 1 MiB 기본 캡에 걸려 휴대폰 사진이 전부 413 이다(2026-10-29 운영 사고).
-    BodyCap(r"^/api/partner/orders/\d+/(files|revision|as)$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    # AS 고치기 · AS 파일 1개(2026-11-13 — 동영상 한 개 50MB 까지, 설계서 2026-11-13-partner-as-intake-edit-push D8).
+    BodyCap(r"^/api/partner/orders/\d+/(files|revision|as|as/edit|as/files)$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     # AI 상담 [수정하기] 자세한 이유 사진(설계서 17.6.1 — 화면이 긴 변 2,048px 로 줄여 한 장씩, 핸들러 상한 5MB).
     # 빠지면 1 MiB 기본 캡에 걸려 휴대폰 사진이 413 이다(위 10-29 협력사 사고와 같은 꼴).
     BodyCap(r"^/api/cs-agent/turns/\d+/edit-photos$", _CS_EDIT_PHOTO_CAP, 1, "cs_edit_photo"),

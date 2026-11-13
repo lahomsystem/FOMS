@@ -70,6 +70,7 @@
     </div>
 </div>
 {% include "partner/partials/order_actions.html" %}
+{% if can_as or as_open %}{% include "partner/partials/as_receive_modal.html" %}{% endif %}
 {% if option_review and option_catalog is none %}{#- 도면 확인 때 "상담 후 정함" 품목 고르기(설계서 2026-11-03-partner-statement §5.4) -#}
 <div hidden data-pp-option-catalog='{{ option_review.catalog | tojson }}'></div>
 <script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>

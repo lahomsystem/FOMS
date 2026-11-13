@@ -86,6 +86,11 @@ def fake_storage(monkeypatch):
     storage = _FakeStorage()
     monkeypatch.setattr(partner_api, "get_storage", lambda: storage)
     monkeypatch.setattr(partner_api, "schedule_order_attachment_thumbnail_generation", lambda *a, **k: None)
+    # AS 접수 · 파일(2026-11-13 — foms/api/partner/as_intake.py 로 옮김)도 같은 가짜 저장소로.
+    import foms.api.partner.as_intake as partner_as_api
+
+    monkeypatch.setattr(partner_as_api, "get_storage", lambda: storage)
+    monkeypatch.setattr(partner_as_api, "schedule_order_attachment_thumbnail_generation", lambda *a, **k: None)
     return storage
 
 
