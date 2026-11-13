@@ -5,7 +5,7 @@
 {% for o in orders %}
 {% if loop.first and o.turn %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">지금 내 차례</h2><span class="section-header__count foms-section-header__count">{{ turn_count }}</span></div><div class="pp-rows">
 {% elif not o.turn and (loop.first or loop.previtem.turn) %}{% if not loop.first %}</div>{% endif %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">{{ '다른 주문' if turn_count else '주문' }}</h2><span class="section-header__count foms-section-header__count">{{ orders | length - turn_count }}</span></div><div class="pp-rows">{% endif %}
-<a class="pp-row{% if o.turn %} pp-row--turn{% endif %}" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}{% if o.turn %}#drawing{% endif %}" data-pp-order-id="{{ o.id }}">
+<a class="pp-row{% if o.turn %} pp-row--turn{% endif %}" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}{% if o.turn %}#drawing{% elif o.as_action %}#completion{% endif %}" data-pp-order-id="{{ o.id }}">
     {{ date_cell(o.date_cell) }}
     <span class="pp-row__main">
         <span class="pp-row__l1"><span class="pp-row__name">{{ o.customer_name }}</span><span class="pp-row__no">#{{ o.id }}</span>{{ stage_badge(o.stage_label, o.badge) }}</span>
