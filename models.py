@@ -548,6 +548,64 @@ class ProductionRun(Base):
         }
 
 
+# PRODPART-00(설계서 docs/specs/2026-11-09-tablet-production-ui_SPEC.md §15.3): 파트 key · 표시 상태의
+# CHECK 글. 값 목록 정본은 ``foms/services/production/part_constants.py`` 다 — 이 모듈은 그것을 import 하지
+# 않는다(그 모듈이 order_mutation_policy → partner_scope → models 를 불러 순환). 같은 값인지는
+# tests/domains/test_production_part_marks_model.py 가 고정하고, 마이그레이션 ``prodpart_00`` 은 같은 글을
+# 작성 시점 스냅샷으로 들고 있다.
+PRODUCTION_PART_CHECK_VALUES_SQL = "('cut','edge','assemble','inspect')"
+PRODUCTION_PART_MARK_STATE_CHECK_VALUES_SQL = "('NONE','NEED','BASIC','DONE')"
+
+
+class ProductionPartMark(Base):
+    """PRODPART-00: 확정 도면 한 장 × 생산 파트 하나의 진행 표시(설계서 §15.3 · D47~D57).
+
+    파트 계정(재단 · 엣지 · 조립 · 검수)이 도면 카드에서 맡기 · 기본 · 완료 · 되돌리기를 누를 때마다
+    한 줄을 쓴다. 주문의 큰 ``structured_data`` JSONB 밖에 따로 두는 까닭(선례 :class:`SalesCommissionInput`):
+    여러 사람이 같은 주문의 장들을 동시에 누르는데, 주문 JSON 을 통째로 다시 쓰면 남의 표시를 지우고
+    누를 때마다 주문 ``mutation_version`` 이 올라 편집 화면 · 마법사 · 도면 전달이 409 로 깨진다.
+
+    * ``drawing_key`` = 확정 도면 장 id(``structured_data.drawing_current_files[].key`` — 올릴 때마다 새 이름).
+      도면이 교체되면 새 key 라 줄이 없어 저절로 '안 봄 · 안 고름'이고, 옛 key 줄은 이력으로 남는다.
+    * ``sheet_id`` = 표시할 때의 마법사 시트 신원 스냅샷(바뀐 도면 짝짓기용, 직접 올린 파일은 NULL).
+    * 줄은 지우지 않는다 — 되돌려 안 봄이 되면 ``state='NONE'`` 으로 남긴다(공정 칸 동기화 표지, §15.5).
+    * 이름 칸(``*_by_name``)은 표시 때 스냅샷이다 — 사용자가 지워져도(FK SET NULL) 이름은 남는다.
+    * 주문이 하드 삭제되면 같이 지워진다(``ondelete='CASCADE'`` — 삭제 보존 FK 검사 통과 조건).
+
+    DDL(이름 · 칸 · 제약)은 마이그레이션 ``prodpart_00`` 과 같아야 한다(PG 왕복 시험이 강제).
+    """
+
+    __tablename__ = 'production_part_marks'
+
+    # SQLite 는 ``BIGINT PRIMARY KEY`` 를 rowid 별칭으로 보지 않아 자동증가가 죽는다 — 그 레인에서만 INTEGER.
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
+    drawing_key = Column(String(500), nullable=False)
+    sheet_id = Column(String(64), nullable=True)
+    part = Column(String(16), nullable=False)
+    state = Column(String(8), nullable=False)
+    picked_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    picked_by_name = Column(String(120), nullable=True)
+    picked_at = Column(DateTime, nullable=True)
+    done_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    done_by_name = Column(String(120), nullable=True)
+    done_at = Column(DateTime, nullable=True)
+    updated_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        # 장 · 파트 하나에 한 줄. 앞머리 order_id 라 ``order_id IN (…)`` 읽기 색인도 겸한다.
+        UniqueConstraint('order_id', 'drawing_key', 'part', name='uq_production_part_marks_order_key_part'),
+        CheckConstraint(f'part IN {PRODUCTION_PART_CHECK_VALUES_SQL}', name='ck_production_part_marks_part'),
+        CheckConstraint(
+            f'state IN {PRODUCTION_PART_MARK_STATE_CHECK_VALUES_SQL}', name='ck_production_part_marks_state',
+        ),
+        # '기본'(이미 잘라 둔 판)은 재단에만 있다(D49).
+        CheckConstraint("state <> 'BASIC' OR part = 'cut'", name='ck_production_part_marks_basic_cut'),
+    )
+
+
 class OrderASCycle(Base):
     """AS(A/S) 실행 cycle 의 DB-global UUID registry (AS-BACKFILL-00, §5.2).
 
@@ -1526,6 +1584,11 @@ class User(Base):
             "(upper(role) = 'PARTNER') = (partner_org_id IS NOT NULL)",
             name='ck_users_partner_role_org',
         ),
+        # PRODPART-00: 생산 파트는 비었거나 네 값 중 하나(생산팀이 아니면 저장 때 비운다 — 관리자 화면).
+        CheckConstraint(
+            f'production_part IS NULL OR production_part IN {PRODUCTION_PART_CHECK_VALUES_SQL}',
+            name='ck_users_production_part',
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -1556,6 +1619,10 @@ class User(Base):
     channel_drawing_group_id = Column(String(32), nullable=True)
     # PARTNER-04: 연락처(협력사 직원 — 담당인 주문의 도면 "담당 연락처"에 찍힌다). sender_phone 과 별개.
     contact_phone = Column(String(30), nullable=True)
+    # PRODPART-00: 생산팀 계정의 파트(cut · edge · assemble · inspect, 설계서 §15.3 D47). 요청마다 이 행을
+    # 읽으므로 바뀌어도 세션을 끊지 않는다(보안 버전 트리거 대상 아님). 읽는 쪽은
+    # foms.services.production.part_constants.account_production_part 를 거친다(생산팀이 아니면 None).
+    production_part = Column(String(16), nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와
@@ -1576,6 +1643,7 @@ class User(Base):
             'team': self.team,
             'is_active': self.is_active,
             'approval_status': self.approval_status,
+            'production_part': self.production_part,
             'created_at': format_datetime_kst(self.created_at),
             'last_login': format_datetime_kst(self.last_login)
         }
