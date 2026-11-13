@@ -42,8 +42,20 @@ REVISION_WORK = "수정 요청을 받아 저희 도면팀이 도면을 고치고
 REVISION_BADGE = "도면 수정 중"
 
 
-def stage_badge_text(label: str, drawing_status: Any) -> str:
-    """배지 글자 — 수정 요청 뒤(RETURNED) 도면 작업 중은 "도면 수정 중"(사용자 2026-10-30). 칸 셈은 label 그대로."""
+AS_DONE_BADGE = "AS 완료"
+
+
+def as_finished(stage_code: Any, as_axis_status: Any, as_completed_date: Any) -> bool:
+    """AS 를 한 번 이상 끝낸 주문인가 — AS 축 완료 · AS 완료 단계 · AS 완료일 중 하나(옛 주문은 칸마다 남은 곳이 달라 셋 다 본다)."""
+    return (str(as_axis_status or "").upper() == "COMPLETED" or str(stage_code or "").upper() == "AS_COMPLETED"
+            or bool(str(as_completed_date or "").strip()))
+
+
+def stage_badge_text(label: str, drawing_status: Any, as_done: bool = False) -> str:
+    """배지 글자 — 수정 요청 뒤(RETURNED) 도면 작업 중은 "도면 수정 중"(사용자 2026-10-30), AS 끝난 완료 주문은 "AS 완료"
+    (사용자 2026-11-13 "AS 완료 건인지 알아야"). 칸 셈 · 색은 label 그대로."""
+    if label == "완료" and as_done:
+        return AS_DONE_BADGE
     return REVISION_BADGE if label == "도면 작업 중" and drawing_status == "RETURNED" else label
 MAX_ROWS = 200
 _PHONE_DIGITS_MIN = 4
@@ -65,13 +77,19 @@ def partner_list_filters(args: Any) -> dict[str, str]:
     }
 
 
-def _as_action(label: str, as_axis_status: Any) -> str:
+def _as_action(label: str, as_done: bool) -> str:
     """목록 "현재 작업" 칸의 AS 단추 글(PC). 할 일 판정의 정본은 접수 창을 열 때 서버가 다시 본다(as_intake.as_mode)."""
     if label == "AS 진행 중":
         return "AS 접수 수정"
     if label == "완료":
-        return "AS 재접수" if str(as_axis_status or "").upper() == "COMPLETED" else "AS 접수"
+        return "AS 재접수" if as_done else "AS 접수"
     return ""
+
+
+def _done_work(as_completed_date: Any) -> str:
+    """AS 끝난 완료 주문의 "현재 작업" 글 — AS 완료일(있으면 MM-DD)과 내역 보는 길."""
+    date = str(as_completed_date or "").strip()[:10]
+    return f"AS 완료 {date[5:]} · 눌러서 AS 내역" if len(date) == 10 else "AS 완료 · 눌러서 AS 내역"
 
 
 def _work_text(label: str, construction_date: Any) -> str:
@@ -106,7 +124,8 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
     result = (
         db.query(
             Order.id, Order.customer_name, Order.phone, Order.address, Order.product, Order.received_date,
-            Order.erp_stage_code, Order.erp_construction_date, Order.as_axis_status, OrderAssignment.user_id,
+            Order.erp_stage_code, Order.erp_construction_date, Order.as_axis_status, Order.as_completed_date,
+            OrderAssignment.user_id,
         )
         .outerjoin(OrderAssignment, (OrderAssignment.order_id == Order.id) & (OrderAssignment.domain == "SALES")
                    & OrderAssignment.active.is_(True))
@@ -126,15 +145,17 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
         label = partner_stage_label(r.erp_stage_code, r.as_axis_status,
                                     None if status is None else status == "CONFIRMED",
                                     status == "TRANSFERRED")
+        as_done = label == "완료" and as_finished(r.erp_stage_code, r.as_axis_status, r.as_completed_date)
         rows[r.id] = {
             "id": r.id, "customer_name": r.customer_name, "phone": r.phone, "address": r.address,
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
             "requested_construction": requested.get(r.id, ""),
             "stage_label": label, "turn": label == TURN_LABEL,
-            "badge": stage_badge_text(label, status), "drawing_status": status or "",
-            "work": REVISION_WORK if status == "RETURNED" else _work_text(label, r.erp_construction_date),
+            "badge": stage_badge_text(label, status, as_done), "drawing_status": status or "",
+            "work": REVISION_WORK if status == "RETURNED" else (_done_work(r.as_completed_date) if as_done
+                                                              else _work_text(label, r.erp_construction_date)),
             "step": _STEP_OF_LABEL.get(label, 0), "manager_id": r.user_id, "manager_name": names.get(r.user_id, ""),
-            "as_action": _as_action(label, r.as_axis_status),
+            "as_action": _as_action(label, as_done),
         }
     return list(rows.values())
 

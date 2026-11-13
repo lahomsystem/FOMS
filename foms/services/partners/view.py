@@ -13,7 +13,7 @@ import copy
 from typing import Any
 
 from foms.services.partners.items_edit import PARTNER_ITEM_KEYS, partner_edit_open
-from foms.services.partners.order_list import stage_badge_text
+from foms.services.partners.order_list import as_finished, stage_badge_text
 from foms.services.partners.orders import partner_stage_label
 from foms.services.partners.schedule_request import request_open
 from models import Order
@@ -90,7 +90,8 @@ def build_partner_order_view(order: Order) -> dict[str, Any]:
         "badge": stage_badge_text(partner_stage_label(order.erp_stage_code, order.as_axis_status,
                                                       sd.get("drawing_status") == "CONFIRMED",
                                                       sd.get("drawing_status") == "TRANSFERRED"),
-                                  sd.get("drawing_status")),
+                                  sd.get("drawing_status"),
+                                  as_finished(order.erp_stage_code, order.as_axis_status, order.as_completed_date)),
         "address": _text(site.get("address_full")) or _text(order.address),
         "address_note": _text(notes.get("address_note")),
         "measured_on": _text(intake.get("measured_on")),
