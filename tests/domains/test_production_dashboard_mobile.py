@@ -185,7 +185,7 @@ def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
     ).read_text(encoding="utf-8")
     for token in (
         "foms-v2-domain-heroes.css') }}?v=20261109f",
-        "foms-production-steps.css') }}?v=20261105s",
+        "foms-production-steps.css') }}?v=20261113p",
     ):
         assert token in dash
         assert token in frag_src

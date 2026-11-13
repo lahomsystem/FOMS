@@ -105,7 +105,7 @@
     list.appendChild(li);
   }
 
-  function buildRow(step) {
+  function buildRow(step, locked) {
     var li = document.createElement('li');
     li.className = 'foms-prod-steps__row' + (step.done ? ' is-done' : '');
     li.setAttribute('data-foms-prod-step-row', '');
@@ -117,6 +117,8 @@
     btn.setAttribute('data-foms-prod-step-toggle', '');
     btn.setAttribute('data-step-key', step.key);
     btn.setAttribute('aria-pressed', step.done ? 'true' : 'false');
+    // 파트 계정 = 읽기 전용(공정은 도면 카드에서 체크 — 서버도 403, 설계서 §15.4)
+    if (locked) { btn.disabled = true; btn.setAttribute('aria-disabled', 'true'); btn.classList.add('is-locked'); }
 
     var check = document.createElement('span');
     check.className = 'foms-prod-steps__check';
@@ -149,7 +151,14 @@
     if (!list) return;
     var steps = (payload && payload.steps) || [];
     list.textContent = '';
-    steps.forEach(function (s) { list.appendChild(buildRow(s)); });
+    var locked = !!(payload && payload.locked);
+    steps.forEach(function (s) { list.appendChild(buildRow(s, locked)); });
+    if (locked && payload.locked_note) {
+      var note = document.createElement('li');
+      note.className = 'foms-prod-steps__locked';
+      note.textContent = payload.locked_note;
+      list.appendChild(note);
+    }
     updateCounts(payload);
   }
 

@@ -192,7 +192,7 @@
                             <td>{{ user.username }}</td>
                             <td>{{ user.name }}</td>
                             <td>{{ ROLES.get(user.role, user.role) }}</td>
-                            <td>{{ TEAMS.get(user.team, user.team or '-') }}</td>
+                            <td>{{ TEAMS.get(user.team, user.team or '-') }}{% if production_part_labels and production_part_labels.get(user.id) %} · {{ production_part_labels.get(user.id) }}{% endif %}</td>
                             <td>
                                 {% if user.sender_phone %}
                                 <span class="badge bg-info text-dark">등록 ****{{ user.sender_phone[-4:] }}</span>

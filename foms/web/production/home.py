@@ -14,7 +14,15 @@ from db import get_db
 from models import Order
 from foms.api.production.orders import _PRODUCTION_DEFECT_REASONS
 from foms.services.datetime_kst import get_today_kst
+from foms.services.feature_flags import (
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
+    wants_coarse_pointer_surfaces,
+)
 from foms.services.production.home_access import can_view_production_home
+from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
+from foms.services.production.part_board import build_part_board, part_sync_cursor
+from foms.services.production.part_constants import PART_CUT
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_sheet_view import build_production_sheet_view
 from foms.services.production_home_days import production_home_days
@@ -26,11 +34,58 @@ from foms.services.production_home_read_model import (
     production_home_step_queues,
 )
 
-_HOME_TABS = ('date', 'steps', 'changes', 'all')
+_HOME_TABS = ('date', 'steps', 'changes', 'all', 'parts')
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
 _KST = datetime.timezone(datetime.timedelta(hours=9))
+
+
+def _tablet_part_surface(user) -> bool:
+    """도면 카드 화면의 기기 문(설계서 §15.6 '문') — 모바일 v2 셸 + 터치 기기.
+
+    마우스 기기(``foms_ptr=fine``)는 카드를 아예 그리지 않는다(시공 3분할 선례). 보이기는 태블릿 가로 미디어쿼리(parts.css).
+    """
+    uid = getattr(user, 'id', None)
+    return is_mobile_v2_shell(resolve_shell_variant_cached(uid)) and wants_coarse_pointer_surfaces()
+
+
+def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
+    """주소의 탭 → 그릴 탭. 파트 계정의 '내 공정'(D50)과 문 밖의 '도면 카드'(D55)는 날짜로 돌린다."""
+    tab = raw if raw in _HOME_TABS else 'date'
+    if tab == 'steps' and mode == VIEW_PART:
+        return 'date'
+    if tab == 'parts' and not (surface and mode in (VIEW_ADMIN, VIEW_READONLY)):
+        return 'date'
+    return tab
+
+
+def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
+    """파트 화면 템플릿 값 — 판(없으면 None) · '도면 카드' 탭 · '내 공정' 숨김 · 위 줄 제목 · JS 설정.
+
+    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 탭에서만 만든다(표시 줄 읽기 쿼리 +1).
+    """
+    board = None
+    # 30초 받아 오기(P15-7)의 첫 since = 그리는 서버 시각(기기 시계 아님). 표시 줄을 읽기 **전**에 잡는다.
+    since = part_sync_cursor()
+    if days is not None and surface and ((tab == 'date' and mode == VIEW_PART) or tab == 'parts'):
+        board = build_part_board(db, user, days, part=request.args.get('part'))
+    name = getattr(user, 'name', None) or getattr(user, 'username', '') or ''
+    config = None
+    if board is not None:
+        config = {
+            'mode': board['mode'], 'part': board['part'], 'label': board['part_label'], 'writable': board['writable'],
+            'verb': '자름' if board['part'] == PART_CUT else board['part_label'], 'me': name,
+            'me_id': getattr(user, 'id', None),
+        }
+    return {
+        'part_board': board,
+        'part_config': config,
+        'part_since': since if board is not None else None,
+        'parts_tab': surface and mode in (VIEW_ADMIN, VIEW_READONLY),
+        'hide_steps_tab': mode == VIEW_PART,
+        'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,
+    }
 
 
 def _require_home_user():
@@ -49,12 +104,16 @@ def erp_production_home():
 
     볼 수 있는 사람 = 공정 체크를 할 수 있는 사람과 같다(관리자·CS·영업·생산, ``_PRODUCTION_STEPS_EDIT_TEAMS``
     와 같은 답). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
+
+    생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장마다 도면 카드 판을 더 그리고(지금 장은
+    태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 '도면 카드' 탭(``?tab=parts&part=``)으로 본다.
+    파트 계정은 '내 공정' 탭이 없다(D50, 기기 무관).
     """
     db = get_db()
     user = _require_home_user()
-    tab = request.args.get('tab') or 'date'
-    if tab not in _HOME_TABS:
-        tab = 'date'
+    mode = part_view_mode(user)
+    surface = _tablet_part_surface(user)
+    tab = _resolve_home_tab(request.args.get('tab') or 'date', mode, surface)
     rows, stats = build_production_home(db, user)
     today = get_today_kst()
     now_kst = datetime.datetime.now(_KST)
@@ -62,13 +121,16 @@ def erp_production_home():
     # "바뀐 것" 탭 숫자 = 받은함 장 수가 되게 한다(R2, 11-10).
     tombstones = collect_production_tombstones(db, user, False)
     past_hidden = stats['past_hidden']
+    days = (production_home_days(rows, today, request.args.get('day'), past_hidden=past_hidden)
+            if tab in ('date', 'parts') else None)
     return render_template(
         'production/home.html',
         tab=tab,
         rows=rows,
         total=stats['total'],
         groups=production_home_groups(rows, today, past_hidden=past_hidden) if tab == 'all' else [],
-        days=production_home_days(rows, today, request.args.get('day'), past_hidden=past_hidden) if tab == 'date' else None,
+        days=days,
+        **_part_screen(db, user, tab, mode, surface, days),
         counts=production_home_counts(rows, len(tombstones)),
         inbox=production_home_inbox(rows, tombstones) if tab == 'changes' else [],
         queues=production_home_step_queues(rows) if tab == 'steps' else None,

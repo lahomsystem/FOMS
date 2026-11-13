@@ -1,0 +1,83 @@
+{# 생산 파트 도면 카드 판 — 날짜 한 장(설계서 §15.6 '오른쪽 장', 시안 docs/design/mockups/tablet-production-parts.html f60~f64 · f68).
+   home_date.html 이 장마다 include 한다(d = 날짜 묶음 한 장, part_board = foms/services/production/part_board.py 판).
+   카드 = 확정 도면 한 장. 내 파트 단추는 쓸 수 있는 사람에게만(D53 · D55), 다른 파트 한 줄은 누를 수 없는 글(D51).
+   칸 단추 셋은 보이기/숨기기만(새 요청 없음). 확인 창 · 크게 보기 겉틀은 home_parts_overlays.html 에 한 번만 있다.
+   인라인 style · script 없음, 모양은 static/css/contexts/production/parts.css. 금액 없음(D7). #}
+{% set pb = part_board %}
+{% set pp = pb.panes[d.key] %}
+{% set is_cut = pb.part == 'cut' %}
+{% set verb = '자름' if is_cut else pb.part_label %}
+{% macro pp_act(c, pb, is_cut, verb) %}
+{%- set can_finish = pb.writable and (c.picked_by_me or not pb.mine) -%}
+{%- set can_undo = pb.writable and (c.done_by_me or not pb.mine) -%}
+{%- if c.state == 'none' -%}
+  {%- if pb.writable and is_cut -%}
+<div class="pp-two"><button type="button" class="foms-prod-home__btn pp-pick-basic" data-pp-act="basic">기본</button><button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-pp-act="take">내가 {{ verb }}</button></div>
+  {%- elif pb.writable -%}
+<button type="button" class="foms-prod-home__btn pp-act" data-pp-act="take">내가 {{ verb }}</button>
+  {%- endif -%}
+{%- elif c.state == 'need' -%}
+  {%- if c.badge == 'taken' -%}
+<span class="fph-wi pp-act pp-st-taken">{{ c.picked_by_name or '다른 사람' }} 맡음</span>
+  {%- else -%}
+<span class="fph-wi pp-act pp-st-need{% if can_finish %} pp-not-need{% endif %}">작업 필요{% if c.picked_by_name %} · {{ c.picked_by_name }}{% endif %}</span>
+    {%- if can_finish -%}<button type="button" class="fph-qr__done pp-act pp-fin pp-only-need" data-pp-act="done">{{ pb.part_label }} 완료</button>{%- endif -%}
+  {%- endif -%}
+{%- else -%}
+  {%- set word = (pb.part_label ~ ' 끝') if c.state == 'done' else '기본' -%}
+<span class="fph-wi pp-act pp-st-{{ c.state }}{% if can_undo %} pp-not-done{% endif %}">{{ word }}{% if c.done_by_name %} · {{ c.done_by_name }}{% endif %}</span>
+  {%- if can_undo -%}<div class="fph-wi pp-act pp-undo-row pp-st-{{ c.state }} pp-only-done"><span>{{ word }}{% if c.done_by_name %} · {{ c.done_by_name }}{% endif %}</span><button type="button" class="foms-prod-home__btn pp-undo" data-pp-act="undo">되돌리기</button></div>{%- endif -%}
+{%- endif -%}
+{% endmacro %}
+<div class="fph-parts" data-pp-pane="{{ d.key }}">
+  <div class="pp-head">
+    <h2 class="fph-pane__h">{{ d.title }}{% if not is_cut %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
+    {% if pb.mode != 'part' %}
+    <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=p.key, day=d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
+    {% endif %}
+    {% if is_cut %}
+    <div class="pp-bulk">
+      <span class="pp-unseen" data-pp-unseen-text>{% if pp.counts.unseen %}안 본 도면 <b>{{ pp.counts.unseen }}</b>장{% else %}안 본 도면 없어요{% endif %}</span>
+      {% if pb.writable %}<button type="button" class="foms-prod-home__btn" data-pp-act="bulk"{% if not pp.counts.unseen %} hidden{% endif %}><span>남은 <span data-pp-count="unseen">{{ pp.counts.unseen }}</span>장 모두 기본</span></button>{% endif %}
+    </div>
+    {% endif %}
+    <div class="foms-prod-home__tabs pp-tabs" role="group" aria-label="칸">
+      <button type="button" class="foms-prod-home__tab is-on" data-pp-view="all" aria-pressed="true">전체 도면 <small data-pp-count="all">{{ pp.counts.all }}</small></button>
+      <button type="button" class="foms-prod-home__tab" data-pp-view="need" aria-pressed="false">작업 필요 <small data-pp-count="need">{{ pp.counts.need }}</small></button>
+      <button type="button" class="foms-prod-home__tab" data-pp-view="done" aria-pressed="false">완료 <small data-pp-count="done">{{ pp.counts.done }}</small></button>
+    </div>
+  </div>
+  <div class="pp-main">
+    <div class="pp-grid" data-pp-grid>
+      {% for c in pp.cards %}
+      <article class="pp-card{% if c.state == 'need' and c.in_need %} is-mine{% elif c.state in ('done', 'basic') %} is-done{% elif c.taken_by_other and pb.mine %} is-other{% endif %}"
+               data-pp-card data-order-id="{{ c.order_id }}" data-key="{{ c.key }}" data-no="{{ c.no }}" data-of="{{ c.of }}"
+               data-state="{{ c.state }}" data-picked-me="{{ '1' if c.picked_by_me else '0' }}" data-done-me="{{ '1' if c.done_by_me else '0' }}"
+               data-picked-name="{{ c.picked_by_name or '' }}" data-done-name="{{ c.done_by_name or '' }}"
+               data-in-need="{{ '1' if c.in_need else '0' }}" data-in-done="{{ '1' if c.in_done else '0' }}" data-view-url="{{ c.view_url }}">
+        {% if c.is_image %}
+        <button type="button" class="pp-img" data-pp-open aria-label="{{ c.customer_name }} 도면 {{ c.no }}/{{ c.of }} 크게 보기"><img class="pp-thumb" src="{{ url_for('erp_production_page.erp_production_part_thumb', order_id=c.order_id, key=c.key) }}" loading="lazy" decoding="async" alt=""></button>
+        {% else %}
+        <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
+        {% endif %}
+        <div class="pp-ln"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small>{% if c.has_changes %}<em class="pp-chg">바뀜</em>{% endif %}</span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></div>
+        <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
+        {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
+        <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
+        <div class="pp-actbox" data-pp-actbox>{{ pp_act(c, pb, is_cut, verb) }}</div>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="pp-empty" data-pp-empty{% if pp.cards %} hidden{% endif %}>{% if pp.no_drawing_rows or pp.wait_count %}아직 확정 도면이 없어요.{% else %}이 날은 만들 도면이 없어요.{% endif %}</p>
+    {% if pp.hidden %}<p class="pp-cap">더 있는 {{ pp.hidden }}장은 안 보여요. 날을 나눠 보거나 찾기 탭에서 찾아 주세요.</p>{% endif %}
+    {% if pp.wait_count %}
+    <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>도면이 오면 카드로 나와요</small></h3>
+    <div class="fph-wg">{% for r in pp.wait_rows %}<a class="fph-wi pp-wait" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small></a>{% endfor %}{% for r in pp.no_drawing_rows %}<a class="fph-wi pp-wait" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · 도면 없음</small></a>{% endfor %}</div>
+    {% endif %}
+    {% if pp.done_count %}
+    <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 집</small></h3>
+    <div class="fph-wg">{% for r in d.done_rows %}<a class="fph-wi is-done pp-donechip" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small></a>{% endfor %}</div>
+    {% endif %}
+  </div>
+</div>
+{% if tab == 'parts' %}<p class="pp-rotate">도면 카드는 태블릿을 가로로 두면 보여요.</p>{% endif %}
