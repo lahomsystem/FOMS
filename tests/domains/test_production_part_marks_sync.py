@@ -341,5 +341,16 @@ def test_confirm_list_shows_broken_note_for_missing_picture():
     import pathlib
 
     src = pathlib.Path("static/js/production/foms-production-parts.js").read_text(encoding="utf-8")
-    assert "img && !img.hidden ? img.cloneNode(false)" in src
+    assert "img && !img.hidden ? Object.assign(img.cloneNode(false), { loading: 'eager', decoding: 'sync' })" in src
     assert "el('span', 'pp-broken', '그림을 못 불러왔어요')" in src
+
+
+def test_switch_head_keeps_tabs_on_first_row():
+    """관리자 · 읽기 전용 장 머리: 칸 단추는 윗줄(order 2), 안 본 도면 · 일괄 줄은 아랫줄 전체 폭(운영 11-13 정렬)."""
+    import pathlib
+
+    css = pathlib.Path("static/css/contexts/production/parts.css").read_text(encoding="utf-8")
+    tpl = pathlib.Path("templates/production/partials/home_parts.html").read_text(encoding="utf-8")
+    assert ".pp-head--switch .pp-tabs { order: 2; }" in css
+    assert ".pp-head--switch .pp-bulk { order: 3; flex-basis: 100%; }" in css
+    assert "pp-head--switch" in tpl

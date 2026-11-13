@@ -30,10 +30,13 @@
 {%- endif -%}
 {% endmacro %}
 <div class="fph-parts" data-pp-pane="{{ d.key }}">
-  <div class="pp-head">
-    <h2 class="fph-pane__h">{{ d.title }}{% if not is_cut %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
+  <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
+    <h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
     {% if pb.mode != 'part' %}
     <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=p.key, day=d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
+    {% endif %}
+    {% if not is_cut and pb.mode != 'part' %}
+    <div class="pp-bulk"><span class="pp-unseen">시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</span></div>
     {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">
