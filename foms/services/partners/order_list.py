@@ -171,5 +171,6 @@ def partner_turn_count(db, org_id: int) -> int:
             or_(Order.as_axis_status.is_(None), ~Order.as_axis_status.in_(("RECEIVED", "IN_PROGRESS"))),
         )
     }
-    wanted = {"CONFIRM": "CONFIRMED", "DRAWING": "TRANSFERRED"}
-    return sum(1 for oid, status in _drawing_status(db, set(stages)).items() if status == wanted[stages[oid]])
+    # 고객컨펌 단계에서 다시 보낸 도면(TRANSFERRED)도 협력사 차례 — partner_stage_label 과 같은 규칙.
+    wanted = {"CONFIRM": ("CONFIRMED", "TRANSFERRED"), "DRAWING": ("TRANSFERRED",)}
+    return sum(1 for oid, status in _drawing_status(db, set(stages)).items() if status in wanted[stages[oid]])

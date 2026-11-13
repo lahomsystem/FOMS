@@ -245,3 +245,59 @@ def test_partner_receipt_without_pick_keeps_all(app, world, quiet_push):
     db_session.expire_all()
     current = [f["key"] for f in db_session.get(Order, order_id).structured_data["drawing_current_files"]]
     assert current == keys
+
+
+def _resend_drawing(order_id):
+    """확인(받음) 뒤 저희 도면팀이 고친 도면을 다시 보냄 — 단계는 고객컨펌 그대로, 도면만 TRANSFERRED."""
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    key = f"orders/{order_id}/drawing/final_v2.png"
+    sent = {"action": "TRANSFER", "mode": "REPLACE", "transferred_at": "2026-11-13 02:10:44", "files": [{"key": key}]}
+    sd["drawing_status"] = "TRANSFERRED"
+    sd["drawing_current_files"] = [{"key": key, "filename": "final_v2.png"}]
+    sd["drawing_transfer_history"] = [*sd["drawing_transfer_history"], sent]
+    sd["last_drawing_transfer"] = sent
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
+def test_resend_after_receipt_is_partner_turn_again(app, world, quiet_push):
+    """운영 #5918 · #5987(2026-11-13): 협력사가 '확인했어요'를 누른 뒤 도면팀이 다시 보내면 고객컨펌 + TRANSFERRED 가
+    되는데, 목록은 "도면 작업 중"으로 · 도면 확인 탭에서 빠지고 · 받음은 409 · 제작 요청은 미확정이라 막다른 길이었다.
+    다시 보낸 도면도 도면 단계처럼 '도면 확인 대기' → 받음(단계 유지) → '이대로 만들어 주세요'로 이어져야 한다."""
+    from foms.services.partners.order_list import partner_turn_count
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _send_drawing(order_id)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    assert _receipt(client, order_id).status_code == 200
+    _resend_drawing(order_id)
+    db_session.expire_all()
+    org_id = db_session.get(Order, order_id).partner_org_id
+    assert db_session.get(Order, order_id).erp_stage_code == "CONFIRM"
+
+    board = client.get("/partner?view=orders").get_data(as_text=True)
+    assert "도면 확인 대기 1" in board and "도면 작업 중 1" not in board
+    turn = client.get("/partner?turn=1").get_data(as_text=True)
+    assert f'<article class="pp-tcard" data-pp-order-id="{order_id}"' in turn
+    assert "도면 확인함 · 고객 확인 차례" not in turn  # 받음 차례 카드지 제작 요청 카드가 아니다
+    assert partner_turn_count(db_session, org_id) == 1
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    receipt_btn = f'data-pp-approve-url="/api/partner/orders/{order_id}/drawing-receipt"'
+    approve_btn = f'data-pp-approve-url="/api/partner/orders/{order_id}/approve-drawing"'
+    assert receipt_btn in page and approve_btn not in page
+
+    resp = _receipt(client, order_id)
+    assert resp.status_code == 200, resp.get_json()
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    assert order.erp_stage_code == "CONFIRM" and order.structured_data["drawing_status"] == "CONFIRMED"
+    assert order.structured_data["workflow"]["history"][-1]["note"] == "도면 수령 확인(단계 유지)"
+    assert _receipt(client, order_id).status_code == 409  # 두 번째는 이미 확정
+
+    turn = client.get("/partner?turn=1").get_data(as_text=True)
+    assert "도면 확인함 · 고객 확인 차례" in turn
+    assert client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "r2"}).status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_stage_code == "PRODUCTION"
