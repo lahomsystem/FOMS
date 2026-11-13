@@ -415,3 +415,221 @@
   3. 오른쪽 = [돋보기] · [AS 넣기](권한 그대로) · [더보기 ▾]. 돋보기를 누르면 검색칸이 펼쳐진다(지금 검색과 같은 주소). [더보기] 안 = 다른 날짜 고르기(달력 = 지금 날짜 입력칸) · 날짜별 남은 자수(지금 띠 여닫기 그대로) · 줄 높이 `40 48 56` · 이미지 저장. 모두 누르는 곳 44px 이상 · 글자 13px 이상.
 - 시험: 템플릿 단언(태블릿 위 줄에 날짜 버튼 14개 · 고른 날 표시 · 오늘 표시 · 주소 `?date=` · 14일 밖 날짜면 앞 버튼 · [더보기] 안 네 가지 · PC 머리 · 폰 화면 그대로), JS 300줄 래칫 · `node --check`, 스테이징 실화면(1280×800 터치 — 날짜 버튼 눌러 넘어가기 · ◀ ▶ · 더보기 · 돋보기 · 띠 여닫기, 저장 없음).
 - 단계: P14-8 (플랜 T14-8).
+
+## 15. 생산 파트 나누기 — 재단 · 엣지 · 조립 · 검수 계정 (D45~D54, 2026-11-13 — **설계서 초안: 승인 전**)
+
+### 15.0 한 줄
+생산 계정마다 파트 하나(재단 · 엣지 · 조립 · 검수)를 정하고, 파트 계정이 태블릿 가로로 생산 첫 화면 날짜 탭을 열면 오른쪽 장이 "그날 확정 도면 한 장 = 카드 한 장" 화면이 된다. 카드에서는 내 파트 상태만 바꾸고(누를 때마다 확인 창), 다른 파트는 한 줄 글로만 본다. 표시는 주문 JSON 이 아니라 새 표 `production_part_marks` 에 두고, 한 주문의 모든 장이 그 파트에서 끝나면 지금 주문 공정 칸(`structured_data.production.steps`)을 저절로 켠다. 시안 = `docs/design/mockups/tablet-production-parts.html` f60~f68. 주소는 그대로 `/erp/production/home`(새 화면 주소 없음).
+
+### 15.1 결정 (사용자 — 다시 묻지 않는다, 원장 §28)
+- **D47** 계정은 사람마다 하나, 계정에 파트 하나. 같은 파트에 여러 사람이 있고 누가 했는지 이름이 남는다.
+- **D45** 그날 = 시공일(지금 왼쪽 시공일 2주 띠 그대로). **D48** 일 단위 = 확정 도면 한 장. **D46** 파트끼리 순서 없이 동시에 — 다른 파트 진행은 표시만, 막지 않는다.
+- **D49** 재단 상태 넷: 안 봄 → [기본](이미 잘라 둔 판 = 재단 끝으로 침) 또는 [내가 자름] → 작업 필요 → [재단 완료] → 재단 끝. 기본 사이즈 참고 상자는 없다. 장 머리에 [남은 N장 모두 기본].
+- 엣지 · 조립 · 검수 상태 셋: 안 고름 → [내가 조립] → 작업 필요 → [조립 완료] → 조립 끝. '기본'은 재단에만 있다.
+- 같은 파트 다른 사람이 고른 장 = "박재단 맡음". 칸 단추 셋 = [전체 도면 N] · [작업 필요 n](내가 맡은 것) · [완료 n](내가 끝낸 것 — 재단은 재단 끝 + 기본, 카드마다 [되돌리기]). 시안 f60 의 숫자(작업 필요 3 · 완료 4)가 "내 것만" 셈이다.
+- **D53** 계정은 자기 파트만 체크한다 — 화면에 남의 파트 단추가 없고 서버도 막는다. 상태를 바꾸는 모든 누름(맡기 · 기본 · 모두 기본 · 완료 · 되돌리기)에 확인 창. 꼴은 진짜 생산 보드 확인 창 `foms-prod-change-modal`. **D54** 창 안 도면 줄 바탕과 [취소]는 앱 확인 창 그대로(연한 회색 — 배지가 아님).
+- **D50** 파트 계정은 위 줄 '내 공정' 탭을 숨긴다(관리자 · 사무실은 그대로).
+- **D51 · D52** 배지 색: 작업 필요 #c5c9ff · 맡음 분홍 #eecbda · 끝 #a7f3d0 · 기본 하늘 #ccedff · 기다림 연두 #eeebb2, 무채색 배지 금지. 다른 파트 낱말은 글자 색(끝 초록 · 기본 하늘 · 중 보라 · 안 봄/아직 회색)이고 낱말은 그대로 둔다(색만으로 가리지 않음).
+- **D53** '도면·컨펌 기다림' 묶음은 파트 장 맨 아래(연두 칩, 시안 f68).
+
+### 15.2 지금 (코드로 확인 — 기준 `f6ad01694`)
+**① 사용자 · 팀 · 권한**
+- `User`(`models.py:1521-1581`): 팀은 글자 칸 `team` 하나(`:1536`), JSON 칸은 세션 끊기 목록 `revoked_session_ids`(`:1564`) 뿐. 비번 · 역할 · 팀 · 활성이 바뀌면 PG 트리거가 보안 버전을 올린다(`models.py:2463-2470`).
+- 팀 권한 판정은 한 함수 `team_has_capability`(`foms/services/orders/order_mutation_policy.py:302-322`, 별칭 팀 포함). 생산 쓰기 문 = `_PRODUCTION_STEPS_EDIT_TEAMS = ("CS", "SALES", "PRODUCTION")` + 관리자(`foms/api/production/orders.py:70, 106-135`), 공정 정의 `_PRODUCTION_STEP_DEFS` cut · edge · assemble · inspect(`:76-81`). 라우트 문지기는 정책 `PRODUCTION_EDIT`(`order_mutation_policy.py:185-186`)를 매니페스트(`docs/harness/foms_order_mutation_policy_manifest.json:698-702`)로 건다. **사람 단위 · 파트 단위 권한은 없다** — 생산팀이면 누구나 네 칸을 다 켠다.
+- 생산 첫 화면을 볼 수 있는 사람 = 관리자 · CS · 영업 · 생산(협력사 제외), 한 규칙 `can_view_production_home`(`foms/services/production/home_access.py:22-28`).
+- 관리자가 팀을 정하는 곳 = HTML 화면뿐(JSON API 없음): `GET/POST /admin/users/edit/<id>`(`foms/web/auth/routes.py:878-1022`, 팀 저장 `:966`, 역할 · 팀이 바뀌면 세션 끊기 `:961-963`), 추가 `:816-876`, 팀 목록 `TEAMS`(`:83-93`), 고르기 칸 `templates/auth/edit_user.html:70-74`, 감사 스냅샷 `_user_audit_snapshot`(`routes.py:198`).
+- **파트 저장 후보 견주기**
+
+  | 후보 | 좋은 점 | 나쁜 점 | 판정 |
+  |---|---|---|---|
+  | `users` 새 칸 `production_part` | 사람마다 하나(D47)와 꼴이 같다. 요청마다 이미 읽는 사용자 행에 있어 쿼리 0. 편집 화면 칸 하나 | 한 사람 두 파트는 못 담는다 | **고름** |
+  | 기존 JSON 칸 | 마이그레이션 없음 | `users` 의 JSON 칸은 세션 끊기 목록 하나라 뜻이 다르다 | 버림 |
+  | 별도 표(사람 · 파트) | 여러 파트 가능 | 요청마다 조회 1, 편집 화면에 목록 칸 | 버림(D47 이 하나) |
+
+**② 확정 도면 한 장의 정체**
+- 확정본 = 주문 `structured_data.drawing_current_files` 목록(첨부 표가 아니다). 읽는 함수 하나 `resolve_final_drawing_files`(`foms/services/drawing_confirm_cleanup.py:93-110`)를 생산 시트 · 첫 화면 · 수령 확정이 같이 쓴다. 항목 = `key`(저장소 key) · `filename` · `view_url` · `download_url` + 있으면 `sheet_id`(마법사 시트 신원) · `item_uids`(도면 ↔ 품목)(`:70-90`). 순서 = 도면 번호.
+- **장마다 안정된 id = `key`**. 올릴 때마다 시각 + 무작위 8자로 새 이름(`foms/services/storage.py:291-293`)이라 같은 key 가 다른 그림이 되는 일이 없다. 마법사 그림은 첨부 행 없이 R2 에만 있다(`orders/<id>/drawing_wizard/exports/`, `foms/api/drawing/wizard.py:1253-1255`).
+- **재전달 = 교체 → key 가 바뀐다.** 같은 시트 새 판은 자리를 지키며 옛 항목을 바꾸고(`foms/services/orders/drawing_transfer.py:108-160` `replace_same_sheet_files`, 신원 `sheet_id` 는 그대로), 수령 전 재전달은 방식을 안 골랐으면 통째 교체(`foms/api/drawing/erp_orders_drawing.py:263-267, 312-361`). 생산 · 시공 단계에서는 도면팀이 보내면 영업 확인 없이 바로 확정본이 된다(`drawing_transfer.py:36-38` `DRAWING_HOTFIX_STAGES`). 교체된 옛 key 는 화면 목록에서 빠지고(`drawing_confirm_cleanup.py:113-138`, 시험 `tests/domains/test_attachment_list_include_superseded.py`) 파일은 지우지 않는다. `drawing_current_files` 를 쓰는 곳은 넷: 전달 `erp_orders_drawing.py:361`, 전달 취소 되살리기 `:806`, 확정 뒤 품목 취소 `foms/services/orders/drawing_confirm_partial.py:288`, 수령 확정 `drawing_confirm_cleanup.py:338`.
+- 생산 첫 화면 가르기: '도면·컨펌 기다림' = **단계**로 가른다(도면 · 고객컨펌 → `wait`, `foms/services/production_home_read_model.py:72-89`), 도면 장 수로 가르지 않는다. 줄의 `도면 n장` / `도면 없음` = `resolve_final_drawing_files` 길이(`:358, 372`). 장 안 묶음 = `make_rows`(생산) · `wait_rows` · `done_rows`(시공 단계)(`foms/services/production_home_days.py:41-63`, 그리기 `templates/production/partials/home_date.html:40-66`).
+
+**③ 생산 첫 화면 읽기 · 쿼리 수**
+- 라우트 `foms/web/production/home.py:44-79`: `build_production_home`(`production_home_read_model.py:307-379` — 바탕 쿼리 · 지난 주문 수 · 지난 주문 채우기 · 제작 회차 id · 변경 알림) + 묘비(`home.py:63`). 행 캡 300(`PRODUCTION_KANBAN_MAX_ROWS`, `foms/services/production_read_model.py:33`)은 7일 넘게 지난 주문에만 걸리고 오늘 · 앞날 · 미정 주문은 전부 읽는다(11-09 운영 300건 캡 결함 뒤 고침).
+- 날짜 탭은 13장 + 아래 2장을 **한 응답에 다 그리고** 날 고르기는 보이기/숨기기만(`static/js/production/foms-production-home.js:90-103`, 주소는 `replaceState`).
+- **쿼리 수 계약이 없다**: 계약은 옛 보드 `/erp/production/dashboard` 하나(`tests/domains/test_production_dashboard_query_count.py:33-37` — 4→12건 차이 ≤2, 절대 ≤10). 성능 게이트 예산도 보드뿐(`tools/perf/perf_budgets.json:12, 55`). 시험은 `tests/domains/test_production_home.py`(공정 정의 = API 고정) · `test_production_home_tabs.py` · `test_production_home_date_source.py` · `test_production_home_fixes.py`.
+- **기기 문**: 생산 첫 화면은 기기와 무관하다 — 착지 `foms/services/post_auth_navigation.py:32-42`("PC 도 생산 홈"), 레일 단추 `foms/services/foms_split_view.py:219-240`, `home.html` 에 코호트 분기가 없고 세로 · 폰은 CSS(`static/css/contexts/production/home.css:437-480`). 태블릿 표면의 문 = body class `erp-mobile-v2-layout`(`templates/production/layout.html:11`) + 태블릿 번들(`templates/partials/shared/layout_head.html:336-338`) + 미디어쿼리 `(min-width: 992px) and (orientation: landscape) and (pointer: coarse)`. 서버 쪽 터치 판정은 `wants_coarse_pointer_surfaces`(`foms/services/feature_flags.py:140-160`, 쿠키 `foms_ptr`, 모르면 참).
+- '내 공정' 탭 = `templates/production/home.html:22`, 탭 받기 `home.py:29, 55-57, 74`.
+
+**④ 도면 그림(카드 썸네일)**
+- 생산 첫 화면에는 그림이 없다(`도면 n장` 글만). 작업 시트는 `view_url` = `/api/files/view/<key>` 를 그대로 `<img>` 에 쓴다(`foms/services/production_sheet_view.py:88-128`).
+- 그 길(`foms/api/files/routes.py:210-251`)은 그림마다: 주문 조회 1 + 지운 첨부 조회 1(`:41-84`) + 감사 기록(10분 중복 거름, `foms/services/audit_writer.py:65`) → R2 서명 주소로 302, 그런데 `Cache-Control: no-store`(`:196-201`)라 **화면을 다시 그릴 때마다 앱 요청 + R2 원본 전체 내려받기**가 다시 난다(서명 주소가 매번 달라 브라우저 캐시도 못 씀).
+- 레이트 한도: 기본 "5000 per day, 1200 per hour"(`foms/services/rate_limit.py:249-252`), 열쇠 = `user:<id>`(`:218-241`), 라우트마다 따로. 스테이징 그림 원본 1,200번 한도를 "디스크 캐시로 풀었다"는 것은 **QA 스크립트(세션 스크래치) 쪽 해법이었고 앱 코드에는 그림 캐시가 없다**(코드 검색 0건).
+- 다른 길: 마법사 원본 바이트 `GET /api/orders/<id>/drawing-wizard/asset-raw?key=`(`wizard.py:1896-1930`, `private, max-age=3600`, 마법사 접두만 — 직접 올린 도면은 못 씀, 원본 전체를 앱이 흘림). 작은 그림 만들기 `generate_thumbnail_from_storage_key`(`storage.py:223-275`)는 300px JPEG 이고 첨부 행이 있어야 저장되며(`foms/services/order_attachment_thumbnail.py:24-50`), **투명 PNG 를 그냥 RGB 로 바꿔(`storage.py:534-536`) 투명 칸이 검정이 된다**(마법사 PNG 함정과 같음).
+- **12장 넘을 때 비용(지금 길로 그리면, 가정치)**: 하루 24장 · [다시 받기] 시간당 20번이면 앱 요청 480번/시간(한도 1,200 의 40%) + 원본 480장 내려받기(원본 크기는 안 쟀다). 카드를 누를 때마다 다시 읽게 만들면(지금 [끝] 은 `window.location.reload()`, `foms-production-home.js:152`) 한도를 넘는다.
+
+**⑤ 지금 공정 칸과의 관계**
+- 저장 = `structured_data.production.steps` = `[{key, label, done, at, by_name}]` 4칸(주문 하나에 칸마다 불린 하나). 처음 쓸 때 만든다(`orders.py:138-155`), 옛 도장 칸은 읽을 때 거른다(`:84-103`).
+- 쓰는 곳 하나 `POST /api/orders/<id>/production/steps`(`orders.py:1447-1532`): `execute_order_mutation` 안에서 deepcopy → 칸 바꿈 → 재대입 → `flag_modified` + 이벤트 `PRODUCTION_STEP_CHECKED`. 부르는 화면 = 내 공정 [끝](`foms-production-home.js:138-155`) · 전체 화면 시트(`static/js/production/foms-production-sheet-page.js:121`) · 세로 바텀시트(`static/js/production/foms-production-steps.js:286`). 시트의 공정 단추는 권한과 상관없이 늘 그린다(`templates/production/sheet.html:129-139`) — 지금은 첫 화면을 볼 수 있는 사람 = 공정을 쓸 수 있는 사람이라 드러나지 않았다.
+- 읽는 곳: 첫 화면 4칸 · 큰 글자 '<공정> 중' / '검수 끝'(`production_home_read_model.py:53-89`) → 날짜 막대 색(`production_home_days.py:26-38`) · 내 공정 줄과 숫자(`production_home_read_model.py:240-297`) · 찾기 탭 / 작업 시트 · 옆 시트 · 인쇄(`production_sheet_view.py:173-197`, `templates/production/partials/tablet_sheet.html:155-160`, `templates/production/print_sheet.html:53`) / 세로 큐 배지 `공정 n/4`(템플릿이 sd 를 직접 셈, `templates/production/partials/mobile_queue.html:93-99`) + GET(`orders.py:1414-1445`) / 시공 첫 화면 `생산 n/4` · `조립까지 끝남`(`foms/services/construction/tablet_first.py:273-280`) / 제작 시작 때 회차 스냅샷 복제(`orders.py:513-526`, 그 뒤 체크는 회차로 안 옮김).
+- 알림 · 보드: 공정 체크는 알림을 안 낸다(이벤트 · 감사 글 `foms/services/audit_message_display.py:195` 뿐). 제작 완료의 문도 아니다(`orders.py:933-934`). 옛 보드 칸반 카드는 공정을 안 그린다(옆 시트만).
+- 큰 글자 함정: 제작 회차가 없으면 공정 칸이 켜져도 '제작 대기'다(`production_home_read_model.py:84-85`) — [제작 시작]은 작업 시트 몫.
+
+**⑥ 확인 창 · 실시간**
+- 진짜 창 = 옛 보드 '변경 브리핑'(`templates/production/partials/tablet_kanban_body.html:358-406`, `id="foms-prod-change-modal"`). JS `static/js/foms/tablet-domain-sheets.js:294-348`(열기 · 닫기 · 첫 단추 초점) · `:782-790`(Esc), 816줄이라 300줄 래칫 기준선 안(`tests/harness/file_size_baseline.json:210`). 모양 `static/css/foundation/foms-tablet-production-kanban.css:874-1050` — 규칙이 모두 `body.erp-mobile-v2-layout .foms-prod-change-modal…` 이고 태블릿 가로 미디어쿼리(`:64`) 안이라 **생산 첫 화면에서도 태블릿 가로면 그대로 먹고, PC · 세로에서는 안 먹는다**.
+- **실시간 자료 밀어 주기는 없다.** 화면의 "방금 받음"은 받은 뒤 지난 분을 세는 시계일 뿐(`foms-production-home.js:194-202`). 생산 첫 화면은 셸 조각 주소가 아니라 하트비트 미리 받기도 없다(`static/js/runtime/erp-shell.js:24-35, 44-52`, 레일은 온전한 페이지 이동 `templates/partials/shared/foms_tablet_rail.html:19`). 소켓은 알림 벨(`foms/services/notifications/realtime_notifications.py:54`)뿐. → 남이 고르거나 끝낸 것은 [다시 받기] 전에는 안 보인다.
+
+### 15.3 저장 — 새 표 `production_part_marks` + 계정 파트 칸
+**왜 JSONB 가 아니라 새 표인가**
+- 여러 사람이 동시에 누른다(같은 날 재단 둘 · 조립 둘이 한 주문의 장들을 따로). JSONB 는 주문 JSON 을 통째로 deepcopy → 재대입하는 규약이라(AGENTS.md 코딩 규약) 누를 때마다 전체를 다시 쓰고, 잠금 없이 읽은 옛 dict 를 되쓰면 남의 표시를 지운다.
+- 주문 쓰기 길 `execute_order_mutation` 은 잠근 주문마다 `mutation_version` 을 **늘 +1** 한다(`foms/services/orders/revision.py:396-401`). 누를 때마다 버전이 오르면 같은 주문을 연 편집 화면 · 마법사 · 도면 전달의 If-Match 가 409 로 깨진다. 옛 보드 304 열쇠도 주문 행 `xmin` 을 보므로(`foms/services/production_fragment_version.py:11`) 보는 사람 전원의 조각이 다시 그려진다.
+- 큰 JSONB 를 자주 고치면 TOAST 다시 쓰기 비용이 크다(운영 실측 메모 — JSONB 를 건드린 쿼리가 53배 느렸다). 선례: 회계 수수료 입력도 같은 이유로 따로 표를 뒀다(`models.py:1426-1433` `SalesCommissionInput` 머리말).
+
+**표 `production_part_marks`** (`models.py` 새 클래스 `ProductionPartMark`)
+
+| 칸 | 꼴 | 뜻 |
+|---|---|---|
+| `id` | BigInteger PK | |
+| `order_id` | Integer FK `orders.id` **ON DELETE CASCADE**, NOT NULL | 삭제 보존 FK 검사(`foms/services/orders/delete_retention.py:179`)를 그대로 통과 |
+| `drawing_key` | String(500) NOT NULL | 확정 도면 장 id = `drawing_current_files[].key` |
+| `sheet_id` | String(64) NULL | 표시할 때의 마법사 시트 신원(바뀐 도면 짝짓기용 스냅샷) |
+| `part` | String(16) NOT NULL | `cut` · `edge` · `assemble` · `inspect`(공정 key 와 같다) |
+| `state` | String(8) NOT NULL | `NONE`(안 봄 · 안 고름으로 되돌림) · `NEED`(작업 필요) · `BASIC`(기본, 재단만) · `DONE`(끝) |
+| `picked_by_user_id` · `picked_by_name` · `picked_at` | FK `users.id` ON DELETE SET NULL · String(120) · DateTime | 맡은 사람(이름은 스냅샷 — 공정 칸 `by_name` 과 같은 꼴) |
+| `done_by_user_id` · `done_by_name` · `done_at` | 같음 | 끝낸 사람(기본 포함) |
+| `updated_by_user_id` · `updated_at` | FK SET NULL · DateTime NOT NULL | 마지막으로 바꾼 사람 · 때(30초 받아 오기의 기준) |
+
+- 제약: UNIQUE `(order_id, drawing_key, part)`(= 장 · 파트 하나만, 읽기 `order_id IN (…)` 의 색인도 겸함) · CHECK `part IN (…)` · CHECK `state IN (…)` · CHECK `state <> 'BASIC' OR part = 'cut'`.
+- **줄은 지우지 않는다.** 되돌려 안 봄이 되면 `state='NONE'` 으로 남긴다 — "이 주문의 이 파트를 카드로 일했다"는 표지가 남아야 공정 칸 동기화가 옛 수동 값을 덮지 않는다(§15.5). 주문이 하드 삭제될 때만 같이 지워진다.
+- **도면이 교체되면** 새 key 라 표시 줄이 없어 저절로 '안 봄 · 안 고름'이다. 옛 key 줄은 그대로 남는다(이력). 화면은 같은 `sheet_id` 의 옛 줄이 있으면 카드에 `바뀐 도면 · 전 판 재단 끝(김재단)` 한 줄을 단다(추천 — §15.9 질문 2). 시트 신원이 없는 직접 올린 파일은 짝을 못 지어 그 글 없이 '안 봄'만.
+- **계정 파트 칸** `users.production_part` String(16) NULL + CHECK `ck_users_production_part`(NULL 또는 네 값). 팀이 생산팀이 아니면 저장 때 NULL 로 비운다. 보안 버전 트리거는 그대로(파트는 요청마다 DB 에서 읽으므로 세션을 끊을 까닭이 없다). `User.to_dict` · 감사 스냅샷에 더한다.
+- **마이그레이션**(AGENTS.md: autogenerate 뒤 손으로 검토 + `downgrade()`): 파일 `migrations/versions/prodpart_00_production_part_marks.py`, `down_revision` = 그때 `alembic heads` 의 머리 하나. ① `users` 에 NULL 칸 더하기(PG 는 값 채움 없이 메타만 바뀜) + CHECK(사용자 표는 작아 바로 검사) ② 새 표 + UNIQUE 색인(빈 표라 CONCURRENTLY · advisory lock 불필요). 데이터 이행 없음. `downgrade()` = 표 지우기 → 제약 · 칸 지우기. 시험 = SQLite 모델 시험(새 `tests/domains/test_production_part_marks_model.py`, 선례 `test_sales_commission_inputs_model.py`) + PG 왕복(`tests/postgres/test_migration_chain.py`) + 삭제 보존(`test_delete_retention.py`). 워크트리에서는 alembic 이 막혀 있으니 적용 확인은 스테이징 배포 로그로.
+- 상수는 도메인 옆 `foms/services/production/part_constants.py`(파트 key · 이름 · 상태 · 배지 클래스). 시험이 파트 key = `_PRODUCTION_STEP_DEFS` key 인지 고정한다.
+
+### 15.4 API · 권한 — `foms/api/production/part_marks.py`(새 Blueprint, 500줄 안 · 함수 50줄 안, 등록 `foms/platform/blueprints.py`, 내보내기 `foms/api/production/__init__.py`)
+**하나로 할까 나눌까** → 한 장 쓰기는 **한 주소에 `action` 하나로**(맡기 · 기본 · 완료 · 되돌리기 모두 같은 문지기 · 잠금 · 409 · 동기화 길이라 넷으로 나누면 같은 코드가 넷), 일괄 기본은 몸 모양(목록 · 일부 성공)이 달라 **따로**.
+
+| 주소 | 몸 | 하는 일 |
+|---|---|---|
+| `POST /api/production/part-marks` | `{order_id, drawing_key, part, action, seen}` — `action` ∈ take · basic · done · undo, `seen` = 화면이 본 상태(none · need · basic · done) | 한 장 |
+| `POST /api/production/part-marks/basic` | `{part:'cut', seen:'none', items:[{order_id, drawing_key}…]}`(최대 200) | 재단 [남은 N장 모두 기본] |
+| `GET /api/production/part-marks?order_ids=…&since=` | — | 30초 받아 오기(§15.6, P15-7) |
+
+- **바뀌는 길**(재단: 안 봄 → 기본 / 안 봄 → 작업 필요 → 끝, 그 밖 파트: 안 고름 → 작업 필요 → 끝)
+
+  | action | 지금 상태 → 새 상태 | 조건 |
+  |---|---|---|
+  | take | 없음 · NONE → NEED | 맡은 사람 = 나 |
+  | basic | 없음 · NONE → BASIC | 재단만(그 밖 400) |
+  | done | NEED → DONE | 맡은 사람이 나 |
+  | undo | DONE → NEED / BASIC → NONE | 끝낸 사람이 나(시안: 재단 끝은 작업 필요로, 기본은 안 봄으로) |
+
+- **순서**(한 tx): 로그인 → 파트 문(아래) → `lock_order_row`(`revision.py:241-255`, 주문 행 `FOR UPDATE` — 같은 주문 표시 쓰기를 줄 세워 동기화의 엇갈림을 막는다. `xmin` 은 안 바뀐다) → 주문 살아 있음 · ERP · 단계 생산(`read_main_stage` = PRODUCTION, 아니면 409 `NOT_IN_PRODUCTION`) → `drawing_key` 가 지금 `resolve_final_drawing_files` 안(아니면 409 `DRAWING_NOT_CURRENT` "도면이 바뀌었어요. 다시 받아 주세요") → 표시 줄 읽기 → `seen` · 맡은 사람과 대조 → 줄 쓰기(INSERT … ON CONFLICT 또는 UPDATE) + 이벤트 `PRODUCTION_PART_MARKED`(payload key · part · from · to, 감사 글 "생산 파트 체크" 를 `audit_message_display.py:195` 옆에) → §15.5 동기화 → commit. 주문 `mutation_version` 은 동기화가 공정 칸을 바꿀 때만 오른다.
+- **경합 409**: 지금 상태가 `seen` 과 다르거나 남이 맡은 장이면 `{success:false, error:"박재단이 먼저 맡았어요", data:{code:'MARK_CONFLICT', mark:{state, picked_by_name, done_by_name}}}`. 화면은 그 카드만 서버 상태로 바꾼다. **같은 사람이 같은 결과를 다시 보내면 성공으로 친다**(연결이 얼어 두 번 눌러도 한 번 — 받은 쪽 표 상태가 곧 멱등 열쇠라 receipt 를 안 쓴다).
+- **일괄 기본은 화면이 보낸 목록만 바꾼다.** 서버가 "남은 전부"를 고르지 않는다(창을 연 뒤 새로 온 도면 · 교체된 도면이 섞이지 않게). 주문들을 id 순으로 한 번에 잠그고(`FOR UPDATE … ORDER BY id`) 표시 줄을 한 번에 읽어 장마다 한 장 쓰기와 같은 검사를 한다. **일부 성공**: 맞는 장만 바꾸고 나머지는 `skipped:[{order_id, drawing_key, reason, mark}]` 로 돌려준다(화면 글 "2장 기본으로 했어요 · 1장은 박재단이 먼저 맡았어요"). 전부 실패해도 200 + 빈 `applied`.
+- **응답**: 규약 `{'success','data','error'}`. 성공 `data = {mark:{…}, order_step:{key, done}|null}`(일괄은 `applied` · `skipped` · 바뀐 `order_steps`). 실패 글은 해요체 한 문장.
+- **권한(D53 — 서버도 막음)**
+  - 파트 계정 = 활성 · 협력사 아님 · 팀 생산(`team_has_capability(team, ("PRODUCTION",))`) · VIEWER 아님 · `production_part` 있음. 규칙 한 곳 `foms/services/production/part_access.py`(`home_access.py` 옆) — 쓰기 문 · 화면 분기 · 시험이 같은 함수를 본다.
+  - 몸의 `part` 가 내 파트와 다르면 **403 `PART_FORBIDDEN`** "자기 파트만 체크할 수 있어요"(서버는 늘 계정 파트로 쓴다). 파트가 없는 계정(관리자 · CS · 영업 · 파트 없는 생산)은 **403 `PART_REQUIRED`** — 총괄 안 = 보기만(§15.9 질문 1).
+  - 정책 새 칸 `PRODUCTION_PART_MARK`(팀 PRODUCTION, `order_mutation_policy.py` 생산 묶음) + 매니페스트 세 줄 다시 만들기(미등재는 `tests/domains/test_auth_enforcement` 가 빨강). 켜진 프리랜서는 허용 목록(`foms/services/auth/freelancer_order_rights.py:24-`)에 안 넣으므로 그대로 막힌다. 협력사는 생산 첫 화면부터 못 들어온다.
+  - **파트 계정의 주문 공정 칸 직접 쓰기도 막는다**: `POST …/production/steps` 에서 파트 계정이면 403 `PART_ACCOUNT_USE_CARDS` "공정은 도면 카드에서 체크해요". 까닭: 파트 계정에게 길이 둘이면 동기화 값과 손 값이 서로 덮고, 남의 파트 칸도 켤 수 있어 D53 이 깨진다. 화면도 맞춘다 — 전체 화면 시트 · 옆 시트 · 세로 바텀시트의 공정 단추를 파트 계정에게는 읽기 전용(누를 수 없음 + 같은 글 한 줄). 제작 시작 · 완료 · 불량 · 보류는 그대로.
+
+### 15.5 지금 공정 칸 동기화 (총괄 안 그대로)
+- **규칙**: 한 주문 · 한 파트에서 지금 확정 도면(`resolve_final_drawing_files`)의 **모든 장**이 끝이면 그 주문 공정 칸을 켠다 — 재단은 DONE 또는 BASIC, 그 밖은 DONE. 하나라도 끝이 아니면(되돌리기 · 새 도면) 끈다. 확정 도면이 0장이면 건드리지 않는다.
+- **카드로 일한 파트만**: 그 주문 · 그 파트에 표시 줄이 하나라도 있을 때(옛 key · NONE 포함)만 동기화한다. 카드를 안 쓴 주문은 관리자 · 사무실이 지금처럼 손으로 켠 값을 그대로 둔다.
+- **언제**: ① 표시 API 가 쓴 tx 끝(그 파트만) ② `drawing_current_files` 를 바꾸는 쓰기 셋이 생산 · 시공 단계 주문에서 돌 때 — 전달(`erp_orders_drawing.py:361` 뒤), 전달 취소 되살리기(`:806` 뒤), 확정 뒤 품목 취소(`drawing_confirm_partial.py:288` 뒤). 이 셋은 이미 sd 를 고치는 중이라 **같은 deepcopy 안에서** 공정 칸만 더 바꾼다(주문 JSON 다시 쓰기 0번 더함, 표시 읽기 쿼리 1). 수령 확정(`drawing_confirm_cleanup.py:338`)은 컨펌 단계라 표시가 없어 건드리지 않는다.
+- **쓰기 규약**: 계산은 순수 함수 `foms/services/production/part_steps_sync.py` `part_steps_after(sd, marks) -> {key: done}`. 바꿀 칸이 있을 때만 표시 API 가 `execute_order_mutation(policy_id='PRODUCTION_STEP_CHECK', …)`(지금 공정 API 와 같은 정책)을 부르고, 그 안에서 `sd = copy.deepcopy(order.structured_data or {})` → `_ensure_production_steps(sd)` → 칸 `done` · `at`(UTC iso) · `by_name`(켤 때 = 마지막으로 끝낸 사람 이름, 끌 때 None) → `order.structured_data = sd` → `flag_modified(order, 'structured_data')` + 이벤트 `PRODUCTION_STEP_CHECKED`(payload `via: 'part_marks'`) → 감사. 칸을 바꾸는 코드는 지금 공정 API 의 `_mutate`(`orders.py:1475-1505`)에서 함수 하나로 빼서 두 길이 같이 쓴다(복사 금지, `orders.py` 는 이미 큰 파일 목록이라 줄어드는 쪽). 일괄은 바뀐 주문만 모아 `execute_order_mutation` 한 번.
+- 새 sd 쓰기 경로가 생기므로 structured_data 쓰기 목록(REV-99 인벤토리)을 `refresh_inventories` 로 맞춘 뒤 커밋한다.
+- 효과: 관리자 · 사무실 화면(첫 화면 4칸 · 큰 글자 · 시트 · 세로 배지 · 시공 첫 화면 `생산 n/4`)은 바꾸지 않아도 파트 진행을 따라간다.
+
+### 15.6 화면 — 같은 주소 · 같은 조각, 파트 계정 + 태블릿 가로만
+**문**
+- 서버 `part_view` = 파트 계정 **그리고** `erp_mobile_v2_enabled` **그리고** `wants_coarse_pointer_surfaces(request)`(마우스 기기는 카드를 아예 안 그린다 — 시공 3분할 선례). 보이기는 태블릿 가로 미디어쿼리. 세로로 세우면 지금 날짜 장(읽기)이 보인다 — 세로 = 폰 화면(D1), 같은 응답에 지금 장도 같이 그린다(시공 §13.3 과 같은 까닭).
+- 관리자 · 사무실 · 영업 · 파트 없는 생산 · PC = 지금 그대로(`part_view` 거짓 → 템플릿 출력이 지금과 같아야 함 — 시험으로 고정).
+- **'내 공정' 탭(D50)은 계정 기준으로 숨긴다**(기기 무관): `home.html:22` 를 파트 계정이면 안 그리고, `?tab=steps` 는 날짜로 돌린다(`home.py:55-57`). 파트 계정이 PC 에서 열면 지금 화면 · 내 공정 없음 · 공정 단추 읽기 전용(§15.4) — 체크는 태블릿에서만.
+
+**위 줄**: 제목 `생산` → `재단 김재단`(파트 이름 + 내 이름), 날짜 · 탭(날짜 · 바뀐 것 · 찾기 · 보드) · 받음 표시 · 글자 손잡이 · [다시 받기]는 그대로(시안 f60).
+
+**오른쪽 장**(`home_date.html` 의 장마다 새 조각 `templates/production/partials/home_parts.html` 을 include — 지금 장 내용은 `fph-pane__now` 로 감싸 태블릿 가로 파트 계정에서만 숨김)
+- 장 머리: 재단 = `11/17 (화) · 안 본 도면 3장 [남은 3장 모두 기본]`(0장이면 단추 없음), 그 밖 = `11/17 (화) · 시공 8건 · 도면 나온 6집`. 아래 칸 단추 셋 `[전체 도면 12] [작업 필요 3] [완료 4]` — 보이기/숨기기만(새 요청 없음), 숫자는 쓰기 뒤 그 자리에서 고친다.
+- **카드 = 확정 도면 한 장**: 작은 그림 · `이름 #번호` · `도면 n/N` · 품목(`item_uids` 로 이은 품목 이름, 없으면 주문 품목 글 + 치수 — 지금 큰 줄 글 `v3_product_label` · `v3_spec_display`) · 다른 파트 한 줄(누를 수 없음, 테두리 · 그림자 없음) · 내 파트 단추 또는 배지. 바뀐 주문이면 이름 줄 끝 `바뀜`(지금 큰 줄과 같은 빨강 글자, 칠 없음).
+- 카드 아래 칸(내 파트): 재단 안 봄 = [기본] [내가 자름] · 그 밖 안 고름 = [내가 조립](흰 단추) · 내 작업 필요 = 배지 `작업 필요 · 김재단` + (작업 필요 칸에서) 큰 [재단 완료] · 남이 맡음 = 분홍 배지 `박재단 맡음`(단추 없음) · 끝 = 민트 배지 `재단 끝 · 김재단` · 기본 = 하늘 배지 `기본 · 박재단` · 완료 칸에서는 내 카드에 작은 [되돌리기].
+- 다른 파트 낱말: 재단 = 끝 · 기본 · 중 · 안 봄, 엣지 · 조립 · 검수 = 끝 · 중 · 아직(D51 글자 색).
+- 순서: 재단 = 안 본 장 먼저, 그다음 주문 · 장 번호 순. 그 밖 파트 = 주문 · 장 번호 순. 주문 순서 = 지금 만들 것 줄 순서(`production_home_days.py:35-38`).
+- 칸: 전체 도면 = 그날 생산 단계 주문의 모든 장 · 작업 필요 = 내가 맡은 장(그림을 왼쪽에 크게 — 시안 f61) · 완료 = 내가 끝낸 장(재단 끝 + 기본).
+- 맨 아래 `도면·컨펌 기다림 n` 연두 칩(`--fph-wait-50`, 지금 `wait_rows` 그대로 · 생산 단계인데 확정 도면 0장인 집도 `도면 없음` 글로 여기). 제작 완료(시공 단계) 집은 카드로 안 세우고 지금처럼 `제작 완료 n` 작은 칸(파트 일이 끝난 집).
+- 안전 캡: 한 장 카드 200장, 넘으면 맨 아래 `더 있는 n장은 안 보여요`(조용히 자르지 않는다). 숫자는 늘 모아 세기(읽은 줄에서 셈)라 300건 캡 꼴이 없다.
+- **날 고르기는 지금처럼 보이기/숨기기**(13장 카드를 한 응답에 그림 — 연결이 얼어도 날 바꾸기가 된다, D5). 숨은 장의 그림은 `loading="lazy"` 라 받지 않는다.
+
+**크게 보기**(시안 f63): 카드 그림을 누르면 전체 화면 판 — 원본 한 장(지금 `/api/files/view/<key>`, 한 번에 한 장), 아래 `◀ 2 / 3 ▶`(같은 주문 장끼리) · 다른 파트 한 줄 · [닫기] · 카드와 같은 큰 단추(누르면 같은 확인 창). 그림을 한 번 더 누르면 지금 `GlobalImageViewer`(손가락 확대). PDF 등 그림이 아닌 장은 카드에 파일 표 + 누르면 파일 열기.
+
+**확인 창**(D53 · D54)
+- 조각 안에 창 하나(`id="foms-part-confirm-modal"` — 옛 보드 창 id 와 달라 `tablet-domain-sheets.js` 가 건드리지 않는다), 클래스는 진짜 창 그대로 `foms-prod-change-modal`(`__dialog` · `__head` · `__title` · `__count` · `__list` · `__item` · `__item-body` · `__item-head` · `__item-customer` · `__item-id` · `__foot` · `__btn`) → 태블릿 가로에서 `foms-tablet-production-kanban.css:874-1050` 이 그대로 먹는다(모양 CSS 복사 0). 더하는 것만 새 CSS: 줄의 작은 그림 · 바뀔 상태 한 줄 · 실행 단추 상태 색 60px.
+- 머리 = 제목 · `n장`, 목록 줄 = 작은 그림 · `이름 #번호` · `도면 n/N` · 품목 · `안 봄 → 작업 필요 · 김재단`, 발 = [취소] · 실행. 닫기 = [취소] · 막 누르기 · Esc. 실행 중엔 단추를 잠그고 "저장하는 중…", 실패 글은 §8 한 가지("연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.").
+
+  | 누름 | 제목 | 바뀔 상태 줄 | 실행 단추 · 색 |
+  |---|---|---|---|
+  | 재단 [내가 자름] | 내가 자를까요? | 안 봄 → 작업 필요 · 김재단 | [내가 자름] #4a55b8 |
+  | 재단 [기본] | 기본으로 할까요? | 안 봄 → 기본 · 김재단 | [기본으로] #075985 (f66) |
+  | [남은 N장 모두 기본] | N장을 기본으로 할까요? | 넘어갈 장 N줄 — 안 봄 → 기본 · 김재단 | [N장 기본으로] #075985 (f67) |
+  | [재단 완료] | 재단 끝으로 바꿀까요? | 작업 필요 → 재단 끝 · 김재단 | [재단 완료] #047857 (f65) |
+  | 재단 끝 [되돌리기] | 작업 필요로 되돌릴까요? | 재단 끝 → 작업 필요 · 김재단 | [되돌리기] #4a55b8 |
+  | 기본 [되돌리기] | 안 봄으로 되돌릴까요? | 기본 → 안 봄 | [되돌리기] #5a67d8 |
+  | [내가 조립] | 내가 조립할까요? | → 작업 필요 · 이조립 | [내가 조립] #4a55b8 |
+  | [조립 완료] | 조립 끝으로 바꿀까요? | 작업 필요 → 조립 끝 · 이조립 | [조립 완료] #047857 |
+  | 조립 끝 [되돌리기] | 작업 필요로 되돌릴까요? | 조립 끝 → 작업 필요 · 이조립 | [되돌리기] #4a55b8 |
+
+  (엣지 · 검수는 조립과 같은 꼴. 크게 보기의 단추는 카드와 같은 창.)
+- 성공하면 **그 카드 · 칸 숫자만 그 자리에서 고친다**(페이지 다시 읽기 없음 — 그림을 다시 안 받는다). 409 면 그 카드를 서버 상태(예 `박재단 맡음`)로 바꾸고 글 "박재단이 먼저 맡았어요".
+
+**다른 사람 표시 받아 오기(P15-7, 떼어 낼 수 있음)**: 화면이 보이고 연결돼 있을 때 30초마다 `GET /api/production/part-marks?order_ids=…&since=<서버 시각>` → `updated_at > since` 줄만(쿼리 1, 색인 `order_id` 앞머리) → 바뀐 카드만 고친다. 한 태블릿 시간당 120번(한도 1,200 의 10%). 응답의 서버 시각을 다음 `since` 로(기기 시계 어긋남 회피). 없으면 남의 표시는 [다시 받기] 전까지 안 보이고 409 로만 안다.
+
+**작은 그림 길**(카드 썸네일 — §15.2 ④ 의 비용 때문에 새로 둔다)
+- `GET /erp/production/parts/thumb/<int:order_id>?key=` — 새 파일 `foms/web/production/part_thumb.py`(같은 Blueprint `erp_production_page`, `foms/web/production/__init__.py` 가 import). 문지기 = `can_view_production_home` + 주문 읽기 범위(`user_can_read_order`, `order_mutation_policy.py:451`) + key 가 그 주문 지금 확정 도면 안. 그림 확장자만(그 밖 404 → 카드는 파일 표).
+- 처음 요청 때 원본을 읽어 긴 변 720px JPEG(품질 85)로 줄이고 **흰 바탕에 얹어**(투명 → 검정 함정, `storage.py:534-536` 을 쓰지 않는 까닭) 원본 옆 `pthumb720_<이름>.jpg` 로 R2 에 한 번 저장, 그 뒤로는 저장된 작은 그림 바이트. 응답 `Cache-Control: private, max-age=2592000, immutable` — key 가 올릴 때마다 새 이름이라 내용이 안 바뀐다. → 같은 기기는 장마다 **처음 한 번만** 서버에 온다(지금 길은 그릴 때마다).
+- 비용: 처음 여는 날 장마다 원본 읽기 + 줄이기 1번(느리면 2차로 전달 때 WORKER 가 미리 만들기 — 재어서 정한다). 그 뒤 다시 받기 · 날 바꾸기 · 표시 쓰기는 그림 요청 0.
+
+**파일 · 크기**: 새 JS `static/js/production/foms-production-parts.js`(칸 단추 · 확인 창 · 쓰기 · 409 · 카드 고치기, 300줄 안) + `foms-production-parts-viewer.js`(크게 보기, 300줄 안) — 둘 다 `defer`, 전역 리스너는 `window.__FOMS_PROD_PARTS_BOUND`(G4). 새 CSS `static/css/contexts/production/parts.css`(`home.html` styles 블록에 핀, 글자는 모두 `calc(Npx * var(--foms-fs, 1))`, 토큰 `--fph-need-50 #c5c9ff` · `--fph-taken-50 #eecbda` / `-700 #7a3f5c` · `--fph-done-50 #a7f3d0` / `-700 #047857` · `--fph-basic-50 #ccedff` / `-700 #075985` · `--fph-wait-50 #eeebb2` / `-700 #57571f` — 시안 f판 값 그대로). 인라인 style · script 없음, Jinja → JS 는 `data-*`. 읽기 모델 새 파일 `foms/services/production/part_board.py`(500줄 안 — `production_home_read_model.py` 는 379줄이라 넣지 않는다).
+
+**쿼리 수**: 지금 생산 첫 화면에는 계약이 없으므로 P15-3 첫 커밋에서 **지금 수를 재어 계약으로 굳힌다**(주문 4건 대 12건 차이 ≤2, 절대 = 실측 + 30%, 옛 보드 계약 꼴). 파트 화면은 그 위 **+1**(표시 줄 한 번, `order_id IN (그날들 생산 주문)`)만 허용, 카드 수가 늘어도 같다. 그림은 DB 를 안 탄다(작은 그림 길은 요청마다 주문 조회 1 — 첫 한 번뿐).
+
+### 15.7 시험
+- **모델 · 마이그레이션**: UNIQUE(장 · 파트) 둘째 INSERT 거부 · BASIC 은 재단만 · 파트 · 상태 CHECK · 주문 삭제 CASCADE · 사용자 삭제 SET NULL(이름 스냅샷은 남음) · PG 왕복 · 삭제 보존 FK 검사.
+- **권한(되돌리면 실패)**: 재단 계정이 `part:'assemble'` → 403 `PART_FORBIDDEN` · 파트 없는 생산 · 관리자 · CS → 403 `PART_REQUIRED` · 협력사 · 켜진 프리랜서 → 막힘 · 파트 계정의 `POST …/production/steps` → 403 · **대조군**: 파트 없는 생산팀 · 관리자의 `…/production/steps` 는 지금처럼 200.
+- **경합 409**: 박재단이 맡은 장에 김재단 take/basic/done → 409 + `picked_by_name` · 같은 사람 같은 결과 두 번 → 200 한 번만 바뀜(이벤트 1) · `seen` 이 낡으면 409.
+- **일괄은 보낸 목록만**: 화면 목록 3장을 보낸 뒤 그 사이 같은 날 새 도면 1장을 붙임 → 3장만 BASIC, 새 장은 그대로 안 봄(서버가 "남은 전부"를 고르는 구현이면 실패) · 목록 중 1장을 남이 먼저 맡음 → 2장 applied · 1장 skipped(이름 포함).
+- **교체 뒤 안 봄**: 장 A 재단 끝 → 같은 시트 재전달(생산 단계 바로 반영)로 A′ → A′ 는 안 봄 · 옛 A 줄은 남음 · 카드에 `바뀐 도면 · 전 판 재단 끝` · 주문 재단 칸이 꺼짐 · A 로 쓰기 → 409 `DRAWING_NOT_CURRENT`.
+- **공정 칸 동기화**: 3장 중 2장 끝 → 칸 꺼짐 · 3장째 끝 → 켜짐(`by_name` = 마지막 사람, 이벤트 `via: part_marks`, 버전 +1 한 번) · 재단은 기본 2 + 끝 1 → 켜짐 · 하나 되돌리기 → 꺼짐 · 확정 뒤 품목 취소로 남은 장이 다 끝 → 켜짐 · **대조군**: 표시 줄이 없는 주문은 손으로 켠 칸이 그대로 · 표시 쓰기가 칸을 안 바꾸면 `mutation_version` 그대로(누를 때마다 버전이 오르는 구현이면 실패).
+- **쿼리 수**: 첫 화면 계약(파트 없는 계정 = 지금 수, 파트 계정 = +1, 4건 대 12건 차이 ≤2) · 쓰기 API 한 장 상한 · 일괄 5장 대 50장 차이 ≤2.
+- **템플릿 렌더**: 파트 계정 + 코호트 → 카드 · 칸 단추 셋 · 재단만 [남은 N장 모두 기본] · 그 밖 파트에 [기본] 없음 · 남의 파트 단추 0 · '내 공정' 탭 없음 · 기다림 칩 연두 · 확인 창 하나(id 겹침 0) · 금액 0 · 인라인 style 0 · 글자 calc · CSS/JS 핀 · 무채색 배지 클래스 0. **대조군**: 관리자 · 파트 없는 생산 계정의 첫 화면 HTML 이 지금과 같음(내 공정 탭 있음) · 파트 계정 + `foms_ptr=fine` 은 카드 0.
+- **JS**: `node --check` · 300줄 래칫 · 정적 단언(확인 창 없이 쓰기 fetch 를 부르는 길 0 · 성공 뒤 `location.reload` 0 · `data.success` 검사).
+- **작은 그림 길**: 남의 주문 · 교체된 옛 key · 그림 아닌 파일 → 403/404, 투명 PNG → 흰 바탕(모서리 픽셀 흰색), 응답 `immutable`.
+- **관리자 화면**: 파트 저장 · 생산팀 아니면 NULL · 감사 스냅샷에 파트 · 목록에 `생산팀 · 재단`.
+- **실화면**: 스테이징 1280×800 터치 — 파트 계정 넷(재단 둘 · 조립 하나 · 검수 하나, 가상 주문 `CLAUDE-TEST-` 의 확정 도면에만 쓰기). 두 재단 계정으로 같은 장 동시에 누르기(409 글) · 일괄 · 되돌리기 · 동기화 뒤 관리자 화면 4칸 · 세로 800×1280 은 지금 장(대조군) · 넘침 0 · 13px 미만 0 · 44px 미만 0. 공정 체크는 알림이 없어 실제 방으로 나가는 것이 없다(도면 재전달 시험은 알림이 나가니 로컬 준비물 서버에서).
+
+### 15.8 단계 · 그대로 · 남는 위험
+| 단계 | 일 (각 단계 = 스테이징까지, 운영은 지시 때) |
+|---|---|
+| P15-1 | 표 · 계정 파트 칸 · 마이그레이션 · 모델 · 상수 + 모델 · PG 시험 |
+| P15-2 | 파트 지정 — 관리자 사용자 추가 · 편집 화면 칸(생산팀일 때만 값), 목록 글, 감사 스냅샷 + 시험 |
+| P15-3 | 읽기 모델 `part_board.py`(표시 한 번 읽기 · 카드 · 칸 숫자 · 바뀐 도면 짝) + **지금 첫 화면 쿼리 수 계약부터** + 시험. 라우트에는 아직 잇지 않는다 |
+| P15-4 | API 한 장 · 일괄 + 파트 문 + 정책 · 매니페스트 + 시험(403 · 409 · 목록만) |
+| P15-5 | 화면 — 파트 장 · 카드 · 칸 단추 · 확인 창 · 크게 보기 · 위 줄 · '내 공정' 숨김 · 작은 그림 길 · CSS · JS |
+| P15-6 | 공정 칸 동기화(표시 API + 도면 쓰기 셋) · 파트 계정의 주문 공정 쓰기 막기 + 시트 단추 읽기 전용 · REV-99 인벤토리 |
+| P15-7 | 30초 받아 오기 · 스테이징 실화면 · 원장 · AI_STATUS |
+
+- **그대로**: 주소 · 레일 · 셸, 관리자 · 사무실 · PC · 세로 화면, 시공일 2주 띠 숫자(주문 수), 제작 시작 · 완료 · 불량 · 보류 API, 옛 보드 · 변경 브리핑 창 · `tablet-domain-sheets.js`, 도면 전달 규칙(교체 · 바로 반영), 알림(파트 표시는 알림을 안 낸다).
+- **남는 위험**
+  - 엣지 · 조립 · 검수에서 아무도 안 고른 장의 뜻이 정해지지 않으면 동기화 규칙이 흔들린다(§15.9 질문 3).
+  - 제작 회차가 없으면 공정 칸이 다 켜져도 큰 글자는 '제작 대기'다(`production_home_read_model.py:84-85`) — 파트가 일을 시작해도 누가 [제작 시작]을 눌러야 '재단 중'으로 보인다(§15.9 질문 5).
+  - 도면 수정 요청 중(`revision_in_flight` — 제작 시작이 막히는 상태)에도 표시는 막지 않는다. 카드에 지금 배지 `도면 수정 중`(`foms/services/production_drawing_gate_display.py:28`)을 같이 단다 — 옛 판을 자를 위험은 글로만 알린다.
+  - 수정 제작(`…/production/rework`)은 지금 공정 칸을 안 되돌린다 — 파트 표시도 그대로(같은 규칙). 다시 만들 장은 손으로 되돌린다.
+  - 직접 올린 파일의 교체는 시트 신원이 없어 `바뀐 도면` 글이 안 붙는다(안 봄만).
+  - 동명이인 · 이름 바꾸기: 이름은 표시 때 스냅샷(공정 칸 `by_name` 과 같은 한계).
+  - 운영 생산팀 계정 0명(원장 §2) — 운영 측정은 계정이 생긴 뒤.
+
+### 15.9 열린 질문 (사용자에게 물을 것)
+1. **파트 없는 계정(관리자 · CS · 반장)도 카드를 체크할 수 있나요?** 추천: 보기만 — 진행은 지금 화면 공정 4칸(동기화로 켜짐)으로 본다. 다른 안: 관리자는 아무 파트나 체크(누가 했는지 이름은 관리자로 남음).
+2. **도면이 바뀌면(생산 중 바로 반영) 끝난 표시를 어떻게 하나요?** 추천: 새 판은 '안 봄'부터 + 카드에 `바뀐 도면 · 전 판 재단 끝(김재단)` 한 줄. 다른 안: 끝난 표시를 새 판으로 옮김 / 글 없이 안 봄만.
+3. **엣지 · 조립 · 검수에서 아무도 안 고른 도면은 '아직'인가요, '할 일 없음'인가요?** 원장 D48 은 "안 고름(할 일 없음)", 시안 낱말은 "아직". 추천: '아직' — 모든 장이 끝이어야 주문 공정 칸이 켜진다. '할 일 없음'이면 그 파트에도 재단의 [기본] 같은 단추가 있어야 칸을 켤 수 있다.
+4. **잘못 맡았거나 맡은 사람이 쉬는 날이면?** 추천: 1차는 맡은 사람만 끝내고 되돌린다(시안 그대로). 다른 안: 크게 보기에 [맡기 풀기](본인) · [넘겨받기](같은 파트).
+5. **처음 맡거나 기본을 누르면 그 주문 [제작 시작]도 같이 할까요?** 추천: 같이 하지 않는다(제작 시작 · 완료는 지금처럼 작업 시트에서 — 자동으로 하면 보류 · 도면 수정 중 문을 표시 API 가 다 알아야 한다). 대신 큰 글자가 '제작 대기'로 남는다.
+6. **운영 생산팀 계정은 누가 언제 만들고, 파트마다 몇 명인가요?** 지금 운영 생산팀 활성 계정 0명 — 계정과 파트 지정은 사용자 몫(P15-2 화면으로).
