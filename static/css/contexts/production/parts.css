@@ -45,10 +45,12 @@
 .pp-unseen { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); white-space: nowrap; }
 .pp-unseen b { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
 .pp-tabs { margin-left: auto; }
-/* 관리자 · 읽기 전용(파트 고르기 있음): 1280 폭에 한 줄로 다 안 들어가 칸 단추만 아랫줄 오른쪽에 떨어지던 것(운영 11-13) →
-   윗줄 = 날짜 · 파트 고르기 · 칸 단추, 아랫줄 = 안 본 도면 · 일괄 단추(또는 시공 · 도면 집 수) */
-.pp-head--switch .pp-tabs { order: 2; }
-.pp-head--switch .pp-bulk { order: 3; flex-basis: 100%; }
+/* 관리자 · 읽기 전용(파트 고르기 있음): 날짜 · 파트 고르기 · 일괄 단추 · 칸 단추를 한 줄에(낭비 칸 없이 — 사용자 11-13).
+   일괄 단추에 장 수가 들어 있으니 '안 본 도면 N장' 글은 단추가 보일 때 뺀다(0장이면 단추가 숨고 글이 남는다). */
+.pp-head--switch { gap: 8px 10px; }
+.pp-head--switch .pp-bulk:has([data-pp-act="bulk"]:not([hidden])) .pp-unseen { display: none; }
+.pp-head--switch .pp-tabs .foms-prod-home__tab { padding: 0 12px; }
+.pp-head--switch .pp-part { min-width: 56px; padding: 0 10px; }
 .pp-tabs .foms-prod-home__tab { min-width: 0; padding: 0 16px; }
 
 /* ── 카드(확정 도면 한 장) ── */
