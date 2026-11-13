@@ -35,6 +35,8 @@ def test_the_table_holds_owner_decisions():
     assert all(value is None or isinstance(value, int) for value in sp.STORE_PRODUCTS.values())
     assert all(name == " ".join(name.split()) for name in sp.STORE_PRODUCTS)
     assert not any("화장대" in name for name in sp.STORE_PRODUCTS)  # 옵션을 같이 정해야 하는 상품은 표 밖(예전 그대로)
+    assert sp.STORE_PRODUCTS["라홈 카보 키친 싱크대 부엌 주방 상하부장 E0"] is None  # 짝을 못 정한 여섯도 직원에게
+    assert sum(value is None for value in sp.STORE_PRODUCTS.values()) == 18
 
 
 def test_store_choice_uses_the_last_store_line_and_the_catalog_value():
