@@ -52,14 +52,18 @@ def test_completion_photos_show_only_after_construction(app, world):
     _to_stage(order_id, "COMPLETED")
     html = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "data-pp-completion" in html and 'alt="front.jpg"' in html
-    assert 'name="construction_photo_ids"' in html and "measure.jpg" not in html
+    assert "measure.jpg" not in html
+    # 고르기는 AS 접수 창 안(2026-11-13) — 창은 열 때 완공 사진만 받는다(실측 사진 대조군은 빠진다).
+    assert f'data-pp-as-open="/api/partner/orders/{order_id}/as"' in html and "data-pp-asm" in html
+    names = [p["filename"] for p in client.get(f"/api/partner/orders/{order_id}/as").get_json()["data"]["construction_photos"]]
+    assert names == ["front.jpg"]
 
 
 def test_completion_section_without_photos_still_allows_as(app, world):
     order_id = _order(app, world["partner_a"])
     _to_stage(order_id, "CS")
     html = _client(app, db_session.get(User, world["partner_a"])).get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert "아직 완공 사진이 없습니다" in html and "AS 접수하기" in html
+    assert "아직 완공 사진이 없습니다" in html and f'data-pp-as-open="/api/partner/orders/{order_id}/as"' in html
 
 
 # --------------------------------------------------------------------------
@@ -135,7 +139,8 @@ def test_open_as_shows_progress_with_visit_and_as_photos(app, world, fake_storag
     db_session.commit()
     html = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     assert "진행 중인 AS" in html and "2026-10-21 14:00" in html and 'alt="as-before.jpg"' in html
-    assert 'name="construction_photo_ids"' not in html  # 진행 중이면 새 접수 칸이 없다
+    # 진행 중이면 새 접수 대신 고치기(2026-11-13 — 본사 "AS 접수 수정"과 같은 자리).
+    assert "AS 접수 수정" in html and ">AS 접수</button>" not in html
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,86 @@
+{# 협력사 AS 접수 창 — 본사 주문 상세 "AS 접수" 창(templates/orders/partials/erp_order_tab.html #asReceiveModal)과 같은 칸 · 같은 글.
+   빼는 칸(우리 몫): 비용 구분 · 상차일 · 도면팀 부탁. 더하는 칸: 제목 옆 주문 이름 · 완공 사진 고르기 · 바뀐 내용(고치기).
+   협력사 화면엔 부트스트랩 JS 가 없어 여닫기만 협력사 방식이다(휴대폰은 아래에서 올라오는 칸). 할 일(new · reintake · edit)과
+   칸 값은 창을 열 때 GET /api/partner/orders/<id>/as 로 받는다. 동작: js/partner/partner-as-receive.js.
+   설계서 docs/specs/2026-11-13-partner-as-intake-edit-push_SPEC.md §5 #}
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-as-attachment-order.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-as-modal.css') }}">
+<div class="pp-asm" id="ppAsModal" data-pp-asm hidden role="dialog" aria-modal="true" aria-labelledby="ppAsModalTitle">
+    <div class="pp-asm__backdrop" data-pp-asm-close></div>
+    <div class="pp-asm__dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ppAsModalTitle"><i class="fas fa-exclamation-circle text-warning" aria-hidden="true"></i> <span data-pp-asm-title>AS 접수</span> <span class="small text-muted fw-normal" data-pp-asm-order></span></h5>
+                <button type="button" class="btn-close" data-pp-asm-close aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="border border-info rounded p-2 mb-3" data-pp-asm-show="edit" hidden>
+                    <div class="small fw-bold">이건 새 건이 아니에요. 같은 건을 고치는 거예요.</div>
+                    <div class="small text-muted">AS 건 수는 늘지 않아요 — 접수 내용 · 사진만 바뀝니다. <span data-pp-asm-pushed></span></div>
+                </div>
+                <details class="mb-3" data-pp-asm-show="reintake" hidden>
+                    <summary class="small fw-bold">지난 AS 요약 보기</summary>
+                    <div class="border rounded p-2 mt-2">
+                        <div class="small" data-pp-asm-prev="ordinal"><span class="text-muted me-1">건</span><span data-pp-asm-val></span></div>
+                        <div class="small" data-pp-asm-prev="received"><span class="text-muted me-1">접수</span><span data-pp-asm-val></span></div>
+                        <div class="small" data-pp-asm-prev="completed"><span class="text-muted me-1">완료</span><span data-pp-asm-val></span></div>
+                        <div class="small" data-pp-asm-prev="symptom"><span class="text-muted me-1">증상</span><span data-pp-asm-val></span></div>
+                        <div class="small" data-pp-asm-prev="rounds"><span class="text-muted me-1">처리</span><span data-pp-asm-val></span></div>
+                    </div>
+                </details>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="ppAsContent">AS 내용 <span class="text-danger">*</span></label>
+                    <textarea id="ppAsContent" class="form-control" rows="5" maxlength="2000"
+                        placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
+                    <div class="mt-2" data-pp-asm-show="reintake" hidden>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pp-asm-load-prev>지난 증상 불러오기</button>
+                        <div class="small text-muted mt-1" data-pp-asm-load-hint hidden>지난 증상을 넣었어요 — 이번 내용으로 꼭 고쳐 쓰세요.</div>
+                    </div>
+                </div>
+                <div class="mb-3" data-pp-asm-show="reintake" hidden>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="ppAsRecurrence">
+                        <label class="form-check-label" for="ppAsRecurrence">지난 건과 같은 증상이 또 생겼어요 <strong>(재발)</strong></label>
+                    </div>
+                </div>
+                <div class="mb-3" data-pp-asm-show="edit" hidden>
+                    <label class="form-label fw-bold" for="ppAsChangeNote">바뀐 내용 <span class="text-danger">*</span> <span class="small text-muted fw-normal">AS방에 [수정] 머리말로 같이 갑니다</span></label>
+                    <input type="text" id="ppAsChangeNote" class="form-control" maxlength="500" placeholder="예: 문 2짝 → 3짝 · 통화 시간 바뀜">
+                </div>
+                <details class="mb-3" data-pp-asm-picks hidden>
+                    <summary class="small fw-bold">저희 시공팀 완공 사진에서 고르기 <span class="text-muted fw-normal">(선택)</span> <span class="text-muted fw-normal" data-pp-asm-pick-count></span></summary>
+                    <ul class="pp-photos mt-2" data-pp-asm-pick-list></ul>
+                    <div class="small text-muted">AS 할 곳이 보이는 사진을 고르면 접수에 같이 남습니다.</div>
+                </details>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">사진/동영상 첨부</label>
+                    {#- 본사 창과 같은 두 입력: 카메라 = accept="image/*" + capture 만(여러 개 · 동영상을 섞으면 휴대폰이 카메라 대신
+                        갤러리를 연다, 2026-09-21 제보), 갤러리 = 여러 개 · 사진 · 동영상. 붙여넣기 칸은 PC 만. -#}
+                    <div class="foms-photo-capture" data-pp-asm-capture>
+                        <div class="foms-photo-capture__actions d-grid gap-2 mb-2">
+                            <button type="button" class="btn btn-primary btn-lg" data-action="camera"><i class="fas fa-camera me-2" aria-hidden="true"></i> 카메라로 촬영</button>
+                            <button type="button" class="btn btn-outline-secondary" data-action="gallery"><i class="fas fa-images me-2" aria-hidden="true"></i> 갤러리에서 선택</button>
+                        </div>
+                        <input type="file" id="ppAsFiles" class="visually-hidden" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+                        <input type="file" class="visually-hidden foms-photo-capture__gallery-input" multiple accept="image/*,video/*,.gif" tabindex="-1" aria-hidden="true">
+                        <div class="border rounded p-2 bg-light pp-asm__paste" data-pp-asm-paste tabindex="0"
+                            aria-label="AS 사진 동영상 첨부. PC에서는 이 영역을 클릭한 뒤 Ctrl+V로 이미지를 붙여넣을 수 있습니다.">
+                            <div class="small text-muted">PC: 이 영역을 클릭한 뒤 Ctrl+V로 캡처 이미지를 추가할 수 있습니다.</div>
+                        </div>
+                        <div class="small text-muted mt-1">동영상은 한 개 50MB 까지 올릴 수 있습니다.</div>
+                    </div>
+                    <div id="ppAsPreview" class="row g-2 mt-1 as-attach-order" hidden></div>
+                </div>
+                <p class="small text-muted mb-0" data-pp-asm-show="new reintake" hidden>접수하면 저희 AS방(채널톡)으로 바로 갑니다. 비용은 저희가 확인한 뒤 알려 드립니다.</p>
+                <p class="pp-status mt-2 mb-0" data-pp-asm-status role="status" aria-live="polite"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-pp-asm-close>취소</button>
+                <button type="button" class="btn btn-outline-primary" data-pp-asm-retry hidden>AS방 다시 보내기</button>
+                <button type="button" class="btn btn-primary" data-pp-asm-submit><i class="fas fa-check" aria-hidden="true"></i> <span data-pp-asm-submit-label>AS 접수 확인</span></button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="{{ asset_url('js/cs/as-attachment-order.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-as-receive.js') }}" defer></script>

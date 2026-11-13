@@ -515,7 +515,7 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/as/confirm"
     },
-        "erp_orders_as_drawing.api_as_drawing_request": {
+    "erp_orders_as_drawing.api_as_drawing_request": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing/as/request"
     },
@@ -822,9 +822,21 @@
       "mode": "guard",
       "rule": "/api/partner/orders"
     },
-    "partner_api.register_as": {
+    "partner_as.register_as": {
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/as"
+    },
+    "partner_as.edit_as": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/as/edit"
+    },
+    "partner_as.upload_as_file": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/as/files"
+    },
+    "partner_as.push_as": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/as/push"
     },
     "partner_api.request_revision": {
       "mode": "guard",

@@ -1,37 +1,44 @@
-"""PARTNER-03: 협력사 AS 접수 — 협력사 고객의 AS 는 협력사를 통해서만 받는다(사용자 결정 2026-10-08).
+"""PARTNER-AS-02: 협력사 AS 접수 · 수정 — 판정 · 접수 창 값 · AS방 PUSH 머리말.
 
-직원 AS 접수(``foms/api/cs/as_orders.py`` ``api_as_register``)와 같은 정본 서비스
-(:func:`register_as_cycle`)로 새 AS 건을 연다. 부수 기록도 같은 모양으로 남긴다 — 레거시 원문
-굳히기 · 접수 원문(reception) · "AS 접수됨" 시스템 줄 · 비용 판정 기본값. 고객에게는 아무것도 보내지
-않는다(직원 경로도 접수 때 보내지 않는다).
+협력사 고객의 AS 는 협력사를 통해서만 받는다(사용자 결정 2026-10-08). 쓰기는 API 층이 **본사 접수 정본**
+(``foms/api/cs/as_orders.py`` ``register_as_from_payload``)을 그대로 부른다 — 새 건이면 ``register_as_cycle``,
+열린 건이면 같은 건 갱신. 이 모듈은 그 앞뒤의 협력사 몫(언제 열리나 · 무슨 글 · AS방 머리말)만 정한다
+(services 는 api 를 부르지 않는다: 층 의존 규칙).
 
-열린 AS 건이 있으면 새로 열지 않는다(409) — 재접수(같은 건 갱신)는 우리 직원 몫이다.
-스펙: docs/specs/2026-10-08-partner-portal_SPEC.md §14
+설계서: docs/specs/2026-11-13-partner-as-intake-edit-push_SPEC.md (1판: 2026-10-08-partner-portal_SPEC.md §14)
 """
 from __future__ import annotations
 
-import hashlib
-import json
+import datetime
 from typing import Any
 
-from foms.services.audit_writer import normalize_security_detail
-from foms.services.auth.partner_scope import partner_can_read_order
-from foms.services.datetime_kst import get_today_kst
-from foms.services.notifications.recipients import fan_out_new_notification
-from foms.services.orders.as_cycle_service import (
-    AS_IN_PROGRESS,
-    AS_RECEIVED,
-    current_cycle,
-    cycle_status,
-    register_as_cycle,
+from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
+from foms.services.orders.as_cycle_view import (
+    current_cycle_ordinal,
+    last_closed_cycle_summary,
+    with_cycle_detail_extras,
 )
-from foms.services.orders.as_log import append_client_log, append_system_log, migrate_legacy_into_log
-from foms.services.orders.revision import lock_order_row
-from models import Notification, SecurityLog
+from foms.services.orders.as_log import current_reception_entry
+from foms.services.partners.channel_push import sent_label
 
 MAX_CONTENT = 2000
+MAX_CHANGE_NOTE = 500
 # AS 를 받을 수 있는 단계 — 시공이 시작된 뒤(우리가 시공을 간다).
 AS_OPEN_STAGES = frozenset({"CONSTRUCTION", "CS", "COMPLETED", "AS", "AS_RECEIVED", "AS_COMPLETED"})
+OPEN_STATUSES = (AS_RECEIVED, AS_IN_PROGRESS)
+
+MODE_NEW = "new"            # 처음 접수
+MODE_REINTAKE = "reintake"  # 지난 AS 가 끝난 뒤 새 건(2번째 AS …)
+MODE_EDIT = "edit"          # 진행 중인 건 고치기(AS 끝나기 전까지 — 사용자 2026-11-13)
+
+PARTNER_TAIL = " (협력사)"
+SYSTEM_TEXT_NEW = "AS 접수됨 (협력사)"
+SYSTEM_TEXT_EDIT = "AS 접수 수정됨 (협력사)"
+REF_LINE_PREFIX = "[완공 사진 참고] "
+# AS PUSH 이력 칸 — 본사 AS PUSH 와 같은 칸(channel_integration._PUSH_KIND_CONFIG['as']).
+PUSH_HISTORY_KEY = "channeltalk_push_as"
+DEFAULT_RESEND_NOTE = "협력사가 접수 내용을 다시 보냈습니다"
 
 
 class PartnerASError(ValueError):
@@ -42,96 +49,137 @@ class PartnerASError(ValueError):
         self.status = status
 
 
-def _reception_text(text: str, ref_photos: list[tuple[int, str]]) -> str:
-    """접수 원문 — 고른 완공 사진이 있으면 이름을 한 줄 덧붙인다(우리 AS 화면에서 바로 보이게)."""
-    if not ref_photos:
-        return text
-    names = ", ".join(name for _id, name in ref_photos)
-    return f"{text}\n[완공 사진 참고] {names}"
+def _sd(order: Any) -> dict:
+    sd = getattr(order, "structured_data", None)
+    return sd if isinstance(sd, dict) else {}
 
 
-def register_partner_as(
-    db, user: Any, order_id: int, content: Any, *, idempotency_key: str | None = None,
-    ref_photos: list[tuple[int, str]] | None = None,
-) -> str | None:
-    """AS 건을 연다(호출자가 commit). 접수 원문 로그 id 를 돌려준다(사진을 그 줄에 붙인다).
+def as_mode(order: Any) -> str | None:
+    """지금 협력사가 할 수 있는 AS 일. 열린 건이 있으면 고치기, 시공 뒤면 접수 · 재접수, 아니면 None."""
+    sd = _sd(order)
+    cycle = current_cycle(sd)
+    if cycle is not None and cycle_status(cycle) in OPEN_STATUSES:
+        return MODE_EDIT
+    if (getattr(order, "erp_stage_code", None) or "").upper() not in AS_OPEN_STAGES:
+        return None
+    return MODE_REINTAKE if last_closed_cycle_summary(sd) is not None else MODE_NEW
 
-    Args:
-        ref_photos: 협력사가 고른 완공 사진 ``[(attachment_id, filename)]`` — 호출자가
-            :func:`foms.services.partners.completion.pick_construction_photos` 로 검사한 값.
-            첨부를 복제하지 않고 접수 원문 줄의 ``ref_attachment_ids`` 로만 남긴다.
 
-    Raises:
-        PartnerASError: 주문 없음(404)·내용 없음(400)·아직 시공 전·진행 중인 AS 있음(409).
-    """
-    text = str(content or "").strip()[:MAX_CONTENT]
+def clean_content(raw: Any) -> str:
+    text = str(raw or "").strip()[:MAX_CONTENT]
     if not text:
         raise PartnerASError("AS 내용을 적어 주세요.", 400)
-    ref_photos = list(ref_photos or [])
-    order = lock_order_row(db, order_id)
-    if order is None or order.deleted_at is not None or not partner_can_read_order(user, order):
-        raise PartnerASError("주문을 찾을 수 없습니다.", 404)
-    if (order.erp_stage_code or "").upper() not in AS_OPEN_STAGES:
-        raise PartnerASError("시공이 끝난 주문만 AS 를 접수할 수 있습니다.")
-    open_cycle = current_cycle(order.structured_data or {})
-    if open_cycle is not None and cycle_status(open_cycle) in (AS_RECEIVED, AS_IN_PROGRESS):
-        raise PartnerASError("이미 진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.")
+    return text
 
-    who = f"{user.name} (협력사)"
-    captured: dict[str, Any] = {}
 
-    def _hook(sd: dict[str, Any]) -> None:
-        shipment = sd.setdefault("shipment", {})
-        migrate_legacy_into_log(sd)
-        entry = append_client_log(sd, log_type="reception", text=_reception_text(text, ref_photos),
-                                  by=who, by_id=user.id)
-        if ref_photos:
-            entry["ref_attachment_ids"] = [photo_id for photo_id, _name in ref_photos]
-        captured["reception_log_id"] = entry["id"]
-        append_system_log(sd, text="AS 접수됨 (협력사)")
-        # 비용 판정은 우리 몫 — 판정이 없을 때만 '미정' 기본값을 둔다(확정 판정은 덮지 않는다).
-        if not isinstance(shipment.get("as_billing"), dict):
-            shipment["as_billing"] = {
-                "type": "undecided", "confirmed": False, "amount": None,
-                "reason": "", "decided_by": "", "decided_at": "",
-            }
+def clean_change_note(raw: Any) -> str:
+    note = str(raw or "").strip()[:MAX_CHANGE_NOTE]
+    if not note:
+        raise PartnerASError("바뀐 내용을 한 줄 적어 주세요. AS방에 [수정]으로 같이 갑니다.", 400)
+    return note
 
-    body = {"order_id": order.id, "content": text, "idempotency_key": idempotency_key,
-            "ref_attachment_ids": [photo_id for photo_id, _name in ref_photos]}
-    register_as_cycle(
-        db,
-        order_id=order.id,
-        actor_user_id=user.id,
-        as_content=text,
-        source_screen="partner_portal",
-        received_date=get_today_kst().strftime("%Y-%m-%d"),
-        scope_hash=hashlib.sha256(f"PARTNER_AS_REGISTER:{order.id}".encode("utf-8")).hexdigest(),
-        request_hash=hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest(),
-        idempotency_key=idempotency_key,
-        sd_hook=_hook,
-    )
-    db.add(SecurityLog(
-        user_id=user.id,
-        message=f"협력사 AS 접수: #{order.id}",
-        action="PARTNER_AS_REGISTERED",
-        target_type="order",
-        target_id=order.id,
-        detail=normalize_security_detail({"partner_org_id": order.partner_org_id}),
-    ))
-    # 우리 쪽이 협력사 AS 를 놓치지 않게 — CS 팀 벨 1건(사용자 2026-10-28). 직원 접수는 직원이 하므로 알림이 없다.
-    parties = (order.structured_data or {}).get("parties") or {}
-    customer = str((parties.get("customer") or {}).get("name") or "").strip()
-    notification = Notification(
-        order_id=order.id,
-        notification_type="PARTNER_AS_REGISTERED",
-        target_team="CS",
-        title="협력사 AS 접수",
-        message=f"[협력사] 주문 #{order.id}" + (f" ({customer})" if customer else "")
-        + f" AS 가 접수되었습니다. 내용: {text[:80]}",
-        created_by_user_id=user.id,
-        created_by_name=who,
-    )
-    db.add(notification)
-    db.flush()
-    fan_out_new_notification(db, notification, actor_user_id=user.id)
-    return captured.get("reception_log_id")
+
+def reception_text(text: str, ref_photos: list[tuple[int, str]]) -> str:
+    """접수 원문 — 고른 완공 사진이 있으면 이름을 한 줄 덧붙인다(우리 AS 화면 · AS방 글에서 바로 보이게)."""
+    if not ref_photos:
+        return text
+    return f"{text}\n{REF_LINE_PREFIX}" + ", ".join(name for _id, name in ref_photos)
+
+
+def _split_ref_line(text: str) -> str:
+    """고치기 창에 채울 글 — 끝의 "[완공 사진 참고]" 줄은 뺀다(저장 때 같은 사진으로 다시 붙인다)."""
+    lines = text.rstrip().split("\n")
+    if lines and lines[-1].startswith(REF_LINE_PREFIX.strip()):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def current_reception(order: Any) -> dict | None:
+    return current_reception_entry(_sd(order))
+
+
+def current_content(order: Any) -> str:
+    """현재 건 접수 글(협력사 화면에 보일 평문)."""
+    entry = current_reception(order)
+    if not entry:
+        return ""
+    return _split_ref_line(as_content_html_to_text(entry.get("text"), already_sanitized=True))
+
+
+def edit_carry(order: Any) -> tuple[str, dict | None]:
+    """고치기 때 앞 접수 줄에서 이어 갈 것 — 글 끝에 다시 붙일 완공 사진 줄, 접수 줄 ``ref_attachment_ids``."""
+    entry = current_reception(order) or {}
+    ref_ids = [i for i in entry.get("ref_attachment_ids") or [] if isinstance(i, int)]
+    text = as_content_html_to_text(entry.get("text"), already_sanitized=True).rstrip()
+    last = text.split("\n")[-1] if text else ""
+    ref_line = last if last.startswith(REF_LINE_PREFIX.strip()) else ""
+    return ref_line, ({"ref_attachment_ids": ref_ids} if ref_ids else None)
+
+
+def _utc(raw: Any) -> datetime.datetime | None:
+    try:
+        at = datetime.datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
+
+
+def push_status(order: Any) -> dict[str, Any]:
+    """AS방 줄 — 보낸 적 · 마지막 시각 · 보낼 게 남았나(지금 접수 줄이 마지막 PUSH 보다 새것)."""
+    sd = _sd(order)
+    history = sd.get(PUSH_HISTORY_KEY) if isinstance(sd.get(PUSH_HISTORY_KEY), dict) else {}
+    pushed = bool(history.get("pushed"))
+    entry = current_reception_entry(sd)
+    sent, written = _utc(history.get("sent_at")), _utc((entry or {}).get("ts"))
+    needs = bool(entry) and (not pushed or (written is not None and (sent is None or written > sent)))
+    return {"pushed": pushed, "sent_label": sent_label(history.get("sent_at")) if pushed else "", "needs_push": needs}
+
+
+def push_change_note(order: Any, given: str = "") -> str:
+    """AS방 재전송 머리말([수정] 아래 줄). 처음 보내면 빈 문자열.
+
+    AS PUSH 이력 칸은 주문마다 하나라 2번째 AS 의 첫 PUSH 도 본사처럼 재전송이다(설계서 D7) — 이 건이 열린 뒤
+    보낸 적이 없으면 "새 AS 접수 (N번째 AS)"로 가른다.
+    """
+    sd = _sd(order)
+    history = sd.get(PUSH_HISTORY_KEY) if isinstance(sd.get(PUSH_HISTORY_KEY), dict) else {}
+    if not history.get("pushed"):
+        return ""
+    cycle = current_cycle(sd) or {}
+    opened, sent = _utc(cycle.get("opened_at")), _utc(history.get("sent_at"))
+    if opened is not None and sent is not None and sent < opened:
+        return f"새 AS 접수 ({current_cycle_ordinal(sd)}번째 AS)"
+    return given or DEFAULT_RESEND_NOTE
+
+
+def _prev_view(order: Any) -> dict | None:
+    """지난 AS 요약(재접수 창) — 본사 창과 같은 줄이되 비용은 뺀다(우리 몫)."""
+    sd = _sd(order)
+    summary = with_cycle_detail_extras(sd, last_closed_cycle_summary(sd))
+    if not summary:
+        return None
+    return {
+        "ordinal": summary.get("ordinal") or 0,
+        "received": summary.get("received_date") or "",
+        "completed": summary.get("completed_date") or "",
+        "symptom": summary.get("symptom_text") or "",
+        "rounds": summary.get("max_round") or 0,
+    }
+
+
+def form_view(order: Any) -> dict[str, Any]:
+    """접수 창 값(완공 사진 주소는 웹 · API 층이 붙인다)."""
+    mode = as_mode(order)
+    sd = _sd(order)
+    ordinal = current_cycle_ordinal(sd)
+    return {
+        "mode": mode,
+        "order_id": order.id,
+        "customer_name": getattr(order, "customer_name", "") or "",
+        "product": getattr(order, "product", "") or "",
+        # 새 건이면 이번이 몇 번째 AS 인지(제목 "2번째 AS"), 고치기면 지금 건 순번.
+        "cycle_no": ordinal if mode == MODE_EDIT else ordinal + 1 if mode == MODE_REINTAKE else 1,
+        "content": current_content(order) if mode == MODE_EDIT else "",
+        "prev": _prev_view(order) if mode == MODE_REINTAKE else None,
+        "push": push_status(order),
+    }

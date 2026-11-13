@@ -40,7 +40,12 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 보낸 도면 확인(받음) — FOMS 영업 "도면 수령 확인"과 같은 한 경로(2026-10-28, 자기 회사 주문만).
     "partner_api.confirm_drawing_receipt",
     "partner_api.request_revision",
-    "partner_api.register_as",
+    # AS 접수 · 수정 · 파일 · AS방 PUSH(2026-11-13): 자기 회사 주문만 — 접수 · 수정은 본사 접수 정본 그대로, 조건은 서버가 본다.
+    "partner_as.as_form",
+    "partner_as.register_as",
+    "partner_as.edit_as",
+    "partner_as.upload_as_file",
+    "partner_as.push_as",
     "partner_api.change_manager",
     "partner_api.update_items",
     "partner_api.update_info",

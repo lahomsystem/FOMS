@@ -11,24 +11,22 @@
     {% endfor %}
 </ul>
 {% endmacro %}
-{% macro as_fields() %}
-<div class="row g-2 mt-1">
-    <div class="col-12"><label class="form-label mb-1">AS 내용<textarea class="form-control form-control-sm" name="content" rows="3" maxlength="2000" required></textarea></label></div>
-    <div class="col-md-8"><label class="form-label mb-1">고객이 보낸 사진(선택, 10장까지)<input class="form-control form-control-sm" type="file" name="photos" multiple accept="image/*"></label></div>
-    <div class="col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-sm btn-primary w-100">AS 접수하기</button></div>
-</div>
-<p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
-{% endmacro %}
 {% if show_completion or as_open %}
 <div class="fw-bold mb-2" data-pp-completion><i class="fas fa-camera"></i> 완공 사진 · AS</div>
+{% set as_url = url_for('partner_as.as_form', order_id=view.id) %}
 {% if as_open %}
 <div class="pp-as-progress">
-    <p class="small text-muted">진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.</p>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="small text-muted mb-0">진행 중인 AS 가 있습니다. 고칠 내용이 있으면 [AS 접수 수정]으로 고쳐 주세요. 저희 AS방으로 다시 갑니다.</p>
+        <button type="button" class="btn btn-sm btn-outline-info" data-pp-as-open="{{ as_url }}">AS 접수 수정</button>
+    </div>
     {% if as_progress %}
     <dl class="pp-dl">
         <dt>상태</dt><dd>{{ as_progress.status_label }}</dd>
         <dt>접수</dt><dd>{{ as_progress.opened_at or '-' }}</dd>
         <dt>방문 예정</dt><dd>{% if as_progress.visit_date %}{{ as_progress.visit_date }} {{ as_progress.visit_time }} · 고객에게 알려 주세요{% else %}아직 안 정해짐{% endif %}</dd>
+        {% if as_content %}<dt>AS 내용</dt><dd class="pp-as-content">{{ as_content }}</dd>{% endif %}
+        {% if as_push %}<dt>AS방</dt><dd>{% if as_push.pushed %}{{ as_push.sent_label }} 보냄{% else %}아직 안 보냄{% endif %}{% if as_push.needs_push %} · <span class="pp-status--error">새 내용이 아직 안 갔습니다</span> <button type="button" class="btn btn-sm btn-outline-primary py-0" data-pp-as-push="{{ as_url }}/push">AS방 다시 보내기</button>{% endif %}</dd>{% endif %}
     </dl>
     {% if as_progress.photos %}<p class="small text-muted">AS 사진</p>{{ photo_grid(as_progress.photos, false) }}{% endif %}
     {% endif %}
@@ -37,31 +35,16 @@
 <p class="small text-muted">지난 AS: {{ as_progress.status_label }}{% if as_progress.opened_at %} (접수 {{ as_progress.opened_at }}){% endif %}</p>
 {% if as_progress.photos %}{{ photo_grid(as_progress.photos, false) }}{% endif %}
 {% endif %}
-{% if construction_photos %}
 {% if can_as %}
-<form id="ppAsForm" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=view.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
-    <p class="small text-muted">저희 시공팀이 올린 완공 사진입니다. AS 할 곳이 보이면 사진을 골라 아래에 적어 주세요. 고른 사진이 접수에 함께 남습니다.</p>
-    <div data-pp-msheet-picks="ppAsSheet">{{ photo_grid(construction_photos, true) }}</div>
-    <button type="button" class="btn btn-primary w-100 pp-as-open" data-pp-msheet-open="ppAsSheet">AS 접수 칸 열기</button>
-    {# 휴대폰: 사진을 고르면 아래에서 올라오는 칸(우리 아래 시트 모양). PC: 사진 아래에 그대로(설계서 §3.6 · §16). #}
-    <div class="pp-as-sheet" id="ppAsSheet" data-pp-msheet role="group" aria-label="AS 접수">
-        <div class="foms-reason-sheet__head pp-as-sheet__head">
-            <h2 class="foms-reason-sheet__title">AS 접수 <span class="small text-muted fw-normal" data-pp-msheet-count></span></h2>
-            <button type="button" class="foms-reason-sheet__close" data-pp-msheet-close aria-label="닫기"><i class="fas fa-xmark" aria-hidden="true"></i></button>
-        </div>
-        {{ as_fields() }}
-    </div>
-</form>
-{% else %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <p class="small text-muted mb-0">고객이 AS 를 말하면 [{{ 'AS 재접수' if as_mode == 'reintake' else 'AS 접수' }}]로 알려 주세요. 저희 AS방으로 바로 갑니다.</p>
+    <button type="button" class="btn btn-primary" data-pp-as-open="{{ as_url }}">{{ 'AS 재접수' if as_mode == 'reintake' else 'AS 접수' }}</button>
+</div>
+{% endif %}
+{% if construction_photos %}
 <p class="small text-muted">저희 시공팀이 올린 완공 사진입니다. 고객에게는 "크게 보기"로 열어 저장한 뒤 보내 주세요.</p>
 {{ photo_grid(construction_photos, false) }}
-{% endif %}
 {% else %}
 <p class="pp-empty">아직 완공 사진이 없습니다.</p>
-{% if can_as %}
-<form id="ppAsForm" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=view.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
-    {{ as_fields() }}
-</form>
-{% endif %}
 {% endif %}
 {% endif %}

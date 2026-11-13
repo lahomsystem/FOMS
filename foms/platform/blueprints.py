@@ -193,7 +193,9 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     # --- Lane: 외부 협력사 화면(PARTNER-02) — /partner(HTML) · /api/partner(JSON). 경로가 고유해
     # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 협력사 세션은 문지기 허용 목록만 지난다.
-    from foms.api.partner import partner_api_bp, partner_channel_push_bp, partner_notice_bp, partner_order_delete_bp
+    from foms.api.partner import (
+        partner_api_bp, partner_as_bp, partner_channel_push_bp, partner_notice_bp, partner_order_delete_bp,
+    )
     from foms.web.partner import partner_portal_bp
 
     app.register_blueprint(partner_api_bp)
@@ -203,6 +205,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_notice_bp)
     # 협력사 주문 지우기(2026-11-04) — /api/partner/orders/<id>/delete 하나뿐이라 겹치지 않는다.
     app.register_blueprint(partner_order_delete_bp)
+    # 협력사 AS 접수 · 수정 · AS방 PUSH(2026-11-13) — /api/partner/orders/<id>/as(…) 는 이 Blueprint 하나뿐이다.
+    app.register_blueprint(partner_as_bp)
     app.register_blueprint(partner_portal_bp)
 
     # --- Lane: FOMS 공지사항(본사 · 협력사, 2026-11-02 설계서 2026-11-02-foms-notices). 경로가 고유해

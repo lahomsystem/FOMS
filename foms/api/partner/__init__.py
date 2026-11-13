@@ -22,6 +22,7 @@ from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_
 from foms.api.partner.channel_push import auto_drawing_push, partner_channel_push_bp  # noqa: F401 — 등록은 blueprints.py
 from foms.api.partner.notices import partner_notice_bp  # noqa: F401 — 등록은 blueprints.py
 from foms.api.partner.order_delete import partner_order_delete_bp  # noqa: F401 — 등록은 blueprints.py
+from foms.api.partner.as_intake import partner_as_bp  # noqa: F401 — 등록은 blueprints.py(AS 접수 · 수정, 2026-11-13)
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
@@ -38,10 +39,7 @@ from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError
 from foms.services.notifications.push_sender import enqueue_push_for_notification
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
-from foms.services.orders.as_cycle_service import ASCycleError
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_revision
-from foms.services.partners.as_intake import PartnerASError, register_partner_as
-from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
 from foms.services.partners.drawing_confirm import (
     PartnerConfirmError,
     approve_partner_drawing,
@@ -430,51 +428,6 @@ def request_revision(order_id: int):
         "interrupt": True,
     })
     return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
-
-
-@partner_api_bp.route("/orders/<int:order_id>/as", methods=["POST"])
-@partner_required
-def register_as(order_id: int):
-    """AS 접수(multipart: ``content``, ``photos``). 사진은 접수 원문 줄(as_log_id)에 붙는다."""
-    db = get_db()
-    if _own_order(db, order_id) is None:
-        return _fail("주문을 찾을 수 없습니다.", 404)
-    key = (request.form.get("idempotency_key") or "")[:64] or None
-    try:
-        # 완공 사진 탭에서 고른 사진(우리 시공팀 사진) — 이 주문의 것만, 첨부 복제 없이 id 로만 남긴다.
-        ref_photos = pick_construction_photos(db, order_id, request.form.getlist("construction_photo_ids"))
-    except CompletionPhotoError as exc:
-        return _fail(str(exc), 400)
-    try:
-        reception_id = register_partner_as(db, g.current_user, order_id, request.form.get("content"),
-                                           idempotency_key=key, ref_photos=ref_photos)
-        db.commit()
-    except PartnerASError as exc:
-        db.rollback()
-        return _fail(str(exc), exc.status)
-    except (ASCycleError, RevisionError):
-        db.rollback()
-        log_handled_exception("partner AS register")
-        return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
-    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
-    _refresh_team_badges(db, ("CS",))  # 협력사 AS 접수 알림을 받는 CS 팀 벨
-    # 사진은 접수가 확정된 뒤 붙인다 — 사진이 실패해도 AS 접수는 남는다(화면이 알려 준다).
-    try:
-        photos = _upload_photos(order_id, "as")
-    except PartnerRevisionError as exc:
-        return jsonify({"success": True, "data": {"order_id": order_id, "photo_error": str(exc)}, "error": None})
-    for p in photos:
-        attachment = OrderAttachment(
-            order_id=order_id, filename=p["filename"], file_type=p["file_type"], category="as",
-            as_log_id=reception_id, file_size=p["size"], storage_key=p["key"], thumbnail_key=None,
-            user_id=session.get("user_id"),
-        )
-        db.add(attachment)
-        emit_attachment_event(db, attachment, ATTACHMENT_ADDED)
-    db.commit()
-    if photos:
-        invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
-    return jsonify({"success": True, "data": {"order_id": order_id, "photos": len(photos)}, "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/logo", methods=["GET"])

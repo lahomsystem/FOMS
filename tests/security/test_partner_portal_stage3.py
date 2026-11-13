@@ -147,7 +147,7 @@ def test_partner_as_register_opens_cycle_with_photo(app, world, fake_storage):
     client = _client(app, db_session.get(User, world["partner_a"]))
     assert client.post(f"/api/partner/orders/{order_id}/as", data={"content": "x"}).status_code == 409  # 시공 전
     _to_stage(order_id, "COMPLETED")
-    assert "AS 접수하기" in client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert f'data-pp-as-open="/api/partner/orders/{order_id}/as"' in client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
     resp = client.post(f"/api/partner/orders/{order_id}/as",
                        data={"content": "문짝 처짐", "photos": (io.BytesIO(b"img"), "as.jpg")},
                        content_type="multipart/form-data")
@@ -171,15 +171,16 @@ def test_partner_as_register_opens_cycle_with_photo(app, world, fake_storage):
 
 
 def test_partner_as_register_stores_sanitized_reception_text(app, world):
-    """협력사 접수 본문도 저장 함수에서 정리된다 — 접수 경로에 정리 호출이 없어도 봉인된다."""
+    """협력사 접수 본문도 본사 접수 정본(register_as_from_payload)의 정리를 지난다(2026-11-13)."""
     from foms.services.as_content_safety import sanitize_as_content_html
-    from foms.services.partners.as_intake import register_partner_as
 
     order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     _to_stage(order_id, "COMPLETED")
     raw = "<x-claude-test>CLAUDE-TEST-협력사 접수</x-claude-test> <b>문짝</b> 처짐"
-    reception_id = register_partner_as(db_session, db_session.get(User, world["partner_a"]), order_id, raw)
-    db_session.commit()
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    resp = client.post(f"/api/partner/orders/{order_id}/as", data={"content": raw})
+    assert resp.status_code == 200, resp.get_json()
+    reception_id = resp.get_json()["data"]["reception_log_id"]
     db_session.expire_all()
     logs = db_session.get(Order, order_id).structured_data["shipment"]["as_log"]
     reception = next(e for e in logs if e.get("id") == reception_id)

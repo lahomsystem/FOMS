@@ -113,15 +113,15 @@ def test_mobile_order_screen_hero_chip_tabs_and_as_sheet(app, world):
     tabs = html[html.index('class="pp-mtabs"'):html.index("pp-order")]
     assert re.findall(r'chip foms-chip" role="tab" data-pp-tab="(\w+)"', tabs) == ["order", "drawing", "completion", "history"]
     assert 'data-pp-tab="completion" disabled' in tabs  # 시공 전에는 꺼짐
-    assert "data-pp-msheet" not in html  # 완공 사진 없으면 AS 시트도 없다
+    assert "data-pp-asm" not in html  # 시공 전에는 AS 접수 창도 없다
 
     _to_stage(order_id, "COMPLETED")
     db_session.add(OrderAttachment(order_id=order_id, filename="done.jpg", file_type="image", category="construction",
                                    file_size=10, storage_key=f"orders/{order_id}/construction/done.jpg"))
     db_session.commit()
     done = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
-    assert 'data-pp-msheet-picks="ppAsSheet"' in done and 'id="ppAsSheet" data-pp-msheet' in done
-    sheet = done[done.index('id="ppAsSheet"'):]
-    assert 'name="content"' in sheet[:1500]  # AS 내용 칸이 시트 안(같은 form 이라 고른 사진과 함께 보낸다)
-    assert done.index('id="ppAsForm"') < done.index('data-pp-msheet-picks') < done.index('id="ppAsSheet"')
-    assert 'data-pp-goto-tab="completion" data-pp-msheet-open="ppAsSheet"' in done  # 아래 고정 줄 "AS 접수"
+    # AS 접수는 본사 창과 같은 칸의 접수 창(2026-11-13) — 휴대폰은 아래에서 올라오는 칸(partner-as-modal.css).
+    sheet = done[done.index('id="ppAsModal"'):]
+    assert 'id="ppAsContent"' in sheet[:4000] and 'class="modal-content"' in sheet[:1500]
+    assert 'accept="image/*,video/*,.gif"' in sheet  # 갤러리 = 사진 · 동영상 여러 개(본사 주문 상세 창 그대로)
+    assert f'class="btn btn-outline-primary" data-pp-as-open="/api/partner/orders/{order_id}/as"' in done  # 아래 고정 줄
