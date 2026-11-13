@@ -8,7 +8,8 @@
 2. **계산기 설정 읽기** — 못 읽거나 라홈 제품이 없으면 그만(로그만 — 예전 그대로 초안).
 3. **뽑기(두뇌 구조화 출력 한 번)** — :func:`.quote_brain.extract_quote`. 견적 문의(``quote_request``)가 아니면 계산 없이 초안.
    톡톡 상품 문의 줄에 정해 둔 짝(:mod:`.store_products` — 사장님 11-13)이 있으면 그 줄을 빼고 뽑은 뒤 빈 제품 칸을 짝으로
-   채운다. 짝이 '계산기에 없음'이고 손님 글이 다른 제품을 말하지 않았으면 초안 없이 직원에게(:data:`HUMAN_STORE_PRODUCT`).
+   채운다(화장대가 든 상품은 화장대 TYPE01 을 더하고 '01타입 기본' 안내 줄 · 허용 글을 붙인다). 짝이 '계산기에 없음'이고
+   손님 글이 다른 제품을 말하지 않았으면 초안 없이 직원에게(:data:`HUMAN_STORE_PRODUCT`).
    두뇌 오류(준비 안 됨 · 돈 상한 · 가림 · 못 씀)는 초안 두뇌와 같게 부르는 쪽이 다룬다(같은 ``except``). 뽑기가 '크기는 손님
    첨부에'(``size_in_attachment``)라 해도 두뇌 재료에 손님이 보낸 첨부 표시(:data:`.drafting_read.FILE_NOTE`)가 없으면 거짓으로
    돌린다(모델이 지어낸 첨부로 가로 묻기를 건너뛰지 않게 — :func:`customer_sent_file`).
@@ -50,7 +51,9 @@ from foms.services.cs_agent.quote_record import STATUS_HUMAN, STATUS_NOT_QUOTE, 
 from foms.services.cs_agent.quote_rules import QuoteLimits
 from foms.services.cs_agent.rule_settings import quote_limits
 from foms.services.cs_agent.settings import read_settings
-from foms.services.cs_agent.store_products import HUMAN_STORE_PRODUCT, apply_choice, store_choice, without_store
+from foms.services.cs_agent.store_products import (
+    HUMAN_STORE_PRODUCT, apply_choice, store_choice, with_guide, without_store,
+)
 from foms.services.wdcalculator.catalog import Catalog, read_catalog
 
 logger = logging.getLogger("foms.services.cs_agent.drafting")
@@ -189,6 +192,7 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
         step = QuoteStep(outcome.status, lines=outcome.lines, allowed=outcome.allowed, note=outcome.note,
                          human=outcome.code if outcome.status == STATUS_HUMAN else None,
                          usage=merge_image_usage(ask, image_usage), code=outcome.code)
+        step = with_guide(step, choice)  # 화장대 상품이면 '01타입 기본' 안내 줄 · 허용 글(사장님 11-13)
     summary.quotes[step.status] = summary.quotes.get(step.status, 0) + 1
     logger.info("[CS 견적] chat=%s intent=%s status=%s code=%s", request.chat_id,
                 QUOTE_INTENT if ask.quote_request else "other", step.status, step.human or step.code)
