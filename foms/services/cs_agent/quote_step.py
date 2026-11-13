@@ -7,6 +7,8 @@
    부르지 않는다 — 돈 · 시간은 견적 문의일 때만).
 2. **계산기 설정 읽기** — 못 읽거나 라홈 제품이 없으면 그만(로그만 — 예전 그대로 초안).
 3. **뽑기(두뇌 구조화 출력 한 번)** — :func:`.quote_brain.extract_quote`. 견적 문의(``quote_request``)가 아니면 계산 없이 초안.
+   톡톡 상품 문의 줄에 정해 둔 짝(:mod:`.store_products` — 사장님 11-13)이 있으면 그 줄을 빼고 뽑은 뒤 빈 제품 칸을 짝으로
+   채운다. 짝이 '계산기에 없음'이고 손님 글이 다른 제품을 말하지 않았으면 초안 없이 직원에게(:data:`HUMAN_STORE_PRODUCT`).
    두뇌 오류(준비 안 됨 · 돈 상한 · 가림 · 못 씀)는 초안 두뇌와 같게 부르는 쪽이 다룬다(같은 ``except``). 뽑기가 '크기는 손님
    첨부에'(``size_in_attachment``)라 해도 두뇌 재료에 손님이 보낸 첨부 표시(:data:`.drafting_read.FILE_NOTE`)가 없으면 거짓으로
    돌린다(모델이 지어낸 첨부로 가로 묻기를 건너뛰지 않게 — :func:`customer_sent_file`).
@@ -48,6 +50,7 @@ from foms.services.cs_agent.quote_record import STATUS_HUMAN, STATUS_NOT_QUOTE, 
 from foms.services.cs_agent.quote_rules import QuoteLimits
 from foms.services.cs_agent.rule_settings import quote_limits
 from foms.services.cs_agent.settings import read_settings
+from foms.services.cs_agent.store_products import HUMAN_STORE_PRODUCT, apply_choice, store_choice, without_store
 from foms.services.wdcalculator.catalog import Catalog, read_catalog
 
 logger = logging.getLogger("foms.services.cs_agent.drafting")
@@ -161,13 +164,21 @@ def prepare(*, session: Any, knowledge: ApprovedKnowledge, request: DraftRequest
         rules, unreadable = (), True
     stop.check()  # 두뇌 전
     summary.brain_calls += 1
-    ask = (quoter or extract_quote)(request, catalog, session=session, now=now)
+    choice = store_choice(request.messages, catalog)  # 톡톡 상품 문의 줄의 정해 둔 짝(없으면 예전 그대로)
+    stripped = without_store(request.messages) if choice else ()
+    asked = dataclasses.replace(request, messages=stripped) if stripped else request
+    ask = (quoter or extract_quote)(asked, catalog, session=session, now=now)
     if ask.size_in_attachment and not customer_sent_file(request):
         ask = dataclasses.replace(ask, size_in_attachment=False)  # 손님 첨부가 없으면 예전처럼 가로를 묻는다
+    store_human = False
+    if ask.quote_request and choice is not None:
+        ask, store_human = apply_choice(ask, choice)
     if not ask.quote_request:
         step = QuoteStep(STATUS_NOT_QUOTE, usage=ask)
     elif unreadable:
         step = QuoteStep(STATUS_HUMAN, human=HUMAN_RULE_UNREADABLE, usage=ask)
+    elif store_human:  # 계산기에 없는 스토어 상품(사장님 11-13 '계산 없이 직원에게')
+        step = QuoteStep(STATUS_HUMAN, human=HUMAN_STORE_PRODUCT, usage=ask)
     else:
         check = (price_check or observe)(session, catalog, now=now)
         limits = quote_limits(session)  # 최소 길이 · 반통 기준(설정 → 없으면 코드 상수 — 7.8 다음 4)
