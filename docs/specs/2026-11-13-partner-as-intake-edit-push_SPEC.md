@@ -1,7 +1,7 @@
 # 협력사 AS 접수 · 수정 · 채널톡 AS방 PUSH (PARTNER-AS-02)
 
 - 작성: 2026-11-13
-- 상태: 구현 중 (목업 승인 2026-11-13)
+- 상태: ✅ 운영 반영 — deploy `584e0a963` · 운영 PR #837 (`df20c387`, 2026-11-13). 잔여: 첫 실사용 확인 · §7
 - 목업: https://claude.ai/artifact/1tVmxSWYS1yLysE83GAqrY (8장 — 흐름 · PC 목록 · 접수 창 3가지 · 접수 뒤 주문 화면 · 휴대폰 · AS방 글)
 - 선행: `2026-10-08-partner-portal_SPEC.md` §14(협력사 AS 접수 1판), `2026-10-19-partner-foms-mode_SPEC.md` §3.6,
   `2026-08-20-as-erp-gallery-bind-and-push-confirm_SPEC.md`(AS PUSH 첨부 고르기)
