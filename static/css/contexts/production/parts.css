@@ -45,6 +45,10 @@
 .pp-unseen { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text2); white-space: nowrap; }
 .pp-unseen b { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text); }
 .pp-tabs { margin-left: auto; }
+/* 관리자 · 읽기 전용(파트 고르기 있음): 1280 폭에 한 줄로 다 안 들어가 칸 단추만 아랫줄 오른쪽에 떨어지던 것(운영 11-13) →
+   윗줄 = 날짜 · 파트 고르기 · 칸 단추, 아랫줄 = 안 본 도면 · 일괄 단추(또는 시공 · 도면 집 수) */
+.pp-head--switch .pp-tabs { order: 2; }
+.pp-head--switch .pp-bulk { order: 3; flex-basis: 100%; }
 .pp-tabs .foms-prod-home__tab { min-width: 0; padding: 0 16px; }
 
 /* ── 카드(확정 도면 한 장) ── */
