@@ -10,7 +10,9 @@
   옵션 **만들기**(실음 칸에 금액 칸 없음)와 그 항목에서 ``calc:`` 로 가는 ``value_from`` 링크. 값은 계산기가 정본이라(D179) 글 ·
   금액을 하나씩 확인할 것이 없다.
 
-- ``rules`` ⑥ 규칙 · 제품 잇기(온톨로지 4.2 · D194) — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 링크 더하기.
+- ``rules`` ⑥ 규칙 잇기(온톨로지 4.2 · D194, 넓힘 2026-11-13 빈 재료 채우기 D202) — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 ·
+  옵션 ``applies_to`` 링크 더하기, 그리고 옮기기 묶음이 넣은 ``at_step``(정책 · 사실 · 제작 조건 · 상황 · 기준 답 → 공정 단계 — 끝이
+  공정 단계뿐인 것은 허용 짝이 강제한다) 더하기. 글 · 금액이 바뀌지 않는 연결이다. 사람 제안 ``at_step`` 은 ② 그대로.
 
 ①과 ④ · ⑤ · ⑥ 은 글 · 금액 · 규칙이 바뀌지 않아 관리자가 한꺼번에 승인할 수 있다(:func:`bulk_ok_any_grade` — D151 · D192).
 ① 은 상담팀장도(D167 — 묶음은 :func:`.access.wide_bins`). ⑤ · ⑥ 은 사장님(관리자)만(D192 · D194).
@@ -36,6 +38,8 @@ ADMIN_WIDE_BINS: frozenset[str] = frozenset({BIN_NAMES, BIN_MARK, BIN_CALC, BIN_
 CALC_TYPES: frozenset[str] = frozenset({"product_line", "option"})
 CALC_KEY_HEADS: tuple[str, ...] = ("product_line/", "option/")
 CALC_PROPOSER, CALC_REF, VALUE_LINK, RULE_LINK = "import", "calc:", "value_from", "applies_to"
+#: ⑥ 에 드는 공정 단계 잇기(D202) — 끝은 허용 짝(:data:`.constants.ALLOWED_LINKS`)이 공정 단계로만 둔다.
+STEP_LINK = "at_step"
 #: ⑤ 에 들지 못하게 하는 실음 칸(금액 · 값 사본 — 계산기 값은 ``value_from`` 으로만 가리킨다, D179).
 _AMOUNT_KEYS: frozenset[str] = frozenset({"price", "prices", "amount", "values", "price_30cm", "price_1cm", "price_1m",
                                           "coupon_value"})
@@ -79,9 +83,11 @@ def calc_change(op: str, item_type: Optional[str], fields: Optional[Mapping[str,
 
 def rule_link_change(op: str, link_kind: Optional[str], *, proposed_by: Optional[str] = None,
                      link_to: Optional[str] = None) -> bool:
-    """⑥ 규칙 · 제품 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기(허용 짝은 넣을 때 이미 봤다)."""
-    return (proposed_by == CALC_PROPOSER and op == OP_LINK_ADD and link_kind == RULE_LINK
-            and str(link_to or "").startswith(CALC_KEY_HEADS))
+    """⑥ 규칙 잇기인가 — 옮기기 묶음이 넣은 규칙 → 계산기 제품 라인 · 옵션 ``applies_to`` 더하기, 또는 옮기기 묶음이 넣은 공정 단계
+    ``at_step`` 더하기(D202). 허용 짝은 넣을 때 이미 봤다."""
+    if proposed_by != CALC_PROPOSER or op != OP_LINK_ADD:
+        return False
+    return link_kind == STEP_LINK or (link_kind == RULE_LINK and str(link_to or "").startswith(CALC_KEY_HEADS))
 
 
 def change_ends(change: Any) -> dict[str, Any]:
