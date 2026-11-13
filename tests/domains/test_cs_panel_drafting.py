@@ -159,8 +159,9 @@ def test_cache_misses_count_only_requests_that_carried_the_marker(channel, actor
     assert summary.cache_cold == cold
 
 
-# ── 잠긴 칸 · 경고 한 번 ─────────────────────────────────────────────────
-def test_locked_knobs_stay_constants_even_if_the_row_says_otherwise(channel):
+# ── 고르기 칸 · 경고 한 번 ───────────────────────────────────────────────
+def test_pick_knobs_from_the_row_are_used(channel):
+    """11-13 잠금을 푼 고르기 칸 — 묵은 기준 2일이면 하루 넘은 상담도 쓰고, 한 바퀴 두뇌 상한 1 이면 한 번만 부른다."""
     db_session.add(SystemSetting(setting_key=st.SETTINGS_KEY, setting_value={
         **st.DEFAULTS, "max_brain_calls_per_pass": 1, "max_wait_business_days": 2}))
     db_session.commit()
@@ -168,7 +169,7 @@ def test_locked_knobs_stay_constants_even_if_the_row_says_otherwise(channel):
     for chat in ("uc-2", "uc-3"):
         customer(channel, chat, when=at(3, 9, 30))
     summary = run(channel, brain_fn=FakeBrain(), now=at(3, 10))
-    assert (summary.too_old, summary.brain_calls, summary.halted) == (1, 2, {})  # 묵은 기준 1일 · 상한 10 그대로
+    assert (summary.too_old, summary.brain_calls, summary.halted) == (0, 1, {"call_cap": 1})  # 처음 값이면 (1, 2, {})
 
 
 def test_a_broken_settings_row_warns_once_per_pass(channel, caplog):

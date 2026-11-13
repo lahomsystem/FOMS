@@ -4,9 +4,10 @@
 바퀴 :mod:`.drafting`)와 같다 — 줄이 없으면 예전과 똑같이 돈다(시험이 둘을 맞춘다). 두뇌 · 초안 바퀴는 부를 때마다 새로 읽어
 저장하면 **다음 차례부터** 적용된다(재배포 없음).
 
-- **잠긴 칸(다음 단계)**: 사장님이 단계 1 로 승인한 것은 스위치 · 두뇌(돈 상한 포함) · 기록이다. 고르기 칸(한 바퀴 두뇌 상한 ·
-  묵은 상담 기준)은 승인 밖이고, 의도 고르기 · 실시간 다시 시도 칸은 아직 그 길이 없어 효과가 없다 — :attr:`Field.locked` 칸은
+- **잠긴 칸(다음 단계)**: 쓰는 길이 아직 없는 칸만 잠근다(그림 정답 읽기 — :mod:`.image_settings`). :attr:`Field.locked` 칸은
   화면에 값만 보이고, 바꾸는 저장은 :class:`SettingsLockedError` 로 거절하며, 읽을 때는 저장 값과 상관없이 늘 처음 값이다.
+  의도 고르기(견적 계산 넣기 :mod:`.quote_brain` 이 쓴다) · 빠른 길 다시 시도(:mod:`.brain`) · 고르기(한 바퀴 두뇌 상한 · 묵은
+  상담 기준 — :mod:`.drafting` · :mod:`.realtime`) 칸은 그 길이 생겨 잠금을 풀었다(사장님 11-13 '선택이 안 되는 칸 고쳐').
 - **빠른 길 칸(C10-1 · 설계서 17.1 · 17.3)**: 빠른 길 스위치(처음 끔) · 조용 기다림(10~120초, 처음 15초 — D65) · 최대
   기다림(20~300초, 처음 60초)을 새로 두고, 시간 상한 ``realtime_timeout_s``(처음 45초 · 20~60)는 값은 그대로 두고 잠금만
   풀었다. 학습 돈 상한(처음 값 비움 — 공개 저장소라 금액을 코드에 두지 않는다)은 학습 길(17.6 · C10-7)이 생길 때까지
@@ -92,25 +93,25 @@ _TTL_CHOICES = ((CACHE_TTL_1H, "1시간"), (CACHE_TTL_5M, "5분"))
 _WAIT_CHOICES = ((0.5, "운영일 반나절"), (1, "운영일 1일"), (2, "운영일 2일"))
 
 #: 단계 1 칸 — 처음 값은 오늘 상수 그대로(:mod:`.brain` 의 MODEL · EFFORTS · MAX_TOKENS · 시간 · 다시 하기, :mod:`.drafting` 의
-#: MAX_BRAIN_CALLS · MAX_WAIT_BUSINESS_DAYS). 하루 상한 화면 값의 처음 값은 비움(WORKER env 그대로)이다. ``locked=True`` 는
-#: 다음 단계 칸(의도 고르기 · 실시간 다시 시도는 아직 그 길이 없고, 고르기는 승인 밖이다). 빠른 길 칸은 :mod:`.realtime` 이 쓴다.
+#: MAX_BRAIN_CALLS · MAX_WAIT_BUSINESS_DAYS). 하루 상한 화면 값의 처음 값은 비움(WORKER env 그대로)이다. 잠긴 칸은 이 표에
+#: 없다(11-13 모두 풂 — 쓰는 길이 있다). 빠른 길 칸은 :mod:`.realtime` 이 쓴다.
 FIELDS: tuple[Field, ...] = (
     Field("draft_model", "초안 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES, help=_MODEL_HELP),
-    Field("intent_model", "의도 고르기 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES, locked=True),
+    Field("intent_model", "의도 고르기 모델", KIND_CHOICE, MODEL, GROUP_BRAIN, _MODEL_CHOICES,
+          help="견적 계산 넣기가 견적 문의를 읽을 때 쓰는 모델이에요"),
     Field("draft_effort", "초안 생각 깊이", KIND_CHOICE, "high", GROUP_BRAIN, _EFFORT_CHOICES),
-    Field("intent_effort", "의도 고르기 생각 깊이", KIND_CHOICE, "low", GROUP_BRAIN, _EFFORT_CHOICES, locked=True),
+    Field("intent_effort", "의도 고르기 생각 깊이", KIND_CHOICE, "low", GROUP_BRAIN, _EFFORT_CHOICES),
     Field("draft_length", "답 길이", KIND_CHOICE, LENGTH_DEFAULT, GROUP_BRAIN, LENGTH_CHOICES,
           help="바꾸면 첫 차례에 캐시를 새로 써서 그때만 돈이 더 들어요"),
     Field("draft_max_tokens", "초안 최대 출력", KIND_INT, 16000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
           help="답 길이가 아니라 잘림을 막는 상한이에요. 생각도 이 안에서 쓰니 너무 낮으면 답이 잘려 못 써요"),
-    Field("intent_max_tokens", "의도 고르기 최대 출력", KIND_INT, 8000, GROUP_BRAIN, low=2000, high=32000, unit="토큰",
-          locked=True),
+    Field("intent_max_tokens", "의도 고르기 최대 출력", KIND_INT, 8000, GROUP_BRAIN, low=2000, high=32000, unit="토큰"),
     Field("realtime_timeout_s", "빠른 길 시간 상한", KIND_INT, 45, GROUP_TIME, low=20, high=60, unit="초",
           help="넘으면 그 차례는 실패로 두고 사람에게 넘겨요(다시 안 보냄)"),
     Field("batch_timeout_s", "15분 바퀴 시간 상한(밤 · 견적)", KIND_INT, 90, GROUP_TIME, low=30, high=120,
           unit="초"),
     Field("realtime_retries", "빠른 길 다시 시도", KIND_INT, 0, GROUP_TIME, low=0, high=1, unit="번",
-          help="요청이 안 나간 연결 실패만 다시 해요. 시간 초과는 다시 안 보내요", locked=True),
+          help="요청이 안 나간 연결 실패만 다시 해요. 시간 초과는 다시 안 보내요"),
     Field("cache_policy", "캐시 켜는 때", KIND_CHOICE, CACHE_DAYTIME, GROUP_CACHE, _CACHE_CHOICES,
           help="캐시 쓰기는 입력보다 비싸요. 손님이 드문 밤엔 끄는 게 싸요"),
     Field("cache_ttl", "캐시 유지 시간", KIND_CHOICE, CACHE_TTL_1H, GROUP_CACHE, _TTL_CHOICES,
@@ -122,9 +123,9 @@ FIELDS: tuple[Field, ...] = (
     Field("learning_cap_usd_panel", "학습 돈 상한", KIND_MONEY, None, GROUP_MONEY, high=int(MONEY_MAX), unit="달러",
           help="사진 설명 · 주간 고침 안에 쓰는 하루 돈이에요(하루 돈 상한에도 포함). 비우면 학습을 안 돌려요"),
     Field("max_brain_calls_per_pass", "한 바퀴 두뇌 상한", KIND_INT, 10, GROUP_PICK, low=1, high=20, unit="번",
-          locked=True),
+          help="15분 바퀴 한 번에 두뇌를 부르는 횟수 상한이에요"),
     Field("max_wait_business_days", "묵은 상담 기준", KIND_CHOICE, 1, GROUP_PICK, _WAIT_CHOICES,
-          help="마지막 손님 글이 운영 시간으로 이보다 오래된 상담은 초안을 안 써요", locked=True),
+          help="마지막 손님 글이 운영 시간으로 이보다 오래된 상담은 초안을 안 써요"),
     Field("realtime_enabled", "빠른 길 스위치", KIND_BOOL, False, GROUP_REALTIME,
           help="켜면 5초마다 새 손님 글을 보고 조용 기다림 뒤 초안을 써요. 초안 스위치가 저장만 · 메모일 때만 돌고, "
                "켜 있는 동안 15분 바퀴는 초안을 안 써요"),
