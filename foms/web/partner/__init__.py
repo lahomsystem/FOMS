@@ -21,6 +21,7 @@ from foms.services.orders.upload_ticket import _file_type as attachment_file_typ
 from foms.services.partners import as_intake as as_svc
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
+from foms.services.partners.as_history import as_history_for_partner
 from foms.services.partners.channel_push import push_state
 from foms.services.partners.measure_ready import drawing_request_state
 from foms.services.partners.notices import pending_partner_notices
@@ -218,7 +219,6 @@ def order_detail(order_id: int):
         can_as=as_mode in (as_svc.MODE_NEW, as_svc.MODE_REINTAKE),
         as_open=as_open,
         as_mode=as_mode,
-        as_content=as_svc.current_content(order) if as_open else "",
         as_push=as_svc.push_status(order) if as_open else None,
         drawing_cards=[f for f in finals if f["is_image"]],
         drawing_files=[f for f in finals if not f["is_image"]],
@@ -337,8 +337,13 @@ def _completion_context(db, order: Order, stage: str) -> dict:
     progress = as_progress_for_partner(db, order) if show else None
     if progress is not None:
         progress = {**progress, "photos": _with_urls(progress["photos"])}
+    # AS 내역 — 건마다 접수 내역 · 완료 내역(사용자 2026-11-13). 첫 칸이 진행 중인 건이면 위 진행 칸이 그 건을 그린다.
+    history = [{**c, "reception_photos": _with_urls(c["reception_photos"]), "work_photos": _with_urls(c["work_photos"])}
+               for c in as_history_for_partner(db, order)] if show else []
     return {
         "show_completion": show,
         "construction_photos": _with_urls(construction_photos_for_partner(db, order)) if show else [],
         "as_progress": progress,
+        "as_current": history[0] if history and history[0]["is_open"] else None,
+        "as_closed": [c for c in history if not c["is_open"]],
     }
