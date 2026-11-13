@@ -40,6 +40,10 @@ from models import ProductionPartMark
 #: 한 장(날짜 하나)에 그리는 카드 상한 — 넘친 수는 ``hidden`` 으로 알린다(§15.6 안전 캡).
 PART_BOARD_CARD_CAP = 200
 
+#: 카드 작은 그림을 만들 수 있는 확장자(작은 그림 길 ``foms/web/production/part_thumb.py`` 와 카드가 같은 판정을 쓴다).
+#: 그 밖(PDF 등)은 카드에 파일 표 + 누르면 파일 열기(§15.6 '크게 보기').
+PART_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
+
 #: 다른 파트 한 줄 낱말(D51 — 낱말은 그대로, 색은 ``tone`` 으로 화면이 고른다).
 _CUT_WORDS = {"done": "끝", "basic": "기본", "need": "중", "none": "안 봄"}
 _OTHER_WORDS = {"done": "끝", "need": "중", "none": "아직"}
@@ -61,6 +65,22 @@ def other_part_word(part: str, state_key: str) -> dict[str, str]:
     words = _CUT_WORDS if part == PART_CUT else _OTHER_WORDS
     tone = state_key if state_key in words else "none"
     return {"part": part, "label": PRODUCTION_PART_LABELS[part], "word": words[tone], "tone": tone}
+
+
+def is_part_thumb_image(entry: dict[str, Any]) -> bool:
+    """확정 도면 한 장이 작은 그림을 만들 수 있는 그림 파일인지(저장소 key 확장자, 없으면 파일 이름).
+
+    Args:
+        entry: 확정 도면 항목(``key`` · ``filename``).
+
+    Returns:
+        :data:`PART_THUMB_IMAGE_EXTS` 중 하나로 끝나면 True.
+    """
+    for name in (entry.get("key"), entry.get("filename")):
+        text = str(name or "").strip().lower()
+        if "." in text.rsplit("/", 1)[-1]:
+            return text.endswith(PART_THUMB_IMAGE_EXTS)
+    return False
 
 
 def fetch_part_marks(db: Any, order_ids: Iterable[int]) -> list[Any]:
@@ -190,6 +210,7 @@ def build_card(row: dict[str, Any], entry: dict[str, Any], position: tuple[int, 
     return {
         "order_id": order_id, "customer_name": row.get("customer_name") or "-", "has_changes": bool(row.get("has_changes")),
         "key": key, "filename": entry.get("filename") or "", "view_url": entry.get("view_url") or "",
+        "is_image": is_part_thumb_image(entry),
         "sheet_id": entry.get("sheet_id"), "order_pos": position[0], "no": position[1], "of": position[2],
         "item_label": item_label, "item_spec": item_spec, "state": state,
         "picked_by_name": snap.picked_by_name, "done_by_name": snap.done_by_name,

@@ -1,6 +1,8 @@
 {# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(시공일마다 막대 + 만들 것/전체) + 오른쪽 고른 날. home.html 이 include.
    날을 누르면 오른쪽 한 장만 바뀐다(새 요청 없음, foms-production-home.js). 막대는 SVG 좌표(인라인 style 없음).
-   만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10). #}
+   만들 것(제작 대기~검수 끝·보류)은 공정 4칸과 큰 줄, 도면·컨펌 기다림과 제작 완료는 작은 칸 — 전체 주문은 다 있다(D10).
+   생산 파트(설계서 §15.6): part_board 가 있으면 장마다 도면 카드 판(home_parts.html)을 앞에 그리고 지금 장은 fph-pane__now 로
+   감싼다(태블릿 가로 파트 계정에서만 숨김, parts.css). '도면 카드' 탭(tab=parts)은 판만 그린다. 판이 없으면 출력이 지금과 같다. #}
 {% macro fph_row(r, show_day) %}
 <a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}"
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
@@ -19,7 +21,7 @@
 <a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }}{% if show_day %} · {{ r.day_label }}{% endif %} · {{ r.v3_product_label or r.home_stage }}</small></a>
 {% endmacro %}
 
-<div class="fph-date" data-foms-home-date>
+<div class="fph-date{% if part_board %} has-parts{% endif %}" data-foms-home-date>
   <aside class="fph-strip" aria-label="시공일 2주">
     <div class="fph-strip__h">시공일 2주<small>만들 것 / 전체</small></div>
     {% for d in days.strip %}
@@ -41,7 +43,7 @@
     {% for d in days.panes %}
     {% set _wait_n = d.wait_rows | length %}
     <section class="fph-pane" data-foms-home-daypane="{{ d.key }}"{% if d.key != days.selected %} hidden{% endif %}>
-      <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+      {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
       {% if not d.total and not d.note %}
       <p class="fph-pane__none">이 날은 시공이 없어요.</p>
       {% endif %}
@@ -61,7 +63,7 @@
       <h3 class="fph-pane__g fph-pane__g--next">{{ p.title }} <small>{{ p.hint }}</small></h3>
       {% for r in p.rows %}{{ fph_row(r, p.show_day) }}{% endfor %}
       {% endfor %}
-    </section>
+    {% if part_board %}</div>{% endif %}{% endif %}</section>
     {% endfor %}
   </div>
 </div>

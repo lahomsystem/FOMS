@@ -4,7 +4,8 @@
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261111h">
-{% endblock %}
+{% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261113a">
+{% endif %}{% endblock %}
 
 {% block content %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-production foms-prod-home-page"
@@ -15,12 +16,13 @@
   {% endif %}
   <section class="foms-prod-home" data-foms-prod-home data-loaded-at="{{ loaded_at_iso }}" data-foms-home-tab="{{ tab }}">
     <header class="foms-prod-home__bar">
-      <h1 class="foms-prod-home__title">생산</h1>
+      <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
       <span class="foms-prod-home__date">{{ today_label }} · 전체 {{ total }}건</span>
       <nav class="foms-prod-home__nav" aria-label="화면">
         <a class="foms-prod-home__navtab{% if tab == 'date' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home') }}"{% if tab == 'date' %} aria-current="page"{% endif %}>날짜</a>
-        <a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
-        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='changes') }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
+        {% if parts_tab %}<a class="foms-prod-home__navtab{% if tab == 'parts' %} is-on{% endif %}" data-foms-home-partstab href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=(part_board.part if part_board else 'cut')) }}"{% if tab == 'parts' %} aria-current="page"{% endif %}>도면 카드</a>
+        {% endif %}{% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
+{% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='changes') }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
         <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='all') }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
         {# 옛 생산 보드(칸반)로 나가는 단추(D19, 11-10) — 태블릿 레일 '생산' 이 이 첫 화면으로 오므로 보드는 여기서 들어간다 #}
         <a class="foms-prod-home__navtab foms-prod-home__navtab--out" data-foms-home-board data-foms-erp-no-shell="1" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">보드 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
@@ -30,7 +32,7 @@
         <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
         {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
         {% include 'partials/shared/foms_font_scale_control.html' %}
-        <a class="foms-prod-home__btn" data-foms-home-reload href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'date' else None), day=(days.selected if days and not days.auto else None)) }}">다시 받기</a>
+        <a class="foms-prod-home__btn" data-foms-home-reload href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'date' else None), part=(part_board.part if tab == 'parts' and part_board else None), day=(days.selected if days and not days.auto else None)) }}">다시 받기</a>
       </div>
     </header>
     <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 {{ loaded_at_hm }} 에 받은 것이에요.</p>
@@ -45,7 +47,8 @@
     {% else %}
       {% include 'production/partials/home_date.html' %}
     {% endif %}
-  </section>
+{% if part_board %}    {% include 'production/partials/home_parts_overlays.html' %}
+{% endif %}  </section>
   {% if tab == 'changes' %}
   {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선(tablet-domain-sheets.js, 이 화면은 기기 무관) #}
   <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261111a" defer></script>
@@ -55,4 +58,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261110b" defer></script>
-{% endblock %}
+{% if part_board %}{# 도면 카드(설계서 §15.6): 크게 보기 · 칸 단추는 누구나, 쓰기(확인 창 · 저장)는 쓸 수 있는 사람만 싣는다(D55) #}
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261113a" defer></script>
+{% if part_board.writable %}<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261113a" defer></script>
+{% endif %}{% endif %}{% endblock %}
