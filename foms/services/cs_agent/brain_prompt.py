@@ -10,8 +10,8 @@
   의도 id 를 붙인다).
 - **뒷부분(바뀌는 값)**: 사용자 글 하나(:func:`task_text`) — 이번 일 · 상담 id · 매체 · 지금 · 계산 결과 · 비슷한 지난 상담
   (사례가 있을 때만 — :mod:`.brain_cases`) · 손님이 보낸 사진(읽은 것이 있을 때만 — :mod:`.brain_photos`) · 가린 상담 글.
-  상담 글은 줄 맨 앞 ``[손님]`` · ``[직원]`` 만 말한 사람 표시다. 글 안의 줄바꿈은 들여 써서 손님 글이 표시를 흉내 내지
-  못한다(:func:`render_conversation`).
+  상담 글은 줄 맨 앞 ``[손님]`` · ``[직원]`` 만 말한 사람 표시다(``[스토어 상품 문의]`` 는 손님이 문의한 스토어 상품 이름).
+  글 안의 줄바꿈은 들여 써서 손님 글이 표시를 흉내 내지 못한다(:func:`render_conversation`).
 - **출력**: JSON 스키마(:func:`output_schema`) — 의도 · 근거 id · 넘김 까닭은 정한 값 가운데서만 고른다(enum).
   :func:`read_output` 이 다시 검사한다. 오류 글에는 칸 이름만 싣고 모델 글은 싣지 않는다.
 - **돈**: :func:`usage_cost` — ``usage`` × :data:`PRICES`. 서버 쪽 대체가 돌았으면 ``usage.iterations`` 칸마다 그 칸의
@@ -44,7 +44,8 @@ __all__ = [
     "FALLBACK_ATTEMPTS", "FALLBACK_TARGETS", "HANDOFF_NONE", "HANDOFF_REASONS",
     "HANDOFF_UNSURE",
     "INTENT_OTHER", "LONG_PROMPT_PRICES", "LONG_PROMPT_TOKENS", "MODEL", "MODEL_HAIKU", "MODEL_SONNET", "OUTPUT_FIELDS",
-    "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER", "ROLE_USER",
+    "PRICES", "PURPOSES", "PURPOSE_DRAFT", "PURPOSE_INTENT", "RESERVE_OVERHEAD_TOKENS", "ROLE_MANAGER", "ROLE_STORE",
+    "ROLE_USER",
     "SERVER_FALLBACK_MODELS", "SPEAKERS", "DraftRequest", "DraftResult", "OutputError", "Price", "Tokens",
     "answer_text", "evidence_choices", "fallback_served", "instructions", "intent_choices", "knowledge_text",
     "output_schema", "read_output", "render_conversation", "system_blocks", "task_text", "usage_cost",
@@ -62,9 +63,10 @@ BRAIN_MODELS: tuple[str, ...] = (MODEL, MODEL_SONNET, MODEL_HAIKU)
 SERVER_FALLBACK_MODELS: frozenset[str] = frozenset({MODEL, MODEL_SONNET})
 PURPOSE_DRAFT, PURPOSE_INTENT = "draft", "intent"  # 답 초안 · 3a 의도 고르기
 PURPOSES: tuple[str, ...] = (PURPOSE_DRAFT, PURPOSE_INTENT)
-ROLE_USER, ROLE_MANAGER = "user", "manager"
-#: 말한 사람 표시(줄 맨 앞). 가림 검사의 이름꼴 · 이름표에 걸리지 않는 두 글자 낱말이다.
-SPEAKERS: dict[str, str] = {ROLE_USER: "[손님]", ROLE_MANAGER: "[직원]"}
+ROLE_USER, ROLE_MANAGER, ROLE_STORE = "user", "manager", "store"
+#: 말한 사람 표시(줄 맨 앞). 가림 검사의 이름꼴 · 이름표에 걸리지 않는 낱말이다. ``[스토어 상품 문의]`` 는 사람 말이 아니라
+#: 손님이 네이버 스토어 상품 화면에서 [문의하기]를 누르면 톡톡이 먼저 보내는 상품 이름 줄이다(:mod:`.drafting_read`).
+SPEAKERS: dict[str, str] = {ROLE_USER: "[손님]", ROLE_MANAGER: "[직원]", ROLE_STORE: "[스토어 상품 문의]"}
 #: 두뇌를 부르는 브랜드 → 지시문의 이름. 라홈만 — 하우드는 아직 거절한다(플랜은 라홈 먼저).
 ENABLED_BRANDS: dict[str, str] = {"LAHOM": "라홈"}
 #: 앞부분 캐시 표시(처음 값 1시간 — 사장님 결정 10-29). 처음 방침은 운영 시간만이다 — 밤에는 드문 단발이라 표시 없이
@@ -103,12 +105,12 @@ def _texts(value: Any, name: str) -> tuple[str, ...]:
 
 
 def _turns(value: Any) -> tuple[tuple[str, str], ...]:
-    """(말한 사람, 글) 짝 목록 → 튜플(하나 이상, 말한 사람은 'user' · 'manager')."""
+    """(말한 사람, 글) 짝 목록 → 튜플(하나 이상, 말한 사람은 'user' · 'manager' · 'store')."""
     if isinstance(value, (str, bytes)):
         raise ValueError("messages 는 (말한 사람, 글) 목록이다")
     turns = tuple(tuple(turn) for turn in value)
     if not turns or any(len(t) != 2 or t[0] not in SPEAKERS or not isinstance(t[1], str) for t in turns):
-        raise ValueError("messages 는 ('user' | 'manager', 글) 짝 목록이다(하나 이상)")
+        raise ValueError("messages 는 ('user' | 'manager' | 'store', 글) 짝 목록이다(하나 이상)")
     return turns  # type: ignore[return-value]
 
 

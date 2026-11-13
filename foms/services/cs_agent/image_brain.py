@@ -65,6 +65,7 @@ inner, 모르면 unknown. ends: 그 길이의 두 끝이 모두 벽에 닿으면
 8. other_question: 손님이 그림과 함께 다른 것(옵션 등)도 물었으면 true.
 
 상담 글 읽는 법: 줄 맨 앞의 [손님] · [직원] 만 말한 사람 표시다. 들여 쓴 줄은 바로 위 글이 이어진 것이다.
+[스토어 상품 문의] 줄은 손님이 네이버 스토어의 그 상품 화면에서 문의를 눌렀다는 표시(상품 이름)다.
 """
 
 
@@ -124,7 +125,7 @@ def build_params(prepared: Sequence[Prepared], *, conversation: str, chat_id: st
 
 def recent_question(turns: Sequence[tuple[str, str]]) -> str:
     """(말한 사람, 가린 글) → 마지막 직원 글 뒤 손님 글 덩어리(말한 사람 표시 · 들여 쓰기 — 상담 글과 같은 꼴). 없으면 빈 글."""
-    after = max((i for i, (role, _text) in enumerate(turns) if role != prompt.ROLE_USER), default=-1)
+    after = max((i for i, (role, _text) in enumerate(turns) if role == prompt.ROLE_MANAGER), default=-1)
     tail = [(role, text) for role, text in turns[after + 1:] if role == prompt.ROLE_USER]
     return prompt.render_conversation(tail) if tail else ""
 

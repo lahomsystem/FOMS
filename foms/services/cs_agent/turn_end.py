@@ -191,7 +191,8 @@ def shape(lines: Sequence[Any], burst: Sequence[tuple[str, str, int]], message_i
 
 def _burst(lines: Sequence[Any], message_id: str, now: datetime.datetime) -> Optional[list[tuple[str, str, int]]]:
     """마지막 공개 직원 글 하나 + 그 뒤 공개 손님 글 → [(말한 사람, 글, 몇 초 전)]. 마지막 손님 글이 그 글이 아니면 ``None``."""
-    turns = [(line, turn) for line, turn in ((line, public_turn(line)) for line in lines) if turn is not None]
+    turns = [(line, turn) for line, turn in ((line, public_turn(line)) for line in lines)  # 상품 문의 줄은 사람 말이 아니다
+             if turn is not None and turn[0] in (ROLE_USER, ROLE_MANAGER)]
     customers = [line for line, (who, _) in turns if who == ROLE_USER]
     if not customers or customers[-1].meta.message_id != message_id:
         return None
