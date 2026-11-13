@@ -36,6 +36,7 @@ from foms.services.orders.drawing_confirm_partial import (
 )
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.production.part_steps_sync import TRIGGER_ITEM_CANCEL, sync_steps_in_drawing_write
 from models import Order, OrderEvent
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,8 @@ def api_order_item_cancel_after_confirm(order_id: int, uid: str):
         at_iso = now_utc_naive().isoformat()
         summary = apply_partial_confirm(sd, plan, actor_user_id=user.id, at_iso=at_iso,
                                         source=CANCEL_SOURCE_AFTER_CONFIRM)
+        # 남은 확정 도면으로 파트 공정 칸을 같은 사본에서 맞춘다(생산·시공 단계만, 설계서 §15.5 ②).
+        sync_steps_in_drawing_write(sess, order, sd, actor_user_id=user.id, trigger=TRIGGER_ITEM_CANCEL)
         order.structured_data = sd
         flag_modified(order, "structured_data")
         sess.add(OrderEvent(order_id=order.id, event_type="ITEM_CANCELLED_AFTER_CONFIRM",

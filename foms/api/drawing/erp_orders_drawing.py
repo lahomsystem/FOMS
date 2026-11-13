@@ -53,6 +53,11 @@ from foms.services.orders.drawing_transfer import (
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
 from foms.services.orders.drawing_revision_files import is_revision_reference_key
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
+from foms.services.production.part_steps_sync import (
+    TRIGGER_TRANSFER,
+    TRIGGER_TRANSFER_CANCEL,
+    sync_steps_in_drawing_write,
+)
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
@@ -439,6 +444,10 @@ def perform_drawing_transfer(
         _apply_hotfix_confirm(s_data, now_str=now_str, user_id=user_id, user_name=user_name)
     if prepare_structured is not None:
         prepare_structured(s_data)
+    # 생산·시공 단계: 새 key 는 파트 표시가 없어 '안 봄'이다 — 카드로 일한 파트의 공정 칸을 같은 사본에서 맞춘다
+    # (설계서 §15.5 ②, 바로 반영 확정이 목록을 다시 쓴 뒤라 쓰기 직전에 본다).
+    sync_steps_in_drawing_write(db, order, s_data, trigger=TRIGGER_TRANSFER,
+                                actor_user_id=actor_uid if actor_uid is not None else user_id)
 
     def _write_transfer(locked):
         locked.structured_data = s_data
@@ -806,6 +815,9 @@ def api_order_cancel_transfer(order_id):
         s_data['drawing_current_files'] = restored_files
         s_data['last_drawing_transfer'] = restored_transfer
         s_data['drawing_transfer_history'] = history
+        # 되살린 목록으로 파트 공정 칸을 같은 사본에서 맞춘다(생산·시공 단계만, 설계서 §15.5 ②).
+        sync_steps_in_drawing_write(db, order, s_data, actor_user_id=current_user.id,
+                                    trigger=TRIGGER_TRANSFER_CANCEL)
 
         # ── 6. 회수 대상: 행과 파일을 따로 판정(M7) ──────────────────────────────
         # 행: 새로 들여온 key 중 복원 현재본에도 남은 이력에도 없는 것의 첨부 행만 지운다

@@ -270,10 +270,12 @@ def test_same_person_same_result_twice_is_one_change(client):
 
 
 def test_marks_do_not_bump_mutation_version_or_touch_steps(client):
+    """대조군(§15.7): 표시 쓰기가 공정 칸을 안 바꾸면(3장 중 2장만 끝) 버전 · sd 그대로 — 바뀌는 경우는
+    ``test_production_part_steps_sync.py``."""
     order = _order()
     before_version, before_sd = order.version, order.sd
     _login(client, _user("김재단", part="cut"))
-    for j in range(3):
+    for j in range(2):
         assert _one(client, order, j, "cut", "basic", "none").status_code == 200
     assert client.post(BULK, json={"part": "cut", "seen": "none", "items": [
         {"order_id": order.id, "drawing_key": _key(order, 0)}]}).status_code == 200
@@ -371,6 +373,8 @@ def _count(fn):
 
 
 #: 실측(2026-11-13, SQLite 레인): 한 장 쓰기 = 6(사용자 · 주문 잠금 · 표시 줄 읽기 · 표시 쓰기 · 이벤트 · 감사). 상한 = +30%.
+#: 이 계약은 **공정 칸이 안 바뀌는 쓰기**다(P15-6 뒤에도 쿼리를 늘리지 않는다 — 주문마다 끝나지 않은 장을 하나 남긴다).
+#: 칸이 바뀌는 쓰기의 상한은 ``test_production_part_steps_sync.py`` 의 ``STEP_CHANGE_*``.
 ONE_WRITE_CAP = 7
 #: 실측: 일괄 5장 = 6, 50장(주문 10) = 6 — 주문 잠금 · 표시 줄 읽기 한 번씩, 표시 · 이벤트 · 감사 INSERT 는 표마다 한 번.
 BULK_DELTA_CAP = 2
@@ -379,13 +383,13 @@ BULK_ABS_CAP = 8
 
 def test_write_query_counts(client):
     _login(client, _user("김재단", part="cut"))
-    order = _order(1)
+    order = _order(2)  # 2장 중 1장만 끝 → 칸 그대로
     _one(client, order, 0, "cut", "take", "none")  # warmup
     resp, n_one = _count(lambda: _one(client, order, 0, "cut", "done", "need"))
     assert resp.status_code == 200 and n_one <= ONE_WRITE_CAP, n_one
 
-    small = [_order(5)]
-    big = [_order(5) for _ in range(10)]
+    small = [_order(6)]  # 6장 중 5장만 보냄 → 칸 그대로
+    big = [_order(6) for _ in range(10)]
 
     def _items(orders):
         return [{"order_id": o.id, "drawing_key": _key(o, j)} for o in orders for j in range(5)]

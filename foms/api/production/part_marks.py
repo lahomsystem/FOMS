@@ -7,15 +7,20 @@
 순서(한 tx): 로그인 → 파트 문(:mod:`foms.services.production.part_access`) → 주문 행 잠금(``FOR UPDATE`` — 같은 주문 표시
 쓰기를 줄 세운다, 주문 행은 바꾸지 않는다) → 살아 있는 ERP 주문 · 단계 생산(아니면 409 ``NOT_IN_PRODUCTION``) → 지금 확정
 도면 안의 key(아니면 409 ``DRAWING_NOT_CURRENT``) → 표시 줄 읽기 → 전이 표(:mod:`foms.services.production.part_mark_rules`)
-→ 줄 쓰기 + 이벤트 ``PRODUCTION_PART_MARKED`` + 감사 "생산 파트 체크" → 공정 칸 동기화 자리(P15-6) → commit.
+→ 줄 쓰기 + 이벤트 ``PRODUCTION_PART_MARKED`` → 공정 칸 동기화(§15.5, P15-6) → 감사 "생산 파트 체크" → commit.
 
-표시는 주문 JSON 밖 표(``production_part_marks``)라 주문 ``mutation_version`` 을 올리지 않는다(편집 화면 · 마법사 · 도면
-전달의 If-Match 를 깨지 않는다). CSRF · 정책 가드는 다른 생산 API 와 같이 before_request(매니페스트 두 곳)가 건다.
+표시는 주문 JSON 밖 표(``production_part_marks``)라 표시만으로는 주문 ``mutation_version`` 을 올리지 않는다(편집 화면 ·
+마법사 · 도면 전달의 If-Match 를 깨지 않는다). 동기화가 공정 칸을 **바꿀 때만** ``execute_order_mutation`` 한 번으로
+칸 · 이벤트 ``PRODUCTION_STEP_CHECKED``(``via: 'part_marks'``)를 쓰고 버전이 1 오른다(일괄은 바뀐 주문만 모아 한 번). CSRF · 정책 가드는 다른 생산 API 와 같이 before_request(매니페스트 두 곳)가 건다.
 API 층은 웹 층을 부르지 않는다(레이어 래칫) — 로그인은 ``g.current_user``, 감사는 ``SecurityLog`` 를 같은 세션에 싣는다.
 """
 
 from __future__ import annotations
 
+import copy
+import datetime
+import hashlib
+import json
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Optional
@@ -23,13 +28,14 @@ from typing import Any, Optional
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import insert, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from foms.services.audit_message_display import action_label, describe_order_action
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.orders.revision import lock_order_row
+from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, part_account_part, part_view_mode
 from foms.services.production.part_constants import BASIC_ALLOWED_PART, PRODUCTION_PART_KEYS, PRODUCTION_PART_LABELS
@@ -46,11 +52,19 @@ from foms.services.production.part_mark_rules import (
     mark_payload,
     next_mark_values,
 )
+from foms.services.production.part_steps_sync import (
+    apply_part_step_changes,
+    plan_part_step_changes,
+    step_change_body,
+    step_event_rows,
+)
 from models import Order, OrderEvent, ProductionPartMark, SecurityLog
 
 production_part_marks_bp = Blueprint("production_part_marks", __name__, url_prefix="/api/production")
 
 PART_MARK_EVENT = "PRODUCTION_PART_MARKED"
+#: 공정 칸 동기화의 정책 id — 지금 공정 API(``POST …/production/steps``)와 같다(설계서 §15.5).
+STEP_SYNC_POLICY_ID = "PRODUCTION_STEP_CHECK"
 #: 일괄 기본 한 번의 장 수 상한(화면 한 장 카드 캡과 같다).
 BULK_MAX_ITEMS = 200
 _SAVE_FAILED = "저장하지 못했어요. 잠시 뒤 다시 해 주세요."
@@ -210,22 +224,66 @@ def _audit(db: Any, user: Any, note: str, detail: dict[str, Any], order: Optiona
                        message=message, detail={**detail, **context}))
 
 
-def _sync_order_steps(db: Any, orders: list[Order], part: str, user: Any) -> list[dict[str, Any]]:
-    """표시가 바뀐 주문들의 지금 공정 칸(``structured_data.production.steps``)을 맞추는 자리 — P15-6 에서 채움.
+def _after_views(rows: list[Any], writes: list[_Write]) -> dict[int, list[Any]]:
+    """주문 → 이번 쓰기를 반영한 표시 줄 모습(읽은 줄 위에 새 값을 덮는다 — 다시 읽지 않는다)."""
+    views: dict[tuple[int, str, str], Any] = {
+        (int(r.order_id), str(r.drawing_key), str(r.part)): r for r in rows}
+    for w in writes:
+        views[(int(w.values["order_id"]), str(w.values["drawing_key"]), str(w.values["part"]))] = w.view
+    out: dict[int, list[Any]] = {}
+    for (order_id, _key, _part), view in views.items():
+        out.setdefault(order_id, []).append(view)
+    return out
 
-    설계서 §15.5: 한 주문 · 한 파트의 지금 확정 도면 모든 장이 끝이면 그 공정 칸을 켜고, 아니면 끈다(카드로 일한 파트만).
-    이 단계(P15-4)에서는 아무것도 바꾸지 않는다 — 공정 칸 · 주문 ``mutation_version`` 이 그대로다.
+
+def _step_note(changes: list[dict[str, Any]]) -> str:
+    """감사 글 꼬리 — " · 공정 재단 켬"(바뀐 칸이 없으면 빈 글)."""
+    words = [f"{PRODUCTION_PART_LABELS.get(c['key'], c['key'])} {'켬' if c['done'] else '끔'}" for c in changes]
+    return f" · 공정 {', '.join(words)}" if words else ""
+
+
+def _sync_order_steps(db: Any, orders: list[Order], marks: dict[int, list[Any]], user: Any) -> list[dict[str, Any]]:
+    """표시가 바뀐 주문들의 지금 공정 칸(``structured_data.production.steps``)을 맞춘다(설계서 §15.5).
+
+    한 주문 · 한 파트의 지금 확정 도면 모든 장이 끝이면 그 공정 칸을 켜고, 아니면 끈다(카드로 일한 파트만 — 넘겨받는
+    표시 줄은 그 파트 것뿐이다). 바꿀 칸이 있는 주문만 모아 ``execute_order_mutation`` 을 **한 번** 부른다 — 칸이
+    안 바뀌면 쿼리 0 · 주문 ``mutation_version`` 그대로.
 
     Args:
-        db: 세션(같은 tx).
-        orders: 표시가 바뀐 주문(잠금 상태).
-        part: 바뀐 파트.
-        user: 누른 사람.
+        db: 세션(같은 tx — 주문들은 이미 잠겨 있다).
+        orders: 표시가 바뀐 주문.
+        marks: 주문 → 이번 쓰기를 반영한 그 파트 표시 줄 모습.
+        user: 누른 사람(켜면 칸 ``by_name`` = 그 파트에서 마지막으로 끝낸 사람).
 
     Returns:
-        바뀐 공정 칸 목록 ``[{order_id, key, done}]`` — 지금은 늘 빈 목록.
+        바뀐 공정 칸 목록 ``[{order_id, key, done}]``.
     """
-    return []
+    changed = [int(o.id) for o in orders if plan_part_step_changes(o.structured_data, marks.get(int(o.id), []))]
+    if not changed:
+        return []
+    out: list[dict[str, Any]] = []
+
+    def _mutate(sess: Any, locked: list[Order]) -> dict[int, list[str]]:
+        at_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        events: list[dict[str, Any]] = []
+        for order in locked:
+            sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
+            changes = plan_part_step_changes(sd, marks.get(int(order.id), []))
+            apply_part_step_changes(sd, changes, at_iso=at_iso)
+            order.structured_data = sd
+            flag_modified(order, "structured_data")
+            events += step_event_rows(order.id, changes, actor_user_id=user.id)
+            out.extend(step_change_body(order.id, c) for c in changes)
+        if events:
+            sess.execute(insert(OrderEvent), events)
+        return {int(o.id): ["ORDERS_INDEX", f"ORDER_DETAIL:{o.id}"] for o in locked}
+
+    scope = hashlib.sha256(f"{STEP_SYNC_POLICY_ID}:part_marks:{changed}".encode("utf-8")).hexdigest()
+    body = json.dumps({"orders": changed, "user": user.id}, sort_keys=True)
+    execute_order_mutation(db, actor_user_id=user.id, policy_id=STEP_SYNC_POLICY_ID, order_ids=changed,
+                           scope_hash=scope, request_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                           mutation=_mutate)
+    return out
 
 
 def _mark_body(row: Any, order_id: int, key: str, part: str) -> dict[str, Any]:
@@ -243,10 +301,11 @@ def _mark_one(db: Any, user: Any, admin: bool, parsed: tuple[int, str, str, str,
     order_id, key, part, action, seen = parsed
     order = _check_order(lock_order_row(db, order_id))
     entry = _current_entry(order, key)
-    row = (db.query(ProductionPartMark)
-           .filter(ProductionPartMark.order_id == order_id, ProductionPartMark.drawing_key == key,
-                   ProductionPartMark.part == part)
-           .first())
+    # 그 주문 · 그 파트 줄을 한 번에 읽는다(누른 장 + 동기화가 볼 나머지 장 — 쿼리 수는 그대로 1).
+    rows = (db.query(ProductionPartMark)
+            .filter(ProductionPartMark.order_id == order_id, ProductionPartMark.part == part)
+            .all())
+    row = next((r for r in rows if r.drawing_key == key), None)
     decision = decide_mark(MarkSnapshot.from_row(row), action=action, seen=seen, actor_id=user.id, admin=admin)
     if decision.kind == DECISION_INVALID:
         raise _Refusal(400, "BAD_REQUEST", decision.message)
@@ -258,10 +317,10 @@ def _mark_one(db: Any, user: Any, admin: bool, parsed: tuple[int, str, str, str,
                         override=decision.override)
     note = f"{PRODUCTION_PART_LABELS[part]} {_state_words(part, write.before)} → {_state_words(part, decision.target)}"
     _flush_writes(db, [write])
-    _audit(db, user, note + (" (관리자 덮어쓰기)" if decision.override else ""),
-           {"key": key, "part": part, "from": write.before, "to": decision.target, "override": decision.override},
-           order=order)
-    steps = _sync_order_steps(db, [order], part, user)
+    steps = _sync_order_steps(db, [order], _after_views(rows, [write]), user)
+    _audit(db, user, note + (" (관리자 덮어쓰기)" if decision.override else "") + _step_note(steps),
+           {"key": key, "part": part, "from": write.before, "to": decision.target, "override": decision.override,
+            "order_steps": steps}, order=order)
     return {"mark": _mark_body(write.view, order_id, key, part), "order_step": steps[0] if steps else None,
             "changed": True}
 
@@ -275,6 +334,9 @@ def _run(handler: Any) -> Any:
     except _Refusal as refusal:
         db.rollback()
         return _fail(refusal)
+    except RevisionError as exc:  # 공정 칸 동기화의 주문 쓰기 길 — 이미 잠근 주문이라 드물다
+        db.rollback()
+        return _fail(_Refusal(exc.status_code, exc.error_code or "SAVE_FAILED", _SAVE_FAILED))
     except IntegrityError:  # 같은 장 · 파트 첫 표시가 동시에 두 번(잠금 없는 레인) — 나중 것은 낡은 화면이다
         db.rollback()
         return _fail(_Refusal(409, "MARK_CONFLICT", STALE_MESSAGE))
@@ -369,12 +431,12 @@ def _bulk_basic(db: Any, user: Any, admin: bool, pairs: list[tuple[int, str]]) -
     if not writes:
         return {"applied": applied, "skipped": skipped, "order_steps": []}
     _flush_writes(db, writes)
+    steps = _sync_order_steps(db, [orders[oid] for oid in changed], _after_views(rows, writes), user)
     only = orders[next(iter(changed))] if len(changed) == 1 else None
-    _audit(db, user, f"재단 기본 {len(writes)}장",
-           {"part": BASIC_ALLOWED_PART, "to": "BASIC", "bulk": True,
+    _audit(db, user, f"재단 기본 {len(writes)}장" + _step_note(steps),
+           {"part": BASIC_ALLOWED_PART, "to": "BASIC", "bulk": True, "order_steps": steps,
             "orders": [{"order_id": oid, "keys": keys} for oid, keys in changed.items()]},
            order=only, order_count=len(changed))
-    steps = _sync_order_steps(db, [orders[oid] for oid in changed], BASIC_ALLOWED_PART, user)
     return {"applied": applied, "skipped": skipped, "order_steps": steps}
 
 

@@ -181,6 +181,12 @@
       "classification": "CANONICAL",
       "owner": "FCOMM-01",
       "reason": "정산 차감 넣기 · 취소(issue_deduction · void_deduction) — 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 깊은 복사 · 재대입 · flag_modified 는 execute_order_mutation 콜백 안에서만 한다(version bump + receipt, If-Match 는 보내면 확인). 예전 api/cs/dashboard.py 무잠금 통째 저장(검수 A12)을 대체한다."
+    },
+    {
+      "path": "foms/api/production/part_marks.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "생산 파트 표시가 주문 공정 칸을 바꿀 때(설계서 tablet-production-ui §15.5 동기화) REV-00 execute_order_mutation 콜백 안에서 deepcopy → 재대입 → flag_modified 로만 쓴다."
     }
   ]
 }
