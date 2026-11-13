@@ -57,8 +57,11 @@
 .pp-img:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: 2px; }
 .pp-thumb { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 .pp-card.is-done .pp-thumb, .pp-card.is-other .pp-thumb { opacity: .55; }
-.pp-img.is-broken::after { content: "그림을 못 불러왔어요"; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); }
-.pp-img.is-broken .pp-thumb { display: none; }
+/* 그림을 못 받음(원본 없음 404) — 글은 JS 가 넣는다(.pp-broken). 무채색 칸 금지(D52) → 연두 기다림 토큰 */
+.pp-img.is-broken, .pp-vimg.is-broken { background: var(--fph-wait-50); border-color: var(--fph-wait-300); }
+.pp-img.is-broken .pp-thumb, .pp-vimg.is-broken img { display: none; }
+.pp-broken { padding: 0 8px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-wait-700); text-align: center; }
+.pp-vimg .pp-broken { font-size: calc(20px * var(--foms-fs, 1)); }
 .pp-file { flex-direction: column; gap: 4px; cursor: pointer; }
 .pp-file b { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
 .pp-file span { max-width: 92%; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

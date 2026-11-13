@@ -1,8 +1,7 @@
-/* 생산 파트 도면 카드 — 쓰는 쪽. 설계서 §15.6 '확인 창'(D53 · D54) · §15.4 API, P15-5.
- * 쓸 수 있는 사람(파트 계정 · 관리자)에게만 싣는다(D55). 상태를 바꾸는 모든 누름(맡기 · 기본 · 모두 기본 · 완료 · 되돌리기)은
- * 확인 창(#foms-part-confirm-modal, 진짜 생산 보드 창 꼴)을 거친다 — 쓰기 요청은 창의 실행 단추에서만 나간다.
- * 성공하면 그 카드와 칸 숫자만 그 자리에서 고친다(페이지 다시 읽기 없음 — 그림을 다시 안 받는다).
- * 409 면 그 카드를 서버 상태로 바꾸고 글을 띄운다. 일괄 기본은 화면에 있는 안 본 장 목록만 보낸다(일부 성공 글).
+/* 생산 파트 도면 카드 — 카드 고치기 + 쓰는 쪽. 설계서 §15.6 '확인 창'(D53 · D54) · §15.4 API, P15-5 · P15-7.
+ * 카드 · 칸 숫자 고치기(applyMark)는 window.FomsPartsCards 하나로 내보내 30초 받아 오기(foms-production-parts-sync.js)와 같이 쓴다.
+ * 쓰기(맡기 · 기본 · 모두 기본 · 완료 · 되돌리기)는 확인 창(#foms-part-confirm-modal)이 있는 사람(D55)에게만 묶이고, 요청은 창의
+ * 실행 단추에서만 나간다. 성공 · 409 면 그 카드와 칸 숫자만 그 자리에서 고친다(다시 읽기 없음). 일괄 기본은 화면의 안 본 장만.
  * 보기 쪽(칸 단추 · 크게 보기)은 foms-production-parts-viewer.js(window.FomsPartsBoard). 실패 글은 설계서 §8 한 가지. */
 (function () {
   'use strict';
@@ -10,7 +9,7 @@
   var root = document.querySelector('[data-foms-prod-home]');
   var board = window.FomsPartsBoard;
   var modal = root && root.querySelector('[data-pp-modal]');
-  if (!root || !board || !modal) { return; }
+  if (!root || !board) { return; }
   var bound = window.__FOMS_PROD_PARTS_BOUND = window.__FOMS_PROD_PARTS_BOUND || {};
   if (bound.write) { return; }
   bound.write = true;
@@ -22,6 +21,7 @@
   var IS_CUT = cfg.part === 'cut';
   var MINE = cfg.mode === 'part';
   var NAME = cfg.me || '';
+  var WRITABLE = !!(modal && cfg.writable); // 읽기 전용(D55) = 배지만, 단추 없음
   var pending = null;
   function toArr(list) { return [].slice.call(list || []); }
   function q(sel) { return modal.querySelector(sel); }
@@ -159,6 +159,7 @@
     var done = attr(card, 'data-done-name');
     box.textContent = '';
     if (st === 'none') {
+      if (!WRITABLE) { return; }
       var two = IS_CUT ? el('div', 'pp-two') : box;
       if (IS_CUT) { two.appendChild(el('button', 'foms-prod-home__btn pp-pick-basic', '기본', 'basic')); box.appendChild(two); }
       two.appendChild(el('button', 'foms-prod-home__btn ' + (IS_CUT ? 'foms-prod-home__btn--pri' : 'pp-act'), '내가 ' + VERB, 'take'));
@@ -166,12 +167,12 @@
     }
     if (st === 'need') {
       if (MINE && attr(card, 'data-picked-me') !== '1') { box.appendChild(el('span', 'fph-wi pp-act pp-st-taken', (picked || '다른 사람') + ' 맡음')); return; }
-      box.appendChild(el('span', 'fph-wi pp-act pp-st-need pp-not-need', '작업 필요' + (picked ? ' · ' + picked : '')));
-      box.appendChild(el('button', 'fph-qr__done pp-act pp-fin pp-only-need', LABEL + ' 완료', 'done'));
+      box.appendChild(el('span', 'fph-wi pp-act pp-st-need' + (WRITABLE ? ' pp-not-need' : ''), '작업 필요' + (picked ? ' · ' + picked : '')));
+      if (WRITABLE) { box.appendChild(el('button', 'fph-qr__done pp-act pp-fin pp-only-need', LABEL + ' 완료', 'done')); }
       return;
     }
     var word = (st === 'done' ? LABEL + ' 끝' : '기본') + (done ? ' · ' + done : '');
-    var canUndo = !MINE || attr(card, 'data-done-me') === '1';
+    var canUndo = WRITABLE && (!MINE || attr(card, 'data-done-me') === '1');
     box.appendChild(el('span', 'fph-wi pp-act pp-st-' + st + (canUndo ? ' pp-not-done' : ''), word));
     if (!canUndo) { return; }
     var row = el('div', 'fph-wi pp-act pp-undo-row pp-st-' + st + ' pp-only-done');
@@ -219,11 +220,7 @@
         return res.json().then(function (d) { return { ok: res.ok, status: res.status, data: d || {}, message: (d && d.error) || '' }; });
       });
     };
-    try {
-      return call(url, opts).catch(function () { return offline; });
-    } catch (e) {
-      return Promise.resolve(offline);
-    }
+    try { return call(url, opts).catch(function () { return offline; }); } catch (e) { return Promise.resolve(offline); }
   }
   function requestFor(p) {
     if (p.action === 'bulk') {
@@ -277,6 +274,9 @@
     post(req.url, req.body).then(function (result) { handle(p, result || {}); });
   }
 
+  // 받아 오기가 쓴다: 고치기 · 카드 찾기 · 이 카드가 내 확인 창에 있거나 저장 중인지(그러면 건너뛴다)
+  window.FomsPartsCards = { apply: applyMark, find: findCard, held: function (card) { return !!pending && pending.cards.indexOf(card) >= 0; } };
+  if (!modal) { return; } // 읽기 전용 — 누름 · 쓰기를 묶지 않는다
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }

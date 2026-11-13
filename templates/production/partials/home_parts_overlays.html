@@ -1,8 +1,8 @@
 {# 생산 파트 도면 카드의 겉틀 — 화면에 하나씩만(설계서 §15.6 '확인 창' · '크게 보기', 시안 f63 · f65~f67). home.html 이 include.
-   설정은 data-* JSON 하나(JS 가 safeJsonParse 로 읽는다). 확인 창은 쓸 수 있는 사람에게만 둔다(D55 — 읽기 전용은 창 0).
+   설정은 data-* JSON 하나(JS 가 safeJsonParse 로 읽는다). data-pp-since = 30초 받아 오기의 첫 since(서버가 그린 시각, P15-7). 확인 창은 쓸 수 있는 사람에게만 둔다(D55 — 읽기 전용은 창 0).
    확인 창 = 진짜 생산 보드 창 꼴(foms-prod-change-modal, 모양 CSS 는 foms-tablet-production-kanban.css 그대로 — 복사 0),
    id 는 옛 보드 창(foms-prod-change-modal)과 달라 tablet-domain-sheets.js 가 건드리지 않는다. 목록 줄은 JS 가 채운다. #}
-<div class="pp-overlays" data-foms-parts-config="{{ part_config | tojson | forceescape }}" hidden></div>
+<div class="pp-overlays" data-foms-parts-config="{{ part_config | tojson | forceescape }}" data-pp-since="{{ part_since or '' }}" hidden></div>
 {% if part_board.writable %}
 <div id="foms-part-confirm-modal" class="foms-prod-change-modal pp-modal" data-pp-modal role="dialog" aria-modal="true" aria-labelledby="foms-part-confirm-title" hidden>
   <div class="foms-prod-change-modal__dialog">
