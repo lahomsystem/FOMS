@@ -6,7 +6,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from foms.services.cs_agent import quote_brain as qb
+from foms.services.wdcalculator import catalog as cat
 from foms.services.cs_agent import quote_record as qrec
 from foms.services.cs_agent import store_products as sp
 from foms.services.cs_agent.brain_prompt import ROLE_STORE
@@ -14,12 +17,13 @@ from tests.domains.test_cs_drafting import FakeBrain, channel, customer, result,
 from tests.domains.test_cs_store_inquiry import store_blocks
 from tests.support.cs_agent_fakes import at, keys  # noqa: F401 — keys 는 fixture
 from tests.support.cs_quote_support import (
-    MOLD, QUOTE_TEXT, FakeQuoter, amount_draft, ask, catalog, confirm_prices, quoting, space, switch,
+    CATEGORIES, MOLD, QUOTE_TEXT, FakeQuoter, amount_draft, ask, catalog, confirm_prices, quoting, space, switch,
 )
 
 HABAN = "라홈 하반 빌트인 침대 안방 무몰딩 붙박이장 30cm 친환경 E0"
 BACH = "라홈 바흐 붙박이장 안방 작은방 슬라이딩 240cm"  # 사장님 11-13 '계산 없이 직원에게'
 NEW = "라홈 합성 새 상품 붙박이장 30cm"  # 표에 없는 상품
+VANITY = "라홈 보테가 붙박이장 작은방 슬라이딩 화장대 포함 누드거울 240cm 친환경 E0"  # 화장대 TYPE01 을 더하는 상품
 
 
 def talk(name):
@@ -34,9 +38,12 @@ def test_the_table_holds_owner_decisions():
     assert sp.STORE_PRODUCTS[BACH] is None and sp.STORE_PRODUCTS["라홈 모카 붙박이장 여닫이 스윙 안방 작은방 240cm"] is None
     assert all(value is None or isinstance(value, int) for value in sp.STORE_PRODUCTS.values())
     assert all(name == " ".join(name.split()) for name in sp.STORE_PRODUCTS)
-    assert not any("화장대" in name for name in sp.STORE_PRODUCTS)  # 옵션을 같이 정해야 하는 상품은 표 밖(예전 그대로)
+    vanity = {name for name in sp.STORE_PRODUCTS if "화장대" in name}
+    assert vanity == set(sp.STORE_OPTIONS) and len(vanity) == 3  # 화장대가 든 상품은 모두 TYPE01 을 더한다
+    assert set(sp.STORE_OPTIONS.values()) == {(("1:1", 1),)}
+    assert sp.STORE_PRODUCTS["라홈 로라 붙박이장 화장대 포함 누드 거울 작은방 여닫이 150cm 푸쉬타입 친환경 E0"] == 2
     assert sp.STORE_PRODUCTS["라홈 카보 키친 싱크대 부엌 주방 상하부장 E0"] is None  # 짝을 못 정한 여섯도 직원에게
-    assert sum(value is None for value in sp.STORE_PRODUCTS.values()) == 18
+    assert sum(value is None for value in sp.STORE_PRODUCTS.values()) == 18 and len(sp.STORE_PRODUCTS) == 45
 
 
 def test_store_choice_uses_the_last_store_line_and_the_catalog_value():
@@ -63,6 +70,20 @@ def test_apply_choice_sends_unknown_store_products_to_staff_unless_the_customer_
     none = sp.StoreChoice(BACH, None)
     assert sp.apply_choice(ask(space(None)), none)[1] is True
     assert sp.apply_choice(ask(space(MOLD["id"])), none)[1] is False
+
+
+def test_vanity_products_add_type01_once_and_carry_the_guide():
+    cat_ = catalog()
+    choice = sp.store_choice(talk(VANITY), cat_)
+    assert (str(choice.product_id), choice.options, choice.lines, choice.allowed) == (
+        "7", (("1:1", 1),), (sp.VANITY_LINE,), (sp.VANITY_ALLOWED,))
+    filled, _ = sp.apply_choice(ask(space(None, options=(("1:1", 1), ("4:7", 2)))), choice)
+    assert filled.spaces[0].options == (("1:1", 1), ("4:7", 2))  # 이미 있는 화장대는 두 번 넣지 않는다
+    plain, _ = sp.apply_choice(ask(space(None)), choice)
+    assert plain.spaces[0].options == (("1:1", 1),)
+    no_vanity = cat.Catalog(cat_.products, tuple(c for c in CATEGORIES if str(c["id"]) != "1"), False)
+    assert sp.store_choice(talk(VANITY), no_vanity) is None  # 화장대 옵션이 없으면 화장대 빠진 금액을 내지 않는다
+    assert sp.store_choice(talk(HABAN), cat_).lines == ()  # 화장대 없는 상품은 안내 줄 없음
 
 
 # ── 초안 한 바퀴 ─────────────────────────────────────────────────────────
@@ -108,3 +129,15 @@ def test_an_unmapped_store_product_keeps_the_old_path(channel):
     run(channel, brain_fn=FakeBrain(result(draft=amount_draft())), pass_type=quoting(quoter))
     (sent,) = quoter.calls
     assert sent.messages[0] == (ROLE_STORE, NEW)  # 표에 없으면 뽑기가 상품 줄을 본다(예전 그대로)
+
+
+@pytest.mark.parametrize("store,state", [(VANITY, "stored"), (NEW, "skipped")], ids=["vanity", "unmapped-control"])
+def test_a_vanity_draft_may_say_type01(channel, store, state):
+    switch()
+    confirm_prices()
+    customer(channel, text=QUOTE_TEXT, more=[bot(store)])
+    brain_fn = FakeBrain(result(draft="문의 감사합니다. 화장대는 01타입 기본으로 안내드려요."))
+    run(channel, brain_fn=brain_fn, pass_type=quoting(FakeQuoter(ask(space(None)))))
+    (request,) = brain_fn.requests
+    assert (sp.VANITY_LINE in request.calculator_lines) is (store == VANITY)
+    assert turn().state == state  # 표 밖이면 '01'이 숫자 검사에 막힌다(음성 대조)
