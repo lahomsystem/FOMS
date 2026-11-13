@@ -8,6 +8,10 @@
   .derive_message`)으로 낸다. 원문은 표 · 로그 · repr 에 두지 않는다.
 - **재료(R1-12)**: 공개 손님 · 직원 글만 — 내부 메모 · 우리 AI 메모 · 기록 · 봇(자동 안내) · 확인코드 글은 뺀다. 첨부는
   모델이 못 보니 왔다는 표시만 붙인다(R1-13). 비공개 메모 글은 보내기 전 검사의 '비공개 메모 섞임' 재료로만 쓴다.
+- **스토어 상품 문의 줄**: 손님이 네이버 스토어 상품 화면에서 [문의하기]를 누르면 톡톡 봇이 '<상품 링크>에 대한
+  문의입니다.' 한 줄을 먼저 보낸다. 봇 글이지만 손님이 무엇을 묻는지 알려 주므로 상품 이름만 ``[스토어 상품 문의]``
+  줄로 싣는다(:func:`store_product`) — 초안 · 견적 뽑기 · 물건 찾기가 같은 상품을 본다(사장님 11-13 '어떤 제품을
+  문의했는지 통합적으로'). 대화가 길어 잘려도 마지막 상품 문의 줄은 남긴다(:func:`conversation`).
 - **매체**: 상담 정보의 ``source.medium.mediumType``. 모르면 ``None`` — 검사가 톡톡 규칙(막는 쪽)을 더한다.
 """
 
@@ -20,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import quote
 
-from foms.services.cs_agent.brain_prompt import SPEAKERS
+from foms.services.cs_agent.brain_prompt import ROLE_STORE, SPEAKERS
 from foms.services.cs_agent.channel_read import (
     MESSAGE_PAGE_LIMIT,
     ChannelRateLimited,
@@ -43,7 +47,7 @@ __all__ = [
     "customer_texts",
     "freshness",
     "memo_draft", "memo_snippets", "memo_text", "no_text_reason", "parse_lines", "public_turn", "read_lines",
-    "read_medium",
+    "read_medium", "store_product",
 ]
 
 CONVERSATION_LIMIT = 30  # 두뇌에 넣는 최근 공개 글 수(설계서 5절 '최근 30개 안팎')
@@ -65,6 +69,12 @@ _PLAIN_MEDIA = frozenset({"native", MEDIUM_EMAIL})
 _MEDIUM = re.compile(r"[A-Za-z0-9_.-]{1,40}")
 #: 상담원 id 꼴 — 빈칸 없는 ASCII 64자까지(꼴이 아니면 두지 않는다).
 _PERSON_ID = re.compile(r"[\x21-\x7e]{1,64}")
+#: 톡톡 상품 문의 봇 글의 글 덩어리(``blocks`` 의 text 값) — 스마트스토어 상품 링크 + '에 대한 문의입니다.'(11-13 라홈 지난
+#: 상담 728줄이 모두 이 꼴). 상품 이름만 꺼낸다(링크 · 상품 번호는 싣지 않는다).
+_STORE_BLOCK = re.compile(r'<link type="url" value="https://(?:m\.)?smartstore\.naver\.com/[^"<>]*">'
+                          r"([^<>\n]{1,120})</link>\s?에 대한 문의입니다\.?")
+#: 글 덩어리가 없을 때(Open API 꼴이 다르면) — 봇의 plainText 한 줄 전체가 이 꼴일 때만.
+_STORE_PLAIN = re.compile(r"([^\n]{1,120}?)\s?에 대한 문의입니다\.?")
 #: 건너뜀 코드 — 그사이 손님이 더 씀(선점한 글이 마지막이 아님) · 공개 직원 글이 옴 · 손님 글에 글자 없음(사진만 · 빈 글).
 SKIP_STALE, SKIP_HUMAN_REPLIED = "stale", "human_replied"
 #: 선점한 손님 글이 Open API 읽기에 아직 안 보임(수신 기록이 먼저 옴) — 지난 초안이 아니라 다시 집을 실패다(검수 R13-6).
@@ -79,6 +89,7 @@ class ChatLine:
     ``person_id`` 는 공개 직원 글을 쓴 상담원 id(채널톡 ``personId`` — 사례 기억의 '직접 답한 상담원', ADMIN 만 본다)다.
     ``request_id`` 는 글을 쓴 쪽이 붙인 채널톡 ``requestId``(꼴이 맞을 때만) — [보내기] 결과를 모를 때 맞추는 표지다(C10-3).
     ``files`` 는 손님 공개 글의 파일 정보(그림 읽기 — 설계서 17.11 (a))다. 파일 key 는 이 바퀴 메모리에만 있다.
+    ``store_product`` 는 톡톡 상품 문의 봇 글이면 그 상품 이름(:func:`store_product`), 아니면 빈 글이다.
     """
 
     meta: DerivedMessage
@@ -86,6 +97,7 @@ class ChatLine:
     person_id: Optional[str] = field(default=None, repr=False)
     request_id: Optional[str] = field(default=None, repr=False)
     files: tuple[FileRef, ...] = field(default=(), repr=False)
+    store_product: str = field(default="", repr=False)
 
     @property
     def key(self) -> tuple[datetime.datetime, str]:
@@ -133,11 +145,28 @@ def parse_lines(brand: str, chat_id: str, items: Any) -> list[ChatLine]:
             text, person, request = item.get("plainText"), item.get("personId"), item.get("requestId")
             person_id = str(person).strip() if meta.is_answer and person is not None else ""
             files = parse_files(meta.message_id, item) if meta.is_customer_signal and meta.has_file else ()
+            store = store_product(item) if meta.person_type == "bot" and not (meta.is_private or meta.is_log) else ""
             lines.append(ChatLine(meta, text if isinstance(text, str) else "",
                                   person_id if _PERSON_ID.fullmatch(person_id) else None,
                                   request if isinstance(request, str) and _PERSON_ID.fullmatch(request) else None,
-                                  files))
+                                  files, store))
     return lines
+
+
+def store_product(item: Mapping[str, Any]) -> str:
+    """톡톡 상품 문의 봇 글(채널톡 글 dict) → 상품 이름. 그 꼴이 아니면 빈 글.
+
+    글 덩어리(``blocks``)가 있으면 스마트스토어 링크가 든 꼴만 믿는다. 덩어리가 없을 때만 ``plainText`` 한 줄 전체가
+    '…에 대한 문의입니다.' 꼴인지 본다. 손님은 봇 글을 쓸 수 없다 — 부르는 쪽이 봇 공개 글에만 부른다.
+    """
+    blocks = item.get("blocks")
+    if isinstance(blocks, list) and blocks:
+        values = [b.get("value") for b in blocks if isinstance(b, Mapping) and b.get("type") == "text"]
+        hit = next((m for m in (_STORE_BLOCK.fullmatch(v.strip()) for v in values if isinstance(v, str)) if m), None)
+    else:
+        plain = item.get("plainText")
+        hit = _STORE_PLAIN.fullmatch(plain.strip()) if isinstance(plain, str) else None
+    return " ".join(hit.group(1).split()) if hit else ""
 
 
 def read_medium(reader: Any, brand: str, chat_id: str) -> Optional[str]:
@@ -193,24 +222,36 @@ def no_text_reason(lines: Sequence[ChatLine]) -> Optional[str]:
 
 
 def public_turn(line: ChatLine) -> Optional[tuple[str, str]]:
-    """글 하나 → (말한 사람, 글) — 공개 손님 · 직원 글만(내부 메모 · 기록 · 봇 · 확인코드 글 · 빈 글은 ``None``). 첨부는 왔다는
-    표시(:data:`FILE_NOTE`)만 붙인다. 두뇌 재료(:func:`conversation`)와 전체 대화(:mod:`.full_conversation`)가 같은 규칙이다."""
+    """글 하나 → (말한 사람, 글) — 공개 손님 · 직원 글 + 톡톡 상품 문의 줄(``store`` · 상품 이름만)뿐(내부 메모 · 기록 · 그 밖
+    봇 · 확인코드 글 · 빈 글은 ``None``). 첨부는 왔다는 표시(:data:`FILE_NOTE`)만 붙인다. 두뇌 재료(:func:`conversation`)와
+    전체 대화(:mod:`.full_conversation`)가 같은 규칙이다."""
     meta = line.meta
-    if meta.is_private or meta.is_log or meta.person_type not in SPEAKERS or meta.is_code_message:
+    if meta.is_private or meta.is_log or meta.is_code_message:
+        return None
+    if line.store_product:
+        return ROLE_STORE, line.store_product
+    if meta.person_type not in SPEAKERS:
         return None
     text = "\n".join(part for part in (line.text.strip(), FILE_NOTE if meta.has_file else "") if part)
     return (meta.person_type, text) if text else None
 
 
 def conversation(lines: Sequence[ChatLine]) -> list[tuple[str, str]]:
-    """두뇌 재료 — 공개 손님 · 직원 글만(내부 메모 · 기록 · 봇 · 확인코드 글을 뺀다), 최근 :data:`CONVERSATION_LIMIT` 개."""
+    """두뇌 재료 — 공개 손님 · 직원 글 + 상품 문의 줄(내부 메모 · 기록 · 그 밖 봇 · 확인코드 글을 뺀다), 최근
+    :data:`CONVERSATION_LIMIT` 개. 마지막 상품 문의 줄이 앞에서 잘리면 맨 앞에 남긴다 — 무엇을 묻는지는 끝까지 둔다."""
     turns = [turn for turn in (public_turn(line) for line in lines) if turn is not None]
-    return turns[-CONVERSATION_LIMIT:]
+    recent = turns[-CONVERSATION_LIMIT:]
+    store = [turn for turn in turns if turn[0] == ROLE_STORE]
+    if store and store[-1] not in recent:
+        recent = [store[-1], *turns[-(CONVERSATION_LIMIT - 1):]]
+    return recent
 
 
 def customer_texts(lines: Sequence[ChatLine]) -> list[str]:
-    """손님 글(공개 · 글 있는 것) — 숫자 검사 '같은 값'이 손님이 말한 치수 · 개수를 허용 목록에 더할 때 쓴다(:mod:`.checks_same`)."""
-    return [line.text for line in lines if line.meta.is_customer_signal and not line.meta.is_private and line.text.strip()]
+    """손님 글(공개 · 글 있는 것) + 손님이 문의한 스토어 상품 이름 — 숫자 검사 '같은 값'이 손님이 말한 치수 · 개수를 허용
+    목록에 더할 때(:mod:`.checks_same`)와 물건 찾기 재료(:mod:`.drafting_pass`)로 쓴다."""
+    return [line.store_product or line.text for line in lines
+            if (line.store_product or (line.meta.is_customer_signal and not line.meta.is_private and line.text.strip()))]
 
 
 def memo_snippets(lines: Sequence[ChatLine]) -> list[str]:
