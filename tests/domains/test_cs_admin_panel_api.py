@@ -168,12 +168,12 @@ def test_settings_save_conflict_and_invalid_over_http(client, env):
 
 def test_a_locked_field_change_is_a_400_and_nothing_is_saved(client, env):
     login(client)
-    locked = client.post(f"{API}/settings", json={"values": {"draft_effort": "max", "max_wait_business_days": 2},
+    locked = client.post(f"{API}/settings", json={"values": {"draft_effort": "max", "image_truth_enabled": True},
                                                   "expected_version": 0})
     body = locked.get_json()
-    assert locked.status_code == 400 and body["data"] == {"fields": ["max_wait_business_days"], "locked": True}
+    assert locked.status_code == 400 and body["data"] == {"fields": ["image_truth_enabled"], "locked": True}
     assert "다음 단계" in body["error"] and db_session.get(SystemSetting, st.SETTINGS_KEY) is None
-    same = client.post(f"{API}/settings", json={"values": {"draft_effort": "max", "max_wait_business_days": 1},
+    same = client.post(f"{API}/settings", json={"values": {"draft_effort": "max", "image_truth_enabled": False},
                                                 "expected_version": 0})
     assert same.status_code == 200 and same.get_json()["data"]["changed"] == ["draft_effort"]  # 값 그대로면 받는다
 

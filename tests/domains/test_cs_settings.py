@@ -22,9 +22,10 @@ from tests.domains.test_cs_brain import KNOWLEDGE, NOW
 
 #: 잠긴 칸 — 빠른 길(C10-1)이 생겨 시간 상한(realtime_timeout_s)은 잠금을 풀었다(설계서 17.1 · 원장 V10-9).
 #: 학습 돈 상한은 학습 길(설계서 17.6.1 — 사진 설명 · 주간 고침 안)이 생겨 잠금을 풀었다(검수 R13-12 의 '그때까지').
-LOCKED = {"intent_model", "intent_effort", "intent_max_tokens", "realtime_retries",
-          "max_brain_calls_per_pass", "max_wait_business_days",
-          "image_truth_enabled", "image_truth_model"}  # 그림 정답 읽기(17.11 (g))는 그 길이 생길 때까지 잠근다
+LOCKED = {"image_truth_enabled", "image_truth_model"}  # 그림 정답 읽기(17.11 (g))는 그 길이 생길 때까지 잠근다
+#: 11-13 잠금을 푼 칸(쓰는 길이 있다 — 의도 고르기 · 빠른 길 다시 시도 · 고르기)과 고른 값.
+UNLOCKED = {"intent_model": bp.MODEL_HAIKU, "intent_effort": "high", "intent_max_tokens": 4000, "realtime_retries": 1,
+            "max_brain_calls_per_pass": 1, "max_wait_business_days": 2}
 
 
 @pytest.fixture
@@ -110,7 +111,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "case_meaning_enabled": False,  # 뜻으로도 비슷한 상담 찾기(D197 ③ — 처음 끔)
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
-    assert st.LOCKED_FIELDS == LOCKED  # 승인 밖(고르기) · 아직 길이 없는 칸(의도 고르기 · 실시간)
+    assert st.LOCKED_FIELDS == LOCKED  # 아직 쓰는 길이 없는 칸만
     for field in st.FIELDS:  # 처음 값은 자기 칸 검사를 지난다
         assert st.check_value(field, field.default) == (True, field.default), field.name
     cfg = st.read_settings(db_session)
@@ -163,11 +164,7 @@ def test_non_mapping_values_and_odd_names_are_refused(admin_id):
 
 
 # ── 잠긴 칸(다음 단계) ───────────────────────────────────────────────────
-@pytest.mark.parametrize("name,value", [
-    ("intent_model", bp.MODEL_HAIKU), ("intent_effort", "high"), ("intent_max_tokens", 4000),
-    ("realtime_retries", 1), ("max_brain_calls_per_pass", 1),
-    ("max_wait_business_days", 2),
-])
+@pytest.mark.parametrize("name,value", [("image_truth_enabled", True), ("image_truth_model", bp.MODEL_SONNET)])
 def test_changing_a_locked_field_refuses_the_whole_save(admin_id, name, value):
     with pytest.raises(st.SettingsLockedError) as excinfo:
         save({"draft_effort": "max", name: value}, actor=admin_id)
@@ -177,22 +174,31 @@ def test_changing_a_locked_field_refuses_the_whole_save(admin_id, name, value):
 
 
 def test_a_locked_field_sent_with_its_current_value_is_not_a_change(admin_id):
-    result = save({"draft_effort": "max", "max_wait_business_days": 1.0, "realtime_retries": 0}, actor=admin_id)
+    result = save({"draft_effort": "max", "image_truth_enabled": False, "image_truth_model": bp.MODEL_HAIKU},
+                  actor=admin_id)
     assert result.changed == ("draft_effort",)  # 음성 대조: 값이 그대로면 잠긴 칸을 보내도 받는다
     assert set(stored()) == set(st.DEFAULTS) - LOCKED  # 잠긴 칸은 문서에 새로 쓰지 않는다
 
 
 def test_locked_values_in_the_row_are_ignored_on_read_and_kept_on_save(admin_id):
-    put_row({**st.DEFAULTS, "max_brain_calls_per_pass": 1, "intent_model": bp.MODEL_HAIKU,
-             "future_knob": {"합성": [1, 2]}})
+    put_row({**st.DEFAULTS, "image_truth_model": bp.MODEL_SONNET, "future_knob": {"합성": [1, 2]}})
     cfg = st.read_settings(db_session)
-    assert (cfg.get("max_brain_calls_per_pass"), cfg.model_for(bp.PURPOSE_INTENT)) == (10, brain.MODEL)  # 늘 처음 값
+    assert cfg.get("image_truth_model") == bp.MODEL_HAIKU  # 늘 처음 값
     assert cfg.fallback_fields == ()
     save({"draft_effort": "max"}, version=4, actor=admin_id)
     row = stored()
-    assert (row["max_brain_calls_per_pass"], row["intent_model"], row["future_knob"]) == (1, bp.MODEL_HAIKU,
-                                                                                          {"합성": [1, 2]})
+    assert (row["image_truth_model"], row["future_knob"]) == (bp.MODEL_SONNET, {"합성": [1, 2]})
     assert row["draft_effort"] == "max"  # 저장한 칸은 바뀌고, 뒤 단계 칸은 그대로 이어 붙었다
+
+
+def test_unlocked_fields_save_and_are_read_back(admin_id):
+    """11-13 잠금을 푼 칸 — 저장한 값을 두뇌 · 초안 바퀴가 그대로 읽는다(예전엔 늘 처음 값이었다)."""
+    result = save(dict(UNLOCKED), actor=admin_id)
+    assert set(result.changed) == set(UNLOCKED)
+    cfg = st.read_settings(db_session)
+    assert cfg.model_for(bp.PURPOSE_INTENT) == bp.MODEL_HAIKU and cfg.effort_for(bp.PURPOSE_INTENT) == "high"
+    assert cfg.max_tokens_for(bp.PURPOSE_INTENT) == 4000
+    assert (cfg.get("realtime_retries"), cfg.get("max_brain_calls_per_pass"), cfg.get("max_wait_business_days")) == (1, 1, 2)
 
 
 # ── 쓰기 · 버전 · 기록 ───────────────────────────────────────────────────
@@ -253,7 +259,7 @@ def test_read_falls_back_field_by_field_and_logs_names_only(app, caplog):
     cfg = st.read_settings(db_session)
     assert cfg.version == 4 and cfg.get("draft_effort") == "max"  # 맞는 칸은 그대로
     assert (cfg.get("draft_model"), cfg.get("cache_policy"), cfg.get("realtime_retries")) == (brain.MODEL, "daytime", 0)
-    assert cfg.fallback_fields == ("draft_model", "cache_policy")  # 잠긴 칸은 늘 처음 값이라 세지 않는다
+    assert cfg.fallback_fields == ("draft_model", "realtime_retries", "cache_policy")  # 틀린 칸만(빠른 길 다시 시도는 11-13 잠금 풂)
     assert "draft_model" in caplog.text and "claude-fable-5-1" not in caplog.text
     caplog.clear()
     st.read_settings(db_session, log=False)
