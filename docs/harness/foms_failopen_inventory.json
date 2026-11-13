@@ -84,7 +84,7 @@
     "foms/services/jobs/tasks.py:716",
     "foms/services/notices/push.py:114",
     "foms/services/notifications/push_sender.py:762",
-    "foms/web/auth/routes.py:140",
+    "foms/web/auth/routes.py:148",
     "foms/web/orders/trash.py:189",
     "wdcalculator_db.py:152"
   ],
@@ -5735,7 +5735,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 140,
+      "lineno": 148,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "auth",
@@ -5744,7 +5744,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 146,
+      "lineno": 154,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5753,21 +5753,12 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 155,
+      "lineno": 163,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
       "has_logging": true,
       "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/web/auth/routes.py",
-      "lineno": 308,
-      "handler_type": "broad_exception",
-      "disposition": "SWALLOW_BY_CONTROL_FLOW",
-      "owner": "auth",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; no logger wired"
     },
     {
       "path": "foms/web/auth/routes.py",
@@ -5780,7 +5771,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 431,
+      "lineno": 324,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -5789,7 +5780,16 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 721,
+      "lineno": 439,
+      "handler_type": "broad_exception",
+      "disposition": "SWALLOW_BY_CONTROL_FLOW",
+      "owner": "auth",
+      "has_logging": false,
+      "justification": "swallow-and-continue via control flow; no logger wired"
+    },
+    {
+      "path": "foms/web/auth/routes.py",
+      "lineno": 729,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5798,7 +5798,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 755,
+      "lineno": 763,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5807,7 +5807,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 871,
+      "lineno": 924,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -5816,7 +5816,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1016,
+      "lineno": 1076,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -5825,7 +5825,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1092,
+      "lineno": 1151,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5834,7 +5834,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1146,
+      "lineno": 1205,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5843,7 +5843,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1182,
+      "lineno": 1241,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5852,7 +5852,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1231,
+      "lineno": 1290,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5861,7 +5861,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1291,
+      "lineno": 1350,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",

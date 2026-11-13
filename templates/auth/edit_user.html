@@ -77,6 +77,17 @@
                 </select>
                 <div class="form-text">사용자의 소속 팀을 선택합니다.</div>
             </div>
+            <div class="mb-3">
+                <label for="production_part" class="form-label">생산 파트 (선택)</label>
+                <select class="form-select" id="production_part" name="production_part">
+                    <option value="">없음</option>
+                    {% for part_key, part_name in production_parts %}
+                    <option value="{{ part_key }}" {% if user.production_part==part_key %}selected{% endif %}>{{ part_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">생산팀일 때만 쓰여요. 다른 팀이면 저장할 때 비워져요.</div>
+            </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if user.is_active
                     %}checked{% endif %} autocomplete="off">

@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort, has_request_context
 from functools import wraps
 from datetime import datetime, timezone
+from typing import Any
 import logging
 import re
 from urllib.parse import urlsplit
@@ -31,6 +32,13 @@ from foms.services.user_deletion import (
     deactivate_user_preserving_audit,
     detach_user_references_for_deactivate,
     detach_user_references_for_delete,
+)
+from foms.services.production.part_constants import (
+    PRODUCTION_PART_DEFS,
+    account_production_part,
+    normalize_production_part,
+    production_part_for_team,
+    production_part_label,
 )
 from foms.services.post_auth_navigation import (
     is_production_home_user,
@@ -192,7 +200,7 @@ def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | 
 
 # 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
 _AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone',
-                        'channel_drawing_group_id')
+                        'channel_drawing_group_id', 'production_part')
 
 
 def _user_audit_snapshot(user):
@@ -762,6 +770,40 @@ def password_reset_request():
 
     return render_template('auth/password_reset_request.html')
 
+def _render_add_user_form() -> str:
+    """관리자 사용자 추가 화면을 그린다(역할 · 팀 · 생산 파트 고르기 목록을 늘 같이 넘긴다).
+
+    :return: ``auth/add_user.html`` 응답 글.
+    """
+    return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS,
+                           production_parts=PRODUCTION_PART_DEFS)
+
+
+def _render_edit_user_form(db: Any, user: User) -> str:
+    """관리자 사용자 수정 화면을 그린다(마지막 관리자 판정용 관리자 수 · 생산 파트 목록 포함).
+
+    :param db: 요청 DB 세션.
+    :param user: 고칠 :class:`~models.User`.
+    :return: ``auth/edit_user.html`` 응답 글.
+    """
+    return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
+                           production_parts=PRODUCTION_PART_DEFS,
+                           count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
+
+def _production_part_from_form(team: str | None) -> str | None:
+    """폼의 '생산 파트' 값 → 저장할 값(PRODPART-00, 설계서 §15.3).
+
+    팀이 생산팀이 아니면 고른 값과 상관없이 None 으로 비운다. 파트가 바뀌어도 세션은 끊지 않는다
+    (요청마다 사용자 행을 다시 읽는다).
+
+    :param team: 같이 저장할 팀 글.
+    :return: 파트 key 또는 None.
+    :raises ValueError: 네 파트가 아닌 값을 보냈을 때(화면 목록 밖 — 저장하지 않고 되묻는다).
+    """
+    return production_part_for_team(team, normalize_production_part(request.form.get('production_part')))
+
+
 # User Management Routes
 @auth_bp.route('/admin/users')
 @login_required
@@ -811,6 +853,10 @@ def user_list():
         legacy_active_total=active_legacy_count(db),
         policy_enforced=is_policy_enforced(db),
         policy_filter=request.args.get('policy'),
+        # PRODPART-00: 팀 글 뒤에 붙일 생산 파트 이름(생산팀이고 파트가 있는 사람만 — 예 `생산팀 · 재단`).
+        production_part_labels={
+            u.id: label for u in users if (label := production_part_label(account_production_part(u)))
+        },
     )
 
 @auth_bp.route('/admin/users/add', methods=['GET', 'POST'])
@@ -827,24 +873,30 @@ def add_user():
         # Validate required fields
         if not all([username, password, role]):
             flash('모든 필수 입력 필드를 입력해주세요.', 'error')
-            return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
+            return _render_add_user_form()
         
         # Check password strength (new accounts are always strong)
         strong_ok, strong_reason = validate_password_strength(password)
         if not strong_ok:
             flash(strong_reason, 'error')
-            return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
+            return _render_add_user_form()
         
         # Check if username already exists
         if get_user_by_username(username):
             flash('이미 사용 중인 아이디입니다.', 'error')
-            return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
+            return _render_add_user_form()
         
         # Validate role
         if role not in ROLES:
             flash('유효하지 않은 역할입니다.', 'error')
-            return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
-        
+            return _render_add_user_form()
+
+        try:
+            production_part = _production_part_from_form(team)
+        except ValueError as exc:
+            flash(str(exc), 'error')
+            return _render_add_user_form()
+
         try:
             db = get_db()
 
@@ -854,6 +906,7 @@ def add_user():
                 name=name,
                 role=role,
                 team=team,
+                production_part=production_part,
                 is_active=True
             )
             set_strong_password(new_user, password)
@@ -871,9 +924,9 @@ def add_user():
         except Exception as e:
             db.rollback()
             flash(f'사용자 추가 중 오류가 발생했습니다: {str(e)}', 'error')
-            return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
+            return _render_add_user_form()
     
-    return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
+    return _render_add_user_form()
 
 @auth_bp.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -914,21 +967,28 @@ def edit_user(user_id):
         # Validate required fields
         if not role:
             flash('역할은 필수 입력 필드입니다.', 'error')
-            return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            return _render_edit_user_form(db, user)
 
         # Validate role
         if role not in ROLES:
             flash('유효하지 않은 역할입니다.', 'error')
-            return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            return _render_edit_user_form(db, user)
+
+        # PRODPART-00: 생산 파트(생산팀이 아니면 비움). 목록 밖 값은 저장하지 않고 되돌린다.
+        try:
+            production_part = _production_part_from_form(team)
+        except ValueError as exc:
+            flash(str(exc), 'error')
+            return _render_edit_user_form(db, user)
 
         # 관리자만 사용자 아이디(username) 변경 가능
         if new_username and new_username != user.username:
             if len(new_username) < 2 or len(new_username) > 64:
                 flash('사용자 아이디는 2~64자여야 합니다.', 'error')
-                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                return _render_edit_user_form(db, user)
             if get_user_by_username(new_username):
                 flash('이미 사용 중인 아이디입니다.', 'error')
-                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                return _render_edit_user_form(db, user)
             user.username = new_username
             if user.id == session.get('user_id'):
                 session['username'] = new_username
@@ -948,14 +1008,14 @@ def edit_user(user_id):
                 except WeakPasswordError as strength_err:
                     db.rollback()
                     flash(str(strength_err), 'error')
-                    return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                    return _render_edit_user_form(db, user)
 
             # inactive legacy 계정 blind reactivate 금지: 비활성 legacy 계정을 다시
             # 활성화하려면 강도 재검사(강력한 새 비밀번호 동반)를 통과해야 한다.
             if reactivating and is_password_legacy(user) and not password_set_strong:
                 db.rollback()
                 flash('비활성 상태의 기존(legacy) 계정을 다시 활성화하려면 강력한 새 비밀번호를 함께 설정해야 합니다.', 'error')
-                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                return _render_edit_user_form(db, user)
 
             # Update user
             if (user.role, user.team) != (role, team):
@@ -964,6 +1024,8 @@ def edit_user(user_id):
             user.name = name
             user.role = role
             user.team = team
+            # 파트만 바뀌면 세션을 끊지 않는다(위 bump 는 역할 · 팀만 본다 — 설계서 §15.3).
+            user.production_part = production_part
             user.is_active = is_active
             # SHARE-SMS(D2): 개인 발신번호 — 숫자만 격납(하이픈 제거), 빈 값은 NULL(대표번호 폴백).
             sender_phone_raw = (request.form.get('sender_phone') or '').strip()
@@ -975,12 +1037,10 @@ def edit_user(user_id):
                 room_group_id = normalize_channel_group_id(room_raw)
             except ValueError as exc:
                 flash(str(exc), 'error')
-                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
-                                       count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                return _render_edit_user_form(db, user)
             if room_raw and not room_group_id:
                 flash('담당자 도면방은 방 번호이거나 방 주소여야 합니다. 예: 567922', 'error')
-                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
-                                       count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+                return _render_edit_user_form(db, user)
             user.channel_drawing_group_id = room_group_id or None
 
             # commit 후에는 속성이 expire 되므로 커밋 전에 after 를 확정한다.
@@ -1016,10 +1076,9 @@ def edit_user(user_id):
         except Exception as e:
             db.rollback()
             flash(f'사용자 정보 업데이트 중 오류가 발생했습니다: {str(e)}', 'error')
-            return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            return _render_edit_user_form(db, user)
 
-    count_admin = db.query(User).filter(User.role == 'ADMIN').count()
-    return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=count_admin)
+    return _render_edit_user_form(db, user)
 
 @auth_bp.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
