@@ -114,7 +114,7 @@
             <tbody>
                 {% for o in orders %}
                 <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}{% if o.as_action %}#completion{% endif %}">
-                    <td><span class="pp-stage">{{ o.badge }}</span></td>
+                    <td><span class="pp-stage{% if o.badge == 'AS 완료' %} pp-stage--as-done{% endif %}">{{ o.badge }}</span></td>
                     <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}{% if o.as_action %} <button type="button" class="btn btn-sm py-0 {{ 'btn-outline-info' if o.as_action == 'AS 접수 수정' else 'btn-outline-primary' }}" data-pp-as-open="{{ url_for('partner_as.as_form', order_id=o.id) }}">{{ o.as_action }}</button>{% endif %}{% include "partner/partials/drawing_thumbs.html" %}</td>
                     <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>

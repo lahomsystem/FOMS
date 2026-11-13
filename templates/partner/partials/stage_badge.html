@@ -2,5 +2,6 @@
 {# text: 보이는 글자만 바꿀 때(예: 도면 작업 중 → "도면 수정 중"). 색 · 프로세스 맵 칸은 label 그대로. #}
 {% macro stage_badge(label, text=None) -%}
 {%- set mod = {"실측 예정": "measure", "도면 작업 중": "drawing", "도면 확인 대기": "confirm", "생산 중": "production", "시공 예정": "construction", "완료": "completed", "AS 진행 중": "cs"} -%}
-<span class="foms-stage-badge foms-stage-badge--{{ mod.get(label, 'received') }}">{{ text or label }}</span>
+{#- AS 끝난 완료 주문("AS 완료")은 색도 따로 — 그냥 완료(회색) · AS 진행 중(빨강)과 갈린다(사용자 2026-11-13). -#}
+<span class="foms-stage-badge foms-stage-badge--{{ 'as-done' if text == 'AS 완료' else mod.get(label, 'received') }}">{{ text or label }}</span>
 {%- endmacro %}
