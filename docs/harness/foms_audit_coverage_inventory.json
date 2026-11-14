@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 300,
+    "total": 303,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 261,
+    "AUDITED": 264,
     "EXEMPT": 37,
     "UNAUDITED": 2
   },
@@ -21,7 +21,7 @@
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
       "endpoint": "api_order_item_cancel_after_confirm",
-      "lineno": 66,
+      "lineno": 67,
       "methods": [
         "POST"
       ]
@@ -589,7 +589,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 1028,
+      "lineno": 1040,
       "methods": [
         "POST"
       ],
@@ -598,7 +598,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 983,
+      "lineno": 995,
       "methods": [
         "POST"
       ],
@@ -607,7 +607,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 689,
+      "lineno": 698,
       "methods": [
         "POST"
       ],
@@ -616,7 +616,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 613,
+      "lineno": 622,
       "methods": [
         "POST"
       ],
@@ -625,7 +625,7 @@
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
       "endpoint": "api_order_item_cancel_after_confirm",
-      "lineno": 66,
+      "lineno": 67,
       "methods": [
         "POST"
       ],
@@ -783,6 +783,33 @@
         "POST"
       ],
       "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/erp_actions.py",
+      "endpoint": "erp_actions_approve",
+      "lineno": 174,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/erp_actions.py",
+      "endpoint": "erp_actions_reject",
+      "lineno": 188,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/erp_actions.py",
+      "endpoint": "erp_actions_snooze",
+      "lineno": 201,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
     },
     {
       "path": "foms/api/erp_estimates.py",
@@ -1742,7 +1769,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_cancel",
-      "lineno": 1167,
+      "lineno": 1136,
       "methods": [
         "POST"
       ],
@@ -1751,7 +1778,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_change_ack",
-      "lineno": 1350,
+      "lineno": 1319,
       "methods": [
         "POST"
       ],
@@ -1760,7 +1787,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_complete",
-      "lineno": 927,
+      "lineno": 896,
       "methods": [
         "POST"
       ],
@@ -1769,7 +1796,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_defect",
-      "lineno": 1539,
+      "lineno": 1506,
       "methods": [
         "POST"
       ],
@@ -1778,7 +1805,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_hold",
-      "lineno": 1672,
+      "lineno": 1639,
       "methods": [
         "POST"
       ],
@@ -1787,7 +1814,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_rework",
-      "lineno": 1013,
+      "lineno": 982,
       "methods": [
         "POST"
       ],
@@ -1796,7 +1823,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_start",
-      "lineno": 764,
+      "lineno": 733,
       "methods": [
         "POST"
       ],
@@ -1805,7 +1832,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_steps",
-      "lineno": 1450,
+      "lineno": 1423,
       "methods": [
         "POST"
       ],
@@ -1814,7 +1841,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_uncomplete",
-      "lineno": 1268,
+      "lineno": 1237,
       "methods": [
         "POST"
       ],
@@ -1823,7 +1850,7 @@
     {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_set_logistics_status",
-      "lineno": 1745,
+      "lineno": 1712,
       "methods": [
         "POST"
       ],
@@ -1832,7 +1859,7 @@
     {
       "path": "foms/api/production/part_marks.py",
       "endpoint": "api_part_mark",
-      "lineno": 288,
+      "lineno": 350,
       "methods": [
         "POST"
       ],
@@ -1841,7 +1868,7 @@
     {
       "path": "foms/api/production/part_marks.py",
       "endpoint": "api_part_marks_basic",
-      "lineno": 382,
+      "lineno": 444,
       "methods": [
         "POST"
       ],

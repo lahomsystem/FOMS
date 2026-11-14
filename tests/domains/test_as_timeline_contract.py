@@ -286,6 +286,7 @@ _AS_LOG_WRITE_CALL_SITES = {
     # T15c 회차 판정 전용 경로 — 사유는 라우트가 sanitize 후 전달, 값 검증은 서비스 소유.
     ("foms/api/cs/as_orders.py", "append_verdict_log"),
     ("foms/api/orders/field_update.py", "append_system_log"),  # 방문일·완료일 정본 쓰기 경로
+    ("foms/services/erp_actions/runners.py", "append_system_log"),  # 접목판 AS 방문 옮기기 실행기 — AS 방문일 길과 같은 고정 머리말 + 검사한 날짜
     # 협력사 AS 접수 · 수정은 2026-11-13 부터 위 register(as_orders.py) 를 그대로 탄다(PARTNER-AS-02) — 따로 쓰는 곳이 없다.
     ("foms/services/orders/as_cycle_service.py", "append_system_log"),  # LEGACY_BRIDGE 전환 기록(서버 고정 리터럴)
     # AS-BIND-01 주차 메모. 본문은 고정 리터럴 '첨부 파일' 이고 append_client_log 가 sanitize 한다.
