@@ -23,10 +23,10 @@
 |---|---|---|---|---|---|---|---|
 | A | T1 | W1 | 바탕 약속 — 새 표 셋 + 마이그레이션, ERP 물건 목록 · 읽기 도구, 할 일 목록(선언), AI 직원 목록(선언), 쓰인 곳 기록 도우미 | xhigh | `foms-s-foms-graft`(같이 씀) | — | DONE `e673ffd24`(11-14) |
 | A | T2 | W2 | 새 화면 틀 — 스위치 모듈, `foms-ds.css` 가두어 싣기, 혼자 서는 문서 틀 · 위 줄 · 폰 아래 탭 · 긴급 빨간 창 · 공지 확인 창(D212), `/brain` 길 갈림, 빈 화면 여섯, 화면 찍기 도구 | high | `foms-s-foms-graft`(같이 씀) | — | DONE `001cb677e`(11-14) |
-| B | T3 | W3 | 승인 대기(지식 고침) 새 화면 + 다시 확인 · 판 · 폰 승인(⑥ · ⑫ 의 지식 쪽) | xhigh | `foms-s-foms-graft` | T2 | PENDING |
+| B | T3 | W3 | 승인 대기(지식 고침) 새 화면 + 다시 확인 · 판 · 폰 승인(⑥ · ⑫ 의 지식 쪽) | xhigh | `foms-s-foms-graft` | T2 | DONE `1c89a3579` |
 | B | T6 | W6 | 읽기 엔진 — 물어보기 ERP 읽기, 온톨로지 ERP 칸, 쓰인 곳 API, 내 질문 목록 | xhigh | 따로 `foms-s-graft-read` | T1 · T2(스위치) | PENDING |
 | B | T7 | W7 | 할 일 엔진 — 제안 생명주기 · 실행기 · 시공 메모 쓰기 · 승인 대기 API · 권한 · 감사 | max | 따로 `foms-s-graft-actions` | T1 · T2(스위치) | PENDING |
-| B | T13 | W11 | **특성 시험**(D206) — 현재 작업 승인 · 도면 담당 맡기기 · 실측일 고치기 길의 지금 행동을 못박는다. 시험 파일만 | xhigh | `foms-s-foms-graft` | — (지금 코드. 물결 A 와 같이 띄워도 된다) | PENDING |
+| B | T13 | W11 | **특성 시험**(D206) — 현재 작업 승인 · 도면 담당 맡기기 · 실측일 고치기 길의 지금 행동을 못박는다. 시험 파일만 | xhigh | `foms-s-foms-graft` | — (지금 코드. 물결 A 와 같이 띄워도 된다) | DONE `68b45778e` |
 | C | T4 | W4 | 찾기 · 지식 표 · 지식 카드 새 화면 + 쓰인 곳(⑦ · ⑧) | high | `foms-s-foms-graft` | T2 · T6 | PENDING |
 | C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | PENDING |
 | C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | PENDING |
@@ -165,7 +165,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 
 | 때 | 커밋 | 고치지 않은 코드에서 돌린 출력(마지막 줄) |
 |---|---|---|
-| — | — | 아직 없음 |
+| 11-14 | `68b45778e` (`session/foms-graft`) | `95 passed in 3.00s` — 메인이 `foms/` 를 고치지 않은 트리에서 세 파일을 다시 돌림(W11 도 두 번 초록) |
 
 ## 8. 준비 (T0 — 메인)
 
