@@ -323,8 +323,8 @@ def _begin(session: Any, proposal_id: Any, *, actor: Any, runners: Mapping[str, 
     """① 잠금 → 볼 수 있나(404) → 열림(409) → 갈래 · 실행기(400) → AI 직원 수준(409) → 넣을 값(400) → 막는 조건 · 기준 판(409)
     → 사유(사유를 물을 변경인데 사유 코드가 없으면 400 ``reason_code`` — 변경 원장 사유가 비지 않게) → executing 커밋."""
     row, spec, order = _decidable(session, proposal_id, actor, lock_order=True)
-    if row.status not in _DECIDABLE:
-        raise ActionError("ACTION_NOT_OPEN")
+    if row.status not in _DECIDABLE or (row.expires_at is not None and row.expires_at <= now):
+        raise ActionError("ACTION_NOT_OPEN")  # 기간이 지난 제안은 밤 정리(expire_due) 전이라도 실행하지 않는다(F-13)
     if spec.mode != MODE_RUN or row.action not in runners:
         raise ActionError("ACTION_SHAPE", fields=("action",))
     _level_check(session, row)
