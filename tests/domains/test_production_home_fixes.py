@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261114c" in html
+    assert "home.css?v=20261114d" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -282,7 +282,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261114c" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114d" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -318,9 +318,9 @@ def test_키_낮은_가로_터치_화면은_시공일_띠_날을_두_칸씩_놓�
 
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     head = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: "
-    assert css.count(head) == 4  # 100% 1개 + 화면 크기 110 · 120 · 130% 3개. 마우스(PC) · 세로 · 폰은 조건 밖
-    blocks = {float(part.split("px)")[0]): part.split("\n}\n")[0] for part in css.split(head)[1:]}
-    limit, block = min(blocks.items())
+    assert css.count(head) == 1  # 마우스(PC) · 세로 · 폰은 조건 밖
+    part = css.split(head)[1]
+    limit, block = float(part.split("px)")[0]), part.split("\n}\n")[0]
     # 한 줄씩 띠가 다 들어가는 키 = 제목 줄 73 + 머리 40 + (지난 7일 · 날들 · 그 뒤) × 48 + 아래 칸 49.
     # 날 수가 늘면 경계가 낡아 실패한다(경계를 다시 재라).
     need = 73 + 40 + (PRODUCTION_HOME_STRIP_DAYS + 2) * 48 + 49
@@ -330,22 +330,50 @@ def test_키_낮은_가로_터치_화면은_시공일_띠_날을_두_칸씩_놓�
     # 단추 높이는 줄이지 않는다(장갑 D5, 44px 아래 금지) — 이 블록은 키를 건드리지 않고 기본 48 을 물려받는다
     assert "min-height" not in block and "height: 8px" in block and "data-foms-ui-zoom" not in block
     assert re.search(r"\n\.fph-sd \{\n  width: 100%;\n  min-height: 48px;", css)
-    # 화면 크기 z(11-14): media 키는 배율 전 px 라 경계 = need × z. 배율 1.1~1.3 에만 걸리고(80 · 90% 는 100% 규칙 그대로),
-    # 줄인 최소 키는 ÷ z 라 화면에서 실제 48(장갑 D5)은 그대로다
-    for (zlimit, zblock), z in zip(sorted(blocks.items())[1:], ("1.1", "1.2", "1.3")):
-        assert need * float(z) - 1 < zlimit < need * float(z)
-        rules = [ln.strip() for ln in zblock.split("{", 1)[1].splitlines() if ln.strip()]
-        assert len(rules) == 8 and all(r.startswith(f'html[data-foms-ui-zoom="{z}"] ') for r in rules)
-        assert "repeat(2, minmax(0, 1fr)); align-content: start;" in zblock
-        assert ":is(.fph-sd, .fph-sf) { min-height: calc(48px / var(--foms-ui-zoom, 1)); }" in zblock
-        assert re.findall(r"min-height: ([^;]+);", zblock) == ["calc(40px / var(--foms-ui-zoom, 1))", "calc(48px / var(--foms-ui-zoom, 1))"]
+    # 화면 크기 · 글자 배율을 키우면(11-14) media 는 배율을 못 보니 띠를 상자에 담아 띠 칸 키를 컨테이너로 잰다.
+    # 80 · 90% 와 100% · 글자 100% 는 상자가 없다(display: contents) → 위 786px 규칙만, 바뀌지 않는다.
+    assert ".fph-stripbox { display: contents; }" in css
+    gate = 'html:is([data-foms-ui-zoom], [data-foms-fs]):not([data-foms-ui-zoom^="0."]) .fph-stripbox'
+    box = css.split(gate + " {")[1].split("}")[0]
+    assert "container: fph-strip / size;" in box and "position: sticky;" in box
+    assert "height: calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));" in box  # 띠 max-height 와 같은 식
+    assert "font-size: calc(16px / var(--foms-ui-zoom, 1));" in box  # 쿼리의 1em = 16 ÷ z
+    assert gate + " > .fph-strip { font-size: 1rem; }" in css  # 띠 안 글자 크기는 그대로(1rem = 16 × 글자 배율)
+    queries = re.findall(r"@container fph-strip \(max-height: calc\(([^\n]+)\)\) \{\n(.*?)\n\}\n", css, re.S)
+    assert len(queries) == 2
+
+    def _px(expr: str, fs: float, z: float) -> float:  # 쿼리 식을 글자 배율 fs · 화면 크기 z 에서 px 로 푼다
+        py = re.sub(r"(\d+(?:\.\d+)?)rem", rf"(\1*{16 * fs})", expr)
+        py = re.sub(r"(\d+(?:\.\d+)?)em", rf"(\1*{16 / z})", py)
+        return eval(py.replace("px", ""), {"max": max})  # noqa: S307 — 저장소 CSS 의 고정 식
+
+    (two_q, two), (tight_q, tight) = queries
+    # ① 두 칸씩: 글자 100% 는 위 786px 규칙과 같은 경계(713 ÷ z 의 실제 화면 = 786 × z), 150% 는 한 줄씩 띠 782px(실측)보다 크다
+    assert f"{PRODUCTION_HOME_STRIP_DAYS + 2} * max(48px, 2.0125rem + 5px)" in two_q
+    assert abs(_px(two_q, 1, 1) - (limit - 73)) < 0.01 and _px(two_q, 1.5, 1) > 782 > 800 - 73
+    for rule in [ln.strip() for ln in block.split("{", 1)[1].splitlines() if ln.strip()]:
+        assert rule in two  # 786px 규칙과 같은 두 칸 배치
+    assert ".fph-sd, .fph-sf { min-height: calc(48px / var(--foms-ui-zoom, 1)); }" in two  # 화면에서 실제 48(D5)
+    # ② 가장 빠듯함: 두 칸 6줄(지난 7일 다음 날들 + 그 뒤). 1176×626 130% 는 글자 100% 면 두 칸 그대로(띠 칸 408.5px),
+    # 글자 120% 부터 이 규칙 — 110% 는 글자 130% 까지 그대로, 150% 에서만(띠 칸 496px)
+    assert f"{(PRODUCTION_HOME_STRIP_DAYS + 1) // 2} * max(3em, 2.0125rem + 17px)" in tight_q
+    assert _px(tight_q, 1, 1.3) < 626 / 1.3 - 73 < _px(tight_q, 1.2, 1.3)
+    assert _px(tight_q, 1.3, 1.1) < 626 / 1.1 - 73 < _px(tight_q, 1.5, 1.1)
+    assert _px(tight_q, 1.5, 1) < 626 - 73 and _px(tight_q, 1.5, 1.3) < 800 / 1.3 - 73  # 그 밖 조합은 두 칸 그대로
+    # 빼는 것은 요일 뒤 '· 내일 · D-n · 없음' 하나뿐이고(요일은 따로 쓴 글이 보인다) 글자 크기 · 단추 키는 건드리지 않는다
+    assert [ln.strip() for ln in tight.splitlines() if "display: none" in ln] == [".fph-sd__d .fph-sd__long { display: none; }"]
+    assert "  .fph-sd__d .fph-sd__wd { display: block; }" in tight and ".fph-sd__d .fph-sd__wd { display: none; }" in css
+    assert not re.search(r"font-size|(?<!line-)height:", tight)  # 줄 높이만 1.15 로 맞춘다(수 줄)
+    tpl = (ROOT / "templates/production/partials/home_date.html").read_text(encoding="utf-8")
+    assert '<div class="fph-stripbox">\n  <aside class="fph-strip"' in tpl
+    assert '<small{% if wd != sub %} class="fph-sd__long"{% endif %}>{{ sub }}</small>{% if wd != sub %}<small class="fph-sd__wd">{{ wd }}</small>' in tpl
     # 1280×800 대조군: 블록 밖 한 줄 띠 규칙은 그대로(두 칸 규칙이 블록 밖으로 새면 실패)
-    rest = css
-    for b in blocks.values():
-        rest = rest.replace(b, "")
+    rest = css.replace(block, "")
+    for _, body in queries:
+        rest = rest.replace(body, "")
     assert "repeat(2, minmax(0, 1fr)); align-content: start;" not in rest and "48px / var(--foms-ui-zoom" not in rest
     assert "position: sticky;\n  top: var(--fph-bar-h, 73px);\n  max-height: calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));\n  overflow-y: auto;" in rest
     assert "display: flex;\n  flex-direction: column;\n  background: var(--fph-surface);" in rest
     assert "grid-template-columns: calc(88px * var(--foms-fs, 1)) minmax(0, 1fr) calc(62px * var(--foms-fs, 1));" in rest
     assert ".foms-prod-home .fph-sd__bar { width: 100%; height: 16px;" in rest
-    assert "home.css') }}?v=20261114c" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114d" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
