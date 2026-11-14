@@ -46,6 +46,7 @@ from foms.services.cs_agent.brain_prompt import (
 from foms.services.cs_agent.brain_instructions import LENGTH_CHOICES, LENGTH_DEFAULT
 from foms.services.cs_agent.brain_spend import worker_daily_cap
 from foms.services.cs_agent.edit_detail_settings import DETAIL_FIELDS
+from foms.services.cs_agent.graft_settings import GRAFT_FIELDS
 from foms.services.cs_agent.handoff_memo_settings import HANDOFF_MEMO_FIELDS
 from foms.services.cs_agent.onto_settings import ONTO_FIELDS
 from foms.services.cs_agent.image_settings import IMAGE_FIELDS
@@ -152,6 +153,7 @@ FIELDS: tuple[Field, ...] = (
     *HANDOFF_LEARN_FIELDS,  # 넘긴 상담 배우기 → 회사 지식 제안(사장님 11-11) — 처음 끔
     *HANDOFF_MEMO_FIELDS,  # 넘김 메모(AI 가 초안을 안 쓴 까닭 — 직원에게) — 처음 끔
     *ONTO_FIELDS,  # 바꿔 묻기 대응(온톨로지 — 사장님 11-11) — 처음 끔
+    *GRAFT_FIELDS,  # 접목판 근거 줄 · 할 일 제안(설계서 2026-11-14-foms-graft 3.9) — 처음 끔
 )
 FIELD_BY_NAME: dict[str, Field] = {f.name: f for f in FIELDS}
 DEFAULTS: dict[str, Any] = {f.name: f.default for f in FIELDS}

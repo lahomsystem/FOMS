@@ -80,6 +80,7 @@ from foms.services.cs_agent.drafting_read import (
 )
 from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.edit_detail_settings import CASE_REASONS_FIELD, switch_value
+from foms.services.cs_agent.graft_step import after_draft
 from foms.services.cs_agent.onto_settings import ONTO_CASES_FIELD
 from foms.services.cs_agent.image_settings import MODE_OFF as PHOTOS_OFF, image_mode
 from foms.services.cs_agent.knowledge import load_approved
@@ -424,6 +425,7 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
     ctx.summary.cache_cold += int(result.cache_marked and not result.cache_read_tokens)  # 표시 없는 요청(끔 · 밤)은 빼고
     record_brain_result(row, result)
     count_doc_reads(ctx.session, BRAND, result.evidence_ids, now=now_utc_naive())  # 회사 지식 쓰인 횟수(D105 — 따로 센다)
+    after_draft(ctx, row, result, lines)  # 접목판 근거 줄 · 할 일 제안(관리 칸 둘 — 끔이면 설정 읽기뿐, 실패는 저장점 안)
     if result.refused:
         return ctx.skip(row, SKIP_REFUSED)
     if result.handoff:  # 넘김 — 건너뜀 + (켜졌으면) 넘김 메모(:mod:`.handoff_memo`)
