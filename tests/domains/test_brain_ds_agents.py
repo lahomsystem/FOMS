@@ -12,7 +12,10 @@
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -117,3 +120,27 @@ def test_new_files_have_no_inline_style_and_stay_small():
     for group in selectors:
         for selector in group.split(","):
             assert selector.strip().startswith((".fb-", ".f-app ")), selector
+
+
+def _kit(expr: str, data: object = None):
+    """ds-agents-kit.js 를 가짜 window 에 싣고 식 하나를 돌린다(DOM 은 쓰지 않는다)."""
+    script = ("global.window = { FOMS_BRAIN_DOM: { el: function () { return {}; } } };"
+              f"require({json.dumps(str(ROOT / 'static/js/brain/ds/ds-agents-kit.js'))});"
+              "const kit = window.FOMS_DS_AGENTS_KIT;"
+              f"const data = {json.dumps(data, ensure_ascii=False)};"
+              f"process.stdout.write(JSON.stringify({expr}));")
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, encoding="utf-8", timeout=60,
+                         check=True).stdout
+    return json.loads(out)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_recent_failure_codes_are_plain_words():
+    """R-18 — '최근 실패'에 기계 말(코드)이 그대로 나오지 않는다. 모르는 코드는 '알 수 없는 오류', 빈 코드는 빈 글."""
+    codes = ["ACTION_FAILED", "ACTION_PRECONDITION", "claim_expired", "read_failed", "send_provider_error",
+             "SOMETHING_NEW", "", None]
+    got = _kit("data.map(kit.failureText)", codes)
+    assert got[:5] == ["실행하지 못했어요", "주문 상태가 맞지 않았어요", "너무 오래 걸려 멈췄어요", "상담 글을 못 읽었어요",
+                       "메모를 올리지 못했어요"]
+    assert got[5:] == ["알 수 없는 오류", "", ""]
+    assert not any(re.search(r"[A-Za-z_]{3,}", text) for text in got)

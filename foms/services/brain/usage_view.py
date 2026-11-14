@@ -3,10 +3,12 @@
 접목판 ``erp_read`` 스위치가 켜진 사람에게만 API 가 부른다. 재료는 쓰인 곳 표 ``brain_usage_events``
 (:mod:`.usage_events` — 상담 초안 · 할 일 제안 · 물어보기가 근거로 쓴 키마다 한 줄)다. 합 표 ``brain_usage`` 는 보지 않는다.
 
-- **수**: 지난 14일 읽은 쪽마다(:func:`.usage_events.uses_window`).
+- **수**: 지난 14일 읽은 쪽마다(:func:`.usage_events.uses_window`). 할 일 제안 쪽(``erp_action``)은 **볼 수 있는 제안의
+  쓰임만** 센다(최근 줄과 같은 판정).
 - **최근 네 줄**: 가린 글만 — 상담 차례는 ``masked_question`` 앞부분 + 끝난 꼴, 할 일 제안은 제목(할 일 이름 · 주문 번호) + 상태,
   물어보기는 가린 질문 앞부분 + 모름 여부. 글은 한 번 더 가림 검사를 지난 것만 싣는다(걸리면 빈 글). 묻는 사람 · 보낸 직원
-  번호는 싣지 않는다. **볼 수 없는 할 일 제안은 줄에 없다**(설계서 3.5 — ``actions`` 스위치 · 정책 · 주문 읽기 권한).
+  번호는 싣지 않는다. **볼 수 없는 할 일 제안은 줄에 없다**(설계서 3.5 — 승인 대기와 같은 판정
+  :func:`foms.services.erp_actions.access.can_run`: 켜진 내부 계정 · ``actions`` 스위치 · 정책 · 주문 읽기 권한).
 - **이어진 ERP 물건**: 적용 대상 제품 라인 → 주문 품목(이름으로 이어짐 — 그 이름이 든 진행 중 주문 수는 **세지 않는다**: 색인 없는
   글자 찾기가 된다) · 공정 단계 → ERP 단계 이름 짝. 항목 자신이 제품 라인 · 공정 단계여도 같다.
 - 항목을 볼 수 없거나 없으면 ``None``(404 — 둘을 가르지 않는다).
@@ -17,22 +19,23 @@ from __future__ import annotations
 import datetime
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from foms.persistence.brain.models import BrainLink, BrainObject, BrainQuestion
-from foms.persistence.graft.models import ErpActionProposal
+from foms.persistence.graft.models import BrainUsageEvent, ErpActionProposal
 from foms.services.ai_staff.registry import AGENTS, agent_of
 from foms.services.brain.labels import pref_of
 from foms.services.brain.read import current_item, effective_clauses
 from foms.services.brain.scope import Viewer
 from foms.services.brain.store import in_force, is_current
-from foms.services.brain.usage_events import READER_CHATBOT, READER_CS_DRAFT, recent_uses, uses_window
+from foms.services.brain.usage_events import (
+    READER_CHATBOT, READER_CS_DRAFT, READER_ERP_ACTION, recent_uses, uses_window,
+)
 from foms.services.cs_agent.masking import leak_counts
 from foms.services.erp_actions.registry import ACTIONS
+from foms.services.erp_actions.access import actions_viewer, can_decide
 from foms.services.erp_ontology.objects import get_type
-from foms.services.graft_flags import enabled as graft_enabled
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
-from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, user_can_read_order
 from models import CsAgentTurn, Order
 
 __all__ = ["RECENT", "USAGE_DAYS", "item_usage"]
@@ -61,16 +64,22 @@ def _ids(uses: Iterable[Any], kind: str) -> list[int]:
     return [int(use.ref_id) for use in uses if use.ref_kind == kind and str(use.ref_id).isdigit()]
 
 
-def _proposal_visible(session: Any, user: Any, row: ErpActionProposal) -> bool:
-    """이 사람이 그 제안을 볼 수 있나(설계서 3.5) — ``actions`` 스위치 · 할 일 정책 · 주문 읽기 권한."""
-    spec = ACTIONS.get(row.action)
-    policy = POLICY_REGISTRY.get(spec.policy_id) if spec is not None and spec.policy_id else None
-    if policy is None or not graft_enabled("actions", user) or not evaluate_policy(policy, user).allowed:
-        return False
-    if row.order_id is None:
-        return True
-    order = session.get(Order, int(row.order_id))
-    return order is not None and user_can_read_order(user, order)
+def _visible_proposals(session: Any, user: Any, ids: Iterable[int]) -> dict[int, ErpActionProposal]:
+    """이 사람이 볼 수 있는 할 일 제안(번호 → 줄) — 승인 대기와 같은 판정(:func:`.erp_actions.access.can_run` = 보는 사람
+    :func:`actions_viewer` + :func:`can_decide`). 제안 · 주문은 ``in_`` 한 번씩(줄마다 읽지 않는다). 주문 없는 제안은 볼 수 없다."""
+    wanted = sorted(set(ids))
+    if not wanted or not actions_viewer(user):  # 볼 수 있는 사람이 아니면 읽지도 않는다(can_run 의 앞 반)
+        return {}
+    rows = list(session.execute(select(ErpActionProposal).where(ErpActionProposal.id.in_(wanted))).scalars())
+    order_ids = sorted({int(row.order_id) for row in rows if row.order_id is not None})
+    orders = ({order.id: order for order in session.execute(select(Order).where(Order.id.in_(order_ids))).scalars()}
+              if order_ids else {})
+    out: dict[int, ErpActionProposal] = {}
+    for row in rows:
+        spec = ACTIONS.get(row.action)
+        if spec is not None and can_decide(user, spec, orders.get(row.order_id)):  # can_run 의 뒤 반
+            out[int(row.id)] = row
+    return out
 
 
 def _turn_row(turn: Any) -> tuple[str, str, str, str]:
@@ -94,26 +103,25 @@ def _question_row(row: BrainQuestion) -> tuple[str, str, str, str]:
     return _READER_LABELS[READER_CHATBOT], _safe(row.masked_question), state, tone
 
 
-def _resolved(session: Any, user: Any, uses: list[Any]) -> dict[tuple[str, str], tuple[str, str, str, str]]:
-    """(종류, 번호) → (이름, 글, 상태, 색) — 종류마다 질의 한 번. 볼 수 없는 제안 · 없는 줄은 빠진다."""
+def _resolved(session: Any, uses: list[Any],
+              proposals: dict[int, ErpActionProposal]) -> dict[tuple[str, str], tuple[str, str, str, str]]:
+    """(종류, 번호) → (이름, 글, 상태, 색) — 종류마다 질의 한 번(제안은 이미 거른 ``proposals``). 볼 수 없는 제안 · 없는 줄은 빠진다."""
     out: dict[tuple[str, str], tuple[str, str, str, str]] = {}
     if ids := _ids(uses, "cs_turn"):
         for turn in session.execute(select(CsAgentTurn).where(CsAgentTurn.id.in_(ids))).scalars():
             out[("cs_turn", str(turn.id))] = _turn_row(turn)
-    if ids := _ids(uses, "proposal"):
-        for row in session.execute(select(ErpActionProposal).where(ErpActionProposal.id.in_(ids))).scalars():
-            if _proposal_visible(session, user, row):
-                out[("proposal", str(row.id))] = _proposal_row(row)
+    for proposal_id in _ids(uses, "proposal"):
+        if proposal_id in proposals:
+            out[("proposal", str(proposal_id))] = _proposal_row(proposals[proposal_id])
     if ids := _ids(uses, "question"):
         for row in session.execute(select(BrainQuestion).where(BrainQuestion.id.in_(ids))).scalars():
             out[("question", str(row.id))] = _question_row(row)
     return out
 
 
-def _recent(session: Any, user: Any, key: str) -> list[dict[str, Any]]:
+def _recent(session: Any, uses: list[Any], proposals: dict[int, ErpActionProposal]) -> list[dict[str, Any]]:
     """최근 줄 :data:`RECENT` 개(새것 먼저) — 글을 찾을 수 없거나 볼 수 없는 줄은 건너뛴다."""
-    uses = recent_uses(session, key, _SCAN)
-    found = _resolved(session, user, uses)
+    found = _resolved(session, uses, proposals)
     rows = []
     for use in uses:
         hit = found.get((use.ref_kind, str(use.ref_id)))
@@ -125,6 +133,16 @@ def _recent(session: Any, user: Any, key: str) -> list[dict[str, Any]]:
         if len(rows) >= RECENT:
             break
     return rows
+
+
+def _proposal_uses(session: Any, key: str, since: datetime.datetime) -> dict[int, int]:
+    """지난 기간 할 일 제안 쪽 쓰임 — 제안 번호 → 줄 수(질의 한 번)."""
+    rows = session.execute(
+        select(BrainUsageEvent.ref_id, func.count()).where(
+            BrainUsageEvent.item_key == key, BrainUsageEvent.used_at >= since,
+            BrainUsageEvent.reader == READER_ERP_ACTION, BrainUsageEvent.ref_kind == "proposal")
+        .group_by(BrainUsageEvent.ref_id)).all()
+    return {int(ref): int(count) for ref, count in rows if str(ref).isdigit()}
 
 
 def _erp_link(item_type: str, name: str, payload: Any) -> Optional[dict[str, Any]]:
@@ -177,5 +195,11 @@ def item_usage(session: Any, viewer: Viewer, user: Any, key: str, *, today: date
     item = current_item(session, viewer, key, today)
     if item is None:
         return None
-    return {"days": USAGE_DAYS, "by_reader": uses_window(session, key, USAGE_DAYS, now=now_utc),
-            "recent": _recent(session, user, key), "erp_links": _erp_links(session, viewer, item, today)}
+    by_reader = uses_window(session, key, USAGE_DAYS, now=now_utc)
+    uses = recent_uses(session, key, _SCAN)
+    since = now_utc - datetime.timedelta(days=USAGE_DAYS)
+    counted = _proposal_uses(session, key, since) if by_reader.get(READER_ERP_ACTION) else {}
+    proposals = _visible_proposals(session, user, [*_ids(uses, "proposal"), *counted])
+    by_reader[READER_ERP_ACTION] = sum(n for proposal_id, n in counted.items() if proposal_id in proposals)
+    return {"days": USAGE_DAYS, "by_reader": by_reader, "recent": _recent(session, uses, proposals),
+            "erp_links": _erp_links(session, viewer, item, today)}

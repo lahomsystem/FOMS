@@ -12,9 +12,12 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.orm.attributes import flag_modified
 
 from db import db_session
 from foms.persistence.graft.models import AiAgentRun, ErpActionProposal
@@ -112,10 +115,21 @@ def test_s1_partner_wish_date_becomes_a_schedule_proposal(proposers):
 
 
 # ── O1 실측 예약 알림톡 ──────────────────────────────────────────────────
+def _with_measure_record(order: Order, **record) -> Order:
+    """주문 번호가 정해진 뒤 실측 예약 이력을 단다(자동 열쇠에 번호가 든다)."""
+    sd = copy.deepcopy(order.structured_data)
+    sd["alimtalk_measurement"] = {"sent_at": "2030-01-01T00:00:00", "message_id": "m1", "error": None, **record}
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    return order
+
+
 def test_o1_tomorrow_measure_without_alimtalk_record(proposers):
     tomorrow = {"schedule": {"measurement": {"date": _day(1)}}}
     yes = _order("MEASURE", **tomorrow)
-    sent = _order("MEASURE", alimtalk_measurement={"sent_at": "2030-01-01T00:00:00", "message_id": "m1"}, **tomorrow)
+    sent = _order("MEASURE", **tomorrow)
+    _with_measure_record(sent, dedupe_key=f"alimtalk:measure:{sent.id}:{_day(1)}:")
     self_measure = _order("MEASURE", self_measure=True, **tomorrow)
     partner = _order("MEASURE", partner=True, **tomorrow)
     later = _order("MEASURE", schedule={"measurement": {"date": _day(2)}})
@@ -124,6 +138,93 @@ def test_o1_tomorrow_measure_without_alimtalk_record(proposers):
     assert not {sent.id, self_measure.id, partner.id, later.id} & _made("send_measure_alimtalk")
     row = db_session.query(ErpActionProposal).filter(ErpActionProposal.action == "send_measure_alimtalk").one()
     assert row.proposed_by == "agent:ops" and row.level == 1 and row.status == "open"
+
+
+def test_o1_counts_only_a_record_sent_for_the_current_schedule(proposers):
+    """R-04 — 실패 · 건너뜀 기록과 옮기기 전 날짜의 자동 발송 기록은 '안 보냄'(승인 쪽 미리 보기와 같은 '나감')."""
+    tomorrow = {"schedule": {"measurement": {"date": _day(1), "time": "오전"}}}
+    made = {}
+    for name, record in (
+            ("failed", {"sent_at": None, "message_id": None, "error": "network"}),
+            ("skipped", {"sent_at": None, "message_id": None, "error": "no_valid_phone"}),
+            ("no_vendor_id", {"message_id": None}),
+            ("old_date", {"dedupe_key": "alimtalk:measure:{id}:" + _day(5) + ":오전"}),
+            ("draft_other", {"dedupe_key": "alimtalk:measure:draft:k:manual:x", "draft_schedule": _day(5) + ":오전"})):
+        order = _order("MEASURE", **tomorrow)
+        made[name] = _with_measure_record(order, **{k: (v.format(id=order.id) if isinstance(v, str) else v)
+                                                    for k, v in record.items()}).id
+    kept = {}
+    for name, key in (("auto_now", "alimtalk:measure:{id}:" + _day(1) + ":오전"),
+                      ("manual", "alimtalk:measure:{id}:manual:abc"), ("action", "alimtalk:measure:{id}:action:7")):
+        order = _order("MEASURE", **tomorrow)
+        kept[name] = _with_measure_record(order, dedupe_key=key.format(id=order.id)).id
+    draft = _order("MEASURE", **tomorrow)
+    kept["draft_now"] = _with_measure_record(draft, dedupe_key="alimtalk:measure:draft:k:manual:y",
+                                             draft_schedule=_day(1) + ":오전").id
+    _sweep()
+    assert _made("send_measure_alimtalk") == set(made.values())
+    assert not set(kept.values()) & _made("send_measure_alimtalk")
+
+
+# ── 후보 고르기 자리 · 후보 하나의 실패(R-05 · R-06) ─────────────────────
+def test_held_and_old_orders_do_not_crowd_out_new_ones(proposers):
+    """R-05 — 제안이 걸린 주문은 같은 질의에서 빠지고 새 주문부터 읽어, 읽는 수 천장에 막혀도 새 주문에 닿는다."""
+    proposers.setattr(sweeps, "SCAN_LIMIT", 2)
+    held = [_order("DRAWING", stage_days=3) for _ in range(2)]
+    for order in held:
+        assert propose(db_session, action="assign_draftsman", proposed_by="agent:ops", order=order, params={},
+                       reason="합성 이유", evidence=[], source_kind="sweep", source_ref="1", level=1,
+                       now=now_utc_naive()) is not None
+    db_session.commit()
+    rejected = db_session.query(ErpActionProposal).filter(ErpActionProposal.order_id == held[1].id).one()
+    rejected.status = "rejected"
+    db_session.commit()
+    old_with_owner = [_order("DRAWING", stage_days=9, assignments={"drawing_assignee_user_ids": [7]})
+                      for _ in range(2)]
+    fresh = _order("DRAWING", stage_days=3)
+    assert _sweep().by_rule["O3"] == 1
+    assert _made("assign_draftsman") == {held[0].id, held[1].id, fresh.id}
+    assert not {o.id for o in old_with_owner} & _made("assign_draftsman")
+
+
+def test_held_orders_are_left_out_in_the_same_single_query(proposers):
+    """R-05 — 걸린 주문 빼기는 후보 질의 안(``NOT EXISTS``) — 규칙 하나의 후보 고르기는 질의 한 번 그대로."""
+    order = _order("DRAWING", stage_days=3)
+    propose(db_session, action="assign_draftsman", proposed_by="agent:ops", order=order, params={},
+            reason="합성 이유", evidence=[], source_kind="sweep", source_ref="1", level=1, now=now_utc_naive())
+    db_session.commit()
+    seen: list[str] = []
+    engine = db_session.get_bind()
+
+    def _count(_conn, _cursor, statement, *_args):
+        if "FROM orders" in statement:
+            seen.append(statement)
+
+    event.listen(engine, "before_cursor_execute", _count)
+    try:
+        picked = sweeps.RULES["O3"].pick(db_session, sweeps.SweepContext(now=now_utc_naive(), today=TODAY),
+                                         "assign_draftsman", 10)
+    finally:
+        event.remove(engine, "before_cursor_execute", _count)
+    assert picked == [] and len(seen) == 1 and "EXISTS" in seen[0].upper()
+
+
+def test_one_failing_candidate_does_not_undo_the_others(proposers, caplog):
+    """R-06 — 후보 하나가 터지면 그 저장점만 되감고(코드만 로그) 나머지 제안 · 실행 기록은 남는다."""
+    first, broken, last = (_order("DRAWING", stage_days=3) for _ in range(3))
+    real = sweeps.propose
+
+    def _boom(session, **kw):
+        if kw["order"].id == broken.id:
+            real(session, **kw)  # 저장점 안에서 줄을 만든 뒤 터진다 — 그 줄도 되감겨야 한다
+            raise RuntimeError("합성 실패 글 — 로그에 남지 않아야 함")
+        return real(session, **kw)
+
+    proposers.setattr(sweeps, "propose", _boom)
+    result = _sweep()
+    assert result.by_rule["O3"] == 2 and _made("assign_draftsman") == {first.id, last.id}
+    assert db_session.query(AiAgentRun).filter(AiAgentRun.agent == "ops").one().proposals == 2
+    assert "code=RuntimeError" in caplog.text and "합성 실패 글" not in caplog.text
 
 
 def test_dates_follow_the_korean_today(proposers):
@@ -197,14 +298,16 @@ def test_o4_starts_at_level_zero_then_proposes_when_raised(proposers):
     record = {"construction_date": _day(1), "sent_at": "2030-01-01T00:00:00", "message_id": "m", "error": None}
     sent = _order("PRODUCTION", alimtalk_construction=record, **_site(_day(1)))
     failed = _order("PRODUCTION", alimtalk_construction={**record, "sent_at": None, "error": "network"},
-                    **_site(_day(1)))  # 이력 있음(못 보냄) — 사람이 이미 본 일
+                    **_site(_day(1)))  # R-34 — 같은 날 실패 기록은 안 보냄(제안한다)
+    no_vendor = _order("PRODUCTION", alimtalk_construction={**record, "message_id": None}, **_site(_day(1)))
     moved = _order("PRODUCTION", alimtalk_construction={**record, "construction_date": _day(9)}, **_site(_day(1)))
     partner = _order("PRODUCTION", partner=True, **_site(_day(1)))
     no_phone = _order("PRODUCTION", schedule={"construction": {"date": _day(1)}})  # 막는 조건 — 전화 없음
     later = _order("PRODUCTION", **_site(_day(2)))
     result = _sweep()
-    assert result.by_rule["O4"] == 2 and _made("send_construction_alimtalk") == {yes.id, moved.id}
-    assert not {sent.id, failed.id, partner.id, no_phone.id, later.id} & _made("send_construction_alimtalk")
+    assert result.by_rule["O4"] == 4
+    assert _made("send_construction_alimtalk") == {yes.id, failed.id, no_vendor.id, moved.id}
+    assert not {sent.id, partner.id, no_phone.id, later.id} & _made("send_construction_alimtalk")
     row = db_session.query(ErpActionProposal).filter(ErpActionProposal.order_id == yes.id).one()
     assert (row.proposed_by, row.level, row.params, row.status) == ("agent:ops", 1, {}, "open")
     assert "합성손님" not in (row.reason or "") and row.preview[0]["after"] == "1건 보냄"

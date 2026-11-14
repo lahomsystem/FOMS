@@ -22,7 +22,7 @@ from foms.services.brain.scope import viewer_of
 from foms.services.erp_actions.registry import ACTIONS, LEVEL_LABELS, MAX_LEVEL
 from models import SecurityLog, SystemSetting
 
-__all__ = ["AUDIT_LEVELS_SAVED", "LevelError", "choices_of", "editable", "levels_view", "save_levels"]
+__all__ = ["AUDIT_LEVELS_SAVED", "LevelError", "choices_of", "editable", "levels_version", "levels_view", "save_levels"]
 
 AUDIT_LEVELS_SAVED = "AI_STAFF_LEVELS_SAVED"
 #: 실패 코드 → 화면 말(받은 값은 싣지 않는다).
@@ -61,6 +61,12 @@ def _row(session: Any, *, lock: bool) -> Optional[SystemSetting]:
     """수준 표 줄(``lock`` 이면 ``FOR UPDATE``) — 없으면 ``None``."""
     query = session.query(SystemSetting).filter(SystemSetting.setting_key == SETTINGS_KEY)
     return (query.populate_existing().with_for_update() if lock else query).first()
+
+
+def levels_version(session: Any) -> int:
+    """수준 표 판 번호(표가 없으면 0) — :func:`.registry.level_table` 이 세션에 읽어 둔 줄을 그대로 쓴다(``session.get``)."""
+    row = session.get(SystemSetting, SETTINGS_KEY)
+    return int(row.version or 0) if row is not None else 0
 
 
 def levels_view(session: Any) -> dict[str, Any]:

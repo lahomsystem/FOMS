@@ -213,13 +213,21 @@ def _one(run: _Run, case: store.EvalCase) -> None:
 # ── 한 번 돌리기 ──────────────────────────────────────────────────────────
 def _finish(run_id: int, session: Any, now: datetime.datetime, status: str, code: Optional[str],
             tally: Optional[_Tally] = None) -> tuple[str, Optional[str]]:
-    """결과 줄을 끝 상태로 적고 커밋한다. (상태, 코드)."""
-    store.update_run(session, run_id, now, status=status, code=code, **(tally.fields() if tally else {}))
+    """결과 줄을 끝 상태로 적고 커밋한다. (상태, 코드) — 그 사이 다른 쪽이 '멈춘 채 끝남'으로 풀었으면 덮어쓰지 않고 그 상태."""
+    written = store.update_run(session, run_id, now, status=status, code=code, **(tally.fields() if tally else {}))
     session.commit()
+    if not written:
+        return _released(run_id)
     logger.info("[AI 시험] 끝 run=%s status=%s code=%s old_set=%s risk_set=%s cost=%s", run_id, status, code,
                 tally.past if tally else None, tally.risk if tally else None,
                 store.money_text(tally.spent) if tally else None)
     return status, code
+
+
+def _released(run_id: int) -> tuple[str, Optional[str]]:
+    """제 결과 줄이 이미 풀림(멈춘 채 끝남 등) — 더 돌지 않고 아무것도 덮어쓰지 않는다. (상태, 코드)."""
+    logger.warning("[AI 시험] 결과 줄이 풀려 멈춤 run=%s", run_id)
+    return store.STALE, "released"
 
 
 def _prepare(session: Any, client: Any) -> tuple[dict[str, ApprovedKnowledge], Any]:
@@ -233,12 +241,16 @@ def _prepare(session: Any, client: Any) -> tuple[dict[str, ApprovedKnowledge], A
 
 
 def _loop(run: _Run) -> tuple[str, Optional[str]]:
-    """묶음을 만들고 차례마다 돈다 — 상한 · 시간 · 준비 안 됨이면 거기서 멈춘다."""
+    """묶음을 만들고 차례마다 돈다 — 상한 · 시간 · 준비 안 됨이면 거기서 멈춘다. 차례마다 제 결과 줄이 아직 도는 중인지
+    (마지막 소식을 적을 수 있는지) 보고, 풀렸으면 다음 차례를 부르지 않고(돈을 더 쓰지 않고) 멈춘다."""
     session = run.session
     eval_set = store.build_eval_set(session, run.now(), run.settings)
     run.tally.past["total"], run.tally.risk["total"] = len(eval_set.past), len(eval_set.risk)
-    store.update_run(session, run.run_id, run.now(), model=run.cfg.model_for(prompt.PURPOSE_DRAFT), **run.tally.fields())
+    alive = store.update_run(session, run.run_id, run.now(), model=run.cfg.model_for(prompt.PURPOSE_DRAFT),
+                             **run.tally.fields())
     session.commit()
+    if not alive:
+        return _released(run.run_id)
     for case in (*eval_set.past, *eval_set.risk):
         if _monotonic() - run.started > RUN_SECONDS:
             return _finish(run.run_id, session, run.now(), store.TIME_STOPPED, None, run.tally)
@@ -248,8 +260,10 @@ def _loop(run: _Run) -> tuple[str, Optional[str]]:
             return _finish(run.run_id, session, run.now(), store.CAP_STOPPED, exc.code, run.tally)
         except BrainNotReady as exc:
             return _finish(run.run_id, session, run.now(), store.NOT_READY, exc.code, run.tally)
-        store.update_run(session, run.run_id, run.now(), **run.tally.fields())
+        alive = store.update_run(session, run.run_id, run.now(), **run.tally.fields())
         session.commit()
+        if not alive:
+            return _released(run.run_id)
     return _finish(run.run_id, session, run.now(), store.DONE, None, run.tally)
 
 

@@ -23,6 +23,7 @@ from typing import Any, Iterable, Optional
 from foms.services.cs_agent.brain_cases import QUOTE
 from foms.services.cs_agent.masking import MaskLeak, require_masked
 from foms.services.cs_agent.order_block import AS_LABELS, MAX_PRODUCTS, PRODUCT_LIMIT, TIME_LIMIT
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_display import manager_display_name
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
@@ -182,6 +183,15 @@ def _manager_label(data: dict[str, Any]) -> str:
     return "" if not name or name.isdigit() else name[:_LABEL_LIMIT]
 
 
+def _kst_day(value: Any) -> Optional[datetime.date]:
+    """때(UTC — 시간대 없는 값은 UTC 로 본다, 납작 칸 ``erp_stage_updated_at`` 꼴) → 한국 날짜(못 읽으면 ``None``).
+
+    UTC 날짜를 그대로 떼면 한국 아침 9시 앞에 바뀐 단계가 하루 앞 날로 보인다.
+    """
+    text = format_datetime_kst(value, "%Y-%m-%d") if value else None
+    return datetime.date.fromisoformat(text) if text else None
+
+
 def _code(value: Any, known: Iterable[str]) -> str:
     """납작 칸 코드 — 아는 코드만(그 밖은 빈 글)."""
     text = str(value or "").strip()
@@ -194,7 +204,7 @@ def order_card(order: Any) -> OrderCard:
     stage = _code(order.erp_stage_code, STAGE_LABELS)
     return OrderCard(
         order_id=int(order.id), stage=stage, stage_label=STAGE_LABELS.get(stage, ""),
-        stage_since=_day(order.erp_stage_updated_at), products=_products(data),
+        stage_since=_kst_day(order.erp_stage_updated_at), products=_products(data),
         owner_team=_code(order.erp_owner_team_code, TEAM_LABELS), regional=bool(order.is_regional),
         self_measure=bool(order.is_self_measurement), as_state=_code(order.as_axis_status, AS_LABELS),
         manager_label=_manager_label(data))

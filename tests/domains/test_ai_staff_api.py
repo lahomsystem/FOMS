@@ -14,11 +14,15 @@ from __future__ import annotations
 import datetime
 
 import pytest
+from sqlalchemy import event
 from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services.ai_staff import sweeps
+from foms.services.ai_staff.levels import levels_view
+from foms.services.ai_staff.views import staff_detail
+from foms.services.brain.scope import viewer_of
 from foms.services.cs_agent.settings_field import MODEL_NAMES
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -187,3 +191,63 @@ def test_save_levels_round_trip_and_errors(client):
     assert bad["error"] == "수준 값이 맞지 않아요 — 다시 골라 주세요."
     assert _data(client.post(f"{BASE}/levels", data="not json"), 400)["data"]["fields"] == ["levels"]
     assert _data(client.get(f"{BASE}/nope"), 404)["error"] == "찾을 수 없습니다."
+
+
+# ── 질의 수 · 색인(R-35 · R-36) ──────────────────────────────────────────
+def _statements(fn):
+    """``fn`` 이 낸 SQL 과 인자 목록."""
+    seen: list[tuple[str, object]] = []
+    engine = db_session.get_bind()
+
+    def _listen(_conn, _cursor, statement, parameters, *_args):
+        seen.append((statement, parameters))
+
+    event.listen(engine, "before_cursor_execute", _listen)
+    try:
+        fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _listen)
+    return seen
+
+
+@pytest.mark.parametrize("key, ceiling", [("cs", 14), ("ops", 10), ("schedule", 7), ("ask", 5), ("drawing", 3)])
+def test_detail_reads_each_thing_once(client, key, ceiling):
+    """R-35 — 자세히 한 장은 수준 표 · 상담 초안 수를 한 번만 읽고, 승인율은 그 직원 할 일만 센다(전에는 상담 AI 23번)."""
+    admin = db_session.query(User).filter(User.username == "as_admin").one()
+    viewer = viewer_of(admin)
+    seen = _statements(lambda: staff_detail(db_session, viewer, key, now_utc_naive()))
+    assert len(seen) <= ceiling, [statement.split("FROM")[0][:60] for statement, _ in seen]
+    assert sum("cs_agent_messages" in statement for statement, _ in seen) == (1 if key == "cs" else 0)
+
+
+def test_detail_levels_version_is_the_saved_table_version(client):
+    """R-35 — 판 번호는 수준 표를 다시 읽지 않고 같은 줄에서(저장 뒤 판 번호와 같다)."""
+    _data(client.post(f"{BASE}/levels", json={"levels": {"ops": {"advance_stage": 1}}}))
+    _data(client.post(f"{BASE}/levels", json={"levels": {"ops": {"advance_stage": 0}}}))
+    version = levels_view(db_session)["version"]
+    assert version == 2 and _data(client.get(f"{BASE}/ops"))["data"]["levels_version"] == version
+
+
+def test_turn_reads_use_an_index(client):
+    """R-36 — 상담 AI 자세히의 차례 줄 읽기는 색인을 탄다(``created_at`` 만으로 거르면 표 전체 · 따로 정렬)."""
+    now = now_utc_naive()
+    for n, (state, age) in enumerate((("posted", 1), ("failed", 2), ("posted", 20 * 24))):
+        db_session.add(CsAgentTurn(brand="LAHOM", chat_id=f"ix{n}", last_user_message_id=f"ixm{n}", state=state,
+                                   latency_ms=1000 * (n + 1), cost_usd=1,
+                                   error_code="error" if state == "failed" else None,
+                                   created_at=now - datetime.timedelta(hours=age),
+                                   updated_at=now - datetime.timedelta(hours=age)))
+    db_session.commit()
+    admin = db_session.query(User).filter(User.username == "as_admin").one()
+    data: dict = {}
+    seen = _statements(lambda: data.update(staff_detail(db_session, viewer_of(admin), "cs", now)))
+    raw = db_session.connection().connection
+    mine = [(s, p) for s, p in seen if "cs_agent_turns" in s and "cs_agent_messages" not in s]
+    assert len(mine) == 4  # 시간 평균 · 비용 · 최근 실패 · 마지막 차례
+    for statement, params in mine:
+        plan = " | ".join(row[-1] for row in raw.execute("EXPLAIN QUERY PLAN " + statement, params).fetchall())
+        assert "TEMP B-TREE" not in plan, (statement, plan)
+        assert "USING INDEX" in plan or "ORDER BY cs_agent_turns.id DESC" in statement, (statement, plan)
+    assert data["usage"]["avg_ms"] == 1500 and data["usage"]["cost"] == "$2.00"  # 20일 된 줄은 빠진다
+    assert [item["code"] for item in data["failures"]] == ["error"]
+    assert data["run"]["total_ms"] == 3000  # 마지막 차례 = 가장 큰 번호

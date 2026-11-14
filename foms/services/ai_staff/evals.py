@@ -405,20 +405,28 @@ def claim_run(session: Any, run_id: int, now: datetime.datetime) -> Optional[dic
     return copy.deepcopy(run)
 
 
-def update_run(session: Any, run_id: int, now: datetime.datetime, **fields: Any) -> None:
-    """도는 줄 하나를 고친다(마지막 소식 때도 — 커밋은 부르는 쪽). ``status`` 가 끝 상태면 끝 때를 적는다. 없는 줄은 그대로."""
+def update_run(session: Any, run_id: int, now: datetime.datetime, **fields: Any) -> bool:
+    """'줄 섬' · '도는 중' 줄 하나를 고친다(마지막 소식 때도 — 커밋은 부르는 쪽). ``status`` 가 끝 상태면 끝 때를 적는다.
+
+    이미 끝난 줄(다른 쪽이 '멈춘 채 끝남'으로 푼 줄 포함) · 없는 줄은 그대로 둔다 — 늦게 깨어난 평가가 끝난 상태를 덮어쓰지 않는다.
+
+    Returns:
+        고쳤으면 참. 거짓이면 그 평가는 더 돌지 말아야 한다.
+    """
     at = naive_utc(now)
     row = _locked(session, RESULTS_KEY)
     runs = _runs_of(row)
     run = _find(runs, int(run_id))
-    if run is None:
-        logger.warning("[AI 시험] 결과 줄이 없어 고치지 않는다 run=%s", run_id)
-        return
+    if run is None or run.get("status") not in ACTIVE:
+        logger.warning("[AI 시험] 도는 결과 줄이 아니라 고치지 않는다 run=%s status=%s", run_id,
+                       run.get("status") if run else None)
+        return False
     run.update(copy.deepcopy(fields), heartbeat_at=_iso(at))
     if run.get("status") not in ACTIVE:
         run["finished_at"] = _iso(at)
     _put(row, {"runs": runs})
     session.flush()
+    return True
 
 
 def enqueue_run(run_id: int) -> bool:

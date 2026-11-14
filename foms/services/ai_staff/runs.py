@@ -4,7 +4,8 @@
   손님 글 없음). :func:`record_run` 은 커밋하지 않는다(부르는 쪽).
 - **상담 AI 는 새 줄을 쓰지 않는다** — 지금 차례 줄(``cs_agent_turns``)에서 단계를 엮어 보이고, 시간은 전체(``latency_ms``)만
   보인다(설계서 9절). 차례가 만든 할 일 제안(``source_kind = cs_turn``)이 있으면 그 단계를 더한다.
-- 최근 실패: 상담 AI 는 실패한 차례(실패 코드), 제안하는 직원은 실행하지 못한 제안(할 일 · 주문 번호 · 실패 코드).
+- 최근 실패: 상담 AI 는 실패한 차례(실패 코드 · 실패한 때 ``updated_at`` — ``(state, updated_at)`` 색인), 제안하는 직원은
+  실행하지 못한 제안(할 일 · 주문 번호 · 실패 코드). 상담 AI 마지막 차례는 번호(기본 키) 내림차순 한 줄.
 - 화면 글은 코드가 정한 말 · 숫자 · 날짜뿐이다. 시간은 한국 시간 글('MM-DD HH:MM').
 """
 
@@ -108,8 +109,7 @@ def _turn_steps(session: Any, turn: CsAgentTurn) -> list[dict[str, Any]]:
 
 
 def _cs_latest(session: Any) -> Optional[dict[str, Any]]:
-    turn = session.execute(select(CsAgentTurn).order_by(CsAgentTurn.created_at.desc(), CsAgentTurn.id.desc())
-                           .limit(1)).scalars().first()
+    turn = session.execute(select(CsAgentTurn).order_by(CsAgentTurn.id.desc()).limit(1)).scalars().first()
     if turn is None:
         return None
     steps = _turn_steps(session, turn)
@@ -141,11 +141,11 @@ def recent_failures(session: Any, agent: str, now: datetime.datetime, days: int 
     since = now - datetime.timedelta(days=days)
     found: list[tuple[datetime.datetime, dict[str, Any]]] = []
     if agent == "cs":
-        for turn in session.execute(select(CsAgentTurn.created_at, CsAgentTurn.error_code).where(
-                CsAgentTurn.state == "failed", CsAgentTurn.created_at >= since)
-                .order_by(CsAgentTurn.created_at.desc()).limit(limit)):
-            found.append((turn.created_at, {"label": "초안을 못 씀", "code": turn.error_code or "", "at": _at(turn.created_at),
-                                            "href": None}))
+        for turn in session.execute(select(CsAgentTurn.updated_at, CsAgentTurn.error_code).where(
+                CsAgentTurn.state == "failed", CsAgentTurn.updated_at >= since)
+                .order_by(CsAgentTurn.updated_at.desc()).limit(limit)):
+            found.append((turn.updated_at, {"label": "초안을 못 씀", "code": turn.error_code or "",
+                                            "at": _at(turn.updated_at), "href": None}))
     if AGENTS[agent].actions():
         for row in session.execute(select(ErpActionProposal).where(
                 ErpActionProposal.proposed_by == proposer(agent), ErpActionProposal.status == STATUS_FAILED,

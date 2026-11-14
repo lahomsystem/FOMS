@@ -30,7 +30,7 @@ MAX_ANSWER = 1200
 ERP_ANSWER = "주문 · 손님 · 일정 같은 주문 자료는 아직 여기서 답하지 않아요 — 주문 화면에서 확인해 주세요."
 #: 주문을 읽었는데 코드 확인(주문 키 근거 · 날짜 · 숫자)을 못 지난 답 대신 보이는 글.
 ERP_CHECK_ANSWER = "이 주문에서 읽은 칸으로는 답을 확인하지 못했어요 — 주문 화면에서 확인해 주세요."
-FIELDS =("answer", "evidence_ids", "check_ids", "unknown", "kind", "ask_team", "layer", "confidence")
+FIELDS = ("answer", "evidence_ids", "check_ids", "unknown", "kind", "ask_team", "layer", "confidence")
 
 SYSTEM = """너는 HAUD(라홈 · 하우드) 회사 직원이 묻는 회사 지식에 답하는 'FOMS 회사 지식 물어보기'다.
 
