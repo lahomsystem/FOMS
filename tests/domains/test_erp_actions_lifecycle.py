@@ -452,3 +452,16 @@ def test_level_zero_also_blocks_the_shared_service_runner_path(app, monkeypatch)
     db_session.expire_all()
     assert "notes" not in (db_session.get(Order, order.id).structured_data or {})
     assert db_session.get(ErpActionProposal, row.id).status == "open"
+
+
+def test_a_proposal_past_its_expiry_does_not_run_before_the_nightly_cleanup(app):
+    """F-13 — 기간이 지났지만 밤 정리(expire_due) 전이라 아직 open 인 제안은 승인해도 실행하지 않는다(409 · 실행기 0번)."""
+    admin, order = _user(), _order("RECEIVED")
+    row, calls = _propose(order), []
+    row.expires_at = NOW - datetime.timedelta(minutes=1)
+    db_session.commit()
+    with pytest.raises(ActionError) as err:
+        _approve(row, admin, {"schedule_construction": _runner(calls)})
+    assert err.value.code == "ACTION_NOT_OPEN" and calls == []
+    db_session.expire_all()
+    assert db_session.get(ErpActionProposal, row.id).status == "open"  # 줄 상태는 밤 정리가 바꾼다
