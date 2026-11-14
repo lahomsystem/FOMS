@@ -458,6 +458,20 @@
   .foms-prod-home__nav::-webkit-scrollbar { display: none; }
 }
 
+/* ── 키 낮은 가로 터치 화면: 시공일 띠 날 단추 두 칸씩(11-14 현장 태블릿 창 1176×626 실측) ──
+   한 줄씩이면 띠에 머리 40 + 날 13줄 × 48 + 아래 칸 49 = 713px 가 들어가야 하는데 창 626 − 제목 줄 73 = 553px 라
+   마지막 날 3개와 아래 칸(지난 시공일 · 시공일 없음)이 띠 안에서 따로 굴려야 보였다. 713 + 73 = 786px 아래에서만
+   '지난 7일' 은 한 줄 그대로, 나머지 날은 두 칸씩(날짜 · 수 / 막대 밑줄) — 단추 높이 48(장갑, D5)은 그대로.
+   1280×800 · PC(마우스)는 이 규칙 밖이라 한 줄씩 그대로다. ── */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: 785.98px) {
+  .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .fph-strip__h, .fph-strip__f, .fph-sd:first-of-type { grid-column: 1 / -1; }
+  .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
+  .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
+  .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
+  .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+}
+
 /* ── 세로·폰(992px 아래): 카드 두 줄 ── */
 @media (max-width: 991.98px) {
   .foms-prod-home__bar { padding: 8px 12px; }
