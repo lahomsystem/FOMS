@@ -52,8 +52,8 @@ def test_switch_on_adds_erp_types_actions_and_counts_erp_material(admin):
                                                                     "erp:visit", "erp:as_case"}
     assert [a["name"] for a in erp["actions"]] == list(ACTIONS)
     where = {a["name"]: a["where"] for a in erp["actions"]}
-    assert where["cancel_order"] == "PC · 사장님" and where["advance_stage"] == "주문 화면에서"
-    assert where["schedule_construction"] == "폰 승인"
+    assert where["cancel_order"] == "PC · 사장님" and where["advance_stage"] == "폰 승인"  # D206 — 바로가기 아님(T14)
+    assert where["schedule_construction"] == "폰 승인" and where["assign_draftsman"] == "PC 승인"
     assert {a["name"]: a["level_label"] for a in erp["actions"]}["cancel_order"] == "사람만"
     assert erp["cq_erp"] == len(ERP_CQS) > 0
     assert erp_ready_needs() == frozenset(ERP_NEEDS)  # 주문 · 일정(방문) 모두 읽기 도구가 있다

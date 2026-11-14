@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 
 import pytest
@@ -15,7 +16,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.persistence.graft.models import BrainUsageEvent, ErpActionProposal
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
-from foms.services.erp_actions import lifecycle
+from foms.services.erp_actions import lifecycle, registry
 from foms.services.erp_actions.lifecycle import ActionError, approve, expire_due, propose, reconcile, reject, snooze
 from foms.services.erp_actions.registry import ActionShapeError, dedupe_key
 from foms.services.erp_actions.runners import RunOutcome
@@ -74,6 +75,11 @@ def _runner(calls: list, outcome: RunOutcome | None = None, effect=None):
 def _approve(row, actor, runners, **kwargs):
     kwargs.setdefault("base_version", row.base_version)
     return approve(db_session, row.id, actor=actor, runners=runners, now=NOW, **kwargs)
+
+
+def _as_link(monkeypatch, name: str = "assign_draftsman") -> None:
+    """판 1 끝에는 바로가기 할 일이 없다(D206 · T14) — 바로가기 길(떼어 내기가 막힌 할 일의 꼴)은 하나를 바꿔 끼워 본다."""
+    monkeypatch.setitem(registry.ACTIONS, name, dataclasses.replace(registry.ACTIONS[name], mode=registry.MODE_LINK))
 
 
 def _audits(code: str) -> list[SecurityLog]:
@@ -260,8 +266,9 @@ def test_blocked_run_reopens_with_the_wrapped_message(app):
     assert _audits("ERP_ACTION_FAILED")[0].detail["outcome"] == "blocked"
 
 
-def test_link_mode_and_missing_runner_are_shape_errors(app):
+def test_link_mode_and_missing_runner_are_shape_errors(app, monkeypatch):
     admin = _user()
+    _as_link(monkeypatch)
     link = _propose(_order("DRAWING"), action="assign_draftsman", proposed_by="agent:ops", params={}, level=1)
     with pytest.raises(ActionError) as shape:
         _approve(link, admin, {"assign_draftsman": _runner([])})
@@ -316,8 +323,9 @@ def test_expire_due_by_date_and_by_seven_days(app):
     assert {db_session.get(ErpActionProposal, r.id).status for r in (dated, later)} == {"expired"}
 
 
-def test_reconcile_two_ways_and_link_close(app):
+def test_reconcile_two_ways_and_link_close(app, monkeypatch):
     admin = _user()
+    _as_link(monkeypatch)
     done_order, lost_order = _order("RECEIVED"), _order("RECEIVED")
     done, lost = _propose(done_order), _propose(lost_order, params={"date": _day(12), "time": "오후"})
     recent = _propose(_order("RECEIVED"), params={"date": _day(13), "time": ""})

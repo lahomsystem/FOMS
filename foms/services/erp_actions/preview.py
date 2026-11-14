@@ -4,6 +4,7 @@
   ``steps`` 승인하면 차례로 · ``ran`` 이 제안의 실행 흔적 — 없으면 ``verify``). 뒤 일감(T14 · T15)은 할 일 목록을 고치는 대신
   이 표에 줄을 더하거나 바꾼다. :data:`CHOICE_SOURCES` — (할 일, 넣을 값) → 고를 값 목록 함수(없으면 넣을 값의 ``choices``).
 - 모두 순수 함수다 — 주문 줄 하나와 넣을 값만 읽는다(DB 질의 없음). ``steps`` 는 감싼 기능이 실제로 하는 일만 적는다.
+  예외는 고를 값 목록(도면 담당 고르기 — 승인 창을 열 때 사용자 표 질의 하나)뿐이다.
 - 화면 말은 코드가 정한 말 + 날짜 · 시간대 · 가림 검사를 지난 글뿐 — 손님 · 직원 이름 · 전화 · 주소 · 금액 · 시공 팀 · 인원 없음(D211).
 """
 
@@ -13,7 +14,9 @@ import copy
 import datetime
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
+from sqlalchemy.orm import object_session
 
+from db import db_session
 from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.cs_agent.masking import MaskLeak, require_masked
@@ -21,19 +24,23 @@ from foms.services.cs_agent.order_block import AS_LABELS
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_actions.registry import ActionShapeError, get
 from foms.services.erp_order_flags import is_erp_order_draft
-from foms.services.kakao_alimtalk import _ineligible_reason  # 발송 자격 정본 — 다시 만들면 표시 · 발송 판정이 갈린다
+from foms.services.kakao_alimtalk import _env_flag, _ineligible_reason  # 발송 자격 · 자동 스위치 정본(갈리면 안 된다)
 from foms.services.notifications.drawing_order_change import should_alert_drawing_team
 from foms.services.orders.as_cycle_service import current_cycle
 from foms.services.orders.change_reason import is_reason_required
+from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.construction_note import note_lines, note_problem
 from foms.services.orders.construction_schedule import ScheduleInputError, validate_schedule_input
-from foms.services.orders.erp_policy_constants import STAGE_LABELS
+from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.orders.erp_policy_data_access import get_stage
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
+from foms.services.orders.quest_transition_service import find_stage_quest_for_approve, stage_advance_target
 from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.orders.state_axes import read_as_status, read_deleted, read_main_stage
 from foms.services.orders.structured_diff import diff_structured
 from foms.services.partners.schedule_request import request_open
 from foms.services.production_change_alerts import PROD_STAGES
+from models import User
 
 __all__ = [
     "ActionFns", "CHOICE_SOURCES", "FUNCTIONS", "NONE_LABEL", "alimtalk_action_key", "check", "date_label", "functions",
@@ -50,7 +57,9 @@ _ALIMTALK_REASONS = {
     "no_valid_phone": "손님 휴대폰 번호가 없어 보낼 수 없어요.", "brand_profile_missing": "이 브랜드 알림톡 서식이 아직 없어요.",
 }
 _DRAWING_ALERT = "도면팀 알림 — 도면 일이 걸린 주문"
-_LINK_STEPS = ["주문 화면에서 처리 — 지금 화면 그대로(승인 대기에서는 실행하지 않아요)"]
+_CODE_TO_NAME = {code: name for name, code in STAGE_NAME_TO_CODE.items()}  # 승인 본체와 같은 역표
+_OTHER_PATH = {"DRAWING": "도면 단계는 도면 전달 · 수령 확정으로 넘어가요.", "COMPLETED": "더 넘길 단계가 없어요.",
+               "PRODUCTION": "생산 단계는 생산 완료로 넘어가요.", "CONSTRUCTION": "시공 단계는 시공 완료로 넘어가요."}
 
 Params = Mapping[str, Any]
 
@@ -289,27 +298,71 @@ def _preview_note(order: Any, params: Params) -> list[dict[str, str]]:
     return _row("시공 메모", f"{count}줄" if count else NONE_LABEL, f"+ {_text(params.get('note'))}")
 
 
-# ── 바로가기(link) — 단계 넘기기 · 도면 담당 맡기기 · 방문 옮기기(실측) ────────────
+# ── 단계 넘기기 · 도면 담당 맡기기 · 방문 옮기기(실측) — 요청에서 떼어 낸 지금 처리기 본체(D206) ─────────
 def _stage(order: Any) -> str:
     return _text(getattr(order, "erp_stage_code", "")).upper()
 
 
+def _advance(order: Any) -> tuple[str, Optional[str]]:
+    """(지금 단계 원문, 승인 본체의 재전이가 넘길 단계) — 전이표 셋(접수 · 실측 · 고객컨펌)과 CS 최종 완료만, 그 밖은 None."""
+    stage = _text(get_stage(_sd(order)))
+    return stage, ("COMPLETED" if stage == "CS" else stage_advance_target(stage))
+
+
+def _stuck(order: Any) -> bool:
+    """승인을 다 받았는데 단계가 그대로인가 — 승인 본체가 잡을 지금 단계 현재 작업(같은 고르기)이 COMPLETED."""
+    stage, target = _advance(order)
+    quest = find_stage_quest_for_approve(_sd(order), _CODE_TO_NAME.get(stage, stage), stage)[0] if target else None
+    return quest is not None and str(quest.get("status", "OPEN")).upper() == "COMPLETED"
+
+
 def _check_advance(order: Any, _params: Params) -> Optional[str]:
-    stage = _stage(order)
-    last = stage not in MAIN_PIPELINE_CODES or stage == MAIN_PIPELINE_CODES[-1]
-    return _gate(order) or ("더 넘길 단계가 없어요." if last else None)
+    """승인 본체의 재전이 길만 지난다(설계서 3.10 O2) — 사람 대신 팀 승인을 새로 적는 길은 열지 않는다."""
+    gate = _gate(order)
+    if gate:
+        return gate
+    stage, target = _advance(order)
+    if target is None:
+        return _OTHER_PATH.get(STAGE_NAME_TO_CODE.get(stage, stage), "이 단계는 주문 화면에서 넘겨 주세요.")
+    block = confirm_exit_block(_sd(order)) if stage == "CONFIRM" else None
+    if block is not None:
+        return block.reason
+    return None if _stuck(order) else "아직 승인하지 않은 현재 작업이 있어요 — 주문 화면에서 승인해 주세요."
 
 
 def _preview_advance(order: Any, _params: Params) -> list[dict[str, str]]:
-    stage = _stage(order)
-    index = MAIN_PIPELINE_CODES.index(stage) if stage in MAIN_PIPELINE_CODES else -1
-    after = MAIN_PIPELINE_CODES[index + 1] if 0 <= index < len(MAIN_PIPELINE_CODES) - 1 else ""
-    return _row("주문 단계", STAGE_LABELS.get(stage, NONE_LABEL), STAGE_LABELS.get(after, NONE_LABEL))
+    stage, target = _advance(order)
+    return _row("주문 단계", STAGE_LABELS.get(STAGE_NAME_TO_CODE.get(stage, stage), NONE_LABEL),
+                STAGE_LABELS.get(target or "", NONE_LABEL))
 
 
-def _preview_assign(order: Any, _params: Params) -> list[dict[str, str]]:
-    count = len(get_assignee_ids(order, "DRAWING_DOMAIN"))
-    return _row("도면 담당", f"{count}명" if count else NONE_LABEL, "승인하는 사람이 고름")
+def _steps_advance(order: Any, _params: Params) -> list[str]:
+    stage, target = _advance(order)
+    move = f"단계 넘김 — {STAGE_LABELS.get(stage, stage)} → {STAGE_LABELS.get(target or '', NONE_LABEL)}"
+    if stage == "CS":
+        return ["FOMS 최종 완료 — CS 완료와 같은 기능(보류 · 진행 중 AS 가 있으면 막혀요)", move]
+    return ["FOMS 현재 작업 승인 다시 걸기 — 주문 화면 [승인]과 같은 기능(승인 기록은 그대로)", move,
+            *(["실측 현재 작업 새로 만들기"] if target == "MEASURE" else [])]
+
+
+def _preview_assign(order: Any, params: Params) -> list[dict[str, str]]:
+    count, chosen = len(get_assignee_ids(order, "DRAWING_DOMAIN")), list(params.get("user_ids") or [])
+    return _row("도면 담당", f"{count}명" if count else NONE_LABEL, f"{len(chosen)}명" if chosen else "승인하는 사람이 고름")
+
+
+def _verify_assign(order: Any, params: Params) -> bool:
+    """고른 사람이 있으면 그 사람들이 담당인가, 없으면(AI 제안 그대로) 담당이 생겼나."""
+    current, chosen = get_assignee_ids(order, "DRAWING_DOMAIN"), list(params.get("user_ids") or [])
+    return sorted(current) == sorted(chosen) if chosen else bool(current)
+
+
+def _drawing_people(order: Any) -> list[dict[str, Any]]:
+    """도면 담당으로 고를 사람 — 지정 본체가 받는 사람과 같은 잣대(켜진 계정 · 팀 DRAWING). 승인 창을 열 때만 읽는다."""
+    session = (object_session(order) if order is not None else None) or db_session
+    rows = (session.query(User.id, User.name, User.team)
+            .filter(User.is_active == True, User.team.isnot(None)).all())  # noqa: E712 — 지정 본체와 같은 비교
+    people = sorted((str(name or ""), int(uid)) for uid, name, team in rows if (team or "").strip() == "DRAWING")
+    return [{"value": uid, "label": name} for name, uid in people]
 
 
 def _measurement(order: Any) -> tuple[list[str], str]:
@@ -332,6 +385,19 @@ def _preview_move_measurement(order: Any, params: Params) -> list[dict[str, str]
     days, time = _measurement(order)
     before = f"{', '.join(date_label(day) or day for day in days)} {_masked(time)}".strip()
     return _row("실측 날짜", before or NONE_LABEL, _when(params.get("date")))
+
+
+def _steps_move_measurement(order: Any, params: Params) -> list[str]:
+    """칸 고치기 본체가 하는 일 — 실측일 쓰기 · 도면팀 알림 · 당일 실측 알림(오늘로 새로) · 커밋 뒤 자동 알림톡."""
+    day = _text(params.get("date"))
+    lines = ["FOMS 실측일 쓰기 — 주문 화면 실측일 칸과 같은 기능", *_drawing_alert(order)]
+    if day == get_today_kst().isoformat() and day not in _measurement(order)[0]:
+        lines.append("영업팀 모두에게 알림 — 오늘 실측이 새로 생김")
+    sd = copy.deepcopy(_sd(order))
+    sd["schedule"] = {**_node(sd, "schedule"), "measurement": {**_node(sd, "schedule", "measurement"), "date": day}}
+    if _env_flag("FOMS_ALIMTALK_AUTO_ENABLED") and not _ineligible_reason(order, sd):
+        lines.append("손님 알림톡 1건 — 실측 예약 안내(자동 보내기 · 같은 일정 안내를 이미 보냈으면 안 나가요)")
+    return lines
 
 
 def _fixed(lines: list[str]) -> Callable[[Any, Params], list[str]]:
@@ -359,17 +425,20 @@ FUNCTIONS: dict[str, ActionFns] = {
         lambda o, p: _gate(o) or note_problem(_sd(o), p.get("note")), _preview_note,
         lambda o, p: " ".join(_text(p.get("note")).split()) in note_lines(_sd(o)),
         lambda o, p: ["FOMS 시공 메모 끝에 한 줄 더하기 — 있던 메모는 그대로", *_drawing_alert(o)]),
-    "advance_stage": ActionFns(_check_advance, _preview_advance, lambda o, p: False, _fixed(_LINK_STEPS)),
+    "advance_stage": ActionFns(_check_advance, _preview_advance, lambda o, p: not _stuck(o), _steps_advance),
     "assign_draftsman": ActionFns(
         lambda o, p: _gate(o) or ("이미 도면 담당이 있어요." if get_assignee_ids(o, "DRAWING_DOMAIN") else None),
-        _preview_assign, lambda o, p: bool(get_assignee_ids(o, "DRAWING_DOMAIN")), _fixed(_LINK_STEPS)),
+        _preview_assign, _verify_assign,
+        _fixed(["FOMS 도면 담당 지정 — 주문 화면 도면 담당 칸과 같은 기능", "단계 이력에 '도면 담당자 지정' 한 줄"])),
     "move_measurement": ActionFns(
         _check_move_measurement, _preview_move_measurement,
-        lambda o, p: _text(p.get("date")) in _measurement(o)[0], _fixed(_LINK_STEPS)),
+        lambda o, p: _text(p.get("date")) in _measurement(o)[0], _steps_move_measurement),
 }
 
-#: (할 일, 넣을 값) → 고를 값 목록 함수(주문을 받는다). 뒤 일감이 더한다(예: 도면 담당 고르기 사람 목록).
-CHOICE_SOURCES: dict[tuple[str, str], Callable[[Any], list[dict[str, Any]]]] = {}
+#: (할 일, 넣을 값) → 고를 값 목록 함수(주문을 받는다). 뒤 일감이 더한다.
+CHOICE_SOURCES: dict[tuple[str, str], Callable[[Any], list[dict[str, Any]]]] = {
+    ("assign_draftsman", "user_ids"): _drawing_people,
+}
 
 
 def functions(action: Any) -> ActionFns:

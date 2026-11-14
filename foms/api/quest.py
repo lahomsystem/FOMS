@@ -253,16 +253,18 @@ def _has_measurement_checklist(order) -> bool:
     )
 
 
-def _idempotency_key(body):
+def _idempotency_key(body, header=None):
     """요청 idempotency key(헤더 우선, body fallback, ≤64자). 없으면 None(중복제거 안 함).
 
     Args:
         body: 요청 JSON dict.
+        header: ``Idempotency-Key`` 머리글 값 — 길 껍데기가 읽어 넘긴다(본체는 요청을 읽지 않는다,
+            D206). 승인 대기 실행기는 넘기지 않는다(본문 ``idempotency_key`` 만 쓴다).
 
     Returns:
         idempotency key 문자열 또는 None.
     """
-    key = request.headers.get("Idempotency-Key") or (body or {}).get("idempotency_key")
+    key = header or (body or {}).get("idempotency_key")
     key = str(key).strip() if key is not None else ""
     return key[:64] if key else None
 
@@ -314,12 +316,13 @@ def _already_transitioned_into(sd, current_stage_code: str) -> bool:
     return False
 
 
-def _complete_cs_after_approve(db, order, user, user_id, payload):
+def _complete_cs_after_approve(db, order, user, user_id, payload, idempotency_header=None):
     """CS 최종 승인 뒤 같은 tx 에서 최종 완료(CS_COMPLETE)까지 보낸다(CS-AUTO-COMPLETE-01).
 
     완료 정본 경로 :func:`complete_order_as_cs` 를 그대로 탄다(attempt 봉인·history·감사).
     보류·진행 중 AS·ERP 수정 권한 없음은 승인을 실패시키지 않는다 — 승인 기록은 유효하고
     단계만 CS 에 남긴다. 화면이 사유를 보여 주도록 ``blocked`` 를 돌려준다.
+    ``idempotency_header`` 는 본체가 받은 ``Idempotency-Key`` 머리글 값(:func:`_idempotency_key`).
 
     Returns:
         ``(completed, blocked, error_response)``. ``error_response`` 가 있으면 전이가
@@ -328,7 +331,7 @@ def _complete_cs_after_approve(db, order, user, user_id, payload):
     if not can_edit_erp(user):
         return False, {'code': 'NO_COMPLETE_PERMISSION',
                        'message': 'CS 확인은 기록됐지만 완료 처리 권한이 없어 CS 단계에 남습니다.'}, None
-    idem_key = _idempotency_key(payload)
+    idem_key = _idempotency_key(payload, idempotency_header)
     if not cs_complete_replay(db, user_id, idem_key):
         hit = cs_gate_code(order, order.structured_data or {})
         if hit is not None:
@@ -368,7 +371,34 @@ def _transition_error_response(exc):
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_order_quest_approve(order_id):
-    """팀별/담당자 Quest 승인 (권한 게이트 + 승인 기록). 상태 전이는 STATE-QUEST-01 하류."""
+    """팀별/담당자 Quest 승인 — 요청 본문 · 세션 사용자 · ``Idempotency-Key`` 머리글을 읽어 본체에 넘긴다.
+
+    본체는 :func:`approve_quest_from_payload`(승인 대기 '단계 넘기기' 실행기와 같은 본체 — D206).
+    """
+    return approve_quest_from_payload(
+        order_id, request.get_json(silent=True) or {}, session.get('user_id'), session.get('username'),
+        idempotency_header=request.headers.get("Idempotency-Key"),
+    )
+
+
+def approve_quest_from_payload(order_id, payload, user_id, username, *, idempotency_header=None):
+    """팀별/담당자 Quest 승인 (권한 게이트 + 승인 기록). 상태 전이는 STATE-QUEST-01 하류.
+
+    지금 길(:func:`api_order_quest_approve`)과 승인 대기 실행기(``foms/api/erp_action_runners.py``)가 같은
+    본체를 부른다(설계서 2026-11-14-foms-graft 3.12). 떼어 낼 때 바꾼 것은 요청 본문 · 세션 사용자 번호 ·
+    세션 아이디 · ``Idempotency-Key`` 머리글을 인자로 받은 것뿐이다 — 판정 · 순서 · 글 · 로그 · 커밋 자리는
+    그대로다. 로그인 · 역할(장식자)과 앞 문지기(주문 정책 가드)는 부르는 쪽 몫이다.
+
+    Args:
+        order_id: 대상 주문 번호.
+        payload: 요청 본문 dict(``team`` · ``emergency_override`` · ``admin_override`` …).
+        user_id: 승인하는 사용자 번호(지금 길은 ``session['user_id']``).
+        username: 승인하는 사람 아이디(지금 길은 ``session['username']`` — ``approved_by_name`` 등에 남는다).
+        idempotency_header: ``Idempotency-Key`` 머리글 값(없으면 본문 ``idempotency_key`` 만 본다).
+
+    Returns:
+        Flask 답(지금 길이 그대로 돌려준다).
+    """
     try:
         db = get_db()
         # 첫 조회부터 행 잠금 — 판정(도면 게이트 포함)·승인 기록·전이가 모두 같은 잠금 아래다.
@@ -377,12 +407,10 @@ def api_order_quest_approve(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        payload = request.get_json(silent=True) or {}
         team = (payload.get('team') or '').strip()
         emergency_override = payload.get('emergency_override', False)
         override_reason = payload.get('override_reason', '').strip()
 
-        user_id = session.get('user_id')
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
@@ -460,7 +488,7 @@ def api_order_quest_approve(order_id):
                         f'단계로 넘어간 주문입니다. 화면을 새로고침하세요.'
                     ),
                 }), 409
-            owner_person = session.get('username') or ''
+            owner_person = username or ''
             current_quest = create_quest_from_template(current_stage_name, owner_person, sd)
             if not current_quest:
                 return jsonify({'success': False, 'message': 'Quest 템플릿을 찾을 수 없습니다.'}), 400
@@ -477,7 +505,7 @@ def api_order_quest_approve(order_id):
         if not allowed:
             return jsonify({'success': False, 'message': deny_msg}), deny_status
 
-        username = session.get('username') or ''
+        username = username or ''
         now = datetime.datetime.now()
 
         # ── 재전이: 강제 단계 변경(regress)으로 되돌아온 뒤 완료 quest 가 그대로 남아 있으면
@@ -491,7 +519,8 @@ def api_order_quest_approve(order_id):
         if quest_done and current_stage_code == 'CS':
             _audit_quest(order, 'QUEST_APPROVED', user_id, note='재전이',
                          extra={'team': team, 'retransition': True})
-            completed, blocked, failed = _complete_cs_after_approve(db, order, user, user_id, payload)
+            completed, blocked, failed = _complete_cs_after_approve(
+                db, order, user, user_id, payload, idempotency_header)
             if failed is not None:
                 return failed
             db.commit()
@@ -523,7 +552,7 @@ def api_order_quest_approve(order_id):
                     actor_user_id=user_id,
                     scope_hash=_scope_hash(_QUEST_APPROVE_COMMAND, order.id),
                     request_hash=_request_hash(payload),
-                    idempotency_key=_idempotency_key(payload),
+                    idempotency_key=_idempotency_key(payload, idempotency_header),
                     reason=f'{current_stage_name} 재전이(완료 quest, 강제 단계 변경 뒤)',
                     source_screen='erp_dashboard',
                     now=now,
@@ -696,7 +725,7 @@ def api_order_quest_approve(order_id):
                     actor_user_id=user_id,
                     scope_hash=_scope_hash(_QUEST_APPROVE_COMMAND, order.id),
                     request_hash=_request_hash(payload),
-                    idempotency_key=_idempotency_key(payload),
+                    idempotency_key=_idempotency_key(payload, idempotency_header),
                     reason=f'{current_stage_name} 최종 승인',
                     source_screen='erp_dashboard',
                     now=now,
@@ -712,7 +741,7 @@ def api_order_quest_approve(order_id):
         completion_blocked = None
         if is_complete and current_stage_code == 'CS':
             cs_completed, completion_blocked, failed = _complete_cs_after_approve(
-                db, order, user, user_id, payload)
+                db, order, user, user_id, payload, idempotency_header)
             if failed is not None:
                 return failed
             auto_transitioned = auto_transitioned or cs_completed

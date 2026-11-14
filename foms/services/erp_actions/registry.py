@@ -4,11 +4,13 @@
 AI 가 가질 수 있는 가장 높은 수준 · 감싼 기능 글 · 폰 승인 · 채널톡 작은 창 줄을 적는다. 실행 · 미리 보기 · 끝난 조건 함수는
 여기 두지 않는다(:mod:`.preview` · :mod:`.runners` 가 이름 → 함수 표로 잇는다).
 
-- 갈래(:data:`MODES`): ``run`` 승인하면 실행 · ``link`` 바로가기만(감싼 기능이 요청에 묶인 긴 처리기라 서버에서 그대로 부를 수
-  없다 — 설계서 11절 결정 1) · ``human`` 사람만(제안 · 실행 길 없음 — 넣을 값도 없다).
+- 갈래(:data:`MODES`): ``run`` 승인하면 실행 · ``link`` 바로가기만(감싼 처리기를 요청에서 떼어 내지 못한 할 일만 남는 꼴 —
+  판 1 끝에는 없다, D206) · ``human`` 사람만(제안 · 실행 길 없음 — 넣을 값도 없다).
 - 넣을 값 꼴(:data:`PARAM_KINDS`): ``date``('YYYY-MM-DD' · 오늘 이후) · ``time_slot``(:data:`TIME_SLOTS` — 시공일 쓰기
-  ``construction_schedule.TIME_CHOICES`` 와 같은 글자, 시험이 견준다) · ``masked_text``(가림 검사 0 · 길이 상한) · ``choice``.
-  전화 · 주소 · 금액을 받는 꼴은 없다.
+  ``construction_schedule.TIME_CHOICES`` 와 같은 글자, 시험이 견준다) · ``masked_text``(가림 검사 0 · 길이 상한) · ``choice`` ·
+  ``users``(사람 고르기 — 사용자 번호만 · 겹침 뺌 · 상한) · ``flag``(참 · 거짓). 전화 · 주소 · 금액을 받는 꼴은 없다.
+- 꼭 있어야 함(``required``): 날짜 · 글 · 고르기는 본문에 칸이 있어야 한다. 사람 고르기는 **승인하는 사람이 골라야 실행된다**는
+  뜻이다 — 제안 때는 비워 둔다(AI 는 사람을 고르지 않는다 · 비면 빈 목록), 빈 채 승인하면 감싼 본체가 막는다(409).
 - 이 모듈은 가볍게 둔다(선언만 — 시공일 쓰기 모듈처럼 알림까지 끌어오는 import 를 하지 않는다). 어느 길에서 먼저 불려도 된다.
 - :func:`parse_params` 가 정한 칸만 · 꼴을 본다 — 틀리면 :class:`ActionShapeError`(칸 이름만 싣는다, 받은 값은 싣지 않는다).
 - 수준은 0 ~ 2 까지만 있다(자율 수준 3 — 사람 승인 없는 실행 — 의 코드는 만들지 않는다).
@@ -28,8 +30,9 @@ from foms.services.datetime_kst import get_today_kst
 
 __all__ = [
     "ACTIONS", "ActionShapeError", "ActionSpec", "EVIDENCE_KINDS", "FAILURES", "HUMAN_LABEL", "KIND_CHOICE",
-    "KIND_DATE", "KIND_MASKED_TEXT", "KIND_TIME_SLOT", "LEVEL_LABELS", "LEVELS", "MAX_EVIDENCE", "MAX_LEVEL",
-    "MAX_REASON", "MODE_HUMAN", "MODE_LINK", "MODE_RUN", "MODES", "PARAM_KINDS", "Param", "REJECT_CODES",
+    "KIND_DATE", "KIND_FLAG", "KIND_MASKED_TEXT", "KIND_TIME_SLOT", "KIND_USERS", "LEVEL_LABELS", "LEVELS",
+    "MAX_EVIDENCE", "MAX_LEVEL", "MAX_REASON", "MAX_USERS", "MODE_HUMAN", "MODE_LINK", "MODE_RUN", "MODES",
+    "PARAM_KINDS", "Param", "REJECT_CODES",
     "REJECT_LABELS", "SOURCE_KINDS", "STATUS_EXECUTED", "STATUS_EXECUTING", "STATUS_EXPIRED", "STATUS_FAILED",
     "STATUS_OPEN", "STATUS_REJECTED", "STATUS_SUPERSEDED", "STATUSES", "TIME_SLOTS", "dedupe_key", "get",
     "level_label", "message", "parse_params", "specs",
@@ -77,7 +80,10 @@ FAILURES: dict[str, str] = {
 
 # ── 넣을 값 꼴 ───────────────────────────────────────────────────────────
 KIND_DATE, KIND_TIME_SLOT, KIND_MASKED_TEXT, KIND_CHOICE = "date", "time_slot", "masked_text", "choice"
-PARAM_KINDS: tuple[str, ...] = (KIND_DATE, KIND_TIME_SLOT, KIND_MASKED_TEXT, KIND_CHOICE)
+KIND_USERS, KIND_FLAG = "users", "flag"
+PARAM_KINDS: tuple[str, ...] = (KIND_DATE, KIND_TIME_SLOT, KIND_MASKED_TEXT, KIND_CHOICE, KIND_USERS, KIND_FLAG)
+#: 사람 고르기 한 번에 고를 수 있는 사람 수 상한.
+MAX_USERS = 10
 #: 시간대 — 빈 글(정하지 않음) · 오전 · 오후 · 종일. ``construction_schedule.TIME_CHOICES`` 와 같은 글자(시험이 견준다).
 TIME_SLOTS: tuple[str, ...] = ("", "오전", "오후", "종일")
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -143,13 +149,15 @@ ACTIONS: dict[str, ActionSpec] = {spec.name: spec for spec in (
                (Param("note", KIND_MASKED_TEXT, "시공 메모", limit=200),), "ERP_EDIT", MODE_RUN, 2,
                "construction_note(새 서비스 함수 — structured_data.notes.construction_note 끝에 한 줄)",
                phone_ok=True, wam_inline=True),
-    ActionSpec("advance_stage", "단계 넘기기", "erp:order", (), "STAFF_MUTATION", MODE_LINK, 1,
-               "quest.api_order_quest_approve(요청에 묶인 처리기 — 주문 화면에서)"),
-    ActionSpec("assign_draftsman", "도면 담당 맡기기", "erp:drawing", (), "STAFF_MUTATION", MODE_LINK, 1,
-               "erp_orders_draftsman.api_order_assign_draftsman(주문 화면에서)"),
+    ActionSpec("advance_stage", "단계 넘기기", "erp:order", (), "STAFF_MUTATION", MODE_RUN, 2,
+               "approve_quest_from_payload(현재 작업 승인 본체 — 승인을 다 받았는데 단계가 그대로인 주문을 다시 넘긴다)",
+               phone_ok=True),
+    ActionSpec("assign_draftsman", "도면 담당 맡기기", "erp:drawing",
+               (Param("user_ids", KIND_USERS, "도면 담당", limit=MAX_USERS),), "STAFF_MUTATION", MODE_RUN, 2,
+               "assign_draftsman_from_payload(도면 담당 지정 본체 — 사람은 승인하는 사람이 고른다)"),
     ActionSpec("move_measurement", "방문 옮기기(실측)", "erp:visit",
-               (Param("date", KIND_DATE, "실측 날"),), "ERP_EDIT", MODE_LINK, 1,
-               "orders.update_order_field 의 measurement_date(주문 화면에서)"),
+               (Param("date", KIND_DATE, "실측 날"),), "ERP_EDIT", MODE_RUN, 2,
+               "update_order_field_from_payload(칸 고치기 본체 — 칸 measurement_date 만)", phone_ok=True),
     ActionSpec("cancel_order", "주문 취소", "erp:order", (), None, MODE_HUMAN, 0, "— (사람만 — 돈이 걸린 일)"),
 )}
 
@@ -196,7 +204,16 @@ def _clean_text(value: Any, limit: int) -> Optional[str]:
         return None
 
 
-def _clean(param: Param, value: Any, today: datetime.date) -> Optional[str]:
+def _clean_users(value: Any, limit: int) -> Optional[list[int]]:
+    """사람 고르기 — 양의 정수 사용자 번호 목록(겹침은 앞 차례로 뺀다 · 상한 안). 틀리면 ``None``. 빈 목록은 된다."""
+    if not isinstance(value, (list, tuple)) or not all(
+            isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in value):
+        return None
+    ids = list(dict.fromkeys(value))
+    return ids if not limit or len(ids) <= limit else None
+
+
+def _clean(param: Param, value: Any, today: datetime.date) -> Any:
     """값 하나를 꼴대로 본다 — 맞으면 정리한 값, 틀리면 ``None``."""
     if param.kind == KIND_DATE:
         return _clean_date(value, today)
@@ -205,7 +222,16 @@ def _clean(param: Param, value: Any, today: datetime.date) -> Optional[str]:
     if param.kind in (KIND_TIME_SLOT, KIND_CHOICE):
         text = value.strip() if isinstance(value, str) else None
         return text if text is not None and text in param.choices else None
+    if param.kind == KIND_USERS:
+        return _clean_users(value, param.limit)
+    if param.kind == KIND_FLAG:
+        return value if isinstance(value, bool) else None
     raise ValueError(f"모르는 꼴: {param.kind}")
+
+
+def _empty(param: Param) -> Any:
+    """비어도 되는 칸이 비었을 때의 값 — 사람 고르기는 빈 목록 · 참거짓은 거짓 · 그 밖은 빈 글."""
+    return [] if param.kind == KIND_USERS else (False if param.kind == KIND_FLAG else "")
 
 
 def parse_params(name: Any, body: Any, *, today: Optional[datetime.date] = None) -> dict[str, Any]:
@@ -217,7 +243,8 @@ def parse_params(name: Any, body: Any, *, today: Optional[datetime.date] = None)
         today: 날짜 꼴의 '오늘'(없으면 한국 오늘 — :func:`get_today_kst`).
 
     Returns:
-        칸 이름 → 정리한 값(날짜 'YYYY-MM-DD' · 시간대 · 한 줄 글). 없어도 되는 칸이 비면 빈 글.
+        칸 이름 → 정리한 값(날짜 'YYYY-MM-DD' · 시간대 · 한 줄 글 · 사용자 번호 목록 · 참거짓). 없어도 되는 칸이 비면
+        :func:`_empty`. 사람 고르기 칸은 꼭 있어야 해도 비면 빈 목록이다(제안 때는 아무도 고르지 않는다).
 
     Raises:
         ActionShapeError: 모르는 할 일 · 사람만 할 일 · 정한 칸 밖 · 빠진 칸 · 꼴 틀림(칸 이름만 싣는다).
@@ -233,10 +260,10 @@ def parse_params(name: Any, body: Any, *, today: Optional[datetime.date] = None)
     for param in spec.params:
         value = body.get(param.name)
         if value is None:
-            if param.required:
+            if param.required and param.kind != KIND_USERS:
                 problems.append(param.name)
             else:
-                out[param.name] = ""
+                out[param.name] = _empty(param)
             continue
         cleaned = _clean(param, value, day)
         if cleaned is None:
