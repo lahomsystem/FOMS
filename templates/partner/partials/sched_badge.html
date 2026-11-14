@@ -1,0 +1,7 @@
+{# 시공일 확정 · 미정 뱃지(사용자 2026-11-14) — 협력사 화면 어디서나 같은 말 · 같은 색.
+   확정 = 저희가 정한 시공일(초록), 미정 = 협력사 희망일뿐 아직 안 정함(주황). 글씨는 partner-portal.css .pp-sched. #}
+{% macro sched_badge(confirmed) -%}
+{%- if confirmed -%}<span class="pp-sched pp-sched--ok" title="저희가 정한 시공일이에요">확정</span>
+{%- else -%}<span class="pp-sched pp-sched--wait" title="보내 주신 희망일이에요. 저희 출고 담당자가 정하면 확정으로 바뀌어요">미정</span>
+{%- endif -%}
+{%- endmacro %}

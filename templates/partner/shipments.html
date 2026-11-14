@@ -8,6 +8,7 @@
 {% block main_class %}pp-main--wide pp-main--ship{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-shipment.css') }}">{% endblock %}
 {% block content %}
+{% from "partner/partials/sched_badge.html" import sched_badge %}
 <section class="erp-pro-card pp-ship" aria-labelledby="ppShipTitle">
     <div class="erp-pro-card__header pp-ship__top">
         <h3 class="erp-pro-card__title" id="ppShipTitle"><i class="fas fa-truck" aria-hidden="true"></i> {{ org.name }} 출고 일정</h3>
@@ -32,7 +33,7 @@
     <h2 class="pp-ship__dayhead">{{ board.label }}{% if board.is_today %} <span class="pp-ship__today">오늘</span>{% endif %}{% if board.total %} <span class="pp-ship__n">{{ board.total }}건</span>{% endif %}</h2>
     {% if board.groups %}
     <div class="pp-ship__head" aria-hidden="true">
-        <span>번호</span><span>제품</span><span>현장주소</span><span>고객</span><span>시공시간</span><span>담당</span><span>시공자</span>
+        <span>번호</span><span>제품</span><span>현장주소</span><span>고객</span><span>시공일 · 시간</span><span>담당</span><span>시공자</span>
     </div>
     {% for g in board.groups %}
     {% if g.unassigned %}<p class="pp-ship__lbl">시공자 정하는 중 {{ g.rows | length }}건</p>{% endif %}
@@ -44,7 +45,7 @@
             <span class="pp-ship__product">{% if row.is_as %}<b class="pp-ship__as">AS</b> {% endif %}{{ row.product or '-' }}</span>
             <span class="pp-ship__addr">{{ row.address or '-' }}</span>
             <span class="pp-ship__cust"><b>{{ row.customer or '-' }}</b> <span class="pp-ship__id">#{{ row.id }}</span>{% if row.phone %} <span class="pp-ship__phone">{{ row.phone }}</span>{% endif %}</span>
-            <span class="pp-ship__time{% if row.time_is_plan or not row.time %} is-plan{% endif %}">{{ row.time or '미정' }}{% if row.requested %} <em class="pp-ship__flag">희망 · 확정 전</em>{% endif %}</span>
+            <span class="pp-ship__time{% if row.time_is_plan or not row.time %} is-plan{% endif %}">{{ sched_badge(not row.requested) }}<span class="pp-ship__clock">{{ row.time or '시간 미정' }}</span></span>
             <span class="pp-ship__mgr"><span class="pp-ship__k">담당</span> {{ row.manager or '-' }}</span>
             <span class="pp-ship__who">{% for w in row.workers %}<i data-ship-color="{{ w.color }}">{{ w.name }}</i>{% else %}<i class="is-empty">정하는 중</i>{% endfor %}</span>
         </a>
