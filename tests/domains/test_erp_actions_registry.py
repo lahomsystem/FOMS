@@ -184,7 +184,7 @@ NOTIFY_TEAMS = {
     "send_measure_alimtalk": ("SALES", "CS"),
     "move_measurement": ("SALES", "CS"),
     "assign_draftsman": ("DRAWING",),
-    "schedule_as_visit": ("CS",),  # 사용자 글에 없음 — 지금 값을 둔다
+    "schedule_as_visit": ("SALES", "CS"),  # D223(11-15) — AS 방문도 영업 + CS
 }
 
 

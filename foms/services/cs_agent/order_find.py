@@ -15,40 +15,33 @@
 진행 중. 이름은 표시 기호 · 띄어쓰기를 뗀 글자로 견준다(네이버 붙이기 후보와 같은 규칙).
 
 **끝난 주문도 후보**(사용자 결정 D220 — 끝난 주문의 AS 문의가 'AS 접수' 제안까지 가게): 끝난 단계(:data:`CLOSED_STAGES`)이고
-AS 가 열려 있지 않은 주문도 끝난 지 :data:`CLOSED_WINDOW` 안이면 찾는다(휴지통 · 초안 · ERP 주문 아님은 그대로 뺀다). 맞는
-주문이 여럿이면 열린 주문만 남긴다(열린 주문이 하나도 없을 때만 끝난 주문을 고른다 — :func:`_result`). 끝난 날은 운영
-대시보드의 완료 기간 판정(:meth:`models.Order.dashboard_active_filter`)과 같은 칸 사슬 — 단계 바뀐 때 → 구조화 고친 때 → 만든 때.
+AS 가 열려 있지 않은 끝난 주문도 기간 없이 찾는다(사용자 결정 D225 — 무상 AS 는 시공일로부터 1년이지만 찾기는 전체)(휴지통 · 초안 · ERP 주문 아님은 그대로 뺀다). 맞는
+주문이 여럿이면 열린 주문만 남긴다(열린 주문이 하나도 없을 때만 끝난 주문을 고른다 — :func:`_result`).
 """
 
 from __future__ import annotations
 
-import datetime
 import logging
 import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import quote
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import case, or_, select
 
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError
 from foms.services.cs_agent.masking_contacts import normalize
-from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CLOSED_STAGES", "CLOSED_WINDOW", "Lookup", "MAX_CANDIDATES", "by_contact", "by_number", "by_profile",
+    "CLOSED_STAGES", "Lookup", "MAX_CANDIDATES", "by_contact", "by_number", "by_profile",
     "candidate_orders", "has_mobile", "is_open", "mobiles", "name_key", "narrow", "open_orders", "read_profile",
 ]
 
 CLOSED_STAGES = ("COMPLETED", "AS_COMPLETED")
 _OPEN_AS = ("RECEIVED", "IN_PROGRESS")
-#: 끝난 주문을 후보로 두는 기간 — 가구 품질 보증 1년(소비자분쟁해결기준의 가구 품질보증기간). 코드에는 AS 기간 규칙이 없고
-#: (회사 보증 정책은 회사 지식 '정책 · AS 보증' 칸의 글이다) 그보다 오래된 주문은 같은 번호의 옛 주문을 잘못 이을 위험이 더 크다.
-#: 그 밖의 AS 문의는 지금처럼 못 찾음 → 직원이 본다.
-CLOSED_WINDOW = datetime.timedelta(days=365)
 MAX_CANDIDATES = 20
 _MOBILE = re.compile(r"(?<!\d)(?:\+?82[-. ]?0?|0)(1[016789])[-. ]?(\d{3,4})[-. ]?(\d{4})(?!\d)")
 _PIECE = re.compile(r"01[016789]\d{7,8}")
@@ -109,19 +102,14 @@ def open_orders():
     return select(Order).where(Order.active_filter(), Order.is_erp_order.is_(True), _open_clause())
 
 
-def candidate_orders(today: Optional[datetime.date] = None):
-    """본인 확인 후보 고르기 — 열린 주문 + 끝난 지 :data:`CLOSED_WINDOW` 안의 끝난 주문(휴지통 · 초안 · ERP 주문 아님은 뺀다).
-
-    Args:
-        today: 한국 오늘(없으면 :func:`get_today_kst`).
+def candidate_orders():
+    """본인 확인 후보 고르기 — 열린 주문 + 끝난 주문 전체(기간 없음 — D225, 휴지통 · 초안 · ERP 주문 아님은 뺀다).
 
     Returns:
         ``select(Order)`` 문(부르는 쪽이 조건 · 차례 · 상한을 더한다).
     """
-    cutoff = datetime.datetime.combine(today or get_today_kst(), datetime.time()) - CLOSED_WINDOW
-    closed_at = func.coalesce(Order.erp_stage_updated_at, Order.structured_updated_at, Order.created_at)
-    recent_closed = and_(Order.erp_stage_code.in_(CLOSED_STAGES), closed_at >= cutoff)
-    return select(Order).where(Order.active_filter(), Order.is_erp_order.is_(True), or_(_open_clause(), recent_closed))
+    closed = Order.erp_stage_code.in_(CLOSED_STAGES)
+    return select(Order).where(Order.active_filter(), Order.is_erp_order.is_(True), or_(_open_clause(), closed))
 
 
 def _by_phone(session: Any, phone: str) -> list[Any]:

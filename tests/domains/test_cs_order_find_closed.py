@@ -1,7 +1,7 @@
 """상담 AI 주문 찾기 — 끝난 주문도 후보(사용자 결정 D220 · 접목판 원장 F-12).
 
 완료 기준: 끝난 주문만 맞으면 확인됨(세 길 모두) · 진행 중 + 끝난 주문이 같이 맞으면 진행 중이 먼저 · 끝난 지
-:data:`order_find.CLOSED_WINDOW` 넘은 옛 주문은 빠짐 · 휴지통 · 초안 · ERP 주문 아님은 끝난 주문이어도 그대로 빠짐 · 끝난 주문의
+옛 끝난 주문도 찾음(기간 없음 — D225) · 휴지통 · 초안 · ERP 주문 아님은 끝난 주문이어도 그대로 빠짐 · 끝난 주문의
 주문 칸에는 지난 실측 · 시간대(예정) · 배송 예정 칸이 없음(진행 중 주문 칸은 그대로) · 접목판 규칙 ①이 끝난 주문에서 AS 접수
 제안을 만듦. 합성 주문 · 가짜 채널톡 · 가짜 두뇌(네트워크 0). 전화 꼴은 실행 때 만든다(:mod:`.test_cs_order_lookup`).
 """
@@ -71,24 +71,11 @@ def test_an_open_order_is_not_pushed_out_by_many_finished_ones(app):
     assert order_find.by_contact(db_session, WHO).order.id == live.id
 
 
-def test_finished_orders_past_the_window_are_left_out(app):
-    window = order_find.CLOSED_WINDOW.days
-    closed(days_ago=window + 30)
-    assert order_find.by_contact(db_session, WHO).status == "none"
-    old = closed(days_ago=window + 30)
-    assert order_find.by_number(db_session, [f"주문번호 {old.id} 끝자리 {PHONE[-4:]}"]).status == "none"
-    inside = closed(days_ago=window - 30)
-    assert order_find.by_contact(db_session, WHO).order.id == inside.id
-
-
-def test_the_window_falls_back_to_the_created_time_when_no_stage_time(app):
-    order = closed(days_ago=order_find.CLOSED_WINDOW.days + 30)
-    order.erp_stage_updated_at = None
-    db_session.commit()
-    assert order_find.by_contact(db_session, WHO).status == "none"  # 만든 때도 옛날이라 빠진다
-    order.created_at = datetime.datetime.combine(get_today_kst(), datetime.time(9))
-    db_session.commit()
-    assert order_find.by_contact(db_session, WHO).order.id == order.id
+def test_old_finished_orders_are_found_with_no_window(app):
+    """D225 — 끝난 주문은 기간 없이 찾는다(무상 AS 는 시공일로부터 1년이지만 찾기는 전체)."""
+    old = closed(days_ago=3 * 365)
+    assert order_find.by_contact(db_session, WHO).order.id == old.id
+    assert order_find.by_number(db_session, [f"주문번호 {old.id} 끝자리 {PHONE[-4:]}"]).order.id == old.id
 
 
 def test_deleted_draft_and_non_erp_finished_orders_stay_out(app):

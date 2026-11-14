@@ -151,7 +151,7 @@ ACTIONS: dict[str, ActionSpec] = {spec.name: spec for spec in (
                phone_ok=True, notify_teams=_SALES_SHIPMENT),
     ActionSpec("schedule_as_visit", "방문 옮기기(AS)", "erp:as_case",
                (Param("date", KIND_DATE, "AS 방문 날"),), "ERP_EDIT", MODE_RUN, 2, "schedule_as_cycle", phone_ok=True,
-               notify_teams=("CS",)),
+               notify_teams=_SALES_CS),
     ActionSpec("register_as", "AS 접수", "erp:as_case",
                (Param("as_content", KIND_MASKED_TEXT, "증상", limit=MAX_REASON),), "CONSTRUCTION_EDIT", MODE_RUN, 2,
                "register_as_from_payload", phone_ok=True, notify_teams=_SALES_CS),
