@@ -11,6 +11,10 @@
 (``app.css`` · ``app.js``)로 같은 경로에서 내준다.
 
 옛 WAM 화면(:mod:`foms.api.channel.channel_wam` — 410 퇴역)과 블루프린트가 따로라 그쪽 앞 검사를 타지 않는다.
+
+접목 두 줄(설계서 2026-11-14-foms-graft 3.9): 상담 관리 칸 '근거 줄 보이기' · '할 일 제안 만들기'(:mod:`foms.services.cs_agent.
+graft_settings` — 사람별이 아니라 전역 값)가 하나라도 켜졌을 때만 틀에 빈 자리 둘과 ``app-graft.js`` 를 싣는다. 둘 다 끄면 틀이
+지금과 같다. 자리 안 글은 스크립트가 서명 함수 답으로 채운다(틀에는 여전히 글 · 데이터가 없다).
 """
 
 from __future__ import annotations
@@ -19,27 +23,42 @@ import os
 
 from flask import Blueprint, current_app, make_response, render_template, send_from_directory
 
+from db import get_db
+from foms.services.cs_agent.graft_settings import actions_on, evidence_on
+from foms.services.cs_agent.settings import read_settings
+
 cs_draft_wam_bp = Blueprint("cs_draft_wam", __name__)
 
 APP_ID_ENV = "CS_WAM_APP_ID"
 
 
+def _graft_switches() -> tuple[bool, bool]:
+    """(근거 줄, 할 일 제안) 관리 칸 값 — 설정 한 줄 읽기(읽기 트랜잭션은 닫는다)."""
+    session = get_db()
+    cfg = read_settings(session, log=False)
+    session.rollback()
+    return evidence_on(cfg), actions_on(cfg)
+
+
 @cs_draft_wam_bp.route("/channel/wam/cs-draft", methods=["GET"])
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/", methods=["GET"])
 def cs_draft_wam():
-    """빈 틀 — 앱 id 만 싣는다(글 · 차례 · 사람 정보 없음). 캐시하지 않는다."""
-    response = make_response(render_template("cs/cs_agent_wam.html", app_id=os.environ.get(APP_ID_ENV, "").strip()))
+    """빈 틀 — 앱 id 와 접목 관리 칸 켬 여부만 싣는다(글 · 차례 · 사람 정보 없음). 캐시하지 않는다."""
+    evidence, actions = _graft_switches()
+    response = make_response(render_template("cs/cs_agent_wam.html", app_id=os.environ.get(APP_ID_ENV, "").strip(),
+                                              graft_evidence=evidence, graft_actions=actions))
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
 #: 이 화면 아래에서 내주는 파일(상대 주소 이름 → static 안 자리).
 _ASSETS = {"app.js": "js/cs-agent/wam-draft.js", "app-handoff.js": "js/cs-agent/wam-handoff.js",
-           "app.css": "css/contexts/cs/cs-wam.css"}
+           "app-graft.js": "js/cs-agent/wam-graft.js", "app.css": "css/contexts/cs/cs-wam.css"}
 
 
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/app.js", methods=["GET"], defaults={"name": "app.js"})
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/app-handoff.js", methods=["GET"], defaults={"name": "app-handoff.js"})
+@cs_draft_wam_bp.route("/channel/wam/cs-draft/app-graft.js", methods=["GET"], defaults={"name": "app-graft.js"})
 @cs_draft_wam_bp.route("/channel/wam/cs-draft/app.css", methods=["GET"], defaults={"name": "app.css"})
 def cs_draft_wam_asset(name: str):
     """작은 창 꾸밈 · 스크립트 — 채널톡이 거쳐 여는 주소에서도 풀리게 화면 아래에서 내준다(정해진 파일만)."""
