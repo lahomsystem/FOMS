@@ -31,10 +31,10 @@
 | C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | DONE `280406417` |
 | C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | DONE(`a6d04731a`) |
 | C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | DONE `9899ef763` |
-| C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | RUNNING |
-| D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | PENDING |
-| D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | PENDING |
-| D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | RUNNING |
+| C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | DONE(`df32732b0` · 맞추기 `4e0b2a7ec`) |
+| D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | RUNNING(바탕 `795f93c79`) |
+| D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | RUNNING(바탕 `795f93c79`) |
+| D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | DONE(`12df85ba8`) |
 | E | T11 | R1 | 검수(읽기만) — 설계서 맞춤 · 보안 · 품질 | xhigh | `foms-s-foms-graft`(읽기만) | T1 ~ T10 · T13 ~ T16 | PENDING |
 | E | T12 | V1 | 합친 뒤 확인 — 명령 전부 · 스위치 끔 견주기 · 핀 · 머리 하나 · 소유 표 | high | `foms-s-foms-graft` | T11 고침 끝 | PENDING |
 
@@ -164,6 +164,12 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | F-03 | 낮음 | `foms/services/erp_actions/views.py:134` | 카드 답에 `base_version` 이 없다(설계서 3.6 카드 칸 목록과 같음) — 카드 [승인]은 자세히를 먼저 읽고 승인(요청 둘) | T11 검수 뒤 정함 | OPEN |
 | F-04 | 낮음(색) | `static/css/components/foms-graft-cells.css` | AI 칩 글 · 테두리 #4a55b8 과 고객컨펌 단계 배지 #5a67d8 의 ΔE2000 7.5(제2색맹 흉내 뒤 7.3) — 바탕끼리는 42 이상, 옅은 칩과 꽉 찬 배지로 갈린다. 상태 쌍 기준(10)에는 미달 · 색약 기준(6)은 넘음 | T11 검수 뒤 정함(판의 남보라 유지가 기본) | OPEN |
 | F-05 | 기록 | `templates/partials/shared/erp_mobile_queue_card_v2.html` | 파일 주인 표(3절) 밖 — 폰 목록 줄 칩(메모리 규칙 '새 기능은 폰 목록 줄에서 보여야')으로 T8 이 더함. 이 카드를 쓰는 6개 목록 모두에 칩이 나온다. 꺼지면 지금과 같음(시험) | — | 기록만 |
+| F-06 | 결정 필요 | `foms/services/ai_staff/evals.py`(T16) · 마이그레이션 `csagent_03` | 상담 차례 `held_out` 을 참으로 쓰는 코드가 없다(떼어 두는 기능 C12-1 이 안 만들어짐) — 운영에서도 '지난 상담' 묶음이 0 · 화면 '묶음 0' | 사용자 결정 뒤 따로 | OPEN |
+| F-07 | 중간 | `foms/services/erp_actions/registry.py`(T14) | 보는 사람 ≠ 실행할 수 있는 사람(설계서 3.5 와 어긋남): 도면 담당 맡기기는 정책 `STAFF_MUTATION` 이라 모든 직원이 보지만 본체는 관리자 · 도면팀 · 지정 담당만 실행(나머지 409) · 실측 옮기기는 정책이 모든 매니저를 통과시키지만 본체가 팀을 봄(다른 팀 매니저 409) | T11 검수 뒤 정함 | OPEN |
+| F-08 | 낮음 | `foms/services/ai_staff/sweeps.py`(T10 규칙 O2) | 넣을 값이 비어 겹침 열쇠가 주문마다 하나 — 한 번 거절되면 그 주문엔 다시 제안되지 않음 | T11 검수 뒤 정함 | OPEN |
+| F-09 | 조사 중 | `tests/domains/test_graft_char_quest_approve.py` | T14 합친 뒤 하네스 · 계약 시험과 한 프로세스에서 돌리면 특성 시험 하나가 빨개짐(`erp_stage_updated_at` 이 안 바뀜) — 혼자 · 도메인 묶음 순서대로는 초록. T14 전 같은 순서는 초록(730) | 메인 | OPEN |
+| F-10 | 기록 | 설계서 · 지시문 | 코드와 다른 문장: 설계서 :63 `Idempotency-Key` 머리글 빠짐 · :310 '2xx 아니면 막힘'(코드는 5xx = 실패) · :311 '승인하는 사람의 팀'(실행기는 재전이 길만) · :300 · :339 `run_eval` · 줄 일 자리(실제 `evals_run.py` — `tasks.py` 는 층 래칫 · WORKER 가벼움 시험 때문에 못 씀) · :337 `check_codes`(말투 알림도 적힘) · 지시문 :446 `checks_same.py`(같은 뜻 판정은 `case_memory.judge_reply`) · 목업 'BOnto' 도면 담당 폰 승인(실제 PC 승인) · 'BAgents' '기준 밑이면 배포를 막아요'(없는 문지기) | 마무리 때 문서 고침 | 기록만 |
+| F-11 | 할 일 | `docs/harness/foms_*_inventory.json` | T14 로 줄 번호만 밀린 인벤토리(audit_coverage · failopen) — push 전 `*_scan.py` 를 직접 돌려 커밋(refresh 는 줄 번호만 바뀐 것을 되돌린다) | 메인(push 전) | OPEN |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
