@@ -1,0 +1,13 @@
+{#- AI 직원 왼쪽 목록(판 ⑪): 직원 다섯(이름 · 상태 꼬리표 · 한 줄) — ds-agents.js 가 GET /api/ai-staff 로 채운다. 줄을 누르면
+    ?tab=agents&agent=<열쇠> 로 간다(스크립트 없이도 간다 — 주소가 같은 직원을 연다). '함께 보기'는 이 화면 안 칸으로 가는 길이고
+    폰(640px 아래)에서는 숨긴다. 비용은 ADMIN 에게만 보여 MANAGER 에게는 '시간'만 적는다. -#}
+<nav class="f-side fb-agents-side" aria-label="AI 직원" data-ds-agents-side>
+  <div class="f-nav-heading" data-ds-agents-heading>AI 직원</div>
+  <div class="f-col f-gap4" data-ds-agents-nav></div>
+  <div class="f-col f-gap4 fb-pc-only">
+    {{ ds.nav_heading('함께 보기') }}
+    {{ ds.nav_item('#dsAgentsEvals', '시험 세트', 'lab-test') }}
+    {{ ds.nav_item('#dsAgentsRun', '실행 기록', 'history') }}
+    {{ ds.nav_item('#dsAgentsUsage', '비용 · 시간' if is_admin else '시간', 'dollar' if is_admin else 'time') }}
+  </div>
+</nav>

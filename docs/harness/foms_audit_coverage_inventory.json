@@ -8,15 +8,15 @@
     "log_access"
   ],
   "baselines": {
-    "total": 303,
+    "total": 304,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 264,
+    "AUDITED": 265,
     "EXEMPT": 37,
     "UNAUDITED": 2
   },
-  "coverage_percent": 99.2,
+  "coverage_percent": 99.3,
   "unaudited_sites": [
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
@@ -91,9 +91,18 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/ai_staff.py",
+      "endpoint": "ai_staff_levels",
+      "lineno": 83,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask",
-      "lineno": 106,
+      "lineno": 109,
       "methods": [
         "POST"
       ],
@@ -102,7 +111,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_feedback",
-      "lineno": 130,
+      "lineno": 133,
       "methods": [
         "POST"
       ],
@@ -111,7 +120,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_settings_save",
-      "lineno": 154,
+      "lineno": 157,
       "methods": [
         "POST"
       ],

@@ -176,6 +176,7 @@
     "foms/persistence/designer/repositories.py::foms.services.designer.validator",
     "foms/platform/blueprints.py::foms.api.address",
     "foms/platform/blueprints.py::foms.api.admin",
+    "foms/platform/blueprints.py::foms.api.ai_staff",
     "foms/platform/blueprints.py::foms.api.attachments",
     "foms/platform/blueprints.py::foms.api.brain",
     "foms/platform/blueprints.py::foms.api.brain_chat",

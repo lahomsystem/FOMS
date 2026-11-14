@@ -1,0 +1,11 @@
+{#- AI 직원 실행 기록 하나(판 ⑪ 오른쪽): 마지막 실행의 단계(도구 · 한 일 · 짧은 말 · 걸린 시간) · 모두 걸린 시간 · 만든 제안 수.
+    상담 AI 는 차례 줄에서 엮어 단계마다 시간이 없고 전체 시간만 보인다(설계서 9절). 손님 글 · 이름은 싣지 않는다.
+    ds-agents.js 가 GET /api/ai-staff/<열쇠> 의 run 칸으로 채운다. -#}
+<aside class="f-aside fb-agents-aside" id="dsAgentsRun" aria-label="실행 기록" data-ds-agents-aside>
+  <div class="f-aside-head">{{ ds.icon('history', 'f-i-muted') }}<span class="f-section-title" data-ds-agents-run-title>실행 기록</span></div>
+  <div class="f-aside-body">
+    <ol class="f-col f-gap12" data-ds-agents-trace><li class="f-small f-muted">불러오는 중이에요…</li></ol>
+    <div class="f-callout" data-ds-agents-run-sum hidden>{{ ds.icon('time') }}<div class="f-small" data-ds-agents-run-text></div></div>
+    <p class="f-small f-muted" data-ds-agents-foot></p>
+  </div>
+</aside>

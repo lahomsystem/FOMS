@@ -71,6 +71,11 @@ NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     # 회사 지식 의미 찾기 벡터 다시 넣기(사장님 D114 — 설정 '의미 찾기'가 꺼져 있으면(처음 값) · 열쇠 env · 돈 상한 · pgvector
     # 표가 없으면 아무것도 안 하고 exit 0, 켜 놓고 부르다 실패하면 exit 3).
     NightlyStep("brain_embed", "tools/cron/brain_embed.py", ("--apply",)),
+    # 접목판 ERP 할 일 제안 기간 끝남 닫기 · 되맞추기(설계서 2026-11-14-foms-graft 3.4). 제안이 없으면 아무것도 안 쓰고 exit 0.
+    NightlyStep("erp_actions_expire", "tools/cron/erp_actions_expire.py", ("--apply",)),
+    # 접목판 운영 AI · 일정 AI 규칙 훑기(3.10 — 제안만, 알림톡 · 푸시 없음). FOMS_GRAFT_PROPOSERS_ENABLED 가 꺼져 있으면(처음 값)
+    # 아무것도 안 하고 exit 0. 기간 끝남 닫기 뒤에 돌아 닫힌 자리에 새 제안이 들어설 수 있다.
+    NightlyStep("ai_staff_sweep", "tools/cron/ai_staff_sweep.py", ("--apply",)),
 )
 
 Runner = Callable[..., subprocess.CompletedProcess]

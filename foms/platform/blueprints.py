@@ -365,6 +365,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(erp_actions_api_bp)
 
+    # --- Lane: 접목판 AI 직원 — JSON(/api/ai-staff · /api/ai-staff/<열쇠> · POST /api/ai-staff/levels, 설계서
+    # 2026-11-14-foms-graft 3.10). 여는 사람은 새 화면 스위치가 켜진 회사 지식 ADMIN · MANAGER(그 밖 404) · 수준 고치기는
+    # CSRF · 정책 ADMIN_OPS(처리기 안에서 ADMIN 을 다시 본다). 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.ai_staff import ai_staff_api_bp
+
+    app.register_blueprint(ai_staff_api_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_realtime_socketio_handlers=register_realtime_socketio_handlers,
