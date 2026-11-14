@@ -13,7 +13,8 @@ AI 가 가질 수 있는 가장 높은 수준 · 감싼 기능 글 · 폰 승인
   뜻이다 — 제안 때는 비워 둔다(AI 는 사람을 고르지 않는다 · 비면 빈 목록), 빈 채 승인하면 감싼 본체가 막는다(409).
   비어도 되는 칸이 비면 처음 값(``default`` — 없으면 빈 값)이다. 시공일 두 할 일의 ``notify_customer``(손님 알림톡 — 시공일
   안내, D213)는 처음 값이 참이다. 알림톡이 쓸 수 있는 상태인지는 :mod:`.construction_notice` 가 주문마다 본다.
-- ``notify_team``: 새 제안의 폰 알림(설계서 3.14 · D215)이 그 주문 담당에게 못 갈 때 받는 팀(:mod:`.notify`).
+- ``notify_teams``: 새 제안의 폰 알림(설계서 3.14 · D215 · D221)이 그 주문 담당에게 못 갈 때 받는 팀들(:mod:`.notify` —
+  관리자는 팀과 상관없이 늘 받는다).
 - 이 모듈은 가볍게 둔다(선언만 — 시공일 쓰기 모듈처럼 알림까지 끌어오는 import 를 하지 않는다). 어느 길에서 먼저 불려도 된다.
 - :func:`parse_params` 가 정한 칸만 · 꼴을 본다 — 틀리면 :class:`ActionShapeError`(칸 이름만 싣는다, 받은 값은 싣지 않는다).
 - 수준은 0 ~ 2 까지만 있다(자율 수준 3 — 사람 승인 없는 실행 — 의 코드는 만들지 않는다).
@@ -129,47 +130,50 @@ class ActionSpec:
     wraps: str  # 감싼 지금 기능(글)
     phone_ok: bool = False
     wam_inline: bool = False
-    notify_team: Optional[str] = None  # 폰 알림 — 주문 담당이 없을 때 받는 팀(설계서 3.14 · D215)
+    notify_teams: tuple[str, ...] = ()  # 폰 알림 — 승인할 수 있는 주문 담당이 없을 때 받는 팀들(설계서 3.14 · D215 · D221)
 
 
 _SLOT = Param("time", KIND_TIME_SLOT, "시간대", required=False, choices=TIME_SLOTS)
 #: 시공일 쓰기와 같이 손님에게 시공일 안내 알림톡을 보낼까(D213 — 처음 값 참, 고쳐서 승인에서 끈다).
 NOTIFY_CUSTOMER = Param("notify_customer", KIND_FLAG, "손님 알림톡(시공일 안내)", required=False, default=True)
+#: 폰 알림 받는 팀(D221 — 사용자 글). 관리자(ADMIN 역할)는 팀과 상관없이 늘 받는다(:mod:`.notify`).
+_SALES_SHIPMENT = ("SALES", "SHIPMENT")
+_SALES_CS = ("SALES", "CS")
 
 ACTIONS: dict[str, ActionSpec] = {spec.name: spec for spec in (
     ActionSpec("schedule_construction", "시공 잡기", "erp:visit",
                (Param("date", KIND_DATE, "시공 날"), _SLOT, NOTIFY_CUSTOMER), "CONSTRUCTION_SCHEDULE_EDIT", MODE_RUN, 2,
                "validate_schedule_input → write_construction_schedule → finalize_schedule_notifications(시공일이 빈 "
-               "주문) · 협력사 주문은 confirm_partner_request", phone_ok=True, notify_team="SHIPMENT"),
+               "주문) · 협력사 주문은 confirm_partner_request", phone_ok=True, notify_teams=_SALES_SHIPMENT),
     ActionSpec("move_construction", "방문 옮기기(시공)", "erp:visit",
                (Param("date", KIND_DATE, "시공 날"), _SLOT, NOTIFY_CUSTOMER), "CONSTRUCTION_SCHEDULE_EDIT", MODE_RUN, 2,
                "시공 잡기와 같은 함수(시공일이 이미 있는 주문) · 사유가 필요한 변경이면 승인 창 사유를 attach_reason 에",
-               phone_ok=True, notify_team="SHIPMENT"),
+               phone_ok=True, notify_teams=_SALES_SHIPMENT),
     ActionSpec("schedule_as_visit", "방문 옮기기(AS)", "erp:as_case",
                (Param("date", KIND_DATE, "AS 방문 날"),), "ERP_EDIT", MODE_RUN, 2, "schedule_as_cycle", phone_ok=True,
-               notify_team="CS"),
+               notify_teams=("CS",)),
     ActionSpec("register_as", "AS 접수", "erp:as_case",
                (Param("as_content", KIND_MASKED_TEXT, "증상", limit=MAX_REASON),), "CONSTRUCTION_EDIT", MODE_RUN, 2,
-               "register_as_from_payload", phone_ok=True, notify_team="CS"),
+               "register_as_from_payload", phone_ok=True, notify_teams=_SALES_CS),
     ActionSpec("send_measure_alimtalk", "알림톡 보내기(실측 예약)", "erp:visit", (), "STAFF_MUTATION", MODE_RUN, 1,
-               "send_alimtalk(서식은 지금 있는 실측 예약 하나 — 손님에게 나가는 글)", phone_ok=True, notify_team="SALES"),
+               "send_alimtalk(서식은 지금 있는 실측 예약 하나 — 손님에게 나가는 글)", phone_ok=True, notify_teams=_SALES_CS),
     ActionSpec("add_construction_note", "시공 메모 더하기", "erp:order",
                (Param("note", KIND_MASKED_TEXT, "시공 메모", limit=200),), "ERP_EDIT", MODE_RUN, 2,
                "construction_note(새 서비스 함수 — structured_data.notes.construction_note 끝에 한 줄)",
-               phone_ok=True, wam_inline=True, notify_team="CS"),
+               phone_ok=True, wam_inline=True, notify_teams=_SALES_CS),
     ActionSpec("advance_stage", "단계 넘기기", "erp:order", (), "STAFF_MUTATION", MODE_RUN, 2,
                "approve_quest_from_payload(현재 작업 승인 본체 — 승인을 다 받았는데 단계가 그대로인 주문을 다시 넘긴다)",
-               phone_ok=True, notify_team="CS"),
+               phone_ok=True, notify_teams=_SALES_CS),
     ActionSpec("assign_draftsman", "도면 담당 맡기기", "erp:drawing",
                (Param("user_ids", KIND_USERS, "도면 담당", limit=MAX_USERS),), "STAFF_MUTATION", MODE_RUN, 2,
-               "assign_draftsman_from_payload(도면 담당 지정 본체 — 사람은 승인하는 사람이 고른다)", notify_team="DRAWING"),
+               "assign_draftsman_from_payload(도면 담당 지정 본체 — 사람은 승인하는 사람이 고른다)", notify_teams=("DRAWING",)),
     ActionSpec("move_measurement", "방문 옮기기(실측)", "erp:visit",
                (Param("date", KIND_DATE, "실측 날"),), "ERP_EDIT", MODE_RUN, 2,
                "update_order_field_from_payload(칸 고치기 본체 — 칸 measurement_date 만)", phone_ok=True,
-               notify_team="SALES"),
+               notify_teams=_SALES_CS),
     ActionSpec("send_construction_alimtalk", "알림톡 보내기(시공일 안내)", "erp:visit", (), "STAFF_MUTATION", MODE_RUN, 1,
                "send_construction_alimtalk(새 — 시공일 안내 서식 · 손님에게 나가는 글, 설계서 3.13)", phone_ok=True,
-               notify_team="CS"),
+               notify_teams=_SALES_CS),
     ActionSpec("cancel_order", "주문 취소", "erp:order", (), None, MODE_HUMAN, 0, "— (사람만 — 돈이 걸린 일)"),
 )}
 

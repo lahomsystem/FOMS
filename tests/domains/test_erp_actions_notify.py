@@ -2,8 +2,9 @@
 
 완료 기준:
 - 스위치 ``FOMS_GRAFT_PUSH`` 가 꺼지면 알림 줄 0(지금과 같다) · 켜지면 받는 사람마다 ``ERP_ACTION_PROPOSAL`` 한 줄 + 받는 사람 상태.
-- 받는 사람(D215): 주문 담당 먼저(승인할 수 없는 담당은 빠짐) → 그런 담당이 없으면 할 일의 팀 · 프리랜서는 남의 주문에서 빠짐 ·
-  ``actions`` 스위치가 꺼진 사람 빠짐 · 20명 상한 · 0명이면 아무것도 안 만듦(제안은 생김).
+- 받는 사람(D215 · D221): 주문 담당 먼저(승인할 수 없는 담당은 빠짐) → 그런 담당이 없으면 할 일의 팀들 · 관리자는 늘 더함(담당과
+  겹치면 한 번 · 꺼진 계정 · 스위치 밖은 빠짐) · 차례 담당 → 관리자 → 팀 · 프리랜서는 남의 주문에서 빠짐 · ``actions`` 스위치가
+  꺼진 사람 빠짐 · 20명 상한(팀이 먼저 빠짐) · 0명이면 아무것도 안 만듦(제안은 생김).
 - 겹친 제안(``propose`` 가 ``None``)은 알림 0 · 알림 만들기가 실패해도 제안은 생김(저장점만 되감김).
 - 폰 보내기 줄 세우기는 **진짜 커밋 뒤에만** — 저장점 풀기 · 되감기 · 커밋 전에는 0.
 - 알림 줄 · 잠금화면 글에 손님 이름 · 날짜가 없다.
@@ -84,6 +85,16 @@ def _propose(order: Order, *, date: int = 10, commit: bool = True) -> ErpActionP
     return row
 
 
+def _propose_measure(order: Order, *, commit: bool = True) -> ErpActionProposal | None:
+    """실측 옮기기 제안(받는 팀 영업 + CS)."""
+    row = propose(db_session, action="move_measurement", proposed_by="agent:cs", order=order,
+                  params={"date": _day(5)}, reason="합성 이유", evidence=[], source_kind="cs_turn",
+                  source_ref="1", level=2, now=now_utc_naive())
+    if commit:
+        db_session.commit()
+    return row
+
+
 def _notes() -> list[Notification]:
     return (db_session.query(Notification).filter(Notification.notification_type == "ERP_ACTION_PROPOSAL")
             .order_by(Notification.id).all())
@@ -97,6 +108,7 @@ def _targets() -> list[int]:
 def test_switch_off_makes_no_notification(world, monkeypatch):
     monkeypatch.delenv("FOMS_GRAFT_PUSH_ENABLED")
     manager = _user(name="가짜담당")
+    _user(role="ADMIN", team=None)  # 관리자도 스위치가 꺼지면 받지 않는다
     row = _propose(_order(manager="가짜담당"))
     assert row is not None and row.status == "open"
     assert _notes() == [] and world == [] and manager.id is not None
@@ -156,17 +168,69 @@ def test_freelancer_gets_only_own_orders(world):
     db_session.commit()
     sales = _user(team="SALES")  # 대조군 — 같은 팀의 프리랜서 아닌 직원
 
-    def _measure_proposal(order):
-        return propose(db_session, action="move_measurement", proposed_by="agent:cs", order=order,
-                       params={"date": _day(5)}, reason="합성 이유", evidence=[], source_kind="cs_turn",
-                       source_ref="1", level=2, now=now_utc_naive())
-
-    own = _measure_proposal(_order(manager="가짜프리담당", stage="MEASURE"))
-    db_session.commit()
+    own = _propose_measure(_order(manager="가짜프리담당", stage="MEASURE"))
     assert [n.target_user_id for n in _notes() if n.order_id == own.order_id] == [freelancer.id]
-    other = _measure_proposal(_order(stage="MEASURE"))  # 담당 없음 → 영업팀 — 남의 주문
-    db_session.commit()
+    other = _propose_measure(_order(stage="MEASURE"))  # 담당 없음 → 영업 + CS 팀 — 남의 주문
     assert [n.target_user_id for n in _notes() if n.order_id == other.order_id] == [sales.id]
+
+
+def test_admin_is_added_next_to_the_order_manager(world):
+    """담당이 있으면 담당 + 관리자 — 팀 사람은 받지 않는다. 차례는 담당 → 관리자(관리자 번호가 더 작아도)."""
+    admin = _user(role="ADMIN", team=None)
+    manager = _user(name="가짜담당")
+    _user(team="SHIPMENT")
+    _user(team="SALES")
+    _propose(_order(manager="가짜담당"))
+    assert _targets() == [manager.id, admin.id] and admin.id < manager.id
+
+
+def test_no_manager_goes_to_all_action_teams_plus_admin(world):
+    """담당이 없으면 할 일 팀들(시공 잡기 = 영업 + 출고) + 관리자. 차례는 관리자 → 팀(번호 순)."""
+    sales, shipment = _user(team="SALES"), _user(team="SHIPMENT")
+    _user(team="CS")  # 시공 잡기의 팀이 아니다
+    admin = _user(role="ADMIN", team=None)
+    _propose(_order())
+    assert _targets() == [admin.id, sales.id, shipment.id]
+
+
+def test_measure_action_goes_to_sales_and_cs(world):
+    """실측 옮기기 = 영업 + CS(D221) — 출고는 받지 않는다."""
+    sales, cs = _user(team="SALES"), _user(team="CS")
+    _user(team="SHIPMENT")
+    _propose_measure(_order(stage="MEASURE"))
+    assert _targets() == sorted([sales.id, cs.id])
+
+
+def test_admin_who_is_also_manager_or_team_member_gets_one_line(world):
+    """관리자가 담당이기도 하면 · 팀 사람이기도 하면 한 줄만."""
+    admin_manager = _user(role="ADMIN", team="SALES", name="가짜관리담당")
+    _propose(_order(manager="가짜관리담당"))
+    assert _targets() == [admin_manager.id]
+    admin_in_team = _user(role="ADMIN", team="SHIPMENT")
+    shipment = _user(team="SHIPMENT")
+    row = _propose(_order(), date=11)
+    targets = [note.target_user_id for note in _notes() if note.order_id == row.order_id]
+    assert targets == [admin_manager.id, admin_in_team.id, shipment.id]  # 둘 다 관리자 무리 — 팀 무리에서 다시 안 나온다
+
+
+def test_inactive_admin_and_admin_outside_the_switch_are_dropped(world, monkeypatch):
+    """관리자도 같은 판정 — 꺼진 계정 · ``actions`` 스위치 밖은 받지 않는다."""
+    _user(role="ADMIN", team=None, active=False)
+    outside = _user(role="ADMIN", team=None)
+    inside = _user(role="ADMIN", team=None)
+    manager = _user(name="가짜담당")
+    monkeypatch.setenv("FOMS_GRAFT_ACTIONS_COHORT", f"{inside.id},{manager.id}")
+    _propose(_order(manager="가짜담당"))
+    assert _targets() == [manager.id, inside.id] and outside.id not in _targets()
+
+
+def test_twenty_cap_keeps_admins_before_team(world):
+    """상한에 닿으면 팀 사람이 먼저 빠진다 — 관리자(번호가 커도)는 남는다."""
+    team = [_user(team="SHIPMENT") for _ in range(notify.MAX_RECIPIENTS)]
+    admins = [_user(role="ADMIN", team=None) for _ in range(2)]
+    _propose(_order())
+    expected = [admin.id for admin in admins] + sorted(user.id for user in team)[: notify.MAX_RECIPIENTS - 2]
+    assert _targets() == expected and len(world) == notify.MAX_RECIPIENTS
 
 
 def test_twenty_people_at_most(world):
