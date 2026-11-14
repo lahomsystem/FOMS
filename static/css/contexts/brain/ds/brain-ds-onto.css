@@ -60,4 +60,4 @@
 
 /* 유형 지도 조각의 제목(옛 화면은 Bootstrap .h6 — 새 화면은 Bootstrap 을 싣지 않는다) */
 .fb-onto-map h2,
-.fb-onto-map h3 { font-size: var(--font-size); line-height: 16px; font-weight: 600; margin: 0 0 8px; }
+.fb-onto-map h3 { font-size: var(--font-size); line-height: 20px; font-weight: 600; margin: 0 0 8px; }

@@ -3,6 +3,7 @@
    출처: docs/design/mockups/foms-graft/foms-ds.css(목업). 밖으로 새지 않게 넷을 고쳤다(설계서 5.1):
    ① :root 토큰 → .f-app ② 상태 색 .st-* → .f-tag.st-* ③ 아이콘 .i-* → .f-i.i-* ④ --fs → var(--foms-fs, 1)(FOMS 글자 배율).
    맨 태그로 시작하던 textarea.f-input 은 .f-app textarea.f-input 으로. 모든 선택자는 .f- 로 시작한다(test_brain_ds_scope).
+   글자 크기(사용자 결정 11-14 — 옛 회사 지식 화면과 같은 16px 바탕, 목업 14px 보다 한 칸 크게 · PC 80% 배율에서도 읽히게).
    규칙: 색 · 크기는 토큰만 / 인라인 스타일 금지 / 글자 크기는 --fs 배율 하나로 / 어두운 화면은 .f-dark 한 class. */
 
 .f-app {
@@ -16,8 +17,8 @@
   --cerulean2:#0f6894; --indigo1:#5642a6; --indigo3:#7961db; --rose2:#c22762; --gold4:#f0b726; --turquoise4:#13c9ba;
 
   --fs:var(--foms-fs, 1);
-  --font-size:calc(14px * var(--fs)); --font-size-small:calc(12px * var(--fs)); --font-size-large:calc(16px * var(--fs));
-  --h3:calc(22px * var(--fs)); --h4:calc(18px * var(--fs)); --h5:calc(16px * var(--fs));
+  --font-size:calc(16px * var(--fs)); --font-size-small:calc(14px * var(--fs)); --font-size-large:calc(18px * var(--fs));
+  --h3:calc(24px * var(--fs)); --h4:calc(20px * var(--fs)); --h5:calc(18px * var(--fs));
   --line-height:1.28581; --radius:2px;
   --control-h:30px; --control-h-small:24px; --control-h-large:40px; --navbar-h:50px;
   --font:-apple-system, "BlinkMacSystemFont", "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Roboto", "Helvetica Neue", sans-serif;
@@ -57,12 +58,12 @@
 .f-app a:hover { text-decoration:underline; }
 .f-h1 { font-size:calc(36px * var(--fs)); line-height:40px; font-weight:600; }
 .f-h2 { font-size:calc(28px * var(--fs)); line-height:32px; font-weight:600; }
-.f-h3 { font-size:var(--h3); line-height:25px; font-weight:600; }
-.f-h4 { font-size:var(--h4); line-height:21px; font-weight:600; }
-.f-h5 { font-size:var(--h5); line-height:19px; font-weight:600; }
-.f-h6 { font-size:var(--font-size); line-height:16px; font-weight:600; }
+.f-h3 { font-size:var(--h3); line-height:1.17; font-weight:600; }
+.f-h4 { font-size:var(--h4); line-height:1.2; font-weight:600; }
+.f-h5 { font-size:var(--h5); line-height:1.22; font-weight:600; }
+.f-h6 { font-size:var(--font-size); line-height:1.25; font-weight:600; }
 .f-muted { color:var(--text-muted); }
-.f-small { font-size:var(--font-size-small); line-height:16px; }
+.f-small { font-size:var(--font-size-small); line-height:1.3; }
 .f-large { font-size:var(--font-size-large); }
 .f-strong { font-weight:600; }
 .f-num { font-variant-numeric:tabular-nums; }
@@ -107,7 +108,7 @@
 .f-i-primary { color:var(--blue3); } .f-i-success { color:var(--green3); } .f-i-warning { color:var(--orange3); } .f-i-danger { color:var(--red3); }
 
 /* ── 단추 (Button) ─────────────────────────────────── */
-.f-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:var(--control-h); min-width:var(--control-h); padding:5px 10px; border:0; border-radius:var(--radius); font:inherit; font-size:var(--font-size); line-height:16px; text-align:left; white-space:nowrap; cursor:pointer; color:var(--dark-gray1); background:var(--light-gray5); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), 0 1px 2px rgba(17,20,24,.1); text-decoration:none; }
+.f-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:var(--control-h); min-width:var(--control-h); padding:5px 10px; border:0; border-radius:var(--radius); font:inherit; font-size:var(--font-size); line-height:20px; text-align:left; white-space:nowrap; cursor:pointer; color:var(--dark-gray1); background:var(--light-gray5); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), 0 1px 2px rgba(17,20,24,.1); text-decoration:none; }
 .f-app a.f-btn { color:var(--dark-gray1); text-decoration:none; }
 .f-btn:hover { background:var(--light-gray4); }
 .f-btn:focus-visible, .f-input:focus-visible, .f-tab:focus-visible, .f-nav-item:focus-visible { outline:2px solid rgba(45,114,210,.6); outline-offset:2px; }
@@ -168,7 +169,7 @@
 .f-card-selected { box-shadow:0 0 0 2px var(--blue3), var(--shadow-1); }
 .f-section { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow-1); min-width:0; }
 .f-section-head { display:flex; align-items:center; gap:8px; min-height:50px; padding:8px 12px 8px 20px; box-shadow:0 1px 0 var(--divider); }
-.f-section-title { font-size:var(--h5); line-height:19px; font-weight:600; }
+.f-section-title { font-size:var(--h5); line-height:22px; font-weight:600; }
 .f-section-sub { font-size:var(--font-size); color:var(--text-muted); }
 .f-section-body { padding:16px 20px; display:flex; flex-direction:column; gap:12px; }
 .f-section-body-flush { padding:0; }
@@ -205,7 +206,7 @@
 
 /* ── 입력 (InputGroup · HTMLSelect · Checkbox) ─────── */
 .f-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
-.f-label { font-size:var(--font-size); line-height:16px; color:var(--text); }
+.f-label { font-size:var(--font-size); line-height:20px; color:var(--text); }
 .f-label .f-req { color:var(--red3); }
 .f-help { font-size:var(--font-size-small); line-height:16px; color:var(--text-muted); }
 .f-input, .f-select { display:block; width:100%; height:var(--control-h); padding:0 10px; border:0; border-radius:var(--radius); background:var(--white); color:var(--dark-gray1); font:inherit; font-size:var(--font-size); line-height:var(--control-h); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), inset 0 1px 1px rgba(17,20,24,.3); }
