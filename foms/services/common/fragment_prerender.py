@@ -78,6 +78,10 @@ SHELL_ENV: Final[tuple[str, ...]] = (
     "KAKAO_SHARE_JS_KEY", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_SERVICE_NAME",
     "REDIS_URL", "STORAGE_TYPE", "UPLOAD_FOLDER", "USE_DIRECT_UPLOAD",
     "FOMS_DASHBOARD_MICRO_CACHE_ENABLED",
+    # 접목판 분홍 칸 빈 자리(graft_cell_slot · graft_cells_any — 전역 스위치 사슬 칸 → 할 일 → 새 화면, 설계서
+    # 2026-11-14-foms-graft 4 · 6절). 폰 목록 카드 · 셸 머리 · 레일이 읽으므로 켜고 끄면 저장된 조각이 갈려야 한다.
+    "FOMS_GRAFT_CELL_PC_ENABLED", "FOMS_GRAFT_CELL_TABLET_ENABLED", "FOMS_GRAFT_CELL_MOBILE_ENABLED",
+    "FOMS_GRAFT_ACTIONS_ENABLED", "FOMS_GRAFT_BRAIN_UI_ENABLED",
 )
 #: 시계(테스트가 바꿔 끼운다).
 _now_s: Callable[[], float] = time.time

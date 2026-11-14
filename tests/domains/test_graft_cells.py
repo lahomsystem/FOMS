@@ -451,3 +451,11 @@ def test_chip_never_widens_its_column_or_breaks_the_stage_badge():
     tablet = tablet[:tablet.index("}")]
     assert "width: fit-content;" in tablet and "white-space: normal;" in tablet and "word-break: keep-all;" in tablet
     assert "td.erp-quest-cell > .foms-graft-chip { display: flex; width: fit-content; white-space: normal; word-break: keep-all; }" in css
+
+
+def test_prerender_key_varies_with_every_switch_the_cells_read():
+    """생산 대시보드 조각은 미리 그려 저장한다 — 빈 자리가 읽는 전역 스위치(칸 셋 → 할 일 → 새 화면 사슬)를 저장 열쇠가 다
+    알아야 켜고 끌 때 옛 조각이 나가지 않는다(11-14 smoke — 폰 칸 스위치가 열쇠 밖이었다)."""
+    from foms.services.common import fragment_prerender as fp
+    for short in ("cell_pc", "cell_tablet", "cell_mobile", "actions", "brain_ui"):
+        assert f"{FLAGS[short]}_ENABLED" in fp.SHELL_ENV, short
