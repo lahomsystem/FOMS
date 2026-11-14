@@ -12,6 +12,9 @@
 - ``/quality`` 연결 개수 규칙 품질 수(최소 미달 · 최대 넘음 — D105).
 - ``/ontology`` 온톨로지 탭 왼쪽 목록(종류 · 연결 · 동작 · 능력 질문 점수) · ``/ontology/types/<유형>`` 오른쪽 상세(속성 틀 · 채움 ·
   연결 · 예시 — 설계서 2026-11-12 온톨로지 7절 · D187 · D188).
+- 접목판 ERP 읽기(``erp_read`` 스위치 — 설계서 2026-11-14-foms-graft 3.8)가 켜진 사람에게만: ``/ontology`` 답의 ``erp`` 칸 ·
+  ``/ontology/erp/<종류>`` ERP 물건 상세 · ``/items/<키>/usage`` 쓰인 곳(지난 14일 수 · 최근 줄 · 이어진 ERP 물건). 꺼진 사람에게는
+  지금과 같은 답이다 — ``/items/<키>/usage`` 는 키가 ``…/usage`` 로 끝나는 항목 카드로 읽힌다(지금 길 그대로).
 
 여는 사람은 켜진 ADMIN 과 층 승인자 팀 MANAGER 뿐(D101 — :func:`foms.services.brain.access.screen_viewer`). 로그인 안 함 401,
 그 밖(다른 역할 · 협력사 직원)은 **404**(있는지도 알리지 않는다). PARTNER 세션은 이 핸들러 앞에서 협력사 문지기
@@ -24,18 +27,21 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, abort, g, jsonify, request
 
 from db import get_db
 from foms.services.brain.access import screen_viewer
 from foms.services.brain.around import AroundQueryError, brain_points, parse_around, search_around
 from foms.services.brain.browse import TableQueryError, parse_table_query, search_grouped, table_page, type_map
 from foms.services.brain.card import item_card
-from foms.services.brain.ontology_view import ontology_summary, ontology_type
+from foms.services.brain.ontology_view import ontology_erp_type, ontology_summary, ontology_type
 from foms.services.brain.quality import quality_counts
+from foms.services.brain.read import current_item
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import Viewer
-from foms.services.datetime_kst import get_today_kst
+from foms.services.brain.usage_view import item_usage
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.graft_flags import enabled as graft_enabled
 
 brain_api_bp = Blueprint("brain_api", __name__, url_prefix="/api/brain")
 
@@ -99,10 +105,32 @@ def brain_table() -> tuple[Any, int]:
     return _read(lambda db, viewer: table_page(db, viewer, query, today=get_today_kst()))
 
 
+def _erp_on() -> bool:
+    """접목판 ERP 읽기 스위치가 이 사람에게 켜졌나(env 만 — DB 를 읽지 않는다)."""
+    return graft_enabled("erp_read", getattr(g, "current_user", None))
+
+
 @brain_api_bp.route("/items/<path:key>", methods=["GET"])
 def brain_item(key: str) -> tuple[Any, int]:
     """항목 카드(화면 3) — 볼 수 없거나 없으면 404(둘을 가르지 않는다)."""
     return _read(lambda db, viewer: item_card(db, viewer, key[:120], today=get_today_kst()))
+
+
+def _usage_or_card(db: Any, viewer: Viewer, key: str) -> Any:
+    """키 자체가 ``…/usage`` 로 끝나는 항목이면 그 카드(지금 길 그대로), 아니면 그 앞 키의 쓰인 곳."""
+    today = get_today_kst()
+    whole = f"{key}/usage"[:120]
+    if current_item(db, viewer, whole, today) is not None:
+        return item_card(db, viewer, whole, today=today)
+    return item_usage(db, viewer, g.current_user, key[:120], today=today, now_utc=now_utc_naive())
+
+
+@brain_api_bp.route("/items/<path:key>/usage", methods=["GET"])
+def brain_item_usage(key: str) -> tuple[Any, int]:
+    """지식 카드 '쓰인 곳'(설계서 2026-11-14-foms-graft 3.8) — ERP 읽기 스위치가 꺼진 사람에게는 지금 길(카드) 그대로."""
+    if not _erp_on():
+        return brain_item(f"{key}/usage")
+    return _read(lambda db, viewer: _usage_or_card(db, viewer, key))
 
 
 @brain_api_bp.route("/type-map", methods=["GET"])
@@ -149,8 +177,17 @@ def brain_quality() -> tuple[Any, int]:
 
 @brain_api_bp.route("/ontology", methods=["GET"])
 def brain_ontology() -> tuple[Any, int]:
-    """온톨로지 탭 왼쪽 목록 — 수는 볼 수 있는 것만."""
-    return _read(lambda db, viewer: ontology_summary(db, viewer, today=get_today_kst()))
+    """온톨로지 탭 왼쪽 목록 — 수는 볼 수 있는 것만. ERP 읽기가 켜진 사람에게만 ``erp`` 칸."""
+    erp = _erp_on()
+    return _read(lambda db, viewer: ontology_summary(db, viewer, today=get_today_kst(), erp=erp))
+
+
+@brain_api_bp.route("/ontology/erp/<kind>", methods=["GET"])
+def brain_ontology_erp(kind: str) -> tuple[Any, int]:
+    """ERP 물건 종류 상세 — 모르는 종류는 404. ERP 읽기가 꺼진 사람에게는 없는 주소와 같은 답(지금 그대로)."""
+    if getattr(g, "current_user", None) is not None and not _erp_on():
+        abort(404)
+    return _read(lambda db, viewer: ontology_erp_type(kind[:40]))
 
 
 @brain_api_bp.route("/ontology/types/<item_type>", methods=["GET"])

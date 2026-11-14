@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-__all__ = ["CQ", "CQS", "D204_DROPPED", "ERP_NEEDS", "LINKS_BEFORE_D204"]
+__all__ = ["CQ", "CQS", "D204_DROPPED", "ERP_NEED_TYPES", "ERP_NEEDS", "LINKS_BEFORE_D204"]
 
 #: D204 가 질문 요구에서 뺀 연결 — 상담 질문의 뜻으로는 채울 길이 없는 둘.
 D204_DROPPED: frozenset[str] = frozenset({"part_of", "uses"})
@@ -29,8 +29,11 @@ LINKS_BEFORE_D204: dict[str, tuple[str, ...]] = {
     "P05": ("at_step", "requires", "part_of"), "A04": ("part_of",),
 }
 
-#: ERP 운영 물건(아직 없음 — 설계서 5.5).
+#: ERP 운영 물건(설계서 5.5) — 회사 지식 표에는 없다. 접목판 ERP 읽기(``erp_read`` 스위치 — 설계서 2026-11-14-foms-graft 3.8)가
+#: 켜진 사람에게는 읽기 도구가 있는 물건 종류(:data:`ERP_NEED_TYPES`)면 '있음'으로 센다. 꺼져 있으면 지금처럼 '없음'.
 ERP_NEEDS: dict[str, str] = {"erp:order": "주문(ERP)", "erp:schedule": "일정(ERP)"}
+#: 능력 질문의 ERP 재료 → ERP 물건 종류(:data:`foms.services.erp_ontology.objects.OBJECT_TYPES` 의 코드 이름). 일정은 방문이다.
+ERP_NEED_TYPES: dict[str, str] = {"erp:order": "erp:order", "erp:schedule": "erp:visit"}
 
 
 class CQ(NamedTuple):
