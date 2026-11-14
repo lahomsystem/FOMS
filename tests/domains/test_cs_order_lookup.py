@@ -2,8 +2,9 @@
 
 완료 기준: 끄면 글자까지 그대로(두뇌 재료 · 표 쓰기 0) · 주문 문의 아니면 ERP 를 읽지 않음 · 못 찾으면 성함 · 휴대폰을 **한 번만**
 물음(톡톡은 묻지 않고 넘김) · 답이 오면 두뇌 전에 찾아 한 번만 부름 · 넘긴 뒤 찾으면 한 번 더 부르고 쓰임을 더함 · 이름이 다른
-주문 · 다른 번호 · 휴지통 · 초안 · 끝난 주문은 절대 싣지 않음 · 허용 목록 밖 칸(금액 · 주소 · 전화 · 이름) 0 · 초안 날짜는 그
-주문 날짜만 통과 · 감사 줄에 값 · 글 없음. 합성 글 · 합성 주문 · 가짜 채널톡 · 가짜 두뇌(네트워크 0). 전화 꼴은 실행 때 만든다.
+주문 · 다른 번호 · 휴지통 · 초안은 절대 싣지 않음(끝난 주문은 열린 주문이 없을 때만 — D220, test_cs_order_find_closed) ·
+허용 목록 밖 칸(금액 · 주소 · 전화 · 이름) 0 · 초안 날짜는 그 주문 날짜만 통과 · 감사 줄에 값 · 글 없음.
+합성 글 · 합성 주문 · 가짜 채널톡 · 가짜 두뇌(네트워크 0). 전화 꼴은 실행 때 만든다.
 """
 
 from __future__ import annotations
@@ -92,7 +93,7 @@ def test_contact_finds_only_the_open_order_with_the_same_name(app):
     mine = add_order()
     add_order(name="다른손님")  # 같은 번호 · 다른 이름
     add_order(phone=OTHER)  # 같은 이름 · 다른 번호
-    for closed in (dict(deleted=True), dict(stage="COMPLETED"), dict(erp=False)):
+    for closed in (dict(deleted=True), dict(stage="COMPLETED"), dict(erp=False)):  # 끝난 주문은 열린 주문에 밀린다(D220)
         add_order(**closed)
     found = order_find.by_contact(db_session, [f"{NAME} {PHONE}"])
     assert (found.status, found.basis, found.order.id) == ("one", "contact", mine.id)
