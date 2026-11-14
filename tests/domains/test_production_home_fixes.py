@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261114d" in html
+    assert "home.css?v=20261114e" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -282,7 +282,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261114d" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114e" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -376,4 +376,35 @@ def test_키_낮은_가로_터치_화면은_시공일_띠_날을_두_칸씩_놓�
     assert "display: flex;\n  flex-direction: column;\n  background: var(--fph-surface);" in rest
     assert "grid-template-columns: calc(88px * var(--foms-fs, 1)) minmax(0, 1fr) calc(62px * var(--foms-fs, 1));" in rest
     assert ".foms-prod-home .fph-sd__bar { width: 100%; height: 16px;" in rest
-    assert "home.css') }}?v=20261114d" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114e" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+
+
+def test_화면_크기와_글자를_키워_이름_칸이_좁아지면_카드를_두_줄로_100퍼센트는_그대로() -> None:
+    """11-14 실측: 1176×626 화면 크기 130% + 글자 150% 에서 날짜 장 카드 455px 에 정해진 칸 470px 이 들어가 이름 칸이 0px,
+    '발주 가나 인테리어' 가 한 글자씩 꺾였다(찾기 165px · 내 공정 274px 도 이름 글자의 5 · 8배). 칸을 담은 상자 너비를 컨테이너로 잰다."""
+    css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    gate = "@media (min-width: 992px) {\n  .fph-panes { container: fph-pane / inline-size; }"
+    assert css.count(gate) == 1  # 세로 · 폰(992px 아래)은 원래 두 줄 규칙만
+    block = css.split(gate)[1].split("\n}\n")[0]
+    for line in (".foms-prod-home__list { container: fph-list / inline-size; }", ".fph-q { container: fph-q / inline-size; }",
+                 ".fph-inbox--page { container: fph-inbox / inline-size; }"):
+        assert line in block
+    queries = dict(re.findall(r"@container (fph-\w+) \(max-width: calc\(([^\n]+) - 0\.02px\)\) \{", block))
+    assert set(queries) == {"fph-pane", "fph-list", "fph-q", "fph-inbox"}
+
+    def _px(name: str, fs: float) -> float:  # 쿼리 식을 글자 배율 fs 에서 px 로 푼다(1rem = 16 × fs)
+        py = re.sub(r"(\d+(?:\.\d+)?)rem", rf"(\1*{16 * fs})", queries[name])
+        return eval(py.replace("px", ""), {"max": max})  # noqa: S307 — 저장소 CSS 의 고정 식
+
+    # 실측 카드를 담은 칸 너비(CSS px): 100% · 글자 100% 는 그대로(1176×626 이 가장 좁다), 130% + 글자 150% 는 두 줄
+    for name, base_w, big_w in (("fph-pane", 760, 455), ("fph-list", 1072, 801), ("fph-q", 1072, 801), ("fph-inbox", 1072, 800)):
+        assert _px(name, 1) < base_w and _px(name, 1.5) > big_w, name
+    # 경계 = 이름 칸이 이름 글자의 12배(날짜 장 20px · 찾기 22px · 내 공정 22px · 받은함 19px, 글자 배율을 곱한다)
+    assert abs(_px("fph-pane", 1) - (128 + 154 + 92 + 36 + 12 + 2 + 12 * 20)) < 0.01
+    assert abs(_px("fph-list", 1.5) - (150 + 290 + 130 + 20 + 2 + 44 + 12 * 22 * 1.5)) < 0.01
+    assert abs(_px("fph-q", 1.2) - (64 + 190 + 30 + 16 + 2 + 150 * 1.2 + 12 * 22 * 1.2)) < 0.01
+    # 두 줄로 바꿀 때 칸 · 글자 · 단추 크기는 그대로 — 자리(grid)와 여백만 바꾸고 아무 칸도 숨기지 않는다
+    assert not re.search(r"font-size|(?<![-\w])(min-)?(width|height):|display: none", block)
+    for card in (".fph-dr {", ".foms-prod-home__job {", ".fph-qr {"):
+        assert card + " grid-template-columns:" in block and "grid-template-rows: auto auto;" in block
+    assert ".fph-inbox--page > .fph-al { grid-column: 1 / -1; }" in block  # 받은함은 두 칸 → 한 칸
