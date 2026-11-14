@@ -1,0 +1,10 @@
+{#- 능력 질문(시험지) 옆 창(판 ⑩ 오른쪽): 점수 · 막대(<progress> — 인라인 스타일 없이) · 켜기 전 → 지금 수 · ERP 재료 안내(erp 칸이
+    있을 때만) · 아직 못 푸는 질문 다섯 · 모두 보기 · (ERP 물건을 고르면) 정본 자리. ds-onto.js 가 GET /api/brain/ontology 로 채운다. -#}
+<aside class="f-aside fb-onto-aside" aria-label="능력 질문" data-ds-onto-aside>
+  <div class="f-aside-head">{{ ds.icon('lab-test', 'f-i-muted') }}<span class="f-section-title">능력 질문(시험지)</span></div>
+  <div class="f-aside-body">
+    <div class="f-col f-gap16" data-ds-onto-cq><p class="f-small f-muted">불러오는 중이에요…</p></div>
+    <section class="f-col" aria-label="정본 자리" data-ds-onto-source hidden></section>
+    <div class="f-callout">{{ ds.icon('info-sign') }}<div class="f-small">여기서는 보기만 해요. 종류 · 칸은 설계서와 코드로만 바꿔요.</div></div>
+  </div>
+</aside>

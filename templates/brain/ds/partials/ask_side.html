@@ -1,0 +1,17 @@
+{#- 물어보기 왼쪽 길잡이(판 ⑨ — PC 만): 새 질문 · 오늘 물은 것(수) · 지난 7일 — 줄은 ds-ask.js 가 GET /api/brain/chat/history
+    (내가 물은 것만 · 가린 글 앞부분)로 채운다. ADMIN 만 관리(설정 · 빈 지식 · 틀림 신고 — 가운데 관리 칸으로 가는 길, 수는 빈 지식
+    목록에서 센다). -#}
+<nav class="f-side fb-pc-only fb-ask-side" aria-label="물어본 것" data-ds-ask-side>
+  <button class="f-btn f-btn-primary f-btn-fill fb-ask-new" type="button" data-ds-ask-new>{{ ds.icon('add') }}새 질문</button>
+  <div class="f-nav-heading">오늘 물은 것 <span data-ds-ask-today-count>0</span></div>
+  <div class="f-col f-gap4 fb-ask-history" data-ds-ask-today></div>
+  <div class="f-nav-heading">지난 7일</div>
+  <div class="f-col f-gap4 fb-ask-history" data-ds-ask-week></div>
+  <p class="f-small f-muted fb-ask-history-none" data-ds-ask-history-status></p>
+  {%- if is_admin %}
+  {{ ds.nav_heading('관리') }}
+  <a class="f-nav-item" href="#ds-ask-settings" data-ds-ask-admin-link="settings">{{ ds.icon('cog') }}물어보기 설정</a>
+  <a class="f-nav-item" href="#ds-ask-gaps" data-ds-ask-admin-link="gaps">{{ ds.icon('issue') }}빈 지식(주 1회)<span class="f-count" data-ds-ask-gap-count hidden></span></a>
+  <a class="f-nav-item" href="#ds-ask-gaps" data-ds-ask-admin-link="wrong">{{ ds.icon('warning-sign') }}틀림 신고<span class="f-count" data-ds-ask-wrong-count hidden></span></a>
+  {%- endif %}
+</nav>

@@ -1,0 +1,20 @@
+{#- 물어보기 관리 칸(ADMIN 만 — 설계서 10절 · 12절 '비용 · 남용' · 10.3, 옛 화면 brain/partials/ask_panel.html 의 관리 칸과 같은 일).
+    설정 칸은 서버 설정 표대로 ds-ask-admin.js 가 그리고 바뀐 칸만 POST /api/brain/chat/settings. 빈 지식은 주 1회 묶음 —
+    묶음마다 틀림 신고 수가 붙는다(왼쪽 '틀림 신고' 수). -#}
+<details class="f-section fb-ask-admin" id="ds-ask-settings" data-ds-ask-admin>
+  <summary class="f-section-head">{{ ds.icon('cog', 'f-i-muted') }}<span class="f-section-title">물어보기 설정</span>
+    <span class="f-section-sub">관리자만 봐요</span></summary>
+  <form class="f-section-body" data-ds-ask-settings>
+    <div class="fb-ask-fields" data-ds-ask-fields></div>
+    <p class="fb-status" data-ds-ask-settings-status role="status" aria-live="polite"></p>
+    <div class="f-row"><button class="f-btn f-btn-primary" type="submit">설정 저장</button></div>
+  </form>
+</details>
+<section class="f-section" id="ds-ask-gaps" aria-labelledby="ds-ask-gaps-title" data-ds-ask-gaps-box>
+  <div class="f-section-head">{{ ds.icon('issue', 'f-i-muted') }}<span class="f-section-title" id="ds-ask-gaps-title">빈 지식(주 1회)</span>
+    <span class="f-small f-muted f-push">관리자만 봐요</span></div>
+  <div class="f-section-body">
+    <p class="f-small f-muted" data-ds-ask-gaps-status role="status"></p>
+    <ul class="f-col f-gap4" data-ds-ask-gaps></ul>
+  </div>
+</section>

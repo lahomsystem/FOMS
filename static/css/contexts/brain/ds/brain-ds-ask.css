@@ -1,0 +1,44 @@
+/* 물어보기 화면 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.7 · 5.4 · 5.5 · 판 ⑨) — templates/brain/ds/ask.html 전용.
+   class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
+   640px 아래 = 폰(⑫): 왼쪽 길잡이는 숨고(.fb-pc-only — 틀 CSS), '이 답이 읽은 것'은 가운데 아래로 쌓인다. */
+
+/* hidden 은 언제나 숨김 — .f-col · .f-callout · .f-aside 같은 display 규칙이 [hidden] 을 이기지 않게. */
+.fb-ask [hidden],
+.fb-ask-side [hidden],
+.fb-ask-aside[hidden] { display: none !important; }
+
+.fb-ask { min-width: 0; gap: 16px; }
+.fb-status:empty { display: none; }
+.fb-status.is-error { color: var(--red2); }
+
+/* 왼쪽 길잡이 — 폭 고정(긴 질문이 길잡이를 넓히지 않게) · 새 질문 단추 · 내 질문 줄(두 줄 · 말줄임) */
+.fb-ask-side { flex: 0 0 280px; width: 280px; min-width: 0; }
+.fb-ask-new { margin: 4px 0; }
+.fb-ask-item { align-items: flex-start; }
+.fb-ask-item .f-ellipsis { display: block; }
+.fb-ask-history:empty { display: none; }
+.fb-ask-history-none:empty { display: none; }
+.fb-ask-history-none { padding: 4px 8px; }
+
+/* 물음과 답 — 물음은 오른쪽(폭 72%까지) · 답은 온 폭 */
+.fb-ask-log:empty { display: none; }
+.fb-ask-q { align-self: flex-end; align-items: flex-end; max-width: 72%; }
+.fb-ask-q__text { white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
+.fb-ask-a { cursor: default; }
+.fb-ask-a .f-quote { word-break: keep-all; overflow-wrap: anywhere; }
+.fb-chip-meta { color: var(--text-muted); }
+.fb-ask-fix { padding-top: 4px; }
+
+/* 관리 칸(ADMIN) — 설정은 접어 둔다 */
+.fb-ask-admin > summary { cursor: pointer; list-style: none; }
+.fb-ask-admin > summary::-webkit-details-marker { display: none; }
+.fb-ask-admin:not([open]) > summary { box-shadow: none; }
+.fb-ask-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 16px; }
+
+/* 이 답이 읽은 것 */
+.fb-ask-aside .f-kv dd { word-break: keep-all; }
+
+@media (max-width: 640px) {
+  .fb-ask-q { max-width: 92%; }
+  .fb-ask-aside { padding-bottom: 88px; }
+}

@@ -1,0 +1,11 @@
+{#- 유형 지도 보기(온톨로지 화면의 보기 — 설계서 5.2 · 5.3): 옛 화면 조각 brain/partials/tab_map.html 을 그대로 싣는다. 그 조각 ·
+    brain-map.js · brain.css 의 .brain-* 는 고치지 않는다(이름 머리가 달라 새 화면과 부딪치지 않는다). 그림 라이브러리는 ds-onto-map.js 가
+    'brain:tab' {tab: 'map'} 을 쏠 때 brain-map.js 가 import() 한다. 유형을 누르면 지식 표(?tab=table&type=)가 열린다. -#}
+<div class="f-breadcrumbs"><a href="{{ url_for('brain_web.index', tab='onto') }}">온톨로지</a>{{ ds.icon('chevron-right') }}<span class="f-current">유형 지도</span></div>
+<header class="f-row"><h1 class="f-h3">유형 지도</h1><span class="f-muted">지식 유형 · 연결 종류 전체 한 장 — 누르면 지식 표가 열려요</span></header>
+<div class="brain-page fb-onto-map" data-ds-onto-map
+     data-type-map-url="{{ url_for('brain_api.brain_type_map') }}"
+     data-cytoscape-url="{{ asset_url('vendor/cytoscape-3.34.4.esm.min.js') }}"
+     data-dagre-url="{{ asset_url('vendor/cytoscape-dagre-4.0.1.esm.min.js') }}">
+  {% include "brain/partials/tab_map.html" %}
+</div>

@@ -1,0 +1,8 @@
+{#- '이 답이 읽은 것'(판 ⑨ 오른쪽 — 설계서 3.7). 접목판 erp_read 가 켜진 사람에게만 자리를 그리고, 답에 erp 칸이 있을 때만
+    ds-ask-turn.js 가 채워 보인다(주문 요약 · 방문 · 쓴 도구 · 읽기만 안내). 손님 이름 · 전화 · 주소 · 금액은 서버가 주지 않는다 —
+    화면도 만들지 않는다. 시공 팀 · 인원 · 사진 수는 그리지 않는다(설계서 9절 · D211). -#}
+<aside class="f-aside fb-ask-aside" aria-label="이 답이 읽은 것" data-ds-ask-aside hidden>
+  <div class="f-aside-head">{{ ds.icon('data-lineage', 'f-i-muted') }}<span class="f-section-title">이 답이 읽은 것</span>
+    <span class="f-tag f-tag-minimal f-push">읽기만</span></div>
+  <div class="f-aside-body" data-ds-ask-read></div>
+</aside>
