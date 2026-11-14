@@ -440,3 +440,14 @@ def test_rail_tightens_only_while_the_company_knowledge_item_shows():
     block = css[css.index(head):css.index("}", css.index(head))]
     assert "padding-top: 4px;" in block and "padding-bottom: 4px;" in block and "min-height: 44px;" in block
     assert ".foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__brand {" in css
+
+
+def test_chip_never_widens_its_column_or_breaks_the_stage_badge():
+    """11-14 사용자 지적 — 칩이 한 줄 폭으로 '현재 작업' 칸을 넓혀 태블릿 '단계' 배지가 '컨/펌'처럼 글자마다 꺾였다. 단계 배지는
+    한 줄 · 칩은 fit-content + 낱말 사이 줄바꿈(PC · 태블릿 둘 다). max-content 면 가장 좁은 폭도 한 줄 폭이 되어 표를 밀어낸다."""
+    css = (ROOT / "static/css/components/foms-graft-cells.css").read_text(encoding="utf-8")
+    assert ".foms-tqcell-stage .foms-stage-badge { white-space: nowrap; }" in css
+    tablet = css[css.index(".foms-tqcell-quest .foms-graft-chip {"):]
+    tablet = tablet[:tablet.index("}")]
+    assert "width: fit-content;" in tablet and "white-space: normal;" in tablet and "word-break: keep-all;" in tablet
+    assert "td.erp-quest-cell > .foms-graft-chip { display: flex; width: fit-content; white-space: normal; word-break: keep-all; }" in css

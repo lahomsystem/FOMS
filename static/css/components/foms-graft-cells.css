@@ -36,7 +36,9 @@
 .foms-graft-chip:focus-visible { background: var(--foms-color-brand-100, #e6e8ff); color: var(--foms-color-brand-700, #3a4490); }
 .foms-graft-chip__icon { font-size: 0.85em; }
 .foms-graft-chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-td.erp-quest-cell > .foms-graft-chip { display: flex; }
+/* PC '현재 작업' 칸 — 칩이 칸을 넓히지 않게 좁으면 낱말 사이에서 줄을 바꾼다(태블릿 표와 같은 규칙, 11-14). */
+td.erp-quest-cell > .foms-graft-chip { display: flex; width: fit-content; white-space: normal; word-break: keep-all; }
+td.erp-quest-cell > .foms-graft-chip .foms-graft-chip__text { overflow: visible; }
 
 /* 폰 목록 줄 머리 — 단계 · 경보 배지 옆(넘치면 글만 말줄임). 보이는 칩은 22px 그대로 두고, 누르는 자리만 보이지 않는 겹으로
    위아래 44px 까지 넓힌다(설계서 5.5 — 줄 높이 · 칩 모양은 그대로). 칩이 겹을 자르지 않게 넘침 자르기는 글 칸(__text)에만. */
@@ -89,9 +91,17 @@ td.erp-quest-cell > .foms-graft-chip { display: flex; }
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   body.erp-mobile-v2-layout .foms-tqcell-quest .foms-graft-chip {
     display: flex;
+    width: fit-content; /* max-content 이면 가장 좁은 폭도 한 줄 폭이 되어 표를 밀어낸다 */
+    max-width: 100%;
     margin-top: 4px;
     font-size: calc(13px * var(--foms-fs, 1));
+    white-space: normal;
+    word-break: keep-all; /* 낱말 사이에서만 줄을 바꾼다('더/하기' 꺾임 막기) */
   }
+  body.erp-mobile-v2-layout .foms-tqcell-quest .foms-graft-chip__text { overflow: visible; }
+  /* 칩이 한 줄로 '현재 작업' 칸을 넓히면 표가 '단계' 칸을 줄여 '컨/펌'처럼 글자마다 꺾였고, 막으면 '첨부' 칸이 오른쪽 밖으로
+     밀렸다(11-14 사용자 지적) — 단계 배지는 한 줄로 두고, 칩 글은 칸이 좁으면 낱말 사이에서 줄을 바꾼다. */
+  body.erp-mobile-v2-layout .foms-tqcell-stage .foms-stage-badge { white-space: nowrap; }
   body.erp-mobile-v2-layout .foms-graft-rail { position: relative; }
   body.erp-mobile-v2-layout .foms-graft-rail__icon { color: var(--foms-color-brand-500, #5a67d8); }
   body.erp-mobile-v2-layout .foms-graft-rail .foms-graft-count { background: var(--foms-color-brand-500, #5a67d8); color: #fff; }
