@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import time
 from collections import Counter
 from typing import Any, Callable, Iterable
 
 from db import db_session
+from foms.services import audit_writer
 from models import (
     DomainSideEffectOutbox,
     Notification,
@@ -153,6 +155,19 @@ def _event_rows(order_id: int) -> list[tuple[int, tuple]]:
     return [(r.id, (r.event_type, scrub(r.payload))) for r in rows]
 
 
+def fresh_tick() -> None:
+    """시계 눈금이 한 번 넘어갈 때까지 기다린다(1초 안).
+
+    Windows 의 ``datetime.now()`` 는 눈금이 1 ~ 16ms 라, 데워진 프로세스에서 한 시험 안의 두 쓰기가 같은 눈금에
+    들면 두 번째 시각이 첫 번째와 같아져 ``…_at`` 칸이 '안 바뀐' 것으로 보인다(접목판 원장 F-09). 자국을 뜨기 전에
+    눈금을 넘겨 두면 그 뒤 쓰기의 시각은 앞선 쓰기보다 늘 크다. 시험이 지켜보는 행동은 바뀌지 않는다.
+    """
+    start = _dt.datetime.now()
+    deadline = time.monotonic() + 1.0
+    while _dt.datetime.now() == start and time.monotonic() < deadline:
+        pass
+
+
 def snapshot(order_id: int, *, sd_paths: Iterable[str] = (), flat: Iterable[str] = (),
              views: dict[str, Callable[[dict], Any]] | None = None) -> dict:
     """주문 하나의 자국을 뜬다(DB 를 새로 읽는다).
@@ -166,6 +181,10 @@ def snapshot(order_id: int, *, sd_paths: Iterable[str] = (), flat: Iterable[str]
     Returns:
         :func:`delta` 가 받는 자국 dict.
     """
+    fresh_tick()  # 앞선 쓰기와 같은 시계 눈금에 다음 쓰기가 들지 않게(F-09)
+    # 거부 감사 줄의 60초 겹침 거르기는 프로세스 안 캐시다 — 같은 일손에서 먼저 돈 시험이 같은 번호 사용자 · 같은 끝점으로
+    # 거부를 남겼으면 이 시험의 ACCESS_DENIED 줄이 빠진다(F-09). 자국을 뜰 때마다 비워 시험끼리 섞이지 않게 한다.
+    audit_writer.reset_dedupe_cache()
     db_session.expire_all()
     order = db_session.get(Order, order_id)
     sd = (order.structured_data if order is not None else None) or {}
