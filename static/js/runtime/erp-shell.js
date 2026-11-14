@@ -51,6 +51,13 @@
     // 5분 primary 캐시면 수령 확정 뒤에도 배지가 남으므로 fresh(60s·하트비트 50s)+복귀 재수혈로 둔다.
     '/erp/production/dashboard',
   ];
+  /**
+   * 9탭 밖이지만 같은 셸 조각 규약을 내는 화면 중 fresh 로 다루는 것 — 생산 첫 화면(D19: 태블릿 레일 · 생산팀 폰 아래 메뉴의
+   * 생산 단추 주소, 2026-11-14). 예전엔 온전한 페이지 이동이라 생산으로 돌아올 때마다 서버 왕복 + 스크립트 64개 다시 실행이었다.
+   * 미리 받기(첫 웜업 · fresh 하트비트 · 복귀 재수혈)는 이 주소로 가는 링크가 **보이는** 사람만 — 레일은 태블릿 가로에서만
+   * 보이고, 첫 화면을 못 보는 팀은 링크가 보드다. 지금 그 화면에 있으면 자기 자신은 미리 받지 않는다([다시 받기]는 캐시 없이 받는다).
+   */
+  var LINKED_FRESH_PATHS = ['/erp/production/home'];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
@@ -182,6 +189,26 @@
     }
   }
 
+  /** LINKED_FRESH_PATHS 중 지금 문서에 보이는 링크가 있고 지금 화면이 아닌 것(미리 받기 대상). */
+  function visibleLinkedFreshPaths() {
+    if (typeof document.querySelectorAll !== 'function') {
+      return [];
+    }
+    var cur = pathOnly(window.location.href);
+    return LINKED_FRESH_PATHS.filter(function (p) {
+      if (p === cur) {
+        return false;
+      }
+      var links = document.querySelectorAll('a[href="' + p + '"]');
+      for (var i = 0; i < links.length; i++) {
+        if (links[i].getClientRects().length > 0) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
   function isFragmentReadyPath(url) {
     return FRAGMENT_READY_PATHS.indexOf(pathOnly(url)) >= 0;
   }
@@ -193,6 +220,9 @@
   function isSubordinateShellFragmentPath(url) {
     var p = pathOnly(url);
     if (p === '/erp/shipment-settings') {
+      return true;
+    }
+    if (LINKED_FRESH_PATHS.indexOf(p) >= 0) {
       return true;
     }
     if (/^\/erp\/drawing-workbench\/\d+$/.test(p)) {
@@ -274,7 +304,7 @@
   /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast. */
   function cacheTtlForKey(key) {
     var path = key.split('?')[0];
-    return FRESH_TTL_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
+    return FRESH_TTL_PATHS.indexOf(path) >= 0 || LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
   }
 
   function cacheGet(key) {
@@ -913,7 +943,7 @@
     var cur = pathOnly(window.location.href);
     var candidates = PRIMARY_NAV_PATHS.filter(function (p) {
       return p !== cur;
-    }).slice(0, IDLE_PREFETCH_MAX);
+    }).slice(0, IDLE_PREFETCH_MAX).concat(visibleLinkedFreshPaths());
     var i = 0;
     function next() {
       if (i >= candidates.length) {
@@ -1110,7 +1140,7 @@
       return;
     }
     lastFocusRefreshTs = now;
-    FRESH_TTL_PATHS.forEach(function (p) {
+    FRESH_TTL_PATHS.concat(visibleLinkedFreshPaths()).forEach(function (p) {
       prefetchShellFragment(window.location.origin + p, { force: true });
     });
   }
@@ -1184,24 +1214,25 @@
     step();
   }
 
-  /** fresh 경로(3개)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
+  /** fresh 경로(3개 + 보이는 링크의 LINKED_FRESH_PATHS)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
   function runFreshHeartbeat() {
     if (freshHeartbeatSweeping) {
       return;
     }
     lastFreshHeartbeatTs = Date.now();
-    if (!FRESH_TTL_PATHS.length) {
+    var targets = FRESH_TTL_PATHS.concat(visibleLinkedFreshPaths());
+    if (!targets.length) {
       return;
     }
     freshHeartbeatSweeping = true;
     var i = 0;
     function step() {
-      if (i >= FRESH_TTL_PATHS.length) {
+      if (i >= targets.length) {
         freshHeartbeatSweeping = false;
         return;
       }
       try {
-        prefetchShellFragment(window.location.origin + FRESH_TTL_PATHS[i], { force: true });
+        prefetchShellFragment(window.location.origin + targets[i], { force: true });
       } catch (e) {
         // sync throw 시 플래그 leak(하트비트 영구 정지) 방지.
         freshHeartbeatSweeping = false;

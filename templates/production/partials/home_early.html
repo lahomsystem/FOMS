@@ -1,0 +1,5 @@
+{# 생산 첫 화면 '날 고르기' JS — 머리(전체 페이지)와 셸 조각 맨 앞에 싣는다(11-14). defer 스크립트는 문서 순서대로 돌므로
+   여기 두면 공용 스크립트 수십 개보다 먼저 묶여, 화면이 보이는데 날 누름이 버려지는 구간이 줄어든다(tap_delay 실측 4배 559~924ms).
+   묶이기 전 누름은 날 단추가 진짜 링크라 그 날 주소로 이동한다. 이 파일은 다른 스크립트에 기대지 않는다. #}
+{% if days %}<script src="{{ url_for('static', filename='js/production/foms-production-home-days.js') }}?v=20261114a" defer></script>
+{% endif %}

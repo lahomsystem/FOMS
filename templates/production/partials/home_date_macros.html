@@ -1,0 +1,23 @@
+{# 생산 첫 화면 매크로 — 주소(home_href) · 날짜 탭 줄 · 칸. home_body · home_date · home_day_pane · home_parts 가 같이 쓴다. #}
+{# 첫 화면 주소는 여기 한 곳에서 만든다(11-14): 탭(날짜는 생략) · 파트('도면 카드' 탭만) · 날(날짜 · 도면 카드 탭만).
+   화면 탭 · 날 단추 · 파트 고르기 · [다시 받기] 가 모두 이것을 쓰고, JS 는 링크의 href 를 그대로 쓴다(주소를 다시 짓지 않는다). #}
+{% macro home_href(tab=None, part=None, day=None) -%}
+{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab == 'parts' else None), day=(day if tab in (None, 'date', 'parts') else None)) }}
+{%- endmacro %}
+{% macro fph_row(r, show_day) %}
+<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}"
+   href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
+  <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% elif show_day %}<small>{{ r.day_label }}</small>{% endif %}</span>
+  <span class="fph-dr__who">
+    <span class="fph-dr__ln"><span class="fph-dr__nm"><b>{{ r.customer_name }}</b> <small>#{{ r.id }}</small></span>{% if r.by_parts %}<span class="fph-dr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</span>
+    <span class="fph-dr__pr">{% if r.has_changes %}<em>{{ r.change_line }}</em> · {% endif %}{{ r.v3_product_label or '품목 없음' }}{% if r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}</span>
+  </span>
+  <span class="fph-dr__steps" aria-label="공정">
+    {% for s in r.home_steps %}<span class="fph-dr__st{% if s.done %} is-done{% elif s.now %} is-now{% endif %}"><i></i>{{ s.label }}</span>{% endfor %}
+  </span>
+  <span class="fph-dr__dw">{{ r.drawing_label }}</span>
+</a>
+{% endmacro %}
+{% macro fph_chip(r, show_day, done) %}
+<a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }}{% if show_day %} · {{ r.day_label }}{% endif %} · {{ r.v3_product_label or r.home_stage }}</small></a>
+{% endmacro %}

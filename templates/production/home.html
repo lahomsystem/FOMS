@@ -3,64 +3,14 @@
    제목 줄에 탭별 글자 크기 손잡이(다른 탭과 같은 조각). 금액 칸 없음(D7). 단추·카드는 장갑 기준(D5). 글은 해요체·같은 말 한 번. 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/home.css') }}?v=20261111h">
-{% if part_board %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/parts.css') }}?v=20261113e">
-{% endif %}{% endblock %}
+{% include 'production/partials/home_styles.html' %}
+{% include 'production/partials/home_early.html' %}
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-production foms-prod-home-page"
-  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
-  {% if erp_mobile_v2_enabled %}
-    {% set erp_sub_nav_active = 'production' %}
-    {% include 'partials/shared/erp_mobile_shell.html' %}
-  {% endif %}
-  <section class="foms-prod-home" data-foms-prod-home data-loaded-at="{{ loaded_at_iso }}" data-foms-home-tab="{{ tab }}">
-    <header class="foms-prod-home__bar">
-      <h1 class="foms-prod-home__title">{% if part_title %}{{ part_title[0] }} <span class="foms-prod-home__me">{{ part_title[1] }}</span>{% else %}생산{% endif %}</h1>
-      <span class="foms-prod-home__date">{{ today_label }} · 전체 {{ total }}건</span>
-      <nav class="foms-prod-home__nav" aria-label="화면">
-        <a class="foms-prod-home__navtab{% if tab == 'date' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home') }}"{% if tab == 'date' %} aria-current="page"{% endif %}>날짜</a>
-        {% if parts_tab %}<a class="foms-prod-home__navtab{% if tab == 'parts' %} is-on{% endif %}" data-foms-home-partstab href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=(part_board.part if part_board else 'cut')) }}"{% if tab == 'parts' %} aria-current="page"{% endif %}>도면 카드</a>
-        {% endif %}{% if not hide_steps_tab %}<a class="foms-prod-home__navtab{% if tab == 'steps' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='steps') }}"{% if tab == 'steps' %} aria-current="page"{% endif %}>내 공정 <small>{{ counts.making }}</small></a>
-{% endif %}        <a class="foms-prod-home__navtab{% if tab == 'changes' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='changes') }}"{% if tab == 'changes' %} aria-current="page"{% endif %}>바뀐 것 <small{% if counts.changed %} class="is-hot"{% endif %}>{{ counts.changed }}</small></a>
-        <a class="foms-prod-home__navtab{% if tab == 'all' %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='all') }}"{% if tab == 'all' %} aria-current="page"{% endif %}>찾기</a>
-        {# 옛 생산 보드(칸반)로 나가는 단추(D19, 11-10) — 태블릿 레일 '생산' 이 이 첫 화면으로 오므로 보드는 여기서 들어간다 #}
-        <a class="foms-prod-home__navtab foms-prod-home__navtab--out" data-foms-home-board data-foms-erp-no-shell="1" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">보드 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-      </nav>
-      {# 오른쪽 묶음 — 줄이 넘치면 셋이 같이 다음 줄로 간다(단추 하나만 떨어져 한 줄이 비지 않게, 사용자 11-10 ②) #}
-      <div class="foms-prod-home__tools">
-        <span class="foms-prod-home__sync" data-foms-home-sync>{{ loaded_at_hm }} 에 받음</span>
-        {# 탭별 글자 크기(사용자 11-10 ①) — 열쇠는 주소(/erp/production)라 생산 탭만 따로 기억된다 #}
-        {% include 'partials/shared/foms_font_scale_control.html' %}
-        <a class="foms-prod-home__btn" data-foms-home-reload href="{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab != 'date' else None), part=(part_board.part if tab == 'parts' and part_board else None), day=(days.selected if days and not days.auto else None)) }}">다시 받기</a>
-      </div>
-    </header>
-    <p class="foms-prod-home__offline" data-foms-home-offline hidden>연결이 끊겼어요. 보이는 것은 {{ loaded_at_hm }} 에 받은 것이에요.</p>
-    <p class="foms-prod-home__status" data-foms-home-status aria-live="polite"></p>
-
-    {% if tab == 'steps' %}
-      {% include 'production/partials/home_steps.html' %}
-    {% elif tab == 'changes' %}
-      {% include 'production/partials/home_changes.html' %}
-    {% elif tab == 'all' %}
-      {% include 'production/partials/home_all.html' %}
-    {% else %}
-      {% include 'production/partials/home_date.html' %}
-    {% endif %}
-{% if part_board %}    {% include 'production/partials/home_parts_overlays.html' %}
-{% endif %}  </section>
-  {% if tab == 'changes' %}
-  {# [확인했어요] = 옆 시트·묘비와 같은 change-ack 배선(tablet-domain-sheets.js, 이 화면은 기기 무관) #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261111a" defer></script>
-  {% endif %}
-</div>
+{% include 'production/partials/home_body.html' %}
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261110b" defer></script>
-{% if part_board %}{# 도면 카드(설계서 §15.6): 크게 보기 · 칸 단추 · 카드 고치기 · 30초 받아 오기(P15-7)는 누구나. 쓰기(누름 · 확인 창 · 저장)는
-   확인 창이 있는 사람(쓸 수 있는 사람, D55)에게만 묶인다 — 읽기 전용은 창이 없어 parts.js 가 카드 고치기만 내보낸다. #}
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261113b" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261113d" defer></script>
-<script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261113a" defer></script>
-{% endif %}{% endblock %}
+{% include 'production/partials/home_scripts.html' %}
+{% endblock %}

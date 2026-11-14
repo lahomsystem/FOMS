@@ -102,31 +102,48 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     # 띠: 지난 7일 + 오늘부터 11일 + 그 뒤 = 13줄, 아래 지난 시공일·시공일 없음 = 단추 15
     assert html.count('data-foms-home-daybtn="') == 15
     today_key = today.isoformat()
-    today_btn = html.split(f'data-foms-home-daybtn="{today_key}"')[1].split("</button>")[0]
-    assert 'aria-pressed="true"' in today_btn and "<b>1</b><small> / 2</small>" in today_btn
+    today_btn = html.split(f'data-foms-home-daybtn="{today_key}"')[1].split("</a>")[0]
+    assert 'aria-current="true"' in today_btn and "<b>1</b><small> / 2</small>" in today_btn
     assert '<rect class="is-p"' in today_btn and '<rect class="is-x"' in today_btn  # 막대: 만드는 중 + 도면 기다림
-    # 오른쪽: 오늘 장만 보이고 나머지는 hidden
+    # 날 단추 = 진짜 링크(스크립트 전에 눌러도 그 날로 간다) · 셸 조각 교체 제외(날 고르기 JS 가 받는다)
+    tomorrow_key = (today + datetime.timedelta(days=1)).isoformat()
+    tomorrow_btn = re.search(rf'<a [^>]*data-foms-home-daybtn="{tomorrow_key}"[^>]*>', html).group(0)
+    assert f'href="{HOME}?day={tomorrow_key}"' in tomorrow_btn and 'data-foms-erp-no-shell="1"' in tomorrow_btn
+    # 오른쪽: 고른 날(오늘) 장 하나만 그린다(11-14) — 다른 날 장은 껍데기도 내용도 없다
+    assert html.count('data-foms-home-daypane="') == 1 and html.count('class="fph-pane__h"') == 1
     assert f'data-foms-home-daypane="{today_key}">' in html
-    assert html.count('data-foms-home-daypane="') == 15
-    assert len(re.findall(r'data-foms-home-daypane="[^"]+" hidden>', html)) == 14
+    for other in ("내일완료", "오래된주문", "먼날주문", "날짜미정"):
+        assert other not in html, other
     pane = _pane(html, today_key)
     assert "시공 2건 · 만들 것 1 · 도면·컨펌 기다림 1" in pane
     assert "오늘엣지" in pane and "엣지 중" in pane and "오늘도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
     # 오늘 아래 미리 보기 = 다음에 만들 것이 있는 날(내일은 제작 완료뿐이라 건너뜀)
     assert "미리 보기" in pane and "사흘뒤대기" in pane and "내일완료" not in pane
-    tomorrow = _pane(html, (today + datetime.timedelta(days=1)).isoformat())
-    assert "내일완료" in tomorrow and "fph-wi is-done" in tomorrow
-    # 묶음 장: 지난 7일 · 지난 시공일(7일 넘음) · 그 뒤 · 시공일 없음
-    assert "사흘전대기" in _pane(html, "recent") and "오래된주문" in _pane(html, "past")
-    assert "먼날주문" in _pane(html, "later") and "날짜미정" in _pane(html, "none")
+    # 다른 날 = 같은 주소 + view=day 조각: 그 날 장 하나만(셸 · 띠 · 머리 없음), 머리글로 받은 날을 알린다
+    frag = client.get(HOME + f"?day={tomorrow_key}&view=day")
+    assert frag.status_code == 200 and frag.headers["X-FOMS-HOME-DAY"] == tomorrow_key
+    assert frag.headers["Cache-Control"] == "no-store"
+    body = frag.get_data(as_text=True)
+    assert body.count('data-foms-home-daypane="') == 1 and f'data-foms-home-daypane="{tomorrow_key}">' in body
+    assert "fph-strip" not in body and "data-foms-prod-home" not in body and "<!DOCTYPE" not in body and "<script" not in body
+    assert "내일완료" in body and "fph-wi is-done" in body and "오늘엣지" not in body
+    # 묶음 장: 지난 7일 · 지난 시공일(7일 넘음) · 그 뒤 · 시공일 없음 — 각각 조각으로
+    def day(key: str) -> str:
+        return client.get(HOME + f"?day={key}&view=day").get_data(as_text=True)
+    assert "사흘전대기" in day("recent") and "오래된주문" in day("past")
+    assert "먼날주문" in day("later") and "날짜미정" in day("none")
     # 금액 없음(D7) · 작업 시트로 감
     assert "/erp/production/sheet/" in pane
 
-    # ?day= 로 고른 날이 열린다. 모르는 값이면 오늘
+    # ?day= 로 고른 날이 열린다. 모르는 값이면 오늘(조각도 같다 — 머리글이 고른 날과 달라 JS 가 실패로 본다)
     picked = client.get(HOME + "?day=none").get_data(as_text=True)
-    assert 'data-foms-home-daypane="none">' in picked and f'data-foms-home-daypane="{today_key}" hidden>' in picked
+    assert 'data-foms-home-daypane="none">' in picked and f'data-foms-home-daypane="{today_key}"' not in picked
     assert f'data-foms-home-daypane="{today_key}">' in client.get(HOME + "?day=뭐지").get_data(as_text=True)
+    assert client.get(HOME + "?day=뭐지&view=day").headers["X-FOMS-HOME-DAY"] == today_key
+    # 다른 탭에서 view=day 는 조각이 아니라 그 탭 페이지(날짜 · 도면 카드 탭만 날 조각이 있다)
+    steps = client.get(HOME + "?tab=steps&view=day")
+    assert "X-FOMS-HOME-DAY" not in steps.headers and 'data-foms-home-tab="steps"' in steps.get_data(as_text=True)
 
 
 def test_바뀐_것_탭은_받은함에_취소_주문과_확인_단추(client) -> None:
@@ -277,11 +294,14 @@ def test_액션_JS_게이트와_핀이_같다() -> None:
     assert '[data-foms-prod-sheet-page], [data-foms-prod-home]' in js
     kanban = (ROOT / "templates/production/partials/tablet_kanban_body.html").read_text(encoding="utf-8")
     pin = kanban.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
-    for rel in ("templates/production/sheet.html", "templates/production/home.html"):
+    for rel in ("templates/production/sheet.html", "templates/production/partials/home_body.html"):
         assert f"tablet-domain-sheets.js') }}}}?v={pin}" in (ROOT / rel).read_text(encoding="utf-8"), rel
     for rel in ("templates/production/partials/home_all.html", "templates/production/partials/home_date.html",
                 "templates/production/partials/home_changes.html", "templates/production/partials/home_steps.html",
-                "templates/production/home.html"):
+                "templates/production/home.html", "templates/production/partials/home_body.html",
+                "templates/production/partials/home_day_pane.html", "templates/production/partials/home_fragment.html",
+                "templates/production/partials/home_scripts.html", "templates/production/partials/home_styles.html",
+                "templates/production/partials/home_date_macros.html"):
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert 'style="' not in text and "<script>" not in text, rel
 

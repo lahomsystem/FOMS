@@ -126,12 +126,51 @@ def test_production_home_part_screen_adds_one_query_only(client, monkeypatch):
         _seed_order(i)
     assert client.get(HOME_URL).status_code == 200
     resp_small, q_small = _count_queries(lambda: client.get(HOME_URL))
-    assert resp_small.get_data(as_text=True).count("data-pp-card ") == 8  # 카드가 실제로 섰다(빈 판 재기 방지)
+    # 카드가 실제로 섰다(빈 판 재기 방지). 첫 응답은 고른 날(오늘) 장만 그린다(11-14) — 오늘 주문 1건 = 2장
+    assert resp_small.get_data(as_text=True).count("data-pp-card ") == 2
 
     for i in range(200, 208):
         _seed_order(i)
     resp_big, q_big = _count_queries(lambda: client.get(HOME_URL))
-    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 24
+    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6  # 오늘 3건 = 6장
 
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
     assert q_big <= ABS_QUERY_CAP + PART_SCREEN_EXTRA_QUERIES, f"파트 화면 쿼리 상한 넘음: big={q_big}"
+
+
+# 날짜 한 장 조각(``?view=day&day=``, 11-14): 날을 누를 때 받는 길. 첫 화면과 같은 자료 경로에서 묘비(취소 주문) 읽기와
+# 페이지 틀(셸 머리 · 메뉴)의 설정 읽기 2가 빠진다. 실측(2026-11-14, SQLite 레인, 재단 계정): 페이지 10 · 조각 7(4건 = 12건).
+# 일곱 = 로그인 사용자 · 바탕 주문 · 지난 주문 수 · 제작 회차 id · 변경 알림 이벤트 · 협력사 이름 목록 · 표시 줄. 상한 = 7 + 30% ≈ 9.
+DAY_PANE_QUERY_CAP = 9
+
+
+def test_production_home_day_pane_fragment_query_count(client, monkeypatch):
+    """재단 계정 + 태블릿: 그 날 장 조각은 그 날 카드만, 쿼리는 첫 화면보다 적고 주문이 늘어도 같다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    user = User(
+        username="prod_home_qc_day", password=generate_password_hash("x"), role="STAFF",
+        team="PRODUCTION", name="박재단", is_active=True, production_part="cut",
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    for i in range(4):
+        _seed_order(i)
+    day = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+    url = f"{HOME_URL}?day={day}&view=day"
+    assert client.get(url).status_code == 200
+    _, q_page = _count_queries(lambda: client.get(f"{HOME_URL}?day={day}"))
+    resp_small, q_small = _count_queries(lambda: client.get(url))
+    assert resp_small.headers["X-FOMS-HOME-DAY"] == day
+    assert resp_small.get_data(as_text=True).count("data-pp-card ") == 2  # 내일 주문 1건 = 2장
+    assert q_small < q_page, f"조각이 페이지보다 쿼리가 많아요: page={q_page}, day={q_small}"
+
+    for i in range(300, 308):  # +8 → 내일 주문 3건(idx % 5 == 1: 301, 306)
+        _seed_order(i)
+    resp_big, q_big = _count_queries(lambda: client.get(url))
+    assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6
+    assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
+    assert q_big <= DAY_PANE_QUERY_CAP, f"날 조각 쿼리 상한 넘음: big={q_big} > {DAY_PANE_QUERY_CAP}"
