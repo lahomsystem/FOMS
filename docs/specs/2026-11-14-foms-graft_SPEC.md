@@ -110,7 +110,7 @@
 | 전화 | `orders.phone` | `structured_data.parties.customer.phone` · 숫자만 `orders.erp_phone_digits` | 사람만 · 가림 |
 | 현장 주소 | `orders.address` | `structured_data.site.address_full`(없으면 `address_main`) | 사람만 · 가림 |
 | 품목 | `structured_data.items[]` | 같음 | 사람만(판 1 에 품목 고치기 할 일 없음) |
-| 실측 날짜 | `orders.measurement_date` | `structured_data.schedule.measurement.date`(+ `.time` 은 예정 값) · 납작 칸 `orders.erp_measurement_date`. `orders.measurement_date` 는 옛 칸 | 바로가기(3.3 `move_measurement`) |
+| 실측 날짜 | `orders.measurement_date` | `structured_data.schedule.measurement.date`(+ `.time` 은 예정 값) · 납작 칸 `orders.erp_measurement_date`. `orders.measurement_date` 는 옛 칸 | 할 일(3.3 `move_measurement` — D206 뒤 승인하면 바로 실행, 검수 R-43) |
 | 시공 날짜 | `structured_data.schedule.construction.date` | 같음(+ `.time`) · 납작 칸 `orders.erp_construction_date` — 근거 `construction_schedule.py` 머리말 | 할 일로만(시공 잡기 · 방문 옮기기) |
 | 담당 영업 | `structured_data.parties.manager` | 같음 — 대표 `.name`, 여러 명 `.names` | 사람만 |
 | 결제 금액 | `orders.payment_amount` | `structured_data.payment` · `pricing` 에서 계산해 맞춘 납작 칸 `orders.payment_amount`(`erp_sync_columns.py:151`) | 사람만 · 돈(AI 에 안 감) |
@@ -197,7 +197,7 @@
 - **만들기**: `check` 가 막으면 만들지 않는다. 같은 `dedupe_key` 의 `open` 이 있으면 그대로, `rejected` 가 있으면 만들지 않는다. 근거 지식 키는 `record_uses(..., reader='erp_action')`. 만든 뒤 `FOMS_GRAFT_PUSH` 가 켜져 있으면 폰 알림을 줄 세운다(3.14 — 이미 있거나 거절된 제안은 `None` 을 돌려주므로 알림이 두 번 가지 않는다).
 - **승인(두 걸음)**: ① 제안 줄을 잠그고 `open` 인지 · 누른 사람이 `policy_id` 를 지나는지(`evaluate_policy`) · 주문 읽기 권한(`user_can_read_order`) · `check` 를 다시 본다. 주문 판 번호가 `base_version` 과 다르면 미리 보기를 새로 계산하고, 저장된 '지금' 값과 다르면 **409 `ACTION_BASE_CHANGED`** 로 새 카드를 돌려준다(제안은 `open` · 새 값으로 갱신). 통과하면 `executing` + 결정한 사람을 적고 커밋. ② 실행기를 돈다(감싼 기능의 커밋 방식 그대로 — `send_alimtalk` · `register_as_from_payload` 는 스스로 커밋한다). ③ `executed` · `failed` + 결과 + 감사 줄을 적고 커밋.
 - **되맞추기**: `executing` 으로 2분 넘게 남은 줄(②와 ③ 사이에 죽음)은 `verify` 가 참이면 `executed`, 아니면 `open` 으로 되돌린다. 승인 대기 읽기와 밤 단계가 부른다.
-- **감사**: `SecurityLog` 줄 `ERP_ACTION_APPROVED` · `ERP_ACTION_REJECTED` · `ERP_ACTION_EXECUTED` · `ERP_ACTION_FAILED`(제안 번호 · 할 일 이름 · 주문 번호 · AI 직원 · 수준 — 글 없음). 감싼 기능이 남기는 지금 기록(주문 일 기록 · 변경 원장 · 사유)은 그대로 남고 `source` 에 `erp_action:<제안 번호>` 를 싣는다. **할 일 기록 = 이 표의 `executed` · `failed` 줄 + 그 감사 줄**이다.
+- **감사**: `SecurityLog` 줄 `ERP_ACTION_APPROVED` · `ERP_ACTION_REJECTED` · `ERP_ACTION_EXECUTED` · `ERP_ACTION_FAILED`(제안 번호 · 할 일 이름 · 주문 번호 · AI 직원 · 수준 — 글 없음). 감싼 기능이 남기는 지금 기록(주문 일 기록 · 변경 원장 · 사유)은 그대로 남는다. `source` 에 `erp_action:<제안 번호>` 를 싣는 것은 services 실행기(시공 잡기 · 옮기기 · 메모 · 실측 알림톡)의 감사 줄뿐이다 — D206 본체 셋(단계 넘기기 · 도면 담당 · 실측 옮기기)은 본체를 고치지 않으므로 제안 번호가 `ERP_ACTION_*` 감사 줄에만 남고, 날짜 표 훅의 출처는 `erp_actions_api.erp_actions_approve` 다(검수 R-15). **할 일 기록 = 이 표의 `executed` · `failed` 줄 + 그 감사 줄**이다.
 - **한 번만**: 같은 제안을 두 번 누르면 두 번째는 409 `ACTION_NOT_OPEN`. 알림톡 실행기의 중복 막기 열쇠는 `alimtalk:measure:<주문>:action:<제안 번호>`.
 
 ### 3.5 누가 보고 누가 누르나
