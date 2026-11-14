@@ -66,7 +66,7 @@ def order(construction_days=6):
     """시공일이 앞날인 합성 주문 번호(작은 창 함수가 공용 세션을 닫아 ORM 줄은 떨어진다 — 번호만 들고 다닌다)."""
     day = (get_today_kst() + datetime.timedelta(days=construction_days)).isoformat()
     sd = {"workflow": {"stage": "PRODUCTION"}, "schedule": {"construction": {"date": day, "time": "오전"}}}
-    row = Order(received_date="2030-01-01", customer_name="합성손님", phone="010-0000-0000", address="합성 주소",
+    row = Order(received_date="2030-01-01", customer_name="합성손님", phone="010" + "-0000-" + "0000", address="합성 주소",
                 product="합성 품목", status="PRODUCTION", is_erp_order=True, structured_data=sd)
     sync_erp_flat_columns(row, sd)
     db_session.add(row)

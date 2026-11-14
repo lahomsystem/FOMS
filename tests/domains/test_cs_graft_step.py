@@ -182,7 +182,8 @@ def test_a_schedule_handoff_moves_the_construction_and_keeps_its_time_slot(chann
     chat(channel, f"시공 날짜를 {said(day(7))}에서 {said(day(15))}로 미뤄 주세요")
     run(channel, brain_fn=FakeBrain(result(draft="", evidence_ids=(), handoff=True, handoff_reason="schedule")))
     (made,) = proposals()
-    assert (made.action, made.params) == ("move_construction", {"date": day(15).isoformat(), "time": "오후"})
+    assert (made.action, made.params) == ("move_construction", {"date": day(15).isoformat(), "time": "오후",
+                                                            "notify_customer": True})  # D213 처음 켬(T15)
     assert turn().error_code == "handoff"  # 넘김은 지금처럼 건너뜀 — 제안만 승인 대기로 간다
 
 
