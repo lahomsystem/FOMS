@@ -387,16 +387,17 @@ def can_edit_construction_schedule(user: Any) -> bool:
 
     출고팀은 시공일 두 칸만 쓴다(주문 폼 전체 저장은 :func:`can_edit_erp` 그대로). 설계서
     ``docs/specs/2026-11-04-shipment-partner-request-board_SPEC.md`` 결정 2. 협력사 계정은 안 된다.
+    역할을 먼저 본다(ADMIN · STAFF · MANAGER 만) — :func:`can_edit_erp` 는 팀만 봐서 조회 전용(VIEWER) CS · 영업에도 참이다(F-01).
 
     :param user: 대상 사용자(``role``·``team`` 속성).
     :return: 시공 일정 쓰기 가능 여부.
     """
     if user is None or getattr(user, "partner_org_id", None) is not None or getattr(user, "is_active", True) is False:
         return False
-    if can_edit_erp(user):
-        return True
     role = str(getattr(user, "role", "") or "").strip().upper()
-    return role in ("STAFF", "MANAGER") and normalize_team(getattr(user, "team", None)) == "SHIPMENT"
+    if role == "ADMIN":
+        return True
+    return role in ("STAFF", "MANAGER") and (can_edit_erp(user) or normalize_team(getattr(user, "team", None)) == "SHIPMENT")
 
 
 def can_edit_shipment(user: Any) -> bool:
