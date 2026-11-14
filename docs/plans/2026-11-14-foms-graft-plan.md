@@ -29,7 +29,7 @@
 | B | T13 | W11 | **특성 시험**(D206) — 현재 작업 승인 · 도면 담당 맡기기 · 실측일 고치기 길의 지금 행동을 못박는다. 시험 파일만 | xhigh | `foms-s-foms-graft` | — (지금 코드. 물결 A 와 같이 띄워도 된다) | DONE `68b45778e` |
 | C | T4 | W4 | 찾기 · 지식 표 · 지식 카드 새 화면 + 쓰인 곳(⑦ · ⑧) | high | `foms-s-foms-graft` | T2 · T6 | DONE `3f2b1b879` |
 | C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | DONE `280406417` |
-| C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | RUNNING |
+| C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | DONE(`a6d04731a`) |
 | C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | DONE `9899ef763` |
 | C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | RUNNING |
 | D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | PENDING |
@@ -160,6 +160,10 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | 번호 | 심각도 | 어디 | 무엇 | 맡은 일감 | 상태 |
 |---|---|---|---|---|---|
 | F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | OPEN |
+| F-02 | 낮음 | `foms/services/erp_actions/views.py:236` | 자세히 답 `params` 에 `required` 가 없다(registry `Param.required` 는 있음) — 화면(T8)이 `time_slot` · `flag` 말고는 꼭 넣을 값으로 미루어 판단 | T11 검수 뒤 정함(T7 답에 더하기 권함) | OPEN |
+| F-03 | 낮음 | `foms/services/erp_actions/views.py:134` | 카드 답에 `base_version` 이 없다(설계서 3.6 카드 칸 목록과 같음) — 카드 [승인]은 자세히를 먼저 읽고 승인(요청 둘) | T11 검수 뒤 정함 | OPEN |
+| F-04 | 낮음(색) | `static/css/components/foms-graft-cells.css` | AI 칩 글 · 테두리 #4a55b8 과 고객컨펌 단계 배지 #5a67d8 의 ΔE2000 7.5(제2색맹 흉내 뒤 7.3) — 바탕끼리는 42 이상, 옅은 칩과 꽉 찬 배지로 갈린다. 상태 쌍 기준(10)에는 미달 · 색약 기준(6)은 넘음 | T11 검수 뒤 정함(판의 남보라 유지가 기본) | OPEN |
+| F-05 | 기록 | `templates/partials/shared/erp_mobile_queue_card_v2.html` | 파일 주인 표(3절) 밖 — 폰 목록 줄 칩(메모리 규칙 '새 기능은 폰 목록 줄에서 보여야')으로 T8 이 더함. 이 카드를 쓰는 6개 목록 모두에 칩이 나온다. 꺼지면 지금과 같음(시험) | — | 기록만 |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
