@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from foms.services.cs_agent.brain_cases import QUOTE
 from foms.services.cs_agent.masking import MaskLeak, require_masked
+from foms.services.cs_agent.order_find import is_open
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 
@@ -127,7 +128,12 @@ def _products(data: Any) -> tuple[str, ...]:
 
 
 def order_facts(order: Any, basis: str) -> OrderFacts:
-    """주문 한 줄 → 허용 칸 값. 납작 칸이 정본이고, 시간대 · AS 방문 · 품목만 ``structured_data`` 에서 읽는다."""
+    """주문 한 줄 → 허용 칸 값. 납작 칸이 정본이고, 시간대 · AS 방문 · 품목만 ``structured_data`` 에서 읽는다.
+
+    끝난 주문(열린 AS 없음 — :func:`.order_find.is_open` 가 아님, 사용자 결정 D220)은 지난 실측 날 · 실측 시간대(예정) · 직접
+    실측 · 배송 예정 날을 싣지 않는다 — '예정' · '지금 잡혀 있는 날' 칸 규칙(:data:`ORDER_RULES`)이 끝난 주문에는 맞지 않는다.
+    단계(끝난 날) · 시공 날 · 품목 · AS 칸은 싣는다(AS 문의에 쓰는 값).
+    """
     if basis not in BASIS_LABELS:
         raise ValueError("모르는 확정 근거")
     data = order.structured_data if isinstance(order.structured_data, dict) else {}
@@ -135,12 +141,14 @@ def order_facts(order: Any, basis: str) -> OrderFacts:
     measurement = schedule.get("measurement") if isinstance(schedule.get("measurement"), dict) else {}
     as_visit = schedule.get("as_visit") if isinstance(schedule.get("as_visit"), dict) else {}
     as_state = AS_LABELS.get(order.as_axis_status or "", "")
+    live = is_open(order)
     return OrderFacts(
         basis=basis, order_id=int(order.id), stage=STAGE_LABELS.get(order.erp_stage_code or "", ""),
-        stage_since=_day(order.erp_stage_updated_at), measurement=_day(order.erp_measurement_date),
-        measurement_time=_quoted(measurement.get("time") or order.measurement_time, TIME_LIMIT),
-        self_measure=bool(order.is_self_measurement), construction=_day(order.erp_construction_date),
-        shipping=_day(order.shipping_scheduled_date), regional=bool(order.is_regional), products=_products(data),
+        stage_since=_day(order.erp_stage_updated_at), measurement=_day(order.erp_measurement_date) if live else None,
+        measurement_time=_quoted(measurement.get("time") or order.measurement_time, TIME_LIMIT) if live else "",
+        self_measure=live and bool(order.is_self_measurement), construction=_day(order.erp_construction_date),
+        shipping=_day(order.shipping_scheduled_date) if live else None, regional=bool(order.is_regional),
+        products=_products(data),
         as_state=as_state, as_visit=_day(as_visit.get("date")) if as_state else None,
         team=str(order.erp_owner_team_code or "")[:20])
 

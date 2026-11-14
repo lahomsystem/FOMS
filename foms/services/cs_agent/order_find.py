@@ -1,11 +1,11 @@
-"""상담 ↔ ERP 주문 본인 잇기 — 손님 원문에서 휴대폰 · 주문 번호를 읽고 열린 주문을 찾는다(서버 코드만, 두뇌는 결과 칸만 받는다).
+"""상담 ↔ ERP 주문 본인 잇기 — 손님 원문에서 휴대폰 · 주문 번호를 읽고 주문을 찾는다(서버 코드만, 두뇌는 결과 칸만 받는다).
 
 설계서 2026-11-12 온톨로지 5.5 '본인 잇기' · 5.6 의 1 · 2(사장님 11-12 D189). 찾기는 **가리기 전 원문**으로 하고(두뇌는 가린 글만
 본다), 찾은 값 · 원문은 로그 · 예외 · 기록에 싣지 않는다(코드 · 주문 번호 · 수만). 확정 근거(:data:`.order_block.BASIS_LABELS`):
 
-- ``profile`` — 채널톡 손님 정보(상담 읽기 ``user`` 칸)의 휴대폰 + 이름이 열린 주문 정확히 하나와 맞음. 칸이 없으면 이 길은 없다.
+- ``profile`` — 채널톡 손님 정보(상담 읽기 ``user`` 칸)의 휴대폰 + 이름이 후보 주문 정확히 하나와 맞음. 칸이 없으면 이 길은 없다.
 - ``number`` — 손님이 적은 주문 번호 + 전화 끝 네 자리가 그 주문과 둘 다 맞음. 틀리면 손님에게 아무것도 알리지 않는다(``mismatch``).
-- ``contact`` — 손님이 알려 준 휴대폰(원문)과 그 글 속 이름이 열린 주문 정확히 하나와 맞음. 둘 이상이면 품목 이름 · 주소 조각으로
+- ``contact`` — 손님이 알려 준 휴대폰(원문)과 그 글 속 이름이 후보 주문 정확히 하나와 맞음. 둘 이상이면 품목 이름 · 주소 조각으로
   한 번 좁힌다(:func:`narrow`).
 
 '상담에서 만든 주문'(5.5 의 1)은 쓰지 않는다 — 채널톡 웹훅은 직원 그룹 방 글로만 주문을 만들고 손님 상담 글은 주문 접수에 절대
@@ -13,31 +13,42 @@
 
 **열린 주문**: 운영 화면 기준(:meth:`models.Order.active_filter` — 휴지통 · 초안 제외) · ERP 주문 · 끝난 단계가 아니거나 AS 가
 진행 중. 이름은 표시 기호 · 띄어쓰기를 뗀 글자로 견준다(네이버 붙이기 후보와 같은 규칙).
+
+**끝난 주문도 후보**(사용자 결정 D220 — 끝난 주문의 AS 문의가 'AS 접수' 제안까지 가게): 끝난 단계(:data:`CLOSED_STAGES`)이고
+AS 가 열려 있지 않은 주문도 끝난 지 :data:`CLOSED_WINDOW` 안이면 찾는다(휴지통 · 초안 · ERP 주문 아님은 그대로 뺀다). 맞는
+주문이 여럿이면 열린 주문만 남긴다(열린 주문이 하나도 없을 때만 끝난 주문을 고른다 — :func:`_result`). 끝난 날은 운영
+대시보드의 완료 기간 판정(:meth:`models.Order.dashboard_active_filter`)과 같은 칸 사슬 — 단계 바뀐 때 → 구조화 고친 때 → 만든 때.
 """
 
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import quote
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, case, func, or_, select
 
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError
 from foms.services.cs_agent.masking_contacts import normalize
+from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "CLOSED_STAGES", "Lookup", "MAX_CANDIDATES", "by_contact", "by_number", "by_profile", "has_mobile", "mobiles",
-    "name_key", "narrow", "open_orders", "read_profile",
+    "CLOSED_STAGES", "CLOSED_WINDOW", "Lookup", "MAX_CANDIDATES", "by_contact", "by_number", "by_profile",
+    "candidate_orders", "has_mobile", "is_open", "mobiles", "name_key", "narrow", "open_orders", "read_profile",
 ]
 
 CLOSED_STAGES = ("COMPLETED", "AS_COMPLETED")
 _OPEN_AS = ("RECEIVED", "IN_PROGRESS")
+#: 끝난 주문을 후보로 두는 기간 — 가구 품질 보증 1년(소비자분쟁해결기준의 가구 품질보증기간). 코드에는 AS 기간 규칙이 없고
+#: (회사 보증 정책은 회사 지식 '정책 · AS 보증' 칸의 글이다) 그보다 오래된 주문은 같은 번호의 옛 주문을 잘못 이을 위험이 더 크다.
+#: 그 밖의 AS 문의는 지금처럼 못 찾음 → 직원이 본다.
+CLOSED_WINDOW = datetime.timedelta(days=365)
 MAX_CANDIDATES = 20
 _MOBILE = re.compile(r"(?<!\d)(?:\+?82[-. ]?0?|0)(1[016789])[-. ]?(\d{3,4})[-. ]?(\d{4})(?!\d)")
 _PIECE = re.compile(r"01[016789]\d{7,8}")
@@ -81,17 +92,43 @@ def _pieces(digits: Optional[str]) -> tuple[str, ...]:
     return tuple(_PIECE.findall(text)) or ((text,) if text else ())
 
 
+def _open_clause() -> Any:
+    """열린 주문 조건 — 끝난 단계가 아니거나(단계 없음 포함) AS 가 진행 중."""
+    return or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(CLOSED_STAGES),
+               Order.as_axis_status.in_(_OPEN_AS))
+
+
+def is_open(order: Any) -> bool:
+    """주문 한 줄이 열린 주문인가(:func:`_open_clause` 와 같은 규칙 — 끝난 단계 · 열린 AS 없음이면 ``False``)."""
+    stage = getattr(order, "erp_stage_code", None)
+    return stage is None or stage not in CLOSED_STAGES or getattr(order, "as_axis_status", None) in _OPEN_AS
+
+
 def open_orders():
     """열린 주문 고르기(휴지통 · 초안 제외 · ERP 주문 · 끝난 단계 아님 또는 AS 진행 중)."""
-    return select(Order).where(
-        Order.active_filter(), Order.is_erp_order.is_(True),
-        or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(CLOSED_STAGES), Order.as_axis_status.in_(_OPEN_AS)))
+    return select(Order).where(Order.active_filter(), Order.is_erp_order.is_(True), _open_clause())
+
+
+def candidate_orders(today: Optional[datetime.date] = None):
+    """본인 확인 후보 고르기 — 열린 주문 + 끝난 지 :data:`CLOSED_WINDOW` 안의 끝난 주문(휴지통 · 초안 · ERP 주문 아님은 뺀다).
+
+    Args:
+        today: 한국 오늘(없으면 :func:`get_today_kst`).
+
+    Returns:
+        ``select(Order)`` 문(부르는 쪽이 조건 · 차례 · 상한을 더한다).
+    """
+    cutoff = datetime.datetime.combine(today or get_today_kst(), datetime.time()) - CLOSED_WINDOW
+    closed_at = func.coalesce(Order.erp_stage_updated_at, Order.structured_updated_at, Order.created_at)
+    recent_closed = and_(Order.erp_stage_code.in_(CLOSED_STAGES), closed_at >= cutoff)
+    return select(Order).where(Order.active_filter(), Order.is_erp_order.is_(True), or_(_open_clause(), recent_closed))
 
 
 def _by_phone(session: Any, phone: str) -> list[Any]:
-    """그 휴대폰이 든 열린 주문(상한까지)."""
-    rows = session.execute(open_orders().where(Order.erp_phone_digits.contains(phone))  # perf-ok: ix_orders_erp_phone_digits_trgm
-                           .order_by(Order.id.desc()).limit(MAX_CANDIDATES)).scalars().all()
+    """그 휴대폰이 든 후보 주문(열린 주문 먼저 · 새 주문 먼저 · 상한까지 — 끝난 주문이 열린 주문을 상한 밖으로 밀지 않게)."""
+    rows = session.execute(candidate_orders().where(Order.erp_phone_digits.contains(phone))  # perf-ok: ix_orders_erp_phone_digits_trgm
+                           .order_by(case((_open_clause(), 0), else_=1), Order.id.desc())
+                           .limit(MAX_CANDIDATES)).scalars().all()
     return [order for order in rows if phone in _pieces(order.erp_phone_digits)]
 
 
@@ -101,15 +138,16 @@ def _named(orders: Sequence[Any], text_key: str) -> list[Any]:
 
 
 def _result(orders: Sequence[Any], basis: str) -> Lookup:
-    """후보 → 결과(하나면 확정 · 여럿이면 several · 없으면 none)."""
+    """후보 → 결과(하나면 확정 · 여럿이면 several · 없으면 none). 열린 주문이 있으면 끝난 주문은 뺀다(열린 주문 먼저)."""
     unique = tuple({int(order.id): order for order in orders}.values())
+    unique = tuple(order for order in unique if is_open(order)) or unique
     if len(unique) == 1:
         return Lookup("one", basis, unique[0])
     return Lookup("several", basis, candidates=unique) if unique else NONE
 
 
 def by_contact(session: Any, texts: Sequence[str]) -> Lookup:
-    """손님이 알려 준 휴대폰 + 이름(원문)으로 찾기 — 번호마다 열린 주문을 읽고 글 속에 이름이 든 주문만 남긴다."""
+    """손님이 알려 준 휴대폰 + 이름(원문)으로 찾기 — 번호마다 후보 주문을 읽고 글 속에 이름이 든 주문만 남긴다."""
     phones = mobiles(texts)
     if not phones:
         return NONE
@@ -126,7 +164,7 @@ def by_number(session: Any, texts: Sequence[str]) -> Lookup:
         return NONE
     rest = _ORDER_NO.sub(" ", joined)
     tails = {m.group(1) for m in _LAST4.finditer(rest)}
-    rows = session.execute(open_orders().where(Order.id.in_(numbers[:3]))).scalars().all()
+    rows = session.execute(candidate_orders().where(Order.id.in_(numbers[:3]))).scalars().all()
     hits = [order for order in rows if tails.intersection(piece[-4:] for piece in _pieces(order.erp_phone_digits))]
     if hits:
         return _result(hits, "number")
