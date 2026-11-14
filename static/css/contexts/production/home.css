@@ -233,6 +233,7 @@
 .foms-prod-home__navtab--out { gap: 6px; margin-left: 4px; border-left: 1px solid var(--fph-line2); border-radius: 0 9px 9px 0; }
 .foms-prod-home__navtab--out i { font-size: calc(13px * var(--foms-fs, 1)); }
 .foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.foms-prod-home__navtab:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } /* 누른 느낌(11-14) */
 .foms-prod-home__sp { flex: 1; }
 .foms-prod-home__tools { margin-left: auto; display: flex; align-items: center; gap: 10px 14px; }
 .foms-prod-home__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 20px 0; }
@@ -336,8 +337,12 @@
   color: var(--fph-text);
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
+/* 날 단추는 진짜 링크(11-14) — 스크립트가 묶이기 전에 눌러도 그 날 주소로 간다. 링크 기본 밑줄 · 색을 지운다. */
+.fph-sd:hover, .fph-sf:hover { color: inherit; text-decoration: none; }
+.fph-sd:active, .fph-sf:active { background: var(--fph-brand-50); } /* 누른 느낌 */
 .fph-sd:focus-visible, .fph-sf:focus-visible { outline: 3px solid var(--fph-brand); outline-offset: -3px; }
 .fph-sd.is-on { background: var(--fph-brand-50); box-shadow: inset 4px 0 0 var(--fph-brand); }
 .fph-sd__d { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
@@ -354,13 +359,19 @@
 .fph-sd__n b { font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-sd__n small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-strip__f { margin-top: auto; flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--fph-line); }
-.fph-sf { min-height: 48px; padding: 0 8px; border: 0; background: transparent; color: var(--fph-text2); font: inherit; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.fph-sf { min-height: 48px; padding: 0 8px; border: 0; background: transparent; color: var(--fph-text2); font: inherit; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
 .fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); } /* 안 읽은 수는 둘째 줄(M5) */
 .fph-sf + .fph-sf { border-left: 1px solid var(--fph-line); }
 .fph-sf.is-on { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
 .fph-panes { min-width: 0; padding: 4px 16px 24px 12px; }
 .fph-pane { display: flex; flex-direction: column; gap: 6px; }
 .fph-pane[hidden] { display: none; }
+/* 날 받는 중 · 못 받음(11-14) — 받는 동안 지금 장은 흐리게, 글은 장 위 한 줄 */
+.fph-panes.is-loading .fph-pane:not([hidden]) { opacity: .45; }
+.fph-pane__load, .fph-pane__err { margin: 8px 0 0; padding: 10px 12px; border-radius: 9px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; }
+.fph-pane__load { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+.fph-pane__err { background: var(--fph-danger-50); color: var(--fph-danger); }
+.fph-pane__load[hidden], .fph-pane__err[hidden] { display: none; }
 .fph-pane__h { margin: 0; min-height: 44px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; padding-top: 10px; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
 .fph-pane__h small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
@@ -368,6 +379,8 @@
 .fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
 .fph-pane__none { margin: 0; padding: 10px 4px; font-size: calc(16px * var(--foms-fs, 1)); color: var(--fph-text3); }
 .fph-dr {
+  content-visibility: auto; /* 화면 밖 줄은 그리기를 미룬다(11-14) — 크기는 한 번 그린 뒤 기억 */
+  contain-intrinsic-size: auto 96px;
   min-height: 74px;
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr) auto calc(92px * var(--foms-fs, 1)); /* 도면 칸은 글자 배율 따라(R8) */
@@ -433,6 +446,17 @@
 .fph-nx b small { flex-shrink: 0; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-nx span { grid-column: 1; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fph-nx em { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
+
+/* ── 가로 태블릿 · PC(992px 이상): 제목 줄은 늘 한 줄(11-14) — 글꼴이 늦게 오거나 글자를 키워도 높이(73px = --fph-bar-h 기본값)가
+   그대로라 날 단추가 그려진 뒤 위아래로 움직이지 않는다(스테이징 실측: 두 줄 139px → 한 줄 73px 로 줄며 단추가 66px 올라갔다).
+   넘치면 날짜 글이 먼저 말줄임으로 줄고, 그다음 화면 탭 줄이 옆으로 밀린다. ── */
+@media (min-width: 992px) {
+  .foms-prod-home__bar { flex-wrap: nowrap; }
+  .foms-prod-home__title, .foms-prod-home__tools { flex-shrink: 0; }
+  .foms-prod-home__date { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .foms-prod-home__nav { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .foms-prod-home__nav::-webkit-scrollbar { display: none; }
+}
 
 /* ── 세로·폰(992px 아래): 카드 두 줄 ── */
 @media (max-width: 991.98px) {

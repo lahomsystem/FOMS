@@ -22,6 +22,7 @@ __all__ = [
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
     "should_render_new_order_wizard",
+    "wants_desktop_queue_surfaces",
     "wants_mobile_width_surfaces",
     "wants_wide_only_surfaces",
     "wizard_new_order_enabled",
@@ -232,18 +233,24 @@ def wants_mobile_width_surfaces(request: "Request | None" = None) -> bool:
     대상은 ``.foms-mobile-v2-dashboard``·``.foms-drawing-mobile-dashboard`` 처럼 광폭에서
     ``foms-mobile-v2-surfaces-hide.css`` 가 ``display:none !important`` 로 끄는 표면이다. 그
     은닉 조건은 ``(min-width: 992px)`` 이면서 ``landscape`` · ``pointer: fine`` · ``pointer: none``
-    중 하나다. 이 판정은 그중 **마우스(fine) + 지금 창이 광폭**인 경우만 골라 False 를 낸다.
+    중 하나다. 이 판정은 그 조건이 **쿠키로 확인될 때만** False 를 낸다:
+
+    - 마우스(``foms_ptr=fine``) + 지금 창이 992 이상(``foms_vw`` 가 ``wide`` 또는 ``tall``).
+    - 터치(``foms_ptr=coarse``) + 지금 창이 992 이상 **가로**(``foms_vw=wide``) — 태블릿 가로
+      (2026-11-14, 원장 §29: 태블릿 가로가 폰 표면을 통째로 받아 숨기고 있었다). 992 이상
+      **세로** 터치(``tall``, 큰 태블릿 세로)는 은닉 식에 안 걸려 표면을 실제로 보여 준다.
 
     왜 쿠키 둘이 다 필요한가:
 
     - ``foms_ptr`` (기기 고정)만으로는 안 된다. PC 창을 992 아래로 좁히면 같은 마우스 기기에서도
       모바일 표면이 필요해진다(:func:`wants_coarse_pointer_surfaces` 문서의 금지 사유).
-    - ``foms_vw`` (지금 창 폭 구간 ``wide``/``narrow``)만으로도 안 된다. 폭 992 이상 **세로
-      터치**(태블릿 세로)는 은닉 조건에 안 걸려 모바일 표면을 실제로 보여 준다.
+    - ``foms_vw`` (지금 창 구간 ``narrow``/``wide``/``tall``)만으로도 안 된다. 폭 992 이상 **세로
+      터치**(``tall``)는 은닉 조건에 안 걸려 모바일 표면을 실제로 보여 준다.
 
     ``foms_vw`` 는 pre-paint 부트(layout_head.html 인라인 + SSOT 사본
-    ``static/js/runtime/foms-viewport-hint-boot.js``)가 ``matchMedia('(min-width: 992px)')``
-    로 심고, 창이 경계를 넘을 때마다 다시 쓴다. 창 폭은 기기 고정 특성이 아니라 값이 낡을 수
+    ``static/js/runtime/foms-viewport-hint-boot.js``)가 ``matchMedia('(min-width: 992px)')`` 와
+    ``matchMedia('(orientation: portrait)')`` 로 심는다 — 992 미만 ``narrow``, 992 이상 가로
+    ``wide``, 992 이상 세로 ``tall``. 창이 폭 경계를 넘거나 방향이 바뀔 때마다 다시 쓴다. 창 폭은 기기 고정 특성이 아니라 값이 낡을 수
     있으므로 **되돌리는 길**이 짝으로 있다 — 이 판정으로 생략된 자리에는
     ``data-foms-mobile-surface-omitted`` 표식이 남고, 창이 좁아져 표면이 보여야 하는데 표식이
     있으면 ``static/js/runtime/erp-shell.js`` 가 지금 화면을 다시 받아 온다.
@@ -255,7 +262,7 @@ def wants_mobile_width_surfaces(request: "Request | None" = None) -> bool:
         request: Flask/Werkzeug request 또는 None(활성 request context 사용).
 
     Returns:
-        모바일 폭 표면을 렌더해야 하면 True. 광폭 마우스 PC 로 확인될 때만 False.
+        모바일 폭 표면을 렌더해야 하면 True. 광폭 마우스 PC · 태블릿 가로로 확인될 때만 False.
     """
     req = request
     if req is None:
@@ -268,7 +275,50 @@ def wants_mobile_width_surfaces(request: "Request | None" = None) -> bool:
     cookies = getattr(req, "cookies", None)
     if cookies is None:
         return True
-    return not (cookies.get("foms_ptr") == "fine" and cookies.get("foms_vw") == "wide")
+    pointer = cookies.get("foms_ptr")
+    viewport = cookies.get("foms_vw")
+    if pointer == "fine" and viewport in ("wide", "tall"):
+        return False
+    return not (pointer == "coarse" and viewport == "wide")
+
+
+def wants_desktop_queue_surfaces(request: "Request | None" = None) -> bool:
+    """PC 작업 큐처럼 **태블릿 가로에서 CSS 가 끄는** 데스크톱 표면을 렌더해야 하는지 판정한다.
+
+    대상(태블릿 화면이 대신하는 PC 표면): 주문 PC 작업 목록(``.erp-dashboard-workqueue``) ·
+    시공/생산 PC 작업 큐(``.foms-construction-legacy-queue``/``.foms-production-legacy-queue``) ·
+    실측 PC 표(``.erp-measurement-desktop-shell``). 은닉 규칙은 모두
+    ``body.erp-mobile-v2-layout`` 아래 ``(min-width: 992px) and (orientation: landscape) and
+    (pointer: coarse)`` 한 식이다(foms-tablet-landscape.css · foms-tablet-construction.css ·
+    foms-tablet-production-kanban.css · foms-tablet-measurement.css). 그래서 템플릿은 반드시
+    ``erp_mobile_v2_enabled`` 와 함께 쓴다(코호트 밖은 은닉 CSS 자체가 없다).
+
+    이 판정은 ``foms_ptr=coarse`` **그리고** ``foms_vw=wide``(992 이상 가로)일 때만 False 다 —
+    은닉 식과 같은 세 조건이다. 같은 조건에서 :func:`wants_mobile_width_surfaces` 도 False 라
+    대시보드에는 모바일 표면 생략 표식(``data-foms-mobile-surface-omitted``)이 늘 함께 남는다.
+    태블릿을 세로로 돌리면 은닉 식이 풀리고 ``erp-shell.js`` 가 그 표식을 보고 지금 화면을 다시
+    받는다 — 그때 쿠키는 ``narrow``/``tall`` 이라 이 표면도 다시 그려진다(되돌림 길 공유).
+
+    안전 폴백: 쿠키가 하나라도 없거나 미지의 값이면 True — 현행대로 전부 렌더한다.
+
+    Args:
+        request: Flask/Werkzeug request 또는 None(활성 request context 사용).
+
+    Returns:
+        데스크톱 작업 큐 표면을 렌더해야 하면 True. 태블릿 가로로 확인될 때만 False.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return True
+        req = flask_request
+    cookies = getattr(req, "cookies", None)
+    if cookies is None:
+        return True
+    return not (cookies.get("foms_ptr") == "coarse" and cookies.get("foms_vw") == "wide")
 
 
 def resolve_shell_variant(user_id: int | None) -> str:

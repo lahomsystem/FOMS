@@ -3,6 +3,7 @@
    카드 = 확정 도면 한 장. 내 파트 단추는 쓸 수 있는 사람에게만(D53 · D55), 다른 파트 한 줄은 누를 수 없는 글(D51).
    칸 단추 셋은 보이기/숨기기만(새 요청 없음). 확인 창 · 크게 보기 겉틀은 home_parts_overlays.html 에 한 번만 있다.
    인라인 style · script 없음, 모양은 static/css/contexts/production/parts.css. 금액 없음(D7). #}
+{% from 'production/partials/home_date_macros.html' import home_href %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
 {% set is_cut = pb.part == 'cut' %}
@@ -33,7 +34,7 @@
   <div class="pp-head{% if pb.mode != 'part' %} pp-head--switch{% endif %}">
     <h2 class="fph-pane__h">{{ d.title }}{% if not is_cut and pb.mode == 'part' %} <small>시공 {{ pp.orders_total }}건 · 도면 나온 {{ pp.drawn_orders }}집</small>{% endif %}</h2>
     {% if pb.mode != 'part' %}
-    <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ url_for('erp_production_page.erp_production_home', tab='parts', part=p.key, day=d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
+    <nav class="pp-parts" aria-label="파트 고르기">{% for p in pb.parts %}<a class="pp-part{% if p.key == pb.part %} is-on{% endif %}" href="{{ home_href('parts', p.key, d.key) }}"{% if p.key == pb.part %} aria-current="page"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>
     {% endif %}
     {% if is_cut %}
     <div class="pp-bulk">

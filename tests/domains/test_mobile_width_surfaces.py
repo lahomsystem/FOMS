@@ -5,9 +5,13 @@
 다시 렌더하게 됐다(시공 fragment 약 128KB). 스테이징 perf gate(pc-wide-fine)가 TTFB·wire 로
 잡았다.
 
-설계: 서버는 ``foms_ptr=fine`` **그리고** ``foms_vw=wide`` 일 때만 표면을 빼고 표식을 남긴다
-(:func:`foms.services.feature_flags.wants_mobile_width_surfaces`). 창 폭은 바뀌므로 창이
-좁아지면 ``erp-shell.js`` 가 표식을 보고 화면을 다시 받는다.
+설계: 서버는 ``foms_ptr=fine`` **그리고** ``foms_vw`` 가 992 이상(``wide``/``tall``)일 때만
+표면을 빼고 표식을 남긴다(:func:`foms.services.feature_flags.wants_mobile_width_surfaces`). 창 폭은
+바뀌므로 창이 좁아지면 ``erp-shell.js`` 가 표식을 보고 화면을 다시 받는다.
+
+2026-11-14 확장: 태블릿 가로(``foms_ptr=coarse`` + ``foms_vw=wide`` = 992 이상 가로)도 같은 은닉 식에
+걸리므로 뺀다. 992 이상 세로 터치(``tall``)는 표면이 실제로 보이므로 그대로 렌더한다. 태블릿 가로의
+PC 작업 큐 생략 계약은 ``tests/domains/test_tablet_landscape_surfaces.py``.
 
 여기서 잠그는 것:
   1. 판정 진리표 — 쿠키가 하나라도 없거나 이상하면 전부 렌더(True).
@@ -76,9 +80,12 @@ class _StubRequest:
         ({"foms_ptr": "fine"}, True, "창 폭 모름 — 좁은 창일 수 있다"),
         ({"foms_vw": "wide"}, True, "포인터 모름 — 태블릿 세로일 수 있다"),
         ({"foms_ptr": "fine", "foms_vw": "wide"}, False, "광폭 마우스 PC — 표면이 CSS 로 꺼진다"),
+        ({"foms_ptr": "fine", "foms_vw": "tall"}, False, "세로로 세운 광폭 모니터 — fine 은 방향 무관하게 꺼진다"),
         ({"foms_ptr": "fine", "foms_vw": "narrow"}, True, "좁힌 PC 창 — 모바일 셸이 보인다"),
-        ({"foms_ptr": "coarse", "foms_vw": "wide"}, True, "태블릿 — 세로로 돌리면 표면이 보인다"),
-        ({"foms_ptr": "coarse", "foms_vw": "narrow"}, True, "폰"),
+        ({"foms_ptr": "coarse", "foms_vw": "wide"}, False, "태블릿 가로 — 은닉 식 (≥992 and landscape)"),
+        ({"foms_ptr": "coarse", "foms_vw": "tall"}, True, "큰 태블릿 세로(≥992 portrait coarse) — 표면이 보인다"),
+        ({"foms_ptr": "coarse", "foms_vw": "narrow"}, True, "폰 · 태블릿 세로"),
+        ({"foms_ptr": "coarse", "foms_vw": "WIDE"}, True, "미지의 값(터치) — 전부 렌더"),
         ({"foms_ptr": "fine", "foms_vw": "WIDE"}, True, "미지의 값 — 전부 렌더"),
         ({"foms_ptr": "fine", "foms_vw": ""}, True, "빈 값 — 전부 렌더"),
     ],
@@ -138,9 +145,10 @@ def _username(prefix: str, path: str) -> str:
     [
         {},
         {"foms_ptr": "fine", "foms_vw": "narrow"},
-        {"foms_ptr": "coarse", "foms_vw": "wide"},
+        {"foms_ptr": "coarse", "foms_vw": "tall"},
+        {"foms_ptr": "coarse", "foms_vw": "narrow"},
     ],
-    ids=["no-cookies", "fine-narrow", "coarse-wide"],
+    ids=["no-cookies", "fine-narrow", "coarse-tall", "coarse-narrow"],
 )
 def test_dashboard_renders_mobile_surface_unless_wide_mouse_pc(
     client, monkeypatch, path, _tpl, markers, hints
@@ -155,15 +163,23 @@ def test_dashboard_renders_mobile_surface_unless_wide_mouse_pc(
 
 
 @pytest.mark.parametrize(("path", "_tpl", "markers"), DASHBOARDS)
+@pytest.mark.parametrize(
+    "hints",
+    [
+        {"foms_ptr": "fine", "foms_vw": "wide"},
+        {"foms_ptr": "coarse", "foms_vw": "wide", "foms_scr": "1280"},
+    ],
+    ids=["wide-mouse-pc", "tablet-landscape"],
+)
 def test_dashboard_omits_mobile_surface_for_wide_mouse_pc(
-    client, monkeypatch, path, _tpl, markers
+    client, monkeypatch, path, _tpl, markers, hints
 ) -> None:
-    _login_v2_cohort(client, monkeypatch, _username("mws_off_", path))
-    _set_hints(client, foms_ptr="fine", foms_vw="wide")
+    _login_v2_cohort(client, monkeypatch, _username("mws_off_", path) + "_" + hints["foms_ptr"])
+    _set_hints(client, **hints)
 
     body = _fragment(client, path).get_data(as_text=True)
 
-    assert not any(m in body for m in markers), f"{path}: 광폭 마우스 PC 에 모바일 표면이 남았다"
+    assert not any(m in body for m in markers), f"{path} {hints}: CSS 가 끄는 화면에 모바일 표면이 남았다"
     assert body.count(MARKER_ATTR) == 1, f"{path}: 생략 표식이 정확히 1개여야 한다"
 
 
@@ -228,6 +244,15 @@ def test_fragment_version_key_material_includes_mobile_width_bit(app) -> None:
     assert got["wide"]["mobile_width"] is False
     assert got["narrow"]["mobile_width"] is True
 
+    # 태블릿 회전: 가로(wide)와 세로(narrow/tall) 본문은 키가 달라야 한다.
+    tablet = {}
+    for bucket in ("wide", "tall", "narrow"):
+        with app.test_request_context("/", headers={"Cookie": f"foms_ptr=coarse; foms_vw={bucket}"}):
+            tablet[bucket] = fr._surface_hint_material()
+    assert tablet["wide"]["mobile_width"] is False and tablet["wide"]["desktop_queue"] is False
+    for bucket in ("tall", "narrow"):
+        assert tablet[bucket]["mobile_width"] is True and tablet[bucket]["desktop_queue"] is True
+
     src = Path(fr.__file__).read_text(encoding="utf-8")
     assert '"surfaces": _surface_hint_material()' in src
 
@@ -261,10 +286,26 @@ def test_viewport_boot_inline_matches_ssot() -> None:
 def test_viewport_boot_uses_css_breakpoint_and_session_cookie() -> None:
     code = _strip_js_comments(BOOT_JS.read_text(encoding="utf-8"))
     assert "window.matchMedia('(min-width: 992px)')" in code
-    assert "'wide' : 'narrow'" in code
+    # 방향도 CSS 은닉 식과 같은 식으로 묻는다 — 큰 태블릿은 세로도 992 이상이다.
+    assert "window.matchMedia('(orientation: portrait)')" in code
+    assert "!mq.matches ? 'narrow' : portrait.matches ? 'tall' : 'wide'" in code
     assert "max-age" not in code, "창 폭은 낡으므로 세션 쿠키로 둔다"
-    assert "addEventListener('change', sync)" in code
+    # 폭 경계 · 방향 둘 다 바뀔 때 다시 쓴다.
+    assert "[mq, portrait].forEach(" in code
+    assert "m.addEventListener('change', sync)" in code
     assert "window.__fomsViewportHintSync = sync" in code
+
+
+def test_viewport_boot_values_have_no_prefix_collision() -> None:
+    """부트는 ``document.cookie.indexOf(NAME + '=' + value)`` 로 같은 값인지 본다 — 한 값이 다른
+    값의 앞부분이면(예: wide / wide-portrait) 바뀐 값을 쓰지 않고 넘어간다."""
+    code = _strip_js_comments(BOOT_JS.read_text(encoding="utf-8"))
+    assert "document.cookie.indexOf(NAME + '=' + value) !== -1" in code
+    values = ("narrow", "wide", "tall")
+    for a in values:
+        for b in values:
+            if a != b:
+                assert not b.startswith(a), (a, b)
 
 
 def test_erp_shell_hidden_mq_matches_surface_hide_css() -> None:
@@ -361,4 +402,14 @@ def test_complete_gate_reads_customer_name_from_pc_row_when_mobile_card_is_omitt
     js = (root / "static/js/construction/foms-complete-gate.js").read_text(encoding="utf-8")
     assert "tr.erp-main-row[data-order-id=" in js and 'td[data-label="고객"]' in js
     tpl = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
-    assert "foms-complete-gate.js') }}?v=20260928a" in tpl
+    assert "foms-complete-gate.js') }}?v=20261114a" in tpl
+
+
+def test_complete_gate_reads_customer_name_from_tablet_workmode_card():
+    """태블릿 가로는 모바일 큐 카드도 PC 표도 없다(2026-11-14 둘 다 생략) — 작업 모드 타임라인 카드
+    (tablet_workmode_body.html 의 .foms-cwork-card__name)에서 이름을 읽어야 '#번호' 로 안 떨어진다."""
+    js = (ROOT / "static/js/construction/foms-complete-gate.js").read_text(encoding="utf-8")
+    assert ".foms-cwork-card[data-order-id=" in js and ".foms-cwork-card__name" in js
+    tpl = (ROOT / "templates/construction/partials/tablet_workmode_body.html").read_text(encoding="utf-8")
+    assert 'class="foms-cwork-card' in tpl and 'data-order-id="{{ o.id }}"' in tpl
+    assert '<span class="foms-cwork-card__name">{{ o.customer_name }}</span>' in tpl

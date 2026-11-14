@@ -315,7 +315,12 @@ def test_parts_css_fonts_tokens_and_no_achromatic_badges():
 
 
 def test_home_template_pins_parts_assets():
-    tpl = (ROOT / "templates/production/home.html").read_text(encoding="utf-8")
+    # 전체 페이지(home.html)와 셸 조각(home_fragment.html)이 같은 두 조각을 싣는다 — 핀은 한 곳
+    tpl = "".join((ROOT / f"templates/production/partials/home_{name}.html").read_text(encoding="utf-8")
+                  for name in ("styles", "scripts"))
+    for rel in ("templates/production/home.html", "templates/production/partials/home_fragment.html"):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert "home_styles.html" in text and "home_scripts.html" in text and "home_body.html" in text, rel
     assert re.search(r"css/contexts/production/parts\.css'\) \}\}\?v=\d{8}[a-z]", tpl)
     assert re.search(r"js/production/foms-production-parts-viewer\.js'\) \}\}\?v=\d{8}[a-z]\" defer", tpl)
     assert re.search(r"js/production/foms-production-parts\.js'\) \}\}\?v=\d{8}[a-z]\" defer", tpl)

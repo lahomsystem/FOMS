@@ -1,8 +1,10 @@
 /* 생산 파트 도면 카드 — 보는 쪽(쓰기 없음). 설계서 §15.6 칸 단추 · '크게 보기'(시안 f63), P15-5.
  * 읽기 전용 직원도 싣는다(D55): 칸 단추 셋(보이기/숨기기만, 새 요청 없음) · 크게 보기(원본 한 장 · 같은 주문 장끼리 ◀ ▶ ·
- * 그림을 한 번 더 누르면 GlobalImageViewer 손가락 확대) · 그림을 못 받으면(원본 없음 404) 깨진 그림 대신 글 · '도면 카드' 탭의 날 주소.
+ * 그림을 한 번 더 누르면 GlobalImageViewer 손가락 확대) · 그림을 못 받으면(원본 없음 404) 깨진 그림 대신 글.
+ * 날 고르기 · 날 주소('도면 카드' 탭 포함)는 foms-production-home-days.js — 받아 끼운 장도 화면(root) 위임이라 그대로 묶여 있다.
  * 크게 보기의 큰 단추는 카드 단추를 대신 누른다(같은 확인 창 — 쓰기는 foms-production-parts.js 몫, 이 파일엔 fetch 없음).
- * 설정은 data-foms-parts-config(safeJsonParse). 전역 리스너는 window.__FOMS_PROD_PARTS_BOUND.viewer 로 한 번만. */
+ * 설정은 data-foms-parts-config(safeJsonParse). 셸 조각 교체로 다시 실행된다(11-14): 화면(root) 리스너는 화면마다 한 번
+ * (window.__FOMS_PROD_PARTS_BOUND.viewer = 지금 화면), 문서 리스너는 문서에 한 번(.viewerDoc) 달고 지금 화면의 FomsPartsBoard 를 부른다. */
 (function () {
   'use strict';
 
@@ -10,8 +12,8 @@
   var holder = root && root.querySelector('[data-foms-parts-config]');
   if (!root || !holder) { return; }
   var bound = window.__FOMS_PROD_PARTS_BOUND = window.__FOMS_PROD_PARTS_BOUND || {};
-  if (bound.viewer) { return; }
-  bound.viewer = true;
+  if (bound.viewer === root) { return; }
+  bound.viewer = root;
 
   function safeJsonParse(value, fallback) {
     try {
@@ -172,16 +174,6 @@
     if (real) { real.click(); }
   }
 
-  // ── '도면 카드' 탭(관리자 · 읽기 전용): 날을 바꿔도 주소에 탭 · 파트를 남긴다(날 고르기는 foms-production-home.js) ──
-  function keepPartsTabUrl(dayBtn) {
-    if (root.getAttribute('data-foms-home-tab') !== 'parts') { return; }
-    var url = window.location.pathname + '?tab=parts&part=' + encodeURIComponent(cfg.part || 'cut') +
-      '&day=' + encodeURIComponent(dayBtn.getAttribute('data-foms-home-daybtn') || '');
-    try { window.history.replaceState(window.history.state, '', url); } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
-    var reload = root.querySelector('[data-foms-home-reload]');
-    if (reload) { reload.setAttribute('href', url); }
-  }
-
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== 'function') { return; }
@@ -189,8 +181,6 @@
     if (tab) { applyView(paneOf(tab), tab.getAttribute('data-pp-view')); return; }
     var open = t.closest('[data-pp-open]');
     if (open) { openViewer(open.closest('[data-pp-card]'), open); return; }
-    var dayBtn = t.closest('[data-foms-home-daybtn]');
-    if (dayBtn) { keepPartsTabUrl(dayBtn); return; }
     if (!viewer || viewer.hidden || !viewer.contains(t)) { return; }
     var step = t.closest('[data-pp-v-step]');
     if (step && !step.disabled) { state.index += Number(step.getAttribute('data-pp-v-step')); render(); return; }
@@ -199,10 +189,10 @@
     var px = t.closest('[data-pp-proxy]');
     if (px) { proxy(px); }
   });
-  document.addEventListener('keydown', function (e) {
+  function onEscape() {
     var modal = root.querySelector('[data-pp-modal]');
-    if (e.key === 'Escape' && (!modal || modal.hidden)) { closeViewer(); }
-  });
+    if (!modal || modal.hidden) { closeViewer(); }
+  }
   // 카드 작은 그림 · 크게 보기 원본을 못 받으면 글(카드는 그대로 쓸 수 있다). error 는 거품이 안 올라 잡기 단계로 받는다.
   root.addEventListener('error', function (e) {
     var img = e.target;
@@ -213,7 +203,22 @@
     if (img.complete && img.naturalWidth === 0) { markBroken(img); }
   });
   // 쓰기 쪽이 카드를 고치면 열린 크게 보기도 같은 상태로
-  document.addEventListener('foms:part-card-updated', function () { if (viewer && !viewer.hidden) { render(); } });
+  function onCardUpdated() { if (viewer && !viewer.hidden) { render(); } }
 
-  window.FomsPartsBoard = { cfg: cfg, applyView: applyView, paneOf: paneOf, cardsOf: cardsOf, closeViewer: closeViewer };
+  window.FomsPartsBoard = { cfg: cfg, root: root, applyView: applyView, paneOf: paneOf, cardsOf: cardsOf, closeViewer: closeViewer,
+    onEscape: onEscape, onCardUpdated: onCardUpdated };
+  if (!bound.viewerDoc) {
+    bound.viewerDoc = true;
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') { return; }
+      var b = window.FomsPartsBoard;
+      var c = window.FomsPartsCards;
+      if (b && b.onEscape) { b.onEscape(); } // 확인 창이 열려 있으면 크게 보기는 그대로(창이 먼저 닫힌다)
+      if (c && c.onEscape) { c.onEscape(); }
+    });
+    document.addEventListener('foms:part-card-updated', function () {
+      var b = window.FomsPartsBoard;
+      if (b && b.onCardUpdated) { b.onCardUpdated(); }
+    });
+  }
 })();

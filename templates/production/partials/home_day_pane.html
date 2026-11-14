@@ -1,0 +1,28 @@
+{# 날짜 탭 오른쪽 한 장(d = 날짜 묶음 한 장). 첫 화면(home_date.html)은 고른 날 장 하나만 이 조각으로 그리고, 다른 날은 누를 때
+   같은 라우트 ?view=day&day=<열쇠> 가 이 조각만 돌려준다(설계서 §15.6 '날 고르기', 11-14 — 숨긴 14장을 한 번에 보내던 것을 뺐다).
+   생산 파트: part_board 가 있으면 도면 카드 판(home_parts.html)을 앞에 그리고 지금 장은 fph-pane__now 로 감싼다(태블릿 가로 파트
+   계정에서만 숨김, parts.css). '도면 카드' 탭(tab=parts)은 판만 그린다. #}
+{% from 'production/partials/home_date_macros.html' import fph_row, fph_chip %}
+{% set _wait_n = d.wait_rows | length %}
+<section class="fph-pane" data-foms-home-daypane="{{ d.key }}">
+  {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+  {% if not d.total and not d.note %}
+  <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+  {% endif %}
+  {% if d.make_rows %}
+  <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
+  {% for r in d.make_rows %}{{ fph_row(r, d.show_day) }}{% endfor %}
+  {% endif %}
+  {% if d.wait_rows %}
+  <h3 class="fph-pane__g">도면·컨펌 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
+  <div class="fph-wg">{% for r in d.wait_rows %}{{ fph_chip(r, d.show_day, false) }}{% endfor %}</div>
+  {% endif %}
+  {% if d.done_rows %}
+  <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
+  <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, d.show_day, true) }}{% endfor %}</div>
+  {% endif %}
+  {% for p in d.previews %}
+  <h3 class="fph-pane__g fph-pane__g--next">{{ p.title }} <small>{{ p.hint }}</small></h3>
+  {% for r in p.rows %}{{ fph_row(r, p.show_day) }}{% endfor %}
+  {% endfor %}
+{% if part_board %}</div>{% endif %}{% endif %}</section>

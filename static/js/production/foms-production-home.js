@@ -1,14 +1,20 @@
 /* 생산팀 첫 화면 — 탭(날짜·내 공정·바뀐 것·찾기) 공통 JS. 설계서 §12 (2026-11-09 · D18 11-10).
- * 날짜: 왼쪽 띠에서 날을 고르면 오른쪽 한 장만 바뀐다(보이기/숨기기, 새 요청 없음) — 주소와 [다시 받기]도 그날로.
+ * 날짜: 날 고르기(고른 날 장만 받아 끼우기, 11-14)는 foms-production-home-days.js. 여기는 제목 줄 높이 · 받은 시각 · 연결 표시.
+ * [다시 받기]는 셸이 있으면 셸 조각을 캐시 없이 다시 받아 바꿔 끼운다. 화면 탭(날짜 · 도면 카드 · 내 공정 · 바뀐 것 · 찾기)은
+ * 링크 · 셸 조각 교체가 옮기고, 여기서는 누르는 즉시 켜짐 표시만 먼저 바꾼다.
  * 전체 주문: 날짜 묶음 접기/펴기·보기 칸·찾기(보이기/숨기기만, 새 요청 없음). 접기/펴기는 모바일 실측 탭
  * (measurement/mobile-glance-tabs.js)과 같은 말: is-closed · aria-expanded · 모두 펼치기/접기.
  * 내 공정: 공정 탭(마지막 탭은 이 브라우저에 기억) · [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true}.
- * 바뀐 것의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지. */
+ * 바뀐 것의 [확인했어요] 는 tablet-domain-sheets.js(change-ack) 몫. 실패 글은 설계서 §8 한 가지.
+ * 셸 조각 교체(레일 · 아래 메뉴, 11-14)로 다시 실행된다: 같은 화면에는 한 번만 묶고(data-foms-home-bound), 창 리스너 ·
+ * 1분 타이머는 window.__FOMS_PROD_HOME 로 한 번만 달아 그때그때 지금 화면의 함수(G.api)를 부른다. */
 (function () {
   'use strict';
 
   var root = document.querySelector('[data-foms-prod-home]');
-  if (!root) { return; }
+  if (!root || root.getAttribute('data-foms-home-bound') === '1') { return; }
+  root.setAttribute('data-foms-home-bound', '1');
+  var G = window.__FOMS_PROD_HOME = window.__FOMS_PROD_HOME || {};
 
   var OFFLINE_TEXT = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
   var STEP_TAB_KEY = 'foms-prod-step-tab';
@@ -82,26 +88,8 @@
   var bar = root.querySelector('.foms-prod-home__bar');
   function syncBarHeight() { if (bar) { root.style.setProperty('--fph-bar-h', bar.offsetHeight + 'px'); } }
   syncBarHeight();
-  window.addEventListener('resize', syncBarHeight);
-  if (window.ResizeObserver && bar) { new ResizeObserver(syncBarHeight).observe(bar); }
-
-  // ── 날짜(안 3): 날 고르기 ──
-  var dayBtns = toArr(root.querySelectorAll('[data-foms-home-daybtn]'));
-  function selectDay(key) {
-    dayBtns.forEach(function (b) {
-      var on = b.getAttribute('data-foms-home-daybtn') === key;
-      b.classList.toggle('is-on', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    toArr(root.querySelectorAll('[data-foms-home-daypane]')).forEach(function (p) {
-      p.hidden = p.getAttribute('data-foms-home-daypane') !== key;
-    });
-    var url = window.location.pathname + '?day=' + encodeURIComponent(key);
-    try { window.history.replaceState(window.history.state, '', url); } catch (e) { /* 주소를 못 바꿔도 화면은 그대로 */ }
-    var reload = root.querySelector('[data-foms-home-reload]');
-    if (reload) { reload.setAttribute('href', url); }
-    window.scrollTo(0, 0);
-  }
+  if (G.ro) { G.ro.disconnect(); G.ro = null; } // 셸 교체로 떠난 옛 화면의 제목 줄은 그만 본다
+  if (window.ResizeObserver && bar) { G.ro = new ResizeObserver(syncBarHeight); G.ro.observe(bar); }
 
   // ── 내 공정: 탭 기억 + [끝] ──
   var stepTabs = toArr(root.querySelectorAll('[data-foms-home-steptab]'));
@@ -181,8 +169,22 @@
       apply();
       return;
     }
-    var dayBtn = t.closest('[data-foms-home-daybtn]');
-    if (dayBtn) { selectDay(dayBtn.getAttribute('data-foms-home-daybtn')); return; }
+    var reload = t.closest('[data-foms-home-reload]');
+    var shell = window.FOMS_ERP_SHELL;
+    if (reload && shell && typeof shell.navigateByShell === 'function' && shell.isShellFragmentSwapUrl(reload.href)) {
+      e.preventDefault(); // 다시 받기 = 셸 조각을 캐시 없이 다시 받아 바꿔 끼운다(스크립트 다시 받기 없음)
+      shell.navigateByShell(reload.href, { bypassCache: true, replaceHistory: true });
+      return;
+    }
+    // 화면 탭 · 파트 고르기: 이동은 링크(셸 조각 교체) 몫 — 누르는 즉시 켜짐 표시만 먼저(같은 줄 안에서)
+    var navTab = t.closest('.foms-prod-home__navtab, .pp-part');
+    if (navTab && !navTab.hasAttribute('data-foms-erp-no-shell') && navTab.parentNode) {
+      toArr(navTab.parentNode.children).forEach(function (n) {
+        if (n.hasAttribute('data-foms-erp-no-shell')) { return; }
+        n.classList.toggle('is-on', n === navTab);
+        if (n === navTab) { n.setAttribute('aria-current', 'page'); } else { n.removeAttribute('aria-current'); }
+      });
+    }
     var stepTab = t.closest('[data-foms-home-steptab]');
     if (stepTab) { selectStepTab(stepTab.getAttribute('data-foms-home-steptab')); return; }
     var done = t.closest('[data-foms-home-step-done]');
@@ -193,17 +195,24 @@
   var sync = root.querySelector('[data-foms-home-sync]');
   var loadedAt = Date.parse(root.getAttribute('data-loaded-at') || '');
   function tick() {
-    if (!sync || isNaN(loadedAt)) { return; }
+    if (!sync || isNaN(loadedAt) || !document.contains(root)) { return; }
     var minutes = Math.floor((Date.now() - loadedAt) / 60000);
     sync.textContent = minutes < 1 ? '방금 받음' : (minutes + '분 전에 받음');
     sync.classList.toggle('is-stale', minutes >= 10);
   }
   tick();
-  window.setInterval(tick, 60000);
 
   // ── 연결 끊김(D5) — 표시만. ──
   function onlineState() { root.classList.toggle('is-offline', !navigator.onLine); }
-  window.addEventListener('online', onlineState);
-  window.addEventListener('offline', onlineState);
   onlineState();
+
+  // ── 창 리스너 · 타이머는 문서마다 한 번(셸 교체로 다시 실행돼도 쌓이지 않게) — 지금 화면 함수를 부른다 ──
+  G.api = { syncBar: syncBarHeight, tick: tick, online: onlineState };
+  if (!G.once) {
+    G.once = true;
+    window.addEventListener('resize', function () { G.api.syncBar(); });
+    window.addEventListener('online', function () { G.api.online(); });
+    window.addEventListener('offline', function () { G.api.online(); });
+    window.setInterval(function () { G.api.tick(); }, 60000);
+  }
 })();

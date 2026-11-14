@@ -41,6 +41,7 @@ from typing import Any, Final, Iterable, Sequence
 
 from foms.services.feature_flags import (
     wants_coarse_pointer_surfaces,
+    wants_desktop_queue_surfaces,
     wants_mobile_width_surfaces,
     wants_wide_only_surfaces,
 )
@@ -205,11 +206,11 @@ def _cohort_material() -> dict[str, Any]:
 def _surface_hint_material() -> dict[str, bool]:
     """기기·창 힌트 쿠키 축 — 같은 사용자·같은 세션이라도 본문이 갈린다.
 
-    ``inject_status_list`` 가 주입하는 표면 게이트 세 가지(터치 전용 · 광폭 전용 · 모바일 폭)는
-    :func:`_cohort_material` 이 읽는 ``inject_foms_flags`` 에 없다. 앞의 둘은 기기 고정
-    특성이라 한 세션 안에서 안 바뀌지만, 모바일 폭 판정(``foms_vw``)은 **같은 창에서도** 창
-    크기에 따라 바뀐다. 이 축이 빠지면 광폭 창에서 받은(모바일 표면을 뺀) 본문이 좁은 창에
-    렌더 전 304 로 되살아나 모바일 화면이 빈다. 세 판정 모두 쿠키만 읽는다(쿼리 0).
+    ``inject_status_list`` 가 주입하는 표면 게이트 네 가지(터치 전용 · 광폭 전용 · 모바일 폭 ·
+    데스크톱 작업 큐)는 :func:`_cohort_material` 이 읽는 ``inject_foms_flags`` 에 없다. 앞의
+    둘은 기기 고정 특성이라 한 세션 안에서 안 바뀌지만, 뒤의 둘(``foms_vw``)은 **같은 창에서도**
+    창 크기·방향(태블릿 회전)에 따라 바뀐다. 이 축이 빠지면 광폭 창에서 받은(표면을 뺀) 본문이
+    좁은 창·세로 화면에 렌더 전 304 로 되살아나 화면이 빈다. 네 판정 모두 쿠키만 읽는다(쿼리 0).
 
     Returns:
         표면 게이트 이름 → 판정값.
@@ -218,6 +219,7 @@ def _surface_hint_material() -> dict[str, bool]:
         "coarse_pointer": wants_coarse_pointer_surfaces(),
         "wide_only": wants_wide_only_surfaces(),
         "mobile_width": wants_mobile_width_surfaces(),
+        "desktop_queue": wants_desktop_queue_surfaces(),
     }
 
 

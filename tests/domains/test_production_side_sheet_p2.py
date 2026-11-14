@@ -53,7 +53,7 @@ def test_칸반_body_가_시트_공통_CSS_JS_를_싣고_핀이_같다() -> None
     assert "foms:erp-shell-fragment-swapped" in js and "data-foms-sheet-init" in js
     # 도메인 시트 핀 lockstep(칸반 = 시트 페이지 = 홈 = 출고 CHAIN)
     pin = body.split("tablet-domain-sheets.js') }}?v=")[1].split('"')[0]
-    for rel in ("templates/production/sheet.html", "templates/production/home.html"):
+    for rel in ("templates/production/sheet.html", "templates/production/partials/home_body.html"):
         assert f"tablet-domain-sheets.js') }}}}?v={pin}" in _read(rel), rel
     assert f"'/static/js/foms/tablet-domain-sheets.js?v={pin}'" in _read("static/js/shipment/shipment-entry.js")
 

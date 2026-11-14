@@ -1,0 +1,9 @@
+{# 생산 첫 화면 스크립트 — 전체 페이지(home.html)와 셸 조각(home_fragment.html)이 같이 쓴다. 셸 조각 교체 때 다시 실행되므로
+   스크립트마다 같은 화면에 두 번 묶지 않고 전역 리스너 · 타이머는 한 번만 단다(window.__FOMS_PROD_HOME · __FOMS_PROD_PARTS_BOUND). #}
+<script src="{{ url_for('static', filename='js/production/foms-production-home.js') }}?v=20261114a" defer></script>
+{% if part_board %}{# 도면 카드(설계서 §15.6): 크게 보기 · 칸 단추 · 카드 고치기 · 30초 받아 오기(P15-7)는 누구나. 쓰기(누름 · 확인 창 · 저장)는
+   확인 창이 있는 사람(쓸 수 있는 사람, D55)에게만 묶인다 — 읽기 전용은 창이 없어 parts.js 가 카드 고치기만 내보낸다. #}
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-viewer.js') }}?v=20261114a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts.js') }}?v=20261114a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-parts-sync.js') }}?v=20261114a" defer></script>
+{% endif %}

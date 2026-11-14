@@ -269,12 +269,15 @@ def test_home_without_board_has_no_sync_js(client, cohort):
 # --------------------------------------------------------------------------- #
 def test_sync_js_every_30s_only_when_visible_and_online():
     src = SYNC_JS.read_text(encoding="utf-8")
-    assert "var SYNC_EVERY_MS = 30000;" in src and "window.setInterval(tick, SYNC_EVERY_MS);" in src
+    assert "var SYNC_EVERY_MS = 30000;" in src and "bound.syncTimer = window.setInterval(" in src
     assert src.count("setInterval(") == 1 and "setTimeout(" not in src
+    # 셸 조각 교체로 다시 돌면 화면마다 한 번 묶고, 타이머는 문서에 하나 — 지금 화면의 받기만 부른다(11-14)
+    assert "if (!bound.syncTimer) {" in src and "bound.syncTick = tick;" in src
     assert "document.visibilityState === 'visible'" in src and "navigator.onLine !== false" in src
+    assert "document.contains(root)" in src[src.index("function canSync()"):]  # 떠난 화면은 받지 않는다
     tick = src[src.index("function tick()"):]
     assert tick.index("!canSync()") < tick.index("fetchChunk(")
-    assert "window.__FOMS_PROD_PARTS_BOUND" in src and "if (bound.sync) { return; }" in src
+    assert "window.__FOMS_PROD_PARTS_BOUND" in src and "if (bound.sync === root) { return; }" in src
     assert "body.success === true" in src and "try {" in src and ".catch(" in src
     assert "var MAX_IDS = 300;" in src
 
@@ -306,8 +309,9 @@ def test_parts_js_binds_writes_only_with_modal():
     export = src.index("window.FomsPartsCards = { apply: applyMark")
     stop = src.index("if (!modal) { return; }")
     click = src.index("root.addEventListener('click'")
-    assert export < stop < click and src.count("addEventListener(") == 2  # 누름 · Esc 둘 다 창 문 뒤
-    assert src.index("document.addEventListener('keydown'") > stop
+    assert export < stop < click and src.count("addEventListener(") == 1  # 누름은 창 문 뒤(화면마다 한 번)
+    # Esc 는 창 문 뒤에서 내보내고, 문서 리스너는 viewer 가 문서에 한 번만 단다(셸 조각 교체로 다시 돌아도 안 쌓인다, 11-14)
+    assert src.index("window.FomsPartsCards.onEscape = function") > stop and "document.addEventListener" not in src
     assert "if (!root || !board || !modal)" not in src  # 창이 없어도 고치기는 내보낸다
     assert "var WRITABLE = !!(modal && cfg.writable);" in src
     render = src[src.index("function renderAct("):src.index("function applyMark(")]
