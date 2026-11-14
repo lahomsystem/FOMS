@@ -11,17 +11,19 @@ import dataclasses
 import datetime
 
 import pytest
+from sqlalchemy import event
 from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.persistence.graft.models import BrainUsageEvent, ErpActionProposal
+from foms.services.ai_staff.registry import SETTINGS_KEY as AI_LEVELS_KEY
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.erp_actions import lifecycle, registry
 from foms.services.erp_actions.lifecycle import ActionError, approve, expire_due, propose, reconcile, reject, snooze
 from foms.services.erp_actions.registry import ActionShapeError, dedupe_key
 from foms.services.erp_actions.runners import RunOutcome
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from models import Order, SecurityLog, User
+from models import Order, SecurityLog, SystemSetting, User
 
 NOW = now_utc_naive()
 CUSTOMER = "합성손님"
@@ -113,7 +115,7 @@ def test_same_key_is_not_made_twice_and_rejected_never_comes_back(app):
 def test_racing_duplicate_hits_the_unique_index_and_keeps_the_session(app, monkeypatch):
     order = _order("RECEIVED")
     first = _propose(order)
-    monkeypatch.setattr(lifecycle, "_taken", lambda session, key: False)  # 겹침 확인을 지난 동시 만들기 흉내
+    monkeypatch.setattr(lifecycle, "_taken", lambda session, row: False)  # 겹침 확인을 지난 동시 만들기 흉내
     assert _propose(order) is None
     db_session.expire_all()
     assert db_session.get(ErpActionProposal, first.id).status == "open"  # 같은 열쇠는 밀어내지 않는다
@@ -192,7 +194,8 @@ def test_approve_executes_once_and_audits_without_text(app):
 
 def test_base_changed_returns_409_refreshes_card_then_approves(app):
     admin, order = _user(), _order("CONFIRM", construction=(_day(5), "오전"))
-    row, calls = _propose(order, action="move_construction", params={"date": _day(6), "time": "오전"}), []
+    row, calls = _propose(order, action="move_construction", proposed_by="agent:cs",
+                          params={"date": _day(6), "time": "오전"}), []
     sd = dict(order.structured_data)
     sd["schedule"] = {"construction": {"date": _day(5), "time": "오후"}}
     order.structured_data = sd
@@ -207,7 +210,7 @@ def test_base_changed_returns_409_refreshes_card_then_approves(app):
     with pytest.raises(ActionError) as stale:
         _approve(fresh, admin, runners, base_version=fresh.base_version - 1)
     assert stale.value.code == "ACTION_BASE_CHANGED"
-    assert _approve(fresh, admin, runners)["status"] == "executed" and len(calls) == 1
+    assert _approve(fresh, admin, runners, reason_code="customer_request")["status"] == "executed" and len(calls) == 1
 
 
 def test_precondition_is_409_and_keeps_the_card_open(app):
@@ -281,7 +284,8 @@ def test_link_mode_and_missing_runner_are_shape_errors(app, monkeypatch):
 
 def test_edits_and_change_reason(app):
     admin, order = _user(), _order("CONFIRM", construction=(_day(5), "오전"))
-    row, calls = _propose(order, action="move_construction", params={"date": _day(6), "time": "오전"}), []
+    row, calls = _propose(order, action="move_construction", proposed_by="agent:cs",
+                          params={"date": _day(6), "time": "오전"}), []
     runners = {"move_construction": _runner(calls)}
     for kwargs, field in (({"edits": {"crew": 2}}, "edits"), ({"reason_code": "weather"}, "reason_code"),
                           ({"reason_code": "other"}, "reason_note"), ({"edits": {"time": "밤"}}, "time")):
@@ -355,3 +359,96 @@ def test_unknown_or_invisible_proposal_is_forbidden(app):
         with pytest.raises(ActionError) as hidden:
             approve(db_session, target, actor=actor, runners={}, base_version=1, now=NOW)
         assert hidden.value.code == "ACTION_FORBIDDEN"
+
+
+# ── 검수 R1 고침(R-01 · R-09 · R-10) ─────────────────────────────────────
+def _levels(**agents: dict) -> None:
+    """AI 직원 수준 표(ADMIN 이 고치는 SystemSetting 한 줄)를 합성 값으로."""
+    row = db_session.get(SystemSetting, AI_LEVELS_KEY)
+    if row is None:
+        db_session.add(SystemSetting(setting_key=AI_LEVELS_KEY, setting_value=dict(agents)))
+    else:
+        row.setting_value = dict(agents)
+    db_session.commit()
+
+
+def test_reason_required_change_cannot_run_without_a_reason_code(app):
+    """R-01 — 고객 컨펌 뒤 시공일 옮기기는 사유를 묻는 변경이다. 사유 코드 없이 승인하면 400 ``reason_code``, 실행기는 안 돈다."""
+    admin, order = _user(), _order("CONFIRM", construction=(_day(5), "오전"))
+    row, calls = _propose(order, action="move_construction", proposed_by="agent:cs",
+                          params={"date": _day(7), "time": "오후"}), []
+    runners = {"move_construction": _runner(calls)}
+    for kwargs in ({}, {"reason_code": ""}, {"reason_code": None, "reason_note": "메모만"}):
+        with pytest.raises(ActionError) as missing:
+            _approve(row, admin, runners, **kwargs)
+        assert (missing.value.code, missing.value.fields) == ("ACTION_SHAPE", ("reason_code",))
+    db_session.expire_all()
+    saved = db_session.get(ErpActionProposal, row.id)
+    assert saved.status == "open" and saved.decided_by is None and not calls and _audits("ERP_ACTION_APPROVED") == []
+    assert _approve(saved, admin, runners, reason_code="customer_request")["status"] == "executed"
+    assert calls[0].reason_code == "customer_request"
+
+
+def test_change_without_reason_question_still_runs_without_a_reason(app):
+    """R-01 — 사유를 묻지 않는 변경(접수 단계 시공 잡기)은 지금처럼 사유 없이 실행된다."""
+    admin, order = _user(), _order("RECEIVED")
+    row, calls = _propose(order), []
+    assert _approve(row, admin, {"schedule_construction": _runner(calls)})["status"] == "executed"
+    assert calls[0].reason_code is None
+
+
+def test_taken_lookup_filters_by_order_and_rides_the_order_status_index(app):
+    """R-09 — 같은 열쇠 찾기에 주문 번호 조건이 있어 ``(order_id, status)`` 색인을 탄다(부분 유일 색인은 open 만 덮는다)."""
+    first = _propose(_order("RECEIVED"))
+    assert first.order_id and first.dedupe_key  # 커밋 뒤 다시 읽기를 듣기 전에 끝낸다
+    seen: list[tuple] = []
+
+    def grab(_conn, _cursor, statement, parameters, _context, _many):
+        seen.append((statement, parameters))
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", grab)
+    try:
+        assert lifecycle._taken(db_session, first) is True
+    finally:
+        event.remove(engine, "before_cursor_execute", grab)
+    statement, parameters = next(item for item in seen if "erp_action_proposals" in item[0])
+    assert "erp_action_proposals.order_id = " in statement and "erp_action_proposals.dedupe_key = " in statement
+    if engine.dialect.name == "sqlite":
+        with engine.connect() as conn:
+            plan = " ".join(str(r[-1]) for r in conn.exec_driver_sql("EXPLAIN QUERY PLAN " + statement, parameters))
+        assert "ix_erp_action_proposals_order_status" in plan, plan
+
+
+def test_level_zero_blocks_approve_of_an_open_proposal_until_raised(app):
+    """R-10 — 수준을 0 으로 내리면 이미 열린 그 직원의 제안은 승인 · 실행되지 않는다(409 · 제안은 열린 채 · 거절은 된다)."""
+    admin = _user()
+    row, calls = _propose(_order("RECEIVED")), []
+    runners = {"schedule_construction": _runner(calls)}
+    _levels(schedule={"schedule_construction": 0})
+    with pytest.raises(ActionError) as paused:
+        _approve(row, admin, runners)
+    assert (paused.value.code, paused.value.message) == ("ACTION_PRECONDITION", lifecycle.LEVEL_ZERO_REASON)
+    db_session.expire_all()
+    assert db_session.get(ErpActionProposal, row.id).status == "open" and not calls
+    _levels(schedule={"schedule_construction": 1})
+    assert _approve(row, admin, runners)["status"] == "executed" and len(calls) == 1
+    other = _propose(_order("RECEIVED"), params={"date": _day(14), "time": ""})
+    _levels(schedule={"schedule_construction": 0})
+    assert reject(db_session, other.id, actor=admin, code="other", now=NOW).status == "rejected"
+
+
+def test_level_zero_also_blocks_the_shared_service_runner_path(app, monkeypatch):
+    """R-10 — 채널톡 작은 창 [같이 넣기]가 타는 길(:func:`approve` + ``SERVICE_RUNNERS``)도 같이 막힌다 — 주문이 안 바뀐다."""
+    from foms.services.erp_actions import runners as runner_mod
+
+    monkeypatch.setattr(runner_mod, "finalize_note_notifications", lambda db, result: None)
+    admin, order = _user(), _order("CONFIRM", construction=(_day(5), "오전"))
+    row = _propose(order, action="add_construction_note", proposed_by="agent:cs", params={"note": "합성 자재 먼저"})
+    _levels(cs={"add_construction_note": 0})
+    with pytest.raises(ActionError) as paused:
+        _approve(row, admin, runner_mod.SERVICE_RUNNERS)
+    assert paused.value.message == lifecycle.LEVEL_ZERO_REASON
+    db_session.expire_all()
+    assert "notes" not in (db_session.get(Order, order.id).structured_data or {})
+    assert db_session.get(ErpActionProposal, row.id).status == "open"

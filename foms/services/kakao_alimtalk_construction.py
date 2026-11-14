@@ -13,7 +13,8 @@
 4. 보낼 수 있는 주문(있음 · 삭제 아님 · 협력사 주문 아님 · 초안 아님) · 손님 휴대폰 있음 · 시공일 있음
 
 하나라도 아니면 코드만 돌려주고 **아무것도 보내지도 쓰지도 않는다**(이력 · 감사 줄 없음 — 스위치가 꺼지면 지금과 같다).
-같은 주문 · 같은 시공일로 이미 나갔으면 다시 보내지 않는다(:func:`sent_for`). 보내 본 결과(나감 · 벤더 실패)만 이력
+같은 주문 · 같은 시공일로 이미 나갔으면 다시 보내지 않는다(:func:`sent_for` — 판정은 주문 줄 잠금 아래에서 해 겹친 두 보내기가
+두 통을 내지 않는다, :func:`_locked_order`). 보내 본 결과(나감 · 벤더 실패)만 이력
 ``structured_data.alimtalk_construction``(실측 예약 ``alimtalk_measurement`` 와 같은 꼴 + ``construction_date``)과 감사 줄
 ``ALIMTALK_CONSTRUCTION_SENT``(본문 · 손님 정보 없음 — 번호 · 코드만)에 남는다.
 
@@ -223,9 +224,19 @@ def _dispatch(sd: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
     return message_id, None
 
 
+def _locked_order(session: Any, order_id: int) -> Optional[Order]:
+    """주문 줄을 ``FOR UPDATE`` 로 잠근 최신 값(없으면 ``None``) — 판정 · 보내기 · 이력이 한 잠금 아래에 있게.
+
+    겹친 두 보내기(같은 주문의 할 일 · 시공일 승인의 ``notify_customer`` · 되맞추기 뒤 다시 승인)는 여기서 줄을 서고, 뒤에 온
+    쪽은 앞쪽 이력이 커밋된 뒤 '이미 나감'(:func:`sent_for`)을 본다 — 같은 시공일로 두 통이 나가지 않는다(검수 R-12).
+    잠금은 벤더 왕복(Solapi — httpx 기본 5초 시간 제한)까지 이어진다.
+    """
+    return session.query(Order).filter(Order.id == int(order_id)).populate_existing().with_for_update().first()
+
+
 def _send_in_session(session: Any, order: Optional[Order], *, manual_by: Optional[int], dedupe_key: str,
                      source: Optional[str]) -> dict[str, Any]:
-    """판정 → (이미 나감이면 그대로) → 보내기 → 쓰기 직전 다시 읽어 이력 · 감사(벤더 왕복 사이 저장을 덮지 않는다)."""
+    """잠근 주문(:func:`_locked_order`)으로 판정 → (이미 나감이면 그대로) → 보내기 → 이력 · 감사(커밋은 부르는 쪽)."""
     sd = _sd(order)
     day = construction_day(sd)
     if sent_for(sd, day):
@@ -235,16 +246,14 @@ def _send_in_session(session: Any, order: Optional[Order], *, manual_by: Optiona
         logger.info("[ALIMTALK-CONSTRUCTION] 안 보냄 order=%s code=%s", getattr(order, "id", None), code)
         return {"sent": False, "error": code}
     message_id, error = _dispatch(sd)
-    fresh = (session.query(Order).filter(Order.id == int(order.id)).populate_existing()
-             .with_for_update().first()) or order
-    _record(session, fresh, day=str(day), dedupe_key=dedupe_key, message_id=message_id, error=error, sent_by=manual_by)
-    _audit(session, fresh, sent=error is None, error=error, sent_by=manual_by, source=source)
+    _record(session, order, day=str(day), dedupe_key=dedupe_key, message_id=message_id, error=error, sent_by=manual_by)
+    _audit(session, order, sent=error is None, error=error, sent_by=manual_by, source=source)
     return {"sent": error is None, "error": error}
 
 
 def send_construction_alimtalk(order_id: int, *, manual_by: Optional[int], dedupe_key: str,
                                source: Optional[str] = None) -> dict[str, Any]:
-    """주문을 다시 읽어 나가는 조건 → 보내기 → 이력 · 감사까지 한 트랜잭션(제 세션에서 스스로 커밋한다).
+    """주문 줄을 잠가 다시 읽고 나가는 조건 → 보내기 → 이력 · 감사까지 한 트랜잭션(제 세션에서 스스로 커밋한다).
 
     Args:
         order_id: 주문 번호.
@@ -258,7 +267,7 @@ def send_construction_alimtalk(order_id: int, *, manual_by: Optional[int], dedup
     """
     session = base.open_session()
     try:
-        order = session.get(Order, int(order_id))
+        order = _locked_order(session, order_id)
         result = _send_in_session(session, order, manual_by=manual_by, dedupe_key=dedupe_key, source=source)
         session.commit()
         return result

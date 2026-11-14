@@ -343,3 +343,81 @@ def test_send_construction_alimtalk_runner_vendor_failure_is_failed(quiet, monke
     admin, order = _admin(), _order(construction=_day(2))
     out = SERVICE_RUNNERS["send_construction_alimtalk"](db_session, _req(order, "send_construction_alimtalk", {}, admin))
     assert out.status == "failed" and out.result == {"sent": False, "error": "network"}
+
+
+# ── 검수 R1 고침(R-12 · R-02) ────────────────────────────────────────────
+def test_sent_check_runs_under_the_order_row_lock(quiet, monkeypatch):
+    """R-12 — 겹친 두 보내기(할 일 · ``notify_customer``)가 같은 시공일로 두 통을 내지 않게, '이미 보냄' 판정보다 주문 줄
+    ``FOR UPDATE`` 잠금이 먼저다(뒤에 온 쪽은 앞쪽 이력이 커밋된 뒤 판정한다). 진짜 겹침은 PostgreSQL 잠금이 줄 세운다."""
+    from sqlalchemy.orm import Query
+
+    _ready(monkeypatch)
+    order = _order(construction=_day(3))
+    events: list[str] = []
+    real_lock, real_sent = Query.with_for_update, kc.sent_for
+
+    def lock(self, *args, **kwargs):
+        events.append("lock:" + ",".join(str(d.get("name")) for d in self.column_descriptions))
+        return real_lock(self, *args, **kwargs)
+
+    monkeypatch.setattr(Query, "with_for_update", lock)
+    monkeypatch.setattr(kc, "sent_for", lambda sd, day: events.append("judge") or real_sent(sd, day))
+    monkeypatch.setattr(kakao, "_solapi_send", lambda **kw: events.append("send") or "MSG-L")
+    assert _send(order) == {"sent": True, "error": None}
+    assert events == ["lock:Order", "judge", "send"]  # 잠금 → 판정 → 보내기(이력은 같은 잠금 아래)
+    events.clear()
+    assert _send(order) == {"sent": True, "error": None}  # 두 번째는 잠근 최신 이력으로 '이미 나감'
+    assert events == ["lock:Order", "judge"] and len(_audits()) == 1
+
+
+def test_a_send_committed_after_the_callers_check_is_not_sent_again(quiet, monkeypatch):
+    """R-12 — 부르는 쪽이 '아직 안 나감'을 본 뒤 다른 승인이 먼저 보내고 커밋했으면, 잠근 다시 읽기가 그 이력을 보고 안 보낸다."""
+    _ready(monkeypatch)
+    admin, order = _admin(), _order(construction=_day(3))
+    real = kc.send_construction_alimtalk
+
+    def other_wins_first(order_id, **kwargs):
+        real(order_id, manual_by=None, dedupe_key="alimtalk:construction:other", source="erp_action:7")
+        return real(order_id, **kwargs)
+
+    monkeypatch.setattr(kc, "send_construction_alimtalk", other_wins_first)
+    out = SERVICE_RUNNERS["send_construction_alimtalk"](db_session, _req(order, "send_construction_alimtalk", {}, admin))
+    assert out.status == "executed" and len(quiet) == 1 and len(_audits()) == 1
+
+
+def test_hidden_notice_line_only_when_the_construction_notice_goes_out(quiet, monkeypatch):
+    """R-02 — 빠른 승인 자리에 보일 손님 알림톡 줄: 시공일 할 일 + 쓸 수 있는 상태 + 넣을 값 참일 때만. 알림톡 보내기 할 일은
+    카드 칸이 곧 알림톡이라 빈 글 · 스위치 끔이면 빈 글(지금과 같다)."""
+    from foms.persistence.graft.models import ErpActionProposal
+    from foms.services.erp_actions.views import hidden_notice, quick_view
+
+    order = _order(construction=None, status="RECEIVED")
+    params = parse_params("schedule_construction", {"date": _day(6), "time": "오전"})
+
+    def row(action: str, values: dict) -> ErpActionProposal:
+        return ErpActionProposal(action=action, params=values, preview=preview.preview(action, order, values))
+
+    assert hidden_notice(row("schedule_construction", params), order) == ""  # 스위치 끔
+    assert quick_view(row("schedule_construction", params), order) == {"needs_input": False, "notice": ""}
+    _ready(monkeypatch)
+    assert hidden_notice(row("schedule_construction", params), order) == cn.STEP
+    assert quick_view(row("schedule_construction", params), order)["notice"] == cn.STEP
+    assert hidden_notice(row("schedule_construction", {**params, "notify_customer": False}), order) == ""
+    dated = _order(construction=_day(2), status="RECEIVED")
+    send_row = ErpActionProposal(action="send_construction_alimtalk", params={},
+                                 preview=preview.preview("send_construction_alimtalk", dated, {}))
+    assert hidden_notice(send_row, dated) == ""  # 카드 칸 '손님 알림톡(시공일 안내)' 이 곧 그 줄
+    assert quick_view(send_row, dated) == {"needs_input": False, "notice": ""}
+
+
+def test_quick_view_needs_input_when_the_change_asks_for_a_reason(quiet, monkeypatch):
+    """R-01 — 사유를 묻는 변경(고객 컨펌 뒤 시공일 옮기기)이면 빠른 승인 자리는 [고쳐서]만(``needs_input``)."""
+    from foms.persistence.graft.models import ErpActionProposal
+    from foms.services.erp_actions.views import quick_view
+
+    confirmed, early = _order(construction=_day(3), status="CONFIRM"), _order(construction=_day(3), status="MEASURE")
+    params = parse_params("move_construction", {"date": _day(9), "time": ""})
+    for order, needs in ((confirmed, True), (early, False)):
+        row = ErpActionProposal(action="move_construction", params=params,
+                                preview=preview.preview("move_construction", order, params))
+        assert quick_view(row, order)["needs_input"] is needs

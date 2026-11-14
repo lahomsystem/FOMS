@@ -316,6 +316,92 @@ def test_script_keeps_everything_hidden_when_off_or_not_visible(world, monkeypat
     assert denied == {"calls": ["/api/erp-actions/badge"], "shown": 0}  # 404(볼 수 없는 사람) — 아무것도 안 보인다
 
 
+# ── 검수 R1 고침(R-01 · R-02 태블릿 · R-21 · R-24) ──────────────────────────
+_SOLAPI_READY = (("FOMS_GRAFT_CONSTRUCTION_ALIMTALK_ENABLED", "1"), ("SOLAPI_API_KEY", "k"), ("SOLAPI_API_SECRET", "s"),
+                 ("SOLAPI_SENDER_PHONE", "0200000000"), ("SOLAPI_PF_ID_HAUD", "PF-H"),
+                 ("SOLAPI_TEMPLATE_CONSTRUCTION_ID_HAUD", "TPL-C-H"))
+
+
+def _sheet_box(world, order_id: int) -> str:
+    sheet = world["client"].get(f"/erp/dashboard/tablet-sheet/{order_id}").get_data(as_text=True)
+    return sheet[sheet.index("data-graft-box"):sheet.index("data-graft-status")]
+
+
+def _proposal_on(stage: str, action: str, params: dict, construction: str | None = None) -> int:
+    """손님 휴대폰이 있는 합성 주문 하나 + 그 할 일을 맡은 AI 직원의 제안 하나 — 주문 번호."""
+    sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": "합성손님", "phone": "010-0000-0001"}}}
+    if construction:
+        sd["schedule"] = {"construction": {"date": construction, "time": "오전"}}
+    order = Order(received_date="2030-01-01", customer_name="합성손님", phone="010-0000-0000", address="합성 주소",
+                  product="합성 품목", status=stage, is_erp_order=True, structured_data=sd)
+    sync_erp_flat_columns(order, sd)
+    db_session.add(order)
+    db_session.commit()
+    agent = "agent:cs" if action == "move_construction" else "agent:schedule"
+    assert propose(db_session, action=action, proposed_by=agent, order=order, params=params, reason="합성 이유",
+                   evidence=[], source_kind="sweep", source_ref="3", level=2, now=now_utc_naive()) is not None
+    db_session.commit()
+    return order.id
+
+
+def test_tablet_box_shows_only_edit_when_the_change_asks_for_a_reason(world, monkeypatch):
+    """R-01 — 고객 컨펌 뒤 시공일 옮기기는 사유를 묻는 변경이라 상자에 [승인] 없이 [고쳐서](사유를 적는 승인 대기)만."""
+    _switch(monkeypatch, "all", "brain_ui", "actions", "cell_tablet")
+    oid = _proposal_on("CONFIRM", "move_construction", {"date": _day(12), "time": "오후"}, construction=_day(5))
+    box = _sheet_box(world, oid)
+    assert 'data-graft-act="approve"' not in box and ">고쳐서</a>" in box and 'data-graft-act="reject-open"' in box
+    first = _sheet_box(world, world["orders"][0])  # 사유를 묻지 않는 시공 잡기(접수 단계)는 지금처럼 [승인]
+    assert 'data-graft-act="approve">승인</button>' in first
+
+
+def test_tablet_box_shows_the_customer_notice_line_only_when_it_goes_out(world, monkeypatch):
+    """R-02 — 시공 잡기 승인이 손님 시공일 안내를 같이 보내면 상자에 그 한 줄. 알림톡을 쓸 수 없으면(스위치 끔) 지금과 같다."""
+    import foms.services.kakao_alimtalk as kakao
+
+    monkeypatch.setattr(kakao, "_solapi_send", lambda **kw: pytest.fail("그리기만 — 보내지 않는다"))
+    _switch(monkeypatch, "all", "brain_ui", "actions", "cell_tablet")
+    oid = _proposal_on("RECEIVED", "schedule_construction", {"date": _day(9), "time": "오전"})
+    off = _sheet_box(world, oid)
+    assert "data-graft-notice" not in off and "손님 알림톡" not in off and 'data-graft-act="approve"' in off
+    for name, value in _SOLAPI_READY:
+        monkeypatch.setenv(name, value)
+    on = _sheet_box(world, oid)
+    assert '<span class="foms-graft-box__notice" data-graft-notice>손님 알림톡 1건 — 시공일 안내</span>' in on
+    assert on.index("foms-graft-box__after") < on.index("data-graft-notice") < on.index('data-graft-act="approve"')
+    assert not any(word in on for word in CREW_WORDS)
+
+
+def test_phone_card_chip_keeps_its_look_and_gets_a_44px_tap_area():
+    """R-24 — 폰 목록 칩은 보이는 높이 22px 그대로, 보이지 않는 겹(::after)이 위아래 44px 를 덮는다. 칩은 겹을 자르지 않는다."""
+    css = (ROOT / "static/css/components/foms-graft-cells.css").read_text(encoding="utf-8")
+    card = re.search(r"\.foms-graft-chip--card \{(.*?)\}", css, re.S).group(1)
+    tap = re.search(r"\.foms-graft-chip--card::after \{(.*?)\}", css, re.S).group(1)
+    assert "min-height: 22px;" in card and "position: relative;" in card and "overflow" not in card
+    assert "height: 44px;" in tap and "position: absolute;" in tap and "content: \"\";" in tap
+    text = re.search(r"\.foms-graft-chip__text \{(.*?)\}", css, re.S).group(1)
+    assert "overflow: hidden" in text and "text-overflow: ellipsis" in text
+
+
+@NODE
+def test_slot_of_a_switched_off_cell_stays_hidden_even_if_the_same_order_was_asked(world, monkeypatch):
+    """R-21 — 같은 주문의 켜진 칸(태블릿) 답이 와도 꺼진 칸(폰 목록) 칩은 칠하지 않는다. 칩 글은 말줄임 글 칸 안."""
+    a = world["orders"][0]
+    first = world["proposals"][0]
+    html = (f'<a class="foms-graft-chip" data-graft-slot="{a}" data-graft-cell="tablet" hidden></a>'
+            f'<a class="foms-graft-chip foms-graft-chip--card" data-graft-slot="{a}" data-graft-cell="mobile" hidden></a>')
+    routes = [{"method": "GET", "url": "/api/erp-actions/badge", "replies": [_ok(
+                  {"on": {"actions": True, "pc": False, "tablet": True, "mobile": False}, "actions": 1, "knowledge": 0,
+                   "total": 1, "labels": ["시공 잡기"]})]},
+              {"method": "GET", "url": "/api/erp-actions/open", "replies": [_ok({"items": {str(a): {
+                  "id": first, "action": "schedule_construction", "label": "시공 잡기", "agent_label": "일정 AI",
+                  "can_decide": True}}})]}]
+    body = """return api.qa('[data-graft-slot]').map(n => [n.getAttribute('data-graft-cell'), api.shown(n), api.text(n),
+                     n.getAttribute('href'), api.text(n.querySelector('.foms-graft-chip__text'))]);"""
+    got = run_node(html, body, scripts=[str(CELLS_JS)], routes=routes)
+    href = f"/brain?tab=inbox&proposal={first}"
+    assert got == [["tablet", True, "AI 제안 · 시공 잡기", href, "AI 제안 · 시공 잡기"], ["mobile", False, "", None, None]]
+
+
 @NODE
 def test_sheet_box_approve_and_reject_post_once(world, monkeypatch):
     _switch(monkeypatch, "all", "brain_ui", "actions", "cell_tablet")

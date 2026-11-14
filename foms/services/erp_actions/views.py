@@ -39,8 +39,8 @@ from foms.services.orders.change_reason import REASON_CODES, REASON_LABELS
 from models import Order, OrderFreelancerLink
 
 __all__ = [
-    "AGENT_KEYS", "MAX_ORDER_IDS", "RATE_DAYS", "approval_rate", "badge", "card", "detail", "inbox", "open_for_orders",
-    "title_of",
+    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "card", "detail", "hidden_notice",
+    "inbox", "open_for_orders", "quick_view", "title_of",
 ]
 
 MAX_ORDER_IDS = 100
@@ -51,6 +51,9 @@ AGENT_KEYS: tuple[str, ...] = ("cs", "schedule", "ops")
 _ACTIONABLE = (STATUS_OPEN, STATUS_FAILED)
 _TITLE_LIMIT = 80
 _SOURCE_LABELS = {"cs_turn": "손님 상담에서 나옴", "sweep": "훑기 규칙에서 나옴"}
+#: 손님에게 나가는 알림톡 줄의 머리 — '승인하면 차례로'(:func:`.preview.steps`)의 손님 알림톡 줄은 모두 이 말로 시작한다.
+#: 승인 대기 카드 스크립트(``ds-inbox-erp-aside.js`` 의 ``notice``)도 같은 머리로 가른다.
+NOTICE_HEAD = "손님 알림톡"
 
 
 def _now(now: Optional[datetime.datetime]) -> datetime.datetime:
@@ -203,6 +206,40 @@ def inbox(session: Any, user: Any, now: datetime.datetime) -> dict[str, Any]:
     return {"cards": cards, "counts": {"total": len(awake), "by_agent": by_agent, "snoozed": len(cards) - len(awake)},
             "reject_codes": [{"value": code, "label": REJECT_LABELS[code]} for code in REJECT_CODES],
             "est_seconds": _card_seconds(session, now) * len(awake) if awake else 0}
+
+
+def hidden_notice(row: ErpActionProposal, order: Any) -> str:
+    """승인하면 손님에게 나가는데 카드 첫 칸에는 안 보이는 알림톡 줄(검수 R-02 — 시공일 두 할 일의 ``notify_customer`` 등).
+
+    알림톡 보내기 할 일은 카드 첫 칸이 곧 손님 알림톡이라 빈 글이다. 쓸 수 없는 상태(스위치 끔 등)면 '승인하면 차례로'(지금
+    주문으로 계산)에 그 줄이 없어 빈 글이다(지금과 같다).
+
+    Args:
+        row: 제안 줄. order: 지금 주문(없으면 빈 글).
+
+    Returns:
+        '손님 알림톡 1건 — …' 한 줄, 없으면 빈 글.
+    """
+    first = (row.preview or [{}])[0] if row.preview else {}
+    if order is None or str(first.get("field") or "").startswith(NOTICE_HEAD):
+        return ""
+    lines = fns.steps(row.action, order, dict(row.params or {}))
+    return next((line for line in lines if line.startswith(NOTICE_HEAD)), "")
+
+
+def quick_view(row: ErpActionProposal, order: Any) -> dict[str, Any]:
+    """빠른 승인 자리(태블릿 상세 'AI 제안' 상자)의 판정 — 승인 길(``run``) 할 일만 본다.
+
+    Returns:
+        ``{"needs_input", "notice"}`` — ``needs_input`` 은 꼭 넣을 값이 비었거나 사유를 물을 변경(검수 R-01 — [승인] 대신
+        [고쳐서]만) · ``notice`` 는 :func:`hidden_notice`(상자에 그 한 줄을 보인다).
+    """
+    spec = ACTIONS.get(row.action)
+    if spec is None or spec.mode != MODE_RUN or order is None:
+        return {"needs_input": False, "notice": ""}
+    params = dict(row.params or {})
+    empty = any(p.required and params.get(p.name) in (None, "", []) for p in spec.params)
+    return {"needs_input": empty or fns.reason_required(row.action, order, params), "notice": hidden_notice(row, order)}
 
 
 def approval_rate(session: Any, proposed_by: str, action: str, now: datetime.datetime,
