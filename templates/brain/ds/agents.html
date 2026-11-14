@@ -1,9 +1,59 @@
 {% extends "brain/ds/layout.html" %}
-{#- AI 직원 빈 화면 — 물결 A 의 틀만. ?tab=agents 가 이 화면이다(ADMIN + 화면 여는 MANAGER). 물결 D(T10)가 통째로 바꾼다. -#}
+{#- AI 직원(판 ⑪ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.10 · 5.2 · 9절). ?tab=agents 가 이 화면이다(ADMIN + 화면 여는
+    MANAGER — foms/web/brain.py 가 가른다). 서버는 틀만 그리고, 왼쪽 직원 다섯 · 가운데(머리 · 읽는 것 · 쓰는 도구 · 할 일과 자율
+    수준 · 2주 승인율 · 최근 실패 · 시간 · (ADMIN 만) 비용) · 오른쪽 실행 기록 하나는 static/js/brain/ds/ds-agents*.js 가
+    GET /api/ai-staff · /api/ai-staff/<열쇠> 로 읽어 textContent 로만 그린다. 고른 직원은 주소(?tab=agents&agent=)에 남긴다.
+    수준 고치기(POST /api/ai-staff/levels)는 ADMIN 에게만 보인다. 'AI 시험' 칸의 내용 · [시험 다시 돌리기]는 T16 의
+    partials/agents_evals.html 이 채운다 — 그 조각이 없어도 화면은 온전하다(ignore missing). 인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
 {% block title %}AI 직원{% endblock %}
 {% block page_title %}AI 직원{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-agents.css') }}">{% endblock %}
+{% block side %}{% include "brain/ds/partials/agents_side.html" %}{% endblock %}
 {% block main %}
-<header class="f-row"><h1 class="f-h3">AI 직원</h1></header>
-{{ ds.empty('새 화면을 준비하고 있어요.', 'predictive-analysis') }}
+<div class="fb-agents f-col" data-ds-agents data-list-url="{{ url_for('ai_staff_api.ai_staff_list') }}"
+     data-page-url="{{ url_for('brain_web.index') }}" data-start="{{ request.args.get('agent', '')[:16] }}"
+     {%- if is_admin %} data-levels-url="{{ url_for('ai_staff_api.ai_staff_levels') }}"{% endif %}>
+  <p class="fb-status" data-ds-agents-status role="status" aria-live="polite"></p>
+  <header class="f-row f-between f-top fb-agents-head">
+    <div class="f-col fb-agents-head__text">
+      <div class="f-row"><span class="f-ai-mark">{{ ds.icon('predictive-analysis') }}AI 직원</span><h1 class="f-h3" data-ds-agents-name>AI 직원</h1><span class="f-row f-gap4" data-ds-agents-tags></span></div>
+      <p class="f-muted" data-ds-agents-about></p>
+    </div>
+    <div class="f-actions" data-ds-agents-actions></div>
+  </header>
+
+  <section class="f-section" aria-label="읽는 것 · 쓰는 도구">
+    <div class="f-section-head"><span class="f-section-title">읽는 것 · 쓰는 도구</span><span class="f-section-sub" data-ds-agents-reads-note></span></div>
+    <div class="f-section-body fb-agents-reads">
+      <ul class="f-col f-gap12" data-ds-agents-reads></ul>
+      <table class="f-table f-table-compact" aria-label="도구"><tbody data-ds-agents-tools></tbody></table>
+    </div>
+  </section>
+
+  <section class="f-section" aria-label="쓸 수 있는 할 일 · 자율 수준">
+    <div class="f-section-head"><span class="f-section-title">쓸 수 있는 할 일 · 자율 수준</span><span class="f-section-sub">0 읽기만 · 1 초안 · 2 제안</span></div>
+    <div class="f-section-body-flush f-scroll-x">
+      <table class="f-table f-table-compact fb-agents-duties">
+        <thead><tr><th>할 일</th><th>수준</th><th>2주 승인율</th><th class="f-td-num">건수</th><th>메모</th></tr></thead>
+        <tbody data-ds-agents-duties></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="f-section" id="dsAgentsEvals" aria-label="AI 시험">
+    <div class="f-section-head"><span class="f-section-title">AI 시험</span><span class="f-section-sub">모델 · 지시문 · 도구가 바뀌면 다시 돌려요.</span></div>
+    <div class="f-section-body">
+      <div class="f-col f-gap12 fb-agents-evals" data-ds-agents-evals>{%- include "brain/ds/partials/agents_evals.html" ignore missing -%}</div>
+      <span class="f-h6">최근 실패</span>
+      <ul class="f-col f-gap4" data-ds-agents-failures></ul>
+      <div class="f-row f-small f-muted" id="dsAgentsUsage" data-ds-agents-usage></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block aside %}{% include "brain/ds/partials/agents_aside.html" %}{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/ds/ds-agents-kit.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-agents.js') }}" defer></script>
 {% endblock %}

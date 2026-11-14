@@ -1,0 +1,53 @@
+/* AI 직원 화면 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.10 · 판 ⑪) — templates/brain/ds/agents.html 전용.
+   class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
+   승인율 막대는 <progress> 를 꾸민다(인라인 스타일 없음). 'AI 시험' 칸 내용(.fb-agents-evals 안)은 T16 몫 — 비면 숨는다.
+   640px 아래 = 폰(⑫): 왼쪽 직원 목록 · 가운데 · 실행 기록이 차례로 쌓이고 '함께 보기'는 숨는다(.fb-pc-only — 틀 CSS). */
+
+/* hidden 은 언제나 숨김 — .f-callout · .f-col 같은 display 규칙이 [hidden] 을 이기지 않게. */
+.fb-agents [hidden],
+.fb-agents-side [hidden],
+.fb-agents-aside [hidden] { display: none !important; }
+
+.fb-agents { min-width: 0; gap: 16px; }
+.fb-agents .fb-status:empty { display: none; }
+.fb-agents .fb-status.is-error { color: var(--red2); }
+
+/* 머리 — 이름 줄 · 설명은 넓게, 단추 자리(T16)는 오른쪽 */
+.fb-agents-head__text { flex: 1 1 420px; min-width: 0; }
+
+/* 왼쪽 직원 목록 — 줄은 위로 맞춘다. 고른 줄의 꼬리표는 흰 바탕 · 파란 글(목업) */
+.fb-agents-side { flex: 0 0 248px; width: 248px; min-width: 0; }
+.f-app a.f-nav-item.fb-agents-item { align-items: flex-start; }
+.fb-agents-item__icon { margin-top: 2px; }
+.fb-agents-item:not(.is-selected) .fb-agents-sub { color: var(--text-muted); }
+.fb-agents-item.is-selected .f-tag { background: var(--white); color: var(--blue2); }
+
+/* 읽는 것 · 쓰는 도구 — 두 칸 */
+.fb-agents-reads { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.fb-agents-read { align-items: flex-start; }
+.fb-agents-read > .f-i { margin-top: 2px; }
+
+/* 할 일 표 — 수준 고르기(ADMIN) · 승인율 막대 */
+.f-app .fb-agents-level { width: auto; min-width: 120px; height: 26px; line-height: 26px; }
+.fb-agents-progress {
+  display: block; width: 96px; height: 8px; border: 0; border-radius: 40px; overflow: hidden;
+  background: rgba(95, 107, 124, .2); -webkit-appearance: none; appearance: none;
+}
+.fb-agents-progress::-webkit-progress-bar { background: rgba(95, 107, 124, .2); border-radius: 40px; }
+.fb-agents-progress.is-success::-webkit-progress-value { background: var(--green3); border-radius: 40px; }
+.fb-agents-progress.is-warning::-webkit-progress-value { background: var(--orange3); border-radius: 40px; }
+.fb-agents-progress.is-success::-moz-progress-bar { background: var(--green3); border-radius: 40px; }
+.fb-agents-progress.is-warning::-moz-progress-bar { background: var(--orange3); border-radius: 40px; }
+
+/* 'AI 시험' 칸 — T16 조각이 없으면(빈 칸) 숨는다 */
+.fb-agents-evals:empty { display: none; }
+
+/* 오른쪽 실행 기록 — 아이콘 · 단계 · 시간 세 칸 */
+.fb-agents-step { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; gap: 8px; align-items: start; }
+
+@media (max-width: 640px) {
+  .fb-agents-side { flex: 1 1 100%; width: 100%; box-shadow: 0 1px 0 var(--divider); }
+  .fb-agents-reads { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .f-app .fb-agents-level { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
+  .fb-agents-aside { padding-bottom: 88px; }
+}
