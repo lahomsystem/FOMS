@@ -99,6 +99,7 @@ class Candidate:
     order: Any
     params: dict[str, Any]
     reason: str
+    scope: Optional[str] = None  # 넣을 값이 없는 규칙의 상황(겹침 열쇠 — 원장 F-08). 바뀌면 거절 뒤에도 다시 제안된다.
 
 
 @dataclass(frozen=True)
@@ -201,22 +202,24 @@ def _pick_measure_alimtalk(session: Any, ctx: SweepContext, action: str, limit: 
     return _orders(session, action, Order.partner_org_id.is_(None),
                    or_(Order.is_self_measurement.is_(None), Order.is_self_measurement.is_(False)),
                    or_(Order.erp_measurement_date == tomorrow, measurement_schedule_on_dates([tomorrow])),
-                   limit=limit)
+                   limit=limit, held=_HELD)  # 거절은 빼지 않는다 — 실측 일정이 바뀌면 열쇠가 달라진다(F-08)
 
 
 def _judge_measure_alimtalk(order: Any, ctx: SweepContext) -> Optional[Candidate]:
     """O1 — 지금 일정으로 나간 실측 예약 알림톡이 없으면 제안."""
-    if _measure_sent(int(order.id), _sd(order)):
+    sd = _sd(order)
+    if _measure_sent(int(order.id), sd):
         return None
-    return Candidate(order, {}, "내일 실측인데 실측 예약 알림톡을 보낸 기록이 없어요.")
+    return Candidate(order, {}, "내일 실측인데 실측 예약 알림톡을 보낸 기록이 없어요.",
+                     scope=measure_alimtalk.build_dedupe_key(int(order.id), sd) or "measure")
 
 
 def _pick_stuck_stage(session: Any, ctx: SweepContext, action: str, limit: int) -> list[Any]:
     """O2 후보 — 도면 · 마지막 단계가 아닌 단계로 2일 넘게 그대로(방금 그 선을 넘은 주문부터)."""
     stages = [name for code in MAIN_PIPELINE_CODES if code not in _NO_ADVANCE for name in _aliases(code)]
     return _orders(session, action, Order.erp_stage_code.in_(stages), Order.erp_stage_updated_at.isnot(None),
-                   Order.erp_stage_updated_at <= ctx.stuck_before, limit=limit,
-                   newest=(Order.erp_stage_updated_at,))
+                   Order.erp_stage_updated_at <= ctx.stuck_before, limit=limit, held=_HELD,
+                   newest=(Order.erp_stage_updated_at,))  # 거절은 빼지 않는다 — 단계가 바뀌면 열쇠가 달라진다(F-08)
 
 
 def _judge_stuck_stage(order: Any, ctx: SweepContext) -> Optional[Candidate]:
@@ -226,7 +229,7 @@ def _judge_stuck_stage(order: Any, ctx: SweepContext) -> Optional[Candidate]:
         return None
     if is_confirm_stage(stage) and confirm_exit_block(sd) is not None:
         return None
-    return Candidate(order, {}, "지금 단계의 현재 작업이 모두 승인됐는데 단계가 2일 넘게 그대로예요.")
+    return Candidate(order, {}, "지금 단계의 현재 작업이 모두 승인됐는데 단계가 2일 넘게 그대로예요.", scope=stage)
 
 
 def _pick_no_draftsman(session: Any, ctx: SweepContext, action: str, limit: int) -> list[Any]:
@@ -251,15 +254,17 @@ def _pick_construction_alimtalk(session: Any, ctx: SweepContext, action: str, li
     on_tomorrow = Order.schedule_dates.any(and_(OrderScheduleDate.kind == "construction",
                                                 OrderScheduleDate.date == tomorrow))
     return _orders(session, action, Order.partner_org_id.is_(None),
-                   or_(Order.erp_construction_date == tomorrow, on_tomorrow), limit=limit)
+                   or_(Order.erp_construction_date == tomorrow, on_tomorrow), limit=limit,
+                   held=_HELD)  # 거절은 빼지 않는다 — 시공일이 바뀌면 열쇠가 달라진다(F-08)
 
 
 def _judge_construction_alimtalk(order: Any, ctx: SweepContext) -> Optional[Candidate]:
     """O4 — 그 시공일로 나간 시공일 안내가 없으면 제안(실패 기록 · 옛 시공일 기록은 안 보냄)."""
     sd = _sd(order)
-    if construction_alimtalk.sent_for(sd, construction_alimtalk.construction_day(sd)):
+    day = construction_alimtalk.construction_day(sd)
+    if construction_alimtalk.sent_for(sd, day):
         return None
-    return Candidate(order, {}, "내일 시공인데 시공일 안내 알림톡을 보낸 기록이 없어요.")
+    return Candidate(order, {}, "내일 시공인데 시공일 안내 알림톡을 보낸 기록이 없어요.", scope=str(day or ""))
 
 
 #: 규칙 이름 → 규칙(차례대로 돈다). 뒤 일감은 여기 줄을 더한다.
@@ -292,7 +297,7 @@ def _propose_one(session: Any, rule: Rule, order: Any, level: int, ctx: SweepCon
             evidence = [{"kind": "order", "ref": order_key(int(order.id)), "label": f"주문 #{order.id}"}]
             row = propose(session, action=rule.action, proposed_by=proposer(rule.agent), order=order,
                           params=candidate.params, reason=candidate.reason, evidence=evidence, source_kind="sweep",
-                          source_ref=str(run_id), level=level, now=ctx.now)
+                          source_ref=str(run_id), level=level, now=ctx.now, dedupe_scope=candidate.scope)
             return row is not None
     except Exception as exc:  # 후보 하나의 실패가 그 밤의 다른 제안을 되돌리지 않게 — 코드만 남긴다
         logger.warning("[AI-STAFF] 훑기 후보 실패 rule=%s order=%s code=%s", rule.key, getattr(order, "id", None),
