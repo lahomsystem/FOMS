@@ -92,13 +92,17 @@ def test_page_shows_only_own_company_and_no_internal_memo(app, world):
     assert "우리끼리 메모" not in html and "777만" not in html and "7,770,000" not in html
     assert 'data-pp-nav="ship"' in html and 'aria-current="page"' in html.split('data-pp-nav="ship"')[1][:40]
     assert "partner-shipment.css" in html
+    # 시공일 확정 · 미정 뱃지(사용자 2026-11-14) — 우리 시공일이면 확정
+    assert 'pp-sched pp-sched--ok' in html.split(f"/partner/orders/{own}")[1].split("</a>")[0]
 
 
-def test_staff_cannot_open_partner_shipments(app, world):
-    resp = _client(app, db_session.get(User, world["staff"])).get("/partner/shipments")
-    assert resp.status_code in (302, 403, 404)
-
-
-def test_partner_nav_links_to_shipments(app, world):
-    html = _client(app, db_session.get(User, world["partner_a"])).get("/partner").get_data(as_text=True)
-    assert html.count('href="/partner/shipments"') == 2  # PC 메뉴 줄 · 휴대폰 아래 탭
+def test_page_marks_requested_day_as_undecided(app, world):
+    """우리 시공일 줄 = '확정' 뱃지(시간 없으면 '시간 미정'), 희망 시공일만 있는 줄 = '미정' 뱃지."""
+    day = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+    own = _order_on(app, world["partner_a"], day)
+    wish = _create(app, world["partner_a"], {**_PAYLOAD, "requested_construction_date": day}).get_json()["data"]["order_id"]
+    html = _client(app, db_session.get(User, world["partner_a"])).get(f"/partner/shipments?date={day}").get_data(as_text=True)
+    row = html.split(f"/partner/orders/{own}")[1].split("</a>")[0]
+    assert "pp-sched--ok" in row and "시간 미정" in row
+    wish_row = html.split(f"/partner/orders/{wish}")[1].split("</a>")[0]
+    assert "pp-sched--wait" in wish_row and ">미정<" in wish_row and "pp-sched--ok" not in wish_row

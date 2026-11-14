@@ -52,10 +52,10 @@ def test_partner_list_shows_request_until_confirmed(app, world):
     asked = _order(app, world["partner_a"], _REQ)
     client = _client(app, db_session.get(User, world["partner_a"]))
     page = client.get("/partner").get_data(as_text=True)
-    assert "2026-11-03 오후 <span class=\"text-muted small\">(희망)</span>" in page
+    assert "2026-11-03 오후 <span class=\"pp-sched pp-sched--wait\"" in page  # 시공일 미정 뱃지(2026-11-14)
     _confirm(asked, "2026-11-05")
     page = client.get("/partner").get_data(as_text=True)
-    assert "2026-11-05" in page and "(희망)" not in page
+    assert "2026-11-05 <span class=\"pp-sched pp-sched--ok\"" in page and "pp-sched--wait" not in page
 
 
 def test_erp_dashboard_and_shipment_show_pending_request(app, world):

@@ -2,6 +2,7 @@
    foms-tower__sheet · foms-tower__field, dashboard-control-tower.css). 목록은 날마다 아래 <template> 로 싣고
    partner-calendar.js 가 누른 날짜 것을 시트 본문에 옮긴다. ‹ › 는 이 달 안에서만 넘긴다.
    입력: cal.weeks · cal.day_orders(foms/services/partners/calendar_day_orders.py), org. #}
+{% from "partner/partials/sched_badge.html" import sched_badge %}
 <div class="foms-tower__sheet pp-day-sheet" hidden data-pp-day-sheet>
   <button type="button" class="foms-tower__sheet-backdrop" data-pp-sheet-close aria-label="목록 닫기"></button>
   <section class="foms-tower__sheet-panel" role="dialog" aria-modal="true" aria-labelledby="ppDaySheetTitle">
@@ -26,7 +27,7 @@
   {%- for row in rows %}
   <div class="foms-tower__field">
     <a class="foms-tower__field-main" href="{{ url_for('partner_portal.order_detail', order_id=row.id) }}">
-      <span class="foms-tower__field-time">{{ row.time or '미정' }}</span>
+      <span class="foms-tower__field-time">{% if row.time %}{{ row.time }}{% else %}시간<br>미정{% endif %}</span>
       <span class="foms-tower__field-body">
         <span class="foms-tower__field-line"><span class="foms-tower__field-name">{{ row.name }}</span><span class="foms-tower__field-amt">#{{ row.id }}</span></span>
         <span class="foms-tower__field-addr">{{ row.addr }}</span>
@@ -34,7 +35,7 @@
           {% if row.product %}<span class="foms-tower__field-items">{{ row.product }}</span>{% endif %}
           <span class="foms-tower__field-who{% if not row.manager %} is-missing{% endif %}">{{ '담당 ' ~ row.manager if row.manager else '담당 없음' }}</span>
           <span class="foms-tower__chip">{{ row.stage_label }}</span>
-          {% if row.requested %}<span class="foms-tower__chip pp-cal__chip--requested">희망 시공일</span>{% endif %}
+          {{ sched_badge(not row.requested) }}
         </span>
       </span>
     </a>

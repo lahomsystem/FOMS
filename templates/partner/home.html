@@ -4,6 +4,7 @@
 {% block main_class %}pp-main--wide pp-main--list{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
 {% block content %}
+{% from "partner/partials/sched_badge.html" import sched_badge %}
 {% set filtered = filters.q or filters.stage or filters.manager or filters.turn or filters.mine or filters.aftercare %}
 <div class="erp-pro-card erp-pro-card--process-map pp-board">
     <div class="erp-pro-card__header">
@@ -120,7 +121,7 @@
                     <td class="text-nowrap">{{ o.phone or '-' }}</td>
                     <td class="pp-grid__address">{{ o.address or '-' }}</td>
                     <td>{{ o.product or '-' }}</td>
-                    <td class="text-nowrap">{% if o.construction_date %}{{ o.construction_date }}{% elif o.requested_construction %}{{ o.requested_construction }} <span class="text-muted small">(희망)</span>{% else %}-{% endif %}</td>
+                    <td class="text-nowrap">{% if o.construction_date %}{{ o.construction_date }} {{ sched_badge(true) }}{% elif o.requested_construction %}{{ o.requested_construction }} {{ sched_badge(false) }}{% else %}-{% endif %}</td>
                     <td class="text-nowrap">{{ o.manager_name or '-' }}</td>
                 </tr>
                 {% endfor %}
