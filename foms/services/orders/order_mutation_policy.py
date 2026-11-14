@@ -94,8 +94,9 @@ class Policy:
         manager_ok: MANAGER 통과 여부. False 면 ADMIN 전용(account/ops 관리).
         anonymous: True 면 미인증도 통과(login/register — pre-auth).
         gate: 엔진 순서로 표현할 수 없는 판정을 대신하는 함수 이름
-            (``"module:function"``). 지정하면 **인증 직후** 그 함수 하나가 허용 여부를
-            정한다 — role override(ADMIN/MANAGER 가 team 검사보다 먼저 통과)를 우회해야
+            (``"module:function"``). 지정하면 **VIEWER 막기 직후** 그 함수 하나가 허용 여부를
+            정한다(``viewer=False`` 정책의 VIEWER 는 함수를 부르기 전에 거절 — F-01).
+            role override(ADMIN/MANAGER 가 team 검사보다 먼저 통과)를 우회해야
             하는 정산 화면류가 이 경로를 쓴다. 지정 시 ``teams``/``manager_ok`` 는
             manifest·문서용 기술로만 남는다.
         description: 근거 메모.
@@ -404,17 +405,21 @@ def evaluate_policy(
     # (FCOMM-01 D27, 11-07) 프리랜서는 자기 주문에서 회사 영업 직원과 같다 — 금융 쓰기도 막지 않는다. 남의 주문은
     # 문지기 · 주문 단위 판정(user_can_read_order)이 막는다.
 
-    # 1-b. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다.
+    # 2. role hard deny (VIEWER) — gate 함수보다 **먼저** 본다(F-01, 2026-11-14). gate 는 ADMIN/MANAGER override 를
+    # 우회하려고 있는 것이지 VIEWER 막기를 우회하라고 있는 게 아니다. 예전엔 gate 가 먼저 돌아, 팀만 보는 gate
+    # (CONSTRUCTION_SCHEDULE_EDIT 의 can_edit_construction_schedule → can_edit_erp)가 CS · 영업 VIEWER 를 통과시켰다.
+    if role == "VIEWER" and not policy.viewer:
+        return Decision(False, 403, "FORBIDDEN", "조회 전용 계정은 이 작업을 할 수 없습니다.")
+
+    # 2-a. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다(VIEWER 허용 정책이면 VIEWER 도).
     if policy.gate is not None:
         if _resolve_gate(policy.gate)(user):
             return _ALLOW
         return Decision(False, 403, "FORBIDDEN", "이 화면/작업 권한이 없습니다.")
 
-    # 2. role hard deny (VIEWER)
+    # 2-b. VIEWER 허용 정책(ancillary · pure calc · self) — 위에서 비허용은 이미 거절했다.
     if role == "VIEWER":
-        if policy.viewer:
-            return _ALLOW
-        return Decision(False, 403, "FORBIDDEN", "조회 전용 계정은 이 작업을 할 수 없습니다.")
+        return _ALLOW
 
     # anonymous 정책은 인증 사용자도 통과(login 페이지 재방문 등)
     if policy.anonymous:
