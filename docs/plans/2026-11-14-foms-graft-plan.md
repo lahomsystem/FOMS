@@ -232,6 +232,12 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 |---|---|---|
 | 11-14 | `68b45778e` (`session/foms-graft`) | `95 passed in 3.00s` — 메인이 `foms/` 를 고치지 않은 트리에서 세 파일을 다시 돌림(W11 도 두 번 초록) |
 
+### 스테이징 반영 기록
+
+| 때 | 커밋 | 확인 |
+|---|---|---|
+| 11-14 | deploy `75b6803d9`(접목판 46커밋 + F-01 `ae8c862dc`, origin/deploy 위로 rebase) · `9352cf7bb`(상태 줄 예산) | smoke 19,012 passed(첫 회 prerender 열쇠 빨강 → `75b6803d9` 고침) · CI 셋 초록 · Railway staging `9352cf7b` 배포 SUCCESS · 운영 그대로 |
+
 ## 8. 준비 (T0 — 메인)
 
 - [x] 설계서 11절 결정 일곱 — 사용자 답 받음(11-14). 원장 `docs/plans/2026-10-27-cs-ai-agent-ledger.md` D206 ~ D212.
