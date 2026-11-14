@@ -1,0 +1,15 @@
+{#- 새 회사 지식 화면의 유형 → 아이콘(Blueprint 이름 — foms-ds.css 의 .f-i.i-<이름>). 옛 화면의 Font Awesome 이름
+    (foms/services/brain/display.py TYPE_DISPLAY 셋째 칸)은 새 화면에서 쓰지 않는다. 찾기 · 지식 카드가 같이 쓴다:
+    {% from "brain/ds/partials/search_icons.html" import type_icons %} 뒤 type_icons.get(유형, 'circle').
+    스크립트는 data-type-icons(JSON)로 같은 표를 받는다. 모르는 유형은 'circle'. -#}
+{% set type_icons = {
+  'brand': 'tag', 'product_line': 'cube', 'option': 'properties', 'spec': 'th', 'build_rule': 'build',
+  'policy': 'document', 'price_rule': 'dollar', 'owner_decision': 'endorsed', 'term': 'learning', 'fact': 'info-sign',
+  'process_step': 'timeline-bar-chart',
+  'situation': 'chat', 'template': 'comment', 'lesson': 'lightbulb', 'tone': 'send-message', 'image_read_rule': 'media',
+  'part_kind': 'grid-view', 'bom_rule': 'th-list', 'drawing_rule': 'edit',
+  'case': 'folder-close', 'image_read': 'eye-open', 'photo_observation': 'camera',
+  'conflict': 'warning-sign', 'question': 'help',
+  'ext_calculator': 'panel-stats', 'ext_setting': 'cog', 'ext_erp_stage': 'diagram-tree',
+  'ext_macro': 'comment', 'ext_store': 'box', 'ext_screen': 'applications', 'ext_form': 'form'
+} %}

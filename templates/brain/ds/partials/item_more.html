@@ -1,0 +1,54 @@
+{#- 지식 카드 '자세히 보기' 안(옛 카드 card_main.html 의 '자세히 보기'와 같은 칸): 빠진 연결 · 알림 · 판 · 바뀐 때 · 근거 위치 · 만든 이 ·
+    승인자 · 값을 가져오는 곳(바깥 정본 칩 — 있음 확인 · 사본 · 지금 값) · 이 값을 베껴 쓰는 곳. 키(영어 자리 이름)는 주소에만. -#}
+<div class="f-col f-gap12 fb-more">
+  {%- if card.missing_links or card.warnings %}
+  <div class="f-row f-gap4">
+    {%- for gap in card.missing_links %}
+    <span class="f-tag f-tag-minimal f-tag-warning" data-brain-missing="{{ gap.kind }}">빠진 연결 — {{ link_display.get(gap.kind, (gap.kind,))[0] }} {{ gap.have }}/{{ gap.min }}</span>
+    {%- endfor %}
+    {%- for warn in card.warnings %}
+    <span class="f-tag f-tag-minimal f-tag-warning" data-brain-warning="{{ warn.code }}">{{ warn.text }}</span>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  <dl class="f-kv">
+    <dt>버전</dt><dd class="f-num">{{ it.version }}</dd>
+    <dt>바뀐 때</dt><dd class="f-num">{{ it.recorded_at or '—' }}{% if it.release_no is not none %} · 판 {{ it.release_no }}{% endif %}</dd>
+    <dt>만든 이</dt><dd>{{ card.created_by }}</dd>
+    <dt>승인자</dt><dd>{{ card.approver }}</dd>
+    {%- if card.evidence_place %}<dt>근거 위치</dt><dd>{{ card.evidence_place }}</dd>{% endif %}
+  </dl>
+
+  <div class="f-col f-gap4">
+    <span class="f-h6">값을 가져오는 곳</span>
+    {%- if card.external %}
+    <ul class="f-col f-gap4">
+      {%- for ext in card.external %}
+      {%- set xname = type_display.get(ext.ext_type, (ext.ext_type,))[0] %}
+      <li class="f-row f-gap4" data-brain-ext="{{ ext.ref }}">
+        <span class="f-chip" title="{{ xname }}">{{ ds.icon(type_icons.get(ext.ext_type, 'link')) }}{{ ext.ref }}</span>
+        {%- if ext.exists == false %}{{ ds.tag('자리가 없어요 — 키를 확인해 주세요', 'danger', minimal=True) }}
+        {%- elif ext.copy_ref %}<span class="f-tag f-tag-minimal f-tag-primary" data-brain-ext-copy>사본 — 자동 확인 안 해요{% if ext.checked_at %} · 마지막 확인 {{ ext.checked_at }}{% endif %}</span>
+        {%- elif ext.exists is none %}{{ ds.tag('지금 확인할 수 없어요', 'warning', minimal=True) }}
+        {%- else %}
+        {%- if ext.label and ext.label != ext.ref %}<span class="f-small">{{ ext.label }}</span>{% endif %}
+        {%- if ext.value_hidden %}<span class="f-small f-muted">지금 값은 볼 수 있는 사람만</span>
+        {%- elif ext.value %}<span class="f-small f-strong" data-brain-ext-value>지금 값 {{ ext.value }}</span>{% endif %}
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="f-small f-muted">없음</p>
+    {%- endif %}
+  </div>
+
+  <div class="f-col f-gap4">
+    <span class="f-h6">이 값을 베껴 쓰는 곳</span>
+    {%- if card.copies %}
+    <ul class="f-col f-gap4 f-small">{% for copy in card.copies %}<li>{{ copy }}</li>{% endfor %}</ul>
+    {%- else %}
+    <p class="f-small f-muted">없음</p>
+    {%- endif %}
+  </div>
+</div>

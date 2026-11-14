@@ -1,0 +1,59 @@
+/* 찾기 · 지식 표 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.4 · 판 ⑦) — templates/brain/ds/search.html 전용.
+   class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
+   640px 아래 = 폰: 왼쪽 나무 · 미리 보기는 숨고(.fb-pc-only — 틀 CSS), 거르기는 두 칸씩, 표는 옆으로 민다. */
+
+/* hidden 은 언제나 숨김 — .f-row · .f-chip · .f-field 같은 display 규칙이 [hidden] 을 이기지 않게. */
+.fb-search [hidden],
+.fb-search-side [hidden],
+.fb-search-aside [hidden] { display: none !important; }
+
+/* 왼쪽 유형 묶음 나무(판 ⑦ flex-basis 208px) */
+.fb-search-side { flex-basis: 208px; }
+.fb-tree > summary { list-style: none; cursor: pointer; }
+.fb-tree > summary::-webkit-details-marker { display: none; }
+.fb-tree__chev { transition: transform .12s ease; }
+.fb-tree[open] > summary .fb-tree__chev { transform: rotate(90deg); }
+.fb-tree__type { padding-left: 32px; }
+.fb-tree__type--outside { cursor: default; color: var(--text-muted); }
+.fb-tree__type--outside:hover { background: none; }
+.fb-tree-help { padding: 12px 8px 0; word-break: keep-all; }
+
+/* 가운데 */
+.fb-search { min-width: 0; }
+.fb-search-box .f-input { height: 40px; font-size: var(--font-size-large); }
+.fb-status:empty { display: none; }
+.fb-status.is-error { color: var(--red2); }
+
+/* 유형별 수 칩 — 고른 칩은 파란 바탕(판 ⑦ '모두' 꼬리표 모양). */
+.f-app a.fb-chip.is-selected { background: var(--blue3); color: var(--white); }
+.f-app a.fb-chip.is-selected .f-i { color: var(--white); }
+
+/* 거르기 여덟 — 판 ⑦ 칸 너비 차례(유형 · 쓰는 팀 · 브랜드 · 상태 · 위험 등급 · 확실한 정도 · 확인 · 정렬) */
+.fb-filters {
+  display: grid; gap: 8px;
+  grid-template-columns: 1.25fr 0.9fr 0.9fr 0.9fr 0.9fr 1fr 0.9fr 1.55fr;
+}
+.fb-filters .f-select { width: 100%; }
+
+/* 표 — 묶음 머리 줄 · 고른 줄 · 이름 칸 아래 유형 표시 */
+.fb-stable .fb-row:focus-visible { outline: 2px solid rgba(45, 114, 210, .6); outline-offset: -2px; }
+.fb-row__name { min-width: 200px; }
+.fb-row__name > .f-strong { display: block; }
+.fb-flag { min-height: 16px; padding: 0 4px; }
+.fb-group-row th { padding-top: 14px; background: var(--surface-2); }
+.fb-pager { padding: 8px 12px; }
+
+/* 오른쪽 미리 보기(판 ⑦ flex-basis 304px) */
+.fb-search-aside { flex-basis: 304px; }
+.fb-quote { word-break: keep-all; }
+.fb-usage-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
+@media (max-width: 1100px) {
+  .fb-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .fb-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fb-search-box .f-input { height: 44px; }
+  .f-app a.fb-chip { min-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) — foms-ds 의 .f-app a.f-chip 보다 앞서게 */
+}
