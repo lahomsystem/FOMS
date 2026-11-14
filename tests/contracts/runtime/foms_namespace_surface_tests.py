@@ -2316,6 +2316,8 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
 _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
     {
         "admin",
+        # GRAFT T1: 접목판 AI 직원 목록 · 수준(설계서 2026-11-14-foms-graft 3.10).
+        "ai_staff",
         "auth",
         # BRAIN-00: HAUD master brain 회사 지식 정본(설계서 2026-11-02-haud-master-brain · D97) — 상담 · 도면 · 생산이
         # 같이 쓰는 지식이라 cs_agent 밖 한 패키지.
@@ -2328,6 +2330,10 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         # CS-AGENT C1-1: AI 상담팀원 패키지 하나(설계서 2026-10-27-cs-ai-agent 승인, 플랜 공통 규칙).
         "cs_agent",
         "drawing",
+        # GRAFT T1: 접목판 할 일 목록 · 제안 생명주기 · 실행기(설계서 2026-11-14-foms-graft 3.3 · 3.4).
+        "erp_actions",
+        # GRAFT T1: 접목판 ERP 물건 목록 · 읽기 도구(설계서 2026-11-14-foms-graft 3.2) — 지금 표를 읽기만.
+        "erp_ontology",
         "files",
         # NAVER-INGEST-01 §3.2: 외부 판매채널 API 클라이언트 경계(네이버 커머스API 등).
         # 도메인 규칙이 아니라 인증·전송·재시도만 담는 자리라 orders/ 와 분리한다.
