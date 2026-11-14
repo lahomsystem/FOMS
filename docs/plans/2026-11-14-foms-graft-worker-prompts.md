@@ -372,7 +372,7 @@ cd /c/tmp/foms-s-foms-graft && python -m pytest tests/harness/test_file_size_rat
 ## W12 — T14 처리기 셋 떼어 내기 + 실행기 셋 (물결 C · D206 · 코어 변경)
 
 - 모델 Opus · 깊이 **max** — 모든 주문이 지나는 처리기를 고친다. 한 줄이라도 행동이 달라지면 단계 · 일정 · 알림이 틀어진다.
-- 워크트리 `c:\tmp\foms-s-graft-core`(따로). 바탕: 특성 시험(T13)이 든 커밋 `<메인이 채운다>`.
+- 워크트리 `c:\tmp\foms-s-graft-core`(따로). 바탕: 특성 시험(T13)이 든 커밋 `68b45778e`.
 
 **먼저 읽기**: 이 문서 0절 · 설계서 3.3 · 3.11 · 3.12 · W11 보고서(못박은 것 · 못박지 못한 갈래) · W7 보고서(실행기 표 · `lifecycle.approve`) · 본보기 `foms/api/cs/as_orders.py:564` ~ `:620`(`register_as_from_payload` — 길과 다른 길이 같은 본체를 부르는 꼴) · `foms/api/quest.py:367` ~ `:803` · `foms/api/drawing/erp_orders_draftsman.py:186` ~ `:285` · `foms/api/orders/field_update.py:497` ~ `:1080` · `foms/api/orders/__init__.py:50` ~ `:62` · `foms/api/erp_action_runners.py` · `foms/services/erp_actions/registry.py` · `preview.py` · `tests/contracts/runtime/layer_dependency_baseline.json`(이 파일들이 이미 가진 api → web 줄).
 
@@ -512,12 +512,12 @@ cd /c/tmp/foms-s-foms-graft && for f in static/js/brain/ds/*.js static/js/foms/g
 cd /c/tmp/foms-s-foms-graft && grep -rn "foms-ds.css" templates | grep -v "templates/brain/ds/"
 cd /c/tmp/foms-s-foms-graft && grep -rn "style=\"" templates/brain/ds static/js/brain/ds static/js/foms/graft-cells.js static/js/cs-agent/wam-graft.js | head
 cd /c/tmp/foms-s-foms-graft && git diff --stat origin/deploy...HEAD -- templates/brain/index.html templates/brain/item.html templates/brain/ask.html templates/brain/partials static/js/brain/*.js static/css/contexts/brain/brain.css static/css/foundation/foms-tablet-bundle.css tests/harness/file_size_baseline.json tests/contracts/runtime/layer_dependency_baseline.json
-cd /c/tmp/foms-s-foms-graft && git diff --stat <T13 커밋> HEAD -- tests/domains/test_graft_char_quest_approve.py tests/domains/test_graft_char_assign_draftsman.py tests/domains/test_graft_char_measurement_date.py tests/support/graft_char.py
+cd /c/tmp/foms-s-foms-graft && git diff --stat 68b45778e HEAD -- tests/domains/test_graft_char_quest_approve.py tests/domains/test_graft_char_assign_draftsman.py tests/domains/test_graft_char_measurement_date.py tests/support/graft_char.py
 cd /c/tmp/foms-s-foms-graft && grep -rn -e "폭 합" -e "÷ 300" -e "2팀 3명" foms templates static tests --include="*.py" --include="*.html" --include="*.js" --include="*.css"
 cd /c/tmp/foms-s-foms-graft && python -m pytest $(grep -rl -e "quest/approve" -e "assign-draftsman" -e "update_order_field" tests --include="*.py") -q
 ```
 - 일곱째 · 여덟째 · 아홉째 명령은 **아무것도 나오지 않아야** 한다(꾸밈이 새 화면 밖에 없음 · 인라인 스타일 없음 · 고치면 안 되는 파일이 안 바뀜).
-- 열째(특성 시험이 T13 커밋과 다른가) · 열한째(D211 — 시공 팀 · 인원 글)도 **아무것도 나오지 않아야** 한다. `<T13 커밋>` 은 계획서 7절 '특성 시험 문지기 기록'의 커밋 번호다.
+- 열째(특성 시험이 T13 커밋과 다른가) · 열한째(D211 — 시공 팀 · 인원 글)도 **아무것도 나오지 않아야** 한다. `68b45778e` 은 계획서 7절 '특성 시험 문지기 기록'의 커밋 번호다.
 - 열두째는 처리기 셋에 닿는 지금 시험 전부다(60개 안팎 — 전체 시험이 아니다).
 - 머리는 하나(`graft_00`)여야 한다. `origin/deploy` 에 새 마이그레이션이 생겨 둘이 되면 그 사실과 새 머리 이름을 보고한다(고치는 것은 메인).
 - 다섯째 명령이 메모리 오류로 죽으면 일손 없이(`-n` 없이) 그대로 다시 돈다. 그래도 죽으면 `-k` 를 둘로 나눠 돈다.
