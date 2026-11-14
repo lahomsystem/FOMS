@@ -119,3 +119,24 @@ td.erp-quest-cell > .foms-graft-chip { display: flex; }
   body.erp-mobile-v2-layout .foms-graft-box__status:empty { display: none; }
   body.erp-mobile-v2-layout .foms-graft-box__status.is-error { color: var(--foms-color-danger-600, #c92a2a); }
 }
+
+/* 레일 '회사 지식' 칸이 보이면 레일이 11칸이 된다 — 회사 직원 레일(10칸)은 1180×820 에 딱 맞아, 한 칸이 늘면 알림 ·
+   내 정보 단추가 화면 아래로 밀렸다(접목판 11-14 사용자 지적). 11칸 프리랜서 레일의 줄이기(foms-tablet-rail.css
+   '긴 레일 줄이기' — 위 여백 · "F" 칸)에 칸 안쪽 여백을 4px 로 더 줄여(칸 높이 54 → 46px · 손가락 44px 이상) 이 칸이 보일 때 쓴다.
+   잰 값(1180×820, 화면 크기 손잡이 포함): 이 칸 없이 820px(꼭 맞음) · 이 칸 + 프리랜서 줄이기만 853px(넘침) · 이 규칙 805px 안팎.
+   스위치가 꺼져 칸이 숨으면(hidden) 레일은 한 픽셀도 바뀌지 않는다. */
+.foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) {
+  padding-top: var(--foms-space-1, 4px);
+}
+.foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__brand {
+  height: 28px;
+  margin-bottom: var(--foms-space-1, 4px);
+}
+.foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__item {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  min-height: 44px;
+}
+.foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__avatar {
+  margin: var(--foms-space-1, 4px) 0 var(--foms-space-2, 8px);
+}

@@ -430,3 +430,13 @@ def test_sheet_box_approve_and_reject_post_once(world, monkeypatch):
                              "body": {"base_version": int(base)}},
                             {"url": f"/api/erp-actions/proposals/{first}/reject", "method": "POST", "body": {"code": "no_slot"}}]
     assert got["after"] == ["거절했어요 — 같은 제안은 다시 오지 않아요.", 0]
+
+
+def test_rail_tightens_only_while_the_company_knowledge_item_shows():
+    """레일 '회사 지식' 칸이 보이면 칸 안쪽 여백을 줄여 알림 · 내 정보가 1180×820 화면 안에 남는다(11-14 사용자 지적 —
+    잰 값 853px → 820px). 칸이 숨으면(스위치 끔) 규칙이 걸리지 않아 레일은 그대로다. 손가락 자리는 44px 이상."""
+    css = (ROOT / "static/css/components/foms-graft-cells.css").read_text(encoding="utf-8")
+    head = ".foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__item {"
+    block = css[css.index(head):css.index("}", css.index(head))]
+    assert "padding-top: 4px;" in block and "padding-bottom: 4px;" in block and "min-height: 44px;" in block
+    assert ".foms-tablet-rail:has(> .foms-graft-rail:not([hidden])) .foms-tablet-rail__brand {" in css
