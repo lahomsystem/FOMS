@@ -116,6 +116,24 @@
     });
   }
 
+  /** 실패 코드 → 쉬운 말(할 일 실행 · 상담 초안 차례). 'send_' 로 시작하면 메모 올리기 실패. */
+  var FAILURE_TEXT = {
+    ACTION_FAILED: '실행하지 못했어요', ACTION_PRECONDITION: '주문 상태가 맞지 않았어요',
+    ACTION_BASE_CHANGED: '그 사이 주문이 바뀌었어요', ACTION_NOT_OPEN: '이미 처리된 제안이었어요',
+    ACTION_SHAPE: '넣을 값이 맞지 않았어요', ACTION_FORBIDDEN: '할 수 있는 사람이 아니었어요',
+    claim_expired: '너무 오래 걸려 멈췄어요', stopped: '중간에 멈췄어요', error: '쓰는 중에 문제가 생겼어요',
+    read_failed: '상담 글을 못 읽었어요', rate_limited: '요청이 몰려 잠깐 막혔어요',
+    api_spend_limit: '쓸 수 있는 돈이 다 됐어요', daily_cap_reached: '하루에 쓸 수 있는 만큼 다 썼어요',
+    not_verified: '올린 메모를 확인하지 못했어요'
+  };
+
+  /** 실패 코드 하나 → 화면 말(빈 코드는 빈 글 · 모르는 코드는 '알 수 없는 오류'). */
+  function failureText(code) {
+    if (!code) return '';
+    if (Object.prototype.hasOwnProperty.call(FAILURE_TEXT, code)) return FAILURE_TEXT[code];
+    return String(code).indexOf('send_') === 0 ? '메모를 올리지 못했어요' : '알 수 없는 오류';
+  }
+
   /** 최근 실패 — 없으면 한 줄 안내. */
   function failures(list, items) {
     dom.clear(list);
@@ -127,7 +145,7 @@
       var li = el('li', { cls: 'f-row-nw' });
       li.appendChild(icon('i-cross', 'f-i-danger'));
       li.appendChild(el(item.href ? 'a' : 'span', { text: item.label, attrs: { href: item.href || null } }));
-      var tail = [item.code, item.at].filter(Boolean).join(' · ');
+      var tail = [failureText(item.code), item.at].filter(Boolean).join(' · ');
       if (tail) li.appendChild(el('span', { cls: 'f-small f-muted', text: tail }));
       list.appendChild(li);
     });
@@ -178,5 +196,5 @@
   }
 
   window.FOMS_DS_AGENTS_KIT = { navItem: navItem, head: head, reads: reads, duties: duties, failures: failures,
-                                usage: usage, trace: trace, secs: secs };
+                                usage: usage, trace: trace, secs: secs, failureText: failureText };
 })();

@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 
 import pytest
+from sqlalchemy import event
 
 from db import db_session
 from foms.persistence.brain.models import BrainQuestion
@@ -22,7 +23,7 @@ from foms.services.brain.scope import viewer_of
 from foms.services.brain.usage_events import record_uses
 from foms.services.brain.usage_view import item_usage
 from foms.services.graft_flags import FLAGS
-from models import CsAgentTurn
+from models import CsAgentTurn, Order
 from tests.support.brain_screen_support import TODAY, world
 from tests.support.brain_support import create, link
 
@@ -45,12 +46,28 @@ def _turn(question, outcome):
     return row.id
 
 
-def _proposal(status):
-    row = ErpActionProposal(action="add_construction_note", proposed_by="agent:cs", order_id=None, params={},
-                            level=2, status=status, dedupe_key=f"add_construction_note:-:{status}")
+def _order():
+    """합성 ERP 주문(제안이 가리키는 주문 — 볼 수 있나는 그 주문 읽기 권한까지 본다)."""
+    order = Order(received_date="2026-11-01", customer_name="합성손님", phone="010-0000-0000", address="합성 주소",
+                  product="합성 품목", status="RECEIVED", is_erp_order=True, structured_data={})
+    db_session.add(order)
+    db_session.flush()
+    return order.id
+
+
+def _proposal(status, order_id=None):
+    row = ErpActionProposal(action="add_construction_note", proposed_by="agent:cs",
+                            order_id=order_id if order_id is not None else _order(), params={}, level=2,
+                            status=status, dedupe_key=f"add_construction_note:-:{status}:{order_id}")
     db_session.add(row)
     db_session.flush()
     return row.id
+
+
+def _actions_on(monkeypatch):
+    for env in ("FOMS_GRAFT_BRAIN_UI", "FOMS_GRAFT_ACTIONS"):
+        monkeypatch.setenv(f"{env}_ENABLED", "1")
+        monkeypatch.setenv(f"{env}_COHORT", "all")
 
 
 def _question(text, unknown):
@@ -88,10 +105,19 @@ def _usage(user, key="common/fit"):
     return item_usage(db_session, viewer_of(user), user, key, today=TODAY, now_utc=NOW)
 
 
-def test_counts_by_reader_in_the_last_14_days(who):
+def test_counts_by_reader_in_the_last_14_days(who, monkeypatch):
+    _actions_on(monkeypatch)
     out = _usage(who["admin"])
     assert out["days"] == 14
     assert out["by_reader"] == {"cs_draft": 4, "erp_action": 1, "chatbot": 1}  # 15일 전 물어보기는 빠진다
+
+
+def test_proposal_uses_count_only_for_people_who_may_see_them(who, monkeypatch):
+    """R-40 — '할 일 제안' 쪽 수는 볼 수 있는 제안의 쓰임만(최근 줄과 같은 판정). 끔 · 조회 전용은 0, 다른 쪽 수는 그대로."""
+    assert _usage(who["admin"])["by_reader"] == {"cs_draft": 4, "erp_action": 0, "chatbot": 1}  # actions 끔
+    _actions_on(monkeypatch)
+    assert _usage(who["viewer"])["by_reader"]["erp_action"] == 0  # 조회 전용 — 실행할 수 있는 할 일이 없다
+    assert _usage(who["admin"])["by_reader"]["erp_action"] == 1  # 대조군
 
 
 def test_recent_rows_are_newest_first_masked_and_skip_hidden_proposals(who):
@@ -108,15 +134,51 @@ def test_recent_rows_are_newest_first_masked_and_skip_hidden_proposals(who):
 
 
 def test_proposal_rows_show_for_people_who_may_see_proposals(who, monkeypatch):
-    for env in ("FOMS_GRAFT_BRAIN_UI", "FOMS_GRAFT_ACTIONS"):
-        monkeypatch.setenv(f"{env}_ENABLED", "1")
-        monkeypatch.setenv(f"{env}_COHORT", "all")
+    _actions_on(monkeypatch)
     rows = _usage(who["admin"])["recent"]
-    assert [(r["reader"], r["agent_label"], r["text"], r["state"], r["tone"]) for r in rows][1] == (
+    assert [(r["reader"], r["agent_label"], r["text"].split(" · ")[0], r["state"], r["tone"]) for r in rows][1] == (
         "erp_action", "상담 AI", "시공 메모 더하기", "거절", "danger")
     assert len(rows) == 4 and rows[-1]["text"] == "드레스룸도 미닫이 돼요?"
     viewer_rows = _usage(who["cs_mgr"])["recent"]  # 상담 팀장은 ERP_EDIT 정책을 지난다 — 같이 보인다
     assert any(r["reader"] == "erp_action" for r in viewer_rows)
+
+
+def test_proposal_visibility_reads_proposals_and_orders_once(who, monkeypatch):
+    """R-39 — 제안 볼 수 있나는 승인 대기와 같은 판정(:func:`can_run`) · 제안 · 주문은 ``in_`` 한 번씩(줄마다 읽지 않는다)."""
+    _actions_on(monkeypatch)
+    for n in range(3):
+        record_uses(db_session, ["common/fresh"], "erp_action", "proposal", _proposal("open", _order()),
+                    NOW - datetime.timedelta(minutes=n + 1))
+    db_session.commit()
+    db_session.expire_all()
+    seen: list[str] = []
+    engine = db_session.get_bind()
+
+    def _listen(_conn, _cursor, statement, *_args):
+        seen.append(statement)
+
+    event.listen(engine, "before_cursor_execute", _listen)
+    try:
+        out = _usage(who["admin"], "common/fresh")
+    finally:
+        event.remove(engine, "before_cursor_execute", _listen)
+    assert out["by_reader"]["erp_action"] == 3 and sum(r["reader"] == "erp_action" for r in out["recent"]) == 3
+    assert sum("FROM orders" in s for s in seen) == 1 and sum("FROM erp_action_proposals" in s for s in seen) == 1
+    db_session.expire_all()
+    assert all(r["reader"] != "erp_action" for r in _usage(who["viewer"], "common/fresh")["recent"])  # 조회 전용
+
+
+def test_a_proposal_without_an_order_is_not_shown(who, monkeypatch):
+    """R-39 — 주문이 없는 제안은 승인 대기처럼 아무도 볼 수 없다(정책만 따로 보던 옛 판정은 보였다)."""
+    _actions_on(monkeypatch)
+    row = ErpActionProposal(action="add_construction_note", proposed_by="agent:cs", order_id=None, params={}, level=2,
+                            status="open", dedupe_key="add_construction_note:-:none")
+    db_session.add(row)
+    db_session.flush()
+    record_uses(db_session, ["common/slide"], "erp_action", "proposal", row.id, NOW)
+    db_session.commit()
+    out = _usage(who["admin"], "common/slide")
+    assert out["recent"] == [] and out["by_reader"]["erp_action"] == 0
 
 
 def test_erp_links_pair_product_lines_and_process_steps(who):

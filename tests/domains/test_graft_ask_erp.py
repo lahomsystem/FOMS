@@ -23,7 +23,7 @@ from foms.persistence.brain.models import BrainQuestion, BrainUsage
 from foms.persistence.graft.models import AiAgentRun, BrainUsageEvent
 from foms.services.brain.chat_answer import ask
 from foms.services.brain.chat_prompt import ERP_ANSWER, ERP_CHECK_ANSWER, SYSTEM
-from foms.services.erp_ontology.ask import find_order_number
+from foms.services.erp_ontology.ask import dates_known, find_order_number
 from foms.services.graft_flags import FLAGS
 from foms.services.orders import order_mutation_policy
 from models import Order, OrderFreelancerLink
@@ -191,6 +191,27 @@ def test_order_and_knowledge_together_and_no_number_keeps_todays_path(world, mon
     assert two["erp"] is None and "ERP 주문" not in _user_text(two_client) and two["answer"] == ERP_ANSWER
 
 
+def test_order_read_with_no_knowledge_candidates_still_calls_the_model_once(world, monkeypatch):
+    """R-42 — 켬 + 읽은 주문 + 지식 후보 0: 돈이 드는 새 모델 부르기 길(한 번) · 주문 칸만으로 답 · 기록. 끔이면 부르지 않는다."""
+    question = f"#{ORDER} 쿼크플럭스 언제예요?"
+    off_client = _erp_reply("시공은 2026-12-03(목) 오후예요.")
+    off = _ask(world["admin"], question, off_client)  # 대조군: 끄면 후보 0 이라 부르지 않는다(돈 0 — 지금 그대로)
+    assert off_client.calls == [] and off["unknown"] is True and "erp" not in off
+    erp_on(monkeypatch)
+    client = _erp_reply("시공은 2026-12-03(목) 오후예요.")
+    out = _ask(world["admin"], question, client)
+    assert len(client.calls) == 1  # 지식 후보가 없어도 주문 칸으로 한 번 부른다
+    user = _user_text(client)
+    assert "[ERP 주문 — " in user and _schema_keys(client) == [KEY]  # 근거로 고를 값은 주문 키 하나뿐
+    assert out["unknown"] is False and out["kind"] == "erp" and out["evidence"] == []
+    run = db_session.execute(select(AiAgentRun).order_by(AiAgentRun.id.desc())).scalars().first()
+    search = next(step for step in run.steps if step["tool"] == "knowledge.search")
+    assert search["what"] == "지식 후보 0" and run.outcome == "answered"
+    assert db_session.execute(select(BrainQuestion.evidence_keys).order_by(BrainQuestion.id.desc())).scalars().first()         == [KEY]
+    wrong = _ask(world["admin"], question, _erp_reply("시공은 12월 4일이에요."))  # 후보 0 이어도 코드 확인은 그대로
+    assert wrong["unknown"] is True and wrong["answer"] == ERP_CHECK_ANSWER
+
+
 # ── 4. 손님 정보가 모델 · 답에 없다 ──────────────────────────────────────
 def test_model_and_answer_never_carry_customer_identity(world, monkeypatch):
     erp_on(monkeypatch)
@@ -213,6 +234,11 @@ def test_model_and_answer_never_carry_customer_identity(world, monkeypatch):
     ("시공은 12월 3일(수)이에요.", False),  # 요일이 틀림
     ("시공은 내일이에요.", False),  # 11-03 은 주문 줄에 없다
     ("실측은 2026-11-20(금) 오전 예정이에요.", True),
+    ("시공은 목요일이에요.", True),  # R-38 — 따로 쓴 요일: 12-03 이 목요일
+    ("시공은 화요일이에요.", False),  # 주문 줄 어느 날도 화요일이 아니다
+    ("시공은 오늘이에요.", False),  # 오늘(11-02)은 주문 줄에 없다
+    ("실측은 다음 주예요.", False),  # 다음 주(11-09 ~ 11-15) 안에 아는 날이 없다
+    ("실측은 다음 주 금요일이에요.", False),  # 11-13 — 실측은 11-20
 ])
 def test_dates_in_the_answer_must_be_in_the_order_lines(world, monkeypatch, answer, ok):
     erp_on(monkeypatch)
@@ -220,6 +246,29 @@ def test_dates_in_the_answer_must_be_in_the_order_lines(world, monkeypatch, answ
     assert out["unknown"] is (not ok)
     if not ok:
         assert out["answer"] == ERP_CHECK_ANSWER and out["ask_team"] == "erp" and out["kind"] == "unknown"
+
+
+@pytest.mark.parametrize("answer, today, ok", [
+    ("실측은 내일(금)이에요.", "2026-11-19", True),
+    ("실측은 내일(토)이에요.", "2026-11-19", False),  # 뒤에 붙은 요일이 내일의 요일과 다르다
+    ("실측은 오늘이에요.", "2026-11-20", True),
+    ("실측은 오늘이에요.", "2026-11-19", False),
+    ("실측은 다음 주 금요일이에요.", "2026-11-12", True),
+    ("실측은 다음 주 목요일이에요.", "2026-11-12", False),
+    ("실측은 다음 주예요.", "2026-11-12", True),
+    ("실측은 이번 주 금요일이에요.", "2026-11-12", False),  # 이번 주 금요일은 11-13
+    ("실측은 금요일이에요.", "2026-11-02", True),
+    ("실측은 토요일이에요.", "2026-11-02", False),
+    ("토요일은 시공하지 않아요.", "2026-11-02", True),  # 아는 글(근거 지식)에 같은 요일 글이 있다
+    ("12월 3일(목) · 11월 20일(금)이에요.", "2026-11-02", True),  # 날 뒤 요일을 따로 쓴 요일로 다시 세지 않는다
+])
+def test_relative_days_and_lone_weekdays_are_checked(answer, today, ok):
+    """R-38 — 따로 쓴 요일 · '오늘' · '내일(요일)' · '이번 주' · '다음 주'도 아는 날과 견준다."""
+    lines = ["실측 날: 2026-11-20(금) 오전", "시공 날: 2026-12-03(목) 오후"]
+    if "토요일은" in answer:
+        lines.append("토요일은 시공하지 않아요.")
+    known = "\n".join(lines)
+    assert dates_known(answer, known, today=datetime.date.fromisoformat(today)) is ok
 
 
 def test_answer_needs_the_order_key_in_its_evidence(world, monkeypatch):

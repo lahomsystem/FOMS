@@ -16,9 +16,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 import pytest
+from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.api import ai_staff as ai_staff_api
 from foms.services.ai_staff import evals
 from foms.services.graft_flags import FLAGS
 from models import SystemSetting, User
@@ -135,6 +137,20 @@ def test_queue_down_is_503_and_does_not_block_the_next_press(client, queue, monk
     assert last["status"] == evals.FAILED and last["reason"] == "줄이 없음"
     monkeypatch.setattr(evals, "get_rq_queue", lambda: queue)
     assert _body(client.post(f"{BASE}/evals/run", json={}), 202)["data"] == {"run": 2}
+
+
+def test_queue_down_and_db_down_is_still_a_503_reply(client, monkeypatch):
+    """R-31 — 큐 넣기 실패 뒤 '줄 섬'을 푸는 쓰기마저 DB 오류면 되돌리고 같은 503 답(날 500 이 아님)."""
+    _body(client.post(f"{BASE}/evals/settings", json=GOOD), 200)
+    monkeypatch.setattr(evals, "get_rq_queue", lambda: None)
+
+    def _db_down(*_args, **_kwargs):
+        raise OperationalError("UPDATE", {}, Exception("합성 DB 오류"))
+
+    monkeypatch.setattr(ai_staff_api, "update_run", _db_down)
+    down = _body(client.post(f"{BASE}/evals/run", json={}), 503)
+    assert down["data"] == {"code": "EVAL_QUEUE"}
+    assert _evals(client)["last"]["status"] == evals.QUEUED  # 못 풀었다 — STALE_AFTER 뒤 저절로 풀린다
 
 
 def test_only_the_cs_detail_carries_evals(client):

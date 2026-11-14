@@ -154,9 +154,19 @@ def ai_staff_evals_run() -> tuple[Any, int]:
         return _reply(500, None, _SAVE_FAILED)
     if enqueue_run(run["id"]):
         return _reply(202, {"run": run["id"]}, None)
-    update_run(db, run["id"], now_utc_naive(), status=FAILED, code="queue_unavailable")  # 남은 '줄 섬'이 단추를 막지 않게
-    db.commit()
+    _release_queued(db, run["id"])
     return _reply(503, {"code": "EVAL_QUEUE"}, _QUEUE_DOWN)
+
+
+def _release_queued(db: Any, run_id: int) -> None:
+    """큐 넣기 실패 뒤 — 남은 '줄 섬'을 '실패'로 풀어 단추를 막지 않게 한다. DB 가 못 받으면 되돌리고 로그만 남긴다
+    (그 줄은 :data:`foms.services.ai_staff.evals.STALE_AFTER` 뒤 저절로 풀린다)."""
+    try:
+        update_run(db, run_id, now_utc_naive(), status=FAILED, code="queue_unavailable")
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.warning("[AI-STAFF] 시험 줄 풀기 DB 오류 run=%s", run_id)
 
 
 @ai_staff_api_bp.route("/evals/settings", methods=["POST"])

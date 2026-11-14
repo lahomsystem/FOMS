@@ -106,6 +106,17 @@ def test_order_card_reads_the_flat_columns_first():
     assert card.manager_label == MANAGER  # 화면 전용 칸에만
 
 
+@pytest.mark.parametrize("utc, kst_day", [
+    (datetime.datetime(2026, 11, 9, 16, 30), datetime.date(2026, 11, 10)),  # UTC 9일 16:30 = 한국 10일 01:30
+    (datetime.datetime(2026, 11, 10, 14, 59), datetime.date(2026, 11, 10)),
+    (datetime.datetime(2026, 11, 10, 15, 0), datetime.date(2026, 11, 11)),
+    (None, None),
+])
+def test_stage_since_is_the_korean_date(utc, kst_day):
+    """R-37 — 단계 바뀐 날은 UTC 날짜가 아니라 한국 날짜(한국 아침 9시 앞에 바뀐 단계가 하루 앞으로 보이지 않게)."""
+    assert read.order_card(make_order(erp_stage_updated_at=utc)).stage_since == kst_day
+
+
 def test_nothing_private_reaches_any_returned_value():
     for stage, as_status in (("MEASURE", None), ("CS", "IN_PROGRESS"), ("COMPLETED", "COMPLETED")):
         texts = returned_texts(make_order(stage=stage, as_status=as_status))

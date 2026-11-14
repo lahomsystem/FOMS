@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Optional
 
-from foms.services.ai_staff.levels import choices_of, editable, levels_view
+from foms.services.ai_staff.levels import choices_of, editable, levels_version
 from foms.services.ai_staff.metrics import (
     COST_DAYS, RATE_DAYS, approval_rates, cs_cost, cs_draft_stats, proposal_counts, run_stats,
 )
@@ -103,12 +103,14 @@ def _rule_note(key: str, action: str) -> str:
     return f"규칙 {rule.key} — {rule.label}" if rule else ""
 
 
-def _usage(session: Any, viewer: Viewer, key: str, now: datetime.datetime) -> dict[str, Any]:
-    """시간 · 수 · (ADMIN 만) 비용 — ``{"days", "avg_ms", "count", "unit"}`` (+ ``"cost", "cost_days"``)."""
+def _usage(session: Any, viewer: Viewer, key: str, now: datetime.datetime,
+           cs_stats: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """시간 · 수 · (ADMIN 만) 비용 — ``{"days", "avg_ms", "count", "unit"}`` (+ ``"cost", "cost_days"``).
+
+    ``cs_stats`` 는 자세히 한 장이 한 번 읽은 :func:`.metrics.cs_draft_stats`(상담 AI 만 — 그 밖은 ``None``)."""
     out: dict[str, Any] = {"days": RATE_DAYS, "avg_ms": None, "count": None, "unit": ""}
-    if key == "cs":
-        stats = cs_draft_stats(session, now)
-        out.update(avg_ms=stats["avg_ms"], count=stats["turns"], unit="초안")
+    if key == "cs" and cs_stats is not None:
+        out.update(avg_ms=cs_stats["avg_ms"], count=cs_stats["turns"], unit="초안")
     elif key in ("ask", "ops", "schedule"):
         stats = run_stats(session, key, now)
         out.update(avg_ms=stats["avg_ms"], count=stats["runs"], unit="실행")
@@ -118,11 +120,11 @@ def _usage(session: Any, viewer: Viewer, key: str, now: datetime.datetime) -> di
     return out
 
 
-def _duties(session: Any, viewer: Viewer, key: str, agent: Agent, now: datetime.datetime) -> list[dict[str, Any]]:
-    """할 일 줄 — 수준 · 고를 값 · 2주 승인율 · 건수 · 메모."""
-    levels = level_table(session)[key]
-    rates, counts = approval_rates(session, now), proposal_counts(session, now)
-    cs_stats = cs_draft_stats(session, now) if key == "cs" else None
+def _duties(session: Any, viewer: Viewer, key: str, agent: Agent, now: datetime.datetime,
+            levels: dict[str, Optional[int]], cs_stats: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    """할 일 줄 — 수준 · 고를 값 · 2주 승인율 · 건수 · 메모(수준 · 상담 초안 수는 자세히 한 장이 한 번 읽어 넘긴다)."""
+    rates = approval_rates(session, now, only=key) if agent.actions() else {}
+    counts = proposal_counts(session, now) if agent.actions() else {}
     rows = []
     for duty in agent.duties:
         level, rate, count = levels[duty.key], None, None
@@ -153,7 +155,8 @@ def staff_detail(session: Any, viewer: Viewer, key: Any, now: datetime.datetime)
     agent = AGENTS.get(key) if isinstance(key, str) else None
     if agent is None:
         return None
-    levels = level_table(session)[agent.key]
+    levels = level_table(session)[agent.key]  # 수준 표 한 번 — 할 일 줄 · 판 번호가 같은 줄을 쓴다
+    cs_stats = cs_draft_stats(session, now) if agent.key == "cs" else None
     main = _main_level(agent, levels)
     status = ({"text": TRIAL_LABEL, "tone": "warning"} if agent.trial
               else {"text": f"있음 · 수준 {LEVEL_LABELS[main]}", "tone": "success"})
@@ -163,8 +166,9 @@ def staff_detail(session: Any, viewer: Viewer, key: Any, now: datetime.datetime)
         "reads": [{"icon": icon, "label": label, "help": help_text} for icon, label, help_text in _READS[agent.key]],
         "reads_note": _READS_NOTE[agent.trial],
         "tools": [{"name": tool.name, "what": tool.what, "new": tool.new} for tool in agent.tools],
-        "duties": _duties(session, viewer, agent.key, agent, now),
-        "failures": recent_failures(session, agent.key, now), "usage": _usage(session, viewer, agent.key, now),
+        "duties": _duties(session, viewer, agent.key, agent, now, levels, cs_stats),
+        "failures": recent_failures(session, agent.key, now),
+        "usage": _usage(session, viewer, agent.key, now, cs_stats),
         "run": latest_run(session, agent.key), "foot": _FOOT[agent.trial], "can_edit": viewer.is_admin,
-        "levels_version": levels_view(session)["version"],
+        "levels_version": levels_version(session),
     }

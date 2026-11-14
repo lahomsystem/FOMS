@@ -8,7 +8,8 @@
 - **주문 읽기**(:func:`load_order`): 삭제 · 초안 제외(:meth:`models.Order.active_filter`) · :func:`user_can_read_order`(프리랜서는
   자기 주문만 · 협력사는 자기 협력사 주문만). 읽을 수 없는 주문은 **없는 주문과 같은 결과**(``None`` — 기록 단계 글도 같다).
 - **읽기 도구**는 :mod:`.read` 의 허용 칸만(손님 이름 · 전화 · 주소 · 금액 · 메모는 읽지 않는다). 모델 줄은 :func:`.read.prompt_lines`.
-- **코드 확인 재료**(:func:`dates_known`): 답 속 날짜(연-월-일 · 월 일 · 월/일 · 월.일 · 요일 · 내일 · 모레)가 주문 줄 또는 근거 지식
+- **코드 확인 재료**(:func:`dates_known`): 답 속 날짜(연-월-일 · 월 일 · 월/일 · 월.일 · 뒤 요일 · 오늘 · 내일 · 모레 ·
+  이번 주 · 다음 주 · 따로 쓴 요일)가 주문 줄 또는 근거 지식
   글에 있는 날이어야 한다 — 숫자 확인(:func:`foms.services.brain.gates.numbers_known`)만으로는 '11월 3일'(11 은 실측 달 · 3 은
   시공 날)을 막지 못한다.
 - **걸린 시간**(:class:`Trace`): 도구마다 ms. 실행 기록 ``ai_agent_runs`` 한 줄(:func:`record_run` — 직원 ``ask``, 코드 · 수만).
@@ -199,7 +200,13 @@ _MD = (re.compile(r"(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*일"), re.compile(r"(?<
        re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})(?![\d.])"))
 #: 날 바로 뒤 요일 — 괄호 안('(금)' · '(금요일)') 또는 '금요일'만(맨 '월' 한 글자는 '월 단위' 같은 말과 헷갈린다).
 _WEEKDAY_AFTER = re.compile(r"\s*(?:\(\s*([월화수목금토일])(?:요일)?\s*\)|([월화수목금토일])요일)")
-_RELATIVE = {"내일": 1, "모레": 2, "글피": 3}
+#: 날 없이 따로 쓴 요일('금요일' · '(금)').
+_WEEKDAY_ALONE = re.compile(r"\(\s*([월화수목금토일])(?:요일)?\s*\)|([월화수목금토일])요일")
+_RELATIVE = {"오늘": 0, "내일": 1, "모레": 2, "글피": 3}
+_RELATIVE_RE = re.compile("|".join(_RELATIVE))
+#: '이번 주' · '다음 주'(뒤에 요일이 오면 그 주의 그 요일, 없으면 그 주 안 어느 날).
+_WEEK_RE = re.compile(r"(이번|다음)\s*주")
+_WEEK_OFFSET = {"이번": 0, "다음": 7}
 
 
 @dataclass(frozen=True)
@@ -212,24 +219,56 @@ class _Day:
     weekday: Optional[int] = None
 
 
-def _weekday_after(text: str, end: int) -> Optional[int]:
-    """날 바로 뒤 요일 글자(괄호 · '요일' 있어도) → 0 ~ 6."""
+@dataclass
+class _Said:
+    """답이 말한 날들 — 날 · 날 없이 쓴 요일(0 ~ 6) · 주 안 어느 날(그 주 월요일)."""
+
+    days: list[_Day] = field(default_factory=list)
+    weekdays: list[int] = field(default_factory=list)
+    weeks: list[datetime.date] = field(default_factory=list)
+
+
+def _weekday_at(text: str, end: int) -> tuple[Optional[int], int]:
+    """``end`` 바로 뒤 요일 글자(괄호 · '요일' 있어도) → (0 ~ 6, 요일 글 끝). 없으면 (None, end)."""
     match = _WEEKDAY_AFTER.match(text, end)
-    return _WEEKDAYS.index(match.group(1) or match.group(2)) if match else None
+    if not match:
+        return None, end
+    return _WEEKDAYS.index(match.group(1) or match.group(2)), match.end()
 
 
-def _days_in(text: str) -> list[_Day]:
-    """글 속 날짜들(연-월-일 먼저 지우고 월 일 꼴). 달 1 ~ 12 · 날 1 ~ 31 밖이면 날짜가 아니다."""
+def _take_dates(text: str) -> tuple[list[_Day], str]:
+    """글 속 날짜들(연-월-일 먼저 지우고 월 일 꼴) · 날과 그 뒤 요일을 빈칸으로 바꾼 글. 달 1 ~ 12 · 날 1 ~ 31 밖은 빼낸다."""
     found, rest = [], text or ""
-    for match in _YMD.finditer(rest):
-        year, month, day = (int(match.group(i)) for i in (1, 2, 3))
-        found.append(_Day(year, month, day, _weekday_after(rest, match.end())))
-    rest = _YMD.sub(lambda m: " " * len(m.group(0)), rest)
-    for pattern in _MD:
-        for match in pattern.finditer(rest):
-            found.append(_Day(None, int(match.group(1)), int(match.group(2)), _weekday_after(rest, match.end())))
-        rest = pattern.sub(lambda m: " " * len(m.group(0)), rest)
-    return [day for day in found if 1 <= day.month <= 12 and 1 <= day.day <= 31]
+    for pattern in (_YMD, *_MD):
+        for match in list(pattern.finditer(rest)):
+            year = int(match.group(1)) if pattern is _YMD else None
+            month, day = (int(match.group(i)) for i in ((2, 3) if pattern is _YMD else (1, 2)))
+            weekday, end = _weekday_at(rest, match.end())
+            found.append(_Day(year, month, day, weekday))
+            rest = rest[:match.start()] + " " * (end - match.start()) + rest[end:]
+    return [day for day in found if 1 <= day.month <= 12 and 1 <= day.day <= 31], rest
+
+
+def _said(answer: str, today: datetime.date) -> _Said:
+    """답이 말한 날 — 날짜 · '오늘' · '내일' · '모레'(뒤 요일까지) · '이번 주' · '다음 주'(뒤 요일까지) · 따로 쓴 요일."""
+    days, rest = _take_dates(answer)
+    said = _Said(days=days)
+    for match in list(_RELATIVE_RE.finditer(rest)):
+        day = today + datetime.timedelta(days=_RELATIVE[match.group(0)])
+        weekday, end = _weekday_at(rest, match.end())
+        said.days.append(_Day(day.year, day.month, day.day, weekday))
+        rest = rest[:match.start()] + " " * (end - match.start()) + rest[end:]
+    for match in list(_WEEK_RE.finditer(rest)):
+        monday = today + datetime.timedelta(days=_WEEK_OFFSET[match.group(1)] - today.weekday())
+        weekday, end = _weekday_at(rest, match.end())
+        if weekday is None:
+            said.weeks.append(monday)
+        else:
+            day = monday + datetime.timedelta(days=weekday)
+            said.days.append(_Day(day.year, day.month, day.day))
+        rest = rest[:match.start()] + " " * (end - match.start()) + rest[end:]
+    said.weekdays = [_WEEKDAYS.index(m.group(1) or m.group(2)) for m in _WEEKDAY_ALONE.finditer(rest)]
+    return said
 
 
 def _matches(said: _Day, known: _Day) -> bool:
@@ -238,23 +277,45 @@ def _matches(said: _Day, known: _Day) -> bool:
         return False
     if said.year is not None and known.year is not None and said.year != known.year:
         return False
-    if said.weekday is None or known.year is None:
+    if said.weekday is None:
+        return True
+    year = known.year if known.year is not None else said.year
+    if year is None:
         return True
     try:
-        return datetime.date(known.year, known.month, known.day).weekday() == said.weekday
+        return datetime.date(year, known.month, known.day).weekday() == said.weekday
     except ValueError:
         return False
 
 
+def _dated(days: Iterable[_Day]) -> list[datetime.date]:
+    """연이 있는 아는 날 → 날 값(틀린 날 빼고)."""
+    out = []
+    for day in days:
+        if day.year is None:
+            continue
+        try:
+            out.append(datetime.date(day.year, day.month, day.day))
+        except ValueError:
+            continue
+    return out
+
+
 def dates_known(answer: str, known: str, *, today: datetime.date) -> bool:
-    """답 속 날짜가 모두 아는 글(주문 줄 · 근거 지식 글)의 날인가 — '내일' · '모레'는 오늘에서 센 날로 본다."""
-    allowed = _days_in(known)
-    said = _days_in(answer)
-    for word, plus in _RELATIVE.items():
-        if word in (answer or ""):
-            day = today + datetime.timedelta(days=plus)
-            said.append(_Day(day.year, day.month, day.day))
-    return all(any(_matches(day, ok) for ok in allowed) for day in said)
+    """답 속 날짜가 모두 아는 글(주문 줄 · 근거 지식 글)의 날인가.
+
+    '오늘' · '내일' · '모레' · '이번 주 X요일' · '다음 주 X요일'은 오늘(한국)에서 센 날, 요일 없는 '이번 주' · '다음 주'는 그 주
+    안에 아는 날이 있어야 한다. 날 없이 따로 쓴 요일은 아는 날 가운데 그 요일이 있거나, 아는 글에 같은 요일 글이 있어야 한다.
+    """
+    allowed, _rest = _take_dates(known)
+    said = _said(answer, today)
+    dated = _dated(allowed)
+    known_weekdays = {_WEEKDAYS.index(m.group(1) or m.group(2)) for m in _WEEKDAY_ALONE.finditer(known or "")}
+    if not all(any(_matches(day, ok) for ok in allowed) for day in said.days):
+        return False
+    if not all(any(monday <= day <= monday + datetime.timedelta(days=6) for day in dated) for monday in said.weeks):
+        return False
+    return all(weekday in known_weekdays or any(day.weekday() == weekday for day in dated) for weekday in said.weekdays)
 
 
 # ── 답 값 · 기록 ──────────────────────────────────────────────────────────

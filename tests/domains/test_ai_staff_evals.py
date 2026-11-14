@@ -25,6 +25,7 @@ from types import SimpleNamespace
 import pytest
 from anthropic.types.beta import BetaMessage
 from sqlalchemy import event, select
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session, engine
@@ -339,6 +340,34 @@ def test_one_at_a_time_and_a_silent_run_is_released(world):
     db_session.commit()
     statuses = {run["id"]: run["status"] for run in _results()}
     assert statuses == {first["id"]: evals.STALE, second["id"]: evals.QUEUED}
+
+
+def test_a_released_run_stops_spending_and_does_not_overwrite(world):
+    """R-25 — 도는 중에 다른 쪽이 '멈춘 채 끝남'으로 푼 평가는 다음 차례를 부르지 않고(돈을 더 안 쓰고) 상태를 덮어쓰지 않는다."""
+    _world_turns()
+    _settings()
+    client = FakeClient()
+    real = client._create
+
+    def _release_after_first(**params):
+        out = real(**params)
+        if len(client.calls) == 1:  # 첫 부르기 도중 — 다른 쪽(새 [시험 다시 돌리기])이 이 줄을 풀었다
+            row = db_session.get(SystemSetting, evals.RESULTS_KEY, populate_existing=True)
+            value = copy.deepcopy(row.setting_value)
+            value["runs"][-1].update(status=evals.STALE, finished_at="2030-01-01T00:00:00")
+            row.setting_value = value
+            flag_modified(row, "setting_value")
+            db_session.commit()
+        return out
+
+    client.beta = SimpleNamespace(messages=SimpleNamespace(create=_release_after_first))
+    assert _run(client)["status"] == evals.STALE and len(client.calls) == 1
+    run = _results()[0]
+    assert run["status"] == evals.STALE and run["finished_at"] == "2030-01-01T00:00:00"
+    assert run["past"]["done"] == 0  # 늦은 소식이 덮어쓰지 않았다
+    assert evals.update_run(db_session, run["id"], NOW, status=evals.DONE) is False
+    db_session.commit()
+    assert _results()[0]["status"] == evals.STALE
 
 
 def test_the_job_runs_on_the_worker_queue(monkeypatch):
