@@ -64,7 +64,7 @@ def test_admin_screen_has_its_places(app, ids, monkeypatch):
                   "비용 · 시간"):
         assert title in body, title
     scripts = re.findall(r'<script src="([^"]*ds-agents[^"]*)" defer></script>', body)
-    assert [Path(src.split("?")[0]).name for src in scripts] == ["ds-agents-kit.js", "ds-agents.js"]
+    assert [Path(src.split("?")[0]).name for src in scripts] == ["ds-agents-evals.js", "ds-agents-kit.js", "ds-agents.js"]  # T16 조각
     assert all("?v=" in src for src in scripts)  # 내용 지문 핀(asset_url)
     assert re.search(r'href="[^"]*brain-ds-agents\.css\?v=[^"]+"', body)
     assert 'style="' not in body
@@ -79,18 +79,22 @@ def test_manager_sees_no_level_editing_and_no_cost(app, ids, monkeypatch):
 
 def test_evals_place_is_whole_without_the_partial_and_fills_with_it(app, ids, monkeypatch):
     _on(monkeypatch)
-    _resp, body = _page(app, ids["admin"])
-    assert re.search(r'data-ds-agents-evals></div>', body)  # 조각이 없으면 빈 자리(CSS 가 숨긴다)
     loader = app.jinja_loader
-    monkeypatch.setattr(app, "jinja_loader", ChoiceLoader([
-        DictLoader({"brain/ds/partials/agents_evals.html": '<p data-t16-evals>합성 시험</p>'}), loader]))
-    app.jinja_env.loader = app.create_global_jinja_loader()
-    app.jinja_env.cache.clear()
-    try:
-        _resp, filled = _page(app, ids["admin"])
-    finally:
+
+    def _with_partial(text):
+        monkeypatch.setattr(app, "jinja_loader", ChoiceLoader([
+            DictLoader({"brain/ds/partials/agents_evals.html": text}), loader]))
         app.jinja_env.loader = app.create_global_jinja_loader()
         app.jinja_env.cache.clear()
+        try:
+            return _page(app, ids["admin"])[1]
+        finally:
+            monkeypatch.setattr(app, "jinja_loader", loader)
+            app.jinja_env.loader = app.create_global_jinja_loader()
+            app.jinja_env.cache.clear()
+
+    assert re.search(r'data-ds-agents-evals></div>', _with_partial(""))  # 조각이 비면 빈 자리(CSS 가 숨긴다)
+    filled = _with_partial('<p data-t16-evals>합성 시험</p>')
     assert re.search(r'data-ds-agents-evals><p data-t16-evals>합성 시험</p></div>', filled)
 
 

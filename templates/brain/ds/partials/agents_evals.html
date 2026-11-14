@@ -1,0 +1,26 @@
+{#- 'AI 시험' 칸(판 ⑪ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.10 · 3.15 · D209). agents.html 의 [data-ds-agents-evals]
+    안에 그려진다. 서버는 빈 자리만 그리고, static/js/brain/ds/ds-agents-evals.js 가 'ds:agents-detail' 이벤트(상담 AI 의
+    GET /api/ai-staff/cs 답 evals 칸)로 줄 셋(지난 상담 · 위험 문장 · 능력 질문 — 막대 · 결과 글 · 꼬리표) · 마지막 시험 줄 · 틀린 차례
+    (T10 의 '최근 실패' 목록 끝에 — 차례 번호 · 까닭만, 글 없음)를 textContent 로 그린다.
+    [시험 다시 돌리기](머리 단추 자리 [data-ds-agents-actions])와 돈 상한 · 묶음 크기 칸은 ADMIN 에게만 — 주소(data-run-url)가 없으면
+    스크립트가 만들지 않는다. 쓴 돈도 ADMIN 답에만 있다. 목업의 '기준 밑이면 배포를 막아요'는 없는 문지기라 쓰지 않는다.
+    인라인 스크립트 · 스타일 없음. -#}
+{% import "brain/ds/_macros.html" as ds %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-agents-evals.css') }}">
+<div class="f-col f-gap12 fb-evals" data-ds-evals data-detail-url="{{ url_for('ai_staff_api.ai_staff_detail', key='cs') }}"
+     {%- if is_admin %} data-run-url="{{ url_for('ai_staff_api.ai_staff_evals_run') }}" data-settings-url="{{ url_for('ai_staff_api.ai_staff_evals_settings') }}"{% endif %}>
+  <p class="f-small f-muted" data-ds-evals-note role="status" aria-live="polite">불러오는 중이에요…</p>
+  <div class="f-col f-gap12" data-ds-evals-rows hidden></div>
+  <p class="f-row f-small f-muted" data-ds-evals-last hidden></p>
+  {%- if is_admin %}
+  <form class="fb-evals-form" data-ds-evals-form hidden novalidate aria-label="시험 설정">
+    <label class="f-field"><span class="f-label">한 번 돈 상한(달러)</span><input class="f-input" name="cap_usd" inputmode="decimal" autocomplete="off"></label>
+    <label class="f-field"><span class="f-label">지난 상담 수</span><input class="f-input" name="past_size" type="number" min="0" step="1"></label>
+    <label class="f-field"><span class="f-label">위험 문장 수</span><input class="f-input" name="risk_size" type="number" min="0" step="1"></label>
+    <label class="f-field"><span class="f-label">지난 상담 기준(%)</span><input class="f-input" name="past_target_pct" type="number" min="0" max="100" step="1"></label>
+    <button class="f-btn" type="submit">{{ ds.icon('tick') }}저장</button>
+  </form>
+  {%- endif %}
+  <hr class="f-divider">
+</div>
+<script src="{{ asset_url('js/brain/ds/ds-agents-evals.js') }}" defer></script>

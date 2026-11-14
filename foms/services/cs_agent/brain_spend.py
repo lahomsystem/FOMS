@@ -43,6 +43,7 @@ SPEND_KEY = "cs_agent_brain_spend"
 #: 학습 길(설계서 17.6.1 — 사진 설명 · 주간 고침 안) 돈 줄 키 — 같은 꼴, 패널 '학습 돈 상한'으로 따로 자른다(R10-22). 학습 돈은
 #: 하루 돈 줄(:data:`SPEND_KEY`)에도 같이 센다(두뇌 한 곳 :func:`.brain._send` 가 그 줄에 예약한다).
 LEARNING_SPEND_KEY = "cs_agent_learning_spend"
+EVAL_SPEND_KEY = "cs_agent_eval_spend"  # 상담 AI 평가 묶음 돈 줄(접목판 3.15 — 하루 돈 줄과 섞지 않는다, 한 번 상한은 ai_staff.evals)
 _DESCRIPTIONS = {SPEND_KEY: "AI 상담팀원 두뇌 — 오늘(KST) 돈 · 예약(플랜 C3-2, 하루 상한 확인)",
                  LEARNING_SPEND_KEY: "AI 상담팀원 학습 길 — 오늘(KST) 돈 · 예약(설계서 17.6.1, 학습 돈 상한 확인)"}
 #: 감시 루프(CS_LOOP) 하트비트 metadata 에서 WORKER env 하루 상한(달러 글, 없거나 틀리면 ``None``)을 담는 칸.

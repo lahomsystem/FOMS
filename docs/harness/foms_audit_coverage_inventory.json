@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 304,
+    "total": 306,
     "unaudited": 2
   },
   "classification_counts": {
-    "AUDITED": 265,
+    "AUDITED": 267,
     "EXEMPT": 37,
     "UNAUDITED": 2
   },
@@ -92,8 +92,26 @@
     },
     {
       "path": "foms/api/ai_staff.py",
+      "endpoint": "ai_staff_evals_run",
+      "lineno": 139,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/ai_staff.py",
+      "endpoint": "ai_staff_evals_settings",
+      "lineno": 163,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/ai_staff.py",
       "endpoint": "ai_staff_levels",
-      "lineno": 83,
+      "lineno": 97,
       "methods": [
         "POST"
       ],
