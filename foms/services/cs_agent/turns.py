@@ -40,6 +40,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from foms.persistence.main.models import CsAgentTurn, SystemSetting
 from foms.services.cs_agent.channel_read import CHANNEL_BRANDS, naive_utc
+from foms.services.cs_agent.heldout import held_out_for
 from foms.services.cs_agent.turns_fields import (  # 칸 꼴 검사(500줄 상한으로 나눔)
     ID_PATTERN as _ID, check_codes as _check_codes, checked_id as _checked_id, code as _code, cost as _cost,
     count as _count, masked_or_none as _masked_or_none, reason as _reason,
@@ -110,7 +111,7 @@ def claim_owner(kind: str) -> str:
 
 def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str, *,
                now: datetime.datetime, owner: Optional[str] = None,
-               ttl: Optional[datetime.timedelta] = None) -> Optional[CsAgentTurn]:
+               ttl: Optional[datetime.timedelta] = None, held_out_percent: int = 0) -> Optional[CsAgentTurn]:
     """(상담, 마지막 손님 글 id) 차례를 선점한다 — 새 줄(또는 다시 집은 실패 줄)이면 그 줄, 이미 있으면 ``None``.
 
     부르는 쪽은 받은 줄을 **바로 커밋**한다. PostgreSQL 에서 두 바퀴가 겹치면 뒤 바퀴의 넣기는 앞 바퀴가 커밋 · 되돌리기를
@@ -124,6 +125,8 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         now: 지금(시간대 있는 값 — 표에는 UTC naive).
         owner: 선점 주인(:func:`claim_owner` — 없으면 비움).
         ttl: 선점 만료까지(없으면 비움 — 정리는 ``updated_at`` 로 본다).
+        held_out_percent: 시험용으로 떼어 둘 비율(D219 — :func:`.heldout.held_out_for`). 새 줄에만 적고, 다시 집는 실패 줄은
+            그대로 둔다. 0(처음 값)이면 ``held_out`` 은 늘 거짓이다.
 
     Returns:
         선점한 :class:`CsAgentTurn`(``state='claimed'``) 또는 ``None``.
@@ -145,7 +148,8 @@ def claim_turn(session: Any, brand: str, chat_id: str, last_user_message_id: str
         raise RuntimeError("있으면 무시하고 넣기를 모르는 DB")
     inserted = (builder(_TURNS)
                 .values(brand=brand, chat_id=chat_id, last_user_message_id=last_user_message_id,
-                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at, **claim)
+                        state=STATE_CLAIMED, attempts=1, created_at=at, updated_at=at, **claim,
+                        held_out=held_out_for(session, brand, chat_id, held_out_percent))
                 .on_conflict_do_nothing(index_elements=["chat_id", "last_user_message_id"])
                 .returning(_TURNS.c.id))
     turn_id = session.execute(inserted).scalar()

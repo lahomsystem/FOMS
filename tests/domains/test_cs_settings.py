@@ -111,6 +111,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         "case_meaning_enabled": False,  # 뜻으로도 비슷한 상담 찾기(D197 ③ — 처음 끔)
         # 접목판 근거 줄 · 할 일 제안(설계서 2026-11-14-foms-graft 3.9) — 둘 다 처음 끔
         "graft_evidence_enabled": False, "graft_actions_enabled": False,
+        "held_out_percent": 10,  # 시험용으로 떼어 둘 상담(D219) — 처음 10 %
     }
     assert st.DEFAULTS == expected and list(st.DEFAULTS) == [f.name for f in st.FIELDS]
     assert st.LOCKED_FIELDS == LOCKED  # 아직 쓰는 길이 없는 칸만
