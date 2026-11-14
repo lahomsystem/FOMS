@@ -175,6 +175,50 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | F-14 | 켜는 순서 | 설계서 4절 | 상담 AI 관리 칸(할 일 제안)은 켜고 `FOMS_GRAFT_ACTIONS` 는 끈 채면 AS 접수 · 방문 옮기기 제안이 생겨도 아무도 못 보고 7일 뒤 끝남 · 폰 알림은 FOMS-cron · WORKER 에 `REDIS_URL` · `FOMS_WEB_PUSH_ENABLED` · VAPID 열쇠가 없으면 알림 줄만 생기고 폰으로 안 나감 | 켜는 날 확인 목록 | 기록만 |
 | F-15 | 기록(접목판 밖) | `static/sw.js:429` | 폰 알림 누름 허용 목록이 `/erp/` · `/partner/` 뿐이라 지금 공지(`/notices`) · 상담 초안(`/cs-agent/…`) 폰 알림도 누르면 대시보드로 감 — 이번엔 `/brain` 만 넓힘 | 따로 | 기록만 |
 | F-16 | 기록 | `foms/services/erp_actions/registry.py`(T15) | 폰 알림 팀(`notify_team`)은 설계서에 없어 일꾼이 정함: 시공 잡기 · 방문 옮기기(시공) SHIPMENT · 방문 옮기기(AS) · AS 접수 · 시공 메모 · 단계 넘기기 · 시공일 안내 CS · 실측 예약 알림톡 · 방문 옮기기(실측) SALES · 도면 담당 DRAWING | 사용자 확인 | 기록만 |
+| R-01 | 보통 | `erp_actions/lifecycle.py:300` · `web/orders/dashboard.py:658` · `static/js/foms/graft-cells.js:182` | 사유가 필요한 시공일 변경을 사유 없이 실행 — 서버 승인이 `reason_required` 를 안 보고 태블릿 [승인]은 사유 없이 보냄 (검수 R1) | 고침 A | OPEN |
+| R-02 | 보통 | `ds-inbox-erp.js:179` · `graft-cells.js:182` · `erp_actions/runners.py:187` | 카드 · 폰 · 태블릿 빠른 [승인]이 손님 알림톡(처음 켬)까지 보내는데 그 줄을 본 적이 없음 (검수 R1) | 고침 A | OPEN |
+| R-03 | 보통 | `cs_agent/graft_step.py:307` | 넘김 까닭 '불만'이면 손님 글 전부(본인 확인 답 포함)를 시공 메모 제안에 실음 — 이름이 남을 수 있음 (검수 R1) | 고침 C | OPEN |
+| R-04 | 보통 | `ai_staff/sweeps.py:151` | O1 이 실패 · 건너뜀 · 옛 날짜 알림톡 기록도 '보냄'으로 침 (검수 R1) | 고침 B | OPEN |
+| R-05 | 보통 | `ai_staff/sweeps.py:119` | 후보 `order_by(id).limit(200)` — 오래된 200개 · 제안 걸린 주문이 자리를 차지해 새 주문에 못 닿음 (검수 R1) | 고침 B | OPEN |
+| R-06 | 보통 | `ai_staff/sweeps.py:223` | 후보 하나의 예외가 그 밤 제안 전부를 되돌림 (검수 R1) | 고침 B | OPEN |
+| R-07 | 보통 → 받아들임 | `templates/brain/ds/layout.html:27` | socket.io CDN — 전역 `layout_head.html:651` · 실측 지도 · 도면 마법사와 같은 SRI 고정 주소 · 같은 defer(새 라이브러리 아님, 브라우저 캐시 공유) (검수 R1) | 기록만 | OPEN |
+| R-08 | 보통 | `brain-ds-inbox-erp.css:27` | 폰 ERP [승인] `min-height: 36px` 가 44px 를 이김 (검수 R1) | 고침 A | OPEN |
+| R-09 | 낮음 | `lifecycle.py:188` · `views.py:211` · `ai_staff/metrics.py:49` · `runs.py:199` | 새 표 질의 색인 못 탐(`_taken` 등) (검수 R1) | 고침 A(`_taken` 에 order_id) | OPEN |
+| R-10 | 낮음 | `lifecycle.py:304` · `ai_staff/levels.py:120` | 수준 0 으로 내려도 열린 제안이 승인 · 실행됨 (검수 R1) | 고침 A(승인 때 수준 다시 봄) | OPEN |
+| R-11 | 낮음 | `erp_actions/notify.py:61` · `push_sender.py:199` | 폰 알림 받는 사람 판정이 `FOMS_GRAFT_ACTIONS` · `BRAIN_UI` 를 cron · WORKER 에서 읽음 · `FOMS_PUSH_P1_TYPES` 덮어쓰기면 새 종류 빠짐 (검수 R1) | F-14 켜는 날 목록에 더함 | OPEN |
+| R-12 | 낮음(확신 낮음) | `kakao_alimtalk_construction.py:229` · `lifecycle.py:56` | 같은 시공일 두 통 경합(잠금 없이 '이미 보냄' 판정) (검수 R1) | 고침 A | OPEN |
+| R-13 | 낮음 | `tests/contracts/runtime/layer_dependency_baseline.json:179,193` | T7 · T10 이 층 기준선에 블루프린트 등록 두 줄을 더함 — V1 아홉째 명령이 내보냄 (검수 R1) | 기록(예외) · V1 기대값 맞춤 | OPEN |
+| R-14 | 낮음 | 지시문 V1 열한째 명령 | D211 글 찾기가 접목판 밖 옛 글에 늘 걸림 (검수 R1) | V1 에 더한 줄만 찾게 알림 | OPEN |
+| R-15 | 낮음(기록) | `runners.py:141` · `api/erp_action_runners.py:146` | 설계서 3.4 `source=erp_action:<번호>` 는 services 실행기 감사 줄에만 — D206 본체 셋은 못 실음 (검수 R1) | 설계서 고침 | OPEN |
+| R-16 | 낮음(기록) | 주인 표 밖 | `api/notifications/__init__.py` · `audit_message_display.py` · `order_mutation_writer_allowlist.json` · 네임스페이스 표면 시험 · `test_as_timeline_contract.py:289` · 새 파일 `construction_notice.py` · `evals_view.py` (검수 R1) | 기록만 | OPEN |
+| R-17 | 낮음 | `static/js/brain/ds/ds-shell.js:110` | 화면 크기를 맨 끝 defer 에서 붙여 80% 배율 사람이 깜빡임 (검수 R1) | 메인 고침 | OPEN |
+| R-18 | 낮음 | `ds-agents-kit.js:130` | '최근 실패'에 `error_code` 기계 말 (검수 R1) | 고침 B | OPEN |
+| R-19 | 낮음 | `templates/brain/ds/layout.html:17` | `foms-ui-zoom.css?v=` 손 핀 베낌 (검수 R1) | 메인 고침(asset_url) | OPEN |
+| R-20 | 낮음 | `brain/partials/card_neighbours.html:33` · `tab_map.html:48` · `notice_popup.html:15` | 새 화면에 Font Awesome 없어 실은 조각 아이콘이 빈칸(글은 보임) (검수 R1) | 메인 고침 | OPEN |
+| R-21 | 낮음(확신 낮음) | `graft-cells.js:99` | `paintSlot` 이 칸 켬을 다시 안 봄 (검수 R1) | 고침 A | OPEN |
+| R-22 | 낮음 | `ds-inbox-erp-card.js:46,88` | 서버 `href` 꼴 확인 없이 링크 (검수 R1) | 고침 A | OPEN |
+| R-23 | 낮음(결정) | `foms-ds.css:20` | 바탕 글자 14px(80% 배율이면 11.2px) (검수 R1) | 사용자 확인 | OPEN |
+| R-24 | 낮음(확신 낮음) | `foms-graft-cells.css:42` | 폰 목록 카드 AI 칩 22px — 누르기 작음 (검수 R1) | 고침 A | OPEN |
+| R-25 | 낮음 | `ai_staff/evals.py:408` · `evals_run.py:242` | '멈춘 채 끝남'으로 풀린 평가가 살아 있으면 계속 돈 쓰고 상태 덮어씀 (검수 R1) | 고침 B | OPEN |
+| R-26 | 낮음 | `cs_agent/wam_functions.py:222` | 관리 칸 꺼져도 `with_action` 오면 답에 `action` 칸 (검수 R1) | 고침 C | OPEN |
+| R-27 | 낮음 | `web/cs_draft_wam.py:35` | 작은 창 틀이 설정 읽기 실패면 500 (검수 R1) | 고침 C | OPEN |
+| R-28 | 낮음 | `graft_step.py:176` · `send_view.py:180` | 줄 제안 생긴 차례를 건너뛰면 다음 차례 창에 줄 없음 (검수 R1) | 고침 C | OPEN |
+| R-29 | 낮음 | `graft_step.py:133` | 같은 차례 다시 쓰면 근거 줄 부풀음 (검수 R1) | 고침 C | OPEN |
+| R-30 | 낮음(확신 낮음) | `graft_step.py:254` | 60일 넘게 지난 날짜를 내년으로 읽음 (검수 R1) | 고침 C | OPEN |
+| R-31 | 낮음 | `api/ai_staff.py:155` | 큐 넣기 실패 뒤 `update_run` · 커밋이 try 밖 (검수 R1) | 고침 B | OPEN |
+| R-32 | 낮음(확신 낮음) | `test_cs_graft_step.py` · `test_cs_wam_graft.py` | `FOMS_GRAFT_*` env 를 안 지움 (검수 R1) | 고침 C | OPEN |
+| R-33 | 낮음(성능) | `graft_step.py:135,189` | `doc_keys` 두 번 (검수 R1) | 고침 C | OPEN |
+| R-34 | 낮음 | `ai_staff/sweeps.py:189` | O4 가 같은 날 실패 기록도 '보냄' (검수 R1) | 고침 B | OPEN |
+| R-35 | 낮음 | `ai_staff/views.py:123` | 자세히 한 번에 질의 스물 안팎 (검수 R1) | 고침 B | OPEN |
+| R-36 | 낮음 | `ai_staff/runs.py:209` · `metrics.py:78` | `cs_agent_turns` 를 `created_at` 만으로 거름 (검수 R1) | 고침 B | OPEN |
+| R-37 | 낮음 | `erp_ontology/read.py:197` | `stage_since` 가 UTC 날짜 (검수 R1) | 고침 B | OPEN |
+| R-38 | 낮음(확신 보통) | `erp_ontology/ask.py:202,249` | 날짜 확인이 날짜 뒤 요일만 봄 (검수 R1) | 고침 B | OPEN |
+| R-39 | 낮음 | `brain/usage_view.py:64` | 제안 볼 수 있나 판정이 따로 · 줄마다 `session.get` (검수 R1) | 고침 B | OPEN |
+| R-40 | 낮음(확신 낮음) | `brain/usage_view.py:180` | `by_reader.erp_action` 에 볼 수 없는 제안 쓰임도 셈 (검수 R1) | 고침 B | OPEN |
+| R-41 | 낮음 | `brain/chat_prompt.py:33` | 까닭 없는 `FIELDS =(` 바뀜 (검수 R1) | 고침 B | OPEN |
+| R-42 | 낮음 | `test_graft_ask_erp.py` | '켬 + 읽은 주문 + 지식 후보 0' 시험 없음 (검수 R1) | 고침 B | OPEN |
+| R-43 | 낮음(기록) | `erp_ontology/objects.py:119` | 코드가 맞고 설계서 3.2 '바로가기'가 옛 글 (검수 R1) | 설계서 고침 | OPEN |
+| F-07 · F-08 덧붙임 | — | `notify.py` · `sweeps.py:153,175,191` | R1: 폰 알림 받는 사람도 `can_run` 이라 실행 못 하는 사람도 받음(F-07) · 겹침 열쇠 뿌리가 O1 · O3 · O4 에도(F-08 — O1 은 처음 수준 1 이라 보통으로 올림) | F-08 고침 B | OPEN |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
