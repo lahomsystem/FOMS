@@ -36,7 +36,7 @@
 | D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | DONE(`dc8a9e011` · 맞추기 `9ca118614`) |
 | D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | DONE(`12df85ba8`) |
 | E | T11 | R1 | 검수(읽기만) — 설계서 맞춤 · 보안 · 품질 | xhigh | `foms-s-foms-graft`(읽기만) | T1 ~ T10 · T13 ~ T16 | DONE(검수 R-01 ~ R-43 — 고침 `f56741217` · `63f12b0ef` · `6e01dc5a0` · `28a2e131a` · `aa2b37f66`) |
-| E | T12 | V1 | 합친 뒤 확인 — 명령 전부 · 스위치 끔 견주기 · 핀 · 머리 하나 · 소유 표 | high | `foms-s-foms-graft` | T11 고침 끝 | RUNNING |
+| E | T12 | V1 | 합친 뒤 확인 — 명령 전부 · 스위치 끔 견주기 · 핀 · 머리 하나 · 소유 표 | high | `foms-s-foms-graft` | T11 고침 끝 | DONE(V1 — 명령 열둘 통과 · 스위치 끔 화면 deploy 와 바이트 같음 · 바깥 보내기 0 · 머리 graft_00 하나) |
 
 - 물결마다 일꾼 수: A 2 · B 4 · C 5 · D 3 · E 2(차례로). 모두 16(만드는 일꾼 14 + 검수 1 + 확인 1).
 - T13 은 아무것에도 기대지 않는다. 시험 파일만 만들므로 물결 A 가 도는 중에 띄워도 된다(그때 물결 A 는 셋).
@@ -190,7 +190,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | R-13 | 낮음 | `tests/contracts/runtime/layer_dependency_baseline.json:179,193` | T7 · T10 이 층 기준선에 블루프린트 등록 두 줄을 더함 — V1 아홉째 명령이 내보냄 (검수 R1) | 기록(예외) · V1 기대값 맞춤 | 기록(예외 — 블루프린트 등록 두 줄) |
 | R-14 | 낮음 | 지시문 V1 열한째 명령 | D211 글 찾기가 접목판 밖 옛 글에 늘 걸림 (검수 R1) | V1 에 더한 줄만 찾게 알림 | V1 에 알림 |
 | R-15 | 낮음(기록) | `runners.py:141` · `api/erp_action_runners.py:146` | 설계서 3.4 `source=erp_action:<번호>` 는 services 실행기 감사 줄에만 — D206 본체 셋은 못 실음 (검수 R1) | 설계서 고침 | 고침(설계서 3.4) |
-| R-16 | 낮음(기록) | 주인 표 밖 | `api/notifications/__init__.py` · `audit_message_display.py` · `order_mutation_writer_allowlist.json` · 네임스페이스 표면 시험 · `test_as_timeline_contract.py:289` · 새 파일 `construction_notice.py` · `evals_view.py` (검수 R1) | 기록만 | 기록만 |
+| R-16 | 낮음(기록) | 주인 표 밖 | `api/notifications/__init__.py` · `audit_message_display.py` · `order_mutation_writer_allowlist.json` · 네임스페이스 표면 시험 · `test_as_timeline_contract.py:289` · 새 파일 `construction_notice.py` · `evals_view.py` · (V1) `tests/domains/test_brain_screens_assets.py`(새 틀 소켓 CDN 예외 한 줄 — R-07) · `tests/domains/test_cs_settings.py`(관리 칸 둘 처음 값) (검수 R1) | 기록만 | 기록만 |
 | R-17 | 낮음 | `static/js/brain/ds/ds-shell.js:110` | 화면 크기를 맨 끝 defer 에서 붙여 80% 배율 사람이 깜빡임 (검수 R1) | 메인 고침 | 고침(틀 스크립트를 head 앞쪽 defer 로) |
 | R-18 | 낮음 | `ds-agents-kit.js:130` | '최근 실패'에 `error_code` 기계 말 (검수 R1) | 고침 B | 고침(`28a2e131a`) |
 | R-19 | 낮음 | `templates/brain/ds/layout.html:17` | `foms-ui-zoom.css?v=` 손 핀 베낌 (검수 R1) | 메인 고침(asset_url) | 고침(asset_url) |
