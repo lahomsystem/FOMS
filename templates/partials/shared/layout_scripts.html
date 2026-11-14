@@ -1635,6 +1635,9 @@
     {# nav 수집 뱃지 숫자는 렌더 뒤에 채운다 — 서버에서 세면 워크벤치 코호트 콜드에
        약 400ms 가 첫 화면 앞에 붙는다(2026-09-11 실측). #}
     <script src="{{ url_for('static', filename='js/foms/foms-nav-triage-badge.js') }}?v=20260928a" defer></script>
+    {%- if graft_cells_any() %}{# 접목판 분홍 칸 채우기(설계서 2026-11-14-foms-graft 6절) — 칸 스위치가 하나라도 전역으로 켜졌을 때만 #}
+    <script src="{{ asset_url('js/foms/graft-cells.js') }}" defer></script>
+    {%- endif %}
     {# 아이폰 전용 빠른 시작 시트 — ＋ 탭 제스처 안에서 고객명 칸을 열어 자판을 올린다.
        ＋ 버튼이 /erp/ 밖 화면(실측·도면·생산·CS 대시보드)에도 있어 로그인 공통으로 싣는다.
        안드로이드에서는 스크립트가 아무것도 만들지 않는다(iOS 판별 후 즉시 반환). #}

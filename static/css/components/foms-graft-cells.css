@@ -1,0 +1,110 @@
+/* 접목판 분홍 칸(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 6절 · 판 ② ③ ④) — 지금 화면에 더하는 AI 제안 자리.
+   layout_head.html 이 칸 스위치가 하나라도 전역으로 켜졌을 때만 싣는다. 채우기는 static/js/foms/graft-cells.js.
+   색은 지금 FOMS 브랜드 남보라 토큰(--foms-color-brand-*) — 무채색이 아니다. 새 글자 크기는 calc(Npx * var(--foms-fs, 1)).
+   태블릿 규칙은 (min-width: 992px) and (orientation: landscape) and (pointer: coarse) + body.erp-mobile-v2-layout 안에만.
+   PC 글자 · 단추는 줄이지 않는다(칩은 지금 '할 일' 배지와 같은 줄 높이). */
+
+/* 빈 자리는 언제나 숨김 — 레일 칸(.foms-tablet-rail__item display:flex) · 폰 칸(grid) 규칙이 [hidden] 을 이기지 않게. */
+.foms-graft-nav[hidden],
+.foms-graft-rail[hidden],
+.foms-graft-tile[hidden],
+.foms-graft-chip[hidden],
+.foms-graft-count[hidden],
+.foms-graft-box [hidden] { display: none !important; }
+
+/* AI 제안 칩 — '현재 작업' 칸(PC · 태블릿) · 폰 목록 줄 머리 */
+.foms-graft-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  min-height: 24px;
+  margin-top: 6px;
+  padding: 1px 10px;
+  border: 1px solid var(--foms-color-brand-500, #5a67d8);
+  border-radius: 12px;
+  background: var(--foms-color-brand-50, #f3f4ff);
+  color: var(--foms-color-brand-600, #4a55b8);
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.foms-graft-chip:hover,
+.foms-graft-chip:focus-visible { background: var(--foms-color-brand-100, #e6e8ff); color: var(--foms-color-brand-700, #3a4490); }
+.foms-graft-chip__icon { font-size: 0.85em; }
+td.erp-quest-cell > .foms-graft-chip { display: flex; }
+
+/* 폰 목록 줄 머리 — 단계 · 경보 배지 옆(넘치면 말줄임) */
+.foms-graft-chip--card {
+  min-height: 22px;
+  margin-top: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+  font-size: calc(12px * var(--foms-fs, 1));
+}
+
+/* PC 위 아이콘 줄 — 회사 지식 승인 대기(알림 단추 앞) */
+.foms-graft-nav__btn { color: var(--foms-color-brand-500, #5a67d8); }
+.foms-graft-nav__btn:hover,
+.foms-graft-nav__btn:focus-visible { color: var(--foms-color-brand-700, #3a4490); }
+.foms-graft-nav .foms-graft-count {
+  background: var(--foms-color-brand-500, #5a67d8);
+  color: #fff;
+  font-size: calc(10.4px * var(--foms-fs, 1));
+}
+
+/* 폰 '처리 대기' — AI 제안 승인 대기(두 칸 너비 · 수 왼쪽 · 이름 둘째 줄) */
+.foms-graft-tile {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+.foms-graft-tile__text { display: grid; gap: 2px; min-width: 0; }
+.foms-graft-tile__title { font-weight: 700; color: var(--foms-text-primary, #1f2329); }
+.foms-graft-tile__labels {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(12px * var(--foms-fs, 1));
+  color: var(--foms-text-secondary, #5f6b7c);
+}
+
+/* 태블릿 가로 — 작업 큐 칩 · 레일 회사 지식 · 오른쪽 상세 'AI 제안' 상자 */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-tqcell-quest .foms-graft-chip {
+    display: flex;
+    margin-top: 4px;
+    font-size: calc(13px * var(--foms-fs, 1));
+  }
+  body.erp-mobile-v2-layout .foms-graft-rail { position: relative; }
+  body.erp-mobile-v2-layout .foms-graft-rail__icon { color: var(--foms-color-brand-500, #5a67d8); }
+  body.erp-mobile-v2-layout .foms-graft-rail .foms-graft-count { background: var(--foms-color-brand-500, #5a67d8); color: #fff; }
+
+  body.erp-mobile-v2-layout .foms-graft-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: var(--foms-space-2, 8px) 0;
+    padding: 10px 12px;
+    border: 1px solid var(--foms-color-brand-200, #c5c9ff);
+    border-radius: 10px;
+    background: var(--foms-surface-base, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-graft-box__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  body.erp-mobile-v2-layout .foms-graft-box__title { font-weight: 700; color: var(--foms-color-brand-600, #4a55b8); }
+  body.erp-mobile-v2-layout .foms-graft-box__agent { font-size: calc(13px * var(--foms-fs, 1)); color: var(--foms-text-secondary, #5f6b7c); }
+  body.erp-mobile-v2-layout .foms-graft-box__after { font-weight: 700; }
+  body.erp-mobile-v2-layout .foms-graft-box__acts,
+  body.erp-mobile-v2-layout .foms-graft-box__reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+  body.erp-mobile-v2-layout .foms-graft-box__btn,
+  body.erp-mobile-v2-layout .foms-graft-box__reason { min-height: 40px; }
+  body.erp-mobile-v2-layout .foms-graft-box__status { margin: 0; font-size: calc(13px * var(--foms-fs, 1)); }
+  body.erp-mobile-v2-layout .foms-graft-box__status:empty { display: none; }
+  body.erp-mobile-v2-layout .foms-graft-box__status.is-error { color: var(--foms-color-danger-600, #c92a2a); }
+}

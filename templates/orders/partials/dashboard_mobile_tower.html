@@ -154,6 +154,17 @@
         <span class="foms-tower__quick-num">{{ ct.inbound_count }}</span>
         <span class="foms-tower__quick-label">신규 접수 대기</span>
       </a>
+      {#- AI 제안 승인 대기(접목판 판 ④ — 설계서 2026-11-14-foms-graft 6절): 전역 스위치가 켜졌을 때만 빈 자리(숨김). 수 · 할 일
+          이름은 graft-cells.js 가 /api/erp-actions/badge 로 채운다(0 이면 숨김). 꺼지면 한 글자도 안 나간다. #}
+      {%- if graft_cell_slot('mobile') %}
+      <a class="foms-tower__quick-card foms-graft-tile" href="{{ url_for('brain_web.index', tab='inbox') }}" data-graft-tile data-foms-erp-no-shell hidden>
+        <span class="foms-tower__quick-num foms-graft-tile__num" data-graft-count>0</span>
+        <span class="foms-graft-tile__text">
+          <span class="foms-tower__quick-label foms-graft-tile__title">AI 제안 승인 대기</span>
+          <span class="foms-graft-tile__labels" data-graft-labels></span>
+        </span>
+      </a>
+      {%- endif %}
     </div>
   </section>
 

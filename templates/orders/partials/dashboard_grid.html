@@ -338,6 +338,11 @@
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                     {% endif %}
+                    {#- AI 제안 칩(접목판 판 ② — 설계서 2026-11-14-foms-graft 6절): 전역 스위치가 켜졌을 때만 빈 자리(숨김).
+                        graft-cells.js 가 보이는 주문 번호를 모아 /api/erp-actions/open 한 번으로 채운다. 꺼지면 한 글자도 안 나간다. #}
+                    {%- if graft_cell_slot('pc') %}
+                    <a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="pc" hidden></a>
+                    {%- endif %}
                   </td>
                   <td data-col-key="customer" data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529; min-width: 120px;">
                     <div class="d-flex flex-column gap-1">
