@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 684,
+    "broad_total": 685,
     "unclassified": 0,
     "swallow_by_control_flow": 159
   },
   "disposition_counts": {
     "FAIL_CLOSED": 48,
     "INTENTIONAL": 21,
-    "LOG_AND_CONTINUE": 456,
+    "LOG_AND_CONTINUE": 457,
     "SWALLOW_BY_CONTROL_FLOW": 159
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 8,
     "runtime": 3,
-    "services": 243,
+    "services": 244,
     "storage": 24,
     "telemetry": 47,
     "web": 39
@@ -50,7 +50,7 @@
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:252",
-    "foms/services/ai_staff/evals_run.py:325",
+    "foms/services/ai_staff/evals_run.py:339",
     "foms/services/app_init.py:145",
     "foms/services/brain/plan_proposals.py:336",
     "foms/services/channel_client.py:445",
@@ -83,7 +83,7 @@
     "foms/services/jobs/tasks.py:666",
     "foms/services/jobs/tasks.py:710",
     "foms/services/jobs/tasks.py:716",
-    "foms/services/kakao_alimtalk_construction.py:265",
+    "foms/services/kakao_alimtalk_construction.py:274",
     "foms/services/notices/push.py:114",
     "foms/services/notifications/push_sender.py:784",
     "foms/web/auth/routes.py:148",
@@ -2938,7 +2938,7 @@
     },
     {
       "path": "foms/services/ai_staff/evals.py",
-      "lineno": 431,
+      "lineno": 439,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -2947,12 +2947,21 @@
     },
     {
       "path": "foms/services/ai_staff/evals_run.py",
-      "lineno": 325,
+      "lineno": 339,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
       "has_logging": true,
       "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/ai_staff/sweeps.py",
+      "lineno": 302,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/app_init.py",
@@ -3595,7 +3604,7 @@
     },
     {
       "path": "foms/services/cs_agent/graft_step.py",
-      "lineno": 124,
+      "lineno": 156,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3685,7 +3694,7 @@
     },
     {
       "path": "foms/services/cs_agent/wam_functions.py",
-      "lineno": 216,
+      "lineno": 212,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3748,7 +3757,7 @@
     },
     {
       "path": "foms/services/erp_actions/lifecycle.py",
-      "lineno": 329,
+      "lineno": 353,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4657,7 +4666,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk_construction.py",
-      "lineno": 218,
+      "lineno": 219,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4666,7 +4675,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk_construction.py",
-      "lineno": 265,
+      "lineno": 274,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

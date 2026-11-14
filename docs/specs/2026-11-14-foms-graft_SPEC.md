@@ -195,7 +195,7 @@
 ```
 
 - **만들기**: `check` 가 막으면 만들지 않는다. 같은 `dedupe_key` 의 `open` 이 있으면 그대로, `rejected` 가 있으면 만들지 않는다. 근거 지식 키는 `record_uses(..., reader='erp_action')`. 만든 뒤 `FOMS_GRAFT_PUSH` 가 켜져 있으면 폰 알림을 줄 세운다(3.14 — 이미 있거나 거절된 제안은 `None` 을 돌려주므로 알림이 두 번 가지 않는다).
-- **승인(두 걸음)**: ① 제안 줄을 잠그고 `open` 인지 · 누른 사람이 `policy_id` 를 지나는지(`evaluate_policy`) · 주문 읽기 권한(`user_can_read_order`) · `check` 를 다시 본다. 주문 판 번호가 `base_version` 과 다르면 미리 보기를 새로 계산하고, 저장된 '지금' 값과 다르면 **409 `ACTION_BASE_CHANGED`** 로 새 카드를 돌려준다(제안은 `open` · 새 값으로 갱신). 통과하면 `executing` + 결정한 사람을 적고 커밋. ② 실행기를 돈다(감싼 기능의 커밋 방식 그대로 — `send_alimtalk` · `register_as_from_payload` 는 스스로 커밋한다). ③ `executed` · `failed` + 결과 + 감사 줄을 적고 커밋.
+- **승인(두 걸음)**: ① 제안 줄을 잠그고 `open` 인지 · 누른 사람이 `policy_id` 를 지나는지(`evaluate_policy`) · 주문 읽기 권한(`user_can_read_order`) · 제안한 AI 직원의 지금 수준(0 이면 409 — 검수 R-10) · `check` 를 다시 본다. 사유를 물을 변경(`reason_required`)이면 사유 코드가 꼭 있어야 한다(없으면 400 `ACTION_SHAPE` — 검수 R-01). 주문 판 번호가 `base_version` 과 다르면 미리 보기를 새로 계산하고, 저장된 '지금' 값과 다르면 **409 `ACTION_BASE_CHANGED`** 로 새 카드를 돌려준다(제안은 `open` · 새 값으로 갱신). 통과하면 `executing` + 결정한 사람을 적고 커밋. ② 실행기를 돈다(감싼 기능의 커밋 방식 그대로 — `send_alimtalk` · `register_as_from_payload` 는 스스로 커밋한다). ③ `executed` · `failed` + 결과 + 감사 줄을 적고 커밋.
 - **되맞추기**: `executing` 으로 2분 넘게 남은 줄(②와 ③ 사이에 죽음)은 `verify` 가 참이면 `executed`, 아니면 `open` 으로 되돌린다. 승인 대기 읽기와 밤 단계가 부른다.
 - **감사**: `SecurityLog` 줄 `ERP_ACTION_APPROVED` · `ERP_ACTION_REJECTED` · `ERP_ACTION_EXECUTED` · `ERP_ACTION_FAILED`(제안 번호 · 할 일 이름 · 주문 번호 · AI 직원 · 수준 — 글 없음). 감싼 기능이 남기는 지금 기록(주문 일 기록 · 변경 원장 · 사유)은 그대로 남는다. `source` 에 `erp_action:<제안 번호>` 를 싣는 것은 services 실행기(시공 잡기 · 옮기기 · 메모 · 실측 알림톡)의 감사 줄뿐이다 — D206 본체 셋(단계 넘기기 · 도면 담당 · 실측 옮기기)은 본체를 고치지 않으므로 제안 번호가 `ERP_ACTION_*` 감사 줄에만 남고, 날짜 표 훅의 출처는 `erp_actions_api.erp_actions_approve` 다(검수 R-15). **할 일 기록 = 이 표의 `executed` · `failed` 줄 + 그 감사 줄**이다.
 - **한 번만**: 같은 제안을 두 번 누르면 두 번째는 409 `ACTION_NOT_OPEN`. 알림톡 실행기의 중복 막기 열쇠는 `alimtalk:measure:<주문>:action:<제안 번호>`.
@@ -252,7 +252,7 @@
 ### 3.9 채널톡 작은 창에 더하는 것 (⑤)
 
 - **근거 줄**: 초안이 쓴 지식 키와 확인된 주문을 차례에 남긴다 — `record_uses(..., reader='cs_draft', ref_kind='cs_turn', ref_id=<차례 번호>)`. 주문은 `erp:order/<번호>` 키로. `cs.draft.get` 답에 `evidence: [{"kind", "label", "href"}]`(셋까지 · `href` 는 FOMS 절대 주소 — 채널톡이 거쳐 여는 창이라 상대 주소는 풀리지 않는다). 칩을 누르면 새 탭으로 지식 카드 · 주문 화면.
-- **할 일 제안 줄**: 그 차례에서 나온 `wam_inline` 제안 하나(판 1 은 `add_construction_note` 뿐). `cs.draft.get` 답에 `action: null | {"id", "label", "text"}`. [같이 넣기]를 고른 채 [보내기]가 성공하면 그 제안을 **보낸 직원 이름으로** 승인 · 실행한다(`cs.draft.send` 값 `with_action`). [빼기]면 거절(`other`). 답 보내기가 실패하면 실행하지 않는다. 실행 실패는 답 보내기를 되돌리지 않고 창에 한 줄로 알린다.
+- **할 일 제안 줄**: 그 차례에서 나온 `wam_inline` 제안 하나 — 없으면 같은 상담 앞 차례의 열린 줄 제안(가리키는 주문이 하나일 때만, 검수 R-28)(판 1 은 `add_construction_note` 뿐). `cs.draft.get` 답에 `action: null | {"id", "label", "text"}`. [같이 넣기]를 고른 채 [보내기]가 성공하면 그 제안을 **보낸 직원 이름으로** 승인 · 실행한다(`cs.draft.send` 값 `with_action`). [빼기]면 거절(`other`). 답 보내기가 실패하면 실행하지 않는다. 실행 실패는 답 보내기를 되돌리지 않고 창에 한 줄로 알린다.
 - **상담 AI 의 제안 만들기(규칙 — 모델 지시문은 건드리지 않는다)**: 본인이 확인된 주문(`order_step`)이 있을 때만. ① AS 뜻 + 단계가 완료 · CS → `register_as` 제안(승인 대기로) ② AS · 불편 뜻 + 시공일이 앞날 → `add_construction_note`(작은 창 줄) ③ 넘김 까닭 `schedule` + 손님 글에 달 · 날이 똑바로 적힘 → 실측이 아직 앞날이면 `move_measurement`, 시공일이 앞날이면 `move_construction` 제안(승인 대기로). 요일만 적힌 글은 만들지 않는다.
 - 스위치: 상담 관리 칸 둘 `graft_evidence_enabled` · `graft_actions_enabled`(처음 끔 — 끄면 창 · 답 값이 지금과 같다). 작은 창은 FOMS 로그인이 없어 사람별 스위치를 쓸 수 없다.
 
