@@ -90,7 +90,7 @@ def test_order_props_use_the_canonical_columns_not_the_legacy_ones():
         assert prop.access in objects.ACCESS_LABELS
     assert props["stage"].column.startswith("orders.erp_stage_code") and props["stage"].via == ("advance_stage",)
     assert props["customer_name"].column == "structured_data.parties.customer.name"
-    assert props["measurement_date"].via == ("move_measurement",) and props["measurement_date"].access == "link"
+    assert props["measurement_date"].via == ("move_measurement",) and props["measurement_date"].access == "action"
     assert props["construction_date"].via == ("schedule_construction", "move_construction")
     assert {prop.key for prop in objects.masked_props()} == {"customer_name", "phone", "address", "payment_amount"}
 

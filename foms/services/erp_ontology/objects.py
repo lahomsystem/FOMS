@@ -117,7 +117,7 @@ ORDER_PROPS: tuple[OrderProp, ...] = (
     OrderProp("items", "품목", "structured_data.items[]", "목록 → 주문 품목", "person", (),
               "판 1 에 품목 고치기 할 일 없음 · 이름만 가림 검사 뒤 읽음"),
     OrderProp("measurement_date", "실측 날짜", "structured_data.schedule.measurement.date · orders.erp_measurement_date",
-              "날짜 · 시간대(예정) → 방문", "link", ("move_measurement",), "시간대는 예정 값"),
+              "날짜 · 시간대(예정) → 방문", "action", ("move_measurement",), "시간대는 예정 값"),
     OrderProp("construction_date", "시공 날짜",
               "structured_data.schedule.construction.date · orders.erp_construction_date", "날짜 · 시간대 → 방문",
               "action", ("schedule_construction", "move_construction")),

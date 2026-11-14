@@ -78,7 +78,7 @@ def test_stored_levels_apply_only_when_their_shape_is_right(app):
                   "send_measure_alimtalk": 1, "cs_draft": 0}})  # 못 함 · 직원만의 일은 표로 바꾸지 않는다
     assert a.level_of(db_session, "schedule", "schedule_construction") == 0  # 0 = 제안을 만들지 않음
     assert a.level_of(db_session, "ops", "send_measure_alimtalk") == 1
-    assert a.level_of(db_session, "ops", "assign_draftsman") == 1
+    assert a.level_of(db_session, "ops", "assign_draftsman") == 2  # 참거짓은 버리고 처음 값(설계서 3.10)
     assert a.level_of(db_session, "cs", "move_construction") == 2
     assert a.level_of(db_session, "cs", "register_as") == 2
     assert a.level_of(db_session, "cs", "add_construction_note") == 1

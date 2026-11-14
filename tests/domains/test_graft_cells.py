@@ -183,7 +183,8 @@ def test_tablet_sheet_box_for_the_switched_on_person(world, monkeypatch):
     assert re.search(r'foms-graft-box__after">\d{2}-\d{2}\(\S\) 오전<', box)  # 날짜 + 시간대만
     assert not any(word in sheet for word in CREW_WORDS)
     link = client.get(f"/erp/dashboard/tablet-sheet/{b}").get_data(as_text=True)
-    assert f'data-graft-box="{second}"' in link and ">주문에서 처리</a>" in link and 'data-graft-act="approve"' not in link
+    # 도면 담당 맡기기(T14 — run) — 사람을 골라야 해서 [승인] 대신 [고쳐서](승인 대기에서 고른다)
+    assert f'data-graft-box="{second}"' in link and ">고쳐서</a>" in link and 'data-graft-act="approve"' not in link
     monkeypatch.setenv(f"{FLAGS['cell_tablet']}_COHORT", "999999")
     assert "data-graft-box" not in client.get(f"/erp/dashboard/tablet-sheet/{a}").get_data(as_text=True)
 
