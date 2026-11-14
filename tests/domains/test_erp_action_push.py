@@ -131,3 +131,14 @@ def test_service_worker_still_parses():
     proc = subprocess.run([_NODE, "--check", str(SW)], capture_output=True, text=True, encoding="utf-8")
     assert proc.returncode == 0, proc.stderr
     assert 'CACHE_VERSION = "foms-p2-v11"' in SW.read_text(encoding="utf-8")  # 판 값은 그대로(캐시와 무관한 갈래)
+
+
+def test_bell_list_opens_the_same_proposal():
+    """종 목록에서 눌러도 폰 알림과 같은 곳(그 제안의 승인 대기) — 알림 글에서 번호만 읽는다(질의 0)."""
+    from foms.api.notifications import _resolve_notification_deep_link
+
+    note = SimpleNamespace(notification_type=eap.ERP_ACTION_PROPOSAL_TYPE, order_id=7,
+                           message=eap.erp_action_message("시공 잡기", 7, 41))
+    assert _resolve_notification_deep_link(note, {}, None)["deep_link_url"] == "/brain?tab=inbox&proposal=41"
+    odd = SimpleNamespace(notification_type=eap.ERP_ACTION_PROPOSAL_TYPE, order_id=None, message="꼴이 아님")
+    assert _resolve_notification_deep_link(odd, {}, None)["deep_link_url"] == "/brain?tab=inbox"

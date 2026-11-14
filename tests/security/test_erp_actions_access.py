@@ -32,7 +32,7 @@ BASE = "/api/erp-actions"
 CUSTOMER, PHONE, REASON = "합성손님", "010-0000-0000", "손님이 토요일이 좋다고 적음"
 ALL = tuple(name for name, spec in ACTIONS.items() if spec.mode != "human")
 SCHEDULE = ("schedule_construction", "move_construction")
-STAFF_ONLY = ("send_measure_alimtalk", "advance_stage", "assign_draftsman")
+STAFF_ONLY = ("send_measure_alimtalk", "advance_stage", "assign_draftsman", "send_construction_alimtalk")
 MATRIX = {
     ("ADMIN", None): ALL, ("STAFF", "CS"): ALL, ("STAFF", "SALES"): ALL, ("STAFF", "ACCOUNTING"): ALL,
     ("MANAGER", "PRODUCTION"): tuple(a for a in ALL if a not in SCHEDULE),

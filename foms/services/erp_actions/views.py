@@ -28,6 +28,7 @@ from foms.services.brain.store import is_current
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.erp_actions import preview as fns
 from foms.services.erp_actions.access import can_run, runnable_actions, scoped_reader
+from foms.services.erp_actions.construction_notice import param_shown
 from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_REJECT
 from foms.services.erp_actions.registry import (
     ACTIONS, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_FAILED, STATUS_OPEN,
@@ -234,7 +235,8 @@ def detail(session: Any, user: Any, proposal_id: Any, now: datetime.datetime) ->
         "reason": row.reason or "", "changes": list(row.preview or []),
         "steps": fns.steps(row.action, order, params), "rate": approval_rate(session, row.proposed_by, row.action, now),
         "params": [{"name": p.name, "label": p.label, "kind": p.kind, "value": params.get(p.name, ""),
-                    "choices": fns.param_choices(row.action, p.name, order)} for p in spec.params],
+                    "required": bool(p.required), "choices": fns.param_choices(row.action, p.name, order)}
+                   for p in spec.params if param_shown(row.action, p.name, order)],
         "base_version": row.base_version, "source_label": _SOURCE_LABELS.get(row.source_kind or "", ""),
         "change_reason": {"required": fns.reason_required(row.action, order, params),
                           "codes": [{"value": code, "label": REASON_LABELS[code]} for code in REASON_CODES]},
