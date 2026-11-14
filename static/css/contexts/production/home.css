@@ -472,6 +472,45 @@
   .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
 }
 
+/* ── 위 규칙의 화면 크기 110 · 120 · 130%판(11-14 실측) ──
+   media 의 키는 배율 전 실제 화면 px 인데 배율 z 에선 띠가 키 ÷ z 만큼만 쓴다. 그래서 한 줄씩 띠(786px)는
+   실제 키 786 × z 가 있어야 다 들어간다 → 110% 864.6 · 120% 943.2 · 130% 1021.8 아래에서 두 칸씩
+   (배율 없이는 1280×800 이 한 줄씩인데 110% 에선 날 3개 · 아래 칸이 숨었다). 80 · 90% 는 위 규칙 그대로다.
+   두 칸씩이어도 130% 1176×626 은 띠 칸 626 ÷ 1.3 − 73 = 408px 에 430px 가 들어가야 해서 아래 칸이 숨었다 →
+   이때 머리 · '지난 7일' · 아래 칸 최소 키를 ÷ z 로 둔다. 화면에서 실제 키는 그대로 48(장갑, D5) · 머리 40 이고
+   min-height 라 글이 더 크면 칸이 글만큼 커진다(130%: 칸 36.9px 에 '지난 7일' 글 36.2 는 들어가고 아래 칸은 글대로 37,
+   두 칸 날 줄은 원래대로 49). 실측 띠 399px ≤ 408 → 다 보인다. ── */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: 864.58px) {
+  html[data-foms-ui-zoom="1.1"] .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  html[data-foms-ui-zoom="1.1"] :is(.fph-strip__h, .fph-strip__f, .fph-sd:first-of-type) { grid-column: 1 / -1; }
+  html[data-foms-ui-zoom="1.1"] .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
+  html[data-foms-ui-zoom="1.1"] .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
+  html[data-foms-ui-zoom="1.1"] .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
+  html[data-foms-ui-zoom="1.1"] .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+  html[data-foms-ui-zoom="1.1"] .fph-strip__h { min-height: calc(40px / var(--foms-ui-zoom, 1)); }
+  html[data-foms-ui-zoom="1.1"] :is(.fph-sd, .fph-sf) { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
+}
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: 943.18px) {
+  html[data-foms-ui-zoom="1.2"] .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  html[data-foms-ui-zoom="1.2"] :is(.fph-strip__h, .fph-strip__f, .fph-sd:first-of-type) { grid-column: 1 / -1; }
+  html[data-foms-ui-zoom="1.2"] .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
+  html[data-foms-ui-zoom="1.2"] .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
+  html[data-foms-ui-zoom="1.2"] .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
+  html[data-foms-ui-zoom="1.2"] .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+  html[data-foms-ui-zoom="1.2"] .fph-strip__h { min-height: calc(40px / var(--foms-ui-zoom, 1)); }
+  html[data-foms-ui-zoom="1.2"] :is(.fph-sd, .fph-sf) { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
+}
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: 1021.78px) {
+  html[data-foms-ui-zoom="1.3"] .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  html[data-foms-ui-zoom="1.3"] :is(.fph-strip__h, .fph-strip__f, .fph-sd:first-of-type) { grid-column: 1 / -1; }
+  html[data-foms-ui-zoom="1.3"] .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
+  html[data-foms-ui-zoom="1.3"] .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
+  html[data-foms-ui-zoom="1.3"] .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
+  html[data-foms-ui-zoom="1.3"] .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+  html[data-foms-ui-zoom="1.3"] .fph-strip__h { min-height: calc(40px / var(--foms-ui-zoom, 1)); }
+  html[data-foms-ui-zoom="1.3"] :is(.fph-sd, .fph-sf) { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
+}
+
 /* ── 세로·폰(992px 아래): 카드 두 줄 ── */
 @media (max-width: 991.98px) {
   .foms-prod-home__bar { padding: 8px 12px; }

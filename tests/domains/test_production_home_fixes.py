@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261114b" in html
+    assert "home.css?v=20261114c" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -282,7 +282,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261114b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114c" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
@@ -318,9 +318,9 @@ def test_키_낮은_가로_터치_화면은_시공일_띠_날을_두_칸씩_놓�
 
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     head = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: "
-    assert css.count(head) == 1  # 마우스(PC) · 세로 · 폰은 조건 밖
-    limit = float(css.split(head)[1].split("px)")[0])
-    block = css.split(head)[1].split("\n}\n")[0]
+    assert css.count(head) == 4  # 100% 1개 + 화면 크기 110 · 120 · 130% 3개. 마우스(PC) · 세로 · 폰은 조건 밖
+    blocks = {float(part.split("px)")[0]): part.split("\n}\n")[0] for part in css.split(head)[1:]}
+    limit, block = min(blocks.items())
     # 한 줄씩 띠가 다 들어가는 키 = 제목 줄 73 + 머리 40 + (지난 7일 · 날들 · 그 뒤) × 48 + 아래 칸 49.
     # 날 수가 늘면 경계가 낡아 실패한다(경계를 다시 재라).
     need = 73 + 40 + (PRODUCTION_HOME_STRIP_DAYS + 2) * 48 + 49
@@ -328,13 +328,24 @@ def test_키_낮은_가로_터치_화면은_시공일_띠_날을_두_칸씩_놓�
     assert ".fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }" in block
     assert ".fph-strip__h, .fph-strip__f, .fph-sd:first-of-type { grid-column: 1 / -1; }" in block  # '지난 7일' 은 한 줄
     # 단추 높이는 줄이지 않는다(장갑 D5, 44px 아래 금지) — 이 블록은 키를 건드리지 않고 기본 48 을 물려받는다
-    assert "min-height" not in block and "height: 8px" in block
+    assert "min-height" not in block and "height: 8px" in block and "data-foms-ui-zoom" not in block
     assert re.search(r"\n\.fph-sd \{\n  width: 100%;\n  min-height: 48px;", css)
+    # 화면 크기 z(11-14): media 키는 배율 전 px 라 경계 = need × z. 배율 1.1~1.3 에만 걸리고(80 · 90% 는 100% 규칙 그대로),
+    # 줄인 최소 키는 ÷ z 라 화면에서 실제 48(장갑 D5)은 그대로다
+    for (zlimit, zblock), z in zip(sorted(blocks.items())[1:], ("1.1", "1.2", "1.3")):
+        assert need * float(z) - 1 < zlimit < need * float(z)
+        rules = [ln.strip() for ln in zblock.split("{", 1)[1].splitlines() if ln.strip()]
+        assert len(rules) == 8 and all(r.startswith(f'html[data-foms-ui-zoom="{z}"] ') for r in rules)
+        assert "repeat(2, minmax(0, 1fr)); align-content: start;" in zblock
+        assert ":is(.fph-sd, .fph-sf) { min-height: calc(48px / var(--foms-ui-zoom, 1)); }" in zblock
+        assert re.findall(r"min-height: ([^;]+);", zblock) == ["calc(40px / var(--foms-ui-zoom, 1))", "calc(48px / var(--foms-ui-zoom, 1))"]
     # 1280×800 대조군: 블록 밖 한 줄 띠 규칙은 그대로(두 칸 규칙이 블록 밖으로 새면 실패)
-    rest = css.replace(block, "")
-    assert "repeat(2, minmax(0, 1fr)); align-content: start;" not in rest
+    rest = css
+    for b in blocks.values():
+        rest = rest.replace(b, "")
+    assert "repeat(2, minmax(0, 1fr)); align-content: start;" not in rest and "48px / var(--foms-ui-zoom" not in rest
     assert "position: sticky;\n  top: var(--fph-bar-h, 73px);\n  max-height: calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));\n  overflow-y: auto;" in rest
     assert "display: flex;\n  flex-direction: column;\n  background: var(--fph-surface);" in rest
     assert "grid-template-columns: calc(88px * var(--foms-fs, 1)) minmax(0, 1fr) calc(62px * var(--foms-fs, 1));" in rest
     assert ".foms-prod-home .fph-sd__bar { width: 100%; height: 16px;" in rest
-    assert "home.css') }}?v=20261114b" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114c" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
