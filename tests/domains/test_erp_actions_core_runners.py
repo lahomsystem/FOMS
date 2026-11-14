@@ -411,7 +411,7 @@ def test_도면_담당_고를_사람은_승인_창을_열_때_켜진_도면팀�
     data = client.get(f"{BASE}/proposals/{pid}").get_json()["data"]
     assert (data["mode"], data["phone_ok"], data["changes"]) == (
         "run", False, [{"field": "도면 담당", "before": "없음", "after": "승인하는 사람이 고름"}])
-    assert data["params"] == [{"name": "user_ids", "label": "도면 담당", "kind": "users", "value": [], "choices": [
+    assert data["params"] == [{"name": "user_ids", "label": "도면 담당", "kind": "users", "value": [], "required": True, "choices": [
         {"value": first.id, "label": "cr-a 직원"}, {"value": later.id, "label": "cr-b 직원"}]}]
     assert data["steps"] == ["FOMS 도면 담당 지정 — 주문 화면 도면 담당 칸과 같은 기능", "단계 이력에 '도면 담당자 지정' 한 줄"]
     order = db_session.get(Order, oid)

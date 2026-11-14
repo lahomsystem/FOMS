@@ -142,7 +142,18 @@ def test_detail_has_reason_changes_steps_rate_params(world):
     time_param = next(p for p in data["params"] if p["name"] == "time")
     assert time_param["value"] == "오전" and [c["value"] for c in time_param["choices"]] == ["", "오전", "오후", "종일"]
     assert data["change_reason"]["required"] is False and data["result"] is None
+    assert {p["name"]: p["required"] for p in data["params"]} == {"date": True, "time": False}  # 손님 알림 칸 없음(스위치 끔)
     assert _data(world["client"].get(f"{BASE}/proposals/{row['id'] + 99}"), 404)["error"] == "찾을 수 없습니다."
+
+
+def test_detail_shows_notify_customer_only_when_the_notice_is_usable(world, monkeypatch):
+    from foms.services.erp_actions import views
+
+    row = world["rows"][0]
+    monkeypatch.setattr(views, "param_shown", lambda action, name, order: True)  # 쓸 수 있는 상태(스위치 · 설정 · 서식)
+    data = _data(world["client"].get(f"{BASE}/proposals/{row['id']}"))["data"]
+    flag = next(p for p in data["params"] if p["name"] == "notify_customer")
+    assert flag["kind"] == "flag" and flag["required"] is False
 
 
 def test_approve_runs_once_then_409(world, monkeypatch):
