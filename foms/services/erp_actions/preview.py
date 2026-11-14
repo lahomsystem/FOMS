@@ -23,6 +23,7 @@ from foms.services.cs_agent.masking import MaskLeak, require_masked
 from foms.services.cs_agent.order_block import AS_LABELS
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_actions.registry import ActionShapeError, get
+from foms.services.erp_actions import construction_notice as notice  # 시공일 안내 알림톡 줄(T15 — 3.13 · D213)
 from foms.services.erp_order_flags import is_erp_order_draft
 from foms.services.kakao_alimtalk import _env_flag, _ineligible_reason  # 발송 자격 · 자동 스위치 정본(갈리면 안 된다)
 from foms.services.notifications.drawing_order_change import should_alert_drawing_team
@@ -179,7 +180,8 @@ def _check_schedule(order: Any, params: Params, *, first: bool) -> Optional[str]
 
 def _preview_schedule(order: Any, params: Params, *, first: bool) -> list[dict[str, str]]:
     day, time = _construction(order)
-    return _row("시공 날짜", _when(day, time), _when(params.get("date"), _kept_time(order, params, first)))
+    rows = _row("시공 날짜", _when(day, time), _when(params.get("date"), _kept_time(order, params, first)))
+    return rows + notice.notice_rows(order, params)
 
 
 def _verify_schedule(order: Any, params: Params, *, first: bool) -> bool:
@@ -211,7 +213,7 @@ def _steps_schedule(order: Any, params: Params, *, first: bool) -> list[str]:
         out.append("협력사 직원 폰 알림 — 시공일 안내")
     if _schedule_reason_required(order, params, first=first):
         out.append("변경 사유 남기기 — 승인 창에서 고른 사유")
-    return out
+    return out + notice.notice_steps(order, params)
 
 
 # ── 방문 옮기기(AS) · AS 접수 ────────────────────────────────────────────
@@ -433,6 +435,7 @@ FUNCTIONS: dict[str, ActionFns] = {
     "move_measurement": ActionFns(
         _check_move_measurement, _preview_move_measurement,
         lambda o, p: _text(p.get("date")) in _measurement(o)[0], _steps_move_measurement),
+    "send_construction_alimtalk": ActionFns(notice.check, notice.preview, notice.verify, notice.steps, notice.ran),
 }
 
 #: (할 일, 넣을 값) → 고를 값 목록 함수(주문을 받는다). 뒤 일감이 더한다.

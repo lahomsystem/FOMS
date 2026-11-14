@@ -8,6 +8,7 @@
                 ├─기간 끝남──▶ expired     └─같은 주문 · 같은 할 일의 새 제안──▶ superseded
 
 - :func:`propose` 는 커밋하지 않는다. 막힘 · 같은 열쇠 있음(열림 · 실행 중 · 실패 · 거절) · 가림 검사 걸림이면 ``None``(코드만 로그).
+  새 줄을 만든 때에만 :func:`.notify.proposal_created`(승인할 사람 폰 알림 — 폰 보내기는 부르는 쪽 커밋 뒤)를 부른다.
 - :func:`approve` 는 두 걸음이라 **스스로 커밋한다**: ① 제안 줄 잠금 → 볼 수 있나 · 열림 · 갈래 · 넣을 값 · 막는 조건 · 기준 판
   → ``executing`` + 결정한 사람 + 감사 커밋 ② 실행기(감싼 기능의 커밋 방식 그대로) ③ 결과 + 감사 커밋. 실행기가 막히면
   (주문이 바뀌지 않음) ``open`` 으로 되돌리고 ``ACTION_PRECONDITION``.
@@ -32,6 +33,7 @@ from foms.services.brain.usage_events import READER_ERP_ACTION, record_uses
 from foms.services.cs_agent.masking import MaskLeak, require_masked
 from foms.services.erp_actions import preview as fns
 from foms.services.erp_actions.access import can_decide
+from foms.services.erp_actions.notify import proposal_created
 from foms.services.erp_actions.registry import (
     ACTIONS, EVIDENCE_KINDS, MAX_EVIDENCE, MAX_REASON, MODE_HUMAN, MODE_LINK, MODE_RUN, REJECT_CODES, SOURCE_KINDS,
     STATUS_EXECUTED, STATUS_EXECUTING, STATUS_EXPIRED, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED,
@@ -249,6 +251,7 @@ def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: 
         return None
     keys = [proof["ref"] for proof in proofs if proof["kind"] == "brain"]
     record_uses(session, keys, READER_ERP_ACTION, "proposal", row.id, now)
+    proposal_created(session, row)  # 새 줄일 때만 — 승인할 사람 폰 알림(설계서 3.14 · 스위치 끔이면 아무것도 안 함)
     return row
 
 

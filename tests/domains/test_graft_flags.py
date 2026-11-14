@@ -1,9 +1,9 @@
 """접목판 스위치 판정(설계서 2026-11-14-foms-graft 4절 — 모두 처음 끔 · 판정은 graft_flags 한 곳).
 
-- 이름 일곱 · 짧은 이름 표 · env 이름도 받는다 · 모르는 이름은 오류(조용히 '끔'으로 삼키지 않는다).
+- 이름 아홉 · 짧은 이름 표 · env 이름도 받는다 · 모르는 이름은 오류(조용히 '끔'으로 삼키지 않는다).
 - 사람별: ``_ENABLED`` + ``_COHORT``(번호들 · ``all``) — 끔 · 목록 밖 · 목록 안 · all · 로그인 안 함.
 - 기대는 스위치: actions 는 brain_ui 도 켜진 사람만, 칸 셋은 actions(→ brain_ui)도 켜진 사람만. 전역 판정도 같은 사슬.
-- proposers 는 사람별이 아니다(``_COHORT`` 를 읽지 않는다).
+- proposers · construction_alimtalk · push 는 사람별이 아니다(``_COHORT`` 를 읽지 않는다 — 설계서 4절 · T15).
 - 템플릿 전역 ``graft_enabled`` 는 ``g.current_user`` 로 판정한다. DB 를 읽지 않는다.
 """
 
@@ -34,11 +34,12 @@ def _on(monkeypatch, short, cohort="all"):
         monkeypatch.setenv(f"{FLAGS[short]}_COHORT", cohort)
 
 
-def test_seven_names_and_short_names():
+def test_nine_names_and_short_names():
     assert FLAGS == {
         "brain_ui": "FOMS_GRAFT_BRAIN_UI", "erp_read": "FOMS_GRAFT_ERP_READ", "actions": "FOMS_GRAFT_ACTIONS",
         "cell_pc": "FOMS_GRAFT_CELL_PC", "cell_tablet": "FOMS_GRAFT_CELL_TABLET",
         "cell_mobile": "FOMS_GRAFT_CELL_MOBILE", "proposers": "FOMS_GRAFT_PROPOSERS",
+        "construction_alimtalk": "FOMS_GRAFT_CONSTRUCTION_ALIMTALK", "push": "FOMS_GRAFT_PUSH",
     }
     assert SHORT_NAMES == tuple(FLAGS)
     assert flag_name("FOMS_GRAFT_ACTIONS") == "actions" == flag_name("FOMS_GRAFT_ACTIONS_ENABLED")
@@ -86,6 +87,19 @@ def test_proposers_is_global_only(monkeypatch):
     assert enabled_global("proposers") is True
     assert enabled("proposers", None) is True and enabled("proposers", ME) is True
     assert "proposers" in graft_flags.GLOBAL_ONLY
+
+
+@pytest.mark.parametrize("short, env", [("construction_alimtalk", "FOMS_GRAFT_CONSTRUCTION_ALIMTALK"),
+                                        ("push", "FOMS_GRAFT_PUSH")])
+def test_construction_alimtalk_and_push_are_global_only(monkeypatch, short, env):
+    """T15 의 두 스위치 — 전역 켬만(사람 목록을 읽지 않는다), 기대는 스위치 없음, ``_ENABLED`` 붙은 이름도 받는다."""
+    assert short in graft_flags.GLOBAL_ONLY and short not in graft_flags.REQUIRES
+    assert flag_name(f"{env}_ENABLED") == short
+    monkeypatch.setenv(f"{env}_COHORT", "all")  # 사람 목록만 있고 켬이 없으면 끔
+    assert enabled_global(short) is False and enabled(short, ME) is False
+    monkeypatch.setenv(f"{env}_ENABLED", "1")
+    monkeypatch.setenv(f"{env}_COHORT", "999")  # 사람 목록은 보지 않는다
+    assert enabled_global(short) is True and enabled(short, ME) is True and enabled(short, None) is True
 
 
 def test_template_global_reads_the_signed_in_person(app, monkeypatch):

@@ -102,7 +102,8 @@ def test_s1_partner_wish_date_becomes_a_schedule_proposal(proposers):
     assert _made("schedule_construction") == {yes.id, free_time.id}
     assert not {has_date.id, closed.id, past.id, ours.id} & _made("schedule_construction")
     row = db_session.query(ErpActionProposal).filter(ErpActionProposal.order_id == yes.id).one()
-    assert row.params == {"date": _day(5), "time": "오후"} and row.proposed_by == "agent:schedule" and row.level == 2
+    assert row.params == {"date": _day(5), "time": "오후", "notify_customer": True}  # 손님 알림톡 처음 값 켬(D213)
+    assert row.proposed_by == "agent:schedule" and row.level == 2
     assert row.source_kind == "sweep" and row.evidence == [{"kind": "order", "ref": f"erp:order/{yes.id}",
                                                             "label": f"주문 #{yes.id}"}]
     assert "합성손님" not in (row.reason or "")
@@ -171,6 +172,55 @@ def test_o3_drawing_without_draftsman_for_two_days(proposers):
     assert row.params == {"user_ids": []}  # 담당 칸은 비워 둔다 — 승인자가 고른다(T14 꼴 users)
 
 
+# ── O4 시공일 안내 알림톡(처음 수준 0 · 쓸 수 있는 상태일 때만) ────────────
+def _construction_ready(mp) -> None:
+    """시공일 안내가 쓸 수 있는 상태 — 스위치 + Solapi 설정 + 하우드 서식 번호(합성 값 · 보내지는 않는다)."""
+    mp.setenv("FOMS_GRAFT_CONSTRUCTION_ALIMTALK_ENABLED", "1")
+    for name, value in (("SOLAPI_API_KEY", "k"), ("SOLAPI_API_SECRET", "s"), ("SOLAPI_SENDER_PHONE", "0200000000"),
+                        ("SOLAPI_PF_ID_HAUD", "PF-H"), ("SOLAPI_TEMPLATE_CONSTRUCTION_ID_HAUD", "TPL-C-H")):
+        mp.setenv(name, value)
+
+
+def _site(day: str, **extra) -> dict:
+    """내일 시공 · 손님 휴대폰(합성)이 있는 구조 칸."""
+    return {"schedule": {"construction": {"date": day, "time": "오전"}},
+            "parties": {"customer": {"name": "합성손님", "phone": "010-0000-0001"}}, **extra}
+
+
+def test_o4_starts_at_level_zero_then_proposes_when_raised(proposers):
+    _construction_ready(proposers)
+    yes = _order("PRODUCTION", **_site(_day(1)))
+    assert registry.level_of(db_session, "ops", "send_construction_alimtalk") == 0
+    assert _sweep().by_rule["O4"] == 0 and _made("send_construction_alimtalk") == set()  # 처음 수준 0 — 만들지 않는다
+
+    _levels({"ops": {"send_construction_alimtalk": 1}})
+    record = {"construction_date": _day(1), "sent_at": "2030-01-01T00:00:00", "message_id": "m", "error": None}
+    sent = _order("PRODUCTION", alimtalk_construction=record, **_site(_day(1)))
+    failed = _order("PRODUCTION", alimtalk_construction={**record, "sent_at": None, "error": "network"},
+                    **_site(_day(1)))  # 이력 있음(못 보냄) — 사람이 이미 본 일
+    moved = _order("PRODUCTION", alimtalk_construction={**record, "construction_date": _day(9)}, **_site(_day(1)))
+    partner = _order("PRODUCTION", partner=True, **_site(_day(1)))
+    no_phone = _order("PRODUCTION", schedule={"construction": {"date": _day(1)}})  # 막는 조건 — 전화 없음
+    later = _order("PRODUCTION", **_site(_day(2)))
+    result = _sweep()
+    assert result.by_rule["O4"] == 2 and _made("send_construction_alimtalk") == {yes.id, moved.id}
+    assert not {sent.id, failed.id, partner.id, no_phone.id, later.id} & _made("send_construction_alimtalk")
+    row = db_session.query(ErpActionProposal).filter(ErpActionProposal.order_id == yes.id).one()
+    assert (row.proposed_by, row.level, row.params, row.status) == ("agent:ops", 1, {}, "open")
+    assert "합성손님" not in (row.reason or "") and row.preview[0]["after"] == "1건 보냄"
+
+
+@pytest.mark.parametrize("missing", ["FOMS_GRAFT_CONSTRUCTION_ALIMTALK_ENABLED", "SOLAPI_TEMPLATE_CONSTRUCTION_ID_HAUD",
+                                     "SOLAPI_API_KEY"])
+def test_o4_makes_nothing_when_the_notice_is_not_usable(proposers, missing):
+    """스위치 · 서식 번호 · Solapi 설정 가운데 하나라도 없으면 O4 는 제안을 만들지 않는다(보내는 함수도 불리지 않는다)."""
+    _construction_ready(proposers)
+    proposers.delenv(missing)
+    _levels({"ops": {"send_construction_alimtalk": 1}})
+    _order("PRODUCTION", **_site(_day(1)))
+    assert _sweep().by_rule["O4"] == 0 and _made("send_construction_alimtalk") == set()
+
+
 # ── 수준 · 상한 · 겹침 · 실행 기록 ──────────────────────────────────────
 def test_level_zero_agent_makes_nothing(proposers):
     _levels({"schedule": {"schedule_construction": 0}, "ops": {"send_measure_alimtalk": 0, "assign_draftsman": 0}})
@@ -203,7 +253,7 @@ def test_cap_rerun_and_run_records(proposers):
 
 
 def test_rules_table_names_agents_and_actions():
-    assert list(sweeps.RULES) == ["S1", "O1", "O2", "O3"]
+    assert list(sweeps.RULES) == ["S1", "O1", "O2", "O3", "O4"]
     for rule in sweeps.RULES.values():
         assert rule.agent in registry.AGENTS and registry.AGENTS[rule.agent].duty(rule.action) is not None
         assert rule.tool in registry.TOOLS
@@ -235,7 +285,7 @@ def test_sweep_step_dry_run_rolls_back_and_apply_commits(proposers):
     assert ai_staff_sweep.run(apply=False, session=db_session)["created"] == 1
     assert db_session.query(ErpActionProposal).count() == 0
     summary = ai_staff_sweep.run(apply=True, session=db_session)
-    assert summary == {"enabled": True, "created": 1, "by_rule": {"O1": 0, "O2": 0, "O3": 1, "S1": 0},
+    assert summary == {"enabled": True, "created": 1, "by_rule": {"O1": 0, "O2": 0, "O3": 1, "O4": 0, "S1": 0},
                        "applied": True}
     assert _made("assign_draftsman") == {order_id}
 
