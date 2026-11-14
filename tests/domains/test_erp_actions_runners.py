@@ -272,4 +272,5 @@ def test_outcome_from_response(app, payload, status, want):
 def test_runner_tables():
     assert set(SERVICE_RUNNERS) == {"schedule_construction", "move_construction", "schedule_as_visit",
                                     "send_measure_alimtalk", "add_construction_note"}
-    assert set(api_runners.RUNNERS) == set(SERVICE_RUNNERS) | {"register_as"}
+    assert set(api_runners.RUNNERS) == set(SERVICE_RUNNERS) | {"register_as", "advance_stage", "assign_draftsman",
+                                                               "move_measurement"}  # D206 · T14

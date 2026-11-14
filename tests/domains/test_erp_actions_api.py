@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 
 import pytest
@@ -18,6 +19,7 @@ from db import db_session
 from foms.api.erp_action_runners import RUNNERS
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.erp_actions import registry
 from foms.services.erp_actions.lifecycle import propose
 from foms.services.erp_actions.runners import RunOutcome
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -82,6 +84,11 @@ def world(app, switches):
     return {"client": client, "admin_id": admin.id, "order_ids": [order.id for order in orders], "rows": rows}
 
 
+def _as_link(monkeypatch, name: str = "assign_draftsman") -> None:
+    """판 1 끝에는 바로가기 할 일이 없다(D206 · T14) — 바로가기 꼴은 하나를 바꿔 끼워 본다."""
+    monkeypatch.setitem(registry.ACTIONS, name, dataclasses.replace(registry.ACTIONS[name], mode=registry.MODE_LINK))
+
+
 def _data(resp, status=200):
     assert resp.status_code == status, resp.get_data(as_text=True)
     assert resp.headers["Cache-Control"] == "private, no-store"
@@ -99,7 +106,8 @@ def test_badge_counts_labels_and_switch_state(world):
     assert set(data["labels"]) == {"시공 잡기", "시공 메모 더하기", "도면 담당 맡기기"}
 
 
-def test_open_chips_one_query_and_limit(world):
+def test_open_chips_one_query_and_limit(world, monkeypatch):
+    _as_link(monkeypatch)
     a, b, c = world["order_ids"]
     items = _data(world["client"].get(f"{BASE}/open?order_ids={a},{b},{c},x,{a}"))["data"]["items"]
     assert set(items) == {str(a), str(b), str(c)}
@@ -171,6 +179,7 @@ def test_approve_failed_and_shape_errors(world, monkeypatch):
     assert failed["success"] is False and failed["data"]["status"] == "failed" and failed["error"]
     missing = _data(world["client"].post(f"{BASE}/proposals/{row['id']}/approve", json={}), 400)
     assert missing["data"] == {"code": "ACTION_SHAPE", "fields": ["base_version"]}
+    _as_link(monkeypatch)
     shape = _data(world["client"].post(f"{BASE}/proposals/{link['id']}/approve",
                                        json={"base_version": link["base_version"]}), 400)
     assert shape["data"] == {"code": "ACTION_SHAPE", "fields": ["action"]}

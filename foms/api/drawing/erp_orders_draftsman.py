@@ -8,6 +8,7 @@ from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 
 from sqlalchemy.orm.attributes import flag_modified
+from werkzeug.exceptions import HTTPException
 
 from db import get_db
 from models import Order, User, OrderEvent
@@ -186,9 +187,35 @@ def api_orders_batch_assign_draftsman():
 @erp_orders_draftsman_bp.route('/<int:order_id>/assign-draftsman', methods=['POST'])
 @login_required
 def api_order_assign_draftsman(order_id):
-    """도면 담당자 지정 (다수 가능)"""
+    """도면 담당자 지정 — 요청 본문 · 세션 사용자를 읽어 본체 :func:`assign_draftsman_from_payload` 에 넘긴다(D206).
+
+    본문 읽기는 떼어 내기 전 본체의 첫 줄(``try`` 안)이었다 — JSON 이 아닌 · 깨진 본문은 그때처럼 500 으로 바꾼다
+    (``get_json`` 의 실패는 모두 ``HTTPException`` 이다).
+    """
     try:
         data = request.get_json() or {}
+    except HTTPException as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    return assign_draftsman_from_payload(order_id, data, session.get('user_id'))
+
+
+def assign_draftsman_from_payload(order_id, data, user_id):
+    """도면 담당자 지정 (다수 가능)
+
+    지금 길(:func:`api_order_assign_draftsman`)과 승인 대기 실행기(``foms/api/erp_action_runners.py``)가 같은
+    본체를 부른다(설계서 2026-11-14-foms-graft 3.12). 떼어 낼 때 바꾼 것은 요청 본문과 세션 사용자 번호를
+    인자로 받은 것뿐이다 — 판정 · 순서 · 글 · 로그 · 커밋 자리는 그대로다. 로그인(장식자)과 앞 문지기(주문 정책
+    가드)는 부르는 쪽 몫이다.
+
+    Args:
+        order_id: 대상 주문 번호.
+        data: 요청 본문 dict(``user_ids`` · ``emergency_override`` · ``override_reason``).
+        user_id: 지정하는 사용자 번호(지금 길은 ``session['user_id']``).
+
+    Returns:
+        Flask 답(지금 길이 그대로 돌려준다).
+    """
+    try:
         user_ids = data.get('user_ids', [])
         emergency_override = data.get('emergency_override', False)
         override_reason = str(data.get('override_reason', '') or '').strip()
@@ -201,7 +228,6 @@ def api_order_assign_draftsman(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        user_id = session.get('user_id')
         current_user = get_user_by_id(user_id)
         if not current_user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
