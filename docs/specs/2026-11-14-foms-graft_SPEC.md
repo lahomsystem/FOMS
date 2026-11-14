@@ -325,7 +325,7 @@
 
 - 새 알림 종류 `ERP_ACTION_PROPOSAL`. 글 · 주소 모듈 `foms/services/notifications/erp_action_push.py`(본보기 `notice_push.py`), 받는 사람 고르기 · 알림 만들기 `foms/services/erp_actions/notify.py`.
 - 잠금화면 글: 제목 'AI 제안 승인 대기', 본문 '<할 일 이름> · 주문 #<번호>'. 손님 이름 · 주소 · 날짜 · 제안 글은 싣지 않는다. 누르면 `/brain?tab=inbox&proposal=<번호>`.
-- **받는 사람(승인할 수 있는 사람 가운데 좁게)**: 그 주문의 담당(`parties.manager` 이름에 이어진 계정) → 없으면 그 할 일을 맡는 팀(목록의 `notify_team`). 그 가운데 켜진 내부 계정 + `actions` 스위치 + `policy_id` 통과 + 주문 읽기 권한인 사람만. 한 제안에 20명까지. 0명이면 보내지 않는다(수 배지는 그대로).
+- **받는 사람(승인할 수 있는 사람 가운데 좁게 · D215 · D221)**: 그 주문의 담당(`parties.manager` 이름에 이어진 계정) → 승인할 수 있는 담당이 없으면 그 할 일을 맡는 팀들(목록의 `notify_teams` — 시공 잡기 · 방문 옮기기(시공) = 영업 + 출고, AS 접수 · 시공 메모 · 단계 넘기기 · 시공일 안내 · 실측 알림톡 · 실측 옮기기 = 영업 + CS, 도면 담당 맡기기 = 도면팀, 방문 옮기기(AS) = CS). 관리자(ADMIN 역할)는 담당이 있든 없든 늘 더한다. 모두 켜진 내부 계정 + `actions` 스위치 + `policy_id` 통과 + 주문 읽기 권한인 사람만. 겹친 사람은 한 번. 한 제안에 20명까지, 차례는 담당 → 관리자 → 팀(상한에 닿으면 팀 사람이 먼저 빠진다). 0명이면 보내지 않는다(수 배지는 그대로).
 - 보내기는 지금 틀 그대로: 받는 사람마다 `Notification` 한 줄(`target_user_id`) → `enqueue_push_for_notification`. 구독 · VAPID · 실패 기록 · 읽음 처리는 지금 코드가 한다. `push_sender` 에는 이 종류의 글 · 주소 갈래만 더한다. 서비스 워커나 화면 스크립트가 `/erp` 로 시작하는 주소만 받으면 `/brain` 을 받게 넓힌다(같은 출처 경로만).
 - `FOMS_GRAFT_PUSH_ENABLED` 가 꺼져 있으면 알림 줄도 만들지 않는다. 제안을 만드는 서비스(web · WORKER · FOMS-cron)마다 env 가 따로다.
 - 알림 만들기가 실패해도 제안 만들기를 되돌리지 않는다(저장점 · 경고 로그에 코드).

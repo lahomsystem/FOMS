@@ -173,14 +173,29 @@ def test_notify_customer_defaults_on_and_can_be_turned_off():
     assert r._empty(r.NOTIFY_CUSTOMER) is True and r.NOTIFY_CUSTOMER.kind == r.KIND_FLAG
 
 
-def test_every_proposable_action_names_a_known_notify_team():
-    """폰 알림 받는 팀(설계서 3.14 · D215) — 사람만 할 일 빼고 모두, 정규화된 팀 코드로."""
+#: 폰 알림 받는 팀 표(D221 — 사용자 글). 관리자는 이 표와 상관없이 늘 받는다(notify 시험).
+NOTIFY_TEAMS = {
+    "schedule_construction": ("SALES", "SHIPMENT"),
+    "move_construction": ("SALES", "SHIPMENT"),
+    "register_as": ("SALES", "CS"),
+    "add_construction_note": ("SALES", "CS"),
+    "advance_stage": ("SALES", "CS"),
+    "send_construction_alimtalk": ("SALES", "CS"),
+    "send_measure_alimtalk": ("SALES", "CS"),
+    "move_measurement": ("SALES", "CS"),
+    "assign_draftsman": ("DRAWING",),
+    "schedule_as_visit": ("CS",),  # 사용자 글에 없음 — 지금 값을 둔다
+}
+
+
+def test_notify_teams_match_the_user_table():
+    """폰 알림 받는 팀(설계서 3.14 · D215 · D221) — 사람만 할 일 빼고 모두 표대로, 정규화된 팀 코드로."""
     from foms.services.orders.order_mutation_policy import normalize_team
 
-    teams = {name: spec.notify_team for name, spec in r.ACTIONS.items() if spec.mode != r.MODE_HUMAN}
-    assert all(team and normalize_team(team) == team for team in teams.values()), teams
-    assert set(teams.values()) <= {"CS", "SALES", "SHIPMENT", "DRAWING"}
-    assert r.ACTIONS["cancel_order"].notify_team is None
+    teams = {name: spec.notify_teams for name, spec in r.ACTIONS.items() if spec.mode != r.MODE_HUMAN}
+    assert teams == NOTIFY_TEAMS
+    assert all(team and normalize_team(team) == team for group in teams.values() for team in group), teams
+    assert r.ACTIONS["cancel_order"].notify_teams == ()
 
 
 def test_values_outside_the_declared_fields_are_refused_without_echoing_them():
