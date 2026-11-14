@@ -13,6 +13,7 @@
   'use strict';
 
   var OPTIONAL_KINDS = ['time_slot', 'flag'];
+  var NOTICE_HEAD = '손님 알림톡';  // 손님에게 나가는 알림톡 줄의 머리(서버 views.NOTICE_HEAD 와 같은 글)
 
   function kit() {
     return window.FOMS_DS_INBOX_ERP_CARD;
@@ -242,6 +243,13 @@
     return box;
   }
 
+  /** 승인하면 손님에게 나가는데 카드 칸에는 안 보이는 알림톡 줄('승인하면 차례로' — 지금 주문으로 계산한 steps) — 없으면 ''.
+   *  알림톡 보내기 할 일은 카드 칸이 곧 알림톡이라 ''. 서버 정본은 views.hidden_notice(같은 머리 글로 가른다). */
+  function notice(d) {
+    if (String(d.field || '').indexOf(NOTICE_HEAD) === 0) return '';
+    return (d.steps || []).filter(function (t) { return String(t).indexOf(NOTICE_HEAD) === 0; })[0] || '';
+  }
+
   window.FOMS_DS_INBOX_ERP_ASIDE = { build: build, edits: edits, reason: reason, refresh: refresh, showForm: showForm,
-                                     missing: function (d) { return missingParams(d, null).length > 0; } };
+                                     notice: notice, missing: function (d) { return missingParams(d, null).length > 0; } };
 })();

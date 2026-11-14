@@ -6,7 +6,8 @@
  *   수는 window.FOMS_DS_INBOX.setCount('actions', n) 으로 승인 대기 바탕(ds-inbox.js)에 알린다(숫자 띠 · '모두' · 위 줄).
  * - [자세히] · 폰 카드 제목 → GET /proposals/<번호> → 옆 창(FOMS_DS_INBOX.openAside). 주소 ?proposal=<번호> 면 처음부터 연다,
  *   ?agent=<직원> 이면 그 직원 제안만.
- * - [승인] → (카드에서 누르면 자세히를 먼저 읽어 기준 판 · 넣을 값을 본다) POST /approve. 409 ACTION_BASE_CHANGED 면 새 카드로
+ * - [승인] → (카드에서 누르면 자세히를 먼저 읽어 기준 판 · 넣을 값 · 사유 · 손님 알림톡 줄을 본다 — 하나라도 있으면 옆 창)
+ *   POST /approve. 409 ACTION_BASE_CHANGED 면 새 카드로
  *   옆 창을 다시 그리고 "제안 뒤 주문이 바뀌었어요 — 다시 봐 주세요". 실행 실패(200 · success 거짓)는 그 말 + 카드 [다시].
  * - [거절] → 까닭 칩 한 번 · [나중에] → POST /snooze.
  * 승인 대기 바탕보다 먼저 실리므로(문서 차례) 'ds:inbox-ready' 뒤에 시작한다. 요청은 brain-dom.js 한 곳 · 글은 textContent 만 ·
@@ -21,6 +22,7 @@
 
   var FIRST = 3;
   var AGENT_ORDER = ['cs', 'schedule', 'ops'];
+  var NOTICE_FIRST = '손님에게 알림톡이 나가요 — 확인한 뒤 승인해 주세요.';
   var api = section.getAttribute('data-erp-api') || '/api/erp-actions';
   var q = function (sel) { return section.querySelector(sel); };
   var parts = { status: q('[data-erp-status]'), cards: q('[data-erp-cards]'), count: q('[data-erp-count]'),
@@ -171,14 +173,16 @@
     return dom().postJson(api + '/proposals/' + detail.id + '/approve', body);
   }
 
-  /** 카드의 [승인] — 자세히를 읽어 기준 판을 얻고, 넣을 값 · 사유가 필요하면 옆 창을 연다. */
+  /** 카드의 [승인](PC · 폰) — 자세히를 읽어 기준 판을 얻고, 넣을 값 · 사유가 필요하면 옆 창(칸을 펼쳐), 카드에 안 보이는
+   *  손님 알림톡이 같이 나가면 옆 창(그 줄을 본 뒤 승인)을 연다. 알림톡을 쓸 수 없는 상태면 줄이 없어 지금처럼 바로 승인. */
   async function approveCard(id, line) {
     var res = await dom().getJson(api + '/proposals/' + encodeURIComponent(id));
     if (!res.ok) { dom().setStatus(line, res.error, 'error'); return; }
     var detail = res.data;
-    if (aside.missing(detail) || (detail.change_reason && detail.change_reason.required)) {
-      var node = showDetail(detail, '값을 고른 뒤 승인해 주세요.');
-      aside.showForm(node);
+    var needs = aside.missing(detail) || !!(detail.change_reason && detail.change_reason.required);
+    if (needs || aside.notice(detail)) {
+      var node = showDetail(detail, needs ? '값을 고른 뒤 승인해 주세요.' : NOTICE_FIRST);
+      if (needs) aside.showForm(node);
       return;
     }
     dom().setStatus(line, '승인하는 중…');

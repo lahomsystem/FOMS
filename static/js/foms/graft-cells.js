@@ -10,6 +10,7 @@
  * GET /api/erp-actions/open 한 번(100개씩)으로 채운다. 조각이 갈아 끼워지면(ERP 셸 · 폰 목록 더 읽기 · 태블릿 상세) 새 자리만
  * 다시 훑는다 — 이미 물은 주문은 다시 묻지 않는다.
  * - 태블릿 상세 'AI 제안' 상자([data-graft-box] — 서버가 그림): [승인] POST /approve · [거절] 까닭 칩 한 번 → POST /reject.
+ *   넣을 값 · 사유가 필요한 제안은 서버가 [승인] 대신 [고쳐서]만 그리고, 손님 알림톡이 같이 나가면 그 한 줄을 상자에 보인다.
  * 볼 수 없는 사람(404) · 로그인 안 함(401)이면 아무것도 보이지 않는다. 글은 textContent 만 · 인라인 스타일 없음 ·
  * 전역 듣개는 한 번만(window.__FOMS_GRAFT_CELLS_BOUND).
  */
@@ -95,8 +96,9 @@
     return badgeAsk;
   }
 
-  /** 칩 하나 채우기 — 제안이 없으면 숨긴 채. */
+  /** 칩 하나 채우기 — 그 칸이 꺼졌거나(같은 주문의 켜진 칸 답이 와도) 제안이 없으면 숨긴 채. */
   function paintSlot(node) {
+    if (!on(node.getAttribute('data-graft-cell') || 'pc')) return;
     var id = node.getAttribute('data-graft-slot');
     if (!Object.prototype.hasOwnProperty.call(known, id)) return;
     node.setAttribute('data-graft-done', '1');
@@ -107,7 +109,10 @@
     mark.className = 'fas fa-robot foms-graft-chip__icon';
     mark.setAttribute('aria-hidden', 'true');
     node.appendChild(mark);
-    node.appendChild(document.createTextNode('AI 제안 · ' + (item.label || '')));
+    var text = document.createElement('span');  // 말줄임은 글 칸만 — 폰 칩의 넓힌 누르는 자리를 자르지 않게
+    text.className = 'foms-graft-chip__text';
+    text.textContent = 'AI 제안 · ' + (item.label || '');
+    node.appendChild(text);
     node.setAttribute('href', INBOX + '&proposal=' + encodeURIComponent(item.id));
     node.setAttribute('title', (item.agent_label || 'AI') + ' 제안 — 승인 대기에서 보기');
     node.setAttribute('data-foms-erp-no-shell', '');

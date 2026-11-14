@@ -19,6 +19,7 @@ import pytest
 import foms.api.erp_action_runners as api_runners
 from db import db_session
 from foms.persistence.graft.models import ErpActionProposal
+from foms.services.ai_staff.registry import SETTINGS_KEY as LEVELS_KEY
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_actions import preview
 from foms.services.erp_actions.lifecycle import propose, reconcile
@@ -26,7 +27,7 @@ from foms.services.erp_actions.runners import RunRequest
 from foms.services.graft_flags import FLAGS
 from foms.services.orders.erp_policy_quests import create_quest_from_template
 from foms.services.orders.order_mutation_policy import policy_id_for_endpoint
-from models import Order
+from models import Order, SystemSetting
 from tests.support import graft_char as gc
 from tests.support.confirm_seed import confirmed_drawing_sd
 
@@ -97,7 +98,17 @@ def _measure(date: str | None) -> int:
     return _order("RECEIVED", extra={"schedule": {"measurement": {"date": date, "time": "10시"}}} if date else None)
 
 
-def _propose(order_id: int, action: str, params: dict | None = None, agent: str = "agent:ops") -> tuple[int, int]:
+def _levels_raised() -> None:
+    """단계 넘기기(O2)는 처음 수준 0 — 그 제안은 ADMIN 이 수준을 올린 뒤에만 생기고 승인된다(승인 때 수준을 다시 본다 · R-10)."""
+    if db_session.get(SystemSetting, LEVELS_KEY) is None:
+        db_session.add(SystemSetting(setting_key=LEVELS_KEY, setting_value={"ops": {"advance_stage": 1}}))
+        db_session.commit()
+
+
+def _propose(order_id: int, action: str, params: dict | None = None, agent: str | None = None) -> tuple[int, int]:
+    """그 할 일을 맡은 AI 직원의 제안(방문 옮기기(실측)는 상담 AI · 그 밖은 운영 AI) — 수준을 올려 둔 뒤."""
+    _levels_raised()
+    agent = agent or ("agent:cs" if action == "move_measurement" else "agent:ops")
     row = propose(db_session, action=action, proposed_by=agent, order=db_session.get(Order, order_id),
                   params=params or {}, reason="합성 이유", evidence=[], source_kind="sweep", source_ref="1", level=1,
                   now=now_utc_naive())

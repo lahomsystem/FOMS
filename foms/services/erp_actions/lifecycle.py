@@ -9,9 +9,9 @@
 
 - :func:`propose` 는 커밋하지 않는다. 막힘 · 같은 열쇠 있음(열림 · 실행 중 · 실패 · 거절) · 가림 검사 걸림이면 ``None``(코드만 로그).
   새 줄을 만든 때에만 :func:`.notify.proposal_created`(승인할 사람 폰 알림 — 폰 보내기는 부르는 쪽 커밋 뒤)를 부른다.
-- :func:`approve` 는 두 걸음이라 **스스로 커밋한다**: ① 제안 줄 잠금 → 볼 수 있나 · 열림 · 갈래 · 넣을 값 · 막는 조건 · 기준 판
-  → ``executing`` + 결정한 사람 + 감사 커밋 ② 실행기(감싼 기능의 커밋 방식 그대로) ③ 결과 + 감사 커밋. 실행기가 막히면
-  (주문이 바뀌지 않음) ``open`` 으로 되돌리고 ``ACTION_PRECONDITION``.
+- :func:`approve` 는 두 걸음이라 **스스로 커밋한다**: ① 제안 줄 잠금 → 볼 수 있나 · 열림 · 갈래 · 제안한 AI 직원의 지금 수준 ·
+  넣을 값 · 막는 조건 · 기준 판 · 사유(사유를 물을 변경이면 꼭) → ``executing`` + 결정한 사람 + 감사 커밋 ② 실행기(감싼 기능의
+  커밋 방식 그대로) ③ 결과 + 감사 커밋. 실행기가 막히면(주문이 바뀌지 않음) ``open`` 으로 되돌리고 ``ACTION_PRECONDITION``.
 - :func:`reject` · :func:`snooze` · :func:`expire_due` · :func:`reconcile` 은 커밋하지 않는다(부르는 쪽).
 - 결정 판정은 :func:`.access.can_decide`(사람별 화면 스위치는 화면 API 가 먼저 본다). 결정한 사람은 ``actor`` 뿐.
 - 감사 ``SecurityLog``: ``ERP_ACTION_APPROVED`` · ``REJECTED`` · ``EXECUTED`` · ``FAILED`` — 번호 · 이름 · 코드만(글 없음).
@@ -26,7 +26,7 @@ from typing import Any, Mapping, Optional
 from sqlalchemy.exc import IntegrityError
 
 from foms.persistence.graft.models import ErpActionProposal
-from foms.services.ai_staff.registry import agent_of
+from foms.services.ai_staff.registry import PROPOSER_PREFIX, agent_of, level_of
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.brain.review_rules import clamp_ms
 from foms.services.brain.usage_events import READER_ERP_ACTION, record_uses
@@ -48,7 +48,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "AUDIT_APPROVED", "AUDIT_EXECUTED", "AUDIT_FAILED", "AUDIT_REJECTED", "AUDIT_SNOOZED", "ActionError",
-    "DECIDED_APPROVE", "DECIDED_EDIT", "DECIDED_LINK", "DECIDED_REJECT", "PROPOSAL_DAYS", "RECONCILE_AFTER", "approve",
+    "DECIDED_APPROVE", "DECIDED_EDIT", "DECIDED_LINK", "DECIDED_REJECT", "LEVEL_ZERO_REASON", "PROPOSAL_DAYS",
+    "RECONCILE_AFTER", "approve",
     "clean_evidence", "clean_reason_text", "expire_due", "next_morning", "propose", "reconcile", "reject", "snooze",
 ]
 
@@ -63,6 +64,8 @@ _DECIDABLE = (STATUS_OPEN, STATUS_FAILED)
 _TAKEN = (STATUS_OPEN, STATUS_EXECUTING, STATUS_FAILED, STATUS_REJECTED)
 _KST = datetime.timedelta(hours=9)
 _REF_LIMIT, _LABEL_LIMIT = 120, 60
+#: 제안한 AI 직원의 지금 수준이 0 이면 승인을 막는 말(수준을 내린 뒤 남은 열린 제안 — 검수 R-10).
+LEVEL_ZERO_REASON = "AI 직원 수준이 0(읽기만)으로 바뀌어 승인할 수 없어요."
 
 
 class ActionError(Exception):
@@ -185,10 +188,15 @@ def _skip(action: str, order: Any, code: str) -> None:
     logger.info("[ERP-ACTION] 제안 안 만듦 action=%s order=%s code=%s", action, getattr(order, "id", None), code)
 
 
-def _taken(session: Any, key: str) -> bool:
-    """같은 열쇠의 제안이 열림 · 실행 중 · 실패 · 거절로 있나."""
+def _taken(session: Any, row: ErpActionProposal) -> bool:
+    """새 줄과 같은 열쇠의 제안이 열림 · 실행 중 · 실패 · 거절로 있나.
+
+    열쇠에는 주문 번호가 들어 있다(:func:`.registry.dedupe_key`). 주문 번호 조건을 같이 걸어 ``(order_id, status)`` 색인
+    (``ix_erp_action_proposals_order_status``)을 탄다 — 부분 유일 색인은 ``open`` 만 덮어 실행 중 · 실패 · 거절은 못 찾는다.
+    """
     return session.query(ErpActionProposal.id).filter(
-        ErpActionProposal.dedupe_key == key, ErpActionProposal.status.in_(_TAKEN)).first() is not None
+        ErpActionProposal.order_id == row.order_id, ErpActionProposal.dedupe_key == row.dedupe_key,
+        ErpActionProposal.status.in_(_TAKEN)).first() is not None
 
 
 def _insert(session: Any, row: ErpActionProposal) -> bool:
@@ -247,7 +255,7 @@ def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: 
         preview=fns.preview(action, order, clean), reason=text, evidence=proofs, level=level, status=STATUS_OPEN,
         base_version=getattr(order, "mutation_version", None), dedupe_key=key, source_kind=source_kind,
         source_ref=source_ref, created_at=now, expires_at=_expiry(now, clean))
-    if _taken(session, key) or not _insert(session, row):
+    if _taken(session, row) or not _insert(session, row):
         return None
     keys = [proof["ref"] for proof in proofs if proof["kind"] == "brain"]
     record_uses(session, keys, READER_ERP_ACTION, "proposal", row.id, now)
@@ -297,20 +305,35 @@ def _base_check(session: Any, row: ErpActionProposal, order: Any, base_version: 
         raise ActionError("ACTION_BASE_CHANGED", proposal_id=row.id)
 
 
+def _level_check(session: Any, row: ErpActionProposal) -> None:
+    """제안한 AI 직원(``agent:<열쇠>``)의 지금 수준이 0 이면 막는다 — 수준을 내린 뒤 남은 열린 제안이 실행되지 않게.
+
+    수준은 수준 표(:func:`foms.services.ai_staff.registry.level_of`)를 승인 때 다시 읽는다. 모르는 직원 · 그 직원에게 없는
+    할 일도 0 이다. 제안은 ``open`` 그대로(거절 · 기간 끝남은 된다). 막으면 409 ``ACTION_PRECONDITION`` + :data:`LEVEL_ZERO_REASON`.
+    """
+    proposer = str(row.proposed_by or "")
+    if proposer.startswith(PROPOSER_PREFIX) and level_of(session, proposer[len(PROPOSER_PREFIX):], row.action) <= 0:
+        raise ActionError("ACTION_PRECONDITION", reason=LEVEL_ZERO_REASON)
+
+
 def _begin(session: Any, proposal_id: Any, *, actor: Any, runners: Mapping[str, Runner], base_version: Any,
            edits: Any, reason: tuple[Optional[str], Optional[str]], view_ms: Any,
            now: datetime.datetime) -> RunRequest:
-    """① 잠금 → 볼 수 있나(404) → 열림(409) → 갈래 · 실행기 · 넣을 값(400) → 막는 조건 · 기준 판(409) → executing 커밋."""
+    """① 잠금 → 볼 수 있나(404) → 열림(409) → 갈래 · 실행기(400) → AI 직원 수준(409) → 넣을 값(400) → 막는 조건 · 기준 판(409)
+    → 사유(사유를 물을 변경인데 사유 코드가 없으면 400 ``reason_code`` — 변경 원장 사유가 비지 않게) → executing 커밋."""
     row, spec, order = _decidable(session, proposal_id, actor, lock_order=True)
     if row.status not in _DECIDABLE:
         raise ActionError("ACTION_NOT_OPEN")
     if spec.mode != MODE_RUN or row.action not in runners:
         raise ActionError("ACTION_SHAPE", fields=("action",))
+    _level_check(session, row)
     params, changed = _effective(spec, row, edits)
     blocked = fns.check(row.action, order, params)
     if blocked:
         raise ActionError("ACTION_PRECONDITION", reason=blocked)
     _base_check(session, row, order, base_version)
+    if reason[0] is None and fns.reason_required(row.action, order, params):
+        raise ActionError("ACTION_SHAPE", fields=("reason_code",))
     actor_id = _actor_id(actor)
     row.status, row.decided_by, row.decided_at = STATUS_EXECUTING, actor_id, now
     row.decided_action = DECIDED_EDIT if changed else DECIDED_APPROVE
@@ -370,8 +393,9 @@ def approve(session: Any, proposal_id: Any, *, actor: Any, runners: Mapping[str,
         ``{"status": "executed" | "failed", "code", "message", "result"}``.
 
     Raises:
-        ActionError: 404 ``ACTION_FORBIDDEN`` · 409 ``ACTION_NOT_OPEN`` · ``ACTION_BASE_CHANGED`` · ``ACTION_PRECONDITION`` ·
-            400 ``ACTION_SHAPE``(``link`` · ``human`` 갈래 · 실행기 없음 · 넣을 값 · 사유 꼴).
+        ActionError: 404 ``ACTION_FORBIDDEN`` · 409 ``ACTION_NOT_OPEN`` · ``ACTION_BASE_CHANGED`` · ``ACTION_PRECONDITION``(막는
+            조건 · 제안한 AI 직원 수준 0) · 400 ``ACTION_SHAPE``(``link`` · ``human`` 갈래 · 실행기 없음 · 넣을 값 · 사유 꼴 ·
+            사유를 물을 변경인데 사유 없음 — 칸 ``reason_code``).
     """
     reason = _change_reason(reason_code, reason_note)
     request = _begin(session, proposal_id, actor=actor, runners=runners, base_version=base_version, edits=edits,

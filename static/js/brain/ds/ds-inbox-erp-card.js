@@ -41,9 +41,15 @@
     return node;
   }
 
-  /** 근거 칩 하나 — 주소가 있으면 링크. */
+  /** 같은 출처 경로만 — '/' 로 시작하고 '//' · '/\'(다른 곳으로 가는 꼴)가 아닌 글이면 그 글, 아니면 null(링크 없이 글만). */
+  function safeHref(href) {
+    return typeof href === 'string' && /^\/(?![\/\\])/.test(href) ? href : null;
+  }
+
+  /** 근거 칩 하나 — 같은 출처 주소가 있으면 링크, 아니면 글만. */
   function chip(item, extra) {
-    var node = el(item.href ? 'a' : 'span', { cls: 'f-chip' + (extra ? ' ' + extra : ''), attrs: { href: item.href || null } });
+    var href = safeHref(item.href);
+    var node = el(href ? 'a' : 'span', { cls: 'f-chip' + (extra ? ' ' + extra : ''), attrs: { href: href } });
     node.appendChild(icon(EVIDENCE_ICONS[item.kind] || 'document'));
     node.appendChild(document.createTextNode(item.label || ''));
     return node;
@@ -82,10 +88,11 @@
     return el('p', { cls: 'fb-status', attrs: { role: 'status', 'aria-live': 'polite', 'data-erp-card-status': '1' } });
   }
 
-  /** 승인 단추 자리 — run 이면 [승인]([다시]), link 면 [주문에서 처리], 사람만이면 없음. */
+  /** 승인 단추 자리 — run 이면 [승인]([다시]), link 면 [주문에서 처리](같은 출처 주소일 때만 링크), 사람만이면 없음. */
   function decideNode(card, cls) {
     if (card.mode === 'link') {
-      var go = el('a', { cls: 'f-btn f-btn-primary' + (cls ? ' ' + cls : ''), attrs: { href: card.order_href || null } });
+      var href = safeHref(card.order_href);
+      var go = el(href ? 'a' : 'span', { cls: 'f-btn f-btn-primary' + (cls ? ' ' + cls : ''), attrs: { href: href } });
       go.appendChild(icon('share'));
       go.appendChild(document.createTextNode('주문에서 처리'));
       return go;
@@ -149,7 +156,7 @@
   }
 
   window.FOMS_DS_INBOX_ERP_CARD = { pcCard: pcCard, phoneCard: phoneCard, phoneOk: phoneOk, rejectBox: rejectBox,
-                                    button: button, icon: icon, mark: mark, chip: chip, whenText: whenText,
+                                    button: button, icon: icon, mark: mark, chip: chip, safeHref: safeHref, whenText: whenText,
                                     todayText: todayText, statusLine: statusLine, decideNode: decideNode,
                                     BASE_CHANGED: BASE_CHANGED };
 })();

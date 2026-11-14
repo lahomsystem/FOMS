@@ -23,5 +23,6 @@
 .fb-erp-form { gap: 10px; padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
 .fb-erp-reject-title { margin-top: 4px; }
 
-/* 폰 카드 — 승인 대기 폰 목록 안(판 ⑫). 카드 틀은 바탕 CSS(.fb-phone-card)를 같이 쓴다. */
-.fb-erp-phone .fb-phone-approve { min-height: 36px; padding: 5px 16px; }
+/* 폰 카드 — 승인 대기 폰 목록 안(판 ⑫). 카드 틀은 바탕 CSS(.fb-phone-card)를 같이 쓴다.
+   높이는 틀(brain-ds-shell.css '누르는 것 44px 이상' — 설계서 5.5)에 맡긴다 — 여기서 높이를 적으면 44px 를 이긴다. */
+.fb-erp-phone .fb-phone-approve { padding: 5px 16px; }

@@ -280,7 +280,9 @@ def test_people_must_be_picked_before_approve(page):
 
 @NODE
 def test_card_reject_chip_and_card_approve_read_the_detail_first(page):
-    routes = _routes({"method": "GET", "url": "/api/erp-actions/proposals/12", "replies": [_ok(_detail(CARDS[1], params=[]))]},
+    as_steps = ["FOMS AS 접수 — AS 접수 창과 같은 기능", "AS 기록에 접수 내용 · '접수됨' 줄"]  # 손님 알림톡 줄 없음 — 바로 승인
+    routes = _routes({"method": "GET", "url": "/api/erp-actions/proposals/12",
+                      "replies": [_ok(_detail(CARDS[1], params=[], steps=as_steps))]},
                      {"method": "POST", "url": "/api/erp-actions/proposals/12/approve",
                       "replies": [_ok({"status": "executed", "message": "AS 를 접수했어요.", "result": {}})]},
                      {"method": "POST", "url": "/api/erp-actions/proposals/11/reject", "replies": [_ok({"status": "rejected"})]})
@@ -321,6 +323,102 @@ def test_phone_cards_go_first_in_the_phone_list_and_only_phone_ok_can_approve(pa
     assert got["pc"].endswith("PC 에서 볼 것")
     assert got["aside"] is True and "승인" not in got["asideButtons"] and "나중에" in got["asideButtons"]
     assert "이 제안은 PC 에서 승인해요." in got["help"]
+
+
+# ── 검수 R1 고침(R-02 · R-08 · R-22) ─────────────────────────────────────
+NOTICE_FIRST = "손님에게 알림톡이 나가요 — 확인한 뒤 승인해 주세요."
+NO_NOTICE_STEPS = ["FOMS 시공일 · 시간대 쓰기 — 주문 화면 시공일 칸과 같은 기능"]  # 알림톡을 쓸 수 없는 상태(스위치 끔)의 차례
+
+
+def _approve_route(n: int) -> dict:
+    return {"method": "POST", "url": f"/api/erp-actions/proposals/{n}/approve",
+            "replies": [_ok({"status": "executed", "message": "실행했어요.", "result": {}})]}
+
+
+CARD_APPROVE = """
+  const where = __WHERE__;
+  await api.click(where.querySelector('[data-erp-act="approve"]'));
+  const aside = api.q('[data-erp-aside]');
+  return { posts: api.posts.filter(p => p.method === 'POST').map(p => [p.url, p.body]),
+           aside: api.shown(api.q('[data-ds-inbox-aside]')),
+           status: aside ? api.text(aside.querySelector('[data-erp-card-status]')) : null,
+           steps: aside ? api.qa('[data-erp-aside] ol li').map(api.text) : [],
+           form: aside ? api.shown(aside.querySelector('[data-erp-form]')) : null };"""
+
+
+@NODE
+@pytest.mark.parametrize("phone", [False, True])
+def test_card_approve_with_a_customer_notice_opens_the_aside_instead(page, phone):
+    """R-02 — PC 카드 · 폰 카드 빠른 [승인]: 손님 알림톡(시공일 안내)이 같이 나가면 바로 보내지 않고 옆 창(그 줄)을 연다."""
+    routes = _routes({"method": "GET", "url": "/api/erp-actions/proposals/11", "replies": [_ok(_detail(CARDS[0]))]},
+                     _approve_route(11))
+    where = ("api.q('[data-ds-phone-list]').children.find(n => n.getAttribute('data-erp-card') === '11')" if phone
+             else "api.q('[data-erp-cards] [data-erp-card=\"11\"]')")
+    got = run_node(page(), CARD_APPROVE.replace("__WHERE__", where), scripts=_scripts(), routes=routes, phone=phone)
+    assert got["posts"] == [] and got["aside"] is True and got["status"] == NOTICE_FIRST
+    assert "2손님 알림톡 1건 — 시공일 안내" in got["steps"] and got["form"] is False
+
+
+@NODE
+def test_aside_approve_after_seeing_the_notice_posts_once(page):
+    """R-02 — 옆 창에서 줄을 본 뒤 [승인]은 지금처럼 한 번 보낸다(넣을 값을 고치지 않았으면 edits 없음)."""
+    routes = _routes({"method": "GET", "url": "/api/erp-actions/proposals/11", "replies": [_ok(_detail(CARDS[0]))]},
+                     _approve_route(11))
+    body = CARD_APPROVE.replace("__WHERE__", "api.q('[data-erp-cards] [data-erp-card=\"11\"]')").replace(
+        "  const aside = api.q('[data-erp-aside]');",
+        "  await api.click(api.q('[data-erp-aside] [data-erp-act=\"approve\"]'));\n  const aside = null;")
+    got = run_node(page(), body, scripts=_scripts(), routes=routes)
+    assert got["posts"] == [["/api/erp-actions/proposals/11/approve", {"base_version": 3, "view_ms": 0}]]
+
+
+@NODE
+@pytest.mark.parametrize("detail_extra", [
+    {"steps": NO_NOTICE_STEPS},  # 알림톡을 쓸 수 없는 상태 — 지금과 같다
+    {"field": "손님 알림톡(시공일 안내)", "params": [],  # 알림톡 보내기 할 일 — 카드 칸이 곧 그 줄
+     "steps": ["손님 알림톡 1건 — 시공일 안내(시공일 · 시간대만)"]},
+])
+def test_card_approve_without_a_hidden_notice_stays_one_click(page, detail_extra):
+    routes = _routes({"method": "GET", "url": "/api/erp-actions/proposals/11",
+                      "replies": [_ok(_detail(CARDS[0], **detail_extra))]}, _approve_route(11))
+    got = run_node(page(), CARD_APPROVE.replace("__WHERE__", "api.q('[data-erp-cards] [data-erp-card=\"11\"]')"),
+                   scripts=_scripts(), routes=routes)
+    assert got["posts"] == [["/api/erp-actions/proposals/11/approve", {"base_version": 3, "view_ms": None}]]
+    assert got["aside"] is False
+
+
+@NODE
+def test_only_same_origin_paths_become_links(page):
+    """R-22 — 서버 주소는 '/' 로 시작하고 '//' · '/\\' 가 아닐 때만 링크, 아니면 글만(근거 칩 · [주문에서 처리])."""
+    bad = ["//evil.example/x", "/\\evil.example", "javascript:alert(1)", "https://evil.example", None]
+    card = dict(_card(21, "schedule_construction", "schedule"),
+                evidence=[{"kind": "order", "label": f"근거 {i}", "href": href} for i, href in enumerate(bad)]
+                + [{"kind": "order", "label": "근거 좋음", "href": "/erp/orders/21"}])
+    link_card = dict(_card(22, "assign_draftsman", "ops", mode="link", phone_ok=False), order_href="//evil.example/o")
+    inbox = dict(INBOX, cards=[card, link_card], counts={"total": 2, "by_agent": {"cs": 0, "schedule": 1, "ops": 1},
+                                                         "snoozed": 0})
+    routes = [{"method": "GET", "url": "/api/brain/inbox", "replies": [_ok({"cards": [], "counts": {"ai_waiting": 0}})]},
+              {"method": "GET", "url": "/api/erp-actions/inbox", "replies": [_ok(inbox)]}]
+    body = """
+      const chips = api.qa('[data-erp-cards] [data-erp-card="21"] .f-chip');
+      const go = api.q('[data-erp-cards] [data-erp-card="22"] .f-btn-primary');
+      return { chips: chips.map(n => [n.tagName, n.getAttribute('href'), api.text(n)]),
+               go: [go.tagName, go.getAttribute('href'), api.text(go)] };"""
+    got = run_node(page(), body, scripts=_scripts(), routes=routes)
+    assert got["chips"] == [["SPAN", None, f"근거 {i}"] for i in range(len(bad))] + [["A", "/erp/orders/21", "근거 좋음"]]
+    assert got["go"] == ["SPAN", None, "주문에서 처리"]
+
+
+def test_phone_approve_button_leaves_its_height_to_the_44px_shell_rule():
+    """R-08 — 폰 ERP [승인]에 높이를 적지 않는다(틀의 '누르는 것 44px 이상'을 이기지 않게)."""
+    from pathlib import Path
+
+    css_dir = Path(BASE_SCRIPTS[0]).parents[2] / "css" / "contexts" / "brain" / "ds"
+    erp = (css_dir / "brain-ds-inbox-erp.css").read_text(encoding="utf-8")
+    rule = re.search(r"\.fb-erp-phone \.fb-phone-approve \{([^}]*)\}", erp).group(1)
+    assert "min-height" not in rule and "height" not in rule
+    assert all(int(px) >= 44 for px in re.findall(r"min-height:\s*(\d+)px", erp))
+    shell = (css_dir / "brain-ds-shell.css").read_text(encoding="utf-8")
+    assert re.search(r"\.fb-shell \.f-btn,[^{]*\{\s*min-height: 44px;", shell)
 
 
 @NODE

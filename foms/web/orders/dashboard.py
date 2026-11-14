@@ -52,7 +52,7 @@ from foms.services.foms_split_view import build_split_master_cards, build_split_
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services import graft_flags
 from foms.services.erp_actions.registry import ACTIONS as ERP_ACTIONS, REJECT_CODES, REJECT_LABELS
-from foms.services.erp_actions.views import open_for_orders
+from foms.services.erp_actions.views import open_for_orders, quick_view as graft_quick_view
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
@@ -632,8 +632,8 @@ def _graft_sheet_proposal(db, user, order) -> dict | None:
     """태블릿 상세 'AI 제안' 상자 값(접목판 판 ③ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 6절).
 
     태블릿 칸 스위치(``cell_tablet`` — 할 일 스위치까지 같이 본다)가 켜진 사람에게만, 이 주문의 가장 새 열린 제안 하나
-    (:func:`open_for_orders` — 질의 하나, 볼 수 없는 제안은 질의 단계에서 빠진다). 제안 줄은 그 질의가 읽어 둔 것을 쓴다.
-    글은 제안 때 저장한 미리 보기의 '승인하면' 값뿐(시공 팀 · 인원 글 없음 — 사용자 결정 D211).
+    (:func:`open_for_orders` — 질의 하나, 볼 수 없는 제안은 질의 단계에서 빠진다). [승인] 여부 · 손님 알림톡 줄은 :func:`graft_quick_view`.
+    글은 미리 보기의 '승인하면' 값과 손님 알림톡 한 줄뿐(시공 팀 · 인원 글 없음 — D211). 넣을 값 · 사유가 필요하면 [고쳐서]만.
 
     Args:
         db: DB 세션.
@@ -650,12 +650,12 @@ def _graft_sheet_proposal(db, user, order) -> dict | None:
     spec = ERP_ACTIONS.get(row.action) if row is not None else None
     if row is None or spec is None:
         return None
-    params = dict(row.params or {})
     first = (row.preview or [{}])[0] or {}
+    quick = graft_quick_view(row, order)
     return {
         "id": row.id, "label": item["label"], "agent_label": item["agent_label"], "after": str(first.get("after") or ""),
         "can_decide": bool(item["can_decide"]), "base_version": row.base_version,
-        "needs_input": any(p.required and params.get(p.name) in (None, "", []) for p in spec.params),
+        "needs_input": quick["needs_input"], "notice": quick["notice"],
         "order_href": f"/erp/orders/{order.id}",
         "inbox_href": url_for("brain_web.index", tab="inbox", proposal=row.id),
         "reject_codes": [(code, REJECT_LABELS[code]) for code in REJECT_CODES],

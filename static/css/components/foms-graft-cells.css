@@ -35,17 +35,27 @@
 .foms-graft-chip:hover,
 .foms-graft-chip:focus-visible { background: var(--foms-color-brand-100, #e6e8ff); color: var(--foms-color-brand-700, #3a4490); }
 .foms-graft-chip__icon { font-size: 0.85em; }
+.foms-graft-chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 td.erp-quest-cell > .foms-graft-chip { display: flex; }
 
-/* 폰 목록 줄 머리 — 단계 · 경보 배지 옆(넘치면 말줄임) */
+/* 폰 목록 줄 머리 — 단계 · 경보 배지 옆(넘치면 글만 말줄임). 보이는 칩은 22px 그대로 두고, 누르는 자리만 보이지 않는 겹으로
+   위아래 44px 까지 넓힌다(설계서 5.5 — 줄 높이 · 칩 모양은 그대로). 칩이 겹을 자르지 않게 넘침 자르기는 글 칸(__text)에만. */
 .foms-graft-chip--card {
+  position: relative;
   min-height: 22px;
   margin-top: 0;
   padding: 0 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 55%;
   font-size: calc(12px * var(--foms-fs, 1));
+}
+.foms-graft-chip--card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 44px;
+  transform: translateY(-50%);
 }
 
 /* PC 위 아이콘 줄 — 회사 지식 승인 대기(알림 단추 앞) */
@@ -100,6 +110,7 @@ td.erp-quest-cell > .foms-graft-chip { display: flex; }
   body.erp-mobile-v2-layout .foms-graft-box__title { font-weight: 700; color: var(--foms-color-brand-600, #4a55b8); }
   body.erp-mobile-v2-layout .foms-graft-box__agent { font-size: calc(13px * var(--foms-fs, 1)); color: var(--foms-text-secondary, #5f6b7c); }
   body.erp-mobile-v2-layout .foms-graft-box__after { font-weight: 700; }
+  body.erp-mobile-v2-layout .foms-graft-box__notice { font-size: calc(13px * var(--foms-fs, 1)); color: var(--foms-color-brand-600, #4a55b8); }
   body.erp-mobile-v2-layout .foms-graft-box__acts,
   body.erp-mobile-v2-layout .foms-graft-box__reasons { display: flex; flex-wrap: wrap; gap: 6px; }
   body.erp-mobile-v2-layout .foms-graft-box__btn,
