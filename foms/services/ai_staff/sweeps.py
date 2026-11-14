@@ -9,6 +9,10 @@
 - ``O2`` 운영(D214 — 처음 수준 0): 지금 단계의 현재 작업이 모두 승인됐는데 단계가 2일 넘게 그대로 → ``advance_stage``.
   도면 단계(전용 명령으로만 넘어간다)와 고객컨펌 도면 문지기에 걸린 주문은 뺀다.
 - ``O3`` 운영: 단계가 도면인데 도면 담당이 2일 넘게 비어 있음 → ``assign_draftsman``(담당 칸은 비워 둔다 — 승인자가 고른다).
+- ``O4`` 운영(D208 · D214 — 처음 수준 0): 시공일이 내일인데 그 시공일의 시공일 안내 알림톡 기록
+  (``structured_data.alimtalk_construction``)이 없음 → ``send_construction_alimtalk``. 시공일 안내가 쓸 수 있는 상태일 때만 —
+  스위치(``FOMS_GRAFT_CONSTRUCTION_ALIMTALK``)가 꺼져 있으면 후보도 읽지 않고, 주문마다(브랜드 서식 번호 · 전화 · 협력사)는
+  제안 만들기의 막는 조건이 거른다. 알림톡은 **보내지 않는다**(제안만).
 
 - 후보는 납작 칸(``erp_stage_code`` · ``erp_construction_date`` · ``erp_stage_updated_at`` · ``partner_org_id``)과
   ``order_schedule_dates`` 색인으로 고르고, 후보만 ``structured_data`` 를 읽는다(JSONB 를 글자로 바꿔 찾지 않는다).
@@ -27,8 +31,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 
+from foms.services import kakao_alimtalk_construction as construction_alimtalk
 from foms.services.ai_staff.registry import AGENTS, level_table, proposer
 from foms.services.ai_staff.runs import record_run
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
@@ -43,7 +48,7 @@ from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.partners.schedule_request import REQUEST_CLOSED_STAGES, clean_date, pending_request
-from models import Order
+from models import Order, OrderScheduleDate
 
 __all__ = ["MAX_PROPOSALS", "RULES", "SCAN_LIMIT", "STUCK_DAYS", "Candidate", "Rule", "SweepContext", "SweepResult",
            "run_sweep"]
@@ -170,6 +175,22 @@ def _find_no_draftsman(session: Any, ctx: SweepContext, limit: int) -> Iterable[
         yield Candidate(order, {}, "도면 단계인데 도면 담당이 2일 넘게 비어 있어요.")
 
 
+def _find_construction_alimtalk(session: Any, ctx: SweepContext, limit: int) -> Iterable[Candidate]:
+    """O4 — 내일 시공인데 그 시공일의 시공일 안내 알림톡 기록이 없는 주문(협력사 주문 빼고 · 스위치가 켜졌을 때만)."""
+    if not enabled_global("construction_alimtalk"):
+        return
+    tomorrow = ctx.tomorrow
+    on_tomorrow = Order.schedule_dates.any(and_(OrderScheduleDate.kind == "construction",
+                                                OrderScheduleDate.date == tomorrow))
+    for order in _orders(session, Order.partner_org_id.is_(None),
+                         or_(Order.erp_construction_date == tomorrow, on_tomorrow), limit=limit):
+        sd = _sd(order)
+        record = construction_alimtalk.last_record(sd)
+        if record and record.get("construction_date") == construction_alimtalk.construction_day(sd):
+            continue
+        yield Candidate(order, {}, "내일 시공인데 시공일 안내 알림톡을 보낸 기록이 없어요.")
+
+
 #: 규칙 이름 → 규칙(차례대로 돈다). 뒤 일감은 여기 줄을 더한다.
 RULES: dict[str, Rule] = {rule.key: rule for rule in (
     Rule("S1", "schedule", "schedule_construction", "협력사 희망 시공일 있음 · 우리 시공일 빔", "erp.visit.list",
@@ -178,6 +199,8 @@ RULES: dict[str, Rule] = {rule.key: rule for rule in (
          _find_measure_alimtalk),
     Rule("O2", "ops", "advance_stage", "현재 작업 모두 승인 · 단계 2일 그대로", "erp.order.list", _find_stuck_stage),
     Rule("O3", "ops", "assign_draftsman", "도면 단계 · 담당 2일 비어 있음", "erp.order.list", _find_no_draftsman),
+    Rule("O4", "ops", "send_construction_alimtalk", "내일 시공 · 시공일 안내 기록 없음", "erp.order.list",
+         _find_construction_alimtalk),
 )}
 
 

@@ -45,7 +45,9 @@ def test_first_levels_never_exceed_the_action_cap_and_there_is_no_level_three():
 
 def test_who_proposes_what():
     assert a.AGENTS["cs"].actions() == ("move_construction", "move_measurement", "register_as", "add_construction_note")
-    assert a.AGENTS["ops"].actions() == ("send_measure_alimtalk", "assign_draftsman", "advance_stage")  # D214 규칙 O2
+    assert a.AGENTS["ops"].actions() == ("send_measure_alimtalk", "assign_draftsman", "advance_stage",
+                                         "send_construction_alimtalk")  # D214 규칙 O2 · T15 규칙 O4
+    assert a.AGENTS["ops"].duty("send_construction_alimtalk").level == 0  # 처음 수준 0 — ADMIN 이 올려야 제안이 생긴다
     assert a.AGENTS["schedule"].actions() == ("schedule_construction",)
     assert a.AGENTS["ask"].actions() == () and a.AGENTS["drawing"].actions() == ()  # 읽기만 · 판 1 에 새 할 일 없음
     assert a.AGENTS["cs"].duty("send_measure_alimtalk").level is None  # 상담 AI 는 알림톡을 못 한다

@@ -90,7 +90,7 @@ def test_propose_makes_open_row_with_preview_and_usage(app):
     order = _order("RECEIVED")
     row = _propose(order)
     assert row.status == "open" and row.level == 2 and row.base_version == order.mutation_version
-    assert row.params == {"date": _day(10), "time": "오전"}
+    assert row.params == {"date": _day(10), "time": "오전", "notify_customer": True}  # 손님 알림톡 처음 값 켬(D213)
     assert row.dedupe_key == dedupe_key("schedule_construction", order.id, row.params)
     assert row.preview[0]["field"] == "시공 날짜" and row.preview[0]["before"] == "없음"
     assert row.preview[0]["after"].endswith("오전") and row.reason == REASON

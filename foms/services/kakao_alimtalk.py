@@ -1233,3 +1233,30 @@ def send_alimtalk_for_sd(sd: dict, *, sent_by: int | None, dedupe_key: str) -> d
         sent_by, dedupe_key, error,
     )
     return {"sent": error is None, "error": error, "message_id": message_id}
+
+
+# ---------------------------------------------------------------------------
+# 시공일 안내 알림톡(:mod:`foms.services.kakao_alimtalk_construction`, 설계서 2026-11-14-foms-graft 3.13)이 같이 쓰는
+# 부품 — 이름만 내놓는다(위 함수들의 행동은 그대로). 보내기는 :func:`send_template` 가 부를 때마다 :func:`_solapi_send` 를
+# 찾아 부르므로 시험은 지금처럼 ``_solapi_send`` 하나만 바꿔 끼운다. ``structured_data`` 쓰기는 :func:`_write_structured` 한 곳.
+# ---------------------------------------------------------------------------
+CONSULT_FALLBACK, UNDECIDED_FALLBACK, DEFAULT_ORDERER = _CONSULT, _UNDECIDED, _DEFAULT_ORDERER
+env = _env
+korean_dates = _korean_dates
+valid_dates = _valid_dates
+classify_error = _classify_error
+mask_phone = _mask_phone
+is_draft_order = _is_draft_order
+is_deleted_order = _is_deleted_order
+resolve_sender_name = _resolve_sender_name
+write_structured = _write_structured
+
+
+def open_session() -> Session:
+    """보내기 · 이력 쓰기용 새 세션 — :func:`send_alimtalk` 과 같은 세션 공장(:data:`_session_factory`)."""
+    return _session_factory()
+
+
+def send_template(**kwargs: Any) -> str | None:
+    """Solapi 알림톡 한 통 — :func:`_solapi_send` 를 부를 때마다 찾아 부른다(시험이 바꿔 끼우는 한 곳 그대로)."""
+    return _solapi_send(**kwargs)

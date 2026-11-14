@@ -11,8 +11,11 @@
   ``foms/api/orders/measurement_visit.py``).
 - 실행기 표는 이름 → 함수 한 곳(:data:`SERVICE_RUNNERS`). api 층 기능을 부르는 실행기는 ``foms/api/erp_action_runners.py``
   의 ``RUNNERS`` 에 더한다.
-- 시험에서 바깥으로 나가는 것(알림톡 · 푸시)은 모두 가짜로 바꿔 끼운다 — 이 모듈은 알림톡을 :mod:`kakao_alimtalk` 모듈 속성으로
-  부른다(바꿔 끼우기 한 곳).
+- 시험에서 바깥으로 나가는 것(알림톡 · 푸시)은 모두 가짜로 바꿔 끼운다 — 이 모듈은 알림톡을 :mod:`kakao_alimtalk` ·
+  :mod:`kakao_alimtalk_construction` 모듈 속성으로 부른다(바꿔 끼우기 한 곳).
+- 시공일 안내 알림톡(설계서 3.13 · D213): 시공일 두 할 일은 넣을 값 ``notify_customer`` 가 참이고 쓸 수 있는 상태면 **시공일 쓰기가
+  커밋된 뒤** 한 통 보낸다. 보내기 실패는 시공일을 되돌리지 않고 결과 ``customer_notice`` 에 코드 한 줄로 남는다(스위치가 꺼졌거나
+  보낼 수 없는 주문이면 보내 보지도 않고 결과도 지금과 같다).
 """
 
 from __future__ import annotations
@@ -24,12 +27,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional
 
-from foms.services import kakao_alimtalk
+from foms.services import kakao_alimtalk, kakao_alimtalk_construction
 from foms.services.audit_message_display import describe_field_change, describe_order_action
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-from foms.services.erp_actions import preview
+from foms.services.erp_actions import construction_notice, preview
 from foms.services.erp_actions.registry import message as failure_message
 from foms.services.error_logging import log_handled_exception
 from foms.services.orders.as_cycle_service import ASCycleError, schedule_as_cycle
@@ -61,7 +64,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "OUTCOME_BLOCKED", "OUTCOME_EXECUTED", "OUTCOME_FAILED", "RunOutcome", "RunRequest", "Runner", "SERVICE_RUNNERS",
     "run_add_construction_note", "run_move_construction", "run_schedule_as_visit", "run_schedule_construction",
-    "run_send_measure_alimtalk",
+    "run_send_construction_alimtalk", "run_send_measure_alimtalk",
 ]
 
 OUTCOME_EXECUTED, OUTCOME_BLOCKED, OUTCOME_FAILED = "executed", "blocked", "failed"
@@ -174,8 +177,42 @@ def _write_schedule(session: Any, order: Any, req: RunRequest, *, first: bool) -
     return write_construction_schedule(session, order, req.actor, date=day, time=time)
 
 
+def _notify_customer(session: Any, req: RunRequest) -> Optional[dict[str, Any]]:
+    """시공일 쓰기가 커밋된 뒤 손님 시공일 안내 한 통 — 넣을 값 참 · 쓸 수 있는 상태 · 그 시공일로 아직 안 나감일 때만.
+
+    Returns:
+        보내 본 결과 ``{"sent", "error"}``. 보내 보지 않았으면 ``None``(결과에 칸을 더하지 않는다 — 지금과 같다). 오류는 되감고
+        코드 한 줄로 돌려준다 — 시공일은 이미 커밋돼 되돌리지 않는다.
+    """
+    if req.params.get(construction_notice.NOTIFY_PARAM) is not True:
+        return None
+    try:
+        order = session.query(Order).filter(Order.id == req.order_id).populate_existing().first()
+        sd = order.structured_data if order is not None and isinstance(order.structured_data, dict) else {}
+        day = kakao_alimtalk_construction.construction_day(sd)
+        if kakao_alimtalk_construction.block_reason(order) or kakao_alimtalk_construction.sent_for(sd, day):
+            return None
+        sent = kakao_alimtalk_construction.send_construction_alimtalk(
+            int(order.id), manual_by=req.actor_id, source=req.source,
+            dedupe_key=construction_notice.action_key(order.id, day, req.proposal_id))
+        session.expire(order)  # 보내기는 다른 세션에서 이력을 커밋했다
+    except Exception as exc:  # noqa: BLE001 — 알림톡 실패가 커밋된 시공일을 되돌리지 않는다(로그에는 번호 · 예외 이름만)
+        session.rollback()
+        logger.warning("[ERP-ACTION] 시공일 안내 알림톡 오류 proposal=%s error=%s", req.proposal_id, type(exc).__name__)
+        return {"sent": False, "error": "ACTION_FAILED"}
+    return {"sent": bool(sent.get("sent")), "error": sent.get("error")}
+
+
+def _schedule_done(first: bool, notice: Optional[dict[str, Any]]) -> str:
+    """시공일 실행 화면 말 — 손님 알림톡을 보내 봤으면 그 결과 한 마디를 붙인다."""
+    head = "시공일을 정했어요." if first else "시공일을 옮겼어요."
+    if notice is None:
+        return head
+    return f"{head} 손님 알림톡도 보냈어요." if notice["sent"] else f"{head} 손님 알림톡은 못 보냈어요."
+
+
 def _run_schedule(session: Any, req: RunRequest, *, first: bool) -> RunOutcome:
-    """시공일 쓰기 실행 — 잠금 → 검사 → 쓰기 → 사유 → 감사 → 커밋 → 도면팀 · 생산팀 알림 마무리."""
+    """시공일 쓰기 실행 — 잠금 → 검사 → 쓰기 → 사유 → 감사 → 커밋 → 도면팀 · 생산팀 알림 마무리 → (켜졌으면) 손님 알림톡."""
     order, stop = _locked_checked(session, req)
     if stop is not None:
         return stop
@@ -188,10 +225,12 @@ def _run_schedule(session: Any, req: RunRequest, *, first: bool) -> RunOutcome:
         session.rollback()
         return RunOutcome.blocked(str(exc))
     finalize_schedule_notifications(session, result)
+    notice = _notify_customer(session, req)
+    extra = {"customer_notice": notice} if notice is not None else {}
     return RunOutcome.executed(
-        "시공일을 정했어요." if first else "시공일을 옮겼어요.", change_set=result.change_set_id,
+        _schedule_done(first, notice), change_set=result.change_set_id,
         change_count=result.change_count, before_date=result.before_date, date=result.date, time=result.time,
-        reason_required=result.reason_required, reason_attached=attached)
+        reason_required=result.reason_required, reason_attached=attached, **extra)
 
 
 def run_schedule_construction(session: Any, req: RunRequest) -> RunOutcome:
@@ -280,6 +319,32 @@ def run_send_measure_alimtalk(session: Any, req: RunRequest) -> RunOutcome:
     return RunOutcome.failed(sent=False, error=error)
 
 
+# ── 알림톡 보내기(시공일 안내) ───────────────────────────────────────────
+def run_send_construction_alimtalk(session: Any, req: RunRequest) -> RunOutcome:
+    """시공일 안내 알림톡(설계서 3.13) — 활성 주문 → 막는 조건 → ``send_construction_alimtalk``(제 세션에서 이력 · 감사 커밋).
+
+    중복 막기 열쇠는 ``alimtalk:construction:<주문>:<시공일>:action:<제안 번호>``. 막는 조건을 지난 뒤 나가는 조건이 바뀌었으면
+    (보내 보지 않은 까닭 코드) 막힘, 벤더가 거절하면 실패다.
+    """
+    order = session.query(Order).filter(Order.id == req.order_id, Order.active_filter()).first()
+    problem = preview.check(req.action, order, req.params)
+    if problem:
+        session.rollback()
+        return RunOutcome.blocked(problem)
+    day = kakao_alimtalk_construction.construction_day(order.structured_data)
+    sent_result = kakao_alimtalk_construction.send_construction_alimtalk(
+        int(order.id), manual_by=req.actor_id, source=req.source,
+        dedupe_key=construction_notice.action_key(order.id, day, req.proposal_id))
+    session.expire(order)  # 보내기는 다른 세션에서 이력을 커밋했다 — 이 세션의 사본은 낡았다
+    error = sent_result.get("error")
+    if sent_result.get("sent"):
+        return RunOutcome.executed("시공일 안내 알림톡을 보냈어요.", sent=True)
+    if error in kakao_alimtalk_construction.GATE_CODES:
+        session.rollback()
+        return RunOutcome.blocked(construction_notice.REASONS.get(error, failure_message("ACTION_PRECONDITION")))
+    return RunOutcome.failed(sent=False, error=error)
+
+
 # ── 시공 메모 더하기 ─────────────────────────────────────────────────────
 def _audit_note(session: Any, order: Any, result: NoteWrite, req: RunRequest) -> None:
     """시공 메모 감사 — 칸 고치기 감사(``ORDER_FIELD_UPDATED``)와 같은 꼴. 메모 글은 싣지 않고 줄 수만."""
@@ -316,4 +381,5 @@ SERVICE_RUNNERS: dict[str, Runner] = {
     "schedule_as_visit": run_schedule_as_visit,
     "send_measure_alimtalk": run_send_measure_alimtalk,
     "add_construction_note": run_add_construction_note,
+    "send_construction_alimtalk": run_send_construction_alimtalk,
 }

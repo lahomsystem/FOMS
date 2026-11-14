@@ -20,6 +20,13 @@ import datetime as _dt
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_draft_chat, cs_send_link
+from foms.services.notifications.erp_action_push import (
+    ERP_ACTION_PROPOSAL_TYPE,
+    erp_action_deep_link,
+    erp_action_push_text,
+    erp_action_tag,
+    is_erp_action_notification_type,
+)
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.notice_push import (
     is_notice_notification_type,
@@ -138,6 +145,8 @@ _DEFAULT_P1_TYPES = frozenset(
         "SALES_COMMISSION_DEDUCTION",
         # 프리랜서가 주문 담당으로 새로 들어감(FCOMM-01 §5 · §7) — 당일 추가 주문도 바로 알아야 한다(§6.1-2).
         "SALES_ORDER_ASSIGNED",
+        # AI 할 일 제안 승인 대기(접목판 3.14 · D210) — 알림 줄은 FOMS_GRAFT_PUSH 가 켜졌을 때만 생긴다(erp_actions.notify).
+        ERP_ACTION_PROPOSAL_TYPE,
     }
 )
 
@@ -236,6 +245,9 @@ def _urgency(notif: Notification) -> str:
 
 def _deep_link(notif: Notification) -> str:
     """same-origin deep link. 도면 주문변경/수정요청은 워크벤치, 그 외 주문은 상세."""
+    if is_erp_action_notification_type(notif.notification_type):
+        # AI 할 일 제안 — 주문이 걸려 있어도 주문 화면이 아니라 승인 대기의 그 제안(/brain?tab=inbox&proposal=<번호>).
+        return erp_action_deep_link(notif.message)
     if notif.order_id:
         ntype = (notif.notification_type or "").strip().upper()
         oid = int(notif.order_id)
@@ -357,7 +369,8 @@ def _order_customer_name(db: Any, notif: Any) -> str:
     """
     oid = getattr(notif, "order_id", None)
     ntype = (getattr(notif, "notification_type", "") or "").strip().upper()
-    if not oid or ntype in _WORKER_HEALTH_TYPES:
+    # AI 할 일 제안 잠금화면에는 손님 이름을 싣지 않는다(접목판 3.14) — 이름을 읽지도 않는다.
+    if not oid or ntype in _WORKER_HEALTH_TYPES or is_erp_action_notification_type(ntype):
         return ""
     try:
         row = (
@@ -447,6 +460,15 @@ def _build_payload(
             "tag": f"foms-notice-{int(notif.id)}",
             "data": {"notification_id": int(notif.id), "deep_link": notice_deep_link(partner_recipient)},
         }
+    if is_erp_action_notification_type(ntype):
+        # AI 할 일 제안 승인 대기 — 제목 고정 + '<할 일 이름> · 주문 #<번호>'(손님 이름 · 주소 · 날짜 · 제안 글 없음).
+        title, body = erp_action_push_text(notif.message)
+        payload = {"title": title, "body": body,
+                   "data": {"notification_id": int(notif.id), "deep_link": erp_action_deep_link(notif.message)}}
+        tag = erp_action_tag(notif.message)
+        if tag:
+            payload["tag"] = tag
+        return payload
     if is_partner_notification_type(ntype):
         # 협력사 알림 문장은 협력사 알림 서비스가 주소 · 메모 없이, 고객 이름을 가려서 만든다.
         title, body = partner_push_text(ntype, notif.message)
