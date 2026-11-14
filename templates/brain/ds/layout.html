@@ -14,10 +14,15 @@
   <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260902h') }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/foms-icon-180.png', v='20260902h') }}">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json', v='20260902h') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109j">
+  <link rel="stylesheet" href="{{ asset_url('css/components/foms-ui-zoom.css') }}">
   <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/foms-ds.css') }}">
   <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-shell.css') }}">
   {% block page_styles %}{% endblock %}
+  {#- 틀 스크립트는 다른 defer 보다 먼저 — 화면 크기(ds-shell.js applyZoom)를 바깥 소켓 꾸러미를 받기 전에 붙인다(검수 R-17).
+      인라인 스크립트를 쓰지 않으므로 첫 그림 전에 붙이지는 못한다. -#}
+  <script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
+  <script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
+  <script src="{{ asset_url('js/brain/ds/ds-shell.js') }}" defer></script>
   {#- 긴급(P0) 빨간 창 — layout_head.html 과 같은 CSS 주소 · 핀. 스크립트는 회사 지식 화면 규칙(defer + asset_url)으로 싣는다. -#}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261016a">
   <script src="{{ asset_url('js/foms/notification-write.js') }}" defer></script>
@@ -87,9 +92,6 @@
 </div>
 {#- 공지 확인 창(사용자 결정 #7 — layout_scripts.html 과 같은 조각 · 같은 핀). 로그인 · 본사 계정만 싣는 판정은 조각 안에 있다. -#}
 {% include "partials/shared/notice_popup.html" %}
-<script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
-<script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
-<script src="{{ asset_url('js/brain/ds/ds-shell.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
