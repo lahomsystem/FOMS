@@ -25,13 +25,13 @@
 | A | T2 | W2 | 새 화면 틀 — 스위치 모듈, `foms-ds.css` 가두어 싣기, 혼자 서는 문서 틀 · 위 줄 · 폰 아래 탭 · 긴급 빨간 창 · 공지 확인 창(D212), `/brain` 길 갈림, 빈 화면 여섯, 화면 찍기 도구 | high | `foms-s-foms-graft`(같이 씀) | — | DONE `001cb677e`(11-14) |
 | B | T3 | W3 | 승인 대기(지식 고침) 새 화면 + 다시 확인 · 판 · 폰 승인(⑥ · ⑫ 의 지식 쪽) | xhigh | `foms-s-foms-graft` | T2 | DONE `1c89a3579` |
 | B | T6 | W6 | 읽기 엔진 — 물어보기 ERP 읽기, 온톨로지 ERP 칸, 쓰인 곳 API, 내 질문 목록 | xhigh | 따로 `foms-s-graft-read` | T1 · T2(스위치) | DONE `bfbff2453` |
-| B | T7 | W7 | 할 일 엔진 — 제안 생명주기 · 실행기 · 시공 메모 쓰기 · 승인 대기 API · 권한 · 감사 | max | 따로 `foms-s-graft-actions` | T1 · T2(스위치) | PENDING |
+| B | T7 | W7 | 할 일 엔진 — 제안 생명주기 · 실행기 · 시공 메모 쓰기 · 승인 대기 API · 권한 · 감사 | max | 따로 `foms-s-graft-actions` | T1 · T2(스위치) | DONE `f3243babe` |
 | B | T13 | W11 | **특성 시험**(D206) — 현재 작업 승인 · 도면 담당 맡기기 · 실측일 고치기 길의 지금 행동을 못박는다. 시험 파일만 | xhigh | `foms-s-foms-graft` | — (지금 코드. 물결 A 와 같이 띄워도 된다) | DONE `68b45778e` |
-| C | T4 | W4 | 찾기 · 지식 표 · 지식 카드 새 화면 + 쓰인 곳(⑦ · ⑧) | high | `foms-s-foms-graft` | T2 · T6 | RUNNING |
-| C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | RUNNING |
-| C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | PENDING |
-| C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | PENDING |
-| C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | PENDING |
+| C | T4 | W4 | 찾기 · 지식 표 · 지식 카드 새 화면 + 쓰인 곳(⑦ · ⑧) | high | `foms-s-foms-graft` | T2 · T6 | DONE `3f2b1b879` |
+| C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | DONE `280406417` |
+| C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | RUNNING |
+| C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | RUNNING |
+| C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | RUNNING |
 | D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | PENDING |
 | D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | PENDING |
 | D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | PENDING |
@@ -159,7 +159,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 
 | 번호 | 심각도 | 어디 | 무엇 | 맡은 일감 | 상태 |
 |---|---|---|---|---|---|
-| — | — | — | 아직 없음 | — | — |
+| F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | OPEN |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
