@@ -1,0 +1,172 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-14T03:00:00Z"
+  },
+  "title": "FOMS 접목판 목업",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 920,
+      "title": "① 접목 지도 — 그대로 · 한 칸 더함 · 새 UI"
+    },
+    "NowPC.dc.html": {
+      "x": 0,
+      "y": 1700,
+      "w": 1440,
+      "h": 960,
+      "title": "② PC ERP 프로세스 대시보드 — 칸 하나씩 더함"
+    },
+    "NowTablet.dc.html": {
+      "x": 1520,
+      "y": 1700,
+      "w": 1180,
+      "h": 820,
+      "title": "③ 태블릿 주문 대시보드 — 칸 하나씩 더함"
+    },
+    "NowMobile.dc.html": {
+      "x": 2780,
+      "y": 1700,
+      "w": 390,
+      "h": 1180,
+      "title": "④ 폰 대시보드 — 처리 대기에 칸 하나"
+    },
+    "NowWam.dc.html": {
+      "x": 3250,
+      "y": 1700,
+      "w": 400,
+      "h": 700,
+      "title": "⑤ 채널톡 AI 초안 창 — 근거 줄 · 할 일 제안 줄"
+    },
+    "BInbox.dc.html": {
+      "x": 0,
+      "y": 3480,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑥ 회사 지식 — 승인 대기 (지식 고침 + ERP 할 일)"
+    },
+    "BSearch.dc.html": {
+      "x": 1520,
+      "y": 3480,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑦ 회사 지식 — 찾기 · 지식 표"
+    },
+    "BItem.dc.html": {
+      "x": 3040,
+      "y": 3480,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑧ 회사 지식 — 지식 카드"
+    },
+    "BAsk.dc.html": {
+      "x": 0,
+      "y": 4860,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑨ 회사 지식 — 물어보기"
+    },
+    "BOnto.dc.html": {
+      "x": 1520,
+      "y": 4860,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑩ 회사 지식 — 온톨로지 (지식 유형 + ERP 물건)"
+    },
+    "BAgents.dc.html": {
+      "x": 3040,
+      "y": 4860,
+      "w": 1440,
+      "h": 1000,
+      "expand": "fill",
+      "title": "⑪ 회사 지식 — AI 직원"
+    },
+    "BPhone.dc.html": {
+      "x": 0,
+      "y": 6240,
+      "w": 390,
+      "h": 844,
+      "title": "⑫ 폰 — 회사 지식 승인 대기"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "NowPC.dc.html",
+    "NowTablet.dc.html",
+    "NowMobile.dc.html",
+    "NowWam.dc.html",
+    "BInbox.dc.html",
+    "BSearch.dc.html",
+    "BItem.dc.html",
+    "BAsk.dc.html",
+    "BOnto.dc.html",
+    "BAgents.dc.html",
+    "BPhone.dc.html"
+  ],
+  "notes": {
+    "t0": {
+      "x": 0,
+      "y": -300,
+      "text": "접목 지도 — 지금 FOMS 위에 원점 설계를 얹는 법",
+      "kind": "title1",
+      "maxW": 2960
+    },
+    "t1": {
+      "x": 0,
+      "y": 1400,
+      "text": "지금 화면 — PC · 태블릿 · 폰 · 채널톡, 모양은 그대로 칸 하나씩만 더함 (분홍 점선 = 새로 붙인 칸)",
+      "kind": "title1",
+      "maxW": 3650
+    },
+    "t2": {
+      "x": 0,
+      "y": 3180,
+      "text": "회사 지식 — 완전 새 UI (원점 설계 디자인 시스템)",
+      "kind": "title1",
+      "maxW": 4480
+    },
+    "t3": {
+      "x": 0,
+      "y": 4560,
+      "text": "회사 지식 — 물어보기 · 온톨로지 · AI 직원",
+      "kind": "title1",
+      "maxW": 4480
+    },
+    "t4": {
+      "x": 0,
+      "y": 5940,
+      "text": "폰",
+      "kind": "title1",
+      "maxW": 1400
+    },
+    "n1": {
+      "x": 1520,
+      "y": 0,
+      "w": 560,
+      "size": "m",
+      "fill": "blue",
+      "text": "접목판 목업 판 1 (11-14).\n\n· 원점 설계(docs/plans/2026-11-13-foms-zero-rebuild-design.md)를 지금 FOMS 에 얹은 모양이에요.\n· 주문 · 실측 · 도면 · 생산 · 시공 화면은 지금 모양 그대로 두고, 칸 하나씩만 더했어요(분홍 점선).\n· 회사 지식(/brain)은 원점 설계 디자인 시스템으로 완전히 새로 그렸어요.\n· 원점 설계 목업: https://claude.ai/artifact/6entLSVHyRD7c3dqgyieo4\n· 이름 · 주소 · 전화 · 금액은 모두 지어낸 예시예요."
+    },
+    "n2": {
+      "x": 470,
+      "y": 6240,
+      "w": 560,
+      "size": "m",
+      "fill": "yellow",
+      "text": "색 · 글자 · 크기 · 아이콘(회사 지식 쪽)은 Blueprint 5(© Palantir Technologies, Apache-2.0)와 같은 값이에요. 팔란티어 로고 · 제품 이름 · 화면 그림은 쓰지 않았어요."
+    }
+  },
+  "designSystems": []
+}

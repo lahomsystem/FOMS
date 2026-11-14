@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>회사 지식 — AI 직원</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app f-shell" style="width: 100%; min-height: 1000px;">
+  <nav class="f-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal" href="NowPC.dc.html"><span class="f-i i-arrow-left" aria-hidden="true"></span>FOMS</a>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>
+    <span class="f-navbar-title">회사 지식</span>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <a class="f-btn f-btn-minimal" href="BInbox.dc.html"><span class="f-i i-inbox" aria-hidden="true"></span>승인 대기<span class="f-count f-count-primary">14</span></a>
+    <a class="f-btn f-btn-minimal" href="BSearch.dc.html"><span class="f-i i-search" aria-hidden="true"></span>찾기</a>
+    <a class="f-btn f-btn-minimal" href="BAsk.dc.html"><span class="f-i i-chat" aria-hidden="true"></span>물어보기</a>
+    <a class="f-btn f-btn-minimal" href="BOnto.dc.html"><span class="f-i i-layout-hierarchy" aria-hidden="true"></span>온톨로지</a>
+    <a class="f-btn f-btn-minimal is-active" href="BAgents.dc.html" aria-current="page"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</a>
+    <span class="f-input-group f-push"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="회사 지식 찾기" placeholder="지식 · 유형 · 할 일 이름"></span>
+    <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님</button>
+  </nav>
+
+  <div class="f-body">
+    <nav class="f-side" aria-label="AI 직원">
+      <div class="f-nav-heading">AI 직원 5</div>
+      <sc-for list="{{staff}}" as="a" hint-placeholder-count="5">
+        <a class="f-nav-item {{a.sel}}" href="#" style="align-items: flex-start;">
+          <span class="f-i {{a.icon}}" aria-hidden="true" style="margin-top: 2px;"></span>
+          <span class="f-col f-gap4 f-grow">
+            <span class="f-row-nw"><span class="f-strong">{{a.name}}</span><span class="f-tag f-tag-minimal {{a.tagCls}} f-push" style="{{a.tagStyle}}">{{a.tag}}</span></span>
+            <span class="f-small {{a.subCls}}">{{a.sub}}</span>
+          </span>
+        </a>
+      </sc-for>
+      <div class="f-nav-heading">함께 보기</div>
+      <a class="f-nav-item" href="#"><span class="f-i i-lab-test" aria-hidden="true"></span>시험 세트</a>
+      <a class="f-nav-item" href="#"><span class="f-i i-history" aria-hidden="true"></span>실행 기록</a>
+      <a class="f-nav-item" href="#"><span class="f-i i-dollar" aria-hidden="true"></span>비용 · 시간</a>
+    </nav>
+
+    <main class="f-main">
+      <header class="f-row f-between f-top">
+        <div class="f-col" style="flex: 1 1 420px; min-width: 0;">
+          <div class="f-row"><span class="f-ai-mark"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</span><h1 class="f-h3">상담 AI</h1><span class="f-tag f-tag-minimal">Claude Sonnet 5.5</span><span class="f-tag f-tag-minimal f-tag-success">있음 · 수준 1 초안</span></div>
+          <p class="f-muted">채널톡 작은 창에서 손님 메시지를 읽고 근거 있는 답 초안을 써요. 직원이 보내기 · 고치기 · 버리기 · 흘리기 · 배우기로 바꾸기 중에서 골라요.</p>
+        </div>
+        <div class="f-actions">
+          <button class="f-btn f-btn-primary" type="button"><span class="f-i i-play" aria-hidden="true"></span>시험 다시 돌리기</button>
+          <button class="f-btn" type="button"><span class="f-i i-document" aria-hidden="true"></span>지시문 보기</button>
+        </div>
+      </header>
+
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-section-title">읽는 것 · 쓰는 도구</span><span class="f-section-sub">DB 를 직접 못 봐요 — 도구로만 읽어요</span></div>
+        <div class="f-section-body" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px;">
+          <ul class="f-col f-gap12">
+            <li class="f-row-nw" style="align-items: flex-start;"><span class="f-i i-lightbulb f-i-primary" aria-hidden="true" style="margin-top: 2px;"></span><span class="f-col f-gap4"><span class="f-strong">회사 지식</span><span class="f-small f-muted">상용구 · 정책 · 말투 규칙 · 배운 점</span></span></li>
+            <li class="f-row-nw" style="align-items: flex-start;"><span class="f-i i-chat f-i-primary" aria-hidden="true" style="margin-top: 2px;"></span><span class="f-col f-gap4"><span class="f-strong">상담 메시지</span><span class="f-small f-muted">가린 뒤 · 사진 포함</span></span></li>
+            <li class="f-row-nw" style="align-items: flex-start;"><span class="f-i i-cube f-i-primary" aria-hidden="true" style="margin-top: 2px;"></span><span class="f-col f-gap4"><span class="f-row f-gap4"><span class="f-strong">주문 · 방문 읽기</span><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></span><span class="f-small f-muted">손님 이름 · 전화 · 주소는 가림 · 바꾸기는 못 해요</span></span></li>
+          </ul>
+          <table class="f-table f-table-compact" aria-label="도구">
+            <tbody>
+              <sc-for list="{{tools}}" as="t" hint-placeholder-count="5">
+                <tr>
+                  <td class="f-td-nw f-mono">{{t.name}}</td>
+                  <td><span class="f-small">{{t.what}}</span></td>
+                  <td class="f-td-nw"><sc-if value="{{t.isNew}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal f-tag-primary">새로</span></sc-if></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-section-title">쓸 수 있는 할 일 · 자율 수준</span><span class="f-section-sub">0 읽기만 · 1 초안 · 2 제안 · 3 실행 뒤 알림</span></div>
+        <div class="f-section-body-flush f-scroll-x">
+          <table class="f-table f-table-compact">
+            <thead><tr><th>할 일</th><th>수준</th><th>2주 승인율</th><th class="f-td-num">건수</th><th>메모</th></tr></thead>
+            <tbody>
+              <sc-for list="{{acts}}" as="r" hint-placeholder-count="5">
+                <tr>
+                  <td class="f-td-nw"><span class="f-row-nw"><span class="f-strong">{{r.name}}</span><sc-if value="{{r.isNew}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></sc-if></span></td>
+                  <td class="f-td-nw"><span class="f-tag f-tag-minimal {{r.lvCls}}">{{r.level}}</span></td>
+                  <td class="f-td-nw"><div class="f-row-nw"><sc-if value="{{r.hasBar}}" hint-placeholder-val="{{true}}"><div class="f-progress {{r.barCls}}" style="width: 96px;"><span style="width: {{r.pct}};"></span></div></sc-if><span class="f-small f-num f-muted">{{r.rate}}</span></div></td>
+                  <td class="f-td-num">{{r.n}}</td>
+                  <td><span class="f-small f-muted">{{r.note}}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-section-title">AI 시험</span><span class="f-section-sub">모델 · 지시문 · 도구가 바뀌면 다시 돌려요. 기준 밑이면 배포를 막아요.</span></div>
+        <div class="f-section-body">
+          <sc-for list="{{tests}}" as="t" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: minmax(150px, 1fr) minmax(140px, 1.6fr) minmax(200px, 2fr) 64px; gap: 16px; align-items: center;">
+              <span class="f-strong">{{t.name}}</span>
+              <div class="f-progress {{t.barCls}}"><span style="width: {{t.pct}};"></span></div>
+              <span class="f-small">{{t.result}}</span>
+              <span class="f-tag f-tag-minimal {{t.tagCls}}" style="justify-self: end;">{{t.verdict}}</span>
+            </div>
+          </sc-for>
+          <hr class="f-divider">
+          <span class="f-h6">최근 실패</span>
+          <ul class="f-col f-gap4">
+            <li class="f-row-nw"><span class="f-i i-cross f-i-danger" aria-hidden="true"></span><a href="#">능력 질문 · "견적가에 시공비·VAT·운임·부속이 포함인가요?"</a><span class="f-small f-muted">연결 '제외' 0개</span></li>
+            <li class="f-row-nw"><span class="f-i i-cross f-i-danger" aria-hidden="true"></span><a href="#">지난 상담 · 시공 날짜 물음에 생산 끝날 날을 빼먹음</a><span class="f-small f-muted">상용구 고치기 승인 대기</span></li>
+          </ul>
+          <div class="f-row f-small f-muted"><span class="f-i i-dollar" aria-hidden="true"></span>이번 주 비용 [금액]<span aria-hidden="true">·</span><span class="f-i i-time" aria-hidden="true"></span>초안 평균 8초<span aria-hidden="true">·</span>초안 312개</div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="f-aside" aria-label="실행 기록">
+      <div class="f-aside-head"><span class="f-i i-history f-i-muted" aria-hidden="true"></span><span class="f-section-title">실행 기록 · 11-14 18:42</span><span class="f-small f-muted f-push">담당 박지은</span></div>
+      <div class="f-aside-body">
+        <div class="f-quote f-small">손님: 금요일 시공을 토요일 오전으로 바꿀 수 있을까요? (L-24133)</div>
+        <ol class="f-col f-gap12">
+          <sc-for list="{{trace}}" as="s" hint-placeholder-count="7">
+            <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; gap: 8px; align-items: start;">
+              <span class="f-i {{s.icon}}" aria-hidden="true"></span>
+              <div class="f-col f-gap4">
+                <span class="f-row f-gap4"><span class="f-strong">{{s.what}}</span><sc-if value="{{s.isNew}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></sc-if></span>
+                <span class="f-mono f-muted">{{s.tool}}</span>
+                <span class="f-small f-muted">{{s.detail}}</span>
+              </div>
+              <span class="f-small f-muted f-num">{{s.t}}</span>
+            </li>
+          </sc-for>
+        </ol>
+        <div class="f-callout"><span class="f-i i-time" aria-hidden="true"></span><div class="f-small">모두 7.2초 · 초안은 채널톡 작은 창으로, 할 일 제안 1개는 승인 대기로 갔어요.</div></div>
+        <p class="f-small f-muted">손님 이름 · 전화 · 주소는 가린 채로 AI 에 가요. 바꾸기는 할 일 제안으로만 해요.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const S = (name, icon, tag, tagCls, sub, sel) => ({
+      name, icon, tag, sub, sel: sel ? 'is-selected' : '',
+      tagCls: sel ? '' : tagCls, tagStyle: sel ? 'background: var(--white); color: var(--blue2);' : '',
+      subCls: sel ? '' : 'f-muted'
+    });
+    const lv = (n) => (n < 0 ? { level: '못 함', lvCls: 'f-tag-danger' } : { level: ['0 읽기만', '1 초안', '2 제안', '3 실행 뒤 알림'][n], lvCls: n === 0 ? '' : n === 3 ? 'f-tag-success' : 'f-tag-primary' });
+    return {
+      staff: [
+        S('상담 AI', 'i-chat', '수준 1', 'f-tag-primary', '있음 · 채널톡 작은 창 초안', true),
+        S('도면 AI 팀원', 'i-document', '수준 1', 'f-tag-primary', '있음 · 주 1회 루틴'),
+        S('지식 물어보기', 'i-lightbulb', '수준 0', '', '있음 · 읽기만'),
+        S('운영 AI', 'i-predictive-analysis', '시험 중', 'f-tag-warning', '새로 · 아침 훑기 · 제안만'),
+        S('일정 AI', 'i-calendar', '시험 중', 'f-tag-warning', '새로 · 방문 겹침 · 제안만')
+      ],
+      tools: [
+        { name: 'knowledge.search', what: '회사 지식 찾기', isNew: false },
+        { name: 'cs.thread.read', what: '상담 읽기(가린 뒤)', isNew: false },
+        { name: 'erp.order.find', what: '주문 · 방문 읽기', isNew: true },
+        { name: 'risk.check', what: '위험 문장 검사', isNew: false },
+        { name: 'actions.propose', what: '할 일 제안 → 승인 대기', isNew: true }
+      ],
+      acts: [
+        { name: '상담 답 초안', ...lv(1), isNew: false, hasBar: true, pct: '78%', rate: '78%', barCls: 'f-progress-success', n: 412, note: "'보내기' 비율 · 고친 까닭 칩은 배울 거리로" },
+        { name: '주문 · 방문 읽기', ...lv(0), isNew: true, hasBar: false, pct: '0%', rate: '승인 없음', barCls: '', n: 186, note: '가린 채 읽기만' },
+        { name: '방문 옮기기 제안', ...lv(2), isNew: true, hasBar: true, pct: '84%', rate: '시험 84%', barCls: 'f-progress-warning', n: 23, note: '손님이 날짜를 말했을 때만' },
+        { name: 'AS 접수 제안', ...lv(2), isNew: true, hasBar: true, pct: '91%', rate: '시험 91%', barCls: 'f-progress-warning', n: 11, note: '사진이 있으면 증상 칸을 채워요' },
+        { name: '알림톡 보내기', ...lv(-1), isNew: false, hasBar: false, pct: '0%', rate: '—', barCls: '', n: 0, note: '손님에게 나가는 글은 사람이 보내요 · 운영 AI 몫' }
+      ],
+      tests: [
+        { name: '지난 상담 400개', pct: '71%', barCls: 'f-progress-success', result: '고치지 않고 보냄 예상 71% · 기준 60%', verdict: '통과', tagCls: 'f-tag-success' },
+        { name: '위험 문장 60개', pct: '100%', barCls: 'f-progress-success', result: '근거 없는 약속 0 · 기준 0', verdict: '통과', tagCls: 'f-tag-success' },
+        { name: '능력 질문 61개', pct: '31%', barCls: 'f-progress-warning', result: '회사 지식만 10 · 주문 읽기 더하면 19', verdict: '19 / 61', tagCls: 'f-tag-warning' }
+      ],
+      trace: [
+        { what: '메시지 받음', icon: 'i-small-tick f-i-success', tool: 'channeltalk.webhook', detail: "'토요일 오전으로' · 날짜 말함", t: '0.0초', isNew: false },
+        { what: '손님 · 주문 찾기', icon: 'i-small-tick f-i-success', tool: 'erp.order.find', detail: '주문 L-24133 · 시공 11-20 (금) 오후 · 손님 정보 가림', t: '0.4초', isNew: true },
+        { what: '회사 지식 찾기', icon: 'i-small-tick f-i-success', tool: 'knowledge.search', detail: "정책 '일정 바꾸기' · 상용구 1", t: '1.2초', isNew: false },
+        { what: '초안 쓰기', icon: 'i-small-tick f-i-success', tool: 'Claude Sonnet 5.5', detail: '근거 3개 붙임', t: '5.8초', isNew: false },
+        { what: '위험 검사', icon: 'i-small-tick f-i-success', tool: 'risk.check', detail: "날짜 약속 없음 — '확인 뒤 알려 드릴게요'", t: '6.5초', isNew: false },
+        { what: '할 일 제안', icon: 'i-small-tick f-i-success', tool: 'actions.propose', detail: '방문 옮기기 11-20 (금) → 11-21 (토) 오전 · 수준 2', t: '7.1초', isNew: true },
+        { what: '승인 대기', icon: 'i-time f-i-warning', tool: 'inbox', detail: '김영업 폰에 알림 · 승인 전에는 안 바뀜', t: '7.2초', isNew: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

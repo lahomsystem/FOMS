@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>접목 지도</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app" style="width: 1440px; height: 920px; padding: 40px; display: flex; flex-direction: column; gap: 20px;">
+  <header class="f-col f-gap4">
+    <h1 class="f-h2">접목 지도 — 지금 FOMS 위에 원점 설계 얹기</h1>
+    <p class="f-muted">코드 · 표 · 화면은 그대로 두고, 그 위에 온톨로지 층 · 할 일 · AI 직원을 얹어요. 화면은 칸 하나씩만 더하고, 회사 지식만 새 UI 로 바꿔요.</p>
+  </header>
+
+  <section class="f-section">
+    <div class="f-section-head"><span class="f-i i-layers f-i-primary" aria-hidden="true"></span><span class="f-section-title">밑바닥 — 표는 그대로, 이름표와 길만 새로</span><span class="f-section-sub">왼쪽에서 오른쪽으로 읽어요</span></div>
+    <div class="f-section-body">
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: stretch;">
+        <sc-for list="{{layers}}" as="l" hint-placeholder-count="5">
+          <div class="f-card f-card-e1 f-col f-gap8" style="padding: 14px;">
+            <div class="f-row"><span class="f-i {{l.icon}} f-i-primary" aria-hidden="true"></span><span class="f-strong">{{l.name}}</span><span class="f-tag f-tag-minimal {{l.tagCls}} f-push">{{l.tag}}</span></div>
+            <ul class="f-col f-gap4">
+              <sc-for list="{{l.items}}" as="x" hint-placeholder-count="3"><li class="f-small">{{x}}</li></sc-for>
+            </ul>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+    <sc-for list="{{cols}}" as="c" hint-placeholder-count="3">
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-i {{c.icon}} {{c.iconCls}}" aria-hidden="true"></span><span class="f-section-title">{{c.title}}</span><span class="f-section-sub">{{c.sub}}</span></div>
+        <ul class="f-section-body" style="gap: 8px;">
+          <sc-for list="{{c.items}}" as="x" hint-placeholder-count="5">
+            <li class="f-row-nw f-between">
+              <a class="f-strong" href="{{x.href}}">{{x.name}}</a>
+              <span class="f-small f-muted" style="max-width: 62%; text-align: right;">{{x.note}}</span>
+            </li>
+          </sc-for>
+        </ul>
+      </section>
+    </sc-for>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px;">
+    <section class="f-section">
+      <div class="f-section-head"><span class="f-i i-timeline-bar-chart f-i-primary" aria-hidden="true"></span><span class="f-section-title">순서</span><span class="f-section-sub">한 단계씩 운영에 올리고, 앞 단계가 자리 잡으면 다음으로</span></div>
+      <ol class="f-section-body" style="gap: 8px;">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+          <li style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: baseline;">
+            <span class="f-tag f-tag-minimal f-tag-primary" style="justify-self: start;">{{s.n}}</span>
+            <div class="f-col f-gap4"><span class="f-strong">{{s.title}}</span><span class="f-small f-muted">{{s.what}}</span></div>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+    <section class="f-section">
+      <div class="f-section-head"><span class="f-i i-git-branch f-i-primary" aria-hidden="true"></span><span class="f-section-title">원점 설계와 다른 점</span></div>
+      <ul class="f-section-body" style="gap: 8px;">
+        <sc-for list="{{diffs}}" as="d" hint-placeholder-count="5">
+          <li class="f-col f-gap4"><span class="f-strong">{{d.a}}</span><span class="f-small f-muted">{{d.b}}</span></li>
+        </sc-for>
+      </ul>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":920}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const I = (name, note, href) => ({ name, note, href: href || '#' });
+    return {
+      layers: [
+        { name: '지금 DB 표', icon: 'i-th', tag: '그대로', tagCls: '', items: ['orders 표 + structured_data 칸', '변경 로그 · 알림 · 채널톡 기록', '회사 지식 표(brain)'] },
+        { name: '온톨로지 층', icon: 'i-layout-hierarchy', tag: '새로', tagCls: 'f-tag-primary', items: ['물건 종류가 지금 칸을 가리켜요', '주문 → orders · 방문 → 실측 · 시공 날짜 칸', '읽기만 — 표 모양은 안 바꿔요'] },
+        { name: '할 일 층', icon: 'i-flash', tag: '새로', tagCls: 'f-tag-primary', items: ['지금 API 에 이름을 붙여 감싸요', '막는 조건 · 누가 할 수 있나', '모든 실행이 할 일 기록에'] },
+        { name: 'AI 직원', icon: 'i-predictive-analysis', tag: '새로', tagCls: 'f-tag-primary', items: ['읽기 도구로 온톨로지만 봐요', '바꾸기는 할 일 제안으로만', '처음엔 모두 사람 승인'] },
+        { name: '화면', icon: 'i-applications', tag: '칸 하나 + 새 UI', tagCls: 'f-tag-success', items: ['지금 화면에 칸 하나씩', '회사 지식은 새 UI', '승인은 한 곳(승인 대기)'] }
+      ],
+      cols: [
+        { title: '그대로', sub: '지금 모양 · 코드', icon: 'i-tick', iconCls: 'f-i-success', items: [
+          I('PC · 태블릿 ERP 대시보드', '위 메뉴 · 레일 · 표 · 상세 그대로'), I('실측 · 도면 작업실 · 마법사', '도면 흐름 · 저장 창 그대로'), I('생산 · 출고 · 시공 · AS', '태블릿 레일 · 공정 체크 그대로'),
+          I('협력사 · 네이버 수집 · 정산', '바깥 연결 그대로'), I('폰 달력 홈 · 아래 탭', '달력 · 날씨 · 탭 6개 그대로') ] },
+        { title: '한 칸만 더함', sub: '분홍 점선', icon: 'i-add', iconCls: 'f-i-warning', items: [
+          I('PC 작업 목록 · 위 아이콘', "'현재 작업' 칸 AI 칩 · 회사 지식 수", 'NowPC.dc.html'), I('태블릿 표 · 오른쪽 상세', "'현재 작업' 칸 AI 칩 · 그 아래 AI 제안", 'NowTablet.dc.html'), I('태블릿 레일', '회사 지식 + 승인 대기 수', 'NowTablet.dc.html'),
+          I('폰 대시보드', "'처리 대기'에 AI 제안 칸 하나", 'NowMobile.dc.html'), I('채널톡 AI 초안 창', '근거 줄 · 할 일 제안 줄', 'NowWam.dc.html') ] },
+        { title: '완전 새 UI', sub: '회사 지식(/brain)', icon: 'i-lightbulb', iconCls: 'f-i-primary', items: [
+          I('승인 대기', '지식 고침 + ERP 할 일 제안', 'BInbox.dc.html'), I('찾기 · 지식 표', '다시 확인 · 판도 여기', 'BSearch.dc.html'), I('지식 카드', '쓰인 곳 · 연결 · 수정 기록', 'BItem.dc.html'),
+          I('물어보기 · 온톨로지', '주문 · 일정도 답함 · ERP 물건', 'BOnto.dc.html'), I('AI 직원', '상담 · 도면 · 운영 · 일정', 'BAgents.dc.html') ] }
+      ],
+      steps: [
+        { n: '1단계', title: '회사 지식을 새 UI 로', what: '기능은 지금 그대로(승인 대기 · 찾기 · 물어보기 · 온톨로지). 새 디자인 시스템은 회사 지식 안에서만 써요.' },
+        { n: '2단계', title: 'ERP 물건 이름표', what: '주문 · 손님 · 현장 · 방문 · 도면 · 생산 작업을 지금 표에 이어요(읽기만). 물어보기가 주문 · 일정을 답해요.' },
+        { n: '3단계', title: '할 일 다섯 감싸기', what: '시공 잡기 · 방문 옮기기 · AS 접수 · 알림톡 보내기 · 단계 넘기기. 지금 API 그대로 돌고 기록이 남아요.' },
+        { n: '4단계', title: '지금 화면에 칸 하나씩', what: 'PC · 태블릿 · 폰 · 채널톡의 분홍 칸을 하나씩 운영에 올리고, 실사용자(영업 · 시공팀) 반응을 보고 다음 칸.' },
+        { n: '5단계', title: 'AI 수준 올리기', what: '시험 점수 · 2주 승인율이 기준을 넘는 할 일만 수준 2 → 3. 돈 · 손님에게 나가는 글은 사장님 승인.' }
+      ],
+      diffs: [
+        { a: '서버 · DB 그대로', b: 'Flask · PostgreSQL · 지금 표를 안 바꿔요. 원점 설계의 새 서버 말(D-1)은 필요 없어요.' },
+        { a: '주문 상태 두 줄 그대로', b: '지금 status · stage 는 그대로 두고, 온톨로지에서 한 길(13단계)로 보여 주기만 해요.' },
+        { a: '디자인 시스템은 회사 지식에만', b: '나머지 화면은 지금 색 · 글자 그대로라 직원이 새로 배울 게 없어요.' },
+        { a: '나란히 돌리기 없음', b: '옛 FOMS 와 새 FOMS 를 같이 돌리지 않아요(D-2 필요 없음). 칸마다 켜고 끄는 스위치로 대신해요.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

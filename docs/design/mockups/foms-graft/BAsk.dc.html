@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>회사 지식 — 물어보기</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app f-shell" style="width: 100%; min-height: 1000px;">
+  <nav class="f-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal" href="NowPC.dc.html"><span class="f-i i-arrow-left" aria-hidden="true"></span>FOMS</a>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>
+    <span class="f-navbar-title">회사 지식</span>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <a class="f-btn f-btn-minimal" href="BInbox.dc.html"><span class="f-i i-inbox" aria-hidden="true"></span>승인 대기<span class="f-count f-count-primary">14</span></a>
+    <a class="f-btn f-btn-minimal" href="BSearch.dc.html"><span class="f-i i-search" aria-hidden="true"></span>찾기</a>
+    <a class="f-btn f-btn-minimal is-active" href="BAsk.dc.html" aria-current="page"><span class="f-i i-chat" aria-hidden="true"></span>물어보기</a>
+    <a class="f-btn f-btn-minimal" href="BOnto.dc.html"><span class="f-i i-layout-hierarchy" aria-hidden="true"></span>온톨로지</a>
+    <a class="f-btn f-btn-minimal" href="BAgents.dc.html"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</a>
+    <span class="f-input-group f-push"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="회사 지식 찾기" placeholder="지식 · 유형 · 할 일 이름"></span>
+    <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님</button>
+  </nav>
+
+  <div class="f-body">
+    <nav class="f-side" aria-label="물어본 것">
+      <button class="f-btn f-btn-primary f-btn-fill" type="button" style="margin: 4px 0;"><span class="f-i i-add" aria-hidden="true"></span>새 질문</button>
+      <div class="f-nav-heading">오늘 물은 것 4</div>
+      <sc-for list="{{today}}" as="q" hint-placeholder-count="4">
+        <a class="f-nav-item {{q.sel}}" href="#">
+          <span class="f-col f-gap4 f-grow">
+            <span class="f-ellipsis">{{q.text}}</span>
+            <span class="f-row-nw f-small"><span class="f-i {{q.icon}}" aria-hidden="true"></span>{{q.sub}}</span>
+          </span>
+        </a>
+      </sc-for>
+      <div class="f-nav-heading">지난 7일</div>
+      <sc-for list="{{week}}" as="q" hint-placeholder-count="3">
+        <a class="f-nav-item" href="#"><span class="f-i i-chat f-i-muted" aria-hidden="true"></span><span class="f-ellipsis f-grow">{{q}}</span></a>
+      </sc-for>
+      <div class="f-nav-heading">관리</div>
+      <a class="f-nav-item" href="#"><span class="f-i i-cog" aria-hidden="true"></span>물어보기 설정</a>
+      <a class="f-nav-item" href="#"><span class="f-i i-issue" aria-hidden="true"></span>빈 지식(주 1회)<span class="f-count">7</span></a>
+      <a class="f-nav-item" href="#"><span class="f-i i-warning-sign" aria-hidden="true"></span>틀림 신고<span class="f-count">2</span></a>
+    </nav>
+
+    <main class="f-main">
+      <header class="f-row">
+        <h1 class="f-h3">물어보기</h1>
+        <span class="f-muted">회사 지식과 주문 · 방문을 읽고 답해요</span>
+        <span class="f-small f-muted f-push">오늘 남은 질문 37</span>
+      </header>
+
+      <div class="f-callout f-callout-primary">
+        <span class="f-i i-info-sign" aria-hidden="true"></span>
+        <div class="f-col f-gap4">
+          <span>회사 지식만 근거로 답해요. 없으면 '모름'과 물어볼 팀을 알려 줘요. 손님 이름 · 전화 · 주소는 적지 마세요(적어도 가려서 보내요).</span>
+          <span class="f-row f-gap4"><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span><span>주문 번호를 적으면 주문 · 방문도 읽어서 답해요. 읽기만 하고, 바꾸지는 않아요.</span></span>
+        </div>
+      </div>
+
+      <section class="f-col f-gap12" aria-label="물음과 답">
+        <div class="f-col f-gap4" style="align-self: flex-end; max-width: 72%; align-items: flex-end;">
+          <div class="f-card f-card-compact f-row f-gap4"><span class="f-tag f-tag-minimal f-tag-warning"><span class="f-i i-eye-off" aria-hidden="true"></span>손님 이름</span><span>L-24117 시공 언제예요? 손님이 전화로 물어보셔서요.</span></div>
+          <span class="f-small f-muted">김영업 · 10:42 · 손님 이름 1곳을 가려서 보냄</span>
+        </div>
+
+        <article class="f-ai-card is-proposal" aria-label="답 — L-24117 시공">
+          <div class="f-row">
+            <span class="f-ai-mark"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>물어보기 AI</span>
+            <span class="f-tag f-tag-minimal f-tag-primary"><span class="f-i i-data-lineage" aria-hidden="true"></span>ERP 읽기 · 새로 붙음</span>
+            <span class="f-small f-muted f-push">10:42 · 3.1초</span>
+          </div>
+          <div class="f-quote">L-24117 시공은 11월 20일(금) 오전으로 잡혀 있어요. 시공 2팀 3명이 가요.
+생산은 11월 19일(목)에 끝날 예정이고, 손님께는 오늘 10:15 알림톡으로 시공 날짜를 안내했어요.</div>
+          <div class="f-row f-gap4">
+            <span class="f-small f-muted">근거</span>
+            <a class="f-chip" href="#"><span class="f-i i-cube" aria-hidden="true"></span>주문 L-24117 · 생산</a>
+            <a class="f-chip" href="#"><span class="f-i i-calendar" aria-hidden="true"></span>방문 · 시공 11-20 (금) 오전</a>
+            <a class="f-chip" href="#"><span class="f-i i-send-message" aria-hidden="true"></span>알림톡 · 오늘 10:15</a>
+            <a class="f-chip" href="#"><span class="f-i i-properties" aria-hidden="true"></span>정책 · 시공 하루 전 알림</a>
+          </div>
+          <div class="f-row">
+            <span class="f-small f-muted">답이 맞을 가능성</span><span class="f-tag f-tag-minimal f-tag-success">높음</span>
+            <span class="f-small f-muted">근거: 확정 · 주문 · 방문은 읽기만 했어요</span>
+            <span class="f-row f-gap4 f-push">
+              <button class="f-btn f-btn-small" type="button"><span class="f-i i-tick" aria-hidden="true"></span>도움 됨</button>
+              <button class="f-btn f-btn-small f-btn-minimal" type="button">도움 안 됨</button>
+              <button class="f-btn f-btn-small f-btn-minimal" type="button"><span class="f-i i-warning-sign" aria-hidden="true"></span>틀림</button>
+            </span>
+          </div>
+        </article>
+
+        <div class="f-col f-gap4" style="align-self: flex-end; max-width: 72%; align-items: flex-end;">
+          <div class="f-card f-card-compact">H-24130 상부장 몰딩 높이는 몇 mm 로 들어가요?</div>
+          <span class="f-small f-muted">김영업 · 11:08</span>
+        </div>
+
+        <article class="f-ai-card" aria-label="답 — 모름">
+          <div class="f-row">
+            <span class="f-ai-mark"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>물어보기 AI</span>
+            <span class="f-tag f-tag-warning"><span class="f-i i-help" aria-hidden="true"></span>모름</span>
+            <span class="f-small f-muted f-push">11:08 · 2.4초</span>
+          </div>
+          <div class="f-quote">회사 지식에 상부장 몰딩 높이 기준이 없어요. H-24130 도면은 아직 그리는 중이라 숫자를 지어내지 않을게요.</div>
+          <div class="f-callout">
+            <span class="f-i i-people" aria-hidden="true"></span>
+            <div class="f-grow"><div class="f-callout-title">도면팀에 물어보세요</div>도면 담당 한도윤 · 지금 그리는 중</div>
+            <button class="f-btn f-btn-small" type="button"><span class="f-i i-send-message" aria-hidden="true"></span>도면팀에 묻기</button>
+          </div>
+          <div class="f-row f-gap4">
+            <span class="f-small f-muted">근거</span>
+            <a class="f-chip" href="#"><span class="f-i i-document" aria-hidden="true"></span>도면 H-24130 · 그리는 중</a>
+            <span class="f-small f-muted">찾은 회사 지식 0개</span>
+          </div>
+          <div class="f-row f-small f-muted"><span class="f-i i-issue" aria-hidden="true"></span>빈 지식에 올렸어요 — '상부장 몰딩 높이 기준' · 같은 물음 2번째 · 주 1회 묶어서 승인 대기로 가요</div>
+        </article>
+      </section>
+
+      <form class="f-card f-card-compact f-col" aria-label="묻기">
+        <label class="f-label" for="ask-input">무엇이 궁금한가요?</label>
+        <textarea class="f-input" id="ask-input" rows="2" placeholder="예: L-24117 시공 언제예요? · 슬라이딩 문은 깊이가 얼마나 필요해요?"></textarea>
+        <div class="f-row">
+          <span class="f-small f-muted"><span class="f-i i-eye-off" aria-hidden="true"></span> 보내기 전에 상담과 같은 가림을 거쳐요</span>
+          <button class="f-btn f-btn-primary f-push" type="button"><span class="f-i i-send-message" aria-hidden="true"></span>물어보기</button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="f-aside" aria-label="이 답이 읽은 것">
+      <div class="f-aside-head"><span class="f-i i-data-lineage f-i-muted" aria-hidden="true"></span><span class="f-section-title">이 답이 읽은 것</span><span class="f-tag f-tag-minimal f-push">읽기만</span></div>
+      <div class="f-aside-body">
+        <div class="f-col f-gap4">
+          <div class="f-row f-gap4"><span class="f-type"><span class="f-i i-cube" aria-hidden="true"></span>ERP 물건 · 주문</span><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></div>
+          <h2 class="f-h5">L-24117</h2>
+        </div>
+        <dl class="f-kv">
+          <dt>상태</dt><dd><span class="f-tag st-make">생산</span></dd>
+          <dt>브랜드</dt><dd>라홈</dd>
+          <dt>품목</dt><dd>붙박이장 2 · 신발장 1</dd>
+          <dt>담당 영업</dt><dd>김영업</dd>
+          <dt>손님 · 현장</dt><dd><span class="f-lock f-small"><span class="f-i i-lock" aria-hidden="true"></span> 가려서 안 받음</span></dd>
+        </dl>
+
+        <section class="f-col" aria-label="방문">
+          <h3 class="f-h6">방문 2</h3>
+          <div class="f-visit">
+            <span class="f-visit-kind"><span class="f-tag st-site">시공</span>11-20 (금) 오전</span>
+            <span>시공 2팀 · 3명</span>
+            <span class="f-muted">잡힘 · 손님 알림톡 보냄</span>
+          </div>
+          <div class="f-visit">
+            <span class="f-visit-kind"><span class="f-tag st-contract">실측</span>11-03 (화) 오후</span>
+            <span>김영업</span>
+            <span class="f-muted">끝남 · 사진 12장</span>
+          </div>
+        </section>
+
+        <section class="f-col" aria-label="쓴 도구">
+          <h3 class="f-h6">쓴 도구</h3>
+          <ol class="f-col f-gap4">
+            <sc-for list="{{tools}}" as="t" hint-placeholder-count="4">
+              <li class="f-row-nw"><span class="f-i i-small-tick f-i-success" aria-hidden="true"></span><span class="f-mono">{{t.name}}</span><span class="f-small f-muted f-grow">{{t.what}}</span><span class="f-small f-muted f-num">{{t.t}}</span></li>
+            </sc-for>
+          </ol>
+        </section>
+
+        <div class="f-callout f-callout-primary"><span class="f-i i-lock" aria-hidden="true"></span><div class="f-small">주문 · 방문은 읽기만 해요. 일정을 바꾸려면 '방문 옮기기' 할 일 제안이 승인 대기로 가요.</div></div>
+
+        <section class="f-col" aria-label="빈 지식">
+          <div class="f-row"><h3 class="f-h6">빈 지식 · 이번 주</h3><span class="f-small f-muted f-push">관리자만 봐요</span></div>
+          <ul class="f-col f-gap4">
+            <sc-for list="{{gaps}}" as="g" hint-placeholder-count="3">
+              <li class="f-row-nw"><span class="f-i i-issue f-i-warning" aria-hidden="true"></span><span class="f-small f-grow">{{g.what}}</span><span class="f-tag f-tag-minimal">{{g.team}}</span><span class="f-small f-muted f-num">{{g.n}}번</span></li>
+            </sc-for>
+          </ul>
+        </section>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      today: [
+        { text: 'L-24117 시공 언제예요?', sub: 'ERP 읽음 · 높음', icon: 'i-data-lineage', sel: 'is-selected' },
+        { text: '상부장 몰딩 높이는 몇 mm?', sub: '모름 · 도면팀', icon: 'i-help', sel: '' },
+        { text: '슬라이딩 문은 깊이가 얼마나 필요해요?', sub: '정책 · 높음', icon: 'i-properties', sel: '' },
+        { text: '지방 출장비 기준이 있나요?', sub: '가격 규칙 · 보통', icon: 'i-dollar', sel: '' }
+      ],
+      week: ['무몰딩은 천장 몇 mm 까지 돼요?', '도어 색 단종되면 무엇으로 바꿔요?', 'AS 출장비는 언제부터 받아요?'],
+      tools: [
+        { name: 'mask.apply', what: '손님 이름 1곳 가림', t: '0.1초' },
+        { name: 'erp.order.get', what: '주문 1 · 읽기만', t: '0.5초' },
+        { name: 'erp.visit.list', what: '방문 2', t: '0.8초' },
+        { name: 'knowledge.search', what: '정책 1', t: '1.3초' }
+      ],
+      gaps: [
+        { what: '상부장 몰딩 높이 기준', team: '도면팀', n: 2 },
+        { what: '지방 AS 출장비', team: 'CS팀', n: 3 },
+        { what: '단종 도어 색 대체', team: '생산팀', n: 1 }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PC ERP 프로세스 대시보드 — 접목</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+<link rel="stylesheet" href="foms-now.css">
+<link rel="stylesheet" href="foms-now2.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="n-app" style="width: 1440px; height: 960px; overflow: hidden; background: #eef0f3;">
+  <header class="n-pchead">
+    <span class="n-pchead-title">가구 주문 관리 시스템</span>
+    <span class="n-row" style="margin-left: auto; gap: 14px;">
+      <span class="n-icontile"><span class="f-i i-flash" aria-hidden="true" style="color: #e03131;"></span></span>
+      <span class="n-icontile"><span class="f-i i-person" aria-hidden="true"></span></span>
+      <span class="n-icontile"><span class="f-i i-people" aria-hidden="true" style="color: #495057;"></span></span>
+      <a class="n-icontile n-graft" href="BInbox.dc.html" aria-label="회사 지식 승인 대기 14"><span class="n-graft-num is-abs">②</span><span class="f-i i-lightbulb" aria-hidden="true" style="color: var(--n-brand);"></span><span class="n-rail-badge" style="background: var(--n-brand);">14</span></a>
+      <span class="n-icontile"><span class="f-i i-notifications" aria-hidden="true" style="color: #fab005;"></span><span class="n-rail-badge">99+</span></span>
+      <span class="n-zoom"><span>−</span><span>100%</span><span>+</span></span>
+      <button class="n-userbtn" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님 (관리자)<span class="f-i i-caret-down" aria-hidden="true"></span></button>
+    </span>
+  </header>
+  <nav class="n-pcnav" aria-label="메인 메뉴">
+    <a href="#">전체 주문</a><a href="#">접수</a><a href="#">실측</a>
+    <a href="#"><span class="n-nmark">N</span>네이버 수집<span class="n-pcnav-badge">12</span></a>
+    <a href="#">자가실측 대시보드</a><a href="#">지방 주문 대시보드</a><a href="#">휴지통</a>
+    <a href="#"><span class="f-i i-cog" aria-hidden="true"></span> 관리자</a>
+    <span style="margin-left: auto; display: inline-flex; gap: 18px; padding-left: 20px; border-left: 1px solid #dee2e6;">
+      <a class="is-on" href="#"><span class="f-i i-layers" aria-hidden="true"></span> ERP 대시보드</a>
+      <a href="#"><span class="f-i i-th" aria-hidden="true"></span> WDCalculator</a>
+    </span>
+  </nav>
+
+  <section class="n-erpcard">
+    <div class="n-erphead">
+      <h1><span class="f-i i-layers" aria-hidden="true" style="color: var(--n-brand);"></span>ERP 프로세스 대시보드</h1>
+      <span class="n-row" style="margin-left: auto;">
+        <span class="n-small n-muted">글자</span><span class="n-zoom" style="height: 28px;"><span>−</span><span>100%</span><span>+</span></span>
+        <button class="n-btn" type="button" style="background: #2563eb; border-color: #2563eb; color: #fff;"><span class="f-i i-add" aria-hidden="true"></span>주문 생성</button>
+        <button class="n-btn" type="button"><span class="f-i i-home" aria-hidden="true"></span>홈</button>
+      </span>
+    </div>
+    <div class="n-erptabs">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="11">
+        <a class="n-erptab {{t.on}}" href="#"><span class="f-i {{t.icon}}" aria-hidden="true"></span>{{t.name}}</a>
+      </sc-for>
+    </div>
+    <div class="n-procmap">
+      <div class="n-row n-between">
+        <span class="n-strong n-row" style="gap: 6px;"><span class="f-i i-data-lineage" aria-hidden="true" style="color: var(--n-brand);"></span>프로세스 맵</span>
+        <span class="n-row" style="gap: 6px;">
+          <span class="n-alertchip"><span class="f-i i-flash" aria-hidden="true" style="color: #e03131;"></span>긴급 발주 <i>1</i></span>
+          <span class="n-alertchip">실측 D-4 <i class="is-zero">0</i></span>
+          <span class="n-alertchip">시공 D-3 <i>2</i></span>
+          <span class="n-alertchip">생산 D-2 <i class="is-zero">0</i></span>
+        </span>
+      </div>
+      <div class="n-procstages">
+        <sc-for list="{{stages}}" as="s" hint-placeholder-count="9">
+          <div class="n-stagebox {{s.next}}"><b>{{s.n}}</b><sc-if value="{{s.mini}}" hint-placeholder-val="{{false}}"><span class="n-mini">{{s.mini}}</span></sc-if><small>{{s.name}}</small></div>
+        </sc-for>
+      </div>
+    </div>
+    <div class="n-filterbar">
+      <span class="n-row" style="gap: 4px; color: #2563eb; font-weight: 700;"><span class="f-i i-filter" aria-hidden="true"></span>필터</span>
+      <span class="n-input" style="width: 160px;">전체 검색...</span><span class="n-searchbtn"><span class="f-i i-search" aria-hidden="true"></span></span>
+      <span class="n-select" style="margin-left: 120px;">단계: 전체 <span class="f-i i-chevron-down" aria-hidden="true"></span></span>
+      <span class="n-select">담당팀: 전체 <span class="f-i i-chevron-down" aria-hidden="true"></span></span>
+      <span class="n-check" style="margin-left: 24px;">긴급만</span><span class="n-check">경보만</span><span class="n-check">내 담당</span>
+      <button class="n-btn n-btn-sm" type="button" style="margin-left: auto;"><span class="f-i i-refresh" aria-hidden="true"></span>초기화</button>
+    </div>
+    <div style="padding: 14px 24px 0;">
+      <div class="n-row n-between" style="margin-bottom: 10px;">
+        <div><div class="n-strong n-row" style="gap: 6px;"><span class="f-i i-th" aria-hidden="true" style="color: #2563eb;"></span>작업 목록</div><div class="n-small n-muted">주문별 현재 작업</div></div>
+        <span class="n-row"><button class="n-btn" type="button">폭 초기화</button><button class="n-btn" type="button" style="background: #1c7ed6; border-color: #1c7ed6; color: #fff;">표시: 50건</button></span>
+      </div>
+      <table class="n-table">
+        <thead><tr><th style="width: 52px;">경보</th><th style="width: 84px;">단계</th><th style="width: 250px;">현재 작업</th><th>고객</th><th>연락처</th><th>주소</th><th>제품</th><th>실측일</th><th>시공일</th><th>담당</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+            <tr>
+              <td><span class="n-check"></span></td>
+              <td><span class="n-badge-sq" style="background: {{r.color}}; color: {{r.ink}};">{{r.stage}}</span></td>
+              <td>
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
+                  <span class="n-row" style="gap: 8px;"><span class="n-todo">할 일</span><a class="n-todo-link" href="#"><span class="f-i i-chevron-down" aria-hidden="true"></span>{{r.todo}}</a></span>
+                  <sc-if value="{{r.ai}}" hint-placeholder-val="{{false}}">
+                    <span class="n-row" style="gap: 6px;"><a class="n-graft" href="BInbox.dc.html" style="border-radius: 11px;"><span class="n-badge-ai"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>{{r.ai}}</span></a><sc-if value="{{r.tag}}" hint-placeholder-val="{{false}}"><span class="n-graft-num">①</span></sc-if></span>
+                  </sc-if>
+                </div>
+              </td>
+              <td class="n-strong" style="white-space: nowrap;">{{r.name}}<span class="n-brandmark">{{r.brand}}</span></td>
+              <td style="white-space: nowrap;">010-0000-0000</td>
+              <td style="max-width: 230px;">{{r.addr}}</td>
+              <td style="max-width: 150px;">{{r.item}}</td>
+              <td><span class="n-date {{r.mCls}}">{{r.m}}</span></td>
+              <td><span class="n-date {{r.cCls}}">{{r.c}}</span></td>
+              <td>{{r.owner}}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = (name, icon, on) => ({ name, icon, on: on ? 'is-on' : '' });
+    const S = (name, n, mini) => ({ name, n, mini: mini || '', next: name === 'AS처리' ? '' : 'has-next' });
+    const R = (stage, color, ink, todo, ai, tag, name, brand, addr, item, m, c, owner) => ({ stage, color, ink, todo, ai, tag, name, brand, addr, item, m: m || 'yyyy-mm-dd', mCls: m ? 'is-set' : '', c: c || 'yyyy-mm-dd', cCls: c ? 'is-set' : '', owner });
+    return {
+      tabs: [T('대시보드', 'i-layers', true), T('실측', 'i-properties'), T('도면작업실', 'i-document'), T('생산', 'i-build'), T('출고', 'i-truck'), T('AS', 'i-wrench'),
+        T('시공', 'i-home'), T('시공 완료', 'i-tick'), T('정산', 'i-dollar'), T('협력사 명세서', 'i-form'), T('과거 이력 검색', 'i-history')],
+      stages: [S('주문접수', 16), S('실측', 30), S('도면', 12, '4'), S('고객컨펌', 6, '2'), S('생산', 9), S('시공', 14), S('CS', 0), S('완료', 0), S('AS처리', 5)],
+      rows: [
+        R('생산', '#f59e0b', '#1f1500', '시공일 잡기', 'AI 제안 · 금 11-20 오전 2팀 3명', true, '박지은', 'LAHOM', '경기 성남시 분당구 예시로 12, 101동 1203호', '붙박이장 2 · 신발장 1', '2026-11-04', '', '김영업'),
+        R('시공', '#10b981', '#04291d', '시공 준비', 'AI 제안 · 토 11-21 로 옮기기', false, '이서준', 'LAHOM', '경기 성남시 분당구 서현 예시로 3', '수납장 1', '2026-10-28', '2026-11-20', '최민수'),
+        R('AS처리', '#ef4444', '#fff', 'AS 접수 확인', 'AI 제안 · AS 접수 (사진 1장)', false, '김도윤', 'LAHOM', '경기 성남시 분당구 서현 예시로 3', '문 경첩 소리', '', '', '한도윤'),
+        R('실측', '#3b82f6', '#fff', '실측 방문', '', false, '최하늘', 'HAUD', '경기 수원시 영통구 예시로 8', '붙박이장 1', '2026-11-16', '', '김영업'),
+        R('고객컨펌', '#5a67d8', '#fff', '도면 확인 기다림', '', false, '정민호', 'HAUD', '경기 안양시 동안구 평촌 예시로 21', '드레스룸', '2026-11-02', '', '박지은')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

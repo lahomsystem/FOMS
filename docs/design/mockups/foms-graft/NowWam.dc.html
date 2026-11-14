@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>채널톡 AI 초안 창 — 접목</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+<link rel="stylesheet" href="foms-now.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="n-app n-wam">
+  <div class="n-row n-between">
+    <p class="n-strong">AI 초안이 준비됐어요.</p>
+    <button class="n-btn n-btn-sm" type="button">닫기</button>
+  </div>
+  <p class="n-small n-muted">손님 메시지: 사진 1장 · "문에서 끼익 소리가 나요"</p>
+
+  <div class="n-wam-hint">
+    <p class="n-wam-label" style="color: #78350f;">AI 메모(참고만 — 손님께 그대로 보내지 마세요)</p>
+    <p>시공 11-20 금 오전 예정 주문이에요. 시공 전이라 AS 가 아니라 시공 날 같이 봐 드리는 쪽이 빨라요.</p>
+  </div>
+
+  <div class="n-col" style="display: flex; flex-direction: column; gap: 6px;">
+    <p class="n-wam-label">손님께 보낼 답</p>
+    <div class="n-wam-text">안녕하세요, 라홈입니다. 사진 보내 주셔서 고맙습니다. 문 경첩 소리는 경첩 나사를 조금 조이면 대부분 사라져요. 11월 20일 금요일 오전 시공 때 기사님이 함께 봐 드릴게요. 그 전에 더 심해지면 말씀 주세요.</div>
+  </div>
+
+  <div class="n-graft" style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px;">
+    <span class="n-graft-num is-abs">①</span>
+    <p class="n-wam-label">근거 3 — 누르면 회사 지식 · 주문이 열려요</p>
+    <div class="n-row" style="gap: 6px;">
+      <a class="n-chip" href="BItem.dc.html"><span class="f-i i-lightbulb" aria-hidden="true"></span>답 틀 · 경첩 소리</a>
+      <a class="n-chip" href="BItem.dc.html"><span class="f-i i-lightbulb" aria-hidden="true"></span>정책 · 시공 전 손봄</a>
+      <a class="n-chip" href="NowPC.dc.html"><span class="f-i i-cube" aria-hidden="true"></span>주문 L-24117 · 시공 11-20</a>
+    </div>
+  </div>
+
+  <div class="n-graft" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 8px; background: var(--n-brand-50);">
+    <span class="n-graft-num is-abs">②</span>
+    <p class="n-wam-label" style="color: var(--n-brand-600);">할 일 제안 1</p>
+    <p class="n-strong">시공 메모 더하기 — L-24117 "문 경첩 소리, 시공 때 손봄"</p>
+    <div class="n-row n-between">
+      <span class="n-small n-muted">답을 보내면 같이 넣어요</span>
+      <span class="n-row" style="gap: 6px;"><button class="n-btn n-btn-sm n-btn-primary" type="button">같이 넣기</button><button class="n-btn n-btn-sm" type="button">빼기</button></span>
+    </div>
+  </div>
+
+  <div class="n-row" style="margin-top: auto; gap: 6px;">
+    <button class="n-btn n-btn-primary" type="button" style="flex: 1 1 auto;">보내기</button>
+    <button class="n-btn" type="button">고치기</button>
+    <button class="n-btn" type="button">버리기</button>
+    <button class="n-btn" type="button">흘리기</button>
+  </div>
+  <p class="n-small n-muted">① ② 말고는 지금 채널톡 작은 창 그대로예요. 고친 까닭 칩 · 배우기 · 흘리기도 그대로예요.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":400,"height":700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

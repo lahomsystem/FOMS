@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>폰 대시보드 — 접목</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+<link rel="stylesheet" href="foms-now.css">
+<link rel="stylesheet" href="foms-now2.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="n-app n-ph">
+  <header class="n-ph-top">
+    <span class="f-i i-list" aria-hidden="true"></span>
+    <h1>대시보드</h1>
+    <span class="n-row" style="gap: 14px;"><span class="f-i i-people" aria-hidden="true"></span><span class="f-i i-flash" aria-hidden="true" style="color: #e03131;"></span><span class="f-i i-person" aria-hidden="true"></span><span class="f-i i-search" aria-hidden="true"></span><span style="position: relative;"><span class="f-i i-notifications" aria-hidden="true"></span><span class="n-rail-badge" style="top: -10px; right: -12px;">99+</span></span></span>
+  </header>
+
+  <section class="n-cal" aria-label="이번 달 달력">
+    <div class="n-cal-hero">
+      <div class="n-row n-between"><h2>‹ 2026년 11월 ›</h2><span class="f-i i-filter" aria-hidden="true"></span></div>
+      <span class="n-small">이번 달 출고가 합계</span>
+      <div class="n-row n-between"><span style="font-size: 22px; font-weight: 900;">[금액]</span><span class="n-small">실측 2 · 시공 3 · AS 1</span></div>
+    </div>
+    <div class="n-cal-grid">
+      <sc-for list="{{wd}}" as="w" hint-placeholder-count="7"><span class="n-cal-wd" style="color: {{w.c}};">{{w.t}}</span></sc-for>
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="35">
+        <div class="n-cal-day {{d.k}} {{d.today}}"><span style="color: {{d.c}};">{{d.n}}</span><em>{{d.hi}}<i>{{d.lo}}</i></em></div>
+      </sc-for>
+    </div>
+  </section>
+
+  <div class="n-sumbar">
+    <div><div class="n-strong" style="font-size: 16px;">실측 0 · 시공 0 · AS 0</div><div class="n-small">출고가 0원</div></div>
+    <button class="n-btn" type="button">오늘 목록</button>
+  </div>
+
+  <div class="n-ph-sec">
+    <div class="n-row n-between"><span class="n-strong"><span style="color: #e03131;">●</span> 위험 주문</span><span class="n-small n-muted">4건</span></div>
+    <div class="n-riskrow"><span class="n-riskicon"><span class="f-i i-time" aria-hidden="true"></span></span><div><div class="n-strong">도면 컨펌 48h+ 정체</div><div class="n-small n-muted">정민호 외 3</div></div><span style="color: #e03131; font-weight: 900; font-size: 20px;">4<span class="n-small">건</span></span></div>
+  </div>
+
+  <div class="n-ph-sec">
+    <span class="n-strong"><span class="f-i i-tick" aria-hidden="true" style="color: #2f9e44;"></span> 처리 대기</span>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+      <div class="n-tile"><b>3</b><span class="n-small">내 담당 진행중</span></div>
+      <div class="n-tile"><b>16</b><span class="n-small">신규 접수 대기</span></div>
+      <a class="n-tile n-graft" href="BPhone.dc.html" style="grid-column: 1 / -1; position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; align-items: center;">
+        <span class="n-graft-num" style="position: absolute; top: 8px; right: 8px;">①</span>
+        <b style="grid-row: span 2;">3</b>
+        <span class="n-small n-strong">AI 제안 승인 대기</span>
+        <span class="n-small n-muted">시공 잡기 · 방문 옮기기 · AS 접수</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="n-ph-sec">
+    <div class="n-row n-between"><span class="n-strong">단계별 주문 (86건)</span><span class="n-small" style="color: var(--n-brand);">접기</span></div>
+    <div class="n-stagegrid">
+      <sc-for list="{{stages}}" as="s" hint-placeholder-count="9">
+        <div class="n-stagetile"><span class="n-dotc" style="background: {{s.c}};"></span><b>{{s.n}}</b><small>{{s.name}}</small></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <a class="n-fab" href="#" aria-label="새 주문" style="bottom: 78px;"><span class="f-i i-add f-i-20" aria-hidden="true"></span></a>
+  <nav class="n-tabbar" aria-label="아래 탭">
+    <a class="n-tab is-on" href="#"><span class="f-i i-layers" aria-hidden="true"></span>대시보드<span class="n-rail-badge">14</span></a>
+    <a class="n-tab" href="#"><span class="f-i i-properties" aria-hidden="true"></span>실측<span class="n-rail-badge">9</span></a>
+    <a class="n-tab" href="#"><span class="f-i i-truck" aria-hidden="true"></span>출고<span class="n-rail-badge">5</span></a>
+    <a class="n-tab" href="#"><span class="f-i i-build" aria-hidden="true"></span>시공<span class="n-rail-badge">7</span></a>
+    <a class="n-tab" href="#"><span class="f-i i-th" aria-hidden="true"></span>계산기</a>
+    <a class="n-tab" href="#"><span class="f-i i-more" aria-hidden="true"></span>더보기</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const wd = ['일', '월', '화', '수', '목', '금', '토'].map((t, i) => ({ t, c: i === 0 ? '#e03131' : i === 6 ? '#1c7ed6' : '#212529' }));
+    const kinds = ['k-cloud', 'k-sun', 'k-sun', 'k-cloud', 'k-rain', 'k-sun', 'k-cloud'];
+    const temps = [[13, 5], [15, 6], [17, 7], [18, 7], [17, 9], [9, 3], [9, -1], [8, 2], [13, 4], [13, 1], [16, 4], [15, 5], [17, 8], [14, 10], [18, 10], [17, 7], [12, 4], [15, 9], [9, 7], [5, -1], [5, 0], [4, -2], [4, -3], [8, -1], [11, 1]];
+    const days = [];
+    for (let n = 1; n <= 35; n++) {
+      const col = (n - 1) % 7;
+      const real = n <= 30;
+      const t = temps[n - 1];
+      days.push({ n: real ? n : '', k: real && t ? kinds[(n * 3) % 7] : '', today: n === 14 ? 'is-today' : '', hi: t ? t[0] + '°' : '', lo: t ? t[1] + '°' : '', c: col === 0 ? '#e03131' : col === 6 ? '#1c7ed6' : '#495057' });
+    }
+    return {
+      wd, days,
+      stages: [
+        { name: '주문접수', n: 16, c: '#6b7380' }, { name: '실측', n: 30, c: '#3b82f6' }, { name: '도면', n: 12, c: '#8b5cf6' },
+        { name: '고객컨펌', n: 6, c: '#5a67d8' }, { name: '생산', n: 9, c: '#f59e0b' }, { name: '시공', n: 14, c: '#10b981' },
+        { name: 'CS', n: 0, c: '#ef4444' }, { name: '완료', n: 0, c: '#4b525d' }, { name: 'AS처리', n: 5, c: '#ef4444' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
