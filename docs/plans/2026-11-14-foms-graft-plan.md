@@ -159,19 +159,19 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 
 | 번호 | 심각도 | 어디 | 무엇 | 맡은 일감 | 상태 |
 |---|---|---|---|---|---|
-| F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | OPEN |
+| F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | 따로 고치는 중(D218 — 가지 `session/viewer-schedule-guard`, origin/deploy 바탕) |
 | F-02 | 낮음 | `foms/services/erp_actions/views.py:236` | 자세히 답 `params` 에 `required` 가 없다(registry `Param.required` 는 있음) — 화면(T8)이 `time_slot` · `flag` 말고는 꼭 넣을 값으로 미루어 판단 | T11 검수 뒤 정함(T7 답에 더하기 권함) | 고침(`9ca118614` — 자세히 답에 required) |
 | F-03 | 낮음 | `foms/services/erp_actions/views.py:134` | 카드 답에 `base_version` 이 없다(설계서 3.6 카드 칸 목록과 같음) — 카드 [승인]은 자세히를 먼저 읽고 승인(요청 둘) | T11 검수 뒤 정함 | OPEN |
 | F-04 | 낮음(색) | `static/css/components/foms-graft-cells.css` | AI 칩 글 · 테두리 #4a55b8 과 고객컨펌 단계 배지 #5a67d8 의 ΔE2000 7.5(제2색맹 흉내 뒤 7.3) — 바탕끼리는 42 이상, 옅은 칩과 꽉 찬 배지로 갈린다. 상태 쌍 기준(10)에는 미달 · 색약 기준(6)은 넘음 | T11 검수 뒤 정함(판의 남보라 유지가 기본) | OPEN |
 | F-05 | 기록 | `templates/partials/shared/erp_mobile_queue_card_v2.html` | 파일 주인 표(3절) 밖 — 폰 목록 줄 칩(메모리 규칙 '새 기능은 폰 목록 줄에서 보여야')으로 T8 이 더함. 이 카드를 쓰는 6개 목록 모두에 칩이 나온다. 꺼지면 지금과 같음(시험) | — | 기록만 |
 | F-06 | 결정 필요 | `foms/services/ai_staff/evals.py`(T16) · 마이그레이션 `csagent_03` | 상담 차례 `held_out` 을 참으로 쓰는 코드가 없다(떼어 두는 기능 C12-1 이 안 만들어짐) — 운영에서도 '지난 상담' 묶음이 0 · 화면 '묶음 0' | 사용자 결정 뒤 따로 | OPEN |
-| F-07 | 중간 | `foms/services/erp_actions/registry.py`(T14) | 보는 사람 ≠ 실행할 수 있는 사람(설계서 3.5 와 어긋남): 도면 담당 맡기기는 정책 `STAFF_MUTATION` 이라 모든 직원이 보지만 본체는 관리자 · 도면팀 · 지정 담당만 실행(나머지 409) · 실측 옮기기는 정책이 모든 매니저를 통과시키지만 본체가 팀을 봄(다른 팀 매니저 409) | T11 검수 뒤 정함 | OPEN |
+| F-07 | 중간 | `foms/services/erp_actions/registry.py`(T14) | 보는 사람 ≠ 실행할 수 있는 사람(설계서 3.5 와 어긋남): 도면 담당 맡기기는 정책 `STAFF_MUTATION` 이라 모든 직원이 보지만 본체는 관리자 · 도면팀 · 지정 담당만 실행(나머지 409) · 실측 옮기기는 정책이 모든 매니저를 통과시키지만 본체가 팀을 봄(다른 팀 매니저 409) | T11 검수 뒤 정함 | 결정 D217 — 지금처럼(기록만) |
 | F-08 | 낮음 | `foms/services/ai_staff/sweeps.py`(T10 규칙 O2) | 넣을 값이 비어 겹침 열쇠가 주문마다 하나 — 한 번 거절되면 그 주문엔 다시 제안되지 않음 | T11 검수 뒤 정함 | 고침(`aa2b37f66` — O1 · O2 · O4 열쇠에 상황, O3 은 거절 존중) |
 | F-09 | 고침 | `tests/support/graft_char.py` | 큰 묶음(-n 6, 하네스 · 보안 시험과 섞임)에서 특성 시험 정책 가드 403 셋이 감사 줄 빠짐으로 빨강 — 거부 감사 60초 겹침 거르기가 프로세스 안 캐시라 같은 일손의 앞선 거부(같은 번호 사용자 · 끝점)에 눌림. 한 번은 `erp_stage_updated_at` 안 바뀜(Windows 시계 눈금). 자국 뜨기 전 캐시 비우기 + 눈금 넘기기로 고침, 같은 묶음 두 번 초록. 함께 본 `test_db_leak_trace::test_closed_session_is_silent` 흔들림은 엔진 `id()` 재사용(접목판 밖 · 원래 있던 것) | 메인 | 고침(`f76d06476`) |
 | F-10 | 기록 | 설계서 · 지시문 | 코드와 다른 문장: 설계서 :63 `Idempotency-Key` 머리글 빠짐 · :310 '2xx 아니면 막힘'(코드는 5xx = 실패) · :311 '승인하는 사람의 팀'(실행기는 재전이 길만) · :300 · :339 `run_eval` · 줄 일 자리(실제 `evals_run.py` — `tasks.py` 는 층 래칫 · WORKER 가벼움 시험 때문에 못 씀) · :337 `check_codes`(말투 알림도 적힘) · 지시문 :446 `checks_same.py`(같은 뜻 판정은 `case_memory.judge_reply`) · 목업 'BOnto' 도면 담당 폰 승인(실제 PC 승인) · 'BAgents' '기준 밑이면 배포를 막아요'(없는 문지기) | 마무리 때 문서 고침 | 기록만 |
 | F-11 | 할 일 | `docs/harness/foms_*_inventory.json` | T14 로 줄 번호만 밀린 인벤토리(audit_coverage · failopen) — push 전 `*_scan.py` 를 직접 돌려 커밋(refresh 는 줄 번호만 바뀐 것을 되돌린다) | 메인(push 전) | 고침(`b4368b0aa`) |
 | F-12 | 결정 필요 | `foms/services/cs_agent/order_find.py:39`(T9 규칙 ①) | 본인 확인이 완료 주문(열린 AS 없음)을 빼서 'AS 뜻 + 완료 · CS 단계 → AS 접수 제안'이 사실상 CS 단계에서만 듦 — 고치려면 상담 주문 찾기 규칙을 바꿔야 함(접목판 밖 파일) | 사용자 결정 뒤 | OPEN |
-| F-13 | 낮음 | `foms/services/cs_agent/send_view.py`(T9) · `lifecycle.approve`(T7) | 기간이 지났지만 아직 `expired` 로 안 바뀐 제안이 작은 창 줄에 보일 수 있고, 승인도 `expires_at` 을 보지 않음 | T11 검수 뒤 정함 | OPEN |
+| F-13 | 낮음 | `foms/services/cs_agent/send_view.py`(T9) · `lifecycle.approve`(T7) | 기간이 지났지만 아직 `expired` 로 안 바뀐 제안이 작은 창 줄에 보일 수 있고, 승인도 `expires_at` 을 보지 않음 | T11 검수 뒤 정함 | 고침(`cccc60eb7` — 승인이 expires_at 을 본다) |
 | F-14 | 켜는 순서 | 설계서 4절 | 상담 AI 관리 칸(할 일 제안)은 켜고 `FOMS_GRAFT_ACTIONS` 는 끈 채면 AS 접수 · 방문 옮기기 제안이 생겨도 아무도 못 보고 7일 뒤 끝남 · 폰 알림은 FOMS-cron · WORKER 에 `REDIS_URL` · `FOMS_WEB_PUSH_ENABLED` · VAPID 열쇠가 없으면 알림 줄만 생기고 폰으로 안 나감 · 폰 알림 받는 사람 판정이 `FOMS_GRAFT_ACTIONS` · `FOMS_GRAFT_BRAIN_UI`(+`_COHORT`)를 제안을 만드는 FOMS-cron · WORKER 에서도 읽으므로 두 서비스에도 같은 값을 넣는다 · `FOMS_PUSH_P1_TYPES` 를 덮어쓴 서비스면 `ERP_ACTION_PROPOSAL` 을 더한다(검수 R-11) | 켜는 날 확인 목록 | 기록만 |
 | F-15 | 기록(접목판 밖) | `static/sw.js:429` | 폰 알림 누름 허용 목록이 `/erp/` · `/partner/` 뿐이라 지금 공지(`/notices`) · 상담 초안(`/cs-agent/…`) 폰 알림도 누르면 대시보드로 감 — 이번엔 `/brain` 만 넓힘 | 따로 | 기록만 |
 | F-16 | 기록 | `foms/services/erp_actions/registry.py`(T15) | 폰 알림 팀(`notify_team`)은 설계서에 없어 일꾼이 정함: 시공 잡기 · 방문 옮기기(시공) SHIPMENT · 방문 옮기기(AS) · AS 접수 · 시공 메모 · 단계 넘기기 · 시공일 안내 CS · 실측 예약 알림톡 · 방문 옮기기(실측) SALES · 도면 담당 DRAWING | 사용자 확인 | 기록만 |
@@ -197,7 +197,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | R-20 | 낮음 | `brain/partials/card_neighbours.html:33` · `tab_map.html:48` · `notice_popup.html:15` | 새 화면에 Font Awesome 없어 실은 조각 아이콘이 빈칸(글은 보임) (검수 R1) | 메인 고침 | 받아들임(옛 화면과 같이 쓰는 조각 — 글은 보임) |
 | R-21 | 낮음(확신 낮음) | `graft-cells.js:99` | `paintSlot` 이 칸 켬을 다시 안 봄 (검수 R1) | 고침 A | 고침(`6e01dc5a0`) |
 | R-22 | 낮음 | `ds-inbox-erp-card.js:46,88` | 서버 `href` 꼴 확인 없이 링크 (검수 R1) | 고침 A | 고침(`6e01dc5a0`) |
-| R-23 | 낮음(결정) | `foms-ds.css:20` | 바탕 글자 14px(80% 배율이면 11.2px) (검수 R1) | 사용자 확인 | OPEN |
+| R-23 | 낮음(결정) | `foms-ds.css:20` | 바탕 글자 14px(80% 배율이면 11.2px) (검수 R1) | 사용자 확인 | 고침(`b73e5df24` — D216 16px) |
 | R-24 | 낮음(확신 낮음) | `foms-graft-cells.css:42` | 폰 목록 카드 AI 칩 22px — 누르기 작음 (검수 R1) | 고침 A | 고침(`6e01dc5a0`) |
 | R-25 | 낮음 | `ai_staff/evals.py:408` · `evals_run.py:242` | '멈춘 채 끝남'으로 풀린 평가가 살아 있으면 계속 돈 쓰고 상태 덮어씀 (검수 R1) | 고침 B | 고침(`28a2e131a`) |
 | R-26 | 낮음 | `cs_agent/wam_functions.py:222` | 관리 칸 꺼져도 `with_action` 오면 답에 `action` 칸 (검수 R1) | 고침 C | 고침(`63f12b0ef`) |
@@ -223,6 +223,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | F-18 | 기록 | `static/js/brain/ds/ds-inbox-erp.js`(고침 A) | R-02 판정은 지금 차례(`steps`)의 '손님 알림톡' 줄을 본다 — 실측 옮기기의 자동 실측 알림톡 줄(`FOMS_ALIMTALK_AUTO_ENABLED` 켬)도 카드 [승인]에서 옆 창을 연다(시킨 범위보다 조금 넓음) · 옆 창 표의 `changes` 는 제안 때 값이라 스위치를 끈 뒤 낡은 알림톡 줄이 남을 수 있음(원래 있던 것) | — | 기록만 |
 | F-19 | 낮음(기록) | `foms/services/kakao_alimtalk.py` `_record_history`(고침 B 보고) | 사람이 누른 실측 알림톡(`manual` · `action` 열쇠)은 기록에 일정이 없어 O1 이 일정과 견주지 못함 — 자동 발송이 꺼진 채 사람이 보낸 뒤 날짜를 옮기면 놓침 | 따로 | OPEN |
 | F-20 | 낮음(기록) | `foms/services/kakao_alimtalk_construction.py`(고침 A) | 시공일 안내 '이미 보냄' 판정은 이제 주문 줄 잠금 아래 — SQLite 는 잠금을 무시해 진짜 겹침 증명은 PG 레인 몫(시험 없음) · 잠금이 벤더 왕복(최대 5초) 동안 이어짐 · 보내기 성공 뒤 기록 전 서버가 죽으면 다시 보낼 수 있음 | 따로 | 기록만 |
+| F-21 | 보통(사용자 지적 11-14) | `templates/partials/shared/foms_tablet_rail.html` · `static/css/components/foms-graft-cells.css` | 태블릿 레일에 '회사 지식' 칸이 늘면 1180×820 에서 알림 · 내 정보가 화면 아래로 밀림(잰 값 820 → 878px) — 칸이 보일 때만 레일 칸 여백을 줄여 820px 로 맞춤 | 메인 | 고침(`d7f5759df`) |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
