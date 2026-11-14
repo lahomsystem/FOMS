@@ -1,9 +1,67 @@
 {% extends "brain/ds/layout.html" %}
-{#- 물어보기 빈 화면 — 물결 A 의 틀만. ?tab=ask · /brain/ask 가 이 화면이다. 물결 C(T5)가 통째로 바꾼다. -#}
+{#- 물어보기(판 ⑨ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.7 · 5.2 ~ 5.5). ?tab=ask · /brain/ask 가 이 화면이다.
+    서버는 틀 · 자리만 그리고, 남은 수 · 물음과 답 · 근거 칩 · 내 질문 목록 · '이 답이 읽은 것'은 static/js/brain/ds/ds-ask*.js 가
+    JSON API(/api/brain/chat/state · ask · history · questions/<번호>/feedback)로 읽고 써서 textContent 로만 그린다.
+    답 판정(모름 · 근거 칩 · 확신 · 피드백 본문 · 설정 바뀐 칸 · 빈 지식 줄)은 옛 화면과 한 벌인 brain-ask-view.js.
+    ERP 주문 읽기(접목판 erp_read 스위치)가 꺼진 사람은 안내 글 · 보기 글이 지금 그대로이고 옆 창 자리도 없다.
+    ADMIN 만 설정 · 빈 지식 · 틀림 신고(관리 칸). 인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
+{% set erp_on = graft_enabled('erp_read') %}
 {% block title %}물어보기{% endblock %}
 {% block page_title %}물어보기{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-ask.css') }}">{% endblock %}
+{% block side %}{% include "brain/ds/partials/ask_side.html" %}{% endblock %}
 {% block main %}
-<header class="f-row"><h1 class="f-h3">물어보기</h1></header>
-{{ ds.empty('새 화면을 준비하고 있어요.', 'chat') }}
+<div class="fb-ask f-col" data-ds-ask
+     data-display="{{ display|tojson|forceescape }}"
+     data-state-url="{{ url_for('brain_chat_api.brain_chat_state') }}"
+     data-ask-url="{{ url_for('brain_chat_api.brain_chat_ask') }}"
+     data-history-url="{{ url_for('brain_chat_api.brain_chat_history') }}"
+     data-feedback-url="{{ url_for('brain_chat_api.brain_chat_feedback', question_id=0) }}"
+     {%- if is_admin %} data-settings-url="{{ url_for('brain_chat_api.brain_chat_settings_save') }}"{% endif %}
+     data-item-base="{{ url_for('brain_web.index') }}/items/"
+     data-me="{{ g.current_user.name if g.current_user else '' }}"
+     data-erp="{{ '1' if erp_on else '0' }}">
+  <header class="f-row">
+    <h1 class="f-h3">물어보기</h1>
+    <span class="f-muted">{{ '회사 지식과 주문 · 방문을 읽고 답해요' if erp_on else '내가 볼 수 있는 지식만 찾아 답해요' }}</span>
+    <span class="f-small f-muted f-push" data-ds-ask-left></span>
+  </header>
+
+  <div class="f-callout f-callout-primary">
+    {{ ds.icon('info-sign') }}
+    <div class="f-col f-gap4">
+      {%- if erp_on %}
+      <span>회사 지식만 근거로 답해요. 없으면 '모름'과 물어볼 팀을 알려 줘요. 손님 이름 · 전화 · 주소는 적지 마세요(적어도 가려서 보내요).</span>
+      <span class="f-row f-gap4">{{ ds.tag('새로 붙음', 'primary', minimal=True) }}<span>주문 번호(#123)를 적으면 주문 · 방문도 읽어서 답해요. 읽기만 하고, 바꾸지는 않아요.</span></span>
+      {%- else %}
+      <span>회사 지식만 근거로 답해요. 없으면 '모름'과 물어볼 팀을 알려 줘요. 손님 이름 · 전화 · 주소는 적지 마세요(적어도 가려서 보내요). 주문 상태 · 일정은 아직 못 답해요.</span>
+      {%- endif %}
+    </div>
+  </div>
+  <p class="fb-status" data-ds-ask-state role="status"></p>
+
+  <section class="f-col f-gap12 fb-ask-log" aria-label="물음과 답" aria-live="polite" data-ds-ask-log></section>
+
+  <form class="f-card f-card-compact f-col" aria-label="묻기" data-ds-ask-form id="ds-ask-form">
+    <label class="f-label" for="ds-ask-input">무엇이 궁금한가요?</label>
+    <textarea class="f-input" id="ds-ask-input" rows="2" maxlength="500" autocomplete="off" data-ds-ask-input
+              placeholder="{{ '예: #123 시공 언제예요? · 슬라이딩 문은 깊이가 얼마나 필요해요?' if erp_on else '예: 슬라이딩 문은 깊이가 얼마나 필요해요?' }}"></textarea>
+    <div class="f-row">
+      <span class="f-small f-muted f-row-nw">{{ ds.icon('eye-off') }}보내기 전에 상담과 같은 가림을 거쳐요</span>
+      <button class="f-btn f-btn-primary f-push" type="submit" data-ds-ask-submit>{{ ds.icon('send-message') }}물어보기</button>
+    </div>
+    <p class="fb-status" data-ds-ask-status role="status" aria-live="polite"></p>
+  </form>
+
+  {% if is_admin %}{% include "brain/ds/partials/ask_admin.html" %}{% endif %}
+</div>
+{% endblock %}
+{% block aside %}{% if erp_on %}{% include "brain/ds/partials/ask_aside.html" %}{% endif %}{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/brain-ask-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-ask-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-ask-turn.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-ask.js') }}" defer></script>
+{% if is_admin %}<script src="{{ asset_url('js/brain/ds/ds-ask-admin.js') }}" defer></script>{% endif %}
 {% endblock %}

@@ -1,9 +1,47 @@
 {% extends "brain/ds/layout.html" %}
-{#- 온톨로지 빈 화면 — 물결 A 의 틀만. ?tab=onto · map 이 이 화면이다(유형 지도는 온톨로지의 보기). 물결 C(T5)가 통째로 바꾼다. -#}
+{#- 온톨로지(판 ⑩ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.8 · 5.2 ~ 5.4). ?tab=onto · ?tab=map 이 이 화면이다(유형 지도는
+    온톨로지의 보기). 읽기만 — 종류 · 칸은 설계서 + 코드로만 바꾼다.
+    - 온톨로지 보기: 왼쪽 목록 · 가운데 상세 · 오른쪽 능력 질문을 static/js/brain/ds/ds-onto*.js 가 GET /api/brain/ontology ·
+      /ontology/types/<유형> · (erp_read 켬이면) /ontology/erp/<종류> 로 읽어 textContent 로만 그린다. 고른 것은 주소(?kind=&id=)에 남긴다.
+    - 유형 지도 보기: 옛 화면의 조각 brain/partials/tab_map.html · brain-map.js · brain.css 를 그대로 싣는다(그림 라이브러리는 이
+      보기를 열 때만 import()). 진짜 화면은 그 HTML 목록이고 그림은 돕는 쪽.
+    ERP 칸(물건 종류 · 할 일 종류 · ERP 재료 안내)은 API 답에 erp 칸이 있을 때만 그린다. 인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
-{% block title %}온톨로지{% endblock %}
-{% block page_title %}온톨로지{% endblock %}
+{% set view = 'map' if page == 'map' else 'onto' %}
+{% block title %}{{ '유형 지도' if view == 'map' else '온톨로지' }}{% endblock %}
+{% block page_title %}{{ '유형 지도' if view == 'map' else '온톨로지' }}{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-onto.css') }}">
+{%- if view == 'map' %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/brain.css') }}">
+{%- endif %}
+{% endblock %}
+{% block side %}{% include "brain/ds/partials/onto_side.html" %}{% endblock %}
 {% block main %}
-<header class="f-row"><h1 class="f-h3">온톨로지</h1></header>
-{{ ds.empty('새 화면을 준비하고 있어요.', 'layout-hierarchy') }}
+<div class="fb-onto f-col" data-ds-onto data-ds-onto-view="{{ view }}"
+     data-onto-url="{{ url_for('brain_api.brain_ontology') }}"
+     data-page-url="{{ url_for('brain_web.index') }}" data-item-base="{{ url_for('brain_web.index') }}/items/"
+     data-display="{{ display|tojson|forceescape }}">
+  <p class="fb-status" data-ds-onto-status role="status" aria-live="polite"></p>
+  {%- if view == 'map' %}
+  {% include "brain/ds/partials/onto_map.html" %}
+  {%- else %}
+  <div class="f-col f-gap16 fb-onto-detail" data-ds-onto-detail>
+    {{ ds.empty('왼쪽에서 물건 종류 · 연결 종류 · 능력 질문을 고르세요.', 'layout-hierarchy') }}
+  </div>
+  {%- endif %}
+</div>
+{% endblock %}
+{% block aside %}{% include "brain/ds/partials/onto_aside.html" %}{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/ds/ds-onto-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-onto-kit.js') }}" defer></script>
+{%- if view == 'onto' %}
+<script src="{{ asset_url('js/brain/ds/ds-onto-detail.js') }}" defer></script>
+{%- endif %}
+<script src="{{ asset_url('js/brain/ds/ds-onto.js') }}" defer></script>
+{%- if view == 'map' %}
+<script src="{{ asset_url('js/brain/ds/ds-onto-map.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-map.js') }}" defer></script>
+{%- endif %}
 {% endblock %}
