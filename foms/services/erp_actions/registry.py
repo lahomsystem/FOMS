@@ -289,15 +289,22 @@ def parse_params(name: Any, body: Any, *, today: Optional[datetime.date] = None)
     return out
 
 
-def dedupe_key(action: Any, order_id: Optional[int], params: Optional[Mapping[str, Any]]) -> str:
+def dedupe_key(action: Any, order_id: Optional[int], params: Optional[Mapping[str, Any]],
+               scope: Optional[str] = None) -> str:
     """겹침 열쇠 ``'<할 일>:<주문 번호>:<값 지문>'`` — 같은 할 일 · 주문 · 값이면 같고 하나라도 다르면 다르다.
 
     값 지문은 칸 이름 순으로 맞춘 JSON 의 sha256 앞 16자다(칸 순서가 달라도 같은 값). 주문이 없으면 ``-``.
+    ``scope`` 는 넣을 값이 없는 할 일의 '상황'(실측 일정 · 단계 · 시공일 — 훑기 규칙이 준다)이다. 주면 지문 재료에
+    ``_scope`` 로 들어가 상황이 바뀌면 열쇠가 달라진다(거절된 뒤 날짜 · 단계가 바뀌면 다시 제안 — 원장 F-08). ``None`` 이면
+    지금 열쇠 그대로.
     """
     spec = get(action)
     if order_id is not None and (isinstance(order_id, bool) or not isinstance(order_id, int)):
         raise ActionShapeError(("order_id",))
-    blob = json.dumps(dict(params or {}), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
+    material = dict(params or {})
+    if scope is not None:
+        material["_scope"] = str(scope)
+    blob = json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
     digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
     return f"{spec.name}:{'-' if order_id is None else order_id}:{digest}"
 

@@ -416,3 +416,56 @@ def test_expire_step_closes_due_proposals(proposers):
     assert summary["expired"] == 1 and summary["applied"] is True
     db_session.expire_all()
     assert db_session.get(ErpActionProposal, row_id).status == "expired"
+
+
+# ── 겹침 열쇠의 상황(원장 F-08) ──────────────────────────────────────────
+def _reject_all(action: str) -> None:
+    for row in db_session.query(ErpActionProposal).filter(ErpActionProposal.action == action):
+        row.status = "rejected"
+    db_session.commit()
+
+
+def _rows(action: str, order_id: int) -> int:
+    return db_session.query(ErpActionProposal).filter(ErpActionProposal.action == action,
+                                                      ErpActionProposal.order_id == order_id).count()
+
+
+def test_o1_rejected_comes_back_only_when_the_measurement_schedule_changes(proposers):
+    """F-08 — 거절된 실측 예약 알림톡 제안은 같은 일정이면 다시 안 오고, 일정(시간대)이 바뀌면 다시 온다."""
+    order = _order("MEASURE", schedule={"measurement": {"date": _day(1), "time": "오전"}})
+    _sweep()
+    assert _rows("send_measure_alimtalk", order.id) == 1
+    _reject_all("send_measure_alimtalk")
+    _sweep()
+    assert _rows("send_measure_alimtalk", order.id) == 1  # 같은 일정 — 거절을 존중한다
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["schedule"]["measurement"]["time"] = "오후"
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    sync_erp_flat_columns(order, sd)
+    db_session.commit()
+    _sweep()
+    assert _rows("send_measure_alimtalk", order.id) == 2  # 일정이 바뀌면 새 열쇠
+
+
+def test_o2_rejected_comes_back_only_when_the_stage_changes(proposers):
+    """F-08 — 거절된 단계 넘기기 제안은 같은 단계면 다시 안 오고, 다른 단계에서 다시 멈추면 다시 온다."""
+    _levels({"ops": {"advance_stage": 1}})
+    order = _order("MEASURE", stage_days=3, **_quest("MEASURE", "COMPLETED"))
+    _sweep()
+    assert _rows("advance_stage", order.id) == 1
+    _reject_all("advance_stage")
+    _sweep()
+    assert _rows("advance_stage", order.id) == 1
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["workflow"]["stage"] = "CONFIRM"
+    sd.update(_quest("CONFIRM", "COMPLETED"))
+    sd["drawing"] = {"status": "CONFIRMED"}
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    sync_erp_flat_columns(order, sd)
+    db_session.commit()
+    _sweep()
+    assert _rows("advance_stage", order.id) == 2

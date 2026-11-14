@@ -220,13 +220,14 @@ def _insert(session: Any, row: ErpActionProposal) -> bool:
 
 def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: Optional[Mapping[str, Any]],
             reason: Any, evidence: Any, source_kind: Optional[str], source_ref: Optional[str], level: int,
-            now: datetime.datetime) -> Optional[ErpActionProposal]:
+            now: datetime.datetime, dedupe_scope: Optional[str] = None) -> Optional[ErpActionProposal]:
     """AI 직원의 할 일 제안 하나를 만든다(커밋은 부르는 쪽).
 
     Args:
         action: 할 일 이름(``run`` · ``link``). proposed_by: ``'agent:<열쇠>'``. order: 대상 주문.
         params: 넣을 값(:func:`.registry.parse_params`). reason: 가린 이유 글. evidence: 근거 ``[{"kind", "ref", "label"}]``.
         source_kind · source_ref: ``cs_turn`` · ``sweep`` 과 그 번호. level: 지금 수준(0 이면 만들지 않는다). now: UTC naive.
+        dedupe_scope: 겹침 열쇠의 '상황'(:func:`.registry.dedupe_key` ``scope`` — 넣을 값이 없는 훑기 규칙이 준다).
 
     Returns:
         새 제안 줄, 또는 ``None``(수준 0 · 주문 없음 · 꼴 · 가림 · 막힘 · 이미 있음 · 거절된 적 있음).
@@ -249,7 +250,7 @@ def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: 
     if fns.check(action, order, clean):
         _skip(action, order, "ACTION_PRECONDITION")
         return None
-    key = dedupe_key(action, int(order.id), clean)
+    key = dedupe_key(action, int(order.id), clean, dedupe_scope)
     row = ErpActionProposal(
         action=action, proposed_by=proposed_by, order_id=int(order.id), params=clean,
         preview=fns.preview(action, order, clean), reason=text, evidence=proofs, level=level, status=STATUS_OPEN,
