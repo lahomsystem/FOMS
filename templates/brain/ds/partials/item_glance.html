@@ -1,0 +1,93 @@
+{#- 지식 카드 '한눈에'(판 ⑧): 속성 표(그 유형 속성 틀의 눈에 띄는 칸 + 브랜드 · 쓰는 팀 · 확실한 정도 · 위험 등급 · 유효 기간 ·
+    마지막 확인 · 다시 볼 날 · 비슷한 말 · 근거 · 볼 수 있는 사람 · 쓰인 횟수) · 쓰인 곳(ERP 읽기 스위치가 켜진 사람만 —
+    ds-item.js 가 채운다) · 연결된 지식(종류별 묶음 — 유형 · 이름 · 은퇴/초안/낡음 꼬리표 · '그 밖 N개') · 자세히 보기(만든 이 ·
+    승인자 · 판 · 빠진 연결 · 알림 · 값을 가져오는 곳 · 베껴 쓰는 곳 — 옛 카드의 같은 칸). -#}
+{#- 위험 등급 색 — ds-search-view.js GRADE_TONES 와 같다(B 만 꽉 찬 빨강 — 옅은 초록 · 주황과 색 차를 벌린다). -#}
+{%- set grade_tone = {'A': ('success', True), 'B_LIGHT': ('warning', True), 'B': ('danger', False)} %}
+{%- set conf_icon = {'confirmed': ('endorsed', 'f-i-primary'), 'evidenced': ('small-tick', 'f-i-success'),
+                     'observed': ('eye-open', 'f-i-warning')}.get(it.confidence, ('circle', 'f-i-muted')) %}
+{%- set hidden_paths = ('payload.pref_label', 'payload.aliases', 'valid_from', 'valid_to', 'checked_at', 'evidence_ref') %}
+<div class="fb-item-grid{{ ' fb-item-grid--usage' if usage_on else '' }}">
+  <section class="f-section" aria-label="속성">
+    <div class="f-section-head"><span class="f-section-title">속성</span><span class="f-section-sub">유형 '{{ type_label }}' 의 칸</span></div>
+    <table class="f-table f-table-compact fb-props">
+      <tbody>
+        {%- for kf in card.key_fields if kf.path not in hidden_paths %}
+        <tr><th scope="row" class="f-td-nw f-muted">{{ kf.label }}</th><td class="f-strong" data-brain-key-field="{{ kf.path }}">{{ kf.shown or '—' }}</td></tr>
+        {%- endfor %}
+        <tr><th scope="row" class="f-td-nw f-muted">브랜드</th><td>{{ brand_labels.get(it.brand, it.brand) or '—' }}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">쓰는 팀</th><td>{{ layer_labels.get(it.layer, it.layer) or '—' }}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">확실한 정도</th>
+          <td><span class="f-row-nw f-gap4">{{ ds.icon(conf_icon[0], conf_icon[1]) }}{{ confidence_labels.get(it.confidence, it.confidence) }}</span></td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">위험 등급</th>
+          <td>{% if it.risk_grade %}{%- set gt = grade_tone.get(it.risk_grade, ('primary', True)) %}{{ ds.tag(grade_labels.get(it.risk_grade, it.risk_grade), gt[0], minimal=gt[1]) }}{% else %}—{% endif %}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">유효 기간</th><td class="f-num">{{ it.valid_from or '처음부터' }} ~ {{ it.valid_to or '계속' }}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">마지막 확인</th><td class="f-num">{{ it.checked_at or '없음' }}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">다시 볼 날</th>
+          <td class="f-num">{% if it.stale_after %}{{ ds.tag(it.stale_after ~ ' 지남', 'warning', minimal=True) if it.stale else it.stale_after }}{% else %}—{% endif %}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">비슷한 말</th>
+          <td>{% for word in card.labels.aliases %}「{{ word }}」{{ ' ' if not loop.last }}{% else %}없음{% endfor %}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">근거</th>
+          <td>{{ evidence_labels.get(it.evidence_kind, '없음') if it.evidence_kind else '없음' }}
+            {%- if it.evidence_count %}<span class="f-small f-muted fb-note">{{ it.evidence_count }}개</span>{% endif %}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">볼 수 있는 사람</th><td>{{ visibility }}</td></tr>
+        <tr><th scope="row" class="f-td-nw f-muted">쓰인 횟수</th>
+          <td data-brain-glance>{{ 'AI 상담 · 챗봇이 ' ~ it.usage_count ~ '번 썼어요' if it.usage_count else '아직 안 쓰였어요' }}</td></tr>
+      </tbody>
+    </table>
+    <details class="fb-drawer" data-brain-card-more>
+      <summary>자세히 보기</summary>
+      {% include "brain/ds/partials/item_more.html" %}
+    </details>
+  </section>
+
+  {%- if usage_on %}
+  <section class="f-section" aria-label="쓰인 곳" data-ds-item-usage>
+    <div class="f-section-head">
+      <span class="f-section-title">쓰인 곳</span>
+      {{ ds.tag('새로 붙음', 'primary', minimal=True) }}
+      <span class="f-section-sub f-push">지난 2주</span>
+    </div>
+    <div class="f-section-body" data-ds-item-usage-body>
+      <p class="fb-status f-small f-muted" role="status" aria-live="polite" data-ds-item-usage-status>불러오는 중…</p>
+    </div>
+  </section>
+  {%- endif %}
+</div>
+
+{%- set link_total = card.links|sum(attribute='count') %}
+{%- set shown_rules = [] %}{% for rule in card.link_rules or [] if rule.min != 0 or rule.max != 0 %}{% set _ = shown_rules.append(rule) %}{% endfor %}
+<section class="f-section" aria-label="연결된 지식">
+  <div class="f-section-head fb-links-head">
+    <span class="f-section-title">연결된 지식</span>
+    {{ ds.count(link_total) }}
+    {%- if shown_rules %}
+    <span class="f-section-sub">연결 규칙: {% for rule in shown_rules %}{{ link_display.get(rule.kind, (rule.kind,))[0] }} {{ rule.min }} ~ {{ rule.max ~ '개' if rule.max is not none else '여럿' }}{{ ' · ' if not loop.last }}{% endfor %}</span>
+    {%- endif %}
+    <button class="f-btn f-btn-minimal f-btn-small f-push" type="button" data-ds-item-open="neighbours">{{ ds.icon('graph') }}이웃 지도</button>
+  </div>
+  {%- if card.links %}
+  <div class="f-section-body fb-links">
+    {%- for group in card.links %}
+    {%- set ld = link_display.get(group.kind, (group.kind, '', group.kind, group.kind)) %}
+    <div class="f-col f-gap4 brain-link--{{ group.kind }}">
+      <span class="f-row-nw f-gap4"><span class="brain-swatch fb-swatch" aria-hidden="true"></span><span class="f-h6">{{ ld[2] if group.direction == 'out' else ld[3] }}</span><span class="f-small f-muted">{{ group.count }}</span></span>
+      <ul class="f-col f-gap4">
+        {%- for other in group['items'] %}
+        <li class="f-row-nw f-gap4 fb-link">
+          <span class="f-type">{{ ds.icon(type_icons.get(other.type, 'circle')) }}{{ type_display.get(other.type, (other.type,))[0] }}</span>
+          <a class="f-ellipsis" href="{{ url_for('brain_web.item', key=other.key) }}">{{ other.name }}</a>
+          {%- if other.status == 'draft' %}{{ ds.tag(status_labels.get('draft', '초안'), 'primary', minimal=True) }}{% endif %}
+          {%- if other.status == 'retired' %}{{ ds.tag(status_labels.get('retired', '은퇴'), 'danger', minimal=True) }}{% endif %}
+          {%- if other.stale %}{{ ds.tag('낡음', 'warning', minimal=True) }}{% endif %}
+        </li>
+        {%- endfor %}
+        {%- if group.count > group['items']|length %}<li class="f-small f-muted fb-link">그 밖 {{ group.count - group['items']|length }}개</li>{% endif %}
+      </ul>
+    </div>
+    {%- endfor %}
+  </div>
+  {%- else %}
+  <div class="f-section-body"><p class="f-muted">연결 없음</p></div>
+  {%- endif %}
+</section>

@@ -1,9 +1,24 @@
 {% extends "brain/ds/layout.html" %}
-{#- 찾기 빈 화면 — 물결 A 의 틀만. ?tab=search · table 이 이 화면이다. 물결 C(T4)가 통째로 바꾼다. -#}
+{#- 찾기 · 지식 표(판 ⑦ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.2 · 5.4). ?tab=search · ?tab=table 이 이 화면이다.
+    서버는 틀 · 유형 묶음 나무 · 유형별 수 칩 · 거르기 여덟(값 목록은 코드 상수)만 그리고, 줄 · 미리 보기는
+    static/js/brain/ds/ds-search*.js 가 지금 JSON API 로 읽어 그린다: 찾는 말이 있으면 GET /api/brain/search(유형별 묶음),
+    유형을 고르면 GET /api/brain/table(거르기 · 정렬 · 쪽), 줄을 누르면 GET /api/brain/items/<키>(+ ERP 읽기 스위치가 켜진
+    사람만 /usage — '쓰인 곳'). 주소(?tab=search&q= · ?tab=table&type=)는 지금 그대로. 인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
-{% block title %}찾기{% endblock %}
-{% block page_title %}찾기{% endblock %}
-{% block main %}
-<header class="f-row"><h1 class="f-h3">찾기</h1></header>
-{{ ds.empty('새 화면을 준비하고 있어요.', 'search') }}
+{% from "brain/ds/partials/search_icons.html" import type_icons %}
+{% set mode = 'table' if page == 'table' else 'search' %}
+{% set usage_on = graft_enabled('erp_read') %}
+{% set type_counts = {} %}
+{% for group in tmap.groups %}{% for t in group.types if not t.external %}{% set _ = type_counts.update({t.type: t.count}) %}{% endfor %}{% endfor %}
+{% block title %}{{ '지식 표' if mode == 'table' else '찾기' }}{% endblock %}
+{% block page_title %}{{ '지식 표' if mode == 'table' else '찾기' }}{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-search.css') }}">{% endblock %}
+{% block side %}{% include "brain/ds/partials/search_side.html" %}{% endblock %}
+{% block main %}{% include "brain/ds/partials/search_main.html" %}{% endblock %}
+{% block aside %}{% include "brain/ds/partials/search_aside.html" %}{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/ds/ds-search-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-search-rows.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-search-preview.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-search.js') }}" defer></script>
 {% endblock %}

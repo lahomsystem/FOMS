@@ -1,0 +1,43 @@
+{#- 지식 카드 고칠 말 칸(옛 card_propose.html 과 같은 칸 · 같은 data-* — brain-item-actions.js 가 그대로 채우고 보낸다).
+    고칠 칸은 이름 · 글 · 유효 기간 + 그 유형의 속성 틀 칸(foms/services/brain/schemas.py — 자료형 · 고른 값 · 단위). 고르기 값은
+    한글 이름표로 보이고 값은 그대로 보낸다(display.choices). 은퇴 · 지우기는 까닭만 받는다(칸 묶음을 숨긴다). -#}
+<form class="f-col f-gap12 fb-form" data-brain-propose-form hidden>
+  <p class="f-strong" data-brain-propose-title></p>
+  <div class="f-col f-gap12" data-brain-propose-fields>
+    <label class="f-field"><span class="f-label">이름</span>
+      <input class="f-input" name="name" maxlength="200" autocomplete="off" data-brain-field="name" data-datatype="text"></label>
+    <label class="f-field"><span class="f-label">글</span>
+      <textarea class="f-input" name="text" rows="4" maxlength="2000" data-brain-field="text" data-datatype="text"></textarea></label>
+    <div class="fb-form__pair">
+      <label class="f-field"><span class="f-label">유효 시작</span>
+        <input class="f-input" type="date" name="valid_from" data-brain-field="valid_from" data-datatype="date"></label>
+      <label class="f-field"><span class="f-label">유효 끝</span>
+        <input class="f-input" type="date" name="valid_to" data-brain-field="valid_to" data-datatype="date"></label>
+    </div>
+    {%- for prop in props %}
+    {%- set names = (display or {}).get('choices', {}).get(prop.path, {}) %}
+    <label class="f-field"><span class="f-label">{{ prop.label }}{% if prop.unit %}({{ prop.unit }}){% endif %}</span>
+      {%- if prop.datatype == 'enum' %}
+      <select class="f-select" name="{{ prop.path }}" data-brain-field="{{ prop.path }}" data-datatype="enum">
+        <option value="">(없음)</option>
+        {%- for choice in prop.choices %}<option value="{{ choice }}">{{ names.get(choice, choice) }}</option>{% endfor %}
+      </select>
+      {%- elif prop.datatype in ('int', 'number') %}
+      <input class="f-input" type="number" name="{{ prop.path }}" data-brain-field="{{ prop.path }}" data-datatype="{{ prop.datatype }}"
+             {%- if prop.low is not none %} min="{{ prop.low }}"{% endif %}{% if prop.high is not none %} max="{{ prop.high }}"{% endif %}
+             {%- if prop.datatype == 'number' %} step="any"{% endif %}>
+      {%- else %}
+      <input class="f-input" name="{{ prop.path }}" data-brain-field="{{ prop.path }}" data-datatype="{{ prop.datatype }}" autocomplete="off"
+             {%- if prop.datatype == 'list' %} placeholder="쉼표로 나눠 적기{% if prop.choices %} — {% for c in prop.choices %}{{ c }}({{ names.get(c, c) }}){{ ', ' if not loop.last }}{% endfor %}{% endif %}"{% endif %}>
+      {%- endif %}
+    </label>
+    {%- endfor %}
+  </div>
+  <label class="f-field"><span class="f-label">까닭(꼭) — 사람 이름 · 전화 · 주소는 빼 주세요</span>
+    <textarea class="f-input" name="reason" rows="2" maxlength="500" required></textarea></label>
+  <div class="f-row">
+    <button type="submit" class="f-btn f-btn-primary" data-brain-propose-submit>보내기</button>
+    <button type="button" class="f-btn" data-brain-propose-cancel>취소</button>
+  </div>
+</form>
+<p class="fb-status f-small" role="status" aria-live="polite" data-brain-propose-status></p>

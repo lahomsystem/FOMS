@@ -1,9 +1,70 @@
 {% extends "brain/ds/layout.html" %}
-{#- 지식 카드 빈 화면 — 물결 A 의 틀만. /brain/items/<키> 가 이 화면이다. 물결 C(T4)가 통째로 바꾼다. -#}
+{#- 지식 카드(판 ⑧ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.2 · 5.3 · 5.4). /brain/items/<키> 가 이 화면이다(볼 수 없거나
+    없으면 지금처럼 404 — foms/web/brain.py). 서버가 그린다: 길 표시 · 머리(유형 · 이름 · 층 · 브랜드 · 상태 · 기다리는 수정 ·
+    보기 범위 · 글) · 탭(한눈에 · 수정 기록 · 연결된 지식 · 뇌 보기) · 속성 표 · 연결된 지식 · 오른쪽 수정 기록 + 제안 단추.
+    - 쓰인 곳: ERP 읽기 스위치(graft_enabled('erp_read'))가 켜진 사람만 자리를 그리고 ds-item.js 가 GET /api/brain/items/<키>/usage
+      로 채운다. 꺼져 있으면 그 칸이 없다.
+    - 제안 단추(고칠 말 · 옛 판 되돌리기 · 은퇴 · 지우기)는 옛 카드와 같은 brain-item-actions.js 가 POST /api/brain/proposals 로
+      보낸다(승인 대기로 — 바로 바뀌지 않는다). 액션 이름 · 글은 서버가 준 목록(propose · rollback_label). 그 스크립트의 뿌리
+      [data-brain-card] 는 오른쪽 칸이다(단추 · 칸 · 되돌리기가 모두 그 안에 있다).
+    - 그림 위젯(이웃 지도 · 뇌 보기)은 지금 partial · 지금 스크립트 · brain.css 를 그대로 싣는다(다시 그리지 않는다). 탭을 열 때
+      ds-item.js 가 옛 탭 단추(같은 id)에 'shown.bs.tab' · 'hidden.bs.tab' 을 쏘아 그 스크립트가 그때만 라이브러리를 import() 한다.
+    인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
-{% block title %}지식 카드{% endblock %}
+{% from "brain/ds/partials/search_icons.html" import type_icons %}
+{% set it = card.item %}
+{% set type_label = type_display.get(it.type, (it.type,))[0] %}
+{% set title_name = card.labels.pref or it.name %}
+{% set usage_on = graft_enabled('erp_read') %}
+{% block title %}{{ title_name }}{% endblock %}
 {% block page_title %}지식 카드{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/brain.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-item.css') }}">
+{% endblock %}
 {% block main %}
-<header class="f-row"><h1 class="f-h3">지식 카드</h1></header>
-{{ ds.empty('새 화면을 준비하고 있어요.', 'document') }}
+<div class="fb-item f-col" data-ds-item{% if usage_on %} data-usage-url="{{ url_for('brain_api.brain_item_usage', key=it.key) }}"{% endif %}>
+  {% include "brain/ds/partials/item_head.html" %}
+
+  <div class="f-tabs" role="tablist" aria-label="지식 카드 탭" data-ds-item-tabs>
+    <button class="f-tab" id="brain-card-main-btn" type="button" role="tab" aria-selected="true" aria-controls="brain-card-main"
+            data-ds-item-tab="main">한눈에</button>
+    <button class="f-tab" id="brain-card-history-btn" type="button" role="tab" aria-selected="false" aria-controls="brain-card-history"
+            data-ds-item-tab="history" tabindex="-1">수정 기록{{ ds.count(card.history|length) }}</button>
+    <button class="f-tab" id="brain-card-neighbours-btn" type="button" role="tab" aria-selected="false"
+            aria-controls="brain-card-neighbours" data-ds-item-tab="neighbours" data-brain-tab-name="neighbours"
+            tabindex="-1">연결된 지식{{ ds.count(around.total) }}</button>
+    {#- 뇌 보기 — 휴대폰 · WebGL 없음 · 소프트웨어 그리기면 숨긴 채(brain3d-tab.js 가 판정해 보인다 — 옛 카드와 같다). -#}
+    <button class="f-tab" id="brain-card-brain3d-btn" type="button" role="tab" aria-selected="false" aria-controls="brain-card-brain3d"
+            data-ds-item-tab="brain3d" data-brain-tab-name="brain3d" data-brain3d-tab-item hidden tabindex="-1">뇌 보기</button>
+  </div>
+
+  <section class="fb-item-pane f-col" id="brain-card-main" role="tabpanel" aria-labelledby="brain-card-main-btn" tabindex="0"
+           data-ds-item-panel="main">
+    {% include "brain/ds/partials/item_glance.html" %}
+  </section>
+  <section class="fb-item-pane f-col" id="brain-card-history" role="tabpanel" aria-labelledby="brain-card-history-btn" tabindex="0"
+           data-ds-item-panel="history" hidden>
+    {% include "brain/ds/partials/item_history.html" %}
+  </section>
+  <section class="fb-item-pane fb-item-widget" id="brain-card-neighbours" role="tabpanel" aria-labelledby="brain-card-neighbours-btn"
+           tabindex="0" data-ds-item-panel="neighbours" hidden>
+    {% include "brain/partials/card_neighbours.html" %}
+  </section>
+  <section class="fb-item-pane fb-item-widget" id="brain-card-brain3d" role="tabpanel" aria-labelledby="brain-card-brain3d-btn"
+           tabindex="0" data-ds-item-panel="brain3d" hidden>
+    {% include "brain/partials/card_brain3d.html" %}
+  </section>
+</div>
+{% endblock %}
+{% block aside %}{% include "brain/ds/partials/item_aside.html" %}{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/brain-review-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-search-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-item.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-item-actions.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-graph-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-neighbours.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain3d-core.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain3d-tab.js') }}" defer></script>
 {% endblock %}

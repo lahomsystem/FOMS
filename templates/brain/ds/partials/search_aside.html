@@ -1,0 +1,15 @@
+{#- 찾기 · 지식 표 오른쪽 미리 보기(판 ⑦ — PC 만): 줄을 누르면 ds-search-preview.js 가 GET /api/brain/items/<키> 로 요약 · 값 ·
+    연결된 지식 수를, ERP 읽기 스위치가 켜진 사람만 /usage 로 '쓰인 곳'을 그린다. 앞 · 다음 줄 단추는 지금 목록 안에서 옮긴다.
+    [카드 열기] · [고칠 말 제안](카드의 #brain-card-propose — 고칠 말 칸이 열린다). 폰에서는 줄 이름을 눌러 카드로 간다. -#}
+<aside class="f-aside fb-pc-only fb-search-aside" aria-label="미리 보기" data-ds-search-aside>
+  <div class="f-aside-head">
+    {{ ds.icon('eye-open', 'f-i-muted') }}
+    <span class="f-section-title">미리 보기</span>
+    <span class="f-small f-muted f-push" data-ds-preview-pos></span>
+    <button class="f-btn f-btn-small f-btn-minimal" type="button" aria-label="앞 줄" data-ds-preview-step="-1" disabled>{{ ds.icon('chevron-left') }}</button>
+    <button class="f-btn f-btn-small f-btn-minimal" type="button" aria-label="다음 줄" data-ds-preview-step="1" disabled>{{ ds.icon('chevron-right') }}</button>
+  </div>
+  <div class="f-aside-body" data-ds-preview aria-live="polite">
+    {{ ds.empty('줄을 누르면 여기에 보여요.', 'eye-open') }}
+  </div>
+</aside>

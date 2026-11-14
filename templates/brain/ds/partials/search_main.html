@@ -1,0 +1,91 @@
+{#- 찾기 · 지식 표 가운데(판 ⑦): 머리(지식 수 · 다시 확인) · 큰 찾기 칸 · 유형별 수 칩(많은 순 열 개 + '그 밖') · 거르기 여덟 ·
+    표(이름 + 유형 표시 · 쓰는 팀 · 브랜드 · 상태 · 확실한 정도 · 등급 · 쓰인 횟수 · 마지막 확인 · 다시 볼 날) · 쪽.
+    찾기(?tab=search)는 같은 표에 유형별 묶음 줄로, 지식 표(?tab=table)는 고른 유형 하나 + 거르기 · 쪽. 거르기는 찾기에 걸리지
+    않아(지금 API 그대로) 지식 표일 때만 보인다. 줄은 ds-search-rows.js 가 그린다. -#}
+{%- set chip_rows = [] %}
+{%- for t in display.type_order if type_counts.get(t) %}{% set _ = chip_rows.append((t, type_counts[t])) %}{% endfor %}
+{%- set chip_rows = chip_rows|sort(attribute='1', reverse=True) %}
+<div class="fb-search f-col" data-ds-search-page data-ds-search-mode="{{ mode }}"
+     data-start-type="{{ start_type }}" data-start-query="{{ start_query }}"
+     data-display="{{ display|tojson|forceescape }}" data-type-icons="{{ type_icons|tojson|forceescape }}"
+     data-type-counts="{{ type_counts|tojson|forceescape }}"
+     data-search-url="{{ url_for('brain_api.brain_search') }}" data-table-url="{{ url_for('brain_api.brain_table') }}"
+     data-page-url="{{ url_for('brain_web.index') }}" data-item-base="{{ url_for('brain_web.index') }}/items/"
+     data-item-api="/api/brain/items/"{% if usage_on %} data-usage="1"{% endif %}>
+  <header class="f-row">
+    <h1 class="f-h3">찾기 · 지식 표</h1>
+    <span class="f-muted">지식 {{ '{:,}'.format(tmap.total) }}개</span>
+    <a class="f-btn f-btn-minimal f-push" href="{{ url_for('brain_web.index', tab='recheck') }}">{{ ds.icon('refresh') }}다시 확인{{ ds.count(counts.recheck) }}</a>
+  </header>
+
+  <form class="f-row-nw" role="search" method="get" action="{{ url_for('brain_web.index') }}" data-ds-search-form>
+    <input type="hidden" name="tab" value="search">
+    <span class="f-input-group f-grow fb-search-box">
+      {{ ds.icon('search') }}
+      <input class="f-input" type="search" name="q" maxlength="100" aria-label="회사 지식 찾기" placeholder="예: 슬라이딩, 깊이, 환불"
+             value="{{ start_query }}" autocomplete="off" data-ds-search-input>
+    </span>
+    <button class="f-btn f-btn-primary f-btn-large" type="submit">{{ ds.icon('search') }}찾기</button>
+  </form>
+
+  <div class="f-row f-gap4" aria-label="유형별 수" data-ds-search-chips>
+    <a class="f-chip fb-chip{{ ' is-selected' if mode == 'search' else '' }}" href="{{ url_for('brain_web.index', tab='search') }}"
+       data-ds-search-all{% if mode == 'search' %} aria-current="page"{% endif %}>{{ ds.icon('small-tick') }}모두<span class="f-strong f-num">{{ '{:,}'.format(tmap.total) }}</span></a>
+    {%- for t, n in chip_rows %}
+    {%- set picked = mode == 'table' and t == start_type %}
+    <a class="f-chip fb-chip{{ ' is-selected' if picked else '' }}" href="{{ url_for('brain_web.index', tab='table', type=t) }}"
+       data-ds-type="{{ t }}"{% if loop.index > 10 %} data-ds-chip-more hidden{% endif %}{% if picked %} aria-current="page"{% endif %}>
+      {{- ds.icon(type_icons.get(t, 'circle')) }}{{ type_display.get(t, (t,))[0] }}<span class="f-strong f-num">{{ '{:,}'.format(n) }}</span></a>
+    {%- endfor %}
+    {%- if chip_rows|length > 10 %}
+    <button class="f-btn f-btn-minimal f-btn-small" type="button" aria-expanded="false" data-ds-chip-toggle>그 밖 {{ chip_rows|length - 10 }} 유형{{ ds.icon('chevron-down') }}</button>
+    {%- endif %}
+  </div>
+
+  <form class="fb-filters" aria-label="거르기" data-ds-search-filters{% if mode != 'table' %} hidden{% endif %}>
+    {%- for name, label in [('type', '유형'), ('layer', '쓰는 팀'), ('brand', '브랜드'), ('status', '상태'), ('grade', '위험 등급'),
+                            ('confidence', '확실한 정도'), ('check', '확인'), ('sort', '정렬')] %}
+    <div class="f-field">
+      <label class="f-label f-small f-muted" for="ds-filter-{{ name }}">{{ label }}</label>
+      <select class="f-select" id="ds-filter-{{ name }}" name="{{ name }}" data-ds-filter="{{ name }}">
+        {%- if name not in ('type', 'sort') %}<option value="">모두</option>{% endif %}
+        {%- for value, text in options[name] %}
+        <option value="{{ value }}" data-label="{{ text }}"{{ ' selected' if name == 'type' and value == start_type else '' }}>{{ text }}</option>
+        {%- endfor %}
+      </select>
+    </div>
+    {%- endfor %}
+  </form>
+
+  <p class="fb-status f-small f-muted" role="status" aria-live="polite" data-ds-search-status></p>
+
+  <section class="f-section" aria-label="지식 목록" data-ds-search-list{% if mode == 'search' and not start_query %} hidden{% endif %}>
+    <div class="f-section-body-flush f-scroll-x">
+      <table class="f-table f-table-compact f-table-interactive fb-stable">
+        <caption class="f-sr">{{ '지식 표 — 고른 유형' if mode == 'table' else '찾은 지식 — 유형별 묶음' }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">이름</th><th scope="col">쓰는 팀</th><th scope="col">브랜드</th><th scope="col">상태</th>
+            <th scope="col">확실한 정도</th><th scope="col">등급</th><th scope="col" class="f-td-num">쓰인 횟수</th>
+            <th scope="col">마지막 확인</th><th scope="col">다시 볼 날</th>
+          </tr>
+        </thead>
+        <tbody data-ds-search-body></tbody>
+      </table>
+    </div>
+    <div class="f-row f-small f-muted fb-pager" data-ds-search-pager{% if mode != 'table' %} hidden{% endif %}>
+      <span data-ds-page-text></span>
+      <span class="f-row f-gap4 f-push">
+        <button class="f-btn f-btn-small" type="button" data-ds-page-prev disabled>이전</button>
+        <button class="f-btn f-btn-small" type="button" data-ds-page-next disabled>다음</button>
+      </span>
+    </div>
+  </section>
+
+  {%- if usage_on %}
+  <div class="f-callout f-callout-primary fb-pc-only">
+    {{ ds.icon('info-sign') }}
+    <div class="f-grow">{{ ds.tag('새로 붙음', 'primary', minimal=True) }} 줄을 누르면 오른쪽에서 지난 2주 동안 어디에 쓰였는지 보여요.</div>
+  </div>
+  {%- endif %}
+</div>
