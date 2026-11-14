@@ -33,7 +33,7 @@ def test_first_values_without_a_table(app):
     assert view["version"] == 0
     stage = _row(view, "ops", "advance_stage")  # D214 — 단계 넘기기 규칙은 처음 수준 0
     assert stage["level"] == 0 and stage["editable"] is True
-    assert [c["value"] for c in stage["choices"]] == [0, 1]  # 할 일 상한 1
+    assert [c["value"] for c in stage["choices"]] == [0, 1, 2]  # 할 일 상한 2(T14 — run)
     assert [c["value"] for c in _row(view, "schedule", "schedule_construction")["choices"]] == [0, 1, 2]
     draft = _row(view, "cs", "cs_draft")
     assert draft["editable"] is False and draft["choices"] == []  # 직원만의 일은 표로 바꾸지 않는다

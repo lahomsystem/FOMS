@@ -109,7 +109,7 @@ AGENTS: dict[str, Agent] = {agent.key: agent for agent in (
           (Duty("ask_answer", "물어보기 답", 0), Duty("erp_read", "주문 · 방문 읽기", 0))),
     Agent("ops", "운영 AI", "i-predictive-analysis", True, "아침 훑기 · 제안만",
           (Tool("erp.order.list", new=True), Tool("actions.propose", new=True)),
-          (Duty("send_measure_alimtalk", "알림톡 보내기(실측 예약)", 1), Duty("assign_draftsman", "도면 담당 맡기기(바로가기)", 1),
+          (Duty("send_measure_alimtalk", "알림톡 보내기(실측 예약)", 1), Duty("assign_draftsman", "도면 담당 맡기기", 2),
            Duty("advance_stage", "단계 넘기기(규칙)", 0))),
     Agent("schedule", "일정 AI", "i-calendar", True, "협력사 희망 시공일 · 제안만",
           (Tool("erp.visit.list", new=True), Tool("actions.propose", new=True)),

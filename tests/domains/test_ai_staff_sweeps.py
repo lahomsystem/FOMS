@@ -168,7 +168,7 @@ def test_o3_drawing_without_draftsman_for_two_days(proposers):
     assert result.by_rule["O3"] == 1 and _made("assign_draftsman") == {yes.id}
     assert not {has.id, fresh.id} & _made("assign_draftsman")
     row = db_session.query(ErpActionProposal).filter(ErpActionProposal.action == "assign_draftsman").one()
-    assert row.params == {}  # 담당 칸은 비워 둔다 — 승인자가 고른다
+    assert row.params == {"user_ids": []}  # 담당 칸은 비워 둔다 — 승인자가 고른다(T14 꼴 users)
 
 
 # ── 수준 · 상한 · 겹침 · 실행 기록 ──────────────────────────────────────
