@@ -6,6 +6,8 @@
 - ``POST /questions/<id>/feedback`` ``{"feedback": "helpful" | "not_helpful" | "wrong", "note"}`` — 내 질문에만.
 - ``POST /settings`` ``{"changes", "version"}`` — ADMIN 만(정책 ``ADMIN_OPS``).
 - ``GET /tools`` — 에이전트 도구로 내놓은 것(읽기 셋)과 챗봇이 권하는 사람 액션(ADMIN · 층 승인자).
+- ``GET /history`` — **내가 물은 것만**(오늘 · 지난 7일, 가린 글 앞부분 · 모름 · 주문 읽기 — 설계서 2026-11-14-foms-graft 3.7).
+  접목판 스위치(``brain_ui`` 또는 ``erp_read``)가 켜진 사람만 — 꺼진 사람에게는 없는 주소와 같은 답(지금 그대로).
 
 여는 사람은 :func:`foms.services.brain.chat_access.page_viewer`(ADMIN · 단계 안 내부 직원) — 그 밖(바깥 역할 · 꺼진 계정 · 단계
 밖)은 **404**, 로그인 안 함 401. PARTNER 세션은 협력사 문지기가 먼저 막는다(없는 주소와 같은 답). 쓰기는 공용 CSRF · Origin 가드
@@ -17,7 +19,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, abort, g, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
@@ -26,12 +28,13 @@ from foms.services.brain.actions import ACTIONS, AGENT_EXPOSED_WRITES
 from foms.services.brain.chat_access import ask_viewer, page_viewer
 from foms.services.brain.chat_answer import STATUS, ChatError, ask
 from foms.services.brain.chat_gaps import latest_gaps
-from foms.services.brain.chat_log import ChatFeedbackError, asked_today, record_feedback
+from foms.services.brain.chat_log import ChatFeedbackError, asked_today, my_history, record_feedback
 from foms.services.brain.chat_settings import (
     ChatSettingsError, daily_cap, read_chat_settings, save_chat_settings, settings_view,
 )
 from foms.services.brain.chat_tools import AGENT_TOOLS, CHAT_OFFERED_ACTIONS, READ_TOOL_SPECS
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.graft_flags import enabled as graft_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +173,22 @@ def brain_chat_settings_save() -> tuple[Any, int]:
         db.rollback()
         return _reply(500, None, MESSAGES["db"])
     return _reply(200, {"settings": settings_view(cfg), "cap_ready": daily_cap(cfg) is not None}, None)
+
+
+@brain_chat_api_bp.route("/history", methods=["GET"])
+def brain_chat_history() -> tuple[Any, int]:
+    """내가 물은 것(오늘 · 지난 7일) — 로그인 사용자 번호로만 고른다. 스위치가 꺼진 사람에게는 없는 주소와 같은 답(지금과 같다)."""
+    user = getattr(g, "current_user", None)
+    if user is not None and not (graft_enabled("brain_ui", user) or graft_enabled("erp_read", user)):
+        abort(404)
+    db = get_db()
+    try:
+        _cfg, viewer, denied = _opened(db)
+        if denied:
+            return denied
+        return _reply(200, my_history(db, asker_id=viewer.user_id, now_utc=now_utc_naive()), None)
+    finally:
+        db.rollback()
 
 
 @brain_chat_api_bp.route("/tools", methods=["GET"])

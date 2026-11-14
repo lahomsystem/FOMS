@@ -8,6 +8,11 @@
 - 종류 · 칸 · 연결은 코드 + 설계서가 정본이다(화면에서 고치지 않는다 — master brain 7.7). 수는 모두 보는 사람의 보기 범위 · 유효
   기간 안(:func:`.read.visible_clauses`)만 센다. '답 재료가 있나'는 필요한 종류 · 연결이 하나라도 있나이고, 내용이 맞는지는 평가
   단계(설계서 8절)가 잰다.
+- **ERP 물건 칸**(접목판 ``erp_read`` 스위치가 켜진 사람만 — 설계서 2026-11-14-foms-graft 3.8): 왼쪽 목록에 ``erp`` 칸(물건 종류 열 ·
+  할 일 종류 · ERP 재료가 드는 질문 수)이 붙고, 능력 질문의 ERP 재료는 읽기 도구가 있는 종류면 '있음'으로 센다(켜기 전 점수
+  ``covered_before`` 를 같이 싣는다). 오른쪽 상세는 :func:`ontology_erp_type`. 꺼진 사람의 답은 지금과 글자까지 같다.
+  ERP 물건 · 할 일은 코드 목록(:mod:`foms.services.erp_ontology.objects` · :mod:`foms.services.erp_actions.registry`)이 정본 — DB 를
+  읽지 않는다.
 """
 
 from __future__ import annotations
@@ -24,13 +29,19 @@ from foms.services.brain.constants import (
     ALLOWED_LINKS, EXTERNAL_TYPES, LINK_KINDS, TYPE_LAYERS, TYPES, cardinality, link_allowed,
 )
 from foms.services.brain.display import LAYER_LABELS, LINK_DISPLAY, TYPE_DISPLAY, TYPE_GROUPS
-from foms.services.brain.ontology_cqs import CQS, ERP_NEEDS
+from foms.services.brain.ontology_cqs import CQS, ERP_NEED_TYPES, ERP_NEEDS
 from foms.services.brain.read import visible_clauses
 from foms.services.brain.schemas import CHOICE_LABELS, TYPE_SCHEMAS
 from foms.services.brain.scope import Viewer
 from foms.services.brain.store import is_current
+from foms.services.erp_actions.registry import ACTIONS as ERP_ACTIONS
+from foms.services.erp_actions.registry import MODE_HUMAN, MODE_LINK, ActionSpec, level_label
+from foms.services.erp_ontology.objects import OBJECT_TYPES, ORDER_PROPS, get_type, masked_props
 
-__all__ = ["LINK_STANDARDS", "PROP_STANDARDS", "TYPE_STANDARDS", "ontology_summary", "ontology_type"]
+__all__ = [
+    "ERP_LINKS", "LINK_STANDARDS", "PROP_STANDARDS", "TYPE_STANDARDS", "erp_ready_needs", "ontology_erp_type",
+    "ontology_summary", "ontology_type",
+]
 
 #: 물건 종류 → 표준 어휘의 짝(schema.org · SKOS · PROV-O · ODRL · SOSA · SHACL). ``foms:`` 는 우리 어휘.
 TYPE_STANDARDS: dict[str, str] = {
@@ -65,6 +76,13 @@ PROP_STANDARDS: dict[str, str] = {
 }
 _EXAMPLES = 8
 _SCAN_CAP = 5000  # 채움을 셀 때 읽는 항목 상한(회사 지식은 수천 개 아래 — 넘으면 표본)
+#: ERP 물건 사이 연결(시작 · 연결 말 · 끝) — 지금 표 · 칸이 잇는 것만(설계서 3.2 표). 새 표 · 새 칸 없음.
+ERP_LINKS: tuple[tuple[str, str, str], ...] = (
+    ("erp:order", "품목", "erp:order_item"), ("erp:order", "손님", "erp:customer"), ("erp:order", "현장", "erp:site"),
+    ("erp:order", "방문", "erp:visit"), ("erp:order", "도면", "erp:drawing"), ("erp:order", "생산", "erp:production_run"),
+    ("erp:order", "출고", "erp:shipment"), ("erp:order", "협력사 발주", "erp:partner_order"),
+    ("erp:order", "AS", "erp:as_case"), ("erp:as_case", "AS 방문", "erp:visit"),
+)
 
 
 def _type_row(item_type: str, counts: dict[str, int]) -> dict[str, Any]:
@@ -96,12 +114,19 @@ def _actions() -> list[dict[str, Any]]:
     return rows
 
 
-def _coverage(counts: dict[str, int], link_totals: dict[str, int]) -> dict[str, Any]:
-    """능력 질문마다 필요한 종류 · 연결이 하나라도 있나(ERP 물건은 아직 없음)."""
+def erp_ready_needs() -> frozenset[str]:
+    """읽기 도구가 있는 ERP 재료(능력 질문의 ``erp:order`` · ``erp:schedule`` 가운데) — 코드 목록만 본다."""
+    return frozenset(need for need, code in ERP_NEED_TYPES.items()
+                     if (obj := get_type(code)) is not None and obj.readable)
+
+
+def _coverage(counts: dict[str, int], link_totals: dict[str, int],
+              erp_have: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """능력 질문마다 필요한 종류 · 연결이 하나라도 있나. ERP 재료는 ``erp_have`` 에 든 것만 '있음'(처음 값 — 없음)."""
     rows = []
     for cq in CQS:
         needs = [{"type": n, "label": ERP_NEEDS.get(n) or TYPE_DISPLAY.get(n, (n,))[0], "erp": n in ERP_NEEDS,
-                  "have": n not in ERP_NEEDS and counts.get(n, 0) > 0} for n in cq.needs]
+                  "have": n in erp_have if n in ERP_NEEDS else counts.get(n, 0) > 0} for n in cq.needs]
         links = [{"kind": k, "label": LINK_DISPLAY.get(k, (k,))[0], "have": link_totals.get(k, 0) > 0} for k in cq.links]
         rows.append({"id": cq.cq_id, "domain": cq.domain, "question": cq.question, "basis": cq.basis,
                      "needs": needs, "links": links, "covered": all(x["have"] for x in (*needs, *links))})
@@ -109,8 +134,30 @@ def _coverage(counts: dict[str, int], link_totals: dict[str, int]) -> dict[str, 
     return {"rows": rows, "covered": covered, "total": len(rows)}
 
 
-def ontology_summary(session: Any, viewer: Viewer, *, today: datetime.date) -> dict[str, Any]:
-    """왼쪽 목록 자료 — 종류 묶음 · 연결 종류 · 동작 · 능력 질문 점수."""
+def _erp_action_row(spec: ActionSpec) -> dict[str, Any]:
+    """할 일 종류 한 줄 — 이름 · 감싼 기능 · 대상 · 수준 상한 · 갈래 · 어디서 결정하나."""
+    if spec.mode == MODE_HUMAN:
+        where = "PC · 사장님"
+    elif spec.mode == MODE_LINK:
+        where = "주문 화면에서"
+    else:
+        where = "폰 승인" if spec.phone_ok else "PC 승인"
+    target = get_type(spec.target)
+    return {"name": spec.name, "label": spec.label, "wraps": spec.wraps, "target": spec.target,
+            "target_label": target.label if target is not None else spec.target, "level_label": level_label(spec),
+            "mode": spec.mode, "where": where}
+
+
+def _erp_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """왼쪽 목록 ``erp`` 칸 — 물건 종류 열 · 할 일 종류 · ERP 재료가 드는 능력 질문 수."""
+    return {"types": [{"type": o.type, "label": o.label, "sub": o.sub, "icon": o.icon, "readable": o.readable,
+                       "masked": o.masked} for o in OBJECT_TYPES],
+            "actions": [_erp_action_row(spec) for spec in ERP_ACTIONS.values()],
+            "cq_erp": sum(1 for row in rows if any(n["erp"] for n in row["needs"]))}
+
+
+def ontology_summary(session: Any, viewer: Viewer, *, today: datetime.date, erp: bool = False) -> dict[str, Any]:
+    """왼쪽 목록 자료 — 종류 묶음 · 연결 종류 · 동작 · 능력 질문 점수. ``erp`` = 접목판 ERP 읽기가 켜진 사람(ERP 칸 · 재료)."""
     counts = _counts(session, viewer, today)
     per_link = _link_counts(session, viewer, today)
     link_totals: dict[str, int] = {}
@@ -126,8 +173,13 @@ def ontology_summary(session: Any, viewer: Viewer, *, today: datetime.date) -> d
                       "from": compress_types([t for t in (*TYPES, *EXTERNAL_TYPES) if t in starts]),
                       "to": compress_types([t for t in (*TYPES, *EXTERNAL_TYPES) if t in ends]),
                       "count": link_totals.get(kind, 0), "open": bool(starts)})
-    return {"groups": groups, "links": links, "actions": _actions(), "cq": _coverage(counts, link_totals),
-            "total": sum(counts.values()), "group_labels": {key: label for key, label, _t in TYPE_GROUPS}}
+    out = {"groups": groups, "links": links, "actions": _actions(), "cq": _coverage(counts, link_totals),
+           "total": sum(counts.values()), "group_labels": {key: label for key, label, _t in TYPE_GROUPS}}
+    if erp:  # 켜기 전 점수를 같이 적는다(시험지를 쉽게 만든 것이 아니라 재료가 생긴 것 — 설계서 3.8)
+        cq = _coverage(counts, link_totals, erp_ready_needs())
+        cq["covered_before"] = out["cq"]["covered"]
+        out.update(cq=cq, erp=_erp_summary(cq["rows"]))
+    return out
 
 
 def _value(row: BrainObject, path: str) -> Any:
@@ -191,3 +243,42 @@ def ontology_type(session: Any, viewer: Viewer, item_type: str, *, today: dateti
             "examples": [{"key": r.item_key, "name": r.name, "brand": r.brand, "status": r.status}
                          for r in rows[:_EXAMPLES]],
             "cq": [cq.cq_id for cq in CQS if item_type in cq.needs]}
+
+
+def _erp_props() -> list[dict[str, Any]]:
+    """주문 속성 ↔ 지금 칸(설계서 3.2 '실제 정본') — 쓰기를 맡는 할 일은 화면 이름으로."""
+    out = []
+    for prop in ORDER_PROPS:
+        via = [ERP_ACTIONS[name].label for name in prop.via if name in ERP_ACTIONS]
+        out.append({"key": prop.key, "name": prop.name, "column": prop.column, "shape": prop.shape,
+                    "access": prop.access, "access_label": prop.access_label, "via": " · ".join(via),
+                    "note": prop.note})
+    return out
+
+
+def _erp_links(code: str) -> list[dict[str, Any]]:
+    """그 물건 종류의 나가는 · 들어오는 연결(:data:`ERP_LINKS`)."""
+    rows = []
+    for start, label, end in ERP_LINKS:
+        if code in (start, end):
+            other = end if start == code else start
+            obj = get_type(other)
+            rows.append({"rel": label, "direction": "out" if start == code else "in", "type": other,
+                         "label": obj.label if obj is not None else other})
+    return rows
+
+
+def ontology_erp_type(code: Any) -> Optional[dict[str, Any]]:
+    """ERP 물건 종류 상세(``GET /api/brain/ontology/erp/<종류>``) — 모르는 종류는 ``None``(404). DB 를 읽지 않는다."""
+    obj = get_type(code)
+    if obj is None:
+        return None
+    needs = {need for need, mapped in ERP_NEED_TYPES.items() if mapped == obj.type}
+    is_order = obj.type == "erp:order"
+    return {"type": obj.type, "label": obj.label, "sub": obj.sub, "icon": obj.icon, "readable": obj.readable,
+            "read_note": obj.read_note, "hidden": obj.masked,
+            "source": {"table": obj.table, "json": obj.json, "text": obj.source},
+            "masked": len(masked_props()) if is_order else 0, "props": _erp_props() if is_order else [],
+            "links": _erp_links(obj.type),
+            "actions": [_erp_action_row(spec) for spec in ERP_ACTIONS.values() if spec.target == obj.type],
+            "cq": [cq.cq_id for cq in CQS if needs & set(cq.needs)]}
