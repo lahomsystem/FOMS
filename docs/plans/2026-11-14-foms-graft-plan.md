@@ -30,11 +30,11 @@
 | C | T4 | W4 | 찾기 · 지식 표 · 지식 카드 새 화면 + 쓰인 곳(⑦ · ⑧) | high | `foms-s-foms-graft` | T2 · T6 | DONE `3f2b1b879` |
 | C | T5 | W5 | 물어보기 · 온톨로지 새 화면 + ERP 읽기 답 · ERP 물건 · 할 일 종류(⑨ · ⑩) | high | `foms-s-foms-graft` | T2 · T6 | DONE `280406417` |
 | C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | RUNNING |
-| C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | RUNNING |
+| C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | DONE `9899ef763` |
 | C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | RUNNING |
 | D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | PENDING |
 | D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | PENDING |
-| D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | PENDING |
+| D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | RUNNING |
 | E | T11 | R1 | 검수(읽기만) — 설계서 맞춤 · 보안 · 품질 | xhigh | `foms-s-foms-graft`(읽기만) | T1 ~ T10 · T13 ~ T16 | PENDING |
 | E | T12 | V1 | 합친 뒤 확인 — 명령 전부 · 스위치 끔 견주기 · 핀 · 머리 하나 · 소유 표 | high | `foms-s-foms-graft` | T11 고침 끝 | PENDING |
 
