@@ -451,6 +451,11 @@ def test_client_pc_check_matches_server_wants_mobile_width_surfaces() -> None:
             "foms_ptr": "coarse" if case["coarse"] else "fine",
             "foms_vw": "wide" if case["wide"] else "narrow",
         }
-        server_pc = not feature_flags.wants_mobile_width_surfaces(_Req(cookies))
+        # 2026-11-14 부터 서버는 태블릿 가로(coarse + wide)에서도 모바일 표면을 뺀다. 예열은 여전히
+        # 마우스 PC 만(2026-10-01 사용자 결정)이므로 "모바일 표면 생략 ∧ 마우스" 와 견준다.
+        server_pc = (
+            cookies.get("foms_ptr") == "fine"
+            and not feature_flags.wants_mobile_width_surfaces(_Req(cookies))
+        )
         assert js_pc is server_pc, (case, cookies, js_pc, server_pc)
     assert got == [False, True, False, False, False]  # 광폭 마우스 PC 한 칸만 예열
