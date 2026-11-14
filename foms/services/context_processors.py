@@ -12,13 +12,12 @@ from typing import Any
 from flask import g, request, session, url_for
 
 from foms.services.feature_flags import (
-    env_bool,
-    env_bool_or_mobile_v2,
+    env_bool, env_bool_or_mobile_v2,
     is_mobile_v2_shell,
     is_naver_workbench_enabled,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
-    wants_coarse_pointer_surfaces,
+    wants_coarse_pointer_surfaces, wants_desktop_queue_surfaces,
     wants_mobile_width_surfaces,
     wants_wide_only_surfaces,
     wizard_new_order_enabled,
@@ -272,10 +271,11 @@ def inject_status_list() -> dict[str, Any]:
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
         "wide_only_surfaces": wants_wide_only_surfaces(),
-        # 광폭 마우스 PC 면 False — 모바일 v2 대시보드 표면(광폭에서 CSS 가 끄는 것)을 생략한다.
-        # 같은 세션에서도 창 폭에 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다
-        # (fragment_revalidation._surface_hint_material).
+        # mobile_width: 광폭 마우스 PC · 태블릿 가로면 False(CSS 가 끄는 모바일 v2 표면 생략). desktop_queue: 태블릿
+        # 가로만 False(태블릿 화면이 대신하는 PC 작업 큐 생략 — 템플릿은 erp_mobile_v2_enabled 와 함께). 둘 다 창 폭·방향에
+        # 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다(fragment_revalidation._surface_hint_material).
         "mobile_width_surfaces": wants_mobile_width_surfaces(),
+        "desktop_queue_surfaces": wants_desktop_queue_surfaces(),
         "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }

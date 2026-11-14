@@ -140,7 +140,7 @@ COARSE_PERSONA = "tablet-coarse"
 COARSE_PERSONA_COOKIES = {
     "foms_scr": "1180",   # 태블릿 긴 변 — 992 이상이라 광폭 표면도 함께 본다
     "foms_ptr": "coarse",  # 터치 기기 — coarse 전용 표면 렌더
-    "foms_vw": "wide",  # 가로 태블릿 창 — coarse 라 모바일 v2 표면은 그대로 렌더된다
+    "foms_vw": "wide",  # 가로 태블릿 창 — 2026-11-14 부터 모바일 v2 표면 · PC 작업 큐가 빠진다(실기기 그대로)
 }
 
 #: coarse 패스 라운드 수. 바이트는 결정적이라 웜업 1 + 표본 1 이면 충분하다

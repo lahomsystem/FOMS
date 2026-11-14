@@ -108,9 +108,11 @@
     var cust = sheet.querySelector('[data-foms-cgate-customer]');
     if (cust) {
       // 모바일 큐 카드가 없으면(광폭 마우스 PC 는 모바일 표면을 서버가 생략한다 — 2026-09-28)
-      // PC 표의 '고객' 칸에서 이름을 읽는다. 둘 다 없을 때만 #번호.
+      // PC 표의 '고객' 칸에서, 태블릿 가로(모바일 카드 · PC 표 둘 다 생략 — 2026-11-14)는 작업 모드
+      // 타임라인 카드에서 이름을 읽는다. 셋 다 없을 때만 #번호.
       var titleEl = document.querySelector('.foms-queue-card-v2[data-order-id="' + orderId + '"] .foms-queue-card-v2__title')
-        || document.querySelector('tr.erp-main-row[data-order-id="' + orderId + '"] td[data-label="고객"] span');
+        || document.querySelector('tr.erp-main-row[data-order-id="' + orderId + '"] td[data-label="고객"] span')
+        || document.querySelector('.foms-cwork-card[data-order-id="' + orderId + '"] .foms-cwork-card__name');
       cust.textContent = (titleEl ? titleEl.textContent.trim() : '') || ('#' + orderId);
     }
     sheet.hidden = false;
