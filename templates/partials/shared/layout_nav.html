@@ -45,6 +45,11 @@
                     </ul>
                 </div>
                 {% endif %}
+                {#- 회사 지식 승인 대기(접목판 판 ② — 설계서 2026-11-14-foms-graft 6절): 전역 스위치가 켜졌을 때만 빈 자리(숨김).
+                   사람마다의 켬 · 수는 graft-cells.js 가 /api/erp-actions/badge 로 채운다 — 메뉴는 DB 를 읽지 않는다.
+                   꺼지면 한 글자도 나가지 않는다(공백까지 지금과 같다). #}
+                {%- if graft_cell_slot('pc') %}
+                <div class="position-relative foms-graft-nav" data-graft-badge="pc" hidden><a class="btn btn-link p-0 border-0 position-relative foms-graft-nav__btn" href="{{ url_for('brain_web.index', tab='inbox') }}" title="회사 지식 승인 대기" aria-label="회사 지식 승인 대기"><i class="fas fa-lightbulb fa-2x" aria-hidden="true"></i><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill foms-graft-count" data-graft-count hidden></span></a></div>{% endif %}
                 <!-- Global Notification Button — 단일 센터(모바일 시트 SSOT) 오픈 -->
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"

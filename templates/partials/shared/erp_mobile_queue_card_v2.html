@@ -50,6 +50,11 @@
       {% for alert in primary_alerts[:2] %}
         <span class="foms-badge {{ alert.class }}">{{ alert.label }}</span>
       {% endfor %}
+      {#- AI 제안 배지(접목판 — 폰 목록 줄에서도 보인다): 전역 스위치가 켜졌을 때만 빈 자리(숨김), graft-cells.js 가 /open 한 번으로
+          채운다. 꺼지면 한 글자도 안 나간다. #}
+      {%- if graft_cell_slot('mobile') %}
+      <a class="foms-graft-chip foms-graft-chip--card" data-graft-slot="{{ order.id }}" data-graft-cell="mobile" hidden></a>
+      {%- endif %}
       {#- 도면 수정 중 배지(Q2, 2a-2) — 생산 행 DTO(attach_production_drawing_gate)만 채운다.
           다른 도메인 행에는 키가 없어 렌더 바이트 무변경. -#}
       {% if order.drawing_badge %}

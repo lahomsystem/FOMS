@@ -1,0 +1,31 @@
+{#- 승인 대기 가운데의 AI 할 일 제안 칸(T8 · 판 ⑥ · ⑫ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.5 · 3.6 · 5.5).
+    서버는 칸 머리와 빈 목록만 그린다. 카드(AI 직원 · 제목 · 때 · 근거 칩 · 칸 · 전 → 후 · [승인] · [자세히] · [거절], 셋까지 +
+    'n개 더 보기') · 옆 창 '제안 자세히' · 폰 카드는 static/js/brain/ds/ds-inbox-erp*.js 가 /api/erp-actions 로 읽어 그린다
+    (폰 카드는 승인 대기 폰 목록 [data-ds-phone-list] 맨 앞에 넣는다). 할 일 스위치가 꺼진 사람에게는 한 글자도 그리지 않는다
+    (자리 div 가 비어 지금과 같다). 시공 팀 · 인원 글은 어디에도 없다(사용자 결정 D211 — 글은 API 가 준 것만). -#}
+{%- if graft_enabled('actions') %}
+{%- import "brain/ds/_macros.html" as dsx %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-inbox-erp.css') }}">
+<section class="f-section fb-pc-only fb-erp" aria-label="AI 할 일 제안" data-erp-section
+         data-erp-api="/api/erp-actions"
+         data-erp-page="{{ url_for('brain_web.index', tab='inbox') }}">
+  <div class="f-section-head fb-erp-head">
+    {{ dsx.icon('predictive-analysis', 'f-i-muted') }}
+    <span class="f-section-title">AI 할 일 제안</span>
+    <span class="f-count" data-erp-count>0</span>
+    <span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span>
+    <span class="f-section-sub f-push">AI 직원이 FOMS 할 일을 제안해요 · 승인 전에는 아무것도 안 바뀌어요</span>
+  </div>
+  <div class="f-section-body fb-erp-body">
+    <p class="fb-status" data-erp-status role="status" aria-live="polite"></p>
+    <ol class="f-col fb-erp-cards" data-erp-cards></ol>
+    <div class="f-row f-small f-muted" data-erp-more-row hidden>
+      <span data-erp-rest></span>
+      <button class="f-btn f-btn-minimal f-btn-small f-push" type="button" data-erp-act="more"><span data-erp-more-text></span>{{ dsx.icon('chevron-down') }}</button>
+    </div>
+  </div>
+</section>
+<script src="{{ asset_url('js/brain/ds/ds-inbox-erp-card.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-inbox-erp-aside.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-inbox-erp.js') }}" defer></script>
+{%- endif %}

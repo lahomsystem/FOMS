@@ -1,0 +1,27 @@
+/* 승인 대기 'AI 할 일 제안' 칸 · 옆 창 '제안 자세히' · 폰 카드 배치(T8 — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.6 · 5.5 ·
+   판 ⑥ · ⑫) — templates/brain/ds/partials/inbox_erp_section.html 이 싣는다. class 머리 fb-erp. 색 · 크기는 foms-ds.css 토큰
+   (.f-app 안)만. 목업 BInbox · BPhone 의 style="…" 는 모두 여기 class 로 옮겼다. */
+
+/* hidden 은 언제나 숨김 — .f-row · .f-col · .f-progress 같은 display 규칙이 [hidden] 을 이기지 않게(옆 창은 .fb-inbox 밖). */
+.fb-erp [hidden],
+.fb-erp-aside [hidden],
+.fb-erp-phone [hidden] { display: none !important; }
+
+.fb-erp-head { flex-wrap: wrap; }
+.fb-erp-cards { gap: 12px; }
+.fb-erp-card { min-width: 0; }
+.fb-erp-card.is-selected { box-shadow: inset 0 0 0 2px var(--blue3); }  /* 옆 창에 연 카드(목업 첫 카드) */
+.fb-erp-why { margin-right: 4px; }
+.fb-erp-warn { color: var(--orange2); }
+.fb-erp-empty { padding: 4px 0; }
+
+/* 옆 창 */
+.fb-erp-aside { min-width: 0; }
+.fb-erp-diff { overflow-x: auto; }
+.fb-erp-diff .f-table { font-size: var(--font-size-small); }
+.fb-erp-why-line { align-items: flex-start; word-break: keep-all; }
+.fb-erp-form { gap: 10px; padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
+.fb-erp-reject-title { margin-top: 4px; }
+
+/* 폰 카드 — 승인 대기 폰 목록 안(판 ⑫). 카드 틀은 바탕 CSS(.fb-phone-card)를 같이 쓴다. */
+.fb-erp-phone .fb-phone-approve { min-height: 36px; padding: 5px 16px; }
