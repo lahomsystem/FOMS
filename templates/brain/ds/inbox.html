@@ -1,0 +1,18 @@
+{% extends "brain/ds/layout.html" %}
+{#- 승인 대기(⑥ · ⑫) 빈 화면 — 물결 A 의 틀만. 물결 B(T3)가 통째로 바꾼다. ?tab=inbox · recheck · releases 가 이 화면이다(왼쪽 길잡이의 보기). -#}
+{% import "brain/ds/_macros.html" as ds %}
+{% set view_titles = {'inbox': '승인 대기', 'recheck': '다시 확인', 'releases': '판 · 기록'} %}
+{% block title %}{{ view_titles.get(page, '승인 대기') }}{% endblock %}
+{% block page_title %}{{ view_titles.get(page, '승인 대기') }}{% endblock %}
+{% block side %}
+<nav class="f-side fb-pc-only" aria-label="승인 대기 길잡이">
+  {{ ds.nav_item(url_for('brain_web.index', tab='inbox'), '모두', 'inbox', counts.inbox, current=page == 'inbox') }}
+  {{ ds.nav_heading('점검') }}
+  {{ ds.nav_item(url_for('brain_web.index', tab='recheck'), '다시 확인', 'refresh', counts.recheck, current=page == 'recheck') }}
+  {{ ds.nav_item(url_for('brain_web.index', tab='releases'), '판 · 기록', 'history', current=page == 'releases') }}
+</nav>
+{% endblock %}
+{% block main %}
+<header class="f-row"><h1 class="f-h3">{{ view_titles.get(page, '승인 대기') }}</h1></header>
+{{ ds.empty('새 화면을 준비하고 있어요.', 'inbox') }}
+{% endblock %}

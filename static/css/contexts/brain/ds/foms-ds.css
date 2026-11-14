@@ -1,0 +1,363 @@
+/* FOMS 디자인 시스템 — 새 회사 지식 화면(templates/brain/ds/**) 전용, 판 1 2026-11-14
+   값은 Blueprint 5 와 같다: Blueprint © Palantir Technologies, Apache License 2.0.
+   출처: docs/design/mockups/foms-graft/foms-ds.css(목업). 밖으로 새지 않게 넷을 고쳤다(설계서 5.1):
+   ① :root 토큰 → .f-app ② 상태 색 .st-* → .f-tag.st-* ③ 아이콘 .i-* → .f-i.i-* ④ --fs → var(--foms-fs, 1)(FOMS 글자 배율).
+   맨 태그로 시작하던 textarea.f-input 은 .f-app textarea.f-input 으로. 모든 선택자는 .f- 로 시작한다(test_brain_ds_scope).
+   규칙: 색 · 크기는 토큰만 / 인라인 스타일 금지 / 글자 크기는 --fs 배율 하나로 / 어두운 화면은 .f-dark 한 class. */
+
+.f-app {
+  --black:#111418; --dark-gray1:#1c2127; --dark-gray2:#252a31; --dark-gray3:#2f343c; --dark-gray4:#383e47; --dark-gray5:#404854;
+  --gray1:#5f6b7c; --gray2:#738091; --gray3:#8f99a8; --gray4:#abb3bf; --gray5:#c5cbd3;
+  --light-gray1:#d3d8de; --light-gray2:#dce0e5; --light-gray3:#e5e8eb; --light-gray4:#edeff2; --light-gray5:#f6f7f9; --white:#ffffff;
+  --blue1:#184a90; --blue2:#215db0; --blue3:#2d72d2; --blue4:#4c90f0; --blue5:#8abbff;
+  --green1:#165a36; --green2:#1c6e42; --green3:#238551; --green4:#32a467; --green5:#72ca9b;
+  --orange1:#77450d; --orange2:#935610; --orange3:#c87619; --orange4:#ec9a3c; --orange5:#fbb360;
+  --red1:#8e292c; --red2:#ac2f33; --red3:#cd4246; --red4:#e76a6e; --red5:#fa999c;
+  --cerulean2:#0f6894; --indigo1:#5642a6; --indigo3:#7961db; --rose2:#c22762; --gold4:#f0b726; --turquoise4:#13c9ba;
+
+  --fs:var(--foms-fs, 1);
+  --font-size:calc(14px * var(--fs)); --font-size-small:calc(12px * var(--fs)); --font-size-large:calc(16px * var(--fs));
+  --h3:calc(22px * var(--fs)); --h4:calc(18px * var(--fs)); --h5:calc(16px * var(--fs));
+  --line-height:1.28581; --radius:2px;
+  --control-h:30px; --control-h-small:24px; --control-h-large:40px; --navbar-h:50px;
+  --font:-apple-system, "BlinkMacSystemFont", "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Roboto", "Helvetica Neue", sans-serif;
+  --mono:"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  --shadow-0:0 0 0 1px rgba(17,20,24,.15);
+  --shadow-1:0 0 0 1px rgba(17,20,24,.1), 0 1px 1px rgba(17,20,24,.2);
+  --shadow-2:0 0 0 1px rgba(17,20,24,.1), 0 1px 1px rgba(17,20,24,.2), 0 2px 6px rgba(17,20,24,.2);
+  --shadow-3:0 0 0 1px rgba(17,20,24,.1), 0 2px 4px rgba(17,20,24,.2), 0 8px 24px rgba(17,20,24,.2);
+  --shadow-4:0 0 0 1px rgba(17,20,24,.1), 0 4px 8px rgba(17,20,24,.2), 0 18px 46px 6px rgba(17,20,24,.2);
+
+  /* 뜻 이름 */
+  --bg:var(--light-gray5); --surface:var(--white); --surface-2:var(--light-gray4);
+  --text:var(--dark-gray1); --text-muted:var(--gray1); --divider:rgba(17,20,24,.15);
+  --primary:var(--blue3); --primary-hover:var(--blue2); --link:var(--blue2);
+  --minimal-hover:rgba(143,153,168,.15); --minimal-active:rgba(143,153,168,.3);
+  --selected:var(--blue3); --selected-text:var(--white);
+
+  /* 주문 상태 여덟 갈래(ΔE2000 최소 13.6 · 녹색약 뒤 8.3) */
+  --st-talk:var(--cerulean2); --st-contract:var(--indigo3); --st-drawing:var(--rose2); --st-make:var(--gold4);
+  --st-site:var(--turquoise4); --st-done:var(--green2); --st-hold:var(--orange2); --st-cancel:var(--red3);
+}
+
+.f-dark {
+  --bg:var(--dark-gray2); --surface:var(--dark-gray3); --surface-2:var(--dark-gray4);
+  --text:var(--light-gray5); --text-muted:var(--gray4); --divider:rgba(255,255,255,.2);
+  --primary:var(--blue3); --primary-hover:var(--blue2); --link:var(--blue5);
+  --minimal-hover:rgba(143,153,168,.15); --minimal-active:rgba(143,153,168,.3);
+}
+
+/* ── 바탕 ─────────────────────────────────────────── */
+.f-app, .f-app * { box-sizing:border-box; }
+.f-app { font-family:var(--font); font-size:var(--font-size); line-height:var(--line-height); color:var(--text); background:var(--bg); -webkit-font-smoothing:antialiased; }
+.f-app :where(h1, h2, h3, h4, h5, h6, p, ul, ol, dl, dd, figure) { margin:0; }
+.f-app :where(ul, ol) { padding:0; list-style:none; }
+.f-app a { color:var(--link); text-decoration:none; }
+.f-app a:hover { text-decoration:underline; }
+.f-h1 { font-size:calc(36px * var(--fs)); line-height:40px; font-weight:600; }
+.f-h2 { font-size:calc(28px * var(--fs)); line-height:32px; font-weight:600; }
+.f-h3 { font-size:var(--h3); line-height:25px; font-weight:600; }
+.f-h4 { font-size:var(--h4); line-height:21px; font-weight:600; }
+.f-h5 { font-size:var(--h5); line-height:19px; font-weight:600; }
+.f-h6 { font-size:var(--font-size); line-height:16px; font-weight:600; }
+.f-muted { color:var(--text-muted); }
+.f-small { font-size:var(--font-size-small); line-height:16px; }
+.f-large { font-size:var(--font-size-large); }
+.f-strong { font-weight:600; }
+.f-num { font-variant-numeric:tabular-nums; }
+.f-mono { font-family:var(--mono); font-size:var(--font-size-small); }
+.f-nowrap { white-space:nowrap; }
+.f-ellipsis { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.f-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+/* ── 배치 ─────────────────────────────────────────── */
+.f-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.f-row-nw { display:flex; align-items:center; gap:8px; min-width:0; }
+.f-col { display:flex; flex-direction:column; gap:8px; }
+.f-gap4 { gap:4px; } .f-gap12 { gap:12px; } .f-gap16 { gap:16px; } .f-gap20 { gap:20px; } .f-gap24 { gap:24px; }
+.f-grow { flex:1 1 auto; min-width:0; }
+.f-push { margin-left:auto; }
+.f-between { justify-content:space-between; }
+.f-top { align-items:flex-start; }
+.f-scroll-x { overflow-x:auto; max-width:100%; }
+.f-grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
+.f-grid3 { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px; }
+.f-grid4 { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; }
+
+/* 앱 틀: 위 줄 + (왼쪽 길잡이 · 가운데 · 오른쪽 옆 창). 폰 폭에서는 차례로 쌓임 */
+.f-shell { display:flex; flex-direction:column; min-height:100%; }
+.f-body { display:flex; flex-wrap:wrap; align-items:stretch; flex:1 1 auto; }
+.f-side { flex:1 1 224px; max-width:100%; background:var(--surface); box-shadow:1px 0 0 var(--divider); padding:8px; display:flex; flex-direction:column; gap:2px; }
+.f-main { flex:999 1 560px; min-width:0; padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
+.f-aside { flex:1 1 336px; max-width:100%; background:var(--surface); box-shadow:-1px 0 0 var(--divider); display:flex; flex-direction:column; }
+.f-aside-head { display:flex; align-items:center; gap:8px; min-height:50px; padding:0 8px 0 16px; box-shadow:0 1px 0 var(--divider); }
+.f-aside-body { padding:16px; display:flex; flex-direction:column; gap:16px; }
+
+/* ── 위 줄 (Navbar) ─────────────────────────────────── */
+.f-navbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:var(--navbar-h); padding:8px 16px; background:var(--surface); box-shadow:0 0 0 1px rgba(17,20,24,.1), 0 1px 1px rgba(17,20,24,.2); position:relative; z-index:1; }
+.f-navbar-title { font-size:var(--h5); font-weight:600; white-space:nowrap; }
+.f-navbar-divider { width:1px; height:20px; background:var(--divider); margin:0 4px; }
+.f-navbar .f-input-group { flex:0 1 360px; }
+
+/* ── 아이콘 (Blueprint icons 16px — 아래 i-이름 class 는 파일 끝) ── */
+.f-i { display:inline-block; flex:none; width:16px; height:16px; background-color:currentColor; -webkit-mask:var(--i) center / 16px 16px no-repeat; mask:var(--i) center / 16px 16px no-repeat; vertical-align:-3px; }
+.f-i-20 { width:20px; height:20px; -webkit-mask-size:20px 20px; mask-size:20px 20px; }
+.f-i-muted { color:var(--gray1); }
+.f-i-primary { color:var(--blue3); } .f-i-success { color:var(--green3); } .f-i-warning { color:var(--orange3); } .f-i-danger { color:var(--red3); }
+
+/* ── 단추 (Button) ─────────────────────────────────── */
+.f-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:var(--control-h); min-width:var(--control-h); padding:5px 10px; border:0; border-radius:var(--radius); font:inherit; font-size:var(--font-size); line-height:16px; text-align:left; white-space:nowrap; cursor:pointer; color:var(--dark-gray1); background:var(--light-gray5); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), 0 1px 2px rgba(17,20,24,.1); text-decoration:none; }
+.f-app a.f-btn { color:var(--dark-gray1); text-decoration:none; }
+.f-btn:hover { background:var(--light-gray4); }
+.f-btn:focus-visible, .f-input:focus-visible, .f-tab:focus-visible, .f-nav-item:focus-visible { outline:2px solid rgba(45,114,210,.6); outline-offset:2px; }
+.f-btn-primary, .f-app a.f-btn-primary { background:var(--blue3); color:var(--white); box-shadow:inset 0 0 0 1px rgba(17,20,24,.4), 0 1px 2px rgba(17,20,24,.2); }
+.f-btn-primary:hover { background:var(--blue2); }
+.f-btn-success { background:var(--green3); color:var(--white); box-shadow:inset 0 0 0 1px rgba(17,20,24,.4), 0 1px 2px rgba(17,20,24,.2); }
+.f-btn-success:hover { background:var(--green2); }
+.f-btn-danger { background:var(--red3); color:var(--white); box-shadow:inset 0 0 0 1px rgba(17,20,24,.4), 0 1px 2px rgba(17,20,24,.2); }
+.f-btn-danger:hover { background:var(--red2); }
+.f-btn-minimal, .f-app a.f-btn-minimal { background:none; box-shadow:none; color:var(--text); }
+.f-btn-minimal:hover { background:var(--minimal-hover); }
+.f-btn-minimal.is-active { background:var(--minimal-active); }
+.f-btn-outlined { background:none; box-shadow:inset 0 0 0 1px rgba(17,20,24,.2); color:var(--text); }
+.f-btn-small { min-height:var(--control-h-small); min-width:var(--control-h-small); padding:0 7px; }
+.f-btn-large { min-height:var(--control-h-large); min-width:var(--control-h-large); padding:5px 15px; font-size:var(--font-size-large); }
+.f-btn-fill { width:100%; justify-content:center; }
+.f-btn:disabled, .f-btn.is-disabled { background:rgba(211,216,222,.5); color:rgba(95,107,124,.6); box-shadow:none; cursor:not-allowed; }
+.f-btn-minimal:disabled { background:none; }
+.f-btn-group { display:inline-flex; }
+.f-btn-group > .f-btn { border-radius:0; }
+.f-btn-group > .f-btn:first-child { border-radius:var(--radius) 0 0 var(--radius); }
+.f-btn-group > .f-btn:last-child { border-radius:0 var(--radius) var(--radius) 0; }
+.f-btn-group > .f-btn + .f-btn { margin-left:-1px; }
+.f-btn-group > .f-btn.is-active { background:var(--light-gray2); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), inset 0 1px 2px rgba(17,20,24,.2); }
+
+/* ── 상태 배지 · 꼬리표 (Tag) ───────────────────────── */
+.f-tag { display:inline-flex; align-items:center; gap:4px; min-height:20px; min-width:20px; padding:2px 6px; border-radius:var(--radius); font-size:var(--font-size-small); line-height:16px; font-weight:400; white-space:nowrap; background:var(--gray1); color:var(--white); }
+.f-tag-large { min-height:30px; padding:5px 10px; font-size:var(--font-size); }
+.f-tag-round { border-radius:30px; padding-left:8px; padding-right:8px; }
+.f-tag-minimal { background:rgba(143,153,168,.15); color:var(--text); }
+.f-tag-primary { background:var(--blue3); color:var(--white); }
+.f-tag-success { background:var(--green3); color:var(--white); }
+.f-tag-warning { background:var(--orange5); color:var(--dark-gray1); }
+.f-tag-danger { background:var(--red3); color:var(--white); }
+.f-tag-minimal.f-tag-primary { background:rgba(45,114,210,.15); color:var(--blue2); }
+.f-tag-minimal.f-tag-success { background:rgba(35,133,81,.15); color:var(--green2); }
+.f-tag-minimal.f-tag-warning { background:rgba(200,118,25,.15); color:var(--orange2); }
+.f-tag-minimal.f-tag-danger { background:rgba(205,66,70,.15); color:var(--red2); }
+.f-tag.st-talk { background:var(--st-talk); color:var(--white); }
+.f-tag.st-contract { background:var(--st-contract); color:var(--white); }
+.f-tag.st-drawing { background:var(--st-drawing); color:var(--white); }
+.f-tag.st-make { background:var(--st-make); color:var(--dark-gray1); }
+.f-tag.st-site { background:var(--st-site); color:var(--black); }
+.f-tag.st-done { background:var(--st-done); color:var(--white); }
+.f-tag.st-hold { background:var(--st-hold); color:var(--white); }
+.f-tag.st-cancel { background:var(--st-cancel); color:var(--white); }
+
+/* 근거 칩: AI 가 쓴 물건으로 가는 링크 */
+.f-chip, .f-app a.f-chip { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 8px; border-radius:var(--radius); background:rgba(45,114,210,.1); color:var(--blue2); font-size:var(--font-size-small); line-height:16px; white-space:nowrap; text-decoration:none; }
+.f-app a.f-chip:hover { background:rgba(45,114,210,.2); text-decoration:none; }
+.f-col > .f-chip, .f-ai-card > .f-chip, .f-col > .f-tag, .f-ai-card > .f-tag, .f-visit > .f-tag { align-self:flex-start; }
+
+/* ── 카드 · 칸 (Card · Section) ────────────────────── */
+.f-card { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow-0); padding:20px; }
+.f-card-compact { padding:12px 16px; }
+.f-card-e1 { box-shadow:var(--shadow-1); } .f-card-e2 { box-shadow:var(--shadow-2); } .f-card-e3 { box-shadow:var(--shadow-3); } .f-card-e4 { box-shadow:var(--shadow-4); }
+.f-card-interactive:hover { box-shadow:var(--shadow-3); cursor:pointer; }
+.f-card-selected { box-shadow:0 0 0 2px var(--blue3), var(--shadow-1); }
+.f-section { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow-1); min-width:0; }
+.f-section-head { display:flex; align-items:center; gap:8px; min-height:50px; padding:8px 12px 8px 20px; box-shadow:0 1px 0 var(--divider); }
+.f-section-title { font-size:var(--h5); line-height:19px; font-weight:600; }
+.f-section-sub { font-size:var(--font-size); color:var(--text-muted); }
+.f-section-body { padding:16px 20px; display:flex; flex-direction:column; gap:12px; }
+.f-section-body-flush { padding:0; }
+.f-divider { height:1px; background:var(--divider); border:0; margin:0; }
+
+/* ── 표 (HTMLTable) ─────────────────────────────────── */
+.f-table { width:100%; border-collapse:collapse; border-spacing:0; font-size:var(--font-size); }
+.f-table th { text-align:left; font-weight:600; padding:11px; vertical-align:middle; white-space:nowrap; color:var(--text); }
+.f-table td { padding:11px; vertical-align:middle; box-shadow:inset 0 1px 0 0 var(--divider); }
+.f-table-compact th, .f-table-compact td { padding:6px 11px; }
+.f-table-interactive tbody tr:hover td { background:var(--minimal-hover); cursor:pointer; }
+.f-table tr.is-selected td { background:rgba(45,114,210,.1); }
+.f-table .f-td-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.f-table .f-td-nw { white-space:nowrap; }
+
+/* ── 탭 (Tabs) ─────────────────────────────────────── */
+.f-tabs { display:flex; flex-wrap:wrap; gap:20px; box-shadow:inset 0 -1px 0 var(--divider); }
+.f-tab { position:relative; display:inline-flex; align-items:center; gap:6px; height:30px; padding:0; border:0; background:none; font:inherit; font-size:var(--font-size); color:var(--text); cursor:pointer; white-space:nowrap; }
+.f-tab:hover { color:var(--blue3); }
+.f-tab[aria-selected="true"] { color:var(--blue2); }
+.f-tab[aria-selected="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--blue3); }
+
+/* ── 길잡이 (Tree · Menu) ──────────────────────────── */
+.f-nav-heading { padding:12px 8px 4px; font-size:var(--font-size-small); line-height:16px; font-weight:600; color:var(--text-muted); }
+.f-nav-item, .f-app a.f-nav-item { display:flex; align-items:center; gap:8px; min-height:30px; padding:5px 8px; border:0; border-radius:var(--radius); background:none; font:inherit; font-size:var(--font-size); color:var(--text); text-align:left; text-decoration:none; cursor:pointer; width:100%; }
+.f-nav-item:hover { background:var(--minimal-hover); text-decoration:none; }
+.f-nav-item[aria-current="page"], .f-nav-item.is-selected, .f-app a.f-nav-item[aria-current="page"], .f-app a.f-nav-item.is-selected { background:var(--selected); color:var(--selected-text); }
+.f-nav-item .f-count { margin-left:auto; }
+.f-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:30px; font-size:var(--font-size-small); background:rgba(143,153,168,.2); color:inherit; font-variant-numeric:tabular-nums; }
+.f-count-primary { background:var(--blue3); color:var(--white); }
+.f-breadcrumbs { display:flex; flex-wrap:wrap; align-items:center; gap:4px; font-size:var(--font-size); color:var(--text-muted); }
+.f-breadcrumbs a { color:var(--text-muted); }
+.f-breadcrumbs .f-current { color:var(--text); font-weight:600; }
+
+/* ── 입력 (InputGroup · HTMLSelect · Checkbox) ─────── */
+.f-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.f-label { font-size:var(--font-size); line-height:16px; color:var(--text); }
+.f-label .f-req { color:var(--red3); }
+.f-help { font-size:var(--font-size-small); line-height:16px; color:var(--text-muted); }
+.f-input, .f-select { display:block; width:100%; height:var(--control-h); padding:0 10px; border:0; border-radius:var(--radius); background:var(--white); color:var(--dark-gray1); font:inherit; font-size:var(--font-size); line-height:var(--control-h); box-shadow:inset 0 0 0 1px rgba(17,20,24,.2), inset 0 1px 1px rgba(17,20,24,.3); }
+.f-input::placeholder { color:var(--gray1); }
+.f-app textarea.f-input { height:auto; min-height:72px; padding:6px 10px; line-height:20px; resize:vertical; }
+.f-select { padding-right:28px; appearance:none; -webkit-appearance:none; background-image:linear-gradient(45deg, transparent 50%, var(--gray1) 50%), linear-gradient(135deg, var(--gray1) 50%, transparent 50%); background-position:calc(100% - 14px) 13px, calc(100% - 10px) 13px; background-size:4px 4px; background-repeat:no-repeat; }
+.f-input-group { position:relative; display:block; min-width:0; }
+.f-input-group > .f-i { position:absolute; left:8px; top:7px; color:var(--gray1); }
+.f-input-group > .f-input { padding-left:30px; }
+.f-input.is-danger { box-shadow:inset 0 0 0 1px var(--red3), inset 0 1px 1px rgba(17,20,24,.3); }
+.f-check { display:inline-flex; align-items:center; gap:8px; min-height:20px; font-size:var(--font-size); cursor:pointer; }
+.f-check input { width:16px; height:16px; margin:0; accent-color:var(--blue3); }
+
+/* ── 알림 상자 (Callout) ───────────────────────────── */
+.f-callout { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; border-radius:var(--radius); background:rgba(143,153,168,.15); color:var(--text); font-size:var(--font-size); }
+.f-callout > .f-i { margin-top:1px; }
+.f-callout-title { font-weight:600; margin-bottom:2px; }
+.f-callout-primary { background:rgba(45,114,210,.1); } .f-callout-primary > .f-i { color:var(--blue2); }
+.f-callout-success { background:rgba(35,133,81,.1); } .f-callout-success > .f-i { color:var(--green2); }
+.f-callout-warning { background:rgba(200,118,25,.1); } .f-callout-warning > .f-i { color:var(--orange2); }
+.f-callout-danger { background:rgba(205,66,70,.1); } .f-callout-danger > .f-i { color:var(--red2); }
+
+/* ── 할 일 창 (Dialog · Overlay) ───────────────────── */
+.f-overlay { position:absolute; inset:0; background:rgba(17,20,24,.7); display:flex; align-items:flex-start; justify-content:center; padding:64px 16px; z-index:20; }
+.f-dialog { width:100%; max-width:600px; background:var(--light-gray5); border-radius:calc(var(--radius) * 2); box-shadow:var(--shadow-4); display:flex; flex-direction:column; }
+.f-dialog-head { display:flex; align-items:center; gap:8px; min-height:40px; padding:5px 5px 5px 16px; background:var(--white); border-radius:calc(var(--radius) * 2) calc(var(--radius) * 2) 0 0; box-shadow:0 1px 0 rgba(17,20,24,.15); }
+.f-dialog-title { font-size:var(--h5); font-weight:600; }
+.f-dialog-body { padding:16px 20px; display:flex; flex-direction:column; gap:16px; }
+.f-dialog-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 20px 16px; }
+
+/* ── 진행 · 빈 화면 ───────────────────────────────── */
+.f-progress { height:8px; border-radius:40px; background:rgba(95,107,124,.2); overflow:hidden; min-width:60px; }
+.f-progress > span { display:block; height:100%; border-radius:40px; background:var(--gray1); }
+.f-progress-primary > span { background:var(--blue3); } .f-progress-success > span { background:var(--green3); } .f-progress-warning > span { background:var(--orange3); }
+.f-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:32px 16px; text-align:center; color:var(--text-muted); }
+
+/* ── FOMS 조합 부품 다섯 ───────────────────────────── */
+/* 1 상태 길: 주문 상태 길을 한 줄로 */
+.f-path { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+.f-path-step { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 8px; border-radius:var(--radius); font-size:var(--font-size-small); line-height:16px; white-space:nowrap; }
+.f-path-step.is-done { color:var(--text-muted); }
+.f-path-step.is-done .f-i { color:var(--green3); }
+.f-path-step.is-next { color:var(--text); box-shadow:inset 0 0 0 1px var(--divider); }
+.f-path-sep { color:var(--gray3); }
+/* 2 근거 칩: 위 .f-chip */
+/* 3 할 일 단추 묶음: 막는 조건 이유를 단추 아래 한 줄로 */
+.f-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.f-why { display:flex; align-items:center; gap:4px; font-size:var(--font-size-small); line-height:16px; color:var(--text-muted); }
+/* 4 AI 옆 창 */
+.f-ai-mark { display:inline-flex; align-items:center; gap:4px; min-height:20px; padding:2px 6px; border-radius:var(--radius); background:rgba(121,97,219,.15); color:var(--indigo1); font-size:var(--font-size-small); line-height:16px; white-space:nowrap; }
+.f-ai-card { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow-0); padding:12px; display:flex; flex-direction:column; gap:8px; }
+.f-ai-card.is-proposal { box-shadow:inset 0 0 0 1px rgba(121,97,219,.5); }
+.f-quote { padding:10px 12px; border-radius:var(--radius); background:var(--surface-2); white-space:pre-line; line-height:20px; }
+/* 5 방문 칸: 일정판 한 칸 */
+.f-visit { display:flex; flex-direction:column; gap:2px; min-height:56px; padding:6px 8px; border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-1); font-size:var(--font-size-small); line-height:16px; }
+.f-visit-kind { display:flex; align-items:center; gap:4px; font-weight:600; }
+.f-visit.is-warn { background:rgba(200,118,25,.1); }
+
+/* 물건 종류 표시(아이콘 + 이름) */
+.f-type { display:inline-flex; align-items:center; gap:6px; font-size:var(--font-size-small); color:var(--text-muted); white-space:nowrap; }
+.f-kv { display:grid; grid-template-columns:minmax(96px, max-content) minmax(0, 1fr); gap:8px 16px; align-items:baseline; }
+.f-kv dt { color:var(--text-muted); white-space:nowrap; }
+.f-kv dd { min-width:0; }
+.f-lock { color:var(--orange2); }
+.f-swatch { width:100%; height:48px; border-radius:var(--radius); box-shadow:inset 0 0 0 1px rgba(17,20,24,.1); }
+
+/* ── 아이콘 모양 (Blueprint icons 5.13.0, 16px 길) ── */
+.f-i.i-add{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M10.99 6.99h-2v-2c0-.55-.45-1-1-1s-1 .45-1 1v2h-2c-.55 0-1 .45-1 1s.45 1 1 1h2v2c0 .55.45 1 1 1s1-.45 1-1v-2h2c.55 0 1-.45 1-1s-.45-1-1-1zm-3-7c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.68 6-6 6z%22/%3E%3C/svg%3E")}
+.f-i.i-applications{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M3.5 11h2c.28 0 .5-.22.5-.5s-.22-.5-.5-.5h-2c-.28 0-.5.22-.5.5s.22.5.5.5zm0-2h5c.28 0 .5-.22.5-.5S8.78 8 8.5 8h-5c-.28 0-.5.22-.5.5s.22.5.5.5zM11 4H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zm-1 10H2V7h8v7zm5-14H5c-.55 0-1 .45-1 1v2h2V2h8v7h-1v2h2c.55 0 1-.45 1-1V1c0-.55-.45-1-1-1zM3.5 13h3c.28 0 .5-.22.5-.5s-.22-.5-.5-.5h-3c-.28 0-.5.22-.5.5s.22.5.5.5z%22/%3E%3C/svg%3E")}
+.f-i.i-arrow-left{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M13.99 6.99H4.41L7.7 3.7a1.003 1.003 0 00-1.42-1.42l-5 5a1.014 1.014 0 000 1.42l5 5a1.003 1.003 0 001.42-1.42L4.41 8.99H14c.55 0 1-.45 1-1s-.46-1-1.01-1z%22/%3E%3C/svg%3E")}
+.f-i.i-arrow-right{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14.7 7.29l-5-5a.965.965 0 00-.71-.3 1.003 1.003 0 00-.71 1.71l3.29 3.29H1.99c-.55 0-1 .45-1 1s.45 1 1 1h9.59l-3.29 3.29a1.003 1.003 0 001.42 1.42l5-5c.18-.18.29-.43.29-.71s-.12-.52-.3-.7z%22/%3E%3C/svg%3E")}
+.f-i.i-automatic-updates{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 14c-3.31 0-6-2.69-6-6 0-1.77.78-3.36 2-4.46V5c0 .55.45 1 1 1s1-.45 1-1V1c0-.55-.45-1-1-1H1C.45 0 0 .45 0 1s.45 1 1 1h1.74A7.95 7.95 0 000 8c0 4.42 3.58 8 8 8 .55 0 1-.45 1-1s-.45-1-1-1zM8 2a5.9 5.9 0 012.95.81l1.47-1.47A7.893 7.893 0 008 0c-.55 0-1 .45-1 1s.45 1 1 1zm2.71 6.71l5-5a1.003 1.003 0 00-1.42-1.42L10 6.59l-1.29-1.3a1.003 1.003 0 00-1.42 1.42l2 2c.18.18.43.29.71.29s.53-.11.71-.29zM16 8c0-.55-.06-1.08-.16-1.6l-1.87 1.87A5.966 5.966 0 0112 12.45V11c0-.55-.45-1-1-1s-1 .45-1 1v4c0 .55.45 1 1 1h4c.55 0 1-.45 1-1s-.45-1-1-1h-1.74A7.95 7.95 0 0016 8z%22/%3E%3C/svg%3E")}
+.f-i.i-box{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M6 10h4c.55 0 1-.45 1-1s-.45-1-1-1H6c-.55 0-1 .45-1 1s.45 1 1 1zm9.93-4.37v-.02L13.94.63C13.78.26 13.42 0 13 0H3c-.42 0-.78.26-.93.63L.08 5.61l-.01.02C.03 5.74 0 5.87 0 6v9c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V6c0-.13-.03-.26-.07-.37zM9 2h3.32l1.2 3H9V2zM3.68 2H7v3H2.48l1.2-3zM14 14H2V7h12v7z%22/%3E%3C/svg%3E")}
+.f-i.i-build{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.39 12.41L7.7 6l1.07-1.1c.34-.34-.12-.63.12-1.26.88-2.17 3.41-2.35 3.41-2.35s.36-.37.71-.72C9.74-.81 7.53.53 6.54 1.4L3.12 4.9l-.71.72c-.39.4-.39 1.05 0 1.45l-.7.72c-.39-.4-1.02-.4-1.41 0s-.39 1.05 0 1.45l1.41 1.45c.39.4 1.02.4 1.41 0s.39-1.05 0-1.45l.71-.72c.39.4 1.02.4 1.41 0l.8-.82 6.39 7.67c.82.82 2.14.82 2.96 0 .81-.82.81-2.15 0-2.96z%22/%3E%3C/svg%3E")}
+.f-i.i-calendar{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M11 3c.6 0 1-.5 1-1V1c0-.6-.4-1-1-1s-1 .4-1 1v1c0 .5.4 1 1 1zm3-2h-1v1c0 1.1-.9 2-2 2s-2-.9-2-2V1H6v1c0 1.1-.9 2-2 2s-2-.9-2-2V1H1c-.6 0-1 .5-1 1v12c0 .6.4 1 1 1h13c.6 0 1-.4 1-1V2c0-.6-.5-1-1-1zM5 13H2v-3h3v3zm0-4H2V6h3v3zm4 4H6v-3h3v3zm0-4H6V6h3v3zm4 4h-3v-3h3v3zm0-4h-3V6h3v3zM4 3c.6 0 1-.5 1-1V1c0-.6-.4-1-1-1S3 .4 3 1v1c0 .5.4 1 1 1z%22/%3E%3C/svg%3E")}
+.f-i.i-camera{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15 3h-2.59L10.7 1.29A.956.956 0 0010 1H6c-.28 0-.53.11-.71.29L3.59 3H1c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1h2.56c1.1 1.22 2.67 2 4.44 2s3.34-.78 4.44-2H15c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM3 6H1V5h2v1zm5 6c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z%22/%3E%3C/svg%3E")}
+.f-i.i-caret-down{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 6.5c0-.28-.22-.5-.5-.5h-7a.495.495 0 00-.37.83l3.5 4c.09.1.22.17.37.17s.28-.07.37-.17l3.5-4c.08-.09.13-.2.13-.33z%22/%3E%3C/svg%3E")}
+.f-i.i-chat{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M6 10c-1.1 0-2-.9-2-2V3H1c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1v2a1.003 1.003 0 001.71.71L5.41 13H10c.55 0 1-.45 1-1v-1.17l-.83-.83H6zm9-10H6c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1h4.59l2.71 2.71c.17.18.42.29.7.29.55 0 1-.45 1-1V9c.55 0 1-.45 1-1V1c0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-chevron-down{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 5c-.28 0-.53.11-.71.29L8 8.59l-3.29-3.3a1.003 1.003 0 00-1.42 1.42l4 4c.18.18.43.29.71.29s.53-.11.71-.29l4-4A1.003 1.003 0 0012 5z%22/%3E%3C/svg%3E")}
+.f-i.i-chevron-left{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M7.41 8l3.29-3.29c.19-.18.3-.43.3-.71a1.003 1.003 0 00-1.71-.71l-4 4C5.11 7.47 5 7.72 5 8c0 .28.11.53.29.71l4 4a1.003 1.003 0 001.42-1.42L7.41 8z%22/%3E%3C/svg%3E")}
+.f-i.i-chevron-right{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M10.71 7.29l-4-4a1.003 1.003 0 00-1.42 1.42L8.59 8 5.3 11.29c-.19.18-.3.43-.3.71a1.003 1.003 0 001.71.71l4-4c.18-.18.29-.43.29-.71 0-.28-.11-.53-.29-.71z%22/%3E%3C/svg%3E")}
+.f-i.i-circle{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z%22/%3E%3C/svg%3E")}
+.f-i.i-circle-arrow-right{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8.71 4.29a1.003 1.003 0 00-1.42 1.42L8.59 7H5c-.55 0-1 .45-1 1s.45 1 1 1h3.59L7.3 10.29c-.19.18-.3.43-.3.71a1.003 1.003 0 001.71.71l3-3c.18-.18.29-.43.29-.71 0-.28-.11-.53-.29-.71l-3-3zM8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z%22/%3E%3C/svg%3E")}
+.f-i.i-clean{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 8l-1.2 2.796-2.8 1.2 2.8 1.197L12 16l1.2-2.807L16 12l-2.8-1.204zM5 0L3.5 3.5 0 4.995 3.5 6.5 5 10l1.5-3.5L10 5 6.5 3.5z%22/%3E%3C/svg%3E")}
+.f-i.i-cog{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.19 6.39h-1.85c-.11-.37-.27-.71-.45-1.04l1.36-1.36c.31-.31.31-.82 0-1.13l-1.13-1.13a.803.803 0 00-1.13 0l-1.36 1.36c-.33-.17-.67-.33-1.04-.44V.79c0-.44-.36-.8-.8-.8h-1.6c-.44 0-.8.36-.8.8v1.86c-.39.12-.75.28-1.1.47l-1.3-1.3c-.3-.3-.79-.3-1.09 0L1.82 2.91c-.3.3-.3.79 0 1.09l1.3 1.3c-.2.34-.36.7-.48 1.09H.79c-.44 0-.8.36-.8.8v1.6c0 .44.36.8.8.8h1.85c.11.37.27.71.45 1.04l-1.36 1.36c-.31.31-.31.82 0 1.13l1.13 1.13c.31.31.82.31 1.13 0l1.36-1.36c.33.18.67.33 1.04.44v1.86c0 .44.36.8.8.8h1.6c.44 0 .8-.36.8-.8v-1.86c.39-.12.75-.28 1.1-.47l1.3 1.3c.3.3.79.3 1.09 0l1.09-1.09c.3-.3.3-.79 0-1.09l-1.3-1.3c.19-.35.36-.71.48-1.1h1.85c.44 0 .8-.36.8-.8v-1.6a.816.816 0 00-.81-.79zm-7.2 4.6c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z%22/%3E%3C/svg%3E")}
+.f-i.i-comment{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14 1H1c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1h2v3a1.003 1.003 0 001.71.71L8.41 12H14c.55 0 1-.45 1-1V2c0-.55-.45-1-1-1zM3.5 8C2.67 8 2 7.33 2 6.5S2.67 5 3.5 5 5 5.67 5 6.5 4.33 8 3.5 8zm4 0C6.67 8 6 7.33 6 6.5S6.67 5 7.5 5 9 5.67 9 6.5 8.33 8 7.5 8zm4 0c-.83 0-1.5-.67-1.5-1.5S10.67 5 11.5 5s1.5.67 1.5 1.5S12.33 8 11.5 8z%22/%3E%3C/svg%3E")}
+.f-i.i-confirm{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8.7 4.29a.965.965 0 00-.71-.3 1.003 1.003 0 00-.71 1.71l2 2c.18.18.43.29.71.29s.53-.11.71-.29l5-5a1.003 1.003 0 00-1.42-1.42l-4.29 4.3L8.7 4.29zm5.22 3.01c.03.23.07.45.07.69 0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c.81 0 1.59.17 2.3.46l1.5-1.5A7.998 7.998 0 00-.01 7.99c0 4.42 3.58 8 8 8s8-3.58 8-8c0-.83-.13-1.64-.36-2.39l-1.71 1.7z%22/%3E%3C/svg%3E")}
+.f-i.i-cross{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M9.41 8l3.29-3.29c.19-.18.3-.43.3-.71a1.003 1.003 0 00-1.71-.71L8 6.59l-3.29-3.3a1.003 1.003 0 00-1.42 1.42L6.59 8 3.3 11.29c-.19.18-.3.43-.3.71a1.003 1.003 0 001.71.71L8 9.41l3.29 3.29c.18.19.43.3.71.3a1.003 1.003 0 00.71-1.71L9.41 8z%22/%3E%3C/svg%3E")}
+.f-i.i-cube{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14.194 3.54L8 7.41 1.806 3.54 7.504.283a1 1 0 01.992 0l5.698 3.255zm.75.71a1 1 0 01.056.33v6.84a1 1 0 01-.504.868L8.5 15.714V8.277l6.444-4.027zm-13.888 0L7.5 8.277v7.437l-5.996-3.426A1 1 0 011 11.42V4.58a1 1 0 01.056-.33z%22/%3E%3C/svg%3E")}
+.f-i.i-data-lineage{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M1.067 0C.477 0 0 .478 0 1.067V3.2c0 .59.478 1.067 1.067 1.067h2.24a5.342 5.342 0 002.9 3.734 5.337 5.337 0 00-2.9 3.733h-2.24C.477 11.733 0 12.21 0 12.8v2.133C0 15.523.478 16 1.067 16H6.4c.59 0 1.067-.478 1.067-1.067V12.8c0-.59-.478-1.067-1.067-1.067H4.401a4.27 4.27 0 013.92-3.194l.212-.006V9.6c0 .59.478 1.067 1.067 1.067h5.333c.59 0 1.067-.478 1.067-1.067V6.4c0-.59-.478-1.067-1.067-1.067H9.6c-.59 0-1.067.478-1.067 1.067v1.067a4.268 4.268 0 01-4.132-3.2H6.4c.59 0 1.067-.478 1.067-1.067V1.067C7.467.477 6.989 0 6.4 0H1.067z%22/%3E%3C/svg%3E")}
+.f-i.i-diagram-tree{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15 8v3h-2V9H9v2H7V9H3v2H1V8a1 1 0 011-1h5V5h2v2h5a1 1 0 011 1zM1 12h2a1 1 0 011 1v2a1 1 0 01-1 1H1a1 1 0 01-1-1v-2a1 1 0 011-1zm12 0h2a1 1 0 011 1v2a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2a1 1 0 011-1zm-6 0h2a1 1 0 011 1v2a1 1 0 01-1 1H7a1 1 0 01-1-1v-2a1 1 0 011-1zM7 0h2a1 1 0 011 1v2a1 1 0 01-1 1H7a1 1 0 01-1-1V1a1 1 0 011-1z%22/%3E%3C/svg%3E")}
+.f-i.i-disable{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M7.99-.01c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm-6 8c0-3.31 2.69-6 6-6 1.3 0 2.49.42 3.47 1.12l-8.35 8.35c-.7-.98-1.12-2.17-1.12-3.47zm6 6c-1.3 0-2.49-.42-3.47-1.12l8.35-8.35c.7.98 1.12 2.17 1.12 3.47 0 3.32-2.68 6-6 6z%22/%3E%3C/svg%3E")}
+.f-i.i-document{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M9 0H3c-.55 0-1 .45-1 1v14c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V5L9 0zm3 14H4V2h4v4h4v8z%22/%3E%3C/svg%3E")}
+.f-i.i-dollar{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12.83 9.51c-.1-.3-.25-.58-.45-.84s-.45-.49-.75-.7c-.3-.2-.65-.36-1.05-.48-.16-.04-.43-.11-.8-.2-.35-.09-.73-.18-1.12-.28-.39-.1-.74-.19-1.06-.27-.31-.08-.49-.12-.54-.13-.43-.12-.78-.29-1.05-.52-.27-.23-.4-.55-.4-.95 0-.29.07-.53.21-.72.14-.19.32-.34.54-.46.22-.11.46-.19.72-.24.26-.05.52-.08.77-.08.74 0 1.35.15 1.83.46.48.3.75.83.81 1.56h2.14c0-.6-.13-1.13-.38-1.58-.25-.45-.59-.84-1.02-1.15-.43-.31-.93-.54-1.49-.7-.24-.06-.49-.1-.75-.14V1c0-.55-.45-1-1-1s-1 .45-1 1v1.08c-.23.03-.46.07-.68.13-.54.13-1.02.34-1.44.61-.42.28-.76.63-1.02 1.05-.26.43-.39.93-.39 1.5 0 .3.04.59.13.88.09.29.23.56.44.82.21.26.48.49.83.7.35.21.79.38 1.31.51.85.21 1.56.38 2.14.52.58.13 1.08.28 1.52.42.25.09.48.23.69.44.21.21.32.53.32.97 0 .21-.05.42-.14.63-.09.21-.24.39-.45.55-.21.16-.47.29-.81.39-.33.1-.73.15-1.2.15-.43 0-.84-.05-1.21-.14-.37-.09-.7-.24-.99-.43-.29-.2-.51-.45-.67-.76-.16-.31-.24-.68-.24-1.12H3c.01.71.15 1.32.43 1.84.27.52.64.94 1.1 1.27.46.33.99.58 1.61.74.27.07.56.12.85.16V15c0 .55.45 1 1 1s1-.45 1-1v-1.05c.3-.03.61-.08.9-.15.58-.13 1.1-.34 1.56-.63.46-.29.83-.66 1.11-1.11.28-.45.42-1 .42-1.64 0-.31-.05-.61-.15-.91z%22/%3E%3C/svg%3E")}
+.f-i.i-edit{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M3.25 10.26l2.47 2.47 6.69-6.69-2.46-2.48-6.7 6.7zM.99 14.99l3.86-1.39-2.46-2.44-1.4 3.83zm12.25-14c-.48 0-.92.2-1.24.51l-1.44 1.44 2.47 2.47 1.44-1.44c.32-.32.51-.75.51-1.24.01-.95-.77-1.74-1.74-1.74z%22/%3E%3C/svg%3E")}
+.f-i.i-endorsed{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.86 7.5l-.81-1.42V4.5c0-.36-.19-.68-.49-.87l-1.37-.8-.81-1.41c-.19-.31-.51-.49-.86-.49H9.89L8.5.14a.948.948 0 00-1 0l-1.39.8H4.52a1 1 0 00-.86.49l-.8 1.37-1.44.83c-.3.19-.49.51-.49.87v1.65l-.8 1.37c-.08.15-.13.32-.13.49s.05.34.14.49l.8 1.37v1.65c0 .36.19.68.49.87l1.42.81.8 1.37c.19.31.51.49.86.49H6.1l1.39.8c.15.09.32.14.48.14s.34-.05.49-.14l1.39-.8h1.63a1 1 0 00.86-.49l.81-1.41 1.37-.8c.3-.19.49-.51.49-.87V9.93l.81-1.42a.89.89 0 00.04-1.01zm-4.12-.82l-4.01 4.01c-.18.18-.43.29-.71.29s-.53-.11-.71-.29l-2-2c-.18-.19-.3-.44-.3-.71a1.003 1.003 0 011.71-.71l1.3 1.3 3.3-3.3a1.003 1.003 0 011.71.71.95.95 0 01-.29.7z%22/%3E%3C/svg%3E")}
+.f-i.i-export{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M4 6c.28 0 .53-.11.71-.29L7 3.41V11c0 .55.45 1 1 1s1-.45 1-1V3.41l2.29 2.29c.18.19.43.3.71.3a1.003 1.003 0 00.71-1.71l-4-4C8.53.11 8.28 0 8 0s-.53.11-.71.29l-4 4A1.003 1.003 0 004 6zm11 5c-.55 0-1 .45-1 1v2H2v-2c0-.55-.45-1-1-1s-1 .45-1 1v3c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-3c0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-eye-off{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M16 7.97v-.02-.01-.02-.02a.672.672 0 00-.17-.36c-.49-.63-1.07-1.2-1.65-1.72l-3.16 2.26a2.978 2.978 0 01-2.98 2.9c-.31 0-.6-.06-.88-.15L5.09 12.3c.44.19.9.36 1.37.47.97.23 1.94.24 2.92.05.88-.17 1.74-.54 2.53-.98 1.25-.7 2.39-1.67 3.38-2.75.18-.2.37-.41.53-.62.09-.1.15-.22.17-.36v-.02-.02-.01-.02-.03c.01-.02.01-.03.01-.04zm-.43-4.17c.25-.18.43-.46.43-.8 0-.55-.45-1-1-1-.22 0-.41.08-.57.2l-.01-.01-2.67 1.91c-.69-.38-1.41-.69-2.17-.87a6.8 6.8 0 00-2.91-.05c-.88.18-1.74.54-2.53.99-1.25.7-2.39 1.67-3.38 2.75-.18.2-.37.41-.53.62-.23.29-.23.63-.01.92.51.66 1.11 1.25 1.73 1.79.18.16.38.29.56.44l-2.09 1.5.01.01c-.25.18-.43.46-.43.8 0 .55.45 1 1 1 .22 0 .41-.08.57-.2l.01.01 14-10-.01-.01zm-10.41 5a3.03 3.03 0 01-.11-.8 2.99 2.99 0 012.99-2.98c.62 0 1.19.21 1.66.53L5.16 8.8z%22/%3E%3C/svg%3E")}
+.f-i.i-eye-open{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8.002 7.003a1.003 1.003 0 000 2.005 1.003 1.003 0 000-2.005zm7.988.972v-.02-.01-.02-.02a.675.675 0 00-.17-.36c-.509-.673-1.118-1.264-1.737-1.806-1.328-1.173-2.846-2.155-4.523-2.546a6.702 6.702 0 00-2.925-.06c-.889.18-1.738.541-2.546.992C2.84 4.837 1.692 5.81.694 6.902c-.18.211-.36.411-.53.632a.742.742 0 000 .932c.51.672 1.119 1.264 1.738 1.805 1.328 1.173 2.846 2.156 4.523 2.547.968.23 1.947.24 2.925.04.889-.18 1.738-.542 2.546-.993 1.248-.712 2.397-1.684 3.395-2.777.18-.2.37-.411.54-.632.09-.1.149-.23.169-.36v-.02-.02-.01-.02-.03c0-.01-.01-.01-.01-.02zm-7.988 3.038a2.998 2.998 0 01-2.995-3.008 2.998 2.998 0 012.995-3.008 2.998 2.998 0 012.996 3.008 2.998 2.998 0 01-2.996 3.008z%22/%3E%3C/svg%3E")}
+.f-i.i-filter{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M13.99.99h-12a1.003 1.003 0 00-.71 1.71l4.71 4.71V14a1.003 1.003 0 001.71.71l2-2c.18-.18.29-.43.29-.71V7.41L14.7 2.7a1.003 1.003 0 00-.71-1.71z%22/%3E%3C/svg%3E")}
+.f-i.i-flash{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M4 8c0-.55-.45-1-1-1H1c-.55 0-1 .45-1 1s.45 1 1 1h2c.55 0 1-.45 1-1zm4-4c.55 0 1-.45 1-1V1c0-.55-.45-1-1-1S7 .45 7 1v2c0 .55.45 1 1 1zM3.79 5.21a1.003 1.003 0 001.42-1.42l-1.5-1.5a1.003 1.003 0 00-1.42 1.42l1.5 1.5zm.71 5.29c-.28 0-.53.11-.71.29l-1.5 1.5a1.003 1.003 0 001.42 1.42l1.5-1.5a1.003 1.003 0 00-.71-1.71zm7-5c.28 0 .53-.11.71-.29l1.5-1.5a1.003 1.003 0 00-1.42-1.42l-1.5 1.5a1.003 1.003 0 00.71 1.71zm.71 5.29a1.003 1.003 0 00-1.42 1.42l1.5 1.5a1.003 1.003 0 001.42-1.42l-1.5-1.5zM15 7h-2c-.55 0-1 .45-1 1s.45 1 1 1h2c.55 0 1-.45 1-1s-.45-1-1-1zM8 5C6.34 5 5 6.34 5 8s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm0 3c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-folder-close{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M-.01 14c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V7h-16v7zm15-10H7.41L5.7 2.3a.965.965 0 00-.71-.3h-4c-.55 0-1 .45-1 1v3h16V5c0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-form{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M2 11v2h2v-2H2zM1 9h4c.55 0 1 .45 1 1v4c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1zm9-6h5c.55 0 1 .45 1 1s-.45 1-1 1h-5c-.55 0-1-.45-1-1s.45-1 1-1zM6 1a1.003 1.003 0 01.71 1.71l-3 4C3.53 6.89 3.28 7 3 7s-.53-.11-.71-.29l-2-2a1.003 1.003 0 011.42-1.42L3 4.59l2.29-3.3C5.47 1.11 5.72 1 6 1zm4 10h5c.55 0 1 .45 1 1s-.45 1-1 1h-5c-.55 0-1-.45-1-1s.45-1 1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-full-circle{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0a8 8 0 100 16A8 8 0 108 0z%22/%3E%3C/svg%3E")}
+.f-i.i-git-branch{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 1c-1.66 0-3 1.34-3 3 0 1.25.76 2.32 1.85 2.77A2.02 2.02 0 019 8H7c-.73 0-1.41.2-2 .55V5.82C6.16 5.4 7 4.3 7 3c0-1.66-1.34-3-3-3S1 1.34 1 3c0 1.3.84 2.4 2 2.82v4.37c-1.16.4-2 1.51-2 2.81 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.04-.53-1.95-1.32-2.49.35-.31.81-.51 1.32-.51h2c1.92 0 3.52-1.35 3.91-3.15A2.996 2.996 0 0012 1zM4 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 12c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm8-9c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z%22/%3E%3C/svg%3E")}
+.f-i.i-graph{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14 3c-1.06 0-1.92.83-1.99 1.88l-1.93.97A2.95 2.95 0 008 5c-.56 0-1.08.16-1.52.43L3.97 3.34C3.98 3.23 4 3.12 4 3c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.24 0 .47-.05.68-.13l2.51 2.09C5.08 7.29 5 7.63 5 8c0 .96.46 1.81 1.16 2.35l-.56 1.69c-.91.19-1.6.99-1.6 1.96 0 1.1.9 2 2 2s2-.9 2-2c0-.51-.2-.97-.51-1.32l.56-1.69A2.99 2.99 0 0011 8c0-.12-.02-.24-.04-.36l1.94-.97c.32.21.69.33 1.1.33 1.1 0 2-.9 2-2s-.9-2-2-2z%22/%3E%3C/svg%3E")}
+.f-i.i-grid-view{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M0 1v6h7V0H1C.45 0 0 .45 0 1zm0 14c0 .55.45 1 1 1h6V9H0v6zM15 0H9v7h7V1c0-.55-.45-1-1-1zM9 16h6c.55 0 1-.45 1-1V9H9v7z%22/%3E%3C/svg%3E")}
+.f-i.i-help{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm1.93-6.52c-.14.32-.35.64-.62.97L9.25 8.83c-.12.15-.24.29-.28.42-.04.13-.09.3-.09.52V10H7.12V8.88s.05-.51.21-.71L8.4 6.73c.22-.26.35-.49.44-.68.09-.19.12-.38.12-.58 0-.3-.1-.55-.28-.75-.18-.19-.44-.28-.76-.28-.33 0-.59.1-.78.29-.19.19-.33.46-.4.81-.03.11-.1.15-.2.14l-1.7-.25c-.12-.01-.16-.08-.14-.19.12-.82.46-1.47 1.03-1.94.57-.48 1.32-.72 2.25-.72.47 0 .9.07 1.29.22s.72.34 1 .59c.28.25.49.55.65.89.15.35.22.72.22 1.12s-.07.75-.21 1.08z%22/%3E%3C/svg%3E")}
+.f-i.i-history{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 3c-.55 0-1 .45-1 1v4c0 .28.11.53.29.71l2 2a1.003 1.003 0 001.42-1.42L9 7.59V4c0-.55-.45-1-1-1zm0-3a7.95 7.95 0 00-6 2.74V1c0-.55-.45-1-1-1S0 .45 0 1v4c0 .55.45 1 1 1h4c.55 0 1-.45 1-1s-.45-1-1-1H3.54C4.64 2.78 6.23 2 8 2c3.31 0 6 2.69 6 6 0 2.61-1.67 4.81-4 5.63v-.01c-.63.23-1.29.38-2 .38-3.31 0-6-2.69-6-6 0-.55-.45-1-1-1s-1 .45-1 1c0 4.42 3.58 8 8 8 .34 0 .67-.03 1-.07.02 0 .04-.01.06-.01C12.98 15.4 16 12.06 16 8c0-4.42-3.58-8-8-8z%22/%3E%3C/svg%3E")}
+.f-i.i-home{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M2 10v5c0 .55.45 1 1 1h3v-5h4v5h3c.55 0 1-.45 1-1v-5L8 4l-6 6zm13.71-2.71L14 5.59V2c0-.55-.45-1-1-1s-1 .45-1 1v1.59L8.71.29C8.53.11 8.28 0 8 0s-.53.11-.71.29l-7 7a1.003 1.003 0 001.42 1.42L8 2.41l6.29 6.29c.18.19.43.3.71.3a1.003 1.003 0 00.71-1.71z%22/%3E%3C/svg%3E")}
+.f-i.i-inbox{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M13.91 2.6c-.16-.36-.51-.61-.92-.61h-10c-.41 0-.77.25-.92.61L-.01 7.45v5.54c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V7.45L13.91 2.6zm-1.92 5.39c-.55 0-1 .45-1 1v1h-6v-1c0-.55-.45-1-1-1H1.94l1.71-4h8.68l1.71 4h-2.05z%22/%3E%3C/svg%3E")}
+.f-i.i-info-sign{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zM7 3h2v2H7V3zm3 10H6v-1h1V7H6V6h3v6h1v1z%22/%3E%3C/svg%3E")}
+.f-i.i-issue{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 16A8 8 0 118 0a8 8 0 010 16zm0-2A6 6 0 108 2a6 6 0 000 12zm1-2H7v-2h2v2zm0-3H7V4h2v5z%22/%3E%3C/svg%3E")}
+.f-i.i-key-enter{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14 2c-.55 0-1 .45-1 1v3c0 1.66-1.34 3-3 3H4.41L5.7 7.71c.19-.18.3-.43.3-.71a1.003 1.003 0 00-1.71-.71l-3 3c-.18.18-.29.43-.29.71 0 .28.11.53.29.71l3 3a1.003 1.003 0 001.42-1.42L4.41 11H10c2.76 0 5-2.24 5-5V3c0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-lab-test{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M11 1a1 1 0 010 2v3l3 7v1.25a.75.75 0 01-.75.75H2.75a.75.75 0 01-.75-.75V13l3-7V3a1 1 0 110-2h6zM9 3H7v3l-1.714 4h5.428L9 6V3z%22/%3E%3C/svg%3E")}
+.f-i.i-layers{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M.55 4.89l7 3c.14.07.29.11.45.11.16 0 .31-.04.45-.11l7-3a.998.998 0 00-.06-1.81L8.4.08a1.006 1.006 0 00-.79 0l-6.99 3a.992.992 0 00-.07 1.81zM15 11c-.16 0-.31.04-.45.11L8 14l-6.55-2.9c-.14-.06-.29-.1-.45-.1-.55 0-1 .45-1 1 0 .39.23.73.55.89l7 3c.14.07.29.11.45.11.16 0 .31-.04.45-.11l7-3c.32-.16.55-.5.55-.89 0-.55-.45-1-1-1zm0-4c-.16 0-.31.04-.45.11L8 10 1.45 7.11A.997.997 0 001 7c-.55 0-1 .45-1 1 0 .39.23.73.55.89l7 3c.14.07.29.11.45.11.16 0 .31-.04.45-.11l7-3c.32-.16.55-.5.55-.89 0-.55-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-layout-hierarchy{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14.5 12.07V9.93c.86-.22 1.5-1 1.5-1.93 0-1.1-.9-2-2-2-.93 0-1.71.64-1.93 1.5H9.93c-.18-.7-.73-1.25-1.43-1.43V3.93c.86-.22 1.5-1 1.5-1.93 0-1.1-.9-2-2-2S6 .9 6 2c0 .93.64 1.71 1.5 1.93v2.14c-.7.18-1.25.73-1.43 1.43H3.93C3.71 6.64 2.93 6 2 6 .9 6 0 6.9 0 8c0 .93.64 1.71 1.5 1.93v2.14c-.86.22-1.5 1-1.5 1.93 0 1.1.9 2 2 2s2-.9 2-2c0-.93-.64-1.71-1.5-1.93V9.93c.7-.18 1.25-.73 1.43-1.43h2.14c.18.7.73 1.25 1.43 1.43v2.14c-.86.22-1.5 1-1.5 1.93 0 1.1.9 2 2 2s2-.9 2-2c0-.93-.64-1.71-1.5-1.93V9.93c.7-.18 1.25-.73 1.43-1.43h2.14c.18.7.73 1.25 1.43 1.43v2.14c-.86.22-1.5 1-1.5 1.93 0 1.1.9 2 2 2s2-.9 2-2c0-.93-.64-1.71-1.5-1.93z%22/%3E%3C/svg%3E")}
+.f-i.i-learning{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8.441 1.104a.985.985 0 00-.882 0L.365 5c-.487.253-.487.747 0 1L7.56 9.896a.985.985 0 00.882 0L15.635 6c.487-.253.487-.747 0-1L8.44 1.104z%22/%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14 5.5l.016 4.514c.002.548.447.99.994.99a.99.99 0 00.99-.99V5.5h-2zM3.371 9.047l4.387 2.432a.5.5 0 00.485 0l4.39-2.432a.25.25 0 01.371.218v2.955a.25.25 0 01-.134.222l-4.635 2.436a.5.5 0 01-.466 0l-4.635-2.436A.25.25 0 013 12.22V9.265a.25.25 0 01.371-.218z%22/%3E%3C/svg%3E")}
+.f-i.i-lightbulb{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M9.01 14h-2c-.55 0-1 .45-1 1s.45 1 1 1h2c.55 0 1-.45 1-1s-.44-1-1-1zm1-3h-4c-.55 0-1 .45-1 1s.45 1 1 1h4c.55 0 1-.45 1-1s-.44-1-1-1zm-2-11C5.26 0 3.03 1.95 3.03 4.35c0 2.37 1.63 2.64 1.94 5.22 0 .24.22.44.5.44h5.09c.28 0 .5-.19.5-.44C11.37 6.99 13 6.72 13 4.35 13 1.95 10.77 0 8.01 0z%22/%3E%3C/svg%3E")}
+.f-i.i-link{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M4.99 11.99c.28 0 .53-.11.71-.29l6-6a1.003 1.003 0 00-1.42-1.42l-6 6a1.003 1.003 0 00.71 1.71zm3.85-2.02L6.4 12.41l-1 1-.01-.01c-.36.36-.85.6-1.4.6-1.1 0-2-.9-2-2 0-.55.24-1.04.6-1.4l-.01-.01 1-1 2.44-2.44c-.33-.1-.67-.16-1.03-.16-1.1 0-2.09.46-2.81 1.19l-.02-.02-1 1 .02.02c-.73.72-1.19 1.71-1.19 2.81 0 2.21 1.79 4 4 4 1.1 0 2.09-.46 2.81-1.19l.02.02 1-1-.02-.02c.73-.72 1.19-1.71 1.19-2.81 0-.35-.06-.69-.15-1.02zm7.15-5.98c0-2.21-1.79-4-4-4-1.1 0-2.09.46-2.81 1.19l-.02-.02-1 1 .02.02c-.72.72-1.19 1.71-1.19 2.81 0 .36.06.69.15 1.02l2.44-2.44 1-1 .01.01c.36-.36.85-.6 1.4-.6 1.1 0 2 .9 2 2 0 .55-.24 1.04-.6 1.4l.01.01-1 1-2.43 2.45c.33.09.67.15 1.02.15 1.1 0 2.09-.46 2.81-1.19l.02.02 1-1-.02-.02a3.92 3.92 0 001.19-2.81z%22/%3E%3C/svg%3E")}
+.f-i.i-list{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M1 3h14c.55 0 1-.45 1-1s-.45-1-1-1H1c-.55 0-1 .45-1 1s.45 1 1 1zm14 10H1c-.55 0-1 .45-1 1s.45 1 1 1h14c.55 0 1-.45 1-1s-.45-1-1-1zm0-4H1c-.55 0-1 .45-1 1s.45 1 1 1h14c.55 0 1-.45 1-1s-.45-1-1-1zm0-4H1c-.55 0-1 .45-1 1s.45 1 1 1h14c.55 0 1-.45 1-1s-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-lock{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M13.96 7H12V3.95C12 1.77 10.21 0 8 0S4 1.77 4 3.95V7H1.96c-.55 0-.96.35-.96.9v6.91c0 .54.41 1.19.96 1.19h12c.55 0 1.04-.65 1.04-1.19V7.9c0-.55-.49-.9-1.04-.9zM6 7V3.95c0-1.09.9-1.97 2-1.97s2 .88 2 1.97V7H6z%22/%3E%3C/svg%3E")}
+.f-i.i-map{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.55 3.17l-4.49-3A.975.975 0 009.99.15L5.53 2.82 1.56.17A1.003 1.003 0 000 1v11c0 .35.18.65.45.83l4.49 3a.975.975 0 001.07.02l4.46-2.67 3.97 2.65A1.003 1.003 0 0016 15V4c0-.35-.18-.65-.45-.83zM5 13.46l-3-2v-8.6l2.94 1.96c.02.02.04.03.06.04v8.6zm5-2.32s-.01 0-.01.01L6 13.53V4.86s.01 0 .01-.01L10 2.47v8.67zm4 1.99l-2.94-1.96c-.02-.01-.04-.02-.05-.03v-8.6l3 2v8.59z%22/%3E%3C/svg%3E")}
+.f-i.i-map-marker{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8.46 0C5.42 0 2.95 2.39 2.95 5.33 2.95 8.28 8.46 16 8.46 16s5.51-7.72 5.51-10.67C13.96 2.39 11.5 0 8.46 0zm0 8a2.5 2.5 0 010-5 2.5 2.5 0 010 5z%22/%3E%3C/svg%3E")}
+.f-i.i-media{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M11.99 6.99c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm3-5h-14c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-10c0-.55-.45-1-1-1zm-1 9l-5-3-1 2-3-4-3 5v-7h12v7z%22/%3E%3C/svg%3E")}
+.f-i.i-mobile-phone{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 0H4c-.55 0-1 .45-1 1v14c0 .55.45 1 1 1h8c.55 0 1-.45 1-1V1c0-.55-.45-1-1-1zM8 15c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm3-3H5V3h6v9z%22/%3E%3C/svg%3E")}
+.f-i.i-more{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M2 6.03a2 2 0 100 4 2 2 0 100-4zM14 6.03a2 2 0 100 4 2 2 0 100-4zM8 6.03a2 2 0 100 4 2 2 0 100-4z%22/%3E%3C/svg%3E")}
+.f-i.i-notifications{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 16c1.1 0 2-.9 2-2H6c0 1.1.9 2 2 2zm6-5c-.55 0-1-.45-1-1V6c0-2.43-1.73-4.45-4.02-4.9 0-.04.02-.06.02-.1 0-.55-.45-1-1-1S7 .45 7 1c0 .04.02.06.02.1A4.992 4.992 0 003 6v4c0 .55-.45 1-1 1s-1 .45-1 1 .45 1 1 1h12c.55 0 1-.45 1-1s-.45-1-1-1z%22/%3E%3C/svg%3E")}
+.f-i.i-panel-stats{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M10 4h3v1h-3zM10 6h3v1h-3zM10 8h3v1h-3zM10 10h3v1h-3z%22/%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15 1H1c-.6 0-1 .4-1 1v11c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V2c0-.6-.4-1-1-1zM8 12H2V3h6v9zm6 0H9V3h5v9z%22/%3E%3C/svg%3E")}
+.f-i.i-people{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M13.69 13.98c-.05-.24-.14-.5-.25-.76-.36-.86-1.12-1.33-2.69-2-.14-.06-.59-.25-.6-.25-.21-.09-.36-.15-.5-.22.02-.1.02-.2.03-.31 0-.04.01-.08.01-.13-.07-.06-.13-.12-.19-.19.22-.32.4-.67.54-1.05.02-.06.02-.06.03-.1.29-.23.48-.57.59-.96.16-.33.25-.73.21-1.16-.03-.4-.16-.76-.37-1.03-.02-.53-.07-1.13-.15-1.54-.01-.06-.02-.12-.03-.19.23-.06.48-.09.72-.09.49 0 1.05.16 1.44.46.38.29.67.7.8 1.17.03.1.05.21.07.31.07.37.11.94.11 1.33v.05c.14.06.27.21.29.51.02.25-.07.45-.13.54-.05.21-.16.44-.38.48-.02.1-.05.2-.09.3 0 .01-.01.03-.01.03-.17.44-.43.83-.75 1.11v.14c.03.35-.09.59.83 1 .93.41 2.32.84 2.6 1.5.29.66.17 1.04.17 1.04h-2.3zm-1.17-.38c.37.86.22 1.36.22 1.36H.06s-.14-.5.22-1.36 2.13-1.43 3.31-1.96c1.17-.54 1.05-.86 1.09-1.3 0-.05.01-.11.01-.17-.41-.35-.75-.86-.97-1.45v-.01s-.01-.01-.01-.02c-.04-.12-.09-.26-.12-.39-.28-.05-.44-.36-.5-.64-.06-.12-.19-.39-.16-.71.04-.41.21-.6.39-.68v-.06c0-.51.05-1.26.14-1.74.02-.13.05-.27.09-.4.17-.6.54-1.13 1.02-1.51.5-.39 1.21-.6 1.84-.6s1.34.21 1.84.6c.48.38.85.91 1.02 1.52.04.13.07.27.09.4.09.48.14 1.22.14 1.73v.07c.18.08.34.27.37.67.03.32-.09.59-.16.71-.06.28-.21.58-.48.63-.03.13-.07.26-.12.39 0 .01-.01.04-.01.04-.22.58-.55 1.08-.95 1.45v.18c.04.45-.12.77 1.06 1.3 1.18.53 2.95 1.09 3.31 1.95z%22/%3E%3C/svg%3E")}
+.f-i.i-person{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.68 14.32c-.46-1.05-2.68-1.75-4.16-2.4-1.48-.65-1.28-1.05-1.33-1.59-.01-.07-.01-.15-.01-.23.51-.45.92-1.07 1.19-1.78 0 0 .01-.04.02-.05.06-.15.11-.32.15-.48.34-.07.54-.44.61-.78.08-.14.23-.48.2-.87-.05-.5-.25-.73-.47-.82v-.09c0-.63-.06-1.55-.17-2.15A3.671 3.671 0 0010.32.72C9.68.25 8.79-.01 8-.01c-.79 0-1.68.25-2.31.73-.61.47-1.06 1.13-1.28 1.86-.05.17-.09.33-.11.5-.12.6-.17 1.51-.17 2.15v.08c-.24.09-.45.32-.5.83-.03.38.13.72.2.86.08.35.28.72.63.78.04.17.09.33.15.49 0 .01.01.02.01.03l.01.01c.27.72.7 1.35 1.22 1.8 0 .07-.01.14-.01.21-.05.54.1.94-1.37 1.59-1.48.65-3.7 1.35-4.16 2.4-.46 1.05-.27 1.67-.27 1.67h15.92c-.01.01.18-.61-.28-1.66z%22/%3E%3C/svg%3E")}
+.f-i.i-phone{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.9 12.41c-.06-.06-3.37-2-3.48-2.05a.794.794 0 00-.32-.08c-.15 0-.34.11-.57.32-.23.22-.94 1.19-1.15 1.4-.21.22-.38.32-.52.32-.07 0-.15-.02-.25-.06-.1-.04-1.16-.58-3.36-2.52-2.2-1.93-2.49-3.2-2.5-3.55 0-.14.11-.31.32-.52.22-.21.45-.41.7-.6.25-.19.49-.4.7-.62.22-.23.32-.42.32-.57 0-.11-.03-.21-.08-.32C5.66 3.46 3.66.15 3.59.08 3.44-.07 2.85 0 2.55.16.16 1.46-.03 3.2 0 3.89c.04.71.49 4.46 4.16 7.95C8.72 16.17 11.89 16 12.1 16c.69 0 2.82-.38 3.72-2.55.13-.32.25-.87.08-1.04z%22/%3E%3C/svg%3E")}
+.f-i.i-play{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 8c0-.35-.19-.64-.46-.82l.01-.02-6-4-.01.02A.969.969 0 005 3c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1 .21 0 .39-.08.54-.18l.01.02 6-4-.01-.02c.27-.18.46-.47.46-.82z%22/%3E%3C/svg%3E")}
+.f-i.i-predictive-analysis{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M16 6.41c0-1.01-.49-1.94-1.29-2.49-.43-1.92-2.07-3.28-4-3.28-.46 0-.92.08-1.35.24C8.83.31 8.11 0 7.34 0c-.9 0-1.74.44-2.28 1.16-.12-.01-.24-.02-.36-.02-1.31 0-2.42.89-2.77 2.17C.78 3.72 0 4.84 0 6.13c0 .38.07.76.21 1.12C.07 7.6 0 7.98 0 8.36c0 1.11.58 2.11 1.51 2.63.54.56 1.27.87 2.03.87.49 0 .95-.12 1.37-.36a2.85 2.85 0 002.18 1.04c.52 0 1.03-.14 1.47-.42.49.39 1.07.65 1.69.73 1.04 1.15 1.84 2.63 1.84 2.64 0 0 .28.49.26.49.77 0 1.41-.16 1.32-1.04 0 .02-.73-2.31-.73-2.31.41-.21.75-.55.97-.98.9-.52 1.47-1.53 1.47-2.61 0-.24-.03-.48-.08-.71.45-.52.7-1.21.7-1.92zm-1.23 1.02l-.15-.16-.61-.67c-.27-.29-.54-.94-.58-1.39l-.1-1.01c-.05-.59-.94-.58-.91.11 0 .02.1 1.01.1 1.01.03.29.12.62.24.93-.06-.01-.12-.02-.18-.02 0 0-2.06-.1-2.05-.11-.58-.02-.71.97-.04 1l2.05.11c.42.02 1.04.3 1.29.58l.49.54.02.05c.08.21.12.44.12.66 0 .74-.41 1.41-1.07 1.75l-.16.08-.07.18c-.15.38-.48.66-.88.74l-.54.11.7 2.2c-.38-.61-.95-1.43-1.62-2.14l-.12-.13-.17-.01c-.41-.03-.8-.17-1.14-.38l1.36-1.18c.35-.31.83-.44.99-.39 0 0 .63.17.62.18.63.16.83-.74.23-.97l-.62-.18c-.55-.16-1.33.18-1.79.58l-1.53 1.33-.31.26c-.35.29-.75.44-1.2.44-.64 0-1.23-.33-1.58-.86V9.15c0-.4.17-.79.27-.85 0 0 .52-.34.51-.35.71-.53.18-1.23-.49-.89 0-.01-.52.35-.52.35-.26.15-.45.44-.58.77-.11-.11-.22-.2-.34-.28 0 0-1.53-1.01-1.53-1.02-.65-.45-1.2.51-.49.89 0-.01 1.51 1.02 1.51 1.02.37.24.62.78.62 1.09v.67c-.34.19-.63.29-.99.29-.54 0-1.05-.23-1.41-.63l-.05-.06-.07-.04c-.65-.34-1.05-1-1.05-1.73 0-.3.07-.6.2-.87l.12-.25L1.15 7c-.13-.27-.2-.56-.2-.87 0-.9.61-1.68 1.48-1.89l.31-.08.05-.34a1.926 1.926 0 012.38-1.58l.32.08.18-.31c.35-.6.99-.97 1.67-.97.44 0 .86.15 1.2.42l-.36.36v-.01l-.25.26c-.33.27-.74.42-.89.4 0 0-.67-.1-.67-.11-.67-.13-.87.86-.14 1.02.01 0 .67.11.67.11.02 0 .05 0 .07.01-.11.37-.15.77-.1 1.12 0 0 .17.99.15.99.11.52 1.06.36.93-.18 0-.01-.15-.99-.15-.99-.05-.37.12-.94.36-1.19l.39-.4c.05-.05.1-.09.15-.14l.74-.76c.4-.18.83-.27 1.27-.27 1.55 0 2.86 1.12 3.11 2.67l.04.25.21.12c.61.35.98 1 .98 1.7 0 .36-.1.7-.28 1.01z%22/%3E%3C/svg%3E")}
+.f-i.i-properties{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M2 6C.9 6 0 6.9 0 8s.9 2 2 2 2-.9 2-2-.9-2-2-2zm4-3h9c.55 0 1-.45 1-1s-.45-1-1-1H6c-.55 0-1 .45-1 1s.45 1 1 1zm-4 9c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm13-5H6c-.55 0-1 .45-1 1s.45 1 1 1h9c.55 0 1-.45 1-1s-.45-1-1-1zm0 6H6c-.55 0-1 .45-1 1s.45 1 1 1h9c.55 0 1-.45 1-1s-.45-1-1-1zM2 0C.9 0 0 .9 0 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z%22/%3E%3C/svg%3E")}
+.f-i.i-refresh{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 3a5 5 0 00-5 5 1 1 0 01-2 0 7 7 0 017-7c1.72 0 3.62.416 5 1.567V2a1 1 0 112 0v3a1 1 0 01-1 1h-3a1 1 0 110-2h.586C10.702 3.334 9.417 3 8 3zM8 13a5 5 0 005-5 1 1 0 112 0 7 7 0 01-7 7c-1.72 0-3.62-.416-5-1.568V14a1 1 0 11-2 0v-3a1 1 0 011-1h3a1 1 0 110 2h-.586c.884.666 2.169 1 3.586 1z%22/%3E%3C/svg%3E")}
+.f-i.i-search{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.55 13.43l-2.67-2.68a6.94 6.94 0 001.11-3.76c0-3.87-3.13-7-7-7s-7 3.13-7 7 3.13 7 7 7c1.39 0 2.68-.42 3.76-1.11l2.68 2.67a1.498 1.498 0 102.12-2.12zm-8.56-1.44c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z%22/%3E%3C/svg%3E")}
+.f-i.i-send-message{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.399 9.01L1.527 15.875c-.535.267-1.175.081-1.421-.427A.953.953 0 010 15V10l8-2-8-2V1c0-.528.407-1 1.004-1 .169 0 .416.04.567.116L15.403 7.07a1.084 1.084 0 01-.005 1.939z%22/%3E%3C/svg%3E")}
+.f-i.i-share{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M10.99 13.99h-9v-9h4.76l2-2H.99c-.55 0-1 .45-1 1v11c0 .55.45 1 1 1h11c.55 0 1-.45 1-1V7.24l-2 2v4.75zm4-14h-5c-.55 0-1 .45-1 1s.45 1 1 1h2.59L7.29 7.28a1 1 0 00-.3.71 1.003 1.003 0 001.71.71l5.29-5.29V6c0 .55.45 1 1 1s1-.45 1-1V1c0-.56-.45-1.01-1-1.01z%22/%3E%3C/svg%3E")}
+.f-i.i-shield{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 16c4.667-3.048 7-7.238 7-12.571-1.556 0-3.889-1.143-7-3.429-3.111 2.286-5.444 3.429-7 3.429C1 8.762 3.333 12.952 8 16zM8 2.121c2.005 1.388 3.715 2.304 5.186 2.735-.342 3.702-2.05 6.683-5.186 9.038V2.121z%22/%3E%3C/svg%3E")}
+.f-i.i-small-tick{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12 5c-.28 0-.53.11-.71.29L7 9.59l-2.29-2.3a1.003 1.003 0 00-1.42 1.42l3 3c.18.18.43.29.71.29s.53-.11.71-.29l5-5A1.003 1.003 0 0012 5z%22/%3E%3C/svg%3E")}
+.f-i.i-star{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0l2.5 5.3 5.5.8-4 4.1.9 5.8L8 13.3 3.1 16l.9-5.8-4-4.1 5.5-.8z%22/%3E%3C/svg%3E")}
+.f-i.i-star-empty{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M16 6.11l-5.53-.84L8 0 5.53 5.27 0 6.11l4 4.1L3.06 16 8 13.27 12.94 16 12 10.21l4-4.1zM4.91 13.2l.59-3.62L3 7.02l3.45-.53L8 3.2l1.55 3.29 3.45.53-2.5 2.56.59 3.62L8 11.49 4.91 13.2z%22/%3E%3C/svg%3E")}
+.f-i.i-tag{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M1 3a2 2 0 012-2h4.584a2 2 0 011.414.586l5.413 5.412a2 2 0 010 2.829L9.827 14.41a2 2 0 01-2.829 0L1.586 8.998A2 2 0 011 7.584V3zm3.487-.007a1.494 1.494 0 100 2.988 1.494 1.494 0 000-2.988z%22/%3E%3C/svg%3E")}
+.f-i.i-th{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15 1H1c-.6 0-1 .5-1 1v12c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V2c0-.5-.4-1-1-1zM6 13H2v-2h4v2zm0-3H2V8h4v2zm0-3H2V5h4v2zm8 6H7v-2h7v2zm0-3H7V8h7v2zm0-3H7V5h7v2z%22/%3E%3C/svg%3E")}
+.f-i.i-th-list{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15 1H1c-.6 0-1 .5-1 1v12c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V2c0-.5-.4-1-1-1zm-1 12H2v-2h12v2zm0-3H2V8h12v2zm0-3H2V5h12v2z%22/%3E%3C/svg%3E")}
+.f-i.i-tick{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M14 3c-.28 0-.53.11-.71.29L6 10.59l-3.29-3.3a1.003 1.003 0 00-1.42 1.42l4 4c.18.18.43.29.71.29s.53-.11.71-.29l8-8A1.003 1.003 0 0014 3z%22/%3E%3C/svg%3E")}
+.f-i.i-time{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm1-6.41V4c0-.55-.45-1-1-1s-1 .45-1 1v4c0 .28.11.53.29.71l2 2a1.003 1.003 0 001.42-1.42L9 7.59z%22/%3E%3C/svg%3E")}
+.f-i.i-timeline-bar-chart{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 12h1c.55 0 1-.45 1-1V2c0-.55-.45-1-1-1H8c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1zm5 0h1c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1h-1c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1zm2 1H2c-.55 0-1 .45-1 1s.45 1 1 1h13c.55 0 1-.45 1-1s-.45-1-1-1zM3 12h1c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1z%22/%3E%3C/svg%3E")}
+.f-i.i-truck{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M12.5 0a.5.5 0 01.5.5V9a1 1 0 011 1v2h.5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5H13v1a1 1 0 01-2 0v-1H5v1a1 1 0 01-2 0v-1H1.5a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5H2v-2a1 1 0 011-1V.5a.5.5 0 011 0V3a2 2 0 012-2h4a2 2 0 012 2V.5a.5.5 0 01.5-.5zM9 8H7a1 1 0 00-1 1v2a1 1 0 001 1h2a1 1 0 001-1V9a1 1 0 00-1-1zm3.5 3h-1a.5.5 0 100 1h1a.5.5 0 100-1zm-8 0h-1a.5.5 0 100 1h1a.5.5 0 100-1zM9 9a.5.5 0 01.5.5v1l-.008.09A.5.5 0 019 11H7l-.09-.008a.5.5 0 01-.41-.492v-1l.008-.09A.5.5 0 017 9zm2-5H5v2h6V4z%22/%3E%3C/svg%3E")}
+.f-i.i-undo{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M4 11c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm7-7H3.41L4.7 2.71c.19-.18.3-.43.3-.71a1.003 1.003 0 00-1.71-.71l-3 3C.11 4.47 0 4.72 0 5c0 .28.11.53.29.71l3 3a1.003 1.003 0 001.42-1.42L3.41 6H11c1.66 0 3 1.34 3 3s-1.34 3-3 3H7v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z%22/%3E%3C/svg%3E")}
+.f-i.i-upload{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm3 8c-.28 0-.53-.11-.71-.29L9 6.41V12c0 .55-.45 1-1 1s-1-.45-1-1V6.41l-1.29 1.3a1.003 1.003 0 01-1.42-1.42l3-3C7.47 3.11 7.72 3 8 3s.53.11.71.29l3 3A1.003 1.003 0 0111 8z%22/%3E%3C/svg%3E")}
+.f-i.i-user{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M7.99-.01A7.998 7.998 0 00.03 8.77c.01.09.03.18.04.28.02.15.04.31.07.47.02.11.05.22.08.34.03.13.06.26.1.38.04.12.08.25.12.37.04.11.08.21.12.32a6.583 6.583 0 00.3.65c.07.14.14.27.22.4.04.07.08.13.12.2l.27.42.1.13a7.973 7.973 0 003.83 2.82c.03.01.05.02.07.03.37.12.75.22 1.14.29l.2.03c.39.06.79.1 1.2.1s.81-.04 1.2-.1l.2-.03c.39-.07.77-.16 1.14-.29.03-.01.05-.02.07-.03a8.037 8.037 0 003.83-2.82c.03-.04.06-.08.09-.13.1-.14.19-.28.28-.42.04-.07.08-.13.12-.2.08-.13.15-.27.22-.41.04-.08.08-.17.12-.26.06-.13.11-.26.17-.39.04-.1.08-.21.12-.32.04-.12.08-.24.12-.37.04-.13.07-.25.1-.38.03-.11.06-.22.08-.34.03-.16.05-.31.07-.47.01-.09.03-.18.04-.28.02-.26.04-.51.04-.78-.03-4.41-3.61-7.99-8.03-7.99zm0 14.4c-1.98 0-3.75-.9-4.92-2.31.67-.36 1.49-.66 2.14-.95 1.16-.52 1.04-.84 1.08-1.27.01-.06.01-.11.01-.17-.41-.36-.74-.86-.96-1.44v-.01c0-.01-.01-.02-.01-.02-.05-.13-.09-.26-.12-.39-.28-.05-.44-.35-.5-.63-.06-.11-.18-.38-.15-.69.04-.41.2-.59.38-.67v-.06c0-.51.05-1.24.14-1.72.02-.13.05-.26.09-.39.17-.59.53-1.12 1.01-1.49.49-.38 1.19-.59 1.82-.59.62 0 1.32.2 1.82.59.48.37.84.9 1.01 1.49.04.13.07.26.09.4.09.48.14 1.21.14 1.72v.07c.18.08.33.26.37.66.03.31-.1.58-.16.69-.06.27-.21.57-.48.62-.03.13-.07.26-.12.38 0 .01-.01.04-.01.04-.21.57-.54 1.06-.94 1.42 0 .06.01.13.01.19.04.43-.12.75 1.05 1.27.65.29 1.47.6 2.14.95a6.415 6.415 0 01-4.93 2.31z%22/%3E%3C/svg%3E")}
+.f-i.i-warning-sign{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.84 13.5l.01-.01-7-12-.01.01c-.17-.3-.48-.5-.85-.5s-.67.2-.85.5l-.01-.01-7 12 .01.01c-.09.15-.15.31-.15.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-.19-.06-.35-.15-.5zm-6.85-.51h-2v-2h2v2zm0-3h-2v-5h2v5z%22/%3E%3C/svg%3E")}
+.f-i.i-wrench{--i:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M15.83 3.7l-3.06 3.05-2.84-.7-.7-2.83L12.29.17a5.004 5.004 0 00-4.83 1.29 4.967 4.967 0 00-1.12 5.36L.58 12.58c-.36.36-.58.86-.58 1.41 0 1.1.9 2 2 2 .55 0 1.05-.22 1.41-.59l5.77-5.77c1.79.69 3.91.33 5.35-1.12 1.32-1.3 1.74-3.15 1.3-4.81z%22/%3E%3C/svg%3E")}
