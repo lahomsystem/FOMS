@@ -32,8 +32,8 @@
 | C | T8 | W8 | AI 제안 화면 조각 — 승인 대기 ERP 칸 · 옆 창 · 폰 카드(⑥ · ⑫) + PC · 태블릿 · 폰 분홍 칸(② ③ ④) | high | `foms-s-foms-graft` | T3 · T7 | DONE(`a6d04731a`) |
 | C | T10 | W10 | AI 직원 — 수준 표 · 승인율 · 실행 기록 · 훑기 규칙 셋 · 밤 단계 · AI 직원 화면(⑪ — 'AI 시험' 칸은 자리만) | high | 따로 `foms-s-graft-staff` | T1 · T2 · T7 | DONE `9899ef763` |
 | C | T14 | W12 | **처리기 셋 떼어 내기 + 실행기 셋 + 목록 `mode` 를 `run` 으로**(D206 — 코어 변경) | max | 따로 `foms-s-graft-core` | T13(커밋됨) · T7 · T1 | DONE(`df32732b0` · 맞추기 `4e0b2a7ec`) |
-| D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | RUNNING(바탕 `795f93c79`) |
-| D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | RUNNING(바탕 `795f93c79`) |
+| D | T9 | W9 | 상담 AI 접목 — 근거 남기기 · 규칙 제안 · 채널톡 작은 창 두 줄(⑤) | xhigh | 따로 `foms-s-graft-cs` | T1 · T7(· T14 — 실측 옮기기 제안이 실행까지 되려면) | DONE(`41922e4df` · 맞추기 `b4368b0aa`) |
+| D | T15 | W13 | **바깥 알림 둘** — 시공일 안내 알림톡(D208: 스위치 · 서식 글 초안 · 실행기 · 훑기 `O4`) + 승인 대기 폰 알림(D210: 새 알림 종류 · 웹 푸시) | xhigh | 따로 `foms-s-graft-notify` | T7 · T10 · T14 · T2 | DONE(`dc8a9e011` · 맞추기 `9ca118614`) |
 | D | T16 | W14 | **상담 AI 평가 묶음 + [시험 다시 돌리기]**(D209 — 돌릴 때 DB 에서 가린 글로 묶음 · WORKER 줄 일 · 돈 상한 · 결과 저장 · ⑪ 의 'AI 시험' 칸) | xhigh | 따로 `foms-s-graft-eval` | T10 · T1 | DONE(`12df85ba8`) |
 | E | T11 | R1 | 검수(읽기만) — 설계서 맞춤 · 보안 · 품질 | xhigh | `foms-s-foms-graft`(읽기만) | T1 ~ T10 · T13 ~ T16 | PENDING |
 | E | T12 | V1 | 합친 뒤 확인 — 명령 전부 · 스위치 끔 견주기 · 핀 · 머리 하나 · 소유 표 | high | `foms-s-foms-graft` | T11 고침 끝 | PENDING |
@@ -160,7 +160,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | 번호 | 심각도 | 어디 | 무엇 | 맡은 일감 | 상태 |
 |---|---|---|---|---|---|
 | F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | OPEN |
-| F-02 | 낮음 | `foms/services/erp_actions/views.py:236` | 자세히 답 `params` 에 `required` 가 없다(registry `Param.required` 는 있음) — 화면(T8)이 `time_slot` · `flag` 말고는 꼭 넣을 값으로 미루어 판단 | T11 검수 뒤 정함(T7 답에 더하기 권함) | OPEN |
+| F-02 | 낮음 | `foms/services/erp_actions/views.py:236` | 자세히 답 `params` 에 `required` 가 없다(registry `Param.required` 는 있음) — 화면(T8)이 `time_slot` · `flag` 말고는 꼭 넣을 값으로 미루어 판단 | T11 검수 뒤 정함(T7 답에 더하기 권함) | 고침(`9ca118614` — 자세히 답에 required) |
 | F-03 | 낮음 | `foms/services/erp_actions/views.py:134` | 카드 답에 `base_version` 이 없다(설계서 3.6 카드 칸 목록과 같음) — 카드 [승인]은 자세히를 먼저 읽고 승인(요청 둘) | T11 검수 뒤 정함 | OPEN |
 | F-04 | 낮음(색) | `static/css/components/foms-graft-cells.css` | AI 칩 글 · 테두리 #4a55b8 과 고객컨펌 단계 배지 #5a67d8 의 ΔE2000 7.5(제2색맹 흉내 뒤 7.3) — 바탕끼리는 42 이상, 옅은 칩과 꽉 찬 배지로 갈린다. 상태 쌍 기준(10)에는 미달 · 색약 기준(6)은 넘음 | T11 검수 뒤 정함(판의 남보라 유지가 기본) | OPEN |
 | F-05 | 기록 | `templates/partials/shared/erp_mobile_queue_card_v2.html` | 파일 주인 표(3절) 밖 — 폰 목록 줄 칩(메모리 규칙 '새 기능은 폰 목록 줄에서 보여야')으로 T8 이 더함. 이 카드를 쓰는 6개 목록 모두에 칩이 나온다. 꺼지면 지금과 같음(시험) | — | 기록만 |
@@ -169,7 +169,12 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | F-08 | 낮음 | `foms/services/ai_staff/sweeps.py`(T10 규칙 O2) | 넣을 값이 비어 겹침 열쇠가 주문마다 하나 — 한 번 거절되면 그 주문엔 다시 제안되지 않음 | T11 검수 뒤 정함 | OPEN |
 | F-09 | 고침 | `tests/support/graft_char.py` | 큰 묶음(-n 6, 하네스 · 보안 시험과 섞임)에서 특성 시험 정책 가드 403 셋이 감사 줄 빠짐으로 빨강 — 거부 감사 60초 겹침 거르기가 프로세스 안 캐시라 같은 일손의 앞선 거부(같은 번호 사용자 · 끝점)에 눌림. 한 번은 `erp_stage_updated_at` 안 바뀜(Windows 시계 눈금). 자국 뜨기 전 캐시 비우기 + 눈금 넘기기로 고침, 같은 묶음 두 번 초록. 함께 본 `test_db_leak_trace::test_closed_session_is_silent` 흔들림은 엔진 `id()` 재사용(접목판 밖 · 원래 있던 것) | 메인 | 고침(`f76d06476`) |
 | F-10 | 기록 | 설계서 · 지시문 | 코드와 다른 문장: 설계서 :63 `Idempotency-Key` 머리글 빠짐 · :310 '2xx 아니면 막힘'(코드는 5xx = 실패) · :311 '승인하는 사람의 팀'(실행기는 재전이 길만) · :300 · :339 `run_eval` · 줄 일 자리(실제 `evals_run.py` — `tasks.py` 는 층 래칫 · WORKER 가벼움 시험 때문에 못 씀) · :337 `check_codes`(말투 알림도 적힘) · 지시문 :446 `checks_same.py`(같은 뜻 판정은 `case_memory.judge_reply`) · 목업 'BOnto' 도면 담당 폰 승인(실제 PC 승인) · 'BAgents' '기준 밑이면 배포를 막아요'(없는 문지기) | 마무리 때 문서 고침 | 기록만 |
-| F-11 | 할 일 | `docs/harness/foms_*_inventory.json` | T14 로 줄 번호만 밀린 인벤토리(audit_coverage · failopen) — push 전 `*_scan.py` 를 직접 돌려 커밋(refresh 는 줄 번호만 바뀐 것을 되돌린다) | 메인(push 전) | OPEN |
+| F-11 | 할 일 | `docs/harness/foms_*_inventory.json` | T14 로 줄 번호만 밀린 인벤토리(audit_coverage · failopen) — push 전 `*_scan.py` 를 직접 돌려 커밋(refresh 는 줄 번호만 바뀐 것을 되돌린다) | 메인(push 전) | 고침(`b4368b0aa`) |
+| F-12 | 결정 필요 | `foms/services/cs_agent/order_find.py:39`(T9 규칙 ①) | 본인 확인이 완료 주문(열린 AS 없음)을 빼서 'AS 뜻 + 완료 · CS 단계 → AS 접수 제안'이 사실상 CS 단계에서만 듦 — 고치려면 상담 주문 찾기 규칙을 바꿔야 함(접목판 밖 파일) | 사용자 결정 뒤 | OPEN |
+| F-13 | 낮음 | `foms/services/cs_agent/send_view.py`(T9) · `lifecycle.approve`(T7) | 기간이 지났지만 아직 `expired` 로 안 바뀐 제안이 작은 창 줄에 보일 수 있고, 승인도 `expires_at` 을 보지 않음 | T11 검수 뒤 정함 | OPEN |
+| F-14 | 켜는 순서 | 설계서 4절 | 상담 AI 관리 칸(할 일 제안)은 켜고 `FOMS_GRAFT_ACTIONS` 는 끈 채면 AS 접수 · 방문 옮기기 제안이 생겨도 아무도 못 보고 7일 뒤 끝남 · 폰 알림은 FOMS-cron · WORKER 에 `REDIS_URL` · `FOMS_WEB_PUSH_ENABLED` · VAPID 열쇠가 없으면 알림 줄만 생기고 폰으로 안 나감 | 켜는 날 확인 목록 | 기록만 |
+| F-15 | 기록(접목판 밖) | `static/sw.js:429` | 폰 알림 누름 허용 목록이 `/erp/` · `/partner/` 뿐이라 지금 공지(`/notices`) · 상담 초안(`/cs-agent/…`) 폰 알림도 누르면 대시보드로 감 — 이번엔 `/brain` 만 넓힘 | 따로 | 기록만 |
+| F-16 | 기록 | `foms/services/erp_actions/registry.py`(T15) | 폰 알림 팀(`notify_team`)은 설계서에 없어 일꾼이 정함: 시공 잡기 · 방문 옮기기(시공) SHIPMENT · 방문 옮기기(AS) · AS 접수 · 시공 메모 · 단계 넘기기 · 시공일 안내 CS · 실측 예약 알림톡 · 방문 옮기기(실측) SALES · 도면 담당 DRAWING | 사용자 확인 | 기록만 |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
