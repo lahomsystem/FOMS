@@ -1,0 +1,23 @@
+{#- 승인 대기 왼쪽 길잡이(판 ⑥ — PC 만): 모두(수) · AI 할 일 제안 자리(T8 — inbox_erp_nav.html, 없으면 빈 자리) · 지식 고침 묶음
+    ① ~ ⑥(수는 ds-inbox.js 가 채우고 0 은 흐리게) · 점검(다시 확인 수 · 판 · 기록 · 나중에 볼 것 수) · 폰 안내.
+    묶음 짧은 이름은 static/js/brain/ds/ds-inbox-view.js 의 BINS.short 와 같다(시험이 본다). -#}
+{% set bin_nav = [('names', '① 한글 이름 붙이기'), ('content', '② 새로 · 바뀌는 지식'), ('decide', '③ 사장님이 정할 것'),
+                  ('mark', '④ 같은 값 표시'), ('calc', '⑤ 계산기 제품 · 옵션'), ('rules', '⑥ 규칙 잇기')] %}
+{% set start_bin = request.args.get('bin', '') if view == 'inbox' else '' %}
+<nav class="f-side fb-pc-only" aria-label="승인 대기 길잡이">
+  {{ ds.nav_item(url_for('brain_web.index', tab='inbox'), '모두', 'inbox', n_inbox, current=view == 'inbox' and not start_bin, key='inbox') }}
+  {% include "brain/ds/partials/inbox_erp_nav.html" ignore missing %}
+  {%- if knows %}
+  {{ ds.nav_heading('지식 고침') }}
+  {%- for key, label in bin_nav %}
+  <a class="f-nav-item fb-nav-item--muted{{ ' is-selected' if start_bin == key else '' }}" href="{{ url_for('brain_web.index', tab='inbox', bin=key) }}"
+     data-ds-inbox-bin-nav="{{ key }}"{% if start_bin == key %} aria-current="page"{% endif %}>{{ label }}<span class="f-count" data-ds-inbox-bin-count="{{ key }}" hidden></span></a>
+  {%- endfor %}
+  {{ ds.nav_heading('점검') }}
+  {{ ds.nav_item(url_for('brain_web.index', tab='recheck'), '다시 확인', 'refresh', n_recheck, current=view == 'recheck', key='recheck') }}
+  {{ ds.nav_item(url_for('brain_web.index', tab='releases'), '판 · 기록', 'history', current=view == 'releases') }}
+  <a class="f-nav-item fb-nav-item--muted{{ ' is-selected' if start_bin == 'later' else '' }}" href="{{ url_for('brain_web.index', tab='inbox', bin='later') }}"
+     data-ds-inbox-bin-nav="later"{% if start_bin == 'later' %} aria-current="page"{% endif %}>{{ ds.icon('time') }}나중에 볼 것<span class="f-count" data-ds-inbox-bin-count="later" hidden></span></a>
+  <div class="f-callout fb-side-note">{{ ds.icon('mobile-phone') }}<span class="f-small">휴대폰에서는 칸 하나만 바뀌는 제안만 승인할 수 있어요. 나머지는 PC 에서 해 주세요.</span></div>
+  {%- endif %}
+</nav>

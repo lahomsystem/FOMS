@@ -1,0 +1,71 @@
+/* 승인 대기 화면 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.4 · 5.5 · 판 ⑥ · ⑫) — templates/brain/ds/inbox.html 전용.
+   class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
+   640px 아래 = 폰(⑫): 지식 고침 칸 · 숫자 띠 · 왼쪽 길잡이는 숨고(.fb-pc-only — 틀 CSS) 폰 칸이 보인다. */
+
+/* hidden 은 언제나 숨김 — .f-col · .f-btn · .f-aside 같은 display 규칙이 [hidden] 을 이기지 않게. */
+.fb-inbox [hidden],
+.f-side [hidden],
+.fb-inbox-aside[hidden] { display: none !important; }
+
+.fb-inbox { min-width: 0; gap: 16px; }
+.fb-status:empty { display: none; }
+.fb-status.is-error { color: var(--red2); }
+.fb-inbox-erp:empty { display: none; }
+
+/* 왼쪽 길잡이 — 수 0 인 묶음은 흐리게(.f-app a.f-nav-item 의 글 색보다 앞서게 · 고른 줄은 흰 글 그대로) · 폰 안내 상자 */
+.f-app a.f-nav-item.fb-nav-item--muted:not(.is-selected) { color: var(--text-muted); }
+.fb-side-note { margin: 16px 0 0; word-break: keep-all; }
+
+/* 지식 고침 칸 — 묶음 줄(제목 · 수 · 설명 · 첫 장 | 어림 · 열기) */
+.fb-know-head { flex-wrap: wrap; }
+.fb-bin {
+  display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 4px 16px; align-items: center;
+  padding: 9px 20px; box-shadow: inset 0 1px 0 var(--divider);
+}
+.fb-bin:first-child { box-shadow: none; }
+.fb-bin__text { min-width: 0; }
+.fb-bin--none { display: block; padding: 8px 20px; }
+.fb-know-foot { padding: 8px 20px 12px; box-shadow: inset 0 1px 0 var(--divider); }
+
+/* 카드 */
+.fb-cards { gap: 12px; }
+.fb-icard { gap: 10px; }
+.fb-prop { gap: 10px; min-width: 0; }
+.fb-prop--attached { padding-top: 10px; box-shadow: inset 0 1px 0 var(--divider); }
+.fb-diff-wrap { overflow-x: auto; }
+.fb-diff th { width: 1%; }
+.fb-diff__after { white-space: pre-line; }
+.fb-diff__was { display: block; font-weight: 400; }
+.fb-drawer > summary { cursor: pointer; color: var(--link); }
+.fb-drawer[open] > summary { margin-bottom: 8px; }
+.fb-edit { padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
+.fb-confirm { align-self: flex-start; }
+.fb-rows .f-input { min-width: 160px; }
+
+/* 다시 확인 · 판 */
+.fb-late { color: var(--orange2); }
+.fb-recheck.is-late { box-shadow: inset 3px 0 0 var(--orange3), var(--shadow-0); }
+.fb-recheck.is-done { opacity: .6; }
+.fb-release__diff { padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
+
+/* 폰 칸(⑫) — PC 에서는 없다. */
+.fb-phone { display: none; }
+.fb-phone-list { gap: 12px; }
+.fb-phone-card { padding: 12px 14px; cursor: pointer; }
+.fb-phone-card__title {
+  padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: inherit; text-align: left; cursor: pointer;
+}
+.fb-phone-change .f-ellipsis { max-width: 45%; }
+.fb-phone-card .f-chip.f-ellipsis { display: inline-flex; max-width: 220px; }
+.fb-phone-more { padding-top: 8px; box-shadow: inset 0 1px 0 var(--divider); cursor: default; }
+.fb-phone-pc { padding: 12px 14px; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
+
+@media (max-width: 640px) {
+  .fb-inbox { gap: 12px; }
+  .fb-phone { display: flex; gap: 12px; }
+  /* 옆 창(T8 '제안 자세히')은 폰에서 화면을 덮는다 — 아래 탭은 남긴다. */
+  .fb-inbox-aside {
+    position: fixed; left: 0; right: 0; top: 0; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 12;
+    overflow-y: auto; box-shadow: var(--shadow-3);
+  }
+}

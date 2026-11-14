@@ -15,7 +15,7 @@
 .fb-nav-phone-count { display: none; }
 .fb-nav-user { cursor: default; }
 .fb-nav-user:hover { background: none; }
-.fb-nav-item--muted { color: var(--text-muted); }
+.f-app a.f-nav-item.fb-nav-item--muted:not(.is-selected) { color: var(--text-muted); }  /* foms-ds .f-app a.f-nav-item 보다 앞서게 */
 
 /* 아래 탭 · '나' 창 — PC 에서는 없다. */
 .fb-tabbar { display: none; }
