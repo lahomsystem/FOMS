@@ -159,7 +159,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 
 | 번호 | 심각도 | 어디 | 무엇 | 맡은 일감 | 상태 |
 |---|---|---|---|---|---|
-| F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | 따로 고치는 중(D218 — 가지 `session/viewer-schedule-guard`, origin/deploy 바탕) |
+| F-01 | 높음(지금 운영) | `foms/services/orders/order_mutation_policy.py:407-413` · `foms/services/erp_permissions.py:368-382` | CS · 영업 팀 VIEWER(조회 전용) 계정이 시공일 쓰기 길 셋(`foms_order_mutation_policy_manifest.json:803-816`)을 통과 — 정책 문지기 함수가 VIEWER 막기보다 먼저 돌고 `can_edit_erp` 가 VIEWER 를 거르지 않음. 접목판 할 일은 `access.policy_allows` 가 따로 막음(W7) | 접목판 밖 — 사용자에게 보고 · 따로 고침 | 고침(가지 `session/viewer-schedule-guard` `be3c7e31c` — 접목판과 따로, push 전) |
 | F-02 | 낮음 | `foms/services/erp_actions/views.py:236` | 자세히 답 `params` 에 `required` 가 없다(registry `Param.required` 는 있음) — 화면(T8)이 `time_slot` · `flag` 말고는 꼭 넣을 값으로 미루어 판단 | T11 검수 뒤 정함(T7 답에 더하기 권함) | 고침(`9ca118614` — 자세히 답에 required) |
 | F-03 | 낮음 | `foms/services/erp_actions/views.py:134` | 카드 답에 `base_version` 이 없다(설계서 3.6 카드 칸 목록과 같음) — 카드 [승인]은 자세히를 먼저 읽고 승인(요청 둘) | T11 검수 뒤 정함 | OPEN |
 | F-04 | 낮음(색) | `static/css/components/foms-graft-cells.css` | AI 칩 글 · 테두리 #4a55b8 과 고객컨펌 단계 배지 #5a67d8 의 ΔE2000 7.5(제2색맹 흉내 뒤 7.3) — 바탕끼리는 42 이상, 옅은 칩과 꽉 찬 배지로 갈린다. 상태 쌍 기준(10)에는 미달 · 색약 기준(6)은 넘음 | T11 검수 뒤 정함(판의 남보라 유지가 기본) | OPEN |
@@ -224,6 +224,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | F-19 | 낮음(기록) | `foms/services/kakao_alimtalk.py` `_record_history`(고침 B 보고) | 사람이 누른 실측 알림톡(`manual` · `action` 열쇠)은 기록에 일정이 없어 O1 이 일정과 견주지 못함 — 자동 발송이 꺼진 채 사람이 보낸 뒤 날짜를 옮기면 놓침 | 따로 | OPEN |
 | F-20 | 낮음(기록) | `foms/services/kakao_alimtalk_construction.py`(고침 A) | 시공일 안내 '이미 보냄' 판정은 이제 주문 줄 잠금 아래 — SQLite 는 잠금을 무시해 진짜 겹침 증명은 PG 레인 몫(시험 없음) · 잠금이 벤더 왕복(최대 5초) 동안 이어짐 · 보내기 성공 뒤 기록 전 서버가 죽으면 다시 보낼 수 있음 | 따로 | 기록만 |
 | F-21 | 보통(사용자 지적 11-14) | `templates/partials/shared/foms_tablet_rail.html` · `static/css/components/foms-graft-cells.css` | 태블릿 레일에 '회사 지식' 칸이 늘면 1180×820 에서 알림 · 내 정보가 화면 아래로 밀림(잰 값 820 → 878px) — 칸이 보일 때만 레일 칸 여백을 줄여 820px 로 맞춤 | 메인 | 고침(`d7f5759df`) |
+| F-22 | 보통(사용자 지적 11-14) | `static/css/components/foms-graft-cells.css` | AI 칩(width: max-content · 한 줄)이 '현재 작업' 칸을 넓혀 태블릿 '단계' 배지가 '컨/펌'처럼 세로로 꺾이고, 막으면 '첨부' 칸이 밀림(표 748px / 상자 730px) — 단계 한 줄 · 칩 fit-content + 낱말 사이 줄바꿈(PC 칸 폭은 스위치 끈 화면과 같음). PC 표 머리 '경/보' 꺾임은 스위치를 꺼도 같은 원래 것 | 메인 | 고침(`40643d00e`) |
 
 ### 특성 시험 문지기 기록 (T13 뒤 메인이 채운다)
 
