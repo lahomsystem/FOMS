@@ -348,6 +348,7 @@
 .fph-sd__d { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .fph-sd__d b { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .fph-sd__d small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); white-space: nowrap; }
+.fph-sd__d .fph-sd__wd { display: none; } /* 요일만 쓴 글 — 아래 ② 가장 빠듯한 띠에서만 긴 글 대신 보인다 */
 .fph-sd.is-wk .fph-sd__d b { color: var(--fph-danger); }
 .fph-sd.is-zero .fph-sd__d b, .fph-sd.is-zero .fph-sd__n b { color: var(--fph-text3); }
 .foms-prod-home .fph-sd__bar { width: 100%; height: 16px; border-radius: 5px; background: var(--fph-raised); border: 1px solid var(--fph-line); stroke: none; }
@@ -470,6 +471,99 @@
   .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
   .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
   .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+}
+
+/* ── 화면 크기 · 글자 배율을 키운 가로 터치 화면: 띠가 쓸 수 있는 키를 재서 고른다(11-14 실측, 컨테이너 쿼리) ──
+   media 의 키는 배율 전 실제 화면 px 라 화면 크기 z 도 글자 배율도 못 본다. 그래서 키운 경우(html 에 data-foms-ui-zoom 1.1~1.3
+   이나 data-foms-fs 가 있을 때 · 80 · 90% 는 빼고)에만 띠를 상자(.fph-stripbox)에 담아 상자 키 = 띠 칸(100dvh ÷ z − 제목 줄)을
+   컨테이너로 잰다. 상자는 투명 · 테두리 없음이고 띠는 그 안에서 지금처럼 붙어(sticky) 있어 보이는 것은 같다.
+   그 밖(100% · 글자 100%, 80 · 90%, PC, 세로 · 폰)에는 상자가 display: contents 라 없는 것과 같고 위 786px 규칙만 쓴다.
+   쿼리 안 단위: 1rem = 16px × 글자 배율(html 글자 크기), 1em = 16px ÷ z(상자 글자 크기 — 띠 안은 1rem 으로 되돌린다)
+   → 3em = 단추 최소 키 48 ÷ z(화면에서 실제 48, 장갑 D5), 2.5em = 머리 40 ÷ z.
+   ① 두 칸씩(fph-strip): 한 줄씩 띠 = 머리 40 + 13줄 × max(48, 2줄 날짜 2.0125rem + 5) + 아래 칸 max(49, 2줄 2.34rem) 이
+      안 들어가면. 글자 100~130% 는 713px(= 786 − 73, 위 규칙과 같은 경계를 ÷ z 로), 150% 는 789px —
+      1280×800 글자 150% 는 한 줄씩 띠 782px 가 727px 칸을 넘어 날 3개가 숨었다.
+   ② 가장 빠듯함: 두 칸씩 띠 = 머리 max(40 ÷ z, 1.375rem + 2) + 지난 7일 max(48 ÷ z, 2.0125rem + 5)
+      + 6줄 × max(48 ÷ z, 2.0125rem + 17) + 아래 칸 max(48 ÷ z + 1, 2줄 2.34rem)(아래 칸은 'n건 더' 2줄로 잡는다)도
+      안 들어가면 날짜 옆에 요일을 한 줄로 붙이고 요일 뒤 '· 내일 · D-n · 없음'을 뺀다(긴 글 fph-sd__long 대신 요일만 쓴 fph-sd__wd). 요일 · 수 · 막대는 그대로.
+      1176×626 에서 110% + 글자 150%, 120 · 130% + 글자 120% 이상일 때만(실측 띠 칸 409~496px 에 444~525px 가 들어가야 했다).
+      '오늘 11/14 토' 처럼 한 줄에 안 들어가는 칸만 요일이 다음 줄로 내려간다(글자는 줄이지 않는다).
+      실측 130% + 글자 150%: 띠 382px(아래 칸 2줄이어도 401) ≤ 띠 칸 406px, 날 칸 42.3px = 화면에서 55px. ── */
+.fph-stripbox { display: contents; }
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  html:is([data-foms-ui-zoom], [data-foms-fs]):not([data-foms-ui-zoom^="0."]) .fph-stripbox {
+    display: block;
+    position: sticky;
+    top: var(--fph-bar-h, 73px);
+    height: calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));
+    container: fph-strip / size;
+    font-size: calc(16px / var(--foms-ui-zoom, 1));
+  }
+  html:is([data-foms-ui-zoom], [data-foms-fs]):not([data-foms-ui-zoom^="0."]) .fph-stripbox > .fph-strip { font-size: 1rem; }
+}
+@container fph-strip (max-height: calc(39.98px + 13 * max(48px, 2.0125rem + 5px) + max(49px, 2.34rem))) {
+  .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .fph-strip__h, .fph-strip__f, .fph-sd:first-of-type { grid-column: 1 / -1; }
+  .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
+  .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
+  .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
+  .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
+  .fph-strip__h { min-height: calc(40px / var(--foms-ui-zoom, 1)); }
+  .fph-sd, .fph-sf { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
+}
+@container fph-strip (max-height: calc(max(2.5em, 1.375rem + 2px) + max(3em, 2.0125rem + 5px) + 6 * max(3em, 2.0125rem + 17px) + max(3em + 1px, 2.34rem) - 0.02px)) {
+  .fph-sd__d { flex-flow: row wrap; align-items: baseline; column-gap: 4px; }
+  .fph-sd__d .fph-sd__long { display: none; }
+  .fph-sd__d .fph-sd__wd { display: block; }
+  .fph-sd:first-of-type { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .fph-sd:not(:first-of-type) { padding: 2px 6px; }
+  .fph-sd__n { line-height: 1.15; } /* 수 줄도 날짜 줄과 같은 줄 높이 — 'normal' 이면 이 줄이 32px 로 칸을 키운다(150%) */
+}
+
+/* ── 화면 크기 · 글자 배율을 키운 넓은 화면: 이름 칸이 좁아지면 카드를 두 줄로(11-14 실측, 컨테이너 쿼리) ──
+   카드의 단계 · 공정 · 도면 칸은 너비가 정해져 있어(글자 배율을 따라 커지는 칸도 있다) 남는 너비를 이름 칸 하나가 다 잃는다.
+   1176×626 화면 크기 130% + 글자 150%: 쓸 수 있는 너비 = 1176 ÷ 1.3 = 905px 에서 띠를 빼면 날짜 장 카드 455px 인데
+   정해진 칸 128 + 공정 154 + 도면 138 + 틈 · 여백 50 = 470px 라 이름 칸이 0px — '발주 가나 인테리어' 가 한 글자씩 꺾였다.
+   같은 화면 찾기 탭 카드는 이름 칸 165px(이름 글자 33px 의 5배), 내 공정 탭은 274px(8배)였다.
+   media 는 화면 크기 z 를 못 보므로 카드를 담은 칸(날짜 장 · 찾기 목록 · 공정 줄 · 받은함)의 너비를 컨테이너로 재고,
+   이름 칸이 이름 글자(20 · 22 · 19px × 글자 배율)의 12배보다 좁아지는 너비에서만 두 줄로 바꾼다
+   — 1줄: 단계 | 이름 · 2줄: 단계 | 공정 · 도면(받은함은 두 칸 대신 한 칸). 칸 크기 · 글자 크기 · 단추 크기는 그대로다.
+   쿼리 안 단위: 1rem = 16px × 글자 배율, px 는 화면 크기를 나눈 뒤의 CSS px(칸 너비와 같은 단위).
+   100% · 글자 100% 는 1176×626 에서도 날짜 장 카드 760 ≥ 664px · 찾기 · 공정 1072 ≥ 900 · 716px · 받은함 1072 ≥ 806px 라 바뀌지 않는다. ── */
+@media (min-width: 992px) {
+  .fph-panes { container: fph-pane / inline-size; }
+  .foms-prod-home__list { container: fph-list / inline-size; }
+  .fph-q { container: fph-q / inline-size; }
+  .fph-inbox--page { container: fph-inbox / inline-size; }
+  /* 날짜 장(fph-dr): 단계 128 + 공정 4 × max(34, 글 2자 1.5rem) + 틈 18 + 도면 5.75rem(92px × 배율) + 칸 틈 36 + 여백 12 + 테두리 2
+     + 이름 12 × 1.25rem(20px × 배율) */
+  @container fph-pane (max-width: calc(196px + 4 * max(34px, 1.5rem) + 20.75rem - 0.02px)) {
+    .fph-dr { grid-template-columns: 128px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 8px; }
+    .fph-dr__sg { grid-row: 1 / 3; }
+    .fph-dr__who { grid-column: 2 / 4; padding-bottom: 2px; }
+    .fph-dr__steps { grid-column: 2; grid-row: 2; }
+    .fph-dr__dw { grid-column: 3; grid-row: 2; }
+  }
+  /* 찾기(job): 단계 150 + 공정 290 + 도면 130 + 여백 20 + 테두리 2 + 이름 칸 안 여백 44 + 이름 12 × 1.375rem(22px × 배율) */
+  @container fph-list (max-width: calc(636px + 16.5rem - 0.02px)) {
+    .foms-prod-home__job { grid-template-columns: 150px minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 10px; }
+    .foms-prod-home__stage { grid-row: 1 / 3; }
+    .foms-prod-home__who { grid-column: 2 / 4; padding-bottom: 4px; }
+    .foms-prod-home__steps { grid-column: 2; grid-row: 2; padding-left: 22px; }
+    .foms-prod-home__dw { grid-column: 3; grid-row: 2; }
+  }
+  /* 내 공정(qr): 번호 64 + 끝 단추 190 + 틈 30 + 여백 16 + 테두리 2 + 시공 9.375rem(150px × 배율) + 이름 12 × 1.375rem */
+  @container fph-q (max-width: calc(302px + 25.875rem - 0.02px)) {
+    .fph-qr { grid-template-columns: 64px minmax(0, 1fr) 190px; grid-template-rows: auto auto; padding-bottom: 10px; }
+    .fph-qr__n { grid-row: 1 / 3; }
+    .fph-qr__who { grid-column: 2 / 4; }
+    .fph-qr__due { grid-column: 2; grid-row: 2; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
+    .fph-qr__done, .fph-qr__hold { grid-column: 3; grid-row: 2; }
+  }
+  /* 받은함(al, 두 칸): 칸마다 테두리 2 + 여백 28 + 틈 12 + [확인했어요] max(128, 5rem + 38) + 이름 12 × 1.1875rem(19px × 배율), 칸 틈 10 */
+  @container fph-inbox (max-width: calc(94px + 2 * max(128px, 5rem + 38px) + 28.5rem - 0.02px)) {
+    .fph-inbox--page > .fph-al { grid-column: 1 / -1; }
+  }
 }
 
 /* ── 세로·폰(992px 아래): 카드 두 줄 ── */
