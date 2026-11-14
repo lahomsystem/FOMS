@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>지식 카드</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app f-shell" style="width: 100%; min-height: 1000px;">
+  <nav class="f-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal" href="NowPC.dc.html"><span class="f-i i-arrow-left" aria-hidden="true"></span>FOMS</a>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>
+    <span class="f-navbar-title">회사 지식</span>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <a class="f-btn f-btn-minimal" href="BInbox.dc.html"><span class="f-i i-inbox" aria-hidden="true"></span>승인 대기<span class="f-count f-count-primary">14</span></a>
+    <a class="f-btn f-btn-minimal is-active" href="BSearch.dc.html"><span class="f-i i-search" aria-hidden="true"></span>찾기</a>
+    <a class="f-btn f-btn-minimal" href="BAsk.dc.html"><span class="f-i i-chat" aria-hidden="true"></span>물어보기</a>
+    <a class="f-btn f-btn-minimal" href="BOnto.dc.html"><span class="f-i i-layout-hierarchy" aria-hidden="true"></span>온톨로지</a>
+    <a class="f-btn f-btn-minimal" href="BAgents.dc.html"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</a>
+    <span class="f-input-group f-push"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="회사 지식 찾기" placeholder="지식 · 유형 · 할 일 이름"></span>
+    <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님</button>
+  </nav>
+
+  <div class="f-body">
+    <main class="f-main">
+      <div class="f-breadcrumbs"><a href="BSearch.dc.html">회사 지식</a><span class="f-i i-chevron-right" aria-hidden="true"></span><a href="BSearch.dc.html">제작 조건</a><span class="f-i i-chevron-right" aria-hidden="true"></span><span class="f-current">슬라이딩 문 깊이 최소</span></div>
+
+      <header class="f-col">
+        <div class="f-row">
+          <a class="f-tag f-tag-large f-tag-minimal f-tag-primary" href="BSearch.dc.html"><span class="f-i i-build" aria-hidden="true"></span>제작 조건</a>
+          <h1 class="f-h3">슬라이딩 문 깊이 최소</h1>
+          <span class="f-small f-muted">공통 바탕 · 공통</span>
+        </div>
+        <div class="f-row f-gap4">
+          <span class="f-tag f-tag-success">사용 중</span>
+          <a class="f-tag f-tag-minimal f-tag-warning" href="BInbox.dc.html"><span class="f-i i-time" aria-hidden="true"></span>승인을 기다리는 수정 1개</a>
+          <span class="f-tag f-tag-minimal"><span class="f-i i-eye-off" aria-hidden="true"></span>손님에게 말하지 않음 — AI 는 판단에만 써요</span>
+        </div>
+        <p class="f-large" style="max-width: 820px; word-break: keep-all;">슬라이딩 문 붙박이장은 몸통 안쪽 깊이가 600mm 이상이어야 해요. 문 레일 두 줄이 앞쪽 80mm 를 써요. 600mm 보다 얕으면 여닫이 문으로 권해요.</p>
+      </header>
+
+      <div class="f-tabs" role="tablist" aria-label="지식 카드 탭">
+        <button class="f-tab" role="tab" aria-selected="true" type="button">한눈에</button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">수정 기록<span class="f-count">6</span></button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">연결된 지식<span class="f-count">10</span></button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">뇌 보기</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: start;">
+        <section class="f-section" aria-label="속성">
+          <div class="f-section-head"><span class="f-section-title">속성</span><span class="f-section-sub">유형 '제작 조건' 의 칸</span></div>
+          <table class="f-table f-table-compact">
+            <tbody>
+              <sc-for list="{{props}}" as="p" hint-placeholder-count="11">
+                <tr>
+                  <td class="f-td-nw f-muted" style="width: 120px;">{{p.k}}</td>
+                  <td>
+                    <sc-if value="{{p.plain}}" hint-placeholder-val="{{true}}"><span class="{{p.cls}}">{{p.v}}</span></sc-if>
+                    <sc-if value="{{p.tag}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal {{p.tagCls}}">{{p.v}}</span></sc-if>
+                    <sc-if value="{{p.icon}}" hint-placeholder-val="{{false}}"><span class="f-row-nw f-gap4"><span class="f-i {{p.icon}}" aria-hidden="true"></span>{{p.v}}</span></sc-if>
+                    <sc-if value="{{p.note}}" hint-placeholder-val="{{false}}"><span class="f-small f-muted" style="margin-left: 6px;">{{p.note}}</span></sc-if>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="f-section" aria-label="쓰인 곳">
+          <div class="f-section-head">
+            <span class="f-section-title">쓰인 곳</span>
+            <span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span>
+            <span class="f-section-sub f-push">지난 2주</span>
+          </div>
+          <div class="f-section-body">
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+              <sc-for list="{{usage}}" as="u" hint-placeholder-count="3">
+                <div class="f-col f-gap4">
+                  <span class="f-small f-muted">{{u.label}}</span>
+                  <span class="f-h3 f-num">{{u.n}}</span>
+                  <div class="f-progress f-progress-primary" role="img" aria-label="{{u.label}} {{u.n}}"><span style="width: {{u.pct}};"></span></div>
+                </div>
+              </sc-for>
+            </div>
+
+            <ul class="f-col f-gap4">
+              <sc-for list="{{recent}}" as="r" hint-placeholder-count="4">
+                <li style="display: grid; grid-template-columns: 40px max-content minmax(0, 1fr) max-content; gap: 8px; align-items: center;">
+                  <span class="f-small f-muted f-num">{{r.d}}</span>
+                  <span class="f-ai-mark">{{r.who}}</span>
+                  <span class="f-small f-ellipsis">{{r.what}}</span>
+                  <span class="f-tag f-tag-minimal {{r.cls}}">{{r.state}}</span>
+                </li>
+              </sc-for>
+            </ul>
+
+            <hr class="f-divider">
+            <span class="f-h6">ERP 물건과 이어짐</span>
+            <ul class="f-col f-gap4">
+              <li class="f-row-nw"><span class="f-small f-muted" style="width: 92px;">적용 대상</span><a class="f-chip" href="#"><span class="f-i i-cube" aria-hidden="true"></span>제품 라인 · 슬라이딩 붙박이장</a><span class="f-small f-muted">진행 중 주문 38</span></li>
+              <li class="f-row-nw"><span class="f-small f-muted" style="width: 92px;">걸린 공정 단계</span><a class="f-chip" href="#"><span class="f-i i-timeline-bar-chart" aria-hidden="true"></span>도어 재단</a><span class="f-small f-muted">ERP 단계 · 생산</span></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      <section class="f-section" aria-label="연결된 지식">
+        <div class="f-section-head">
+          <span class="f-section-title">연결된 지식</span>
+          <span class="f-count">10</span>
+          <span class="f-section-sub">연결 규칙: 적용 1 ~ 여럿 · 근거 1 ~ 여럿</span>
+          <a class="f-btn f-btn-minimal f-btn-small f-push" href="#"><span class="f-i i-graph" aria-hidden="true"></span>이웃 지도</a>
+        </div>
+        <div class="f-section-body" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px;">
+          <sc-for list="{{links}}" as="g" hint-placeholder-count="6">
+            <div class="f-col f-gap4">
+              <span class="f-row-nw f-gap4"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{g.color}}; flex: none;" aria-hidden="true"></span><span class="f-h6">{{g.name}}</span><span class="f-small f-muted">{{g.n}}</span></span>
+              <ul class="f-col f-gap4">
+                <sc-for list="{{g.items}}" as="i" hint-placeholder-count="2">
+                  <li class="f-row-nw f-gap4" style="padding-left: 14px;">
+                    <span class="f-type"><span class="f-i {{i.icon}}" aria-hidden="true"></span>{{i.type}}</span>
+                    <a class="f-ellipsis" href="#">{{i.name}}</a>
+                    <sc-if value="{{i.tag}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal f-tag-warning">{{i.tag}}</span></sc-if>
+                  </li>
+                </sc-for>
+              </ul>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </main>
+
+    <aside class="f-aside" aria-label="수정 기록">
+      <div class="f-aside-head">
+        <span class="f-i i-history f-i-muted" aria-hidden="true"></span>
+        <span class="f-section-title">수정 기록</span>
+        <span class="f-count">6</span>
+        <a class="f-btn f-btn-minimal f-btn-small f-push" href="BInbox.dc.html">판 · 하루 묶음</a>
+      </div>
+      <div class="f-aside-body">
+        <div class="f-callout f-callout-warning" style="word-break: keep-all;">
+          <span class="f-i i-time" aria-hidden="true"></span>
+          <div class="f-col f-gap4">
+            <span class="f-callout-title">승인 대기 1 — 김영업 제안 · 11-13</span>
+            <span class="f-small">값 600 → 580 · 하우드만. 까닭: 하우드 레일이 얇아요.</span>
+            <a class="f-small" href="BInbox.dc.html">승인 대기에서 보기</a>
+          </div>
+        </div>
+
+        <ol class="f-col f-gap12">
+          <sc-for list="{{history}}" as="h" hint-placeholder-count="6">
+            <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start;">
+              <span class="f-i {{h.icon}}" aria-hidden="true" style="margin-top: 2px;"></span>
+              <div class="f-col f-gap4">
+                <div class="f-row f-gap4">
+                  <span class="f-strong">버전 {{h.v}}</span>
+                  <span class="f-tag f-tag-minimal">판 {{h.release}}</span>
+                  <sc-if value="{{h.now}}" hint-placeholder-val="{{false}}"><span class="f-tag f-tag-minimal f-tag-success">지금</span></sc-if>
+                  <span class="f-small f-muted f-num f-push">{{h.d}}</span>
+                </div>
+                <span>{{h.what}}</span>
+                <span class="f-small f-muted">{{h.who}}</span>
+              </div>
+            </li>
+          </sc-for>
+        </ol>
+
+        <hr class="f-divider">
+
+        <div class="f-col">
+          <button class="f-btn f-btn-primary f-btn-fill" type="button"><span class="f-i i-edit" aria-hidden="true"></span>고칠 말 제안</button>
+          <button class="f-btn f-btn-fill" type="button"><span class="f-i i-undo" aria-hidden="true"></span>옛 판으로 되돌리기 제안</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="f-btn" type="button"><span class="f-i i-disable" aria-hidden="true"></span>은퇴</button>
+            <button class="f-btn" type="button"><span class="f-i i-cross f-i-danger" aria-hidden="true"></span>지우기</button>
+          </div>
+          <span class="f-why" style="align-items: flex-start; word-break: keep-all;"><span class="f-i i-inbox" aria-hidden="true"></span>어느 단추도 바로 바꾸지 않아요. 모두 승인 대기로 가고, 사장님이나 담당 팀장이 승인하면 바뀌어요.</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const P = (k, v, extra) => Object.assign({ k, v, plain: true, tag: false, icon: '', cls: '', note: '', tagCls: '' }, extra || {});
+    const I = (type, icon, name, tag) => ({ type, icon, name, tag: tag || '' });
+    return {
+      props: [
+        P('값', '600', { cls: 'f-strong f-num' }),
+        P('단위', 'mm'),
+        P('브랜드', '공통', { note: '라홈 · 하우드 둘 다' }),
+        P('쓰는 팀', '공통 바탕', { note: '상담 · 도면 · 생산이 같이 봐요' }),
+        P('확실한 정도', '확정', { plain: false, icon: 'i-endorsed f-i-primary' }),
+        P('위험 등급', 'A', { plain: false, tag: true, tagCls: 'f-tag-success', note: '가장 가벼움 · 한꺼번에 승인 가능' }),
+        P('유효 기간', '2026-03-02 ~ 계속', { cls: 'f-num' }),
+        P('마지막 확인', '2026-10-28', { cls: 'f-num', note: '한도윤' }),
+        P('다시 볼 날', '2027-01-26', { cls: 'f-num', note: '73일 남음' }),
+        P('비슷한 말', '「슬라이딩 깊이」 「미닫이 깊이」 「레일 깊이」'),
+        P('근거', '사장님 결정', { note: '사례 3개' })
+      ],
+      usage: [
+        { label: '상담 초안', n: 37, pct: '100%' },
+        { label: '할 일 제안', n: 4, pct: '11%' },
+        { label: '물어보기 답', n: 12, pct: '32%' }
+      ],
+      recent: [
+        { d: '11-13', who: '상담 AI', what: '초안 · L-24129 "깊이 55cm 도 슬라이딩 되나요"', state: '보냄', cls: 'f-tag-success' },
+        { d: '11-12', who: '운영 AI', what: '할 일 · 도면 확인 — H-24131 깊이 560, 여닫이 권함', state: '승인', cls: 'f-tag-success' },
+        { d: '11-11', who: '상담 AI', what: '초안 · H-24127 "드레스룸도 미닫이 돼요?"', state: '고쳐 보냄', cls: 'f-tag-primary' },
+        { d: '11-10', who: '운영 AI', what: '할 일 · 실측 다시 — L-24120 깊이 칸 빔', state: '거절', cls: 'f-tag-danger' }
+      ],
+      links: [
+        { name: '적용 대상', color: '#2563eb', n: 2, items: [I('제품 라인', 'i-cube', '슬라이딩 붙박이장'), I('제품 라인', 'i-cube', '드레스룸 슬라이딩장')] },
+        { name: '필요한 것', color: '#0d9488', n: 1, items: [I('규격', 'i-th', '레일 두 줄 80mm')] },
+        { name: '걸린 공정 단계', color: '#0891b2', n: 1, items: [I('공정 단계', 'i-timeline-bar-chart', '도어 재단')] },
+        { name: '근거 관찰', color: '#be185d', n: 3, items: [I('사례', 'i-folder-close', 'L-23871 깊이 560 문 걸림'), I('사진 관찰', 'i-camera', '레일 앞 턱에 문 닿음'), I('그림 읽기 결과', 'i-eye-open', '실측표 깊이 칸')] },
+        { name: '정한 사장님 결정', color: '#e11d48', n: 1, items: [I('사장님 결정', 'i-endorsed', '슬라이딩은 깊이 600 부터')] },
+        { name: '이것을 쓰는 항목', color: '#0284c7', n: 2, items: [I('상용구', 'i-comment', '깊이 부족 — 여닫이 권하기'), I('도면 규칙', 'i-edit', '슬라이딩 깊이 확인', '초안')] }
+      ],
+      history: [
+        { v: 6, release: 212, now: true, d: '2026-10-28', icon: 'i-small-tick f-i-success', what: '확인만 — 아직 맞음', who: '한도윤 확인 · 승인 사장님' },
+        { v: 5, release: 187, now: false, d: '2026-09-30', icon: 'i-tag f-i-muted', what: '비슷한 말 더함 「레일 깊이」', who: '지식 AI 제안 · 승인 사장님' },
+        { v: 4, release: 141, now: false, d: '2026-08-12', icon: 'i-edit f-i-muted', what: '글 고침 — 레일 80mm 까닭 더함', who: '박지은 제안 · 승인 사장님' },
+        { v: 3, release: 96, now: false, d: '2026-06-03', icon: 'i-link f-i-muted', what: '연결 더함 — 걸린 공정 단계 · 도어 재단', who: 'AI(규칙 잇기) 제안 · 승인 최민수' },
+        { v: 2, release: 41, now: false, d: '2026-04-15', icon: 'i-endorsed f-i-muted', what: '확실한 정도 근거 있음 → 확정', who: '사장님 결정' },
+        { v: 1, release: 12, now: false, d: '2026-03-02', icon: 'i-add f-i-muted', what: '처음 만듦 — 지식 문서에서 옮김', who: '한도윤 · 승인 사장님' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

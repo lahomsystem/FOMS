@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>폰 — 회사 지식 승인 대기</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app" style="position: relative; width: 390px; height: 844px; overflow: hidden; display: flex; flex-direction: column;">
+  <header class="f-col f-gap4" style="padding: 16px 16px 12px; background: var(--surface); box-shadow: 0 1px 0 var(--divider);">
+    <div class="f-row f-between">
+      <h1 class="f-h4 f-row f-gap4"><span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>회사 지식 · 승인 대기</h1>
+      <span class="f-count f-count-primary">14</span>
+    </div>
+    <span class="f-small f-muted">폰에서는 한 칸 고침 · ERP 할 일만 승인해요</span>
+  </header>
+
+  <main class="f-col f-gap12" style="padding: 12px 16px 88px; flex: 1 1 auto; overflow: hidden;">
+    <div class="f-row">
+      <h2 class="f-h6">폰에서 승인 8</h2>
+      <span class="f-small f-muted f-push">승인하면 바로 반영 · 전 내용은 기록에 남아요</span>
+    </div>
+
+    <sc-for list="{{cards}}" as="c" hint-placeholder-count="3">
+      <article class="f-card f-card-e1 f-col" style="padding: 12px 14px;">
+        <div class="f-row f-between">
+          <div class="f-row f-gap4">
+            <span class="f-tag f-tag-minimal {{c.kindCls}}"><span class="f-i {{c.kindIcon}}" aria-hidden="true"></span>{{c.kind}}</span>
+            <sc-if value="{{c.ai}}" hint-placeholder-val="{{true}}"><span class="f-ai-mark">{{c.who}}</span></sc-if>
+            <sc-if value="{{c.human}}" hint-placeholder-val="{{false}}"><span class="f-row f-gap4 f-small"><span class="f-i i-person f-i-muted" aria-hidden="true"></span>{{c.who}}</span></sc-if>
+          </div>
+          <span class="f-small f-muted f-num">{{c.when}}</span>
+        </div>
+        <span class="f-strong">{{c.title}}</span>
+        <div class="f-row-nw f-small">
+          <span class="f-muted">{{c.before}}</span>
+          <span class="f-i i-arrow-right f-i-muted" aria-hidden="true"></span><span class="f-sr">에서</span>
+          <span class="f-strong">{{c.after}}</span>
+        </div>
+        <div class="f-row-nw">
+          <a class="f-chip f-ellipsis" href="#" style="display: inline-block; max-width: 220px;"><span class="f-i {{c.chipIcon}}" aria-hidden="true"></span> {{c.chip}}</a>
+          <button class="f-btn f-btn-primary f-push" type="button" style="min-height: 36px; padding: 5px 16px;"><span class="f-i i-tick" aria-hidden="true"></span>승인</button>
+        </div>
+      </article>
+    </sc-for>
+
+    <button class="f-btn f-btn-minimal f-btn-fill" type="button">5개 더 보기<span class="f-i i-chevron-down" aria-hidden="true"></span></button>
+
+    <button class="f-card f-row-nw" type="button" aria-expanded="false" style="padding: 12px 14px; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%;">
+      <span class="f-i i-applications f-i-muted" aria-hidden="true"></span>
+      <span class="f-col f-gap4 f-grow">
+        <span class="f-strong">PC 에서 볼 것 6</span>
+        <span class="f-small f-muted">글이 길거나 금액 · 여러 칸이 바뀌어요 — 가격 규칙 2 · 상용구 3 · 연결 묶음 1</span>
+      </span>
+      <span class="f-i i-chevron-right f-i-muted" aria-hidden="true"></span>
+    </button>
+
+    <div class="f-callout f-callout-primary"><span class="f-i i-info-sign" aria-hidden="true"></span><div class="f-small">카드를 누르면 이유 · 근거를 보고 거절할 수 있어요. 거절 까닭은 AI 가 배워요.</div></div>
+  </main>
+
+  <nav aria-label="아래 탭" style="position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--surface); box-shadow: 0 -1px 0 var(--divider); padding: 4px 8px 12px;">
+    <a class="f-btn f-btn-minimal" href="#" aria-current="page" style="flex-direction: column; gap: 2px; min-height: 52px; color: var(--blue3);"><span class="f-i i-inbox" aria-hidden="true"></span><span class="f-small">승인</span></a>
+    <a class="f-btn f-btn-minimal" href="BSearch.dc.html" style="flex-direction: column; gap: 2px; min-height: 52px;"><span class="f-i i-search" aria-hidden="true"></span><span class="f-small">찾기</span></a>
+    <a class="f-btn f-btn-minimal" href="BAsk.dc.html" style="flex-direction: column; gap: 2px; min-height: 52px;"><span class="f-i i-chat" aria-hidden="true"></span><span class="f-small">물어보기</span></a>
+    <a class="f-btn f-btn-minimal" href="#" style="flex-direction: column; gap: 2px; min-height: 52px;"><span class="f-i i-user" aria-hidden="true"></span><span class="f-small">나</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ERP = { kind: 'ERP 할 일', kindCls: 'f-tag-primary', kindIcon: 'i-flash' };
+    const ONE = { kind: '한 칸 고침', kindCls: '', kindIcon: 'i-edit' };
+    const C = (base, who, ai, when, title, before, after, chip, chipIcon) => Object.assign({}, base, {
+      who, ai, human: !ai, when, title, before, after, chip, chipIcon
+    });
+    return {
+      cards: [
+        C(ERP, '일정 AI', true, '18:42', '방문 옮기기 · L-24133 시공', '11-20 (금) 오후', '11-21 (토) 오전', '상담 · 손님이 토요일 원함', 'i-chat'),
+        C(ONE, 'AI · 넘긴 상담 배우기', true, '17:10', '제품 라인 · 현관 신발장 · 가장 큰 폭', '1,200mm', '1,500mm', '사례 3건 · 상담 3', 'i-folder-close'),
+        C(ERP, '운영 AI', true, '08:00', '알림톡 보내기 · H-24109 시공 안내', '보내지 않음', '11-15 (일) 18:00 보냄', '방문 · 시공 11-16 (월) 오전', 'i-calendar')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

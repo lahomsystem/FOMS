@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>태블릿 주문 대시보드 — 접목</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+<link rel="stylesheet" href="foms-now.css">
+<link rel="stylesheet" href="foms-now2.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="n-app" style="width: 1180px; height: 820px; overflow: hidden;">
+  <div class="n-tab3">
+    <nav class="n-trail" aria-label="ERP 메뉴">
+      <div class="n-rail-logo" style="height: auto; padding: 4px 0 0;">F</div>
+      <div class="n-trail-zoom"><span>−</span><span>100%</span><span>+</span></div>
+      <sc-for list="{{rail}}" as="r" hint-placeholder-count="10">
+        <a class="n-rail-item {{r.on}}" href="#"><span class="f-i {{r.icon}}" aria-hidden="true"></span>{{r.name}}</a>
+      </sc-for>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px; align-items: stretch;">
+        <div class="n-graft" style="margin: 0 6px; border-radius: 10px;">
+          <span class="n-graft-num is-abs">③</span>
+          <a class="n-rail-item" href="BInbox.dc.html" style="border-radius: 10px;"><span class="f-i i-lightbulb" aria-hidden="true" style="color: var(--n-brand);"></span>회사 지식<span class="n-rail-badge" style="right: 4px; top: 2px; background: var(--n-brand);">14</span></a>
+        </div>
+        <a class="n-rail-item" href="#"><span class="f-i i-notifications" aria-hidden="true"></span>알림<span class="n-rail-badge" style="right: 8px; top: 2px;">99+</span></a>
+        <span style="margin: 2px auto 0; width: 36px; height: 36px; border-radius: 18px; background: #e6e8ff; color: var(--n-brand); font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center;">김</span>
+      </div>
+    </nav>
+
+    <main class="n-tmain">
+      <div class="n-row n-between">
+        <div class="n-row" style="gap: 8px;"><span style="font-size: 20px; font-weight: 800;">주문 대시보드</span><span class="n-muted">86건 · 2026-11-14</span></div>
+        <div class="n-row">
+          <span class="n-seg"><span>40</span><span class="is-on">48</span><span>56</span></span>
+          <button class="n-btn" type="button" style="height: 40px;"><span class="f-i i-map" aria-hidden="true"></span>지도 생성</button>
+          <button class="n-btn n-btn-primary" type="button" style="height: 40px;"><span class="f-i i-add" aria-hidden="true"></span>주문 생성</button>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;">
+        <div class="n-stat"><small>전체</small><b>86</b></div>
+        <div class="n-stat"><small>긴급</small><b style="color: #e03131;">1</b></div>
+        <div class="n-stat"><small>실측 임박 D-4</small><b style="color: #e8590c;">2</b></div>
+        <div class="n-stat"><small>시공 임박 D-3</small><b style="color: #e8590c;">3</b></div>
+        <div class="n-stat"><small>도면 지연</small><b style="color: #e03131;">4</b></div>
+      </div>
+      <div class="n-stat" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <span class="n-row" style="gap: 4px; color: #2563eb; font-weight: 700;"><span class="f-i i-filter" aria-hidden="true"></span>필터</span>
+        <span class="n-input" style="width: 150px; height: 38px;">전체 검색...</span>
+        <span class="n-select" style="height: 38px;">단계: 전체 <span class="f-i i-chevron-down" aria-hidden="true"></span></span>
+        <span class="n-select" style="height: 38px;">담당팀: 전체 <span class="f-i i-chevron-down" aria-hidden="true"></span></span>
+        <span class="n-check">긴급만</span><span class="n-check">경보만</span><span class="n-check">내 담당</span>
+        <button class="n-btn" type="button" style="margin-left: auto;"><span class="f-i i-refresh" aria-hidden="true"></span>초기화</button>
+      </div>
+      <div class="n-ttable">
+        <table>
+          <thead><tr><th style="width: 34px;"></th><th>단계</th><th>고객</th><th style="width: 170px;">현재 작업</th><th>제품</th><th>실측일</th><th>시공일</th><th>담당</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+              <tr class="{{r.sel}}">
+                <td><span class="n-check"></span></td>
+                <td><span class="n-stack" style="background: {{r.color}}; color: {{r.ink}};">{{r.stage}}</span></td>
+                <td class="n-strong" style="white-space: nowrap;">{{r.name}}</td>
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                    <span>{{r.todo}}</span>
+                    <sc-if value="{{r.ai}}" hint-placeholder-val="{{false}}"><span class="n-row" style="gap: 4px; flex-wrap: nowrap;"><a class="n-graft" href="BInbox.dc.html" style="border-radius: 11px;"><span class="n-badge-ai">{{r.ai}}</span></a><sc-if value="{{r.tag}}" hint-placeholder-val="{{false}}"><span class="n-graft-num">①</span></sc-if></span></sc-if>
+                  </div>
+                </td>
+                <td>{{r.item}}</td>
+                <td style="white-space: nowrap;">{{r.m}}</td>
+                <td style="white-space: nowrap;">{{r.c}}</td>
+                <td>{{r.owner}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <aside class="n-tside" aria-label="주문 상세">
+      <div class="n-steps">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="8"><span class="{{s.cls}}"><b>{{s.n}}</b>{{s.name}}</span></sc-for>
+      </div>
+      <div class="n-row n-between"><span class="n-row" style="gap: 8px;"><span style="font-size: 18px; font-weight: 800;">박지은</span><span class="n-badge-sq" style="background: #f59e0b; color: #1f1500;">생산</span></span><span class="n-muted n-strong">#24117</span></div>
+      <div class="n-curbox">현재 작업 — 시공일 잡기 <span style="font-weight: 500;">(시공팀)</span></div>
+      <div class="n-graft" style="background: #fff; border: 1px solid #c5c9ff; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+        <span class="n-graft-num is-abs">②</span>
+        <span class="n-row n-between"><span class="n-strong n-row" style="gap: 4px; color: var(--n-brand-600);"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 제안 · 시공 잡기</span><span class="n-small n-muted">일정 AI</span></span>
+        <span class="n-strong">금 11-20 오전 · 2팀 3명</span>
+        <span class="n-small" style="color: #4b525d;">생산 11-19 끝 · 폭 합 3,000mm ÷ 300 = 3명</span>
+        <span class="n-row" style="gap: 6px;"><button class="n-btn n-btn-sm n-btn-primary" type="button">승인</button><button class="n-btn n-btn-sm" type="button">고쳐서</button><button class="n-btn n-btn-sm" type="button">거절</button></span>
+      </div>
+      <div class="n-sumcard">
+        <span class="n-strong">요약</span>
+        <small>연락처</small><strong>010-0000-0000</strong>
+        <small>현장 주소</small><strong>경기 성남시 분당구 예시로 12, 101동 1203호</strong>
+        <small>제품</small><strong>붙박이장 2 · 신발장 1</strong>
+        <small>실측 일정</small><strong>2026-11-04 오전</strong>
+        <small>시공 일정</small><strong>-</strong>
+      </div>
+      <div class="n-actbar">
+        <button class="n-btn" type="button" aria-label="전화"><span class="f-i i-phone" aria-hidden="true"></span></button>
+        <button class="n-btn" type="button"><span class="f-i i-edit" aria-hidden="true"></span>ERP 편집</button>
+        <button class="n-btn n-btn-primary" type="button"><span class="f-i i-tick" aria-hidden="true"></span>시공 단계로</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const R = (name, icon, on) => ({ name, icon, on: on ? 'is-on' : '' });
+    const Q = (stage, color, ink, name, todo, item, m, c, owner, extra) => Object.assign({ stage, color, ink, name, todo, item, m, c, owner, ai: '', tag: false, sel: '' }, extra || {});
+    const names = ['접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS / AS', '완료'];
+    return {
+      rail: [R('대시보드', 'i-layers', true), R('실측', 'i-properties'), R('도면', 'i-document'), R('생산', 'i-build'), R('출고', 'i-truck'),
+        R('AS', 'i-wrench'), R('시공', 'i-home'), R('완료', 'i-tick'), R('이력', 'i-history'), R('계산기', 'i-th')],
+      rows: [
+        Q('생산', '#f59e0b', '#1f1500', '박지은', '시공일 잡기', '붙박이장 2 · 신발장 1', '11-04', '-', '김영업', { ai: 'AI 제안 · 시공 잡기', tag: true, sel: 'is-sel' }),
+        Q('시공', '#10b981', '#04291d', '이서준', '시공 준비', '수납장 1', '10-28', '11-20', '최민수', { ai: 'AI 제안 · 옮기기' }),
+        Q('AS', '#ef4444', '#fff', '김도윤', 'AS 접수 확인', '문 경첩 소리', '-', '-', '한도윤', { ai: 'AI 제안 · AS 접수' }),
+        Q('실측', '#3b82f6', '#fff', '최하늘', '실측 방문', '붙박이장 1', '11-16', '-', '김영업'),
+        Q('고객 컨펌', '#5a67d8', '#fff', '정민호', '도면 확인 기다림', '드레스룸', '11-02', '-', '박지은'),
+        Q('시공', '#10b981', '#04291d', '오유진', '시공 준비', '신발장 1', '10-30', '11-20', '최민수'),
+        Q('실측', '#3b82f6', '#fff', '한소희', '실측 방문', '붙박이장 2', '11-18', '-', '김영업')
+      ],
+      steps: names.map((name, i) => ({ name, n: i + 1, cls: i < 4 ? 'is-done' : i === 4 ? 'is-on' : '' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

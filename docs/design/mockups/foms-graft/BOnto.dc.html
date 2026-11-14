@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>회사 지식 — 온톨로지</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app f-shell" style="width: 100%; min-height: 1000px;">
+  <nav class="f-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal" href="NowPC.dc.html"><span class="f-i i-arrow-left" aria-hidden="true"></span>FOMS</a>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>
+    <span class="f-navbar-title">회사 지식</span>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <a class="f-btn f-btn-minimal" href="BInbox.dc.html"><span class="f-i i-inbox" aria-hidden="true"></span>승인 대기<span class="f-count f-count-primary">14</span></a>
+    <a class="f-btn f-btn-minimal" href="BSearch.dc.html"><span class="f-i i-search" aria-hidden="true"></span>찾기</a>
+    <a class="f-btn f-btn-minimal" href="BAsk.dc.html"><span class="f-i i-chat" aria-hidden="true"></span>물어보기</a>
+    <a class="f-btn f-btn-minimal is-active" href="BOnto.dc.html" aria-current="page"><span class="f-i i-layout-hierarchy" aria-hidden="true"></span>온톨로지</a>
+    <a class="f-btn f-btn-minimal" href="BAgents.dc.html"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</a>
+    <span class="f-input-group f-push"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="회사 지식 찾기" placeholder="지식 · 유형 · 할 일 이름"></span>
+    <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님</button>
+  </nav>
+
+  <div class="f-body">
+    <nav class="f-side" aria-label="온톨로지 목록">
+      <span class="f-input-group" style="margin: 4px 0;"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="종류 · 연결 찾기" placeholder="종류 · 연결 찾기"></span>
+      <div class="f-nav-heading">지식 유형 31</div>
+      <sc-for list="{{kgroups}}" as="g" hint-placeholder-count="7">
+        <a class="f-nav-item" href="#"><span class="f-i i-folder-close" aria-hidden="true"></span>{{g.name}}<span class="f-count">{{g.n}}</span></a>
+      </sc-for>
+      <div class="f-nav-heading f-row-nw">ERP 물건 종류 10<span class="f-tag f-tag-minimal f-tag-primary f-push">새로 붙음</span></div>
+      <sc-for list="{{erp}}" as="o" hint-placeholder-count="10">
+        <a class="f-nav-item {{o.sel}}" href="#"><span class="f-i i-cube" aria-hidden="true"></span>{{o.name}}<span class="f-small f-push" style="opacity: .8;">{{o.sub}}</span></a>
+      </sc-for>
+      <div class="f-nav-heading">정의</div>
+      <a class="f-nav-item" href="#"><span class="f-i i-link" aria-hidden="true"></span>연결 종류<span class="f-count">17</span></a>
+      <a class="f-nav-item" href="#"><span class="f-i i-flash" aria-hidden="true"></span>할 일 종류<span class="f-count">14</span></a>
+      <a class="f-nav-item" href="#"><span class="f-i i-lab-test" aria-hidden="true"></span>능력 질문<span class="f-count">10 / 61</span></a>
+    </nav>
+
+    <main class="f-main">
+      <div class="f-breadcrumbs"><a href="#">온톨로지</a><span class="f-i i-chevron-right" aria-hidden="true"></span><a href="#">ERP 물건 종류</a><span class="f-i i-chevron-right" aria-hidden="true"></span><span class="f-current">주문</span></div>
+      <header class="f-col">
+        <div class="f-row">
+          <span class="f-type"><span class="f-i i-cube" aria-hidden="true"></span>ERP 물건 종류</span>
+          <h1 class="f-h3">주문</h1>
+          <span class="f-mono f-muted">erp:order</span>
+          <span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span>
+          <span class="f-tag f-tag-minimal"><span class="f-i i-th" aria-hidden="true"></span>정본 = 지금 FOMS orders 표</span>
+          <span class="f-tag f-tag-minimal f-tag-warning"><span class="f-i i-lock" aria-hidden="true"></span>쓰기는 할 일로만</span>
+        </div>
+        <div class="f-row f-small f-muted"><span>표 <span class="f-mono">orders</span> + JSONB 칸 <span class="f-mono">structured_data</span></span><span aria-hidden="true">·</span><span>새 표 없음</span><span aria-hidden="true">·</span><span>가림 3칸</span><span aria-hidden="true">·</span><span>능력 질문 9개가 씀</span></div>
+        <div class="f-row f-gap4">
+          <span class="f-small f-muted">이어진 것</span>
+          <a class="f-chip" href="#"><span class="f-i i-person" aria-hidden="true"></span>손님</a>
+          <a class="f-chip" href="#"><span class="f-i i-map-marker" aria-hidden="true"></span>현장</a>
+          <a class="f-chip" href="#"><span class="f-i i-box" aria-hidden="true"></span>주문 품목</a>
+          <a class="f-chip" href="#"><span class="f-i i-calendar" aria-hidden="true"></span>방문</a>
+          <a class="f-chip" href="#"><span class="f-i i-document" aria-hidden="true"></span>도면</a>
+          <a class="f-chip" href="#"><span class="f-i i-build" aria-hidden="true"></span>생산 작업</a>
+          <a class="f-chip" href="#"><span class="f-i i-wrench" aria-hidden="true"></span>AS 건</a>
+          <span class="f-small f-muted">지식 쪽</span>
+          <a class="f-chip" href="#"><span class="f-i i-lightbulb" aria-hidden="true"></span>제품 라인</a>
+          <a class="f-chip" href="#"><span class="f-i i-lightbulb" aria-hidden="true"></span>공정 단계</a>
+        </div>
+      </header>
+
+      <div class="f-tabs" role="tablist" aria-label="주문 상세 탭">
+        <button class="f-tab" role="tab" aria-selected="false" type="button">개요</button>
+        <button class="f-tab" role="tab" aria-selected="true" type="button">속성 10</button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">연결 9</button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">할 일 6</button>
+        <button class="f-tab" role="tab" aria-selected="false" type="button">질문 9</button>
+      </div>
+
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-section-title">속성 ↔ 지금 칸</span><span class="f-section-sub">지금 FOMS 칸에 이름만 붙여 읽어요</span></div>
+        <div class="f-section-body-flush f-scroll-x">
+          <table class="f-table f-table-compact">
+            <thead><tr><th>속성 이름</th><th>지금 칸</th><th>값 모양</th><th>읽기 · 쓰기</th></tr></thead>
+            <tbody>
+              <sc-for list="{{props}}" as="p" hint-placeholder-count="10">
+                <tr>
+                  <td class="f-td-nw f-strong">{{p.name}}</td>
+                  <td class="f-td-nw f-mono">{{p.col}}</td>
+                  <td class="f-td-nw"><span class="f-small">{{p.shape}}</span></td>
+                  <td class="f-td-nw"><span class="f-row-nw"><span class="f-tag f-tag-minimal {{p.wCls}}">{{p.w}}</span><span class="f-small f-muted">{{p.via}}</span></span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="f-section">
+        <div class="f-section-head"><span class="f-section-title">할 일 종류</span><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span><span class="f-section-sub">새 API 없이 지금 기능을 이름 붙여 감싸요</span><span class="f-small f-muted f-push">0 읽기만 · 1 초안 · 2 제안 · 3 실행 뒤 알림</span></div>
+        <div class="f-section-body-flush f-scroll-x">
+          <table class="f-table f-table-compact">
+            <thead><tr><th>할 일</th><th>감싸는 지금 기능</th><th>AI 자율 수준</th><th>승인 자리</th></tr></thead>
+            <tbody>
+              <sc-for list="{{acts}}" as="a" hint-placeholder-count="6">
+                <tr>
+                  <td class="f-td-nw f-strong">{{a.name}}</td>
+                  <td class="f-td-nw"><span class="f-row-nw"><span>{{a.wraps}}</span><span class="f-mono f-muted">{{a.api}}</span></span></td>
+                  <td class="f-td-nw"><span class="f-tag f-tag-minimal {{a.lvCls}}">{{a.level}}</span></td>
+                  <td class="f-td-nw"><span class="f-row-nw f-small"><span class="f-i {{a.icon}} f-i-muted" aria-hidden="true"></span>{{a.where}}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <aside class="f-aside" aria-label="능력 질문">
+      <div class="f-aside-head"><span class="f-i i-lab-test f-i-muted" aria-hidden="true"></span><span class="f-section-title">능력 질문(시험지)</span></div>
+      <div class="f-aside-body">
+        <div class="f-col">
+          <div class="f-row"><span class="f-h2 f-num">10 / 61</span><span class="f-muted">통과</span><span class="f-tag f-tag-minimal f-tag-success f-push">11-13 판 1 · 4 → 10</span></div>
+          <div class="f-progress f-progress-primary" role="img" aria-label="61개 중 10개 통과"><span style="width: 16.4%;"></span></div>
+          <span class="f-help">공정 단계 43개 승인 뒤 6개가 더 풀렸어요. 내용이 맞는지는 평가 단계에서 재요.</span>
+        </div>
+
+        <div class="f-callout f-callout-primary">
+          <span class="f-i i-data-lineage" aria-hidden="true"></span>
+          <div class="f-small"><div class="f-callout-title">ERP 물건이 필요한 질문 18</div>주문 · 일정을 읽기만 해도 풀리는 질문이에요. 지금은 '모자람'으로 세요.</div>
+        </div>
+
+        <section class="f-col" aria-label="아직 못 푸는 질문">
+          <div class="f-row"><h2 class="f-h6">아직 못 푸는 질문</h2><span class="f-small f-muted f-push">51개 중 5</span></div>
+          <ul class="f-col f-gap12">
+            <sc-for list="{{fails}}" as="f" hint-placeholder-count="5">
+              <li class="f-col f-gap4">
+                <span class="f-row-nw" style="align-items: flex-start;"><span class="f-mono f-muted">{{f.id}}</span><span class="f-small">{{f.q}}</span></span>
+                <span class="f-row f-gap4" style="padding-left: 32px;"><span class="f-small f-muted">모자람</span><span class="f-tag f-tag-minimal f-tag-danger">{{f.need}}</span><sc-if value="{{f.erp}}" hint-placeholder-val="{{true}}"><span class="f-tag f-tag-minimal f-tag-primary">ERP 붙으면 풀림</span></sc-if></span>
+              </li>
+            </sc-for>
+          </ul>
+          <a class="f-small" href="#">61개 모두 보기</a>
+        </section>
+
+        <section class="f-col" aria-label="정본 자리">
+          <h2 class="f-h6">정본 자리 — 주문</h2>
+          <dl class="f-kv f-small">
+            <dt>값</dt><dd>지금 FOMS 표 그대로 · 새 표 없음</dd>
+            <dt>읽는 길</dt><dd><span class="f-mono">erp.order.get</span> · 가림 뒤</dd>
+            <dt>쓰는 길</dt><dd>할 일 6 → 지금 API</dd>
+            <dt>바뀐 기록</dt><dd><span class="f-mono">order_events</span> · <span class="f-mono">order_field_changes</span></dd>
+          </dl>
+        </section>
+
+        <div class="f-callout"><span class="f-i i-info-sign" aria-hidden="true"></span><div class="f-small">여기서는 보기만 해요. 종류 · 칸은 설계서와 코드로만 바꿔요.</div></div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const W = { read: ['읽기만', ''], act: ['할 일로만', 'f-tag-primary'], person: ['사람만 · 가림', 'f-tag-warning'] };
+    const P = (name, col, shape, w, via) => ({ name, col, shape, w: W[w][0], wCls: W[w][1], via: via || '' });
+    const lvNames = ['0 읽기만', '1 초안', '2 제안', '3 실행 뒤 알림'];
+    const A = (name, wraps, api, lv, where, icon) => ({
+      name, wraps, api, level: lv < 0 ? '사람만' : lvNames[lv],
+      lvCls: lv < 0 ? 'f-tag-danger' : lv === 3 ? 'f-tag-success' : lv === 0 ? '' : 'f-tag-primary', where, icon
+    });
+    return {
+      kgroups: [
+        { name: '공통 바탕', n: 11 }, { name: '상담 층', n: 5 }, { name: '도면 층', n: 3 }, { name: '관찰', n: 3 },
+        { name: '에이전트 일', n: 2 }, { name: '바깥 정본(가리키기만)', n: 3 }, { name: '바깥 사본(점검만)', n: 4 }
+      ],
+      erp: [
+        { name: '주문', sub: 'orders', sel: 'is-selected' }, { name: '주문 품목', sub: '', sel: '' },
+        { name: '손님', sub: '가림', sel: '' }, { name: '현장', sub: '가림', sel: '' },
+        { name: '방문', sub: '실측 · 시공 · AS · 배송', sel: '' }, { name: '도면', sub: '', sel: '' },
+        { name: '생산 작업', sub: '', sel: '' }, { name: '출고', sub: '', sel: '' },
+        { name: '협력사 발주', sub: '', sel: '' }, { name: 'AS 건', sub: '', sel: '' }
+      ],
+      props: [
+        P('주문 번호', 'orders.id', '번호', 'read'),
+        P('상태', 'orders.status', '상태 길 13단계', 'act', '단계 넘기기'),
+        P('손님 이름', 'orders.customer_name', '글', 'person', 'AI 에 안 감'),
+        P('전화', 'orders.phone', '전화', 'person', 'AI 에 안 감'),
+        P('현장 주소', 'orders.address', '주소 → 현장', 'person', '구 · 동까지만 읽음'),
+        P('품목', 'structured_data.items[]', '목록 → 주문 품목', 'act', '품목 고치기'),
+        P('실측 날짜', 'orders.measurement_date', '날짜 · 시각 → 방문', 'act', '방문 옮기기'),
+        P('시공 날짜', 'structured_data.schedule.construction.date', '날짜 → 방문', 'act', '방문 옮기기'),
+        P('담당 영업', 'structured_data.parties.manager', '연결 → 직원', 'act', '담당 맡기기'),
+        P('결제 금액', 'orders.payment_amount', '금액 · 돈', 'act', '사장님 승인')
+      ],
+      acts: [
+        A('방문 옮기기', '지금 일정 바꾸기', 'measurement-visit · as/schedule', 2, '폰 승인', 'i-mobile-phone'),
+        A('AS 접수', '지금 AS 접수', 'as/register', 2, '폰 승인', 'i-mobile-phone'),
+        A('알림톡 보내기', '지금 알림톡 보내기', 'alimtalk/send-manual', 1, '폰 승인', 'i-mobile-phone'),
+        A('단계 넘기기', '지금 단계 바꾸기', 'update_order_status', 2, '폰 승인', 'i-mobile-phone'),
+        A('도면 담당 맡기기', '지금 도면 담당 정하기', 'assign-draftsman', 2, '폰 승인', 'i-mobile-phone'),
+        A('주문 취소', '지금 단계 바꾸기(취소)', 'update_order_status', -1, 'PC · 사장님', 'i-shield')
+      ],
+      fails: [
+        { id: 'S02', q: '잡힌 실측·시공 일정을 바꾸거나 확인할 수 있나요?', need: '일정(ERP)', erp: true },
+        { id: 'A01', q: 'AS를 신청했는데 언제 오나요, 약속한 처리는 됐나요?', need: '일정(ERP)', erp: true },
+        { id: 'P09', q: '제 주문 정보·결제 상태를 확인하거나 바꿀 수 있나요?', need: '주문(ERP)', erp: true },
+        { id: 'O11', q: '제 가구의 색상(자재 회사·번호)은 무엇이었나요?', need: '주문(ERP)', erp: true },
+        { id: 'E06', q: '견적가에 시공비·VAT·운임·부속이 포함인가요?', need: "연결 '제외' 0개", erp: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
