@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>{% block title %}회사 지식{% endblock %} · FOMS</title>
+  {#- 새 회사 지식 화면 틀(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.2 — 혼자 서는 문서, 본보기 partner/layout.html).
+      싣는 것: 쓰기 머리글(CSRF) · 파비콘 · 매니페스트 · 디자인 시스템(.f-app 안에만 먹는다) · 긴급 호출 빨간 창 받는 쪽 ·
+      공지 확인 창(사용자 결정 11절 #7 — 다음 ERP 화면까지 미루지 않고 여기서도 뜬다) · 화면 크기(같은 저장 값 — ds-shell.js).
+      싣지 않는 것: Bootstrap · erp-pro.css · 전역 메뉴 · layout_scripts.html(전역 꾸러미). 인라인 스크립트 · 스타일 없음. -#}
+  {% include "partials/shared/csrf_bootstrap.html" %}
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260902h') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260902h') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/foms-icon-180.png', v='20260902h') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json', v='20260902h') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109j">
+  <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/foms-ds.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-shell.css') }}">
+  {% block page_styles %}{% endblock %}
+  {#- 긴급(P0) 빨간 창 — layout_head.html 과 같은 CSS 주소 · 핀. 스크립트는 회사 지식 화면 규칙(defer + asset_url)으로 싣는다. -#}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261016a">
+  <script src="{{ asset_url('js/foms/notification-write.js') }}" defer></script>
+  <script src="{{ asset_url('js/foms/urgent-sound.js') }}" defer></script>
+  <script src="{{ asset_url('js/foms/foms-urgent-alert.js') }}" defer></script>
+  {#- 화면에 머무는 동안 오는 긴급 호출 — 실측 지도(혼자 서는 문서)와 같은 소켓 꾸러미 + 브리지(소켓 연결 · 빨간 창 바인딩만). -#}
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
+  <script src="{{ asset_url('js/measurement/map-urgent-bridge.js') }}" defer></script>
+</head>
+{%- import "brain/ds/_macros.html" as ds %}
+{%- set nav = ds_nav %}
+{%- set me = g.current_user %}
+<body class="fb-body">
+<div class="f-app f-shell fb-shell" data-ds-shell data-ds-page="{{ page }}" data-ds-section="{{ nav.section }}"
+     data-ds-uid="{{ me.id if me else '' }}"
+     {%- if graft_enabled('actions') %} data-badge-url="/api/erp-actions/badge"{% endif %}>
+  <nav class="f-navbar fb-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal fb-nav-back" href="{{ url_for('erp_dashboard.erp_dashboard') }}">{{ ds.icon('arrow-left') }}FOMS</a>
+    <span class="f-navbar-divider fb-nav-wide" aria-hidden="true"></span>
+    {{ ds.icon('lightbulb', 'f-i-primary') }}
+    <span class="f-navbar-title">회사 지식<span class="fb-nav-page"> · {% block page_title %}{% endblock %}</span></span>
+    {% if nav.inbox_count is not none %}<span class="fb-nav-phone-count">{{ ds.count(nav.inbox_count, primary=nav.inbox_count > 0, key='inbox') }}</span>{% endif %}
+    <span class="f-navbar-divider fb-nav-wide" aria-hidden="true"></span>
+    <span class="fb-nav-tabs" data-ds-tabs>
+      {%- for key, label, icon_name, href in nav.tabs %}
+      <a class="f-btn f-btn-minimal{{ ' is-active' if key == nav.section else '' }}" href="{{ href }}" data-ds-tab="{{ key }}"
+         {%- if key == nav.section %} aria-current="page"{% endif %}>{{ ds.icon(icon_name) }}{{ label }}
+        {%- if key == 'inbox' and nav.inbox_count is not none %}{{ ds.count(nav.inbox_count, primary=nav.inbox_count > 0, key='inbox') }}{% endif %}</a>
+      {%- endfor %}
+    </span>
+    {% if nav.screen %}
+    <form class="f-input-group f-push fb-nav-search" method="get" action="{{ url_for('brain_web.index') }}" role="search" data-ds-search>
+      <input type="hidden" name="tab" value="search">
+      {{ ds.icon('search') }}<input class="f-input" type="search" name="q" maxlength="100" aria-label="회사 지식 찾기"
+             placeholder="지식 · 유형 · 할 일 이름" value="{{ start_query if start_query is defined else '' }}">
+    </form>
+    {% endif %}
+    <span class="f-btn f-btn-minimal fb-nav-user{{ '' if nav.screen else ' f-push' }}">{{ ds.icon('user') }}{{ me.name if me else '' }}</span>
+  </nav>
+
+  <div class="f-body fb-body-row">
+    {% block side %}{% endblock %}
+    <main class="f-main fb-main" id="ds-main" data-ds-main>
+      {% block main %}{% endblock %}
+    </main>
+    {% block aside %}{% endblock %}
+  </div>
+
+  {#- 폰(640px 아래) 아래 탭 넷 — 승인 · 찾기 · 물어보기 · 나(⑫). 탭은 위 줄과 같은 권한으로 가린다. -#}
+  <nav class="fb-tabbar" aria-label="아래 탭" data-ds-tabbar>
+    {%- for key, label, icon_name, href in nav.phone_tabs %}
+    <a class="f-btn f-btn-minimal fb-tabbar__item{{ ' is-active' if key == nav.section else '' }}" href="{{ href }}" data-ds-tab="{{ key }}"
+       {%- if key == nav.section %} aria-current="page"{% endif %}>{{ ds.icon(icon_name) }}<span class="f-small">{{ label }}</span></a>
+    {%- endfor %}
+    <button class="f-btn f-btn-minimal fb-tabbar__item" type="button" data-ds-me-toggle aria-expanded="false" aria-controls="dsMePanel">
+      {{- ds.icon('user') }}<span class="f-small">나</span></button>
+  </nav>
+  <div class="fb-me f-card f-card-e3 f-col" id="dsMePanel" data-ds-me-panel hidden>
+    <span class="f-row-nw f-strong">{{ ds.icon('user', 'f-i-muted') }}{{ me.name if me else '' }}</span>
+    <a class="f-btn f-btn-fill" href="{{ url_for('erp_dashboard.erp_dashboard') }}">{{ ds.icon('arrow-left') }}FOMS 로 돌아가기</a>
+  </div>
+</div>
+{#- 공지 확인 창(사용자 결정 #7 — layout_scripts.html 과 같은 조각 · 같은 핀). 로그인 · 본사 계정만 싣는 판정은 조각 안에 있다. -#}
+{% include "partials/shared/notice_popup.html" %}
+<script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-shell.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

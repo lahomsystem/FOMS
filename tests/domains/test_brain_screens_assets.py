@@ -22,6 +22,10 @@ VENDOR = {
 }
 JS = sorted((ROOT / "static/js/brain").glob("*.js"))
 TEMPLATES = sorted((ROOT / "templates/brain").rglob("*.html"))
+#: 새 화면 틀(``templates/brain/ds/layout.html``)만 싣는 바깥 꾸러미 하나 — 긴급 호출 소켓(실측 지도와 같은 태그).
+_SOCKET_CDN_TAG = ('<script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer '
+                   'integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" '
+                   'crossorigin="anonymous">')
 CSS = ROOT / "static/css/contexts/brain/brain.css"
 PY = [ROOT / "foms/api/brain.py", ROOT / "foms/api/brain_review.py", ROOT / "foms/web/brain.py",
       *[ROOT / "foms/services/brain" / n for n in ("access.py", "browse.py", "card.py", "display.py", "read.py",
@@ -102,6 +106,8 @@ def test_templates_have_no_inline_style_or_script_and_pin_assets():
         html = _text(path)
         assert 'style="' not in html and "onclick" not in html and "<script>" not in html, path.name
         for tag in re.findall(r"<script[^>]*>", html):
+            if tag == _SOCKET_CDN_TAG and path.as_posix().endswith("templates/brain/ds/layout.html"):
+                continue  # 새 화면 틀만 — 긴급 호출 소켓 꾸러미(실측 지도와 같은 주소 · integrity · defer)
             assert " defer" in tag and "asset_url(" in tag, (path.name, tag)
     index = _text(ROOT / "templates/brain/index.html")
     assert "data-display=\"{{ display|tojson|forceescape }}\"" in index

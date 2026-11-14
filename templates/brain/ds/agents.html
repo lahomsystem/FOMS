@@ -1,0 +1,9 @@
+{% extends "brain/ds/layout.html" %}
+{#- AI 직원 빈 화면 — 물결 A 의 틀만. ?tab=agents 가 이 화면이다(ADMIN + 화면 여는 MANAGER). 물결 D(T10)가 통째로 바꾼다. -#}
+{% import "brain/ds/_macros.html" as ds %}
+{% block title %}AI 직원{% endblock %}
+{% block page_title %}AI 직원{% endblock %}
+{% block main %}
+<header class="f-row"><h1 class="f-h3">AI 직원</h1></header>
+{{ ds.empty('새 화면을 준비하고 있어요.', 'predictive-analysis') }}
+{% endblock %}

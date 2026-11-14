@@ -1,0 +1,59 @@
+/* 새 회사 지식 화면 틀 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.2 · 5.5) — templates/brain/ds/layout.html 전용.
+   class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 640px 아래 = 폰(⑫): 위 줄은 제목 + 수, 아래 탭 넷, 누르는 것 44px 이상.
+   화면 크기(--foms-ui-zoom)를 키우면 vh 도 같이 커져서 높이는 배율로 나눈다(foms-ui-zoom.css 와 같은 방법). */
+
+.fb-body { margin: 0; }
+
+.fb-shell { min-height: calc(100vh / var(--foms-ui-zoom, 1)); min-height: calc(100dvh / var(--foms-ui-zoom, 1)); }
+.fb-body-row { min-width: 0; }
+.fb-main { min-width: 0; }
+
+/* 위 줄 — PC 는 탭 · 찾기 칸 · 사람, 폰 전용 조각(지금 화면 이름 · 수)은 숨긴다. */
+.fb-nav-tabs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.fb-nav-tabs .f-count { margin-left: 2px; }
+.fb-nav-page,
+.fb-nav-phone-count { display: none; }
+.fb-nav-user { cursor: default; }
+.fb-nav-user:hover { background: none; }
+.fb-nav-item--muted { color: var(--text-muted); }
+
+/* 아래 탭 · '나' 창 — PC 에서는 없다. */
+.fb-tabbar { display: none; }
+.fb-me[hidden] { display: none; }
+
+@media (max-width: 640px) {
+  .fb-pc-only,
+  .fb-nav-wide,
+  .fb-nav-back,
+  .fb-nav-tabs,
+  .fb-nav-search,
+  .fb-nav-user { display: none; }
+  .fb-nav-page { display: inline; }
+  .fb-nav-phone-count { display: inline-flex; margin-left: auto; }
+  .fb-navbar { flex-wrap: nowrap; padding: 12px 16px; }
+  .fb-navbar .f-navbar-title { font-size: var(--h4); white-space: normal; }
+
+  .fb-main { padding: 12px 16px 88px; gap: 12px; }
+
+  .fb-tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+    padding: 4px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); box-shadow: 0 -1px 0 var(--divider);
+  }
+  .fb-tabbar__item { flex-direction: column; gap: 2px; min-height: 52px; }
+  .fb-tabbar .fb-tabbar__item.is-active { color: var(--blue3); background: none; } /* .f-app a.f-btn-minimal 보다 앞서게 */
+
+  .fb-me {
+    position: fixed; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 11;
+    width: min(280px, calc(100vw - 16px));
+  }
+
+  /* 누르는 것 44px 이상(설계서 5.5). */
+  .fb-shell .f-btn,
+  .fb-shell .f-nav-item,
+  .fb-shell .f-input,
+  .fb-shell .f-select { min-height: 44px; }
+  .fb-shell .f-input,
+  .fb-shell .f-select { height: 44px; line-height: 44px; }
+}

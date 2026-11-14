@@ -1,0 +1,9 @@
+{% extends "brain/ds/layout.html" %}
+{#- 찾기 빈 화면 — 물결 A 의 틀만. ?tab=search · table 이 이 화면이다. 물결 C(T4)가 통째로 바꾼다. -#}
+{% import "brain/ds/_macros.html" as ds %}
+{% block title %}찾기{% endblock %}
+{% block page_title %}찾기{% endblock %}
+{% block main %}
+<header class="f-row"><h1 class="f-h3">찾기</h1></header>
+{{ ds.empty('새 화면을 준비하고 있어요.', 'search') }}
+{% endblock %}

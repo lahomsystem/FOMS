@@ -1,0 +1,9 @@
+{% extends "brain/ds/layout.html" %}
+{#- 온톨로지 빈 화면 — 물결 A 의 틀만. ?tab=onto · map 이 이 화면이다(유형 지도는 온톨로지의 보기). 물결 C(T5)가 통째로 바꾼다. -#}
+{% import "brain/ds/_macros.html" as ds %}
+{% block title %}온톨로지{% endblock %}
+{% block page_title %}온톨로지{% endblock %}
+{% block main %}
+<header class="f-row"><h1 class="f-h3">온톨로지</h1></header>
+{{ ds.empty('새 화면을 준비하고 있어요.', 'layout-hierarchy') }}
+{% endblock %}
