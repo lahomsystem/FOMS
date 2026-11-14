@@ -231,8 +231,12 @@ def test_캡은_지난_주문만_오래된_것부터_자른다(client, monkeypat
     assert groups[-1]["sub"] == "더 오래된 2건은 안 보여요"
 
     html = client.get(HOME_URL).get_data(as_text=True)
-    assert "앞날" in html and "조금옛" in html and "옛주문" not in html
-    assert "더 오래된 2건은 안 보여요" in html
+    assert "앞날" in html and "옛주문" not in html
+    # 첫 응답은 고른 날(앞날) 장만 그린다(11-14) — 지난 시공일 장은 그 날 조각으로 받는다. 띠 단추는 밀린 수를 늘 싣는다.
+    assert "조금옛" not in html and "<small>2건 더</small>" in html
+    past = client.get(HOME_URL + "?day=past&view=day").get_data(as_text=True)
+    assert "조금옛" in past and "옛주문" not in past
+    assert "더 오래된 2건은 안 보여요" in past
     # 캡이 넉넉하면 전부 보이고 머리줄 글도 없다
     monkeypatch.setattr(home_read_model, "PRODUCTION_KANBAN_MAX_ROWS", 300)
     rows, stats = build_production_home(db_session, user)

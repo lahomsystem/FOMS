@@ -11,8 +11,8 @@
   var modal = root && root.querySelector('[data-pp-modal]');
   if (!root || !board) { return; }
   var bound = window.__FOMS_PROD_PARTS_BOUND = window.__FOMS_PROD_PARTS_BOUND || {};
-  if (bound.write) { return; }
-  bound.write = true;
+  if (bound.write === root || board.root !== root) { return; } // 셸 조각 교체로 다시 돌면 새 화면에만 한 번 묶는다
+  bound.write = root;
 
   var cfg = board.cfg || {};
   var OFFLINE = '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.';
@@ -293,7 +293,5 @@
     }
     openModal(action, [btn.closest('[data-pp-card]')], btn);
   });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && pending && !modal.hidden) { closeModal(); }
-  });
+  window.FomsPartsCards.onEscape = function () { if (pending && !modal.hidden) { closeModal(); } }; // Esc 는 viewer 의 문서 리스너 한 번이 부른다
 })();

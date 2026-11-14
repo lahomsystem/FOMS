@@ -3,7 +3,9 @@
  * → since 뒤 바뀐 표시 줄만 받아 바뀐 카드만 그 자리에서 고친다(칸 숫자도 같이 — 고치기는 parts.js 의 window.FomsPartsCards).
  * since 는 서버 시각만 쓴다: 첫 값 = 서버가 그린 시각(data-pp-since), 그다음 = 응답의 server_time. 기기 시계는 쓰지 않는다.
  * 내 확인 창에 있거나 저장 중인 카드는 건너뛴다(그 판은 since 를 옮기지 않아 다음 번에 다시 받는다).
- * 읽기 전용 직원도 싣는다(보기만 — 이 파일엔 쓰기 요청이 없다). 전역 리스너 · 타이머는 window.__FOMS_PROD_PARTS_BOUND.sync 로 한 번만. */
+ * 읽기 전용 직원도 싣는다(보기만 — 이 파일엔 쓰기 요청이 없다). 셸 조각 교체로 다시 실행된다(11-14): 화면마다 한 번
+ * (window.__FOMS_PROD_PARTS_BOUND.sync = 지금 화면), 30초 타이머는 문서에 한 번(.syncTimer) 달고 지금 화면의 받기(.syncTick)를 부른다.
+ * 화면이 문서에서 빠지면(다른 탭으로 셸 이동) 받지 않는다. 날을 받아 끼운 장의 카드도 화면 안이라 같이 받는다. */
 (function () {
   'use strict';
 
@@ -11,8 +13,8 @@
   var holder = root && root.querySelector('[data-pp-since]');
   if (!root || !holder) { return; }
   var bound = window.__FOMS_PROD_PARTS_BOUND = window.__FOMS_PROD_PARTS_BOUND || {};
-  if (bound.sync) { return; }
-  bound.sync = true;
+  if (bound.sync === root) { return; }
+  bound.sync = root;
 
   var SYNC_URL = '/api/production/part-marks';
   var SYNC_EVERY_MS = 30000; // 30초 — 한 태블릿 시간당 120번(한도 1,200 의 10%)
@@ -32,7 +34,7 @@
   var cfg = safeJsonParse(holder.getAttribute('data-foms-parts-config'), {}) || {};
 
   function canSync() {
-    return document.visibilityState === 'visible' && navigator.onLine !== false && !!since;
+    return document.visibilityState === 'visible' && navigator.onLine !== false && !!since && document.contains(root);
   }
   function orderIds() {
     var seen = {};
@@ -124,5 +126,8 @@
     }).then(function () { running = false; }, function () { running = false; });
   }
 
-  window.setInterval(tick, SYNC_EVERY_MS);
+  bound.syncTick = tick;
+  if (!bound.syncTimer) {
+    bound.syncTimer = window.setInterval(function () { if (bound.syncTick) { bound.syncTick(); } }, SYNC_EVERY_MS);
+  }
 })();

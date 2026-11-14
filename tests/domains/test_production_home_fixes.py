@@ -23,7 +23,7 @@ from tests.domains.test_production_home_tabs import HOME, ROOT, _add_order, _mak
 # ── 리뷰 고침 묶음(원장 §16 R1·R2·R3·R5·R10, 2026-11-10) ──
 
 def _reload_href(html: str) -> str:
-    return re.search(r'data-foms-home-reload href="([^"]*)"', html).group(1)
+    return re.search(r'data-foms-home-reload[^>]*? href="([^"]*)"', html).group(1)
 
 
 def test_보류는_생산_단계만_도면_컨펌_보류는_기다림() -> None:
@@ -78,7 +78,7 @@ def test_다시_받기_주소는_직접_고른_날만_붙인다(client) -> None:
     _add_order("PRODUCTION", "사흘뒤", 3)  # 오늘이 비어 자동으로 사흘 뒤 장이 열린다
     today_key = get_today_kst().isoformat()
     auto = client.get(HOME).get_data(as_text=True)
-    assert 'aria-pressed="true"' in auto.split(f'data-foms-home-daybtn="{(get_today_kst() + datetime.timedelta(days=3)).isoformat()}"')[1].split("</button>")[0]
+    assert 'aria-current="true"' in auto.split(f'data-foms-home-daybtn="{(get_today_kst() + datetime.timedelta(days=3)).isoformat()}"')[1].split("</a>")[0]
     assert _reload_href(auto) == HOME
     assert _reload_href(client.get(HOME + f"?day={today_key}").get_data(as_text=True)) == f"{HOME}?day={today_key}"
     assert _reload_href(client.get(HOME + "?day=recent").get_data(as_text=True)) == f"{HOME}?day=recent"
@@ -98,11 +98,11 @@ def test_지난_시공일_장은_안_읽은_수가_있으면_없어요를_숨기
     past = _pane(html, "past")
     assert "더 오래된 2건은 안 보여요" in past and "이 날은 시공이 없어요." not in past
     assert "옛주문하나" not in past
-    btn = html.split('data-foms-home-daybtn="past"')[1].split("</button>")[0]
+    btn = html.split('data-foms-home-daybtn="past"')[1].split("</a>")[0]
     assert btn.endswith(">지난 시공일 0건<small>2건 더</small>")  # 안 읽은 수는 둘째 줄 작은 글(M5)
     # 시공일 없음 장은 안 읽은 수가 없으니 '없어요' 그대로, 단추는 한 줄(small 없음)
-    assert "이 날은 시공이 없어요." in _pane(html, "none")
-    none_btn = html.split('data-foms-home-daybtn="none"')[1].split("</button>")[0]
+    assert "이 날은 시공이 없어요." in _pane(client.get(HOME + "?day=none").get_data(as_text=True), "none")
+    none_btn = html.split('data-foms-home-daybtn="none"')[1].split("</a>")[0]
     assert none_btn.endswith(">시공일 없음 0건") and "<small>" not in none_btn
     css = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     assert ".fph-sf small { display: block; font-size: calc(12px * var(--foms-fs, 1));" in css
@@ -129,7 +129,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     assert board and 'href="/erp/production/dashboard"' in board.group(0)
     assert "foms-prod-home__navtab--out" in board.group(0)
     assert nav.index(">찾기</a>") < nav.index("data-foms-home-board")
-    assert "home.css?v=20261111h" in html
+    assert "home.css?v=20261114a" in html
     # [보드] 는 온전한 페이지 이동(첫 화면은 조각 화면이 아니다)
     assert 'data-foms-erp-no-shell="1"' in board.group(0)
     # 제목 줄 오른쪽 묶음: 받음 표시 · 글자 손잡이 · [다시 받기] 가 한 묶음이라 줄이 넘쳐도 같이 내려간다(② 빈 줄 없이)
@@ -141,7 +141,7 @@ def test_제목_줄_보드_단추와_레일_생산이_첫_화면(client, monkeyp
     # 띠: 하루짜리 빈 줄만 '· 없음', 묶음 줄(지난 7일 · 그 뒤)은 날짜 글이 길어 안 붙인다
     strip = html[html.index('class="fph-strip"'):]
     strip = strip[: strip.index("</aside>")]
-    recent = re.search(r'data-foms-home-daybtn="recent".*?</button>', strip, re.S).group(0)
+    recent = re.search(r'data-foms-home-daybtn="recent".*?</a>', strip, re.S).group(0)
     assert "없음" not in recent
     rail = html[html.index('class="foms-tablet-rail"'):]
     rail = rail[: rail.index("</nav>")]
@@ -282,7 +282,7 @@ def test_곧_올_것_긴_이름은_이름만_줄고_번호는_늘_보인다(clie
     assert ".fph-nx b small { flex-shrink: 0;" in css
     nx_b = css.split(".fph-nx b {")[1].split("}")[0]
     assert "text-overflow" not in nx_b  # 번호까지 같이 잘리던 칸 전체 말줄임(옛 규칙)이 돌아오면 실패
-    assert "home.css') }}?v=20261111h" in (ROOT / "templates/production/home.html").read_text(encoding="utf-8")
+    assert "home.css') }}?v=20261114a" in (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
 
 
 def test_전체_화면_시트_가로_태블릿은_머리_줄_한_줄이고_몸통이_남은_높이를_채운다() -> None:
