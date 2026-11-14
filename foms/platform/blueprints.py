@@ -358,6 +358,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(production_part_marks_bp)
 
+    # --- Lane: 접목판 승인 대기 — ERP 할 일 제안 JSON(/api/erp-actions/*, 설계서 2026-11-14-foms-graft 3.6). 여는 사람은
+    # actions 스위치가 켜진 내부 직원(그 밖 404) · 쓰기 셋은 CSRF · 정책 STAFF_MUTATION(할 일의 정책은 처리기 안에서 다시 본다).
+    # 경로가 고유해 shadowing 이 없고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.erp_actions import erp_actions_api_bp
+
+    app.register_blueprint(erp_actions_api_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_realtime_socketio_handlers=register_realtime_socketio_handlers,
