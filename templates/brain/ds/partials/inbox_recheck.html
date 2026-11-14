@@ -1,0 +1,8 @@
+{#- 승인 대기의 '다시 확인' 보기(?tab=recheck) — 확인 날이 지났거나 다가오는 지식(내가 결정할 수 있고 볼 수 있는 것), 쓰인 횟수 순.
+    '아직 맞음' 한 번 = POST /api/brain/recheck/confirm. 줄은 ds-inbox-recheck.js 가 그린다. 폰 폭에서 그대로 쓴다. -#}
+<header class="f-row">
+  <h1 class="f-h3 fb-pc-only">다시 확인</h1>
+  <span class="f-muted" data-ds-recheck-line></span>
+</header>
+<p class="fb-status" data-ds-recheck-status role="status" aria-live="polite"></p>
+<ol class="f-col fb-cards" data-ds-recheck></ol>

@@ -77,6 +77,11 @@
   </nav>
   <div class="fb-me f-card f-card-e3 f-col" id="dsMePanel" data-ds-me-panel hidden>
     <span class="f-row-nw f-strong">{{ ds.icon('user', 'f-i-muted') }}{{ me.name if me else '' }}</span>
+    {%- if nav.screen %}
+    {#- 폰에는 왼쪽 길잡이가 없다 — 옛 화면처럼 폰에서도 다시 확인 · 판으로 갈 길(W3 보고). -#}
+    <a class="f-btn f-btn-minimal f-btn-fill" href="{{ url_for('brain_web.index', tab='recheck') }}" data-ds-me-link="recheck">{{ ds.icon('refresh') }}다시 확인</a>
+    <a class="f-btn f-btn-minimal f-btn-fill" href="{{ url_for('brain_web.index', tab='releases') }}" data-ds-me-link="releases">{{ ds.icon('history') }}판 · 기록</a>
+    {%- endif %}
     <a class="f-btn f-btn-fill" href="{{ url_for('erp_dashboard.erp_dashboard') }}">{{ ds.icon('arrow-left') }}FOMS 로 돌아가기</a>
   </div>
 </div>
