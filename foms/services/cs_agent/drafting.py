@@ -82,6 +82,7 @@ from foms.services.cs_agent.drafting_summary import DraftSummary
 from foms.services.cs_agent.edit_detail_settings import CASE_REASONS_FIELD, switch_value
 from foms.services.cs_agent.graft_step import after_draft
 from foms.services.cs_agent.onto_settings import ONTO_CASES_FIELD
+from foms.services.cs_agent.heldout import held_out_percent
 from foms.services.cs_agent.image_settings import MODE_OFF as PHOTOS_OFF, image_mode
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.ontology import with_ontology
@@ -280,6 +281,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         return _halted(session, summary, HALT_SPEND)
     cfg = read_settings(session)  # 바퀴마다 새로 — 화면에서 저장하면 다음 바퀴부터
     limit = cfg.get("max_brain_calls_per_pass") if limit is None else limit
+    held_percent = held_out_percent(cfg)
     if picks is None:
         candidates, summary.too_old = _candidates(session, states, now=now, is_business_day=is_business_day,
                                                   max_wait_days=cfg.get("max_wait_business_days"))
@@ -304,7 +306,8 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
             break
         stop.check()  # 선점 전
         try:
-            row = claim_turn(session, BRAND, chat_id, message_id, now=ctx.claim_at(), owner=ctx.owner, ttl=ctx.claim_ttl)
+            row = claim_turn(session, BRAND, chat_id, message_id, now=ctx.claim_at(), owner=ctx.owner,
+                             ttl=ctx.claim_ttl, held_out_percent=held_percent)  # 시험용 떼어 두기(D219) — 새 줄에만
         except ValueError:
             session.rollback()
             logger.warning("[CS 초안] 상담 · 글 id 꼴이 아니라 고르지 않는다 chat=%s", chat_id)

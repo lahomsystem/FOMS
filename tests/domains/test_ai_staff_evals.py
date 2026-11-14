@@ -111,6 +111,8 @@ def _settings(cap="100", past=3, risk=3, target=50):
 
 
 def _turn(n, question, *, held_out=False, reply=None, codes=None, outcome=None, context=None):
+    if held_out and reply is not None and outcome is None:
+        outcome = "edited"  # '지난 상담'은 직원이 고치거나 직접 쓴 답만(그대로 · 복사는 정답이 AI 글 자신)
     row = CsAgentTurn(brand="LAHOM", chat_id=f"ev-chat-{n}", last_user_message_id=f"ev-m-{n}", state="posted",
                       masked_question=f"{ASKED} {question}", masked_context=context, staff_reply_masked=reply,
                       held_out=held_out, check_codes=codes, outcome=outcome, masked_draft=f"{RAW} 옛 초안",
@@ -389,3 +391,14 @@ def test_the_job_runs_on_the_worker_queue(monkeypatch):
     assert calls == [((evals.JOB_PATH, 7), {"job_id": "ai_staff_eval_7", "job_timeout": evals.JOB_TIMEOUT})]
     monkeypatch.setattr(evals, "get_rq_queue", lambda: None)
     assert evals.enqueue_run(8) is False  # 큐가 없으면 넣지 않는다 — web 에서 대신 돌리지 않는다
+
+
+def test_past_set_skips_turns_whose_answer_is_the_ai_draft_itself(world):
+    """그대로 보냄(as_is) · 복사(copied) 차례는 직원 답이 AI 초안 자신이라 '지난 상담'에서 뺀다 — 고침 · 직접 답만."""
+    from foms.services.ai_staff import evals
+    kept = {_turn(41, "합성 질문 고침", held_out=True, reply=STAFF, outcome="edited"),
+            _turn(42, "합성 질문 직접", held_out=True, reply=STAFF, outcome="direct")}
+    skipped = {_turn(43, "합성 질문 그대로", held_out=True, reply=STAFF, outcome="as_is"),
+               _turn(44, "합성 질문 복사", held_out=True, reply=STAFF, outcome="copied")}
+    got = {case.turn_id for case in evals._past_cases(db_session, 10, now_utc_naive())}
+    assert kept <= got and not (skipped & got)

@@ -35,6 +35,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.brain.scope import Viewer, viewer_of
 from foms.services.cs_agent.brain_prompt import ENABLED_BRANDS
+from foms.services.cs_agent.case_memory import OUTCOME_DIRECT, OUTCOME_EDITED
 from foms.services.cs_agent.checks import REASONS
 from foms.services.datetime_kst import parse_datetime_utc
 from foms.services.jobs.queue import get_rq_queue
@@ -284,11 +285,15 @@ def _case(row: Any, kind: str) -> EvalCase:
 
 
 def _past_cases(session: Any, size: int, at: datetime.datetime) -> tuple[EvalCase, ...]:
-    """'지난 상담' — 떼어 둔 차례 가운데 직원 답이 있는 것, 최근 것부터(없으면 빈 묶음)."""
+    """'지난 상담' — 떼어 둔 차례 가운데 직원이 고치거나 직접 쓴 답이 있는 것, 최근 것부터(없으면 빈 묶음).
+
+    그대로 보냄 · 복사 차례는 정답이 AI 초안 자신이라 시험이 저절로 통과한다 — 고침(``edited``) · 직접 답(``direct``)만 쓴다.
+    """
     if size <= 0:
         return ()
     stmt = (select(*_TEXT_COLUMNS)
-            .where(*_where(at), CsAgentTurn.held_out.is_(True), CsAgentTurn.staff_reply_masked.isnot(None))
+            .where(*_where(at), CsAgentTurn.held_out.is_(True), CsAgentTurn.staff_reply_masked.isnot(None),
+                   CsAgentTurn.outcome.in_((OUTCOME_EDITED, OUTCOME_DIRECT)))
             .order_by(CsAgentTurn.id.desc()).limit(size))
     return tuple(_case(row, SET_PAST) for row in session.execute(stmt))
 

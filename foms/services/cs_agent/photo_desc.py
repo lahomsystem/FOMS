@@ -4,8 +4,8 @@
 그다음 초안부터 사례 재료(:mod:`.brain_cases`)가 된다 — 초안 때 사진은 보내지 않는다.
 
 - **고르기**: ``desc_state='pending'`` · 직원 확인 칸('손님 정보 안 보임' — D94) 켬 · 원본이 아직 있음(``storage_key`` · 지우지
-  않음)인 사진만, 오래된 것부터. 끄고 켜기는 :func:`.learning_brain.off_reason`(패널 '사진 설명 뽑기' · 비상 정지 · 초안 끔 ·
-  학습 돈 상한). 사진마다 부르기 바로 앞에서 다시 읽는다(R8-7 꼴).
+  않음) · 시험용으로 떼어 두지 않은 차례(D219 — :mod:`.heldout`)인 사진만, 오래된 것부터. 끄고 켜기는
+  :func:`.learning_brain.off_reason`(패널 '사진 설명 뽑기' · 비상 정지 · 초안 끔 · 학습 돈 상한). 사진마다 부르기 바로 앞에서 다시 읽는다(R8-7 꼴).
 - **상한**: 바퀴당 :data:`PER_PASS` 장 · :data:`PASS_SECONDS` 초, 하루(KST) :data:`PER_DAY` 장(설명 때 ``desc_at`` 으로 센다).
   돈은 학습 돈 상한 · 하루 상한 둘 다(:func:`.learning_brain.call_learning`). 상한에 닿으면 남은 사진은 ``pending`` 그대로 다음
   바퀴 · 다음 날로.
@@ -152,10 +152,11 @@ def _done_today(session: Any, now: datetime.datetime) -> int:
 
 
 def _pending_ids(session: Any, limit: int) -> list[int]:
-    """설명 뽑을 사진 id(오래된 것부터)."""
+    """설명 뽑을 사진 id(오래된 것부터). 시험용으로 떼어 둔 차례(D219)의 사진은 뺀다 — 설명은 배우기 재료로만 쓰인다."""
     photo = CsAgentTurnPhoto
-    stmt = (select(photo.id).where(photo.desc_state == PENDING, photo.no_personal.is_(True),
-                                   photo.storage_key.isnot(None), photo.purged_at.is_(None))
+    stmt = (select(photo.id).join(CsAgentTurn, CsAgentTurn.id == photo.turn_id)
+            .where(photo.desc_state == PENDING, photo.no_personal.is_(True), CsAgentTurn.held_out.is_(False),
+                   photo.storage_key.isnot(None), photo.purged_at.is_(None))
             .order_by(photo.created_at, photo.id).limit(limit))
     return [row_id for (row_id,) in session.execute(stmt)]
 
