@@ -9,7 +9,7 @@
 
 작은 창 접목 두 줄(설계서 2026-11-14-foms-graft 3.9 — 관리 칸 :mod:`.graft_settings`, 끄면 칸 자체가 없다): :func:`wam_graft` 가
 그 차례의 근거 칩(셋까지 — 회사 지식 카드 · 주문 화면의 FOMS **절대 주소**: 채널톡이 거쳐 여는 창이라 상대 주소는 채널톡 쪽으로
-풀린다)과 작은 창 줄 제안 하나를 읽기만 한다.
+풀린다)과 작은 창 줄 제안 하나(그 차례 것 — 없으면 같은 상담 앞 차례의 같은 주문 것, :func:`inline_proposal`)를 읽기만 한다.
 """
 
 from __future__ import annotations
@@ -47,7 +47,8 @@ from models import Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["EDIT_REASON_LABELS", "MAX_CHIPS", "STATUS_LABELS", "screen_view", "wam_graft", "wam_view"]
+__all__ = ["EDIT_REASON_LABELS", "MAX_CHIPS", "STATUS_LABELS", "inline_proposal", "screen_view", "wam_graft",
+           "wam_view"]
 
 #: 작은 창 근거 칩 상한(설계서 3.9 — 셋까지).
 MAX_CHIPS = 3
@@ -177,13 +178,47 @@ def _inline_text(row: Any) -> str:
     return f'주문 #{row.order_id} "{value}"' if value else f"주문 #{row.order_id}"
 
 
-def _inline_action(session: Any, turn_id: int) -> Optional[dict[str, Any]]:
-    """그 차례에서 상담 AI 가 만든 작은 창 줄 제안(열림 · 막는 조건 없음) 하나 ``{"id", "label", "text"}`` — 없으면 ``None``."""
+def _chat_turn_refs(session: Any, turn_id: int) -> list[str]:
+    """그 차례와 같은 상담(같은 브랜드 · 상담 id)의 그 차례까지 차례 번호 글(제안 ``source_ref`` 꼴) — 차례가 없으면 빈 목록."""
+    turn = session.get(CsAgentTurn, int(turn_id))
+    if turn is None:
+        return []
+    ids = session.execute(select(CsAgentTurn.id).where(
+        CsAgentTurn.brand == turn.brand, CsAgentTurn.chat_id == turn.chat_id, CsAgentTurn.id <= turn.id)).scalars()
+    return [str(number) for number in ids]
+
+
+def inline_proposal(session: Any, turn_id: int) -> Optional[ErpActionProposal]:
+    """그 차례 창에 보일 상담 AI 의 열린 작은 창 줄 제안 — 그 차례 것 먼저, 없으면 같은 상담 앞 차례의 같은 주문 것.
+
+    줄 제안이 생긴 차례를 건너뛰면 다음 차례에는 겹침 열쇠 때문에 새 제안이 생기지 않는다 — 그래서 같은 상담의 앞 차례 것도 본다.
+    앞 차례 것은 가리키는 주문이 하나일 때만(같은 상담에서 주문이 갈리면 어느 주문인지 모르니 보이지 않는다). [같이 넣기]
+    판정(:func:`.wam_functions._inline_row`)도 이 줄만 받는다. 막는 조건은 보지 않는다(창은 따로 거르고, 승인이 다시 본다).
+
+    Args:
+        session: DB 세션(읽기만).
+        turn_id: 차례 번호.
+
+    Returns:
+        제안 줄 또는 ``None``.
+    """
+    refs = _chat_turn_refs(session, turn_id)
+    if not refs:
+        return None
     inline = [name for name, spec in ACTIONS.items() if spec.wam_inline]
-    row = session.execute(select(ErpActionProposal).where(
-        ErpActionProposal.source_kind == SOURCE_KIND, ErpActionProposal.source_ref == str(turn_id),
+    rows = session.execute(select(ErpActionProposal).where(
+        ErpActionProposal.source_kind == SOURCE_KIND, ErpActionProposal.source_ref.in_(refs),
         ErpActionProposal.proposed_by == proposer(AGENT), ErpActionProposal.status == STATUS_OPEN,
-        ErpActionProposal.action.in_(inline)).order_by(ErpActionProposal.id.desc()).limit(1)).scalars().first()
+        ErpActionProposal.action.in_(inline)).order_by(ErpActionProposal.id.desc())).scalars().all()
+    own = [row for row in rows if row.source_ref == str(turn_id)]
+    if own:
+        return own[0]
+    return rows[0] if len({row.order_id for row in rows}) == 1 else None
+
+
+def _inline_action(session: Any, turn_id: int) -> Optional[dict[str, Any]]:
+    """그 차례 창의 작은 창 줄 제안(:func:`inline_proposal` · 막는 조건 없음) ``{"id", "label", "text"}`` — 없으면 ``None``."""
+    row = inline_proposal(session, turn_id)
     order = session.get(Order, row.order_id) if row is not None and row.order_id is not None else None
     if order is None or action_check(row.action, order, row.params or {}):
         return None

@@ -11,20 +11,23 @@ import datetime
 import logging
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.persistence.brain.models import BrainObject
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services.brain.usage_events import record_uses
-from foms.services.cs_agent import wam_functions
+from foms.services.cs_agent import send_view, turns, wam_functions
 from foms.services.cs_agent import settings as st
 from foms.services.cs_agent.graft_settings import GRAFT_ACTIONS_FIELD, GRAFT_EVIDENCE_FIELD
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.erp_actions import lifecycle, runners
 from foms.services.erp_actions.runners import SERVICE_RUNNERS
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.graft_flags import FLAGS
 from foms.services.orders.construction_note import note_lines
+from foms.web import cs_draft_wam
 from models import ChannelManagerLink, Order, SecurityLog, SystemSetting, User
 from tests.domains.test_cs_drafting import DRAFT, channel  # noqa: F401 — channel 은 fixture
 from tests.domains.test_cs_send import FakeSender, posted, ready  # noqa: F401 — ready 는 fixture
@@ -35,6 +38,14 @@ NOTE = "채널톡 상담: 합성 문 소리 표지 — 시공 때 확인"  # 넣
 BASE = "https://foms.example.test"
 OLD_GET_KEYS = {"code", "ok", "blocked", "draft", "fresh_note", "checking", "edit_reasons", "max_text", "detail",
                 "max_detail"}
+
+
+@pytest.fixture(autouse=True)
+def graft_env_off(monkeypatch):
+    """접목판 env 스위치를 모두 끈다 — 진짜 제안 만들기(:func:`lifecycle.propose` → 폰 알림 걸음)가 밖의 env 를 읽지 않게."""
+    for env in FLAGS.values():
+        monkeypatch.delenv(f"{env}_ENABLED", raising=False)
+        monkeypatch.delenv(f"{env}_COHORT", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -105,6 +116,13 @@ def send(app, channel, turn_id, sender, manager="mgr-7", **extra):
                 sender=sender)["result"]
 
 
+def skipped_turn(message_id, chat="uc-1"):
+    """같은 상담의 앞 차례(줄 제안이 생긴 뒤 직원이 건너뛴 차례) 번호."""
+    row = turns.claim_turn(db_session, "LAHOM", chat, message_id, now=at(2, 8, 40))
+    db_session.commit()
+    return row.id
+
+
 # ── 끔 = 지금 그대로 ──────────────────────────────────────────────────────
 def test_switches_off_keep_get_send_and_the_frame_as_today(app, client, ready):
     turn_id = posted(ready)
@@ -117,6 +135,34 @@ def test_switches_off_keep_get_send_and_the_frame_as_today(app, client, ready):
     html = client.get("/channel/wam/cs-draft").get_data(as_text=True)
     assert "cs-wam-evidence" not in html and "cs-wam-action" not in html and "app-graft.js" not in html
     assert 'src="app.js?v=' in html and "style=" not in html
+
+
+@pytest.mark.parametrize("evidence", [False, True])
+def test_with_action_while_actions_are_off_adds_no_action_field(app, ready, evidence):
+    graft(evidence=evidence, actions=False)
+    staff()
+    turn_id = posted(ready)
+    pid = proposal(turn_id, order())
+    sent = send(app, ready, turn_id, FakeSender(ready), with_action=pid)
+    assert set(sent) == {"code", "ok", "message", "outcome"} and sent["code"] == "sent"  # 끄면 지금과 같다
+    assert fresh(pid).status == "open"
+
+
+def test_the_frame_draws_as_today_when_the_settings_read_fails(app, client, ready, monkeypatch, caplog):
+    graft()
+
+    def broken(*_a, **_k):
+        raise SQLAlchemyError("합성 읽기 실패")
+
+    monkeypatch.setattr(cs_draft_wam, "read_settings", broken)
+    caplog.set_level(logging.WARNING, logger="foms")
+    response = client.get("/channel/wam/cs-draft/")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200  # 500 대신 (끔, 끔)으로 그린다
+    assert "cs-wam-evidence" not in html and "cs-wam-action" not in html and "app-graft.js" not in html
+    assert 'src="app.js?v=' in html
+    assert "[CS 작은 창] 접목 관리 칸 읽기 실패" in caplog.text and "code=SQLAlchemyError" in caplog.text
+    assert "합성 읽기 실패" not in caplog.text
 
 
 # ── 근거 칩 · 작은 창 줄 ─────────────────────────────────────────────────
@@ -237,6 +283,39 @@ def test_a_proposal_of_another_turn_or_a_queue_only_action_is_not_taken(app, rea
     assert fresh(queue_only).status == "open"
     db_session.expire_all()
     assert db_session.get(Order, target).erp_construction_date != day
+
+
+def test_a_skipped_turns_line_shows_and_runs_on_the_next_turn_of_the_same_chat(app, ready):
+    graft()
+    person_id = staff()
+    earlier = skipped_turn("m-uc-1-old")
+    elsewhere = posted(ready, chat="uc-2")
+    turn_id = posted(ready)
+    target = order()
+    pid = proposal(earlier, target)  # 겹침 열쇠라 이 차례에는 같은 제안이 새로 생기지 않는다
+    stray = proposal(elsewhere, order(), params={"note": "채널톡 상담: 합성 다른 상담 표지 — 시공 때 확인"})
+    got = call(app, ready, "cs.draft.get", {"turn": turn_id, "chat": "uc-1"})["result"]
+    assert got["action"] == {"id": pid, "label": "시공 메모 더하기", "text": f'주문 #{target} "{NOTE}"'}
+    assert wam_functions._inline_row(db_session, turn_id, stray) is None  # 다른 상담의 제안은 받지 않는다
+    assert send_view.inline_proposal(db_session, earlier).id == pid
+    sent = send(app, ready, turn_id, FakeSender(ready), with_action=pid)
+    assert sent["code"] == "sent" and sent["action"]["code"] == "executed"
+    assert (fresh(pid).status, fresh(pid).decided_by) == ("executed", person_id) and lines_of(target) == [NOTE]
+    assert fresh(stray).status == "open"
+
+
+def test_earlier_lines_for_two_orders_show_none_but_the_turns_own_line_wins(app, ready):
+    first, second = skipped_turn("m-uc-1-a"), skipped_turn("m-uc-1-b")
+    turn_id = posted(ready)
+    proposal(first, order())
+    proposal(second, order(construction_days=8))
+    assert send_view.inline_proposal(db_session, turn_id) is None  # 같은 상담에서 주문이 갈리면 어느 주문인지 모른다
+    later = skipped_turn("m-uc-1-later")
+    assert send_view.inline_proposal(db_session, first).source_ref == str(first)  # 뒤 차례 것은 앞 창에 보이지 않는다
+    own = proposal(turn_id, order(construction_days=9), params={"note": "채널톡 상담: 합성 그 차례 표지 — 시공 때 확인"})
+    assert send_view.inline_proposal(db_session, turn_id).id == own
+    assert send_view.inline_proposal(db_session, later) is None  # 앞 차례 셋이 주문 셋을 가리킨다
+    assert send_view.inline_proposal(db_session, 999999) is None
 
 
 def test_an_execution_that_cannot_run_is_one_line_and_the_reply_stays_sent(app, ready):

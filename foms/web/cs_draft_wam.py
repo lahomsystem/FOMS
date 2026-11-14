@@ -19,13 +19,17 @@ graft_settings` — 사람별이 아니라 전역 값)가 하나라도 켜졌을
 
 from __future__ import annotations
 
+import logging
 import os
 
 from flask import Blueprint, current_app, make_response, render_template, send_from_directory
+from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.services.cs_agent.graft_settings import actions_on, evidence_on
 from foms.services.cs_agent.settings import read_settings
+
+logger = logging.getLogger(__name__)
 
 cs_draft_wam_bp = Blueprint("cs_draft_wam", __name__)
 
@@ -33,9 +37,17 @@ APP_ID_ENV = "CS_WAM_APP_ID"
 
 
 def _graft_switches() -> tuple[bool, bool]:
-    """(근거 줄, 할 일 제안) 관리 칸 값 — 설정 한 줄 읽기(읽기 트랜잭션은 닫는다)."""
+    """(근거 줄, 할 일 제안) 관리 칸 값 — 설정 한 줄 읽기(읽기 트랜잭션은 닫는다).
+
+    읽기가 DB 오류로 실패하면 (끔, 끔) — 틀이 지금과 같게 그려진다(500 대신 · 경고 로그엔 코드만).
+    """
     session = get_db()
-    cfg = read_settings(session, log=False)
+    try:
+        cfg = read_settings(session, log=False)
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.warning("[CS 작은 창] 접목 관리 칸 읽기 실패 — 끔으로 그림 code=%s", type(exc).__name__)
+        return False, False
     session.rollback()
     return evidence_on(cfg), actions_on(cfg)
 

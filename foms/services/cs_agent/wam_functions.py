@@ -12,7 +12,8 @@
   drop_action?}`` — [보내기](그대로 · 고친 글). ``edit_detail`` 은 [수정하기]의 '왜 고쳤나요' 글(관리 칸 '자세한 이유' 켬일
   때만 가려서 적는다 — 사장님 11-11). ``with_action`` · ``drop_action`` 은 작은 창 줄 제안 번호([같이 넣기] · [빼기]) — 답이
   **보내진 뒤에만**(``sent``) 서명된 상담원에 이어진 FOMS 사용자 이름으로 승인 · 실행(:func:`.lifecycle.approve`, 실행기는
-  services 표 ``SERVICE_RUNNERS``)하거나 거절(``other``)한다. 그 차례에서 상담 AI 가 만든 작은 창 줄 제안만 받는다. 이어진
+  services 표 ``SERVICE_RUNNERS``)하거나 거절(``other``)한다. 그 차례 창에 보이는 상담 AI 의 작은 창 줄 제안만 받는다(그 차례
+  것 — 없으면 같은 상담 앞 차례의 같은 주문 것). 관리 칸이 꺼져 있으면 ``action`` 칸이 없다. 이어진
   사용자가 없거나 권한이 없거나 실행이 막히면 답 보내기는 그대로 두고 결과의 ``action`` 한 줄로 알린다.
 - ``cs.draft.discard`` ``{turn, chat}`` — [버리기].
 - ``cs.handoff.get`` ``{turn, chat}`` — 넘김 메모 [배우기] 창 재료(상태 · 까닭 · AI 메모 힌트 · 본 마지막 손님 글).
@@ -33,19 +34,17 @@ from typing import Any, Callable, Optional
 from sqlalchemy.exc import SQLAlchemyError
 
 from foms.persistence.graft.models import ErpActionProposal
-from foms.services.ai_staff.registry import proposer
 from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.channel_send import CHAT_ID as _CHAT
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.edit_detail import MAX_DETAIL, switches as detail_switches
 from foms.services.cs_agent.graft_settings import actions_on
-from foms.services.cs_agent.graft_step import AGENT, SOURCE_KIND
 from foms.services.cs_agent.handoff_send import handoff_view, send_handoff, skip_learning, unskip_learning
 from foms.services.cs_agent.send_flow import FlowResult, SendRequest, discard_turn, send_turn
-from foms.services.cs_agent.send_view import wam_graft, wam_view
+from foms.services.cs_agent.send_view import inline_proposal, wam_graft, wam_view
 from foms.services.cs_agent.settings import read_settings
 from foms.services.erp_actions.lifecycle import ActionError, approve, reject
-from foms.services.erp_actions.registry import ACTIONS, STATUS_EXECUTED
+from foms.services.erp_actions.registry import STATUS_EXECUTED
 from foms.services.erp_actions.runners import SERVICE_RUNNERS
 from models import User
 
@@ -161,7 +160,6 @@ def _send(session: Any, turn: int, chat: str, params: dict[str, Any], manager_id
 
 # ── 작은 창 줄 제안 [같이 넣기] · [빼기] — 답이 보내진 뒤에만 ─────────────────
 _ACTION_MESSAGES = {
-    "off": "할 일 제안이 꺼져 있어 넣지 않았어요.",
     "not_found": "할 일 제안을 찾지 못해 넣지 않았어요.",
     "no_user": "이 상담원에 이어진 FOMS 계정이 없어 할 일은 넣지 않았어요 — 승인 대기에서 처리해 주세요.",
     "ACTION_FORBIDDEN": "이 계정으로는 이 할 일을 넣을 수 없어요 — 승인 대기에서 처리해 주세요.",
@@ -183,12 +181,10 @@ def _number(value: Any) -> Optional[int]:
 
 
 def _inline_row(session: Any, turn: int, proposal_id: int) -> Optional[ErpActionProposal]:
-    """그 차례에서 상담 AI 가 만든 작은 창 줄 제안만(``params`` 의 번호를 믿지 않는다 — 아니면 ``None``)."""
-    row = session.get(ErpActionProposal, proposal_id)
-    spec = ACTIONS.get(row.action) if row is not None else None
-    if spec is None or not spec.wam_inline or row.source_kind != SOURCE_KIND or row.source_ref != str(turn):
-        return None
-    return row if row.proposed_by == proposer(AGENT) else None
+    """그 차례 창에 보이는 작은 창 줄 제안(:func:`.send_view.inline_proposal` — 그 차례 것, 없으면 같은 상담 앞 차례의 같은
+    주문 것)일 때만 — ``params`` 의 번호를 믿지 않는다(아니면 ``None``)."""
+    row = inline_proposal(session, turn)
+    return row if row is not None and row.id == proposal_id else None
 
 
 def _run(session: Any, row: ErpActionProposal, actor: Any, add: bool, now: datetime.datetime) -> dict[str, Any]:
@@ -220,11 +216,13 @@ def _decide(session: Any, turn: int, params: dict[str, Any], user_id: Optional[i
 
 
 def _decide_one(session: Any, turn: int, proposal_id: int, user_id: Optional[int], add: bool,
-                now: datetime.datetime) -> dict[str, Any]:
-    """스위치 → 그 차례의 작은 창 줄 제안인가 → 이어진 FOMS 사용자 → 승인 · 실행 또는 거절(권한은 생명주기가 다시 본다)."""
+                now: datetime.datetime) -> Optional[dict[str, Any]]:
+    """스위치 → 그 차례의 작은 창 줄 제안인가 → 이어진 FOMS 사용자 → 승인 · 실행 또는 거절(권한은 생명주기가 다시 본다).
+
+    관리 칸이 꺼져 있으면 ``None``(답에 ``action`` 칸이 없다 — 끄면 지금과 같다)."""
     if not actions_on(read_settings(session, log=False)):
         session.rollback()
-        return _act("off")
+        return None
     row = _inline_row(session, turn, proposal_id)
     actor = session.get(User, user_id) if user_id is not None else None
     if row is None or actor is None:

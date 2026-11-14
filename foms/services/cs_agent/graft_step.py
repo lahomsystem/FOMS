@@ -5,6 +5,8 @@
 
 1. **근거 남기기**('근거 줄' 켬): 초안이 쓴 지식 문서 항목 id → 지금 판 회사 지식 키(:func:`foms.services.brain.usage.doc_keys`)와
    본인이 확인된 주문 키(``erp:order/<번호>``)를 차례 번호로 남긴다(``record_uses(..., reader='cs_draft', ref_kind='cs_turn')``).
+   같은 차례를 다시 쓰면 그 차례에 이미 남긴 키는 빼고 남긴다(:func:`foms.services.brain.usage_events.refs_of` — '쓰인 곳' 수가
+   부풀지 않게). 지식 키는 한 차례에 한 번만 구해 두 걸음이 같이 쓴다.
 2. **규칙 제안 셋**('할 일 제안' 켬 · 본인이 확인된 주문(:mod:`.order_step`)이 있을 때만 — 모델 지시문 · 출력 틀은 건드리지 않는다):
    ① AS 뜻 + 단계가 완료 · CS → ``register_as``(승인 대기로)
    ② AS · 불편 뜻 + 시공일이 앞날 → ``add_construction_note``(작은 창 줄 — :data:`.registry.ActionSpec.wam_inline`)
@@ -16,7 +18,8 @@
    :func:`foms.services.erp_actions.lifecycle.propose` 가 본다(커밋은 초안 길이 한다).
 
 - 걸음마다 저장점 안에서 돈다 — 실패는 초안 길을 깨지 않고 경고 로그에 코드만 남긴다(:func:`_guarded`).
-- 날짜는 :func:`get_today_kst`. 손님 글은 이 바퀴 메모리에서 규칙에만 쓰고, 제안 칸(증상 · 메모)에는 가린 글만 싣는다. 이유 ·
+- 날짜는 :func:`get_today_kst`. 손님 글은 이 바퀴 메모리에서 규칙에만 쓰고, 제안 칸(증상 · 메모)에는 가린 글만 싣는다 — 성함 ·
+  휴대폰 답 묶음(본인 확인 물음 뒤 글)은 뜻 낱말이 없으면 어느 길로도 싣지 않는다(가림이 이름은 못 잡는다). 이유 ·
   근거 이름은 코드가 정한 말 · 주문 번호 · 날짜 · 회사 지식 항목 이름뿐이다. 로그에는 차례 번호 · 할 일 이름 · 코드만.
 - 근거 이름 도우미(:func:`brain_labels` · :func:`order_label`)는 작은 창 칩(:mod:`.send_view`)도 같이 쓴다.
 """
@@ -37,7 +40,7 @@ from foms.services.brain.constants import SCOPE_ALL
 from foms.services.brain.display import type_label
 from foms.services.brain.store import is_current
 from foms.services.brain.usage import doc_keys
-from foms.services.brain.usage_events import READER_CS_DRAFT, record_uses
+from foms.services.brain.usage_events import READER_CS_DRAFT, record_uses, refs_of
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.graft_settings import actions_on, evidence_on
 from foms.services.cs_agent.masking import mask
@@ -52,7 +55,7 @@ from models import Order
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "AGENT", "Plan", "SCHEDULE_NOTE", "SOURCE_KIND", "after_draft", "asked_days", "brain_labels", "order_label",
+    "AGENT", "Plan", "SCHEDULE_NOTE", "SOURCE_KIND", "Said", "after_draft", "asked_days", "brain_labels", "order_label",
     "plans",
 ]
 
@@ -64,8 +67,9 @@ REGISTER_AS, ADD_NOTE = "register_as", "add_construction_note"
 MOVE_MEASUREMENT, MOVE_CONSTRUCTION = "move_measurement", "move_construction"
 _AS_DONE_STAGES = ("COMPLETED", "CS")
 _AS_LIMIT, _NOTE_SNIPPET, _LABEL_LIMIT, _NAME_LIMIT = 300, 140, 60, 40
-#: 올해 날짜가 이만큼 안쪽으로 지났으면 지난 날을 말한 것으로 본다(내년으로 넘기지 않는다).
-_PAST_WINDOW_DAYS = 60
+#: 올해 날이 지난 'M월 D일'은 내년 같은 날이 오늘에서 이만큼 안쪽일 때만 내년으로 읽는다(연말에 말한 연초 날 — 넉 달).
+#: 그 밖은 지난 일을 말한 날로 본다(옮기기 제안을 만들지 않는다).
+_NEXT_YEAR_DAYS = 120
 _AS_WORDS = re.compile(
     r"(?<![A-Za-z])(?:A/S|AS|a/s)(?![A-Za-z])|에이에스|하자|고장|불량|파손|깨[졌짐지]|부러[졌지]|수리|금이 ?갔|갈라[졌지]|"
     r"벌어[졌지]|틀어[졌지]|처[졌짐]|들[떴뜸뜨]|삐걱|끼익|덜컹|소리가 ?[나납들]|흔들[려리거]|안 ?(?:닫[혀히]|열[려리]|잠[겨기])|"
@@ -90,6 +94,14 @@ class Plan:
     reason: str
 
 
+@dataclass(frozen=True)
+class Said:
+    """규칙이 읽는 손님 글(이 바퀴 메모리에만) — ``texts`` 는 읽은 글 전부, ``asked`` 는 본인 확인 답 묶음을 뺀 글."""
+
+    texts: tuple[str, ...]
+    asked: tuple[str, ...]
+
+
 # ── 한 걸음 ──────────────────────────────────────────────────────────────
 def after_draft(ctx: Any, row: Any, result: Any, lines: Sequence[Any]) -> None:
     """초안 두뇌 뒤 한 걸음 — 근거 남기기 · 규칙 제안(관리 칸이 켜진 것만). 커밋하지 않는다(초안 길이 커밋한다).
@@ -109,11 +121,31 @@ def after_draft(ctx: Any, row: Any, result: Any, lines: Sequence[Any]) -> None:
     ctx.stop.check()  # 쓰기 전
     turn = getattr(ctx, "order_turns", {}).get(row.id)
     facts = getattr(turn, "facts", None)
+    keys = _once(lambda: doc_keys(ctx.session, row.brand, getattr(result, "evidence_ids", ()) or ()))
     if evidence:
-        _guarded(ctx, row, "evidence", lambda: _record_evidence(ctx, row, result, facts))
+        _guarded(ctx, row, "evidence", lambda: _record_evidence(ctx, row, keys(), facts))
     if actions and facts is not None:
-        texts = _customer_texts(lines, getattr(facts, "basis", ""))
-        _guarded(ctx, row, "proposals", lambda: _propose_all(ctx, row, result, facts, texts))
+        said = _customer_texts(lines, getattr(facts, "basis", ""))
+        _guarded(ctx, row, "proposals", lambda: _propose_all(ctx, row, result, facts, said, keys))
+
+
+def _once(work: Callable[[], list[str]]) -> Callable[[], list[str]]:
+    """처음 부를 때만 ``work`` 를 돌리는 값(지식 키 — 근거 · 제안 두 걸음이 같이 쓴다). 실패면 다음 부름이 다시 구한다.
+
+    Args:
+        work: 키 목록을 구하는 함수.
+
+    Returns:
+        부를 때마다 같은 키 목록의 사본을 주는 함수(부르는 쪽이 고쳐도 다음 걸음에 번지지 않는다).
+    """
+    memo: list[list[str]] = []
+
+    def get() -> list[str]:
+        if not memo:
+            memo.append(list(work()))
+        return list(memo[0])
+
+    return get
 
 
 def _guarded(ctx: Any, row: Any, step: str, work: Callable[[], Any]) -> None:
@@ -130,25 +162,29 @@ def _utc(now: datetime.datetime) -> datetime.datetime:
     return naive_utc(now) if now.tzinfo else now
 
 
-def _record_evidence(ctx: Any, row: Any, result: Any, facts: Any) -> int:
-    """근거 남기기 — 회사 지식 키 + 확인된 주문 키를 차례 번호로(겹침은 한 번). 남긴 줄 수."""
-    keys = doc_keys(ctx.session, row.brand, getattr(result, "evidence_ids", ()) or ())
+def _record_evidence(ctx: Any, row: Any, keys: list[str], facts: Any) -> int:
+    """근거 남기기 — 회사 지식 키 + 확인된 주문 키를 차례 번호로(겹침은 한 번 · 그 차례에 이미 남긴 키는 뺀다). 남긴 줄 수."""
     if facts is not None:
         keys.append(order_key(int(facts.order_id)))
-    return record_uses(ctx.session, keys, READER_CS_DRAFT, SOURCE_KIND, row.id, _utc(ctx.now))
+    seen = set(refs_of(ctx.session, SOURCE_KIND, row.id))  # 같은 차례를 다시 써도 '쓰인 곳'이 부풀지 않게
+    return record_uses(ctx.session, [key for key in keys if key not in seen], READER_CS_DRAFT, SOURCE_KIND, row.id,
+                       _utc(ctx.now))
 
 
-def _customer_texts(lines: Sequence[Any], basis: str) -> list[str]:
+def _customer_texts(lines: Sequence[Any], basis: str) -> Said:
     """규칙이 읽는 손님 공개 글 원문(이 바퀴 메모리에만 — 남기지 않는다) — 마지막 공개 직원 글 뒤 글.
 
     손님이 방금 성함 · 휴대폰을 알려 줘 주문이 확인된 차례(확정 근거 ``contact`` — 주문 확인 물음의 답)면 그 물음 앞 묶음(물음을
-    부른 손님 글 — 일정 · AS 문의)까지 읽는다.
+    부른 손님 글 — 일정 · AS 문의)까지 읽는다. 그때 마지막 공개 직원 글(물음) 뒤 묶음은 본인 확인 답이라 :attr:`Said.asked` 에서
+    뺀다(직원 글이 하나도 없으면 손님이 문의와 같이 적은 것이라 모두 뺀다).
     """
     answers = [i for i, line in enumerate(lines) if line.meta.is_answer]
     keep = 2 if basis == "contact" else 1
     start = answers[-keep] + 1 if len(answers) >= keep else 0
-    return [line.text for line in lines[start:]
-            if line.meta.is_customer_signal and not line.meta.is_private and (line.text or "").strip()]
+    cut = (answers[-1] if answers else 0) if basis == "contact" else len(lines)
+    picked = [(i, line.text) for i, line in enumerate(lines) if i >= start and line.meta.is_customer_signal
+              and not line.meta.is_private and (line.text or "").strip()]
+    return Said(tuple(text for _, text in picked), tuple(text for i, text in picked if i < cut))
 
 
 def _matching(texts: Sequence[str], *patterns: Any) -> list[str]:
@@ -156,13 +192,13 @@ def _matching(texts: Sequence[str], *patterns: Any) -> list[str]:
     return [text for text in texts if any(pattern.search(text) for pattern in patterns)]
 
 
-def _propose_all(ctx: Any, row: Any, result: Any, facts: Any, texts: Sequence[str]) -> None:
+def _propose_all(ctx: Any, row: Any, result: Any, facts: Any, said: Said, keys: Callable[[], list[str]]) -> None:
     """확인된 주문의 규칙 제안 — 바깥 저장점(주문 · 근거 읽기) 안에서 할 일마다 저장점 하나(하나가 실패해도 다른 제안은 만든다)."""
     order = ctx.session.get(Order, int(facts.order_id))
-    found = plans(result, order, texts, get_today_kst()) if order is not None else []
+    found = plans(result, order, said.texts, get_today_kst(), asked=said.asked) if order is not None else []
     if not found:
         return
-    evidence = _proposal_evidence(ctx.session, row, result, order)
+    evidence = _proposal_evidence(ctx.session, row, keys(), order)
     for plan in found:
         _guarded(ctx, row, plan.action, lambda plan=plan: _propose_one(ctx, row, plan, order, evidence))
 
@@ -182,11 +218,10 @@ def _propose_one(ctx: Any, row: Any, plan: Plan, order: Any, evidence: list[dict
     return made
 
 
-def _proposal_evidence(session: Any, row: Any, result: Any, order: Any) -> list[dict[str, str]]:
-    """제안 근거 — 상담 차례 · 주문 + 초안이 쓴 회사 지식(이름이 가림 검사를 지난 것만). 여덟까지."""
+def _proposal_evidence(session: Any, row: Any, keys: list[str], order: Any) -> list[dict[str, str]]:
+    """제안 근거 — 상담 차례 · 주문 + 초안이 쓴 회사 지식(``keys`` — 이름이 가림 검사를 지난 것만). 여덟까지."""
     out = [{"kind": "cs_turn", "ref": str(row.id), "label": f"상담 차례 #{row.id}"},
            {"kind": "order", "ref": order_key(int(order.id)), "label": f"주문 #{order.id}"}]
-    keys = doc_keys(session, row.brand, getattr(result, "evidence_ids", ()) or ())
     for key, label in brain_labels(session, keys).items():
         if clean_reason_text(label) is not None:
             out.append({"kind": "brain", "ref": key, "label": label})
@@ -252,19 +287,18 @@ def _days(order: Any, kind: str) -> list[datetime.date]:
 
 
 def _resolve(month: int, day: int, today: datetime.date) -> Optional[datetime.date]:
-    """'M월 D일' → 날짜 — 올해가 오늘 이후면 올해, 막 지난 날(:data:`_PAST_WINDOW_DAYS`)이면 없음, 그 밖은 내년."""
+    """'M월 D일' → 날짜 — 올해가 오늘 이후면 올해, 지났으면 내년 같은 날이 :data:`_NEXT_YEAR_DAYS` 안쪽일 때만 내년, 그 밖은 없음."""
     try:
         this = datetime.date(today.year, month, day)
     except ValueError:
         return None
     if this >= today:
         return this
-    if (today - this).days <= _PAST_WINDOW_DAYS:
-        return None
     try:
-        return datetime.date(today.year + 1, month, day)
+        upcoming = datetime.date(today.year + 1, month, day)
     except ValueError:
         return None
+    return upcoming if (upcoming - today).days <= _NEXT_YEAR_DAYS else None
 
 
 def asked_days(texts: Iterable[str], today: datetime.date) -> list[datetime.date]:
@@ -294,19 +328,22 @@ def _masked_text(texts: Sequence[str], limit: int) -> str:
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
 
 
-def _rule_register_as(result: Any, order: Any, texts: Sequence[str], today: datetime.date) -> Optional[Plan]:
+def _rule_register_as(result: Any, order: Any, said: Said, today: datetime.date) -> Optional[Plan]:
     """① AS 뜻 + 단계 완료 · CS → AS 접수(증상은 가린 손님 글)."""
     if str(getattr(order, "erp_stage_code", "") or "").upper() not in _AS_DONE_STAGES:
         return None
-    content = _masked_text(_matching(texts, _AS_WORDS), _AS_LIMIT)
+    content = _masked_text(_matching(said.texts, _AS_WORDS), _AS_LIMIT)
     return Plan(REGISTER_AS, {"as_content": content}, REASON_AS) if content else None
 
 
-def _rule_construction_note(result: Any, order: Any, texts: Sequence[str], today: datetime.date) -> Optional[Plan]:
-    """② AS · 불편 뜻(낱말 · 넘김 까닭 ``complaint``) + 시공일이 앞날 → 시공 메모 한 줄(작은 창 줄)."""
-    found = _matching(texts, _AS_WORDS, _TROUBLE_WORDS)
+def _rule_construction_note(result: Any, order: Any, said: Said, today: datetime.date) -> Optional[Plan]:
+    """② AS · 불편 뜻(낱말 · 넘김 까닭 ``complaint``) + 시공일이 앞날 → 시공 메모 한 줄(작은 창 줄).
+
+    낱말이 없는 불만 넘김은 본인 확인 답 묶음을 뺀 글(:attr:`Said.asked`)만 싣는다 — 성함 · 휴대폰 답 글이 메모에 남지 않게.
+    """
+    found = _matching(said.texts, _AS_WORDS, _TROUBLE_WORDS)
     if not found and getattr(result, "handoff_reason", "") == "complaint":
-        found = list(texts)
+        found = list(said.asked)
     if not found or not any(day > today for day in _days(order, "construction")):
         return None
     snippet = _masked_text(found, _NOTE_SNIPPET)
@@ -332,16 +369,17 @@ def _move_target(text: str, measurement_ahead: bool, construction_ahead: bool) -
     return MOVE_CONSTRUCTION if construction_ahead else None
 
 
-def _rule_move(result: Any, order: Any, texts: Sequence[str], today: datetime.date) -> Optional[Plan]:
+def _rule_move(result: Any, order: Any, said: Said, today: datetime.date) -> Optional[Plan]:
     """③ 일정 바꾸기 요청 + 달 · 날이 똑바로 적힌 날 하나 → 실측 · 시공 옮기기(지금 날과 같은 날 · 지난 날은 뺀다)."""
     if not _schedule_ask(result):
         return None
     measurement, construction = _days(order, "measurement"), _days(order, "construction")
-    action = _move_target(" ".join(texts), any(d > today for d in measurement), any(d > today for d in construction))
+    action = _move_target(" ".join(said.texts), any(d > today for d in measurement),
+                          any(d > today for d in construction))
     if action is None:
         return None
     current = measurement if action == MOVE_MEASUREMENT else construction
-    wanted = [day for day in asked_days(texts, today) if day not in current]
+    wanted = [day for day in asked_days(said.texts, today) if day not in current]
     if len(wanted) != 1:  # 없거나 여럿이면(어느 날인지 모름) 만들지 않는다
         return None
     params: dict[str, Any] = {"date": wanted[0].isoformat()}
@@ -355,7 +393,8 @@ def _rule_move(result: Any, order: Any, texts: Sequence[str], today: datetime.da
 _RULES = (_rule_register_as, _rule_construction_note, _rule_move)
 
 
-def plans(result: Any, order: Any, texts: Sequence[str], today: datetime.date) -> list[Plan]:
+def plans(result: Any, order: Any, texts: Sequence[str], today: datetime.date, *,
+          asked: Optional[Sequence[str]] = None) -> list[Plan]:
     """규칙 셋이 만들 제안(할 일마다 하나까지 · 규칙 차례).
 
     Args:
@@ -363,8 +402,10 @@ def plans(result: Any, order: Any, texts: Sequence[str], today: datetime.date) -
         order: 본인이 확인된 주문.
         texts: 마지막 직원 답 뒤 손님 글 원문(메모리에만).
         today: 한국 오늘.
+        asked: ``texts`` 에서 본인 확인 답 묶음을 뺀 글(낱말 없는 불만 넘김이 싣는 글 — 없으면 ``texts``).
 
     Returns:
         :class:`Plan` 목록(막는 조건 · 수준은 아직 보지 않았다).
     """
-    return [plan for rule in _RULES if (plan := rule(result, order, texts, today)) is not None]
+    said = Said(tuple(texts), tuple(texts if asked is None else asked))
+    return [plan for rule in _RULES if (plan := rule(result, order, said, today)) is not None]

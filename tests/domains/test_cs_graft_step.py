@@ -26,12 +26,21 @@ from foms.services.cs_agent.order_block import ORDER_RULES
 from foms.services.cs_agent.order_step import ASK_TEXT
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.graft_flags import FLAGS
 from models import SystemSetting
 from tests.domains.test_cs_drafting import CUSTOMER, DRAFT, FakeBrain, channel, customer, result, run, turn  # noqa: F401
 from tests.domains.test_cs_order_lookup import NAME, PHONE, add_order, asked_before
 from tests.support.cs_agent_fakes import at, keys  # noqa: F401 — keys 는 fixture
 
 TODAY = get_today_kst()
+
+
+@pytest.fixture(autouse=True)
+def graft_env_off(monkeypatch):
+    """접목판 env 스위치를 모두 끈다 — 진짜 제안 만들기(:func:`lifecycle.propose` → 폰 알림 걸음)가 밖의 env 를 읽지 않게."""
+    for env in FLAGS.values():
+        monkeypatch.delenv(f"{env}_ENABLED", raising=False)
+        monkeypatch.delenv(f"{env}_COHORT", raising=False)
 
 
 def day(offset: int) -> datetime.date:
@@ -140,6 +149,41 @@ def test_evidence_without_a_confirmed_order_keeps_only_knowledge(channel):
     assert [k for k, *_ in uses()] == [key]
 
 
+def test_redrafting_the_same_turn_adds_no_second_use(channel):
+    switches(evidence=True)
+    doc_item()
+    order = seed_order("MEASURE", measurement=day(5))
+    chat(channel, "선반 깊이 문의드려요")
+    run(channel, brain_fn=FakeBrain(result()))
+    row, before = turn(), uses()
+    assert len(before) == 2
+    facts = SimpleNamespace(order_id=order.id, basis="contact")
+    ctx = SimpleNamespace(session=db_session, now=at(2, 9, 30), stop=SimpleNamespace(check=lambda: None),
+                          order_turns={row.id: SimpleNamespace(facts=facts)})
+    graft_step.after_draft(ctx, row, result(), [])  # 같은 차례를 다시 쓴다
+    db_session.commit()
+    assert uses() == before  # 이미 남긴 키는 다시 남기지 않는다('쓰인 곳' 수가 부풀지 않는다)
+
+
+def test_both_switches_read_the_knowledge_keys_once_per_turn(channel, monkeypatch):
+    switches(evidence=True, actions=True)
+    key = doc_item()
+    seed_order("PRODUCTION", construction=day(6))
+    chat(channel, "문에서 끼익 소리가 나요")
+    calls, real = [], graft_step.doc_keys
+
+    def counted(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(graft_step, "doc_keys", counted)
+    run(channel, brain_fn=FakeBrain(result()))
+    (made,) = proposals()
+    assert len(calls) == 1  # 근거 남기기 · 제안 근거가 한 번 구한 키를 같이 쓴다
+    assert [e["kind"] for e in made.evidence] == ["cs_turn", "order", "brain"] and made.evidence[2]["ref"] == key
+    assert key in [k for k, *_ in uses()]
+
+
 # ── 규칙 셋 — 드는 길 ────────────────────────────────────────────────────
 def test_as_words_on_a_cs_stage_order_propose_an_as_intake(channel):
     switches(actions=True)
@@ -185,6 +229,27 @@ def test_a_schedule_handoff_moves_the_construction_and_keeps_its_time_slot(chann
     assert (made.action, made.params) == ("move_construction", {"date": day(15).isoformat(), "time": "오후",
                                                             "notify_customer": True})  # D213 처음 켬(T15)
     assert turn().error_code == "handoff"  # 넘김은 지금처럼 건너뜀 — 제안만 승인 대기로 간다
+
+
+def test_a_complaint_handoff_without_words_never_carries_the_name_or_phone(channel):
+    switches(actions=True)
+    seed_order("PRODUCTION", construction=day(6))
+    chat(channel, "배송 기사님이 불친절했어요")  # 뜻 낱말 없음 → 넘김 까닭 '불만' 대체 길
+    run(channel, brain_fn=FakeBrain(result(draft="", evidence_ids=(), handoff=True, handoff_reason="complaint")))
+    (made,) = proposals()
+    assert made.params == {"note": "채널톡 상담: 배송 기사님이 불친절했어요 — 시공 때 확인"}
+    for secret in (NAME, PHONE, PHONE[-4:]):  # 본인 확인 답 묶음(성함 · 휴대폰)은 싣지 않는다 — 가림이 이름은 못 잡는다
+        assert secret not in str(made.params) and secret not in str(made.preview), secret
+
+
+def test_a_complaint_handoff_with_only_the_identity_answer_makes_no_note():
+    order = SimpleNamespace(id=7, erp_stage_code="PRODUCTION", erp_measurement_date=None, erp_construction_date=None,
+                            structured_data={"schedule": {"construction": {"date": day(4).isoformat()}}})
+    complaint = result(handoff=True, handoff_reason="complaint", draft="", evidence_ids=())
+    texts = ["배송 기사님이 불친절했어요", f"{NAME} {PHONE}"]
+    (note,) = graft_step.plans(complaint, order, texts, TODAY, asked=texts[:1])
+    assert NAME not in note.params["note"] and "불친절" in note.params["note"]
+    assert graft_step.plans(complaint, order, texts[1:], TODAY, asked=()) == []  # 남는 글이 없으면 만들지 않는다
 
 
 # ── 규칙 셋 — 안 드는 길 ─────────────────────────────────────────────────
@@ -273,6 +338,13 @@ def test_written_dates_need_a_month_and_a_day():
     assert graft_step.asked_days(texts, today) == [datetime.date(2026, 12, 25), datetime.date(2027, 1, 5),
                                                    datetime.date(2027, 1, 7)]
     assert graft_step.asked_days(["다음 주 금요일로요"], today) == []
+
+
+def test_a_long_past_date_is_not_read_as_next_year():
+    november = datetime.date(2026, 11, 14)
+    assert graft_step.asked_days(["8월 20일에 설치했어요"], november) == []  # 지난 일 — 아홉 달 뒤 내년으로 읽지 않는다
+    assert graft_step.asked_days(["3월 5일로 미뤄 주세요"], november) == [datetime.date(2027, 3, 5)]  # 넉 달 안 연초
+    assert graft_step.asked_days(["4월 30일로요"], datetime.date(2026, 12, 20)) == []  # 넉 달을 넘는 내년 날
 
 
 def test_the_schedule_marker_is_the_one_the_order_block_asks_for():
