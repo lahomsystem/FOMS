@@ -7,14 +7,17 @@
 
 - ``cs.draft.ping`` — 연결 확인(S1 시험 장치 — 글 · 손님 정보 없음).
 - ``cs.draft.get`` ``{turn, chat}`` — [수정하기] 글 칸 재료(손님께 보낼 답 · 고친 까닭 칩 · 막힘 글). 접목 관리 칸이 켜졌으면
-  근거 칩 ``evidence`` · 작은 창 줄 제안 ``action`` 도(:func:`.send_view.wam_graft` — 끄면 칸이 없다).
+  근거 칩 ``evidence`` · 작은 창 줄 제안 ``action`` 도(:func:`.send_view.wam_graft` — 끄면 칸이 없다 · 기간이 지난 제안은 줄이
+  뜨지 않는다). 부른 상담원에 이어진 FOMS 계정이 없으면 줄에 ``blocked`` 글('이어진 FOMS 계정이 없어 같이 넣을 수 없어요')을
+  싣는다 — 작은 창은 [같이 넣기]를 고르지 못하게 한다(점검 2차 w5-08).
 - ``cs.draft.send`` ``{turn, chat, mode?, text?, edit_reason?, edit_detail?, confirm?, shown_ms?, with_action?,
   drop_action?}`` — [보내기](그대로 · 고친 글). ``edit_detail`` 은 [수정하기]의 '왜 고쳤나요' 글(관리 칸 '자세한 이유' 켬일
   때만 가려서 적는다 — 사장님 11-11). ``with_action`` · ``drop_action`` 은 작은 창 줄 제안 번호([같이 넣기] · [빼기]) — 답이
   **보내진 뒤에만**(``sent``) 서명된 상담원에 이어진 FOMS 사용자 이름으로 승인 · 실행(:func:`.lifecycle.approve`, 실행기는
   services 표 ``SERVICE_RUNNERS``)하거나 거절(``other``)한다. 그 차례 창에 보이는 상담 AI 의 작은 창 줄 제안만 받는다(그 차례
   것 — 없으면 같은 상담 앞 차례의 같은 주문 것). 관리 칸이 꺼져 있으면 ``action`` 칸이 없다. 이어진
-  사용자가 없거나 권한이 없거나 실행이 막히면 답 보내기는 그대로 두고 결과의 ``action`` 한 줄로 알린다.
+  사용자가 없거나 권한이 없거나 실행이 막히면 답 보내기는 그대로 두고 결과의 ``action`` 한 줄로 알린다. 창이 뜬 뒤 제안 기간이
+  지났으면 답은 그대로 나가고 한 줄은 '기간이 지나 넣지 않았어요'(점검 2차 w5-02).
 - ``cs.draft.discard`` ``{turn, chat}`` — [버리기].
 - ``cs.handoff.get`` ``{turn, chat}`` — 넘김 메모 [배우기] 창 재료(상태 · 까닭 · AI 메모 힌트 · 본 마지막 손님 글).
 - ``cs.handoff.send`` ``{turn, chat, text, confirm?, seen?, shown_ms?}`` — [배우기] 창 [보내기](:func:`.handoff_send.send_handoff`).
@@ -43,6 +46,7 @@ from foms.services.cs_agent.handoff_send import handoff_view, send_handoff, skip
 from foms.services.cs_agent.send_flow import FlowResult, SendRequest, discard_turn, send_turn
 from foms.services.cs_agent.send_view import inline_proposal, wam_graft, wam_view
 from foms.services.cs_agent.settings import read_settings
+from foms.services.erp_actions.freshness import EXPIRED_REASON
 from foms.services.erp_actions.lifecycle import ActionError, approve, reject
 from foms.services.erp_actions.registry import STATUS_EXECUTED
 from foms.services.erp_actions.runners import SERVICE_RUNNERS
@@ -126,8 +130,8 @@ def _user_id(manager_id: str) -> Optional[int]:
     return int(user.id) if user is not None else None
 
 
-def _get(session: Any, turn: int, chat: str, reader: Any) -> dict[str, Any]:
-    """[수정하기] 재료 — 보낼 답 · 막힘 글 · 새 글 알림 · 고친 까닭 칩 · 글자 상한."""
+def _get(session: Any, turn: int, chat: str, reader: Any, manager_id: str, now: datetime.datetime) -> dict[str, Any]:
+    """[수정하기] 재료 — 보낼 답 · 막힘 글 · 새 글 알림 · 고친 까닭 칩 · 글자 상한(+ 켜졌으면 접목 두 줄)."""
     view = wam_view(session, turn, chat_hint=chat, reader=reader)
     if view is None:
         return {"code": "not_found", "ok": False, "message": "초안을 찾지 못했어요."}
@@ -138,7 +142,9 @@ def _get(session: Any, turn: int, chat: str, reader: Any) -> dict[str, Any]:
               "edit_reasons": [list(item) for item in view["edit_reasons"]], "max_text": view["max_text"],
               "detail": bool(detail), "max_detail": MAX_DETAIL}
     if view["blocked"] is None:
-        result.update(wam_graft(session, turn))  # 접목 근거 칩 · 작은 창 줄 제안(관리 칸 끔이면 칸 없음 — 지금과 같다)
+        result.update(wam_graft(session, turn, now=naive_utc(now)))  # 접목 두 줄(관리 칸 끔이면 칸 없음 — 지금과 같다)
+        if result.get("action") and _user_id(manager_id) is None:  # 같이 넣을 사람이 없다 — 창을 열 때 알린다(w5-08)
+            result["action"] = {**result["action"], "blocked": NO_USER_LINE}
     return result
 
 
@@ -159,8 +165,11 @@ def _send(session: Any, turn: int, chat: str, params: dict[str, Any], manager_id
 
 
 # ── 작은 창 줄 제안 [같이 넣기] · [빼기] — 답이 보내진 뒤에만 ─────────────────
+#: 창을 열 때 이어진 FOMS 계정이 없는 상담원에게 보이는 줄 글(점검 2차 w5-08 — [같이 넣기]를 고르지 못한다).
+NO_USER_LINE = "이어진 FOMS 계정이 없어 같이 넣을 수 없어요."
 _ACTION_MESSAGES = {
     "not_found": "할 일 제안을 찾지 못해 넣지 않았어요.",
+    "expired": "할 일 제안은 기간이 지나 넣지 않았어요.",
     "no_user": "이 상담원에 이어진 FOMS 계정이 없어 할 일은 넣지 않았어요 — 승인 대기에서 처리해 주세요.",
     "ACTION_FORBIDDEN": "이 계정으로는 이 할 일을 넣을 수 없어요 — 승인 대기에서 처리해 주세요.",
     "rejected": "할 일 제안을 뺐어요.",
@@ -180,10 +189,11 @@ def _number(value: Any) -> Optional[int]:
     return value if 0 < value <= _TURN_MAX else None
 
 
-def _inline_row(session: Any, turn: int, proposal_id: int) -> Optional[ErpActionProposal]:
+def _inline_row(session: Any, turn: int, proposal_id: int,
+                now: Optional[datetime.datetime] = None) -> Optional[ErpActionProposal]:
     """그 차례 창에 보이는 작은 창 줄 제안(:func:`.send_view.inline_proposal` — 그 차례 것, 없으면 같은 상담 앞 차례의 같은
-    주문 것)일 때만 — ``params`` 의 번호를 믿지 않는다(아니면 ``None``)."""
-    row = inline_proposal(session, turn)
+    주문 것 · ``now`` 를 주면 기간이 남은 것)일 때만 — ``params`` 의 번호를 믿지 않는다(아니면 ``None``)."""
+    row = inline_proposal(session, turn, now=now)
     return row if row is not None and row.id == proposal_id else None
 
 
@@ -208,6 +218,8 @@ def _decide(session: Any, turn: int, params: dict[str, Any], user_id: Optional[i
         return _decide_one(session, turn, add or drop, user_id, add is not None, now)
     except ActionError as exc:
         session.rollback()
+        if exc.code == "ACTION_NOT_OPEN" and exc.reason == EXPIRED_REASON:  # 확인과 승인 사이에 기간이 끝났다
+            return _act("expired")
         return _act(exc.code, message=_ACTION_MESSAGES.get(exc.code) or exc.message)
     except Exception as exc:  # noqa: BLE001 — 답은 이미 나갔다: 할 일 실패는 한 줄로만(로그엔 번호 · 코드만)
         session.rollback()
@@ -223,7 +235,10 @@ def _decide_one(session: Any, turn: int, proposal_id: int, user_id: Optional[int
     if not actions_on(read_settings(session, log=False)):
         session.rollback()
         return None
-    row = _inline_row(session, turn, proposal_id)
+    row = _inline_row(session, turn, proposal_id, naive_utc(now))
+    if row is None and _inline_row(session, turn, proposal_id) is not None:  # 창이 뜬 뒤 기간이 지났다(w5-02)
+        session.rollback()
+        return _act("expired")
     actor = session.get(User, user_id) if user_id is not None else None
     if row is None or actor is None:
         session.rollback()
@@ -271,7 +286,7 @@ def handle(method: str, params: Any, manager_id: Optional[str], *, session: Any 
             result = _flow(_handoff(method, session, turn, chat, params, str(manager_id), secret_key=secret_key,
                                     now=now, reader=reader, sender=sender))
         elif method == GET:
-            result = _get(session, turn, chat, reader)
+            result = _get(session, turn, chat, reader, str(manager_id), now)
         elif method == SEND:
             result = _send(session, turn, chat, params, str(manager_id), secret_key=secret_key, now=now,
                            reader=reader, sender=sender)
