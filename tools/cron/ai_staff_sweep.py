@@ -1,7 +1,10 @@
 """운영 AI · 일정 AI 훑기(FOMS-cron 밤 단계 — 설계서 2026-11-14-foms-graft 3.10 · D207 · D214).
 
-- 규칙(:data:`foms.services.ai_staff.sweeps.RULES`)이 할 일 **제안만** 만든다 — 알림톡 · 푸시를 보내지 않는다(사람이 승인해야
+- 규칙(:data:`foms.services.ai_staff.sweeps.RULES`)이 할 일 **제안만** 만든다 — 알림톡은 보내지 않는다(사람이 승인해야
   실행된다). 한 번에 30개까지, 직원 · 할 일 수준이 0 이면 그 규칙은 돌지 않는다.
+- 폰 알림: 이 서비스(FOMS-cron)에 ``FOMS_GRAFT_PUSH_ENABLED`` 가 켜져 있으면 커밋 뒤 새 제안마다 받는 사람(담당 → 관리자 → 팀 —
+  :func:`foms.services.erp_actions.notify.recipients`)에게 폰 알림이 간다(밤 단계라 한국 02:00 무렵). 꺼져 있으면(처음 값) 알림
+  줄도 만들지 않는다.
 - ``FOMS_GRAFT_PROPOSERS_ENABLED`` 가 꺼져 있으면(처음 값) 아무것도 읽지도 쓰지도 않고 exit 0(지금과 같다).
 - 기본은 시험 돌리기(만들고 되돌림). ``--apply`` 일 때만 커밋한다. 규칙이 실패하면 되돌리고 exit 3(밤 단계 요약에 빨갛게).
 - Flask 앱은 불러오지 않는다(앱 초기화가 Railway Heartbeat 시간 초과를 부른다 — expire_brain_proposals.py 와 같은 길).
