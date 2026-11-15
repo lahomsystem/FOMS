@@ -5,6 +5,8 @@
  *   보기 범위 안 찾기 → 두뇌 → 근거 확인을 하고 답 · 근거 칩 · 확신을 준다. 새 답이 맨 위.
  * - 피드백: 도움 됨 · 안 됨 · 틀림(+ 고칠 말) = POST /api/brain/chat/questions/<번호>/feedback. 틀림이면 근거 항목에 신고가 붙고,
  *   카드를 열 수 있는 사람에게는 '고칠 말 제안(항목 카드)' 링크(이름 있는 액션 propose_edit — 챗봇은 지식을 쓰지 않는다).
+ * - 알림 바로가기(/brain/ask?question=<번호> — 물어보기 [○○팀에 묻기] 알림, 점검 3차 B2): 그 질문 한 건(가린 글 · 답)을
+ *   GET /api/brain/chat/questions/<번호> 로 읽어 답 목록 맨 위에 읽기 전용(피드백 없음)으로 보인다. 다시 묻지 않는다.
  * - fetch 는 brain-dom.js requestJson 한 곳(try/catch + data.success 확인 · CSRF 는 공용 부트스트랩). 글은 textContent 만.
  */
 (function () {
@@ -19,7 +21,8 @@
   var view = window.FOMS_BRAIN_ASK_VIEW;
   var display = dom.safeJsonParse(root.getAttribute('data-display'), {});
   var urls = { state: root.getAttribute('data-state-url'), ask: root.getAttribute('data-ask-url'),
-               feedback: root.getAttribute('data-feedback-url'), items: root.getAttribute('data-item-base') };
+               feedback: root.getAttribute('data-feedback-url'), items: root.getAttribute('data-item-base'),
+               question: root.getAttribute('data-question-url') };
   var form = root.querySelector('[data-brain-ask-form]');
   var input = root.querySelector('[data-brain-ask-input]');
   var submit = root.querySelector('[data-brain-ask-submit]');
@@ -37,6 +40,7 @@
 
   async function loadState() {
     loaded = true;
+    showLinked();
     var res = await dom.getJson(urls.state);
     if (!res.ok) {
       dom.setStatus(stateLine, res.error, 'error');
@@ -76,7 +80,7 @@
     return bar;
   }
 
-  function renderTurn(question, data) {
+  function renderTurn(question, data, readOnly) {
     var v = view.answerView(data, display, urls.items);
     var li = dom.el('li', { cls: 'brain-ask__turn ' + v.cls, attrs: { 'data-question-id': data.id } });
     li.appendChild(dom.el('p', { cls: 'brain-ask__q', text: '물음: ' + question }));
@@ -90,8 +94,25 @@
       li.appendChild(dom.el('ul', { cls: 'brain-ask__chips', children: v.chips.map(chipNode) }));
     }
     if (v.checks) li.appendChild(dom.el('p', { cls: 'brain-ask__checks', text: v.checks }));
-    li.appendChild(feedbackBar(data, v));
+    if (readOnly) {
+      var when = String(data.asked_at || '').slice(5, 16).replace('T', ' ');
+      li.appendChild(dom.el('p', { cls: 'brain-ask__meta', text: (data.mine ? '내가 물은 질문' : '팀에 온 질문') + (when ? ' · ' + when : '') }));
+    } else {
+      li.appendChild(feedbackBar(data, v));
+    }
     return li;
+  }
+
+  /** 알림 바로가기로 온 질문 한 건 — 읽기 전용(점검 3차 B2). 권한은 서버가 본다(물은 사람 · 그 알림을 받은 사람만). */
+  async function showLinked() {
+    var hit = /[?&]question=(\d{1,12})(?:&|$)/.exec(window.location.search);
+    if (!hit || !urls.question || !log) return;
+    var res = await dom.getJson(String(urls.question).replace(/\/0$/, '/' + hit[1]));
+    if (!res.ok) {
+      dom.setStatus(status, res.error, 'error');
+      return;
+    }
+    log.insertBefore(renderTurn(res.data.question, res.data, true), log.firstChild);
   }
 
   async function ask(question) {

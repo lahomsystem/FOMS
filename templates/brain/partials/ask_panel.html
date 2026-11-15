@@ -6,6 +6,7 @@
      data-state-url="{{ url_for('brain_chat_api.brain_chat_state') }}"
      data-ask-url="{{ url_for('brain_chat_api.brain_chat_ask') }}"
      data-feedback-url="{{ url_for('brain_chat_api.brain_chat_feedback', question_id=0) }}"
+     data-question-url="{{ url_for('brain_chat_api.brain_chat_question', question_id=0) }}"
      data-settings-url="{{ url_for('brain_chat_api.brain_chat_settings_save') }}"
      data-item-base="{{ url_for('brain_web.index') }}/items/">
   <p class="brain-ask__note">회사 지식만 근거로 답해요. 없으면 '모름'과 물어볼 팀을 알려 줘요. 손님 이름 · 전화 · 주소는
