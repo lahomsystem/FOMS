@@ -33,8 +33,8 @@ from foms.services.erp_actions.access import can_run, runnable_actions, scoped_r
 from foms.services.erp_actions.construction_notice import param_shown
 from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_LINK, DECIDED_REJECT
 from foms.services.erp_actions.registry import (
-    ACTIONS, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_EXECUTED, STATUS_EXECUTING, STATUS_EXPIRED, STATUS_FAILED,
-    STATUS_OPEN, STATUS_REJECTED, STATUS_SUPERSEDED,
+    ACTIONS, KIND_DATE, KIND_TIME_SLOT, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_EXECUTED, STATUS_EXECUTING,
+    STATUS_EXPIRED, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED, STATUS_SUPERSEDED, TIME_SLOTS,
 )
 from foms.services.erp_ontology.read import order_id_of
 from foms.services.graft_flags import enabled
@@ -42,8 +42,8 @@ from foms.services.orders.change_reason import REASON_CODES, REASON_LABELS
 from models import Order, OrderFreelancerLink, User
 
 __all__ = [
-    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "card", "decidable_count",
-    "detail", "hidden_notice", "inbox", "open_for_orders", "quick_view", "title_of",
+    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "badge_off", "card",
+    "decidable_count", "detail", "hidden_notice", "inbox", "open_for_orders", "quick_view", "title_of", "value_label",
 ]
 
 MAX_ORDER_IDS = 100
@@ -169,12 +169,55 @@ def badge(session: Any, user: Any, *, now: Optional[datetime.datetime] = None) -
             "labels": [ACTIONS[name].label for name in ranked[:3]]}
 
 
+def badge_off() -> dict[str, Any]:
+    """볼 수 없는 사람의 수 — :func:`badge` 와 같은 꼴, 칸 모두 꺼짐 · 수 0(DB 를 읽지 않는다).
+
+    칸 빈 자리는 전역 스위치로 모든 화면에 그려져 화면마다 이 길을 부른다 — 볼 수 없는 직원에게 404 면 화면을 열 때마다 콘솔
+    오류 · 404 기록이 남았다(점검 2차 w4-03). 이 길은 물건을 찾는 길이 아니라 '없음 = 볼 수 없음' 원칙과 부딪히지 않는다.
+    """
+    return {"on": {"actions": False, "pc": False, "tablet": False, "mobile": False},
+            "actions": 0, "knowledge": 0, "total": 0, "labels": []}
+
+
+def _ro(word: str) -> str:
+    """'로' · '으로' — 끝 글자 받침이 없거나 ㄹ 이면 '로'(닫는 괄호는 건너 읽는다 — '11-21(토)' → '토')."""
+    tail = word.rstrip(")").strip()
+    last = tail[-1:] if tail else ""
+    if not ("가" <= last <= "힣"):
+        return "로"
+    jong = (ord(last) - ord("가")) % 28
+    return "로" if jong in (0, 8) else "으로"
+
+
+def value_label(row: ErpActionProposal) -> str:
+    """PC 칩 값 글(판 NowPC ① — 'AI 제안 · 토 11-21 로 옮기기') — 날짜를 넣는 할 일이면 '<날(요일)> <시간대>로 <할 일 끝말>'.
+
+    날짜를 넣지 않는 할 일 · 날짜가 비었거나 못 읽는 제안은 빈 글(칩은 할 일 이름을 보인다). 글은 날짜 + 시간대만(D211 —
+    시공 팀 · 인원 없음). 시간대는 정한 고를 값일 때만 붙인다.
+
+    Returns:
+        예: '11-21(토) 오전으로 옮기기' · '11-20(금)으로 잡기' · '11-24(월)로 옮기기'(시간대 없음) · ''.
+    """
+    spec = ACTIONS.get(row.action)
+    params = row.params or {}
+    date_param = next((p.name for p in spec.params if p.kind == KIND_DATE), None) if spec else None
+    day = fns.date_label(params.get(date_param)) if date_param else ""
+    if not day:
+        return ""
+    slot_param = next((p.name for p in spec.params if p.kind == KIND_TIME_SLOT), None)
+    slot = str(params.get(slot_param) or "") if slot_param else ""
+    when = f"{day} {slot}" if slot and slot in TIME_SLOTS else day
+    verb = spec.label.split("(")[0].split()[-1]
+    return f"{when}{_ro(when)} {verb}"
+
+
 def open_for_orders(session: Any, user: Any, order_ids: Iterable[int], *,
                     now: Optional[datetime.datetime] = None) -> dict[int, dict[str, Any]]:
     """주문마다 가장 새 제안 하나(접히지 않은 열림 · 실패) — 주문 번호 :data:`MAX_ORDER_IDS` 개까지 질의 하나.
 
     Returns:
-        ``{주문 번호: {"id", "action", "label", "agent_label", "can_decide"}}`` — ``can_decide`` 는 승인 길로 실행되는 할 일인가.
+        ``{주문 번호: {"id", "action", "label", "agent_label", "can_decide", "value_label"}}`` — ``can_decide`` 는 승인 길로
+        실행되는 할 일인가 · ``value_label`` 은 PC 칩 값 글(:func:`value_label` — 없으면 빈 글).
     """
     ids = sorted({int(oid) for oid in order_ids if isinstance(oid, int) and not isinstance(oid, bool) and oid > 0})
     if not ids or not runnable_actions(user):
@@ -187,7 +230,8 @@ def open_for_orders(session: Any, user: Any, order_ids: Iterable[int], *,
             continue
         spec, agent = ACTIONS[row.action], agent_of(row.proposed_by)
         out[row.order_id] = {"id": row.id, "action": row.action, "label": spec.label,
-                             "agent_label": agent.label if agent else "", "can_decide": spec.mode == MODE_RUN}
+                             "agent_label": agent.label if agent else "", "can_decide": spec.mode == MODE_RUN,
+                             "value_label": value_label(row)}
     return out
 
 

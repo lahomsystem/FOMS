@@ -292,7 +292,9 @@ def test_script_asks_badge_once_and_open_once_for_all_visible_orders(world, monk
     href = f"/brain?tab=inbox&proposal={first}"
     shown = [c for c in got["chips"] if c[2]]
     assert {c[1] for c in shown} == {"pc", "tablet", "mobile"}  # 같은 주문의 PC · 태블릿 표 · 폰 목록 줄 칩
-    assert all(c[0] == str(a) and c[3:] == ["AI 제안 · 시공 잡기", href] for c in shown)
+    # 점검 2차: PC 는 'AI 제안 · ' + 이름(머리글은 좁은 칸에서 꾸밈이 감춘다) · 태블릿 표는 '제안' 표지 · 폰은 이름만(w4-04 · w5-01)
+    shown_text = {"pc": "AI 제안 · 시공 잡기", "tablet": "제안", "mobile": "시공 잡기"}
+    assert all(c[0] == str(a) and c[3:] == [shown_text[c[1]], href] for c in shown)
     assert all(not c[2] for c in got["chips"] if c[0] == str(b))  # 제안 없는 주문은 숨긴 채
     assert got["nav"] == [True, "14"] and got["rail"] is True
     assert got["tile"] == [True, "3", "시공 잡기 · 방문 옮기기(시공) · AS 접수"]
@@ -399,7 +401,7 @@ def test_slot_of_a_switched_off_cell_stays_hidden_even_if_the_same_order_was_ask
                      n.getAttribute('href'), api.text(n.querySelector('.foms-graft-chip__text'))]);"""
     got = run_node(html, body, scripts=[str(CELLS_JS)], routes=routes)
     href = f"/brain?tab=inbox&proposal={first}"
-    assert got == [["tablet", True, "AI 제안 · 시공 잡기", href, "AI 제안 · 시공 잡기"], ["mobile", False, "", None, None]]
+    assert got == [["tablet", True, "제안", href, "제안"], ["mobile", False, "", None, None]]  # 태블릿 표는 '제안' 표지(점검 2차 w4-04)
 
 
 @NODE
@@ -443,14 +445,25 @@ def test_rail_tightens_only_while_the_company_knowledge_item_shows():
 
 
 def test_chip_never_widens_its_column_or_breaks_the_stage_badge():
-    """11-14 사용자 지적 — 칩이 한 줄 폭으로 '현재 작업' 칸을 넓혀 태블릿 '단계' 배지가 '컨/펌'처럼 글자마다 꺾였다. 단계 배지는
-    한 줄 · 칩은 fit-content + 낱말 사이 줄바꿈(PC · 태블릿 둘 다). max-content 면 가장 좁은 폭도 한 줄 폭이 되어 표를 밀어낸다."""
+    """11-14 사용자 지적(칩이 '현재 작업' 칸을 넓혀 '컨/펌' 세로 꺾임) · 점검 2차 w4-01 · w4-04 · w4-08 — 단계 배지 한 줄은 스위치와
+    상관없이 태블릿 바탕 꾸밈에 있다. 칩은 칸 폭 계산에 끼지 않는 자리 상자(width 0 · min-width 100%) 안에서 한 줄 말줄임(11-14 의
+    '낱말 사이 줄바꿈'은 칩 글 덩어리가 칸 최소 폭이 되어 제품 칸을 줄이고 칩을 3 ~ 6줄로 꺾었다). PC · 태블릿 같은 자리 상자."""
     css = (ROOT / "static/css/components/foms-graft-cells.css").read_text(encoding="utf-8")
-    assert ".foms-tqcell-stage .foms-stage-badge { white-space: nowrap; }" in css
-    tablet = css[css.index(".foms-tqcell-quest .foms-graft-chip {"):]
+    base = (ROOT / "static/css/foundation/foms-tablet-landscape.css").read_text(encoding="utf-8")
+    assert re.search(r"\n\.foms-tqcell-stage \.foms-stage-badge \{\s*white-space: nowrap;\s*\}", base)
+    assert "foms-tqcell-stage" not in css and "keep-all" not in css.split("@media")[0]
+    assert ".foms-graft-chip-slot { display: block; width: 0; min-width: 100%; container-type: inline-size; }" in css
+    assert ".foms-graft-chip-slot > .foms-graft-chip { display: flex; }" in css
+    chip = re.search(r"\n\.foms-graft-chip \{(.*?)\}", css, re.S).group(1)
+    assert "white-space: nowrap;" in chip and "max-width: 100%;" in chip
+    tablet = css[css.index("body.erp-mobile-v2-layout .foms-tqcell-quest .foms-graft-chip {"):]
     tablet = tablet[:tablet.index("}")]
-    assert "width: fit-content;" in tablet and "white-space: normal;" in tablet and "word-break: keep-all;" in tablet
-    assert "td.erp-quest-cell > .foms-graft-chip { display: flex; width: fit-content; white-space: normal; word-break: keep-all; }" in css
+    assert "white-space" not in tablet and "width" not in tablet  # 칸 안 한 줄 · 폭은 자리 상자가 정한다
+    for name in ("orders/partials/dashboard_grid.html", "orders/partials/tablet_workqueue_grid.html"):
+        source = (ROOT / "templates" / name).read_text(encoding="utf-8")
+        slots = re.findall(r'<span class="foms-graft-chip-slot"><a class="foms-graft-chip" data-graft-slot="\{\{ o.id \}\}" '
+                           r'data-graft-cell="(pc|tablet)" hidden></a></span>', source)
+        assert slots and len(slots) == source.count("data-graft-slot="), name
 
 
 def test_prerender_key_varies_with_every_switch_the_cells_read():

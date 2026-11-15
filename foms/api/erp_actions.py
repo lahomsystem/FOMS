@@ -25,7 +25,7 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.erp_actions.access import actions_viewer
 from foms.services.erp_actions.lifecycle import ActionError, approve, reconcile, reject, snooze
 from foms.services.erp_actions.registry import message
-from foms.services.erp_actions.views import MAX_ORDER_IDS, badge, detail, inbox, open_for_orders
+from foms.services.erp_actions.views import MAX_ORDER_IDS, badge, badge_off, detail, inbox, open_for_orders
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,14 @@ def _order_ids(raw: str) -> Optional[list[int]]:
 # ── 읽기 ─────────────────────────────────────────────────────────────────
 @erp_actions_api_bp.route("/badge", methods=["GET"])
 def erp_actions_badge() -> tuple[Any, int]:
-    """위 아이콘 · 레일 · 폰 칸 수(이 사람 기준)."""
+    """위 아이콘 · 레일 · 폰 칸 수(이 사람 기준).
+
+    볼 수 없는 사람에게는 404 가 아니라 200 + 꺼진 값(:func:`badge_off`) — 칸 빈 자리는 모든 화면에 있어 화면을 열 때마다
+    부른다(점검 2차 w4-03). 물건을 찾는 길(/open · /inbox · 자세히 · 결정)은 지금처럼 404 · 로그인 안 함은 401.
+    """
+    user = getattr(g, "current_user", None)
+    if user is not None and not actions_viewer(user):
+        return _reply(200, badge_off(), None)
     return _read(lambda db, user: badge(db, user, now=now_utc_naive()))
 
 
