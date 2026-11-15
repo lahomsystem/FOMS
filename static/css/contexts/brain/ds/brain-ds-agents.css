@@ -99,6 +99,19 @@
   .fb-agents-duties .f-row-nw { flex-wrap: wrap; }
 }
 
+/* @container 를 모르는 옛 브라우저(크롬 105 · 사파리 16 아래 — 점검 3차 B3)는 위 묶음을 버린다. 폰 폭(640px 아래)에서만 할 일 표를
+   카드로 — 가로 밀기를 없애는 데 꼭 필요한 줄만(이름표 · 줄 모양). 칸 자리 맞춤(nth-child)은 넣지 않는다. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 639.98px) {
+    .fb-agents-duties thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .fb-agents-duties,
+    .fb-agents-duties tbody,
+    .fb-agents-duties td { display: block; white-space: normal; }
+    .fb-agents-duties tr { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 12px; padding: 10px 16px; }
+    .fb-agents-duties .fb-agents-label { display: inline; margin-right: 6px; font-size: var(--font-size-small); color: var(--text-muted); }
+  }
+}
+
 @media (max-width: 991.98px) {
   .fb-agents-side { flex: 1 1 100%; width: 100%; box-shadow: 0 1px 0 var(--divider); }
   .f-app .fb-agents-level { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */

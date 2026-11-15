@@ -47,6 +47,16 @@
   .fb-evals-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
+/* @container 를 모르는 옛 브라우저(점검 3차 B3): 폰 폭(640px 아래)에서 줄 · 설정 칸이 화면 밖으로 밀지 않게 — 쌓는 줄만. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 639.98px) {
+    .fb-evals-row { grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; }
+    .fb-evals-row .fb-evals-bar { grid-column: 1 / -1; grid-row: 2; }
+    .fb-evals-row > .f-small { grid-column: 1 / -1; grid-row: 3; }
+    .fb-evals-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+}
+
 @media (max-width: 991.98px) {
   .f-app .fb-evals-form .f-input,
   .f-app .fb-evals-form .f-btn { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
