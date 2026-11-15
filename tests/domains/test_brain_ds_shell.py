@@ -15,6 +15,10 @@ from contextlib import contextmanager
 import pytest
 from flask import template_rendered
 
+from pathlib import Path
+
+from jinja2 import ChoiceLoader, DictLoader
+
 from db import db_session
 from foms.services.graft_flags import FLAGS
 from tests.support.brain_screen_support import world
@@ -59,6 +63,12 @@ def _get(app, client, path):
         resp = client.get(path)
     return resp, resp.get_data(as_text=True), names
 
+
+ROOT = Path(__file__).resolve().parents[2]
+LAYOUT = ROOT / "templates/brain/ds/layout.html"
+LAYOUT_HEAD = ROOT / "templates/partials/shared/layout_head.html"
+SHELL_CSS = ROOT / "static/css/contexts/brain/ds/brain-ds-shell.css"
+SHELL_JS = ROOT / "static/js/brain/ds/ds-shell.js"
 
 OLD = {"/brain?tab=search": "brain/index.html", "/brain?tab=agents": "brain/index.html",
        "/brain/items/common/door": "brain/item.html", "/brain/ask": "brain/ask.html"}
@@ -131,7 +141,8 @@ def test_urgent_red_popup_and_notice_popup_are_wired(app, ids, monkeypatch):
     _switch(monkeypatch, "brain_ui", "all")
     _resp, body, _names = _get(app, _client(app, ids["cs_mgr"]), "/brain?tab=search")
     head = body[:body.index("</head>")]
-    assert "css/components/foms-urgent-alert.css?v=20261016a" in head
+    shared = re.search(r"foms-urgent-alert\.css'\) \}\}\?v=(\w+)\"", LAYOUT_HEAD.read_text(encoding="utf-8")).group(1)
+    assert f"css/components/foms-urgent-alert.css?v={shared}" in head  # 전역 머리와 같은 주소 · 같은 핀(w6-13)
     assert head.index("js/foms/urgent-sound.js") < head.index("js/foms/foms-urgent-alert.js")
     assert "js/foms/notification-write.js" in head
     assert "data-foms-notice-popup" in body and "/api/notices?view=popup" in body
@@ -163,3 +174,67 @@ def test_chat_only_staff_sees_only_the_ask_tab(app, ids, monkeypatch):
     assert re.findall(r'data-ds-tab="([a-z]+)"', body) == ["ask", "ask"]  # 위 줄 · 아래 탭 모두 물어보기만
     assert 'href="/brain/ask" data-ds-tab="ask"' in body and "data-ds-search" not in body
     assert "data-ds-count" not in body
+
+
+# ── 점검 2차(11-15) — 공용 틀 ─────────────────────────────────────────────
+def test_urgent_alert_css_pin_is_bound_to_the_global_head():
+    """w6-13 — 새 틀의 긴급 창 CSS 는 전역 머리와 같은 방식(url_for + 손 핀) · 같은 값. 한쪽만 올리면 여기서 빨개진다."""
+    pattern = r"\{\{ url_for\('static', filename='css/components/foms-urgent-alert\.css'\) \}\}\?v=(\w+)\""
+    head_pins = re.findall(pattern, LAYOUT_HEAD.read_text(encoding="utf-8"))
+    mine = re.findall(pattern, LAYOUT.read_text(encoding="utf-8"))
+    assert len(head_pins) == 1 and mine == head_pins
+
+
+def test_search_box_hint_names_only_what_it_finds():
+    """w1-14 — 위 줄 찾기 칸은 지식 · 유형만 찾는다('할 일 이름'은 찾지 않는다)."""
+    text = LAYOUT.read_text(encoding="utf-8")
+    assert 'placeholder="지식 · 유형"' in text and "할 일 이름" not in text
+
+
+def test_phone_breakpoint_is_one_rule_for_css_and_scripts():
+    """w3-06 — 폰 모습은 991.98px 아래(FOMS 다른 화면과 같다). 틀 CSS 의 폰 @media 와 window.FOMS_DS_SHELL.PHONE_QUERY 가 같은 글.
+    44px 규칙(w3-07 · 08)은 그 @media 안에 있고 PC 규칙 밖이다."""
+    css = SHELL_CSS.read_text(encoding="utf-8")
+    medias = re.findall(r"@media ([^{]+)\{", css)
+    assert [m.strip() for m in medias] == ["(max-width: 991.98px)"]
+    query = re.search(r"var PHONE_QUERY = '([^']+)';", SHELL_JS.read_text(encoding="utf-8")).group(1)
+    assert query == medias[0].strip()
+    phone = css[css.index("@media"):]
+    for rule in (".fb-shell .f-tab { height: 44px; min-width: 44px;", ".fb-shell a.f-nav-item,", ".fb-shell .f-btn { min-width: 44px; }", ".fb-shell a.f-chip",
+                 ".fb-shell .f-breadcrumbs a", ".fb-shell .f-table td a", "details > summary:not(.f-nav-item)"):
+        assert rule in phone, rule
+    pc = re.sub(r"/\*.*?\*/", "", css[:css.index("@media")], flags=re.S)
+    assert "44px" not in pc  # PC(마우스) 크기는 그대로
+
+
+def test_tabbar_height_is_one_token():
+    """w5-04 — 아래 탭 줄 높이는 토큰 하나(--fb-tabbar-h, 목업 4 + 52 + 12)를 줄 · '나' 창 · 바닥 여백이 같이 쓴다."""
+    css = SHELL_CSS.read_text(encoding="utf-8")
+    assert "--fb-tabbar-h: 68px;" in css
+    assert "height: calc(var(--fb-tabbar-h) + env(safe-area-inset-bottom, 0px));" in css
+    assert "bottom: calc(var(--fb-tabbar-h) + 8px + env(safe-area-inset-bottom, 0px));" in css
+    assert "76px" not in css
+
+
+def test_phone_header_subtitle_block_renders_inside_the_white_header(app, ids, monkeypatch):
+    """w3-22 — 화면이 {% block page_sub %} 를 채우면 위 줄(흰 머리) 안 제목 아래 한 줄. 안 채우면 자리도 없다."""
+    _switch(monkeypatch, "brain_ui", "all")
+    client = _client(app, ids["admin"])
+    _resp, body, _names = _get(app, client, "/brain?tab=search")
+    assert "data-ds-nav-sub" not in body
+    loader = app.jinja_loader
+    child = '{% extends "brain/ds/layout.html" %}{% block page_sub %} 합성 부제 {% endblock %}'
+    monkeypatch.setattr(app, "jinja_loader", ChoiceLoader([DictLoader({"brain/ds/search.html": child}), loader]))
+    app.jinja_env.loader = app.create_global_jinja_loader()
+    app.jinja_env.cache.clear()
+    try:
+        _resp, body, _names = _get(app, client, "/brain?tab=search")
+    finally:
+        monkeypatch.setattr(app, "jinja_loader", loader)
+        app.jinja_env.loader = app.create_global_jinja_loader()
+        app.jinja_env.cache.clear()
+    navbar = body[body.index('aria-label="위 줄"'):body.index("</nav>")]
+    assert '<span class="fb-nav-sub" data-ds-nav-sub>합성 부제</span>' in navbar
+    css = SHELL_CSS.read_text(encoding="utf-8")
+    assert re.search(r"\.fb-nav-sub \{ display: none; \}", css)  # PC 에서는 숨는다
+    assert ".fb-nav-sub { display: block; flex: 1 0 100%;" in css[css.index("@media"):]

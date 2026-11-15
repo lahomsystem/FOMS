@@ -7,6 +7,8 @@
  * - 승인 대기 수: 서버가 넣은 지식 수 그대로. 틀에 data-badge-url 이 있을 때만(접목판 actions 스위치) 그 주소의 total 로 고친다.
  *   window.FOMS_DS_SHELL.setCount(n) 으로 다른 화면 스크립트도 고칠 수 있다.
  * - 화면 크기: FOMS 와 같은 저장 열쇠(foms-ui-zoom:<사람>:<pc|touch>)의 값을 html 에 붙인다(혼자 서는 문서라 layout_head 가 없다).
+ * - 폰 모습 꺾임(brain-ds-shell.css 의 @media 와 같은 글 — 991.98px 아래, FOMS 다른 화면과 같다): 화면 스크립트는 폭을
+ *   window.FOMS_DS_SHELL.PHONE_QUERY 로 잰다(이 파일은 head defer 라 화면 스크립트보다 먼저 돈다).
  * 글은 textContent 로만. 요청은 brain-dom.js 의 getJson 한 곳. 전역 듣개는 한 번만(window.__FOMS_DS_SHELL_BOUND).
  */
 (function () {
@@ -14,6 +16,7 @@
 
   var ZOOM_MIN = 70;
   var ZOOM_MAX = 130;
+  var PHONE_QUERY = '(max-width: 991.98px)';
 
   function shell() {
     return document.querySelector('[data-ds-shell]');
@@ -114,7 +117,7 @@
     refreshBadge(root);
   }
 
-  window.FOMS_DS_SHELL = { setCount: setCount };
+  window.FOMS_DS_SHELL = { setCount: setCount, PHONE_QUERY: PHONE_QUERY };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
