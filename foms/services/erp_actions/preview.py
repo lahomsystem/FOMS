@@ -1,7 +1,8 @@
 """할 일마다 막는 조건 · 바뀌는 칸 · 끝난 조건 · 차례 · 고를 값 — **이름 → 함수 표 한 곳**(설계서 2026-11-14-foms-graft 3.3 · 3.6).
 
 - :data:`FUNCTIONS` — 할 일 이름 → :class:`ActionFns`(``check`` 막는 까닭 | None · ``preview`` 바뀌는 칸 · ``verify`` 끝난 조건 ·
-  ``steps`` 승인하면 차례로 · ``ran`` 이 제안의 실행 흔적 — 없으면 ``verify``). 뒤 일감(T14 · T15)은 할 일 목록을 고치는 대신
+  ``steps`` 승인하면 차례로 · ``ran`` 이 제안의 실행 흔적 — 없으면 ``verify`` · ``deadline`` 제안 기간이 끝나는 날 · ``scope``
+  겹침 열쇠 상황 — 바뀌면 옛 제안은 낡음, :mod:`.freshness`). 뒤 일감(T14 · T15)은 할 일 목록을 고치는 대신
   이 표에 줄을 더하거나 바꾼다. :data:`CHOICE_SOURCES` — (할 일, 넣을 값) → 고를 값 목록 함수(없으면 넣을 값의 ``choices``).
 - 모두 순수 함수다 — 주문 줄 하나와 넣을 값만 읽는다(DB 질의 없음). ``steps`` 는 감싼 기능이 실제로 하는 일만 적는다.
   예외는 고를 값 목록(도면 담당 고르기 — 승인 창을 열 때 사용자 표 질의 하나)뿐이다.
@@ -21,9 +22,12 @@ from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.cs_agent.masking import MaskLeak, require_masked
 from foms.services.cs_agent.order_block import AS_LABELS
-from foms.services.datetime_kst import format_datetime_kst, get_today_kst
+from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_actions.registry import ActionShapeError, get
+from foms.services.erp_actions import as_warranty  # 무상 AS 기간(D224 · D235 — 점검 2차 w6-07)
 from foms.services.erp_actions import construction_notice as notice  # 시공일 안내 알림톡 줄(T15 — 3.13 · D213)
+from foms.services.erp_actions import measure_notice as measure  # 실측 예약 알림톡(점검 2차 w6-01)
+from foms.services.erp_actions.measure_notice import action_key as alimtalk_action_key  # 실행기가 쓰는 이름 그대로
 from foms.services.erp_order_flags import is_erp_order_draft
 from foms.services.kakao_alimtalk import _env_flag, _ineligible_reason  # 발송 자격 · 자동 스위치 정본(갈리면 안 된다)
 from foms.services.notifications.drawing_order_change import should_alert_drawing_team
@@ -44,8 +48,8 @@ from foms.services.production_change_alerts import PROD_STAGES
 from models import User
 
 __all__ = [
-    "ActionFns", "CHOICE_SOURCES", "FUNCTIONS", "NONE_LABEL", "alimtalk_action_key", "check", "date_label", "functions",
-    "param_choices", "preview", "ran", "reason_required", "steps", "verify",
+    "ActionFns", "CHOICE_SOURCES", "FUNCTIONS", "NONE_LABEL", "alimtalk_action_key", "check", "date_label", "deadline",
+    "functions", "param_choices", "preview", "ran", "reason_required", "scope", "steps", "verify",
 ]
 
 NONE_LABEL = "없음"
@@ -67,13 +71,15 @@ Params = Mapping[str, Any]
 
 @dataclass(frozen=True)
 class ActionFns:
-    """할 일 하나의 함수 넷(+ 선택 하나). 모두 ``(주문, 넣을 값)`` 을 받는다(``ran`` 은 제안 번호까지)."""
+    """할 일 하나의 함수 넷(+ 선택 셋). ``(주문, 넣을 값)`` 을 받는다(``ran`` 은 제안 번호까지 · ``scope`` 는 주문만)."""
 
     check: Callable[[Any, Params], Optional[str]]
     preview: Callable[[Any, Params], list[dict[str, str]]]
     verify: Callable[[Any, Params], bool]
     steps: Callable[[Any, Params], list[str]]
     ran: Optional[Callable[[Any, Params, int], bool]] = None
+    deadline: Optional[Callable[[Any, Params], Optional[str]]] = None  # 'YYYY-MM-DD' — 그 날 한국 자정에 기간이 끝난다
+    scope: Optional[Callable[[Any], str]] = None  # 넣을 값이 없는 할 일의 겹침 열쇠 상황(실측 일정 · 시공일)
 
 
 # ── 공통 도우미 ──────────────────────────────────────────────────────────
@@ -247,9 +253,12 @@ def _check_register_as(order: Any, params: Params) -> Optional[str]:
 
 
 def _preview_register_as(order: Any, params: Params) -> list[dict[str, str]]:
+    """AS 건 줄 + 무상 AS 줄(시공일로부터 1년 — 지남 · 모름이면 무상 · 유상은 미정으로 접수, D224 · D235)."""
     content = " ".join(_text(params.get("as_content")).split())
     snippet = content if len(content) <= _SNIPPET else content[:_SNIPPET] + "…"
-    return _row("AS 건", AS_LABELS.get(read_as_status(order), NONE_LABEL), f"접수 · {snippet}")
+    free = as_warranty.billing_for_register(order, get_today_kst()) == "free"
+    return _row("AS 건", AS_LABELS.get(read_as_status(order), NONE_LABEL), f"접수 · {snippet}") + _row(
+        "무상 AS", as_warranty.label(order, get_today_kst()), "무상 추정(확정 전)" if free else "미정 — 무상 · 유상은 사람이 정해요")
 
 
 def _verify_register_as(order: Any, params: Params) -> bool:
@@ -259,39 +268,14 @@ def _verify_register_as(order: Any, params: Params) -> bool:
     return cycle.get("initial_content") == sanitize_as_content_html(params.get("as_content"))
 
 
-# ── 알림톡 보내기(실측 예약) ─────────────────────────────────────────────
-def alimtalk_action_key(order_id: int, proposal_id: int) -> str:
-    """할 일 알림톡의 중복 막기 열쇠 — ``alimtalk:measure:<주문>:action:<제안 번호>``(설계서 3.4 '한 번만')."""
-    return f"alimtalk:measure:{int(order_id)}:action:{int(proposal_id)}"
-
-
-def _alimtalk_record(order: Any) -> dict[str, Any]:
-    record = _sd(order).get("alimtalk_measurement")
-    return record if isinstance(record, dict) else {}
-
-
-def _alimtalk_sent(record: Mapping[str, Any]) -> bool:
-    return bool(record.get("sent_at")) and record.get("error") is None and bool(record.get("message_id"))
-
-
+# ── 알림톡 보내기(실측 예약) — 나머지 함수는 :mod:`.measure_notice` ───────────────
 def _check_alimtalk(order: Any, _params: Params) -> Optional[str]:
+    """삭제 · 초안 · 발송 자격(자동 발송과 같은 정본) → 실측일이 지났나 · 지금 일정으로 이미 나갔나(점검 2차 w6-01)."""
     gate = _gate(order)
     code = None if gate else _ineligible_reason(order, _sd(order))
-    return gate or (_ALIMTALK_REASONS.get(code, "알림톡을 보낼 수 없는 주문이에요.") if code else None)
-
-
-def _preview_alimtalk(order: Any, _params: Params) -> list[dict[str, str]]:
-    record = _alimtalk_record(order)
-    if _alimtalk_sent(record):
-        before = f"{date_label(format_datetime_kst(record.get('sent_at'), '%Y-%m-%d')) or '전에'} 보냄"
-    else:
-        before = "못 보냄" if record.get("error") else "보낸 적 없음"
-    return _row("손님 알림톡(실측 예약)", before, "1건 보냄")
-
-
-def _ran_alimtalk(order: Any, _params: Params, proposal_id: int) -> bool:
-    record = _alimtalk_record(order)
-    return _alimtalk_sent(record) and record.get("dedupe_key") == alimtalk_action_key(order.id, proposal_id)
+    if gate or code:
+        return gate or _ALIMTALK_REASONS.get(code, "알림톡을 보낼 수 없는 주문이에요.")
+    return measure.check(order)
 
 
 # ── 시공 메모 더하기 ─────────────────────────────────────────────────────
@@ -420,9 +404,8 @@ FUNCTIONS: dict[str, ActionFns] = {
     "register_as": ActionFns(
         _check_register_as, _preview_register_as, _verify_register_as,
         _fixed(["FOMS AS 접수 — AS 접수 창과 같은 기능", "AS 기록에 접수 내용 · '접수됨' 줄"])),
-    "send_measure_alimtalk": ActionFns(
-        _check_alimtalk, _preview_alimtalk, lambda o, p: _alimtalk_sent(_alimtalk_record(o)),
-        _fixed(["손님 알림톡 1건 — 실측 예약 안내(지금 있는 서식 그대로)"]), _ran_alimtalk),
+    "send_measure_alimtalk": ActionFns(_check_alimtalk, measure.preview, measure.verify, measure.steps, measure.ran,
+                                       measure.deadline, measure.scope),
     "add_construction_note": ActionFns(
         lambda o, p: _gate(o) or note_problem(_sd(o), p.get("note")), _preview_note,
         lambda o, p: " ".join(_text(p.get("note")).split()) in note_lines(_sd(o)),
@@ -435,7 +418,8 @@ FUNCTIONS: dict[str, ActionFns] = {
     "move_measurement": ActionFns(
         _check_move_measurement, _preview_move_measurement,
         lambda o, p: _text(p.get("date")) in _measurement(o)[0], _steps_move_measurement),
-    "send_construction_alimtalk": ActionFns(notice.check, notice.preview, notice.verify, notice.steps, notice.ran),
+    "send_construction_alimtalk": ActionFns(notice.check, notice.preview, notice.verify, notice.steps, notice.ran,
+                                            notice.deadline, notice.scope),
 }
 
 #: (할 일, 넣을 값) → 고를 값 목록 함수(주문을 받는다). 뒤 일감이 더한다.
@@ -476,6 +460,18 @@ def ran(action: Any, order: Any, params: Params, proposal_id: int) -> bool:
 def steps(action: Any, order: Any, params: Params) -> list[str]:
     """승인하면 차례로 — 감싼 기능이 실제로 하는 일만."""
     return list(functions(action).steps(order, params))
+
+
+def deadline(action: Any, order: Any, params: Params) -> Optional[str]:
+    """제안 기간이 끝나는 날('YYYY-MM-DD' — 그 날 한국 자정) — 할 일에 ``deadline`` 이 없거나 주문이 없으면 ``None``."""
+    fn = functions(action).deadline
+    return fn(order, params) if fn is not None and order is not None else None
+
+
+def scope(action: Any, order: Any) -> Optional[str]:
+    """겹침 열쇠 상황(:func:`.registry.dedupe_key` ``scope``) — 할 일에 ``scope`` 가 없거나 주문이 없으면 ``None``."""
+    fn = functions(action).scope
+    return fn(order) if fn is not None and order is not None else None
 
 
 def reason_required(action: Any, order: Any, params: Params) -> bool:

@@ -8,6 +8,8 @@
   (승인하면 409 ``ACTION_BASE_CHANGED`` 와 새 카드). 근거 칩 가운데 보는 사람이 볼 수 없는 회사 지식 항목은 뺀다.
 - 글은 저장할 때 가림 검사를 지난 글 · 코드가 정한 말 · 날짜뿐이다. 시간은 한국 시간 글('YYYY-MM-DD HH:MM').
 - 나중에(``snoozed_until``)로 접힌 제안은 수 · 칩에서 빼고, 승인 대기 카드에는 ``snoozed`` 로 표시해 따로 센다.
+- 기간이 지난 제안(``expires_at`` ≤ 지금)은 밤 정리 전이라도 열린 것으로 치지 않는다 — 수 · 칩은 :func:`_awake` 가 빼고, 승인 대기
+  카드는 읽기 길이 먼저 돌리는 되맞추기(:func:`.lifecycle.reconcile` → :func:`.freshness.close`)가 닫는다(점검 2차 w6-12).
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import datetime
 from typing import Any, Iterable, Optional
 from urllib.parse import quote
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 
 from foms.persistence.brain.models import BrainObject
 from foms.persistence.graft.models import ErpActionProposal
@@ -73,8 +75,9 @@ def _scoped(query: Any, user: Any, statuses: Iterable[str]) -> Any:
 
 
 def _awake(now: datetime.datetime) -> Any:
-    """'나중에'로 접히지 않은 제안 조건."""
-    return or_(ErpActionProposal.snoozed_until.is_(None), ErpActionProposal.snoozed_until <= now)
+    """'나중에'로 접히지 않았고 기간이 남은 제안 조건(기간이 지난 것은 밤 정리 전이라도 뺀다 — 누르면 막히는 카드가 보이지 않게)."""
+    return and_(or_(ErpActionProposal.snoozed_until.is_(None), ErpActionProposal.snoozed_until <= now),
+                or_(ErpActionProposal.expires_at.is_(None), ErpActionProposal.expires_at > now))
 
 
 def _rows_label(rows: list[dict[str, Any]]) -> list[tuple[Any, Any]]:

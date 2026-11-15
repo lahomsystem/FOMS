@@ -1,7 +1,8 @@
 """시공일 안내 알림톡의 할 일 함수(설계서 2026-11-14-foms-graft 3.6 · 3.13 · D208 · D213).
 
-- 할 일 ``send_construction_alimtalk`` 의 ``check`` · ``preview`` · ``verify`` · ``steps`` · ``ran`` — :mod:`.preview` 의 이름 → 함수
-  표(``FUNCTIONS``)가 이 함수들을 잇는다.
+- 할 일 ``send_construction_alimtalk`` 의 ``check`` · ``preview`` · ``verify`` · ``steps`` · ``ran`` · ``deadline`` · ``scope`` —
+  :mod:`.preview` 의 이름 → 함수 표(``FUNCTIONS``)가 이 함수들을 잇는다. 기간 끝은 시공일(마지막 날)이 끝나는 때, 겹침 열쇠 상황은
+  지금 시공일(훑기 규칙 O4 · 시공일 승인 뒤 다시 보내기 제안이 같은 열쇠 — 점검 2차 w6-08).
 - 시공일 두 할 일(``schedule_construction`` · ``move_construction``)의 넣을 값 ``notify_customer`` 줄 — 쓸 수 있는 상태
   (:func:`foms.services.kakao_alimtalk_construction.order_block` 이 ``None``) · 넣을 값 참 · 그 시공일로 아직 안 나감일 때만
   '바뀌는 칸'(:func:`notice_rows`)과 '승인하면 차례로'(:func:`notice_steps`)에 '손님 알림톡 1건 — 시공일 안내'가 붙는다.
@@ -20,8 +21,8 @@ from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_actions.registry import NOTIFY_CUSTOMER
 
 __all__ = [
-    "FIELD", "NOTIFY_PARAM", "REASONS", "STEP", "action_key", "check", "day_of", "notice_rows", "notice_steps",
-    "notice_wanted", "param_shown", "preview", "ran", "steps", "verify",
+    "FIELD", "NOTIFY_PARAM", "REASONS", "STEP", "action_key", "check", "day_of", "deadline", "notice_rows", "notice_steps",
+    "notice_wanted", "param_shown", "preview", "ran", "scope", "steps", "verify",
 ]
 
 NOTIFY_PARAM = NOTIFY_CUSTOMER.name
@@ -131,3 +132,14 @@ def ran(order: Any, _params: Params, proposal_id: int) -> bool:
     record = notice.last_record(_sd(order))
     day = record.get("construction_date")
     return notice.sent_for(_sd(order), day) and record.get("dedupe_key") == action_key(order.id, day, proposal_id)
+
+
+def deadline(order: Any, _params: Params) -> Optional[str]:
+    """제안 기간이 끝나는 날 — 시공일(여러 날이면 마지막 날). 그 날 한국 자정에 끝난다(시공일이 없으면 ``None`` — 7일)."""
+    day = notice.construction_day(_sd(order))
+    return str(day).split("|")[-1] if day else None
+
+
+def scope(order: Any) -> str:
+    """겹침 열쇠 상황 — 지금 시공일(없으면 빈 글). 훑기 규칙 O4 가 쓰던 값과 같다."""
+    return str(notice.construction_day(_sd(order)) or "")
