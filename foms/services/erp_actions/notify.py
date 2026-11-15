@@ -6,8 +6,9 @@
 - 스위치 ``FOMS_GRAFT_PUSH_ENABLED``(전역 — :func:`foms.services.graft_flags.enabled_global`)가 꺼져 있으면 아무것도 만들지 않는다.
 - 받는 사람(:func:`recipients` — D215 · D221): 그 주문 담당(``parties.manager`` 이름에 이어진 켜진 계정, 프리랜서는 그 주문 연결 줄이
   있을 때만 — :func:`manager_name_recipient_ids`) 가운데 그 제안을 볼 · 승인할 수 있는 사람(:func:`.access.can_run` — 켜진 내부
-  계정 + ``actions`` 스위치 + ``policy_id`` 통과 + 주문 읽기 권한). 그런 담당이 없으면 할 일의 ``notify_teams`` 팀들 사람 가운데 같은
-  판정을 지나는 사람. 관리자(``ADMIN`` 역할)는 담당이 있든 없든 늘 더한다(같은 판정을 지나야 한다). 겹친 사람은 한 번 · 차례는
+  계정 + ``actions`` 스위치 + ``policy_id`` 통과 + 주문 읽기 권한 — D217 대로 본체가 막는 담당도 받는다). 그 가운데 **결정할 수 있는**
+  담당(:func:`.access.can_settle` — 감싼 본체도 받는 사람)이 없으면 할 일의 ``notify_teams`` 팀들 사람 가운데 같은 판정(``can_run``)을
+  지나는 사람도 받는다(점검 2차 w6-03 — 도면 담당 맡기기는 담당 영업이 결정하지 못해 도면팀에 간다). 관리자(``ADMIN`` 역할)는 담당이 있든 없든 늘 더한다(같은 판정을 지나야 한다). 겹친 사람은 한 번 · 차례는
   담당 → 관리자 → 팀(무리 안은 번호 순)이고 한 제안에 :data:`MAX_RECIPIENTS` 명까지 — 상한에 닿으면 팀 사람이 먼저 빠진다.
   0 명이면 아무것도 만들지 않는다(수 배지는 그대로).
 - 사람마다 ``Notification`` 한 줄(``target_user_id``) + 받는 사람 상태(:func:`fan_out_new_notification`) — 저장점 안, 커밋은 부르는
@@ -26,7 +27,7 @@ from sqlalchemy import event, func, or_
 from sqlalchemy.orm import Session
 
 from foms.services.ai_staff.registry import agent_of
-from foms.services.erp_actions.access import can_run
+from foms.services.erp_actions.access import can_run, can_settle
 from foms.services.erp_actions.registry import ACTIONS, ActionSpec
 from foms.services.graft_flags import enabled_global
 from foms.services.notifications.erp_action_push import (
@@ -56,13 +57,16 @@ PENDING_KEY = "foms_erp_action_push_pending"
 
 
 # ── 받는 사람 ────────────────────────────────────────────────────────────
+def _users(session: Any, ids: Iterable[int]) -> dict[int, Any]:
+    """번호 → 사용자 줄(한 질의 — 없는 번호는 빠진다)."""
+    wanted = sorted({int(uid) for uid in ids})
+    return {int(user.id): user for user in session.query(User).filter(User.id.in_(wanted)).all()} if wanted else {}
+
+
 def _deciders(session: Any, ids: Iterable[int], spec: ActionSpec, order: Any) -> list[int]:
     """번호들 가운데 이 제안을 볼 · 승인할 수 있는 사람(번호 순) — 사용자 줄은 한 질의로 읽는다."""
-    wanted = sorted({int(uid) for uid in ids})
-    if not wanted:
-        return []
-    users = {int(user.id): user for user in session.query(User).filter(User.id.in_(wanted)).all()}
-    return [uid for uid in wanted if uid in users and can_run(users[uid], spec, order)]
+    users = _users(session, ids)
+    return [uid for uid in sorted(users) if can_run(users[uid], spec, order)]
 
 
 def _team_ids(session: Any, teams: Iterable[str]) -> set[int]:
@@ -90,10 +94,11 @@ def _in_order(*groups: list[int]) -> list[int]:
 
 
 def recipients(session: Any, proposal: Any) -> list[int]:
-    """폰 알림을 받을 사람 번호(D215 · D221) — 주문 담당 → 관리자 → (승인할 수 있는 담당이 없을 때만) 할 일의 팀들.
+    """폰 알림을 받을 사람 번호(D215 · D221) — 주문 담당 → 관리자 → (결정할 수 있는 담당이 없을 때만) 할 일의 팀들.
 
-    모두 :func:`.access.can_run` 을 지나야 한다. 겹친 사람은 처음 나온 무리에 한 번만. :data:`MAX_RECIPIENTS` 명까지 —
-    상한에 닿으면 뒤 무리(팀)부터 빠진다.
+    모두 :func:`.access.can_run` 을 지나야 한다. '결정할 수 있는 담당'은 :func:`.access.can_settle`(감싼 본체도 받는 담당) —
+    도면 담당 맡기기처럼 담당 영업이 결정할 수 없는 할 일은 담당이 있어도 팀(도면팀)이 받는다(w6-03). 겹친 사람은 처음 나온
+    무리에 한 번만. :data:`MAX_RECIPIENTS` 명까지 — 상한에 닿으면 뒤 무리(팀)부터 빠진다.
 
     Args:
         session: DB 세션.
@@ -107,9 +112,11 @@ def recipients(session: Any, proposal: Any) -> list[int]:
     if spec is None or order is None:
         return []
     names = order_manager_names(order.structured_data, getattr(order, "manager_name", None))
-    managers = _deciders(session, manager_name_recipient_ids(session, names, order.id) if names else (), spec, order)
+    people = _users(session, manager_name_recipient_ids(session, names, order.id) if names else ())
+    managers = [uid for uid in sorted(people) if can_run(people[uid], spec, order)]
+    settled = any(can_settle(people[uid], spec, order) for uid in managers)
     admins = _deciders(session, broad_recipient_ids(session, func.upper(User.role) == ADMIN_ROLE), spec, order)
-    team = [] if managers else _deciders(session, _team_ids(session, spec.notify_teams), spec, order)
+    team = [] if settled else _deciders(session, _team_ids(session, spec.notify_teams), spec, order)
     return _in_order(managers, admins, team)[:MAX_RECIPIENTS]
 
 

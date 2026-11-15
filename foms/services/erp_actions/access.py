@@ -9,6 +9,10 @@
 - ``mode = human`` 인 할 일(사람만)은 아무에게도 보이지 않는다(제안 · 실행 길이 없다).
 - 질의 거르기: :func:`runnable_actions` (이 사람이 실행할 수 있는 할 일 이름) · :func:`scoped_reader` (주문을 모두 읽는
   사람이면 ``None``, 연결 표로 좁혀 읽는 사람이면 그 사용자 번호). 볼 수 없는 제안은 질의 단계에서 거른다.
+- :func:`can_settle` — 볼 · 승인할 수 있고 **감싼 본체도 그 사람을 받나**(누르면 막히지 않나). 정책 뒤에서 본체가 사람을 한 번 더
+  가르는 할 일(도면 담당 맡기기 — 관리자 · 도면팀 · 지정 도면 담당, 단계 넘기기 — 현재 작업 승인 역할, 방문 옮기기(실측) — 실측일
+  쓰기 팀)은 본체와 같은 잣대를 여기 둔다. 폰 알림 '담당 먼저'(D215)는 이 판정을 지나는 담당이 있을 때만 팀을 건너뛴다(점검 2차
+  w6-03 — 도면 담당 제안이 담당 영업에게만 가고 도면팀(D221)에 안 가던 일).
 - DB 를 직접 읽지 않는다(프리랜서 판정 · 주문 읽기 권한은 정책 모듈이 읽는다).
 """
 
@@ -18,11 +22,15 @@ from typing import Any, Optional
 
 from foms.services.brain.scope import viewer_of
 from foms.services.erp_actions.registry import ACTIONS, MODE_HUMAN, ActionSpec
+from foms.services.erp_permissions import can_edit_erp
 from foms.services.graft_flags import enabled
+from foms.services.orders.erp_policy_permissions import can_modify_domain
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, user_can_read_order
+from foms.services.orders.quest_approve_authz import QUEST_APPROVE_ROLES
 
 __all__ = [
-    "actions_viewer", "can_decide", "can_run", "internal_user", "policy_allows", "runnable_actions", "scoped_reader",
+    "BODY_GATES", "actions_viewer", "can_decide", "can_run", "can_settle", "internal_user", "policy_allows",
+    "runnable_actions", "scoped_reader",
 ]
 
 
@@ -102,3 +110,32 @@ def can_decide(user: Any, spec: ActionSpec, order: Any) -> bool:
 def can_run(user: Any, spec: ActionSpec, order: Any) -> bool:
     """이 주문의 이 할 일 제안을 볼 · 실행할 수 있나 — :func:`actions_viewer` + :func:`can_decide`."""
     return actions_viewer(user) and can_decide(user, spec, order)
+
+
+def _drawing_body(user: Any, order: Any) -> bool:
+    """도면 담당 지정 본체(``assign_draftsman_from_payload``)의 잣대 — 관리자 · 도면팀 · 그 주문 도면 담당(긴급 뚫기 없이)."""
+    return (getattr(user, "role", None) == "ADMIN" or (getattr(user, "team", None) or "").strip() == "DRAWING"
+            or can_modify_domain(user, order, "DRAWING_DOMAIN"))
+
+
+#: 감싼 본체가 정책 뒤에서 사람을 한 번 더 가르는 할 일 → 본체와 같은 잣대(없으면 정책 판정이 곧 결정할 수 있음).
+BODY_GATES = {
+    "assign_draftsman": _drawing_body,
+    "advance_stage": lambda user, order: getattr(user, "role", None) in QUEST_APPROVE_ROLES,  # 길의 role_required 와 같은 비교
+    "move_measurement": lambda user, order: can_edit_erp(user),  # 칸 고치기 본체의 실측일 · 시공일 쓰기 팀
+}
+
+
+def can_settle(user: Any, spec: ActionSpec, order: Any) -> bool:
+    """이 주문의 이 할 일 제안을 볼 · 승인할 수 있고 감싼 본체도 그 사람을 받나(누르면 막히지 않나) — 폰 알림 '담당 먼저'의 잣대.
+
+    Args:
+        user: 사람. spec: 할 일. order: 대상 주문.
+
+    Returns:
+        :func:`can_run` 이 참이고 :data:`BODY_GATES` 의 그 할 일 잣대(있으면)도 참이면 True.
+    """
+    if not can_run(user, spec, order):
+        return False
+    gate = BODY_GATES.get(spec.name)
+    return gate is None or bool(gate(user, order))
