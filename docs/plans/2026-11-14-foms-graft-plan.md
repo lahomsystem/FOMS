@@ -442,6 +442,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 | 11-15 | 운영 PR #855 → `a2559c4e6`(deploy 접목판 커밋 58개 `528bbc4b8` ~ `96270d94a` 를 운영 `4a76810e9` 위에 cherry-pick, 코드 충돌 0) | 세션 기록부 SHA 가 rebase 전 옛 번호 · 일꾼 커밋 빠짐이라 승격 도구 대신 범위로 골랐다. 문서 둘(`AI_STATUS.md` · `2026-10-27-cs-ai-agent-ledger.md`)만 부딪혀 운영 쪽 글을 두었고, 문서만 바뀐 커밋 하나는 비어 빠졌다(57개). 접목판 파일 250개 중 deploy 와 다른 것은 문서 둘 · `layout_head.html` 긴급 알림 핀 3줄(운영이 새것) · 주문 쓰기 인벤토리의 남의 파일 줄 번호뿐. 승격 트리 smoke 19,030 passed · 하네스 632 passed · `alembic heads` 하나 · PR 검사 넷 초록 · Railway production `a2559c4e` SUCCESS · `/healthz` commit 일치 |
 | 11-15 | 운영 PR #856 → `521536cf1`(점검 2차 고침 — deploy `57399526b` ~ `1b2421b63` 23개를 운영 `a2559c4e6` 위에 cherry-pick, 코드 충돌 0 + 긴급 창 CSS 핀을 운영 값 `20261019a` 로 맞춘 커밋 하나) | 문서 셋만 부딪혀 운영 쪽 글을 둠. 승격 트리 smoke 19,178 passed(첫 회 `test_db_leak_trace.py::test_closed_session_is_silent` 한 번 빨강 — 이 PR 밖 파일, 지워진 엔진 `id()` 재사용으로 차례에 따라 흔들림, 다시 돌려 초록) · 하네스 632 · PR 검사 넷 초록 · Railway web · FOMS-cron · WORKER 모두 `521536cf1` SUCCESS · `/healthz` commit 일치. 스위치는 그대로(운영 DB 읽기 전용 확인: 실측 예약 알림톡 제안 수준 0, 오늘 밤 후보 S1 17 · O3 24 → 상한 30) |
 | 11-15 밤 | 운영 PR #857 → `62e4f00a9`(점검 3차 남은 화면 흠 일곱 — deploy `7898cfce6` ~ `7b22ba62a` 일곱 커밋을 운영 `521536cf1` 위에 cherry-pick, 충돌 0 · D239) | 승격 트리 닿는 시험 206 passed · 하네스 632 passed · `APP_OK` · `alembic heads` 하나 · PR 검사 넷 초록 · Railway production web · FOMS-cron · WORKER · SIDEFX 모두 `62e4f00a` SUCCESS · `/healthz` commit 일치. 스위치 · 설정 · DB 는 그대로. [팀에 묻기] 폰 알림(D240 · `07c61bc6c`)은 스테이징에만 |
+| 11-16 | 운영 PR #858 → `1b42448d3`([팀에 묻기] 폰 알림 D240 `07c61bc6c` · DB 누수 추적 engine 번호 물려받기 고침 `1a1969416` 을 운영 `62e4f00a9` 위에 cherry-pick — 사용자 '지금 운영에 올리기') | 문서 둘만 부딪혀 운영 쪽 글을 둠(문서만 바뀐 커밋 하나는 뺌). 승격 트리 닿는 시험 66 passed · 하네스 632 passed · PR 검사 넷 초록 · Railway production 네 서비스 모두 `1b42448d` SUCCESS · `/healthz` commit 일치. deploy 쪽은 smoke 19,210 passed · CI 넷 초록(앞 push `39792eca1` 은 `test_db_leak_trace.py::test_closed_session_is_silent` 가 흔들려 빨강 → 원인 고쳐 `1a1969416` 초록) |
 
 운영 스위치(GraphQL `variableUpsert`, `RAILWAY_PROJECT_NAME=FOMS-PRODUCTION` 확인, skipDeploys 로 넣고 합치기 배포 한 번에 실음):
 
@@ -456,6 +457,15 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 - `/api/erp-actions/badge` on 넷 모두 참 · 할 일 0 · 지식 6. 승인 대기 0장. AI 직원 목록 200.
 - 빈 자리: PC 작업 큐 50칸(1.2초) · 태블릿 50칸 + 레일 '회사 지식'(0.5초) · 폰 'AI 제안 승인 대기' 칸(0.43초).
 - 밤 훑기 규칙 후보(읽기 전용 거래로 고르기 · 판정만, 제안 안 만듦): S1 시공 잡기 수준 2 후보 20 → 17 · O1 실측 알림톡 수준 1 후보 12 → 5 · O2 단계 넘기기 수준 0(돌지 않음) · O3 도면 담당 수준 2 후보 127 → 22 · O4 시공일 안내 수준 0 · 스위치 끔. 합 44 라 첫 밤은 상한 30개가 만들어진다. 고르기 질의 2 ~ 478ms.
+
+
+운영 첫 밤 결과(11-16 02:04 한국 시각 — 읽기 전용 거래로 수 · 상태 · 시간만 읽음, 승인 · 거절 안 누름):
+
+- 밤 단계 11개 모두 `rc=0`(`erp_actions_expire` 1.9초 · `ai_staff_sweep` 2.1초, `failed=none`).
+- 제안 30개(한 번에 30개 상한에 닿음) — 도면 담당 맡기기(O3) 24 · 시공 잡기(S1) 6, 모두 수준 2 · 상태 열림 · 근거 1개씩, 주문 29개(한 주문에 둘이 붙은 것 1), 같은 제안 겹침 0. 기간 끝: 11-23 28개 · 11-21 2개.
+- 실행 기록 둘: 운영 AI(ops) 281ms — O3 후보 131 → 제안 24, O1 · O2 · O4 는 수준 0 이라 건너뜀 / 일정 AI(schedule) 53ms — S1 후보 20 → 제안 6. 예상(S1 17 + O3 24 = 41 → 상한 30)대로이고, 운영 AI 가 먼저 돌아 24를 쓰고 일정 AI 가 남은 6을 썼다 — 시공 잡기 11개쯤은 다음 밤으로 넘어간다.
+- 상담 AI 접목: 근거 쓰임 기록 27 → 36(지난 12시간 6), 상담에서 나온 할 일 제안 0. 폰 알림 줄 0(스위치 끔 — 맞음).
+- 아직 아무도 승인 · 거절하지 않음(관리자 넷만 보임).
 
 
 ## 8. 준비 (T0 — 메인)
