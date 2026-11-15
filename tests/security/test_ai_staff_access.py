@@ -114,3 +114,17 @@ def test_staff_viewer_rule(app, who):
     assert staff_viewer(users["admin"]) is not None and staff_viewer(users["cs_mgr"]) is not None
     for name in ("sales_mgr", "cs_staff", "viewer", "partner", "off_admin"):
         assert staff_viewer(users[name]) is None, name
+
+
+@pytest.mark.parametrize("name", ["admin", "cs_mgr", "dr_mgr", "pr_mgr", "sales_mgr", "cs_staff", "viewer", "partner",
+                                  "off_admin", None])
+def test_instructions_are_admin_only(app, who, name):
+    """지시문 보기(D233 · 점검 2차 w3-17): ADMIN 만 200 — 화면을 여는 MANAGER 도 404(없는 길과 같다) · 협력사 403 · 로그인 안 함 401."""
+    client = _client(app, who[name] if name else None)
+    for key in ("cs", "ask", "ops", "drawing"):
+        resp = client.get(f"{BASE}/{key}/instructions")
+        want = {"admin": 200, "partner": 403, "off_admin": 401, None: 401}.get(name, 404)
+        assert resp.status_code == want, (name, key, resp.status_code)
+        if want != 200:
+            text = resp.get_data(as_text=True)
+            assert "꼭 지킬 것" not in text and "훑기 규칙" not in text and "회사 지식 물어보기'다" not in text

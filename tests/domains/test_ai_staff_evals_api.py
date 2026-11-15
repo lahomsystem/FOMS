@@ -153,9 +153,11 @@ def test_queue_down_and_db_down_is_still_a_503_reply(client, monkeypatch):
     assert _evals(client)["last"]["status"] == evals.QUEUED  # 못 풀었다 — STALE_AFTER 뒤 저절로 풀린다
 
 
-def test_only_the_cs_detail_carries_evals(client):
+def test_only_the_cs_and_ask_details_carry_evals(client):
+    """상담 AI 는 평가 묶음, 지식 물어보기는 물어보기 평가 마지막 점수(점검 2차 w3-20 — 설계서 3.10 '있을 때'). 그 밖은 없다."""
     assert "evals" in _body(client.get(f"{BASE}/cs"), 200)["data"]
-    for key in ("ops", "ask", "drawing", "schedule"):
+    assert "evals" in _body(client.get(f"{BASE}/ask"), 200)["data"]
+    for key in ("ops", "drawing", "schedule"):
         assert "evals" not in _body(client.get(f"{BASE}/{key}"), 200)["data"], key
 
 

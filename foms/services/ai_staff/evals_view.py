@@ -7,6 +7,8 @@
 - 틀린 차례(차례 번호 · 까닭 코드 · 화면 말 — 글 없음) · 마지막 시험 줄(때 · 상태 · 까닭 말 · 모델 · 진행 · ADMIN 만 쓴 돈).
 - ADMIN 만: 돌릴 수 있음 · 막힌 까닭(돈 상한 0 · 묶음 0) · 설정 값. MANAGER 답에는 돈 열쇠가 없다.
 - 꼬리표 · 막대 색 갈래는 success · primary · warning · danger 뿐(무채색 없음).
+- 보이는 시험이 아직 도는 중(줄 섬 · 도는 중 — 오래 소식 없는 줄은 빼고)이면 줄 꼬리표는 판정 없이 '도는 중'(점검 2차 w3-13 —
+  17/40 에서 '통과'를 보이지 않는다). 막대 · 결과 글(본 수)은 지금까지 값 그대로.
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ STATUS_LABELS: dict[str, str] = {
     NOT_READY: "준비 안 됨", FAILED: "실패", STALE: "멈춘 채 끝남",
 }
 SET_LABELS = {SET_PAST: "지난 상담", SET_RISK: "위험 문장"}
+RUNNING_VERDICT = ("도는 중", "primary")
 #: 틀린 까닭 코드 → 화면 말(검사 코드는 :data:`foms.services.cs_agent.checks.REASONS` 의 말).
 CODE_LABELS: dict[str, str] = {
     "direct": "직원 답과 많이 다름", "edited": "직원이 고쳐 보냈을 답", "handoff": "사람에게 넘김", "refused": "답하지 않음",
@@ -64,8 +67,8 @@ def _row(key: str, label: str, pct: Optional[int], text: str, verdict: tuple[str
     return {"key": key, "label": label, "pct": pct, "text": text, "verdict": {"text": verdict[0], "tone": verdict[1]}}
 
 
-def _past_row(run: Optional[Mapping[str, Any]]) -> dict[str, Any]:
-    """'지난 상담' 줄 — 고치지 않고 보냄 예상 비율 · 기준(0 이면 기준 없음)."""
+def _past_row(run: Optional[Mapping[str, Any]], live: bool = False) -> dict[str, Any]:
+    """'지난 상담' 줄 — 고치지 않고 보냄 예상 비율 · 기준(0 이면 기준 없음). ``live`` 면(도는 중) 판정 대신 '도는 중'."""
     part = _part(run, SET_PAST)
     total, done, passed = part.get("total", 0), part.get("done", 0), part.get("passed", 0)
     if run is None:
@@ -78,11 +81,11 @@ def _past_row(run: Optional[Mapping[str, Any]]) -> dict[str, Any]:
     text = f"고치지 않고 보냄 예상 {pct}% · " + (f"기준 {target}%" if target else "기준 없음")
     text += f" · {done}/{total}개 봄" if done < total else ""
     verdict = (("통과", "success") if pct >= target else ("기준 밑", "danger")) if target else (f"{pct}%", "primary")
-    return _row(SET_PAST, f"지난 상담 {total}개", pct, text, verdict)
+    return _row(SET_PAST, f"지난 상담 {total}개", pct, text, RUNNING_VERDICT if live else verdict)
 
 
-def _risk_row(run: Optional[Mapping[str, Any]]) -> dict[str, Any]:
-    """'위험 문장' 줄 — 검사를 지나고도 근거 없는 약속을 담은 수(기준 0)."""
+def _risk_row(run: Optional[Mapping[str, Any]], live: bool = False) -> dict[str, Any]:
+    """'위험 문장' 줄 — 검사를 지나고도 근거 없는 약속을 담은 수(기준 0). ``live`` 면(도는 중) 판정 대신 '도는 중'."""
     part = _part(run, SET_RISK)
     total, done, bad = part.get("total", 0), part.get("done", 0), part.get("bad", 0)
     if run is None:
@@ -93,7 +96,7 @@ def _risk_row(run: Optional[Mapping[str, Any]]) -> dict[str, Any]:
         return _row(SET_RISK, f"위험 문장 {total}개", None, "아직 한 차례도 못 봤어요.", ("아직", "warning"))
     text = f"근거 없는 약속 {bad} · 기준 0" + (f" · {done}/{total}개 봄" if done < total else "")
     verdict = ("통과", "success") if bad == 0 else (f"{bad}건", "danger")
-    return _row(SET_RISK, f"위험 문장 {total}개", _pct(done - bad, done), text, verdict)
+    return _row(SET_RISK, f"위험 문장 {total}개", _pct(done - bad, done), text, RUNNING_VERDICT if live else verdict)
 
 
 def _cq_row(session: Any, viewer: Viewer, erp: bool) -> dict[str, Any]:
@@ -154,7 +157,8 @@ def eval_view(session: Any, viewer: Viewer, *, now: datetime.datetime, erp: bool
     latest = runs[0] if runs else None
     shown = next((run for run in runs if run.get("status") in SCORED), None)
     running = latest is not None and _status_of(latest, at) in ACTIVE
-    out: dict[str, Any] = {"rows": [_past_row(shown), _risk_row(shown), _cq_row(session, viewer, erp)],
+    live = shown is not None and _status_of(shown, at) in ACTIVE  # 보이는 숫자가 아직 끝나지 않은 시험 것
+    out: dict[str, Any] = {"rows": [_past_row(shown, live), _risk_row(shown, live), _cq_row(session, viewer, erp)],
                            "failures": _failures(shown), "last": _last(latest, at, viewer.is_admin), "running": running}
     if viewer.is_admin:
         settings = read_eval_settings(session)

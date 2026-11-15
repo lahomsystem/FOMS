@@ -6,6 +6,8 @@
 - 목업과 다르게 그리는 것(9절): 모델 이름은 설정 값 그대로 · 상담 AI 의 주문 읽기는 '있음'(새로 붙음 아님) · 상담 AI 실행 기록은
   전체 시간만 · 운영 AI · 일정 AI 는 '시험 중 · 규칙'. 시공 팀 · 인원 글은 어디에도 없다(D211).
 - 'AI 시험' 칸의 값은 T16 이 채운다(이 답에는 없다).
+- 수준 꼬리표 색 갈래(점검 2차 w3-14): 0 읽기만 ``read`` · 1 초안 ``draft`` · 2 제안 ``propose`` · 못 함 ``danger`` — 모두 다른
+  색(화면 CSS ``.fb-tone-*``), 초록(좋음으로 읽힘) · 무채색 없음. 할 일 줄 ``new`` 는 판 1 이 더한 일('새로 붙음').
 """
 
 from __future__ import annotations
@@ -29,9 +31,11 @@ from foms.services.cs_agent.settings_field import MODEL_NAMES
 from foms.services.erp_actions.registry import LEVEL_LABELS
 from foms.services.graft_flags import enabled
 
-__all__ = ["TRIAL_LABEL", "staff_detail", "staff_list", "staff_viewer"]
+__all__ = ["LEVEL_TONES", "TRIAL_LABEL", "staff_detail", "staff_list", "staff_viewer"]
 
 TRIAL_LABEL = "시험 중 · 규칙"
+#: 수준 → 꼬리표 색 갈래(화면 CSS ``.fb-tone-read`` · ``-draft`` · ``-propose``). 못 함은 ``danger``.
+LEVEL_TONES: dict[int, str] = {0: "read", 1: "draft", 2: "propose"}
 _ABOUT: dict[str, str] = {
     "cs": "채널톡 작은 창에서 손님 메시지를 읽고 근거 있는 답 초안을 써요. 직원이 보내기 · 고치기 · 버리기 가운데 골라요.",
     "drawing": "주 1회 도면 학습 요약을 읽고 주간 노트와 물어볼 것을 남겨요. 손님 정보는 읽지 않아요.",
@@ -76,7 +80,7 @@ def _tag(agent: Agent, levels: dict[str, Optional[int]]) -> dict[str, str]:
     if agent.trial:
         return {"text": "시험 중", "tone": "warning"}
     level = _main_level(agent, levels)
-    return {"text": f"수준 {level}", "tone": "primary" if level else "success"}
+    return {"text": f"수준 {level}", "tone": LEVEL_TONES[level]}
 
 
 def staff_list(session: Any, viewer: Viewer) -> dict[str, Any]:
@@ -137,7 +141,7 @@ def _duties(session: Any, viewer: Viewer, key: str, agent: Agent, now: datetime.
         rows.append({
             "key": duty.key, "label": duty.label, "level": level,
             "level_label": "못 함" if level is None else LEVEL_LABELS[level],
-            "tone": "danger" if level is None else ("primary" if level else "success"),
+            "tone": "danger" if level is None else LEVEL_TONES[level], "new": duty.new,
             "editable": viewer.is_admin and editable(duty),
             "choices": [{"value": n, "label": LEVEL_LABELS[n]} for n in choices_of(duty)] if viewer.is_admin else [],
             "rate": rate, "count": count, "note": _NOTES.get((key, duty.key)) or _rule_note(key, duty.key),
@@ -169,6 +173,7 @@ def staff_detail(session: Any, viewer: Viewer, key: Any, now: datetime.datetime)
         "duties": _duties(session, viewer, agent.key, agent, now, levels, cs_stats),
         "failures": recent_failures(session, agent.key, now),
         "usage": _usage(session, viewer, agent.key, now, cs_stats),
-        "run": latest_run(session, agent.key), "foot": _FOOT[agent.trial], "can_edit": viewer.is_admin,
+        "run": latest_run(session, agent.key, show_staff=viewer.is_admin), "foot": _FOOT[agent.trial],
+        "can_edit": viewer.is_admin,
         "levels_version": levels_version(session),
     }

@@ -95,8 +95,8 @@ def test_list_has_five_agents_with_status_tags(client):
     agents = {item["key"]: item for item in body["data"]["agents"]}
     assert list(agents) == ["cs", "drawing", "ask", "ops", "schedule"]
     assert agents["ops"]["tag"] == {"text": "시험 중", "tone": "warning"} and agents["schedule"]["trial"] is True
-    assert agents["cs"]["tag"] == {"text": "수준 1", "tone": "primary"}
-    assert agents["ask"]["tag"] == {"text": "수준 0", "tone": "success"}  # 무채색 꼬리표 없음
+    assert agents["cs"]["tag"] == {"text": "수준 1", "tone": "draft"}
+    assert agents["ask"]["tag"] == {"text": "수준 0", "tone": "read"}  # 무채색 · 초록('좋음'으로 읽힘) 꼬리표 없음(w3-14)
     assert agents["cs"]["sub"].startswith("있음 · ") and agents["ops"]["sub"].startswith("새로 · ")
     assert body["data"]["can_edit"] is True
 

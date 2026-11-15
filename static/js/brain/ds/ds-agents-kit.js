@@ -3,6 +3,8 @@
  *
  * 왼쪽 직원 줄 · 머리 · 읽는 것 · 도구 · 할 일 표(수준 · 2주 승인율 막대 · 건수 · 메모) · 최근 실패 · 시간 · 비용 · 실행 기록을
  * 요소로 만든다. 글은 textContent 만(brain-dom.js 의 el) · 막대는 <progress>(인라인 스타일 없음) · 수준 고르기는 <select>.
+ * 점검 2차(11-15): 수준 꼬리표 색 갈래(read · draft · propose — w3-14) · 할 일 '새로 붙음'(w3-18) · 칸 이름표(좁은 칸에서 줄이 카드로
+ * 쌓일 때만 보임 — w3-01) · 실행 기록 단계 아이콘이 상태를 따름(w3-15) · 실행 기록 머리 '담당'(w3-19).
  * window.FOMS_DS_AGENTS_KIT 로 내놓는다.
  */
 (function () {
@@ -17,9 +19,18 @@
     return el('span', { cls: 'f-i ' + cls + (extra ? ' ' + extra : ''), attrs: { 'aria-hidden': 'true' } });
   }
 
-  /** 꼬리표 — tone: primary · success · warning · danger(없으면 바탕만). */
+  /** 수준 꼬리표 색 갈래(화면 CSS .fb-tone-*) — 0 읽기만 · 1 초안 · 2 제안. */
+  var LEVEL_TONES = { read: true, draft: true, propose: true };
+
+  /** 꼬리표 — tone: primary · success · warning · danger · read · draft · propose(없으면 바탕만). */
   function tag(text, tone) {
-    return el('span', { cls: 'f-tag f-tag-minimal' + (tone ? ' f-tag-' + tone : ''), text: text });
+    var cls = !tone ? '' : (LEVEL_TONES[tone] ? ' fb-tone-' + tone : ' f-tag-' + tone);
+    return el('span', { cls: 'f-tag f-tag-minimal' + cls, text: text });
+  }
+
+  /** 칸 이름표 — 넓은 표에서는 머리 줄이 말하므로 숨고, 줄이 카드로 쌓이면 보인다(brain-ds-agents.css). */
+  function label(text) {
+    return el('span', { cls: 'fb-agents-label', text: text });
   }
 
   /** 밀리초 → '7.2초' · '12초'(없으면 빈 글). */
@@ -107,11 +118,16 @@
     dom.clear(tbody);
     rows.forEach(function (row) {
       var tr = el('tr', { attrs: { 'data-ds-agents-duty': row.key } });
-      tr.appendChild(el('td', { cls: 'f-td-nw', children: [el('span', { cls: 'f-strong', text: row.label })] }));
+      var name = el('span', { cls: 'f-row-nw fb-agents-duty-name', children: [el('span', { cls: 'f-strong', text: row.label })] });
+      if (row.new) name.appendChild(tag('새로 붙음', 'primary'));
+      tr.appendChild(el('td', { cls: 'f-td-nw', children: [name] }));
       tr.appendChild(el('td', { cls: 'f-td-nw', children: [levelCell(row)] }));
-      tr.appendChild(el('td', { cls: 'f-td-nw', children: [rateCell(row.rate)] }));
-      tr.appendChild(el('td', { cls: 'f-td-num', text: row.count === null || row.count === undefined ? '—' : row.count }));
-      tr.appendChild(el('td', { children: [el('span', { cls: 'f-small f-muted', text: row.note || '' })] }));
+      var rate = rateCell(row.rate);
+      rate.insertBefore(label('2주 승인율'), rate.firstChild);
+      tr.appendChild(el('td', { cls: 'f-td-nw', children: [rate] }));
+      tr.appendChild(el('td', { cls: 'f-td-num', children: [label('건수'),
+        el('span', { text: row.count === null || row.count === undefined ? '—' : String(row.count) })] }));
+      tr.appendChild(el('td', { children: row.note ? [el('span', { cls: 'f-small f-muted', text: row.note })] : [] }));
       tbody.appendChild(tr);
     });
   }
@@ -170,21 +186,35 @@
     });
   }
 
-  /** 실행 기록 하나 — 단계 · 모두 걸린 시간 · 만든 제안 수. 상담 AI 는 단계 시간이 없다(per_step 거짓). */
+  /** 단계 상태 → 아이콘(목업 판 ⑪ — 끝남 초록 체크 · 승인 대기 주황 시계) · 읽어 주는 말. */
+  var STEP_ICONS = {
+    done: ['i-small-tick', 'f-i-success', '끝남'], skipped: ['i-disable', 'f-i-primary', '건너뜀'],
+    warn: ['i-warning-sign', 'f-i-warning', '걸림'], wait: ['i-time', 'f-i-warning', '승인 대기'],
+    failed: ['i-cross', 'f-i-danger', '실패']
+  };
+
+  /** 실행 기록 하나 — 단계(상태 아이콘) · 모두 걸린 시간 · 만든 제안 수 · 담당(있을 때만). 상담 AI 는 단계 시간이 없다. */
   function trace(refs, run, foot) {
     dom.clear(refs.list);
     refs.foot.textContent = foot || '';
     refs.title.textContent = run && run.at ? '실행 기록 · ' + run.at : '실행 기록';
+    if (refs.who) {
+      refs.who.textContent = run && run.who ? '담당 ' + run.who : '';
+      refs.who.hidden = !(run && run.who);
+    }
     if (!run) {
       refs.list.appendChild(el('li', { cls: 'f-small f-muted', text: '아직 실행 기록이 없어요.' }));
       refs.sum.hidden = true;
       return;
     }
     run.steps.forEach(function (step) {
-      var li = el('li', { cls: 'fb-agents-step' });
-      li.appendChild(icon('i-small-tick', 'f-i-success'));
+      var li = el('li', { cls: 'fb-agents-step', attrs: { 'data-ds-agents-step': step.state || 'done' } });
+      var look = STEP_ICONS[step.state] || STEP_ICONS.done;
+      li.appendChild(icon(look[0], look[1]));
       li.appendChild(el('div', { cls: 'f-col f-gap4', children: [
-        el('span', { cls: 'f-strong', text: step.what }), el('span', { cls: 'f-mono f-muted', text: step.tool }),
+        el('span', { cls: 'f-strong', children: [el('span', { cls: 'f-sr', text: look[2] + ' — ' }),
+                                                   el('span', { text: step.what })] }),
+        step.tool ? el('span', { cls: 'f-mono f-muted', text: step.tool }) : null,
         step.detail ? el('span', { cls: 'f-small f-muted', text: step.detail }) : null] }));
       li.appendChild(el('span', { cls: 'f-small f-muted f-num', text: run.per_step ? secs(step.ms) : '' }));
       refs.list.appendChild(li);
@@ -196,5 +226,6 @@
   }
 
   window.FOMS_DS_AGENTS_KIT = { navItem: navItem, head: head, reads: reads, duties: duties, failures: failures,
-                                usage: usage, trace: trace, secs: secs, failureText: failureText };
+                                usage: usage, trace: trace, secs: secs, failureText: failureText, icon: icon,
+                                stepIcons: STEP_ICONS };
 })();
