@@ -23,7 +23,8 @@
 <link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-item.css') }}">
 {% endblock %}
 {% block main %}
-<div class="fb-item f-col" data-ds-item{% if usage_on %} data-usage-url="{{ url_for('brain_api.brain_item_usage', key=it.key) }}"{% endif %}>
+<div class="fb-item f-col" data-ds-item{% if usage_on %} data-usage-url="{{ url_for('brain_api.brain_item_usage', key=it.key) }}"
+     data-onto-url="{{ url_for('brain_web.index', tab='onto') }}"{% endif %}>
   {% include "brain/ds/partials/item_head.html" %}
 
   <div class="f-tabs" role="tablist" aria-label="지식 카드 탭" data-ds-item-tabs>

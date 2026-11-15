@@ -136,7 +136,8 @@ def test_aside_is_the_proposal_root_with_server_named_actions(app, ids, monkeypa
         assert hook in aside, hook
     labels = {a["name"]: a["label"] for a in actions.specs()}
     opened = re.findall(r'data-brain-propose-open="(\w+)"[^>]*>(?:<span[^>]*></span>)?([^<]+)</button>', aside)
-    assert opened == [(n, labels[n]) for n in ("propose_edit", "propose_retire", "propose_delete")]
+    # 목업 단추 글 — 은퇴 · 지우기는 짧게(점검 w2-06 — 누르면 '승인되면 …' 칸이 열리고 아래 안내가 승인 대기로 간다고 알린다)
+    assert opened == [("propose_edit", labels["propose_edit"]), ("propose_retire", "은퇴"), ("propose_delete", "지우기")]
     assert "옛 판으로 되돌리기 제안" in aside and "data-ds-item-rollback hidden" in aside
     assert re.findall(r'data-brain-rollback-to="(\d+)">([^<]+)<', aside) == [("1", labels["item_rollback"] + " — 버전 1")]
     assert re.findall(r'<span class="f-strong">버전 (\d+)</span>', aside) == ["2", "1"]
@@ -184,3 +185,23 @@ def test_switch_off_draws_the_old_card_unchanged(app, ids, monkeypatch):
     resp, body, names = _get(app, _client(app, ids["admin"]), "/brain/items/common/door")
     assert resp.status_code == 200 and names[0] == "brain/item.html"
     assert "data-ds-item" not in body and 'data-bs-target="#brain-card-neighbours"' in body
+
+
+def test_pending_box_says_who_when_what_only_to_people_who_see_it_in_the_inbox(app, ids, monkeypatch):
+    """점검 w2-01 — 오른쪽 '승인 대기' 상자: 승인 대기 화면에서 그 제안을 보는 사람에게만 누가 · 언제 · 무엇(전 → 후 · 까닭)."""
+    from foms.services.brain.proposals import Proposer, propose_update
+    from foms.services.datetime_kst import now_utc_naive
+
+    propose_update(db_session, key="common/slide", base_version=1, after={"name": "미닫이 문짝 고침"},
+                   reason="합성 까닭 — 이름을 고쳐요", proposer=Proposer.user(ids["cs_mgr"]), now=now_utc_naive(), known="")
+    db_session.commit()
+    _switch(monkeypatch, "brain_ui")
+    _resp, body, _n = _get(app, _client(app, ids["admin"]), "/brain/items/common/slide")
+    box = _between(body, '<div class="f-callout f-callout-warning fb-keep">', "승인 대기에서 보기")
+    title = re.search(r"data-ds-item-pending>([^<]+)<", box).group(1)
+    assert re.fullmatch(r"승인 대기 1 — 합성 제안 · \d\d-\d\d", title)
+    assert "이름 미닫이 문짝 → 미닫이 문짝 고침. 까닭: 합성 까닭 — 이름을 고쳐요" in box
+    # 그 제안을 결정할 수 없는 사람(도면 층 승인자)은 수만 — 지금 글 그대로
+    _resp, other, _n = _get(app, _client(app, ids["dr_mgr"]), "/brain/items/common/slide")
+    box = _between(other, '<div class="f-callout f-callout-warning fb-keep">', "승인 대기에서 보기")
+    assert "data-ds-item-pending" not in box and "이 지식을 고치자는 제안이 승인을 기다려요." in box

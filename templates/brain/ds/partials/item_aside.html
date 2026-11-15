@@ -1,9 +1,12 @@
 {#- 지식 카드 오른쪽(판 ⑧): 수정 기록(판 · 하루 묶음) · 승인 대기 알림 · 판마다 한 줄 · 제안 단추(고칠 말 · 옛 판 되돌리기 · 은퇴 ·
     지우기 — 액션 이름 · 글은 서버가 준 목록 propose · rollback_label) · 고칠 말 칸 · '바로 바꾸지 않아요' 안내.
+    승인 대기 상자의 누가 · 언제 · 무엇은 pending(foms/services/brain/card_pending.py — 승인 대기 화면과 같은 볼 권한, 없으면 수만).
     이 칸이 brain-item-actions.js 의 뿌리 [data-brain-card] 다(옛 카드와 같은 data-* · 같은 표시 — 그 스크립트를 고치지 않고 싣는다).
     이웃 지도 · 뇌 보기 스크립트도 같은 뿌리에서 키 · 표시 표 · 카드 주소 머리를 읽는다. id="brain-card-propose" 는 다시 확인의
     '틀림 — 고치기'(T3)와 미리 보기의 [고칠 말 제안]이 오는 자리 — 그 주소로 오면 고칠 말 칸이 열린다. -#}
 {%- set icons = {'propose_edit': 'edit', 'propose_retire': 'disable', 'propose_delete': 'cross'} %}
+{#- 단추 글은 목업대로 짧게('은퇴' · '지우기') — 누르면 고칠 말 칸이 '승인되면 …' 글과 함께 열리고, 아래 안내가 승인 대기로 간다고 알린다. #}
+{%- set short_labels = {'propose_retire': '은퇴', 'propose_delete': '지우기'} %}
 {%- set shown = [] %}{% for action in propose if not (action.name == 'propose_retire' and it.status == 'retired') %}{% set _ = shown.append(action) %}{% endfor %}
 {%- set older = card.history|selectattr('superseded_at')|list %}
 <aside class="f-aside fb-item-aside" aria-label="수정 기록 · 고치기" data-brain-card data-brain-key="{{ it.key }}"
@@ -22,8 +25,13 @@
     <div class="f-callout f-callout-warning fb-keep">
       {{ ds.icon('time') }}
       <div class="f-col f-gap4">
+        {%- if pending %}
+        <span class="f-callout-title" data-ds-item-pending>승인 대기 {{ it.open_changes }} — {{ pending.who }} 제안{% if pending.day %} · {{ pending.day }}{% endif %}</span>
+        <span class="f-small">{{ pending.what }}.{% if pending.reason %} 까닭: {{ pending.reason }}{% endif %}{% if pending.more %} · 제안 {{ pending.more }}개 더{% endif %}</span>
+        {%- else %}
         <span class="f-callout-title">승인 대기 {{ it.open_changes }}</span>
         <span class="f-small">이 지식을 고치자는 제안이 승인을 기다려요. 새로 보내는 제안도 같은 카드로 묶여요.</span>
+        {%- endif %}
         <a class="f-small" href="{{ url_for('brain_web.index', tab='inbox') }}">승인 대기에서 보기</a>
       </div>
     </div>
@@ -72,7 +80,7 @@
       <div class="fb-propose__pair">
         {%- for action in shown[1:] %}
         <button class="f-btn" type="button" data-brain-propose-open="{{ action.name }}" title="{{ action.summary }}">
-          {{- ds.icon(icons.get(action.name, 'edit'), 'f-i-danger' if action.name == 'propose_delete' else '') }}{{ action.label }}</button>
+          {{- ds.icon(icons.get(action.name, 'edit'), 'f-i-danger' if action.name == 'propose_delete' else '') }}{{ short_labels.get(action.name, action.label) }}</button>
         {%- endfor %}
       </div>
       {%- endif %}
