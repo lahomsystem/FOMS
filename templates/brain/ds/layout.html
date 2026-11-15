@@ -23,7 +23,9 @@
   <script src="{{ asset_url('js/brain/brain-view.js') }}" defer></script>
   <script src="{{ asset_url('js/brain/brain-dom.js') }}" defer></script>
   <script src="{{ asset_url('js/brain/ds/ds-shell.js') }}" defer></script>
-  {#- 긴급(P0) 빨간 창 — layout_head.html 과 같은 CSS 주소 · 핀. 스크립트는 회사 지식 화면 규칙(defer + asset_url)으로 싣는다. -#}
+  {#- 긴급(P0) 빨간 창 — layout_head.html 과 같은 CSS 주소 · 같은 손 핀(같은 주소라 브라우저가 한 벌만 받는다). 핀을 올릴 때는 두 곳을
+      같이 — 시험(tests/domains/test_brain_ds_shell.py)이 두 값을 견준다(점검 2차 w6-13). 스크립트는 회사 지식 화면 규칙(defer +
+      asset_url)으로 싣는다. -#}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261016a">
   <script src="{{ asset_url('js/foms/notification-write.js') }}" defer></script>
   <script src="{{ asset_url('js/foms/urgent-sound.js') }}" defer></script>
@@ -34,6 +36,8 @@
 </head>
 {%- import "brain/ds/_macros.html" as ds %}
 {%- set nav = ds_nav %}
+{#- 폰 머리 부제(폰 모습에서만 — 흰 머리 안 제목 아래 한 줄, 판 ⑫). 화면이 {% block page_sub %} 로 채운다(점검 2차 w3-22). -#}
+{%- set nav_sub = self.page_sub() | trim %}
 {%- set me = g.current_user %}
 <body class="fb-body">
 <div class="f-app f-shell fb-shell" data-ds-shell data-ds-page="{{ page }}" data-ds-section="{{ nav.section }}"
@@ -45,6 +49,7 @@
     {{ ds.icon('lightbulb', 'f-i-primary') }}
     <span class="f-navbar-title">회사 지식<span class="fb-nav-page"> · {% block page_title %}{% endblock %}</span></span>
     {% if nav.inbox_count is not none %}<span class="fb-nav-phone-count">{{ ds.count(nav.inbox_count, primary=nav.inbox_count > 0, key='inbox') }}</span>{% endif %}
+    {% if nav_sub %}<span class="fb-nav-sub" data-ds-nav-sub>{{ nav_sub }}</span>{% endif %}
     <span class="f-navbar-divider fb-nav-wide" aria-hidden="true"></span>
     <span class="fb-nav-tabs" data-ds-tabs>
       {%- for key, label, icon_name, href in nav.tabs %}
@@ -57,7 +62,7 @@
     <form class="f-input-group f-push fb-nav-search" method="get" action="{{ url_for('brain_web.index') }}" role="search" data-ds-search>
       <input type="hidden" name="tab" value="search">
       {{ ds.icon('search') }}<input class="f-input" type="search" name="q" maxlength="100" aria-label="회사 지식 찾기"
-             placeholder="지식 · 유형 · 할 일 이름" value="{{ start_query if start_query is defined else '' }}">
+             placeholder="지식 · 유형" value="{{ start_query if start_query is defined else '' }}">
     </form>
     {% endif %}
     <span class="f-btn f-btn-minimal fb-nav-user{{ '' if nav.screen else ' f-push' }}">{{ ds.icon('user') }}{{ me.name if me else '' }}</span>
@@ -93,5 +98,6 @@
 {#- 공지 확인 창(사용자 결정 #7 — layout_scripts.html 과 같은 조각 · 같은 핀). 로그인 · 본사 계정만 싣는 판정은 조각 안에 있다. -#}
 {% include "partials/shared/notice_popup.html" %}
 {% block scripts %}{% endblock %}
+{%- if false %}{% block page_sub %}{% endblock %}{% endif %}
 </body>
 </html>

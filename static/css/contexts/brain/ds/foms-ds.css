@@ -4,6 +4,8 @@
    ① :root 토큰 → .f-app ② 상태 색 .st-* → .f-tag.st-* ③ 아이콘 .i-* → .f-i.i-* ④ --fs → var(--foms-fs, 1)(FOMS 글자 배율).
    맨 태그로 시작하던 textarea.f-input 은 .f-app textarea.f-input 으로. 모든 선택자는 .f- 로 시작한다(test_brain_ds_scope).
    글자 크기(사용자 결정 11-14 — 옛 회사 지식 화면과 같은 16px 바탕, 목업 14px 보다 한 칸 크게 · PC 80% 배율에서도 읽히게).
+   목업과 다르게 둔 배치 둘(점검 2차 11-15): 칸 제목 줄(.f-section-head)은 줄바꿈 — 제목은 줄지 않고 설명이 다음 줄로(w3-02),
+   가운데(.f-main) 처음 폭 480px — 화면 크기 130%(1440 창 = 1108px)에서도 왼쪽 · 가운데 · 오른쪽 옆 창이 한 줄에 남게(w3-10).
    규칙: 색 · 크기는 토큰만 / 인라인 스타일 금지 / 글자 크기는 --fs 배율 하나로 / 어두운 화면은 .f-dark 한 class. */
 
 .f-app {
@@ -15,6 +17,7 @@
   --orange1:#77450d; --orange2:#935610; --orange3:#c87619; --orange4:#ec9a3c; --orange5:#fbb360;
   --red1:#8e292c; --red2:#ac2f33; --red3:#cd4246; --red4:#e76a6e; --red5:#fa999c;
   --cerulean2:#0f6894; --indigo1:#5642a6; --indigo3:#7961db; --rose2:#c22762; --gold4:#f0b726; --turquoise4:#13c9ba;
+  --gold1:#5c4405; --turquoise1:#004d46;  /* AI 직원 수준 꼬리표 글 색(점검 2차 w3-14 — Blueprint 5 같은 판) */
 
   --fs:var(--foms-fs, 1);
   --font-size:calc(16px * var(--fs)); --font-size-small:calc(14px * var(--fs)); --font-size-large:calc(18px * var(--fs));
@@ -90,7 +93,7 @@
 .f-shell { display:flex; flex-direction:column; min-height:100%; }
 .f-body { display:flex; flex-wrap:wrap; align-items:stretch; flex:1 1 auto; }
 .f-side { flex:1 1 224px; max-width:100%; background:var(--surface); box-shadow:1px 0 0 var(--divider); padding:8px; display:flex; flex-direction:column; gap:2px; }
-.f-main { flex:999 1 560px; min-width:0; padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
+.f-main { flex:999 1 480px; min-width:0; padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
 .f-aside { flex:1 1 336px; max-width:100%; background:var(--surface); box-shadow:-1px 0 0 var(--divider); display:flex; flex-direction:column; }
 .f-aside-head { display:flex; align-items:center; gap:8px; min-height:50px; padding:0 8px 0 16px; box-shadow:0 1px 0 var(--divider); }
 .f-aside-body { padding:16px; display:flex; flex-direction:column; gap:16px; }
@@ -168,8 +171,9 @@
 .f-card-interactive:hover { box-shadow:var(--shadow-3); cursor:pointer; }
 .f-card-selected { box-shadow:0 0 0 2px var(--blue3), var(--shadow-1); }
 .f-section { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow-1); min-width:0; }
-.f-section-head { display:flex; align-items:center; gap:8px; min-height:50px; padding:8px 12px 8px 20px; box-shadow:0 1px 0 var(--divider); }
+.f-section-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-height:50px; padding:8px 12px 8px 20px; box-shadow:0 1px 0 var(--divider); }
 .f-section-title { font-size:var(--h5); line-height:22px; font-weight:600; }
+.f-section-head > .f-section-title { flex:0 0 auto; max-width:100%; }
 .f-section-sub { font-size:var(--font-size); color:var(--text-muted); }
 .f-section-body { padding:16px 20px; display:flex; flex-direction:column; gap:12px; }
 .f-section-body-flush { padding:0; }
