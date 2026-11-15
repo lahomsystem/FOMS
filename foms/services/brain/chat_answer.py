@@ -22,6 +22,10 @@
 답 속 날짜 · 숫자는 주문 줄이나 근거 지식 글에 있어야 한다(아니면 '모름'). 7 은 근거 키에 주문 키까지 남기고 쓰인 곳
 (``brain_usage_events`` — 읽은 주문 키 포함) · 실행 기록(``ai_agent_runs``)을 더한다. 답 값에 ``kind`` · ``erp`` 칸이 생긴다.
 **스위치가 꺼졌으면 지시문 · 출력 꼴 · 답 · 기록이 지금과 글자까지 같다**(새 표 줄도 없다).
+
+**새 화면 칸**(접목판 ``brain_ui`` 또는 ``erp_read`` 가 켜진 사람 — 점검 w2-18 · w2-19 · D233): 답 값에 가린 질문(``question``) · 가린
+갈래와 수(``masked`` · ``masked_count`` — :func:`mask_kinds`, 원문 없음) · 찾은 회사 지식 수(``found``) · 팀에 묻기(``team`` ·
+``team_label`` · ``team_sent`` — :mod:`.chat_team_ask`) · 빈 지식에 올라감(``gap``)이 더해진다. 두 스위치가 꺼진 사람은 지금 그대로.
 """
 
 from __future__ import annotations
@@ -48,7 +52,8 @@ from foms.services.brain.gates import numbers_known
 from foms.services.brain.usage import READER_CHATBOT, count_reads
 from foms.services.brain.usage_events import READER_CHATBOT as EVENT_READER, record_uses
 from foms.services.cs_agent.brain_spend import BrainNotReady, BrainUnavailable, SpendCapReached
-from foms.services.cs_agent.masking import leak_counts, mask
+from foms.services.brain.chat_team_ask import team_name, team_of
+from foms.services.cs_agent.masking import MASK_TOKENS, leak_counts, mask
 from foms.services.datetime_kst import now_kst
 from foms.services.erp_ontology.ask import (
     TOOL_MASK, TOOL_SEARCH, ErpRead, Trace, answer_kind, dates_known, erp_view, mask_note, question_uses,
@@ -62,6 +67,11 @@ logger = logging.getLogger(__name__)
 MAX_QUESTION = 500
 #: 주문을 읽은 답이 코드 확인을 못 지난 까닭 — 근거에 주문 키 없음 · 모름 · 빈 답(``erp_check``) · 날짜 · 숫자(``erp_numbers``).
 ERP_CHECK_WHYS: frozenset[str] = frozenset({"erp_check", "erp_numbers"})
+#: 가림 표시 → 화면 갈래 이름(물음 말풍선 꼬리표 — 목업 BAsk '손님 이름'). 같은 이름은 한 꼬리표로 센다.
+MASK_LABELS: dict[str, str] = {
+    "[이름]": "손님 이름", "[직원이름]": "직원 이름", "[전화]": "전화", "[번호]": "번호", "[메일]": "메일", "[링크:": "링크",
+    "[동호수]": "주소", "[주소]": "주소", "[도로명주소]": "주소", "[지번주소]": "주소", "[단지명]": "주소", "[예금주]": "예금주",
+}
 #: 오류 코드 → HTTP 상태(API 가 정한 말만 보낸다).
 STATUS: dict[str, int] = {"forbidden": 404, "shape": 400, "mask": 400, "person_cap": 429, "money_cap": 503,
                           "not_ready": 503, "unavailable": 503}
@@ -141,6 +151,17 @@ def verify(out: dict[str, Any], retrieval: Retrieval, erp: Optional[ErpRead] = N
     return Verified(out["answer"], evidence, checks, False, None, out["layer"], out["confidence"])
 
 
+def mask_kinds(raw: str, masked: str) -> list[dict[str, Any]]:
+    """가림이 새로 만든 표시 수를 갈래마다 — ``[{"label", "n"}]``(화면 차례 · 0 은 빼고). 원문 글은 싣지 않는다."""
+    counts: dict[str, int] = {}
+    for token in MASK_TOKENS:
+        added = max(0, masked.count(token) - raw.count(token))
+        if added:
+            label = MASK_LABELS.get(token, "개인정보")
+            counts[label] = counts.get(label, 0) + added
+    return [{"label": label, "n": n} for label, n in counts.items()]
+
+
 def _clean(question: Any) -> str:
     """묻는 글 꼴 — 글 · 1 ~ :data:`MAX_QUESTION` 자."""
     if not isinstance(question, str) or not question.strip() or len(question) > MAX_QUESTION:
@@ -180,6 +201,16 @@ def _view(row_id: int, verified: Verified, retrieval: Retrieval, *, left: int, c
     return {"id": row_id, "answer": verified.answer, "unknown": verified.unknown, "ask_team": verified.ask_team,
             "evidence": chips, "checks": checks, "confidence": weakest_confidence(retrieval, verified.evidence),
             "certainty": verified.certainty, "left_today": max(0, left), "card_links": cards}
+
+
+def _add_screen_fields(view: dict[str, Any], text: str, masked: str, row: Any, verified: Verified, retrieval: Retrieval,
+                       cfg: Any) -> None:
+    """새 물어보기 화면 칸(점검 w2-18 · w2-19 · D233) — 가린 질문 · 가린 갈래 · 수 · 찾은 지식 수 · 팀에 묻기 · 빈 지식에 올라감.
+    원문은 싣지 않는다(가린 글 · 수만). 빈 지식은 '모름'(ERP 빼고)이 :func:`.chat_gaps.gap_rows` 재료이고 묶기가 켜졌을 때만 참."""
+    kinds, team = mask_kinds(text, masked), team_of(row)
+    view.update(question=masked, masked=kinds, masked_count=sum(k["n"] for k in kinds), found=len(retrieval.usable),
+                team=team, team_label=team_name(team) if team else "", team_sent=False,
+                gap=bool(verified.unknown and verified.ask_team != ASK_ERP and cfg.get("gap_enabled")))
 
 
 _COMPUTE = object()
@@ -259,6 +290,8 @@ def ask(session: Any, user: Any, question: Any, *, client: Any = None,
         _erp_finish(session, row.id, verified, erp, trace, now_utc)
     view = _view(row.id, verified, retrieval, left=int(cfg.get("per_person_daily")) - used - 1,
                  cards=screen_viewer(user) is not None)
+    if erp_on or graft_enabled("brain_ui", user):  # 새 화면만 — 옛 화면(두 스위치 끔)의 답 값은 지금과 글자까지 같다
+        _add_screen_fields(view, text, masked, row, verified, retrieval, cfg)
     if erp_on:  # 설계서 3.7 '답 값에 더하는 칸' — 꺼진 사람의 답 값은 지금 그대로
         view.update(kind=answer_kind(verified.evidence, verified.unknown),
                     erp=erp_view(erp, trace) if erp is not None else None)

@@ -1,8 +1,20 @@
-{#- '이 답이 읽은 것'(판 ⑨ 오른쪽 — 설계서 3.7). 접목판 erp_read 가 켜진 사람에게만 자리를 그리고, 답에 erp 칸이 있을 때만
-    ds-ask-turn.js 가 채워 보인다(주문 요약 · 방문 · 쓴 도구 · 읽기만 안내). 손님 이름 · 전화 · 주소 · 금액은 서버가 주지 않는다 —
-    화면도 만들지 않는다. 시공 팀 · 인원 · 사진 수는 그리지 않는다(설계서 9절 · D211). -#}
-<aside class="f-aside fb-ask-aside" aria-label="이 답이 읽은 것" data-ds-ask-aside hidden>
+{#- 물어보기 오른쪽 창(판 ⑨ — 설계서 3.7 · 점검 w2-16 · w2-20). 접목판 erp_read 가 켜진 사람 또는 ADMIN 에게 그린다.
+    - '이 답이 읽은 것'(erp_read 켬만): 늘 그 자리에 있다 — 고른 답이 주문을 읽었으면 ds-ask-turn.js 가 채우고(주문 요약 · 방문 ·
+      쓴 도구 · 읽기만 안내), 아니면 빈 안내 글. 손님 이름 · 전화 · 주소 · 금액은 서버가 주지 않는다 — 화면도 만들지 않는다. 시공 팀 ·
+      인원 · 사진 수는 그리지 않는다(설계서 9절 · D211).
+    - 관리(ADMIN 만): 빈 지식 · 이번 주 · 물어보기 설정(brain/ds/partials/ask_admin.html — ds-ask-admin.js). -#}
+<aside class="f-aside fb-ask-aside" aria-label="{{ '이 답이 읽은 것' if erp_on else '물어보기 관리' }}" data-ds-ask-aside>
+  {%- if erp_on %}
   <div class="f-aside-head">{{ ds.icon('data-lineage', 'f-i-muted') }}<span class="f-section-title">이 답이 읽은 것</span>
     <span class="f-tag f-tag-minimal f-push">읽기만</span></div>
-  <div class="f-aside-body" data-ds-ask-read></div>
+  {%- else %}
+  <div class="f-aside-head">{{ ds.icon('cog', 'f-i-muted') }}<span class="f-section-title">물어보기 관리</span>
+    <span class="f-small f-muted f-push">관리자만 봐요</span></div>
+  {%- endif %}
+  <div class="f-aside-body">
+    {%- if erp_on %}
+    <div class="f-col f-gap16" data-ds-ask-read>주문 번호(#123)를 적어 물으면 그 답이 읽은 주문 · 방문이 여기에 보여요.</div>
+    {%- endif %}
+    {%- if is_admin %}{% include "brain/ds/partials/ask_admin.html" %}{% endif %}
+  </div>
 </aside>

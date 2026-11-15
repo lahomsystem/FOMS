@@ -3,8 +3,10 @@
     서버는 틀 · 자리만 그리고, 남은 수 · 물음과 답 · 근거 칩 · 내 질문 목록 · '이 답이 읽은 것'은 static/js/brain/ds/ds-ask*.js 가
     JSON API(/api/brain/chat/state · ask · history · questions/<번호>/feedback)로 읽고 써서 textContent 로만 그린다.
     답 판정(모름 · 근거 칩 · 확신 · 피드백 본문 · 설정 바뀐 칸 · 빈 지식 줄)은 옛 화면과 한 벌인 brain-ask-view.js.
-    ERP 주문 읽기(접목판 erp_read 스위치)가 꺼진 사람은 안내 글 · 보기 글이 지금 그대로이고 옆 창 자리도 없다.
-    ADMIN 만 설정 · 빈 지식 · 틀림 신고(관리 칸). 인라인 스크립트 · 스타일 없음. -#}
+    ERP 주문 읽기(접목판 erp_read 스위치)가 켜진 사람은 '이 답이 읽은 것' 옆 창이 늘 그 자리에 있다(점검 w2-16). 꺼진 사람은 안내
+    글 · 보기 글이 지금 그대로이고 그 칸이 없다. ADMIN 만 설정 · 빈 지식 · 틀림 신고(관리 칸 — 오른쪽 창 안, 점검 w2-20).
+    지난 질문 다시 보기 · 모름 답의 [○○팀에 묻기]는 ds-ask-past.js(GET …/questions/<번호> · POST …/ask-team). 인라인 스크립트 ·
+    스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
 {% set erp_on = graft_enabled('erp_read') %}
 {% block title %}물어보기{% endblock %}
@@ -18,6 +20,8 @@
      data-ask-url="{{ url_for('brain_chat_api.brain_chat_ask') }}"
      data-history-url="{{ url_for('brain_chat_api.brain_chat_history') }}"
      data-feedback-url="{{ url_for('brain_chat_api.brain_chat_feedback', question_id=0) }}"
+     data-question-url="{{ url_for('brain_chat_api.brain_chat_question', question_id=0) }}"
+     data-team-url="{{ url_for('brain_chat_api.brain_chat_ask_team', question_id=0) }}"
      {%- if is_admin %} data-settings-url="{{ url_for('brain_chat_api.brain_chat_settings_save') }}"{% endif %}
      data-item-base="{{ url_for('brain_web.index') }}/items/"
      data-me="{{ g.current_user.name if g.current_user else '' }}"
@@ -54,14 +58,14 @@
     <p class="fb-status" data-ds-ask-status role="status" aria-live="polite"></p>
   </form>
 
-  {% if is_admin %}{% include "brain/ds/partials/ask_admin.html" %}{% endif %}
 </div>
 {% endblock %}
-{% block aside %}{% if erp_on %}{% include "brain/ds/partials/ask_aside.html" %}{% endif %}{% endblock %}
+{% block aside %}{% if erp_on or is_admin %}{% include "brain/ds/partials/ask_aside.html" %}{% endif %}{% endblock %}
 {% block scripts %}
 <script src="{{ asset_url('js/brain/brain-ask-view.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-ask-view.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-ask-turn.js') }}" defer></script>
+<script src="{{ asset_url('js/brain/ds/ds-ask-past.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-ask.js') }}" defer></script>
 {% if is_admin %}<script src="{{ asset_url('js/brain/ds/ds-ask-admin.js') }}" defer></script>{% endif %}
 {% endblock %}

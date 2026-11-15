@@ -2,7 +2,7 @@
  * 새 물어보기 화면(판 ⑨ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.7 · 5.3 · 9절) 순수 계산 — DOM 을 만지지 않는다.
  *
  * - 내 질문 목록 줄(GET /api/brain/chat/history 의 한 줄 → 글 · 아래 줄 · 아이콘 · 때).
- * - 답 머리 꼬리표(모름 · ERP 읽기) · 확신 색 · 주문 근거 칩 · 물은 줄(이름 · 때 · 가린 곳 수).
+ * - 답 머리 꼬리표(모름 · ERP 읽기) · 확신 색 · 주문 근거 칩 · 물은 줄(이름 · 때 · 서버가 센 가린 곳 수).
  * - '이 답이 읽은 것' 옆 창 값(답의 erp 칸 → 주문 요약 · 방문 · 쓴 도구) — 서버가 준 값만 쓴다(손님 이름 · 전화 · 주소 · 금액은
  *   서버가 주지 않고, 여기서도 만들지 않는다). 주문 번호는 '#<번호>', 방문 줄에 팀 · 인원 · 사진 수는 없다(설계서 9절 · D211).
  * - 도구 시간은 서버가 ms(정수)로 준다 → '0.5초'.
@@ -106,11 +106,10 @@
     return chips;
   }
 
-  /** 물은 줄 — '김영업 · 10:42' + 가린 곳이 있으면 ' · 1곳을 가려서 보냄'(가림 도구가 센 수 — 글은 싣지 않는다). */
-  function askedLine(me, clock, erp) {
+  /** 물은 줄 — '김영업 · 10:42' + 가린 곳이 있으면 ' · N곳을 가려서 보냄'(서버가 센 수 — 글은 싣지 않는다 · 누구에게나). */
+  function askedLine(me, clock, masked) {
     var parts = [text(me), text(clock)].filter(Boolean);
-    var mask = ((erp && erp.tools) || []).filter(function (t) { return t && t.name === 'mask.apply'; })[0];
-    var n = mask ? Number((/(\d+)/.exec(text(mask.what)) || [])[1]) : 0;
+    var n = Number(masked) || 0;
     if (n > 0) parts.push(n + '곳을 가려서 보냄');
     return parts.join(' · ');
   }

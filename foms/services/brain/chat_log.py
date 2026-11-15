@@ -9,6 +9,9 @@
 - :func:`my_history` — **내가 물은 것만**(오늘 · 지난 7일, 가린 글 앞부분 · 모름 · 주문 읽기 여부 — 설계서 2026-11-14-foms-graft
   3.7 ``GET /api/brain/chat/history``). 남의 질문 · 묻는 사람 번호 · 답 글은 싣지 않는다.
 - 근거 키에 ERP 주문 키(``erp:order/<번호>`` — 접목판 ERP 읽기)가 섞여 있어도 '틀림' 신고는 회사 지식 키에만 붙는다.
+- :func:`past_question` — 지난 질문 하나를 **다시 묻지 않고** 다시 보인다(점검 w2-17 — 새로 고친 뒤 왼쪽 줄을 누를 때). 묻는 사람
+  자기 질문, 또는 그 질문의 [팀에 묻기] 알림을 받은 사람만(:func:`.chat_team_ask.was_sent_to`) — 남의 질문은 없는 것과 같은 답.
+  가린 질문 · 보인 답 · 근거 칩(지금 볼 수 있는 항목만) · 모름 · 확신 · 피드백만. 하루 질문 수는 줄지 않는다.
 """
 
 from __future__ import annotations
@@ -19,11 +22,15 @@ from typing import Any, Iterable, Optional
 
 from sqlalchemy import delete, func, select
 
-from foms.persistence.brain.models import BrainQuestion, BrainWrongReport
+from foms.persistence.brain.models import BrainObject, BrainQuestion, BrainWrongReport
 from foms.persistence.graft.models import BrainUsageEvent
 from foms.services.brain.action_runner import perform_agent
 from foms.services.brain.chat_prompt import ASK_ADMIN, ASK_ERP, ASK_OWNER, CERTAINTY_LABELS
 from foms.services.brain.chat_reports import CHAT_AGENT, add_reports, drop_reports, raisable
+from foms.services.brain.chat_team_ask import already_sent, team_name, team_of, was_sent_to
+from foms.services.brain.constants import CONFIDENCES
+from foms.services.brain.labels import pref_of
+from foms.services.brain.read import visible_clauses
 from foms.services.brain.embeddings import SOURCE_QUESTION, drop_vectors
 from foms.services.brain.errors import BrainError
 from foms.services.cs_agent.masking import leak_counts, mask
@@ -200,3 +207,48 @@ def my_history(session: Any, *, asker_id: int, now_utc: datetime.datetime,
     for row in rows:
         out["today" if row.asked_at >= today_start else "week"].append(_history_row(row, row.id in read))
     return out
+
+
+def _chips(session: Any, viewer: Any, keys: list[str], today: datetime.date) -> list[dict[str, Any]]:
+    """근거 키 → 칩(이름 · 유형 · 확신 · 마지막 확인) — 지금 볼 수 있는 회사 지식 항목만(주문 키 · 볼 수 없는 키는 빠진다)."""
+    wanted = [k for k in keys if isinstance(k, str) and order_id_of(k) is None]
+    if not wanted:
+        return []
+    rows = session.execute(select(BrainObject.item_key, BrainObject.name, BrainObject.payload, BrainObject.item_type,
+                                  BrainObject.confidence, BrainObject.checked_at)
+                           .where(BrainObject.item_key.in_(wanted), *visible_clauses(viewer, today))).all()
+    by_key = {row.item_key: row for row in rows}
+    return [{"key": k, "name": pref_of(by_key[k].name, by_key[k].payload), "type": by_key[k].item_type,
+             "confidence": by_key[k].confidence, "checked_at": str(by_key[k].checked_at) if by_key[k].checked_at else None}
+            for k in wanted if k in by_key]
+
+
+def past_question(session: Any, viewer: Any, *, user_id: int, question_id: Any,
+                  today: datetime.date) -> Optional[dict[str, Any]]:
+    """지난 질문 하나(다시 묻지 않는다) — 내 질문이거나 그 질문의 팀 묻기 알림을 받은 사람만, 그 밖 ``None``(404).
+
+    Returns:
+        ``{"id", "question", "answer", "unknown", "ask_team", "evidence", "checks", "confidence", "certainty",
+        "feedback", "asked_at", "kind", "mine", "team", "team_label", "team_sent"}`` — 물어보기 답 값과 같은 꼴(돈 · 수 칸 없음).
+    """
+    if isinstance(question_id, bool) or not isinstance(question_id, int):
+        return None
+    row = session.get(BrainQuestion, question_id)
+    if row is None:
+        return None
+    mine = row.asker_id == int(user_id)
+    if not mine and not was_sent_to(session, row.id, int(user_id)):
+        return None
+    keys = [k for k in (row.evidence_keys or []) if isinstance(k, str)]
+    chips = [] if row.unknown else _chips(session, viewer, keys, today)
+    rank = {c: i for i, c in enumerate(CONFIDENCES)}
+    found = [c["confidence"] for c in chips if c["confidence"] in rank]
+    team = team_of(row)
+    return {"id": row.id, "question": row.masked_question or "", "answer": row.answer or "", "unknown": bool(row.unknown),
+            "ask_team": row.ask_team, "ask_label": _ask_label(row.ask_team) if row.unknown else "", "evidence": chips,
+            "checks": [], "confidence": max(found, key=rank.get) if found else None, "certainty": row.confidence,
+            "feedback": row.feedback if mine else None, "mine": mine,
+            "asked_at": (row.asked_at + _KST).isoformat(timespec="minutes") if row.asked_at else None,
+            "kind": "erp" if any(order_id_of(k) is not None for k in keys) and not row.unknown else None,
+            "team": team, "team_label": team_name(team) if team else "",
+            "team_sent": bool(team) and already_sent(session, row.id)}
