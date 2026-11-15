@@ -13,6 +13,8 @@
 {% set n_recheck = counts.recheck if counts is defined and counts else 0 %}
 {% block title %}{{ view_titles[view] }}{% endblock %}
 {% block page_title %}{{ view_titles[view] }}{% endblock %}
+{%- set phone_kinds = (['한 칸 고침'] if knows else []) + (['ERP 할 일'] if graft_enabled('actions') else []) %}
+{% block page_sub %}{% if view == 'inbox' %}폰에서는 {{ phone_kinds|join(' · ') }}만 승인해요{% endif %}{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-inbox.css') }}">{% endblock %}
 {% block side %}{% include "brain/ds/partials/inbox_side.html" %}{% endblock %}
 {% block main %}

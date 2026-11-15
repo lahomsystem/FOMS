@@ -5,6 +5,8 @@
  * 차례: 머리(AI 직원 · 닫기) · 할 일 꼬리표 · 제목 · 때 · 이유 · 근거 · 바뀌는 칸 표 · 승인하면 차례로(API 의 steps 그대로 —
  * 시공 팀 · 인원 글은 서버도 이 파일도 만들지 않는다, D211) · 2주 승인율 · 넣을 값 칸(고쳐서 승인) · 사유 · [승인] [고쳐서 승인]
  * [나중에] · 거절 까닭 칩. mode 'link' 면 [승인] 대신 [주문에서 처리]. 폰에서 승인할 수 없는 할 일은 폰에서 결정 단추 대신 안내.
+ * 이미 처리된 제안(답의 done — 실행됨 · 거절 · 기한 지남 …)은 결정 단추 · 거절 칩 · 주문 바뀜 경고 없이 '이미 처리된 제안이에요'
+ * (결과 · 누가 · 언제)만(점검 2차 w1-03 — 폰 알림 주소 ?proposal= 로 다시 열 때).
  * 넣을 값 꼴: date · time_slot · choice · masked_text · users(여러 명 고르기 — 목록은 params[].choices) · flag(켜고 끄기).
  * 꼭 있어야 하는 값이 비면 [승인]이 눌리지 않는다(도면 담당 맡기기는 사람을 고른 뒤에만). 글은 textContent 만 · 인라인 스타일 없음
  * (승인율 막대 너비만 style.setProperty).
@@ -74,6 +76,21 @@
     return block('승인하면 차례로', [list, why]);
   }
 
+  /** 기간 글 — 14일은 '2주'(판 ⑥ · 점검 2차 w1-16), 그 밖은 'N일'. */
+  function days(n) {
+    var value = Number(n) || 14;
+    return value % 7 === 0 ? (value / 7) + '주' : value + '일';
+  }
+
+  /** 이미 처리된 제안 — 결과 한 줄 · 누가 · 언제(단추 없음). */
+  function done(d) {
+    var line = el('span', { cls: 'f-small', text: d.done.label + (d.done.by ? ' · ' + d.done.by : '') + (d.done.at ? ' · ' : '') });
+    if (d.done.at) line.appendChild(el('span', { cls: 'f-num fb-erp-when', text: d.done.at }));  // 날짜 · 시간은 한 덩어리
+    return el('div', { cls: 'f-callout f-callout-primary fb-erp-done', attrs: { 'data-erp-done': d.done.status }, children: [
+      kit().icon('info-sign'), el('div', { cls: 'f-col f-gap4', children: [el('span', { cls: 'f-strong', text: '이미 처리된 제안이에요' }),
+        line] })] });
+  }
+
   function rate(d) {
     var r = d.rate || {};
     var pct = r.pct === null || r.pct === undefined ? null : Number(r.pct);
@@ -83,7 +100,7 @@
     bar.appendChild(fill);
     bar.hidden = pct === null;
     return el('div', { cls: 'f-card f-card-compact f-col', children: [el('div', { cls: 'f-row', children: [
-      el('span', { cls: 'f-small', text: (d.agent_label || 'AI') + ' · ' + d.action_label + ' ' + (r.days || 14) + '일 승인율' }),
+      el('span', { cls: 'f-small', text: (d.agent_label || 'AI') + ' · ' + d.action_label + ' ' + days(r.days) + ' 승인율' }),
       el('span', { cls: 'f-strong f-num f-push', text: pct === null ? '아직 결정 없음' : pct + '%' })] }), bar] });
   }
 
@@ -151,11 +168,13 @@
     if ((d.evidence || []).length) {
       body.appendChild(block('근거', [el('div', { cls: 'f-row f-gap4', children: d.evidence.map(function (e) { return kit().chip(e); }) })]));
     }
-    if (d.base_changed) body.appendChild(el('p', { cls: 'f-small fb-erp-warn', text: kit().BASE_CHANGED }));
+    if (d.done) body.insertBefore(done(d), body.firstChild);
+    if (d.base_changed && !d.done) body.appendChild(el('p', { cls: 'f-small fb-erp-warn', text: kit().BASE_CHANGED }));
     body.appendChild(block('바뀌는 칸', [changes(d)]));
-    if ((d.steps || []).length) body.appendChild(steps(d));
+    if ((d.steps || []).length && !d.done) body.appendChild(steps(d));
     body.appendChild(rate(d));
-    body.appendChild(decide(d, ctx));
+    if (!d.done) body.appendChild(decide(d, ctx));
+    else body.appendChild(kit().statusLine());
     node.appendChild(body);
     refresh(node, d);
     return node;
@@ -169,7 +188,7 @@
     var reason = d.mode === 'run' && !phoneBlocked ? reasonBox(d) : null;
     if (reason) col.appendChild(reason);
     col.appendChild(el('p', { cls: 'f-help', attrs: { 'data-erp-missing': '1' } }));
-    var row = el('div', { cls: 'f-row' });
+    var row = el('div', { cls: 'f-row fb-erp-decide' });  // 승인 · 고쳐서 승인 · 나중에 한 줄(간격 4px — w1-15)
     if (phoneBlocked) {
       row.appendChild(el('p', { cls: 'f-help', text: '이 제안은 PC 에서 승인해요.' }));
     } else {
@@ -177,7 +196,7 @@
       if (main) row.appendChild(main);
       if (d.mode === 'run' && (d.params || []).length) row.appendChild(kit().button('고쳐서 승인', 'edit', '', 'edit'));
     }
-    row.appendChild(kit().button('나중에', 'snooze', 'f-btn-minimal', 'time'));
+    if (!d.snoozed) row.appendChild(kit().button('나중에', 'snooze', 'f-btn-minimal', 'time'));  // 이미 접은 제안에는 할 일이 없다
     col.appendChild(row);
     col.appendChild(el('span', { cls: 'f-h6 fb-erp-reject-title', text: '거절 — 까닭 하나 누르면 끝' }));
     col.appendChild(kit().rejectBox(ctx.rejectCodes));
