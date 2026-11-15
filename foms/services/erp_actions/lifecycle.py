@@ -12,7 +12,9 @@
 - :func:`approve` 는 두 걸음이라 **스스로 커밋한다**: ① 제안 줄 잠금 → 볼 수 있나 · 열림 · 갈래 · 제안한 AI 직원의 지금 수준 ·
   넣을 값 · 막는 조건 · 기준 판 · 사유(사유를 물을 변경이면 꼭) → ``executing`` + 결정한 사람 + 감사 커밋 ② 실행기(감싼 기능의
   커밋 방식 그대로) ③ 결과 + 감사 커밋. 실행기가 막히면(주문이 바뀌지 않음) ``open`` 으로 되돌리고 ``ACTION_PRECONDITION``.
-- :func:`reject` · :func:`snooze` · :func:`expire_due` · :func:`reconcile` 은 커밋하지 않는다(부르는 쪽).
+- :func:`reject` · :func:`snooze` · :func:`expire_due` · :func:`reconcile` 은 커밋하지 않는다(부르는 쪽). 기간 · 낡음 판정은
+  :mod:`.freshness`(기간이 지난 · 실측 일정 · 시공일이 바뀐 제안은 승인하지 않고, 되맞추기가 닫는다 — 점검 2차 w6-01 · w6-12).
+- 시공일 승인에서 손님 안내만 못 나가면 다시 보내기 제안 하나를 남긴다(:mod:`.notice_retry` — w6-08).
 - 결정 판정은 :func:`.access.can_decide`(사람별 화면 스위치는 화면 API 가 먼저 본다). 결정한 사람은 ``actor`` 뿐.
 - 감사 ``SecurityLog``: ``ERP_ACTION_APPROVED`` · ``REJECTED`` · ``EXECUTED`` · ``FAILED`` — 번호 · 이름 · 코드만(글 없음).
 """
@@ -31,14 +33,15 @@ from foms.services.audit_writer import normalize_security_detail
 from foms.services.brain.review_rules import clamp_ms
 from foms.services.brain.usage_events import READER_ERP_ACTION, record_uses
 from foms.services.cs_agent.masking import MaskLeak, require_masked
-from foms.services.erp_actions import preview as fns
+from foms.services.erp_actions import freshness, notice_retry, preview as fns
 from foms.services.erp_actions.access import can_decide
 from foms.services.erp_actions.notify import proposal_created
 from foms.services.erp_actions.registry import (
     ACTIONS, EVIDENCE_KINDS, MAX_EVIDENCE, MAX_REASON, MODE_HUMAN, MODE_LINK, MODE_RUN, REJECT_CODES, SOURCE_KINDS,
-    STATUS_EXECUTED, STATUS_EXECUTING, STATUS_EXPIRED, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED,
+    SOURCE_PROPOSAL, STATUS_EXECUTED, STATUS_EXECUTING, STATUS_EXPIRED, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED,
     STATUS_SUPERSEDED, ActionShapeError, ActionSpec, dedupe_key, get, message, parse_params,
 )
+from foms.services.erp_actions.freshness import PROPOSAL_DAYS, expiry as _expiry
 from foms.services.erp_actions.runners import OUTCOME_BLOCKED, OUTCOME_EXECUTED, RunOutcome, RunRequest, Runner
 from foms.services.orders.change_reason import REASON_CODES, normalize_reason
 from foms.services.orders.revision import lock_order_row
@@ -53,7 +56,6 @@ __all__ = [
     "clean_evidence", "clean_reason_text", "expire_due", "next_morning", "propose", "reconcile", "reject", "snooze",
 ]
 
-PROPOSAL_DAYS = 7
 RECONCILE_AFTER = datetime.timedelta(minutes=2)
 DECIDED_APPROVE, DECIDED_EDIT, DECIDED_REJECT, DECIDED_LINK = "approve", "edit_approve", "reject", "link_done"
 AUDIT_APPROVED, AUDIT_REJECTED = "ERP_ACTION_APPROVED", "ERP_ACTION_REJECTED"
@@ -108,16 +110,6 @@ def clean_evidence(value: Any) -> Optional[list[dict[str, str]]]:
             return None
         out.append({"kind": str(item["kind"]), "ref": ref, "label": label})
     return out
-
-
-def _expiry(now: datetime.datetime, params: Mapping[str, Any]) -> datetime.datetime:
-    """기간 끝 — 7일 뒤와 넣을 값 날짜가 끝나는 때(한국 시간 자정) 가운데 이른 쪽(UTC naive)."""
-    limit = now + datetime.timedelta(days=PROPOSAL_DAYS)
-    try:
-        day = datetime.date.fromisoformat(str(params.get("date") or ""))
-    except ValueError:
-        return limit
-    return min(limit, datetime.datetime.combine(day + datetime.timedelta(days=1), datetime.time()) - _KST)
 
 
 def next_morning(now: datetime.datetime) -> datetime.datetime:
@@ -227,7 +219,9 @@ def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: 
         action: 할 일 이름(``run`` · ``link``). proposed_by: ``'agent:<열쇠>'``. order: 대상 주문.
         params: 넣을 값(:func:`.registry.parse_params`). reason: 가린 이유 글. evidence: 근거 ``[{"kind", "ref", "label"}]``.
         source_kind · source_ref: ``cs_turn`` · ``sweep`` 과 그 번호. level: 지금 수준(0 이면 만들지 않는다). now: UTC naive.
-        dedupe_scope: 겹침 열쇠의 '상황'(:func:`.registry.dedupe_key` ``scope`` — 넣을 값이 없는 훑기 규칙이 준다).
+        dedupe_scope: 겹침 열쇠의 '상황'(:func:`.registry.dedupe_key` ``scope`` — 넣을 값이 없는 훑기 규칙이 준다). 할 일에 상황
+            함수(:func:`.preview.scope` — 실측 일정 · 시공일)가 있으면 그 값이 먼저다(낡음 판정과 같은 값). 기간 끝은
+            :func:`.freshness.expiry`(할 일의 끝날 :func:`.preview.deadline` 까지 본다).
 
     Returns:
         새 제안 줄, 또는 ``None``(수준 0 · 주문 없음 · 꼴 · 가림 · 막힘 · 이미 있음 · 거절된 적 있음).
@@ -250,12 +244,13 @@ def propose(session: Any, *, action: str, proposed_by: str, order: Any, params: 
     if fns.check(action, order, clean):
         _skip(action, order, "ACTION_PRECONDITION")
         return None
-    key = dedupe_key(action, int(order.id), clean, dedupe_scope)
+    scope = fns.scope(action, order)
+    key = dedupe_key(action, int(order.id), clean, dedupe_scope if scope is None else scope)
     row = ErpActionProposal(
         action=action, proposed_by=proposed_by, order_id=int(order.id), params=clean,
         preview=fns.preview(action, order, clean), reason=text, evidence=proofs, level=level, status=STATUS_OPEN,
         base_version=getattr(order, "mutation_version", None), dedupe_key=key, source_kind=source_kind,
-        source_ref=source_ref, created_at=now, expires_at=_expiry(now, clean))
+        source_ref=source_ref, created_at=now, expires_at=_expiry(now, clean, fns.deadline(action, order, clean)))
     if _taken(session, row) or not _insert(session, row):
         return None
     keys = [proof["ref"] for proof in proofs if proof["kind"] == "brain"]
@@ -311,8 +306,11 @@ def _level_check(session: Any, row: ErpActionProposal) -> None:
 
     수준은 수준 표(:func:`foms.services.ai_staff.registry.level_of`)를 승인 때 다시 읽는다. 모르는 직원 · 그 직원에게 없는
     할 일도 0 이다. 제안은 ``open`` 그대로(거절 · 기간 끝남은 된다). 막으면 409 ``ACTION_PRECONDITION`` + :data:`LEVEL_ZERO_REASON`.
+    사람이 승인한 제안의 뒷일(출처 ``proposal`` — :mod:`.notice_retry`)은 AI 가 고른 일이 아니라 수준을 보지 않는다.
     """
     proposer = str(row.proposed_by or "")
+    if row.source_kind == SOURCE_PROPOSAL:
+        return
     if proposer.startswith(PROPOSER_PREFIX) and level_of(session, proposer[len(PROPOSER_PREFIX):], row.action) <= 0:
         raise ActionError("ACTION_PRECONDITION", reason=LEVEL_ZERO_REASON)
 
@@ -320,11 +318,17 @@ def _level_check(session: Any, row: ErpActionProposal) -> None:
 def _begin(session: Any, proposal_id: Any, *, actor: Any, runners: Mapping[str, Runner], base_version: Any,
            edits: Any, reason: tuple[Optional[str], Optional[str]], view_ms: Any,
            now: datetime.datetime) -> RunRequest:
-    """① 잠금 → 볼 수 있나(404) → 열림(409) → 갈래 · 실행기(400) → AI 직원 수준(409) → 넣을 값(400) → 막는 조건 · 기준 판(409)
-    → 사유(사유를 물을 변경인데 사유 코드가 없으면 400 ``reason_code`` — 변경 원장 사유가 비지 않게) → executing 커밋."""
+    """① 잠금 → 볼 수 있나(404) → 열림 · 기간 · 낡음(409 — 낡은 것은 닫고 커밋) → 갈래 · 실행기(400) → AI 직원 수준(409) → 넣을
+    값(400) → 막는 조건 · 기준 판(409) → 사유(사유를 물을 변경인데 사유 코드가 없으면 400 ``reason_code``) → executing 커밋."""
     row, spec, order = _decidable(session, proposal_id, actor, lock_order=True)
-    if row.status not in _DECIDABLE or (row.expires_at is not None and row.expires_at <= now):
-        raise ActionError("ACTION_NOT_OPEN")  # 기간이 지난 제안은 밤 정리(expire_due) 전이라도 실행하지 않는다(F-13)
+    if row.status not in _DECIDABLE:
+        raise ActionError("ACTION_NOT_OPEN")
+    if row.expires_at is not None and row.expires_at <= now:  # 밤 정리(expire_due) 전이라도 실행하지 않는다(F-13)
+        raise ActionError("ACTION_NOT_OPEN", reason=freshness.EXPIRED_REASON)
+    if freshness.is_stale(row, order):  # 실측 일정 · 시공일이 바뀐 옛 제안 — 바뀐 일정으로 나가지 않게 닫는다(w6-01 ③)
+        row.status = STATUS_SUPERSEDED
+        session.commit()
+        raise ActionError("ACTION_NOT_OPEN", reason=freshness.stale_reason(row.action))
     if spec.mode != MODE_RUN or row.action not in runners:
         raise ActionError("ACTION_SHAPE", fields=("action",))
     _level_check(session, row)
@@ -401,7 +405,10 @@ def approve(session: Any, proposal_id: Any, *, actor: Any, runners: Mapping[str,
     reason = _change_reason(reason_code, reason_note)
     request = _begin(session, proposal_id, actor=actor, runners=runners, base_version=base_version, edits=edits,
                      reason=reason, view_ms=view_ms, now=now)
-    return _finish(session, request, _execute(session, runners[request.action], request))
+    outcome = _execute(session, runners[request.action], request)
+    if notice_retry.wanted(request.action, outcome):  # 시공일은 됐고 손님 안내만 못 나감 — 다시 보내기 제안(w6-08)
+        outcome = notice_retry.leave(session, request, outcome, propose)
+    return _finish(session, request, outcome)
 
 
 # ── 거절 · 나중에 ────────────────────────────────────────────────────────
@@ -468,7 +475,8 @@ def _close_link(session: Any, row: ErpActionProposal, now: datetime.datetime) ->
 
 
 def reconcile(session: Any, now: datetime.datetime) -> int:
-    """되맞추기 — ``executing`` 으로 2분 넘게 남은 줄과 끝난 바로가기 제안을 맞춘다. 커밋은 부르는 쪽. 바꾼 줄 수."""
+    """되맞추기 — ``executing`` 으로 2분 넘게 남은 줄 · 끝난 바로가기 제안 · 기간이 지났거나 낡은 제안(:func:`.freshness.close`)을
+    맞춘다. 커밋은 부르는 쪽. 바꾼 줄 수."""
     stuck = (session.query(ErpActionProposal)
              .filter(ErpActionProposal.status == STATUS_EXECUTING, ErpActionProposal.decided_at < now - RECONCILE_AFTER)
              .with_for_update(skip_locked=True).all())
@@ -480,4 +488,4 @@ def reconcile(session: Any, now: datetime.datetime) -> int:
                   .with_for_update(skip_locked=True).all()) if links else []
     closed = sum(1 for row in open_links if _close_link(session, row, now))
     session.flush()
-    return len(stuck) + closed
+    return len(stuck) + closed + freshness.close(session, now)

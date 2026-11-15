@@ -5,8 +5,9 @@
 - ``S1`` 일정: 협력사가 바란 시공일이 있고(``partner_intake.requested_construction``) 우리 시공일이 비었고 요청이 열려 있음
   → ``schedule_construction``(그 날 · 그 시간대 — 시간대가 정한 넷이 아니면 '정하지 않음').
 - ``O1`` 운영: 실측일이 내일인데 지금 실측 일정으로 **나간** 실측 예약 알림톡 기록(``structured_data.alimtalk_measurement``)이
-  없음 → ``send_measure_alimtalk``(:func:`_measure_sent` — 실패 · 건너뜀 기록과 옛 일정의 자동 발송 기록은 '안 보냄').
-  직접 실측 · 협력사 주문은 빼고, 알림톡은 **보내지 않는다**(제안만 — 사람이 승인해야 나간다).
+  없음 → ``send_measure_alimtalk``(:func:`foms.services.erp_actions.measure_notice.measure_sent` — 실패 · 건너뜀 기록과 옛 일정의
+  자동 발송 기록은 '안 보냄', 승인 막는 조건과 같은 판정). 직접 실측 · 협력사 주문은 빼고, 알림톡은 **보내지 않는다**(제안만 —
+  사람이 승인해야 나간다). 제안 기간은 실측일이 끝나는 때까지, 실측 일정이 바뀌면 옛 제안은 낡은 것으로 닫힌다(점검 2차 w6-01).
 - ``O2`` 운영(D214 — 처음 수준 0): 지금 단계의 현재 작업이 모두 승인됐는데 단계가 2일 넘게 그대로 → ``advance_stage``.
   도면 단계(전용 명령으로만 넘어간다)와 고객컨펌 도면 문지기에 걸린 주문은 뺀다.
 - ``O3`` 운영: 단계가 도면인데 도면 담당이 2일 넘게 비어 있음 → ``assign_draftsman``(담당 칸은 비워 둔다 — 승인자가 고른다).
@@ -25,6 +26,11 @@
 - ``FOMS_GRAFT_PROPOSERS`` 가 꺼져 있으면(:func:`foms.services.graft_flags.enabled_global`) **아무것도 읽지도 쓰지도 않고**
   ``enabled`` 거짓으로 끝난다(지금과 같다).
 - 직원마다 실행 기록 한 줄(``ai_agent_runs`` — 규칙마다 후보 고르기 · 제안 만들기 단계와 걸린 시간). 커밋은 부르는 쪽.
+- **폰 알림**: 훑기는 알림톡을 보내지 않지만, 폰 알림 스위치(``FOMS_GRAFT_PUSH_ENABLED`` — 이 훑기가 도는 서비스의 env)가 켜져
+  있으면 새로 만든 제안마다 받는 사람(:func:`foms.services.erp_actions.notify.recipients` — 담당 → 관리자 → 팀)에게 커밋 뒤 폰
+  알림이 간다(밤 단계라 한국 02:00 무렵). 꺼져 있으면(처음 값) 알림 줄도 만들지 않는다.
+- 제안 기간 7일은 훑은 날부터 7일째 되는 날 0시(한국)에 끝난다(:attr:`SweepContext.week_end`) — 그 밤 단계 '끝남 닫기'가 닫고 이어 도는
+  훑기가 같은 밤 다시 만든다(만든 때 + 7일이면 몇 분 차이로 그 밤을 비껴가 하루를 비운다 — 점검 2차 w6-12).
 - 날짜는 한국 날짜(:func:`get_today_kst`). 이유 글은 코드가 정한 말뿐(손님 글 · 이름 없음).
 """
 
@@ -39,12 +45,13 @@ from typing import Any, Callable, Optional
 from sqlalchemy import and_, or_, select
 
 from foms.persistence.graft.models import ErpActionProposal
-from foms.services import kakao_alimtalk as measure_alimtalk
 from foms.services import kakao_alimtalk_construction as construction_alimtalk
 from foms.services.ai_staff.registry import AGENTS, level_table, proposer
 from foms.services.ai_staff.runs import record_run
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.erp_actions.freshness import PROPOSAL_DAYS
 from foms.services.erp_actions.lifecycle import propose
+from foms.services.erp_actions.measure_notice import measure_sent
 from foms.services.erp_actions.registry import (
     STATUS_EXECUTING, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED, TIME_SLOTS,
 )
@@ -69,6 +76,7 @@ SCAN_LIMIT = 200  # 규칙 하나가 읽는 후보 주문 수(구조 칸까지 �
 STUCK_DAYS = 2
 #: 단계 넘기기 규칙이 보지 않는 단계 — 도면은 전용 명령(도면 전달 · 수령 확정)으로만 넘어가고, 마지막 단계는 넘길 곳이 없다.
 _NO_ADVANCE = frozenset({"DRAWING", MAIN_PIPELINE_CODES[-1]})
+_KST = datetime.timedelta(hours=9)
 #: 후보에서 빼는 제안 상태 — 이미 걸려 있어 :func:`propose` 가 어차피 만들지 않는 것(값이 늘 같은 규칙은 거절까지).
 _HELD = (STATUS_OPEN, STATUS_EXECUTING, STATUS_FAILED)
 _HELD_OR_REJECTED = (*_HELD, STATUS_REJECTED)
@@ -87,6 +95,11 @@ class SweepContext:
         return (self.today + datetime.timedelta(days=1)).isoformat()
 
     @property
+    def week_end(self) -> datetime.datetime:
+        """훑기 제안 기간의 끝 — 한국 오늘부터 7일째 되는 날 0시(한국)를 UTC naive 로(그 밤 단계가 닫고 다시 만든다)."""
+        return datetime.datetime.combine(self.today + datetime.timedelta(days=PROPOSAL_DAYS), datetime.time()) - _KST
+
+    @property
     def stuck_before(self) -> datetime.datetime:
         """이때보다 앞에 단계가 바뀐 주문은 '2일 넘게 그대로'(UTC naive — ``erp_stage_updated_at`` 과 같은 꼴)."""
         return self.now - datetime.timedelta(days=STUCK_DAYS)
@@ -100,6 +113,7 @@ class Candidate:
     params: dict[str, Any]
     reason: str
     scope: Optional[str] = None  # 넣을 값이 없는 규칙의 상황(겹침 열쇠 — 원장 F-08). 바뀌면 거절 뒤에도 다시 제안된다.
+    # 실측 예약 · 시공일 안내 알림톡은 할 일 쪽 상황(:func:`foms.services.erp_actions.preview.scope`)이 먼저다(같은 값).
 
 
 @dataclass(frozen=True)
@@ -155,27 +169,6 @@ def _sd(order: Any) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _measure_sent(order_id: int, sd: dict[str, Any]) -> bool:
-    """지금 실측 일정으로 실측 예약 알림톡이 손님에게 나갔나(승인 쪽 :mod:`foms.services.erp_actions.preview` 와 같은 '나감').
-
-    나감 = 보낸 때 · 벤더 번호 있음 · 오류 없음. 실패 · 건너뜀 기록은 안 보냄이다. 일정은 기록이 가진 만큼 견준다 —
-    자동 발송 열쇠(``alimtalk:measure:<주문>:<날짜>:<시간>``)는 지금 일정의 열쇠와 같아야, 마법사 초안 이력은
-    ``draft_schedule`` 이 지금 일정 서명과 같아야 한다. 사람이 누른 발송(``manual`` · 할 일 ``action`` 열쇠)은 일정을
-    싣지 않아 나감 그대로 본다.
-    """
-    record = sd.get("alimtalk_measurement")
-    if not isinstance(record, dict) or record.get("error") is not None:
-        return False
-    if not record.get("sent_at") or not record.get("message_id"):
-        return False
-    if record.get("draft_schedule") is not None:
-        return record.get("draft_schedule") == measure_alimtalk.build_draft_schedule_signature(sd)
-    key = str(record.get("dedupe_key") or "")
-    if key.startswith((f"alimtalk:measure:{order_id}:manual:", f"alimtalk:measure:{order_id}:action:")):
-        return True
-    return bool(key) and key == measure_alimtalk.build_dedupe_key(order_id, sd)
-
-
 # ── 규칙 ─────────────────────────────────────────────────────────────────
 def _pick_partner_requests(session: Any, ctx: SweepContext, action: str, limit: int) -> list[Any]:
     """S1 후보 — 협력사 주문 · 우리 시공일 빔 · 시공 전(거절은 빼지 않는다 — 희망 날이 바뀌면 열쇠가 달라진다)."""
@@ -207,11 +200,9 @@ def _pick_measure_alimtalk(session: Any, ctx: SweepContext, action: str, limit: 
 
 def _judge_measure_alimtalk(order: Any, ctx: SweepContext) -> Optional[Candidate]:
     """O1 — 지금 일정으로 나간 실측 예약 알림톡이 없으면 제안."""
-    sd = _sd(order)
-    if _measure_sent(int(order.id), sd):
+    if measure_sent(int(order.id), _sd(order)):
         return None
-    return Candidate(order, {}, "내일 실측인데 실측 예약 알림톡을 보낸 기록이 없어요.",
-                     scope=measure_alimtalk.build_dedupe_key(int(order.id), sd) or "measure")
+    return Candidate(order, {}, "내일 실측인데 실측 예약 알림톡을 보낸 기록이 없어요.")  # 상황 = 실측 일정(할 일 쪽)
 
 
 def _pick_stuck_stage(session: Any, ctx: SweepContext, action: str, limit: int) -> list[Any]:
@@ -264,7 +255,7 @@ def _judge_construction_alimtalk(order: Any, ctx: SweepContext) -> Optional[Cand
     day = construction_alimtalk.construction_day(sd)
     if construction_alimtalk.sent_for(sd, day):
         return None
-    return Candidate(order, {}, "내일 시공인데 시공일 안내 알림톡을 보낸 기록이 없어요.", scope=str(day or ""))
+    return Candidate(order, {}, "내일 시공인데 시공일 안내 알림톡을 보낸 기록이 없어요.")  # 상황 = 시공일(할 일 쪽)
 
 
 #: 규칙 이름 → 규칙(차례대로 돈다). 뒤 일감은 여기 줄을 더한다.
@@ -298,6 +289,8 @@ def _propose_one(session: Any, rule: Rule, order: Any, level: int, ctx: SweepCon
             row = propose(session, action=rule.action, proposed_by=proposer(rule.agent), order=order,
                           params=candidate.params, reason=candidate.reason, evidence=evidence, source_kind="sweep",
                           source_ref=str(run_id), level=level, now=ctx.now, dedupe_scope=candidate.scope)
+            if row is not None and row.expires_at is not None:
+                row.expires_at = min(row.expires_at, ctx.week_end)  # 7일째 0시(한국) — 그 밤 단계가 닫고 다시 만든다(w6-12)
             return row is not None
     except Exception as exc:  # 후보 하나의 실패가 그 밤의 다른 제안을 되돌리지 않게 — 코드만 남긴다
         logger.warning("[AI-STAFF] 훑기 후보 실패 rule=%s order=%s code=%s", rule.key, getattr(order, "id", None),
