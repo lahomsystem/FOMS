@@ -3,8 +3,9 @@
  * [data-ds-search-page]. 옛 찾기 탭(brain-page.js) · 지식 표 탭(brain-table.js)이 하던 일을 한 화면에서 한다(그 둘은 싣지 않는다).
  *
  * - 찾기: 찾는 말 → GET /api/brain/search?q= → 같은 표에 유형별 묶음 줄(앞 몇 개 · 수 · '표에서 모두 보기').
- * - 지식 표: 유형(왼쪽 나무 · 수 칩 · 거르기 '유형' · '표에서 모두 보기') → GET /api/brain/table(거르기 여덟 · 정렬 · 쪽).
- *   주소의 유형이 없으면 지식이 있는 첫 유형. 유형 고르기 칸의 이름 옆에 볼 수 있는 수를 붙인다(옛 표와 같다).
+ * - 지식 표: 찾는 말이 없으면 표 — 유형(왼쪽 나무 · 수 칩 · 거르기 '유형' · '표에서 모두 보기')을 안 고르면 모든 유형(점검 2차
+ *   w1-06 · D232) → GET /api/brain/table(거르기 여덟 · 정렬 · 쪽). 유형 고르기 칸의 이름 옆에 볼 수 있는 수(옛 표와 같다).
+ * - [내보내기](관리자만 — data-export-url): 지금 거른 표의 CSV 주소를 표를 읽을 때마다 맞춘다(찾는 말 묶음에서는 숨김 · D233).
  * - 주소는 history.replaceState 로 맞춘다(?tab=search&q= · ?tab=table&type= — 지금 주소 그대로). 고른 줄 · 펼친 묶음도 맞춘다.
  * - 줄을 누르거나 Enter 면 오른쪽 미리 보기(ds-search-preview.js). 이름 링크는 카드로 간다.
  * 요청은 brain-dom.js getJson 한 곳(try/catch + data.success), 글은 textContent 만, 전역 듣개는 한 번만(__FOMS_DS_SEARCH_BOUND).
@@ -30,7 +31,7 @@
     itemApi: root.getAttribute('data-item-api') || '/api/brain/items/',
     pageUrl: root.getAttribute('data-page-url') || '/brain',
     searchUrl: root.getAttribute('data-search-url'), tableUrl: root.getAttribute('data-table-url'),
-    usage: root.hasAttribute('data-usage')
+    exportUrl: root.getAttribute('data-export-url'), usage: root.hasAttribute('data-usage')
   };
   var input = root.querySelector('[data-ds-search-input]');
   var filters = root.querySelector('[data-ds-search-filters]');
@@ -42,8 +43,9 @@
   var prev = root.querySelector('[data-ds-page-prev]');
   var next = root.querySelector('[data-ds-page-next]');
   var tree = document.querySelector('[data-ds-search-tree]');
+  var exportLink = root.querySelector('[data-ds-export]');
   var state = { mode: root.getAttribute('data-ds-search-mode') === 'table' ? 'table' : 'search',
-                query: root.getAttribute('data-start-query') || '', type: '', page: 1, seq: 0 };
+                query: root.getAttribute('data-start-query') || '', type: '', page: 1, seq: 0, items: {} };
 
   function places() {
     return [root, tree].filter(Boolean);
@@ -58,7 +60,7 @@
   function markNav() {
     places().forEach(function (place) {
       place.querySelectorAll('[data-ds-type], [data-ds-search-all]').forEach(function (node) {
-        var on = node.hasAttribute('data-ds-search-all') ? state.mode === 'search'
+        var on = node.hasAttribute('data-ds-search-all') ? state.mode === 'search' || !state.type
           : state.mode === 'table' && node.getAttribute('data-ds-type') === state.type;
         if (node.classList.contains('f-btn')) return;  // 묶음 줄의 '표에서 모두 보기' 단추
         node.classList.toggle('is-selected', on);
@@ -70,6 +72,7 @@
     });
     filters.hidden = state.mode !== 'table';
     pager.hidden = state.mode !== 'table';
+    if (exportLink) exportLink.hidden = state.mode !== 'table';
   }
 
   function setFilter(name, value) {
@@ -90,6 +93,7 @@
     var select = filters.querySelector('[data-ds-filter="type"]');
     if (!select) return;
     Array.prototype.forEach.call(select.options, function (option) {
+      if (!option.value) return;  // '모든 유형'에는 수를 붙이지 않는다(판 ⑦)
       option.textContent = (option.getAttribute('data-label') || option.textContent) + ' (' + sv.num(counts[option.value]) + ')';
     });
   }
@@ -98,7 +102,12 @@
     var keys = Array.prototype.map.call(body.querySelectorAll('[data-ds-row-key]'), function (tr) {
       return tr.getAttribute('data-ds-row-key');
     });
-    preview.setRows(keys);
+    preview.setRows(keys, state.items);
+  }
+
+  function addRow(item) {
+    state.items[item.key] = item;
+    body.appendChild(rows.itemRow(ctx, item));
   }
 
   /** index 째 줄을 고른 줄로(표시만 — 미리 보기는 부른 쪽이). */
@@ -120,15 +129,11 @@
 
   async function runSearch(text) {
     state.query = String(text || '').trim();
+    if (!state.query) { openTable(''); return; }  // 찾을 말이 없으면 모든 유형 표(D232)
     syncUrl();
     dom.clear(body);
+    state.items = {};
     var mine = ++state.seq;
-    list.hidden = !state.query;  // 찾을 말이 없으면 빈 표 머리를 보이지 않는다
-    if (!state.query) {
-      dom.setStatus(status, '찾을 말을 적어 주세요.');
-      listKeys();
-      return;
-    }
     dom.setStatus(status, '찾는 중…');
     var res = await dom.getJson(ctx.searchUrl + '?q=' + encodeURIComponent(state.query));
     if (mine !== state.seq) return;  // 더 늦은 찾기 · 표가 이미 나갔다
@@ -141,7 +146,7 @@
     dom.setStatus(status, groups.length ? sv.num(res.data.total) + '개 찾았어요.' : '찾은 지식이 없어요. 다른 말로 찾아 보세요.');
     groups.forEach(function (group) {
       body.appendChild(rows.groupRow(ctx, group));
-      (group.items || []).forEach(function (item) { body.appendChild(rows.itemRow(ctx, item)); });
+      (group.items || []).forEach(addRow);
     });
     listKeys();
   }
@@ -157,11 +162,15 @@
       return;
     }
     var data = res.data;
-    list.hidden = false;
     state.page = data.page;
     updateTypeCounts(data.type_counts || {});
     dom.clear(body);
-    data.rows.forEach(function (item) { body.appendChild(rows.itemRow(ctx, item)); });
+    state.items = {};
+    data.rows.forEach(addRow);
+    if (exportLink) {
+      delete wanted.page;
+      exportLink.href = ctx.exportUrl + '?' + view.tableParams(wanted);
+    }
     if (!data.rows.length) body.appendChild(rows.noteRow('조건에 맞는 지식이 없어요.'));
     var info = view.pager(data.page, data.pages, data.total, data.per_page);
     pageText.textContent = sv.pagerText(data.page, data.per_page, data.total, sv.label(ctx.display, 'sorts', wanted.sort));
@@ -173,7 +182,7 @@
 
   function openTable(type) {
     state.mode = 'table';
-    state.type = sv.pickStartType(type, ctx.counts, ctx.display.type_order);
+    state.type = (ctx.display.type_order || []).indexOf(type) >= 0 ? type : '';  // 없으면 모든 유형
     state.page = 1;
     setFilter('type', state.type);
     markNav();
@@ -202,8 +211,8 @@
         openTable(typeLink.getAttribute('data-ds-type'));
       } else if (all) {
         event.preventDefault();
-        openSearch(input.value);
-        input.focus();
+        input.value = '';
+        openTable('');
       } else if (toggle) {
         var open = toggle.getAttribute('aria-expanded') !== 'true';
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -240,11 +249,6 @@
   });
 
   preview.init(ctx, highlight);
-  if (state.mode === 'table') {
-    openTable(root.getAttribute('data-start-type') || '');
-  } else {
-    markNav();
-    runSearch(state.query);
-    if (!state.query && input && window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus();
-  }
+  if (state.mode === 'table') openTable(root.getAttribute('data-start-type') || '');
+  else openSearch(state.query);
 })();

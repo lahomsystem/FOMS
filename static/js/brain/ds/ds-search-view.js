@@ -57,8 +57,11 @@
     var it = item || {};
     var info = own((display || {}).types, it.type);
     var conf = own(CONF_ICONS, it.confidence) || ['circle', 'f-i-muted'];
-    var flags = [];
-    if (it.needs_check) flags.push({ text: '확인 필요', cls: 'f-tag-minimal f-tag-warning' });
+    var flags = [];  // 판 ⑦ — '수정 대기 N' · '엇갈림 N'(수를 모르는 옛 답이면 '확인 필요' 하나)
+    var warn = 'f-tag-minimal f-tag-warning';
+    if (Number(it.open_changes) > 0) flags.push({ text: '수정 대기 ' + num(it.open_changes), cls: warn });
+    if (Number(it.conflicts) > 0) flags.push({ text: '엇갈림 ' + num(it.conflicts), cls: warn });
+    if (it.needs_check && !flags.length) flags.push({ text: '확인 필요', cls: warn });
     return {
       key: String(it.key || ''), name: String(it.name || it.key || ''), type: String(it.type || ''),
       typeLabel: info ? info.label : String(it.type || ''), icon: own(icons, it.type) || 'circle',
@@ -137,9 +140,10 @@
     return num(count) + '개 중 ' + from + '–' + to + (sortLabel ? ' · ' + sortLabel : '');
   }
 
-  /** 주소 물음 글 — 찾기면 ?tab=search(&q=), 지식 표면 ?tab=table&type=. */
+  /** 주소 물음 글 — 찾기면 ?tab=search(&q=), 지식 표면 ?tab=table&type=(유형이 없으면 모든 유형 표 = ?tab=search — D232). */
   function pageQuery(mode, value) {
-    if (mode === 'table') return '?tab=table' + (value ? '&type=' + encodeURIComponent(value) : '');
+    if (mode === 'table' && value) return '?tab=table&type=' + encodeURIComponent(value);
+    if (mode === 'table') return '?tab=search';
     var q = String(value || '').trim();
     return '?tab=search' + (q ? '&q=' + encodeURIComponent(q) : '');
   }

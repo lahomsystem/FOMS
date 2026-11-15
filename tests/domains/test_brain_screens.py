@@ -92,7 +92,8 @@ def test_table_query_accepts_only_listed_values():
                                "page": "2", "per_page": "999"})
     assert (query.layer, query.check, query.sort, query.page, query.per_page) == ("common", "stale", "checked", 2, 50)
     assert parse_table_query({"type": "spec", "brand": ""}).brand is None
-    for bad in ({"type": "nope"}, {}, {"type": "spec", "layer": "kitchen"}, {"type": "spec", "sort": "random"},
+    assert parse_table_query({}).item_type is None and parse_table_query({"type": " "}).item_type is None  # 모든 유형(D232)
+    for bad in ({"type": "nope"}, {"type": "spec", "layer": "kitchen"}, {"type": "spec", "sort": "random"},
                 {"type": "spec", "check": "all"}):
         with pytest.raises(TableQueryError):
             parse_table_query(bad)
