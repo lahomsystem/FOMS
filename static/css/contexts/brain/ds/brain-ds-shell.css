@@ -15,8 +15,8 @@
 
 /* 위 줄 — PC 는 탭 · 찾기 칸 · 사람, 폰 전용 조각(지금 화면 이름 · 수 · 부제)은 숨긴다.
    찾기 칸은 줄어들 수 있어야 위 줄이 한 줄로 남는다(화면 크기 110 ~ 130% · 1100 ~ 1250px 창 — w1-07 · w3-10):
-   처음 폭 160px 에서 360px 까지만 늘고, 남는 자리는 f-push 가 가져간다. */
-.fb-navbar .fb-nav-search { flex: 1 1 160px; max-width: 360px; }
+   처음 폭 100px(992px 창에서도 한 줄)에서 360px 까지만 늘고, 남는 자리는 f-push 가 가져간다. */
+.fb-navbar .fb-nav-search { flex: 1 1 100px; max-width: 360px; }
 .fb-nav-tabs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; }
 .fb-nav-tabs .f-count { margin-left: 2px; }
 .fb-nav-page,
