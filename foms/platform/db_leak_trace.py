@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 import time
+import weakref
 from typing import Any
 
 from sqlalchemy import event
@@ -30,7 +31,9 @@ _MAX_WALK = 150  # ORM 실행 경로가 SQLAlchemy 안에서만 수십 칸이다
 _MAX_REPORTS = 200
 
 _reported = 0
-_installed_engines: set[int] = set()
+#: 리스너를 단 engine — 약한 참조로 기억한다. 번호(``id``)로 기억하면 지워진 engine 의 번호를 새 engine 이 물려받았을 때
+#: '이미 달았다'로 잘못 보고 리스너를 안 단다(2026-11-15 CI 에서 시험이 두 번 흔들림).
+_installed_engines: "weakref.WeakSet[Any]" = weakref.WeakSet()
 
 #: 저장소 뿌리(운영 ``/app``) — 이 아래 파일만 "앱 코드"로 본다(설치된 패키지 제외).
 #: 윈도우는 드라이브 글자 대소문자(``C:``/``c:``)가 달라도 같은 경로다 — normcase 로 맞춰 비교한다
@@ -123,9 +126,9 @@ def install_db_leak_trace(engine: Any) -> bool:
     """engine 에 checkout/reset 리스너를 한 번 단다. 꺼져 있거나 이미 달았으면 ``False``."""
     if engine is None or os.getenv("FOMS_DB_LEAK_TRACE", "1").strip() == "0":
         return False
-    if id(engine) in _installed_engines:
+    if engine in _installed_engines:
         return False
     event.listen(engine, "checkout", _on_checkout)
     event.listen(engine, "reset", _on_reset)
-    _installed_engines.add(id(engine))
+    _installed_engines.add(engine)
     return True

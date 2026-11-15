@@ -83,3 +83,17 @@ def test_disabled_by_env(tmp_path, monkeypatch):
     monkeypatch.setenv("FOMS_DB_LEAK_TRACE", "0")
     engine = create_engine(f"sqlite:///{tmp_path / 'off.db'}", poolclass=QueuePool)
     assert db_leak_trace.install_db_leak_trace(engine) is False
+
+
+def test_new_engine_that_reuses_a_dead_engine_id_still_gets_listeners(tmp_path):
+    """지워진 engine 의 번호(``id``)를 새 engine 이 물려받아도 '이미 달았다'로 보지 않는다 — 같은 engine 만 한 번."""
+    seen = set()
+    for n in range(20):
+        engine = create_engine(f"sqlite:///{tmp_path / 'reuse.db'}", poolclass=QueuePool)
+        reused = id(engine) in seen
+        seen.add(id(engine))
+        assert db_leak_trace.install_db_leak_trace(engine) is True, f"{n}번째 engine(번호 물려받음={reused})"
+        assert db_leak_trace.install_db_leak_trace(engine) is False
+        engine.dispose()
+        del engine
+        gc.collect()
