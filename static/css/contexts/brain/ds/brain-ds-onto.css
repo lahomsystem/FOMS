@@ -47,6 +47,25 @@
 .fb-onto .f-section-head > .f-tag,
 .fb-onto .f-section-head > .fb-onto-legend { flex: none; }
 
+/* 표가 칸보다 넓으면 줄마다 카드(점검 3차 B1 — ds-onto-kit.js 가 칸 폭을 재서 .is-stacked 를 단다). 가로 밀기 · 숨긴 칸 없이
+   첫 칸이 카드 제목, 나머지 칸은 머리 이름표(data-label)를 값 앞에 붙인다 — AI 직원 할 일 표 카드와 같은 꼴. */
+.fb-onto .fb-onto-table.is-stacked,
+.fb-onto .fb-onto-table.is-stacked tbody,
+.fb-onto .fb-onto-table.is-stacked td { display: block; }
+.fb-onto .fb-onto-table.is-stacked thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* 카드 안 칸은 220px 씩 들어가는 만큼 나란히(PC 화면 크기 120% 는 둘 · 폰은 하나) — 카드 키를 줄인다. */
+.fb-onto .fb-onto-table.is-stacked tr {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 2px 16px;
+  padding: 10px 16px; box-shadow: inset 0 1px 0 0 var(--divider);
+}
+.fb-onto .fb-onto-table.is-stacked td:first-child { grid-column: 1 / -1; }
+.fb-onto .fb-onto-table.is-stacked tbody tr:first-child { box-shadow: none; }
+.fb-onto .fb-onto-table.is-stacked td { padding: 2px 0; box-shadow: none; white-space: normal; text-align: left; }
+.fb-onto .fb-onto-table.is-stacked td[data-label]::before {
+  content: attr(data-label); margin-right: 6px; font-weight: 400;
+  font-size: var(--font-size-small); color: var(--text-muted);
+}
+
 /* 오른쪽 능력 질문 — 점수 막대(<progress>) · 모자란 재료 줄 들여쓰기 */
 .fb-onto-progress {
   display: block; width: 100%; height: 8px; border: 0; border-radius: 40px; overflow: hidden;
