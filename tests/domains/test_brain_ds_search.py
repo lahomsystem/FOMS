@@ -97,7 +97,8 @@ def _between(body: str, start: str, end: str) -> str:
 def test_switch_on_admin_draws_search_and_table_in_one_template(app, ids, monkeypatch):
     _switch(monkeypatch, "brain_ui")
     client = _client(app, ids["admin"])
-    for path, mode in (("/brain?tab=search", "search"), ("/brain?tab=table&type=build_rule", "table")):
+    for path, mode in (("/brain?tab=search&q=%EB%AC%B8%EC%A7%9D", "search"), ("/brain?tab=search", "table"),
+                       ("/brain?tab=table&type=build_rule", "table")):  # 찾는 말 없는 찾기 = 모든 유형 표(D232)
         resp, body, names = _get(app, client, path)
         assert resp.status_code == 200 and names[0] == "brain/ds/search.html", path
         assert "brain/index.html" not in names
@@ -138,7 +139,10 @@ def test_search_mode_echoes_the_query_and_hides_filters_and_pager(app, ids, monk
     chips = _between(body, "data-ds-search-chips>", "</div>")
     assert re.search(r'class="f-chip fb-chip is-selected" href="/brain\?tab=search"\s+data-ds-search-all aria-current="page">', chips)
     empty = _get(app, _client(app, ids["admin"]), "/brain?tab=search")[1]
-    assert 'aria-label="지식 목록" data-ds-search-list hidden>' in empty  # 찾을 말이 없으면 빈 표 머리를 숨긴다
+    # 찾을 말이 없으면 모든 유형 표 — 표 · 거르기 · 쪽이 보이고 '모두' 칩 · '모든 유형'이 골라져 있다(D232 · w1-06)
+    assert 'data-ds-search-mode="table"' in empty and 'data-start-type=""' in empty
+    assert 'aria-label="지식 목록" data-ds-search-list>' in empty
+    assert 'data-ds-search-filters hidden' not in empty and 'data-ds-search-pager hidden' not in empty
 
 
 def test_type_chips_count_down_and_the_table_type_is_picked(app, ids, monkeypatch):
@@ -168,7 +172,8 @@ def test_eight_filters_carry_the_code_choice_lists(app, ids, monkeypatch):
     for name in FILTERS:
         select = _between(form, f'data-ds-filter="{name}">', "</select>")
         values = re.findall(r'<option value="(\w*)"', select)
-        assert values == ([] if name in ("type", "sort") else [""]) + wanted[name], name
+        assert values == ([] if name == "sort" else [""]) + wanted[name], name  # 유형 '' = 모든 유형(D232)
+    assert '<option value="" data-label="모든 유형">모든 유형</option>' in form
     assert '<option value="spec" data-label="규격" selected>' in form
     assert form.count(" selected>") == 1
 
@@ -243,6 +248,20 @@ def test_row_model_labels_tones_and_flags():
 
 
 @NODE
+def test_name_flags_split_waiting_edits_and_conflicts():
+    """판 ⑦ 이름 칸 꼬리표 — '수정 대기 N' · '엇갈림 N'(점검 2차 w1-11). 수를 모르는 옛 답만 '확인 필요' 하나."""
+    rows = _node("[v.rowModel(data.a, data.d, {}).flags, v.rowModel(data.b, data.d, {}).flags,"
+                 " v.rowModel(data.c, data.d, {}).flags, v.rowModel(data.e, data.d, {}).flags]",
+                 {"d": display_table(), "a": _item(needs_check=True, open_changes=2, conflicts=1),
+                  "b": _item(needs_check=True, open_changes=0, conflicts=1), "c": _item(needs_check=True),
+                  "e": _item(needs_check=False, open_changes=0, conflicts=0)})
+    warn = "f-tag-minimal f-tag-warning"
+    assert rows[0] == [{"text": "수정 대기 2", "cls": warn}, {"text": "엇갈림 1", "cls": warn}]
+    assert rows[1] == [{"text": "엇갈림 1", "cls": warn}]
+    assert rows[2] == [{"text": "확인 필요", "cls": warn}] and rows[3] == []
+
+
+@NODE
 def test_status_and_grade_tones_are_never_achromatic():
     tones = _node("[v.STATUS_TONES, v.GRADE_TONES]")
     for table in tones:
@@ -300,4 +319,4 @@ def test_link_summary_key_fields_pager_and_page_query():
     assert got[1] == {"rows": [], "total": 0}
     assert got[2] == ["깊이", "단위", "가"] and got[3] == ["깊이"]
     assert got[4:7] == ["1,204개 중 1–25 · 쓰인 횟수 많은 순", "60개 중 51–60", "0개"]
-    assert got[7:] == ["?tab=search&q=%EB%AC%B8%EC%A7%9D", "?tab=search", "?tab=table&type=build_rule", "?tab=table"]
+    assert got[7:] == ["?tab=search&q=%EB%AC%B8%EC%A7%9D", "?tab=search", "?tab=table&type=build_rule", "?tab=search"]  # 유형 없는 표 = 모든 유형 표 = 찾기 첫 화면(D232)

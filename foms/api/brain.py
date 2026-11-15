@@ -3,7 +3,9 @@
 접두 ``/api/brain`` — 모두 GET:
 
 - ``/search?q=`` 찾기 — 유형별 묶음(PostgreSQL pg_trgm · SQLite 부분 일치).
-- ``/table?type=&layer=&brand=&status=&grade=&confidence=&check=&sort=&page=&per_page=`` 지식 표(유형 하나 · 쪽).
+- ``/table?type=&layer=&brand=&status=&grade=&confidence=&check=&sort=&page=&per_page=`` 지식 표(유형 하나 · 쪽 — 유형이
+  없으면 모든 유형, 점검 2차 w1-06 · D232).
+- ``/table/export.csv`` (같은 물음) 지금 거른 표 내려받기(ADMIN 만 — 판 ⑦ [내보내기] · D233). 감사 한 줄을 남긴 뒤 CSV.
 - ``/items/<키>`` 항목 카드(링크 · 바깥 정본 칩 · 사본 · 이력).
 - ``/type-map`` 유형 지도(유형 · 링크 종류 · 허용 짝 · 유형별 수).
 - ``/releases?page=`` 판 목록 · ``/releases/<번호>`` 판 차이 요약.
@@ -27,23 +29,33 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
-from flask import Blueprint, abort, g, jsonify, request
+import logging
+
+from flask import Blueprint, Response, abort, g, jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.services.brain.access import screen_viewer
 from foms.services.brain.around import AroundQueryError, brain_points, parse_around, search_around
-from foms.services.brain.browse import TableQueryError, parse_table_query, search_grouped, table_page, type_map
+from foms.services.brain.browse import (
+    TableQueryError, parse_table_query, search_grouped, table_page, table_rows, type_map,
+)
 from foms.services.brain.card import item_card
 from foms.services.brain.ontology_view import ontology_erp_type, ontology_summary, ontology_type
 from foms.services.brain.quality import quality_counts
 from foms.services.brain.read import current_item
 from foms.services.brain.release_view import release_diff, release_page
 from foms.services.brain.scope import Viewer
+from foms.services.brain.table_export import MAX_EXPORT_ROWS, build_csv, export_filename
 from foms.services.brain.usage_view import item_usage
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.graft_flags import enabled as graft_enabled
+from models import SecurityLog
+
+logger = logging.getLogger(__name__)
 
 brain_api_bp = Blueprint("brain_api", __name__, url_prefix="/api/brain")
+EXPORT_AUDIT_ACTION = "BRAIN_TABLE_EXPORT_CSV"
 
 NOT_FOUND = "찾을 수 없습니다."
 BAD_QUERY = "고르기 값이 맞지 않습니다."
@@ -103,6 +115,45 @@ def brain_table() -> tuple[Any, int]:
         viewer, denied = _viewer()  # 권한 없는 사람에게는 400 대신 404 · 401 그대로
         return denied if denied else _fail(400, BAD_QUERY)
     return _read(lambda db, viewer: table_page(db, viewer, query, today=get_today_kst()))
+
+
+@brain_api_bp.route("/table/export.csv", methods=["GET"])
+def brain_table_export() -> Any:
+    """지식 표 내려받기(판 ⑦ [내보내기] · D233) — 지금 거른 표 그대로, ADMIN 만(그 밖 화면을 여는 사람은 403, 못 여는 사람은
+    404 · 401). 볼 수 없는 유형 · 층은 질의 단계에서 빠진다. :data:`MAX_EXPORT_ROWS` 줄을 넘으면 400(거르기로 줄인다).
+    감사 한 줄(``BRAIN_TABLE_EXPORT_CSV`` — 물음 · 줄 수)을 커밋한 뒤 파일을 준다."""
+    viewer, denied = _viewer()
+    if denied:
+        return denied
+    if not viewer.is_admin:
+        return _fail(403, "내보내기는 관리자만 할 수 있어요.")
+    try:
+        query = parse_table_query(request.args)
+    except TableQueryError:
+        return _fail(400, BAD_QUERY)
+    today = get_today_kst()
+    db = get_db()
+    total, rows = table_rows(db, viewer, query, today=today, limit=MAX_EXPORT_ROWS)
+    if total > MAX_EXPORT_ROWS:
+        db.rollback()
+        return _fail(400, f"한 번에 {MAX_EXPORT_ROWS:,}개까지 내려받을 수 있어요. 거르기로 줄여 주세요.")
+    filename = export_filename(query.item_type, today)
+    picked = {name: value for name, value in (("type", query.item_type), ("layer", query.layer), ("brand", query.brand),
+                                               ("status", query.status), ("grade", query.grade),
+                                               ("confidence", query.confidence), ("check", query.check),
+                                               ("sort", query.sort)) if value}
+    try:
+        db.add(SecurityLog(user_id=int(g.current_user.id), action=EXPORT_AUDIT_ACTION, target_type="brain_table",
+                           message=f"회사 지식 표 CSV 내려받기: {len(rows)}줄",
+                           detail={"query": picked, "rows": len(rows), "filename": filename}))
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("[BRAIN] 지식 표 내려받기 감사 기록 실패")
+        return _fail(500, "내려받지 못했어요. 잠시 뒤 다시 해 주세요.")
+    return Response(build_csv(rows), mimetype="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store"})
 
 
 def _erp_on() -> bool:

@@ -1,16 +1,19 @@
 {#- 찾기 · 지식 표 왼쪽 길잡이(판 ⑦ — PC 만): 유형 묶음 나무(묶음 · 유형 · 수 — GET /api/brain/type-map 과 같은 tmap 값, 볼 수 있는
-    것만 센 수). '모든 유형' = 찾기(유형별 묶음), 유형을 누르면 그 유형의 지식 표(?tab=table&type=). 바깥 자리(계산기 · 설정 ·
-    사본)는 지식 표가 없어 고르지 못하고 수만 보인다. 고른 줄 · 펼친 묶음은 ds-search.js 가 화면을 바꿀 때 맞춘다. -#}
+    것만 센 수). '모든 유형' = 모든 유형 표(?tab=search), 유형을 누르면 그 유형의 지식 표(?tab=table&type=). 바깥 자리(계산기 ·
+    설정 · 사본)는 유형 표가 없어 고르지 못하고 수만 보인다(모든 유형 표에는 들어간다). 묶음 이름은 목업 글(괄호 풀이는 title —
+    나무 폭 208px 에서 한 줄, 점검 2차 w1-13). 고른 줄 · 펼친 묶음은 ds-search.js 가 화면을 바꿀 때 맞춘다. -#}
+{%- set all_on = mode == 'search' or not start_type %}
 <nav class="f-side fb-pc-only fb-search-side" aria-label="유형 묶음" data-ds-search-tree>
   {{ ds.nav_heading('유형 묶음') }}
-  <a class="f-nav-item{{ ' is-selected' if mode == 'search' else '' }}" href="{{ url_for('brain_web.index', tab='search') }}"
-     data-ds-search-all{% if mode == 'search' %} aria-current="page"{% endif %}>{{ ds.icon('lightbulb') }}모든 유형{{ ds.count(tmap.total) }}</a>
+  <a class="f-nav-item{{ ' is-selected' if all_on else '' }}" href="{{ url_for('brain_web.index', tab='search') }}"
+     data-ds-search-all{% if all_on %} aria-current="page"{% endif %}>{{ ds.icon('lightbulb') }}모든 유형{{ ds.count(tmap.total) }}</a>
   {%- for group in tmap.groups %}
   {%- set members = group.types|map(attribute='type')|list %}
   {%- set n = group.types|sum(attribute='count') %}
   <details class="fb-tree" data-ds-tree="{{ group.key }}"
            {%- if (mode == 'table' and start_type in members) or (not start_type and loop.first) %} open{% endif %}>
-    <summary class="f-nav-item fb-tree__head">{{ ds.icon('chevron-right', 'f-i-muted fb-tree__chev') }}{{ group.label }}{{ ds.count(n) }}</summary>
+    {%- set short = group.label.split('(')[0] %}
+    <summary class="f-nav-item fb-tree__head"{% if short != group.label %} title="{{ group.label }}"{% endif %}>{{ ds.icon('chevron-right', 'f-i-muted fb-tree__chev') }}{{ short }}{{ ds.count(n) }}</summary>
     {%- for t in group.types %}
     {%- set label = type_display.get(t.type, (t.type,))[0] %}
     {%- if t.external %}

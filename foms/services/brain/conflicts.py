@@ -26,9 +26,11 @@ CONFLICT = "conflict"
 
 def _about(conflict: Any, key_column: Any, today: datetime.date) -> ColumnElement[bool]:
     """엇갈림 줄이 그 키에 대한 것인가 — ``about`` 링크 또는 실음 칸 ``target``."""
+    # 링크 표만 이 부분 질의의 것 — 엇갈림 줄 · 키 칸의 표는 바깥 질의에 묶는다(묶지 않으면 지식 표의 상관 부분 질의 안에서 키 칸이
+    # 제 표를 새로 읽어 엇갈림 하나가 모든 줄을 '확인 필요'로 만들었다 — 점검 2차 w1-11).
     link = exists(select(BrainLink.id).where(BrainLink.kind == "about", BrainLink.from_key == conflict.item_key,
                                              BrainLink.to_key == key_column, is_current(BrainLink),
-                                             in_force(BrainLink, today)))
+                                             in_force(BrainLink, today)).correlate_except(BrainLink))
     return or_(link, conflict.payload["target"].as_string() == key_column)
 
 
