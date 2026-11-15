@@ -468,6 +468,9 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 - 아직 아무도 승인 · 거절하지 않음(관리자 넷만 보임).
 
 
+넓히기(11-16 아침 — D242): 운영 web 의 사람별 스위치 다섯(`FOMS_GRAFT_BRAIN_UI` · `ACTIONS` · `CELL_PC` · `CELL_TABLET` · `CELL_MOBILE`)의 `_COHORT` 를 관리자 넷에서 열아홉으로(켜진 영업 10 · CS 2 · 도면팀 3 을 더함 — 번호는 운영 `users` 를 읽기 전용으로 팀 · 등급 · 켜짐만 읽어 골랐다). `FOMS_GRAFT_ERP_READ_COHORT` 는 관리자 넷 그대로, 알림톡 · 폰 알림 스위치는 끔 그대로. 값은 GraphQL `variableUpsert` 로 넣고 마지막 값이 web 재배포 한 번을 걸었다(코드는 `1b42448d` 그대로). 시공 · 회계 · 협력사 · 꺼진 계정은 넣지 않았다.
+
+
 ## 8. 준비 (T0 — 메인)
 
 - [x] 설계서 11절 결정 일곱 — 사용자 답 받음(11-14). 원장 `docs/plans/2026-10-27-cs-ai-agent-ledger.md` D206 ~ D212.

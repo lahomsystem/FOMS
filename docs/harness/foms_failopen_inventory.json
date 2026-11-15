@@ -2866,7 +2866,7 @@
     },
     {
       "path": "foms/platform/db_leak_trace.py",
-      "lineno": 69,
+      "lineno": 72,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -2875,7 +2875,7 @@
     },
     {
       "path": "foms/platform/db_leak_trace.py",
-      "lineno": 100,
+      "lineno": 103,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -2884,7 +2884,7 @@
     },
     {
       "path": "foms/platform/db_leak_trace.py",
-      "lineno": 118,
+      "lineno": 121,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
