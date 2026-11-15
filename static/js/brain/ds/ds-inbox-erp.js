@@ -2,7 +2,8 @@
  * 승인 대기 'AI 할 일 제안' 칸(T8 · 판 ⑥ · ⑫ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.5 · 3.6 · 5.5) —
  * templates/brain/ds/partials/inbox_erp_section.html.
  *
- * - 읽기 GET /api/erp-actions/inbox 한 번 → PC 카드(셋까지 + 'n개 더 보기') · 왼쪽 AI 직원 수 · 폰 카드(폰 목록 맨 앞).
+ * - 읽기 GET /api/erp-actions/inbox 한 번 → PC 카드(셋까지 + 'n개 더 보기') · 왼쪽 AI 직원 수 · 폰 카드 — 폰에서 승인할 수
+ *   있는 것은 '폰에서 승인' 목록 맨 앞, 없는 것은 'PC 에서 볼 것' 목록 맨 앞(점검 2차 w3-05 — 설계서 5.4 · 5.5).
  *   수는 window.FOMS_DS_INBOX.setCount('actions', n) 으로 승인 대기 바탕(ds-inbox.js)에 알린다(숫자 띠 · '모두' · 위 줄).
  * - [자세히] · 폰 카드 제목 → GET /proposals/<번호> → 옆 창(FOMS_DS_INBOX.openAside). 주소 ?proposal=<번호> 면 처음부터 연다,
  *   ?agent=<직원> 이면 그 직원 제안만.
@@ -98,13 +99,19 @@
     if (all && state.agent) { all.classList.remove('is-selected'); all.removeAttribute('aria-current'); }
   }
 
-  /** 폰 카드 — 승인 대기 폰 목록 맨 앞(바탕은 제 카드만 지우고 다시 넣는다). */
+  /** 폰 카드 — 폰에서 승인할 수 있으면 폰 목록, 없으면 'PC 에서 볼 것' 목록의 맨 앞(바탕은 제 카드만 지우고 다시 넣는다). */
   function renderPhone(all) {
     var list = document.querySelector('[data-ds-phone-list]');
     if (!list) return;
-    Array.prototype.slice.call(list.querySelectorAll('[data-ds-inbox-erp-card]')).forEach(function (n) { list.removeChild(n); });
-    var anchor = list.firstChild;
-    all.forEach(function (c) { list.insertBefore(card.phoneCard(c, ctx()), anchor); });
+    var pc = document.querySelector('[data-ds-phone-pc-list]') || list;
+    [list, pc].forEach(function (box) {
+      Array.prototype.slice.call(box.querySelectorAll('[data-ds-inbox-erp-card]')).forEach(function (n) { box.removeChild(n); });
+    });
+    var anchors = { phone: list.firstChild, pc: pc.firstChild };
+    all.forEach(function (c) {
+      var ok = card.phoneOk(c);
+      (ok ? list : pc).insertBefore(card.phoneCard(c, ctx()), ok ? anchors.phone : anchors.pc);
+    });
   }
 
   function render() {
