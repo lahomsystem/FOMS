@@ -2,9 +2,11 @@
  * 새 물어보기 화면(판 ⑨ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.7 · 5.4) 그리기 도구 — 물음 한 칸 · 답 카드 ·
  * '이 답이 읽은 것' 옆 창. 받은 값 → DOM 만(요청 · 상태는 ds-ask.js).
  *
+ * - 물음 한 칸: 서버가 준 **가린 글** + 가린 갈래 꼬리표('손님 이름' · '전화' …) + 'N곳을 가려서 보냄'(점검 w2-18).
  * - 답 카드: 물어보기 AI 표 · 모름 / ERP 읽기 꼬리표 · 걸린 시간 · 답 글 · (일정 바꾸기 질문이면) '방문 옮기기는 승인 대기로 가요' ·
- *   (모름이면) 물어볼 곳 상자 · 근거 칩(주문 · 방문 + 회사 지식 — 카드를 열 수 있는 사람만 링크) · 확인 중 지식 · 답이 맞을 가능성 ·
- *   근거 확신 · 도움 됨 · 도움 안 됨 · 틀림(+ 무엇이 틀렸나 · 지식 고치기 링크).
+ *   (모름이고 물을 곳이 팀이면) '○○팀에 물어보세요' + [○○팀에 묻기](D233 — ds-ask-past.js 가 보낸다) · 근거 칩(주문 · 방문 + 회사
+ *   지식 — 카드를 열 수 있는 사람만 링크) · (모름이면) 찾은 회사 지식 수 · (빈 지식 묶기가 켜졌으면) 빈 지식에 올렸어요 · 확인 중
+ *   지식 · 답이 맞을 가능성 · 근거 확신 · 도움 됨 · 도움 안 됨 · 틀림(+ 무엇이 틀렸나 · 지식 고치기 링크 — 내 질문만).
  * - 답 판정은 brain-ask-view.js(옛 화면과 한 벌), 화면 값은 ds-ask-view.js. 글은 textContent 만(brain-dom.js el).
  * window.FOMS_DS_ASK_TURN.
  */
@@ -32,10 +34,14 @@
     return el('span', { cls: 'f-small f-muted' + (extra ? ' ' + extra : ''), text: text });
   }
 
-  /** 물음 한 칸(오른쪽) — 내가 쓴 글 그대로 + 이름 · 때 · 가린 곳 수. */
-  function questionNode(question, line) {
+  /** 물음 한 칸(오른쪽) — 서버가 준 가린 글 + 가린 갈래 꼬리표 + 이름 · 때 · 가린 곳 수. kinds = [{label, n}]. */
+  function questionNode(question, line, kinds) {
+    var tags = (kinds || []).map(function (k) {
+      return tag({ text: k.label, tone: 'warning', minimal: true, icon: 'eye-off' });
+    });
     return el('div', { cls: 'f-col f-gap4 fb-ask-q', children: [
-      el('div', { cls: 'f-card f-card-compact fb-ask-q__text', text: question }), small(line)] });
+      el('div', { cls: 'f-card f-card-compact fb-ask-q__card', children: tags.concat([
+        el('span', { cls: 'fb-ask-q__text', text: question })]) }), small(line)] });
   }
 
   function knowledgeChip(c) {
@@ -50,8 +56,9 @@
     var chips = dv.erpChips(data).map(function (c) {
       return el('span', { cls: 'f-chip', children: [icon(c.icon), document.createTextNode(c.text)] });
     }).concat(v.chips.map(knowledgeChip));
-    if (!chips.length) return null;
-    return el('div', { cls: 'f-row f-gap4', children: [small('근거')].concat(chips) });
+    var found = data.unknown && typeof data.found === 'number' ? small('찾은 회사 지식 ' + data.found + '개') : null;
+    if (!chips.length && !found) return null;
+    return el('div', { cls: 'f-row f-gap4', children: [small('근거')].concat(chips, found ? [found] : []) });
   }
 
   function fixPanel(id, v) {
@@ -64,16 +71,17 @@
         v.fixLink ? el('a', { cls: 'f-btn f-btn-small', text: '지식 고치기', attrs: { href: v.fixLink } }) : null] })] });
   }
 
-  function feedbackButtons(v) {
+  function feedbackButtons(v, picked) {
     var icons = { helpful: 'tick', wrong: 'warning-sign' };
     return el('span', { cls: 'f-row f-gap4 f-push', children: v.feedback.map(function (f) {
-      return el('button', { cls: 'f-btn f-btn-small' + (f.value === 'helpful' ? '' : ' f-btn-minimal'),
-                            attrs: { type: 'button', 'data-feedback': f.value },
+      var on = f.value === picked;
+      return el('button', { cls: 'f-btn f-btn-small' + (f.value === 'helpful' ? '' : ' f-btn-minimal') + (on ? ' is-active' : ''),
+                            attrs: { type: 'button', 'data-feedback': f.value, 'aria-pressed': on ? 'true' : null },
                             children: [icons[f.value] ? icon(icons[f.value]) : null, document.createTextNode(f.label)] });
     }) });
   }
 
-  function certaintyRow(data, v, display) {
+  function certaintyRow(data, v, display, mine) {
     var row = el('div', { cls: 'f-row' });
     var sure = dv.certaintyTag(data);
     if (sure) {
@@ -86,11 +94,25 @@
     }
     if (dv.erpChips(data).length) basis.push('주문 · 방문은 읽기만 했어요');
     if (basis.length) row.appendChild(small(basis.join(' · ')));
-    row.appendChild(feedbackButtons(v));
+    if (mine) row.appendChild(feedbackButtons(v, data.feedback));
     return row;
   }
 
-  /** 답 카드 — data = POST /api/brain/chat/ask 의 data. opts: {display, items, elapsed(ms)}. */
+  /** 모름 답의 팀에 묻기 상자 — 물을 곳이 팀일 때만(사장님 · 관리자 · 주문 화면은 답 글이 말한다). 보냈으면 '보냈어요'. */
+  function teamBox(data, mine) {
+    if (!data.unknown || !data.team || !data.team_label) return null;
+    var label = data.team_label;
+    var sent = !!data.team_sent;
+    var button = mine ? el('button', { cls: 'f-btn f-btn-small', attrs: { type: 'button', 'data-ds-ask-team-send': '1',
+                                                                          disabled: sent ? 'disabled' : null },
+      children: [icon(sent ? 'tick' : 'send-message'), document.createTextNode(sent ? '보냈어요' : label + '에 묻기')] }) : null;
+    return el('div', { cls: 'f-callout', attrs: { 'data-ds-ask-team': '1' }, children: [
+      icon('people'), el('div', { cls: 'f-grow', children: [el('div', { cls: 'f-callout-title', text: label + '에 물어보세요' }),
+        el('span', { cls: 'f-small', text: '누르면 이 질문(가린 글)이 ' + label + ' 직원에게 FOMS 알림으로 가요.' })] }), button] });
+  }
+
+  /** 답 카드 — data = POST /api/brain/chat/ask(또는 GET …/questions/<번호>)의 data.
+   *  opts: {display, items, elapsed(ms), clock('HH:MM' — 없으면 지금), mine(false 면 피드백 · 팀 단추 없음)}. */
   function answerNode(data, opts) {
     var v = view.answerView(data, opts.display, opts.items);
     var erpAnswer = !data.unknown && data.kind === 'erp';
@@ -100,33 +122,27 @@
     var head = el('div', { cls: 'f-row', children: [
       el('span', { cls: 'f-ai-mark', children: [icon('predictive-analysis'), document.createTextNode('물어보기 AI')] }),
       tag(dv.kindTag(data))] });
-    head.appendChild(small([dv.clockOf(), dv.secsLabel(opts.elapsed)].filter(Boolean).join(' · '), 'f-push'));
+    head.appendChild(small([opts.clock || dv.clockOf(), dv.secsLabel(opts.elapsed)].filter(Boolean).join(' · '), 'f-push'));
     card.appendChild(head);
     card.appendChild(el('div', { cls: 'f-quote', text: v.text }));
     if (data.erp && data.erp.change_asked) {
       card.appendChild(el('div', { cls: 'f-row-nw f-small f-muted', attrs: { 'data-ds-ask-change': '1' },
                                    children: [icon('lock'), document.createTextNode('방문 옮기기는 승인 대기로 가요')] }));
     }
-    if (data.unknown) {
-      card.appendChild(el('div', { cls: 'f-callout', attrs: { 'data-ds-ask-team': '1', hidden: 'hidden' }, children: [
-        icon('people'), el('div', { cls: 'f-grow', children: [el('div', { cls: 'f-callout-title', text: '물어볼 곳' }),
-                                                              el('span', { attrs: { 'data-ds-ask-team-label': '1' } })] })] }));
-    }
+    var mine = opts.mine !== false;
+    var team = teamBox(data, mine);
+    if (team) card.appendChild(team);
     var evidence = evidenceRow(data, v);
     if (evidence) card.appendChild(evidence);
+    if (data.unknown && data.gap) {
+      card.appendChild(el('div', { cls: 'f-row-nw f-small f-muted', attrs: { 'data-ds-ask-gap': '1' }, children: [
+        icon('issue'), document.createTextNode('빈 지식에 올렸어요 — 주 1회 묶어서 관리자가 봐요')] }));
+    }
     if (v.checks) card.appendChild(el('div', { cls: 'f-row-nw f-small f-muted', children: [icon('time'), document.createTextNode(v.checks)] }));
-    card.appendChild(certaintyRow(data, v, opts.display));
-    card.appendChild(fixPanel(data.id, v));
+    card.appendChild(certaintyRow(data, v, opts.display, mine));
+    if (mine) card.appendChild(fixPanel(data.id, v));
     card.appendChild(el('p', { cls: 'fb-status', attrs: { 'data-feedback-status': '1', role: 'status' } }));
     return card;
-  }
-
-  /** 모름 답의 물어볼 곳(내 질문 목록이 준 이름 — 없으면 상자를 숨긴 채). */
-  function setTeam(card, label) {
-    var box = card && card.querySelector('[data-ds-ask-team]');
-    if (!box || !label) return;
-    box.querySelector('[data-ds-ask-team-label]').textContent = label;
-    box.hidden = false;
   }
 
   function visitNode(v) {
@@ -174,6 +190,5 @@
       cls: 'f-small', text: "주문 · 방문은 읽기만 해요. 일정을 바꾸려면 '방문 옮기기' 할 일 제안이 승인 대기로 가요." })] }));
   }
 
-  window.FOMS_DS_ASK_TURN = { icon: icon, questionNode: questionNode, answerNode: answerNode, setTeam: setTeam,
-                              fillRead: fillRead };
+  window.FOMS_DS_ASK_TURN = { icon: icon, questionNode: questionNode, answerNode: answerNode, fillRead: fillRead };
 })();

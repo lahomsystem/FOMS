@@ -298,7 +298,7 @@ def test_reschedule_question_gets_only_the_current_date(world, monkeypatch):
 
 # ── 6. 읽을 수 없는 주문 = 없는 주문 ────────────────────────────────────
 def _shape(out):
-    return {k: v for k, v in out.items() if k not in ("id", "left_today")}
+    return {k: v for k, v in out.items() if k not in ("id", "left_today", "question")}  # 가린 질문은 묻는 사람 자기 글(번호가 다르다)
 
 
 def test_unreadable_orders_answer_exactly_like_a_missing_order(world, monkeypatch):
