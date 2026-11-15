@@ -55,11 +55,16 @@ class Tool:
 
 @dataclass(frozen=True)
 class Duty:
-    """할 일 하나 — 열쇠(할 일 목록 이름 또는 직원만의 일) · 화면 이름 · 처음 수준(``None`` = 못 함)."""
+    """할 일 하나 — 열쇠(할 일 목록 이름 또는 직원만의 일) · 화면 이름 · 처음 수준(``None`` = 못 함) · 판 1 에 새로 붙었나.
+
+    ``new`` 는 원래 있던 직원(상담 AI · 물어보기)에게 판 1 이 더한 일만 참이다(화면 '새로 붙음' — 목업 판 ⑪). 직원 전체가 새로
+    붙은 운영 AI · 일정 AI 는 직원 꼬리표('시험 중')가 그 뜻을 이미 말해서 줄마다 달지 않는다.
+    """
 
     key: str
     label: str
     level: Optional[int]
+    new: bool = False
 
     @property
     def is_action(self) -> bool:
@@ -98,17 +103,19 @@ AGENTS: dict[str, Agent] = {agent.key: agent for agent in (
           (Tool("knowledge.search"), Tool("cs.thread.read"), Tool("erp.order.find"), Tool("risk.check"),
            Tool("actions.propose", new=True)),
           (Duty("cs_draft", "상담 답 초안", 1), Duty("erp_read", "주문 · 방문 읽기", 0),
-           Duty("move_construction", "방문 옮기기(시공) 제안", 2),
-           Duty("move_measurement", "방문 옮기기(실측) 제안", 2), Duty("schedule_as_visit", "방문 옮기기(AS) 제안", 2),
-           Duty("register_as", "AS 접수 제안", 2),
-           Duty("add_construction_note", "시공 메모 더하기 제안", 2), Duty("send_measure_alimtalk", "알림톡 보내기", None))),
+           Duty("move_construction", "방문 옮기기(시공) 제안", 2, new=True),
+           Duty("move_measurement", "방문 옮기기(실측) 제안", 2, new=True),
+           Duty("schedule_as_visit", "방문 옮기기(AS) 제안", 2, new=True),
+           Duty("register_as", "AS 접수 제안", 2, new=True),
+           Duty("add_construction_note", "시공 메모 더하기 제안", 2, new=True),
+           Duty("send_measure_alimtalk", "알림톡 보내기", None))),
     Agent("drawing", "도면 AI 팀원", "i-document", False, "주 1회 루틴",
           (Tool("drawing.digest"),),
           (Duty("weekly_note", "주간 노트 · 물어볼 것", 1),)),
     Agent("ask", "지식 물어보기", "i-lightbulb", False, "읽기만",
           (Tool("mask.apply"), Tool("knowledge.search"), Tool("erp.order.get", new=True),
            Tool("erp.visit.list", new=True)),
-          (Duty("ask_answer", "물어보기 답", 0), Duty("erp_read", "주문 · 방문 읽기", 0))),
+          (Duty("ask_answer", "물어보기 답", 0), Duty("erp_read", "주문 · 방문 읽기", 0, new=True))),
     Agent("ops", "운영 AI", "i-predictive-analysis", True, "아침 훑기 · 제안만",
           (Tool("erp.order.list", new=True), Tool("actions.propose", new=True)),
           (Duty("send_measure_alimtalk", "알림톡 보내기(실측 예약)", 1), Duty("assign_draftsman", "도면 담당 맡기기", 2),
