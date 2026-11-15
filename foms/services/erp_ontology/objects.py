@@ -44,6 +44,8 @@ class ErpObject:
     readable: bool  # 판 1 읽기 도구로 읽히나(주문 읽기 안에서 일부만 읽혀도 참)
     read_note: str  # 판 1 읽기 도구 칸 글(설계서 3.2 그대로)
     masked: bool  # 이 물건의 값이 AI 에 가지 않나(통째 또는 주소처럼 일부)
+    read_path: str = ""  # 온톨로지 '정본 자리'의 읽는 길(읽기 도구 이름 · 덧말 — foms/services/erp_ontology/ask.py TOOL_*)
+    history: str = ""  # 온톨로지 '정본 자리'의 바뀐 기록(지금 표 이름 — 없으면 빈 글)
 
     @property
     def slug(self) -> str:
@@ -51,30 +53,38 @@ class ErpObject:
         return self.type.split(":", 1)[1]
 
 
+#: 주문 표 · structured_data 칸이 바뀐 기록(주문 사건 · 칸 바뀜 원장 — models.py OrderEvent · OrderFieldChange).
+_ORDER_HISTORY = "order_events · order_field_changes"
+
 OBJECT_TYPES: tuple[ErpObject, ...] = (
     ErpObject("erp:order", "주문", "orders", "i-cube", "orders", "structured_data",
-              "orders + structured_data", True, "있음", False),
+              "orders + structured_data", True, "있음", False, "erp.order.get · 가림 뒤", _ORDER_HISTORY),
     ErpObject("erp:order_item", "주문 품목", "", "i-box", "order_item_identities", "structured_data.items[]",
-              "structured_data.items[](이름 product_name) + order_item_identities", True, "이름만(주문 읽기 안)", False),
+              "structured_data.items[](이름 product_name) + order_item_identities", True, "이름만(주문 읽기 안)", False,
+              "erp.order.get · 이름만", _ORDER_HISTORY),
     ErpObject("erp:customer", "손님", "가림", "i-person", "orders", "structured_data.parties.customer",
               "structured_data.parties.customer.{name, phone} · 숫자만 orders.erp_phone_digits", False,
-              "없음 — 가림(AI 에 안 감)", True),
+              "없음 — 가림(AI 에 안 감)", True, "없음 — AI 에 안 감", _ORDER_HISTORY),
     ErpObject("erp:site", "현장", "가림", "i-map-marker", "orders", "structured_data.site",
-              "structured_data.site.{address_full, address_main} · orders.is_regional", True, "지방 여부만", True),
+              "structured_data.site.{address_full, address_main} · orders.is_regional", True, "지방 여부만", True,
+              "erp.order.get · 지방 여부만", _ORDER_HISTORY),
     ErpObject("erp:visit", "방문", "실측 · 시공 · AS · 배송", "i-calendar", "order_schedule_dates", "structured_data.schedule",
               "실측 structured_data.schedule.measurement.{date, time} · 시공 schedule.construction.{date, time} · "
               "AS schedule.as_visit.date · 배송 orders.shipping_scheduled_date · 날짜 찾기 표 order_schedule_dates",
-              True, "있음", False),
+              True, "있음", False, "erp.visit.list", _ORDER_HISTORY),
     ErpObject("erp:drawing", "도면", "", "i-document", "drawing_revisions", "",
-              "drawing_revisions · drawing_revision_requests", False, "선언만", False),
+              "drawing_revisions · drawing_revision_requests", False, "선언만", False, "",
+              "drawing_revisions · drawing_revision_requests"),
     ErpObject("erp:production_run", "생산 작업", "", "i-build", "production_runs", "",
               "production_runs", False, "선언만", False),
     ErpObject("erp:shipment", "출고", "", "i-truck", "orders", "",
-              "orders.shipping_scheduled_date + 물류 축(foms/services/orders/state_axes.py)", False, "선언만", False),
+              "orders.shipping_scheduled_date + 물류 축(foms/services/orders/state_axes.py)", False, "선언만", False, "",
+              _ORDER_HISTORY),
     ErpObject("erp:partner_order", "협력사 발주", "", "i-people", "partner_orgs", "",
-              "orders.partner_org_id + partner_orgs", False, "선언만", False),
+              "orders.partner_org_id + partner_orgs", False, "선언만", False, "", _ORDER_HISTORY),
     ErpObject("erp:as_case", "AS 건", "", "i-wrench", "order_as_cycles", "",
-              "order_as_cycles + orders.as_axis_status", True, "상태 · 방문 날만(주문 읽기 안)", False),
+              "order_as_cycles + orders.as_axis_status", True, "상태 · 방문 날만(주문 읽기 안)", False,
+              "erp.order.get · 상태 · 방문 날만", "order_as_cycles · order_events"),
 )
 
 _BY_TYPE: dict[str, ErpObject] = {obj.type: obj for obj in OBJECT_TYPES}
