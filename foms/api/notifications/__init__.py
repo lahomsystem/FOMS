@@ -25,6 +25,7 @@ from foms.services.auth.freelancer_scope import FREELANCER_URGENT_TARGET_MSG, FR
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
+from foms.services.brain.chat_team_ask import BRAIN_ASK_TEAM_TYPE, team_ask_link
 from foms.services.notifications.erp_action_push import ERP_ACTION_PROPOSAL_TYPE, erp_action_deep_link
 from foms.services.notifications.recipients import (
     INTERNAL_USERS_ONLY,
@@ -194,6 +195,15 @@ def _resolve_notification_deep_link(
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": "/erp/drawing-workbench/agent-note",
+        }
+
+    if n_type == BRAIN_ASK_TEAM_TYPE:
+        # 물어보기 [○○팀에 묻기](접목판 점검 2차 w2-19 · D233) — 물어보기 화면의 그 질문. 알림 글에서 주소만 읽는다(질의 0).
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": team_ask_link(getattr(notification, "message", None)),
         }
 
     if n_type == ERP_ACTION_PROPOSAL_TYPE:

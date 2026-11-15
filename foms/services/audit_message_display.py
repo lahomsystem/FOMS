@@ -385,6 +385,7 @@ ACTION_LABELS: dict[str, str] = {
     "CS_AGENT_FIX_DECIDE": "AI 상담 주간 고침 안 결정(승인 · 거절)",
     # --- 회사 지식 제안 · 결정(설계서 2026-11-02-haud-master-brain 7.5 · 7.7) ---
     "BRAIN_PROPOSE": "회사 지식 제안 넣음",
+    "BRAIN_TABLE_EXPORT_CSV": "회사 지식 표 CSV 내려받기",
     "BRAIN_APPLY": "회사 지식 제안 반영",
     "BRAIN_REJECT": "회사 지식 제안 거절",
     "BRAIN_EXPIRE": "회사 지식 AI 제안 기간 끝남",
