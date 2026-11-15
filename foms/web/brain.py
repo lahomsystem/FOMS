@@ -36,6 +36,7 @@ from foms.services.brain.access import can_open_screen, screen_viewer, wide_bins
 from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, type_map
 from foms.services.brain.card import item_card
+from foms.services.brain.card_pending import pending_change
 from foms.services.brain.chat_access import page_open_without_settings, page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.constants import (
@@ -310,6 +311,9 @@ def item(key: str):
     try:
         card = item_card(db, viewer, key[:120], today=today)
         around = search_around(db, viewer, AroundQuery(key=card["item"]["key"]), today=today) if card else None
+        ds_on = _ds_on()
+        pending = (pending_change(db, viewer, card["item"]["key"], now=now_utc_naive())
+                   if ds_on and card and card["item"]["open_changes"] else None)  # 새 화면 '승인 대기' 상자의 누가 · 언제 · 무엇
     finally:
         db.rollback()
     if card is None or around is None:
@@ -321,9 +325,9 @@ def item(key: str):
     propose = [a for a in actions.specs() if a["stage"] == "propose" and a["name"] != "item_rollback"]
     extra: dict[str, Any] = {}
     template = "brain/item.html"
-    if _ds_on():
+    if ds_on:
         template = "brain/ds/item.html"
-        extra = {"page": "item", "ds_nav": _ds_nav(viewer, "search", chat_tab=_chat_open(),
+        extra = {"page": "item", "pending": pending, "ds_nav": _ds_nav(viewer, "search", chat_tab=_chat_open(),
                                                    inbox_count=_lazy_inbox_count(g.current_user))}
     return render_template(
         template, **extra, card=card, current=current, display=display_table(), props=props, propose=propose,

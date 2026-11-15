@@ -1,7 +1,7 @@
 /* 지식 카드 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.4 · 판 ⑧) — templates/brain/ds/item.html 전용.
    class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
    그림 위젯(이웃 지도 · 뇌 보기)의 꾸밈은 옛 brain.css(.brain-* — 이름 머리가 달라 부딪치지 않는다)를 그대로 쓴다.
-   640px 아래 = 폰: 오른쪽 칸(수정 기록 · 제안 단추)은 가운데 아래로 내려오고, 칸들은 한 줄씩. */
+   991.98px 아래 = 폰 모습(세로 태블릿 포함 — 틀과 같은 기준): 오른쪽 칸(수정 기록 · 제안 단추)은 가운데 아래로 내려오고, 칸들은 한 줄씩. */
 
 /* hidden 은 언제나 숨김 — .f-tab · .f-col · .f-btn 같은 display 규칙이 [hidden] 을 이기지 않게. */
 .fb-item [hidden],
@@ -37,7 +37,14 @@
 .fb-bar::-webkit-progress-value { background: var(--blue3); border-radius: 40px; }
 .fb-bar::-moz-progress-bar { background: var(--blue3); border-radius: 40px; }
 .fb-recent { display: grid; grid-template-columns: 40px max-content minmax(0, 1fr) max-content; gap: 8px; align-items: center; }
+/* ERP 물건 줄 — 이름 칸 · 칩(누르면 온톨로지의 그 물건) · 덧말. 좁으면 덧말이 다음 줄로 간다(점검 w3-09 — 폰에서 30px 6줄). */
+.fb-erp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .fb-erp-rel { width: 92px; flex: none; }
+.fb-erp-chip { max-width: 100%; min-width: 0; }
+.fb-erp-note { white-space: nowrap; }
+
+/* 이웃 지도 조각의 '이어진 지식' 제목 — 옛 조각은 Bootstrap .h6(새 화면은 싣지 않는다)이라 화면 제목 크기로 커졌다(점검 w2-05). */
+.fb-item-widget h2.h6 { font-size: var(--font-size); line-height: 1.25; font-weight: 600; margin: 0 0 8px; }
 
 /* 연결된 지식 — 종류 묶음 세 칸(판 ⑧). 색 견본은 brain.css 의 .brain-link--<종류> 값(--brain-link). */
 .fb-links-head { flex-wrap: wrap; }
@@ -59,7 +66,7 @@
   .fb-links { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 991.98px) {
   .fb-item-aside { flex-basis: 100%; }
   .fb-item-aside .f-aside-body { padding-bottom: 88px; }  /* 아래 탭(고정)에 마지막 줄이 가리지 않게 */
   .fb-usage { gap: 8px; }
@@ -67,4 +74,5 @@
   .fb-recent .f-ai-mark { display: none; }
   .fb-item .f-tabs { gap: 12px; overflow-x: auto; flex-wrap: nowrap; }
   .fb-item .f-tab { height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
+  .fb-link > a.f-ellipsis { display: inline-flex; align-items: center; min-height: 44px; }  /* 연결된 지식 이름 링크(w3-08) */
 }

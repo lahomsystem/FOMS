@@ -108,18 +108,29 @@
     return list;
   }
 
+  /** ERP 물건 칩 글(판 ⑧ 꼴) — 적용 대상이면 '제품 라인 · 이름', 걸린 공정 단계면 이름만. */
+  function erpChipText(link) {
+    var label = String(link.label || '');
+    if (link.rel === 'at_step') return label;
+    var type = ((display.types || {}).product_line || {}).label || '';
+    return type ? type + ' · ' + label : label;
+  }
+
   function erpLinks(usage) {
     var list = dom.el('ul', { cls: 'f-col f-gap4' });
+    var onto = root.getAttribute('data-onto-url') || '';
     (usage.erp_links || []).forEach(function (link) {
       var c = sv.erpChip(link);
       var info = (display.links || {})[link.rel];
-      var li = dom.el('li', { cls: 'f-row-nw' });
+      var li = dom.el('li', { cls: 'fb-erp-row' });
       li.appendChild(dom.el('span', { cls: 'f-small f-muted fb-erp-rel', text: info ? info.out : String(link.rel || '') }));
-      var chip = dom.el('span', { cls: 'f-chip' });
+      var href = onto && link.type ? onto + '&kind=erp&id=' + encodeURIComponent(String(link.type)) : null;
+      var chip = dom.el(href ? 'a' : 'span', { cls: 'f-chip fb-erp-chip', attrs: { href: href,
+        title: (link.type_label ? '온톨로지에서 ' + link.type_label + ' 보기' : null) } });
       chip.appendChild(dom.el('span', { cls: 'f-i i-' + c.icon, attrs: { 'aria-hidden': 'true' } }));
-      chip.appendChild(document.createTextNode(c.text));
+      chip.appendChild(dom.el('span', { cls: 'f-ellipsis', text: erpChipText(link) }));
       li.appendChild(chip);
-      if (c.note) li.appendChild(dom.el('span', { cls: 'f-small f-muted', text: c.note }));
+      if (c.note) li.appendChild(dom.el('span', { cls: 'f-small f-muted fb-erp-note', text: c.note }));
       list.appendChild(li);
     });
     if (!(usage.erp_links || []).length) list.appendChild(dom.el('li', { cls: 'f-small f-muted', text: '이어진 ERP 물건이 없어요.' }));
