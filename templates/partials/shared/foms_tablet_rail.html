@@ -22,6 +22,9 @@
   <div class="foms-tablet-rail__brand" aria-hidden="true">F</div>
   {# 화면 크기 손잡이(F1 ①, 11-09): 브랜드 바로 아래 — 130% 에서도 스크롤 없이 보인다. 동작은 ui-zoom.js(전수 갱신). #}
   {% set foms_ui_zoom_variant = 'rail' %}{% include 'partials/shared/foms_ui_zoom_control.html' %}
+  {#- 위 메뉴 묶음(점검 2차 w4-02, 11-15): 키 낮은 화면 · 화면 크기 110% 이상에서 자리가 모자라면 이 묶음만 줄어 그 안에서 굴린다 —
+      아래 묶음(회사 지식 · 알림 · 내 정보)은 레일 바닥에 남는다. 꾸밈은 foms-tablet-rail.css '위 메뉴 묶음'. #}
+  <div class="foms-tablet-rail__menu">
   {% for item in foms_tablet_rail_items() %}
   <a
     class="foms-tablet-rail__item{% if item.active %} is-active{% endif %}"
@@ -34,6 +37,7 @@
     <span class="foms-tablet-rail__label">{{ item.label }}</span>
   </a>
   {% endfor %}
+  </div>
 
   <div class="foms-tablet-rail__spacer" aria-hidden="true"></div>
   {#- 회사 지식 승인 대기(접목판 판 ③): 전역 스위치가 켜졌을 때만 빈 자리(숨김) — 켬 · 수는 graft-cells.js 가 /badge 로.

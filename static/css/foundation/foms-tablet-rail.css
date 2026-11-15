@@ -33,7 +33,8 @@
       width: 72px;
       padding-top: var(--foms-space-3, 12px);
       gap: 4px;
-      /* 짧은 가로 화면에서 메뉴가 넘치면 레일 내부에서 스크롤(본문은 밀지 않음). */
+      /* 짧은 가로 화면에서는 위 메뉴 묶음(.foms-tablet-rail__menu)이 줄어 그 안에서 굴린다 — 아래 묶음은 바닥에 남는다.
+         그래도 넘치면(묶음이 0 까지 줄어도) 마지막 받침으로 레일 내부 스크롤(본문은 밀지 않음). */
       overflow-y: auto;
       background: var(--foms-surface-raised, #fff);
       border-right: 1px solid var(--foms-border-subtle, #e5e7eb);
@@ -58,6 +59,7 @@
 /* --- 레일 아이템 (split 레일 시각 스펙 복사, 새 네임스페이스) --- */
 .foms-tablet-rail__brand {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   height: 56px;
@@ -106,6 +108,35 @@
 .foms-tablet-rail__label {
   line-height: 1.1;
   text-align: center;
+}
+
+/* --- 위 메뉴 묶음(대시보드 ~ 계산기) — 자리가 모자라면 이 안에서만 굴린다 (점검 2차 w4-02, 11-15) ---
+   키 낮은 가로 화면(1176×626) · 화면 크기 110 ~ 130% · 글자 130 · 150% 에서 레일 전체가 넘쳐, 사용자가 못 찾던 아래
+   묶음(회사 지식 · 알림 · 내 정보)이 화면 밖에 있었다(레일을 굴려야 보임). 칸 수 × 44px 가 화면보다 길어 모든 칸을 한 화면에
+   넣을 수는 없으므로, 아래 묶음은 레일 바닥에 그대로 두고(레일 자식) 위 메뉴 묶음만 남는 높이로 줄여 그 안에서 굴린다.
+   누르는 곳 높이는 그대로(줄이지 않는다). 굴릴 것이 있으면 잘린 칸이 걸치고, 그 끝에 옅은 그늘이 진다(바탕 'local' 덮개가
+   끝에 닿았을 때만 그늘을 가린다 — 스크립트 없음). 넘치지 않는 화면(1180×820 · 100%)은 묶음 상자가 칸 높이 합과 같아
+   한 픽셀도 바뀌지 않는다(덮개는 레일 바탕과 같은 색). 레일은 :has 지원 브라우저에서만 보인다(위 @supports). */
+.foms-tablet-rail__menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  background:
+    linear-gradient(var(--foms-surface-raised, #fff), var(--foms-surface-raised, #fff)) top / 100% 14px no-repeat local,
+    linear-gradient(var(--foms-surface-raised, #fff), var(--foms-surface-raised, #fff)) bottom / 100% 14px no-repeat local,
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.16), rgba(15, 23, 42, 0)) top / 100% 10px no-repeat scroll,
+    linear-gradient(to top, rgba(15, 23, 42, 0.16), rgba(15, 23, 42, 0)) bottom / 100% 10px no-repeat scroll;
+}
+
+.foms-tablet-rail__menu::-webkit-scrollbar {
+  display: none;
 }
 
 /* --- 하단 액션: spacer(밀어내기) + 알림 + 아바타 --- */
@@ -170,23 +201,27 @@
    회사 직원 레일(10칸)은 한 픽셀도 바꾸지 않고, 11칸 이상일 때만 맨 위 "F" 칸 · 위아래 여백 · 칸 안쪽
    여백을 줄인다(칸 높이 54 → 50px, 손가락 기준 44px 이상 유지 · 합계 약 757px).
    판정: 12번째 자식이 메뉴 칸이면 11칸 이상이다(1번째 자식은 "F" 칸, 10칸 레일의 12번째 자식은
-   빈칸 spacer). 레일은 :has 지원 브라우저에서만 보이므로(위 @supports) :has 를 써도 빈틈이 없다. */
-.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) {
+   빈칸 spacer). 레일은 :has 지원 브라우저에서만 보이므로(위 @supports) :has 를 써도 빈틈이 없다.
+   11-09 에 화면 크기 손잡이가 "F" 칸 다음 자식으로 들어오면서 이 판정은 실제로는 '메뉴 10칸 이상'에 걸려 왔다(지금 회사 직원
+   레일도 칸 50px · "F" 28px — 1180×820 · 100% 의 지금 모습). 11-15 메뉴 칸을 위 메뉴 묶음(.foms-tablet-rail__menu)에 넣으면서
+   같은 모습을 지키려고 판정을 '묶음의 10번째 칸'으로 옮겼다(뜻 · 결과는 11-09 뒤와 같다). 판정 안은 클래스 둘(묶음 · :nth-child)로
+   두어 특이도를 11-09 판정과 같게 한다 — 뒤에 실리는 접목판 '회사 지식' 줄이기(foms-graft-cells.css, 칸 46px)가 이겨야 한다. */
+.foms-tablet-rail:has(> .foms-tablet-rail__menu > :nth-child(10)) {
   padding-top: var(--foms-space-1, 4px);
 }
 
-.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__brand {
+.foms-tablet-rail:has(> .foms-tablet-rail__menu > :nth-child(10)) .foms-tablet-rail__brand {
   height: 28px;
   margin-bottom: var(--foms-space-1, 4px);
 }
 
-.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__item {
+.foms-tablet-rail:has(> .foms-tablet-rail__menu > :nth-child(10)) .foms-tablet-rail__item {
   padding-top: 6px;
   padding-bottom: 6px;
   min-height: 48px;
 }
 
-.foms-tablet-rail:has(> .foms-tablet-rail__item:nth-child(12)) .foms-tablet-rail__avatar {
+.foms-tablet-rail:has(> .foms-tablet-rail__menu > :nth-child(10)) .foms-tablet-rail__avatar {
   margin: var(--foms-space-1, 4px) 0 var(--foms-space-2, 8px);
 }
 
