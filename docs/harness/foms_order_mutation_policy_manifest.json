@@ -1534,6 +1534,11 @@
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/api/ai-staff/evals/settings"
+    },
+    "brain_chat_api.brain_chat_ask_team": {
+      "mode": "guard",
+      "policy_id": "BRAIN_ASK",
+      "rule": "/api/brain/chat/questions/<int:question_id>/ask-team"
     }
   }
 }

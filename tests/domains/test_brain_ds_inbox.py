@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 from flask import g, render_template, template_rendered
@@ -113,10 +114,14 @@ def test_inbox_view_has_the_number_strip_the_knowledge_section_and_the_t8_places
     assert "묶음마다 한 줄 · 열면 그 묶음 카드만 보여요" in body and "data-ds-inbox-bulk hidden" in body
     assert '<aside class="f-aside fb-inbox-aside" aria-label="제안 자세히" data-ds-inbox-aside hidden></aside>' in body
     assert '<ol class="f-col fb-phone-list" data-ds-phone-list></ol>' in body
-    assert "폰에서는 한 칸 고침만 승인해요" in body and "PC 에서 볼 것" in body
+    assert "PC 에서 볼 것" in body
+    # '폰에서는 … 만 승인해요'는 폰 머리 부제(틀 layout.html 의 page_sub — w3-22)로 옮겼다. 틀이 그 자리를 그리면 화면에 있다.
+    sub_slot = "block page_sub" in (Path(__file__).resolve().parents[2] / "templates/brain/ds/layout.html").read_text("utf-8")
+    assert not sub_slot or "폰에서는 한 칸 고침만 승인해요" in body
+    assert '<p class="f-small f-muted">폰에서는' not in body  # 가운데 칸에는 두 번 적지 않는다
     _switch(monkeypatch, "actions")
     _resp, body, _n = _get(app, _client(app, ids["admin"]), "/brain?tab=inbox")
-    assert "폰에서는 한 칸 고침 · ERP 할 일만 승인해요" in body
+    assert not sub_slot or "폰에서는 한 칸 고침 · ERP 할 일만 승인해요" in body
 
 
 def test_screen_values_and_scripts_match_each_view(app, ids, monkeypatch):
@@ -203,7 +208,8 @@ def test_knowledge_parts_need_the_knowledge_screen(app, ids):
         g.current_user = admin
         body = render_template("brain/ds/inbox.html", page="inbox", ds_nav=nav)
     assert "data-ds-inbox-view=\"inbox\"" in body and "data-inbox-url" not in body and "data-display" not in body
-    assert "data-ds-inbox-know" not in body and "data-ds-inbox-bin-nav" not in body and "data-ds-phone-pc-toggle" not in body
+    assert "data-ds-inbox-know" not in body and "data-ds-inbox-bin-nav" not in body
+    assert "data-ds-phone-pc-toggle hidden" in body  # 폰에서 승인 못 하는 AI 할 일 제안이 들 'PC 에서 볼 것'(w3-05) — 0 이면 숨음
     assert "data-ds-inbox-aside hidden" in body and "data-ds-phone-list" in body and "data-ds-inbox-erp" in body
     assert 'data-ds-inbox-stat="knowledge"' not in body and 'style="' not in body
 

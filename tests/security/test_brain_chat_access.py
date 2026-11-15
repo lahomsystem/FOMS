@@ -23,7 +23,7 @@ from foms.services.request_write_guard import _CSRF_SALT, _CSRF_SESSION_KEY
 from tests.support.brain_chat_support import FakeClient, chat_on, chat_world, reply
 
 WRITES = {"brain_chat_api.brain_chat_ask": "BRAIN_ASK", "brain_chat_api.brain_chat_feedback": "BRAIN_ASK",
-          "brain_chat_api.brain_chat_settings_save": "ADMIN_OPS"}
+          "brain_chat_api.brain_chat_ask_team": "BRAIN_ASK", "brain_chat_api.brain_chat_settings_save": "ADMIN_OPS"}
 
 
 def _client(app, user_id):

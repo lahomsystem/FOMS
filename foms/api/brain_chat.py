@@ -8,6 +8,10 @@
 - ``GET /tools`` — 에이전트 도구로 내놓은 것(읽기 셋)과 챗봇이 권하는 사람 액션(ADMIN · 층 승인자).
 - ``GET /history`` — **내가 물은 것만**(오늘 · 지난 7일, 가린 글 앞부분 · 모름 · 주문 읽기 — 설계서 2026-11-14-foms-graft 3.7).
   접목판 스위치(``brain_ui`` 또는 ``erp_read``)가 켜진 사람만 — 꺼진 사람에게는 없는 주소와 같은 답(지금 그대로).
+- ``GET /questions/<id>`` — 지난 질문 하나를 **다시 묻지 않고** 다시 보기(가린 질문 · 답 · 근거 칩 — 하루 수 안 줄어듦). 내 질문
+  이거나 그 질문의 [팀에 묻기] 알림을 받은 사람만, 그 밖 404(:func:`foms.services.brain.chat_log.past_question`). 같은 스위치 가림.
+- ``POST /questions/<id>/ask-team`` — 내 '모름' 질문을 답이 가리킨 팀의 직원에게 FOMS 안 알림으로(D233 ·
+  :mod:`foms.services.brain.chat_team_ask`). 같은 질문은 한 번만(이미 보냈으면 ``already``).
 
 여는 사람은 :func:`foms.services.brain.chat_access.page_viewer`(ADMIN · 단계 안 내부 직원) — 그 밖(바깥 역할 · 꺼진 계정 · 단계
 밖)은 **404**, 로그인 안 함 401. PARTNER 세션은 협력사 문지기가 먼저 막는다(없는 주소와 같은 답). 쓰기는 공용 CSRF · Origin 가드
@@ -28,12 +32,13 @@ from foms.services.brain.actions import ACTIONS, AGENT_EXPOSED_WRITES
 from foms.services.brain.chat_access import ask_viewer, page_viewer
 from foms.services.brain.chat_answer import STATUS, ChatError, ask
 from foms.services.brain.chat_gaps import latest_gaps
-from foms.services.brain.chat_log import ChatFeedbackError, asked_today, my_history, record_feedback
+from foms.services.brain.chat_log import ChatFeedbackError, asked_today, my_history, past_question, record_feedback
 from foms.services.brain.chat_settings import (
     ChatSettingsError, daily_cap, read_chat_settings, save_chat_settings, settings_view,
 )
+from foms.services.brain.chat_team_ask import TeamAskError, ask_team, push_after_commit
 from foms.services.brain.chat_tools import AGENT_TOOLS, CHAT_OFFERED_ACTIONS, READ_TOOL_SPECS
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.graft_flags import enabled as graft_enabled
 
 logger = logging.getLogger(__name__)
@@ -57,6 +62,8 @@ MESSAGES: dict[str, str] = {
     "settings_conflict": "다른 사람이 먼저 저장했어요 — 새로 불러온 뒤 다시 해 주세요.",
     "settings_no_change": "바뀐 칸이 없어요.",
     "db": "저장하지 못했어요. 잠시 뒤 다시 해 주세요.",
+    "team_no_team": "이 답에는 물어볼 팀이 없어요.",
+    "team_nobody": "그 팀에 물어보기를 여는 직원이 없어요 — 관리자에게 알려 주세요.",
 }
 
 
@@ -189,6 +196,53 @@ def brain_chat_history() -> tuple[Any, int]:
         return _reply(200, my_history(db, asker_id=viewer.user_id, now_utc=now_utc_naive()), None)
     finally:
         db.rollback()
+
+
+def _graft_screen(user: Any) -> bool:
+    """새 화면 스위치(``brain_ui`` 또는 ``erp_read``)가 켜진 사람인가 — 꺼진 사람에게 새 주소는 없는 주소와 같다."""
+    return user is None or graft_enabled("brain_ui", user) or graft_enabled("erp_read", user)
+
+
+@brain_chat_api_bp.route("/questions/<int:question_id>", methods=["GET"])
+def brain_chat_question(question_id: int) -> tuple[Any, int]:
+    """지난 질문 하나 다시 보기 — 다시 묻지 않는다(모델 · 기록 · 하루 수 없음). 내 질문 · 팀 묻기 받은 사람만, 그 밖 404."""
+    if not _graft_screen(getattr(g, "current_user", None)):
+        abort(404)
+    db = get_db()
+    try:
+        _cfg, viewer, denied = _opened(db)
+        if denied:
+            return denied
+        data = past_question(db, viewer, user_id=viewer.user_id, question_id=question_id, today=get_today_kst())
+        return _reply(200, data, None) if data is not None else _reply(404, None, NOT_FOUND)
+    finally:
+        db.rollback()
+
+
+@brain_chat_api_bp.route("/questions/<int:question_id>/ask-team", methods=["POST"])
+def brain_chat_ask_team(question_id: int) -> tuple[Any, int]:
+    """내 '모름' 질문을 그 팀에 묻기(FOMS 안 알림) — 같은 질문은 한 번만. 폰 보내기는 커밋 뒤."""
+    if not _graft_screen(getattr(g, "current_user", None)):
+        abort(404)
+    db = get_db()
+    _cfg, viewer, denied = _opened(db)
+    if denied:
+        db.rollback()
+        return denied
+    try:
+        data = ask_team(db, user=g.current_user, question_id=question_id)
+        db.commit()
+    except TeamAskError as exc:
+        db.rollback()
+        if exc.code == "not_found":
+            return _reply(404, None, NOT_FOUND)
+        return _reply(409 if exc.code == "no_team" else 422, {"code": exc.code}, MESSAGES["team_" + exc.code])
+    except SQLAlchemyError:
+        db.rollback()
+        logger.warning("[회사 지식 물어보기] 팀에 묻기 DB 오류")
+        return _reply(500, None, MESSAGES["db"])
+    push_after_commit(db, data.pop("ids"))
+    return _reply(200, data, None)
 
 
 @brain_chat_api_bp.route("/tools", methods=["GET"])

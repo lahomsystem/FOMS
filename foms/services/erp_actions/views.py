@@ -8,6 +8,8 @@
   (승인하면 409 ``ACTION_BASE_CHANGED`` 와 새 카드). 근거 칩 가운데 보는 사람이 볼 수 없는 회사 지식 항목은 뺀다.
 - 글은 저장할 때 가림 검사를 지난 글 · 코드가 정한 말 · 날짜뿐이다. 시간은 한국 시간 글('YYYY-MM-DD HH:MM').
 - 나중에(``snoozed_until``)로 접힌 제안은 수 · 칩에서 빼고, 승인 대기 카드에는 ``snoozed`` 로 표시해 따로 센다.
+- 기간이 지난 제안(``expires_at`` ≤ 지금)은 밤 정리 전이라도 열린 것으로 치지 않는다 — 수 · 칩은 :func:`_awake` 가 빼고, 승인 대기
+  카드는 읽기 길이 먼저 돌리는 되맞추기(:func:`.lifecycle.reconcile` → :func:`.freshness.close`)가 닫는다(점검 2차 w6-12).
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import datetime
 from typing import Any, Iterable, Optional
 from urllib.parse import quote
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 
 from foms.persistence.brain.models import BrainObject
 from foms.persistence.graft.models import ErpActionProposal
@@ -29,18 +31,19 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.erp_actions import preview as fns
 from foms.services.erp_actions.access import can_run, runnable_actions, scoped_reader
 from foms.services.erp_actions.construction_notice import param_shown
-from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_REJECT
+from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_LINK, DECIDED_REJECT
 from foms.services.erp_actions.registry import (
-    ACTIONS, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_FAILED, STATUS_OPEN,
+    ACTIONS, KIND_DATE, KIND_TIME_SLOT, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_EXECUTED, STATUS_EXECUTING,
+    STATUS_EXPIRED, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED, STATUS_SUPERSEDED, TIME_SLOTS,
 )
 from foms.services.erp_ontology.read import order_id_of
 from foms.services.graft_flags import enabled
 from foms.services.orders.change_reason import REASON_CODES, REASON_LABELS
-from models import Order, OrderFreelancerLink
+from models import Order, OrderFreelancerLink, User
 
 __all__ = [
-    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "card", "detail", "hidden_notice",
-    "inbox", "open_for_orders", "quick_view", "title_of",
+    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "badge_off", "card",
+    "decidable_count", "detail", "hidden_notice", "inbox", "open_for_orders", "quick_view", "title_of", "value_label",
 ]
 
 MAX_ORDER_IDS = 100
@@ -51,6 +54,10 @@ AGENT_KEYS: tuple[str, ...] = ("cs", "schedule", "ops")
 _ACTIONABLE = (STATUS_OPEN, STATUS_FAILED)
 _TITLE_LIMIT = 80
 _SOURCE_LABELS = {"cs_turn": "손님 상담에서 나옴", "sweep": "훑기 규칙에서 나옴"}
+#: 이미 처리된 제안의 결과 글(점검 2차 w1-03 — 옆 창이 단추 대신 보인다). 열림 · 실패는 결정할 수 있어 없다.
+_DONE_LABELS = {STATUS_EXECUTED: "승인해서 실행됐어요", STATUS_EXECUTING: "승인해서 실행하는 중이에요",
+                STATUS_REJECTED: "거절했어요", STATUS_EXPIRED: "기한이 지나 닫혔어요",
+                STATUS_SUPERSEDED: "같은 주문의 새 제안으로 바뀌었어요"}
 #: 손님에게 나가는 알림톡 줄의 머리 — '승인하면 차례로'(:func:`.preview.steps`)의 손님 알림톡 줄은 모두 이 말로 시작한다.
 #: 승인 대기 카드 스크립트(``ds-inbox-erp-aside.js`` 의 ``notice``)도 같은 머리로 가른다.
 NOTICE_HEAD = "손님 알림톡"
@@ -73,8 +80,9 @@ def _scoped(query: Any, user: Any, statuses: Iterable[str]) -> Any:
 
 
 def _awake(now: datetime.datetime) -> Any:
-    """'나중에'로 접히지 않은 제안 조건."""
-    return or_(ErpActionProposal.snoozed_until.is_(None), ErpActionProposal.snoozed_until <= now)
+    """'나중에'로 접히지 않았고 기간이 남은 제안 조건(기간이 지난 것은 밤 정리 전이라도 뺀다 — 누르면 막히는 카드가 보이지 않게)."""
+    return and_(or_(ErpActionProposal.snoozed_until.is_(None), ErpActionProposal.snoozed_until <= now),
+                or_(ErpActionProposal.expires_at.is_(None), ErpActionProposal.expires_at > now))
 
 
 def _rows_label(rows: list[dict[str, Any]]) -> list[tuple[Any, Any]]:
@@ -161,12 +169,55 @@ def badge(session: Any, user: Any, *, now: Optional[datetime.datetime] = None) -
             "labels": [ACTIONS[name].label for name in ranked[:3]]}
 
 
+def badge_off() -> dict[str, Any]:
+    """볼 수 없는 사람의 수 — :func:`badge` 와 같은 꼴, 칸 모두 꺼짐 · 수 0(DB 를 읽지 않는다).
+
+    칸 빈 자리는 전역 스위치로 모든 화면에 그려져 화면마다 이 길을 부른다 — 볼 수 없는 직원에게 404 면 화면을 열 때마다 콘솔
+    오류 · 404 기록이 남았다(점검 2차 w4-03). 이 길은 물건을 찾는 길이 아니라 '없음 = 볼 수 없음' 원칙과 부딪히지 않는다.
+    """
+    return {"on": {"actions": False, "pc": False, "tablet": False, "mobile": False},
+            "actions": 0, "knowledge": 0, "total": 0, "labels": []}
+
+
+def _ro(word: str) -> str:
+    """'로' · '으로' — 끝 글자 받침이 없거나 ㄹ 이면 '로'(닫는 괄호는 건너 읽는다 — '11-21(토)' → '토')."""
+    tail = word.rstrip(")").strip()
+    last = tail[-1:] if tail else ""
+    if not ("가" <= last <= "힣"):
+        return "로"
+    jong = (ord(last) - ord("가")) % 28
+    return "로" if jong in (0, 8) else "으로"
+
+
+def value_label(row: ErpActionProposal) -> str:
+    """PC 칩 값 글(판 NowPC ① — 'AI 제안 · 토 11-21 로 옮기기') — 날짜를 넣는 할 일이면 '<날(요일)> <시간대>로 <할 일 끝말>'.
+
+    날짜를 넣지 않는 할 일 · 날짜가 비었거나 못 읽는 제안은 빈 글(칩은 할 일 이름을 보인다). 글은 날짜 + 시간대만(D211 —
+    시공 팀 · 인원 없음). 시간대는 정한 고를 값일 때만 붙인다.
+
+    Returns:
+        예: '11-21(토) 오전으로 옮기기' · '11-20(금)으로 잡기' · '11-24(월)로 옮기기'(시간대 없음) · ''.
+    """
+    spec = ACTIONS.get(row.action)
+    params = row.params or {}
+    date_param = next((p.name for p in spec.params if p.kind == KIND_DATE), None) if spec else None
+    day = fns.date_label(params.get(date_param)) if date_param else ""
+    if not day:
+        return ""
+    slot_param = next((p.name for p in spec.params if p.kind == KIND_TIME_SLOT), None)
+    slot = str(params.get(slot_param) or "") if slot_param else ""
+    when = f"{day} {slot}" if slot and slot in TIME_SLOTS else day
+    verb = spec.label.split("(")[0].split()[-1]
+    return f"{when}{_ro(when)} {verb}"
+
+
 def open_for_orders(session: Any, user: Any, order_ids: Iterable[int], *,
                     now: Optional[datetime.datetime] = None) -> dict[int, dict[str, Any]]:
     """주문마다 가장 새 제안 하나(접히지 않은 열림 · 실패) — 주문 번호 :data:`MAX_ORDER_IDS` 개까지 질의 하나.
 
     Returns:
-        ``{주문 번호: {"id", "action", "label", "agent_label", "can_decide"}}`` — ``can_decide`` 는 승인 길로 실행되는 할 일인가.
+        ``{주문 번호: {"id", "action", "label", "agent_label", "can_decide", "value_label"}}`` — ``can_decide`` 는 승인 길로
+        실행되는 할 일인가 · ``value_label`` 은 PC 칩 값 글(:func:`value_label` — 없으면 빈 글).
     """
     ids = sorted({int(oid) for oid in order_ids if isinstance(oid, int) and not isinstance(oid, bool) and oid > 0})
     if not ids or not runnable_actions(user):
@@ -179,7 +230,8 @@ def open_for_orders(session: Any, user: Any, order_ids: Iterable[int], *,
             continue
         spec, agent = ACTIONS[row.action], agent_of(row.proposed_by)
         out[row.order_id] = {"id": row.id, "action": row.action, "label": spec.label,
-                             "agent_label": agent.label if agent else "", "can_decide": spec.mode == MODE_RUN}
+                             "agent_label": agent.label if agent else "", "can_decide": spec.mode == MODE_RUN,
+                             "value_label": value_label(row)}
     return out
 
 
@@ -189,6 +241,17 @@ def _card_seconds(session: Any, now: datetime.datetime) -> int:
         ErpActionProposal.decided_at >= now - datetime.timedelta(days=RATE_DAYS),
         ErpActionProposal.view_ms.isnot(None))).scalar()
     return max(1, int(round(float(average) / 1000))) if average else EST_CARD_SECONDS
+
+
+def decidable_count(session: Any, user: Any, now: Optional[datetime.datetime] = None) -> int:
+    """이 사람이 지금 결정할 AI 할 일 제안 수(접히지 않은 열림 · 실패 — 승인 대기 칸 ``counts.total`` 과 같은 조건, 질의 하나).
+
+    ``/brain`` 첫 화면 고르기(설계서 7.9 — 결정할 제안이 있으면 승인 대기, 점검 2차 w1-02)가 지식 제안 수와 더한다.
+    할 일 스위치가 꺼진 사람 · 실행할 수 있는 할 일이 없는 사람은 0(질의 없음)."""
+    if not enabled("actions", user) or not runnable_actions(user):
+        return 0
+    query = _scoped(select(func.count(ErpActionProposal.id)), user, _ACTIONABLE).where(_awake(_now(now)))
+    return int(session.execute(query).scalar_one())
 
 
 def inbox(session: Any, user: Any, now: datetime.datetime) -> dict[str, Any]:
@@ -278,5 +341,22 @@ def detail(session: Any, user: Any, proposal_id: Any, now: datetime.datetime) ->
         "change_reason": {"required": fns.reason_required(row.action, order, params),
                           "codes": [{"value": code, "label": REASON_LABELS[code]} for code in REASON_CODES]},
         "result": row.result if row.status != STATUS_OPEN else None, "error_code": row.error_code,
+        "done": _done(session, row),
     })
     return out
+
+
+def _done(session: Any, row: ErpActionProposal) -> Optional[dict[str, Any]]:
+    """이미 처리된 제안(열림 · 실패 밖)의 누가 · 언제 · 결과 — 결정할 수 있으면 ``None``(점검 2차 w1-03).
+
+    누구는 결정한 사람의 FOMS 계정 이름(사람 결정이 없으면 — 기한 지남 · 새 제안으로 바뀜 · 주문 화면에서 처리 — 빈 글)."""
+    if row.status in _ACTIONABLE:
+        return None
+    label = _DONE_LABELS.get(row.status, "이미 처리됐어요")
+    if row.decided_action == DECIDED_LINK:
+        label = "주문 화면에서 이미 처리됐어요"
+    elif row.status == STATUS_REJECTED and row.reject_code in REJECT_LABELS:
+        label = f"거절했어요 — {REJECT_LABELS[row.reject_code]}"
+    who = session.get(User, row.decided_by) if row.decided_by is not None else None
+    when = format_datetime_kst(row.decided_at, "%Y-%m-%d %H:%M") if row.decided_at else None
+    return {"status": row.status, "label": label, "by": who.name if who is not None else "", "at": when}

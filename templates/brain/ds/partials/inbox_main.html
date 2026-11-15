@@ -43,22 +43,20 @@
 </section>
 {%- endif %}
 
-{% set phone_kinds = (['한 칸 고침'] if knows else []) + (['ERP 할 일'] if graft_enabled('actions') else []) %}
+{#- '폰에서는 … 만 승인해요' 한 줄은 폰 머리 부제(inbox.html 의 page_sub — 틀 layout.html, w3-22)로 옮겼다. #}
 <section class="f-col fb-phone" aria-label="폰에서 승인" data-ds-inbox-phone>
-  <p class="f-small f-muted">폰에서는 {{ phone_kinds|join(' · ') }}만 승인해요</p>
   <div class="f-row">
     <h2 class="f-h6">폰에서 승인 <span data-ds-phone-count>0</span></h2>
     <span class="f-small f-muted f-push">승인하면 바로 반영 · 전 내용은 기록에 남아요</span>
   </div>
   <ol class="f-col fb-phone-list" data-ds-phone-list></ol>
   <button class="f-btn f-btn-minimal f-btn-fill" type="button" data-ds-phone-more hidden></button>
-  {%- if knows %}
+  {#- 'PC 에서 볼 것' — 지식 카드 · 폰에서 승인할 수 없는 AI 할 일 제안(T8 — w3-05)이 같이 든다. 0 이면 숨는다. #}
   <button class="f-card f-row-nw fb-phone-pc" type="button" aria-expanded="false" aria-controls="dsPhonePcList" data-ds-phone-pc-toggle hidden>
     {{ ds.icon('applications', 'f-i-muted') }}
     <span class="f-col f-gap4 f-grow"><span class="f-strong" data-ds-phone-pc-title>PC 에서 볼 것</span><span class="f-small f-muted" data-ds-phone-pc-sub></span></span>
     {{ ds.icon('chevron-right', 'f-i-muted') }}
   </button>
   <ol class="f-col fb-phone-list" id="dsPhonePcList" data-ds-phone-pc-list hidden></ol>
-  {%- endif %}
   <div class="f-callout f-callout-primary">{{ ds.icon('info-sign') }}<div class="f-small">카드를 누르면 이유 · 근거를 보고 거절할 수 있어요. 거절 까닭은 AI 가 배워요.</div></div>
 </section>

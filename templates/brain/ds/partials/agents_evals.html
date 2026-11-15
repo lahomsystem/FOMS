@@ -11,7 +11,7 @@
      {%- if is_admin %} data-run-url="{{ url_for('ai_staff_api.ai_staff_evals_run') }}" data-settings-url="{{ url_for('ai_staff_api.ai_staff_evals_settings') }}"{% endif %}>
   <p class="f-small f-muted" data-ds-evals-note role="status" aria-live="polite">불러오는 중이에요…</p>
   <div class="f-col f-gap12" data-ds-evals-rows hidden></div>
-  <p class="f-row f-small f-muted" data-ds-evals-last hidden></p>
+  <p class="f-row-nw f-top f-small f-muted fb-evals-last" data-ds-evals-last hidden></p>
   {%- if is_admin %}
   <form class="fb-evals-form" data-ds-evals-form hidden novalidate aria-label="시험 설정">
     <label class="f-field"><span class="f-label">한 번 돈 상한(달러)</span><input class="f-input" name="cap_usd" inputmode="decimal" autocomplete="off"></label>

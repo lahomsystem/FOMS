@@ -11,7 +11,7 @@
  * 다시 훑는다 — 이미 물은 주문은 다시 묻지 않는다.
  * - 태블릿 상세 'AI 제안' 상자([data-graft-box] — 서버가 그림): [승인] POST /approve · [거절] 까닭 칩 한 번 → POST /reject.
  *   넣을 값 · 사유가 필요한 제안은 서버가 [승인] 대신 [고쳐서]만 그리고, 손님 알림톡이 같이 나가면 그 한 줄을 상자에 보인다.
- * 볼 수 없는 사람(404) · 로그인 안 함(401)이면 아무것도 보이지 않는다. 글은 textContent 만 · 인라인 스타일 없음 ·
+ * 볼 수 없는 사람(/badge 는 200 + 꺼진 값 · 그 밖 길은 404) · 로그인 안 함(401)이면 아무것도 보이지 않는다. 글은 textContent 만 · 인라인 스타일 없음 ·
  * 전역 듣개는 한 번만(window.__FOMS_GRAFT_CELLS_BOUND).
  */
 (function () {
@@ -98,7 +98,8 @@
 
   /** 칩 하나 채우기 — 그 칸이 꺼졌거나(같은 주문의 켜진 칸 답이 와도) 제안이 없으면 숨긴 채. */
   function paintSlot(node) {
-    if (!on(node.getAttribute('data-graft-cell') || 'pc')) return;
+    var cell = node.getAttribute('data-graft-cell') || 'pc';
+    if (!on(cell)) return;
     var id = node.getAttribute('data-graft-slot');
     if (!Object.prototype.hasOwnProperty.call(known, id)) return;
     node.setAttribute('data-graft-done', '1');
@@ -109,12 +110,27 @@
     mark.className = 'fas fa-robot foms-graft-chip__icon';
     mark.setAttribute('aria-hidden', 'true');
     node.appendChild(mark);
-    var text = document.createElement('span');  // 말줄임은 글 칸만 — 폰 칩의 넓힌 누르는 자리를 자르지 않게
+    // 칩 글(점검 2차) — PC: 값이 있는 제안이면 값('11-21(토) 오전으로 옮기기' — 판 NowPC ①), 그 밖은 할 일 이름. 머리글
+    // 'AI 제안 · '는 따로 두어 칸이 좁으면 꾸밈이 감춘다(w4-09). 태블릿 표: 칸이 좁아(51px) 고정 글 '제안' 표지(w4-04 —
+    // 이름 · 값은 줄을 눌러 여는 상세 'AI 제안' 상자). 폰: 머리글 없이 할 일 이름(로봇 아이콘이 알려 준다, w5-01).
+    // 다 못 보이는 글은 읽는 글(aria-label) · title 에 온전히.
+    var name = (cell === 'pc' && item.value_label) || item.label || '';
+    var full = 'AI 제안 · ' + name;
+    var text = document.createElement('span');  // 말줄임은 글 칸만 — 넓힌 누르는 자리를 자르지 않게
     text.className = 'foms-graft-chip__text';
-    text.textContent = 'AI 제안 · ' + (item.label || '');
+    if (cell === 'pc') {
+      var head = document.createElement('span');
+      head.className = 'foms-graft-chip__head';
+      head.textContent = 'AI 제안 · ';
+      text.appendChild(head);
+      text.appendChild(document.createTextNode(name));
+    } else {
+      text.textContent = cell === 'tablet' ? '제안' : name;
+    }
     node.appendChild(text);
     node.setAttribute('href', INBOX + '&proposal=' + encodeURIComponent(item.id));
-    node.setAttribute('title', (item.agent_label || 'AI') + ' 제안 — 승인 대기에서 보기');
+    node.setAttribute('aria-label', full);
+    node.setAttribute('title', full + ' — ' + (item.agent_label || 'AI') + ' · 누르면 승인 대기');
     node.setAttribute('data-foms-erp-no-shell', '');
     node.setAttribute('data-gnav-ignore', '1');
     node.hidden = false;

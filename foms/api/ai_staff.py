@@ -13,6 +13,10 @@
 시험 · (ADMIN 만) 쓴 돈 · 설정). 쓰기 둘 — ``POST /api/ai-staff/evals/run``(ADMIN 만 · 돈 상한 0 이나 묶음 0 이면 409 · 도는 중이면
 409 · 큐가 없으면 503 — web 에서 대신 돌리지 않는다) · ``POST /api/ai-staff/evals/settings``(ADMIN 만). 둘 다 공용 CSRF · Origin 가드
 뒤 · 길 목록 ``ADMIN_OPS`` · 처리기 안에서 ADMIN 을 다시 본다(아니면 404). 감사 줄은 :mod:`foms.services.ai_staff.evals` 가 남긴다.
+
+점검 2차(11-15): ``GET /api/ai-staff/ask`` 답에도 ``evals`` 칸(물어보기 평가 마지막 점수 — :mod:`foms.services.ai_staff.ask_eval`,
+설계서 3.10 '있을 때'). ``GET /api/ai-staff/<열쇠>/instructions`` — 지시문 보기(사용자 결정 D233 · ADMIN 만 · 읽기만, 아니면 404 —
+:mod:`foms.services.ai_staff.instructions`).
 """
 
 from __future__ import annotations
@@ -24,8 +28,10 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
+from foms.services.ai_staff.ask_eval import ask_eval_view
 from foms.services.ai_staff.evals import FAILED, EvalError, begin_run, enqueue_run, save_eval_settings, update_run
 from foms.services.ai_staff.evals_view import eval_view
+from foms.services.ai_staff.instructions import instructions_view
 from foms.services.ai_staff.levels import LevelError, save_levels
 from foms.services.ai_staff.views import staff_detail, staff_list, staff_viewer
 from foms.services.datetime_kst import now_utc_naive
@@ -78,7 +84,7 @@ def ai_staff_list() -> tuple[Any, int]:
 
 @ai_staff_api_bp.route("/<string:key>", methods=["GET"])
 def ai_staff_detail(key: str) -> tuple[Any, int]:
-    """직원 하나 자세히(모르는 열쇠는 404). 상담 AI 답에는 'AI 시험' 칸 값(``evals``)을 더한다."""
+    """직원 하나 자세히(모르는 열쇠는 404). 상담 AI · 물어보기 답에는 'AI 시험' 칸 값(``evals``)을 더한다."""
     user, viewer, denied = _viewer()
     if denied:
         return denied
@@ -88,6 +94,22 @@ def ai_staff_detail(key: str) -> tuple[Any, int]:
         data = staff_detail(db, viewer, key, now)
         if data is not None and data["key"] == "cs":
             data["evals"] = eval_view(db, viewer, now=now, erp=enabled("erp_read", user))
+        elif data is not None and data["key"] == "ask":
+            data["evals"] = ask_eval_view(db)
+    finally:
+        db.rollback()  # 읽기만
+    return _reply(200, data, None) if data is not None else _reply(404, None, _NOT_FOUND)
+
+
+@ai_staff_api_bp.route("/<string:key>/instructions", methods=["GET"])
+def ai_staff_instructions(key: str) -> tuple[Any, int]:
+    """지시문 보기(ADMIN 만 · 읽기만 — D233). 화면을 못 여는 사람 · ADMIN 아님 · 모르는 열쇠는 404."""
+    _user, denied = _admin_only()
+    if denied:
+        return denied
+    db = get_db()
+    try:
+        data = instructions_view(db, key)
     finally:
         db.rollback()  # 읽기만
     return _reply(200, data, None) if data is not None else _reply(404, None, _NOT_FOUND)

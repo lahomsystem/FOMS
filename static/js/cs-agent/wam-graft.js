@@ -13,6 +13,9 @@
  *     after(result, wait)  // 보낸 뒤 — 할 일 결과 한 줄 → { px, wait }(실패 줄이면 창을 닫지 않는다)
  *   }
  *
+ * 줄에 blocked 글이 오면(부른 상담원에 이어진 FOMS 계정이 없음 — 점검 2차 w5-08) 그 글을 힌트 자리에 보이고 [같이 넣기] · [빼기]를
+ * 고르지 못하게 한다(보낼 값에 제안 번호를 싣지 않는다). 보낸 뒤에도 그 글을 남기고 창을 닫지 않는다(읽고 닫기).
+ *
  * 글은 textContent 로만 넣는다. 칩 주소는 서버가 준 FOMS 절대 주소(https)일 때만 a(새 창) — 아니면 글만(채널톡이 거쳐 여는 창이라
  * 상대 주소는 채널톡 쪽으로 풀린다).
  */
@@ -33,7 +36,7 @@
   var resultLine = $('cs-wam-action-result');
   var HINTS = { add: '답을 보내면 같이 넣어요', drop: '답을 보내면 이 제안은 빼요' };
   var GAP = 8;
-  var state = { id: null, choice: 'add' };
+  var state = { id: null, choice: 'add', blocked: '' };
 
   function heightOf(box) {
     return box && !box.hidden ? box.offsetHeight + GAP : 0;
@@ -69,16 +72,38 @@
     return heightOf(evidenceBox);
   }
 
+  function lockChoice(blocked) {
+    state.blocked = blocked;
+    [addButton, dropButton].forEach(function (button) {
+      if (button) button.disabled = Boolean(blocked);
+    });
+    if (!blocked) {
+      choose(state.choice);
+      return;
+    }
+    if (addButton) addButton.setAttribute('aria-pressed', 'false');
+    if (dropButton) dropButton.setAttribute('aria-pressed', 'false');
+    if (hint) hint.textContent = blocked;
+  }
+
   function fillAction(action) {
     if (!actionBox) return 0;
     var ok = action && typeof action === 'object' && typeof action.id === 'number' && action.id > 0;
     if (!ok) {
       state.id = null;
+      lockChoice('');
       actionBox.hidden = true;
       return 0;
     }
-    if (state.id !== action.id) choose('add');
-    state.id = action.id;
+    var blocked = typeof action.blocked === 'string' ? action.blocked : '';
+    if (blocked) {
+      state.id = null; // 같이 넣을 사람이 없다 — 보낼 값에 제안 번호를 싣지 않는다
+      lockChoice(blocked);
+    } else {
+      if (state.id !== action.id) state.choice = 'add';
+      lockChoice('');
+      state.id = action.id;
+    }
     actionText.textContent = String(action.label || '') + (action.text ? ' — ' + String(action.text) : '');
     if (actionRow) actionRow.hidden = false;
     if (resultLine) resultLine.hidden = true;
@@ -100,6 +125,12 @@
   function after(result, wait) {
     if (evidenceBox) evidenceBox.hidden = true;
     var act = result && result.action && typeof result.action === 'object' ? result.action : null;
+    if (actionBox && state.blocked && !actionBox.hidden) {
+      if (actionRow) actionRow.hidden = true;
+      resultLine.textContent = state.blocked;
+      resultLine.hidden = false;
+      return { px: heightOf(actionBox), wait: 0 };
+    }
     if (!actionBox || !state.id || !act) {
       if (actionBox) actionBox.hidden = true;
       return { px: 0, wait: wait };
@@ -116,7 +147,8 @@
     ui.call('cs.draft.get', {}).then(function (result) {
       var px = result && result.action ? fill(result) : 0;
       if (!state.id) {
-        fill(null);
+        if (state.blocked) ui.size(ui.small + px); // 넣을 수 없는 줄은 보이기만 하고 바로 보낸다
+        else fill(null);
         ui.send();
         return;
       }

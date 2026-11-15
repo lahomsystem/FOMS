@@ -48,18 +48,18 @@
     var tr = dom.el('tr', { cls: 'fb-row', attrs: { 'data-ds-row-key': m.key, tabindex: '0' } });
     var name = dom.el('td', { cls: 'fb-row__name' });
     name.appendChild(dom.el('a', { cls: 'f-strong', text: m.name, attrs: { href: view.itemHref(ctx.itemBase, m.key) } }));
-    var under = dom.el('span', { cls: 'f-row-nw f-gap4' });
+    var under = dom.el('span', { cls: 'f-row f-gap4 fb-row__under' });  // 꼬리표가 많으면 다음 줄로(칸을 넓히지 않는다)
     under.appendChild(typeMark(m.icon, m.typeLabel));
     m.flags.forEach(function (f) { under.appendChild(tag(f.text, f.cls + ' fb-flag')); });
     name.appendChild(under);
     tr.appendChild(name);
-    tr.appendChild(cell(m.team, 'f-td-nw'));
+    tr.appendChild(cell(m.team, 'f-td-nw fb-td-wrap'));
     tr.appendChild(cell(m.brand, 'f-td-nw'));
     tr.appendChild(cell(tag(m.status, m.statusCls), 'f-td-nw'));
-    var conf = dom.el('span', { cls: 'f-row-nw f-gap4' });
+    var conf = dom.el('span', { cls: 'f-row-nw f-gap4 fb-conf' });
     conf.appendChild(icon(m.confIcon, m.confCls));
     conf.appendChild(document.createTextNode(m.conf));
-    tr.appendChild(cell(conf, 'f-td-nw'));
+    tr.appendChild(cell(conf, 'f-td-nw fb-td-wrap'));
     tr.appendChild(cell(m.gradeCls ? tag(m.grade, m.gradeCls) : m.grade, 'f-td-nw'));
     tr.appendChild(cell(m.used, 'f-td-num'));
     tr.appendChild(cell(m.checked, 'f-td-nw f-num'));

@@ -3,7 +3,8 @@
  *
  * - ds-agents.js 가 직원을 그릴 때마다 내는 document 'ds:agents-detail' 이벤트({key, data})를 듣는다. 상담 AI(cs)면 data.evals 로
  *   줄 셋(막대 <progress> · 결과 글 · 꼬리표) · 마지막 시험 줄을 그리고, 틀린 차례(번호 · 까닭)는 T10 의 '최근 실패' 목록 끝에
- *   붙인다. 다른 직원이면 안내 한 줄.
+ *   붙인다. 지식 물어보기(ask)는 data.evals 의 물어보기 평가 마지막 점수 한 줄(설계서 3.10 '있을 때' — 점검 2차 w3-20, 없으면
+ *   evals.note 한 줄). 다른 직원이면 안내 한 줄.
  * - ADMIN(data-run-url 이 있을 때만): 머리 단추 자리([data-ds-agents-actions])에 [시험 다시 돌리기] — 도는 중 · 막힘이면 꺼짐.
  *   누르면 POST data-run-url → 다시 읽기. 도는 중일 때만 GET data-detail-url 을 15초마다(화면이 보일 때만 · 다른 직원으로 가거나
  *   화면을 떠나면 멈춤 · 세 번 잇달아 못 읽으면 멈춤). 돈 상한 · 묶음 크기 칸은 POST data-settings-url → 다시 읽기.
@@ -143,7 +144,7 @@
       button.appendChild(icon('i-play'));
       button.appendChild(dom().el('span', { attrs: { 'data-ds-evals-run-label': '' } }));
       button.addEventListener('click', run);
-      holder.appendChild(button);
+      holder.insertBefore(button, holder.firstChild);  // 목업 순서 — [시험 다시 돌리기] [지시문 보기]
     }
     var evals = state.evals;
     var running = Boolean(evals && evals.running);
@@ -158,10 +159,10 @@
     var rows = part('rows');
     dom().clear(rows);
     (evals.rows || []).forEach(function (item) { rows.appendChild(row(item)); });
-    rows.hidden = false;
+    rows.hidden = !(evals.rows || []).length;
     lastLine(evals.last, evals.running);
     failures(evals.failures || []);
-    note(evals.blocked ? evals.blocked.message : '');
+    note(evals.blocked ? evals.blocked.message : (evals.note || ''));
     fillForm(evals.settings || null);
     paint();
     schedulePoll();
@@ -223,7 +224,7 @@
     state.fails = 0;
     stopPoll();
     if (!root() || !dom()) return;
-    if (state.key === 'cs' && detail.data && detail.data.evals) draw(detail.data.evals);
+    if ((state.key === 'cs' || state.key === 'ask') && detail.data && detail.data.evals) draw(detail.data.evals);
     else other();
   });
   document.addEventListener('visibilitychange', function () {

@@ -2,7 +2,8 @@
 
 - 스위치 켬: ADMIN 의 ``?tab=ask`` · 물어보기만 여는 직원의 ``/brain/ask`` 가 ``brain/ds/ask.html`` 로 200 · 왼쪽 · 가운데 · 오른쪽 자리 ·
   인라인 스타일 0 · 스크립트는 defer + 내용 지문 핀 · 옛 화면을 그리는 스크립트(brain-ask.js · brain-ask-admin.js)는 싣지 않는다.
-- 관리(설정 · 빈 지식 · 틀림 신고)는 ADMIN 만. ERP 읽기(``erp_read``)가 꺼진 사람은 안내 글이 지금 그대로 · 옆 창 자리가 없다.
+- 관리(설정 · 빈 지식 · 틀림 신고)는 ADMIN 만 · 오른쪽 창 안(점검 w2-20). ERP 읽기(``erp_read``)가 꺼진 사람은 안내 글이 지금
+  그대로 · '이 답이 읽은 것' 칸이 없다(켜진 사람은 늘 그 자리 — 점검 w2-16).
 - 순수 함수(node): 내 질문 목록 글 · ERP 답 옆 창 값(진짜 답 값으로 — 손님 이름 · 전화 · 주소 · 금액이 화면 값에 없다) ·
   erp 칸이 없는 답이면 옆 창 값이 없다(null).
 - 스위치 끔: 옛 화면 그대로.
@@ -90,7 +91,7 @@ def _side(body: str) -> str:
 
 
 BASE_SCRIPTS = ["brain-view.js", "brain-dom.js", "ds-shell.js", "brain-ask-view.js", "ds-ask-view.js", "ds-ask-turn.js",
-                "ds-ask.js"]
+                "ds-ask-past.js", "ds-ask.js"]
 
 
 def test_switch_on_admin_draws_the_ask_screen_in_its_places(app, ids, monkeypatch):
@@ -98,14 +99,17 @@ def test_switch_on_admin_draws_the_ask_screen_in_its_places(app, ids, monkeypatc
     resp, body, names = _get(app, _client(app, ids["admin"]), "/brain?tab=ask")
     assert resp.status_code == 200 and names[0] == "brain/ds/ask.html"
     assert 'style="' not in body and "onclick" not in body and "<script>" not in body.split("</head>")[1]
-    # 자리: 왼쪽 길잡이 → 가운데(안내 · 물음과 답 · 묻기 칸 · 관리) — ERP 읽기가 꺼져 옆 창 자리는 없다
+    # 자리: 왼쪽 길잡이 → 가운데(안내 · 물음과 답 · 묻기 칸) → 오른쪽 창(관리 — 빈 지식 · 이번 주 · 설정, 점검 w2-20)
     places = ["data-ds-ask-side", 'id="ds-main"', "data-ds-ask-state", "data-ds-ask-log", "data-ds-ask-form",
-              'id="ds-ask-settings"', 'id="ds-ask-gaps"']
+              "data-ds-ask-aside", 'id="ds-ask-gaps"', 'id="ds-ask-settings"']
     assert [body.index(p) for p in places] == sorted(body.index(p) for p in places)
-    assert "data-ds-ask-aside" not in body and 'data-erp="0"' in body
+    aside = body[body.index('<aside class="f-aside fb-ask-aside"'):body.index("</aside>")]
+    assert "data-ds-ask-read" not in aside and "물어보기 관리" in aside and 'data-erp="0"' in body  # ERP 읽기 꺼짐 — 관리만
     for attr, value in (("data-state-url", "/api/brain/chat/state"), ("data-ask-url", "/api/brain/chat/ask"),
                         ("data-history-url", "/api/brain/chat/history"),
                         ("data-feedback-url", "/api/brain/chat/questions/0/feedback"),
+                        ("data-question-url", "/api/brain/chat/questions/0"),
+                        ("data-team-url", "/api/brain/chat/questions/0/ask-team"),
                         ("data-settings-url", "/api/brain/chat/settings"), ("data-item-base", "/brain/items/")):
         assert f'{attr}="{value}"' in body, attr
     side = _side(body)
@@ -132,8 +136,10 @@ def test_erp_read_on_adds_the_read_aside_place_and_the_new_line(app, ids, monkey
     assert "주문 번호(#123)를 적으면 주문 · 방문도 읽어서 답해요. 읽기만 하고, 바꾸지는 않아요." in body
     assert 'placeholder="예: #123 시공 언제예요? · 슬라이딩 문은 깊이가 얼마나 필요해요?"' in body
     aside = body[body.index('<aside class="f-aside fb-ask-aside"'):body.index("</aside>")]
-    assert 'aria-label="이 답이 읽은 것" data-ds-ask-aside hidden>' in aside  # 답에 erp 칸이 올 때까지 숨김
+    assert 'aria-label="이 답이 읽은 것" data-ds-ask-aside>' in aside  # 늘 그 자리(점검 w2-16 — 가운데 폭이 흔들리지 않게)
     assert "이 답이 읽은 것" in aside and "읽기만" in aside and "data-ds-ask-read" in aside
+    assert "그 답이 읽은 주문 · 방문이 여기에 보여요." in aside  # 읽은 것이 없을 때의 빈 안내
+    assert aside.index("data-ds-ask-read") < aside.index('id="ds-ask-gaps"')  # 관리 칸은 같은 창 아래
     assert body.index("data-ds-ask-form") < body.index("data-ds-ask-aside")  # 오른쪽 옆 창은 가운데 뒤
     for banned in ("2팀", "3명", "인원", "÷ 300", "L-", "H-"):
         assert banned not in aside
@@ -146,6 +152,7 @@ def test_chat_only_staff_gets_the_ask_page_without_admin_parts(app, ids, monkeyp
     resp, body, names = _get(app, client, "/brain/ask")
     assert resp.status_code == 200 and names[0] == "brain/ds/ask.html"
     assert "data-settings-url" not in body and "data-ds-ask-admin" not in body and "ds-ask-gaps" not in body
+    assert "data-ds-ask-aside" not in body  # ERP 읽기 꺼짐 · 관리자 아님 — 오른쪽 창 없음(지금 그대로)
     assert "관리" not in _side(body) and _scripts(body) == BASE_SCRIPTS
     assert 'style="' not in body
 
@@ -207,7 +214,7 @@ def erp_answer(app, ids, monkeypatch):
 def test_read_view_from_a_real_erp_answer_shows_only_server_values(erp_answer):
     data, _history = erp_answer
     assert data["kind"] == "erp" and data["erp"]["order"]["id"] == ORDER
-    got = _node("[v.readView(data.erp), v.erpChips(data), v.kindTag(data), v.askedLine('합성영업', '10:42', data.erp)]", data)
+    got = _node("[v.readView(data.erp), v.erpChips(data), v.kindTag(data), v.askedLine('합성영업', '10:42', data.masked_count)]", data)
     rv, chips, kind, line = got
     assert rv["title"] == f"#{ORDER}" and rv["stage"] == {"text": data["erp"]["order"]["stage_label"], "tone": "primary"}
     assert rv["products"] == "합성 붙박이장" and rv["manager"] == "합성영업" and rv["masked"] == "손님 · 현장"
@@ -218,7 +225,8 @@ def test_read_view_from_a_real_erp_answer_shows_only_server_values(erp_answer):
     assert all(re.fullmatch(r"\d+\.\d초|0\.1초 아래", t["secs"]) for t in rv["tools"])
     assert chips[0] == {"text": f"주문 #{ORDER} · " + data["erp"]["order"]["stage_label"], "icon": "cube"}
     assert kind == {"text": "ERP 읽기", "tone": "primary", "minimal": True, "icon": "data-lineage"}
-    assert line == "합성영업 · 10:42 · 1곳을 가려서 보냄"  # 가림 도구가 센 수만(글 없이)
+    assert line == "합성영업 · 10:42 · 1곳을 가려서 보냄"  # 서버가 센 수만(글 없이)
+    assert data["masked"] == [{"label": "전화", "n": 1}] and PHONE not in data["question"]  # 가린 글 · 갈래(점검 w2-18)
     shown = json.dumps(got, ensure_ascii=False)
     assert not [s for s in SECRETS if s in shown]  # 화면 값에 손님 이름 · 전화 · 주소 · 금액 · 메모가 없다
     for banned in ("팀 ", "명", "사진", "L-", "÷"):
@@ -259,7 +267,7 @@ def test_no_erp_means_no_aside_and_labels():
                 " v.certaintyTag({unknown: true, certainty: 'high'}), v.secsLabel(0), v.secsLabel(40), v.secsLabel(1349),"
                 " v.secsLabel(null), v.dayLabel('2026-11-20'), v.dayLabel('모름'),"
                 " v.gapCounts({layers: {cs: [{wrong: 2}, {wrong: 0}], drawing: [{}]}}), v.gapCounts(null),"
-                " v.askedLine('합성', '10:00', {tools: [{name: 'mask.apply', what: '가림 0곳'}]})]")
+                " v.askedLine('합성', '10:00', 0)]")
     assert got[0] is None and got[1] is None and got[2] == []  # erp 칸이 없으면 옆 창 값이 없다
     assert got[3]["text"] == "모름" and got[3]["tone"] == "warning" and got[4] is None
     assert got[5] == {"text": "보통", "tone": "warning"} and got[6] is None
@@ -273,8 +281,9 @@ def test_ask_scripts_hide_the_aside_without_erp_and_bind_once():
     turn = (ROOT / "static/js/brain/ds/ds-ask-turn.js").read_text(encoding="utf-8")
     main = (ROOT / "static/js/brain/ds/ds-ask.js").read_text(encoding="utf-8")
     admin = (ROOT / "static/js/brain/ds/ds-ask-admin.js").read_text(encoding="utf-8")
-    assert "if (!rv) {\n      aside.hidden = true;" in main and "reads[data.id] = dv.readView(data.erp);" in main
+    past = (ROOT / "static/js/brain/ds/ds-ask-past.js").read_text(encoding="utf-8")
+    assert "aside.hidden" not in main and "reads[data.id] = dv.readView(data.erp);" in main  # 옆 창은 숨기지 않는다(w2-16)
     assert "'방문 옮기기는 승인 대기로 가요'" in turn
     assert "__FOMS_DS_ASK_BOUND" in main and "__FOMS_DS_ASK_ADMIN_BOUND" in admin
-    for js in (turn, main, admin, VIEW.read_text(encoding="utf-8")):
+    for js in (turn, main, admin, past, VIEW.read_text(encoding="utf-8")):
         assert "fetch(" not in js and ".innerHTML" not in js and ".style." not in js and len(js.splitlines()) <= 300

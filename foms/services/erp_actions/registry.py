@@ -37,7 +37,7 @@ __all__ = [
     "KIND_DATE", "KIND_FLAG", "KIND_MASKED_TEXT", "KIND_TIME_SLOT", "KIND_USERS", "LEVEL_LABELS", "LEVELS",
     "MAX_EVIDENCE", "MAX_LEVEL", "MAX_REASON", "MAX_USERS", "MODE_HUMAN", "MODE_LINK", "MODE_RUN", "MODES",
     "NOTIFY_CUSTOMER", "PARAM_KINDS", "Param", "REJECT_CODES",
-    "REJECT_LABELS", "SOURCE_KINDS", "STATUS_EXECUTED", "STATUS_EXECUTING", "STATUS_EXPIRED", "STATUS_FAILED",
+    "REJECT_LABELS", "SOURCE_KINDS", "SOURCE_PROPOSAL", "STATUS_EXECUTED", "STATUS_EXECUTING", "STATUS_EXPIRED", "STATUS_FAILED",
     "STATUS_OPEN", "STATUS_REJECTED", "STATUS_SUPERSEDED", "STATUSES", "TIME_SLOTS", "dedupe_key", "get",
     "level_label", "message", "parse_params", "specs",
 ]
@@ -61,7 +61,9 @@ STATUSES: tuple[str, ...] = (STATUS_OPEN, STATUS_EXECUTING, STATUS_EXECUTED, STA
 MAX_REASON = 500
 MAX_EVIDENCE = 8
 EVIDENCE_KINDS: tuple[str, ...] = ("brain", "order", "cs_turn", "visit")
-SOURCE_KINDS: tuple[str, ...] = ("cs_turn", "sweep")
+#: 출처 ``proposal`` — 사람이 승인한 제안의 뒷일 제안(시공일 승인 뒤 못 나간 손님 안내 다시 보내기 — 점검 2차 w6-08).
+SOURCE_PROPOSAL = "proposal"
+SOURCE_KINDS: tuple[str, ...] = ("cs_turn", "sweep", SOURCE_PROPOSAL)
 
 # ── 거절 까닭 · 실패 말 ──────────────────────────────────────────────────
 REJECT_CODES: tuple[str, ...] = ("wrong_date", "misread", "no_slot", "already_done", "other")

@@ -95,8 +95,8 @@ def test_list_has_five_agents_with_status_tags(client):
     agents = {item["key"]: item for item in body["data"]["agents"]}
     assert list(agents) == ["cs", "drawing", "ask", "ops", "schedule"]
     assert agents["ops"]["tag"] == {"text": "시험 중", "tone": "warning"} and agents["schedule"]["trial"] is True
-    assert agents["cs"]["tag"] == {"text": "수준 1", "tone": "primary"}
-    assert agents["ask"]["tag"] == {"text": "수준 0", "tone": "success"}  # 무채색 꼬리표 없음
+    assert agents["cs"]["tag"] == {"text": "수준 1", "tone": "draft"}
+    assert agents["ask"]["tag"] == {"text": "수준 0", "tone": "read"}  # 무채색 · 초록('좋음'으로 읽힘) 꼬리표 없음(w3-14)
     assert agents["cs"]["sub"].startswith("있음 · ") and agents["ops"]["sub"].startswith("새로 · ")
     assert body["data"]["can_edit"] is True
 
@@ -210,9 +210,12 @@ def _statements(fn):
     return seen
 
 
-@pytest.mark.parametrize("key, ceiling", [("cs", 14), ("ops", 10), ("schedule", 7), ("ask", 5), ("drawing", 3)])
+@pytest.mark.parametrize("key, ceiling", [("cs", 15), ("ops", 10), ("schedule", 7), ("ask", 5), ("drawing", 3)])
 def test_detail_reads_each_thing_once(client, key, ceiling):
-    """R-35 — 자세히 한 장은 수준 표 · 상담 초안 수를 한 번만 읽고, 승인율은 그 직원 할 일만 센다(전에는 상담 AI 23번)."""
+    """R-35 — 자세히 한 장은 수준 표 · 상담 초안 수를 한 번만 읽고, 승인율은 그 직원 할 일만 센다(전에는 상담 AI 23번).
+
+    상담 AI 천장 15 = 할 일마다 승인율 한 번 — D235 로 방문 옮기기(AS) 할 일이 하나 더(점검 2차 w6-06).
+    """
     admin = db_session.query(User).filter(User.username == "as_admin").one()
     viewer = viewer_of(admin)
     seen = _statements(lambda: staff_detail(db_session, viewer, key, now_utc_naive()))

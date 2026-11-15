@@ -1,18 +1,29 @@
 /* AI 직원 화면 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.10 · 판 ⑪) — templates/brain/ds/agents.html 전용.
    class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
    승인율 막대는 <progress> 를 꾸민다(인라인 스타일 없음). 'AI 시험' 칸 내용(.fb-agents-evals 안)은 T16 몫 — 비면 숨는다.
-   640px 아래 = 폰(⑫): 왼쪽 직원 목록 · 가운데 · 실행 기록이 차례로 쌓이고 '함께 보기'는 숨는다(.fb-pc-only — 틀 CSS). */
+   폭 갈림은 둘(점검 2차 11-15):
+   - 가운데 칸 폭(@container fb-agents — 화면 크기 110 ~ 130% · 좁은 창 · 폰을 한 규칙으로): 720px 아래면 할 일 표가 줄마다
+     카드(이름 · 수준 / 승인율 · 건수 / 메모)로 쌓이고(w3-01), 'AI 시험' 줄 · 설정 칸도 쌓인다. 읽는 것 · 도구는 340px 두 칸이
+     안 들어가면 한 칸(w3-03).
+   - 폰 모습(991.98px 아래 — 틀과 같은 기준): 왼쪽 직원 목록 · 가운데 · 실행 기록이 차례로 쌓이고 '함께 보기'는 숨는다
+     (.fb-pc-only — 틀 CSS), 누르는 것 44px. */
 
 /* hidden 은 언제나 숨김 — .f-callout · .f-col 같은 display 규칙이 [hidden] 을 이기지 않게. */
 .fb-agents [hidden],
 .fb-agents-side [hidden],
-.fb-agents-aside [hidden] { display: none !important; }
+.fb-agents-aside [hidden],
+.fb-agents-prompt [hidden] { display: none !important; }
 
-.fb-agents { min-width: 0; gap: 16px; }
+.fb-agents { container: fb-agents / inline-size; min-width: 0; gap: 16px; }
 .fb-agents .fb-status:empty { display: none; }
 .fb-agents .fb-status.is-error { color: var(--red2); }
 
-/* 머리 — 이름 줄 · 설명은 넓게, 단추 자리(T16)는 오른쪽 */
+/* 표 글은 낱말 가운데서 꺾지 않는다(w3-12 '승인 대/기') — 꺾을 자리는 띄어쓰기뿐. */
+.fb-agents-tools,
+.fb-agents-duties,
+.fb-agents-trace { word-break: keep-all; overflow-wrap: break-word; }
+
+/* 머리 — 이름 줄 · 설명은 넓게, 단추 자리(시험 다시 돌리기 · 지시문 보기)는 오른쪽 */
 .fb-agents-head__text { flex: 1 1 420px; min-width: 0; }
 
 /* 왼쪽 직원 목록 — 줄은 위로 맞춘다. 고른 줄의 꼬리표는 흰 바탕 · 파란 글(목업) */
@@ -22,15 +33,24 @@
 .fb-agents-item:not(.is-selected) .fb-agents-sub { color: var(--text-muted); }
 .fb-agents-item.is-selected .f-tag { background: var(--white); color: var(--blue2); }
 
-/* 읽는 것 · 쓰는 도구 — 두 칸 */
-.fb-agents-reads { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+/* 수준 꼬리표 색 갈래(w3-14 — 무채색 · 초록 없음): 0 읽기만 청록 · 1 초안 파랑 · 2 제안 금빛 · 못 함 빨강(.f-tag-danger).
+   잰 값(CIEDE2000 · 제2색맹 흉내): 글 색 쌍 ≥ 29.5 · 색약 뒤 ≥ 10.4, 바탕 쌍 ≥ 10.3 — 다만 옅은 바탕끼리 색약 뒤 0 대 1 은 4.8 이라
+   글 색이 가른다. 꼬리표 글(0 읽기만 · 1 초안 · 2 제안 · 못 함)도 늘 같이 보인다. */
+.f-app .fb-tone-read { background: rgba(0, 163, 150, .15); color: var(--turquoise1); }
+.f-app .fb-tone-draft { background: rgba(45, 114, 210, .15); color: var(--blue2); }
+.f-app .fb-tone-propose { background: rgba(209, 152, 11, .15); color: var(--gold1); }
+
+/* 읽는 것 · 쓰는 도구 — 두 칸이 340px 씩 들어가면 둘, 아니면 한 칸(도구 표 둘째 칸이 세로로 서지 않게 — w3-03) */
+.fb-agents-reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px 24px; }
 .fb-agents-read { align-items: flex-start; }
 .fb-agents-read > .f-i { margin-top: 2px; }
 
-/* 할 일 표 — 수준 고르기(ADMIN) · 승인율 막대 */
+/* 할 일 표 — 수준 고르기(ADMIN) · 승인율 막대 · '새로 붙음' · 바꾼 줄의 '저장했어요 · 되돌리기' */
 .f-app .fb-agents-level { width: auto; min-width: 120px; height: 26px; line-height: 26px; }
+.fb-agents-duty-name { gap: 4px 8px; }  /* 넓은 표에서는 이름 · '새로 붙음' 한 줄(목업) — 좁은 칸 카드에서만 꺾인다 */
+.fb-agents-saved { display: flex; align-items: center; gap: 4px; margin-top: 2px; white-space: nowrap; }
 .fb-agents-progress {
-  display: block; width: 96px; height: 8px; border: 0; border-radius: 40px; overflow: hidden;
+  display: block; flex: none; width: 96px; height: 8px; border: 0; border-radius: 40px; overflow: hidden;
   background: rgba(95, 107, 124, .2); -webkit-appearance: none; appearance: none;
 }
 .fb-agents-progress::-webkit-progress-bar { background: rgba(95, 107, 124, .2); border-radius: 40px; }
@@ -38,16 +58,49 @@
 .fb-agents-progress.is-warning::-webkit-progress-value { background: var(--orange3); border-radius: 40px; }
 .fb-agents-progress.is-success::-moz-progress-bar { background: var(--green3); border-radius: 40px; }
 .fb-agents-progress.is-warning::-moz-progress-bar { background: var(--orange3); border-radius: 40px; }
+.fb-agents-duties .fb-agents-label { display: none; }
 
 /* 'AI 시험' 칸 — T16 조각이 없으면(빈 칸) 숨는다 */
 .fb-agents-evals:empty { display: none; }
 
-/* 오른쪽 실행 기록 — 아이콘 · 단계 · 시간 세 칸 */
+/* 오른쪽 실행 기록 — 머리(제목 · 담당) · 아이콘 · 단계 · 시간 세 칸 */
+.fb-agents-aside .f-aside-head { flex-wrap: wrap; row-gap: 0; padding-top: 6px; padding-bottom: 6px; }
+.fb-agents-aside .f-aside-head > .f-section-title { flex: 0 0 auto; max-width: 100%; }  /* 제목은 줄지 않고 '담당'이 다음 줄로 */
+.fb-agents-run-who { white-space: nowrap; }
 .fb-agents-step { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; gap: 8px; align-items: start; }
+.fb-agents-step > .f-i { margin-top: 2px; }
 
-@media (max-width: 640px) {
+/* 지시문 보기(ADMIN — 읽기만, D233) */
+.fb-agents-prompt:not([open]) { display: none; }  /* .f-dialog 의 display:flex 가 닫힌 <dialog> 를 드러내지 않게 */
+.fb-agents-prompt {
+  width: min(720px, calc(100vw / var(--foms-ui-zoom, 1) - 32px)); max-width: none;
+  max-height: calc(100vh / var(--foms-ui-zoom, 1) - 64px); padding: 0; border: 0;
+}
+.fb-agents-prompt::backdrop { background: rgba(17, 20, 24, .7); }
+.fb-agents-prompt .f-dialog-body { overflow-y: auto; }
+.fb-agents-prompt__text { margin: 0; padding: 12px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-0);
+  font: inherit; font-size: var(--font-size-small); line-height: 1.5; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+
+/* 가운데 칸이 좁을 때(720px 아래) — 할 일 표를 줄마다 카드로(가로 밀기 없음 · 칸을 숨기지 않고 이름표를 앞에 붙인다) */
+@container fb-agents (max-width: 719.98px) {
+  .fb-agents-duties thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .fb-agents-duties,
+  .fb-agents-duties tbody { display: block; }
+  .fb-agents-duties tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 12px; align-items: center;
+    padding: 10px 16px; box-shadow: inset 0 1px 0 0 var(--divider);
+  }
+  .fb-agents-duties td { display: block; padding: 0; box-shadow: none; white-space: normal; min-width: 0; }
+  .fb-agents-duties td:nth-child(2),
+  .fb-agents-duties td:nth-child(4) { justify-self: end; text-align: right; }
+  .fb-agents-duties td:nth-child(5) { grid-column: 1 / -1; }
+  .fb-agents-duties td:nth-child(5):empty { display: none; }
+  .fb-agents-duties .fb-agents-label { display: inline; margin-right: 6px; font-size: var(--font-size-small); color: var(--text-muted); }
+  .fb-agents-duties .f-row-nw { flex-wrap: wrap; }
+}
+
+@media (max-width: 991.98px) {
   .fb-agents-side { flex: 1 1 100%; width: 100%; box-shadow: 0 1px 0 var(--divider); }
-  .fb-agents-reads { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .f-app .fb-agents-level { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
-  .fb-agents-aside { padding-bottom: 88px; }
+  .fb-agents-aside { padding-bottom: calc(var(--fb-tabbar-h, 68px) + 20px); }
 }

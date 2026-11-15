@@ -220,14 +220,18 @@ def test_inbox_read_reconciles_stuck_rows(world):
 
 
 def test_switch_off_is_404_and_signed_out_is_401(app, world, monkeypatch):
+    """스위치 끔 — 물건을 찾는 길은 404, 수(/badge)는 200 + 꺼진 값(점검 2차 w4-03 — 칸 빈 자리가 화면마다 부른다). 로그인 안 함 401."""
     pid = world["rows"][0]["id"]
-    paths = [("get", f"{BASE}/badge"), ("get", f"{BASE}/open?order_ids=1"), ("get", f"{BASE}/inbox"),
+    paths = [("get", f"{BASE}/open?order_ids=1"), ("get", f"{BASE}/inbox"),
              ("get", f"{BASE}/proposals/{pid}"), ("post", f"{BASE}/proposals/{pid}/approve"),
              ("post", f"{BASE}/proposals/{pid}/reject"), ("post", f"{BASE}/proposals/{pid}/snooze")]
-    for method, path in paths:
+    for method, path in [("get", f"{BASE}/badge"), *paths]:
         assert _data(getattr(app.test_client(), method)(path, json={}), 401)["error"] == "로그인이 필요합니다."
     monkeypatch.setenv("FOMS_GRAFT_ACTIONS_ENABLED", "0")
     for method, path in paths:
         assert _data(getattr(world["client"], method)(path, json={"base_version": 1, "code": "other"}), 404)
+    off = world["client"].get(f"{BASE}/badge")
+    assert off.status_code == 200 and off.get_json() == {"success": True, "data": {"on": {"actions": False, "pc": False, "tablet": False, "mobile": False}, "actions": 0, "knowledge": 0, "total": 0, "labels": []}, "error": None}
+    assert "no-store" in off.headers["Cache-Control"]
     db_session.expire_all()
     assert db_session.get(ErpActionProposal, pid).status == "open"

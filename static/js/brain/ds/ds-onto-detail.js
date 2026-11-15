@@ -42,7 +42,8 @@
     var rows = (cq.rows || []).filter(function (row) { return !ids || ids.indexOf(row.id) >= 0; });
     if (!rows.length) return kit.emptyLine('이 종류가 필요한 능력 질문이 없어요.');
     return kit.table(['번호', '영역', '질문', '근거', '필요한 것', '답 재료'], rows.map(function (row) {
-      return tr([cell(row.id, 'f-mono'), cell(row.domain), cell(row.question), cell(ov.BASIS[row.basis] || row.basis),
+      return tr([cell(row.id, 'f-mono f-td-nw'), cell(row.domain, 'f-td-nw'), cell(row.question),
+                 cell(ov.BASIS[row.basis] || row.basis, 'f-td-nw'),
                  el('td', { children: [el('span', { cls: 'f-row f-gap4', children: row.needs.concat(row.links).map(needChip) })] }),
                  cell(kit.tag(row.covered ? '있음' : '모자람', row.covered ? 'success' : 'danger'))]);
     }));
@@ -58,9 +59,9 @@
   function typePropsTable(data) {
     if (!data.props.length) return kit.emptyLine('이 종류는 아직 속성 틀이 없어요(꼴 검사만).');
     return kit.table(['칸', '자료형', '꼭', '단위 · 범위', '고를 값', '표준', '채움'], data.props.map(function (p) {
-      return tr([cell(p.label, 'f-td-nw f-strong'), cell(ov.DATATYPES[p.datatype] || p.datatype), cell(ov.requiredText(p)),
-                 cell(ov.rangeText(p)), cell(p.choices.map(function (c) { return c.label; }).join(' · ')),
-                 cell(p.standard, 'f-mono'), fill(p)]);
+      return tr([cell(p.label, 'f-td-nw f-strong'), cell(ov.DATATYPES[p.datatype] || p.datatype, 'f-td-nw'),
+                 cell(ov.requiredText(p), 'f-td-nw'), cell(ov.rangeText(p)),
+                 cell(p.choices.map(function (c) { return c.label; }).join(' · ')), cell(kit.code(p.standard)), fill(p)]);
     }));
   }
 
@@ -69,7 +70,7 @@
     return kit.table(['방향', '연결', '상대 종류', '개수 규칙', '지금 수', '표준'], data.links.map(function (link) {
       return tr([cell(link.direction === 'out' ? '나감 →' : '← 들어옴', 'f-td-nw'), cell(link.label + ' · ' + link.phrase),
                  cell(ov.endsText(ctx.display, ctx.summary.group_labels, link.ends)), cell(ov.cardinalityText(link)),
-                 cell(String(link.count), 'f-td-num'), cell(link.standard, 'f-mono')]);
+                 cell(String(link.count), 'f-td-num'), cell(kit.code(link.standard))]);
     }));
   }
 
@@ -98,9 +99,11 @@
 
   function erpPropsSection(detail) {
     var body = detail.props.length ? kit.table(['속성 이름', '지금 칸', '값 모양', '읽기 · 쓰기'], detail.props.map(function (p) {
-      return tr([cell(p.name, 'f-td-nw f-strong'), cell(p.column, 'f-mono'), cell(p.shape), el('td', { children: [
-        el('span', { cls: 'f-row f-gap4', children: [kit.tag(p.access_label, ov.accessTone(p.access)),
-                                                     p.via ? kit.small(p.via) : null, p.note ? kit.small(p.note) : null] })] })],
+      return tr([cell(p.name, 'f-td-nw f-strong'), cell(kit.code(p.column)), cell(el('span', { cls: 'f-small', text: p.shape }), 'f-td-nw'),
+                 el('td', { children: [
+                   el('span', { cls: 'f-row-nw f-gap4', children: [kit.tag(p.access_label, ov.accessTone(p.access)),
+                                                                   p.via ? kit.small(p.via) : null] }),
+                   p.note ? kit.small(p.note, 'fb-block') : null] })],
         { 'data-onto-prop': p.key });
     })) : el('div', { cls: 'f-section-body', children: [kit.emptyLine('판 1 에서는 속성 표 없이 정본 자리만 가리켜요 — ' +
                                                                        ((detail.source || {}).text || ''))] });
@@ -109,20 +112,20 @@
 
   function erpActionRows(actions, withTarget) {
     return actions.map(function (a) {
-      var cells = [cell(a.label, 'f-td-nw f-strong')];
+      var cells = [cell(a.label, 'f-strong')];  // 긴 이름은 낱말 단위로 줄을 바꾼다(110 ~ 130% 에서도 네 칸이 다 보이게)
       if (withTarget) cells.push(cell(a.target_label));
       return tr(cells.concat([
-        el('td', { children: [el('span', { cls: 'f-row-nw', children: [el('span', { text: a.wraps }),
-                                                                         el('span', { cls: 'f-mono f-muted', text: a.name })] })] }),
-        cell(kit.tag(a.level_label, ov.levelTone(a))),
-        el('td', { cls: 'f-td-nw', children: [el('span', { cls: 'f-row-nw f-small', children: [
-          kit.icon(ov.whereIcon(a.where), 'f-i-muted'), document.createTextNode(a.where)] })] })]));
+        el('td', { children: [el('span', { cls: 'fb-block', text: a.wraps_label || a.label }),
+                              a.wraps_code ? kit.code(a.wraps_code, 'f-muted fb-block') : null] }),
+        cell(kit.tag(a.level_label, ov.levelTone(a)), 'f-td-nw'),
+        el('td', { children: [el('span', { cls: 'f-row-nw f-small', children: [
+          kit.icon(ov.whereIcon(a.where), 'f-i-muted'), el('span', { text: a.where })] })] })]));
     });
   }
 
   function erpActionsSection(actions, withTarget) {
     var legend = [NEW(), el('span', { cls: 'f-section-sub', text: '새 API 없이 지금 기능을 이름 붙여 감싸요' }),
-                  kit.small('0 읽기만 · 1 초안 · 2 제안 · 사람만', 'f-push')];
+                  kit.small('0 읽기만 · 1 초안 · 2 제안 · 사람만', 'f-push fb-onto-legend')];
     var heads = ['할 일'].concat(withTarget ? ['대상'] : [], ['감싸는 지금 기능', 'AI 자율 수준', '승인 자리']);
     var body = actions.length ? kit.table(heads, erpActionRows(actions, withTarget))
                               : el('div', { cls: 'f-section-body', children: [kit.emptyLine('이 물건에 붙은 할 일이 없어요.')] });
@@ -156,6 +159,11 @@
     });
     var rows = [kit.header({ typeText: 'ERP 물건 종류', typeIcon: detail.icon.replace(/^i-/, '') || 'cube', title: detail.label,
                              code: detail.type, tags: tags }), meta];
+    var known = (detail.knowledge || []).map(function (k) {
+      return el('button', { cls: 'f-chip fb-onto-chip', attrs: { type: 'button', 'data-onto-kind': 'type', 'data-onto-id': k.type },
+                            children: [kit.icon('lightbulb'), document.createTextNode(k.label)] });
+    });
+    if (known.length) chips = chips.concat([kit.small('지식 쪽')], known);
     if (chips.length) rows.push(el('div', { cls: 'f-row f-gap4', children: [kit.small('이어진 것')].concat(chips) }));
     return el('header', { cls: 'f-col', children: rows });
   }
@@ -183,7 +191,7 @@
                 return tr([cell(link.label + (link.open ? '' : ' · 아직 쓰는 짝 없음'), 'f-strong'),
                            cell(ov.endsText(ctx.display, s.group_labels, link.from)),
                            cell(ov.endsText(ctx.display, s.group_labels, link.to)), cell(String(link.count), 'f-td-num'),
-                           cell(link.standard, 'f-mono')], { 'data-onto-link': link.kind });
+                           cell(kit.code(link.standard))], { 'data-onto-link': link.kind });
               })))];
     }
     if (kind === 'erp_actions' && s.erp) {

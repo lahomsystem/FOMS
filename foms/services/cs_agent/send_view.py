@@ -10,6 +10,7 @@
 작은 창 접목 두 줄(설계서 2026-11-14-foms-graft 3.9 — 관리 칸 :mod:`.graft_settings`, 끄면 칸 자체가 없다): :func:`wam_graft` 가
 그 차례의 근거 칩(셋까지 — 회사 지식 카드 · 주문 화면의 FOMS **절대 주소**: 채널톡이 거쳐 여는 창이라 상대 주소는 채널톡 쪽으로
 풀린다)과 작은 창 줄 제안 하나(그 차례 것 — 없으면 같은 상담 앞 차례의 같은 주문 것, :func:`inline_proposal`)를 읽기만 한다.
+기간이 지난 제안은 밤 정리 전이라도 줄이 뜨지 않는다(점검 2차 w5-02 · w6-12 — 승인 대기 수 · 칩과 같은 ``expires_at > 지금``).
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ import os
 from typing import Any, Optional
 from urllib.parse import quote
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from foms.persistence.graft.models import ErpActionProposal
 from foms.persistence.main.models import CsAgentTurn
@@ -40,6 +41,7 @@ from foms.services.cs_agent.send_auth import issue_send_token
 from foms.services.cs_agent.send_flow import MAX_NOTE, MAX_REWRITES, MAX_TEXT, MESSAGES, switch_on, turn_status
 from foms.services.cs_agent.send_record import SEND_SENDING, SEND_UNKNOWN_STATE
 from foms.services.cs_agent.settings import read_settings
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_actions.preview import check as action_check
 from foms.services.erp_actions.registry import ACTIONS, KIND_MASKED_TEXT, STATUS_OPEN
 from foms.services.erp_ontology.read import order_id_of
@@ -188,7 +190,7 @@ def _chat_turn_refs(session: Any, turn_id: int) -> list[str]:
     return [str(number) for number in ids]
 
 
-def inline_proposal(session: Any, turn_id: int) -> Optional[ErpActionProposal]:
+def inline_proposal(session: Any, turn_id: int, *, now: Optional[datetime.datetime] = None) -> Optional[ErpActionProposal]:
     """그 차례 창에 보일 상담 AI 의 열린 작은 창 줄 제안 — 그 차례 것 먼저, 없으면 같은 상담 앞 차례의 같은 주문 것.
 
     줄 제안이 생긴 차례를 건너뛰면 다음 차례에는 겹침 열쇠 때문에 새 제안이 생기지 않는다 — 그래서 같은 상담의 앞 차례 것도 본다.
@@ -198,6 +200,8 @@ def inline_proposal(session: Any, turn_id: int) -> Optional[ErpActionProposal]:
     Args:
         session: DB 세션(읽기만).
         turn_id: 차례 번호.
+        now: 지금(UTC naive) — 주면 기간이 지난 제안은 열린 것으로 치지 않는다(밤 정리 전이라도). ``None`` 이면 기간을 보지
+            않는다([같이 넣기] 판정이 '기간이 지나 넣지 않았어요'를 가를 때만).
 
     Returns:
         제안 줄 또는 ``None``.
@@ -206,31 +210,34 @@ def inline_proposal(session: Any, turn_id: int) -> Optional[ErpActionProposal]:
     if not refs:
         return None
     inline = [name for name, spec in ACTIONS.items() if spec.wam_inline]
+    alive = (or_(ErpActionProposal.expires_at.is_(None), ErpActionProposal.expires_at > now),) if now is not None else ()
     rows = session.execute(select(ErpActionProposal).where(
         ErpActionProposal.source_kind == SOURCE_KIND, ErpActionProposal.source_ref.in_(refs),
         ErpActionProposal.proposed_by == proposer(AGENT), ErpActionProposal.status == STATUS_OPEN,
-        ErpActionProposal.action.in_(inline)).order_by(ErpActionProposal.id.desc())).scalars().all()
+        ErpActionProposal.action.in_(inline), *alive).order_by(ErpActionProposal.id.desc())).scalars().all()
     own = [row for row in rows if row.source_ref == str(turn_id)]
     if own:
         return own[0]
     return rows[0] if len({row.order_id for row in rows}) == 1 else None
 
 
-def _inline_action(session: Any, turn_id: int) -> Optional[dict[str, Any]]:
-    """그 차례 창의 작은 창 줄 제안(:func:`inline_proposal` · 막는 조건 없음) ``{"id", "label", "text"}`` — 없으면 ``None``."""
-    row = inline_proposal(session, turn_id)
+def _inline_action(session: Any, turn_id: int, now: datetime.datetime) -> Optional[dict[str, Any]]:
+    """그 차례 창의 작은 창 줄 제안(:func:`inline_proposal` — 기간 남음 · 막는 조건 없음) ``{"id", "label", "text"}`` — 없으면
+    ``None``."""
+    row = inline_proposal(session, turn_id, now=now)
     order = session.get(Order, row.order_id) if row is not None and row.order_id is not None else None
     if order is None or action_check(row.action, order, row.params or {}):
         return None
     return {"id": row.id, "label": ACTIONS[row.action].label, "text": _inline_text(row)}
 
 
-def wam_graft(session: Any, turn_id: int) -> dict[str, Any]:
+def wam_graft(session: Any, turn_id: int, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """작은 창 접목 두 줄 재료 — 켜진 관리 칸의 칸만 싣는다(둘 다 끔이면 빈 dict — 함수 답이 지금과 같다). DB 는 읽기만.
 
     Args:
         session: DB 세션(읽기 트랜잭션은 닫는다).
         turn_id: 차례 번호(부르는 쪽이 그 상담의 차례인지 이미 봤다).
+        now: 지금(UTC naive — 없으면 :func:`now_utc_naive`). 기간이 지난 줄 제안은 싣지 않는다.
 
     Returns:
         ``{"evidence": [칩 셋까지]}`` · ``{"action": None | {"id", "label", "text"}}`` 가운데 켜진 것.
@@ -240,6 +247,6 @@ def wam_graft(session: Any, turn_id: int) -> dict[str, Any]:
     if evidence_on(cfg):
         out["evidence"] = _evidence_chips(session, turn_id)
     if actions_on(cfg):
-        out["action"] = _inline_action(session, turn_id)
+        out["action"] = _inline_action(session, turn_id, now if now is not None else now_utc_naive())
     session.rollback()
     return out

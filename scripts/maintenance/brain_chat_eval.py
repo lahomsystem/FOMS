@@ -13,6 +13,8 @@
   (기록 · 사람 상한은 쓰지 않는다). 묻는 사람은 질문의 ``role`` · ``team``(보기 범위 시험).
 - 내보내는 것은 점수와 틀린 질문 id 뿐이다(질문 · 답 글 없음). 판 1 완료 기준(맞힘 80% · 근거 없는 답 0 · 지식에 없는 질문 모두
   '모름')을 못 넘으면 exit 2.
+- 점수를 낸 뒤 마지막 점수 한 줄(수만 — 질문 · 답 글 · 틀린 질문 id 없음)을 설정에 남긴다(AI 직원 화면 '지식 물어보기'의 'AI 시험'
+  칸 — 설계서 2026-11-14-foms-graft 3.10, :mod:`foms.services.ai_staff.ask_eval`). 남기지 않으려면 ``--no-record``.
 """
 import argparse
 import json
@@ -61,11 +63,14 @@ def main(argv=None) -> int:
     parser.add_argument("--retrieval-only", action="store_true", help="모델 없이 찾기만(돈 0)")
     parser.add_argument("--store", action="store_true", help="관문 ④ 재료로 설정에 넣기(--apply 와 같이)")
     parser.add_argument("--apply", action="store_true", help="--store 를 실제로 쓴다")
+    parser.add_argument("--no-record", action="store_true", help="AI 직원 화면에 마지막 점수를 남기지 않는다")
     args = parser.parse_args(argv)
 
     from app import app
     from db import db_session
+    from foms.services.ai_staff.ask_eval import record_ask_eval
     from foms.services.brain.eval_set import load_file, run_eval, store_questions
+    from foms.services.datetime_kst import now_utc_naive
 
     questions = load_file(args.set)
     with app.app_context():
@@ -79,7 +84,11 @@ def main(argv=None) -> int:
                 print(json.dumps({"stored": count, "applied": bool(args.apply)}, ensure_ascii=False))
                 return EXIT_OK
             score = run_eval(questions, answer_fn(db_session, retrieval_only=args.retrieval_only))
-            db_session.rollback()
+            db_session.rollback()  # 답하는 길이 만든 것은 남기지 않는다
+            if not args.no_record:
+                record_ask_eval(db_session, score.as_dict(), mode="retrieval" if args.retrieval_only else "answer",
+                                now=now_utc_naive())
+                db_session.commit()
         finally:
             db_session.remove()
     print(json.dumps({"mode": "retrieval" if args.retrieval_only else "answer", **score.as_dict()}, ensure_ascii=False))

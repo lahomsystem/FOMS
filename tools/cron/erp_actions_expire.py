@@ -1,9 +1,10 @@
 """ERP 할 일 제안 밤 정리(FOMS-cron 밤 단계 — 설계서 2026-11-14-foms-graft 3.4 · 3.10).
 
-- 기간이 끝난(넣을 값 날짜가 지났거나 만든 지 7일) 열린 · 실패한 제안을 '기간 끝남'으로 닫는다
+- 기간이 끝난(넣을 값 날짜 · 실측일 · 시공일이 지났거나 7일) 열린 · 실패한 제안을 '기간 끝남'으로 닫는다
   (:func:`foms.services.erp_actions.lifecycle.expire_due`).
-- 되맞추기: '실행 중'으로 2분 넘게 남은 줄과 사람이 주문 화면에서 끝낸 바로가기 제안을 맞춘다
-  (:func:`foms.services.erp_actions.lifecycle.reconcile` — 승인 대기 읽기도 같은 함수를 부른다).
+- 되맞추기: '실행 중'으로 2분 넘게 남은 줄 · 사람이 주문 화면에서 끝낸 바로가기 제안 · 실측 일정 · 시공일이 바뀐 옛 알림톡 제안
+  (낡음 — :mod:`foms.services.erp_actions.freshness`)을 맞춘다(:func:`foms.services.erp_actions.lifecycle.reconcile` — 승인 대기
+  읽기도 같은 함수를 부른다).
 - 스위치와 상관없이 돈다 — 제안이 없으면 아무것도 쓰지 않고 exit 0(스위치가 꺼진 지금은 늘 그렇다).
 - 기본은 시험 돌리기(세기만 하고 되돌림). ``--apply`` 일 때만 커밋한다.
 - Flask 앱은 불러오지 않는다(expire_brain_proposals.py 와 같은 길).

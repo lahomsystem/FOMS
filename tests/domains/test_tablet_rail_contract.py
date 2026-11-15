@@ -162,7 +162,7 @@ def test_cache_chain_versions_bumped() -> None:
     을 더해 두 핀을 함께 20260825a 로 올렸다.
     """
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20261111b" in head
+    assert "foms-tablet-bundle.css') }}?v=20261115k" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
 
@@ -323,3 +323,29 @@ def test_레일_동기_JS는_강조_접두어를_먼저_본다() -> None:
     assert "getAttribute('data-foms-rail-match') || items[i].pathname" in js
     assert 'data-foms-rail-match="{{ item.match }}"' in _read(RAIL_PARTIAL)
     assert "js/foms/tablet-rail-nav.js') }}?v=20261110a" in _read(LAYOUT_NAV)
+
+
+# --- ⑥ 짧은 화면: 아래 묶음은 바닥, 위 메뉴만 굴린다 (점검 2차 w4-02, 11-15) ---------------
+
+
+def test_rail_bottom_group_stays_while_only_the_top_menu_scrolls() -> None:
+    """키 낮은 가로(1176×626) · 화면 크기 110 ~ 130% · 글자 130 · 150% 에서 레일 전체가 넘쳐 알림 · 내 정보(켜면 회사 지식)가
+    화면 밖이었다(굴려야 보임). 메뉴 칸은 위 메뉴 묶음 안에만 있고 그 묶음이 남는 높이로 줄어 그 안에서 굴린다 — spacer ·
+    회사 지식 · 알림 · 내 정보는 묶음 밖(레일 자식)이라 바닥에 남는다. 칸 높이는 줄이지 않는다(44px 이상 규칙 그대로)."""
+    partial = _read(RAIL_PARTIAL)
+    menu = partial[partial.index('<div class="foms-tablet-rail__menu">'):]
+    assert menu.index("foms_tablet_rail_items()") < menu.index("{% endfor %}") < menu.index("</div>")
+    after = menu[menu.index("{% endfor %}"):]
+    assert (after.index("</div>") < after.index("foms-tablet-rail__spacer") < after.index("data-foms-notif-open")
+            < after.index("foms-tablet-rail__avatar"))
+    css = _read(RAIL_CSS)
+    block = re.search(r"\n\.foms-tablet-rail__menu \{(.*?)\}", css, re.S).group(1)
+    assert "flex: 0 1 auto;" in block and "min-height: 0;" in block and "overflow-y: auto;" in block
+    assert "local" in block and "scroll;" in block  # 굴릴 것이 남았을 때만 끝에 그늘(덮개는 레일 바탕색)
+    brand = re.search(r"\n\.foms-tablet-rail__brand \{(.*?)\}", css, re.S).group(1)
+    assert "flex-shrink: 0;" in brand
+    # 11-09 뒤 실제로 걸려 온 '메뉴 10칸 이상' 줄이기를 묶음 안 판정으로 그대로 옮겼다(1180×820 · 100% 지금 모습).
+    assert ":nth-child(12)" not in css
+    assert css.count(".foms-tablet-rail:has(> .foms-tablet-rail__menu > :nth-child(10))") == 4
+    item = re.search(r"\n\.foms-tablet-rail__item \{(.*?)\}", css, re.S).group(1)
+    assert "min-height: 52px;" in item and "flex-shrink: 0;" in item

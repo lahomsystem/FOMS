@@ -30,7 +30,7 @@
   var tableKit = window.FOMS_DS_INBOX_TABLE;
   var questionKit = window.FOMS_DS_INBOX_QUESTION;
   var phoneKit = window.FOMS_DS_INBOX_PHONE;
-  var phoneQuery = window.matchMedia('(max-width: 640px)');
+  var phoneQuery = window.matchMedia((window.FOMS_DS_SHELL && window.FOMS_DS_SHELL.PHONE_QUERY) || '(max-width: 991.98px)');
   var q = function (sel) { return root.querySelector(sel); };
   var parts = { status: q('[data-ds-inbox-status]'), bins: q('[data-ds-inbox-bins]'), open: q('[data-ds-inbox-open]'),
                 cards: q('[data-ds-inbox-cards]'), laterBox: q('[data-ds-inbox-later-box]'), later: q('[data-ds-inbox-later]'),
@@ -38,9 +38,10 @@
                 sub: q('[data-ds-inbox-sub]'), back: q('[data-ds-inbox-back]'), bulk: q('[data-ds-inbox-bulk]'),
                 bulkText: q('[data-ds-inbox-bulk-text]'), ai: q('[data-ds-inbox-ai]'), erp: q('[data-ds-inbox-erp]') };
   var data = null;
-  var counts = { knowledge: Number(root.getAttribute('data-knowledge-count')) || 0, actions: 0 };  // 서버가 센 수로 시작
+  var counts = { knowledge: Number(root.getAttribute('data-knowledge-count')) || 0, actions: 0, snoozed: 0 };  // 서버가 센 수로
   var actionsKnown = false;
   var openBin = c.view === 'inbox' && window.location ? iv.fromQuery(window.location.search) : '';
+  var startBin = openBin;  // 주소의 '나중에 볼 것' — 접은 AI 제안 수가 늦게 와도 연다(w1-17)
   var laterKey = 'foms-ds-inbox-later:' + (shell.getAttribute('data-ds-uid') || 'anon');
   var deferred = readDeferred();
 
@@ -104,8 +105,10 @@
   }
 
   function setCount(kind, n) {
-    if (kind !== 'knowledge' && kind !== 'actions') return;
+    if (kind !== 'knowledge' && kind !== 'actions' && kind !== 'snoozed') return;  // snoozed = 접은 AI 제안(w1-17)
     counts[kind] = Math.max(0, Math.floor(Number(n) || 0));
+    if (kind === 'snoozed' && counts.snoozed && startBin === iv.LATER && data && !openBin) openBin = iv.LATER;
+    if (kind === 'snoozed') { startBin = ''; if (data) render(); else refreshNav(allCards()); }
     if (kind === 'actions') actionsKnown = true;
     refreshCounts();
   }
@@ -113,7 +116,7 @@
   /** 왼쪽 길잡이 — 묶음 수(0 은 흐리게) · 나중에 볼 것 수 · 지금 보는 줄 표시. */
   function refreshNav(all) {
     var n = iv.counts(all);
-    n[iv.LATER] = all.filter(function (card) { return deferred[card.id]; }).length;
+    n[iv.LATER] = all.filter(function (card) { return deferred[card.id]; }).length + counts.snoozed;
     Array.prototype.slice.call(document.querySelectorAll('[data-ds-inbox-bin-nav]')).forEach(function (item) {
       var key = item.getAttribute('data-ds-inbox-bin-nav');
       var count = item.querySelector('[data-ds-inbox-bin-count]');
@@ -145,7 +148,7 @@
   function renderOverview(all) {
     dom.clear(parts.bins);
     if (!all.length) {
-      parts.bins.appendChild(dom.el('li', { cls: 'f-empty fb-bin-empty', text: '승인 대기가 없어요.' }));
+      parts.bins.appendChild(dom.el('li', { cls: 'f-empty fb-bin-empty', text: '승인할 지식 고침이 없어요.' }));  // 이 칸 것만(w1-08)
       return;
     }
     iv.binRows(all, c.display).forEach(function (row) { parts.bins.appendChild(binRow(row)); });
@@ -177,11 +180,12 @@
   }
 
   function renderPc(all) {
-    if (openBin && !(openBin === iv.LATER ? all.some(function (card) { return deferred[card.id]; }) : iv.inBin(all, openBin).length)) {
+    if (openBin && !(openBin === iv.LATER ? counts.snoozed || all.some(function (card) { return deferred[card.id]; }) : iv.inBin(all, openBin).length)) {
       openBin = '';  // 없거나 빈 묶음이면 목록(F07)
     }
     var bin = iv.find(openBin);
-    if (parts.erp) parts.erp.hidden = !!openBin;  // 묶음을 열면 그 묶음 카드만
+    if (parts.erp) parts.erp.hidden = !!openBin && openBin !== iv.LATER;  // 묶음을 열면 그 묶음 카드만(나중에 볼 것은 접은 AI 제안도)
+    if (root.getAttribute('data-ds-inbox-bin') !== openBin) { root.setAttribute('data-ds-inbox-bin', openBin); root.dispatchEvent(new CustomEvent('ds:inbox-bin', { bubbles: true })); }
     parts.title.textContent = openBin ? (bin ? bin.title : '나중에 볼 것') : '지식 고침';
     parts.count.textContent = String(openBin ? (openBin === iv.LATER ? all.filter(function (x) { return deferred[x.id]; }).length
       : iv.inBin(all, openBin).length) : all.length);

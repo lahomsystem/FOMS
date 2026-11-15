@@ -22,6 +22,10 @@
 .fb-erp-why-line { align-items: flex-start; word-break: keep-all; }
 .fb-erp-form { gap: 10px; padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
 .fb-erp-reject-title { margin-top: 4px; }
+/* 결정 단추 줄 — 승인 · 고쳐서 승인 · 나중에가 옆 창 폭(304px)에 한 줄로(단추는 그대로, 간격만 8 → 4px — 점검 2차 w1-15). */
+.fb-erp-decide { gap: 4px; }
+.fb-erp-done { align-items: flex-start; word-break: keep-all; }
+.fb-erp-when { white-space: nowrap; }
 
 /* 폰 카드 — 승인 대기 폰 목록 안(판 ⑫). 카드 틀은 바탕 CSS(.fb-phone-card)를 같이 쓴다.
    높이는 틀(brain-ds-shell.css '누르는 것 44px 이상' — 설계서 5.5)에 맡긴다 — 여기서 높이를 적으면 44px 를 이긴다. */

@@ -2,16 +2,18 @@
 {#- 찾기 · 지식 표(판 ⑦ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.2 · 5.4). ?tab=search · ?tab=table 이 이 화면이다.
     서버는 틀 · 유형 묶음 나무 · 유형별 수 칩 · 거르기 여덟(값 목록은 코드 상수)만 그리고, 줄 · 미리 보기는
     static/js/brain/ds/ds-search*.js 가 지금 JSON API 로 읽어 그린다: 찾는 말이 있으면 GET /api/brain/search(유형별 묶음),
-    유형을 고르면 GET /api/brain/table(거르기 · 정렬 · 쪽), 줄을 누르면 GET /api/brain/items/<키>(+ ERP 읽기 스위치가 켜진
-    사람만 /usage — '쓰인 곳'). 주소(?tab=search&q= · ?tab=table&type=)는 지금 그대로. 인라인 스크립트 · 스타일 없음. -#}
+    없으면 GET /api/brain/table(거르기 · 정렬 · 쪽 — 유형을 안 고르면 모든 유형, 점검 2차 w1-06 · D232), 줄을 누르면
+    GET /api/brain/items/<키>(+ ERP 읽기 스위치가 켜진 사람만 /usage — '쓰인 곳'). 주소(?tab=search&q= · ?tab=table&type=)는
+    지금 그대로 — ?tab=search(찾는 말 없음)가 모든 유형 표다. mode = 'search'(찾는 말 묶음) · 'table'(표). 인라인 스크립트 ·
+    스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
 {% from "brain/ds/partials/search_icons.html" import type_icons %}
-{% set mode = 'table' if page == 'table' else 'search' %}
+{% set mode = 'search' if page == 'search' and start_query else 'table' %}
 {% set usage_on = graft_enabled('erp_read') %}
 {% set type_counts = {} %}
 {% for group in tmap.groups %}{% for t in group.types if not t.external %}{% set _ = type_counts.update({t.type: t.count}) %}{% endfor %}{% endfor %}
-{% block title %}{{ '지식 표' if mode == 'table' else '찾기' }}{% endblock %}
-{% block page_title %}{{ '지식 표' if mode == 'table' else '찾기' }}{% endblock %}
+{% block title %}{{ '지식 표' if page == 'table' else '찾기' }}{% endblock %}
+{% block page_title %}{{ '지식 표' if page == 'table' else '찾기' }}{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-search.css') }}">{% endblock %}
 {% block side %}{% include "brain/ds/partials/search_side.html" %}{% endblock %}
 {% block main %}{% include "brain/ds/partials/search_main.html" %}{% endblock %}

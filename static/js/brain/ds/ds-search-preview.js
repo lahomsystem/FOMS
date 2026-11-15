@@ -2,7 +2,8 @@
  * 새 찾기 · 지식 표 오른쪽 미리 보기(판 ⑦) — templates/brain/ds/partials/search_aside.html 의 [data-ds-search-aside].
  *
  * - show(index): 지금 목록의 그 줄을 GET /api/brain/items/<키>(보기 범위 · 효력은 서버가 건다)로 읽어 요약(유형 · 쓰는 팀 · 이름 ·
- *   상태 · 승인을 기다리는 수정 · 낡음) · 글 · 값(눈에 띄는 칸 · 브랜드 · 확실한 정도 · 위험 등급 · 마지막 확인 · 다시 볼 날) ·
+ *   상태 · 승인을 기다리는 수정 · 낡음) · 글 · 값(눈에 띄는 칸 · 브랜드 · 확실한 정도 · 위험 등급 · 마지막 확인(+ 확인한 사람 —
+ *   표 줄의 checked_by) · 다시 볼 날) ·
  *   연결된 지식 종류별 수 · [카드 열기] · [고칠 말 제안](카드의 #brain-card-propose)을 그린다.
  * - '쓰인 곳 · 지난 2주'(설계서 3.8): 화면에 data-usage 가 있을 때만(접목판 erp_read 스위치 — 서버가 정한다)
  *   GET /api/brain/items/<키>/usage 를 같이 읽어 읽은 쪽마다 수 · 이어진 ERP 물건을 그린다. 없으면 그 칸이 없다.
@@ -23,7 +24,7 @@
   var pos = aside.querySelector('[data-ds-preview-pos]');
   var prev = aside.querySelector('[data-ds-preview-step="-1"]');
   var next = aside.querySelector('[data-ds-preview-step="1"]');
-  var state = { ctx: null, keys: [], index: -1, seq: 0, onPick: null };
+  var state = { ctx: null, keys: [], rows: {}, index: -1, seq: 0, onPick: null };
 
   function kv(list, term, value) {
     list.appendChild(dom.el('dt', { text: term }));
@@ -61,7 +62,8 @@
     conf.appendChild(document.createTextNode(m.conf));
     kv(list, '확실한 정도', conf);
     kv(list, '위험 등급', it.risk_grade ? rows.tag(sv.label(d, 'grades', it.risk_grade), sv.GRADE_TONES[it.risk_grade] || '') : '—');
-    kv(list, '마지막 확인', it.checked_at || '없음');
+    var row = state.rows[it.key] || {};  // 확인한 사람은 표 줄(checked_by — 점검 2차 w1-12)에서
+    kv(list, '마지막 확인', it.checked_at ? it.checked_at + (row.checked_by ? ' · ' + row.checked_by : '') : '없음');
     kv(list, '다시 볼 날', it.stale_after || '—');
     return list;
   }
@@ -162,9 +164,10 @@
     render(got[0].data, got[1] && got[1].ok && got[1].data && got[1].data.by_reader ? got[1].data : null);
   }
 
-  /** 목록이 바뀌면 — 미리 보기를 비우고 자리 글을 새로. */
-  function setRows(keys) {
+  /** 목록이 바뀌면 — 미리 보기를 비우고 자리 글을 새로. rows = 키 → 표 줄(확인한 사람 등). */
+  function setRows(keys, rowsByKey) {
     state.keys = (keys || []).slice();
+    state.rows = rowsByKey || {};
     state.index = -1;
     state.seq += 1;
     dom.clear(body);

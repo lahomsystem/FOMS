@@ -151,13 +151,20 @@ def test_viewer_partner_and_signed_out_accounts(app, world):
     partner = _user("pt_user", "PARTNER", partner_org_id=org.id)
     asleep = _user("off_admin", "ADMIN", is_active=False)
     viewer_id, partner_id, asleep_id = viewer.id, partner.id, asleep.id  # 요청 뒤에는 ORM 객체가 떨어진다
-    paths = [("get", f"{BASE}/badge"), ("get", f"{BASE}/inbox"), *_routes(world["schedule_id"])]
+    paths = [("get", f"{BASE}/inbox"), *_routes(world["schedule_id"])]
     for method, path in paths:
         resp = getattr(_client(app, viewer_id), method)(path, json={"base_version": 1})
         assert resp.status_code == 404, path
         body = getattr(_client(app, partner_id), method)(path, json={"base_version": 1})
         assert body.status_code in (403, 404) and body.get_json()["data"] is None, path
         assert getattr(_client(app, asleep_id), method)(path, json={}).status_code == 401, path
+    # 수(/badge)는 볼 수 없는 사람에게 200 + 꺼진 값 — 남의 수 · 이름은 하나도 없다(점검 2차 w4-03). 로그인 안 함은 401.
+    off = {"on": {"actions": False, "pc": False, "tablet": False, "mobile": False}, "actions": 0, "knowledge": 0, "total": 0, "labels": []}
+    resp = _client(app, viewer_id).get(f"{BASE}/badge")
+    assert resp.status_code == 200 and resp.get_json()["data"] == off
+    body = _client(app, partner_id).get(f"{BASE}/badge")
+    assert (body.status_code, body.get_json()["data"]) in ((200, off), (403, None))
+    assert _client(app, asleep_id).get(f"{BASE}/badge").status_code == 401
 
 
 def _freelancer(order_id: int) -> User:

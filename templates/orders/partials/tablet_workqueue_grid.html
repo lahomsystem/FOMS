@@ -65,9 +65,10 @@
         {# 현재 작업: 보드 상태 → 퀘스트 제목 → 단계 라벨(plain 텍스트). #}
         <td class="foms-tqcell-quest">
           {% if o.board_state %}{{ o.board_state.title or o.board_state.label }}{% elif o.current_quest and o.current_quest.title %}{{ o.current_quest.title }}{% else %}<span class="foms-tqcell-muted">{{ o.stage or '-' }}</span>{% endif %}
-          {#- AI 제안 칩(접목판 판 ③): 전역 스위치가 켜졌을 때만 빈 자리(숨김) — graft-cells.js 가 /open 한 번으로 채운다. #}
+          {#- AI 제안 칩(접목판 판 ③): 전역 스위치가 켜졌을 때만 빈 자리(숨김) — graft-cells.js 가 /open 한 번으로 채운다.
+              자리 상자(.foms-graft-chip-slot)는 칸 폭 계산에 끼지 않고 칩은 한 줄(점검 2차 w4-04). #}
           {%- if graft_cell_slot('tablet') %}
-          <a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="tablet" hidden></a>
+          <span class="foms-graft-chip-slot"><a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="tablet" hidden></a></span>
           {%- endif %}
         </td>
         {# 제품: plain 텍스트. ERP 주문은 품목별 product_name, 그 외는 product_subtitle 요약. #}

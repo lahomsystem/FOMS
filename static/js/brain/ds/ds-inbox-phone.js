@@ -6,6 +6,8 @@
  *   세 장)는 목록의 모든 카드로 센다(MutationObserver — 남이 넣어도 맞춘다).
  * - 카드를 누르면 이유 · 근거 · 거절 까닭 칩 · 'PC 에서 볼게요'가 열린다(설계서 5.5 — 거절은 PC 와 같은 판정 actionsFor(prop, false)).
  * - 'PC 에서 볼 것 n': 폰에서 승인할 수 없는 카드(F05 — 처음부터 접힘)와 'PC 에서 볼게요'로 접은 카드. 누르면 펼친다.
+ *   T8 도 폰에서 승인할 수 없는 AI 할 일 제안을 이 목록에 넣는다(점검 2차 w3-05) — 이 파일은 제 카드만 지우고, 수 · 요약 ·
+ *   보이기는 목록의 모든 카드로 맞춘다(pcRefresh — MutationObserver).
  * 등급 B 확인 칸은 폰 카드에도 있다(서버가 다시 본다). 글은 textContent 만 · 인라인 스타일 없음.
  */
 (function () {
@@ -22,6 +24,7 @@
   var FIRST = 3;
   var PC_HINT = '이 제안은 PC 에서 결정해요(칸이 여럿이거나 새 지식 · 은퇴 · 지우기 · 연결).';
   var expanded = false;
+  var pcKnow = { n: 0, summary: '' };  // 이 파일이 넣은 'PC 에서 볼 것' 지식 카드 수 · 유형 요약
 
   function today() {
     var d = new Date();
@@ -153,18 +156,29 @@
     Array.prototype.slice.call(p.list.querySelectorAll('[data-ds-inbox-own]')).forEach(function (n) { p.list.removeChild(n); });
     split.phone.forEach(function (card) { p.list.appendChild(node(card, c, true)); });
     if (p.pcList) {
-      dom.clear(p.pcList);
+      Array.prototype.slice.call(p.pcList.querySelectorAll('[data-ds-inbox-own]')).forEach(function (n) { p.pcList.removeChild(n); });
       split.pc.forEach(function (card) {
         var folded = node(card, c, false);
         Array.prototype.slice.call(folded.querySelectorAll('[data-ds-act="later"]')).forEach(function (b) { b.hidden = true; });
         p.pcList.appendChild(folded);
       });
     }
-    if (p.pcToggle) p.pcToggle.hidden = !split.pc.length;
-    if (p.pcList && !split.pc.length) p.pcList.hidden = true;
-    if (p.pcTitle) p.pcTitle.textContent = 'PC 에서 볼 것 ' + split.pc.length;
-    if (p.pcSub) p.pcSub.textContent = '칸이 여럿이거나 새 지식 · 은퇴 · 지우기 · 연결이에요 — ' + iv.pcSummary(split.pc, c.display);
+    pcKnow = { n: split.pc.length, summary: iv.pcSummary(split.pc, c.display) };
+    pcRefresh();
     fold();
+  }
+
+  /** 'PC 에서 볼 것' 묶음 — 수 · 요약 · 보이기를 목록의 모든 카드(T8 의 AI 할 일 포함)로 맞춘다. */
+  function pcRefresh() {
+    var p = parts();
+    if (!p.pcList) return;
+    var n = p.pcList.children.length;
+    var erp = p.pcList.querySelectorAll('[data-ds-inbox-erp-card]').length;
+    if (p.pcToggle) p.pcToggle.hidden = !n;
+    if (!n) p.pcList.hidden = true;
+    if (p.pcTitle) p.pcTitle.textContent = 'PC 에서 볼 것 ' + n;
+    var bits = [pcKnow.n ? pcKnow.summary : '', erp ? 'AI 할 일 ' + erp : ''].filter(Boolean).join(' · ');
+    if (p.pcSub) p.pcSub.textContent = (pcKnow.n ? '칸이 여럿이거나 새 지식 · 은퇴 · 지우기 · 연결이에요' : 'PC 에서 승인해요') + ' — ' + bits;
   }
 
   /** 누름 — 더 보기 · PC 에서 볼 것 펼치기 · 카드 펼치기. 받았으면 true. */
@@ -182,7 +196,8 @@
   function watch() {
     var p = parts();
     if (p.list && window.MutationObserver) new window.MutationObserver(fold).observe(p.list, { childList: true });
+    if (p.pcList && window.MutationObserver) new window.MutationObserver(pcRefresh).observe(p.pcList, { childList: true });
   }
 
-  window.FOMS_DS_INBOX_PHONE = { render: render, onClick: onClick, fold: fold, watch: watch };
+  window.FOMS_DS_INBOX_PHONE = { render: render, onClick: onClick, fold: fold, watch: watch, pcRefresh: pcRefresh };
 })();

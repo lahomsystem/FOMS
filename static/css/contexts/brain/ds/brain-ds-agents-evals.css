@@ -1,6 +1,8 @@
 /* AI 직원 'AI 시험' 칸(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.15 · 판 ⑪) — templates/brain/ds/partials/agents_evals.html 전용.
    class 머리 fb-evals. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업 줄의 style="display: grid …" · style="width: …" 는 이 class 와
-   <progress> 로 옮겼다(인라인 스타일 없음). 640px 아래 = 폰(⑫): 줄은 이름 · 꼬리표 / 막대 / 결과 글로 쌓이고, 설정 칸은 두 칸. */
+   <progress> 로 옮겼다(인라인 스타일 없음). 가운데 칸이 720px 아래면(@container fb-agents — brain-ds-agents.css 가 정한 칸 —
+   폰 · 화면 크기 110 ~ 130% · 좁은 창을 한 규칙으로, 점검 2차 11-15): 줄은 이름 · 꼬리표 / 막대 / 결과 글로 쌓이고, 설정 칸은 두 칸.
+   폰 모습(991.98px 아래)에서는 설정 칸 입력 · 단추 44px. '마지막 시험' 줄은 아이콘과 글이 한 줄(w3-21 — 글만 다음 줄로 꺾인다). */
 
 /* hidden 은 언제나 숨김 — .f-row · .f-col 같은 display 규칙이 [hidden] 을 이기지 않게. */
 .fb-evals [hidden],
@@ -34,11 +36,18 @@
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) max-content; gap: 12px; align-items: end;
 }
 
-@media (max-width: 640px) {
+/* 마지막 시험 줄 — 아이콘은 첫 글 줄 높이에 */
+.fb-evals-last > .f-i { margin-top: 1px; }
+.fb-evals-last > span:not(.f-i) { min-width: 0; }
+
+@container fb-agents (max-width: 719.98px) {
   .fb-evals-row { grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; }
   .fb-evals-row .fb-evals-bar { grid-column: 1 / -1; grid-row: 2; }
   .fb-evals-row > .f-small { grid-column: 1 / -1; grid-row: 3; }
   .fb-evals-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+@media (max-width: 991.98px) {
   .f-app .fb-evals-form .f-input,
   .f-app .fb-evals-form .f-btn { height: 44px; line-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5) */
 }

@@ -4,10 +4,11 @@
  * - 첫 값: GET /api/brain/chat/state(물을 수 있나 · 남은 수 — ADMIN 은 설정 · 빈 지식, 'ds:ask-state' 로 ds-ask-admin.js 에 넘긴다) ·
  *   GET /api/brain/chat/history(내가 물은 것 — 오늘 · 지난 7일, 왼쪽 길잡이).
  * - 묻기: POST /api/brain/chat/ask {question} — 서버가 가림 → (erp_read 켬이면 주문 읽기) → 찾기 → 두뇌 → 코드 확인 → 기록.
- *   물음 · 답 카드를 아래에 잇고, 답에 erp 칸이 있으면 오른쪽 '이 답이 읽은 것'을 채워 보인다(없으면 옆 창을 숨긴다).
- *   답을 받으면 내 질문 목록을 다시 읽는다(모름 답의 물어볼 곳 이름도 거기서).
+ *   물음(서버가 준 가린 글 · 가린 갈래 · 수) · 답 카드를 아래에 잇고, 답에 erp 칸이 있으면 오른쪽 '이 답이 읽은 것'을 채운다.
+ *   옆 창은 늘 그 자리에 있고 읽은 것이 없으면 빈 안내(점검 w2-16 — 가운데 폭이 흔들리지 않게). 답을 받으면 내 질문 목록을 다시 읽는다.
  * - 피드백: 도움 됨 · 도움 안 됨 · 틀림(+ 고칠 말) = POST /api/brain/chat/questions/<번호>/feedback(옛 화면과 같은 본문 · 같은 글).
- * - 왼쪽 줄을 누르면: 이 화면에서 물은 것이면 그 답으로, 아니면 그 질문(가린 글)을 묻기 칸에 넣는다(묻지는 않는다).
+ * - 왼쪽 줄을 누르면: 이 화면에서 물은 것이면 그 답으로, 아니면 그 질문의 물음 · 답을 다시 보인다(ds-ask-past.js — 다시 묻지
+ *   않고 하루 수도 안 줄어든다). 주소 ?question=<번호>(팀 묻기 알림이 여는 곳)도 같은 길. 모름 답의 [○○팀에 묻기]도 ds-ask-past.js.
  * fetch 는 brain-dom.js 한 곳 · 글은 textContent 만 · 전역 듣개는 한 번만(window.__FOMS_DS_ASK_BOUND).
  */
 (function () {
@@ -17,13 +18,15 @@
   var view = window.FOMS_BRAIN_ASK_VIEW;
   var dv = window.FOMS_DS_ASK_VIEW;
   var turn = window.FOMS_DS_ASK_TURN;
+  var past = window.FOMS_DS_ASK_PAST;
   var root = document.querySelector('[data-ds-ask]');
-  if (!root || !dom || !view || !dv || !turn || window.__FOMS_DS_ASK_BOUND) return;
+  if (!root || !dom || !view || !dv || !turn || !past || window.__FOMS_DS_ASK_BOUND) return;
   window.__FOMS_DS_ASK_BOUND = true;
 
   var display = dom.safeJsonParse(root.getAttribute('data-display'), {});
   var urls = { state: root.getAttribute('data-state-url'), ask: root.getAttribute('data-ask-url'),
                history: root.getAttribute('data-history-url'), feedback: root.getAttribute('data-feedback-url'),
+               question: root.getAttribute('data-question-url'), team: root.getAttribute('data-team-url'),
                items: root.getAttribute('data-item-base') };
   var me = root.getAttribute('data-me') || '';
   var q = function (sel, base) { return (base || root).querySelector(sel); };
@@ -37,6 +40,7 @@
   var side = document.querySelector('[data-ds-ask-side]');
   var aside = document.querySelector('[data-ds-ask-aside]');
   var readBody = aside && q('[data-ds-ask-read]', aside);
+  var readEmpty = readBody ? readBody.textContent.trim() : '';
   var reads = {};
   var busy = false;
 
@@ -101,22 +105,37 @@
     });
   }
 
-  /** 옆 창 — 그 답이 주문을 읽었으면 채워 보이고, 아니면 숨긴다. */
+  /** 옆 창 — 그 답이 주문을 읽었으면 채우고, 아니면 빈 안내(옆 창은 늘 그 자리 — 숨기지 않는다). */
   function showRead(id) {
-    if (!aside || !readBody) return;
+    if (!readBody) return;
     var rv = id ? reads[id] : null;
-    if (!rv) {
-      aside.hidden = true;
+    if (rv) {
+      turn.fillRead(readBody, rv);
       return;
     }
-    turn.fillRead(readBody, rv);
-    aside.hidden = false;
+    dom.clear(readBody);
+    readBody.appendChild(dom.el('p', { cls: 'f-small f-muted', text: readEmpty }));
   }
 
-  function teamFrom(history, id) {
-    var rows = ((history && history.today) || []).concat((history && history.week) || []);
-    var hit = rows.filter(function (row) { return String(row.id) === String(id); })[0];
-    return hit ? hit.ask_label : '';
+  /** 지난 질문 하나를 다시 보인다(다시 묻지 않는다) — 이미 화면에 있으면 그리로. */
+  async function openPast(id) {
+    var card = log.querySelector('[data-question="' + id + '"]');
+    select(id);
+    showRead(id);
+    if (card) {
+      if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    dom.setStatus(status, '지난 질문을 불러오는 중…');
+    var res = await past.load(urls.question, id);
+    if (!res.ok) {
+      dom.setStatus(status, res.error, 'error');
+      return;
+    }
+    dom.setStatus(status, '');
+    past.nodes(res.data, { display: display, items: urls.items, me: me }).forEach(function (node) { log.appendChild(node); });
+    card = log.querySelector('[data-question="' + id + '"]');
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
   }
 
   async function ask(question) {
@@ -136,7 +155,7 @@
     var data = res.data;
     dom.setStatus(status, '');
     if (left) left.textContent = view.leftText(data.left_today);
-    var qNode = turn.questionNode(question, dv.askedLine(me, dv.clockOf(), data.erp));
+    var qNode = turn.questionNode(data.question || question, dv.askedLine(me, dv.clockOf(), data.masked_count), data.masked);
     qNode.setAttribute('data-question-of', data.id);
     var card = turn.answerNode(data, { display: display, items: urls.items, elapsed: elapsed });
     log.appendChild(qNode);
@@ -146,8 +165,7 @@
     if (input) input.value = '';
     if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
     log.setAttribute('data-ds-ask-current', data.id);
-    var history = await loadHistory();
-    if (data.unknown) turn.setTeam(card, teamFrom(history, data.id));
+    await loadHistory();
   }
 
   async function sendFeedback(card, choice, note) {
@@ -187,6 +205,11 @@
       sendFeedback(card, choice, '');
       return;
     }
+    var send = event.target.closest('[data-ds-ask-team-send]');
+    if (send) {
+      past.sendTeam(urls.team, card, send);
+      return;
+    }
     if (event.target.closest('[data-fix-send]')) {
       sendFeedback(card, 'wrong', (q('[data-fix-note]', fix) || {}).value || '');
       return;
@@ -200,20 +223,7 @@
   function onSideClick(event) {
     var pick = event.target.closest('[data-ds-ask-pick]');
     if (pick) {
-      var id = pick.getAttribute('data-ds-ask-pick');
-      var card = log.querySelector('[data-question="' + id + '"]');
-      select(id);
-      if (card) {
-        showRead(id);
-        if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
-        return;
-      }
-      showRead(null);
-      if (input) {
-        input.value = q('.f-ellipsis', pick).textContent;
-        input.focus();
-      }
-      dom.setStatus(status, '지난 질문(가린 글)을 묻기 칸에 넣었어요. 다시 물으려면 [물어보기]를 누르세요.');
+      openPast(pick.getAttribute('data-ds-ask-pick'));
       return;
     }
     if (event.target.closest('[data-ds-ask-new]')) {
@@ -244,6 +254,9 @@
   function start() {
     loadState();
     loadHistory();
+    showRead(null);
+    var asked = past.questionFromQuery(window.location.search);
+    if (asked) openPast(asked);  // 팀 묻기 알림이 여는 질문
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();

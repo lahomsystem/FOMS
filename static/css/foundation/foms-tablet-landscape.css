@@ -447,10 +447,17 @@
   color: var(--foms-text-tertiary, #6b7380);
 }
 
+/* 아래 단추 줄(전화 · ERP 편집 · 단계로)은 패널 아래에 붙는다 — 'AI 제안' 상자 · 긴 주소 · 첨부 · 도면 게이트 줄로 본문이
+   길어지면 흐름대로 밀려 화면 밖(굴려야 보임)이었다(점검 2차 w4-05 — 1180×820 켬 y 853, 1176×626 은 끔에서도). 본문이
+   패널 안에 들면 붙을 일이 없어 자리 · 모습은 그대로다. 바탕은 패널과 같은 색이라 밑으로 지나가는 본문을 가린다. */
 .foms-tsheet-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   gap: var(--foms-space-2, 0.5rem);
   padding-top: var(--foms-space-2, 0.5rem);
+  background: var(--foms-surface-base, #fff);
 }
 .foms-tsheet-foot__btn {
   flex: 1 1 0;
@@ -1034,6 +1041,13 @@
   width: 24px;
   height: 24px;
   margin: 0;
+}
+
+/* 단계 셀 — 배지는 한 줄. 줄을 바꿀 수 있으면 표가 칸 폭을 나눌 때 '단계' 칸을 한 글자 폭까지 줄여 '컨/펌'처럼 세로로
+   꺾였다(11-14 사용자 지적). 이 규칙은 접목판 꾸밈 파일에만 있어 스위치를 끄면 다시 꺾였다 — 스위치와 상관없이 여기
+   바탕 꾸밈에 둔다(점검 2차 w4-01, 11-15). */
+.foms-tqcell-stage .foms-stage-badge {
+  white-space: nowrap;
 }
 
 /* 고객 셀 — 이름(굵게) + 긴급 칩(유채, HMI: 경보만 색). 로고/결제 뱃지 없음. */

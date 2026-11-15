@@ -30,7 +30,8 @@ from foms.api.cs.as_orders import register_as_from_payload
 from foms.api.drawing.erp_orders_draftsman import assign_draftsman_from_payload
 from foms.api.orders.field_update import update_order_field_from_payload
 from foms.api.quest import approve_quest_from_payload
-from foms.services.erp_actions import preview
+from foms.services.datetime_kst import get_today_kst
+from foms.services.erp_actions import as_warranty, preview
 from foms.services.erp_actions.registry import message
 from foms.services.erp_actions.runners import OUTCOME_EXECUTED, SERVICE_RUNNERS, RunOutcome, RunRequest, Runner
 from foms.services.erp_display import clean_dict_like_name
@@ -91,8 +92,10 @@ def run_register_as(session: Any, req: RunRequest) -> RunOutcome:
     if problem:
         session.rollback()
         return RunOutcome.blocked(problem)
+    # 무상 AS 는 시공일로부터 1년(D224 · D235) — 기간이 지났거나 시공일을 모르면 '미정'으로 넣어 사람이 정하게 한다.
     data = {"as_content": req.params.get("as_content"), "source_screen": req.source,
-            "idempotency_key": req.idempotency_key()}
+            "idempotency_key": req.idempotency_key(),
+            "billing_type": as_warranty.billing_for_register(order, get_today_kst())}
     return outcome_from_response(register_as_from_payload(int(order.id), data, req.actor_id),
                                  done_message="AS 접수를 했어요.")
 

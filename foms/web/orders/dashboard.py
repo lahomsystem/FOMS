@@ -52,7 +52,7 @@ from foms.services.foms_split_view import build_split_master_cards, build_split_
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services import graft_flags
 from foms.services.erp_actions.registry import ACTIONS as ERP_ACTIONS, REJECT_CODES, REJECT_LABELS
-from foms.services.erp_actions.views import open_for_orders, quick_view as graft_quick_view
+from foms.services.erp_actions.views import NOTICE_HEAD, open_for_orders, quick_view as graft_quick_view
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
@@ -634,6 +634,8 @@ def _graft_sheet_proposal(db, user, order) -> dict | None:
     태블릿 칸 스위치(``cell_tablet`` — 할 일 스위치까지 같이 본다)가 켜진 사람에게만, 이 주문의 가장 새 열린 제안 하나
     (:func:`open_for_orders` — 질의 하나, 볼 수 없는 제안은 질의 단계에서 빠진다). [승인] 여부 · 손님 알림톡 줄은 :func:`graft_quick_view`.
     글은 미리 보기의 '승인하면' 값과 손님 알림톡 한 줄뿐(시공 팀 · 인원 글 없음 — D211). 넣을 값 · 사유가 필요하면 [고쳐서]만.
+    알림톡 보내기 할 일은 '승인하면' 값('1건 보냄')만 홀로 보이면 이미 보낸 것처럼 읽혀(승인 대기 카드는 '보낸 적 없음 →
+    1건 보냄'으로 앞뒤가 있다) 상자에서는 '승인하면 1건 보내요'로 쓴다(점검 2차 w4-12).
 
     Args:
         db: DB 세션.
@@ -650,10 +652,14 @@ def _graft_sheet_proposal(db, user, order) -> dict | None:
     spec = ERP_ACTIONS.get(row.action) if row is not None else None
     if row is None or spec is None:
         return None
+
     first = (row.preview or [{}])[0] or {}
     quick = graft_quick_view(row, order)
+    after = str(first.get("after") or "")
+    if str(first.get("field") or "").startswith(NOTICE_HEAD) and after.endswith(" 보냄"):
+        after = f"승인하면 {after[:-len(' 보냄')]} 보내요"
     return {
-        "id": row.id, "label": item["label"], "agent_label": item["agent_label"], "after": str(first.get("after") or ""),
+        "id": row.id, "label": item["label"], "agent_label": item["agent_label"], "after": after,
         "can_decide": bool(item["can_decide"]), "base_version": row.base_version,
         "needs_input": quick["needs_input"], "notice": quick["notice"],
         "order_href": f"/erp/orders/{order.id}",

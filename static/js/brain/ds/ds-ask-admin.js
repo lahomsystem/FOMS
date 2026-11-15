@@ -1,5 +1,5 @@
 /**
- * 새 물어보기 화면 관리 칸(ADMIN 만 — 설계서 10절 · 12절 '비용 · 남용' · 10.3, 옛 brain-ask-admin.js 와 같은 일을 새 꼴로) —
+ * 새 물어보기 화면 관리 칸(ADMIN 만 · 오른쪽 창 안 — 목업 BAsk — 설계서 10절 · 12절 '비용 · 남용' · 10.3, 옛 brain-ask-admin.js 와 같은 일을 새 꼴로) —
  * [data-ds-ask-admin] 설정 · [data-ds-ask-gaps-box] 빈 지식 · 왼쪽 길잡이 '관리'(빈 지식 수 · 틀림 신고 수).
  *
  * ds-ask.js 가 GET /api/brain/chat/state 를 읽으면 'ds:ask-state' 로 받는다(같은 값 — 다시 읽지 않는다). 칸은 서버 설정 표
@@ -14,7 +14,7 @@
   var view = window.FOMS_BRAIN_ASK_VIEW;
   var dv = window.FOMS_DS_ASK_VIEW;
   var root = document.querySelector('[data-ds-ask]');
-  var admin = root && root.querySelector('[data-ds-ask-admin]');
+  var admin = root && document.querySelector('[data-ds-ask-admin]');  // 관리 칸은 오른쪽 창 안(점검 w2-20)
   if (!admin || !dom || !view || !dv || window.__FOMS_DS_ASK_ADMIN_BOUND) return;
   window.__FOMS_DS_ASK_ADMIN_BOUND = true;
 
@@ -24,7 +24,7 @@
   var form = admin.querySelector('[data-ds-ask-settings]');
   var grid = admin.querySelector('[data-ds-ask-fields]');
   var status = admin.querySelector('[data-ds-ask-settings-status]');
-  var gapsBox = root.querySelector('[data-ds-ask-gaps-box]');
+  var gapsBox = document.querySelector('[data-ds-ask-gaps-box]');
   var gaps = gapsBox && gapsBox.querySelector('[data-ds-ask-gaps]');
   var gapsStatus = gapsBox && gapsBox.querySelector('[data-ds-ask-gaps-status]');
   var side = document.querySelector('[data-ds-ask-side]');

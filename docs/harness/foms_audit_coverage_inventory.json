@@ -8,16 +8,24 @@
     "log_access"
   ],
   "baselines": {
-    "total": 306,
-    "unaudited": 2
+    "total": 307,
+    "unaudited": 3
   },
   "classification_counts": {
     "AUDITED": 267,
     "EXEMPT": 37,
-    "UNAUDITED": 2
+    "UNAUDITED": 3
   },
-  "coverage_percent": 99.3,
+  "coverage_percent": 98.9,
   "unaudited_sites": [
+    {
+      "path": "foms/api/brain_chat.py",
+      "endpoint": "brain_chat_ask_team",
+      "lineno": 223,
+      "methods": [
+        "POST"
+      ]
+    },
     {
       "path": "foms/api/drawing/erp_orders_item_cancel.py",
       "endpoint": "api_order_item_cancel_after_confirm",
@@ -93,7 +101,7 @@
     {
       "path": "foms/api/ai_staff.py",
       "endpoint": "ai_staff_evals_run",
-      "lineno": 139,
+      "lineno": 161,
       "methods": [
         "POST"
       ],
@@ -102,7 +110,7 @@
     {
       "path": "foms/api/ai_staff.py",
       "endpoint": "ai_staff_evals_settings",
-      "lineno": 173,
+      "lineno": 195,
       "methods": [
         "POST"
       ],
@@ -111,7 +119,7 @@
     {
       "path": "foms/api/ai_staff.py",
       "endpoint": "ai_staff_levels",
-      "lineno": 97,
+      "lineno": 119,
       "methods": [
         "POST"
       ],
@@ -120,7 +128,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask",
-      "lineno": 109,
+      "lineno": 116,
       "methods": [
         "POST"
       ],
@@ -128,8 +136,17 @@
     },
     {
       "path": "foms/api/brain_chat.py",
+      "endpoint": "brain_chat_ask_team",
+      "lineno": 223,
+      "methods": [
+        "POST"
+      ],
+      "classification": "UNAUDITED"
+    },
+    {
+      "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_feedback",
-      "lineno": 133,
+      "lineno": 140,
       "methods": [
         "POST"
       ],
@@ -138,7 +155,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_settings_save",
-      "lineno": 157,
+      "lineno": 164,
       "methods": [
         "POST"
       ],
@@ -814,7 +831,7 @@
     {
       "path": "foms/api/erp_actions.py",
       "endpoint": "erp_actions_approve",
-      "lineno": 174,
+      "lineno": 181,
       "methods": [
         "POST"
       ],
@@ -823,7 +840,7 @@
     {
       "path": "foms/api/erp_actions.py",
       "endpoint": "erp_actions_reject",
-      "lineno": 188,
+      "lineno": 195,
       "methods": [
         "POST"
       ],
@@ -832,7 +849,7 @@
     {
       "path": "foms/api/erp_actions.py",
       "endpoint": "erp_actions_snooze",
-      "lineno": 201,
+      "lineno": 208,
       "methods": [
         "POST"
       ],
@@ -1264,7 +1281,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 802,
+      "lineno": 812,
       "methods": [
         "POST"
       ],
@@ -1273,7 +1290,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 716,
+      "lineno": 726,
       "methods": [
         "POST"
       ],
@@ -1282,7 +1299,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 632,
+      "lineno": 642,
       "methods": [
         "POST"
       ],
@@ -1291,7 +1308,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 753,
+      "lineno": 763,
       "methods": [
         "POST"
       ],
@@ -1300,7 +1317,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 833,
+      "lineno": 843,
       "methods": [
         "POST"
       ],
@@ -1309,7 +1326,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 673,
+      "lineno": 683,
       "methods": [
         "POST"
       ],
@@ -1318,7 +1335,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 953,
+      "lineno": 963,
       "methods": [
         "POST"
       ],
@@ -1327,7 +1344,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1254,
+      "lineno": 1264,
       "methods": [
         "POST"
       ],
@@ -2741,7 +2758,7 @@
     {
       "path": "foms/web/orders/dashboard.py",
       "endpoint": "erp_dashboard_calendar_colors_save",
-      "lineno": 836,
+      "lineno": 842,
       "methods": [
         "POST"
       ],
