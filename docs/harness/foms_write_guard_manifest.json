@@ -1237,6 +1237,10 @@
     "ai_staff_api.ai_staff_evals_settings": {
       "mode": "guard",
       "rule": "/api/ai-staff/evals/settings"
+    },
+    "brain_chat_api.brain_chat_ask_team": {
+      "mode": "guard",
+      "rule": "/api/brain/chat/questions/<int:question_id>/ask-team"
     }
   }
 }
