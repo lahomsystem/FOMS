@@ -973,13 +973,26 @@
 
 /* base-hide: 코호트 밖(PC/모바일/세로)에서 클린 그리드 완전 은닉. opt-in(show) 앞(순서 계약).
    + 카드 프레이밍: 그리드를 담는 컨테이너 카드(surface-base 바탕 · subtle 보더 · radius,
-   overflow:hidden 로 라운드 코너 클립). wrap 은 코호트 밖 display:none 이라 base 레벨 안전. */
+   넘침 자르기로 라운드 코너 클립). wrap 은 코호트 밖 display:none 이라 base 레벨 안전.
+   옆으로는 상자 안에서 손가락으로 민다(점검 3차, 11-15): 표의 가장 좁은 폭은 663px 인데(날짜 · 담당은 꺾지 않는다)
+   화면 크기 110 ~ 130% · 글자 130 · 150% 에서는 상자가 그보다 좁아(1180×820 · 130% 에서 458px) 오른쪽 칸(실측일 ~ 첨부)이
+   잘린 채 볼 길이 없었다(overflow:hidden — 스위치를 끈 화면도). 칸을 감추거나 글자를 줄이지 않고 상자만 가로로 굴린다 —
+   페이지 전체는 밀리지 않는다. 위아래는 지금처럼 자른다. 표 끝에서 더 밀어도 뒤로 가기 몸짓으로 번지지 않게 한다.
+   넘치지 않는 화면(1180×820 · 100%)은 굴릴 것이 없어 한 픽셀도 바뀌지 않는다. */
 .foms-tablet-workqueue-wrap {
   display: none;
   background: var(--foms-surface-base, #fff);
   border: 1px solid var(--foms-border-subtle, #dde1e6);
   border-radius: var(--foms-radius-lg, 12px);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+/* 쪽 번호 줄은 표를 옆으로 밀어도 상자 안 제자리에 둔다(상자 폭 그대로라 가운데 맞춤이 유지된다). 출고 하루치 표도 이 상자
+   꼬리표를 같이 쓰므로(넘침은 그쪽 꾸밈이 visible 로 덮는다) 주문 작업 큐의 쪽 번호 줄 꼬리표로만 고른다. */
+.foms-tablet-workqueue-wrap > .foms-tqgrid-pager {
+  position: sticky;
+  left: 0;
 }
 
 /* 그리드 구조·시각. */
