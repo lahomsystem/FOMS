@@ -27,6 +27,17 @@
     return el('span', { cls: 'f-small f-muted' + (extra ? ' ' + extra : ''), text: text });
   }
 
+  /** 코드 글(표 · 칸 · 도구 이름) — 점 · 밑줄 · 빗금 · 쉼표 뒤에서만 줄을 바꿀 수 있게 <wbr> 를 끼운다(글자 단위로 끊지 않는다). */
+  function code(text, extra) {
+    var node = el('span', { cls: 'f-mono' + (extra ? ' ' + extra : '') });
+    var parts = String(text === null || text === undefined ? '' : text).match(/[^._/,]+[._/,]*|[._/,]+/g) || [];
+    parts.forEach(function (part, n) {
+      if (n) node.appendChild(document.createElement('wbr'));
+      node.appendChild(document.createTextNode(part));
+    });
+    return node;
+  }
+
   function cell(value, cls) {
     var empty = value === null || value === undefined || value === '';
     if (value && value.nodeType) return el('td', { cls: cls || null, children: [value] });
@@ -119,8 +130,9 @@
       box.appendChild(el('div', { cls: 'f-nav-heading f-row-nw', children: [
         document.createTextNode('ERP 물건 종류 ' + model.erp.length), tag('새로 붙음', 'primary', { extra: 'f-push' })] }));
       model.erp.forEach(function (t) {
-        box.appendChild(pickButton('erp', t.type, [icon(t.icon), el('span', { text: t.label }),
-                                                   t.sub ? el('span', { cls: 'f-small f-push fb-onto-sub', text: t.sub }) : null]));
+        box.appendChild(pickButton('erp', t.type, [icon(t.icon), el('span', { cls: 'fb-onto-name', text: t.label }),
+                                                   t.sub ? el('span', { cls: 'f-small f-push fb-onto-sub', text: t.sub,
+                                                                        attrs: { title: t.sub } }) : null]));
       });
     }
     box.appendChild(el('div', { cls: 'f-nav-heading', text: '정의' }));
@@ -199,23 +211,32 @@
     box.appendChild(list);
   }
 
+  /** 읽는 길 — 'erp.order.get · 가림 뒤' 의 도구 이름만 코드 글로. 도구가 없으면 읽기 도구 칸 글(선언만 · 없음). */
+  function readPath(path, note) {
+    var parts = String(path || '').split(' · ');
+    if (!/^[a-z][a-z_.]*$/.test(parts[0] || '')) return path || note || '';
+    return el('span', { children: [code(parts[0])].concat(parts.length > 1 ? [document.createTextNode(' · ' + parts.slice(1).join(' · '))] : []) });
+  }
+
   /** 정본 자리(ERP 물건을 고를 때만) — detail = GET /api/brain/ontology/erp/<종류>. null 이면 숨긴다. */
   function renderSource(box, detail) {
     if (!box) return;
     dom.clear(box);
     box.hidden = !detail;
     if (!detail) return;
+    var src = detail.source || {};
     var kv = el('dl', { cls: 'f-kv f-small' });
-    [['값', '지금 FOMS 표 그대로 · 새 표 없음'], ['정본', (detail.source || {}).text], ['읽기 도구', detail.read_note],
-     ['쓰는 길', detail.actions.length ? '할 일 ' + detail.actions.length + ' → 지금 기능' : '없음']].forEach(function (row) {
+    [['값', '지금 FOMS 표 그대로 · 새 표 없음'], ['정본', code(src.text)], ['읽는 길', readPath(src.read_path, detail.read_note)],
+     ['쓰는 길', detail.actions.length ? '할 일 ' + detail.actions.length + ' → 지금 기능' : '없음'],
+     ['바뀐 기록', src.history ? code(src.history) : '']].forEach(function (row) {
       kv.appendChild(el('dt', { text: row[0] }));
-      kv.appendChild(el('dd', { cls: row[0] === '정본' ? 'f-mono' : null, text: row[1] || '—' }));
+      kv.appendChild(row[1] && row[1].nodeType ? el('dd', { children: [row[1]] }) : el('dd', { text: row[1] || '—' }));
     });
     box.appendChild(el('h2', { cls: 'f-h6', text: '정본 자리 — ' + detail.label }));
     box.appendChild(kv);
   }
 
-  window.FOMS_DS_ONTO_KIT = { icon: icon, tag: tag, small: small, cell: cell, table: table, section: section,
+  window.FOMS_DS_ONTO_KIT = { icon: icon, tag: tag, small: small, code: code, cell: cell, table: table, section: section,
                               emptyLine: emptyLine, tabs: tabs, crumbs: crumbs, header: header, renderNav: renderNav,
                               markNav: markNav, setGroup: setGroup, filterNav: filterNav, renderScore: renderScore,
                               renderSource: renderSource };

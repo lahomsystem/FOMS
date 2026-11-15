@@ -39,8 +39,8 @@ from foms.services.erp_actions.registry import MODE_HUMAN, MODE_LINK, ActionSpec
 from foms.services.erp_ontology.objects import OBJECT_TYPES, ORDER_PROPS, get_type, masked_props
 
 __all__ = [
-    "ERP_LINKS", "LINK_STANDARDS", "PROP_STANDARDS", "TYPE_STANDARDS", "erp_ready_needs", "ontology_erp_type",
-    "ontology_summary", "ontology_type",
+    "ERP_KNOWLEDGE", "ERP_LINKS", "LINK_STANDARDS", "PROP_STANDARDS", "TYPE_STANDARDS", "WRAP_LABELS", "erp_ready_needs",
+    "ontology_erp_type", "ontology_summary", "ontology_type",
 ]
 
 #: 물건 종류 → 표준 어휘의 짝(schema.org · SKOS · PROV-O · ODRL · SOSA · SHACL). ``foms:`` 는 우리 어휘.
@@ -83,6 +83,28 @@ ERP_LINKS: tuple[tuple[str, str, str], ...] = (
     ("erp:order", "출고", "erp:shipment"), ("erp:order", "협력사 발주", "erp:partner_order"),
     ("erp:order", "AS", "erp:as_case"), ("erp:as_case", "AS 방문", "erp:visit"),
 )
+
+#: ERP 물건 종류 → 이어진 지식 유형(온톨로지 머리 '지식 쪽' 칩 — 판 ⑩). 지식 카드 '쓰인 곳'의 ERP 짝
+#: (:func:`foms.services.brain.usage_view._erp_link` — 제품 라인 → 주문 품목 · 공정 단계 → 주문 단계)과 같은 규칙이다.
+ERP_KNOWLEDGE: dict[str, tuple[str, ...]] = {
+    "erp:order": ("product_line", "process_step"), "erp:order_item": ("product_line",),
+}
+#: 할 일 이름 → (화면에 먼저 보일 쉬운 말, 작은 글로 붙일 코드 길 이름) — 온톨로지 '감싸는 지금 기능' 칸(판 ⑩ · 점검 w2-11).
+#: 할 일 목록(:data:`foms.services.erp_actions.registry.ACTIONS`)의 ``wraps`` 는 개발자 글이라 화면에 그대로 내지 않는다.
+#: 할 일이 늘면 여기에도 한 줄 — 빠지면 시험(tests/domains/test_graft_onto_erp.py)이 잡는다. 코드 길이 없으면 빈 글.
+WRAP_LABELS: dict[str, tuple[str, str]] = {
+    "schedule_construction": ("지금 시공 일정 잡기", "write_construction_schedule"),
+    "move_construction": ("지금 시공 일정 바꾸기", "write_construction_schedule"),
+    "schedule_as_visit": ("지금 AS 방문 날 정하기", "schedule_as_cycle"),
+    "register_as": ("지금 AS 접수", "register_as_from_payload"),
+    "send_measure_alimtalk": ("지금 알림톡 보내기(실측 예약)", "send_alimtalk"),
+    "add_construction_note": ("시공 메모 칸에 한 줄 더하기", "construction_note"),
+    "advance_stage": ("지금 작업 승인(단계 넘기기)", "approve_quest_from_payload"),
+    "assign_draftsman": ("지금 도면 담당 정하기", "assign_draftsman_from_payload"),
+    "move_measurement": ("지금 주문 칸 고치기(실측 날짜)", "update_order_field_from_payload"),
+    "send_construction_alimtalk": ("시공일 안내 알림톡 보내기", "send_construction_alimtalk"),
+    "cancel_order": ("사람이 주문 화면에서 취소", ""),
+}
 
 
 def _type_row(item_type: str, counts: dict[str, int]) -> dict[str, Any]:
@@ -143,7 +165,9 @@ def _erp_action_row(spec: ActionSpec) -> dict[str, Any]:
     else:
         where = "폰 승인" if spec.phone_ok else "PC 승인"
     target = get_type(spec.target)
-    return {"name": spec.name, "label": spec.label, "wraps": spec.wraps, "target": spec.target,
+    plain, code = WRAP_LABELS.get(spec.name, (spec.label, ""))
+    return {"name": spec.name, "label": spec.label, "wraps": spec.wraps, "wraps_label": plain, "wraps_code": code,
+            "target": spec.target,
             "target_label": target.label if target is not None else spec.target, "level_label": level_label(spec),
             "mode": spec.mode, "where": where}
 
@@ -277,7 +301,9 @@ def ontology_erp_type(code: Any) -> Optional[dict[str, Any]]:
     is_order = obj.type == "erp:order"
     return {"type": obj.type, "label": obj.label, "sub": obj.sub, "icon": obj.icon, "readable": obj.readable,
             "read_note": obj.read_note, "hidden": obj.masked,
-            "source": {"table": obj.table, "json": obj.json, "text": obj.source},
+            "source": {"table": obj.table, "json": obj.json, "text": obj.source, "read_path": obj.read_path,
+                       "history": obj.history},
+            "knowledge": [{"type": t, "label": TYPE_DISPLAY.get(t, (t,))[0]} for t in ERP_KNOWLEDGE.get(obj.type, ())],
             "masked": len(masked_props()) if is_order else 0, "props": _erp_props() if is_order else [],
             "links": _erp_links(obj.type),
             "actions": [_erp_action_row(spec) for spec in ERP_ACTIONS.values() if spec.target == obj.type],

@@ -93,3 +93,28 @@ def test_visit_and_masked_types_and_unknown_kind():
     customer = ontology_erp_type("customer")
     assert customer["hidden"] is True and customer["readable"] is False and customer["cq"] == []
     assert ontology_erp_type("no_such") is None and ontology_erp_type(None) is None
+
+
+def test_wrapped_function_is_plain_words_first_for_every_action():
+    """점검 w2-11 — '감싸는 지금 기능' 칸은 쉬운 말 먼저(개발자 함수 이름 · 설계서 번호를 화면 글로 내지 않는다), 코드 이름은 작은 글.
+    할 일이 늘면 쉬운 말 표(ontology_view.WRAP_LABELS)에도 한 줄 — 빠지면 이 시험이 잡는다."""
+    from foms.services.brain.ontology_view import WRAP_LABELS
+
+    assert set(WRAP_LABELS) == set(ACTIONS)
+    rows = ontology_erp_type("order")["actions"] + ontology_erp_type("visit")["actions"]
+    for row in rows:
+        plain, code = WRAP_LABELS[row["name"]]
+        assert row["wraps_label"] == plain and row["wraps_code"] == code
+        assert plain and not any(c in plain for c in "_→") and "설계서" not in plain, plain
+        assert code == "" or (code.isascii() and " " not in code and any(code in a.wraps for a in ACTIONS.values())), code
+
+
+def test_order_head_has_knowledge_chips_and_source_read_path_history():
+    """점검 w2-14 · w2-15 — 머리 '지식 쪽' 칩 · 정본 자리의 읽는 길 · 바뀐 기록."""
+    order, visit, drawing = ontology_erp_type("order"), ontology_erp_type("visit"), ontology_erp_type("drawing")
+    assert order["knowledge"] == [{"type": "product_line", "label": "제품 라인"}, {"type": "process_step", "label": "공정 단계"}]
+    assert visit["knowledge"] == [] and drawing["knowledge"] == []
+    assert order["source"]["read_path"] == "erp.order.get · 가림 뒤"
+    assert order["source"]["history"] == "order_events · order_field_changes"
+    assert visit["source"]["read_path"] == "erp.visit.list" and drawing["source"]["read_path"] == ""
+    assert all(obj.read_path or not obj.readable for obj in OBJECT_TYPES)  # 읽히는 물건은 읽는 길이 있다
