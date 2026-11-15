@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -26,6 +27,7 @@ from models import Notification, User
 from tests.support.brain_chat_support import FakeClient, chat_on, chat_world, reply
 from tests.support.brain_support import person
 
+ROOT = Path(__file__).resolve().parents[2]
 PHONE = "010" + "5550" + "1234"  # 합성 휴대폰(실행 때 만든다)
 QUESTION = f"슬라이딩 문 깊이 알려 주세요 손님 번호 {PHONE}"
 
@@ -145,3 +147,21 @@ def test_ask_team_refuses_other_people_and_answers_without_a_team(app, ids, monk
     assert resp.status_code == 409 and resp.get_json()["data"]["code"] == "no_team"
     assert db_session.scalar(select(func.count()).select_from(Notification)
                              .where(Notification.notification_type == BRAIN_ASK_TEAM_TYPE)) == 0
+
+
+def test_team_ask_link_opens_on_the_old_screen_for_people_with_the_new_screen_off(app, ids, monkeypatch):
+    """점검 3차 B2 — 알림을 받은 사람이 새 화면이 꺼져 있으면 바로가기(/brain/ask?question=)가 옛 물어보기 화면을 연다.
+    그 사람은 그 질문 한 건을 읽고(가린 글 · 모름 답), 알림을 안 받은 꺼진 사람은 여전히 없는 주소(404)."""
+    monkeypatch.setenv(f"{FLAGS['brain_ui']}_ENABLED", "1")
+    monkeypatch.setenv(f"{FLAGS['brain_ui']}_COHORT", str(ids["staff"]))  # 묻는 사람만 켬 — 받는 사람(도면팀)은 끔
+    data = _ask(ids["staff"], _unknown())
+    assert _client(app, ids["staff"]).post(f"/api/brain/chat/questions/{data['id']}/ask-team", json={}).status_code == 200
+    got = _client(app, ids["dr_mgr"]).get(f"/api/brain/chat/questions/{data['id']}")
+    body = got.get_json()["data"]
+    assert got.status_code == 200 and body["mine"] is False and body["unknown"] is True and body["feedback"] is None
+    assert "[전화]" in body["question"] and PHONE not in json.dumps(body, ensure_ascii=False)
+    assert _client(app, ids["cs_mgr"]).get(f"/api/brain/chat/questions/{data['id']}").status_code == 404  # 안 받은 꺼진 사람
+    page = _client(app, ids["dr_mgr"]).get(f"/brain/ask?question={data['id']}").get_data(as_text=True)
+    assert 'data-brain-ask' in page and 'data-question-url="/api/brain/chat/questions/0"' in page  # 옛 화면 + 한 건 읽기 주소
+    script = (ROOT / "static/js/brain/brain-ask.js").read_text(encoding="utf-8")
+    assert "showLinked" in script and "question=(\d{1,12})" in script and "renderTurn(res.data.question, res.data, true)" in script

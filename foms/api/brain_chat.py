@@ -9,7 +9,8 @@
 - ``GET /history`` — **내가 물은 것만**(오늘 · 지난 7일, 가린 글 앞부분 · 모름 · 주문 읽기 — 설계서 2026-11-14-foms-graft 3.7).
   접목판 스위치(``brain_ui`` 또는 ``erp_read``)가 켜진 사람만 — 꺼진 사람에게는 없는 주소와 같은 답(지금 그대로).
 - ``GET /questions/<id>`` — 지난 질문 하나를 **다시 묻지 않고** 다시 보기(가린 질문 · 답 · 근거 칩 — 하루 수 안 줄어듦). 내 질문
-  이거나 그 질문의 [팀에 묻기] 알림을 받은 사람만, 그 밖 404(:func:`foms.services.brain.chat_log.past_question`). 같은 스위치 가림.
+  이거나 그 질문의 [팀에 묻기] 알림을 받은 사람만, 그 밖 404(:func:`foms.services.brain.chat_log.past_question`). 같은 스위치 가림 —
+  다만 그 알림을 받은 사람은 새 화면이 꺼져 있어도 읽는다(알림 바로가기가 옛 물어보기 화면을 열기 때문 — 점검 3차 B2).
 - ``POST /questions/<id>/ask-team`` — 내 '모름' 질문을 답이 가리킨 팀의 직원에게 FOMS 안 알림으로(D233 ·
   :mod:`foms.services.brain.chat_team_ask`). 같은 질문은 한 번만(이미 보냈으면 ``already``).
 
@@ -36,7 +37,7 @@ from foms.services.brain.chat_log import ChatFeedbackError, asked_today, my_hist
 from foms.services.brain.chat_settings import (
     ChatSettingsError, daily_cap, read_chat_settings, save_chat_settings, settings_view,
 )
-from foms.services.brain.chat_team_ask import TeamAskError, ask_team, push_after_commit
+from foms.services.brain.chat_team_ask import TeamAskError, ask_team, push_after_commit, was_sent_to
 from foms.services.brain.chat_tools import AGENT_TOOLS, CHAT_OFFERED_ACTIONS, READ_TOOL_SPECS
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.graft_flags import enabled as graft_enabled
@@ -205,12 +206,16 @@ def _graft_screen(user: Any) -> bool:
 
 @brain_chat_api_bp.route("/questions/<int:question_id>", methods=["GET"])
 def brain_chat_question(question_id: int) -> tuple[Any, int]:
-    """지난 질문 하나 다시 보기 — 다시 묻지 않는다(모델 · 기록 · 하루 수 없음). 내 질문 · 팀 묻기 받은 사람만, 그 밖 404."""
-    if not _graft_screen(getattr(g, "current_user", None)):
-        abort(404)
+    """지난 질문 하나 다시 보기 — 다시 묻지 않는다(모델 · 기록 · 하루 수 없음). 내 질문 · 팀 묻기 받은 사람만, 그 밖 404.
+
+    새 화면이 꺼진 사람은 그 질문의 팀 묻기 알림을 받은 사람일 때만(옛 물어보기 화면이 알림 바로가기를 읽는다), 그 밖 없는 주소.
+    """
+    screen = _graft_screen(getattr(g, "current_user", None))
     db = get_db()
     try:
         _cfg, viewer, denied = _opened(db)
+        if not screen and (denied or not was_sent_to(db, question_id, viewer.user_id)):
+            abort(404)
         if denied:
             return denied
         data = past_question(db, viewer, user_id=viewer.user_id, question_id=question_id, today=get_today_kst())
