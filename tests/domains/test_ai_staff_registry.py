@@ -44,7 +44,9 @@ def test_first_levels_never_exceed_the_action_cap_and_there_is_no_level_three():
 
 
 def test_who_proposes_what():
-    assert a.AGENTS["cs"].actions() == ("move_construction", "move_measurement", "register_as", "add_construction_note")
+    assert a.AGENTS["cs"].actions() == ("move_construction", "move_measurement", "schedule_as_visit", "register_as",
+                                        "add_construction_note")  # D235 — 방문 옮기기(AS)도 상담 AI 가 제안한다(w6-06)
+    assert a.AGENTS["cs"].duty("schedule_as_visit").level == 2  # 실측 · 시공 옮기기와 같은 처음 수준
     assert a.AGENTS["ops"].actions() == ("send_measure_alimtalk", "assign_draftsman", "advance_stage",
                                          "send_construction_alimtalk")  # D214 규칙 O2 · T15 규칙 O4
     assert a.AGENTS["ops"].duty("send_construction_alimtalk").level == 0  # 처음 수준 0 — ADMIN 이 올려야 제안이 생긴다

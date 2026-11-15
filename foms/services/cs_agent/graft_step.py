@@ -8,10 +8,12 @@
    같은 차례를 다시 쓰면 그 차례에 이미 남긴 키는 빼고 남긴다(:func:`foms.services.brain.usage_events.refs_of` — '쓰인 곳' 수가
    부풀지 않게). 지식 키는 한 차례에 한 번만 구해 두 걸음이 같이 쓴다.
 2. **규칙 제안 셋**('할 일 제안' 켬 · 본인이 확인된 주문(:mod:`.order_step`)이 있을 때만 — 모델 지시문 · 출력 틀은 건드리지 않는다):
-   ① AS 뜻 + 단계가 완료 · CS → ``register_as``(승인 대기로)
+   ① AS 뜻 + 단계가 완료 · CS → ``register_as``(승인 대기로). 이유 글에 무상 AS 기간(시공일로부터 1년 — D224 · D235)이 안 ·
+   지남 · 모름인지를 적는다(:mod:`foms.services.erp_actions.as_warranty` — 지난 주문을 '무상'으로 적지 않는다, 점검 2차 w6-07)
    ② AS · 불편 뜻 + 시공일이 앞날 → ``add_construction_note``(작은 창 줄 — :data:`.registry.ActionSpec.wam_inline`)
    ③ 일정 바꾸기 요청 + 손님 글에 달 · 날이 똑바로 적힘(요일만이면 만들지 않는다) → 실측이 아직 앞날이면 ``move_measurement``,
-   시공일이 앞날이면 ``move_construction``(승인 대기로). '일정 바꾸기 요청'은 넘김 까닭 ``schedule`` 이거나, 주문 칸 규칙
+   시공일이 앞날이면 ``move_construction``, 열린 AS(접수 · 진행)의 방문일이 앞날이면 ``schedule_as_visit``(방문 옮기기(AS) —
+   D235 · 점검 2차 w6-06)(승인 대기로). 어느 방문인지는 :func:`_move_target`(손님 글이 AS 를 말하면 AS 방문). '일정 바꾸기 요청'은 넘김 까닭 ``schedule`` 이거나, 주문 칸 규칙
    (:data:`.order_block.ORDER_RULES` — 확인된 주문이 있으면 넘기지 않고 직원 참고에 '일정 변경 요청'을 적는다)대로 넘기지 않은
    답의 직원 참고에 :data:`SCHEDULE_NOTE` 가 있는 것이다.
    수준은 :func:`foms.services.ai_staff.registry.level_of` (``'cs'``) — 0 이면 만들지 않는다. 막는 조건 · 겹침 · 가림 검사는
@@ -46,10 +48,12 @@ from foms.services.cs_agent.graft_settings import actions_on, evidence_on
 from foms.services.cs_agent.masking import mask
 from foms.services.cs_agent.settings import read_settings
 from foms.services.datetime_kst import get_today_kst
+from foms.services.erp_actions import as_warranty
 from foms.services.erp_actions.lifecycle import clean_reason_text, propose
 from foms.services.erp_actions.preview import date_label
 from foms.services.erp_actions.registry import MAX_EVIDENCE, TIME_SLOTS
 from foms.services.erp_ontology.read import order_key
+from foms.services.orders.state_axes import read_as_status
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -64,8 +68,9 @@ SOURCE_KIND = "cs_turn"
 #: 주문 칸 규칙(:data:`.order_block.ORDER_RULES`)이 일정 바꾸기 요청 때 직원 참고에 적게 한 말(시험이 그 규칙 글과 견준다).
 SCHEDULE_NOTE = "일정 변경"
 REGISTER_AS, ADD_NOTE = "register_as", "add_construction_note"
-MOVE_MEASUREMENT, MOVE_CONSTRUCTION = "move_measurement", "move_construction"
+MOVE_MEASUREMENT, MOVE_CONSTRUCTION, MOVE_AS = "move_measurement", "move_construction", "schedule_as_visit"
 _AS_DONE_STAGES = ("COMPLETED", "CS")
+_OPEN_AS = ("RECEIVED", "IN_PROGRESS")  # 방문 옮기기(AS) 막는 조건과 같은 열린 AS
 _AS_LIMIT, _NOTE_SNIPPET, _LABEL_LIMIT, _NAME_LIMIT = 300, 140, 60, 40
 #: 올해 날이 지난 'M월 D일'은 내년 같은 날이 오늘에서 이만큼 안쪽일 때만 내년으로 읽는다(연말에 말한 연초 날 — 넉 달).
 #: 그 밖은 지난 일을 말한 날로 본다(옮기기 제안을 만들지 않는다).
@@ -82,7 +87,7 @@ _CONSTRUCTION_WORDS = re.compile(r"시공|설치")
 REASON_AS = "끝난 주문에 손님이 채널톡 상담으로 AS 를 물었어요. 증상은 가린 손님 글에서 옮겼어요."
 REASON_NOTE = "시공 전 주문에 손님이 채널톡 상담으로 손볼 곳을 알렸어요. 시공 때 같이 봐 드리게 메모를 더해요."
 _REASON_MOVE = "손님이 채널톡 상담에서 {kind} 날을 {day}로 바꿔 달라고 했어요."
-_KIND_LABELS = {MOVE_MEASUREMENT: "실측", MOVE_CONSTRUCTION: "시공"}
+_KIND_LABELS = {MOVE_MEASUREMENT: "실측", MOVE_CONSTRUCTION: "시공", MOVE_AS: "AS 방문"}
 
 
 @dataclass(frozen=True)
@@ -274,8 +279,9 @@ def _schedule(order: Any, kind: str) -> dict[str, Any]:
 
 
 def _days(order: Any, kind: str) -> list[datetime.date]:
-    """실측 · 시공 날(``structured_data.schedule`` 이 정본 — 없으면 납작 칸). 실측은 쉼표로 여러 날일 수 있다."""
-    flat = getattr(order, "erp_measurement_date" if kind == "measurement" else "erp_construction_date", None)
+    """실측 · 시공 · AS 방문 날(``structured_data.schedule`` 이 정본 — 실측 · 시공은 없으면 납작 칸). 실측은 쉼표로 여러 날일 수 있다."""
+    flat = {"measurement": getattr(order, "erp_measurement_date", None),
+            "construction": getattr(order, "erp_construction_date", None)}.get(kind)
     raw = str(_schedule(order, kind).get("date") or flat or "")
     out = []
     for part in raw.split(","):
@@ -333,7 +339,11 @@ def _rule_register_as(result: Any, order: Any, said: Said, today: datetime.date)
     if str(getattr(order, "erp_stage_code", "") or "").upper() not in _AS_DONE_STAGES:
         return None
     content = _masked_text(_matching(said.texts, _AS_WORDS), _AS_LIMIT)
-    return Plan(REGISTER_AS, {"as_content": content}, REASON_AS) if content else None
+    if not content:
+        return None
+    free = as_warranty.billing_for_register(order, today) == "free"
+    reason = f"{REASON_AS} {as_warranty.label(order, today)}{'' if free else ' — 무상 · 유상은 사람이 정해요'}."
+    return Plan(REGISTER_AS, {"as_content": content}, reason)
 
 
 def _rule_construction_note(result: Any, order: Any, said: Said, today: datetime.date) -> Optional[Plan]:
@@ -357,28 +367,38 @@ def _schedule_ask(result: Any) -> bool:
     return not getattr(result, "handoff", False) and SCHEDULE_NOTE in (getattr(result, "staff_note", "") or "")
 
 
-def _move_target(text: str, measurement_ahead: bool, construction_ahead: bool) -> Optional[str]:
-    """옮길 방문 — 손님 글이 시공(설치)만 말하면 시공, 실측만 말하면 실측, 둘 다 · 아무것도 아니면 앞날인 실측 먼저."""
+def _move_target(text: str, measurement_ahead: bool, construction_ahead: bool, as_ahead: bool = False) -> Optional[str]:
+    """옮길 방문 — 열린 AS 방문이 앞날이고 손님 글이 AS 를 말하면(실측을 말하지 않고 · 앞날 시공을 말하지 않으면) AS 방문.
+    그 밖은 지금 그대로: 시공(설치)만 말하면 시공, 실측만 말하면 실측, 둘 다 · 아무것도 아니면 앞날인 실측 → 시공 차례, 아무것도
+    말하지 않았고 앞날이 AS 방문뿐이면 AS 방문. 앞날이 아니면 ``None``(AS 방문이 앞날이 아니면 예전과 같은 답)."""
     says_construction, says_measurement = bool(_CONSTRUCTION_WORDS.search(text)), "실측" in text
+    if as_ahead and _AS_WORDS.search(text) and not says_measurement and not (says_construction and construction_ahead):
+        return MOVE_AS
     if says_construction and not says_measurement:
         return MOVE_CONSTRUCTION if construction_ahead else None
     if says_measurement and not says_construction:
         return MOVE_MEASUREMENT if measurement_ahead else None
     if measurement_ahead:
         return MOVE_MEASUREMENT
-    return MOVE_CONSTRUCTION if construction_ahead else None
+    if construction_ahead:
+        return MOVE_CONSTRUCTION
+    return MOVE_AS if as_ahead and not (says_construction or says_measurement) else None
 
 
 def _rule_move(result: Any, order: Any, said: Said, today: datetime.date) -> Optional[Plan]:
-    """③ 일정 바꾸기 요청 + 달 · 날이 똑바로 적힌 날 하나 → 실측 · 시공 옮기기(지금 날과 같은 날 · 지난 날은 뺀다)."""
+    """③ 일정 바꾸기 요청 + 달 · 날이 똑바로 적힌 날 하나 → 실측 · 시공 · AS 방문 옮기기(지금 날과 같은 날 · 지난 날은 뺀다).
+
+    AS 방문은 열린 AS(접수 · 진행 — 방문 옮기기(AS)의 막는 조건과 같은 판정)에 앞날 방문일이 있을 때만(D235 · w6-06).
+    """
     if not _schedule_ask(result):
         return None
     measurement, construction = _days(order, "measurement"), _days(order, "construction")
+    visits = _days(order, "as_visit") if read_as_status(order) in _OPEN_AS else []
     action = _move_target(" ".join(said.texts), any(d > today for d in measurement),
-                          any(d > today for d in construction))
+                          any(d > today for d in construction), any(d > today for d in visits))
     if action is None:
         return None
-    current = measurement if action == MOVE_MEASUREMENT else construction
+    current = {MOVE_MEASUREMENT: measurement, MOVE_CONSTRUCTION: construction, MOVE_AS: visits}[action]
     wanted = [day for day in asked_days(said.texts, today) if day not in current]
     if len(wanted) != 1:  # 없거나 여럿이면(어느 날인지 모름) 만들지 않는다
         return None
