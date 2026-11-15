@@ -169,6 +169,7 @@ def test_the_frame_draws_as_today_when_the_settings_read_fails(app, client, read
 def test_get_carries_three_chips_with_absolute_links_and_the_inline_action(app, ready, monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", BASE)
     graft()
+    staff()  # 이어진 FOMS 계정이 있는 상담원 — 없으면 줄에 막힘 글이 붙는다(점검 2차 w5-08 · test_cs_wam_graft_open.py)
     turn_id = posted(ready)
     target = order()
     for key in ("common/a-one", "common/b-two", "common/c-three"):
