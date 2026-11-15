@@ -248,7 +248,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 
 - web: `FOMS_GRAFT_BRAIN_UI` · `ACTIONS` · `CELL_PC` · `CELL_TABLET` · `CELL_MOBILE` `_ENABLED=1`, `_COHORT` = 운영 ADMIN 셋 + 측정 계정(읽기 전용으로 고름).
 - FOMS-cron: `FOMS_GRAFT_PROPOSERS_ENABLED=1` — 밤 단계 `ai_staff_sweep --apply` 가 제안을 만든다(알림톡 · 푸시 없음).
-- 그대로 끔: `FOMS_GRAFT_CONSTRUCTION_ALIMTALK` · `FOMS_GRAFT_PUSH` · `FOMS_GRAFT_ERP_READ`. 상담 AI 접목 두 칸(관리 화면 '접목')도 처음 값 끔 — DB 설정이라 측정 계정이 바꾸지 않았다.
+- 그대로 끔: `FOMS_GRAFT_CONSTRUCTION_ALIMTALK` · `FOMS_GRAFT_PUSH` · `FOMS_GRAFT_ERP_READ`. 상담 AI 접목 두 칸(관리 화면 '접목' — 근거 줄 보이기 · 할 일 제안 만들기)은 사용자 지시(11-15 "니가 켜")로 켬 — 측정 계정이 관리 화면과 같은 저장 API(`POST /api/admin/cs-agent/settings`, 두 칸만)로 넣어 설정 버전 17 → 18, 수정 기록에 남음. 넣은 뒤 다시 잠금.
 
 운영 실측(11-15, 측정 계정 잠금 풀기 → 보기만 → 다시 잠금 확인, 승인 · 거절 단추 안 누름):
 
