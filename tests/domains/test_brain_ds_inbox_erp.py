@@ -240,7 +240,7 @@ def test_detail_aside_approve_base_changed_then_executed(page):
     look = got["look"]
     assert look["text"].startswith("일정 AI제안 자세히ERP 할 일 · 할 일 11새로 붙음할 일 11 — #11 없음 → 11-21(토) 오전"
                                    "2030-01-01 09:14 · 손님 상담에서 나옴이유손님이 토요일 오전이 좋다고 했어요.근거")
-    assert "일정 AI · 할 일 11 14일 승인율88%" in look["text"]
+    assert "일정 AI · 할 일 11 2주 승인율88%" in look["text"]
     assert look["rows"] == ["시공 날없음11-21(토) 오전"]
     assert look["steps"] == ["1FOMS 시공일 · 시간대 쓰기 — 주문 화면 시공일 칸과 같은 기능", "2손님 알림톡 1건 — 시공일 안내"]
     assert look["bar"] == "88%" and look["form"] is False and look["selected"] is True
@@ -427,3 +427,4 @@ def test_actions_only_viewer_page_reads_only_the_erp_api(page):
     got = run_node(page("sales_mgr"), body, scripts=_scripts(), routes=_routes())
     assert got["calls"] == ["/api/erp-actions/inbox"]
     assert got["snap"]["pc"] == ["11", "12", "13"] and got["snap"]["strip"] == [True, "4", "4"]
+

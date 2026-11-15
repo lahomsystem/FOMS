@@ -1,6 +1,6 @@
 /* 승인 대기 화면 배치(설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 5.4 · 5.5 · 판 ⑥ · ⑫) — templates/brain/ds/inbox.html 전용.
    class 머리 fb-. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 목업의 style="…" 는 모두 여기 class 로 옮겼다.
-   640px 아래 = 폰(⑫): 지식 고침 칸 · 숫자 띠 · 왼쪽 길잡이는 숨고(.fb-pc-only — 틀 CSS) 폰 칸이 보인다. */
+   991.98px 아래 = 폰 모습(⑫ — 틀 brain-ds-shell.css 와 같은 기준): 지식 고침 칸 · 숫자 띠 · 왼쪽 길잡이는 숨고(.fb-pc-only — 틀 CSS) 폰 칸이 보인다. */
 
 /* hidden 은 언제나 숨김 — .f-col · .f-btn · .f-aside 같은 display 규칙이 [hidden] 을 이기지 않게. */
 .fb-inbox [hidden],
@@ -60,12 +60,13 @@
 .fb-phone-more { padding-top: 8px; box-shadow: inset 0 1px 0 var(--divider); cursor: default; }
 .fb-phone-pc { padding: 12px 14px; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
 
-@media (max-width: 640px) {
+@media (max-width: 991.98px) {
   .fb-inbox { gap: 12px; }
   .fb-phone { display: flex; gap: 12px; }
-  /* 옆 창(T8 '제안 자세히')은 폰에서 화면을 덮는다 — 아래 탭은 남긴다. */
+  .fb-phone-card__title { min-height: 44px; }  /* 누르는 것 44px 이상(설계서 5.5 — 틀이 공용으로 못 잡는 이름) */
+  /* 옆 창(T8 '제안 자세히')은 폰에서 화면을 덮는다 — 아래 탭(틀의 --fb-tabbar-h)은 남긴다. */
   .fb-inbox-aside {
-    position: fixed; left: 0; right: 0; top: 0; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 12;
+    position: fixed; left: 0; right: 0; top: 0; bottom: calc(var(--fb-tabbar-h, 68px) + env(safe-area-inset-bottom, 0px)); z-index: 12;
     overflow-y: auto; box-shadow: var(--shadow-3);
   }
 }

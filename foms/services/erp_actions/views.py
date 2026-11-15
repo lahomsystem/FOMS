@@ -31,18 +31,19 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.erp_actions import preview as fns
 from foms.services.erp_actions.access import can_run, runnable_actions, scoped_reader
 from foms.services.erp_actions.construction_notice import param_shown
-from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_REJECT
+from foms.services.erp_actions.lifecycle import DECIDED_APPROVE, DECIDED_EDIT, DECIDED_LINK, DECIDED_REJECT
 from foms.services.erp_actions.registry import (
-    ACTIONS, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_FAILED, STATUS_OPEN,
+    ACTIONS, MODE_RUN, REJECT_CODES, REJECT_LABELS, STATUS_EXECUTED, STATUS_EXECUTING, STATUS_EXPIRED, STATUS_FAILED,
+    STATUS_OPEN, STATUS_REJECTED, STATUS_SUPERSEDED,
 )
 from foms.services.erp_ontology.read import order_id_of
 from foms.services.graft_flags import enabled
 from foms.services.orders.change_reason import REASON_CODES, REASON_LABELS
-from models import Order, OrderFreelancerLink
+from models import Order, OrderFreelancerLink, User
 
 __all__ = [
-    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "card", "detail", "hidden_notice",
-    "inbox", "open_for_orders", "quick_view", "title_of",
+    "AGENT_KEYS", "MAX_ORDER_IDS", "NOTICE_HEAD", "RATE_DAYS", "approval_rate", "badge", "card", "decidable_count",
+    "detail", "hidden_notice", "inbox", "open_for_orders", "quick_view", "title_of",
 ]
 
 MAX_ORDER_IDS = 100
@@ -53,6 +54,10 @@ AGENT_KEYS: tuple[str, ...] = ("cs", "schedule", "ops")
 _ACTIONABLE = (STATUS_OPEN, STATUS_FAILED)
 _TITLE_LIMIT = 80
 _SOURCE_LABELS = {"cs_turn": "손님 상담에서 나옴", "sweep": "훑기 규칙에서 나옴"}
+#: 이미 처리된 제안의 결과 글(점검 2차 w1-03 — 옆 창이 단추 대신 보인다). 열림 · 실패는 결정할 수 있어 없다.
+_DONE_LABELS = {STATUS_EXECUTED: "승인해서 실행됐어요", STATUS_EXECUTING: "승인해서 실행하는 중이에요",
+                STATUS_REJECTED: "거절했어요", STATUS_EXPIRED: "기한이 지나 닫혔어요",
+                STATUS_SUPERSEDED: "같은 주문의 새 제안으로 바뀌었어요"}
 #: 손님에게 나가는 알림톡 줄의 머리 — '승인하면 차례로'(:func:`.preview.steps`)의 손님 알림톡 줄은 모두 이 말로 시작한다.
 #: 승인 대기 카드 스크립트(``ds-inbox-erp-aside.js`` 의 ``notice``)도 같은 머리로 가른다.
 NOTICE_HEAD = "손님 알림톡"
@@ -194,6 +199,17 @@ def _card_seconds(session: Any, now: datetime.datetime) -> int:
     return max(1, int(round(float(average) / 1000))) if average else EST_CARD_SECONDS
 
 
+def decidable_count(session: Any, user: Any, now: Optional[datetime.datetime] = None) -> int:
+    """이 사람이 지금 결정할 AI 할 일 제안 수(접히지 않은 열림 · 실패 — 승인 대기 칸 ``counts.total`` 과 같은 조건, 질의 하나).
+
+    ``/brain`` 첫 화면 고르기(설계서 7.9 — 결정할 제안이 있으면 승인 대기, 점검 2차 w1-02)가 지식 제안 수와 더한다.
+    할 일 스위치가 꺼진 사람 · 실행할 수 있는 할 일이 없는 사람은 0(질의 없음)."""
+    if not enabled("actions", user) or not runnable_actions(user):
+        return 0
+    query = _scoped(select(func.count(ErpActionProposal.id)), user, _ACTIONABLE).where(_awake(_now(now)))
+    return int(session.execute(query).scalar_one())
+
+
 def inbox(session: Any, user: Any, now: datetime.datetime) -> dict[str, Any]:
     """승인 대기 'AI 할 일 제안' 칸 — 카드(열림 · 실패, 새것 먼저) · 수 · 거절 까닭 · 어림 초."""
     if not runnable_actions(user):
@@ -281,5 +297,22 @@ def detail(session: Any, user: Any, proposal_id: Any, now: datetime.datetime) ->
         "change_reason": {"required": fns.reason_required(row.action, order, params),
                           "codes": [{"value": code, "label": REASON_LABELS[code]} for code in REASON_CODES]},
         "result": row.result if row.status != STATUS_OPEN else None, "error_code": row.error_code,
+        "done": _done(session, row),
     })
     return out
+
+
+def _done(session: Any, row: ErpActionProposal) -> Optional[dict[str, Any]]:
+    """이미 처리된 제안(열림 · 실패 밖)의 누가 · 언제 · 결과 — 결정할 수 있으면 ``None``(점검 2차 w1-03).
+
+    누구는 결정한 사람의 FOMS 계정 이름(사람 결정이 없으면 — 기한 지남 · 새 제안으로 바뀜 · 주문 화면에서 처리 — 빈 글)."""
+    if row.status in _ACTIONABLE:
+        return None
+    label = _DONE_LABELS.get(row.status, "이미 처리됐어요")
+    if row.decided_action == DECIDED_LINK:
+        label = "주문 화면에서 이미 처리됐어요"
+    elif row.status == STATUS_REJECTED and row.reject_code in REJECT_LABELS:
+        label = f"거절했어요 — {REJECT_LABELS[row.reject_code]}"
+    who = session.get(User, row.decided_by) if row.decided_by is not None else None
+    when = format_datetime_kst(row.decided_at, "%Y-%m-%d %H:%M") if row.decided_at else None
+    return {"status": row.status, "label": label, "by": who.name if who is not None else "", "at": when}

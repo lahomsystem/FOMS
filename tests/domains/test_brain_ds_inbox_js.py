@@ -80,7 +80,7 @@ def test_bin_rows_peek_and_empty_line():
     assert rows[1]["peek"] == "물어볼 것 — 지식 3 (새로)"
     assert rows[2]["peek"] == "상판 규격 → 상판 재단"
     assert line == "① 한글 이름 붙이기 · ④ 같은 값이 적힌 곳 표시 · ⑤ 계산기 제품 · 옵션 은 지금 없어요"
-    assert none == "" and full == ""  # 카드가 0 이면 묶음 글 없이 '승인 대기가 없어요.'만(F27)
+    assert none == "" and full == ""  # 카드가 0 이면 묶음 글 없이 '승인할 지식 고침이 없어요.'만(F27 · w1-08)
 
 
 @NODE
@@ -190,12 +190,12 @@ def test_overview_draws_bin_rows_nav_counts_strip_and_bulk(page):
 
 @NODE
 def test_nothing_to_decide_draws_one_empty_line_and_no_table_or_button(page):
-    """F27 — 0개면 '승인 대기가 없어요.' 한 줄만(빈 표 · 0개 단추 없음)."""
+    """F27 — 0개면 '승인할 지식 고침이 없어요.' 한 줄만(빈 표 · 0개 단추 없음). AI 할 일 제안이 있어도 이 칸 것만 말한다(w1-08)."""
     body = """return { bins: api.qa('[data-ds-inbox-bins] li').map(api.text), table: api.qa('table').length,
                        bulk: api.shown(api.q('[data-ds-inbox-bulk]')), minutes: api.text(api.q('[data-ds-inbox-stat="minutes"]')),
                        ai: api.shown(api.q('[data-ds-inbox-ai]')) };"""
     got = _run(page(), body, cards=[])
-    assert got == {"bins": ["승인 대기가 없어요."], "table": 0, "bulk": False, "minutes": "0", "ai": False}
+    assert got == {"bins": ["승인할 지식 고침이 없어요."], "table": 0, "bulk": False, "minutes": "0", "ai": False}
 
 
 @NODE

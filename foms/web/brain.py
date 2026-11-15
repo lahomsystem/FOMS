@@ -34,7 +34,7 @@ from db import get_db
 from foms.services.brain import actions
 from foms.services.brain.access import can_open_screen, screen_viewer, wide_bins
 from foms.services.brain.around import AroundQuery, search_around
-from foms.services.brain.browse import CHECKS, SORTS, type_map
+from foms.services.brain.browse import CHECKS, SORTS, known_count, type_map
 from foms.services.brain.card import item_card
 from foms.services.brain.card_pending import pending_change
 from foms.services.brain.chat_access import page_open_without_settings, page_viewer
@@ -53,6 +53,7 @@ from foms.services.brain.schemas import payload_props
 from foms.services import graft_flags
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.erp_actions.access import actions_viewer
+from foms.services.erp_actions.views import decidable_count
 from foms.web.auth import login_required
 
 brain_web_bp = Blueprint("brain_web", __name__)
@@ -278,16 +279,20 @@ def index():
             return redirect(url_for("brain_web.ask_page"))
         abort(404)
     tab = request.args.get("tab", "")
+    user = getattr(g, "current_user", None)
+    ds_on = _ds_on()
     db = get_db()
     try:
         tmap = type_map(db, viewer)
         counts = {"inbox": inbox_counts(db, viewer, now_utc_naive())["cards"],
                   "recheck": recheck_counts(db, viewer, today=get_today_kst())["total"]}
-        chat_tab = page_viewer(getattr(g, "current_user", None), read_chat_settings(db)) is not None
+        chat_tab = page_viewer(user, read_chat_settings(db)) is not None
+        if not tab:  # 첫 탭 — 결정할 지식 제안 또는 AI 할 일 제안(새 화면 — 점검 2차 w1-02)이 있으면 승인 대기
+            tab = "inbox" if counts["inbox"] or (ds_on and decidable_count(db, user)) else "search"
+        if ds_on and DS_SECTIONS.get(tab) == "search":
+            counts["known"] = known_count(db, viewer, today=get_today_kst())  # 찾기 머리 '지식 N개 · 사용 중 N개'(w1-10)
     finally:
         db.rollback()  # 읽기만
-    if not tab:
-        tab = "inbox" if counts["inbox"] else "search"
     if tab == "ask" and not chat_tab:
         tab = "search"
     ctx: dict[str, Any] = dict(

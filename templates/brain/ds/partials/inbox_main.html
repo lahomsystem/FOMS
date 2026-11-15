@@ -43,9 +43,8 @@
 </section>
 {%- endif %}
 
-{% set phone_kinds = (['한 칸 고침'] if knows else []) + (['ERP 할 일'] if graft_enabled('actions') else []) %}
+{#- '폰에서는 … 만 승인해요' 한 줄은 폰 머리 부제(inbox.html 의 page_sub — 틀 layout.html, w3-22)로 옮겼다. #}
 <section class="f-col fb-phone" aria-label="폰에서 승인" data-ds-inbox-phone>
-  <p class="f-small f-muted">폰에서는 {{ phone_kinds|join(' · ') }}만 승인해요</p>
   <div class="f-row">
     <h2 class="f-h6">폰에서 승인 <span data-ds-phone-count>0</span></h2>
     <span class="f-small f-muted f-push">승인하면 바로 반영 · 전 내용은 기록에 남아요</span>

@@ -9,7 +9,8 @@
  * - [승인] → (카드에서 누르면 자세히를 먼저 읽어 기준 판 · 넣을 값 · 사유 · 손님 알림톡 줄을 본다 — 하나라도 있으면 옆 창)
  *   POST /approve. 409 ACTION_BASE_CHANGED 면 새 카드로
  *   옆 창을 다시 그리고 "제안 뒤 주문이 바뀌었어요 — 다시 봐 주세요". 실행 실패(200 · success 거짓)는 그 말 + 카드 [다시].
- * - [거절] → 까닭 칩 한 번 · [나중에] → POST /snooze.
+ * - [거절] → 까닭 칩 한 번 · [나중에] → POST /snooze. 접은 제안은 왼쪽 '나중에 볼 것'(바탕의 연 묶음 later — 수에도 든다)에서
+ *   다시 보인다(점검 2차 w1-17). 볼 수 없는 제안 주소는 빨간 오류 대신 쉬운 글(w1-18).
  * 승인 대기 바탕보다 먼저 실리므로(문서 차례) 'ds:inbox-ready' 뒤에 시작한다. 요청은 brain-dom.js 한 곳 · 글은 textContent 만 ·
  * 전역 듣개는 한 번만(window.__FOMS_DS_INBOX_ERP_BOUND).
  */
@@ -23,6 +24,8 @@
   var FIRST = 3;
   var AGENT_ORDER = ['cs', 'schedule', 'ops'];
   var NOTICE_FIRST = '손님에게 알림톡이 나가요 — 확인한 뒤 승인해 주세요.';
+  var GONE = '이 제안은 열 수 없어요 — 이미 없어졌거나 내가 맡은 할 일이 아니에요.';
+  var PHONE = (window.FOMS_DS_SHELL && window.FOMS_DS_SHELL.PHONE_QUERY) || '(max-width: 991.98px)';
   var api = section.getAttribute('data-erp-api') || '/api/erp-actions';
   var q = function (sel) { return section.querySelector(sel); };
   var parts = { status: q('[data-erp-status]'), cards: q('[data-erp-cards]'), count: q('[data-erp-count]'),
@@ -40,7 +43,9 @@
 
   function dom() { return window.FOMS_BRAIN_DOM; }
   function inbox() { return window.FOMS_DS_INBOX || null; }
-  function isPhone() { return inbox() ? inbox().isPhone() : window.matchMedia('(max-width: 640px)').matches; }
+  function isPhone() { return inbox() ? inbox().isPhone() : window.matchMedia(PHONE).matches; }
+  /** 바탕이 '나중에 볼 것'을 열었나(뿌리 data-ds-inbox-bin). */
+  function later() { var r = document.querySelector('[data-ds-inbox]'); return !!r && r.getAttribute('data-ds-inbox-bin') === 'later'; }
 
   function ctx() {
     return { rejectCodes: (state.data && state.data.reject_codes) || [], today: card.todayText(), phone: isPhone(),
@@ -53,8 +58,8 @@
     dom().setStatus(target || parts.status, text, kind);
   }
 
-  function awake() {
-    return ((state.data && state.data.cards) || []).filter(function (c) { return !c.snoozed; });
+  function awake(snoozed) {
+    return ((state.data && state.data.cards) || []).filter(function (c) { return !c.snoozed === !snoozed; });
   }
 
   function restLine(shown, all) {
@@ -70,7 +75,8 @@
     var list = state.agent ? all.filter(function (c) { return c.agent === state.agent; }) : all;
     var shown = state.expanded ? list : list.slice(0, FIRST);
     dom().clear(parts.cards);
-    if (!list.length) parts.cards.appendChild(dom().el('li', { cls: 'f-small f-muted fb-erp-empty', text: '결정할 AI 할 일 제안이 없어요.' }));
+    var none = later() ? '나중에 볼 AI 할 일 제안이 없어요.' : '결정할 AI 할 일 제안이 없어요.';
+    if (!list.length) parts.cards.appendChild(dom().el('li', { cls: 'f-small f-muted fb-erp-empty', text: none }));
     shown.forEach(function (c) { parts.cards.appendChild(card.pcCard(c, ctx())); });
     parts.moreRow.hidden = shown.length >= list.length;
     parts.rest.textContent = parts.moreRow.hidden ? '' : restLine(shown, list);
@@ -103,10 +109,12 @@
 
   function render() {
     var all = awake();
-    renderPc(all);
+    renderPc(awake(later()));
     renderNav();
     renderPhone(all);
-    if (inbox()) inbox().setCount('actions', (state.data && state.data.counts && state.data.counts.total) || all.length);
+    if (!inbox()) return;
+    inbox().setCount('actions', (state.data && state.data.counts && state.data.counts.total) || all.length);
+    inbox().setCount('snoozed', awake(true).length);
   }
 
   async function load() {
@@ -123,13 +131,13 @@
     var node = aside.build(detail, ctx());
     if (inbox()) inbox().openAside(node);
     if (message) dom().setStatus(node.querySelector('[data-erp-card-status]'), message, kind);
-    renderPc(awake());
+    renderPc(awake(later()));
     return node;
   }
 
   async function openDetail(id, message) {
     var res = await dom().getJson(api + '/proposals/' + encodeURIComponent(id));
-    if (!res.ok) { say(res.error, 'error'); return null; }
+    if (!res.ok) { say(res.status === 404 ? GONE : res.error, res.status === 404 ? '' : 'error'); return null; }
     var node = showDetail(res.data, message);
     var focus = node.querySelector('[data-erp-act="close"]');
     if (focus && !message) focus.focus();
@@ -139,7 +147,7 @@
   function closeAside() {
     state.detail = null;
     if (inbox()) inbox().closeAside();
-    renderPc(awake());
+    renderPc(awake(later()));
   }
 
   function viewMs() {
@@ -193,7 +201,7 @@
     var res = await dom().postJson(api + '/proposals/' + encodeURIComponent(id) + '/' + verb, body);
     if (!res.ok) { dom().setStatus(line, res.error, 'error'); if (res.status === 409 || res.status === 404) await load(); return; }
     if (state.detail && String(state.detail.id) === String(id)) closeAside();
-    say(verb === 'reject' ? '거절했어요 — 같은 제안은 다시 오지 않아요.' : '나중에 볼게요 — 내일 아침에 다시 보여요.');
+    say(verb === 'reject' ? '거절했어요 — 같은 제안은 다시 오지 않아요.' : '나중에 볼 것으로 옮겼어요 — 내일 아침에 다시 올라와요.');
     await load();
   }
 
@@ -207,7 +215,7 @@
   async function onAct(button) {
     var act = button.getAttribute('data-erp-act');
     var who = owner(button);
-    if (act === 'more') { state.expanded = true; renderPc(awake()); return; }
+    if (act === 'more') { state.expanded = true; renderPc(awake(later())); return; }
     if (act === 'close') { closeAside(); return; }
     if (act === 'open') { await openDetail(who.id); return; }
     if (act === 'reject-open') {
@@ -255,9 +263,10 @@
     document.addEventListener('input', refreshForm);
     document.addEventListener('change', refreshForm);
     document.addEventListener('keydown', function (event) {  // Esc 는 바탕이 옆 창을 닫는다 — 고른 카드 표시만 지운다
-      if (event.key === 'Escape' && state.detail) { state.detail = null; renderPc(awake()); }
+      if (event.key === 'Escape' && state.detail) { state.detail = null; renderPc(awake(later())); }
     });
-    window.matchMedia('(max-width: 640px)').addEventListener('change', function () { if (state.data) render(); });
+    window.matchMedia(PHONE).addEventListener('change', function () { if (state.data) render(); });
+    document.addEventListener('ds:inbox-bin', function () { if (state.data) { state.expanded = false; renderPc(awake(later())); } });
   }
 
   async function start() {
