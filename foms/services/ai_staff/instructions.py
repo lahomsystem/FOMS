@@ -22,6 +22,13 @@ from typing import Any, Optional
 
 from foms.services.ai_staff.registry import AGENTS, level_table
 from foms.services.erp_actions.registry import ACTIONS, LEVEL_LABELS
+from foms.services.cs_agent.brain_prompt import ENABLED_BRANDS, instructions
+from foms.services.cs_agent.image_settings import MODE_DRAFT, image_mode
+from foms.services.cs_agent.onto_settings import onto_flags, order_lookup_on
+from foms.services.cs_agent.order_block import ORDER_RULES
+from foms.services.cs_agent.settings import read_settings
+from foms.services.brain.chat_prompt import ERP_HEAD, ERP_RULES, SYSTEM
+from foms.services.ai_staff.sweeps import RULES
 
 __all__ = ["OUTSIDE_NOTE", "RULES_NOTE", "instructions_view"]
 
@@ -31,11 +38,6 @@ PROMPT_NOTE = "AI 에 보내는 지시문 그대로예요. 여기서는 읽기�
 
 
 def _cs_sections(session: Any) -> list[dict[str, str]]:
-    from foms.services.cs_agent.brain_prompt import ENABLED_BRANDS, instructions
-    from foms.services.cs_agent.image_settings import MODE_DRAFT, image_mode
-    from foms.services.cs_agent.onto_settings import onto_flags, order_lookup_on
-    from foms.services.cs_agent.order_block import ORDER_RULES
-    from foms.services.cs_agent.settings import read_settings
 
     cfg = read_settings(session, log=False)
     knowledge = SimpleNamespace(onto=SimpleNamespace(flags=onto_flags(cfg)))  # '같은 뜻이면 답하기' 판정만 읽는다
@@ -48,7 +50,6 @@ def _cs_sections(session: Any) -> list[dict[str, str]]:
 
 
 def _ask_sections() -> list[dict[str, str]]:
-    from foms.services.brain.chat_prompt import ERP_HEAD, ERP_RULES, SYSTEM
 
     rules = "\n".join(rule.replace("{key}", "주문 키") for rule in ERP_RULES)
     return [{"title": "물어보기 지시문", "text": SYSTEM},
@@ -56,7 +57,6 @@ def _ask_sections() -> list[dict[str, str]]:
 
 
 def _rule_sections(session: Any, key: str) -> list[dict[str, str]]:
-    from foms.services.ai_staff.sweeps import RULES
 
     levels = level_table(session)[key]
     lines = []
