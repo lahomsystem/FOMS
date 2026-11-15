@@ -238,6 +238,27 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 |---|---|---|
 | 11-14 | deploy `75b6803d9`(접목판 46커밋 + F-01 `ae8c862dc`, origin/deploy 위로 rebase) · `9352cf7bb`(상태 줄 예산) | smoke 19,012 passed(첫 회 prerender 열쇠 빨강 → `75b6803d9` 고침) · CI 셋 초록 · Railway staging `9352cf7b` 배포 SUCCESS · 운영 그대로 |
 
+### 운영 반영 기록 (D226 — 11-15)
+
+| 때 | 커밋 | 확인 |
+|---|---|---|
+| 11-15 | 운영 PR #855 → `a2559c4e6`(deploy 접목판 커밋 58개 `528bbc4b8` ~ `96270d94a` 를 운영 `4a76810e9` 위에 cherry-pick, 코드 충돌 0) | 세션 기록부 SHA 가 rebase 전 옛 번호 · 일꾼 커밋 빠짐이라 승격 도구 대신 범위로 골랐다. 문서 둘(`AI_STATUS.md` · `2026-10-27-cs-ai-agent-ledger.md`)만 부딪혀 운영 쪽 글을 두었고, 문서만 바뀐 커밋 하나는 비어 빠졌다(57개). 접목판 파일 250개 중 deploy 와 다른 것은 문서 둘 · `layout_head.html` 긴급 알림 핀 3줄(운영이 새것) · 주문 쓰기 인벤토리의 남의 파일 줄 번호뿐. 승격 트리 smoke 19,030 passed · 하네스 632 passed · `alembic heads` 하나 · PR 검사 넷 초록 · Railway production `a2559c4e` SUCCESS · `/healthz` commit 일치 |
+
+운영 스위치(GraphQL `variableUpsert`, `RAILWAY_PROJECT_NAME=FOMS-PRODUCTION` 확인, skipDeploys 로 넣고 합치기 배포 한 번에 실음):
+
+- web: `FOMS_GRAFT_BRAIN_UI` · `ACTIONS` · `CELL_PC` · `CELL_TABLET` · `CELL_MOBILE` `_ENABLED=1`, `_COHORT` = 운영 ADMIN 셋 + 측정 계정(읽기 전용으로 고름).
+- FOMS-cron: `FOMS_GRAFT_PROPOSERS_ENABLED=1` — 밤 단계 `ai_staff_sweep --apply` 가 제안을 만든다(알림톡 · 푸시 없음).
+- 그대로 끔: `FOMS_GRAFT_CONSTRUCTION_ALIMTALK` · `FOMS_GRAFT_PUSH` · `FOMS_GRAFT_ERP_READ`. 상담 AI 접목 두 칸(관리 화면 '접목')도 처음 값 끔 — DB 설정이라 측정 계정이 바꾸지 않았다.
+
+운영 실측(11-15, 측정 계정 잠금 풀기 → 보기만 → 다시 잠금 확인, 승인 · 거절 단추 안 누름):
+
+- 새 표 셋 생김(`alembic_version=graft_00`), 세 표 모두 0줄.
+- `/brain` 새 화면 다섯 탭(승인 대기 · 찾기 · 지식 표 · 온톨로지 · 물어보기) 모두 200 · 새 틀 · `foms-ds.css`, 서버 응답 140 ~ 321ms.
+- `/api/erp-actions/badge` on 넷 모두 참 · 할 일 0 · 지식 6. 승인 대기 0장. AI 직원 목록 200.
+- 빈 자리: PC 작업 큐 50칸(1.2초) · 태블릿 50칸 + 레일 '회사 지식'(0.5초) · 폰 'AI 제안 승인 대기' 칸(0.43초).
+- 밤 훑기 규칙 후보(읽기 전용 거래로 고르기 · 판정만, 제안 안 만듦): S1 시공 잡기 수준 2 후보 20 → 17 · O1 실측 알림톡 수준 1 후보 12 → 5 · O2 단계 넘기기 수준 0(돌지 않음) · O3 도면 담당 수준 2 후보 127 → 22 · O4 시공일 안내 수준 0 · 스위치 끔. 합 44 라 첫 밤은 상한 30개가 만들어진다. 고르기 질의 2 ~ 478ms.
+
+
 ## 8. 준비 (T0 — 메인)
 
 - [x] 설계서 11절 결정 일곱 — 사용자 답 받음(11-14). 원장 `docs/plans/2026-10-27-cs-ai-agent-ledger.md` D206 ~ D212.
