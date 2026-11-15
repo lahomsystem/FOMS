@@ -204,7 +204,8 @@ def test_tablet_rules_stay_inside_the_tablet_query():
     for name in ("foms-graft-box", "foms-tqcell-quest", "foms-graft-rail__icon"):
         assert name in tablet and f".{name} {{" not in outside.replace("[hidden]", "")
     assert all(line.strip().startswith(("body.erp-mobile-v2-layout", "}", "@media", "")) for line in tablet.splitlines())
-    assert re.findall(r"font-size: (?!calc\(\d+(?:\.\d+)?px \* var\(--foms-fs, 1\)\))[^;]+;", css) == ["font-size: 0.85em;"]
+    # 칩 글에 맞춘 아이콘(0.85em) 둘 — 바탕 규칙과 PC 좁은 칸 규칙(점검 3차 — 대시보드 아이콘 규칙을 이기게)
+    assert re.findall(r"font-size: (?!calc\(\d+(?:\.\d+)?px \* var\(--foms-fs, 1\)\))[^;]+;", css) == ["font-size: 0.85em;"] * 2
 
 
 # ── 스크립트(node · 가짜 DOM) ─────────────────────────────────────────────
@@ -452,7 +453,8 @@ def test_chip_never_widens_its_column_or_breaks_the_stage_badge():
     base = (ROOT / "static/css/foundation/foms-tablet-landscape.css").read_text(encoding="utf-8")
     assert re.search(r"\n\.foms-tqcell-stage \.foms-stage-badge \{\s*white-space: nowrap;\s*\}", base)
     assert "foms-tqcell-stage" not in css and "keep-all" not in css.split("@media")[0]
-    assert ".foms-graft-chip-slot { display: block; width: 0; min-width: 100%; container-type: inline-size; }" in css
+    assert (".foms-graft-chip-slot { display: block; width: 0; min-width: 100%; container-type: inline-size; "
+            "font-size: calc(14px * var(--foms-fs, 1)); }") in css  # 글자 크기는 칸 폭 갈림(em)용 — 상자 안 글은 칩뿐
     assert ".foms-graft-chip-slot > .foms-graft-chip { display: flex; }" in css
     chip = re.search(r"\n\.foms-graft-chip \{(.*?)\}", css, re.S).group(1)
     assert "white-space: nowrap;" in chip and "max-width: 100%;" in chip

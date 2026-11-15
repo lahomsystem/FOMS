@@ -44,11 +44,40 @@
     return el('td', { cls: cls || null, text: empty ? '—' : String(value) });
   }
 
-  /** 표 — rows 는 <tr> 목록. 좁은 화면에서는 옆으로 민다. */
+  /** 표가 담긴 칸보다 넓으면 줄마다 카드(.is-stacked — brain-ds-onto.css)로 바꾼다(점검 3차 B1 — 화면 크기 110 ~ 130% · 폰에서
+   *  옆으로 밀지 않게). 칸 폭으로 재므로 @container 를 모르는 옛 브라우저에서도 같다. 숨은 탭(폭 0)은 열릴 때 다시 잰다. */
+  var fitWidth = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function fitTable(box, force) {
+    var width = box.clientWidth;
+    var t = box.firstChild;
+    if (!width || !t || (!force && fitWidth && fitWidth.get(box) === width)) return;
+    if (fitWidth) fitWidth.set(box, width);
+    t.classList.remove('is-stacked');
+    if (box.scrollWidth > width + 1) t.classList.add('is-stacked');
+  }
+  var fitter = typeof ResizeObserver === 'function' ? new ResizeObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.target.isConnected) fitTable(entry.target); else fitter.unobserve(entry.target);
+    });
+  }) : null;
+  function refitAll(force) {
+    document.querySelectorAll('.fb-onto-table-box').forEach(function (box) { fitTable(box, force); });
+  }
+  if (!fitter) window.addEventListener('resize', function () { refitAll(false); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { refitAll(true); });  // 글꼴이 늦게 오면 표 폭이 바뀐다
+
+  /** 표 — rows 는 <tr> 목록. 칸마다 머리 이름을 data-label 로 달아 카드 모습에서 값 앞에 보인다(첫 칸은 카드 제목이라 없음). */
   function table(headers, rows) {
     var head = el('tr', { children: headers.map(function (h) { return el('th', { text: h, attrs: { scope: 'col' } }); }) });
-    return el('div', { cls: 'f-section-body-flush f-scroll-x', children: [el('table', { cls: 'f-table f-table-compact',
-      children: [el('thead', { children: [head] }), el('tbody', { children: rows })] })] });
+    rows.forEach(function (row) {
+      Array.prototype.forEach.call(row.children, function (td, i) {
+        if (i && headers[i]) td.setAttribute('data-label', headers[i]);
+      });
+    });
+    var box = el('div', { cls: 'f-section-body-flush f-scroll-x fb-onto-table-box', children: [el('table', {
+      cls: 'f-table f-table-compact fb-onto-table', children: [el('thead', { children: [head] }), el('tbody', { children: rows })] })] });
+    if (fitter) fitter.observe(box); else window.setTimeout(function () { fitTable(box, true); }, 0);
+    return box;
   }
 
   /** 칸 — 머리(제목 · 덧붙일 것) + 몸. */

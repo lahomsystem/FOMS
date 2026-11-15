@@ -162,7 +162,7 @@ def test_cache_chain_versions_bumped() -> None:
     을 더해 두 핀을 함께 20260825a 로 올렸다.
     """
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20261115k" in head
+    assert "foms-tablet-bundle.css') }}?v=20261115m" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
 
@@ -322,7 +322,7 @@ def test_레일_동기_JS는_강조_접두어를_먼저_본다() -> None:
     js = _read(RAIL_NAV_JS)
     assert "getAttribute('data-foms-rail-match') || items[i].pathname" in js
     assert 'data-foms-rail-match="{{ item.match }}"' in _read(RAIL_PARTIAL)
-    assert "js/foms/tablet-rail-nav.js') }}?v=20261110a" in _read(LAYOUT_NAV)
+    assert "js/foms/tablet-rail-nav.js') }}?v=20261115m" in _read(LAYOUT_NAV)
 
 
 # --- ⑥ 짧은 화면: 아래 묶음은 바닥, 위 메뉴만 굴린다 (점검 2차 w4-02, 11-15) ---------------

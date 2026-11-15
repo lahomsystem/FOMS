@@ -33,6 +33,33 @@
 
   window.__FOMS_TABLET_RAIL_NAV_BOUND = true;
 
+  // 위 메뉴 묶음(점검 2차 w4-02) — 키 낮은 화면 · 화면 크기 110% 이상에서는 이 안에서만 굴린다.
+  var menu = rail.querySelector('.foms-tablet-rail__menu');
+
+  /**
+   * 강조 칸(.is-active)이 굴림 영역(위 메뉴 묶음) 밖에 숨어 있으면 그 칸이 막 다 보이도록 묶음만 굴린다(점검 3차, 11-15 —
+   * 1176×626 · 130% 에서 시공 · 완료 · 이력 화면의 강조 칸이 묶음 아래에 숨었다). 이미 다 보이면 건드리지 않는다 · 부드러운
+   * 굴림 없이 · 문서나 레일 전체는 굴리지 않는다. 보이는 크기(rect)는 화면 크기 배율이 곱해진 값이라 배율 전 크기(offsetHeight)
+   * 로 나눠 굴림 값으로 바꾼다.
+   */
+  function revealActive() {
+    if (!menu || menu.scrollHeight <= menu.clientHeight) {
+      return;
+    }
+    var item = menu.querySelector('.foms-tablet-rail__item.is-active');
+    var box = menu.getBoundingClientRect();
+    if (!item || !box.height || !menu.offsetHeight) {
+      return;
+    }
+    var scale = box.height / menu.offsetHeight;
+    var at = item.getBoundingClientRect();
+    if (at.top < box.top - 0.5 || at.bottom - at.top > box.height) {
+      menu.scrollTop = Math.floor(menu.scrollTop + (at.top - box.top) / scale);
+    } else if (at.bottom > box.bottom + 0.5) {
+      menu.scrollTop = Math.ceil(menu.scrollTop + (at.bottom - box.bottom) / scale);
+    }
+  }
+
   /**
    * Strip a single trailing slash while preserving the root "/".
    * @param {string} path
@@ -84,8 +111,15 @@
         item.removeAttribute('aria-current');
       }
     }
+    revealActive();
   }
 
   document.addEventListener('foms:erp-shell-fragment-swapped', syncActive);
   window.addEventListener('popstate', syncActive);
+
+  // 처음 그릴 때(서버가 강조한 칸) · 묶음 높이가 바뀔 때(회사 지식 칸이 나타남 · 화면 크기 손잡이 · 화면 돌림) 다시 본다.
+  revealActive();
+  if (menu && window.ResizeObserver) {
+    new window.ResizeObserver(revealActive).observe(menu);
+  }
 })();

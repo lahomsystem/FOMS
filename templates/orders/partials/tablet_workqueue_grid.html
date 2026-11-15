@@ -104,7 +104,7 @@
      컨테이너째 은닉되므로 그 안의 페이지네이션도 함께 사라진다. 여기 복제해 클린 그리드에
      동반한다(동일 라우트·필터 인자). #}
   {% if total_pages is defined and total_pages > 1 %}
-  <div class="mt-4 mb-2 d-flex flex-column align-items-center">
+  <div class="mt-4 mb-2 d-flex flex-column align-items-center foms-tqgrid-pager">
     <nav aria-label="Page navigation">
       <ul class="pagination pagination-sm mb-1">
         <li class="page-item {% if page <= 1 %}disabled{% endif %}">

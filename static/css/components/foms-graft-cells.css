@@ -41,19 +41,47 @@
    칸 폭을 다 채운다(min-width 100%) — 칩이 칸을 넓히지 않으니 다른 칸 폭 · 줄바꿈이 끈 화면과 같다(점검 2차 w4-04 · w4-08).
    칩은 그 폭 안에서 한 줄(넘치면 글만 말줄임 · 전체 글은 title). 11-14 의 '낱말 사이 줄바꿈'은 칩 글 덩어리가 칸 최소 폭이 되어
    제품 칸을 줄이고 칩을 3 ~ 6줄로 꺾어 걷었다. 칩이 숨으면 자리 상자는 높이 0 이다. */
-.foms-graft-chip-slot { display: block; width: 0; min-width: 100%; container-type: inline-size; }
+.foms-graft-chip-slot { display: block; width: 0; min-width: 100%; container-type: inline-size; font-size: calc(14px * var(--foms-fs, 1)); }
 .foms-graft-chip-slot > .foms-graft-chip { display: flex; }
 /* PC 칩 머리글 'AI 제안 · '는 칸이 넓을 때만(판 NowPC — 사용자 2400 화면 칸 232px) — 좁은 칸(1440 의 164px)에서는 머리글이
    정작 볼 값 · 할 일 이름을 가려 감춘다(로봇 아이콘이 AI 라고 알려 준다, 점검 2차 w4-09). 화면 폭이 아니라 칸 폭으로 가른다. */
 @container (max-width: 199.98px) {
   .foms-graft-chip__head { display: none; }
 }
+/* 컨테이너 기준 배치를 모르는 옛 브라우저(크롬 105 · 사파리 16 아래)는 위 갈림을 통째로 버려 좁은 칸에서도 머리글이 할 일
+   이름을 가렸다 — 안전한 쪽(좁은 칸 모습 · 머리글 감춤)을 기본으로(점검 3차). 온전한 글은 읽는 글 · title 에 그대로 있다. */
+@supports not (container-type: inline-size) {
+  .foms-graft-chip__head { display: none; }
+}
+/* PC 칩 — 글자 배율(--foms-fs)을 키워 칸이 칩 글자 11자 폭보다 좁아지면(자리 상자 글자 = 칩 글자 크기라 em 이 배율을 따른다 —
+   1440 · 2400 모두 130 · 150% 에서, 100% 는 1440 칸 162px > 154px 라 그대로) 칩 테두리 안 여백만 줄이고 로봇 아이콘을 칩 글에
+   맞춘 제 크기(0.85em)로 둔다 — 대시보드 전체 아이콘 규칙(.erp-dashboard .fas 0.95rem)이 이 아이콘을 칩 글보다 크게 키워 할 일
+   이름 자리를 먹었다(점검 3차 — 130% 에서 칩 7개 모두 말줄임). 글자 · 칸 폭 · 줄 높이는 그대로(칩 높이는 글 줄이 정한다). */
+@container (max-width: 11em) {
+  .foms-graft-chip-slot > .foms-graft-chip[data-graft-cell="pc"] { gap: 2px; padding-right: 4px; padding-left: 4px; }
+  .foms-graft-chip-slot > .foms-graft-chip[data-graft-cell="pc"] > .foms-graft-chip__icon { font-size: 0.85em; }
+}
 
 /* 폰 목록 줄 머리 — 단계 · 경보 배지 옆 남는 폭에서만(점검 2차 w5-01). 칩의 바탕 폭은 0 이라 머리 줄을 넘기지 않고(이력 단추가
    둘째 줄로 떨어지지 않는다), 남는 폭만큼 자라되 제 글 폭을 넘지 않는다 — 모자라면 글만 말줄임, 더 모자라면 로봇 아이콘만.
-   남는 폭이 칩 테두리 · 여백(18px)보다도 좁을 때만 줄이 바뀐다(360 폭 · 화면 크기 130% · 경보 배지 카드).
+   남는 폭이 칩 테두리 · 여백 · 사이(26px)보다도 좁으면(360 폭 · 화면 크기 130% · 경보 배지 카드 — 남는 폭 10px) 아이콘 하나도
+   설 자리가 없다 — 그때는 칩이 아래 묶음 안에서 배지 밑 둘째 줄로 내려간다(머리는 그대로 한 줄 높이).
    보이는 칩은 22px 그대로 두고, 누르는 자리만 보이지 않는 겹으로 위아래 44px 까지 넓힌다(설계서 5.5 — 줄 높이 · 칩 모양은 그대로).
    칩이 겹을 자르지 않게 넘침 자르기는 글 칸(__text)에만. */
+/* 칩 묶음(템플릿이 칩 자리와 함께만 그린다 — 단계 배지 뒤 경보 · 도면 수정 · 통화 배지 + 맨 끝 칩). 칩이 숨으면 상자가 없어
+   (display: contents) 배지는 지금처럼 머리 줄의 자식이다 — 제안 0 · 사람 밖 화면은 끈 화면과 같다. 칩이 보이면 단계 배지와
+   번호 · 이력 단추 사이 남는 폭을 다 맡는 줄바꿈 상자가 된다: 칩이 설 폭이 있으면 한 줄(앞 배지 · 번호 · 이력 단추 자리는 지금과
+   같다), 없으면 칩만 배지 밑으로 — 머리 높이는 이력 단추(44px)가 정하고 배지 줄(22px) 둘이 그 안에 들어가 머리 · 카드가 길어지지
+   않는다(점검 3차 — 고치기 전 머리 57 → 96px, 카드 39px 길어짐). :has 를 모르는 브라우저는 상자 없이 지금처럼. */
+.foms-graft-chip-row { display: contents; }
+.foms-graft-chip-row:has(> .foms-graft-chip:not([hidden])) {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--foms-space-2, 8px);
+  min-width: 0;
+}
 .foms-graft-chip--card {
   position: relative;
   flex: 1 1 0;
