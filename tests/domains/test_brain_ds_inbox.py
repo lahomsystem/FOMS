@@ -208,7 +208,8 @@ def test_knowledge_parts_need_the_knowledge_screen(app, ids):
         g.current_user = admin
         body = render_template("brain/ds/inbox.html", page="inbox", ds_nav=nav)
     assert "data-ds-inbox-view=\"inbox\"" in body and "data-inbox-url" not in body and "data-display" not in body
-    assert "data-ds-inbox-know" not in body and "data-ds-inbox-bin-nav" not in body and "data-ds-phone-pc-toggle" not in body
+    assert "data-ds-inbox-know" not in body and "data-ds-inbox-bin-nav" not in body
+    assert "data-ds-phone-pc-toggle hidden" in body  # 폰에서 승인 못 하는 AI 할 일 제안이 들 'PC 에서 볼 것'(w3-05) — 0 이면 숨음
     assert "data-ds-inbox-aside hidden" in body and "data-ds-phone-list" in body and "data-ds-inbox-erp" in body
     assert 'data-ds-inbox-stat="knowledge"' not in body and 'style="' not in body
 

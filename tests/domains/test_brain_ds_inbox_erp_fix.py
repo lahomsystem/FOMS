@@ -98,3 +98,24 @@ def test_recheck_and_releases_views_fill_the_same_agent_counts(app, people, monk
                later: api.text(api.q('[data-ds-inbox-bin-nav="later"] [data-ds-inbox-bin-count]')) };"""
     got = run_node(body, look, scripts=scripts, routes=routes, search=f"?tab={view}")
     assert got == {"nav": ["2", "1", "1"], "muted": [False, False, False], "later": "1"}
+
+
+@NODE
+def test_phone_counts_only_what_the_phone_can_approve_and_holds_the_rest_for_pc(page):
+    """폰 모습(w3-05 — 설계서 5.4 · 5.5 · 판 ⑫): 폰에서 승인할 수 없는 AI 할 일 제안(바로가기 · phone_ok 아님)은 '폰에서 승인'
+    수 · 목록이 아니라 'PC 에서 볼 것'으로 가고 그 수에 든다. 위 줄 · 숫자 띠의 전체 수는 그대로."""
+    cards = [dict(c) for c in CARDS]
+    cards[1] = dict(cards[1], phone_ok=False)  # 12 — run 이지만 폰에서 승인 불가
+    inbox = dict(INBOX, cards=cards)
+    routes = [{"method": "GET", "url": "/api/brain/inbox", "replies": [_ok({"cards": [], "counts": {"ai_waiting": 0}})]},
+              {"method": "GET", "url": "/api/erp-actions/inbox", "replies": [_ok(inbox)]}]
+    body = """
+      const ids = s => api.q(s).children.map(n => n.getAttribute('data-erp-card'));
+      return { phone: ids('[data-ds-phone-list]'), count: api.text(api.q('[data-ds-phone-count]')),
+               pc: ids('[data-ds-phone-pc-list]'), pcShown: api.shown(api.q('[data-ds-phone-pc-toggle]')),
+               pcTitle: api.text(api.q('[data-ds-phone-pc-title]')), pcSub: api.text(api.q('[data-ds-phone-pc-sub]')),
+               today: api.text(api.q('[data-ds-inbox-stat="today"]')) };"""
+    got = run_node(page(), body, scripts=_scripts(), routes=routes, phone=True)
+    assert got["phone"] == ["11", "14"] and got["count"] == "2"
+    assert got["pc"] == ["12", "13"] and got["pcShown"] is True and got["pcTitle"] == "PC 에서 볼 것 2"
+    assert got["pcSub"] == "PC 에서 승인해요 — AI 할 일 2" and got["today"] == "4"  # 전체 수는 그대로(접은 15 뺌)

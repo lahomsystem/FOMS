@@ -312,13 +312,14 @@ def test_phone_cards_go_first_in_the_phone_list_and_only_phone_ok_can_approve(pa
       const list = api.q('[data-ds-phone-list]');
       const cards = list.children.map(n => [n.getAttribute('data-erp-card'), !!n.querySelector('[data-erp-act="approve"]')]);
       const first = api.text(list.children[0]);
-      await api.click(list.children[2].querySelector('[data-erp-act="open"]'));
-      return { cards: cards, first: first, pc: api.text(list.children[2]),
+      const held = api.q('[data-ds-phone-pc-list]').children[0];  // 폰에서 승인 못 하는 13 은 'PC 에서 볼 것'(w3-05)
+      await api.click(held.querySelector('[data-erp-act="open"]'));
+      return { cards: cards, first: first, pc: api.text(held),
                aside: api.shown(api.q('[data-ds-inbox-aside]')),
                asideButtons: api.qa('[data-erp-aside] button').filter(api.shown).map(api.text),
                help: api.qa('[data-erp-aside] .f-help').map(api.text) };"""
     got = run_node(page(), body, scripts=_scripts(), routes=routes, phone=True)
-    assert got["cards"] == [["11", True], ["12", True], ["13", False], ["14", True]]
+    assert got["cards"] == [["11", True], ["12", True], ["14", True]]
     assert got["first"] == "ERP 할 일일정 AI01-01할 일 11 — #11 없음 → 11-21(토) 오전없음에서11-21(토) 오전상담 · 토요일 원함승인"
     assert got["pc"].endswith("PC 에서 볼 것")
     assert got["aside"] is True and "승인" not in got["asideButtons"] and "나중에" in got["asideButtons"]
