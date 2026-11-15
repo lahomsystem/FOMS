@@ -85,7 +85,7 @@
     "foms/services/jobs/tasks.py:716",
     "foms/services/kakao_alimtalk_construction.py:274",
     "foms/services/notices/push.py:114",
-    "foms/services/notifications/push_sender.py:784",
+    "foms/services/notifications/push_sender.py:806",
     "foms/web/auth/routes.py:148",
     "foms/web/orders/trash.py:189",
     "wdcalculator_db.py:152"
@@ -3010,7 +3010,7 @@
     },
     {
       "path": "foms/services/brain/chat_team_ask.py",
-      "lineno": 153,
+      "lineno": 147,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4846,7 +4846,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 381,
+      "lineno": 393,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4855,7 +4855,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 435,
+      "lineno": 447,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4864,7 +4864,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 668,
+      "lineno": 690,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4873,7 +4873,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 784,
+      "lineno": 806,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -4882,7 +4882,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 864,
+      "lineno": 886,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4891,7 +4891,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 921,
+      "lineno": 943,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",

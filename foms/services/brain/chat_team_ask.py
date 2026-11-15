@@ -8,14 +8,14 @@
   사람(:func:`.chat_access.page_viewer`), 묻는 사람 자신은 빼고, 번호 순 :data:`MAX_RECIPIENTS` 명까지.
 - 사람마다 ``Notification`` 한 줄(``target_user_id``) + 받는 사람 상태(:func:`fan_out_new_notification`) — 지금 알림 장치 그대로.
   알림 글 첫 줄은 물어보기 화면의 그 질문 주소(:func:`question_path` — :func:`team_ask_link` 가 읽는다), 둘째 줄은 가린 질문
-  앞부분. 원문 · 답 글 · 손님 정보는 싣지 않는다. 폰 보내기는 부르는 쪽이 커밋한 뒤(:func:`push_after_commit`).
+  앞부분. 원문 · 답 글 · 손님 정보는 싣지 않는다. 폰 보내기는 부르는 쪽이 커밋한 뒤(:func:`push_after_commit` — 잠금화면 글 ·
+  여는 주소는 :mod:`foms.services.notifications.brain_ask_push`, 사용자 결정 D240).
 - 받은 사람은 그 질문(가린 글)과 답을 물어보기 화면에서 읽을 수 있다(:func:`was_sent_to` — :mod:`.chat_log` 한 질문 읽기).
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -24,6 +24,9 @@ from foms.persistence.brain.models import BrainQuestion
 from foms.services.brain.chat_access import page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.constants import TEAMS
+from foms.services.notifications.brain_ask_push import (
+    BRAIN_ASK_TEAM_TYPE, team_ask_first_line, team_ask_link, team_ask_title,
+)
 from foms.services.notifications.recipients import broad_recipient_ids, fan_out_new_notification, team_condition
 from foms.services.orders.team_labels import team_label
 from models import Notification, User
@@ -34,11 +37,8 @@ logger = logging.getLogger(__name__)
 __all__ = ["BRAIN_ASK_TEAM_TYPE", "MAX_RECIPIENTS", "TeamAskError", "ask_team", "push_after_commit", "question_path",
            "team_ask_link", "team_of", "was_sent_to"]
 
-BRAIN_ASK_TEAM_TYPE = "BRAIN_ASK_TEAM"
 MAX_RECIPIENTS = 20
 QUESTION_CHARS = 80
-_HEAD = "[물어보기]"
-_LINK = re.compile(r"^\[물어보기\] (/brain/ask\?question=(\d{1,12}))$", re.M)
 
 
 class TeamAskError(ValueError):
@@ -67,13 +67,7 @@ def question_path(question_id: int) -> str:
 
 
 def _first_line(question_id: int) -> str:
-    return f"{_HEAD} {question_path(question_id)}"
-
-
-def team_ask_link(message: Any) -> Optional[str]:
-    """알림 글의 물어보기 질문 주소(폰 알림 · 알림 목록 바로가기) — 꼴이 아니면 ``None``."""
-    found = _LINK.search(str(message or ""))
-    return found.group(1) if found else None
+    return team_ask_first_line(question_id)
 
 
 def _sent(session: Any, question_id: int, user_id: Optional[int] = None) -> bool:
@@ -134,7 +128,7 @@ def ask_team(session: Any, *, user: Any, question_id: Any) -> dict[str, Any]:
     ids = []
     for uid in people:
         note = Notification(notification_type=BRAIN_ASK_TEAM_TYPE, target_type="USER", target_user_id=uid, order_id=None,
-                            is_urgent=False, title=f"{label}에 물어본 질문이 왔어요", message=message,
+                            is_urgent=False, title=team_ask_title(label), message=message,
                             created_by_user_id=int(user.id), created_by_name=getattr(user, "name", None), is_read=False)
         session.add(note)
         session.flush()
@@ -145,7 +139,7 @@ def ask_team(session: Any, *, user: Any, question_id: Any) -> dict[str, Any]:
 
 
 def push_after_commit(session: Any, ids: list[int]) -> None:
-    """커밋한 뒤 폰 보내기 줄 세우기 — 지금 알림 장치가 하는 대로(종류가 폰 보내기 목록에 없으면 장치가 보내지 않는다)."""
+    """커밋한 뒤 폰 보내기 줄 세우기 — 지금 알림 장치가 하는 대로(이 종류는 폰 보내기 목록에 있다 — D240)."""
 
     for nid in ids:
         try:
