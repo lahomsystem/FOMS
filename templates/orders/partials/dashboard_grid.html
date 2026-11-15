@@ -108,6 +108,13 @@
                       {% if bs.title %}<strong>{{ bs.title }}</strong>{% endif %}
                       {% if bs.link_endpoint %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for(bs.link_endpoint, **bs.link_params) }}">{{ bs.link_label }}</a>{% endif %}
                     </div>
+                    {#- AI 제안 칩(접목판 판 ② — 설계서 2026-11-14-foms-graft 6절): 전역 스위치가 켜졌을 때만 빈 자리(숨김).
+                        graft-cells.js 가 보이는 주문 번호를 모아 /api/erp-actions/open 한 번으로 채운다. 꺼지면 한 글자도 안 나간다.
+                        자리는 '할 일 · ▼ 작업 이름' 줄 바로 아래 — 그 줄을 눌러 펼친 큰 카드(collapse)보다 위(점검 2차 w4-10). 줄마다 갈래
+                        셋(보드 상태 · 현재 작업 · 그 밖) 가운데 하나에만 그려진다. 자리 상자는 칸 폭 계산에 끼지 않고 칩은 한 줄(w4-08). #}
+                    {%- if graft_cell_slot('pc') %}
+                    <span class="foms-graft-chip-slot"><a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="pc" hidden></a></span>
+                    {%- endif %}
                     {% elif o.current_quest %}
                     <div class="erp-grid-quest-stack">
                       {% if o.current_quest.is_done %}
@@ -140,6 +147,10 @@
                       <span class="foms-gate-blocked-reason" data-quest-approve-blocked>{{ o.current_quest.approve_blocked_reason }}</span>
                       {% endif %}
                     </div>
+                    {#- AI 제안 칩 — 현재 작업 줄 바로 아래(펼친 카드 위). #}
+                    {%- if graft_cell_slot('pc') %}
+                    <span class="foms-graft-chip-slot"><a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="pc" hidden></a></span>
+                    {%- endif %}
                     <div class="collapse mt-2" id="quest-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i
@@ -337,12 +348,11 @@
                     {% else %}
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
-                    {% endif %}
-                    {#- AI 제안 칩(접목판 판 ② — 설계서 2026-11-14-foms-graft 6절): 전역 스위치가 켜졌을 때만 빈 자리(숨김).
-                        graft-cells.js 가 보이는 주문 번호를 모아 /api/erp-actions/open 한 번으로 채운다. 꺼지면 한 글자도 안 나간다. #}
+                    {#- AI 제안 칩 — 도면 창구 · 빈 칸 끝(현재 작업이 없는 줄). #}
                     {%- if graft_cell_slot('pc') %}
-                    <a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="pc" hidden></a>
+                    <span class="foms-graft-chip-slot"><a class="foms-graft-chip" data-graft-slot="{{ o.id }}" data-graft-cell="pc" hidden></a></span>
                     {%- endif %}
+                    {% endif %}
                   </td>
                   <td data-col-key="customer" data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529; min-width: 120px;">
                     <div class="d-flex flex-column gap-1">
