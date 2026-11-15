@@ -27,6 +27,7 @@ from foms.services.brain.constants import TEAMS
 from foms.services.notifications.recipients import broad_recipient_ids, fan_out_new_notification, team_condition
 from foms.services.orders.team_labels import team_label
 from models import Notification, User
+from foms.services.notifications.push_sender import enqueue_push_for_notification
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,6 @@ def ask_team(session: Any, *, user: Any, question_id: Any) -> dict[str, Any]:
 
 def push_after_commit(session: Any, ids: list[int]) -> None:
     """커밋한 뒤 폰 보내기 줄 세우기 — 지금 알림 장치가 하는 대로(종류가 폰 보내기 목록에 없으면 장치가 보내지 않는다)."""
-    from foms.services.notifications.push_sender import enqueue_push_for_notification
 
     for nid in ids:
         try:

@@ -28,6 +28,7 @@ from foms.services.datetime_kst import format_datetime_kst
 from foms.services.brain.usage_events import refs_of
 from foms.services.erp_actions.registry import ACTIONS, STATUS_FAILED, STATUS_OPEN
 from models import CsAgentTurn, User
+from foms.services.cs_agent.graft_step import brain_labels
 
 __all__ = [
     "FAILURE_LIMIT", "OUTCOME_LABELS", "STEP_STATES", "clean_steps", "latest_run", "recent_failures", "record_run",
@@ -130,7 +131,6 @@ def _evidence_steps(session: Any, turn: CsAgentTurn) -> list[dict[str, Any]]:
         out.append(_step("erp.order.find", "손님 · 주문 찾기",
                          " · ".join(f"주문 #{number}" for number in orders[:3]) + " · 손님 정보 가림"))
     if knowledge:
-        from foms.services.cs_agent.graft_step import brain_labels  # 무거운 꾸러미 — 상담 AI 자세히에서만 싣는다
 
         labels = list(brain_labels(session, knowledge).values())
         if labels:

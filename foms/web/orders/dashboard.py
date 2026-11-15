@@ -52,7 +52,7 @@ from foms.services.foms_split_view import build_split_master_cards, build_split_
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services import graft_flags
 from foms.services.erp_actions.registry import ACTIONS as ERP_ACTIONS, REJECT_CODES, REJECT_LABELS
-from foms.services.erp_actions.views import open_for_orders, quick_view as graft_quick_view
+from foms.services.erp_actions.views import NOTICE_HEAD, open_for_orders, quick_view as graft_quick_view
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
@@ -652,7 +652,6 @@ def _graft_sheet_proposal(db, user, order) -> dict | None:
     spec = ERP_ACTIONS.get(row.action) if row is not None else None
     if row is None or spec is None:
         return None
-    from foms.services.erp_actions.views import NOTICE_HEAD  # 이 상자 값만 쓰는 이름
 
     first = (row.preview or [{}])[0] or {}
     quick = graft_quick_view(row, order)

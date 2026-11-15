@@ -88,6 +88,7 @@ def test_level_tags_have_one_tone_per_level_and_no_green(staff):
 def test_only_duties_added_in_this_release_say_new(staff):
     cs = {row["key"]: row["new"] for row in _detail(staff["admin"], "cs")["duties"]}
     assert cs == {"cs_draft": False, "erp_read": False, "move_construction": True, "move_measurement": True,
+                  "schedule_as_visit": True,  # D235 — 방문 옮기기(AS) 제안도 판 1 뒤에 붙은 일
                   "register_as": True, "add_construction_note": True, "send_measure_alimtalk": False}
     ask = {row["key"]: row["new"] for row in _detail(staff["admin"], "ask")["duties"]}
     assert ask == {"ask_answer": False, "erp_read": True}
