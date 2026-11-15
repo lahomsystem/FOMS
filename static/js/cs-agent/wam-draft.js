@@ -7,6 +7,8 @@
  * - [보내기]로 열리면: 바로 보낸다 → '보냈어요' 1초 뒤 닫힘. 확인이 필요하면 까닭 + [그래도 보내기] · [고치기].
  * - [수정하기]로 열리면: 보낼 답을 글 칸에 넣고 고친 까닭 칩 · [보내기] · [버리기].
  * 글은 textContent · value 로만 넣는다. 서버로 가는 주소는 없다(함수만).
+ * 접목 두 줄(근거 칩 · 할 일 제안 줄 — 설계서 2026-11-14-foms-graft 3.9)은 wam-graft.js 가 그린다. 상담 관리 칸이 켜졌을 때만
+ * 실리고, 이 파일은 그 다리(window.FOMS_WAM_GRAFT)에 함수 답 · 보낼 값만 넘긴다(없으면 지금 그대로).
  */
 (function () {
   'use strict';
@@ -26,6 +28,7 @@
     retry: $('cs-wam-retry'), discard: $('cs-wam-discard')
   };
   var wam = window.ChannelIOWam;
+  var graft = window.FOMS_WAM_GRAFT || null; // 접목 두 줄(wam-graft.js — 상담 관리 칸 켬일 때만 실린다)
   var HEIGHT = { small: 220, edit: 470, detail: 580 };
   var SENT_CLOSE_MS = 1000;
 
@@ -104,8 +107,9 @@
       list([]);
       show([]);
       if (editBox) editBox.hidden = true;
-      size(HEIGHT.small);
-      window.setTimeout(close, SENT_CLOSE_MS);
+      var done = graft ? graft.after(result, SENT_CLOSE_MS) : { px: 0, wait: SENT_CLOSE_MS };
+      size(HEIGHT.small + done.px);
+      if (done.wait) window.setTimeout(close, done.wait);
       return;
     }
     list(reasonsOf(result));
@@ -133,6 +137,8 @@
       if (why) params.edit_detail = why;
     }
     if (withConfirm && state.confirm) params.confirm = state.confirm;
+    var picked = graft ? graft.params() : {};
+    Object.keys(picked).forEach(function (key) { params[key] = picked[key]; });
     lock(true);
     say('보내는 중이에요.');
     show([]);
@@ -180,7 +186,7 @@
       var withDetail = Boolean(result.detail && detailBox);
       if (detailBox) detailBox.hidden = !withDetail;
       if (withDetail && result.max_detail) detail.maxLength = result.max_detail;
-      size(withDetail ? HEIGHT.detail : HEIGHT.edit);
+      size((withDetail ? HEIGHT.detail : HEIGHT.edit) + (graft ? graft.fill(result) : 0));
       editBox.hidden = false;
       text.maxLength = result.max_text || 1000;
       text.value = result.draft || '';
@@ -224,5 +230,7 @@
   buttons.toEdit.addEventListener('click', edit);
   buttons.discard.addEventListener('click', discard);
   if (arg('mode') === 'edit') edit();
-  else send(false);
+  else if (graft && graft.holdSend) {
+    graft.hold({ call: call, send: function () { send(false); }, size: size, say: say, show: show, small: HEIGHT.small });
+  } else send(false);
 }());

@@ -1,0 +1,14 @@
+{#- 승인 대기의 '판 · 기록' 보기(?tab=releases) — 판 목록 · 차이 요약 · 층 되돌리기(ADMIN 만 — 같은 판 번호를 한 번 더 눌러 확인).
+    목록은 ds-inbox-releases.js 가 GET /api/brain/releases 로 읽는다. -#}
+<header class="f-row">
+  <h1 class="f-h3 fb-pc-only">판 · 기록</h1>
+  <span class="f-muted">판은 하루에 하나씩 생겨요. 층 되돌리기는 사장님만 하고, 되돌려도 기록은 남아요.
+    지식 하나만 되돌릴 땐 그 지식의 '수정 기록'에서 해요.</span>
+</header>
+<p class="fb-status" data-ds-releases-status role="status" aria-live="polite"></p>
+<ol class="f-col fb-cards" data-ds-releases></ol>
+<nav class="f-row" aria-label="판 목록 쪽">
+  <button class="f-btn f-btn-small" type="button" data-ds-releases-prev disabled>{{ ds.icon('chevron-left') }}이전</button>
+  <span class="f-small f-muted f-num" data-ds-releases-text></span>
+  <button class="f-btn f-btn-small" type="button" data-ds-releases-next disabled>다음{{ ds.icon('chevron-right') }}</button>
+</nav>

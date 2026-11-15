@@ -498,9 +498,40 @@ def update_order_field_response(
     *,
     clean_dict_like_name: Callable[[Any], str],
 ):
-    """Update legacy order fields while keeping the ERP Beta sync contract intact."""
+    """Update legacy order fields — 요청 본문 · 세션 사용자를 읽어 본체 :func:`update_order_field_from_payload` 에 넘긴다.
+
+    승인 대기 '방문 옮기기(실측)' 실행기도 같은 본체를 부른다(D206 · 설계서 2026-11-14-foms-graft 3.12).
+    """
+    return update_order_field_from_payload(
+        request.get_json() or {}, session.get("user_id"), session.get("username"),
+        clean_dict_like_name=clean_dict_like_name,
+    )
+
+
+def update_order_field_from_payload(
+    data: Any,
+    user_id: Any,
+    username: Any,
+    *,
+    clean_dict_like_name: Callable[[Any], str],
+):
+    """Update legacy order fields while keeping the ERP Beta sync contract intact.
+
+    떼어 낼 때 바꾼 것은 요청 본문 · 세션 사용자 번호(``session.get`` · ``session[...]``) · 세션 아이디를 인자로
+    받은 것뿐이다 — 판정 · 순서 · 글 · 로그 · 커밋 자리는 그대로다. 로그인(장식자)과 앞 문지기(주문 정책 가드)는
+    부르는 쪽 몫이다. ``as_completed_date`` 칸은 지금처럼 요청 맥락(세션 · ``Idempotency-Key``)을 쓰는
+    :func:`_bridge_as_completed_date` 로 간다 — 지금 길에서만 오는 칸이다(실행기는 ``measurement_date`` 만 넘긴다).
+
+    Args:
+        data: 요청 본문 dict(``order_id`` · ``field``/``field_name`` · ``value``/``new_value`` …).
+        user_id: 고치는 사용자 번호(지금 길은 ``session['user_id']``).
+        username: 고치는 사람 아이디(지금 길은 ``session['username']`` — 알림의 이름 대신 값).
+        clean_dict_like_name: 담당자 이름 정리 함수(``foms.services.erp_display.clean_dict_like_name``).
+
+    Returns:
+        Flask 답(지금 길이 그대로 돌려준다).
+    """
     db = get_db()
-    data = request.get_json() or {}
 
     order_id = data.get("order_id")
     field = data["field"] if "field" in data else data.get("field_name")
@@ -512,7 +543,7 @@ def update_order_field_response(
 
     status_snapshot = getattr(order, "status", None)
 
-    user = get_user_by_id(session.get("user_id")) if session.get("user_id") else None
+    user = get_user_by_id(user_id) if user_id else None
     if not user:
         return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
 
@@ -612,7 +643,7 @@ def update_order_field_response(
                 after=getattr(order, "status", None), has_before=True,
                 **complete_audit_context,
             ),
-            session["user_id"],
+            user_id,
             auto_commit=False,
             action="ORDER_STATUS_CHANGED", target_type="order", target_id=order.id,
             detail={"field": "status", "before": old_status_for_complete,
@@ -870,7 +901,7 @@ def update_order_field_response(
                         old_sd_snapshot,
                         structured_data,
                         actor_user_id=getattr(user, "id", None),
-                        actor_name=getattr(user, "name", None) or session.get("username") or "SYSTEM",
+                        actor_name=getattr(user, "name", None) or username or "SYSTEM",
                         old_notes=getattr(order, "notes", None),
                         new_notes=getattr(order, "notes", None),
                         old_is_regional=getattr(order, "is_regional", None),
@@ -899,7 +930,7 @@ def update_order_field_response(
                         "construction_date",
                         f"{_date_to_md(_pc_from)} → {_date_to_md(_pc_to)}",
                         actor_user_id=getattr(user, "id", None),
-                        actor_name=getattr(user, "name", None) or session.get("username") or "SYSTEM",
+                        actor_name=getattr(user, "name", None) or username or "SYSTEM",
                     )
                 except Exception:
                     current_app.logger.warning(
@@ -935,7 +966,7 @@ def update_order_field_response(
         recorded_rows = record_field_changes(
             db, ledger_changes,
             order_id=int(order.id),
-            actor_user_id=session.get("user_id"),
+            actor_user_id=user_id,
             change_set_id=change_set_id,
         )
 
@@ -959,7 +990,7 @@ def update_order_field_response(
                 order_id=order.id, field=field, before=old_value, after=value,
                 has_before=True, **audit_context,
             ),
-            session["user_id"],
+            user_id,
             auto_commit=False,
             action="ORDER_STATUS_CHANGED" if field == "status" else "ORDER_FIELD_UPDATED",
             target_type="order", target_id=order.id,
@@ -1086,5 +1117,6 @@ __all__ = [
     "ORDER_UPDATE_ALLOWED_FIELDS",
     "STRUCTURED_SYNC_FIELDS",
     "ensure_path",
+    "update_order_field_from_payload",
     "update_order_field_response",
 ]

@@ -1,0 +1,42 @@
+{#- 지식 카드 머리(판 ⑧): 길 표시(회사 지식 › 유형 › 이름) · 유형 꼬리표(그 유형 지식 표로) · 이름 · 층 · 브랜드 · 꼬리표 줄 · 글.
+    꼬리표 줄은 사람이 읽는 것만(옛 카드 설계서 7.9 화면 6 과 같은 차례): 상태(사용 중 초록 · 초안 파랑 · 은퇴 빨강 — 무채색 없음) ·
+    기간 끝남 · 낡음 · 승인을 기다리는 수정(승인 대기로) · 손님에게 말하지 않음 · 효력 없음 까닭 · 엇갈림. -#}
+{%- set status_tone = {'active': ('success', False), 'draft': ('primary', True), 'retired': ('danger', True)}.get(it.status, ('primary', True)) %}
+{%- set brand_name = brand_labels.get(it.brand, it.brand) or '' %}
+{%- set layer_name = layer_labels.get(it.layer, it.layer) or '' %}
+<nav class="f-breadcrumbs" aria-label="길 표시">
+  <a href="{{ url_for('brain_web.index', tab='search') }}">회사 지식</a>{{ ds.icon('chevron-right') }}
+  <a href="{{ url_for('brain_web.index', tab='table', type=it.type) }}">{{ type_label }}</a>{{ ds.icon('chevron-right') }}
+  <span class="f-current">{{ title_name }}</span>
+</nav>
+
+<header class="f-col fb-item-head">
+  <div class="f-row">
+    <a class="f-tag f-tag-large f-tag-minimal f-tag-primary" href="{{ url_for('brain_web.index', tab='table', type=it.type) }}"
+       title="{{ type_label }} 지식 표로">{{ ds.icon(type_icons.get(it.type, 'circle')) }}{{ type_label }}</a>
+    <h1 class="f-h3">{{ title_name }}</h1>
+    <span class="f-small f-muted">{{ layer_name if layer_name.startswith(brand_name) else layer_name ~ ' · ' ~ brand_name }}</span>
+  </div>
+  <div class="f-row f-gap4" data-ds-item-tags>
+    {{ ds.tag('사용 중' if it.status == 'active' else status_labels.get(it.status, it.status), status_tone[0], minimal=status_tone[1]) }}
+    {%- if it.ended %}{{ ds.tag('기간 끝남 — 찾기 · 표 · 연결에서 빠져요', 'warning', minimal=True, icon_name='time') }}{% endif %}
+    {%- if it.stale %}{{ ds.tag('낡음 — 다시 확인할 때', 'warning', minimal=True, icon_name='refresh') }}{% endif %}
+    {%- if it.open_changes %}
+    <a class="f-tag f-tag-minimal f-tag-warning" href="{{ url_for('brain_web.index', tab='inbox') }}" data-ds-item-open-changes>
+      {{- ds.icon('time') }}승인을 기다리는 수정 {{ it.open_changes }}개</a>
+    {%- endif %}
+    {%- if it.internal %}{{ ds.tag('손님에게 말하지 않음 — AI 는 판단에만 써요', 'primary', minimal=True, icon_name='eye-off') }}{% endif %}
+    {%- if not card.effect.effective %}
+    {%- if it.status == 'draft' %}{{ ds.tag('아직 안 쓰여요', 'primary', minimal=True) }}{% endif %}
+    {%- if it.status == 'retired' %}{{ ds.tag('더는 안 쓰여요', 'danger', minimal=True) }}{% endif %}
+    {%- if card.effect.not_yet %}{{ ds.tag(it.valid_from ~ '부터 쓰여요', 'warning', minimal=True) }}{% endif %}
+    {%- for by in card.effect.superseded_by %}
+    <span class="f-tag f-tag-minimal f-tag-warning" data-brain-superseded-by="{{ by }}">사장님 결정으로 대체됐어요</span>
+    {%- endfor %}
+    {%- endif %}
+    {%- if card.open_conflicts %}
+    <span class="f-tag f-tag-minimal f-tag-danger" data-brain-open-conflicts>{{ ds.icon('warning-sign') }}엇갈림 {{ card.open_conflicts }}건 — 확인해 주세요</span>
+    {%- endif %}
+  </div>
+  {%- if it.text %}<p class="f-large fb-item-text">{{ it.text }}</p>{% endif %}
+</header>

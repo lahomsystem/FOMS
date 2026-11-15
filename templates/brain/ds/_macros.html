@@ -1,0 +1,44 @@
+{#- 새 회사 지식 화면 작은 부품(설계서 5.1 — class 는 static/css/contexts/brain/ds/foms-ds.css 의 이름 그대로). 쓰는 법:
+    {% import "brain/ds/_macros.html" as ds %} 뒤 {{ ds.icon('inbox') }} · {{ ds.chip('주문 #12', href, 'cube') }} …
+    글은 모두 Jinja 자동 escape. 인라인 스타일 없음 — 모양은 class 로만. -#}
+
+{#- 아이콘 — name 은 'i-' 뺀 Blueprint 이름(inbox · search · chat …), extra 는 더할 class(f-i-muted · f-i-primary · f-i-20 …). -#}
+{% macro icon(name, extra='') -%}
+<span class="f-i i-{{ name }}{{ ' ' ~ extra if extra else '' }}" aria-hidden="true"></span>
+{%- endmacro %}
+
+{#- 근거 칩 — AI 가 쓴 물건으로 가는 링크(href 가 없으면 span). -#}
+{% macro chip(text, href='', icon_name='', extra='') -%}
+{% if href %}<a class="f-chip{{ ' ' ~ extra if extra else '' }}" href="{{ href }}">{% else %}<span class="f-chip{{ ' ' ~ extra if extra else '' }}">{% endif -%}
+{%- if icon_name %}{{ icon(icon_name) }}{% endif %}{{ text }}
+{%- if href %}</a>{% else %}</span>{% endif %}
+{%- endmacro %}
+
+{#- 꼬리표 — tone: '' · primary · success · warning · danger, minimal=True 면 옅은 바탕, st 는 주문 상태 갈래(talk · contract …). -#}
+{% macro tag(text, tone='', minimal=False, st='', icon_name='', round=False) -%}
+<span class="f-tag{{ ' f-tag-minimal' if minimal else '' }}{{ ' f-tag-' ~ tone if tone else '' }}{{ ' st-' ~ st if st else '' }}{{ ' f-tag-round' if round else '' }}">
+{%- if icon_name %}{{ icon(icon_name) }}{% endif %}{{ text }}</span>
+{%- endmacro %}
+
+{#- 수 — primary=True 면 파란 바탕. key 를 주면 data-ds-count="<key>"(ds-shell.js 가 고친다). -#}
+{% macro count(n, primary=False, key='') -%}
+<span class="f-count{{ ' f-count-primary' if primary else '' }}"{% if key %} data-ds-count="{{ key }}"{% endif %}>{{ n }}</span>
+{%- endmacro %}
+
+{#- 길잡이 줄 — 왼쪽 길잡이(f-side) 한 줄. current=True 면 aria-current="page". n 이 None 이면 수를 안 그린다. -#}
+{% macro nav_item(href, label, icon_name='', n=None, current=False, key='', muted=False) -%}
+<a class="f-nav-item{{ ' is-selected' if current else '' }}{{ ' fb-nav-item--muted' if muted else '' }}" href="{{ href }}"
+   {%- if current %} aria-current="page"{% endif %}{% if key %} data-ds-nav="{{ key }}"{% endif %}>
+{%- if icon_name %}{{ icon(icon_name) }}{% endif %}{{ label }}{% if n is not none %}{{ count(n, key=key) }}{% endif %}</a>
+{%- endmacro %}
+
+{#- 길잡이 묶음 머리 — 왼쪽 길잡이 안 작은 제목. -#}
+{% macro nav_heading(text) -%}
+<div class="f-nav-heading">{{ text }}</div>
+{%- endmacro %}
+
+{#- 빈 화면 — 아이콘 + 한 줄(+ 작은 도움 글). -#}
+{% macro empty(text, icon_name='info-sign', help='') -%}
+<div class="f-empty" data-ds-empty>{{ icon(icon_name, 'f-i-20') }}<p>{{ text }}</p>
+{%- if help %}<p class="f-small">{{ help }}</p>{% endif %}</div>
+{%- endmacro %}

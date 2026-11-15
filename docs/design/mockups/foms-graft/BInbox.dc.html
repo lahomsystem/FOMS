@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>승인 대기</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="foms-ds.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="f-app f-shell" style="width: 100%; min-height: 1000px;">
+  <nav class="f-navbar" aria-label="위 줄">
+    <a class="f-btn f-btn-minimal" href="NowPC.dc.html"><span class="f-i i-arrow-left" aria-hidden="true"></span>FOMS</a>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <span class="f-i i-lightbulb f-i-primary" aria-hidden="true"></span>
+    <span class="f-navbar-title">회사 지식</span>
+    <span class="f-navbar-divider" aria-hidden="true"></span>
+    <a class="f-btn f-btn-minimal is-active" href="BInbox.dc.html" aria-current="page"><span class="f-i i-inbox" aria-hidden="true"></span>승인 대기<span class="f-count f-count-primary">14</span></a>
+    <a class="f-btn f-btn-minimal" href="BSearch.dc.html"><span class="f-i i-search" aria-hidden="true"></span>찾기</a>
+    <a class="f-btn f-btn-minimal" href="BAsk.dc.html"><span class="f-i i-chat" aria-hidden="true"></span>물어보기</a>
+    <a class="f-btn f-btn-minimal" href="BOnto.dc.html"><span class="f-i i-layout-hierarchy" aria-hidden="true"></span>온톨로지</a>
+    <a class="f-btn f-btn-minimal" href="BAgents.dc.html"><span class="f-i i-predictive-analysis" aria-hidden="true"></span>AI 직원</a>
+    <span class="f-input-group f-push"><span class="f-i i-search" aria-hidden="true"></span><input class="f-input" type="search" aria-label="회사 지식 찾기" placeholder="지식 · 유형 · 할 일 이름"></span>
+    <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-user" aria-hidden="true"></span>사장님</button>
+  </nav>
+
+  <div class="f-body">
+    <nav class="f-side" aria-label="승인 대기 길잡이">
+      <a class="f-nav-item is-selected" href="#" aria-current="page"><span class="f-i i-inbox" aria-hidden="true"></span>모두<span class="f-count">14</span></a>
+
+      <div class="f-nav-heading f-row-nw">AI 할 일 제안<span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></div>
+      <sc-for list="{{agents}}" as="a" hint-placeholder-count="3">
+        <a class="f-nav-item" href="#"><span class="f-i {{a.icon}}" aria-hidden="true"></span>{{a.name}}<span class="f-count">{{a.n}}</span></a>
+      </sc-for>
+
+      <div class="f-nav-heading">지식 고침</div>
+      <sc-for list="{{bins}}" as="b" hint-placeholder-count="6">
+        <a class="f-nav-item" href="#" style="{{b.cls}}">{{b.short}}<span class="f-count">{{b.n}}</span></a>
+      </sc-for>
+
+      <div class="f-nav-heading">점검</div>
+      <a class="f-nav-item" href="#"><span class="f-i i-refresh" aria-hidden="true"></span>다시 확인<span class="f-count">5</span></a>
+      <a class="f-nav-item" href="#"><span class="f-i i-history" aria-hidden="true"></span>판 · 기록</a>
+      <a class="f-nav-item" href="#"><span class="f-i i-time" aria-hidden="true"></span>나중에 볼 것<span class="f-count">2</span></a>
+
+      <div class="f-callout" style="margin: 16px 0 0; word-break: keep-all;">
+        <span class="f-i i-mobile-phone" aria-hidden="true"></span>
+        <span class="f-small">휴대폰에서는 칸 하나만 바뀌는 제안만 승인할 수 있어요. 나머지는 PC 에서 해 주세요.</span>
+      </div>
+    </nav>
+
+    <main class="f-main">
+      <header class="f-row">
+        <h1 class="f-h3">승인 대기</h1>
+        <span class="f-muted">승인하면 바로 바뀌고, 바뀌기 전 내용은 수정 기록에 남아요.</span>
+      </header>
+
+      <div class="f-card f-card-compact f-row f-gap24">
+        <sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+          <span class="f-row-nw f-gap4"><span class="f-small f-muted">{{s.label}}</span><span class="f-h4 f-num">{{s.value}}</span><span class="f-small f-muted">{{s.unit}}</span></span>
+        </sc-for>
+        <span class="f-small f-muted f-push">어림 = 한 장에 드는 시간 × 장 수</span>
+      </div>
+
+      <section class="f-section" aria-label="AI 할 일 제안">
+        <div class="f-section-head">
+          <span class="f-i i-predictive-analysis f-i-muted" aria-hidden="true"></span>
+          <span class="f-section-title">AI 할 일 제안</span>
+          <span class="f-count">7</span>
+          <span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span>
+          <span class="f-section-sub f-push">AI 직원이 FOMS 할 일을 제안해요 · 승인 전에는 아무것도 안 바뀌어요</span>
+        </div>
+        <div class="f-section-body">
+          <sc-for list="{{erp}}" as="p" hint-placeholder-count="3">
+            <article class="f-ai-card is-proposal" style="{{p.style}}">
+              <div class="f-row">
+                <span class="f-ai-mark"><span class="f-i {{p.icon}}" aria-hidden="true"></span>{{p.who}}</span>
+                <span class="f-strong">{{p.title}}</span>
+                <span class="f-small f-muted f-push">{{p.when}}</span>
+              </div>
+              <div class="f-row f-gap4">
+                <span class="f-small f-muted" style="margin-right: 4px;">근거</span>
+                <sc-for list="{{p.chips}}" as="c" hint-placeholder-count="3">
+                  <a class="f-chip" href="{{c.href}}"><span class="f-i {{c.icon}}" aria-hidden="true"></span>{{c.text}}</a>
+                </sc-for>
+              </div>
+              <div class="f-row">
+                <span class="f-small f-muted">{{p.field}}</span>
+                <span class="f-muted">{{p.before}}</span>
+                <span class="f-i i-arrow-right f-i-muted" aria-hidden="true"></span><span class="f-sr">에서</span>
+                <span class="f-strong">{{p.after}}</span>
+                <span class="f-row f-push">
+                  <button class="f-btn f-btn-small f-btn-primary" type="button"><span class="f-i i-tick" aria-hidden="true"></span>승인</button>
+                  <button class="f-btn f-btn-small" type="button">자세히</button>
+                  <button class="f-btn f-btn-small f-btn-minimal" type="button">거절</button>
+                </span>
+              </div>
+            </article>
+          </sc-for>
+          <div class="f-row f-small f-muted">
+            <span>7개 중 3개 · 남은 것 상담 AI 2 · 일정 AI 1 · 운영 AI 1</span>
+            <button class="f-btn f-btn-minimal f-btn-small f-push" type="button">4개 더 보기<span class="f-i i-chevron-down" aria-hidden="true"></span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="f-section" aria-label="지식 고침">
+        <div class="f-section-head">
+          <span class="f-i i-lightbulb f-i-muted" aria-hidden="true"></span>
+          <span class="f-section-title">지식 고침</span>
+          <span class="f-count">7</span>
+          <span class="f-section-sub">묶음마다 한 줄 · 열면 그 묶음 카드만 보여요</span>
+          <button class="f-btn f-btn-small f-push" type="button"><span class="f-i i-endorsed" aria-hidden="true"></span>등급 A 2개 모두 승인</button>
+        </div>
+        <ol class="f-section-body-flush">
+          <sc-for list="{{openBins}}" as="b" hint-placeholder-count="3">
+            <li style="display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 4px 16px; align-items: center; padding: 9px 20px; box-shadow: inset 0 1px 0 var(--divider);">
+              <div class="f-col f-gap4">
+                <span class="f-row f-gap4"><span class="f-strong">{{b.title}}</span><span class="f-count">{{b.n}}</span></span>
+                <span class="f-small f-muted">{{b.line}}</span>
+                <span class="f-row-nw f-small"><span class="f-i i-document f-i-muted" aria-hidden="true"></span><span class="f-ellipsis">{{b.peek}}</span></span>
+              </div>
+              <div class="f-row">
+                <span class="f-small f-muted f-num">약 {{b.mins}}분</span>
+                <button class="f-btn f-btn-small f-btn-primary" type="button">열기</button>
+              </div>
+            </li>
+          </sc-for>
+          <li class="f-small f-muted" style="padding: 8px 20px; box-shadow: inset 0 1px 0 var(--divider);">① 한글 이름 붙이기 · ④ 같은 값이 적힌 곳 표시 · ⑤ 계산기 제품 · 옵션 은 지금 없어요</li>
+        </ol>
+      </section>
+    </main>
+
+    <aside class="f-aside" aria-label="제안 자세히">
+      <div class="f-aside-head">
+        <span class="f-ai-mark"><span class="f-i i-calendar" aria-hidden="true"></span>일정 AI</span>
+        <span class="f-section-title">제안 자세히</span>
+        <button class="f-btn f-btn-minimal f-btn-small f-push" type="button" aria-label="옆 창 닫기"><span class="f-i i-cross" aria-hidden="true"></span></button>
+      </div>
+      <div class="f-aside-body">
+        <div class="f-col f-gap4">
+          <span class="f-row f-gap4"><span class="f-type"><span class="f-i i-flash" aria-hidden="true"></span>ERP 할 일 · 방문 옮기기</span><span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></span>
+          <h2 class="f-h5">방문 옮기기 — L-24133 금 20 → 토 21</h2>
+          <span class="f-small f-muted">오늘 09:14 · 손님 상담에서 나옴</span>
+        </div>
+
+        <div class="f-col f-gap4">
+          <span class="f-h6">이유</span>
+          <p>손님이 채널톡으로 토요일 오전이 좋다고 했어요. 2팀이 11-21 오전에 비어 있고, 생산은 11-18 에 끝나요.</p>
+        </div>
+
+        <div class="f-col f-gap4">
+          <span class="f-h6">근거</span>
+          <div class="f-row f-gap4">
+            <a class="f-chip" href="NowWam.dc.html"><span class="f-i i-chat" aria-hidden="true"></span>상담 · "토요일 되나요"</a>
+            <a class="f-chip" href="BItem.dc.html"><span class="f-i i-lightbulb" aria-hidden="true"></span>지식 · 주말 시공은 토요일 오전만</a>
+            <a class="f-chip" href="NowPC.dc.html"><span class="f-i i-cube" aria-hidden="true"></span>주문 L-24133</a>
+            <a class="f-chip" href="#"><span class="f-i i-calendar" aria-hidden="true"></span>2팀 11-21 빔</a>
+          </div>
+        </div>
+
+        <div class="f-col f-gap4">
+          <span class="f-h6">바뀌는 칸</span>
+          <div class="f-section">
+            <table class="f-table f-table-compact" style="font-size: 12px;">
+              <thead><tr><th>칸</th><th>지금</th><th>승인하면</th></tr></thead>
+              <tbody>
+                <tr><td class="f-td-nw f-muted">방문 날짜</td><td class="f-td-nw">11-20 금 오전</td><td class="f-td-nw f-strong">11-21 토 오전</td></tr>
+                <tr><td class="f-td-nw f-muted">2팀 일정</td><td class="f-td-nw">11-21 오전 빔</td><td class="f-td-nw f-strong">L-24133 시공</td></tr>
+                <tr><td class="f-td-nw f-muted">손님 알림톡</td><td class="f-td-nw">없음</td><td class="f-strong">날짜 안내 1건</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="f-col f-gap4">
+          <span class="f-h6">승인하면 차례로</span>
+          <ol class="f-col f-gap4 f-small">
+            <li class="f-row-nw"><span class="f-tag f-tag-minimal f-tag-round">1</span>FOMS 일정 바꾸기 — 지금 쓰는 그 기능</li>
+            <li class="f-row-nw"><span class="f-tag f-tag-minimal f-tag-round">2</span>2팀 폰 알림 1건</li>
+            <li class="f-row-nw"><span class="f-tag f-tag-minimal f-tag-round">3</span>손님 알림톡 1건 — 날짜 안내</li>
+          </ol>
+          <span class="f-why" style="align-items: flex-start; word-break: keep-all;"><span class="f-i i-automatic-updates" aria-hidden="true"></span>승인하면 지금 FOMS 의 일정 바꾸기가 그대로 돌아요 · 할 일 기록에 남아요</span>
+        </div>
+
+        <div class="f-card f-card-compact f-col">
+          <div class="f-row"><span class="f-small">일정 AI · 방문 옮기기 2주 승인율</span><span class="f-strong f-num f-push">88%</span></div>
+          <div class="f-progress f-progress-success" role="img" aria-label="승인율 88%"><span style="width: 88%;"></span></div>
+        </div>
+
+        <div class="f-col">
+          <div class="f-row">
+            <button class="f-btn f-btn-primary" type="button"><span class="f-i i-tick" aria-hidden="true"></span>승인</button>
+            <button class="f-btn" type="button"><span class="f-i i-edit" aria-hidden="true"></span>고쳐서 승인</button>
+            <button class="f-btn f-btn-minimal" type="button"><span class="f-i i-time" aria-hidden="true"></span>나중에</button>
+          </div>
+          <span class="f-h6" style="margin-top: 4px;">거절 — 까닭 하나 누르면 끝</span>
+          <div class="f-row f-gap4" role="group" aria-label="거절 까닭">
+            <sc-for list="{{reasons}}" as="r" hint-placeholder-count="5">
+              <button class="f-btn f-btn-small f-btn-outlined" type="button">{{r}}</button>
+            </sc-for>
+          </div>
+          <span class="f-help">거절 까닭은 일정 AI 가 다음 제안에 배워요. 같은 제안이 다시 오지 않아요.</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (icon, text, href) => ({ icon, text, href: href || '#' });
+    return {
+      agents: [
+        { name: '상담 AI', icon: 'i-chat', n: 3 },
+        { name: '일정 AI', icon: 'i-calendar', n: 2 },
+        { name: '운영 AI', icon: 'i-predictive-analysis', n: 2 }
+      ],
+      bins: [
+        { short: '① 한글 이름 붙이기', n: 0, cls: 'color: var(--text-muted);' },
+        { short: '② 새로 · 바뀌는 지식', n: 4, cls: '' },
+        { short: '③ 사장님이 정할 것', n: 1, cls: '' },
+        { short: '④ 같은 값 표시', n: 0, cls: 'color: var(--text-muted);' },
+        { short: '⑤ 계산기 제품 · 옵션', n: 0, cls: 'color: var(--text-muted);' },
+        { short: '⑥ 규칙 잇기', n: 2, cls: '' }
+      ],
+      stats: [
+        { label: '오늘 결정할 것', value: '14', unit: '개' },
+        { label: '어림', value: '6', unit: '분' },
+        { label: 'AI 할 일 제안', value: '7', unit: '개' },
+        { label: '지식 고침', value: '7', unit: '개' }
+      ],
+      erp: [
+        { who: '일정 AI', icon: 'i-calendar', title: '방문 옮기기 — L-24133 금 20 → 토 21', when: '09:14',
+          style: 'box-shadow: inset 0 0 0 2px var(--blue3);',
+          chips: [chip('i-chat', '상담 · "토요일 되나요"', 'NowWam.dc.html'), chip('i-lightbulb', '지식 · 주말 시공', 'BItem.dc.html'), chip('i-cube', '주문 L-24133', 'NowPC.dc.html')],
+          field: '방문 날짜', before: '11-20 금 오전', after: '11-21 토 오전' },
+        { who: '상담 AI', icon: 'i-chat', title: 'AS 접수 — 주문 L-24117 문 경첩 소리', when: '08:52', style: '',
+          chips: [chip('i-camera', '상담 · 사진 1장', 'NowWam.dc.html'), chip('i-lightbulb', '지식 · AS 무상 1년', 'BItem.dc.html'), chip('i-cube', '주문 L-24117', 'NowPC.dc.html')],
+          field: 'AS 건', before: '없음', after: '경첩 소리 · 사진 1장 접수' },
+        { who: '운영 AI', icon: 'i-predictive-analysis', title: '단계 넘기기 — 생산 끝 3건 → 출고 대기', when: '08:00', style: '',
+          chips: [chip('i-build', '생산 기록 · 끝 3건'), chip('i-lightbulb', '지식 · 공정 단계 출고 대기', 'BItem.dc.html'), chip('i-cube', '주문 H-24125 외 2', 'NowPC.dc.html')],
+          field: '주문 단계', before: '생산', after: '출고 대기 · 3건' }
+      ],
+      openBins: [
+        { title: '② 새로 들어가거나 바뀌는 지식', n: 4, mins: 2,
+          line: '새로 들어가거나 바뀌는 내용이에요. 맞는지만 봐 주세요.',
+          peek: '첫 장 · 제작 조건 — 신발장 폭 1,500mm 까지 (새로)' },
+        { title: '③ 사장님이 정해 주실 것', n: 1, mins: 1,
+          line: '두 곳에 다르게 적힌 내용이에요. 맞는 쪽을 골라 주세요.',
+          peek: '정책 — 계약금 돌려주기: 지식 "계약 뒤 7일" · 스토어 상세 "계약 뒤 3일"' },
+        { title: '⑥ 규칙 잇기', n: 2, mins: 1,
+          line: '정책 · 가격 규칙이 어느 제품 · 옵션, 어느 공정 단계에 걸리는지 이어요. 글 · 금액은 그대로예요.',
+          peek: '상판 두께 규격 → 걸린 공정 단계 · 상판 재단' }
+      ],
+      reasons: ['날짜가 틀림', '손님 말을 잘못 읽음', '팀 자리 없음', '이미 처리함', '그 밖']
+    };
+  }
+}
+</script>
+</body>
+</html>

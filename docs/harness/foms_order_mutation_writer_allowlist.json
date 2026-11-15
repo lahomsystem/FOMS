@@ -187,6 +187,12 @@
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01",
       "reason": "생산 파트 표시가 주문 공정 칸을 바꿀 때(설계서 tablet-production-ui §15.5 동기화) REV-00 execute_order_mutation 콜백 안에서 deepcopy → 재대입 → flag_modified 로만 쓴다."
+    },
+    {
+      "path": "foms/services/orders/construction_note.py",
+      "classification": "CANONICAL",
+      "owner": "GRAFT-T7",
+      "reason": "시공 메모 한 줄 더하기(add_construction_note — 설계서 2026-11-14-foms-graft 3.3) — 실행기가 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 깊은 복사 · 재대입 · flag_modified 는 execute_single_order_write 콜백(→ REV-00 execute_order_mutation, version bump + receipt) 안에서만 한다."
     }
   ]
 }

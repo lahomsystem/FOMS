@@ -14,6 +14,14 @@
   꺼져 있어도 설정을 보려고 · 층 승인자 MANAGER 는 단계 ``leads`` 이상 · 켬). 회사 지식 화면을 못 여는 직원이 여는 단계 안이면
   ``/brain`` 이 물어보기만 있는 ``/brain/ask`` 로 보낸다(그 밖 404). 답 · 근거 칩 · 피드백은 ``brain-ask.js`` 가 JSON API
   (:mod:`foms.api.brain_chat`)로 읽고 쓴다.
+- **새 화면**(설계서 2026-11-14-foms-graft 5.2) — 접목판 ``brain_ui`` 스위치(:mod:`foms.services.graft_flags`)가 켜진 사람만
+  ``templates/brain/ds/`` 의 혼자 서는 문서(탭마다 화면 하나 · :data:`DS_SECTIONS`)를 그린다. 꺼진 사람은 옛 화면 그대로.
+  권한(404 · 물어보기만 여는 직원 보내기)은 같은 판정이고, AI 직원 탭(``?tab=agents``)만 새로 ADMIN + 화면 여는 MANAGER.
+- **AI 할 일 제안만 보는 사람**(설계서 2026-11-14-foms-graft 3.5) — 회사 지식 화면은 못 열지만
+  :func:`foms.services.erp_actions.access.actions_viewer` 인 직원은 ``/brain`` · ``/brain?tab=inbox`` 에서 새 승인 대기 화면을
+  **AI 할 일 제안 칸만** 연다(지식 칸 · 다른 탭은 지금 규칙 그대로). 스위치가 꺼지면 지금과 같다.
+- 지금 화면의 분홍 칸(설계서 6절)은 템플릿 전역 :func:`graft_cell_slot` · :func:`graft_cells_any` 로 자리만 가른다(전역 스위치 —
+  사람마다 다른 값을 미리 그려 두는 조각에 넣지 않는다).
 """
 
 from __future__ import annotations
@@ -39,14 +47,30 @@ from foms.services.brain.display import (
 )
 from foms.services.brain.inbox import inbox_counts
 from foms.services.brain.recheck import recheck_counts
-from foms.services.brain.scope import viewer_of
+from foms.services.brain.scope import ROLE_MANAGER, viewer_of
 from foms.services.brain.schemas import payload_props
+from foms.services import graft_flags
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.erp_actions.access import actions_viewer
 from foms.web.auth import login_required
 
 brain_web_bp = Blueprint("brain_web", __name__)
 
 TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "onto", "ask")
+#: 새 화면(접목판 ``brain_ui`` 스위치 — 설계서 2026-11-14-foms-graft 5.2)의 탭 — 옛 탭 + AI 직원. 옛 ``TABS`` 는 그대로 둔다.
+DS_TABS: tuple[str, ...] = (*TABS, "agents")
+#: 새 화면 탭 → 화면(위 줄 · 아래 탭의 자리, 템플릿 ``brain/ds/<화면>.html``) — 설계서 5.2 표.
+DS_SECTIONS: dict[str, str] = {
+    "inbox": "inbox", "recheck": "inbox", "releases": "inbox", "search": "search", "table": "search",
+    "map": "onto", "onto": "onto", "ask": "ask", "agents": "agents",
+}
+#: 위 줄 탭(키 · 글 · 아이콘)과 폰 아래 탭 셋('나'는 틀이 따로 그린다).
+_DS_NAV_TABS: tuple[tuple[str, str, str], ...] = (
+    ("inbox", "승인 대기", "inbox"), ("search", "찾기", "search"), ("ask", "물어보기", "chat"),
+    ("onto", "온톨로지", "layout-hierarchy"), ("agents", "AI 직원", "predictive-analysis"),
+)
+_DS_PHONE_TABS: tuple[tuple[str, str, str], ...] = (("inbox", "승인", "inbox"), ("search", "찾기", "search"),
+                                                    ("ask", "물어보기", "chat"))
 #: 물어보기 화면을 열 수 있나를 요청 하나에 한 번만 판정해 두는 ``flask.g`` 칸 — (사용자 번호, 답).
 _G_CHAT_PAGE = "brain_chat_page_open"
 
@@ -117,13 +141,138 @@ def _chat_open() -> bool:
         db.rollback()
 
 
+@brain_web_bp.app_template_global("graft_enabled")
+def graft_enabled(name: str) -> bool:
+    """템플릿 전역 — 지금 사람에게 접목판 스위치가 켜졌나(:func:`foms.services.graft_flags.enabled`, DB 를 읽지 않는다).
+
+    Args:
+        name: 짧은 이름(``brain_ui`` · ``erp_read`` · ``actions`` · ``cell_pc`` · ``cell_tablet`` · ``cell_mobile``).
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return graft_flags.enabled(name, getattr(g, "current_user", None))
+
+
+#: 분홍 칸 자리 이름 → 접목판 스위치 짧은 이름(설계서 6절 — PC · 태블릿 · 폰).
+GRAFT_CELLS: dict[str, str] = {"pc": "cell_pc", "tablet": "cell_tablet", "mobile": "cell_mobile"}
+
+
+@brain_web_bp.app_template_global("graft_cell_slot")
+def graft_cell_slot(cell: str) -> bool:
+    """템플릿 전역 — 지금 화면에 분홍 칸 빈 자리를 그리나(전역 스위치만 — 사람 목록은 보지 않는다, DB 를 읽지 않는다).
+
+    미리 그려 두는 조각(대시보드 표 · 폰 홈)에 사람마다 다른 값을 넣지 않으려고 자리는 전역으로만 가르고, 사람마다의
+    켬은 ``static/js/foms/graft-cells.js`` 가 ``GET /api/erp-actions/badge`` 의 ``on`` 으로 본다.
+
+    Args:
+        cell: ``pc`` · ``tablet`` · ``mobile``.
+
+    Returns:
+        그 칸의 스위치가 전역으로 켜져 있으면 True(모르는 이름은 False).
+    """
+    name = GRAFT_CELLS.get(cell)
+    return bool(name) and graft_flags.enabled_global(name)
+
+
+@brain_web_bp.app_template_global("graft_cells_any")
+def graft_cells_any() -> bool:
+    """템플릿 전역 — 분홍 칸 스위치가 하나라도 전역으로 켜졌나(CSS · 스크립트 한 줄씩을 실을지)."""
+    return any(graft_cell_slot(cell) for cell in GRAFT_CELLS)
+
+
+def _lazy_inbox_count(user: Any) -> int | None:
+    """서버가 세지 않는 화면의 위 줄 승인 대기 수 — 할 일 스위치가 켜진 사람은 0 으로 자리를 그리고 틀 스크립트가
+    ``/api/erp-actions/badge`` 의 합으로 고친다(질의를 더하지 않는다). 꺼진 사람은 지금처럼 수를 안 그린다(``None``)."""
+    return 0 if graft_flags.enabled("actions", user) else None
+
+
+def _ds_on() -> bool:
+    """이 사람에게 새 화면(``brain_ui``)을 그리나 — 꺼진 사람은 옛 화면 그대로."""
+    return graft_flags.enabled("brain_ui", getattr(g, "current_user", None))
+
+
+def _agents_open(viewer: Any) -> bool:
+    """AI 직원 탭을 여나 — 화면을 여는 사람 가운데 ADMIN 과 MANAGER(설계서 5.2)."""
+    return viewer is not None and (viewer.is_admin or viewer.role == ROLE_MANAGER)
+
+
+def _ds_nav(viewer: Any, section: str, *, chat_tab: bool, inbox_count: int | None) -> dict[str, Any]:
+    """새 화면 위 줄 · 폰 아래 탭 값 — 탭은 지금 권한 그대로 가린다(화면을 못 여는 직원은 물어보기만).
+
+    Args:
+        viewer: 화면을 여는 사람의 Viewer(물어보기만 여는 직원이면 ``None``).
+        section: 지금 화면(:data:`DS_SECTIONS` 의 값).
+        chat_tab: 물어보기를 여나.
+        inbox_count: 승인 대기 수(서버가 센 지식 수 — 세지 않은 화면이면 ``None``, 수를 안 그린다).
+
+    Returns:
+        ``{"section", "screen", "tabs": [(키, 글, 아이콘, 주소)], "phone_tabs": […], "inbox_count"}``. 화면을 못 열지만
+        AI 할 일 제안을 보는 사람(:func:`actions_viewer`)에게는 승인 대기 탭도 보인다.
+    """
+    screen = viewer is not None
+    inbox_tab = screen or actions_viewer(getattr(g, "current_user", None))
+    allowed = {"inbox": inbox_tab, "search": screen, "ask": chat_tab, "onto": screen, "agents": _agents_open(viewer)}
+
+    def href(key: str) -> str:
+        return url_for("brain_web.ask_page") if key == "ask" and not screen else url_for("brain_web.index", tab=key)
+
+    return {
+        "section": section, "screen": screen, "inbox_count": inbox_count,
+        "tabs": [(k, label, icon, href(k)) for k, label, icon in _DS_NAV_TABS if allowed[k]],
+        "phone_tabs": [(k, label, icon, href(k)) for k, label, icon in _DS_PHONE_TABS if allowed[k]],
+    }
+
+
+def _render_ds_index(viewer: Any, tab: str, ctx: dict[str, Any]) -> str:
+    """새 화면 — 탭마다 그 화면 템플릿 하나(설계서 5.2 표). 옛 화면과 같은 값 전부 + ``page`` · ``ds_nav``.
+
+    Args:
+        viewer: 화면을 여는 사람.
+        tab: 주소의 탭(옛 화면과 같은 첫 탭 · 물어보기 판정을 지난 값).
+        ctx: 옛 화면에 넘기는 값 그대로.
+
+    Returns:
+        그린 HTML. AI 직원 탭을 못 여는 사람은 404.
+    """
+    tab = tab if tab in DS_TABS else "search"
+    if tab == "agents" and not _agents_open(viewer):
+        abort(404)
+    section = DS_SECTIONS[tab]
+    nav = _ds_nav(viewer, section, chat_tab=ctx["chat_tab"], inbox_count=ctx["counts"]["inbox"])
+    return render_template(f"brain/ds/{section}.html", **{**ctx, "tab": tab}, page=tab, ds_nav=nav)
+
+
+def _actions_only_inbox(user: Any) -> str | None:
+    """회사 지식 화면은 못 열지만 AI 할 일 제안을 보는 사람의 승인 대기(설계서 2026-11-14-foms-graft 3.5).
+
+    ``/brain`` · ``/brain?tab=inbox`` 만 — 새 승인 대기 화면을 AI 할 일 제안 칸만 보이게 그린다(지식 값 · 지식 API 주소를
+    싣지 않는다). 다른 탭이거나 :func:`actions_viewer` 가 아니면 ``None``(지금 규칙 그대로).
+
+    Args:
+        user: 로그인 사용자.
+
+    Returns:
+        그린 HTML 또는 ``None``.
+    """
+    if request.args.get("tab", "") not in ("", "inbox") or not actions_viewer(user):
+        return None
+    chat_tab = _chat_open()
+    nav = _ds_nav(None, "inbox", chat_tab=chat_tab, inbox_count=_lazy_inbox_count(user))
+    return render_template("brain/ds/inbox.html", page="inbox", ds_nav=nav, chat_tab=chat_tab)
+
+
 @brain_web_bp.route("/brain")
 @login_required
 def index():
     """회사 지식 — 탭(첫 탭은 내가 결정할 제안이 있으면 '승인 대기', 없으면 찾기 — 설계서 7.9). ``?tab=table&type=<유형>`` 으로
-    지식 표를 바로 연다. 화면을 못 열지만 물어보기 단계 안인 직원은 물어보기 화면으로 보낸다."""
+    지식 표를 바로 연다. 화면을 못 열지만 AI 할 일 제안을 보는 직원은 승인 대기(그 칸만), 물어보기 단계 안인 직원은
+    물어보기 화면으로 보낸다."""
     viewer = screen_viewer(getattr(g, "current_user", None))
     if viewer is None:
+        actions_page = _actions_only_inbox(getattr(g, "current_user", None))
+        if actions_page is not None:
+            return actions_page
         if _chat_open():
             return redirect(url_for("brain_web.ask_page"))
         abort(404)
@@ -140,12 +289,15 @@ def index():
         tab = "inbox" if counts["inbox"] else "search"
     if tab == "ask" and not chat_tab:
         tab = "search"
-    return render_template(
-        "brain/index.html", tab=tab if tab in TABS else "search", chat_tab=chat_tab,
+    ctx: dict[str, Any] = dict(
+        tab=tab if tab in TABS else "search", chat_tab=chat_tab,
         start_type=request.args.get("type", "") if request.args.get("type", "") in TYPES else "",
         start_query=request.args.get("q", "")[:100], tmap=tmap, display=display_table(), options=_filter_options(),
         type_display=TYPE_DISPLAY, link_display=LINK_DISPLAY, layer_labels=LAYER_LABELS, counts=counts,
         is_admin=viewer.is_admin, wide_bins=sorted(wide_bins(viewer)), actions=_screen_actions(viewer))
+    if _ds_on():
+        return _render_ds_index(viewer, tab, ctx)
+    return render_template("brain/index.html", **ctx)
 
 
 @brain_web_bp.route("/brain/items/<path:key>")
@@ -167,8 +319,14 @@ def item(key: str):
     current = {"name": it.get("name"), "text": it.get("text"), "valid_from": it.get("valid_from"),
                "valid_to": it.get("valid_to"), **{p.path: card["payload_values"].get(p.path) for p in props}}
     propose = [a for a in actions.specs() if a["stage"] == "propose" and a["name"] != "item_rollback"]
+    extra: dict[str, Any] = {}
+    template = "brain/item.html"
+    if _ds_on():
+        template = "brain/ds/item.html"
+        extra = {"page": "item", "ds_nav": _ds_nav(viewer, "search", chat_tab=_chat_open(),
+                                                   inbox_count=_lazy_inbox_count(g.current_user))}
     return render_template(
-        "brain/item.html", card=card, current=current, display=display_table(), props=props, propose=propose,
+        template, **extra, card=card, current=current, display=display_table(), props=props, propose=propose,
         rollback_label=actions.ACTIONS["item_rollback"].label,
         type_display=TYPE_DISPLAY, link_display=LINK_DISPLAY,
         layer_labels=LAYER_LABELS, brand_labels=BRAND_LABELS, status_labels=STATUS_LABELS,
@@ -183,4 +341,9 @@ def ask_page():
     """물어보기만 있는 화면(여는 단계 안 직원 · ADMIN) — 그 밖 404."""
     if not _chat_open():
         abort(404)
+    if _ds_on():
+        nav = _ds_nav(screen_viewer(g.current_user), "ask", chat_tab=True,
+                      inbox_count=_lazy_inbox_count(g.current_user))
+        return render_template("brain/ds/ask.html", display=display_table(), is_admin=viewer_of(g.current_user).is_admin,
+                               page="ask", ds_nav=nav)
     return render_template("brain/ask.html", display=display_table(), is_admin=viewer_of(g.current_user).is_admin)

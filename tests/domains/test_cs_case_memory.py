@@ -30,7 +30,7 @@ from sqlalchemy.schema import CreateIndex
 
 from db import db_session
 from foms.services.cs_agent import (
-    brain, brain_cases, brain_prompt, case_material, case_memory, drafting, loop, realtime, turns_fields,
+    brain, brain_cases, brain_prompt, case_material, case_memory, drafting, heldout, loop, realtime, turns_fields,
 )
 from foms.services.cs_agent.drafting_read import ChatLine
 from foms.services.cs_agent.masking import MaskLeak, mask
@@ -85,7 +85,9 @@ def test_a_direct_reply_is_attached_with_the_masked_question_and_the_desk_manage
     talk.say("m-1", sec(0), text=QUESTION)
     talk.say("m-2", sec(4), text="주소: 합성시 가상로 12 입니다")
     tick(channel, sec(20), memory)
-    assert [(row.state, row.outcome, row.held_out) for row in rows()] == [("stored", None, False)]
+    (first,) = rows()  # 떼어 두기(D219)는 패널 처음 값(10 %)의 상담 단위 규칙을 따른다
+    assert (first.state, first.outcome, first.held_out) == (
+        "stored", None, heldout.rule_holds(first.brand, first.chat_id, heldout.HELD_OUT_DEFAULT))
     staff(talk, "s-1", sec(40), f"{STAFF} 선반 깊이는 350mm 입니다. 가상로 12 매장도 있습니다")
     staff(talk, "s-2", sec(50), "추가로 궁금하신 점 있으시면 말씀 주세요")
     early = tick(channel, sec(50 + 60), memory)  # 마지막 직원 글 뒤 2분 전 — 직원이 더 쓸 수 있어 기다린다

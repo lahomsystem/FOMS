@@ -25,6 +25,7 @@ from foms.services.auth.freelancer_scope import FREELANCER_URGENT_TARGET_MSG, FR
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
+from foms.services.notifications.erp_action_push import ERP_ACTION_PROPOSAL_TYPE, erp_action_deep_link
 from foms.services.notifications.recipients import (
     INTERNAL_USERS_ONLY,
     broad_recipient_ids,
@@ -193,6 +194,15 @@ def _resolve_notification_deep_link(
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": "/erp/drawing-workbench/agent-note",
+        }
+
+    if n_type == ERP_ACTION_PROPOSAL_TYPE:
+        # AI 할 일 제안 승인 대기(접목판 3.14) — 폰 알림과 같은 곳(그 제안의 승인 대기). 알림 글에서 번호만 읽는다(질의 0).
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": erp_action_deep_link(getattr(notification, "message", None)),
         }
 
     if is_notice_notification_type(n_type):

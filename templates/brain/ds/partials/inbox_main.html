@@ -1,0 +1,64 @@
+{#- 승인 대기 가운데(판 ⑥ · ⑫): 제목 + 한 줄 · 알림 줄 · 숫자 띠(PC) · AI 할 일 제안 자리(T8 — inbox_erp_section.html, 없으면 빈 자리) ·
+    지식 고침 칸(PC — 묶음 줄 · 연 묶음 카드 · 등급 A 모두 승인) · 폰 칸(⑫ — 폰에서 승인 · PC 에서 볼 것 · 안내).
+    값은 ds-inbox.js 가 채운다. AI 할 일 제안 수는 T8 이 window.FOMS_DS_INBOX.setCount('actions', n) 으로 알려 준 뒤에만 보인다. -#}
+<header class="f-row fb-pc-only">
+  <h1 class="f-h3">승인 대기</h1>
+  {%- if knows %}
+  <span class="f-muted">승인하면 바로 바뀌고, 바뀌기 전 내용은 수정 기록에 남아요.</span>
+  {%- endif %}
+</header>
+<p class="fb-status" data-ds-inbox-status role="status" aria-live="polite"></p>
+
+<div class="f-card f-card-compact f-row f-gap24 fb-pc-only" data-ds-inbox-strip>
+  <span class="f-row-nw f-gap4"><span class="f-small f-muted">오늘 결정할 것</span><span class="f-h4 f-num" data-ds-inbox-stat="today">{{ n_inbox }}</span><span class="f-small f-muted">개</span></span>
+  <span class="f-row-nw f-gap4"><span class="f-small f-muted">어림</span><span class="f-h4 f-num" data-ds-inbox-stat="minutes">–</span><span class="f-small f-muted">분</span></span>
+  <span class="f-row-nw f-gap4" data-ds-inbox-stat-box="actions" hidden><span class="f-small f-muted">AI 할 일 제안</span><span class="f-h4 f-num" data-ds-inbox-stat="actions">0</span><span class="f-small f-muted">개</span></span>
+  {%- if knows %}
+  <span class="f-row-nw f-gap4"><span class="f-small f-muted">지식 고침</span><span class="f-h4 f-num" data-ds-inbox-stat="knowledge">{{ n_inbox }}</span><span class="f-small f-muted">개</span></span>
+  {%- endif %}
+  <span class="f-small f-muted f-push">어림 = 한 장에 드는 시간 × 장 수</span>
+</div>
+
+<div class="fb-inbox-erp" data-ds-inbox-erp>{% include "brain/ds/partials/inbox_erp_section.html" ignore missing %}</div>
+
+{%- if knows %}
+<section class="f-section fb-pc-only" aria-label="지식 고침" data-ds-inbox-know>
+  <div class="f-section-head fb-know-head">
+    <button class="f-btn f-btn-minimal f-btn-small" type="button" data-ds-inbox-back hidden>{{ ds.icon('arrow-left') }}승인 대기</button>
+    {{ ds.icon('lightbulb', 'f-i-muted') }}
+    <span class="f-section-title" data-ds-inbox-title>지식 고침</span>
+    <span class="f-count" data-ds-inbox-know-count>{{ n_inbox }}</span>
+    <span class="f-section-sub" data-ds-inbox-sub>묶음마다 한 줄 · 열면 그 묶음 카드만 보여요</span>
+    <button class="f-btn f-btn-small f-push" type="button" data-ds-inbox-bulk hidden>{{ ds.icon('endorsed') }}<span data-ds-inbox-bulk-text>등급 A 모두 승인</span></button>
+  </div>
+  <ol class="f-section-body-flush fb-bins" data-ds-inbox-bins></ol>
+  <div class="f-section-body" data-ds-inbox-open hidden>
+    <ol class="f-col fb-cards" data-ds-inbox-cards></ol>
+    <details class="fb-drawer" data-ds-inbox-later-box hidden>
+      <summary class="f-small" data-ds-inbox-later-title>나중에 볼 것</summary>
+      <ol class="f-col fb-cards" data-ds-inbox-later></ol>
+    </details>
+  </div>
+  <p class="f-help fb-know-foot" data-ds-inbox-ai hidden></p>
+</section>
+{%- endif %}
+
+{% set phone_kinds = (['한 칸 고침'] if knows else []) + (['ERP 할 일'] if graft_enabled('actions') else []) %}
+<section class="f-col fb-phone" aria-label="폰에서 승인" data-ds-inbox-phone>
+  <p class="f-small f-muted">폰에서는 {{ phone_kinds|join(' · ') }}만 승인해요</p>
+  <div class="f-row">
+    <h2 class="f-h6">폰에서 승인 <span data-ds-phone-count>0</span></h2>
+    <span class="f-small f-muted f-push">승인하면 바로 반영 · 전 내용은 기록에 남아요</span>
+  </div>
+  <ol class="f-col fb-phone-list" data-ds-phone-list></ol>
+  <button class="f-btn f-btn-minimal f-btn-fill" type="button" data-ds-phone-more hidden></button>
+  {%- if knows %}
+  <button class="f-card f-row-nw fb-phone-pc" type="button" aria-expanded="false" aria-controls="dsPhonePcList" data-ds-phone-pc-toggle hidden>
+    {{ ds.icon('applications', 'f-i-muted') }}
+    <span class="f-col f-gap4 f-grow"><span class="f-strong" data-ds-phone-pc-title>PC 에서 볼 것</span><span class="f-small f-muted" data-ds-phone-pc-sub></span></span>
+    {{ ds.icon('chevron-right', 'f-i-muted') }}
+  </button>
+  <ol class="f-col fb-phone-list" id="dsPhonePcList" data-ds-phone-pc-list hidden></ol>
+  {%- endif %}
+  <div class="f-callout f-callout-primary">{{ ds.icon('info-sign') }}<div class="f-small">카드를 누르면 이유 · 근거를 보고 거절할 수 있어요. 거절 까닭은 AI 가 배워요.</div></div>
+</section>

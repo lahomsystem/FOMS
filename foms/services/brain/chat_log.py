@@ -6,6 +6,9 @@
 - 피드백은 묻는 사람 자기 질문에만. '틀림'이면 그 답의 근거 항목마다 신고 한 줄(:mod:`.chat_reports`)이 붙고, 같은 항목에 서로
   다른 사람 둘 이상이면 이름 있는 에이전트 액션 ``report_conflict``(:func:`.action_runner.perform_agent`)로 승인자에게 올린다.
 - :func:`purge_questions` — 1년 지난 질문 · 신고를 지운다(밤 단계 ``tools/cron/purge_brain_questions.py``).
+- :func:`my_history` — **내가 물은 것만**(오늘 · 지난 7일, 가린 글 앞부분 · 모름 · 주문 읽기 여부 — 설계서 2026-11-14-foms-graft
+  3.7 ``GET /api/brain/chat/history``). 남의 질문 · 묻는 사람 번호 · 답 글은 싣지 않는다.
+- 근거 키에 ERP 주문 키(``erp:order/<번호>`` — 접목판 ERP 읽기)가 섞여 있어도 '틀림' 신고는 회사 지식 키에만 붙는다.
 """
 
 from __future__ import annotations
@@ -17,11 +20,15 @@ from typing import Any, Iterable, Optional
 from sqlalchemy import delete, func, select
 
 from foms.persistence.brain.models import BrainQuestion, BrainWrongReport
+from foms.persistence.graft.models import BrainUsageEvent
 from foms.services.brain.action_runner import perform_agent
+from foms.services.brain.chat_prompt import ASK_ADMIN, ASK_ERP, ASK_OWNER, CERTAINTY_LABELS
 from foms.services.brain.chat_reports import CHAT_AGENT, add_reports, drop_reports, raisable
 from foms.services.brain.embeddings import SOURCE_QUESTION, drop_vectors
 from foms.services.brain.errors import BrainError
 from foms.services.cs_agent.masking import leak_counts, mask
+from foms.services.erp_ontology.read import ORDER_KEY_PREFIX, order_id_of
+from foms.services.orders.team_labels import team_label
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +37,9 @@ KEEP_DAYS = 365
 MAX_NOTE = 500
 PURGE_BATCH = 1000
 _KST = datetime.timedelta(hours=9)
+#: 내 질문 목록 — 줄 수 · 가린 글 앞 글자 수 · 지난 며칠(오늘 포함).
+HISTORY_LIMIT, HISTORY_CHARS, HISTORY_DAYS = 20, 60, 7
+_ASK_LABELS = {ASK_OWNER: "사장님", ASK_ADMIN: "관리자", ASK_ERP: "주문 화면", "ACCOUNTING": "회계팀"}
 
 
 class ChatFeedbackError(ValueError):
@@ -106,7 +116,7 @@ def record_feedback(session: Any, *, question_id: Any, asker_id: int, feedback: 
         raise ChatFeedbackError("not_found")
     hidden = masked_note(note)
     row.feedback, row.feedback_note = feedback, hidden
-    keys = [k for k in (row.evidence_keys or []) if isinstance(k, str)]
+    keys = [k for k in (row.evidence_keys or []) if isinstance(k, str) and order_id_of(k) is None]  # 주문 키는 신고 밖
     raised: list[str] = []
     if feedback == "wrong" and keys:
         add_reports(session, question_id=row.id, reporter_id=row.asker_id, keys=keys, note=hidden, now=now_utc)
@@ -136,3 +146,57 @@ def purge_questions(session: Any, *, now_utc: datetime.datetime, keep_days: int 
     gone["reports"] += session.execute(delete(BrainWrongReport).where(
         BrainWrongReport.created_at < cutoff).execution_options(synchronize_session=False)).rowcount or 0
     return gone
+
+
+def _order_read(session: Any, question_ids: list[int]) -> set[int]:
+    """그 질문들 가운데 주문을 읽은 것(쓰인 곳에 주문 키가 남은 질문) — 질의 한 번(색인 ``(ref_kind, ref_id)``)."""
+    if not question_ids:
+        return set()
+    refs = session.execute(select(BrainUsageEvent.ref_id).where(
+        BrainUsageEvent.ref_kind == "question", BrainUsageEvent.ref_id.in_([str(i) for i in question_ids]),
+        BrainUsageEvent.reader == "chatbot", BrainUsageEvent.item_key.like(ORDER_KEY_PREFIX + "%"))).scalars()
+    return {int(ref) for ref in refs if str(ref).isdigit()}
+
+
+def _ask_label(ask_team: Optional[str]) -> str:
+    """물을 곳 짧은 이름(모름 줄 옆 — '도면팀' · '사장님' · '주문 화면')."""
+    if not ask_team:
+        return ""
+    return _ASK_LABELS.get(ask_team) or team_label(ask_team)
+
+
+def _history_row(row: BrainQuestion, erp_read: bool) -> dict[str, Any]:
+    """내 질문 한 줄 — 가린 글 앞부분 · 모름 · 주문 읽기 · 확신 · 물을 곳 · 물은 때(한국)."""
+    text = row.masked_question or ""
+    short = text[:HISTORY_CHARS] + ("…" if len(text) > HISTORY_CHARS else "")
+    return {"id": row.id, "text": short, "unknown": bool(row.unknown), "erp": erp_read,
+            "certainty": row.confidence, "certainty_label": CERTAINTY_LABELS.get(row.confidence or "", ""),
+            "ask_team": row.ask_team if row.unknown else None,
+            "ask_label": _ask_label(row.ask_team) if row.unknown else "",
+            "asked_at": (row.asked_at + _KST).isoformat(timespec="minutes") if row.asked_at else None}
+
+
+def my_history(session: Any, *, asker_id: int, now_utc: datetime.datetime,
+               limit: int = HISTORY_LIMIT) -> dict[str, Any]:
+    """내가 물은 것 — 오늘(한국 날)과 그 앞 6일, 새것부터 :data:`HISTORY_LIMIT` 줄까지. 남의 질문은 질의 단계에서 뺀다.
+
+    Args:
+        session: DB 세션(읽기만).
+        asker_id: 로그인한 묻는 사람 번호(본문 값이 아니다).
+        now_utc: 지금(UTC naive).
+        limit: 줄 수 상한(1 ~ :data:`HISTORY_LIMIT`).
+
+    Returns:
+        ``{"today": [줄], "week": [줄], "days": 7, "limit": n}``.
+    """
+    size = max(1, min(int(limit), HISTORY_LIMIT))
+    today_start = kst_day_start(now_utc)
+    since = today_start - datetime.timedelta(days=HISTORY_DAYS - 1)
+    rows = session.execute(select(BrainQuestion).where(
+        BrainQuestion.asker_id == int(asker_id), BrainQuestion.asked_at >= since)
+        .order_by(BrainQuestion.asked_at.desc(), BrainQuestion.id.desc()).limit(size)).scalars().all()
+    read = _order_read(session, [row.id for row in rows])
+    out: dict[str, Any] = {"today": [], "week": [], "days": HISTORY_DAYS, "limit": size}
+    for row in rows:
+        out["today" if row.asked_at >= today_start else "week"].append(_history_row(row, row.id in read))
+    return out

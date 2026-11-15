@@ -1,0 +1,30 @@
+{#- 지식 카드 '수정 기록' 탭 — 판마다(새것부터, 최대 20 · 판마다 보기 범위로 거른 것) 버전 · 바뀐 때 · 상태 · 확실한 정도 · 바뀐 칸 ·
+    만든 이 · 승인자 · 판(하루 묶음). 지난 판을 새 제안으로 되돌리는 단추는 오른쪽 칸(제안 단추와 같은 곳)에 있다. -#}
+{%- if card.history %}
+<section class="f-section" aria-label="수정 기록">
+  <div class="f-section-body-flush f-scroll-x">
+    <table class="f-table f-table-compact">
+      <caption class="f-sr">수정 기록 — 새것부터</caption>
+      <thead>
+        <tr><th scope="col">버전</th><th scope="col">바뀐 때</th><th scope="col">상태 · 확실한 정도</th><th scope="col">바뀐 칸</th>
+            <th scope="col">만든 이</th><th scope="col">승인자</th><th scope="col">판(하루 묶음)</th></tr>
+      </thead>
+      <tbody>
+        {%- for row in card.history %}
+        <tr data-ds-item-version="{{ row.version }}">
+          <td class="f-td-nw f-strong">버전 {{ row.version }}{% if not row.superseded_at %} {{ ds.tag('지금', 'success', minimal=True) }}{% endif %}</td>
+          <td class="f-td-nw f-num">{{ row.recorded_at or '—' }}{% if row.superseded_at %}<span class="f-small f-muted fb-block">~ {{ row.superseded_at }}</span>{% endif %}</td>
+          <td class="f-td-nw">{{ status_labels.get(row.status, row.status) }} · {{ confidence_labels.get(row.confidence, row.confidence) }}</td>
+          <td>{% if row.changed %}{% for f in row.changed %}{{ field_labels.get(f, f) }}{{ ', ' if not loop.last }}{% endfor %}{% elif row.version == 1 %}처음 만듦{% else %}—{% endif %}</td>
+          <td class="f-td-nw">{{ row.created_by }}</td>
+          <td class="f-td-nw">{{ row.approver }}</td>
+          <td class="f-td-nw f-num">{{ row.release_no if row.release_no is not none else '—' }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{%- else %}
+{{ ds.empty('기록 없음', 'history') }}
+{%- endif %}

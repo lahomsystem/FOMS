@@ -36,6 +36,15 @@
   {% endfor %}
 
   <div class="foms-tablet-rail__spacer" aria-hidden="true"></div>
+  {#- 회사 지식 승인 대기(접목판 판 ③): 전역 스위치가 켜졌을 때만 빈 자리(숨김) — 켬 · 수는 graft-cells.js 가 /badge 로.
+      꺼지면 이 칸은 한 글자도 나가지 않는다(공백까지 지금과 같다). #}
+  {%- if graft_cell_slot('tablet') %}
+  <a class="foms-tablet-rail__item foms-graft-rail" href="{{ url_for('brain_web.index', tab='inbox') }}" title="회사 지식" data-graft-badge="tablet" hidden>
+    <i class="fas fa-lightbulb foms-tablet-rail__icon foms-graft-rail__icon" aria-hidden="true"></i>
+    <span class="foms-tablet-rail__label">회사 지식</span>
+    <span class="foms-tablet-rail__notify-badge foms-graft-count" data-graft-count hidden></span>
+  </a>
+  {%- endif %}
 
   <button
     type="button"

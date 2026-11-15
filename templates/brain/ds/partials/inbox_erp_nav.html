@@ -1,0 +1,12 @@
+{#- 승인 대기 왼쪽 길잡이의 AI 할 일 제안 칸(T8 · 판 ⑥ — 설계서 docs/specs/2026-11-14-foms-graft_SPEC.md 3.5 · 3.6).
+    AI 직원마다 한 줄 — 수는 static/js/brain/ds/ds-inbox-erp.js 가 GET /api/erp-actions/inbox 의 counts.by_agent 로 채운다
+    (0 은 흐리게). 누르면 가운데 칸이 그 직원 제안만 보인다(주소 ?agent= 로도 열린다). 직원 열쇠 · 이름 · 아이콘은
+    foms/services/ai_staff/registry.py AGENTS 와 같다(시험이 견준다). 할 일 스위치가 꺼진 사람에게는 한 글자도 그리지 않는다. -#}
+{%- if graft_enabled('actions') %}
+{%- import "brain/ds/_macros.html" as dsx %}
+<div class="f-nav-heading f-row-nw" data-erp-nav>AI 할 일 제안<span class="f-tag f-tag-minimal f-tag-primary">새로 붙음</span></div>
+{%- for key, label, icon_name in [('cs', '상담 AI', 'chat'), ('schedule', '일정 AI', 'calendar'), ('ops', '운영 AI', 'predictive-analysis')] %}
+<a class="f-nav-item fb-nav-item--muted" href="{{ url_for('brain_web.index', tab='inbox', agent=key) }}" data-erp-agent-nav="{{ key }}">
+  {{- dsx.icon(icon_name) }}{{ label }}<span class="f-count" data-erp-agent-count="{{ key }}">0</span></a>
+{%- endfor %}
+{%- endif %}

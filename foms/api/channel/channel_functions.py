@@ -17,7 +17,10 @@ Order 를 변경하지 않는다(PII/mutation 0). 성공·거부·오류 모두 
 
 예외 하나: AI 초안 작은 창 함수(``cs.draft.*`` — 설계서 17.2.2)는 서명된 상담원이 누른 [보내기] · [버리기]를 받아
 상담 에이전트 차례 줄을 쓰고 손님께 글을 보낸다. 권한 · 한 번만 · 검사는 FOMS 화면 길과 같은
-:func:`foms.services.cs_agent.send_flow.send_turn` 이 보고, Order 는 건드리지 않는다.
+:func:`foms.services.cs_agent.send_flow.send_turn` 이 보고, Order 는 건드리지 않는다. 단 접목 관리 칸 '할 일 제안'이
+켜졌고 상담원이 작은 창 줄 제안에 [같이 넣기]를 고른 채 답이 보내졌을 때만, 그 상담원에 이어진 FOMS 사용자 이름으로 ERP 할 일
+제안을 승인 · 실행한다(설계서 2026-11-14-foms-graft 3.9 — 권한 · 막는 조건은 할 일 층 :mod:`foms.services.erp_actions.lifecycle`
+이 다시 본다).
 """
 
 from __future__ import annotations

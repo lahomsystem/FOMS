@@ -35,6 +35,11 @@
     {% endif %}
   </div>
   {% endif %}
+  {#- AI 제안 상자(접목판 판 ③ — 설계서 2026-11-14-foms-graft 6절): 태블릿 칸 스위치가 켜진 사람에게 이 주문의 열린 제안이
+      있을 때만(값은 erp_dashboard_tablet_sheet 가 요청마다 — 캐시 없음). 없으면 한 글자도 안 나간다. #}
+  {%- if graft_proposal %}
+  {% include 'orders/partials/tablet_sheet_ai_proposal.html' %}
+  {%- endif %}
 
   {# 카드: 요약 (연락처 / 현장 주소 / 제품 / 실측·시공 일정) #}
   <div class="foms-tsheet-card">

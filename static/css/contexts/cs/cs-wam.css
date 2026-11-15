@@ -125,6 +125,80 @@
   white-space: pre-wrap;
 }
 
+/* 접목 두 줄(설계서 2026-11-14-foms-graft 3.9 · 판 ⑤) — 근거 칩(누르면 FOMS 새 창) · 할 일 제안 줄([같이 넣기] · [빼기]).
+   색은 FOMS 브랜드 남보라 토큰(--foms-color-brand-*, 작은 창엔 토큰이 없어 대체 값이 쓰인다) — 무채색이 아니다. */
+.cs-wam__graft {
+  margin-top: 8px;
+}
+
+.cs-wam__graft .cs-wam__label {
+  margin-top: 0;
+}
+
+.cs-wam__ev {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px solid var(--foms-border, #d0d5dd);
+  border-radius: 14px;
+  background: var(--foms-surface, #fff);
+  color: inherit;
+  font-size: calc(13px * var(--foms-fs, 1));
+  line-height: 1.3;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.cs-wam__ev:hover,
+a.cs-wam__ev:focus-visible {
+  border-color: var(--foms-color-brand-500, #5a67d8);
+  color: var(--foms-color-brand-700, #3a4490);
+}
+
+.cs-wam__graft--action {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--foms-color-brand-50, #f3f4ff);
+}
+
+.cs-wam__label--action {
+  color: var(--foms-color-brand-600, #4a55b8);
+  font-weight: 600;
+}
+
+.cs-wam__action-text {
+  margin: 0 0 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cs-wam__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cs-wam__action-hint {
+  color: var(--foms-text-tertiary, #6c757d);
+  font-size: calc(13px * var(--foms-fs, 1));
+}
+
+.cs-wam__graft--action .cs-wam__chip[aria-pressed="true"] {
+  border-color: var(--foms-color-brand-500, #5a67d8);
+  background: var(--foms-color-brand-500, #5a67d8);
+  color: #fff;
+}
+
+.cs-wam__graft--action .cs-wam__note {
+  margin: 8px 0 0;
+}
+
 [hidden] {
   display: none !important;
 }

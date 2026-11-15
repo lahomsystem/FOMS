@@ -1,0 +1,16 @@
+{#- 온톨로지 왼쪽 목록(판 ⑩): 찾기 칸 · 지식 유형 묶음(누르면 그 묶음의 종류가 펼쳐진다) · ERP 물건 종류(erp 칸이 있을 때만) ·
+    정의(연결 종류 · 할 일 종류(ERP) · 동작 종류 · 능력 질문) · 보기(온톨로지 · 유형 지도). 줄 · 수는 ds-onto.js 가
+    GET /api/brain/ontology 로 채운다. 두 보기를 오가는 길은 서버가 그린다(스크립트 없이도 간다).
+    폰(640px 아래)에서는 '목록 보기' 단추로 접고 편다 — 옛 화면처럼 폰에서도 종류를 고를 수 있게. -#}
+<nav class="f-side fb-onto-side" aria-label="온톨로지 목록" data-ds-onto-side>
+  <button class="f-btn f-btn-fill fb-onto-side-toggle" type="button" data-ds-onto-side-toggle aria-expanded="false"
+          aria-controls="dsOntoSideBody">{{ ds.icon('list') }}목록 보기</button>
+  <div class="f-col f-gap4 fb-onto-side__body" id="dsOntoSideBody">
+    <span class="f-input-group fb-onto-find">{{ ds.icon('search') }}<input class="f-input" type="search" aria-label="종류 · 연결 찾기"
+          placeholder="종류 · 연결 찾기" data-ds-onto-find></span>
+    <div class="f-col f-gap4 fb-onto-nav" data-ds-onto-nav></div>
+    {{ ds.nav_heading('보기') }}
+    {{ ds.nav_item(url_for('brain_web.index', tab='onto'), '온톨로지', 'layout-hierarchy', key='onto') }}
+    {{ ds.nav_item(url_for('brain_web.index', tab='map'), '유형 지도', 'graph', current=view == 'map', key='map') }}
+  </div>
+</nav>

@@ -281,6 +281,13 @@ ACTION_LABELS: dict[str, str] = {
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",
     "SHARE_ALIMTALK_SENT": "고객 공유 링크 알림톡 발송",
+    # 접목판(설계서 2026-11-14-foms-graft 3.6 · 3.13) — AI 할 일 제안 생명주기와 시공일 안내 알림톡.
+    "ALIMTALK_CONSTRUCTION_SENT": "시공일 안내 알림톡 발송",
+    "ERP_ACTION_APPROVED": "AI 할 일 제안 승인",
+    "ERP_ACTION_EXECUTED": "AI 할 일 실행",
+    "ERP_ACTION_FAILED": "AI 할 일 실행 실패",
+    "ERP_ACTION_REJECTED": "AI 할 일 제안 거절",
+    "ERP_ACTION_SNOOZED": "AI 할 일 제안 나중에",
     "SHARE_HISTORY_VIEWED": "고객 열람 계약서 기록 조회",
     "BLUEPRINT_DELETED": "도면 삭제",
     "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
