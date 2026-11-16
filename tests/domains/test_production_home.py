@@ -173,18 +173,20 @@ def test_날짜_묶음은_오늘_내일만_펼치고_둘_다_없으면_첫_묶�
     def _row(key: str, label: str, today: bool = False, changed: bool = False) -> dict:
         return {"day_key": key, "day_label": label, "day_sub": "", "day_is_today": today, "has_changes": changed}
 
+    # 기준일을 못 박는다 — 안 주면 실제 오늘을 써서, 11/9 가 일주일 넘게 지난 날부터 '지난 묶음'으로 밀려 깨졌다(2026-11-17).
+    today = datetime.date(2026, 11, 9)
     groups = production_home_groups([
         _row("2026-11-09", "오늘 11/9 (월)", today=True),
         _row("2026-11-10", "내일 11/10 (화)"),
         _row("2026-11-12", "11/12 (목)", changed=True),
         _row("2026-11-12", "11/12 (목)"),
         _row("none", "시공일 없음"),
-    ])
+    ], today)
     assert [g["key"] for g in groups] == ["2026-11-09", "2026-11-10", "2026-11-12", "none"]
     assert [g["is_open"] for g in groups] == [True, True, False, False]
     assert groups[2]["count"] == 2 and groups[2]["changed"] == 1
 
-    later = production_home_groups([_row("2026-11-20", "11/20 (금)"), _row("none", "시공일 없음")])
+    later = production_home_groups([_row("2026-11-20", "11/20 (금)"), _row("none", "시공일 없음")], today)
     assert [g["is_open"] for g in later] == [True, False]
     assert production_home_groups([]) == []
 
