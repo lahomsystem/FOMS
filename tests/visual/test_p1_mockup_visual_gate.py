@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -57,6 +58,8 @@ def test_p1_mobile_dashboard_body_outside_desktop_only_wrapper(
 
 def _mobile_marker_after_desktop_layout(html: str, snippet: str) -> None:
     """Assert snippet exists and appears after erp-dashboard-layout (desktop-only region)."""
+    # 인라인 스크립트(erp_mobile_early_tap.html 등)는 선택자 글자로 표식 이름을 품는다 — 스크립트를 빼고 요소 위치만 본다.
+    html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.S)
     assert snippet in html
     layout_idx = html.find("erp-dashboard-layout")
     marker_idx = html.find(snippet)
