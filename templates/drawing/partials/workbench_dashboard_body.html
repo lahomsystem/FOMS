@@ -94,7 +94,10 @@
   {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
 
-  <div class="erp-pro-card erp-drawing-dashboard-desktop-card{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
+  {# 폰(터치 + 992 미만 창)엔 PC 카드(거르기 · 표 · 쪽 넘김)를 안 그린다 — 코호트에선 d-lg-block 이라 992 미만에서 늘 숨는다
+     (판정 feature_flags.wants_wide_viewport_surfaces, 표식은 아래 태블릿 작업실 자리 하나). 폰이 쓰는 것은 모두 카드 밖이다:
+     workbench-dashboard.js 가 화면 판정에 쓰는 .dw-process-map(위) · 담당 지정 창(아래 modal) · 모바일 큐. 카드 안 id(일괄 바 ·
+     select-all · selected-count)와 select[name=status] 는 없으면 건너뛰는 조회뿐이다. #}{% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<div class="erp-pro-card erp-drawing-dashboard-desktop-card{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
@@ -383,14 +386,15 @@
       {% include 'drawing/partials/workbench_mobile_queue.html' %}
       {% endif %}
     </div>
-  </div>
+  </div>{% endif %}
   {# 태블릿 도면 작업실은 (pointer: coarse) 미디어쿼리 전용(foms-tablet-drawing-gallery.css,
      강제 해치 없음) — 마우스 기기엔 죽은 마크업이라 렌더하지 않는다(실측 48.4KB).
      동봉된 tablet-drawing-gallery.js·tablet-drawing-review.js 도 함께 빠지지만 두 스크립트의
      소비처는 이 작업실과 태블릿 시트뿐이라 진입 경로가 없다. #}
-  {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
+  {# 폰(터치 + 992 미만 창)도 작업실을 안 그린다 — 좁은 창은 표시 식(가로 ≥992)에 안 걸린다. 표식 = 창이 992 이상이 되면
+     foms-wide-surface-recover.js 가 다시 받는다(위 PC 카드와 한 개 공유). #}{% if erp_mobile_v2_enabled and coarse_pointer_surfaces and wide_viewport_surfaces %}
     {% include 'drawing/partials/tablet_gallery_body.html' %}
-  {% endif %}
+  {% endif %}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}
   {% if erp_mobile_v2_enabled %}
   <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>

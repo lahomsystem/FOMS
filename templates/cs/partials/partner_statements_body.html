@@ -59,7 +59,9 @@
     <form class="foms-ps__payform" data-pay-form novalidate>
       <label class="small">입금일 <input type="date" class="foms-pse__input" name="paid_on" required></label>
       <label class="small">금액 <input type="text" inputmode="numeric" class="foms-pse__input foms-pse__amount" name="amount" placeholder="원" required></label>
-      <label class="small">명세서 <select class="foms-pse__input" name="statement_id" data-pay-statements></select></label>
+      {#- 기본 줄은 서버가 그린다 — 빈 select 로 그린 뒤 JS 가 이 긴 글을 넣으면 폰에서 칸이 넓어져 다음 줄로 꺾이며
+          메모 · 입금 기록 단추를 75px 밀었다(2026-11-16 폰 실측). partner-payments.js draw() 가 같은 글로 다시 채운다. -#}
+      <label class="small">명세서 <select class="foms-pse__input" name="statement_id" data-pay-statements><option value="">고르지 않음 (오래된 명세서부터 채움)</option></select></label>
       <label class="small foms-ps__grow">메모 <input type="text" class="foms-pse__input" name="memo" maxlength="200" placeholder="예: 입금자명 · 은행"></label>
       <button type="submit" class="foms-ps__btn foms-ps__btn--primary">입금 기록</button>
     </form>

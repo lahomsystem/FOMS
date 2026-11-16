@@ -24,6 +24,8 @@ const dialog = {
   showModal: () => {},
   close: () => {},
   contains: () => true,
+  hasAttribute: () => false,
+  removeAttribute: () => {},
 };
 
 global.localStorage = {

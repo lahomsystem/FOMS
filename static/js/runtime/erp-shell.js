@@ -81,6 +81,17 @@
   // 셸 warm-cache 를 강제로 건너뛸 경로. 현재는 없음(실측은 FRESH_TTL_PATHS 로 이동).
   var NO_FRAGMENT_CACHE_PATHS = [];
   /**
+   * 셸 조각 표식 쿼리 — 서버 foms.services.common.erp_navigation_contract.ERP_SHELL_FRAGMENT_QUERY_PARAM.
+   * 예전엔 view=fragment 를 set 해 링크 자신의 view 값(대시보드 '전체 작업 목록' 의 view=queue)을 덮어 썼고,
+   * 서버는 큐 대신 타워를 그렸다(11-16 폰 실측). 이제 view 는 화면 인자로 그대로 둔다.
+   */
+  var SHELL_FRAGMENT_PARAM = 'foms_shell';
+  /** 서버 셸 모드 값 — 예전 리다이렉트 · 남이 만든 주소에 view=<이 값> 이 섞여 오면 주소에서 뺀다. */
+  var SHELL_VIEW_MODES = ['fragment', 'critical', 'heavy'];
+  /** 첫 웜업: 폰 아래 탭에 보이는 셸 화면을 탭 순서대로 이만큼까지(아래 탭이 안 보이면 예전처럼 PRIMARY 앞 IDLE_PREFETCH_MAX). */
+  var NAV_PREWARM_MAX = 5;
+  var PREWARM_STEP_MS = 400;
+  /**
    * 미리 받기 허용 경로 — 서버가 이 스크립트 태그에 data-foms-prefetch-allow(공백으로 나눈 경로)를 그리면 그
    * 경로만 미리 받는다(하트비트 · 첫 웜업 · 복귀 재수혈 · 누름/올림 모두). 켜진 프리랜서는 자기 메뉴 href 만
    * 실린다(layout_scripts.html) — 못 여는 탭(도면 · 생산 …)을 받으면 문지기가 홈으로 302 를 돌려 헛걸음이다.
@@ -122,6 +133,14 @@
    * the same synchronous tick, so no other caller can observe a stale value.
    */
   var navFetchSignal = null;
+  /** 끝나지 않은 마지막 스왑 {key, generation, promise} — 같은 곳 다시 누름을 합친다(navigateByShell). */
+  var pendingNav = null;
+  /** 마지막 스왑이 끝난 시각(performance.now 시계 — 입력 event.timeStamp 와 같은 시계). */
+  var lastSwapDoneAt = -1;
+
+  function nowTs() {
+    return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  }
 
   /**
    * Wrap #main-content once so a loading overlay can sit above it without being
@@ -209,6 +228,30 @@
     });
   }
 
+  /**
+   * 주소에서 셸 전송 표식만 뺀다(화면 인자 view=queue 등은 남긴다). 표식이 없으면 주소를 건드리지 않는다.
+   * @param {URL} u
+   * @returns {URL}
+   */
+  function stripShellMarkers(u) {
+    u.searchParams.delete(SHELL_FRAGMENT_PARAM);
+    var views = u.searchParams.getAll('view');
+    var kept = views.filter(function (v) {
+      return SHELL_VIEW_MODES.indexOf(v) === -1;
+    });
+    if (kept.length !== views.length) {
+      u.searchParams.delete('view');
+      kept.forEach(function (v) {
+        u.searchParams.append('view', v);
+      });
+    }
+    return u;
+  }
+
+  function shellUrl(url) {
+    return stripShellMarkers(new URL(url, window.location.origin));
+  }
+
   function isFragmentReadyPath(url) {
     return FRAGMENT_READY_PATHS.indexOf(pathOnly(url)) >= 0;
   }
@@ -273,7 +316,7 @@
     if (finalUrl.origin !== window.location.origin) {
       return null;
     }
-    finalUrl.searchParams.delete('view');
+    stripShellMarkers(finalUrl);
     if (!isShellFragmentSwapUrl(finalUrl.href)) {
       return null;
     }
@@ -307,21 +350,158 @@
     return FRESH_TTL_PATHS.indexOf(path) >= 0 || LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
   }
 
+  /**
+   * 신선한(TTL 안) 캐시 html 만 돌려준다. 만료된 줄은 지우지 않는다 — 그 html · ETag 가 다음 요청의
+   * If-None-Match 재료다(예전엔 ETag 까지 지워 10분 쉬고 누른 첫 탭이 늘 온전한 200 이었다, 11-16 실측).
+   * 개수는 CACHE_MAX_ENTRIES LRU 가 묶는다.
+   */
   function cacheGet(key) {
     var row = fragmentHtmlCache[key];
-    if (!row) {
-      return null;
-    }
-    if (Date.now() - row.ts > cacheTtlForKey(key)) {
-      delete fragmentHtmlCache[key];
-      var ix = fragmentCacheOrder.indexOf(key);
-      if (ix >= 0) {
-        fragmentCacheOrder.splice(ix, 1);
-      }
+    if (!row || Date.now() - row.ts > cacheTtlForKey(key)) {
       return null;
     }
     return row.html;
   }
+
+  /*
+   * 재검증 씨앗(sessionStorage): 온전한 페이지 이동(주문 상세 · 편집 뒤 돌아오기)은 메모리 캐시를 통째로 비운다.
+   * 떠날 때 ETag 있는 조각을 이 탭의 sessionStorage 에 적어 두고, 새 문서는 그것을 **화면에 바로 쓰지 않고**
+   * If-None-Match 재료로만 쓴다 — 304 는 서버 본문이 바이트까지 같을 때만 오므로 낡은 화면이 나갈 수 없다
+   * (그 사이 다른 페이지에서 바꾼 내용이 있으면 ETag 가 달라 200). 크기 상한 · 사용자(#foms-sw-config subject) 표식.
+   */
+  var SEED_PREFIX = 'foms_shell_seed:';
+  var SEED_INDEX_KEY = 'foms_shell_seed_index';
+  var SEED_MAX_ENTRY_CHARS = 400 * 1000;
+  var SEED_MAX_TOTAL_CHARS = 1500 * 1000;
+  var SEED_MAX_ENTRIES = 10;
+  /** @type {{s: string, k: Array<{k: string, n: number, e: string}>}|null} 이 문서에서 처음 쓸 때 한 번 읽는다. */
+  var seedIndex = null;
+  var seedWarned = false;
+
+  function seedSubject() {
+    var el = document.getElementById('foms-sw-config');
+    return el ? String(el.getAttribute('data-foms-subject') || '') : '';
+  }
+
+  /** sessionStorage 를 못 쓰면 null(1회 경고) — 씨앗 없이 지금처럼 동작한다. */
+  function seedStore() {
+    try {
+      return window.sessionStorage || null;
+    } catch (e) {
+      if (!seedWarned) {
+        seedWarned = true;
+        console.warn('[erp-shell] sessionStorage 사용 불가 — 조각 재검증 씨앗 없이 동작:', e);
+      }
+      return null;
+    }
+  }
+
+  function wipeSeeds(store, idx) {
+    (idx && idx.k ? idx.k : []).forEach(function (row) {
+      store.removeItem(SEED_PREFIX + row.k);
+    });
+    store.removeItem(SEED_INDEX_KEY);
+  }
+
+  /** 씨앗 목록(다른 사용자 것이면 지우고 빈 목록). 로그아웃 상태(subject 빈 값)면 null = 쓰지 않는다. */
+  function loadSeedIndex() {
+    if (seedIndex) {
+      return seedIndex;
+    }
+    var subject = seedSubject();
+    var store = subject ? seedStore() : null;
+    if (!store) {
+      return null;
+    }
+    var idx = null;
+    try {
+      idx = JSON.parse(store.getItem(SEED_INDEX_KEY) || 'null');
+      if (idx && idx.s !== subject) {
+        wipeSeeds(store, idx);
+        idx = null;
+      }
+    } catch (e) {
+      console.warn('[erp-shell] 조각 씨앗 목록 읽기 실패 — 버린다:', e);
+      idx = null;
+      try {
+        store.removeItem(SEED_INDEX_KEY);
+      } catch (e2) {
+        console.warn('[erp-shell] 조각 씨앗 목록 지우기 실패:', e2);
+      }
+    }
+    seedIndex = idx && Array.isArray(idx.k) ? idx : { s: subject, k: [] };
+    return seedIndex;
+  }
+
+  /** @returns {{html: string, etag: string}|null} 이 키의 재검증 씨앗. */
+  function readSeed(key) {
+    var idx = loadSeedIndex();
+    if (!idx || !idx.k.some(function (row) { return row.k === key; })) {
+      return null;
+    }
+    try {
+      var rec = JSON.parse(seedStore().getItem(SEED_PREFIX + key) || 'null');
+      return rec && typeof rec.h === 'string' && rec.e ? { html: rec.h, etag: rec.e } : null;
+    } catch (e) {
+      console.warn('[erp-shell] 조각 씨앗 읽기 실패:', key, e);
+      return null;
+    }
+  }
+
+  /** 떠날 때(pagehide) 메모리 캐시를 최신순으로 씨앗에 옮긴다 — 같은 ETag 는 다시 쓰지 않는다. 상한 밖은 지운다. */
+  function persistSeeds() {
+    var idx = loadSeedIndex();
+    if (!idx) {
+      return;
+    }
+    var store = seedStore();
+    var prev = Object.create(null);
+    idx.k.forEach(function (row) {
+      prev[row.k] = row;
+    });
+    var picked = [];
+    var total = 0;
+    function take(row) {
+      if (picked.length >= SEED_MAX_ENTRIES || total + row.n > SEED_MAX_TOTAL_CHARS) {
+        return false;
+      }
+      picked.push(row);
+      total += row.n;
+      return true;
+    }
+    try {
+      for (var i = fragmentCacheOrder.length - 1; i >= 0; i--) {
+        var k = fragmentCacheOrder[i];
+        var mem = fragmentHtmlCache[k];
+        if (!mem || !mem.etag || mem.html.length > SEED_MAX_ENTRY_CHARS) {
+          continue;
+        }
+        var row = { k: k, n: mem.html.length, e: mem.etag };
+        if (take(row) && !(prev[k] && prev[k].e === mem.etag)) {
+          store.setItem(SEED_PREFIX + k, JSON.stringify({ e: mem.etag, h: mem.html }));
+        }
+      }
+      idx.k.forEach(function (row) {
+        var already = picked.some(function (p) { return p.k === row.k; });
+        if (!already && !take(row)) {
+          store.removeItem(SEED_PREFIX + row.k);
+        }
+      });
+      idx.k = picked;
+      store.setItem(SEED_INDEX_KEY, JSON.stringify(idx));
+    } catch (e) {
+      // 용량 초과 등 — 반쯤 쓴 씨앗을 남기지 않는다.
+      console.warn('[erp-shell] 조각 씨앗 저장 실패 — 씨앗을 모두 지운다:', e);
+      try {
+        wipeSeeds(store, { k: picked.concat(idx.k) });
+      } catch (e2) {
+        console.warn('[erp-shell] 조각 씨앗 지우기 실패:', e2);
+      }
+      idx.k = [];
+    }
+  }
+
+  window.addEventListener('pagehide', persistSeeds);
 
   /**
    * Drop warm fragment HTML after server-side mutations (quest approve, stage change).
@@ -705,7 +885,7 @@
     var navSignal = navFetchSignal;
     navFetchSignal = null;
     var fetchUrl = new URL(canonical.toString());
-    fetchUrl.searchParams.set('view', 'fragment');
+    fetchUrl.searchParams.set(SHELL_FRAGMENT_PARAM, 'fragment');
     var key = getCacheKey(canonical.href);
     var cacheable = isFragmentCacheable(canonical.href);
     if (inflightFetches[key]) {
@@ -719,7 +899,8 @@
     // 304(빈 바디)로 응답하게 한다. force(하트비트)든 네비든 동일 — 네비게이션도 304면
     // 캐시 html 을 그대로 재사용하는 것이 정답(640KB 재전송·재해압 회피). etag 없는 구캐시
     // 엔트리는 헤더 미첨부 → 정상 200 경로.
-    var priorRow = fragmentHtmlCache[key];
+    // 메모리 줄(만료됐어도 남아 있다)이 없으면 온전한 페이지 이동 전에 적어 둔 씨앗으로 재검증한다.
+    var priorRow = fragmentHtmlCache[key] || (cacheable ? readSeed(key) : null);
     // 요청 비행 중 LRU evict/invalidate 경합에도 304 를 복원할 수 있게 html/etag 를
     // 클로저에 캡처해 둔다(문자열 참조만 유지 — 비행 동안만 생존).
     var priorHtml = priorRow && typeof priorRow.html === 'string' ? priorRow.html : null;
@@ -789,10 +970,28 @@
    */
   function navigateByShell(url, opts) {
     opts = opts || {};
-    var canonical = new URL(url, window.location.origin);
+    var canonical = shellUrl(url);
     if (!isShellFragmentSwapUrl(canonical.href)) {
       window.location.href = url;
       return Promise.resolve();
+    }
+    var destKey = getCacheKey(canonical.href);
+    // 같은 곳으로 가는 스왑이 아직 끝나지 않았으면 다시 누름은 그 스왑을 그대로 기다린다. 예전엔 두 번째 누름이 첫 요청을
+    // 끊고 새로 받아 서버 왕복 · 스왑을 두 번 치렀다(4배 CPU 에서 1번 646–688ms → 2번 1165–1483ms, 11-16 실측).
+    // 뒤로 · 앞으로 · 캐시 건너뛰기(다시 받기)는 새 의도라 합치지 않는다.
+    // 스왑의 긴 작업 동안 줄 서 있던 다시 누름(입력 시각이 스왑 끝보다 앞)은 이미 그 화면이 그려졌으니 버린다.
+    if (opts.inputTs !== undefined && destKey === lastRenderedKey && opts.inputTs <= lastSwapDoneAt) {
+      return Promise.resolve();
+    }
+    if (
+      pendingNav &&
+      pendingNav.key === destKey &&
+      pendingNav.generation === navGeneration &&
+      !opts.fromPopState &&
+      !opts.bypassCache &&
+      !opts.replaceHistory
+    ) {
+      return pendingNav.promise;
     }
 
     // Rapid A→B nav race guard: this navigation supersedes any in-flight one.
@@ -821,13 +1020,31 @@
       scrollMemory[fromKey] = window.scrollY;
     }
 
-    var destKey = getCacheKey(canonical.href);
+    /**
+     * 굴림 위치는 새 조각을 끼운 직후에 건드리지 않는다 — 그 자리의 scrollTo · scrollY 는 새 조각(AS 2만 노드) 레이아웃을
+     * 스왑 작업 안에서 강제로 돌린다. 새 화면 = 맨 위: 끼우기 **전**(옛 화면, 레이아웃이 깨끗할 때) 올린다(읽기 없이) —
+     * 그림이 그려지기 전이라 옛 화면 위쪽이 보일 틈은 없다. 뒤로 · 앞으로 복원은 새 내용이 있어야 하므로 다음 그림 직전(rAF).
+     */
+    function beforeSwap() {
+      if (!opts.fromPopState) {
+        window.scrollTo(0, 0);
+      }
+    }
 
     function afterSwap() {
-      if (opts.fromPopState) {
-        window.scrollTo(0, scrollMemory[destKey] || 0);
+      if (!opts.fromPopState) {
+        return;
+      }
+      var y = scrollMemory[destKey] || 0;
+      var run = function () {
+        if (isCurrent()) {
+          window.scrollTo(0, y);
+        }
+      };
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(run);
       } else {
-        window.scrollTo(0, 0);
+        run();
       }
     }
 
@@ -843,6 +1060,18 @@
       window.history.pushState({ fomsErpShell: true }, '', target);
     }
 
+    var promise = swapFromCacheOrNetwork();
+    var mine = { key: destKey, generation: myGeneration, promise: promise };
+    pendingNav = mine;
+    var done = function () {
+      if (pendingNav === mine) {
+        pendingNav = null;
+      }
+    };
+    promise.then(done, done);
+    return promise;
+
+    function swapFromCacheOrNetwork() {
     if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
       var cached = cacheGet(destKey);
       if (cached) {
@@ -853,7 +1082,9 @@
             return;
           }
           commitShellHistory(canonical);
+          beforeSwap();
           if (applyFragmentToMain(cached, canonical.href)) {
+            lastSwapDoneAt = nowTs();
             afterSwap();
             // 앞선 network nav 가 켜 둔 오버레이가 남아 있을 수 있어 명시적으로 내린다.
             setShellFragmentLoading(false);
@@ -880,11 +1111,13 @@
             return;
           }
           commitShellHistory(finalUrl);
+          beforeSwap();
           if (!applyFragmentToMain(payload.html, finalUrl.href)) {
             setShellFragmentLoading(false);
             window.location.href = canonical.pathname + canonical.search + canonical.hash;
             return;
           }
+          lastSwapDoneAt = nowTs();
           afterSwap();
         });
       })
@@ -904,6 +1137,7 @@
         }
         setShellFragmentLoading(false);
       });
+    }
   }
 
   /**
@@ -913,7 +1147,7 @@
    *   (하트비트/복귀 재수혈용). inflight dedup 은 항상 유지해 중복 요청을 막는다.
    */
   function prefetchShellFragment(url, opts) {
-    var canonical = new URL(url, window.location.origin);
+    var canonical = shellUrl(url);
     if (!isShellFragmentSwapUrl(canonical.href)) {
       return;
     }
@@ -936,25 +1170,72 @@
   }
 
   /**
-   * 초기 웜업: 로드 후 1회, 가까운 primary 몇 개(IDLE_PREFETCH_MAX)만 프리페치해 초기 로드 부담을 피한다.
-   * 나머지 primary 와 이후 신선도 유지는 하트비트(runPrimaryHeartbeat/runFreshHeartbeat)가 곧 커버한다.
+   * 폰 아래 탭에 지금 보이는 셸 화면 주소(탭 순서, 지금 화면 · 중복 제외). 아래 탭이 안 보이면(태블릿 레일 · PC 위 탭) null.
+   * 예전 첫 웜업은 고정 목록 앞 3개(대시보드 · 실측 · 도면)라 시공 · 출고 · 생산 팀은 온전한 이동 뒤 늘 첫 누름을 기다렸다.
+   */
+  function visibleBottomNavTargets() {
+    var nav = document.querySelector('.erp-mobile-bottom-nav');
+    if (!nav || !nav.getClientRects().length) {
+      return null;
+    }
+    var curKey = getCacheKey(window.location.href);
+    var out = [];
+    nav.querySelectorAll('a[href]').forEach(function (a) {
+      if (a.hasAttribute('data-foms-erp-no-shell')) {
+        return;
+      }
+      var u;
+      try {
+        u = shellUrl(a.href);
+      } catch (e) {
+        return;
+      }
+      var target = u.pathname + u.search;
+      if (u.origin !== window.location.origin || !isShellFragmentSwapUrl(u.href) || getCacheKey(u.href) === curKey) {
+        return;
+      }
+      if (out.indexOf(target) === -1 && out.length < NAV_PREWARM_MAX) {
+        out.push(target);
+      }
+    });
+    return out;
+  }
+
+  /** 다음 한가한 틈(requestIdleCallback, 없으면 setTimeout). */
+  function whenIdle(fn, delayMs) {
+    window.setTimeout(function () {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(fn, { timeout: 2000 });
+      } else {
+        fn();
+      }
+    }, delayMs);
+  }
+
+  /**
+   * 초기 웜업: 로드 후 1회. 폰이면 아래 탭에 보이는 화면을 탭 순서대로(NAV_PREWARM_MAX 까지), 아래 탭이 없는 태블릿 · PC 는
+   * 예전처럼 가까운 primary IDLE_PREFETCH_MAX 개. 한 발씩 한가한 틈에 쏜다. 나머지 primary 와 이후 신선도 유지는 하트비트가 맡는다.
    */
   function scheduleIdlePrimaryPrefetch() {
+    // 다른 사용자가 남긴 재검증 씨앗은 여기서(로드 직후 한가한 틈) 지운다.
+    loadSeedIndex();
     var cur = pathOnly(window.location.href);
-    var candidates = PRIMARY_NAV_PATHS.filter(function (p) {
+    var navTargets = visibleBottomNavTargets();
+    var candidates = (navTargets || PRIMARY_NAV_PATHS.filter(function (p) {
       return p !== cur;
-    }).slice(0, IDLE_PREFETCH_MAX).concat(visibleLinkedFreshPaths());
+    }).slice(0, IDLE_PREFETCH_MAX)).concat(visibleLinkedFreshPaths().filter(function (p) {
+      return !navTargets || navTargets.indexOf(p) === -1;
+    }));
     var i = 0;
     function next() {
       if (i >= candidates.length) {
         return;
       }
-      var base = window.location.origin + candidates[i];
-      prefetchShellFragment(base);
+      prefetchShellFragment(window.location.origin + candidates[i]);
       i += 1;
-      window.setTimeout(next, 400);
+      whenIdle(next, PREWARM_STEP_MS);
     }
-    window.setTimeout(next, IDLE_DELAY_MS);
+    whenIdle(next, IDLE_DELAY_MS);
   }
 
   function onAnchorHoverFocus(ev) {
@@ -1016,7 +1297,11 @@
     }
   }
 
-  function shellNavigateFromAnchor(a) {
+  /**
+   * @param {HTMLAnchorElement} a
+   * @param {number} [inputTs] 누름 event.timeStamp — 스왑 중 줄 선 같은 곳 다시 누름을 가린다.
+   */
+  function shellNavigateFromAnchor(a, inputTs) {
     var href = a.getAttribute('href');
     if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
       return false;
@@ -1039,7 +1324,7 @@
     if (!isShellFragmentSwapUrl(u.href)) {
       return false;
     }
-    navigateByShell(a.href);
+    navigateByShell(a.href, { inputTs: inputTs });
     return true;
   }
 
@@ -1050,7 +1335,7 @@
       if (!a || a.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey) {
         return;
       }
-      if (shellNavigateFromAnchor(a)) {
+      if (shellNavigateFromAnchor(a, e.timeStamp)) {
         e.preventDefault();
       }
     },

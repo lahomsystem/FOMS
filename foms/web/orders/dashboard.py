@@ -47,7 +47,9 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_mobile_width_surfaces,
+    wizard_new_order_enabled,
 )
+from foms.services.order_draft_service import count_open_drafts
 from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services import graft_flags
@@ -68,6 +70,7 @@ from foms.services.common.dashboard_cache import (
 )
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
+    shell_marker_args,
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
@@ -103,9 +106,7 @@ def _dashboard_search_history_redirect_blocked(f_team: str, f_urgent: str, f_has
 
 
 def _redirect_to_history_for_dashboard_search(f_q: str):
-    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request)}
-    if wants_erp_shell_tab_body(request):
-        target_args["view"] = "fragment"
+    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request), **shell_marker_args(request)}
     flash("ERP 대시보드에서 결과가 없어 과거 이력 검색으로 이동했습니다.", "info")
     return redirect(url_for("erp_history.history_dashboard", **target_args))
 
@@ -559,6 +560,13 @@ def erp_dashboard():
         apply_erp_shell_fragment_headers(response, request)
         return response
 
+    # 초안 띠(draft_resume_bar.html)는 모바일 v2 바디(타워 · 큐)에만 있다. 건수를 첫 그림에 실어야 띠가
+    # 그린 뒤 끼어들어 아래 단추를 밀지 않는다(2026-11-16 폰 실측). 게이트는 초안 API 와 같다.
+    draft_resume_count = (
+        count_open_drafts(db, uid)
+        if uid is not None and mobile_v2 and wants_mobile_width_surfaces() and wizard_new_order_enabled(uid)
+        else 0
+    )
     _mytasks_href = (
         url_for('erp_dashboard.erp_dashboard')
         if f_tower_mine
@@ -578,6 +586,7 @@ def erp_dashboard():
         process_steps=process_steps,
         tower_mode=tower_mode,
         control_tower=control_tower,
+        draft_resume_count=draft_resume_count,
         tower_mine_active=f_tower_mine,
         calendar_colors_editable=_can_edit_calendar_colors(current_user),
         mobile_shell_show_mytasks=tower_mode,

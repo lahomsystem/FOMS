@@ -1,0 +1,142 @@
+{# 셸 첫 누름(11-16) — 폰에서 화면이 보인 뒤 JS 가 묶이기 전(4배 CPU 0.7~1.4초) 누름이 버려져 "두 번 눌러야" 하던 것.
+   하단 탭 · 머리 단추 바로 뒤 인라인으로 두어 파서가 여기까지 오면 곧바로 듣는다(defer 스크립트 수십 개를 기다리지 않는다).
+   - 뒤로: 여기서 바로 처리한다(다른 스크립트가 필요 없다). erp-mobile-shell.js 는 이 스크립트가 없을 때만 묶는다.
+   - 통합 검색: 검색 창은 기본 dialog 라 바로 연다(누른 순간이라 자판도 뜬다). 나머지 준비는 search.js 가 묶일 때 한다.
+   - 메뉴 서랍(Bootstrap) · 달력 날 · 상세 ⋯: 진짜 처리기가 묶이는 순간(스크립트 하나가 실행될 때마다 확인) 한 번만 다시 누른다.
+     4초가 지났거나, 주소가 바뀌었거나, 단추가 화면에서 빠졌거나, 그사이 다른 곳을 눌렀으면 버린다.
+   다 묶인 뒤에는 아무것도 하지 않는다(진짜 처리기가 묶였는지 보고 지나간다). 문서당 한 번(data-foms-run-once + 창 가드). #}
+<script data-foms-run-once="erp-mobile-early-tap">
+(function () {
+  'use strict';
+  if (window.__FOMS_EARLY_TAP_BOUND) { return; }
+  window.__FOMS_EARLY_TAP_BOUND = true;
+
+  var MAX_WAIT_MS = 4000;
+  var domReady = false;
+  var pending = null;
+
+  function goBack(btn) {
+    var fallbackHref = (btn.getAttribute('data-foms-shell-back-href') || '').trim();
+    if (window.history && window.history.length > 1) { window.history.back(); return; }
+    if (fallbackHref) { window.location.href = fallbackHref; return; }
+    if (document.referrer) { window.location.href = document.referrer; return; }
+    window.location.href = '/erp/dashboard';
+  }
+
+  function searchDialog() {
+    return window.__FOMS_SEARCH_OVERLAY_BOUND ? null : document.getElementById('foms-search-overlay');
+  }
+
+  /* search.js 가 묶이기 전에만: 열기 · 닫기 · 지우기. 열었으면 data-foms-early-open 을 남겨 search.js 가 이어받는다. */
+  function earlySearch(target) {
+    var dialog = searchDialog();
+    if (!dialog || typeof dialog.showModal !== 'function') { return false; }
+    var input = document.getElementById('foms-search-input');
+    if (target.closest('[data-foms-search-open]')) {
+      if (!dialog.open) {
+        dialog.showModal();
+        dialog.setAttribute('data-foms-early-open', '1');
+        if (input) { input.value = ''; input.focus(); }
+      }
+      return true;
+    }
+    if (!dialog.open || !dialog.contains(target)) { return false; }
+    if (target.closest('[data-foms-search-close]')) {
+      dialog.close();
+      dialog.removeAttribute('data-foms-early-open');
+      return true;
+    }
+    if (target.closest('[data-foms-search-clear]') && input) {
+      input.value = '';
+      input.focus();
+      return true;
+    }
+    return false;
+  }
+
+  function replayClick(el) { el.click(); }
+
+  var KINDS = [
+    {
+      sel: '[data-bs-toggle="offcanvas"][data-bs-target="#erp-mobile-menu-drawer"]',
+      ready: function () { return !!(window.bootstrap && window.bootstrap.Offcanvas); },
+      /* 다시 누르기(toggle) 대신 열기만 — 그사이 열렸어도 닫히지 않는다. */
+      replay: function (el) {
+        var drawer = document.getElementById('erp-mobile-menu-drawer');
+        if (drawer) { window.bootstrap.Offcanvas.getOrCreateInstance(drawer).show(el); }
+      }
+    },
+    {
+      sel: '[data-foms-day-tile]',
+      ready: function (el) {
+        var tower = el.closest('[data-foms-tower]');
+        return !!(tower && tower.getAttribute('data-foms-tower-bound') === '1');
+      },
+      replay: replayClick
+    },
+    {
+      /* 상세 ⋯ 는 mobile-detail-delete.js 가 defer 실행 때 묶는다 — 묶였다는 표시가 없어 DOMContentLoaded 뒤를 준비로 본다. */
+      sel: '[data-foms-more-open]',
+      ready: function () { return domReady; },
+      replay: replayClick
+    }
+  ];
+
+  function matchKind(target) {
+    for (var i = 0; i < KINDS.length; i += 1) {
+      var el = target.closest(KINDS[i].sel);
+      if (el) { return { kind: KINDS[i], el: el }; }
+    }
+    return null;
+  }
+
+  function flush() {
+    if (!pending) { return; }
+    var p = pending;
+    if (Date.now() - p.at > MAX_WAIT_MS || window.location.href !== p.url || !p.el.isConnected) {
+      pending = null;
+      return;
+    }
+    if (!p.kind.ready(p.el)) { return; }
+    pending = null;
+    try {
+      p.kind.replay(p.el);
+    } catch (err) {
+      console.warn('[erp-mobile-early-tap] 다시 누르기 실패', err);
+    }
+  }
+
+  document.addEventListener('click', function (ev) {
+    var target = ev.target;
+    if (!target || !target.closest) { return; }
+    var back = target.closest('[data-foms-shell-back]');
+    if (back) {
+      pending = null;
+      goBack(back);
+      return;
+    }
+    if (earlySearch(target)) {
+      pending = null;
+      return;
+    }
+    var hit = matchKind(target);
+    if (!hit || hit.kind.ready(hit.el)) {
+      pending = null;
+      return;
+    }
+    pending = { kind: hit.kind, el: hit.el, at: Date.now(), url: window.location.href };
+  }, true);
+
+  /* load 는 거품이 없어 잡기(capture)로 듣는다 — defer 스크립트 하나가 실행을 마칠 때마다 온다. */
+  document.addEventListener('load', flush, true);
+  document.addEventListener('DOMContentLoaded', function () {
+    domReady = true;
+    window.setTimeout(flush, 0);
+  });
+  window.addEventListener('load', function () {
+    document.removeEventListener('load', flush, true);
+    flush();
+  });
+  window.addEventListener('pagehide', function () { pending = null; });
+})();
+</script>

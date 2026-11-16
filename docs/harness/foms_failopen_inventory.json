@@ -3406,7 +3406,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 201,
+      "lineno": 206,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3415,7 +3415,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 253,
+      "lineno": 259,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3424,7 +3424,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 286,
+      "lineno": 292,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3433,7 +3433,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 382,
+      "lineno": 388,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3442,7 +3442,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 411,
+      "lineno": 417,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3451,7 +3451,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 453,
+      "lineno": 459,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3577,7 +3577,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 255,
+      "lineno": 253,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3586,7 +3586,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 302,
+      "lineno": 296,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

@@ -112,6 +112,29 @@
     setActiveTab('all');
   }
 
+  // 셸 첫 누름 스크립트(erp_mobile_early_tap.html)가 이 파일이 묶이기 전에 창을 먼저 열었으면(data-foms-early-open)
+  // 여는 나머지 준비만 한다 — 그사이 친 글은 지우지 않고, htmx 가 칸을 묶은 뒤(DOMContentLoaded) 검색을 한 번 부른다.
+  function takeOverEarlyOpen() {
+    var dialog = getDialog();
+    if (!dialog || !dialog.hasAttribute('data-foms-early-open')) {
+      return;
+    }
+    dialog.removeAttribute('data-foms-early-open');
+    if (!dialog.open) {
+      return;
+    }
+    historyNavigationStarted = false;
+    var input = getInput();
+    if (!input || !input.value.trim()) {
+      clearSearchResults();
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { setActiveTab('all'); }, { once: true });
+    } else {
+      setActiveTab('all');
+    }
+  }
+
   function closeDialog() {
     var dialog = getDialog();
     if (!dialog) {
@@ -372,4 +395,5 @@
   });
 
   renderRecent();
+  takeOverEarlyOpen();
 })();

@@ -231,3 +231,19 @@ def test_korean_amount():
     assert korean_amount(100000000) == "일억"
     assert korean_amount(10000) == "일만"
     assert korean_amount(1001) == "일천일"
+
+
+def test_pay_statement_select_default_row_drawn_by_server():
+    """입금 칸 명세서 고르기의 기본 줄은 서버가 그린다 — JS 가 같은 글로 다시 채워 첫 그림과 폭이 같다.
+
+    2026-11-16 폰 실측: 빈 select 로 그린 뒤 JS 가 긴 기본 글을 넣으면 칸이 넓어져 다음 줄로 꺾이며
+    메모 칸 · 입금 기록 단추를 75px 밀었다(CLS 0.093).
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    body = (root / "templates/cs/partials/partner_statements_body.html").read_text(encoding="utf-8")
+    js = (root / "static/js/cs/partner-payments.js").read_text(encoding="utf-8")
+    text = "고르지 않음 (오래된 명세서부터 채움)"
+    assert f'data-pay-statements><option value="">{text}</option></select>' in body
+    assert f"el('option', null, '{text}')" in js

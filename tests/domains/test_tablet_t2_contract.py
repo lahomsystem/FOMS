@@ -500,11 +500,14 @@ def test_tablet_measure_partial_exists_and_reuses_rows() -> None:
 
 
 def test_dashboard_main_includes_tablet_split_cohort_gated() -> None:
-    """dashboard_main.html 이 split 파샬을 erp_mobile_v2_enabled 게이트 안에서 include."""
+    """dashboard_main.html 이 split 파샬을 erp_mobile_v2_enabled 게이트 안에서 include.
+
+    폰(터치 + 992 미만 창)은 split 표시 식(가로 ≥992)에 안 걸려 wide_viewport_surfaces 가 AND 로 더해졌다(2026-11-16).
+    """
     body = _norm(_read(MEASURE_DASHBOARD_MAIN))
     assert "measurement/partials/tablet_split_body.html" in body
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and wide_viewport_surfaces %} "
         "{% include 'measurement/partials/tablet_split_body.html' %}"
     ) in body
 
@@ -865,8 +868,9 @@ def test_dashboard_body_includes_gallery_cohort_gated_with_legacy_wrapper() -> N
     norm = _norm(body)
     # 코호트 게이트에 coarse_pointer_surfaces 가 AND 로 더해졌다 — 이 표면은
     # (pointer: coarse) 로만 표시되므로 마우스 기기엔 서버가 렌더하지 않는다(실측 48.4KB).
+    # 폰(터치 + 992 미만 창)도 가로 ≥992 식에 안 걸려 wide_viewport_surfaces 가 더해졌다(2026-11-16).
     assert (
-        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces and wide_viewport_surfaces %} "
         "{% include 'drawing/partials/tablet_gallery_body.html' %}"
     ) in norm
 

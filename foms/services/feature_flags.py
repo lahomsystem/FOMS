@@ -22,9 +22,11 @@ __all__ = [
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
     "should_render_new_order_wizard",
+    "surface_gate_context",
     "wants_desktop_queue_surfaces",
     "wants_mobile_width_surfaces",
     "wants_wide_only_surfaces",
+    "wants_wide_viewport_surfaces",
     "wizard_new_order_enabled",
 ]
 
@@ -319,6 +321,75 @@ def wants_desktop_queue_surfaces(request: "Request | None" = None) -> bool:
     if cookies is None:
         return True
     return not (cookies.get("foms_ptr") == "coarse" and cookies.get("foms_vw") == "wide")
+
+
+def wants_wide_viewport_surfaces(request: "Request | None" = None) -> bool:
+    """폰(터치 + 992 미만 창)에서 CSS 가 끄는 **넓은 창 표면**을 이 요청에 렌더해야 하는지 판정한다.
+
+    :func:`wants_desktop_queue_surfaces` 의 폰 쪽 짝이다(2026-11-16, 원장 §29 다음 일). 대상 둘:
+
+    - 태블릿 가로 화면(시공 작업 모드 · 생산 칸반 · 실측 split · 도면 작업실 · 출고 하루치 표 ·
+      AS 대조 · 주문 태블릿 큐) — base ``display:none`` 이고 표시는
+      ``(min-width: 992px) and (orientation: landscape) and (pointer: coarse)`` 한 식뿐이다.
+    - 모바일 셸이 끄는 PC 표면(주문 머리 · 프로세스 맵 · 실측 펼친 줄 · 도면 PC 표 · 주문 split) —
+      ``body.erp-mobile-v2-layout`` 아래 ``(max-width: 991.98px)`` 에서 ``display:none``
+      (foms-shell.css · layout_head.html 임계 CSS · Bootstrap ``d-lg-block``). 그래서 템플릿은
+      반드시 ``erp_mobile_v2_enabled`` 와 함께 쓴다.
+
+    둘 다 **창 폭 992 미만**이면 포인터와 무관하게 안 보인다. 그래도 ``foms_ptr=coarse`` **그리고**
+    ``foms_vw=narrow`` 일 때만 False 다 — 마우스 PC 는 좁힌 창이라도 지금 출력 그대로 둔다(되돌림 길이
+    덜 도는 쪽, 바이트 대조 범위 밖으로 넓히지 않는다).
+
+    창 폭은 낡을 수 있다(폴더블 펼침 · 화면 분할 · 작은 태블릿 세로→가로). 그래서 되돌리는 길이 짝으로
+    있다 — 생략한 자리에 ``data-foms-wide-surface-omitted`` 표식(wide_surface_omitted_marker.html)을
+    남기고, 창이 992 이상이 됐는데 표식이 있으면 ``static/js/runtime/foms-wide-surface-recover.js`` 가
+    지금 화면을 다시 받는다(그때 쿠키는 ``wide``/``tall`` 이라 표면이 돌아온다).
+
+    안전 폴백: 쿠키가 하나라도 없거나 미지의 값이면 True — 현행대로 전부 렌더한다.
+
+    Args:
+        request: Flask/Werkzeug request 또는 None(활성 request context 사용).
+
+    Returns:
+        넓은 창 표면을 렌더해야 하면 True. 폰(터치 + 좁은 창)으로 확인될 때만 False.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return True
+        req = flask_request
+    cookies = getattr(req, "cookies", None)
+    if cookies is None:
+        return True
+    return not (cookies.get("foms_ptr") == "coarse" and cookies.get("foms_vw") == "narrow")
+
+
+def surface_gate_context() -> dict[str, bool]:
+    """템플릿 표면 게이트 5종을 한 번에 낸다(``inject_status_list`` 가 펼쳐 싣는다).
+
+    - ``coarse_pointer_surfaces``: 마우스 기기면 False(터치 전용 표면 생략).
+    - ``wide_only_surfaces``: 화면 긴 변 < 992(폰)면 False(광폭 전용 표면 생략).
+    - ``mobile_width_surfaces``: 광폭 마우스 PC · 태블릿 가로면 False(CSS 가 끄는 모바일 v2 표면 생략).
+    - ``desktop_queue_surfaces``: 태블릿 가로만 False(태블릿 화면이 대신하는 PC 작업 큐 생략).
+    - ``wide_viewport_surfaces``: 폰(터치 + 992 미만 창)만 False(태블릿 가로 화면 · 모바일 셸이 끄는 PC 표면 생략).
+
+    뒤의 셋은 창 폭·방향에 따라 바뀌므로 프래그먼트 버전 키(fragment_revalidation._surface_hint_material)가
+    같은 판정을 재료로 쓴다. 템플릿에서 뒤의 둘은 ``erp_mobile_v2_enabled`` 와 함께 쓴다(코호트 밖은 은닉 CSS 가 없다).
+    모두 쿠키만 읽는다(쿼리 0).
+
+    Returns:
+        템플릿 변수 이름 → 판정값.
+    """
+    return {
+        "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
+        "wide_only_surfaces": wants_wide_only_surfaces(),
+        "mobile_width_surfaces": wants_mobile_width_surfaces(),
+        "desktop_queue_surfaces": wants_desktop_queue_surfaces(),
+        "wide_viewport_surfaces": wants_wide_viewport_surfaces(),
+    }
 
 
 def resolve_shell_variant(user_id: int | None) -> str:

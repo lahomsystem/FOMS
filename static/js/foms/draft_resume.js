@@ -97,8 +97,7 @@
   /**
    * 초안 1건을 지운다. 성공하면 그 행만 DOM 에서 덜어낸다.
    *
-   * 목록을 다시 부르지 않는 이유: bar 의 토글 리스너를 render() 안에서 붙이므로 render 를
-   * 다시 돌리면 리스너가 겹쳐 시트가 열리자마자 닫힌다. 서버 변화가 "그 행 하나 사라짐"
+   * 목록을 다시 부르지 않는 이유: render() 를 다시 돌리면 줄이 겹친다. 서버 변화가 "그 행 하나 사라짐"
    * 으로 결정적이라 낙관적 제거로 충분하고, 화면을 떠났다 오면 조각 교체가 다시 부른다.
    *
    * @param {Object} ctx 띠의 엘리먼트 묶음.
@@ -229,36 +228,25 @@
   }
 
   /**
-   * 목록을 받아 줄과 시트를 채운다. 0건이면 아무것도 그리지 않는다.
-   * @param {HTMLElement} root 컨테이너.
+   * 목록을 받아 접힌 시트의 줄만 채우고 건수를 맞춘다. 띠 · 건수는 서버가 첫 그림에 그린다
+   * (count_open_drafts) — 여기서 띠를 처음 벗기면 달력 · 카드를 손가락 밑에서 민다(2026-11-16 폰 실측).
+   * 서버 건수와 목록이 어긋나면(다른 창에서 만들거나 지움) 목록을 따른다 — 0건이면 접고, 생겼으면 보인다.
+   * @param {Object} ctx 띠의 엘리먼트 묶음.
    * @param {Array<Object>} drafts 초안 목록.
    * @returns {void}
    */
-  function render(root, drafts) {
-    if (!drafts.length) {
-      return;
-    }
-    var bar = root.querySelector("#foms-draft-resume-bar");
-    var sheet = root.querySelector("#foms-draft-resume-sheet");
-    var count = root.querySelector(".foms-draft-resume__count");
-    if (!bar || !sheet || !count) {
-      return;
-    }
-    var ctx = { root: root, bar: bar, sheet: sheet, count: count };
+  function render(ctx, drafts) {
     drafts.forEach(function (draft) {
-      sheet.appendChild(renderRow(ctx, draft));
+      ctx.sheet.appendChild(renderRow(ctx, draft));
     });
     syncCount(ctx);
-    bar.addEventListener("click", function () {
-      var open = sheet.hidden;
-      sheet.hidden = !open;
-      bar.setAttribute("aria-expanded", open ? "true" : "false");
-    });
-    root.hidden = false;
+    if (drafts.length) {
+      ctx.root.hidden = false;
+    }
   }
 
   /**
-   * 목록을 부른다. 실패(권한 없음·네트워크)면 조용히 물러난다 — 홈 화면을 막지 않는다.
+   * 시트 여닫기를 붙이고 목록을 부른다. 실패(권한 없음·네트워크)면 조용히 물러난다 — 홈 화면을 막지 않는다.
    * @returns {void}
    */
   function init() {
@@ -269,6 +257,17 @@
     // ERP 셸은 본문만 조각으로 갈아끼운다(foms:erp-shell-fragment-swapped). 그때 placeholder
     // 는 **새 엘리먼트**라 다시 채워야 하고, 같은 엘리먼트를 두 번 채우면 목록이 겹친다.
     root.fomsDraftResumeBound = true;
+    var ctx = { root: root, bar: root.querySelector("#foms-draft-resume-bar"),
+      sheet: root.querySelector("#foms-draft-resume-sheet"), count: root.querySelector(".foms-draft-resume__count") };
+    if (!ctx.bar || !ctx.sheet || !ctx.count) {
+      return;
+    }
+    // 띠가 첫 그림부터 보이므로 목록이 오기 전에 눌러도 열리게 여기서 한 번만 붙인다.
+    ctx.bar.addEventListener("click", function () {
+      var open = ctx.sheet.hidden;
+      ctx.sheet.hidden = !open;
+      ctx.bar.setAttribute("aria-expanded", open ? "true" : "false");
+    });
     fetch(LIST_URL, { credentials: "same-origin" })
       .then(function (res) {
         if (!res.ok) {
@@ -281,7 +280,7 @@
           return;
         }
         var drafts = body.data.drafts;
-        render(root, Array.isArray(drafts) ? drafts : []);
+        render(ctx, Array.isArray(drafts) ? drafts : []);
       })
       .catch(function () {
         /* 초안 줄이 없다고 홈이 망가지면 안 된다 — 조용히 접는다. */

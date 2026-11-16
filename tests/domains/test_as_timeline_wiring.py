@@ -851,28 +851,39 @@ def test_preset_types_match_quick_add_select_options():
     assert {log_type for log_type, _, _ in _PRESETS} <= options
 
 
-def test_hint_banner_is_dismissed_once_via_localstorage(client):
-    """과도기 배너: 서버는 숨긴 채 렌더하고, JS 가 localStorage 로 1회만 노출한다."""
+def test_hint_banner_shown_by_server_until_cookie_dismissed(client):
+    """과도기 배너: 닫음 정본은 쿠키 — 서버가 그릴지 정한다(첫 그림 뒤 끼어들어 단추를 밀지 않게).
+
+    2026-11-16 폰 실측: d-none 으로 그린 뒤 JS 가 약 1.1초 뒤 벗겨 단추 19개가 68px 밀렸다(CLS 0.068).
+    대조군: 쿠키 없으면 보이는 채(d-none 없이), 쿠키 있으면 아예 없음.
+    """
     _login_as_admin(client, username="as_hint_admin")
     body = client.get("/erp/as").get_data(as_text=True)
     banner = body.split('id="as-timeline-hint"', 1)[1].split("</div>", 1)[0]
-    assert "d-none" in banner  # 재방문자에게 깜빡임 없이 사라지려면 숨김 상태로 렌더
+    assert "d-none" not in banner.split(">", 1)[0]
     assert "as-timeline-hint__dismiss" in body
     assert "AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다." in body
 
+    client.set_cookie("foms_as_timeline_hint_dismissed", "1", domain="localhost")
+    body = client.get("/erp/as").get_data(as_text=True)
+    assert 'id="as-timeline-hint"' not in body
+
     js = _js()
-    assert "foms_as_timeline_hint_dismissed" in js
     hint = js[js.index("as-timeline-hint"):]
     hint = hint[:hint.index("})();")]
-    assert "localStorage.getItem('foms_as_timeline_hint_dismissed') === '1'" in hint
-    assert "localStorage.setItem('foms_as_timeline_hint_dismissed', '1')" in hint
+    assert "HINT_KEY = 'foms_as_timeline_hint_dismissed'" in hint
+    assert "document.cookie = HINT_KEY + '=1; path=/; max-age=31536000; SameSite=Lax'" in hint
+    # 쿠키 전 localStorage 로 닫은 사람은 쿠키로 옮긴다 — 읽기만, 새로 쓰지 않는다
+    assert "localStorage.getItem(HINT_KEY) === '1'" in hint
+    assert "localStorage.setItem(" not in hint
+    assert "classList.remove('d-none')" not in hint  # 늦은 노출 금지
     assert hint.count("banner.remove()") == 2  # 이미 닫음 + 방금 닫음
 
 
 def test_hint_banner_survives_blocked_storage():
     """사생활 모드 SecurityError 가 initAsDashboard 전체를 죽이면 안 된다(대시보드 JS 전멸).
 
-    읽기/쓰기 **양쪽** 이 try 안에 있어야 한다. 폴백은 읽기 실패=미닫힘(배너 노출),
+    localStorage 읽기 · 쿠키 쓰기 **양쪽** 이 try 안에 있어야 한다. 폴백은 읽기 실패=쿠키만으로 판정,
     쓰기 실패=세션 내 제거 유지 — 배너 제거는 catch 밖이라 저장 성공 여부와 무관하다.
     """
     js = _js()
@@ -880,13 +891,13 @@ def test_hint_banner_survives_blocked_storage():
     hint = hint[:hint.index("})();")]
     assert hint.count("try {") == 2
     assert hint.count("catch (storageErr)") == 2
-    for call in ("localStorage.getItem(", "localStorage.setItem("):
+    for call in ("localStorage.getItem(", "document.cookie = "):
         head = hint[:hint.index(call)]
         # 직전 `try {` 가 직전 `catch` 보다 가까워야 = 이 호출이 try 블록 안이다
         last_catch = head.rfind("catch (storageErr)")
         assert head.rfind("try {") > last_catch, call
     # 배너 제거는 catch 밖 — 저장 실패해도 이번 세션에서는 사라진다
-    assert "}\n        banner.remove();" in hint
+    assert "rememberDismissed();\n        banner.remove();" in hint
 
 
 def test_preset_and_banner_styles_exist():
@@ -1157,6 +1168,9 @@ def test_column_resizer_is_wired():
     assert "foms.asDashboard.columnWidths.v1" in js
     assert "setPointerCapture" in js                        # 표 밖으로 나가도 드래그 유지
     assert "DESKTOP_MIN_WIDTH = 768" in js                  # 모바일 무동작
+    # 조각 교체마다 도는 판정 — innerWidth 는 강제 레이아웃(4배 CPU 교체 5회 3.6~3.9초, 2026-11-16) → 미디어 쿼리
+    assert "return window.innerWidth" not in js
+    assert "window.matchMedia('(min-width: ' + DESKTOP_MIN_WIDTH + 'px)')" in js
     css = _css(_BODY_CSS)
     assert "#as-dashboard-table .col-resize-handle" in css
     assert "right: 0" in css.split("#as-dashboard-table .col-resize-handle {", 1)[1].split("}", 1)[0]

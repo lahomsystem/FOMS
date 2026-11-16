@@ -20,33 +20,40 @@
       }, 400);
     })();
 
-    // T15 과도기 힌트 배너 — "AS 내용"이 타임라인으로 바뀐 것을 1회만 알린다.
+    // T15 과도기 힌트 배너 — "AS 내용"이 타임라인으로 바뀐 것을 닫을 때까지 알린다.
     // 싱글톤 가드를 쓰지 않는 이유: 배너는 fragment swap 마다 새 엘리먼트로 다시 렌더되므로
     // 리스너도 그 엘리먼트에 새로 붙어야 한다(전역 리스너가 아니라 누수도 없다).
-    // 서버는 d-none 으로 렌더한다 — 이미 닫은 사용자에게 한 프레임 깜빡이지 않게 하려고.
+    // 닫음 정본은 쿠키다 — 서버가 쿠키를 읽어 아예 안 그리므로 첫 그림 뒤 배너가 끼어들어
+    // 아래 단추를 미는 일이 없다(2026-11-16 폰 실측: d-none → 1.1초 뒤 노출로 단추 19개가 68px 밀림).
+    // 여기 왔는데 이미 닫은 기록이 있으면 = 쿠키 생기기 전 localStorage 로 닫은 사람(1회 옮김)이거나
+    // 쿠키 전의 옛 조각을 다시 그린 경우라 쿠키를 쓰고 지운다.
     // localStorage 접근은 사생활 모드/서드파티 쿠키 차단에서 SecurityError 를 던진다. 여기가
     // initAsDashboard 최상단이라 예외가 새면 대시보드 JS 전체(토스트·날짜 저장·quick-add·
     // 프리셋)가 죽는다. 아래 catch 는 에러 숨기기가 아니라 **예상된 브라우저 상태의 폴백**이다:
-    //   읽기 실패 → "아직 안 닫음"으로 보고 배너를 띄운다(안내 누락보다 재노출이 낫다)
+    //   읽기 실패 → "아직 안 닫음"으로 본다(안내 누락보다 재노출이 낫다)
     //   쓰기 실패 → 저장만 포기하고 세션 내 제거는 유지한다(다음 방문에 다시 뜬다)
     (function () {
       const banner = document.getElementById('as-timeline-hint');
       if (!banner) return;
-      let dismissed = false;
-      try {
-        dismissed = localStorage.getItem('foms_as_timeline_hint_dismissed') === '1';
-      } catch (storageErr) {
-        dismissed = false; // 저장소 차단 — 미닫힘으로 폴백
-      }
-      if (dismissed) { banner.remove(); return; }
-      banner.classList.remove('d-none');
-      const dismiss = banner.querySelector('.as-timeline-hint__dismiss');
-      if (dismiss) dismiss.addEventListener('click', function () {
+      const HINT_KEY = 'foms_as_timeline_hint_dismissed';
+      function rememberDismissed() {
         try {
-          localStorage.setItem('foms_as_timeline_hint_dismissed', '1');
+          document.cookie = HINT_KEY + '=1; path=/; max-age=31536000; SameSite=Lax';
         } catch (storageErr) {
           console.warn('[as-dashboard] 힌트 확인 저장 실패 — 다음 방문에 다시 표시됨', storageErr);
         }
+      }
+      const cookieDismissed = document.cookie.split('; ').indexOf(HINT_KEY + '=1') !== -1;
+      let legacyDismissed = false;
+      try {
+        legacyDismissed = localStorage.getItem(HINT_KEY) === '1';
+      } catch (storageErr) {
+        legacyDismissed = false; // 저장소 차단 — 쿠키 값만으로 판정한다
+      }
+      if (cookieDismissed || legacyDismissed) { rememberDismissed(); banner.remove(); return; }
+      const dismiss = banner.querySelector('.as-timeline-hint__dismiss');
+      if (dismiss) dismiss.addEventListener('click', function () {
+        rememberDismissed();
         banner.remove(); // 저장 성공 여부와 무관하게 이번 세션에서는 사라진다
       });
     })();

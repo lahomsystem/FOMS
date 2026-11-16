@@ -63,7 +63,7 @@ from tests.support.render_input_recorder import ALL, RenderInputLog, record_rend
 #: 모르는 인자면 키를 포기하므로 덮인다.
 def _key_spec() -> dict[str, set[str]]:
     return {
-        "args": set(pfv.KEY_ARGS) | set(fp.SHELL_ARGS) | {"view", ALL},
+        "args": set(pfv.KEY_ARGS) | set(fp.SHELL_ARGS) | {"view", "foms_shell", ALL},
         "cookies": set(fp.SHELL_COOKIES),
         "headers": set(fp.SHELL_HEADERS),
         "session_keys": set(fp.SHELL_SESSION_KEYS),

@@ -166,7 +166,7 @@ def time_bucket(user_id: Any, now_s: float, size_s: int = FRESHNESS_BUCKET_S) ->
 
 def normalized_args(req: Any, allowed: Sequence[str]) -> list[list[str]] | None:
     """허용 목록으로 정규화한 요청 인자. 모르는 인자가 하나라도 있으면 ``None``(키 포기)."""
-    known = set(allowed) | {"view"}
+    known = set(allowed) | {"view", "foms_shell"}  # foms_shell = 셸 조각 전용 표식(11-16), view 처럼 모드 축이라 키에 든다
     out: list[list[str]] = []
     for name in sorted(req.args.keys()):
         if name not in known:

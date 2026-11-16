@@ -78,7 +78,10 @@
   {% macro _ship_day_url(d) -%}
     {{ url_for('erp_shipment_page.erp_shipment_dashboard', date=d, q=search_q or '') }}{% if erp_mine_only %}&mine=1{% endif %}
   {%- endmacro %}
-  <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약" data-ship-datebar>
+  {# 폰(터치 + 992 미만 창)엔 이 위 줄과 아래 하루치 출고표를 안 그린다 — 둘 다 base-hidden 이고 표시는 코호트 가로(≥992) 식뿐이다
+     (판정 feature_flags.wants_wide_viewport_surfaces, 표식 wide_surface_omitted_marker.html 한 개: 창이 992 이상이 되면
+     foms-wide-surface-recover.js 가 다시 받는다). PC 표(.erp-shipment-desktop-shell)는 폰에도 둔다 — 폰 [AS 추천]
+     (shipment-dashboard.js collectTargetOrderIds)이 PC 표 줄에서 주문 번호를 읽고, 추천 창도 그 안에 있다. #}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<div class="foms-ship-pcbar" aria-label="출고 대시보드 요약" data-ship-datebar>
     <div class="foms-ship-pcbar__lead">
       <div class="foms-ship-days" role="group" aria-label="출고 날짜 고르기">
         <button type="button" class="foms-ship-days__nav" data-ship-days-nav="-1" aria-label="앞 7일">&#9664;</button>
@@ -137,7 +140,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </div>{% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
@@ -359,7 +362,7 @@
           {# 태블릿 가로 클린 그리드(목업 06) — base-hidden, 코호트에서만 표시하며 아래 PC 테이블
              래퍼(.shipment-table-wrapper)를 코호트에서 은닉한다. 자체 .cap 힌트를 포함하므로
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
-          {% include 'shipment/partials/tablet_ship_grid.html' %}
+          {% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}{% include 'shipment/partials/tablet_ship_grid.html' %}{% endif %}
           <div class="table-responsive shipment-table-wrapper">
             <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260814a">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">

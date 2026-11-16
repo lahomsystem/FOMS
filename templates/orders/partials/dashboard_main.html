@@ -23,12 +23,16 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
-  {% if foms_split_enabled %}
+  {# 폰(터치 + 992 미만 창)엔 split(992~1365 마우스 창 전용) · 아래 PC 머리 · 프로세스 맵 · 작업 큐 · 태블릿 화면을 안 그린다 —
+     모바일 셸에선 .foms-shell-desktop-only 가 max-width: 991.98px 에서 통째로 꺼지고 split 은 base display:none 이다
+     (판정 feature_flags.wants_wide_viewport_surfaces, 표식 wide_surface_omitted_marker.html: 창이 992 이상이 되면
+     foms-wide-surface-recover.js 가 다시 받는다). 그 안 CSS 묶음(dashboard_styles.html — 판매채널 마크 등 모바일도 씀)은 그대로 싣는다.
+     JS 가 읽는 #erp-filters-form · 단계 타일 · 알림 타일 · .erp-main-row 는 모두 없으면 건너뛴다(erp-dashboard-detail-dom.js). #}{% if foms_split_enabled and wide_viewport_surfaces %}
     {% include 'partials/shared/foms_split_shell.html' %}
-  {% endif %}
+  {% endif %}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}
 
   <div class="foms-shell-desktop-only">
-  <!-- Modern Header -->
+  {% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
       <i class="fas fa-layer-group"></i>
@@ -146,12 +150,12 @@
     <!-- New single row filter attached directly to the process map card -->
     {% include 'orders/partials/dashboard_filters.html' %}
     {% include 'orders/partials/dashboard_history_more.html' %}
-  </div>
+  </div>{% endif %}
 
   <!-- 3-Panel Layout -->
   {% include 'orders/partials/dashboard_styles.html' %}
 
-  <div class="erp-dashboard-layout">
+  {% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<div class="erp-dashboard-layout">
     {# PC 작업 큐 그리드는 광폭(≥992)에서만 픽셀을 차지한다 — 폰(긴 변 <992)에서는 세로·가로
        어느 방향에서도 부모 `.foms-shell-desktop-only` 가 display:none 이다(스테이징 computed
        style 실측: 390·844 둘 다 h=0, 1600 에서 h=1146). screen 긴 변은 기기 고정 특성이라
@@ -174,7 +178,7 @@
     {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'orders/partials/tablet_workqueue_grid.html' %}
     {% endif %}
-  </div>
+  </div>{% endif %}
   </div>{# /.foms-shell-desktop-only #}
 
   {# 이 include 가 데스크톱 응답에도 들어가는 이유 — 셸 전환 기준은 뷰포트 폭(max-width:

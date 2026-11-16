@@ -248,7 +248,7 @@ def test_shell_swaps_and_prefetches_production_home():
     # 9탭 계약은 그대로(생산 첫 화면은 9탭 밖 하위 조각) · 보드는 여전히 FRESH
     assert "/erp/production/home" not in enc.ERP_FRAGMENT_READY_PATHS
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261114a" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261116a" in layout
 
 
 def test_rail_production_button_goes_to_home_href():
