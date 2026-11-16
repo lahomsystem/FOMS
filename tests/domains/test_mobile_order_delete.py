@@ -253,5 +253,6 @@ def test_detail_page_exposes_root_only_for_allowed_user(client, app, monkeypatch
     _login(client, drawing)
     html2 = _detail(client, order_id).get_data(as_text=True)
     assert 'foms-mobile-delete-root' not in html2
-    assert 'data-foms-more-open' not in html2
+    # 셸 첫 누름 인라인 스크립트(erp_mobile_early_tap.html)는 선택자 글자로 이 이름을 품는다 — 단추 속성만 본다.
+    assert 'data-foms-more-open' not in html2.replace("'[data-foms-more-open]'", '')
     assert 'foms-mdel-confirm-tpl' not in html2

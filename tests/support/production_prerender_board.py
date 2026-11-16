@@ -28,7 +28,7 @@ from tests.support.fragver_fake_redis import FakeRedis
 
 PATH = "/erp/production/dashboard?view=fragment"
 SHELL_HEADERS = {"X-FOMS-ERP-SHELL": "1", "If-None-Match": '"seed-validator"'}
-KANBAN_COOKIES = {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "1200"}
+KANBAN_COOKIES = {"foms_ptr": "coarse", "foms_vw": "tall", "foms_scr": "1200"}
 PC_COOKIES = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
 
 

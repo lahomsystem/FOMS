@@ -330,3 +330,72 @@ def test_measurement_detail_rows_keep_shell_for_export() -> None:
     export = (ROOT / "static/js/measurement/image-export.js").read_text(encoding="utf-8")
     assert "tr.measurement-detail-row" in export and "row.remove()" in export
     assert "document.querySelector('.measurement-table')" in export
+
+
+# --- 6. 폰엔 빠진 표면의 자료도 만들지 않는다(11-16 후속) ------------------------------
+
+#: (경로, 뷰 모듈, 그 표면만 읽는 자료를 만드는 함수들) — 표면 게이트와 같은 판정을 뷰가 먼저 본다.
+DATA_BUILDERS = [
+    ("/erp/dashboard", "foms.web.orders.dashboard", ("build_split_master_cards", "build_split_side_items")),
+    ("/erp/production/dashboard", "foms.web.production.dashboard", ("_compute_tablet_prod_kpis", "collect_production_tombstones")),
+    ("/erp/shipment", "foms.web.shipment.dashboard", ("build_tablet_day_sheet",)),
+    ("/erp/measurement", "foms.web.measurement.dashboard", ("compute_measurement_product_items_build",)),
+]
+#: 생산 칸반은 원래 터치 기기만 그린다 — 대조군은 터치 넓은 창(태블릿 가로 · 큰 태블릿 세로).
+TOUCH_WIDE = [c for c in CONTROLS if c[0] in ("tablet-landscape", "big-tablet-portrait")]
+
+
+def _spy(monkeypatch, module_name: str, names: tuple[str, ...]) -> dict[str, int]:
+    import importlib
+
+    from foms.services.common import dashboard_cache
+
+    dashboard_cache.reset_dashboard_cache_runtime_for_tests()  # 실측 제품 칸은 캐시 슬라이스 뒤에 있다
+    mod = importlib.import_module(module_name)
+    calls = {n: 0 for n in names}
+    for name in names:
+        real = getattr(mod, name)
+
+        def wrapped(*args, _real=real, _name=name, **kwargs):
+            calls[_name] += 1
+            return _real(*args, **kwargs)
+
+        monkeypatch.setattr(mod, name, wrapped)
+    return calls
+
+
+@pytest.mark.parametrize(("path", "module_name", "names"), DATA_BUILDERS)
+@pytest.mark.parametrize(("tag", "cookies"), [("phone", PHONE), ("small-tablet-portrait", SMALL_TABLET_PORTRAIT)])
+def test_phone_skips_data_for_omitted_surfaces(client, monkeypatch, path, module_name, names, tag, cookies) -> None:
+    _login(client, monkeypatch, _uname("pvs_data_", path, tag))
+    calls = _spy(monkeypatch, module_name, names)
+
+    _body(client, path, cookies)
+
+    assert all(n == 0 for n in calls.values()), f"{path} {tag}: 폰에 안 그리는 표면의 자료를 만들었다 {calls}"
+
+
+@pytest.mark.parametrize(("path", "module_name", "names"), DATA_BUILDERS)
+@pytest.mark.parametrize(("tag", "cookies"), TOUCH_WIDE + [("no-cookies", {}), ("odd-value", CONTROLS[-1][1])],
+                         ids=[c[0] for c in TOUCH_WIDE] + ["no-cookies", "odd-value"])
+def test_wide_windows_still_build_surface_data(client, monkeypatch, path, module_name, names, tag, cookies) -> None:
+    """대조군 — 넓은 창 · 쿠키 없음 · 이상값은 지금처럼 자료를 만든다."""
+    _login(client, monkeypatch, _uname("pvs_data_ctl_", path, tag))
+    calls = _spy(monkeypatch, module_name, names)
+
+    _body(client, path, cookies)
+
+    for name, n in calls.items():
+        assert n >= 1, f"{path} {tag}: 넓은 창인데 {name} 를 건너뛰었다"
+
+
+@pytest.mark.parametrize(("path", "module_name", "names"), [b for b in DATA_BUILDERS if b[0] in ("/erp/shipment", "/erp/measurement")])
+def test_legacy_cohort_phone_still_builds_surface_data(client, monkeypatch, path, module_name, names) -> None:
+    """코호트 밖은 템플릿이 `or not erp_mobile_v2_enabled` 로 그 표면을 그린다 — 폰 쿠키여도 자료를 만든다."""
+    _login(client, monkeypatch, _uname("pvs_data_legacy_", path, "ph"), cohort=False)
+    calls = _spy(monkeypatch, module_name, names)
+
+    _body(client, path, PHONE)
+
+    for name, n in calls.items():
+        assert n >= 1, f"{path}: 코호트 밖 폰인데 {name} 를 건너뛰었다"

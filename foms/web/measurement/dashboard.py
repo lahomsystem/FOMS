@@ -78,6 +78,13 @@ from foms.services.auth.partner_scope import partner_mark_name
 from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 from foms.services.orders.manager_names import order_manager_match_names
+from foms.services.feature_flags import (
+    is_mobile_v2_shell,
+    is_naver_bulk_dispatch_enabled,
+    resolve_shell_variant_cached,
+    wants_mobile_width_surfaces,
+    wants_wide_viewport_surfaces,
+)
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -396,6 +403,14 @@ def erp_measurement_dashboard():
             or _mf_key in order_manager_match_names(o.structured_data, o.manager_name)
         ]
 
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
+    )
+    # 폰(모바일 셸 · 터치 + 992 미만 창)엔 PC 표 펼친 줄 속과 태블릿 split 을 안 그린다(dashboard_main.html 의
+    # `wide_viewport_surfaces or not erp_mobile_v2_enabled` · `erp_mobile_v2_enabled and wide_viewport_surfaces` 게이트).
+    # 펼친 줄만 읽는 product_items 와 split 만 읽는 tablet_card_view · tablet_bucket_counts 를 만들지 않는다.
+    wide_rows_wanted = wants_wide_viewport_surfaces() or not mobile_v2_active
+
     _pi_fp = {
         "v": 3,
         "partner_org": partner_org,
@@ -417,16 +432,17 @@ def erp_measurement_dashboard():
 
     # Batch 3: product_items 빌드 compute는 compute_measurement_product_items_build(read-model)로 분리(동작 보존).
     # cache 키(_pi_key)·fingerprint(_pi_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
-    _pi_blob = get_or_compute_dashboard_slice(
-        _pi_key,
-        TTL_PAYLOAD_ASSEMBLY,
-        lambda: compute_measurement_product_items_build(db, rows, row_fallback_added_ids),
-        page="measurement",
-        slice_name="measurement_product_items_build",
-    )
-    _pi_by_id = _pi_blob.get("product_items_by_id") or {}
-    for o in rows:
-        o.product_items = _pi_by_id.get(str(o.id), [])
+    if wide_rows_wanted:
+        _pi_blob = get_or_compute_dashboard_slice(
+            _pi_key,
+            TTL_PAYLOAD_ASSEMBLY,
+            lambda: compute_measurement_product_items_build(db, rows, row_fallback_added_ids),
+            page="measurement",
+            slice_name="measurement_product_items_build",
+        )
+        _pi_by_id = _pi_blob.get("product_items_by_id") or {}
+        for o in rows:
+            o.product_items = _pi_by_id.get(str(o.id), [])
 
     # get_manager_name_for_sort는 담당자 필터 적용 지점(hydrate 직후)에서 이미 정의됨.
     _settings = load_erp_shipment_settings()
@@ -492,18 +508,9 @@ def erp_measurement_dashboard():
     )
 
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
-    from foms.services.feature_flags import (
-        is_mobile_v2_shell,
-        is_naver_bulk_dispatch_enabled,
-        resolve_shell_variant_cached,
-        wants_mobile_width_surfaces,
-    )
     from foms.services.erp_mobile_order_display import (
         build_mobile_queue_batch_context,
         build_mobile_queue_order_row,
-    )
-    mobile_v2_active = is_mobile_v2_shell(
-        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     mobile_queue_rows = []
     # 실측 방문 체크(스펙 2026-09-23): 단일 날짜 모드에서 엄격한 ISO 날짜일 때만 체크 기준일이
@@ -560,7 +567,7 @@ def erp_measurement_dashboard():
     )
     tablet_card_view: dict[int, dict] = {}
     tablet_bucket_counts = {"all": 0, "today": 0, "week": 0, "undated": 0}
-    for _o in rows:
+    for _o in (rows if wide_rows_wanted else ()):
         _stage = _erp_get_stage(_o, _o.structured_data or {})
         _mdate_raw = getattr(_o, "measurement_date", None)
         _days = None
