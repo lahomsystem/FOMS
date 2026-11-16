@@ -2,11 +2,14 @@
 
 - 표식: 링크 자신의 ``view=queue`` 가 조각 요청에 남고, 셸 표식은 ``foms_shell`` 로 간다. 서버는 그 요청에 큐를 그린다.
 - 만료 줄도 ETag 를 남겨 If-None-Match 를 보낸다(304 면 그 html 로 스왑).
-- 온전한 페이지 이동 뒤에도 pagehide 씨앗으로 If-None-Match 를 보낸다(다른 사용자 씨앗은 지운다).
-- 같은 곳 스왑 중 다시 누름(비행 중 · 긴 작업 동안 줄 선 누름)은 요청 · 스왑을 늘리지 않는다.
-- 첫 웜업은 보이는 아래 탭 순서(아래 탭이 없는 태블릿 · PC 는 예전 PRIMARY 앞 3개).
+- 온전한 페이지 이동 뒤에도 씨앗으로 If-None-Match 를 보낸다(다른 사용자 씨앗은 지운다). 씨앗은 받은 뒤 한가한 틈에 적고
+  pagehide 처리기는 없다(떠나는 길을 늦추지 않는다).
+- 같은 곳 스왑 중 다시 누름(비행 중 · 긴 작업 동안 줄 선 누름) · 스왑 끝 1초 안 다시 누름은 요청 · 스왑을 늘리지 않는다.
+- 첫 웜업(11-16 재실측 뒤): load 뒤 한 발씩 — 아래 탭 순서 → 예전 PRIMARY 앞 3개 → 서랍(데이터 절약이면 뺌).
+  아래 탭이 없는 태블릿 · PC 는 예전 PRIMARY 앞 3개 그대로. 사용자 이동이 미리 받기를 끊고 · 이어받고 · 스왑 직후엔 쉬게 한다.
+- 전환 중(hiding)인 서랍은 스왑이 바로 dispose 하지 않는다(Bootstrap 늦은 콜백 classList 오류).
 
-음성 대조군: 표식을 예전 ``set('view', 'fragment')`` 로 되돌린 사본은 표식 판정에서 실패해야 한다.
+음성 대조군: 표식을 예전 ``set('view', 'fragment')`` 로 되돌린 사본 · 다시 누름 창 · 전환 대기를 뺀 사본은 각 판정에서 실패해야 한다.
 """
 
 from __future__ import annotations
@@ -65,35 +68,90 @@ def test_negative_control_old_marker_clobbers_view(tmp_path: Path) -> None:
 
 
 def test_expired_entry_revalidates_with_if_none_match(sim: dict) -> None:
-    last = sim["stale"]["calls"][-1]
+    last = {k: v for k, v in sim["stale"]["calls"][-1].items() if k != "at"}
     assert last == {"url": "/erp/shipment?foms_shell=fragment", "inm": '"e:/erp/shipment"'}
     assert sim["stale"]["lastSwap"] == "<div>/erp/shipment?foms_shell=fragment</div>"
 
 
 def test_seed_survives_full_navigation_but_not_user_switch(sim: dict) -> None:
     seed = sim["seed"]
+    assert seed["pagehideListeners"] == 0  # 떠나는 길(pagehide)에서 stringify · setItem 을 하지 않는다
+    assert seed["beforeIdle"] == 0 and seed["afterIdle"] >= 1  # 받은 뒤 한가한 틈에 적는다
     assert seed["same"]["inm"] == '"e:/erp/shipment"'
     assert seed["sameSwap"] == "<div>/erp/shipment?foms_shell=fragment</div>"
     assert seed["other"]["inm"] is None
-    assert seed["keysAfterOther"] <= 1  # 다른 사용자 씨앗은 지워지고 남는 건 그 사용자 자신의 것뿐
+    assert seed["subjectAfterOther"] == "8"  # 남은 씨앗은 새 사용자 자신의 것뿐
 
 
 def test_repeat_tap_to_same_destination_is_merged(sim: dict) -> None:
     assert sim["dedupe"]["afterInflight"] == {"fetches": 1, "swaps": 1, "samePromise": True}
     assert sim["dedupe"]["afterQueued"] == {"fetches": 1, "swaps": 1}
+    assert sim["dedupe"]["afterRepeat"] == {"fetches": 1, "swaps": 1}  # 스왑 끝 0.6초 뒤 다시 누름
+    assert sim["dedupe"]["afterLater"]["swaps"] == 2  # 1초 뒤 다시 누름 = 새로고침(지금 규칙)
+    assert sim["dedupe"]["backDuringOther"] == {"path": "/erp/as", "lastSwap": "<div>/erp/as?foms_shell=fragment</div>"}
+
+
+def test_negative_control_without_repeat_window_swaps_twice(tmp_path: Path) -> None:
+    src = SHELL_JS.read_text(encoding="utf-8")
+    cond = "opts.inputTs - lastSwapDoneAt < REPEAT_TAP_WINDOW_MS &&"
+    assert src.count(cond) == 1, "다시 누름 창 문장이 바뀌었다 — 대조군 치환을 갱신하라"
+    copy = tmp_path / "erp-shell.js"
+    copy.write_text(src.replace(cond, "opts.inputTs <= lastSwapDoneAt &&"), encoding="utf-8")
+    assert _run(copy)["dedupe"]["afterRepeat"]["swaps"] == 2
+
+
+_PHONE_PREWARM = [
+    # 1단계: 보이는 아래 탭(탭 순서, 지금 화면 · 셸 밖 제외)
+    "/erp/construction/dashboard?foms_shell=fragment",
+    "/erp/shipment?foms_shell=fragment",
+    "/erp/as?foms_shell=fragment",
+    # 2단계: 예전 고정 목록(PRIMARY 앞 3개) — 예전에 데우던 것은 계속 데운다
+    "/erp/measurement?foms_shell=fragment",
+    "/erp/drawing-workbench?foms_shell=fragment",
+    "/erp/production/dashboard?foms_shell=fragment",
+]
 
 
 def test_prewarm_follows_visible_bottom_nav_then_falls_back(sim: dict) -> None:
-    assert sim["prewarm"]["phone"] == [
-        "/erp/construction/dashboard?foms_shell=fragment",
-        "/erp/shipment?foms_shell=fragment",
-        "/erp/as?foms_shell=fragment",
+    # 3단계: 서랍의 나머지 셸 화면(서랍 순서, 4개까지 — 셸 밖 · 지금 화면 · 이미 고른 것 제외)
+    assert sim["prewarm"]["phone"] == _PHONE_PREWARM + [
+        "/erp/completion?foms_shell=fragment",
+        "/erp/history/?foms_shell=fragment",
+        "/erp/shipment-settings?foms_shell=fragment",
     ]
+    assert sim["prewarm"]["saver"] == _PHONE_PREWARM  # 데이터 절약이면 서랍 몫은 뺀다
     assert sim["prewarm"]["pc"] == [
         "/erp/measurement?foms_shell=fragment",
         "/erp/drawing-workbench?foms_shell=fragment",
         "/erp/production/dashboard?foms_shell=fragment",
     ]
+
+
+def test_user_navigation_wins_over_prewarm(sim: dict) -> None:
+    y = sim["yield"]
+    assert y["beforeLoad"] == 0  # load 전엔 웜업 0발
+    assert y["afterLoad"] == ["/erp/construction/dashboard?foms_shell=fragment"]  # 한 발씩
+    assert y["inflight"] == ["/erp/construction/dashboard?foms_shell=fragment"]
+    assert y["abortedOther"] == ["/erp/construction/dashboard?foms_shell=fragment"]  # 다른 곳 누름이 끊는다
+    assert y["duringQuiet"] == []  # 스왑 직후 1.5초는 쉰다
+    assert y["afterQuiet"] == ["/erp/construction/dashboard?foms_shell=fragment"]  # 끊긴 칸을 다시 받는다
+    assert y["adopted"] == {"newCalls": 0, "aborted": 0, "lastSwap": "<div>/erp/construction/dashboard?foms_shell=fragment</div>"}
+
+
+def test_transitioning_drawer_is_disposed_after_hidden(sim: dict) -> None:
+    ov = sim["overlay"]
+    assert ov["hiding"] == {"disposedAtSwap": False, "disposedLater": True, "errors": [], "classes": ["offcanvas"]}
+    assert ov["still"]["disposedAtSwap"] is True and ov["still"]["errors"] == []
+
+
+def test_negative_control_immediate_dispose_crashes_late_callback(tmp_path: Path) -> None:
+    src = SHELL_JS.read_text(encoding="utf-8")
+    guard = "if (!overlayTransitioning(el, instance)) {"
+    assert src.count(guard) == 1, "전환 대기 문장이 바뀌었다 — 대조군 치환을 갱신하라"
+    copy = tmp_path / "erp-shell.js"
+    copy.write_text(src.replace(guard, "if (true) {"), encoding="utf-8")
+    errors = _run(copy)["overlay"]["hiding"]["errors"]
+    assert errors == ["Cannot read properties of null (reading 'classList')"], errors
 
 
 def _login_v2(client, monkeypatch) -> None:

@@ -448,6 +448,15 @@ def erp_as_dashboard():
         if wants_erp_shell_tab_body(request)
         else 'cs/as_dashboard.html'
     )
+    # 폰 PC 표 늦게 받기(as_dashboard_body.html 자리표 · as-dashboard.js): 폰엔 PC 표를 빼고, 창이 768 이상이 되면
+    # 화면이 같은 주소에 as_pc_table=1 을 붙여 다시 받는다. 그 값이면 창 구간과 무관하게 표를 그린다.
+    as_force_pc_table = request.args.get('as_pc_table') == '1'
+    _pc_table_args = {
+        k: v for k, v in request.args.items(multi=False) if k not in ('as_pc_table', 'foms_shell', 'view')
+    }
+    as_pc_table_src = url_for(
+        'erp_as_page.erp_as_dashboard', **_pc_table_args, as_pc_table='1', foms_shell='fragment'
+    )
     _t0 = time.perf_counter()
     _body = render_template(
         template_name,
@@ -476,6 +485,8 @@ def erp_as_dashboard():
         # 모바일 v2 날짜 타일의 '오늘'·'N일 지남' 기준일(KST). JS 는 브라우저 시계를 믿지 않고
         # 이 값(data-as-today)으로 저장 직후 표기를 다시 그린다.
         as_today_iso=get_today_kst().isoformat(),
+        as_force_pc_table=as_force_pc_table,
+        as_pc_table_src=as_pc_table_src,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

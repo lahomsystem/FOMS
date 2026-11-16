@@ -7,6 +7,20 @@
     padding-top: 0;
   }
 
+  /* 가로 넘침 막기(2026-11-16 스테이징 실측: 폰 390px 에서 문서 폭 427px). 본문 grid 의 칸이
+     auto(= 안의 가장 긴 안 끊기는 줄의 폭)라, 주문 진행 단계 줄의 '시각 · 처리한 사람'(줄바꿈 금지)이나
+     끊김 없는 영문 · 숫자 한 줄만 길어도 본문 전체가 화면보다 넓어졌다. 그러면 브라우저가 페이지를 줄여
+     고정 머리줄 · 아래 탭 단추 자리가 어긋나 다른 단추가 눌렸다. 칸을 화면 폭에 묶고, 긴 글은 칸 안에서 꺾는다
+     (단계 줄의 시각 · 사람은 원래 규칙대로 말줄임). */
+  body.erp-mobile-v2-layout .foms-detail-page .foms-shell-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-wrap: anywhere;
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-page .foms-shell-body > * {
+    min-width: 0;
+  }
+
   body.erp-mobile-v2-layout .detail-hero,
   body.erp-mobile-v2-layout .foms-detail-hero {
     background: var(--foms-surface-base);
@@ -41,7 +55,7 @@
   body.erp-mobile-v2-layout .quick-actions,
   body.erp-mobile-v2-layout .foms-quick-actions {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--foms-space-2);
     padding: var(--foms-space-3) var(--foms-space-4);
     background: var(--foms-surface-base);

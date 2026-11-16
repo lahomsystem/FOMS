@@ -66,6 +66,7 @@ html.foms-notice-open {
   font-weight: 700;
   line-height: 1.4;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .foms-notice-popup__body {
@@ -77,6 +78,7 @@ html.foms-notice-open {
   color: #33465a;
   white-space: pre-line;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .foms-notice-popup__meta {
@@ -167,6 +169,7 @@ html.foms-notice-open {
 
 .foms-notice-filter {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
 }
@@ -271,11 +274,14 @@ html.foms-notice-open {
   color: #9a5b00;
 }
 
+/* 띄어쓰기 없는 긴 글(붙여 쓴 한글 · 주소 링크 · 표 줄)은 칸 안에서 꺾는다(2026-11-16). keep-all 만 두면 한 낱말로 보고
+   칸 밖으로 뻗어, 목록(overflow: hidden)에 잘려 끝을 못 읽었다 — 폰 390px 에서 제목 1118px · 본문 2251px. 낱말 사이 줄바꿈은 그대로다. */
 .foms-notice-item__title {
   font-size: 0.98rem;
   font-weight: 600;
   color: #1b2733;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .foms-notice-item.is-unread .foms-notice-item__title {
@@ -304,6 +310,7 @@ html.foms-notice-open {
   color: #33465a;
   white-space: pre-line;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .foms-notice-empty {

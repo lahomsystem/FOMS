@@ -92,6 +92,28 @@
   var NAV_PREWARM_MAX = 5;
   var PREWARM_STEP_MS = 400;
   /**
+   * 첫 웜업 2단계(폰): 아래 탭 뒤에 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX)과 메뉴 서랍의 셸 화면을 이만큼까지 더 받는다.
+   * 아래 탭만 데우자 서랍으로 가는 생산 보드 · 도면이 식어 1배 CPU 114 → 407ms, 104 → 264ms 로 느려졌다(11-16 스테이징 재실측).
+   * 서랍 몫은 데이터 절약 · 2G 면 건너뛴다(예전 고정 목록 몫은 예전에도 받았으니 그대로 받는다).
+   */
+  var DRAWER_PREWARM_MAX = 4;
+  /**
+   * 사용자 이동이 미리 받기보다 먼저다: 누름 · 스왑이 끝난 뒤 이만큼은 미리 받기(첫 웜업 · 하트비트 한 칸)를 쉰다 — 스왑 직후 그 화면
+   * 스크립트 · 레이아웃 · 그림이 망과 메인 스레드를 먼저 쓴다(AS '영업 전달' 안정이 미리 받기 304 두 발 때문에 514 → 921ms, 11-16).
+   */
+  var USER_NAV_QUIET_MS = 1500;
+  var BACKGROUND_RETRY_MS = 300;
+  /** 사용자 누름이 끊은 웜업 한 칸을 다시 받는 횟수 상한(넘으면 다음 칸 — 남은 것은 하트비트가 받는다). */
+  var PREWARM_MAX_RETRIES = 3;
+  /** load 이벤트가 끝내 안 오면(멈춘 그림 등) 이 뒤에 첫 웜업을 시작한다. */
+  var PREWARM_LOAD_FALLBACK_MS = 10 * 1000;
+  /**
+   * 같은 화면 다시 누름 창: 스왑이 끝난 뒤 이 시간 안에 지금 화면 탭을 다시 누르면 다시 받지 · 다시 그리지 않는다(맨 위로만).
+   * 반응을 기다리다 한 번 더 누른 것이다 — 4배 CPU 시공 1번 379ms, 2번 ~830ms · 스왑 2회(11-16 imp 실측).
+   * 이 창이 지난 뒤 다시 누름은 지금처럼 새로 받고 맨 위로 간다(의도한 새로고침).
+   */
+  var REPEAT_TAP_WINDOW_MS = 1000;
+  /**
    * 미리 받기 허용 경로 — 서버가 이 스크립트 태그에 data-foms-prefetch-allow(공백으로 나눈 경로)를 그리면 그
    * 경로만 미리 받는다(하트비트 · 첫 웜업 · 복귀 재수혈 · 누름/올림 모두). 켜진 프리랜서는 자기 메뉴 href 만
    * 실린다(layout_scripts.html) — 못 여는 탭(도면 · 생산 …)을 받으면 문지기가 홈으로 302 를 돌려 헛걸음이다.
@@ -137,9 +159,55 @@
   var pendingNav = null;
   /** 마지막 스왑이 끝난 시각(performance.now 시계 — 입력 event.timeStamp 와 같은 시계). */
   var lastSwapDoneAt = -1;
+  /** 마지막 사용자 이동 의도 시각(셸 링크 누름 · 셸 이동 시작, nowTs 시계). */
+  var lastUserNavTs = -1;
+  /**
+   * 미리 받기(웜업 · 하트비트 · 복귀 재수혈)의 AbortController 를 fetchFragment 에 건네는 1회용 통로(navFetchSignal 과 같은 방식) —
+   * 사용자 이동이 시작되면 그 이동의 목적지가 아닌 미리 받기는 끊는다(abortBackgroundFetches).
+   */
+  var backgroundFetchController = null;
+  /** 날고 있는 미리 받기 {캐시 키: AbortController}. 사용자 이동이 이어받은 것은 여기서 빠진다(끊기지 않는다). */
+  var backgroundControllers = Object.create(null);
 
   function nowTs() {
     return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  }
+
+  /** 미리 받기 한 칸을 지금 쏘면 안 되면 기다릴 ms(0 = 지금 쏴도 된다). 스왑 중이거나 사용자 이동 직후면 기다린다. */
+  function backgroundWaitMs() {
+    if (pendingNav) {
+      return BACKGROUND_RETRY_MS;
+    }
+    var last = Math.max(lastSwapDoneAt, lastUserNavTs);
+    if (last < 0) {
+      return 0;
+    }
+    var since = nowTs() - last;
+    return since < USER_NAV_QUIET_MS ? Math.max(BACKGROUND_RETRY_MS, USER_NAV_QUIET_MS - since) : 0;
+  }
+
+  /**
+   * 사용자 이동이 시작됐다 — 날고 있는 미리 받기를 끊어 망을 비운다. keepKey(그 이동의 목적지) 것은 끊지 않고 이어받는다
+   * (같은 요청을 다시 보내지 않는다 — fetchFragment 의 inflight 재사용).
+   */
+  function abortBackgroundFetches(keepKey) {
+    Object.keys(backgroundControllers).forEach(function (k) {
+      var ctl = backgroundControllers[k];
+      delete backgroundControllers[k];
+      if (k === keepKey) {
+        return;
+      }
+      try {
+        ctl.abort();
+      } catch (e) {
+        console.warn('[erp-shell] 미리 받기 끊기 실패:', k, e);
+      }
+    });
+  }
+
+  function noteUserNav(keepKey) {
+    lastUserNavTs = nowTs();
+    abortBackgroundFetches(keepKey);
   }
 
   /**
@@ -342,6 +410,9 @@
       var evict = fragmentCacheOrder.shift();
       delete fragmentHtmlCache[evict];
     }
+    if (etag) {
+      scheduleSeedPersist();
+    }
   }
 
   /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast. */
@@ -448,60 +519,126 @@
     }
   }
 
-  /** 떠날 때(pagehide) 메모리 캐시를 최신순으로 씨앗에 옮긴다 — 같은 ETag 는 다시 쓰지 않는다. 상한 밖은 지운다. */
-  function persistSeeds() {
+  /**
+   * 메모리 캐시를 최신순으로 씨앗에 옮긴다 — 같은 ETag 는 다시 쓰지 않는다. 상한 밖은 지운다.
+   * 한 번에 바뀐 줄을 maxWrites 개까지만 쓴다(한 줄 = 최대 SEED_MAX_ENTRY_CHARS 글자의 stringify + setItem).
+   * 쓰다 만 줄은 옛 씨앗을 그대로 두므로(씨앗은 자기 html · ETag 짝을 함께 들고 있다) 언제 멈춰도 목록과 저장소가 맞다.
+   * @param {number} maxWrites
+   * @returns {boolean} 아직 쓸 줄이 남았는가.
+   */
+  function persistSeeds(maxWrites) {
     var idx = loadSeedIndex();
     if (!idx) {
-      return;
+      return false;
     }
     var store = seedStore();
     var prev = Object.create(null);
     idx.k.forEach(function (row) {
       prev[row.k] = row;
     });
-    var picked = [];
-    var total = 0;
-    function take(row) {
-      if (picked.length >= SEED_MAX_ENTRIES || total + row.n > SEED_MAX_TOTAL_CHARS) {
-        return false;
+    var want = [];
+    var wantTotal = 0;
+    for (var i = fragmentCacheOrder.length - 1; i >= 0 && want.length < SEED_MAX_ENTRIES; i--) {
+      var k = fragmentCacheOrder[i];
+      var mem = fragmentHtmlCache[k];
+      if (!mem || !mem.etag || mem.html.length > SEED_MAX_ENTRY_CHARS || wantTotal + mem.html.length > SEED_MAX_TOTAL_CHARS) {
+        continue;
       }
-      picked.push(row);
+      want.push({ k: k, n: mem.html.length, e: mem.etag, h: mem.html });
+      wantTotal += mem.html.length;
+    }
+    var next = [];
+    var inNext = Object.create(null);
+    var total = 0;
+    var writes = 0;
+    var more = false;
+    function keep(row) {
+      next.push({ k: row.k, n: row.n, e: row.e });
+      inNext[row.k] = true;
       total += row.n;
-      return true;
     }
     try {
-      for (var i = fragmentCacheOrder.length - 1; i >= 0; i--) {
-        var k = fragmentCacheOrder[i];
-        var mem = fragmentHtmlCache[k];
-        if (!mem || !mem.etag || mem.html.length > SEED_MAX_ENTRY_CHARS) {
-          continue;
+      want.forEach(function (row) {
+        var old = prev[row.k];
+        if (old && old.e === row.e) {
+          keep(old);
+          return;
         }
-        var row = { k: k, n: mem.html.length, e: mem.etag };
-        if (take(row) && !(prev[k] && prev[k].e === mem.etag)) {
-          store.setItem(SEED_PREFIX + k, JSON.stringify({ e: mem.etag, h: mem.html }));
+        if (writes >= maxWrites) {
+          more = true;
+          if (old) {
+            keep(old);
+          }
+          return;
         }
-      }
+        store.setItem(SEED_PREFIX + row.k, JSON.stringify({ e: row.e, h: row.h }));
+        writes += 1;
+        keep(row);
+      });
       idx.k.forEach(function (row) {
-        var already = picked.some(function (p) { return p.k === row.k; });
-        if (!already && !take(row)) {
+        if (inNext[row.k]) {
+          return;
+        }
+        if (next.length < SEED_MAX_ENTRIES && total + row.n <= SEED_MAX_TOTAL_CHARS) {
+          keep(row);
+        } else {
           store.removeItem(SEED_PREFIX + row.k);
         }
       });
-      idx.k = picked;
-      store.setItem(SEED_INDEX_KEY, JSON.stringify(idx));
+      var changed = writes > 0 || next.length !== idx.k.length || next.some(function (row, j) {
+        return row.k !== idx.k[j].k || row.e !== idx.k[j].e;
+      });
+      idx.k = next;
+      if (changed) {
+        store.setItem(SEED_INDEX_KEY, JSON.stringify(idx));
+      }
     } catch (e) {
       // 용량 초과 등 — 반쯤 쓴 씨앗을 남기지 않는다.
       console.warn('[erp-shell] 조각 씨앗 저장 실패 — 씨앗을 모두 지운다:', e);
       try {
-        wipeSeeds(store, { k: picked.concat(idx.k) });
+        wipeSeeds(store, { k: next.concat(idx.k, want) });
       } catch (e2) {
         console.warn('[erp-shell] 조각 씨앗 지우기 실패:', e2);
       }
       idx.k = [];
+      return false;
     }
+    return more;
   }
 
-  window.addEventListener('pagehide', persistSeeds);
+  /*
+   * 씨앗은 떠날 때(pagehide)가 아니라 조각을 받은 뒤 한가한 틈에 한 줄씩 적는다. pagehide 처리기는 새 문서 커밋 앞에서 동기로 돌아
+   * 그 시간만큼 다음 화면을 늦춘다(큰 캐시면 stringify + setItem 이 수십 ms — 11-16 측정). 받자마자 떠나 마지막 한 줄을 못 적으면
+   * 그 줄은 다음에 온전한 200 으로 받을 뿐이다(씨앗은 재검증 재료일 뿐 화면에 바로 쓰지 않는다).
+   */
+  var SEED_PERSIST_DELAY_MS = 1000;
+  var seedPersistTimer = false;
+
+  /** 쓸 줄이 남았을 때 다음 한가한 틈까지 쉬는 시간. 한 틈에서는 남은 시간이 SEED_IDLE_MIN_MS 이상일 때만 한 줄 더 쓴다. */
+  var SEED_PERSIST_MORE_MS = 200;
+  var SEED_IDLE_MIN_MS = 10;
+
+  function scheduleSeedPersist(delayMs) {
+    if (seedPersistTimer) {
+      return;
+    }
+    seedPersistTimer = true;
+    whenIdle(function runSeedPersist(deadline) {
+      var wait = backgroundWaitMs();
+      if (wait > 0) {
+        whenIdle(runSeedPersist, wait);
+        return;
+      }
+      seedPersistTimer = false;
+      var more = persistSeeds(1);
+      while (more && deadline && typeof deadline.timeRemaining === 'function' && deadline.timeRemaining() > SEED_IDLE_MIN_MS) {
+        more = persistSeeds(1);
+      }
+      if (more) {
+        scheduleSeedPersist(SEED_PERSIST_MORE_MS);
+      }
+    }, delayMs === undefined ? SEED_PERSIST_DELAY_MS : delayMs);
+  }
 
   /**
    * Drop warm fragment HTML after server-side mutations (quest approve, stage change).
@@ -663,14 +800,14 @@
       container.querySelectorAll('.' + kind + '.show').forEach(function (el) {
         var instance = Ctor.getInstance(el);
         if (instance) {
-          try {
-            instance.dispose();
-          } catch (e) {
-            /* ignore */
-          }
+          disposeOverlaySafely(el, instance, kind);
         }
       });
     });
+    clearBodyOverlayState();
+  }
+
+  function clearBodyOverlayState() {
     document
       .querySelectorAll('.offcanvas-backdrop, .modal-backdrop')
       .forEach(function (backdrop) {
@@ -679,6 +816,76 @@
     document.body.classList.remove('modal-open');
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('padding-right');
+  }
+
+  /** 전환 대기 dispose 대비책(ms) — Bootstrap 전환(300ms) + 여유. */
+  var OVERLAY_DISPOSE_FALLBACK_MS = 1000;
+
+  /** Offcanvas/Modal 이 열기 · 닫기 전환 중인가(.showing · .hiding 또는 Modal 의 _isTransitioning). */
+  function overlayTransitioning(el, instance) {
+    var cl = el.classList;
+    return !!((cl && (cl.contains('showing') || cl.contains('hiding'))) || (instance && instance._isTransitioning === true));
+  }
+
+  /**
+   * 전환 중인 서랍 · 모달은 바로 dispose 하지 않는다. 서랍 링크를 누르면 erp-mobile-shell.js 가 offcanvas.hide()(300ms 전환,
+   * _queueCallback)를 걸고 곧바로 스왑이 그 인스턴스를 dispose 해 _element=null 이 되면, 뒤늦은 완료 콜백이
+   * `Cannot read properties of null (reading 'classList')` 로 죽었다(11-16 로컬 4배 2/2 재현).
+   * 닫는 중이면 hidden.bs.* 뒤에, 여는 중이면 shown.bs.* 뒤에 닫게 하고(hide 가 backdrop · body 잠금을 스스로 푼다) hidden 뒤에
+   * dispose 한다. 대비책: OVERLAY_DISPOSE_FALLBACK_MS 뒤에도 남아 있으면 dispose 하고, 새 화면에 열린 겹층이 없으면 body 상태를 푼다.
+   * @param {Element} el
+   * @param {{dispose: Function, hide?: Function}} instance
+   * @param {'offcanvas'|'modal'} kind
+   */
+  function disposeOverlaySafely(el, instance, kind) {
+    if (el.__fomsDeferredDispose) {
+      return;
+    }
+    if (!overlayTransitioning(el, instance)) {
+      try {
+        instance.dispose();
+      } catch (e) {
+        console.warn('[erp-shell] 겹층 dispose 실패:', kind, e);
+      }
+      return;
+    }
+    el.__fomsDeferredDispose = true;
+    var done = false;
+    var opening = !!(el.classList && el.classList.contains('showing'));
+    var onShown = function () {
+      el.removeEventListener('shown.bs.' + kind, onShown);
+      try {
+        instance.hide();
+      } catch (e) {
+        finish(true);
+      }
+    };
+    var onHidden = function () {
+      finish(false);
+    };
+    function finish(fallback) {
+      if (done) {
+        return;
+      }
+      done = true;
+      el.removeEventListener('hidden.bs.' + kind, onHidden);
+      el.removeEventListener('shown.bs.' + kind, onShown);
+      try {
+        instance.dispose();
+      } catch (e) {
+        console.warn('[erp-shell] 겹층 늦은 dispose 실패:', kind, e);
+      }
+      if (fallback && !document.querySelector('.offcanvas.show, .modal.show')) {
+        clearBodyOverlayState();
+      }
+    }
+    el.addEventListener('hidden.bs.' + kind, onHidden);
+    if (opening) {
+      el.addEventListener('shown.bs.' + kind, onShown);
+    }
+    window.setTimeout(function () {
+      finish(true);
+    }, OVERLAY_DISPOSE_FALLBACK_MS);
   }
 
   /**
@@ -703,10 +910,18 @@
     }).filter(function (Ctor) {
       return Ctor && typeof Ctor.getInstance === 'function';
     });
+    var overlayCtors = [bs.Offcanvas, bs.Modal];
     container.querySelectorAll(BOOTSTRAP_DISPOSE_SELECTOR).forEach(function (el) {
+      if (el.__fomsDeferredDispose) {
+        return; // teardownOpenOverlays 가 전환 끝을 기다려 정리한다.
+      }
       ctors.forEach(function (Ctor) {
         var instance = Ctor.getInstance(el);
         if (!instance) {
+          return;
+        }
+        if (overlayCtors.indexOf(Ctor) !== -1) {
+          disposeOverlaySafely(el, instance, Ctor === bs.Modal ? 'modal' : 'offcanvas');
           return;
         }
         try {
@@ -884,12 +1099,19 @@
     // in-flight promise can't leak this signal to the next caller.
     var navSignal = navFetchSignal;
     navFetchSignal = null;
+    var bgController = backgroundFetchController;
+    backgroundFetchController = null;
     var fetchUrl = new URL(canonical.toString());
     fetchUrl.searchParams.set(SHELL_FRAGMENT_PARAM, 'fragment');
     var key = getCacheKey(canonical.href);
     var cacheable = isFragmentCacheable(canonical.href);
     if (inflightFetches[key]) {
       return inflightFetches[key];
+    }
+    if (!navSignal && bgController) {
+      // 미리 받기 — 사용자 이동이 시작되면 끊길 수 있다(abortBackgroundFetches). 이어받히면 표에서 빠진다.
+      navSignal = bgController.signal;
+      backgroundControllers[key] = bgController;
     }
     var reqHeaders = {
       'X-FOMS-ERP-SHELL': '1',
@@ -958,6 +1180,9 @@
       })
       .finally(function () {
         delete inflightFetches[key];
+        if (bgController && backgroundControllers[key] === bgController) {
+          delete backgroundControllers[key];
+        }
       });
     inflightFetches[key] = p;
     return p;
@@ -979,10 +1204,6 @@
     // 같은 곳으로 가는 스왑이 아직 끝나지 않았으면 다시 누름은 그 스왑을 그대로 기다린다. 예전엔 두 번째 누름이 첫 요청을
     // 끊고 새로 받아 서버 왕복 · 스왑을 두 번 치렀다(4배 CPU 에서 1번 646–688ms → 2번 1165–1483ms, 11-16 실측).
     // 뒤로 · 앞으로 · 캐시 건너뛰기(다시 받기)는 새 의도라 합치지 않는다.
-    // 스왑의 긴 작업 동안 줄 서 있던 다시 누름(입력 시각이 스왑 끝보다 앞)은 이미 그 화면이 그려졌으니 버린다.
-    if (opts.inputTs !== undefined && destKey === lastRenderedKey && opts.inputTs <= lastSwapDoneAt) {
-      return Promise.resolve();
-    }
     if (
       pendingNav &&
       pendingNav.key === destKey &&
@@ -993,6 +1214,22 @@
     ) {
       return pendingNav.promise;
     }
+    // 지금 그려진 화면을 스왑 끝 REPEAT_TAP_WINDOW_MS 안에 다시 누름: 스왑의 긴 작업 동안 줄 서 있던 누름(입력 시각이 스왑 끝보다 앞)이거나
+    // 반응을 기다리다 한 번 더 누른 것 — 다시 받지 · 다시 그리지 않는다. 스왑 뒤 누름이면 맨 위로만 올린다(그사이 내렸으면).
+    // 다른 화면으로 가는 스왑이 아직 끝나지 않았으면 이 누름은 '돌아가기'라 막지 않는다.
+    if (
+      opts.inputTs !== undefined &&
+      destKey === lastRenderedKey &&
+      lastSwapDoneAt >= 0 &&
+      opts.inputTs - lastSwapDoneAt < REPEAT_TAP_WINDOW_MS &&
+      !(pendingNav && pendingNav.key !== destKey)
+    ) {
+      if (opts.inputTs > lastSwapDoneAt) {
+        window.scrollTo(0, 0);
+      }
+      return Promise.resolve();
+    }
+    noteUserNav(destKey);
 
     // Rapid A→B nav race guard: this navigation supersedes any in-flight one.
     // Bumping the generation makes a late A response fail the commit gate below
@@ -1145,28 +1382,43 @@
    * @param {string} url
    * @param {{ force?: boolean }} [opts] force=true 면 warm-hit skip 을 건너뛰고 refetch→cachePut 덮어쓰기
    *   (하트비트/복귀 재수혈용). inflight dedup 은 항상 유지해 중복 요청을 막는다.
+   *   background=true(force 도 같다) 면 미리 받기라 사용자 이동이 시작될 때 끊길 수 있다 — 누름 · 올림 미리 받기는 사용자 의도라 끊지 않는다.
+   * @returns {Promise<true|false|'aborted'>|null} 요청을 보냈거나 같은 요청이 날고 있으면 그 끝(받음 · 실패 · 끊김), 건너뛰면 null.
    */
   function prefetchShellFragment(url, opts) {
     var canonical = shellUrl(url);
     if (!isShellFragmentSwapUrl(canonical.href)) {
-      return;
+      return null;
     }
     if (!isFragmentCacheable(canonical.href)) {
-      return;
+      return null;
     }
     if (PREFETCH_ALLOW_PATHS && PREFETCH_ALLOW_PATHS.indexOf(canonical.pathname) < 0) {
-      return;
+      return null;
     }
     var key = getCacheKey(canonical.href);
     if (!(opts && opts.force) && cacheGet(key)) {
-      return;
+      return null;
     }
     if (inflightFetches[key]) {
-      return;
+      return settlePrefetch(inflightFetches[key]);
     }
-    fetchFragment(canonical).catch(function () {
-      /* ignore prefetch errors */
-    });
+    if (opts && (opts.background || opts.force) && typeof AbortController !== 'undefined') {
+      backgroundFetchController = new AbortController();
+    }
+    return settlePrefetch(fetchFragment(canonical));
+  }
+
+  function settlePrefetch(p) {
+    return p.then(
+      function () {
+        return true;
+      },
+      function (err) {
+        /* ignore prefetch errors */
+        return err && err.name === 'AbortError' ? 'aborted' : false;
+      }
+    );
   }
 
   /**
@@ -1201,6 +1453,66 @@
     return out;
   }
 
+  /**
+   * 폰 메뉴 서랍(#erp-mobile-menu-drawer)의 셸 화면 주소(서랍 순서, 지금 화면 · 이미 고른 것 제외, DRAWER_PREWARM_MAX 까지).
+   * 서랍은 닫혀 있어 보이지 않으므로 보임은 묻지 않는다 — 서버가 이 사용자에게 그린 메뉴가 곧 갈 수 있는 곳이다.
+   * @param {string[]} taken 이미 고른 캐시 키
+   */
+  function drawerShellTargets(taken) {
+    var drawer = document.getElementById('erp-mobile-menu-drawer');
+    if (!drawer || typeof drawer.querySelectorAll !== 'function') {
+      return [];
+    }
+    var curKey = getCacheKey(window.location.href);
+    var out = [];
+    drawer.querySelectorAll('a[href]').forEach(function (a) {
+      if (out.length >= DRAWER_PREWARM_MAX || a.hasAttribute('data-foms-erp-no-shell')) {
+        return;
+      }
+      var u;
+      try {
+        u = shellUrl(a.href);
+      } catch (e) {
+        return;
+      }
+      var k = getCacheKey(u.href);
+      if (u.origin !== window.location.origin || !isShellFragmentSwapUrl(u.href) || k === curKey || taken.indexOf(k) !== -1) {
+        return;
+      }
+      taken.push(k);
+      out.push(u.pathname + u.search);
+    });
+    return out;
+  }
+
+  /** 데이터 절약 · 2G 면 true — 꼭 필요한 미리 받기만 한다. navigator.connection 이 없으면 false. */
+  function saveDataRequested() {
+    try {
+      var c = typeof navigator !== 'undefined' ? navigator.connection : null;
+      return !!(c && (c.saveData || /(^|-)2g$/.test(String(c.effectiveType || ''))));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** 문서 load 뒤(이미 끝났으면 바로) 한 번. load 가 끝내 안 오면 PREWARM_LOAD_FALLBACK_MS 뒤. */
+  function afterLoad(fn) {
+    var state = document.readyState;
+    if (state !== 'loading' && state !== 'interactive') {
+      fn();
+      return;
+    }
+    var done = false;
+    var once = function () {
+      if (!done) {
+        done = true;
+        fn();
+      }
+    };
+    window.addEventListener('load', once);
+    window.setTimeout(once, PREWARM_LOAD_FALLBACK_MS);
+  }
+
   /** 다음 한가한 틈(requestIdleCallback, 없으면 setTimeout). */
   function whenIdle(fn, delayMs) {
     window.setTimeout(function () {
@@ -1213,29 +1525,67 @@
   }
 
   /**
-   * 초기 웜업: 로드 후 1회. 폰이면 아래 탭에 보이는 화면을 탭 순서대로(NAV_PREWARM_MAX 까지), 아래 탭이 없는 태블릿 · PC 는
-   * 예전처럼 가까운 primary IDLE_PREFETCH_MAX 개. 한 발씩 한가한 틈에 쏜다. 나머지 primary 와 이후 신선도 유지는 하트비트가 맡는다.
+   * 초기 웜업: 문서 load 뒤 한가한 틈에 1회(firstPrewarm). 폰이면 아래 탭에 보이는 화면을 탭 순서대로(NAV_PREWARM_MAX 까지) →
+   * 보이는 LINKED_FRESH → 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX, 서랍으로 가는 도면 · 생산) → 서랍의 나머지 셸 화면
+   * (DRAWER_PREWARM_MAX, 데이터 절약 · 2G 면 뺀다). 아래 탭이 없는 태블릿 · PC 는 예전 그대로 PRIMARY 앞 IDLE_PREFETCH_MAX 개 + LINKED_FRESH.
+   * 한 번에 한 발: 앞 요청이 끝난 뒤 PREWARM_STEP_MS + 한가한 틈. 사용자 누름 · 스왑 중 · 스왑 직후(USER_NAV_QUIET_MS)는 쉬고,
+   * 사용자 이동에 끊긴 칸은 다시 받는다(PREWARM_MAX_RETRIES). 나머지 primary 와 이후 신선도 유지는 하트비트(240초 · 50초)가 맡는다.
    */
   function scheduleIdlePrimaryPrefetch() {
     // 다른 사용자가 남긴 재검증 씨앗은 여기서(로드 직후 한가한 틈) 지운다.
     loadSeedIndex();
     var cur = pathOnly(window.location.href);
     var navTargets = visibleBottomNavTargets();
-    var candidates = (navTargets || PRIMARY_NAV_PATHS.filter(function (p) {
+    var oldList = PRIMARY_NAV_PATHS.filter(function (p) {
       return p !== cur;
-    }).slice(0, IDLE_PREFETCH_MAX)).concat(visibleLinkedFreshPaths().filter(function (p) {
-      return !navTargets || navTargets.indexOf(p) === -1;
-    }));
+    }).slice(0, IDLE_PREFETCH_MAX);
+    var candidates = [];
+    var taken = [];
+    function add(p) {
+      var k = getCacheKey(window.location.origin + p);
+      if (taken.indexOf(k) === -1) {
+        taken.push(k);
+        candidates.push(p);
+      }
+    }
+    (navTargets || oldList).forEach(add);
+    visibleLinkedFreshPaths().forEach(add);
+    if (navTargets) {
+      oldList.forEach(add);
+      if (!saveDataRequested()) {
+        drawerShellTargets(taken).forEach(function (p) {
+          candidates.push(p);
+        });
+      }
+    }
     var i = 0;
+    var retries = 0;
+    function advance(res) {
+      if (res === 'aborted' && retries < PREWARM_MAX_RETRIES) {
+        retries += 1;
+      } else {
+        i += 1;
+        retries = 0;
+      }
+      whenIdle(next, PREWARM_STEP_MS);
+    }
     function next() {
       if (i >= candidates.length) {
         return;
       }
-      prefetchShellFragment(window.location.origin + candidates[i]);
-      i += 1;
-      whenIdle(next, PREWARM_STEP_MS);
+      var wait = backgroundWaitMs();
+      if (wait > 0) {
+        whenIdle(next, wait);
+        return;
+      }
+      var p = prefetchShellFragment(window.location.origin + candidates[i], { background: true });
+      if (p) {
+        p.then(advance);
+      } else {
+        advance(null);
+      }
     }
-    whenIdle(next, IDLE_DELAY_MS);
+    next();
   }
 
   function onAnchorHoverFocus(ev) {
@@ -1291,6 +1641,8 @@
       if (!isShellFragmentSwapUrl(u.href)) {
         return;
       }
+      // 사용자 누름이 이긴다: 다른 곳 미리 받기는 끊고, 이 목적지 미리 받기가 날고 있으면 그대로 이어받는다.
+      noteUserNav(getCacheKey(shellUrl(u.href).href));
       prefetchShellFragment(u.pathname + u.search + u.hash);
     } catch (e) {
       /* ignore */
@@ -1486,6 +1838,12 @@
         primaryHeartbeatSweeping = false;
         return;
       }
+      var wait = backgroundWaitMs();
+      if (wait > 0) {
+        // 사용자 이동 · 스왑 직후는 쉬었다가 같은 칸부터(사용자 이동이 먼저다).
+        window.setTimeout(step, wait);
+        return;
+      }
       try {
         prefetchShellFragment(window.location.origin + targets[i], { force: true });
       } catch (e) {
@@ -1514,6 +1872,11 @@
     function step() {
       if (i >= targets.length) {
         freshHeartbeatSweeping = false;
+        return;
+      }
+      var wait = backgroundWaitMs();
+      if (wait > 0) {
+        window.setTimeout(step, wait);
         return;
       }
       try {
@@ -1561,16 +1924,10 @@
     }
   }, HEARTBEAT_FRESH_MS);
 
-  if (typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(
-      function () {
-        scheduleIdlePrimaryPrefetch();
-      },
-      { timeout: 8000 }
-    );
-  } else {
-    window.setTimeout(scheduleIdlePrimaryPrefetch, IDLE_DELAY_MS);
-  }
+  // 첫 웜업은 문서 load 뒤 IDLE_DELAY_MS + 한가한 틈 — 첫 그림 직후 사용자의 첫 누름과 망 · 메인 스레드를 다투지 않는다.
+  afterLoad(function () {
+    whenIdle(scheduleIdlePrimaryPrefetch, IDLE_DELAY_MS);
+  });
 
   /*
    * 생략된 모바일 표면 되돌리기.

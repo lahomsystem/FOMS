@@ -5,6 +5,7 @@
 새 쿼리로 결과를 검증한다.
 """
 
+import re
 from pathlib import Path
 
 from werkzeug.security import generate_password_hash
@@ -211,3 +212,21 @@ def test_cs_no_answer_filter_renders_on_v2_dashboard(client, monkeypatch):
     assert 'data-foms-last-call="no_answer"' in body
     assert "data-foms-lastcall-filter" in body
     assert "현재 페이지 내 필터" in body
+
+
+def test_cs_status_chips_stay_when_filter_has_no_rows(client, monkeypatch):
+    """A4 칩 줄은 칩으로 걸러 0건이어도 남는다 — 줄이 사라지면 '전체'로 돌아갈 단추가 없다(2026-11-16).
+
+    걸린 상태의 '전체' 칩에는 숫자를 달지 않는다(걸린 이 페이지 건 수라 '전체 0'은 거짓말).
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    uid = _login(client, username="cs-chip-empty", role="ADMIN", team="CS")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
+    _create_order(status="RECEIVED")
+
+    body = client.get("/erp/dashboard?view=queue&status=ON_HOLD").get_data(as_text=True)
+    assert 'aria-label="접수 상태 필터"' in body
+    chips = body[body.index('aria-label="접수 상태 필터"'):]
+    chips = chips[:chips.index("</nav>")]
+    assert 'href="/erp/dashboard?view=queue">전체</a>' in chips
+    assert re.search(r'is-active"\s+href="/erp/dashboard\?view=queue&status=ON_HOLD"', chips)

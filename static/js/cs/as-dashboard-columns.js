@@ -165,10 +165,12 @@
     init();
   }
 
-  // 프래그먼트 스왑마다 이 파일이 재실행되므로 document 위임은 1회만(perf 가드 G4).
+  // 문서당 한 번만 실린다(data-foms-run-once) — 그 뒤 화면은 교체 이벤트로 다시 맞춘다. 옛 HTML(속성 없음)이 다시 실행해도
+  // document 위임은 1회만(perf 가드 G4). 폰은 PC 표를 늦게 받는다(as-dashboard.js) — 받아 끼운 뒤에도 같은 init.
   if (!window.__FOMS_AS_COLUMNS_BOUND) {
     window.__FOMS_AS_COLUMNS_BOUND = true;
     document.addEventListener('foms:erp-shell-fragment-swapped', init);
+    document.addEventListener('foms:as-pc-table-loaded', init);
     // 초기화 = 저장분 삭제 + 인라인 제거 → CSS 기본폭 복귀(위 파일 주석 참조).
     document.addEventListener('click', function (e) {
       var btn = e.target.closest && e.target.closest('#' + RESET_BTN_ID);
