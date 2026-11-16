@@ -357,6 +357,11 @@
     background: var(--foms-surface-base, #fff);
     box-shadow: var(--foms-shadow-sm, 0 1px 3px rgba(15, 17, 21, 0.06));
     overflow: hidden;
+    /* 화면 밖 카드는 배치 · 글자 모양 잡기 · 그리기를 미룬다(2026-11-16). 폰 AS 교체 한 번의 긴 작업 대부분이 카드 100장
+       배치(4배 CPU 1,090ms) · 한글 글자 모양(365ms)이었다. 카드는 이미 overflow:hidden 이라 그리기 가둠이 더 자르는 것은 없다.
+       크기 추정 = 실측 카드 높이(419px, 영업 전달 475px) − 안쪽 여백 · 테두리. 한 번 그린 카드는 실제 크기를 기억한다(auto). */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2.is-pending {

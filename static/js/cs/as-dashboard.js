@@ -1118,6 +1118,44 @@
       highlightTimelineStatic(scope);
     };
 
+    // ───────── 폰 PC 표 늦게 받기 ─────────
+    // 서버는 폰(터치 + 992 미만 창)에 PC 표 대신 [data-as-pc-table-deferred] 자리표만 그린다(as_dashboard_body.html).
+    // 표는 d-md-block 이라 창이 768 이상(폰 가로)일 때만 보인다 — 그때 같은 화면을 as_pc_table=1 로 다시 받아 표만 끼운다.
+    // 판정은 매번 지금 DOM 을 본다: 창 바뀜 리스너는 문서당 1번(G4), 교체 뒤 새 자리표도 같은 함수가 맡는다.
+    window.__fomsAsLoadDeferredPcTable = function () {
+      const slot = document.querySelector('[data-as-pc-table-deferred]');
+      const src = slot ? slot.dataset.asPcTableSrc : '';
+      if (!slot || !src || slot.dataset.loading === '1') return;
+      if (!window.matchMedia || !window.matchMedia('(min-width: 768px)').matches) return;
+      slot.dataset.loading = '1';
+      fetch(src, { credentials: 'same-origin', headers: { 'X-FOMS-ERP-SHELL': '1', Accept: 'text/html' } })
+        .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then((html) => {
+          if (!slot.isConnected) return; // 그사이 화면이 바뀌었다 — 새 화면의 자리표는 새 init 이 맡는다
+          const tpl = document.createElement('template');
+          tpl.innerHTML = html;
+          const wrap = tpl.content.querySelector('.erp-as-table-wrapper');
+          if (!wrap || !wrap.querySelector('#as-dashboard-table')) throw new Error('응답에 PC 표가 없다');
+          slot.replaceWith(wrap);
+          if (typeof window.__fomsAsRebindLazyCard === 'function') window.__fomsAsRebindLazyCard(wrap);
+          document.dispatchEvent(new CustomEvent('foms:as-pc-table-loaded'));
+        })
+        .catch((err) => {
+          if (!slot.isConnected) return;
+          slot.dataset.loading = '';
+          slot.textContent = '표를 불러오지 못했습니다. 화면을 새로고침해 주세요.';
+          console.warn('[as-dashboard] PC 표 받기 실패', err);
+        });
+    };
+    window.__fomsAsLoadDeferredPcTable();
+    if (window.matchMedia && !window.__FOMS_AS_PC_TABLE_MQ_BOUND) {
+      window.__FOMS_AS_PC_TABLE_MQ_BOUND = true;
+      const pcTableMq = window.matchMedia('(min-width: 768px)');
+      const onPcTableMq = () => { window.__fomsAsLoadDeferredPcTable(); };
+      if (pcTableMq.addEventListener) pcTableMq.addEventListener('change', onPcTableMq);
+      else if (pcTableMq.addListener) pcTableMq.addListener(onPcTableMq);
+    }
+
     function loadAsCardDetail(placeholder) {
       if (!placeholder || placeholder.dataset.loading === '1') return;
       const orderId = orderIdOf(placeholder);

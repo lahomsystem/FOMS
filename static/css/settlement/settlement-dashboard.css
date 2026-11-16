@@ -406,6 +406,13 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-state-title { font-weight: 800; font-size: calc(13px * var(--s-fs, 1)); margin-bottom: 4px; }
 .foms-settle .s-state-detail { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
 .foms-settle .s-state--loading { color: var(--s-muted); }
+/* 집계를 불러오는 동안 요약 그리드 · 각주를 감춘다(2026-11-16, 폰 4배 느린 CPU 에서 CLS 0.41).
+   예전엔 첫 그림에 빈 그리드 · 각주가 보였다가, 로딩 문구가 사라지는 순간 각주가 화면 밖으로
+   밀려나고 본문이 위로 89px 올라왔다. 로딩 동안 아래에 보이는 것이 없으면 다 받은 뒤 내용이
+   '나타날' 뿐 '움직이지' 않는다. JS 도 로딩 중엔 그리드를 감춘다(showState) — 이 규칙은 JS 가
+   돌기 전 첫 그림과 각주 몫이다. */
+.foms-settle:has([data-settlement-loading]:not(.s-hidden)) [data-settlement-grid],
+.foms-settle:has([data-settlement-loading]:not(.s-hidden)) .s-foot { display: none; }
 .foms-settle .s-state--error { border-color: #f0c2c2; background: #fdf1f1; }
 .foms-settle .s-state--error .s-state-title { color: var(--s-bad); }
 .foms-settle .s-state--denied { border-color: #d9a44a; background: var(--s-amber-soft); }
@@ -530,6 +537,15 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   .foms-settle .s-card--aging,
   .foms-settle .s-card--stages { grid-column: 1 / -1; }
   .foms-settle .s-filterbar .s-note { margin-left: 0; }
+  /* 조회 기간 줄은 다 받은 뒤 1줄 → 2줄로 늘어난다. 기간 바 맨 끝에 두어 늘어나도 위의 칸이
+     밀리지 않게 한다(2026-11-16 CLS). 기간 묶음 · 날짜 칸은 좁은 폰 · 글자 키움에서 화면 밖으로
+     1~180px 넘쳤다 — 칸 안에서 줄을 바꾸고 날짜 두 칸은 한 줄을 나눠 쓴다. */
+  .foms-settle .s-filterbar .s-scope,
+  .foms-settle .s-filterbar .s-range-error { order: 1; }
+  .foms-settle .s-seg { flex-wrap: wrap; max-width: 100%; }
+  .foms-settle .s-daterange { flex: 1 1 100%; min-width: 0; }
+  .foms-settle .s-daterange .s-date { flex: 1 1 0; min-width: 0; }
+  .foms-settle .s-kpi-mid { flex-wrap: wrap; }   /* 화면 130% · 320px 에서 금액 + 작은 그래프가 카드 밖으로 넘쳤다 — 그래프만 다음 줄로 */
   .foms-settle .s-agrid > .s-span8,
   .foms-settle .s-agrid > .s-span4 { grid-column: 1 / -1; }
   /* 좁은 폭에서는 고정 라벨칸(84px)이 1fr 막대를 굶긴다 — 라벨칸을 줄여 막대를 살린다. */

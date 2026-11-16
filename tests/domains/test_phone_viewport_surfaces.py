@@ -13,7 +13,9 @@ PC 표면을 받아 숨겼다(같은 가짜 자료 감사: 실측 조각 1.2MB �
 
 폰이 쓰는 것은 남긴다(의존 확인 결과): 실측 PC 표(모바일 [이미지 저장]이 찍는다 — 펼친 줄 속만 뺌) · 출고 PC 표
 (폰 [AS 추천]이 줄에서 주문 번호를 읽고 추천 창이 그 안에 있다) · 도면 .dw-process-map(workbench-dashboard.js 화면
-판정) · 주문 dashboard_styles.html(모바일도 쓰는 CSS) · AS PC 표(d-md-block — 폰 가로 768 이상에서 보인다).
+판정) · 주문 dashboard_styles.html(모바일도 쓰는 CSS).
+AS PC 표(d-md-block)는 폰 가로(768 이상)에서만 보여 폰엔 자리표만 보내고, 창이 768 이상이면 화면이 as_pc_table=1 로 받아 끼운다
+(2026-11-17 — 768 기준 쿠키가 없어 서버 대신 화면이 판정한다. 아래 AS 늦게 받기 시험).
 
 여기서 잠그는 것:
   1. 판정 진리표 — 쿠키가 하나라도 없거나 이상하면 전부 렌더(True).
@@ -87,8 +89,8 @@ SCREENS = [
     (
         "/erp/as",
         "templates/cs/partials/as_dashboard_body.html",
-        ('class="foms-as-compare',),
-        ('id="as-dashboard-table"',),
+        ('class="foms-as-compare', 'id="as-dashboard-table"'),
+        ("data-as-pc-table-deferred", 'data-as-pc-table-src="/erp/as?'),
     ),
 ]
 
@@ -239,6 +241,28 @@ def test_legacy_cohort_phone_is_untouched(client, monkeypatch, path, _tpl, gone,
     body = _body(client, path, PHONE)
 
     assert MARKER_ATTR not in body, f"{path}: 코호트 밖 폰에 넓은 창 생략 표식이 남았다"
+
+
+def test_as_phone_pc_table_comes_back_on_request(client, monkeypatch) -> None:
+    """AS 폰: 자리표의 주소(as_pc_table=1)로 다시 받으면 창 구간과 무관하게 PC 표가 오고 자리표는 없다.
+
+    폰 가로(768~991)는 foms_vw=narrow 그대로라 쿠키로는 못 가른다 — 화면(as-dashboard.js)이 이 주소로 받아 표만 끼운다.
+    """
+    _login(client, monkeypatch, "pvs_as_pc_table")
+    body = _body(client, "/erp/as", PHONE)
+    m = re.search(r'data-as-pc-table-src="([^"]+)"', body)
+    assert m, "폰 AS 에 PC 표 자리표 주소가 없다"
+    src = m.group(1).replace("&amp;", "&")
+    assert "as_pc_table=1" in src and "foms_shell=fragment" in src, src
+    forced = client.get(src, headers=SHELL_HEADERS)
+    assert forced.status_code == 200
+    html = forced.get_data(as_text=True)
+    assert 'id="as-dashboard-table"' in html
+    assert "data-as-pc-table-deferred" not in html
+    js = (ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+    assert "[data-as-pc-table-deferred]" in js and "(min-width: 768px)" in js
+    assert "foms:as-pc-table-loaded" in js
+    assert "foms:as-pc-table-loaded" in (ROOT / "static/js/cs/as-dashboard-columns.js").read_text(encoding="utf-8")
 
 
 # --- 4. 렌더 전 304 키 재료 -------------------------------------------------------
