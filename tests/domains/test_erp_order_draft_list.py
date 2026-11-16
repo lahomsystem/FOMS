@@ -253,12 +253,58 @@ def test_dashboard_registers_assets_with_pins() -> None:
     assert scripts.index("erp-dashboard-entry.js") < scripts.index("draft_resume.js")
 
 
-def test_placeholder_is_hidden_by_default() -> None:
+def test_placeholder_is_hidden_by_default(app) -> None:
+    """0건이면 hidden(예전 HTML 그대로), 있으면 서버가 띠 · 건수를 첫 그림에 그린다.
+
+    2026-11-16 폰 실측: 목록 API 뒤에 띠를 벗기면 위에서 끼어들어 달력 · 카드를 손가락 밑에서 밀었다.
+    """
     bar = (ROOT / "templates/orders/partials/draft_resume_bar.html").read_text(encoding="utf-8")
     assert 'id="foms-draft-resume-bar"' in bar
     assert 'id="foms-draft-resume-sheet"' in bar
-    # 0건이면 아무것도 안 보인다 — 서버는 hidden 으로만 그린다.
-    assert 'id="foms-draft-resume" hidden' in bar
+    tpl = app.jinja_env.get_template("orders/partials/draft_resume_bar.html")
+    with app.test_request_context("/"):
+        zero = tpl.render()
+        two = tpl.render(draft_resume_count=2)
+    assert zero.lstrip().startswith('<div class="foms-draft-resume" id="foms-draft-resume" hidden>')
+    assert '<span class="foms-draft-resume__count"></span>' in zero
+    assert 'id="foms-draft-resume" hidden' not in two
+    assert '<span class="foms-draft-resume__count">작성 중인 주문 2건</span>' in two
+    # 줄(이름 · 단계)은 그린 뒤 API 로 — 시트는 접힌 채라 채워도 아무것도 안 민다.
+    assert 'id="foms-draft-resume-sheet" hidden' in two
+
+
+def test_count_open_drafts_matches_list(app) -> None:
+    """띠 건수(count_open_drafts)와 시트 줄(list_open_drafts)은 같은 조건 — 남의 것 · 주문 된 것 · 만료분 제외."""
+    from db import db_session
+    from foms.services.order_draft_service import count_open_drafts, list_open_drafts
+
+    uid = _user(app, "draftcount_owner")
+    other = _user(app, "draftcount_other")
+    _make_draft(app, uid, "new.open")
+    _make_draft(app, uid, "new.sent_expired", expires_in_days=-1,
+                send_history={"channeltalk_push_measure_room": {"pushed": True}})
+    _make_draft(app, uid, "new.expired", expires_in_days=-1)
+    _make_draft(app, uid, "edit.ordered", order_id=1)
+    _make_draft(app, other, "new.others")
+    with app.app_context():
+        listed = list_open_drafts(db_session, uid)
+        assert count_open_drafts(db_session, uid) == len(listed) == 2
+        assert count_open_drafts(db_session, _user(app, "draftcount_empty")) == 0
+
+
+def test_home_draws_draft_band_on_first_paint(app, client, monkeypatch, wizard_enabled) -> None:
+    """폰 홈(모바일 v2): 초안이 있으면 띠가 보이는 채로 오고, 없으면 hidden 그대로."""
+    uid = _user(app, "draftband_home")
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
+    _login(client, "draftband_home")
+    body = client.get("/erp/dashboard", headers={"X-FOMS-ERP-SHELL": "1"}).get_data(as_text=True)
+    assert '<div class="foms-draft-resume" id="foms-draft-resume" hidden>' in body
+    _make_draft(app, uid, "new.home_a")
+    _make_draft(app, uid, "new.home_b")
+    body = client.get("/erp/dashboard", headers={"X-FOMS-ERP-SHELL": "1"}).get_data(as_text=True)
+    assert '<div class="foms-draft-resume" id="foms-draft-resume">' in body
+    assert "작성 중인 주문 2건" in body
 
 
 def test_both_mobile_v2_surfaces_include_the_bar() -> None:
@@ -293,8 +339,9 @@ def test_resume_js_is_safe_and_silent() -> None:
     # 홈 화면을 막지 않는다(권한 없음·네트워크 실패는 조용히 접는다).
     assert ".catch(function () {" in js
     assert "body.success !== true" in js
-    # 0건이면 그리지 않는다.
-    assert "if (!drafts.length) {" in js
+    # 띠는 서버가 그린다 — JS 는 목록이 있을 때만 보이게(서버 0건 뒤 생긴 드문 경우), 0건이면 syncCount 가 접는다.
+    assert "if (drafts.length) {" in js
+    assert "classList.remove" not in js
     assert "/api/erp/order-draft/list" in js
     # 셸 조각 교체 뒤에도 다시 채운다(같은 엘리먼트를 두 번 채우지는 않는다).
     assert "foms:erp-shell-fragment-swapped" in js

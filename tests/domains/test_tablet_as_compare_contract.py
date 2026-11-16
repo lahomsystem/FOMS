@@ -98,10 +98,11 @@ def test_as_dashboard_body_includes_compare_cohort_gated() -> None:
     코호트 게이트(erp_mobile_v2_enabled)에 coarse_pointer_surfaces 가 AND 로 더해졌다:
     이 표면은 (pointer: coarse) 미디어쿼리로만 표시되므로 마우스 기기엔 서버가 아예
     렌더하지 않는다(스테이징 실측 277.6KB = AS fragment 의 31.2%).
+    폰(터치 + 992 미만 창)도 그 식(가로 ≥992)에 안 걸려 wide_viewport_surfaces 가 더해졌다(2026-11-16).
     """
     body = _norm(_read(AS_DASHBOARD_BODY))
     assert (
-        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}"
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces and wide_viewport_surfaces %}"
         "{% include 'cs/partials/tablet_as_compare_body.html' %}"
         "{% endif %}"
     ) in body

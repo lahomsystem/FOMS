@@ -65,8 +65,12 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(widths)); } catch (e) {}
   }
 
+  // 조각 교체마다 init 이 부른다 — 창 폭(innerWidth) 읽기는 바뀐 DOM 의 레이아웃을 강제로 끝내게 해(4배 CPU AS 교체 5회 합 3.6~3.9초)
+  // 같은 경계를 미디어 쿼리로 본다. 둘 다 스크롤바 포함 창 폭이라 판정이 같다(2026-11-16).
+  var DESKTOP_MQ = window.matchMedia('(min-width: ' + DESKTOP_MIN_WIDTH + 'px)');
+
   function isDesktop() {
-    return window.innerWidth >= DESKTOP_MIN_WIDTH;
+    return DESKTOP_MQ.matches;
   }
 
   function getCols(table) {

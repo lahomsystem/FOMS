@@ -23,7 +23,12 @@ from foms.services.common.dashboard_cache import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.auth.freelancer_lists import freelancer_mine_sql_filter, is_list_freelancer
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
-from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.common.erp_navigation_contract import ERP_SHELL_FRAGMENT_QUERY_PARAM
+from foms.services.common.erp_shell_http import (
+    apply_erp_shell_fragment_headers,
+    shell_marker_args,
+    wants_erp_shell_tab_body,
+)
 from foms.services.common.fragment_revalidation import (
     RELEASE_ID,
     SHADOW_HEADER,
@@ -200,9 +205,7 @@ def history_dashboard():
         and request.args.get('page', 1, type=int) <= 1
         and _dashboard_has_search_results(db, user)
     ):
-        target_args = {"q": f_q, "from_history": "1", **partner_filter_args(request)}
-        if wants_erp_shell_tab_body(request):
-            target_args["view"] = "fragment"
+        target_args = {"q": f_q, "from_history": "1", **partner_filter_args(request), **shell_marker_args(request)}
         return redirect(url_for("erp_dashboard.erp_dashboard", **target_args))
 
     # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Order).
@@ -374,6 +377,7 @@ def history_dashboard():
     if wants_erp_shell_tab_body(request):
         canonical_args = request.args.to_dict(flat=True)
         canonical_args.pop('view', None)
+        canonical_args.pop(ERP_SHELL_FRAGMENT_QUERY_PARAM, None)
         response.headers['X-FOMS-Canonical-URL'] = url_for(
             'erp_history.history_dashboard',
             **canonical_args,

@@ -228,7 +228,9 @@ def test_kanban_gate_matches_template_condition():
     root = Path(__file__).resolve().parents[2]
     body = (root / "templates/production/partials/dashboard_body.html").read_text(encoding="utf-8")
     assert (
-        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}\n"
+        # 폰(터치 + 992 미만 창)은 템플릿만 더 뺀다(wide_viewport_surfaces, 2026-11-16) — 뷰는 그때도 칸반 자료를
+        # 계산한다(남는 일일 뿐 화면은 그대로). 뷰를 좁힐 때 이 줄도 함께 고친다.
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces and wide_viewport_surfaces %}\n"
         "    {% include 'production/partials/tablet_kanban_body.html' %}"
     ) in body
     src = (root / "foms/web/production/dashboard.py").read_text(encoding="utf-8")

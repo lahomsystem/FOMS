@@ -2498,6 +2498,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         # (measurement/map_view.html)가 함께 include 한다(2026-08-31).
         "csrf_bootstrap.html",
         "erp_mobile_bottom_nav.html",
+        "erp_mobile_early_tap.html",
         "erp_mobile_menu_drawer.html",
         "erp_mobile_notification_panel.html",
         "erp_mobile_order_timeline_sheet.html",
@@ -2532,6 +2533,9 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         # 같은 표식을 남겨야 erp-shell.js 되돌림이 하나의 선택자로 찾는다 — 두 벌이면 한쪽이
         # 이름을 바꿀 때 좁은 창 화면이 빈다(2026-09-28).
         "mobile_surface_omitted_marker.html",
+        # 반대 방향 짝(2026-11-16): 폰에서 뺀 넓은 창 표면(태블릿 가로 화면 · 모바일 셸이 끄는 PC 표면) 표식 +
+        # 되돌림 스크립트 태그. 대시보드 7곳이 같은 표식을 남겨야 foms-wide-surface-recover.js 가 하나의 선택자로 찾는다.
+        "wide_surface_omitted_marker.html",
         "foms_search_overlay.html",
         "foms_search_results_partial.html",
         "foms_side_tab.html",

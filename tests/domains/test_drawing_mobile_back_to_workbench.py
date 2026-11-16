@@ -14,6 +14,7 @@
 """
 
 import io
+import re
 from datetime import date
 
 from werkzeug.security import generate_password_hash
@@ -155,7 +156,8 @@ def test_back_link_names_its_destination_and_label(client, monkeypatch):
 
     assert f'href="{WORKBENCH_URL}"' in tag
     assert 'aria-label="도면 작업실 목록으로 돌아가기"' in tag
-    assert "data-foms-shell-back" not in full
+    # 셸 첫 누름 인라인 스크립트(erp_mobile_early_tap.html)는 선택자 글자로 이 이름을 품는다 — 스크립트를 빼고 단추만 본다.
+    assert "data-foms-shell-back" not in re.sub(r"<script\b.*?</script>", "", full, flags=re.S)
     assert "history.back" not in tag
 
 

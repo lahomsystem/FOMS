@@ -1,11 +1,14 @@
 {#- 작성 중인 초안 되찾기 줄. 모바일 홈의 두 표면(타워·큐)이 이 조각을
     함께 쓴다 — 예전에는 큐 분기에만 넣어 **기본 화면인 타워에서는 아예 뜨지 않았다**
-    (2026-09-11 스테이징 실화면 확인에서 발견). 내용은 static/js/foms/draft_resume.js 가
-    목록 API 를 부른 뒤에 채운다. 0건이면 끝까지 hidden 이다. -#}
-<div class="foms-draft-resume" id="foms-draft-resume" hidden>
+    (2026-09-11 스테이징 실화면 확인에서 발견). 띠 자체와 건수는 서버가 첫 그림에 그린다
+    (라우트 draft_resume_count = count_open_drafts) — 2026-11-16 폰 실측에서 목록 API 뒤에 띠를
+    벗기면 위에서 끼어들어 달력 · 카드를 손가락 밑에서 밀었다. 접힌 시트의 줄(이름 · 단계)은
+    static/js/foms/draft_resume.js 가 목록 API 를 부른 뒤 채운다. 0건이면 지금처럼 hidden 이다. -#}
+{%- set _draft_n = draft_resume_count|default(0) -%}
+<div class="foms-draft-resume" id="foms-draft-resume"{% if not _draft_n %} hidden{% endif %}>
   <button type="button" class="foms-draft-resume__bar" id="foms-draft-resume-bar"
           aria-expanded="false" aria-controls="foms-draft-resume-sheet">
-    <span class="foms-draft-resume__count"></span>
+    <span class="foms-draft-resume__count">{% if _draft_n %}작성 중인 주문 {{ _draft_n }}건{% endif %}</span>
     <span class="foms-draft-resume__hint">이어서 쓰기</span>
   </button>
   <div class="foms-draft-resume__sheet" id="foms-draft-resume-sheet" hidden></div>

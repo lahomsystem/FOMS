@@ -575,8 +575,16 @@
   .foms-prod-home__search { flex-basis: 100%; }
   .foms-prod-home__ctl { padding: 6px 12px 0; }
   .foms-prod-home__list { padding: 4px 10px 24px; }
-  .foms-prod-home__nav { flex: 1 1 100%; }
+  /* 탭 6개(날짜 · 도면 카드 · 내 공정 · 바뀐 것 · 찾기 · 보드)는 글자를 줄이지 않으면 폰 폭(390)보다 넓다(404px). 막지 않으면
+     문서가 넓어져 폰 브라우저가 화면을 통째로 줄였다 늘린다 — 2026-11-16 폰 실측: 폭 390 → 441 → 429 로 바뀌며 아래 메뉴 · 일감 줄이
+     83 · 139px 움직였다. 넓은 화면(992px 이상) 규칙처럼 탭 줄 안에서만 옆으로 민다. */
+  .foms-prod-home__nav { flex: 1 1 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .foms-prod-home__nav::-webkit-scrollbar { display: none; }
   .foms-prod-home__navtab { flex: 1; justify-content: center; padding: 0 8px; }
+  /* 오른쪽 묶음(받은 시각 · 글자 조절 · 다시 받기)도 폰 폭에 아슬아슬하다(글꼴이 오기 전 372px > 366px). 넘치면 받은 시각 글만
+     줄어든다 — 문서를 넓혀 화면이 통째로 줄었다 늘지 않게(2026-11-16 폰 실측: 폭 396 → 393 → 390). */
+  .foms-prod-home__tools { min-width: 0; max-width: 100%; }
+  .foms-prod-home__sync { min-width: 0; overflow: hidden; }
   .foms-prod-home__filters { padding: 8px 12px 0; }
   .fph-inbox--page { grid-template-columns: minmax(0, 1fr); padding: 12px 12px 90px; }
   .fph-steptab { min-height: 60px; font-size: calc(16px * var(--foms-fs, 1)); gap: 6px; flex-direction: column; }
