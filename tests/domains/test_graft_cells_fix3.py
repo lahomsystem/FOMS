@@ -135,7 +135,8 @@ Object.defineProperty(menu, 'scrollTop', {
 });
 Object.defineProperty(menu, 'clientHeight', { get: () => Math.round(menu.h / menu.zoom) });
 Object.defineProperty(menu, 'offsetHeight', { get: () => Math.round(menu.h / menu.zoom) });
-Object.defineProperty(menu, 'scrollHeight', { get: () => menu.kids.reduce((a, k) => Math.max(a, k.y + k.ch), 0) });
+let reads = 0;  // 굴림 판정이 배치를 읽은 횟수(scrollHeight) — 안 보이는 레일은 화면 바꿀 때 늘지 않아야
+Object.defineProperty(menu, 'scrollHeight', { get: () => { reads += 1; return menu.kids.reduce((a, k) => Math.max(a, k.y + k.ch), 0); } });
 menu.getBoundingClientRect = () => ({ top: menu.top, bottom: menu.top + menu.h, height: menu.h });
 menu.querySelector = sel => menu.kids.find(k => k.cls.has('is-active')) || null;
 let y = 0;
@@ -171,9 +172,10 @@ for (const step of input.steps) {
   if (step[0] === 'path') { win.location.pathname = step[1]; (listeners['foms:erp-shell-fragment-swapped'] || []).forEach(fn => fn()); }
   if (step[0] === 'scroll') { st = step[1]; }
   if (step[0] === 'resize') { menu.h = step[1]; if (observer) observer.fn([]); }
-  out.push(snap(step.join(':')));
+  out.push(snap(step.join(':')).concat([reads]));
 }
 out.push(['assigns', menu.assigns.length]);
+out.push(['reads', reads]);
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -201,7 +203,7 @@ def test_rail_reveals_the_server_highlighted_item_on_first_paint():
     assert got[0][0:2] == ["load", "이력"] and got[0][3] is True and got[0][2] > 0
     # 이미 보이는 칸(실측)이면 건드리지 않는다 — 굴림 값을 넣지도 않는다
     still = _rail("/erp/measurement", "실측", [])
-    assert still[0] == ["load", "실측", 0, True] and still[-1] == ["assigns", 0]
+    assert still[0] == ["load", "실측", 0, True] and still[-2] == ["assigns", 0]
 
 
 @NODE
@@ -219,7 +221,7 @@ def test_rail_reveals_the_item_when_the_highlight_moves_and_when_the_menu_shrink
 def test_rail_without_overflow_never_scrolls():
     """넘치지 않는 화면(1180×820 · 100% — 묶음 537px 이 칸 높이 합과 같다)은 한 번도 굴림 값을 넣지 않는다."""
     got = _rail("/erp/history", "이력", [["path", "/erp/completion"]], menu_h=600.0, zoom=1.0)
-    assert got[0] == ["load", "이력", 0, True] and got[-1] == ["assigns", 0]
+    assert got[0] == ["load", "이력", 0, True] and got[-2] == ["assigns", 0]
 
 
 def test_rail_reveal_is_instant_and_menu_only():
@@ -227,5 +229,22 @@ def test_rail_reveal_is_instant_and_menu_only():
     body = js[js.index("function revealActive()"):js.index("function normalizePath")]
     assert "smooth" not in js and "scrollIntoView" not in js  # 부드러운 굴림 · 문서 굴림 없음
     assert "menu.scrollTop = " in body and "menu.scrollHeight <= menu.clientHeight" in body
-    assert js.rstrip().endswith("})();") and "revealActive();\n  }" in js  # syncActive 끝에서도 본다
-    assert "new window.ResizeObserver(revealActive).observe(menu);" in js
+    assert js.rstrip().endswith("})();") and "if (menuShown) {\n      revealActive();\n    }\n  }" in js  # syncActive 끝에서도 본다(레일이 보일 때만)
+    assert "var menuShown = !!menu && menu.clientHeight > 0;" in js
+    assert "new window.ResizeObserver(onMenuResize).observe(menu);" in js
+
+
+@NODE
+def test_hidden_rail_skips_the_reveal_on_swap_until_it_is_shown():
+    """폰 · PC 는 레일이 display:none(묶음 높이 0) — 화면 바꿀 때마다 굴림 판정을 돌리면 막 들어온 새 화면을 통째로 다시
+    배치시켰다(AS · CPU 4배 0.19초, 11-16). 안 보이면 바꿀 때 배치를 읽지 않고, 보이게 되면(ResizeObserver) 다시 본다."""
+    got = _rail("/erp/measurement", "실측", [["path", "/erp/history"], ["path", "/erp/as"], ["resize", 226.0],
+                                             ["path", "/erp/history"]], menu_h=0.0)
+    swap1, swap2, shown, swap3 = got[1], got[2], got[3], got[4]
+    assert swap1[1] == "이력" and swap2[1] == "AS"  # 강조는 그대로 옮긴다
+    assert swap1[4] == swap2[4] and swap2[2] == 0  # 숨은 채 두 번 바꿔도 배치 읽기가 늘지 않는다
+    assert shown[4] > swap2[4]  # 보이게 되면 다시 잰다
+    assert swap3[1] == "이력" and swap3[3] is True and swap3[4] > shown[4]  # 이제는 바꿀 때마다 본다
+    # 태블릿(보이는 레일)은 그대로 — 바꿀 때마다 판정한다
+    tablet = _rail("/erp/measurement", "실측", [["path", "/erp/history"], ["path", "/erp/as"]])
+    assert tablet[2][4] > tablet[1][4] > 0 and tablet[2][3] is True

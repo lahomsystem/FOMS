@@ -47,6 +47,7 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_mobile_width_surfaces,
+    wants_wide_viewport_surfaces,
     wizard_new_order_enabled,
 )
 from foms.services.order_draft_service import count_open_drafts
@@ -482,10 +483,12 @@ def erp_dashboard():
     mobile_v2 = is_mobile_v2_shell(shell_variant)
     # split 셸 마크업은 v2 셸 전용 (context_processors.inject_foms_flags 와 동일 계약):
     # split CSS 는 v2 전용 surfaces 번들로만 로드된다.
+    # 폰(터치 + 992 미만 창)엔 split 을 그리지 않으므로(dashboard_main.html 의 wide_viewport_surfaces 게이트)
+    # 목록 카드 · 옆 탭 자료도 만들지 않는다 — 그 템플릿 밖에서 이 셋을 읽는 곳이 없다.
     split_enabled = mobile_v2 and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
-    )
+    ) and wants_wide_viewport_surfaces()
 
     # 모바일 홈 = 오퍼레이션 컨트롤 타워. 드릴(검색/필터/단계/내것/뷰=큐)이 없을 때만 타워,
     # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)

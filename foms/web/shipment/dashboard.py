@@ -55,6 +55,7 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_mobile_width_surfaces,
+    wants_wide_viewport_surfaces,
 )
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.shipment_read_model import (
@@ -670,12 +671,18 @@ def erp_shipment_dashboard():
         r.shipment_change_alerts = (_shipment_change_alerts.get(r.id) or {}).get('alerts') or []
 
     # 태블릿 가로 하루치 출고표(시공자 묶음 · 이름판 사람별 집계) — 이미 있는 rows · 설정만 쓴다(추가 쿼리 0).
-    tablet_day_sheet = build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
-    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
-
+    # 소비처(tablet_ship_grid.html · 위 줄 '시공자 없음' 알약)는 둘 다 `wide_viewport_surfaces or not erp_mobile_v2_enabled`
+    # 게이트 안이라 모바일 셸 폰(터치 + 992 미만 창)엔 안 만든다.
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
+    tablet_day_sheet = (
+        build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
+        if wants_wide_viewport_surfaces() or not mobile_v2_active
+        else None
+    )
+    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
+
     # 소비처는 모바일 v2 표면(shipment_mobile_queue.html)뿐 — 광폭 마우스 PC 는 그 표면을
     # 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 배치 조회도 건너뛴다.
     mobile_queue_rows = (
