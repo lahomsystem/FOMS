@@ -325,6 +325,10 @@
   body.erp-mobile-v2-layout .foms-queue-card-v2__attachments {
     position: relative;
     display: flex;
+    /* 사진 5장 + "+N" 이 한 줄로 고정돼(최소 폭 254~282px) 화면 크기 120~130% · 글자 배율을 키운 폰에서 카드 칸을
+       넓혀 문서가 옆으로 넘쳤다(2026-11-17 스테이징 360폭 86px). 안 들어가면 다음 줄로 내린다 — 기본 배율은 한 줄 그대로. */
+    flex-wrap: wrap;
+    min-width: 0;
     gap: var(--foms-space-2);
     align-items: center;
   }
