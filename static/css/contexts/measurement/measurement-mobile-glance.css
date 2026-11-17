@@ -625,9 +625,13 @@ html.foms-meas-save-sheet-open body {
   border-bottom: 1px solid var(--foms-color-brand-200);
   border-radius: var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px) 0 0;
 }
+/* flex-wrap: 번호 · 이름 · 막대(최소 40px) · '실측 n/m'(한 줄) · 화살표가 한 줄에 안 들어가면 뒤 칸이 다음 줄로 내려간다.
+   글자 150% · 화면 130% 360px 폰에서 한 줄 합 255px 가 띠 209px 를 넘어 화면이 옆으로 밀렸다(11-17 실측, 문서 폭 381px).
+   한 줄에 들어가는 경우(100% 포함)는 줄바꿈이 없어 지금과 같다. */
 .foms-meas-glance__gtog {
   display: flex;
   flex: 1;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;

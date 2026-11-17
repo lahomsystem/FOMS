@@ -112,6 +112,7 @@ function boot(opts) {
     addEventListener: (t, fn) => (listeners.window[t] = listeners.window[t] || []).push(fn),
     setTimeout: addTimer, clearTimeout() {}, setInterval() { return 0; }, clearInterval() {},
   };
+  if (o.raf) sandbox.requestAnimationFrame = (fn) => addTimer(fn, 16); // 다음 프레임 = 16ms 뒤(없으면 셸은 setTimeout 0 으로 간다)
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(SHELL_JS, sandbox, { filename: 'erp-shell.js' });

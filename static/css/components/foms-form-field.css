@@ -545,6 +545,43 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   text-align: left;
 }
 
+/* ── 금액 칸이 좁아지면 이름을 값 위로 접는다(11-17 실측, 컨테이너 쿼리) ──
+   값 칸 9.25rem 은 글자 배율을 따라 커지는데(150% = 222px) 칸 폭은 화면 크기만큼 줄어든다(media 는 화면 크기를 못 본다).
+   360px 폰 · 글자 150% · 화면 130% 에서 금액 칸 167px < 값 칸 222px — 줄이 칸을 넘어 화면이 옆으로 밀렸다(문서 폭 376px).
+   그래서 이름 칸이 7.5rem('예약금(선금)' + 확인 단추 116px = 7.25rem) 보다 좁아지는 폭(9.25 + 0.5 + 7.5rem)에서만
+   이름 · 값을 위아래로 놓는다. 할인 줄([×][할인 이름][금액 7.5rem])도 같은 폭에서 금액을 아래 줄 전체로,
+   자유입력 아래 줄([항목명][금액 7.5rem])은 항목명이 6rem 보다 좁아지면(14rem) 위아래로. 글자 · 칸 높이는 그대로다.
+   쿼리 안 단위: 1rem = 16px × 글자 배율, px 는 화면 크기를 나눈 뒤의 CSS px(칸 너비와 같은 단위).
+   100% · 글자 100% 는 360 · 390 · 430px 폰에서 칸 286 · 316 · 356px ≥ 276px 라 바뀌지 않는다. */
+.erp-order-mobile-form .erp-mobile-amounts--field {
+  container: erp-amounts / inline-size;
+}
+
+@container erp-amounts (max-width: calc(17.25rem - 0.02px)) {
+  .erp-order-mobile-form .erp-mobile-amount-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--foms-space-1);
+  }
+  /* 값 칸은 전역 .erp-amount-value { width: 9rem !important } 라 칸보다 넓을 수 있다 — 칸 폭까지만, 오른쪽 끝에(옆에 놓일 때와 같은 쪽). */
+  .erp-order-mobile-form .erp-mobile-amount-row > .erp-amount-value {
+    max-width: 100%;
+    justify-self: end;
+  }
+  .erp-order-mobile-form .erp-discount-box--mobile .erp-discount-row {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+  .erp-order-mobile-form .erp-discount-row .erp-discount-row__amount {
+    grid-column: 1 / -1;
+  }
+}
+
+@container erp-amounts (max-width: calc(14rem - 0.02px)) {
+  /* erp-discount-items.css 의 같은 선택자(1,2,0)가 뒤에 읽히므로 금액 칸 클래스를 하나 더 붙인다. */
+  .erp-order-mobile-form .erp-mobile-amounts--field #erp-free-input-section .erp-mobile-free-input-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .erp-order-mobile-form .erp-amount-value--free-input-text:focus,
 .erp-order-mobile-form .erp-amount-value--free-input:focus {
   background-color: #FFE8CC !important;
@@ -604,6 +641,20 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
 
 .erp-mobile-dropzone--camera {
   background: var(--foms-surface-subtle, #f8fafc);
+}
+
+/* ── 사진 칸 [분류 8rem][사진/동영상 추가] — 칸이 좁아지면 위아래로(11-17 실측, 컨테이너 쿼리) ──
+   두 칸 ↔ 한 칸 경계는 media(max-width: 420px)라 화면 크기를 못 본다. 430px 폰 · 글자 150% · 화면 130% 에서 칸 171px 를
+   분류 칸(8rem = 192px)이 다 써서 '사진/동영상 추가' 단추(115px)가 칸 밖으로 나가 화면이 옆으로 밀렸다(문서 폭 476px).
+   추가 단추 칸이 7.5rem 보다 좁아지는 폭(8 + 0.5 + 7.5rem)에서만 한 칸으로 쌓는다. 100% · 글자 100% 430px 폰은 칸 322px ≥ 256px 라 그대로다. */
+.erp-order-mobile-form .erp-mobile-dropzone {
+  container: erp-dropzone / inline-size;
+}
+
+@container erp-dropzone (max-width: calc(16rem - 0.02px)) {
+  .erp-order-mobile-form .erp-mobile-attachment-controls--field {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .erp-order-mobile-form #erp-attachments-gallery.erp-attachment-tile-grid,
@@ -1217,6 +1268,12 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   font-weight: var(--foms-font-weight-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--foms-text-primary);
+}
+/* 항목 사진 칸 머리 글(제품 이름 · 규격 — 'W2400xD600xH240' 처럼 띄어쓰기 없는 글)이 flex 최소 폭(글 전체) 때문에 못 꺾여
+   글자 150% · 화면 130% 360px 폰에서 칸 밖으로 148px 나가 잘려 보였다(11-17 실측). 칸 폭에서 꺾는다 — 한 줄에 들어가던 글은 그대로다. */
+.erp-order-mobile-form #erp-items .erp-item-attachment-hint {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* 접힘 기본: 본문 숨김. is-open 일 때만 노출 */
 .erp-order-mobile-form #erp-items .erp-item-collapse { display: none; margin-top: var(--foms-space-2); }

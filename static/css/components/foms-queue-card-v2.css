@@ -285,6 +285,19 @@
     white-space: nowrap;
   }
 
+  /* 화면 크기 · 글자 배율을 키웠을 때(11-17 실측): 한 줄로 못박은 단추 글이 카드보다 길어져 화면이 옆으로 밀렸다.
+     390 · 글자 150% · 화면 130% 에서 '도면 단계로 넘기기' 글 끝이 화면 밖 428px(카드 안쪽 폭 180px < 글 191px) —
+     카드 칸(auto)이 그 글 폭으로 늘어 문서 폭 429px. 키운 경우에만 낱말 사이에서 줄을 바꾼다(글자 · 단추 크기는 그대로).
+     min-width: min-content — 반 칸(50%)에 가장 긴 낱말이 안 들어가는 단추는 제 줄로 내려가 한 줄 전체를 쓴다
+     (0 이면 반 칸에 눌려 '도/면/단/계…' 한 글자씩 꺾였다).
+     100% · 글자 100% 는 360px 에서도 글이 단추 안 여백까지 써서 한 줄이라 그대로 둔다(바꾸면 두 줄이 된다). */
+  html:is([data-foms-fs]:not([data-foms-fs^="0."]), [data-foms-ui-zoom]:not([data-foms-ui-zoom^="0."])) body.erp-mobile-v2-layout .foms-queue-card-v2__action .foms-btn {
+    min-width: min-content;
+    white-space: normal;
+    word-break: keep-all;
+    text-align: center;
+  }
+
   body.erp-mobile-v2-layout .erp-measurement-mobile-card__edit,
   body.erp-mobile-v2-layout .erp-shipment-mobile-card__actions {
     display: flex;
@@ -312,6 +325,10 @@
   body.erp-mobile-v2-layout .foms-queue-card-v2__attachments {
     position: relative;
     display: flex;
+    /* 사진 5장 + "+N" 이 한 줄로 고정돼(최소 폭 254~282px) 화면 크기 120~130% · 글자 배율을 키운 폰에서 카드 칸을
+       넓혀 문서가 옆으로 넘쳤다(2026-11-17 스테이징 360폭 86px). 안 들어가면 다음 줄로 내린다 — 기본 배율은 한 줄 그대로. */
+    flex-wrap: wrap;
+    min-width: 0;
     gap: var(--foms-space-2);
     align-items: center;
   }
