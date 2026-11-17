@@ -47,7 +47,10 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_mobile_width_surfaces,
+    wants_wide_viewport_surfaces,
+    wizard_new_order_enabled,
 )
+from foms.services.order_draft_service import count_open_drafts
 from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.persistence.graft.models import ErpActionProposal
 from foms.services import graft_flags
@@ -68,6 +71,7 @@ from foms.services.common.dashboard_cache import (
 )
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
+    shell_marker_args,
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
@@ -103,9 +107,7 @@ def _dashboard_search_history_redirect_blocked(f_team: str, f_urgent: str, f_has
 
 
 def _redirect_to_history_for_dashboard_search(f_q: str):
-    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request)}
-    if wants_erp_shell_tab_body(request):
-        target_args["view"] = "fragment"
+    target_args = {"q": f_q, "from_dashboard": "1", **partner_filter_args(request), **shell_marker_args(request)}
     flash("ERP 대시보드에서 결과가 없어 과거 이력 검색으로 이동했습니다.", "info")
     return redirect(url_for("erp_history.history_dashboard", **target_args))
 
@@ -481,10 +483,12 @@ def erp_dashboard():
     mobile_v2 = is_mobile_v2_shell(shell_variant)
     # split 셸 마크업은 v2 셸 전용 (context_processors.inject_foms_flags 와 동일 계약):
     # split CSS 는 v2 전용 surfaces 번들로만 로드된다.
+    # 폰(터치 + 992 미만 창)엔 split 을 그리지 않으므로(dashboard_main.html 의 wide_viewport_surfaces 게이트)
+    # 목록 카드 · 옆 탭 자료도 만들지 않는다 — 그 템플릿 밖에서 이 셋을 읽는 곳이 없다.
     split_enabled = mobile_v2 and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
-    )
+    ) and wants_wide_viewport_surfaces()
 
     # 모바일 홈 = 오퍼레이션 컨트롤 타워. 드릴(검색/필터/단계/내것/뷰=큐)이 없을 때만 타워,
     # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)
@@ -559,6 +563,13 @@ def erp_dashboard():
         apply_erp_shell_fragment_headers(response, request)
         return response
 
+    # 초안 띠(draft_resume_bar.html)는 모바일 v2 바디(타워 · 큐)에만 있다. 건수를 첫 그림에 실어야 띠가
+    # 그린 뒤 끼어들어 아래 단추를 밀지 않는다(2026-11-16 폰 실측). 게이트는 초안 API 와 같다.
+    draft_resume_count = (
+        count_open_drafts(db, uid)
+        if uid is not None and mobile_v2 and wants_mobile_width_surfaces() and wizard_new_order_enabled(uid)
+        else 0
+    )
     _mytasks_href = (
         url_for('erp_dashboard.erp_dashboard')
         if f_tower_mine
@@ -578,6 +589,7 @@ def erp_dashboard():
         process_steps=process_steps,
         tower_mode=tower_mode,
         control_tower=control_tower,
+        draft_resume_count=draft_resume_count,
         tower_mine_active=f_tower_mine,
         calendar_colors_editable=_can_edit_calendar_colors(current_user),
         mobile_shell_show_mytasks=tower_mode,

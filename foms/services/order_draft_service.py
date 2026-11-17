@@ -156,18 +156,50 @@ def list_open_drafts(
     Returns:
         ``updated_at`` 내림차순 ``OrderDraft`` 목록.
     """
-    threshold = now if now is not None else now_utc_naive()
     return (
         db.query(OrderDraft)
-        .filter(
-            OrderDraft.user_id == user_id,
-            OrderDraft.order_id.is_(None),
-            or_(OrderDraft.expires_at > threshold, has_send_history_clause()),
-        )
+        .filter(*_open_draft_conditions(user_id, now))
         .order_by(OrderDraft.updated_at.desc(), OrderDraft.id.desc())
         .limit(max(1, int(limit)))
         .all()
     )
+
+
+def _open_draft_conditions(user_id: int, now: datetime.datetime | None) -> tuple:
+    """"작성 중인 주문" 조건 세 개(본인 · 주문 안 됨 · 안 만료 또는 발송함) — 목록과 건수가 같이 쓴다.
+
+    Args:
+        user_id: 초안 주인.
+        now: 만료 기준 시각(UTC naive). 생략하면 현재.
+
+    Returns:
+        ``Query.filter`` 에 펼쳐 넣을 조건 튜플.
+    """
+    threshold = now if now is not None else now_utc_naive()
+    return (
+        OrderDraft.user_id == user_id,
+        OrderDraft.order_id.is_(None),
+        or_(OrderDraft.expires_at > threshold, has_send_history_clause()),
+    )
+
+
+def count_open_drafts(db: Session, user_id: int, *, now: datetime.datetime | None = None) -> int:
+    """:func:`list_open_drafts` 와 같은 조건의 건수 — 홈이 초안 띠를 첫 그림에 그릴지 정한다.
+
+    목록(이름·주소·단계)은 여전히 그린 뒤 API 로 받는다. 첫 그림에는 "있다 · 몇 건"만 있으면 띠가
+    늦게 끼어들어 아래 단추를 밀지 않는다(2026-11-16 폰 실측). 색인 ``uq_order_drafts_user_key`` 의
+    앞 칸(user_id)을 타는 COUNT 1문이다.
+
+    Args:
+        db: 조회 세션.
+        user_id: 초안 주인.
+        now: 만료 기준 시각(UTC naive). 생략하면 현재.
+
+    Returns:
+        열린 초안 수(목록 상한 20 과 같게 자른다 — 띠 문구가 목록 줄 수와 어긋나지 않게).
+    """
+    total = db.query(OrderDraft.id).filter(*_open_draft_conditions(user_id, now)).count()
+    return min(int(total), 20)
 
 
 def draft_to_api_dict(row: OrderDraft) -> dict[str, Any]:

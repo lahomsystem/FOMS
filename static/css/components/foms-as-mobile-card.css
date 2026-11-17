@@ -357,6 +357,20 @@
     background: var(--foms-surface-base, #fff);
     box-shadow: var(--foms-shadow-sm, 0 1px 3px rgba(15, 17, 21, 0.06));
     overflow: hidden;
+    /* 화면 밖 카드는 배치 · 글자 모양 잡기 · 그리기를 미룬다(2026-11-16). 폰 AS 교체 한 번의 긴 작업 대부분이 카드 100장
+       배치(4배 CPU 1,090ms) · 한글 글자 모양(365ms)이었다. 카드는 이미 overflow:hidden 이라 그리기 가둠이 더 자르는 것은 없다.
+       크기 추정 = 실측 카드 높이(419px, 영업 전달 475px) − 안쪽 여백 · 테두리. 한 번 그린 카드는 실제 크기를 기억한다(auto). */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
+  }
+
+  /* 첫 화면에 들어오는 앞 4장은 미루지 않는다(2026-11-17 스테이징 폰 4배 CPU 실측, 생산 홈 .fph-dr 와 같은 원인).
+     크롬은 화면 안 판정이 나기 전(4배 CPU 에선 첫 그림 뒤 0.7초)까지 화면 안 첫 카드도 임시 크기(400 + 여백 = 422px)로
+     배치했다. 실제 카드가 그보다 짧으면(387px) 카드의 grid 줄 5개가 7px 씩 늘어나 있다가 판정 뒤 제 크기로 줄어,
+     날짜 · 가능시간 · 빠른 작업 단추 · [시공·AS 내용]이 7 · 14 · 21 · 28px 위로 뛰었다. 카드 높이는 지난 AS 줄 · 전달 줄 ·
+     발주사 · 글자 배율마다 달라 임시 크기 하나로는 못 맞춘다. 4장 = 세로 태블릿(1366px) 첫 화면에 가장 짧은 카드가 들어가는 수보다 많다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2:nth-of-type(-n+4) {
+    content-visibility: visible;
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2.is-pending {

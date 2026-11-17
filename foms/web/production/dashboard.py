@@ -67,6 +67,7 @@ from foms.services.erp_permissions import (
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.feature_flags import (
     is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
+    wants_wide_viewport_surfaces,
 )
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.orders.team_labels import TEAM_LABELS
@@ -108,8 +109,10 @@ def erp_production_dashboard():
     # 칸반은 dashboard_body.html 의 `erp_mobile_v2_enabled and coarse_pointer_surfaces` 일 때만
     # 그린다. 안 그리는 요청(마우스 PC·옛 셸, 하트비트 포함)은 전량(최대 300행)을 건너뛰고 페이지
     # 행만 읽는다. 칸반 값(kanban_*·changed_count·tombstones·tablet_prod_kpis)은 그 칸반만 읽는다.
+    # 폰(터치 + 992 미만 창)도 칸반을 안 그린다(같은 템플릿의 wide_viewport_surfaces 게이트) — 전량을 읽지 않는다.
     kanban_wanted = is_mobile_v2_shell(resolve_shell_variant_cached(
-        user.id if user else None)) and wants_coarse_pointer_surfaces(request)
+        user.id if user else None)) and wants_coarse_pointer_surfaces(request) and (
+        wants_wide_viewport_surfaces(request))
     # 렌더 전 304 1단계(그림자): 뒤에서 도는 재검증에서만 키를 렌더 **전**에 만든다. 응답은 그대로이고,
     # 키 단계가 읽은 조각 값은 렌더가 넘겨받는다(다시 읽지 않는다). 켜는 법은 fragment_prerender 참조.
     _shadow = shadow_requested(request, FRAGVER_ROUTE_ID)

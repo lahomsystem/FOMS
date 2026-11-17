@@ -17,9 +17,7 @@ from foms.services.feature_flags import (
     is_naver_workbench_enabled,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
-    wants_coarse_pointer_surfaces, wants_desktop_queue_surfaces,
-    wants_mobile_width_surfaces,
-    wants_wide_only_surfaces,
+    surface_gate_context,
     wizard_new_order_enabled,
 )
 from foms.services.asset_urls import asset_url
@@ -269,13 +267,9 @@ def inject_status_list() -> dict[str, Any]:
         "can_toggle_order_flags": can_toggle_order_flags(current_user),
         "can_toggle_factory2_flag": can_toggle_factory2_flag(current_user),
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
-        "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
-        "wide_only_surfaces": wants_wide_only_surfaces(),
-        # mobile_width: 광폭 마우스 PC · 태블릿 가로면 False(CSS 가 끄는 모바일 v2 표면 생략). desktop_queue: 태블릿
-        # 가로만 False(태블릿 화면이 대신하는 PC 작업 큐 생략 — 템플릿은 erp_mobile_v2_enabled 와 함께). 둘 다 창 폭·방향에
-        # 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다(fragment_revalidation._surface_hint_material).
-        "mobile_width_surfaces": wants_mobile_width_surfaces(),
-        "desktop_queue_surfaces": wants_desktop_queue_surfaces(),
+        # 표면 게이트 5종(터치 전용 · 광폭 전용 · 모바일 폭 · 데스크톱 큐 · 넓은 창) — 정본 feature_flags.surface_gate_context.
+        # 창 폭·방향에 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다(fragment_revalidation._surface_hint_material).
+        **surface_gate_context(),
         "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }

@@ -166,9 +166,9 @@ def test_tablet_landscape_omits_desktop_queue_keeps_tablet_surface(
 #: 대조군 — 지금 출력 그대로여야 한다. 값 = PC 큐가 있어야 하는가(경로별 예외는 아래에서).
 CONTROLS = [
     ("no-cookies", {}, True),
-    ("phone", {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "844"}, "wide_only"),
+    ("phone", {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "844"}, "narrow_touch"),
     ("mouse-pc", {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}, True),
-    ("tablet-portrait", {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "1280"}, True),
+    ("tablet-portrait", {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "1280"}, "narrow_touch"),
     ("big-tablet-portrait", {"foms_ptr": "coarse", "foms_vw": "tall", "foms_scr": "1366"}, True),
 ]
 
@@ -182,12 +182,19 @@ def test_controls_keep_current_output(
 
     body = _body(client, path, cookies)
 
-    if expect_pc == "wide_only":
-        # 폰(긴 변 <992)은 원래부터 광폭 전용 큐를 받지 않는다(wants_wide_only_surfaces) —
-        # 실측 PC 표만 그 판정 밖이라 폰에도 그대로 간다.
+    narrow_touch = expect_pc == "narrow_touch"
+    if narrow_touch:
+        # 터치 + 992 미만 창(폰 · 작은 태블릿 세로)은 모바일 셸이 끄는 PC 큐를 받지 않는다(폰은 원래 wide_only 로,
+        # 2026-11-16 부터 wants_wide_viewport_surfaces 로 긴 변 ≥992 세로도). 실측 PC 표만 남는다 — 모바일
+        # [이미지 저장]이 그 표를 찍는다(펼친 줄 속만 빠짐).
         expect_pc = path == "/erp/measurement"
     assert (pc_mark in body) is expect_pc, f"{path} {tag}: PC 큐 출력이 바뀌었다"
-    # 태블릿 화면은 터치 판정(coarse_pointer_surfaces)만 따르므로 이 변경과 무관 — 마우스 PC 만 빠진다.
+    if narrow_touch:
+        # 태블릿 가로 화면도 좁은 창에선 표시 식(가로 ≥992)에 안 걸려 빠지고, 창이 넓어지면 다시 받을 표식이 하나 남는다.
+        assert not any(m in body for m in tablet_marks), f"{path} {tag}: 좁은 창에 태블릿 화면이 남았다"
+        assert body.count("data-foms-wide-surface-omitted") == 1, f"{path} {tag}: 넓은 창 되돌림 표식이 1개여야 한다"
+        return
+    # 태블릿 화면은 터치 판정(coarse_pointer_surfaces)을 따른다 — 마우스 PC 만 빠진다(실측 split 은 마우스에도 남음).
     if tag != "mouse-pc" or path == "/erp/measurement":
         assert any(m in body for m in tablet_marks), f"{path} {tag}: 태블릿 화면 출력이 바뀌었다"
 
@@ -205,7 +212,11 @@ def test_legacy_cohort_keeps_desktop_queue_on_tablet_landscape(
 
 
 def test_fragment_etag_differs_between_tablet_landscape_and_portrait(client, monkeypatch) -> None:
-    """가로에서 받은 ETag 를 세로가 에코해도 304 가 아니라 PC 큐가 든 전체 본문을 받는다."""
+    """가로에서 받은 ETag 를 세로가 에코해도 304 가 아니라 PC 큐가 든 전체 본문을 받는다.
+
+    세로 = 큰 태블릿 세로(tall, 992 이상). 992 미만 세로(narrow)는 2026-11-16 부터 PC 큐도 빠지는 좁은 창이라
+    (wants_wide_viewport_surfaces) 그 짝은 tests/domains/test_phone_viewport_surfaces.py 가 잠근다.
+    """
     path = "/erp/construction/dashboard"
     _login(client, monkeypatch, "tls_etag")
     for name, value in TABLET_LANDSCAPE.items():
@@ -214,7 +225,7 @@ def test_fragment_etag_differs_between_tablet_landscape_and_portrait(client, mon
     etag = land.headers.get("ETag")
     assert etag
 
-    client.set_cookie("foms_vw", "narrow", domain="localhost")
+    client.set_cookie("foms_vw", "tall", domain="localhost")
     port = client.get(f"{path}?view=fragment", headers={**SHELL_HEADERS, "If-None-Match": etag})
 
     assert port.status_code == 200

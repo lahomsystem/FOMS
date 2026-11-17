@@ -55,6 +55,7 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_mobile_width_surfaces,
+    wants_wide_viewport_surfaces,
 )
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.shipment_read_model import (
@@ -78,6 +79,22 @@ from foms.services.erp_dashboard_search import (
 # - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
 # - ``shipment_panel_derived_template_payloads``: 상단 패널 stat 카드 리스트 2종 (JSON)
 # - 패널에서 파생되는 테이블 rows는 ORM 객체(§3.1.2) — ``panel_orders`` 집합은 aggregates 키의 panel_order_ids에 반영
+
+# 출고 목록 행(패널 · 목록 fallback 쿼리 공용)이 읽는 Order 칼럼 — 빠지면 행마다 칼럼 하나씩 지연 로드(N+1)가 난다.
+# structured_data 는 64KB JSONB 라 패널에선 빼고 _hydrate_structured_data 로 필요한 행만 배치 주입한다.
+# 실측(2026-11-16): 폰이 98문 · 태블릿 37문이던 원인. 아래 뒤쪽 칼럼을 읽는 곳 —
+#   partner_org_id      : 이 라우트 unpaid_order_ids 대상 고르기
+#   is_self_measurement : dashboard_main.html 고객 칸 '자가실측' 표시
+#   product             : dashboard_main.html · tablet_ship_grid.html 품목 칸, 모바일 큐 product_subtitle 폴백
+#   received_date · measurement_completed · lat · lng : 모바일 큐 행 빌더(erp_mobile_order_display.build_mobile_queue_order_row)
+_SHIPMENT_ROW_COLUMNS = (
+    Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
+    Order.status, Order.is_erp_order,
+    Order.customer_name, Order.manager_name, Order.phone, Order.address,
+    Order.measurement_date, Order.mutation_version,
+    Order.partner_org_id, Order.is_self_measurement, Order.product,
+    Order.received_date, Order.measurement_completed, Order.lat, Order.lng,
+)
 
 erp_shipment_page_bp = Blueprint(
     'erp_shipment_page', __name__, url_prefix='/erp'
@@ -401,12 +418,7 @@ def erp_shipment_dashboard():
     # miss·mine_only·AS 파생)만 _hydrate_structured_data로 배치 주입한다. schedule_dates는
     # selectinload로 유지 → derive-from-panel 필터·집계 날짜는 DB 관계만 사용(structured_data 불필요).
     panel_orders = panel_query.options(
-        load_only(
-            Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.status, Order.is_erp_order,
-            Order.customer_name, Order.manager_name, Order.phone, Order.address,
-            Order.measurement_date, Order.mutation_version,
-        ),
+        load_only(*_SHIPMENT_ROW_COLUMNS),
         selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).all()
 
@@ -590,12 +602,7 @@ def erp_shipment_dashboard():
                 rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
             rows_query = rows_query.distinct(Order.id)
         rows_query = rows_query.options(
-            load_only(
-                Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-                Order.structured_data, Order.status, Order.is_erp_order,
-                Order.customer_name, Order.manager_name, Order.phone, Order.address,
-                Order.measurement_date, Order.mutation_version,
-            ),
+            load_only(*_SHIPMENT_ROW_COLUMNS, Order.structured_data),
             selectinload(Order.schedule_dates)
         ).order_by(Order.id.desc()).limit(500)
         rows = rows_query.all()
@@ -664,12 +671,18 @@ def erp_shipment_dashboard():
         r.shipment_change_alerts = (_shipment_change_alerts.get(r.id) or {}).get('alerts') or []
 
     # 태블릿 가로 하루치 출고표(시공자 묶음 · 이름판 사람별 집계) — 이미 있는 rows · 설정만 쓴다(추가 쿼리 0).
-    tablet_day_sheet = build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
-    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
-
+    # 소비처(tablet_ship_grid.html · 위 줄 '시공자 없음' 알약)는 둘 다 `wide_viewport_surfaces or not erp_mobile_v2_enabled`
+    # 게이트 안이라 모바일 셸 폰(터치 + 992 미만 창)엔 안 만든다.
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
+    tablet_day_sheet = (
+        build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
+        if wants_wide_viewport_surfaces() or not mobile_v2_active
+        else None
+    )
+    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
+
     # 소비처는 모바일 v2 표면(shipment_mobile_queue.html)뿐 — 광폭 마우스 PC 는 그 표면을
     # 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 배치 조회도 건너뛴다.
     mobile_queue_rows = (

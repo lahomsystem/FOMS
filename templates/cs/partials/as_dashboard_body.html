@@ -22,8 +22,10 @@
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20261109f">
-<div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20261117b">
+{# x-ignore: 이 화면 안에는 Alpine 지시어가 하나도 없다. 셸이 조각을 끼우면 Alpine 의 MutationObserver 가 새 요소를
+   전부 훑는데(폰 AS 1만3천 개 — 4배 CPU 175~324ms) x-ignore 가 있으면 이 뿌리에서 멈춘다. 이 안에 Alpine 을 쓰려면 이 속성을 먼저 뺀다. #}
+<div class="erp-pro erp-mobile-shell erp-as-dashboard" x-ignore data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
@@ -49,13 +51,15 @@
   {% set erp_sub_nav_active = 'as' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  {# T15 과도기 안내 — "AS 내용" 2패널이 타임라인으로 바뀐 첫 진입에서 1회만. 노출/닫힘은
-     as-dashboard.js(localStorage: foms_as_timeline_hint_dismissed)가 소유한다. 서버가 d-none
-     으로 렌더해야 이미 닫은 사용자에게 한 프레임 깜빡이지 않는다. #}
-  <div id="as-timeline-hint" class="as-timeline-hint d-none" role="status">
+  {# T15 과도기 안내 — "AS 내용" 2패널이 타임라인으로 바뀐 첫 진입에서 닫을 때까지. 닫음 정본은
+     쿠키 foms_as_timeline_hint_dismissed 라 서버가 그릴지 말지 정한다(as-dashboard.js 가 닫을 때 쓴다).
+     2026-11-16: 예전엔 d-none 으로 그린 뒤 JS 가 약 1초 뒤 벗겨 아래 단추 19개를 68px 밀었다(CLS 0.068). #}
+  {% if request.cookies.get('foms_as_timeline_hint_dismissed') != '1' %}
+  <div id="as-timeline-hint" class="as-timeline-hint" role="status">
     <span class="as-timeline-hint__text">AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다.</span>
     <button type="button" class="as-timeline-hint__dismiss" aria-label="안내 닫기">&times;</button>
   </div>
+  {% endif %}
 
   {# 기준 일정 드리프트 배너 — 렌더된 행 집합 기준(스펙 §8, 전체 미완료 AS 스캔 아님)이라
      문구도 "현재 목록에서"로 정직하게 쓴다. 행 액션(재적용/무시/해제)은 행 배지가 소유하고
@@ -236,13 +240,25 @@
          으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
       {# coarse_pointer_surfaces: 위 @media 는 (pointer: coarse) 필수라 마우스 기기엔 표시
          불가능한 죽은 마크업(실측 277.6KB = AS fragment 의 31.2%) — 아예 렌더하지 않는다. #}
-      {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
+      {# 폰(터치 + 992 미만 창)도 대조 표면을 안 그린다 — 좁은 창은 위 @media(가로 ≥992)에 안 걸린다(판정 feature_flags.wants_wide_viewport_surfaces,
+         표식 wide_surface_omitted_marker.html: 창이 992 이상이 되면 foms-wide-surface-recover.js 가 다시 받는다). 아래 PC 표는 d-md-block 이라
+         폰 가로(768 이상)에서 보이지만 세로(대부분의 시간)엔 안 보인다 — 그래서 폰엔 자리표만 두고 창이 768 이상이 될 때 받아 끼운다(아래). #}{% if erp_mobile_v2_enabled and coarse_pointer_surfaces and wide_viewport_surfaces %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}
       <!-- PC Table View -->
       {# 컬럼 폭의 SSOT = colgroup(기본값은 as-dashboard-body.css 의 col[data-col-key] 규칙,
          사용자 조정분은 as-dashboard-columns.js 가 인라인으로 덮어씀). 구 <th style="width:">
          인라인 폭은 auto table-layout 의 '힌트'일 뿐이라 한 열이 폭을 삼키면 무너졌다
          (2026-07-28 주소 1글자 세로 붕괴). table-layout:fixed + colgroup 이 그 재분배 자체를 없앤다.
          출고 대시보드(shipment-dashboard-table)의 colgroup+data-col-key 계약을 그대로 따른다. #}
+      {# 폰(터치 + 992 미만 창, wide_viewport_surfaces=False)은 PC 표를 그리지 않는다 — 세로 폰에선 d-md-block 이라 안 보이는데
+         조각의 절반(준비물 100행 480KB · 요소 5,800개)을 차지해 AS 교체가 9탭 중 가장 느렸다(2026-11-16, 4배 CPU 실측).
+         폰 가로(768~991)에서는 보여야 하므로 자리표를 두고, as-dashboard.js 가 창이 768 이상일 때(처음부터 · 돌렸을 때)
+         같은 화면을 as_pc_table=1 로 다시 받아 표만 끼운다(서버는 그 값이면 창 구간과 무관하게 표를 그린다).
+         768 기준 창 구간 쿠키는 없다(foms_vw 는 992 기준) — 그래서 서버가 아니라 화면이 판정한다. 태블릿 · PC 는 지금 그대로다. #}
+      {% if erp_mobile_v2_enabled and not wide_viewport_surfaces and not as_force_pc_table|default(false) %}
+      <div class="erp-as-table-deferred d-none d-md-block" data-as-pc-table-deferred data-as-pc-table-src="{{ as_pc_table_src|default('') }}">
+        <p class="text-muted small py-3 mb-0">표를 불러오는 중...</p>
+      </div>
+      {% else %}
       <div class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block">
         <table class="erp-pro-table erp-as-table" id="as-dashboard-table">
           <colgroup>
@@ -437,6 +453,7 @@
           </tbody>
         </table>
       </div>
+      {% endif %}
 
       <!-- Mobile Card View -->
       {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 목록이 d-md-none 으로 꺼지므로 렌더하지
@@ -740,22 +757,25 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}" data-as-today="{{ as_today_iso|default('') }}"></div>
+{# 아래 스크립트 중 as-dashboard.js 만 셸 교체마다 다시 돈다(화면 초기화가 그 실행에 묶여 있다). 나머지는 문서 위임 + 싱글턴 가드뿐이라
+   다시 실행해도 가드에서 바로 돌아오므로 data-foms-run-once 로 문서당 한 번만 싣는다(erp-shell.js activateScripts — 교체마다 7개 덜 실행).
+   열 폭(as-dashboard-columns.js)은 교체 이벤트 · PC 표 늦게 받기 이벤트를 스스로 듣는다. #}
 {# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
    없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
-<script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20261109a" defer></script>
+<script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer data-foms-run-once="foms-schedule-map"></script>
+<script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer data-foms-run-once="as-attachment-order"></script>
+<script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer data-foms-run-once="as-push-confirm"></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20261117a" defer></script>
 {# AS 화면 'AS도면' 칸 [도면팀 부탁] 작은 창(완료 주문 AS 도면 설계서 §4.4). 파일 자체가 싱글턴 가드를 든다. #}
-<script src="{{ url_for('static', filename='js/cs/as-dashboard-drawing-request.js') }}?v=20261112b" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard-drawing-request.js') }}?v=20261112b" defer data-foms-run-once="as-dashboard-drawing-request"></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
-<script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20261117a" defer data-foms-run-once="as-dashboard-columns"></script>
 {# 모바일 재접수 바텀시트 배선(T4). body 파셜에 둬야 fast-tab 프래그먼트 스왑에도 실린다
    (erp-shell activateScripts 가 swap 마다 재실행 → 파일 자체가 싱글턴 가드를 든다). #}
-<script src="{{ url_for('static', filename='js/cs/as-reintake-sheet.js') }}?v=20260824a" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-reintake-sheet.js') }}?v=20260824a" defer data-foms-run-once="as-reintake-sheet"></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/foms/tablet-as-compare.js') }}?v=20260714a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-as-compare.js') }}?v=20260714a" defer data-foms-run-once="tablet-as-compare"></script>
 {% endif %}

@@ -35,6 +35,13 @@
 
   // 위 메뉴 묶음(점검 2차 w4-02) — 키 낮은 화면 · 화면 크기 110% 이상에서는 이 안에서만 굴린다.
   var menu = rail.querySelector('.foms-tablet-rail__menu');
+  // 레일이 보이는지(폰 · PC 는 display:none) — 처음 한 번과 묶음 크기가 바뀔 때(ResizeObserver)만 잰다. 화면을 바꿀 때마다
+  // 재면 막 들어온 새 화면을 통째로 다시 배치시킨다(AS · CPU 4배 느림 0.19초, 11-16). 안 보이면 바꿀 때 굴림 판정을 건너뛴다.
+  var menuShown = !!menu && menu.clientHeight > 0;
+  function onMenuResize() {
+    menuShown = menu.clientHeight > 0;
+    revealActive();
+  }
 
   /**
    * 강조 칸(.is-active)이 굴림 영역(위 메뉴 묶음) 밖에 숨어 있으면 그 칸이 막 다 보이도록 묶음만 굴린다(점검 3차, 11-15 —
@@ -111,7 +118,9 @@
         item.removeAttribute('aria-current');
       }
     }
-    revealActive();
+    if (menuShown) {
+      revealActive();
+    }
   }
 
   document.addEventListener('foms:erp-shell-fragment-swapped', syncActive);
@@ -120,6 +129,6 @@
   // 처음 그릴 때(서버가 강조한 칸) · 묶음 높이가 바뀔 때(회사 지식 칸이 나타남 · 화면 크기 손잡이 · 화면 돌림) 다시 본다.
   revealActive();
   if (menu && window.ResizeObserver) {
-    new window.ResizeObserver(revealActive).observe(menu);
+    new window.ResizeObserver(onMenuResize).observe(menu);
   }
 })();

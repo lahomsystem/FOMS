@@ -422,16 +422,32 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
 }
 
 /* 모바일 셸 머리줄 ⚡ (erp_mobile_shell_header.html, has-urgent) — 내 할 일 왼쪽에 칸 하나 추가.
-   foms-shell.css 의 칼럼 규칙(기본 4칸 · has-mytasks 5칸 · has-more +1칸)보다 구체적으로 덮는다. */
+   foms-shell.css 의 칼럼 규칙(기본 4칸 · has-mytasks 5칸 · has-more +1칸)보다 구체적으로 덮는다.
+   좁은 폰 · 화면 크기 130%(2026-11-16): 단추 칸은 '보이는 44px'(= 44px / 배율)까지만 줄고, 남는 폭은
+   제목이 먼저 내준다(말줄임). 제목 칸은 협력사 거르기 단추 하나만큼은 늘 남긴다 — 예전엔 제목 칸이
+   10px 까지 줄어 그 단추가 ⚡ 위로 겹쳤다. 배율 100% 면 예전과 같은 44px 칸이다. */
 body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent {
-  grid-template-columns: 44px 1fr 44px 44px 44px;
+  --foms-hdr-btn-min: calc(44px / var(--foms-ui-zoom, 1));
+  --foms-hdr-btn: minmax(var(--foms-hdr-btn-min), 44px);
+  --foms-hdr-ctx: minmax(var(--foms-hdr-btn-min), 1fr);
+  grid-template-columns: var(--foms-hdr-btn) var(--foms-hdr-ctx) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn);
 }
 body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-mytasks,
 body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-more {
-  grid-template-columns: 44px 1fr 44px 44px 44px 44px;
+  grid-template-columns: var(--foms-hdr-btn) var(--foms-hdr-ctx) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn);
 }
 body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-mytasks.has-more {
-  grid-template-columns: 44px 1fr 44px 44px 44px 44px 44px;
+  grid-template-columns: var(--foms-hdr-btn) var(--foms-hdr-ctx) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn) var(--foms-hdr-btn);
+}
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent > .erp-mobile-shell-header__inner > .foms-icon-btn {
+    width: 100%;
+  }
+  body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent .erp-mobile-shell-header__partner {
+    flex: 0 1 44px;
+    width: auto;
+    min-width: var(--foms-hdr-btn-min);
+  }
 }
 body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent .erp-mobile-shell-header__urgent {
   grid-column: 3;

@@ -10,14 +10,15 @@ from foms.services.common import erp_navigation_contract as enc
 def get_erp_shell_view_mode(req: Request) -> str | None:
     """Return ``fragment`` / ``critical`` / ``heavy`` when shell tab body is requested.
 
-    Requires active shell header **and** ``view`` matching a known mode. Otherwise
+    Requires active shell header **and** ``foms_shell`` (or legacy ``view``) matching a known mode. Otherwise
     ``None`` (full HTML document — direct GET, refresh, JS off).
 
     Full page and fragment must use the same handler and data path (single truth).
     """
     if req.headers.get(enc.ERP_SHELL_REQUEST_HEADER) != enc.ERP_SHELL_REQUEST_HEADER_ACTIVE:
         return None
-    raw = (req.args.get(enc.ERP_VIEW_QUERY_PARAM) or "").strip()
+    # 전용 표식(foms_shell)이 먼저 — 그래야 같은 요청의 ``view`` 가 화면 인자(view=queue)로 남는다.
+    raw = (req.args.get(enc.ERP_SHELL_FRAGMENT_QUERY_PARAM) or req.args.get(enc.ERP_VIEW_QUERY_PARAM) or "").strip()
     if raw == enc.VIEW_FRAGMENT:
         return enc.VIEW_FRAGMENT
     if raw == enc.VIEW_CRITICAL:
@@ -30,6 +31,19 @@ def get_erp_shell_view_mode(req: Request) -> str | None:
 def wants_erp_shell_tab_body(req: Request) -> bool:
     """True when the client should receive tab-body HTML (partial), not a full document."""
     return get_erp_shell_view_mode(req) is not None
+
+
+def shell_marker_args(req: Request) -> dict[str, str]:
+    """셸 조각 요청이면 리다이렉트 대상에 그대로 실을 표식 인자, 아니면 빈 딕셔너리.
+
+    Args:
+        req: Flask ``Request``.
+
+    Returns:
+        ``{"foms_shell": <mode>}`` 또는 ``{}``.
+    """
+    mode = get_erp_shell_view_mode(req)
+    return {enc.ERP_SHELL_FRAGMENT_QUERY_PARAM: mode} if mode else {}
 
 
 def wants_erp_tab_fragment(req: Request) -> bool:

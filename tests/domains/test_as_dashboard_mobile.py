@@ -209,6 +209,32 @@ def _css_rule_body(css_src: str, selector: str) -> str:
     return css_src.split(head, 1)[1].split("}", 1)[0]
 
 
+def test_as_mobile_first_screen_cards_are_never_deferred():
+    """화면 밖 카드 미루기(content-visibility:auto)는 첫 화면 카드를 빼고 건다.
+
+    2026-11-17 스테이징 폰 4배 CPU: 크롬은 화면 안 판정 전(첫 그림 뒤 약 0.7초)까지 첫 카드도
+    임시 크기(422px)로 배치해, 실제 387px 카드의 grid 줄이 7px 씩 늘었다가 줄며 아래 단추들이
+    7~28px 위로 뛰었다. 앞 카드 몇 장을 visible 로 두는 짝 규칙이 이 파일에 함께 있어야 한다.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    css_src = (root / "static/css/components/foms-as-mobile-card.css").read_text(encoding="utf-8")
+    scope = "body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true']"
+
+    card = _css_rule_body(css_src, f"{scope} .erp-as-mobile-card--v2")
+    if "content-visibility: auto" not in card:
+        return  # 미루기를 안 쓰면 임시 크기도 없다
+    m = re.search(
+        re.escape(f"{scope} .erp-as-mobile-card--v2:nth-of-type(-n+") + r"(\d+)\) \{([^}]*)\}",
+        css_src,
+    )
+    assert m, "첫 화면 카드를 미루지 않는 규칙이 없다"
+    # 가장 짧은 카드(약 365px)도 세로 태블릿 첫 화면(1366px)을 다 채울 만큼.
+    assert int(m.group(1)) >= 4
+    assert "content-visibility: visible" in m.group(2)
+
+
 def test_as_mobile_sticky_bar_bleed_is_paired_with_list_padding_in_same_file():
     """AS 요약 바의 좌우 음수 margin 은 같은 파일의 list 좌우 padding 과 한 쌍이어야 한다.
 

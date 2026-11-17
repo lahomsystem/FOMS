@@ -93,7 +93,12 @@ def _last_finisher(sd: Any, marks: dict[str, Any]) -> Optional[str]:
     if not rows:
         return None
     floor = datetime.datetime.min
-    return getattr(max(rows, key=lambda r: getattr(r, "done_at", None) or floor), "done_by_name", None)
+    # 시각이 같으면(시계 눈금이 거친 환경 — Windows 약 15ms) 늦게 만든 줄(id 큰 쪽)을 마지막으로 본다.
+    # max 는 같은 값이면 첫 줄을 돌려줘, 같은 눈금에 끝낸 두 사람 중 먼저 끝낸 사람 이름이 적혔다.
+    return getattr(
+        max(rows, key=lambda r: (getattr(r, "done_at", None) or floor, getattr(r, "id", None) or 0)),
+        "done_by_name", None,
+    )
 
 
 def plan_part_step_changes(sd: Any, marks: Iterable[Any]) -> list[StepChange]:

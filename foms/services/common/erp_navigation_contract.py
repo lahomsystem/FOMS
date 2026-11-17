@@ -89,6 +89,11 @@ ERP_SHELL_REQUEST_HEADER_ACTIVE: str = "1"
 # Optional query discriminator (recommended alongside header for caches/proxies).
 ERP_VIEW_QUERY_PARAM: str = "view"
 
+# 셸 조각 표식 전용 쿼리 이름(erp-shell.js 가 보낸다, 2026-11-16). ``view`` 는 화면 자신의 인자로도 쓰여
+# (대시보드 ``view=queue``) 클라가 ``view=fragment`` 로 덮어 쓰면 링크가 고른 화면이 사라졌다.
+# 이 이름이 있으면 이것이 이기고, 없으면 예전 ``view`` 값을 읽는다(bottom-nav-shell.js · 리다이렉트 호환).
+ERP_SHELL_FRAGMENT_QUERY_PARAM: str = "foms_shell"
+
 # ``view`` omitted or unknown → treat as full page document (direct visit, refresh, JS off).
 VIEW_FRAGMENT: str = "fragment"
 VIEW_CRITICAL: str = "critical"

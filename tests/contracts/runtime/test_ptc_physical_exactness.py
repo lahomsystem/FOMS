@@ -82,6 +82,8 @@ _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
         "foms-shell-mode-boot.js",
         "foms-theme-boot.js",
         "foms-viewport-hint-boot.js",
+        # 폰에서 뺀 넓은 창 표면을 창이 992 이상이 되면 다시 받는다(표식 wide_surface_omitted_marker.html 옆에서만 실림).
+        "foms-wide-surface-recover.js",
         "layout-head-init.js",
         "layout-scripts-chat.js",
         "layout-scripts-core.js",

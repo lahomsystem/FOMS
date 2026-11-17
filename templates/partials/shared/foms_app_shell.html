@@ -10,15 +10,16 @@
   data-bottom-nav-htmx="{{ 'true' if flag_bottom_nav_htmx else 'false' }}">
   {% include 'partials/shared/erp_mobile_shell_header.html' %}
   {% include 'partials/shared/erp_mobile_bottom_nav.html' %}
+  {% include 'partials/shared/erp_mobile_early_tap.html' %}
   {% include 'partials/shared/htmx_layout.html' %}
   {% include 'partials/shared/foms_p2_surface_bundle.html' %}
-  <script data-foms-run-once src="{{ url_for('static', filename='js/foms/search.js') }}?v=20260929a" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/foms/search.js') }}?v=20261116a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/kv-copy.js') }}?v=20260701a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/mobile-queue-scroll.js') }}?v=20260701a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/mobile-queue-focus.js') }}?v=20260913a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/mobile-tower.js') }}?v=20261108a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/mobile-tower-colors.js') }}?v=20261015a" defer></script>
-  <script data-foms-run-once src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20261005f" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20261116a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/foms-order-timeline-sheet.js') }}?v=20260713b" defer></script>
   {# B7: 공용 쓰기 래퍼 + sync 배지 컨트롤러(fomsWriteFetch / fomsSyncPendingCount). #}
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260725a" defer></script>
