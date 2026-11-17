@@ -1486,15 +1486,36 @@
    * 서랍이 열릴 때(show.bs.offcanvas) 서랍의 셸 화면을 함께 받는다 — 한 번에(사람은 열고 0.5~1.5초 뒤 누른다). 미리 받기라
    * 서랍 링크를 누르면 그 목적지 것은 이어받고 나머지는 끊긴다. 아래 탭이 보이는 폰만(태블릿 · PC 는 예전처럼 받지 않는다),
    * 데이터 절약 · 2G 면 받지 않는다.
+   * 시작은 서랍이 그려진 뒤(afterNextPaint)다 — 이 사건은 Bootstrap 클릭 처리 안에서 돌아, 여기서 요청 4발을 쏘면(아래 탭 ·
+   * 서랍 링크 훑기 + fetch) 그 클릭 작업이 4배 CPU 에서 ~11ms 늘어 50ms 를 넘겼다(11-17 로컬 30회: 긴 작업 24/29회 · 미리 받기 끈
+   * 대조군 6/29회, 스테이징 95/100 · 5/15). 그 사이 사용자가 셸 이동을 시작했으면 쏘지 않는다
+   * (그 목적지는 누름이 바로 받고, 나머지는 어차피 그 이동이 끊는다).
    */
   function prewarmDrawerOnOpen(e) {
     var drawer = document.getElementById('erp-mobile-menu-drawer');
-    if (!drawer || !e || e.target !== drawer || saveDataRequested() || !visibleBottomNavTargets()) {
+    if (!drawer || !e || e.target !== drawer) {
       return;
     }
-    drawerShellTargets(drawer).forEach(function (p) {
-      prefetchShellFragment(window.location.origin + p, { background: true });
+    var navAtOpen = lastUserNavTs;
+    afterNextPaint(function () {
+      if (lastUserNavTs !== navAtOpen || saveDataRequested() || !visibleBottomNavTargets()) {
+        return;
+      }
+      drawerShellTargets(drawer).forEach(function (p) {
+        prefetchShellFragment(window.location.origin + p, { background: true });
+      });
     });
+  }
+
+  /** 다음 그리기 뒤 한 번(requestAnimationFrame 안의 setTimeout 0 — 그 프레임이 그려진 다음 작업). rAF 가 없으면 setTimeout 0. */
+  function afterNextPaint(fn) {
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(function () {
+        window.setTimeout(fn, 0);
+      });
+    } else {
+      window.setTimeout(fn, 0);
+    }
   }
 
   /** 데이터 절약 · 2G 면 true — 꼭 필요한 미리 받기만 한다. navigator.connection 이 없으면 false. */

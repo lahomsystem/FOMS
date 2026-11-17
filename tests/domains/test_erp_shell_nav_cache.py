@@ -150,6 +150,35 @@ def test_negative_control_drawer_prewarm_needs_open_listener_and_fresh_skip(tmp_
     assert _run(no_skip)["prewarm"]["drawerOpen"] == ["/erp/completion?foms_shell=fragment"]
 
 
+_COMPLETION = "/erp/completion?foms_shell=fragment"
+_DRAWER_DEFER = "    afterNextPaint(function () {\n"
+_DRAWER_NAV_GUARD = "if (lastUserNavTs !== navAtOpen || saveDataRequested()"
+
+
+def test_drawer_prewarm_starts_after_paint_not_in_click_task(sim: dict) -> None:
+    """11-17: 서랍 몫 요청을 Bootstrap 클릭 작업 안에서 쏘면 4배 CPU 에서 그 작업이 소리 준비와 겹쳐 50ms 를 넘겼다."""
+    assert sim["drawerDefer"] == {
+        "inClick": 0,  # show.bs.offcanvas 처리 안(클릭 작업)에서는 0발
+        "beforeFrame": 0,  # 다음 프레임 전에도 0발
+        "afterPaint": _DRAWER_ON_OPEN,  # 그린 뒤 서랍 몫 그대로
+        "atTap": [_COMPLETION],  # 그 틈에 누른 목적지는 누름이 바로 받는다
+        "afterTap": [_COMPLETION],  # 그 뒤 나머지 미리 받기는 쏘지 않는다(이동이 시작됐다)
+    }
+
+
+def test_negative_control_drawer_prewarm_in_click_task_or_after_nav(tmp_path: Path) -> None:
+    """대조군: 바로 부르는 사본은 클릭 작업 안에서 3발, 이동 확인을 뺀 사본은 누름 뒤에도 나머지를 쏜다."""
+    src = SHELL_JS.read_text(encoding="utf-8")
+    assert src.count(_DRAWER_DEFER) == 1 and src.count(_DRAWER_NAV_GUARD) == 1, "서랍 미리 받기 문장이 바뀌었다 — 대조군 치환을 갱신하라"
+    sync_copy = tmp_path / "sync.js"
+    sync_copy.write_text(src.replace(_DRAWER_DEFER, "    (function (fn) { fn(); })(function () {\n"), encoding="utf-8")
+    assert _run(sync_copy)["drawerDefer"]["inClick"] == 3
+    no_guard = tmp_path / "no_guard.js"
+    no_guard.write_text(src.replace(_DRAWER_NAV_GUARD, "if (saveDataRequested()"), encoding="utf-8")
+    # 누름 뒤에도 나머지 서랍 몫을 쏜다(지금 화면이 완료로 바뀌어 대시보드까지)
+    assert _run(no_guard)["drawerDefer"]["afterTap"] == _DRAWER_ON_OPEN + ["/erp/dashboard?foms_shell=fragment"]
+
+
 def test_user_navigation_wins_over_prewarm(sim: dict) -> None:
     y = sim["yield"]
     assert y["beforeLoad"] == 0  # load 전엔 웜업 0발
