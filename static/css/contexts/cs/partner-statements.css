@@ -81,7 +81,9 @@
 .foms-pse__question:first-of-type { border-top: 0; }
 .foms-ps__payform { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 6px 0; }
 .foms-ps__payform label { display: grid; gap: 2px; }
-.foms-ps__grow { flex: 1 1 200px; }
+/* max-width: 찾기 칸(input)은 flex 최소 폭이 제 글자 20자 폭이라, 글자 150% · 화면 130% 폰에서 칸 438px 가 줄 343px 를
+   넘어 화면이 옆으로 밀렸다(11-17 실측, 문서 폭 461px). 줄 폭까지만 — 줄보다 좁던 칸은 그대로다. */
+.foms-ps__grow { flex: 1 1 200px; max-width: 100%; }
 /* 단가표 전 주문 옵션 채우기(결정 12) — 품목 칸 · 단가표 제품 고르기 단추(전역 .btn 을 피한다). */
 .foms-pof__list { max-width: 860px; }
 .foms-pof .erp-pro-header { flex-wrap: wrap; gap: 8px; }

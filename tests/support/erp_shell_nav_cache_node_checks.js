@@ -9,6 +9,7 @@
  *   dedupe   — 같은 곳 스왑이 도는 중 다시 누름 · 스왑 끝 1초 안 다시 누름은 요청 · 스왑을 늘리지 않는다. 1초 뒤 누름은 다시 그린다.
  *   prewarm  — 첫 웜업: 아래 탭 순서 → 예전 PRIMARY 앞 3개. 서랍 몫은 서랍을 열 때(신선한 것 · 데이터 절약 · 아래 탭 없음이면 뺌).
  *              아래 탭이 없으면 예전 PRIMARY 앞 3개.
+ *   drawerDefer — 서랍 몫 미리 받기는 서랍 열기 클릭 작업 밖(그린 뒤)에서 쏜다. 그 틈의 누름은 목적지만 바로 받는다.
  *   yield    — 사용자 이동이 미리 받기를 이긴다: load 전엔 웜업 0발, 다른 곳 미리 받기는 끊고 같은 곳은 이어받는다, 스왑 직후엔 쉰다.
  *   overlay  — 전환 중(hiding)인 서랍은 스왑이 바로 dispose 하지 않고 hidden 뒤(또는 1초 대비책)에 정리한다.
  *
@@ -91,11 +92,39 @@ const PHONE_NAV = ['/erp/construction/dashboard', '/erp/shipment', '/erp/dashboa
 const PHONE_DRAWER = ['/erp/drawing-workbench', '/erp/production/dashboard', '/erp/as', '/erp/completion', '/erp/history/',
   '/erp/settlement', '/erp/shipment-settings', '/notices', '/erp/dashboard'];
 
-/* 서랍 열림: Bootstrap 은 서랍 요소에서 show.bs.offcanvas 를 거품으로 올린다. other=true 면 다른 offcanvas 가 열린 것. */
+/* 서랍 열림: Bootstrap 은 서랍 요소에서 show.bs.offcanvas 를 거품으로 올린다. other=true 면 다른 offcanvas 가 열린 것.
+ * 그 클릭 작업 안에서(동기) 쏜 요청 수를 돌려주고, 다음 그리기 뒤(rAF 16ms + setTimeout 0)까지 흘린다. */
 async function openDrawer(b, other) {
   const target = other ? {} : b.sandbox.document.getElementById('erp-mobile-menu-drawer');
+  const before = b.calls.length;
   (b.listeners.document['show.bs.offcanvas'] || []).forEach((fn) => fn({ target }));
-  await b.drain();
+  const sync = b.calls.length - before;
+  await b.advance(32);
+  return sync;
+}
+
+/* 서랍 열기 작업에서 요청을 떼어 냈다: 클릭 작업 안 0발 · 다음 프레임 전 0발 · 그린 뒤 서랍 몫. 그 틈에 서랍 링크를 누르면
+ * 그 목적지는 바로 받고(1발) 나머지 미리 받기는 쏘지 않는다. */
+async function drawerDefer() {
+  const b = boot({ path: '/erp/dashboard', navLinks: PHONE_NAV, drawerLinks: PHONE_DRAWER, raf: true });
+  await b.advance(60 * 1000);
+  const n0 = b.calls.length;
+  const drawer = b.sandbox.document.getElementById('erp-mobile-menu-drawer');
+  (b.listeners.document['show.bs.offcanvas'] || []).forEach((fn) => fn({ target: drawer }));
+  const inClick = b.calls.length - n0;
+  await b.advance(8);
+  const beforeFrame = b.calls.length - n0;
+  await b.advance(24);
+  const afterPaint = b.calls.slice(n0).map((c) => c.url);
+  const t = boot({ path: '/erp/dashboard', navLinks: PHONE_NAV, drawerLinks: PHONE_DRAWER, raf: true });
+  await t.advance(60 * 1000);
+  const m0 = t.calls.length;
+  (t.listeners.document['show.bs.offcanvas'] || []).forEach((fn) => fn({ target: t.sandbox.document.getElementById('erp-mobile-menu-drawer') }));
+  const nav = t.shell.navigateByShell(ORIGIN + '/erp/completion', { inputTs: t.now() });
+  const atTap = t.calls.slice(m0).map((c) => c.url);
+  await nav;
+  await t.advance(2000);
+  return { inClick, beforeFrame, afterPaint, atTap, afterTap: t.calls.slice(m0).map((c) => c.url) };
 }
 
 async function prewarm() {
@@ -214,7 +243,7 @@ async function overlay() {
 }
 
 (async function run() {
-  const out = { marker: await marker(), stale: await stale(), seed: await seed(), dedupe: await dedupe(), prewarm: await prewarm(), yield: await yieldToUser(), overlay: await overlay() };
+  const out = { marker: await marker(), stale: await stale(), seed: await seed(), dedupe: await dedupe(), prewarm: await prewarm(), drawerDefer: await drawerDefer(), yield: await yieldToUser(), overlay: await overlay() };
   process.stdout.write(JSON.stringify(out) + '\n');
 })().catch((err) => {
   process.stderr.write(String((err && err.stack) || err) + '\n');
