@@ -23,6 +23,9 @@
 - 제안은 :func:`foms.services.erp_actions.lifecycle.propose` 로만 만든다(겹침 · 거절된 적 · 막는 조건은 그 함수가 거른다).
   한 번 훑기에 :data:`MAX_PROPOSALS` 개까지. 직원 · 할 일 수준이 0(또는 못 함)이면 그 규칙은 후보도 고르지 않는다.
   후보 하나(판정 · 제안)는 저장점 안에서 돈다 — 그 후보가 터지면 그 저장점만 되감고 코드만 로그에 남긴 뒤 다음 후보로 간다.
+- 상한 나누기(운영 첫 밤 — 앞 규칙이 24개를 먼저 써 시공 잡기 11개가 다음 밤으로 밀렸다): 켜진 규칙마다 **제 몫**(상한 ÷ 켜진 규칙 수)을
+  먼저 주고, 남은 자리는 오늘 밤을 놓치면 소용없는 규칙(:attr:`Rule.due` — 내일 실측 · 내일 시공)부터 규칙 차례로 채운다. 밀린 일이
+  많은 규칙 하나가 다른 규칙의 자리를 다 쓰지 못한다.
 - ``FOMS_GRAFT_PROPOSERS`` 가 꺼져 있으면(:func:`foms.services.graft_flags.enabled_global`) **아무것도 읽지도 쓰지도 않고**
   ``enabled`` 거짓으로 끝난다(지금과 같다).
 - 직원마다 실행 기록 한 줄(``ai_agent_runs`` — 규칙마다 후보 고르기 · 제안 만들기 단계와 걸린 시간). 커밋은 부르는 쪽.
@@ -127,6 +130,7 @@ class Rule:
     tool: str
     pick: Callable[[Any, SweepContext, str, int], list[Any]]
     judge: Callable[[Any, SweepContext], Optional[Candidate]]
+    due: bool = False  # 오늘 밤을 놓치면 소용없는 규칙(내일 일) — 남은 자리를 먼저 받는다
 
 
 @dataclass
@@ -263,13 +267,13 @@ RULES: dict[str, Rule] = {rule.key: rule for rule in (
     Rule("S1", "schedule", "schedule_construction", "협력사 희망 시공일 있음 · 우리 시공일 빔", "erp.visit.list",
          _pick_partner_requests, _judge_partner_request),
     Rule("O1", "ops", "send_measure_alimtalk", "내일 실측 · 알림톡 기록 없음", "erp.order.list",
-         _pick_measure_alimtalk, _judge_measure_alimtalk),
+         _pick_measure_alimtalk, _judge_measure_alimtalk, due=True),
     Rule("O2", "ops", "advance_stage", "현재 작업 모두 승인 · 단계 2일 그대로", "erp.order.list",
          _pick_stuck_stage, _judge_stuck_stage),
     Rule("O3", "ops", "assign_draftsman", "도면 단계 · 담당 2일 비어 있음", "erp.order.list",
          _pick_no_draftsman, _judge_no_draftsman),
     Rule("O4", "ops", "send_construction_alimtalk", "내일 시공 · 시공일 안내 기록 없음", "erp.order.list",
-         _pick_construction_alimtalk, _judge_construction_alimtalk),
+         _pick_construction_alimtalk, _judge_construction_alimtalk, due=True),
 )}
 
 
@@ -298,57 +302,66 @@ def _propose_one(session: Any, rule: Rule, order: Any, level: int, ctx: SweepCon
         return False
 
 
-def _run_rule(session: Any, rule: Rule, level: int, ctx: SweepContext, run_id: int,
-              room: int) -> tuple[int, list[dict[str, Any]]]:
-    """규칙 하나 — 후보 고르기(질의 한 번) → 주문마다 판정 · 제안(``room`` 개까지). (만든 수, 단계 둘)을 돌려준다."""
-    started = time.perf_counter()
-    orders = rule.pick(session, ctx, rule.action, SCAN_LIMIT)
-    picked_ms = _elapsed(started)
+@dataclass
+class _Turn:
+    """켜진 규칙 하나의 차례 — 후보(처음 받을 때 한 번 고른다) · 어디까지 봤나 · 만든 수 · 걸린 시간."""
+
+    rule: Rule
+    level: int
+    run_id: int
+    orders: Optional[list[Any]] = None  # ``None`` = 자리가 없어 후보도 고르지 않음
+    at: int = 0
+    made: int = 0
+    picked_ms: int = 0
+    made_ms: int = 0
+
+    def steps(self, limit: int) -> list[dict[str, Any]]:
+        """실행 기록 단계 — 후보 고르기 · 제안 만들기(자리가 없었으면 건너뜀 한 줄)."""
+        rule = self.rule
+        if self.orders is None:
+            return [{"tool": rule.tool, "what": f"건너뜀 — {rule.key}", "detail": f"한 번에 {limit}개까지", "ms": 0}]
+        return [{"tool": rule.tool, "what": f"후보 고르기 — {rule.key}", "detail": f"후보 {len(self.orders)}개",
+                 "ms": self.picked_ms},
+                {"tool": "actions.propose", "what": f"제안 만들기 — {rule.key}", "detail": f"제안 {self.made}개",
+                 "ms": self.made_ms}]
+
+
+def _take(session: Any, turn: _Turn, ctx: SweepContext, room: int) -> int:
+    """이 규칙이 ``room`` 개까지 더 만든다 — 후보는 처음 한 번만 고르고(질의 한 번) 본 데부터 이어 간다. 만든 수."""
+    if room <= 0:
+        return 0
+    if turn.orders is None:
+        started = time.perf_counter()
+        turn.orders = turn.rule.pick(session, ctx, turn.rule.action, SCAN_LIMIT)
+        turn.picked_ms = _elapsed(started)
     started, made = time.perf_counter(), 0
-    for order in orders:
-        if made >= room:
-            break
-        made += _propose_one(session, rule, order, level, ctx, run_id)
-    return made, [{"tool": rule.tool, "what": f"후보 고르기 — {rule.key}", "detail": f"후보 {len(orders)}개",
-                   "ms": picked_ms},
-                  {"tool": "actions.propose", "what": f"제안 만들기 — {rule.key}", "detail": f"제안 {made}개",
-                   "ms": _elapsed(started)}]
+    while turn.at < len(turn.orders) and made < room:
+        order = turn.orders[turn.at]
+        turn.at += 1
+        made += _propose_one(session, turn.rule, order, turn.level, ctx, turn.run_id)
+    turn.made += made
+    turn.made_ms += _elapsed(started)
+    return made
 
 
-def _run_agent(session: Any, agent: str, rules: list[Rule], levels: dict[str, Optional[int]], ctx: SweepContext,
-               result: SweepResult, limit: int) -> None:
-    """직원 하나의 규칙들 — 실행 기록 한 줄을 먼저 만들고(번호가 제안 출처) 끝에 단계 · 시간 · 수를 채운다."""
-    started = time.perf_counter()
-    run = record_run(session, agent, [], started_at=ctx.now, total_ms=0, source_kind="sweep", source_ref=None)
+def _close_run(session: Any, run: Any, rules: list[Rule], turns: dict[str, _Turn], limit: int) -> None:
+    """직원 하나의 실행 기록을 채운다 — 규칙 차례대로 단계 · 걸린 시간 · 만든 수."""
     steps: list[dict[str, Any]] = []
-    made_total, skipped = 0, 0
     for rule in rules:
-        level = levels.get(rule.action) or 0
-        if level <= 0:
-            skipped += 1
-            steps.append({"tool": rule.tool, "what": f"건너뜀 — {rule.key}", "detail": "수준 0 — 제안 안 만듦", "ms": 0})
-            result.by_rule[rule.key] = 0
-            continue
-        if result.created >= limit:
-            steps.append({"tool": rule.tool, "what": f"건너뜀 — {rule.key}", "detail": f"한 번에 {limit}개까지", "ms": 0})
-            result.by_rule[rule.key] = 0
-            continue
-        made, rule_steps = _run_rule(session, rule, level, ctx, run.id, limit - result.created)
-        steps.extend(rule_steps)
-        result.by_rule[rule.key] = made
-        result.created += made
-        made_total += made
+        turn = turns.get(rule.key)
+        steps.extend(turn.steps(limit) if turn else [{"tool": rule.tool, "what": f"건너뜀 — {rule.key}",
+                                                       "detail": "수준 0 — 제안 안 만듦", "ms": 0}])
+    mine = [turns[rule.key] for rule in rules if rule.key in turns]
     run.steps = steps
-    run.total_ms = _elapsed(started)
-    run.proposals = made_total
-    run.outcome = "level_zero" if skipped == len(rules) else "done"
+    run.total_ms = sum(turn.picked_ms + turn.made_ms for turn in mine)
+    run.proposals = sum(turn.made for turn in mine)
+    run.outcome = "done" if mine else "level_zero"
     session.flush()
-    result.runs.append(run.id)
 
 
 def run_sweep(session: Any, *, now: Optional[datetime.datetime] = None, today: Optional[datetime.date] = None,
               limit: int = MAX_PROPOSALS) -> SweepResult:
-    """훑기 한 번 — 규칙을 차례로 돌려 제안을 만든다(커밋은 부르는 쪽).
+    """훑기 한 번 — 규칙마다 제 몫을 먼저 만들고 남은 자리를 채운다(커밋은 부르는 쪽).
 
     Args:
         session: DB 세션.
@@ -364,8 +377,26 @@ def run_sweep(session: Any, *, now: Optional[datetime.datetime] = None, today: O
     ctx = SweepContext(now=now or now_utc_naive(), today=today or get_today_kst())
     result = SweepResult(enabled=True)
     table = level_table(session)
+    staff: list[tuple[Any, list[Rule]]] = []
+    turns: dict[str, _Turn] = {}
     for agent in AGENTS:
         rules = [rule for rule in RULES.values() if rule.agent == agent]
-        if rules:
-            _run_agent(session, agent, rules, table.get(agent, {}), ctx, result, limit)
+        if not rules:
+            continue
+        # 실행 기록 한 줄을 먼저 만든다(번호가 제안 출처) — 단계 · 시간 · 수는 끝에 채운다
+        run = record_run(session, agent, [], started_at=ctx.now, total_ms=0, source_kind="sweep", source_ref=None)
+        staff.append((run, rules))
+        for rule in rules:
+            level = table.get(agent, {}).get(rule.action) or 0
+            if level > 0:
+                turns[rule.key] = _Turn(rule, level, run.id)
+    share = max(1, limit // len(turns)) if turns else 0
+    for turn in turns.values():  # ① 규칙마다 제 몫
+        result.created += _take(session, turn, ctx, min(share, limit - result.created))
+    for turn in sorted(turns.values(), key=lambda item: not item.rule.due):  # ② 남은 자리 — 내일 일부터
+        result.created += _take(session, turn, ctx, limit - result.created)
+    for run, rules in staff:
+        _close_run(session, run, rules, turns, limit)
+        result.runs.append(run.id)
+        result.by_rule.update({rule.key: turns[rule.key].made if rule.key in turns else 0 for rule in rules})
     return result

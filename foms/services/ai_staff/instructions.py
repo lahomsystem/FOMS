@@ -33,7 +33,7 @@ from foms.services.ai_staff.sweeps import RULES
 __all__ = ["OUTSIDE_NOTE", "RULES_NOTE", "instructions_view"]
 
 OUTSIDE_NOTE = "도면 AI 팀원의 지시문은 FOMS 저장소 밖의 주 1회 루틴에 있어서 여기서 볼 수 없어요."
-RULES_NOTE = "이 직원은 모델을 부르지 않아 지시문이 없어요. 아래 규칙대로만 주문을 훑고 제안을 만들어요(한 번에 30개까지)."
+RULES_NOTE = "이 직원은 모델을 부르지 않아 지시문이 없어요. 아래 규칙대로만 주문을 훑고 제안을 만들어요(한 번에 30개까지 — 규칙마다 고르게 나눠요)."
 PROMPT_NOTE = "AI 에 보내는 지시문 그대로예요. 여기서는 읽기만 하고, 고치려면 코드를 바꿔야 해요."
 
 
