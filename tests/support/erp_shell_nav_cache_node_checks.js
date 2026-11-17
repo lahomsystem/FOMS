@@ -7,7 +7,8 @@
  *   stale    — TTL 이 지난 줄도 ETag 를 남겨 If-None-Match 를 보내고 304 면 그 html 로 스왑한다.
  *   seed     — 받은 뒤 한가한 틈에 적은 씨앗으로 새 문서가 If-None-Match 를 보낸다(다른 사용자면 지운다). pagehide 는 비어 있다.
  *   dedupe   — 같은 곳 스왑이 도는 중 다시 누름 · 스왑 끝 1초 안 다시 누름은 요청 · 스왑을 늘리지 않는다. 1초 뒤 누름은 다시 그린다.
- *   prewarm  — 첫 웜업: 아래 탭 순서 → 예전 PRIMARY 앞 3개 → 서랍(데이터 절약이면 뺌). 아래 탭이 없으면 예전 PRIMARY 앞 3개.
+ *   prewarm  — 첫 웜업: 아래 탭 순서 → 예전 PRIMARY 앞 3개. 서랍 몫은 서랍을 열 때(신선한 것 · 데이터 절약 · 아래 탭 없음이면 뺌).
+ *              아래 탭이 없으면 예전 PRIMARY 앞 3개.
  *   yield    — 사용자 이동이 미리 받기를 이긴다: load 전엔 웜업 0발, 다른 곳 미리 받기는 끊고 같은 곳은 이어받는다, 스왑 직후엔 쉰다.
  *   overlay  — 전환 중(hiding)인 서랍은 스왑이 바로 dispose 하지 않고 hidden 뒤(또는 1초 대비책)에 정리한다.
  *
@@ -90,15 +91,32 @@ const PHONE_NAV = ['/erp/construction/dashboard', '/erp/shipment', '/erp/dashboa
 const PHONE_DRAWER = ['/erp/drawing-workbench', '/erp/production/dashboard', '/erp/as', '/erp/completion', '/erp/history/',
   '/erp/settlement', '/erp/shipment-settings', '/notices', '/erp/dashboard'];
 
+/* 서랍 열림: Bootstrap 은 서랍 요소에서 show.bs.offcanvas 를 거품으로 올린다. other=true 면 다른 offcanvas 가 열린 것. */
+async function openDrawer(b, other) {
+  const target = other ? {} : b.sandbox.document.getElementById('erp-mobile-menu-drawer');
+  (b.listeners.document['show.bs.offcanvas'] || []).forEach((fn) => fn({ target }));
+  await b.drain();
+}
+
 async function prewarm() {
-  const urls = (b) => b.calls.map((c) => c.url);
+  const urls = (b, from) => b.calls.slice(from || 0).map((c) => c.url);
   const phone = boot({ path: '/erp/dashboard', navLinks: PHONE_NAV, drawerLinks: PHONE_DRAWER });
   await phone.advance(60 * 1000);
+  const phoneLoad = phone.calls.length;
+  await openDrawer(phone, true);
+  const otherOffcanvas = urls(phone, phoneLoad);
+  await openDrawer(phone);
+  const phoneOpen = phone.calls.length;
+  await phone.advance(2000);
+  await openDrawer(phone); // 다시 열어도 신선한 것은 다시 받지 않는다
   const saver = boot({ path: '/erp/dashboard', navLinks: PHONE_NAV, drawerLinks: PHONE_DRAWER, saveData: true });
   await saver.advance(60 * 1000);
+  await openDrawer(saver);
   const pc = boot({ path: '/erp/dashboard', drawerLinks: PHONE_DRAWER });
   await pc.advance(60 * 1000);
-  return { phone: urls(phone), saver: urls(saver), pc: urls(pc) };
+  await openDrawer(pc);
+  return { phone: urls(phone).slice(0, phoneLoad), otherOffcanvas, drawerOpen: urls(phone, phoneLoad).slice(0, phoneOpen - phoneLoad),
+    reopen: urls(phone, phoneOpen), saver: urls(saver), pc: urls(pc) };
 }
 
 async function yieldToUser() {

@@ -92,9 +92,11 @@
   var NAV_PREWARM_MAX = 5;
   var PREWARM_STEP_MS = 400;
   /**
-   * 첫 웜업 2단계(폰): 아래 탭 뒤에 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX)과 메뉴 서랍의 셸 화면을 이만큼까지 더 받는다.
-   * 아래 탭만 데우자 서랍으로 가는 생산 보드 · 도면이 식어 1배 CPU 114 → 407ms, 104 → 264ms 로 느려졌다(11-16 스테이징 재실측).
-   * 서랍 몫은 데이터 절약 · 2G 면 건너뛴다(예전 고정 목록 몫은 예전에도 받았으니 그대로 받는다).
+   * 폰 메뉴 서랍의 셸 화면은 서랍을 열 때(show.bs.offcanvas — 갈 뜻이 보인 때) 이만큼까지 받는다(아직 신선하게 들고 있는 것은 뺀다).
+   * 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX — 서랍으로 가는 도면 · 생산 보드)은 첫 웜업이 그대로 받는다.
+   * 11-17 재실측: 첫 웜업에서 서랍 몫(AS · 완료 · 이력)이 빈 HTTP 캐시 첫 문서 전송 164KB 중 52KB · 서버 그리기 8번 중 3번이었고,
+   * 스테이징 조각 한 번이 130~240ms 라 서랍을 열고 0.5초 뒤 눌러도 이미 받아 둔다(로컬 4배 CPU AS 306 → 302ms, 완료 116 → 114ms).
+   * 데이터 절약 · 2G 면 받지 않는다.
    */
   var DRAWER_PREWARM_MAX = 4;
   /**
@@ -1454,15 +1456,11 @@
   }
 
   /**
-   * 폰 메뉴 서랍(#erp-mobile-menu-drawer)의 셸 화면 주소(서랍 순서, 지금 화면 · 이미 고른 것 제외, DRAWER_PREWARM_MAX 까지).
-   * 서랍은 닫혀 있어 보이지 않으므로 보임은 묻지 않는다 — 서버가 이 사용자에게 그린 메뉴가 곧 갈 수 있는 곳이다.
-   * @param {string[]} taken 이미 고른 캐시 키
+   * 폰 메뉴 서랍(#erp-mobile-menu-drawer)의 셸 화면 주소 중 아직 안 들고 있는 것(서랍 순서, DRAWER_PREWARM_MAX 까지) —
+   * 지금 화면 · 신선한 캐시 줄 · 날고 있는 요청은 뺀다. 서버가 이 사용자에게 그린 메뉴가 곧 갈 수 있는 곳이다.
+   * @param {Element} drawer
    */
-  function drawerShellTargets(taken) {
-    var drawer = document.getElementById('erp-mobile-menu-drawer');
-    if (!drawer || typeof drawer.querySelectorAll !== 'function') {
-      return [];
-    }
+  function drawerShellTargets(drawer) {
     var curKey = getCacheKey(window.location.href);
     var out = [];
     drawer.querySelectorAll('a[href]').forEach(function (a) {
@@ -1476,13 +1474,27 @@
         return;
       }
       var k = getCacheKey(u.href);
-      if (u.origin !== window.location.origin || !isShellFragmentSwapUrl(u.href) || k === curKey || taken.indexOf(k) !== -1) {
+      if (u.origin !== window.location.origin || !isShellFragmentSwapUrl(u.href) || k === curKey || inflightFetches[k] || cacheGet(k)) {
         return;
       }
-      taken.push(k);
       out.push(u.pathname + u.search);
     });
     return out;
+  }
+
+  /**
+   * 서랍이 열릴 때(show.bs.offcanvas) 서랍의 셸 화면을 함께 받는다 — 한 번에(사람은 열고 0.5~1.5초 뒤 누른다). 미리 받기라
+   * 서랍 링크를 누르면 그 목적지 것은 이어받고 나머지는 끊긴다. 아래 탭이 보이는 폰만(태블릿 · PC 는 예전처럼 받지 않는다),
+   * 데이터 절약 · 2G 면 받지 않는다.
+   */
+  function prewarmDrawerOnOpen(e) {
+    var drawer = document.getElementById('erp-mobile-menu-drawer');
+    if (!drawer || !e || e.target !== drawer || saveDataRequested() || !visibleBottomNavTargets()) {
+      return;
+    }
+    drawerShellTargets(drawer).forEach(function (p) {
+      prefetchShellFragment(window.location.origin + p, { background: true });
+    });
   }
 
   /** 데이터 절약 · 2G 면 true — 꼭 필요한 미리 받기만 한다. navigator.connection 이 없으면 false. */
@@ -1526,8 +1538,8 @@
 
   /**
    * 초기 웜업: 문서 load 뒤 한가한 틈에 1회(firstPrewarm). 폰이면 아래 탭에 보이는 화면을 탭 순서대로(NAV_PREWARM_MAX 까지) →
-   * 보이는 LINKED_FRESH → 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX, 서랍으로 가는 도면 · 생산) → 서랍의 나머지 셸 화면
-   * (DRAWER_PREWARM_MAX, 데이터 절약 · 2G 면 뺀다). 아래 탭이 없는 태블릿 · PC 는 예전 그대로 PRIMARY 앞 IDLE_PREFETCH_MAX 개 + LINKED_FRESH.
+   * 보이는 LINKED_FRESH → 예전 고정 목록(PRIMARY 앞 IDLE_PREFETCH_MAX, 서랍으로 가는 도면 · 생산). 서랍의 나머지 셸 화면은
+   * 서랍을 열 때 받는다(prewarmDrawerOnOpen). 아래 탭이 없는 태블릿 · PC 는 예전 그대로 PRIMARY 앞 IDLE_PREFETCH_MAX 개 + LINKED_FRESH.
    * 한 번에 한 발: 앞 요청이 끝난 뒤 PREWARM_STEP_MS + 한가한 틈. 사용자 누름 · 스왑 중 · 스왑 직후(USER_NAV_QUIET_MS)는 쉬고,
    * 사용자 이동에 끊긴 칸은 다시 받는다(PREWARM_MAX_RETRIES). 나머지 primary 와 이후 신선도 유지는 하트비트(240초 · 50초)가 맡는다.
    */
@@ -1552,11 +1564,6 @@
     visibleLinkedFreshPaths().forEach(add);
     if (navTargets) {
       oldList.forEach(add);
-      if (!saveDataRequested()) {
-        drawerShellTargets(taken).forEach(function (p) {
-          candidates.push(p);
-        });
-      }
     }
     var i = 0;
     var retries = 0;
@@ -1699,6 +1706,8 @@
   document.addEventListener('focusin', onAnchorHoverFocus, true);
   /* 누름 즉시 prefetch(빠른 클릭·터치 탭 대응) — 마우스/터치/펜 공통 pointerdown */
   document.addEventListener('pointerdown', onAnchorPressPrefetch, true);
+  /* 서랍 열림(Bootstrap 사건은 거품이 올라온다) — 서랍 몫 미리 받기 */
+  document.addEventListener('show.bs.offcanvas', prewarmDrawerOnOpen);
 
   document.addEventListener(
     'submit',

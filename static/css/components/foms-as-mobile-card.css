@@ -364,6 +364,15 @@
     contain-intrinsic-size: auto 400px;
   }
 
+  /* 첫 화면에 들어오는 앞 4장은 미루지 않는다(2026-11-17 스테이징 폰 4배 CPU 실측, 생산 홈 .fph-dr 와 같은 원인).
+     크롬은 화면 안 판정이 나기 전(4배 CPU 에선 첫 그림 뒤 0.7초)까지 화면 안 첫 카드도 임시 크기(400 + 여백 = 422px)로
+     배치했다. 실제 카드가 그보다 짧으면(387px) 카드의 grid 줄 5개가 7px 씩 늘어나 있다가 판정 뒤 제 크기로 줄어,
+     날짜 · 가능시간 · 빠른 작업 단추 · [시공·AS 내용]이 7 · 14 · 21 · 28px 위로 뛰었다. 카드 높이는 지난 AS 줄 · 전달 줄 ·
+     발주사 · 글자 배율마다 달라 임시 크기 하나로는 못 맞춘다. 4장 = 세로 태블릿(1366px) 첫 화면에 가장 짧은 카드가 들어가는 수보다 많다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2:nth-of-type(-n+4) {
+    content-visibility: visible;
+  }
+
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2.is-pending {
     border-color: color-mix(in srgb, var(--foms-color-warning-500, #f59e0b) 40%, var(--foms-border-subtle, #dde1e6));
     box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.16), var(--foms-shadow-sm, 0 1px 3px rgba(15, 17, 21, 0.06));

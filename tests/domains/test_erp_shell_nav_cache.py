@@ -5,7 +5,7 @@
 - 온전한 페이지 이동 뒤에도 씨앗으로 If-None-Match 를 보낸다(다른 사용자 씨앗은 지운다). 씨앗은 받은 뒤 한가한 틈에 적고
   pagehide 처리기는 없다(떠나는 길을 늦추지 않는다).
 - 같은 곳 스왑 중 다시 누름(비행 중 · 긴 작업 동안 줄 선 누름) · 스왑 끝 1초 안 다시 누름은 요청 · 스왑을 늘리지 않는다.
-- 첫 웜업(11-16 재실측 뒤): load 뒤 한 발씩 — 아래 탭 순서 → 예전 PRIMARY 앞 3개 → 서랍(데이터 절약이면 뺌).
+- 첫 웜업(11-16 재실측 뒤): load 뒤 한 발씩 — 아래 탭 순서 → 예전 PRIMARY 앞 3개. 서랍 몫은 서랍을 열 때(11-17, 데이터 절약이면 뺌).
   아래 탭이 없는 태블릿 · PC 는 예전 PRIMARY 앞 3개 그대로. 사용자 이동이 미리 받기를 끊고 · 이어받고 · 스왑 직후엔 쉬게 한다.
 - 전환 중(hiding)인 서랍은 스왑이 바로 dispose 하지 않는다(Bootstrap 늦은 콜백 classList 오류).
 
@@ -112,19 +112,42 @@ _PHONE_PREWARM = [
 ]
 
 
+_DRAWER_ON_OPEN = [
+    # 서랍을 열 때: 서랍 순서로 아직 안 든 셸 화면(4개까지 — 셸 밖 · 지금 화면 · 신선한 캐시 줄 제외)
+    "/erp/completion?foms_shell=fragment",
+    "/erp/history/?foms_shell=fragment",
+    "/erp/shipment-settings?foms_shell=fragment",
+]
+
+
 def test_prewarm_follows_visible_bottom_nav_then_falls_back(sim: dict) -> None:
-    # 3단계: 서랍의 나머지 셸 화면(서랍 순서, 4개까지 — 셸 밖 · 지금 화면 · 이미 고른 것 제외)
-    assert sim["prewarm"]["phone"] == _PHONE_PREWARM + [
-        "/erp/completion?foms_shell=fragment",
-        "/erp/history/?foms_shell=fragment",
-        "/erp/shipment-settings?foms_shell=fragment",
-    ]
-    assert sim["prewarm"]["saver"] == _PHONE_PREWARM  # 데이터 절약이면 서랍 몫은 뺀다
-    assert sim["prewarm"]["pc"] == [
+    pw = sim["prewarm"]
+    assert pw["phone"] == _PHONE_PREWARM  # 첫 웜업엔 서랍 몫이 없다(11-17: 열지 않는 사람의 전송 · 서버 그리기를 줄인다)
+    assert pw["otherOffcanvas"] == []  # 다른 offcanvas 가 열리면 받지 않는다
+    assert pw["drawerOpen"] == _DRAWER_ON_OPEN
+    assert pw["reopen"] == []  # 다시 열어도 신선한 것은 다시 받지 않는다
+    assert pw["saver"] == _PHONE_PREWARM  # 데이터 절약이면 서랍을 열어도 받지 않는다
+    assert pw["pc"] == [  # 아래 탭이 없는 태블릿 · PC: 예전 그대로(서랍을 열어도 더 받지 않는다)
         "/erp/measurement?foms_shell=fragment",
         "/erp/drawing-workbench?foms_shell=fragment",
         "/erp/production/dashboard?foms_shell=fragment",
     ]
+
+
+_DRAWER_LISTENER = "document.addEventListener('show.bs.offcanvas', prewarmDrawerOnOpen);"
+_DRAWER_FRESH_SKIP = " || inflightFetches[k] || cacheGet(k)) {"
+
+
+def test_negative_control_drawer_prewarm_needs_open_listener_and_fresh_skip(tmp_path: Path) -> None:
+    """대조군: 열림 리스너를 뺀 사본은 서랍을 열어도 0발, 신선한 줄 빼기를 뺀 사본은 이미 든 도면 · 생산 · AS 가 4칸을 먹어 완료 1발."""
+    src = SHELL_JS.read_text(encoding="utf-8")
+    assert src.count(_DRAWER_LISTENER) == 1 and src.count(_DRAWER_FRESH_SKIP) == 1, "서랍 미리 받기 문장이 바뀌었다 — 대조군 치환을 갱신하라"
+    no_listener = tmp_path / "no_listener.js"
+    no_listener.write_text(src.replace(_DRAWER_LISTENER, ""), encoding="utf-8")
+    assert _run(no_listener)["prewarm"]["drawerOpen"] == []
+    no_skip = tmp_path / "no_skip.js"
+    no_skip.write_text(src.replace(_DRAWER_FRESH_SKIP, ") {"), encoding="utf-8")
+    assert _run(no_skip)["prewarm"]["drawerOpen"] == ["/erp/completion?foms_shell=fragment"]
 
 
 def test_user_navigation_wins_over_prewarm(sim: dict) -> None:
