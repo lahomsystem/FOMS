@@ -1,4 +1,4 @@
-# 문장으로 고치기 — 바뀐 내용을 한 문장으로 넣으면 회사 지식 · 온톨로지를 고치고 따로 보고 (설계 판 1, 2026-11-18 · 승인 전)
+# 문장으로 고치기 — 바뀐 내용을 한 문장으로 넣으면 회사 지식 · 온톨로지를 고치고 따로 보고 (설계 판 1, 2026-11-18 · 결정 D246 ~ D249 승인)
 
 사장님 말(11-17): "내가 문장으로 변경된 내용을 넣으면 자동으로 분석해서 온톨로지, 지식 변경 등 모든 관련 내용을 자동으로 할 수
 있어야 될 것 같은데. 변경된 내용은 별도 보고하고."
@@ -129,13 +129,18 @@
 | 금액이 든 글 | 금액 칸은 지금 관문(가격 규칙은 계산기 가리키기 — D179)을 그대로 지난다. 금액 숫자를 글에 넣는 고침은 '못 고친 것'으로 |
 | 하루에 많이 넣어 돈이 샘 | 따로 돈 줄 · 하루 상한 |
 
-## 9. 사장님이 정할 것 (승인 전)
+## 9. 사장님 결정 (11-18 질문 창 — 원장 `docs/plans/2026-10-27-cs-ai-agent-ledger.md` D246 ~ D249)
 
-1. **반영 방식** — (추천) 미리 보기 뒤 [이대로 고치기] 한 번 / 바로 반영하고 보고(틀리면 되돌리기) / 위험이 낮은 것(이름 · 사실 ·
-   연결)만 바로 · 나머지는 승인 대기.
-2. **누가 넣나** — (추천) 사장님 · 관리자만 / 팀장도(자기 팀 지식만).
-3. **1판 범위** — (추천) 회사 지식 · 온톨로지부터, 설정은 2판 / 설정(AI 직원 수준 표)까지 1판에.
-4. **입력 칸 자리** — (추천) 회사 지식 승인 대기 화면 맨 위 / 물어보기 화면에서 대화처럼 / 둘 다.
+- **D246 반영 방식**: 미리 보기 뒤 [이대로 고치기] 한 번. (다른 안: 바로 반영하고 보고 · 쉬운 것만 바로)
+- **D247 누가 넣나**: 팀장도(자기 팀 지식만). 관리자는 모든 층, 층 승인자(지금 `access.approval_problem` 이 승인자로 보는 사람 —
+  CS · 도면 · 생산 층)는 자기 층 항목만 고침 후보가 된다. 다른 층에 걸린 것은 보고의 '같이 볼 것'에 적는다. 반영 권한은 지금
+  그대로(`apply.check_permission`) — 넣은 사람이 반영할 수 없는 줄은 승인 대기에 남는다. 설정 고침은 관리자만.
+  (다른 안: 사장님 · 관리자만)
+- **D248 첫 판 범위**: AI 직원 설정(수준 표)까지 한 번에. 5절 표의 1판 · 2판 가운데 수준 표를 1판으로 당긴다(상담 AI 관리 칸은
+  2판 그대로). (다른 안: 회사 지식 · 온톨로지부터)
+- **D249 입력 칸 자리**: 둘 다 — 승인 대기 화면 맨 위 한 줄 칸 + 물어보기 화면. 물어보기에서는 묻는 말과 고치는 말이 섞이지
+  않게 **따로 누르는 단추**([바뀐 내용으로 넣기])로만 넘어간다(말투로 알아서 고치기로 넘기지 않는다). (다른 안: 승인 대기 화면만 ·
+  물어보기만)
 
 ## 10. 하지 않는 것
 
@@ -143,3 +148,42 @@
 - 코드 상수(밤 훑기 규칙 · 계산식)를 자동으로 고치기.
 - 승인 없이 손님에게 나가는 글(알림톡 서식 · 매크로)을 고치기 — 지식 항목만 고치고, 바깥 사본은 '같이 볼 것'으로 알린다.
 - 원문 문장 저장.
+
+## 11. 만들 것의 약속 (1판 — 일꾼이 서로 맞추는 기준)
+
+저장(마이그레이션 하나 — 머리 `graft_00` 뒤):
+
+- 표 `brain_change_requests`: `id` · `created_by`(사람 번호) · `layer_scope`(넣은 사람이 고칠 수 있는 층 — `all` 또는 층 이름) ·
+  `masked_text`(가린 문장, 1,000자) · `bundle`(JSON — 3절 꼴 + 줄마다 검사 결과) · `status`
+  (`analyzing` · `ready` · `asked` · `applied` · `partial` · `reverted` · `discarded` · `failed`) · `error_code` ·
+  `cost_usd` · `latency_ms` · `created_at` · `decided_at`.
+- `brain_changes.request_id`(빈 값 허용 · 색인) — 이 묶음이 만든 제안 줄. 설정 고침은 `bundle.settings[]` 에 전 → 후 값과
+  반영 여부를 적는다(제안 줄을 만들지 않는다).
+
+서비스(`foms/services/brain/` 새 파일들 — 파일마다 500줄 아래):
+
+- `change_request.py` — `start(session, actor, text)`(가림 → 묶음 줄 `analyzing` → 분석 → `ready` 또는 `asked` · `failed`) ·
+  `answer(session, actor, request_id, text)`(되물음에 답 — 같은 묶음 다시 분석) · `apply(session, actor, request_id, skip=[줄 번호])`
+  (제안 줄 만들기 + 넣은 사람이 반영할 수 있는 줄 반영 + 설정 저장) · `discard` · `revert`(이 묶음이 반영한 것만 되돌림) ·
+  `view(session, viewer, request_id)` · `list_page(session, viewer, page)`.
+- `change_request_model.py` — 재료 모으기 · AI 부르기(JSON 틀 · 돈 줄 `brain_change_spend`) · 답 읽기. 시험은 가짜 AI 로.
+- `change_request_check.py` — 줄마다 검사(있는 키 · 층 · 꼴 · 허용 짝 · 같은 값 · 맞섬 · 금액 글 · 허용 설정 칸).
+- 누가 쓸 수 있나: `change_request.can_use(viewer)` — 새 회사 지식 화면이 켜진 사람 가운데 관리자 또는 층 승인자.
+
+API(`/api/brain/change-requests` — 답 꼴 `{'success','data','error'}`):
+
+| 길 | 무엇 |
+|---|---|
+| `POST /api/brain/change-requests` `{text}` | 분석 시작 → `{id, status}`(끝났으면 묶음 화면 값까지) |
+| `GET /api/brain/change-requests/<id>` | 묶음 화면 값: 문장 · 상태 · 줄 목록(`kind` · `label` · `before` · `after` · `why` · `check` · `state` · `caution`) · 못 고친 것 · 코드가 필요한 것 · 같이 볼 것 · 물음 · 할 수 있는 일(`can_apply` · `can_revert`) |
+| `POST …/<id>/answer` `{text}` | 되물음에 답 |
+| `POST …/<id>/apply` `{skip: [줄 번호]}` | 이대로 고치기 |
+| `POST …/<id>/discard` | 버리기 |
+| `POST …/<id>/revert` | 이 묶음 되돌리기 |
+| `GET /api/brain/change-requests?page=` | 목록 |
+
+화면: `GET /brain/requests/<id>`(묶음 화면) · 승인 대기 화면 맨 위 입력 칸 · 물어보기 화면의 [바뀐 내용으로 넣기] 단추(입력한 글을
+`POST /api/brain/change-requests` 로 보내고 묶음 화면으로 간다).
+
+스위치: `FOMS_GRAFT_BRAIN_CHANGE_REQUEST`(사람별 — `graft_flags`, 새 회사 지식 화면 `brain_ui` 가 켜져 있어야 한다). 꺼져 있으면
+입력 칸 · 단추 · API · 화면이 없다(404).
