@@ -389,7 +389,7 @@ def test_sweep_step_dry_run_rolls_back_and_apply_commits(proposers):
     assert db_session.query(ErpActionProposal).count() == 0
     summary = ai_staff_sweep.run(apply=True, session=db_session)
     assert summary == {"enabled": True, "created": 1, "by_rule": {"O1": 0, "O2": 0, "O3": 1, "O4": 0, "S1": 0},
-                       "applied": True}
+                       "withdrawn": {}, "applied": True}
     assert _made("assign_draftsman") == {order_id}
 
 

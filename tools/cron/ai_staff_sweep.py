@@ -43,7 +43,7 @@ def _make_session():
 
 
 def run(*, apply: bool = False, session=None, now=None, today=None) -> dict:
-    """훑기 한 번(``apply`` 가 거짓이면 만들고 되돌림). 돌려주는 값: {enabled, created, by_rule, applied}.
+    """훑기 한 번(``apply`` 가 거짓이면 만들고 되돌림). 돌려주는 값: {enabled, created, by_rule, withdrawn, applied}.
 
     스위치가 꺼져 있으면 DB 에 붙지도 않는다(``session`` 을 받았어도 쓰지 않는다).
     """
@@ -51,7 +51,7 @@ def run(*, apply: bool = False, session=None, now=None, today=None) -> dict:
     from foms.services.graft_flags import enabled_global
 
     if not enabled_global("proposers"):
-        return {"enabled": False, "created": 0, "by_rule": {}, "applied": bool(apply)}
+        return {"enabled": False, "created": 0, "by_rule": {}, "withdrawn": {}, "applied": bool(apply)}
     own = session is None
     engine = None
     if own:
@@ -59,7 +59,7 @@ def run(*, apply: bool = False, session=None, now=None, today=None) -> dict:
     try:
         result = run_sweep(session, now=now, today=today)
         summary = {"enabled": result.enabled, "created": result.created, "by_rule": dict(result.by_rule),
-                   "applied": bool(apply)}
+                   "withdrawn": dict(result.withdrawn), "applied": bool(apply)}
         if apply:
             session.commit()
         else:
