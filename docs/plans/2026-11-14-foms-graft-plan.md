@@ -482,6 +482,7 @@ T7 이 `registry.py`(T1 것)에 `check` · `preview` · `verify` 함수를 이�
 - 끄는 길은 D238(실측 예약 알림톡)과 같다 — 운영 수준 표에서 두 칸을 0 으로(처음 값은 그대로 두어 AI 직원 화면에서 다시 켤 수 있다).
 - 열린 제안 거두기(`sweeps.py` `_withdraw`): 수준 0 인 규칙은 그 직원이 훑기로 만든 열린 · 실패한 제안을 '낡은 것'(`superseded`)으로 닫는다 — 수준 0 이면 어차피 승인할 수 없는 카드(`lifecycle._level_check`)가 기간이 끝날 때까지 보이던 것. 상담에서 나온 제안 · 사람이 결정한 것은 건드리지 않고, 다시 켜면 그 밤부터 새로 만든다. 실행 기록에 '열린 제안 닫기' 단계 한 줄.
 - 시험 `tests/domains/test_ai_staff_sweep_withdraw.py` 둘.
+- 운영 반영(11-17): 수준 표 두 칸을 관리 화면 저장 API 로 내림(`ops.assign_draftsman` 2 → 0 · `schedule.schedule_construction` 2 → 0, 감사 `AI_STAFF_LEVELS_SAVED` 2칸 · 표 판 2, 측정 계정은 다시 잠금) · 거두기 코드는 운영 PR #862(`27fc0f36c`). 내린 때 열린 제안 43개(O3 25 · S1 18)는 그 밤 훑기가 닫는다 — 다음 날 수로 확인할 것.
 
 
 ## 8. 준비 (T0 — 메인)
