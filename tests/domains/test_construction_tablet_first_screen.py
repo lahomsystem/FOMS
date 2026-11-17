@@ -191,6 +191,19 @@ def test_assets_pinned_gated_and_scaled() -> None:
     assert "style=" not in tpl and "금액" not in tpl
 
 
+def _forget_timed_caches() -> None:
+    """앞 시험이 남긴 시간 캐시(위 메뉴 배지 30초 · 관리자 전환 목록 60초)를 비운다 — 데우기 요청이 새로 채우게.
+
+    둘 다 프로세스 전역이고 사용자 번호가 시험마다 같아 앞 시험의 칸을 그대로 맞는다. 그 칸이 작은 쪽을 잰 뒤 큰 쪽을 재기 전에
+    끝나면 큰 쪽에만 쿼리가 하나 붙어 절대 상한을 넘는다(11-14 · 11-17 CI 빨강 — [first] 11 > 10 · [detail] 9 > 8).
+    """
+    from foms.services import context_processors, dashboard_counts
+
+    with dashboard_counts._cache_lock:
+        dashboard_counts._cache.clear()
+    context_processors._ADMIN_SWITCH_USERS_CACHE["ts"] = 0.0
+
+
 def _count_queries(fn) -> int:
     from sqlalchemy import event
 
@@ -215,6 +228,7 @@ def test_query_count_does_not_grow_with_rows(client, monkeypatch, mode) -> None:
     ids = [_order(f"가짜측정{i}", day=_d(0), workers=["가짜기사"]) for i in range(4)]
     _login(client, monkeypatch)
     query = "" if mode == "first" else f"?focus_order={ids[0]}&date={_d(0)}"
+    _forget_timed_caches()
     _get(client, query)  # 데우기
     dc.reset_dashboard_cache_runtime_for_tests()
     small = _count_queries(lambda: client.get(URL + query, headers=SHELL))
