@@ -26,6 +26,9 @@
 - 상한 나누기(운영 첫 밤 — 앞 규칙이 24개를 먼저 써 시공 잡기 11개가 다음 밤으로 밀렸다): 켜진 규칙마다 **제 몫**(상한 ÷ 켜진 규칙 수)을
   먼저 주고, 남은 자리는 오늘 밤을 놓치면 소용없는 규칙(:attr:`Rule.due` — 내일 실측 · 내일 시공)부터 규칙 차례로 채운다. 밀린 일이
   많은 규칙 하나가 다른 규칙의 자리를 다 쓰지 못한다.
+- 꺼진 규칙 거두기(D245 — 도면 담당 맡기기 · 협력사 시공 잡기를 끈 날 운영에 열린 제안 43개가 남아 있었다): 수준이 0(또는 못 함)인
+  규칙은 그 직원이 훑기로 만든 열린 · 실패한 제안을 '낡은 것'(``superseded``)으로 닫는다. 사람이 결정한 것 · 상담에서 나온 제안은
+  건드리지 않고, 승인 중이라 잠긴 줄은 건너뛴다. 다시 켜면 그 밤부터 새로 만든다(거절이 아니라 막지 않는다).
 - ``FOMS_GRAFT_PROPOSERS`` 가 꺼져 있으면(:func:`foms.services.graft_flags.enabled_global`) **아무것도 읽지도 쓰지도 않고**
   ``enabled`` 거짓으로 끝난다(지금과 같다).
 - 직원마다 실행 기록 한 줄(``ai_agent_runs`` — 규칙마다 후보 고르기 · 제안 만들기 단계와 걸린 시간). 커밋은 부르는 쪽.
@@ -56,7 +59,7 @@ from foms.services.erp_actions.freshness import PROPOSAL_DAYS
 from foms.services.erp_actions.lifecycle import propose
 from foms.services.erp_actions.measure_notice import measure_sent
 from foms.services.erp_actions.registry import (
-    STATUS_EXECUTING, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED, TIME_SLOTS,
+    STATUS_EXECUTING, STATUS_FAILED, STATUS_OPEN, STATUS_REJECTED, STATUS_SUPERSEDED, TIME_SLOTS,
 )
 from foms.services.erp_ontology.read import order_key
 from foms.services.graft_flags import enabled_global
@@ -135,11 +138,12 @@ class Rule:
 
 @dataclass
 class SweepResult:
-    """훑기 결과 — 켜졌나 · 만든 제안 수 · 규칙마다 수 · 실행 기록 번호."""
+    """훑기 결과 — 켜졌나 · 만든 제안 수 · 규칙마다 수 · 거둔 수 · 실행 기록 번호."""
 
     enabled: bool
     created: int = 0
     by_rule: dict[str, int] = field(default_factory=dict)
+    withdrawn: dict[str, int] = field(default_factory=dict)  # 꺼진 규칙이 거둔 열린 제안 수(규칙 이름 → 수)
     runs: list[int] = field(default_factory=list)
 
 
@@ -344,13 +348,32 @@ def _take(session: Any, turn: _Turn, ctx: SweepContext, room: int) -> int:
     return made
 
 
-def _close_run(session: Any, run: Any, rules: list[Rule], turns: dict[str, _Turn], limit: int) -> None:
-    """직원 하나의 실행 기록을 채운다 — 규칙 차례대로 단계 · 걸린 시간 · 만든 수."""
+def _withdraw(session: Any, rule: Rule) -> int:
+    """꺼진 규칙이 훑기로 만든 열린 · 실패한 제안을 '낡은 것'으로 닫는다(잠긴 줄은 건너뜀). 닫은 수."""
+    rows = (session.query(ErpActionProposal)
+            .filter(ErpActionProposal.action == rule.action, ErpActionProposal.proposed_by == proposer(rule.agent),
+                    ErpActionProposal.source_kind == "sweep", ErpActionProposal.status.in_((STATUS_OPEN, STATUS_FAILED)))
+            .with_for_update(skip_locked=True).all())
+    for row in rows:
+        row.status = STATUS_SUPERSEDED
+    return len(rows)
+
+
+def _close_run(session: Any, run: Any, rules: list[Rule], turns: dict[str, _Turn], limit: int,
+               withdrawn: dict[str, int]) -> None:
+    """직원 하나의 실행 기록을 채운다 — 규칙 차례대로 단계 · 걸린 시간 · 만든 수. 꺼진 규칙은 열린 제안을 거둔다."""
     steps: list[dict[str, Any]] = []
     for rule in rules:
         turn = turns.get(rule.key)
-        steps.extend(turn.steps(limit) if turn else [{"tool": rule.tool, "what": f"건너뜀 — {rule.key}",
-                                                       "detail": "수준 0 — 제안 안 만듦", "ms": 0}])
+        if turn:
+            steps.extend(turn.steps(limit))
+            continue
+        steps.append({"tool": rule.tool, "what": f"건너뜀 — {rule.key}", "detail": "수준 0 — 제안 안 만듦", "ms": 0})
+        started, closed = time.perf_counter(), _withdraw(session, rule)
+        if closed:
+            steps.append({"tool": "actions.propose", "what": f"열린 제안 닫기 — {rule.key}", "detail": f"닫음 {closed}개",
+                          "ms": _elapsed(started)})
+            withdrawn[rule.key] = closed
     mine = [turns[rule.key] for rule in rules if rule.key in turns]
     run.steps = steps
     run.total_ms = sum(turn.picked_ms + turn.made_ms for turn in mine)
@@ -396,7 +419,7 @@ def run_sweep(session: Any, *, now: Optional[datetime.datetime] = None, today: O
     for turn in sorted(turns.values(), key=lambda item: not item.rule.due):  # ② 남은 자리 — 내일 일부터
         result.created += _take(session, turn, ctx, limit - result.created)
     for run, rules in staff:
-        _close_run(session, run, rules, turns, limit)
+        _close_run(session, run, rules, turns, limit, result.withdrawn)
         result.runs.append(run.id)
         result.by_rule.update({rule.key: turns[rule.key].made if rule.key in turns else 0 for rule in rules})
     return result
