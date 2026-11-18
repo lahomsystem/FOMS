@@ -165,6 +165,8 @@
   if (!window.__FOMS_SHIP_COLUMNS_BOUND) {
     window.__FOMS_SHIP_COLUMNS_BOUND = true;
     document.addEventListener('foms:erp-shell-fragment-swapped', init);
+    // 폰 [저장]이 PC 표를 늦게 받아 끼운 뒤(image-export.js) — 열 폭을 같은 규칙으로 맞춘다.
+    document.addEventListener('foms:ship-pc-table-loaded', init);
   }
 
 })();

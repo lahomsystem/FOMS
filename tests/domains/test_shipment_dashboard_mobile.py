@@ -341,3 +341,30 @@ def test_shipment_mobile_card_shows_partner_unpaid(client, monkeypatch) -> None:
     monkeypatch.setattr(dashboard, "unpaid_order_ids", lambda _db, _ids: set())
     paid = client.get("/erp/shipment").get_data(as_text=True)
     assert "입금 대기 고객" in paid and 'data-shipment-mobile-detail-row="partner_unpaid"' not in paid
+
+
+def test_shipment_mobile_first_screen_cards_are_never_deferred() -> None:
+    """화면 밖 카드 미루기(content-visibility:auto)는 폰(터치 + 992 미만 창)에서만, 첫 화면 카드를 빼고 건다(2026-11-18).
+
+    AS 선례(test_as_dashboard_mobile.py 같은 이름 시험): 크롬은 화면 안 판정 전까지 첫 카드도 임시 크기로 배치해
+    실제 크기와 다르면 판정 뒤 단추가 뛴다. 미루는 대상은 카드 본체(article)다 — 껍데기에 걸면 그리기 가둠이
+    본체 그림자를 자른다. 임시 크기는 실측 카드 높이(479px) 근처여야 문서 높이 · 뒤로 가기 굴림 복원이 안 어긋난다.
+    """
+    css = (ROOT / "static/css/components/foms-shipment-mobile.css").read_text(encoding="utf-8")
+    media = "@media (max-width: 991.98px) and (pointer: coarse) {"
+    assert css.count(media) == 1
+    block = css.split(media, 1)[1].split("\n}\n", 1)[0]
+    card = "body.erp-mobile-v2-layout .erp-shipment-mobile-cards > .erp-shipment-mobile-card > .foms-queue-card-v2 {"
+    first = re.search(
+        r"body\.erp-mobile-v2-layout \.erp-shipment-mobile-cards > \.erp-shipment-mobile-card:nth-of-type\(-n\+(\d+)\)"
+        r" > \.foms-queue-card-v2 \{([^}]*)\}",
+        block,
+    )
+    assert card in block, "카드 미루기 규칙이 폰 범위 @media 밖에 있다"
+    body = block.split(card, 1)[1].split("}", 1)[0]
+    assert "content-visibility: auto" in body
+    size = re.search(r"contain-intrinsic-size: auto (\d+)px", body)
+    assert size and 400 <= int(size.group(1)) <= 520, body
+    assert first, "첫 화면 카드를 미루지 않는 규칙이 없다"
+    assert int(first.group(1)) >= 4 and "content-visibility: visible" in first.group(2)
+    assert "content-visibility" not in css.replace(block, ""), "폰 범위 밖에 미루기 규칙이 있다"

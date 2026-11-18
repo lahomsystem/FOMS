@@ -577,6 +577,38 @@
         return table;
     }
 
+    // ── 폰 PC 표 늦게 받기 ─────────────────────────────────────────────────
+    // 서버는 폰(모바일 셸 · 터치 + 992 미만 창)에 PC 표 대신 [data-ship-pc-table-deferred] 자리표만 그린다
+    // (dashboard_main.html ship_omit_pc_table — 표면째 숨어 폰에선 세로 · 가로 모두 안 보인다). 그림은 표 줄을 읽어
+    // 만들므로 [저장]을 누른 그때 같은 화면을 자리표 주소(ship_pc_table=1)로 받아 표만 끼운다. 끼운 뒤에는 처음부터
+    // 표가 있던 때와 같게 줄 순서 · 시공자 색을 맞추고(shipment-dashboard.js) 'foms:ship-pc-table-loaded' 를 알린다.
+    function loadDeferredPcTable() {
+        var slot = document.querySelector('[data-ship-pc-table-deferred]');
+        var src = slot ? slot.getAttribute('data-ship-pc-table-src') : '';
+        if (!slot || !src) return Promise.resolve(null);
+        if (slot.__fomsShipPcTablePromise) return slot.__fomsShipPcTablePromise;
+        slot.__fomsShipPcTablePromise = fetch(src, {
+            credentials: 'same-origin',
+            headers: { 'X-FOMS-ERP-SHELL': '1', Accept: 'text/html' }
+        }).then(function (r) {
+            if (!r.ok) throw new Error('표를 불러오지 못했습니다 (HTTP ' + r.status + ')');
+            return r.text();
+        }).then(function (html) {
+            if (!slot.isConnected) return null; // 그사이 화면이 바뀌었다
+            var tpl = document.createElement('template');
+            tpl.innerHTML = html;
+            var wrap = tpl.content.querySelector('.shipment-table-wrapper');
+            var table = wrap ? wrap.querySelector('#shipment-dashboard-table') : null;
+            if (!table) throw new Error('표를 불러오지 못했습니다 (응답에 표가 없다)');
+            slot.replaceWith(wrap);
+            if (typeof window.__fomsShipApplyRowSort === 'function') window.__fomsShipApplyRowSort();
+            document.dispatchEvent(new CustomEvent('foms:ship-pc-table-loaded'));
+            return table;
+        });
+        slot.__fomsShipPcTablePromise.catch(function () { slot.__fomsShipPcTablePromise = null; });
+        return slot.__fomsShipPcTablePromise;
+    }
+
     // ── 배선 ────────────────────────────────────────────────────────────────
 
     function initShipmentImageExport() {
@@ -593,6 +625,7 @@
 
                 var liveTable = document.getElementById('shipment-dashboard-table')
                     || document.querySelector('.shipment-table');
+                if (!liveTable) liveTable = await loadDeferredPcTable();
                 var items = liveTable ? collectExportRows(liveTable) : [];
                 if (!items.some(function (r) { return !r.group; })) {
                     alert('캡처할 시공 일정이 없습니다.');

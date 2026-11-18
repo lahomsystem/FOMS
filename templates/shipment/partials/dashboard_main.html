@@ -52,8 +52,12 @@
   {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 표면이 CSS 로 꺼지므로 렌더하지 않고
      표식만 남긴다 — 창이 좁아지면 erp-shell.js 가 표식을 보고 화면을 다시 받는다
      (판정 feature_flags.wants_mobile_width_surfaces, 표식 mobile_surface_omitted_marker.html). #}
+  {# x-ignore(폰만): 이 표면 안에는 Alpine 지시어가 없다(조각 · include · 카드 매크로 모두). 셸이 조각을 끼우면 Alpine 의
+     MutationObserver 가 새 요소를 전부 훑는데 x-ignore 가 있으면 여기서 멈춘다(AS 선례). 뿌리(.erp-pro)가 아니라 이 표면에
+     거는 까닭: 뿌리 안 모바일 셸(erp_mobile_shell.html → foms_p2_surface_bundle.html)에 Alpine 토스트 호스트
+     (#foms-alpine-toast-root, x-data · x-show · x-text)가 있다 — 뿌리에 걸면 복사 · 알림 토스트가 죽는다. #}
   {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
-    <section class="foms-shell-body foms-mobile-v2-dashboard erp-shipment-mobile-v2" aria-label="출고 모바일 대시보드">
+    <section class="foms-shell-body foms-mobile-v2-dashboard erp-shipment-mobile-v2"{% if not wide_viewport_surfaces %} x-ignore{% endif %} aria-label="출고 모바일 대시보드">
       {% include 'shipment/partials/shipment_mobile_controls.html' %}
       {% include 'shipment/partials/shipment_mobile_dates.html' %}
       {% include 'shipment/partials/shipment_mobile_queue.html' %}
@@ -80,8 +84,8 @@
   {%- endmacro %}
   {# 폰(터치 + 992 미만 창)엔 이 위 줄과 아래 하루치 출고표를 안 그린다 — 둘 다 base-hidden 이고 표시는 코호트 가로(≥992) 식뿐이다
      (판정 feature_flags.wants_wide_viewport_surfaces, 표식 wide_surface_omitted_marker.html 한 개: 창이 992 이상이 되면
-     foms-wide-surface-recover.js 가 다시 받는다). PC 표(.erp-shipment-desktop-shell)는 폰에도 둔다 — 폰 [AS 추천]
-     (shipment-dashboard.js collectTargetOrderIds)이 PC 표 줄에서 주문 번호를 읽고, 추천 창도 그 안에 있다. #}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<div class="foms-ship-pcbar" aria-label="출고 대시보드 요약" data-ship-datebar>
+     foms-wide-surface-recover.js 가 다시 받는다). PC 표면(.erp-shipment-desktop-shell)은 폰엔 껍데기 · 추천 창 · 지도 창만
+     남기고 속은 자리표로 바꾼다(아래 ship_omit_pc_table). #}{% if erp_mobile_v2_enabled and not wide_viewport_surfaces %}{% include 'partials/shared/wide_surface_omitted_marker.html' %}{% endif %}{% if wide_viewport_surfaces or not erp_mobile_v2_enabled %}<div class="foms-ship-pcbar" aria-label="출고 대시보드 요약" data-ship-datebar>
     <div class="foms-ship-pcbar__lead">
       <div class="foms-ship-days" role="group" aria-label="출고 날짜 고르기">
         <button type="button" class="foms-ship-days__nav" data-ship-days-nav="-1" aria-label="앞 7일">&#9664;</button>
@@ -142,6 +146,7 @@
     </div>
   </div>{% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
+    {% if not ship_omit_pc_table|default(false) %}
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
@@ -166,6 +171,7 @@
         </div>
       </form>
     </div>
+    {% endif %}
     {% if can_edit_shipment and not shipment_freelancer_view %}
     <div class="modal fade" id="shipmentAsRecommendModal" tabindex="-1" aria-labelledby="shipmentAsRecommendModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable">
@@ -217,6 +223,14 @@
       </div>
     </div>
     {% endif %}
+    {# 폰(ship_omit_pc_table — 모바일 셸 · 터치 + 992 미만 창): 이 카드 속(필터 · 날짜 패널 · 변경 배너 · 협력사 판 · PC 표)은
+       셸 CSS 가 카드째 숨겨 세로 · 가로 모두 안 보이는데 조각의 절반(준비물 60줄 464KB · 요소 4,156개)이었다(2026-11-18,
+       4배 CPU 탭 교체 785ms 의 큰 몫). 폰이 표를 쓰는 곳은 [저장](image-export.js — 표 줄을 읽어 그림을 만든다) 하나라 그때
+       자리표 주소(ship_pc_table=1)로 받아 끼운다. [AS 추천]은 표 대신 data-ship-as-rec-rows(표 줄과 같은 키)로 같은 주문을
+       같은 순서로 고른다. 추천 창 · 지도 창은 위에 그대로 둔다(shipment-dashboard.js 가 body 로 옮긴다). #}
+    {% if ship_omit_pc_table|default(false) %}
+    <div class="erp-shipment-pc-table-deferred" data-ship-pc-table-deferred data-ship-pc-table-src="{{ ship_pc_table_src|default('') }}"{% if ship_as_rec_rows %} data-ship-as-rec-rows='{{ ship_as_rec_rows|tojson }}'{% endif %}></div>
+    {% else %}
     <div class="card-body">
       {# ── 시공일 변경 배너(T4): 다른 화면에서 시공일이 바뀐 건을 목록 최상단에서 호명하고
          칩 클릭으로 그 행까지 데려다준다. 카드 상단인 이유 = 상차·팀 배정을 시작하기 전에
@@ -747,6 +761,7 @@
         </div>
       </div>
     </div>
+    {% endif %}{# /ship_omit_pc_table #}
   </div>
 
   {# 저장된 값 불러오기용 datalist (계산기 제품 설정처럼) #}
@@ -758,13 +773,14 @@
   {# 지도 모듈은 shipment-dashboard.js 보다 먼저(defer 는 문서 순서 유지) — 실제 호출은 클릭 시점이라
      순서 의존은 없지만, 프래그먼트 경로에서도 함께 실려야 지도 버튼이 죽지 않는다. #}
   <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20261108a" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20261118w" defer></script>
   {# 시공일 변경 [확인](ack) 클라이언트 — 여기(dashboard_main)에 두는 이유: 인접
      dashboard_scripts.html 은 entry 1개만 두는 자리라 거기 얹으면 perf_scan 의
      fragment-multi-script 가 deploy veto 를 낸다. 이 블록은 같은
      프래그먼트 안 기존 defer 스크립트 자리이고, 모듈 자체가 문서 위임 + 싱글턴
-     가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4). #}
-  <script src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260814a" defer></script>
+     가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4).
+     파일 전체가 그 가드 뒤라 두 번째부터는 하는 일이 없다 — data-foms-run-once 로 셸이 다시 넣지도 않게 한다(2026-11-18). #}
+  <script data-foms-run-once src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260814a" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 
