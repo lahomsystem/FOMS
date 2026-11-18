@@ -37,6 +37,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
+import ssl
 import time
 from decimal import Decimal
 from typing import Any, Optional, Sequence
@@ -309,9 +310,26 @@ def _default_session() -> Any:
     return db_session
 
 
-def _default_client() -> Any:
-    """SDK 기본 클라이언트 — 부를 때 처음 만든다(가져올 때 만들지 않아 키 없이도 import 된다). 키는 env 의 API 키."""
+def _gevent_ssl() -> bool:
+    """이 프로세스의 ``ssl`` 이 gevent 로 바뀌어 있나(web 의 gunicorn gevent 워커). gevent 가 없거나 안 바꿨으면 거짓(WORKER)."""
     try:
+        from gevent import monkey
+    except ImportError:
+        return False
+    return bool(monkey.is_module_patched("ssl"))
+
+
+def _default_client() -> Any:
+    """SDK 기본 클라이언트 — 부를 때 처음 만든다(가져올 때 만들지 않아 키 없이도 import 된다). 키는 env 의 API 키.
+
+    web(gevent 워커)에서는 SDK 기본 SSL 문맥(truststore)을 표준 ``ssl`` 문맥으로 바꿔 준다 — truststore 의 소켓은
+    ``do_handshake(block)`` 을 부르는데 gevent 가 바꾼 ``SSLSocket.do_handshake()`` 는 인자를 받지 않아 모든 호출이 1초 안에
+    ``APIConnectionError``(뿌리 ``TypeError``)로 죽었다(운영 web 2026-11-18 실측 — 물어보기가 답을 못 한 까닭, D253). 표준 문맥은
+    시스템 인증서로 같은 검증을 한다. WORKER 는 gevent 가 아니라 지금 길 그대로다.
+    """
+    try:
+        if _gevent_ssl():
+            return anthropic.Anthropic(http_client=anthropic.DefaultHttpxClient(verify=ssl.create_default_context()))
         return anthropic.Anthropic()
     except anthropic.AnthropicError:  # 자격 증명 · 설정 파일을 못 읽음
         raise BrainNotReady(NO_API_KEY) from None
