@@ -4,18 +4,24 @@
     (/api/brain/inbox · recheck · releases)로 읽어 그린다. 판정은 brain-review-view.js(옛 화면과 한 벌).
     지식 칸은 회사 지식 화면을 여는 사람(ds_nav.screen)에게만 — AI 할 일 제안만 보는 사람(T8)은 자리만 남는다.
     AI 할 일 제안(T8) 자리: 왼쪽 inbox_erp_nav.html · 가운데 inbox_erp_section.html(없어도 화면은 온전) · 옆 창
-    [data-ds-inbox-aside] · 폰 목록 [data-ds-phone-list] · window.FOMS_DS_INBOX · 'ds:inbox-ready'. 인라인 스크립트 · 스타일 없음. -#}
+    [data-ds-inbox-aside] · 폰 목록 [data-ds-phone-list] · window.FOMS_DS_INBOX · 'ds:inbox-ready'. 인라인 스크립트 · 스타일 없음.
+    문장으로 고치기(설계서 2026-11-18-brain-sentence-change 4절): 쓸 수 있는 사람(change_on)에게만 승인 대기 · 목록 보기 맨 위 한 줄 칸
+    (partials/request_input.html)과 '문장으로 고친 것' 목록 보기(?tab=requests — partials/request_list.html)가 있다. -#}
 {% import "brain/ds/_macros.html" as ds %}
-{% set view_titles = {'inbox': '승인 대기', 'recheck': '다시 확인', 'releases': '판 · 기록'} %}
+{% set view_titles = {'inbox': '승인 대기', 'recheck': '다시 확인', 'releases': '판 · 기록', 'requests': '문장으로 고친 것'} %}
 {% set view = page if page in view_titles else 'inbox' %}
 {% set knows = ds_nav.screen %}
+{% set change_here = change_on is defined and change_on and knows and view in ('inbox', 'requests') %}
 {% set n_inbox = counts.inbox if counts is defined and counts else 0 %}
 {% set n_recheck = counts.recheck if counts is defined and counts else 0 %}
 {% block title %}{{ view_titles[view] }}{% endblock %}
 {% block page_title %}{{ view_titles[view] }}{% endblock %}
 {%- set phone_kinds = (['한 칸 고침'] if knows else []) + (['ERP 할 일'] if graft_enabled('actions') else []) %}
 {% block page_sub %}{% if view == 'inbox' %}폰에서는 {{ phone_kinds|join(' · ') }}만 승인해요{% endif %}{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-inbox.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-inbox.css') }}">
+{%- if change_here %}
+<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-request.css') }}">
+{%- endif %}{% endblock %}
 {% block side %}{% include "brain/ds/partials/inbox_side.html" %}{% endblock %}
 {% block main %}
 <div class="fb-inbox f-col" data-ds-inbox data-ds-inbox-view="{{ view }}" data-knowledge-count="{{ n_inbox }}"
@@ -30,10 +36,15 @@
      data-recheck-confirm-url="{{ url_for('brain_review_api.brain_recheck_confirm') }}"
      data-releases-url="{{ url_for('brain_api.brain_releases') }}"
      {%- endif %}>
+  {%- if change_here %}
+  {% include "brain/ds/partials/request_input.html" %}
+  {%- endif %}
   {%- if view == 'recheck' and knows %}
   {% include "brain/ds/partials/inbox_recheck.html" %}
   {%- elif view == 'releases' and knows %}
   {% include "brain/ds/partials/inbox_releases.html" %}
+  {%- elif view == 'requests' and change_here %}
+  {% include "brain/ds/partials/request_list.html" %}
   {%- else %}
   {% include "brain/ds/partials/inbox_main.html" %}
   {%- endif %}
@@ -50,6 +61,8 @@
 <script src="{{ asset_url('js/brain/ds/ds-inbox-recheck.js') }}" defer></script>
 {%- elif view == 'releases' and knows %}
 <script src="{{ asset_url('js/brain/ds/ds-inbox-releases.js') }}" defer></script>
+{%- elif view == 'requests' and change_here %}
+<script src="{{ asset_url('js/brain/ds/ds-request-list.js') }}" defer></script>
 {%- else %}
 <script src="{{ asset_url('js/brain/ds/ds-inbox-card.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-inbox-table.js') }}" defer></script>
@@ -58,4 +71,7 @@
 <script src="{{ asset_url('js/brain/ds/ds-inbox-act.js') }}" defer></script>
 {%- endif %}
 <script src="{{ asset_url('js/brain/ds/ds-inbox.js') }}" defer></script>
+{%- if change_here %}
+<script src="{{ asset_url('js/brain/ds/ds-request-start.js') }}" defer></script>
+{%- endif %}
 {% endblock %}
