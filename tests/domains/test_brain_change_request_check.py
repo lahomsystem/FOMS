@@ -17,6 +17,7 @@ from foms.persistence.brain.models import BrainChange
 from foms.services.brain import change_request as cr
 from foms.services.brain.change_request_model import MAX_ITEMS, MAX_PROMPT_CHARS
 from foms.services.brain.store import current_link, current_object
+from foms.services.cs_agent.knowledge import read_stored
 from tests.domains.test_brain_change_request import (
     APPLY_AT, NEW_TEXT, OLD_TEXT, _start, answer_text, flags_on, lvl, upd, world,
 )
@@ -105,14 +106,18 @@ def test_same_value_conflicts_money_and_hanja_are_blocked(who):
     assert view["can_apply"] is False and len(view["not_done"]) == 7
 
 
-def test_creates_get_a_code_made_key_and_document_types_are_not_made_here(who):
+def _new(item_type, name, text="새 글.", brand="COMMON"):
+    return {"type": item_type, "brand": brand, "values": {"name": name, "text": text}, "why": "새 지식"}
+
+
+def test_creates_get_code_made_keys_and_owner_types_are_not_made_here(who):
     view = _start(who["admin"], client=fixed(answer_text(creates=[
-        {"type": "term", "brand": "COMMON", "values": {"name": "자율 담당", "text": "팀이 스스로 정하는 담당."}, "why": "새 말"},
-        {"type": "fact", "brand": "COMMON", "values": {"name": "새 사실", "text": "사실 글."}, "why": "새 사실"},
-        {"type": "lesson", "brand": "COMMON", "values": {"name": "", "text": "이름 없음"}, "why": "빈 이름"}])))
+        _new("term", "자율 담당", "팀이 스스로 정하는 담당."), _new("price_rule", "새 가격"), _new("owner_decision", "새 결정"),
+        _new("lesson", "", "이름 없음")])))
     assert _lines(view) == [("create", "common/term/cr1-1", "preview", None),
-                            ("create", "common/fact/cr1-2", "blocked", "type"),
-                            ("create", "common/lesson/cr1-3", "blocked", "BRAIN_SHAPE")]
+                            ("create", "common/cr1-2", "blocked", "type"),
+                            ("create", "common/cr1-3", "blocked", "type"),
+                            ("create", "common/lesson/cr1-4", "blocked", "BRAIN_SHAPE")]
     done = cr.apply(db_session, who["admin"], view["id"], now=APPLY_AT)
     db_session.commit()
     made = current_object(db_session, "common/term/cr1-1")
@@ -120,6 +125,63 @@ def test_creates_get_a_code_made_key_and_document_types_are_not_made_here(who):
     back = cr.revert(db_session, who["admin"], view["id"], now=APPLY_AT)
     db_session.commit()
     assert back["lines"][0]["state"] == "reverted" and current_object(db_session, "common/term/cr1-1") is None
+
+
+def test_new_fact_policy_and_build_rule_become_document_items_and_revert_deletes_them(who):
+    """지금 지식에 없는 새 규칙 — 사실 · 정책 · 제작 조건(+ 같은 묶음 적용 연결)이 지식 문서 항목으로 만들어지고 되돌리면 지워진다."""
+    admin = who["admin"]
+    client = fixed(answer_text(
+        creates=[_new("fact", "도면 담당 자율", "도면 담당은 도면팀이 스스로 정한다."),
+                 _new("policy", "시공일 조율", "협력사 시공일은 출고 담당이 출고 일정을 보고 맞춘다."),
+                 _new("build_rule", "여닫이 문짝 조건", "여닫이 문짝은 경첩을 단다.")],
+        links=[{"op": "add", "kind": "applies_to", "from": "new:3", "to": "common/door", "why": "걸 제품"}]))
+    view = _start(admin, client=client)
+    assert _lines(view) == [("create", "common/cr1-1", "preview", None), ("create", "common/cr1-2", "preview", None),
+                            ("create", "common/cr1-3", "preview", None),
+                            ("link_add", "common/cr1-3", "preview", None)]
+    assert view["lines"][3]["label"] == "여닫이 문짝 조건 → 여닫이 문짝 (적용)"
+    system = client.calls[0]["system"][0]["text"]
+    assert "fact · policy · build_rule 가운데 고른다" in system and "'new:<creates 차례" in system
+    schema = client.calls[0]["output_config"]["format"]["schema"]["properties"]
+    assert "new:1" in schema["links"]["items"]["properties"]["from"]["enum"]
+    assert {"fact", "policy", "build_rule"} <= set(schema["creates"]["items"]["properties"]["type"]["enum"])
+    assert "price_rule" not in schema["creates"]["items"]["properties"]["type"]["enum"]
+    done = cr.apply(db_session, admin, view["id"], now=APPLY_AT)
+    db_session.commit()
+    assert done["status"] == "applied" and [l["state"] for l in done["lines"]] == ["applied"] * 4
+    fact = current_object(db_session, "common/cr1-1")
+    assert (fact.item_type, fact.layer, fact.text) == ("fact", "common", "도면 담당은 도면팀이 스스로 정한다.")
+    assert fact.payload == {"doc_id": "cr1-1", "intents": [], "tags": [], "source": "change_request:1",
+                            "approved_by": f"FOMS 사용자 {admin.id} · 문장으로 고치기 #1", "approved_at": "2026-11-02"}
+    assert current_object(db_session, "common/cr1-3").item_type == "build_rule"
+    assert current_link(db_session, "applies_to", "common/cr1-3", "common/door") is not None
+    docs = {i["id"] for b in ("HAUD", "LAHOM") for i in (read_stored(db_session, b).document or {}).get("items", [])}
+    assert {"cr1-1", "cr1-2", "cr1-3"} <= docs  # 상담 두뇌가 읽는 지식 문서에도 같은 저장점에서 들어간다
+    back = cr.revert(db_session, admin, view["id"], now=APPLY_AT)
+    db_session.commit()
+    assert [l["state"] for l in back["lines"]] == ["reverted"] * 4
+    assert all(current_object(db_session, f"common/cr1-{n}") is None for n in (1, 2, 3))
+    assert current_link(db_session, "applies_to", "common/cr1-3", "common/door") is None
+    left = {i["id"] for b in ("HAUD", "LAHOM") for i in (read_stored(db_session, b).document or {}).get("items", [])}
+    assert not left & {"cr1-1", "cr1-2", "cr1-3"}
+
+
+def test_build_rule_needs_an_applies_to_link_in_the_same_bundle(who):
+    view = _start(who["admin"], client=fixed(answer_text(
+        creates=[_new("build_rule", "외톨이 조건", "걸 곳이 없다."), _new("build_rule", "걸린 조건", "문짝에 건다.")],
+        links=[{"op": "add", "kind": "requires", "from": "new:1", "to": "common/door", "why": "필요만"},
+               {"op": "add", "kind": "applies_to", "from": "new:2", "to": "common/door", "why": "걸 제품"},
+               {"op": "add", "kind": "applies_to", "from": "new:9", "to": "common/door", "why": "없는 새 항목"}])))
+    assert _lines(view) == [("create", "common/cr1-1", "blocked", "orphan_rule"),
+                            ("create", "common/cr1-2", "preview", None),
+                            ("link_add", "common/cr1-1", "blocked", "new_blocked"),
+                            ("link_add", "common/cr1-2", "preview", None),
+                            ("link_add", "new:9", "blocked", "unknown_key")]
+    done = cr.apply(db_session, who["admin"], view["id"], skip=[4], now=APPLY_AT)
+    db_session.commit()
+    assert [(l["no"], l["state"], (l["check"] or {}).get("code")) for l in done["lines"]][:4] == [
+        (1, "blocked", "orphan_rule"), (2, "failed", "orphan_rule"), (3, "blocked", "new_blocked"), (4, "skipped", None)]
+    assert current_object(db_session, "common/cr1-2") is None  # 외톨이 제작 조건은 만들지 않는다
 
 
 def test_skip_must_be_line_numbers_and_skipping_everything_is_empty(who):

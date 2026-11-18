@@ -14,6 +14,10 @@
   만든 것은 지우기) ③ 뺀 연결 다시 더하기 ④ 설정은 전 값으로. **그 뒤 다른 고침이 같은 곳에 얹혔으면** 그 줄은 되돌리지 않고
   까닭(``later_change``)을 적는다. 아직 열린 제안 줄은 거둔다(``expired`` · ``decided_action='withdraw'`` — :func:`.plan_proposals.withdraw_open`
   과 같은 꼴). 승인자가 그 사이 반영한 줄도 이 묶음의 제안이라 되돌린다.
+- **새 항목과 그 연결은 한 저장점**: 같은 묶음의 새 항목(``new:<n>``)에서 나가는 연결 줄은 만들기 줄 바로 뒤에 넣는다. 새 제작
+  조건은 적용 연결이 하나도 들어가지 않으면 만들기째 되돌린다(외톨이 금지 — 설계서 2026-11-13 C). 새 지식 문서 항목의 승인
+  칸은 반영하는 사람 · 반영 날(한국)로 다시 적는다(:func:`.change_request_check.approve_doc`).
+- 반영이 끝나면 넣은 사람에게 FOMS 안 알림 한 줄(:mod:`foms.services.notifications.brain_change_notice` — 폰 알림 없음).
 커밋은 부르는 쪽(API)이다.
 """
 
@@ -30,9 +34,9 @@ from foms.services.ai_staff.levels import LevelError, save_levels
 from foms.services.ai_staff.registry import level_table
 from foms.services.brain.apply import apply_change
 from foms.services.brain.change_request_check import (
-    KIND_CREATE, KIND_LINK_ADD, KIND_LINK_REMOVE, KIND_RETIRE, KIND_SETTING, KIND_UPDATE, STATE_APPLIED, STATE_FAILED,
-    STATE_PENDING, STATE_PREVIEW, STATE_REVERT_BLOCKED, STATE_REVERTED, STATE_SKIPPED, STATE_WITHDRAWN, check_of,
-    propose_line, reason_of,
+    KIND_CREATE, KIND_LINK_ADD, KIND_LINK_REMOVE, KIND_RETIRE, KIND_SETTING, KIND_UPDATE, RULE_TYPE, STATE_APPLIED,
+    STATE_FAILED, STATE_PENDING, STATE_PREVIEW, STATE_REVERT_BLOCKED, STATE_REVERTED, STATE_SKIPPED, STATE_WITHDRAWN,
+    approve_doc, check_of, is_new_link, propose_line, reason_of,
 )
 from foms.services.brain.change_request_store import (
     APPLIED, PARTIAL, READY, REVERTED, ChangeRequestError, audit, load, require_user, save_bundle, view_of,
@@ -41,8 +45,11 @@ from foms.services.brain.constants import CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE
 from foms.services.brain.decide import record_proposal
 from foms.services.brain.errors import BrainError, BrainPermissionError, BrainTargetError
 from foms.services.brain.proposals import Proposer, known_text, propose_delete, propose_link, propose_rollback
-from foms.services.brain.store import LINK_FIELDS, current_link, current_object, values_of
+from foms.services.brain.store import LINK_FIELDS, current_link, current_object, kst_day, values_of
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.notifications.brain_change_notice import BRAIN_CHANGE_REQUEST_TYPE, TITLE, notice_message
+from foms.services.notifications.recipients import fan_out_new_notification
+from models import Notification
 
 #: 되돌림 제안 · 결정의 액션 이름(:mod:`.actions` — 항목 하나 되돌리기).
 REVERT_ACTION = "item_rollback"
@@ -98,6 +105,73 @@ def _apply_setting(session: Any, user: Any, line: dict[str, Any]) -> None:
                                                                "setting_value")
 
 
+def _fail(line: dict[str, Any], code: str) -> None:
+    """줄 실패 — 까닭 코드 · 제안 줄 없음(저장점째 되돌린 줄)."""
+    line["state"], line["check"], line["change_id"] = STATE_FAILED, check_of(code), None
+
+
+def _apply_group(session: Any, user: Any, create: dict[str, Any], links: list[dict[str, Any]], *, request_id: int,
+                 known: str, now: datetime.datetime) -> None:
+    """새 항목 + 그 연결 줄들(한 저장점). 새 제작 조건은 적용 연결이 하나도 안 들어가면 만들기째 되돌린다."""
+    outer = session.begin_nested()
+    _apply_item(session, user, create, request_id=request_id, known=known, now=now)
+    if create["state"] != STATE_APPLIED:
+        for link in links:
+            _fail(link, "new_waiting" if create["state"] == STATE_PENDING else "new_blocked")
+        outer.commit()
+        return
+    for link in links:
+        _apply_item(session, user, link, request_id=request_id, known=known, now=now)
+    rule = create["plan"]["type"] == RULE_TYPE
+    if rule and not any(x["state"] == STATE_APPLIED and x["plan"]["kind"] == "applies_to" for x in links):
+        outer.rollback()
+        _fail(create, "orphan_rule")
+        for link in links:
+            if link["state"] != STATE_FAILED:
+                _fail(link, "new_blocked")
+            link["change_id"] = None
+        return
+    outer.commit()
+
+
+def _apply_lines(session: Any, user: Any, todo: list[dict[str, Any]], *, request_id: int, known: str,
+                 now: datetime.datetime) -> None:
+    """줄마다 반영 — 설정 · 항목 · 새 항목 묶음(만들기 줄 뒤 그 연결). 만들기 줄을 뺀 새 항목 연결은 실패."""
+    day = kst_day(now)
+    groups: dict[int, list[dict[str, Any]]] = {}
+    for line in todo:
+        if is_new_link(line):
+            groups.setdefault(line["plan"].get("after_line") or 0, []).append(line)
+    creates = {line["no"] for line in todo if line["kind"] == KIND_CREATE}
+    for line in todo:
+        if line["kind"] == KIND_SETTING:
+            _apply_setting(session, user, line)
+        elif is_new_link(line):
+            if line["plan"].get("after_line") not in creates:
+                _fail(line, "new_blocked")
+        elif line["kind"] == KIND_CREATE:
+            approve_doc(line, request_id=request_id, user_id=user.id, day=day)
+            links = groups.get(line["no"], [])
+            if line["plan"]["type"] == RULE_TYPE and not any(x["plan"]["kind"] == "applies_to" for x in links):
+                _fail(line, "orphan_rule")
+                continue
+            _apply_group(session, user, line, links, request_id=request_id, known=known, now=now)
+        else:
+            _apply_item(session, user, line, request_id=request_id, known=known, now=now)
+
+
+def _notify(session: Any, row: BrainChangeRequest, user: Any, todo: list[dict[str, Any]]) -> None:
+    """넣은 사람에게 FOMS 안 알림 한 줄(고친 곳 수 · 승인 대기 수 — 글 없음). 폰 알림은 보내지 않는다."""
+    applied = sum(1 for line in todo if line["state"] == STATE_APPLIED)
+    pending = sum(1 for line in todo if line["state"] == STATE_PENDING)
+    note = Notification(notification_type=BRAIN_CHANGE_REQUEST_TYPE, target_type="USER", target_user_id=row.created_by,
+                        order_id=None, is_urgent=False, title=TITLE, message=notice_message(row.id, applied, pending),
+                        created_by_user_id=int(user.id), created_by_name=getattr(user, "name", None), is_read=False)
+    session.add(note)
+    session.flush()
+    fan_out_new_notification(session, note, actor_user_id=int(user.id))
+
+
 def apply(session: Any, user: Any, request_id: Any, *, skip: Any = None,
           now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """이대로 고치기 — 넣은 사람만 · 미리 보기 상태만. ``skip`` = 뺄 줄 번호들.
@@ -120,11 +194,7 @@ def apply(session: Any, user: Any, request_id: Any, *, skip: Any = None,
     for line in lines:
         if line["state"] == STATE_PREVIEW and line["no"] in skipped:
             line["state"] = STATE_SKIPPED
-    for line in todo:
-        if line["kind"] == KIND_SETTING:
-            _apply_setting(session, user, line)
-        else:
-            _apply_item(session, user, line, request_id=row.id, known=known, now=now)
+    _apply_lines(session, user, todo, request_id=row.id, known=known, now=now)
     done = sum(1 for line in todo if line["state"] == STATE_APPLIED)
     row.status = APPLIED if done == len(todo) else PARTIAL
     row.decided_at = now
@@ -133,6 +203,7 @@ def apply(session: Any, user: Any, request_id: Any, *, skip: Any = None,
         1 for line in todo if line["state"] == STATE_PENDING), "failed": sum(
         1 for line in todo if line["state"] == STATE_FAILED), "skipped": len(skipped & {line["no"] for line in lines})},
         now)
+    _notify(session, row, user, todo)
     session.flush()
     return view_of(row, viewer)
 
