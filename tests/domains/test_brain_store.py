@@ -42,6 +42,7 @@ def _agent_judge():
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "migrations" / "versions" / "brain_00_master_brain_tables.py"
 MIGRATION_01 = ROOT / "migrations" / "versions" / "brain_01_change_actions.py"
+MIGRATION_03 = ROOT / "migrations" / "versions" / "brain_03_change_requests.py"
 
 
 def _load(path, name):
@@ -308,7 +309,9 @@ def test_releases_import_zero_then_one_number_per_day(app):
 # ── 마이그레이션 ─────────────────────────────────────────────────────────
 def test_brain_00_matches_the_models_and_is_the_single_head():
     module = _load(MIGRATION, "brain_00_unit")
-    later = {"brain_changes": [n for n, *_ in _load(MIGRATION_01, "brain_01_unit").COLUMNS]}  # brain_01 이 뒤에 더한 칸
+    m03 = _load(MIGRATION_03, "brain_03_unit")  # brain_01 · brain_03 이 뒤에 더한 칸 · 색인
+    later = {"brain_changes": [*(n for n, *_ in _load(MIGRATION_01, "brain_01_unit").COLUMNS), m03.CHANGE_COLUMN[0]]}
+    later_indexes = {"brain_changes": {m03.CHANGE_INDEX[0]}}
     assert (module.revision, module.down_revision) == ("brain_00", "notice_01")
     source = MIGRATION.read_text(encoding="utf-8")
     assert "import models" not in source and "from models" not in source
@@ -325,7 +328,7 @@ def test_brain_00_matches_the_models_and_is_the_single_head():
         checks = {k.name: str(k.sqltext) for k in table.constraints if isinstance(k, CheckConstraint)}
         assert checks == {n: module.in_check(col, vals) for n, col, vals in module.CHECKS[name]}, name
         indexes = {i.name: i for i in table.indexes if not i.name.endswith("_trgm")}
-        assert set(indexes) == {n for n, *_ in module.INDEXES[name]}, name
+        assert set(indexes) == {n for n, *_ in module.INDEXES[name]} | later_indexes.get(name, set()), name
         for index_name, cols, unique, current_only in module.INDEXES[name]:
             index = indexes[index_name]
             assert tuple(col.name for col in index.columns) == cols and index.unique is unique, index_name
@@ -349,7 +352,7 @@ def test_brain_01_chains_onto_notice_02_matches_the_model_and_keeps_one_head():
         column = table.c[name]
         assert column.nullable is nullable and type(column.type) is type(type_), name
         assert getattr(column.type, "length", None) == getattr(type_, "length", None), name
-    assert [c.name for c in table.columns][-3:] == ["action", "decided_action", "base_changed_at"]
+    assert [c.name for c in table.columns][-4:-1] == ["action", "decided_action", "base_changed_at"]  # 뒤는 brain_03
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
     heads = script.get_heads()
     assert len(heads) == 1 and "brain_01" in {rev.revision for rev in script.walk_revisions("base", heads[0])}
