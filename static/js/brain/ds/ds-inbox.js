@@ -198,7 +198,7 @@
     var waiting = (data && data.counts && data.counts.ai_waiting) || 0;
     parts.ai.hidden = !waiting;  // AI 제안 주 상한 — 자리를 기다리는 AI 제안이 있을 때만
     parts.ai.textContent = waiting ? review.aiLine(data) : '';
-    window.history.replaceState(null, '', iv.addressFor(c.urls.page, openBin));
+    window.history.replaceState(null, '', iv.addressFor(c.urls.page, openBin, window.location.search));
   }
 
   function render() {
