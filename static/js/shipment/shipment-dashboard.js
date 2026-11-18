@@ -5,6 +5,20 @@ var __shipDashCfgEl = document.getElementById('shipment-dashboard-config');
 var __shipDashCanEdit = !!(__shipDashCfgEl && __shipDashCfgEl.dataset.canEdit === 'true');
 var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selectedDate) || '';
 
+// 출고 줄 정렬 비교(SSOT) — PC 표 줄 재배치(applyShipmentWorkerSortAndColors)와, 폰에서 표 없이 [AS 추천] 대상
+// 순서를 만드는 길(collectTargetOrderIds)이 같은 순서를 내도록 한 곳에 둔다. 키 = {as, worker, manager, id}
+// (worker 는 첫 시공자 · manager 는 표 줄 data-manager 와 같은 값, 둘 다 빈 값이면 'ZZZ' 로 뒤에 둔다).
+function __shipDashCompareRowKeys(a, b) {
+  if (a.as !== b.as) return a.as - b.as;
+  var wA = (a.worker && a.worker.toLowerCase()) || 'ZZZ';
+  var wB = (b.worker && b.worker.toLowerCase()) || 'ZZZ';
+  if (wA !== wB) return wA.localeCompare(wB);
+  var mA = (a.manager || '').trim() || 'ZZZ';
+  var mB = (b.manager || '').trim() || 'ZZZ';
+  if (mA !== mB) return mA.localeCompare(mB);
+  return a.id - b.id;
+}
+
     (function () {
       const STORAGE_KEYS = {
         construction_time: 'erp_shipment_construction_time_list',
@@ -112,28 +126,21 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         }
         return '';
       }
-      function workerKeyForSort(tr) {
-        var w = getFirstWorkerFromRow(tr);
-        return (w && w.toLowerCase()) || 'ZZZ';
-      }
 
       function applyShipmentWorkerSortAndColors() {
         var tbody = document.querySelector('.shipment-table tbody');
         if (!tbody) return;
         var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.shipment-row'));
         if (!rows.length) return;
-        rows.sort(function (a, b) {
-          var asA = parseInt(a.dataset.as, 10) || 0;
-          var asB = parseInt(b.dataset.as, 10) || 0;
-          if (asA !== asB) return asA - asB;
-          var wA = workerKeyForSort(a);
-          var wB = workerKeyForSort(b);
-          if (wA !== wB) return wA.localeCompare(wB);
-          var mA = (a.dataset.manager || '').trim() || 'ZZZ';
-          var mB = (b.dataset.manager || '').trim() || 'ZZZ';
-          if (mA !== mB) return mA.localeCompare(mB);
-          return (parseInt(a.dataset.orderId, 10) || 0) - (parseInt(b.dataset.orderId, 10) || 0);
-        });
+        var rowKey = function (tr) {
+          return {
+            as: parseInt(tr.dataset.as, 10) || 0,
+            worker: getFirstWorkerFromRow(tr),
+            manager: tr.dataset.manager || '',
+            id: parseInt(tr.dataset.orderId, 10) || 0
+          };
+        };
+        rows.sort(function (a, b) { return __shipDashCompareRowKeys(rowKey(a), rowKey(b)); });
         // 정렬된 .shipment-row 를 재배치하되, 각 (AS여부|팀) 그룹 첫 행 앞에 서버가 심은
         // 그룹 헤더(.shipment-grp-row)를 다시 끼운다. 헤더는 코호트 태블릿(목업 06)에서만
         // 보이고 PC 에선 display:none — 재배치는 PC 표시에 무영향(행 순서=서버 정렬 동일).
@@ -188,6 +195,9 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           td.setAttribute('data-worker-bg-color', color);
         });
       }
+      // 폰 [저장]이 표를 늦게 받아 끼운 뒤(image-export.js) 처음 그린 표와 같은 줄 순서 · 시공자 색이 되게 부른다.
+      // 이 파일은 탭 교체마다 다시 실행되므로 지금 화면의 함수로 덮어쓴다.
+      window.__fomsShipApplyRowSort = applyShipmentWorkerSortAndColors;
       function scheduleApplyShipmentWorkerSortAndColors() {
         setTimeout(applyShipmentWorkerSortAndColors, 0);
       }
@@ -881,9 +891,28 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
 
       adoptModalFromMain();
 
+      // 폰(PC 표 생략)엔 표 대신 자리표의 data-ship-as-rec-rows([번호, 첫 시공자, 담당자] — AS 줄은 서버가 뺐다)를
+      // 표 줄 재배치와 같은 비교로 줄 세워 같은 주문을 같은 순서로 보낸다(dashboard_main.html ship_omit_pc_table).
+      function collectTargetOrderIdsWithoutTable() {
+        var slot = document.querySelector('[data-ship-pc-table-deferred]');
+        var raw = slot ? slot.getAttribute('data-ship-as-rec-rows') : '';
+        var list = [];
+        try {
+          list = raw ? JSON.parse(raw) : [];
+        } catch (e) {
+          list = [];
+        }
+        if (!Array.isArray(list)) return [];
+        return list
+          .filter(function (x) { return Array.isArray(x) && parseInt(x[0], 10) > 0; })
+          .map(function (x) { return { as: 0, worker: String(x[1] || '').trim(), manager: String(x[2] || ''), id: parseInt(x[0], 10) }; })
+          .sort(__shipDashCompareRowKeys)
+          .map(function (k) { return k.id; });
+      }
+
       function collectTargetOrderIds() {
         var tbody = document.querySelector('#shipment-dashboard-table tbody') || document.querySelector('.shipment-table tbody');
-        if (!tbody) return [];
+        if (!tbody) return collectTargetOrderIdsWithoutTable();
         var rows = tbody.querySelectorAll('tr.shipment-row[data-order-id]');
         var ids = [];
         rows.forEach(function (tr) {
@@ -1314,7 +1343,8 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
       }, true);
 
         document.addEventListener('foms:main-content-swapped', function () {
-          if (!document.querySelector('#shipment-dashboard-table')) return;
+          // 폰은 PC 표 대신 자리표가 있다 — 출고 화면이면 둘 중 하나는 있다.
+          if (!document.querySelector('#shipment-dashboard-table, [data-ship-pc-table-deferred]')) return;
           adoptModalFromMain();
           scheduleShipmentAsRecPrewarm();
           var el = window.__shipmentAsRecModalEl;
