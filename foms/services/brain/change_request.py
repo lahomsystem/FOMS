@@ -158,11 +158,11 @@ def analyze(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = N
         checked = check_bundle(session, bundle, material, viewer=viewer, scope=scope_tuple(row), request_id=row.id,
                                known=known_text(session), now=now_utc, today=today)
         ready = any(line["state"] == "preview" for line in checked["lines"])
-        row.status = ASKED if bundle["questions"] and not ready else READY
+        row.status = ASKED if checked["questions"] and not ready else READY
         row.error_code = None
-        save_bundle(row, {**base, "summary": bundle["summary"], "lines": checked["lines"],
-                          "also_look": checked["also_look"], "needs_code": bundle["needs_code"],
-                          "questions": bundle["questions"], "model": model, "raw": bundle})
+        save_bundle(row, {**base, "summary": checked["summary"], "lines": checked["lines"],  # 사람 글은 다듬은 것
+                          "also_look": checked["also_look"], "needs_code": checked["needs_code"],
+                          "questions": checked["questions"], "model": model, "raw": bundle})
     row.latency_ms = int(row.latency_ms or 0) + int((time.monotonic() - started) * 1000)
     session.flush()
     logger.info("[문장으로 고치기] request=%s status=%s code=%s lines=%d", row.id, row.status, row.error_code,

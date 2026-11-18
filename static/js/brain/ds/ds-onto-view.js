@@ -5,7 +5,7 @@
  * - 왼쪽 목록 값(지식 유형 묶음 · ERP 물건 종류 · 정의 수) · 찾기 칸 거르기.
  * - 지식 종류 상세 글(수 · 표준 · 층 · 필요한 능력 질문 · 단위 · 범위 · 개수 규칙 · 상대 종류) — 옛 brain-onto-view.js 와 같은 글.
  * - ERP 물건 상세 글(정본 자리 한 줄 · 가림 칸 수) · 읽기 · 쓰기 갈래 색 · 할 일 수준 색 · 승인 자리 아이콘. '지금 칸'은 API 값 그대로.
- * - 능력 질문 점수 · 켜기 전 → 지금 · 아직 못 푸는 질문(모자란 재료 · ERP 재료인가).
+ * - 능력 질문 점수 · 켜기 전 → 지금 · 아직 못 푸는 질문(모자란 재료 · ERP 재료인가) · 문장으로 채우기 길을 달 줄인가 · 그 주소.
  * window.FOMS_DS_ONTO_VIEW · node 에서는 module.exports — tests/domains/test_brain_ds_onto.py.
  */
 (function (root) {
@@ -150,10 +150,26 @@
     }) };
   }
 
+  /** 문장으로 채우기 길을 달 줄인가 — 못 푸는 질문 가운데 회사 지식으로 채울 수 있는 모자람(kinds = 서버 data-fill-kinds
+   *  {types, links})이 하나라도 있으면. ERP 재료만 · 못 채우는 것(가격 규칙 · 사장님 결정)만 모자라면 달지 않는다. */
+  function fillable(row, kinds) {
+    var k = kinds || {};
+    var types = k.types || [];
+    var links = k.links || [];
+    if (!row || row.covered) return false;
+    return (row.needs || []).some(function (n) { return !n.have && !n.erp && types.indexOf(n.type) >= 0; }) ||
+           (row.links || []).some(function (l) { return !l.have && links.indexOf(l.kind) >= 0; });
+  }
+
+  /** 채우기 주소 — '/brain?tab=inbox' + '&fill=<질문 번호>'. */
+  function fillHref(base, id) {
+    return text(base) + (text(base).indexOf('?') >= 0 ? '&' : '?') + 'fill=' + encodeURIComponent(text(id));
+  }
+
   var api = { pickFromQuery: pickFromQuery, pickQuery: pickQuery, defaultPick: defaultPick, navModel: navModel,
               matches: matches, typeSub: typeSub, rangeText: rangeText, requiredText: requiredText,
               cardinalityText: cardinalityText, endsText: endsText, erpMeta: erpMeta, accessTone: accessTone,
-              levelTone: levelTone, whereIcon: whereIcon, score: score, fails: fails,
+              levelTone: levelTone, whereIcon: whereIcon, score: score, fails: fails, fillable: fillable, fillHref: fillHref,
               DATATYPES: DATATYPES, BASIS: BASIS, STAGES: STAGES };
   root.FOMS_DS_ONTO_VIEW = api;
   if (typeof module === 'object' && module.exports) module.exports = api;

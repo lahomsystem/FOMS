@@ -40,7 +40,8 @@
 
 {#- 고침 줄 하나 — editable 이면 미리 보기 줄에 [빼기]. -#}
 {% macro line_card(l, editable) -%}
-{%- set linkable = l.key and l.kind in ('update', 'retire', 'link_add', 'link_remove') %}
+{%- set linkable = l.key and l.kind in ('update', 'retire', 'link_add', 'link_remove')
+                       and not (l.check and l.check.code == 'unknown_key') %}{# 없는 지식 줄은 갈 화면이 없다 #}
 <li class="f-card f-card-compact f-col fb-req-line" data-ds-req-line="{{ l.no }}" data-state="{{ l.state }}">
   <div class="f-row fb-req-line__head">
     <span class="f-small f-muted">{{ l.kind_label }}</span>

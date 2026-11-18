@@ -6,6 +6,7 @@
  *   GET /api/brain/ontology/types/<유형>, ERP 물건은 GET /api/brain/ontology/erp/<종류> 를 한 번 읽어 둔다. 고른 것은 주소
  *   (?tab=onto&kind=&id=)에 남긴다(새로 고침 · 링크 나눔이 같은 상세를 연다). 처음 고를 것은 ERP 칸이 있으면 주문, 없으면 제품 라인.
  * - 유형 지도 보기(data-ds-onto-view="map")에서는 목록 · 점수만 그리고, 줄을 누르면 온톨로지 보기의 그 상세로 간다.
+ * - 문장으로 고치기를 쓸 수 있는 사람이면 루트에 data-fill-url · data-fill-kinds 가 있다 → ctx.fill(능력 질문 표의 [문장으로 채우기]).
  * fetch 는 brain-dom.js 한 곳 · 글은 textContent 만 · 전역 듣개는 한 번만(window.__FOMS_DS_ONTO_BOUND).
  */
 (function () {
@@ -21,7 +22,9 @@
   var details = window.FOMS_DS_ONTO_DETAIL;
   var mapView = root.getAttribute('data-ds-onto-view') === 'map';
   var ctx = { display: dom.safeJsonParse(root.getAttribute('data-display'), {}), summary: null,
-              itemBase: root.getAttribute('data-item-base') || '/brain/items/', pageUrl: root.getAttribute('data-page-url') || '/brain' };
+              itemBase: root.getAttribute('data-item-base') || '/brain/items/', pageUrl: root.getAttribute('data-page-url') || '/brain',
+              fill: root.hasAttribute('data-fill-url') ? { url: root.getAttribute('data-fill-url'),
+                                                           kinds: dom.safeJsonParse(root.getAttribute('data-fill-kinds'), {}) } : null };
   var ontoUrl = root.getAttribute('data-onto-url');
   var status = root.querySelector('[data-ds-onto-status]');
   var detail = root.querySelector('[data-ds-onto-detail]');

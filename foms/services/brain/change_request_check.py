@@ -11,6 +11,11 @@ AI 묶음(:func:`.change_request_model.read_bundle` 꼴)을 화면 줄로 펼치
 4. **이미 같은 값**(고침 0) · **서로 맞섬**(같은 항목 · 연결 · 설정 칸을 두 줄이 고침 · 같은 두 항목에 필요 + 제외).
 5. **금액 숫자가 든 글** — 못 고친 것으로(가격은 계산기가 정본 — D179).
 6. **설정** — 허용 목록(AI 직원 수준 표의 고칠 수 있는 칸 · 값 0 ~ 상한)에 있고 넣은 사람이 관리자일 때만. 상담 AI 관리 칸은 2판.
+7. **세부 칸**(2판 — :mod:`.change_request_props`) — 받는 칸 밖(``prop_field``) · 고른 값 밖(``prop_value``)이면 그 줄째 '못 고친
+   것'. 고침 값은 지금 실음 칸에 얹어 제안한다(다른 실음 칸은 그대로).
+
+화면 값(줄 ``label`` · ``fields`` · 같이 볼 것 · AI 글)은 사람 말이다(:mod:`.change_request_words` — 주소 · 코드 이름 · 영어 상태
+코드를 싣지 않는다, 주소는 ``key`` · ``after`` 칸에만).
 
 ``requires`` · ``excludes`` 연결 줄은 ``caution`` 참(미리 보기에서 따로 표시 — 8절). 쓰지 않는다(모의 실행은 저장점을 되돌린다).
 """
@@ -24,13 +29,19 @@ from typing import Any, Mapping, Optional
 from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
+from foms.services.ai_staff.levels import LEVEL_LABELS
 from foms.services.brain import actions
-from foms.services.brain.change_request_model import AREA_LEVELS, CREATE_TYPES, NEW_PREFIX, Material
-from foms.services.brain.constants import (
-    BRANDS, DOC_TYPES, LINK_KINDS, OP_LINK_ADD, OP_LINK_REMOVE, SCOPE_ALL, STATUS_ACTIVE, STATUS_RETIRED, TYPE_LAYERS,
-    external_type, link_allowed,
+from foms.services.brain.change_request_model import AREA_CS, AREA_LEVELS, CREATE_TYPES, NEW_PREFIX, Material
+from foms.services.brain.change_request_props import merged, prop_fields, read_props
+from foms.services.brain.change_request_words import (
+    CS_SETTING, UNKNOWN_LABEL, UNKNOWN_SETTING, UNNAMED_NEW, external_label, link_kind_label, names_of, status_label,
+    tidy, tidy_bundle,
 )
-from foms.services.brain.display import FIELD_LABELS, LAYER_LABELS, LINK_DISPLAY
+from foms.services.brain.constants import (
+    BRANDS, DOC_TYPES, KEY_RE, LINK_KINDS, OP_LINK_ADD, OP_LINK_REMOVE, SCOPE_ALL, STATUS_ACTIVE, STATUS_RETIRED,
+    TYPE_LAYERS, external_type, link_allowed,
+)
+from foms.services.brain.display import FIELD_LABELS, LAYER_LABELS
 from foms.services.brain.errors import BrainError
 from foms.services.brain.gates import hanja_count
 from foms.services.brain.labels import pref_of
@@ -64,6 +75,8 @@ CHECK_TEXTS: dict[str, str] = {
     "setting_value": "고칠 수 없는 설정 칸이거나 값이에요.",
     "setting_admin": "설정은 관리자만 고쳐요.",
     "later_change": "그 뒤 다른 고침이 같은 곳에 얹혀서 되돌리지 않았어요.",
+    "prop_field": "이 길로는 못 고치는 세부 칸이에요(문 방식 · 견적 규칙 종류 · 가로 범위 · 정책 갈래 · 조건 꼴만 고쳐요).",
+    "prop_value": "세부 칸에 고를 수 없는 값이에요.",
 }
 RULE_TYPE, APPLIES_TO = "build_rule", "applies_to"
 #: 금액 꼴(숫자 + 원 · 만원 · 억 원, 통화 기호 + 숫자, 숫자 + 달러).
@@ -114,15 +127,23 @@ def _update(session: Any, viewer: Viewer, row_in: Mapping[str, Any]) -> dict[str
     """고침 줄 — 바뀐 칸만(같은 칸은 뺀다)."""
     row = _row(session, viewer, row_in["key"])
     if row is None:
-        return _block(_line(KIND_UPDATE, key=row_in["key"], label=row_in["key"], why=row_in["why"], layer=None),
+        return _block(_line(KIND_UPDATE, key=row_in["key"], label=UNKNOWN_LABEL, why=row_in["why"], layer=None),
                       "unknown_key")
     before = values_of(row)
     changed = {f: v for f, v in row_in["after"].items() if before.get(f) != v}
+    props, refused, problem = read_props(row.item_type, row.payload, row_in.get("props"))
     fields = [{"name": f, "label": FIELD_LABELS.get(f, f), "before": before.get(f), "after": v} for f, v in changed.items()]
+    fields += prop_fields(row.item_type, row.payload, props, refused)
+    plan_after = {**changed, **({"payload": merged(row.payload, props)} if props else {})}
+    payload = row.payload if isinstance(row.payload, dict) else {}
     line = _line(KIND_UPDATE, key=row.item_key, label=pref_of(row.name, row.payload), why=row_in["why"],
-                 layer=row.layer, fields=fields, before={f: before.get(f) for f in changed}, after=changed,
-                 plan={"key": row.item_key, "base_version": row.version, "after": changed})
-    if not changed:
+                 layer=row.layer, fields=fields,
+                 before={**{f: before.get(f) for f in changed}, **{f"payload.{n}": payload.get(n) for n in props}},
+                 after={**changed, **{f"payload.{n}": v for n, v in props.items()}},
+                 plan={"key": row.item_key, "base_version": row.version, "after": plan_after})
+    if problem:
+        return _block(line, problem)
+    if not plan_after:
         return _block(line, "same")
     if has_money(changed.get("name"), changed.get("text")):
         return _block(line, "money")
@@ -154,6 +175,7 @@ def _create(row_in: Mapping[str, Any], *, request_id: int, number: int, today: d
     꼬리 — 옮기기 키 꼴)와 문서 칸, 그 밖은 ``<브랜드>/<유형>/cr<묶음>-<차례>``."""
     item_type, brand = row_in["type"], row_in["brand"]
     values = {"name": row_in["values"].get("name", ""), "text": row_in["values"].get("text") or None}
+    props, refused, problem = read_props(item_type, {}, row_in.get("props"), create=True)
     layers = sorted(TYPE_LAYERS.get(item_type, ()))
     layer = layers[0] if len(layers) == 1 else None
     doc_id = f"cr{int(request_id)}-{int(number)}"
@@ -162,16 +184,19 @@ def _create(row_in: Mapping[str, Any], *, request_id: int, number: int, today: d
     full = {**values, "status": STATUS_ACTIVE, "visibility": SCOPE_ALL, "evidence_kind": "person",
             "evidence_ref": f"change_request:{request_id}", "checked_at": today.isoformat()}
     if is_doc:
-        full["payload"] = doc_fields(doc_id, request_id=request_id, user_id=user_id, day=today)
-    line = _line(KIND_CREATE, key=key, label=values["name"] or key, why=row_in["why"], layer=layer,
+        full["payload"] = {**doc_fields(doc_id, request_id=request_id, user_id=user_id, day=today), **props}
+    line = _line(KIND_CREATE, key=key, label=values["name"] or UNNAMED_NEW, why=row_in["why"], layer=layer,
                  fields=[{"name": f, "label": FIELD_LABELS.get(f, f), "before": None, "after": v}
-                         for f, v in values.items() if v],
-                 before=None, after={f: v for f, v in values.items() if v},
+                         for f, v in values.items() if v] + prop_fields(item_type, {}, props, refused),
+                 before=None, after={**{f: v for f, v in values.items() if v},
+                                     **{f"payload.{n}": v for n, v in props.items()}},
                  plan={"key": key, "brand": brand, "layer": layer, "type": item_type, "values": full, "new": number})
     if item_type not in CREATE_TYPES or layer is None:
         return _block(line, "type")
     if brand not in BRANDS or not values["name"]:
         return _block(line, "BRAIN_SHAPE")
+    if problem:
+        return _block(line, problem)
     if has_money(values["name"], values["text"]):
         return _block(line, "money")
     return _block(line, "gate") if _gate_fail(values["name"], values["text"]) else line
@@ -181,21 +206,21 @@ def _retire(session: Any, viewer: Viewer, row_in: Mapping[str, Any]) -> dict[str
     """은퇴 줄."""
     row = _row(session, viewer, row_in["key"])
     if row is None:
-        return _block(_line(KIND_RETIRE, key=row_in["key"], label=row_in["key"], why=row_in["why"], layer=None),
+        return _block(_line(KIND_RETIRE, key=row_in["key"], label=UNKNOWN_LABEL, why=row_in["why"], layer=None),
                       "unknown_key")
     line = _line(KIND_RETIRE, key=row.item_key, label=pref_of(row.name, row.payload), why=row_in["why"],
                  layer=row.layer, before={"status": row.status}, after={"status": STATUS_RETIRED},
-                 fields=[{"name": "status", "label": FIELD_LABELS["status"], "before": row.status,
-                          "after": STATUS_RETIRED}],
+                 fields=[{"name": "status", "label": FIELD_LABELS["status"], "before": status_label(row.status),
+                          "after": status_label(STATUS_RETIRED)}],
                  plan={"key": row.item_key, "base_version": row.version})
     return _block(line, "same") if row.status == STATUS_RETIRED else line
 
 
 def _end_name(session: Any, viewer: Viewer, key: str) -> tuple[Optional[str], Optional[str]]:
-    """연결 끝 — (유형, 이름). 바깥 자리는 가짜 유형 · 키 그대로, 볼 수 없거나 없으면 (None, None)."""
+    """연결 끝 — (유형, 이름). 바깥 자리는 가짜 유형 · 그 자리 이름, 볼 수 없거나 없으면 (None, None)."""
     external = external_type(key)
     if external is not None:
-        return external, key
+        return external, external_label(key)
     row = _row(session, viewer, key)
     return (row.item_type, pref_of(row.name, row.payload)) if row is not None else (None, None)
 
@@ -223,8 +248,7 @@ def _link(session: Any, viewer: Viewer, row_in: Mapping[str, Any],
     start, source_type, source_name, layer, new = _source(session, viewer, row_in["from"], news)
     start = start or row_in["from"]
     to_type, to_name = _end_name(session, viewer, end) if end else (None, None)
-    label_kind = LINK_DISPLAY.get(kind, (kind,))[0]
-    label = f"{source_name or start} → {to_name or end} ({label_kind})"
+    label = f"{source_name or UNKNOWN_LABEL} → {to_name or UNKNOWN_LABEL} ({link_kind_label(kind)})"
     ident = {"kind": kind, "from": start, "to": end}
     plan = {"op": kind_op, "kind": kind, "from": start, "to": end, **({"new": new} if new is not None else {})}
     line = _line(kind_op, key=start, label=label, why=row_in["why"], layer=layer,
@@ -252,9 +276,11 @@ def _setting(row_in: Mapping[str, Any], material: Material, *, admin: bool) -> d
     known = material.settings.get(row_in["name"]) if row_in["area"] == AREA_LEVELS else None
     before = known["value"] if known is not None else None
     agent, _dot, action = row_in["name"].partition(".")
-    line = _line(KIND_SETTING, key=row_in["name"], label=known["label"] if known else row_in["name"], why=row_in["why"],
+    label = known["label"] if known else (CS_SETTING if row_in["area"] == AREA_CS else UNKNOWN_SETTING)
+    line = _line(KIND_SETTING, key=row_in["name"], label=label, why=row_in["why"],
                  layer=None, before={"level": before}, after={"level": row_in["value"]},
-                 fields=[{"name": "level", "label": "수준", "before": before, "after": row_in["value"]}],
+                 fields=[{"name": "level", "label": "수준", "before": level_label(before),
+                          "after": level_label(row_in["value"])}],
                  plan={"area": row_in["area"], "agent": agent, "action": action, "value": row_in["value"],
                        "before": before})
     if row_in["area"] != AREA_LEVELS:
@@ -264,6 +290,11 @@ def _setting(row_in: Mapping[str, Any], material: Material, *, admin: bool) -> d
     if not admin:
         return _block(line, "setting_admin")
     return _block(line, "same") if before == row_in["value"] else line
+
+
+def level_label(value: Any) -> Any:
+    """AI 직원 수준 값 → 화면 말(모르는 값은 그대로 — 없는 칸이면 빈 값)."""
+    return LEVEL_LABELS.get(value, value) if isinstance(value, int) and not isinstance(value, bool) else value
 
 
 def _identities(line: dict[str, Any]) -> list[tuple]:
@@ -336,21 +367,31 @@ def _dry_run(session: Any, line: dict[str, Any], *, actor_id: int, request_id: i
         savepoint.rollback()
 
 
-def _also_from_notes(session: Any, viewer: Viewer, notes: list[str]) -> list[dict[str, Any]]:
-    """AI 의 '같이 볼 것'(``키 — 까닭``) — 볼 수 있는 키면 이름을 단다(볼 수 없는 키는 달지 않는다)."""
+def _also_from_notes(session: Any, viewer: Viewer, notes: list[str], names: Mapping[str, str]) -> list[dict[str, Any]]:
+    """AI 의 '같이 볼 것'(``키 — 까닭``) — 볼 수 있는 키면 이름을 단다. 키 꼴인데 없거나 볼 수 없으면 주소 대신
+    :data:`UNKNOWN_LABEL`(링크 없음 — ``key`` 비움), 키 꼴이 아닌 글이면 다듬은 글 그대로."""
     out = []
     for note in notes:
-        key, _sep, why = note.partition(" — ")
-        row = _row(session, viewer, key.strip())
-        out.append({"key": row.item_key, "label": pref_of(row.name, row.payload), "why": why.strip() or None}
-                   if row is not None else {"key": None, "label": note, "why": None})
+        head, _sep, why = note.partition(" — ")
+        key = head.strip()
+        row = _row(session, viewer, key)
+        if row is not None:
+            out.append({"key": row.item_key, "label": pref_of(row.name, row.payload), "why": why.strip() or None})
+        elif KEY_RE.fullmatch(key) and ("/" in key or ":" in key or "." in key):
+            label = names.get(key) or external_label(key) or UNKNOWN_LABEL  # 설정 칸 · 새 항목 · 바깥 자리는 그 이름
+            out.append({"key": None, "label": label, "why": why.strip() or None})
+        else:
+            out.append({"key": None, "label": tidy(note, names), "why": None})
     return out
 
 
 def check_bundle(session: Any, bundle: Mapping[str, Any], material: Material, *, viewer: Viewer,
                  scope: Optional[tuple[str, ...]], request_id: int, known: str,
                  now: datetime.datetime, today: datetime.date) -> dict[str, Any]:
-    """AI 묶음 → ``{"lines", "also_look"}``. ``scope`` = 고칠 수 있는 층(``None`` = 모두 — 관리자)."""
+    """AI 묶음 → ``{"lines", "also_look", "summary", "needs_code", "questions"}``(사람 글은 다듬은 것 —
+    :func:`.change_request_words.tidy_bundle`). ``scope`` = 고칠 수 있는 층(``None`` = 모두 — 관리자)."""
+    names = names_of(material.items, material.settings, bundle["creates"])
+    bundle = tidy_bundle(bundle, names)
     lines: list[dict[str, Any]] = [_update(session, viewer, r) for r in bundle["updates"]]
     news = {n: _create(r, request_id=request_id, number=n, today=today, user_id=viewer.user_id)
             for n, r in enumerate(bundle["creates"], 1)}
@@ -358,7 +399,7 @@ def check_bundle(session: Any, bundle: Mapping[str, Any], material: Material, *,
     lines += [_retire(session, viewer, r) for r in bundle["retires"]]
     lines += [_link(session, viewer, r, news) for r in bundle["links"]]
     lines += [_setting(r, material, admin=viewer.is_admin) for r in bundle["settings"]]
-    also = _also_from_notes(session, viewer, bundle["also_look"])
+    also = _also_from_notes(session, viewer, bundle["also_look"], names)
     kept = []
     for line in lines:
         if scope is not None and line["kind"] != KIND_SETTING and line["layer"] is not None and line["layer"] not in scope:
@@ -379,7 +420,8 @@ def check_bundle(session: Any, bundle: Mapping[str, Any], material: Material, *,
         if is_new_link(line):
             line["plan"]["after_line"] = next((m["no"] for m in kept if m["kind"] == KIND_CREATE
                                                and m["plan"].get("new") == line["plan"]["new"]), None)
-    return {"lines": kept, "also_look": also}
+    return {"lines": kept, "also_look": also, "summary": bundle["summary"], "needs_code": bundle["needs_code"],
+            "questions": bundle["questions"]}
 
 
 def is_new_link(line: Mapping[str, Any]) -> bool:
