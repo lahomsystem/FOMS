@@ -60,7 +60,8 @@ def _body() -> dict[str, Any]:
 
 
 def _run(work: Callable[[Any, Any], Any], *, write: bool) -> tuple[Any, int]:
-    """로그인 401 · 쓸 수 없는 사람 404 → 일 → (쓰기면) 커밋. 서비스 오류 · DB 오류면 되돌린다."""
+    """로그인 401 · 쓸 수 없는 사람 404 → 일 → (쓰기면) 커밋. 서비스 오류 · DB 오류면 되돌린다. 읽기 길(묶음 · 목록)도 10분 넘게
+    멈춘 분석을 닫으며 커밋한다(그 밖 쓰기 없음)."""
     user = getattr(g, "current_user", None)
     if user is None:
         return _reply(401, None, "로그인이 필요합니다.")
@@ -95,13 +96,13 @@ def brain_change_start() -> tuple[Any, int]:
 def brain_change_list() -> tuple[Any, int]:
     """목록(관리자 모두 · 그 밖 내가 넣은 것)."""
     page = request.args.get("page", type=int) or 1
-    return _run(lambda db, user: list_page(db, user, page), write=False)
+    return _run(lambda db, user: list_page(db, user, page), write=True)  # 멈춘 분석 닫기를 저장한다
 
 
 @brain_change_api_bp.route("/<int:request_id>", methods=["GET"])
 def brain_change_view(request_id: int) -> tuple[Any, int]:
     """묶음 화면 값."""
-    return _run(lambda db, user: view(db, user, request_id), write=False)
+    return _run(lambda db, user: view(db, user, request_id), write=True)  # 멈춘 분석 닫기를 저장한다
 
 
 @brain_change_api_bp.route("/<int:request_id>/answer", methods=["POST"])

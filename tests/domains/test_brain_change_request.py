@@ -28,14 +28,17 @@ from foms.services.brain.errors import BrainPermissionError
 from foms.services.brain.proposals import Proposer, propose_update
 from foms.services.brain.store import current_object
 from foms.services.graft_flags import FLAGS
-from models import SecurityLog, SystemSetting
-from tests.support.brain_chat_support import NOW_KST, FakeClient, fixed
+from foms.services.brain.change_request_store import STUCK_AFTER
+from foms.services.notifications.brain_change_notice import BRAIN_CHANGE_REQUEST_TYPE, request_link
+from models import Notification, NotificationUserState, SecurityLog, SystemSetting
+from tests.support.brain_chat_support import FakeClient, fixed
 from tests.support.brain_screen_support import people as make_people
 from tests.support.brain_support import NOW, REASON, create
 
 SENTENCE = "도면 담당은 도면팀에서 자율적으로 해. 협력사 시공일도 출고 담당이 출고 스케줄 보고 조율해"
 NEW_TEXT = "도면 담당은 도면팀이 스스로 정한다."
 OLD_TEXT = "도면 담당은 운영 AI 가 제안하고 사장님이 정한다."
+START_AT = NOW  # 모든 묶음 함수의 시각은 UTC naive 하나(한국 2026-11-02 10시)
 APPLY_AT = NOW + datetime.timedelta(minutes=5)
 REVERT_AT = NOW + datetime.timedelta(minutes=30)
 
@@ -94,7 +97,7 @@ def who(app, monkeypatch):
 
 
 def _start(user, text=SENTENCE, client=None):
-    out = cr.start(db_session, user, text, client=client, now=NOW_KST)
+    out = cr.start(db_session, user, text, client=client, now=START_AT)
     db_session.commit()
     return out
 
@@ -149,6 +152,12 @@ def test_owner_sentence_makes_one_bundle_applies_reports_and_reverts(who):
     apply_audit = db_session.query(SecurityLog).filter_by(action="BRAIN_APPLY", target_id=made[0].id).one()
     assert apply_audit.detail["request"] == view["id"]  # 반영 감사 줄에 묶음 번호
     assert db_session.query(SecurityLog).filter_by(action="AI_STAFF_LEVELS_SAVED").count() == 2
+    note = db_session.query(Notification).filter_by(notification_type=BRAIN_CHANGE_REQUEST_TYPE).one()
+    assert (note.title, note.target_user_id, note.order_id) == ("문장으로 고치기", admin.id, None)
+    assert note.message == f"[문장으로 고치기] /brain/requests/{view['id']}\n3곳을 고쳤어요"
+    assert request_link(note.message) == f"/brain/requests/{view['id']}"
+    assert NEW_TEXT not in note.message and SENTENCE[:6] not in note.message  # 문장 · 고친 글은 싣지 않는다
+    assert [s.user_id for s in db_session.query(NotificationUserState).filter_by(notification_id=note.id)] == [admin.id]
 
     back = cr.revert(db_session, admin, view["id"], now=REVERT_AT)
     db_session.commit()
@@ -192,7 +201,7 @@ def test_mask_leak_stops_before_any_row_or_model_call(who, monkeypatch):
     monkeypatch.setattr(cr, "mask", lambda text: text)  # 가림이 고장 나도 검사가 막는다
     client = fixed(answer_text())
     with pytest.raises(cr.ChangeRequestError) as caught:
-        cr.start(db_session, who["admin"], "연락처 010-2345-6789 도면 담당", client=client, now=NOW_KST)
+        cr.start(db_session, who["admin"], "연락처 010-2345-6789 도면 담당", client=client, now=START_AT)
     assert caught.value.code == "mask" and client.calls == [] and _requests() == []
 
 
@@ -229,7 +238,7 @@ def test_empty_daily_cap_turns_it_off_and_a_tiny_cap_fails_the_bundle(who):
     _cap(None)
     client = fixed(answer_text())
     with pytest.raises(cr.ChangeRequestError) as caught:
-        cr.start(db_session, who["admin"], SENTENCE, client=client, now=NOW_KST)
+        cr.start(db_session, who["admin"], SENTENCE, client=client, now=START_AT)
     assert caught.value.code == "off" and _requests() == [] and client.calls == []
     db_session.get(SystemSetting, SETTINGS_KEY).setting_value = {**DEFAULTS, CHANGE_CAP_FIELD: "0.01"}
     db_session.commit()
@@ -243,14 +252,14 @@ def test_question_then_answer_reanalyzes_the_same_bundle(who):
     client = FakeClient(lambda _params: next(replies))
     view = _start(who["admin"], "도면 담당 바뀜", client=client)
     assert view["status"] == "asked" and view["can_answer"] is True and view["can_apply"] is False
-    again = cr.answer(db_session, who["admin"], view["id"], "도면팀이 스스로 정해요", client=client, now=NOW_KST)
+    again = cr.answer(db_session, who["admin"], view["id"], "도면팀이 스스로 정해요", client=client, now=START_AT)
     db_session.commit()
     assert again["id"] == view["id"] and again["status"] == "ready" and again["lines"][0]["state"] == "preview"
     assert again["answers"] == [{"question": "도면 담당을 누가 정하나요?", "answer": "도면팀이 스스로 정해요"}]
     assert "도면팀이 스스로 정해요" in client.calls[1]["messages"][0]["content"]
     assert len(_requests()) == 1
     with pytest.raises(cr.ChangeRequestError) as caught:  # 물음이 없으면 답할 것이 없다
-        cr.answer(db_session, who["admin"], view["id"], "더", client=client, now=NOW_KST)
+        cr.answer(db_session, who["admin"], view["id"], "더", client=client, now=START_AT)
     assert caught.value.code == "state"
 
 
@@ -288,6 +297,10 @@ def test_team_lead_other_layer_goes_to_also_look_and_settings_are_blocked(who):
 
 def test_lines_the_person_may_not_apply_wait_for_approval_and_revert_withdraws_them(who, monkeypatch):
     import foms.services.brain.apply as apply_module
+    import foms.services.notifications.push_sender as push_sender
+
+    pushed = []
+    monkeypatch.setattr(push_sender, "enqueue_push_for_notification", lambda *a, **k: pushed.append(a))
 
     real = apply_module.check_permission
 
@@ -305,6 +318,8 @@ def test_lines_the_person_may_not_apply_wait_for_approval_and_revert_withdraws_t
     assert done["status"] == "partial" and [l["state"] for l in done["lines"]] == ["applied", "pending"]
     waiting = db_session.get(BrainChange, done["lines"][1]["change_id"])
     assert waiting.status == "open" and waiting.request_id == view["id"]  # 승인 대기에 열린 채
+    note = db_session.query(Notification).filter_by(notification_type=BRAIN_CHANGE_REQUEST_TYPE).one()
+    assert note.message.endswith("\n1곳을 고쳤어요 · 1곳은 승인을 기다려요") and pushed == []  # 폰 알림 없음
     back = cr.revert(db_session, admin, view["id"], now=REVERT_AT)
     db_session.commit()
     assert [l["state"] for l in back["lines"]] == ["reverted", "withdrawn"]
@@ -340,3 +355,32 @@ def test_list_page_shows_mine_and_admin_sees_all(who):
     with pytest.raises(cr.ChangeRequestError):
         cr.view(db_session, who["dr_mgr"], every["items"][1]["id"])  # 남의 묶음은 없는 것과 같다
     assert cr.view(db_session, who["admin"], mine["items"][0]["id"])["mine"] is False
+
+
+# ── 5. 멈춘 분석 ─────────────────────────────────────────────────────────
+def test_an_unexpected_error_during_analysis_closes_the_bundle_as_failed(who, monkeypatch):
+    def broken(*_a, **_k):
+        raise RuntimeError("합성 고장")
+
+    monkeypatch.setattr(cr, "check_bundle", broken)
+    view = _start(who["admin"], client=fixed(answer_text(updates=[upd("common/rule/assign", text=NEW_TEXT)])))
+    assert view["status"] == "failed" and view["error_code"] == "error:RuntimeError" and view["lines"] == []
+    assert view["error_text"] and view["can_discard"] is True
+    db_session.expire_all()
+    assert _requests()[-1].status == "failed"
+
+
+def test_bundles_stuck_in_analyzing_are_closed_when_read(who):
+    admin = who["admin"]
+    old = BrainChangeRequest(created_by=admin.id, layer_scope="all", masked_text="합성 문장", status="analyzing",
+                             created_at=NOW, bundle={"analyzing_at": NOW.isoformat()})
+    fresh = BrainChangeRequest(created_by=admin.id, layer_scope="all", masked_text="합성 문장", status="analyzing",
+                               created_at=NOW, bundle={"analyzing_at": (NOW + STUCK_AFTER).isoformat()})
+    db_session.add_all([old, fresh])
+    db_session.commit()
+    later = NOW + STUCK_AFTER + datetime.timedelta(minutes=1)
+    seen = cr.view(db_session, admin, old.id, now=later)
+    db_session.commit()
+    assert seen["status"] == "failed" and seen["error_code"] == "stuck" and seen["error_text"]
+    listed = cr.list_page(db_session, admin, 1, now=later)
+    assert {i["id"]: i["status"] for i in listed["items"]} == {old.id: "failed", fresh.id: "analyzing"}

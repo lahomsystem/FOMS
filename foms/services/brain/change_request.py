@@ -14,8 +14,12 @@
 6. **이대로 고치기 · 되돌리기**는 :mod:`.change_request_apply`(:func:`apply` · :func:`revert`), **버리기**(:func:`discard`).
 
 커밋: :func:`start` · :func:`answer` 는 AI 를 부르기 전 묶음 줄을 커밋한다(돈 예약 · 바로잡기가 세션을 커밋한다). 나머지는
-부르는 쪽(API)이 커밋한다. 시각: :func:`start` · :func:`answer` · :func:`analyze` 의 ``now`` 는 한국 시각(돈 줄 날 — 물어보기와 같다),
-:func:`discard` · :func:`apply` · :func:`revert` 의 ``now`` 는 UTC naive(반영 동작과 같다).
+부르는 쪽(API)이 커밋한다. 분석이 뜻밖의 오류로 죽으면 묶음을 ``failed`` + ``error_code``(``error:<오류 이름>``)로 닫고,
+10분 넘게 ``analyzing`` 인 묶음은 읽을 때 ``failed``(``stuck``)로 닫는다(:func:`.change_request_store.close_stuck`).
+
+시각: 모든 함수의 ``now`` 는 **UTC naive 하나**(표에 저장하는 시각 — 저장소 버릇 :func:`now_utc_naive`)다. 한국 시각이 필요한
+두 곳만 거기서 바꿔 쓴다 — AI 에게 주는 '오늘'(한국 날짜)과 돈 줄의 하루 경계(물어보기와 같은 한국 시각 — 돈 줄이 시간대 있는
+시각을 받는다).
 """
 
 from __future__ import annotations
@@ -33,15 +37,16 @@ from foms.services.brain.change_request_model import (
     ChangeOutputError, build, call, daily_cap, gather, read_bundle,
 )
 from foms.services.brain.change_request_store import (
-    ANALYZING, ASKED, DISCARDED, FAILED, READY, ChangeRequestError, audit, can_use, layer_scope_of, list_page, load,
-    require_user, save_bundle, scope_tuple, view_of,
+    ANALYZING, ANALYZING_AT, ASKED, DISCARDED, FAILED, READY, ChangeRequestError, audit, can_use, layer_scope_of,
+    list_page, load, require_user, save_bundle, scope_tuple, view, view_of,
 )
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.embeddings import query_vector
 from foms.services.brain.proposals import known_text
 from foms.services.cs_agent.brain_spend import BrainNotReady, BrainUnavailable, SpendCapReached
 from foms.services.cs_agent.masking import MaskLeak, mask, require_masked
-from foms.services.datetime_kst import now_kst, now_utc_naive
+from foms.services.cs_agent.state import KST
+from foms.services.datetime_kst import now_utc_naive
 
 __all__ = ["ChangeRequestError", "analyze", "answer", "apply", "can_use", "discard", "list_page", "open_request",
            "revert", "start", "view"]
@@ -52,10 +57,10 @@ logger = logging.getLogger(__name__)
 MAX_TEXT, MAX_MASKED, MAX_ANSWERS = 800, 1000, 3
 
 
-def _utc(now: Optional[datetime.datetime]) -> tuple[datetime.datetime, datetime.datetime]:
-    """(한국 시각, UTC naive) — 돈 줄은 한국 날, 표 칸은 UTC naive."""
-    when = now or now_kst()
-    return when, when.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+def _clock(now: Optional[datetime.datetime]) -> tuple[datetime.datetime, datetime.datetime]:
+    """(UTC naive — 표에 저장, 한국 시각 — AI 의 '오늘' · 돈 줄 하루 경계). ``now`` 는 UTC naive(없으면 지금)."""
+    now_utc = now or now_utc_naive()
+    return now_utc, now_utc.replace(tzinfo=datetime.timezone.utc).astimezone(KST)
 
 
 def _masked(text: Any) -> str:
@@ -85,9 +90,10 @@ def open_request(session: Any, user: Any, text: Any, *, now: Optional[datetime.d
     viewer = require_user(user)
     masked = _masked(text)
     _ready_cfg(session)
-    _when, now_utc = _utc(now)
+    now_utc, _when = _clock(now)
     row = BrainChangeRequest(created_by=viewer.user_id, layer_scope=layer_scope_of(viewer), masked_text=masked,
-                             bundle={"answers": []}, status=ANALYZING, created_at=now_utc)
+                             bundle={"answers": [], ANALYZING_AT: now_utc.isoformat(timespec="seconds")},
+                             status=ANALYZING, created_at=now_utc)
     session.add(row)
     session.flush()
     audit(session, viewer.user_id, row, "START", {"chars": len(masked), "scope": row.layer_scope}, now_utc)
@@ -111,7 +117,7 @@ def analyze(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = N
             now: Optional[datetime.datetime] = None) -> BrainChangeRequest:
     """분석 돌리기 — 재료 → AI 한 번 → 답 읽기 → 줄마다 검사 → ``ready`` · ``asked`` · ``failed``. 세션을 몇 번 커밋한다."""
     viewer = require_user(user)
-    when, now_utc = _utc(now)
+    now_utc, when = _clock(now)
     today = when.date()
     started = time.monotonic()
     cfg = _ready_cfg(session)
@@ -156,12 +162,28 @@ def analyze(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = N
     return row
 
 
+def _analyze_closed(session: Any, row: BrainChangeRequest, user: Any, *, client: Any,
+                    now: Optional[datetime.datetime]) -> BrainChangeRequest:
+    """분석을 감싼다 — 뜻밖의 오류로 죽어도 묶음이 ``analyzing`` 에 멈추지 않게 되돌린 뒤 ``failed`` + 코드로 닫는다."""
+    request_id = row.id
+    try:
+        return analyze(session, row, user, client=client, now=now)
+    except Exception as exc:  # noqa: BLE001 — 오류는 묶음에 코드로 남기고 로그에도 이름만(글 없음)
+        session.rollback()
+        logger.warning("[문장으로 고치기] 분석 중 오류 request=%s error=%s", request_id, type(exc).__name__)
+        row = session.get(BrainChangeRequest, request_id, populate_existing=True)
+        code = exc.code if isinstance(exc, ChangeRequestError) else f"error:{type(exc).__name__}"
+        _fail(row, code, {"answers": list((row.bundle or {}).get("answers") or [])})
+        session.flush()
+        return row
+
+
 def start(session: Any, user: Any, text: Any, *, client: Any = None,
           now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """분석 시작 — 묶음 줄 만들기(커밋) → 분석 돌리기 → 묶음 화면 값. 커밋은 부르는 쪽(분석 결과)."""
     row = open_request(session, user, text, now=now)
     session.commit()
-    row = analyze(session, row, user, client=client, now=now)
+    row = _analyze_closed(session, row, user, client=client, now=now)
     return view_of(row, require_user(user))
 
 
@@ -177,19 +199,17 @@ def answer(session: Any, user: Any, request_id: Any, text: Any, *, client: Any =
     masked = _masked(text)
     _ready_cfg(session)
     answers.append({"question": " / ".join(bundle["questions"])[:500], "answer": masked})
+    now_utc, _when = _clock(now)
     row.status = ANALYZING
-    save_bundle(row, {**bundle, "answers": answers})
-    _when, now_utc = _utc(now)
+    save_bundle(row, {**bundle, "answers": answers, ANALYZING_AT: now_utc.isoformat(timespec="seconds")})
     audit(session, viewer.user_id, row, "ANSWER", {"answers": len(answers), "chars": len(masked)}, now_utc)
     session.commit()
-    row = analyze(session, row, user, client=client, now=now)
+    row = _analyze_closed(session, row, user, client=client, now=now)
     return view_of(row, viewer)
 
 
 def discard(session: Any, user: Any, request_id: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
-    """버리기 — 넣은 사람만 · 반영 전(미리 보기 · 되물음 · 분석 못 함)만. 제안 줄은 만든 적이 없다. 커밋은 부르는 쪽.
-
-    ``now`` 는 UTC naive(이대로 고치기 · 되돌리기와 같다 — 시작 · 되물음 답의 ``now`` 는 돈 줄 날을 정하는 한국 시각)."""
+    """버리기 — 넣은 사람만 · 반영 전(미리 보기 · 되물음 · 분석 못 함)만. 제안 줄은 만든 적이 없다. 커밋은 부르는 쪽."""
     viewer = require_user(user)
     row = load(session, viewer, request_id, lock=True, owner_only=True)
     if row.status not in (READY, ASKED, FAILED):
@@ -200,8 +220,3 @@ def discard(session: Any, user: Any, request_id: Any, *, now: Optional[datetime.
     session.flush()
     return view_of(row, viewer)
 
-
-def view(session: Any, user: Any, request_id: Any) -> dict[str, Any]:
-    """묶음 화면 값(넣은 사람 · 관리자만 — 그 밖 ``forbidden``)."""
-    viewer = require_user(user)
-    return view_of(load(session, viewer, request_id), viewer)
