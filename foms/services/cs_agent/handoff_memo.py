@@ -55,7 +55,8 @@ CODE_HANDOFF, CODE_CHECK = "handoff", "check_failed"
 MEMO_CODES: tuple[str, ...] = (CODE_HANDOFF, CODE_CHECK)
 REASON_LABEL = "까닭: "
 
-#: 두뇌가 고른 넘김 까닭(:data:`.brain_prompt.HANDOFF_REASONS`) → 쉬운 말 한 문장.
+#: 두뇌가 고른 넘김 까닭(:data:`.brain_prompt.HANDOFF_REASONS`) → 쉬운 말 한 문장. ``constraint`` 는 코드만 쓰는 까닭이다
+#: (:data:`.onto_follow.HANDOFF_CONSTRAINT` — 손님이 고른 조합이 '같이 못 함'에 걸린 차례, 빈 재료 채우기 3판 E).
 HANDOFF_TEXTS: dict[str, str] = {
     "unsure": "회사 지식에 없는 내용이에요",
     "human_only_amount": "사람이 정하는 금액을 묻는 상담이에요",
@@ -66,6 +67,7 @@ HANDOFF_TEXTS: dict[str, str] = {
     "photo": "사진을 봐야 답할 수 있어요",
     "asked_if_ai": "손님이 상대가 사람인지 AI 인지 물었어요",
     "other": "AI 가 답하기 어려운 상담이에요",
+    "constraint": "제작 조건을 확인해야 해요",
 }
 HANDOFF_UNKNOWN = "AI 가 답하기 어려운 상담이라 넘겼어요"
 #: 'photo' 넘김인데 그 차례가 사진을 읽어 두뇌에 줬을 때('초안에 씀' · 읽은 사진 하나 이상) — '사진을 봐야'는 사진을 못 본 것처럼
