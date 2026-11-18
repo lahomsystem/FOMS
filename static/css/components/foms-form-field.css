@@ -620,6 +620,19 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   min-height: 52px;
 }
 
+/* '사진/동영상 추가' 단추 글이 한 글자씩 세로로 꺾였다(11-18 실측, 360 · 글자 150% · 화면 130%: 7줄 '사/진//동/영/상/추/가').
+   단추는 inline-flex 라 아이콘 · 글이 한 줄에 나란히 서고, 글 덩어리는 아이콘 몫(24 + 12px)을 뺀 32px 에 눌린다.
+   한국어 기본 줄바꿈(word-break: normal)은 글자마다 꺾을 수 있어 그 32px 에 한 글자씩 들어갔다.
+   keep-all — 낱말('사진/' · '동영상' · '추가') 사이에서만 꺾는다. 그것만 두면 낱말이 안 줄어 단추가 칸보다 넓어지므로(118 → 148px)
+   flex-wrap — 아이콘 옆에 글이 다 안 들어가면 아이콘을 윗줄로 올리고 글이 단추 폭 전체를 쓴다(글자 · 단추 크기는 그대로).
+   글이 두 줄 이상이면 아이콘이 윗줄에 따로 서서 단추가 한 줄만큼 높아질 수 있다(글은 늘 낱말 단위).
+   한 줄에 다 들어가는 기본 배율에서는 모습이 그대로다. */
+.erp-order-mobile-form .erp-mobile-attachment-trigger {
+  flex-wrap: wrap;
+  word-break: keep-all;
+  text-align: center;
+}
+
 .erp-mobile-push-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1336,6 +1349,11 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
 .erp-order-mobile-form #erp-items .erp-item-attachment-hint {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* 항목 사진 칸 [즉시 추가] 단추도 한국어 기본 줄바꿈이라 '즉시추 / 가' 로 낱말 중간에서 꺾였다(11-18 실측,
+   360 · 글자 150% · 화면 120%, 390 · 150% · 130%). 낱말 사이에서만 꺾는다 — 한 줄에 들어가던 글은 그대로다. */
+.erp-order-mobile-form #erp-items .erp-item-attachments-input + .btn {
+  word-break: keep-all;
 }
 /* 접힘 기본: 본문 숨김. is-open 일 때만 노출 */
 .erp-order-mobile-form #erp-items .erp-item-collapse { display: none; margin-top: var(--foms-space-2); }
