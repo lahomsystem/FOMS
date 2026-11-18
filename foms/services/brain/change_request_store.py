@@ -6,6 +6,8 @@
 - **묶음을 보는 사람**: 넣은 사람 · 관리자. 이대로 고치기 · 되물음 답 · 버리기는 넣은 사람만, 되돌리기는 넣은 사람 · 관리자.
   볼 수 없는 묶음은 없는 묶음과 같은 답(:class:`ChangeRequestError` ``forbidden``).
 - 감사 줄(``SecurityLog``)은 번호 · 수 · 코드만 싣는다(글 없음 — 이웃 :func:`.decide.record_proposal` 버릇).
+- **멈춘 분석 치우기**(:func:`close_stuck`): 분석을 시작한 지 :data:`STUCK_AFTER` 가 지나도 ``analyzing`` 인 묶음은
+  :func:`view` · :func:`list_page` 가 읽을 때 ``failed``(``error_code`` ``stuck``)로 닫는다(분석 시작 시각은 묶음 ``analyzing_at``).
 - 화면 값(:func:`view_of`)은 11절 약속 꼴 — 줄(``kind`` · ``label`` · ``before`` · ``after`` · ``why`` · ``check`` · ``state`` ·
   ``caution``) · 못 고친 것 · 코드가 필요한 것 · 같이 볼 것 · 물음 · 할 수 있는 일(``can_apply`` · ``can_revert``).
 """
@@ -27,6 +29,7 @@ from foms.services.brain.change_request_check import (
 )
 from foms.services.brain.display import LAYER_LABELS
 from foms.services.brain.scope import Viewer
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.graft_flags import enabled as graft_enabled
 from models import SecurityLog
 
@@ -51,7 +54,15 @@ ERROR_TEXTS: dict[str, str] = {
     "not_ready": "분석 준비가 안 됐어요(돈 상한 · 열쇠 설정) — 관리자에게 알려 주세요.",
     "unavailable": "지금 분석 답을 받지 못했어요 — 잠시 뒤 다시 넣어 주세요.",
     "bad_response": "AI 답이 정한 꼴이 아니라서 아무것도 고치지 않았어요 — 다시 넣어 주세요.",
+    "stuck": "분석이 끝나지 않아 멈췄어요 — 다시 넣어 주세요.",
+    "error": "분석 중 오류가 나서 멈췄어요 — 다시 넣어 주세요.",
+    "off": "문장으로 고치기가 꺼져 있어요 — 관리자에게 알려 주세요.",
+    "forbidden": "분석 중 쓸 수 있는 사람이 아니게 됐어요 — 관리자에게 알려 주세요.",
 }
+#: 분석 시작 시각 칸(묶음 JSON — 되물음 답으로 다시 분석할 때 새로 적는다).
+ANALYZING_AT = "analyzing_at"
+#: 이만큼 지나도 ``analyzing`` 이면 멈춘 것으로 닫는다.
+STUCK_AFTER = datetime.timedelta(minutes=10)
 PAGE_SIZE = 20
 #: 오류 코드 → HTTP 상태(API 가 정한 말만 보낸다).
 STATUS: dict[str, int] = {"forbidden": 404, "shape": 400, "mask": 400, "off": 503, "state": 409, "empty": 409}
@@ -190,9 +201,42 @@ def view_of(row: BrainChangeRequest, viewer: Viewer) -> dict[str, Any]:
     return data
 
 
-def list_page(session: Any, user: Any, page: Any = 1) -> dict[str, Any]:
-    """목록(새 것부터) — 관리자는 모두, 그 밖은 내가 넣은 것만. ``{"items", "page", "pages", "total"}``."""
+def _since(row: BrainChangeRequest) -> Optional[datetime.datetime]:
+    """분석 시작 시각(묶음 ``analyzing_at`` — 없거나 틀리면 만든 때)."""
+    raw = (row.bundle or {}).get(ANALYZING_AT)
+    try:
+        return datetime.datetime.fromisoformat(raw) if isinstance(raw, str) else row.created_at
+    except ValueError:
+        return row.created_at
+
+
+def close_stuck(session: Any, *, now: Optional[datetime.datetime] = None) -> int:
+    """분석 시작 뒤 :data:`STUCK_AFTER` 가 지나도 ``analyzing`` 인 묶음을 ``failed``(``stuck``)로 닫는다. 닫은 수(flush 만)."""
+    now = now or now_utc_naive()
+    rows = session.execute(select(BrainChangeRequest).where(BrainChangeRequest.status == ANALYZING)
+                           .with_for_update()).scalars().all()
+    closed = 0
+    for row in rows:
+        since = _since(row)
+        if since is not None and now - since > STUCK_AFTER:
+            row.status, row.error_code = FAILED, "stuck"
+            closed += 1
+    if closed:
+        session.flush()
+    return closed
+
+
+def view(session: Any, user: Any, request_id: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
+    """묶음 화면 값(넣은 사람 · 관리자만 — 그 밖 ``forbidden``). 멈춘 분석은 먼저 닫는다(커밋은 부르는 쪽)."""
     viewer = require_user(user)
+    close_stuck(session, now=now)
+    return view_of(load(session, viewer, request_id), viewer)
+
+
+def list_page(session: Any, user: Any, page: Any = 1, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
+    """목록(새 것부터) — 관리자는 모두, 그 밖은 내가 넣은 것만. ``{"items", "page", "pages", "total"}``. 멈춘 분석은 먼저 닫는다."""
+    viewer = require_user(user)
+    close_stuck(session, now=now)
     try:
         number = max(1, int(page or 1))
     except (TypeError, ValueError):
