@@ -29,8 +29,9 @@ PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _PACKING_JS = _REPO_ROOT / "static" / "js" / "shipment" / "foms-packing.js"
 _RUNTIME_SHELL = _REPO_ROOT / "static" / "js" / "runtime" / "erp-shell.js"
-_SHIPMENT_DASH = _REPO_ROOT / "templates" / "shipment" / "dashboard.html"
-_CONSTRUCTION_DASH = _REPO_ROOT / "templates" / "construction" / "dashboard.html"
+# 2026-11-18: 패킹 JS 는 온전한 페이지 scripts 블록이 아니라 셸 조각 길과 한 길로 싣는다(스왑 진입에서 죽던 결함).
+_SHIPMENT_ENTRY = _REPO_ROOT / "static" / "js" / "shipment" / "shipment-entry.js"
+_CONSTRUCTION_BODY = _REPO_ROOT / "templates" / "construction" / "partials" / "dashboard_body.html"
 
 
 # --------------------------------------------------------------------------
@@ -346,8 +347,10 @@ def test_packing_add_submit_guards_double_post(packing_js: str):
 
 def test_packing_js_version_bumped_in_dashboards():
     """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a 이탈)."""
-    for tpl in (_SHIPMENT_DASH, _CONSTRUCTION_DASH):
-        src = tpl.read_text(encoding="utf-8")
-        assert "foms-packing.js') }}?v=20261019a" in src, str(tpl)
-        # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
-        assert "foms-packing.js') }}?v=20260714a" not in src, f"구 JS 버전 핀 잔존: {tpl}"
+    entry = _SHIPMENT_ENTRY.read_text(encoding="utf-8")
+    assert "'/static/js/shipment/foms-packing.js?v=20261019a'" in entry
+    body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
+    assert "foms-packing.js') }}?v=20261019a" in body
+    # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
+    for src, where in ((entry, _SHIPMENT_ENTRY), (body, _CONSTRUCTION_BODY)):
+        assert "foms-packing.js?v=20260714a" not in src and "foms-packing.js') }}?v=20260714a" not in src, f"구 JS 버전 핀 잔존: {where}"

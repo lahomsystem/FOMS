@@ -401,7 +401,7 @@ def test_complete_gate_reads_customer_name_from_pc_row_when_mobile_card_is_omitt
     root = Path(__file__).resolve().parents[2]
     js = (root / "static/js/construction/foms-complete-gate.js").read_text(encoding="utf-8")
     assert "tr.erp-main-row[data-order-id=" in js and 'td[data-label="고객"]' in js
-    tpl = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
+    tpl = (root / "templates/construction/partials/dashboard_body.html").read_text(encoding="utf-8")
     assert "foms-complete-gate.js') }}?v=20261114a" in tpl
 
 

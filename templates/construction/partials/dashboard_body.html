@@ -176,4 +176,14 @@
      셸 조각이 바뀌어 다시 실행돼도 곧바로 돌아가고, 출고 탭을 거쳐 이미 묶였으면 다시 묶지 않는다. #}
   <script src="{{ url_for('static', filename='js/shipment/tablet-ship-datebar.js') }}?v=20261112c" defer></script>
   {% include 'construction/partials/scripts.html' %}
+  {# 시공 완료 게이트(사진 2장 + 서명) · 태블릿 작업 모드(카드 → 패널 전환) · 출발 전 자재 확인(출고 패킹 시트 재사용).
+     예전엔 온전한 페이지(dashboard.html scripts 블록)만 실어 다른 탭에서 셸 스왑으로 들어오면 셋 다 죽었다
+     (콘솔 오류 없음 — [완료 준비]는 window.openCompleteGate 가 없어 무음, 2026-11-18). 온전한 페이지와 셸 조각이
+     함께 싣는 이 파샬에 둔다. 셋 다 문서 위임 + 싱글턴(__FOMS_CGATE_BOUND · __FOMS_CWORK_BOUND · __FOMS_PACKING_BOUND)이고
+     작업 모드는 늦게 실려도 곧바로 초기화(readyState)하므로 data-foms-run-once 로 문서당 한 번만 실행한다.
+     scripts.html(dashboard.js) 뒤에 두어 온전한 페이지의 실행 순서(dashboard.js → 이 셋)를 지킨다.
+     foms-packing.js 는 출고 탭 shipment-entry.js CHAIN 과 같은 핀 — 캐시 한 벌, 두 번째 실행은 싱글턴이 막는다. #}
+  <script data-foms-run-once src="{{ url_for('static', filename='js/construction/foms-complete-gate.js') }}?v=20261114a" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/foms/tablet-construction-workmode.js') }}?v=20261112h" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20261019a" defer></script>
 </div>
