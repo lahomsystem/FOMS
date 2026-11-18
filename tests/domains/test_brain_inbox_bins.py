@@ -374,3 +374,16 @@ def test_label_only_change_also_opens_the_current_text_and_approves_an_edited_te
     db_session.commit()
     row = current_object(db_session, "lahom/tpl")
     assert row.text == "안녕하세요, 반갑습니다" and row.payload["pref_label"] == "첫인사 상용구"
+
+
+@pytest.mark.parametrize("kind", ["requires", "excludes"])
+def test_constraint_links_stay_one_card_at_a_time_even_from_the_import_batch(kind):
+    """D203 — 옮기기 묶음의 꼭 같이 · 같이 못 함은 끝이 계산기 제품이어도 ② 한 장씩(⑥ 한꺼번에에 섞이지 않는다). 시작 유형이
+    모두 등급 A 가 아니라 등급 A 한꺼번에 길로도 못 들어간다."""
+    from foms.services.brain.constants import ALLOWED_LINKS, GRADE_A, TYPE_GRADES
+
+    ends = {"proposed_by": "import", "link_from": "lahom/rule-a", "link_to": "product_line/lahom-1"}
+    assert card_bin("link_add", "build_rule", None, kind, **ends) == "content"
+    assert bulk_ok_any_grade("link_add", "build_rule", None, kind, **ends) is False
+    assert card_bin("link_add", "build_rule", None, "applies_to", **ends) == "rules"  # 대조군 — 규칙 → 제품은 ⑥
+    assert all(TYPE_GRADES[t] != GRADE_A for t in ALLOWED_LINKS[kind][0])

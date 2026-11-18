@@ -37,6 +37,8 @@ from foms.services.brain.around import AroundQuery, search_around
 from foms.services.brain.browse import CHECKS, SORTS, known_count, type_map
 from foms.services.brain.card import item_card
 from foms.services.brain.card_pending import pending_change
+from foms.services.brain.change_request import view as change_view
+from foms.services.brain.change_request_store import ChangeRequestError, can_use as change_can_use
 from foms.services.brain.chat_access import page_open_without_settings, page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.constants import (
@@ -51,7 +53,7 @@ from foms.services.brain.recheck import recheck_counts
 from foms.services.brain.scope import ROLE_MANAGER, viewer_of
 from foms.services.brain.schemas import payload_props
 from foms.services import graft_flags
-from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive
 from foms.services.erp_actions.access import actions_viewer
 from foms.services.erp_actions.views import decidable_count
 from foms.web.auth import login_required
@@ -60,11 +62,21 @@ brain_web_bp = Blueprint("brain_web", __name__)
 
 TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "onto", "ask")
 #: 새 화면(접목판 ``brain_ui`` 스위치 — 설계서 2026-11-14-foms-graft 5.2)의 탭 — 옛 탭 + AI 직원. 옛 ``TABS`` 는 그대로 둔다.
-DS_TABS: tuple[str, ...] = (*TABS, "agents")
+DS_TABS: tuple[str, ...] = (*TABS, "agents", "requests")
 #: 새 화면 탭 → 화면(위 줄 · 아래 탭의 자리, 템플릿 ``brain/ds/<화면>.html``) — 설계서 5.2 표.
 DS_SECTIONS: dict[str, str] = {
     "inbox": "inbox", "recheck": "inbox", "releases": "inbox", "search": "search", "table": "search",
-    "map": "onto", "onto": "onto", "ask": "ask", "agents": "agents",
+    "map": "onto", "onto": "onto", "ask": "ask", "agents": "agents", "requests": "inbox",
+}
+#: 문장으로 고치기(설계서 2026-11-18-brain-sentence-change 4절) 꼬리표 색 — (tone, 옅은 바탕). 무채색 없음 · 갈래마다 다르게.
+REQUEST_STATUS_TONES: dict[str, tuple[str, bool]] = {
+    "ready": ("primary", False), "analyzing": ("primary", True), "applied": ("success", False), "reverted": ("success", True),
+    "partial": ("warning", False), "asked": ("warning", True), "failed": ("danger", False), "discarded": ("danger", True),
+}
+REQUEST_LINE_TONES: dict[str, tuple[str, bool]] = {
+    "preview": ("primary", True), "applied": ("success", False), "reverted": ("success", True), "pending": ("warning", False),
+    "skipped": ("warning", True), "withdrawn": ("warning", True), "blocked": ("danger", True), "rejected": ("danger", True),
+    "failed": ("danger", False), "revert_blocked": ("danger", False),
 }
 #: 위 줄 탭(키 · 글 · 아이콘)과 폰 아래 탭 셋('나'는 틀이 따로 그린다).
 _DS_NAV_TABS: tuple[tuple[str, str, str], ...] = (
@@ -194,6 +206,11 @@ def _ds_on() -> bool:
     return graft_flags.enabled("brain_ui", getattr(g, "current_user", None))
 
 
+def _change_on() -> bool:
+    """문장으로 고치기를 쓸 수 있나(스위치 · 관리자 또는 층 승인자 — :func:`change_can_use`, DB 를 읽지 않는다)."""
+    return change_can_use(getattr(g, "current_user", None)) is not None
+
+
 def _agents_open(viewer: Any) -> bool:
     """AI 직원 탭을 여나 — 화면을 여는 사람 가운데 ADMIN 과 MANAGER(설계서 5.2)."""
     return viewer is not None and (viewer.is_admin or viewer.role == ROLE_MANAGER)
@@ -238,11 +255,13 @@ def _render_ds_index(viewer: Any, tab: str, ctx: dict[str, Any]) -> str:
         그린 HTML. AI 직원 탭을 못 여는 사람은 404.
     """
     tab = tab if tab in DS_TABS else "search"
-    if tab == "agents" and not _agents_open(viewer):
+    change_on = _change_on()
+    if (tab == "agents" and not _agents_open(viewer)) or (tab == "requests" and not change_on):
         abort(404)
     section = DS_SECTIONS[tab]
     nav = _ds_nav(viewer, section, chat_tab=ctx["chat_tab"], inbox_count=ctx["counts"]["inbox"])
-    return render_template(f"brain/ds/{section}.html", **{**ctx, "tab": tab}, page=tab, ds_nav=nav)
+    return render_template(f"brain/ds/{section}.html", **{**ctx, "tab": tab}, page=tab, ds_nav=nav, change_on=change_on,
+                           request_tones=REQUEST_STATUS_TONES)
 
 
 def _actions_only_inbox(user: Any) -> str | None:
@@ -354,5 +373,30 @@ def ask_page():
         nav = _ds_nav(screen_viewer(g.current_user), "ask", chat_tab=True,
                       inbox_count=_lazy_inbox_count(g.current_user))
         return render_template("brain/ds/ask.html", display=display_table(), is_admin=viewer_of(g.current_user).is_admin,
-                               page="ask", ds_nav=nav)
+                               page="ask", ds_nav=nav, change_on=_change_on())
     return render_template("brain/ask.html", display=display_table(), is_admin=viewer_of(g.current_user).is_admin)
+
+
+@brain_web_bp.route("/brain/requests/<int:request_id>")
+@login_required
+def change_request_page(request_id: int):
+    """문장으로 고치기 묶음 화면(설계서 2026-11-18-brain-sentence-change 4절 · 11절) — 미리 보기 · 반영 뒤 보고가 같은 화면.
+
+    쓸 수 없는 사람(스위치 끔 · 관리자 · 층 승인자 밖) · 없는 묶음 · 볼 수 없는 묶음(넣은 사람 · 관리자 밖)은 모두 404.
+    값은 API 와 같은 :func:`change_view` 를 서버가 그리고, 빼기 · 이대로 고치기 · 버리기 · 되돌리기 · 답하기만
+    ``ds-request.js`` 가 JSON API(:mod:`foms.api.brain_change_requests`)로 보낸 뒤 이 화면을 다시 읽는다.
+    """
+    user = getattr(g, "current_user", None)
+    if not _ds_on() or change_can_use(user) is None:
+        abort(404)
+    db = get_db()
+    try:
+        data = change_view(db, user, request_id)
+    except ChangeRequestError:
+        abort(404)
+    finally:
+        db.rollback()  # 읽기만
+    nav = _ds_nav(screen_viewer(user), "inbox", chat_tab=_chat_open(), inbox_count=_lazy_inbox_count(user))
+    return render_template("brain/ds/request.html", page="request", ds_nav=nav, req=data,
+                           when=format_datetime_kst(data["created_at"], "%Y-%m-%d %H:%M"), value_labels={"status": STATUS_LABELS},
+                           status_tones=REQUEST_STATUS_TONES, line_tones=REQUEST_LINE_TONES)

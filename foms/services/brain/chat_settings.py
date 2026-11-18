@@ -10,6 +10,8 @@
 - 의미 찾기(D114 — Voyage AI) ``brain_embeddings_enabled`` 처음 **끔** · 의미 찾기 하루 돈 상한 처음 비움(따로 돈 줄) · 한 번
   시간 상한 8초 · 상담 사례 벡터 ``cs_case_embeddings_enabled`` 처음 **끔**(백필만). 켜기 전 개인정보 처리방침 국외 이전 항목에
   Voyage AI(상담 글 포함 — 사장님 확인, 설계서 10.4).
+- 문장으로 고치기(설계서 2026-11-18 6절) 하루 돈 상한 :data:`CHANGE_CAP_FIELD` 처음 **2달러**(설계서가 정한 처음 값) · 비우면 꺼짐.
+  물어보기와 따로 돈 줄(``brain_change_spend`` — :mod:`.change_request_model`)을 쓴다.
 
 칸 꼴 · 값 검사는 상담 관리 패널 칸(:class:`foms.services.cs_agent.settings_field.Field` ·
 :func:`foms.services.cs_agent.settings.check_value`)을 그대로 쓴다. 저장은 ADMIN 만 — 버전 대조 · 감사 한 줄(값 대신 바뀐 칸 이름).
@@ -45,6 +47,8 @@ EMBED_FIELD = "brain_embeddings_enabled"
 #: 상담 사례(가린 손님 질문 + 가린 직원 답) 벡터 — 백필 스크립트로 채운다. 상담 초안의 비슷한 사례 고르기는 상담 관리 칸
 #: '뜻으로도 비슷한 상담 찾기'(:mod:`foms.services.cs_agent.case_meaning`)가 켜졌을 때만 이 벡터를 쓴다.
 CASE_FIELD = "cs_case_embeddings_enabled"
+#: 문장으로 고치기 하루 돈 상한 칸(설계서 2026-11-18 6절 — 처음 2달러 · 비우면 분석하지 않음).
+CHANGE_CAP_FIELD = "change_daily_cap_usd"
 
 FIELDS: tuple[Field, ...] = (
     Field("enabled", "물어보기 스위치", KIND_BOOL, False, GROUP_OPEN,
@@ -59,6 +63,8 @@ FIELDS: tuple[Field, ...] = (
           help="이 시간을 넘으면 답 없이 끝내요(다시 묻지 않아요)"),
     Field("daily_cap_usd", "하루 돈 상한", KIND_MONEY, None, GROUP_LIMIT, high=int(MONEY_MAX), unit="달러",
           help="비우면 AI 를 부르지 않아요. 상담 초안 하루 상한과 따로 계산해요(빈 지식 묶기 · 부딪침 판정도 여기에 들어가요)"),
+    Field(CHANGE_CAP_FIELD, "문장으로 고치기 하루 돈 상한", KIND_MONEY, "2.00", GROUP_LIMIT, high=int(MONEY_MAX), unit="달러",
+          help="비우면 '바뀐 내용 넣기' 분석을 하지 않아요. 물어보기 하루 상한과 따로 계산해요"),
     Field("per_person_daily", "사람마다 하루 질문 수", KIND_INT, 20, GROUP_LIMIT, low=1, high=200, unit="번"),
     Field("gap_enabled", "빈 지식 묶기(주 1회)", KIND_BOOL, False, GROUP_HELP,
           help="'모름' · '틀림' 질문을 뜻이 비슷한 것끼리 묶어, 비어 있는 지식 목록을 한 주에 한 번 밤에 만들어요(보조 모델)"),

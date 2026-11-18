@@ -9,13 +9,20 @@
 상담 질문이 ``part_of`` 를, 계산기로 답하는 질문이 ``uses`` 를 요구해 상담 층에서는 그 질문의 뜻으로 채울 길이 없었다. 지금 틀의
 말로 고쳤다 — '기본 포함'은 옵션의 값 방식 칸(``price_kind``), '구성'은 ``applies_to``. 시험지를 몰래 쉽게 만들지 않게 고치기 전
 요구를 :data:`LINKS_BEFORE_D204` 에 그대로 남긴다(바뀐 것은 이 두 연결뿐 — 시험이 강제).
+
+**연결 요구 고침 둘째(2026-11-18 · 사장님 D250 — 같은 설계서 3절 'F 를 하며 더 찾은 것')**: ``requires`` · ``excludes`` 는 제작 조건 ·
+제품 라인 · 옵션에서만 시작해 제품 라인 · 옵션 · 규격에서 끝난다. 그런데 재료가 정책 · 공정 단계 · 상황 · ERP 물건인 질문 여덟
+(P03 · P05 · S01 · S02 · S08 · S09 · A01 · A02)이 ``requires`` 를, 재료가 정책 · 가격 규칙 · 사실 · 사장님 결정인 E09 가 ``excludes`` 를
+요구했다 — 그 질문의 재료로는 채울 길이 없고, 제품 쪽 연결을 채우면 뜻과 무관하게 '있음'으로 세어진다. 그 질문의 재료에 실제로
+걸 수 있는 요구로 고쳤다 — 준비물 · 조건 · 때는 이미 요구하던 ``at_step``(정책 · 상황 → 공정 단계)이 답하므로 ``requires`` 를 빼고,
+할인 · 가격 바뀜은 ``decided_by``(정책 · 가격 규칙 → 사장님 결정)로 바꿨다. 고치기 전 요구는 :data:`LINKS_BEFORE_D250`(시험이 강제).
 """
 
 from __future__ import annotations
 
 from typing import NamedTuple
 
-__all__ = ["CQ", "CQS", "D204_DROPPED", "ERP_NEED_TYPES", "ERP_NEEDS", "LINKS_BEFORE_D204"]
+__all__ = ["CQ", "CQS", "D204_DROPPED", "D250_DROPPED", "ERP_NEED_TYPES", "ERP_NEEDS", "LINKS_BEFORE_D204", "LINKS_BEFORE_D250"]
 
 #: D204 가 질문 요구에서 뺀 연결 — 상담 질문의 뜻으로는 채울 길이 없는 둘.
 D204_DROPPED: frozenset[str] = frozenset({"part_of", "uses"})
@@ -27,6 +34,19 @@ LINKS_BEFORE_D204: dict[str, tuple[str, ...]] = {
     "O05": ("applies_to", "part_of", "value_from"), "O08": ("applies_to", "part_of", "value_from"),
     "P02": ("value_from", "applies_to", "uses"), "P03": ("at_step", "requires", "part_of"),
     "P05": ("at_step", "requires", "part_of"), "A04": ("part_of",),
+}
+
+#: D250 이 질문 요구에서 뺀 연결(질문 번호 → 뺀 연결) — 그 질문의 재료로는 채울 길이 없는 것.
+D250_DROPPED: dict[str, frozenset[str]] = {
+    **{cq_id: frozenset({"requires"}) for cq_id in ("P03", "P05", "S01", "S02", "S08", "S09", "A01", "A02")},
+    "E09": frozenset({"excludes"}),
+}
+#: D250 고치기 전 연결 요구(질문 번호 → 연결 종류 — D204 고침 뒤 값). 지금 요구는 아래 :data:`CQS`.
+LINKS_BEFORE_D250: dict[str, tuple[str, ...]] = {
+    "E09": ("applies_to", "excludes"), "P03": ("at_step", "requires"), "P05": ("at_step", "requires"),
+    "S01": ("at_step", "requires"), "S02": ("at_step", "requires"), "S08": ("at_step", "requires"),
+    "S09": ("requires", "at_step", "applies_to"), "A01": ("at_step", "requires", "applies_to"),
+    "A02": ("applies_to", "requires", "at_step"),
 }
 
 #: ERP 운영 물건(설계서 5.5) — 회사 지식 표에는 없다. 접목판 ERP 읽기(``erp_read`` 스위치 — 설계서 2026-11-14-foms-graft 3.8)가
@@ -65,7 +85,7 @@ CQS: tuple[CQ, ...] = (
     CQ("E08", "견적·제품", "가격은 어떤 단위(자·통·30cm·1cm)로 산정되고 <치수>면 몇 통·몇 도어인가요?",
        "rule", ("price_rule", "term", "build_rule", "product_line"), ("applies_to", "value_from")),
     CQ("E09", "견적·제품", "할인·이벤트·공동구매·리뷰 적립이 있나요, 가격이 바뀌었나요?",
-       "rule", ("policy", "price_rule", "fact", "owner_decision"), ("applies_to", "excludes")),
+       "rule", ("policy", "price_rule", "fact", "owner_decision"), ("applies_to", "decided_by")),
     CQ("E10", "견적·제품", "시공 사례·샘플·쇼룸을 볼 수 있나요?",
        "rule", ("fact", "product_line", "process_step", "option"), ("applies_to", "at_step")),
     CQ("E11", "견적·제품", "<다른 품목·다른 공정>도 만들거나 해 주나요?",
@@ -107,11 +127,11 @@ CQS: tuple[CQ, ...] = (
     CQ("P02", "주문·결제", "스토어에서 <치수>면 어떤 단위 상품을 몇 개 주문하나요?",
        "calculator", ("price_rule", "process_step", "option", "build_rule"), ("value_from", "applies_to")),
     CQ("P03", "주문·결제", "예약금을 넣고 정보를 보냈는데 접수됐나요?",
-       "order_data", ("erp:order", "erp:schedule", "process_step", "policy"), ("at_step", "requires")),
+       "order_data", ("erp:order", "erp:schedule", "process_step", "policy"), ("at_step",)),
     CQ("P04", "주문·결제", "결제 수단·계좌·카드·현금영수증은 어떻게 되나요?",
        "rule", ("policy", "price_rule", "process_step", "term"), ("applies_to", "at_step")),
     CQ("P05", "주문·결제", "예약금·잔금은 언제 내고 예약금은 잔금에서 빠지나요?",
-       "rule", ("policy", "process_step", "term"), ("at_step", "requires")),
+       "rule", ("policy", "process_step", "term"), ("at_step",)),
     CQ("P06", "주문·결제", "예약 뒤 실측 때 구성·옵션을 바꾸거나 정해도 되나요?",
        "rule", ("policy", "process_step", "option"), ("at_step", "applies_to")),
     CQ("P07", "주문·결제", "실측 뒤 금액이 바뀌면 차액은 어떻게 하나요?",
@@ -121,9 +141,9 @@ CQS: tuple[CQ, ...] = (
     CQ("P09", "주문·결제", "제 주문 정보·결제 상태를 확인하거나 바꿀 수 있나요?",
        "order_data", ("erp:order",), ("applies_to",)),
     CQ("S01", "일정·실측·시공", "<날짜>에 실측·시공이 되나요, 가장 빠른 날은요? 이 날로 잡아 주세요",
-       "order_data", ("erp:schedule", "process_step", "policy", "erp:order"), ("at_step", "requires")),
+       "order_data", ("erp:schedule", "process_step", "policy", "erp:order"), ("at_step",)),
     CQ("S02", "일정·실측·시공", "잡힌 실측·시공 일정을 바꾸거나 확인할 수 있나요?",
-       "order_data", ("erp:schedule", "policy", "erp:order", "process_step"), ("at_step", "requires")),
+       "order_data", ("erp:schedule", "policy", "erp:order", "process_step"), ("at_step",)),
     CQ("S03", "일정·실측·시공", "제 일정·담당자는 어떻게 되고 제 요청이 전달되나요?",
        "order_data", ("erp:schedule", "erp:order", "fact"), ("at_step",)),
     CQ("S04", "일정·실측·시공", "실측 뒤 도면·견적은 언제 받나요, 시안을 미리 볼 수 있나요?",
@@ -135,9 +155,9 @@ CQS: tuple[CQ, ...] = (
     CQ("S07", "일정·실측·시공", "다른 공사(도배·마루·입주청소)와 어떤 순서로 하나요?",
        "rule", ("process_step", "situation", "build_rule", "policy"), ("at_step", "requires")),
     CQ("S08", "일정·실측·시공", "시공 당일 무엇을 준비하나요?",
-       "rule", ("policy", "process_step", "situation"), ("at_step", "requires")),
+       "rule", ("policy", "process_step", "situation"), ("at_step",)),
     CQ("S09", "일정·실측·시공", "실측 방문이 꼭 필요하고 비용이 있나요, 자가 실측이 되나요?",
-       "rule", ("policy", "process_step", "price_rule", "situation"), ("requires", "at_step", "applies_to")),
+       "rule", ("policy", "process_step", "price_rule", "situation"), ("at_step", "applies_to")),
     CQ("S10", "일정·실측·시공", "기존 가구 철거·폐기도 해 주나요, 비용은요?",
        "rule", ("price_rule", "policy", "build_rule", "situation"), ("applies_to", "requires", "excludes")),
     CQ("S11", "일정·실측·시공", "이사할 때 옮겨 다시 설치할 수 있나요?",
@@ -155,9 +175,9 @@ CQS: tuple[CQ, ...] = (
     CQ("D03", "배송", "설치 없이 택배로 받을 수 있나요?",
        "rule", ("policy", "price_rule"), ("applies_to",)),
     CQ("A01", "AS·하자", "AS를 신청했는데 언제 오나요, 약속한 처리는 됐나요?",
-       "order_data", ("erp:order", "erp:schedule", "process_step", "policy"), ("at_step", "requires", "applies_to")),
+       "order_data", ("erp:order", "erp:schedule", "process_step", "policy"), ("at_step", "applies_to")),
     CQ("A02", "AS·하자", "설치 뒤 <부위>가 이상한데 고쳐 주나요?",
-       "photo", ("policy", "erp:order", "situation", "process_step"), ("applies_to", "requires", "at_step")),
+       "photo", ("policy", "erp:order", "situation", "process_step"), ("applies_to", "at_step")),
     CQ("A03", "AS·하자", "AS 보증 기간·범위·출장비는 어떻게 되나요?",
        "rule", ("policy", "spec"), ("applies_to",)),
     CQ("A04", "AS·하자", "부자재를 따로 살 수 있나요?",

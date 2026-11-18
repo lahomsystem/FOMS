@@ -5,10 +5,13 @@
     답 판정(모름 · 근거 칩 · 확신 · 피드백 본문 · 설정 바뀐 칸 · 빈 지식 줄)은 옛 화면과 한 벌인 brain-ask-view.js.
     ERP 주문 읽기(접목판 erp_read 스위치)가 켜진 사람은 '이 답이 읽은 것' 옆 창이 늘 그 자리에 있다(점검 w2-16). 꺼진 사람은 안내
     글 · 보기 글이 지금 그대로이고 그 칸이 없다. ADMIN 만 설정 · 빈 지식 · 틀림 신고(관리 칸 — 오른쪽 창 안, 점검 w2-20).
-    지난 질문 다시 보기 · 모름 답의 [○○팀에 묻기]는 ds-ask-past.js(GET …/questions/<번호> · POST …/ask-team). 인라인 스크립트 ·
-    스타일 없음. -#}
+    지난 질문 다시 보기 · 모름 답의 [○○팀에 묻기]는 ds-ask-past.js(GET …/questions/<번호> · POST …/ask-team).
+    [바뀐 내용으로 넣기](설계서 2026-11-18-brain-sentence-change D249) — 문장으로 고치기를 쓸 수 있는 사람(change_on)에게만. 묻기와 섞이지
+    않게 따로 눌러야만 간다(form 의 보내기 단추가 아니다 — ds-request-start.js 가 입력한 글을 POST /api/brain/change-requests 로 보내고
+    묶음 화면으로 간다). 글이 비면 눌리지 않는다. 인라인 스크립트 · 스타일 없음. -#}
 {% import "brain/ds/_macros.html" as ds %}
 {% set erp_on = graft_enabled('erp_read') %}
+{% set change_here = change_on is defined and change_on %}
 {% block title %}물어보기{% endblock %}
 {% block page_title %}물어보기{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-ask.css') }}">{% endblock %}
@@ -53,7 +56,12 @@
               placeholder="{{ '예: #123 시공 언제예요? · 슬라이딩 문은 깊이가 얼마나 필요해요?' if erp_on else '예: 슬라이딩 문은 깊이가 얼마나 필요해요?' }}"></textarea>
     <div class="f-row">
       <span class="f-small f-muted f-row-nw">{{ ds.icon('eye-off') }}보내기 전에 상담과 같은 가림을 거쳐요</span>
-      <button class="f-btn f-btn-primary f-push" type="submit" data-ds-ask-submit>{{ ds.icon('send-message') }}물어보기</button>
+      {%- if change_here %}
+      <button class="f-btn f-push" type="button" disabled data-ds-ask-change
+              data-start-url="{{ url_for('brain_change_api.brain_change_start') }}"
+              data-request-base="{{ url_for('brain_web.index') }}/requests/">{{ ds.icon('edit') }}바뀐 내용으로 넣기</button>
+      {%- endif %}
+      <button class="f-btn f-btn-primary{{ '' if change_here else ' f-push' }}" type="submit" data-ds-ask-submit>{{ ds.icon('send-message') }}물어보기</button>
     </div>
     <p class="fb-status" data-ds-ask-status role="status" aria-live="polite"></p>
   </form>
@@ -68,4 +76,5 @@
 <script src="{{ asset_url('js/brain/ds/ds-ask-past.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-ask.js') }}" defer></script>
 {% if is_admin %}<script src="{{ asset_url('js/brain/ds/ds-ask-admin.js') }}" defer></script>{% endif %}
+{% if change_here %}<script src="{{ asset_url('js/brain/ds/ds-request-start.js') }}" defer></script>{% endif %}
 {% endblock %}

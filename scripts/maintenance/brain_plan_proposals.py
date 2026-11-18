@@ -6,6 +6,8 @@
 - 쓰기는 :mod:`foms.services.brain.plan_proposals` 한 길이다 — 옮기기 묶음 제안만 만들고 **반영하지 않는다**(카드마다 승인 화면에서
   사장님 · 팀장이 누른다). 멱등 — 다시 돌려도 같은 제안은 다시 넣지 않고, 승인 대기 항목에 걸린 링크 · 은퇴는 승인 뒤 다시
   돌리면 들어간다(``deferred``). 커밋은 여기서.
+- 계획 꼴(``items[]`` · ``new_items[]`` · ``conflicts[]`` · ``labels[]`` · ``links[]`` · ``rules[]`` · ``props[]``)은
+  :mod:`foms.services.brain.plan_proposals` 머리말 — 이 스크립트는 읽은 계획을 고치지 않고 그대로 넘긴다.
 - 운영 막기는 기준 답 스크립트(``tools/ops/cs_agent_knowledge.py``)의 환경 판정을 그대로 쓴다 — local · staging 밖은
   ``--i-have-owner-approval`` 없이 넣지 않는다.
 

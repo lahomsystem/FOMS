@@ -1,11 +1,14 @@
-"""자료 계획 제안(:mod:`.plan_proposals`)의 바탕 — 한 번 돌리기 상태 · 제안 하나 넣고 세기 · 링크(정본 자리 · 사본 자리 ·
-공정 단계 · 결정 · 엇갈림) · 나눈 사실 은퇴.
+"""자료 계획 제안(:mod:`.plan_proposals`)의 바탕 — 한 번 돌리기 상태 · 제안 하나 넣고 세기 · 만들기 제안 · 링크(정본 자리 ·
+사본 자리 · 공정 단계 · 결정 · 엇갈림 · 꼭 같이 · 같이 못 함) · 나눈 사실 은퇴.
 
-- 링크는 항목 제안을 다 넣은 뒤 넣는다. **허용 짝 → 양 끝 → 근거 종류 반영 → 이미 있음 · 열린 제안** 순으로 보고, 끝(또는 시작)이
-  아직 없는데 그 키의 만들기 제안이 열려 있으면 다음 차례(``awaiting_create``)로 센다 — 승인 뒤 다시 돌리면 들어간다.
+- 링크는 항목 제안을 다 넣은 뒤 넣는다. **허용 짝 → 양 끝 → 근거 종류 반영 → 이미 있음 · 열린 제안 → 맞섬** 순으로 보고,
+  끝(또는 시작)이 아직 없는데 그 키의 만들기 제안이 열려 있으면 다음 차례(``awaiting_create``)로 센다 — 승인 뒤 다시 돌리면 들어간다.
 - 계산기 옵션 힌트(``calc:option/<묶음 이름>:<옵션 이름>``)는 지금 계산기 정본(:func:`.external.current_catalog`)에서 이름이
   **똑같은** 것 하나로 id 를 찾는다(띄어쓰기도 같아야 — 이름이 한 칸 다른 묶음이 따로 있다). 못 찾거나 둘 이상이면 그 링크만
   넘기고 항목 키를 남긴다.
+- **꼭 같이 · 같이 못 함**(``requires`` · ``excludes`` — 빈 재료 채우기 B · D203): 같은 두 항목 사이(어느 방향이든)에 맞서는 종류가
+  이미 있거나 열린 제안이면 넣지 않는다(``opposed`` · ``opposed_open`` — 반영 때 :mod:`.link_rules` 가 막을 것을 미리 센다).
+  ``excludes`` 는 방향이 없는 뜻이라 거꾸로 된 같은 링크 · 열린 제안도 '이미 있음'으로 본다.
 - 세는 까닭 이름은 영어 짧은 코드(출력 칸 이름), 글 · 이름 · 금액은 세지도 싣지도 않는다.
 """
 
@@ -21,22 +24,28 @@ from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    CHANGE_OPEN, COPY_EXTERNAL_TYPES, MAX_REF, OP_CREATE, OP_LINK_ADD, OP_RETIRE, STATUS_RETIRED, cardinality,
-    external_type, link_allowed,
+    CHANGE_OPEN, COPY_EXTERNAL_TYPES, KEY_RE, MAX_REF, OP_CREATE, OP_LINK_ADD, OP_RETIRE, OPPOSED_KINDS, STATUS_ACTIVE,
+    STATUS_RETIRED, cardinality, external_type, link_allowed,
 )
 from foms.services.brain.errors import (
     BrainConflictError, BrainExternalRefError, BrainLinkRuleError, BrainRejectedError, BrainShapeError, BrainTargetError,
 )
 from foms.services.brain.external import current_catalog
-from foms.services.brain.proposals import IMPORT_PROPOSER, propose_link, propose_retire
+from foms.services.brain.link_rules import opposed_exists
+from foms.services.brain.proposals import IMPORT_PROPOSER, propose_create, propose_link, propose_retire
 from foms.services.brain.schemas import ERP_STAGES, UNSCHEMA_TYPES, prop_of
 from foms.services.brain.store import current_link, current_object, is_current, kst_day
 
 EVIDENCE_KIND = "document"
 LABEL_KEYS: tuple[str, ...] = ("pref_label", "aliases", "hidden_labels")
 HOLD_KEYS: tuple[str, ...] = ("unsure", "waiting")
-#: 사실 나눔에서 새 항목을 만드는 유형 → 까닭 글 이름(공정 단계는 링크로만 · 브랜드는 칸 틀이 없어 넘긴다).
-RETYPE_NAMES: dict[str, str] = {"spec": "규격", "term": "용어", "policy": "정책"}
+#: 사실 나눔에서 새 항목을 만드는 유형 → 까닭 글 이름(공정 단계는 링크로만 · 브랜드는 칸 틀이 없어 넘긴다). 제작 조건은
+#: 빈 재료 채우기 C(D201) — 걸 제품 라인 · 옵션이 있어야 나눈다(:mod:`.plan_rules`).
+RETYPE_NAMES: dict[str, str] = {"spec": "규격", "term": "용어", "policy": "정책", "build_rule": "제작 조건"}
+#: 지식 문서 id 꼴(:mod:`.doc_import` 키 끝).
+DOC_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
+#: 끝 키 머리 → 유형(계산기에서 만든 제품 라인 · 옵션 키 — :mod:`.catalog_plan`). 지금 항목 · 열린 만들기가 없을 때만 쓴다.
+TO_TYPES: dict[str, str] = {"product_line/": "product_line", "option/": "option"}
 _DECISION = re.compile(r"D\d{1,5}")
 _CALC_NAME = re.compile(r"calc:option/<([^<>]+)>:<([^<>]+)>")
 _SOURCE = re.compile(r"[^a-z0-9_.-]+")
@@ -71,6 +80,7 @@ class Run:
     unresolved: set = field(default_factory=set)
     links: list = field(default_factory=list)
     retires: list = field(default_factory=list)
+    moves: list = field(default_factory=list)  # 정책 글에서 옮긴 문장 빼기(:mod:`.plan_rules`)
     steps: dict = field(default_factory=dict)
     _catalog: Any = None
     _decisions: Optional[dict[str, str]] = None
@@ -110,7 +120,7 @@ def plan_problems(plan: Any) -> list[str]:
     """계획 꼴 문제(자리만 — 글은 싣지 않는다)."""
     if not isinstance(plan, Mapping):
         return ["계획: 객체여야 한다"]
-    problems = [f"{name}: 목록이어야 한다" for name in ("items", "conflicts", "new_items", "labels", "links")
+    problems = [f"{name}: 목록이어야 한다" for name in ("items", "conflicts", "new_items", "labels", "links", "props", "rules")
                 if not isinstance(plan.get(name, []), list)]
     if not problems:
         problems += [f"items[{i}]: id 가 있는 객체여야 한다" for i, item in enumerate(plan.get("items") or [])
@@ -179,6 +189,7 @@ LINK_REASONS: dict[str, str] = {
     "copy_in": "다른 곳에도 같은 값이 적혀 있다고 표시해요", "value_from": "금액을 가져오는 곳을 이어요",
     "at_step": "어느 단계에서 쓰는 지식인지 이어요", "decided_by": "어느 사장님 결정에서 왔는지 이어요",
     "about": "어느 지식에 대한 것인지 이어요", "applies_to": "이 규칙이 걸리는 제품 · 옵션을 이어요",
+    "requires": "꼭 같이 있어야 하는 제품 · 옵션 · 규격을 이어요", "excludes": "같이 할 수 없는 제품 · 옵션 · 규격을 이어요",
 }
 
 
@@ -219,6 +230,37 @@ def missing_end(run: Run, key: str) -> None:
         run.deferred["awaiting_create"] += 1
     else:
         run.skipped["end_missing"] += 1
+
+
+def end_type(run: Run, key: str) -> Optional[str]:
+    """링크 끝 키의 유형 — 지금 항목, 없으면 열린 만들기 제안, 둘 다 없으면 키 머리(:data:`TO_TYPES`)."""
+    current = current_object(run.session, key)
+    if current is not None:
+        return current.item_type
+    pending = open_changes(run.session, OP_CREATE, key)
+    if pending:
+        return pending[0].item_type
+    return next((kind for head, kind in TO_TYPES.items() if key.startswith(head)), None)
+
+
+def create_item(run: Run, *, key: str, brand: str, layer: str, item_type: str, values: dict[str, Any], ref_id: str,
+                why: str, extra: tuple[str, ...] = ()) -> bool:
+    """만들기 제안(이미 있거나 열린 만들기가 있으면 넘김). 상태 '반영' · 근거 종류 ``document`` 가 기본. 넣었으면 ``True``.
+
+    ``extra`` = 근거에 함께 싣는 자리 — 금액을 가져올 계산기 자리(② 문장 카드의 '지금 값' 한 줄) · 엇갈림이 다루는 항목
+    (``about:<키>`` — ③ 질문 카드가 두 글을 나란히 보인다). 링크는 반영 뒤 다음 차례라 그 전엔 알 길이 없다(설계서 7.9)."""
+    if not KEY_RE.fullmatch(key):
+        run.skipped["shape"] += 1
+    elif current_object(run.session, key) is not None:
+        run.skipped["same"] += 1
+    elif open_changes(run.session, OP_CREATE, key):
+        run.skipped["open_proposal"] += 1
+    else:
+        values = {"status": STATUS_ACTIVE, "evidence_kind": EVIDENCE_KIND, "evidence_ref": run.ref(ref_id), **values}
+        return file_one(run, OP_CREATE, lambda: propose_create(
+            run.session, key=key, brand=brand, layer=layer, item_type=item_type, values=values, reason=why,
+            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id), *extra], now=run.now, known=run.known))
+    return False
 
 
 # ── 링크 모으기 ──────────────────────────────────────────────────────────
@@ -285,8 +327,31 @@ def decided_links(run: Run, key: str, item_type: str, decided: Any, ref_id: str)
 
 
 # ── 링크 · 은퇴 넣기(항목 제안 뒤) ──────────────────────────────────────
+def _open_link(session: Any, kind: str, from_key: str, to_key: str) -> bool:
+    """그 종류 · 두 끝의 열린 링크 더하기 제안이 있나."""
+    return session.execute(select(BrainChange.id).where(
+        BrainChange.status == CHANGE_OPEN, BrainChange.op == OP_LINK_ADD, BrainChange.link_kind == kind,
+        BrainChange.link_from == from_key, BrainChange.link_to == to_key).limit(1)).first() is not None
+
+
+def constraint_clash(run: Run, link: Link) -> Optional[str]:
+    """꼭 같이 · 같이 못 함 링크의 맞섬 · 거꾸로 같음(모듈 설명) — 넘길 까닭, 없으면 ``None``."""
+    session, other = run.session, OPPOSED_KINDS.get(link.kind)
+    if other is None:
+        return None
+    if opposed_exists(session, link.kind, link.from_key, link.to_key, kst_day(run.now)):
+        return "opposed"
+    if _open_link(session, other, link.from_key, link.to_key) or _open_link(session, other, link.to_key, link.from_key):
+        return "opposed_open"
+    if link.kind == "excludes" and current_link(session, link.kind, link.to_key, link.from_key) is not None:
+        return "same"
+    if link.kind == "excludes" and _open_link(session, link.kind, link.to_key, link.from_key):
+        return "open_proposal"
+    return None
+
+
 def file_link(run: Run, link: Link) -> None:
-    """링크 더하기 제안 하나(허용 짝 → 양 끝 → 근거 종류 반영 → 이미 있음 · 열린 제안 순으로 본다)."""
+    """링크 더하기 제안 하나(허용 짝 → 양 끝 → 근거 종류 반영 → 이미 있음 · 열린 제안 → 맞섬 순으로 본다)."""
     session = run.session
     if link.to_type is None or not link_allowed(link.from_type, link.kind, link.to_type):
         run.skipped["not_allowed"] += 1
@@ -301,10 +366,12 @@ def file_link(run: Run, link: Link) -> None:
     if current_link(session, link.kind, link.from_key, link.to_key) is not None:
         run.skipped["same"] += 1
         return
-    if session.execute(select(BrainChange.id).where(
-            BrainChange.status == CHANGE_OPEN, BrainChange.op == OP_LINK_ADD, BrainChange.link_kind == link.kind,
-            BrainChange.link_from == link.from_key, BrainChange.link_to == link.to_key).limit(1)).first():
+    if _open_link(session, link.kind, link.from_key, link.to_key):
         run.skipped["open_proposal"] += 1
+        return
+    clash = constraint_clash(run, link)
+    if clash:
+        run.skipped[clash] += 1
         return
     file_one(run, f"link_add:{link.kind}", lambda: propose_link(
         session, op=OP_LINK_ADD, kind=link.kind, from_key=link.from_key, to_key=link.to_key,

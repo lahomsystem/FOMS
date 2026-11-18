@@ -1,5 +1,6 @@
-"""HAUD master brain 표 다섯 + 챗봇 표 둘(ORM) — DDL 정본은 마이그레이션 ``brain_00`` + ``brain_01``(제안 줄 액션 이름 · 기준
-판 바뀜 칸) + ``brain_02``(쓰인 횟수 · 틀림 신고)와 같다(``tests/domains/test_brain_store.py`` · ``test_brain_chat_store.py`` 가 견준다).
+"""HAUD master brain 표 다섯 + 챗봇 표 둘 + 고침 묶음 표 하나(ORM) — DDL 정본은 마이그레이션 ``brain_00`` + ``brain_01``(제안 줄
+액션 이름 · 기준 판 바뀜 칸) + ``brain_02``(쓰인 횟수 · 틀림 신고) + ``brain_03``(문장으로 고치기 묶음 · 제안 줄 묶음 번호)와 같다
+(``tests/domains/test_brain_store.py`` · ``test_brain_chat_store.py`` · ``test_brain_change_request_store.py`` 가 견준다).
 
 설계서 2026-11-02-haud-master-brain 4절 · 6절 · 7.5 끝 '저장 꼴' · 10.3.
 
@@ -15,7 +16,7 @@ from __future__ import annotations
 import datetime
 
 from sqlalchemy import (
-    JSON, Boolean, CheckConstraint, Column, Date, DateTime, DDL, Index, Integer, String, Text, event, func,
+    JSON, Boolean, CheckConstraint, Column, Date, DateTime, DDL, Index, Integer, Numeric, String, Text, event, func,
 )
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -151,6 +152,8 @@ class BrainChange(Base):
     action = Column(String(32), nullable=True)
     decided_action = Column(String(32), nullable=True)
     base_changed_at = Column(DateTime, nullable=True)
+    # brain_03 — 이 제안을 만든 고침 묶음(문장으로 고치기 — :class:`BrainChangeRequest`). 그 밖 제안은 빈 값.
+    request_id = Column(Integer, nullable=True)
 
     __table_args__ = (
         CheckConstraint("op IN ('create','update','retire','delete','link_add','link_remove')",
@@ -158,6 +161,41 @@ class BrainChange(Base):
         CheckConstraint("status IN ('open','applied','rejected','expired')", name='ck_brain_changes_status'),
         Index('ix_brain_changes_status_created', 'status', 'created_at'),
         Index('ix_brain_changes_item_key', 'item_key', 'status'),
+        Index('ix_brain_changes_request_id', 'request_id'),
+    )
+
+
+#: 고침 묶음 상태(설계서 2026-11-18 문장으로 고치기 11절) — 마이그레이션 ``brain_03`` 과 같은 글자.
+REQUEST_STATUSES: tuple[str, ...] = ('analyzing', 'ready', 'asked', 'applied', 'partial', 'reverted', 'discarded',
+                                     'failed')
+
+
+class BrainChangeRequest(Base):
+    """문장으로 고치기 묶음 한 줄(설계서 2026-11-18 3절 · 11절) — **가린 문장만**(원문 없음) · 묶음 JSON · 상태 · 돈 · 시간.
+
+    묶음(``bundle``)은 AI 답(3절 꼴 — 가린 글)과 줄마다 검사 결과 · 반영 상태, 설정 고침의 전 → 후 값을 담는다. 이 묶음이 만든
+    제안 줄은 ``brain_changes.request_id`` 로 잇는다. 사람 번호 칸에는 FK 가 없다(계정을 지워도 기록이 남는다).
+    """
+
+    __tablename__ = 'brain_change_requests'
+
+    id = Column(Integer, primary_key=True)
+    created_by = Column(Integer, nullable=False)
+    layer_scope = Column(String(16), nullable=False)  # 'all' 또는 층 이름(넣은 사람이 고칠 수 있는 층)
+    masked_text = Column(String(1000), nullable=False)
+    bundle = Column(_JSON, nullable=True)
+    status = Column(String(16), nullable=False)
+    error_code = Column(String(48), nullable=True)
+    cost_usd = Column(Numeric(12, 6), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow, server_default=func.now())
+    decided_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("status IN (" + ",".join(f"'{s}'" for s in REQUEST_STATUSES) + ")",
+                        name='ck_brain_change_requests_status'),
+        Index('ix_brain_change_requests_creator_created', 'created_by', 'created_at'),
+        Index('ix_brain_change_requests_status_created', 'status', 'created_at'),
     )
 
 

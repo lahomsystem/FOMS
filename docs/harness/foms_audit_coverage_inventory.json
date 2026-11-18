@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 307,
+    "total": 312,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 267,
+    "AUDITED": 272,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
@@ -21,7 +21,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask_team",
-      "lineno": 223,
+      "lineno": 228,
       "methods": [
         "POST"
       ]
@@ -126,9 +126,54 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/brain_change_requests.py",
+      "endpoint": "brain_change_answer",
+      "lineno": 109,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_change_requests.py",
+      "endpoint": "brain_change_apply",
+      "lineno": 116,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_change_requests.py",
+      "endpoint": "brain_change_discard",
+      "lineno": 123,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_change_requests.py",
+      "endpoint": "brain_change_revert",
+      "lineno": 129,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_change_requests.py",
+      "endpoint": "brain_change_start",
+      "lineno": 89,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask",
-      "lineno": 116,
+      "lineno": 117,
       "methods": [
         "POST"
       ],
@@ -137,7 +182,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_ask_team",
-      "lineno": 223,
+      "lineno": 228,
       "methods": [
         "POST"
       ],
@@ -146,7 +191,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_feedback",
-      "lineno": 140,
+      "lineno": 141,
       "methods": [
         "POST"
       ],
@@ -155,7 +200,7 @@
     {
       "path": "foms/api/brain_chat.py",
       "endpoint": "brain_chat_settings_save",
-      "lineno": 164,
+      "lineno": 165,
       "methods": [
         "POST"
       ],
@@ -1281,7 +1326,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 812,
+      "lineno": 822,
       "methods": [
         "POST"
       ],
@@ -1290,7 +1335,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 726,
+      "lineno": 736,
       "methods": [
         "POST"
       ],
@@ -1299,7 +1344,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 642,
+      "lineno": 652,
       "methods": [
         "POST"
       ],
@@ -1308,7 +1353,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 763,
+      "lineno": 773,
       "methods": [
         "POST"
       ],
@@ -1317,7 +1362,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 843,
+      "lineno": 853,
       "methods": [
         "POST"
       ],
@@ -1326,7 +1371,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 683,
+      "lineno": 693,
       "methods": [
         "POST"
       ],
@@ -1335,7 +1380,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 963,
+      "lineno": 973,
       "methods": [
         "POST"
       ],
@@ -1344,7 +1389,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1264,
+      "lineno": 1274,
       "methods": [
         "POST"
       ],
@@ -2758,7 +2803,7 @@
     {
       "path": "foms/web/orders/dashboard.py",
       "endpoint": "erp_dashboard_calendar_colors_save",
-      "lineno": 842,
+      "lineno": 854,
       "methods": [
         "POST"
       ],

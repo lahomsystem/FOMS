@@ -83,13 +83,34 @@ def got_row(counts, links, cq_id):
 
 def test_d204_question_table_drops_only_the_two_unfillable_links_and_keeps_the_old_demands():
     """D204 — 상담 질문 뜻으로는 채울 길이 없는 ``part_of`` · ``uses`` 만 뺐고, 빈 자리는 ``applies_to`` 로만 채웠다. 옛 요구는 그대로 남는다."""
-    from foms.services.brain.ontology_cqs import D204_DROPPED, LINKS_BEFORE_D204
+    from foms.services.brain.ontology_cqs import D204_DROPPED, D250_DROPPED, LINKS_BEFORE_D204
 
     now = {cq.cq_id: set(cq.links) for cq in CQS}
     assert not any(D204_DROPPED & links for links in now.values())  # 지금 표에는 두 연결이 없다
     assert set(LINKS_BEFORE_D204) == {i for i, old in LINKS_BEFORE_D204.items() if D204_DROPPED & set(old)}
     for cq_id, old in LINKS_BEFORE_D204.items():
-        assert set(old) - D204_DROPPED <= now[cq_id]  # 남은 요구는 하나도 빼지 않았다
+        assert set(old) - D204_DROPPED - D250_DROPPED.get(cq_id, frozenset()) <= now[cq_id]  # 남은 요구는 그대로(D250 몫 빼고)
         assert now[cq_id] - set(old) <= {"applies_to"}  # 새로 든 것은 '구성 → 적용'뿐
     untouched = [cq for cq in CQS if cq.cq_id not in LINKS_BEFORE_D204]
     assert len(untouched) == 61 - len(LINKS_BEFORE_D204) and all(not (D204_DROPPED & set(cq.links)) for cq in untouched)
+
+
+def test_d250_question_table_drops_only_links_the_question_materials_cannot_carry():
+    """D250 — 재료가 정책 · 공정 단계 · 상황 · ERP 물건인 질문에서 ``requires`` 를, 할인 질문에서 ``excludes`` 를 뺐다(그 재료로는 걸 수
+    없는 연결). 빈 자리는 그 재료에 걸 수 있는 연결로만 채웠고(E09 ``decided_by``), 옛 요구는 그대로 남는다."""
+    from foms.services.brain.constants import ALLOWED_LINKS
+    from foms.services.brain.ontology_cqs import D250_DROPPED, LINKS_BEFORE_D250
+
+    by_id = {cq.cq_id: cq for cq in CQS}
+    assert set(LINKS_BEFORE_D250) == set(D250_DROPPED) and len(D250_DROPPED) == 9
+    for cq_id, old in LINKS_BEFORE_D250.items():
+        cq, dropped = by_id[cq_id], D250_DROPPED[cq_id]
+        assert dropped <= set(old) and not dropped & set(cq.links)  # 뺀 것은 옛 요구에 있었고 지금은 없다
+        assert set(old) - dropped <= set(cq.links)  # 나머지 요구는 그대로
+        assert set(cq.links) - set(old) <= {"decided_by"}  # 새로 든 것은 사장님 결정 잇기뿐
+        materials = {need for need in cq.needs if not need.startswith("erp:")}
+        for kind in dropped:  # 뺀 연결은 그 질문의 재료에서 시작할 수 없다
+            assert not materials & ALLOWED_LINKS[kind][0]
+        for kind in cq.links:  # 남은 · 새 연결은 그 질문의 재료에서 시작할 수 있다
+            assert materials & ALLOWED_LINKS[kind][0], (cq_id, kind)
+    assert [cq.cq_id for cq in CQS if "decided_by" in cq.links] == ["E09"]

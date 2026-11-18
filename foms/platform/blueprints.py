@@ -287,6 +287,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
 
     app.register_blueprint(brain_chat_api_bp)
 
+    # --- Lane: 문장으로 고치기(설계서 2026-11-18-brain-sentence-change 11절) — JSON(/api/brain/change-requests …). 스위치
+    # brain_change_request(사람별 · brain_ui 필요) · 관리자 또는 층 승인자만(그 밖 404) · 쓰기는 CSRF. 정본 쓰기는 지금 제안 →
+    # 반영 길 그대로. 같은 접두 아래 고유 경로(/change-requests)라 겹치지 않고 규약대로 **뒤에만** 덧붙인다.
+    from foms.api.brain_change_requests import brain_change_api_bp
+
+    app.register_blueprint(brain_change_api_bp)
+
     # --- Lane: 협력사 단가표(ADMIN 전용 JSON — /api/admin/partners/<id>/price-lists, 설계서 2026-11-03-partner-statement
     # §5.1). 화면은 admin_bp 의 /admin/partners/<id>/price-list. 쓰기는 CSRF · 정책 ADMIN_OPS. 경로가 고유해 shadowing 이
     # 없고 규약대로 **뒤에만** 덧붙인다.
