@@ -31,6 +31,9 @@
   padding: 0; border: 0; background: none; font: inherit; color: var(--link); cursor: pointer; text-align: left;
 }
 .fb-onto-crumb { color: var(--text-muted); }
+/* 능력 질문 표 질문 칸의 [문장으로 채우기](쓸 수 있는 사람만 — 설계서 2026-11-18-brain-sentence-change 5절 3판) — 질문 글 뒤에
+   이어지는 글 링크(본문 글자 크기 — 줄이지 않는다). 자리가 모자라면 통째로 다음 줄로 간다(링크 글은 꺾지 않는다). */
+.fb-onto .fb-onto-fill { white-space: nowrap; }
 .fb-onto-crumb:hover,
 .fb-onto-link:hover { text-decoration: underline; }
 .f-app button.fb-onto-chip { border: 0; font: inherit; font-size: var(--font-size-small); cursor: pointer; }
@@ -88,6 +91,7 @@
   .fb-onto-need { padding-left: 0; }
   .f-app .fb-onto-link,
   .fb-onto-map a.brain-chip { display: inline-flex; align-items: center; min-height: 44px; }  /* 누르는 것 44px(w3-08) */
+  .fb-onto .f-table td a.fb-onto-fill { display: flex; }  /* 폰: 질문 아래 한 줄 · 누르는 높이 44px(틀 .fb-shell .f-table td a 의 inline-flex 보다 앞서게) */
 }
 
 /* 유형 지도 조각의 제목(옛 화면은 Bootstrap .h6 — 새 화면은 Bootstrap 을 싣지 않는다) */

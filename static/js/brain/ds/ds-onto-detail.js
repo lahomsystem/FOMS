@@ -6,6 +6,7 @@
  * - ERP 물건(GET /api/brain/ontology/erp/<종류>): 머리 · 정본 자리 한 줄 · 이어진 것 · 작은 탭(개요 · 속성 ↔ 지금 칸 · 연결 · 할 일 ·
  *   질문). '지금 칸'은 API 값 그대로(목업의 orders.status 같은 옛 칸이 아니다 — 설계서 3.2 · 9절).
  * - 정의: 연결 종류 · 할 일 종류(ERP) · 동작 종류 · 능력 질문 전체 표.
+ * - 능력 질문 표의 질문 칸: 쓸 수 있는 사람(ctx.fill)이면 채울 수 있는 모자란 줄에 [문장으로 채우기] 링크 하나.
  * 고르는 단추는 data-onto-kind · data-onto-id(ds-onto.js 가 받는다). 글은 textContent 만. window.FOMS_DS_ONTO_DETAIL.
  */
 (function () {
@@ -37,12 +38,23 @@
     return need.erp ? kit.tag(need.label + ' · ERP 붙으면 풀림', 'primary') : kit.tag(need.label + ' 없음', 'danger');
   }
 
+  /** 질문 칸 — 질문 글, 채울 수 있는 모자란 줄이면 그 아래 [문장으로 채우기](fill = ctx.fill — 쓸 수 있는 사람만, 설계서
+   *  2026-11-18-brain-sentence-change 5절 3판). 폭이 남는 질문 칸의 글 뒤에 이어 두어(자리가 모자랄 때만 다음 줄) 표 폭 · 줄
+   *  높이를 거의 바꾸지 않는다(좁은 답 재료 칸에 두면 그 칸이 넓어져 화면 크기 110% 에서 표가 카드로 바뀌었다). fill 이 없으면
+   *  지금 칸 그대로. */
+  function questionCell(row, fill) {
+    if (!fill || !ov.fillable(row, fill.kinds)) return cell(row.question);
+    return el('td', { children: [el('span', { text: row.question }), document.createTextNode(' '),
+                                 el('a', { cls: 'fb-onto-link fb-onto-fill', text: '문장으로 채우기',
+                                                                          attrs: { href: ov.fillHref(fill.url, row.id), 'data-ds-onto-fill': row.id } })] });
+  }
+
   /** 능력 질문 표 — ids 를 주면 그 질문만. */
-  function cqTable(cq, ids) {
+  function cqTable(cq, ids, fill) {
     var rows = (cq.rows || []).filter(function (row) { return !ids || ids.indexOf(row.id) >= 0; });
     if (!rows.length) return kit.emptyLine('이 종류가 필요한 능력 질문이 없어요.');
     return kit.table(['번호', '영역', '질문', '근거', '필요한 것', '답 재료'], rows.map(function (row) {
-      return tr([cell(row.id, 'f-mono f-td-nw'), cell(row.domain, 'f-td-nw'), cell(row.question),
+      return tr([cell(row.id, 'f-mono f-td-nw'), cell(row.domain, 'f-td-nw'), questionCell(row, fill),
                  cell(ov.BASIS[row.basis] || row.basis, 'f-td-nw'),
                  el('td', { children: [el('span', { cls: 'f-row f-gap4', children: row.needs.concat(row.links).map(needChip) })] }),
                  cell(kit.tag(row.covered ? '있음' : '모자람', row.covered ? 'success' : 'danger'))]);
@@ -94,7 +106,7 @@
       { key: 'props', label: '속성 ' + data.props.length, nodes: [boxed(typePropsTable(data))] },
       { key: 'links', label: '연결 ' + data.links.length, nodes: [boxed(typeLinksTable(ctx, data))] },
       { key: 'examples', label: '예시', nodes: [boxed(examplesList(ctx, data))] },
-      { key: 'cq', label: '질문 ' + data.cq.length, nodes: [boxed(cqTable(ctx.summary.cq, data.cq))] }], 'props'));
+      { key: 'cq', label: '질문 ' + data.cq.length, nodes: [boxed(cqTable(ctx.summary.cq, data.cq, ctx.fill))] }], 'props'));
   }
 
   function erpPropsSection(detail) {
@@ -175,7 +187,7 @@
       { key: 'props', label: '속성 ' + detail.props.length, nodes: [erpPropsSection(detail)] },
       { key: 'links', label: '연결 ' + detail.links.length, nodes: [boxed(erpLinksTable(detail))] },
       { key: 'actions', label: '할 일 ' + detail.actions.length, nodes: [erpActionsSection(detail.actions, false)] },
-      { key: 'cq', label: '질문 ' + detail.cq.length, nodes: [boxed(cqTable(ctx.summary.cq, detail.cq))] }], 'overview'));
+      { key: 'cq', label: '질문 ' + detail.cq.length, nodes: [boxed(cqTable(ctx.summary.cq, detail.cq, ctx.fill))] }], 'overview'));
   }
 
   function plainHead(title, sub) {
@@ -208,7 +220,7 @@
     }
     return [kit.crumbs([{ text: '온톨로지', kind: 'home' }, { text: '능력 질문' }]),
             plainHead('능력 질문(시험지)', s.cq.covered + ' / ' + s.cq.total + ' 질문에 필요한 종류 · 연결이 있어요. 내용이 맞는지는 평가 단계에서 재요.'),
-            boxed(cqTable(s.cq, null))];
+            boxed(cqTable(s.cq, null, ctx.fill))];
   }
 
   window.FOMS_DS_ONTO_DETAIL = { knowledgeType: knowledgeType, erpType: erpType, definition: definition, cqTable: cqTable };
