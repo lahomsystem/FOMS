@@ -36,7 +36,7 @@ from foms.services.brain.apply import apply_change
 from foms.services.brain.change_request_check import (
     KIND_CREATE, KIND_LINK_ADD, KIND_LINK_REMOVE, KIND_RETIRE, KIND_SETTING, KIND_UPDATE, RULE_TYPE, STATE_APPLIED,
     STATE_FAILED, STATE_PENDING, STATE_PREVIEW, STATE_REVERT_BLOCKED, STATE_REVERTED, STATE_SKIPPED, STATE_WITHDRAWN,
-    approve_doc, check_of, is_new_link, propose_line, reason_of,
+    approve_doc, check_of, is_new_link, level_label, propose_line, reason_of,
 )
 from foms.services.brain.change_request_store import (
     APPLIED, PARTIAL, READY, REVERTED, ChangeRequestError, audit, load, require_user, save_bundle, view_of,
@@ -96,7 +96,7 @@ def _apply_setting(session: Any, user: Any, line: dict[str, Any]) -> None:
         save_levels(session, user, {"levels": {plan["agent"]: {plan["action"]: plan["value"]}}})
         savepoint.commit()
         line["before"], line["state"] = {"level": before}, STATE_APPLIED
-        line["fields"] = [{**f, "before": before} for f in line["fields"]]
+        line["fields"] = [{**f, "before": level_label(before)} for f in line["fields"]]
         plan["before"] = before
     except (LevelError, KeyError) as exc:
         savepoint.rollback()
