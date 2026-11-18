@@ -781,6 +781,13 @@
      가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4).
      파일 전체가 그 가드 뒤라 두 번째부터는 하는 일이 없다 — data-foms-run-once 로 셸이 다시 넣지도 않게 한다(2026-11-18). #}
   <script data-foms-run-once src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260814a" defer></script>
+  {# ADMIN-OVERRIDE-01 C8: 시트 include 와 두 스크립트는 반드시 세트다(하나라도 빠지면 재시도가 무음으로 실패).
+     예전엔 shipment/layout.html(온전한 페이지 셸)에만 있어 다른 탭에서 스왑으로 들어오면 태블릿 시트의 보류 · 수정 제작
+     사유 창이 안 떴다(2026-11-18). 온전한 페이지와 셸 조각이 함께 싣는 이 파샬로 옮겼다. 두 파일 모두 문서 위임 +
+     싱글턴이라 data-foms-run-once 로 문서당 한 번만 실행한다(dashboard_scripts.html 은 entry 1개 자리 — perf_scan). #}
+  {% include 'partials/shared/foms_reason_sheet.html' %}
+  <script data-foms-run-once src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 

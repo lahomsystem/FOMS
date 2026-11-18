@@ -26,7 +26,7 @@ STAGE_OVERRIDE_JS = REPO_ROOT / "static" / "js" / "orders" / "erp-stage-override
 
 # 재시도를 배선한 화면은 시트 include 와 두 스크립트가 반드시 세트여야 한다.
 RETRY_WIRED_TEMPLATES = [
-    "templates/orders/dashboard.html",
+    "templates/orders/partials/dashboard_main.html",
     "templates/orders/partials/erp_order_js.html",
     "templates/construction/partials/mobile_queue.html",
     "templates/production/partials/mobile_queue.html",
@@ -36,13 +36,13 @@ RETRY_WIRED_TEMPLATES = [
     "templates/construction/partials/scripts.html",
     "templates/orders/partials/order_detail_mobile_v2.html",
     "templates/production/partials/tablet_kanban_body.html",
-    "templates/shipment/layout.html",
+    "templates/shipment/partials/dashboard_main.html",
 ]
 
-# 출고는 파샬(templates/shipment/partials/dashboard_scripts.html)이 아니라 **셸**
-# (templates/shipment/layout.html)에 한 번만 싣는다 — 그 파샬은 shipment-entry.js 1개만 두는
-# 자리라 하나라도 더 얹으면 perf_scan fragment-multi-script veto 가 난다
-# (tests/domains/test_shipment_change_alert_render.py).
+# 출고 · 홈은 온전한 페이지 셸(shipment/layout.html) · scripts 블록(orders/dashboard.html)이 아니라 온전한 페이지와
+# 셸 조각이 함께 싣는 본문 파샬(*/partials/dashboard_main.html)에 data-foms-run-once 로 둔다 — 셸에만 두면 다른 탭에서
+# 스왑으로 들어온 문서엔 사유 시트가 없었다(2026-11-18, tests/contracts/test_shell_fragment_script_parity.py).
+# 출고 dashboard_scripts.html 은 shipment-entry.js 1개만 두는 자리라 거기 얹으면 perf_scan fragment-multi-script veto 가 난다.
 
 # 거부 응답을 공통 재시도 컨트롤러로 넘기는 호출부. 한 곳이라도 빠지면 그 화면의
 # 관리자는 거부 문구만 보고 끝난다(서버는 뚫을 수 있는데 화면에 길이 없다).

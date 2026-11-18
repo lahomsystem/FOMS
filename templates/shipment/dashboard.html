@@ -23,7 +23,6 @@
 
 {% block scripts %}
 {% include 'shipment/partials/dashboard_scripts.html' %}
-{% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20261019a" defer></script>
-{% endif %}
+{# 패킹 서랍(foms-packing.js)은 셸 조각 길과 한 길로 shipment-entry.js CHAIN 이 싣는다 — 여기에만 두면
+   다른 탭에서 스왑으로 들어올 때 [data-foms-packing-trigger] 가 죽는다(2026-11-18). #}
 {% endblock %}
