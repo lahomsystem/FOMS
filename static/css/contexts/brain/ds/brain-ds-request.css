@@ -1,0 +1,95 @@
+/* 문장으로 고치기 배치(설계서 docs/specs/2026-11-18-brain-sentence-change_SPEC.md 4절) — 묶음 화면(templates/brain/ds/request.html) ·
+   승인 대기 맨 위 한 줄 칸(partials/request_input.html) · '문장으로 고친 것' 목록(partials/request_list.html) 전용.
+   class 머리 fb-req. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 글자 크기는 토큰(--font-size · --font-size-small — --foms-fs 배율)만 쓴다.
+   991.98px 아래 = 폰 모습(틀 brain-ds-shell.css 와 같은 기준): 칸 · 단추 · 줄 머리가 한 줄씩 쌓이고, 전 → 후는 위아래로. */
+
+/* hidden 은 언제나 숨김 — .f-row · .f-col · .f-btn 같은 display 규칙이 [hidden] 을 이기지 않게. */
+.fb-req [hidden],
+.fb-req-input [hidden] { display: none !important; }
+
+/* 한 줄 칸 — 칸은 남는 폭을 다 쓰고, 단추는 줄지 않는다(글이 두 줄로 꺾이지 않게). */
+.fb-req-input { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fb-req-input__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.fb-req-input__text { flex: 1 1 240px; width: auto; min-width: 0; }
+.fb-req-input__row > .f-btn { flex: none; }
+
+/* 목록 줄(판 · 기록과 같은 카드 꼴) — 줄 전체가 링크 */
+.f-app a.fb-req-row { color: var(--text); gap: 6px; }
+.fb-req-row__title { overflow-wrap: anywhere; word-break: keep-all; }
+
+/* 묶음 화면 */
+.fb-req { min-width: 0; gap: 16px; max-width: 1100px; }
+.fb-req .fb-status:empty { display: none; }
+.fb-req .fb-status.is-error,
+.fb-req-input .fb-status.is-error { color: var(--red2); }
+.fb-req-input .fb-status:empty { display: none; }
+.fb-req-head { gap: 8px; }
+.fb-req-text { word-break: keep-all; overflow-wrap: anywhere; }
+.fb-req-summary { word-break: keep-all; overflow-wrap: anywhere; }
+.fb-req-part { gap: 8px; min-width: 0; }
+.fb-req-lines { gap: 10px; }
+.fb-req-line { gap: 8px; min-width: 0; }
+.fb-req-line.is-skipped { opacity: .55; }
+.fb-req-line__head { align-items: center; min-width: 0; }
+.fb-req-line__name { min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.fb-req-line__end { flex: none; }
+
+/* 칸별 전 → 후 — 칸 이름 | 전 | → | 후 (새로 만드는 칸은 이름 | 내용). */
+.fb-req-field {
+  display: grid; grid-template-columns: minmax(3em, max-content) minmax(0, 1fr) max-content minmax(0, 1fr);
+  gap: 4px 12px; align-items: baseline; min-width: 0;
+}
+.fb-req-field--new { grid-template-columns: minmax(3em, max-content) minmax(0, 1fr); }
+.fb-req-field__name { white-space: nowrap; }
+.fb-req-field__before,
+.fb-req-field__after { min-width: 0; white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; }
+.fb-req-why { overflow-wrap: anywhere; word-break: keep-all; }
+
+/* 경고 한 줄 — 못 고치는 까닭(빨강) · 꼭 같이 · 같이 못 함(주황). 상자 없이 글 한 줄. */
+.fb-req-warn,
+.fb-req-caution { display: flex; align-items: baseline; gap: 6px; overflow-wrap: anywhere; word-break: keep-all; }
+.fb-req-warn { color: var(--red2); }
+.fb-req-caution { color: var(--orange2); font-weight: 600; }
+.f-dark .fb-req-warn { color: var(--red5); }
+.f-dark .fb-req-caution { color: var(--orange5); }
+.f-dark .fb-req .fb-status.is-error,
+.f-dark .fb-req-input .fb-status.is-error { color: var(--red5); }
+
+/* 물음 · 코드가 필요한 것 · 같이 볼 것 — 아이콘 + 한 줄 */
+.fb-req-notes { gap: 6px; }
+.fb-req-notes > li { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.fb-req-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fb-req-answer > .f-input { flex: 1 1 240px; width: auto; min-width: 0; }
+.fb-req-answer > .f-btn { flex: none; }
+
+/* 아래 단추 — 줄지 않고, 모자라면 다음 줄로 */
+.fb-req-actions { padding-top: 12px; box-shadow: inset 0 1px 0 var(--divider); }
+.fb-req-actions .f-btn { flex: none; }
+.fb-req-sure { flex-wrap: wrap; }
+.fb-req-sure > .f-help { flex: 1 1 260px; min-width: 0; word-break: keep-all; }
+.fb-req-cost { padding-top: 4px; }
+
+@media (max-width: 991.98px) {
+  .fb-req-input__text { flex-basis: 100%; }
+  .fb-req-input__row > .f-btn-primary { flex: 1 1 auto; }
+  .fb-req-line__head { flex-wrap: wrap; }
+  .fb-req-line__name { flex: 1 1 100%; }
+  .fb-req-line__end { margin-left: 0; }
+  /* 전 → 후는 위아래로(칸 이름 · 전 · ↓ · 후 차례) */
+  .fb-req-field,
+  .fb-req-field--new { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .fb-req-field__arrow { transform: rotate(90deg); justify-self: start; padding-left: 4px; }
+  .fb-req-answer > .f-input { flex-basis: 100%; }
+  .fb-req-answer > .f-btn,
+  .fb-req-actions > .f-btn { flex: 1 1 auto; }
+}
+
+/* 어두운 화면 — 옅은 꼬리표 글 색을 밝은 단계로(foms-ds 의 옅은 꼬리표는 밝은 화면 글 색뿐이다). */
+.f-dark .fb-req .f-tag-minimal.f-tag-primary,
+.f-dark .fb-req-row .f-tag-minimal.f-tag-primary { color: var(--blue5); }
+.f-dark .fb-req .f-tag-minimal.f-tag-success,
+.f-dark .fb-req-row .f-tag-minimal.f-tag-success { color: var(--green5); }
+.f-dark .fb-req .f-tag-minimal.f-tag-warning,
+.f-dark .fb-req-row .f-tag-minimal.f-tag-warning { color: var(--orange5); }
+.f-dark .fb-req .f-tag-minimal.f-tag-danger,
+.f-dark .fb-req-row .f-tag-minimal.f-tag-danger { color: var(--red5); }
