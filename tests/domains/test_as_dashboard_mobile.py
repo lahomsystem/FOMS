@@ -441,3 +441,16 @@ def test_as_fast_tab_fragment_includes_card_css(client, monkeypatch):
     frag = frag_resp.get_data(as_text=True)
     assert "foms-as-mobile-card.css" in frag  # 프래그먼트에도 카드 CSS 동반(FOUC 방지)
     assert "<html" not in frag.lower()  # 전체 문서가 아닌 부분 스왑이어야
+
+def test_as_x_ignore_is_on_list_containers_not_on_screen_root():
+    """x-ignore 는 목록 칸에만 — 화면 뿌리에 걸면 그 안의 Alpine 토스트 호스트가 죽어, 다른 탭에서 AS 로
+    넘어온 뒤 토스트가 안 떴다(2026-11-18). 뿌리 태그에는 없고, PC 표 · 카드 목록 칸에는 있어야 한다."""
+    from pathlib import Path
+
+    body = (Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    root_tag = body[body.index('<div class="erp-pro erp-mobile-shell erp-as-dashboard"'):]
+    root_tag = root_tag[: root_tag.index(">")]
+    assert "x-ignore" not in root_tag
+    assert 'erp-as-table-wrapper d-none d-md-block" x-ignore>' in body
+    assert 'class="erp-pro-order-cards foms-mobile-queue-list" x-ignore>' in body
+    assert 'class="erp-pro-order-cards d-md-none" x-ignore>' in body
