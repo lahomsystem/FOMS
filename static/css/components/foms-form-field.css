@@ -1220,13 +1220,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
 }
 
 /* ── 항목 카드 아코디언: 접힘 시 한 줄 요약, 펼침 시 전체 폼 ── */
+/* 머리는 [누름 칸 1fr][삭제 단추 auto] 격자다(전엔 flex — 한 줄일 때 칸 크기는 같다). 격자라야 칸이 좁을 때
+   누름 칸을 두 줄로 펴고 삭제 단추를 첫 줄 오른쪽에 둘 수 있다(아래 erp-item-head 컨테이너 쿼리). */
 .erp-order-mobile-form #erp-items .erp-item-head {
-  display: flex;
+  container: erp-item-head / inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--foms-space-2);
+  column-gap: var(--foms-space-2);
+  row-gap: var(--foms-space-1);
 }
 .erp-order-mobile-form #erp-items .erp-item-head-toggle {
-  flex: 1 1 auto;
   min-width: 0;
   min-height: var(--foms-touch-target-min);
   display: grid;
@@ -1268,6 +1272,64 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select
   font-weight: var(--foms-font-weight-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--foms-text-primary);
+}
+
+/* ── 접힌 머리가 좁으면 제품명 · 규격과 금액을 둘째 줄로(11-18, 컨테이너 쿼리) ──
+   한 줄 [>][항목 N][제품명 · 규격 …][금액][X] 에서 금액은 줄지 않는데(flex 0 0 auto) 머리 폭은 글자 배율 · 화면 크기만큼 준다
+   (media 는 화면 크기를 못 본다). 360px 폰 · 글자 150% · 화면 130% 에서 금액이 머리 밖으로 116~146px 나가 잘렸고,
+   글자 125% 에서는 금액이 삭제 단추 밑으로 들어갔다(11-18 실측).
+   쿼리 안 단위: 1rem = 16px × 글자 배율, px 는 화면 크기를 나눈 뒤의 CSS px(머리 안쪽 폭과 같은 단위).
+   ① 한 줄에 다 들어갈 폭 = 화살표 1.1rem + 틈 0.5rem × 4 + '항목 10'(2.4rem + 16px) + 9자리 금액 '123,456,789원'(6.3rem)
+      + 삭제 단추(0.75rem + 40px) = 12.55rem + 56px. 이보다 좁으면 제품명 · 규격과 금액을 '항목 N' 아래 줄로 내린다.
+      삭제 단추는 첫 줄 오른쪽에 그대로 있고, 둘째 줄은 삭제 단추 밑까지 쓴다(누름 칸이 두 칸을 다 덮고 단추가 그 위에 놓인다).
+      글자 100% · 화면 100% 의 360 · 390 · 430px 폰은 머리 안쪽 260 · 290 · 330px ≥ 257px 라 지금 모습 그대로다.
+   ② 둘째 줄을 '항목 N' 밑에서 시작하면 9자리 금액이 안 들어가는 폭(1.6rem + 6.3rem)부터는 화살표 밑에서 시작한다.
+   ③ 첫 줄 [>][항목 10][X] 가 안 들어가는 폭(5.25rem + 56px) 또는 금액 한 줄이 안 들어가는 폭(6.3rem)부터는
+      누름 칸 · 삭제 단추가 머리 좌우 여백(0.75rem)에 0.5rem 씩 들어간다. 글자 · 단추 크기는 어디서도 그대로다.
+   제품명 · 규격은 남는 자리만큼 보이고 끝을 … 으로 줄인다. 그 자리가 2.5rem 보다 좁으면 금액이 셋째 줄로 내려간다. */
+@container erp-item-head (max-width: calc(12.55rem + 56px - 0.02px)) {
+  .erp-order-mobile-form #erp-items .erp-item-head > .erp-item-head-toggle {
+    grid-column: 1 / -1;
+    grid-row: 1 / span 2;
+    grid-template-rows: auto auto;
+    grid-template-rows: subgrid;
+    row-gap: var(--foms-space-1);
+  }
+  .erp-order-mobile-form #erp-items .erp-item-head > .erp-remove-item-btn {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .erp-order-mobile-form #erp-items .erp-item-head-toggle > .erp-item-summary {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    row-gap: var(--foms-space-1);
+  }
+  .erp-order-mobile-form #erp-items .erp-item-summary > .erp-item-summary-spec {
+    flex: 1 1 0%;
+    min-width: min(2.5rem, 100%);
+  }
+  .erp-order-mobile-form #erp-items .erp-item-summary > .erp-item-summary-amount:empty {
+    display: none;
+  }
+}
+
+@container erp-item-head (max-width: calc(7.9rem - 0.02px)) {
+  .erp-order-mobile-form #erp-items .erp-item-head-toggle > .erp-item-summary {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 머리 좌우 여백 0.75rem 은 새 화면(v2) 것이라 그 화면에서만 여백에 들어간다. */
+@container erp-item-head (max-width: calc(5.25rem + 56px - 0.02px)) or (max-width: calc(6.3rem - 0.02px)) {
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-head > .erp-item-head-toggle {
+    margin-inline: calc(-1 * var(--foms-space-2));
+    grid-template-columns: auto auto minmax(0, 1fr);
+    column-gap: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-head > .erp-remove-item-btn {
+    margin-inline-end: calc(-1 * var(--foms-space-2));
+  }
 }
 /* 항목 사진 칸 머리 글(제품 이름 · 규격 — 'W2400xD600xH240' 처럼 띄어쓰기 없는 글)이 flex 최소 폭(글 전체) 때문에 못 꺾여
    글자 150% · 화면 130% 360px 폰에서 칸 밖으로 148px 나가 잘려 보였다(11-17 실측). 칸 폭에서 꺾는다 — 한 줄에 들어가던 글은 그대로다. */
