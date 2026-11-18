@@ -126,8 +126,10 @@
   }
 
   /** 연 묶음을 적은 주소 — 닫으면 bin 이 빠진다. */
-  function addressFor(page, bin) {
-    return String(page || '') + '?tab=inbox' + (bin ? '&bin=' + bin : '');
+  function addressFor(page, bin, search) {
+    // 문장으로 채우기 안내(?fill=E02)는 주소를 다시 쓸 때도 남긴다 — 새로 고쳐도 안내가 그대로 보이게(번호 꼴만).
+    var fill = /[?&]fill=([A-Za-z]\d{1,3})(?:&|$)/.exec(String(search || ''));
+    return String(page || '') + '?tab=inbox' + (bin ? '&bin=' + bin : '') + (fill ? '&fill=' + fill[1] : '');
   }
 
   /** 폰 나누기 — 폰에서 승인할 수 있는 카드(③ 질문은 폰에서도 정한다)와 'PC 에서 볼 것'(접어 둔 카드 포함 — F05). */
