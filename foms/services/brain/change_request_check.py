@@ -25,10 +25,10 @@ from sqlalchemy import select
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain import actions
-from foms.services.brain.change_request_model import AREA_LEVELS, CREATE_TYPES, Material
+from foms.services.brain.change_request_model import AREA_LEVELS, CREATE_TYPES, NEW_PREFIX, Material
 from foms.services.brain.constants import (
-    BRANDS, LINK_KINDS, OP_LINK_ADD, OP_LINK_REMOVE, SCOPE_ALL, STATUS_ACTIVE, STATUS_RETIRED, TYPE_LAYERS, external_type,
-    link_allowed,
+    BRANDS, DOC_TYPES, LINK_KINDS, OP_LINK_ADD, OP_LINK_REMOVE, SCOPE_ALL, STATUS_ACTIVE, STATUS_RETIRED, TYPE_LAYERS,
+    external_type, link_allowed,
 )
 from foms.services.brain.display import FIELD_LABELS, LAYER_LABELS, LINK_DISPLAY
 from foms.services.brain.errors import BrainError
@@ -50,7 +50,10 @@ CAUTION_KINDS = frozenset({"requires", "excludes"})
 #: 검사 까닭 → 쉬운 말(BrainError 코드는 :data:`.actions.FAILURES` 말을 쓴다).
 CHECK_TEXTS: dict[str, str] = {
     "unknown_key": "없는 지식이거나 볼 수 없는 지식이에요.",
-    "type": "이 길로는 만들 수 없는 종류예요(AI 상담이 읽는 지식 문서 종류는 승인 대기에서 따로 넣어요).",
+    "type": "이 길로는 만들 수 없는 종류예요(가격 규칙 · 사장님 결정 · 기준 답 문구는 따로 넣어요).",
+    "orphan_rule": "제작 조건은 걸 제품 · 옵션(적용 연결)이 있어야 만들어요.",
+    "new_blocked": "새 항목을 만들지 못해 이 연결도 잇지 않았어요.",
+    "new_waiting": "새 항목이 승인을 기다려 연결은 아직 잇지 않았어요 — 승인된 뒤 다시 넣어 주세요.",
     "link_kind": "이을 수 없는 연결 짝이에요.",
     "same": "이미 같은 값이라 고칠 것이 없어요.",
     "missing_link": "이미 없는 연결이에요.",
@@ -62,6 +65,7 @@ CHECK_TEXTS: dict[str, str] = {
     "setting_admin": "설정은 관리자만 고쳐요.",
     "later_change": "그 뒤 다른 고침이 같은 곳에 얹혀서 되돌리지 않았어요.",
 }
+RULE_TYPE, APPLIES_TO = "build_rule", "applies_to"
 #: 금액 꼴(숫자 + 원 · 만원 · 억 원, 통화 기호 + 숫자, 숫자 + 달러).
 _MONEY = re.compile(r"[₩$]\s*\d|\d[\d,.]*\s*(?:억|만|천)?\s*원|\d[\d,.]*\s*달러")
 
@@ -125,20 +129,45 @@ def _update(session: Any, viewer: Viewer, row_in: Mapping[str, Any]) -> dict[str
     return _block(line, "gate") if _gate_fail(changed.get("name"), changed.get("text")) else line
 
 
-def _create(row_in: Mapping[str, Any], *, request_id: int, number: int, today: datetime.date) -> dict[str, Any]:
-    """새 항목 줄 — 키는 코드가 정한다(``<브랜드>/<유형>/cr<묶음>-<차례>``)."""
+def approver_of(user_id: Any, request_id: int) -> str:
+    """지식 문서 승인 칸 글 — 반영한 사람 번호 · 묶음 번호(주간 고침 안 승인 :mod:`.template_fix` 와 같은 꼴)."""
+    return f"FOMS 사용자 {int(user_id or 0)} · 문장으로 고치기 #{int(request_id)}"
+
+
+def doc_fields(doc_id: str, *, request_id: int, user_id: Any, day: datetime.date) -> dict[str, Any]:
+    """새 지식 문서 항목의 문서 칸(옮기기 묶음 ``plan_rules.doc_fields`` 꼴 — 옮겨 올 앞 항목이 없어 의도 · 꼬리표는 비우고 근거
+    파일 칸은 묶음 번호, 승인 칸은 넣은 사람 · 그날). 반영 때 :func:`approve_doc` 가 반영하는 사람 · 반영 날로 다시 적는다."""
+    return {"doc_id": doc_id[:64], "intents": [], "tags": [], "source": f"change_request:{int(request_id)}",
+            "approved_by": approver_of(user_id, request_id), "approved_at": day.isoformat()}
+
+
+def approve_doc(line: dict[str, Any], *, request_id: int, user_id: Any, day: datetime.date) -> None:
+    """지식 문서 만들기 줄의 승인 칸을 지금 반영하는 사람 · 반영 날(한국 날짜)로."""
+    payload = (line["plan"].get("values") or {}).get("payload")
+    if isinstance(payload, dict) and payload.get("doc_id"):
+        payload.update(approved_by=approver_of(user_id, request_id), approved_at=day.isoformat())
+
+
+def _create(row_in: Mapping[str, Any], *, request_id: int, number: int, today: datetime.date,
+            user_id: Any) -> dict[str, Any]:
+    """새 항목 줄 — 키는 코드가 정한다. 지식 문서 유형(사실 · 정책 · 제작 조건)은 ``<브랜드>/cr<묶음>-<차례>``(문서 id 와 같은
+    꼬리 — 옮기기 키 꼴)와 문서 칸, 그 밖은 ``<브랜드>/<유형>/cr<묶음>-<차례>``."""
     item_type, brand = row_in["type"], row_in["brand"]
     values = {"name": row_in["values"].get("name", ""), "text": row_in["values"].get("text") or None}
     layers = sorted(TYPE_LAYERS.get(item_type, ()))
     layer = layers[0] if len(layers) == 1 else None
-    key = f"{str(brand).lower()}/{item_type}/cr{request_id}-{number}"
+    doc_id = f"cr{int(request_id)}-{int(number)}"
+    is_doc = item_type in DOC_TYPES
+    key = f"{str(brand).lower()}/{doc_id}" if is_doc else f"{str(brand).lower()}/{item_type}/{doc_id}"
     full = {**values, "status": STATUS_ACTIVE, "visibility": SCOPE_ALL, "evidence_kind": "person",
             "evidence_ref": f"change_request:{request_id}", "checked_at": today.isoformat()}
+    if is_doc:
+        full["payload"] = doc_fields(doc_id, request_id=request_id, user_id=user_id, day=today)
     line = _line(KIND_CREATE, key=key, label=values["name"] or key, why=row_in["why"], layer=layer,
                  fields=[{"name": f, "label": FIELD_LABELS.get(f, f), "before": None, "after": v}
                          for f, v in values.items() if v],
                  before=None, after={f: v for f, v in values.items() if v},
-                 plan={"key": key, "brand": brand, "layer": layer, "type": item_type, "values": full})
+                 plan={"key": key, "brand": brand, "layer": layer, "type": item_type, "values": full, "new": number})
     if item_type not in CREATE_TYPES or layer is None:
         return _block(line, "type")
     if brand not in BRANDS or not values["name"]:
@@ -171,25 +200,45 @@ def _end_name(session: Any, viewer: Viewer, key: str) -> tuple[Optional[str], Op
     return (row.item_type, pref_of(row.name, row.payload)) if row is not None else (None, None)
 
 
-def _link(session: Any, viewer: Viewer, row_in: Mapping[str, Any]) -> dict[str, Any]:
-    """연결 더하기 · 빼기 줄 — 종류 · 양 끝 · 허용 짝 · 이미 있음."""
+def _source(session: Any, viewer: Viewer, start: str, news: Mapping[int, dict[str, Any]]) -> tuple[Any, ...]:
+    """연결 시작 — (키, 유형, 이름, 층, 새 항목 차례). ``new:<n>`` 은 같은 묶음의 n 번째 새 항목, 없으면 모두 ``None``."""
+    if start.startswith(NEW_PREFIX):
+        number = start[len(NEW_PREFIX):]
+        made = news.get(int(number)) if number.isdigit() else None
+        if made is None:
+            return None, None, None, None, None
+        plan = made["plan"]
+        return plan["key"], plan["type"], made["label"], made["layer"], plan["new"]
+    row = _row(session, viewer, start)
+    if row is None:
+        return None, None, None, None, None
+    return row.item_key, row.item_type, pref_of(row.name, row.payload), row.layer, None
+
+
+def _link(session: Any, viewer: Viewer, row_in: Mapping[str, Any],
+          news: Mapping[int, dict[str, Any]]) -> dict[str, Any]:
+    """연결 더하기 · 빼기 줄 — 종류 · 양 끝 · 허용 짝 · 이미 있음. 시작이 ``new:<n>`` 이면 같은 묶음의 새 항목(더하기만)."""
     kind_op = KIND_LINK_ADD if row_in["op"] == "add" else KIND_LINK_REMOVE
-    kind, start, end = row_in["kind"], row_in["from"], row_in["to"]
-    source = _row(session, viewer, start)
+    kind, end = row_in["kind"], row_in["to"]
+    start, source_type, source_name, layer, new = _source(session, viewer, row_in["from"], news)
+    start = start or row_in["from"]
     to_type, to_name = _end_name(session, viewer, end) if end else (None, None)
     label_kind = LINK_DISPLAY.get(kind, (kind,))[0]
-    label = f"{pref_of(source.name, source.payload) if source is not None else start} → {to_name or end} ({label_kind})"
+    label = f"{source_name or start} → {to_name or end} ({label_kind})"
     ident = {"kind": kind, "from": start, "to": end}
-    line = _line(kind_op, key=start, label=label, why=row_in["why"], layer=source.layer if source is not None else None,
+    plan = {"op": kind_op, "kind": kind, "from": start, "to": end, **({"new": new} if new is not None else {})}
+    line = _line(kind_op, key=start, label=label, why=row_in["why"], layer=layer,
                  before=None if kind_op == KIND_LINK_ADD else ident, after=ident if kind_op == KIND_LINK_ADD else None,
-                 caution=kind in CAUTION_KINDS, plan={"op": kind_op, "kind": kind, "from": start, "to": end})
-    if row_in["op"] not in ("add", "remove") or kind not in LINK_KINDS:
+                 caution=kind in CAUTION_KINDS, plan=plan)
+    if row_in["op"] not in ("add", "remove") or kind not in LINK_KINDS or (new is not None and kind_op != KIND_LINK_ADD):
         return _block(line, "link_kind")
-    if source is None or to_type is None:
+    if source_type is None or to_type is None:
         return _block(line, "unknown_key")
+    if new is not None:
+        return line if link_allowed(source_type, kind, to_type) else _block(line, "link_kind")
     link = current_link(session, kind, start, end)
     if kind_op == KIND_LINK_ADD:
-        if not link_allowed(source.item_type, kind, to_type):
+        if not link_allowed(source_type, kind, to_type):
             return _block(line, "link_kind")
         return _block(line, "same") if link is not None else line
     if link is None:
@@ -303,9 +352,11 @@ def check_bundle(session: Any, bundle: Mapping[str, Any], material: Material, *,
                  now: datetime.datetime, today: datetime.date) -> dict[str, Any]:
     """AI 묶음 → ``{"lines", "also_look"}``. ``scope`` = 고칠 수 있는 층(``None`` = 모두 — 관리자)."""
     lines: list[dict[str, Any]] = [_update(session, viewer, r) for r in bundle["updates"]]
-    lines += [_create(r, request_id=request_id, number=n, today=today) for n, r in enumerate(bundle["creates"], 1)]
+    news = {n: _create(r, request_id=request_id, number=n, today=today, user_id=viewer.user_id)
+            for n, r in enumerate(bundle["creates"], 1)}
+    lines += list(news.values())
     lines += [_retire(session, viewer, r) for r in bundle["retires"]]
-    lines += [_link(session, viewer, r) for r in bundle["links"]]
+    lines += [_link(session, viewer, r, news) for r in bundle["links"]]
     lines += [_setting(r, material, admin=viewer.is_admin) for r in bundle["settings"]]
     also = _also_from_notes(session, viewer, bundle["also_look"])
     kept = []
@@ -318,8 +369,39 @@ def check_bundle(session: Any, bundle: Mapping[str, Any], material: Material, *,
             kept.append(line)
     _mark_conflicts(kept)
     for line in kept:
-        if line["check"] is None and line["kind"] in ITEM_KINDS and viewer.user_id is not None:
+        if (line["check"] is None and line["kind"] in ITEM_KINDS and viewer.user_id is not None
+                and not is_new_link(line)):
             _dry_run(session, line, actor_id=viewer.user_id, request_id=request_id, known=known, now=now)
+    _tie_new_links(kept)
     for number, line in enumerate(kept, 1):
         line["no"] = number
+    for line in kept:  # 새 항목 연결 줄은 그 만들기 줄 번호를 안다(반영 차례 · 한 묶음 저장점)
+        if is_new_link(line):
+            line["plan"]["after_line"] = next((m["no"] for m in kept if m["kind"] == KIND_CREATE
+                                               and m["plan"].get("new") == line["plan"]["new"]), None)
     return {"lines": kept, "also_look": also}
+
+
+def is_new_link(line: Mapping[str, Any]) -> bool:
+    """같은 묶음의 새 항목에서 나가는 연결 줄인가."""
+    return line["kind"] == KIND_LINK_ADD and line["plan"].get("new") is not None
+
+
+def rule_links(line: Mapping[str, Any], lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """새 제작 조건 줄이 걸 적용 연결 줄들(검사를 지난 것)."""
+    return [x for x in lines if is_new_link(x) and x["plan"]["new"] == line["plan"].get("new")
+            and x["plan"]["kind"] == APPLIES_TO and x["check"] is None]
+
+
+def _tie_new_links(lines: list[dict[str, Any]]) -> None:
+    """새 항목과 그 연결 줄을 묶어 본다 — 만들기가 못 고친 것이면 연결도, 걸 곳 없는 제작 조건(외톨이)은 만들기도 못 고친 것."""
+    creates = {x["plan"]["new"]: x for x in lines if x["kind"] == KIND_CREATE}
+    for line in lines:
+        if is_new_link(line) and (creates.get(line["plan"]["new"]) or {}).get("check") is not None:
+            _block(line, "new_blocked")
+    for line in creates.values():
+        if line["check"] is None and line["plan"]["type"] == RULE_TYPE and not rule_links(line, lines):
+            _block(line, "orphan_rule")
+            for link in lines:
+                if is_new_link(link) and link["plan"]["new"] == line["plan"]["new"]:
+                    _block(link, "new_blocked")
