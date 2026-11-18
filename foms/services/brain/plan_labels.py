@@ -16,6 +16,9 @@ D194, 2026-11-13 빈 재료 채우기 B · D203).
   - ``requires`` · ``excludes``(꼭 같이 · 같이 못 함 — 빈 재료 채우기 B · D203: 제작 조건 · 제품 라인 · 옵션 → 제품 라인 · 옵션 ·
     규격)는 상담 AI 가 "그 조합은 안 돼요"라고 말하게 하는 재료라 **② 한 장씩**이다(한꺼번에 승인 안 됨). 같은 계획 안에 같은 두
     항목(어느 방향이든)의 ``requires`` 와 ``excludes`` 가 함께 있으면 어느 쪽이 맞는지 모르니 둘 다 넣지 않는다(``opposed_in_plan``).
+  - ``at_step`` · ``answers``(빈 재료 채우기 3판 D — 상황 → 공정 단계 · 기준 답 → 상황, 허용 짝 틀 그대로)는 새 상황 항목의 연결이다.
+    상황은 그 상황의 ``applies_to`` 또는 ``at_step`` 이 이 칸에 있어야 만든다(외톨이 상황 0 — :func:`situation_ends`).
+    ``at_step`` 은 옮기기 묶음이라 ⑥ 규칙 잇기(D202), ``answers`` 는 ② 다.
 
 '원문에 두 번 이상 그대로 나온 말만'(지어낸 말 막기)은 계획을 만드는 로컬 도구가 원문을 가진 자리에서 본다 — 서버는 원문이 없다.
 세는 까닭은 영어 짧은 코드, 글 · 이름은 세지도 싣지도 않는다.
@@ -28,15 +31,20 @@ from typing import Any, Iterable, Mapping
 from foms.services.brain.constants import KEY_RE, OP_UPDATE
 from foms.services.brain.constants import OPPOSED_KINDS
 from foms.services.brain.plan_links import (
-    TO_TYPES, Link, Run, decisions_in, end_type, file_one, held, missing_end, open_changes, reason,
+    HOLD_KEYS, TO_TYPES, Link, Run, decisions_in, end_type, file_one, held, missing_end, open_changes, reason,
 )
 from foms.services.brain.proposals import IMPORT_PROPOSER, propose_update
 from foms.services.brain.store import current_object
 from foms.services.cs_agent.masking import leak_counts
 
-__all__ = ["LINK_KINDS", "MAX_ALIAS", "MAX_ALIASES", "TO_TYPES", "file_labels", "file_rule_links"]
+__all__ = ["LINK_KINDS", "MAX_ALIAS", "MAX_ALIASES", "SITUATION_LINKS", "TO_TYPES", "file_labels", "file_rule_links",
+           "situation_ends"]
 
-LINK_KINDS: tuple[str, ...] = ("applies_to", "requires", "excludes")
+LINK_KINDS: tuple[str, ...] = ("applies_to", "requires", "excludes", "at_step", "answers")
+#: 상황이 외톨이가 아니게 하는 연결(설계서 6절 내용 기준 — 상황마다 ``applies_to`` 또는 ``at_step`` 1 이상).
+SITUATION_LINKS: tuple[str, ...] = ("applies_to", "at_step")
+#: 종류마다 까닭에 붙는 사장님 결정 번호(꼭 같이 · 같이 못 함 D203 · 공정 단계 잇기 D117).
+_KIND_DECISIONS: dict[str, str] = {"requires": "D203", "excludes": "D203", "at_step": "D117"}
 MAX_ALIAS, MAX_ALIASES = 40, 12
 
 
@@ -120,6 +128,18 @@ def file_rule_links(run: Run, rows: Iterable[Any]) -> None:
         if source is None:
             missing_end(run, from_key)
             continue
-        decisions = decisions_in(row.get("why"), "D203" if kind in OPPOSED_KINDS else "")
+        decisions = decisions_in(row.get("why"), _KIND_DECISIONS.get(kind, ""))
         run.links.append(Link(kind, from_key, source.item_type, to_key, end_type(run, to_key),
                               ref_id=f"links/{from_key}>{to_key}", decisions=decisions))
+
+
+def situation_ends(rows: Iterable[Any]) -> frozenset[str]:
+    """``links[]`` 가운데 상황을 외톨이가 아니게 하는 연결(:data:`SITUATION_LINKS`)의 시작 키 — 보류 · 꼴 틀린 줄은 뺀다(세지
+    않는다 — :func:`file_rule_links` 가 센다)."""
+    ends: set[str] = set()
+    for row in rows:
+        if isinstance(row, Mapping) and not any(row.get(name) for name in HOLD_KEYS):
+            kind, from_key, to_key = _row_ends(row)
+            if kind in SITUATION_LINKS and KEY_RE.fullmatch(from_key) and KEY_RE.fullmatch(to_key):
+                ends.add(from_key)
+    return frozenset(ends)

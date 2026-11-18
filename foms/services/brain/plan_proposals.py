@@ -18,8 +18,13 @@
   사실 → 브랜드는 브랜드 칸 틀이 아직 없어 넘긴다(수만 센다).
 - 링크(``value_from`` · ``copy_in``(``copy_hint`` — 값의 사본이 실린 양식 · 그림) · ``at_step`` · ``decided_by`` · ``about``)와
   은퇴는 :mod:`.plan_links` — 끝이 승인 대기면 다음 차례.
-- 다른 이름(``labels[]``) · 규칙 → 제품 잇기 · 꼭 같이 · 같이 못 함(``links[]`` — ``applies_to`` · ``requires`` · ``excludes``)은
-  :mod:`.plan_labels`(온톨로지 4.2 — D193 · D194, 빈 재료 채우기 B — D203).
+- 다른 이름(``labels[]``) · 규칙 → 제품 잇기 · 꼭 같이 · 같이 못 함 · 상황 연결(``links[]`` — ``applies_to`` · ``requires`` ·
+  ``excludes`` · ``at_step`` · ``answers``)은 :mod:`.plan_labels`(온톨로지 4.2 — D193 · D194, 빈 재료 채우기 B — D203 · D — 3판).
+- **새 상황**(``new_items[].type == "situation"`` — 빈 재료 채우기 3판 D): 상담 층 · 보기 범위 모두. 글은 **일반화한 한두 문장만**
+  (한 줄 :data:`SITUATION_CHARS` 자 · 문장 :data:`SITUATION_SENTENCES` 개까지 — 아니면 ``situation_text``). 이름 · 다른 이름 · 글에
+  가림 검사(:func:`foms.services.cs_agent.masking.leak_counts`)가 0 이 아닌 것이 있으면 넣지 않는다(``masked``). ``links[]`` 에
+  그 상황의 ``applies_to`` 또는 ``at_step`` 이 없으면 외톨이라 넣지 않는다(``orphan_situation``). 상담 두뇌는 '공정 단계 · 제약 ·
+  상황도 따라가기' 칸을 켜기 전까지 상황을 읽지 않는다(:mod:`foms.services.cs_agent.onto_follow`).
 - 정책 속 제작 조건 문장 옮기기(``rules[]``) · 속성 칸 고침(``props[]``)은 :mod:`.plan_rules`(빈 재료 채우기 2판 C · G — D201).
 - ``unsure`` · ``waiting`` 이 달린 묶음(항목 · 가격 규칙 · 사실 나눔 · 나눈 자식 · 새 항목 · 엇갈림 · 이름 · 링크 · 옮기기 ·
   속성)은 넣지 않고 센다.
@@ -33,17 +38,18 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import re
 from typing import Any, Iterable, Mapping, Optional
 
 from sqlalchemy import select, update
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    BRAND_COMMON, BRANDS, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_UPDATE,
-    PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, TYPE_KINDS,
+    BRAND_COMMON, BRANDS, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, LAYER_CS, MAX_TEXT,
+    OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, TYPE_KINDS,
 )
 from foms.services.brain.errors import BrainShapeError
-from foms.services.brain.plan_labels import file_labels, file_rule_links
+from foms.services.brain.plan_labels import file_labels, file_rule_links, situation_ends
 from foms.services.brain.plan_links import (
     DOC_ID, LABEL_KEYS, RETYPE_NAMES, Link, Run, copy_links, create_item, decided_links, decisions_in, file_link,
     file_one, file_retire, held, is_decision_no, labels_for, one_line, open_changes, plan_problems, reason, source_name,
@@ -56,12 +62,18 @@ from foms.services.brain.proposals import IMPORT_PROPOSER, after_values, known_t
 from models import SecurityLog
 from foms.services.brain.schemas import ERP_STAGES, payload_props
 from foms.services.brain.store import current_object, values_of
+from foms.services.cs_agent.masking import leak_counts
 from foms.services.datetime_kst import now_utc_naive
 
 APPROVED_BY = "D130 자료 계획"  # 나눈 지식 문서 항목의 승인 칸(실제 승인은 카드 승인)
 #: 제품 라인 · 옵션은 견적 계산기 정본에서 만든 계획(:mod:`.catalog_plan` — 설계서 2026-11-12 온톨로지 4절 1 · D179)이 쓴다.
 NEW_TYPES: dict[str, str] = {"process_step": "공정 단계", "spec": "규격", "term": "용어", "product_line": "제품 라인",
-                             "option": "옵션"}
+                             "option": "옵션", "situation": "상황"}
+#: 공통 층이 아닌 새 유형의 층(상황 = 상담 층 — 승인자 상담팀장).
+NEW_LAYERS: dict[str, str] = {"situation": LAYER_CS}
+SITUATION = "situation"
+SITUATION_CHARS, SITUATION_SENTENCES = 200, 2
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 #: 새 항목이 계획에서 받는 틀 칸(이름표 밖) — 유형마다 이것만(값 칸 · 금액은 받지 않는다).
 NEW_PROPS: dict[str, tuple[str, ...]] = {"product_line": ("price_unit", "door_kinds", "quote_kind"),
                                          "option": ("category", "price_kind", "option_kind", "unit")}
@@ -222,9 +234,28 @@ def _stage_of(new: Mapping[str, Any]) -> str:
     return str(new.get("erp") or new.get("key") or "").rsplit("/", 1)[-1].upper()
 
 
-def _new_items(run: Run, rows: Iterable[Any]) -> None:
-    """새 항목(공정 단계 · 규격 · 용어 · 제품 라인 · 옵션 — 공통 층) + 정본 링크(반영 뒤 다음 차례). 브랜드는 계획 칸
-    ``brand``(라홈 · 하우드 — 제품 라인), 없으면 공통."""
+def situation_text(value: Any) -> Optional[str]:
+    """상황 글 — 한 줄 :data:`SITUATION_CHARS` 자 · 문장 :data:`SITUATION_SENTENCES` 개까지(아니면 ``None``)."""
+    text = one_line(value, SITUATION_CHARS)
+    if text is None or len([part for part in _SENTENCE_END.split(text) if part.strip()]) > SITUATION_SENTENCES:
+        return None
+    return text
+
+
+def _situation_problem(key: str, label: str, payload: Mapping[str, Any], text: Optional[str],
+                       linked: frozenset[str]) -> Optional[str]:
+    """새 상황을 넣지 않을 까닭(모듈 설명 — 글 · 가림 · 외톨이), 없으면 ``None``."""
+    if text is None:
+        return "situation_text"
+    words = [label, text, *(word for name in ("aliases", "hidden_labels") for word in payload.get(name) or [])]
+    if any(any(leak_counts(word).values()) for word in words if isinstance(word, str)):
+        return "masked"
+    return None if key in linked else "orphan_situation"
+
+
+def _new_items(run: Run, rows: Iterable[Any], linked: frozenset[str] = frozenset()) -> None:
+    """새 항목(공정 단계 · 규격 · 용어 · 제품 라인 · 옵션 — 공통 층, 상황 — 상담 층) + 정본 링크(반영 뒤 다음 차례). 브랜드는
+    계획 칸 ``brand``(라홈 · 하우드 — 제품 라인), 없으면 공통. ``linked`` = ``links[]`` 에 연결이 있는 상황 키."""
     for new in rows:
         if not isinstance(new, Mapping) or held(run, new):
             continue
@@ -255,10 +286,15 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
                 run.skipped["shape"] += 1
                 continue
             payload["erp_stage"], refs = stage, [f"erp:stage/{stage.lower()}"]
-        create_item(run, key=key, brand=brand, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
-                    values={"name": label, "visibility": SCOPE_ALL, "payload": payload or None,
-                            "text": one_line(new.get("text"), MAX_TEXT) or (
-                                label if item_type in _LABEL_TEXT else None)},
+        text = one_line(new.get("text"), MAX_TEXT) or (label if item_type in _LABEL_TEXT else None)
+        if item_type == SITUATION:
+            text = situation_text(new.get("text"))
+            problem = _situation_problem(key, label, payload, text, linked)
+            if problem:
+                run.skipped[problem] += 1
+                continue
+        create_item(run, key=key, brand=brand, layer=NEW_LAYERS.get(item_type, LAYER_COMMON), item_type=item_type,
+                    ref_id=key, values={"name": label, "visibility": SCOPE_ALL, "payload": payload or None, "text": text},
                     why=reason(f"새로 정리한 {NEW_TYPES[item_type]}이에요", decisions_in(new.get("why"))))
         value_links(run, key, item_type, refs, None, key)
 
@@ -323,7 +359,7 @@ def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool,
     savepoint = session.begin_nested()
     try:
         _items(run, plan.get("items") or [])
-        _new_items(run, plan.get("new_items") or [])
+        _new_items(run, plan.get("new_items") or [], situation_ends(plan.get("links") or []))
         _conflicts(run, plan.get("conflicts") or [])
         file_labels(run, plan.get("labels") or [])  # 다른 이름 · 규칙 → 제품 잇기(온톨로지 4.2 — D193 · D194)
         file_rule_links(run, plan.get("links") or [])
