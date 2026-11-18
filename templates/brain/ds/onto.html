@@ -5,7 +5,10 @@
       /ontology/types/<유형> · (erp_read 켬이면) /ontology/erp/<종류> 로 읽어 textContent 로만 그린다. 고른 것은 주소(?kind=&id=)에 남긴다.
     - 유형 지도 보기: 옛 화면의 조각 brain/partials/tab_map.html · brain-map.js · brain.css 를 그대로 싣는다(그림 라이브러리는 이
       보기를 열 때만 import()). 진짜 화면은 그 HTML 목록이고 그림은 돕는 쪽.
-    ERP 칸(물건 종류 · 할 일 종류 · ERP 재료 안내)은 API 답에 erp 칸이 있을 때만 그린다. 인라인 스크립트 · 스타일 없음. -#}
+    ERP 칸(물건 종류 · 할 일 종류 · ERP 재료 안내)은 API 답에 erp 칸이 있을 때만 그린다. 인라인 스크립트 · 스타일 없음.
+    문장으로 채우기(설계서 2026-11-18-brain-sentence-change 5절 3판): 문장으로 고치기를 쓸 수 있는 사람(change_on)의 온톨로지 보기에만
+    data-fill-url · data-fill-kinds(채울 수 있는 종류 — change_request_hints.fill_kinds)를 단다 → 능력 질문 표의 모자란 줄에
+    [문장으로 채우기](ds-onto-detail.js). 못 쓰는 사람의 HTML 은 지금과 같다. -#}
 {% import "brain/ds/_macros.html" as ds %}
 {% set view = 'map' if page == 'map' else 'onto' %}
 {% block title %}{{ '유형 지도' if view == 'map' else '온톨로지' }}{% endblock %}
@@ -21,7 +24,10 @@
 <div class="fb-onto f-col" data-ds-onto data-ds-onto-view="{{ view }}"
      data-onto-url="{{ url_for('brain_api.brain_ontology') }}"
      data-page-url="{{ url_for('brain_web.index') }}" data-item-base="{{ url_for('brain_web.index') }}/items/"
-     data-display="{{ display|tojson|forceescape }}">
+     data-display="{{ display|tojson|forceescape }}"
+     {%- if fill_kinds is defined and fill_kinds and view == 'onto' %}
+     data-fill-url="{{ url_for('brain_web.index', tab='inbox') }}" data-fill-kinds="{{ fill_kinds|tojson|forceescape }}"
+     {%- endif %}>
   <p class="fb-status" data-ds-onto-status role="status" aria-live="polite"></p>
   {%- if view == 'map' %}
   {% include "brain/ds/partials/onto_map.html" %}

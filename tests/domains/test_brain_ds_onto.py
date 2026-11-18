@@ -224,3 +224,62 @@ def test_onto_scripts_bind_once_and_draw_bars_without_inline_style():
         assert "fetch(" not in code and ".innerHTML" not in code and ".style." not in code, path.name
         assert "import(" not in code, path.name  # 그림 라이브러리는 옛 brain-map.js 만 부른다
         assert len(lines) <= 300, path.name
+
+
+# ── 문장으로 채우기 길(설계서 2026-11-18-brain-sentence-change 5절 3판) ─────────────
+OLD_NOTE = "여기서는 보기만 해요. 종류 · 칸은 설계서와 코드로만 바꿔요."
+FILL_NOTE = "모자란 재료는 질문 표의 [문장으로 채우기]로 넣을 수 있어요. 종류 · 칸은 설계서와 코드로만 바꿔요."
+
+
+def test_fill_way_only_for_people_who_can_use_sentence_change(app, ids, monkeypatch):
+    from foms.services.brain.change_request_hints import fill_kinds
+
+    _switch(monkeypatch, "brain_ui")
+    off = _get(app, _client(app, ids["admin"]), "/brain?tab=onto&kind=cq")[1]  # 문장으로 고치기 끔 — 지금 그대로
+    assert OLD_NOTE in off and FILL_NOTE not in off and "data-fill-url" not in off and "data-fill-kinds" not in off
+    assert 'data-display="' in off and re.search(r'data-display="[^"]*">\n', off)  # 루트 태그 끝이 지금과 같다
+    _switch(monkeypatch, "brain_change_request")
+    for who in ("admin", "cs_mgr"):  # 관리자 · 층 승인자 팀장
+        body = _get(app, _client(app, ids[who]), "/brain?tab=onto&kind=cq")[1]
+        assert FILL_NOTE in body and OLD_NOTE not in body and 'style="' not in body, who
+        root = re.search(r"<div class=\"fb-onto f-col\" data-ds-onto[^>]*>", body).group(0)
+        assert 'data-fill-url="/brain?tab=inbox"' in root, who
+        kinds = json.loads(re.search(r'data-fill-kinds="([^"]+)"', root).group(1).replace("&#34;", '"').replace("&quot;", '"'))
+        assert kinds == fill_kinds() and "price_rule" not in kinds["types"] and "owner_decision" not in kinds["types"]
+    mapped = _get(app, _client(app, ids["admin"]), "/brain?tab=map")[1]  # 유형 지도 보기에는 표가 없다 — 지금 글 그대로
+    assert OLD_NOTE in mapped and "data-fill-url" not in mapped
+
+
+@pytest.fixture
+def fill_rows(app, monkeypatch):
+    from models import User
+    from tests.domains.test_brain_change_request_hints import fill_world
+    from foms.services.brain.change_request_hints import fill_kinds
+
+    for env in FLAGS.values():
+        monkeypatch.delenv(f"{env}_ENABLED", raising=False)
+    people = fill_world(db_session)
+    viewer = viewer_of(db_session.get(User, people["admin"].id))
+    return {"rows": ontology_summary(db_session, viewer, today=TODAY)["cq"]["rows"], "kinds": fill_kinds()}
+
+
+@NODE
+def test_fillable_rows_skip_covered_erp_only_and_cannot_fill(fill_rows):
+    got = _node("Object.fromEntries(data.rows.map(r => [r.id, v.fillable(r, data.kinds)]))", fill_rows)
+    covered = [r["id"] for r in fill_rows["rows"] if r["covered"]]
+    assert covered and not any(got[c] for c in covered)  # 다 있음
+    assert got["P09"] is False  # ERP 재료만 모자람
+    assert got["S14"] is False and got["X04"] is False  # 사장님 결정(+ ERP)만 모자람 — 이 칸으로 못 채움
+    assert got["E01"] is True and got["E09"] is True  # 채울 수 있는 것이 있음(E09 는 못 채움과 섞임)
+    assert _node("[v.fillable(data, null), v.fillable(null, {types: ['spec']})]", fill_rows["rows"][0]) == [False, False]
+    assert _node("[v.fillHref('/brain?tab=inbox', 'E02'), v.fillHref('/brain', 'O<1>')]") == [
+        "/brain?tab=inbox&fill=E02", "/brain?fill=O%3C1%3E"]
+
+
+def test_fill_link_sits_under_the_question_only_when_the_page_allows_it():
+    detail = (ROOT / "static/js/brain/ds/ds-onto-detail.js").read_text(encoding="utf-8")
+    main = (ROOT / "static/js/brain/ds/ds-onto.js").read_text(encoding="utf-8")
+    assert "if (!fill || !ov.fillable(row, fill.kinds)) return cell(row.question);" in detail  # 못 쓰는 사람 — 지금 칸 그대로
+    assert "'data-ds-onto-fill': row.id" in detail and "text: '문장으로 채우기'" in detail
+    assert detail.count("ctx.fill))") == 3  # 지식 종류 · ERP 물건 · 능력 질문 전체 표 모두 같은 칸
+    assert "root.hasAttribute('data-fill-url')" in main
