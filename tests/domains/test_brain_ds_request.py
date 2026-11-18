@@ -130,6 +130,38 @@ def test_requests_view_lists_through_the_api(app, who):
     assert "ds-inbox-card.js" not in body
 
 
+# ── 시험지에서 온 채우기 안내(설계서 5절 3판) ─────────────────────────────────
+def test_fill_hint_under_the_input_from_the_test_sheet(app, who):
+    from foms.services.brain.change_request_hints import fill_hint
+    from foms.services.brain.scope import viewer_of
+
+    body = _body(_client(app, who["admin"]).get("/brain?tab=inbox&fill=E02"))
+    form = _cut(body, "data-ds-req-form")
+    hint = fill_hint(db_session, viewer_of(db_session.get(User, who["admin"])), "E02", today=NOW_KST.date())
+    assert hint["gaps"] and hint["example"]
+    block = form[form.index('data-ds-req-fill="E02"'):]
+    assert form.index("data-ds-req-status") < form.index("data-ds-req-fill")  # 입력 칸 바로 아래
+    assert f'<span class="f-muted">채울 질문 E02 · </span>{html.escape(hint["question"])}</p>' in block
+    lines = re.findall(r'data-fillable="([01])">([^<]+)</li>', block)
+    assert [(f == "1", html.unescape(t)) for f, t in lines] == [(g["fillable"], g["gap"]) for g in hint["gaps"]]
+    assert html.unescape(re.search(r"예: ([^<]+)</p>", block).group(1)) == hint["example"]
+    box = re.search(r"<input [^>]*data-ds-req-text[^>]*>", form).group(0)
+    assert "value=" not in box  # 입력 칸에 글을 미리 채우지 않는다
+    assert 'style="' not in body and "<script>" not in body.split("</head>")[1]
+
+
+def test_fill_hint_only_for_table_ids_and_people_who_can_use_it(app, who, monkeypatch):
+    admin = _client(app, who["admin"])
+    for raw in ("ZZ9", "e02", "<b>E02</b>", ""):  # 표에 없는 번호 — 칸만 그대로
+        body = _body(admin.get(f"/brain?tab=inbox&fill={raw}"))
+        assert "data-ds-req-form" in body and "data-ds-req-fill" not in body, raw
+    assert "data-ds-req-fill" not in _body(admin.get("/brain?tab=requests&fill=E02"))  # 목록 보기에는 없다
+    assert "data-ds-req-fill" not in _body(admin.get("/brain?tab=releases&fill=E02"))
+    _flags(monkeypatch, change=False)
+    off = _body(admin.get("/brain?tab=inbox&fill=E02"))
+    assert "data-ds-req-fill" not in off and "data-ds-req-form" not in off and "채울 질문" not in off
+
+
 # ── 물어보기 [바뀐 내용으로 넣기] ─────────────────────────────────────────
 def test_ask_page_has_a_separate_button_for_change(app, who, monkeypatch):
     body = _body(_client(app, who["admin"]).get("/brain?tab=ask"))

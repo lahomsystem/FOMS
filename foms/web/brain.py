@@ -38,6 +38,7 @@ from foms.services.brain.browse import CHECKS, SORTS, known_count, type_map
 from foms.services.brain.card import item_card
 from foms.services.brain.card_pending import pending_change
 from foms.services.brain.change_request import view as change_view
+from foms.services.brain.change_request_hints import fill_hint, fill_kinds
 from foms.services.brain.change_request_store import ChangeRequestError, can_use as change_can_use
 from foms.services.brain.chat_access import page_open_without_settings, page_viewer
 from foms.services.brain.chat_settings import read_chat_settings
@@ -260,8 +261,17 @@ def _render_ds_index(viewer: Any, tab: str, ctx: dict[str, Any]) -> str:
         abort(404)
     section = DS_SECTIONS[tab]
     nav = _ds_nav(viewer, section, chat_tab=ctx["chat_tab"], inbox_count=ctx["counts"]["inbox"])
+    fill: dict[str, Any] = {}
+    if change_on and section == "onto":  # 시험지의 모자란 줄 → [문장으로 채우기](설계서 2026-11-18-brain-sentence-change 5절 3판)
+        fill["fill_kinds"] = fill_kinds()
+    elif change_on and tab == "inbox" and request.args.get("fill"):
+        db = get_db()
+        try:
+            fill["fill_hint"] = fill_hint(db, viewer, request.args.get("fill"), today=get_today_kst())
+        finally:
+            db.rollback()  # 읽기만
     return render_template(f"brain/ds/{section}.html", **{**ctx, "tab": tab}, page=tab, ds_nav=nav, change_on=change_on,
-                           request_tones=REQUEST_STATUS_TONES)
+                           request_tones=REQUEST_STATUS_TONES, **fill)
 
 
 def _actions_only_inbox(user: Any) -> str | None:

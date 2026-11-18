@@ -2,7 +2,8 @@
     쓸 수 있는 사람(change_on — foms/web/brain.py 가 change_request_store.can_use 로 판정)에게만 그린다. [분석]을 누르면
     ds-request-start.js 가 POST /api/brain/change-requests {text} 를 보내고(분석은 WORKER 줄 일 — 답은 바로 온다) 답이 오면
     /brain/requests/<번호> 로 간다. 실패 · 가림 · 꺼짐은 서버가 준 말을 아래 한 줄로. 목록 보기(?tab=requests)에서는 목록 링크를
-    그리지 않는다(지금 그 자리다). 인라인 스크립트 · 스타일 없음. -#}
+    그리지 않는다(지금 그 자리다). 시험지의 [문장으로 채우기]로 왔으면(fill_hint) 칸 아래에 그 질문 · 모자란 것 · 예시
+    (partials/request_fill.html). 인라인 스크립트 · 스타일 없음. -#}
 <form class="fb-req-input" aria-label="문장으로 고치기" data-ds-req-form
       data-start-url="{{ url_for('brain_change_api.brain_change_start') }}" data-request-base="{{ url_for('brain_web.index') }}/requests/">
   <div class="fb-req-input__row">
@@ -14,4 +15,7 @@
     {%- endif %}
   </div>
   <p class="fb-status" data-ds-req-status role="status" aria-live="polite"></p>
+  {%- if fill_hint is defined and fill_hint %}
+  {% include "brain/ds/partials/request_fill.html" %}
+  {%- endif %}
 </form>
