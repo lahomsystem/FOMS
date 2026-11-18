@@ -1,5 +1,5 @@
 /* 문장으로 고치기 배치(설계서 docs/specs/2026-11-18-brain-sentence-change_SPEC.md 4절) — 묶음 화면(templates/brain/ds/request.html) ·
-   승인 대기 맨 위 한 줄 칸(partials/request_input.html) · '문장으로 고친 것' 목록(partials/request_list.html) 전용.
+   승인 대기 맨 위 한 줄 칸(partials/request_input.html · 채우기 안내 request_fill.html) · '문장으로 고친 것' 목록(partials/request_list.html) 전용.
    class 머리 fb-req. 색 · 크기는 foms-ds.css 토큰(.f-app 안)만. 글자 크기는 토큰(--font-size · --font-size-small — --foms-fs 배율)만 쓴다.
    991.98px 아래 = 폰 모습(틀 brain-ds-shell.css 와 같은 기준): 칸 · 단추 · 줄 머리가 한 줄씩 쌓이고, 전 → 후는 위아래로. */
 
@@ -12,6 +12,15 @@
 .fb-req-input__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .fb-req-input__text { flex: 1 1 240px; width: auto; min-width: 0; }
 .fb-req-input__row > .f-btn { flex: none; }
+
+/* 문장으로 채우기 안내(partials/request_fill.html — 시험지의 모자란 줄에서 왔을 때) — 상자 없이 칸 아래 글 몇 줄.
+   모자란 것은 줄마다 앞에 점 하나. 긴 글은 낱말 단위로만 꺾는다. */
+.fb-req-fill { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 2px; }
+.fb-req-fill p,
+.fb-req-fill li { overflow-wrap: anywhere; word-break: keep-all; }
+.fb-req-fill__gaps { display: flex; flex-direction: column; gap: 2px; }
+.fb-req-fill__gaps > li { position: relative; padding-left: 14px; }
+.fb-req-fill__gaps > li::before { content: "·"; position: absolute; left: 4px; color: var(--text-muted); }
 
 /* 목록 줄(판 · 기록과 같은 카드 꼴) — 줄 전체가 링크 */
 .f-app a.fb-req-row { color: var(--text); gap: 6px; }
