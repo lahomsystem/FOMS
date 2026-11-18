@@ -3,21 +3,26 @@
 한꺼번에). 옮기기 묶음이라 AI 주 상한 · 4주 닫힘 밖이다(D130).
 
 계획 꼴(저장소 밖 파일 — 금액이 들어 있어 저장소에 두지 않는다): ``items[]``(지식 문서 id · 이름표 · 가격 규칙 근거 종류 · 나눔 ·
-사실 나눔 · 공정 단계 힌트 · 결정 번호) · ``conflicts[]`` · ``new_items[]``.
+사실 나눔 · 공정 단계 힌트 · 결정 번호) · ``conflicts[]`` · ``new_items[]`` · ``labels[]`` · ``links[]`` · ``rules[]`` ·
+``props[]``.
 
 - 항목마다 **고침 하나**(이름표 · 근거 종류 · 결정 번호를 실음 칸에 한 번에). 항목 키는 ``<브랜드>/<문서 id>``, 없으면
   ``common/<문서 id>``(:mod:`.doc_import` 키 꼴).
 - **만들기**: 가격 규칙 나눔(자식 — 지식 문서 항목이라 문서 id · 승인 칸을 단다, 글은 대표 이름뿐이라 승인 때 고쳐 넣는다) ·
   새 항목(공정 단계 · 규격 · 용어 — 공통 / 지식 문서 유형(새 가격 규칙)은 나눔 자식과 같은 길, ``parent_hint`` 항목에서 의도 ·
-  보기 범위) · 사실 나눔(규격 · 용어 · 정책 — 사실 글을 옮긴 새 항목 ``<옛 키>-<유형>`` + 옛 사실
-  **은퇴 제안**, 은퇴는 새 항목이 반영된 뒤 다음 차례) · 엇갈림(갈림 · 덮어씀은 ``conflict``, 글만 고칠 것은 ``question``) +
+  보기 범위 — 새 제작 조건은 ``applies_to`` 끝이 있어야) · 사실 나눔(규격 · 용어 · 정책 · 제작 조건 — 사실 글을 옮긴 새 항목
+  ``<옛 키>-<유형>`` + 옛 사실 **은퇴 제안**, 은퇴는 새 항목이 반영된 뒤 다음 차례. 제작 조건은 ``fact_to.applies_to`` 끝이
+  있어야 — 외톨이 0) · 엇갈림(갈림 · 덮어씀은 ``conflict``, 글만 고칠 것은 ``question``) +
   ``about``. ``supersedes`` 는 쓰지 않는다 — 엇갈림의 다른 쪽이 brain 항목이 아니라 바깥 사본(스토어 상세 · 매크로)이다.
 - 사실 → 공정 단계는 새 항목 없이 ``at_step`` 링크로 둔다(사실이 그 단계에 매인다 — 같은 단계 항목을 여럿 만들지 않는다).
   사실 → 브랜드는 브랜드 칸 틀이 아직 없어 넘긴다(수만 센다).
 - 링크(``value_from`` · ``copy_in``(``copy_hint`` — 값의 사본이 실린 양식 · 그림) · ``at_step`` · ``decided_by`` · ``about``)와
   은퇴는 :mod:`.plan_links` — 끝이 승인 대기면 다음 차례.
-- 다른 이름(``labels[]``) · 규칙 → 제품 잇기(``links[]`` — ``applies_to``)는 :mod:`.plan_labels`(온톨로지 4.2 — D193 · D194).
-- ``unsure`` · ``waiting`` 이 달린 묶음(항목 · 가격 규칙 · 사실 나눔 · 나눈 자식 · 새 항목 · 엇갈림)은 넣지 않고 센다.
+- 다른 이름(``labels[]``) · 규칙 → 제품 잇기 · 꼭 같이 · 같이 못 함(``links[]`` — ``applies_to`` · ``requires`` · ``excludes``)은
+  :mod:`.plan_labels`(온톨로지 4.2 — D193 · D194, 빈 재료 채우기 B — D203).
+- 정책 속 제작 조건 문장 옮기기(``rules[]``) · 속성 칸 고침(``props[]``)은 :mod:`.plan_rules`(빈 재료 채우기 2판 C · G — D201).
+- ``unsure`` · ``waiting`` 이 달린 묶음(항목 · 가격 규칙 · 사실 나눔 · 나눈 자식 · 새 항목 · 엇갈림 · 이름 · 링크 · 옮기기 ·
+  속성)은 넣지 않고 센다.
 - **멱등**: 이미 같은 값 · 이미 있는 항목 · 링크 · 같은 열린 제안이면 넣지 않는다. 같은 제안이 거절됐으면 :mod:`.proposals` 가
   막는다(``rejected_before``).
 - 요약은 동작 · 까닭별 수와 못 찾은 가리킴의 항목 키만(글 · 이름 · 금액 없음). 커밋은 호출자 몫, 모의 실행은 저장점을 되돌린다.
@@ -28,24 +33,26 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
-import re
 from typing import Any, Iterable, Mapping, Optional
 
 from sqlalchemy import select, update
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.constants import (
-    BRAND_COMMON, BRANDS, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_CREATE,
-    OP_UPDATE, PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, STATUS_ACTIVE, TYPE_KINDS,
+    BRAND_COMMON, BRANDS, CHANGE_EXPIRED, CHANGE_OPEN, DOC_TYPES, KEY_RE, KIND_TYPES, LAYER_COMMON, MAX_TEXT, OP_UPDATE,
+    PRICE_BASES, PRICE_RULE_TYPE, SCOPE_ADMIN, SCOPE_ALL, TYPE_KINDS,
 )
 from foms.services.brain.errors import BrainShapeError
 from foms.services.brain.plan_labels import file_labels, file_rule_links
 from foms.services.brain.plan_links import (
-    EVIDENCE_KIND, LABEL_KEYS, RETYPE_NAMES, Link, Run, copy_links, decided_links, decisions_in, file_link, file_one,
-    file_retire, held, is_decision_no, labels_for, one_line, open_changes, plan_problems, reason, source_name,
+    DOC_ID, LABEL_KEYS, RETYPE_NAMES, Link, Run, copy_links, create_item, decided_links, decisions_in, file_link,
+    file_one, file_retire, held, is_decision_no, labels_for, one_line, open_changes, plan_problems, reason, source_name,
     resolve, step_link, value_links,
 )
-from foms.services.brain.proposals import IMPORT_PROPOSER, after_values, known_text, propose_create, propose_update
+from foms.services.brain.plan_rules import (
+    RULE_TYPE, doc_fields, file_moves, file_props, file_rules, rule_ends, rule_links, rule_payload,
+)
+from foms.services.brain.proposals import IMPORT_PROPOSER, after_values, known_text, propose_update
 from models import SecurityLog
 from foms.services.brain.schemas import ERP_STAGES, payload_props
 from foms.services.brain.store import current_object, values_of
@@ -62,33 +69,13 @@ CONFLICT_TYPES: dict[str, str] = {"supersede": "conflict", "conflict_item": "con
 CALC_PREFIX, ABOUT_PREFIX = "calc:", "about:"
 #: 설명 칸이 꼭 있어야 하는 새 유형 — 계획에 글이 없으면 이름을 글로.
 _LABEL_TEXT = frozenset({"spec", "product_line", "option"})
-_DOC_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
 _PAYLOAD = "payload."
-
-
-def _create(run: Run, *, key: str, brand: str, layer: str, item_type: str, values: dict[str, Any], ref_id: str,
-            why: str, extra: tuple[str, ...] = ()) -> None:
-    """만들기 제안(이미 있거나 열린 만들기가 있으면 넘김). 상태 '반영' · 근거 종류 ``document`` 가 기본.
-
-    ``extra`` = 근거에 함께 싣는 자리 — 금액을 가져올 계산기 자리(② 문장 카드의 '지금 값' 한 줄) · 엇갈림이 다루는 항목
-    (``about:<키>`` — ③ 질문 카드가 두 글을 나란히 보인다). 링크는 반영 뒤 다음 차례라 그 전엔 알 길이 없다(설계서 7.9)."""
-    if not KEY_RE.fullmatch(key):
-        run.skipped["shape"] += 1
-    elif current_object(run.session, key) is not None:
-        run.skipped["same"] += 1
-    elif open_changes(run.session, OP_CREATE, key):
-        run.skipped["open_proposal"] += 1
-    else:
-        values = {"status": STATUS_ACTIVE, "evidence_kind": EVIDENCE_KIND, "evidence_ref": run.ref(ref_id), **values}
-        file_one(run, OP_CREATE, lambda: propose_create(
-            run.session, key=key, brand=brand, layer=layer, item_type=item_type, values=values, reason=why,
-            proposer=IMPORT_PROPOSER, evidence=[run.ref(ref_id), *extra], now=run.now, known=run.known))
 
 
 # ── 항목(지식 문서에서 옮긴 것) ─────────────────────────────────────────
 def _row(run: Run, doc_id: Any) -> Optional[BrainObject]:
     """계획 id → 지금 항목(그 브랜드 먼저, 없으면 공통)."""
-    if not isinstance(doc_id, str) or not _DOC_ID.fullmatch(doc_id):
+    if not isinstance(doc_id, str) or not DOC_ID.fullmatch(doc_id):
         return None
     for prefix in (run.brand.lower(), BRAND_COMMON.lower()):
         row = current_object(run.session, f"{prefix}/{doc_id}")
@@ -135,7 +122,7 @@ def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, pare
     (부모가 없으면 비움 · '내부 모두'). 글은 계획의 ``text``(없으면 대표 이름 — 승인 때 고쳐 넣는다). 정본 · 사본 링크는 반영 뒤
     다음 차례.
     (키, 유형)을 돌려준다(꼴이 틀리면 ``None``)."""
-    if kind not in KIND_TYPES or not isinstance(cid, str) or not _DOC_ID.fullmatch(cid):
+    if kind not in KIND_TYPES or not isinstance(cid, str) or not DOC_ID.fullmatch(cid):
         run.skipped["shape"] += 1
         return None
     item_type, layer = KIND_TYPES[kind]
@@ -143,15 +130,16 @@ def _doc_create(run: Run, block: Mapping[str, Any], *, kind: Any, cid: Any, pare
     label, base = one_line(block.get("pref_label"), 200) or cid, (parent.payload if parent is not None else None) or {}
     payload = {**labels_for(block, item_type, pref=False), "doc_id": cid, "intents": list(base.get("intents") or []),
                "tags": list(base.get("tags") or []), "source": base.get("source"), "approved_by": APPROVED_BY,
-               "approved_at": run.today, **({"basis": basis} if basis else {})}
+               "approved_at": run.today, **({"basis": basis} if basis else {}),
+               **(rule_payload(block) if item_type == RULE_TYPE else {})}
     key = f"{(parent.item_key.split('/')[0] if parent is not None else run.brand.lower())}/{cid}"
     prices = tuple(r for r in (resolve(run, h) for h in (block.get("value_from_hint") or []) if basis)
                    if r and r.startswith(CALC_PREFIX))[:3]
-    _create(run, key=key, brand=parent.brand if parent is not None else run.brand, layer=layer, item_type=item_type,
-            ref_id=cid, why=why, extra=prices,
-            values={"name": label, "text": one_line(block.get("text"), MAX_TEXT) or label,
-                    "visibility": parent.visibility if parent is not None else SCOPE_ALL,
-                    "checked_at": run.today, "payload": payload})
+    create_item(run, key=key, brand=parent.brand if parent is not None else run.brand, layer=layer, item_type=item_type,
+                ref_id=cid, why=why, extra=prices,
+                values={"name": label, "text": one_line(block.get("text"), MAX_TEXT) or label,
+                        "visibility": parent.visibility if parent is not None else SCOPE_ALL,
+                        "checked_at": run.today, "payload": payload})
     if basis:
         value_links(run, key, item_type, block.get("value_from_hint"), basis, cid)
     copy_links(run, key, item_type, block.get("copy_hint"), cid)
@@ -169,15 +157,15 @@ def _retype(run: Run, row: BrainObject, item: Mapping[str, Any], target: str) ->
     """사실 나눔 — 사실 글을 옮긴 새 항목(``<옛 키>-<유형>``) 만들기 + 옛 사실 은퇴(새 항목 반영 뒤). 새 키를 돌려준다."""
     key, old = f"{row.item_key}-{target}", values_of(row)
     payload = labels_for(item, target, pref=False)
-    if target in DOC_TYPES:  # 지식 문서 유형(정책) — 문서 칸은 옛 사실에서(같은 승인 글), 문서 id 는 겹치지 않게
+    if target in DOC_TYPES:  # 지식 문서 유형(정책 · 제작 조건) — 문서 칸은 옛 사실에서(같은 승인 글), 문서 id 는 겹치지 않게
         base = row.payload or {}
-        payload.update(doc_id=f"{base.get('doc_id') or item['id']}-{target}"[:64], intents=list(base.get("intents") or []),
-                       tags=list(base.get("tags") or []), source=base.get("source"),
-                       approved_by=base.get("approved_by"), approved_at=base.get("approved_at"))
-    _create(run, key=key, brand=row.brand, layer=LAYER_COMMON, item_type=target, ref_id=item["id"],
-            values={"name": one_line(item.get("pref_label"), 200) or item["id"], "text": old["text"],
-                    "visibility": old["visibility"], "checked_at": old["checked_at"], "payload": payload or None},
-            why=reason(f"사실 글을 {RETYPE_NAMES[target]} 지식으로 옮겨요", ("D103",)))
+        payload.update(doc_fields(base, f"{base.get('doc_id') or item['id']}-{target}"))
+    if target == RULE_TYPE:
+        payload.update(rule_payload(item.get("fact_to")))
+    create_item(run, key=key, brand=row.brand, layer=LAYER_COMMON, item_type=target, ref_id=item["id"],
+                values={"name": one_line(item.get("pref_label"), 200) or item["id"], "text": old["text"],
+                        "visibility": old["visibility"], "checked_at": old["checked_at"], "payload": payload or None},
+                why=reason(f"사실 글을 {RETYPE_NAMES[target]} 지식으로 옮겨요", ("D103",)))
     run.retires.append((row.item_key, key, target, item["id"]))
     return key
 
@@ -203,9 +191,14 @@ def _items(run: Run, items: Iterable[Mapping[str, Any]]) -> None:
         if item.get("brand_split") and row.brand == BRAND_COMMON:
             run.skipped["brand_split_common"] += 1  # D125 — 공통 항목을 브랜드마다 둘로 나누는 일은 이 도구 밖
         key, key_type = row.item_key, row.item_type
+        ends = rule_ends(run, fact_to.get("applies_to")) if target == RULE_TYPE else None
+        if ends == []:  # 외톨이 제작 조건 0 — 걸 제품 라인 · 옵션이 없으면 나누지 않는다
+            run.skipped["orphan_rule"] += 1
+            continue
         if target in RETYPE_NAMES:
             key, key_type = _retype(run, row, item, target), target
             run.skipped["retyped"] += 1  # 옛 사실은 고치지 않는다 — 이름표 · 링크는 새 항목으로
+            run.links += rule_links(run, key, ends or (), item["id"])
         else:
             if target is not None:  # 공정 단계 = at_step 링크로만 · 브랜드 = 브랜드 칸 틀이 없어 사실 그대로
                 run.skipped[f"retype_{target}" if target in ("process_step", "brand") else "retype_unknown"] += 1
@@ -237,11 +230,16 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
             continue
         item_type, key = new.get("type"), str(new.get("key") or "").lower()
         if item_type in TYPE_KINDS and KEY_RE.fullmatch(key):  # 지식 문서 유형(새 가격 규칙 등) — 나눔 자식과 같은 길
+            ends = rule_ends(run, new.get("applies_to")) if item_type == RULE_TYPE else None
+            if ends == []:  # 외톨이 제작 조건 0
+                run.skipped["orphan_rule"] += 1
+                continue
             made = _doc_create(run, new, kind=TYPE_KINDS[item_type], cid=key.rsplit("/", 1)[-1],
                                parent=_row(run, new.get("parent_hint")),
                                why=reason("새로 알게 된 지식이에요", decisions_in(new.get("decided"), new.get("why"))))
             if made is not None:
                 decided_links(run, *made, new.get("decided"), made[0].rsplit("/", 1)[-1])
+                run.links += rule_links(run, made[0], ends or (), made[0].rsplit("/", 1)[-1])
             continue
         if item_type not in NEW_TYPES or not KEY_RE.fullmatch(key):
             run.skipped["unknown_type" if KEY_RE.fullmatch(key) else "shape"] += 1
@@ -257,11 +255,11 @@ def _new_items(run: Run, rows: Iterable[Any]) -> None:
                 run.skipped["shape"] += 1
                 continue
             payload["erp_stage"], refs = stage, [f"erp:stage/{stage.lower()}"]
-        _create(run, key=key, brand=brand, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
-                values={"name": label, "visibility": SCOPE_ALL,
-                        "text": one_line(new.get("text"), MAX_TEXT) or (label if item_type in _LABEL_TEXT else None),
-                        "payload": payload or None},
-                why=reason(f"새로 정리한 {NEW_TYPES[item_type]}이에요", decisions_in(new.get("why"))))
+        create_item(run, key=key, brand=brand, layer=LAYER_COMMON, item_type=item_type, ref_id=key,
+                    values={"name": label, "visibility": SCOPE_ALL, "payload": payload or None,
+                            "text": one_line(new.get("text"), MAX_TEXT) or (
+                                label if item_type in _LABEL_TEXT else None)},
+                    why=reason(f"새로 정리한 {NEW_TYPES[item_type]}이에요", decisions_in(new.get("why"))))
         value_links(run, key, item_type, refs, None, key)
 
 
@@ -288,20 +286,20 @@ def _conflicts(run: Run, rows: Iterable[Any]) -> None:
         key, ref_id = f"{item_type}/{run.brand.lower()}-{digest}", f"{item_type}-{digest}"
         decisions = decisions_in(conflict.get("resolved_by"), conflict.get("settled_by_earlier"))
         layers, scopes, name = {r.layer for r in found}, {r.visibility for r in found}, " ".join(summary.split())
-        _create(run, key=key, brand=run.brand, layer=layers.pop() if len(layers) == 1 else LAYER_COMMON,
-                item_type=item_type, ref_id=ref_id,
-                values={"name": name if len(name) <= 80 else name[:79] + "…", "text": summary.strip(),
-                        "visibility": scopes.pop() if len(scopes) == 1 else SCOPE_ADMIN,
-                        "payload": {"plan_action": conflict["action"],
-                                    **({"decisions": list(decisions)} if decisions else {})}},
-                why=reason("두 곳에 다르게 적혀 있어요" if item_type == "conflict" else "글을 고칠 곳이 있어요", decisions),
-                extra=tuple(f"{ABOUT_PREFIX}{r.item_key}" for r in found[:3]))
+        create_item(run, key=key, brand=run.brand, layer=layers.pop() if len(layers) == 1 else LAYER_COMMON,
+                    item_type=item_type, ref_id=ref_id,
+                    values={"name": name if len(name) <= 80 else name[:79] + "…", "text": summary.strip(),
+                            "visibility": scopes.pop() if len(scopes) == 1 else SCOPE_ADMIN,
+                            "payload": {"plan_action": conflict["action"],
+                                        **({"decisions": list(decisions)} if decisions else {})}},
+                    why=reason("두 곳에 다르게 적혀 있어요" if item_type == "conflict" else "글을 고칠 곳이 있어요", decisions),
+                    extra=tuple(f"{ABOUT_PREFIX}{r.item_key}" for r in found[:3]))
         run.links += [Link("about", key, item_type, r.item_key, r.item_type, ref_id) for r in found]
 
 
 # ── 진입점 ───────────────────────────────────────────────────────────────
 #: 계획 칸(요약에 수만 센다).
-PLAN_PARTS: tuple[str, ...] = ("items", "new_items", "conflicts", "labels", "links")
+PLAN_PARTS: tuple[str, ...] = ("items", "new_items", "conflicts", "labels", "links", "rules", "props")
 
 
 def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool, source: Optional[str] = None,
@@ -329,8 +327,11 @@ def file_plan(session: Any, plan: Mapping[str, Any], *, brand: str, apply: bool,
         _conflicts(run, plan.get("conflicts") or [])
         file_labels(run, plan.get("labels") or [])  # 다른 이름 · 규칙 → 제품 잇기(온톨로지 4.2 — D193 · D194)
         file_rule_links(run, plan.get("links") or [])
+        file_rules(run, plan.get("rules") or [])  # 정책 속 제작 조건 문장 옮기기 · 속성 칸(빈 재료 채우기 2판 C · G — D201)
+        file_props(run, plan.get("props") or [])
         for retire in run.retires:
             file_retire(run, *retire)
+        file_moves(run)
         for link in run.links:
             file_link(run, link)
     except Exception:
