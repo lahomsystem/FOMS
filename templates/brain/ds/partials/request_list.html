@@ -1,0 +1,16 @@
+{#- 승인 대기의 '문장으로 고친 것' 보기(?tab=requests — 설계서 docs/specs/2026-11-18-brain-sentence-change_SPEC.md 4절 '목록').
+    '판 · 기록' 보기(inbox_releases.html)와 같은 꼴 — 줄: 날짜 · 한 줄 요약 · 상태 · 고친 수, 누르면 묶음 화면.
+    목록은 ds-request-list.js 가 GET /api/brain/change-requests?page= 로 읽는다(관리자는 모두, 그 밖은 내가 넣은 것만).
+    상태 꼬리표 색은 서버 표(foms/web/brain.py REQUEST_STATUS_TONES)를 data-tones 로 받는다. -#}
+<header class="f-row">
+  <h1 class="f-h3 fb-pc-only">문장으로 고친 것</h1>
+  <span class="f-muted">문장 하나로 고친 것을 묶음으로 모아 봐요. 누르면 고친 것 · 못 고친 것을 보고 묶음째 되돌릴 수 있어요.</span>
+</header>
+<p class="fb-status" data-ds-reqs-status role="status" aria-live="polite"></p>
+<ol class="f-col fb-cards" data-ds-reqs data-list-url="{{ url_for('brain_change_api.brain_change_list') }}"
+    data-request-base="{{ url_for('brain_web.index') }}/requests/" data-tones="{{ request_tones|tojson|forceescape }}"></ol>
+<nav class="f-row" aria-label="문장으로 고친 것 쪽">
+  <button class="f-btn" type="button" data-ds-reqs-prev disabled>{{ ds.icon('chevron-left') }}이전</button>
+  <span class="f-small f-muted f-num" data-ds-reqs-text></span>
+  <button class="f-btn" type="button" data-ds-reqs-next disabled>다음{{ ds.icon('chevron-right') }}</button>
+</nav>
