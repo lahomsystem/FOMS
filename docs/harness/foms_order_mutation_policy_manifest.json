@@ -1400,6 +1400,31 @@
       "policy_id": "ADMIN_OPS",
       "rule": "/api/brain/releases/<int:number>/rollback"
     },
+    "brain_change_api.brain_change_start": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/change-requests"
+    },
+    "brain_change_api.brain_change_answer": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/change-requests/<int:request_id>/answer"
+    },
+    "brain_change_api.brain_change_apply": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/change-requests/<int:request_id>/apply"
+    },
+    "brain_change_api.brain_change_discard": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/change-requests/<int:request_id>/discard"
+    },
+    "brain_change_api.brain_change_revert": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/change-requests/<int:request_id>/revert"
+    },
     "brain_chat_api.brain_chat_ask": {
       "mode": "guard",
       "policy_id": "BRAIN_ASK",
