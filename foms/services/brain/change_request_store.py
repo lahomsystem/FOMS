@@ -1,5 +1,8 @@
 """문장으로 고치기 — 누가 쓰나 · 묶음 줄 읽기 · 감사 줄 · 묶음 화면 값 · 목록(설계서 2026-11-18 4절 · 11절 · D247).
 
+- **줄 일 넣기**(:func:`enqueue_analysis`): 분석은 WORKER 줄 일이다(:mod:`.change_request_job` — 운영 web 에는 AI 열쇠가 없다).
+  RQ ``default`` 줄 · 줄 일 번호 ``brain_change_request_<묶음>_<차례>`` · 시간 상한 :data:`JOB_TIMEOUT` · 다시 하기 0 — 상담 AI
+  평가 줄 일(:func:`foms.services.ai_staff.evals.enqueue_run`)과 같은 버릇. 큐가 없거나 넣기가 실패하면 거짓(web 에서 대신 돌리지 않는다).
 - **누가 쓰나**(:func:`can_use`): 접목판 스위치 ``brain_change_request``(``brain_ui`` 가 켜져 있어야 — :mod:`foms.services.graft_flags`)가
   켜진 사람 가운데 회사 지식 화면을 여는 사람(:func:`.access.screen_viewer`) — 관리자 또는 층 승인자(:func:`.access.approver_layers`
   가 층을 하나 이상 주는 팀장). 그 밖은 없는 것과 같은 404.
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import logging
 from typing import Any, Optional
 
 from sqlalchemy import func, select
@@ -31,6 +35,7 @@ from foms.services.brain.display import LAYER_LABELS
 from foms.services.brain.scope import Viewer
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.graft_flags import enabled as graft_enabled
+from foms.services.jobs.queue import get_rq_queue
 from models import SecurityLog
 
 FLAG = "brain_change_request"
@@ -58,7 +63,13 @@ ERROR_TEXTS: dict[str, str] = {
     "error": "분석 중 오류가 나서 멈췄어요 — 다시 넣어 주세요.",
     "off": "문장으로 고치기가 꺼져 있어요 — 관리자에게 알려 주세요.",
     "forbidden": "분석 중 쓸 수 있는 사람이 아니게 됐어요 — 관리자에게 알려 주세요.",
+    "queue": "지금은 분석을 맡길 수 없어요 — 잠시 뒤 다시 넣어 주세요.",
 }
+#: 줄 일 들머리(WORKER 가 미리 읽는 ``foms.services.jobs.tasks`` 의 얇은 함수 → :mod:`.change_request_job`) · 시간 상한.
+JOB_PATH = "foms.services.jobs.tasks.run_brain_change_request_task"
+JOB_TIMEOUT = "5m"
+#: 이번 분석(``analyzing_at``)을 잡은 줄 일 표시(묶음 JSON — 같은 분석을 두 번 돌리지 않게).
+CLAIMED = "claimed"
 #: 분석 시작 시각 칸(묶음 JSON — 되물음 답으로 다시 분석할 때 새로 적는다).
 ANALYZING_AT = "analyzing_at"
 #: 이만큼 지나도 ``analyzing`` 이면 멈춘 것으로 닫는다.
@@ -78,14 +89,34 @@ class ChangeRequestError(RuntimeError):
         self.code = code
 
 
+def role_viewer(user: Any) -> Optional[Viewer]:
+    """역할 · 팀으로만 본 판정 — 관리자 또는 층 승인자면 Viewer(스위치는 보지 않는다 — 줄 일이 다시 볼 때)."""
+    viewer = screen_viewer(user) if user is not None else None
+    if viewer is None or not (viewer.is_admin or approver_layers(viewer)):
+        return None
+    return viewer
+
+
 def can_use(user: Any) -> Optional[Viewer]:
     """문장으로 고치기를 쓸 수 있으면 그 사람의 Viewer — 스위치 켬 · 관리자 또는 층 승인자. 아니면 ``None``."""
     if user is None or not graft_enabled(FLAG, user):
         return None
-    viewer = screen_viewer(user)
-    if viewer is None or not (viewer.is_admin or approver_layers(viewer)):
-        return None
-    return viewer
+    return role_viewer(user)
+
+
+def enqueue_analysis(request_id: int, attempt: int) -> bool:
+    """분석 줄 일을 WORKER 의 RQ ``default`` 줄에 넣는다(커밋 뒤에 부른다). 큐가 없거나 넣기가 실패하면 거짓."""
+    queue = get_rq_queue()
+    if queue is None:
+        return False
+    try:
+        queue.enqueue(JOB_PATH, int(request_id), job_id=f"brain_change_request_{int(request_id)}_{int(attempt)}",
+                      job_timeout=JOB_TIMEOUT)
+    except Exception as exc:  # 큐 장애 — 묶음은 'queue' 로 닫는다(까닭은 로그에 종류만)
+        logging.getLogger(__name__).error("[문장으로 고치기] 줄 넣기 실패 request=%s err=%s", request_id,
+                                          type(exc).__name__)
+        return False
+    return True
 
 
 def require_user(user: Any) -> Viewer:
@@ -213,6 +244,8 @@ def _since(row: BrainChangeRequest) -> Optional[datetime.datetime]:
 def close_stuck(session: Any, *, now: Optional[datetime.datetime] = None) -> int:
     """분석 시작 뒤 :data:`STUCK_AFTER` 가 지나도 ``analyzing`` 인 묶음을 ``failed``(``stuck``)로 닫는다. 닫은 수(flush 만)."""
     now = now or now_utc_naive()
+    if now.tzinfo is not None:  # 표 시각은 UTC naive — 시간대 있는 시각은 맞춰 견준다
+        now = now.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     rows = session.execute(select(BrainChangeRequest).where(BrainChangeRequest.status == ANALYZING)
                            .with_for_update()).scalars().all()
     closed = 0

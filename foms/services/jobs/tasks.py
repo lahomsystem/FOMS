@@ -716,3 +716,13 @@ def run_naver_settle_sync_task(actor_user_id=None, backfill_from=None,
     except Exception as e:
         logger.error(f"[RQ] run_naver_settle_sync_task error: {e}", exc_info=True)
         raise
+
+
+def run_brain_change_request_task(request_id: int) -> str:
+    """문장으로 고치기 분석 줄 일(설계서 2026-11-18-brain-sentence-change — 운영 web 에는 AI 열쇠가 없어 WORKER 에서 돈다).
+
+    얇은 들머리다 — 본체(한 번만 · 닫기)는 :func:`foms.services.brain.change_request_job.run_change_request_job`.
+    """
+    from foms.services.brain.change_request_job import run_change_request_job
+
+    return run_change_request_job(int(request_id))

@@ -20,7 +20,9 @@ from db import db_session
 from foms.persistence.brain.models import BrainChangeRequest
 from foms.services.brain.store import current_object
 from foms.services.request_write_guard import _CSRF_SALT, _CSRF_SESSION_KEY
-from tests.domains.test_brain_change_request import NEW_TEXT, OLD_TEXT, SENTENCE, answer_text, flags_on, upd, world
+from tests.domains.test_brain_change_request import (
+    NEW_TEXT, OLD_TEXT, SENTENCE, answer_text, fake_queue, flags_on, run_jobs, upd, world,
+)
 from tests.support.brain_chat_support import FakeClient
 
 BASE = "/api/brain/change-requests"
@@ -44,7 +46,7 @@ def ids(app, monkeypatch):
     import foms.services.cs_agent.brain as cs_brain
 
     monkeypatch.setattr(cs_brain, "_default_client", lambda: fake)
-    return {name: user.id for name, user in people.items()}
+    return {**{name: user.id for name, user in people.items()}, "_queue": fake_queue(monkeypatch)}
 
 
 def _count():
@@ -93,8 +95,10 @@ def test_the_seven_routes_and_someone_elses_bundle(app, ids, monkeypatch):
     made = admin.post(BASE, json={"text": SENTENCE, "created_by": ids["dr_mgr"]})
     assert made.status_code == 200 and made.get_json()["success"] is True
     data = made.get_json()["data"]
-    assert data["status"] == "ready" and data["mine"] is True and data["questions"] == ["시공일은 누가 맞추나요?"]
+    assert data["status"] == "analyzing" and data["mine"] is True  # 분석은 WORKER 줄 일 — 넣고 바로 돌아온다
+    assert run_jobs(ids["_queue"], now=None) == ["ready"]  # 줄 일(기본 클라이언트 = 가짜)
     number = data["id"]
+    assert admin.get(f"{BASE}/{number}").get_json()["data"]["questions"] == ["시공일은 누가 맞추나요?"]
     assert db_session.get(BrainChangeRequest, number).created_by == ids["admin"]  # 본문의 사람 칸은 읽지 않는다
     for method, path, body in _paths(number)[2:]:  # 팀장에게 관리자의 묶음은 없는 것과 같다
         assert _call(lead, method, path, body).status_code == 404, path
@@ -102,6 +106,7 @@ def test_the_seven_routes_and_someone_elses_bundle(app, ids, monkeypatch):
     assert admin.get(f"{BASE}/{number}").get_json()["data"]["lines"][0]["key"] == "common/rule/assign"
     answered = admin.post(f"{BASE}/{number}/answer", json={"text": "출고 담당이 맞춰요"})
     assert answered.status_code == 200 and answered.get_json()["data"]["answers"][0]["answer"] == "출고 담당이 맞춰요"
+    assert answered.get_json()["data"]["status"] == "analyzing" and run_jobs(ids["_queue"], now=None) == ["ready"]
     bad = admin.post(f"{BASE}/{number}/apply", json={"skip": "1"})
     assert bad.status_code == 400 and bad.get_json()["data"] == {"code": "shape"}
     applied = admin.post(f"{BASE}/{number}/apply", json={"skip": []})
@@ -119,6 +124,7 @@ def test_admin_reverts_a_team_leads_bundle_but_cannot_apply_it(app, ids, monkeyp
     flags_on(monkeypatch)
     lead, admin = _client(app, ids["dr_mgr"]), _client(app, ids["admin"])
     number = lead.post(BASE, json={"text": SENTENCE}).get_json()["data"]["id"]
+    run_jobs(ids["_queue"], now=None)
     assert admin.post(f"{BASE}/{number}/apply", json={}).status_code == 404  # 이대로 고치기는 넣은 사람만
     assert admin.get(f"{BASE}/{number}").get_json()["data"]["mine"] is False
 

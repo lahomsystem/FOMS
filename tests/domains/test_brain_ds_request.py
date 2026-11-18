@@ -26,7 +26,7 @@ from db import db_session
 from foms.services.brain import change_request as cr
 from foms.services.graft_flags import FLAGS
 from models import User
-from tests.domains.test_brain_change_request import APPLY_AT, answer_text, lvl, upd, world
+from tests.domains.test_brain_change_request import APPLY_AT, answer_text, lvl, start_and_run, upd, world
 from tests.support.brain_chat_support import NOW_KST, chat_on, fixed
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,10 +71,9 @@ def _body(resp) -> str:
 
 
 def _start(user_id, answer=None):
-    out = cr.start(db_session, db_session.get(User, user_id), "도면 담당은 도면팀에서 정해", client=fixed(answer_text(**(answer or FULL_ANSWER))),
-                   now=NOW_KST)
-    db_session.commit()
-    return out
+    """시작 → 분석 줄 일을 바로 부름(WORKER 대신 — :func:`tests.domains.test_brain_change_request.start_and_run`)."""
+    return start_and_run(db_session.get(User, user_id), "도면 담당은 도면팀에서 정해",
+                         client=fixed(answer_text(**(answer or FULL_ANSWER))), now=NOW_KST)
 
 
 def _scripts(body: str) -> list[str]:
