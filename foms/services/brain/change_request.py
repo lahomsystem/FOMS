@@ -9,12 +9,14 @@
 3. **묶음 줄 만들기**(:func:`open_request`) — 상태 ``analyzing`` · 넣은 사람 · 고칠 수 있는 층 · 가린 문장. 감사 한 줄.
 4. **분석 돌리기**(:func:`analyze`) — 재료 모으기 · AI 한 번(:mod:`.change_request_model` — 따로 돈 줄 · 하루 상한) · 답 읽기 ·
    줄마다 검사(:mod:`.change_request_check`) → ``ready``(되물음만 있으면 ``asked``) · 실패면 ``failed`` + ``error_code``.
-   AI 답이 틀 밖이면 반영 0 · ``failed``. 지금은 요청 안에서 바로 돈다 — 줄 일(WORKER)로 옮길 때는 4 만 옮기면 된다.
+   AI 답이 틀 밖이면 반영 0 · ``failed``. **WORKER 줄 일로 돈다**(:mod:`.change_request_job` — 운영 web 에는 AI 열쇠가 없다):
+   web 의 :func:`start` · :func:`answer` 는 묶음 줄을 ``analyzing`` 으로 커밋한 뒤 줄에 넣고 바로 돌아온다(AI 준비 확인도 부르지
+   않는다 — 하루 상한이 비어 꺼진 것만 설정을 읽어 미리 알린다). 줄에 넣기가 실패하면 ``failed``(``queue``).
 5. **되물음 답**(:func:`answer`) — 가린 답을 묶음에 더하고(감사 한 줄) 같은 묶음을 다시 분석.
 6. **이대로 고치기 · 되돌리기**는 :mod:`.change_request_apply`(:func:`apply` · :func:`revert`), **버리기**(:func:`discard`).
 
-커밋: :func:`start` · :func:`answer` 는 AI 를 부르기 전 묶음 줄을 커밋한다(돈 예약 · 바로잡기가 세션을 커밋한다). 나머지는
-부르는 쪽(API)이 커밋한다. 분석이 뜻밖의 오류로 죽으면 묶음을 ``failed`` + ``error_code``(``error:<오류 이름>``)로 닫고,
+커밋: :func:`start` · :func:`answer` 는 줄에 넣기 전에 묶음 줄을 커밋한다(줄 일이 그 줄을 읽게). 줄 일은 스스로 커밋한다.
+나머지는 부르는 쪽(API)이 커밋한다. 분석이 뜻밖의 오류로 죽으면 묶음을 ``failed`` + ``error_code``(``error:<오류 이름>``)로 닫고,
 10분 넘게 ``analyzing`` 인 묶음은 읽을 때 ``failed``(``stuck``)로 닫는다(:func:`.change_request_store.close_stuck`).
 
 시각: 모든 함수의 ``now`` 는 **UTC naive 하나**(표에 저장하는 시각 — 저장소 버릇 :func:`now_utc_naive`)다. 한국 시각이 필요한
@@ -37,8 +39,9 @@ from foms.services.brain.change_request_model import (
     ChangeOutputError, build, call, daily_cap, gather, read_bundle,
 )
 from foms.services.brain.change_request_store import (
-    ANALYZING, ANALYZING_AT, ASKED, DISCARDED, FAILED, READY, ChangeRequestError, audit, can_use, layer_scope_of,
-    list_page, load, require_user, save_bundle, scope_tuple, view, view_of,
+    ANALYZING, ANALYZING_AT, ASKED, CLAIMED, DISCARDED, FAILED, READY, ChangeRequestError, audit, can_use,
+    enqueue_analysis, layer_scope_of, list_page, load, require_user, role_viewer, save_bundle, scope_tuple, view,
+    view_of,
 )
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.embeddings import query_vector
@@ -48,8 +51,8 @@ from foms.services.cs_agent.masking import MaskLeak, mask, require_masked
 from foms.services.cs_agent.state import KST
 from foms.services.datetime_kst import now_utc_naive
 
-__all__ = ["ChangeRequestError", "analyze", "answer", "apply", "can_use", "discard", "list_page", "open_request",
-           "revert", "start", "view"]
+__all__ = ["ChangeRequestError", "analyze", "analyze_closed", "answer", "apply", "can_use", "discard", "list_page",
+           "open_request", "revert", "start", "view"]
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,8 @@ MAX_TEXT, MAX_MASKED, MAX_ANSWERS = 800, 1000, 3
 def _clock(now: Optional[datetime.datetime]) -> tuple[datetime.datetime, datetime.datetime]:
     """(UTC naive — 표에 저장, 한국 시각 — AI 의 '오늘' · 돈 줄 하루 경계). ``now`` 는 UTC naive(없으면 지금)."""
     now_utc = now or now_utc_naive()
+    if now_utc.tzinfo is not None:  # 시간대 있는 시각을 받으면 UTC naive 로 맞춘다(뜻이 섞이지 않게)
+        now_utc = now_utc.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     return now_utc, now_utc.replace(tzinfo=datetime.timezone.utc).astimezone(KST)
 
 
@@ -115,8 +120,11 @@ def _fail(row: BrainChangeRequest, code: str, bundle: dict[str, Any]) -> None:
 
 def analyze(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = None,
             now: Optional[datetime.datetime] = None) -> BrainChangeRequest:
-    """분석 돌리기 — 재료 → AI 한 번 → 답 읽기 → 줄마다 검사 → ``ready`` · ``asked`` · ``failed``. 세션을 몇 번 커밋한다."""
-    viewer = require_user(user)
+    """분석 돌리기(줄 일 안) — 재료 → AI 한 번 → 답 읽기 → 줄마다 검사 → ``ready`` · ``asked`` · ``failed``. 세션을 몇 번
+    커밋한다. 넣은 사람은 역할 · 팀으로 다시 본다(스위치는 web 에서 봤다 — WORKER env 에 없어도 된다)."""
+    viewer = role_viewer(user)
+    if viewer is None:
+        raise ChangeRequestError("forbidden")
     now_utc, when = _clock(now)
     today = when.date()
     started = time.monotonic()
@@ -162,8 +170,8 @@ def analyze(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = N
     return row
 
 
-def _analyze_closed(session: Any, row: BrainChangeRequest, user: Any, *, client: Any,
-                    now: Optional[datetime.datetime]) -> BrainChangeRequest:
+def analyze_closed(session: Any, row: BrainChangeRequest, user: Any, *, client: Any = None,
+                   now: Optional[datetime.datetime] = None) -> BrainChangeRequest:
     """분석을 감싼다 — 뜻밖의 오류로 죽어도 묶음이 ``analyzing`` 에 멈추지 않게 되돌린 뒤 ``failed`` + 코드로 닫는다."""
     request_id = row.id
     try:
@@ -178,16 +186,25 @@ def _analyze_closed(session: Any, row: BrainChangeRequest, user: Any, *, client:
         return row
 
 
-def start(session: Any, user: Any, text: Any, *, client: Any = None,
-          now: Optional[datetime.datetime] = None) -> dict[str, Any]:
-    """분석 시작 — 묶음 줄 만들기(커밋) → 분석 돌리기 → 묶음 화면 값. 커밋은 부르는 쪽(분석 결과)."""
+def _queue(session: Any, row: BrainChangeRequest, attempt: int) -> BrainChangeRequest:
+    """커밋한 묶음 줄의 분석을 줄에 넣는다 — 못 넣으면 ``failed``(``queue``, flush 만 — 커밋은 부르는 쪽)."""
+    if enqueue_analysis(row.id, attempt):
+        return row
+    row = session.get(BrainChangeRequest, row.id, populate_existing=True)
+    _fail(row, "queue", {"answers": list((row.bundle or {}).get("answers") or [])})
+    session.flush()
+    return row
+
+
+def start(session: Any, user: Any, text: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:
+    """분석 시작 — 묶음 줄 만들기(커밋) → 줄 일 넣기 → 묶음 화면 값(``analyzing``, 못 넣었으면 ``failed``)."""
+    viewer = require_user(user)
     row = open_request(session, user, text, now=now)
     session.commit()
-    row = _analyze_closed(session, row, user, client=client, now=now)
-    return view_of(row, require_user(user))
+    return view_of(_queue(session, row, 0), viewer)
 
 
-def answer(session: Any, user: Any, request_id: Any, text: Any, *, client: Any = None,
+def answer(session: Any, user: Any, request_id: Any, text: Any, *,
            now: Optional[datetime.datetime] = None) -> dict[str, Any]:
     """되물음에 답 — 가린 답을 더하고 같은 묶음을 다시 분석(넣은 사람만 · 미리 보기 · 되물음 상태 · 물음이 있을 때)."""
     viewer = require_user(user)
@@ -201,11 +218,11 @@ def answer(session: Any, user: Any, request_id: Any, text: Any, *, client: Any =
     answers.append({"question": " / ".join(bundle["questions"])[:500], "answer": masked})
     now_utc, _when = _clock(now)
     row.status = ANALYZING
-    save_bundle(row, {**bundle, "answers": answers, ANALYZING_AT: now_utc.isoformat(timespec="seconds")})
+    fresh = {k: v for k, v in bundle.items() if k != CLAIMED}  # 새 분석 — 앞 분석을 잡은 표시는 지운다
+    save_bundle(row, {**fresh, "answers": answers, ANALYZING_AT: now_utc.isoformat(timespec="seconds")})
     audit(session, viewer.user_id, row, "ANSWER", {"answers": len(answers), "chars": len(masked)}, now_utc)
     session.commit()
-    row = _analyze_closed(session, row, user, client=client, now=now)
-    return view_of(row, viewer)
+    return view_of(_queue(session, row, len(answers)), viewer)
 
 
 def discard(session: Any, user: Any, request_id: Any, *, now: Optional[datetime.datetime] = None) -> dict[str, Any]:

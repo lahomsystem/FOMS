@@ -20,6 +20,8 @@ from db import db_session
 from foms.persistence.brain.models import BrainChange, BrainChangeRequest
 from foms.services.ai_staff.registry import level_of
 from foms.services.brain import change_request as cr
+from foms.services.brain import change_request_job as job
+from foms.services.brain import change_request_store as store
 from foms.services.brain.apply import apply_change
 from foms.services.brain.change_request_model import SPEND_KEY
 from foms.services.brain.chat_settings import CHANGE_CAP_FIELD, DEFAULTS, SETTINGS_KEY
@@ -90,16 +92,61 @@ OWNER_ANSWER = dict(
     also_look=["common/door — 같이 볼 것"])
 
 
+class FakeQueue:
+    """RQ 줄 흉내 — 넣은 일(인자 · 옵션)을 적는다. ``fail`` 이면 넣기가 실패한다."""
+
+    def __init__(self, fail=False):
+        self.jobs, self.fail = [], fail
+
+    def enqueue(self, *args, **kwargs):
+        if self.fail:
+            raise ConnectionError("합성 큐 장애")
+        self.jobs.append((args, kwargs))
+
+
+def fake_queue(monkeypatch, fail=False):
+    """분석 줄 일을 넣는 줄을 가짜로(넣은 일은 :func:`run_jobs` 가 바로 돌린다)."""
+    queue = FakeQueue(fail)
+    monkeypatch.setattr(store, "get_rq_queue", lambda: queue)
+    return queue
+
+
+def run_jobs(queue, client=None, now=START_AT):
+    """줄에 든 분석 일을 WORKER 대신 바로 부른다(넣은 차례대로 · 한 번씩) — 닫은 상태들."""
+    done = [job.run_change_request(db_session, args[1], client=client, now=now) for args, _kw in queue.jobs]
+    queue.jobs.clear()
+    return done
+
+
+def start_and_run(user, text=SENTENCE, client=None, now=START_AT):
+    """다른 시험 모듈용 — 시작(web) → 줄 일을 바로 부름 → 묶음 화면 값(가짜 줄을 잠깐 끼웠다가 되돌린다)."""
+    saved, queue = store.get_rq_queue, FakeQueue()
+    store.get_rq_queue = lambda: queue
+    try:
+        out = cr.start(db_session, user, text, now=now)
+        db_session.commit()
+        run_jobs(queue, client, now=now)
+    finally:
+        store.get_rq_queue = saved
+    return cr.view(db_session, user, out["id"], now=now)
+
+
 @pytest.fixture
 def who(app, monkeypatch):
     flags_on(monkeypatch)
-    return world(db_session)
+    people = world(db_session)
+    people["_queue"] = fake_queue(monkeypatch)
+    return people
 
 
 def _start(user, text=SENTENCE, client=None):
-    out = cr.start(db_session, user, text, client=client, now=START_AT)
+    """시작(web — 줄에 넣고 analyzing) → 줄 일을 바로 부름 → 묶음 화면 값."""
+    queue = store.get_rq_queue()
+    out = cr.start(db_session, user, text, now=START_AT)
     db_session.commit()
-    return out
+    assert out["status"] == "analyzing" and len(queue.jobs) == 1
+    run_jobs(queue, client)
+    return cr.view(db_session, user, out["id"], now=START_AT)
 
 
 def _requests():
@@ -201,7 +248,7 @@ def test_mask_leak_stops_before_any_row_or_model_call(who, monkeypatch):
     monkeypatch.setattr(cr, "mask", lambda text: text)  # 가림이 고장 나도 검사가 막는다
     client = fixed(answer_text())
     with pytest.raises(cr.ChangeRequestError) as caught:
-        cr.start(db_session, who["admin"], "연락처 010-2345-6789 도면 담당", client=client, now=START_AT)
+        cr.start(db_session, who["admin"], "연락처 010-2345-6789 도면 담당", now=START_AT)
     assert caught.value.code == "mask" and client.calls == [] and _requests() == []
 
 
@@ -238,7 +285,7 @@ def test_empty_daily_cap_turns_it_off_and_a_tiny_cap_fails_the_bundle(who):
     _cap(None)
     client = fixed(answer_text())
     with pytest.raises(cr.ChangeRequestError) as caught:
-        cr.start(db_session, who["admin"], SENTENCE, client=client, now=START_AT)
+        cr.start(db_session, who["admin"], SENTENCE, now=START_AT)
     assert caught.value.code == "off" and _requests() == [] and client.calls == []
     db_session.get(SystemSetting, SETTINGS_KEY).setting_value = {**DEFAULTS, CHANGE_CAP_FIELD: "0.01"}
     db_session.commit()
@@ -252,14 +299,18 @@ def test_question_then_answer_reanalyzes_the_same_bundle(who):
     client = FakeClient(lambda _params: next(replies))
     view = _start(who["admin"], "도면 담당 바뀜", client=client)
     assert view["status"] == "asked" and view["can_answer"] is True and view["can_apply"] is False
-    again = cr.answer(db_session, who["admin"], view["id"], "도면팀이 스스로 정해요", client=client, now=START_AT)
+    waiting = cr.answer(db_session, who["admin"], view["id"], "도면팀이 스스로 정해요", now=START_AT)
     db_session.commit()
+    assert waiting["status"] == "analyzing" and len(who["_queue"].jobs) == 1  # 되물음 답도 같은 줄 일 길
+    assert who["_queue"].jobs[0][1]["job_id"] == f"brain_change_request_{view['id']}_1"
+    assert run_jobs(who["_queue"], client) == ["ready"]
+    again = cr.view(db_session, who["admin"], view["id"], now=START_AT)
     assert again["id"] == view["id"] and again["status"] == "ready" and again["lines"][0]["state"] == "preview"
     assert again["answers"] == [{"question": "도면 담당을 누가 정하나요?", "answer": "도면팀이 스스로 정해요"}]
     assert "도면팀이 스스로 정해요" in client.calls[1]["messages"][0]["content"]
     assert len(_requests()) == 1
     with pytest.raises(cr.ChangeRequestError) as caught:  # 물음이 없으면 답할 것이 없다
-        cr.answer(db_session, who["admin"], view["id"], "더", client=client, now=START_AT)
+        cr.answer(db_session, who["admin"], view["id"], "더", now=START_AT)
     assert caught.value.code == "state"
 
 
@@ -384,3 +435,64 @@ def test_bundles_stuck_in_analyzing_are_closed_when_read(who):
     assert seen["status"] == "failed" and seen["error_code"] == "stuck" and seen["error_text"]
     listed = cr.list_page(db_session, admin, 1, now=later)
     assert {i["id"]: i["status"] for i in listed["items"]} == {old.id: "failed", fresh.id: "analyzing"}
+
+
+# ── 6. WORKER 줄 일 ──────────────────────────────────────────────────────
+def test_start_only_queues_the_analysis_and_the_web_never_checks_the_ai_key(who, monkeypatch):
+    import foms.services.cs_agent.brain as cs_brain
+    from rq.utils import import_attribute
+
+    from foms.services.jobs import tasks
+
+    def no_key(**_kw):
+        raise AssertionError("web 길은 AI 준비 확인을 부르지 않는다")
+
+    monkeypatch.setattr(cs_brain, "_check_environment", no_key)
+    out = cr.start(db_session, who["admin"], SENTENCE, now=START_AT)
+    db_session.commit()
+    assert out["status"] == "analyzing" and out["lines"] == [] and out["can_apply"] is False
+    (args, kwargs), = who["_queue"].jobs
+    assert args == (store.JOB_PATH, out["id"])
+    assert kwargs == {"job_id": f"brain_change_request_{out['id']}_0", "job_timeout": store.JOB_TIMEOUT}
+    assert import_attribute(store.JOB_PATH) is tasks.run_brain_change_request_task
+    assert _requests()[-1].status == "analyzing"
+
+
+def test_the_job_runs_once_even_when_called_twice(who):
+    client = fixed(answer_text(updates=[upd("common/rule/assign", text=NEW_TEXT)]))
+    out = cr.start(db_session, who["admin"], SENTENCE, now=START_AT)
+    db_session.commit()
+    (args, _kw), = who["_queue"].jobs
+    assert job.run_change_request(db_session, args[1], client=client, now=START_AT) == "ready"
+    assert job.run_change_request(db_session, args[1], client=client, now=START_AT) == job.SKIPPED
+    assert len(client.calls) == 1  # 두 번째는 상태가 analyzing 이 아니라 아무것도 하지 않는다
+    assert _requests()[-1].id == out["id"]
+    other = cr.start(db_session, who["admin"], SENTENCE, now=START_AT)  # 같은 분석을 다른 일이 이미 잡아 도는 중
+    db_session.commit()
+    row = db_session.get(BrainChangeRequest, other["id"])
+    store.save_bundle(row, {**row.bundle, store.CLAIMED: row.bundle[store.ANALYZING_AT]})
+    db_session.commit()
+    assert job.run_change_request(db_session, other["id"], client=client, now=START_AT) == job.SKIPPED
+    assert len(client.calls) == 1 and db_session.get(BrainChangeRequest, other["id"]).status == "analyzing"
+
+
+def test_a_queue_failure_closes_the_bundle_as_failed(who, monkeypatch):
+    fake_queue(monkeypatch, fail=True)
+    out = cr.start(db_session, who["admin"], SENTENCE, now=START_AT)
+    db_session.commit()
+    assert out["status"] == "failed" and out["error_code"] == "queue" and out["error_text"]
+    assert _requests()[-1].status == "failed"
+    monkeypatch.setattr(store, "get_rq_queue", lambda: None)  # 큐가 없어도 같다(web 에서 대신 돌리지 않는다)
+    none = cr.start(db_session, who["admin"], SENTENCE, now=START_AT)
+    assert none["status"] == "failed" and none["error_code"] == "queue"
+
+
+def test_the_job_closes_a_bundle_whose_person_lost_the_role(who):
+    out = cr.start(db_session, who["dr_mgr"], SENTENCE, now=START_AT)
+    db_session.commit()
+    who["dr_mgr"].role = "STAFF"
+    db_session.commit()
+    client = fixed(answer_text())
+    assert run_jobs(who["_queue"], client) == ["failed"]
+    assert _requests()[-1].error_code == "forbidden" and client.calls == []
+    assert out["id"] == _requests()[-1].id

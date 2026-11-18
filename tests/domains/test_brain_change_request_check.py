@@ -19,7 +19,7 @@ from foms.services.brain.change_request_model import MAX_ITEMS, MAX_PROMPT_CHARS
 from foms.services.brain.store import current_link, current_object
 from foms.services.cs_agent.knowledge import read_stored
 from tests.domains.test_brain_change_request import (
-    APPLY_AT, NEW_TEXT, OLD_TEXT, _start, answer_text, flags_on, lvl, upd, world,
+    APPLY_AT, NEW_TEXT, OLD_TEXT, _start, answer_text, fake_queue, flags_on, lvl, upd, world,
 )
 from tests.support.brain_chat_support import fixed
 from tests.support.brain_support import create, link
@@ -28,6 +28,7 @@ from tests.support.brain_support import create, link
 @pytest.fixture
 def who(app, monkeypatch):
     flags_on(monkeypatch)
+    fake_queue(monkeypatch)
     return world(db_session)
 
 
