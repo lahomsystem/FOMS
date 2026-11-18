@@ -10,6 +10,8 @@
 - **옵션은 제품에 매여 있지 않다**(4.1 — 계산기 제품마다 붙은 옵션 0) — 제품 → 옵션 따라가기는 없다. 물건마다 들어오는
   ``applies_to`` 링크의 규칙(정책 · 가격 규칙 · 규격 — 같은 판 · 반영 · 기간 · 범위 조건)만, 물건당 :data:`MAX_RULES`(쓰인 횟수 순).
 - 주문이 확인된 차례(5.6)는 그 주문 품목 이름도 찾기 재료다(손님이 제품 이름을 안 써도 그 제품 규칙이 걸린다).
+- 관리 칸 '공정 단계 · 제약 · 상황도 따라가기'(빈 재료 채우기 3판 E · D205 — 처음 끔)가 켜지면 :mod:`.onto_follow` 가 이 모듈의
+  찾기 · 보기 조건을 그대로 써서 공정 단계 · 상황 · 꼭 같이 · 같이 못 함까지 넓힌다. 끄면 이 모듈 길만 돈다(글자까지 그대로).
 """
 
 from __future__ import annotations
@@ -25,8 +27,8 @@ from foms.services.brain.constants import BRAND_COMMON, SCOPE_ALL, STATUS_ACTIVE
 from foms.services.brain.labels import MIN_LABEL, aliases_of, norm, pref_of
 from foms.services.brain.store import in_force, is_current
 
-__all__ = ["ITEM_TYPES", "MAX_ITEMS", "MAX_RULES", "OntoHit", "RULE_TYPES", "find_items", "hits_for", "matches",
-           "visible"]
+__all__ = ["ITEM_TYPES", "MAX_ITEMS", "MAX_RULES", "OntoHit", "OntoRule", "RULE_TYPES", "find_items", "hits_for",
+           "doc_id_of", "hits_from", "matches", "visible"]
 
 ITEM_TYPES: tuple[str, ...] = ("product_line", "option")
 RULE_TYPES: tuple[str, ...] = ("policy", "price_rule", "spec")
@@ -35,17 +37,23 @@ MAX_ITEMS, MAX_RULES = 8, 6
 
 @dataclass(frozen=True)
 class OntoRule:
-    """물건에 걸린 규칙 하나 — 지식 문서 id(있으면) · 유형 · 대표 이름."""
+    """물건에 걸린 규칙 하나 — 지식 문서 id(있으면) · 유형 · 대표 이름 · 쓰인 횟수 · 줄 갈래.
+
+    ``role`` 은 빈 글(걸린 규칙 — 지금 길)이거나 :mod:`.onto_follow` 가 다는 ``requires`` · ``excludes``(꼭 같이 · 같이 못 함) ·
+    ``to``(상황이 걸린 제품 · 공정 단계)다."""
 
     key: str
     doc_id: str
     item_type: str
     name: str
+    usage: int = 0
+    role: str = ""
 
 
 @dataclass(frozen=True)
 class OntoHit:
-    """찾은 물건 하나 — 키 · 유형 · 대표 이름 · 실음 칸(속성) · 걸린 규칙 · 뜻으로 찾았나(:mod:`.onto_meaning`)."""
+    """찾은 물건 하나 — 키 · 유형 · 대표 이름 · 실음 칸(속성) · 걸린 규칙 · 뜻으로 찾았나(:mod:`.onto_meaning`) · 같이 못 함
+    다른 쪽 키 전부(:mod:`.onto_follow` 만 채운다 — 묶음 글에 싣지 않고 제약 넘김 판정에만 쓴다)."""
 
     key: str
     item_type: str
@@ -53,6 +61,7 @@ class OntoHit:
     payload: dict
     rules: tuple[OntoRule, ...] = ()
     by_meaning: bool = False
+    clash_keys: frozenset[str] = frozenset()
 
 
 def visible(model: Any, brand: str, day: datetime.date) -> tuple[Any, ...]:
@@ -100,19 +109,24 @@ def matches(rows: Iterable[tuple[str, str, Any]], texts: Sequence[str]) -> list[
     return sorted(picked, key=picked.get)[:MAX_ITEMS]
 
 
+def doc_id_of(payload: Any) -> str:
+    """실음 칸의 지식 문서 id(없으면 빈 글)."""
+    return str(payload.get("doc_id") or "") if isinstance(payload, dict) else ""
+
+
 def _rules(session: Any, keys: Sequence[str], brand: str, day: datetime.date) -> dict[str, list[OntoRule]]:
     """물건 키마다 들어오는 ``applies_to`` 규칙(쓰인 횟수 많은 순 · 물건당 :data:`MAX_RULES`)."""
     rows = session.execute(
-        select(BrainLink.to_key, BrainObject.item_key, BrainObject.item_type, BrainObject.name, BrainObject.payload)
+        select(BrainLink.to_key, BrainObject.item_key, BrainObject.item_type, BrainObject.name, BrainObject.payload,
+               BrainObject.usage_count)
         .join(BrainObject, BrainObject.item_key == BrainLink.from_key)
         .where(is_current(BrainLink), BrainLink.kind == "applies_to", BrainLink.to_key.in_(list(keys)),
                BrainObject.item_type.in_(RULE_TYPES), *visible(BrainObject, brand, day))
         .order_by(BrainObject.usage_count.desc(), BrainObject.item_key)).all()
     out: dict[str, list[OntoRule]] = {key: [] for key in keys}
-    for to_key, key, item_type, name, payload in rows:
-        doc_id = str((payload or {}).get("doc_id") or "") if isinstance(payload, dict) else ""
+    for to_key, key, item_type, name, payload, usage in rows:
         if len(out[to_key]) < MAX_RULES:
-            out[to_key].append(OntoRule(key, doc_id, item_type, name))
+            out[to_key].append(OntoRule(key, doc_id_of(payload), item_type, name, int(usage or 0)))
     return out
 
 
@@ -125,7 +139,7 @@ def find_items(session: Any, texts: Sequence[str], *, brand: str, day: datetime.
     rows = session.execute(select(BrainObject.item_key, BrainObject.name, BrainObject.payload, BrainObject.item_type)
                            .where(BrainObject.item_type.in_(ITEM_TYPES), *visible(BrainObject, brand, day))).all()
     keys = matches([(key, name, payload) for key, name, payload, _t in rows], words)
-    return _hits(session, rows, keys, brand, day) if keys else []
+    return hits_from(session, rows, keys, brand, day) if keys else []
 
 
 def hits_for(session: Any, keys: Sequence[str], *, brand: str, day: datetime.date,
@@ -137,10 +151,10 @@ def hits_for(session: Any, keys: Sequence[str], *, brand: str, day: datetime.dat
                            .where(BrainObject.item_key.in_(list(keys)), BrainObject.item_type.in_(ITEM_TYPES),
                                   *visible(BrainObject, brand, day))).all()
     found = {row[0] for row in rows}
-    return _hits(session, rows, [key for key in keys if key in found], brand, day, by_meaning=by_meaning)
+    return hits_from(session, rows, [key for key in keys if key in found], brand, day, by_meaning=by_meaning)
 
 
-def _hits(session: Any, rows: Sequence[Any], keys: Sequence[str], brand: str, day: datetime.date, *,
+def hits_from(session: Any, rows: Sequence[Any], keys: Sequence[str], brand: str, day: datetime.date, *,
           by_meaning: bool = False) -> list[OntoHit]:
     """(키, 이름, 실음 칸, 유형) 줄 · 고른 키 → :class:`OntoHit` 목록."""
     kinds = {key: item_type for key, _name, _payload, item_type in rows}

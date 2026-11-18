@@ -13,6 +13,8 @@
   ERP 주문 하나의 단계 · 날짜를 초안 재료에 싣는다(:mod:`.order_step`). 이 칸은 세 칸 묶음(:class:`OntoFlags`) 밖이다.
 - 물건 찾아 따라가기(설계서 온톨로지 5절 · 5.0 · D196): 손님 글의 제품 · 옵션을 이름표로 찾아 걸린 규칙 id 를 차례 칸에
   싣는다(:mod:`.onto_find` · :mod:`.onto_block`). 다시 돌려 보기 뒤에 켜기를 묻는다.
+- 공정 단계 · 제약 · 상황도 따라가기(빈 재료 채우기 3판 E · D205): 위 칸이 켜진 차례에 공정 단계 · 상황도 이름표로 찾고, 제품 ·
+  옵션의 꼭 같이 · 같이 못 함을 싣고, 손님이 고른 조합이 같이 못 함이면 '제작 조건 확인'으로 넘긴다(:mod:`.onto_follow`).
 - 뜻으로도 물건 찾기(D197 ②): 위 칸이 이름표로 아무것도 못 찾으면 가린 손님 글을 Voyage AI 벡터로 가까운 제품 · 옵션에
   잇는다(:mod:`.onto_meaning`). 가린 상담 글이 바깥으로 나가므로 처리방침 국외 이전 고침 · Voyage 학습 안 쓰기 뒤에 켠다.
 - 뜻으로도 비슷한 상담 찾기(D197 ③): 지난 상담 고르기에 뜻이 가까운 사례를 섞는다(:mod:`.case_meaning`). 같은 조건.
@@ -27,8 +29,9 @@ from typing import Any
 from foms.services.cs_agent.settings_field import KIND_BOOL, Field
 
 __all__ = [
-    "GROUP_ONTO", "ONTO_CASES_FIELD", "ONTO_FIELDS", "ONTO_GRAPH_FIELD", "ONTO_LABELS_FIELD", "ONTO_MEANING_FIELD", "ONTO_NUMBERS_FIELD", "ONTO_OFF",
-    "ONTO_ORDER_FIELD", "ONTO_PROMPT_FIELD", "OntoFlags", "onto_flags", "onto_graph_on", "onto_meaning_on", "order_lookup_on",
+    "GROUP_ONTO", "ONTO_CASES_FIELD", "ONTO_FIELDS", "ONTO_FOLLOW_FIELD", "ONTO_GRAPH_FIELD", "ONTO_LABELS_FIELD",
+    "ONTO_MEANING_FIELD", "ONTO_NUMBERS_FIELD", "ONTO_OFF", "ONTO_ORDER_FIELD", "ONTO_PROMPT_FIELD", "OntoFlags", "onto_flags",
+    "onto_follow_on", "onto_graph_on", "onto_meaning_on", "order_lookup_on",
 ]
 
 GROUP_ONTO = "바꿔 묻기 대응(온톨로지)"
@@ -37,6 +40,7 @@ ONTO_LABELS_FIELD = "onto_labels_enabled"
 ONTO_PROMPT_FIELD = "onto_prompt_enabled"
 ONTO_ORDER_FIELD = "onto_order_enabled"
 ONTO_GRAPH_FIELD = "onto_graph_enabled"
+ONTO_FOLLOW_FIELD = "onto_follow_enabled"
 ONTO_MEANING_FIELD = "onto_meaning_enabled"
 ONTO_CASES_FIELD = "case_meaning_enabled"
 
@@ -57,6 +61,11 @@ ONTO_FIELDS: tuple[Field, ...] = (
     Field(ONTO_GRAPH_FIELD, "물건 찾아 따라가기", KIND_BOOL, False, GROUP_ONTO,
           help="켜면 손님 글에 나온 제품 · 옵션을 회사 지식 표에서 이름(다른 이름 포함)으로 찾아, 그 물건에 걸린 정책 · 가격 규칙 · "
                "규격을 AI 가 같이 봐요. 금액은 싣지 않아요. 다시 돌려 보기로 나아진 걸 확인한 뒤 켜요"),
+    Field(ONTO_FOLLOW_FIELD, "공정 단계 · 제약 · 상황도 따라가기", KIND_BOOL, False, GROUP_ONTO,
+          help="켜면 '물건 찾아 따라가기'가 손님 글에 나온 공정 단계(실측 · 시공 같은)와 손님 사정(엘리베이터 없음 같은)도 회사 지식 "
+               "표에서 이름으로 찾아, 거기 걸린 지식과 제품 · 옵션의 '꼭 같이 · 같이 못 함'을 AI 가 같이 봐요. 손님이 고른 조합이 "
+               "'같이 못 함'에 걸리면 AI 가 안 된다고 답하지 않고 '제작 조건을 확인해야 해요'로 직원에게 넘겨요. 금액은 싣지 "
+               "않아요. '물건 찾아 따라가기'가 켜져 있어야 해요"),
     Field(ONTO_MEANING_FIELD, "뜻으로도 물건 찾기", KIND_BOOL, False, GROUP_ONTO,
           help="켜면 '물건 찾아 따라가기'가 이름으로 아무것도 못 찾았을 때, 개인정보를 가린 손님 글을 Voyage AI 로 보내 뜻이 "
                "가까운 제품 · 옵션을 찾아요. 켜기 전에 개인정보 처리방침의 '국외 이전'에 Voyage AI(가린 상담 글)를 올리고 Voyage "
@@ -98,6 +107,11 @@ def order_lookup_on(cfg: Any) -> bool:
 def onto_graph_on(cfg: Any) -> bool:
     """'물건 찾아 따라가기' 칸이 켜졌나(참일 때만)."""
     return cfg.get(ONTO_GRAPH_FIELD) is True
+
+
+def onto_follow_on(cfg: Any) -> bool:
+    """'공정 단계 · 제약 · 상황도 따라가기' 칸이 켜졌나(참일 때만 — '물건 찾아 따라가기'가 꺼져 있으면 부르는 쪽이 보지 않는다)."""
+    return cfg.get(ONTO_FOLLOW_FIELD) is True
 
 
 def onto_meaning_on(cfg: Any) -> bool:
