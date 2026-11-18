@@ -1,9 +1,10 @@
 """FOMS 접목판 스위치 판정 한 곳(설계서 ``docs/specs/2026-11-14-foms-graft_SPEC.md`` 4절 — 모두 처음 끔).
 
-- 스위치 아홉은 env 다. 사람별 스위치는 ``<이름>_ENABLED`` + ``<이름>_COHORT``(사용자 번호들 또는 ``all``) —
+- 스위치 열은 env 다. 사람별 스위치는 ``<이름>_ENABLED`` + ``<이름>_COHORT``(사용자 번호들 또는 ``all``) —
   :func:`foms.services.feature_flags.is_enabled_for_user` 그대로. 뒤 셋(``FOMS_GRAFT_PROPOSERS`` · ``…_CONSTRUCTION_ALIMTALK``
   · ``…_PUSH``)은 ``_ENABLED`` 하나(사람별 아님 — 밤 단계 · 제안을 만드는 서비스가 읽는다, 설계서 3.13 · 3.14).
-- 기대는 스위치: ``actions`` 는 ``brain_ui`` 도 켜진 사람만, 분홍 칸 셋(``cell_pc`` · ``cell_tablet`` · ``cell_mobile``)은
+- 기대는 스위치: ``actions`` · ``brain_change_request``(문장으로 고치기 — 설계서 2026-11-18 11절)는 ``brain_ui`` 도 켜진
+  사람만, 분홍 칸 셋(``cell_pc`` · ``cell_tablet`` · ``cell_mobile``)은
   ``actions`` 도 켜진 사람만 참이다. 전역 판정(:func:`enabled_global`)도 같은 사슬을 전역 스위치로 본다.
 - DB 를 읽지 않는다(env 만) — 메뉴 · 레일처럼 모든 화면에서 불러도 질의가 늘지 않는다.
 - 템플릿 전역 ``graft_enabled('<짧은 이름>')`` 은 :mod:`foms.web.brain` 이 ``g.current_user`` 로 올린다.
@@ -36,6 +37,8 @@ FLAGS: dict[str, str] = {
     "proposers": "FOMS_GRAFT_PROPOSERS",
     "construction_alimtalk": "FOMS_GRAFT_CONSTRUCTION_ALIMTALK",
     "push": "FOMS_GRAFT_PUSH",
+    # 문장으로 고치기(설계서 2026-11-18-brain-sentence-change 11절 — 사람별, brain_ui 가 켜져 있어야 한다)
+    "brain_change_request": "FOMS_GRAFT_BRAIN_CHANGE_REQUEST",
 }
 
 #: 짧은 이름 차례(템플릿 · 시험이 같이 쓴다).
@@ -47,6 +50,7 @@ GLOBAL_ONLY: frozenset[str] = frozenset({"proposers", "construction_alimtalk", "
 #: 함께 켜져 있어야 참인 스위치(한 걸음 — 사슬은 판정 함수가 따라간다).
 REQUIRES: dict[str, str] = {
     "actions": "brain_ui",
+    "brain_change_request": "brain_ui",
     "cell_pc": "actions",
     "cell_tablet": "actions",
     "cell_mobile": "actions",
