@@ -14,6 +14,10 @@
   (:data:`SPEND_KEY` — 물어보기 줄과 따로). 하루 상한은 물어보기 설정의 칸 :data:`.chat_settings.CHANGE_CAP_FIELD`(비우면 꺼짐).
   :func:`.chat_model.call_model` 은 돈 줄 · 상한 칸이 물어보기 것으로 박혀 있어 같은 순서를 여기서 한 번 더 적었다(새 클라이언트 ·
   새 돈 계산은 없다).
+- **세부 칸**(2판): 재료 항목마다 고칠 수 있는 세부 칸의 지금 값(:func:`.change_request_props.material_props`), 칸 뜻 · 고를 수
+  있는 값은 유형마다 한 번(``prop_cells`` — 항목마다 실으면 제품 라인이 재료 상한을 먹는다), 새 항목이 세부 칸을 받는 유형
+  (``new_prop_types`` — 정책 · 제작 조건)을 싣는다. 답 틀은 고침 ``after.props`` · 새 항목 ``values.props`` 에 '칸 이름 → 글
+  값' 목록 한 꼴(틀을 작게). 받는 칸 · 값 꼴은 검사가 본다.
 - **답 읽기**: 3절 꼴 밖이면 :class:`ChangeOutputError`(묶음은 ``failed`` · 반영 0). 키 · 층 · 꼴 확인은 검사 모듈 몫.
 - AI 에 가는 글(문장 · 답 · 항목 글)은 모두 가린 것이다. 로그에는 코드 · 돈 · 시간만 싣는다.
 """
@@ -34,6 +38,9 @@ from foms.services.ai_staff.levels import levels_view
 from foms.services.ai_staff.registry import AGENTS
 from foms.services.brain.chat_model import Answered, build_params
 from foms.services.brain.chat_settings import CHANGE_CAP_FIELD, ChatSettings
+from foms.services.brain.change_request_props import (
+    CREATE_PROP_TYPES, MAX_PROPS, MAX_VALUE, PROP_NAMES, allowed, material_props, prop_cells,
+)
 from foms.services.brain.chat_tools import neighbours_of, search_objects
 from foms.services.brain.constants import (
     BRANDS, DOC_TYPES, EXTERNAL_PREFIXES, IDENTITY_TYPES, LINK_KINDS,
@@ -103,7 +110,11 @@ SYSTEM = """너는 FOMS 회사 지식을 고치는 '문장으로 고치기' 분�
     그 밖 유형(용어 · 규격 · 상황 등)도 재료 types 안에서 고를 수 있다.
 12. 새 항목에서 나가는 연결은 links 의 from 에 'new:<creates 차례 — 1부터>' 를 적는다.
 13. 새 글 · 고친 글에는 문장이 말한 것만 적는다. 문장에 없는 절차 · 약속 · 까닭 · 예시를 덧붙이지 않는다(짐작으로 채우지 않는다).
-    더 적어야 할 것 같으면 questions 에 물어라."""
+    더 적어야 할 것 같으면 questions 에 물어라.
+14. 세부 칸(props)은 재료에 적힌 칸과 고른 값만 쓴다 — 고칠 항목은 그 항목의 props 에 있는 칸만(값은 지금 값), 새 항목은
+    new_prop_types 유형만. 칸 뜻 · 고를 수 있는 값은 prop_cells(유형마다). 문장이 그 값을 분명히 말할 때만 고친다.
+    value 는 choices 의 왼쪽 값(영어 저장 값)으로, 목록 칸(list)은 쉼표로 이은 온 목록, 수는 숫자만 적는다.
+    고치지 않을 세부 칸은 적지 않는다(props 는 빈 목록)."""
 
 
 class ChangeOutputError(ValueError):
@@ -155,9 +166,10 @@ def _links_of(session: Any, viewer: Viewer, keys: list[str], today: datetime.dat
 
 
 def _item_row(row: BrainObject, links: list[dict[str, str]]) -> dict[str, Any]:
-    """재료 항목 한 줄(글은 앞부분만)."""
+    """재료 항목 한 줄(글은 앞부분만 · 고칠 수 있는 세부 칸이 있는 유형은 그 칸의 지금 값)."""
     text = row.text or ""
-    return {"key": row.item_key, "type": row.item_type, "type_label": type_label(row.item_type),
+    props = {"props": material_props(row.item_type, row.payload)} if allowed(row.item_type) else {}
+    return {**props, "key": row.item_key, "type": row.item_type, "type_label": type_label(row.item_type),
             "layer": row.layer, "layer_label": LAYER_LABELS.get(row.layer, row.layer), "brand": row.brand,
             "name": pref_of(row.name, row.payload), "text": text[:TEXT_CHARS] + ("…" if len(text) > TEXT_CHARS else ""),
             "valid_from": row.valid_from.isoformat() if row.valid_from else None,
@@ -167,6 +179,7 @@ def _item_row(row: BrainObject, links: list[dict[str, str]]) -> dict[str, Any]:
 def _block(items: list[dict[str, Any]], settings: list[dict[str, Any]]) -> str:
     """재료 글(JSON — 자료, 지시 아님)."""
     return json.dumps({"items": items, "settings": settings, "types": list(CREATE_TYPES), "new_types": TYPE_NOTES,
+                       "prop_cells": prop_cells(), "new_prop_types": list(CREATE_PROP_TYPES),
                        "link_kinds": list(LINK_KINDS)}, ensure_ascii=False, indent=1)
 
 
@@ -222,12 +235,14 @@ def output_schema(item_keys: list[str], setting_names: list[str]) -> dict[str, A
     lines = {"type": "array", "items": text}
     keys = _enum(item_keys)
     new_refs = [f"{NEW_PREFIX}{n}" for n in range(1, MAX_ROWS + 1)]
+    props = {"type": "array", "items": _obj({"name": _enum(list(PROP_NAMES)), "value": text})}
     return _obj({
         "summary": text,
-        "updates": {"type": "array", "items": _obj({"key": keys, "after": _obj({f: text for f in AFTER_FIELDS}),
-                                                    "why": text})},
+        "updates": {"type": "array", "items": _obj({"key": keys, "after": _obj({**{f: text for f in AFTER_FIELDS},
+                                                                                "props": props}), "why": text})},
         "creates": {"type": "array", "items": _obj({"type": _enum(list(CREATE_TYPES)), "brand": _enum(list(BRANDS)),
-                                                    "values": _obj({"name": text, "text": text}), "why": text})},
+                                                    "values": _obj({"name": text, "text": text, "props": props}),
+                                                    "why": text})},
         "retires": {"type": "array", "items": _obj({"key": keys, "why": text})},
         "links": {"type": "array", "items": _obj({"op": _enum(list(LINK_OPS_AI)), "kind": _enum(list(LINK_KINDS)),
                                                   "from": _enum([*item_keys, *new_refs]), "to": text,
@@ -326,11 +341,13 @@ def read_bundle(text: str) -> dict[str, Any]:
     try:
         out: dict[str, Any] = {"summary": _line(data.get("summary", ""))}
         out["updates"] = [{"key": _line(r.get("key"), 120), "why": _line(r.get("why", "")),
-                           "after": {f: _text(v) for f, v in _after(r.get("after")).items() if _text(v)}}
+                           "after": {f: _text(v) for f, v in _after(r.get("after")).items() if f in AFTER_FIELDS
+                                     and _text(v)}, "props": _props(r["after"].get("props"))}
                           for r in _rows(data, "updates")]
         out["creates"] = [{"type": _line(r.get("type"), 40), "brand": _line(r.get("brand"), 8),
-                           "values": {f: _text(v) for f, v in _values(r.get("values")).items()},
-                           "why": _line(r.get("why", ""))} for r in _rows(data, "creates")]
+                           "values": {f: _text(v) for f, v in _values(r.get("values")).items() if f != "props"},
+                           "props": _props(r["values"].get("props")), "why": _line(r.get("why", ""))}
+                          for r in _rows(data, "creates")]
         out["retires"] = [{"key": _line(r.get("key"), 120), "why": _line(r.get("why", ""))}
                           for r in _rows(data, "retires")]
         out["links"] = [{"op": _line(r.get("op"), 8), "kind": _line(r.get("kind"), 16), "from": _line(r.get("from"), 120),
@@ -346,16 +363,33 @@ def read_bundle(text: str) -> dict[str, Any]:
 
 def _after(value: Any) -> dict[str, Any]:
     """고칠 칸 객체 — 정한 칸 밖이면 꼴 오류."""
-    if not isinstance(value, dict) or set(value) - set(AFTER_FIELDS):
+    if not isinstance(value, dict) or set(value) - {*AFTER_FIELDS, "props"}:
         raise ChangeOutputError("after")
     return value
 
 
 def _values(value: Any) -> dict[str, Any]:
-    """새 항목 값 객체 — 이름 · 글만."""
-    if not isinstance(value, dict) or set(value) - {"name", "text"} or not isinstance(value.get("name"), str):
+    """새 항목 값 객체 — 이름 · 글 · 세부 칸."""
+    if not isinstance(value, dict) or set(value) - {"name", "text", "props"} or not isinstance(value.get("name"), str):
         raise ChangeOutputError("values")
     return value
+
+
+def _props(value: Any) -> dict[str, str]:
+    """세부 칸 목록(``[{name, value}]`` — 없으면 빈 것) → ``{이름: 글 값}``(빈 값은 뺀다 · 같은 이름은 뒤 것). 꼴만 본다 —
+    받는 칸 · 값 꼴은 :func:`.change_request_props.read_props`."""
+    if value is None:
+        return {}
+    if not isinstance(value, list) or len(value) > MAX_PROPS or not all(isinstance(r, dict) for r in value):
+        raise ChangeOutputError("props")
+    out: dict[str, str] = {}
+    for row in value:
+        name, raw = row.get("name"), row.get("value")
+        if not isinstance(name, str) or not isinstance(raw, str) or set(row) - {"name", "value"}:
+            raise ChangeOutputError("props")
+        if raw.strip():
+            out[" ".join(name.split())[:40]] = " ".join(raw.split())[:MAX_VALUE]
+    return out
 
 
 def _int(value: Any) -> int:
