@@ -99,3 +99,16 @@ def test_orm_defaults_and_empty_request_id(app):
     db_session.flush()
     assert change.request_id is None  # 지금 줄은 빈 값 그대로
     db_session.rollback()
+
+
+def test_the_notice_in_the_bell_list_opens_the_bundle_screen():
+    """알림 목록에서 누르면 그 묶음 화면으로 간다 — 주소는 알림 글 첫 줄에서만 읽는다(꼴이 아니면 가지 않는다)."""
+    from types import SimpleNamespace
+
+    from foms.api.notifications import _resolve_notification_deep_link
+    from foms.services.notifications.brain_change_notice import BRAIN_CHANGE_REQUEST_TYPE, notice_message
+
+    note = SimpleNamespace(notification_type=BRAIN_CHANGE_REQUEST_TYPE, order_id=None, message=notice_message(12, 3, 1))
+    assert _resolve_notification_deep_link(note, {})["deep_link_url"] == "/brain/requests/12"
+    odd = SimpleNamespace(notification_type=BRAIN_CHANGE_REQUEST_TYPE, order_id=None, message="[문장으로 고치기] https://밖/1")
+    assert _resolve_notification_deep_link(odd, {})["deep_link_url"] is None
