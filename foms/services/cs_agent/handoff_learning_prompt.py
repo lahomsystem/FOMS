@@ -45,6 +45,7 @@ TYPE_WORDS: dict[str, str] = {"fact": "사실", "policy": "정책", "owner_decis
 REASON_WORDS: dict[str, str] = {"unsure": "모름", "photo": "사진", "schedule": "일정", "other": "그 밖",
                                 "check_failed": "보내기 전 검사", "complaint": "불만", "order_lookup": "주문 조회",
                                 "discount_refund": "할인 · 환불", "human_only_amount": "사람이 정하는 금액",
+                                "constraint": "제작 조건 확인",
                                 "edited": "넘김 아님 — AI 초안을 직원이 고쳐 보냄"}
 #: 고친 까닭 칩 코드 → 말(:data:`.send_view.EDIT_REASON_LABELS` 와 같다 — 시험이 맞춘다).
 CHIP_WORDS: dict[str, str] = {"wrong_fact": "틀린 사실", "promise": "약속", "tone": "말투", "missing": "빠짐",

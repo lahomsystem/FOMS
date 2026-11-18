@@ -107,6 +107,7 @@ def test_defaults_equal_todays_constants_and_no_row_reads_them(app):
         # 바꿔 묻기 대응(온톨로지 — 사장님 11-11) — 세 칸 모두 처음 끔 · 주문 확인해 답하기(온톨로지 5.6 — 11-12) 처음 끔
         "onto_numbers_enabled": False, "onto_labels_enabled": False, "onto_prompt_enabled": False,
         "onto_order_enabled": False, "onto_graph_enabled": False,  # 물건 찾아 따라가기(온톨로지 5절 — 처음 끔)
+        "onto_follow_enabled": False,  # 공정 단계 · 제약 · 상황도 따라가기(빈 재료 채우기 3판 E · D205 — 처음 끔)
         "onto_meaning_enabled": False,  # 뜻으로도 물건 찾기(D197 ② — 처음 끔)
         "case_meaning_enabled": False,  # 뜻으로도 비슷한 상담 찾기(D197 ③ — 처음 끔)
         # 접목판 근거 줄 · 할 일 제안(설계서 2026-11-14-foms-graft 3.9) — 둘 다 처음 끔

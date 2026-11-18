@@ -37,9 +37,10 @@ from foms.services.cs_agent.knowledge_doc import HUMAN_ONLY_MARK
 from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.memo import memo_allowed
 from foms.services.cs_agent.onto_block import onto_block
-from foms.services.cs_agent.onto_find import find_items
+from foms.services.cs_agent.onto_find import ITEM_TYPES, find_items
+from foms.services.cs_agent.onto_follow import clashes, constraint_handoff, follow_items
 from foms.services.cs_agent.onto_meaning import find_by_meaning
-from foms.services.cs_agent.onto_settings import onto_graph_on, onto_meaning_on
+from foms.services.cs_agent.onto_settings import onto_follow_on, onto_graph_on, onto_meaning_on
 from foms.services.cs_agent.order_step import OrderTurn, lookup_after, lookup_first
 from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos, with_usage
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
@@ -93,6 +94,7 @@ class DraftPass:
         self.image_outcomes: dict[int, Any] = {}  # 차례 줄 id → 묶음 읽기 결과(:func:`.photo_step.turn_read`)
         self.order_turns: dict[int, OrderTurn] = {}  # 차례 줄 id → 주문 확인(:mod:`.order_step`)
         self.onto_blocks: dict[int, tuple[str, ...]] = {}  # 차례 줄 id → 걸린 물건 칸(:mod:`.onto_block`)
+        self.onto_clashes: set[int] = set()  # 같이 못 함 조합을 찾은 차례 줄 id(:func:`.onto_follow.clashes` — 칸 켬일 때만)
 
     def photos(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> Optional[PhotoRead]:
         """손님 사진 읽기(:func:`.photo_step.read_photos` — 끔 · 파일 없음이면 ``None``). 같은 차례면 앞 결과."""
@@ -128,8 +130,11 @@ class DraftPass:
 
     def order_again(self, row: CsAgentTurn, request: Any, result: Any, lines: Sequence[ChatLine],
                     medium: Optional[str]) -> Any:
-        """두뇌가 주문 문의로 넘긴 뒤(:func:`.order_step.lookup_after` — 끔 · 주문 문의 아님이면 그대로)."""
-        return lookup_after(self, row, request, result, lines, medium)
+        """두뇌가 주문 문의로 넘긴 뒤(:func:`.order_step.lookup_after` — 끔 · 주문 문의 아님이면 그대로). 그 뒤 손님이 고른 조합이
+        '같이 못 함'인 차례(:meth:`with_onto` 가 따라가기 넓힘 칸이 켜졌을 때만 적는다)는 제약 넘김
+        (:func:`.onto_follow.constraint_handoff`) — 없으면 그대로."""
+        result = lookup_after(self, row, request, result, lines, medium)
+        return constraint_handoff(result) if row.id in self.onto_clashes else result
 
     def order_checks(self, row: CsAgentTurn) -> tuple[tuple[Any, ...], tuple[str, ...]]:
         """이 차례 주문 확인 · 걸린 물건 칸의 (검사 확정 날, 허용 글) — 없으면 빈 것."""
@@ -138,18 +143,23 @@ class DraftPass:
         return dates, (*allowed, *self.onto_blocks.get(row.id, ()))
 
     def with_onto(self, row: CsAgentTurn, request: Any, lines: Sequence[ChatLine]) -> Any:
-        """물건 찾아 따라가기(설계서 온톨로지 5절 — 끔이면 설정 한 번 읽기뿐, 그대로). 확인된 주문 품목 이름도 찾기 재료."""
+        """물건 찾아 따라가기(설계서 온톨로지 5절 — 끔이면 설정 한 번 읽기뿐, 그대로). 확인된 주문 품목 이름도 찾기 재료.
+        '공정 단계 · 제약 · 상황도 따라가기'(빈 재료 채우기 3판 E — 처음 끔)가 켜지면 :func:`.onto_follow.follow_items` 로 넓혀
+        찾고, 같이 못 함 조합이면 차례를 적어 둔다(:meth:`order_again`)."""
         cfg = read_settings(self.session, log=False)
         if not onto_graph_on(cfg):
             return request
+        follow = onto_follow_on(cfg)
         order = self.order_turns.get(row.id)
         extra = order.facts.products if order is not None and order.facts is not None else ()
         texts, day = customer_texts(lines), get_today_kst()
-        hits = find_items(self.session, texts, brand=row.brand, day=day, extra=extra)
-        if not hits and onto_meaning_on(cfg):  # 이름표로 못 찾으면 뜻으로(D197 ② — 가린 글만, 처음 끔)
-            hits = find_by_meaning(self.session, texts, brand=row.brand, day=day, now=self.now,
-                                   customer_names=request.customer_names, staff_names=request.staff_names)
-        block = tuple(onto_block(hits))
+        hits = (follow_items if follow else find_items)(self.session, texts, brand=row.brand, day=day, extra=extra)
+        if follow and clashes(hits):
+            self.onto_clashes.add(row.id)
+        if not any(hit.item_type in ITEM_TYPES for hit in hits) and onto_meaning_on(cfg):  # 이름표로 제품 · 옵션을 못 찾으면
+            hits = [*hits, *find_by_meaning(self.session, texts, brand=row.brand, day=day, now=self.now,  # 뜻으로(D197 ②)
+                                            customer_names=request.customer_names, staff_names=request.staff_names)]
+        block = tuple(onto_block(hits, follow=follow))
         if not block:
             return request
         self.onto_blocks[row.id] = block
