@@ -5,7 +5,7 @@
  * - 승인 대기 화면 맨 위 한 줄 칸 [data-ds-req-form](templates/brain/ds/partials/request_input.html) — [분석] · Enter.
  * - 물어보기 화면의 [바뀐 내용으로 넣기] [data-ds-ask-change](templates/brain/ds/ask.html) — 묻는 칸의 글을 보낸다. 묻기(form 보내기 ·
  *   Enter)와 섞이지 않게 이 단추를 따로 눌러야만 간다. 글이 비면 단추가 잠긴다.
- * POST /api/brain/change-requests {text} — 분석이 10 ~ 30초 걸릴 수 있어 그동안 칸 · 단추를 잠그고 '분석 중이에요'를 보인다(두 번
+ * POST /api/brain/change-requests {text} — 분석은 WORKER 줄 일이라 답이 바로 온다(묶음 화면이 '분석 중'을 5초마다 다시 읽는다) — 보내는 동안 칸 · 단추를 잠근다(두 번
  * 눌러도 한 번만 보낸다). 답이 오면 /brain/requests/<번호> 로 간다(분석을 못 한 묶음도 그 화면이 까닭을 보인다). 실패 · 가림 · 꺼짐은
  * 서버가 준 말을 칸 아래 한 줄로. fetch 는 brain-dom.js 한 곳 · 글은 textContent 만 · 전역 듣개는 한 번만.
  */
@@ -16,7 +16,7 @@
   if (!dom || window.__FOMS_DS_REQ_START_BOUND) return;
   window.__FOMS_DS_REQ_START_BOUND = true;
 
-  var WAIT = '분석 중이에요 — 10 ~ 30초 걸려요. 이 화면에 그대로 있어 주세요.';
+  var WAIT = '분석을 맡기는 중이에요 — 잠깐만 기다려 주세요.';
   var EMPTY = '바뀐 내용을 적어 주세요.';
 
   /** 보내기 — parts: {url, base, text, lock(on), status}. 끝나면 묶음 화면으로 간다. 이미 보내는 중이면 아무것도 안 한다. */
@@ -35,7 +35,7 @@
       dom.setStatus(parts.status, res.error || '처리하지 못했어요.', 'error');
       return;
     }
-    dom.setStatus(parts.status, '분석을 마쳤어요 — 묶음 화면으로 가요.');
+    dom.setStatus(parts.status, '분석을 맡겼어요 — 묶음 화면에서 결과가 나와요.');
     window.location.assign(parts.base + encodeURIComponent(res.data.id));
   }
 

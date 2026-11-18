@@ -1,6 +1,6 @@
 {#- 문장으로 고치기 입력 칸(설계서 docs/specs/2026-11-18-brain-sentence-change_SPEC.md 4절 · D249) — 승인 대기 화면 맨 위 한 줄.
     쓸 수 있는 사람(change_on — foms/web/brain.py 가 change_request_store.can_use 로 판정)에게만 그린다. [분석]을 누르면
-    ds-request-start.js 가 POST /api/brain/change-requests {text} 를 보내고(10 ~ 30초 — 단추를 잠그고 '분석 중이에요') 끝나면
+    ds-request-start.js 가 POST /api/brain/change-requests {text} 를 보내고(분석은 WORKER 줄 일 — 답은 바로 온다) 답이 오면
     /brain/requests/<번호> 로 간다. 실패 · 가림 · 꺼짐은 서버가 준 말을 아래 한 줄로. 목록 보기(?tab=requests)에서는 목록 링크를
     그리지 않는다(지금 그 자리다). 인라인 스크립트 · 스타일 없음. -#}
 <form class="fb-req-input" aria-label="문장으로 고치기" data-ds-req-form

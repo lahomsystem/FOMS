@@ -5,7 +5,7 @@
  * - [이대로 고치기] — POST …/apply {skip: [뺀 줄 번호]}.
  * - [버리기] · [이 묶음 되돌리기] — 한 번 누르면 무엇이 되는지 한 줄 + 확인 단추가 열리고(판 · 기록의 층 되돌리기와 같은 버릇),
  *   확인을 눌러야 POST …/discard · …/revert.
- * - 물음 [답하기] — POST …/answer {text}(다시 분석 — 10 ~ 30초, 단추를 잠근다).
+ * - 물음 [답하기] — POST …/answer {text}(다시 분석 — WORKER 줄 일이라 답은 바로 오고 화면이 '분석 중'을 다시 읽는다).
  * 성공하면 이 화면을 다시 읽어 보고를 그린다. 실패는 서버가 준 말을 한 줄로. 분석 중 묶음이면 몇 초 뒤 다시 읽는다.
  * 보내는 동안 다른 단추는 모두 잠근다(두 번 눌러도 한 번만). fetch 는 brain-dom.js 한 곳 · 글은 textContent 만.
  */
@@ -36,7 +36,7 @@
   var answerInput = box.querySelector('[data-ds-req-answer]');
   var busy = false;
   var WAITS = { apply: '고치는 중이에요…', discard: '버리는 중이에요…', revert: '되돌리는 중이에요…',
-                answer: '다시 분석 중이에요 — 10 ~ 30초 걸려요. 이 화면에 그대로 있어 주세요.' };
+                answer: '다시 분석을 맡기는 중이에요 — 잠깐만 기다려 주세요.' };
 
   function allControls() {
     return Array.prototype.slice.call(box.querySelectorAll('button, [data-ds-req-answer]'));
