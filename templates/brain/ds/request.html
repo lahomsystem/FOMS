@@ -1,0 +1,208 @@
+{% extends "brain/ds/layout.html" %}
+{#- 문장으로 고치기 묶음 화면(설계서 docs/specs/2026-11-18-brain-sentence-change_SPEC.md 4절 · 11절 · D246 · D247) — /brain/requests/<번호>.
+    쓸 수 없는 사람 · 없는 묶음 · 볼 수 없는 묶음은 404(foms/web/brain.py change_request_page). 값(req)은 API 와 같은 view_of 꼴을
+    서버가 그린다:
+    - 위: 넣은 문장 · 상태(status_label) · 한 줄 요약.
+    - 미리 보기 · 되물음 · 버림 · 분석 못 함: 줄 목록(종류 · 이름 · 칸별 전 → 후 · 까닭 · 상태). '꼭 같이 · 같이 못 함'(caution) 줄은 경고
+      한 줄. 미리 보기(can_apply)면 줄마다 [빼기](다시 누르면 되살림) — 뺀 줄 번호를 apply 의 skip 으로. 못 고치는 줄(blocked)은 뺄
+      수 없고 까닭(check.text)을 보인다. 물음이 있으면 물음 · 답 칸(can_answer).
+    - 반영 뒤(반영됨 · 일부 반영 · 되돌림)는 같은 화면이 보고다: 고친 것 · 승인을 기다리는 것 · 못 고친 것(까닭) · 코드를 고쳐야 하는 것 ·
+      같이 볼 것. 빈 갈래는 그리지 않는다.
+    - 단추: [이대로 고치기](can_apply) · [버리기](can_discard) · [이 묶음 되돌리기](can_revert) — 버리기 · 되돌리기는 '판 · 기록'의 층
+      되돌리기와 같은 버릇(한 번 누르면 무엇이 되는지 한 줄 + 확인 단추가 열리고, 한 번 더 눌러야 보낸다).
+    - 돈 · 걸린 시간(관리자에게만 오는 값)은 맨 아래 작은 글 한 줄.
+    누름은 ds-request.js 가 JSON API 로 보내고 이 화면을 다시 읽는다. 인라인 스크립트 · 스타일 없음. -#}
+{% import "brain/ds/_macros.html" as ds %}
+{% set report = req.status in ('applied', 'partial', 'reverted') %}
+{% set busy = req.status == 'analyzing' %}
+{% block title %}문장으로 고치기{% endblock %}
+{% block page_title %}문장으로 고치기{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset_url('css/contexts/brain/ds/brain-ds-request.css') }}">{% endblock %}
+
+{#- 값 한 칸 — 빈 값은 '(비어 있음)', 목록은 쉼표, 참 · 거짓은 예 · 아니요, 상태 같은 코드 값은 화면 말(value_labels). -#}
+{% macro val(v, name='') -%}
+{%- set names = value_labels.get(name, {}) if value_labels is defined else {} %}
+{%- if v is string and v in names %}{{ names[v] }}
+{%- elif v is none or v == '' or (v is iterable and v is not string and v | length == 0) %}(비어 있음)
+{%- elif v is sameas true %}예{% elif v is sameas false %}아니요
+{%- elif v is mapping %}{% for k, x in v.items() %}{{ k }}: {{ x }}{{ ', ' if not loop.last }}{% endfor %}
+{%- elif v is iterable and v is not string %}{{ v | join(', ') }}
+{%- else %}{{ v }}{% endif %}
+{%- endmacro %}
+
+{% macro blank(v) -%}
+{{- '1' if v is none or v == '' or (v is iterable and v is not string and v | length == 0) else '' -}}
+{%- endmacro %}
+
+{% macro state_tag(state, label) -%}
+{%- set tone = line_tones.get(state, ('primary', True)) %}{{ ds.tag(label, tone[0], minimal=tone[1]) }}
+{%- endmacro %}
+
+{#- 고침 줄 하나 — editable 이면 미리 보기 줄에 [빼기]. -#}
+{% macro line_card(l, editable) -%}
+{%- set linkable = l.key and l.kind in ('update', 'retire', 'link_add', 'link_remove') %}
+<li class="f-card f-card-compact f-col fb-req-line" data-ds-req-line="{{ l.no }}" data-state="{{ l.state }}">
+  <div class="f-row fb-req-line__head">
+    <span class="f-small f-muted">{{ l.kind_label }}</span>
+    {%- if linkable %}
+    <a class="f-strong fb-req-line__name" href="{{ url_for('brain_web.item', key=l.key) }}">{{ l.label }}</a>
+    {%- else %}
+    <span class="f-strong fb-req-line__name">{{ l.label }}</span>
+    {%- endif %}
+    {%- if l.layer_label %}<span class="f-small f-muted">{{ l.layer_label }}</span>{% endif %}
+    <span class="f-row f-gap4 f-push fb-req-line__end">
+      <span data-ds-req-state>{{ state_tag(l.state, l.state_label) }}</span>
+      {%- if editable and l.state == 'preview' %}
+      <button class="f-btn f-btn-minimal" type="button" data-ds-req-skip="{{ l.no }}" aria-pressed="false"
+              aria-label="{{ l.no }}번 줄 빼기">{{ ds.icon('cross') }}<span data-ds-req-skip-text>빼기</span></button>
+      {%- endif %}
+    </span>
+  </div>
+  {%- for f in l.fields %}
+  {%- set fresh = blank(f.before) %}
+  <div class="fb-req-field{{ ' fb-req-field--new' if fresh }}">
+    <span class="f-small f-muted fb-req-field__name">{{ f.label }}</span>
+    {%- if not fresh %}
+    <span class="f-muted fb-req-field__before"><span class="f-sr">전: </span>{{ val(f.before, f.name) }}</span>
+    <span class="f-muted fb-req-field__arrow" aria-hidden="true">→</span>
+    {%- endif %}
+    <span class="f-strong fb-req-field__after"><span class="f-sr">{{ '내용: ' if fresh else '후: ' }}</span>{{ val(f.after, f.name) }}</span>
+  </div>
+  {%- endfor %}
+  {%- if l.why %}<p class="f-small fb-req-why"><span class="f-muted">까닭 · </span>{{ l.why }}</p>{% endif %}
+  {%- if l.check and l.check.text %}
+  <p class="f-small fb-req-warn" data-ds-req-check>{{ ds.icon('warning-sign') }}<span>{{ '못 고치는 까닭 · ' if l.state == 'blocked' else '' }}{{ l.check.text }}</span></p>
+  {%- endif %}
+  {%- if l.caution and l.state in ('preview', 'pending', 'applied') %}
+  <p class="f-small fb-req-caution" data-ds-req-caution>{{ ds.icon('warning-sign') }}<span>틀리면 손님에게 '안 돼요'로 나가요 — 꼭 확인해 주세요</span></p>
+  {%- endif %}
+  {%- if editable and l.state == 'preview' %}<p class="f-small f-muted" data-ds-req-skipped hidden>이 줄은 빼고 고쳐요</p>{% endif %}
+</li>
+{%- endmacro %}
+
+{% macro line_list(title, items, editable=False, key='') -%}
+{%- if items %}
+<section class="f-col fb-req-part" aria-label="{{ title }}" data-ds-req-part="{{ key }}">
+  <h2 class="f-h5">{{ title }} <span class="f-muted f-num">{{ items | length }}</span></h2>
+  <ol class="f-col fb-req-lines">
+    {%- for l in items %}{{ line_card(l, editable) }}{% endfor %}
+  </ol>
+</section>
+{%- endif %}
+{%- endmacro %}
+
+{#- 한 번 더 묻는 확인(판 · 기록의 층 되돌리기와 같은 버릇). -#}
+{% macro confirm_button(act, label, icon_name, note, yes) -%}
+<span class="f-row f-gap4" data-ds-req-confirm="{{ act }}">
+  <button class="f-btn" type="button" data-ds-req-ask>{{ ds.icon(icon_name) }}{{ label }}</button>
+  <span class="f-row f-gap4 fb-req-sure" data-ds-req-sure hidden>
+    <span class="f-help" id="ds-req-{{ act }}-note">{{ note }}</span>
+    <button class="f-btn f-btn-danger" type="button" data-ds-req-do="{{ act }}" aria-describedby="ds-req-{{ act }}-note">{{ yes }}</button>
+    <button class="f-btn f-btn-minimal" type="button" data-ds-req-no>취소</button>
+  </span>
+</span>
+{%- endmacro %}
+
+{% block main %}
+<div class="fb-req f-col" data-ds-req data-ds-req-status-code="{{ req.status }}"
+     data-apply-url="{{ url_for('brain_change_api.brain_change_apply', request_id=req.id) }}"
+     data-discard-url="{{ url_for('brain_change_api.brain_change_discard', request_id=req.id) }}"
+     data-revert-url="{{ url_for('brain_change_api.brain_change_revert', request_id=req.id) }}"
+     data-answer-url="{{ url_for('brain_change_api.brain_change_answer', request_id=req.id) }}">
+  <nav class="f-breadcrumbs" aria-label="길 표시">
+    <a href="{{ url_for('brain_web.index', tab='inbox') }}">승인 대기</a>{{ ds.icon('chevron-right') }}
+    <a href="{{ url_for('brain_web.index', tab='requests') }}">문장으로 고친 것</a>{{ ds.icon('chevron-right') }}
+    <span class="f-current">묶음 {{ req.id }}</span>
+  </nav>
+
+  <header class="f-col fb-req-head">
+    <div class="f-row">
+      <h1 class="f-h3 fb-pc-only">문장으로 고치기</h1>
+      {%- set tone = status_tones.get(req.status, ('primary', True)) %}
+      <span data-ds-req-badge>{{ ds.tag(req.status_label, tone[0], minimal=tone[1]) }}</span>
+      {%- if when %}<span class="f-small f-muted f-num">{{ when }}</span>{% endif %}
+    </div>
+    <p class="f-quote fb-req-text" data-ds-req-text>{{ req.text }}</p>
+    {%- if req.summary %}<p class="fb-req-summary"><span class="f-muted">한 줄 요약 · </span>{{ req.summary }}</p>{% endif %}
+    {%- if req.error_text %}<p class="fb-req-warn" data-ds-req-error>{{ ds.icon('warning-sign') }}<span>{{ req.error_text }}</span></p>{% endif %}
+  </header>
+  {%- if busy %}
+  <p class="f-muted" data-ds-req-busy>분석 중이에요 — 끝나면 이 화면이 저절로 바뀌어요.</p>
+  {%- endif %}
+
+  {%- if report %}
+  {{ line_list('고친 것', req.lines | selectattr('state', 'in', ['applied', 'reverted']) | list, key='done') }}
+  {{ line_list('승인을 기다리는 것', req.lines | selectattr('state', 'in', ['pending', 'withdrawn', 'rejected']) | list, key='pending') }}
+  {{ line_list('못 고친 것', req.lines | selectattr('state', 'in', ['blocked', 'failed', 'revert_blocked']) | list, key='not_done') }}
+  {%- else %}
+  {{ line_list('고칠 줄', req.lines, editable=req.can_apply, key='lines') }}
+  {%- endif %}
+
+  {%- if req.questions %}
+  <section class="f-col fb-req-part" aria-label="더 알아야 해요" data-ds-req-part="questions">
+    <h2 class="f-h5">더 알아야 해요</h2>
+    <ul class="f-col fb-req-notes">
+      {%- for qn in req.questions %}<li>{{ ds.icon('help', 'f-i-muted') }}<span>{{ qn }}</span></li>{% endfor %}
+    </ul>
+    {%- for a in req.answers %}
+    <p class="f-small"><span class="f-muted">적은 답 · </span>{{ a.answer }}</p>
+    {%- endfor %}
+    {%- if req.can_answer %}
+    <form class="fb-req-answer" aria-label="답하기" data-ds-req-answer-form>
+      <input class="f-input" type="text" maxlength="800" autocomplete="off" data-ds-req-answer
+             aria-label="물음에 답을 적어 주세요" placeholder="물음에 답을 적어 주세요">
+      <button class="f-btn f-btn-primary" type="submit" data-ds-req-answer-send>{{ ds.icon('send-message') }}답하기</button>
+    </form>
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if req.needs_code %}
+  <section class="f-col fb-req-part" aria-label="코드를 고쳐야 하는 것" data-ds-req-part="needs_code">
+    <h2 class="f-h5">코드를 고쳐야 하는 것</h2>
+    <p class="f-small f-muted">이 길로는 못 고쳐요. 개발 쪽에 알려 주세요.</p>
+    <ul class="f-col fb-req-notes">
+      {%- for n in req.needs_code %}<li>{{ ds.icon('wrench', 'f-i-muted') }}<span>{{ n }}</span></li>{% endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if req.also_look %}
+  <section class="f-col fb-req-part" aria-label="같이 볼 것" data-ds-req-part="also_look">
+    <h2 class="f-h5">같이 볼 것</h2>
+    <ul class="f-col fb-req-notes">
+      {%- for a in req.also_look %}
+      <li>{{ ds.icon('link', 'f-i-muted') }}<span>
+        {%- if a.key %}<a href="{{ url_for('brain_web.item', key=a.key) }}">{{ a.label }}</a>{% else %}{{ a.label }}{% endif %}
+        {%- if a.why %}<span class="f-muted"> — {{ a.why }}</span>{% endif %}</span></li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if req.can_apply or req.can_discard or req.can_revert %}
+  <div class="f-row fb-req-actions" data-ds-req-actions>
+    {%- if req.can_apply %}
+    <button class="f-btn f-btn-primary" type="button" data-ds-req-apply>{{ ds.icon('tick') }}이대로 고치기</button>
+    {%- endif %}
+    {%- if req.can_discard %}
+    {{ confirm_button('discard', '버리기', 'cross', '버리면 아무것도 고치지 않고 이 묶음을 닫아요. 기록은 남아요.', '네, 버릴게요') }}
+    {%- endif %}
+    {%- if req.can_revert %}
+    {{ confirm_button('revert', '이 묶음 되돌리기', 'undo', '이 묶음이 고친 것만 전으로 돌아가고, 승인을 기다리는 것은 거둬요. 같은 날 다른 승인은 그대로예요.', '네, 되돌릴게요') }}
+    {%- endif %}
+  </div>
+  {%- endif %}
+  <p class="fb-status" data-ds-req-act-status role="status" aria-live="polite"></p>
+
+  {%- if req.cost_usd is defined and (req.cost_usd or req.latency_ms) %}
+  <p class="f-small f-muted fb-req-cost" data-ds-req-cost>
+    {%- if req.cost_usd %}AI 비용 {{ '%.3f' | format(req.cost_usd | float) }}달러{% endif %}
+    {%- if req.cost_usd and req.latency_ms %} · {% endif %}
+    {%- if req.latency_ms %}걸린 시간 {{ '%.1f' | format(req.latency_ms / 1000) }}초{% endif %}</p>
+  {%- endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ asset_url('js/brain/ds/ds-request.js') }}" defer></script>
+{% endblock %}
