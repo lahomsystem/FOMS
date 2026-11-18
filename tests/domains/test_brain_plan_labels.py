@@ -71,11 +71,12 @@ def test_rule_links_go_to_bin_six_and_only_the_owner_bulk_approves(world):
     plan = {"links": [
         {"from": "common/spec-depth", "to": "product_line/lahom-1"},
         {"from": "common/spec-depth", "to": "option/3-5", "kind": "applies_to"},
-        {"from": "common/spec-depth", "to": "product_line/lahom-1", "kind": "requires"},  # 다른 종류는 안 받는다
+        {"from": "common/spec-depth", "to": "option/3-5", "kind": "broader"},  # 받지 않는 종류
+        {"from": "common/spec-depth", "to": "product_line/lahom-1", "kind": "requires"},  # 규격은 '꼭 같이'의 시작이 아니다
         {"from": "common/no-such-rule", "to": "option/3-6"}]}
     out = run(plan)
     assert out["filed"] == {"link_add:applies_to": 2}
-    assert out["skipped"] == {"not_allowed": 1, "end_missing": 1}
+    assert out["skipped"] == {"not_allowed": 2, "end_missing": 1}
     cards = inbox(db_session, viewer_of(admin), now=NOW)["cards"]
     ids = [c["id"] for c in cards if c["bin"] == BIN_RULES]
     assert len(ids) == 2 and all(c["main"]["bulk_ok"] for c in cards if c["bin"] == BIN_RULES)
