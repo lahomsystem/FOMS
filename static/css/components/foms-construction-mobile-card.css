@@ -63,3 +63,23 @@
   height: 100%;
   object-fit: cover;
 }
+
+/* 화면 밖 카드는 배치 · 글자 모양 잡기 · 그리기를 미룬다(2026-11-19, 폰만 — 터치 + 992 미만 창). 폰 시공 탭 교체 한 번에
+   카드 50장 전부를 스타일 계산 · 배치했다(4배 CPU 두 번째 방문 도착 534ms, 출고 · AS 선례와 같은 원인). 카드는 목록의
+   직속 자식 article 이라 미루는 요소가 곧 카드 본체다 — 그리기 가둠은 자기 그림자 · 테두리는 안 자르고 자손만 자른다.
+   본체 안에는 밖으로 튀어나오는 자손(펼침 메뉴 · 말풍선 · 위치 고정)이 없다(이력 단추 · 자재 확인은 카드 밖 시트를 연다).
+   크기 추정 = 미뤄지는 카드(5번째부터)의 실측 내용 상자 높이 평균(390 폭 준비물 50장: 바깥 358px 39장 · 414px 11장
+   → 안쪽 여백 24 · 테두리 2 를 뺀 332 · 388px, 5번째부터 평균 344px). 바깥 높이 358 을 넣었더니 문서가 1.8% 길어지고
+   뒤로 가기 굴림 복원이 22px 어긋났다(344 = 첫 그림 문서 높이 −0.1%, 35번째 카드 위치 차 0). 한 번 그린 카드는 실제 크기를 기억한다(auto). */
+@media (max-width: 991.98px) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .foms-mobile-queue-list > .foms-queue-card-v2 {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 344px;
+  }
+
+  /* 첫 화면에 들어오는 앞 4장은 미루지 않는다(출고 · AS · 생산 홈 선례). 크롬은 화면 안 판정이 나기 전까지 화면 안 첫 카드도
+     임시 크기로 배치해, 실제 카드가 그와 다르면 판정 뒤 카드 속 줄들과 아래 단추가 뛴다(AS 7~28px 사고). */
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .foms-mobile-queue-list > .foms-queue-card-v2:nth-of-type(-n+4) {
+    content-visibility: visible;
+  }
+}

@@ -28,12 +28,14 @@ STAGE_OVERRIDE_JS = REPO_ROOT / "static" / "js" / "orders" / "erp-stage-override
 RETRY_WIRED_TEMPLATES = [
     "templates/orders/partials/dashboard_main.html",
     "templates/orders/partials/erp_order_js.html",
-    "templates/construction/partials/mobile_queue.html",
     "templates/production/partials/mobile_queue.html",
     "templates/measurement/metropolitan_dashboard.html",
     "templates/measurement/regional_dashboard.html",
     "templates/measurement/self_measurement_dashboard.html",
-    "templates/construction/partials/scripts.html",
+    # 시공은 본문 파샬(dashboard_body.html) 한 곳 — 폰 · 태블릿 · PC · 셸 조각 모두 지난다. 예전엔 scripts.html 과
+    # 폰 모바일 큐 파샬(mobile_queue.html)이 한 벌씩 내 폰에 두 벌이었다(2026-11-19 한 벌로, 렌더 수는
+    # tests/domains/test_construction_dashboard_mobile.py 가 센다). scripts.html 에 두면 perf_scan fragment-multi-script 빚이다.
+    "templates/construction/partials/dashboard_body.html",
     "templates/orders/partials/order_detail_mobile_v2.html",
     "templates/production/partials/tablet_kanban_body.html",
     "templates/shipment/partials/dashboard_main.html",
