@@ -40,6 +40,7 @@ def test_nine_names_and_short_names():
         "cell_pc": "FOMS_GRAFT_CELL_PC", "cell_tablet": "FOMS_GRAFT_CELL_TABLET",
         "cell_mobile": "FOMS_GRAFT_CELL_MOBILE", "proposers": "FOMS_GRAFT_PROPOSERS",
         "construction_alimtalk": "FOMS_GRAFT_CONSTRUCTION_ALIMTALK", "push": "FOMS_GRAFT_PUSH",
+        "brain_change_request": "FOMS_GRAFT_BRAIN_CHANGE_REQUEST",
     }
     assert SHORT_NAMES == tuple(FLAGS)
     assert flag_name("FOMS_GRAFT_ACTIONS") == "actions" == flag_name("FOMS_GRAFT_ACTIONS_ENABLED")
