@@ -23,9 +23,11 @@
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20261117b">
-{# x-ignore: 이 화면 안에는 Alpine 지시어가 하나도 없다. 셸이 조각을 끼우면 Alpine 의 MutationObserver 가 새 요소를
-   전부 훑는데(폰 AS 1만3천 개 — 4배 CPU 175~324ms) x-ignore 가 있으면 이 뿌리에서 멈춘다. 이 안에 Alpine 을 쓰려면 이 속성을 먼저 뺀다. #}
-<div class="erp-pro erp-mobile-shell erp-as-dashboard" x-ignore data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+{# x-ignore 는 무거운 목록 칸(PC 표 · 카드 목록)에만 건다 — 셸이 조각을 끼우면 Alpine 의 MutationObserver 가 새 요소를
+   전부 훑는데(폰 AS 1만3천 개 — 4배 CPU 175~324ms) x-ignore 칸에서 멈춘다. 화면 뿌리에 걸면 안 된다: 뿌리 안에는
+   Alpine 토스트 호스트(#foms-alpine-toast-root)가 있어, 다른 탭에서 AS 로 넘어오면 토스트가 안 떴다(2026-11-18 실측, 11-17 판).
+   목록 칸 안에 Alpine 을 쓰려면 그 칸의 속성을 먼저 뺀다. #}
+<div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
@@ -259,7 +261,7 @@
         <p class="text-muted small py-3 mb-0">표를 불러오는 중...</p>
       </div>
       {% else %}
-      <div class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block">
+      <div class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block" x-ignore>
         <table class="erp-pro-table erp-as-table" id="as-dashboard-table">
           <colgroup>
             <col data-col-key="order">
@@ -480,7 +482,7 @@
            레거시 카드에는 재접수 버튼 자체가 없다. #}
         {% include 'cs/partials/as_reintake_sheet.html' %}
         {% if rows %}
-          <div class="erp-pro-order-cards foms-mobile-queue-list">
+          <div class="erp-pro-order-cards foms-mobile-queue-list" x-ignore>
             {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
           </div>
           {{ render_mobile_pager(url_for('erp_as_page.erp_as_dashboard'), _as_ctx|join('&'), page, total_pages) }}
@@ -494,7 +496,7 @@
       {% elif erp_mobile_v2_enabled %}
       {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
       {% else %}
-      <div class="erp-pro-order-cards d-md-none">
+      <div class="erp-pro-order-cards d-md-none" x-ignore>
         {% if rows %}
         {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
         {% else %}

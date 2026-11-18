@@ -654,6 +654,17 @@ def erp_shipment_dashboard():
 
     sort_shipment_rows(rows)
 
+    # 폰(모바일 셸 · 터치 + 992 미만 창)엔 PC 출고 표면(.erp-shipment-desktop-shell 안 필터 · 날짜 패널 · 변경 배너 ·
+    # 협력사 판 · PC 표)을 그리지 않는다 — 셸 CSS(foms-shipment-mobile.css 의 max-width 991.98px)가 그 표면째 숨겨
+    # 폰 세로 · 가로 모두 안 보인다. 표는 폰 [저장](image-export.js)이 그 줄을 읽어 그림을 만들 때만 필요해, 자리표의
+    # 주소(ship_pc_table=1)로 그때 받아 끼운다 — 서버는 그 값이면 창 구간과 무관하게 다 그린다(AS as_pc_table 선례).
+    # 창이 992 이상이 되면 넓은 창 표식(wide_surface_omitted_marker.html)이 화면을 다시 받는다. 판정 · 표 줄 키는 아래.
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
+    )
+    ship_force_pc_table = request.args.get('ship_pc_table') == '1'
+    ship_omit_pc_table = mobile_v2_active and not wants_wide_viewport_surfaces() and not ship_force_pc_table
+
     # ── 시공일 변경 알림(T4/T5) — 정렬 **후**, 캐시 **밖**.
     # 캐시 밖인 이유: 위 두 슬라이스(panel_aggregates / shipment_panel_derived_template_payloads)
     # 는 TTL 300s 라 여기에 넣으면 확인(ack) 직후에도 최대 5분간 stale 경고가 남는다
@@ -661,8 +672,10 @@ def erp_shipment_dashboard():
     # 정렬 후인 이유: 배너 칩 순서가 화면 목록 순서와 같아야 점프가 자연스럽다.
     # 비용은 렌더되는 행(≤300)에 대한 **배치 1쿼리**뿐이다(N+1 금지 · fragment TTFB 예산 291ms
     # 상향 금지 — 스펙 §6). 배너는 그 결과에서 순수 파생이라 추가 쿼리가 없다.
-    _shipment_change_alerts = collect_shipment_change_alerts(
-        db, rows, getattr(current_user, 'id', None)
+    # 배지 · 배너는 PC 표 · 태블릿 하루치 출고표에만 있다 — 폰(PC 표 생략)엔 조회하지 않는다.
+    _shipment_change_alerts = (
+        {} if ship_omit_pc_table
+        else collect_shipment_change_alerts(db, rows, getattr(current_user, 'id', None))
     )
     shipment_change_banner = build_shipment_change_banner(rows, _shipment_change_alerts)
     for r in rows:
@@ -673,15 +686,30 @@ def erp_shipment_dashboard():
     # 태블릿 가로 하루치 출고표(시공자 묶음 · 이름판 사람별 집계) — 이미 있는 rows · 설정만 쓴다(추가 쿼리 0).
     # 소비처(tablet_ship_grid.html · 위 줄 '시공자 없음' 알약)는 둘 다 `wide_viewport_surfaces or not erp_mobile_v2_enabled`
     # 게이트 안이라 모바일 셸 폰(터치 + 992 미만 창)엔 안 만든다.
-    mobile_v2_active = is_mobile_v2_shell(
-        resolve_shell_variant_cached(current_user.id if current_user else None)
-    )
     tablet_day_sheet = (
         build_tablet_day_sheet(rows, worker_settings, selected_date if use_single_day else None)
         if wants_wide_viewport_surfaces() or not mobile_v2_active
         else None
     )
-    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
+    # 팀 묶음 머리(합계 · 잔여)는 PC 표 줄 사이에만 그린다.
+    shipment_team_group_meta = {} if ship_omit_pc_table else _compute_shipment_team_group_meta(rows, worker_settings)
+    # 폰 [AS 추천](shipment-dashboard.js collectTargetOrderIds)은 PC 표 줄에서 주문 번호를 읽었다 — 표가 없으면 이 키로
+    # 같은 순서를 만든다: [주문 번호, 첫 시공자, 담당자] = 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager(AS 줄은 빼고).
+    ship_as_rec_rows = []
+    if ship_omit_pc_table and can_edit_shipment(current_user) and not freelancer_viewer:
+        for r in rows:
+            if is_as_order(r):
+                continue
+            _sd = r.structured_data if isinstance(r.structured_data, dict) else {}
+            _workers = (_sd.get('shipment') or {}).get('construction_workers') or []
+            _first = next((str(w).strip() for w in _workers if str(w or '').strip()), '')
+            ship_as_rec_rows.append([r.id, _first, r.manager_name or ''])
+    _pc_table_args = {
+        k: v for k, v in request.args.items(multi=False) if k not in ('ship_pc_table', 'foms_shell', 'view')
+    }
+    ship_pc_table_src = url_for(
+        'erp_shipment_page.erp_shipment_dashboard', **_pc_table_args, ship_pc_table='1', foms_shell='fragment'
+    )
 
     # 소비처는 모바일 v2 표면(shipment_mobile_queue.html)뿐 — 광폭 마우스 PC 는 그 표면을
     # 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 배치 조회도 건너뛴다.
@@ -693,7 +721,8 @@ def erp_shipment_dashboard():
 
     # 협력사 희망일 판은 회사 전체 확정 대기 협력사 주문 · 최근 정한 기록 · 회사 잔여 용량을 싣는다 — 프리랜서는 끈다.
     # 내 주문이 확정 대기면 위 목록 줄(partner_request_text)에 그대로 보인다.
-    _pending_requests = [] if freelancer_viewer else shipment_pending_requests(db)
+    # 판은 PC 표면(.erp-shipment-desktop-shell) 안 · 태블릿 위 줄 단추에만 있다 — 폰(PC 표 생략)엔 만들지 않는다.
+    _pending_requests = [] if (freelancer_viewer or ship_omit_pc_table) else shipment_pending_requests(db)
     template_name = (
         'shipment/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -727,7 +756,7 @@ def erp_shipment_dashboard():
         partner_pending_requests=_pending_requests,
         # 협력사 희망 2주 판(설계서 2026-11-04-shipment-partner-request-board) — 날짜 칸은 위 잔여 패널 값 그대로.
         partner_request_board=(
-            None if freelancer_viewer
+            None if (freelancer_viewer or ship_omit_pc_table)
             else build_request_board(db, _pending_requests, partner_pending, remaining_panel_dates, today_kst)
         ),
         can_set_construction_schedule=can_edit_construction_schedule(current_user),
@@ -736,6 +765,10 @@ def erp_shipment_dashboard():
         # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
         # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
         kakao_js_key=KAKAO_JS_API_KEY,
+        # 폰 PC 표 생략 · 늦게 받기(위 판정) — 자리표 주소와 [AS 추천] 줄 키.
+        ship_omit_pc_table=ship_omit_pc_table,
+        ship_pc_table_src=ship_pc_table_src,
+        ship_as_rec_rows=ship_as_rec_rows,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

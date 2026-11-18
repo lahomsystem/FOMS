@@ -312,6 +312,6 @@ def test_workmode_js_reveals_active_card_in_detail_list_only() -> None:
     assert "scrollIntoView" not in js and "window.scroll" not in body
     ready = js[js.index("function onReadyOrSwap()"):]
     assert "revealActiveCard();" in ready[:ready.index("}")]
-    page = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
+    page = (root / "templates/construction/partials/dashboard_body.html").read_text(encoding="utf-8")
     pin = re.search(r"js/foms/tablet-construction-workmode\.js'\) \}\}\?v=(\d{8}[a-z])", page)
     assert pin and pin.group(1) >= "20261112e"

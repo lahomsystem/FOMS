@@ -231,7 +231,7 @@ def test_all_four_scripts_wired_deferred_with_bumped_cachebuster() -> None:
         ("templates/partials/shared/foms_app_shell.html", "foms-write.js", "20260713b"),
         ("templates/production/partials/dashboard_body.html", "foms-production-steps.js", "20260713b"),
         ("templates/partials/shared/layout_scripts.html", "tablet-production-kanban.js", "20260724c"),
-        ("templates/construction/dashboard.html", "foms-complete-gate.js", "20260712a"),
+        ("templates/construction/partials/dashboard_body.html", "foms-complete-gate.js", "20260712a"),
     )
     for rel, name, old_version in checks:
         html = _read(rel)

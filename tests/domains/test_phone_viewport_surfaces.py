@@ -11,9 +11,11 @@ PC 표면을 받아 숨겼다(같은 가짜 자료 감사: 실측 조각 1.2MB �
 ``data-foms-wide-surface-omitted`` 표식과 되돌림 스크립트(foms-wide-surface-recover.js)가 하나 남아, 창이
 992 이상이 되면(폴더블 펼침 · 화면 분할 · 작은 태블릿 가로) 지금 화면을 다시 받는다.
 
-폰이 쓰는 것은 남긴다(의존 확인 결과): 실측 PC 표(모바일 [이미지 저장]이 찍는다 — 펼친 줄 속만 뺌) · 출고 PC 표
-(폰 [AS 추천]이 줄에서 주문 번호를 읽고 추천 창이 그 안에 있다) · 도면 .dw-process-map(workbench-dashboard.js 화면
-판정) · 주문 dashboard_styles.html(모바일도 쓰는 CSS).
+폰이 쓰는 것은 남긴다(의존 확인 결과): 실측 PC 표(모바일 [이미지 저장]이 찍는다 — 펼친 줄 속만 뺌) · 도면
+.dw-process-map(workbench-dashboard.js 화면 판정) · 주문 dashboard_styles.html(모바일도 쓰는 CSS).
+출고 PC 표면(.erp-shipment-desktop-shell — 셸 CSS 가 992 미만 창에서 표면째 숨긴다)은 2026-11-18 부터 껍데기 · 추천 창 ·
+지도 창만 남기고 속을 자리표로 바꾼다: 폰 [AS 추천]은 자리표의 표 줄 키(data-ship-as-rec-rows)로, 폰 [저장]은 누른 그때
+ship_pc_table=1 로 표를 받아 끼운다(test_shipment_phone_pc_table_deferred.py).
 AS PC 표(d-md-block)는 폰 가로(768 이상)에서만 보여 폰엔 자리표만 보내고, 창이 768 이상이면 화면이 as_pc_table=1 로 받아 끼운다
 (2026-11-17 — 768 기준 쿠키가 없어 서버 대신 화면이 판정한다. 아래 AS 늦게 받기 시험).
 
@@ -83,8 +85,10 @@ SCREENS = [
     (
         "/erp/shipment",
         "templates/shipment/partials/dashboard_main.html",
-        ('<div class="foms-ship-pcbar"', "foms-tablet-shipgrid-wrap"),
-        ('id="shipment-dashboard-table"', "erp-shipment-desktop-shell", "data-shipment-as-recommend-open"),
+        ('<div class="foms-ship-pcbar"', "foms-tablet-shipgrid-wrap", 'id="shipment-dashboard-table"',
+         "erp-shipment-desktop-filter", "measurement-panel-item"),
+        ("erp-shipment-desktop-shell", "data-shipment-as-recommend-open", 'id="shipmentAsRecommendModal"',
+         'id="scheduleMapModal"', "data-ship-pc-table-deferred", 'data-ship-pc-table-src="/erp/shipment?'),
     ),
     (
         "/erp/as",
@@ -362,7 +366,9 @@ def test_measurement_detail_rows_keep_shell_for_export() -> None:
 DATA_BUILDERS = [
     ("/erp/dashboard", "foms.web.orders.dashboard", ("build_split_master_cards", "build_split_side_items")),
     ("/erp/production/dashboard", "foms.web.production.dashboard", ("_compute_tablet_prod_kpis", "collect_production_tombstones")),
-    ("/erp/shipment", "foms.web.shipment.dashboard", ("build_tablet_day_sheet",)),
+    ("/erp/shipment", "foms.web.shipment.dashboard", ("build_tablet_day_sheet", "collect_shipment_change_alerts",
+                                                       "_compute_shipment_team_group_meta", "shipment_pending_requests",
+                                                       "build_request_board")),
     ("/erp/measurement", "foms.web.measurement.dashboard", ("compute_measurement_product_items_build",)),
 ]
 #: 생산 칸반은 원래 터치 기기만 그린다 — 대조군은 터치 넓은 창(태블릿 가로 · 큰 태블릿 세로).

@@ -12,8 +12,6 @@
 
 {% block content %}{% include 'construction/partials/dashboard_body.html' %}{% endblock %}
 
-{% block scripts %}
-<script defer src="{{ url_for('static', filename='js/construction/foms-complete-gate.js') }}?v=20261114a"></script>
-<script defer src="{{ url_for('static', filename='js/foms/tablet-construction-workmode.js') }}?v=20261112h"></script>
-<script defer src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20261019a"></script>
-{% endblock %}
+{# 이 화면 JS(완료 게이트 · 태블릿 작업 모드 · 출발 전 자재 확인)는 scripts 블록이 아니라
+   construction/partials/dashboard_body.html 이 싣는다 — 여기에만 두면 다른 탭에서 셸 스왑으로
+   들어올 때 셋 다 죽었다(2026-11-18, tests/contracts/test_shell_fragment_script_parity.py). #}

@@ -470,11 +470,11 @@ def test_touched_asset_pins_are_unique_repo_wide():
 def test_shipment_entry_chain_keeps_pin_and_excludes_ack_client():
     """ack 클라이언트는 entry CHAIN 이 아니라 dashboard_main defer 블록 소관이다.
 
-    체인 파일(image-export·dashboard-columns)은 안 바뀌어 SHIP_JS_V 도 그대로다.
+    SHIP_JS_V 는 체인 파일(image-export·dashboard-columns)이 바뀔 때만 오른다(2026-11-18 폰 PC 표 늦게 받기로 20261118w).
     (2026-10-02 병렬 로드 전환은 entry 자체 핀만 dashboard_scripts.html 에서 올렸다.)
     """
     entry = _read(SHIP_ENTRY_JS)
-    assert "SHIP_JS_V = '20261110a'" in entry
+    assert "SHIP_JS_V = '20261118w'" in entry
     assert "shipment-change-alert.js" not in entry
 
 
