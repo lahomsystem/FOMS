@@ -20,9 +20,5 @@
     <div class="notification-empty">알림이 없습니다.</div>
   </div>
 </div>
-{# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
-   하나라도 빠지면 재시도가 무음으로 실패한다. #}
-{% include 'partials/shared/foms_reason_sheet.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
-<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
+{# 관리자 강제 진행 재시도 세트(사유 시트 + foms-reason-sheet.js + foms-admin-override.js)는 이 파샬 바로 뒤
+   dashboard_body.html 에서 한 벌만 낸다(2026-11-19 — 이 파샬의 다중 <script src> 는 셸 스왑마다 재실행되는 빚, perf_scan fragment-multi-script). #}

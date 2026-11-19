@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -587,7 +588,7 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
         root / "templates/construction/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-construction-mobile-card.css') }}",
+        "foms-construction-mobile-card.css') }}?v=20261119b",
         "foms-v2-domain-heroes.css') }}?v=20261109f",
         "foms-complete-gate.css') }}?v=20261109a",
         "foms-packing.css') }}?v=20261109f",
@@ -612,4 +613,144 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     assert "foms-packing.css" in frag
     assert "foms-construction-mobile-card.css" in frag
     assert "v=20261109a" in frag  # 화면 크기 배율 보정(2026-11-09)으로 complete-gate · packing 핀을 함께 올렸다
+    # 화면 밖 카드 미루기(2026-11-19)로 카드 CSS 에 첫 핀을 달았다 — 기기 캐시의 옛 CSS 를 끊는다.
+    assert "foms-construction-mobile-card.css?v=20261119b" in full
+    assert "foms-construction-mobile-card.css?v=20261119b" in frag
     assert "<html" not in frag.lower()
+
+
+# --- 폰 시공 탭 교체 비용(2026-11-19): 화면 밖 카드 미루기 · 모바일 표면 x-ignore · 사유 시트 한 벌 ---------------
+
+_CONS_PHONE = {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"}
+_CONS_VIEWS = [
+    ("phone", _CONS_PHONE),
+    ("tablet-landscape", {"foms_ptr": "coarse", "foms_vw": "wide", "foms_scr": "1280"}),
+    ("big-tablet-portrait", {"foms_ptr": "coarse", "foms_vw": "tall", "foms_scr": "1366"}),
+    ("mouse-pc", {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}),
+    ("narrow-mouse-window", {"foms_ptr": "fine", "foms_vw": "narrow", "foms_scr": "1920"}),
+    ("no-cookies", {}),
+]
+_CONS_SECTION = '<section class="foms-shell-body foms-mobile-v2-dashboard erp-construction-mobile-v2"'
+_ALPINE_RE = (
+    r'\s(?:x-(?:data|show|text|init|model|on:|bind|cloak|transition|if|for|effect|html|ref|teleport|id)\b'
+    r'|@[a-z][a-z-]*[.=:]|:(?:class|style|[a-z-]+)=)'
+)
+
+
+def _cons_setup(client, monkeypatch, cookies: dict[str, str]) -> None:
+    """팀 없는 관리자 + 시공 대기 · 시공 중 가짜 주문 둘(카드 · 시공 단추가 그려지게) + 화면 쿠키."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _create_construction_order(customer_name="가짜고객 시공가")
+    _create_construction_order(
+        customer_name="가짜고객 시공나",
+        structured_data={"workflow": {"stage": "CONSTRUCTION", "history": [{"note": "시공 시작"}]}},
+    )
+    for name, value in cookies.items():
+        client.set_cookie(name, value, domain="localhost")
+
+
+def _cons_render(client, fragment: bool) -> str:
+    if fragment:
+        resp = client.get("/erp/construction/dashboard?view=fragment", headers={"X-FOMS-ERP-SHELL": "1"})
+    else:
+        resp = client.get("/erp/construction/dashboard")
+    assert resp.status_code == 200
+    return resp.get_data(as_text=True)
+
+
+def _cons_section_span(body: str) -> tuple[int, int]:
+    """모바일 표면 section 의 시작 · 끝(짝 맞춘 </section> 뒤) 위치."""
+    import re
+
+    start = body.index(_CONS_SECTION)
+    depth = 0
+    for m in re.finditer(r"<(/?)section\b[^>]*>", body[start:]):
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            return start, start + m.end()
+    raise AssertionError("모바일 표면 section 이 안 닫혔다")
+
+
+def test_construction_mobile_first_screen_cards_are_never_deferred() -> None:
+    """화면 밖 카드 미루기(content-visibility:auto)는 폰(터치 + 992 미만 창)에서만, 앞 4장을 빼고 건다(2026-11-19).
+
+    출고 · AS 선례(같은 이름 시험): 크롬은 화면 안 판정 전까지 첫 카드도 임시 크기로 배치해 실제 크기와 다르면 판정 뒤
+    단추가 뛴다. 시공 카드는 목록의 직속 자식 article 이라 그 본체에 건다. 임시 크기는 실측 카드 내용 상자 높이 근처여야
+    문서 높이 · 뒤로 가기 굴림 복원이 안 어긋난다(카드 바깥 높이 358 을 넣었더니 문서 1.8% · 굴림 22px 어긋남).
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/components/foms-construction-mobile-card.css").read_text(encoding="utf-8")
+    media = "@media (max-width: 991.98px) and (pointer: coarse) {"
+    assert css.count(media) == 1
+    block = css.split(media, 1)[1].split("\n}\n", 1)[0]
+    card = "body.erp-mobile-v2-layout .erp-construction-mobile-v2 .foms-mobile-queue-list > .foms-queue-card-v2 {"
+    assert card in block, "카드 미루기 규칙이 폰 범위 @media 밖에 있다"
+    body = block.split(card, 1)[1].split("}", 1)[0]
+    assert "content-visibility: auto" in body
+    size = re.search(r"contain-intrinsic-size: auto (\d+)px", body)
+    assert size and 320 <= int(size.group(1)) <= 357, body
+    first = re.search(
+        r"body\.erp-mobile-v2-layout \.erp-construction-mobile-v2 \.foms-mobile-queue-list > "
+        r"\.foms-queue-card-v2:nth-of-type\(-n\+(\d+)\) \{([^}]*)\}",
+        block,
+    )
+    assert first, "첫 화면 카드를 미루지 않는 규칙이 없다"
+    assert int(first.group(1)) >= 4 and "content-visibility: visible" in first.group(2)
+    assert "content-visibility" not in css.replace(block, ""), "폰 범위 밖에 미루기 규칙이 있다"
+    # 카드가 목록의 직속 자식 article 이어야 위 선택자가 맞는다(사이에 껍데기가 끼면 규칙이 조용히 빗나간다).
+    queue = (root / "templates/construction/partials/mobile_queue.html").read_text(encoding="utf-8")
+    assert '<div class="erp-mobile-queue-section__list foms-mobile-queue-list">\n      {% for o in orders %}' in queue
+    macro = (root / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(encoding="utf-8")
+    assert '<article class="queue-card foms-queue-card-v2"' in macro
+
+
+def test_construction_x_ignore_is_on_mobile_surface_not_on_screen_root(client, monkeypatch) -> None:
+    """폰 시공: x-ignore 는 모바일 표면(section)에만 — 화면 뿌리에 걸면 그 안 Alpine 토스트 호스트가 죽는다(AS 2026-11-18 사고,
+    test_as_dashboard_mobile.py::test_as_x_ignore_is_on_list_containers_not_on_screen_root). 표면 안(필터 · 큐 · 카드 · 쪽 넘김 ·
+    패킹 시트 모두)에는 Alpine 지시어가 하나도 없어야 한다 — 있으면 x-ignore 가 그 기능을 죽인다."""
+    import re
+
+    _cons_setup(client, monkeypatch, _CONS_PHONE)
+    body = _cons_render(client, fragment=True)
+    assert body.count("x-ignore") == 1
+    assert _CONS_SECTION + " x-ignore" in body, "폰 시공 모바일 표면에 x-ignore 가 없다"
+    start, end = _cons_section_span(body)
+    assert "erp-construction-mobile-v2" in body[start:end] and "foms-queue-card-v2" in body[start:end]
+    inside = [m.group(0) for m in re.finditer(_ALPINE_RE, body[start:end])]
+    assert inside == [], f"x-ignore 표면 안에 Alpine 지시어가 있다: {inside[:5]}"
+    root = re.search(r'<div class="erp-pro[^"]*"[^>]*>', body)
+    assert root and "x-ignore" not in root.group(0)
+    if 'id="foms-alpine-toast-root"' in body:
+        toast = body.index('id="foms-alpine-toast-root"')
+        assert not (start <= toast < end), "토스트 호스트가 x-ignore 표면 안에 있다"
+
+
+@pytest.mark.parametrize(("tag", "cookies"), _CONS_VIEWS[1:], ids=[v[0] for v in _CONS_VIEWS[1:]])
+def test_construction_wide_or_unknown_views_have_no_x_ignore(client, monkeypatch, tag, cookies) -> None:
+    """대조군(태블릿 · PC · 좁힌 마우스 창 · 쿠키 없음): x-ignore 없음 — 폰 밖 화면은 한 글자도 안 바뀐다."""
+    _cons_setup(client, monkeypatch, cookies)
+    for fragment in (False, True):
+        body = _cons_render(client, fragment)
+        assert "x-ignore" not in body, (tag, fragment)
+
+
+@pytest.mark.parametrize("fragment", [False, True], ids=["full", "fragment"])
+@pytest.mark.parametrize(("tag", "cookies"), _CONS_VIEWS, ids=[v[0] for v in _CONS_VIEWS])
+def test_construction_reason_sheet_set_renders_exactly_once(client, monkeypatch, tag, cookies, fragment) -> None:
+    """관리자 강제 진행 재시도 세트(사유 시트 + foms-reason-sheet.js + foms-admin-override.js)는 어느 화면 · 어느 길에서나 정확히
+    한 벌(2026-11-19). 폰에선 모바일 큐 파샬과 scripts.html 이 한 벌씩 내 두 벌이었다(같은 id 두 개 · 스왑마다 두 번 실행).
+    빠지면 재시도가 무음 실패하므로 0 도 안 된다. CSS 핀은 최신 하나."""
+    import re
+
+    _cons_setup(client, monkeypatch, cookies)
+    body = _cons_render(client, fragment)
+    assert len(re.findall(r"\sdata-foms-reason-sheet(?![\w-])", body)) == 1, tag
+    assert body.count('id="foms-reason-sheet-title"') == 1, tag
+    assert body.count("js/foms/foms-reason-sheet.js") == 1, tag
+    assert body.count("js/foms/foms-admin-override.js") == 1, tag
+    assert body.count("css/components/foms-reason-sheet.css") == 1, tag
+    assert "css/components/foms-reason-sheet.css?v=20261109a" in body, tag
