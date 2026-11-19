@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 312,
+    "total": 315,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 272,
+    "AUDITED": 275,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
@@ -209,7 +209,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_apply",
-      "lineno": 180,
+      "lineno": 189,
       "methods": [
         "POST"
       ],
@@ -218,7 +218,34 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_bulk_apply",
-      "lineno": 193,
+      "lineno": 202,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_learned_fix",
+      "lineno": 227,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_learned_seen",
+      "lineno": 221,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_learned_undo",
+      "lineno": 234,
       "methods": [
         "POST"
       ],
@@ -227,7 +254,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_propose",
-      "lineno": 173,
+      "lineno": 182,
       "methods": [
         "POST"
       ],
@@ -236,7 +263,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_recheck_confirm",
-      "lineno": 199,
+      "lineno": 208,
       "methods": [
         "POST"
       ],
@@ -245,7 +272,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_reject",
-      "lineno": 187,
+      "lineno": 196,
       "methods": [
         "POST"
       ],
@@ -254,7 +281,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_release_rollback",
-      "lineno": 205,
+      "lineno": 214,
       "methods": [
         "POST"
       ],

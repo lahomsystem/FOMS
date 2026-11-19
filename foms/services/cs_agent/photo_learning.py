@@ -170,10 +170,10 @@ def _evidence(raw: dict[str, Any], group: PhotoGroup) -> list[int]:
     return sorted(set(ids)) if evidence_ok(by_id[i] for i in set(ids)) else []
 
 
-def _open(session: Any, op: str, key: Optional[str], after: dict[str, Any]) -> bool:
-    """같은 안이 이미 열려 있나(같은 동작 · 키(만들기는 사진 학습이 낸 것 전부) · 같은 새 값)."""
+def _open(session: Any, op: str, key: Optional[str], after: dict[str, Any], agent: str = AGENT) -> bool:
+    """같은 안이 이미 열려 있나(같은 동작 · 키(만들기는 그 에이전트가 낸 것 전부) · 같은 새 값)."""
     stmt = select(BrainChange.fields, BrainChange.link_to).where(BrainChange.status == CHANGE_OPEN, BrainChange.op == op)
-    stmt = (stmt.where(BrainChange.proposed_by == Proposer.agent_named(AGENT).name) if key is None
+    stmt = (stmt.where(BrainChange.proposed_by == Proposer.agent_named(agent).name) if key is None
             else stmt.where(BrainChange.item_key == key))
     for fields, link_to in session.execute(stmt):
         values = after_values(fields)
@@ -185,9 +185,11 @@ def _open(session: Any, op: str, key: Optional[str], after: dict[str, Any]) -> b
 
 # ── 넣기 — 제안 길로만 ───────────────────────────────────────────────────
 def _filer(session: Any, raw: dict[str, Any], *, key: str, reason: str, evidence: list[str],
-           now: datetime.datetime, known: str) -> tuple[Optional[str], Optional[Callable[[], Any]]]:
-    """안 하나 → (막힌 까닭 코드, 넣는 함수). 꼴 · 대상이 틀리면 까닭만."""
-    agent, kind = Proposer.agent_named(AGENT), raw.get("kind")
+           now: datetime.datetime, known: str, agent_name: str = AGENT,
+           ) -> tuple[Optional[str], Optional[Callable[[], Any]]]:
+    """안 하나 → (막힌 까닭 코드, 넣는 함수). 꼴 · 대상이 틀리면 까닭만. ``agent_name`` 은 제안한 이(넘긴 상담 배우기도 이 길로
+    상황 · 제작 조건 · 비슷한 말 · 잇기를 낸다 — :mod:`.handoff_learning_onto`)."""
+    agent, kind = Proposer.agent_named(agent_name), raw.get("kind")
     common = dict(reason=reason, proposer=agent, evidence=evidence, now=naive_utc(now), known=known)
     name, text = _line(raw.get("name"), MAX_NAME), raw.get("text")
     text = text.strip() if isinstance(text, str) and text.strip() and len(text) <= MAX_TEXT else None
@@ -195,7 +197,7 @@ def _filer(session: Any, raw: dict[str, Any], *, key: str, reason: str, evidence
         if name is None or text is None:
             return "form", None
         values = {"name": name, "text": text, "status": "active", "visibility": "all", "evidence_kind": "case"}
-        if _open(session, OP_CREATE, None, {"name": name, "text": text}):
+        if _open(session, OP_CREATE, None, {"name": name, "text": text}, agent_name):
             return "open_proposal", None
         item_type, layer = ("situation", "cs") if kind == "new_situation" else ("build_rule", "common")
         return None, lambda: propose_create(session, key=key, brand=SEND_BRAND, layer=layer, item_type=item_type,

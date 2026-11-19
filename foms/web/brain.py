@@ -50,6 +50,7 @@ from foms.services.brain.display import (
     LINK_DISPLAY, SORT_LABELS, STATUS_LABELS, TYPE_DISPLAY, display_table, visibility_label,
 )
 from foms.services.brain.inbox import inbox_counts
+from foms.services.brain.learned import learned_counts
 from foms.services.brain.recheck import recheck_counts
 from foms.services.brain.scope import ROLE_MANAGER, viewer_of
 from foms.services.brain.schemas import payload_props
@@ -63,11 +64,12 @@ brain_web_bp = Blueprint("brain_web", __name__)
 
 TABS: tuple[str, ...] = ("search", "table", "inbox", "recheck", "releases", "map", "onto", "ask")
 #: 새 화면(접목판 ``brain_ui`` 스위치 — 설계서 2026-11-14-foms-graft 5.2)의 탭 — 옛 탭 + AI 직원. 옛 ``TABS`` 는 그대로 둔다.
-DS_TABS: tuple[str, ...] = (*TABS, "agents", "requests")
+DS_TABS: tuple[str, ...] = (*TABS, "agents", "requests", "learned")
 #: 새 화면 탭 → 화면(위 줄 · 아래 탭의 자리, 템플릿 ``brain/ds/<화면>.html``) — 설계서 5.2 표.
 DS_SECTIONS: dict[str, str] = {
     "inbox": "inbox", "recheck": "inbox", "releases": "inbox", "search": "search", "table": "search",
     "map": "onto", "onto": "onto", "ask": "ask", "agents": "agents", "requests": "inbox",
+    "learned": "inbox",  # AI 가 배운 것 — 승인 없이 바로 반영된 학습을 사장님이 살펴본다(2026-11-19, ADMIN 만)
 }
 #: 문장으로 고치기(설계서 2026-11-18-brain-sentence-change 4절) 꼬리표 색 — (tone, 옅은 바탕). 무채색 없음 · 갈래마다 다르게.
 REQUEST_STATUS_TONES: dict[str, tuple[str, bool]] = {
@@ -257,7 +259,8 @@ def _render_ds_index(viewer: Any, tab: str, ctx: dict[str, Any]) -> str:
     """
     tab = tab if tab in DS_TABS else "search"
     change_on = _change_on()
-    if (tab == "agents" and not _agents_open(viewer)) or (tab == "requests" and not change_on):
+    if ((tab == "agents" and not _agents_open(viewer)) or (tab == "requests" and not change_on)
+            or (tab == "learned" and not viewer.is_admin)):
         abort(404)
     section = DS_SECTIONS[tab]
     nav = _ds_nav(viewer, section, chat_tab=ctx["chat_tab"], inbox_count=ctx["counts"]["inbox"])
@@ -314,7 +317,8 @@ def index():
     try:
         tmap = type_map(db, viewer)
         counts = {"inbox": inbox_counts(db, viewer, now_utc_naive())["cards"],
-                  "recheck": recheck_counts(db, viewer, today=get_today_kst())["total"]}
+                  "recheck": recheck_counts(db, viewer, today=get_today_kst())["total"],
+                  "learned": learned_counts(db, viewer)["new"]}  # AI 가 바로 넣은 지식 가운데 아직 안 본 수(ADMIN 만)
         chat_tab = page_viewer(user, read_chat_settings(db)) is not None
         if not tab:  # 첫 탭 — 결정할 지식 제안 또는 AI 할 일 제안(새 화면 — 점검 2차 w1-02)이 있으면 승인 대기
             tab = "inbox" if counts["inbox"] or (ds_on and decidable_count(db, user)) else "search"
