@@ -361,11 +361,11 @@ def test_as_push_preview_image_uses_app_small_route(client, monkeypatch):
 def test_left_unchanged_slots_stay_original():
     """일부러 그대로 둔 칸(보고 목록) — 바꾸면 이 시험과 보고를 같이 고친다.
 
-    * G14 도면 확인 범위 창: JS 핀이 ``workbench_detail_body.html``(다른 작업 범위)에 있어 이번엔 못 올린다.
+    * (G14 도면 확인 범위 창은 합친 뒤 바꿨다 — 56px 칸 = ``small_url``, 없으면 원본.)
     * G20 PC 대시보드 교체 대상 카드: 768px 아래 두 칸 격자에서 칸 폭이 160px 를 넘는다(2배 화면 320px 부족).
     * G27 협력사 완공 · AS 사진: 폰 두 칸 격자에서 약 175px(2배 화면 320px 부족).
     """
-    assert "img.src = d.view_url;" in _read("static/js/foms/drawing-ok-scope.js")
+    assert "img.src = d.small_url || d.view_url;" in _read("static/js/foms/drawing-ok-scope.js")
     att = _read("static/js/orders/dashboard/erp-dashboard-attachments.js")
     assert "gatewaySmallUrl" not in att and "/api/files/thumb/" not in att
     assert '"thumb_url": build_file_view_url(p["thumbnail_key"])' in _read("foms/web/partner/__init__.py")
