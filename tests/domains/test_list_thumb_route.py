@@ -155,6 +155,13 @@ def test_url_builders_agree_with_route(app):
         assert url_for("files.thumb", storage_key=key) == build_file_thumb_url(key) == lt.list_thumb_url(key)
     assert lt.list_thumb_key(key) == "orders/7/drawing_wizard/exports/sthumb320_a.png.jpg"
     assert lt.list_thumb_url("orders/7/drawing/a.pdf") is None
+    # 한글 이름 파일의 key 는 점 없이 ``_png`` 로 끝난다(secure_filename 이 한글을 지운다) — 그림으로 본다.
+    assert lt.list_thumb_url("orders/7/drawing/20261119_101010_ab12cd34_png") == "/api/files/thumb/orders/7/drawing/20261119_101010_ab12cd34_png"
+    assert lt.list_thumb_key("orders/7/drawing/20261119_101010_ab12cd34_png") == "orders/7/drawing/sthumb320_20261119_101010_ab12cd34_png.jpg"
+    assert lt.is_list_thumb_source("orders/7/drawing/jpeg") and lt.is_list_thumb_source("orders/7/drawing/x_JPG")
+    assert not lt.is_list_thumb_source("orders/7/drawing/20261119_101010_ab12cd34_pdf")
+    assert not lt.is_list_thumb_source("orders/7/drawing/20261119_101010_ab12cd34_file")
+    assert not lt.is_list_thumb_source("orders/7/drawing/a.b_png")
     assert lt.list_thumb_url("orders/7/drawing/thumb_a.png") is None  # 파생 파일의 작은 그림은 없다
     assert lt.list_thumb_url("orders/7/drawing/sthumb320_a.png.jpg") is None
 
