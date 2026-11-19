@@ -10,7 +10,7 @@
     <span class="pp-row__main">
         <span class="pp-row__l1"><span class="pp-row__name">{{ o.customer_name }}</span><span class="pp-row__no">#{{ o.id }}</span>{{ stage_badge(o.stage_label, o.badge) }}</span>
         <span class="pp-row__l2">{{ o.product or '제품 미정' }}{% if o.address %} · {{ o.address }}{% endif %}</span>
-        <span class="pp-row__l3">{% if o.drawing_thumbs %}<img class="pp-row__thumb" src="{{ o.drawing_thumbs[0].url }}" alt="" loading="lazy" decoding="async" width="36" height="26">{% endif %}<span class="pp-row__now{% if o.turn %} is-turn{% elif o.drawing_status == 'RETURNED' %} is-fix{% endif %}">{% if o.turn %}내 차례 · {% endif %}{{ o.work }}</span></span>
+        <span class="pp-row__l3">{% if o.drawing_thumbs %}<img class="pp-row__thumb" src="{{ o.drawing_thumbs[0].thumb or o.drawing_thumbs[0].url }}" alt="" loading="lazy" decoding="async" width="36" height="26">{% endif %}<span class="pp-row__now{% if o.turn %} is-turn{% elif o.drawing_status == 'RETURNED' %} is-fix{% endif %}">{% if o.turn %}내 차례 · {% endif %}{{ o.work }}</span></span>
     </span>
     <i class="fas fa-chevron-right pp-row__chev" aria-hidden="true"></i>
 </a>

@@ -110,14 +110,14 @@
         </div>
         {% endif %}
 
-        {# 대형 스테이지 — 전달본을 크게 표시, 탭 시 GlobalImageViewer(핀치줌/스와이프). #}
+        {# 대형 스테이지 — 전달본을 크게 표시(원본 view — thumb 는 320px 목록 그림이라 흐리다), 탭 시 GlobalImageViewer(핀치줌/스와이프). #}
         <div class="foms-cwork-stage">
           {% if _items %}
             <span class="foms-cwork-zoomhint" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i> 100%</span>
             <img class="foms-cwork-stage__img"
               data-cwork-stage-img
               data-cwork-active-idx="0"
-              src="{{ _items[0].thumb }}"
+              src="{{ _items[0].view }}"
               alt="{{ _items[0].label|default('전달본 도면') }}"
               role="button" tabindex="0"
               loading="lazy" decoding="async">

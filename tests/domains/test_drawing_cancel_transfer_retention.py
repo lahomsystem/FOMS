@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 import foms.api.drawing.erp_orders_revision as revision_api
 import foms.services.storage_delete_handler as handler_mod
 from db import db_session
+from foms.services.files.list_thumb import list_thumb_key
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.storage_delete_handler import handle_storage_delete
 from models import DomainSideEffectOutbox, Order, OrderAttachment, User
@@ -201,7 +202,7 @@ def test_handler_skips_key_that_became_current_again(client, storage):
     row_id = _outbox_keys()[v2].id
 
     handle_storage_delete(db_session.get(DomainSideEffectOutbox, row_id))  # 대조군: 아무도 안 쓰면 지운다
-    assert storage.deleted_keys == [v2]
+    assert storage.deleted_keys == [v2, list_thumb_key(v2)]  # 목록 작은 그림 형제도 같이(SPEC 2026-11-19 §3-4)
 
     storage.deleted_keys.clear()
     _transfer(client, oid, v2, mode="APPEND")  # 같은 key 가 다시 현재본이 됐다
@@ -243,7 +244,7 @@ def test_handler_deletes_when_order_is_gone(client, storage):
     row.payload = {**row.payload, "order_id": 987654}
     db_session.commit()
     handle_storage_delete(db_session.get(DomainSideEffectOutbox, row_id))
-    assert storage.deleted_keys == [v2]
+    assert storage.deleted_keys == [v2, list_thumb_key(v2)]
 
 
 # --------------------------------------------------------------------------- M2 흐름 조합

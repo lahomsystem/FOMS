@@ -31,6 +31,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from foms.services.files.list_thumb import is_list_thumb_source, list_thumb_key
 from foms.services.orders.drawing_key_safety import referenced_keys
 from foms.services.orders.drawing_wizard_pending import get_pending, mark_deleted
 from foms.services.storage import get_storage
@@ -61,10 +62,19 @@ def _object_key(row: DomainSideEffectOutbox) -> Optional[str]:
 
 
 def _delete_object(object_key: str) -> None:
-    """R2 object 1개를 삭제한다(idempotent). 실패면 :class:`StorageDeleteError`."""
-    ok = get_storage().delete_file(object_key)
-    if ok is False:
-        raise StorageDeleteError(f"R2 delete failed for object_key {object_key!r}")
+    """R2 object 1개와 그 목록 작은 그림 형제(``sthumb320_<이름>.jpg``)를 삭제한다(idempotent).
+
+    작은 그림은 원본 key 에서 이름을 계산하므로(SPEC 2026-11-19-list-drawing-small-image §3-4) 첨부 행에 적혀
+    있지 않다 — 원본을 지울 때 같이 지운다. 없는 key 삭제는 성공이다(S3 DeleteObject). 실패면
+    :class:`StorageDeleteError` (원본 · 형제 모두 — 다시 시도해도 지운 것을 또 지울 뿐이다).
+    """
+    storage = get_storage()
+    keys = [object_key]
+    if is_list_thumb_source(object_key):
+        keys.append(list_thumb_key(object_key))
+    for key in keys:
+        if storage.delete_file(key) is False:
+            raise StorageDeleteError(f"R2 delete failed for object_key {key!r}")
 
 
 def handle_storage_delete(row: DomainSideEffectOutbox) -> None:

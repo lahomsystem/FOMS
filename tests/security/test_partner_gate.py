@@ -36,6 +36,9 @@ class _FakeR2Storage:
     def get_download_url(self, storage_key, expires_in=3600, response_content_disposition=None):
         return f"{_R2_HOST}{storage_key}?X-Amz-Signature=fresh"
 
+    def object_exists(self, key):  # 목록 작은 그림 길(thumb) — 저장본 없음 → 원본 302
+        return False
+
 
 @pytest.fixture
 def r2_storage(monkeypatch):
@@ -213,7 +216,7 @@ def test_policy_engine_denies_partner_outside_account_policies(app):
 # --------------------------------------------------------------------------
 # 허용 목록 안 — 파일 관문은 주문 단위로 다시 판정
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("kind", ["view", "download", "presigned-urls"])
+@pytest.mark.parametrize("kind", ["view", "thumb", "download", "presigned-urls"])
 def test_file_gate_opens_only_own_partner_orders(app, world, r2_storage, kind):
     client = _client(app, db_session.get(User, world["partner"]))
 

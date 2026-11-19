@@ -26,6 +26,7 @@ __all__ = [
     "get_rq_runtime_status",
     "enqueue_thumbnail_generation",
     "enqueue_heic_conversion",
+    "enqueue_list_thumb_generation",
     "enqueue_geocode_order_address",
     "enqueue_channeltalk_inbound",
     "enqueue_naver_order_sync",
@@ -188,6 +189,59 @@ def enqueue_heic_conversion(attachment_id, storage_key):
     except Exception as e:
         logger.error(f"[RQ] enqueue_heic_conversion error: {e}", exc_info=True)
         return False
+
+
+#: ``enqueue_list_thumb_generation`` 의 3상태(정산 동기화와 같은 모양 — 큐 부재와 중복을 같은 값으로 접지 않는다).
+LIST_THUMB_ENQUEUE_QUEUED = "queued"
+LIST_THUMB_ENQUEUE_DUPLICATE = "duplicate"
+LIST_THUMB_ENQUEUE_UNAVAILABLE = "unavailable"
+
+
+def enqueue_list_thumb_generation(storage_key: str, *, job_id: str, lock_seconds: int) -> str:
+    """목록 작은 그림(320px) 만들기 job enqueue — 같은 key 는 한 번만(SPEC 2026-11-19-list-drawing-small-image).
+
+    중복 방지는 Redis ``SET NX`` 자물쇠(``lock_seconds`` 동안)로 원자적으로 한다 — 목록 한 화면이 같은
+    그림 길을 여러 번 불러도, 두 web 프로세스가 동시에 불러도 큐에는 한 번만 들어간다. job id 도 key
+    해시로 고정해(``job_id``) 큐에서 어느 key 인지 알아볼 수 있게 한다.
+
+    **동기 폴백은 없다** — web 이 그림을 줄이지 않는다(gevent 프로세스가 멈춘다). 큐가 없으면 원본이 계속 나간다.
+
+    Args:
+        storage_key: 원본 key.
+        job_id: 고정 job id(:func:`foms.services.files.list_thumb.list_thumb_job_id`).
+        lock_seconds: 같은 key 를 다시 넣지 않는 시간(초).
+
+    Returns:
+        ``"queued"`` 새로 넣음 / ``"duplicate"`` 자물쇠가 살아 있어 안 넣음 /
+        ``"unavailable"`` 큐 없음 · Redis 장애 · enqueue 실패.
+    """
+    q = get_rq_queue()
+    if not q:
+        return LIST_THUMB_ENQUEUE_UNAVAILABLE
+    lock_key = f"foms:{job_id}:lock"
+    try:
+        if not q.connection.set(lock_key, "1", nx=True, ex=int(lock_seconds)):
+            return LIST_THUMB_ENQUEUE_DUPLICATE
+    except Exception as e:
+        logger.warning(f"[RQ] list thumb lock failed: {e}")
+        return LIST_THUMB_ENQUEUE_UNAVAILABLE
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.create_list_thumb_for_key",
+            str(storage_key),
+            job_id=job_id,
+            job_timeout="2m",
+            result_ttl=600,
+            failure_ttl=86400,
+        )
+        return LIST_THUMB_ENQUEUE_QUEUED
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_list_thumb_generation error: {e}", exc_info=True)
+        try:
+            q.connection.delete(lock_key)  # 못 넣었으면 다음 방문이 다시 넣게 자물쇠를 푼다
+        except Exception as cleanup_error:
+            logger.warning(f"[RQ] list thumb lock release failed: {cleanup_error}")
+        return LIST_THUMB_ENQUEUE_UNAVAILABLE
 
 
 def enqueue_geocode_order_address(order_id):

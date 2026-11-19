@@ -720,7 +720,11 @@ def test_local_storage_branch_has_no_recording_call():
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
         and node.func.id == "send_file"
     ]
-    assert len(send_file_lines) == 2
+    # view · download 각 1 + 목록 작은 그림 길(thumb) 로컬 분기 2(저장본 · 원본) — SPEC 2026-11-19.
+    assert len(send_file_lines) == 4
+    thumb_fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "thumb")
+    assert not [n for n in ast.walk(thumb_fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "_record_file_access"], "작은 그림 길은 감사 기록을 남기지 않는다"
     record_lines = [
         node.lineno for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)

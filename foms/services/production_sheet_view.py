@@ -14,6 +14,7 @@ from typing import Any
 from models import Order, ProductionRun
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.erp_template_filters import eval_spec_width_mm, item_spec_w300_value
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
@@ -86,6 +87,11 @@ def _prod_sheet_load_md(value: Any) -> str:
     return f"{d.month}/{d.day}"
 
 
+def _small_drawing_url(entry: dict[str, Any], view: str) -> str:
+    """작은 줄(112x76 · 112x80) 그림 = 320px 작은 그림 길(key 에서 계산). 만들 수 없는 key 면 원본."""
+    return list_thumb_url(str(entry.get('key') or '')) or view
+
+
 def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
     """도면 전달본 썸네일: resolve_final_drawing_files(수령 확정과 같은 함수)의 첫 이미지.
 
@@ -103,7 +109,7 @@ def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
         if not view:
             continue
         return {
-            'thumb': view,
+            'thumb': _small_drawing_url(f, view),
             'view': view,
             'download': (f.get('download_url') or view).strip(),
             'label': f.get('filename') or '도면 전달본',
@@ -121,7 +127,8 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
         name = f.get('filename') or '도면'
         out.append({
             'kind': 'image' if name.lower().endswith(_PROD_SHEET_IMG_EXT) else 'file',
-            'view': view,
+            'view': view,  # 큰 그림 · 눌러 크게 보기 = 원본
+            'thumb': _small_drawing_url(f, view),  # 작은 줄만
             'download': (f.get('download_url') or view).strip(),
             'label': name,
         })

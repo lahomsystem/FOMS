@@ -8,12 +8,14 @@ from foms.services.storage import get_storage
 
 from foms.api.files.routes import (
     build_file_download_url,
+    build_file_thumb_url,
     build_file_view_url,
     files_bp,
 )
 
 __all__ = [
     "build_file_download_url",
+    "build_file_thumb_url",
     "build_file_view_url",
     "files_bp",
     "get_storage",

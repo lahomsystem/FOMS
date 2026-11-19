@@ -3,7 +3,7 @@
 <div class="pp-draw-thumbs" data-foms-lightbox-gallery>
     {% for t in o.drawing_thumbs %}
     <a class="pp-draw-thumbs__link" href="{{ t.url }}" data-foms-lightbox-src="{{ t.url }}" title="{{ t.label }}">
-        <img src="{{ t.url }}" alt="{{ t.label }}" loading="lazy" decoding="async" width="96" height="68">
+        <img src="{{ t.thumb or t.url }}" alt="{{ t.label }}" loading="lazy" decoding="async" width="96" height="68">
     </a>
     {% endfor %}
     {% if o.drawing_thumbs_more %}<span class="pp-draw-thumbs__more">+{{ o.drawing_thumbs_more }}</span>{% endif %}

@@ -18,8 +18,8 @@ NON_ORDER_INT_ARGS: dict[str, set[str]] = {
     "attachments.api_order_attachments_delete": {"attachment_id"},
     "attachments.api_order_attachments_patch": {"attachment_id"},
 }
-# 주문 번호를 핸들러가 key 에서 찾아 ``user_can_read_order`` 로 보는 것(파일 관문 3종).
-HANDLER_CHECKED = {"files.view", "files.presigned_urls", "files.download"}
+# 주문 번호를 핸들러가 key 에서 찾아 ``user_can_read_order`` 로 보는 것(파일 관문 4종 — 작은 그림 포함).
+HANDLER_CHECKED = {"files.view", "files.thumb", "files.presigned_urls", "files.download"}
 # AS 주문만 그리는 조각 — 실측 단계 시드는 핸들러 404(범위 404 와 같은 모양)라 내 주문은 문지기 통과로 본다(내 AS 주문
 # 200 은 tests/security/test_freelancer_screen_completion.py).
 STAGE_ONLY_HANDLERS = {"erp_as_page.erp_as_card_detail", "erp_as_page.erp_as_timeline"}
