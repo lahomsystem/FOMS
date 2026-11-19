@@ -108,7 +108,7 @@
     cb.disabled = locked;
     cb.setAttribute('data-ok-final', d.key);
     var img = el('img', 'dw-ok-dw__thumb');
-    img.src = d.view_url;
+    img.src = d.small_url || d.view_url; // 56px 칸 = 320px 작은 그림(없으면 원본)
     img.alt = d.no + '번 도면';
     img.loading = 'lazy';
     var body = el('span', 'dw-ok-dw__body');
