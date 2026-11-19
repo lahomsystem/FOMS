@@ -9,8 +9,8 @@
   ``changed`` 그 뒤 사람이 또 고침 · ``gone`` 없음).
 - :func:`mark_seen` — '맞아요'. 지식은 그대로, 봤다는 것만 남긴다(결정한 사람 = 누른 사람).
 - :func:`fix` — 글 · 이름을 고친다. 사람 제안 → 곧바로 반영 동작(사람 승인자 · 확신 '확정'이 된다).
-- :func:`undo` — 지운다. 새로 만든 항목은 지우기, 고친 항목은 고치기 앞 판으로 되돌리기(그 뒤 또 바뀌었으면 막는다 — 뒤 고침을
-  덮지 않게), 이은 링크는 빼기. 모두 사람 제안 → 곧바로 반영 동작이라 판 · 감사 줄 · 지식 문서 다시 쓰기가 그대로 돈다.
+- :func:`undo` — 지운다. 새로 만든 항목은 지우기, 고친 항목은 고치기 앞 판으로 되돌리기, 이은 링크는 빼기. 그 뒤 사람이 또
+  고친 항목은 막는다(뒤 고침을 덮거나 지우지 않게 — 회사 지식 화면에서 직접). 모두 사람 제안 → 곧바로 반영 동작이라 판 · 감사 줄 · 지식 문서 다시 쓰기가 그대로 돈다.
 
 커밋은 호출자 몫이다. 결과 · 감사 줄에는 번호 · 코드만 싣는다.
 """
@@ -105,7 +105,7 @@ def _row(session: Any, change: BrainChange) -> dict[str, Any]:
         names = [card_title_of(row) if row is not None else key for row, key in zip(ends, (change.link_from, change.link_to))]
         return {**base, "key": change.link_from, "title": names[0], "text": f"{names[0]} → {names[1]}", "before": "",
                 "now": "", "state": "live" if link is not None and link.change_id == change.id else "gone",
-                "can_fix": False}
+                "can_fix": False, "can_undo": True}
     current = current_object(session, change.item_key)
     state = "gone" if current is None else "live" if current.change_id == change.id else "changed"
     old = before.get("text") if isinstance(before.get("text"), str) else ""
@@ -113,7 +113,8 @@ def _row(session: Any, change: BrainChange) -> dict[str, Any]:
     return {**base, "key": change.item_key, "title": card_title(change, current, name),
             "text": _text_of(values, before), "before": old if change.op == OP_UPDATE else "",
             "now": (current.text or "") if state == "changed" else "", "state": state,
-            "can_fix": current is not None and bool((current.text or "").strip())}
+            "can_fix": current is not None and isinstance(values.get("text"), str) and bool(values["text"].strip()),
+            "can_undo": state != "changed"}
 
 
 def learned_list(session: Any, viewer: Viewer, *, limit: int = LIST_LIMIT) -> Optional[dict[str, Any]]:
@@ -164,17 +165,17 @@ def undo(session: Any, change_id: Any, *, actor: Any, now: datetime.datetime) ->
     made = None
     if change.op == OP_LINK_ADD:
         link = current_link(session, change.link_kind, change.link_from, change.link_to)
-        if link is not None:
+        if link is not None and link.change_id == change.id:  # 그 뒤 다시 이은 링크는 건드리지 않는다
             made = propose_link(session, op=OP_LINK_REMOVE, kind=change.link_kind, from_key=change.link_from,
                                 to_key=change.link_to, base_version=link.version, action="learned_undo", **common)
     else:
         current = current_object(session, change.item_key)
+        if current is not None and current.change_id != change.id:  # 뒤 고침을 덮거나 지우지 않는다
+            raise BrainTargetError("그 뒤에 또 바뀐 지식이다 — 회사 지식에서 직접 고친다")
         if current is not None and change.op == OP_CREATE:
             made = propose_delete(session, key=current.item_key, base_version=current.version, action="learned_undo",
                                   **common)
-        elif current is not None:
-            if current.change_id != change.id or change.base_version is None:
-                raise BrainTargetError("그 뒤에 또 바뀐 지식이다 — 회사 지식에서 직접 고친다")
+        elif current is not None and change.base_version is not None:
             made = propose_rollback(session, key=current.item_key, to_version=int(change.base_version),
                                     action="learned_undo", **common)
     if made is not None:

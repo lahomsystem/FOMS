@@ -65,7 +65,7 @@ AUTO_ACTION = "auto_learn"
 AUTO_PROPOSERS: frozenset[str] = frozenset({"agent:cs_handoff_learning"})
 AUTO_OPS: frozenset[str] = frozenset({OP_CREATE, OP_UPDATE, OP_LINK_ADD})
 #: 바로 반영하지 않는 유형 — 값 규칙 · 사장님 결정 · 기준 답 문구(혼자 발송 재료)는 늘 사람이 넣는다.
-AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "template"})
+AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "template", "conflict", "question"})
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,11 @@ class AutoLearn:
 
     ``on_behalf`` 는 그 칸을 켠 사장님(ADMIN) 번호 — 감사 줄 · 판 줄 · 지식 문서 수정 기록의 사람 칸에만 쓴다. 제안 줄의 결정한
     사람(``decided_by``)과 새 판의 사람 승인자(``human_approver_id``)는 **비운다**(사람이 아직 안 봤다 — 살펴보기 목록이 이
-    표시로 고른다), 확신은 '근거 있음'(숫자 관문 허용 목록 · 부딪침 판정의 '확정' 항목에 섞이지 않는다)."""
+    표시로 고른다), 확신은 '근거 있음'(숫자 관문 허용 목록 · 부딪침 판정의 '확정' 항목에 섞이지 않는다).
+
+    **사람이 이미 확정한 항목을 고칠 때는 그 확신 · 사람 승인자를 그대로 둔다** — '근거 있음'으로 내리면 그 항목이 부딪침 판정의
+    견줄 지식(:func:`.ai_gates.related_knowledge` — 확정만)에서 빠져, 다음 밤 그 항목과 반대되는 말이 관문을 지난다. 무엇이
+    바뀌었는지는 살펴보기 목록(:mod:`.learned`)이 제안 줄로 보여 준다."""
 
     on_behalf: int
 
@@ -237,6 +241,10 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
         values = {**base, **_after(change)}
         values["confidence"] = settled_confidence(change.item_type, values.get("confidence"), as_import=as_import,
                                                   auto=auto is not None)
+    # 확정 항목(사람 승인 · 지식 문서에서 옮겨 온 것 — 옮긴 것은 승인자 칸이 비어 있다)은 확신 · 승인자를 그대로(AutoLearn 설명)
+    kept = auto is not None and current is not None and current.confidence == CONFIRMED
+    if kept and values is not None:
+        values["confidence"] = current.confidence
     seen = [current.visibility if current is not None else None, (values or {}).get("visibility")]
     if auto is not None and (change.item_type in AUTO_HELD_TYPES or any(v not in (None, SCOPE_ALL) for v in seen)):
         raise BrainPermissionError("바로 반영은 모두가 보는 지식만 · 값 규칙 · 사장님 결정 · 기준 답은 사람이 넣는다")
@@ -251,9 +259,8 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
         _doc_collision(session, change, values)
     release_no = releases.attach(session, layer=change.layer, op=change.op, key=change.item_key, actor_id=actor_id,
                                  now=now, as_import=as_import)
-    version = _write_object(session, change, current, values,
-                            approver_id=None if as_import or auto is not None else actor_id,
-                            release_no=release_no, now=now)
+    approver = current.human_approver_id if kept else None if as_import or auto is not None else actor_id
+    version = _write_object(session, change, current, values, approver_id=approver, release_no=release_no, now=now)
     return actor_id, version, release_no
 
 

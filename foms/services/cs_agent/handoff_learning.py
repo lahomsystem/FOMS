@@ -63,8 +63,8 @@ from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIEL
 from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, file_proposals, seen_proposals
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
 from foms.services.cs_agent.handoff_learning_prompt import (
-    anchor_mark, build_params, case_lines, knowledge_lines, knowledge_rows, pending_lines, raw_ontology, raw_proposals,
-    talk_window,
+    anchor_mark, build_params, case_lines, complete, knowledge_lines, knowledge_rows, pending_lines, raw_ontology,
+    raw_proposals, talk_window,
 )
 from foms.services.cs_agent.image_summaries import summaries_by_turn
 from foms.services.cs_agent.knowledge import load_approved
@@ -94,7 +94,7 @@ HUMAN_ONLY_REASONS: tuple[str, ...] = ("complaint", "order_lookup", "discount_re
 #: 늘 사람 몫인 보내기 전 검사 코드(사람만 말하는 금액 · 할인 · 환불 약속) — 그 검사에 걸린 차례는 배우지 않는다.
 HUMAN_ONLY_CHECKS: frozenset[str] = frozenset({"human_only_amount", "discount_promise", "refund_promise"})
 QUOTE_PREFIX = "quote_"  # 견적 계산이 사람에게 넘긴 까닭(:mod:`.quote_calc` · :mod:`.quote_rules`) — 배우지 않는다
-MAX_DAYS, MAX_USED, MAX_SCAN, MAX_PENDING, TIMEOUT_S = 14, 2000, 2000, 30, 120
+MAX_DAYS, MAX_USED, MAX_SCAN, MAX_PENDING, TIMEOUT_S = 14, 2000, 2000, 30, 300
 EDITED = "edited"  # 사례 갈래 — AI 초안을 직원이 고쳐 보낸 차례(패널 '초안이 나간 상담도 배우기')
 DIRECT = "direct"  # 사례 갈래 — AI 초안을 안 쓰고 직원이 직접 답한 차례(같은 칸)
 #: 한 밤에 부르는 횟수 상한(창 2시간 · 15분 바퀴) · 부르는 동안의 잠깐 잠금(겹친 컨테이너가 같은 사례를 읽지 않게).
@@ -384,6 +384,9 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
                           ontology=ontology)
     session.commit()
     called = call_learning(session, params, cfg=cfg, now=now, timeout_s=TIMEOUT_S, client=client)
+    if not complete(called.response):  # 출력 상한에 끊김 · 거절 — 읽음으로 적지 않는다(안이 통째로 사라지지 않게)
+        counts["halted"] = "incomplete"
+        return
     mark_used(session, used)
     raw, onto = raw_proposals(called.response), raw_ontology(called.response)
     counts["proposed"] = len(raw) + len(onto)
@@ -419,6 +422,26 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     talks = _talks(reader, cfg, cases, photos)
     counts: dict[str, Any] = {"day": day, "cases": len(cases), "talks": len(talks), "mask_dropped": 0, "sent": 0,
                               "proposed": 0, "filed": 0, "applied": 0, "cards": 0, "blocked": {}, "halted": None}
+    try:
+        _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts)
+    except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
+        session.rollback()
+        close_day(session, day)
+        release(session)
+        raise
+    if not cases or counts["halted"] is not None:  # 남은 사례가 없다 · 부르기가 실패했다 — 이 밤은 여기까지
+        close_day(session, day)
+    release(session)
+    logger.info("[CS 넘김 학습] day=%s cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d applied=%d "
+                "cards=%d blocked=%s halted=%s", day, counts["cases"], counts["talks"], counts["mask_dropped"],
+                counts["sent"], counts["proposed"], counts["filed"], counts["applied"], counts["cards"],
+                counts["blocked"], counts["halted"])
+    return counts
+
+
+def _run(session: Any, cases: list[dict[str, Any]], talks: dict[int, dict[str, Any]], *, cfg: Any,
+         now: datetime.datetime, client: Any, counts: dict[str, Any]) -> None:
+    """사례 줄 → 두뇌 → 넣기(:func:`run_handoff_learning` 의 가운데 — 수는 ``counts`` 에 채운다)."""
     sent, blocks, dropped = _blocks(cases, talks)
     counts.update(mask_dropped=len(dropped), sent=len(sent))
     if len({case["chat_id"] for case in sent}) < EVIDENCE_MIN_CHATS:
@@ -434,11 +457,3 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         except BrainError as exc:
             session.rollback()
             counts["halted"] = exc.code
-    if not cases or counts["halted"] is not None:  # 남은 사례가 없다 · 부르기가 실패했다 — 이 밤은 여기까지
-        close_day(session, day)
-    release(session)
-    logger.info("[CS 넘김 학습] day=%s cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d applied=%d "
-                "cards=%d blocked=%s halted=%s", day, counts["cases"], counts["talks"], counts["mask_dropped"],
-                counts["sent"], counts["proposed"], counts["filed"], counts["applied"], counts["cards"],
-                counts["blocked"], counts["halted"])
-    return counts

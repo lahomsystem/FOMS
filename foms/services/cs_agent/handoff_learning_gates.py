@@ -41,13 +41,13 @@ import datetime
 import re
 from typing import Any, Callable, Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from foms.persistence.brain.models import BrainChange
 from foms.services.brain.ai_gates import related_key
 from foms.services.brain.apply import AutoLearn, apply_change
 from foms.services.brain.constants import (
-    CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE, TYPE_GRADES,
+    CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE, TYPE_GRADES,
 )
 from foms.services.brain.errors import BrainError as BrainStoreError
 from foms.services.brain.errors import BrainGateError
@@ -69,6 +69,7 @@ __all__ = [
 #: 제안한 이(``agent:cs_handoff_learning``) — 화면 이름표는 :data:`foms.services.brain.display.AGENT_LABELS`(시험이 맞춘다).
 AGENT = "cs_handoff_learning"
 MAX_FILED, MAX_SEEN = 10, 200
+UNDONE_ACTION = "auto_learn_undone"  # :data:`foms.services.brain.learned.UNDONE`(그 모듈을 부르면 돌려 부르기가 된다 — 시험이 맞춘다)
 MAX_TITLE, MAX_TEXT, MAX_WHY = 40, 600, 300
 SAME_SIMILARITY, DUP_SIMILARITY = 0.85, 0.8
 NUMBER_MIN_CHATS = 2
@@ -92,13 +93,17 @@ def _body(value: Any) -> Optional[str]:
 
 
 def seen_proposals(session: Any) -> list[tuple[str, Optional[str], str, str]]:
-    """넘김 학습이 낸 열린 · 거절된 안 — (상태, 키, 이름, 글) 새 것부터 :data:`MAX_SEEN` 개(겹침 관문 · 지시문 '이미 낸 제안')."""
+    """넘김 학습이 낸 열린 · 거절된 안과 바로 반영했다가 사장님이 지운 안(거절로 친다) — (상태, 키, 이름, 글) 새 것부터
+    :data:`MAX_SEEN` 개(겹침 관문 · 지시문 '이미 낸 제안')."""
+    undone = and_(BrainChange.status == CHANGE_APPLIED, BrainChange.decided_action == UNDONE_ACTION)
     stmt = (select(BrainChange.status, BrainChange.item_key, BrainChange.fields)
             .where(BrainChange.proposed_by == Proposer.agent_named(AGENT).name,
-                   BrainChange.status.in_((CHANGE_OPEN, CHANGE_REJECTED)), BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
+                   or_(BrainChange.status.in_((CHANGE_OPEN, CHANGE_REJECTED)), undone),
+                   BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
             .order_by(BrainChange.id.desc()).limit(MAX_SEEN))
     out = []
     for status, key, fields in session.execute(stmt):
+        status = CHANGE_REJECTED if status == CHANGE_APPLIED else status  # 사장님이 지운 것 — 거절과 같이 다시 안 넣는다
         values = after_values(fields)
         payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
         if isinstance(values.get("text"), str) and values["text"].strip():
@@ -301,7 +306,9 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
             except BrainGateError as exc:  # 부딪침만 막았으면 버리지 않고 엇갈림 카드로(모듈 설명)
                 session.rollback()
                 code = _store_code(exc)
-                if set(exc.failed) == {"conflict"}:
+                if set(exc.failed) == {"conflict"} and exc.unavailable:
+                    code = "judge_unavailable"  # 아무도 판정하지 않았다 — '다른 말' 카드로 올리지 않는다
+                elif set(exc.failed) == {"conflict"}:
                     code = _try_card(session, _differs_target(session, item, text, now), card, fallback=code)
             except BrainStoreError as exc:  # 글 관문 · 근거 · 거절 · 대상 · 꼴 — 넣지 않고 센다
                 session.rollback()

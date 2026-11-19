@@ -12,15 +12,17 @@ from __future__ import annotations
 import pytest
 
 from db import db_session
+from foms.services.brain import learned
+from foms.services.brain.ai_gates import JudgeUnavailable, judge_source
 from foms.services.brain.apply import AutoLearn, apply_change
 from foms.services.brain.errors import BrainPermissionError
 from foms.services.brain.inbox import open_rows
-from foms.services.brain.proposals import Proposer, propose_update
+from foms.services.brain.proposals import Proposer, known_text, propose_update
 from foms.services.brain.scope import viewer_of
 from foms.services.brain.store import current_object
 from foms.services.cs_agent import handoff_learning as hl
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD
-from foms.services.cs_agent.handoff_learning_gates import AGENT
+from foms.services.cs_agent.handoff_learning_gates import AGENT, UNDONE_ACTION
 from foms.services.cs_agent.knowledge import load_approved
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture(승인 지식 · 두뇌 env · 진짜 SDK 막기)
 from tests.domains.test_cs_handoff_learning import (  # noqa: F401 — admin · two 는 fixture
@@ -109,3 +111,61 @@ def test_ontology_ideas_from_the_same_call_are_filed_and_applied(two, admin):
         *(f"case:{i}" for i in two), "staff:mgr-1"]
     assert current_object(db_session, "common/door-hinged").payload["aliases"] == ["합성 문짝"]
     assert renamed.decided_action == "auto_learn"
+
+
+# ── 따로 돌린 검토가 찾은 것(11-19) ──────────────────────────────────────
+def test_auto_update_of_confirmed_knowledge_keeps_it_confirmed_so_the_conflict_gate_still_sees_it(two, admin):
+    """'근거 있음'으로 내리면 그 항목이 부딪침 판정의 견줄 지식에서 빠져 다음 밤 반대되는 말이 지나간다."""
+    on(**{AUTO_FIELD: True})
+    before = current_object(db_session, "lahom/shelf-depth")
+    text = "합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다"
+    counts = run(FakeAnthropic({"proposals": [ask(two, op="update", key="lahom/shelf-depth", text=text)]}))
+    after = current_object(db_session, "lahom/shelf-depth")
+    assert (counts["applied"], after.text, after.version) == (1, text, before.version + 1)
+    assert (after.confidence, after.human_approver_id) == ("confirmed", before.human_approver_id)
+    assert after.created_by == f"agent:{AGENT}"  # 누가 바꿨는지는 남는다(살펴보기 목록이 이 제안 줄을 보여 준다)
+
+
+def test_a_judge_that_cannot_be_reached_never_becomes_a_differs_card(two, admin):
+    on(**{AUTO_FIELD: True})
+
+    def down(_session, _known, _proposal):
+        raise JudgeUnavailable("down")
+
+    raw = [ask(two, op="update", key="lahom/shelf-depth", text="합성 선반 깊이는 350mm 이고 상판 두께는 18mm 입니다")]
+    with judge_source(down):
+        counts = hl.run_handoff_learning(db_session, now=NOW, client=FakeAnthropic({"proposals": raw}))
+    assert (counts["cards"], counts["applied"], counts["blocked"]) == (0, 0, {"judge_unavailable": 1}) and changes() == []
+
+
+def test_knowledge_the_owner_removed_is_not_learned_again(two, admin):
+    on(**{AUTO_FIELD: True})
+    run(FakeAnthropic({"proposals": [ask(two)]}))
+    (first,) = changes()
+    learned.undo(db_session, first.id, actor=admin, now=naive(NOW))
+    db_session.commit()
+    later = [handed("uc-3"), handed("uc-4")]
+    again = run(FakeAnthropic({"proposals": [ask(later)]}), now=at(12, 1, 15))
+    assert (again["applied"], again["blocked"]) == (0, {"rejected_before": 1}) and len(changes()) == 1
+    assert UNDONE_ACTION == learned.UNDONE
+
+
+def test_a_cut_off_answer_keeps_the_cases_unread_and_ends_the_night(two, admin):
+    on()
+    client = FakeAnthropic({"proposals": [ask(two)]})
+    whole = client.create
+    client.beta.messages.create = lambda **params: whole(**params).model_copy(update={"stop_reason": "max_tokens"})
+    counts = run(client)
+    assert (counts["halted"], counts["filed"]) == ("incomplete", 0) and hl.used_ids(db_session) == frozenset()
+    assert run(client, now=at(11, 2, 15)) == {"off": "already_today"}
+
+
+def test_a_differs_card_number_never_enters_the_known_number_list_even_after_the_owner_files_it(two, admin):
+    on()
+    raw = [ask(two, op="differs", key="lahom/shelf-depth", title="합성 선반 깊이 다른 말", text="합성 선반 깊이는 437mm 로 안내했어요")]
+    run(FakeAnthropic({"proposals": raw}))
+    (card,) = changes()
+    apply_change(db_session, card.id, actor=admin, now=naive(NOW))  # 사장님이 엇갈림 항목으로 넣음('확인 필요' 표시)
+    db_session.commit()
+    assert current_object(db_session, card.item_key).confidence == "confirmed"
+    assert "437" not in known_text(db_session)

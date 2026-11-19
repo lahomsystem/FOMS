@@ -46,7 +46,8 @@
     var bar = dom.el('div', { cls: 'f-actions', attrs: { 'data-learned-bar': '1' } });
     if (!item.seen) bar.appendChild(act('맞아요', 'seen', 'f-btn-primary', 'tick'));
     if (item.can_fix) bar.appendChild(act('고치기', 'edit', '', 'edit'));
-    bar.appendChild(act('지우기', 'undo', 'f-btn-minimal', 'cross'));
+    if (item.can_undo) bar.appendChild(act('지우기', 'undo', 'f-btn-minimal', 'cross'));
+    else if (href) bar.appendChild(dom.el('a', { cls: 'f-btn f-btn-minimal', text: '회사 지식에서 보기', attrs: { href: href } }));
     li.appendChild(bar);
     li.appendChild(kit.statusLine('data-learned-status'));
     return li;
@@ -120,6 +121,8 @@
     if (name === 'undo') {  // 한 번 더 눌러야 지운다
       button.setAttribute('data-learned-act', 'undo-sure');
       button.lastChild.textContent = '정말 지울까요? 한 번 더 누르면 지워요';
+      button.disabled = true;  // 빠르게 두 번 눌러 확인 없이 지워지지 않게
+      window.setTimeout(function () { button.disabled = false; }, 700);
       return;
     }
     if (name === 'undo-sure') send(row, item, 'undo', {}, button);
