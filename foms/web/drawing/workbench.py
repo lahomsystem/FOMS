@@ -48,6 +48,7 @@ from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
 from foms.services.partners.schedule_request import pending_request, request_text
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.drawing_revision_source import (
     is_customer_request,
     request_rounds,
@@ -426,6 +427,8 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
             'key': key,
             'filename': filename,
             'view_url': view_url,
+            # 56px 도면 줄 칸 — 320px 작은 그림 길(만들 수 없는 key 면 빈 값 → 템플릿이 원본). 큰 그림 · 뷰어는 view_url.
+            'thumb_url': (list_thumb_url(key) or '') if own else '',
             'download_url': download_url,
             'is_image': _is_drawing_image(filename),
             'is_selected': bool(selected_key and key == selected_key),
@@ -510,10 +513,13 @@ def _event_target_files(
         else:
             continue
         own = is_own_order_key(order_id, key)
+        view_url = f'/api/files/view/{key}' if own and _is_drawing_image(filename) else ''
         rows.append({
             'no': no,
             'name': filename.rsplit('.', 1)[0],
-            'view_url': f'/api/files/view/{key}' if own and _is_drawing_image(filename) else '',
+            'view_url': view_url,
+            # 44x32 칩 칸 — 작은 그림 길(만들 수 없는 key 면 빈 값 → 원본). 크게 보기는 버튼 data-view-url(원본).
+            'thumb_url': (list_thumb_url(key) or '') if view_url else '',
         })
     if not rows:
         rows = [{'no': n, 'name': '', 'view_url': ''} for n in stored_numbers]

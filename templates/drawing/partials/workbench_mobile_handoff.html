@@ -130,7 +130,7 @@ data-bar-key="{{ item.key }}"
       <a class="foms-drawing-sheet-row" href="{{ file.detail_url }}" aria-label="{{ file.no }}번 {{ file.filename }} 보기">
         <span class="foms-drawing-sheet-row__thumb">
           {% if file.is_image and file.view_url %}
-          <img src="{{ file.view_url }}" alt="" loading="lazy" decoding="async">
+          <img src="{{ file.thumb_url or file.view_url }}" alt="" loading="lazy" decoding="async">
           {% else %}
           <i class="fas fa-file-lines" aria-hidden="true"></i>
           {% endif %}
@@ -277,7 +277,7 @@ data-bar-key="{{ item.key }}"
               data-handoff-filename="{{ ref.filename }}"
               data-handoff-key="{{ ref.key }}"
               aria-label="참고사진 {{ loop.index }} 크게 보기">
-              <img src="{{ ref.view_url }}" alt="" loading="lazy" decoding="async">
+              <img src="{{ ref.thumb_url or ref.view_url }}" alt="" loading="lazy" decoding="async">
             </button>
             {% else %}
             <a class="foms-drawing-thread__ref foms-drawing-thread__ref--file" href="{{ ref.view_url }}"

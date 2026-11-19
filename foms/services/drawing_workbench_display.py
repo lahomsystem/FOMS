@@ -208,7 +208,9 @@ def build_stray_drawing_files(db: Any, order: Any, structured_data: Any, user: A
             "id": row.id,
             "filename": filename,
             "view_url": build_file_view_url(key) if key else "",
-            "thumb_url": build_file_view_url(thumb_key or key) if (thumb_key or (is_image and key)) else "",
+            # 48px 칸 — 320px 작은 그림 길 먼저(30일 캐시), 만들 수 없으면 옛 썸네일 · 원본. 링크는 view_url 원본.
+            "thumb_url": list_thumb_url(key) or (
+                build_file_view_url(thumb_key or key) if (thumb_key or (is_image and key)) else ""),
             "is_image": is_image,
             "uploader": names.get(row.user_id) or "-",
             "uploaded_at": format_datetime_kst(row.created_at, "%m/%d %H:%M") or "-",

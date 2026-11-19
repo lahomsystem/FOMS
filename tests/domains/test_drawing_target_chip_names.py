@@ -20,6 +20,7 @@ def test_target_resolved_by_key_with_name_and_thumbnail():
         'no': 2,
         'name': '도면_장익중_5600_보테가 슬라이딩',
         'view_url': '/api/files/view/orders/5600/drawing_wizard/exports/b.png',
+        'thumb_url': '/api/files/thumb/orders/5600/drawing_wizard/exports/b.png',
     }]
 
 
@@ -58,6 +59,7 @@ def test_replaced_target_uses_history_name_and_stored_number():
         'no': 2,
         'name': '도면_장익중_5600_보테가 슬라이딩',
         'view_url': f'/api/files/view/{old_key}',
+        'thumb_url': f'/api/files/thumb/{old_key}',
     }]
 
 
