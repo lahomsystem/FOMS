@@ -408,6 +408,49 @@ def _build_cycle_groups(
     return groups, groups[0]["rounds"], unassigned
 
 
+def _place_receptions(
+    sd: dict,
+    first_receptions: dict[str, tuple[int, int, dict]],
+    round_people: dict[tuple[str, int], list[tuple[str, int, dict]]],
+) -> tuple[dict | None, dict[str, dict]]:
+    """건마다 첫 접수 원문을 **그 건 자리**에 놓는다. 반환 ``(맨 아래 접수 줄, {지난 건 id: 접수})``.
+
+    예전에는 주문 전체의 첫 접수 하나만 맨 아래 '접수' 줄에 냈다. 재접수로 새 건이 열리면 그
+    줄이 지난 건 접수인데 현재 건 아래 붙어 보이고, 지난 건 블록에는 접수 글 · 접수 사진이
+    빠졌다(운영 5332 · 5687, 2026-11-20 "재접수하면 기존 자료가 사라진다").
+
+    * 현재 건의 접수 → 맨 아래 접수 줄. 지난 건의 접수 → 그 건 블록.
+    * 현재 건에 접수 글이 없고 건 표식 없는 옛 접수가 있으면 그 글을 접수 줄에 둔다(예전 동작).
+    * 건 기록이 없는 주문은 전체 첫 접수가 접수 줄이다(예전 동작).
+    * 자리를 못 찾은 접수는 버리지 않고 회차 기록 표(``round_people``)로 돌려보낸다.
+
+    Args:
+        sd: 주문 structured_data.
+        first_receptions: ``{건 표식: (as_log 순번, 회차, 항목)}`` — 건마다 첫 접수.
+        round_people: 회차 기록 버킷(제자리 변경 — 자리 없는 접수가 여기로 간다).
+    """
+    from foms.services.orders.as_cycle_service import current_cycle
+    from foms.services.orders.as_cycle_view import closed_cycle_summaries
+
+    left = dict(first_receptions)
+    cur = current_cycle(sd)
+    past: dict[str, dict] = {}
+    if cur is None:
+        first_key = min(left, key=lambda k: left[k][0], default=None)
+        anchor = left.pop(first_key)[2] if first_key is not None else None
+    else:
+        cur_id = str(cur.get("cycle_id") or "")
+        picked = left.pop(cur_id, None) or left.pop("", None)
+        anchor = picked[2] if picked else None
+        for summary in closed_cycle_summaries(sd):
+            found = left.pop(str(summary.get("cycle_id") or ""), None)
+            if found:
+                past[str(summary.get("cycle_id") or "")] = found[2]
+    for cycle_key, (idx, round_no, entry) in left.items():
+        round_people.setdefault((cycle_key, round_no), []).append((entry.get("ts") or "", idx, entry))
+    return anchor, past
+
+
 def _current_display_round(rounds: list[dict[str, Any]], fallback: int) -> int:
     """헤드/입력창이 쓸 **표시용 현재 회차**. 진행 중 회차의 ``display_no`` 가 정답이다.
 
@@ -445,7 +488,8 @@ def build_as_round_chart_view(
         (``_assign_display_numbers``). ``current_round``/``no`` 는 스탬프 그대로다 —
         ``data-round``·``data-current-round`` 계약이 이 값을 읽는다.
 
-        ``cycle_groups`` = ``[{summary, is_current, rounds}]`` — 현재 건이 맨 앞,
+        ``cycle_groups`` = ``[{summary, is_current, rounds, reception}]`` — 현재 건이 맨 앞
+        (지난 건의 ``reception`` = 그 건 접수 원문, 현재 건 것은 최상위 ``reception``),
         그다음 종결 건 최신순. ``rounds`` 는 **현재 건 그룹의 rounds** 와 같은 객체다
         (건 기록이 없는 개편 전 주문은 건 구분 없는 기존 전체 계산). ``unassigned_rounds``
         는 ``cycle_id`` 표식이 없는 옛 기록 — 시각으로 추정해 건에 끼워 넣지 않는다.
@@ -471,7 +515,7 @@ def build_as_round_chart_view(
     visit_date = str(as_visit.get("date") or "").strip() or str(
         shipment.get("as_visit_date") or "").strip()
 
-    reception: dict | None = None
+    first_receptions: dict[str, tuple[int, int, dict]] = {}
     legacy: list[dict] = []
     histories: dict[str, list[dict]] = {
         "visit": [], "availability": [], "billing": [], "other": []}
@@ -500,8 +544,9 @@ def build_as_round_chart_view(
         elif etype == "system":
             histories[_classify_system_entry(str(e.get("text") or ""))].append(_decorate(e))
             round_systems.setdefault(key, []).append(e)
-        elif etype == "reception" and reception is None:
-            reception = _decorate(e)
+        elif etype == "reception" and key[0] not in first_receptions:
+            human_count += 1
+            first_receptions[key[0]] = (idx, key[1], e)   # 건마다 첫 접수 = 그 건의 접수 원문
         elif etype == "verdict":
             human_count += 1
             # 같은 회차 재판정(정정)은 마지막 판정이 이긴다 — 이전 판정은 기록 표에 남는다.
@@ -514,11 +559,17 @@ def build_as_round_chart_view(
             human_count += 1
             round_people.setdefault(key, []).append((e.get("ts") or "", idx, e))
 
+    anchor, past_receptions = _place_receptions(sd, first_receptions, round_people)
+    reception = _decorate(anchor) if anchor else None
+
     current = current_as_round(sd)
     # 회차 목록: 기록·판정이 있는 회차 ∪ 현재 회차(막 열린 빈 회차 포함)를 **건 안에서만**.
     cycle_groups, rounds, unassigned_rounds = _build_cycle_groups(
         sd, buckets=(round_people, round_systems, round_verdicts),
         current_round=current, visit_date=visit_date, today=today, decorate=_decorate)
+    for group in cycle_groups:
+        past = past_receptions.get(str(group["summary"].get("cycle_id") or ""))
+        group["reception"] = _decorate(past) if past and not group["is_current"] else None
 
     open_round = next((r for r in rounds if r["open"]), None)
     verdict_prompt = bool(open_round) and any(
@@ -565,7 +616,7 @@ def build_as_round_chart_view(
         # 화면 표기용 회차 — 스탬프(current_round)와 달리 건을 넘어 이어서 센다.
         "current_display_round": _current_display_round(rounds, current),
         "verdict_prompt": verdict_prompt,
-        "count": human_count + (1 if reception else 0) + len(legacy),
+        "count": human_count + len(legacy),
     }
 
 
