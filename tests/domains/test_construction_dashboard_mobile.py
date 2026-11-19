@@ -100,7 +100,8 @@ def test_enrich_construction_mobile_rows_from_structured_files(mock_url, monkeyp
 
     assert rows[0]["stage_badge_modifier"] == "--construction"
     assert rows[0]["construction_thumb_active"] is True
-    assert rows[0]["thumbnail_url"] == "/files/const-thumb"
+    # 작은 칸 = 320px 작은 그림 길(key 에서 계산), 크게 보기 = 원본(SPEC 2026-11-19 §3-3)
+    assert rows[0]["thumbnail_url"] == "/api/files/thumb/drawings/a.png"
     assert rows[0]["attachment_previews"] == ["/files/const-thumb"]
     mock_url.assert_called_once_with("drawings/a.png")
 
@@ -135,7 +136,8 @@ def test_enrich_construction_mobile_rows_attachment_fallback(mock_url, monkeypat
     rows = [{"id": order.id, "stage": "시공대기", "structured_data": {}}]
     enrich_construction_mobile_rows(rows, db_session)
 
-    assert rows[0]["thumbnail_url"] == "/files/att-thumb"
+    # 썸네일 없는 그림 행 = 320px 작은 그림 길, 크게 보기 = 원본
+    assert rows[0]["thumbnail_url"] == "/api/files/thumb/const/measure.jpg"
     assert rows[0]["attachment_preview_items"][0]["view"] == "/files/att-thumb"
     assert mock_url.call_count >= 1
 
@@ -174,7 +176,7 @@ def test_enrich_construction_mobile_rows_drawing_only_excludes_measurement(mock_
     assert rows[0]["attachments_count"] == 1
     assert len(rows[0]["attachment_preview_items"]) == 1
     assert rows[0]["attachment_preview_items"][0]["view"] == "/files/const/draw.png"
-    assert rows[0]["attachment_preview_items"][0]["thumb"] == "/files/const/draw-thumb.png"
+    assert rows[0]["attachment_preview_items"][0]["thumb"] == "/api/files/thumb/const/draw.png"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
     assert rows[0]["attachment_preview_items"][0]["label"] == "draw.png"
 
 

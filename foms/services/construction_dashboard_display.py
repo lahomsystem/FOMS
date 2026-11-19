@@ -7,6 +7,7 @@ from typing import Any
 from foms.api.files import build_file_view_url
 from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
+from foms.services.files.list_thumb import list_thumb_url as _list_thumb_url  # 작은 칸 = 320px 작은 그림 길
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
@@ -142,11 +143,17 @@ def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
 
 
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
-    """Card thumbnail URL (prefers generated thumbnail_key)."""
+    """Card thumbnail URL — the 320px list thumb route first, then a legacy ``thumbnail_key``, then the original.
+
+    옛 300px 썸네일(``thumb_``)은 원본 보기 길(no-store 302)로 나가 브라우저가 기억하지 못한다 — 탭에 다시 들어갈 때마다
+    같은 그림을 또 받았다(2026-11-19 스테이징 실측). 그림이면 캐시되는 작은 그림 길을 먼저 쓴다.
+    """
+    view_url = _view_url_from_attachment(attachment)
+    small = _list_thumb_url((attachment.storage_key or "").strip()) if view_url else None
+    if small:
+        return small
     thumb_key = (attachment.thumbnail_key or "").strip()
-    if thumb_key:
-        return build_file_view_url(thumb_key)
-    return _view_url_from_attachment(attachment)
+    return build_file_view_url(thumb_key) if thumb_key else view_url
 
 
 def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
@@ -162,6 +169,7 @@ def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
 
 
 def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | None:
+    """확정 도면 항목 → ``thumb``(작은 칸 = 320px 작은 그림 길) · ``view``(크게 보기 = 원본)."""
     view_url = _url_from_file_entry(entry)
     if not view_url:
         return None
@@ -170,7 +178,8 @@ def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | Non
         .strip()
         or "도면"
     )
-    return {"thumb": view_url, "view": view_url, "label": label}
+    thumb_url = _list_thumb_url((entry.get("key") or "").strip()) or view_url
+    return {"thumb": thumb_url, "view": view_url, "label": label}
 
 
 def _preview_item_from_attachment(attachment: OrderAttachment) -> dict[str, str] | None:

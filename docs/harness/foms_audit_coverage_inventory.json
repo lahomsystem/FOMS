@@ -678,7 +678,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 1040,
+      "lineno": 1047,
       "methods": [
         "POST"
       ],
@@ -687,7 +687,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 995,
+      "lineno": 1002,
       "methods": [
         "POST"
       ],
@@ -696,7 +696,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 698,
+      "lineno": 705,
       "methods": [
         "POST"
       ],
@@ -705,7 +705,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 622,
+      "lineno": 629,
       "methods": [
         "POST"
       ],

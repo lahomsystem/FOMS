@@ -14,6 +14,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
+    resolve_row_image_list,
     resolve_row_thumbnail_url,
 )
 from foms.web.drawing.workbench import (
@@ -244,12 +245,16 @@ def test_drawing_workbench_revision_dropzone_supports_scoped_clipboard_file_past
     assert "document.addEventListener('paste'" not in text
 
 
-def test_resolve_row_thumbnail_prefers_view_url(monkeypatch):
+def test_resolve_row_thumbnail_uses_small_route_without_query(monkeypatch):
+    """저장 view_url 이 있으면 첨부 행 조회 0 그대로 — 카드 칸 주소만 320px 작은 그림 길(SPEC 2026-11-19 §3-3)."""
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     db = MagicMock()
     files = [{"key": "k1.png", "filename": "k1.png", "view_url": "/api/files/view/k1.png"}]
-    assert resolve_row_thumbnail_url(1, files, db) == "/api/files/view/k1.png"
+    assert resolve_row_thumbnail_url(1, files, db) == "/api/files/thumb/k1.png"
     db.query.assert_not_called()
+    listed = resolve_row_image_list(1, files, db)
+    assert listed[0]["view_url"] == "/api/files/view/k1.png"  # 크게 보기(뷰어)는 원본
+    assert listed[0]["thumb_url"] == "/api/files/thumb/k1.png"
 
 
 def test_resolve_row_thumbnail_uses_attachment_thumb_key(monkeypatch):
@@ -261,7 +266,7 @@ def test_resolve_row_thumbnail_uses_attachment_thumb_key(monkeypatch):
     db.query.return_value.filter.return_value.all.return_value = [attachment]
     files = [{"key": "k1.png", "filename": "k1.png"}]
     url = resolve_row_thumbnail_url(42, files, db)
-    assert url == "/api/files/view/thumbs/k1.png"
+    assert url == "/api/files/thumb/k1.png"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
 
 
 def test_edit_order_drawing_return_to_sets_mobile_back_href(client, monkeypatch):

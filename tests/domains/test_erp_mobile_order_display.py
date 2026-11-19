@@ -32,7 +32,7 @@ def test_batch_resolve_queue_attachment_preview_items_splits_thumb_and_view() ->
 
     items = items_by_order[42]
     assert len(items) == 1
-    assert items[0]["thumb"] == "/view/orders/1/thumb_photo.jpg"
+    assert items[0]["thumb"] == "/api/files/thumb/orders/1/photo.jpg"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
     assert items[0]["view"] == "/view/orders/1/photo.jpg"
     assert items[0]["download"] == "/dl/photo.jpg"
     assert items[0]["label"] == "photo.jpg"
@@ -219,11 +219,12 @@ def test_mobile_detail_products_js_binds_v2_selectors() -> None:
     assert "data-foms-mobile-product" in js
 
 
-def test_mobile_detail_partial_prefers_view_url_for_grid_img() -> None:
+def test_mobile_detail_partial_uses_small_tile_and_original_viewer() -> None:
+    """3열 칸(약 110px) <img> = 작은 그림(tile_url), 눌러 크게 보기 = 원본(view_url) — SPEC 2026-11-19."""
     partial = (
         ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
     ).read_text(encoding="utf-8")
-    assert 'src="{{ att.view_url or att.thumb_url }}"' in partial
+    assert 'src="{{ att.tile_url or att.view_url or att.thumb_url }}"' in partial
     assert 'data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"' in partial
 
 

@@ -56,7 +56,7 @@
                     data-foms-erp-attachment-view-url="{{ f.view }}"
                     data-foms-erp-attachment-download-url="{{ f.download }}"
                     data-foms-erp-attachment-label="{{ f.label }}" aria-label="도면 {{ loop.index }} {{ f.label }}">
-              <img src="{{ f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>
+              <img src="{{ f.thumb or f.view }}" alt="" loading="lazy" decoding="async"><span>{{ loop.index }}</span>
             </button>
             {% set _k.i = _k.i + 1 %}
             {% else %}

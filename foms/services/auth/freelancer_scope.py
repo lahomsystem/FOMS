@@ -129,8 +129,9 @@ FREELANCER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # "전체 결과 보기"가 막힌 이력 화면으로 가서 닫았는데, D27 로 이력 화면이 열려 같이 연다(11-08 점검).
     "foms_search.api_foms_search",
     "foms_search.api_foms_search_fragment",
-    # 파일 관문 3종 — 안에서 user_can_read_order 로 주문 단위 판정(겹 2 가 프리랜서 분기를 넣는다)
+    # 파일 관문 4종(작은 그림 files.thumb 포함) — 안에서 user_can_read_order 로 주문 단위 판정(겹 2 가 프리랜서 분기를 넣는다)
     "files.view",
+    "files.thumb",
     "files.presigned_urls",
     "files.download",
     # ── 등록: 새 주문 화면(보기만 — PC 는 ERP 탭, 휴대폰은 마법사) · PC 초안(만들기 · 자동 저장 · 복원 · 버리기,

@@ -18,7 +18,7 @@ from typing import Any
 from models import PARTNER_ROLE
 
 # 협력사 세션이 쓸 수 있는 endpoint.
-# * 파일 관문 3종은 안에서 ``_deny_file_access`` → ``user_can_read_order`` 로 주문 단위 판정을 한다.
+# * 파일 관문 4종(작은 그림 ``files.thumb`` 포함)은 안에서 ``_deny_file_access`` → ``user_can_read_order`` 로 주문 단위 판정을 한다.
 # * 협력사 화면·API(``partner_portal.*``·``partner_api.*``)는 ``partner_required`` + 주문마다
 #   ``partner_can_read_order`` 로 다시 판정한다.
 # 로그인 화면은 넣지 않는다 — 공용 레이아웃이 내부 메뉴·단계 배지 수를 그린다. 로그인된 협력사가
@@ -29,6 +29,7 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     # 관리자가 협력사 계정으로 들어가 본 뒤 자기 계정으로 돌아오는 길(라우트가 직접 판정).
     "auth.switch_back",
     "files.view",
+    "files.thumb",
     "files.presigned_urls",
     "files.download",
     "partner_portal.home",

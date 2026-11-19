@@ -8,6 +8,7 @@ from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.drawing_confirm_cleanup import stray_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.order_attachment_permissions import can_delete_order_attachment
 from models import OrderAttachment, User
 
@@ -97,7 +98,7 @@ def resolve_row_image_list(
 
     Returns:
         Ordered ``{key, filename, view_url, download_url}`` dicts (GlobalImageViewer 형식);
-        파생 썸네일이 있는 항목만 ``thumb_url`` 이 추가된다. 썸네일 비활성/이미지 0장이면 [].
+        작은 칸 주소 ``thumb_url``(첨부 행 썸네일 또는 320px 작은 그림 길)이 붙는다. 썸네일 비활성/이미지 0장이면 [].
     """
     if not drawing_thumb_enabled(mobile_v2_active=mobile_v2_active):
         return []
@@ -128,9 +129,11 @@ def resolve_row_image_list(
         thumb_key = (
             (attachment.thumbnail_key or "").strip() if attachment is not None else ""
         )
-        # 파생 썸네일이 있는 항목만 thumb_url 을 싣는다(공통 경로에선 키 자체가 없어 wire 증가 0).
-        if thumb_key:
-            entry["thumb_url"] = build_file_view_url(thumb_key)
+        # 작은 칸 주소: 그림이면 320px 작은 그림 길(key 에서 계산 — 조회 0 그대로, 30일 캐시), 아니면 첨부 행 썸네일.
+        # 옛 썸네일은 no-store 302 라 다시 들어갈 때마다 또 받는다. 크게 보기(view_url)는 늘 원본이다.
+        small = list_thumb_url(key) or (build_file_view_url(thumb_key) if thumb_key else None)
+        if small:
+            entry["thumb_url"] = small
     return entries
 
 

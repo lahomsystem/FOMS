@@ -30,6 +30,7 @@ from foms.api.notifications import (
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
+from foms.services.files.list_thumb_schedule import schedule_list_thumbs
 from foms.services.files.purge_policy import ATTACHMENT_PURGE_GRACE
 from foms.services.erp_policy import (
     can_modify_domain,
@@ -565,6 +566,12 @@ def perform_drawing_transfer(
         invalidate_dashboard_families(DASHBOARD_FAMILY_PRODUCTION, DASHBOARD_FAMILY_CONSTRUCTION)
     invalidate_after_drawing_transfer()  # 2a-2: 첨부 개수·생산/시공 패널도 같은 답
     notify_partner_drawing_ready(db, order)  # 협력사 주문이면 협력사 직원에게 "도면이 올라왔습니다"(웹 푸시)
+    # 목록 작은 그림(320px)을 워커에 미리 예약 — 커밋 뒤라 실패해도 전달은 그대로다(큐 함수는 예외를 올리지 않고
+    # 큐가 없으면 조용히 건너뛴다. 못 만들면 목록이 처음 본 순간 다시 예약한다). SPEC 2026-11-19 §3-2.
+    try:
+        schedule_list_thumbs([((nf or {}).get('key') or '').strip() for nf in new_files])
+    except Exception:
+        log_handled_exception("list thumb schedule after drawing transfer")
 
     # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
     from foms.services.notifications.push_sender import enqueue_push_for_notification

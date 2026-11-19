@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import io
 import posixpath
 from typing import Any, Optional
 
@@ -24,6 +23,7 @@ from flask import Response, abort, g, request
 
 from db import get_db
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.files.list_thumb import render_white_jpeg_thumb
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.production.home_access import can_view_production_home
 from foms.services.production.part_board import is_part_thumb_image
@@ -53,6 +53,8 @@ def part_thumb_key(key: str) -> str:
 def render_part_thumb(raw: bytes) -> bytes:
     """원본 그림 바이트 → 흰 바탕 · 긴 변 720px · 품질 85 JPEG 바이트.
 
+    그리기는 목록 작은 그림(320px)과 같은 :func:`foms.services.files.list_thumb.render_white_jpeg_thumb`.
+
     Args:
         raw: 원본 그림 바이트(PNG 투명 칸 · 팔레트 · EXIF 회전 포함).
 
@@ -62,18 +64,7 @@ def render_part_thumb(raw: bytes) -> bytes:
     Raises:
         OSError: 그림으로 읽을 수 없을 때(PIL ``UnidentifiedImageError`` 포함).
     """
-    from PIL import Image, ImageOps
-
-    with Image.open(io.BytesIO(raw)) as source:
-        if source.format == "JPEG":
-            source.draft("RGB", (PART_THUMB_LONG_EDGE * 2, PART_THUMB_LONG_EDGE * 2))  # 큰 사진은 줄여 읽는다
-        image = ImageOps.exif_transpose(source).convert("RGBA")
-    image.thumbnail((PART_THUMB_LONG_EDGE, PART_THUMB_LONG_EDGE), Image.Resampling.LANCZOS)
-    canvas = Image.new("RGB", image.size, (255, 255, 255))
-    canvas.paste(image, mask=image.getchannel("A"))  # 투명 칸 = 흰색(검정이 되지 않게)
-    out = io.BytesIO()
-    canvas.save(out, "JPEG", quality=PART_THUMB_QUALITY, optimize=True)
-    return out.getvalue()
+    return render_white_jpeg_thumb(raw, PART_THUMB_LONG_EDGE, quality=PART_THUMB_QUALITY)
 
 
 def _current_entry(order: Order, key: str) -> Optional[dict[str, Any]]:

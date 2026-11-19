@@ -10,6 +10,7 @@ import json
 from typing import Any
 from urllib.parse import quote
 
+from foms.services.files.list_thumb import LIST_THUMB_ROUTE_PREFIX, is_list_thumb_source
 from foms.services.orders.drawing_transfer import _is_drawing_key
 from models import Order
 
@@ -45,7 +46,8 @@ def saved_drawing_thumbs(order_id: int, bits: Any) -> tuple[list[dict[str, str]]
         bits: ``{"pending": ..., "files": ...}``. dict 가 아니면 빈 결과.
 
     Returns:
-        (썸네일 ``{url, label}`` 목록, 더 있는 장수).
+        (썸네일 ``{url, thumb, label}`` 목록, 더 있는 장수). ``url`` = 원본(눌러 크게 보기),
+        ``thumb`` = 작은 칸(96x68 · 36x26)용 320px 작은 그림 길(만들 수 없는 key 면 원본).
     """
     data = bits if isinstance(bits, dict) else {}
     found = _collect(order_id, data.get("pending"), data.get("files"))
@@ -106,7 +108,9 @@ def _push(out: list[dict[str, str]], seen: set[str], order_id: int, entry: Any) 
         return
     seen.add(key)
     label = str(entry.get("sheet_name") or name).strip()[:80] or "도면"
-    out.append({"url": "/api/files/view/" + quote(key, safe="/"), "label": label})
+    url = "/api/files/view/" + quote(key, safe="/")
+    thumb = LIST_THUMB_ROUTE_PREFIX + quote(key, safe="/") if is_list_thumb_source(key) else url
+    out.append({"url": url, "thumb": thumb, "label": label})
 
 
 def _is_image(name: str) -> bool:

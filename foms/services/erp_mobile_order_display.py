@@ -29,6 +29,7 @@ from foms.services.erp_quest_display import (
     resolve_order_role_assignees,
 )
 from foms.services.error_logging import log_handled_exception
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.estimate_service import (
     _balance_after_payments,
     _overpaid_after_payments,
@@ -149,6 +150,17 @@ def _attachment_full_view_url(attachment) -> str | None:
     return None
 
 
+def _attachment_small_url(attachment) -> str | None:
+    """작은 칸(40~110px) 그림 주소 — 그림이면 320px 작은 그림 길, 아니면 만들어 둔 ``thumbnail_key``.
+
+    옛 300px 썸네일(``thumb_``)을 먼저 쓰지 않는다 — 원본 보기 길(no-store 302)로 나가 브라우저가 기억하지 못해
+    탭에 다시 들어갈 때마다 또 받는다(2026-11-19 스테이징 실측: 생산 70칸 · 시공 15칸). 작은 그림 길은 30일 캐시.
+    주소는 원본 key 에서 계산만 한다(조회 없음).
+    """
+    small = list_thumb_url(getattr(attachment, "storage_key", None)) if _attachment_full_view_url(attachment) else None
+    return small or _attachment_thumbnail_url(attachment)
+
+
 def _attachment_image_url(attachment) -> str | None:
     """Resolve preview URL for queue cards (prefer thumbnail for bandwidth)."""
     return _attachment_thumbnail_url(attachment) or _attachment_full_view_url(attachment)
@@ -159,7 +171,7 @@ def _queue_preview_item_from_attachment(att) -> dict[str, str] | None:
     view_url = _attachment_full_view_url(att)
     if not view_url:
         return None
-    thumb_url = _attachment_thumbnail_url(att) or view_url
+    thumb_url = _attachment_small_url(att) or view_url
     filename = (getattr(att, "filename", None) or "").strip()
     cat = (getattr(att, "category", None) or "measurement").strip().lower()
     category_labels = {
@@ -492,6 +504,9 @@ def _mobile_attachment_item_dict(att) -> dict[str, Any]:
         "id": att.id,
         "item_index": getattr(att, "item_index", None),
         "thumb_url": thumb_url,
+        # 3열 칸(약 110px)의 <img src> — 그림이면 320px 작은 그림 길(흰 바탕 · 회전 반영), 아니면 옛 thumb_url.
+        # 옛 300px 썸네일(thumb_)을 먼저 쓰지 않는다 — 투명 PNG 도면이 검정으로 나오고 폰 사진이 눕는다. 누르면 view_url(원본).
+        "tile_url": _attachment_small_url(att),
         "view_url": view_url,
         "download_url": download_url,
     }

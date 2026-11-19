@@ -372,9 +372,9 @@
     var stage = panel.querySelector("[data-cwork-stage-img]");
     if (!stage) return;
     var src =
-      imgs[idx].getAttribute("src") ||
       imgs[idx].getAttribute("data-foms-erp-attachment-view-url") ||
-      "";
+      imgs[idx].getAttribute("src") ||
+      ""; // 무대 = 원본(view) — 숨은 갤러리 src 는 320px 목록 그림이라 흐리다
     if (src) stage.setAttribute("src", src);
     stage.setAttribute("data-cwork-active-idx", String(idx));
     stage.setAttribute(
