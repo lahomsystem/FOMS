@@ -3,6 +3,7 @@
 import re
 
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.manager_names import manager_label_filter
 from foms.services.orders.partner_push_marks import (
@@ -379,3 +380,6 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(meas_daypart, 'meas_daypart')
     # 도면 상태 판정 정본(2a-2) — 강제 변경 창 경고(Q5)가 서버와 같은 답을 쓰게.
     bp.add_app_template_filter(effective_drawing_status, 'effective_drawing_status')
+    # 작은 칸 그림 주소(320px 작은 그림 길) — 템플릿이 key 로 주소를 만드는 칸(도면 작업실 도면 갤러리)이
+    # 그림 판정을 흉내 내지 않고 정본(list_thumb.is_list_thumb_source)을 쓰게. 그림이 아니면 None → 원본 유지.
+    bp.add_app_template_filter(list_thumb_url, 'list_thumb_url')

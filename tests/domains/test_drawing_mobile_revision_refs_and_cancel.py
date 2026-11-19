@@ -204,7 +204,8 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
     thumb = thumbs[0]
     assert thumb["data-handoff-view-url"] == f"/api/files/view/{ok_img}"
     assert thumb["data-handoff-download-url"] == f"/api/files/download/{ok_img}"
-    assert thumb.select_one("img")["src"] == f"/api/files/view/{ok_img}"
+    # 56px 칸 그림은 320px 작은 그림 길(설계서 2026-11-19-list-drawing-small-image), 크게 보기는 위 data-* 원본.
+    assert thumb.select_one("img")["src"] == f"/api/files/thumb/{ok_img}"
     group = thumb.find_parent(attrs={"data-handoff-ref-group": True})
     assert group is not None
     bubble = group.find_parent(class_="foms-drawing-thread__bubble")
@@ -252,6 +253,7 @@ def test_revision_reference_files_accepts_only_this_orders_gateway_keys():
         "key": good,
         "filename": "20260929_101010_ab12cd34_ref.png",
         "view_url": f"/api/files/view/{good}",
+        "thumb_url": f"/api/files/thumb/{good}",
         "download_url": f"/api/files/download/{good}",
         "is_image": True,
     }

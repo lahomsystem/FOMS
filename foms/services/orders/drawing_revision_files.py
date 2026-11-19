@@ -16,6 +16,7 @@ import posixpath
 from collections.abc import Mapping
 from typing import Any
 
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.files.upload_authz import validate_upload_key
 
 __all__ = [
@@ -138,6 +139,8 @@ def revision_reference_display_rows(order_id: Any, files: Any) -> tuple[list[dic
             "key": key,
             "filename": filename,
             "view_url": _view_url(key),
+            # 작은 칸(56px 참고 사진)용 320px 작은 그림 길 — 만들 수 없는 key 면 빈 값(화면이 원본으로).
+            "thumb_url": list_thumb_url(key) or "",
             "download_url": _download_url(key),
             "is_image": key.lower().endswith(_IMAGE_EXTENSIONS),
         })

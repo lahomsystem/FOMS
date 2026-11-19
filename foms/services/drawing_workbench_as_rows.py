@@ -10,6 +10,7 @@ from typing import Any, Mapping, Optional
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.attachment_sort import attachment_sort_key
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.as_cycle_service import current_cycle
 from foms.services.orders.as_drawing import (
     STATUS_CANCELLED,
@@ -126,6 +127,8 @@ def _files_view(files: Any) -> list[dict[str, str]]:
             "name": str(f.get("name") or f.get("filename") or "AS 도면"),
             # 저장된 URL 은 믿지 않는다 — key 로만 같은 출처 주소를 만든다(작업실 갤러리와 같은 규칙).
             "view_url": "/api/files/view/" + key,
+            # 96x68 칸 그림 = 320px 작은 그림 길(만들 수 없는 key 면 빈 값 → 원본). 링크(href)는 view_url 원본.
+            "thumb_url": list_thumb_url(key) or "",
         })
     return out
 
@@ -236,7 +239,9 @@ def build_as_media(db: Any, order_id: int, sd: Mapping[str, Any]) -> dict[str, A
                 "key": att.storage_key,
                 "view_url": "/api/files/view/" + att.storage_key,
                 "download_url": "/api/files/download/" + att.storage_key,
-                "thumb_url": "/api/files/view/" + (att.thumbnail_key or att.storage_key),
+                # 88px 칸 — 320px 작은 그림 길 먼저(30일 캐시), 만들 수 없으면 옛 썸네일 · 원본. 크게 보기는 data-view-url.
+                "thumb_url": (list_thumb_url(att.storage_key)
+                              or "/api/files/view/" + (att.thumbnail_key or att.storage_key)),
                 "viewer_index": None,
             }
             if not is_video:
