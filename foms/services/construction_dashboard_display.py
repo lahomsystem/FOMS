@@ -7,6 +7,7 @@ from typing import Any
 from foms.api.files import build_file_view_url
 from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
+from foms.services.files.list_thumb import list_thumb_url as _list_thumb_url  # 작은 칸 = 320px 작은 그림 길
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
@@ -142,11 +143,12 @@ def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
 
 
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
-    """Card thumbnail URL (prefers generated thumbnail_key)."""
+    """Card thumbnail URL (prefers generated thumbnail_key, then the 320px list thumb route)."""
     thumb_key = (attachment.thumbnail_key or "").strip()
     if thumb_key:
         return build_file_view_url(thumb_key)
-    return _view_url_from_attachment(attachment)
+    view_url = _view_url_from_attachment(attachment)
+    return (_list_thumb_url((attachment.storage_key or "").strip()) or view_url) if view_url else None
 
 
 def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
@@ -162,6 +164,7 @@ def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
 
 
 def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | None:
+    """확정 도면 항목 → ``thumb``(작은 칸 = 320px 작은 그림 길) · ``view``(크게 보기 = 원본)."""
     view_url = _url_from_file_entry(entry)
     if not view_url:
         return None
@@ -170,7 +173,8 @@ def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | Non
         .strip()
         or "도면"
     )
-    return {"thumb": view_url, "view": view_url, "label": label}
+    thumb_url = _list_thumb_url((entry.get("key") or "").strip()) or view_url
+    return {"thumb": thumb_url, "view": view_url, "label": label}
 
 
 def _preview_item_from_attachment(attachment: OrderAttachment) -> dict[str, str] | None:

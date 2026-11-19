@@ -190,7 +190,7 @@
 
   {# ── 카드: 도면 전달본 (탭=확대 → 전역 GlobalImageViewer) ── #}
   <section class="foms-prod-sheet__card" aria-label="도면 전달본">
-    {% set _dfiles = order.drawing_files if order.drawing_files is defined else ([{'kind': 'image', 'view': order.drawing_thumb.view, 'download': order.drawing_thumb.download, 'label': order.drawing_thumb.label}] if order.drawing_thumb else []) %}
+    {% set _dfiles = order.drawing_files if order.drawing_files is defined else ([{'kind': 'image', 'view': order.drawing_thumb.view, 'thumb': order.drawing_thumb.thumb, 'download': order.drawing_thumb.download, 'label': order.drawing_thumb.label}] if order.drawing_thumb else []) %}
     <div class="foms-prod-sheet__card-title">도면 전달본{% if _dfiles | length > 1 %} <span class="foms-prod-sheet__card-count">{{ _dfiles | length }}장</span>{% endif %}</div>
     {% if _dfiles %}
     <div class="foms-prod-sheet__drawing foms-prod-sheet__drawing--strip"
@@ -198,7 +198,7 @@
          data-foms-erp-attachment-preview-readonly="true">
       {% for f in _dfiles %}{% if f.kind == 'image' %}
       <img class="foms-prod-sheet__drawing-thumb"
-           src="{{ f.view }}"
+           src="{{ f.thumb or f.view }}"
            alt="{{ f.label }}"
            loading="lazy" decoding="async" role="button" tabindex="0"
            data-foms-erp-attachment-view-url="{{ f.view }}"

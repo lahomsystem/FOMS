@@ -9,7 +9,7 @@ import logging
 import os
 import posixpath
 
-from flask import Blueprint, g, jsonify, redirect, request, send_file
+from flask import Blueprint, Response, g, jsonify, redirect, request, send_file
 from sqlalchemy import or_
 
 from db import get_db
@@ -17,6 +17,13 @@ from models import Order, OrderAttachment
 from foms.web.auth import login_required
 from foms.services import audit_writer
 from foms.services.attachment_visibility import include_deleted
+from foms.services.files.list_thumb import (
+    LIST_THUMB_CACHE_CONTROL,
+    LIST_THUMB_ROUTE_PREFIX,
+    is_list_thumb_source,
+    list_thumb_key,
+)
+from foms.services.files.list_thumb_schedule import schedule_list_thumb
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.storage import get_storage
 
@@ -185,6 +192,16 @@ def build_file_view_url(storage_key: str) -> str:
     return f"/api/files/view/{storage_key}"
 
 
+def build_file_thumb_url(storage_key: str) -> str:
+    """목록 작은 그림 URL 생성 (files_bp /api/files/thumb 경로 — 원본 key 를 받는다).
+
+    작은 칸(40~112px)의 ``<img src>`` 전용. 눌러 크게 보기는 :func:`build_file_view_url`(원본)이다.
+    그림이 아닌 key 는 길이 404 이므로 부르는 쪽이 ``is_list_thumb_source`` 로 먼저 거른다(서비스 레이어는
+    같은 모양을 :func:`foms.services.files.list_thumb.list_thumb_url` 로 만든다 — 거르기까지 한 번에).
+    """
+    return f"{LIST_THUMB_ROUTE_PREFIX}{storage_key}"
+
+
 def build_file_download_url(storage_key: str) -> str:
     """파일 다운로드 URL 생성 (files_bp /api/files/download 경로)"""
     return f"/api/files/download/{storage_key}"
@@ -248,6 +265,60 @@ def view(storage_key: str):
             ),
             500,
         )
+
+
+@files_bp.route("/thumb/<path:storage_key>", methods=["GET"])
+@login_required
+def thumb(storage_key: str):
+    """목록 작은 그림(긴 변 320px JPEG) — SPEC 2026-11-19-list-drawing-small-image §3-1.
+
+    문지기는 원본 보기와 같은 :func:`_deny_file_access`(원본 key). 저장된 작은 그림이 있으면 그 바이트를
+    ``immutable`` 로, 없으면 워커에 만들기를 한 번 예약하고 이번만 원본으로 보낸다(``no-store`` 302 —
+    보기 길과 같은 서명 주소). **web 은 그림을 줄이지 않는다.**
+
+    감사 기록(``FILE_VIEW``)은 남기지 않는다 — 목록 미리보기는 화면 그리기 부산물이고 한 화면이 서로 다른
+    key 수백 개를 부른다(``audit_writer.ACCESS_VIEW_SKIP_BASENAME_PREFIXES`` 의 ``thumb_`` 예외와 같은 취지).
+    원본을 눌러 크게 보면 보기 길이 지금처럼 남긴다.
+    """
+    try:
+        if ".." in storage_key or storage_key.startswith("/"):
+            return jsonify({"success": False, "message": "비정상적인 경로입니다."}), 400
+        if not is_list_thumb_source(storage_key):
+            return jsonify({"success": False, "message": _FILE_NOT_FOUND_MSG}), 404
+
+        denied = _deny_file_access(storage_key)
+        if denied:
+            status, message = denied
+            return jsonify({"success": False, "message": message}), status
+
+        storage = get_storage()
+        small_key = list_thumb_key(storage_key)
+        if storage.storage_type in ["r2", "s3"]:
+            data = storage.read_file_bytes(small_key) if storage.object_exists(small_key) else None
+            if data:
+                response = Response(data, mimetype="image/jpeg")
+                response.headers["Cache-Control"] = LIST_THUMB_CACHE_CONTROL
+                return response
+            schedule_list_thumb(storage_key)  # 큐가 없거나 막히면 조용히 건너뜀(원본이 계속 나간다)
+            url = storage.get_download_url(storage_key, expires_in=3600)
+            if not url:
+                return jsonify({"success": False, "message": _FILE_NOT_FOUND_MSG}), 404
+            return _with_no_store(redirect(url))
+
+        # 로컬 저장소: 비공개 저장(put_private_bytes)을 받지 않아 작은 그림이 저절로 생기지 않는다(개발용).
+        # 저장본이 있으면 그것, 없으면 원본을 그대로 — 개발 화면이 깨지지 않게.
+        small_path = os.path.join(storage.upload_folder, small_key)
+        if os.path.isfile(small_path):
+            response = send_file(small_path, mimetype="image/jpeg", conditional=False)
+            response.headers["Cache-Control"] = LIST_THUMB_CACHE_CONTROL
+            return response
+        file_path = os.path.join(storage.upload_folder, storage_key)
+        if not os.path.exists(file_path):
+            return jsonify({"success": False, "message": _FILE_NOT_FOUND_MSG}), 404
+        return _with_no_store(send_file(file_path, as_attachment=False))
+    except Exception:
+        logger.exception("작은 그림 오류")
+        return jsonify({"success": False, "message": "파일을 처리하는 중 오류가 발생했습니다."}), 500
 
 
 @files_bp.route("/presigned-urls/<path:storage_key>", methods=["GET"])

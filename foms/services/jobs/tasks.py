@@ -86,9 +86,14 @@ def _init_worker_sentry() -> None:
 _register_worker_session_wiring()
 _init_worker_sentry()
 
+# 목록 작은 그림 작업 본체(Flask 앱 ``foms.platform`` 을 열지 않는 모듈 — 저장소 · 큐 · Pillow 만). 워커 단독 실행 때
+# 저장소 루트가 sys.path 에 먼저 들어가야 하므로 경로 설정 뒤 여기서 연다(함수 안 지연 import 는 레이어 래칫이 막는다).
+from foms.services.files.list_thumb import create_list_thumb  # noqa: E402
+
 
 __all__ = [
     "create_thumbnail_for_attachment",
+    "create_list_thumb_for_key",
     "convert_heic_attachment",
     "geocode_order_address",
     "push_order_to_channeltalk",
@@ -133,6 +138,17 @@ def create_thumbnail_for_attachment(attachment_id, storage_key):
     except Exception as e:
         logger.error(f"[RQ] create_thumbnail_for_attachment error: {e}", exc_info=True)
         raise
+
+
+def create_list_thumb_for_key(storage_key):
+    """목록 작은 그림(긴 변 320px · 원본 옆 ``sthumb320_<이름>.jpg``) 만들기(worker 전용).
+
+    판정 · 그리기 · 저장 규칙은 :func:`foms.services.files.list_thumb.create_list_thumb` 가 정본이다.
+    DB 를 쓰지 않는다(이름이 원본 key 에서 계산된다 — 첨부 행 · 대시보드 캐시를 건드릴 일이 없다).
+    """
+    if not storage_key:
+        return None
+    return create_list_thumb(str(storage_key))
 
 
 def convert_heic_attachment(attachment_id, storage_key):

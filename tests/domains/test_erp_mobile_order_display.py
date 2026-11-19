@@ -219,11 +219,12 @@ def test_mobile_detail_products_js_binds_v2_selectors() -> None:
     assert "data-foms-mobile-product" in js
 
 
-def test_mobile_detail_partial_prefers_view_url_for_grid_img() -> None:
+def test_mobile_detail_partial_uses_small_tile_and_original_viewer() -> None:
+    """3열 칸(약 110px) <img> = 작은 그림(tile_url), 눌러 크게 보기 = 원본(view_url) — SPEC 2026-11-19."""
     partial = (
         ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
     ).read_text(encoding="utf-8")
-    assert 'src="{{ att.view_url or att.thumb_url }}"' in partial
+    assert 'src="{{ att.tile_url or att.view_url or att.thumb_url }}"' in partial
     assert 'data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"' in partial
 
 

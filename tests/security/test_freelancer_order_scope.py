@@ -330,6 +330,9 @@ class _FakeR2Storage:
     def get_download_url(self, storage_key, expires_in=3600, response_content_disposition=None):
         return f"https://account.r2.cloudflarestorage.com/{storage_key}?X-Amz-Signature=fake"
 
+    def object_exists(self, key):  # 목록 작은 그림 길(thumb) — 저장본 없음 → 원본 302
+        return False
+
 
 def test_read_scope_freelancer_own_only(app, world):
     fl = world["fl"]
@@ -358,7 +361,7 @@ def test_read_scope_partner_unchanged(app, world):
 def test_file_gate_follows_freelancer_scope(app, world, monkeypatch):
     monkeypatch.setattr(file_routes, "get_storage", lambda: _FakeR2Storage())
     client = _client(app, world["fl"])
-    for kind in ("view", "download", "presigned-urls"):
+    for kind in ("view", "thumb", "download", "presigned-urls"):
         own = client.get(f"/api/files/{kind}/orders/{world['own']}/attachments/x.jpg")
         assert own.status_code in (200, 302), (kind, own.status_code)
         assert client.get(f"/api/files/{kind}/orders/{world['other']}/attachments/x.jpg").status_code in (403, 404)
