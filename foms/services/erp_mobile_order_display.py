@@ -151,14 +151,14 @@ def _attachment_full_view_url(attachment) -> str | None:
 
 
 def _attachment_small_url(attachment) -> str | None:
-    """작은 칸(40~110px) 그림 주소 — 만들어 둔 ``thumbnail_key`` 우선, 없고 그림이면 320px 작은 그림 길.
+    """작은 칸(40~110px) 그림 주소 — 그림이면 320px 작은 그림 길, 아니면 만들어 둔 ``thumbnail_key``.
 
-    작은 그림 길 주소는 원본 key 에서 계산만 한다(조회 없음). 원본이 그림이 아니면 None.
+    옛 300px 썸네일(``thumb_``)을 먼저 쓰지 않는다 — 원본 보기 길(no-store 302)로 나가 브라우저가 기억하지 못해
+    탭에 다시 들어갈 때마다 또 받는다(2026-11-19 스테이징 실측: 생산 70칸 · 시공 15칸). 작은 그림 길은 30일 캐시.
+    주소는 원본 key 에서 계산만 한다(조회 없음).
     """
-    small = _attachment_thumbnail_url(attachment)
-    if small or not _attachment_full_view_url(attachment):
-        return small
-    return list_thumb_url(getattr(attachment, "storage_key", None))
+    small = list_thumb_url(getattr(attachment, "storage_key", None)) if _attachment_full_view_url(attachment) else None
+    return small or _attachment_thumbnail_url(attachment)
 
 
 def _attachment_image_url(attachment) -> str | None:
@@ -506,7 +506,7 @@ def _mobile_attachment_item_dict(att) -> dict[str, Any]:
         "thumb_url": thumb_url,
         # 3열 칸(약 110px)의 <img src> — 그림이면 320px 작은 그림 길(흰 바탕 · 회전 반영), 아니면 옛 thumb_url.
         # 옛 300px 썸네일(thumb_)을 먼저 쓰지 않는다 — 투명 PNG 도면이 검정으로 나오고 폰 사진이 눕는다. 누르면 view_url(원본).
-        "tile_url": (list_thumb_url(getattr(att, "storage_key", None)) if view_url else None) or thumb_url,
+        "tile_url": _attachment_small_url(att),
         "view_url": view_url,
         "download_url": download_url,
     }

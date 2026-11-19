@@ -266,7 +266,7 @@ def test_resolve_row_thumbnail_uses_attachment_thumb_key(monkeypatch):
     db.query.return_value.filter.return_value.all.return_value = [attachment]
     files = [{"key": "k1.png", "filename": "k1.png"}]
     url = resolve_row_thumbnail_url(42, files, db)
-    assert url == "/api/files/view/thumbs/k1.png"
+    assert url == "/api/files/thumb/k1.png"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
 
 
 def test_edit_order_drawing_return_to_sets_mobile_back_href(client, monkeypatch):

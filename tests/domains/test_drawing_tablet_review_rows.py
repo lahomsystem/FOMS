@@ -101,11 +101,11 @@ def test_image_list_single_query_for_legacy_entries_and_thumb_fallback(monkeypat
     # 뷰어는 항상 원본(full-size)을 연다.
     assert result[0]["view_url"] == "/api/files/view/k1.png"
     assert result[0]["download_url"] == "/api/files/download/k1.png"
-    # 카드 썸네일만 파생본 우선, 없으면 320px 작은 그림 길(key 에서 계산 — 조회 그대로 1회, SPEC 2026-11-19).
-    assert result[0]["thumb_url"] == "/api/files/view/thumbs/k1.png"
+    # 카드 썸네일은 그림이면 320px 작은 그림 길(key 에서 계산 — 조회 그대로 1회, SPEC 2026-11-19), 옛 파생본보다 먼저.
+    assert result[0]["thumb_url"] == "/api/files/thumb/k1.png"
     assert result[1]["thumb_url"] == "/api/files/thumb/k2.png"
     assert result[1]["view_url"] == "/api/files/view/k2.png"
-    assert pick_row_thumbnail_url(result) == "/api/files/view/thumbs/k1.png"
+    assert pick_row_thumbnail_url(result) == "/api/files/thumb/k1.png"
 
 
 def test_image_list_empty_when_thumbnails_disabled(monkeypatch) -> None:

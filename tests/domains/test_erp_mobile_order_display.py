@@ -32,7 +32,7 @@ def test_batch_resolve_queue_attachment_preview_items_splits_thumb_and_view() ->
 
     items = items_by_order[42]
     assert len(items) == 1
-    assert items[0]["thumb"] == "/view/orders/1/thumb_photo.jpg"
+    assert items[0]["thumb"] == "/api/files/thumb/orders/1/photo.jpg"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
     assert items[0]["view"] == "/view/orders/1/photo.jpg"
     assert items[0]["download"] == "/dl/photo.jpg"
     assert items[0]["label"] == "photo.jpg"

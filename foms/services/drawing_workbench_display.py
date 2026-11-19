@@ -129,9 +129,9 @@ def resolve_row_image_list(
         thumb_key = (
             (attachment.thumbnail_key or "").strip() if attachment is not None else ""
         )
-        # 작은 칸 주소: 첨부 행 썸네일이 있으면 그것, 없으면 320px 작은 그림 길(key 에서 계산 — 조회 0 그대로).
-        # 크게 보기(view_url)는 늘 원본이다.
-        small = build_file_view_url(thumb_key) if thumb_key else list_thumb_url(key)
+        # 작은 칸 주소: 그림이면 320px 작은 그림 길(key 에서 계산 — 조회 0 그대로, 30일 캐시), 아니면 첨부 행 썸네일.
+        # 옛 썸네일은 no-store 302 라 다시 들어갈 때마다 또 받는다. 크게 보기(view_url)는 늘 원본이다.
+        small = list_thumb_url(key) or (build_file_view_url(thumb_key) if thumb_key else None)
         if small:
             entry["thumb_url"] = small
     return entries

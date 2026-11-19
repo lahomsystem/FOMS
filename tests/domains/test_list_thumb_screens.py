@@ -49,7 +49,7 @@ def test_construction_card_thumb_is_small_and_view_is_original():
     from_row = cons._preview_item_from_attachment(_att())
     assert from_row["thumb"] == _THUMB and from_row["view"] == _VIEW
     legacy = cons._preview_item_from_attachment(_att(thumbnail_key="orders/41/drawing_wizard/exports/thumb_s.png"))
-    assert legacy["thumb"] == "/api/files/view/orders/41/drawing_wizard/exports/thumb_s.png"  # 만들어 둔 썸네일 우선
+    assert legacy["thumb"] == _THUMB  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
 
 
 def test_tablet_workmode_stage_uses_original_view():
@@ -77,7 +77,7 @@ def test_queue_preview_item_uses_small_route_without_thumbnail_key():
     assert item["thumb"] == _THUMB and item["view"] == _VIEW
     assert item["download"] == f"/api/files/download/{_KEY}"
     legacy = mob._queue_preview_item_from_attachment(_att(thumbnail_key="orders/41/x/thumb_a.png"))
-    assert legacy["thumb"] == "/api/files/view/orders/41/x/thumb_a.png"
+    assert legacy["thumb"] == _THUMB  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
     pdf = _att(storage_key="orders/41/drawing/plan.pdf", file_type="file", filename="plan.pdf")
     assert mob._queue_preview_item_from_attachment(pdf) is None
     heic = _att(storage_key="orders/41/attachments/p.heic", filename="p.heic")
