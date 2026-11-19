@@ -8,6 +8,8 @@
 - ``POST /proposals/<id>/apply`` 넣기(``apply``) · 고쳐 넣기(``edit_apply`` — 본문에 ``edits`` 가 있을 때) ·
   ``POST /proposals/<id>/reject`` 거절 · ``POST /proposals/bulk-apply`` 등급 A 모두 넣기.
 - ``POST /recheck/confirm`` 아직 맞음 · ``POST /releases/<번호>/rollback`` 판 되돌리기(ADMIN 만).
+- ``POST /learned/<id>/seen`` · ``/fix`` · ``/undo`` AI 가 배워 바로 넣은 지식을 살펴본다(맞아요 · 고치기 · 지우기 — ADMIN 만,
+  사장님 2026-11-19). 읽기는 ``GET /learned``(ADMIN 만 — 그 밖 404).
 
 읽기: ``GET /inbox`` 제안함 · ``GET /inbox/count`` 알림 수(폰 알림은 아직 없고 나중에 이 수를 쓴다) · ``GET /recheck`` 다시
 확인 · ``GET /actions`` 액션 · 도구 · 속성 틀 표(⑤-5 가 같은 목록을 쓴다) · ``GET /metrics`` 결정 숫자(ADMIN 만).
@@ -35,6 +37,7 @@ from foms.services.brain.errors import (
     BrainRollbackBlockedError, BrainShapeError,
 )
 from foms.services.brain.inbox import inbox, inbox_counts
+from foms.services.brain.learned import learned_list
 from foms.services.brain.metrics import decision_metrics
 from foms.services.brain.recheck import recheck_counts, recheck_list
 from foms.services.brain.schemas import spec_table
@@ -168,6 +171,12 @@ def brain_metrics() -> tuple[Any, int]:
     return _read(lambda db, viewer: decision_metrics(db, now=now_utc_naive(), days=days) if viewer.is_admin else None)
 
 
+@brain_review_api_bp.route("/learned", methods=["GET"])
+def brain_learned() -> tuple[Any, int]:
+    """AI 가 배워 바로 넣은 지식 목록 — ADMIN 만(그 밖 404)."""
+    return _read(lambda db, viewer: learned_list(db, viewer))
+
+
 # ── 쓰기(이름 있는 액션) ─────────────────────────────────────────────────
 @brain_review_api_bp.route("/proposals", methods=["POST"])
 def brain_propose() -> tuple[Any, int]:
@@ -206,3 +215,22 @@ def brain_release_rollback(number: int) -> tuple[Any, int]:
     """판 · 층 되돌리기(ADMIN 만 — 같은 판 번호를 한 번 더 받아 확인)."""
     return _act(lambda: "release_rollback", {**_body(), "number": number},
                 routed("brain_review_api.brain_release_rollback"))
+
+
+@brain_review_api_bp.route("/learned/<int:change_id>/seen", methods=["POST"])
+def brain_learned_seen(change_id: int) -> tuple[Any, int]:
+    """AI 가 배운 것 '맞아요'(ADMIN 만 — 지식은 그대로, 봤다는 것만 남긴다)."""
+    return _act(lambda: "learned_seen", {"change_id": change_id}, routed("brain_review_api.brain_learned_seen"))
+
+
+@brain_review_api_bp.route("/learned/<int:change_id>/fix", methods=["POST"])
+def brain_learned_fix(change_id: int) -> tuple[Any, int]:
+    """AI 가 배운 것 고치기(ADMIN 만 — 이름 · 글을 고쳐 곧바로 넣는다)."""
+    return _act(lambda: "learned_fix", {"after": _body().get("after"), "change_id": change_id},
+                routed("brain_review_api.brain_learned_fix"))
+
+
+@brain_review_api_bp.route("/learned/<int:change_id>/undo", methods=["POST"])
+def brain_learned_undo(change_id: int) -> tuple[Any, int]:
+    """AI 가 배운 것 지우기(ADMIN 만 — 새 지식은 지우고 고친 것은 앞 글로 되돌린다)."""
+    return _act(lambda: "learned_undo", {"change_id": change_id}, routed("brain_review_api.brain_learned_undo"))

@@ -53,7 +53,9 @@ def _audit_rows(session: Any, since: datetime.datetime) -> list[tuple[str, dict[
 
 def _decision_numbers(rows: list[tuple[str, dict[str, Any]]]) -> dict[str, Any]:
     """결정 수 · 결정 시간 · 5초 안 비율 · 제안 나이(다시 확인 · 판 되돌리기 줄은 결정 시간에 넣지 않는다)."""
-    decisions = [(a, d) for a, d in rows if a in _DECISIONS and not d.get("recheck") and not d.get("release_rollback")]
+    # 배운 것 바로 반영(사람 결정이 아니다)도 세지 않는다
+    decisions = [(a, d) for a, d in rows if a in _DECISIONS and not d.get("recheck") and not d.get("release_rollback")
+                 and d.get("action") != "auto_learn"]
     timed = [int(d["ms"]) for _a, d in decisions if isinstance(d.get("ms"), int)]
     fast = sum(1 for ms in timed if ms < FAST_DECISION_MS)
     return {

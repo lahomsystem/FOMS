@@ -151,6 +151,16 @@ def related_knowledge(session: Any, *, key: str, texts: list[str], today: dateti
     return out
 
 
+def related_key(session: Any, *, texts: list[str], today: datetime.date, brand: Optional[str] = None) -> Optional[str]:
+    """그 글과 가장 가까운 승인(반영 · 확정) 항목의 키 — :func:`related_knowledge` 의 찾기와 같은 거름. 없으면 ``None``.
+    부딪침 관문에 걸린 새 지식을 엇갈림 카드로 올릴 때 '무엇과 다른가'를 정한다(넘긴 상담 배우기 — 사장님 11-19)."""
+    for hit in search_objects(session, SYSTEM, " ".join(t for t in texts if t)[:500], today=today, limit=RELATED_LIMIT * 2):
+        if (hit["confidence"] == CONFIRMED and hit["score"] >= MIN_RELATED_SCORE and same_brand(brand, hit.get("brand"))
+                and hit["visibility"] not in HELD_SCOPES):
+            return str(hit["key"])
+    return None
+
+
 def conflict_gate(session: Any, *, op: str, key: str, item_type: Optional[str], texts: list[str],
                   today: datetime.date, brand: Optional[str] = None) -> str:
     """관문 ② — 두 순서로 판정(둘 다 '없음'일 때만 통과). 견줄 승인 지식이 없으면 통과."""

@@ -1400,6 +1400,21 @@
       "policy_id": "ADMIN_OPS",
       "rule": "/api/brain/releases/<int:number>/rollback"
     },
+    "brain_review_api.brain_learned_seen": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/brain/learned/<int:change_id>/seen"
+    },
+    "brain_review_api.brain_learned_fix": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/brain/learned/<int:change_id>/fix"
+    },
+    "brain_review_api.brain_learned_undo": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/api/brain/learned/<int:change_id>/undo"
+    },
     "brain_change_api.brain_change_start": {
       "mode": "guard",
       "policy_id": "MANAGER_MUTATION",

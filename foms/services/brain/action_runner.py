@@ -14,6 +14,7 @@ from typing import Any, Callable, Mapping, Optional
 from foms.services.brain.actions import ActionType, parse
 from foms.services.brain.decide import apply_decision, bulk_apply, record_proposal, reject_decision
 from foms.services.brain.errors import BrainPermissionError, BrainShapeError
+from foms.services.brain import learned
 from foms.services.brain.chat_reports import build_conflict_proposal
 from foms.services.brain.proposals import (
     Proposer, propose_create, propose_delete, propose_retire, propose_rollback, propose_update,
@@ -118,7 +119,8 @@ _propose_retire = _propose_end(propose_retire, "propose_retire")
 _propose_delete = _propose_end(propose_delete, "propose_delete")
 #: 실행 길이 있는 액션 이름(:func:`_dispatch` 갈래와 같다 — 시험이 액션 목록과 견준다).
 HANDLED: frozenset[str] = frozenset({"propose_edit", "propose_retire", "propose_delete", "item_rollback", "apply",
-                                     "edit_apply", "reject", "bulk_apply", "recheck", "release_rollback"})
+                                     "edit_apply", "reject", "bulk_apply", "recheck", "release_rollback",
+                                     "learned_seen", "learned_fix", "learned_undo"})
 
 
 def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
@@ -141,6 +143,12 @@ def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datet
         return _recheck(session, actor, p, now)
     if name == "release_rollback":
         return _release_rollback(session, actor, p, now)
+    if name == "learned_seen":
+        return learned.mark_seen(session, p["change_id"], actor=actor, now=now)
+    if name == "learned_fix":
+        return learned.fix(session, p["change_id"], actor=actor, after=p["after"], now=now)
+    if name == "learned_undo":
+        return learned.undo(session, p["change_id"], actor=actor, now=now)
     raise BrainShapeError([f"action: 실행 길이 없는 액션 {name}"])
 
 

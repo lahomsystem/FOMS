@@ -47,7 +47,8 @@ def _agent_judge():
 
 LATER = NOW + datetime.timedelta(minutes=5)
 UI_BUTTONS = {"propose_edit", "propose_retire", "propose_delete", "item_rollback", "apply", "edit_apply", "reject",
-              "bulk_apply", "recheck", "release_rollback"}
+              "bulk_apply", "recheck", "release_rollback",
+              "learned_seen", "learned_fix", "learned_undo"}  # AI 가 배운 것 살펴보기(사장님 2026-11-19 — ADMIN 만)
 
 
 @pytest.fixture

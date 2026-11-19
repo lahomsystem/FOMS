@@ -116,7 +116,8 @@ def test_new_frame_has_its_places_and_no_global_bundle(app, ids, monkeypatch):
     assert 'data-ds-main' in body and '<nav class="fb-tabbar" aria-label="아래 탭" data-ds-tabbar>' in body
     tabbar = body[body.index("data-ds-tabbar"):body.index("data-ds-me-panel")]
     assert re.findall(r'data-ds-tab="([a-z]+)"', tabbar) == ["inbox", "search", "ask"] and "data-ds-me-toggle" in tabbar
-    assert re.findall(r'data-ds-me-link="([a-z]+)"', body) == ["recheck", "releases"]  # 폰에서도 다시 확인 · 판으로
+    # 폰에서도 다시 확인 · 판으로, ADMIN 은 AI 가 배운 것으로(사장님 2026-11-19)
+    assert re.findall(r'data-ds-me-link="([a-z]+)"', body) == ["recheck", "releases", "learned"]
     top = body[body.index('aria-label="위 줄"'):body.index("data-ds-main")]
     assert re.findall(r'data-ds-tab="([a-z]+)"', top) == ["inbox", "search", "ask", "onto", "agents"]
     assert 'action="/brain"' in top and 'name="q"' in top and 'value="search"' in top

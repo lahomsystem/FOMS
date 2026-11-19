@@ -8,7 +8,8 @@
     문장으로 고치기(설계서 2026-11-18-brain-sentence-change 4절): 쓸 수 있는 사람(change_on)에게만 승인 대기 · 목록 보기 맨 위 한 줄 칸
     (partials/request_input.html)과 '문장으로 고친 것' 목록 보기(?tab=requests — partials/request_list.html)가 있다. -#}
 {% import "brain/ds/_macros.html" as ds %}
-{% set view_titles = {'inbox': '승인 대기', 'recheck': '다시 확인', 'releases': '판 · 기록', 'requests': '문장으로 고친 것'} %}
+{% set view_titles = {'inbox': '승인 대기', 'recheck': '다시 확인', 'releases': '판 · 기록', 'requests': '문장으로 고친 것',
+                      'learned': 'AI 가 배운 것'} %}
 {% set view = page if page in view_titles else 'inbox' %}
 {% set knows = ds_nav.screen %}
 {% set change_here = change_on is defined and change_on and knows and view in ('inbox', 'requests') %}
@@ -35,6 +36,9 @@
      data-recheck-url="{{ url_for('brain_review_api.brain_recheck') }}"
      data-recheck-confirm-url="{{ url_for('brain_review_api.brain_recheck_confirm') }}"
      data-releases-url="{{ url_for('brain_api.brain_releases') }}"
+     {%- if is_admin %}
+     data-learned-url="{{ url_for('brain_review_api.brain_learned') }}"
+     {%- endif %}
      {%- endif %}>
   {%- if change_here %}
   {% include "brain/ds/partials/request_input.html" %}
@@ -45,6 +49,8 @@
   {% include "brain/ds/partials/inbox_releases.html" %}
   {%- elif view == 'requests' and change_here %}
   {% include "brain/ds/partials/request_list.html" %}
+  {%- elif view == 'learned' and knows %}
+  {% include "brain/ds/partials/inbox_learned.html" %}
   {%- else %}
   {% include "brain/ds/partials/inbox_main.html" %}
   {%- endif %}
@@ -63,6 +69,8 @@
 <script src="{{ asset_url('js/brain/ds/ds-inbox-releases.js') }}" defer></script>
 {%- elif view == 'requests' and change_here %}
 <script src="{{ asset_url('js/brain/ds/ds-request-list.js') }}" defer></script>
+{%- elif view == 'learned' and knows %}
+<script src="{{ asset_url('js/brain/ds/ds-inbox-learned.js') }}" defer></script>
 {%- else %}
 <script src="{{ asset_url('js/brain/ds/ds-inbox-card.js') }}" defer></script>
 <script src="{{ asset_url('js/brain/ds/ds-inbox-table.js') }}" defer></script>

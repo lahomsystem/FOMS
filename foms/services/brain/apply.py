@@ -36,8 +36,9 @@ from foms.services.brain import releases
 from foms.services.brain.access import approval_problem
 from foms.services.brain.ai_gates import sources
 from foms.services.brain.constants import (
-    BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, LINK_OPS, OBJECT_OPS,
-    OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, REJECT_CODES, STALE_DAYS, cardinality,
+    BRAND_COMMON, BRANDS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, CONFIRMED, DOC_TYPES, EVIDENCED, LINK_OPS,
+    OBJECT_OPS, OBSERVATION_TYPES, OBSERVED, OP_CREATE, OP_DELETE, OP_LINK_ADD, OP_UPDATE, REJECT_CODES, SCOPE_ALL,
+    STALE_DAYS, cardinality,
     external_type, is_doc_item, link_allowed,
 )
 from foms.services.brain.doc_sync import sync_documents
@@ -58,6 +59,28 @@ from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog
 
 SUPERSEDES = "supersedes"
+#: 사람 승인 없이 반영하는 길(:class:`AutoLearn`)의 닫은 액션 이름 · 그 길을 쓸 수 있는 제안한 이 · 동작(은퇴 · 지우기 · 링크 빼기는
+#: 늘 사람이 한다).
+AUTO_ACTION = "auto_learn"
+AUTO_PROPOSERS: frozenset[str] = frozenset({"agent:cs_handoff_learning"})
+AUTO_OPS: frozenset[str] = frozenset({OP_CREATE, OP_UPDATE, OP_LINK_ADD})
+#: 바로 반영하지 않는 유형 — 값 규칙 · 사장님 결정 · 기준 답 문구(혼자 발송 재료)는 늘 사람이 넣는다.
+AUTO_HELD_TYPES: frozenset[str] = frozenset({"price_rule", "owner_decision", "template", "conflict", "question"})
+
+
+@dataclass(frozen=True)
+class AutoLearn:
+    """배운 것 바로 반영(사장님 2026-11-19 '매번 승인 대신 … 즉시 반영, 내가 확인하고 추후 수정 · 삭제') — 사람 결정이 아니다.
+
+    ``on_behalf`` 는 그 칸을 켠 사장님(ADMIN) 번호 — 감사 줄 · 판 줄 · 지식 문서 수정 기록의 사람 칸에만 쓴다. 제안 줄의 결정한
+    사람(``decided_by``)과 새 판의 사람 승인자(``human_approver_id``)는 **비운다**(사람이 아직 안 봤다 — 살펴보기 목록이 이
+    표시로 고른다), 확신은 '근거 있음'(숫자 관문 허용 목록 · 부딪침 판정의 '확정' 항목에 섞이지 않는다).
+
+    **사람이 이미 확정한 항목을 고칠 때는 그 확신 · 사람 승인자를 그대로 둔다** — '근거 있음'으로 내리면 그 항목이 부딪침 판정의
+    견줄 지식(:func:`.ai_gates.related_knowledge` — 확정만)에서 빠져, 다음 밤 그 항목과 반대되는 말이 관문을 지난다. 무엇이
+    바뀌었는지는 살펴보기 목록(:mod:`.learned`)이 제안 줄로 보여 준다."""
+
+    on_behalf: int
 
 
 @dataclass(frozen=True)
@@ -91,11 +114,15 @@ def check_permission(actor: Any, *, op: str, layer: Optional[str], types: Iterab
     return viewer.user_id
 
 
-def settled_confidence(item_type: Optional[str], declared: Optional[str], *, as_import: bool) -> str:
-    """새 판의 확신 — 옮기기(D102)만 옮긴 값을 쓰고, 그 밖은 사람 승인자가 넣은 것이라 '확정'(관찰 유형은 늘 '관찰')."""
+def settled_confidence(item_type: Optional[str], declared: Optional[str], *, as_import: bool,
+                       auto: bool = False) -> str:
+    """새 판의 확신 — 옮기기(D102)만 옮긴 값을 쓰고, 그 밖은 사람 승인자가 넣은 것이라 '확정'(관찰 유형은 늘 '관찰'). 배운 것
+    바로 반영(``auto``)은 사람이 안 봤으니 '근거 있음'."""
     if as_import and declared:
         return declared
-    return OBSERVED if item_type in OBSERVATION_TYPES else CONFIRMED
+    if item_type in OBSERVATION_TYPES:
+        return OBSERVED
+    return EVIDENCED if auto else CONFIRMED
 
 
 def _link_end_visibility(session: Any, key: Optional[str]) -> Optional[str]:
@@ -205,17 +232,25 @@ def _write_object(session: Any, change: BrainChange, current: Optional[BrainObje
 
 
 def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetime.datetime,
-                  as_import: bool) -> tuple[int, Optional[int], int]:
+                  as_import: bool, auto: Optional[AutoLearn] = None) -> tuple[int, Optional[int], int]:
     """항목 동작 — (사람 id, 새 판, 판 번호)."""
     current = _locked_current(session, change.item_key)
     values: Optional[dict[str, Any]] = None
     if change.op != OP_DELETE:
         base = values_of(current) if current is not None else dict.fromkeys(OBJECT_FIELDS)
         values = {**base, **_after(change)}
-        values["confidence"] = settled_confidence(change.item_type, values.get("confidence"), as_import=as_import)
+        values["confidence"] = settled_confidence(change.item_type, values.get("confidence"), as_import=as_import,
+                                                  auto=auto is not None)
+    # 확정 항목(사람 승인 · 지식 문서에서 옮겨 온 것 — 옮긴 것은 승인자 칸이 비어 있다)은 확신 · 승인자를 그대로(AutoLearn 설명)
+    kept = auto is not None and current is not None and current.confidence == CONFIRMED
+    if kept and values is not None:
+        values["confidence"] = current.confidence
     seen = [current.visibility if current is not None else None, (values or {}).get("visibility")]
-    actor_id = check_permission(actor, op=change.op, layer=change.layer, types=[change.item_type], visibilities=seen,
-                                label_only=label_only_change(change.op, change.fields))
+    if auto is not None and (change.item_type in AUTO_HELD_TYPES or any(v not in (None, SCOPE_ALL) for v in seen)):
+        raise BrainPermissionError("바로 반영은 모두가 보는 지식만 · 값 규칙 · 사장님 결정 · 기준 답은 사람이 넣는다")
+    actor_id = auto.on_behalf if auto is not None else check_permission(
+        actor, op=change.op, layer=change.layer, types=[change.item_type], visibilities=seen,
+        label_only=label_only_change(change.op, change.fields))
     _check_object_target(change, current)
     if values is not None:
         problems = object_problems(values, brand=change.brand, layer=change.layer, item_type=change.item_type)
@@ -224,13 +259,13 @@ def _apply_object(session: Any, change: BrainChange, actor: Any, *, now: datetim
         _doc_collision(session, change, values)
     release_no = releases.attach(session, layer=change.layer, op=change.op, key=change.item_key, actor_id=actor_id,
                                  now=now, as_import=as_import)
-    version = _write_object(session, change, current, values, approver_id=None if as_import else actor_id,
-                            release_no=release_no, now=now)
+    approver = current.human_approver_id if kept else None if as_import or auto is not None else actor_id
+    version = _write_object(session, change, current, values, approver_id=approver, release_no=release_no, now=now)
     return actor_id, version, release_no
 
 
 def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.datetime,
-                as_import: bool) -> tuple[int, Optional[int], int]:
+                as_import: bool, auto: Optional[AutoLearn] = None) -> tuple[int, Optional[int], int]:
     """링크 동작 — 양 끝 · 허용 짝 · 기준 판을 다시 보고 새 판 줄(더하기) 또는 지금 줄 닫기(빼기).
 
     빼기는 허용 짝을 다시 보지 않는다(짝 표가 바뀐 옛 링크도 끊을 수 있게 — 7.8 다음 5). 더하기는 링크 제약(:mod:`.link_rules`)
@@ -242,8 +277,11 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
     to_type = link_target_type(session, change.link_to)
     if source is None or to_type is None or (adding and not link_allowed(source.item_type, change.link_kind, to_type)):
         raise BrainTargetError(f"허용하지 않는 링크 짝이거나 끝이 없다: {change.link_kind}")
-    actor_id = check_permission(actor, op=change.op, layer=source.layer, types=[source.item_type, to_type],
-                                visibilities=[source.visibility, _link_end_visibility(session, change.link_to)])
+    ends = [source.visibility, _link_end_visibility(session, change.link_to)]
+    if auto is not None and any(v not in (None, SCOPE_ALL) for v in ends):
+        raise BrainPermissionError("바로 반영은 모두가 보는 지식끼리만 잇는다")
+    actor_id = auto.on_behalf if auto is not None else check_permission(
+        actor, op=change.op, layer=source.layer, types=[source.item_type, to_type], visibilities=ends)
     if adding:  # 바깥 정본 자리가 지금도 있나 · 연결 개수 최대(7.7 · D105) · 링크 제약(7.8) — 빼기는 보지 않는다
         require_refs(session, [change.link_to])
         check_link_limit(session, source, change.link_kind, kst_day(now))
@@ -256,7 +294,8 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
         raise BrainConflictError(link.version if link is not None else None)
     values = {**dict.fromkeys(LINK_FIELDS), **_after(change)} if adding else None
     if values is not None:
-        values["confidence"] = settled_confidence(None, values.get("confidence"), as_import=as_import)
+        values["confidence"] = settled_confidence(None, values.get("confidence"), as_import=as_import,
+                                                  auto=auto is not None)
     if values is not None and link_problems(values, change.link_kind):
         raise BrainShapeError(link_problems(values, change.link_kind))
     key = f"{change.link_kind}:{change.link_from}>{change.link_to}"[:200]
@@ -271,11 +310,12 @@ def _apply_link(session: Any, change: BrainChange, actor: Any, *, now: datetime.
         BrainLink.to_key == change.link_to)).scalar()
     row = BrainLink(kind=change.link_kind, from_key=change.link_from, to_key=change.link_to, version=int(top or 0) + 1,
                     **column_values(values), recorded_at=now, created_by=change.proposed_by,
-                    human_approver_id=None if as_import else actor_id, change_id=change.id, release_no=release_no)
+                    human_approver_id=None if as_import or auto is not None else actor_id, change_id=change.id,
+                    release_no=release_no)
     _insert_version(session, row, None)
     if change.link_kind == SUPERSEDES:
-        _end_superseded(session, change, source, approver_id=None if as_import else actor_id, release_no=release_no,
-                        now=now)
+        _end_superseded(session, change, source, approver_id=None if as_import or auto is not None else actor_id,
+                        release_no=release_no, now=now)
     return actor_id, row.version, release_no
 
 
@@ -336,7 +376,7 @@ def _flag_siblings(session: Any, change: BrainChange, now: datetime.datetime) ->
 
 def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[datetime.datetime] = None,
                  as_import: bool = False, detail: Optional[Mapping[str, Any]] = None,
-                 action: str = "apply") -> ApplyResult:
+                 action: str = "apply", auto: Optional[AutoLearn] = None) -> ApplyResult:
     """열린 제안 하나를 반영한다(커밋은 호출자).
 
     Args:
@@ -347,6 +387,9 @@ def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[date
         as_import: 지식 문서 옮기기(:mod:`.doc_import`) — 옮기기 제안만, 판 0 에 붙고 사람 승인자 칸은 비운다.
         detail: 감사 줄에 더할 숫자 · 코드(결정 시간 · 고쳐 넣음 · 다시 확인 같은 측정 — 글 없음).
         action: 이 반영을 부른 액션 이름(:mod:`.actions` — 제안 줄 ``decided_action`` · 감사 줄).
+        auto: 배운 것 바로 반영(:class:`AutoLearn`) — 학습 에이전트 제안(:data:`AUTO_PROPOSERS`)의 새로 만들기 · 고치기 · 링크
+            더하기만, 모두가 보는 지식만(:data:`AUTO_HELD_TYPES` 유형은 안 받는다). 권한 확인을 건너뛰고(``actor`` 는 안
+            본다) 결정한 사람 · 사람 승인자 칸을 비운다.
 
     Raises:
         BrainTargetError · BrainPermissionError · BrainShapeError · BrainConflictError · BrainDocSyncError.
@@ -355,14 +398,16 @@ def apply_change(session: Any, change_id: int, *, actor: Any, now: Optional[date
     change = _open_change(session, change_id)
     if as_import and change.proposed_by != IMPORT_PROPOSER.name:
         raise BrainTargetError("옮기기 반영은 옮기기 제안만 받는다")
+    if auto is not None and (as_import or change.proposed_by not in AUTO_PROPOSERS or change.op not in AUTO_OPS):
+        raise BrainPermissionError("바로 반영은 학습 에이전트의 새로 만들기 · 고치기 · 링크 더하기만 받는다")
     run = _apply_object if change.op in OBJECT_OPS else _apply_link
     # 다시 확인 · 지식 문서 다시 쓰기에서 멈추면 판 줄 · 앞 줄 닫기 · 문서 새 판이 반쯤 남지 않게 — 한 저장점
     with session.begin_nested():
-        actor_id, version, release_no = run(session, change, actor, now=now, as_import=as_import)
+        actor_id, version, release_no = run(session, change, actor, now=now, as_import=as_import, auto=auto)
         docs = {} if as_import else sync_documents(session, change, actor_id=actor_id, result_version=version, now=now)
-    change.status, change.decided_by, change.decided_at = CHANGE_APPLIED, actor_id, now
+    change.status, change.decided_by, change.decided_at = CHANGE_APPLIED, None if auto is not None else actor_id, now
     change.result_version, change.release_no = version, release_no
-    change.decided_action = "import" if as_import else action
+    change.decided_action = "import" if as_import else AUTO_ACTION if auto is not None else action
     _flag_siblings(session, change, now)
     _audit(session, actor_id, change, "APPLY", {"version": version, "release": release_no,
                                                 "action": change.decided_action, **({"docs": docs} if docs else {}),
