@@ -78,8 +78,10 @@ def _trusted(proposer: Proposer) -> bool:
 
 def known_text(session: Any) -> str:
     """숫자 관문의 허용 목록 — 지금 반영된 · 확정(사람 승인) 항목 글 전부."""
+    # 엇갈림 · 물어볼 것은 지식이 아니라 알림이다 — 그 글의 숫자(직원 한 사람이 한 손님에게 말한 값일 수 있다)는 허용하지 않는다
     rows = session.execute(select(BrainObject.text).where(
-        is_current(BrainObject), BrainObject.status == STATUS_ACTIVE, BrainObject.confidence == CONFIRMED)).scalars()
+        is_current(BrainObject), BrainObject.status == STATUS_ACTIVE, BrainObject.confidence == CONFIRMED,
+        BrainObject.item_type.notin_(AGENT_WORK_TYPES))).scalars()
     return "\n".join(t for t in rows if t)
 
 
@@ -124,7 +126,7 @@ def _ai_gates(session: Any, gates: dict[str, str], proposer: Proposer, **kwargs:
     result = run_ai_gates(session, **kwargs)
     failed = blocking(result)
     if failed:
-        raise BrainGateError(failed)
+        raise BrainGateError(failed, [name for name in failed if result.get(name) != "fail"])
     return {**gates, **result}
 
 

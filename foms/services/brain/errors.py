@@ -94,10 +94,11 @@ class BrainGateError(BrainError):
 
     code = "BRAIN_GATE"
 
-    def __init__(self, failed: Sequence[str]) -> None:
-        """떨어진 관문 이름만 싣는다."""
+    def __init__(self, failed: Sequence[str], unavailable: Sequence[str] = ()) -> None:
+        """떨어진 관문 이름만 싣는다. ``unavailable`` 은 그 가운데 판정을 못 해 막은 관문(떨어진 것이 아니다)."""
         super().__init__("관문 미통과: " + ", ".join(failed))
         self.failed: tuple[str, ...] = tuple(failed)
+        self.unavailable: tuple[str, ...] = tuple(unavailable)
 
 
 class BrainDocSyncError(BrainError):

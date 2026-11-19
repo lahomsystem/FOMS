@@ -126,6 +126,26 @@ def test_undo_deletes_new_knowledge_restores_an_edit_and_removes_a_link(world):
     assert _items(admin)["items"] == [] and _items(admin)["counts"]["line"] == "AI 가 바로 넣은 지식이 아직 없어요."
 
 
+def test_an_added_name_cannot_be_edited_as_text_and_changed_new_knowledge_is_not_deleted(world):
+    admin = world["people"]["admin"]
+    door = current_object(db_session, "common/door")
+    with agent_judge():
+        named = propose_update(db_session, key="common/door", base_version=door.version,
+                               after={"payload": {**(door.payload or {}), "aliases": ["합성 문짝"]}}, known="",
+                               reason="넘긴 상담 배우기 — 합성", proposer=AGENT, evidence=EVIDENCE, now=LATER)
+        apply_change(db_session, named.id, actor=None, now=LATER, auto=AutoLearn(admin.id))
+    learned.fix(db_session, world["made"], actor=admin, after={"text": "사람이 고친 상황 글"}, now=LATER)
+    db_session.commit()
+    rows = {item["id"]: item for item in _items(admin)["items"]}
+    assert (rows[named.id]["text"], rows[named.id]["can_fix"]) == ("손님이 쓰는 다른 이름: 합성 문짝", False)
+    assert current_object(db_session, "common/door").confidence == "confirmed"  # 확정 항목은 확신을 내리지 않는다
+    assert (rows[world["made"]]["state"], rows[world["made"]]["can_undo"]) == ("changed", False)
+    with pytest.raises(BrainTargetError):  # 사람이 고친 새 지식은 통째로 지우지 않는다
+        learned.undo(db_session, world["made"], actor=admin, now=LATER)
+    db_session.rollback()
+    assert current_object(db_session, "lahom/sit-sag").text == "사람이 고친 상황 글"
+
+
 def test_undo_never_overwrites_what_a_person_changed_afterwards(world):
     admin = world["people"]["admin"]
     mine = propose_update(db_session, key="common/fit", base_version=2, after={"text": "문짝 맞춤 규칙 사람이 고친 글"},

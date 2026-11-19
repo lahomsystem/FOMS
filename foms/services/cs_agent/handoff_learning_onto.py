@@ -22,8 +22,10 @@ from typing import Any, Optional, Sequence
 
 from foms.services.brain.apply import AutoLearn
 from foms.services.brain.errors import BrainError as BrainStoreError
+from foms.services.brain.store import current_object
 from foms.services.cs_agent import photo_learning
 from foms.services.cs_agent.handoff_learning_gates import AGENT, _sources, _store_code, apply_now
+from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.state import KST
 
 __all__ = ["MAX_ONTOLOGY", "file_ontology"]
@@ -57,6 +59,10 @@ def file_ontology(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[d
             code = "evidence"
         elif counts["filed"] >= MAX_ONTOLOGY:
             code = "cap"
+        if code is None and item.get("kind") == "update":
+            target = current_object(session, str(item.get("key") or "")) if item.get("key") else None
+            if target is None or target.brand != SEND_BRAND:  # 공통 글(하우드도 같이 쓴다)은 고치지 않는다
+                code = "target"
         if code is None:
             chats = len({by_id[i]["chat_id"] for i in ids})
             reason = f"넘긴 상담 배우기 · 근거 상담 {chats}곳 — {why}"[:500]
