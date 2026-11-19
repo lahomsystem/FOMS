@@ -588,7 +588,7 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
         root / "templates/construction/partials/dashboard_fragment.html"
     ).read_text(encoding="utf-8")
     for token in (
-        "foms-construction-mobile-card.css') }}?v=20261119a",
+        "foms-construction-mobile-card.css') }}?v=20261119b",
         "foms-v2-domain-heroes.css') }}?v=20261109f",
         "foms-complete-gate.css') }}?v=20261109a",
         "foms-packing.css') }}?v=20261109f",
@@ -614,8 +614,8 @@ def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch
     assert "foms-construction-mobile-card.css" in frag
     assert "v=20261109a" in frag  # 화면 크기 배율 보정(2026-11-09)으로 complete-gate · packing 핀을 함께 올렸다
     # 화면 밖 카드 미루기(2026-11-19)로 카드 CSS 에 첫 핀을 달았다 — 기기 캐시의 옛 CSS 를 끊는다.
-    assert "foms-construction-mobile-card.css?v=20261119a" in full
-    assert "foms-construction-mobile-card.css?v=20261119a" in frag
+    assert "foms-construction-mobile-card.css?v=20261119b" in full
+    assert "foms-construction-mobile-card.css?v=20261119b" in frag
     assert "<html" not in frag.lower()
 
 
