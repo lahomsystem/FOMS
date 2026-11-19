@@ -28,7 +28,8 @@
              wideBins: attr('data-wide-bins').split(' ').filter(Boolean),  // ''.split(' ') = [''] 함정(F27)
              urls: { inbox: attr('data-inbox-url'), proposals: attr('data-proposals-url'), bulk: attr('data-bulk-url'),
                      recheck: attr('data-recheck-url'), recheckConfirm: attr('data-recheck-confirm-url'),
-                     releases: attr('data-releases-url'), page: attr('data-page-url'), itemBase: attr('data-item-base') } };
+                     releases: attr('data-releases-url'), learned: attr('data-learned-url'),
+                     page: attr('data-page-url'), itemBase: attr('data-item-base') } };
     return memo;
   }
 

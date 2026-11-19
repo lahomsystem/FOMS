@@ -30,6 +30,9 @@ WRITES = {
     "brain_review_api.brain_bulk_apply": "MANAGER_MUTATION",
     "brain_review_api.brain_recheck_confirm": "MANAGER_MUTATION",
     "brain_review_api.brain_release_rollback": "ADMIN_OPS",
+    "brain_review_api.brain_learned_seen": "ADMIN_OPS",  # AI 가 배운 것 살펴보기(사장님 2026-11-19 — ADMIN 만)
+    "brain_review_api.brain_learned_fix": "ADMIN_OPS",
+    "brain_review_api.brain_learned_undo": "ADMIN_OPS",
 }
 
 

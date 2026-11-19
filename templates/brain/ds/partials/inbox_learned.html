@@ -1,0 +1,10 @@
+{#- 승인 대기의 'AI 가 배운 것' 보기(?tab=learned — ADMIN 만, 사장님 2026-11-19 '매번 승인 대신 즉시 반영 · 내가 확인하고 추후 수정 및
+    삭제'). 상담에서 배워 승인 없이 바로 넣은 지식을 새 것부터 보여 준다. 줄마다 [맞아요] · [고치기] · [지우기] =
+    POST /api/brain/learned/<번호>/seen · fix · undo. 줄은 ds-inbox-learned.js 가 그린다. 폰 폭에서 그대로 쓴다. -#}
+<header class="f-row">
+  <h1 class="f-h3 fb-pc-only">AI 가 배운 것</h1>
+  <span class="f-muted" data-ds-learned-line></span>
+</header>
+<p class="f-small f-muted">상담에서 배워 승인 없이 바로 넣은 지식이에요. 맞으면 [맞아요], 틀리면 고치거나 지워 주세요. 지금 지식과 다른 말은 여기 넣지 않고 승인 대기의 '③ 사장님이 정할 것'에 모아요.</p>
+<p class="fb-status" data-ds-learned-status role="status" aria-live="polite"></p>
+<ol class="f-col fb-cards" data-ds-learned></ol>

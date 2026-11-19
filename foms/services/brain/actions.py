@@ -74,8 +74,9 @@ FAILURES: dict[str, str] = {
     "BRAIN_DOC_SYNC": "AI 상담이 읽는 지식 문서가 회사 지식과 달라서 넣지 않았어요 — 관리자에게 둘을 맞춰 달라고 알려 주세요.",
     "BRAIN_ERROR": "처리하지 못했어요 — 새로 불러온 뒤 다시 해 주세요.",
 }
-#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계) · 주간 고침 안 승인(그 화면 단추 — :mod:`.template_fix`).
-SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire", "weekly_fix")
+#: 사람이 누르는 단추가 아닌 이름 — 옮기기 · 기간 끝남(밤 단계) · 주간 고침 안 승인(그 화면 단추 — :mod:`.template_fix`) ·
+#: 배운 것 바로 반영(:data:`.apply.AUTO_ACTION`)과 그것을 사장님이 살펴본 결과(봤음 · 지움 — :mod:`.learned`).
+SYSTEM_ACTIONS: tuple[str, ...] = ("import", "expire", "weekly_fix", "auto_learn", "auto_learn_seen", "auto_learn_undone")
 #: 에이전트 · 코드 길의 제안 이름(새 항목 · 링크 · 챗봇 틀림 신고 묶음 · 다시 배운 사진 교훈 카드 — 화면 단추 없음).
 AGENT_ACTIONS: tuple[str, ...] = ("propose_create", "propose_link", "report_conflict", "photo_relearn")
 #: 에이전트(모델)에게 도구로 내놓은 쓰기 액션 — 지금은 없다(읽기만 — 설계서 5절 · 10.1 '챗봇은 쓰지 않는다').
@@ -137,6 +138,20 @@ ACTIONS: dict[str, ActionType] = {a.name: a for a in (
                ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_ROLLBACK_BLOCKED", "BRAIN_LINK_LIMIT",
                 "BRAIN_EXTERNAL_MISSING", "BRAIN_DOC_SYNC"),  # 뺀 링크를 다시 더할 때 — 연결 개수 상한 · 바깥 정본 실재(D105)
                "판을 되돌렸어요 — 되돌린 판도 이력에 남아요.", admin_only=True),
+    # AI 가 배운 것(사장님 11-19 — 승인 없이 바로 반영된 학습을 나중에 살펴본다, :mod:`.learned`). 그 화면만 쓴다(ui=False).
+    ActionType("learned_seen", "맞아요", "AI 가 배워 바로 넣은 지식을 살펴봤다고 남긴다(지식은 그대로).", "decide",
+               "brain_review_api.brain_learned_seen", (_CHANGE,), ("사장님(ADMIN)만", "AI 가 바로 넣은 지식 · 아직 안 봄"),
+               ("BRAIN_FORBIDDEN", "BRAIN_TARGET"), "확인했어요.", ui=False, admin_only=True),
+    ActionType("learned_fix", "고치기", "AI 가 배워 바로 넣은 지식의 이름 · 글을 고쳐 곧바로 넣는다.", "decide",
+               "brain_review_api.brain_learned_fix", (_CHANGE, Param("after", "fields", "고친 값")),
+               ("사장님(ADMIN)만", "AI 가 바로 넣은 지식", "그 지식이 지금 있음"),
+               ("BRAIN_FORBIDDEN", "BRAIN_SHAPE", "BRAIN_TARGET", "BRAIN_OPEN_PROPOSAL", "BRAIN_DOC_SYNC"),
+               "고쳤어요 — 이제 이 글로 써요.", ui=False, admin_only=True),
+    ActionType("learned_undo", "지우기", "AI 가 배워 바로 넣은 지식을 지운다(고친 것은 앞 글로 · 이은 것은 뺀다).", "decide",
+               "brain_review_api.brain_learned_undo", (_CHANGE,),
+               ("사장님(ADMIN)만", "AI 가 바로 넣은 지식", "그 뒤에 또 바뀌지 않음"),
+               ("BRAIN_FORBIDDEN", "BRAIN_TARGET", "BRAIN_OPEN_PROPOSAL", "BRAIN_DOC_SYNC"),
+               "지웠어요 — AI 가 더는 이 지식을 쓰지 않아요.", ui=False, admin_only=True),
 )}
 
 
