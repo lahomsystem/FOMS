@@ -166,7 +166,9 @@ def _child(run: Run, parent: BrainObject, item: Mapping[str, Any], child: Any) -
 
 
 def _retype(run: Run, row: BrainObject, item: Mapping[str, Any], target: str) -> str:
-    """사실 나눔 — 사실 글을 옮긴 새 항목(``<옛 키>-<유형>``) 만들기 + 옛 사실 은퇴(새 항목 반영 뒤). 새 키를 돌려준다."""
+    """사실 나눔 — 사실 글을 옮긴 새 항목(``<옛 키>-<유형>``) 만들기 + 옛 사실 은퇴(새 항목 반영 뒤). 새 키를 돌려준다.
+
+    이름은 계획의 ``pref_label``, 없으면 옛 사실 이름(계획에 이름이 빠져도 기계 번호가 이름이 되지 않게)."""
     key, old = f"{row.item_key}-{target}", values_of(row)
     payload = labels_for(item, target, pref=False)
     if target in DOC_TYPES:  # 지식 문서 유형(정책 · 제작 조건) — 문서 칸은 옛 사실에서(같은 승인 글), 문서 id 는 겹치지 않게
@@ -175,7 +177,7 @@ def _retype(run: Run, row: BrainObject, item: Mapping[str, Any], target: str) ->
     if target == RULE_TYPE:
         payload.update(rule_payload(item.get("fact_to")))
     create_item(run, key=key, brand=row.brand, layer=LAYER_COMMON, item_type=target, ref_id=item["id"],
-                values={"name": one_line(item.get("pref_label"), 200) or item["id"], "text": old["text"],
+                values={"name": one_line(item.get("pref_label"), 200) or old["name"] or item["id"], "text": old["text"],
                         "visibility": old["visibility"], "checked_at": old["checked_at"], "payload": payload or None},
                 why=reason(f"사실 글을 {RETYPE_NAMES[target]} 지식으로 옮겨요", ("D103",)))
     run.retires.append((row.item_key, key, target, item["id"]))
