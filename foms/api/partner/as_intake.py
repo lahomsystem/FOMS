@@ -38,6 +38,7 @@ from foms.services.common.dashboard_cache import (
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.files.heic_convert import jpeg_if_heic
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
@@ -245,9 +246,11 @@ def as_form(order_id: int):
         return _fail("주문을 찾을 수 없습니다.", 404)
     view = svc.form_view(order)
     photos = construction_photos_for_partner(db, order) if view["mode"] in (svc.MODE_NEW, svc.MODE_REINTAKE) else []
+    # thumb_url = 고르기 칸(88px~) <img src> — 320px 작은 그림 길이 먼저(SPEC 2026-11-19), 만들 수 없는 key 면 옛 썸네일.
     view["construction_photos"] = [
         {"id": p["id"], "filename": p["filename"], "is_image": p["is_image"],
-         "url": build_file_view_url(p["storage_key"]), "thumb_url": build_file_view_url(p["thumbnail_key"])}
+         "url": build_file_view_url(p["storage_key"]),
+         "thumb_url": list_thumb_url(p["storage_key"]) or build_file_view_url(p["thumbnail_key"])}
         for p in photos
     ]
     return _ok(view)

@@ -300,7 +300,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 1101,
+      "lineno": 1104,
       "methods": [
         "POST"
       ],
@@ -309,7 +309,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_manual",
-      "lineno": 868,
+      "lineno": 869,
       "methods": [
         "POST"
       ],
@@ -516,7 +516,7 @@
     {
       "path": "foms/api/cs/dashboard.py",
       "endpoint": "api_cash_receipt_issue",
-      "lineno": 282,
+      "lineno": 286,
       "methods": [
         "POST"
       ],
@@ -624,7 +624,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_cancel",
-      "lineno": 462,
+      "lineno": 465,
       "methods": [
         "POST"
       ],
@@ -633,7 +633,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_confirm",
-      "lineno": 410,
+      "lineno": 413,
       "methods": [
         "POST"
       ],
@@ -642,7 +642,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_request",
-      "lineno": 315,
+      "lineno": 318,
       "methods": [
         "POST"
       ],
@@ -651,7 +651,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_request_revision",
-      "lineno": 435,
+      "lineno": 438,
       "methods": [
         "POST"
       ],
@@ -660,7 +660,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_start",
-      "lineno": 251,
+      "lineno": 254,
       "methods": [
         "POST"
       ],
@@ -669,7 +669,7 @@
     {
       "path": "foms/api/drawing/as_drawing.py",
       "endpoint": "api_as_drawing_transfer",
-      "lineno": 393,
+      "lineno": 396,
       "methods": [
         "POST"
       ],
@@ -795,7 +795,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_delete_drawing_wizard_pending",
-      "lineno": 1592,
+      "lineno": 1594,
       "methods": [
         "DELETE"
       ],
@@ -804,7 +804,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_asset",
-      "lineno": 1073,
+      "lineno": 1075,
       "methods": [
         "POST"
       ],
@@ -813,7 +813,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_bom_rules",
-      "lineno": 2044,
+      "lineno": 2046,
       "methods": [
         "POST"
       ],
@@ -822,7 +822,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_import_attachment",
-      "lineno": 1141,
+      "lineno": 1143,
       "methods": [
         "POST"
       ],
@@ -831,7 +831,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory",
-      "lineno": 2114,
+      "lineno": 2116,
       "methods": [
         "POST"
       ],
@@ -840,7 +840,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_part_memory_match",
-      "lineno": 2143,
+      "lineno": 2145,
       "methods": [
         "POST"
       ],
@@ -849,7 +849,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1966,
+      "lineno": 1968,
       "methods": [
         "POST"
       ],
@@ -858,7 +858,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_sheet_png",
-      "lineno": 1207,
+      "lineno": 1209,
       "methods": [
         "POST"
       ],
@@ -867,7 +867,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_transfer_pending",
-      "lineno": 1704,
+      "lineno": 1706,
       "methods": [
         "POST"
       ],
@@ -876,7 +876,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1774,
+      "lineno": 1776,
       "methods": [
         "POST"
       ],
@@ -885,7 +885,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_put_drawing_wizard",
-      "lineno": 904,
+      "lineno": 906,
       "methods": [
         "PUT"
       ],
@@ -1651,7 +1651,7 @@
     {
       "path": "foms/api/partner/as_intake.py",
       "endpoint": "edit_as",
-      "lineno": 292,
+      "lineno": 295,
       "methods": [
         "POST"
       ],
@@ -1660,7 +1660,7 @@
     {
       "path": "foms/api/partner/as_intake.py",
       "endpoint": "push_as",
-      "lineno": 353,
+      "lineno": 356,
       "methods": [
         "POST"
       ],
@@ -1669,7 +1669,7 @@
     {
       "path": "foms/api/partner/as_intake.py",
       "endpoint": "register_as",
-      "lineno": 258,
+      "lineno": 261,
       "methods": [
         "POST"
       ],
@@ -1678,7 +1678,7 @@
     {
       "path": "foms/api/partner/as_intake.py",
       "endpoint": "upload_as_file",
-      "lineno": 319,
+      "lineno": 322,
       "methods": [
         "POST"
       ],
@@ -1795,7 +1795,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_answer",
-      "lineno": 326,
+      "lineno": 333,
       "methods": [
         "POST"
       ],
@@ -1804,7 +1804,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_correct_options",
-      "lineno": 221,
+      "lineno": 228,
       "methods": [
         "POST"
       ],
@@ -1813,7 +1813,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_discard",
-      "lineno": 283,
+      "lineno": 290,
       "methods": [
         "POST"
       ],
@@ -1822,7 +1822,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue",
-      "lineno": 236,
+      "lineno": 243,
       "methods": [
         "POST"
       ],
@@ -1831,7 +1831,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_issue_complete",
-      "lineno": 299,
+      "lineno": 306,
       "methods": [
         "POST"
       ],
@@ -1840,7 +1840,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_open_draft",
-      "lineno": 152,
+      "lineno": 159,
       "methods": [
         "POST"
       ],
@@ -1849,7 +1849,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_recalc",
-      "lineno": 185,
+      "lineno": 192,
       "methods": [
         "POST"
       ],
@@ -1858,7 +1858,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_revise",
-      "lineno": 252,
+      "lineno": 259,
       "methods": [
         "POST"
       ],
@@ -1867,7 +1867,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_save",
-      "lineno": 169,
+      "lineno": 176,
       "methods": [
         "POST"
       ],
@@ -1876,7 +1876,7 @@
     {
       "path": "foms/api/partner_statements_staff.py",
       "endpoint": "api_void",
-      "lineno": 268,
+      "lineno": 275,
       "methods": [
         "POST"
       ],

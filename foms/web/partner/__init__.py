@@ -15,6 +15,7 @@ from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
@@ -268,6 +269,8 @@ def _final_drawings(order: Order) -> list[dict]:
             "no": no,  # 공통 첨부 도면 썸네일 밑 "1번"(사용자 11-05)
             "label": f"{no}번 · {name}",  # 우리 도면 작업실처럼 번호로 부른다(수정 요청 때 "2번 도면")
             "url": build_file_view_url(f["key"]),
+            # 파일 탭 '도면' 72x72 칸 <img src> 전용 작은 그림(SPEC 2026-11-19). 도면 탭 16:9 큰 카드는 url(원본).
+            "thumb_url": list_thumb_url(f["key"]) or build_file_view_url(f["key"]),
             "download_url": build_file_download_url(f["key"]),
             "is_image": attachment_file_type(name) == "image",
         })
@@ -280,6 +283,8 @@ def _drawing_tab(order: Order, finals: list[dict], can_receive: bool, can_approv
     for event in tab["thread"]:
         for ref in event["refs"]:
             ref["url"] = build_file_view_url(ref["key"])
+            # 56x56 칸 <img src> 전용 작은 그림 — 확대 창(data-foms-lightbox-src)은 url(원본).
+            ref["thumb_url"] = list_thumb_url(ref["key"]) or ref["url"]
     return tab
 
 
@@ -314,7 +319,9 @@ def _partner_files(db, order: Order, items: list) -> tuple[list[dict], dict[int,
             "kind": "초안 도면" if "/partner_draft/" in (a.storage_key or "") else "실측 사진",
             "item_name": _item_name(items, a.item_index),
             "url": build_file_view_url(a.storage_key),
-            "thumb_url": build_file_view_url(a.thumbnail_key or a.storage_key),
+            # 40 · 72px 칸 <img src> — 320px 작은 그림 길이 먼저(SPEC 2026-11-19 — 옛 300px thumb_ 는 투명 칸 검정 ·
+            # 누운 사진 · no-store). 만들 수 없는 key 면 옛 썸네일 · 원본. 확대 창은 url(원본).
+            "thumb_url": list_thumb_url(a.storage_key) or build_file_view_url(a.thumbnail_key or a.storage_key),
             "is_image": (a.file_type or "") == "image",
         }
         files.append(entry)
