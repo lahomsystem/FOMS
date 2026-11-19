@@ -570,3 +570,72 @@ def test_render_hides_empty_unassigned_block(app):
     assert "2차 · 진행 중" in html
     assert "1차 · 진행 중" not in html
     assert "1번째 AS" in html and "이 건 기록 없음" in html
+
+
+# --------------------------------------------------------------------------- #
+# 재접수 뒤 지난 건 자료가 "사라진다"(운영 5332 · 5687, 2026-11-20)
+# --------------------------------------------------------------------------- #
+def _sd_reintake_with_receptions() -> dict:
+    """1번째 AS(접수 글 → 완료 글, 종결) 뒤 재접수로 2번째 AS(접수 글)가 열린 주문."""
+    sd = _base_sd()
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-1",
+        "cycles": [
+            {"cycle_id": "cyc-1", "received_date": "2026-06-02", "completed_date": "2026-06-11",
+             "transitions": [{"seq": 1, "command": "AS_COMPLETE", "to": "COMPLETED"}]},
+            {"cycle_id": "cyc-2", "received_date": "2026-08-01",
+             "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]},
+        ],
+    }
+    append_client_log(sd, log_type="reception", text="6월 접수: 문짝 처짐", by="김", by_id=1)
+    append_system_log(sd, text="AS 접수됨")
+    append_client_log(sd, log_type="memo", text="6월 완료: 경첩 교체함", by="김", by_id=1)
+    sd["as_lifecycle"]["current_cycle_id"] = "cyc-2"
+    append_client_log(sd, log_type="reception", text="8월 접수: 서랍 뻑뻑함", by="이", by_id=2)
+    append_system_log(sd, text="AS 접수됨")
+    return sd
+
+
+def test_each_cycle_keeps_its_own_reception():
+    """접수 글은 건마다 제 자리에 — 현재 건 것은 맨 아래 접수 줄, 지난 건 것은 그 건 블록."""
+    sd = _sd_reintake_with_receptions()
+    by_text = {e["text"]: e["id"] for e in sd["shipment"]["as_log"]}
+    files = {by_text["6월 접수: 문짝 처짐"]: [{"id": 1, "filename": "a.jpg", "is_image": True,
+                                              "view_url": "/v/a", "thumb_url": "/t/a"}]}
+    view = build_as_round_chart_view(sd, today=_TODAY, attachments_by_log_id=files)
+    cur, past = view["cycle_groups"]
+    assert view["reception"]["text"] == "8월 접수: 서랍 뻑뻑함"
+    assert cur["reception"] is None
+    assert past["reception"]["text"] == "6월 접수: 문짝 처짐"
+    assert past["reception"]["files"][0]["id"] == 1          # 접수 사진도 같이 따라간다
+    # 접수 글이 회차 기록 표에 한 번 더 나오지 않는다
+    assert _texts(cur["rounds"]) == []
+    assert _texts(past["rounds"]) == ["6월 완료: 경첩 교체함"]
+    assert view["count"] == 3                                # 접수 2 + 메모 1 — 하나도 안 빠진다
+
+
+def test_render_past_cycle_is_open_with_reception_and_records(app):
+    """지난 건은 처음부터 펼쳐져 있다 — 건도, 그 안 회차도(접혀 있으면 "사라졌다"로 읽힌다)."""
+    html = _render_chart(app, build_as_round_chart_view(_sd_reintake_with_receptions(), today=_TODAY))
+    assert '<details class="as-rchart-cycle-past" open>' in html
+    past = html.split('<details class="as-rchart-cycle-past" open>', 1)[1].split("as-rchart-dock", 1)[0]
+    assert 'as-rchart-round--closed" data-round="1" open>' in past
+    assert "6월 완료: 경첩 교체함" in past and "6월 접수: 문짝 처짐" in past
+    assert "8월 접수: 서랍 뻑뻑함" not in past
+    assert "이 건 기록 없음" not in html
+
+
+def test_unstamped_reception_still_shown_when_current_cycle_has_none():
+    """건 표식 없는 옛 접수 글은 현재 건에 접수 글이 없으면 접수 줄에 그대로 남는다(예전 동작)."""
+    sd = _base_sd()
+    append_client_log(sd, log_type="reception", text="옛 접수 글", by="김", by_id=1)
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-2",
+        "cycles": [
+            {"cycle_id": "cyc-1", "transitions": [{"seq": 1, "command": "AS_COMPLETE", "to": "COMPLETED"}]},
+            {"cycle_id": "cyc-2", "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]},
+        ],
+    }
+    view = build_as_round_chart_view(sd, today=_TODAY)
+    assert view["reception"]["text"] == "옛 접수 글"
+    assert view["count"] == 1

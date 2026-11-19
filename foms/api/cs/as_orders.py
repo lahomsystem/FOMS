@@ -98,6 +98,7 @@ from foms.services.orders.as_schedule_link import (
 )
 from foms.services.orders import sales_delivery_link as sdl
 from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.structured_diff import diff_structured
 from models import Order
@@ -512,7 +513,7 @@ def _resolve_as_log_entry(
     """as_log 단건 조회 + 수정/삭제 공통 권한 판정 (두 라우트가 공유하는 SSOT).
 
     각 라우트가 따로 판정하면 한쪽만 손봤을 때 권한 매트릭스가 갈린다 — system/legacy/
-    verdict 불가와 "작성자 본인 또는 관리자"는 수정·삭제가 같아야 한다. verb 만 문구로 주입한다.
+    verdict 불가와 "작성자 본인 · 관리자 · CS팀 · 회계팀"은 수정·삭제가 같아야 한다. verb 만 문구로 주입한다.
 
     잠금 **전** 사본으로 미리 거른다(_run_sd_mutation 을 헛돌리지 않기 위해). 잠근 뒤
     항목이 사라지는 경쟁은 apply 안에서 다시 확인한다(patch·delete 공통 계약).
@@ -537,10 +538,23 @@ def _resolve_as_log_entry(
         # 판정 수는 current_as_round 파생의 근거다 — 지우거나 고치면 이미 스탬프된
         # 이후 항목들의 round 와 어긋난다. 정정은 새 판정 append(T15 회차 규약).
         return None, (f"판정 기록은 {verb}할 수 없습니다. 정정은 새 판정으로 남겨주세요.", 400)
-    is_admin = bool(user and (user.role or "").upper() == "ADMIN")
-    if not is_admin and target.get("by_id") != (user.id if user else None):
-        return None, (f"본인 또는 관리자만 {verb}할 수 있습니다.", 403)
+    if not _can_edit_others_as_log(user) and target.get("by_id") != (user.id if user else None):
+        return None, (f"본인 · 관리자 · CS팀 · 회계팀만 {verb}할 수 있습니다.", 403)
     return target, None
+
+
+def _can_edit_others_as_log(user) -> bool:
+    """남이 쓴 AS 기록을 고치거나 지울 수 있는가 — 관리자 · CS팀 · 회계팀(사용자 결정 2026-11-20).
+
+    영업이 접수한 AS 를 CS 가 이어받아 정리하는 게 실제 흐름인데, 작성자 본인과 관리자만
+    되던 때는 CS 가 접수 글 하나 못 고쳤다. 회계팀은 CS 권한 별칭(``team_has_capability``)으로
+    함께 통과한다. 영업팀은 그대로 자기 글만.
+    """
+    if user is None:
+        return False
+    if (getattr(user, "role", "") or "").upper() == "ADMIN":
+        return True
+    return team_has_capability(getattr(user, "team", None), ("CS",))
 
 
 def _render_as_timeline_cell(order_id: int, sd: dict) -> str:
@@ -1376,7 +1390,7 @@ def api_as_verdict(order_id: int):
 @login_required
 @erp_edit_required
 def api_as_log_patch(order_id: int, log_id: str):
-    """AS 타임라인 항목 본문 수정. 작성자 본인 또는 관리자만."""
+    """AS 타임라인 항목 본문 수정. 작성자 본인 · 관리자 · CS팀 · 회계팀."""
     db = get_db()
     order, err = _load_active_order(db, order_id)
     if err:
@@ -1436,7 +1450,7 @@ def api_as_log_patch(order_id: int, log_id: str):
 @login_required
 @erp_edit_required
 def api_as_log_delete(order_id: int, log_id: str):
-    """AS 타임라인 항목 소프트 삭제. 작성자 본인 또는 관리자만.
+    """AS 타임라인 항목 소프트 삭제. 작성자 본인 · 관리자 · CS팀 · 회계팀.
 
     DELETE 메서드·물리 삭제를 쓰지 않는 이유 — as_log 는 AS 분쟁 시 "언제 누가 뭘 했는지"의
     증거라 append-only 가 원칙이다(스펙 §8). 화면과 집계에서만 감추고 원문·작성자·시각은

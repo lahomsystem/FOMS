@@ -69,7 +69,7 @@
 | 메서드/경로 | 역할 |
 |---|---|
 | `POST /api/orders/<id>/as/log` | 항목 append. body: `{type, text}`. sanitize 후 저장, 응답에 렌더된 항목 |
-| `PATCH /api/orders/<id>/as/log/<log_id>` | 본문 수정. 작성자 본인 또는 관리자만. `edited_*` 기록 |
+| `PATCH /api/orders/<id>/as/log/<log_id>` | 본문 수정. 작성자 본인 · 관리자 · CS팀 · 회계팀(2026-11-20 사용자 결정, 삭제도 같음). `edited_*` 기록 |
 | `POST /api/orders/<id>/as/billing` | 판정 확정/전환. body: `{type, amount?, reason(전환 시 필수)}` → system 로그 자동 |
 | `POST /api/orders/<id>/as/register` (기존 확장) | `billing_type`(+유상 시 `amount?`) 수신, textarea 내용을 첫 `as_log` 항목(type=reception)으로 저장 |
 | `GET /erp/as/timeline/<id>` | PC 확장 행용 타임라인 fragment (모바일 `card-detail` lazy 패턴 복제) |
