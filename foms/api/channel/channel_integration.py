@@ -41,6 +41,7 @@ from foms.services.orders.as_drawing_views import (
 )
 from foms.services.channel_measure_message import build_measure_push_text
 from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.channel_manager_room import resolve_manager_room
 from foms.services.orders.as_log import decorate_entry
 from foms.services.channel_client import is_configured
@@ -1057,7 +1058,9 @@ def api_channel_push_preview():
         files.append({
             'id': att.id,
             'filename': att.filename or 'file',
-            'url': storage.get_download_url(preview_key, expires_in=3600),
+            # 확인 창 칸(높이 78px) <img src> 전용. 그림이면 앱 작은 그림 길(320px · 30일 캐시 · 원본과 같은 문지기,
+            # SPEC 2026-11-19), 아니면 지금처럼 서명 주소. 전송은 id 로 원본을 다시 읽는다 — 이 주소는 화면용뿐.
+            'url': list_thumb_url(att.storage_key) or storage.get_download_url(preview_key, expires_in=3600),
             'is_image': (att.file_type or 'image') == 'image',
             'selected': att.id in selected_ids,
             'source': labels.get(str(getattr(att, 'as_log_id', None) or ''), '이전 첨부'),

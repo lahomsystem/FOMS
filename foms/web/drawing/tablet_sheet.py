@@ -20,6 +20,7 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.drawing_transfer import replace_same_sheet_files
 from foms.services.erp_policy import (
     can_transfer_drawing,
@@ -153,15 +154,18 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
     sheets = wizard.get('sheets') if isinstance(wizard.get('sheets'), list) else []
     pending = _pending_list(sd)
     versions = wizard.get('versions') if isinstance(wizard.get('versions'), list) else []
-    # 썸네일 스트립: 자동 저장된 시트 PNG(same-origin view URL). 신규 쿼리 없음(이미 로드된 sd).
-    sheet_strip = [
-        {
+    # 썸네일 스트립: 자동 저장된 시트 PNG. 신규 쿼리 없음(이미 로드된 sd).
+    # 120x84 칸 ``<img src>`` = 320px 작은 그림 길(``thumb_url``, SPEC 2026-11-19), 눌러 크게 보기
+    # (``data-view-url`` → GlobalImageViewer) = 원본(``view_url``). 둘을 한 값으로 쓰면 뷰어가 320px 를 띄운다.
+    sheet_strip = []
+    for entry in pending:
+        view_url = f"/api/files/view/{entry['key']}"
+        sheet_strip.append({
             'sheet_name': entry.get('sheet_name') or '도면',
-            'thumb_url': f"/api/files/view/{entry['key']}",
+            'thumb_url': list_thumb_url(entry['key']) or view_url,
+            'view_url': view_url,
             'at': entry.get('at') or '',
-        }
-        for entry in pending
-    ]
+        })
     sheet_count = len(sheets) or len(sheet_strip)
 
     defaults = build_wizard_defaults(order, sd, current_user)

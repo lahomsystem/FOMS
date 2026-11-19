@@ -28,6 +28,7 @@ from foms.api.cs.as_orders import _invalidate_shipment_asrec_caches, register_as
 from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.audit_message_display import describe_order_action
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.auth.partner_scope import is_partner_sd, is_partner_user
 from foms.services.orders.manager_names import order_manager_label
@@ -232,6 +233,8 @@ def api_as_drawing_get(order_id: int):
             # 저장된 URL 은 믿지 않는다 — key 로만 같은 출처 주소를 만든다(작업실 갤러리와 같은 규칙).
             for f in out["files"]:
                 f["view_url"] = "/api/files/view/" + str(f.get("key") or "")
+                # 96x68 칸 <img src> 전용 320px 작은 그림(SPEC 2026-11-19). 링크(크게 보기)는 view_url(원본).
+                f["small_url"] = list_thumb_url(f.get("key"))
         return out
 
     review_ok = evaluate_policy(POLICY_REGISTRY[CONFIRM_POLICY_ID], user).allowed

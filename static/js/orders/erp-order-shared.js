@@ -4101,10 +4101,13 @@ function erpBuildAttachmentMediaTile(a) {
     const thumb = a.thumbnail_view_url || a.view_url || '';
     const viewUrl = a.view_url || thumb || '#';
     const isMobileLayout = erpIsMobileAttachmentLayout();
-    const gridImageSrc =
+    // 칸(폰 76px~) = 320px 작은 그림(small_url — 흰 바탕 · 회전 반영, SPEC 2026-11-19)이 먼저. 폰에서 원본을 먼저
+    // 쓰던 이유(옛 300px thumb_ 가 흐림, 커밋 3db3688ab)는 작은 그림 길로 풀린다. 그림이 아니면 small_url 이 없다.
+    // 눌러 크게 보기는 erpOpenAttachmentPreview 가 view_url(원본)을 쓴다.
+    const gridImageSrc = a.small_url || (
         type === 'image' && isMobileLayout
             ? (a.view_url || a.thumbnail_view_url || '')
-            : (a.thumbnail_view_url || a.view_url || '');
+            : (a.thumbnail_view_url || a.view_url || ''));
 
     if (type === 'video') {
         return `
@@ -4416,7 +4419,8 @@ function erpRenderItemAttachmentPanels() {
             if (isMobileLayout) {
                 return erpBuildAttachmentTile(a, { showItemBadge: false });
             }
-            const thumb = a.thumbnail_view_url || a.view_url || '';
+            // PC 40px 칸 = 작은 그림 먼저(없으면 옛 썸네일 · 원본). 눌러 크게 보기는 원본(erpOpenAttachmentPreview).
+            const thumb = a.small_url || a.thumbnail_view_url || a.view_url || '';
             const name = escapeHtml(a.filename || '');
             const type = a.file_type || 'file';
             const mediaHtml = type === 'video'

@@ -40,6 +40,7 @@ from foms.services.foms_unified_search import (
 )
 from foms.services.request_utils import get_search_query_arg
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.manager_names import manager_label_from_parties
 from foms.services.settlement_deduction_service import SETTLEMENT_DEPARTMENTS  # noqa: F401 — 재내보내기
@@ -231,6 +232,9 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
                 "file_type": attachment.file_type or "image",
                 "storage_key": attachment.storage_key,
                 "view_url": _att_view_url(attachment.storage_key),
+                # 목록 칸(PC 72px · 폰 88px) <img src> 전용 320px 작은 그림(SPEC 2026-11-19) — 그림 아니면 None.
+                # 눌러 크게 보기는 view_url(원본) 그대로.
+                "small_url": list_thumb_url(attachment.storage_key),
                 "download_url": _att_download_url(attachment.storage_key),
                 "created_at": format_datetime_kst(attachment.created_at, "%Y-%m-%d %H:%M") if attachment.created_at else None,
             })

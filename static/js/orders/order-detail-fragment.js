@@ -81,7 +81,8 @@ function buildMainAttachThumbsHtml(orderId, aList) {
     aList.forEach((a) => {
         const name = escapeHtml(a.filename || '');
         const viewUrl = sanitizeAttachmentUrl(a.view_url || '');
-        const thumb = sanitizeAttachmentUrl(a.thumbnail_view_url || viewUrl);
+        // 80x60 칸 = 320px 작은 그림 먼저(SPEC 2026-11-19). 뷰어는 data-view-url(원본).
+        const thumb = sanitizeAttachmentUrl(a.small_url || a.thumbnail_view_url || viewUrl);
         const downloadUrl = sanitizeAttachmentUrl(a.download_url || viewUrl);
         const fileType = a.file_type || 'image';
         const dataAttrs = ' role="button" tabindex="0" data-att-id="' + Number(a.id || 0) + '"' +
