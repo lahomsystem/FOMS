@@ -47,10 +47,25 @@ function boot(opts) {
   const nav = { getClientRects: () => (navLinks.length ? [1] : []), querySelectorAll: () => navLinks };
   const drawerLinks = (o.drawerLinks || []).map((href) => ({ href: ORIGIN + href, hasAttribute: () => false }));
   const drawer = { querySelectorAll: () => drawerLinks };
+  // <link> 흉내(o.docLinks = 처음부터 문서에 있는 [rel, href, as?]) — head.appendChild 는 head 에 넣고 load 를 쏜다.
+  const makeLink = (rel, href, as, inHead) => {
+    const attrs = { as: as || null };
+    const ls = {};
+    return { tagName: 'LINK', rel, href: href ? new URL(href, ORIGIN).href : '', inHead,
+      setAttribute: (n, v) => { attrs[n] = String(v); }, getAttribute: (n) => (n in attrs ? attrs[n] : null),
+      addEventListener: (t, fn) => (ls[t] = ls[t] || []).push(fn), fire: (t) => (ls[t] || []).forEach((fn) => fn({ type: t })) };
+  };
+  const links = (o.docLinks || []).map((l) => makeLink(l[0], l[1], l[2], l[3] !== 'body'));
+  const appended = [];
+  const isSheet = (l) => (' ' + l.rel + ' ').indexOf(' stylesheet ') !== -1;
   const document = {
     visibilityState: 'visible',
     readyState: o.readyState,
-    head: { querySelectorAll: () => [], appendChild() {} },
+    head: {
+      querySelectorAll: (sel) => (sel.indexOf('stylesheet') !== -1 ? links.filter((l) => l.inHead && isSheet(l)) : []),
+      appendChild: (el) => { el.inHead = true; links.push(el); appended.push(el); Promise.resolve().then(() => el.fire && el.fire('load')); },
+    },
+    createElement: (tag) => (String(tag).toLowerCase() === 'link' ? makeLink('', '', null, false) : {}),
     body: { classList: { remove() {} }, style: { removeProperty() {} } },
     addEventListener: (t, fn) => (listeners.document[t] = listeners.document[t] || []).push(fn),
     dispatchEvent() {},
@@ -61,7 +76,7 @@ function boot(opts) {
       return null;
     },
     querySelector: (sel) => (sel === '.erp-mobile-bottom-nav' && o.navLinks ? nav : null),
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => (sel === 'link[href]' ? links.filter((l) => l.href) : []),
   };
   function addTimer(fn, delay) {
     timers.push({ fn, due: clock + Math.max(0, delay || 0) });
@@ -79,7 +94,7 @@ function boot(opts) {
       }
       const hdr = { 'x-foms-erp-fragment': '1', etag: '"e:' + u.pathname + '"' };
       return { status: 200, ok: true, url: String(url), headers: { get: (n) => hdr[String(n).toLowerCase()] || null },
-        text: () => Promise.resolve('<div>' + u.pathname + u.search + '</div>') };
+        text: () => Promise.resolve((o.fragmentHtml && o.fragmentHtml(u.pathname)) || '<div>' + u.pathname + u.search + '</div>') };
     };
     if (manual) {
       return new Promise((resolve, reject) => {
@@ -120,7 +135,7 @@ function boot(opts) {
     for (let i = 0; i < 8; i += 1) await new Promise((r) => setImmediate(r));
   }
   return {
-    sandbox, calls, pushes, swaps, listeners, aborted,
+    sandbox, calls, pushes, swaps, listeners, aborted, appended,
     now: () => clock - 1700000000000,
     setMainQuery: (fn) => { mainQuery = fn; },
     fireLoad: async () => { (listeners.window.load || []).forEach((fn) => fn({})); await drain(); },
