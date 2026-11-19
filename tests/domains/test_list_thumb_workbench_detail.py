@@ -316,7 +316,7 @@ def test_as_card_round_files_small_and_link_original():
     assert 'data-view-url="{{ m.view_url }}"' in src and 'src="{{ m.thumb_url }}"' in src
 
 
-def test_as_card_media_small_and_viewer_original(monkeypatch):
+def test_as_card_media_small_and_viewer_original(app, monkeypatch):
     order = Order(received_date=get_today_kst().strftime("%Y-%m-%d"), customer_name="AS 고객", phone="010-0000-0001",
                   address="서울", product="붙박이장", status="COMPLETED", is_erp_order=True, structured_data={})
     db_session.add(order)
