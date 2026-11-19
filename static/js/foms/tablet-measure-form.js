@@ -1350,9 +1350,10 @@
             var url = att.view_url || att.url || "";
             var name = att.filename || "사진";
             var isVideo = /\.(mp4|webm|ogg|mov)$/i.test(url) || /\.(mp4|webm|ogg|mov)$/i.test(name);
+            // 칸(110px~ 4:3) = 320px 작은 그림(small_url, SPEC 2026-11-19). 눌러 크게 보기(openPhoto)는 view_url 원본.
             var inner = isVideo
               ? '<span class="foms-tmf__photo-video"><i class="fas fa-play" aria-hidden="true"></i></span>'
-              : '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(name) + '" loading="lazy">';
+              : '<img src="' + escapeHtml(att.small_url || url) + '" alt="' + escapeHtml(name) + '" loading="lazy">';
             return (
               '<button type="button" class="foms-tmf__photo" data-tmf-photo="' +
               idx +

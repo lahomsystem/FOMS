@@ -276,7 +276,9 @@ def test_viewer_marker_present_in_gallery_and_sheet_partials() -> None:
 
     sheet = _read(SHEET_PARTIAL)
     assert "data-foms-drawing-viewer" in sheet
-    assert 'data-view-url="{{ s.thumb_url }}"' in sheet
+    # 칸 src = 작은 그림(thumb_url), 뷰어 = 원본(view_url) — 같은 값이면 크게 보기가 320px 가 된다(SPEC 2026-11-19).
+    assert 'src="{{ s.thumb_url }}"' in sheet
+    assert 'data-view-url="{{ s.view_url }}"' in sheet
     assert 'data-filename="{{ s.sheet_name }}"' in sheet
 
 

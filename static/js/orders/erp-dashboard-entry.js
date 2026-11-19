@@ -4,9 +4,9 @@
  */
 (function () {
   var CHAIN = [
-    '/static/js/orders/order-detail-fragment.js?v=20260804a',
+    '/static/js/orders/order-detail-fragment.js?v=20261119s',
     '/static/js/orders/dashboard/erp-dashboard-core.js?v=20260929h',
-    '/static/js/orders/dashboard/erp-dashboard-gateway.js?v=20261109a',
+    '/static/js/orders/dashboard/erp-dashboard-gateway.js?v=20261119s',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js?v=20261004a',
     '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20261004a',
     '/static/js/orders/dashboard/erp-dashboard-quest.js?v=20260930a',

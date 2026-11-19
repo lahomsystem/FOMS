@@ -1565,7 +1565,7 @@ def _measure_attachment(order_id, filename, storage_key, *, category="measuremen
 def test_get_wizard_returns_measure_photos(client):
     """GET data.measure_photos = [{key, filename, item_index(null=공통), thumb_url}].
 
-    제품 범위 밖 item_index 는 공통(None)으로 정규화되고, thumb_url 은 thumbnail_key 우선.
+    제품 범위 밖 item_index 는 공통(None)으로 정규화되고, thumb_url 은 그림이면 320px 작은 그림 길(thumbnail_key 보다 먼저).
     """
     _login_participant_admin(client)
     order = _erp_order(
@@ -1579,7 +1579,7 @@ def test_get_wizard_returns_measure_photos(client):
         order_id, "m0.jpg", f"orders/{order_id}/measurement/m0.jpg",
         item_index=0, thumbnail_key=f"orders/{order_id}/measurement/thumb_m0.jpg",
     )
-    # item_index=9 는 제품(2개) 범위 밖 → 공통(None)으로 정규화, 썸네일 없으면 storage_key.
+    # item_index=9 는 제품(2개) 범위 밖 → 공통(None)으로 정규화.
     _measure_attachment(
         order_id, "mc.jpg", f"orders/{order_id}/measurement/mc.jpg",
         category="photo", item_index=9,
@@ -1593,10 +1593,11 @@ def test_get_wizard_returns_measure_photos(client):
     m0 = by_key[f"orders/{order_id}/measurement/m0.jpg"]
     assert m0["item_index"] == 0
     assert m0["filename"] == "m0.jpg"
-    assert m0["thumb_url"] == f"/api/files/view/orders/{order_id}/measurement/thumb_m0.jpg"
+    # 64px 칸 · V2 점수(48px 캔버스)는 320px 작은 그림 길이 먼저 — 옛 300px thumb_ 가 있어도(SPEC 2026-11-19).
+    assert m0["thumb_url"] == f"/api/files/thumb/orders/{order_id}/measurement/m0.jpg"
     mc = by_key[f"orders/{order_id}/measurement/mc.jpg"]
     assert mc["item_index"] is None
-    assert mc["thumb_url"] == f"/api/files/view/orders/{order_id}/measurement/mc.jpg"
+    assert mc["thumb_url"] == f"/api/files/thumb/orders/{order_id}/measurement/mc.jpg"
 
 
 def test_import_attachment_copies_measure_photo(client, monkeypatch):
