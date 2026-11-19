@@ -43,7 +43,7 @@ def admin(app):
     create(db_session, admin, "lahom/pol-door", brand="LAHOM", item_type="policy", text=POLICY_TEXT,
            checked_at="2026-10-20", payload={"doc_id": "pol-door", **DOC})
     create(db_session, admin, "lahom/f-rule", brand="LAHOM", item_type="fact", text="합성 사실 속 제작 조건 글이에요.",
-           checked_at="2026-10-20", payload={"doc_id": "f-rule", **DOC})
+           name="합성 제작 조건 사실", checked_at="2026-10-20", payload={"doc_id": "f-rule", **DOC})
     db_session.commit()
     return admin
 
@@ -140,6 +140,7 @@ def test_fact_split_into_a_build_rule_keeps_the_document_and_hangs_on_products(a
     assert (change.item_key, change.item_type, bin_of(change)) == ("lahom/f-rule-build_rule", "build_rule", BIN_CONTENT)
     assert after["payload"] == {"doc_id": "f-rule-build_rule", "rule_kind": "excludes", **DOC, "source": None}
     assert after["text"] == current_object(db_session, "lahom/f-rule").text
+    assert after["name"] == current_object(db_session, "lahom/f-rule").name != "f-rule"  # 계획에 이름이 없으면 옛 사실 이름
     assert approve_open(admin) == 1
     out = run(plan)
     assert out["filed"] == {"link_add:applies_to": 1, "retire": 1}
