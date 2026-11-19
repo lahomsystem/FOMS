@@ -18,7 +18,7 @@
             <div class="pp-row__l2">{{ c.product or '제품 미정' }}{% if c.address %} · {{ c.address }}{% endif %}</div>
         </div>
     </div>
-    {% if c.sheets %}<div class="pp-tcard__strip" data-foms-lightbox-gallery>{% for s in c.sheets %}<button type="button" class="pp-tcard__sheet" data-foms-lightbox-src="{{ s.url }}" aria-label="{{ s.label }} 크게 보기"><img src="{{ s.url }}" alt="{{ s.label }}" loading="lazy" decoding="async"><b>{{ s.no }}</b></button>{% endfor %}</div>{% endif %}
+    {% if c.sheets %}<div class="pp-tcard__strip" data-foms-lightbox-gallery>{% for s in c.sheets %}<button type="button" class="pp-tcard__sheet" data-foms-lightbox-src="{{ s.url }}" aria-label="{{ s.label }} 크게 보기"><img src="{{ s.thumb or s.url }}" alt="{{ s.label }}" loading="lazy" decoding="async"><b>{{ s.no }}</b></button>{% endfor %}</div>{% endif %}
     <div class="pp-tcard__tags">{% if c.arrived %}<span class="pp-tag pp-tag--new">{{ c.arrived }}</span>{% endif %}<span class="pp-tag">{% if c.round %}{{ c.round }} 도면 · {% endif %}{{ c.sheet_count }}장</span>{% if c.kind == 'approve' %}<span class="pp-tag pp-tag--ok">도면 확인함 · 고객 확인 차례</span>{% endif %}</div>
     {% if c.prev_request %}<div class="pp-tcard__ask"><b>지난번 내 요청</b>{{ c.prev_request }}</div>{% endif %}
     <div class="pp-tcard__acts">

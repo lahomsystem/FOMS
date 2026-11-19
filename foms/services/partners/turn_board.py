@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import quote
 
 from foms.services.datetime_kst import format_datetime_kst, parse_datetime_utc
+from foms.services.files.list_thumb import LIST_THUMB_ROUTE_PREFIX, is_list_thumb_source
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.revision import pending_revision_for_partner
@@ -21,7 +22,12 @@ _IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 
 def _sheets(order: Order) -> tuple[list[dict[str, Any]], int]:
-    """번호 붙은 도면 그림(그림만, 6장까지)과 전체 장수."""
+    """번호 붙은 도면 그림(그림만, 6장까지)과 전체 장수.
+
+    ``url`` = 원본(눌러 크게 보기 ``data-foms-lightbox-src``), ``thumb`` = 120x82 칸 ``<img src>`` 전용 320px 작은
+    그림 길(SPEC 2026-11-19, 만들 수 없는 key 면 원본). 확대 창은 ``data-foms-lightbox-src`` 가 없으면 ``src`` 로
+    떨어지므로(``lightbox.js``) 두 칸을 꼭 나눠 쓴다.
+    """
     finals = final_drawings_for_partner(order)
     out = []
     for f in finals:
@@ -29,7 +35,9 @@ def _sheets(order: Order) -> tuple[list[dict[str, Any]], int]:
         key = str(f.get("key") or "")
         name = str(f.get("filename") or key.rsplit("/", 1)[-1])
         if name.lower().endswith(_IMAGE_EXT) and len(out) < MAX_SHEETS:
-            out.append({"no": no, "url": "/api/files/view/" + quote(key, safe="/"), "label": f"{no}번 · {name}"})
+            url = "/api/files/view/" + quote(key, safe="/")
+            thumb = LIST_THUMB_ROUTE_PREFIX + quote(key, safe="/") if is_list_thumb_source(key) else url
+            out.append({"no": no, "url": url, "thumb": thumb, "label": f"{no}번 · {name}"})
     return out, len(finals)
 
 
