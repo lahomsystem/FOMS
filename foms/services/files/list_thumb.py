@@ -69,7 +69,14 @@ def is_list_thumb_source(key: str | None) -> bool:
     name = posixpath.basename(text).lower()
     if name.startswith(_DERIVED_PREFIXES):
         return False
-    return name.endswith(LIST_THUMB_IMAGE_SUFFIXES)
+    if name.endswith(LIST_THUMB_IMAGE_SUFFIXES):
+        return True
+    # 한글 이름 파일: ``secure_filename("도면.png")`` 은 ``"png"`` 만 남겨 key 가 ``<시각>_<uuid>_png`` 처럼 점 없이 끝난다
+    # (운영 2026-11-19: 도면 작업실 · 시공 카드에서 원본으로 나가던 칸이 전부 이 모양). 점이 없고 ``_<그림 확장자>`` 로 끝나면 그림.
+    if "." in name:
+        return False
+    tail = name.rsplit("_", 1)[-1]
+    return f".{tail}" in LIST_THUMB_IMAGE_SUFFIXES
 
 
 def list_thumb_key(key: str) -> str:
