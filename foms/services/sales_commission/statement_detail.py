@@ -19,6 +19,7 @@ from typing import Any, Iterable, Optional
 from foms.services.auth.freelancer_orders import prime_freelancer_access
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.erp_display import _erp_coerce_item_price_krw
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.estimate_service import (
     _extract_discount_amount,
     _extract_free_input_amount,
@@ -94,6 +95,8 @@ def build_order_detail(sd: Any) -> dict[str, Any]:
         filename = entry.get("filename") or "도면"
         drawings.append({
             "view_url": view,
+            # 96x72 칸 <img src> 전용 320px 작은 그림(SPEC 2026-11-19). 크게 보기(data-view-url) · 링크는 view_url(원본).
+            "thumb_url": list_thumb_url(entry.get("key")) or view,
             "download_url": (entry.get("download_url") or view).strip(),
             "filename": filename,
             "key": entry.get("key") or "",

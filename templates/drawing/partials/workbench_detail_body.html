@@ -6,7 +6,7 @@
   data-view-url="{{ t.view_url }}" data-download-url="{{ t.view_url|replace('/api/files/view/', '/api/files/download/') }}"
   data-filename="{{ t.name or (t.no ~ '번 도면') }}"
   onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))"
-  title="{{ t.no }}번 · {{ t.name }} 크게 보기"><img src="{{ t.view_url }}" alt="{{ t.no }}번 도면" loading="lazy"><span class="dw-target-chip-no">{{ t.no }}번</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</button>{% set viewer.index = viewer.index + 1 %}
+  title="{{ t.no }}번 · {{ t.name }} 크게 보기"><img src="{{ t.thumb_url or t.view_url }}" alt="{{ t.no }}번 도면" loading="lazy" decoding="async"><span class="dw-target-chip-no">{{ t.no }}번</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</button>{% set viewer.index = viewer.index + 1 %}
 {%- else %}<span class="dw-target-chip me-1 mt-1"><span class="dw-target-chip-no">{{ t.no }}번 대상</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</span>{% endif %}
 {% endfor %}
 {%- endmacro %}
@@ -59,6 +59,9 @@
        URL 은 key 로만 만들고 key 가 없으면 링크를 그리지 않는다. #}
     {% set view_url = ('/api/files/view/' ~ fkey) if fkey else '' %}
     {% set download_url = ('/api/files/download/' ~ fkey) if fkey else '' %}
+    {# 칸(110x84)은 320px 작은 그림 길 — 그림 판정은 정본 필터(list_thumb_url, svg · heic · 확장자 없는 key 는 None → 원본).
+       크게 보기는 감싸는 칸의 data-view-url(원본). 폰에서 숨은 PC 칸이라 lazy — 숨은 칸 그림은 받지 않는다. #}
+    {% set tile_url = (fkey|list_thumb_url) or view_url %}
     {% set lower = fname|lower %}
     {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or
     lower.endswith('.gif') or lower.endswith('.webp') or lower.endswith('.bmp') or lower.endswith('.svg') or
@@ -74,7 +77,7 @@
         data-view-url="{{ view_url }}" data-download-url="{{ download_url }}" data-filename="{{ fname }}"
         data-key="{{ fkey }}"
         onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
-        <img src="{{ view_url }}" alt="{{ fname }}" {% if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
+        <img src="{{ tile_url }}" alt="{{ fname }}" loading="lazy" decoding="async" {% if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
       </div>
       {% else %}
       <div class="drawing-gateway-thumb d-flex align-items-center justify-content-center bg-light text-secondary border"
@@ -1275,7 +1278,7 @@
                     data-download-url="{{ photo.download_url }}" data-filename="{{ photo.filename }}"
                     data-key="{{ photo.key }}"
                     onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
-                    <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+                    <img src="{{ photo.view_url }}" alt="{{ photo.filename }}" loading="lazy" decoding="async">
                   </div>
                   <div class="dw-attach-name">{{ photo.filename }}</div>
                 </div>
@@ -1350,7 +1353,7 @@
                 data-view-url="{{ photo.view_url }}" data-download-url="{{ photo.download_url }}"
                 data-filename="{{ photo.filename }}" data-key="{{ photo.key }}"
                 onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
-                <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+                <img src="{{ photo.view_url }}" alt="{{ photo.filename }}" loading="lazy" decoding="async">
               </div>
               <div class="dw-attach-name">{{ photo.filename }}</div>
             </div>
@@ -1874,7 +1877,7 @@
                 <div class="drawing-target-preview mb-2"
                   style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
                   {% if is_image and view_url %}
-                  <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;" {%
+                  <img src="{{ view_url }}" alt="{{ fname }}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" {%
                     if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
                   {% else %}
                   <div class="d-flex align-items-center justify-content-center h-100">
@@ -1977,7 +1980,7 @@
                 <div class="drawing-target-preview mb-2"
                   style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
                   {% if is_image and view_url %}
-                  <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;" {%
+                  <img src="{{ view_url }}" alt="{{ fname }}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" {%
                     if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
                   {% else %}
                   <div class="d-flex align-items-center justify-content-center h-100">
@@ -2210,6 +2213,9 @@
       stage.replaceChildren();
       if (viewUrl && isImage) {
         const img = document.createElement('img');
+        // 무대(원본)는 창이 닫혀 있는 동안 받지 않는다 — 페이지가 뜰 때 미리 채우므로(폰에서는 숨은 PC 칸) lazy.
+        img.loading = 'lazy';
+        img.decoding = 'async';
         img.src = viewUrl;
         img.alt = filename;
         if (key) img.dataset.storageKey = key;
@@ -3294,7 +3300,7 @@
 {# 도면 탭 고객 보내기 시트 JS(설계서 2026-09-29 §3.6 + Q5) — PC 에서도 시트가 동작해야 하므로 v2 조건 블록 밖. #}
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-send.js') }}?v=20261025a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-send-self-sms.js') }}?v=20261025a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/drawing-ok-scope.js') }}?v=20261012b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-ok-scope.js') }}?v=20261119s" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-item-cancel.js') }}?v=20261012b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-stray-files.js') }}?v=20261027b" defer></script>
 <script src="{{ url_for('static', filename='js/drawing/as-room-push.js') }}?v=20261111a" defer></script>

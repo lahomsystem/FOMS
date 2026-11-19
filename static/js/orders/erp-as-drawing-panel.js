@@ -54,7 +54,8 @@
       a.rel = 'noopener';
       var img = el('img');
       img.loading = 'lazy';
-      img.src = f.view_url;
+      // 칸(96x68)은 320px 작은 그림, 링크(a.href)는 원본 — 그림이 아니면 small_url 이 없어 지금 주소.
+      img.src = f.small_url || f.view_url;
       img.alt = f.name || 'AS 도면';
       a.appendChild(img);
       a.appendChild(el('span', null, f.name || 'AS 도면'));

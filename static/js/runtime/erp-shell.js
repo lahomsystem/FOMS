@@ -1095,12 +1095,58 @@
     return Promise.race([loaded, timeout]);
   }
 
+  /** 미리 받은 조각 CSS 중 이미 다룬 href(절대) — 같은 href 를 두 번 preload 하지 않는다(하트비트 · 304 재수신 포함). */
+  var warmedStyleHrefs = Object.create(null);
+
+  /**
+   * 미리 받은 조각(아직 DOM 미삽입)의 전용 CSS 를 <link rel="preload" as="style"> 로 미리 받아 둔다(11-19).
+   * 조각 HTML 은 미리 받아 두었는데 그 CSS 는 누른 뒤에야 받기 시작해, 서버 작업자가 다른 조각을 그리느라 바쁘면
+   * CSS 가 300ms 넘게 줄을 서 첫 진입 도착이 두 봉우리였다(운영 시공 7번 중 2번 ~1,050ms). preload 는 규칙을 걸지
+   * 않으므로 화면 모양은 그대로고, 누른 뒤의 preloadFragmentStylesheets 대기 · 끼우기도 그대로다(캐시에서 바로 올 뿐).
+   * 문서 전체에 이미 있는 stylesheet · style preload 는 건너뛴다. 훑기는 extractStylesheetHrefs(정규식, DOMParser 없음)다 —
+   * CSS link 가 조각 머리에만 있지 않다(시공 12개 중 5개는 2.9만 자 뒤 · 끝). 데이터 절약이면 받지 않는다.
+   * @param {string} html
+   */
+  function warmFragmentStylesheets(html) {
+    if (saveDataRequested() || !document.head) {
+      return;
+    }
+    var fresh = extractStylesheetHrefs(html).filter(function (h) {
+      return !warmedStyleHrefs[h];
+    });
+    if (!fresh.length) {
+      return;
+    }
+    var present = Object.create(null);
+    var links = document.querySelectorAll('link[href]');
+    for (var i = 0; i < links.length; i++) {
+      var rel = ' ' + String(links[i].rel || '').toLowerCase() + ' ';
+      var as = String(links[i].getAttribute('as') || '').toLowerCase();
+      if (rel.indexOf(' stylesheet ') !== -1 || (rel.indexOf(' preload ') !== -1 && as === 'style')) {
+        present[links[i].href] = true;
+      }
+    }
+    fresh.forEach(function (h) {
+      warmedStyleHrefs[h] = true;
+      if (present[h]) {
+        return;
+      }
+      var link = document.createElement('link');
+      link.rel = 'preload';
+      link.setAttribute('as', 'style');
+      link.href = h;
+      document.head.appendChild(link);
+    });
+  }
+
   function fetchFragment(canonical) {
     // Consume the one-shot nav abort signal set by navigateByShell (null for
     // prefetch/heartbeat callers). Read+clear before any early return so a reused
     // in-flight promise can't leak this signal to the next caller.
     var navSignal = navFetchSignal;
     navFetchSignal = null;
+    // 미리 받기 · 하트비트(누름이 아닌 것)만 그 조각 CSS 를 미리 받는다 — 누름은 곧바로 preloadFragmentStylesheets 가 단다.
+    var isBackgroundFetch = !navSignal;
     var bgController = backgroundFetchController;
     backgroundFetchController = null;
     var fetchUrl = new URL(canonical.toString());
@@ -1177,6 +1223,10 @@
         }
         if (cacheable && finalKey !== key) {
           delete fragmentHtmlCache[key];
+        }
+        if (isBackgroundFetch) {
+          // 이 응답 처리 밖(그린 뒤 다음 작업)에서 — 같은 응답을 이어받은 누름이 먼저 stylesheet 를 달면 건너뛴다.
+          afterNextPaint(warmFragmentStylesheets.bind(null, payload.html));
         }
         return payload;
       })

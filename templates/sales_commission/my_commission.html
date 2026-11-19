@@ -87,7 +87,7 @@
                         {% if f.is_image %}
                         <a class="foms-mc__dw" href="{{ f.view_url }}" target="_blank" rel="noopener" data-foms-mc-drawing
                            data-view-url="{{ f.view_url }}" data-download-url="{{ f.download_url }}" data-filename="{{ f.filename }}"
-                           data-key="{{ f.key }}" aria-label="도면 {{ loop.index }} 크게 보기"><img src="{{ f.view_url }}" alt="" loading="lazy" decoding="async"><span class="foms-mc__dw-no">{{ loop.index }}</span></a>
+                           data-key="{{ f.key }}" aria-label="도면 {{ loop.index }} 크게 보기"><img src="{{ f.thumb_url or f.view_url }}" alt="" loading="lazy" decoding="async"><span class="foms-mc__dw-no">{{ loop.index }}</span></a>
                         {% else %}
                         <a class="foms-mc__dw is-file" href="{{ f.view_url }}" target="_blank" rel="noopener" aria-label="도면 {{ loop.index }} 파일 열기"><i class="fas fa-file-alt" aria-hidden="true"></i><span class="foms-mc__dw-file">{{ f.filename }}</span><span class="foms-mc__dw-no">{{ loop.index }}</span></a>
                         {% endif %}

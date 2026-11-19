@@ -9,6 +9,7 @@ from foms.services.attachment_sort import (
     next_attachment_sort_order,
     parse_attachment_sort_order,
 )
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_permissions import can_delete_order_attachment
 from models import OrderAttachment
@@ -184,6 +185,9 @@ def serialize_attachment(
     data["view_url"] = build_file_view_url(storage_key) if storage_key else ""
     data["download_url"] = build_file_download_url(storage_key) if storage_key else ""
     data["thumbnail_view_url"] = build_file_view_url(thumbnail_key) if thumbnail_key else None
+    # 작은 칸(40~110px) <img src> 전용 320px 작은 그림 길(SPEC 2026-11-19). 그림이 아니면 None — 화면은 지금 주소로 떨어진다.
+    # 더하기만 한다: view_url(원본) · thumbnail_view_url(옛 300px)은 큰 자리 · 뷰어가 그대로 쓴다.
+    data["small_url"] = list_thumb_url(storage_key)
     if order is not None and user is not None:
         # 지금 최종 도면(drawing_current_files)은 삭제 API 가 누구에게나 409 다 — 휴지통 버튼을
         # 그리면 눌러도 안 지워진다(주문 5690, 실패 문구는 화면 밖에 떴다).

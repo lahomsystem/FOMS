@@ -56,6 +56,21 @@ function drawingActionLabel(action) {
           return (f && f.key) ? `/api/files/view/${f.key}` : '';
         }
 
+        // 110x84 칸 <img src> 전용 320px 작은 그림 길(SPEC 2026-11-19). 판정은 서버
+        // foms/services/files/list_thumb.py is_list_thumb_source 와 같은 규칙(그림 확장자 · 점 없는 한글 이름
+        // `_png` 꼴 · 파생 파일 제외). 만들 수 없는 key 면 '' — 원본 주소를 쓴다. 판정이 어긋나 404 가 나도
+        // 칸의 onerror 가 원본(data-full-src)으로 한 번 되돌린다. 눌러 크게 보기는 gatewayViewUrl(원본).
+        function gatewaySmallUrl(key) {
+          const text = String(key || '').trim();
+          if (!text) return '';
+          const name = text.split('/').pop().toLowerCase();
+          if (/^(thumb_|pthumb720_|sthumb320_)/.test(name)) return '';
+          const exts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
+          const dot = name.lastIndexOf('.');
+          const tail = dot >= 0 ? name.slice(dot + 1) : name.split('_').pop();
+          return exts.indexOf(tail) >= 0 ? `/api/files/thumb/${text}` : '';
+        }
+
         function gatewayDownloadUrl(f) {
           return (f && f.key) ? `/api/files/download/${f.key}` : '';
         }
@@ -332,11 +347,12 @@ function drawingActionLabel(action) {
           const imageItems = imageFiles.map((f, idx) => {
             const name = escapeHtml(gatewayFileName(f));
             const viewUrl = escapeHtml(gatewayViewUrl(f));
+            const smallUrl = escapeHtml(gatewaySmallUrl(f.key) || gatewayViewUrl(f));
             const downloadUrl = escapeHtml(gatewayDownloadUrl(f));
             return `
               <div class="drawing-gateway-thumb-wrap me-2 mb-2">
                 <div class="drawing-gateway-thumb" onclick="openDrawingGatewayImageViewer('${groupKey}', ${idx})">
-                  <img src="${viewUrl}" alt="${name}">
+                  <img src="${smallUrl}" data-full-src="${viewUrl}" alt="${name}" loading="lazy" onerror="this.onerror=null;if(this.dataset.fullSrc)this.src=this.dataset.fullSrc;">
                 </div>
                 <div class="small text-truncate mt-1" title="${name}" style="max-width: 110px;">${name}</div>
                 <a href="${downloadUrl}" target="_blank" rel="noopener" class="small text-muted">

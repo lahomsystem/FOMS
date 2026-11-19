@@ -48,7 +48,7 @@
         if (isVideo) {
           galleryHtml += '<div class="erp-completion-media erp-completion-media--video" data-order-id="' + orderId + '" data-photo-index="' + imageIndex + '" title="동영상 재생" role="button" tabindex="0"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">동영상</span><span class="erp-completion-media__play"><i class="fas fa-play"></i></span></div>';
         } else {
-          galleryHtml += '<img src="' + escapeAttr(photo.view_url || '#') + '" alt="' + escapeAttr(photo.filename || '') + '" data-order-id="' + orderId + '" data-photo-index="' + imageIndex + '" loading="lazy">';
+          galleryHtml += '<img src="' + escapeAttr(photo.small_url || photo.view_url || '#') + '" alt="' + escapeAttr(photo.filename || '') + '" data-order-id="' + orderId + '" data-photo-index="' + imageIndex + '" loading="lazy">';
         }
         imageIndex += 1;
       });

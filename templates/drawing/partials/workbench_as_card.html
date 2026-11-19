@@ -23,7 +23,7 @@
   {% if cur.files %}
   <ul class="dw-as-files list-unstyled mb-2">
     {% for f in cur.files %}
-    <li><a href="{{ f.view_url }}" target="_blank" rel="noopener"><img loading="lazy" src="{{ f.view_url }}" alt="{{ f.name }}"><span>{{ f.name }}</span></a></li>
+    <li><a href="{{ f.view_url }}" target="_blank" rel="noopener"><img loading="lazy" decoding="async" src="{{ f.thumb_url or f.view_url }}" alt="{{ f.name }}"><span>{{ f.name }}</span></a></li>
     {% endfor %}
   </ul>
   {% endif %}

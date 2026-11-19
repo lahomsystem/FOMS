@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.services.files.list_thumb import list_thumb_url
+
 from foms.services.orders.drawing_confirm_partial import (
     EXCLUDE_REASON_ITEM_CANCELLED,
     EXCLUDE_REASON_ITEM_CANCELLED_AFTER,
@@ -56,6 +58,8 @@ def build_ok_scope(structured_data: Any) -> dict[str, Any]:
             "no": no,
             "filename": str(f.get("filename") or key.rsplit("/", 1)[-1]),
             "view_url": f"/api/files/view/{key}",
+            # 56px 칸 <img src> 전용 320px 작은 그림 길(SPEC 2026-11-19) — 그림이 아니면 None(화면이 view_url 로).
+            "small_url": list_thumb_url(key),
             "item_uids": linked,
             "item_names": [names[u] for u in linked if u in names],
         })

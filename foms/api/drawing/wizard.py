@@ -59,6 +59,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
 from foms.services.drawing_wizard_bom_rules import (
@@ -321,9 +322,10 @@ def _build_measure_photos(db, order) -> list[dict]:
 
     주문 실측 첨부(``measurement``/``measure_photo``/``photo``)를 최신순으로 모아,
     ``item_index`` 가 제품 범위를 벗어나거나 음수·None 이면 공통(``item_index=None``)으로
-    정규화한다(주문 상세의 common_measure_photos 규칙과 동일). ``thumb_url`` 은
-    ``thumbnail_key`` 우선(없으면 ``storage_key``)으로 ``/api/files/view/`` 경로를 만든다.
-    실측 원본은 읽기만 하며 변경하지 않는다.
+    정규화한다(주문 상세의 common_measure_photos 규칙과 동일). ``thumb_url`` 은 64px 칸 · V2 점수 매기기(48px
+    캔버스)용 작은 그림 — 원본이 그림이면 320px 작은 그림 길(SPEC 2026-11-19, 흰 바탕 · 회전 반영 · 30일 캐시),
+    아니면 지금처럼 ``thumbnail_key`` 우선(없으면 ``storage_key``)의 ``/api/files/view/`` 경로다. 눌러 넣기는
+    ``key`` 로 원본을 복사한다(``import-attachment``). 실측 원본은 읽기만 하며 변경하지 않는다.
     """
     order_id = getattr(order, 'id', None)
     if not order_id:
@@ -346,7 +348,7 @@ def _build_measure_photos(db, order) -> list[dict]:
             'key': att.storage_key,
             'filename': att.filename,
             'item_index': item_index,
-            'thumb_url': f'/api/files/view/{thumb_source}',
+            'thumb_url': list_thumb_url(att.storage_key) or f'/api/files/view/{thumb_source}',
         })
     return photos
 

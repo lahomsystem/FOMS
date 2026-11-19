@@ -106,7 +106,7 @@
     b.setAttribute('aria-pressed', String(i === pick));
     if (d && d.is_image) {
       var img = b.appendChild(el('img'));
-      img.src = d.url;
+      img.src = d.thumb_url || d.url; // 띠 칸(98x62)은 작은 그림, 위 큰 그림 · 링크는 d.url(원본)
       img.alt = '';
       img.loading = 'lazy';
     } else b.appendChild(el('b', null, d ? '파일' : '전체'));

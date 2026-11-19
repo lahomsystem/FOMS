@@ -25,6 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db import get_db
 from foms.api.files.routes import build_file_view_url
+from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.drawing_confirm_partial import file_item_uids
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본)
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
@@ -96,9 +97,15 @@ def _full(db, stmt: PartnerStatement) -> dict[str, Any]:
 
 
 def drawing_card(no: int, f: dict) -> dict[str, Any]:
-    """최종 도면 한 장 — 그림이면 썸네일로 보인다(협력사 주문 도면 탭과 같은 판정 · 같은 보기 주소)."""
+    """최종 도면 한 장 — 그림이면 썸네일로 보인다(협력사 주문 도면 탭과 같은 판정 · 같은 보기 주소).
+
+    ``url`` = 원본(큰 그림 · 누르면 원본), ``thumb_url`` = 98x62 띠 칸 ``<img src>`` 전용 320px 작은 그림 길
+    (SPEC 2026-11-19, 만들 수 없는 key 면 원본).
+    """
     name = f.get("filename") or f.get("name") or str(f.get("key") or "").rsplit("/", 1)[-1] or f"{no}번 도면"
-    return {"name": f"{no}번 · {name}", "url": build_file_view_url(f["key"]), "is_image": attachment_file_type(name) == "image"}
+    url = build_file_view_url(f["key"])
+    return {"name": f"{no}번 · {name}", "url": url, "thumb_url": list_thumb_url(f["key"]) or url,
+            "is_image": attachment_file_type(name) == "image"}
 
 
 def _run(work):

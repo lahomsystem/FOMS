@@ -33,7 +33,7 @@ JS_PIN_LOCK = {
     "static/js/foms/drawing-customer-send-self-sms.js": ("d59f62156df3", "20261025a"),
     "static/js/foms/drawing-customer-ok.js": ("dc13c582b66b", "20261012a"),
     "static/js/foms/drawing-item-cancel.js": ("1e7769e704b0", "20261012b"),
-    "static/js/foms/drawing-ok-scope.js": ("dd78c3b8bd6d", "20261012b"),
+    "static/js/foms/drawing-ok-scope.js": ("4627345913a8", "20261119s"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
     "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),
 }
