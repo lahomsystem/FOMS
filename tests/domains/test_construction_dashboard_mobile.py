@@ -176,7 +176,7 @@ def test_enrich_construction_mobile_rows_drawing_only_excludes_measurement(mock_
     assert rows[0]["attachments_count"] == 1
     assert len(rows[0]["attachment_preview_items"]) == 1
     assert rows[0]["attachment_preview_items"][0]["view"] == "/files/const/draw.png"
-    assert rows[0]["attachment_preview_items"][0]["thumb"] == "/files/const/draw-thumb.png"
+    assert rows[0]["attachment_preview_items"][0]["thumb"] == "/api/files/thumb/const/draw.png"  # 옛 300px 썸네일이 있어도 작은 그림 길 우선(no-store 302 는 캐시가 안 된다)
     assert rows[0]["attachment_preview_items"][0]["label"] == "draw.png"
 
 

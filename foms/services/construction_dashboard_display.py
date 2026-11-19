@@ -143,12 +143,17 @@ def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
 
 
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
-    """Card thumbnail URL (prefers generated thumbnail_key, then the 320px list thumb route)."""
-    thumb_key = (attachment.thumbnail_key or "").strip()
-    if thumb_key:
-        return build_file_view_url(thumb_key)
+    """Card thumbnail URL — the 320px list thumb route first, then a legacy ``thumbnail_key``, then the original.
+
+    옛 300px 썸네일(``thumb_``)은 원본 보기 길(no-store 302)로 나가 브라우저가 기억하지 못한다 — 탭에 다시 들어갈 때마다
+    같은 그림을 또 받았다(2026-11-19 스테이징 실측). 그림이면 캐시되는 작은 그림 길을 먼저 쓴다.
+    """
     view_url = _view_url_from_attachment(attachment)
-    return (_list_thumb_url((attachment.storage_key or "").strip()) or view_url) if view_url else None
+    small = _list_thumb_url((attachment.storage_key or "").strip()) if view_url else None
+    if small:
+        return small
+    thumb_key = (attachment.thumbnail_key or "").strip()
+    return build_file_view_url(thumb_key) if thumb_key else view_url
 
 
 def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
