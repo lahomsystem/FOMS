@@ -353,7 +353,7 @@ def test_worker_skips_over_16mp_and_existing_and_non_image():
 
 def test_worker_task_delegates(monkeypatch):
     seen = []
-    monkeypatch.setattr(tasks, "create_list_thumb", lambda key: seen.append(key) or lt.RESULT_STORED)
+    monkeypatch.setattr(tasks, "create_list_thumb", lambda key, size=320: seen.append(key) or lt.RESULT_STORED)
     assert tasks.create_list_thumb_for_key("orders/1/drawing/a.png") == lt.RESULT_STORED
     assert tasks.create_list_thumb_for_key("") is None
     assert seen == ["orders/1/drawing/a.png"]
@@ -373,7 +373,8 @@ def test_storage_delete_removes_list_thumb_sibling(monkeypatch):
     monkeypatch.setattr(handler_mod, "get_storage", lambda: store)
     row = SimpleNamespace(source_domain="UPLOAD_TICKET", id=1, payload={"object_key": "orders/5/drawing/a.png"})
     handler_mod.handle_storage_delete(row)
-    assert store.deleted == ["orders/5/drawing/a.png", "orders/5/drawing/sthumb320_a.png.jpg"]  # 없어도 성공
+    assert store.deleted == ["orders/5/drawing/a.png", "orders/5/drawing/sthumb320_a.png.jpg",
+                             "orders/5/drawing/sthumb640_a.png.jpg"]  # 없어도 성공(640 = SPEC 2026-11-20-mid-size-image)
 
     store.deleted.clear()
     handler_mod.handle_storage_delete(SimpleNamespace(source_domain="UPLOAD_TICKET", id=2,

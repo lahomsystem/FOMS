@@ -19,9 +19,12 @@ from foms.services import audit_writer
 from foms.services.attachment_visibility import include_deleted
 from foms.services.files.list_thumb import (
     LIST_THUMB_CACHE_CONTROL,
+    LIST_THUMB_LONG_EDGE,
     LIST_THUMB_ROUTE_PREFIX,
+    LIST_THUMB_SIZES,
     is_list_thumb_source,
     list_thumb_key,
+    list_thumb_query,
 )
 from foms.services.files.list_thumb_schedule import schedule_list_thumb
 from foms.services.orders.order_mutation_policy import user_can_read_order
@@ -192,14 +195,15 @@ def build_file_view_url(storage_key: str) -> str:
     return f"/api/files/view/{storage_key}"
 
 
-def build_file_thumb_url(storage_key: str) -> str:
+def build_file_thumb_url(storage_key: str, size: int = LIST_THUMB_LONG_EDGE) -> str:
     """목록 작은 그림 URL 생성 (files_bp /api/files/thumb 경로 — 원본 key 를 받는다).
 
     작은 칸(40~112px)의 ``<img src>`` 전용. 눌러 크게 보기는 :func:`build_file_view_url`(원본)이다.
     그림이 아닌 key 는 길이 404 이므로 부르는 쪽이 ``is_list_thumb_source`` 로 먼저 거른다(서비스 레이어는
     같은 모양을 :func:`foms.services.files.list_thumb.list_thumb_url` 로 만든다 — 거르기까지 한 번에).
+    ``size=640`` 이면 중간 크기 칸용 ``?w=640``(SPEC 2026-11-20-mid-size-image). 320 주소는 꼬리가 없다.
     """
-    return f"{LIST_THUMB_ROUTE_PREFIX}{storage_key}"
+    return f"{LIST_THUMB_ROUTE_PREFIX}{storage_key}{list_thumb_query(size)}"
 
 
 def build_file_download_url(storage_key: str) -> str:
@@ -267,10 +271,24 @@ def view(storage_key: str):
         )
 
 
+def _thumb_size_arg(raw: str | None) -> int | None:
+    """``?w=`` → 허용 크기(320 · 640). 없으면 320(기본), 그 밖(숫자 아님 · 빈 값 포함)은 None → 400.
+
+    아무 크기나 받으면 저장소에 파생 파일이 끝없이 쌓인다(SPEC 2026-11-20-mid-size-image §3-1 ①).
+    """
+    if raw is None:
+        return LIST_THUMB_LONG_EDGE
+    # 글자 그대로만 맞춘다(``0640`` · 전각 숫자 · 앞뒤 빈칸 = 400) — 같은 그림에 주소가 여럿 생기지 않게.
+    return next((size for size in LIST_THUMB_SIZES if raw == str(size)), None)
+
+
 @files_bp.route("/thumb/<path:storage_key>", methods=["GET"])
 @login_required
 def thumb(storage_key: str):
-    """목록 작은 그림(긴 변 320px JPEG) — SPEC 2026-11-19-list-drawing-small-image §3-1.
+    """목록 작은 그림(긴 변 320px JPEG, ``?w=640`` 이면 640px) — SPEC 2026-11-19-list-drawing-small-image §3-1.
+
+    ``?w=`` 는 320(기본) · 640 둘만 받는다(그 밖은 400, SPEC 2026-11-20-mid-size-image). 저장 이름 · 워커 작업 ·
+    자물쇠가 크기마다 따로이고, 문지기 · 캐시 머리글 · 감사 기록 없음 · 원본 302 는 크기와 상관없이 같다.
 
     문지기는 원본 보기와 같은 :func:`_deny_file_access`(원본 key). 저장된 작은 그림이 있으면 그 바이트를
     ``immutable`` 로, 없으면 워커에 만들기를 한 번 예약하고 이번만 원본으로 보낸다(``no-store`` 302 —
@@ -283,6 +301,9 @@ def thumb(storage_key: str):
     try:
         if ".." in storage_key or storage_key.startswith("/"):
             return jsonify({"success": False, "message": "비정상적인 경로입니다."}), 400
+        size = _thumb_size_arg(request.args.get("w"))
+        if size is None:
+            return jsonify({"success": False, "message": "지원하지 않는 그림 크기입니다."}), 400
         if not is_list_thumb_source(storage_key):
             return jsonify({"success": False, "message": _FILE_NOT_FOUND_MSG}), 404
 
@@ -292,14 +313,14 @@ def thumb(storage_key: str):
             return jsonify({"success": False, "message": message}), status
 
         storage = get_storage()
-        small_key = list_thumb_key(storage_key)
+        small_key = list_thumb_key(storage_key, size)
         if storage.storage_type in ["r2", "s3"]:
             data = storage.read_file_bytes(small_key) if storage.object_exists(small_key) else None
             if data:
                 response = Response(data, mimetype="image/jpeg")
                 response.headers["Cache-Control"] = LIST_THUMB_CACHE_CONTROL
                 return response
-            schedule_list_thumb(storage_key)  # 큐가 없거나 막히면 조용히 건너뜀(원본이 계속 나간다)
+            schedule_list_thumb(storage_key, size)  # 큐가 없거나 막히면 조용히 건너뜀(원본이 계속 나간다)
             url = storage.get_download_url(storage_key, expires_in=3600)
             if not url:
                 return jsonify({"success": False, "message": _FILE_NOT_FOUND_MSG}), 404

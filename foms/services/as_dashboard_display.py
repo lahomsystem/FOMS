@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.files.list_thumb import mid_thumb_url
 from foms.services.orders.as_drawing_views import can_request as as_drawing_can_request
 from foms.services.orders.as_drawing_views import status_view as as_drawing_status_view
 from foms.services.auth.freelancer_lists import is_list_freelancer
@@ -196,7 +197,7 @@ def _as_visit_dday(as_visit_date: Any, today: datetime.date) -> int | None:
 def _compare_photo_entry(attachment: OrderAttachment) -> dict[str, str] | None:
     """Return ``{thumb, full, name}`` for an image AS attachment, else None.
 
-    썸네일 키가 있으면 그리드 <img> 용 thumb 로, 전체 이미지 view_url 은 full(뷰어)로 쓴다.
+    그리드 <img> 용 thumb 는 640 중간 크기 그림 길(그림이 아니면 썸네일 키 · 원본), 전체 이미지 view_url 은 full(뷰어)로 쓴다.
     이미지가 아니면(문서/영상) None → 대조 그리드에서 제외.
 
     Args:
@@ -215,7 +216,9 @@ def _compare_photo_entry(attachment: OrderAttachment) -> dict[str, str] | None:
         return None
     full_url = build_file_view_url(storage_key)
     thumb_key = (attachment.thumbnail_key or "").strip()
-    thumb_url = build_file_view_url(thumb_key) if thumb_key else full_url
+    # 격자 칸(약 120~240px · 태블릿 2배 화면) = 640 중간 크기 그림 길(SPEC 2026-11-20-mid-size-image — 30일 캐시, 320 은 흐림).
+    # 만들 수 없는 key(HEIC · 확장자 없음)면 지금처럼 옛 썸네일 · 원본. 뷰어(full)는 늘 원본.
+    thumb_url = mid_thumb_url(storage_key) or (build_file_view_url(thumb_key) if thumb_key else full_url)
     return {"thumb": thumb_url, "full": full_url, "name": (attachment.filename or "AS 사진")}
 
 

@@ -47,10 +47,10 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     # gateway 는 2b(20260929e) 에서 새로 붙었다.
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert "erp-dashboard-drawing.js?v=20261004a" in entry
-    assert "erp-dashboard-core.js?v=20260929h" in entry
-    assert "erp-dashboard-attachments.js?v=20261004a" in entry  # 2026-10-04 도면 최종본 순서
-    assert "erp-dashboard-gateway.js?v=20261119s" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261119s" in layout
+    assert "erp-dashboard-core.js?v=20261120m" in entry
+    assert "erp-dashboard-attachments.js?v=20261120m" in entry  # 2026-11-20 교체 대상 카드 640(이전 20261004a 도면 최종본 순서)
+    assert "erp-dashboard-gateway.js?v=20261120m" in entry
+    assert "erp-dashboard-entry.js') }}?v=20261120m" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

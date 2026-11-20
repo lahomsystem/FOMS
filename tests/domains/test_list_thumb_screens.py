@@ -123,11 +123,13 @@ def test_production_sheet_strip_small_and_main_original():
 
 
 # ----------------------------------------------------------------------- 도면 작업실 폰 카드 · 태블릿 갤러리
-def test_drawing_workbench_card_small_and_gallery_original():
+def test_drawing_workbench_card_small_and_gallery_mid():
     card = _read("templates/drawing/partials/workbench_mobile_queue_card.html")
     assert '<img src="{{ r.thumbnail_url }}"' in card  # 76px 칸 = 작은 그림(pick_row_thumbnail_url)
     gallery = _read("templates/drawing/partials/tablet_gallery_body.html")
-    assert 'src="{{ r.drawing_files[0].view_url if r.drawing_files else r.thumbnail_url }}"' in gallery
+    # 갤러리 칸 = 640 중간 크기 그림(SPEC 2026-11-20-mid-size-image), 그림이 아니면 원본. 실제 렌더는 test_mid_thumb_screens.py.
+    assert ('src="{{ (r.drawing_files[0].mid_url or r.drawing_files[0].view_url) if r.drawing_files '
+            'else r.thumbnail_url }}"') in gallery
 
 
 # ----------------------------------------------------------------------- 협력사 포털 목록

@@ -60,15 +60,17 @@ function drawingActionLabel(action) {
         // foms/services/files/list_thumb.py is_list_thumb_source 와 같은 규칙(그림 확장자 · 점 없는 한글 이름
         // `_png` 꼴 · 파생 파일 제외). 만들 수 없는 key 면 '' — 원본 주소를 쓴다. 판정이 어긋나 404 가 나도
         // 칸의 onerror 가 원본(data-full-src)으로 한 번 되돌린다. 눌러 크게 보기는 gatewayViewUrl(원본).
-        function gatewaySmallUrl(key) {
+        // size 640 = 중간 크기 칸(교체 대상 카드 등)용 `?w=640`(SPEC 2026-11-20-mid-size-image). 320(기본)은 꼬리 없음.
+        function gatewaySmallUrl(key, size) {
           const text = String(key || '').trim();
           if (!text) return '';
           const name = text.split('/').pop().toLowerCase();
-          if (/^(thumb_|pthumb720_|sthumb320_)/.test(name)) return '';
+          if (/^(thumb_|pthumb720_|sthumb320_|sthumb640_)/.test(name)) return '';
           const exts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
           const dot = name.lastIndexOf('.');
           const tail = dot >= 0 ? name.slice(dot + 1) : name.split('_').pop();
-          return exts.indexOf(tail) >= 0 ? `/api/files/thumb/${text}` : '';
+          const query = size === 640 ? '?w=640' : '';
+          return exts.indexOf(tail) >= 0 ? `/api/files/thumb/${text}${query}` : '';
         }
 
         function gatewayDownloadUrl(f) {
