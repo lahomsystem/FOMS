@@ -1500,6 +1500,13 @@ def api_as_log_delete(order_id: int, log_id: str):
         locked["deleted"] = True
         locked["deleted_at"] = now_utc_naive().isoformat()
         locked["deleted_by"] = user.name if user else ""
+        # 현재 건의 접수 글을 지우면 화면 위 "증상"(shipment.as_content)도 따라가야 한다 — 수정
+        # (_patch)과 같은 규칙. 안 그러면 글은 지웠는데 증상 줄 · 출고 표 · 지도에는 옛 글이
+        # 그대로 남는다(운영 5687, 2026-11-20). 남은 접수 글이 있으면 그 글, 없으면 빈 값.
+        if locked.get("type") == "reception" and locked.get("cycle_id") and (
+                locked.get("cycle_id") == current_as_cycle_id(sd)):
+            remaining = current_reception_entry(sd)
+            sd["shipment"]["as_content"] = str(remaining.get("text") or "") if remaining else ""
         captured["sd"] = sd
 
     try:
