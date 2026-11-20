@@ -444,7 +444,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_sales_delivery",
-      "lineno": 2001,
+      "lineno": 2008,
       "methods": [
         "POST"
       ],
@@ -462,7 +462,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1675,
+      "lineno": 1682,
       "methods": [
         "POST"
       ],
