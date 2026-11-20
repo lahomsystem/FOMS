@@ -390,7 +390,7 @@ ACTION_LABELS: dict[str, str] = {
     "BRAIN_REJECT": "회사 지식 제안 거절",
     "BRAIN_REOPEN": "회사 지식 제안 되돌리기(방금 정한 것을 다시 엶)",
     "BRAIN_EXPIRE": "회사 지식 AI 제안 기간 끝남",
-    "BRAIN_MERGE": "회사 지식 엇갈림 카드 합침(같은 말이 또 나와 바로 고침)",
+    "BRAIN_MERGE": "회사 지식 엇갈림 카드 합침(바로 고침 · 새 지식으로 옮김)",
     "BRAIN_WITHDRAW": "회사 지식 자료 계획 제안 거둠",
     "BRAIN_RELEASE_ROLLBACK": "회사 지식 판 되돌리기",
     "BRAIN_CHAT_SETTINGS": "회사 지식 물어보기 설정 변경",
