@@ -50,6 +50,7 @@ from foms.services.orders.drawing_transfer import (
     materialize_transfer_attachments,
     order_by_wizard_sheets,
     replace_same_sheet_files,
+    sends_only_other_sheets,
 )
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
 from foms.services.orders.drawing_revision_files import is_revision_reference_key
@@ -273,14 +274,6 @@ def perform_drawing_transfer(
         mode = 'REPLACE_ALL'
     if not is_retransfer:
         is_retransfer = drawing_status == 'RETURNED'
-    # 바로 반영인데 방식을 고르지 않았고(태블릿 시트·대시보드 전달) 확정 도면이 한 장뿐이면 그
-    # 장을 바꾼다 — 추가로 쌓으면 고친 도면과 옛 도면이 둘 다 최종이 된다(주문 5690). 두 장
-    # 이상이면 어느 장인지 몰라 지금처럼 더한다.
-    if (
-        hotfix and not mode and not replace_target_keys and not is_retransfer
-        and len(s_data.get('drawing_current_files') or []) == 1
-    ):
-        is_retransfer = True
     if (
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -303,6 +296,17 @@ def perform_drawing_transfer(
     old_files = list(s_data.get('drawing_current_files', []) or [])
     updated_files = list(old_files)
     replaced_target_numbers = []
+
+    # 바로 반영인데 방식을 고르지 않았고(태블릿 시트·대시보드 전달) 확정 도면이 한 장뿐이면 그
+    # 장을 바꾼다 — 추가로 쌓으면 고친 도면과 옛 도면이 둘 다 최종이 된다(주문 5690). 두 장
+    # 이상이면 어느 장인지 몰라 지금처럼 더한다. 그 한 장과 이번 파일이 서로 다른 마법사 시트로
+    # 증명되면 바꾸지 않고 더한다 — 다른 제품 도면을 보냈다고 앞 제품 도면이 사라지면 안 된다.
+    if (
+        hotfix and not mode and not replace_target_keys and not is_retransfer
+        and len(old_files) == 1
+        and not sends_only_other_sheets(old_files, new_files, s_data)
+    ):
+        is_retransfer = True
 
     if is_retransfer and not new_files:
         return {'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}, 400

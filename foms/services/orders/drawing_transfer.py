@@ -105,6 +105,52 @@ def order_by_wizard_sheets(new_files: list, structured_data: Any) -> list:
     return files
 
 
+def _entry_sheet(entry: Any, sole_sheet: str) -> str:
+    """전달본 엔트리의 마법사 시트 id(모르면 빈 문자열).
+
+    ``sheet_id`` 가 없는 옛 엔트리(2026-10-04 이전 전달)는 마법사 시트가 정확히 1개(``sole_sheet``)이고
+    key 가 마법사 산출물 경로일 때만 그 시트로 본다. 그 밖(직접 올린 파일)은 추정하지 않는다.
+    """
+    if not isinstance(entry, dict):
+        return ""
+    sid = clean_sheet_id(entry.get("sheet_id"))
+    if sid:
+        return sid
+    key = str(entry.get("key") or "")
+    return sole_sheet if sole_sheet and _WIZARD_EXPORT_SEGMENT in key else ""
+
+
+def sends_only_other_sheets(old_files: Any, new_files: Any, structured_data: Any) -> bool:
+    """현재 도면이 살아 있는 시트 S 의 한 장이고, 이번 파일이 모두 S 가 아닌 시트의 도면인가(순수 계산).
+
+    생산·시공 단계에서 방식 없이 보내면 한 장뿐인 최종 도면을 바꾼다(2026-10-27 결정 3). 그 규칙이 다른
+    시트(다른 제품) 도면까지 지우지 않게 가르는 조건이다 — 참이면 호출측은 바꾸지 않고 더한다
+    (설계서 2026-11-20-multi-item-split-schedule §7.2 · M19). 가를 수 있는 것은 "다른 제품"이 아니라
+    "다른 시트"다. 시트 신원을 모르면 거짓이다: 현재 도면이 직접 올린 파일이거나 지운 시트의 판일 때,
+    이번 파일에 ``sheet_id`` 없는 파일(직접 올린 파일)이 하나라도 섞였을 때.
+
+    Args:
+        old_files: 현재 ``drawing_current_files``.
+        new_files: 이번에 보낼 파일(``sheet_id`` 를 가진 dict 목록 — 전달 파일 · 전달 대기 시트).
+        structured_data: 주문 ``structured_data``(마법사 시트 목록을 읽는다).
+
+    Returns:
+        한 장을 그대로 두고 더해도 되는 것이 증명되면 True.
+    """
+    old = list(old_files or [])
+    new = list(new_files or [])
+    if len(old) != 1 or not new:
+        return False
+    sheets = _wizard_sheet_ids(structured_data)
+    current = _entry_sheet(old[0], sheets[0] if len(sheets) == 1 else "")
+    if not current or current not in sheets:
+        return False
+    return all(
+        isinstance(f, dict) and clean_sheet_id(f.get("sheet_id")) not in ("", current)
+        for f in new
+    )
+
+
 def replace_same_sheet_files(
     old_files: list, new_files: list, structured_data: Any,
 ) -> tuple[list[dict], list[dict], list[int]]:
@@ -133,16 +179,7 @@ def replace_same_sheet_files(
     sheets = _wizard_sheet_ids(structured_data)
     sole_sheet = sheets[0] if len(sheets) == 1 else ""
 
-    def _old_sheet(entry: Any) -> str:
-        if not isinstance(entry, dict):
-            return ""
-        sid = clean_sheet_id(entry.get("sheet_id"))
-        if sid:
-            return sid
-        key = str(entry.get("key") or "")
-        return sole_sheet if sole_sheet and _WIZARD_EXPORT_SEGMENT in key else ""
-
-    old_sheets = [_old_sheet(f) for f in old_files]
+    old_sheets = [_entry_sheet(f, sole_sheet) for f in old_files]
     slot_new: dict[int, dict] = {}
     # 마법사에서 지운 시트의 옛 판은 뺀다(2026-11-09 주문 5896: "침대 수납장" 시트를 지우고
     # "침대 수납장 2" 를 새로 만들어 다시 보냈더니 지운 시트의 11-02 판이 남아 3장이 됐다).

@@ -21,7 +21,7 @@ from foms.services.drawing_confirm_cleanup import (
     resolve_final_drawing_files,
     superseded_drawing_keys,
 )
-from foms.services.orders.drawing_transfer import replace_same_sheet_files
+from foms.services.orders.drawing_transfer import replace_same_sheet_files, sends_only_other_sheets
 from foms.web.drawing.tablet_sheet import _sheet_transfer_replaced_count
 from models import Order, User
 
@@ -434,3 +434,33 @@ def test_list_marks_final_rank_and_manual_rows(client, storage):
     assert by_key[v1]["drawing_final_total"] == 1
     assert "drawing_final_rank" not in by_key[manual]
     assert by_key[manual]["drawing_final_total"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 순수 계산 — sends_only_other_sheets (설계서 2026-11-20-multi-item-split-schedule §7.2 · M19)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("old,new,sd,expected", [
+    # 한 장(시트 a) + 다른 시트만 → 더해도 된다.
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b")], _sheets("s-a", "s-b"), True),
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b"), _entry("o/c1", "s-c")], _sheets("s-a", "s-b", "s-c"), True),
+    # sheet_id 없는 옛 판이어도 마법사 시트가 1개이고 산출물 경로면 그 시트로 본다(같은 시트 교체 규칙과 같다).
+    ([_entry(_exp(1, "v1.png"))], [_entry("o/b1", "s-b")], _sheets("s-a"), True),
+    # 같은 시트 → 그 자리에서 바뀐다(더하지 않는다).
+    ([_entry("o/a1", "s-a")], [_entry("o/a2", "s-a")], _sheets("s-a", "s-b"), False),
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b"), _entry("o/a2", "s-a")], _sheets("s-a", "s-b"), False),
+    # 시트를 모른다 — 최종 도면이 직접 올린 파일 / 이번 파일에 직접 올린 파일이 섞임 / 지운 시트의 판.
+    ([_entry("orders/1/drawing/manual.png")], [_entry("o/b1", "s-b")], _sheets("s-a", "s-b"), False),
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b"), _entry("orders/1/drawing/manual.png")],
+     _sheets("s-a", "s-b"), False),
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b")], _sheets("s-b"), False),
+    ([_entry("o/a1", "s-a")], [_entry("o/b1", "s-b")], {}, False),
+    # 한 장이 아니거나 보낼 파일이 없다 — 이 판정의 일이 아니다.
+    ([_entry("o/a1", "s-a"), _entry("o/c1", "s-c")], [_entry("o/b1", "s-b")], _sheets("s-a", "s-b", "s-c"), False),
+    ([], [_entry("o/b1", "s-b")], _sheets("s-a", "s-b"), False),
+    ([_entry("o/a1", "s-a")], [], _sheets("s-a", "s-b"), False),
+    ([_entry("o/a1", "s-a")], ["깨진 값"], _sheets("s-a", "s-b"), False),
+])
+def test_sends_only_other_sheets(old, new, sd, expected):
+    assert sends_only_other_sheets(old, new, sd) is expected

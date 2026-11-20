@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -365,3 +366,102 @@ def test_workbench_no_copy_card_when_only_final(client, people, pushes):
     soup = BeautifulSoup(client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True), "html.parser")
     assert soup.select_one("#dw-stray-drawing-card") is None
     assert soup.select_one("#dwTransferModal .dw-transfer-hotfix-notice") is None
+
+
+# --- 최종 도면 한 장 + 다른 시트(설계서 2026-11-20-multi-item-split-schedule §7.2 · M19) ---------
+
+
+def _sheet_order(people, *, final_sheet="s-A", sheets=("s-A", "s-B"), pending=(), **kw):
+    """최종 도면 한 장이 마법사 시트 ``final_sheet`` 의 도면인 주문. ``None`` 이면 직접 올린 파일(시트 모름)."""
+    oid = _order(people.drawer.id, people.sales.id, **kw)
+    o = db_session.get(Order, oid)
+    sd = copy.deepcopy(o.structured_data)
+    if final_sheet:
+        sd["drawing_current_files"][0]["sheet_id"] = final_sheet
+    sd["drawing_wizard"] = {
+        "v": 1, "sheets": [{"id": s, "name": s} for s in sheets],
+        "pending": {s: {"key": _sheet_key(oid, s), "filename": f"{s}.png", "sheet_name": s} for s in pending},
+    }
+    o.structured_data = sd
+    db_session.commit()
+    return oid
+
+
+def _sheet_key(oid, sheet):
+    return f"orders/{oid}/drawing_wizard/exports/{sheet}.png"
+
+
+def _send_sheets(client, oid, *sheets, manual=(), **body):
+    files = [{"key": _sheet_key(oid, s), "filename": f"{s}.png", "sheet_id": s} for s in sheets]
+    files += [{"key": f"orders/{oid}/drawing/{name}", "filename": name} for name in manual]
+    return client.post(f"/api/orders/{oid}/transfer-drawing", json={"files": files, **body})
+
+
+def _names(sd):
+    return [f["key"].rsplit("/", 1)[-1] for f in sd["drawing_current_files"]]
+
+
+@pytest.mark.parametrize("stage", ["PRODUCTION", "CONSTRUCTION"])
+def test_other_sheet_is_added_next_to_single_final(client, people, pushes, stage):
+    """다른 시트(다른 제품) 도면을 방식 없이 보내면 한 장뿐인 최종 도면을 지우지 않고 더한다."""
+    oid = _sheet_order(people, stage=stage)
+    _login(client, people.drawer)
+    res = _send_sheets(client, oid, "s-B")
+    assert res.status_code == 200 and res.get_json()["hotfix"] is True
+    _order_row, sd = _sd(oid)
+    assert _names(sd) == ["final1.png", "s-B.png"]
+    assert sd["drawing_status"] == "CONFIRMED"
+    transfer, confirm = sd["drawing_transfer_history"][-2:]
+    assert transfer["action"] == "TRANSFER" and transfer["mode"] == "APPEND"
+    assert transfer["replace_target_numbers"] is None
+    assert [f["key"] for f in confirm["files"]] == [f["key"] for f in sd["drawing_current_files"]]
+
+
+def test_same_sheet_new_version_still_replaces_single_final(client, people, pushes):
+    """대조: 같은 시트의 새 판은 지금처럼 그 자리에서 바뀐다(한 장)."""
+    oid = _sheet_order(people)
+    _login(client, people.drawer)
+    assert _send_sheets(client, oid, "s-A").status_code == 200
+    _order_row, sd = _sd(oid)
+    assert _names(sd) == ["s-A.png"]
+    assert sd["drawing_transfer_history"][-2]["mode"] == "REPLACE"
+
+
+@pytest.mark.parametrize("final_sheet,sheets,sent,manual,expected", [
+    (None, ("s-A", "s-B"), ("s-B",), (), ["s-B.png"]),                      # 최종 도면이 직접 올린 파일
+    ("s-A", ("s-A", "s-B"), ("s-B",), ("hand.png",), ["s-B.png", "hand.png"]),  # 이번 파일에 직접 올린 파일이 섞임
+    ("s-A", ("s-B",), ("s-B",), (), ["s-B.png"]),                           # 최종 도면의 시트를 마법사에서 지움
+])
+def test_unknown_sheet_identity_keeps_replacing_single_final(
+        client, people, pushes, final_sheet, sheets, sent, manual, expected):
+    """대조: 시트가 다르다고 증명되지 않으면 지금 그대로 한 장을 바꾼다(2026-10-27 결정 3)."""
+    oid = _sheet_order(people, final_sheet=final_sheet, sheets=sheets)
+    _login(client, people.drawer)
+    assert _send_sheets(client, oid, *sent, manual=manual).status_code == 200
+    _order_row, sd = _sd(oid)
+    assert _names(sd) == expected
+
+
+@pytest.mark.parametrize("stage", ["CONFIRM", "PRODUCTION"])
+def test_resend_before_sales_confirm_still_replaces_all(client, people, pushes, stage):
+    """대조: 영업 확정 전(TRANSFERRED) 재전달은 다른 시트여도 전체 교체 그대로(2026-09-30 결정)."""
+    oid = _sheet_order(people, stage=stage, status="TRANSFERRED")
+    _login(client, people.drawer)
+    assert _send_sheets(client, oid, "s-B").status_code == 200
+    _order_row, sd = _sd(oid)
+    assert _names(sd) == ["s-B.png"]
+    assert next(h for h in reversed(sd["drawing_transfer_history"]) if h["action"] == "TRANSFER")["mode"] == "REPLACE_ALL"
+
+
+@pytest.mark.parametrize("pending,stage,expected", [
+    (("s-B",), "PRODUCTION", "APPEND"),   # 전달 대기가 모두 다른 시트 → 기본 '추가'
+    (("s-A",), "PRODUCTION", "REPLACE"),  # 대조: 같은 시트 새 판
+    (("s-A", "s-B"), "PRODUCTION", "REPLACE"),  # 대조: 같은 시트가 섞임
+    (("s-B",), "CONFIRM", "REPLACE"),     # 대조: 생산·시공 단계가 아니면 그대로
+])
+def test_workbench_transfer_window_default_follows_same_rule(client, people, pushes, pending, stage, expected):
+    oid = _sheet_order(people, pending=pending, stage=stage)
+    _login(client, people.drawer)
+    soup = BeautifulSoup(client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True), "html.parser")
+    selected = soup.select("#dw-transfer-mode option[selected]")
+    assert [o["value"] for o in selected] == [expected]

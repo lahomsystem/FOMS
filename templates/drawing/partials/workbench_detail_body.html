@@ -1851,8 +1851,9 @@
         <div class="mb-3">
           <label class="form-label fw-bold">전달 모드</label>
           <select class="form-select" id="dw-transfer-mode" onchange="toggleTransferTargetCards()">
-            {# 확정된 주문에 다시 보낼 때 기본 = 교체(SPEC 2026-10-27 C) — 추가면 고친 도면과 옛 도면이 둘 다 최종이 된다. #}
-            {% set dw_replace_default = drawing_status == 'RETURNED' or (drawing_status == 'CONFIRMED' and drawing_files) %}
+            {# 확정된 주문에 다시 보낼 때 기본 = 교체(SPEC 2026-10-27 C) — 추가면 고친 도면과 옛 도면이 둘 다 최종이 된다.
+               한 장뿐인 최종 도면과 전달 대기 시트가 서로 다른 시트면 기본 = 추가(SPEC 2026-11-20 §7.2) — 교체면 앞 제품 도면이 사라진다. #}
+            {% set dw_replace_default = drawing_status == 'RETURNED' or (drawing_status == 'CONFIRMED' and drawing_files and not transfer_default_append) %}
             <option value="APPEND" {% if drawing_status != 'TRANSFERRED' and not dw_replace_default %}selected{% endif %}>추가 (Append)</option>
             <option value="REPLACE" {% if dw_replace_default %}selected{% endif %}>교체 (Replace)</option>
             <option value="REPLACE_ALL" {% if drawing_status=='TRANSFERRED' %}selected{% endif %}>전체 교체 (Replace All)</option>
