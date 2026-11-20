@@ -155,8 +155,11 @@ def test_copy_creates_fresh_erp_identity_and_drops_operational_state(client, mon
     assert "assignments" not in sd
     assert "shipment" not in sd
     assert "schedule" not in sd
-    assert sd["flags"]["urgent"] is True
-    assert sd["payment"]["deposit"] == "300,000"
+    # 넣을 것만 넣기(설계서 2026-11-20 6.3 · M14): 긴급 표시 · 예약금은 원본 주문의 사정이라 따라오지 않는다.
+    assert "urgent" not in sd["flags"] and "urgent_reason" not in sd["flags"]
+    assert "deposit" not in sd["payment"]
+    assert copied.erp_urgent is False
+    assert not copied.payment_amount
     # totals 는 서버가 items/payment 로 재계산한다(클라이언트 값 폐기).
     assert sd["totals"]["items_total"] == 1200000
     assert sd["totals"]["shipping_price"] == 1200000
