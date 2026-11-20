@@ -1408,12 +1408,6 @@
         margin-bottom: 8px;
       }
 
-      .drawing-target-card-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-        gap: 8px;
-      }
-
       .dw-revision-note-text {
         white-space: pre-wrap;
         word-break: break-word;
@@ -1442,82 +1436,6 @@
         max-width: 100%;
         max-height: 42vh;
         object-fit: contain;
-      }
-
-      .drawing-target-card {
-        border: 1px solid #dbe5f5;
-        border-radius: 10px;
-        background: #fff;
-        padding: 6px;
-        cursor: pointer;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-      }
-
-      .drawing-target-card:hover {
-        border-color: #8cb8ff;
-        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12);
-        transform: translateY(-1px);
-      }
-
-      .drawing-target-card.is-active {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
-      }
-
-      .drawing-target-card-thumb {
-        width: 100%;
-        height: 74px;
-        border-radius: 7px;
-        border: 1px solid #e5e7eb;
-        background: #f8fafc;
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        margin-bottom: 5px;
-      }
-
-      .drawing-target-card-thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .drawing-target-card-meta {
-        font-size: 0.76rem;
-        color: #334155;
-        line-height: 1.3;
-      }
-
-      .drawing-target-card-meta .num {
-        font-weight: 700;
-        color: #0d6efd;
-      }
-
-      .drawing-target-selected-pill {
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        background: rgba(13, 110, 253, 0.95);
-        color: #fff;
-        border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.35);
-      }
-
-      .drawing-target-card.is-active .drawing-target-card-meta .num {
-        color: #084298;
-      }
-
-      @media (max-width: 768px) {
-        .drawing-target-card-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-        }
       }
 
       .erp-drawing-workbench {
@@ -1682,6 +1600,90 @@
 
       .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td.text-end {
         text-align: left !important;
+      }
+    }
+
+    /* 교체 대상 도면 카드 — 예전엔 위 992px 이하 묶음 안에만 있어 PC(993px 이상)에서 꾸밈이 전혀 안 먹었다
+       (그림이 원본 크기로 그려짐, 2026-11-20 발견). 폭과 상관없는 규칙이라 묶음 밖으로 옮긴다. */
+    .drawing-target-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      gap: 8px;
+    }
+
+    .drawing-target-card {
+      border: 1px solid #dbe5f5;
+      border-radius: 10px;
+      background: #fff;
+      padding: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .drawing-target-card:hover {
+      border-color: #8cb8ff;
+      box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .drawing-target-card.is-active {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+    }
+
+    .drawing-target-card-thumb {
+      width: 100%;
+      height: 74px;
+      border-radius: 7px;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+
+    .drawing-target-card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .drawing-target-card-meta {
+      font-size: 0.76rem;
+      color: #334155;
+      line-height: 1.3;
+    }
+
+    .drawing-target-card-meta .num {
+      font-weight: 700;
+      color: #0d6efd;
+    }
+
+    .drawing-target-selected-pill {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: rgba(13, 110, 253, 0.95);
+      color: #fff;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.35);
+    }
+
+    .drawing-target-card.is-active .drawing-target-card-meta .num {
+      color: #084298;
+    }
+
+    @media (max-width: 768px) {
+      .drawing-target-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
       }
     }
 
