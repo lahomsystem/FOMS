@@ -2,8 +2,11 @@
 
 - a53 생산 진행: 공정 기록이 있으면 출고 칸 `생산 n/4`, 없으면 `생산중`(0/4 라고 말하지 않는다). 상세는 같은 말 한 번 —
   가운데 `아직 생산 중이에요 · 조립까지 끝남`, 오른쪽 안내 줄은 `완료 사진 n장` 만.
-- a52 AS 방문 집: as_visit 날짜로만 든다(AS 상태 + 시공일만 = 지금처럼 뺌). 줄 `AS 방문` · 출고 `-`, 상세는 단추 대신 `AS 방문 집이에요`.
-- a51 날짜 미정 집: 시공대기 · 시공중 + 시공 일정 줄 없음(생산 단계 · AS · 시공일 있는 집은 안 듦), 수는 쿼리 A 와 한 문장.
+- a52 AS 방문 집: 본 흐름이 끝난 AS 집은 as_visit 날짜로만 든다(AS 상태 + 시공일만 = 지금처럼 뺌). 줄 `AS 방문` · 출고 `-`,
+  상세는 단추 대신 `AS 방문 집이에요`. 본 흐름이 열린(생산 · 시공 단계) AS 집은 시공 줄로 든다 — 2026-11-20 결정 M1,
+  그 견본은 tests/domains/test_schedule_row_kind_surfaces.py.
+- a51 날짜 미정 집: 시공대기 · 시공중 + 시공 일정 줄 없음(생산 단계 · 완료 단계 · 시공일 있는 집은 안 듦, AS 상태여도 시공 단계면 듦),
+  수는 쿼리 A 와 한 문장.
 대조군은 모두 같은 자료 안에서 고른다(들지 말아야 할 집을 같이 만든다). 이름 · 주소는 지어낸 것.
 """
 from __future__ import annotations
@@ -195,17 +198,19 @@ def test_undated_scope_and_more_menu_line(client, monkeypatch) -> None:
     undated = _order("가짜날짜없음", workers=["가짜기사"])
     _order("가짜시공일있음", kinds={"construction": _d(30)})
     _order("가짜생산날짜없음", stage="PRODUCTION")
-    _order("가짜에이에스날짜없음", stage="CONSTRUCTION", status="AS_RECEIVED")
+    # 시공 단계면 AS 상태여도 든다(본 흐름이 열려 있다 — 2026-11-20 결정 M1). 대조군: 완료 단계 AS 집은 안 든다.
+    as_undated = _order("가짜에이에스날짜없음", stage="CONSTRUCTION", status="AS_RECEIVED")
+    _order("가짜완료에이에스날짜없음", stage="COMPLETED", status="AS_RECEIVED")
     _order("가짜완료날짜없음", stage="COMPLETED")
     _login(client, monkeypatch)
     first = _first(_get(client, f"?date={_d(0)}&worker="))
     link = re.search(r'<a class="foms-cons-pop__item" href="([^"]+)" data-cons-undated>날짜 미정 (\d+)집 보기</a>', first)
-    assert link and link.group(2) == "1" and "undated=1" in link.group(1) and f"date={_d(0)}" in link.group(1)
+    assert link and link.group(2) == "2" and "undated=1" in link.group(1) and f"date={_d(0)}" in link.group(1)
     body = _get(client, f"?undated=1&date={_d(0)}&worker=")
     assert "foms-cons-first" not in body
     left = _cut(body, 'class="foms-cwork-timeline"', "</aside>")
-    assert "날짜 미정 · <span data-cwork-count>1</span>집" in left and "날짜 목록" in left
-    assert re.findall(r'data-order-id="(\d+)"', left) == [str(undated)]
+    assert "날짜 미정 · <span data-cwork-count>2</span>집" in left and "날짜 목록" in left
+    assert re.findall(r'data-order-id="(\d+)"', left) == [str(undated), str(as_undated)]
 
 
 def test_undated_zero_has_no_line_and_worker_filter_applies(client, monkeypatch) -> None:
@@ -269,7 +274,8 @@ def test_query_counts_with_as_and_undated(client, monkeypatch, mode, cap) -> Non
 
 
 def test_old_deeplink_as_house_picks_as_visit_day_not_construction_day() -> None:
-    """AS 상태 집의 옛 딥링크는 AS 방문일로 연다 — 시공일로 열면 그날 첫 화면 범위 밖이라 왼쪽 수가 어긋났다(스테이징 11-12).
+    """AS 줄로만 드는 집(``is_as`` — 본 흐름이 닫힌 AS 집)의 옛 딥링크는 AS 방문일로 연다 — 시공일로 열면 그날 첫 화면 범위
+    밖이라 왼쪽 수가 어긋났다(스테이징 11-12). 본 흐름이 열린 AS 집은 호출자가 ``is_as=False`` 를 넘겨 시공일로 연다(M1).
 
     시공일(오늘 +1)이 AS 방문일(오늘 +3)보다 가까워도 AS 방문일을 고른다. AS 아닌 집은 시공일.
     """

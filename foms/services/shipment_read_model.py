@@ -11,8 +11,8 @@ from __future__ import annotations
 import datetime
 import logging
 
+from foms.services.orders.schedule_row_kind import as_hides_main_flow
 from foms.services.shipment_dashboard_helpers import (
-    is_as_order,
     extract_all_construction_dates,
     _normalize_worker_name,
     order_spec_units,
@@ -40,7 +40,8 @@ def compute_shipment_panel_aggregates(panel_orders, range_start, range_end, work
     aw = {}
     su = {}
     for order in panel_orders:
-        if is_as_order(order):
+        # 본 흐름이 닫힌 AS 주문의 시공일 줄은 AS 줄이라 세지 않는다. 본 흐름이 열려 있으면(생산 · 시공) 남은 시공으로 센다.
+        if as_hides_main_flow(order):
             continue
 
         for date_value in extract_all_construction_dates(order):

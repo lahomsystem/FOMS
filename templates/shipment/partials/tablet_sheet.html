@@ -36,7 +36,8 @@
     <div class="foms-ship-sheet__meta">대리점 {{ order.orderer_name or '-' }} · 영업 담당 {{ (order|manager_label) or '-' }}</div>
   </section>
 
-  {% if is_as %}
+  {# AS 정보 칸은 AS 상태 주문이면 싣는다 — 본 흐름이 열려 시공 줄로 연 서랍(머리는 '출고')에서도 AS 내용을 읽는다. #}
+  {% if has_as_info|default(is_as) %}
   {# AS 정보 — 접수 원문 · 접수일은 서버가 바로 그린다. 그 아래 AS 탭 기록은 서랍이 열린 뒤
      tablet-ship-sheet.js 가 AS 탭의 읽기 조각(/erp/as/timeline/<id>?readonly=1)을 불러 붙인다. #}
   <section class="foms-ship-sheet__card foms-ship-sheet__card--as" aria-label="AS 정보">

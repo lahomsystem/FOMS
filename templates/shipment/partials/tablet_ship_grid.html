@@ -89,7 +89,7 @@
           {%- if r.partner_payment_pending is defined and r.partner_payment_pending %}<span class="foms-tablet-shipgrid__flag foms-tablet-shipgrid__flag--danger" data-shipment-partner-unpaid>입금 대기</span>{% endif %}
           {{- render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false, true)) -}}
         </td>
-        <td class="foms-tablet-shipgrid__time">{% if time_text %}{{ time_text }}{% elif plan_time %}<span class="foms-tablet-shipgrid__dim">{{ plan_time }}</span>{% endif %}</td>
+        <td class="foms-tablet-shipgrid__time">{% if time_text %}{{ time_text }}{% elif plan_time %}<span class="foms-tablet-shipgrid__dim">{{ plan_time }}</span>{% endif %}{% if row.as_visit_too %} <span class="foms-tablet-shipgrid__dim" data-ship-as-too>AS 방문도</span>{% endif %}</td>
         <td class="foms-tablet-shipgrid__sales">{{ (r|manager_label) or '' }}</td>
         <td class="foms-tablet-shipgrid__worker">
           {%- set _names = row.workers|map(attribute='name')|list %}

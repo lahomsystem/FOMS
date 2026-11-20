@@ -10,8 +10,8 @@
 * **B — 고른 날 + 미리 볼 날의 줄**: 같은 조건으로 주문 전부(구조 자료 포함)를 날짜 · 번호 순으로,
   합쳐 ``DAY_ROWS_CAP`` 까지. 숨은 수는 A 의 수에서 뺀 값이라 조용히 잘리지 않는다.
 
-범위(두 쿼리 공통): 지움 · 초안 뺌, ERP 주문, 협력사 칸, AS 상태 뺌, 단계 = 생산 + 시공 단계(D42 ① —
-시공일 잡힌 집은 생산 중이어도 넣고 줄에 ``생산중``), mine 이면 ``build_mine_sql_filter``(시공팀 · 켜진
+범위(두 쿼리 공통): 지움 · 초안 뺌, ERP 주문, 협력사 칸, 단계 = 생산 + 시공 단계(D42 ① — 시공일 잡힌 집은
+생산 중이어도 넣고 줄에 ``생산중``), AS 상태 집은 줄 종류 짝(``schedule_row_kind``)으로만 든다, mine 이면 ``build_mine_sql_filter``(시공팀 · 켜진
 프리랜서 — 지금 시공 목록과 같은 SQL), 시공자를 고르면 ``shipment.construction_workers`` 이름 조건.
 60일 창(``dashboard_active_filter``)은 쓰지 않는다(앞날 집이 창 밖으로 밀리지 않게).
 
@@ -41,10 +41,16 @@ from foms.services.erp_permissions import (
 from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
 from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.orders.board_state_display import construction_display_stage
+from foms.services.orders.schedule_row_kind import (
+    as_status_clause,
+    kind_pair_case,
+    not_as_status_clause,
+    row_as_visit_too,
+    row_is_as,
+)
 from foms.services.production_home_read_model import production_home_steps
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
 from foms.services.shipment_dashboard_helpers import (
-    AS_SHIPMENT_STATUSES,
     _normalize_worker_name,
     visible_items_for_dates,
     visible_spec_units,
@@ -65,64 +71,46 @@ UNDATED_KEY = "undated"
 _KINDS = ("construction", "as_visit")
 
 
-def _is_as(entity: Any = Order) -> Any:
-    """AS 상태 주문(출고 판과 같은 목록 ``AS_SHIPMENT_STATUSES``)."""
-    return entity.status.in_(AS_SHIPMENT_STATUSES)
-
-
-def _not_as(entity: Any = Order) -> Any:
-    return or_(entity.status.is_(None), ~entity.status.in_(AS_SHIPMENT_STATUSES))
-
-
-def _kind_pair(entity: Any = Order) -> Any:
-    """일정 줄 종류 ↔ 주문 상태 짝(출고 판 패널과 같은 꼴): AS 아님이면 시공일, AS 면 AS 방문일만.
-
-    AS 상태인데 시공일만 있는 집(as_visit 없음)은 지금처럼 들지 않는다 — AS 를 넣는 기준은 as_visit 날짜뿐(D43).
-
-    ``(종류 = 시공 AND AS 아님) OR (종류 = AS 방문 AND AS)`` 와 뜻이 같은 CASE 한 식으로 쓴다(그 밖 종류는 NULL = 빠짐).
-    두 표에 걸친 OR 은 PostgreSQL 계획기가 표마다 OR 조건을 뽑아 색인 묶음(BitmapOr)을 두루 맞춰 보느라 계획 세우기가
-    실행보다 3배 넘게 걸렸다(로컬 PG 17 · 운영 규모 가짜 자료: 쿼리 A 본체 계획 2.2ms → 0.55ms, 쿼리 B 1.8 → 0.65ms).
-    """
-    return case(
-        (OrderScheduleDate.kind == "as_visit", _is_as(entity)),
-        (OrderScheduleDate.kind == "construction", _not_as(entity)),
-    )
-
-
 #: (주문, 날짜) 묶음 안에서 상태만 보는 주문 별칭 · 짝 조건 — 한 번만 만든다. 요청마다 ``aliased(Order)`` 를 새로 만들면
 #: 별칭 열 적응(``corresponding_column``)을 매번 다시 해 식 만들기만 쿼리당 약 1ms 였다(로컬 실측).
+#: 종류 짝 = AS 방문일은 AS 상태만, 시공일은 AS 아님 또는 본 흐름 열림(CASE 한 식 — 정본 ``schedule_row_kind``).
 _PAIR_ORDER = aliased(Order)
 _PAIR_JOIN = _PAIR_ORDER.id == OrderScheduleDate.order_id
-_PAIR_KIND = _kind_pair(_PAIR_ORDER)
+_PAIR_KIND = kind_pair_case(OrderScheduleDate.kind, _PAIR_ORDER)
 
 
-def _day_pairs(days: list[str]) -> Any:
+def _day_pairs(days: list[str], *, with_kinds: bool = False) -> Any:
     """그 날들의 (주문, 날짜) 묶음 — 일정 줄을 주문 번호로만 이어 종류 짝을 보고 겹침을 없앤다(주문 조건은 바깥에서).
 
     쿼리 A · B 가 같은 꼴을 쓴다: 작은 묶음(색인 ``(kind, date, order_id)`` + 주문 번호 색인)을 먼저 만들고 바깥에서
     주문 조건(``scope_conditions``)을 건다 — 계획기가 주문 표 전체 훑기를 고르지 않는다.
+    ``with_kinds``(쿼리 B)면 그 (주문, 날짜)에 짝이 맞은 시공 줄 · AS 방문 줄이 있는지도 싣는다(줄 종류의 근거).
     """
-    return (
-        select(OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day"))
-        .join(_PAIR_ORDER, _PAIR_JOIN)
-        .where(OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _PAIR_KIND)
-        .distinct()
-        .subquery()
-    )
+    cols = [OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day")]
+    if with_kinds:
+        cols += [func.max(case((OrderScheduleDate.kind == kind, 1), else_=0)).label(label)
+                 for kind, label in (("construction", "has_cons"), ("as_visit", "has_as"))]
+    stmt = select(*cols).join(_PAIR_ORDER, _PAIR_JOIN).where(
+        OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _PAIR_KIND)
+    stmt = stmt.group_by(OrderScheduleDate.order_id, OrderScheduleDate.date) if with_kinds else stmt.distinct()
+    return stmt.subquery()
 
 
 class _DayRow:
-    """그날 하나의 줄 — ORM 주문을 감싸 그날 품목만 따로 든다(ORM 객체에 속성을 붙이지 않는다)."""
+    """그날 하나의 줄 — ORM 주문을 감싸 그날 품목 · 줄 종류를 따로 든다(ORM 객체에 속성을 붙이지 않는다)."""
 
-    __slots__ = ("_order", "day", "shipment_visible_items")
+    __slots__ = ("order", "day", "shipment_visible_items", "schedule_row_is_as", "schedule_as_visit_too")
 
-    def __init__(self, order: Any, day: str) -> None:
-        self._order = order
+    def __init__(self, order: Any, day: str, *, has_cons: bool = True, has_as: bool = False) -> None:
+        self.order = order
         self.day = day
         self.shipment_visible_items = visible_items_for_dates(order, target_date=day)
+        # 짝이 맞은 시공 줄이 있으면 시공 줄(같은 날 AS 방문 줄도 있으면 "AS 방문도"), AS 방문 줄만이면 AS 줄.
+        self.schedule_row_is_as = not has_cons
+        self.schedule_as_visit_too = bool(has_cons and has_as)
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._order, name)
+        return getattr(self.order, name)
 
 
 def parse_day(value: Any) -> str | None:
@@ -155,8 +143,10 @@ def scope_conditions(*, user: Any, mine_only: bool, partner_org: str, worker: st
         Order.active_filter(),
         Order.is_erp_order.is_(True),
         partner_order_clause(partner_org),
-        # 시공 줄 = AS 아님 + 생산 · 시공 단계(D42 ①), AS 방문 줄 = AS 상태(단계 무관 — 날짜는 as_visit 짝으로만, D43 a52).
-        or_(and_(_not_as(), Order.erp_stage_code.in_(FIRST_SCREEN_STAGE_CODES)), _is_as()),
+        # AS 아님 = 생산 · 시공 단계(D42 ①). AS 상태 = 단계 무관 — 어느 날 무슨 줄로 드는지는 종류 짝이 정한다
+        # (AS 방문일은 늘, 시공일은 본 흐름이 열렸을 때만).
+        or_(and_(not_as_status_clause(Order), Order.erp_stage_code.in_(FIRST_SCREEN_STAGE_CODES)),
+            as_status_clause(Order)),
     ]
     if mine_only:
         mine = build_mine_sql_filter(user) if user is not None else []
@@ -172,12 +162,13 @@ def scope_conditions(*, user: Any, mine_only: bool, partner_org: str, worker: st
 
 
 def undated_conditions(conds: list[Any]) -> list[Any]:
-    """날짜 미정 집(D43 a51) = 첫 화면 조건 + AS 아님 + 시공대기 · 시공중 단계 + 시공 일정 줄 없음.
+    """날짜 미정 집(D43 a51) = 첫 화면 조건 + 시공대기 · 시공중 단계 + 시공 일정 줄 없음.
 
-    생산 단계 · 완료 단계 · AS 상태 집은 들지 않는다. mine · 협력사 · 사람 칸은 ``conds`` 그대로.
+    생산 단계 · 완료 단계 집은 들지 않는다. AS 상태여도 시공 단계면 든다(본 흐름이 열려 있다).
+    mine · 협력사 · 사람 칸은 ``conds`` 그대로.
     """
     no_date = ~exists().where(OrderScheduleDate.order_id == Order.id, OrderScheduleDate.kind == "construction")
-    return list(conds) + [_not_as(), Order.erp_stage_code.in_(CONSTRUCTION_ACTIVE_STAGE_CODES), no_date]
+    return list(conds) + [Order.erp_stage_code.in_(CONSTRUCTION_ACTIVE_STAGE_CODES), no_date]
 
 
 def count_houses_by_date(db: Any, conds: list[Any], dates: Iterable[str], *, with_undated: bool = False) -> dict[str, int]:
@@ -208,22 +199,22 @@ def fetch_undated_orders(db: Any, conds: list[Any], cap: int | None = None) -> l
     return db.query(Order).filter(*undated_conditions(conds)).order_by(Order.id.asc()).limit(cap + 1).all()
 
 
-def fetch_day_orders(db: Any, conds: list[Any], dates: Iterable[str], cap: int | None = None) -> list[tuple[str, Any]]:
-    """쿼리 B — 날짜들의 (날짜, 주문) 줄, 날짜 · 주문 번호 순으로 합쳐 ``cap``(기본 ``DAY_ROWS_CAP``) 까지."""
+def fetch_day_orders(db: Any, conds: list[Any], dates: Iterable[str], cap: int | None = None) -> list[_DayRow]:
+    """쿼리 B — 날짜들의 그날 줄(주문 · 날짜 · 줄 종류), 날짜 · 주문 번호 순으로 합쳐 ``cap``(기본 ``DAY_ROWS_CAP``) 까지."""
     cap = DAY_ROWS_CAP if cap is None else cap
     days = sorted(set(dates))
     if not days:
         return []
-    pairs = _day_pairs(days)
+    pairs = _day_pairs(days, with_kinds=True)
     rows = (
-        db.query(Order, pairs.c.day)
+        db.query(Order, pairs.c.day, pairs.c.has_cons, pairs.c.has_as)
         .join(pairs, pairs.c.oid == Order.id)
         .filter(*conds)
         .order_by(pairs.c.day.asc(), Order.id.asc())
         .limit(cap)
         .all()
     )
-    return [(str(day), order) for order, day in rows]
+    return [_DayRow(order, str(day), has_cons=bool(cons), has_as=bool(as_)) for order, day, cons, as_ in rows]
 
 
 def _sd(order: Any) -> dict:
@@ -312,12 +303,8 @@ def production_note(sd: dict) -> str:
     return f"아직 생산 중이에요 · {prog['last']}까지 끝남" if prog and prog["last"] else "아직 생산 중이에요"
 
 
-def is_as_status(order: Any) -> bool:
-    return getattr(order, "status", None) in AS_SHIPMENT_STATUSES
-
-
 def _stage_label(order: Any, sd: dict) -> str:
-    if is_as_status(order):
+    if row_is_as(order):
         return "AS 방문"
     if str(getattr(order, "erp_stage_code", "") or "").strip().upper() in PRODUCTION_STAGE_CODES:
         return "생산중"
@@ -355,6 +342,7 @@ def build_row_view(row: _DayRow) -> dict:
         "now_working": stage == "시공중",
         "done": stage == "시공완료",
         "as_visit": stage == "AS 방문",
+        "as_visit_too": row_as_visit_too(row),
         "customer": str(((parties.get("customer") or {}).get("name")) or getattr(row, "customer_name", "") or "-"),
         "agency": str(((parties.get("orderer") or {}).get("name")) or "").strip(),
         "product": _product_text(row),
@@ -374,9 +362,9 @@ def time_sort_key(order: Any) -> tuple[int, int]:
     return _time_fields(_sd(order))[2]
 
 
-def build_day_section(day: str, orders: list[Any], worker_settings: list, *, count: int, preview: bool) -> dict:
+def build_day_section(day: str, day_rows: list[_DayRow], worker_settings: list, *, count: int, preview: bool) -> dict:
     """하루 묶음 — 시간 순으로 줄 세운 뒤 출고와 같은 ``build_tablet_day_sheet`` 로 묶고 색을 매긴다."""
-    rows = sorted((_DayRow(o, day) for o in orders), key=lambda r: (_time_fields(_sd(r))[2], r.id))
+    rows = sorted(day_rows, key=lambda r: (_time_fields(_sd(r))[2], r.id))
     sheet = build_tablet_day_sheet(rows, worker_settings, day)
     groups = []
     for g in sheet["groups"]:
@@ -456,9 +444,9 @@ def build_tablet_first(db: Any, *, user: Any, mine_only: bool, partner_org: str 
     counts = count_houses_by_date(db, conds, days + [sel], with_undated=True)
     preview = next((d for d in days if d > sel and counts.get(d, 0) > 0), None)
     want = [d for d in (sel, preview) if d and counts.get(d, 0) > 0]
-    by_day: dict[str, list[Any]] = {d: [] for d in want}
-    for day, order in fetch_day_orders(db, conds, want):
-        by_day.setdefault(day, []).append(order)
+    by_day: dict[str, list[_DayRow]] = {d: [] for d in want}
+    for row in fetch_day_orders(db, conds, want):
+        by_day.setdefault(row.day, []).append(row)
     sections = [build_day_section(d, by_day.get(d, []), worker_settings, count=counts.get(d, 0),
                                   preview=(d != sel)) for d in want]
 

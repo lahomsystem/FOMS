@@ -22,13 +22,13 @@ from foms.services.construction.tablet_first import (
     DAY_ROWS_CAP,
     fetch_day_orders,
     fetch_undated_orders,
-    is_as_status,
     parse_day,
     production_note,
     scope_conditions,
     time_sort_key,
 )
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.schedule_row_kind import as_hides_main_flow
 from models import OrderScheduleDate
 
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
@@ -56,7 +56,8 @@ def day_label(day: str | None) -> str:
 def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None, *, is_as: bool = False) -> str | None:
     """옛 딥링크(날짜 없음)의 날짜 — 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1).
 
-    첫 화면 짝 규칙(D43)과 같은 종류를 먼저 본다: AS 상태 집 = AS 방문일, 그 밖 = 시공일. 그 종류가 없을 때만 다른 종류.
+    첫 화면 짝 규칙과 같은 종류를 먼저 본다: AS 줄로만 드는 집(``is_as`` — AS 상태 · 본 흐름 닫힘) = AS 방문일,
+    그 밖(본 흐름이 열린 AS 집 포함) = 시공일. 그 종류가 없을 때만 다른 종류.
     (AS 집을 시공일로 열면 그날 첫 화면에 그 집이 없어 왼쪽 목록과 수가 어긋났다 — 스테이징 11-12.)
     """
     rows = db.execute(
@@ -83,12 +84,12 @@ def build_detail(db: Any, *, focus: Any, user: Any, mine_only: bool, partner_org
     Returns:
         {'orders': 주문 목록(시간 순), 'date', 'date_label', 'worker', 'focus_id'}.
     """
-    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today, is_as=is_as_status(focus))
+    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today, is_as=as_hides_main_flow(focus))
     worker = str(worker_arg or "").strip()
     orders: list[Any] = []
     if day:
         conds = scope_conditions(user=user, mine_only=mine_only, partner_org=partner_org, worker=worker)
-        orders = sorted((o for _d, o in fetch_day_orders(db, conds, [day])), key=lambda o: (is_as_status(o), time_sort_key(o), o.id))  # 시공 집 먼저 · AS 방문 집 뒤(첫 화면 묶음과 같은 규칙, D44)
+        orders = sorted((r.order for r in fetch_day_orders(db, conds, [day])), key=lambda o: (as_hides_main_flow(o), time_sort_key(o), o.id))  # 시공 집 먼저 · AS 방문 집 뒤(첫 화면 묶음과 같은 규칙, D44) — 카드가 'AS 방문'인 집과 같은 판정
     if all(o.id != focus.id for o in orders):
         orders = [focus] + orders
     return {"orders": orders, "date": day, "date_label": day_label(day), "worker": worker, "focus_id": focus.id}
