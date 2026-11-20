@@ -301,10 +301,15 @@ def perform_drawing_transfer(
     # 장을 바꾼다 — 추가로 쌓으면 고친 도면과 옛 도면이 둘 다 최종이 된다(주문 5690). 두 장
     # 이상이면 어느 장인지 몰라 지금처럼 더한다. 그 한 장과 이번 파일이 서로 다른 마법사 시트로
     # 증명되면 바꾸지 않고 더한다 — 다른 제품 도면을 보냈다고 앞 제품 도면이 사라지면 안 된다.
+    # 수정 요청에 답하는 길(RETURNED)의 "한 장이면 교체"에도 같은 예외를 건다. 전달 창이 이 조건에서
+    # 미리 고르는 '추가'도 같은 뜻이라 함께 받는다(교체 · 전체 교체를 고른 것은 그대로 따른다).
+    other_sheet_only = bool(
+        hotfix and mode in ('', 'APPEND') and not replace_target_keys
+        and sends_only_other_sheets(old_files, new_files, s_data)
+    )
     if (
         hotfix and not mode and not replace_target_keys and not is_retransfer
-        and len(old_files) == 1
-        and not sends_only_other_sheets(old_files, new_files, s_data)
+        and len(old_files) == 1 and not other_sheet_only
     ):
         is_retransfer = True
 
@@ -359,7 +364,7 @@ def perform_drawing_transfer(
                 first_index = min([x[0] for x in indices_to_replace])
                 for offset, nf in enumerate(rest_files):
                     updated_files.insert(first_index + offset, nf)
-            elif is_retransfer and not sheet_replaced_numbers:
+            elif is_retransfer and not sheet_replaced_numbers and not other_sheet_only:
                 if len(base_files) > 1:
                     return {'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}, 400
                 # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
@@ -425,7 +430,8 @@ def perform_drawing_transfer(
         'previous_current_files': old_files,  # 취소 시 복원용
         'mode': (
             'REPLACE'
-            if (is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1)
+            if (is_retransfer and not other_sheet_only and not replace_target_keys
+                and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1)
             or (sheet_replaced_numbers and (mode or 'APPEND').upper() == 'APPEND')
             else (mode if mode else ('REPLACE' if replace_target_keys or sheet_replaced_numbers else 'APPEND'))
         ),
