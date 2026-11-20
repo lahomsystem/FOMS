@@ -35,6 +35,8 @@
 {# AS 접수 창 초안 보관(새로고침에도 남김) — 주문 폼 공용 스크립트가 window.fomsAsReceiveDraft 를 부른다. #}
 <script src="{{ asset_url('js/orders/as-receive-draft.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-order-shared.js') }}" defer></script>
+{# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — 주문 폼 공용 스크립트의 초안 판정 · 주문 번호를 쓴다. #}
+<script src="{{ asset_url('js/orders/erp-same-customer-notice.js') }}" defer></script>
 {# 완료 주문 AS 도면 묶음 — 확인했어요 · 고쳐 주세요(설계서 2026-11-11-as-drawing-after-completion). #}
 <link rel="stylesheet" href="{{ asset_url('css/contexts/drawing/workbench-as.css') }}">
 <script src="{{ asset_url('js/orders/erp-as-drawing-panel.js') }}" defer></script>

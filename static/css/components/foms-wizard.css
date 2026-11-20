@@ -459,6 +459,31 @@
   margin-top: 4px;
 }
 
+/* ── Step 4: 같은 고객의 진행 중 주문 안내(맨 위 한 줄). 알리기만 한다 — hidden 속성으로 숨긴다. ── */
+.foms-wizard__same-customer {
+  margin: 0 0 var(--foms-space-4, 16px);
+  padding: var(--foms-space-3, 12px);
+  border: 1px solid var(--foms-color-warning-500, #f59e0b);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-color-warning-50, #fffbeb);
+  color: var(--foms-text-primary, #111827);
+  font-size: var(--foms-font-size-sm, 14px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.foms-wizard__same-customer > * {
+  display: block;
+}
+
+.foms-wizard__same-customer a {
+  display: inline-block;
+  padding: 6px 0;
+  color: var(--foms-color-warning-700, #b45309);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 /* ── Step 4: 확인 요약 카드 ── */
 .foms-wizard__summary-card {
   background: var(--foms-surface-raised, #f9fafb);
