@@ -15,7 +15,7 @@ from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst
-from foms.services.files.list_thumb import list_thumb_url
+from foms.services.files.list_thumb import list_thumb_url, mid_thumb_url
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
@@ -331,9 +331,15 @@ def _partner_files(db, order: Order, items: list) -> tuple[list[dict], dict[int,
 
 
 def _with_urls(photos: list[dict]) -> list[dict]:
-    """서비스가 돌려준 key 로 보기 주소를 붙인다(주소 만들기는 웹 층 몫 — 층 의존 규칙)."""
+    """서비스가 돌려준 key 로 보기 주소를 붙인다(주소 만들기는 웹 층 몫 — 층 의존 규칙).
+
+    완공 · AS 사진 칸(정사각 120px~ · 폰 두 칸 약 175px)의 ``thumb_url`` = 640 중간 크기 그림 길(SPEC
+    2026-11-20-mid-size-image — 320 은 2배 화면에 모자람, 30일 캐시). 만들 수 없는 key 면 옛 썸네일 · 원본.
+    확대 창(``data-foms-lightbox-src``)은 ``url``(원본).
+    """
     return [
-        {**p, "url": build_file_view_url(p["storage_key"]), "thumb_url": build_file_view_url(p["thumbnail_key"])}
+        {**p, "url": build_file_view_url(p["storage_key"]),
+         "thumb_url": mid_thumb_url(p["storage_key"]) or build_file_view_url(p["thumbnail_key"])}
         for p in photos
     ]
 

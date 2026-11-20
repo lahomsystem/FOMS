@@ -140,15 +140,16 @@ def create_thumbnail_for_attachment(attachment_id, storage_key):
         raise
 
 
-def create_list_thumb_for_key(storage_key):
-    """목록 작은 그림(긴 변 320px · 원본 옆 ``sthumb320_<이름>.jpg``) 만들기(worker 전용).
+def create_list_thumb_for_key(storage_key, size=320):
+    """목록 작은 그림(긴 변 320px · 원본 옆 ``sthumb320_<이름>.jpg``, 640 이면 ``sthumb640_``) 만들기(worker 전용).
 
     판정 · 그리기 · 저장 규칙은 :func:`foms.services.files.list_thumb.create_list_thumb` 가 정본이다.
     DB 를 쓰지 않는다(이름이 원본 key 에서 계산된다 — 첨부 행 · 대시보드 캐시를 건드릴 일이 없다).
+    ``size`` 기본값 320 — 중간 크기(SPEC 2026-11-20-mid-size-image) 전에 큐에 든 인자 1개 작업도 그대로 돈다.
     """
     if not storage_key:
         return None
-    return create_list_thumb(str(storage_key))
+    return create_list_thumb(str(storage_key), size=int(size))
 
 
 def convert_heic_attachment(attachment_id, storage_key):

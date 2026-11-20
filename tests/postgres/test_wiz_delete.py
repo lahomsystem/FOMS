@@ -25,7 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 import foms.services.storage_delete_handler as sdh
-from foms.services.files.list_thumb import list_thumb_key
+from foms.services.files.list_thumb import list_thumb_sibling_keys
 from foms.api.drawing.wizard import _enqueue_pending_export_delete
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders import drawing_wizard_pending as store
@@ -183,7 +183,7 @@ def test_handler_wizard_pending_deletes_object_and_marks_child(pg_engine, storag
     assert result["done"] >= 1
 
     # R2 object 정확히 1회 삭제.
-    assert storage.deleted == [key, list_thumb_key(key)]
+    assert storage.deleted == [key, *list_thumb_sibling_keys(key)]
     s = _session(pg_engine)
     try:
         assert s.get(DrawingWizardPending, child_id).state == "DELETED"
@@ -215,7 +215,7 @@ def test_handler_retry_idempotent_no_duplicate_delete(pg_engine, storage):
         s.close()
 
     run_delivery_once(pg_engine, owner_hash="w" * 64, lease_token_fn=lambda: str(uuid.uuid4()))
-    assert storage.deleted == [key, list_thumb_key(key)]  # 1회(목록 작은 그림 형제 포함 — SPEC 2026-11-19 §3-4)
+    assert storage.deleted == [key, *list_thumb_sibling_keys(key)]  # 1회(목록 작은 그림 형제 포함 — SPEC 2026-11-19 §3-4)
 
     # 같은 child(now DELETED)로 두 번째 outbox 를 만들어 재배달 → 중복 삭제 0.
     s = _session(pg_engine)
@@ -231,7 +231,7 @@ def test_handler_retry_idempotent_no_duplicate_delete(pg_engine, storage):
         s.close()
 
     run_delivery_once(pg_engine, owner_hash="w" * 64, lease_token_fn=lambda: str(uuid.uuid4()))
-    assert storage.deleted == [key, list_thumb_key(key)]  # 여전히 1회 — 중복 삭제 0
+    assert storage.deleted == [key, *list_thumb_sibling_keys(key)]  # 여전히 1회 — 중복 삭제 0
     s = _session(pg_engine)
     try:
         assert s.get(DomainSideEffectOutbox, row2_id).status == "DONE"
@@ -264,7 +264,7 @@ def test_handler_other_domain_deletes_object_key_only(pg_engine, storage):
         s.close()
 
     run_delivery_once(pg_engine, owner_hash="w" * 64, lease_token_fn=lambda: str(uuid.uuid4()))
-    assert storage.deleted == [att_key, list_thumb_key(att_key)]
+    assert storage.deleted == [att_key, *list_thumb_sibling_keys(att_key)]
     s = _session(pg_engine)
     try:
         assert s.get(DomainSideEffectOutbox, row_id).status == "DONE"

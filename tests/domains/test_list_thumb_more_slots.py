@@ -180,9 +180,12 @@ def test_tablet_measure_photos_small_src_and_original_open():
 
 def test_changed_dashboard_and_tablet_scripts_are_repinned():
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert f"order-detail-fragment.js?v={PIN}" in entry and f"erp-dashboard-gateway.js?v={PIN}" in entry
+    # 게이트웨이 · entry 는 뒤 작업(2026-11-20 중간 크기 그림 640, 20261120m)이 정당하게 올린다 — "이 작업 핀보다 오래되지 않았다".
+    gateway_pin = entry.split("erp-dashboard-gateway.js?v=", 1)[1].split("'", 1)[0]
+    assert f"order-detail-fragment.js?v={PIN}" in entry and gateway_pin >= PIN, gateway_pin
     layout = _read("templates/partials/shared/layout_scripts.html")
-    assert f"erp-dashboard-entry.js') }}}}?v={PIN}" in layout
+    entry_pin = layout.split("erp-dashboard-entry.js') }}?v=", 1)[1].split('"', 1)[0]
+    assert entry_pin >= PIN, entry_pin
     assert f"tablet-measure-form.js') }}}}?v={PIN}" in layout
     for rel in ("templates/construction/partials/dashboard_body.html", "templates/production/partials/dashboard_body.html"):
         assert f"order-detail-fragment.js') }}}}?v={PIN}" in _read(rel), rel
@@ -362,13 +365,12 @@ def test_left_unchanged_slots_stay_original():
     """일부러 그대로 둔 칸(보고 목록) — 바꾸면 이 시험과 보고를 같이 고친다.
 
     * (G14 도면 확인 범위 창은 합친 뒤 바꿨다 — 56px 칸 = ``small_url``, 없으면 원본.)
-    * G20 PC 대시보드 교체 대상 카드: 768px 아래 두 칸 격자에서 칸 폭이 160px 를 넘는다(2배 화면 320px 부족).
-    * G27 협력사 완공 · AS 사진: 폰 두 칸 격자에서 약 175px(2배 화면 320px 부족).
+    * (G20 PC 대시보드 교체 대상 카드 · G27 협력사 완공 · AS 사진은 320 이 모자라 남겼다가 640 중간 크기 그림으로
+      바꿨다 — SPEC 2026-11-20-mid-size-image, 시험 ``test_mid_thumb_screens.py`` · ``tests/security/test_partner_mid_thumb.py``.)
     """
     assert "img.src = d.small_url || d.view_url;" in _read("static/js/foms/drawing-ok-scope.js")
     att = _read("static/js/orders/dashboard/erp-dashboard-attachments.js")
-    assert "gatewaySmallUrl" not in att and "/api/files/thumb/" not in att
-    assert '"thumb_url": build_file_view_url(p["thumbnail_key"])' in _read("foms/web/partner/__init__.py")
+    assert "gatewaySmallUrl(key, 640)" in att and "gatewaySmallUrl(key)" not in att  # 교체 대상 카드는 320 이 아니라 640
 
 
 @pytest.mark.parametrize("rel", [

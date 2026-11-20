@@ -130,8 +130,9 @@
         <div class="foms-drawing-gallery-card__thumb"
              {% if r.thumbnail_url %}data-foms-drawing-viewer data-foms-drawing-files='{{ r.drawing_files|tojson }}'{% endif %}>
           {% if r.thumbnail_url %}
-          {# 갤러리 칸은 높이 최대 180px · 폭 220~320px+ 라 320px 작은 그림은 태블릿(2배 화면)에서 흐리다 — 원본(view_url). #}
-          <img class="foms-drawing-gallery-card__img" src="{{ r.drawing_files[0].view_url if r.drawing_files else r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
+          {# 갤러리 칸은 높이 최대 180px · 폭 220~320px+ 라 320px 작은 그림은 태블릿(2배 화면)에서 흐리다 — 640 중간 크기 그림(mid_url,
+             SPEC 2026-11-20-mid-size-image), 그림이 아니면 원본(view_url). 눌러 크게 보기는 data-foms-drawing-files 의 view_url(원본). #}
+          <img class="foms-drawing-gallery-card__img" src="{{ (r.drawing_files[0].mid_url or r.drawing_files[0].view_url) if r.drawing_files else r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
           {% else %}
           <span class="foms-drawing-gallery-card__thumb-empty">도면 없음</span>
           {% endif %}

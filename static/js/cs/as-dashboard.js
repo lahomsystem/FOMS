@@ -2811,7 +2811,8 @@
         galleryEl.innerHTML = list.map(function (a, index) {
           var name = escapeHtml(a.filename || '');
           var type = (a.file_type || 'file').toLowerCase();
-          var thumb = a.thumbnail_view_url || a.view_url || '#';
+          // 카드 칸(높이 180 · col-md-4) = 640 중간 크기 그림(mid_url, SPEC 2026-11-20-mid-size-image). 누르면 view_url 원본.
+          var thumb = a.mid_url || a.thumbnail_view_url || a.view_url || '#';
           var viewUrl = a.view_url || '#';
           var downloadUrl = a.download_url || '#';
           var attachmentId = a.id ? String(a.id) : '';

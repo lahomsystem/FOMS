@@ -1,5 +1,9 @@
 """목록 화면 도면 작은 그림(긴 변 320px) — 설계서 ``docs/specs/2026-11-19-list-drawing-small-image_SPEC.md``.
 
+중간 크기 그림(긴 변 640px, ``?w=640``)도 같은 길 · 같은 워커다 — 설계서 ``docs/specs/2026-11-20-mid-size-image_SPEC.md``.
+화면에서 160~320px 로 보이는 칸(AS 태블릿 대조 격자 등)용. 허용 크기는 :data:`LIST_THUMB_SIZES` 둘뿐이다
+(아무 크기나 받으면 저장소에 파생 파일이 끝없이 쌓인다).
+
 목록의 손톱만 한 칸(40~112px)에 원본 그림을 통째로 받던 것을, 원본 옆에 한 번 만들어 둔 작은 그림으로 바꾼다.
 
 * 이름: 원본 옆 ``sthumb320_<원본 이름>.jpg``. 도면 key 는 올릴 때마다 새 이름이라 작은 그림 이름도 판마다 새것 —
@@ -27,6 +31,11 @@ logger = logging.getLogger(__name__)
 LIST_THUMB_LONG_EDGE = 320
 LIST_THUMB_QUALITY = 85
 LIST_THUMB_PREFIX = "sthumb320_"
+#: 중간 크기 그림(SPEC 2026-11-20-mid-size-image) — 2배 화면에서 320px 칸까지 맞는다.
+MID_THUMB_LONG_EDGE = 640
+MID_THUMB_PREFIX = "sthumb640_"
+#: 허용 크기(긴 변 px) → 저장 이름 접두. 길 ``?w=`` 는 이 둘만 받는다(그 밖은 400). 320 이 기본(``w`` 없음).
+LIST_THUMB_SIZES = {LIST_THUMB_LONG_EDGE: LIST_THUMB_PREFIX, MID_THUMB_LONG_EDGE: MID_THUMB_PREFIX}
 #: key 가 판마다 새 이름이라 내용이 안 바뀐다 — 30일 · 다시 묻지 않음(생산 파트 작은 그림 길과 같은 값).
 LIST_THUMB_CACHE_CONTROL = "private, max-age=2592000, immutable"
 #: 풀었을 때 화소 상한 — 공유 합본(``foms/api/share.py`` ``_SHEET_MAX_PIXELS``)과 같은 16MP.
@@ -35,7 +44,7 @@ LIST_THUMB_MAX_PIXELS = 16_000_000
 #: 작은 그림을 만들 수 있는 원본 확장자(화면 쪽 그림 판정과 같은 묶음). 그 밖(PDF · HEIC 등)은 길이 404.
 LIST_THUMB_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 #: 파생 파일 이름 접두 — 작은 그림의 작은 그림은 만들지 않는다.
-_DERIVED_PREFIXES = ("thumb_", "pthumb720_", LIST_THUMB_PREFIX)
+_DERIVED_PREFIXES = ("thumb_", "pthumb720_", LIST_THUMB_PREFIX, MID_THUMB_PREFIX)
 
 #: :func:`create_list_thumb` 결과(로그 · 시험용).
 RESULT_STORED = "stored"
@@ -51,14 +60,31 @@ RESULT_STORE_FAILED = "store_failed"
 LIST_THUMB_ROUTE_PREFIX = "/api/files/thumb/"
 
 
-def list_thumb_url(key: str | None) -> str | None:
+def _size_or_error(size: int) -> int:
+    if size not in LIST_THUMB_SIZES:
+        raise ValueError(f"list thumb size must be one of {sorted(LIST_THUMB_SIZES)}: {size!r}")
+    return size
+
+
+def list_thumb_query(size: int = LIST_THUMB_LONG_EDGE) -> str:
+    """주소 꼬리 — 320(기본)은 빈 문자열(운영 기기가 30일 캐시한 주소와 한 글자도 다르지 않게), 640 은 ``?w=640``."""
+    return "" if _size_or_error(size) == LIST_THUMB_LONG_EDGE else f"?w={size}"
+
+
+def list_thumb_url(key: str | None, size: int = LIST_THUMB_LONG_EDGE) -> str | None:
     """작은 칸용 작은 그림 길 주소(원본 key 에서 계산만 — 조회 없음). 만들 수 없는 key 면 None.
 
     서비스 레이어는 api 를 import 하지 않으므로(레이어 래칫) 주소 모양을 여기 둔다. 저장 URL 은 믿지 않는다 —
-    늘 key 에서 다시 만든다.
+    늘 key 에서 다시 만든다. ``size`` 는 :data:`LIST_THUMB_SIZES` 중 하나(640 = 중간 크기 칸, ``?w=640``).
     """
     text = (key or "").strip()
-    return f"{LIST_THUMB_ROUTE_PREFIX}{text}" if is_list_thumb_source(text) else None
+    tail = list_thumb_query(size)
+    return f"{LIST_THUMB_ROUTE_PREFIX}{text}{tail}" if is_list_thumb_source(text) else None
+
+
+def mid_thumb_url(key: str | None) -> str | None:
+    """중간 크기 칸(화면 160~320px)용 640 주소 — :func:`list_thumb_url` ``size=640`` (Jinja 필터 ``mid_thumb_url``)."""
+    return list_thumb_url(key, MID_THUMB_LONG_EDGE)
 
 
 def is_list_thumb_source(key: str | None) -> bool:
@@ -79,20 +105,32 @@ def is_list_thumb_source(key: str | None) -> bool:
     return f".{tail}" in LIST_THUMB_IMAGE_SUFFIXES
 
 
-def list_thumb_key(key: str) -> str:
-    """원본 key → 작은 그림 저장 key(원본 옆 ``sthumb320_<원본 이름>.jpg``).
+def list_thumb_key(key: str, size: int = LIST_THUMB_LONG_EDGE) -> str:
+    """원본 key → 작은 그림 저장 key(원본 옆 ``sthumb320_<원본 이름>.jpg`` · 640 이면 ``sthumb640_``).
 
     원본 이름을 통째로 넣는다(확장자까지) — 같은 폴더의 ``a.png`` 와 ``a.jpg`` 가 한 작은 그림을 나눠 쓰지 않게.
     원본과 같은 폴더라 문지기(``orders/<id>/...`` 정규 key 길)도 원본과 같다.
     """
     folder, name = posixpath.split(key)
-    thumb = f"{LIST_THUMB_PREFIX}{name}.jpg"
+    thumb = f"{LIST_THUMB_SIZES[_size_or_error(size)]}{name}.jpg"
     return posixpath.join(folder, thumb) if folder else thumb
 
 
-def list_thumb_job_id(key: str) -> str:
-    """같은 key 는 같은 RQ job id(글자 · 숫자 · 밑줄만 — RQ job id 규칙)."""
-    return "list_thumb_" + hashlib.sha1(key.encode("utf-8")).hexdigest()
+def list_thumb_sibling_keys(key: str) -> list[str]:
+    """원본 key 의 모든 크기 형제 저장 key(320 · 640 순) — 원본을 지울 때 같이 지운다."""
+    return [list_thumb_key(key, size) for size in LIST_THUMB_SIZES]
+
+
+def list_thumb_job_id(key: str, size: int = LIST_THUMB_LONG_EDGE) -> str:
+    """같은 key · 같은 크기는 같은 RQ job id(글자 · 숫자 · 밑줄만 — RQ job id 규칙).
+
+    320 은 예전 값 그대로(``list_thumb_<sha1>``) — 배포 순간 큐에 든 작업 · 걸린 자물쇠(``foms:<job id>:lock``)와
+    호환. 640 은 ``list_thumb640_<sha1>`` 이라 같은 key 의 320 과 서로 막지 않는다.
+    """
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    if _size_or_error(size) == LIST_THUMB_LONG_EDGE:
+        return "list_thumb_" + digest
+    return f"list_thumb{size}_{digest}"
 
 
 def render_white_jpeg_thumb(raw: bytes, long_edge: int, *, quality: int = LIST_THUMB_QUALITY,
@@ -130,22 +168,23 @@ def render_white_jpeg_thumb(raw: bytes, long_edge: int, *, quality: int = LIST_T
     return out.getvalue()
 
 
-def create_list_thumb(storage_key: str, storage=None) -> str:
+def create_list_thumb(storage_key: str, storage=None, *, size: int = LIST_THUMB_LONG_EDGE) -> str:
     """워커 본체: 원본을 읽어 작은 그림을 만들어 원본 옆에 한 번 저장한다(이미 있으면 건너뜀).
 
     Args:
         storage_key: 원본 key.
         storage: 시험용 저장소(없으면 :func:`foms.services.storage.get_storage`).
+        size: 긴 변(px) — :data:`LIST_THUMB_SIZES` 중 하나(320 기본 · 640 중간 크기).
 
     Returns:
         ``RESULT_*`` 중 하나. 예외는 올리지 않는다(그림 문제는 건너뜀 — 원본이 계속 나간다).
     """
     key = (storage_key or "").strip()
-    if not is_list_thumb_source(key):
+    if not is_list_thumb_source(key) or size not in LIST_THUMB_SIZES:
         return RESULT_NOT_IMAGE
     if storage is None:
         storage = get_storage()
-    thumb_key = list_thumb_key(key)
+    thumb_key = list_thumb_key(key, size)
     if storage.object_exists(thumb_key):
         return RESULT_EXISTS
     raw = storage.read_file_bytes(key)
@@ -154,12 +193,12 @@ def create_list_thumb(storage_key: str, storage=None) -> str:
     from PIL import Image
 
     try:
-        data = render_white_jpeg_thumb(raw, LIST_THUMB_LONG_EDGE, max_pixels=LIST_THUMB_MAX_PIXELS)
+        data = render_white_jpeg_thumb(raw, size, max_pixels=LIST_THUMB_MAX_PIXELS)
     except ValueError:
-        logger.info("[list-thumb] too large — skip key=%s", key)
+        logger.info("[list-thumb] too large — skip key=%s size=%s", key, size)
         return RESULT_TOO_LARGE
     except (OSError, Image.DecompressionBombError):
-        logger.info("[list-thumb] unreadable image — skip key=%s", key)
+        logger.info("[list-thumb] unreadable image — skip key=%s size=%s", key, size)
         return RESULT_UNREADABLE
     if not storage.put_private_bytes(thumb_key, data, "image/jpeg"):
         return RESULT_STORE_FAILED  # 로컬 저장소는 비공개 저장을 받지 않는다 · R2 오류는 다음 예약에서 다시
