@@ -74,6 +74,23 @@ def test_build_plan_items_only_as_filter():
     assert any("AS 대상 아님" in s["reason"] for s in skipped)
 
 
+def test_as_history_evidence_skips_orders_whose_last_as_event_is_a_cancel(monkeypatch):
+    """마지막 AS 이벤트가 접수 취소면 AS 가 아니었다 — 그 주문을 AS 접수로 되살리자고 제안하지 않는다."""
+    seen = {}
+
+    def _fake_rows(_conn, sql, _params):
+        seen["sql"] = sql
+        return [
+            {"oid": 1, "event_type": "AS_CANCELLED", "created_at": "2026-11-20 10:00"},
+            {"oid": 2, "event_type": "AS_REGISTERED", "created_at": "2026-11-19 10:00"},  # 대조군
+        ]
+
+    monkeypatch.setattr(data_doctor, "_rows", _fake_rows)
+    out = data_doctor._evidence_from_as_history(None, [1, 2], "2026-11-21")
+    assert "'AS_CANCELLED'" in seen["sql"]  # 마지막 이벤트를 고를 때 취소도 본다
+    assert set(out) == {2} and out[2]["before"] == "AS_RECEIVED"
+
+
 def test_confidence_rank_covers_all_sources():
     """증거 층이 늘어나도 랭크 표가 비지 않게 계약으로 잠근다."""
     assert set(data_doctor.CONFIDENCE_RANK) == {"inferred", "event", "logged", "exact"}

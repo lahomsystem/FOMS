@@ -1,12 +1,13 @@
 """AS 접수 취소를 누가 · 언제 할 수 있는가 (설계서 2026-11-20-multi-item-split-schedule §4.4, 결정 M10).
 
-화면(단추를 그릴지)과 API(막을지)가 같은 판정을 쓴다. 가벼운 모듈이다 — 템플릿 필터로도 등록되므로
+화면(단추를 그릴지)과 API(막을지)가 같은 권한 판정을 쓴다. 가벼운 모듈이다 — 템플릿 필터로도 등록되므로
 AS 건 서비스(``as_cycle_service``)를 가져오지 않는다.
 """
 from __future__ import annotations
 
 from typing import Any
 
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.as_axis_read import read_as_status
 from foms.services.orders.order_mutation_policy import team_has_capability
 
@@ -25,10 +26,11 @@ def user_may_cancel_as(user: Any) -> bool:
 
 
 def as_cancel_allowed(order: Any, user: Any = None) -> bool:
-    """[AS 접수 취소] 단추를 그릴 수 있는가 — 현재 AS 가 접수 상태이고 사용자에게 권한이 있다.
+    """[AS 접수 취소] 단추를 그릴 수 있는가 — ERP 주문이고, 현재 AS 가 접수 상태이고, 사용자에게 권한이 있다.
 
     AS 축은 ``as_lifecycle`` 현재 건이 먼저, 없으면 옛 상태 글이다(건 기록이 없는 옛 AS 접수 주문도 취소할 수 있다).
+    비 ERP 주문은 단계 축이 없어 돌아갈 자리를 정할 수 없는 경우가 많다 — 단추를 그리지 않는다.
     """
-    if order is None or not getattr(order, "id", None):
+    if order is None or not getattr(order, "id", None) or not is_erp_order_record(order):
         return False
     return user_may_cancel_as(user) and read_as_status(order) == CANCELLABLE_AS_STATUS
