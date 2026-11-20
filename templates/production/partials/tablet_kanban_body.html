@@ -168,7 +168,7 @@
       {% set _alerts = o.change_alerts | default([], true) %}
       {% set _has_changes = o.has_changes | default(false, true) %}
       {% set _has_change_history = o.has_change_history | default(false, true) %}
-      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}{% if _hold.get('active') and o.construction_dday is not none and o.construction_dday <= 2 %} is-held-imminent{% endif %}{% if _has_changes %} is-changed{% endif %}" data-order-id="{{ o.id }}"
+      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}{% if _hold.get('active') and o.construction_dday is not none and o.construction_dday <= 2 %} is-held-imminent{% endif %}{% if _has_changes %} is-changed{% endif %}" data-order-id="{{ o.id }}"{% if o.production_split_note %} data-production-split-note="{{ o.production_split_note }}"{% endif %}
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
         data-changed="{{ 1 if _has_changes else 0 }}"
@@ -406,7 +406,7 @@
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261111a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>
 {# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
    하나라도 빠지면 재시도가 무음으로 실패한다. #}
 {% include 'partials/shared/foms_reason_sheet.html' %}

@@ -201,7 +201,7 @@ def test_ship_sheet_js_contract() -> None:
 def test_entry_chain_loads_ship_sheet_js(path) -> None:
     entry = (ROOT / path).read_text(encoding="utf-8")
     assert "'/static/js/shipment/tablet-ship-sheet.js?v=20261111a'" in entry
-    assert "'/static/js/foms/tablet-domain-sheets.js?v=20261111a'" in entry
+    assert "'/static/js/foms/tablet-domain-sheets.js?v=20261121b'" in entry
 
 
 # --------------------------------------------------------------------------- #

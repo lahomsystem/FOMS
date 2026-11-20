@@ -115,6 +115,14 @@
         || document.querySelector('.foms-cwork-card[data-order-id="' + orderId + '"] .foms-cwork-card__name');
       cust.textContent = (titleEl ? titleEl.textContent.trim() : '') || ('#' + orderId);
     }
+    // 남은 시공 한 줄 — 서버가 줄 · 카드 뿌리에 실어 준 글(data-remaining-construction)을 그대로 보인다.
+    var remainEl = sheet.querySelector('[data-foms-cgate-remaining]');
+    if (remainEl) {
+      var remainSrc = document.querySelector('[data-remaining-construction][data-order-id="' + orderId + '"]');
+      var remainText = remainSrc ? (remainSrc.getAttribute('data-remaining-construction') || '') : '';
+      remainEl.textContent = remainText;
+      remainEl.hidden = !remainText;
+    }
     sheet.hidden = false;
     sheet.setAttribute('aria-hidden', 'false');
     document.body.classList.add('foms-cgate-open');
