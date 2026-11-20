@@ -250,8 +250,12 @@
             const viewUrl = String((f && f.view_url) || (key ? `/api/files/view/${key}` : ''));
             const activeCls = key === selected ? 'is-active' : '';
             const selectedBadge = key === selected ? '<span class="drawing-target-selected-pill">선택됨</span>' : '';
+            // 카드 칸(높이 74 · 폭 약 130~270px, cover) = 640 중간 크기 그림(SPEC 2026-11-20-mid-size-image). 주소는 key 로만
+            // (gatewaySmallUrl — 서버 is_list_thumb_source 와 같은 판정), 만들 수 없는 key 면 원본. 판정이 어긋나 404 면
+            // onerror 가 원본(data-full-src)으로 한 번 되돌린다. 큰 무대 · 뷰어는 viewUrl(원본) 그대로.
+            const midUrl = (key && typeof gatewaySmallUrl === 'function') ? gatewaySmallUrl(key, 640) : '';
             const thumbHtml = isDrawingImageFile(f)
-              ? `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}"${key ? ' data-storage-key="' + escapeHtml(key) + '"' : ''}>`
+              ? `<img src="${escapeHtml(midUrl || viewUrl)}" data-full-src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}"${key ? ' data-storage-key="' + escapeHtml(key) + '"' : ''} onerror="this.onerror=null;if(this.dataset.fullSrc)this.src=this.dataset.fullSrc;">`
               : `<i class="fas fa-file-alt text-secondary"></i>`;
             cards.push(`
               <button type="button"

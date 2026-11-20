@@ -197,7 +197,7 @@ LIST_THUMB_ENQUEUE_DUPLICATE = "duplicate"
 LIST_THUMB_ENQUEUE_UNAVAILABLE = "unavailable"
 
 
-def enqueue_list_thumb_generation(storage_key: str, *, job_id: str, lock_seconds: int) -> str:
+def enqueue_list_thumb_generation(storage_key: str, *, job_id: str, lock_seconds: int, size: int = 320) -> str:
     """목록 작은 그림(320px) 만들기 job enqueue — 같은 key 는 한 번만(SPEC 2026-11-19-list-drawing-small-image).
 
     중복 방지는 Redis ``SET NX`` 자물쇠(``lock_seconds`` 동안)로 원자적으로 한다 — 목록 한 화면이 같은
@@ -210,6 +210,8 @@ def enqueue_list_thumb_generation(storage_key: str, *, job_id: str, lock_seconds
         storage_key: 원본 key.
         job_id: 고정 job id(:func:`foms.services.files.list_thumb.list_thumb_job_id`).
         lock_seconds: 같은 key 를 다시 넣지 않는 시간(초).
+        size: 긴 변(px). 320 은 작업 인자를 예전처럼 key 하나만 넣는다 — 배포 순간 아직 옛 코드인 워커도
+            받을 수 있게(SPEC 2026-11-20-mid-size-image). 640 은 ``(key, 640)``.
 
     Returns:
         ``"queued"`` 새로 넣음 / ``"duplicate"`` 자물쇠가 살아 있어 안 넣음 /
@@ -226,9 +228,10 @@ def enqueue_list_thumb_generation(storage_key: str, *, job_id: str, lock_seconds
         logger.warning(f"[RQ] list thumb lock failed: {e}")
         return LIST_THUMB_ENQUEUE_UNAVAILABLE
     try:
+        args = (str(storage_key),) if int(size) == 320 else (str(storage_key), int(size))
         q.enqueue(
             f"{_TASK_PATH_PREFIX}.create_list_thumb_for_key",
-            str(storage_key),
+            *args,
             job_id=job_id,
             job_timeout="2m",
             result_ttl=600,

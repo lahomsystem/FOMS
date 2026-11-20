@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import time
 
-from foms.services.files.list_thumb import is_list_thumb_source, list_thumb_job_id
+from foms.services.files.list_thumb import (
+    LIST_THUMB_LONG_EDGE,
+    LIST_THUMB_SIZES,
+    is_list_thumb_source,
+    list_thumb_job_id,
+)
 from foms.services.jobs.queue import (
     LIST_THUMB_ENQUEUE_QUEUED,
     LIST_THUMB_ENQUEUE_UNAVAILABLE,
@@ -24,26 +29,28 @@ _ENQUEUE_BACKOFF_SECONDS = 60.0
 _enqueue_backoff_until = 0.0
 
 
-def schedule_list_thumb(storage_key: str) -> bool:
+def schedule_list_thumb(storage_key: str, size: int = LIST_THUMB_LONG_EDGE) -> bool:
     """작은 그림 만들기를 워커 큐에 한 번만 넣는다. 큐가 없거나 막히면 조용히 건너뛴다(False).
 
     web 안에서 대신 만들지 않는다(ThreadPool 폴백 없음) — 원본이 계속 나갈 뿐이다.
+    크기마다 job id · 자물쇠가 따로다(같은 key 의 320 · 640 이 서로 막지 않는다 — SPEC 2026-11-20-mid-size-image).
 
     Args:
         storage_key: 원본 key.
+        size: 긴 변(px) — 320(기본) · 640.
 
     Returns:
         이번 호출이 큐에 새로 넣었으면 True. 그림 아님 · 이미 넣음 · 큐 없음 · 실패면 False.
     """
     global _enqueue_backoff_until
     key = (storage_key or "").strip()
-    if not is_list_thumb_source(key):
+    if not is_list_thumb_source(key) or size not in LIST_THUMB_SIZES:
         return False
     if time.monotonic() < _enqueue_backoff_until:
         return False
     # 큐 함수는 예외를 올리지 않는다(로그 후 unavailable) — 예약 실패가 그림 응답 · 도면 전달을 깨지 않는다.
-    result = enqueue_list_thumb_generation(key, job_id=list_thumb_job_id(key),
-                                           lock_seconds=LIST_THUMB_ENQUEUE_LOCK_SECONDS)
+    result = enqueue_list_thumb_generation(key, job_id=list_thumb_job_id(key, size),
+                                           lock_seconds=LIST_THUMB_ENQUEUE_LOCK_SECONDS, size=size)
     if result == LIST_THUMB_ENQUEUE_UNAVAILABLE:
         _enqueue_backoff_until = time.monotonic() + _ENQUEUE_BACKOFF_SECONDS
     return result == LIST_THUMB_ENQUEUE_QUEUED

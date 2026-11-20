@@ -124,11 +124,12 @@ def test_as_intake_pick_photos_small(app, world, monkeypatch):
 
 
 def test_completion_photos_left_on_old_path(app, world):
-    """G27 은 일부러 그대로 — 칸이 커서(폰 약 175px) 320px 가 2배 화면에 모자란다."""
+    """G27 은 칸이 커서(폰 약 175px) 320px 가 2배 화면에 모자라 남겼다 — 640 중간 크기 그림으로 바꿨다
+    (SPEC 2026-11-20-mid-size-image, 실제 화면 시험은 ``test_partner_mid_thumb.py``). 320 길로는 여전히 안 간다."""
     from pathlib import Path
 
     src = (Path(__file__).resolve().parents[2] / "foms/web/partner/__init__.py").read_text(encoding="utf-8")
-    assert '"thumb_url": build_file_view_url(p["thumbnail_key"])' in src
+    assert '"thumb_url": mid_thumb_url(p["storage_key"]) or build_file_view_url(p["thumbnail_key"])' in src
 
 
 # ----------------------------------------------------------------------- 범위: 작은 그림 길의 문지기
@@ -147,8 +148,8 @@ class _FakeR2:
 
 def test_thumb_route_scope_own_company_ok_other_company_blocked(app, world, monkeypatch):
     monkeypatch.setattr(file_routes, "get_storage", lambda: _FakeR2())
-    monkeypatch.setattr(file_routes, "schedule_list_thumb", lambda key: None, raising=False)
-    monkeypatch.setattr(schedule_mod, "schedule_list_thumb", lambda key: None)
+    monkeypatch.setattr(file_routes, "schedule_list_thumb", lambda key, size=320: None, raising=False)
+    monkeypatch.setattr(schedule_mod, "schedule_list_thumb", lambda key, size=320: None)
     own = _order(app, world["partner_a"], "scopeA", drawing_at="2026-10-30 01:00:00", status="TRANSFERRED")
     other = _order(app, world["partner_b"], "scopeB", drawing_at="2026-10-30 01:00:00", status="TRANSFERRED")
     own_partner = _attach(own, "partner_measurement", "20261119_x_own.jpg").storage_key

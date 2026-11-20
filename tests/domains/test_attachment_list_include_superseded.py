@@ -175,7 +175,9 @@ def test_changed_assets_are_pinned():
     # 뒤 작업이 정당하게 올린다(2026-10-04 도면 최종본 순서로 20261004a) — "이 작업 핀보다 오래되지 않았다".
     att_pin = entry.split("erp-dashboard-attachments.js?v=", 1)[1].split("'", 1)[0]
     assert att_pin >= PIN, att_pin
-    assert f"erp-dashboard-core.js?v={PIN}" in entry
+    # 뒤 작업이 정당하게 올린다(2026-11-20 첨부 창 카드 640 중간 크기 그림, 20261120m) — "이 작업 핀보다 오래되지 않았다".
+    core_pin = entry.split("erp-dashboard-core.js?v=", 1)[1].split("'", 1)[0]
+    assert core_pin >= PIN, core_pin
     # 리뷰 P1 수정: 첨부 미리보기 클릭을 페이지마다 한 번만(detail-dom·시공 dashboard.js 도 바뀜).
     # erp-pro.css 는 이후 board_state 줄로 20260930c, 2b 까지 합친 detail-dom·entry 는 20260929l.
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
