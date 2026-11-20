@@ -55,7 +55,7 @@ from foms.services.orders.as_cycle_service import (
     unschedule_as_cycle,
 )
 from foms.services.orders.as_cancel_policy import CANCEL_FORBIDDEN_MESSAGE, user_may_cancel_as
-from foms.services.orders.as_cycle_cancel import cancel_as_cycle
+from foms.services.orders.as_cycle_cancel import CANCEL_REASON_MAX, cancel_as_cycle
 from foms.services.orders.as_cycle_view import current_cycle_ordinal
 from foms.services.orders.as_drawing import (
     SOURCE_AS_REQUEST,
@@ -1103,7 +1103,8 @@ def api_as_cancel(order_id: int):
     """AS 접수 취소: 잘못 접수한 현재 건(접수 상태)을 걷어 내고 주문을 접수 전 모습으로 되돌린다.
 
     설계서 2026-11-20-multi-item-split-schedule §4.4. 관리자 · CS 능력(회계팀 포함)만, 사유 필수.
-    처리 중 · 완료된 AS, 열린 AS 도면 요청이 걸린 건은 409 로 막는다. AS 방 · 협력사에는 알리지 않는다(M12).
+    처리 중 · 완료된 AS, 열린 AS 도면 요청이 걸린 건, 접수 전 상태를 알 수 없는 건은 409 로 막는다.
+    사유가 비었거나 500자를 넘으면 400. AS 방 · 협력사에는 알리지 않는다(M12).
 
     Args:
         order_id: 대상 주문 PK. 본문 ``{reason}``(필수) · ``cycle_id``(선택 — 현재 건과 같아야 한다).
@@ -1123,6 +1124,9 @@ def api_as_cancel(order_id: int):
     reason = str(data.get("reason") or "").strip()
     if not reason:
         return jsonify({"success": False, "data": None, "error": "취소 사유를 적어 주세요."}), 400
+    if len(reason) > CANCEL_REASON_MAX:
+        return jsonify({"success": False, "data": None,
+                        "error": f"취소 사유는 {CANCEL_REASON_MAX}자까지 적을 수 있어요."}), 400
     try:
         cancel_as_cycle(
             db, order_id=order_id, actor_user_id=user_id, reason=reason,

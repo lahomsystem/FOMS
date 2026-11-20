@@ -205,7 +205,8 @@ def _evidence_from_as_history(conn, ids: list[int], since: str) -> dict[int, dic
     """사고 직전 마지막 AS 이벤트로 상태를 유도한다(confidence=inferred).
 
     AS 접수(AS_REGISTERED)가 마지막이면 ``AS_RECEIVED``, AS 완료가 마지막이면
-    ``AS_COMPLETED`` 였다고 본다. 근거가 약하므로 사람 확인용으로만 쓴다.
+    ``AS_COMPLETED`` 였다고 본다. AS 접수 취소(AS_CANCELLED)가 마지막이면 AS 가 아니었으므로 근거를 내지 않는다
+    (취소한 주문을 AS 접수로 되살리자고 제안하지 않는다). 근거가 약하므로 사람 확인용으로만 쓴다.
 
     Args:
         conn: 접속.
@@ -220,7 +221,7 @@ def _evidence_from_as_history(conn, ids: list[int], since: str) -> dict[int, dic
     rows = _rows(conn, """
         SELECT DISTINCT ON (e.order_id) e.order_id AS oid, e.event_type, e.created_at
           FROM order_events e
-         WHERE e.event_type IN ('AS_REGISTERED','AS_COMPLETED') AND e.order_id = ANY(%(ids)s)
+         WHERE e.event_type IN ('AS_REGISTERED','AS_COMPLETED','AS_CANCELLED') AND e.order_id = ANY(%(ids)s)
            AND e.created_at < %(since)s
          ORDER BY e.order_id, e.created_at DESC
     """, {"ids": ids, "since": since})

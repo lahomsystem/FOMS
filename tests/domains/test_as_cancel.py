@@ -3,7 +3,9 @@
 ``POST /api/orders/<id>/as/cancel`` 이 잘못 접수한 현재 건(접수 상태)을 걷어 내고 주문을 접수 전 모습으로 되돌린다.
 고정하는 것: 건은 ``cancelled_cycles[]`` 로 옮긴다(순번이 안 틀리게) · 상태 글과 평면 칸을 다시 맞춘다 · 접수 글과
 방문일을 비운다 · 그 건 기록 줄은 가림 표시만 한다 · 시스템 줄 하나 + 이벤트 + 감사.
-대조군: 처리 중 · 완료 · AS 없는 주문은 409, 권한 없는 사람은 403, 열린 AS 도면 요청이 걸리면 409.
+되돌리는 근거는 접수가 건에 남긴 접수 전 값(``pre_register``)이다 — 상태 글 · AS 축 · 날짜 · 시공자 · 상차일 · 비용 ·
+전달 배정(그 시험은 tests/domains/test_as_cancel_restore.py). 대조군: 처리 중 · 완료 · AS 없는 주문은 409, 권한 없는 사람은 403, 열린 AS 도면 요청이 걸리면 409,
+접수 전 값이 없는데 앞선 AS 기록이 남은 건은 409.
 이름 · 주소는 지어낸 것.
 """
 from __future__ import annotations
@@ -102,7 +104,7 @@ def test_cancel_restores_the_order_to_before_the_reception(client) -> None:
     assert sd["schedule"]["as_visit"]["date"] is None and sd["schedule"]["as_visit"]["time"] is None
     assert "schedule_link" not in sd["schedule"]["as_visit"]
     assert db_session.query(OrderScheduleDate).filter_by(order_id=oid, kind="as_visit").count() == 0
-    # 접수가 덮은 시공자 칸은 되돌리지 못한다(스냅샷 없음) — 건드리지 않는다
+    # 이 접수는 시공자 칸을 덮지 않았다 — 건드리지 않는다(덮었을 때 되돌리는 것은 아래 시험)
     assert sd["shipment"]["construction_workers"] == ["가짜기사"]
     # 기록 줄 — 그 건 줄은 가림 표시(원문은 남는다), 취소 사실 한 줄
     lines = _log(saved)
@@ -276,10 +278,21 @@ def test_cancel_predicate_matches_state_and_permission(client) -> None:
     assert as_cancel_allowed(received, admin) and as_cancel_allowed(received, cs)
     assert not as_cancel_allowed(received, sales) and not as_cancel_allowed(received, None)
     assert not any(as_cancel_allowed(o, admin) for o in (in_progress, completed, plain, None))
+    # 건은 열려 있는데 상태 글이 본 흐름인 주문(5687 꼴)도 단추가 뜬다 — 판정은 AS 건이지 상태 글이 아니다.
+    cycle = {"current_cycle_id": "c1", "cycles": [{"cycle_id": "c1", "transitions": []}]}
+    open_cycle = db_session.get(Order, _order(stage="PRODUCTION", sd_extra={"as_lifecycle": cycle}))
+    assert open_cycle.status == "PRODUCTION" and as_cancel_allowed(open_cycle, admin)
+    # 비 ERP 주문은 단추를 그리지 않는다(단계 축이 없다).
+    legacy = Order(received_date="2026-11-01", customer_name="가짜옛주문", phone="010-0000-0000", address="가짜시",
+                   product="가짜장", status="AS_RECEIVED", is_erp_order=False)
+    db_session.add(legacy)
+    db_session.commit()
+    assert not as_cancel_allowed(legacy, admin)
 
 
 @pytest.mark.parametrize("mobile", [False, True])
-def test_order_screen_draws_cancel_button_only_when_allowed(client, monkeypatch, mobile) -> None:
+def test_order_screen_draws_cancel_button_in_the_as_window_footer_only_when_allowed(client, monkeypatch, mobile) -> None:
+    """단추는 [AS 접수 수정] 창(asReceiveModal) 아래 줄 왼쪽에만 있고 "본공정 단계" 줄에는 없다(휴대폰 줄이 넘친다)."""
     admin = _login(client)
     if mobile:
         monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
@@ -291,8 +304,18 @@ def test_order_screen_draws_cancel_button_only_when_allowed(client, monkeypatch,
     headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148"} if mobile else {}
 
     html = client.get(f"/edit/{received}", headers=headers).get_data(as_text=True)
-    assert marker in html and "erp-as-cancel.js" in html
-    assert ("erp-mobile-stage-row__controls" in html) is mobile  # 휴대폰 화면 틀 · PC 틀이 각각 실제로 그려졌다
+    assert "erp-as-cancel.js" in html
+    assert ("erp-mobile-stage-row__controls" in html) is mobile  # 휴대폰 화면 틀이 실제로 그려졌다
+    # 코호트 화면은 PC 틀 · 휴대폰 틀을 둘 다 싣고 창 폭으로 하나만 남긴다 — 틀마다 창 아래 줄에 하나씩.
+    surfaces = html.split('id="asReceiveModal"')[1:]
+    assert len(surfaces) == (2 if mobile else 1) and html.count(marker) == len(surfaces)
+    for window in surfaces:
+        footer = window[window.index('class="modal-footer"'):window.index('id="as-receive-submit-btn"')]
+        assert marker in footer and ">이 AS 접수 취소</button>" in footer and "btn btn-outline-danger me-auto" in footer
+        assert footer.index(marker) < footer.index('data-bs-dismiss="modal"')  # [취소] · [저장] 왼쪽
+        assert "style=" not in footer
+    for row in html.split('for="erp-workflow-stage"')[1:]:
+        assert "data-erp-as-cancel" not in row[:row.index('id="erp-happy-call"')]  # "본공정 단계" 줄에는 없다
     assert "data-erp-as-cancel" not in client.get(f"/edit/{plain}", headers=headers).get_data(as_text=True)
 
     client.post(f"/api/orders/{received}/as/start", json={"reason": "방문", "description": "점검"})
