@@ -11,6 +11,9 @@
   ``as_completed_date`` 바이트 동일. AS 대시보드 두 탭 술어의 모집단이 적용 전후 같다.
 * 제외(보류·물류·열린 네이버 클레임·시공일 미래·시공일 없음)는 plan 에 사유로만 남고 안 건드린다.
 * plan 뒤 바뀐 행은 apply 가 stale 로 건너뛴다.
+* 뒤 시공일이 남은 주문(5687 꼴 — 일정 표 줄 또는 주문 칸 글)은 ``later_construction_date`` 로 빠지고,
+  시공일이 하나뿐인 주문 · 뒤 날짜가 AS 방문 줄뿐인 주문은 그대로 적용된다. plan 뒤에 시공일이
+  더해진 행은 apply 가 건너뛴다.
 * rollback 후 status·erp_stage_code·workflow dict 가 시드와 같다.
 * 운영 지문 가드: TESTCLR 고객이 있으면 ``--expect-env production`` 이 중단한다.
 """
@@ -47,8 +50,10 @@ def _wf(stage: str, **extra) -> dict:
     return {"stage": stage, "stage_updated_at": "2026-08-01T00:00:00", "history": [{"k": 1}], **extra}
 
 
-def _sd(stage: str, *, as_axis: str | None = None, quests=None) -> dict:
+def _sd(stage: str, *, as_axis: str | None = None, quests=None, cons_text: str | None = None) -> dict:
     sd = {"workflow": _wf(stage), "meta": {}, "parties": {"orderer": {"name": "x"}}}
+    if cons_text:
+        sd["schedule"] = {"construction": {"date": cons_text}}
     if as_axis:
         sd["as_lifecycle"] = {"current_cycle_id": "c1", "cycles": [{"cycle_id": "c1", "status": as_axis}]}
     if quests is not None:
@@ -68,6 +73,23 @@ SEED = [
     (108, "MEASURE", "MEASURE", FUTURE, None, _sd("MEASURE"), None),
     (109, "MEASURE", "MEASURE", None, None, _sd("MEASURE"), None),
     (110, "AS_RECEIVED", "AS_RECEIVED", PAST, "RECEIVED", _sd("AS_RECEIVED", as_axis="RECEIVED"), None),
+    # 5687 꼴 — 평면 칸은 지난 첫 시공일, 일정 표에 뒤 시공일이 남음, AS 접수가 겹침
+    (111, "AS_RECEIVED", "PRODUCTION", PAST, "RECEIVED", _sd("PRODUCTION", as_axis="RECEIVED"), None),
+    (112, "MEASURE", "MEASURE", PAST, None, _sd("MEASURE"), None),   # 대조군: 시공일 줄 하나
+    (113, "MEASURE", "MEASURE", PAST, None, _sd("MEASURE"), None),   # 대조군: 뒤 날짜가 AS 방문 · 못 읽는 글뿐
+    (114, "MEASURE", "MEASURE", PAST, None,                           # 일정 표는 비었고 주문 칸 글에만 둘째 날
+     _sd("MEASURE", cons_text=f"{PAST}, {FUTURE}"), None),
+    (115, "MEASURE", "MEASURE", PAST, None, _sd("MEASURE"), None),   # plan 뒤 일정 표에 시공일이 더해짐
+    (116, "MEASURE", "MEASURE", PAST, None, _sd("MEASURE"), None),   # plan 뒤 주문 칸 글에 시공일이 더해짐
+]
+
+#: 날 SQL 시드는 저장 훅이 안 돌아 일정 표가 비어 있다 — 줄을 직접 넣는다.
+SCHEDULE_SEED = [
+    # order_id, kind, date
+    (111, "construction", PAST), (111, "construction", FUTURE),
+    (112, "construction", PAST),
+    (113, "construction", PAST), (113, "as_visit", FUTURE), (113, "construction", "미정"),
+    (115, "construction", PAST),
 ]
 
 
@@ -88,6 +110,11 @@ def _seed(engine) -> None:
                         :as_axis, :as_done, CAST(:sd AS jsonb), 1, 1)
             """), {"id": oid, "name": f"고객{oid}", "status": status, "stage": stage, "cons": cons,
                    "as_axis": as_axis, "as_done": as_done, "sd": json.dumps(sd, ensure_ascii=False)})
+        for oid, kind, day in SCHEDULE_SEED:
+            conn.execute(text("""
+                INSERT INTO order_schedule_dates(order_id, kind, date, source)
+                VALUES (:oid, :kind, :day, 'beta_schedule')
+            """), {"oid": oid, "kind": kind, "day": day})
         conn.execute(text("""
             INSERT INTO external_order_links(channel, external_id, order_id, sync_status, relation,
                                              triage_state, created_at, updated_at)
@@ -102,7 +129,7 @@ def _rows(engine) -> dict[int, dict]:
             SELECT id, status, erp_stage_code, as_axis_status, as_completed_date,
                    structured_data->'workflow' AS wf, structured_data->'as_lifecycle' AS asl,
                    mutation_version
-              FROM orders WHERE id BETWEEN 101 AND 110 ORDER BY id
+              FROM orders WHERE id BETWEEN 101 AND 116 ORDER BY id
         """))
         return {r.id: dict(r._mapping) for r in res}
 
@@ -132,20 +159,34 @@ def test_plan_apply_rollback_roundtrip(pg_engine, pg_session, dsn, tmp_path):
     plan = mod.build_plan(rows, cutoff=CUTOFF, today="2026-09-22", cutoff_days=7)
 
     by_id = {i["order_id"]: i for i in plan["items"]}
-    assert set(by_id) == {101, 102, 103, 104}
+    assert set(by_id) == {101, 102, 103, 104, 112, 113, 115, 116}
+    assert by_id[112]["mode"] == "main" and by_id[113]["mode"] == "main"
     assert by_id[101]["mode"] == "main" and by_id[101]["flags"] == ["open_quests"]
     assert by_id[102]["mode"] == "main"
     assert by_id[103]["mode"] == "as_stage_only" and by_id[103]["to_status"] == "AS_RECEIVED"
     assert by_id[104]["mode"] == "as_stage_only" and by_id[104]["to_status"] == "AS_COMPLETED"
     skipped = {s["order_id"]: s["reason"] for s in plan["skipped"]}
     assert skipped == {105: "on_hold", 106: "logistics_in_flight", 107: "naver_claim_open",
-                       110: "stage_not_main"}
+                       110: "stage_not_main", 111: "later_construction_date",
+                       114: "later_construction_date"}
+    later = {s["order_id"]: s.get("later_construction_date") for s in plan["skipped"]
+             if s["reason"] == "later_construction_date"}
+    assert later == {111: FUTURE, 114: FUTURE}
     # 시공일 미래(108)·없음(109)은 SQL 단계에서 이미 후보 밖
     assert 108 not in skipped and 109 not in skipped
 
     # plan 뒤 사람이 만진 행 → stale 로 건너뛴다
     with pg_engine.begin() as c:
         c.execute(text("UPDATE orders SET status='ON_HOLD' WHERE id=102"))
+        # plan 뒤 시공일이 더해진 행 — 상태 · 단계는 그대로라 stale 로는 못 가린다
+        c.execute(text("""
+            INSERT INTO order_schedule_dates(order_id, kind, date, source)
+            VALUES (115, 'construction', :day, 'beta_schedule')
+        """), {"day": FUTURE})
+        c.execute(text("""
+            UPDATE orders SET structured_data = jsonb_set(
+                structured_data, '{schedule}', CAST(:sched AS jsonb), true) WHERE id=116
+        """), {"sched": json.dumps({"construction": {"date": f"{PAST}, {FUTURE}"}})})
 
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, default=str), encoding="utf-8")
@@ -169,8 +210,11 @@ def test_plan_apply_rollback_roundtrip(pg_engine, pg_session, dsn, tmp_path):
         assert after[oid]["wf"]["stage"] == "COMPLETED"
         for col in ("status", "as_axis_status", "as_completed_date", "asl"):
             assert after[oid][col] == before[oid][col], (oid, col)
-    # 제외·후보 밖은 무접촉
-    for oid in (105, 106, 107, 108, 109, 110):
+    # 시공일이 하나뿐인 대조군은 그대로 적용된다
+    for oid in (112, 113):
+        assert (after[oid]["status"], after[oid]["erp_stage_code"]) == ("COMPLETED", "COMPLETED"), oid
+    # 제외·후보 밖·뒤 시공일이 남은 행은 무접촉
+    for oid in (105, 106, 107, 108, 109, 110, 111, 114, 115, 116):
         for col in ("status", "erp_stage_code", "wf", "mutation_version"):
             assert after[oid][col] == before[oid][col], (oid, col)
 
@@ -186,11 +230,11 @@ def test_plan_apply_rollback_roundtrip(pg_engine, pg_session, dsn, tmp_path):
             SELECT target_id, detail FROM security_logs
              WHERE action='ORDER_STATUS_CHANGED' AND user_id=:a ORDER BY target_id
         """), {"a": ACTOR}).all()
-    assert [r.order_id for r in ev] == [101, 103, 104]
+    assert [r.order_id for r in ev] == [101, 103, 104, 112, 113]
     ev_by = {r.order_id: r.payload for r in ev}
     assert ev_by[103]["from_status"] == "AS_RECEIVED" and ev_by[103]["to_status"] == "AS_RECEIVED"
     assert ev_by[103]["as_axis_status"] == "RECEIVED" and ev_by[103]["apply_mode"] == "as_stage_only"
-    assert [r.target_id for r in logs] == [101, 103, 104]
+    assert [r.target_id for r in logs] == [101, 103, 104, 112, 113]
     assert logs[0].detail["before"] == "MEASURE" and logs[0].detail["after"] == "COMPLETED"
 
     # rollback — 스냅샷 값(시드) 복원
