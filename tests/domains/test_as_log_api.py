@@ -185,9 +185,9 @@ def test_log_patch_by_author(client):
 
 
 def test_log_patch_by_non_author_forbidden(client):
-    """작성자 아닌 비관리자는 403 — 본문은 그대로 남는다."""
+    """작성자도 관리자 · CS팀 · 회계팀도 아닌 사람(영업팀)은 403 — 본문은 그대로 남는다."""
     author = _make_user("as-log-author2", role="STAFF", name="작성자")
-    other = _make_user("as-log-other", role="STAFF", name="타인")
+    other = _make_user("as-log-other", role="STAFF", team="SALES", name="타인")
     order_id = _create_as_order().id
     log_id = _append_as(client, author, order_id)
 
@@ -195,6 +195,28 @@ def test_log_patch_by_non_author_forbidden(client):
     res = client.patch(f"/api/orders/{order_id}/as/log/{log_id}", json={"text": "남의 글 수정"})
     assert res.status_code == 403 and res.get_json()["success"] is False
     assert _as_log(order_id)[-1]["text"] == "원본 메모"
+
+
+def test_log_patch_and_delete_others_entry_by_cs_and_accounting(client):
+    """CS팀 · 회계팀은 남이 쓴 AS 기록도 고치고 지울 수 있다(사용자 결정 2026-11-20).
+
+    영업이 접수한 AS 를 CS 가 이어받아 정리한다 — 작성자 본인 · 관리자만 되던 때는 막혔다.
+    """
+    author = _make_user("as-log-sales-author", role="STAFF", team="SALES", name="영업 작성자")
+    for team, name in (("CS", "CS 직원"), ("ACCOUNTING", "회계 직원")):
+        editor = _make_user(f"as-log-editor-{team.lower()}", role="STAFF", team=team, name=name)
+        order_id = _create_as_order().id
+        log_id = _append_as(client, author, order_id)
+
+        _login(client, editor)
+        res = client.patch(f"/api/orders/{order_id}/as/log/{log_id}", json={"text": "이어받아 고침"})
+        assert res.status_code == 200, team
+        saved = _as_log(order_id)[-1]
+        assert saved["text"] == "이어받아 고침" and saved["edited_by"] == name
+
+        res = client.post(f"/api/orders/{order_id}/as/log/{log_id}/delete")
+        assert res.status_code == 200, team
+        assert _as_log(order_id)[-1]["deleted"] is True
 
 
 def test_log_patch_by_admin_allowed(client):
@@ -702,9 +724,9 @@ def test_log_delete_by_author_soft_deletes(client):
 
 
 def test_log_delete_by_non_author_forbidden(client):
-    """작성자 아닌 비관리자는 403 — 플래그가 붙지 않는다."""
+    """작성자도 관리자 · CS팀 · 회계팀도 아닌 사람(영업팀)은 403 — 플래그가 붙지 않는다."""
     author = _make_user("as-log-del-author2", role="STAFF", name="작성자")
-    other = _make_user("as-log-del-other", role="STAFF", name="타인")
+    other = _make_user("as-log-del-other", role="STAFF", team="SALES", name="타인")
     order_id = _create_as_order().id
     log_id = _append_as(client, author, order_id)
 
