@@ -3,7 +3,9 @@
 BACKLOG-COMPLETE-01 (스펙 ``docs/plans/2026-09-22-past-construction-bulk-complete-spec.md``).
 실측·도면 타일에 이미 끝난 주문이 섞여 "진짜 도면을 만들어야 하는 건"이 안 보이는 것을
 정리한다. 판정 기준은 ``erp_construction_date`` 가 오늘(KST) 기준 ``--cutoff-days``(기본 7일)
-이상 지난 ERP 본공정 주문이다.
+이상 지난 ERP 본공정 주문이다. 그 칸은 시공일 글에서 "먼저 적힌 날"일 뿐이라, 기준일 이후
+시공일이 하나라도 남은 주문(일정 표 ``order_schedule_dates`` 또는 주문 칸 글)은
+``later_construction_date`` 사유로 뺀다.
 
 기존 「단계 강제 변경」 일괄 경로(``foms/services/orders/stage_override.py``)를 쓰지 않는 이유:
 그 경로는 ``order.status`` 를 통째 덮어 AS 접수·완료 건이 AS 대시보드에서 사라진다
@@ -21,7 +23,7 @@ BACKLOG-COMPLETE-01 (스펙 ``docs/plans/2026-09-22-past-construction-bulk-compl
 
 * ``plan`` 은 read-only 세션. 쓰기는 ``apply --yes`` 만.
 * ``apply`` 직전 행의 ``status``/``erp_stage_code``/``as_axis_status`` 가 plan 시점과 다르면
-  그 행은 건너뛴다(plan 뒤 사람이 만진 행 보호).
+  그 행은 건너뛴다(plan 뒤 사람이 만진 행 보호). plan 뒤에 시공일이 더해진 행도 건너뛴다.
 * 적용 전 상태(``workflow`` dict 원본 포함)를 스냅샷 JSON 으로 남기고 ``rollback`` 으로 되돌린다.
 * ``--expect-env`` 데이터 지문 가드: 운영은 ``TESTCLR%`` 고객 0건, 스테이징은 1건 이상.
 * 이벤트(``order_events STAGE_OVERRIDE``)와 감사행(``security_logs ORDER_STATUS_CHANGED``)에
@@ -73,7 +75,9 @@ from bulk_complete_past_construction_core import (  # noqa: E402
     cutoff_iso,
     fetch_candidates,
     fetch_no_construction,
+    later_construction_date,
     rollback_one,
+    text_dates,
     today_kst,
 )
 
@@ -83,6 +87,7 @@ __all__ = [
     "_connect", "_rows", "_snapshot_rows", "apply_one", "assert_env_fingerprint", "build_plan",
     "classify_row", "completed_workflow", "cutoff_iso", "fetch_candidates",
     "fetch_no_construction", "rollback_one", "today_kst", "main", "build_parser",
+    "later_construction_date", "text_dates",
 ]
 
 
@@ -94,6 +99,10 @@ def _print_summary(plan: dict[str, Any]) -> None:
     for key, n in sorted(s["by_stage"].items()):
         print(f"  {key}: {n}")
     print("제외:", ", ".join(f"{k}={v}" for k, v in sorted(s["skipped"].items())) or "없음")
+    later = [x for x in plan["skipped"] if x.get("reason") == "later_construction_date"]
+    if later:
+        print("  뒤 시공일이 남아 뺀 주문:", ", ".join(
+            f"#{x['order_id']}({x.get('later_construction_date')})" for x in later))
 
 
 # --------------------------------------------------------------------------- #
@@ -155,7 +164,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             with conn.cursor(row_factory=dict_row) as cur:
                 for item in chunk:
                     outcome = apply_one(cur, item, actor_user_id=args.actor, now=now,
-                                        reason=args.reason)
+                                        reason=args.reason, cutoff=plan.get("cutoff"))
                     key = outcome.split(":", 1)[0]
                     results[key] = results.get(key, 0) + 1
                     if outcome != "applied":

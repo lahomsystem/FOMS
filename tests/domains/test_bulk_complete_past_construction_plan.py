@@ -23,6 +23,7 @@ def _row(**over):
         "erp_stage_code": "MEASURE", "erp_construction_date": "2026-08-20",
         "as_axis_status": None, "meta_draft": False, "open_quests": 0,
         "naver_claim_open": False,
+        "later_construction_date": None, "construction_text": "2026-08-20",
     }
     base.update(over)
     return base
@@ -70,6 +71,70 @@ def test_skip_reasons_negative_controls():
     for key, row in cases.items():
         mode, reason, _ = mod.classify_row(row)
         assert mode is None and reason == expected[key], key
+
+
+def test_later_construction_date_from_schedule_table_skips_both_modes():
+    """일정 표에 기준일 이후 시공일이 남았으면 main · AS 탭 건 모두 제외한다(5687 꼴)."""
+    for over in (
+        {},
+        {"as_axis_status": "RECEIVED", "status": "AS_RECEIVED"},
+        {"erp_stage_code": "PRODUCTION", "status": "AS_RECEIVED", "as_axis_status": "RECEIVED"},
+    ):
+        row = _row(later_construction_date="2026-11-17", **over)
+        assert mod.classify_row(row, cutoff="2026-09-15") == (None, "later_construction_date", []), over
+        # cutoff 를 안 넘겨도 표 칸만으로 걸린다(옛 호출 꼴 보호)
+        assert mod.classify_row(row)[1] == "later_construction_date", over
+
+
+def test_later_construction_date_from_order_text_is_the_safety_net():
+    """일정 표가 비어 있어도 주문 칸 글의 둘째 날짜가 기준일 이후면 제외한다."""
+    cutoff = "2026-09-15"
+    hit = _row(construction_text="2026-08-20, 2026-09-15")      # 기준일 당일 = 아직 안 지남
+    assert mod.classify_row(hit, cutoff=cutoff)[1] == "later_construction_date"
+    assert mod.later_construction_date(hit, cutoff) == "2026-09-15"
+    # 대조군 — 같은 꼴인데 둘째 날짜가 기준일 하루 앞이면 그대로 대상
+    control = _row(construction_text="2026-08-20, 2026-09-14")
+    assert mod.classify_row(control, cutoff=cutoff) == ("main", None, [])
+    # 대조군 — 날짜 하나 · 못 읽는 글 · 빈 글
+    for text in ("2026-08-20", "미정", "", None, "2026-08-20, 미정"):
+        assert mod.classify_row(_row(construction_text=text), cutoff=cutoff)[0] == "main", text
+
+
+def test_later_construction_date_ignores_malformed_table_value():
+    """표 칸에 날짜 꼴이 아닌 글이 와도 남은 시공일로 치지 않는다."""
+    assert mod.classify_row(_row(later_construction_date="미정"), cutoff="2026-09-15")[0] == "main"
+    assert mod.later_construction_date(_row(later_construction_date=""), "2026-09-15") is None
+
+
+def test_build_plan_records_later_construction_date_reason():
+    """plan 의 제외 줄에 사유와 남은 시공일이 실린다(사람이 바로 본다)."""
+    rows = [
+        _row(id=5687, erp_stage_code="PRODUCTION", status="AS_RECEIVED", as_axis_status="RECEIVED",
+             erp_construction_date="2026-08-20", later_construction_date="2026-11-17",
+             construction_text="2026-08-20, 2026-11-17"),
+        _row(id=2),  # 대조군 — 시공일 하나
+    ]
+    plan = mod.build_plan(rows, cutoff="2026-09-15", today="2026-09-22", cutoff_days=7)
+    assert [i["order_id"] for i in plan["items"]] == [2]
+    assert plan["skipped"] == [{
+        "order_id": 5687, "customer_name": "가", "observed_status": "AS_RECEIVED",
+        "observed_stage": "PRODUCTION", "observed_as_axis": "RECEIVED",
+        "construction_date": "2026-08-20", "reason": "later_construction_date",
+        "later_construction_date": "2026-11-17",
+    }]
+    assert plan["summary"]["skipped"] == {"later_construction_date": 1}
+
+
+def test_text_dates_matches_app_helper():
+    """도구의 날짜 쪼개기는 앱 도우미와 같은 값을 낸다(규칙 두 벌 드리프트 방지)."""
+    from foms.services.orders.construction_dates import split_date_text
+
+    samples = [
+        "2026-11-05, 2026-11-17", "2026-11-17,2026-11-05", "2026/11/5", "2026.11.05", "미정",
+        "", None, "2026-13-40", "2026-11-05, 미정, 2026-11-05", "2026-11-05 14:00", "2026-11-051",
+    ]
+    for raw in samples:
+        assert mod.text_dates(raw) == split_date_text(raw), raw
 
 
 def test_flags_old_construction_and_open_quests():
