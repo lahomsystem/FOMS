@@ -7,7 +7,8 @@ create 어댑터가 raw ``Order(...)`` 를 직접 조립하지 않고 :func:`cre
 * ``mutation_version = 1`` (REV-00 신규 생성 규약).
 * SALES **owner 배정**(:class:`~models.OrderAssignment`, ``source=INITIAL_OWNER``) —
   ASSIGNMENT-00 user-ID row 정본. 이름 배열이 아니라 이 row 가 authorization 근거다.
-* 생성 **event**(``ORDER_CREATED`` :class:`~models.OrderEvent`).
+* 생성 **event**(``ORDER_CREATED`` :class:`~models.OrderEvent`). payload ``open_order_ids`` 에 그 순간
+  같은 고객의 진행 중 주문 번호를 남긴다(:mod:`~foms.services.orders.open_order_lookup`).
 * ERP 주문이면: RECEIVED **quest seed**(STATE-QUEST 템플릿), item **UUID identity**
   발급(ITEM-ID-00), server-authoritative **totals 재계산**(DATA-01), flat column projection.
 * 주소가 있으면 **GEOCODE outbox** 예약(DATA-MEASUREMENT-01) — postcommit 직접 지오코드
@@ -30,6 +31,7 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
 from foms.services.orders.erp_policy_quests import create_quest_from_template
 from foms.services.orders.item_identity import get_or_create_identity
+from foms.services.orders.open_order_lookup import created_event_payload
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.orders.structured_form_projection import recompute_totals
 from foms.services.orders.structured_item_uid import ensure_item_uids
@@ -199,7 +201,9 @@ def create_order(
     session.add(
         OrderEvent(
             order_id=order.id, event_type=CREATED_EVENT,
-            payload={"owner_user_id": owner_user_id, "status": order.status},
+            payload=created_event_payload(
+                session, order, {"owner_user_id": owner_user_id, "status": order.status}
+            ),
             created_by_user_id=actor_user_id, created_at=now,
         )
     )
