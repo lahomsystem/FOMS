@@ -168,9 +168,10 @@ def test_production_rework_keeps_open_as_status(client) -> None:
     plain = _order(status="CONSTRUCTION", stage="CONSTRUCTION")
     punch = {"reason": "문짝 다시 제작", "admin_override": True, "override_reason": "시험 — 게이트 건너뜀"}
 
-    for oid in (open_as, closed_as, plain):
+    for oid, saved_status in ((open_as, "AS_RECEIVED"), (closed_as, "PRODUCTION"), (plain, "PRODUCTION")):
         resp = client.post(f"/api/orders/{oid}/production/rework", json=dict(punch))
         assert resp.status_code == 200, (oid, resp.get_data(as_text=True))
+        assert resp.get_json()["new_status"] == saved_status, "응답이 저장되지 않은 값을 사실처럼 알린다"
 
     assert _saved(open_as) == ("AS_RECEIVED", "PRODUCTION")
     assert _saved(closed_as) == ("PRODUCTION", "PRODUCTION")  # 대조군

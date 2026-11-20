@@ -1130,7 +1130,7 @@ def api_production_rework(order_id: int):
                 from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify(
-            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
+            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": order.status}
         )
     except Exception as exc:
         db.rollback()

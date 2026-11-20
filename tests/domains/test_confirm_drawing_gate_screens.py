@@ -221,6 +221,5 @@ def test_asset_pins_bumped_to_20260929i():
     for rel in ("templates/orders/partials/dashboard_main.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
-        # 2026-11-21: AS 표시 유지 안내(as_overlay_kept)로 20261121a — 이 작업 핀보다 오래되지만 않으면 된다.
-        pin = _read(rel).split("erp-stage-override.js') }}?v=", 1)[1].split('"', 1)[0]
-        assert pin >= "20260929i", (rel, pin)
+        # 2026-11-21: AS 표시 유지 안내(as_overlay_kept)로 20261121a.
+        assert "erp-stage-override.js') }}?v=20261121a" in _read(rel), rel
