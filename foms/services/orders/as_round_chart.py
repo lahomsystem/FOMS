@@ -23,6 +23,7 @@ from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_availability import as_availability_label
 from foms.services.orders.as_log import (
     _legacy_entries_from_content,
+    current_as_cycle_id,
     current_as_round,
     current_reception_entry,
     decorate_entry,
@@ -451,6 +452,22 @@ def _place_receptions(
     return anchor, past
 
 
+def _as_content_is_deleted_reception(sd: dict, entries: list) -> bool:
+    """``shipment.as_content`` 가 **지운** 현재 건 접수 글과 같은가(= 낡은 값이라 증상으로 못 쓴다).
+
+    접수 글 삭제가 as_content 를 같이 비우기 전(2026-11-20 이전)에 지운 주문은 as_content 에
+    지운 글이 남아 있다(운영 5687 "증상: ,"). 그 값을 증상 줄에 다시 내면 지운 글이 살아난다.
+    """
+    cycle_id = current_as_cycle_id(sd)
+    content = str((sd.get("shipment") or {}).get("as_content") or "")
+    if not cycle_id or not content:
+        return False
+    return any(
+        isinstance(e, dict) and e.get("deleted") is True and e.get("type") == "reception"
+        and e.get("cycle_id") == cycle_id and str(e.get("text") or "") == content
+        for e in entries)
+
+
 def _current_display_round(rounds: list[dict[str, Any]], fallback: int) -> int:
     """헤드/입력창이 쓸 **표시용 현재 회차**. 진행 중 회차의 ``display_no`` 가 정답이다.
 
@@ -581,7 +598,7 @@ def build_as_round_chart_view(
     # 증상 = 현재 건의 접수 원문(기록 수정이 바로 보이게) → 없으면 as_content.
     cur_reception = current_reception_entry(sd)
     symptom = (_preview_text(cur_reception.get("text")) if cur_reception else "") or (
-        _preview_text(shipment.get("as_content"))) or (
+        "" if _as_content_is_deleted_reception(sd, entries) else _preview_text(shipment.get("as_content"))) or (
         _preview_text(reception.get("text")) if reception else "")
     return {
         "state_card": {

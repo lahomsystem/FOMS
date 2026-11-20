@@ -897,3 +897,38 @@ def test_log_patch_and_delete_reject_verdict_entry(client):
     res = _delete(client, order_id, entry["id"])
     assert res.status_code == 400 and res.get_json()["success"] is False
     assert _as_log(order_id)[-1].get("deleted") is not True
+
+
+def test_delete_current_reception_clears_symptom(client):
+    """현재 건 접수 글을 지우면 증상(shipment.as_content)도 따라 비워진다(운영 5687 "증상: ,")."""
+    from foms.services.orders.as_round_chart import build_as_round_chart_view
+
+    _login_as_admin(client, username="as-log-del-reception-admin")
+    order_id = _create_as_order(status="COMPLETED").id
+    res = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "문짝 처짐"})
+    assert res.status_code == 200
+    rec_id = res.get_json()["reception_log_id"]
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).structured_data["shipment"]["as_content"] == "문짝 처짐"
+
+    assert client.post(f"/api/orders/{order_id}/as/log/{rec_id}/delete").status_code == 200
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["shipment"]["as_content"] == ""
+    assert build_as_round_chart_view(sd)["symptom_preview"] == ""
+
+
+def test_symptom_ignores_stale_as_content_of_deleted_reception():
+    """삭제가 증상을 안 비우던 때 지운 주문 — as_content 에 남은 지운 글을 증상으로 다시 내지 않는다."""
+    from foms.services.orders.as_round_chart import build_as_round_chart_view
+
+    sd = {
+        "as_lifecycle": {"current_cycle_id": "c1", "cycles": [
+            {"cycle_id": "c1", "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]}]},
+        "shipment": {"as_content": ",", "as_log": [
+            {"id": "al_1", "type": "reception", "text": ",", "cycle_id": "c1", "round": 1,
+             "ts": "2026-11-17T23:41:38", "by": "A", "by_id": 1, "deleted": True}]},
+    }
+    assert build_as_round_chart_view(sd)["symptom_preview"] == ""
+    sd["shipment"]["as_log"][0]["deleted"] = False
+    assert build_as_round_chart_view(sd)["symptom_preview"] == ","
