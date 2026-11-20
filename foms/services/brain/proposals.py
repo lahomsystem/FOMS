@@ -119,12 +119,14 @@ def _payload_only(payload: Mapping[str, str], proposer: Proposer) -> dict[str, s
     return {"form": "pass", **payload, **_NOT_RUN}
 
 
-def _ai_gates(session: Any, gates: dict[str, str], proposer: Proposer, **kwargs: Any) -> dict[str, str]:
-    """에이전트 제안이면 관문 셋(:mod:`.ai_gates`)을 돌려 결과를 얹는다 — 막는 관문이 있으면 넣지 않는다. 사람은 그대로."""
+def _ai_gates(session: Any, gates: dict[str, str], proposer: Proposer, *, skip: Iterable[str] = (),
+              **kwargs: Any) -> dict[str, str]:
+    """에이전트 제안이면 관문 셋(:mod:`.ai_gates`)을 돌려 결과를 얹는다 — 막는 관문이 있으면 넣지 않는다. 사람은 그대로.
+    ``skip`` 에 든 관문은 결과만 적고 막지 않는다(넘긴 상담 배우기 — 여러 손님에게 한 다른 말로 그 항목을 고칠 때의 부딪침)."""
     if not proposer.agent:
         return gates
     result = run_ai_gates(session, **kwargs)
-    failed = blocking(result)
+    failed = [name for name in blocking(result) if name not in set(skip)]
     if failed:
         raise BrainGateError(failed, [name for name in failed if result.get(name) != "fail"])
     return {**gates, **result}
@@ -202,8 +204,10 @@ def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type:
 def propose_update(session: Any, *, key: str, base_version: int, after: Mapping[str, Any], reason: str,
                    proposer: Proposer, evidence: Iterable[str] = (), grade: Optional[str] = None,
                    now: Optional[datetime.datetime] = None, known: Optional[str] = None,
-                   rollback_of: Optional[int] = None, action: str = "propose_edit") -> BrainChange:
-    """값 칸 고침 제안(칸별 전 → 후). 은퇴는 :func:`propose_retire` 로만. 확신 값은 옮기기만 싣는다(그 밖은 버림)."""
+                   rollback_of: Optional[int] = None, action: str = "propose_edit",
+                   skip_gates: Iterable[str] = ()) -> BrainChange:
+    """값 칸 고침 제안(칸별 전 → 후). 은퇴는 :func:`propose_retire` 로만. 확신 값은 옮기기만 싣는다(그 밖은 버림).
+    ``skip_gates`` 는 막지 않을 에이전트 관문 이름(:func:`_ai_gates`)."""
     evidence = list(evidence)
     after = {name: value for name, value in after.items() if name != "confidence" or _trusted(proposer)}
     problems = _common_problems(reason, evidence, grade)
@@ -225,7 +229,7 @@ def propose_update(session: Any, *, key: str, base_version: int, after: Mapping[
     texts = [new[name] for name in ("name", "text") if name in changed]
     gates = _gates(texts, known_text(session) if known is None else known, proposer,
                    payload=payload_gates(new["payload"], before["payload"]) if "payload" in changed else {})
-    gates = _ai_gates(session, gates, proposer, op=OP_UPDATE, key=key, item_type=current.item_type,
+    gates = _ai_gates(session, gates, proposer, skip=skip_gates, op=OP_UPDATE, key=key, item_type=current.item_type,
                       texts=[t or "" for t in texts], evidence=evidence, before=before, after=new,
                       brand=current.brand)
     return _insert(session, now=now, op=OP_UPDATE, item_key=key, brand=current.brand, layer=current.layer,

@@ -96,7 +96,7 @@ from foms.services.cs_agent.state import (
     BRAND_HOURS, KST, BusinessDayFn, ChatState, business_minutes_between, sort_by_priority,
 )
 from foms.services.cs_agent.turns import (
-    CLAIM_EXPIRED, DRAFT_MEMO, DRAFT_STORE, LEGACY_CLAIM_AFTER, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn,
+    CLAIM_EXPIRED, DRAFT_LEARN, DRAFT_WORKING, LEGACY_CLAIM_AFTER, STATE_CLAIMED, STATE_FAILED, TurnStateError, claim_turn,
     expired_claims, mark_failed, record_brain_result, retry_due, stale_posting,
 )
 from foms.services.datetime_kst import now_utc_naive
@@ -259,7 +259,7 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
         ValueError: 시간대 없는 ``now``(UTC · KST 가 섞이면 조용히 틀린다).
     """
     summary = summary if summary is not None else DraftSummary()
-    if mode not in (DRAFT_STORE, DRAFT_MEMO):
+    if mode not in DRAFT_WORKING:
         return summary
     if now.tzinfo is None:
         raise ValueError("시간대가 없는 시각은 받지 않는다")
@@ -267,13 +267,15 @@ def run_drafting(session: Any, *, states: Sequence[ChatState], reader: Any, now:
     deadline = clock() + budget_seconds
     stop.check()
     _recover(session, now, stop, summary)
-    if _console_limit_today(session, now):
+    learn = mode == DRAFT_LEARN  # 배우기만 — 초안 두뇌를 안 부르니 돈 상한 · 두뇌 준비가 차례 모으기를 막지 않는다
+    if not learn and _console_limit_today(session, now):
         return _halted(session, summary, HALT_SPEND)
     if _open_api_headers(BRAND) is None:
         return _halted(session, summary, HALT_NOT_CONFIGURED)
     knowledge = with_ontology(session, load_approved(session, BRAND))  # 바꿔 묻기 대응(관리 칸 — 모두 끔이면 그대로)
     try:
-        ready(BRAND, knowledge, session=session, now=now)  # 고르기 · 선점 전 — 안 됐으면 줄을 만들지 않는다(R7-4)
+        if not learn:
+            ready(BRAND, knowledge, session=session, now=now)  # 고르기 · 선점 전 — 안 됐으면 줄을 만들지 않는다(R7-4)
     except BrainNotReady as exc:
         logger.warning("[CS 초안] 두뇌 준비가 안 돼 줄을 만들지 않고 멈춘다 code=%s", exc.code)
         return _halted(session, summary, HALT_NOT_READY)
@@ -381,10 +383,13 @@ def _draft_turn(ctx: _Pass, row: CsAgentTurn, chat_id: str, claimed_id: str, *, 
         return halt
     stored = row.masked_draft if repost else None
     early = freshness(lines, claimed_id) or no_text_reason(lines)
-    if early == SKIP_PHOTO_ONLY and ctx.photo_only_ok(row, lines):  # 읽은 사진이 있으면 초안(설계서 17.11.1 의 4)
+    learn = ctx.mode == DRAFT_LEARN  # 배우기만 — 사진만 온 글도 차례로 남기고, 초안 두뇌 없이 직원 답을 기다린다
+    if early == SKIP_PHOTO_ONLY and (learn or ctx.photo_only_ok(row, lines)):  # 읽은 사진이 있으면 초안(17.11.1 의 4)
         early = None
     if early:
         return ctx.skip(row, early, masked=stored)
+    if learn:
+        return ctx.learn_only(row, lines)
     if ctx.asks_human(lines):  # 'AI 냐 사람이냐' 물음이면 두 길 모두 두뇌 · 초안 없이 사람에게(설계서 17.1 · 17.8)
         return ctx.hand_to_human(row, chat_id, lines)
     if repost:  # 이 읽기가 직전 다시 읽기다 — 두뇌를 다시 부르지 않는다
