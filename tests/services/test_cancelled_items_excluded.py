@@ -75,7 +75,12 @@ def test_order_copy_revives_items_and_drops_excluded_drawings():
     original = SimpleNamespace(id=1, structured_data=sd)
     out = _copy_structured_data(original, datetime.datetime(2026, 10, 12))
     assert all("cancel" not in it for it in out["items"]) and len(out["items"]) == 2
-    assert out["flags"] == {"urgent": True}
+    # 넣을 것만 넣기(설계서 2026-11-20 6.3): 제품 본문은 따라오고, 제품 칸의 날짜 · uid 는 따라오지 않는다.
+    assert out["items"] == [
+        {"product_name": "보테가 슬라이딩장", "width": "1800", "quantity": "1"},
+        {"product_name": "몰딩 여닫이장", "width": "2400", "quantity": "1"},
+    ]
+    assert out["flags"] == {}, "긴급 표시는 원본 주문의 사정이다"
     assert "drawing_excluded_files" not in out
     assert "cancel" in sd["items"][0], "원본은 그대로"
 
