@@ -364,7 +364,10 @@ def test_changed_assets_repinned():
     for name in ("erp-dashboard-core.js", "erp-dashboard-gateway.js", "erp-dashboard-attachments.js"):
         assert f"{name}?v={_PIN}" in entry, name
     assert f"erp-dashboard-entry.js') }}}}?v={_PIN}" in _read("templates/partials/shared/layout_scripts.html")
-    assert f"js/construction/dashboard.js') }}}}?v={_PIN}" in _read("templates/construction/partials/scripts.html")
+    # 뒤 작업이 정당하게 올린다(2026-11-21 시공 완료 창의 남은 시공 한 줄, 20261121b) — "이 작업 핀보다 오래되지 않았다".
+    cons_pin = _read("templates/construction/partials/scripts.html").split(
+        "js/construction/dashboard.js') }}?v=", 1)[1].split('"', 1)[0]
+    assert cons_pin >= _PIN, cons_pin
     assert f"js/cs/as-dashboard.js') }}}}?v={_PIN}" in _read("templates/cs/partials/as_dashboard_body.html")
 
 

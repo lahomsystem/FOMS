@@ -53,7 +53,7 @@
         {% set csched = ((o.structured_data or {}).get('schedule') or {}).get('construction') or {} %}
         {% set _ctime = csched.get('time') or '' %}
         <button type="button" class="foms-cwork-card{% if o.id == _active_id %} is-active{% endif %}"
-          data-order-id="{{ o.id }}"
+          data-order-id="{{ o.id }}"{% if o.remaining_construction_note %} data-remaining-construction="{{ o.remaining_construction_note }}"{% endif %}
           data-cwork-date="{{ (o.construction_date or '').split(',')[0].strip()[:10] }}">
           <span class="foms-cwork-card__row">
             <span class="foms-cwork-status foms-cwork-status--{{ 'done' if o.stage=='시공완료' else 'active' if o.stage=='시공중' else 'wait' }}">{{ o.stage }}</span>

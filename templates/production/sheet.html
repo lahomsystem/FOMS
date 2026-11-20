@@ -17,7 +17,7 @@
     {% set erp_sub_nav_active = 'production' %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
-  <section class="foms-prod-page" data-foms-prod-sheet-page data-order-id="{{ order.id }}" data-foms-prod-page-stage="{{ order.stage }}">
+  <section class="foms-prod-page" data-foms-prod-sheet-page data-order-id="{{ order.id }}"{% if order.production_split_note %} data-production-split-note="{{ order.production_split_note }}"{% endif %} data-foms-prod-page-stage="{{ order.stage }}">
     <header class="foms-prod-page__bar">
       <a class="foms-prod-page__back" data-foms-prod-back href="{{ url_for('erp_production_page.erp_production_home') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>생산</a>
       <h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>
@@ -174,7 +174,7 @@
     </div>
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261111a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>

@@ -291,8 +291,15 @@
       await submitProductionTransition(orderId, '/production/start');
     }
 
+    // 시공일이 둘 이상인 주문만 서버가 줄 · 카드 뿌리에 한 줄(data-production-split-note)을 실어 준다.
+    function productionSplitNote(orderId) {
+      const src = document.querySelector('[data-production-split-note][data-order-id="' + orderId + '"]');
+      const note = src ? (src.getAttribute('data-production-split-note') || '') : '';
+      return note ? '\n\n' + note : '';
+    }
+
     async function completeProduction(orderId) {
-      if (!confirm('제작을 완료하시겠습니까? (상태가 출고대기로 변경됩니다)')) return;
+      if (!confirm('제작을 완료하시겠습니까? (상태가 출고대기로 변경됩니다)' + productionSplitNote(orderId))) return;
       await submitProductionTransition(orderId, '/production/complete');
     }
 
