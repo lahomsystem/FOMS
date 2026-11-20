@@ -9,6 +9,7 @@ from typing import Any, Mapping, Optional
 
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.attachment_sort import attachment_sort_key
+from foms.services.channel_as_push_cycle import judge_as_push
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.files.list_thumb import list_thumb_url
 from foms.services.orders.as_cycle_service import current_cycle
@@ -180,7 +181,6 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
         sheets = set(round_sheet_ids(sd, str(cur.get("round_id") or "")))
         pending_count = len([sid for sid in pending if sid in sheets])
     status = (current or {}).get("status")
-    push_as = sd.get("channeltalk_push_as") if isinstance(sd.get("channeltalk_push_as"), Mapping) else {}
     usable = as_stage and not is_partner
     return {
         "as_stage": as_stage,
@@ -197,8 +197,9 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
                            and not (current or {}).get("sent")),
         "can_review": bool(usable and review_ok and status == STATUS_TRANSFERRED),
         "can_room_push": bool(usable and drawing_ok and room_push_round(sd) is not None),
+        # 이 AS 건에서 아직 AS방에 못 올렸을 때만 — 지난 건의 PUSH 이력은 치지 않는다(본사 AS PUSH 와 같은 판정).
         "can_channel_retry": bool(usable and drawing_ok and current and current.get("registered_as")
-                                  and not push_as.get("pushed")),
+                                  and not judge_as_push(dict(sd)).resend),
     }
 
 

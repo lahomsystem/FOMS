@@ -6168,8 +6168,10 @@ function fomsMountErpOrderSurface() {
             return;
         }
 
+        // AS 는 미리 묻지 않는다 — 다시 보내기인지는 서버가 AS 건으로 정한다(새 AS 건의 첫 PUSH 는 이력이
+        // 있어도 처음이다). 같은 건 다시 보내기면 전송 확인 창이 서버 답을 받아 바뀐 내용을 묻는다.
         let changeNote = retryState.changeNote || null;
-        if (!changeNote && typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
+        if (!changeNote && pushKind !== 'as' && typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
             changeNote = await erpPromptChannelPushResendNote(pushKind);
             if (!changeNote) {
                 return;

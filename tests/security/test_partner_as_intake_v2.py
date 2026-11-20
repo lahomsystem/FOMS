@@ -15,6 +15,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 import foms.api.partner.as_intake as partner_as_api
 from db import db_session
+from foms.services.channel_as_push_cycle import judge_as_push
 from foms.services.partners import as_intake as svc
 from models import Notification, Order, OrderAttachment, OrderFieldChange, SecurityLog, User
 from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture 재노출
@@ -177,17 +178,21 @@ def test_files_bind_only_to_current_reception_then_push_sends_unsent(app, world,
     assert pushes[-1]["attachment_ids"] == [new_id] and pushes[-1]["change_note"] == "경첩도"
 
 
-def test_second_as_first_push_note_says_new_cycle():
-    """2번째 AS 의 첫 PUSH — 이력 칸이 주문마다 하나라 본사처럼 재전송, 머리말로 새 건을 가른다(설계서 D7)."""
+def test_second_as_first_push_is_not_a_resend():
+    """2번째 AS 의 첫 PUSH 는 다시 보내기가 아니다 — [수정] 메모 없이 가고, 머리말은 본사 전송이 본문에 붙인다(D7 · M18)."""
     old = "2026-10-01T00:00:00+00:00"
     sd = {"channeltalk_push_as": {"pushed": True, "sent_at": old},
           "as_lifecycle": {"current_cycle_id": "c2", "cycles": [
               {"cycle_id": "c1", "opened_at": "2026-09-30T00:00:00", "transitions": []},
               {"cycle_id": "c2", "opened_at": "2026-11-13T00:00:00", "transitions": []}]}}
     order = SimpleNamespace(structured_data=sd)
-    assert svc.push_change_note(order, "무시") == "새 AS 접수 (2번째 AS)"
+    assert svc.push_change_note(order, "무시") == ""
+    verdict = judge_as_push(sd)
+    assert (verdict.resend, verdict.cycle_id, verdict.headline) == (False, "c2", "새 AS 접수 (2번째 AS)")
     sd["channeltalk_push_as"]["sent_at"] = "2026-11-13T01:00:00+00:00"  # 이 건에서 이미 보냄
     assert svc.push_change_note(order, "문 3짝") == "문 3짝"
+    assert svc.push_change_note(order, "") == svc.DEFAULT_RESEND_NOTE
+    assert judge_as_push(sd).headline == ""
     assert svc.push_change_note(SimpleNamespace(structured_data={}), "x") == ""  # 처음 보냄
 
 

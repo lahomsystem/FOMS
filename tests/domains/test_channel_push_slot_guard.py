@@ -68,6 +68,9 @@ def test_both_push_entrypoints_claim_a_slot() -> None:
             f"{route.__name__}: is_resend 판정 뒤에 슬롯을 잡으면 경합 창이 그대로 남는다"
         )
         assert "409" in source, f"{route.__name__}: 슬롯 실패 응답 코드가 없다"
+    # AS 는 다시 보내기 판정을 AS 건으로 한다(compose_as_push) — 그 판정도 슬롯을 잡은 뒤여야 한다.
+    manual = inspect.getsource(run_manual_push)
+    assert manual.index("_try_claim_push_slot") < manual.index("compose_as_push(order)")
 
 
 def test_busy_message_is_actionable() -> None:

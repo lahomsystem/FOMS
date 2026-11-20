@@ -1437,3 +1437,180 @@ def test_push_estimate_cleans_up_upload_when_dispatch_did_not_send(client, monke
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
     assert "channeltalk_push_estimate" not in (saved.structured_data or {})
+
+
+# --------------------------------------------------------------------------
+# AS 건(cycle)과 AS PUSH — 둘째 AS 의 첫 PUSH 는 다시 보내기가 아니다
+# (설계서 2026-11-20-multi-item-split-schedule §7.1 · M18). 전송은 가짜(_capture_as_push)만 쓴다.
+# --------------------------------------------------------------------------
+
+_CYCLE_1 = {"cycle_id": "c1", "opened_at": "2026-09-01T00:00:00", "transitions": []}
+_CYCLE_2 = {"cycle_id": "c2", "opened_at": "2026-11-10T00:00:00", "transitions": []}
+
+
+def _as_cycle_order(cycles, history, *, current=None, lifecycle_extra=None):
+    """AS 건 목록과 AS PUSH 이력을 가진 주문(첨부 없음). ``current`` 가 없으면 마지막 건이 지금 건이다."""
+    lifecycle = {"current_cycle_id": current or cycles[-1]["cycle_id"], "cycles": list(cycles)}
+    lifecycle.update(lifecycle_extra or {})
+    extra = {"as_lifecycle": lifecycle}
+    if history is not None:
+        extra["channeltalk_push_as"] = history
+    return _as_order_with_attachments(0, structured_extra=extra).id
+
+
+def _post_as(client, order_id, **extra):
+    return client.post("/api/channel/push-manual", json={"order_id": order_id, "push_kind": "as", **extra})
+
+
+def _as_history(order_id):
+    db_session.expire_all()
+    return db_session.get(Order, order_id).structured_data["channeltalk_push_as"]
+
+
+def test_as_push_same_cycle_resend_still_requires_change_note(client, monkeypatch):
+    """대조: 같은 AS 건에서 다시 보내면 지금처럼 바뀐 내용이 필수이고 [수정] 으로 나간다."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order_id = _as_cycle_order(
+        [_CYCLE_1, _CYCLE_2], {"pushed": True, "sent_at": "2026-11-10T01:00:00+00:00", "as_cycle_id": "c2"})
+
+    refused = _post_as(client, order_id)
+    assert refused.status_code == 400
+    assert "재전송 시 변경 내용" in refused.get_json()["message"]
+    assert captured["calls"] == 0
+
+    sent = _post_as(client, order_id, change_note="문 3짝으로 정정")
+    assert sent.status_code == 200
+    assert captured["data"]["is_retry"] is True
+    assert not captured["data"]["text"].startswith("새 AS 접수")
+    message = channel_policy.build_message_template("manual", captured["data"])
+    assert message.startswith("[수정]\n문 3짝으로 정정\n\n")
+    history = _as_history(order_id)
+    assert history["is_modified"] is True and history["as_cycle_id"] == "c2"
+    assert history["change_log"][-1]["note"] == "문 3짝으로 정정"
+
+
+def test_as_push_second_cycle_first_push_needs_no_note_and_carries_headline(client, monkeypatch):
+    """둘째 AS 건의 첫 PUSH — 바뀐 내용 없이 나가고, [수정] 대신 "새 AS 접수 (2번째 AS)" 로 시작한다."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    # 취소되어 빠진 건(cancelled_cycles)은 순번에 세지 않는다 — cycles[] 만 센다.
+    order_id = _as_cycle_order(
+        [_CYCLE_1, _CYCLE_2],
+        {"pushed": True, "sent_at": "2026-09-01T01:00:00+00:00", "as_cycle_id": "c1",
+         "change_log": [{"note": "지난 건 메모"}], "max_attachment_id": 7},
+        lifecycle_extra={"cancelled_cycles": [{"cycle_id": "cx", "opened_at": "2026-10-01T00:00:00"}]},
+    )
+
+    # 화면이 낡은 사본으로 바뀐 내용을 실어 보내도 서버가 버린다.
+    response = _post_as(client, order_id, change_note="무시되어야 하는 메모")
+
+    assert response.status_code == 200
+    data = captured["data"]
+    assert data["is_retry"] is False and data["change_note"] == ""
+    assert data["text"].startswith("새 AS 접수 (2번째 AS)\n\n고객명 : AS Fresh")
+    message = channel_policy.build_message_template("manual", data)
+    assert "[수정]" not in message and "무시되어야 하는 메모" not in message
+    history = _as_history(order_id)
+    assert history["as_cycle_id"] == "c2" and history["is_modified"] is False
+    assert "change_log" not in history  # 지난 건 메모는 이 칸으로 넘기지 않는다
+    assert history["max_attachment_id"] == 7  # 지난 건 사진이 '안 보낸 것'으로 되살아나지 않게 줄이지 않는다
+
+    # 같은 건의 둘째 PUSH 부터는 다시 보내기다.
+    assert _post_as(client, order_id).status_code == 400
+
+
+def test_as_push_first_cycle_after_old_push_has_no_headline(client, monkeypatch):
+    """순번이 1 인 새 건(건 표식 없던 때 보낸 이력 뒤에 처음 생긴 건) — 머리말 없는 보통 첫 PUSH."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order_id = _as_cycle_order([_CYCLE_2], {"pushed": True, "sent_at": "2026-08-01T00:00:00+00:00"})
+
+    response = _post_as(client, order_id)
+
+    assert response.status_code == 200
+    assert captured["data"]["is_retry"] is False
+    assert captured["data"]["text"].startswith("고객명 : AS Fresh")
+    assert "새 AS 접수" not in captured["data"]["text"]
+    assert _as_history(order_id)["as_cycle_id"] == "c2"
+
+
+def test_as_push_legacy_history_without_cycle_id_splits_on_opened_at(client, monkeypatch):
+    """건 번호 없는 옛 이력: 건을 열기 전에 보낸 것이면 새 건 첫 PUSH, 연 뒤에 보낸 것이면 다시 보내기."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    before = _as_cycle_order([_CYCLE_1, _CYCLE_2], {"pushed": True, "sent_at": "2026-11-09T23:59:59+00:00"})
+    after = _as_cycle_order([_CYCLE_1, _CYCLE_2], {"pushed": True, "sent_at": "2026-11-10T00:00:01+00:00"})
+    unreadable = _as_cycle_order([_CYCLE_1, _CYCLE_2], {"pushed": True})  # 보낸 시각을 못 읽으면 다시 보내기
+
+    assert _post_as(client, before).status_code == 200
+    assert captured["data"]["is_retry"] is False
+    assert captured["data"]["text"].startswith("새 AS 접수 (2번째 AS)\n\n")
+
+    calls = captured["calls"]
+    for order_id in (after, unreadable):
+        refused = _post_as(client, order_id)
+        assert refused.status_code == 400
+        assert "재전송 시 변경 내용" in refused.get_json()["message"]
+    assert captured["calls"] == calls
+
+    assert _post_as(client, after, change_note="정정").status_code == 200
+    assert captured["data"]["is_retry"] is True
+    assert _as_history(after)["as_cycle_id"] == "c2"  # 옛 줄도 다음부터는 건 번호로 가른다
+
+
+def test_as_push_legacy_bridge_cycle_stays_resend(client, monkeypatch):
+    """옛 주문을 끌어올린 건은 연 시각이 접수 시각이 아니다 — 시각으로 가르지 않고 지금처럼 다시 보내기."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    bridge = {"cycle_id": "cb", "opened_at": "2026-11-10T00:00:00", "origin": "LEGACY_BRIDGE", "transitions": []}
+    pushed = _as_cycle_order([bridge], {"pushed": True, "sent_at": "2026-08-01T00:00:00+00:00"})
+    never = _as_cycle_order([bridge], None)
+
+    refused = _post_as(client, pushed)
+    assert refused.status_code == 400 and "재전송 시 변경 내용" in refused.get_json()["message"]
+
+    # 대조: 보낸 적 없는 끌어올린 건은 지금처럼 보통 첫 PUSH.
+    assert _post_as(client, never).status_code == 200
+    assert captured["data"]["is_retry"] is False
+    assert "새 AS 접수" not in captured["data"]["text"]
+
+
+def test_as_push_preview_and_send_agree(client, monkeypatch):
+    """확인 창에 보인 글이 그대로 나간다 — 머리말과 '다시 보내기' 여부까지 미리 보기와 전송이 같다."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order_id = _as_cycle_order(
+        [_CYCLE_1, _CYCLE_2], {"pushed": True, "sent_at": "2026-09-01T01:00:00+00:00", "as_cycle_id": "c1"})
+    url = f"/api/channel/push-preview?order_id={order_id}&push_kind=as"
+
+    preview = client.get(url).get_json()
+    assert preview["success"] is True and preview["resend"] is False
+    assert preview["text"].startswith("새 AS 접수 (2번째 AS)\n\n")
+    assert captured["calls"] == 0  # 미리 보기는 보내지 않는다
+
+    assert _post_as(client, order_id).status_code == 200
+    assert captured["data"]["text"] == preview["text"]
+    assert captured["data"]["is_retry"] is preview["resend"]
+
+    # 보낸 뒤 같은 건: 미리 보기도 다시 보내기라고 말하고 머리말이 빠진다.
+    again = client.get(url).get_json()
+    assert again["resend"] is True and not again["text"].startswith("새 AS 접수")
+    assert _post_as(client, order_id, change_note="정정").status_code == 200
+    assert captured["data"]["text"] == again["text"]
+
+
+def test_as_cycles_do_not_change_other_push_kinds(client, monkeypatch):
+    """대조: AS 건이 둘이어도 영발 PUSH 의 다시 보내기 판정은 이력의 pushed 그대로다."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
+    order_id = _as_cycle_order([_CYCLE_1, _CYCLE_2], None)
+    order = db_session.get(Order, order_id)
+    order.structured_data = {**order.structured_data, "channeltalk_push": {"pushed": True, "message_id": "old"}}
+    db_session.commit()
+
+    response = client.post("/api/channel/push-manual", json={"order_id": order_id, "text": "고객명 : 테스트"})
+
+    assert response.status_code == 400 and "변경 내용" in response.get_json()["message"]
+    assert captured["calls"] == 0

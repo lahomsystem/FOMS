@@ -9,10 +9,10 @@
 """
 from __future__ import annotations
 
-import datetime
 from typing import Any
 
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.channel_as_push_cycle import PUSH_HISTORY_KEY, judge_as_push, parse_utc
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.orders.as_cycle_view import (
     current_cycle_ordinal,
@@ -36,8 +36,6 @@ PARTNER_TAIL = " (협력사)"
 SYSTEM_TEXT_NEW = "AS 접수됨 (협력사)"
 SYSTEM_TEXT_EDIT = "AS 접수 수정됨 (협력사)"
 REF_LINE_PREFIX = "[완공 사진 참고] "
-# AS PUSH 이력 칸 — 본사 AS PUSH 와 같은 칸(channel_integration._PUSH_KIND_CONFIG['as']).
-PUSH_HISTORY_KEY = "channeltalk_push_as"
 DEFAULT_RESEND_NOTE = "협력사가 접수 내용을 다시 보냈습니다"
 
 
@@ -116,39 +114,25 @@ def edit_carry(order: Any) -> tuple[str, dict | None]:
     return ref_line, ({"ref_attachment_ids": ref_ids} if ref_ids else None)
 
 
-def _utc(raw: Any) -> datetime.datetime | None:
-    try:
-        at = datetime.datetime.fromisoformat(str(raw))
-    except (TypeError, ValueError):
-        return None
-    return at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
-
-
 def push_status(order: Any) -> dict[str, Any]:
     """AS방 줄 — 보낸 적 · 마지막 시각 · 보낼 게 남았나(지금 접수 줄이 마지막 PUSH 보다 새것)."""
     sd = _sd(order)
     history = sd.get(PUSH_HISTORY_KEY) if isinstance(sd.get(PUSH_HISTORY_KEY), dict) else {}
     pushed = bool(history.get("pushed"))
     entry = current_reception_entry(sd)
-    sent, written = _utc(history.get("sent_at")), _utc((entry or {}).get("ts"))
+    sent, written = parse_utc(history.get("sent_at")), parse_utc((entry or {}).get("ts"))
     needs = bool(entry) and (not pushed or (written is not None and (sent is None or written > sent)))
     return {"pushed": pushed, "sent_label": sent_label(history.get("sent_at")) if pushed else "", "needs_push": needs}
 
 
 def push_change_note(order: Any, given: str = "") -> str:
-    """AS방 재전송 머리말([수정] 아래 줄). 처음 보내면 빈 문자열.
+    """AS방 재전송 머리말([수정] 아래 줄). 이 건의 첫 PUSH 면 빈 문자열.
 
-    AS PUSH 이력 칸은 주문마다 하나라 2번째 AS 의 첫 PUSH 도 본사처럼 재전송이다(설계서 D7) — 이 건이 열린 뒤
-    보낸 적이 없으면 "새 AS 접수 (N번째 AS)"로 가른다.
+    같은 건 다시 보내기인지는 본사 AS PUSH 와 같은 판정(:func:`judge_as_push`)을 쓴다. 2번째 AS 의 첫 PUSH 는
+    다시 보내기가 아니다 — "새 AS 접수 (N번째 AS)" 한 줄은 본사 전송이 본문 앞에 붙인다(설계서 D7).
     """
-    sd = _sd(order)
-    history = sd.get(PUSH_HISTORY_KEY) if isinstance(sd.get(PUSH_HISTORY_KEY), dict) else {}
-    if not history.get("pushed"):
+    if not judge_as_push(_sd(order)).resend:
         return ""
-    cycle = current_cycle(sd) or {}
-    opened, sent = _utc(cycle.get("opened_at")), _utc(history.get("sent_at"))
-    if opened is not None and sent is not None and sent < opened:
-        return f"새 AS 접수 ({current_cycle_ordinal(sd)}번째 AS)"
     return given or DEFAULT_RESEND_NOTE
 
 
