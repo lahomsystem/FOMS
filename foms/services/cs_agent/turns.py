@@ -49,7 +49,7 @@ from foms.services.cs_agent.turns_fields import (  # 칸 꼴 검사(500줄 상�
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
+    "DRAFT_LEARN", "DRAFT_MEMO", "DRAFT_MODES", "DRAFT_OFF", "DRAFT_STORE", "DRAFT_WORKING", "SKIP_LEARN_ONLY", "MAX_ATTEMPTS", "STATES", "SWITCH_KEY", "SWITCH_OFF",
     "SWITCH_ON", "TurnConflict", "TurnStateError", "claim_owner", "claim_turn", "draft_mode", "expired_claims", "retry_due",
     "mark_failed", "mark_posted", "mark_posting", "mark_skipped", "mark_staff_replied", "mark_stored", "mark_superseded",
     "read_switch", "record_brain_result", "record_handoff", "record_note_memo", "record_quote", "record_staff_reply",
@@ -76,7 +76,14 @@ LOOP_FIELD = "loop"
 SWITCH_ON, SWITCH_OFF = "on", "off"
 DRAFT_FIELD = "draft"
 DRAFT_OFF, DRAFT_STORE, DRAFT_MEMO = "off", "store", "memo"
-DRAFT_MODES: tuple[str, ...] = (DRAFT_OFF, DRAFT_STORE, DRAFT_MEMO)
+#: 배우기만(사장님 11-20 "AI 초안 끄고 배움에") — 초안 두뇌를 부르지 않고 손님 글 · 사진 · 직원 답만 차례 줄에 모은다
+#: (밤 배우기 :mod:`.handoff_learning` 의 재료). 채널톡에는 아무것도 올리지 않는다.
+DRAFT_LEARN = "learn"
+DRAFT_MODES: tuple[str, ...] = (DRAFT_OFF, DRAFT_STORE, DRAFT_MEMO, DRAFT_LEARN)
+#: 배우기만 차례의 건너뜀 까닭 코드 — 직원 답이 붙으면 밤 배우기가 읽는다.
+SKIP_LEARN_ONLY = "learn_only"
+#: 차례 줄을 만드는 스위치 값(초안을 쓰거나 배우기만) — 감시 바퀴 · 빠른 길이 이 값일 때만 차례를 집는다.
+DRAFT_WORKING: tuple[str, ...] = (DRAFT_STORE, DRAFT_MEMO, DRAFT_LEARN)
 
 _TURNS = CsAgentTurn.__table__
 _INSERT_BUILDERS: dict[str, Callable[[Any], Any]] = {"postgresql": postgresql.insert, "sqlite": sqlite.insert}
@@ -383,7 +390,7 @@ def read_switch(session: Any) -> bool:
 
 
 def draft_mode(session: Any) -> str:
-    """초안 스위치 — ``off`` · ``store`` · ``memo``. 쓰지 않고 읽기만 한다(매 바퀴 DB 에서 새로 읽는다).
+    """초안 스위치 — ``off`` · ``store`` · ``memo`` · ``learn``(배우기만). 쓰지 않고 읽기만 한다(매 바퀴 DB 에서 새로 읽는다).
 
     줄이 없거나 ``draft`` 칸이 없으면 ``off``. 줄은 있는데 값이 비었거나(NULL) 꼴이 틀리면(대문자 · 오타 · 글자가 아님)
     경고하고 ``off`` — 켜려고 손댄 값이 오타로 켜진 채 남지 않고, 끄려고 손댄 값도 꺼진다(원장 R5-8 과 같은 규칙).

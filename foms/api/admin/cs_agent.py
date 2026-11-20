@@ -2,7 +2,7 @@
 
 - ``GET  /api/admin/cs-agent/state`` — 스위치 · 두뇌 설정 · 하루 상한 · 기록 한 덩어리(:func:`.panel.panel_state`).
 - ``POST /api/admin/cs-agent/switch/loop`` ``{"on": bool}`` — 비상 정지(감시 루프 켬 · 멈춤).
-- ``POST /api/admin/cs-agent/switch/draft`` ``{"mode": "off" | "store" | "memo"}`` — 초안 스위치.
+- ``POST /api/admin/cs-agent/switch/draft`` ``{"mode": "off" | "store" | "memo" | "learn"}`` — 초안 스위치.
 - ``POST /api/admin/cs-agent/settings`` ``{"values": {...}, "expected_version": int}`` — 두뇌 · 돈 설정(버전 대조 — 다른
   사람이 먼저 저장했으면 409). 다음 단계 칸(고르기 · 의도 고르기 · 실시간 길 — 잠김)을 바꾸는 저장은 400 이다.
 - ``POST /api/admin/cs-agent/calculator-check`` — [계산기 값 확인했어요](사장님 결정 D74): 지금 계산기 제품 · 옵션 값을
@@ -103,7 +103,7 @@ def cs_agent_switch_loop() -> tuple[Any, int]:
 
 @cs_agent_admin_api_bp.route(f"{_PREFIX}/switch/draft", methods=["POST"])
 def cs_agent_switch_draft() -> tuple[Any, int]:
-    """초안 스위치 — ``{"mode": "off" | "store" | "memo"}``."""
+    """초안 스위치 — ``{"mode": "off" | "store" | "memo" | "learn"}``."""
     actor_id, denied = _admin()
     if denied:
         return denied

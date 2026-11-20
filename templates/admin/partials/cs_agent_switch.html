@@ -12,7 +12,7 @@
   {%- endif -%}
 {%- endmacro %}
 {% set sw = state.switch %}
-{% set draft_labels = {'off': '끔', 'store': '저장만', 'memo': '내부 메모'} %}
+{% set draft_labels = {'off': '끔', 'learn': '배우기만', 'store': '저장만', 'memo': '내부 메모'} %}
 <div class="tab-pane fade show active" id="cs-tab-switch" role="tabpanel" aria-labelledby="cs-tab-switch-btn">
   <div class="row g-3 mt-1">
     <div class="col-lg-6">
@@ -43,7 +43,7 @@
           <p class="text-muted small mb-2">
             {{ changed_line(sw.draft_changed, sw.draft_reason if sw.draft_reason != 'admin_panel' else None) }}</p>
           <div class="btn-group flex-wrap mb-2" role="group" aria-label="초안 스위치">
-            {% for mode in ['off', 'store', 'memo'] %}
+            {% for mode in ['off', 'learn', 'store', 'memo'] %}
             <button type="button" data-cs-draft="{{ mode }}"
                     class="btn {{ 'btn-primary' if sw.draft == mode else 'btn-outline-primary' }}"
                     aria-pressed="{{ 'true' if sw.draft == mode else 'false' }}">{{ draft_labels[mode] }}</button>
@@ -51,6 +51,7 @@
           </div>
           <ul class="small text-muted mb-0 cs-agent-list">
             <li><strong>끔</strong> — 서버 초안만 멈춰요. 감시 · 보고 · PC 시범 메모는 그대로예요.</li>
+            <li><strong>배우기만</strong> — 초안을 쓰지 않아요. 손님 질문 · 사진 · 직원 답만 모아 밤마다 회사 지식으로 배워요.</li>
             <li><strong>저장만</strong> — 초안을 기록에만 둬요. 채널톡엔 안 올려요.</li>
             <li><strong>내부 메모</strong> — 채널톡 상담에 직원만 보는 메모로 올려요(손님께는 안 감).
               메모가 공개로 보이면 안전장치가 스스로 끔 · 저장만으로 내려요.</li>

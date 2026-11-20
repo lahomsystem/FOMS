@@ -109,7 +109,7 @@ def test_off_by_default_outside_the_window_and_every_tick_until_nothing_is_left(
     panel()
     assert hl.run_handoff_learning(db_session, now=NOW, client=client) == {"off": "switch_off"}
     on(**{CASES_FIELD: 2})
-    assert hl.run_handoff_learning(db_session, now=at(11, 4), client=client) == {"off": "not_window"}
+    assert hl.run_handoff_learning(db_session, now=at(11, 9), client=client) == {"off": "not_window"}
     third = handed("uc-3")
     first = run(client)
     assert (first["cases"], first["sent"], first["filed"], first["halted"]) == (2, 2, 0, None)
@@ -157,25 +157,28 @@ def test_a_failed_call_keeps_the_cases_for_the_next_night(two):
 
 
 # ── 읽기 ─────────────────────────────────────────────────────────────────
-def test_only_learnable_handoffs_with_a_staff_reply_are_read(admin):
+def test_every_staff_answered_turn_is_read_whatever_the_reason(admin):
+    """사장님 11-20 '뭐든지 다 배워서' — 늘 사람 몫이던 까닭(불만 · 주문 조회 · 할인 환불 · 금액 · 견적) · 배우기만 차례도 읽는다."""
     on()
-    wanted = [handed("uc-1", reason=r) for r in ("unsure", "photo", "schedule", "other")]
-    wanted.append(handed("uc-2", error="check_failed", reason="none", codes=["date_promise"]))
-    for reason in ("complaint", "order_lookup", "discount_refund", "human_only_amount", "asked_if_ai"):
-        handed("uc-3", reason=reason)  # 늘 사람 몫 · 배울 까닭 밖
-    handed("uc-3", error="check_failed", reason="complaint")
-    handed("uc-3", error="check_failed", reason="none", codes=["refund_promise"])
-    handed("uc-3", error="check_failed", reason="quote_zero")  # 견적 금액은 계산기 몫
+    wanted = [handed("uc-1", reason=r) for r in ("unsure", "photo", "schedule", "other", "complaint", "order_lookup",
+                                                 "discount_refund", "human_only_amount")]
+    wanted.append(handed("uc-2", error="check_failed", reason="none", codes=["refund_promise"]))
+    wanted.append(handed("uc-2", error="quote_zero", reason="quote_zero"))
+    wanted.append(handed("uc-2", error="learn_only", reason=None))  # 초안 스위치 '배우기만' 차례
+    handed("uc-3", reason="asked_if_ai")  # 'AI 냐 사람이냐' — 배울 사실이 없다
     handed("uc-3", reply=None)  # 직원 답이 없는 사례
     handed("uc-3", held_out=True)
     handed("uc-3", outcome="copied")
-    handed("uc-3", state="posted")
+    handed("uc-3", state="posted")  # 초안이 나간 차례는 패널 칸이 켜져 있을 때만
     handed("uc-3", brand="HAUD")
-    handed("uc-3", when=at(3, 1))  # 7일 밖
+    handed("uc-3", when=NOW - hl.LEARN_LOOKBACK - datetime.timedelta(days=1))  # 읽는 창 밖
     cases = hl.collect_cases(db_session, NOW, cap=20)
     assert [case["turn_id"] for case in cases] == wanted[::-1]  # 새 것부터 — 오늘 상담을 오늘 밤 배운다
-    assert [case["reason"] for case in cases] == ["check_failed", "other", "schedule", "photo", "unsure"]
+    assert [case["reason"] for case in cases] == ["learn_only", "other", "check_failed", "human_only_amount",
+                                                  "discount_refund", "order_lookup", "complaint", "other", "schedule",
+                                                  "photo", "unsure"]
     assert [c["turn_id"] for c in hl.collect_cases(db_session, NOW, cap=2)] == wanted[::-1][:2]  # 상한만
+    assert "AI 초안 없이 직원이 답함" in case_lines({**cases[0], "talk": None})[0]
 
 
 def test_no_case_never_reaches_the_model(admin):
@@ -236,7 +239,7 @@ def test_a_short_talk_is_sent_whole_once_with_photo_lines_and_case_marks(admin):
     on()
     first = handed("uc-1", anchor="uc-1-002")
     second = handed("uc-1", anchor="uc-1-004")
-    photo = handed("uc-1", reason="complaint", anchor="uc-1-000")  # 배우지 않는 차례가 읽은 사진도 그 상담 대화에 싣는다
+    photo = handed("uc-1", reason="asked_if_ai", anchor="uc-1-000")  # 배우지 않는 차례가 읽은 사진도 그 상담 대화에 싣는다
     read_row(photo, chat="uc-1")
     db_session.execute(CsAgentImageRead.__table__.update().values(message_id="uc-1-000"))
     db_session.commit()
@@ -324,11 +327,12 @@ def test_blocked_ideas_are_counted_and_never_filed(two, bad, code):
     assert counts["filed"] == 0 and counts["blocked"] == {code: 1} and changes() == []
 
 
-def test_a_number_said_to_one_customer_only_is_not_learned(admin):
+def test_a_number_must_be_in_a_cited_staff_reply_or_the_knowledge(admin):
+    """사장님 11-20 '누구에게나 같은 숫자는 한 번만 말했어도' — 관문은 직원이 말하지 않은(두뇌가 지어낸) 숫자만 막는다."""
     on()
-    ids = [handed("uc-1"), handed("uc-2", reply="합성 직원 답 — 상판은 두껍게 만들어요"), handed("uc-3")]
-    raw = [ask(ids[:2], title="합성 상판 하나"),  # 18 은 첫 손님 답에만
-           ask([ids[0], ids[2]], title="합성 상판 둘"),  # 두 손님 답 모두에 18
+    ids = [handed("uc-1"), handed("uc-2", reply="합성 직원 답 — 상판은 두껍게 만들어요")]
+    raw = [ask([ids[1]], title="합성 상판 하나"),  # 18 은 고른 직원 답에 없다
+           ask([ids[0]], title="합성 상판 둘"),  # 한 손님 답에 18 — 넣는다
            ask(ids[:2], title="합성 선반", text="합성 선반은 350mm 깊이 기준으로 짜 드려요")]  # 지식에 있는 숫자
     counts = run(FakeAnthropic({"proposals": raw}))
     assert (counts["filed"], counts["blocked"]) == (2, {"numbers": 1})
@@ -394,14 +398,14 @@ def test_the_learning_pass_runs_handoff_learning_and_stays_quiet_when_off(two):
 def test_turns_taught_from_the_learn_window_are_read_even_for_human_only_reasons(channel):  # noqa: F811
     taught = handed("uc-t1", reason="order_lookup", send_state="sent")
     check = handed("uc-t2", error="check_failed", reason=None, codes=["refund_promise"], send_state="sent")
-    handed("uc-t3", reason="order_lookup")  # 데스크에서 직접 답한 주문 조회 — 예전처럼 뺀다
+    plain = handed("uc-t3", reason="order_lookup")  # 데스크에서 직접 답한 주문 조회 — 11-20 부터 읽는다(표지는 없다)
     handed("uc-t4", reason="unsure", send_state="sent", outcome="discarded")  # [흘리기] — 늘 뺀다
     handed("uc-t5", reason="asked_if_ai", send_state="sent")  # 'AI 냐' — 배울 사실이 없다
     cases = hl.collect_cases(db_session, NOW, cap=20)
-    assert [(case["turn_id"], case["taught"]) for case in cases] == [(check, True), (taught, True)]
-    head = case_lines({**cases[1], "talk": None})[0]
+    assert [(case["turn_id"], case["taught"]) for case in cases] == [(plain, False), (check, True), (taught, True)]
+    head = case_lines({**cases[2], "talk": None})[0]
     assert TAUGHT_MARK in head and "주문 조회" in head
-    assert "9. '직원이 배우라고 고름'" in INSTRUCTIONS
+    assert "9. 불만 · 주문 조회 · 할인 · 환불 · 사람이 정하는 금액 상담은 그 손님 사정" in INSTRUCTIONS
 
 
 def test_drafted_turns_the_staff_edited_or_answered_themselves_are_read_only_when_switched_on(channel):  # noqa: F811

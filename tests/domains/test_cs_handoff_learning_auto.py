@@ -150,14 +150,16 @@ def test_knowledge_the_owner_removed_is_not_learned_again(two, admin):
     assert UNDONE_ACTION == learned.UNDONE
 
 
-def test_a_cut_off_answer_keeps_the_cases_unread_and_ends_the_night(two, admin):
+def test_a_cut_off_answer_keeps_the_cases_unread_and_the_next_tick_halves_the_batch(two, admin):
     on()
     client = FakeAnthropic({"proposals": [ask(two)]})
     whole = client.create
     client.beta.messages.create = lambda **params: whole(**params).model_copy(update={"stop_reason": "max_tokens"})
     counts = run(client)
     assert (counts["halted"], counts["filed"]) == ("incomplete", 0) and hl.used_ids(db_session) == frozenset()
-    assert run(client, now=at(11, 2, 15)) == {"off": "already_today"}
+    half = run(client, now=at(11, 2, 15))  # 밤을 닫지 않고 반으로 줄여 다시(같은 묶음에 밤마다 걸리지 않게)
+    assert (half["cases"], half["halted"]) == (1, "incomplete") and hl.used_ids(db_session) == frozenset()
+    assert run(client, now=at(11, 2, 30)) == {"off": "already_today"}  # 사례 하나도 끊기면 그 밤은 여기까지
 
 
 def test_a_differs_card_number_never_enters_the_known_number_list_even_after_the_owner_files_it(two, admin):
