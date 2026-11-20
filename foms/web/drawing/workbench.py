@@ -45,7 +45,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
-from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage
+from foms.services.orders.drawing_transfer import is_drawing_hotfix_stage, sends_only_other_sheets
 from foms.services.partners.schedule_request import pending_request, request_text
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.files.list_thumb import list_thumb_url
@@ -1558,6 +1558,12 @@ def erp_drawing_workbench_detail(order_id):
         as_drawing=as_drawing_detail,
         # 생산·시공 단계 = 보내면 영업 확인 없이 바로 최종(전달 창 안내·기본 교체).
         drawing_hotfix_stage=is_drawing_hotfix_stage(order),
+        # 전달 창 기본 방식 = 추가: 생산·시공 단계의 한 장뿐인 최종 도면과 전달 대기 시트가 서로 다른 시트일 때
+        # (서버가 방식 없는 전달을 더하는 조건과 같다 — 기본 "교체"가 다른 제품 도면을 지우지 않게).
+        transfer_default_append=bool(
+            is_drawing_hotfix_stage(order) and drawing_status == 'CONFIRMED'
+            and sends_only_other_sheets(drawing_files, drawing_pending, s_data)
+        ),
         erp_order_enabled=True,
         # 확정 창 ①제품 ②최종 생산 도면(DRAWING-PARTIAL-CONFIRM) — 순수 계산, 조회 0.
         ok_scope=build_ok_scope(s_data),
