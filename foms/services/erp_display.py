@@ -6,6 +6,7 @@ import unicodedata
 from foms.services.common.business_calendar import business_days_until
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive, to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.construction_dates import pick_nearest_date, split_date_text
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.manager_names import order_manager_match_names
 from foms.services.erp_policy import (
@@ -471,11 +472,15 @@ def _erp_has_media(order, attachments_count: int):
 
 def _erp_alerts(order, structured_data, attachments_count: int):
     urgent = _erp_get_urgent_flag(structured_data)
-    meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
-    cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
+    meas_text = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
+    cons_text = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
     today_kst = get_today_kst()
-    meas_d = business_days_until(meas_date, today=today_kst) if meas_date else None
-    cons_d = business_days_until(cons_date, today=today_kst) if cons_date else None
+    # 날짜가 여럿이면 오늘 이후 가장 가까운 날(모두 지났으면 마지막 날)로 센다 — 글 통째로는 못 읽는다.
+    # 주문 칸 글만 본다: 숫자판은 schedule 만 투영해 부르므로 제품 칸까지 보면 줄 배지와 수가 갈린다.
+    meas_date = pick_nearest_date(split_date_text(meas_text), today_kst)
+    cons_date = pick_nearest_date(split_date_text(cons_text), today_kst)
+    meas_d = business_days_until(meas_date.isoformat(), today=today_kst) if meas_date else None
+    cons_d = business_days_until(cons_date.isoformat(), today=today_kst) if cons_date else None
     measurement_d4 = meas_d is not None and 0 <= meas_d <= 4
     construction_d3 = cons_d is not None and 0 <= cons_d <= 3
     try:

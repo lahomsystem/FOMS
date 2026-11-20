@@ -14,6 +14,11 @@ from foms.services.orders.erp_policy_data_access import (
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.datetime_kst import get_today_kst, parse_datetime_utc
+from foms.services.orders.construction_dates import (
+    all_construction_dates,
+    pick_nearest_date,
+    split_date_text,
+)
 
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 
@@ -56,6 +61,24 @@ def _parse_date(value: Any) -> Optional[datetime.date]:
         return None
 
 
+def _schedule_dates(sd: Dict[str, Any], today: datetime.date) -> tuple:
+    """(실측일, 시공일) — 날짜가 여럿이면 오늘 이후 가장 가까운 날, 모두 지났으면 마지막 날.
+
+    쉼표 여러 날 글을 통째로 ``fromisoformat`` 에 넣으면 None 이 돼 임박 할 일이 빠진다.
+    시공일은 제품 칸 날짜까지 본다. 날짜마다 할 일을 만들지 않는다(열린 할 일은 주문 · 키당 하나).
+    """
+    meas_text = (((sd.get("schedule") or {}).get("measurement") or {}).get("date"))
+    return (
+        pick_nearest_date(split_date_text(meas_text), today),
+        pick_nearest_date(all_construction_dates(sd), today),
+    )
+
+
+def _due_text(picked: Optional[datetime.date], raw: Any) -> Optional[str]:
+    """고른 날짜의 ISO 글. 날짜로 못 읽은 글은 적힌 그대로 둔다."""
+    return picked.isoformat() if picked else (str(raw or "") or None)
+
+
 def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None) -> List[AutoTaskSpec]:
     """structured_data 기반 자동 Task spec 목록을 만든다."""
     now_dt = now  # None 이면 _today_kst 가 KST 오늘을 쓴다
@@ -75,8 +98,7 @@ def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None
 
     meas_date_s = (((sd.get("schedule") or {}).get("measurement") or {}).get("date"))
     cons_date_s = (((sd.get("schedule") or {}).get("construction") or {}).get("date"))
-    meas_date = _parse_date(meas_date_s)
-    cons_date = _parse_date(cons_date_s)
+    meas_date, cons_date = _schedule_dates(sd, _today_kst(now_dt))
 
     urgent = bool((sd.get("flags") or {}).get("urgent"))
     if urgent and "AUTO_URGENT" in enabled_keys:
@@ -85,7 +107,7 @@ def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None
                 auto_key="AUTO_URGENT",
                 title="긴급 발주 팔로업",
                 owner_team=owner_team or "CS",
-                due_date=str(cons_date_s or meas_date_s or "") or None,
+                due_date=_due_text(cons_date, cons_date_s) or _due_text(meas_date, meas_date_s),
                 meta={"auto_key": "AUTO_URGENT", "reason": (sd.get("flags") or {}).get("urgent_reason")},
             )
         )
@@ -169,7 +191,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: Optional[
         return None
     due_type = due.get("type")
     if due_type == "measurement_date":
-        base = _parse_date((((sd.get("schedule") or {}).get("measurement") or {}).get("date")))
+        base = _schedule_dates(sd, _today_kst(now_dt))[0]
         if not base:
             return None
         offset_business_days = due.get("offset_business_days")
@@ -182,7 +204,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: Optional[
         except Exception:
             return base.isoformat()
     if due_type == "construction_date":
-        base = _parse_date((((sd.get("schedule") or {}).get("construction") or {}).get("date")))
+        base = _schedule_dates(sd, _today_kst(now_dt))[1]
         if not base:
             return None
         offset_business_days = due.get("offset_business_days")
