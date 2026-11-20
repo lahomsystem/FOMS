@@ -1,40 +1,34 @@
 """넘긴 상담 배우기 — 직원이 직접 한 답을 날마다 회사 지식으로(사장님 11-11 '넘긴 것을 학습해서 다음엔 AI 가 답하게' · 11-19
-'매일 학습하고 온톨로지 만들고 계속 업그레이드 — 매번 승인 대신 즉시 반영, 내가 확인하고 추후 수정 · 삭제').
+'매일 학습하고 온톨로지 만들고 계속 업그레이드 — 매번 승인 대신 즉시 반영' · 11-20 'AI 초안 끄고 배움에 모든 하루 비용 · 학습 모델은
+난이도에 따라 · 뭐든지 다 배워서 자동 적용').
 
-AI 가 답을 몰라 넘긴 차례(``skipped`` · ``handoff``)나 보내기 전 검사에 걸린 차례(``check_failed``)에는 직원이 데스크에서 직접
-답한다(사례 기억 :mod:`.case_memory` 가 가린 직원 답을 붙인다). 지금 사례 재료(:mod:`.case_material` · :mod:`.brain_cases`)는
-이것을 '말투 · 순서만 참고'로 쓰고 그 안의 사실은 다음 초안에 쓰지 않는다. 이 길이 그 사실 · 정책 · 상황 · 제작 조건 · 비슷한 말을
-회사 지식으로 만든다(사진 학습 :mod:`.photo_learning` 과 같은 제안 길).
+직원이 데스크에서 직접 답한 차례(사례 기억 :mod:`.case_memory` 가 가린 직원 답을 붙인다)에서 사실 · 정책 · 응대 절차 · 상황 · 제작
+조건 · 비슷한 말을 회사 지식으로 만든다(사진 학습 :mod:`.photo_learning` 과 같은 제안 길).
 
 WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :data:`WINDOW_HOURS`) 창 안에서 남은 사례가 없을 때까지**
 바퀴마다 한 번씩 돈다(:data:`MAX_RUNS` 번까지 — 부르기 전에 횟수와 잠깐 잠금을 남긴다, :func:`claim_day`. 재시작 · 두 컨테이너가
-겹쳐도 같은 사례를 두 번 읽지 않게). 읽을 사례가 없거나 부르기가 실패하면 그 밤을 닫는다(:func:`close_day`). 창은 월요일 새벽
-주간 고침 안 · 사진 학습 창(3 ~ 6시) 앞이다. 끄고 켜기는 :func:`.learning_brain.off_reason`(패널 '넘긴 상담 배우기' — 처음 끔 ·
-비상 정지 · 초안 끔 · 학습 돈 상한).
+겹쳐도 같은 사례를 두 번 읽지 않게). 읽을 사례가 없거나 부르기가 실패하면(돈 상한 포함) 그 밤을 닫는다(:func:`close_day`). 끄고
+켜기는 :func:`.learning_brain.off_reason`(패널 '넘긴 상담 배우기' · 비상 정지 · 초안 스위치 '끔' · 학습 돈 상한) — 초안 스위치가
+'배우기만'(:data:`.turns.DRAFT_LEARN`)이면 초안 두뇌 없이 차례 줄만 모이고 이 길은 그대로 돈다.
 
-1. **읽기(가린 글만)**: 지난 7일(:data:`.weekly_fix.LOOKBACK`) 라홈 차례 가운데 ``skipped`` 이고 (넘김 + 까닭
-   :data:`LEARN_REASONS`) 또는 보내기 전 검사에 걸린 것, 가린 직원 답이 있고 끝난 꼴이 학습 재료(복사 · 버림 제외)이며 떼어 둔
-   줄이 아닌 것. 늘 사람이 답하는 까닭(:data:`HUMAN_ONLY_REASONS` — 불만 · 주문 조회 · 할인 · 환불 · 사람만 말하는 금액)과 그런
-   검사 코드(:data:`HUMAN_ONLY_CHECKS`) · 견적 계산 차례(금액 정본은 계산기)는 뺀다 — 다만 직원이 넘김 메모 [배우기]로 직접
-   보낸 차례(``send_state`` 보냄 — :mod:`.handoff_send`)는 그 까닭이어도 읽는다('AI 냐' 차례 빼고). [흘리기]한 차례는 끝난 꼴
-   '버림'이라 늘 빠진다. 패널 '초안이 나간 상담도 배우기'가 켜져 있으면 AI 초안을 직원이 고쳐 보냈거나(``edited``) 초안을 안 쓰고
-   직접 답한(``direct``) 차례도 읽는다. **이미 읽은 차례는 다시 읽지 않는다**(:func:`used_ids`). **새 것부터** 패널 '한 번에 읽는
-   사례 수'만 — 오늘 상담을 오늘 밤 배우고, 남은 밀린 사례는 같은 밤 다음 바퀴가 읽는다(예전에는 오래된 것부터 하루 한 번이라
-   배우기가 엿새쯤 밀렸고 7일이 지난 사례는 못 읽은 채 빠졌다 — 운영 11-19 지난 7일 배울 사례 144 가운데 5만 읽음).
-   **창을 '지난번 성공한 날부터'가 아니라 늘 7일로 둔 까닭**: 읽은 차례 표가 이미 같은 사례를 두 번 막는다. 움직이는 시작점을
-   두면 실패한 밤 · 밤 뒤에 붙은 직원 답이 시작점과 표 사이에서 조용히 빠진다.
-2. **재료 — 상담 전체 대화 · 사진(사장님 11-19)**: 상담마다 전체 대화(:func:`.full_conversation.read_talk` — 가린 글)를 한 번
+1. **읽기(가린 글만 — 뭐든지 다)**: 지난 :data:`LEARN_LOOKBACK` 라홈 차례 가운데 가린 직원 답이 있고 끝난 꼴이 고침 · 직접 답이며
+   (복사 · 버림 · 초안 그대로 보냄 제외) 떼어 둔 줄이 아닌 것 — 건너뛴 차례는 넘긴 까닭을 가리지 않고 모두(불만 · 주문 조회 ·
+   할인 환불 · 사람이 정하는 금액 · 견적 계산 · 배우기만 포함. 그 손님 사정을 빼는 일은 지시문이 맡는다), 'AI 냐 사람이냐' 차례만
+   뺀다(:data:`.send_record.NOT_TAUGHT_REASONS`). 패널 '초안이 나간 상담도 배우기'가 켜져 있으면 AI 초안이 나간 차례도 읽는다.
+   **이미 읽은 차례는 다시 읽지 않는다**(:func:`used_ids`) — 읽는 규칙이 바뀌면(:data:`POLICY`) 읽은 표를 한 번 비워 지난 사례를
+   새 규칙으로 다시 읽는다(:func:`fresh_policy`). **새 것부터** 읽는다.
+2. **묶음 · 모델(:mod:`.handoff_learning_pick`)**: 새 것부터 :data:`POOL` 개를 보고 상담마다 어려움을 가른 뒤, 가장 새 사례의 갈래
+   하나만 이번 묶음으로 담는다. 어려운 묶음(고쳐 보냄 · 불만 · 금액 · 사진 · 긴 상담)은 작게 · 가장 센 모델로, 쉬운 묶음은 패널
+   '한 번에 읽는 사례 수'만큼 · 한 단계 아래 모델로.
+3. **재료 — 상담 전체 대화 · 사진(사장님 11-19)**: 상담마다 전체 대화(:func:`.full_conversation.read_talk` — 가린 글)를 한 번
    읽고, 그 상담의 차례들이 읽은 손님 사진 설명(:func:`.image_summaries.summaries_by_turn`)을 그 사진이 온 글 자리에 ``▶`` 줄로
-   끼운다. 자 수 상한(패널 상한과 한 번 합 ÷ 상담 수) 안이면 전체를 한 번만 싣고 같은 상담의 다른 사례는 그 대화를 가리킨다.
-   넘으면 사례마다 그 손님 글을 가운데 둔 앞뒤 대화 창(:func:`.handoff_learning_prompt.talk_window`). 대화를 못 읽으면 질문 앞
-   6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``). 보낼 사례가 하나도 없으면 두뇌를 부르지 않는다.
-3. **두뇌(학습 모델 — 주간 고침 안 모델 칸)**: 회사 지식 · 온톨로지 목록과 견줘 안(사실 · 정책 새로 만들기 · 고치기 · 다른 말,
-   상황 · 제작 조건 · 비슷한 말 · 잇기)을 구조화 출력으로. 부르기가 끝나면 보낸 차례를 '읽음'으로 적는다(같은 사례를 다음 밤에
-   다시 보내지 않는다 — 부르기가 실패하면 적지 않아 다음 밤에 다시 본다).
-4. **관문 · 넣기**(:mod:`.handoff_learning_gates` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
-   부딪침 → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을 지난 안을 그 자리에서 반영하고(:func:`auto_learn` — 사람
-   승인자 칸은 비워 '사람이 아직 안 봄'으로 남는다), 꺼져 있으면 '승인 대기'로만. 지금 지식과 다른 말은 어느 쪽이든 덮어쓰지
-   않고 승인 대기 ③ 엇갈림 카드로 모은다.
+   끼운다. 자 수 상한 안이면 전체를 한 번만 싣고 같은 상담의 다른 사례는 그 대화를 가리킨다. 넘으면 사례마다 그 손님 글을 가운데
+   둔 앞뒤 대화 창. 대화를 못 읽으면 질문 앞 6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``).
+4. **두뇌**: 회사 지식 · 온톨로지 목록 · 이미 모아 둔 다른 말과 견줘 안을 구조화 출력으로. 부르기가 끝나면 보낸 차례를 '읽음'으로
+   적는다(부르기가 실패하면 적지 않아 다음 바퀴 · 다음 밤에 다시 본다).
+5. **관문 · 넣기**(:mod:`.handoff_learning_gates` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
+   부딪침 → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을 지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과
+   다른 말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고치고, 한 번뿐이면 승인 대기 ③ 엇갈림 카드로 모은다.
 
 로그 · 결과에는 숫자 · 코드만 싣는다(글 · 상담 id 없음).
 """
@@ -54,17 +48,17 @@ from foms.services.brain.constants import CHANGE_OPEN
 from foms.services.brain.proposals import known_text
 from foms.services.cs_agent.brain_spend import BrainError
 from foms.services.cs_agent import photo_learning_prompt as onto_prompt
-from foms.services.cs_agent.case_memory import LEARNING_OUTCOMES, OUTCOME_DIRECT, OUTCOME_EDITED
+from foms.services.cs_agent.case_memory import OUTCOME_DIRECT, OUTCOME_EDITED
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.drafting import SKIP_CHECK, SKIP_HANDOFF
-from foms.services.cs_agent.edit_detail_settings import WEEKLY_MODEL_FIELD
 from foms.services.cs_agent.full_conversation import MIN_CASE_CHARS, case_limit, read_talk, talk_on, talk_text
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
-from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, file_proposals, seen_proposals
+from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, file_proposals, open_cards, seen_proposals
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
+from foms.services.cs_agent.handoff_learning_pick import model_for, pick_batch
 from foms.services.cs_agent.handoff_learning_prompt import (
-    anchor_mark, build_params, case_lines, complete, knowledge_lines, knowledge_rows, pending_lines, raw_ontology,
-    raw_proposals, talk_window,
+    anchor_mark, build_params, case_lines, complete, differs_lines, knowledge_lines, knowledge_rows, pending_lines,
+    raw_ontology, raw_proposals, talk_window,
 )
 from foms.services.cs_agent.image_summaries import summaries_by_turn
 from foms.services.cs_agent.knowledge import load_approved
@@ -73,32 +67,32 @@ from foms.services.cs_agent.masking import MaskLeak
 from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.send_record import NOT_TAUGHT_REASONS, SEND_SENT
 from foms.services.cs_agent.state import KST
-from foms.services.cs_agent.turns import STATE_SKIPPED
-from foms.services.cs_agent.weekly_fix import LOOKBACK
+from foms.services.cs_agent.turns import SKIP_LEARN_ONLY, STATE_SKIPPED
 from models import CsAgentTurn, SecurityLog, SystemSetting, User
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "HUMAN_ONLY_CHECKS", "HUMAN_ONLY_REASONS", "LEARN_REASONS", "QUOTE_PREFIX", "STORE_KEY", "WINDOW_HOURS",
+    "LEARN_LOOKBACK", "POLICY", "POOL", "STORE_KEY", "WINDOW_HOURS",
     "DIRECT", "EDITED", "LEASE", "MAX_RUNS", "auto_learn", "claim_day", "close_day", "collect_cases", "day_id",
-    "in_window", "mark_used", "release", "run_handoff_learning", "used_ids",
+    "fresh_policy", "in_window", "mark_used", "release", "run_handoff_learning", "used_ids",
 ]
 
 STORE_KEY = "cs_agent_handoff_learn"
-WINDOW_HOURS = (1, 3)  # 날마다 KST 1시 ~ 3시 앞(월요일 3 ~ 6시 주간 고침 안 · 사진 학습 창 앞)
-#: 배울 넘김 까닭 — 모름 · 사진 · 일정 · 그 밖. 보내기 전 검사에 걸린 차례(``check_failed``)도 배운다.
-LEARN_REASONS: tuple[str, ...] = ("unsure", "photo", "schedule", "other")
-#: 늘 사람이 답하는 까닭 — 배우지 않는다(검사에 걸린 차례도 이 까닭이면 뺀다).
-HUMAN_ONLY_REASONS: tuple[str, ...] = ("complaint", "order_lookup", "discount_refund", "human_only_amount")
-#: 늘 사람 몫인 보내기 전 검사 코드(사람만 말하는 금액 · 할인 · 환불 약속) — 그 검사에 걸린 차례는 배우지 않는다.
-HUMAN_ONLY_CHECKS: frozenset[str] = frozenset({"human_only_amount", "discount_promise", "refund_promise"})
-QUOTE_PREFIX = "quote_"  # 견적 계산이 사람에게 넘긴 까닭(:mod:`.quote_calc` · :mod:`.quote_rules`) — 배우지 않는다
-MAX_DAYS, MAX_USED, MAX_SCAN, MAX_PENDING, TIMEOUT_S = 14, 2000, 2000, 30, 300
+WINDOW_HOURS = (0, 7)  # 날마다 KST 0시 ~ 7시 앞(상담이 없는 시간 — 월요일 3 ~ 6시 주간 고침 안 · 사진 학습 창과 겹쳐도 길이 다르다)
+#: 읽는 창 — 차례 줄이 남아 있는 동안(운영 차례 줄은 10월 말부터). 읽은 차례 표가 같은 사례를 두 번 막는다.
+LEARN_LOOKBACK = datetime.timedelta(days=30)
+MAX_DAYS, MAX_USED, MAX_SCAN, MAX_PENDING, TIMEOUT_S = 14, 8000, 4000, 30, 420
 EDITED = "edited"  # 사례 갈래 — AI 초안을 직원이 고쳐 보낸 차례(패널 '초안이 나간 상담도 배우기')
 DIRECT = "direct"  # 사례 갈래 — AI 초안을 안 쓰고 직원이 직접 답한 차례(같은 칸)
-#: 한 밤에 부르는 횟수 상한(창 2시간 · 15분 바퀴) · 부르는 동안의 잠깐 잠금(겹친 컨테이너가 같은 사례를 읽지 않게).
-MAX_RUNS, LEASE = 8, datetime.timedelta(minutes=10)
+#: 한 밤에 부르는 횟수 상한(창 7시간 · 15분 바퀴) · 부르는 동안의 잠깐 잠금(겹친 컨테이너가 같은 사례를 읽지 않게).
+MAX_RUNS, LEASE = 28, datetime.timedelta(minutes=10)
+#: 읽는 규칙 판 — 바뀌면 읽은 차례 표를 한 번 비운다(:func:`fresh_policy`). 2 = 11-20 '뭐든지 다'(모든 까닭 · 30일 · 난이도별 모델).
+POLICY = 2
+POOL = 200  # 한 번에 갈래를 가를 사례 수(새 것부터)
+#: 답이 출력 상한에 끊기거나 시간을 넘기면 다음 바퀴는 묶음을 반으로 줄인다(이 횟수까지 — 같은 묶음에 밤마다 걸려 멈추지 않게). 성공하면 되돌린다.
+MAX_SHRINK = 4
+CUT_CODES: frozenset[str] = frozenset({"incomplete", "timeout"})
 
 
 def day_id(now: datetime.datetime) -> str:
@@ -113,8 +107,8 @@ def in_window(now: datetime.datetime) -> bool:
 
 # ── 날 표 · 읽은 차례 표(SystemSetting 한 줄) ─────────────────────────────
 def _doc(row: Any) -> dict[str, Any]:
-    """저장 값 → ``{"days": [닫은 KST 날], "used": [차례 id], "runs": {KST 날: 부른 횟수}, "lease": 잠금 끝 시각}`` 사본(틀린
-    칸은 빈 값)."""
+    """저장 값 → ``{"days": [닫은 KST 날], "used": [차례 id], "runs": {KST 날: 부른 횟수}, "lease": 잠금 끝 시각, "policy":
+    읽는 규칙 판}`` 사본(틀린 칸은 빈 값)."""
     value = row.setting_value if row is not None and isinstance(row.setting_value, dict) else {}
     days = [d for d in value.get("days") or [] if isinstance(d, str)] if isinstance(value.get("days"), list) else []
     used = ([i for i in value.get("used") or [] if isinstance(i, int) and not isinstance(i, bool)]
@@ -122,7 +116,9 @@ def _doc(row: Any) -> dict[str, Any]:
     runs = value.get("runs") if isinstance(value.get("runs"), dict) else {}
     runs = {d: n for d, n in runs.items() if isinstance(d, str) and isinstance(n, int) and not isinstance(n, bool)}
     lease = value.get("lease") if isinstance(value.get("lease"), str) else None
-    return {"days": days, "used": used, "runs": runs, "lease": lease}
+    policy = value.get("policy") if isinstance(value.get("policy"), int) and not isinstance(value.get("policy"), bool) else 1
+    shrink = value.get("shrink") if isinstance(value.get("shrink"), int) and not isinstance(value.get("shrink"), bool) else 0
+    return {"days": days, "used": used, "runs": runs, "lease": lease, "policy": policy, "shrink": max(0, min(shrink, MAX_SHRINK))}
 
 
 def _locked(session: Any) -> Any:
@@ -182,6 +178,30 @@ def close_day(session: Any, day: str) -> None:
     session.commit()
 
 
+def fresh_policy(session: Any) -> bool:
+    """읽는 규칙 판이 바뀌었으면 읽은 차례 표를 한 번 비우고(커밋) 참 — 지난 사례를 새 규칙으로 다시 읽는다. 이미 넣은 지식과 같은
+    안은 같음 · 겹침 관문이 막는다."""
+    row = _locked(session)
+    doc = _doc(row)
+    if doc["policy"] == POLICY:
+        session.rollback()
+        return False
+    _put(row, {**doc, "used": [], "policy": POLICY})
+    session.commit()
+    return True
+
+
+def _shrink(session: Any, *, grow: bool) -> None:
+    """묶음 줄이기 횟수를 하나 올리거나(``grow``) 하나 내린다(커밋 — 바뀔 때만 쓴다. 한 번 성공했다고 곧바로 큰 묶음으로
+    돌아가면 실패 · 성공이 번갈아 나와 실패 때마다 최악값이 학습 돈에 잡힌다)."""
+    row = _locked(session)
+    doc = _doc(row)
+    wanted = min(MAX_SHRINK, doc["shrink"] + 1) if grow else max(0, doc["shrink"] - 1)  # 한 번에 하나씩 되돌린다
+    if wanted != doc["shrink"]:
+        _put(row, {**doc, "shrink": wanted})
+    session.commit()
+
+
 def used_ids(session: Any) -> frozenset[int]:
     """이미 두뇌에 보낸(또는 가림 검사로 뺀) 차례 id."""
     return frozenset(_doc(session.get(SystemSetting, STORE_KEY, populate_existing=True))["used"])
@@ -201,37 +221,22 @@ def mark_used(session: Any, ids: Iterable[int]) -> None:
 
 # ── 읽기 ─────────────────────────────────────────────────────────────────
 def _turn_rows(session: Any, since: datetime.datetime, *, edits: bool = False) -> list[Any]:
-    """지난 7일 넘김 · 검사 걸림 차례(가린 직원 답이 있는 것 · 떼어 둔 줄 제외) — 가린 칸 · 코드만, **새 것부터**.
-    ``edits`` 면 AI 초안이 나간 차례 가운데 직원이 고쳐 보냈거나(끝난 꼴 '고침') 초안을 안 쓰고 직접 답한 것(끝난 꼴 '직접 답')도."""
+    """지난 창의 직원이 직접 답한 차례(가린 직원 답이 있는 것 · 떼어 둔 줄 제외) — 가린 칸 · 코드만, **새 것부터**. 건너뛴 차례는
+    넘긴 까닭을 가리지 않고 모두('AI 냐' 차례만 뺀다). ``edits`` 면 AI 초안이 나간 차례 가운데 직원이 고쳐 보냈거나 직접 답한 것도."""
     turn = CsAgentTurn
-    taught = and_(turn.error_code.in_((SKIP_HANDOFF, SKIP_CHECK)), turn.send_state == SEND_SENT,
+    picked = and_(turn.state == STATE_SKIPPED,
                   or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(NOT_TAUGHT_REASONS)))
-    learnable = or_(and_(turn.error_code == SKIP_HANDOFF, turn.handoff_reason.in_(LEARN_REASONS)),
-                    and_(turn.error_code == SKIP_CHECK,
-                         or_(turn.handoff_reason.is_(None), turn.handoff_reason.notin_(HUMAN_ONLY_REASONS))),
-                    taught)
-    picked = and_(turn.state == STATE_SKIPPED, learnable)
     if edits:  # 사장님 11-11 고친 답 + 까닭 · 11-19 '모든 대화' — 초안을 안 쓰고 직접 답한 것도
-        picked = or_(picked, and_(turn.state != STATE_SKIPPED, turn.outcome.in_((OUTCOME_EDITED, OUTCOME_DIRECT))))
+        picked = or_(picked, turn.state != STATE_SKIPPED)
     stmt = (select(turn.id, turn.chat_id, turn.intent, turn.error_code, turn.handoff_reason, turn.check_codes,
                    turn.masked_question, turn.staff_reply_masked, turn.masked_context, turn.last_user_message_id,
                    turn.desk_manager_id, turn.send_state, turn.state, turn.masked_draft, turn.edit_reason,
                    turn.edit_detail_masked, turn.sent_by_user_id, turn.outcome)
             .where(turn.brand == SEND_BRAND, picked,
-                   turn.outcome.in_(LEARNING_OUTCOMES), turn.held_out.is_(False), turn.staff_reply_masked.isnot(None),
-                   turn.updated_at >= since)
+                   turn.outcome.in_((OUTCOME_EDITED, OUTCOME_DIRECT)), turn.held_out.is_(False),
+                   turn.staff_reply_masked.isnot(None), turn.updated_at >= since)
             .order_by(turn.id.desc()).limit(MAX_SCAN))
     return list(session.execute(stmt))
-
-
-def _human_only(row: Any) -> bool:
-    """늘 사람 몫인 검사에 걸린 차례 · 견적 계산 차례(금액 정본은 계산기 — 넘긴 까닭 ``quote_…``)인가. 직원이 넘김 메모
-    [배우기]로 직접 보낸 차례는 아니다(직원이 배우라고 골랐다 — :mod:`.handoff_send`)."""
-    codes = row.check_codes if isinstance(row.check_codes, list) else []
-    if row.error_code != SKIP_CHECK or row.send_state == SEND_SENT:
-        return False
-    return (str(row.handoff_reason or "").startswith(QUOTE_PREFIX)
-            or bool(HUMAN_ONLY_CHECKS.intersection(c for c in codes if isinstance(c, str))))
 
 
 def _staff(row: Any) -> Optional[str]:
@@ -245,8 +250,8 @@ def _case(row: Any) -> dict[str, Any]:
     """사례 dict — 넘김 · 검사 걸림 · 고쳐 보냄(``reason`` = ``edited`` · AI 초안 · 고친 까닭) · 초안 안 씀(``direct`` · AI 초안)."""
     drafted = row.state != STATE_SKIPPED
     edited = drafted and row.outcome == OUTCOME_EDITED
-    reason = (EDITED if edited else DIRECT if drafted
-              else row.handoff_reason if row.error_code == SKIP_HANDOFF else SKIP_CHECK)
+    reason = (EDITED if edited else DIRECT if drafted else row.handoff_reason if row.error_code == SKIP_HANDOFF
+              else row.error_code if row.error_code in (SKIP_CHECK, SKIP_LEARN_ONLY) else "other")
     return {"turn_id": row.id, "chat_id": row.chat_id, "intent": row.intent, "reason": reason,
             "question": row.masked_question, "reply": row.staff_reply_masked, "context": row.masked_context,
             "anchor": row.last_user_message_id, "staff": _staff(row), "taught": row.send_state == SEND_SENT and not drafted,
@@ -258,8 +263,8 @@ def collect_cases(session: Any, now: datetime.datetime, *, cap: int, edits: bool
     """읽기(모듈 설명 1) — 사례 dict(차례 id · 상담 id · 의도 · 넘긴 까닭 · 가린 질문 · 가린 직원 답 · 질문 앞 6줄 · 기준 글 id)."""
     used = used_ids(session)
     out = []
-    for row in _turn_rows(session, naive_utc(now - LOOKBACK), edits=edits):
-        if row.id in used or _human_only(row) or not (row.staff_reply_masked or "").strip():
+    for row in _turn_rows(session, naive_utc(now - LEARN_LOOKBACK), edits=edits):
+        if row.id in used or not (row.staff_reply_masked or "").strip():
             continue
         out.append(_case(row))
         if len(out) >= cap:
@@ -373,15 +378,16 @@ def _known(session: Any) -> str:
 
 
 def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], used: list[int], *, cfg: Any,
-             now: datetime.datetime, client: Any, counts: dict[str, Any]) -> None:
+             now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str) -> None:
     """두뇌 → 읽음 표 → 관문 → 제안 길 · 바로 반영(모듈 설명 3 · 4)."""
     rows = knowledge_rows(session)
     knowledge, approved = knowledge_lines(rows), [row.text for row in rows if row.text]
     ontology = onto_prompt.knowledge_lines(onto_prompt.knowledge_rows(session))
     pending = pending_lines([(label, text) for status, _key, label, text in seen_proposals(session)
                              if status == CHANGE_OPEN][:MAX_PENDING])
-    params = build_params(blocks, knowledge, pending, model=str(cfg.get(WEEKLY_MODEL_FIELD)), cfg=cfg,
-                          ontology=ontology)
+    model, effort = model_for(tier)
+    params = build_params(blocks, knowledge, pending, model=model, cfg=cfg, ontology=ontology,
+                          differs=differs_lines(open_cards(session)), effort=effort)
     session.commit()
     called = call_learning(session, params, cfg=cfg, now=now, timeout_s=TIMEOUT_S, client=client)
     if not complete(called.response):  # 출력 상한에 끊김 · 거절 — 읽음으로 적지 않는다(안이 통째로 사라지지 않게)
@@ -397,7 +403,7 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
     got = file_proposals(session, raw, sent, now=now, known=known, approved=approved, auto=auto)
     more = file_ontology(session, onto, sent, now=now, known=known, auto=auto)
     session.commit()
-    for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card")):
+    for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed")):
         counts[name] = got.pop(key, 0) + more.pop(key, 0)
     counts["blocked"] = {code: got.get(code, 0) + more.get(code, 0) for code in sorted({*got, *more})}
 
@@ -416,31 +422,42 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     day = day_id(now)
     if not claim_day(session, day, now):
         return {"off": "already_today"}
-    cases = collect_cases(session, now, cap=_cap(cfg), edits=cfg.get(EDIT_LEARN_FIELD) is True)
-    photos = _photo_marks(session, sorted({str(case["chat_id"] or "") for case in cases} - {""}))
+    fresh_policy(session)
+    pool = collect_cases(session, now, cap=POOL, edits=cfg.get(EDIT_LEARN_FIELD) is True)
+    photos = _photo_marks(session, sorted({str(case["chat_id"] or "") for case in pool} - {""}))
+    shrink = _doc(session.get(SystemSetting, STORE_KEY, populate_existing=True))["shrink"]
+    tier, cases = pick_batch(pool, photos, _cap(cfg))
+    cases = cases[:max(1, len(cases) >> shrink)]  # 앞 바퀴 답이 끊겼으면 반씩 줄여 다시
     session.commit()  # 채널톡 읽기 동안 읽기 트랜잭션을 열어 두지 않는다
     talks = _talks(reader, cfg, cases, photos)
-    counts: dict[str, Any] = {"day": day, "cases": len(cases), "talks": len(talks), "mask_dropped": 0, "sent": 0,
-                              "proposed": 0, "filed": 0, "applied": 0, "cards": 0, "blocked": {}, "halted": None}
+    counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
+                              "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
+                              "cards": 0, "fixed": 0, "blocked": {}, "halted": None}
     try:
-        _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts)
+        _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
         session.rollback()
         close_day(session, day)
         release(session)
         raise
-    if not cases or counts["halted"] is not None:  # 남은 사례가 없다 · 부르기가 실패했다 — 이 밤은 여기까지
+    cut = counts["halted"] in CUT_CODES  # 답이 끊김 · 시간 넘김 — 밤을 닫지 않고 반으로 줄여 다시
+    if cut and len(cases) == 1:  # 하나로 줄여도 안 되는 사례 — 읽음으로 넘긴다(새 것부터라 밤마다 이 사례에서 멈춘다)
+        mark_used(session, [cases[0]["turn_id"]])
+        counts["skipped_case"] = 1
+    if cut or (shrink and counts["halted"] is None):
+        _shrink(session, grow=cut)
+    if not cases or (counts["halted"] is not None and not cut):  # 남은 사례가 없다 · 부르기가 실패했다 — 이 밤은 여기까지
         close_day(session, day)
     release(session)
-    logger.info("[CS 넘김 학습] day=%s cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d applied=%d "
-                "cards=%d blocked=%s halted=%s", day, counts["cases"], counts["talks"], counts["mask_dropped"],
-                counts["sent"], counts["proposed"], counts["filed"], counts["applied"], counts["cards"],
-                counts["blocked"], counts["halted"])
+    logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
+                "applied=%d cards=%d fixed=%d blocked=%s halted=%s", day, tier, counts["left"], counts["cases"],
+                counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
+                counts["applied"], counts["cards"], counts["fixed"], counts["blocked"], counts["halted"])
     return counts
 
 
 def _run(session: Any, cases: list[dict[str, Any]], talks: dict[int, dict[str, Any]], *, cfg: Any,
-         now: datetime.datetime, client: Any, counts: dict[str, Any]) -> None:
+         now: datetime.datetime, client: Any, counts: dict[str, Any], tier: str) -> None:
     """사례 줄 → 두뇌 → 넣기(:func:`run_handoff_learning` 의 가운데 — 수는 ``counts`` 에 채운다)."""
     sent, blocks, dropped = _blocks(cases, talks)
     counts.update(mask_dropped=len(dropped), sent=len(sent))
@@ -450,7 +467,7 @@ def _run(session: Any, cases: list[dict[str, Any]], talks: dict[int, dict[str, A
     else:
         try:
             _propose(session, sent, blocks, [*(case["turn_id"] for case in sent), *dropped], cfg=cfg, now=now,
-                     client=client, counts=counts)
+                     client=client, counts=counts, tier=tier)
         except MaskLeak:
             session.rollback()
             counts["halted"] = "mask_leak"

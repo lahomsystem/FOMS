@@ -25,6 +25,7 @@ import time
 from typing import Any, Callable, Optional, Sequence
 
 from foms.persistence.main.models import CsAgentTurn
+from foms.services.cs_agent.brain_spend import BrainError
 from foms.services.cs_agent.ask_human import ASK_HUMAN_MEMO, ASK_HUMAN_MEMO_HEAD, ASKED_IF_AI, any_asks_if_human
 from foms.services.cs_agent.drafting_post import memo_on, post_note
 from foms.services.cs_agent.drafting_read import SKIP_NOT_VISIBLE, ChatLine, customer_texts
@@ -46,8 +47,8 @@ from foms.services.cs_agent.photo_step import PhotoRead, note_line, read_photos,
 from foms.services.cs_agent.quote_step import QuoteStep, prepare as prepare_quote
 from foms.services.cs_agent.settings import read_settings
 from foms.services.cs_agent.turns import (
-    DRAFT_OFF, LEGACY_CLAIM_AFTER, claim_owner, draft_mode, mark_failed, mark_skipped, read_switch, record_handoff,
-    record_quote, release_turn,
+    DRAFT_OFF, LEGACY_CLAIM_AFTER, SKIP_LEARN_ONLY, claim_owner, draft_mode, mark_failed, mark_skipped, read_switch,
+    record_brain_result, record_handoff, record_quote, release_turn,
 )
 from foms.services.datetime_kst import get_today_kst
 
@@ -101,6 +102,20 @@ class DraftPass:
         if row.id not in self.photo_reads:
             self.photo_reads[row.id] = read_photos(self, row, lines)
         return self.photo_reads[row.id]
+
+    def learn_only(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> Optional[str]:
+        """배우기만 차례(초안 스위치 ``learn`` — 사장님 11-20) — 손님 사진만 읽어 두고(끔이면 안 읽는다, 그 돈 · 토큰은 차례 줄에)
+        초안 두뇌 없이 건너뜀(:data:`.turns.SKIP_LEARN_ONLY`)으로 적는다. 사진 읽기가 돈 상한 · 준비 안 됨 · 실패여도 차례는
+        남긴다(직원 답이 붙어 밤 배우기 재료가 된다)."""
+        try:
+            photo = self.photos(row, lines)
+        except (BrainError, MaskLeak) as exc:
+            self.session.rollback()
+            logger.warning("[CS 초안] 배우기만 — 사진 읽기를 건너뛴다 code=%s", getattr(exc, "code", type(exc).__name__))
+            photo = None
+        if photo is not None and photo.usage is not None:
+            record_brain_result(row, photo.usage)
+        return self.skip(row, SKIP_LEARN_ONLY)
 
     def photo_only_ok(self, row: CsAgentTurn, lines: Sequence[ChatLine]) -> bool:
         """사진만 온 글에 초안을 써도 되나 — '초안에 씀'이고 읽은 사진이 하나라도 있을 때만(17.11.1 의 4)."""

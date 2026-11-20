@@ -75,9 +75,9 @@ from foms.services.cs_agent.state import KST, BusinessDayFn
 from foms.services.cs_agent.state_store import INBOUND_LOOKBACK_ROWS, compute_open_states, ingest_inbound
 from foms.services.cs_agent.turn_end import judge_pending, quiet_seconds
 from foms.services.cs_agent.turns import (
-    CLAIM_EXPIRED, DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, MAX_ATTEMPTS, STATE_CLAIMED, STATE_FAILED, STATE_POSTED,
-    STATE_POSTING, STATE_STORED, TurnStateError, draft_mode, expired_claims, mark_failed, mark_staff_replied,
-    mark_superseded, read_switch, retry_due,
+    CLAIM_EXPIRED, DRAFT_LEARN, DRAFT_MEMO, DRAFT_OFF, DRAFT_STORE, DRAFT_WORKING, MAX_ATTEMPTS, STATE_CLAIMED,
+    STATE_FAILED, STATE_POSTED, STATE_POSTING, STATE_STORED, TurnStateError, draft_mode, expired_claims, mark_failed,
+    mark_staff_replied, mark_superseded, read_switch, retry_due,
 )
 from foms.services.datetime_kst import now_kst
 
@@ -181,7 +181,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
     cfg = read_settings(session, log=False)
     mode, running = draft_mode(session), read_switch(session)
     session.commit()  # 읽기 트랜잭션을 닫는다
-    if not (cfg.get("realtime_enabled") and running and mode in (DRAFT_STORE, DRAFT_MEMO)):
+    if not (cfg.get("realtime_enabled") and running and mode in DRAFT_WORKING):
         return TickResult(OUTCOME_IDLE)
     with leader_lock(session.get_bind(), lock_key) as leader:
         if not leader:
@@ -192,7 +192,7 @@ def run_tick(session: Any, *, memory: TickMemory, stop: Optional[StopFlag] = Non
             memory.follow_settings(cfg.version)
             picks = _prepare(session, result, memory=memory, cfg=cfg, now=now, stop=stop, cal=cal,
                              memo_remover=memo_remover, reader=reader, turn_end=turn_end)
-            result.paused = memory.paused(now) if picks else None
+            result.paused = memory.paused(now) if picks and mode != DRAFT_LEARN else None  # 배우기만은 돈 쉼과 무관
             result.rewrites = run_rewrites(session, now=now, stop=stop, reader=reader, brain=brain, poster=poster,
                                            daytime=_daytime(now, cal))  # 직원이 화면에서 기다린다 — 초안보다 먼저
             if picks and result.paused is None:

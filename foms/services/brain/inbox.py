@@ -27,7 +27,7 @@ from foms.services.brain.access import approval_problem, approver_layers, name_a
 from foms.services.brain.browse import name_order, pref_name
 from foms.services.brain.card import actor_label, people_names
 from foms.services.brain.constants import (
-    AGENT_WORK_TYPES, AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES,
+    AGENT_WORK_TYPES, AI_WEEKLY_CAP, UNCAPPED_AI_ACTIONS, UNCAPPED_AI_PROPOSERS, CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, EXTERNAL_PREFIXES,
     GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LAYERS, LINK_OPS, OBJECT_OPS, OP_CREATE, OP_UPDATE, OWNER_ONLY_TYPES, external_type,
 )
 from foms.services.brain.display import GATE_LABELS, approval_meaning, visibility_label
@@ -53,9 +53,11 @@ def agent_clause() -> Any:
 
 
 def capped_clause() -> Any:
-    """주 상한 · 4주 닫힘을 받는 AI 제안 조건 — 에이전트 제안 가운데 :data:`.constants.UNCAPPED_AI_ACTIONS` 가 아닌 것(D175).
-    뺀 제안(다시 배운 사진 교훈 카드)은 사람 제안처럼 제안함에 다 보이고 닫히지 않는다."""
-    return and_(agent_clause(), func.coalesce(BrainChange.action, "").notin_(UNCAPPED_AI_ACTIONS))
+    """주 상한 · 4주 닫힘을 받는 AI 제안 조건 — 에이전트 제안 가운데 :data:`.constants.UNCAPPED_AI_ACTIONS` 가 아니고 제안자가
+    :data:`.constants.UNCAPPED_AI_PROPOSERS` 도 아닌 것(D175 · 넘긴 상담 배우기). 뺀 제안(다시 배운 사진 교훈 카드 · 넘긴 상담
+    배우기 안)은 사람 제안처럼 제안함에 다 보이고 닫히지 않는다."""
+    return and_(agent_clause(), func.coalesce(BrainChange.action, "").notin_(UNCAPPED_AI_ACTIONS),
+                BrainChange.proposed_by.notin_(UNCAPPED_AI_PROPOSERS))
 
 
 def decidable_clause(viewer: Viewer) -> Any:

@@ -18,7 +18,7 @@ from sqlalchemy.orm import aliased
 
 from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.card import actor_label, people_names
-from foms.services.brain.constants import CHANGE_OPEN, OP_CREATE, OP_DELETE, OP_RETIRE, UNCAPPED_AI_ACTIONS
+from foms.services.brain.constants import CHANGE_OPEN, OP_CREATE, OP_DELETE, OP_RETIRE, UNCAPPED_AI_ACTIONS, UNCAPPED_AI_PROPOSERS
 from foms.services.brain.display import FIELD_LABELS
 from foms.services.brain.inbox import current_join, decidable, decidable_clause, shown_ai_ids, visible_clause
 from foms.services.brain.review_rules import is_agent, value_text
@@ -42,7 +42,8 @@ def _short(text: str, size: int) -> str:
 
 def _capped(change: BrainChange) -> bool:
     """주 상한을 받는 AI 제안인가(:func:`.inbox.capped_clause` 와 같은 판정)."""
-    return is_agent(change.proposed_by) and (change.action or "") not in UNCAPPED_AI_ACTIONS
+    return (is_agent(change.proposed_by) and (change.action or "") not in UNCAPPED_AI_ACTIONS
+            and change.proposed_by not in UNCAPPED_AI_PROPOSERS)
 
 
 def _what(change: BrainChange) -> str:

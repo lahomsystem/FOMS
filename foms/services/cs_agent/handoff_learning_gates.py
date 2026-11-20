@@ -9,9 +9,9 @@
 3. **근거**: 근거 차례가 모두 이번에 읽은 사례 안이고 손님(상담) :data:`EVIDENCE_MIN_CHATS` 곳 이상 — 한 손님 사례로도 안을 낸다
    (사장님 11-11 '넘긴 상담마다 배워 다음 상담에' — 늘 사장님 승인을 거친다). 숫자만 아래 4번이 두 곳을 본다.
 4. **숫자**: 이름 · 글 · 까닭의 숫자 조각마다(:func:`foms.services.brain.gates.numbers_known` — 조각 통째로 같은 수) 회사 지식 ·
-   상담 승인 지식에 이미 있거나, **근거로 고른 직원 답 가운데 서로 다른 손님 :data:`NUMBER_MIN_CHATS` 곳 이상**에 있어야 한다 —
-   한 손님에게만 말한 금액 · 날짜(그 손님 몫)가 지식으로 들어오지 않게. 제안 길의 숫자 관문에는 고른 직원 답을 더한 허용 글을
-   넘긴다(같은 숫자만 지난다).
+   상담 승인 지식에 이미 있거나, **근거로 고른 직원 답에 그대로** 있어야 한다(:data:`NUMBER_MIN_CHATS` 곳 — 사장님 11-20 '누구에게나
+   같은 숫자는 한 번만 말했어도 넣기': 그 손님만의 금액 · 날짜 · 치수를 빼는 일은 지시문 2번이 두뇌에게 맡기고, 관문은 두뇌가
+   지어낸 숫자만 막는다). 제안 길의 숫자 관문에는 고른 직원 답을 더한 허용 글을 넘긴다(같은 숫자만 지난다).
 5. **대상**(고치기): 라홈 사실 · 정책 지금 항목만(:func:`.handoff_learning_prompt.updatable`), 글이 바뀌어야 한다.
 6. **같음**: 새로 만들기 글이 반영된 지식 글과 :data:`SAME_SIMILARITY` 이상 비슷하면 넣지 않는다(``same``).
 7. **겹침**: 넘김 학습이 낸 열린 · 거절된 안과 글이 :data:`DUP_SIMILARITY` 이상 비슷하면(``open_proposal`` ·
@@ -30,6 +30,12 @@
 :data:`foms.services.brain.photo_cards.DIFFERS_LINE` · 실음 칸 ``target`` · 근거에 ``about:<키>``)로 승인 대기 ③ 에 올린다
 (``conflict_card``). 승인 항목의 글은 건드리지 않는다. 무엇과 다른지 못 찾으면 예전처럼 센다(``brain_conflict``).
 
+**두 번 나온 다른 말은 바로 고침(사장님 11-20)**: ``differs`` 안의 근거 상담과, 두뇌가 '같은 말'이라고 고른 앞 엇갈림 카드
+(``repeats`` — 대상이 같은 열린 카드만)의 근거 상담을 합쳐 서로 다른 손님이 :data:`DIFFERS_MIN_CHATS` 곳 이상이면 카드가 아니라
+그 항목 **고치기** 안(``fixed_text`` — 직원 말에 맞게 고친 전체 글)으로 넣는다. 자기 항목과 다른 말이라 제안 길의 부딪침 관문은
+막지 않게 한다(결과는 적힌다). 바로 반영이 되면 같은 말을 모아 둔 앞 카드는 '합쳐짐'(:data:`MERGED_ACTION`)으로 닫는다. 고친 것은
+'AI 가 배운 것'에 전 → 후로 보이고 거기서 고치기 · 지우기(옛 글로)를 한다. 한 번뿐이거나 고칠 수 없는 항목이면 엇갈림 카드다.
+
 **바로 반영(``auto`` — 패널 '배운 것 바로 반영')**: 넣은 사실 · 정책 안을 그 자리에서 반영한다(:class:`foms.services.brain.apply
 .AutoLearn` — 사람 승인자 칸은 비고 확신은 '근거 있음'). 엇갈림 카드는 반영하지 않는다(사람이 고른다). 반영이 막히면 열린 채
 둔다(``auto_blocked`` — 승인 대기에 남는다).
@@ -41,13 +47,14 @@ import datetime
 import re
 from typing import Any, Callable, Optional, Sequence
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 
 from foms.persistence.brain.models import BrainChange
 from foms.services.brain.ai_gates import related_key
 from foms.services.brain.apply import AutoLearn, apply_change
 from foms.services.brain.constants import (
-    CHANGE_APPLIED, CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE, TYPE_GRADES,
+    CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE,
+    TYPE_GRADES,
 )
 from foms.services.brain.errors import BrainError as BrainStoreError
 from foms.services.brain.errors import BrainGateError
@@ -57,22 +64,29 @@ from foms.services.brain.store import current_object
 from foms.services.cs_agent.case_memory import text_similarity
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.brain.photo_cards import ABOUT_PREFIX, DIFFERS_LINE
-from foms.services.cs_agent.handoff_learning_prompt import DIFFERS, ITEM_TYPES, OPS, REASON_WORDS, updatable
+from foms.services.cs_agent.handoff_learning_prompt import (
+    DIFFERS, ITEM_TYPES, OPS, REASON_WORDS, updatable, whole_shown,
+)
 from foms.services.cs_agent.send import SEND_BRAND
 from foms.services.cs_agent.state import KST
+from models import CsAgentTurn, SecurityLog
 
 __all__ = [
-    "AGENT", "DUP_SIMILARITY", "EVIDENCE_MIN_CHATS", "MAX_FILED", "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "apply_now",
-    "file_proposals", "seen_proposals",
+    "AGENT", "CARD_PREFIX", "DIFFERS_MIN_CHATS", "DUP_SIMILARITY", "EVIDENCE_MIN_CHATS", "MAX_FILED", "MERGED_ACTION",
+    "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "apply_now", "file_proposals", "open_cards", "seen_proposals",
 ]
 
 #: 제안한 이(``agent:cs_handoff_learning``) — 화면 이름표는 :data:`foms.services.brain.display.AGENT_LABELS`(시험이 맞춘다).
 AGENT = "cs_handoff_learning"
-MAX_FILED, MAX_SEEN = 10, 200
+MAX_FILED, MAX_SEEN, MAX_REFUSED = 30, 200, 2000
 UNDONE_ACTION = "auto_learn_undone"  # :data:`foms.services.brain.learned.UNDONE`(그 모듈을 부르면 돌려 부르기가 된다 — 시험이 맞춘다)
 MAX_TITLE, MAX_TEXT, MAX_WHY = 40, 600, 300
 SAME_SIMILARITY, DUP_SIMILARITY = 0.85, 0.8
-NUMBER_MIN_CHATS = 2
+NUMBER_MIN_CHATS = 1
+#: 다른 말을 바로 고치는 손님(상담) 수 하한 — 사장님 11-20 '2번 이상 나온 것은 바로 수정'. 그 아래는 엇갈림 카드.
+DIFFERS_MIN_CHATS = 2
+CARD_PREFIX, MAX_REPEATS = "conflict/lahom-handoff-", 10
+MERGED_ACTION = "merged"  # 같은 말이 다시 나와 바로 고침에 합쳐진 앞 엇갈림 카드의 닫힌 까닭(기간 끝남과 같은 상태)
 #: 근거 손님(상담) 수 하한 — 사실 · 정책은 한 손님 사례로도 낸다(승인이 관문). 숫자는 :data:`NUMBER_MIN_CHATS`.
 EVIDENCE_MIN_CHATS = 1
 TAG, SOURCE, REF_PREFIX = "handoff-learn", "handoff_learn", "handoff_learn:"
@@ -96,19 +110,74 @@ def seen_proposals(session: Any) -> list[tuple[str, Optional[str], str, str]]:
     """넘김 학습이 낸 열린 · 거절된 안과 바로 반영했다가 사장님이 지운 안(거절로 친다) — (상태, 키, 이름, 글) 새 것부터
     :data:`MAX_SEEN` 개(겹침 관문 · 지시문 '이미 낸 제안')."""
     undone = and_(BrainChange.status == CHANGE_APPLIED, BrainChange.decided_action == UNDONE_ACTION)
-    stmt = (select(BrainChange.status, BrainChange.item_key, BrainChange.fields)
-            .where(BrainChange.proposed_by == Proposer.agent_named(AGENT).name,
-                   or_(BrainChange.status.in_((CHANGE_OPEN, CHANGE_REJECTED)), undone),
-                   BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
-            .order_by(BrainChange.id.desc()).limit(MAX_SEEN))
+    base = select(BrainChange.status, BrainChange.item_key, BrainChange.fields).where(
+        BrainChange.proposed_by == Proposer.agent_named(AGENT).name, BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
+    # 열린 것과 거절 · 지운 것을 따로 읽는다 — 엇갈림 카드는 저절로 닫히지 않아, 한 질의로 읽으면 사장님의 거절이 창 밖으로 밀린다
+    rows = [*session.execute(base.where(BrainChange.status == CHANGE_OPEN).order_by(BrainChange.id.desc()).limit(MAX_SEEN)),
+            *session.execute(base.where(or_(BrainChange.status == CHANGE_REJECTED, undone))
+                             .order_by(BrainChange.id.desc()).limit(MAX_REFUSED))]
     out = []
-    for status, key, fields in session.execute(stmt):
+    for status, key, fields in rows:
         status = CHANGE_REJECTED if status == CHANGE_APPLIED else status  # 사장님이 지운 것 — 거절과 같이 다시 안 넣는다
         values = after_values(fields)
         payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
         if isinstance(values.get("text"), str) and values["text"].strip():
             out.append((status, key, str(payload.get("pref_label") or key or ""), values["text"]))
     return out
+
+
+def _card_rows(session: Any, keys: Optional[Sequence[str]] = None) -> list[tuple[int, str, str, str, list[Any]]]:
+    """넘김 학습이 올린 열린 엇갈림 카드 — (제안 id, 카드 키, 대상 항목 키, 직원이 한 말, 근거) 새 것부터."""
+    stmt = select(BrainChange.id, BrainChange.item_key, BrainChange.fields, BrainChange.evidence).where(
+        BrainChange.proposed_by == Proposer.agent_named(AGENT).name, BrainChange.status == CHANGE_OPEN,
+        BrainChange.op == OP_CREATE, BrainChange.item_key.like(CARD_PREFIX + "%"))
+    if keys is not None:
+        stmt = stmt.where(BrainChange.item_key.in_(list(keys)))
+    out = []
+    for change_id, key, fields, evidence in session.execute(stmt.order_by(BrainChange.id.desc()).limit(MAX_SEEN)):
+        values = after_values(fields)
+        payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
+        text = str(values.get("text") or "").replace(DIFFERS_LINE, "", 1).strip()
+        if isinstance(payload.get("target"), str) and text:
+            out.append((int(change_id), str(key), payload["target"], text, list(evidence or [])))
+    return out
+
+
+def open_cards(session: Any) -> list[tuple[str, str, str]]:
+    """지시문 '이미 모아 둔 다른 말' — (카드 키, 대상 항목 키, 직원이 한 말)."""
+    return [(key, target, text) for _id, key, target, text, _evidence in _card_rows(session)]
+
+
+def _repeats(session: Any, raw: dict[str, Any], target_key: str) -> tuple[list[int], set[str]]:
+    """두뇌가 '같은 말'이라고 고른 앞 엇갈림 카드(대상이 같은 열린 카드만) — (제안 id 목록, 그 근거 상담 id)."""
+    keys = [k.strip() for k in raw.get("repeats") or [] if isinstance(k, str) and k.strip().startswith(CARD_PREFIX)]
+    rows = [row for row in _card_rows(session, keys[:MAX_REPEATS]) if row[2] == target_key] if keys else []
+    turns = {int(e[5:]) for row in rows for e in row[4] if isinstance(e, str) and e.startswith("case:") and e[5:].isdigit()}
+    chats = session.execute(select(CsAgentTurn.chat_id).where(CsAgentTurn.id.in_(turns))).scalars() if turns else ()
+    return [row[0] for row in rows], {str(chat) for chat in chats}
+
+
+def _fix_text(session: Any, raw: dict[str, Any], target_key: str, chats: set[str]) -> tuple[Optional[str], list[int], int]:
+    """다른 말을 바로 고칠 수 있나(모듈 설명) — (고친 전체 글 또는 ``None``, 닫을 앞 카드 id, 서로 다른 손님 수)."""
+    fixed = _body(raw.get("fixed_text"))
+    prior, before = _repeats(session, raw, target_key)
+    customers = len(chats | before)
+    if fixed is None or customers < DIFFERS_MIN_CHATS or fixed.startswith(DIFFERS_LINE):
+        return None, prior, customers
+    gates = text_gates([fixed], "")
+    return (None if FAIL in (gates["mask"], gates["hanja"]) else fixed), prior, customers
+
+
+def _close_cards(session: Any, ids: Sequence[int], now: datetime.datetime) -> None:
+    """바로 고침에 합쳐진 앞 엇갈림 카드를 닫는다(열린 것만 — 커밋은 부르는 쪽)."""
+    if not ids:
+        return
+    done = session.execute(update(BrainChange).where(BrainChange.id.in_(list(ids)), BrainChange.status == CHANGE_OPEN)
+                           .values(status=CHANGE_EXPIRED, decided_at=naive_utc(now), decided_action=MERGED_ACTION)
+                           .execution_options(synchronize_session="fetch"))
+    session.add(SecurityLog(user_id=None, action="BRAIN_MERGE", target_type="brain_change", target_id=None,
+                            timestamp=naive_utc(now), message=f"BRAIN_MERGE count={int(done.rowcount or 0)}",
+                            detail={"changes": [int(i) for i in ids]}))
 
 
 def _evidence(raw: dict[str, Any], by_id: dict[int, dict[str, Any]]) -> list[int]:
@@ -130,7 +199,7 @@ def _sources(ids: Sequence[int], by_id: dict[int, dict[str, Any]]) -> list[str]:
 
 
 def _numbers_ok(texts: Sequence[str], known: str, replies: dict[str, list[str]]) -> bool:
-    """숫자 관문 — 조각마다 이미 있는 지식에 있거나, 서로 다른 손님 :data:`NUMBER_MIN_CHATS` 곳 이상의 고른 직원 답에 있다."""
+    """숫자 관문 — 조각마다 이미 있는 지식에 있거나, 손님 :data:`NUMBER_MIN_CHATS` 곳 이상의 고른 직원 답에 그대로 있다."""
     for token in (token for text in texts for token in _NUMBER.findall(text)):
         if numbers_known(token, known):
             continue
@@ -164,9 +233,9 @@ def _doc_values(item_type: str, title: str, text: str, doc_id: str, today: str) 
 
 
 def _filer(session: Any, raw: dict[str, Any], *, title: str, text: str, number: int, common: dict[str, Any],
-           now: datetime.datetime, seen: Sequence[Any], approved: Sequence[str],
+           now: datetime.datetime, seen: Sequence[Any], approved: Sequence[str], skip_gates: Sequence[str] = (),
            ) -> tuple[Optional[str], Optional[Callable[[], Any]]]:
-    """대상 · 같음 · 겹침 관문 → (막힌 까닭 코드, 넣는 함수)."""
+    """대상 · 같음 · 겹침 관문 → (막힌 까닭 코드, 넣는 함수). ``skip_gates`` 는 고치기 안에서 막지 않을 제안 길 관문."""
     local = now.astimezone(KST)
     if raw.get("op") == "create":
         if any(text_similarity(text, known) >= SAME_SIMILARITY for known in approved):
@@ -184,7 +253,7 @@ def _filer(session: Any, raw: dict[str, Any], *, title: str, text: str, number: 
                                             values=values, **common)
     wanted = raw.get("key").strip() if isinstance(raw.get("key"), str) else ""
     target = current_object(session, wanted) if wanted else None
-    if target is None or not updatable(target):
+    if target is None or not updatable(target) or not whole_shown(target):  # 잘려 실린 긴 글은 고치지 않는다
         return "target", None
     if " ".join((target.text or "").split()) == " ".join(text.split()):
         return "same", None
@@ -192,7 +261,7 @@ def _filer(session: Any, raw: dict[str, Any], *, title: str, text: str, number: 
     if dup is not None or _open_on(session, target.item_key):
         return dup or "open_proposal", None
     return None, lambda: propose_update(session, key=target.item_key, base_version=target.version,
-                                        after={"text": text}, **common)
+                                        after={"text": text}, skip_gates=skip_gates, **common)
 
 
 def _differs_card(session: Any, target_key: Optional[str], *, title: str, text: str, number: int, common: dict[str, Any],
@@ -276,7 +345,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
     counts: dict[str, int] = {"filed": 0}
     for number, item in enumerate(raw[:MAX_FILED * 2], start=1):
         code, title, text, why, ids = _check(item, by_id, known)
-        make = None
+        make, merged = None, []
         if code is None and counts["filed"] >= MAX_FILED:
             code = "cap"
         if code is None:
@@ -289,7 +358,16 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
             card = dict(title=title, text=text, number=number, common=common, now=now, seen=seen)
             if item.get("op") == DIFFERS:
                 wanted = item.get("key").strip() if isinstance(item.get("key"), str) else ""
-                code, make = _try_card(session, wanted, card), None
+                fixed, merged, customers = _fix_text(session, item, wanted, {str(by_id[i]["chat_id"]) for i in ids})
+                if _duplicate(text, seen) == "rejected_before":  # 사장님이 거절 · 지운 말 — 손님이 둘이어도 다시 안 고친다
+                    code, fixed, merged = "rejected_before", None, []
+                elif fixed is not None:  # 서로 다른 손님 둘 이상 — 그 항목을 바로 고친다(모듈 설명)
+                    why_fix = f"넘긴 상담 배우기 · 지금 지식과 다른 직원 답 · 서로 다른 손님 {customers}곳 — {why}"[:500]
+                    code, make = _filer(session, {**item, "op": "update"}, title=title, text=fixed, number=number,
+                                        common={**common, "reason": why_fix}, now=now, seen=seen, approved=approved,
+                                        skip_gates=("conflict",))
+                if make is None and code not in ("same", "rejected_before"):  # 한 번뿐 · 고칠 수 없는 항목 — 엇갈림 카드
+                    code, merged = _try_card(session, wanted, card), []
             else:
                 code, make = _filer(session, item, title=title, text=text, number=number, common=common, now=now,
                                     seen=seen, approved=approved)
@@ -300,6 +378,11 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                 seen = [(CHANGE_OPEN, None, title, text), *seen]  # 한 번에 비슷한 안 둘이 들어가지 않게
                 extra = "applied" if auto is not None else None
                 extra = apply_now(session, change, auto, now) or extra
+                if merged and extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침에 합쳐졌다
+                    _close_cards(session, merged, now)
+                    counts["differs_fixed"] = counts.get("differs_fixed", 0) + 1
+                elif item.get("op") == DIFFERS and extra == "applied":
+                    counts["differs_fixed"] = counts.get("differs_fixed", 0) + 1
                 session.commit()
                 if extra:  # 넣은 수(filed)와 따로 센다 — 바로 반영함 · 반영이 막혀 승인 대기에 남음
                     counts[extra] = counts.get(extra, 0) + 1
@@ -310,9 +393,13 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                     code = "judge_unavailable"  # 아무도 판정하지 않았다 — '다른 말' 카드로 올리지 않는다
                 elif set(exc.failed) == {"conflict"}:
                     code = _try_card(session, _differs_target(session, item, text, now), card, fallback=code)
+                elif item.get("op") == DIFFERS:  # 바로 고침이 숫자 · 평가 관문에 막혔다 — 버리지 않고 카드로
+                    code = _try_card(session, item.get("key").strip(), card, fallback=code)
             except BrainStoreError as exc:  # 글 관문 · 근거 · 거절 · 대상 · 꼴 — 넣지 않고 센다
                 session.rollback()
                 code = _store_code(exc)
+                if item.get("op") == DIFFERS and isinstance(item.get("key"), str):  # 바로 고침이 막혔다 — 카드로
+                    code = _try_card(session, item["key"].strip(), card, fallback=code)
         if code == "conflict_card":
             seen = [(CHANGE_OPEN, None, title, text), *seen]
         counts[code or "filed"] = counts.get(code or "filed", 0) + 1

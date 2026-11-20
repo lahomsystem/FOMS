@@ -58,7 +58,7 @@ _SWITCH_RECEIPTS = 50  # '누가' 를 찾을 때 볼 최근 스위치 기록 수
 FIELD_LOOP, FIELD_DRAFT = "loop", "draft"
 _FIELD_DEFAULT = {FIELD_LOOP: SWITCH_ON, FIELD_DRAFT: DRAFT_OFF}
 _SWITCH_LABELS = {FIELD_LOOP: {SWITCH_ON: "켜짐", SWITCH_OFF: "멈춤"},
-                  FIELD_DRAFT: {"off": "끔", "store": "저장만", "memo": "내부 메모"}}
+                  FIELD_DRAFT: {"off": "끔", "store": "저장만", "memo": "내부 메모", "learn": "배우기만"}}
 _SWITCH_NAMES = {FIELD_LOOP: "비상 정지(감시 루프)", FIELD_DRAFT: "초안 스위치"}
 UTC = datetime.timezone.utc
 
@@ -107,7 +107,7 @@ def change_loop(session: Any, *, on: bool, actor_user_id: int, now: datetime.dat
 
 
 def change_draft_mode(session: Any, *, mode: str, actor_user_id: int, now: datetime.datetime) -> bool:
-    """초안 스위치 — ``off`` · ``store`` · ``memo``. 바꿨으면 True(같은 값이면 쓰지 않는다). 커밋까지 한다.
+    """초안 스위치 — ``off`` · ``store`` · ``memo`` · ``learn``. 바꿨으면 True(같은 값이면 쓰지 않는다). 커밋까지 한다.
 
     Raises:
         ValueError: 모르는 값.
