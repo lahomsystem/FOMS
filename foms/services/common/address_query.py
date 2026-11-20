@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any, Optional
 
 #: 도로명 + 건물번호까지만 남기는 패턴. 여기서는 공백을 필수로 둔다 — 선택적으로
 #: 바꾸면 건물명에 포함된 '로/길' 뒤 숫자를 도로명으로 오인한다.
@@ -215,3 +216,36 @@ def match_key(address: str) -> str:
     if not any(ch.isdigit() for ch in key):
         return ""
     return key
+
+
+#: 도로명 + 건물번호(``동탄대로10길 20``). 앞에 붙은 시·구는 표기마다 달라 보지 않는다.
+_UNIT_ROAD_RE = re.compile(r"([가-힣A-Za-z0-9]*?[가-힣](?:대로|로|길))(\s*\d+번?길)?\s*(\d+(?:-\d+)?)(?!\d)")
+_UNIT_PAREN_RE = re.compile(r"\([^)]*\)")
+
+
+def unit_address_key(address: Any) -> Optional[tuple[str, str, str, str]]:
+    """같은 **집**인지 견주는 키 ``(도로명, 번길, 건물번호, 동-호)``.
+
+    ``경기도 화성시 동탄구 동탄대로10길 20 (산척동, …) 2505동 1103호`` 와
+    ``동탄대로10길 20 더샵레이크에듀타운 2505동 1103호`` 를 같은 키로 접는다. 동·호는
+    건물번호 뒤에 나오는 숫자 묶음의 마지막 둘(하나뿐이면 그 하나)이다.
+
+    네이버 붙이기 후보(:mod:`foms.services.integrations.naver_commerce.order_candidates`)와
+    새 주문 안내(:mod:`foms.services.orders.open_order_lookup`)가 같은 규칙을 쓴다.
+
+    Args:
+        address: 주소 원문(None 허용).
+
+    Returns:
+        키. 도로명 주소가 아니거나 동·호 숫자가 없으면 None — 단지 단위로 견주면 남의 집이 걸린다.
+    """
+    text = _UNIT_PAREN_RE.sub(" ", str(address or ""))
+    matches = list(_UNIT_ROAD_RE.finditer(text))
+    if not matches:
+        return None
+    road = matches[-1]
+    numbers = re.findall(r"\d+", text[road.end():])
+    if not numbers:
+        return None
+    sub_road = re.sub(r"\s+", "", road.group(2) or "")
+    return road.group(1), sub_road, road.group(3), "-".join(numbers[-2:])

@@ -34,13 +34,13 @@
 from __future__ import annotations
 
 import logging
-import re
 from datetime import timedelta
 from typing import Any, Optional
 
 from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
+from foms.services.common.address_query import unit_address_key as _unit_address_key
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
@@ -119,36 +119,6 @@ def _name_match_key(name: Any) -> str:
         비교 키. 남는 글자가 없으면 빈 문자열.
     """
     return "".join(ch for ch in str(name or "") if ch.isalnum())
-
-
-#: 도로명 + 건물번호(``동탄대로10길 20``). 앞에 붙은 시·구는 표기마다 달라 보지 않는다.
-_UNIT_ROAD_RE = re.compile(r"([가-힣A-Za-z0-9]*?[가-힣](?:대로|로|길))(\s*\d+번?길)?\s*(\d+(?:-\d+)?)(?!\d)")
-_UNIT_PAREN_RE = re.compile(r"\([^)]*\)")
-
-
-def _unit_address_key(address: Any) -> Optional[tuple[str, str, str, str]]:
-    """같은 **집**인지 견주는 키 ``(도로명, 번길, 건물번호, 동-호)``.
-
-    ``경기도 화성시 동탄구 동탄대로10길 20 (산척동, …) 2505동 1103호`` 와
-    ``동탄대로10길 20 더샵레이크에듀타운 2505동 1103호`` 를 같은 키로 접는다. 동·호는
-    건물번호 뒤에 나오는 숫자 묶음의 마지막 둘(하나뿐이면 그 하나)이다.
-
-    Args:
-        address: 주소 원문(None 허용).
-
-    Returns:
-        키. 도로명 주소가 아니거나 동·호 숫자가 없으면 None — 단지 단위로 견주면 남의 집이 걸린다.
-    """
-    text = _UNIT_PAREN_RE.sub(" ", str(address or ""))
-    matches = list(_UNIT_ROAD_RE.finditer(text))
-    if not matches:
-        return None
-    road = matches[-1]
-    numbers = re.findall(r"\d+", text[road.end():])
-    if not numbers:
-        return None
-    sub_road = re.sub(r"\s+", "", road.group(2) or "")
-    return road.group(1), sub_road, road.group(3), "-".join(numbers[-2:])
 
 
 def _snapshot_keys(raw_snapshot: Any) -> dict[str, str]:
