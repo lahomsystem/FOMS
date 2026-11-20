@@ -162,6 +162,25 @@ def _hydrate_structured_data(db, orders: list) -> None:
         set_committed_value(o, 'structured_data', id_map.get(o.id))
 
 
+def _preload_schedule_dates(db, orders: list) -> None:
+    """일정 줄이 안 실린 AS 상태 주문에 배치 1쿼리로 일정 줄을 싣는다(N+1 없음).
+
+    줄 종류 판정(``attach_shipment_row_kinds``)은 본 흐름이 열린 AS 주문의 일정 줄을 읽는다. 패널 · 날짜 쿼리는
+    일정 줄을 함께 싣지만 협력사 희망일 줄(``_partner_pending_orders``)은 주문만 읽어 와 주문마다 지연 로드가 난다.
+    대상이 없으면 쿼리를 쓰지 않는다.
+    """
+    need = [o for o in orders if is_as_order(o) and 'schedule_dates' in inspect(o).unloaded]
+    if not need:
+        return
+    from models import OrderScheduleDate
+
+    by_order: dict[int, list] = {}
+    for line in db.query(OrderScheduleDate).filter(OrderScheduleDate.order_id.in_([o.id for o in need])).all():
+        by_order.setdefault(line.order_id, []).append(line)
+    for o in need:
+        set_committed_value(o, 'schedule_dates', by_order.get(o.id, []))
+
+
 def _erp_order_search_filter(query, q):
     """고객·연락처·담당·주소·품목·주문번호·ERP 노출 필드·structured_data 전반."""
     if not q or not q.strip():
@@ -645,6 +664,7 @@ def erp_shipment_dashboard():
         )
     # 그날(기간) 줄 종류 — 본 흐름이 열린 AS 주문의 시공일 줄은 시공 줄, 같은 날 AS 방문도 있으면 "AS 방문도".
     # 정렬 · PC 표 · 하루치 출고표 · 폰 카드가 줄에 붙은 이 값을 읽는다.
+    _preload_schedule_dates(db, rows)
     attach_shipment_row_kinds(
         rows,
         target_date=selected_date if use_single_day else None,
@@ -706,7 +726,9 @@ def erp_shipment_dashboard():
     # 팀 묶음 머리(합계 · 잔여)는 PC 표 줄 사이에만 그린다.
     shipment_team_group_meta = {} if ship_omit_pc_table else _compute_shipment_team_group_meta(rows, worker_settings)
     # 폰 [AS 추천](shipment-dashboard.js collectTargetOrderIds)은 PC 표 줄에서 주문 번호를 읽었다 — 표가 없으면 이 키로
-    # 같은 순서를 만든다: [주문 번호, 첫 시공자, 담당자] = 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager(AS 줄은 빼고).
+    # 같은 순서를 만든다: [주문 번호, 첫 시공자, 담당자] = 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager.
+    # 이 키는 AS **상태** 주문을 뺀다(추천 API 가 AS 상태 주문을 기준에서 버린다 — recommendations._is_valid_shipment_target).
+    # PC 표는 줄 종류(data-as)로 빼므로 본 흐름이 열린 AS 주문의 시공 줄이 PC 요청에는 들지만 서버가 같은 주문을 버려 결과는 같다.
     ship_as_rec_rows = []
     if ship_omit_pc_table and can_edit_shipment(current_user) and not freelancer_viewer:
         for r in rows:
