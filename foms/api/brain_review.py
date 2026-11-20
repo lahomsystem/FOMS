@@ -6,7 +6,9 @@
 - ``POST /proposals`` ``{"action": "propose_edit" | "propose_retire" | "propose_delete" | "item_rollback", …}`` 사람 제안
   (그 항목을 볼 수 있는 사람 누구나).
 - ``POST /proposals/<id>/apply`` 넣기(``apply``) · 고쳐 넣기(``edit_apply`` — 본문에 ``edits`` 가 있을 때) ·
-  ``POST /proposals/<id>/reject`` 거절 · ``POST /proposals/bulk-apply`` 등급 A 모두 넣기.
+  ``POST /proposals/<id>/reject`` 거절 · ``POST /proposals/bulk-apply`` 등급 A 모두 넣기 ·
+  ``POST /proposals/<id>/reopen`` 방금 정한 것 되돌리기(내가 하루 안에 거절한 제안을 다시 연다 — 본문 ``undo_edit`` 는 그 답으로
+  넣은 지식 고침 번호, 사장님 2026-11-20).
 - ``POST /recheck/confirm`` 아직 맞음 · ``POST /releases/<번호>/rollback`` 판 되돌리기(ADMIN 만).
 - ``POST /learned/<id>/seen`` · ``/fix`` · ``/undo`` AI 가 배워 바로 넣은 지식을 살펴본다(맞아요 · 고치기 · 지우기 — ADMIN 만,
   사장님 2026-11-19). 읽기는 ``GET /learned``(ADMIN 만 — 그 밖 404).
@@ -196,6 +198,12 @@ def brain_apply(change_id: int) -> tuple[Any, int]:
 def brain_reject(change_id: int) -> tuple[Any, int]:
     """거절(까닭 칩)."""
     return _act(lambda: "reject", {**_body(), "change_id": change_id}, routed("brain_review_api.brain_reject"))
+
+
+@brain_review_api_bp.route("/proposals/<int:change_id>/reopen", methods=["POST"])
+def brain_reopen(change_id: int) -> tuple[Any, int]:
+    """방금 정한 것 되돌리기(내가 거절한 제안을 다시 연다 · 같이 넣은 지식 고침은 앞 글로)."""
+    return _act(lambda: "reopen", {**_body(), "change_id": change_id}, routed("brain_review_api.brain_reopen"))
 
 
 @brain_review_api_bp.route("/proposals/bulk-apply", methods=["POST"])

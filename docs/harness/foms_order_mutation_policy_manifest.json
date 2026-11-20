@@ -1385,6 +1385,11 @@
       "policy_id": "MANAGER_MUTATION",
       "rule": "/api/brain/proposals/<int:change_id>/reject"
     },
+    "brain_review_api.brain_reopen": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/api/brain/proposals/<int:change_id>/reopen"
+    },
     "brain_review_api.brain_bulk_apply": {
       "mode": "guard",
       "policy_id": "MANAGER_MUTATION",

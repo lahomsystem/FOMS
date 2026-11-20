@@ -8,6 +8,8 @@
   {%- endif %}
 </header>
 <p class="fb-status" data-ds-inbox-status role="status" aria-live="polite"></p>
+{#- 방금 정한 것 되돌리기(ds-inbox-undo.js — 거절 · ③ 답을 누른 바로 뒤에만 보인다) -#}
+<p class="f-row f-small" data-ds-inbox-undo hidden><span class="f-muted" data-ds-inbox-undo-text></span><button class="f-btn f-btn-small" type="button" data-ds-inbox-undo-do>되돌리기</button></p>
 
 <div class="f-card f-card-compact f-row f-gap24 fb-pc-only" data-ds-inbox-strip>
   <span class="f-row-nw f-gap4"><span class="f-small f-muted">오늘 결정할 것</span><span class="f-h4 f-num" data-ds-inbox-stat="today">{{ n_inbox }}</span><span class="f-small f-muted">개</span></span>
