@@ -299,7 +299,7 @@
 | a52 AS 방문 집 | 줄 시간 칸 아래 `AS 방문`, 출고 칸 `-`, 자수 없음. 상세 가운데 `AS 방문 집이에요`(시작 · 완료 · 불가 · 사진 단추 안 그림) | `order_schedule_dates` kind='as_visit' 그날(`order_date_sync.py:144-162`) + AS 상태(`AS_SHIPMENT_STATUSES`). 시공자 = `sd.shipment.construction_workers`(이름판 · AS 넣기 D35) → 출고와 같은 묶음 규칙(첫 시공자 묶음 안, 일반 줄 뒤 AS 줄) | 그대로(쿼리 A · B 조건만 넓힘) |
 | a53 생산 진행 | 출고 칸 `생산중` → `생산 n/4`(공정 기록이 없거나 비면 `생산중` 그대로 — 0/4 금지). 상세 가운데 `아직 생산 중이에요 · 조립까지 끝남`(끝난 마지막 공정, 없으면 앞말만), 오른쪽 안내 줄은 `완료 사진 n장` 만(같은 말 한 번) | `sd.production.steps`(재단 · 엣지 · 조립 · 검수 — `production_home_steps` 와 같은 읽기) | 그대로(그날 줄 쿼리가 이미 싣는 자료) |
 
-- **AS 넣는 기준은 as_visit 날짜뿐**: AS 상태인데 as_visit 이 없고 시공일만 있는 집(스테이징 4304 꼴)은 지금처럼 뺀다. 같은 주문이 같은 날 construction · as_visit 둘 다면 한 줄 · 한 집.
+- **AS 넣는 기준은 as_visit 날짜뿐**: AS 상태인데 as_visit 이 없고 시공일만 있는 집(스테이징 4304 꼴)은 지금처럼 뺀다. 같은 주문이 같은 날 construction · as_visit 둘 다면 한 줄 · 한 집. — **2026-11-20 좁힘(M1 · M3, `docs/specs/2026-11-20-multi-item-split-schedule_SPEC.md` 4절)**: AS 상태여도 본 흐름이 열린 주문(단계 생산 · 시공)의 시공일은 시공 줄로 들고 날짜 미정에도 든다. 같은 날 AS 방문도 있으면 시공 줄 한 줄 + "AS 방문도". 본 흐름이 끝난 주문(4304 꼴)은 지금 그대로 뺀다. 상세는 들어온 그날 줄 종류를 따른다(AS 방문 줄로 들어오면 `AS 방문 집이에요` · 단추 없음).
 - **시공 API 가 AS 상태 주문에 하는 일**(`foms/api/construction/orders.py`): 시작(`:256`) · 완료(`:433`)는 단계가 `시공`/`CONSTRUCTION` 이 아니면 409 `INVALID_STAGE` — 단 관리자 강제 진행(override)이면 뚫린다. 불가는 전이 엔진이 `CONSTRUCTION` 에서만 받아 409. 완료 사진 올리기(`/construction/evidence`)는 단계 검사가 없다. → AS 집 상세는 이 단추들을 그리지 않는다(화면만, API 무변경).
 - **보기만 계정**: 가운데 `보기만 할 수 있어요`, 오른쪽 `완료 사진 n장`(같은 규칙).
 - **권한**: 바뀌지 않는다(읽기만 늘어남). 시공팀 · 프리랜서 내 것 범위는 AS 집 · 날짜 미정 집에도 같은 SQL(`build_mine_sql_filter`)로 걸린다.
