@@ -24,7 +24,7 @@ import datetime
 import re
 from typing import Any, Iterable
 
-from sqlalchemy import and_, case, distinct, exists, func, literal, or_, select, union_all
+from sqlalchemy import and_, case, distinct, exists, func, literal, literal_column, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from foms.services.common.address_query import strip_sido
@@ -77,6 +77,7 @@ _KINDS = ("construction", "as_visit")
 _PAIR_ORDER = aliased(Order)
 _PAIR_JOIN = _PAIR_ORDER.id == OrderScheduleDate.order_id
 _PAIR_KIND = kind_pair_case(OrderScheduleDate.kind, _PAIR_ORDER)
+_ONE, _ZERO = literal_column("1"), literal_column("0")
 
 
 def _day_pairs(days: list[str], *, with_kinds: bool = False) -> Any:
@@ -88,7 +89,8 @@ def _day_pairs(days: list[str], *, with_kinds: bool = False) -> Any:
     """
     cols = [OrderScheduleDate.order_id.label("oid"), OrderScheduleDate.date.label("day")]
     if with_kinds:
-        cols += [func.max(case((OrderScheduleDate.kind == kind, 1), else_=0)).label(label)
+        # 1 · 0 은 글자 그대로 싣는다(바인딩 값으로 두면 CASE 두 갈래가 모두 매개변수라 PG 가 형을 못 정할 수 있다).
+        cols += [func.max(case((OrderScheduleDate.kind == kind, _ONE), else_=_ZERO)).label(label)
                  for kind, label in (("construction", "has_cons"), ("as_visit", "has_as"))]
     stmt = select(*cols).join(_PAIR_ORDER, _PAIR_JOIN).where(
         OrderScheduleDate.kind.in_(_KINDS), OrderScheduleDate.date.in_(days), _PAIR_KIND)
