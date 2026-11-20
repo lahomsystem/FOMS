@@ -182,6 +182,7 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
         pending_count = len([sid for sid in pending if sid in sheets])
     status = (current or {}).get("status")
     usable = as_stage and not is_partner
+    push_verdict = judge_as_push(dict(sd))
     return {
         "as_stage": as_stage,
         "show": bool(usable and (current or drawing_ok or rounds(sd))),
@@ -198,8 +199,11 @@ def build_as_drawing_detail(order: Any, sd: Mapping[str, Any], user: Any) -> dic
         "can_review": bool(usable and review_ok and status == STATUS_TRANSFERRED),
         "can_room_push": bool(usable and drawing_ok and room_push_round(sd) is not None),
         # 이 AS 건에서 아직 AS방에 못 올렸을 때만 — 지난 건의 PUSH 이력은 치지 않는다(본사 AS PUSH 와 같은 판정).
+        # 차수는 AS 건이 끝나도 닫히지 않아 다음 건까지 남을 수 있다 — 이 차수가 접수한 건이 지금 건일 때만
+        # (건 번호가 없는 옛 차수는 가를 수 없어 그대로 보인다).
         "can_channel_retry": bool(usable and drawing_ok and current and current.get("registered_as")
-                                  and not judge_as_push(dict(sd)).resend),
+                                  and not push_verdict.resend
+                                  and (not cur.get("cycle_id") or cur.get("cycle_id") == push_verdict.cycle_id)),
     }
 
 
