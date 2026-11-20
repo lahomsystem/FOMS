@@ -192,10 +192,11 @@ def fresh_policy(session: Any) -> bool:
 
 
 def _shrink(session: Any, *, grow: bool) -> None:
-    """묶음 줄이기 횟수를 하나 올리거나(``grow``) 0 으로 되돌린다(커밋 — 바뀔 때만 쓴다)."""
+    """묶음 줄이기 횟수를 하나 올리거나(``grow``) 하나 내린다(커밋 — 바뀔 때만 쓴다. 한 번 성공했다고 곧바로 큰 묶음으로
+    돌아가면 실패 · 성공이 번갈아 나와 실패 때마다 최악값이 학습 돈에 잡힌다)."""
     row = _locked(session)
     doc = _doc(row)
-    wanted = min(MAX_SHRINK, doc["shrink"] + 1) if grow else 0
+    wanted = min(MAX_SHRINK, doc["shrink"] + 1) if grow else max(0, doc["shrink"] - 1)  # 한 번에 하나씩 되돌린다
     if wanted != doc["shrink"]:
         _put(row, {**doc, "shrink": wanted})
     session.commit()
@@ -439,7 +440,10 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         close_day(session, day)
         release(session)
         raise
-    cut = counts["halted"] in CUT_CODES and len(cases) > 1  # 답이 끊김 · 시간 넘김 — 밤을 닫지 않고 반으로 줄여 다시
+    cut = counts["halted"] in CUT_CODES  # 답이 끊김 · 시간 넘김 — 밤을 닫지 않고 반으로 줄여 다시
+    if cut and len(cases) == 1:  # 하나로 줄여도 안 되는 사례 — 읽음으로 넘긴다(새 것부터라 밤마다 이 사례에서 멈춘다)
+        mark_used(session, [cases[0]["turn_id"]])
+        counts["skipped_case"] = 1
     if cut or (shrink and counts["halted"] is None):
         _shrink(session, grow=cut)
     if not cases or (counts["halted"] is not None and not cut):  # 남은 사례가 없다 · 부르기가 실패했다 — 이 밤은 여기까지
