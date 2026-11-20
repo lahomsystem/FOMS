@@ -34,7 +34,13 @@
 (``repeats`` — 대상이 같은 열린 카드만)의 근거 상담을 합쳐 서로 다른 손님이 :data:`DIFFERS_MIN_CHATS` 곳 이상이면 카드가 아니라
 그 항목 **고치기** 안(``fixed_text`` — 직원 말에 맞게 고친 전체 글)으로 넣는다. 자기 항목과 다른 말이라 제안 길의 부딪침 관문은
 막지 않게 한다(결과는 적힌다). 바로 반영이 되면 같은 말을 모아 둔 앞 카드는 '합쳐짐'(:data:`MERGED_ACTION`)으로 닫는다. 고친 것은
-'AI 가 배운 것'에 전 → 후로 보이고 거기서 고치기 · 지우기(옛 글로)를 한다. 한 번뿐이거나 고칠 수 없는 항목이면 엇갈림 카드다.
+'AI 가 배운 것'에 전 → 후로 보이고 거기서 고치기 · 지우기(옛 글로)를 한다.
+
+**부딪치지 않는 다른 말은 새 지식(사장님 11-21 '새 내용은 바로 넣기' · D276)**: 바로 고치지 못한 ``differs`` 안(한 번뿐 · 고칠 수
+없는 큰 항목 — 「실측」 · 「시공」 같은 공정 단계)은 :func:`new_or_card` 가 가른다. 두뇌가 짚은 그 항목 + 가까운 승인 지식과 두
+순서로 판정해(:func:`foms.services.brain.ai_gates.conflict_gate` — 새 키로는 그 항목이 견줄 글에 안 들어가 직접 짚는다) 부딪치지
+않고 숫자가 근거에 있으면 **새 지식**(사실 · 정책)으로 넣는다(같은 말을 모아 둔 앞 카드는 합쳐 닫는다). 부딪치거나 · 판정을 못
+하거나 · 숫자가 근거에 없으면 예전처럼 엇갈림 카드다. 첫 밤에 이미 쌓인 카드는 :mod:`.handoff_learning_resort` 가 한 번 다시 가른다.
 
 **바로 반영(``auto`` — 패널 '배운 것 바로 반영')**: 넣은 사실 · 정책 안을 그 자리에서 반영한다(:class:`foms.services.brain.apply
 .AutoLearn` — 사람 승인자 칸은 비고 확신은 '근거 있음'). 엇갈림 카드는 반영하지 않는다(사람이 고른다). 반영이 막히면 열린 채
@@ -50,7 +56,7 @@ from typing import Any, Callable, Optional, Sequence
 from sqlalchemy import and_, or_, select, update
 
 from foms.persistence.brain.models import BrainChange
-from foms.services.brain.ai_gates import related_key
+from foms.services.brain.ai_gates import PASS, conflict_gate, related_key
 from foms.services.brain.apply import AutoLearn, apply_change
 from foms.services.brain.constants import (
     CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE,
@@ -72,8 +78,8 @@ from foms.services.cs_agent.state import KST
 from models import CsAgentTurn, SecurityLog
 
 __all__ = [
-    "AGENT", "CARD_PREFIX", "DIFFERS_MIN_CHATS", "DUP_SIMILARITY", "EVIDENCE_MIN_CHATS", "MAX_FILED", "MERGED_ACTION",
-    "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "apply_now", "file_proposals", "open_cards", "seen_proposals",
+    "AGENT", "CARD_PREFIX", "DIFFERS_MIN_CHATS", "close_cards", "DUP_SIMILARITY", "EVIDENCE_MIN_CHATS", "MAX_FILED", "MERGED_ACTION",
+    "NUMBER_MIN_CHATS", "SAME_SIMILARITY", "apply_now", "file_proposals", "new_or_card", "open_cards", "seen_proposals",
 ]
 
 #: 제안한 이(``agent:cs_handoff_learning``) — 화면 이름표는 :data:`foms.services.brain.display.AGENT_LABELS`(시험이 맞춘다).
@@ -168,8 +174,8 @@ def _fix_text(session: Any, raw: dict[str, Any], target_key: str, chats: set[str
     return (None if FAIL in (gates["mask"], gates["hanja"]) else fixed), prior, customers
 
 
-def _close_cards(session: Any, ids: Sequence[int], now: datetime.datetime) -> None:
-    """바로 고침에 합쳐진 앞 엇갈림 카드를 닫는다(열린 것만 — 커밋은 부르는 쪽)."""
+def close_cards(session: Any, ids: Sequence[int], now: datetime.datetime) -> None:
+    """바로 고침 · 새 지식에 합쳐진 엇갈림 카드를 닫는다(열린 것만 — 커밋은 부르는 쪽)."""
     if not ids:
         return
     done = session.execute(update(BrainChange).where(BrainChange.id.in_(list(ids)), BrainChange.status == CHANGE_OPEN)
@@ -178,6 +184,38 @@ def _close_cards(session: Any, ids: Sequence[int], now: datetime.datetime) -> No
     session.add(SecurityLog(user_id=None, action="BRAIN_MERGE", target_type="brain_change", target_id=None,
                             timestamp=naive_utc(now), message=f"BRAIN_MERGE count={int(done.rowcount or 0)}",
                             detail={"changes": [int(i) for i in ids]}))
+
+
+def new_or_card(session: Any, raw: dict[str, Any], target_key: Optional[str], card: dict[str, Any], *, known: str,
+                replies: dict[str, list[str]], approved: Sequence[str],
+                ) -> tuple[Optional[str], Optional[Callable[[], Any]], list[int]]:
+    """바로 고치지 못한 다른 말(모듈 설명) → (막힌 까닭 코드, 새 지식 넣는 함수, 같은 말을 담은 열린 카드 id — 넣으면 합쳐 닫는다).
+    부딪침 · 판정 못 함 · 근거에 없는 숫자면 엇갈림 카드를 넣고(커밋) ``conflict_card`` 같은 코드만 돌려준다. ``card`` 는
+    :func:`_differs_card` 의 이름 있는 인자 묶음. 겹침 관문은 엇갈림 카드를 빼고 본다(카드에 담긴 말이 부딪치지 않으면 지식이 된다)."""
+    title, text, now = card["title"], card["text"], card["now"]
+    target = current_object(session, target_key) if target_key else None
+    if target is None or target.status != STATUS_ACTIVE:  # 두뇌가 짚은 항목이 없다 — 무엇과 다른지 모르는 안은 넣지 않는다
+        return "target", None, []
+    if not _numbers_ok([title, text], known, replies):  # 다른 말은 숫자 관문을 안 거쳤다 — 새 지식이 되려면 거친다
+        return _try_card(session, target_key, card), None, []
+    verdict = conflict_gate(session, op=OP_UPDATE, key=target_key or "", item_type=raw.get("item_type"),
+                            texts=[title, text], today=now.astimezone(KST).date(), brand=SEND_BRAND)
+    session.commit()  # 판정자 부르기가 연 트랜잭션을 닫는다
+    if verdict != PASS:  # 부딪침 · 판정을 못 함 — 사람이 고른다
+        return _try_card(session, target_key, card), None, []
+    seen = [s for s in card["seen"] if not str(s[1] or "").startswith(CARD_PREFIX)]
+    code, make = _filer(session, {**raw, "op": "create"}, **{**card, "seen": seen}, approved=approved,
+                        skip_gates=("conflict",))
+    same = [row[0] for row in _card_rows(session) if text_similarity(text, row[3]) >= DUP_SIMILARITY]
+    return code, make, same
+
+
+def _replies(ids: Sequence[int], by_id: dict[int, dict[str, Any]]) -> dict[str, list[str]]:
+    """근거 차례의 가린 직원 답 — 상담(손님)마다."""
+    out: dict[str, list[str]] = {}
+    for turn_id in ids:
+        out.setdefault(by_id[turn_id]["chat_id"], []).append(by_id[turn_id]["reply"] or "")
+    return out
 
 
 def _evidence(raw: dict[str, Any], by_id: dict[int, dict[str, Any]]) -> list[int]:
@@ -250,7 +288,7 @@ def _filer(session: Any, raw: dict[str, Any], *, title: str, text: str, number: 
             return "open_proposal", None
         values = _doc_values(item_type, title, text, doc_id, local.date().isoformat())
         return None, lambda: propose_create(session, key=key, brand=SEND_BRAND, layer="common", item_type=item_type,
-                                            values=values, **common)
+                                            values=values, skip_gates=skip_gates, **common)
     wanted = raw.get("key").strip() if isinstance(raw.get("key"), str) else ""
     target = current_object(session, wanted) if wanted else None
     if target is None or not updatable(target) or not whole_shown(target):  # 잘려 실린 긴 글은 고치지 않는다
@@ -318,9 +356,7 @@ def _check(raw: dict[str, Any], by_id: dict[int, dict[str, Any]], known: str
     ids = _evidence(raw, by_id)
     if not ids:
         return "evidence", None, None, None, []
-    replies: dict[str, list[str]] = {}
-    for turn_id in ids:
-        replies.setdefault(by_id[turn_id]["chat_id"], []).append(by_id[turn_id]["reply"] or "")
+    replies = _replies(ids, by_id)
     # 다른 말은 숫자 관문을 보지 않는다 — 직원이 말한 다른 치수 · 값이 바로 사장님이 골라야 할 것이다(카드는 ADMIN 만 본다)
     if raw.get("op") != DIFFERS and not _numbers_ok([title, text, why], known, replies):
         return "numbers", None, None, None, []
@@ -345,7 +381,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
     counts: dict[str, int] = {"filed": 0}
     for number, item in enumerate(raw[:MAX_FILED * 2], start=1):
         code, title, text, why, ids = _check(item, by_id, known)
-        make, merged = None, []
+        make, merged, fresh = None, [], False
         if code is None and counts["filed"] >= MAX_FILED:
             code = "cap"
         if code is None:
@@ -366,8 +402,10 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                     code, make = _filer(session, {**item, "op": "update"}, title=title, text=fixed, number=number,
                                         common={**common, "reason": why_fix}, now=now, seen=seen, approved=approved,
                                         skip_gates=("conflict",))
-                if make is None and code not in ("same", "rejected_before"):  # 한 번뿐 · 고칠 수 없는 항목 — 엇갈림 카드
-                    code, merged = _try_card(session, wanted, card), []
+                if make is None and code not in ("same", "rejected_before"):  # 한 번뿐 · 고칠 수 없는 항목 — 새 지식 또는 카드
+                    code, make, same = new_or_card(session, item, wanted, card, known=known, replies=_replies(ids, by_id),
+                                                   approved=approved)
+                    fresh, merged = make is not None, sorted({*merged, *same}) if make is not None else []
             else:
                 code, make = _filer(session, item, title=title, text=text, number=number, common=common, now=now,
                                     seen=seen, approved=approved)
@@ -378,11 +416,10 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                 seen = [(CHANGE_OPEN, None, title, text), *seen]  # 한 번에 비슷한 안 둘이 들어가지 않게
                 extra = "applied" if auto is not None else None
                 extra = apply_now(session, change, auto, now) or extra
-                if merged and extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침에 합쳐졌다
-                    _close_cards(session, merged, now)
-                    counts["differs_fixed"] = counts.get("differs_fixed", 0) + 1
-                elif item.get("op") == DIFFERS and extra == "applied":
-                    counts["differs_fixed"] = counts.get("differs_fixed", 0) + 1
+                if item.get("op") == DIFFERS and extra == "applied":  # 같은 말을 모아 둔 앞 카드는 이 고침 · 새 지식에 합쳐졌다
+                    close_cards(session, merged, now)
+                    done = "differs_new" if fresh else "differs_fixed"
+                    counts[done] = counts.get(done, 0) + 1
                 session.commit()
                 if extra:  # 넣은 수(filed)와 따로 센다 — 바로 반영함 · 반영이 막혀 승인 대기에 남음
                     counts[extra] = counts.get(extra, 0) + 1

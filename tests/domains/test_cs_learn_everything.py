@@ -15,6 +15,7 @@ import pytest
 
 from db import db_session
 from foms.services.brain import inbox, learned
+from foms.services.brain.ai_gates import judge_source
 from foms.services.brain.inbox import open_rows
 from foms.services.brain.scope import viewer_of
 from foms.services.brain.store import current_object
@@ -35,6 +36,12 @@ from tests.support.cs_agent_fakes import FakeAnthropic, at, keys, naive  # noqa:
 TARGET = "lahom/shelf-depth"
 SAID = "합성 직원 답 — 선반 깊이는 400mm 로 짜 드려요"
 FIXED = "합성 선반 깊이는 400mm 입니다"
+
+
+def run_clash(client, now=NOW):
+    """판정자가 '승인 지식과 부딪침'이라고 하는 밤 — 한 번뿐인 다른 말이 엇갈림 카드로 남는다(11-21 부터 부딪치지 않으면 새 지식)."""
+    with judge_source(lambda _s, _a, _b: True):
+        return hl.run_handoff_learning(db_session, now=now, client=client)
 
 
 def differs(ids, **fields):
@@ -133,7 +140,7 @@ def test_a_different_answer_given_to_two_customers_fixes_the_item_at_once_and_sh
 def test_a_one_off_different_answer_waits_as_a_visible_card_until_another_customer_hears_the_same(admin, monkeypatch):
     on(**{AUTO_FIELD: True})
     old = current_object(db_session, TARGET).text
-    first = run(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
+    first = run_clash(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
     assert (first["cards"], first["fixed"], first["applied"]) == (1, 0, 0) and current_object(db_session, TARGET).text == old
     (card,) = changes()
     monkeypatch.setattr(inbox, "AI_WEEKLY_CAP", 0)  # 그 층 AI 주 자리가 다 찼어도 사장님이 고를 카드는 보인다
@@ -151,11 +158,11 @@ def test_a_one_off_different_answer_waits_as_a_visible_card_until_another_custom
 
 def test_a_repeat_from_the_same_customer_or_another_item_stays_a_card(admin):
     on(**{AUTO_FIELD: True})
-    run(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
+    run_clash(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
     (card,) = changes()
     again = handed("uc-5", reply=SAID + " 기준이에요")  # 같은 손님에게 또 말한 것은 두 번이 아니다
     client = FakeAnthropic({"proposals": [differs([again], repeats=[card.item_key], text="합성 선반은 400mm 가 기준이라고 했어요")]})
-    counts = run(client, now=at(12, 1))
+    counts = run_clash(client, now=at(12, 1))
     assert counts["fixed"] == 0 and current_object(db_session, TARGET).text != FIXED
     db_session.refresh(card)
     assert card.status == "open"
@@ -164,7 +171,7 @@ def test_a_repeat_from_the_same_customer_or_another_item_stays_a_card(admin):
 def test_a_different_answer_the_owner_refused_is_never_applied_even_with_two_customers(admin):
     on(**{AUTO_FIELD: True})
     old = current_object(db_session, TARGET).text
-    run(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
+    run_clash(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
     (card,) = changes()
     card.status = "rejected"  # 사장님이 '지금 지식이 맞다'고 거절했다
     db_session.commit()
