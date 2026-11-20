@@ -161,6 +161,44 @@ def test_a_repeat_from_the_same_customer_or_another_item_stays_a_card(admin):
     assert card.status == "open"
 
 
+def test_a_different_answer_the_owner_refused_is_never_applied_even_with_two_customers(admin):
+    on(**{AUTO_FIELD: True})
+    old = current_object(db_session, TARGET).text
+    run(FakeAnthropic({"proposals": [differs([handed("uc-5", reply=SAID)])]}))
+    (card,) = changes()
+    card.status = "rejected"  # 사장님이 '지금 지식이 맞다'고 거절했다
+    db_session.commit()
+    ids = [handed("uc-6", reply=SAID), handed("uc-7", reply=SAID)]
+    counts = run(FakeAnthropic({"proposals": [differs(ids)]}), now=at(12, 1))
+    assert (counts["fixed"], counts["applied"], counts["blocked"]) == (0, 0, {"rejected_before": 1})
+    assert current_object(db_session, TARGET).text == old and len(changes()) == 1
+
+
+def test_a_fix_the_knowledge_gates_stop_becomes_a_card_instead_of_vanishing(admin):
+    on(**{AUTO_FIELD: True})
+    ids = [handed("uc-5", reply=SAID), handed("uc-6", reply=SAID)]
+    made_up = "합성 선반 깊이는 437mm 입니다"  # 직원 답에 없는 숫자 — 제안 길 숫자 관문이 막는다
+    counts = run(FakeAnthropic({"proposals": [differs(ids, fixed_text=made_up)]}))
+    assert (counts["fixed"], counts["cards"]) == (0, 1) and current_object(db_session, TARGET).text != made_up
+    assert [c.item_type for c in changes()] == ["conflict"]
+
+
+def test_a_single_case_that_keeps_cutting_off_is_passed_over_so_older_cases_are_reached(admin):
+    on(**{CASES_FIELD: 2})
+    old, new = handed("uc-1"), handed("uc-2", reason="complaint")  # 새 사례가 어려운 묶음(하나)으로 먼저 간다
+    client = FakeAnthropic({"proposals": []})
+    whole = client.create
+    cut = {"on": True}
+    client.beta.messages.create = lambda **params: (
+        whole(**params).model_copy(update={"stop_reason": "max_tokens"}) if cut["on"] else whole(**params))
+    first = run(client)
+    assert (first["cases"], first["halted"], first.get("skipped_case")) == (1, "incomplete", 1)
+    assert hl.used_ids(db_session) == frozenset([new])  # 읽음으로 넘긴다 — 밤마다 이 사례에서 멈추지 않게
+    cut["on"] = False
+    second = run(client, now=at(11, 2, 15))  # 밤은 닫히지 않았다 — 다음 사례를 읽는다
+    assert (second["cases"], second["halted"]) == (1, None) and hl.used_ids(db_session) == frozenset([old, new])
+
+
 # ── 읽는 규칙이 바뀌면 한 번 다시 읽는다 ─────────────────────────────────
 def test_a_new_reading_policy_clears_the_read_list_once(two):
     on()

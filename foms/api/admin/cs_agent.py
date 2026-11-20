@@ -109,7 +109,7 @@ def cs_agent_switch_draft() -> tuple[Any, int]:
         return denied
     mode = _body().get("mode")
     if not isinstance(mode, str) or mode not in DRAFT_MODES:
-        return _fail(400, "mode 는 off · store · memo 가운데 하나입니다.")
+        return _fail(400, "mode 는 off · store · memo · learn 가운데 하나입니다.")
     session = get_db()
     try:
         changed = change_draft_mode(session, mode=mode, actor_user_id=actor_id, now=now_kst())

@@ -78,7 +78,7 @@ __all__ = [
 
 #: 제안한 이(``agent:cs_handoff_learning``) — 화면 이름표는 :data:`foms.services.brain.display.AGENT_LABELS`(시험이 맞춘다).
 AGENT = "cs_handoff_learning"
-MAX_FILED, MAX_SEEN = 30, 200
+MAX_FILED, MAX_SEEN, MAX_REFUSED = 30, 200, 2000
 UNDONE_ACTION = "auto_learn_undone"  # :data:`foms.services.brain.learned.UNDONE`(그 모듈을 부르면 돌려 부르기가 된다 — 시험이 맞춘다)
 MAX_TITLE, MAX_TEXT, MAX_WHY = 40, 600, 300
 SAME_SIMILARITY, DUP_SIMILARITY = 0.85, 0.8
@@ -110,13 +110,14 @@ def seen_proposals(session: Any) -> list[tuple[str, Optional[str], str, str]]:
     """넘김 학습이 낸 열린 · 거절된 안과 바로 반영했다가 사장님이 지운 안(거절로 친다) — (상태, 키, 이름, 글) 새 것부터
     :data:`MAX_SEEN` 개(겹침 관문 · 지시문 '이미 낸 제안')."""
     undone = and_(BrainChange.status == CHANGE_APPLIED, BrainChange.decided_action == UNDONE_ACTION)
-    stmt = (select(BrainChange.status, BrainChange.item_key, BrainChange.fields)
-            .where(BrainChange.proposed_by == Proposer.agent_named(AGENT).name,
-                   or_(BrainChange.status.in_((CHANGE_OPEN, CHANGE_REJECTED)), undone),
-                   BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
-            .order_by(BrainChange.id.desc()).limit(MAX_SEEN))
+    base = select(BrainChange.status, BrainChange.item_key, BrainChange.fields).where(
+        BrainChange.proposed_by == Proposer.agent_named(AGENT).name, BrainChange.op.in_((OP_CREATE, OP_UPDATE)))
+    # 열린 것과 거절 · 지운 것을 따로 읽는다 — 엇갈림 카드는 저절로 닫히지 않아, 한 질의로 읽으면 사장님의 거절이 창 밖으로 밀린다
+    rows = [*session.execute(base.where(BrainChange.status == CHANGE_OPEN).order_by(BrainChange.id.desc()).limit(MAX_SEEN)),
+            *session.execute(base.where(or_(BrainChange.status == CHANGE_REJECTED, undone))
+                             .order_by(BrainChange.id.desc()).limit(MAX_REFUSED))]
     out = []
-    for status, key, fields in session.execute(stmt):
+    for status, key, fields in rows:
         status = CHANGE_REJECTED if status == CHANGE_APPLIED else status  # 사장님이 지운 것 — 거절과 같이 다시 안 넣는다
         values = after_values(fields)
         payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
@@ -358,12 +359,14 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
             if item.get("op") == DIFFERS:
                 wanted = item.get("key").strip() if isinstance(item.get("key"), str) else ""
                 fixed, merged, customers = _fix_text(session, item, wanted, {str(by_id[i]["chat_id"]) for i in ids})
-                if fixed is not None:  # 서로 다른 손님 둘 이상 — 그 항목을 바로 고친다(모듈 설명)
+                if _duplicate(text, seen) == "rejected_before":  # 사장님이 거절 · 지운 말 — 손님이 둘이어도 다시 안 고친다
+                    code, fixed, merged = "rejected_before", None, []
+                elif fixed is not None:  # 서로 다른 손님 둘 이상 — 그 항목을 바로 고친다(모듈 설명)
                     why_fix = f"넘긴 상담 배우기 · 지금 지식과 다른 직원 답 · 서로 다른 손님 {customers}곳 — {why}"[:500]
                     code, make = _filer(session, {**item, "op": "update"}, title=title, text=fixed, number=number,
                                         common={**common, "reason": why_fix}, now=now, seen=seen, approved=approved,
                                         skip_gates=("conflict",))
-                if make is None and code != "same":  # 한 번뿐 · 고칠 수 없는 항목 — 엇갈림 카드
+                if make is None and code not in ("same", "rejected_before"):  # 한 번뿐 · 고칠 수 없는 항목 — 엇갈림 카드
                     code, merged = _try_card(session, wanted, card), []
             else:
                 code, make = _filer(session, item, title=title, text=text, number=number, common=common, now=now,
@@ -390,9 +393,13 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                     code = "judge_unavailable"  # 아무도 판정하지 않았다 — '다른 말' 카드로 올리지 않는다
                 elif set(exc.failed) == {"conflict"}:
                     code = _try_card(session, _differs_target(session, item, text, now), card, fallback=code)
+                elif item.get("op") == DIFFERS:  # 바로 고침이 숫자 · 평가 관문에 막혔다 — 버리지 않고 카드로
+                    code = _try_card(session, item.get("key").strip(), card, fallback=code)
             except BrainStoreError as exc:  # 글 관문 · 근거 · 거절 · 대상 · 꼴 — 넣지 않고 센다
                 session.rollback()
                 code = _store_code(exc)
+                if item.get("op") == DIFFERS and isinstance(item.get("key"), str):  # 바로 고침이 막혔다 — 카드로
+                    code = _try_card(session, item["key"].strip(), card, fallback=code)
         if code == "conflict_card":
             seen = [(CHANGE_OPEN, None, title, text), *seen]
         counts[code or "filed"] = counts.get(code or "filed", 0) + 1
