@@ -76,6 +76,15 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 </div>
             </div>
 
+            {# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — erp-same-customer-notice.js 가 채운다. 저장은 막지 않는다.
+               복사로 만든 주문(접수 단계)은 도착했을 때 한 번 묻도록 그 주문의 연락처 · 주소를 실어 둔다. #}
+            {% set _sc_meta = order.structured_data.get('meta') if order is defined and order and order.structured_data is mapping else none %}
+            {% set _sc_copied = _sc_meta is mapping and _sc_meta.get('created_via') == 'ORDER_COPY' and (order.erp_stage_code or 'RECEIVED') == 'RECEIVED' %}
+            <div class="alert alert-warning py-2 d-none" id="erp-same-customer-notice" role="status" data-foms-no-autodismiss
+                data-lookup-url="{{ url_for('orders.api_open_orders_for_customer') }}"
+                {% if order is defined and order %}data-order-id="{{ order.id }}"{% endif %}
+                {% if _sc_copied %}data-copy-arrival="true" data-copy-phone="{{ order.phone or '' }}" data-copy-address="{{ order.address or '' }}"{% endif %}></div>
+
             {# edit 화면은 견적서를 계산기 우측 outer 탭으로 올린다(erp_estimate_in_outer_tab=true).
                add_order 등 단독 포함 화면은 inner pill '계약서'를 그대로 유지한다. #}
             {% if not erp_estimate_in_outer_tab %}
