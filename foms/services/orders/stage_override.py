@@ -20,6 +20,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.as_axis_read import open_as_status_text
 from foms.services.orders.confirm_drawing_gate import (
     effective_drawing_status,
     stage_override_drawing_warning,
@@ -330,12 +331,15 @@ def apply_stage_override(
 ) -> dict[str, Any]:
     """status + workflow.stage 만 변경하고 STAGE_OVERRIDE 이벤트를 남긴다.
 
+    열린 AS(접수 · 처리 중)가 걸린 ERP 주문은 단계만 옮기고 ``order.status`` 의 AS 표시는 그대로 둔다
+    (``as_overlay_kept`` — 설계서 2026-11-20-multi-item-split-schedule §4.3). 닫힌 AS(완료)는 지금처럼 덮인다.
+
     _handle_stage_transition 부수효과는 호출하지 않는다. 단, regress 는 되돌아간 단계의
     COMPLETED quest 1건을 OPEN 으로 돌린다(:func:`_reopen_completed_stage_quest`) — 그대로 두면
     승인 버튼 없는 완료 배지만 남아 막다른 길이 된다. advance/skip/jump 는 quest 를 건드리지 않는다.
     drawing_transfer_history 등 운영 JSON은 건드리지 않는다.
 
-    :returns: {from, to, mode, reason, from_status[, as_overlay_cleared][, quest_reopened]}
+    :returns: {from, to, mode, reason, from_status[, as_overlay_kept][, quest_reopened]}
     :raises ValueError: 검증 실패(메시지 한글)
     :raises DraftNotPromotedError: 아직 승격하지 않은 초안(잠금 아래 백스톱 — 409)
     """
@@ -360,15 +364,18 @@ def apply_stage_override(
     # 덮어쓰기 전 **실제 status** 를 잡아 payload 에 싣는다. from(=workflow.stage) 만
     # 남기면 AS overlay(AS_RECEIVED 등)가 흔적 없이 사라져 사고 후 복구 근거가 없다
     # (2026-08-14: payload from 이 MEASURE 라 AS 상태를 이벤트로 되짚을 수 없었다).
+    # 닫힌 AS(완료)를 덮은 흔적도 이 from_status 가 남긴다.
     status_before = str(getattr(order, "status", None) or "").strip()
-    overlay_cleared = as_overlay_status(order)
+    # 열린 AS 는 본 흐름 목표 쓰기를 이긴다 — 단계 축이 따로 있는 ERP 주문만(비 ERP 는 상태 글이 곧 단계).
+    overlay_kept = open_as_status_text(order) if is_erp_order_record(order) else ""
     # Q5(2a-2): 넘긴 순간의 도면 상태를 항상 남긴다(생산 이후로 미확정 도면을 넘긴 빈도 측정).
     sd_before = getattr(order, "structured_data", None)
     drawing_status_before = effective_drawing_status(sd_before)
     drawing_warning = stage_override_drawing_warning(sd_before, to_code)
     quest_reopened: Optional[str] = None
 
-    order.status = to_code
+    if not overlay_kept:
+        order.status = to_code
 
     if is_erp_order_record(order):
         sd = getattr(order, "structured_data", None)
@@ -410,8 +417,8 @@ def apply_stage_override(
     }
     if drawing_warning:
         payload["drawing_unconfirmed"] = True
-    if overlay_cleared:
-        payload["as_overlay_cleared"] = overlay_cleared
+    if overlay_kept:
+        payload["as_overlay_kept"] = overlay_kept
     if quest_reopened:
         payload["quest_reopened"] = quest_reopened
     db.add(

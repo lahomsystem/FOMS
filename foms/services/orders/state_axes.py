@@ -29,6 +29,12 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.as_axis_read import (  # AS 축 읽기 정본(잎 모듈) — 이름은 여기서 그대로 다시 내보낸다
+    AS_VALUES,
+    current_cycle_status as _current_cycle_status,
+    open_as_status_text,
+    read_as_status,
+)
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
 from foms.services.orders.stage_override import (
     MAIN_PIPELINE_CODES,
@@ -55,7 +61,6 @@ LOGISTICS_VALUES: Tuple[str, ...] = (
     "SHIPPED_PENDING",
 )
 HOLD_VALUES: Tuple[str, ...] = ("NONE", "HELD")
-AS_VALUES: Tuple[str, ...] = ("NONE", "RECEIVED", "IN_PROGRESS", "COMPLETED")
 DELETE_VALUES: Tuple[str, ...] = ("NONE", "DELETED")
 CONSTRUCTION_VALUES: Tuple[str, ...] = (
     "NONE",
@@ -163,28 +168,6 @@ def read_hold(order: Any) -> str:
     return "HELD" if _status_text(order) == "ON_HOLD" else "NONE"
 
 
-def _current_cycle_status(as_lifecycle: Dict[str, Any]) -> Optional[str]:
-    """as_lifecycle의 current cycle projection 상태(마지막 transition의 ``to``)."""
-    cycles = as_lifecycle.get("cycles")
-    current_id = as_lifecycle.get("current_cycle_id")
-    if not isinstance(cycles, list) or not current_id:
-        return None
-    cycle = next(
-        (c for c in cycles if isinstance(c, dict) and c.get("cycle_id") == current_id),
-        None,
-    )
-    if cycle is None:
-        return None
-    transitions = cycle.get("transitions")
-    if isinstance(transitions, list) and transitions:
-        last = transitions[-1]
-        if isinstance(last, dict):
-            to = str(last.get("to") or "").strip()
-            if to in AS_VALUES:
-                return to
-    return "RECEIVED"  # cycle은 열려 있으나 transition 없음 = 접수 상태
-
-
 def derive_as_axis_status(order: Any, structured_data: Optional[Dict[str, Any]] = None) -> Optional[str]:
     """``orders.as_axis_status`` 플랫 투영값을 유도한다(AS-AXIS-01 SSOT).
 
@@ -242,18 +225,27 @@ def as_overlay_outranks_status_write(order: Any, target_status: Any) -> bool:
     return read_as_status(order) in ("RECEIVED", "IN_PROGRESS")
 
 
-def read_as_status(order: Any) -> str:
-    """AS 축 canonical 값. ``as_lifecycle`` 현재 cycle 우선, 없으면 legacy status."""
-    sd = _structured(order)
-    lifecycle = sd.get("as_lifecycle")
-    if isinstance(lifecycle, dict):
-        status = _current_cycle_status(lifecycle)
-        if status is not None:
-            return status
-    axis = LEGACY_STATUS_ALIAS.get(_status_text(order))
-    if axis and axis[0] == AXIS_AS:
-        return axis[1]
-    return "NONE"
+def open_as_outranks_main_status_write(order: Any, target_status: Any) -> str:
+    """열린 AS 건이 **본 흐름 목표 status 쓰기**를 이기면 지켜야 할 AS 상태 글, 아니면 빈 글.
+
+    손으로 단계를 바꾸는 길(강제 단계 변경 · 상태 쓰기 · 칸 고치기 · 수정 제작 시작 · 옛 목록 일괄 · 옛 수정 폼)이
+    ``order.status`` 를 본 흐름 글로 덮으면 AS 표시가 주문 화면 · 출고판에서 사라진다. 열린 AS(접수 · 처리 중)면
+    단계만 옮기고 상태 글은 그대로 둔다(설계서 2026-11-20-multi-item-split-schedule §4.3, 결정 M6 · M7).
+
+    **단계 축이 따로 있는 ERP 주문만.** 비 ERP 주문은 상태 글이 곧 단계라 쓰기를 삼키면 아무것도 안 바뀐다.
+    닫힌 AS(완료)와 물류 · 보류 · AS 목표는 빈 글이라 지금처럼 쓴다(물류 목표는
+    :func:`as_overlay_outranks_status_write` 가 따로 막는다).
+
+    Args:
+        order: 대상 주문(ORM 또는 같은 속성을 가진 객체).
+        target_status: 쓰려는 legacy status 문자열.
+
+    Returns:
+        지켜야 할 ``order.status`` 글(``AS_RECEIVED`` · ``AS`` …). 빈 글이면 그 쓰기를 그대로 한다.
+    """
+    if not is_erp_order_record(order) or normalize_main_stage(target_status) is None:
+        return ""
+    return open_as_status_text(order)
 
 
 def read_deleted(order: Any) -> str:
@@ -448,6 +440,7 @@ __all__ = [
     "read_hold",
     "read_as_status",
     "as_overlay_outranks_status_write",
+    "open_as_outranks_main_status_write",
     "derive_as_axis_status",
     "read_deleted",
     "read_construction",
