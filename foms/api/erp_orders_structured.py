@@ -64,7 +64,7 @@ from foms.services.erp_sync_columns import (
     sync_erp_flat_columns,
     sync_identity_phone_column,
 )
-from foms.services.orders.structured_form_projection import recompute_totals
+from foms.services.orders.structured_form_projection import project_structured_form, recompute_totals
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
@@ -89,7 +89,7 @@ from foms.services.orders.revision import (
     execute_order_mutation,
     lock_order_row,
 )
-from foms.services.orders.structured_form_projection import project_structured_form
+from foms.services.orders.open_order_lookup import created_event_payload
 from foms.services.orders.structured_put_guards import guard_payment_confirmation, guard_schedule_link_ref
 
 #: structured PUT 저장의 mutation 정책 id(receipt policy_id·OrderEvent scope). AUTH-01 manifest
@@ -890,7 +890,7 @@ def _emit_order_created_event(order: Order) -> None:
     db.add(OrderEvent(
         order_id=order.id,
         event_type=ORDER_CREATED_EVENT,
-        payload={'via': ERP_DRAFT_EVENT_VIA, 'status': order.status},
+        payload=created_event_payload(db, order, {'via': ERP_DRAFT_EVENT_VIA, 'status': order.status}),
         created_by_user_id=_event_actor_user_id(),
     ))
 
