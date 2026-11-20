@@ -12,7 +12,9 @@ import datetime
 from typing import Any, Callable, Mapping, Optional
 
 from foms.services.brain.actions import ActionType, parse
-from foms.services.brain.decide import apply_decision, bulk_apply, record_proposal, reject_decision
+from foms.services.brain.decide import (
+    apply_decision, bulk_apply, record_proposal, reject_decision, reopen_decision,
+)
 from foms.services.brain.errors import BrainPermissionError, BrainShapeError
 from foms.services.brain import learned
 from foms.services.brain.chat_reports import build_conflict_proposal
@@ -100,6 +102,11 @@ def _reject(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime)
     return {"change_id": change.id, "code": change.reject_code}
 
 
+def _reopen(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
+    change = reopen_decision(session, p["change_id"], actor=actor, undo_edit=p.get("undo_edit"), now=now)
+    return {"change_id": change.id}
+
+
 def _bulk(session: Any, actor: Any, p: dict[str, Any], now: datetime.datetime) -> dict[str, Any]:
     return bulk_apply(session, p["ids"], actor=actor, now=now)
 
@@ -119,7 +126,7 @@ _propose_retire = _propose_end(propose_retire, "propose_retire")
 _propose_delete = _propose_end(propose_delete, "propose_delete")
 #: 실행 길이 있는 액션 이름(:func:`_dispatch` 갈래와 같다 — 시험이 액션 목록과 견준다).
 HANDLED: frozenset[str] = frozenset({"propose_edit", "propose_retire", "propose_delete", "item_rollback", "apply",
-                                     "edit_apply", "reject", "bulk_apply", "recheck", "release_rollback",
+                                     "edit_apply", "reject", "reopen", "bulk_apply", "recheck", "release_rollback",
                                      "learned_seen", "learned_fix", "learned_undo"})
 
 
@@ -137,6 +144,8 @@ def _dispatch(name: str, session: Any, actor: Any, p: dict[str, Any], now: datet
         return _apply(session, actor, p, now)
     if name == "reject":
         return _reject(session, actor, p, now)
+    if name == "reopen":
+        return _reopen(session, actor, p, now)
     if name == "bulk_apply":
         return _bulk(session, actor, p, now)
     if name == "recheck":

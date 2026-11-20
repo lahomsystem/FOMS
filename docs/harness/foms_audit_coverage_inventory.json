@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 315,
+    "total": 316,
     "unaudited": 3
   },
   "classification_counts": {
-    "AUDITED": 275,
+    "AUDITED": 276,
     "EXEMPT": 37,
     "UNAUDITED": 3
   },
@@ -209,7 +209,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_apply",
-      "lineno": 189,
+      "lineno": 191,
       "methods": [
         "POST"
       ],
@@ -218,7 +218,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_bulk_apply",
-      "lineno": 202,
+      "lineno": 210,
       "methods": [
         "POST"
       ],
@@ -227,7 +227,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_learned_fix",
-      "lineno": 227,
+      "lineno": 235,
       "methods": [
         "POST"
       ],
@@ -236,7 +236,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_learned_seen",
-      "lineno": 221,
+      "lineno": 229,
       "methods": [
         "POST"
       ],
@@ -245,7 +245,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_learned_undo",
-      "lineno": 234,
+      "lineno": 242,
       "methods": [
         "POST"
       ],
@@ -254,7 +254,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_propose",
-      "lineno": 182,
+      "lineno": 184,
       "methods": [
         "POST"
       ],
@@ -263,7 +263,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_recheck_confirm",
-      "lineno": 208,
+      "lineno": 216,
       "methods": [
         "POST"
       ],
@@ -272,7 +272,7 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_reject",
-      "lineno": 196,
+      "lineno": 198,
       "methods": [
         "POST"
       ],
@@ -281,7 +281,16 @@
     {
       "path": "foms/api/brain_review.py",
       "endpoint": "brain_release_rollback",
-      "lineno": 214,
+      "lineno": 222,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/brain_review.py",
+      "endpoint": "brain_reopen",
+      "lineno": 204,
       "methods": [
         "POST"
       ],
@@ -444,7 +453,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_sales_delivery",
-      "lineno": 2001,
+      "lineno": 2008,
       "methods": [
         "POST"
       ],
@@ -462,7 +471,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1675,
+      "lineno": 1682,
       "methods": [
         "POST"
       ],

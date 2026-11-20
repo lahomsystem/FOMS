@@ -5,7 +5,8 @@
  * - 승인: 기준 판 · 화면이 잰 결정 시간(카드를 보인 뒤 누를 때까지) · 등급 B 확인 글을 같이 보낸다(서버가 다시 본다 —
  *   결정한 사람은 서버가 로그인 사용자로만 정한다). 확인 칸을 안 눌렀으면 보내지 않는다.
  * - 고쳐서 승인: 누르면 고칠 칸이 열리고 단추가 '고치기 닫기'로(다시 누르면 닫힘 — F08), '고친 값으로 승인'이 넣는다.
- * - 거절: 까닭 칩 줄을 열고, 칩 하나를 누르면 끝. 나중에 · PC 에서 볼게요: 이 화면에서만 접는다(서버 쓰기 없음).
+ * - 거절: 까닭 칩 줄을 열고, 칩 하나를 누르면 끝(바로 뒤 ds-inbox-undo.js 가 [되돌리기]를 보인다). 나중에 · PC 에서 볼게요:
+ *   이 화면에서만 접는다(서버 쓰기 없음).
  * - 표: 체크한 줄만, 확인 창 한 번 뒤(F24) — 안 고친 줄은 50개씩 한꺼번에, 이름을 고친 줄은 하나씩 '고쳐서 승인'.
  * - 등급 A 모두 승인: 확인 창 한 번 뒤 한꺼번에.
  * 오류 글은 서버가 정한 말 그대로(BRAIN_DOC_SYNC 지식 문서 엇갈림 · 기준 판 바뀜 …) 그 제안 줄에 적는다.
@@ -32,7 +33,7 @@
       Array.prototype.slice.call(box.querySelectorAll('[data-ds-act]')).forEach(function (b) { b.disabled = on; });
     }
 
-    async function send(box, url, body) {
+    async function send(box, url, body, undo) {
       busy(box, true);
       propStatus(box, '보내는 중…');
       var res = await dom.postJson(url, body);
@@ -43,6 +44,7 @@
       }
       propStatus(box, (res.data && res.data.message) || '했어요.');
       await deps.reload();
+      if (undo && window.FOMS_DS_INBOX_UNDO) window.FOMS_DS_INBOX_UNDO.offer(undo);
     }
 
     function viewMs(box) {
@@ -103,7 +105,9 @@
         var chips = box.querySelector('[data-ds-reject-box]');
         if (chips) chips.hidden = !chips.hidden;
       } else if (act === 'reject-code') {
-        send(box, deps.urls.proposals + '/' + prop.id + '/reject', { code: button.getAttribute('data-reject-code'), view_ms: viewMs(box) });
+        var head = (button.closest('[data-card-id]') || box).querySelector('.f-strong');
+        send(box, deps.urls.proposals + '/' + prop.id + '/reject', { code: button.getAttribute('data-reject-code'), view_ms: viewMs(box) },
+             { id: prop.id, title: head ? head.textContent : '' });
       } else if (act === 'later') {
         var card = button.closest('[data-card-id]');
         if (card) deps.defer(card.getAttribute('data-card-id'));

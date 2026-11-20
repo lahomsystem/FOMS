@@ -26,7 +26,8 @@ from foms.persistence.brain.models import BrainChange, BrainObject
 from foms.services.brain.access import approval_problem, wide_bins
 from foms.services.brain.apply import ApplyResult, apply_change, reject_change
 from foms.services.brain.constants import (
-    BULK_MAX, CHANGE_EXPIRED, CHANGE_OPEN, GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LINK_OPS, OP_CREATE, OP_UPDATE,
+    BULK_MAX, CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE_OPEN, CHANGE_REJECTED, GRADE_A, GRADE_B, HUMAN_EDIT_FIELDS, LINK_OPS,
+    OP_CREATE, OP_UPDATE,
 )
 from foms.services.brain.errors import (
     BrainConfirmError, BrainConflictError, BrainError, BrainPermissionError, BrainShapeError, BrainTargetError,
@@ -34,13 +35,18 @@ from foms.services.brain.errors import (
 from foms.services.brain.gates import merge_gates, payload_gates, text_gates
 from foms.services.brain.inbox import capped_clause, current_join, link_versions, visible_clause
 from foms.services.brain.inbox_bins import bulk_ok_any_grade, change_ends, label_only_change
-from foms.services.brain.proposals import known_text, link_target_type
+from foms.services.brain.proposals import Proposer, known_text, link_target_type, propose_rollback
 from foms.services.brain.review_rules import ai_cutoff, clamp_ms, confirm_value
 from foms.services.brain.schemas import PAYLOAD, edit_props
 from foms.services.brain.scope import viewer_of
 from foms.services.brain.store import current_object, values_of
 from foms.services.datetime_kst import now_utc_naive
 from models import SecurityLog
+
+
+#: '방금 정한 것 되돌리기'를 받는 동안(거절한 때부터) · 같이 되돌리는 지식 고침의 까닭 글.
+REOPEN_WINDOW = datetime.timedelta(hours=24)
+REASON_REOPEN = "방금 정한 것 되돌리기 — 그 답으로 넣은 고침을 앞 글로"
 
 
 def expire_ai_proposals(session: Any, *, now: datetime.datetime) -> int:
@@ -79,9 +85,8 @@ def record_proposal(session: Any, change: BrainChange, *, actor_id: int, now: da
                                     "rollback_of": change.rollback_of_version}))
 
 
-def _locked_open(session: Any, change_id: Any, actor: Any) -> BrainChange:
-    """제안을 잠가 읽고 결정할 사람인지 본 뒤 열린 제안인지 본다 — 없음 · 결정할 수 없음 · 볼 수 없음은 모두 권한 오류
-    (호출자가 같은 404), 닫힌 제안은 대상 오류(409). 차례가 이래야 볼 수 없는 제안의 닫힘 여부도 새지 않는다."""
+def _locked(session: Any, change_id: Any, actor: Any) -> BrainChange:
+    """제안을 잠가 읽고 결정할 사람인지 본다 — 없음 · 결정할 수 없음 · 볼 수 없음은 모두 권한 오류(호출자가 같은 404)."""
     try:
         number = int(change_id)
     except (TypeError, ValueError):
@@ -90,8 +95,15 @@ def _locked_open(session: Any, change_id: Any, actor: Any) -> BrainChange:
     if change is None:
         raise BrainPermissionError("없는 제안이다")
     _check_reader(session, change, actor)
+    return change
+
+
+def _locked_open(session: Any, change_id: Any, actor: Any) -> BrainChange:
+    """:func:`_locked` 뒤 열린 제안인지 본다 — 닫힌 제안은 대상 오류(409). 차례가 이래야 볼 수 없는 제안의 닫힘 여부도
+    새지 않는다."""
+    change = _locked(session, change_id, actor)
     if change.status != CHANGE_OPEN:
-        raise BrainTargetError(f"열린 제안이 아니다: {number}")
+        raise BrainTargetError(f"열린 제안이 아니다: {change.id}")
     return change
 
 
@@ -220,6 +232,55 @@ def reject_decision(session: Any, change_id: Any, *, actor: Any, code: str, view
     expire_ai_proposals(session, now=now)
     change = _locked_open(session, change_id, actor)
     return reject_change(session, change.id, actor=actor, code=code, now=now, detail=_timing(change, view_ms, now))
+
+
+def _undo_own_edit(session: Any, edit_id: int, actor: Any, actor_id: int, now: datetime.datetime) -> int:
+    """되돌리는 답과 같이 내가 곧바로 넣은 지식 고침 하나를 앞 판으로(되돌리기 제안 → 반영 동작). 넣은 제안 번호.
+
+    내가 올려 내가 승인한 고침만, 그 지식이 뒤에 또 바뀌지 않았을 때만(남의 고침을 덮지 않는다)."""
+    edit = session.get(BrainChange, edit_id, with_for_update=True, populate_existing=True)
+    if (edit is None or edit.status != CHANGE_APPLIED or edit.op != OP_UPDATE or edit.base_version is None
+            or edit.decided_by != actor_id or edit.proposed_by != Proposer.user(actor_id).name
+            or edit.decided_at is None or now - edit.decided_at > REOPEN_WINDOW):
+        raise BrainTargetError("방금 내가 넣은 지식 고침이 아니다")
+    current = current_object(session, edit.item_key)
+    if current is None or current.change_id != edit.id:
+        raise BrainTargetError("그 뒤에 또 바뀐 지식이다 — 회사 지식에서 직접 고친다")
+    made = propose_rollback(session, key=current.item_key, to_version=int(edit.base_version), reason=REASON_REOPEN,
+                            proposer=Proposer.user(actor_id), now=now, action="reopen")
+    apply_change(session, made.id, actor=actor, now=now, action="reopen")
+    return int(made.id)
+
+
+def reopen_decision(session: Any, change_id: Any, *, actor: Any, undo_edit: Optional[int] = None,
+                    now: Optional[datetime.datetime] = None) -> BrainChange:
+    """방금 정한 것 되돌리기(사장님 2026-11-20 '잘못 선택했는데 고치려면?') — **내가** :data:`REOPEN_WINDOW` 안에 거절한
+    제안(③ 질문 카드의 답 셋도 거절로 닫힌다)을 다시 연다. 권한 · 보기 범위는 결정과 같다.
+
+    ``undo_edit`` 은 그 답을 하며 곧바로 넣은 지식 고침(바깥 글이 맞아요 · 둘 다 맞아요)의 제안 번호 — 그 지식을 앞 판으로
+    되돌린 뒤에 연다(:func:`_undo_own_edit` — 못 되돌리면 제안도 열지 않는다, 커밋은 호출자라 반쯤 되지 않는다). 거절해 둔
+    동안 대상 지식이 바뀌었으면 '기준 판 바뀜' 시각을 적는다(:func:`flag_stale_bases` 와 같은 판정)."""
+    now = now or now_utc_naive()
+    change = _locked(session, change_id, actor)
+    actor_id = int(viewer_of(actor).user_id or 0)
+    if (change.status != CHANGE_REJECTED or change.decided_action != "reject" or change.decided_by != actor_id
+            or change.decided_at is None or now - change.decided_at > REOPEN_WINDOW):
+        raise BrainTargetError("방금 내가 거절한 제안이 아니다")
+    undone = _undo_own_edit(session, undo_edit, actor, actor_id, now) if undo_edit is not None else None
+    code = change.reject_code
+    change.status, change.reject_code = CHANGE_OPEN, None
+    change.decided_by = change.decided_at = change.decided_action = None
+    if change.op not in LINK_OPS and change.base_changed_at is None:
+        current = current_object(session, change.item_key)
+        version = current.version if current is not None else None
+        if (version is not None) if change.op == OP_CREATE else (version != change.base_version):
+            change.base_changed_at = now
+    detail = {"code": code, "action": "reopen", **({"undone_by": undone} if undone is not None else {})}
+    session.add(SecurityLog(user_id=actor_id, action="BRAIN_REOPEN", target_type="brain_change", target_id=change.id,
+                            timestamp=now, message=f"BRAIN_REOPEN change={change.id} op={change.op} key={change.item_key} "
+                                                   f"code={code}", detail=detail))
+    session.flush()
+    return change
 
 
 def bulk_apply(session: Any, change_ids: Iterable[Any], *, actor: Any,

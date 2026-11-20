@@ -27,6 +27,7 @@ WRITES = {
     "brain_review_api.brain_propose": "MANAGER_MUTATION",
     "brain_review_api.brain_apply": "MANAGER_MUTATION",
     "brain_review_api.brain_reject": "MANAGER_MUTATION",
+    "brain_review_api.brain_reopen": "MANAGER_MUTATION",  # 방금 정한 것 되돌리기(사장님 2026-11-20)
     "brain_review_api.brain_bulk_apply": "MANAGER_MUTATION",
     "brain_review_api.brain_recheck_confirm": "MANAGER_MUTATION",
     "brain_review_api.brain_release_rollback": "ADMIN_OPS",
