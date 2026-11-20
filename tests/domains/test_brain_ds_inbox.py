@@ -142,7 +142,7 @@ def test_screen_values_and_scripts_match_each_view(app, ids, monkeypatch):
     assert set(re.search(r'data-wide-bins="([^"]*)"', body).group(1).split()) == {"names", "mark", "calc", "rules"}
     want = {"inbox": ["brain-view.js", "brain-dom.js", "ds-shell.js", "brain-review-view.js", "ds-inbox-view.js",
                       "ds-inbox-kit.js", "ds-inbox-card.js", "ds-inbox-table.js", "ds-inbox-question.js",
-                      "ds-inbox-phone.js", "ds-inbox-act.js", "ds-inbox.js"],
+                      "ds-inbox-phone.js", "ds-inbox-act.js", "ds-inbox-undo.js", "ds-inbox.js"],
             "recheck": ["brain-view.js", "brain-dom.js", "ds-shell.js", "brain-review-view.js", "ds-inbox-view.js",
                         "ds-inbox-kit.js", "ds-inbox-recheck.js", "ds-inbox.js"],
             "releases": ["brain-view.js", "brain-dom.js", "ds-shell.js", "brain-review-view.js", "ds-inbox-view.js",

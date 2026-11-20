@@ -29,7 +29,8 @@ VIEW = ROOT / "static/js/brain/ds/ds-inbox-view.js"
 REVIEW = ROOT / "static/js/brain/brain-review-view.js"
 SCRIPTS = [str(ROOT / "static/js/brain" / name) for name in (
     "brain-view.js", "brain-dom.js", "brain-review-view.js", "ds/ds-inbox-view.js", "ds/ds-inbox-kit.js", "ds/ds-inbox-card.js",
-    "ds/ds-inbox-table.js", "ds/ds-inbox-question.js", "ds/ds-inbox-phone.js", "ds/ds-inbox-act.js", "ds/ds-inbox.js")]
+    "ds/ds-inbox-table.js", "ds/ds-inbox-question.js", "ds/ds-inbox-phone.js", "ds/ds-inbox-act.js", "ds/ds-inbox-undo.js",
+    "ds/ds-inbox.js")]
 NODE = pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 
 

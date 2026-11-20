@@ -289,7 +289,7 @@
     if (event.key === 'Escape' && aside && !aside.hidden) closeAside();
   });
 
-  window.FOMS_DS_INBOX = { setCount: setCount, openAside: openAside, closeAside: closeAside, isPhone: isPhone };
+  window.FOMS_DS_INBOX = { setCount: setCount, openAside: openAside, closeAside: closeAside, isPhone: isPhone, reload: load };
   if (phoneKit) phoneKit.watch();
   if (c.urls.inbox) load(); else refreshCounts();
   root.setAttribute('data-ds-inbox-ready', '1');

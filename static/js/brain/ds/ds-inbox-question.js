@@ -5,6 +5,7 @@
  *  - 바깥 글이 맞아요 = 다루는 지식 글을 적은 글로 고치는 제안 → 바로 승인 → 질문 제안을 'outside_right' 로 닫는다.
  *  - 둘 다 맞아요 = 경우를 적은 한 줄을 지식 글 끝에 덧붙이는 제안 → 바로 승인 → 'both_right' 로 닫는다.
  * 결정한 사람 · 등급 B 확인은 서버가 다시 본다. PC · 폰 모두 같은 카드(폰에서도 정한다). '나중에'는 data-ds-act="later".
+ * 답한 바로 뒤 ds-inbox-undo.js 가 [되돌리기]를 보인다(닫은 질문 번호 + 그 답으로 넣은 고침 번호를 넘긴다).
  * 글은 textContent 만 · 인라인 스타일 없음.
  */
 (function () {
@@ -89,16 +90,16 @@
     dom.setStatus(status, text || '하지 못했어요 — 다시 눌러 주세요.', 'error');
   }
 
-  /** 고칠 글이 있으면 고침 제안 → 승인. 실패 글(없으면 빈 글)을 돌려준다. */
+  /** 고칠 글이 있으면 고침 제안 → 승인. {problem: 실패 글(없으면 빈 글), edit: 넣은 고침 번호}. */
   async function rewrite(kind, box, about, urls) {
     var text = about ? newText(kind, box, about) : '';
-    if (!text || text === about.text) return '바뀐 글이 없어요 — 글을 적어 주세요.';
+    if (!text || text === about.text) return { problem: '바뀐 글이 없어요 — 글을 적어 주세요.' };
     var made = await dom.postJson(urls.proposals, { action: 'propose_edit', key: about.key, base_version: about.version,
                                                     after: { text: text }, reason: '사장님 답 — ' + SAID[kind] });
-    if (!made.ok) return made.error;
+    if (!made.ok) return { problem: made.error };
     var applied = await dom.postJson(urls.proposals + '/' + made.data.change_id + '/apply',
                                      { base_version: about.version, view_ms: 0, confirm: { field: 'text', value: text } });
-    return applied.ok ? '' : applied.error;
+    return { problem: applied.ok ? '' : applied.error, edit: made.data.change_id };
   }
 
   /** 답 하나 — 고칠 글이 있으면 고침 제안 → 승인, 그다음 질문 제안을 그 답의 까닭으로 닫는다. */
@@ -115,15 +116,19 @@
       return;
     }
     lock(box, true);
+    var edit = null;
     if (kind !== 'knowledge') {
       dom.setStatus(status, '회사 지식을 고치는 중…');
-      var problem = await rewrite(kind, box, (view.about || [])[0], deps.urls);
-      if (problem) { fail(box, status, problem); return; }
+      var wrote = await rewrite(kind, box, (view.about || [])[0], deps.urls);
+      if (wrote.problem) { fail(box, status, wrote.problem); return; }
+      edit = wrote.edit;
     }
     var closed = await dom.postJson(deps.urls.proposals + '/' + view.id + '/reject', { code: CODES[kind], view_ms: 0 });
     if (!closed.ok) { fail(box, status, closed.error); return; }
+    var title = box.querySelector('.f-strong');
     await deps.reload();
     deps.done('정했어요 — ' + SAID[kind] + '.');
+    if (window.FOMS_DS_INBOX_UNDO) window.FOMS_DS_INBOX_UNDO.offer({ id: view.id, edit: edit, title: title ? title.textContent : '' });
   }
 
   window.FOMS_DS_INBOX_QUESTION = { build: build, answer: answer };
