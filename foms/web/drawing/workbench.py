@@ -1560,8 +1560,9 @@ def erp_drawing_workbench_detail(order_id):
         drawing_hotfix_stage=is_drawing_hotfix_stage(order),
         # 전달 창 기본 방식 = 추가: 생산·시공 단계의 한 장뿐인 최종 도면과 전달 대기 시트가 서로 다른 시트일 때
         # (서버가 방식 없는 전달을 더하는 조건과 같다 — 기본 "교체"가 다른 제품 도면을 지우지 않게).
+        # 수정 요청에 답할 때(RETURNED)도 같다. 확정 전(TRANSFERRED)은 전체 교체 그대로.
         transfer_default_append=bool(
-            is_drawing_hotfix_stage(order) and drawing_status == 'CONFIRMED'
+            is_drawing_hotfix_stage(order) and drawing_status in ('CONFIRMED', 'RETURNED')
             and sends_only_other_sheets(drawing_files, drawing_pending, s_data)
         ),
         erp_order_enabled=True,

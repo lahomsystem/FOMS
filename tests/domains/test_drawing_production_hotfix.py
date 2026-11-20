@@ -453,14 +453,35 @@ def test_resend_before_sales_confirm_still_replaces_all(client, people, pushes, 
     assert next(h for h in reversed(sd["drawing_transfer_history"]) if h["action"] == "TRANSFER")["mode"] == "REPLACE_ALL"
 
 
-@pytest.mark.parametrize("pending,stage,expected", [
-    (("s-B",), "PRODUCTION", "APPEND"),   # 전달 대기가 모두 다른 시트 → 기본 '추가'
-    (("s-A",), "PRODUCTION", "REPLACE"),  # 대조: 같은 시트 새 판
-    (("s-A", "s-B"), "PRODUCTION", "REPLACE"),  # 대조: 같은 시트가 섞임
-    (("s-B",), "CONFIRM", "REPLACE"),     # 대조: 생산·시공 단계가 아니면 그대로
+@pytest.mark.parametrize("final_sheet,sent,body,expected,mode", [
+    ("s-A", "s-B", {}, ["final1.png", "s-B.png"], "APPEND"),  # 다른 시트 → 더하기
+    ("s-A", "s-B", {"mode": "APPEND", "is_retransfer": True}, ["final1.png", "s-B.png"], "APPEND"),  # 전달 창 기본 '추가'
+    ("s-A", "s-A", {}, ["s-A.png"], "REPLACE"),  # 대조: 같은 시트 새 판
+    (None, "s-B", {}, ["s-B.png"], "REPLACE"),   # 대조: 최종 도면의 시트를 모름
+    (None, "s-B", {"mode": "APPEND", "is_retransfer": True}, ["s-B.png"], "REPLACE"),
 ])
-def test_workbench_transfer_window_default_follows_same_rule(client, people, pushes, pending, stage, expected):
-    oid = _sheet_order(people, pending=pending, stage=stage)
+def test_revision_answer_follows_same_sheet_rule(client, people, pushes, final_sheet, sent, body, expected, mode):
+    """수정 요청에 답하는 길(RETURNED)도 같다 — 다른 시트만 보내면 한 장뿐인 최종 도면을 두고 더한다."""
+    oid = _sheet_order(people, final_sheet=final_sheet, status="RETURNED")
+    _login(client, people.drawer)
+    assert _send_sheets(client, oid, sent, **body).status_code == 200
+    _order_row, sd = _sd(oid)
+    assert _names(sd) == expected and sd["drawing_status"] == "CONFIRMED"
+    assert sd["drawing_transfer_history"][-2]["mode"] == mode
+
+
+@pytest.mark.parametrize("pending,stage,status,expected", [
+    (("s-B",), "PRODUCTION", "CONFIRMED", "APPEND"),   # 전달 대기가 모두 다른 시트 → 기본 '추가'
+    (("s-B",), "PRODUCTION", "RETURNED", "APPEND"),    # 수정 요청에 답할 때도 같다
+    (("s-A",), "PRODUCTION", "CONFIRMED", "REPLACE"),  # 대조: 같은 시트 새 판
+    (("s-A",), "PRODUCTION", "RETURNED", "REPLACE"),
+    (("s-A", "s-B"), "PRODUCTION", "CONFIRMED", "REPLACE"),  # 대조: 같은 시트가 섞임
+    (("s-B",), "CONFIRM", "CONFIRMED", "REPLACE"),     # 대조: 생산·시공 단계가 아니면 그대로
+    (("s-B",), "PRODUCTION", "TRANSFERRED", "REPLACE_ALL"),  # 대조: 확정 전 재전달 = 전체 교체
+])
+def test_workbench_transfer_window_default_follows_same_rule(
+        client, people, pushes, pending, stage, status, expected):
+    oid = _sheet_order(people, pending=pending, stage=stage, status=status)
     _login(client, people.drawer)
     soup = BeautifulSoup(client.get(f"/erp/drawing-workbench/{oid}").get_data(as_text=True), "html.parser")
     selected = soup.select("#dw-transfer-mode option[selected]")
