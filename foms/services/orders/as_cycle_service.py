@@ -39,6 +39,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.as_schedule_link import clear_link, read_link
 from foms.services.orders.revision import MutationResult, execute_order_mutation
+from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.state_axes import (
     AS_VALUES,
     legacy_status_projection,
@@ -71,6 +72,7 @@ POLICY_AS_COMPLETE = "STATE_AS_COMPLETE"
 POLICY_AS_REOPEN = "STATE_AS_REOPEN"
 POLICY_AS_CLEAR_COMPLETED_DATE = "STATE_AS_CLEAR_COMPLETED_DATE"
 POLICY_AS_CLASSIFICATION = "STATE_AS_CLASSIFICATION"
+POLICY_AS_CANCEL = "STATE_AS_CANCEL"
 
 # 레거시로 workflow.stage 에 박힌 AS overlay. 본공정이 이미 오염된 주문만 overlay 와
 # 동기화하고, CS/COMPLETED 같은 깨끗한 main 은 건드리지 않는다(STATE-AS-01).
@@ -305,6 +307,30 @@ def _reproject_and_sync(order: Order, sd: Dict[str, Any]) -> None:
             workflow["stage"] = projection
             flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
+
+
+def clear_as_status_text(order: Order, sd: Dict[str, Any]) -> None:
+    """남은 AS 건이 없을 때(접수 취소) 주문 상태 글 · AS 축 평면 칸에서 AS 를 걷어 낸다.
+
+    건 기록이 비면 AS 축 읽기가 옛 ``order.status`` 글(AS_*)로 떨어져 재계산이 제 꼬리를 문다
+    (:func:`read_as_status`). 본 흐름 단계 글을 먼저 써 두면 뒤따르는 :func:`_reproject_and_sync` 가
+    물류 · 보류를 그 위에 얹는다. ``as_axis_status`` 는 동기화가 값이 없으면 안 지우므로 손으로 비운다.
+
+    Args:
+        order: 잠긴 주문. sd: 건을 걷어 낸 뒤의 structured_data 사본.
+
+    Raises:
+        ASCycleError: 본 흐름 단계를 읽을 수 없는 주문(단계 글이 AS 로 굳은 옛 주문 · 단계 축이 없는 비 ERP 주문).
+    """
+    workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
+    stage = normalize_main_stage(workflow.get("stage"))
+    if stage is None:
+        raise ASCycleError(
+            "본공정 단계를 읽을 수 없는 주문이라 AS 접수를 취소하지 못했습니다. "
+            "주문의 본공정 단계를 먼저 정해 주세요."
+        )
+    order.status = stage
+    order.as_axis_status = None
 
 
 def _run_as_command(
@@ -880,6 +906,7 @@ __all__ = [
     "complete_as_cycle",
     "reopen_as_cycle",
     "clear_as_completed_date",
+    "clear_as_status_text",
     "resync_completed_cycle_billing",
     "set_as_classification",
 ]

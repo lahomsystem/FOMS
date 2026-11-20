@@ -206,6 +206,7 @@ ACTION_LABELS: dict[str, str] = {
     "AS_STARTED": "AS 시작",
     "AS_COMPLETED": "AS 완료",
     "AS_REOPENED": "AS 재개봉",
+    "AS_CANCELLED": "AS 접수 취소",
     "AS_CATEGORY_CHANGED": "AS 분류 변경",
     "AS_BILLING_DECIDED": "AS 비용 판정",
     "AS_ROUND_VERDICT": "AS 회차 판정",

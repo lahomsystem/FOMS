@@ -776,6 +776,8 @@
 {# 모바일 재접수 바텀시트 배선(T4). body 파셜에 둬야 fast-tab 프래그먼트 스왑에도 실린다
    (erp-shell activateScripts 가 swap 마다 재실행 → 파일 자체가 싱글턴 가드를 든다). #}
 <script src="{{ url_for('static', filename='js/cs/as-reintake-sheet.js') }}?v=20260824a" defer data-foms-run-once="as-reintake-sheet"></script>
+{# 회차 차트 현재 건 머리의 [AS 접수 취소] 단추(문서 위임 · 파일 자체가 싱글턴 가드). 주문 화면과 같은 파일이다. #}
+<script src="{{ url_for('static', filename='js/orders/erp-as-cancel.js') }}?v=20261121a" defer data-foms-run-once="erp-as-cancel"></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}

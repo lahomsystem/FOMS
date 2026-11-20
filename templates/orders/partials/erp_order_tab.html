@@ -228,6 +228,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <button type="button" class="btn btn-sm btn-outline-info py-0"
                                     data-erp-as-receive-open data-order-id="{{ order.id }}">AS 접수</button>
                                 {% endif %}
+                                {# 잘못 접수한 AS 걷어 내기 — 현재 AS 가 접수 상태이고 관리자 · CS 능력일 때만(API 와 같은 판정). #}
+                                {% if order is defined and order and (order|as_cancel_allowed(current_user if current_user is defined else none)) %}
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0"
+                                    data-erp-as-cancel data-order-id="{{ order.id }}">AS 접수 취소</button>
+                                {% endif %}
                             </div>
                             <div class="d-flex gap-1 align-items-start">
                                 <select class="form-select form-select-sm" id="erp-workflow-stage"
