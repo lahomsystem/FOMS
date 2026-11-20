@@ -20,6 +20,7 @@ from foms.services.orders.drawing_confirm_partial import active_items
 
 __all__ = [
     "all_construction_dates",
+    "attach_remaining_construction_notes",
     "pick_nearest_date",
     "production_split_note",
     "remaining_construction_dates",
@@ -84,6 +85,18 @@ def remaining_construction_note(sd: Any, today: Optional[datetime.date] = None) 
     if not remaining:
         return ""
     return " · ".join(short_date_label(day) for day in remaining) + " 시공이 남아 있어요"
+
+
+def attach_remaining_construction_notes(rows: Iterable[Any],
+                                        today: Optional[datetime.date] = None) -> None:
+    """시공 화면 줄 DTO(``structured_data`` 를 든 dict)마다 ``remaining_construction_note`` 를 단다.
+
+    템플릿이 줄 · 카드 뿌리에 ``data-remaining-construction`` 으로 그리고, 확인 창이 주문 번호로 찾아 읽는다.
+    """
+    day = today or get_today_kst()
+    for row in rows:
+        if isinstance(row, dict):
+            row["remaining_construction_note"] = remaining_construction_note(row.get("structured_data"), day)
 
 
 def production_split_note(sd: Any) -> str:
