@@ -53,14 +53,21 @@ def test_judge_as_push(sd, expected):
 
 
 def test_cancelled_cycles_are_not_counted():
-    """취소되어 ``cancelled_cycles[]`` 로 빠진 건은 순번에 넣지 않는다 — 있어도 깨지지 않는다."""
+    """취소되어 ``cancelled_cycles[]`` 로 빠진 건은 순번에 넣지 않고, 그 건에서 보낸 PUSH 는 시각으로 가른다."""
     gone = {"cycle_id": "cx", "opened_at": "2026-10-01T00:00:00", "transitions": []}
-    sd = _sd([C1, C2], {"pushed": True, "as_cycle_id": "cx"}, cancelled_cycles=[gone])
-    assert judge_as_push(sd).headline == "새 AS 접수 (2번째 AS)"
-    # 취소한 건에서 보낸 이력만 남고 지금 건이 첫 건으로 돌아간 주문: 머리말 없는 보통 첫 PUSH.
-    back = _sd([C1], {"pushed": True, "as_cycle_id": "cx"}, cancelled_cycles=[gone])
-    verdict = judge_as_push(back)
-    assert (verdict.resend, verdict.headline) == (False, "")
+    in_cancelled = {"pushed": True, "as_cycle_id": "cx", "sent_at": "2026-10-01T01:00:00+00:00"}
+    # 취소 뒤 새로 연 건: 취소한 건의 PUSH 는 이 건을 열기 전에 나갔다 → 첫 PUSH, 순번은 cycles[] 만 센다.
+    reopened = judge_as_push(_sd([C1, C2], in_cancelled, cancelled_cycles=[gone]))
+    assert (reopened.resend, reopened.cycle_id, reopened.headline) == (False, "c2", "새 AS 접수 (2번째 AS)")
+    # 취소로 앞 건이 다시 지금 건이 된 주문: 그 PUSH 는 앞 건을 연 뒤에 나갔다 → 다시 보내기.
+    back = judge_as_push(_sd([C1], in_cancelled, cancelled_cycles=[gone]))
+    assert (back.resend, back.cycle_id, back.headline) == (True, "c1", "")
+    # 대조: 이력의 건 번호가 cycles[] 에 살아 있으면 시각과 상관없이 번호로 가른다.
+    alive = dict(in_cancelled, as_cycle_id="c1", sent_at="2026-12-01T00:00:00+00:00")
+    assert judge_as_push(_sd([C1, C2], alive)).resend is False
+    assert judge_as_push(_sd([C1, C2], dict(alive, as_cycle_id="c2", sent_at="2026-01-01T00:00:00+00:00"))).resend is True
+    # 보낸 시각을 못 읽는 취소 건 PUSH 는 가를 근거가 없다 → 다시 보내기로 둔다.
+    assert judge_as_push(_sd([C1, C2], {"pushed": True, "as_cycle_id": "cx"}, cancelled_cycles=[gone])).resend is True
 
 
 @pytest.mark.parametrize("raw", [None, "", [], {"as_lifecycle": "깨진 값", "channeltalk_push_as": "깨진 값"}])

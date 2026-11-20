@@ -14,7 +14,7 @@ from typing import Any, NamedTuple
 
 from foms.services.channel_as_message import build_as_push_text
 from foms.services.orders.as_cycle_service import current_cycle
-from foms.services.orders.as_cycle_view import current_cycle_ordinal, is_history_unknown
+from foms.services.orders.as_cycle_view import current_cycle_ordinal, cycle_ordinal, is_history_unknown
 
 __all__ = [
     "PUSH_HISTORY_KEY",
@@ -51,12 +51,14 @@ def parse_utc(raw: Any) -> datetime.datetime | None:
     return at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
 
 
-def _sent_in_cycle(history: dict, cycle: dict, cycle_id: str) -> bool:
+def _sent_in_cycle(sd: dict, history: dict, cycle: dict, cycle_id: str) -> bool:
     """마지막 PUSH 가 지금 건에서 나갔는가. 가를 근거가 없으면 참(= 다시 보내기)으로 둔다."""
     recorded = str(history.get("as_cycle_id") or "")
-    if recorded:
+    if recorded and cycle_ordinal(sd, recorded):
         return recorded == cycle_id
-    # 건 번호가 없는 옛 이력: 건을 열기 전에 보낸 것만 지난 건의 PUSH 로 본다.
+    # 건 번호가 없는 옛 이력, 또는 적힌 건이 ``cycles[]`` 에 없다(취소되어 빠진 건에서 보낸 PUSH):
+    # 지금 건을 열기 전에 보낸 것만 지난 건의 PUSH 로 본다. 취소로 앞 건이 다시 지금 건이 됐으면
+    # 그 PUSH 는 앞 건을 연 뒤에 나간 것이라 다시 보내기다.
     opened, sent = parse_utc(cycle.get("opened_at")), parse_utc(history.get("sent_at"))
     return not (opened is not None and sent is not None and sent < opened)
 
@@ -66,7 +68,8 @@ def judge_as_push(sd: Any) -> AsPushVerdict:
 
     * 지금 건이 없거나(건 표식이 없는 옛 주문) 옛 주문을 끌어올린 건이면 지금까지처럼 이력의 ``pushed`` 만 본다.
       끌어올린 건의 ``opened_at`` 은 접수 시각이 아니라 시각 비교를 믿을 수 없다.
-    * 그 밖에는 마지막 PUSH 가 지금 건에서 나갔으면 다시 보내기, 아니면 이 건의 첫 PUSH 다.
+    * 그 밖에는 마지막 PUSH 가 지금 건에서 나갔으면 다시 보내기, 아니면 이 건의 첫 PUSH 다. 이력의 건 번호가
+      ``cycles[]`` 에 있으면 번호로, 없으면(옛 이력 · 취소되어 빠진 건) 보낸 시각과 건을 연 시각으로 가른다.
     * 첫 PUSH 인데 건 순번이 2 이상이면 "새 AS 접수 (N번째 AS)" 한 줄을 본문 앞에 붙인다. 순번은
       ``as_lifecycle.cycles[]`` 만 센다(취소되어 빠진 건은 세지 않는다).
 
@@ -83,7 +86,7 @@ def judge_as_push(sd: Any) -> AsPushVerdict:
     cycle_id = (str(cycle.get("cycle_id") or "") or None) if cycle else None
     if cycle is None or cycle_id is None or is_history_unknown(cycle):
         return AsPushVerdict(pushed, cycle_id, "")
-    if pushed and _sent_in_cycle(history, cycle, cycle_id):
+    if pushed and _sent_in_cycle(sd, history, cycle, cycle_id):
         return AsPushVerdict(True, cycle_id, "")
     ordinal = current_cycle_ordinal(sd)
     return AsPushVerdict(False, cycle_id, f"새 AS 접수 ({ordinal}번째 AS)" if ordinal >= 2 else "")
