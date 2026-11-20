@@ -13,6 +13,7 @@ from .measurement_visit import measurement_visit_response
 from .field_update import update_order_field_response
 from .mobile_delete import mobile_delete_order_response, mobile_restore_order_response
 from .nearby import nearby_orders_response
+from .open_for_customer import open_orders_for_customer_response
 from .qr import render_order_qr_svg
 from .regional import update_regional_memo_response, update_regional_status_response
 from .stage_override import bulk_stage_override_response, stage_override_response
@@ -98,6 +99,14 @@ def copy_orders():
     return copy_orders_response()
 
 
+@orders_bp.route("/orders/open-for-customer")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def api_open_orders_for_customer():
+    """새 주문 안내: 같은 고객의 진행 중 주문. 본사 직원 전용(프리랜서 · 협력사는 문지기가 403)."""
+    return open_orders_for_customer_response()
+
+
 @orders_bp.route("/orders/<int:order_id>/call-log", methods=["POST"])
 @login_required
 def api_order_call_log(order_id):
@@ -123,6 +132,7 @@ __all__ = [
     "api_bulk_stage_override",
     "api_order_call_log",
     "api_order_measurement_visit",
+    "api_open_orders_for_customer",
     "api_orders",
     "api_orders_nearby",
     "bulk_stage_override_response",
@@ -138,6 +148,7 @@ __all__ = [
     "measurement_visit_response",
     "get_today_kst",
     "nearby_orders_response",
+    "open_orders_for_customer_response",
     "api_order_qr_svg",
     "api_order_stage_override",
     "render_order_qr_svg",
