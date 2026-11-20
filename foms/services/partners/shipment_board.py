@@ -23,7 +23,7 @@ from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
 from foms.services.partners.schedule_request import clean_date, pending_request_ids_by_date
 from foms.services.shipment.tablet_day_sheet import build_tablet_day_sheet
-from foms.services.shipment_dashboard_display import sort_shipment_rows
+from foms.services.shipment_dashboard_display import attach_shipment_row_kinds, sort_shipment_rows
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES, visible_items_for_dates
 from foms.services.common.business_calendar import get_holidays_kr
 from models import Order, OrderScheduleDate
@@ -154,6 +154,7 @@ def partner_shipment_board(db, org_id: int, date: str | None, today: datetime.da
     orders = base.filter(Order.id.in_(list(picked))).all() if picked else []
     for order in orders:
         order.shipment_visible_items = visible_items_for_dates(order, target_date=selected)
+    attach_shipment_row_kinds(orders, target_date=selected)  # 우리 출고표와 같은 줄 종류(본 흐름이 열린 AS 주문의 시공일 = 시공 줄)
     sort_shipment_rows(orders)
     workers = normalize_erp_shipment_workers(load_erp_shipment_settings().get("construction_workers", []))
     sheet = build_tablet_day_sheet(orders, workers, selected)

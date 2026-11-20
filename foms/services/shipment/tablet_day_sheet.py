@@ -7,6 +7,7 @@ DB 를 건드리지 않는 순수 함수. 라우트가 이미 정렬 · 로드�
 - 묶음 키 = 그 줄의 첫 유효 시공자(기존 `sort_shipment_rows` 와 같은 규칙).
 - 묶음 순서 = 시공자 없음 → 설정에 적힌 시공자 순 → 설정에 없는 이름(이름 순).
 - 묶음 안 = 일반 줄 먼저, AS 줄 뒤(그 안에서는 들어온 순서 유지).
+- AS 줄인지는 줄에 붙은 그날 줄 종류(``schedule_row_kind``)로 정한다 — 본 흐름이 열린 AS 주문의 시공일 줄은 일반 줄.
 - 자수(D25) = 줄 자수 ÷ 그 줄 시공자 수. AS 줄은 건수만 세고 자수는 0.
 - 사람 색 번호(1~10, 넘으면 돌려 씀) = 묶음 순서대로 묶음 주인 → 둘째 이후로만 나온
   사람(화면 순서) → 그날 줄이 없는 설정 시공자(설정 순서). 같은 사람은 어디서나 같은 번호.
@@ -15,9 +16,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.services.orders.schedule_row_kind import row_as_visit_too, row_is_as
 from foms.services.shipment_dashboard_helpers import (
     _normalize_worker_name,
-    is_as_order,
     visible_spec_units,
 )
 
@@ -63,7 +64,7 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
 
     Returns:
         {'groups': [{'key', 'unassigned', 'color_index', 'rows': [
-                        {'order', 'no', 'is_as', 'units', 'workers': [{'name', 'color_index'}]}]}],
+                        {'order', 'no', 'is_as', 'as_visit_too', 'units', 'workers': [{'name', 'color_index'}]}]}],
          'people': [{'name', 'count', 'units', 'capacity', 'over', 'off',
                      'color_index', 'in_settings'}],
          'total': 줄 수, 'unassigned': 시공자 없는 줄 수}.
@@ -85,10 +86,11 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
         names = _row_workers(order)
         for n in names:
             display_name.setdefault(_normalize_worker_name(n), n)
-        as_row = is_as_order(order)
+        as_row = row_is_as(order)
         entry = {
             'order': order,
             'is_as': as_row,
+            'as_visit_too': row_as_visit_too(order),
             'units': 0.0 if as_row else float(visible_spec_units(order) or 0.0),
             'names': names,
         }
@@ -141,6 +143,7 @@ def build_tablet_day_sheet(rows: list, worker_settings: list, target_date: str |
                 'order': e['order'],
                 'no': no,
                 'is_as': e['is_as'],
+                'as_visit_too': e['as_visit_too'],
                 'units': e['units'],
                 'workers': [
                     {'name': n, 'color_index': color_by_norm[_normalize_worker_name(n)]}
