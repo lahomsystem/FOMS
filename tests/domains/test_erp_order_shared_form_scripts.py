@@ -861,6 +861,25 @@ def test_as_push_text_is_server_built_not_client_built() -> None:
     assert "fomsConfirmAndSendAsPush" in push_block
 
 
+def test_as_push_is_not_pre_asked_for_resend_note() -> None:
+    """주문 화면은 AS PUSH 를 미리 묻지 않는다 — 다시 보내기인지는 서버가 AS 건으로 정한다(M18)."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    start = text.index("async function erpRunChannelPush(")
+    block = text[start:text.index("const activeClass", start)]
+    assert (
+        "if (!changeNote && pushKind !== 'as' && typeof erpHasPriorChannelPush === 'function'"
+        " && erpHasPriorChannelPush(pushKind)) {"
+    ) in block
+    # 대조: 영발 · 발주 · 실측은 지금처럼 화면 사본을 보고 미리 묻는다 — 묻는 자리는 그대로 하나다.
+    assert block.count("erpPromptChannelPushResendNote(pushKind)") == 1
+    # 같은 AS 건 다시 보내기는 전송 확인 창이 서버 400 을 받아 바뀐 내용을 묻고 한 번 다시 보낸다
+    # (주문 화면도 같은 확인 창을 쓴다 — 미리 넣은 메모가 없을 때만).
+    confirm = (root / "static/js/cs/as-push-confirm.js").read_text(encoding="utf-8")
+    assert "msg.indexOf('재전송 시 변경 내용') >= 0 && !presetChangeNote" in confirm
+    assert "data = await postPush(activeOrderId, attachmentIds, note);" in confirm
+
+
 def test_erp_as_gallery_upload_binds_anchor_before_batch() -> None:
     """AS-BIND-01: 공통첨부 분류 AS는 업로드 전에 앵커를 잡고 as_log_id를 실어 보낸다."""
     root = Path(__file__).resolve().parents[2]

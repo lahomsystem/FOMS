@@ -245,3 +245,33 @@ def test_order_page_has_as_panel_and_get_view_lets_sales_review(client, storage)
     assert data["can_review"] is True
     assert data["current"]["files"][0]["view_url"].startswith(f"/api/files/view/orders/{oid}/")
     assert data["workbench_url"] == f"/erp/drawing-workbench/{oid}"
+
+
+# --------------------------------------------------------------------------
+# AS방에 다시 올리기 단추 — 지난 AS 건의 PUSH 이력은 치지 않는다
+# (설계서 2026-11-20-multi-item-split-schedule §7.1 · M18)
+# --------------------------------------------------------------------------
+
+def _set_as_push_history(oid, history):
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data or {})
+    sd["channeltalk_push_as"] = history
+    order.structured_data = sd
+    db_session.commit()
+
+
+def test_as_room_retry_button_ignores_push_of_earlier_cycle(client):
+    drafter = _user("asd_draw32")
+    oid = _order(drawing_ids=[drafter.id], name="지난푸시고객")
+    # 건 표식이 없던 때 AS방에 올린 이력이 남아 있는 완료 주문.
+    _set_as_push_history(oid, {"pushed": True, "sent_at": "2026-01-05T00:00:00+00:00"})
+    _as(client, drafter)
+    assert _start(client, oid, memo="문짝", as_register={"content": "문 처짐"}).status_code == 200
+
+    # 새 AS 건에서는 아직 못 올렸다 — 단추가 보여야 다시 올릴 수 있다(전에는 숨어서 막다른 길이었다).
+    assert "채널톡 AS방에 접수 올리기" in _detail(client, oid)
+
+    # 대조: 이 건에서 이미 올렸으면 단추가 없다.
+    cycle_id = _sd(oid)["as_lifecycle"]["current_cycle_id"]
+    _set_as_push_history(oid, {"pushed": True, "sent_at": "2026-01-05T00:00:00+00:00", "as_cycle_id": cycle_id})
+    assert "채널톡 AS방에 접수 올리기" not in _detail(client, oid)
