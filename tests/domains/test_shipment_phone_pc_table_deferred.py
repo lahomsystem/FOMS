@@ -85,7 +85,8 @@ def test_shipment_phone_pc_table_deferred_and_comes_back_on_request(client, monk
     """출고 폰: PC 표 대신 자리표(받을 주소 · [AS 추천] 줄 키)만 오고, 그 주소(ship_pc_table=1)로 받으면 표가 온다.
 
     표면째 숨는 폭(992 미만)이 쿠키 경계(foms_vw)와 같아 폰 가로에서도 표는 안 보인다 — 늦게 받는 쪽은 [저장]
-    (image-export.js)뿐이다. 키는 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager 와 같고 AS 줄은 빠진다.
+    (image-export.js)뿐이다. 키는 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager 와 같고 AS 상태 주문은 빠진다
+    (추천 API 가 AS 상태 주문을 기준에서 버린다 — 본 흐름이 열려 시공 줄로 그리는 AS 주문도 이 키에는 없다).
     """
     import json
 
@@ -100,7 +101,7 @@ def test_shipment_phone_pc_table_deferred_and_comes_back_on_request(client, monk
     src = m.group(1).replace("&amp;", "&")
     assert "ship_pc_table=1" in src and "foms_shell=fragment" in src, src
     keys = json.loads(re.search(r"data-ship-as-rec-rows='([^']*)'", body).group(1))
-    assert sorted(k[0] for k in keys) == sorted(ids[:3]), keys  # AS 줄(ids[3])은 뺀다
+    assert sorted(k[0] for k in keys) == sorted(ids[:3]), keys  # AS 상태 주문(ids[3])은 뺀다
     assert [k for k in keys if k[0] == ids[1]] == [[ids[1], "가짜기사A", "가짜영업1"]]
     assert [k for k in keys if k[0] == ids[2]] == [[ids[2], "", ""]]
 

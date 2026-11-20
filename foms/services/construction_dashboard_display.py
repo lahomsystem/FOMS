@@ -21,7 +21,7 @@ from foms.services.erp_mobile_order_display import (
 from foms.services.estimate_service import build_measurement_manager_phone_map
 from foms.services.orders.board_state_display import construction_display_stage as _display_stage_for_order
 from foms.services.orders.manager_names import manager_label_from_parties
-from foms.services.orders.schedule_row_kind import as_hides_main_flow
+from foms.services.orders.schedule_row_kind import row_is_as
 from foms.services.production_dashboard_display import (
     _production_first_item,
     _production_spec_display,
@@ -434,7 +434,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage, *, keep_production=
         att_counts: order_id -> 첨부 수.
         f_stage: 단계 필터('' 또는 시공대기/시공중/시공완료).
         keep_production: 태블릿 시공 첫 화면 · 상세(설계서 tablet-production-ui §13, D42 ①) — 생산 단계 줄도
-            버리지 않고 표시 단계 '생산중' 으로 남긴다(시공일이 잡힌 집). 본 흐름이 닫힌 AS 상태 집(D43)은 'AS 방문'.
+            버리지 않고 표시 단계 '생산중' 으로 남긴다(시공일이 잡힌 집). AS 방문 줄로 든 집(그날 줄 종류, D43)은 'AS 방문'.
 
     Returns:
         list[dict]: 원본 enriched와 동일 구조.
@@ -448,7 +448,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage, *, keep_production=
             continue
         structured_data = _ensure_dict(order.structured_data)
         display_stage = _display_stage_for_order(order, structured_data)
-        if keep_production and as_hides_main_flow(order):
+        if keep_production and row_is_as(order):
             display_stage = 'AS 방문'
         elif not display_stage and keep_production and str(order.erp_stage_code or '').strip().upper() in ('PRODUCTION', '생산'):
             display_stage = '생산중'

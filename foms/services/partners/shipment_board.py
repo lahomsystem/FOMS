@@ -18,6 +18,7 @@ import datetime
 from typing import Any
 
 from sqlalchemy import and_, or_
+from sqlalchemy.orm import selectinload
 
 from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
@@ -151,7 +152,9 @@ def partner_shipment_board(db, org_id: int, date: str | None, today: datetime.da
     selected = _pick_day(wanted, today, counts)
 
     picked = by_day.get(selected) or {}
-    orders = base.filter(Order.id.in_(list(picked))).all() if picked else []
+    # 일정 줄을 한 번에 싣는다 — 줄 종류 판정(본 흐름이 열린 AS 주문)이 주문마다 따로 읽지 않게.
+    orders = (base.filter(Order.id.in_(list(picked))).options(selectinload(Order.schedule_dates)).all()
+              if picked else [])
     for order in orders:
         order.shipment_visible_items = visible_items_for_dates(order, target_date=selected)
     attach_shipment_row_kinds(orders, target_date=selected)  # 우리 출고표와 같은 줄 종류(본 흐름이 열린 AS 주문의 시공일 = 시공 줄)

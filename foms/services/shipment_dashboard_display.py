@@ -62,23 +62,22 @@ def attach_shipment_row_kinds(
     """
     use_range = bool(date_from and date_to)
 
-    def _hit(dates: Any) -> bool:
+    def _in_scope(dates: Any) -> set[str]:
         days = {str(d) for d in dates}
         if target_date:
-            return str(target_date) in days
+            return days & {str(target_date)}
         if use_range:
-            return any(str(date_from) <= d <= str(date_to) for d in days)
-        return bool(days)
+            return {d for d in days if str(date_from) <= d <= str(date_to)}
+        return days
 
     for r in rows:
         dated = is_as_status(r) and is_main_flow_open(r)
-        kind = row_kind(
-            r,
-            on_construction_date=dated and _hit(extract_all_construction_dates(r)),
-            on_as_visit_date=dated and _hit(extract_as_visit_dates(r)),
-        )
+        cons_days = _in_scope(extract_all_construction_dates(r)) if dated else set()
+        visit_days = _in_scope(extract_as_visit_dates(r)) if dated else set()
+        kind = row_kind(r, on_construction_date=bool(cons_days), on_as_visit_date=bool(visit_days))
         setattr(r, ROW_IS_AS_ATTR, kind.is_as)
-        setattr(r, ROW_AS_VISIT_TOO_ATTR, kind.as_visit_too)
+        # "AS 방문도"는 시공과 AS 방문이 같은 날일 때만 — 기간 보기에서 다른 날 방문까지 붙이면 그날 일로 읽힌다.
+        setattr(r, ROW_AS_VISIT_TOO_ATTR, kind.as_visit_too and bool(cons_days & visit_days))
 
 
 def enrich_shipment_rows(rows: list[Any]) -> None:
