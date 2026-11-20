@@ -20,6 +20,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.orders.construction_dates import production_split_note
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.manager_names import manager_label_from_parties
@@ -239,6 +240,8 @@ def _enrich_one_production_order(
         'owner_team': 'PRODUCTION',
         'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
         'construction_date': _construction_date,
+        # [제작 완료] 확인 창의 한 줄 — 서로 다른 시공일이 둘 이상일 때만 글이 있다.
+        'production_split_note': production_split_note(sd),
         # 태블릿 칸반 카드용 표시 필드(파생만; 키 이름의 v3_ 는 역사적 접두)
         'v3_product_label': _production_product_label(_items),
         'v3_spec_display': _production_spec_display(_first_item),

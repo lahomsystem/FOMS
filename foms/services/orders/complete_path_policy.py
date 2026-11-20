@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.orders.construction_dates import remaining_construction_note
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.draft_guard import (
@@ -264,12 +265,14 @@ def _build_one(order: Any, current_user: Any) -> dict:
 
     blocked = complete_block_reason(order, current_user)
     endpoint = "cs_complete" if uses_regional_completion(order) or read_main_stage(order) == "CS" else "field_update"
+    # 누를 수 있는 단추에만 "남은 시공" 한 줄을 붙인다(막지 않는다). 지방 주문은 어느 단계에서든 완료된다.
+    remaining = remaining_construction_note(getattr(order, "structured_data", None)) if blocked is None else ""
     return {
         "visible": True,
         "enabled": blocked is None,
         "endpoint": endpoint,
         "label": COMPLETE_LABEL,
-        "confirm": COMPLETE_CONFIRM,
+        "confirm": COMPLETE_CONFIRM + ("\n\n" + remaining if remaining else ""),
         "blocked_reason": "" if blocked is None else blocked[1],
         "blocked_href": "" if blocked is None else blocked[2],
         # 링크 문구는 사유마다 다르다(승인/보류/AS) — 화면이 고르지 않고 서버가 준다.

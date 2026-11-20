@@ -15,6 +15,7 @@ from models import Order, ProductionRun
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
 from foms.services.erp_template_filters import eval_spec_width_mm, item_spec_w300_value
 from foms.services.files.list_thumb import list_thumb_url
+from foms.services.orders.construction_dates import production_split_note
 from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import (
@@ -249,6 +250,8 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         'hold_history': _prod.get('hold_history') if isinstance(_prod.get('hold_history'), list) else [],
         'stage': stage_label,
         'is_sales_approved': bool(is_sales_approved),
+        # [제작 완료] 확인 창의 한 줄 — 서로 다른 시공일이 둘 이상일 때만 글이 있다.
+        'production_split_note': production_split_note(sd),
     }
     attach_production_drawing_gate(db, [sheet], {order.id: order})
     _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
