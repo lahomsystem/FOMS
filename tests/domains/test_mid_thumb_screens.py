@@ -387,6 +387,11 @@ def test_no_new_db_query_for_mid_urls():
         assert "db_session" not in src and ".query(" not in src
 
 
+_PC_TRAPPED_RULES = (".drawing-revision-preview-pane {", ".drawing-revision-preview-pane__stage {",
+                     ".drawing-revision-preview-pane__stage img {", ".erp-drawing-gateway-card {",
+                     ".erp-drawing-gateway-head {", ".erp-drawing-gateway-actions .btn {", ".erp-drawing-quest-todo {")
+
+
 def test_replace_target_card_css_applies_on_pc_not_only_under_992():
     """교체 대상 도면 카드 꾸밈은 폭과 상관없이 먹어야 한다(2026-11-20).
 
@@ -402,7 +407,7 @@ def test_replace_target_card_css_applies_on_pc_not_only_under_992():
         if text.startswith("@media") and "{" in text:
             media_stack.append((depth, text))
         for name in (".drawing-target-card {", ".drawing-target-card-thumb {", ".drawing-target-card-thumb img {",
-                     ".drawing-target-card-grid {"):
+                     ".drawing-target-card-grid {", *_PC_TRAPPED_RULES):
             if text == name:
                 found.setdefault(name, []).append([m[1] for m in media_stack])
         depth += line.count("{") - line.count("}")
@@ -410,5 +415,9 @@ def test_replace_target_card_css_applies_on_pc_not_only_under_992():
             media_stack.pop()
     for name in (".drawing-target-card {", ".drawing-target-card-thumb {", ".drawing-target-card-thumb img {"):
         assert found.get(name) == [[]], (name, found.get(name))  # 한 번만, 폭 묶음 밖
+    # 같은 함정이던 도면 수정 요청 큰 미리보기 · 도면 창구 칸(2026-11-20) — PC 에서 미리보기 원본이 제 크기로 그려져
+    # 창 본문이 가로로 1,800px 넘게 넘쳤다.
+    for name in _PC_TRAPPED_RULES:
+        assert found.get(name) == [[]], (name, found.get(name))
     # 격자는 기본 규칙(묶음 밖) + 768px 이하 두 칸 규칙.
     assert found[".drawing-target-card-grid {"] == [[], ["@media (max-width: 768px) {"]]
