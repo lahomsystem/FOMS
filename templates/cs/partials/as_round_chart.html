@@ -127,7 +127,7 @@
 {%- if s.completed_date %} · {{ s.completed_date }} 완료{% endif -%}
 {%- endmacro %}
 
-{% macro render_as_round_chart(order_id, view, can_edit=true, billing_state='', billing_type='free', is_sales_delivery=false, notes='') -%}
+{% macro render_as_round_chart(order_id, view, can_edit=true, billing_state='', billing_type='free', is_sales_delivery=false, notes='', can_cancel=false) -%}
 {% set v = view or {} %}
 {% set sc = v.state_card or {} %}
 {# 건(cycle) 투영은 as_cycle_view SSOT 가 만든 요약을 그대로 쓴다 — 화면이 다시 세지 않는다.
@@ -158,6 +158,12 @@
       class="btn btn-sm as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
       data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
       title="영업/전달 분류 토글 후 탭 이동">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
+    {# 잘못 접수한 AS 걷어 내기 — 현재 건이 접수 상태이고 관리자 · CS 능력일 때만(호출자가 as_cancel_allowed 로 정한다).
+       누름은 static/js/orders/erp-as-cancel.js 가 문서 위임으로 받는다. #}
+    {% if can_cancel %}
+    <button type="button" class="btn btn-sm btn-outline-danger" data-erp-as-cancel data-order-id="{{ order_id }}"
+      title="잘못 접수한 AS 를 취소합니다">AS 접수 취소</button>
+    {% endif %}
   </div>
   {% endif %}
 

@@ -289,6 +289,9 @@ _AS_LOG_WRITE_CALL_SITES = {
     ("foms/services/erp_actions/runners.py", "append_system_log"),  # 접목판 AS 방문 옮기기 실행기 — AS 방문일 길과 같은 고정 머리말 + 검사한 날짜
     # 협력사 AS 접수 · 수정은 2026-11-13 부터 위 register(as_orders.py) 를 그대로 탄다(PARTNER-AS-02) — 따로 쓰는 곳이 없다.
     ("foms/services/orders/as_cycle_service.py", "append_system_log"),  # LEGACY_BRIDGE 전환 기록(서버 고정 리터럴)
+    # AS 접수 취소 한 줄(설계서 2026-11-20-multi-item-split-schedule §4.4) — 고정 머리말 + 취소 사유.
+    # 사유는 사용자 입력이라 append_system_log 가 생성 지점에서 escape + AS_LOG_TEXT_MAX 절단한다.
+    ("foms/services/orders/as_cycle_cancel.py", "append_system_log"),
     # AS-BIND-01 주차 메모. 본문은 고정 리터럴 '첨부 파일' 이고 append_client_log 가 sanitize 한다.
     ("foms/services/orders/as_upload_anchor.py", "append_client_log"),
     # AS 화면 [도면팀 부탁] 기록 한 줄(완료 주문 AS 도면 설계서 §4.4 2판) — 본문은 고정 머리말 + 부탁 글이고

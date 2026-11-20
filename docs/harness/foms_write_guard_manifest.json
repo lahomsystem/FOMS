@@ -331,6 +331,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/billing"
     },
+    "erp_orders_as.api_as_cancel": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/cancel"
+    },
     "erp_orders_as.api_as_classification": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/classification"

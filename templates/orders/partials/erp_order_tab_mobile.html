@@ -442,6 +442,11 @@ ERP Order mobile-v2 tab pane.
                                     <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--as"
                                         data-erp-as-receive-open data-order-id="{{ order.id }}" aria-label="AS 접수" title="AS 접수">AS</button>
                                     {% endif %}
+                                    {#- 잘못 접수한 AS 걷어 내기 — PC 와 같은 판정(접수 상태 + 관리자 · CS 능력). -#}
+                                    {% if order is defined and order and (order|as_cancel_allowed(current_user if current_user is defined else none)) %}
+                                    <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--as"
+                                        data-erp-as-cancel data-order-id="{{ order.id }}" aria-label="AS 접수 취소" title="AS 접수 취소">AS<i class="fas fa-times erp-mobile-stage-row__btn-ico" aria-hidden="true"></i></button>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="field erp-mobile-inline">
