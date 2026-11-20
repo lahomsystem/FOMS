@@ -49,6 +49,20 @@
     return ADMIN_ONLY_TARGETS[String(code || '').trim()] || '';
   }
 
+  // 열린 AS(접수 · 처리 중) 주문은 단계만 옮기고 주문 상태의 AS 표시는 그대로 둔다(서버 as_overlay_kept).
+  // 단건은 data.as_overlay_kept, 일괄은 data.results[].as_overlay_kept 로 온다.
+  var AS_OVERLAY_KEPT_MSG = 'AS 표시는 그대로 남습니다. 잘못 접수한 AS 는 [AS 접수 취소]로 지워 주세요.';
+
+  function asOverlayKeptText(data) {
+    if (!data) return '';
+    var count = data.as_overlay_kept ? 1 : 0;
+    (Array.isArray(data.results) ? data.results : []).forEach(function (it) {
+      if (it && it.as_overlay_kept) count += 1;
+    });
+    if (!count) return '';
+    return (count > 1 ? 'AS 접수 중인 주문 ' + count + '건: ' : '') + AS_OVERLAY_KEPT_MSG;
+  }
+
   // 정합 축(다른 탭 감지·멱등 키) 거부 코드. 사유를 적어도 뚫리지 않으므로 문구가 다르다.
   var REV_CONFLICT_CODES = [
     'REVISION_CONFLICT',
@@ -263,6 +277,16 @@
     box.classList.toggle('d-none', !msg);
   }
 
+  // 열린 AS(접수 · 처리 중)가 이번 변경에 걸리는가 — 일괄은 'AS 주문도 함께' 체크, 주문 화면은 AS 배지(data-erp-as-status).
+  function openAsInScope() {
+    var includeAsRow = document.getElementById('erp-stage-override-include-as-row');
+    if (includeAsRow && !includeAsRow.classList.contains('d-none')) {
+      var includeAsEl = document.getElementById('erp-stage-override-include-as');
+      return !!(includeAsEl && includeAsEl.checked);
+    }
+    return !!document.querySelector('[data-erp-as-status="AS_RECEIVED"], [data-erp-as-status="AS"]');
+  }
+
   function syncModeHint() {
     var fromEl = document.getElementById('erp-stage-override-from');
     var toEl = document.getElementById('erp-stage-override-to');
@@ -280,6 +304,8 @@
       var msg = '';
       if (kind === 'AS') msg = warn.getAttribute('data-warning-as') || '';
       else if (kind === 'DELETED') msg = warn.getAttribute('data-warning-deleted') || '';
+      // 본공정 목표인데 열린 AS 가 걸려 있으면 단계만 옮기고 AS 표시는 남는다고 미리 알린다.
+      else if (openAsInScope()) msg = warn.getAttribute('data-warning-as-kept') || '';
       warn.textContent = msg;
       warn.classList.toggle('d-none', !msg);
     }
@@ -497,6 +523,9 @@
           + skippedAs.map(function (it) { return '#' + it.order_id; }).join(', ')
           + '\n' + (payload.data.warning || ''));
       }
+      // 단계는 옮겼지만 AS 표시는 남았다 — 지워진 줄 알고 넘어가지 않게 알린다.
+      var keptText = asOverlayKeptText(payload.data);
+      if (keptText) alert(keptText);
       var pending = _pending;
       _pending = null; // hide.bs.modal 이 cancel로 취급하지 않도록 선제 클리어
       closeModal();
@@ -579,6 +608,11 @@
     if (toEl && toEl.getAttribute('data-bound') !== '1') {
       toEl.setAttribute('data-bound', '1');
       toEl.addEventListener('change', syncModeHint);
+    }
+    var includeAsBox = document.getElementById('erp-stage-override-include-as');
+    if (includeAsBox && includeAsBox.getAttribute('data-bound') !== '1') {
+      includeAsBox.setAttribute('data-bound', '1');
+      includeAsBox.addEventListener('change', syncModeHint);
     }
     var submit = document.getElementById('erp-stage-override-submit');
     if (submit && submit.getAttribute('data-bound') !== '1') {
@@ -742,6 +776,7 @@
     noteServerStage: noteServerStage,
     confirmForceMove: confirmForceMove,
     drawingWarningText: drawingWarningText,
+    asOverlayKeptText: asOverlayKeptText,
     wireUi: wireUi
   };
 

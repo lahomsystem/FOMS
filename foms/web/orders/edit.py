@@ -27,6 +27,7 @@ from foms.services.erp_sync_columns import sync_as_axis_column, sync_erp_flat_co
 from db import get_db
 from models import Order
 from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
+from foms.services.orders.state_axes import open_as_outranks_main_status_write
 from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 # 의존성 없는 상수 모듈이다(수집 파이프라인을 끌어오지 않는다 — constants.py 도입부 참고).
@@ -323,6 +324,10 @@ def edit_order(order_id):
             product = request.form.get('product', getattr(_o, 'product', None) or '')
             notes = request.form.get('notes', getattr(_o, 'notes', None) or '')
             status = request.form.get('status', getattr(_o, 'status', None) or '')
+            # 열린 AS 는 본 흐름 목표 쓰기를 이긴다(STATE-AS-01) — 이 폼은 단계를 안 옮기므로 상태 글을 그대로 둔다.
+            if status != (getattr(_o, 'status', None) or '') and open_as_outranks_main_status_write(_o, status):
+                status = getattr(_o, 'status', None) or ''
+                flash('AS 접수 중인 주문이라 주문 상태는 그대로 두었습니다. AS 표시는 그대로 남습니다.', 'info')
             measurement_date = request.form.get('measurement_date', getattr(_o, 'measurement_date', None) or '')
             measurement_time = request.form.get('measurement_time', getattr(_o, 'measurement_time', None) or '')
             completion_date = request.form.get('completion_date', getattr(_o, 'completion_date', None) or '')

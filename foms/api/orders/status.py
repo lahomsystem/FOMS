@@ -32,7 +32,10 @@ from foms.services.orders.status_constants import (
     STATUS,
     is_logistics_board_status,
 )
-from foms.services.orders.state_axes import as_overlay_outranks_status_write
+from foms.services.orders.state_axes import (
+    as_overlay_outranks_status_write,
+    open_as_outranks_main_status_write,
+)
 from foms.services.orders.complete_path_policy import (
     rejects_completed_field_write,
     use_cs_complete_response_body,
@@ -409,6 +412,7 @@ def update_order_status_response(
                 "status_display": STATUS.get(new_status, new_status),
             })
 
+        as_kept = ""
         if should_canonicalize_main_status(order, new_status):
             # 순수 메인 파이프라인 전이 → canonical 엔진 경유(direct stage 배정 없음).
             err = apply_canonical_main_stage(
@@ -419,7 +423,10 @@ def update_order_status_response(
                 return err
         else:
             # 물류/AS/overlay 타깃 또는 overlay 혼재 주문: legacy writer 보존(무접근 축 소관).
-            order.status = new_status
+            # 열린 AS 는 본 흐름 목표 쓰기를 이긴다 — 단계(_sync_erp_stage)만 옮기고 status 의 AS 표시는 둔다.
+            as_kept = open_as_outranks_main_status_write(order, new_status)
+            if not as_kept:
+                order.status = new_status
             if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
             _sync_erp_stage(order, new_status, user_id, db, bulk=False)
@@ -432,16 +439,22 @@ def update_order_status_response(
             )
         db.commit()
 
-        _single_audit(order, old_status, new_status, user_id)
+        _single_audit(order, old_status, as_kept or new_status, user_id)
 
-        return jsonify(
-            {
-                "success": True,
-                "old_status": old_status,
-                "new_status": new_status,
-                "status_display": STATUS.get(new_status, new_status),
-            }
-        )
+        payload = {
+            "success": True,
+            "old_status": old_status,
+            "new_status": new_status,
+            "status_display": STATUS.get(new_status, new_status),
+        }
+        if as_kept:
+            # 실제 저장값을 싣는다 — 단계는 옮겼고 상태 글은 AS 그대로다.
+            payload.update(
+                new_status=as_kept, status_display=STATUS.get(as_kept, as_kept),
+                stage=new_status, as_overlay_kept=as_kept,
+                message="단계를 바꿨습니다. AS 표시는 그대로 남습니다.",
+            )
+        return jsonify(payload)
     except Exception as exc:
         db.rollback()
         current_app.logger.error(f"주문 상태 업데이트 실패: {str(exc)}")
@@ -595,6 +608,8 @@ def bulk_update_order_status_response(
         blocked_command_required: list[int] = []
         # 승격 전 초안(draft_guard) — 뚫기와 무관하게 건너뛴다.
         blocked_unpromoted_draft: list[int] = []
+        # 열린 AS 라 단계만 옮기고 상태 글(AS 표시)은 그대로 둔 주문.
+        as_overlay_kept: list[int] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -690,7 +705,12 @@ def bulk_update_order_status_response(
                 updated += 1
                 continue
 
-            setattr(order, "status", new_status)
+            # 열린 AS 는 본 흐름 목표 쓰기를 이긴다(단건과 같은 규칙) — 단계만 옮긴다.
+            as_kept = open_as_outranks_main_status_write(order, new_status)
+            if as_kept:
+                as_overlay_kept.append(int(order.id))
+            else:
+                setattr(order, "status", new_status)
             if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
 
@@ -706,7 +726,7 @@ def bulk_update_order_status_response(
                     route="orders.bulk_update_order_status", axis="MAIN",
                     from_value=from_stage, to_value=new_status, bulk=True,
                 )
-            _bulk_audit(order, old_status, new_status, user_id)
+            _bulk_audit(order, old_status, as_kept or new_status, user_id)
             updated += 1
 
         db.commit()
@@ -742,6 +762,9 @@ def bulk_update_order_status_response(
                 f"{len(blocked_unpromoted_draft)}건은 아직 저장하지 않은 초안이라 바꾸지 않았습니다."
             )
             message = f"{message} {draft_note}" if message else draft_note
+        if as_overlay_kept:
+            kept_note = f"AS 접수 중인 {len(as_overlay_kept)}건은 단계만 바꿨습니다. AS 표시는 그대로 남습니다."
+            message = f"{message} {kept_note}" if message else kept_note
         payload: dict[str, Any] = {
             "success": success,
             "updated": updated,
@@ -752,6 +775,7 @@ def bulk_update_order_status_response(
             "blocked_use_cs_complete": blocked_use_cs_complete,
             "blocked_command_required": blocked_command_required,
             "blocked_unpromoted_draft": blocked_unpromoted_draft,
+            "as_overlay_kept": as_overlay_kept,
         }
         if message:
             payload["message"] = message

@@ -21,6 +21,7 @@ from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.state_axes import (
     as_overlay_outranks_status_write,
+    open_as_outranks_main_status_write,
     read_main_stage,
 )
 from foms.services.orders.admin_override import (
@@ -731,6 +732,12 @@ def update_order_field_from_payload(
                     return err
                 status_transitioned = True
 
+        # 열린 AS 는 본 흐름 목표 status 쓰기를 이긴다(STATE-AS-01) — 단계만 옮기고 AS 표시는 둔다.
+        as_overlay_kept = (
+            open_as_outranks_main_status_write(order, value)
+            if field == "status" and not status_transitioned else ""
+        )
+
         structured_data: dict[str, Any] = {}
         structured_changed = False
         old_sd_snapshot: dict[str, Any] = {}
@@ -757,7 +764,7 @@ def update_order_field_from_payload(
         ):
             pass
         else:
-            if not status_transitioned:
+            if not status_transitioned and not as_overlay_kept:
                 setattr(order, field, value)
 
         if (
@@ -776,6 +783,8 @@ def update_order_field_from_payload(
                 workflow["stage"] = value
                 workflow["stage_updated_at"] = now_utc_naive().isoformat()
                 structured_changed = True
+        if as_overlay_kept:
+            value = as_overlay_kept  # 감사 · 접근로그 에코는 실제 저장된 상태 글(AS 표시)로
 
         if is_erp_order or field in (
             "as_visit_date",

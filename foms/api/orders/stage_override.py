@@ -193,14 +193,13 @@ def stage_override_response(order_id: int):
 
         payload = captured["payload"]
         resources = outcome.body.get("resources") or [{}]
-        # AS overlay 를 덮었으면 그 사실을 문장으로 남긴다. 감리#3 에 따라 AS→메인 복귀는
-        # 허용이지만(오접수 정정 경로), order.status 의 AS 표시가 사라지면 출고 보드 AS
-        # 필터·관제탑·정산 알림에서 그 건이 빠진다 — 조용하면 안 된다.
-        overlay_cleared = str(payload.get("as_overlay_cleared") or "").strip()
+        # 열린 AS 는 단계만 옮기고 order.status 의 AS 표시를 그대로 둔다(잘못 접수한 AS 는 [AS 접수 취소]로 지운다).
+        # 사용자가 "AS 표시가 지워졌다"고 여기지 않게 그 사실을 문장 · 응답으로 남긴다.
+        overlay_kept = str(payload.get("as_overlay_kept") or "").strip()
         log_access(
             f"주문 #{order_id} 단계 강제 변경({payload['mode']}): "
             f"{payload['from']} → {payload['to']} ({payload['reason']})"
-            + (f" · AS 표시 해제({overlay_cleared})" if overlay_cleared else ""),
+            + (f" · AS 표시 유지({overlay_kept})" if overlay_kept else ""),
             user_id,
         )
         resp = jsonify(
@@ -215,7 +214,7 @@ def stage_override_response(order_id: int):
                     "status": captured["status"],
                     "mutation_version": resources[0].get("resulting_version"),
                     "mutation_receipt": outcome.read_receipt_id,
-                    "as_overlay_cleared": overlay_cleared or None,
+                    "as_overlay_kept": overlay_kept or None,
                 },
             }
         )
@@ -294,8 +293,8 @@ def _audit_stage_override_status(results: list[dict[str, Any]], user_id: Any) ->
             "stage_override": True, "mode": item.get("mode"),
             "reason": item.get("reason"), **context,
         }
-        if item.get("as_overlay_cleared"):
-            detail["as_overlay_cleared"] = item["as_overlay_cleared"]
+        if item.get("as_overlay_kept"):
+            detail["as_overlay_kept"] = item["as_overlay_kept"]
         log_access(
             describe_field_change(
                 order_id=item["order_id"], field="status", before=before, after=after,

@@ -17,6 +17,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.state_axes import open_as_outranks_main_status_write
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.erp_display import manager_display_name
@@ -653,9 +654,14 @@ def bulk_action():
                     order.id: order
                     for order in db.query(Order).filter(Order.id.in_(order_ids), Order.active_filter()).all()  # perf-ok
                 }
+                as_kept_count = 0
                 for order_id in selected_ids:
                     order = orders_by_id.get(int(order_id))
                     old_status_val = getattr(order, 'status', None) if order is not None else None
+                    # 열린 AS 는 본 흐름 목표 쓰기를 이긴다(STATE-AS-01) — 이 길은 단계를 안 옮기므로 그 주문은 건너뛴다.
+                    if order is not None and open_as_outranks_main_status_write(order, new_status):
+                        as_kept_count += 1
+                        continue
                     if order is not None and old_status_val != new_status:
                         setattr(order, 'status', new_status)
                         # AS 접수(AS_RECEIVED)로 바꿀 때도 scheduled_date(AS 방문일) 자동 입력하지 않음
@@ -673,6 +679,8 @@ def bulk_action():
                         processed_count += 1
                     elif not order:
                         failed_count += 1
+                if as_kept_count:
+                    flash(f"AS 접수 중인 주문 {as_kept_count}건은 상태를 바꾸지 않았습니다. AS 표시는 그대로 남습니다.", 'warning')
             else:
                 flash("'" + new_status + "'" + '는 유효하지 않은 상태입니다.', 'error')
                 redirect_args = get_preserved_filter_args(request.args)
