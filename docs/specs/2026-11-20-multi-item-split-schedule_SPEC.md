@@ -119,7 +119,7 @@
 
 | 화면 | 기기 | 자리 |
 |---|---|---|
-| [AS 접수 수정] 창(`asReceiveModal`)의 아래 줄 왼쪽 | PC · 휴대폰 | `templates/cs/partials/as_reintake_sheet.html` 아래 단추 줄 — [취소] · [수정 내용 저장] 왼쪽에 "이 AS 접수 취소" |
+| [AS 접수 수정] 창(`asReceiveModal`)의 아래 줄 왼쪽 | PC · 휴대폰 | `templates/orders/partials/erp_order_tab.html:777-782` · `erp_order_tab_mobile.html:740-745` 의 창 아래 단추 줄 — [취소] · [수정 내용 저장] 왼쪽에 "이 AS 접수 취소" |
 | AS 화면 회차 차트의 현재 건 머리 | PC · 휴대폰 | `templates/cs/partials/as_round_chart.html:156` 근처 |
 
 주문 화면의 "본공정 단계" 줄에는 두지 않는다. 휴대폰에서 그 줄은 이미 단추 넷(단계 고르기 · 강제 · AS 표시 · AS 수정)으로 차 있어 다섯째가 화면 밖으로 밀린다(2026-11-20 스테이징 실화면 확인). PC 도 같은 창을 쓰므로 자리를 하나로 맞춘다.
