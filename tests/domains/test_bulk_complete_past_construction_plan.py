@@ -100,6 +100,25 @@ def test_later_construction_date_from_order_text_is_the_safety_net():
         assert mod.classify_row(_row(construction_text=text), cutoff=cutoff)[0] == "main", text
 
 
+def test_later_construction_date_from_item_dates_is_the_safety_net():
+    """일정 표 · 주문 칸 글에 지난 날만 있어도 제품 하나에 뒤 시공일이 있으면 제외한다."""
+    cutoff = "2026-09-15"
+    items = [{"name": "붙박이장", "construction_date": "2026-08-20"},
+             {"name": "화장대", "construction_date": "2026-08-20, 2026-11-17"}]
+    hit = _row(later_construction_date=None, items=items)  # 표에는 기준일 뒤 날이 없다
+    assert mod.classify_row(hit, cutoff=cutoff) == (None, "later_construction_date", [])
+    assert mod.later_construction_date(hit, cutoff) == "2026-11-17"
+    # 취소된 제품의 날도 센다 — 잘못 빼는 쪽은 해가 없다
+    cancelled = _row(items=[{"construction_date": "2026-11-17", "cancel": {"reason": "x"}}])
+    assert mod.classify_row(cancelled, cutoff=cutoff)[1] == "later_construction_date"
+    # 대조군 — 제품 칸 날이 모두 기준일 앞이면 그대로 대상
+    control = _row(items=[{"construction_date": "2026-08-20"}, {"construction_date": "2026-09-14"}])
+    assert mod.classify_row(control, cutoff=cutoff) == ("main", None, [])
+    # 대조군 — 제품 칸이 깨져 있어도 예외 없이 대상
+    for broken in (None, "x", {"a": 1}, ["x", None, {"construction_date": None}]):
+        assert mod.classify_row(_row(items=broken), cutoff=cutoff)[0] == "main", broken
+
+
 def test_later_construction_date_ignores_malformed_table_value():
     """표 칸에 날짜 꼴이 아닌 글이 와도 남은 시공일로 치지 않는다."""
     assert mod.classify_row(_row(later_construction_date="미정"), cutoff="2026-09-15")[0] == "main"
