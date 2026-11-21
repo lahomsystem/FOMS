@@ -1,6 +1,6 @@
 {% extends "production/layout.html" %}
 {# 생산 전체 화면 작업 시트 — 설계서 §12.2 (2026-11-09, 안 2 "도면 먼저 작업 화면").
-   왼쪽 6할 도면(넘기기·썸네일·PDF 는 파일 열기, 탭하면 전역 뷰어), 오른쪽 고객·만들 것·공정·불량·단추.
+   왼쪽 6할 도면(넘기기·썸네일·PDF 는 파일 열기, 탭하면 전역 뷰어), 오른쪽 공정·바뀐 것·만들 것·고객(11-21 순서)·불량·단추.
    옆 시트(partials/tablet_sheet.html)와 같은 뷰 모델(production_sheet_view) + 전화·주소·도면 전체·공정.
    단추 배선은 옆 시트와 같은 tablet-domain-sheets.js(data-tablet-sheet-action — 이 페이지는 기기 무관).
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
@@ -70,37 +70,25 @@
       {# ── 오른쪽 ── #}
       <div class="foms-prod-page__side">
         <div class="foms-prod-page__side-scroll">
-        <section class="foms-prod-page__box" aria-label="고객">
-          <h2 class="foms-prod-page__h">고객</h2>
-          <div class="foms-prod-page__row">
-            <div class="foms-prod-page__v">{{ order.customer_name }}<small>{{ order.phone }}</small></div>
-            {% if order.phone_digits %}<a class="foms-prod-page__btn" href="tel:{{ order.phone_digits }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg>전화</a>{% endif %}
+        {# 오른쪽 칸 순서 = 공정 → 바뀐 것 → 만들 것 → 고객(사용자 결정 2026-11-21 "공정 줄을 위로 올리고 올리기").
+           바닥 단추 줄을 고정해(53d1c5bb6) 굴러가는 칸이 작아졌고, 공정 칸을 켜야 [제작 완료]가 풀리므로(8639452ba)
+           공정 4칸 줄이 처음 화면에 있어야 한다. 마크업 순서 = 읽기 · 키보드 순서(CSS order 로 바꾸지 않는다).
+           보류 · 재제작 · 제작 시작 막힘 사유는 바뀐 것 다음, 특이사항은 만들 것 다음. 옆 시트(tablet_sheet.html)는 그대로. #}
+        <section class="foms-prod-page__box" aria-label="공정">
+          <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
+          <div class="foms-prod-page__steps">
+            {% for s in order.steps %}
+            <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
+                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
+              <span>{{ s.label }}</span>
+              <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
+            </button>
+            {% endfor %}
           </div>
-          <div class="foms-prod-page__row">
-            <div class="foms-prod-page__v foms-prod-page__v--addr">{{ order.address }}<small>실측 {{ order.measurement_md }} · 시공 {{ order.construction_label }}{% if order.construction_workers %} · 시공팀 {{ order.construction_workers | join(', ') }}{% endif %}</small></div>
-            {% if order.address and order.address != '-' %}<a class="foms-prod-page__btn" href="https://map.kakao.com/?q={{ order.address | urlencode }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>지도</a>{% endif %}
-          </div>
+          {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
+          <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
         </section>
-
-        <section class="foms-prod-page__box" aria-label="만들 것">
-          <h2 class="foms-prod-page__h">만들 것 <small>총 자수 {{ order.total_units_display }}</small></h2>
-          {% if order.spec_rows_view %}
-          {# 품목마다 'W×D×H · 수량'(시안 안 2) — 깊이 · 높이가 없는 품목은 있는 축만, 아무것도 없으면 총 가로 폭 #}
-          <ul class="foms-prod-page__items">
-            {% for r in order.spec_rows_view %}<li class="foms-prod-page__item"><span>{{ r.label }}</span><span>{{ r.whd or ('W' ~ r.w) }} · {{ r.qty }}</span></li>{% endfor %}
-          </ul>
-          {% else %}
-          <p class="foms-prod-page__muted">규격 정보 없음</p>
-          {% endif %}
-          {% if order.material %}<p class="foms-prod-page__clr">{{ order.material }}</p>{% endif %}
-        </section>
-
-        {% if order.notes_text %}
-        <section class="foms-prod-page__box" aria-label="특이사항">
-          <h2 class="foms-prod-page__h">특이사항</h2>
-          <p class="foms-prod-page__notes">{{ order.notes_text }}</p>
-        </section>
-        {% endif %}
 
         {% set _alerts = order.change_alerts | default([], true) %}
         {% if order.has_changes and _alerts %}
@@ -125,20 +113,36 @@
         <p class="foms-gate-blocked-reason" data-production-start-blocked>{{ order.production_start_block_reason }}</p>
         {% endif %}
 
-        <section class="foms-prod-page__box" aria-label="공정">
-          <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
-          <div class="foms-prod-page__steps">
-            {% for s in order.steps %}
-            <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
-              <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
-              <span>{{ s.label }}</span>
-              <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
-            </button>
-            {% endfor %}
+        <section class="foms-prod-page__box" aria-label="만들 것">
+          <h2 class="foms-prod-page__h">만들 것 <small>총 자수 {{ order.total_units_display }}</small></h2>
+          {% if order.spec_rows_view %}
+          {# 품목마다 'W×D×H · 수량'(시안 안 2) — 깊이 · 높이가 없는 품목은 있는 축만, 아무것도 없으면 총 가로 폭 #}
+          <ul class="foms-prod-page__items">
+            {% for r in order.spec_rows_view %}<li class="foms-prod-page__item"><span>{{ r.label }}</span><span>{{ r.whd or ('W' ~ r.w) }} · {{ r.qty }}</span></li>{% endfor %}
+          </ul>
+          {% else %}
+          <p class="foms-prod-page__muted">규격 정보 없음</p>
+          {% endif %}
+          {% if order.material %}<p class="foms-prod-page__clr">{{ order.material }}</p>{% endif %}
+        </section>
+
+        {% if order.notes_text %}
+        <section class="foms-prod-page__box" aria-label="특이사항">
+          <h2 class="foms-prod-page__h">특이사항</h2>
+          <p class="foms-prod-page__notes">{{ order.notes_text }}</p>
+        </section>
+        {% endif %}
+
+        <section class="foms-prod-page__box" aria-label="고객">
+          <h2 class="foms-prod-page__h">고객</h2>
+          <div class="foms-prod-page__row">
+            <div class="foms-prod-page__v">{{ order.customer_name }}<small>{{ order.phone }}</small></div>
+            {% if order.phone_digits %}<a class="foms-prod-page__btn" href="tel:{{ order.phone_digits }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg>전화</a>{% endif %}
           </div>
-          {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
-          <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
+          <div class="foms-prod-page__row">
+            <div class="foms-prod-page__v foms-prod-page__v--addr">{{ order.address }}<small>실측 {{ order.measurement_md }} · 시공 {{ order.construction_label }}{% if order.construction_workers %} · 시공팀 {{ order.construction_workers | join(', ') }}{% endif %}</small></div>
+            {% if order.address and order.address != '-' %}<a class="foms-prod-page__btn" href="https://map.kakao.com/?q={{ order.address | urlencode }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>지도</a>{% endif %}
+          </div>
         </section>
         </div>
 
