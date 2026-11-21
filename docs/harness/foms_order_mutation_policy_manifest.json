@@ -672,7 +672,7 @@
     },
     "erp_orders_production.api_production_change_ack": {
       "mode": "guard",
-      "policy_id": "PRODUCTION_EDIT",
+      "policy_id": "PRODUCTION_ACK",
       "rule": "/api/orders/<int:order_id>/production/change-ack"
     },
     "erp_orders_production.api_production_complete": {

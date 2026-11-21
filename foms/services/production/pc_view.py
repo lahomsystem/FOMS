@@ -4,6 +4,7 @@
 
 - :func:`production_screen_flags` — 한 요청의 화면 판정(PC 꼴인가 · 쓰기 단추를 그리나 · [확인했어요] · [고치기]).
   쓰기를 그린다 = ``can_write_production(user) and (foms_ptr == 'coarse' or 고치기 켬)``. 쿠키가 없는 첫 요청은 안 그린다(§4).
+  [확인했어요]는 쓰기가 아니라 개인 확인 기록이라 기기 · 쓰기 팀과 상관없이 ``can_ack_production_change``(보는 사람 모두, §13 결정 5).
 - :func:`attach_pc_rows` — PC 줄이 쓰는 값(시공일 칸 · 공정 칸 마우스 글 · 늦음 표)을 이미 읽은 행에 단다(쿼리 0).
   PC 응답에서만 부른다 — 태블릿 · 폰 출력은 그대로다.
 """
@@ -17,7 +18,7 @@ from typing import Any
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date
 from foms.services.production.home_step_panel import _hold_reason, _prev_line, _run_start_text
 from foms.services.production.late_rule import production_late_view
-from foms.services.production.write_access import can_write_production
+from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.production_home_read_model import production_home_queue_key
 
 #: [고치기] 쿠키 — 값 = 켠 시각(epoch 초, 서버 시각 기준으로 JS 가 심는다). Path=/erp/production · 세션 쿠키 · SameSite=Lax.
@@ -54,7 +55,8 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         now_epoch: 시험용 지금 시각(epoch 초). 없으면 서버 시각.
 
     Returns:
-        ``pc_view``(PC 꼴 · 마우스 기기) · ``can_act``(쓰기 단추) · ``can_ack``([확인했어요] — PC 보기 전용에서도 허용, §13 결정 5)
+        ``pc_view``(PC 꼴 · 마우스 기기) · ``can_act``(쓰기 단추) · ``can_ack``([확인했어요] — 생산 화면을 보는 사람 모두,
+        기기 무관 · PC 보기 전용 포함, §13 결정 5)
         · ``edit_on``([고치기] 켬) · ``edit_toggle``([고치기] 단추를 그림) · ``edit_now``(JS 가 심을 서버 시각)
         · ``write_omitted``(쓰기 팀인데 기기 쿠키가 없거나 이상해 단추를 뺐다 — 화면이 표식을 남기면 터치 기기는
         foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12).
@@ -67,7 +69,7 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
     return {
         'pc_view': pc,
         'can_act': bool(writer and (pointer == 'coarse' or edit_on)),
-        'can_ack': writer,
+        'can_ack': can_ack_production_change(user),
         'edit_on': edit_on,
         'edit_toggle': bool(writer and pc),
         'edit_now': int(now),

@@ -15,7 +15,8 @@
     </div>
 {% endmacro %}
 {#- PC(마우스)만 — 장 맨 앞 ① 시공일 칸(설계서 2026-11-21-production-pc-viewer §6-3 규칙 1). 묘비(취소)는 행이 없어 빈 칸. [확인했어요]는
-   PC 보기 전용에서도 그린다(§13 결정 5) — 쓰기 팀(관리자 · 생산팀, can_ack)에게만. 이 두 줄은 출력에 글자를 더하지 않는다(태블릿 바이트 그대로). -#}
+   기기와 상관없이 생산 화면을 보는 사람 모두에게 그린다(can_ack, PC 보기 전용 포함 — §13 결정 5, 개인 확인 기록이라 쓰기 팀보다 넓다).
+   이 두 줄은 출력에 글자를 더하지 않는다(태블릿 바이트 그대로). -#}
 {%- macro _pc_due(it) %}{% if it.pc_due %}{{ pc_due_cell(it) }}{% else %}<span class="fpc-due is-none"></span>{% endif %}{% endmacro %}
 <div class="fph-inbox fph-inbox--page" aria-label="바뀐 것">
   <h2 class="fph-inbox__h">바뀐 것 <b{% if not changes.count %} class="is-zero"{% endif %}>{{ changes.count }}</b></h2>
