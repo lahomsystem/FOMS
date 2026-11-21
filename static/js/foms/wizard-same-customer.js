@@ -4,8 +4,10 @@
  * 설계서 2026-11-20 "한 주문 여러 시공일 1단계" 6.2 (M15 · M17).
  * 마지막 확인 단계에 들어올 때 서버에 물어 맨 위에 한 줄을 그린다. 알리기만 하고 등록은 막지 않는다.
  * wizard.js 는 고치지 않는다 — #foms-wizard-root 의 data-current-step 이 4 가 되는 것을 지켜본다.
- * 프리랜서는 서버가 403 을 준다 — 조용히 넘어가고 다시 묻지 않는다.
- * 글은 textContent 로만 넣는다(주소 · 이름은 저장된 값이다).
+ * 프리랜서는 서버가 403 을, 목록 밖 역할은 로그인 화면 HTML 을 준다 — 둘 다 막힘으로 보고 다시 묻지 않는다.
+ * 고객 이름은 보내지 않는다(서버가 찾는 데 쓰지 않고, 주소창 기록 · 접속 로그에 남는다).
+ * 화면 낭독기가 첫 안내를 읽도록 자리는 처음부터 접근성 트리에 두고, 비었을 때는 visually-hidden 으로 눈에만 숨긴다.
+ * 글은 textContent 로만 넣는다(주소는 저장된 값이다).
  */
 (function () {
   "use strict";
@@ -13,6 +15,7 @@
   var TITLE = "이 고객의 진행 중인 주문이 있습니다";
   var OPEN_LABEL = "그 주문 열기";
   var CONFIRM_STEP = "4";
+  var EMPTY_CLASS = "visually-hidden";
 
   var root = document.getElementById("foms-wizard-root");
   var box = document.getElementById("foms-wizard-same-customer");
@@ -46,8 +49,19 @@
   }
 
   function hide() {
-    box.hidden = true;
+    box.classList.add(EMPTY_CLASS);
     box.replaceChildren();
+  }
+
+  /** JSON 이 아닌 응답(권한 밖 역할이 받는 로그인 화면 등)이면 null. */
+  async function readJson(response) {
+    var type = response.headers.get("Content-Type") || "";
+    if (type.indexOf("application/json") === -1) return null;
+    try {
+      return await response.json();
+    } catch (parseError) {
+      return null;
+    }
   }
 
   function render(data) {
@@ -69,6 +83,7 @@
         link.target = "_blank";
         link.rel = "noopener";
         link.textContent = OPEN_LABEL;
+        link.setAttribute("aria-label", OPEN_LABEL + " (주문 #" + order.order_id + ")");
         row.appendChild(link);
       }
       nodes.push(row);
@@ -80,7 +95,7 @@
       nodes.push(rest);
     }
     box.replaceChildren.apply(box, nodes);
-    box.hidden = false;
+    box.classList.remove(EMPTY_CLASS);
   }
 
   /** 4단계에 들어올 때 한 번 묻는다. 같은 입력이면 다시 묻지 않는다. */
@@ -96,18 +111,18 @@
       hide();
       return;
     }
-    var params = new URLSearchParams({ phone: phone, name: fieldValue("wiz-customer-name"), address: address });
+    var params = new URLSearchParams({ phone: phone, address: address });
     try {
       var response = await fetch(lookupUrl + "?" + params.toString(), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
-      if (response.status === 403) {
-        denied = true;
+      var data = response.status === 403 ? null : await readJson(response);
+      if (response.status === 403 || data === null) {
+        denied = true; // 막힌 역할 — 이 화면에서는 다시 묻지 않는다
         hide();
         return;
       }
-      var data = await response.json();
       if (mine !== requestSeq) return; // 늦게 온 옛 응답은 버린다
       if (!response.ok || !data || !data.success) {
         hide();

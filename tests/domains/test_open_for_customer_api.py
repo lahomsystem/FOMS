@@ -29,9 +29,10 @@ def test_staff_gets_open_orders_with_links(client):
     assert set(body) == {"success", "data", "error"}
     assert body["success"] is True and body["error"] is None
     assert body["data"]["more"] == 0
+    assert "합성고객" not in response.get_data(as_text=True), "화면이 안 그리는 고객 이름은 응답에 싣지 않는다"
     assert body["data"]["orders"] == [{
         "order_id": order_id, "stage_code": "PRODUCTION", "stage_label": "생산",
-        "construction_dates": ["2026-11-17"], "address": "합성시 가상구 다른로 1", "customer_name": "합성고객",
+        "construction_dates": ["2026-11-17"], "address": "합성시 가상구 다른로 1",
         "reason": "phone", "url": f"/edit/{order_id}?open=erp-order", "mobile_url": f"/erp/orders/{order_id}/mobile",
     }]
 
