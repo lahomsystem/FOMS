@@ -471,3 +471,26 @@ def test_stage_chip_query_count_flat(client) -> None:
     resp, big = _count(lambda: client.get(URL + "?stage=시공대기", headers=SHELL))
     assert resp.get_data(as_text=True).count("생산 · 부분 시공") == 7
     assert big - small <= 2, (small, big)
+
+
+def test_fail_note_closes_visit_only_for_split_orders(monkeypatch) -> None:
+    """생산 단계 [시공 불가](방문만 닫음, "시공 불가 (단계 그대로) → …")도 방문을 닫는다(E3-8).
+    시공 단계 보통 주문의 [시공 불가] "현장 문제"(단계가 시공에 남음)는 지금 표시 그대로다 — 대조군."""
+    fail_keep = {"note": "시공 불가 (단계 그대로) → 현장 문제: 자재 부족", "stage": "PRODUCTION"}
+    fail_site = {"note": "시공 불가 → 현장 문제: 고객 부재", "stage": "CONSTRUCTION"}
+    split = _split_sd(history=[_START, fail_keep])
+    assert not icv.visit_open(split) and icv.partial_visit_closed(split)
+    rows = [{"stage": "생산중", "structured_data": split}]
+    icv.annotate_split_rows(rows)
+    assert rows[0]["stage"] == "시공대기"  # 다음 방문은 [시공 시작]부터
+    assert icv.visit_open(_split_sd(history=[_START, fail_keep, _START]))  # 다시 시작하면 열림
+
+    order = _Row("CONSTRUCTION", {})
+    split_cons = _split_sd(stage="CONSTRUCTION", history=[_START, fail_site])
+    assert construction_display_stage(order, split_cons) == "시공대기"
+    plain = _plain_sd(stage="CONSTRUCTION")
+    plain["workflow"]["history"] = [_START, fail_site]
+    assert construction_display_stage(order, plain) == "시공중"  # 나눠 시공 아님 — 지금과 같다
+    assert build_board_state(order, plain, "CONSTRUCTION")["label"] == "시공중"
+    monkeypatch.setenv(FLAG, "0")
+    assert construction_display_stage(order, split_cons) == "시공중"
