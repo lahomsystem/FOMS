@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>생산 첫 화면 되돌리기 견주기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 생산 첫 화면(날짜 탭) — 현장 태블릿(가로 1176 × 626, 터치, 화면 크기 80%)에서 시안 '안 3'(tablet-production-home-v2.html)과
+   다른 셋을 시안대로 되돌리면 어떻게 보이는지 견주는 그림 — 2026-11-21.
+   Ⓐ 지금(templates/production/partials/home_body.html · home_date.html · home_day_pane.html,
+   static/css/contexts/production/home.css, static/css/foundation/foms-tablet-rail.css 값) Ⓑ 고친 뒤 80% Ⓒ 고친 뒤 100%.
+   틀은 실제 화면 크기 1176 × 626. 80% 틀은 1470 × 782.5 화면을 0.8 로 줄여 그렸다(화면 크기 손잡이와 같은 셈).
+   이름 · 회사는 전부 지어낸 것. 금액 없음(D7). 바깥 글꼴 · 그림 파일 없음 — 이 파일 하나로 열린다. */
+
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;--accent:#4a55b8;
+  --mark:#db2777;--mark-ink:#ffffff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;
+  --app-danger:#dc2626;--app-ok:#059669;--app-warn-line:#f59e0b;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,h5,p,ul,ol{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:80ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.toc{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:700}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:48px;scroll-margin-top:16px}
+.frame h2{font-size:26px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px;text-wrap:balance}
+.frame h2 small{font-size:17px;font-weight:700;color:var(--muted);margin-left:8px}
+.frame .idea{color:var(--muted);font-size:16px;margin-bottom:12px;max-width:84ch}
+.frame .idea b{color:var(--fg)}
+/* 그림 틀 = 실제 태블릿 화면 크기 1176 × 626 그대로(칸이 좁으면 줄여 보인다) */
+.fit{width:100%;overflow:hidden}
+.stage{position:relative;width:1176px;height:626px;overflow:hidden;border-radius:12px;box-shadow:0 0 0 1px var(--line);background:var(--app-bg);transform-origin:0 0}
+.notes{list-style:none;padding:0;margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:8px 22px}
+.notes li{display:flex;gap:10px;align-items:flex-start;font-size:16px;line-height:1.5}
+.notes li span{color:var(--muted)}
+.notes li span b{color:var(--fg)}
+.num{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--mark);color:var(--mark-ink);font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;margin-top:14px}
+.col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.col h3{font-size:18px;font-weight:800;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.col ul{padding-left:20px;display:grid;gap:6px;font-size:15px;color:var(--muted)}
+.col ul b{color:var(--fg)}
+.ask{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.ask h3{font-size:18px;font-weight:800;margin-bottom:8px}
+.ask ol{padding-left:22px;display:grid;gap:6px;font-size:15px;color:var(--muted)}
+.ask ol b{color:var(--fg)}
+details.dev{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--muted)}
+details.dev summary{cursor:pointer;font-weight:800;color:var(--fg);font-size:15px}
+details.dev ul{padding-left:20px;display:grid;gap:5px;margin-top:8px}
+details.dev code{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--fg);overflow-wrap:anywhere}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ─── 화면 틀 안 — 실제 home.css · foms-tablet-rail.css 값을 옮겨 그렸다 ─── */
+.art{position:absolute;left:0;top:0;display:flex;background:var(--app-bg);color:var(--app-text);font-size:15px;line-height:1.35;overflow:hidden;font-variant-numeric:tabular-nums;color-scheme:light}
+.art *{box-sizing:border-box}
+/* 화면 크기 80% = 1176 ÷ 0.8 × 626 ÷ 0.8 의 화면을 0.8 로 줄여 보인 것 */
+.art.z80{width:1470px;height:782.5px;transform:scale(.8);transform-origin:0 0}
+.art.z100{width:1176px;height:626px}
+.art .ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.rel{position:relative}
+/* 번호 표시 — 80% 틀 안에서는 줄어드는 만큼 키워 둔다(보이는 크기 같게) */
+.mk{--k:1;position:absolute;z-index:6;top:calc(-13px*var(--k));left:calc(-13px*var(--k));width:calc(34px*var(--k));height:calc(34px*var(--k));border-radius:50%;background:#db2777;color:#fff;border:calc(3px*var(--k)) solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:calc(17px*var(--k));font-weight:800;display:flex;align-items:center;justify-content:center;font-style:normal;line-height:1;pointer-events:none}
+.z80 .mk{--k:1.25}
+.mk.r{left:auto;right:calc(-13px*var(--k))}
+.mk.ctr{top:50%;left:50%;margin:calc(-17px*var(--k)) 0 0 calc(-17px*var(--k))}
+.mk.hc{top:calc(3px*var(--k));left:44%}
+.mk.sp{top:calc(-26px*var(--k))}
+.mk.midr{top:50%;left:auto;right:calc(-17px*var(--k));margin-top:calc(-17px*var(--k))}
+
+/* 레일 — foms-tablet-rail.css(칸 10개 이상이라 'F' 28 · 칸 48 줄임 · 회사 지식 칸이 보이면 칸 44) */
+.rail{width:72px;flex-shrink:0;height:100%;background:#fff;border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:4px;position:relative;z-index:3}
+.rail .brand{height:28px;margin-bottom:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--app-brand-dark)}
+.rail .zoom{width:44px;flex-shrink:0;margin:2px 0 8px;border:1px solid #ced4da;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.rail .zoom span{height:30px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#495057}
+.rail .zoom span.v{height:20px;font-size:11px;border-top:1px solid #ced4da;border-bottom:1px solid #ced4da}
+.rail .menu{align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 1 auto;min-height:0;overflow:hidden;position:relative}
+.rail .menu::after{content:"";position:absolute;left:0;right:0;bottom:0;height:10px;background:linear-gradient(to top,rgba(15,23,42,.16),rgba(15,23,42,0));pointer-events:none}
+.rail .it{flex-shrink:0;width:100%;min-height:50px;padding:6px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;line-height:1.1;color:#6b7280;position:relative;white-space:nowrap}
+.rail.g .it{min-height:46px;padding:4px 0}
+.rail .it .ic{font-size:22px}
+.rail .it.on{color:var(--app-brand-dark);font-weight:600;background:var(--app-brand-50)}
+.rail .it.on::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--app-brand);border-radius:0 4px 4px 0}
+.rail .sp{flex:1 1 auto;min-height:12px;align-self:stretch}
+.badge{position:absolute;top:2px;right:14px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;font-style:normal}
+.rail .it.kb .ic{color:var(--app-brand)}
+.rail .it.kb .badge{background:var(--app-brand)}
+.rail .ava{width:40px;height:40px;flex-shrink:0;margin:4px 0 8px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand-dark);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+
+/* 위 줄 — home.css .foms-prod-home__bar(한 줄 73) + 가로 태블릿 탭 모양 */
+.app{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.bar{height:73px;flex-shrink:0;display:flex;align-items:center;gap:10px 14px;padding:8px 20px;background:#fff;border-bottom:1px solid var(--app-line);position:relative;z-index:2}
+.bar h3{margin:0;font-size:22px;font-weight:800;white-space:nowrap;flex-shrink:0}
+.bar .date{font-size:16px;color:var(--app-text2);white-space:nowrap;flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;flex:0 1 auto;min-width:0;border:1px solid var(--app-line2);border-radius:10px;background:#fff}
+.nav > span{min-height:48px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--app-text2);white-space:nowrap;border-right:1px solid var(--app-line2)}
+.nav > span:first-child{border-radius:9px 0 0 9px}
+.nav > span:last-of-type{border-right:0;border-radius:0 9px 9px 0}
+.nav > span small{margin-left:6px;font-size:14px;font-weight:800;color:var(--app-text3)}
+.nav > span small.hot{color:var(--app-danger)}
+.nav > span.on{background:var(--app-brand);color:#fff}
+.nav > span.on small{color:inherit;opacity:.85}
+.nav > span.out .ic{font-size:13px;margin-left:6px;stroke-width:2.6}
+.tools{margin-left:auto;display:flex;align-items:center;gap:10px 14px;flex-shrink:0}
+.sync{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--app-text3);white-space:nowrap}
+.sync::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--app-ok)}
+.fs{display:inline-flex;height:44px;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:#fff}
+.fs span{min-width:44px;display:inline-flex;align-items:center;justify-content:center;border-right:1px solid var(--app-line2);color:var(--app-text2);font-size:17px;font-weight:700}
+.fs span.l{min-width:0;padding:0 10px;font-size:13px;font-weight:600;color:var(--app-text3)}
+.fs span.v{min-width:60px;font-size:13px;font-weight:600}
+.fs span:last-child{border-right:0}
+.btn{min-height:56px;padding:0 14px;border:1px solid var(--app-line2);border-radius:10px;background:#fff;color:var(--app-text);font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.btn .ic{font-size:22px;margin-right:8px;stroke-width:2.5}
+.btn.bell{width:56px;padding:0}
+.btn.bell .ic{margin:0}
+.btn.bell .badge{top:7px;right:9px}
+
+/* 날짜 탭 — 왼쪽 띠 316 + 오른쪽 그날 */
+.dgrid{flex:1;min-height:0;display:grid;grid-template-columns:316px minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.lcol{display:flex;flex-direction:column;min-height:0}
+.lcol .blank{flex:1;margin:10px 12px 12px 10px;border:3px dashed #db2777;border-radius:12px;background:rgba(219,39,119,.06);display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px}
+.lcol .blank span{font-size:18px;font-weight:800;color:#be185d}
+.strip{background:#fff;border-right:1px solid var(--app-line);display:flex;flex-direction:column}
+.lcol.fill .strip{height:100%}
+.sh{min-height:40px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--app-line);font-size:15px;font-weight:800}
+.sh small{margin-left:auto;font-size:12px;font-weight:700;color:var(--app-text3)}
+.sd{width:100%;min-height:48px;flex-shrink:0;display:grid;grid-template-columns:88px minmax(0,1fr) 62px;align-items:center;gap:8px;padding:2px 14px;border-bottom:1px solid var(--app-line)}
+.sd.on{background:var(--app-brand-50);box-shadow:inset 4px 0 0 var(--app-brand)}
+.sd .d{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.sd .d b{font-size:16px;font-weight:800;white-space:nowrap}
+.sd .d small{font-size:12px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.sd.wk .d b{color:var(--app-danger)}
+.sd.zero .d b,.sd.zero .n b{color:var(--app-text3)}
+.sd .sb{height:16px;border-radius:5px;background:var(--app-raised);border:1px solid var(--app-line);display:flex;overflow:hidden}
+.sd .sb i{display:block;height:100%}
+.sd .sb i.f{background:var(--app-ok)}.sd .sb i.p{background:var(--app-brand)}.sd .sb i.w{background:var(--app-warn-line)}.sd .sb i.x{background:var(--app-line2)}
+.sd .n{text-align:right;white-space:nowrap}
+.sd .n b{font-size:15px;font-weight:800}
+.sd .n small{font-size:12px;font-weight:700;color:var(--app-text3)}
+.sf{margin-top:auto;flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--app-line)}
+.sf span{min-height:48px;padding:0 8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--app-text2);text-align:center}
+.sf span + span{border-left:1px solid var(--app-line)}
+/* 한 줄씩 + 키를 나눠 채움(제안 ①): 13줄이 남는 키를 똑같이 나눠 가진다 — 한 줄이 44 아래로 줄어들 때만 두 칸씩 */
+.strip.one .sd{flex:1 1 0;min-height:44px}
+/* 두 칸씩 — home.css 486~493 줄(키 낮은 가로 터치 화면) */
+.strip.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
+.strip.two .sh,.strip.two .sf,.strip.two .sd.first{grid-column:1/-1}
+.strip.two .sd.c2{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 8px;gap:2px 6px;padding:3px 10px}
+.strip.two .sd.lc{border-right:1px solid var(--app-line)}
+.strip.two .sd.c2 .sb{grid-column:1/-1;grid-row:2;height:8px}
+.strip.two .sd.c2 .n{grid-column:2;grid-row:1}
+.strip.two .sf{margin-top:0}
+/* 두 칸씩 + 키를 나눠 채움(제안 ①, 100% 일 때) */
+.strip.two.fill{grid-template-rows:40px repeat(7,minmax(0,1fr)) auto;align-content:stretch}
+
+/* 오른쪽 그날 — home.css .fph-pane · .fph-dr · .fph-wi */
+.pane{min-width:0;min-height:0;overflow:hidden;padding:4px 16px 24px 12px;display:flex;flex-direction:column;gap:6px}
+.ph{margin:0;min-height:44px;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 12px;padding-top:10px;font-size:20px;font-weight:800;color:var(--app-brand-dark)}
+.ph small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.ph .cards{margin-left:auto;align-self:center;min-height:40px;padding:0 12px;border:1px solid var(--app-line2);border-radius:10px;background:#fff;display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:800;color:var(--app-brand-dark)}
+.ph .cards .ic{font-size:14px;stroke-width:2.6}
+.pg{margin:4px 0 0;min-height:28px;display:flex;align-items:center;gap:8px;padding:0 4px;font-size:14px;font-weight:800;color:var(--app-text2)}
+.pg small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.pg.next{margin-top:10px;padding-top:10px;border-top:1px dashed var(--app-line2)}
+.dr{flex-shrink:0;min-height:74px;display:grid;grid-template-columns:128px minmax(0,1fr) auto 92px;align-items:center;gap:0 12px;padding-right:12px;background:#fff;border:1px solid var(--app-line);border-radius:12px;overflow:hidden}
+.dr.chg{border-color:var(--app-danger)}
+.dr .sg{align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 6px;border-right:1px solid var(--app-line);text-align:center;font-size:19px;font-weight:800;line-height:1.15;color:var(--app-brand-dark)}
+.dr .sg small{font-size:12px;font-weight:700;color:var(--app-text3)}
+.dr.w .sg{color:#92400e}
+.dr.chg .sg small{color:var(--app-danger)}
+.dr .who{min-width:0;display:flex;flex-direction:column;gap:2px;padding:8px 0}
+.dr .ln{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;min-width:0}
+.dr .nm{font-size:20px;font-weight:800;line-height:1.2;white-space:nowrap}
+.dr .nm small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.dr .by{font-size:14px;font-weight:700;color:var(--app-text);margin-right:14px}
+.dr .by:last-child{margin-right:0}
+.dr .by.m{color:var(--app-brand-dark)}
+.dr .by i{font-style:normal;font-size:12px;color:var(--app-text3)}
+.dr .pr{font-size:14px;color:var(--app-text2);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.dr .pr em{font-style:normal;font-weight:800;color:var(--app-danger)}
+.dr .steps{display:flex;gap:6px}
+.dr .st{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--app-text3)}
+.dr .st i{width:34px;height:34px;border-radius:8px;border:2px solid var(--app-line2);background:#fff}
+.dr .st.done,.dr .st.now{color:var(--app-brand-dark)}
+.dr .st.done i{background:var(--app-brand);border-color:var(--app-brand)}
+.dr .st.now i{border:3px solid var(--app-brand);background:var(--app-brand-50)}
+.dr .dw{text-align:right;font-size:15px;font-weight:800;white-space:nowrap}
+.wg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;flex-shrink:0}
+.wi{min-height:44px;display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:9px;border:1px solid var(--app-line);background:var(--app-raised);color:var(--app-text2);font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden}
+.wi small{min-width:0;font-size:12px;font-weight:700;color:var(--app-text3);overflow:hidden;text-overflow:ellipsis}
+.wi.done{background:#ecfdf5;border-color:#a7f3d0;color:#047857}
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="r-dash" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+  <symbol id="r-ruler" viewBox="0 0 24 24"><path d="M4 3v18h16v-6H10V3H4Z"/><path d="M4 8h3M4 13h3M14 18v-3M18 18v-3"/></symbol>
+  <symbol id="r-draw" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="m11 7-6 14M13 7l6 14M7 15h10"/></symbol>
+  <symbol id="r-fac" viewBox="0 0 24 24"><path d="M3 21V10l6 4V10l6 4V4h6v17H3Z"/></symbol>
+  <symbol id="r-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2zM13 10h5l4 4v2h-9"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="r-wrench" viewBox="0 0 24 24"><path d="M15 4a5 5 0 0 0-5 6l-7 7 4 4 7-7a5 5 0 0 0 6-5l-3 3-3-1-1-3 3-3a5 5 0 0 0-1-1Z"/></symbol>
+  <symbol id="r-hammer" viewBox="0 0 24 24"><path d="M14 4h6l-2 5-4-1-9 9-2-2 9-9-1-2h3Z"/></symbol>
+  <symbol id="r-clip" viewBox="0 0 24 24"><path d="M8 4h8v3H8zM6 5H5v16h14V5h-1"/><path d="m9 14 2 2 4-5"/></symbol>
+  <symbol id="r-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4M12 7v5l3 3"/></symbol>
+  <symbol id="r-calc" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/></symbol>
+  <symbol id="r-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></symbol>
+  <symbol id="r-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/></symbol>
+</svg>
+<div class="wrap">
+  <h1>생산 첫 화면 — 시안대로 되돌리면</h1>
+  <p class="lead">현장 태블릿(가로로 든 화면, <b>화면 크기 80%</b>)의 생산 첫 화면이 처음 고른 시안 <b>'안 3 (2주 띠 + 그날)'</b>과 다른 곳이 셋이에요. 셋을 시안대로 되돌리면 어떻게 보이는지 <b>실제 태블릿 크기</b>로 그렸어요. 그림 위 <b>분홍 동그라미 번호</b>와 아래 글의 번호가 같아요. 이름 · 회사는 모두 지어낸 것이에요.</p>
+  <ul class="toc">
+    <li><a href="#now">Ⓐ 지금 (80%)</a></li>
+    <li><a href="#after80">Ⓑ 고친 뒤 (80%)</a></li>
+    <li><a href="#after100">Ⓒ 고친 뒤 (100%)</a></li>
+    <li><a href="#what">되돌리면 생기는 일</a></li>
+  </ul>
+<section class="frame" id="now">
+<h2>Ⓐ 지금 <small>현장 태블릿 · 화면 크기 80%</small></h2>
+<p class="idea">지금 운영 화면을 그대로 옮겨 그렸어요. 날짜 띠가 두 칸씩이라 <b>왼쪽 칸이 6할쯤에서 끝나고 아래가 비어요.</b></p>
+<div class="fit"><div class="stage"><div class="art z80"><nav class="rail g" aria-hidden="true">
+<span class="brand">F</span>
+<span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span>
+<span class="menu">
+<span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span>
+<span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span>
+<span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span>
+<span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span>
+<span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span>
+<span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span>
+<span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span>
+<span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span>
+<span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span>
+<span class="it"><svg class="ic"><use href="#r-calc"/></svg>계산기</span>
+</span>
+<span class="sp rel"></span>
+<span class="it kb rel"><svg class="ic"><use href="#r-bulb"/></svg>회사 지식<b class="badge">1</b><em class="mk r">3</em></span>
+<span class="it rel"><svg class="ic"><use href="#r-bell"/></svg>알림<b class="badge">2</b></span>
+<span class="ava">이철</span>
+</nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 21일 (토) · 전체 84건</span><nav class="nav"><span class="on">날짜</span><span class="rel">도면 카드<em class="mk r">2</em></span><span>내 공정 <small>10</small></span><span>바뀐 것 <small class="hot">3</small></span><span>찾기</span><span class="out rel">보드<svg class="ic"><use href="#i-arrow"/></svg><em class="mk r">2</em></span></nav><div class="tools"><span class="sync">14:05 에 받음</span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid"><div class="lcol"><aside class="strip two">
+<div class="sh">시공일 2주<small>만들 것 / 전체</small></div>
+<div class="sd first"><span class="d"><b>지난 7일</b><small>11/14~11/20</small></span><span class="sb"><i class="f" style="width:40%"></i><i class="p" style="width:20%"></i><i class="x" style="width:40%"></i></span><span class="n"><b>2</b><small> / 5</small></span></div>
+<div class="sd c2 lc wk on"><span class="d"><b>오늘 11/21</b><small>토</small></span><span class="sb"><i class="p" style="width:33%"></i><i class="w" style="width:17%"></i><i class="f" style="width:17%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>3</b><small> / 6</small></span></div>
+<div class="sd c2 wk"><span class="d"><b>11/22</b><small>일 · 내일</small></span><span class="sb"><i class="p" style="width:34%"></i><i class="w" style="width:33%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>2</b><small> / 3</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/23</b><small>월 · D-2</small></span><span class="sb"><i class="p" style="width:14%"></i><i class="w" style="width:29%"></i><i class="x" style="width:57%"></i></span><span class="n"><b>3</b><small> / 7</small></span></div>
+<div class="sd c2"><span class="d"><b>11/24</b><small>화 · D-3</small></span><span class="sb"><i class="w" style="width:20%"></i><i class="x" style="width:80%"></i></span><span class="n"><b>1</b><small> / 5</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/25</b><small>수 · D-4</small></span><span class="sb"><i class="p" style="width:17%"></i><i class="w" style="width:17%"></i><i class="x" style="width:66%"></i></span><span class="n"><b>2</b><small> / 6</small></span></div>
+<div class="sd c2"><span class="d"><b>11/26</b><small>목 · D-5</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>1</b><small> / 4</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/27</b><small>금 · D-6</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>2</b><small> / 8</small></span></div>
+<div class="sd c2 wk"><span class="d"><b>11/28</b><small>토 · D-7</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 2</small></span></div>
+<div class="sd c2 lc wk zero"><span class="d"><b>11/29</b><small>일 · D-8 · 없음</small></span><span class="sb"></span><span class="n"><b>0</b></span></div>
+<div class="sd c2"><span class="d"><b>11/30</b><small>월 · D-9</small></span><span class="sb"><i class="w" style="width:17%"></i><i class="x" style="width:83%"></i></span><span class="n"><b>1</b><small> / 6</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>12/1</b><small>화 · D-10</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 5</small></span></div>
+<div class="sd c2"><span class="d"><b>그 뒤</b><small>12/2~</small></span><span class="sb"><i class="w" style="width:21%"></i><i class="x" style="width:79%"></i></span><span class="n"><b>3</b><small> / 14</small></span></div>
+<div class="sf"><span>지난 시공일 4건</span><span>시공일 없음 9건</span></div>
+</aside><div class="blank rel"><span>빈 자리</span><em class="mk ctr">1</em></div></div><section class="pane">
+<h4 class="ph">오늘 11/21 (토) <small>시공 6건 · 만들 것 3 · 도면·컨펌 기다림 2</small></h4>
+<h5 class="pg">만들 것 3</h5>
+<div class="dr p chg"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr"><em>시공일 11/24 → 11/21</em> · 거실장, 몰딩 벽박이장 · W3100 × D500 × H2300 · 화이트 오크</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st now"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 4장</span></div>
+<div class="dr p"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>박서준</b> <small>#5107</small></span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st done"><i></i>엣지</span><span class="st now"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 3장</span></div>
+<div class="dr w"><span class="sg">제작 대기</span><span class="who"><span class="ln"><span class="nm"><b>이도윤</b> <small>#5099</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">냉장고장 · W1200 × D650 × H2300 · 화이트</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<h5 class="pg">도면·컨펌 기다림 2 <small>도면이 오면 위로 올라와요</small></h5>
+<div class="wg"><span class="wi">홍지안 <small>#5131 · 몰딩 여닫이</small></span><span class="wi">류태민 <small>#5133 · 신발장</small></span></div>
+<h5 class="pg">제작 완료 1 <small>시공 대기</small></h5>
+<div class="wg"><span class="wi done">차은호 <small>#5134 · 부엌가구</small></span></div>
+<h5 class="pg next">다음에 만들 것 9 <small>미리 보기</small></h5>
+<div class="dr p"><span class="sg">재단 중<small>내일 11/22 (일)</small></span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">주방 상부장, 하부장, 키큰장 · 화이트 오크</span></span><span class="steps"><span class="st now"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 6장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>최유진</b> <small>#5097</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">몰딩 벽박이장 · W2400 × D600 × H2300 · 크림</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>오민재</b> <small>#5095</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">TV장, 선반 · 월넛</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+</section></div></div></div></div></div>
+<ol class="notes">
+<li><b class="num">1</b><span><b>날짜가 두 칸씩</b> 서 있어서 띠가 짧아요. 아래는 <b>빈 자리</b>예요. 태블릿 키가 낮으면 두 칸씩으로 바꾸는데, 화면 크기를 80% 로 줄여 자리가 넉넉해진 것은 보지 않아요.</span></li>
+<li><b class="num">2</b><span>위 탭이 여섯 개예요 — 시안에 없던 <b>도면 카드</b>와 <b>보드 →</b> 가 더 있어요.</span></li>
+<li><b class="num">3</b><span>왼쪽 줄에 시안에 없던 <b>계산기 · 회사 지식 · 알림</b>이 더 있어요. 그래서 칸이 모자라 계산기는 반쯤 가려져요(굴려야 보여요).</span></li>
+</ol>
+</section>
+<section class="frame" id="after80">
+<h2>Ⓑ 고친 뒤 <small>같은 태블릿 · 화면 크기 80%</small></h2>
+<p class="idea">시안 안 3 처럼 되돌린 모습이에요. 날짜는 <b>한 줄에 하루씩</b>, 위 탭은 <b>넷</b>, 왼쪽 줄은 <b>단계 메뉴만</b>.</p>
+<div class="fit"><div class="stage"><div class="art z80"><nav class="rail" aria-hidden="true">
+<span class="brand">F</span>
+<span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span>
+<span class="menu">
+<span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span>
+<span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span>
+<span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span>
+<span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span>
+<span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span>
+<span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span>
+<span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span>
+<span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span>
+<span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span>
+</span>
+<span class="sp rel"><em class="mk ctr">3</em></span>
+<span class="ava">이철</span>
+</nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 21일 (토) · 전체 84건</span><nav class="nav rel"><span class="on">날짜</span><span>내 공정 <small>10</small></span><span>바뀐 것 <small class="hot">3</small></span><span>찾기</span><em class="mk r">2</em></nav><div class="tools"><span class="sync">14:05 에 받음</span><span class="btn bell rel" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b><em class="mk">3</em></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid"><div class="lcol fill rel"><aside class="strip one">
+<div class="sh">시공일 2주<small>만들 것 / 전체</small></div>
+<div class="sd first"><span class="d"><b>지난 7일</b><small>11/14~11/20</small></span><span class="sb"><i class="f" style="width:40%"></i><i class="p" style="width:20%"></i><i class="x" style="width:40%"></i></span><span class="n"><b>2</b><small> / 5</small></span></div>
+<div class="sd wk on"><span class="d"><b>오늘 11/21</b><small>토</small></span><span class="sb"><i class="p" style="width:33%"></i><i class="w" style="width:17%"></i><i class="f" style="width:17%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>3</b><small> / 6</small></span></div>
+<div class="sd wk"><span class="d"><b>11/22</b><small>일 · 내일</small></span><span class="sb"><i class="p" style="width:34%"></i><i class="w" style="width:33%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>2</b><small> / 3</small></span></div>
+<div class="sd"><span class="d"><b>11/23</b><small>월 · D-2</small></span><span class="sb"><i class="p" style="width:14%"></i><i class="w" style="width:29%"></i><i class="x" style="width:57%"></i></span><span class="n"><b>3</b><small> / 7</small></span></div>
+<div class="sd"><span class="d"><b>11/24</b><small>화 · D-3</small></span><span class="sb"><i class="w" style="width:20%"></i><i class="x" style="width:80%"></i></span><span class="n"><b>1</b><small> / 5</small></span></div>
+<div class="sd"><span class="d"><b>11/25</b><small>수 · D-4</small></span><span class="sb"><i class="p" style="width:17%"></i><i class="w" style="width:17%"></i><i class="x" style="width:66%"></i></span><span class="n"><b>2</b><small> / 6</small></span></div>
+<div class="sd"><span class="d"><b>11/26</b><small>목 · D-5</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>1</b><small> / 4</small></span></div>
+<div class="sd"><span class="d"><b>11/27</b><small>금 · D-6</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>2</b><small> / 8</small></span></div>
+<div class="sd wk"><span class="d"><b>11/28</b><small>토 · D-7</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 2</small></span></div>
+<div class="sd wk zero"><span class="d"><b>11/29</b><small>일 · D-8 · 없음</small></span><span class="sb"></span><span class="n"><b>0</b></span></div>
+<div class="sd"><span class="d"><b>11/30</b><small>월 · D-9</small></span><span class="sb"><i class="w" style="width:17%"></i><i class="x" style="width:83%"></i></span><span class="n"><b>1</b><small> / 6</small></span></div>
+<div class="sd"><span class="d"><b>12/1</b><small>화 · D-10</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 5</small></span></div>
+<div class="sd"><span class="d"><b>그 뒤</b><small>12/2~</small></span><span class="sb"><i class="w" style="width:21%"></i><i class="x" style="width:79%"></i></span><span class="n"><b>3</b><small> / 14</small></span></div>
+<div class="sf"><span>지난 시공일 4건</span><span>시공일 없음 9건</span></div>
+</aside><em class="mk hc">1</em></div><section class="pane">
+<h4 class="ph">오늘 11/21 (토) <small>시공 6건 · 만들 것 3 · 도면·컨펌 기다림 2</small><span class="cards rel">도면 카드로 보기<svg class="ic"><use href="#i-arrow"/></svg><em class="mk r">2</em></span></h4>
+<h5 class="pg">만들 것 3</h5>
+<div class="dr p chg"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr"><em>시공일 11/24 → 11/21</em> · 거실장, 몰딩 벽박이장 · W3100 × D500 × H2300 · 화이트 오크</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st now"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 4장</span></div>
+<div class="dr p"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>박서준</b> <small>#5107</small></span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st done"><i></i>엣지</span><span class="st now"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 3장</span></div>
+<div class="dr w"><span class="sg">제작 대기</span><span class="who"><span class="ln"><span class="nm"><b>이도윤</b> <small>#5099</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">냉장고장 · W1200 × D650 × H2300 · 화이트</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<h5 class="pg">도면·컨펌 기다림 2 <small>도면이 오면 위로 올라와요</small></h5>
+<div class="wg"><span class="wi">홍지안 <small>#5131 · 몰딩 여닫이</small></span><span class="wi">류태민 <small>#5133 · 신발장</small></span></div>
+<h5 class="pg">제작 완료 1 <small>시공 대기</small></h5>
+<div class="wg"><span class="wi done">차은호 <small>#5134 · 부엌가구</small></span></div>
+<h5 class="pg next">다음에 만들 것 9 <small>미리 보기</small></h5>
+<div class="dr p"><span class="sg">재단 중<small>내일 11/22 (일)</small></span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">주방 상부장, 하부장, 키큰장 · 화이트 오크</span></span><span class="steps"><span class="st now"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 6장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>최유진</b> <small>#5097</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">몰딩 벽박이장 · W2400 × D600 × H2300 · 크림</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>오민재</b> <small>#5095</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">TV장, 선반 · 월넛</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+</section></div></div></div></div></div>
+<ol class="notes">
+<li><b class="num">1</b><span><b>한 줄에 하루씩 13줄</b>이 왼쪽 칸을 위에서 아래까지 채워요. 줄 하나 키는 지금 두 칸씩일 때와 거의 같아요(누르는 크기 그대로).</span></li>
+<li><b class="num">2</b><span>위 탭은 <b>날짜 · 내 공정 · 바뀐 것 · 찾기</b> 넷. 도면 카드는 그날 제목 옆 <b>[도면 카드로 보기]</b> 로(관리자 · 읽기 전용 직원만 보여요), 보드는 <b>찾기 탭 안</b>으로 옮겨요.</span></li>
+<li><b class="num">3</b><span>왼쪽 줄에서 계산기 · 회사 지식 · 알림을 빼요. <b>알림은 위 줄 [다시 받기] 옆 종</b>으로 와요(빨간 숫자 그대로). 왼쪽 줄 단계 9개가 굴리지 않고 다 보여요.</span></li>
+</ol>
+</section>
+<section class="frame" id="after100">
+<h2>Ⓒ 고친 뒤 <small>같은 태블릿 · 화면 크기 100%</small></h2>
+<p class="idea">같은 규칙으로 100% 에서는 어떻게 되는지예요. 자리가 모자라 <b>두 칸씩으로 돌아가요</b> — 대신 아래가 비지 않게 칸이 키를 나눠 가져요.</p>
+<div class="fit"><div class="stage"><div class="art z100"><nav class="rail" aria-hidden="true">
+<span class="brand">F</span>
+<span class="zoom"><span>−</span><span class="v">100%</span><span>+</span></span>
+<span class="menu">
+<span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span>
+<span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span>
+<span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span>
+<span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span>
+<span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span>
+<span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span>
+<span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span>
+<span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span>
+<span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span>
+</span>
+<span class="sp rel"><em class="mk ctr sp">3</em></span>
+<span class="ava">이철</span>
+</nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 21일 (토) · 전체 84건</span><nav class="nav rel"><span class="on">날짜</span><span>내 공정 <small>10</small></span><span>바뀐 것 <small class="hot">3</small></span><span>찾기</span><em class="mk r">2</em></nav><div class="tools"><span class="sync">14:05 에 받음</span><span class="btn bell rel" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid"><div class="lcol fill rel"><aside class="strip two fill">
+<div class="sh">시공일 2주<small>만들 것 / 전체</small></div>
+<div class="sd first"><span class="d"><b>지난 7일</b><small>11/14~11/20</small></span><span class="sb"><i class="f" style="width:40%"></i><i class="p" style="width:20%"></i><i class="x" style="width:40%"></i></span><span class="n"><b>2</b><small> / 5</small></span></div>
+<div class="sd c2 lc wk on"><span class="d"><b>오늘 11/21</b><small>토</small></span><span class="sb"><i class="p" style="width:33%"></i><i class="w" style="width:17%"></i><i class="f" style="width:17%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>3</b><small> / 6</small></span></div>
+<div class="sd c2 wk"><span class="d"><b>11/22</b><small>일 · 내일</small></span><span class="sb"><i class="p" style="width:34%"></i><i class="w" style="width:33%"></i><i class="x" style="width:33%"></i></span><span class="n"><b>2</b><small> / 3</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/23</b><small>월 · D-2</small></span><span class="sb"><i class="p" style="width:14%"></i><i class="w" style="width:29%"></i><i class="x" style="width:57%"></i></span><span class="n"><b>3</b><small> / 7</small></span></div>
+<div class="sd c2"><span class="d"><b>11/24</b><small>화 · D-3</small></span><span class="sb"><i class="w" style="width:20%"></i><i class="x" style="width:80%"></i></span><span class="n"><b>1</b><small> / 5</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/25</b><small>수 · D-4</small></span><span class="sb"><i class="p" style="width:17%"></i><i class="w" style="width:17%"></i><i class="x" style="width:66%"></i></span><span class="n"><b>2</b><small> / 6</small></span></div>
+<div class="sd c2"><span class="d"><b>11/26</b><small>목 · D-5</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>1</b><small> / 4</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>11/27</b><small>금 · D-6</small></span><span class="sb"><i class="w" style="width:25%"></i><i class="x" style="width:75%"></i></span><span class="n"><b>2</b><small> / 8</small></span></div>
+<div class="sd c2 wk"><span class="d"><b>11/28</b><small>토 · D-7</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 2</small></span></div>
+<div class="sd c2 lc wk zero"><span class="d"><b>11/29</b><small>일 · D-8 · 없음</small></span><span class="sb"></span><span class="n"><b>0</b></span></div>
+<div class="sd c2"><span class="d"><b>11/30</b><small>월 · D-9</small></span><span class="sb"><i class="w" style="width:17%"></i><i class="x" style="width:83%"></i></span><span class="n"><b>1</b><small> / 6</small></span></div>
+<div class="sd c2 lc"><span class="d"><b>12/1</b><small>화 · D-10</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 5</small></span></div>
+<div class="sd c2"><span class="d"><b>그 뒤</b><small>12/2~</small></span><span class="sb"><i class="w" style="width:21%"></i><i class="x" style="width:79%"></i></span><span class="n"><b>3</b><small> / 14</small></span></div>
+<div class="sf"><span>지난 시공일 4건</span><span>시공일 없음 9건</span></div>
+</aside><em class="mk hc">1</em></div><section class="pane">
+<h4 class="ph">오늘 11/21 (토) <small>시공 6건 · 만들 것 3 · 도면·컨펌 기다림 2</small><span class="cards rel">도면 카드로 보기<svg class="ic"><use href="#i-arrow"/></svg><em class="mk r">2</em></span></h4>
+<h5 class="pg">만들 것 3</h5>
+<div class="dr p chg"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr"><em>시공일 11/24 → 11/21</em> · 거실장, 몰딩 벽박이장 · W3100 × D500 × H2300 · 화이트 오크</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st now"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 4장</span></div>
+<div class="dr p"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>박서준</b> <small>#5107</small></span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st done"><i></i>엣지</span><span class="st now"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 3장</span></div>
+<div class="dr w"><span class="sg">제작 대기</span><span class="who"><span class="ln"><span class="nm"><b>이도윤</b> <small>#5099</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">냉장고장 · W1200 × D650 × H2300 · 화이트</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<h5 class="pg">도면·컨펌 기다림 2 <small>도면이 오면 위로 올라와요</small></h5>
+<div class="wg"><span class="wi">홍지안 <small>#5131 · 몰딩 여닫이</small></span><span class="wi">류태민 <small>#5133 · 신발장</small></span></div>
+<h5 class="pg">제작 완료 1 <small>시공 대기</small></h5>
+<div class="wg"><span class="wi done">차은호 <small>#5134 · 부엌가구</small></span></div>
+<h5 class="pg next">다음에 만들 것 9 <small>미리 보기</small></h5>
+<div class="dr p"><span class="sg">재단 중<small>내일 11/22 (일)</small></span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">주방 상부장, 하부장, 키큰장 · 화이트 오크</span></span><span class="steps"><span class="st now"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 6장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>최유진</b> <small>#5097</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">몰딩 벽박이장 · W2400 × D600 × H2300 · 크림</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+<div class="dr w"><span class="sg">제작 대기<small>11/23 (월)</small></span><span class="who"><span class="ln"><span class="nm"><b>오민재</b> <small>#5095</small></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">TV장, 선반 · 월넛</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div>
+</section></div></div></div></div></div>
+<ol class="notes">
+<li><b class="num">1</b><span>100% 에서는 한 줄씩 13줄이 <b>안 들어가요</b>(넣으려면 줄이 장갑 손가락보다 낮아져요). 그래서 <b>두 칸씩</b> — 지금처럼 아래가 비지 않게 칸이 늘어나 띠가 끝까지 채워요.</span></li>
+<li><b class="num">2</b><span>위 탭은 80% 와 같이 넷이에요.</span></li>
+<li><b class="num">3</b><span>100% 에서는 왼쪽 줄 단계 9개가 다 안 들어가 <b>완료 · 이력은 굴려야</b> 보여요. 지금(같은 100%)은 시공부터 가려지니 지금보다는 덜 가려져요.</span></li>
+</ol>
+</section>
+<section class="frame" id="what">
+<h2>되돌리면 생기는 일 <small>코드를 읽고 적은 것</small></h2>
+<div class="cols">
+  <div class="col"><h3><b class="num">1</b>날짜 띠</h3><ul>
+    <li>지금 규칙은 <b>태블릿 화면 키만</b> 보고 두 칸씩을 정해요. 화면 크기를 80% 로 줄여도 그걸 몰라요 — 이것이 빈 자리의 진짜 까닭이에요.</li>
+    <li>고친 규칙: 띠가 실제로 쓸 수 있는 키를 재서, <b>한 줄씩 13줄이 들어가면 한 줄씩</b>, 안 들어가면 두 칸씩. 어느 쪽이든 줄이 키를 나눠 가져 <b>아래가 비지 않아요.</b></li>
+    <li>이 태블릿에서: <b>80% 한 줄씩 · 90% 와 100% 는 두 칸씩</b>. 큰 태블릿(1280 × 800)과 PC 는 지금처럼 한 줄씩.</li>
+    <li>80% 에서 지금 기준(줄마다 48)을 그대로 두면 아주 조금 모자라 두 칸씩이 돼요. 한 줄 기준을 44 로 조금 낮춰야 한 줄씩이 들어가요(실제 줄 키는 47.7 — 눈으로는 같아요).</li>
+  </ul></div>
+  <div class="col"><h3><b class="num">2</b>위 탭</h3><ul>
+    <li><b>도면 카드 탭은 관리자 · 읽기 전용 직원(CS · 영업 · 파트 없는 생산 · 매니저)</b>에게만, 그것도 태블릿에서만 보여요. 재단 · 엣지 같은 <b>파트 계정은 이 탭이 원래 없어요</b> — 날짜 탭에 카드가 바로 나와요. 그래서 파트 계정은 <b>잃는 것이 없어요.</b></li>
+    <li>탭만 빼면 관리자 · 읽기 전용 직원은 태블릿에서 <b>카드를 볼 길이 없어져요</b>(주소를 직접 치는 것 말고는). 그래서 그날 제목 옆에 [도면 카드로 보기] 를 두자는 거예요. 같은 날짜 띠를 쓰는 화면이라 고른 날이 그대로 가요.</li>
+    <li><b>보드 →</b> 는 태블릿에서 옛 보드(칸반)로 가는 <b>단 하나의 길</b>이에요(왼쪽 줄 '생산' 이 이 첫 화면으로 오게 바꿨어요, 11-10 결정). 빼면 찾기 탭 안에 다시 둬야 해요. PC · 폰 메뉴는 지금 그대로라 상관없어요.</li>
+    <li>파트 계정은 '내 공정' 탭도 원래 없어서(결정) 탭이 <b>날짜 · 바뀐 것 · 찾기 셋</b>이에요 — 시안의 넷과 다른 것은 지금도 같아요.</li>
+  </ul></div>
+  <div class="col"><h3><b class="num">3</b>왼쪽 줄</h3><ul>
+    <li>왼쪽 줄은 <b>모든 태블릿 화면이 같이 쓰는 한 조각</b>이에요(대시보드 · 실측 · 도면 · 출고 · AS · 시공 · 완료 · 이력 · 계산기 화면까지). 조각에서 빼면 모든 화면에서 빠져요.</li>
+    <li><b>알림</b>: 가로 태블릿에서는 폰 위 줄의 종이 숨어 있어서, 대부분 화면에서 <b>왼쪽 줄 종이 유일한 알림 문</b>이에요(옛 생산 보드 · 시공 보드만 제 위 줄에 종이 있어요). 모든 화면에서 빼면 그 화면들은 알림을 못 열어요.</li>
+    <li><b>계산기</b>: 가로 태블릿에서는 PC 위 메뉴 · 폰 아래 메뉴가 숨어 있어 왼쪽 줄이 <b>계산기로 가는 기본 문</b>이에요(주문 고치기 화면 안 단추는 따로 있어요). 시공팀은 원래 없어요.</li>
+    <li><b>회사 지식</b>: 전체 스위치가 켜진 때, 켜진 사람에게만 보이는 승인 대기 문이에요. 빼면 태블릿에서 승인하는 사람은 다른 길(대시보드 줄의 AI 제안 칩)로 가야 해요.</li>
+    <li>그래서 제안은 <b>생산 화면에서만</b> 셋을 숨기고 알림 종은 생산 위 줄로 옮기는 것(Ⓑ 그림). 다른 화면은 지금 그대로예요. 대신 생산에 들어갈 때마다 왼쪽 줄 아래 칸이 셋 줄어드는 것이 눈에 보여요.</li>
+  </ul></div>
+</div>
+<div class="ask"><h3>정해 주실 것</h3><ol>
+  <li>날짜 띠: 위 규칙(80% 한 줄씩 · 100% 는 두 칸씩이지만 끝까지 채움)으로 가도 될지.</li>
+  <li>도면 카드: 관리자 · 읽기 전용 직원에게 그날 제목 옆 [도면 카드로 보기] 를 둘지, 아니면 태블릿에서 카드를 안 보여 줄지.</li>
+  <li>보드: 찾기 탭 안으로 옮길지, 아니면 태블릿에서 보드로 가는 문을 없앨지.</li>
+  <li>왼쪽 줄: 생산 화면에서만 셋을 숨길지, 아니면 모든 태블릿 화면에서 뺄지(그러면 화면마다 위 줄에 알림 종을 새로 달아야 해요).</li>
+</ol></div>
+<details class="dev"><summary>만드는 사람용 메모 — 지금 모습을 만드는 곳</summary><ul>
+  <li>① <code>static/css/contexts/production/home.css:486-493</code> <code>@media (… pointer: coarse) and (max-height: 785.98px)</code> — 미디어 키는 화면 크기 배율 전 값(626)이라 80% 에서도 두 칸씩(커밋 40cc6af90). 배율을 재는 상자는 <code>home.css:512-521</code> 인데 <code>:not([data-foms-ui-zoom^="0."])</code> 로 80 · 90% 를 뺐다. 띠는 <code>home.css:327-337</code> 에서 <code>max-height</code> 만 있고 <code>height</code> 가 없어 내용 키(두 칸씩 약 432)에서 끝난다. 띠 칸 키: 80% = 626 ÷ 0.8 − 73 = 709.5, 한 줄씩 필요 = 40 + 13 × 48 + 49 = 713(3.5 모자람), 줄 기준 44 이면 661. 100% = 553.</li>
+  <li>② <code>templates/production/partials/home_body.html:15</code>(도면 카드, <code>parts_tab</code>) · <code>:16</code>(내 공정, <code>hide_steps_tab</code>) · <code>:20</code>(보드, D19). 문: <code>foms/web/production/home.py:102</code> <code>parts_tab = surface and mode in (VIEW_ADMIN, VIEW_READONLY)</code>, <code>:103</code> <code>hide_steps_tab = mode == VIEW_PART</code>, <code>:69-76</code> 탭 되돌리기, 파트 계정 날짜 탭 판 <code>:88</code>. 레일 '생산' → 첫 화면 <code>foms/services/foms_split_view.py:224-240</code>.</li>
+  <li>③ <code>templates/partials/shared/foms_tablet_rail.html:43-51</code>(회사 지식, <code>graft_cell_slot('tablet')</code>) · <code>:53-66</code>(알림). 계산기 = <code>foms/services/foms_split_view.py:51-56</code> <code>_CALCULATOR_ITEM</code>, <code>:168-169</code> 에서 붙임. 레일은 <code>templates/partials/shared/layout_nav.html:241-242</code> 에서 /erp 전 화면 + /wdcalculator 에 한 번에 들어간다. 폰 위 줄 종은 <code>static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css:38</code> 미디어(폰 · 세로 태블릿) 안이라 가로 태블릿에선 안 보인다. 계산기를 서버 목록에서 빼면 메뉴 칸이 9개가 되어 <code>foms-tablet-rail.css:209-226</code> 줄임 규칙(10번째 칸)이 풀려 'F' 칸 · 칸 키가 다시 커진다 — CSS 로 숨기면 그대로.</li>
+</ul></details>
+</section>
+</div>
+<script>
+(function(){
+  /* 1176 × 626 틀을 칸 폭에 맞게 줄여 보인다(넓으면 실제 크기 그대로) */
+  var fits=[].slice.call(document.querySelectorAll('.fit'));
+  function fit(){
+    fits.forEach(function(f){
+      var s=f.firstElementChild;if(!s){return;}
+      var k=Math.min(1,f.clientWidth/1176);
+      s.style.transform=k<1?'scale('+k+')':'';
+      f.style.height=Math.round(626*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+})();
+</script>
+</body>
+</html>
