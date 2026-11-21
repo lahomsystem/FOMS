@@ -19,13 +19,13 @@ def open_orders_for_customer_response():
 
     Query params:
         phone: 고객 전화(하이픈 · 번호 둘 허용).
-        name: 고객 이름(찾는 데 쓰지 않는다 — 이름만 같은 것은 치지 않는다).
+        name: 고객 이름(받기만 하고 찾는 데 쓰지 않는다 — 이름만 같은 것은 치지 않는다. 화면은 보내지 않는다).
         address: 고객 주소(도로명 + 건물번호 + 동 · 호가 있어야 주소로 찾는다).
         exclude_order_id: 빼는 주문 번호(쓰고 있는 초안 줄 · 복사본 자기 자신).
 
     Returns:
-        ``{success, data: {orders: [...], more}, error}``. ``orders`` 한 줄은 찾기 함수의 칸 + ``url``(PC 주문
-        화면) · ``mobile_url``(휴대폰 주문 상세). ``more`` 는 세 건 밖에 더 걸린 건수다.
+        ``{success, data: {orders: [...], more}, error}``. ``orders`` 한 줄은 찾기 함수의 칸에서 고객 이름을 뺀 것
+        + ``url``(PC 주문 화면) · ``mobile_url``(휴대폰 주문 상세). ``more`` 는 세 건 밖에 더 걸린 건수다.
     """
     try:
         orders, more = find_open_orders_with_more(
@@ -42,6 +42,7 @@ def open_orders_for_customer_response():
             500,
         )
     for row in orders:
+        row.pop("customer_name", None)  # 화면이 그리지 않는다 — 남의 이름을 응답에 싣지 않는다
         row["url"] = url_for("order_edit.edit_order", order_id=row["order_id"], open="erp-order")
         row["mobile_url"] = url_for("erp_dashboard.erp_order_mobile_detail", order_id=row["order_id"])
     return jsonify({"success": True, "data": {"orders": orders, "more": more}, "error": None})

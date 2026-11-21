@@ -1,7 +1,7 @@
 """새 주문 안내 한 줄 — 화면 배선 계약 (설계서 2026-11-20 6.2 · M15 · M17).
 
 완료 기준: PC 주문 폼 띠 자리 · 스크립트가 실림 · 복사로 만든 접수 단계 주문의 편집 화면만 도착 안내 표식을 가짐 ·
-휴대폰 마법사 4단계 맨 위 자리 · 새 CSS 클래스 하나 · 새 JS 는 jQuery · innerHTML · 인라인 스타일 없이 fetch 를
+휴대폰 마법사 4단계 맨 위 자리 · 알림 자리는 처음부터 접근성 트리에(visually-hidden) · 새 CSS 클래스 하나 · 새 JS 는 jQuery · innerHTML · 인라인 스타일 없이 fetch 를
 try/catch + success 확인으로 부르고 새 창 링크로 연다 · 저장을 막는 창(confirm · alert)이 없다.
 """
 
@@ -26,7 +26,7 @@ ERP_JS_PARTIAL = ROOT / "templates/orders/partials/erp_order_js.html"
 STEP4 = ROOT / "templates/orders/wizard/step4_confirm.html"
 SHELL = ROOT / "templates/orders/wizard/wizard_shell.html"
 WIZARD_CSS = ROOT / "static/css/components/foms-wizard.css"
-PIN = "20261121c"
+PIN = "20261121e"
 PC_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130"}
 LOOKUP_URL = 'data-lookup-url="/api/orders/open-for-customer"'
 ADDRESS = "합성시 시험대로10길 20 2505동 1103호"
@@ -83,9 +83,10 @@ def test_pc_slot_sits_under_the_restore_banner_without_inline_style():
 
     assert source.index('id="erp-restore-banner"') < source.index('id="erp-same-customer-notice"')
     assert source.index('id="erp-same-customer-notice"') < source.index('id="erp-customer-name"')
-    assert "alert alert-warning" in slot and "d-none" in slot
+    assert "alert alert-warning" in slot and "visually-hidden" in slot
+    assert "d-none" not in slot, "display:none 이면 화면 낭독기가 첫 안내를 못 읽는다"
     assert "data-foms-no-autodismiss" in slot, "없으면 공용 스크립트가 5초 뒤 닫는다"
-    assert 'role="status"' in slot
+    assert 'role="status"' in slot and 'aria-live="polite"' in slot
     assert "style=" not in slot
     assert source.count('id="erp-same-customer-notice"') == 1
 
@@ -142,8 +143,9 @@ def test_wizard_slot_is_the_first_thing_under_the_step4_subtitle():
 
     assert step4.index("foms-wizard__subtitle") < step4.index('id="foms-wizard-same-customer"')
     assert step4.index('id="foms-wizard-same-customer"') < step4.index('id="foms-wizard-summary-basic"')
-    assert 'class="foms-wizard__same-customer"' in slot
-    assert " hidden" in slot and 'role="status"' in slot
+    assert 'class="foms-wizard__same-customer visually-hidden"' in slot
+    assert " hidden" not in slot, "hidden 속성이면 화면 낭독기가 첫 안내를 못 읽는다"
+    assert 'role="status"' in slot and 'aria-live="polite"' in slot
     assert "style=" not in slot
 
 
@@ -160,12 +162,12 @@ def test_wizard_shell_pins_css_and_loads_the_script():
     assert shell.index("js/foms/wizard.js") < shell.index(tag)
 
 
-def test_wizard_css_adds_one_class_that_respects_the_hidden_attribute():
+def test_wizard_css_adds_one_class_that_lets_visually_hidden_win():
     css = _read(WIZARD_CSS)
     block = re.search(r"\.foms-wizard__same-customer \{([^}]*)\}", css)
 
     assert block, "새 클래스가 없다"
-    assert "display" not in block.group(1), "display 를 주면 hidden 속성이 안 먹는다"
+    assert "display" not in block.group(1) and "position" not in block.group(1), "visually-hidden 과 다투지 않는다"
     new_classes = set(re.findall(r"\.(foms-wizard__same-customer[\w-]*)", css))
     assert new_classes == {"foms-wizard__same-customer"}, "클래스는 하나만 더한다"
 
@@ -196,6 +198,11 @@ def test_notice_scripts_follow_frontend_rules(path):
     assert "try {" in js and "catch (error)" in js
     assert "!data.success" in js
     assert "response.status === 403" in js, "프리랜서 · 협력사는 조용히 넘어간다"
+    assert "indexOf('application/json') === -1" in flat and "data === null" in js, "로그인 화면 HTML 도 막힘으로 본다"
+    assert "denied = true;" in js
+    assert "visually-hidden" in js and "d-none" not in js and "box.hidden" not in js
+    assert "'aria-label', OPEN_LABEL + ' (주문 #' + order.order_id + ')'" in flat, "같은 글 링크를 번호로 가른다"
+    assert "name:" not in js, "고객 이름은 주소창(GET)에 싣지 않는다"
     assert "이 고객의 진행 중인 주문이 있습니다" in js and "그 주문 열기" in js
     assert "'외 ' + more + '건'" in flat
     assert "link.target = '_blank'" in flat and "link.rel = 'noopener'" in flat

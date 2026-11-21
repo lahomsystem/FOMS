@@ -459,7 +459,7 @@
   margin-top: 4px;
 }
 
-/* ── Step 4: 같은 고객의 진행 중 주문 안내(맨 위 한 줄). 알리기만 한다 — hidden 속성으로 숨긴다. ── */
+/* ── Step 4: 같은 고객의 진행 중 주문 안내(맨 위 한 줄). 알리기만 한다 — 비었을 때는 visually-hidden 으로 눈에만 숨긴다. ── */
 .foms-wizard__same-customer {
   margin: 0 0 var(--foms-space-4, 16px);
   padding: var(--foms-space-3, 12px);
