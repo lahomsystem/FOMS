@@ -65,7 +65,7 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.production.nav_target import production_nav_href
-from foms.services.production.write_access import can_write_production
+from foms.services.production.write_access import can_ack_production_change, can_write_production
 from foms.services.feature_flags import (
     is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
     wants_wide_viewport_surfaces,
@@ -245,7 +245,9 @@ def erp_production_dashboard():
 
     # C-D1: 생산 되돌리기 버튼(수정 제작·제작 취소·완료 취소)은 서버 술어와 같은 조건에서만
     # 그린다 — 생산 쓰기 API 와 같은 한 함수(관리자 + 생산팀, 설계서 2026-11-21-production-pc-viewer §13 결정 2).
+    # 칸반 [확인](change-ack)은 생산 화면을 보는 사람 모두(§13 결정 5) — API 와 같은 한 함수.
     can_act_production = can_write_production(user)
+    can_ack_production = can_ack_production_change(user)
     template_name = (
         'production/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -267,6 +269,7 @@ def erp_production_dashboard():
             is_admin=is_admin,
             can_edit_erp=can_edit_erp(user),
             can_act_production=can_act_production,
+            can_ack_production=can_ack_production,
             erp_mine_only=erp_mine_only,
             page=page,
             per_page=PRODUCTION_DASHBOARD_PAGE_SIZE,
@@ -352,6 +355,9 @@ def erp_production_tablet_sheet(order_id: int):
     user = getattr(g, 'current_user', None)
     # 뷰 모델은 전체 화면 시트(home.py)와 같은 함수 — 설계서 §12.2.
     sheet = build_production_sheet_view(db, order, user, full=True)  # 연락처·도면 전체·공정(F2 ①②③)
+    # 쓰기 단추는 쓰기 팀, [변경 확인]은 보는 사람 모두 — 생산 API 와 같은 두 함수(설계서 2026-11-21-production-pc-viewer §13 결정 2 · 5)
     return render_template('production/partials/tablet_sheet.html', order=sheet,
                            is_admin=bool(user and user.role == 'ADMIN'),
-                           defect_reasons=_PRODUCTION_DEFECT_REASONS)
+                           defect_reasons=_PRODUCTION_DEFECT_REASONS,
+                           can_act_production=can_write_production(user),
+                           can_ack_production=can_ack_production_change(user))
