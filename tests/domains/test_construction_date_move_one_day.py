@@ -419,3 +419,57 @@ def test_AI_미리보기는_옮길_날_새_날_끝남은_새_날이_목록에_�
     assert preview._verify_schedule(order, params, first=False) is True
     monkeypatch.setenv(FLAG, "0")
     assert preview._verify_schedule(order, params, first=False) is False  # 꺼지면 지금처럼 글 전체가 같아야
+
+
+def test_날_하나_주문_제품_칸_같은_날은_통째로_옮길_때_같이_옮겨_거짓_나눠_시공이_없다(client, flag_on):
+    from foms.services.orders.item_construction_done import is_split_order
+
+    sd = _sd("2026-12-05", ["2026-12-05", None, "2026-12-05"])
+    sd["items"][2]["cancel"] = {"at": "2026-11-01"}
+    assert not is_split_order(sd)
+    assert move_first_date_for_field(sd, "2026-12-20") is None  # 주문 칸은 부르는 쪽이 쓴다
+    sd["schedule"]["construction"]["date"] = "2026-12-20"
+    assert [it.get("construction_date") for it in sd["items"]] == ["2026-12-20", None, "2026-12-05"]  # 취소 제품은 그대로
+    assert not is_split_order(sd)
+
+    _login(client, _user("mv_false_split"))
+    oid = _order(_day(3), [_day(3), None])
+    resp = _post_schedule(client, oid, {"date": _day(8), "time": ""})
+    assert resp.status_code == 200, resp.get_json()
+    assert _saved(oid) == (_day(8), [_day(8), None])
+    db_session.expire_all()
+    assert not is_split_order(db_session.get(Order, oid).structured_data)
+    oid2 = _order(_day(3), [_day(3), None], stage="RECEIVED")
+    client.post("/api/update_order_field", json={"order_id": oid2, "field": "scheduled_date", "value": _day(9)})
+    assert _saved(oid2) == (_day(9), [_day(9), None])
+
+
+def test_시공_불가_다시_잡기_보통_주문도_제품_칸_같이(client, flag_on):
+    _login(client, _user("mv_fail_plain", role="STAFF", team="CONSTRUCTION"))
+    oid = _order(_day(0), [_day(0), None], stage="CONSTRUCTION")
+    assert client.post(f"/api/orders/{oid}/construction/start", json={}).status_code == 200
+    resp = client.post(f"/api/orders/{oid}/construction/fail",
+                       json={"reason": "site_issue", "detail": "현장 재방문", "reschedule_date": _day(3)})
+    assert resp.status_code == 200, resp.get_json()
+    assert _saved(oid) == (_day(3), [_day(3), None])
+
+
+def test_보통_주문_되돌리기는_제품_칸도_비우고_스위치_끄면_그대로(app, monkeypatch):
+    admin = _user("mv_revert_plain")
+    monkeypatch.setenv(FLAG, "1")
+    oid = _order(_day(4), [_day(4), None], stage="CONFIRM")
+    revert_to_partner_request(db_session, db_session.get(Order, oid), admin)
+    db_session.commit()
+    assert _saved(oid) == ("", ["", None])
+    monkeypatch.setenv(FLAG, "0")
+    oid2 = _order(_day(4), [_day(4), None], stage="CONFIRM")
+    revert_to_partner_request(db_session, db_session.get(Order, oid2), admin)
+    db_session.commit()
+    assert _saved(oid2) == ("", [_day(4), None])
+
+
+def test_스위치_끄면_보통_주문_제품_칸은_그대로(client, flag_off):
+    _login(client, _user("mv_plain_off"))
+    oid = _order(_day(3), [_day(3), None])
+    assert _post_schedule(client, oid, {"date": _day(8), "time": ""}).status_code == 200
+    assert _saved(oid) == (_day(8), [_day(3), None])

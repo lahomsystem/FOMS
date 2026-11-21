@@ -31,6 +31,7 @@ from foms.services.notifications.production_change import (
 )
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date, split_date_text
+from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.orders.item_construction_done import is_split_order
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.state_axes import read_main_stage
@@ -120,6 +121,31 @@ def one_day_move_applies(sd: Any) -> bool:
             and is_split_order(sd))
 
 
+def sync_items_for_whole_write(sd: dict[str, Any], new_value: Any) -> bool:
+    """주문 칸을 통째로 쓰기 **전에** 부른다 — 나눠 시공이 아닌 주문이면 날이 적힌 제품 칸도 같은 값으로 쓴다.
+
+    나눠 시공이 아니면 모든 제품의 마지막 날이 같아 일정이 같다. 주문 칸만 새 날이 되고 날이 적힌 제품 칸이 옛 날에
+    머물면, 날을 물려받는 다른 제품과 마지막 날이 갈려 ``is_split_order`` 가 참이 된다(거짓 나눠 시공 — 보통 주문인데
+    완료 창이 "오늘 끝낸 제품"을 요구한다). 취소 안 됐고 ``construction_date`` 가 비지 않은 제품만 쓴다. 비우는
+    쓰기(되돌리기)면 제품 칸도 비운다. 스위치가 꺼졌거나 · 주문 칸이 비었거나 · 나눠 시공 주문이면 손대지 않는다.
+
+    :returns: 제품 칸을 고쳤는가.
+    """
+    if not is_item_construction_done_enabled() or not isinstance(sd, dict):
+        return False
+    if not split_date_text(_construction(sd).get("date")) or is_split_order(sd):
+        return False
+    text = str(new_value if new_value is not None else "")
+    changed = False
+    for item in sd.get("items") or []:
+        if not isinstance(item, dict) or is_item_cancelled(item):
+            continue
+        if str(item.get("construction_date") or "").strip() and item.get("construction_date") != text:
+            item["construction_date"] = text
+            changed = True
+    return changed
+
+
 def _replace_day(days: list[str], from_day: str, to_day: str) -> str:
     """날 목록에서 ``from_day`` 를 ``to_day`` 로 바꾼 글(중복 제거 · 정렬). ``to_day`` 가 비면 그 날만 뺀다."""
     moved = {to_day if day == from_day else day for day in days}
@@ -155,6 +181,7 @@ def move_construction_date(sd: dict[str, Any], *, from_date: Any, to_date: str, 
     construction = sd["schedule"]["construction"]
     order_days = split_date_text(construction.get("date"))
     if not order_days or not is_split_order(sd):
+        sync_items_for_whole_write(sd, to_date)
         construction["date"] = to_date
         return ""
     known = set(all_construction_dates(sd)) | set(order_days)
@@ -201,10 +228,12 @@ def move_first_date_for_field(sd: dict[str, Any], value: Any) -> str | None:
     """대시보드 시공일 칸(``field_update`` ``scheduled_date``) — 칸에 보이는 첫 날 하나만 ``value`` 로 옮긴다.
 
     날 하나만 옮기기를 할 주문이 아니거나(:func:`one_day_move_applies`) ``value`` 가 날 하나가 아니면
-    (빈 값 · 여러 날 · 못 읽는 글) 아무것도 고치지 않고 ``None`` — 부르는 쪽이 지금처럼 통째로 쓴다.
+    (빈 값 · 여러 날 · 못 읽는 글) 주문 칸은 고치지 않고 ``None`` — 부르는 쪽이 지금처럼 통째로 쓴다(나눠 시공이
+    아닌 주문이면 날이 적힌 제품 칸은 여기서 같은 값으로 맞춘다 — :func:`sync_items_for_whole_write`).
     옮겼으면 옮긴 날(날이 그대로면 빈 글).
     """
     if not one_day_move_applies(sd):
+        sync_items_for_whole_write(sd, value)
         return None
     days = split_date_text(value)
     if len(days) != 1:
@@ -221,6 +250,7 @@ def reschedule_text_after_fail(sd: dict[str, Any], reschedule_date: Any, visit_s
     """
     to_day = clean_date(reschedule_date)
     if not to_day or not one_day_move_applies(sd):
+        sync_items_for_whole_write(sd, reschedule_date)  # 통째로 쓸 때 날이 적힌 제품 칸도 같이(나눠 시공 아님)
         return reschedule_date
     visit_text = format_datetime_kst(visit_started_at, "%Y-%m-%d") if visit_started_at else None
     visit_day = datetime.date.fromisoformat(visit_text) if visit_text else get_today_kst()
@@ -278,6 +308,7 @@ def write_construction_schedule(
         moved_from = move_construction_date(sd, from_date=from_date, to_date=date)
         date = str(schedule["construction"].get("date") or "")
     else:
+        sync_items_for_whole_write(sd, date)  # 스위치 켜짐 · 나눠 시공 아님 → 날이 적힌 제품 칸도 같은 값(되돌리기면 비움)
         schedule["construction"]["date"] = date
     schedule["construction"]["time"] = new_time
 
