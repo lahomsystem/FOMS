@@ -15,6 +15,7 @@ __all__ = [
     "env_id_list",
     "is_cohort_all",
     "is_enabled_for_user",
+    "is_item_construction_done_enabled",
     "is_mobile_v2_shell",
     "is_naver_settle_sync_enabled",
     "is_naver_workbench_enabled",
@@ -689,3 +690,15 @@ def should_render_new_order_wizard(
     if not wizard_new_order_enabled(user_id):
         return False
     return prefers_mobile_wizard_client(request)
+
+
+def is_item_construction_done_enabled() -> bool:
+    """제품마다 '시공 끝' 표시(한 주문 여러 시공일 2단계)가 켜져 있나.
+
+    **기본값은 켜짐**(2026-11-21 사장님 결정 — 운영에도 바로 켠다). 문제가 생기면
+    ``FOMS_ITEM_CONSTRUCTION_DONE_ENABLED=0`` 으로 끈다. 끄면 완료 창 체크 · 생산 단계 시공 기록 ·
+    CS · 완료 문지기 · 시공일 "어느 날을 어느 날로" 옮기기가 모두 지금 전과 같아진다.
+    전이 엔진이 이 판정을 읽으므로 web · WORKER 등 서비스마다 같은 값을 둔다.
+    설계: ``docs/specs/2026-11-21-item-construction-done_SPEC.md``.
+    """
+    return env_bool("FOMS_ITEM_CONSTRUCTION_DONE_ENABLED", default=True)
