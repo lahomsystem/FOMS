@@ -845,14 +845,20 @@ def update_order_field_from_payload(
                 old_cons = (
                     (old_sd_snapshot.get("schedule") or {}).get("construction") or {}
                 ).get("date")
-                construction["date"] = value
+                # 스위치가 켜져 있고 새 값이 날 하나면 칸에 보이는 첫 날 하나만 옮긴다(제품 칸도 같이 —
+                # 설계서 2026-11-21 8절). 꺼져 있거나 빈 값 · 여러 날이면 지금처럼 통째로 쓴다.
+                from foms.services.orders.construction_schedule import move_first_date_for_field
+
+                _moved = move_first_date_for_field(structured_data, value)
+                if _moved is None:
+                    construction["date"] = value
                 structured_changed = True
                 # CONSTRUCTION_DATE_CHANGED OrderEvent 는 여기서 남기지 않는다 — 시공일
                 # 이벤트 SSOT 는 foms/services/order_date_sync.py 의 전역 before_flush 훅
                 # (모든 쓰기 경로가 통과하는 유일 지점). 여기 남은 비교는 생산팀 벨 알림
                 # 트리거 전용이다.
                 if old_cons != value:
-                    _prod_cons_change = (old_cons, value)
+                    _prod_cons_change = (_moved or old_cons, value)
             elif field == "as_visit_date":
                 trimmed = str(value or "").strip()
                 normalized_visit = _normalize_date_to_yyyymmdd(trimmed) if trimmed else None

@@ -4,7 +4,8 @@
 
 * ``POST /api/erp/shipment/partner-requests/<order_id>/confirm`` ``{date, time}`` — 확정 대기 협력사 주문의 첫 시공일.
 * ``POST /api/erp/shipment/partner-requests/<order_id>/revert`` — 정한 시공일을 지워 확정 대기로 돌린다.
-* ``POST /api/orders/<order_id>/construction-schedule`` ``{date, time}`` — 시공일 · 시공시간을 정하거나 바꾼다.
+* ``POST /api/orders/<order_id>/construction-schedule`` ``{date, time, from_date?}`` — 시공일 · 시공시간을 정하거나
+  바꾼다. ``from_date`` 는 시공일이 여럿인 주문에서 옮길 날(설계서 ``2026-11-21-item-construction-done`` 8절).
 
 권한은 §2.1 ``CONSTRUCTION_SCHEDULE_EDIT``(ERP 편집 팀 + 출고팀)를 handler 안에서 다시 본다 — before_request 가드가
 꺼진 컨텍스트에서도 우회되지 않게. 협력사 "시공일 안내" 푸시 · 일정 줄 · 캐시 비우기는 전역 훅이 한다.
@@ -72,7 +73,9 @@ def _save(order_id: int, source: str, *, partner_only: bool, revert: bool = Fals
             result = confirm_partner_request(db, order, user, date=body.get("date"), time=body.get("time"))
         else:
             date, time = validate_schedule_input(body.get("date"), body.get("time"))
-            result = write_construction_schedule(db, order, user, date=date, time=time)
+            # from_date: 시공일이 둘 이상인 주문에서 화면이 고른 옮길 날(스위치가 꺼져 있으면 무시된다).
+            result = write_construction_schedule(db, order, user, date=date, time=time,
+                                                 from_date=body.get("from_date"))
         hope = ((order.structured_data or {}).get("partner_intake") or {}).get("requested_construction") or {}
         context = order_audit_context(order)
         log_access(

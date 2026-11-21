@@ -52,6 +52,7 @@ from foms.services.orders.construction_schedule import (
     ScheduleWrite,
     confirm_partner_request,
     finalize_schedule_notifications,
+    nearest_order_date,
     validate_schedule_input,
     write_construction_schedule,
 )
@@ -174,7 +175,10 @@ def _write_schedule(session: Any, order: Any, req: RunRequest, *, first: bool) -
         return confirm_partner_request(session, order, req.actor, date=req.params.get("date"),
                                        time=req.params.get("time", ""))
     day, time = validate_schedule_input(req.params.get("date"), req.params.get("time"))
-    return write_construction_schedule(session, order, req.actor, date=day, time=time)
+    # 시공일이 있으면 오늘 이후 가장 가까운 날 하나만 옮긴다(스위치가 꺼져 있으면 무시 — 설계서 8절).
+    from_day = nearest_order_date(order.structured_data)
+    extra = {"from_date": from_day} if from_day else {}
+    return write_construction_schedule(session, order, req.actor, date=day, time=time, **extra)
 
 
 def _notify_customer(session: Any, req: RunRequest) -> Optional[dict[str, Any]]:

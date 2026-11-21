@@ -643,9 +643,13 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
     sd["workflow"] = wf
 
     if reschedule_date:
+        # 스위치가 켜져 있으면 그 방문 날 하나만 새 날로 옮긴다(설계서 2026-11-21 8절 — 꺼져 있으면 지금처럼 통째로).
+        from foms.services.orders.construction_schedule import reschedule_text_after_fail
+
         schedule = sd.get("schedule") or {}
         construction = schedule.get("construction") or {}
-        construction["date"] = reschedule_date
+        construction["date"] = reschedule_text_after_fail(
+            sd, reschedule_date, getattr(attempt, "started_at", None))
         construction["rescheduled"] = True
         construction["reschedule_reason"] = reason
         schedule["construction"] = construction
