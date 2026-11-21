@@ -150,10 +150,8 @@ def _production_entry_floor(order: Order, events: list[OrderEvent]) -> datetime.
     return max(times) if times else None
 
 
-def _window_before_floor(
-    order: Order, events: list[OrderEvent], user_id: int | None
-) -> datetime.datetime | None:
-    """D22 전 기준선 — 본인 ack → 파이프라인 진입 → ``erp_stage_updated_at`` → ``created_at``."""
+def _last_ack_time(events: list[OrderEvent], user_id: int | None) -> datetime.datetime | None:
+    """``user_id`` 본인이 낸 마지막 ``PRODUCTION_CHANGE_ACK`` 시각(naive UTC). 없거나 ``user_id`` 가 None 이면 None."""
     ack_times = [
         e.created_at
         for e in events
@@ -162,8 +160,16 @@ def _window_before_floor(
         and user_id is not None
         and e.created_by_user_id == user_id
     ]
-    if ack_times:
-        return max(ack_times)
+    return max(ack_times) if ack_times else None
+
+
+def _window_before_floor(
+    order: Order, events: list[OrderEvent], user_id: int | None
+) -> datetime.datetime | None:
+    """D22 전 기준선 — 본인 ack → 파이프라인 진입 → ``erp_stage_updated_at`` → ``created_at``."""
+    acked_at = _last_ack_time(events, user_id)
+    if acked_at is not None:
+        return acked_at
 
     entry_times: list[datetime.datetime] = []
     for e in events:
@@ -185,22 +191,27 @@ def _build_change_lists(
     sd: dict[str, Any],
     entry_window: datetime.datetime | None,
     ack_window: datetime.datetime | None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """단일 주문의 변경을 한 번만 파싱해 두 윈도로 분류한다.
 
     - ``history``: ``entry_window``(생산 진입) 이후 전체 변경(ack 무관, 상설 이력).
     - ``alerts``: ``ack_window``(본인 확인) 이후 미확인 변경. ``ack_window >= entry_window``
       이므로 alerts ⊆ history. 같은 dict 를 두 리스트에 공유한다(읽기 전용).
 
+    항목마다 ``at``(바뀐 시각, naive UTC) · ``by_id``(바꾼 사람 id, 모르면 None) · ``by_name``(도면 이력에 적힌
+    이름, 없으면 '')을 싣는다 — 생산 첫 화면 '바뀐 것'의 '누가 · 언제'(11-21). 시공일은 이벤트의
+    ``created_by_user_id``, 도면은 이력의 ``by_user_id`` · ``by_user_name`` 이다. 쿼리는 늘리지 않는다.
+
     Returns:
         ``(alerts, history)``.
     """
-    alerts: list[dict[str, str]] = []
-    history: list[dict[str, str]] = []
+    alerts: list[dict[str, Any]] = []
+    history: list[dict[str, Any]] = []
 
-    def _classify(ts: datetime.datetime, item: dict[str, str]) -> None:
+    def _classify(ts: datetime.datetime, item: dict[str, Any]) -> None:
         if entry_window is not None and ts <= entry_window:
             return
+        item["at"] = ts
         history.append(item)
         if ack_window is not None and ts <= ack_window:
             return
@@ -220,6 +231,8 @@ def _build_change_lists(
                 "detail": f"{_from_md} → {_to_md}",
                 "from_md": _from_md,
                 "to_md": _to_md,
+                "by_id": e.created_by_user_id,
+                "by_name": "",
             },
         )
 
@@ -237,20 +250,24 @@ def _build_change_lists(
         else:
             continue
         note = entry.get("note")
+        by_id = entry.get("by_user_id")
+        by_name = entry.get("by_user_name")
         _classify(
             ts,
             {
                 "kind": "drawing",
                 "label": label,
                 "detail": note.strip() if isinstance(note, str) and note.strip() else "",
+                "by_id": by_id if isinstance(by_id, int) else None,
+                "by_name": by_name.strip() if isinstance(by_name, str) else "",
             },
         )
     return alerts, history
 
 
 def collect_production_change_alerts(
-    db: Any, orders: list[Order], user_id: int | None
-) -> dict[int, dict[str, list[dict[str, str]]]]:
+    db: Any, orders: list[Order], user_id: int | None, *, with_ack_time: bool = False
+) -> dict[int, dict[str, Any]]:
     """페이지 주문들의 변경을 2윈도로 배치 계산한다(개인별).
 
     ``OrderEvent`` 는 ``order_id.in_(ids)`` 단일 쿼리로 로드하고(N+1 금지), 도면 이력은
@@ -258,16 +275,19 @@ def collect_production_change_alerts(
 
     - ``alerts``: 본인 ack 이후 미확인 변경(시끄러운 상태 — 현행 의미).
     - ``history``: 생산 진입 이후 전체 변경(ack 무관, 확인 후에도 남는 상설 이력).
+    - ``acked_at``(``with_ack_time`` 일 때만): 본인 마지막 ack 시각(naive UTC, 없으면 None) — 생산 첫 화면
+      '확인한 것'의 '확인 시각'(11-21). 같은 이벤트 목록에서 셈해 쿼리는 늘지 않는다.
 
     Args:
         db: 활성 DB 세션.
         orders: 대상 주문 ORM 리스트(``id``·``structured_data`` 로드 상태여야 함).
         user_id: 현재 사용자 id(개인별 ack 판정). None 이면 개인 ack 없음(alerts==history).
+        with_ack_time: True 면 주문마다 ``acked_at`` 을 더한다(기본 꼴은 두 열쇠 그대로).
 
     Returns:
-        ``{order_id: {'alerts': [...], 'history': [...]}}``.
+        ``{order_id: {'alerts': [...], 'history': [...]}}`` (+ ``'acked_at'``).
     """
-    result: dict[int, dict[str, list[dict[str, str]]]] = {}
+    result: dict[int, dict[str, Any]] = {}
     ids = [o.id for o in orders if getattr(o, "id", None) is not None]
     if not ids:
         return result
@@ -294,6 +314,8 @@ def collect_production_change_alerts(
         sd = _ensure_dict(getattr(o, "structured_data", None))
         alerts, history = _build_change_lists(events, sd, entry_window, ack_window)
         result[o.id] = {"alerts": alerts, "history": history}
+        if with_ack_time:
+            result[o.id]["acked_at"] = _last_ack_time(events, user_id)
     return result
 
 

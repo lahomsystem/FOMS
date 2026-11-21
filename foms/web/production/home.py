@@ -28,13 +28,17 @@ from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_REA
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
 from foms.services.production_change_alerts import collect_production_tombstones
+from foms.services.production_home_changes import (
+    DONE_ALL_VALUE,
+    production_home_attach_change_by,
+    production_home_changes_view,
+)
 from foms.services.production_sheet_view import build_production_sheet_view
 from foms.services.production_home_days import production_home_days
 from foms.services.production_home_read_model import (
     build_production_home,
     production_home_counts,
     production_home_groups,
-    production_home_inbox,
     production_home_step_queues,
 )
 
@@ -154,6 +158,13 @@ def erp_production_home():
     # 네 탭은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다. 묘비는 모든 탭에서 세어
     # "바뀐 것" 탭 숫자 = 받은함 장 수가 되게 한다(R2, 11-10).
     tombstones = collect_production_tombstones(db, user, False)
+    # 바뀐 것 탭의 '누가 · 언제' · 확인한 것 · 더 보기(11-21)와 찾기 탭 바뀐 줄의 '누가 · 언제'는 사람 이름 읽기 1회를 더한다
+    # (그 두 탭만, 읽을 사람이 없으면 0회). 날짜 · 내 공정 탭 쿼리는 그대로다.
+    changes = (production_home_changes_view(db, user, rows, tombstones,
+                                            show_all_done=request.args.get('done') == DONE_ALL_VALUE)
+               if tab == 'changes' else None)
+    if tab == 'all':
+        production_home_attach_change_by(db, rows)
     # 셸 조각(레일 · 아래 메뉴에서 온 view=fragment): 몸통 + 이 화면 CSS · 스크립트(다른 탭 조각과 같은 꼴, 11-14).
     template_name = ('production/partials/home_fragment.html' if wants_erp_shell_tab_body(request)
                      else 'production/home.html')
@@ -167,7 +178,7 @@ def erp_production_home():
         pane=pane,
         **screen,
         counts=production_home_counts(rows, len(tombstones)),
-        inbox=production_home_inbox(rows, tombstones) if tab == 'changes' else [],
+        changes=changes,
         queues=production_home_step_queues(rows) if tab == 'steps' else None,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),
