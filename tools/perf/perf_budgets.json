@@ -9,7 +9,7 @@
     "/erp/drawing-workbench?view=fragment": {
       "body_bytes_max": 22000
     },
-    "/erp/production/dashboard?view=fragment": {
+    "/erp/production/home?view=fragment": {
       "body_bytes_max": 57357
     },
     "/erp/shipment?view=fragment": {
@@ -52,7 +52,7 @@
       "body_bytes_max": 17497,
       "server_ms_min_max": 91
     },
-    "/erp/production/dashboard?view=fragment": {
+    "/erp/production/home?view=fragment": {
       "ttfb_delta_min_ms": 133,
       "body_bytes_max": 47960,
       "server_ms_min_max": 113

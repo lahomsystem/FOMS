@@ -143,8 +143,9 @@ def test_mobile_detail_production_board_state(client, monkeypatch):
 
     html, section = _quest_section(client, order.id)
     assert '<p class="mb-0">제작대기</p>' in section
-    assert f'href="/erp/production/dashboard?focus_order={order.id}"' in section
-    assert "생산 보드 열기" in section
+    # 생산 화면 = 새 첫 화면 order=(설계서 2026-11-21-production-pc-viewer §9-9)
+    assert f'href="/erp/production/home?order={order.id}"' in section
+    assert "생산 화면 열기" in section
     assert "erp-mobile-quest-approve" not in html
 
     db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
@@ -159,7 +160,7 @@ def test_mobile_detail_production_stored_open_quest_keeps_approve(client, monkey
     order = _stage_order("PRODUCTION", "PRODUCTION")
 
     _, section = _quest_section(client, order.id)
-    assert "생산 보드 열기" not in section
+    assert "생산 화면 열기" not in section
     assert "erp-mobile-quest-approve" in section
 
 

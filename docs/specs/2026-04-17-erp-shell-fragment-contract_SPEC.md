@@ -14,7 +14,7 @@
 | dashboard | `/erp/dashboard` | deep-link |
 | measurement | `/erp/measurement` | deep-link |
 | drawing_workbench | `/erp/drawing-workbench` | list/dashboard; detail은 B5 |
-| production | `/erp/production/dashboard` | deep-link |
+| production | `/erp/production/home` | deep-link. 2026-11-21 옛 보드 `/erp/production/dashboard` 에서 바꿈(설계서 `2026-11-21-production-pc-viewer` §9-5). 옛 보드는 라우트 · 조각 규약 그대로, 셸은 하위 조각으로만 바꿔 끼운다(미리 받기 없음) |
 | shipment | `/erp/shipment` | deep-link |
 | as | `/erp/as` | deep-link |
 | construction | `/erp/construction/dashboard` | deep-link |

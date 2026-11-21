@@ -13,7 +13,7 @@ from foms.services.common.erp_navigation_contract import (
     ERP_TAB_IDS,
 )
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
-from foms.services.production.home_access import PRODUCTION_HOME_PATH, can_view_production_home
+from foms.services.production.nav_target import production_nav_href
 
 # Rail labels/icons mirror the erp_mobile_shell.html nav catalog (short rail
 # labels); the path/id ordering is the erp_navigation_contract SSOT (parallel
@@ -161,7 +161,9 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
                 "id": tab_id,
                 "label": _RAIL_LABELS[tab_id],
                 "icon": _RAIL_ICONS[tab_id],
-                "href": path,
+                # 생산 칸은 사람마다(설계서 2026-11-21-production-pc-viewer §9-4): 첫 화면을 여는 사람은 첫 화면(계약 경로),
+                # 그 밖(첫 화면을 못 보는 사람 · 사용자 없음)은 옛 보드. PC 메뉴 · 폰 메뉴와 같은 한 함수.
+                "href": production_nav_href(user) if tab_id == "production" else path,
                 "active": tab_id == active_id,
             }
         )
@@ -221,21 +223,17 @@ def build_tablet_rail_items(user: Any = None, path: str = "") -> list[dict[str, 
         user: Current user; needs a ``team`` attribute. ``None`` → full menu.
         path: Current request path used to resolve the active tab.
 
-    D19(2026-11-10): 생산 첫 화면을 볼 수 있는 사람(:func:`can_view_production_home`)이면 생산 단추가
-    첫 화면(``/erp/production/home``)으로 간다 — 옛 보드는 첫 화면 제목 줄 [보드] 단추로. 못 보는 팀은
-    보드 그대로(켜진 프리랜서도 보드 — 문지기 허용 목록). split 셸 레일(``build_split_side_items`` 직접 호출)은 PC 마우스 창 전용이라 바꾸지 않는다.
-    생산 칸에는 ``match``(강조 접두어)를 실어 tablet-rail-nav.js 가 조각 이동 뒤에도 보드 · 첫 화면 모두를
-    생산으로 강조하게 한다.
+    D19(2026-11-10): 생산 첫 화면을 볼 수 있는 사람이면 생산 단추가 첫 화면(``/erp/production/home``)으로 간다 —
+    옛 보드는 첫 화면 제목 줄 [보드] 단추로. 못 보는 사람은 보드 그대로(켜진 프리랜서도 보드 — 문지기 허용 목록).
+    2026-11-21(설계서 production-pc-viewer §9-4)부터 그 주소 판정은 :func:`build_split_side_items` 가 사람마다 한다
+    (split 셸 레일도 같은 답). 생산 칸에는 ``match``(강조 접두어)를 실어 tablet-rail-nav.js 가 조각 이동 뒤에도 보드 ·
+    첫 화면 모두를 생산으로 강조하게 한다.
 
     Returns:
         Rail item descriptors (``id``/``label``/``icon``/``href``/``active``; 생산 칸은 ``match`` 도).
     """
     items = build_split_side_items(user, active_id=resolve_tablet_rail_active_id(path))
-    # 켜진 프리랜서는 문지기 허용 목록(보드만)이 메뉴를 정한다 — 첫 화면은 허용 목록 밖이라 그대로 둔다.
-    home = can_view_production_home(user) and not _is_active_freelancer(user)
     for item in items:
         if item["id"] == "production":
             item["match"] = _PRODUCTION_RAIL_PREFIX
-            if home:
-                item["href"] = PRODUCTION_HOME_PATH
     return items

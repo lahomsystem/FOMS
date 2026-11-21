@@ -49,9 +49,12 @@ def test_생산팀은_작업지시서를_뽑는다(client) -> None:
     assert "js/production/foms-production-print.js" in html and "css/contexts/production/print.css" in html
 
 
-def test_도면팀은_403_없는_주문_404(client) -> None:
+def test_팀_없으면_403_없는_주문_404(client) -> None:
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
     _make_user(client, "print_drawing_staff", "DRAWING")
     order = _seed_order()
+    assert client.get(PRINT_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "print_noteam_staff", None)
     assert client.get(PRINT_URL.format(id=order.id)).status_code == 403
     _make_user(client, "print_prod_staff2", "PRODUCTION")
     assert client.get(PRINT_URL.format(id=order.id + 999)).status_code == 404

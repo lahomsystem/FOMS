@@ -171,7 +171,7 @@ def test_partner_freelancer_and_non_home_team_are_refused(client):
     refused = _get(client, [oid], since)
     assert refused.status_code == 403 and b"drawing_key" not in refused.get_data()
 
-    _login(client, _user("도면사람", team="DRAWING"))  # 생산 첫 화면을 못 보는 팀 — 이 길의 문지기
+    _login(client, _user("팀없는사람", team=None))  # 생산 첫 화면을 못 보는 사람(도면팀은 2026-11-21 보는 팀) — 이 길의 문지기
     refused = _get(client, [oid], since)
     assert refused.status_code == 403 and refused.get_json()["success"] is False
 

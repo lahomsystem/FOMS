@@ -46,6 +46,7 @@ from foms.services.notifications.partner_push import (
     partner_push_text,
 )
 from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.production.nav_target import PRODUCTION_CHANGES_HREF
 import hashlib
 import json
 import logging
@@ -278,9 +279,9 @@ def _deep_link(notif: Notification) -> str:
             # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
             return "/erp/shipment"
         if ntype == "PRODUCTION_ORDER_CHANGED":
-            # 생산 칸반이 이 알림의 작업 화면이다(주문 상세가 아니라). 출고와 같은 이유로
-            # 파라미터는 붙이지 않는다.
-            return "/erp/production/dashboard"
+            # 생산 첫 화면의 '바뀐 것' 탭이 이 알림의 작업 화면이다(주문 상세가 아니라, 설계서
+            # 2026-11-21-production-pc-viewer §9-6). 받는 팀(CS · 영업 · 생산)은 모두 첫 화면을 본다 — 프리랜서는 팀 알림을 안 받는다.
+            return PRODUCTION_CHANGES_HREF
         if ntype == "MEASURE_SAME_DAY_ADDED":
             # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
             return measure_same_day_link(oid, notif.created_at)

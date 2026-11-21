@@ -106,8 +106,8 @@ def test_push_type_is_registered():
         order_id=1, notification_type=NOTIFICATION_TYPE, target_type="TEAM",
         target_team=TARGET_TEAMS[0], title="t", message="m",
     )
-    # 딥링크는 주문 상세가 아니라 생산 칸반이어야 한다(이 알림의 작업 화면).
-    assert _deep_link(notif) == "/erp/production/dashboard"
+    # 딥링크는 주문 상세가 아니라 생산 첫 화면 '바뀐 것' 탭이어야 한다(이 알림의 작업 화면, 2026-11-21 §9-6).
+    assert _deep_link(notif) == "/erp/production/home?tab=changes"
 
 
 # --- 게이트 ----------------------------------------------------------------

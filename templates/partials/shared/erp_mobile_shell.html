@@ -21,7 +21,8 @@
   {% set _active = 'dashboard' %}
 {% endif %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
-{# 생산팀(협력사 아님)은 세로(폰 화면)에서도 생산이 첫 탭이고, 그 탭은 생산 홈으로 간다(설계서 F6·§12, 11-09). -#}
+{# 생산팀(협력사 아님)은 세로(폰 화면)에서도 생산이 첫 탭이다(설계서 F6·§12, 11-09). 생산 탭 주소는 첫 화면을 여는 사람 모두 첫 화면,
+   그 밖은 옛 보드(production_nav_href — 설계서 2026-11-21-production-pc-viewer §9-3). -#}
 {% set _production_team = current_user and (current_user.team or '') == 'PRODUCTION' and not (current_user.partner_org_id if current_user.partner_org_id is defined else none) -%}
 {# 켜진 프리랜서(FCOMM-01 겹 5 메뉴 · D30) — 회사 영업과 같은 탭 + 내 수수료. 서랍은 문지기가 여는 화면만(freelancer_nav_items,
    PC 메뉴와 같은 목록 — 도면은 id 'drawing'). 판정은 요청당 한 번 읽는다.
@@ -34,7 +35,7 @@
   {'id': 'dashboard', 'label': '대시보드', 'icon': 'fas fa-layer-group', 'href': url_for('erp_dashboard.erp_dashboard')},
   {'id': 'measurement', 'label': '실측', 'icon': 'fas fa-ruler-combined', 'href': url_for('erp_measurement_dashboard.erp_measurement_dashboard')},
   {'id': 'drawing_workbench', 'label': '도면', 'icon': 'fas fa-drafting-compass', 'href': url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard')},
-  {'id': 'production', 'label': '생산', 'icon': 'fas fa-industry', 'href': (url_for('erp_production_page.erp_production_home') if _production_team else url_for('erp_production_page.erp_production_dashboard'))},
+  {'id': 'production', 'label': '생산', 'icon': 'fas fa-industry', 'href': production_nav_href()},
   {'id': 'shipment', 'label': '출고', 'icon': 'fas fa-truck-loading', 'href': url_for('erp_shipment_page.erp_shipment_dashboard')},
   {'id': 'as', 'label': 'AS', 'icon': 'fas fa-wrench', 'href': url_for('erp_as_page.erp_as_dashboard')},
   {'id': 'construction', 'label': '시공', 'icon': 'fas fa-hammer', 'href': url_for('erp_construction_page.erp_construction_dashboard')},

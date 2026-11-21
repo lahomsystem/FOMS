@@ -8,6 +8,7 @@ from foms.services.orders.confirm_drawing_gate import revision_in_flight_block
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
 from foms.services.orders.item_construction_view import partial_board_label, partial_visit_closed
 from foms.services.orders.quest_approve_cta import display_quest_title
+from foms.services.production.nav_target import production_order_link, request_user
 from foms.services.production_read_model import (
     _kpi_stage_label_from_erp_stage,
     fetch_production_current_run_ids,
@@ -61,7 +62,8 @@ def _state(kind, label, tone, *, title="", link_label="", link_endpoint="", link
     }
 
 
-def build_board_state(order, sd, stage_code, *, has_current_run=False, current_quest=None) -> dict | None:
+def build_board_state(order, sd, stage_code, *, has_current_run=False, current_quest=None, viewer=None) -> dict | None:
+    """주문 한 줄의 보드 단계 칸(글 · 색 · 링크). ``viewer`` 가 None 이면 요청의 사용자로 생산 링크를 고른다."""
     if stage_code == "PRODUCTION":
         if current_quest and not current_quest.get("is_synthesized") and not current_quest.get("is_done"):
             return None
@@ -78,13 +80,16 @@ def build_board_state(order, sd, stage_code, *, has_current_run=False, current_q
                 link_endpoint="erp_drawing_workbench.erp_drawing_workbench_detail",
                 link_params={"order_id": order.id},
             )
+        # 생산 화면(설계서 2026-11-21-production-pc-viewer §9-9): 첫 화면을 여는 사람은 첫 화면 ``order=``(그 주문의 날),
+        # 켜진 프리랜서 등은 옛 보드 ``focus_order=``. 판정은 메뉴와 같은 한 곳(nav_target).
+        endpoint, params = production_order_link(order.id, request_user() if viewer is None else viewer)
         return _state(
             "production",
             _kpi_stage_label_from_erp_stage("PRODUCTION", has_current_run),
             "soft",
-            link_label="생산 보드 열기",
-            link_endpoint="erp_production_page.erp_production_dashboard",
-            link_params={"focus_order": order.id},
+            link_label="생산 화면 열기",
+            link_endpoint=endpoint,
+            link_params=params,
         )
     if stage_code == "CONSTRUCTION":
         return _state(

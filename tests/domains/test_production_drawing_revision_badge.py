@@ -247,12 +247,15 @@ def test_shell_does_not_hold_production_board_for_primary_ttl():
     """셸 탭 이동도 배지 신선도를 지킨다(리뷰 P2).
 
     서버 생산 보드는 캐시가 없지만, 셸이 조각을 primary TTL(5분) 동안 쥐고 있으면 탭 이동으로
-    돌아왔을 때 수령 확정 뒤에도 배지·'도면 확정 대기'가 남는다. 생산 보드는 홈 대시보드와 같은
-    fresh 경로(60초·하트비트 50초·복귀 재수혈)에 있어야 한다.
+    돌아왔을 때 수령 확정 뒤에도 배지·'도면 확정 대기'가 남는다. 9탭의 생산 칸은 홈 대시보드와 같은
+    fresh 경로(60초·하트비트 50초·복귀 재수혈)에 있어야 한다 — 2026-11-21 부터 그 칸은 생산 첫 화면이다
+    (설계서 production-pc-viewer §9-5). 옛 보드는 9탭 밖 하위 조각이지만 바꿔 끼운 조각도 fresh TTL(60초)로만 쥔다.
     """
     root = Path(__file__).resolve().parents[2]
     js = (root / "static/js/runtime/erp-shell.js").read_text(encoding="utf-8")
     fresh_block = js.split("var FRESH_TTL_PATHS = [", 1)[1].split("];", 1)[0]
-    assert "'/erp/production/dashboard'" in fresh_block
+    assert "'/erp/production/home'" in fresh_block
+    ttl = js[js.index("function cacheTtlForKey(key)"):].split("function ", 2)[1]
+    assert "LEGACY_SWAP_PATHS.indexOf(path) >= 0" in ttl and "FRESH_TTL_MS : CACHE_TTL_MS" in ttl
     layout = (root / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261119a" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261121p" in layout

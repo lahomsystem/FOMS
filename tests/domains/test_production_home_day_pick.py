@@ -233,11 +233,16 @@ def test_day_links_are_not_swapped_by_shell_and_reload_bypasses_cache():
 # ③ 셸 — erp-shell.js
 # --------------------------------------------------------------------------- #
 def test_shell_swaps_and_prefetches_production_home():
+    """2026-11-21(설계서 production-pc-viewer §9-5): 생산 첫 화면이 9탭의 생산 칸이 되어 fresh(60초 · 하트비트 50초)로 받고,
+    보이는 링크 장치(LINKED_FRESH)는 비었다 — 둘 다에 두면 하트비트가 한 주소를 두 번 받는다. 옛 보드는 하위 조각(바꿔 끼우기만)."""
     src = SHELL_JS.read_text(encoding="utf-8")
-    assert "var LINKED_FRESH_PATHS = ['/erp/production/home'];" in src
+    assert "var LINKED_FRESH_PATHS = [];" in src
+    assert "var LEGACY_SWAP_PATHS = ['/erp/production/dashboard'];" in src
+    fresh_block = src.split("var FRESH_TTL_PATHS = [", 1)[1].split("];", 1)[0]
+    assert "'/erp/production/home'" in fresh_block and "'/erp/production/dashboard'" not in fresh_block
     sub = src[src.index("function isSubordinateShellFragmentPath(url)"):src.index("function isShellFragmentSwapUrl(url)")]
-    assert "LINKED_FRESH_PATHS.indexOf(p) >= 0" in sub  # 조각 교체 대상
-    assert "LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS" in src  # 생산 첫 화면도 60초 신선도
+    assert "LINKED_FRESH_PATHS.indexOf(p) >= 0 || LEGACY_SWAP_PATHS.indexOf(p) >= 0" in sub  # 하위 조각 교체 대상
+    assert "LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS" in src  # 장치는 남는다(옛 보드도 fresh TTL)
     linked = src[src.index("function visibleLinkedFreshPaths()"):src.index("function isFragmentReadyPath(url)")]
     assert "getClientRects().length > 0" in linked and "p === cur" in linked  # 보이는 링크 · 지금 화면 제외
     idle = src[src.index("function scheduleIdlePrimaryPrefetch()"):src.index("function onAnchorHoverFocus(ev)")]
@@ -245,10 +250,11 @@ def test_shell_swaps_and_prefetches_production_home():
     focus = src[src.index("function refreshFreshTtlSurfaces()"):src.index("document.addEventListener('visibilitychange'")]
     for name, block in (("첫 웜업", idle), ("fresh 하트비트", fresh), ("복귀 재수혈", focus)):
         assert "visibleLinkedFreshPaths()" in block, name
-    # 9탭 계약은 그대로(생산 첫 화면은 9탭 밖 하위 조각) · 보드는 여전히 FRESH
-    assert "/erp/production/home" not in enc.ERP_FRAGMENT_READY_PATHS
+    # 9탭 계약: 생산 칸 = 첫 화면, 옛 보드는 9탭 밖
+    assert "/erp/production/home" in enc.ERP_FRAGMENT_READY_PATHS
+    assert "/erp/production/dashboard" not in enc.ERP_FRAGMENT_READY_PATHS
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261119a" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261121p" in layout
 
 
 def test_rail_production_button_goes_to_home_href():

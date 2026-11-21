@@ -64,6 +64,7 @@ from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
 )
+from foms.services.production.nav_target import production_nav_href
 from foms.services.production.write_access import can_write_production
 from foms.services.feature_flags import (
     is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
@@ -85,6 +86,14 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 erp_production_page_bp = Blueprint(
     'erp_production_page', __name__, url_prefix='/erp'
 )
+
+
+@erp_production_page_bp.app_template_global('production_nav_href')
+def _production_nav_href() -> str:
+    """생산 메뉴 칸 주소(템플릿 전역) — PC 둘째 줄 메뉴 · 폰 아래 메뉴가 부른다. 첫 화면 또는 옛 보드, 판정은 레일 · 바로가기와
+    같은 한 곳(:func:`foms.services.production.nav_target.production_nav_href`, 설계서 2026-11-21-production-pc-viewer §9)."""
+    return production_nav_href(getattr(g, 'current_user', None))
+
 
 logger = logging.getLogger(__name__)
 

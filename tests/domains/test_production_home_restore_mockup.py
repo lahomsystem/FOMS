@@ -214,12 +214,14 @@ def test_레일_셋은_생산_화면_몸통이_있을_때만_숨긴다() -> None
 # --------------------------------------------------------------------------- #
 # 옛 보드 — 태블릿 첫 화면 문만 뺐고 화면 · 다른 문은 남는다(사용자 "필요없으면 삭제" → 필요해서 남김)
 # --------------------------------------------------------------------------- #
-def test_옛_보드는_PC_폰_메뉴의_생산_화면으로_남는다(client, cohort):
-    assert BOARD in ERP_PRIMARY_NAV_PATHS  # PC 위 메뉴 · 레일 계약 · 셸 조각 대상
+def test_옛_보드는_PC_폰_메뉴에서_빠지고_주소는_남는다(client, cohort):
+    """2026-11-21(설계서 production-pc-viewer §9 · §10 R1): PC · 폰 메뉴 · 9탭 계약의 생산 칸은 첫 화면, 옛 보드 라우트는 남는다
+    (첫 화면 [보드 →] · 켜진 프리랜서 · 첫 화면을 못 보는 사람)."""
+    assert BOARD not in ERP_PRIMARY_NAV_PATHS and "/erp/production/home" in ERP_PRIMARY_NAV_PATHS
     shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(encoding="utf-8")
-    assert "url_for('erp_production_page.erp_production_dashboard')" in shell  # 폰 아래 메뉴(생산팀 밖)
+    assert "production_nav_href()" in shell  # 폰 아래 메뉴 — 첫 화면 또는 보드(한 곳 판정)
     sub = (ROOT / "templates/partials/shared/erp_sub_nav.html").read_text(encoding="utf-8")
-    assert "url_for('erp_production_page.erp_production_dashboard')" in sub  # PC 위 메뉴
+    assert "production_nav_href()" in sub  # PC 둘째 줄 메뉴
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     resp = client.get(BOARD)
     assert resp.status_code == 200 and "foms-prod-home-page" not in resp.get_data(as_text=True)

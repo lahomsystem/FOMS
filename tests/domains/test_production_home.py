@@ -131,12 +131,16 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert "js/production/foms-production-home.js" in html
 
 
-def test_도면팀과_시공팀은_생산_첫_화면을_못_본다(client) -> None:
+def test_도면팀과_시공팀도_생산_첫_화면을_본다_팀_없으면_못_본다(client) -> None:
+    """2026-11-21 보는 팀에 도면 · 시공 · 출고를 더했다(설계서 production-pc-viewer §9-1). 시공팀 화면 이동 제한도 보기 화면은 연다."""
     _make_user(client, "home_drawing_staff", "DRAWING")
-    assert client.get(HOME_URL).status_code == 403
-    # 시공팀은 전역 문지기가 먼저 출고 화면으로 돌려보낸다(302) — 어느 쪽이든 200 은 아니다.
+    assert client.get(HOME_URL).status_code == 200
     _make_user(client, "home_construction_staff", "CONSTRUCTION")
-    assert client.get(HOME_URL).status_code in (302, 403)
+    assert client.get(HOME_URL).status_code == 200
+    # 시공팀이라도 옛 보드는 그대로 출고 화면으로 돌려보낸다(이동 제한은 보기 화면만 연다)
+    assert client.get("/erp/production/dashboard").status_code == 302
+    _make_user(client, "home_noteam_staff", None)
+    assert client.get(HOME_URL).status_code == 403
 
 
 def test_관리자와_CS_는_생산_첫_화면을_본다(client) -> None:
