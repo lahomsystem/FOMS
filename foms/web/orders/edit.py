@@ -669,6 +669,14 @@ def edit_order(order_id):
         mobile_shell_back_href = url_for(
             'erp_dashboard.erp_order_mobile_detail', order_id=order.id
         )
+    # 출고팀 시공일 바꾸기 — 시공일이 둘 이상이면 화면이 "어느 날을 옮길까요" 를 고르게 한다(설계서 2026-11-21 8절).
+    construction_dates: list = []
+    if construction_only:
+        from foms.services.feature_flags import is_item_construction_done_enabled
+        from foms.services.orders.construction_dates import all_construction_dates
+
+        if is_item_construction_done_enabled():
+            construction_dates = all_construction_dates(getattr(order, 'structured_data', None))
     tpl = 'orders/edit_order.html'
     response = make_response(
         render_template(
@@ -679,6 +687,7 @@ def edit_order(order_id):
             mobile_shell_back_href=mobile_shell_back_href,
             erp_sub_nav_active='dashboard',
             erp_construction_only=construction_only,
+            erp_construction_dates=construction_dates,
             **ctx,
         )
     )

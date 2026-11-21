@@ -10,15 +10,17 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive
 from foms.services.error_logging import log_handled_exception
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.feature_flags import is_item_construction_done_enabled
 from foms.services.notifications.drawing_order_change import (
     apply_drawing_order_change_alert,
     finalize_drawing_order_change_alert,
@@ -28,6 +30,7 @@ from foms.services.notifications.production_change import (
     finalize_production_change_alert,
 )
 from foms.services.orders.change_reason import is_reason_required
+from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date, split_date_text
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.structured_diff import diff_structured
@@ -54,12 +57,112 @@ class ScheduleWrite:
     change_count: int
     reason_required: bool
     notifications: list[tuple[str, Any, bool]] = field(default_factory=list)
+    #: 옮긴 날(``YYYY-MM-DD``) — 스위치가 켜져 날 하나만 옮겼을 때만. 꺼져 있거나 옮길 날이 없었으면 빈 글.
+    from_date: str = ""
 
 
 def _construction(sd: dict[str, Any]) -> dict[str, Any]:
     schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
     construction = schedule.get("construction") if isinstance(schedule.get("construction"), dict) else {}
     return construction
+
+
+#: 날짜 여럿을 한 칸에 적을 때의 이음 글 — 주문 칸 "2026-11-05, 2026-11-17" 과 같다.
+DATE_JOIN = ", "
+
+#: 고른 날이 주문 시공일에 없을 때(화면이 오래됐거나 다른 사람이 먼저 옮겼다).
+FROM_DATE_MISSING_MESSAGE = "옮길 날을 다시 골라 주세요."
+
+
+def first_order_date(sd: Any) -> str:
+    """주문 칸(``schedule.construction.date``)의 첫 시공일(``YYYY-MM-DD``). 없으면 빈 글."""
+    days = split_date_text(_construction(sd if isinstance(sd, dict) else {}).get("date"))
+    return days[0] if days else ""
+
+
+def nearest_order_date(sd: Any, today: Any = None) -> str:
+    """주문 칸 시공일 가운데 오늘 이후 가장 가까운 날(모두 지났으면 마지막 날). 주문 칸이 비면 제품 칸까지 본다."""
+    sd = sd if isinstance(sd, dict) else {}
+    days = split_date_text(_construction(sd).get("date")) or all_construction_dates(sd)
+    picked = pick_nearest_date(days, today or get_today_kst())
+    return picked.isoformat() if picked else ""
+
+
+def _replace_day(days: list[str], from_day: str, to_day: str) -> str:
+    """날 목록에서 ``from_day`` 를 ``to_day`` 로 바꾼 글(중복 제거 · 정렬). ``to_day`` 가 비면 그 날만 뺀다."""
+    moved = {to_day if day == from_day else day for day in days}
+    moved.discard("")
+    return DATE_JOIN.join(sorted(moved))
+
+
+def move_construction_date(sd: dict[str, Any], *, from_date: Any, to_date: str, today: Any = None) -> str:
+    """'어느 날을 어느 날로' — 이미 복사한 ``sd`` 의 시공일 하나만 옮긴다(제자리 수정 · 순수 함수, 설계서 8절 N8).
+
+    * 주문 칸 날짜 목록에서 ``from_date`` 하나만 ``to_date`` 로 바꾸고, 그 날이 적힌 제품 칸
+      ``items[].construction_date`` 도 같이 바꾼다. 다른 날은 그대로 둔다(중복 제거 · 정렬 · ``", "`` 로 잇는다).
+    * 날이 하나뿐인 주문은 지금처럼 주문 칸이 새 날이 되고, 그 날이 적힌 제품 칸만 같이 옮긴다.
+    * ``from_date`` 가 비면 주문 시공일 가운데 오늘 이후 가장 가까운 날(:func:`nearest_order_date`).
+    * 주문 · 제품 칸 어디에도 시공일이 없으면 지금처럼 주문 칸에 새 날을 쓴다(옮길 날 없음 — 빈 글을 돌려준다).
+    * ``to_date`` 가 비면 그 날만 뺀다(협력사 판 [되돌리기]).
+
+    :raises ScheduleInputError: ``from_date`` 가 이 주문의 시공일이 아닐 때.
+    :returns: 옮긴 날(``YYYY-MM-DD``). 옮길 날이 없었으면 빈 글.
+    """
+    if not isinstance(sd.get("schedule"), dict):
+        sd["schedule"] = {}
+    if not isinstance(sd["schedule"].get("construction"), dict):
+        sd["schedule"]["construction"] = {}
+    construction = sd["schedule"]["construction"]
+    order_days = split_date_text(construction.get("date"))
+    known = set(all_construction_dates(sd)) | set(order_days)
+    if not known:
+        construction["date"] = to_date
+        return ""
+    if str(from_date or "").strip():
+        from_day = clean_date(from_date)
+        if not from_day or from_day not in known:
+            raise ScheduleInputError(FROM_DATE_MISSING_MESSAGE)
+    else:
+        from_day = nearest_order_date(sd, today)
+    if from_day in order_days or not order_days:
+        construction["date"] = _replace_day(order_days, from_day, to_date) if order_days else to_date
+    for item in sd.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        item_days = split_date_text(item.get("construction_date"))
+        if from_day in item_days:
+            item["construction_date"] = _replace_day(item_days, from_day, to_date)
+    return from_day
+
+
+def move_first_date_for_field(sd: dict[str, Any], value: Any) -> str | None:
+    """대시보드 시공일 칸(``field_update`` ``scheduled_date``) — 칸에 보이는 첫 날 하나만 ``value`` 로 옮긴다.
+
+    스위치가 꺼져 있거나 ``value`` 가 날 하나가 아니면(빈 값 · 여러 날 · 못 읽는 글) 아무것도 고치지 않고
+    ``None`` 을 돌려준다 — 부르는 쪽이 지금처럼 통째로 쓴다. 옮겼으면 옮긴 날(옮길 날이 없었으면 빈 글).
+    """
+    if not is_item_construction_done_enabled():
+        return None
+    days = split_date_text(value)
+    if len(days) != 1:
+        return None
+    return move_construction_date(sd, from_date=first_order_date(sd), to_date=days[0])
+
+
+def reschedule_text_after_fail(sd: dict[str, Any], reschedule_date: Any, visit_started_at: Any = None) -> Any:
+    """[시공 불가] → 다시 잡기 — 주문 칸에 쓸 시공일 값(이미 복사한 ``sd`` 의 제품 칸도 같이 옮긴다).
+
+    스위치가 꺼져 있거나 새 날이 ``YYYY-MM-DD`` 가 아니면 지금처럼 받은 값을 그대로 돌려준다(아무것도 안 고친다).
+    켜져 있으면 그 방문 날(방문 줄 ``started_at`` 의 한국 날짜, 없으면 오늘) 이후 가장 가까운 시공일 하나만
+    새 날로 옮긴 주문 칸 글을 돌려준다(:func:`move_construction_date`).
+    """
+    to_day = clean_date(reschedule_date)
+    if not is_item_construction_done_enabled() or not to_day:
+        return reschedule_date
+    visit_text = format_datetime_kst(visit_started_at, "%Y-%m-%d") if visit_started_at else None
+    visit_day = datetime.date.fromisoformat(visit_text) if visit_text else get_today_kst()
+    move_construction_date(sd, from_date=nearest_order_date(sd, visit_day), to_date=to_day)
+    return sd["schedule"]["construction"].get("date") or to_day
 
 
 def validate_schedule_input(date: Any, time: Any) -> tuple[str, str]:
@@ -83,10 +186,15 @@ def write_construction_schedule(
     date: str,
     time: str,
     keep_existing_time: bool = False,
+    from_date: Any = None,
 ) -> ScheduleWrite:
     """잠근 주문에 시공일 · 시공시간을 쓴다(커밋 없음). 값 검사는 :func:`validate_schedule_input` 를 먼저 지난 값.
 
     :param keep_existing_time: 참이면 시공시간이 이미 있을 때 그대로 둔다(협력사 희망 판 — 처음 정하기만).
+    :param from_date: 옮길 날(``YYYY-MM-DD``). 스위치(``is_item_construction_done_enabled``)가 켜져 있으면
+        그 날 하나만 ``date`` 로 옮긴다(:func:`move_construction_date`, 비면 오늘 이후 가장 가까운 날).
+        꺼져 있으면 무시하고 지금처럼 주문 칸을 ``date`` 로 통째로 바꾼다.
+    :raises ScheduleInputError: 스위치가 켜져 있고 ``from_date`` 가 이 주문의 시공일이 아닐 때.
     """
     old_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     old_cons = _construction(old_sd)
@@ -100,7 +208,13 @@ def write_construction_schedule(
     schedule = sd["schedule"]
     if not isinstance(schedule.get("construction"), dict):
         schedule["construction"] = {}
-    schedule["construction"]["date"] = date
+    moved_from = ""
+    to_day = date
+    if is_item_construction_done_enabled():
+        moved_from = move_construction_date(sd, from_date=from_date, to_date=date)
+        date = str(schedule["construction"].get("date") or "")
+    else:
+        schedule["construction"]["date"] = date
     schedule["construction"]["time"] = new_time
 
     actor_id = getattr(user, "id", None)
@@ -117,10 +231,14 @@ def write_construction_schedule(
         notifications.append(("drawing", notif, created))
     except Exception:  # noqa: BLE001 — 도면팀 알림 실패가 시공일 저장을 막으면 안 된다(field_update 와 같다)
         log_handled_exception("construction schedule drawing alert")
-    if before_date != date:
+    if before_date != date or (moved_from and moved_from != to_day):
+        if moved_from:  # 날 하나만 옮겼다 — 알림 글도 "어느 날 → 어느 날"
+            change_text = f"{_date_to_md(moved_from)} → {_date_to_md(to_day or None)}"
+        else:
+            change_text = f"{_date_to_md(before_date or None)} → {_date_to_md(date or None)}"
         try:
             notif, created = apply_production_change_alert(
-                db, order, "construction_date", f"{_date_to_md(before_date or None)} → {_date_to_md(date or None)}",
+                db, order, "construction_date", change_text,
                 actor_user_id=actor_id, actor_name=actor_name,
             )
             notifications.append(("production", notif, created))
@@ -140,7 +258,7 @@ def write_construction_schedule(
         before_date=before_date, before_time=before_time, date=date, time=new_time,
         change_set_id=change_set_id, change_count=count,
         reason_required=is_reason_required(changes, stage=read_main_stage(order)),
-        notifications=notifications,
+        notifications=notifications, from_date=moved_from,
     )
 
 
@@ -170,7 +288,9 @@ def confirm_partner_request(db, order: Any, user: Any, *, date: Any, time: Any) 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     if str(getattr(order, "erp_construction_date", "") or "").strip() or not request_open(sd, order.erp_stage_code or ""):
         raise ScheduleConflict("다른 사람이 먼저 시공일을 정했어요.")
-    return write_construction_schedule(db, order, user, date=clean, time=text, keep_existing_time=True)
+    # 판에 보이는 첫 날 — 확정 대기 주문은 보통 비어 있어 옮길 날 없이 지금처럼 쓴다(설계서 8절).
+    return write_construction_schedule(db, order, user, date=clean, time=text, keep_existing_time=True,
+                                       from_date=first_order_date(sd))
 
 
 def revert_to_partner_request(db, order: Any, user: Any) -> ScheduleWrite:
@@ -184,4 +304,5 @@ def revert_to_partner_request(db, order: Any, user: Any) -> ScheduleWrite:
         raise ScheduleConflict("이미 확정 대기예요.")
     if (order.erp_stage_code or "").upper() in REQUEST_CLOSED_STAGES:
         raise ScheduleConflict("시공이 시작된 주문은 되돌릴 수 없어요.")
-    return write_construction_schedule(db, order, user, date="", time="")
+    # 판에 보이는 첫 날만 뺀다(스위치 켜짐 · 설계서 8절). 날이 하나인 주문은 지금처럼 비고, 그 날이 적힌 제품 칸도 빈다.
+    return write_construction_schedule(db, order, user, date="", time="", from_date=first_order_date(sd))
