@@ -13,6 +13,7 @@ from typing import Any
 
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.channel_as_push_cycle import PUSH_HISTORY_KEY, judge_as_push, parse_utc
+from foms.services.feature_flags import is_item_construction_done_enabled
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.orders.as_cycle_view import (
     current_cycle_ordinal,
@@ -20,12 +21,15 @@ from foms.services.orders.as_cycle_view import (
     with_cycle_detail_extras,
 )
 from foms.services.orders.as_log import current_reception_entry
+from foms.services.orders.item_construction_done import has_done_marks
 from foms.services.partners.channel_push import sent_label
 
 MAX_CONTENT = 2000
 MAX_CHANGE_NOTE = 500
 # AS 를 받을 수 있는 단계 — 시공이 시작된 뒤(우리가 시공을 간다).
 AS_OPEN_STAGES = frozenset({"CONSTRUCTION", "CS", "COMPLETED", "AS", "AS_RECEIVED", "AS_COMPLETED"})
+# 먼저 끝낸 제품('시공 끝' 기록)이 있으면 AS 를 받는 앞 단계(N10). 시공은 위 집합에 이미 있다.
+EARLY_AS_STAGES = frozenset({"PRODUCTION", "CONSTRUCTION"})
 OPEN_STATUSES = (AS_RECEIVED, AS_IN_PROGRESS)
 
 MODE_NEW = "new"            # 처음 접수
@@ -52,13 +56,25 @@ def _sd(order: Any) -> dict:
     return sd if isinstance(sd, dict) else {}
 
 
+def _stage_open_for_as(order: Any, sd: dict) -> bool:
+    """AS 를 받을 수 있는 단계인가 — 시공 뒤, 또는 먼저 끝낸 제품이 있는 생산 · 시공 단계(N10).
+
+    제품마다 '시공 끝'(2단계, 스위치 켜짐)으로 일부 제품을 먼저 끝낸 주문은 주문이 아직 생산 단계여도
+    그 제품의 AS 를 받는다(설계서 2026-11-21-item-construction-done N10).
+    """
+    stage = (getattr(order, "erp_stage_code", None) or "").upper()
+    if stage in AS_OPEN_STAGES:
+        return True
+    return stage in EARLY_AS_STAGES and is_item_construction_done_enabled() and has_done_marks(sd)
+
+
 def as_mode(order: Any) -> str | None:
     """지금 협력사가 할 수 있는 AS 일. 열린 건이 있으면 고치기, 시공 뒤면 접수 · 재접수, 아니면 None."""
     sd = _sd(order)
     cycle = current_cycle(sd)
     if cycle is not None and cycle_status(cycle) in OPEN_STATUSES:
         return MODE_EDIT
-    if (getattr(order, "erp_stage_code", None) or "").upper() not in AS_OPEN_STAGES:
+    if not _stage_open_for_as(order, sd):
         return None
     return MODE_REINTAKE if last_closed_cycle_summary(sd) is not None else MODE_NEW
 

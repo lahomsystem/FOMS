@@ -33,6 +33,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.confirm_drawing_gate import DRAWING_GATED_COMMANDS, confirm_exit_block
 from foms.services.orders.draft_guard import ensure_order_promoted
+from foms.services.orders.items_construction_gate import ItemsConstructionOpen, items_gate_message
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
     AXIS_CONSTRUCTION,
@@ -99,6 +100,10 @@ class DrawingGateBlockedError(TransitionError):
 
     status_code = 409
     error_code = "DRAWING_STATUS"
+
+
+class ItemsConstructionOpenError(ItemsConstructionOpen, TransitionError):
+    """부분 시공 중(남은 제품)인데 본 흐름을 CS · 완료로 옮기는 전이 — 잠금 아래 문지기(2단계 7절). 409."""
 
 
 # --------------------------------------------------------------------------- #
@@ -364,6 +369,7 @@ def transition_order(
         StageConflictError: actual axis 값이 expected_from 과 불일치(409, 상태 불변).
         RevisionConflictError: If-Match(mutation_version) 불일치(409, helper 가 던짐).
         DraftNotPromotedError: 대상이 아직 승격하지 않은 ERP 초안(409 ``DRAFT_NOT_PROMOTED``).
+        ItemsConstructionOpenError: 남은 제품 시공이 있는데 본 흐름 CS · 완료 목표(409, 뚫기 불가).
     """
     command = get_command(command_id)
     now = now or now_utc_naive()
@@ -401,6 +407,8 @@ def transition_order(
             block = confirm_exit_block(order.structured_data)
             if block is not None:
                 raise DrawingGateBlockedError(block.reason)
+        if command.axis == AXIS_MAIN and (items_block := items_gate_message(order.structured_data, actual_from, target_value)):
+            raise ItemsConstructionOpenError(items_block, order_id=order.id)  # 관리자 뚫기로도 못 넘는다
 
         # 2) axis canonical write(copy.deepcopy + flag_modified) + legacy projection 재계산.
         sd = copy.deepcopy(order.structured_data or {})
@@ -483,14 +491,7 @@ def transition_order(
 
 
 __all__ = [
-    "TransitionError",
-    "UnknownTransitionCommandError",
-    "InvalidTransitionError",
-    "StageConflictError",
-    "DrawingGateBlockedError",
-    "TransitionCommand",
-    "TransitionResult",
-    "COMMAND_REGISTRY",
-    "get_command",
-    "transition_order",
+    "TransitionError", "UnknownTransitionCommandError", "InvalidTransitionError", "StageConflictError",
+    "DrawingGateBlockedError", "ItemsConstructionOpenError", "TransitionCommand", "TransitionResult",
+    "COMMAND_REGISTRY", "get_command", "transition_order",
 ]

@@ -30,6 +30,11 @@ from foms.services.erp_display import _ensure_dict
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.orders.complete_path_policy import uses_regional_completion
+from foms.services.orders.items_construction_gate import (
+    close_remaining_items as _close_remaining_items,
+    items_gate_blocks,
+    items_open_body,
+)
 from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.orders.order_transition_service import (
     COMMAND_REGISTRY,
@@ -211,8 +216,14 @@ def cs_complete_replay(db: Any, actor_user_id: Any, idem_key: Optional[str],
 
 
 def _completion_gate(db: Any, order: Order, actor_id: Any, idem_key: Optional[str],
-                     override: Any, punched: list, regional: bool) -> Optional[tuple[Any, int]]:
-    """정책별 단계·승인 및 공통 보류·AS 검사 결과를 반환한다. receipt는 엔진에서 검증한다."""
+                     override: Any, punched: list, regional: bool,
+                     close_items: Optional[dict] = None) -> Optional[tuple[Any, int]]:
+    """정책별 단계·승인 및 공통 보류·AS 검사 결과를 반환한다. receipt는 엔진에서 검증한다.
+
+    마지막 자리는 남은 제품 문지기(2단계 7절)다 — 관리자 뚫기로도 못 넘는다. ``close_items``
+    (``close_remaining_items`` 인자 — 강제 변경 N4)가 오면 다른 검사를 다 지난 뒤에만 남은 제품을
+    ``admin_override`` 로 찍고 넘긴다(거부될 완료에 찍기만 남지 않게).
+    """
     policy = POLICY_REGIONAL_COMPLETE if regional else POLICY_CS_COMPLETE
     if cs_complete_replay(db, actor_id, idem_key, policy):
         return None
@@ -227,6 +238,12 @@ def _completion_gate(db: Any, order: Order, actor_id: Any, idem_key: Optional[st
         if override is None:
             return _cs_gate_block(order, _ensure_dict(order.structured_data))
         punched.append(hit[0])
+    if items_gate_blocks(order.structured_data, "COMPLETED"):
+        if close_items is None:
+            return jsonify(items_open_body(order)), 409
+        # 찍기는 잠근 최신 행에 한다(잠그기 전 사본을 되쓰면 남의 저장을 덮는다). 전이 엔진이 같은 잠금을 잇는다.
+        db.refresh(order, with_for_update=True)
+        _close_remaining_items(order, **close_items)
     return None
 
 
@@ -261,10 +278,21 @@ def complete_order_as_cs(
     override: Any = None,
     punched: Optional[list] = None,
     expected_version: Optional[int] = None,
+    close_remaining_items: bool = False,
 ):
-    """CS/지방 정책으로 최종 완료한다. 성공은 None, 실패는 (JSON, status). 커밋은 호출자 소관."""
+    """CS/지방 정책으로 최종 완료한다. 성공은 None, 실패는 (JSON, status). 커밋은 호출자 소관.
+
+    ``close_remaining_items`` 는 관리자 강제 변경(N4) 전용이다 — 사유(뚫기 사유 또는 본문 ``reason``)가
+    있을 때만 남은 제품을 ``admin_override`` 로 찍고 넘긴다. 사유가 없으면 문지기가 그대로 막는다.
+    """
     if punched is None:
         punched = []
+    reason = override.reason if override is not None else str((body or {}).get("reason") or "").strip()
+    close_items = (
+        {"user_id": actor_user_id, "user_name": getattr(actor_user, "name", "") or "",
+         "reason": reason, "db": db}
+        if close_remaining_items and reason else None
+    )
     order_id = order.id
     # 지방 판정·보류·AS를 잠금 아래 재확인한다. 전이 엔진도 같은 트랜잭션의 잠금을 쓴다.
     if uses_regional_completion(order):
@@ -275,7 +303,8 @@ def complete_order_as_cs(
     command_id = "REGIONAL_COMPLETE" if regional else "CS_COMPLETE"
     receipt_body = {"order_id": order_id, "body": body} if regional else body
     from_stage = read_main_stage(order)
-    failed = _completion_gate(db, order, actor_user_id, idempotency_key, override, punched, regional)
+    failed = _completion_gate(db, order, actor_user_id, idempotency_key, override, punched, regional,
+                              close_items=close_items)
     if failed is not None:
         return failed
 

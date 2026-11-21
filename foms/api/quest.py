@@ -43,6 +43,8 @@ from foms.services.orders.cs_complete_service import (
     cs_complete_replay,
     cs_gate_code,
 )
+from foms.services.orders.item_construction_done import remaining_summary
+from foms.services.orders.items_construction_gate import ITEMS_CONSTRUCTION_OPEN, items_gate_blocks
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
@@ -336,6 +338,11 @@ def _complete_cs_after_approve(db, order, user, user_id, payload, idempotency_he
         hit = cs_gate_code(order, order.structured_data or {})
         if hit is not None:
             return False, {'code': hit[0], 'message': _CS_COMPLETE_BLOCK_MESSAGES.get(hit[0], hit[0])}, None
+        # 남은 제품 시공이 있으면(2단계 7절) 승인은 남기고 CS 단계에 둔다 — 보류 · AS 와 같은 꼴.
+        if items_gate_blocks(order.structured_data, 'COMPLETED'):
+            left = remaining_summary(order.structured_data) or '남은 제품'
+            return False, {'code': ITEMS_CONSTRUCTION_OPEN,
+                           'message': f'CS 확인은 기록됐지만 {left} 시공이 남아 있어 완료로 넘기지 못했습니다.'}, None
     failed = complete_order_as_cs(
         db, order, actor_user=user, actor_user_id=user_id, body=payload,
         idempotency_key=idem_key,

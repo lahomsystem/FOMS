@@ -40,6 +40,7 @@ from foms.services.orders.as_cycle_service import (
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.orders.cs_complete_service import complete_order_as_cs
+from foms.services.orders.items_construction_gate import ITEMS_CONSTRUCTION_OPEN, items_open_body
 from foms.services.orders.revision import RevisionError
 from foms.services.orders.stage_override import (
     AS_TARGET_TO_AXIS,
@@ -343,7 +344,9 @@ def complete_via_cs(
     """``COMPLETED`` 목표를 CS 완료 서비스로 보낸다(완료는 한 길만).
 
     ``admin_override`` 가 없으면 CS 게이트가 그대로 걸리고, 그 거부 문구 끝에
-    "강제 완료는 관리자 권한이 필요합니다." 를 붙여 무엇이 필요한지 알려 준다.
+    "강제 완료는 관리자 권한이 필요합니다." 를 붙여 무엇이 필요한지 알려 준다. 남은 제품 문지기
+    (``ITEMS_CONSTRUCTION_OPEN``)는 관리자 뚫기로 못 넘으므로 그 안내를 붙이지 않는다 — 본문
+    ``close_remaining_items: true`` 로 남은 제품을 찍고 넘긴다(2단계 N4).
 
     Returns:
         (성공 요약, 실패 응답) — 한쪽은 항상 None.
@@ -360,8 +363,12 @@ def complete_via_cs(
         override=override,
         punched=punched,
         expected_version=expected_version,
+        close_remaining_items=(data or {}).get("close_remaining_items") is True,
     )
     if failed is not None:
+        if _failure_code(failed) == ITEMS_CONSTRUCTION_OPEN:
+            # 뚫기 안내를 붙이지 않는다. 일괄은 어느 주문인지 글 앞에 번호를 단다(메인 일괄과 같은 꼴).
+            return None, ((jsonify(items_open_body(order, bulk=True)), 409) if bulk else failed)
         return None, _with_admin_hint(failed) if override is None else failed
     if override is not None and punched:
         record_admin_override_event(
@@ -444,6 +451,15 @@ def map_target_exception(exc: Exception) -> Optional[tuple]:
             exc.status_code,
         )
     return None
+
+
+def _failure_code(failed: tuple) -> str:
+    """CS 완료 거부 응답의 ``code`` (읽지 못하면 빈 글)."""
+    try:
+        return str((failed[0].get_json() or {}).get("code") or "")
+    except Exception:  # pragma: no cover - jsonify 응답이 아닌 경우
+        log_handled_exception("stage_override 완료 거부 코드 읽기")
+        return ""
 
 
 def _with_admin_hint(failed: tuple) -> tuple:
