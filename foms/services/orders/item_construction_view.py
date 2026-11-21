@@ -28,6 +28,8 @@ from foms.services.orders.item_construction_done import (
     item_lines,
     remaining_lines,
 )
+# [오늘 시공 끝] 줄 머리말은 서버가 쓰는 곳 한 군데에서 가져온다(설계서 4.2 ③).
+from foms.services.orders.construction_visit import PARTIAL_VISIT_NOTE_PREFIX
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, team_has_capability
 from foms.services.orders.state_axes import read_main_stage
 
@@ -46,8 +48,6 @@ __all__ = [
     "visit_open",
 ]
 
-#: [오늘 시공 끝] 때 서버(E1)가 ``workflow.history`` 에 남기는 줄의 머리말(설계서 4.2 ③).
-PARTIAL_VISIT_NOTE_PREFIX = "부분 시공 끝"
 #: [시공 불가] 줄의 머리말 — 시공 단계 "시공 불가 → …", 생산 단계(방문만 닫음) "시공 불가 (단계 그대로) → …".
 FAIL_NOTE_PREFIX = "시공 불가"
 _START_NOTE = "시공 시작"
