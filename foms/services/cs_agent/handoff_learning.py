@@ -400,7 +400,7 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
     approved += [item.text for item in load_approved(session, SEND_BRAND).items]
     auto = auto_learn(session, cfg)
     session.commit()
-    got = file_proposals(session, raw, sent, now=now, known=known, approved=approved, auto=auto)
+    got = file_proposals(session, raw, sent, now=now, known=known, approved=approved, auto=auto, cfg=cfg, client=client)
     more = file_ontology(session, onto, sent, now=now, known=known, auto=auto)
     session.commit()
     for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed"),

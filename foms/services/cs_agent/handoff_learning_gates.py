@@ -37,10 +37,10 @@
 'AI 가 배운 것'에 전 → 후로 보이고 거기서 고치기 · 지우기(옛 글로)를 한다.
 
 **부딪치지 않는 다른 말은 새 지식(사장님 11-21 '새 내용은 바로 넣기' · D276)**: 바로 고치지 못한 ``differs`` 안(한 번뿐 · 고칠 수
-없는 큰 항목 — 「실측」 · 「시공」 같은 공정 단계)은 :func:`new_or_card` 가 가른다. 두뇌가 짚은 그 항목 + 가까운 승인 지식과 두
-순서로 판정해(:func:`foms.services.brain.ai_gates.conflict_gate` — 새 키로는 그 항목이 견줄 글에 안 들어가 직접 짚는다) 부딪치지
-않고 숫자가 근거에 있으면 **새 지식**(사실 · 정책)으로 넣는다(같은 말을 모아 둔 앞 카드는 합쳐 닫는다). 부딪치거나 · 판정을 못
-하거나 · 숫자가 근거에 없으면 예전처럼 엇갈림 카드다. 첫 밤에 이미 쌓인 카드는 :mod:`.handoff_learning_resort` 가 한 번 다시 가른다.
+없는 큰 항목 — 「실측」 · 「시공」 같은 공정 단계)은 :func:`new_or_card` 가 가른다. 두뇌가 짚은 그 항목 + 가까운 승인 지식에
+'더함인가 부딪침인가'를 전용 판정자에게 한 방향으로 묻고(:func:`.handoff_learning_judge.differs_verdict` — 공용 부딪침 관문은
+더 자세한 말까지 부딪침으로 봤다) 더함이고 숫자가 근거에 있으면 **새 지식**(사실 · 정책)으로 넣는다(같은 말을 모아 둔 앞 카드는
+합쳐 닫는다). 부딪치거나 · 판정을 못 하거나 · 숫자가 근거에 없으면 예전처럼 엇갈림 카드다. 첫 밤에 이미 쌓인 카드는 :mod:`.handoff_learning_resort` 가 한 번 다시 가른다.
 
 **바로 반영(``auto`` — 패널 '배운 것 바로 반영')**: 넣은 사실 · 정책 안을 그 자리에서 반영한다(:class:`foms.services.brain.apply
 .AutoLearn` — 사람 승인자 칸은 비고 확신은 '근거 있음'). 엇갈림 카드는 반영하지 않는다(사람이 고른다). 반영이 막히면 열린 채
@@ -56,7 +56,7 @@ from typing import Any, Callable, Optional, Sequence
 from sqlalchemy import and_, or_, select, update
 
 from foms.persistence.brain.models import BrainChange
-from foms.services.brain.ai_gates import PASS, conflict_gate, related_key
+from foms.services.brain.ai_gates import related_key
 from foms.services.brain.apply import AutoLearn, apply_change
 from foms.services.brain.constants import (
     CHANGE_APPLIED, CHANGE_EXPIRED, CHANGE_OPEN, CHANGE_REJECTED, OP_CREATE, OP_UPDATE, SCOPE_ALL, STATUS_ACTIVE,
@@ -70,6 +70,7 @@ from foms.services.brain.store import current_object
 from foms.services.cs_agent.case_memory import text_similarity
 from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.brain.photo_cards import ABOUT_PREFIX, DIFFERS_LINE
+from foms.services.cs_agent.handoff_learning_judge import ADDS, differs_verdict
 from foms.services.cs_agent.handoff_learning_prompt import (
     DIFFERS, ITEM_TYPES, OPS, REASON_WORDS, updatable, whole_shown,
 )
@@ -187,7 +188,7 @@ def close_cards(session: Any, ids: Sequence[int], now: datetime.datetime) -> Non
 
 
 def new_or_card(session: Any, raw: dict[str, Any], target_key: Optional[str], card: dict[str, Any], *, known: str,
-                replies: dict[str, list[str]], approved: Sequence[str],
+                replies: dict[str, list[str]], approved: Sequence[str], cfg: Any = None, client: Any = None,
                 ) -> tuple[Optional[str], Optional[Callable[[], Any]], list[int]]:
     """바로 고치지 못한 다른 말(모듈 설명) → (막힌 까닭 코드, 새 지식 넣는 함수, 같은 말을 담은 열린 카드 id — 넣으면 합쳐 닫는다).
     부딪침 · 판정 못 함 · 근거에 없는 숫자면 엇갈림 카드를 넣고(커밋) ``conflict_card`` 같은 코드만 돌려준다. ``card`` 는
@@ -198,10 +199,10 @@ def new_or_card(session: Any, raw: dict[str, Any], target_key: Optional[str], ca
         return "target", None, []
     if not _numbers_ok([title, text], known, replies):  # 다른 말은 숫자 관문을 안 거쳤다 — 새 지식이 되려면 거친다
         return _try_card(session, target_key, card), None, []
-    verdict = conflict_gate(session, op=OP_UPDATE, key=target_key or "", item_type=raw.get("item_type"),
-                            texts=[title, text], today=now.astimezone(KST).date(), brand=SEND_BRAND)
+    verdict = differs_verdict(session, target_key=target.item_key, title=title, text=text, cfg=cfg, now=now,
+                              client=client)
     session.commit()  # 판정자 부르기가 연 트랜잭션을 닫는다
-    if verdict != PASS:  # 부딪침 · 판정을 못 함 — 사람이 고른다
+    if verdict != ADDS:  # 부딪침 · 판정을 못 함 — 사람이 고른다
         return _try_card(session, target_key, card), None, []
     seen = [s for s in card["seen"] if not str(s[1] or "").startswith(CARD_PREFIX)]
     code, make = _filer(session, {**raw, "op": "create"}, **{**card, "seen": seen}, approved=approved,
@@ -365,7 +366,7 @@ def _check(raw: dict[str, Any], by_id: dict[int, dict[str, Any]], known: str
 
 def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[dict[str, Any]], *,
                    now: datetime.datetime, known: str, approved: Sequence[str],
-                   auto: Optional[AutoLearn] = None) -> dict[str, int]:
+                   auto: Optional[AutoLearn] = None, cfg: Any = None, client: Any = None) -> dict[str, int]:
     """관문(우리 쪽) → 제안 길. 넣은 수(``filed``) · 바로 반영한 수(``applied``) · 엇갈림 카드 수(``conflict_card``)와 막힌 까닭별
     수. 넣은 안마다 커밋한다.
 
@@ -374,6 +375,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
         known: 숫자 허용 글(회사 지식 반영 · 확정 + 상담 승인 지식).
         approved: 반영된 지식 글(같음 관문).
         auto: 바로 반영(모듈 설명 — 없으면 승인 대기로만).
+        cfg · client: 다른 말 가르기 판정자(:func:`new_or_card` — 학습 돈 줄 · 패널 설정, 없으면 다른 말은 카드로만).
     """
     by_id = {case["turn_id"]: case for case in cases}
     seen = seen_proposals(session)
@@ -404,7 +406,7 @@ def file_proposals(session: Any, raw: Sequence[dict[str, Any]], cases: Sequence[
                                         skip_gates=("conflict",))
                 if make is None and code not in ("same", "rejected_before"):  # 한 번뿐 · 고칠 수 없는 항목 — 새 지식 또는 카드
                     code, make, same = new_or_card(session, item, wanted, card, known=known, replies=_replies(ids, by_id),
-                                                   approved=approved)
+                                                   approved=approved, cfg=cfg, client=client)
                     fresh, merged = make is not None, sorted({*merged, *same}) if make is not None else []
             else:
                 code, make = _filer(session, item, title=title, text=text, number=number, common=common, now=now,

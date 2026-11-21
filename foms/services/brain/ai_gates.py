@@ -123,6 +123,11 @@ def _judge() -> Judge:
     return _JUDGES[-1] if _JUDGES else default_judge
 
 
+def pushed_judge() -> Optional[Judge]:
+    """:func:`judge_source` 로 끼운 판정자(없으면 ``None``) — 다른 판정 길(넘김 학습의 다른 말 가르기)이 시험에서 같은 합성 판정자를 쓴다."""
+    return _JUDGES[-1] if _JUDGES else None
+
+
 def same_brand(proposal_brand: Optional[str], hit_brand: Any) -> bool:
     """견줄 브랜드인가 — 브랜드 제안(라홈 · 하우드)은 그 브랜드 + 공통 지식하고만 견준다(다른 브랜드 전용 규칙은 그 브랜드에서만
     맞다 — 사장님 11-06 D176, 하우드 카드 수수료 카드가 라홈 '카드도 같은 값'에 막힘). 공통 · 모르는 브랜드 제안은 모두와 견준다."""
