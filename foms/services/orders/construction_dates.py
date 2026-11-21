@@ -83,11 +83,25 @@ def short_date_label(day_iso: str) -> str:
 
 
 def remaining_construction_note(sd: Any, today: Optional[datetime.date] = None) -> str:
-    """[시공 완료] 확인 창의 한 줄 — 오늘보다 뒤 시공일이 남았을 때만. 없으면 빈 글."""
-    remaining = remaining_construction_dates(sd, today or get_today_kst())
+    """[시공 완료] 확인 창의 한 줄 — 오늘보다 뒤 시공일이 남았을 때만. 없으면 빈 글.
+
+    제품마다 '시공 끝'(2단계)이 켜져 있고 나눠 시공하는 주문이면, '시공 끝' 제품의 날짜는 세지 않고
+    남은 제품의 마지막 시공일만 본다(설계서 2026-11-21-item-construction-done 5.1).
+    """
+    day = today or get_today_kst()
+    remaining = _split_remaining_dates(sd, day)
+    if remaining is None:
+        remaining = remaining_construction_dates(sd, day)
     if not remaining:
         return ""
     return " · ".join(short_date_label(day) for day in remaining) + " 시공이 남아 있어요"
+
+
+def _split_remaining_dates(sd: Any, day: datetime.date) -> Optional[list[str]]:
+    """스위치가 켜진 나눠 시공 주문이면 남은 제품의 남은 날, 아니면 None(지금 규칙을 쓴다)."""
+    if not _construction_visit.split_flow_active(sd):
+        return None
+    return _construction_visit.remaining_last_dates_after(sd, day)
 
 
 def attach_remaining_construction_notes(rows: Iterable[Any],
@@ -123,3 +137,8 @@ def pick_nearest_date(days: Iterable[str], today: datetime.date) -> Optional[dat
     limit = today.isoformat()
     upcoming = [day for day in ordered if day >= limit]
     return datetime.date.fromisoformat(upcoming[0] if upcoming else ordered[-1])
+
+
+# 제품마다 '시공 끝' 판정(construction_visit → item_construction_done)이 이 모듈의 날짜 읽기를 쓴다 — 순환이라
+# 정의를 모두 마친 뒤 맨 끝에서 가져온다(순서 고정, channel_client 와 같은 꼴).
+from foms.services.orders import construction_visit as _construction_visit  # noqa: E402

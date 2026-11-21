@@ -57,6 +57,12 @@
       "reason": "시공 시작/재작업/증빙을 REV-00 execute_order_mutation 경유로 수행한다."
     },
     {
+      "path": "foms/api/construction/item_done.py",
+      "classification": "CANONICAL",
+      "owner": "ITEM-CONSTRUCTION-DONE-02",
+      "reason": "나눠 시공 주문의 [시공 완료] — 부분 방문은 REV-00 execute_order_mutation 한 거래, 마지막 방문은 잠근 행에 '시공 끝' 표시를 찍고 flush 한 뒤 같은 거래의 transition_order(CONSTRUCTION→CS)가 version bump · receipt 를 한다."
+    },
+    {
       "path": "foms/api/drawing/wizard.py",
       "classification": "CANONICAL",
       "owner": "WIZ-01",
@@ -79,6 +85,12 @@
       "classification": "CANONICAL",
       "owner": "MEASUREMENT-VISIT-01",
       "reason": "실측 방문 체크를 REV-00 execute_order_mutation 경유로 version bump 하며 수행한다."
+    },
+    {
+      "path": "foms/api/orders/item_construction_done.py",
+      "classification": "CANONICAL",
+      "owner": "ITEM-CONSTRUCTION-DONE-02",
+      "reason": "제품 '시공 끝' 되돌리기를 REV-00 execute_order_mutation 경유로 version bump 하며 수행한다."
     },
     {
       "path": "foms/api/shipment/packing.py",
