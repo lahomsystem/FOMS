@@ -26,6 +26,7 @@ from db import db_session
 from models import Order, OrderAttachment, SecurityLog, User
 from tests.support.quest_seed import confirm_quest_completed
 from tests.support.confirm_seed import drawing_for_stage
+from tests.support.production_steps_seed import mark_order_inspected
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _counter = itertools.count(1)
@@ -199,6 +200,7 @@ def test_production_start_and_complete_are_recorded(client):
                        user_id=user_id, customer_name="조혜리")
     assert "제작 시작" in start.message
 
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200, resp.get_data(as_text=True)
     done = _only_log("PRODUCTION_COMPLETED", order_id)

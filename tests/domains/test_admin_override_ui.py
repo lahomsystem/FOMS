@@ -152,7 +152,7 @@ def test_재시도_배선_페이지의_자산_핀이_올라가_있다(rel):
         assert asset_url_call("js/foms/foms-admin-override.js") in body
         assert "js/foms/foms-admin-override.js') }}?v=" not in body, "시범 파일에 손 핀이 되살아났다"
         return
-    assert "js/foms/foms-admin-override.js') }}?v=20260921a" in body
+    assert "js/foms/foms-admin-override.js') }}?v=20261121a" in body
 
 
 @pytest.mark.parametrize("rel", RETRY_CALLER_SCRIPTS)

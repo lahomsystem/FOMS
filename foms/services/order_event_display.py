@@ -40,6 +40,7 @@ _ADMIN_OVERRIDE_GATE_LABELS: dict[str, str] = {
     "AS_ACTIVE": "진행 중 AS",
     "OVERRIDE_BLOCK": "역행·건너뛰기 차단",
     "OVERRIDE_TARGET": "강제 변경 목표 제한",
+    "STEPS_INCOMPLETE": "검수 끝 전제",
 }
 
 

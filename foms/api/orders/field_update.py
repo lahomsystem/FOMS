@@ -25,6 +25,7 @@ from foms.services.orders.state_axes import (
     read_main_stage,
 )
 from foms.services.orders.admin_override import (
+    GATE_STEPS_INCOMPLETE,
     admin_override_error,
     log_admin_override_denied,
     record_admin_override_event,
@@ -684,6 +685,7 @@ def update_order_field_from_payload(
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
                 normalize_main_stage,
+                production_complete_move_block,
                 requires_dedicated_command,
                 requires_privileged_override,
             )
@@ -709,6 +711,18 @@ def update_order_field_from_payload(
                         return jsonify({"success": False, "code": "COMMAND_REQUIRED",
                                         "message": DEDICATED_COMMAND_MESSAGE}), 409
                     punched.append("COMMAND_REQUIRED")
+                    record_admin_override_event(
+                        db, order, override=override, gates=list(punched),
+                        route="orders.update_order_field", axis="MAIN",
+                        from_value=current_stage_for_order(order), to_value=value,
+                    )
+                # 생산 → 시공(= 제작 완료)은 [제작 완료] 단추와 같은 규칙 — 검수까지(공정 4칸) 끝나야 한다
+                # (2026-11-21). 위 두 분기와 겹치지 않는 인접 전진이라 뚫기 기록도 여기서 한 번만 남긴다.
+                elif (steps_blocked := production_complete_move_block(
+                        order, current_stage_for_order(order), value)) is not None:
+                    if override is None:
+                        return jsonify(steps_blocked), 409
+                    punched.append(GATE_STEPS_INCOMPLETE)
                     record_admin_override_event(
                         db, order, override=override, gates=list(punched),
                         route="orders.update_order_field", axis="MAIN",

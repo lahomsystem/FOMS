@@ -16,6 +16,7 @@ from db import db_session
 from models import Order, OrderEvent, ProductionRun, User
 from tests.support.quest_seed import confirm_quest_completed, confirm_quest_open
 from tests.support.confirm_seed import drawing_for_stage
+from tests.support.production_steps_seed import mark_order_inspected
 
 
 def _make_user(username: str, *, role: str = "STAFF", team: str = "PRODUCTION") -> User:
@@ -175,6 +176,7 @@ def test_production_complete_does_not_require_production_quest(client):
     """PRODUCTION + current run + quests 없음 → production/complete 200(complete 는 require_quest False)."""
     _login(client, _make_user("cq_complete"))
     order_id = _make_order("PRODUCTION", None).id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
     _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})

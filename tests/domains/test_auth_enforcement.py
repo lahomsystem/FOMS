@@ -31,6 +31,7 @@ from foms.services.orders.order_mutation_policy import (
     load_policy_manifest,
 )
 from tests.support.confirm_seed import drawing_for_stage
+from tests.support.production_steps_seed import mark_order_inspected
 
 _MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -242,6 +243,7 @@ def test_production_team_can_start_and_complete(client, app, policy_on):
     assert r1.status_code == 200 and r1.get_json()["success"] is True, r1.get_data(as_text=True)
 
     done_id = _make_order("PRODUCTION")
+    mark_order_inspected(done_id)  # 검수까지 끝(2026-11-21 서버 규칙)
     r2 = client.post(f"/api/orders/{done_id}/production/complete", json={})
     assert r2.status_code == 200 and r2.get_json()["success"] is True, r2.get_data(as_text=True)
 

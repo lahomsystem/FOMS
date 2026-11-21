@@ -968,6 +968,11 @@
                         alert('전용 버튼(도면 수령 확정 / 고객 컨펌 완료)으로만 넘길 수 있어 바꾸지 않은 주문 '
                           + data.blocked_command_required.length + '건: #' + data.blocked_command_required.join(', #'));
                       }
+                      // 생산 → 시공(= 제작 완료)은 검수까지(공정 4칸) 끝나야 한다(11-21, [제작 완료] 단추와 같은 규칙) — 막힌 ID 를 알린다.
+                      if (data.blocked_steps_incomplete && data.blocked_steps_incomplete.length) {
+                        alert('검수까지 끝나지 않아 바꾸지 않은 주문 ' + data.blocked_steps_incomplete.length + '건: #'
+                          + data.blocked_steps_incomplete.join(', #') + '\n공정(재단 · 엣지 · 조립 · 검수)을 먼저 체크해 주세요.');
+                      }
                       // AS 접수/완료 주문은 일괄 변경에서 제외된다 — 조용히 넘기면
                       // "바꿨는데 왜 그대로냐"가 되므로 제외 ID를 반드시 알린다.
                       if (data.blocked_as_orders && data.blocked_as_orders.length) {

@@ -6,7 +6,7 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261121a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261121c">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
 {% endblock %}
 
@@ -166,9 +166,10 @@
             {% endif %}
           {% elif order.stage == '제작중' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
-            {# 검수까지(공정 모두) 끝나기 전엔 회색 · 누를 수 없음(설계서 §12.2 · 시안 안 2). 화면 규칙 — 서버 완료 API 는 공정을 막지 않는다.
-               공정을 체크하면 foms-production-sheet-page.js 가 바로 파랗게 바꾼다. #}
-            {% set _inspected = order.steps and order.steps_done >= (order.steps | length) %}
+            {# 검수까지(공정 4칸 모두) 끝나기 전엔 회색 · 누를 수 없음(설계서 §12.2 · 시안 안 2). 서버 제작 완료 API 도 같은 규칙으로
+               막는다(11-21) — 판정은 뷰 모델 complete_ready = production_complete_ready(sd) 한 함수. 공정을 체크하면
+               foms-production-sheet-page.js 가 공정 API 응답의 complete_ready(같은 함수)로 바로 파랗게 바꾼다. #}
+            {% set _inspected = order.complete_ready %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} disabled aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
           {% elif order.stage == '제작완료' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
@@ -188,10 +189,10 @@
   <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261121a" defer></script>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121c" defer></script>
 {% endblock %}

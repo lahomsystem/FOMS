@@ -27,6 +27,7 @@ from foms.services.orders.order_transition_service import (
     transition_order,
 )
 from models import Order, OrderConstructionAttempt, OrderEvent, ProductionRun, User
+from tests.support.production_steps_seed import with_inspected_steps
 
 _REASON = "고객 일정 때문에 관리자가 직접 진행"
 
@@ -145,7 +146,8 @@ def test_hold_blocks_production_complete_without_override(client):
 def test_hold_is_punched_by_admin_override(client):
     """ADMIN 이 admin_override 를 실으면 보류를 건너뛰고 제작을 완료한다(이력 1행)."""
     _login(client, _make_user("ov_hold_punch"))
-    oid = _make_order("PRODUCTION", structured_data=_held()).id
+    # 검수까지 끝(2026-11-21 서버 규칙) — 건너뛴 게이트가 보류 하나뿐이게 한다.
+    oid = _make_order("PRODUCTION", structured_data=with_inspected_steps(_held())).id
 
     resp = client.post(f"/api/orders/{oid}/production/complete", json=_punch())
 
