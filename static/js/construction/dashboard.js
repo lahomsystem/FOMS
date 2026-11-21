@@ -452,9 +452,21 @@
     return words.join(', ') + '이 필요합니다';
   }
 
+  // 남은 시공 한 줄 — 서버가 줄 · 카드 뿌리에 실어 준 글(data-remaining-construction)을 그대로 읽는다.
+  function remainingConstructionNote(orderId) {
+    const src = document.querySelector('[data-remaining-construction][data-order-id="' + orderId + '"]');
+    return src ? (src.getAttribute('data-remaining-construction') || '') : '';
+  }
+
   function completeConstruction(orderId) {
     const orderIdInput = document.getElementById('erp-cons-complete-order-id');
     if (orderIdInput) orderIdInput.value = orderId;
+    const remainingEl = document.getElementById('erp-cons-complete-remaining');
+    if (remainingEl) {
+      const remaining = remainingConstructionNote(orderId);
+      remainingEl.textContent = remaining;
+      remainingEl.classList.toggle('d-none', !remaining);
+    }
     const fileInput = document.getElementById('erp-cons-complete-input');
     if (fileInput) fileInput.value = '';
     const statusEl = document.getElementById('erp-cons-complete-status');

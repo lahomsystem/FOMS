@@ -39,6 +39,10 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.as_schedule_link import clear_link, read_link
 from foms.services.orders.revision import MutationResult, execute_order_mutation
+from foms.services.orders.sales_delivery_link import LINK_PATH as _SALES_DELIVERY_LINK_PATH
+from foms.services.orders.sales_delivery_link import METHOD_KEY as _SALES_DELIVERY_METHOD_KEY
+from foms.services.orders.sales_delivery_link import PARCEL_KEY as _SALES_DELIVERY_PARCEL_KEY
+from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.state_axes import (
     AS_VALUES,
     legacy_status_projection,
@@ -71,10 +75,16 @@ POLICY_AS_COMPLETE = "STATE_AS_COMPLETE"
 POLICY_AS_REOPEN = "STATE_AS_REOPEN"
 POLICY_AS_CLEAR_COMPLETED_DATE = "STATE_AS_CLEAR_COMPLETED_DATE"
 POLICY_AS_CLASSIFICATION = "STATE_AS_CLASSIFICATION"
+POLICY_AS_CANCEL = "STATE_AS_CANCEL"
 
 # 레거시로 workflow.stage 에 박힌 AS overlay. 본공정이 이미 오염된 주문만 overlay 와
 # 동기화하고, CS/COMPLETED 같은 깨끗한 main 은 건드리지 않는다(STATE-AS-01).
 _AS_STAGE_OVERLAY = frozenset({"AS_RECEIVED", "AS", "AS_COMPLETED"})
+
+#: 새 건 접수가 덮기 전 값을 남기는 자리(cycle 아래). 접수 취소가 이 값으로 되돌린다.
+PRE_REGISTER_KEY = "pre_register"
+#: 전달 배정 칸(shipment 아래, 주문당 한 칸) — 접수 전 값을 통째로 남긴다.
+SALES_DELIVERY_KEYS = (_SALES_DELIVERY_LINK_PATH[-1], _SALES_DELIVERY_METHOD_KEY, _SALES_DELIVERY_PARCEL_KEY)
 
 
 class ASCycleError(ValueError):
@@ -307,6 +317,43 @@ def _reproject_and_sync(order: Order, sd: Dict[str, Any]) -> None:
     sync_erp_flat_columns(order, sd)
 
 
+def restore_status_after_as_cancel(
+    order: Order, sd: Dict[str, Any], prior: Optional[Dict[str, Any]],
+) -> None:
+    """남은 AS 건이 없을 때(접수 취소) 주문 상태 글 · AS 축 평면 칸을 접수 전으로 돌린다.
+
+    건 기록이 비면 AS 축 읽기가 옛 ``order.status`` 글(AS_*)로 떨어져 재계산이 제 꼬리를 문다
+    (:func:`read_as_status`). 그래서 상태 글을 먼저 써 두고 뒤따르는 :func:`_reproject_and_sync` 에 맡긴다.
+
+    * 상태 글이 **AS 글일 때만** 쓴다. 접수 뒤에 사람이 건 보류 · 물류 글은 그대로 둔다(재계산이 지킨다).
+    * 접수 전 값(``prior`` — :data:`PRE_REGISTER_KEY`)이 있으면 그 상태 글 · AS 축 값으로 돌린다. 건 기록 없이
+      끝나 있던 옛 AS(``AS_COMPLETED``)나 옛 물류 글(``SCHEDULED``)은 단계 글로는 되살릴 수 없다.
+    * 없으면 본 흐름 단계 글로 돌린다. ``as_axis_status`` 는 동기화가 값이 없으면 안 지우므로 손으로 맞춘다.
+
+    Args:
+        order: 잠긴 주문. sd: 건을 걷어 낸 뒤의 structured_data 사본. prior: 접수 전 값(없으면 None).
+
+    Raises:
+        ASCycleError: 접수 전 값도 없고 본 흐름 단계도 읽을 수 없는 주문(단계 글이 AS 로 굳은 옛 주문 등).
+    """
+    prior = prior if isinstance(prior, dict) else {}
+    order.as_axis_status = prior.get("as_axis_status") or None
+    if str(getattr(order, "status", None) or "").strip() not in _AS_STAGE_OVERLAY:
+        return
+    prior_status = str(prior.get("status") or "").strip()
+    if prior_status:
+        order.status = prior_status
+        return
+    workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
+    stage = normalize_main_stage(workflow.get("stage"))
+    if stage is None:
+        raise ASCycleError(
+            "본공정 단계를 읽을 수 없는 주문이라 AS 접수를 취소하지 못했습니다. "
+            "주문의 본공정 단계를 먼저 정해 주세요."
+        )
+    order.status = stage
+
+
 def _run_as_command(
     session: Session, *, order_id: int, actor_user_id: int, policy_id: str,
     event_type: str, apply: Callable[[Dict[str, Any], Order], Dict[str, Any]],
@@ -532,10 +579,12 @@ def register_as_cycle(
 
     def _pre(sd: Dict[str, Any]) -> None:
         """새 cycle 발급 → endpoint 부수 기록 순서(부수 기록이 새 건 id 로 스탬프된다)."""
-        _issue_new_cycle(
+        cycle = _issue_new_cycle(
             sd, content=content, shipping=shipping, received_date=received_date,
             recurrence=recurrence, actor_user_id=actor_user_id, now=now,
         )
+        # 부수 기록(sd_hook)이 비용 판정을 다시 심기 전에 주문당 한 칸 값들을 남긴다.
+        cycle[PRE_REGISTER_KEY] = _pre_register_sd_values(sd)
         if sd_hook is not None:
             sd_hook(sd)
 
@@ -544,8 +593,19 @@ def register_as_cycle(
         if cycle is None:  # _pre 가 항상 발급한다 — 방어적 계약 확인
             raise ASCycleError("AS cycle 발급에 실패했습니다.")
         shipment = sd.setdefault("shipment", {})
+        # 덮기 전 값 — 잘못 접수했을 때 접수 취소가 이 값으로 되돌린다(as_cycle_cancel).
+        prior = cycle.setdefault(PRE_REGISTER_KEY, {})
+        prior.update(
+            status=_text_or_none(order.status), as_axis_status=_text_or_none(order.as_axis_status),
+            as_received_date=_text_or_none(order.as_received_date),
+            as_completed_date=_text_or_none(order.as_completed_date),
+        )
         shipment["as_content"] = content
         if construction_worker_name:
+            prior["construction_workers"] = {
+                "before": copy.deepcopy(shipment.get("construction_workers")),
+                "after": [construction_worker_name],
+            }
             shipment["construction_workers"] = [construction_worker_name]
         _apply_classification_projection(sd, cycle)
         order.as_received_date = cycle.get("received_date")
@@ -559,6 +619,8 @@ def register_as_cycle(
         if _clear_visit_for_new_cycle(sd, order):
             _stamp_visit_cleared(cycle)
         if shipping:
+            prior["shipping_scheduled_date"] = {
+                "before": _text_or_none(order.shipping_scheduled_date), "after": shipping}
             order.shipping_scheduled_date = shipping
         return {"command": "AS_REGISTER", "cycle_id": cycle.get("cycle_id"), "to": AS_RECEIVED,
                 "source_screen": source_screen, "recurrence": bool(recurrence)}
@@ -855,6 +917,25 @@ def _apply_classification_projection(sd: Dict[str, Any], cycle: Dict[str, Any]) 
         shipment[field] = bool(classification.get(field))
 
 
+def _text_or_none(value: Any) -> Optional[str]:
+    """JSON 에 남길 평면 칸 값 — 빈 값은 None, 그 밖은 글자."""
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
+def _pre_register_sd_values(sd: Dict[str, Any]) -> Dict[str, Any]:
+    """새 건 접수가 덮기 전의 주문당 한 칸 값(비용 판정 · 전달 배정) — 접수 취소가 이 값으로 되돌린다.
+
+    부수 기록이 비용 판정을 다시 심고 다음 접수가 옛 전달 배정을 물려받으므로, 건을 발급한 직후에 남긴다.
+    """
+    shipment = sd.get("shipment") if isinstance(sd.get("shipment"), dict) else {}
+    billing = shipment.get("as_billing")
+    return {
+        "as_billing": copy.deepcopy(billing) if isinstance(billing, dict) else None,
+        "sales_delivery": {k: copy.deepcopy(shipment[k]) for k in SALES_DELIVERY_KEYS if k in shipment},
+    }
+
+
 def _today_str() -> str:
     """오늘(KST) ``YYYY-MM-DD`` 문자열. get_today_kst 는 date 반환(.date() 금지)."""
     from foms.services.erp_display import get_today_kst
@@ -880,6 +961,9 @@ __all__ = [
     "complete_as_cycle",
     "reopen_as_cycle",
     "clear_as_completed_date",
+    "PRE_REGISTER_KEY",
+    "SALES_DELIVERY_KEYS",
+    "restore_status_after_as_cancel",
     "resync_completed_cycle_billing",
     "set_as_classification",
 ]

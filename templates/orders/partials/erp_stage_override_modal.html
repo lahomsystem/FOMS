@@ -44,10 +44,12 @@
                         {% endif %}
                     </select>
                     <div class="form-text" id="erp-stage-override-mode-hint"></div>
-                    {# AS·삭제를 고르면 무슨 일이 일어나는지 한 줄로 알려 준다(JS 가 d-none 토글). #}
+                    {# AS·삭제를 고르면 무슨 일이 일어나는지 한 줄로 알려 준다(JS 가 d-none 토글).
+                       as-kept: 본공정 목표인데 열린 AS(접수 · 처리 중)가 걸려 있을 때 — 단계만 옮기고 주문 상태의 AS 표시는 남는다. #}
                     <div class="alert alert-warning py-2 mt-2 d-none" id="erp-stage-override-target-warning"
                          role="alert" data-foms-no-autodismiss
                          data-warning-as="본공정 단계는 그대로 두고 AS 건만 엽니다."
+                         data-warning-as-kept="AS 표시는 그대로 남습니다. 잘못 접수한 AS 는 [AS 접수 취소]로 지워 주세요."
                          data-warning-deleted="휴지통으로 보냅니다. 복구할 수 있습니다."></div>
                     {# Q5(2a-2): 생산 이후로 넘기는데 도면이 수령 확정 전이면 경고(허용 + 기록). 문구·토글은 JS
                        (erp-stage-override.js drawingWarningText — 서버 stage_override_drawing_warning 과 같은 글자). #}

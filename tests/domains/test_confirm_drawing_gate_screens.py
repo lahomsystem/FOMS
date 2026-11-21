@@ -221,4 +221,5 @@ def test_asset_pins_bumped_to_20260929i():
     for rel in ("templates/orders/partials/dashboard_main.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
-        assert "erp-stage-override.js') }}?v=20260929i" in _read(rel), rel
+        # 2026-11-21: AS 표시 유지 안내(as_overlay_kept)로 20261121a.
+        assert "erp-stage-override.js') }}?v=20261121a" in _read(rel), rel

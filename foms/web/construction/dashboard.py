@@ -30,6 +30,7 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.erp_policy import STAGE_LABELS
+from foms.services.orders.construction_dates import attach_remaining_construction_notes
 from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
@@ -235,6 +236,7 @@ def erp_construction_dashboard():
     with phase("row_dtos"):
         enriched = build_construction_row_dtos(orders, att_counts, f_stage, keep_production=bool(cons_tablet["mode"]))
         annotate_rows(enriched)
+        attach_remaining_construction_notes(enriched)  # [시공 완료] 확인 창의 "남은 시공" 한 줄
 
     if f_q or focus_order_id:
         step_stats = {

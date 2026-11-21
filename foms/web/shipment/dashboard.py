@@ -62,7 +62,9 @@ from foms.services.shipment_read_model import (
     compute_shipment_panel_aggregates,
     compute_shipment_derived_template_payloads,
 )
+from foms.services.orders.schedule_row_kind import row_is_as
 from foms.services.shipment_dashboard_display import (
+    attach_shipment_row_kinds,
     enrich_shipment_rows,
     sort_shipment_rows,
     build_shipment_mobile_queue_rows,
@@ -87,6 +89,7 @@ from foms.services.erp_dashboard_search import (
 #   is_self_measurement : dashboard_main.html 고객 칸 '자가실측' 표시
 #   product             : dashboard_main.html · tablet_ship_grid.html 품목 칸, 모바일 큐 product_subtitle 폴백
 #   received_date · measurement_completed · lat · lng : 모바일 큐 행 빌더(erp_mobile_order_display.build_mobile_queue_order_row)
+#   erp_stage_code      : 줄 종류 판정(schedule_row_kind — AS 상태 주문의 본 흐름이 열렸는가) · 패널 집계
 _SHIPMENT_ROW_COLUMNS = (
     Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
     Order.status, Order.is_erp_order,
@@ -94,6 +97,7 @@ _SHIPMENT_ROW_COLUMNS = (
     Order.measurement_date, Order.mutation_version,
     Order.partner_org_id, Order.is_self_measurement, Order.product,
     Order.received_date, Order.measurement_completed, Order.lat, Order.lng,
+    Order.erp_stage_code,
 )
 
 erp_shipment_page_bp = Blueprint(
@@ -156,6 +160,25 @@ def _hydrate_structured_data(db, orders: list) -> None:
     )
     for o in need:
         set_committed_value(o, 'structured_data', id_map.get(o.id))
+
+
+def _preload_schedule_dates(db, orders: list) -> None:
+    """일정 줄이 안 실린 AS 상태 주문에 배치 1쿼리로 일정 줄을 싣는다(N+1 없음).
+
+    줄 종류 판정(``attach_shipment_row_kinds``)은 본 흐름이 열린 AS 주문의 일정 줄을 읽는다. 패널 · 날짜 쿼리는
+    일정 줄을 함께 싣지만 협력사 희망일 줄(``_partner_pending_orders``)은 주문만 읽어 와 주문마다 지연 로드가 난다.
+    대상이 없으면 쿼리를 쓰지 않는다.
+    """
+    need = [o for o in orders if is_as_order(o) and 'schedule_dates' in inspect(o).unloaded]
+    if not need:
+        return
+    from models import OrderScheduleDate
+
+    by_order: dict[int, list] = {}
+    for line in db.query(OrderScheduleDate).filter(OrderScheduleDate.order_id.in_([o.id for o in need])).all():
+        by_order.setdefault(line.order_id, []).append(line)
+    for o in need:
+        set_committed_value(o, 'schedule_dates', by_order.get(o.id, []))
 
 
 def _erp_order_search_filter(query, q):
@@ -443,7 +466,7 @@ def erp_shipment_dashboard():
         holiday_dates |= get_holidays_kr(y)
 
     _agg_fp = {
-        "v": 2,
+        "v": 3,  # 3 = 본 흐름이 열린 AS 주문의 시공일도 센다(schedule_row_kind)
         "partner_org": partner_org,
         "user": _shipment_user_visibility_fingerprint(current_user),
         "filters": {
@@ -639,6 +662,15 @@ def erp_shipment_dashboard():
             date_from=date_from if use_range else None,
             date_to=date_to if use_range else None,
         )
+    # 그날(기간) 줄 종류 — 본 흐름이 열린 AS 주문의 시공일 줄은 시공 줄, 같은 날 AS 방문도 있으면 "AS 방문도".
+    # 정렬 · PC 표 · 하루치 출고표 · 폰 카드가 줄에 붙은 이 값을 읽는다.
+    _preload_schedule_dates(db, rows)
+    attach_shipment_row_kinds(
+        rows,
+        target_date=selected_date if use_single_day else None,
+        date_from=date_from if use_range else None,
+        date_to=date_to if use_range else None,
+    )
 
     enrich_shipment_rows(rows)
     if freelancer_viewer:
@@ -694,7 +726,9 @@ def erp_shipment_dashboard():
     # 팀 묶음 머리(합계 · 잔여)는 PC 표 줄 사이에만 그린다.
     shipment_team_group_meta = {} if ship_omit_pc_table else _compute_shipment_team_group_meta(rows, worker_settings)
     # 폰 [AS 추천](shipment-dashboard.js collectTargetOrderIds)은 PC 표 줄에서 주문 번호를 읽었다 — 표가 없으면 이 키로
-    # 같은 순서를 만든다: [주문 번호, 첫 시공자, 담당자] = 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager(AS 줄은 빼고).
+    # 같은 순서를 만든다: [주문 번호, 첫 시공자, 담당자] = 표 줄의 data-order-id · 시공자 칸 첫 값 · data-manager.
+    # 이 키는 AS **상태** 주문을 뺀다(추천 API 가 AS 상태 주문을 기준에서 버린다 — recommendations._is_valid_shipment_target).
+    # PC 표는 줄 종류(data-as)로 빼므로 본 흐름이 열린 AS 주문의 시공 줄이 PC 요청에는 들지만 서버가 같은 주문을 버려 결과는 같다.
     ship_as_rec_rows = []
     if ship_omit_pc_table and can_edit_shipment(current_user) and not freelancer_viewer:
         for r in rows:
@@ -829,6 +863,8 @@ def erp_shipment_tablet_sheet(order_id):
     # 전화 걸기 링크는 첫 번호의 숫자만(여러 번호가 '/'로 이어진 경우가 있다).
     first_phone = str(order.phone or '').replace(',', '/').split('/')[0]
     construction_plan = _ensure_dict(_ensure_dict(sd.get('schedule')).get('construction'))
+    # 서랍 머리(AS · 'AS 방문')는 그날 줄 종류를 따른다. AS 정보 칸은 AS 상태 주문이면 늘 싣는다(시공 줄로 열어도 읽게).
+    attach_shipment_row_kinds([order], target_date=target_date or None)
 
     response = make_response(render_template(
         'shipment/partials/tablet_sheet.html',
@@ -843,7 +879,8 @@ def erp_shipment_tablet_sheet(order_id):
         site_memo=' / '.join(memo_parts),
         construction_note=str(_ensure_dict(sd.get('notes')).get('construction_note') or '').strip(),
         construction_date=target_date,
-        is_as=is_as_order(order),
+        is_as=row_is_as(order),
+        has_as_info=is_as_order(order),
         as_content=as_content_html_to_text(shipment.get('as_content') or '') if is_as_order(order) else '',
         sheet_can_ack=sheet_can_ack,
         # 시간 · 메모 입력 · [저장] — 저장 API 문지기와 같은 함수(D31, 영업팀 · 시공팀은 보기만).

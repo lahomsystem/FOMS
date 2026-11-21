@@ -28,7 +28,7 @@ from foms.services.channel_as_attachments import (
     last_pushed_max_attachment_id,
     select_as_push_attachments,
 )
-from foms.services.channel_as_message import build_as_push_text
+from foms.services.channel_as_push_cycle import compose_as_push
 from foms.services.channel_drawing_attachments import (
     current_drawing_storage_keys,
     select_drawing_room_push_attachments,
@@ -274,6 +274,7 @@ def _record_push_metadata(
     pushed_by_name,
     actor_user_id,
     attachment_ids=None,
+    as_cycle_id=None,
 ):
     """채널톡 push 전송 결과·metadata 를 typed command 로 원자 기록한다 (CHANNEL-WRITER-01).
 
@@ -297,6 +298,7 @@ def _record_push_metadata(
         pushed_by_name: 전송자 표시명(change_log 기록).
         actor_user_id: receipt/OrderEvent actor(로그인 사용자 id).
         attachment_ids: 이번에 실제로 전송한 첨부 id 목록(AS-FRESH-01 provenance).
+        as_cycle_id: (AS) 이 PUSH 가 나간 AS 건 id — 다음 PUSH 가 같은 건 다시 보내기인지 가르는 축.
 
     Returns:
         MutationResult: ``replayed`` 여부 포함. 호출자는 성공 응답만 만들면 된다.
@@ -356,6 +358,8 @@ def _record_push_metadata(
             ids = [int(i) for i in attachment_ids if isinstance(i, int)]
             next_push['attachment_ids'] = ids
             next_push['max_attachment_id'] = max([*ids, last_pushed_max_attachment_id(prev)])
+        if as_cycle_id:
+            next_push['as_cycle_id'] = as_cycle_id
         sd[history_key] = next_push
         o.structured_data = sd
         flag_modified(o, 'structured_data')
@@ -593,8 +597,10 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
                 'error': 'push_in_progress',
             }, 409
 
+        # AS 는 본문과 "다시 보내기인가"를 한 함수로 정한다 — 미리 보기와 같은 글 · 같은 판정.
+        as_verdict = None
         if push_kind == 'as':
-            text = build_as_push_text(order)
+            text, as_verdict = compose_as_push(order)
             if not text:
                 return {
                     'success': False,
@@ -641,6 +647,9 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
         sd = copy.deepcopy(order.structured_data or {})
         prev_push = sd.get(kind_config['history_key']) or {}
         is_resend = bool(prev_push.get('pushed'))
+        # AS 는 건(cycle)까지 본다 — 새 AS 건의 첫 PUSH 는 이력이 있어도 다시 보내기가 아니다.
+        if as_verdict is not None:
+            is_resend = as_verdict.resend
 
         if is_resend:
             if len(change_note) < _MIN_CHANGE_NOTE_LEN:
@@ -835,6 +844,7 @@ def run_manual_push(db, payload: dict, actor, *, pushed_by_name: str | None = No
             pushed_by_name=pushed_by_name,
             actor_user_id=current_user.id if current_user else None,
             attachment_ids=sent_attachment_ids,
+            as_cycle_id=as_verdict.cycle_id if as_verdict is not None else None,
         )
 
         _audit_channel_push(order, push_kind, is_resend,
@@ -990,8 +1000,8 @@ def api_channel_push_preview():
         push_kind: ``as`` / ``drawing_room`` 만 지원(다른 값은 400).
 
     Returns:
-        200 ``{success, text, files:[{id, filename, url, is_image, selected, source}]}`` /
-        400 잘못된 인자 / 404 주문 없음.
+        200 ``{success, text, resend, files:[{id, filename, url, is_image, selected, source}]}`` /
+        400 잘못된 인자 / 404 주문 없음. ``resend`` 는 같은 AS 건을 다시 보내는가(전송이 바뀐 내용을 요구한다).
     """
     db = get_db()
     push_kind = (request.args.get('push_kind') or 'as').strip()
@@ -1066,9 +1076,12 @@ def api_channel_push_preview():
             'source': labels.get(str(getattr(att, 'as_log_id', None) or ''), '이전 첨부'),
         })
 
+    # 전송과 같은 함수 — 새 AS 건 머리말("새 AS 접수 (N번째 AS)")까지 확인 창에 그대로 보인다.
+    text, verdict = compose_as_push(order)
     return jsonify({
         'success': True,
-        'text': build_as_push_text(order),
+        'text': text,
+        'resend': verdict.resend,
         'files': files,
     })
 

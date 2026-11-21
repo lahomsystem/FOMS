@@ -13,7 +13,18 @@ from typing import Any
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_log import latest_client_log_text
+from foms.services.orders.schedule_row_kind import (
+    ROW_AS_VISIT_TOO_ATTR,
+    ROW_IS_AS_ATTR,
+    is_as_status,
+    is_main_flow_open,
+    row_as_visit_too,
+    row_is_as,
+    row_kind,
+)
 from foms.services.shipment_dashboard_helpers import (
+    extract_all_construction_dates,
+    extract_as_visit_dates,
     is_as_order,
     visible_spec_units,
     _get_order_construction_date,
@@ -24,10 +35,49 @@ from foms.services.erp_mobile_order_display import (
 )
 
 __all__ = [
+    "attach_shipment_row_kinds",
     "enrich_shipment_rows",
     "sort_shipment_rows",
     "build_shipment_mobile_queue_rows",
 ]
+
+
+def attach_shipment_row_kinds(
+    rows: list[Any],
+    *,
+    target_date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> None:
+    """목록 rows 에 그날(또는 기간) 줄 종류를 붙인다 — 시공 줄인가 AS 방문 줄인가, 같은 날 AS 방문도 있는가.
+
+    정렬 · PC 표 · 하루치 출고표 · 폰 카드가 같은 값을 읽는다(``schedule_row_kind.row_is_as``).
+    날짜가 필요한 것은 본 흐름이 열린 AS 주문뿐이라 그 주문만 일정 줄을 읽는다(그 밖은 추가 조회 없음).
+
+    Args:
+        rows: 출고 줄 Order 리스트(제자리에서 칸을 붙인다).
+        target_date: 하루 보기의 고른 날(``YYYY-MM-DD``).
+        date_from: 기간 보기 시작일(``date_to`` 와 같이 줘야 쓴다).
+        date_to: 기간 보기 끝일.
+    """
+    use_range = bool(date_from and date_to)
+
+    def _in_scope(dates: Any) -> set[str]:
+        days = {str(d) for d in dates}
+        if target_date:
+            return days & {str(target_date)}
+        if use_range:
+            return {d for d in days if str(date_from) <= d <= str(date_to)}
+        return days
+
+    for r in rows:
+        dated = is_as_status(r) and is_main_flow_open(r)
+        cons_days = _in_scope(extract_all_construction_dates(r)) if dated else set()
+        visit_days = _in_scope(extract_as_visit_dates(r)) if dated else set()
+        kind = row_kind(r, on_construction_date=bool(cons_days), on_as_visit_date=bool(visit_days))
+        setattr(r, ROW_IS_AS_ATTR, kind.is_as)
+        # "AS 방문도"는 시공과 AS 방문이 같은 날일 때만 — 기간 보기에서 다른 날 방문까지 붙이면 그날 일로 읽힌다.
+        setattr(r, ROW_AS_VISIT_TOO_ATTR, kind.as_visit_too and bool(cons_days & visit_days))
 
 
 def enrich_shipment_rows(rows: list[Any]) -> None:
@@ -92,7 +142,7 @@ def enrich_shipment_rows(rows: list[Any]) -> None:
 
 
 def sort_shipment_rows(rows: list[Any]) -> None:
-    """목록 rows를 AS여부→시공자→담당자→id 순으로 in-place 정렬한다."""
+    """목록 rows를 AS 줄 여부→시공자→담당자→id 순으로 in-place 정렬한다(AS 줄 = 줄에 붙은 그날 줄 종류)."""
     def get_manager_name_for_sort(order):
         if order.is_erp_order and order.structured_data:
             sd = order.structured_data
@@ -114,7 +164,7 @@ def sort_shipment_rows(rows: list[Any]) -> None:
         return ''
 
     rows.sort(key=lambda o: (
-        1 if is_as_order(o) else 0,
+        1 if row_is_as(o) else 0,
         get_construction_worker_key_for_sort(o) or 'ZZZ',
         get_manager_name_for_sort(o) or 'ZZZ',
         o.id
@@ -177,15 +227,17 @@ def build_shipment_mobile_queue_rows(
                 # 선택 날짜에 출고되는 품목 기준(라우트가 부착한 shipment_visible_items).
                 # 미부착이면 전 품목 합 — PC 그리드/KPI와 같은 규칙.
                 "spec_units": visible_spec_units(order),
-                "is_as": is_as_order(order),
+                # 카드 종류 = 그날 줄 종류(본 흐름이 열린 AS 주문의 시공일 카드는 시공 카드).
+                "is_as": row_is_as(order),
+                "as_visit_too": row_as_visit_too(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",
                 "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
                 # 모바일 큐·태블릿 그리드 표시용 파생(추가 쿼리 없음 — 이미 로드된 structured_data/scheduled_date만 사용).
-                # primary_date: 대표 시공일(AS는 as_visit 방문일) → 날짜 그룹 헤더 키. schedule_dates
+                # primary_date: 대표 시공일(AS 줄은 as_visit 방문일) → 날짜 그룹 헤더 키. schedule_dates
                 # 지연로딩을 피하려 SSOT(sd.schedule.*) + scheduled_date 컬럼만 읽는다(N+1 가드 준수).
                 "primary_date": (
                     str(((sd.get("schedule") or {}).get("as_visit") or {}).get("date") or "")
-                    if is_as_order(order)
+                    if row_is_as(order)
                     else (_get_order_construction_date(order) or "")
                 ),
                 # sales_delivery(영업택배): structured_data.shipment.sales_delivery is True 계약(field_update.py와 동일).

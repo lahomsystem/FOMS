@@ -3,19 +3,19 @@
   "summary": "Order main-stage / overlay direct-writer inventory for foms/. Every direct assignment to order.status / workflow.stage(+erp_stage_code mirror) / shipment.logistics_status / workflow.hold is classified CANONICAL / CONSTRUCTOR / AUDITED_BACKFILL / EXTERNAL. Release target: EXTERNAL == 0 (every write routes through the canonical engine). EXTERNAL sites below are pinned residual writers reported to their owner STATE packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 36,
+    "total": 38,
     "external": 19
   },
   "classification_counts": {
     "AUDITED_BACKFILL": 1,
-    "CANONICAL": 15,
+    "CANONICAL": 17,
     "CONSTRUCTOR": 1,
     "EXTERNAL": 19
   },
   "axis_counts": {
     "HOLD": 2,
     "LOGISTICS": 1,
-    "MAIN": 33
+    "MAIN": 35
   },
   "external_sites": [
     {
@@ -55,56 +55,56 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 776,
+      "lineno": 783,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 777,
+      "lineno": 784,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 289,
+      "lineno": 292,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 290,
+      "lineno": 293,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 422,
+      "lineno": 429,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1063,
+      "lineno": 1068,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-PROD"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1064,
+      "lineno": 1069,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-PROD"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1099,
+      "lineno": 1106,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-PROD"
@@ -125,14 +125,14 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 374,
+      "lineno": 375,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "ORDER-CREATE"
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 375,
+      "lineno": 376,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "ORDER-CREATE"
@@ -195,7 +195,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 776,
+      "lineno": 783,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -203,7 +203,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 777,
+      "lineno": 784,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -211,7 +211,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 289,
+      "lineno": 292,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -219,7 +219,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 290,
+      "lineno": 293,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -227,7 +227,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 422,
+      "lineno": 429,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -235,7 +235,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1063,
+      "lineno": 1068,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -243,7 +243,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1064,
+      "lineno": 1069,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -251,7 +251,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1099,
+      "lineno": 1106,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -275,7 +275,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 294,
+      "lineno": 304,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -283,15 +283,31 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 305,
+      "lineno": 315,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
       "owner": "STATE-AS"
     },
     {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "lineno": 345,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS"
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "lineno": 354,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS"
+    },
+    {
       "path": "foms/services/orders/order_create.py",
-      "lineno": 111,
+      "lineno": 113,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CONSTRUCTOR",
@@ -371,7 +387,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 371,
+      "lineno": 379,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -379,7 +395,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 383,
+      "lineno": 391,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -387,7 +403,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 384,
+      "lineno": 392,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -411,7 +427,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 374,
+      "lineno": 375,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -419,7 +435,7 @@
     },
     {
       "path": "foms/web/orders/listing.py",
-      "lineno": 375,
+      "lineno": 376,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",

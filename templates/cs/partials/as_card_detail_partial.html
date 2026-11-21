@@ -14,6 +14,6 @@
 <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row erp-pro-order-card__row--full">
   <span class="erp-as-mobile-card__detail-label">AS 기록</span>
   <div class="erp-as-mobile-card__content">
-    {{ render_as_round_chart(r.id, r.as_round_chart_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
+    {{ render_as_round_chart(r.id, r.as_round_chart_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free'), can_cancel=(can_edit_erp|default(false)) and (r|as_cancel_allowed(current_user if current_user is defined else none))) }}
   </div>
 </div>

@@ -1,0 +1,116 @@
+# 한 주문 여러 시공일 1단계 — 검수 원장
+
+> 설계서: `docs/specs/2026-11-20-multi-item-split-schedule_SPEC.md`. 검수에서 나온 지적을 받는 즉시 여기에 적는다.
+> 상태: OPEN(고칠 것) · FIXED(고침 · 확인함) · KEPT(그대로 둠, 까닭 적음) · LATER(다음 단계).
+
+## 묶음 D (둘째 AS PUSH · 도면 한 장) — 검수 1회차 2026-11-20
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| D-1 | 고칠 것 | 수정 요청에 답하는 길(도면 상태 RETURNED)에서는 여전히 한 장이 통째로 바뀐다. 생산 단계 + 최종 한 장(시트 A) + 시트 B 만 전달 → A 가 사라진다. 작업실 전달 창 기본값도 RETURNED 에서는 "교체" | `foms/api/drawing/erp_orders_drawing.py:275-276, 362-366`, `foms/web/drawing/workbench.py:1564` | FIXED |
+| D-2 | 작음 | AS 접수 취소로 앞 건(완료)으로 돌아간 주문의 다음 PUSH 가 "첫 PUSH"로 판정된다(변경 내용 · [수정] 없이 나감). 이력에 적힌 건 번호가 `cycles[]` 에 없을 때만 시각 비교로 내려가게 | `foms/services/channel_as_push_cycle.py:54-61` | FIXED |
+| D-3 | 작음 | 주문 화면에서 같은 건을 다시 보낼 때 여러 줄 입력 창 대신 "확인 창 → 전송 → 400 → 브라우저 기본 입력 창(한 줄)" 순서가 된다. 설계서 7.1 이 허용한 흐름. `as-push-confirm.js` 가 282줄(한도 300)이라 손대지 않는다 | `static/js/cs/as-push-confirm.js:206-211` | KEPT |
+| D-4 | 작음(미확인) | 도면 작업실 AS 카드의 [AS방에 접수 올리기] 단추가 차수의 건과 지금 건을 견주지 않는다. 앞 건의 차수가 안 닫힌 채 새 건이 열리면 도면팀 단추로 새 건의 첫 PUSH 가 나갈 수 있다 | `foms/services/drawing_workbench_as_rows.py:201` | FIXED |
+| D-5 | 작음 | 협력사 둘째 AS 가 실제 발송 함수까지 가는 시험이 없다 | `tests/security/test_partner_as_intake_v2.py` | FIXED |
+| D-6 | 범위 밖 | 고객컨펌 단계 + 확정 + 한 장 + 다른 시트 대기일 때 작업실 전달 창 기본값 "교체"가 그 한 장을 미리 골라 둔다(서버의 방식 없는 길은 더한다). 이번 갈래가 만든 동작은 아니다 | `templates/drawing/partials/workbench_detail_body.html` | LATER |
+| D-7 | 범위 밖 | 수동 PUSH 가 주문을 슬롯 잡기 전에 읽는다 — 앞 요청 커밋 직후 들어온 요청은 낡은 사본으로 판정할 수 있다. 옛 코드도 같다 | `foms/api/channel/channel_integration.py:579-593` | LATER |
+
+검수가 확인해 맞았던 것: 판정 블록 이동으로 달라지는 값 없음, 파일 유실 · 중복 없음, 이력 쓰는 곳 하나, 미리 보기와 전송이 같은 함수, 새 시험 9개가 옛 코드에서 실패함, 손댄 시험 231개 통과.
+
+검수 고침(2회차): D-1 · D-2 · D-4 · D-5 를 `26f5817ce` · `21c44a2da` 로 고침. 총괄이 닿는 시험 8개를 다시 돌려 241개 통과를 확인. D-1 은 전달 창이 늘 방식을 보내므로 조건을 "방식이 비었거나 추가"로 넓혔다(교체 · 전체 교체를 고른 것은 그대로 따른다). D-4 확인: AS 도면 차수는 건을 넘겨 살아남을 수 있다(코드 확인).
+
+## 묶음 A-1 (줄 종류 판정과 그 화면들) — 검수 1회차 2026-11-20
+
+심각한 결함 없음. 진리표(상태 3 × 단계 5 × 날짜 5 = 75칸)를 실제 함수로 돌려 설계서 4.1 · 4.2 와 맞는 것을 확인.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| A-1 | 고칠 것 | 태블릿 시공 상세가 "그날"을 모른다. AS 방문일(시공일과 다른 날)의 "AS 방문" 줄을 눌러 들어가도 상세는 [시공 시작]을 그리고 "AS 방문 집이에요"가 없다. 왼쪽 목록 순서도 첫 화면과 어긋날 수 있다. 결정: 상세는 그날 줄 종류를 따른다 — AS 방문 줄로 들어오면 지금처럼 "AS 방문 집이에요" · 시공 단추 없음 | `foms/services/construction/tablet_view.py:92`, `foms/services/construction_dashboard_display.py:451` | FIXED |
+| A-2 | 고칠 것(실화면 미확인) | 태블릿 출고표 시공시간 칸(폭 9.5% · 한 줄 · 말줄임)에 "AS 방문도"를 붙여 잘릴 가능성이 높다. 고객 칸 표식처럼 따로 놓는다 | `templates/shipment/partials/tablet_ship_grid.html:92`, `static/css/contexts/shipment/tablet-day-sheet.css:46, 104-112` | FIXED |
+| A-3 | 고칠 것(작음) | 협력사 출고 탭이 AS + 본 흐름 열림 주문마다 쿼리를 한 번씩 더 쓴다(1건 → 6건일 때 5 → 10). `selectinload(Order.schedule_dates)` | `foms/services/partners/shipment_board.py:154-157` | FIXED |
+| A-4 | 작음 | 휴대폰 [AS 추천] 줄 키가 PC 표와 어긋난다. 서버가 AS 상태 주문을 걸러 결과는 같고 주석 · 시험 설명만 틀렸다 | `foms/web/shipment/dashboard.py:713` | FIXED |
+| A-5 | 작음 | CASE 꼴을 지키는 시험의 첫 단언이 새 표식 글자 때문에 헛돈다 | `tests/domains/test_construction_tablet_first.py:259` | FIXED |
+| A-6 | 작음 | 출고 기간 보기에서는 다른 날이어도 "AS 방문도"가 붙는다(M3 은 같은 날만) | `foms/services/shipment_dashboard_display.py:65-69` | FIXED |
+| A-7 | 작음 | 옛 딥링크가 지난 시공일로 열린다(전에는 앞날 AS 방문일로 열렸다) | `foms/services/construction/tablet_view.py:67-73` | FIXED |
+| A-8 | 작음 | PC 표 템플릿의 대비 값이 파이썬 판정과 다르다. 라우트가 늘 값을 붙여 닿지 않는 길 | `templates/shipment/partials/dashboard_main.html:497` | KEPT |
+
+미확인으로 남은 것: 실제 PostgreSQL 에서의 계획 시간과 `max(CASE…)` 형 추론(통합 뒤 PG 레인으로 확인), A-2 실화면. 운영에 "AS 상태 + 생산 · 시공 단계" 주문은 0건(2026-11-20 총괄이 읽기 전용으로 셈)이라 옛 AS 방문일이 시공 줄로 되살아날 주문은 지금 없다.
+
+## 묶음 A-2 (손으로 단계 바꾸기 · AS 접수 취소) — 검수 1회차 2026-11-20
+
+심각한 결함 없음. 단계 쓰기 여섯 길(4.3)은 결함을 찾지 못함. 취소 명령(4.4)에 고칠 것 다섯.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| A-11 | 고칠 것(높음) | 건 기록이 없는 옛 AS 완료 주문을 잘못 재접수한 뒤 취소하면 AS 이력이 통째로 사라진다(상태 CS, AS 축 · 접수일 · 완료일 빔, AS 화면 완료 탭과 정산 AS 모집단에서 빠짐). 재접수가 유일한 건이 되어 "남은 건 없음"으로 보기 때문. 같은 뿌리: 접수 전 물류 상태였던 주문이 취소 뒤 본 흐름 글이 된다. 고침: 접수가 덮기 전 값을 건에 `pre_register` 로 남기고 취소가 그 값으로 되돌린다. 스냅샷 없는 기존 건은 그 건보다 오래된 안 가려진 AS 기록 줄이 있으면 409 | `foms/services/orders/as_cycle_cancel.py:157-166`, `as_cycle_service.py:312-333` | FIXED |
+| A-12 | 고칠 것 | 보류 중인 주문의 AS 를 취소하면 보류가 조용히 풀린다(`ON_HOLD` → `PRODUCTION`). 상태 글이 AS 글일 때만 단계 글로 바꾼다 | `as_cycle_service.py:332` | FIXED |
+| A-13 | 고칠 것(돈) | 취소한 접수에서 확정한 유상 금액이 남아 정산에 계속 잡힌다. 그 건을 연 뒤에 확정한 판정은 걷는다 | `as_cycle_cancel.py:106-111` | FIXED |
+| A-14 | 고칠 것 | 단추 자리가 바뀐 설계서와 다르다(주문 화면 단계 줄 → [AS 접수 수정] 창 아래 줄). 설계서가 지목한 템플릿도 틀렸다 — `asReceiveModal` 은 `erp_order_tab.html:777-782` · `erp_order_tab_mobile.html:740-745` 에 있다 | `templates/orders/partials/erp_order_tab*.html`, `static/js/orders/erp-as-cancel.js`, `tests/domains/test_as_cancel.py:281-304` | FIXED |
+| A-15 | 고칠 것(낮음) | 비 ERP 주문은 단추가 그려지지만 늘 409 다. 단추를 숨긴다 | `foms/services/orders/as_cancel_policy.py:27-34` | FIXED |
+| A-16 | 작음 | 사고 복구 도구가 취소한 주문을 AS 접수로 되살리자고 제안한다(`AS_CANCELLED` 를 모름) | `tools/ops/data_doctor.py:223-227` | FIXED |
+| A-17 | 작음 | 취소 뒤에도 `shipment.sales_delivery_link` 가 남는다 | `as_cycle_cancel.py` | FIXED |
+| A-18 | 작음 | 수정 제작 시작 응답의 `new_status` 가 저장값과 다르게 `PRODUCTION` 으로 고정 | `foms/api/production/orders.py:1132` | FIXED |
+| A-19 | 작음 | 강제 변경 안내 글 "AS 대시보드에서 사라지므로"가 이제 사실과 다르다 | `foms/services/orders/stage_override.py:98-101` | FIXED |
+| A-20 | 작음 | 사유가 500자를 넘으면 400 이 아니라 409 | `foms/api/cs/as_orders.py` | FIXED |
+| A-21 | 작음 | 핀 단언이 정확값에서 `>=` 글자 비교로 느슨해졌다 | `tests/domains/test_confirm_drawing_gate_screens.py:224-226` | FIXED |
+| A-22 | 그대로 | 상태 쓰기 감사 글의 before 와 after 가 같은 AS 글, 칸 고치기 응답에 "단계만 옮김" 안내 없음, 닫힌 AS 를 덮을 때 "AS 표시 해제" 흔적이 응답에 없음(이벤트 `from_status` 는 남음) | `foms/api/orders/status.py:442, 729`, `field_update.py:787` | KEPT |
+| A-23 | 그대로 | 처리 중으로 잘못 넘어간 건은 완료 → 완료일 지우기 → 취소 세 걸음이 필요하다(길은 있다) | — | KEPT |
+
+검수가 확인해 맞았던 것: 여섯 길의 여덟 주문 꼴, 막다른 길 없음, 순환 · 래칫, 취소 명령의 건 하나 · 앞선 완료 건 · 옛 주문 · 연속 두 번 · 재접수 순번 · 열린 AS 도면 409, 읽는 화면들, 권한(영업 403 · 회계 200), JS.
+미확인: PostgreSQL 행 잠금 아래 동시 요청, 본사 취소 뒤 협력사 옛 화면의 "수정", 다른 탭의 옛 폼 저장이 AS 글을 되살리는지.
+
+검수 고침(묶음 A 2회차): 위 OPEN 18개를 `aceeea1aa` · `e2c65d512` · `95dd397e7` 로 고침. 총괄이 취소 · 줄 종류 · 상태 쓰기 · 태블릿 · 층 래칫 시험 10파일을 다시 돌려 133개 통과를 확인. 워커 판단 둘을 받아들임: (1) 스냅샷 없는 기존 건의 409 는 남은 건도 없을 때만 건다(남은 건이 있으면 그 건 값으로 되돌릴 수 있다), 옛 주문 끌어올리기 건은 409 검사에서 뺀다. (2) 전달 배정(`sales_delivery_link`)은 통째로 지우지 않고 접수 전 값으로 되돌린다. 남은 확인: PG 레인, 스테이징 실화면([AS 접수 수정] 창 단추 → 창 닫힘 → 사유 시트, 태블릿 출고표 고객 칸 표식).
+
+## 묶음 C (새 주문 안내 · 주문 복사) — 검수 1회차 2026-11-21
+
+심각한 결함 없음. 도우미 옮기기 · 권한(프리랜서 · 협력사 403) · JS(textContent · 늦은 응답 버림) · 복사본 화면 열림 확인.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| C-1 | 고칠 것 | 주소로만 걸린 엉뚱한 집. 동 · 호 키가 건물번호 뒤 아무 숫자나 잡고 시 · 구를 안 본다 — "동탄대로 100 래미안2차"가 다른 집에, 서울 테헤란로 100 3동 101호가 부산 같은 주소에 걸린다. 양쪽 모두 `N호` 가 있을 때만 견주고, 양쪽에 시 · 구가 있으면 같아야 한다 | `foms/services/orders/open_order_lookup.py:110-119`, `foms/services/common/address_query.py:226-251` | FIXED |
+| C-2 | 고칠 것 | 단계 칸이 비고 상태가 완료인 ERP 주문을 진행 중으로 센다(화면 글 "완료 단계") | `open_order_lookup.py:89` | FIXED |
+| C-3 | 고칠 것 | 생성 기록용 찾기가 PostgreSQL 에서 DB 오류를 내면 트랜잭션이 깨진 채 남아 주문 생성이 500 이 된다. ORM flush 를 부르지 않는 Core 저장점(`db.connection().begin_nested()`)으로 감싼다 | `open_order_lookup.py:246-259` | FIXED |
+| C-4 | 작음 | 고객 이름이 GET 주소로 가서 접속 로그에 남는다(서버는 이름을 안 쓴다). 응답의 `customer_name` 도 화면이 안 그린다. 둘 다 뺀다. 전화는 같은 선례(`/api/foms/search?q=`)가 있어 GET 유지 | `static/js/orders/erp-same-customer-notice.js:128`, `static/js/foms/wizard-same-customer.js:99`, `foms/api/orders/open_for_customer.py` | FIXED |
+| C-5 | 작음 | 보기 전용 등 목록 밖 역할은 403 대신 302 HTML 을 받아 JS 가 값이 바뀔 때마다 다시 묻는다. JSON 이 아니면 막힘으로 본다 | 두 JS | FIXED |
+| C-6 | 작음 | 알림 칸이 채워지기 전까지 숨어 있어 화면 낭독기가 첫 안내를 못 읽을 수 있다 | 두 JS · 템플릿 | FIXED |
+| C-7 | 작음 | 주석 "주소 칸 색인 없음"이 틀렸다(`ix_orders_address_trgm` 있음). 따옴표 붙은 옛 완료 값(`'"COMPLETED"'` 등)도 완료로 본다 | `open_order_lookup.py:116, DONE_STAGE_CODES` | FIXED |
+| C-8 | 그대로 | 복사 도착 안내가 복사본이 접수 단계인 동안 열 때마다 뜬다. 안내일 뿐이고 막지 않는다 | `erp-same-customer-notice.js` | KEPT |
+| C-9 | 다음 | 전화 조각 나누기가 7~8자리를 욕심내 잡아 둘째 번호를 놓치는 꼴(옮기기 전 코드 그대로) · 큰 도로에서 주소 LIKE 상한 200 · 옛 텍스트 파서 모양 `payments` 복사 · 협력사 주문 복사의 "담당 (협력사)" 글 | `foms/services/phone_search.py`, `open_order_lookup.py`, `order_copy.py` | LATER |
+
+## 묶음 B (틀린 완료 막기) — 검수 1회차 2026-11-21
+
+심각한 결함 없음. 남은 시공일이 있는 주문을 잘못 닫게 만드는 길은 찾지 못함.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| B-1 | 고칠 것 | 일괄 완료 도구의 두 안전망이 제품 칸 시공일(`items[*].construction_date`)을 다시 읽지 않는다. 일정 표가 뒤처진 주문(날 SQL 쓰기 · 복원 뒤)에서 제품 하나에만 뒤 시공일이 있으면 운영에서 끝나지 않은 주문이 닫힌다. 가능성은 낮지만 한쪽으로만 위험하다 | `tools/ops/bulk_complete_past_construction_core.py:221-232, 404-414` | FIXED |
+| B-2 | 고칠 것 | 주문 대시보드의 시공 D-3 · 생산 D-2 숫자판과 그 필터는 아직 평면 칸(먼저 적힌 날)으로 거른다. 줄에는 임박 배지가 뜨는데 숫자판 수에 안 들고, 칸을 누르면 목록에서 빠진다 | `foms/services/orders/dashboard_read_model.py:178-182, 296-312` | FIXED |
+| B-3 | 작음 | 새 도우미가 `20261117` 꼴(구분자 없는 8자리)을 버린다. 옛 파서는 읽었다 — 날짜 하나짜리 주문의 동작이 바뀔 수 있다 | `foms/services/orders/construction_dates.py` | FIXED |
+| B-4 | 그대로 | 쉼표 말고 공백 · 물결 · 쌍반점으로 나눈 둘째 날은 버린다. 저장 훅(`order_date_sync.py:190`)과 같은 규칙이다 | `construction_dates.py:44` | KEPT |
+| B-5 | 그대로 | 임박 배지는 주문 칸 글만, 자동 할 일은 제품 칸까지 본다(숫자판과 수가 갈리지 않게 한 의도된 선택) | `foms/services/erp_display.py:479` | KEPT |
+
+검수 고침(묶음 C 2회차): C-1 ~ C-7 을 `7d21b7153` · `d30c3214e` 로 고침. PostgreSQL 임시 서버에서 저장점 시험 포함 6개 통과(저장점을 빼면 실패함을 확인). 총괄이 합친 가지에서 바뀐 시험 37파일 + 래칫 · 인벤토리 735개 통과를 확인. 남은 확인: 화면 낭독기, 권한 밖 역할의 302 처리(실화면).
+
+검수 고침(묶음 B 2회차): B-1 ~ B-3 을 `3b85b6363` · `71fd0a877` · `6fbc8fd2a` 로 고침. 총괄이 로컬 임시 PostgreSQL 17 에서 바뀐 PG 시험 13개 통과, PG 레인 전체 936/939 통과를 확인(실패 3 = 임시 서버 지역 설정 C · 로컬에 gevent 없음 — 이번 변경과 무관, 닿는 파일 없음). B-2 뒤 남은 차이: 제품 칸에만 있는 임박 날짜는 숫자판에는 세고 목록 2차 필터(줄 배지 기준)에서는 빠진다, `today_count` 는 평면 칸 그대로.
+
+## 스테이징 실화면 확인 — 2026-11-21 (deploy `780b3d19`, CI 넷 초록)
+
+시험 주문 #4896(CLAUDE-TEST, 제품 셋 · 시공일 11-19 · 11-25, 생산 단계 + AS 접수)과 복사본 #4897. 끝난 뒤 둘 다 휴지통. 채널톡 · 알림톡은 보내지 않음(미리 보기만).
+
+| 확인 | 기기 | 결과 |
+|---|---|---|
+| 생산 + AS 접수 주문이 11-25 시공 탭 첫 화면에 시공 줄로 | 태블릿 | 통과 |
+| 상세에 "AS 방문 집이에요" 없음 · "생산 중" 안내 / 시공 단계에서는 시공 단추 | 태블릿 | 통과 |
+| 출고 표 11-25 줄이 시공 줄(`data-as=0`) | PC | 통과 |
+| 출고 카드가 AS 카드 아님 | 휴대폰 | 통과 |
+| 생산 대시보드 줄 "시공일이 11/19 · 11/25 두 번이에요" | PC | 통과(첫 쪽 50줄 밖이라 검색으로 확인) |
+| 시공 대시보드 줄 "11/25 시공이 남아 있어요" | PC | 통과 |
+| 주문 화면 AS 표시 유지(생산 · 시공 단계 모두) | PC | 통과 |
+| 강제 단계 변경 생산 → 시공: 응답 `as_overlay_kept`, 상태 AS 접수 유지 | API | 통과 |
+| 새 주문 안내(연락처 칸 벗어날 때) | PC | 통과(실제 타이핑) |
+| 새 주문 안내(마법사 4단계) | 휴대폰 | 통과 |
+| 복사본에 AS 기록 · 제품 시공일 · 알림톡 이력 없음 | API | 통과 |
+| [AS 접수 수정] 창 아래 "이 AS 접수 취소" → 창 닫힘 → 사유 창 → 취소: AS 표시 사라짐 · 단계 시공 유지 · 취소 건 1 | PC | 통과 |
+| 취소 뒤 새 접수는 1번째로 셈 / 완료 뒤 둘째 접수 미리 보기 첫 줄 "새 AS 접수 (2번째 AS)" · 다시 보내기 아님 | API | 통과 |
+
+확인하지 못한 것: 실제 직원 방 발송(스테이징 방 = 운영 방이라 금지), 태블릿 출고표 고객 칸 "AS 방문도"(같은 날 AS 방문 견본을 만들지 않음), 화면 낭독기, 권한 밖 역할 302, 도면 한 장 더하기(마법사 시트가 필요 — 시험으로만 확인).

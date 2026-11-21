@@ -31,6 +31,7 @@ from sqlalchemy import case, or_, select
 
 from foms.services.cs_agent.channel_read import ChannelRateLimited, ChannelReadError
 from foms.services.cs_agent.masking_contacts import normalize
+from foms.services.phone_search import split_phone_pieces as _pieces
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,6 @@ CLOSED_STAGES = ("COMPLETED", "AS_COMPLETED")
 _OPEN_AS = ("RECEIVED", "IN_PROGRESS")
 MAX_CANDIDATES = 20
 _MOBILE = re.compile(r"(?<!\d)(?:\+?82[-. ]?0?|0)(1[016789])[-. ]?(\d{3,4})[-. ]?(\d{4})(?!\d)")
-_PIECE = re.compile(r"01[016789]\d{7,8}")
 _ORDER_NO = re.compile(r"(?:주문\s?번호|(?<![\w&])#)\s*[:：]?\s*#?(\d{1,7})(?!\d)")
 _LAST4 = re.compile(r"(?<!\d)(\d{4})(?!\d)")
 _WORD = re.compile(r"[가-힣A-Za-z0-9]{2,}")
@@ -77,12 +77,6 @@ def mobiles(texts: Iterable[str]) -> tuple[str, ...]:
 def has_mobile(texts: Iterable[str]) -> bool:
     """원문에 휴대폰 꼴이 있나."""
     return bool(mobiles(texts))
-
-
-def _pieces(digits: Optional[str]) -> tuple[str, ...]:
-    """주문 전화 숫자 칸 → 번호들(여러 번호를 이어 붙인 칸은 휴대폰 꼴로 나눈다)."""
-    text = digits or ""
-    return tuple(_PIECE.findall(text)) or ((text,) if text else ())
 
 
 def _open_clause() -> Any:

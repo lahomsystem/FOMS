@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime
 import itertools
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -256,7 +257,9 @@ def test_count_and_row_queries_use_case_kind_pair_not_cross_table_or(db) -> None
         event.remove(engine, "before_cursor_execute", _on)
     assert len(seen) == 2, seen
     for sql in seen:
-        assert "case when (order_schedule_dates.kind = " in sql, sql
+        # 종류 짝 CASE(…then 주문 상태 조건)만 본다 — 그날 줄 쿼리의 줄 종류 표식(max(case when 종류 = … then 1 else 0))도
+        # 같은 앞머리라, 앞머리만 보면 짝이 OR 로 되돌아가도 통과한다.
+        assert re.search(r"case when \(order_schedule_dates\.kind = [^)]+\) then orders_1\.status in", sql), sql
         assert "order_schedule_dates.kind = ? and" not in sql and "order_schedule_dates.kind = %(" not in sql.split("case when")[0]
 
 

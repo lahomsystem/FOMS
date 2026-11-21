@@ -245,3 +245,61 @@ def test_order_page_has_as_panel_and_get_view_lets_sales_review(client, storage)
     assert data["can_review"] is True
     assert data["current"]["files"][0]["view_url"].startswith(f"/api/files/view/orders/{oid}/")
     assert data["workbench_url"] == f"/erp/drawing-workbench/{oid}"
+
+
+# --------------------------------------------------------------------------
+# AS방에 다시 올리기 단추 — 지난 AS 건의 PUSH 이력은 치지 않는다
+# (설계서 2026-11-20-multi-item-split-schedule §7.1 · M18)
+# --------------------------------------------------------------------------
+
+def _set_as_push_history(oid, history):
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data or {})
+    sd["channeltalk_push_as"] = history
+    order.structured_data = sd
+    db_session.commit()
+
+
+def test_as_room_retry_button_ignores_push_of_earlier_cycle(client):
+    drafter = _user("asd_draw32")
+    oid = _order(drawing_ids=[drafter.id], name="지난푸시고객")
+    # 건 표식이 없던 때 AS방에 올린 이력이 남아 있는 완료 주문.
+    _set_as_push_history(oid, {"pushed": True, "sent_at": "2026-01-05T00:00:00+00:00"})
+    _as(client, drafter)
+    assert _start(client, oid, memo="문짝", as_register={"content": "문 처짐"}).status_code == 200
+
+    # 새 AS 건에서는 아직 못 올렸다 — 단추가 보여야 다시 올릴 수 있다(전에는 숨어서 막다른 길이었다).
+    assert "채널톡 AS방에 접수 올리기" in _detail(client, oid)
+
+    # 대조: 이 건에서 이미 올렸으면 단추가 없다.
+    cycle_id = _sd(oid)["as_lifecycle"]["current_cycle_id"]
+    _set_as_push_history(oid, {"pushed": True, "sent_at": "2026-01-05T00:00:00+00:00", "as_cycle_id": cycle_id})
+    assert "채널톡 AS방에 접수 올리기" not in _detail(client, oid)
+
+
+def test_as_room_retry_button_only_for_round_of_current_cycle(client):
+    """차수는 AS 건이 끝나도 닫히지 않는다 — 다음 건까지 남은 차수에는 다시 올리기 단추를 그리지 않는다."""
+    drafter = _user("asd_draw33")
+    oid = _order(drawing_ids=[drafter.id], name="남은차수고객")
+    _as(client, drafter)
+    assert _start(client, oid, memo="문짝", as_register={"content": "문 처짐"}).status_code == 200
+    assert "채널톡 AS방에 접수 올리기" in _detail(client, oid)  # 대조: 이 차수가 접수한 건이 지금 건
+
+    def _mutate(change):
+        order = db_session.get(Order, oid)
+        sd = copy.deepcopy(order.structured_data)
+        change(sd)
+        order.structured_data = sd
+        db_session.commit()
+
+    def _next_cycle(sd):
+        sd["as_lifecycle"]["cycles"].append({"cycle_id": "c-next", "opened_at": "2026-11-20T00:00:00", "transitions": []})
+        sd["as_lifecycle"]["current_cycle_id"] = "c-next"
+
+    _mutate(_next_cycle)
+    assert _sd(oid)["as_drawing"]["rounds"][-1]["cycle_id"] != "c-next"
+    assert "채널톡 AS방에 접수 올리기" not in _detail(client, oid)
+
+    # 건 번호가 없는 옛 차수는 가를 수 없다 — 지금처럼 보인다.
+    _mutate(lambda sd: sd["as_drawing"]["rounds"][-1].update(cycle_id=None))
+    assert "채널톡 AS방에 접수 올리기" in _detail(client, oid)

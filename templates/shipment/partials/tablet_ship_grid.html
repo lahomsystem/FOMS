@@ -85,6 +85,8 @@
         <td class="foms-tablet-shipgrid__addr">{{ r.address or '-' }}</td>
         <td class="foms-tablet-shipgrid__customer">
           <span class="foms-tablet-shipgrid__customer-name">{{ r.customer_name or '-' }}</span>
+          {#- 시공 줄인데 같은 날 AS 방문도 있다(schedule_row_kind) — 고객 칸 표식 한 마디. 시공시간 칸은 폭이 좁아 말줄임된다. -#}
+          {%- if row.as_visit_too %}<span class="foms-tablet-shipgrid__flag" data-ship-as-too>AS 방문도</span>{% endif %}
           {%- if r.partner_request_text is defined and r.partner_request_text %}<span class="foms-tablet-shipgrid__flag" data-shipment-partner-request>협력사 희망 · 확정 대기</span>{% endif %}
           {%- if r.partner_payment_pending is defined and r.partner_payment_pending %}<span class="foms-tablet-shipgrid__flag foms-tablet-shipgrid__flag--danger" data-shipment-partner-unpaid>입금 대기</span>{% endif %}
           {{- render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_order_here|default(false, true)) -}}

@@ -95,7 +95,7 @@ def _extended_single_payload(summary: dict[str, Any], *, kind: str, order: Any, 
         "status": str(getattr(order, "status", "") or ""),
         "mutation_version": getattr(order, "mutation_version", None),
         "mutation_receipt": None,
-        "as_overlay_cleared": None,
+        "as_overlay_kept": None,
     }
 
 

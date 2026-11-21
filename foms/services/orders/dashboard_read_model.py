@@ -175,21 +175,13 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
                 Order.erp_measurement_date >= today_date.isoformat(),
                 Order.erp_measurement_date <= cutoff
             )
-        elif filters.alert_type == 'construction_d3':
-            cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
-            _q = _q.filter(
-                Order.erp_construction_date.isnot(None),
-                Order.erp_construction_date >= today_date.isoformat(),
-                Order.erp_construction_date <= cutoff
-            )
-        elif filters.alert_type == 'production_d2':
-            cutoff = (today_date + datetime.timedelta(days=8)).isoformat()
-            _q = _q.filter(
-                Order.erp_construction_date.isnot(None),
-                Order.erp_construction_date >= today_date.isoformat(),
-                Order.erp_construction_date <= cutoff,
-                Order.erp_stage_code != 'CONSTRUCTION'
-            )
+        else:
+            # 시공일이 여럿이면 평면 칸은 먼저 적힌 날뿐이다 — 일정 표의 어느 날이든 창 안이면 후보로 둔다.
+            window = 10 if filters.alert_type == 'construction_d3' else 8
+            window_dates = [(today_date + datetime.timedelta(days=i)).isoformat() for i in range(window + 1)]
+            _q = _q.filter(_sched_any('construction', window_dates))
+            if filters.alert_type == 'production_d2':
+                _q = _q.filter(Order.erp_stage_code != 'CONSTRUCTION')
 
     if filters.today == '1':
         today_iso = get_today_kst().isoformat()
@@ -303,13 +295,15 @@ def compute_orders_summary_slice(stats_query):
         max_business_days=2,
         calendar_window_days=10,
     )
+    # 시공 임박은 일정 표(시공일 전부)로 센다 — 줄 배지 · 필터 목록과 같은 주문이 수에 든다.
+    construction_d3_filter = _sched_any('construction', construction_d3_dates)
     production_d2_filter = and_(
-        Order.erp_construction_date.in_(production_d2_dates),
+        _sched_any('construction', production_d2_dates),
         or_(Order.erp_stage_code.is_(None), Order.erp_stage_code != 'CONSTRUCTION'),
     )
     imminent_filter = or_(
         Order.erp_measurement_date.in_(measurement_d4_dates),
-        Order.erp_construction_date.in_(construction_d3_dates),
+        construction_d3_filter,
         production_d2_filter,
     )
 
@@ -327,7 +321,7 @@ def compute_orders_summary_slice(stats_query):
             func.count(Order.id).label('cnt'),
             func.coalesce(func.sum(sql_case((Order.erp_urgent == True, 1), else_=0)), 0).label('urgent_cnt'),
             func.coalesce(func.sum(sql_case((Order.erp_measurement_date.in_(measurement_d4_dates), 1), else_=0)), 0).label('measurement_d4_cnt'),
-            func.coalesce(func.sum(sql_case((Order.erp_construction_date.in_(construction_d3_dates), 1), else_=0)), 0).label('construction_d3_cnt'),
+            func.coalesce(func.sum(sql_case((construction_d3_filter, 1), else_=0)), 0).label('construction_d3_cnt'),
             func.coalesce(func.sum(sql_case((production_d2_filter, 1), else_=0)), 0).label('production_d2_cnt'),
             func.coalesce(func.sum(sql_case((imminent_filter, 1), else_=0)), 0).label('imminent_cnt'),
             func.coalesce(func.sum(sql_case((drawing_overdue_filter, 1), else_=0)), 0).label('overdue_cnt'),

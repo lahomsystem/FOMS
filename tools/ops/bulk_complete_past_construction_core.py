@@ -5,7 +5,6 @@
 순수 함수만 담고 argparse·파일 입출력을 모른다(순수 계약 테스트가 DB 없이 붙는 자리).
 """
 
-
 from __future__ import annotations
 
 import json
@@ -18,6 +17,7 @@ __all__ = [
     "AS_OVERLAY_STATUSES", "OPEN_CLAIM_STATUSES", "OLD_CONSTRUCTION_BEFORE", "dict_row",
     "_connect", "_rows", "today_kst", "cutoff_iso", "assert_env_fingerprint",
     "fetch_candidates", "fetch_no_construction", "classify_row", "build_plan",
+    "text_dates", "later_construction_date",
     "completed_workflow", "_snapshot_rows", "apply_one", "rollback_one",
 ]
 
@@ -131,7 +131,13 @@ SELECT o.id, o.customer_name, o.status, o.is_erp_order, o.erp_stage_code,
        EXISTS (SELECT 1 FROM external_order_links l
                 WHERE l.order_id = o.id
                   AND upper(coalesce(l.triage_state->'claim_sync'->>'last_status','')) = ANY(%(open_claim)s)
-              ) AS naver_claim_open
+              ) AS naver_claim_open,
+       (SELECT min(d.date) FROM order_schedule_dates d
+         WHERE d.order_id = o.id AND d.kind = 'construction'
+           AND d.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+           AND d.date >= %(cutoff)s) AS later_construction_date,
+       o.structured_data->'schedule'->'construction'->>'date' AS construction_text,
+       o.structured_data->'items' AS items
   FROM orders o
  WHERE o.deleted_at IS NULL
    AND o.status <> 'DELETED'
@@ -183,7 +189,58 @@ def fetch_no_construction(conn) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # 순수 판정
 # --------------------------------------------------------------------------- #
-def classify_row(row: dict[str, Any]) -> tuple[str | None, str | None, list[str]]:
+_DATE_TOKEN_RE = re.compile(r"^(?:(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})|(\d{4})(\d{2})(\d{2}))(?!\d)")
+#: 적용 직전 재확인용 — 후보 질의의 ``later_construction_date`` 하위 질의와 같은 조건.
+_LATER_DATE_SQL = """
+SELECT min(d.date) AS later FROM order_schedule_dates d
+ WHERE d.order_id = %(oid)s AND d.kind = 'construction'
+   AND d.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND d.date >= %(cutoff)s
+"""
+
+
+def text_dates(raw: Any) -> list[str]:
+    """쉼표로 이은 시공일 글 → ``YYYY-MM-DD`` 목록(정렬 · 중복 제거, 못 읽는 토큰은 버림).
+
+    앱의 ``foms.services.orders.construction_dates.split_date_text`` 와 같은 규칙이다
+    (이 도구는 foms 를 import 하지 않아 한 벌 더 둔다 — 순수 시험이 두 벌을 견준다).
+    """
+    found: set[str] = set()
+    for token in str(raw or "").split(","):
+        m = _DATE_TOKEN_RE.match(token.strip())
+        if not m:
+            continue
+        y, mo, d = (g for g in m.groups() if g is not None)
+        try:
+            found.add(date(int(y), int(mo), int(d)).isoformat())
+        except ValueError:
+            continue
+    return sorted(found)
+
+
+def _item_dates(items: Any) -> list[str]:
+    """제품 칸 ``items[*].construction_date`` 의 날짜 전부(취소 제품도 넣는다 — 잘못 빼도 해가 없다)."""
+    rows = items if isinstance(items, list) else []
+    return [d for it in rows if isinstance(it, dict) for d in text_dates(it.get("construction_date"))]
+
+
+def later_construction_date(row: dict[str, Any], cutoff: str | None) -> str | None:
+    """``cutoff`` 이후(당일 포함)로 남은 가장 이른 시공일. 없으면 None.
+
+    일정 표(``later_construction_date`` 칸) · 주문 칸 글(``construction_text``) · 제품 칸
+    (``items``) 가운데 하나라도 걸리면 남은 것으로 본다 — 표가 뒤처져도 글에 적힌 날은 잡는다.
+    """
+    found = []
+    from_table = str(row.get("later_construction_date") or "").strip()
+    if _DATE_RE.match(from_table):
+        found.append(from_table)
+    if cutoff:
+        texts = text_dates(row.get("construction_text")) + _item_dates(row.get("items"))
+        found.extend(d for d in texts if d >= cutoff)
+    return min(found) if found else None
+
+
+def classify_row(row: dict[str, Any], *, cutoff: str | None = None
+                 ) -> tuple[str | None, str | None, list[str]]:
     """행 하나를 ``(mode, skip_reason, flags)`` 로 판정한다.
 
     ``mode`` 는 ``main`` | ``as_stage_only`` | None(제외). 제외면 ``skip_reason`` 이 채워진다.
@@ -191,6 +248,7 @@ def classify_row(row: dict[str, Any]) -> tuple[str | None, str | None, list[str]
 
     Args:
         row: :func:`fetch_candidates` 행(또는 같은 키를 가진 dict).
+        cutoff: 후보 판정에 쓴 ISO 날짜. 주면 주문 칸 글도 다시 읽어 남은 시공일을 찾는다.
 
     Returns:
         (mode, skip_reason, flags).
@@ -214,6 +272,9 @@ def classify_row(row: dict[str, Any]) -> tuple[str | None, str | None, list[str]
         return None, "logistics_in_flight", []
     if bool(row.get("naver_claim_open")):
         return None, "naver_claim_open", []
+    # 시공일이 여럿인 주문 — 첫 날만 지났고 뒤 시공이 남았으면 닫지 않는다(main · as_stage_only 모두).
+    if later_construction_date(row, cutoff):
+        return None, "later_construction_date", []
 
     flags: list[str] = []
     if cons < OLD_CONSTRUCTION_BEFORE:
@@ -241,7 +302,7 @@ def build_plan(rows: Iterable[dict[str, Any]], *, cutoff: str, today: str,
     items: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     for row in rows:
-        mode, reason, flags = classify_row(row)
+        mode, reason, flags = classify_row(row, cutoff=cutoff)
         base = {
             "order_id": int(row["id"]),
             "customer_name": row.get("customer_name") or "",
@@ -251,7 +312,10 @@ def build_plan(rows: Iterable[dict[str, Any]], *, cutoff: str, today: str,
             "construction_date": row.get("erp_construction_date"),
         }
         if mode is None:
-            skipped.append({**base, "reason": reason})
+            entry = {**base, "reason": reason}
+            if reason == "later_construction_date":
+                entry["later_construction_date"] = later_construction_date(row, cutoff)
+            skipped.append(entry)
             continue
         items.append({
             **base,
@@ -320,7 +384,7 @@ def _snapshot_rows(conn, ids: list[int]) -> list[dict[str, Any]]:
 
 
 def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
-              reason: str) -> str:
+              reason: str, cutoff: str | None = None) -> str:
     """항목 1건을 적용한다(호출부가 트랜잭션 소유).
 
     Args:
@@ -329,6 +393,7 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         actor_user_id: 이벤트·감사행 행위자.
         now: 기록 시각(naive UTC).
         reason: 사유 문자열.
+        cutoff: plan 의 기준일. 주면 잠근 뒤 남은 시공일을 다시 확인한다(plan 뒤에 더해진 날짜).
 
     Returns:
         ``applied`` 또는 ``skipped:<사유>``.
@@ -345,6 +410,17 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         return (f"skipped:stale(status={row['status']} stage={row['erp_stage_code']} "
                 f"as={row['as_axis_status']})")
     structured = dict(row["structured_data"] or {})
+    if cutoff:
+        cur.execute(_LATER_DATE_SQL, {"oid": oid, "cutoff": cutoff})
+        schedule = structured.get("schedule")
+        cons = schedule.get("construction") if isinstance(schedule, dict) else None
+        later = later_construction_date({
+            "later_construction_date": (cur.fetchone() or {}).get("later"),
+            "construction_text": cons.get("date") if isinstance(cons, dict) else None,
+            "items": structured.get("items"),
+        }, cutoff)
+        if later:
+            return f"skipped:later_construction_date({later})"
     structured["workflow"] = completed_workflow(structured.get("workflow"), now=now)
     mode = item["mode"]
     if mode == "main":

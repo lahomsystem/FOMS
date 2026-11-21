@@ -45,7 +45,12 @@ from foms.services.orders.confirm_drawing_gate import (
 )
 from foms.services.orders.assignment import active_assignee_ids
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
-from foms.services.orders.state_axes import AXIS_MAIN, read_logistics, read_main_stage
+from foms.services.orders.state_axes import (
+    AXIS_MAIN,
+    open_as_outranks_main_status_write,
+    read_logistics,
+    read_main_stage,
+)
 from foms.services.orders.admin_override import (
     admin_override_error,
     log_admin_override_denied,
@@ -1096,7 +1101,9 @@ def api_production_rework(order_id: int):
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
-        order.status = "PRODUCTION"
+        # 열린 AS(접수 · 처리 중)가 걸린 주문은 단계만 생산으로 옮기고 status 의 AS 표시는 둔다(STATE-AS-01).
+        if not open_as_outranks_main_status_write(order, "PRODUCTION"):
+            order.status = "PRODUCTION"
         sync_erp_flat_columns(order, sd)
         # 버킷 = 단계 + run: 새 회차 run 을 열어야 보드가 제작중으로 잡는다(있으면 멱등 skip).
         _mint_current_production_run(db, order_id, sd)
@@ -1123,7 +1130,7 @@ def api_production_rework(order_id: int):
                 from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify(
-            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
+            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": order.status}
         )
     except Exception as exc:
         db.rollback()

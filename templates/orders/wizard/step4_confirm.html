@@ -1,6 +1,10 @@
 <section class="foms-wizard__step" data-wizard-step="4" aria-labelledby="wizard-step4-title">
   <h2 class="foms-wizard__title" id="wizard-step4-title">확인</h2>
   <p class="foms-wizard__subtitle">아래 내용으로 주문을 등록합니다</p>
+  {# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — wizard-same-customer.js 가 4단계에 들어올 때 채운다. 등록은 막지 않는다.
+       비었을 때 hidden 이 아니라 visually-hidden 인 까닭: 화면 낭독기가 채워지기 전부터 알림 자리를 알아야 첫 안내를 읽는다. #}
+  <div class="foms-wizard__same-customer visually-hidden" id="foms-wizard-same-customer" role="status" aria-live="polite"
+    data-lookup-url="{{ url_for('orders.api_open_orders_for_customer') }}"></div>
 
   <div class="foms-wizard__summary-card" id="foms-wizard-summary-basic">
     <header class="foms-wizard__summary-head">

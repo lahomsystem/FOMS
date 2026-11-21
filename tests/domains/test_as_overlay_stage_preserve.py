@@ -135,16 +135,16 @@ def _assert_stage_select_has_no_as_options(source: str) -> None:
     assert 'value="MEASURE"' in block, "본공정 옵션까지 지우면 안 된다"
 
 
-def test_stage_override_single_surfaces_cleared_as_overlay(client):
-    """단건 강제 변경이 AS 표시를 지우면 조용하지 않게 응답에 남긴다.
+def test_stage_override_single_keeps_open_as_overlay_and_says_so(client):
+    """단건 강제 변경은 열린 AS 의 단계만 옮기고 AS 표시는 그대로 둔다 — 응답이 그 사실을 말한다.
 
-    감리#3 정책상 AS -> 메인 파이프라인 강제 복귀는 허용이고(오접수 정정 경로,
-    test_workflow_stage_override.test_override_from_as_to_main_allowed), stage 가
-    AS_* 로 굳은 주문을 사람이 되돌리는 유일한 수단이기도 하다. 그래서 막지 않는다.
+    감리#3 정책상 AS -> 메인 파이프라인 강제 이동은 허용이고(stage 가 AS_* 로 굳은 주문을 사람이 되돌리는
+    유일한 수단, test_workflow_stage_override.test_override_from_as_to_main_allowed) 그래서 막지 않는다.
 
-    문제는 apply_stage_override 가 order.status = to_code 로 AS overlay 를 지우는데
-    호출자가 그 사실을 알 길이 없었다는 것 - 출고 보드 AS 필터/관제탑/정산 알림에서 그
-    건이 사라지는데 화면은 성공만 말했다. 응답에 실어 UI 가 경고할 수 있게 한다.
+    2026-11-20(설계서 multi-item-split-schedule §4.3, M6 · M8)까지는 apply_stage_override 가
+    order.status = to_code 로 AS overlay 를 지워 출고 보드 AS 필터/관제탑/정산 알림에서 그 건이 사라졌다
+    (응답 as_overlay_cleared). 이제 열린 AS(접수 · 처리 중)는 상태 글이 남고 응답 키는 as_overlay_kept 다.
+    잘못 접수한 AS 는 [AS 접수 취소]로 지운다.
     """
     _login(client, "stage_ovr_as", role="ADMIN")
     order = _order(status="AS_RECEIVED", as_received_date="2026-09-01",
@@ -154,7 +154,29 @@ def test_stage_override_single_surfaces_cleared_as_overlay(client):
     resp = client.post(f"/api/orders/{order_id}/workflow/stage-override",
                        json={"confirm": True, "to_stage": "DRAWING", "reason": "AS 오접수 정정"})
     assert resp.status_code == 200, resp.get_data(as_text=True)
-    assert resp.get_json()["data"]["as_overlay_cleared"] == "AS_RECEIVED",         "AS 표시가 지워졌는데 응답이 침묵하면 호출자가 경고할 수 없다"
+    data = resp.get_json()["data"]
+    assert data["as_overlay_kept"] == "AS_RECEIVED" and "as_overlay_cleared" not in data, \
+        "AS 표시가 남았는데 응답이 침묵하면 화면이 '지워졌다'고 여기게 둔다"
+    assert data["status"] == "AS_RECEIVED" and data["to"] == "DRAWING"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "AS_RECEIVED"
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "DRAWING"
+    assert saved.erp_stage_code == "DRAWING"
+
+
+def test_stage_override_single_still_overwrites_closed_as_overlay(client):
+    """**음성 대조군** — 닫힌 AS(완료)는 지금처럼 상태 글까지 본공정으로 덮인다(M6)."""
+    _login(client, "stage_ovr_as_done", role="ADMIN")
+    order = _order(status="AS_COMPLETED", as_received_date="2026-09-01",
+                   structured_data={"workflow": {"stage": "MEASURE"}})
+    order_id = order.id
+
+    resp = client.post(f"/api/orders/{order_id}/workflow/stage-override",
+                       json={"confirm": True, "to_stage": "DRAWING", "reason": "AS 끝난 주문 단계 정리"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert resp.get_json()["data"]["as_overlay_kept"] is None
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)

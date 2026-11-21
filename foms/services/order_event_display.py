@@ -215,6 +215,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "AS_STARTED": "AS 시작",
         "AS_COMPLETED": "AS 완료",
         "AS_RECEIVED": "AS 접수",
+        "AS_CANCELLED": "AS 접수 취소",
         "MEASUREMENT_SCHEDULED": "실측 예약",
         "MEASUREMENT_COMPLETED": "실측 완료",
         "MEASUREMENT_DATE_CHANGED": "실측 일정 변경",
@@ -595,6 +596,9 @@ def generate_change_description(
         return "AS를 완료 처리했습니다"
     if event_type == "AS_RECEIVED":
         return "AS를 접수했습니다"
+    if event_type == "AS_CANCELLED":
+        cancel_reason = str(payload.get("reason") or "").strip()
+        return f"AS 접수를 취소했습니다 ({cancel_reason})" if cancel_reason else "AS 접수를 취소했습니다"
     if event_type == "MEASUREMENT_SCHEDULED":
         return "실측 일정을 등록했습니다"
     if event_type == "MEASUREMENT_COMPLETED":

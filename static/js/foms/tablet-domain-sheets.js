@@ -144,12 +144,19 @@
     );
   }
 
+  // 시공일이 둘 이상인 주문만 서버가 카드 · 시트 뿌리에 한 줄(data-production-split-note)을 실어 준다.
+  function productionSplitNote(orderId) {
+    var src = document.querySelector('[data-production-split-note][data-order-id="' + orderId + '"]');
+    var note = src ? (src.getAttribute("data-production-split-note") || "") : "";
+    return note ? "\n\n" + note : "";
+  }
+
   // 생산 완료 — 제작중 → 제작완료/시공대기 전이(기존 워크플로 엔드포인트 재사용).
   function productionComplete(orderId) {
     productionTransition(
       orderId,
       "/production/complete",
-      "제작을 완료하시겠습니까? (상태가 제작완료로 변경됩니다)"
+      "제작을 완료하시겠습니까? (상태가 제작완료로 변경됩니다)" + productionSplitNote(orderId)
     );
   }
 

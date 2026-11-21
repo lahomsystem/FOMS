@@ -117,49 +117,66 @@ def test_bulk_stage_override_all_as_returns_400(client):
 
 
 def test_bulk_stage_override_include_as_opt_in(client):
-    """include_as: true 는 명시 opt-in — 그때만 AS 주문도 바뀐다."""
+    """include_as: true 는 명시 opt-in — 그때만 AS 주문의 단계도 바뀐다.
+
+    2026-11-20(설계서 multi-item-split-schedule §4.3, M6): 열린 AS(접수 · 처리 중)는 단계만 옮기고 주문 상태의
+    AS 표시는 그대로 둔다. 닫힌 AS(완료)는 지금처럼 상태 글까지 덮인다(대조군).
+    """
     _login(client, "as_guard_mgr3", role="MANAGER")
     as_id = _make_order(status="AS_RECEIVED").id
+    done_id = _make_order(status="AS_COMPLETED").id
     resp = client.post(
         "/api/orders/workflow/stage-override/bulk",
         json={
-            "order_ids": [as_id], "to_stage": "CONSTRUCTION", "reason": "정말 시공으로",
+            "order_ids": [as_id, done_id], "to_stage": "CONSTRUCTION", "reason": "정말 시공으로",
             "confirm": True, "include_as": True,
         },
     )
     assert resp.status_code == 200, resp.get_json()
-    assert resp.get_json()["data"]["updated"] == 1
+    data = resp.get_json()["data"]
+    assert data["updated"] == 2
+    kept = {item["order_id"]: item.get("as_overlay_kept") for item in data["results"]}
+    assert kept == {as_id: "AS_RECEIVED", done_id: None}
     db_session.expire_all()
-    assert db_session.get(Order, as_id).status == "CONSTRUCTION"
+    opened, closed = db_session.get(Order, as_id), db_session.get(Order, done_id)
+    assert opened.status == "AS_RECEIVED" and opened.structured_data["workflow"]["stage"] == "CONSTRUCTION"
+    assert closed.status == "CONSTRUCTION" and closed.structured_data["workflow"]["stage"] == "CONSTRUCTION"
 
 
 def test_stage_override_records_previous_status(client):
-    """단건 강제 변경이 status 이전값을 이벤트 payload + 감사행에 남긴다."""
+    """단건 강제 변경이 status 이전값을 이벤트 payload + 감사행에 남긴다.
+
+    열린 AS 는 상태 글이 그대로라 ``as_overlay_kept`` 로 남기고, 닫힌 AS(완료)를 덮은 흔적은 ``from_status`` 가 남긴다.
+    """
     _login(client, "as_guard_mgr4", role="MANAGER")
     as_id = _make_order(status="AS_RECEIVED").id
+    done_id = _make_order(status="AS_COMPLETED").id
 
-    resp = client.post(
-        f"/api/orders/{as_id}/workflow/stage-override",
-        json={"to_stage": "CONSTRUCTION", "reason": "AS 종결 후 시공 복귀", "confirm": True},
-    )
-    assert resp.status_code == 200, resp.get_json()
+    for oid in (as_id, done_id):
+        resp = client.post(
+            f"/api/orders/{oid}/workflow/stage-override",
+            json={"to_stage": "CONSTRUCTION", "reason": "AS 종결 후 시공 복귀", "confirm": True},
+        )
+        assert resp.status_code == 200, resp.get_json()
 
-    ev = (
-        db_session.query(OrderEvent)
-        .filter(OrderEvent.order_id == as_id, OrderEvent.event_type == "STAGE_OVERRIDE")
-        .one()
-    )
-    assert ev.payload["from_status"] == "AS_RECEIVED"
-    assert ev.payload["as_overlay_cleared"] == "AS_RECEIVED"
+    def _event(oid: int) -> OrderEvent:
+        return (db_session.query(OrderEvent)
+                .filter(OrderEvent.order_id == oid, OrderEvent.event_type == "STAGE_OVERRIDE").one())
 
-    log = (
-        db_session.query(SecurityLog)
-        .filter(SecurityLog.target_id == as_id, SecurityLog.action == "ORDER_STATUS_CHANGED")
-        .one()
-    )
-    assert log.detail["before"] == "AS_RECEIVED"
-    assert log.detail["after"] == "CONSTRUCTION"
-    assert log.detail["stage_override"] is True
+    def _log(oid: int) -> SecurityLog:
+        return (db_session.query(SecurityLog)
+                .filter(SecurityLog.target_id == oid, SecurityLog.action == "ORDER_STATUS_CHANGED").one())
+
+    ev = _event(as_id)
+    assert ev.payload["from_status"] == "AS_RECEIVED" and ev.payload["to"] == "CONSTRUCTION"
+    assert ev.payload["as_overlay_kept"] == "AS_RECEIVED" and "as_overlay_cleared" not in ev.payload
+    log = _log(as_id)
+    assert log.detail["before"] == "AS_RECEIVED" and log.detail["after"] == "AS_RECEIVED"
+    assert log.detail["as_overlay_kept"] == "AS_RECEIVED" and log.detail["stage_override"] is True
+
+    closed = _event(done_id)  # 대조군: 닫힌 AS 는 덮이고, 이전 상태는 from_status 에 남는다
+    assert closed.payload["from_status"] == "AS_COMPLETED" and "as_overlay_kept" not in closed.payload
+    assert _log(done_id).detail["before"] == "AS_COMPLETED" and _log(done_id).detail["after"] == "CONSTRUCTION"
 
 
 def test_bulk_status_api_excludes_as_orders(client):

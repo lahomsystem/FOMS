@@ -13,8 +13,11 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.orm.attributes import flag_modified
 
+import foms.api.channel.channel_integration as channel_integration
 import foms.api.partner.as_intake as partner_as_api
+import foms.services.channel_policy as channel_policy
 from db import db_session
+from foms.services.channel_as_push_cycle import judge_as_push
 from foms.services.partners import as_intake as svc
 from models import Notification, Order, OrderAttachment, OrderFieldChange, SecurityLog, User
 from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture 재노출
@@ -177,17 +180,21 @@ def test_files_bind_only_to_current_reception_then_push_sends_unsent(app, world,
     assert pushes[-1]["attachment_ids"] == [new_id] and pushes[-1]["change_note"] == "경첩도"
 
 
-def test_second_as_first_push_note_says_new_cycle():
-    """2번째 AS 의 첫 PUSH — 이력 칸이 주문마다 하나라 본사처럼 재전송, 머리말로 새 건을 가른다(설계서 D7)."""
+def test_second_as_first_push_is_not_a_resend():
+    """2번째 AS 의 첫 PUSH 는 다시 보내기가 아니다 — [수정] 메모 없이 가고, 머리말은 본사 전송이 본문에 붙인다(D7 · M18)."""
     old = "2026-10-01T00:00:00+00:00"
     sd = {"channeltalk_push_as": {"pushed": True, "sent_at": old},
           "as_lifecycle": {"current_cycle_id": "c2", "cycles": [
               {"cycle_id": "c1", "opened_at": "2026-09-30T00:00:00", "transitions": []},
               {"cycle_id": "c2", "opened_at": "2026-11-13T00:00:00", "transitions": []}]}}
     order = SimpleNamespace(structured_data=sd)
-    assert svc.push_change_note(order, "무시") == "새 AS 접수 (2번째 AS)"
+    assert svc.push_change_note(order, "무시") == ""
+    verdict = judge_as_push(sd)
+    assert (verdict.resend, verdict.cycle_id, verdict.headline) == (False, "c2", "새 AS 접수 (2번째 AS)")
     sd["channeltalk_push_as"]["sent_at"] = "2026-11-13T01:00:00+00:00"  # 이 건에서 이미 보냄
     assert svc.push_change_note(order, "문 3짝") == "문 3짝"
+    assert svc.push_change_note(order, "") == svc.DEFAULT_RESEND_NOTE
+    assert judge_as_push(sd).headline == ""
     assert svc.push_change_note(SimpleNamespace(structured_data={}), "x") == ""  # 처음 보냄
 
 
@@ -277,3 +284,50 @@ def test_list_marks_as_finished_orders_with_as_done_badge(app, world, pushes):
     assert ">완료</span>" in other and "AS 완료" not in other
     detail = client.get(f"/partner/orders/{finished}").get_data(as_text=True)
     assert '<span class="pp-stage pp-stage--as-done">AS 완료' in detail
+
+
+# ── 2번째 AS 접수 → 본사 AS PUSH 끝까지(채널톡 전송만 가짜) ───────────────────
+
+
+@pytest.fixture
+def real_as_push(monkeypatch):
+    """본사 AS PUSH(``run_manual_push``)는 그대로 돌리고 채널톡 전송만 가짜로 받는다 — 실제로 보내지 않는다."""
+    sent: list[dict] = []
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as-test")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: SimpleNamespace(
+        get_download_url=lambda key, expires_in=3600: f"https://cdn.test/{key}"))
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        sent.append(data)
+        return {"success": True, "message_id": f"msg-partner-{len(sent)}"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+    return sent
+
+
+def test_second_as_goes_to_as_room_as_new_reception_not_modified(app, world, real_as_push):
+    """협력사 2번째 AS 접수가 본사 AS PUSH 를 끝까지 타고 [수정] 없이 "새 AS 접수 (2번째 AS)" 로 나간다(D7 · M18)."""
+    order_id, client = _completed_order(app, world)
+    url = f"/api/partner/orders/{order_id}/as"
+    assert client.post(url, data={"content": "문짝 처짐"}).get_json()["data"]["push_sent"] is True
+    staff = _client(app, db_session.get(User, world["admin"]))
+    assert staff.post(f"/api/orders/{order_id}/as/start", json={"reason": "방문", "description": "방문"}).status_code == 200
+    assert staff.post(f"/api/orders/{order_id}/as/complete", json={"note": "끝"}).status_code == 200
+
+    resp = client.post(url, data={"content": "서랍 레일 고장"})
+
+    assert resp.status_code == 200 and resp.get_json()["data"]["push_sent"] is True, resp.get_json()
+    first, second = real_as_push
+    assert first["is_retry"] is False and not first["text"].startswith("새 AS 접수")  # 대조: 첫 AS 는 머리말 없음
+    assert second["is_retry"] is False and second["change_note"] == ""
+    assert second["text"].startswith("새 AS 접수 (2번째 AS)\n\n") and "서랍 레일 고장" in second["text"]
+    assert "[수정]" not in channel_policy.build_message_template("manual", second)
+    sd = _sd(order_id)
+    assert sd["channeltalk_push_as"]["as_cycle_id"] == sd["as_lifecycle"]["current_cycle_id"]
+    assert sd["channeltalk_push_as"]["is_modified"] is False
+
+    # 대조: 같은 건을 고치면 지금처럼 [수정] 으로 다시 나간다.
+    assert client.post(f"{url}/edit", data={"content": "서랍 레일 2개 고장", "change_note": "1→2개"}).status_code == 200
+    assert real_as_push[-1]["is_retry"] is True and real_as_push[-1]["change_note"] == "1→2개"
+    assert not real_as_push[-1]["text"].startswith("새 AS 접수")

@@ -11,7 +11,7 @@
    뷰어)로 연결한다(신규 뷰어 없음). 표준 마운터(fomsMountErpAttachmentPreviewGalleries)가
    로드된 표면에선 그 경로로 위임하고, 미로드(생산 대시보드)면 전역 뷰어로 직접 배선한다.
    ============================================================================ #}
-<div class="foms-prod-sheet" data-order-id="{{ order.id }}">
+<div class="foms-prod-sheet" data-order-id="{{ order.id }}"{% if order.production_split_note %} data-production-split-note="{{ order.production_split_note }}"{% endif %}>
   {# 목업 frame05: 고객명 + #id·상차 를 한 줄(titlebar). 보류 배지는 이름 옆 인라인 유지. #}
   <div class="foms-prod-sheet__titlebar">
     <div class="foms-prod-sheet__head">

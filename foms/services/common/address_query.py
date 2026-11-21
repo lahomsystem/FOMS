@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any, Optional
 
 #: 도로명 + 건물번호까지만 남기는 패턴. 여기서는 공백을 필수로 둔다 — 선택적으로
 #: 바꾸면 건물명에 포함된 '로/길' 뒤 숫자를 도로명으로 오인한다.
@@ -215,3 +216,90 @@ def match_key(address: str) -> str:
     if not any(ch.isdigit() for ch in key):
         return ""
     return key
+
+
+#: 도로명 + 건물번호(``동탄대로10길 20``). 앞에 붙은 시·구는 표기마다 달라 보지 않는다.
+_UNIT_ROAD_RE = re.compile(r"([가-힣A-Za-z0-9]*?[가-힣](?:대로|로|길))(\s*\d+번?길)?\s*(\d+(?:-\d+)?)(?!\d)")
+_UNIT_PAREN_RE = re.compile(r"\([^)]*\)")
+
+
+def unit_address_key(address: Any) -> Optional[tuple[str, str, str, str]]:
+    """같은 **집**인지 견주는 키 ``(도로명, 번길, 건물번호, 동-호)``.
+
+    ``경기도 화성시 동탄구 동탄대로10길 20 (산척동, …) 2505동 1103호`` 와
+    ``동탄대로10길 20 더샵레이크에듀타운 2505동 1103호`` 를 같은 키로 접는다. 동·호는
+    건물번호 뒤에 나오는 숫자 묶음의 마지막 둘(하나뿐이면 그 하나)이다.
+
+    네이버 붙이기 후보(:mod:`foms.services.integrations.naver_commerce.order_candidates`)와
+    새 주문 안내(:mod:`foms.services.orders.open_order_lookup`)가 같은 규칙을 쓴다.
+
+    Args:
+        address: 주소 원문(None 허용).
+
+    Returns:
+        키. 도로명 주소가 아니거나 동·호 숫자가 없으면 None — 단지 단위로 견주면 남의 집이 걸린다.
+    """
+    text = _UNIT_PAREN_RE.sub(" ", str(address or ""))
+    matches = list(_UNIT_ROAD_RE.finditer(text))
+    if not matches:
+        return None
+    road = matches[-1]
+    numbers = re.findall(r"\d+", text[road.end():])
+    if not numbers:
+        return None
+    sub_road = re.sub(r"\s+", "", road.group(2) or "")
+    return road.group(1), sub_road, road.group(3), "-".join(numbers[-2:])
+
+
+#: 건물번호 뒤의 ``1103호`` — 단지 이름 속 숫자(``래미안2차``)와 호수를 가른다.
+_UNIT_HO_RE = re.compile(r"\d+\s*호")
+#: 도로명 앞 시 · 구 · 군 토막(``화성시`` · ``강남구`` · ``기장군``).
+_UNIT_REGION_RE = re.compile(r"^[가-힣]+(?:시|구|군)$")
+#: ``서울특별시`` · ``부산광역시`` → ``서울시`` · ``부산시`` 로 접는다(표기만 다른 같은 시).
+_UNIT_METRO_RE = re.compile(r"(?:특별자치시|특별시|광역시)$")
+
+
+def _unit_ho_and_regions(address: Any) -> tuple[bool, Optional[str], Optional[str]]:
+    """``(건물번호 뒤에 N호가 있나, 시, 구 · 군)`` — 도로명 앞에 적힌 것만 본다."""
+    text = _UNIT_PAREN_RE.sub(" ", str(address or ""))
+    matches = list(_UNIT_ROAD_RE.finditer(text))
+    if not matches:
+        return False, None, None
+    road = matches[-1]
+    city: Optional[str] = None
+    district: Optional[str] = None
+    for token in re.split(r"[\s,]+", text[: road.start()]):
+        if not _UNIT_REGION_RE.match(token):
+            continue
+        if token.endswith("시"):
+            city = _UNIT_METRO_RE.sub("시", token)
+        else:
+            district = token
+    return bool(_UNIT_HO_RE.search(text[road.end():])), city, district
+
+
+def same_unit_address(left: Any, right: Any) -> bool:
+    """두 주소가 같은 **집**인가 — :func:`unit_address_key` 보다 엄격한 견주기.
+
+    키가 같고, 양쪽 모두 건물번호 뒤에 ``N호`` 가 있고, 양쪽이 다 적은 시 · 구 · 군은 같아야 한다.
+    새 주문 안내(:mod:`foms.services.orders.open_order_lookup`)처럼 남의 집을 걸면 안 되는 자리가 쓴다.
+    ``동탄대로 100 래미안2차`` 는 키가 ``2`` 로 잡혀 같은 단지의 다른 집에 걸리고, 서울과 부산의
+    ``테헤란로 100 3동 101호`` 는 키가 같다 — 둘 다 여기서 걸러진다.
+
+    >>> same_unit_address("경기 화성시 동탄대로 100 래미안2차", "동탄대로 100 래미안2차 아파트")
+    False
+    >>> same_unit_address("서울 강남구 테헤란로 100 3동 101호", "부산 해운대구 테헤란로 100 3동 101호")
+    False
+    >>> same_unit_address("서울특별시 강남구 테헤란로 100 3동 101호", "테헤란로 100 래미안 3동 101호")
+    True
+    """
+    key = unit_address_key(left)
+    if key is None or key != unit_address_key(right):
+        return False
+    left_ho, left_city, left_district = _unit_ho_and_regions(left)
+    right_ho, right_city, right_district = _unit_ho_and_regions(right)
+    if not (left_ho and right_ho):
+        return False
+    if left_city and right_city and left_city != right_city:
+        return False
+    return not (left_district and right_district and left_district != right_district)

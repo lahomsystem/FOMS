@@ -76,6 +76,16 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 </div>
             </div>
 
+            {# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — erp-same-customer-notice.js 가 채운다. 저장은 막지 않는다.
+               복사로 만든 주문(접수 단계)은 도착했을 때 한 번 묻도록 그 주문의 연락처 · 주소를 실어 둔다.
+               비었을 때 d-none 이 아니라 visually-hidden 인 까닭: 화면 낭독기가 채워지기 전부터 알림 자리를 알아야 첫 안내를 읽는다. #}
+            {% set _sc_meta = order.structured_data.get('meta') if order is defined and order and order.structured_data is mapping else none %}
+            {% set _sc_copied = _sc_meta is mapping and _sc_meta.get('created_via') == 'ORDER_COPY' and (order.erp_stage_code or 'RECEIVED') == 'RECEIVED' %}
+            <div class="alert alert-warning py-2 visually-hidden" id="erp-same-customer-notice" role="status" aria-live="polite" data-foms-no-autodismiss
+                data-lookup-url="{{ url_for('orders.api_open_orders_for_customer') }}"
+                {% if order is defined and order %}data-order-id="{{ order.id }}"{% endif %}
+                {% if _sc_copied %}data-copy-arrival="true" data-copy-phone="{{ order.phone or '' }}" data-copy-address="{{ order.address or '' }}"{% endif %}></div>
+
             {# edit 화면은 견적서를 계산기 우측 outer 탭으로 올린다(erp_estimate_in_outer_tab=true).
                add_order 등 단독 포함 화면은 inner pill '계약서'를 그대로 유지한다. #}
             {% if not erp_estimate_in_outer_tab %}
@@ -770,6 +780,12 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 </div>
             </div>
             <div class="modal-footer">
+                {# 잘못 접수한 AS 걷어 내기 — 현재 AS 가 접수 상태이고 관리자 · CS 능력일 때만(API 와 같은 판정 as_cancel_allowed).
+                   주문 상태 글이 아니라 AS 건으로 판정한다(건은 열려 있는데 상태 글이 본 흐름인 주문도 있다). #}
+                {% if order is defined and order and (order|as_cancel_allowed(current_user if current_user is defined else none)) %}
+                <button type="button" class="btn btn-outline-danger me-auto"
+                    data-erp-as-cancel data-order-id="{{ order.id }}">이 AS 접수 취소</button>
+                {% endif %}
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
                 <button type="button" class="btn btn-primary" id="as-receive-submit-btn">
                     <i class="fas fa-check"></i> AS 접수 확인

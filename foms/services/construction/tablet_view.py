@@ -22,13 +22,13 @@ from foms.services.construction.tablet_first import (
     DAY_ROWS_CAP,
     fetch_day_orders,
     fetch_undated_orders,
-    is_as_status,
     parse_day,
     production_note,
     scope_conditions,
     time_sort_key,
 )
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.schedule_row_kind import ROW_IS_AS_ATTR, as_hides_main_flow, is_as_status
 from models import OrderScheduleDate
 
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
@@ -53,11 +53,15 @@ def day_label(day: str | None) -> str:
     return f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})"
 
 
-def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None, *, is_as: bool = False) -> str | None:
+def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None, *, is_as: bool = False,
+                      as_status: bool = False) -> str | None:
     """옛 딥링크(날짜 없음)의 날짜 — 오늘 이후 가장 가까운 날, 없으면 가장 최근 날(쿼리 1).
 
-    첫 화면 짝 규칙(D43)과 같은 종류를 먼저 본다: AS 상태 집 = AS 방문일, 그 밖 = 시공일. 그 종류가 없을 때만 다른 종류.
+    첫 화면 짝 규칙과 같은 종류를 먼저 본다: AS 줄로만 드는 집(``is_as`` — AS 상태 · 본 흐름 닫힘) = AS 방문일,
+    그 밖(본 흐름이 열린 AS 집 포함) = 시공일. 그 종류가 없을 때만 다른 종류.
     (AS 집을 시공일로 열면 그날 첫 화면에 그 집이 없어 왼쪽 목록과 수가 어긋났다 — 스테이징 11-12.)
+    본 흐름이 열린 AS 집(``as_status`` 참 · ``is_as`` 거짓)은 시공일이 모두 지났고 AS 방문일이 오늘 이후면 그 AS 방문일로 연다
+    (지난 시공일보다 다가올 방문이 볼 날이다).
     """
     rows = db.execute(
         select(OrderScheduleDate.kind, OrderScheduleDate.date).where(
@@ -69,6 +73,10 @@ def resolve_focus_day(db: Any, order_id: int, today: datetime.date | None = None
         return None
     base = (today or get_today_kst()).isoformat()
     upcoming = [d for d in days if d >= base]
+    if not upcoming and as_status and not is_as:
+        visits = sorted({str(d) for k, d in rows if k == "as_visit" and parse_day(d) and str(d) >= base})
+        if visits:
+            return visits[0]
     return upcoming[0] if upcoming else days[-1]
 
 
@@ -83,12 +91,19 @@ def build_detail(db: Any, *, focus: Any, user: Any, mine_only: bool, partner_org
     Returns:
         {'orders': 주문 목록(시간 순), 'date', 'date_label', 'worker', 'focus_id'}.
     """
-    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today, is_as=is_as_status(focus))
+    day = parse_day(date_arg) or resolve_focus_day(db, focus.id, today, is_as=as_hides_main_flow(focus),
+                                                   as_status=is_as_status(focus))
     worker = str(worker_arg or "").strip()
     orders: list[Any] = []
     if day:
         conds = scope_conditions(user=user, mine_only=mine_only, partner_org=partner_org, worker=worker)
-        orders = sorted((o for _d, o in fetch_day_orders(db, conds, [day])), key=lambda o: (is_as_status(o), time_sort_key(o), o.id))  # 시공 집 먼저 · AS 방문 집 뒤(첫 화면 묶음과 같은 규칙, D44)
+        # 그날 줄 종류를 주문에 붙여 넘긴다 — 카드 단계 글(build_construction_row_dtos) · 단추가 첫 화면 줄과 같은 판정을 쓴다
+        # (AS 방문일로 든 줄 = 'AS 방문 집이에요', 시공일로 든 줄 = 본 흐름 글 + 단추). 하루만 읽으므로 한 주문에 값은 하나다.
+        rows = sorted(fetch_day_orders(db, conds, [day]),
+                      key=lambda r: (r.schedule_row_is_as, time_sort_key(r.order), r.order.id))  # 시공 줄 먼저 · AS 방문 줄 뒤(첫 화면 묶음과 같은 순서, D44)
+        for row in rows:
+            setattr(row.order, ROW_IS_AS_ATTR, row.schedule_row_is_as)
+        orders = [row.order for row in rows]
     if all(o.id != focus.id for o in orders):
         orders = [focus] + orders
     return {"orders": orders, "date": day, "date_label": day_label(day), "worker": worker, "focus_id": focus.id}

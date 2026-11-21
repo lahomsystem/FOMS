@@ -71,6 +71,12 @@
               <dt>AS</dt>
               <dd>{{ meta.as_content_text }}</dd>
             </div>
+            {% elif meta.as_visit_too %}
+            {# 시공 카드인데 같은 날 AS 방문도 있다(schedule_row_kind) — 한 줄로만 알린다. #}
+            <div class="erp-shipment-mobile-card__full" data-shipment-as-too>
+              <dt>AS</dt>
+              <dd>AS 방문도</dd>
+            </div>
             {% endif %}
           </dl>
         {% endset %}

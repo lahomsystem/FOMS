@@ -35,6 +35,8 @@
 {# AS 접수 창 초안 보관(새로고침에도 남김) — 주문 폼 공용 스크립트가 window.fomsAsReceiveDraft 를 부른다. #}
 <script src="{{ asset_url('js/orders/as-receive-draft.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-order-shared.js') }}" defer></script>
+{# 같은 고객의 진행 중 주문 안내(설계서 2026-11-20 6.2) — 주문 폼 공용 스크립트의 초안 판정 · 주문 번호를 쓴다. #}
+<script src="{{ asset_url('js/orders/erp-same-customer-notice.js') }}" defer></script>
 {# 완료 주문 AS 도면 묶음 — 확인했어요 · 고쳐 주세요(설계서 2026-11-11-as-drawing-after-completion). #}
 <link rel="stylesheet" href="{{ asset_url('css/contexts/drawing/workbench-as.css') }}">
 <script src="{{ asset_url('js/orders/erp-as-drawing-panel.js') }}" defer></script>
@@ -44,6 +46,8 @@
 {# ORDER-REASON-00: 저장 성공 뒤 사유를 받는 표면(전체 저장=시트, 인라인=배너). #}
 <script src="{{ asset_url('js/orders/order-change-reason.js') }}" defer></script>
 <script src="{{ asset_url('js/orders/erp-stage-override.js') }}" defer></script>
+{# [AS 접수 수정] 창 아래 줄의 [이 AS 접수 취소] 단추 — 창을 닫고 아래 공용 사유 시트로 사유를 받는다(설계서 2026-11-20-multi-item-split-schedule §4.4). #}
+<script src="{{ asset_url('js/orders/erp-as-cancel.js') }}" defer></script>
 {# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
    하나라도 빠지면 재시도가 무음으로 실패한다. #}
 {% include 'partials/shared/foms_reason_sheet.html' %}

@@ -1,7 +1,11 @@
 """Order copy service (ORDER-COPY-01) — fresh-identity duplication via create_order.
 
-원본 주문을 **explicit form allowlist** 필드만 골라 새 주문으로 복제한다. 상태·버전·item
-id·owner·quest·삭제·일정 등 서버 소유/운영 상태는 원본에서 복제하지 않고
+원본 주문에서 **넣을 것만 골라**(허용 목록) 새 주문으로 복제한다. ``structured_data`` 는 아래
+``_*_COPY_KEYS`` 에 적힌 칸만 옮기고, 적히지 않은 칸은 — 앞으로 새로 생기는 칸까지 — 옮기지 않는다
+(설계서 2026-11-20 6.3 · M14). 빼는 목록이던 시절에는 결제 확인 · AS 기록 · 알림톡 발송 이력 · 제품별
+날짜가 새 주문으로 흘러, 복사본이 AS 화면에 뜨고 옛 날짜로 일정 줄이 생겼다.
+
+상태·버전·item id·owner·quest·일정 등 서버 소유/운영 상태는
 :func:`~foms.services.orders.order_create.create_order` 가 새로 초기화한다(mutation_version=1,
 SALES owner 배정, RECEIVED quest seed, item UUID identity, GEOCODE outbox 를 한 tx). 다건
 복사는 Order ID 정렬 lock 으로 **all-or-none**(하나라도 없으면 전체 abort·partial commit 0)
@@ -23,48 +27,36 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.order_create import create_order, resolve_order_owner
 from models import Order, User
 
-#: structured_data 에서 복사하지 않는 서버 소유/운영 상태 키. workflow/quests/totals 는
-#: create_order 가 RECEIVED 로 새로 seed 하므로 여기서 지운다(원본 stage 승계 금지).
-#: schedule(실측·시공 일정)은 "일정 복사 금지" 규약에 따라 제거한다.
-_STRUCTURED_DROP_KEYS = frozenset(
-    {
-        "workflow",
-        "assignments",
-        "shipment",
-        "schedule",
-        "quests",
-        "drawing",
-        "blueprint",
-        "drawing_status",
-        "drawing_transferred",
-        "drawing_confirmed_at",
-        "drawing_confirmed_by",
-        "drawing_current_files",
-        "drawing_excluded_files",
-        "drawing_transfer_history",
-        "last_drawing_transfer",
-        "drawing_assignees",
-        "drawing_wizard",
-        "estimate_preview",
-        "channeltalk_push",
-        "channeltalk_push_drawing",
-        "channeltalk_push_estimate",
-        "channeltalk_push_measure_room",
-        "channeltalk_push_drawing_room",
-        "channeltalk_push_urgent_measure",
-    }
+#: 고객 · 발주사 · 주문한 사람 · 담당 뱃지에서 옮기는 칸. 협력사 직원 표식(``partner_user_id`` 등)은 없다.
+_PARTY_COPY_KEYS: dict[str, tuple[str, ...]] = {
+    "customer": ("name", "phone", "phone2"),
+    "orderer": ("name",),
+    "buyer": ("name", "phone"),
+    "manager": ("name", "names", "phone"),
+}
+
+#: 주소(특이사항 포함).
+_SITE_COPY_KEYS = ("address_full", "address_main", "address_detail", "address_note", "zip_code")
+
+#: 제품 본문(규격 · 색 · 옵션 · 수량 · 가격 · 규격 계산 스냅샷). 날짜 · 첨부 · 취소 · uid · 네이버 금액은 없다 —
+#: 날짜가 넘어가면 새 주문에 일정 줄이 생겨 출고판에 옛 날짜로 뜬다.
+_ITEM_COPY_KEYS = (
+    "product_name", "name",
+    "spec", "spec_rows", "spec_width", "spec_depth", "spec_height",
+    "width", "depth", "height",
+    "internal", "color", "option_detail", "handle", "misc", "options",
+    "quantity", "price", "raw_price", "extra_input",
+    "pricing",
 )
 
-#: meta 하위에서 복사하지 않는 초안/견적 연결 토큰(새 주문은 draft/견적 링크를 승계하지 않음).
-_META_DROP_KEYS = frozenset(
-    {
-        "draft",
-        "draft_token",
-        "wdc_estimate_id",
-        "wdcalculator_estimate_id",
-        "estimate_id",
-    }
-)
+#: 전화 · 주소 특이사항. 실측 · 시공 메모는 그 주문의 작업 기록이라 없다.
+_NOTES_COPY_KEYS = ("phone_note", "address_note")
+
+#: 라홈시스템 표식. 긴급 · 해피콜 · 견적 수정 표시는 그 주문의 사정이라 없다.
+_FLAGS_COPY_KEYS = ("factory2",)
+
+#: 값(할인 · 자유입력)만. 예약금 · 결제 확인 · 현금영수증은 없다.
+_PAYMENT_COPY_KEYS = ("discount", "discounts", "free_input")
 
 
 class OrderCopyError(RuntimeError):
@@ -117,41 +109,65 @@ def _flat_product(order: Order, structured_data: dict[str, Any]) -> str:
     return product or "ERP Order"
 
 
-def _copy_structured_data(original: Order, copied_at: datetime.datetime) -> dict[str, Any]:
-    """ERP structured_data 를 복사용으로 정규화한다(운영 상태 제거·meta 재작성).
+def _pick(source: Any, keys: Sequence[str]) -> dict[str, Any]:
+    """dict 에서 ``keys`` 에 있는 칸만 깊은 복사로 골라 낸다(dict 가 아니면 빈 dict)."""
+    if not isinstance(source, dict):
+        return {}
+    return {key: copy.deepcopy(source[key]) for key in keys if key in source}
 
-    ``copy.deepcopy`` 로 원본을 격리한 뒤 서버 소유/운영 키를 제거한다. workflow·quest·
-    totals 는 남기지 않고 create_order 가 RECEIVED 로 새로 seed 한다.
+
+def _copy_parties(parties: Any) -> dict[str, Any]:
+    """고객 · 발주사 · 주문한 사람 · 담당 뱃지만. 옛 주문의 스칼라 값(이름 글)은 그대로 옮긴다."""
+    out: dict[str, Any] = {}
+    for role, keys in _PARTY_COPY_KEYS.items():
+        value = _ensure_dict(parties).get(role)
+        if isinstance(value, dict):
+            out[role] = _pick(value, keys)
+        elif isinstance(value, (str, int)) and not isinstance(value, bool):
+            out[role] = value
+    return out
+
+
+def _copy_structured_data(original: Order, copied_at: datetime.datetime) -> dict[str, Any]:
+    """ERP structured_data 에서 넣을 것만 골라 새 dict 를 만든다(허용 목록 · meta 는 새로 씀).
+
+    원본은 건드리지 않는다. 허용 목록 밖의 칸(결제 확인 · 정산 · AS · 알림톡 · 채널톡 이력 · 통화 · 제작 ·
+    시공 기록 · 네이버 · 협력사 표식 · 도면 · 일정 · workflow · quests …)은 옮기지 않고, workflow · quest ·
+    totals 는 create_order 가 RECEIVED 로 새로 seed 한다.
 
     Args:
         original: 복사 원본 주문.
         copied_at: 복사 시각(meta.copied_at 표기용, KST business 시각).
 
     Returns:
-        복사 대상 필드만 남은 structured_data dict(create_order 로 넘길 값).
+        복사 대상 필드만 담은 structured_data dict(create_order 로 넘길 값).
     """
-    sd = copy.deepcopy(_ensure_dict(getattr(original, "structured_data", None)))
-    for key in _STRUCTURED_DROP_KEYS:
-        sd.pop(key, None)
-    # 품목 취소·견적 수정 표시는 원본 주문의 사정이다 — 새 주문의 품목은 전부 살아 있는 상태로 시작한다.
-    for item in sd.get("items") or []:
-        if isinstance(item, dict):
-            item.pop("cancel", None)
-    if isinstance(sd.get("flags"), dict):
-        sd["flags"].pop("estimate_needs_update", None)
-
-    meta = copy.deepcopy(_ensure_dict(sd.get("meta")))
-    for key in _META_DROP_KEYS:
-        meta.pop(key, None)
-    meta.update(
-        {
-            "draft": False,
-            "created_via": "ORDER_COPY",
-            "copied_from_order_id": original.id,
-            "copied_at": copied_at.isoformat(),
-        }
-    )
-    sd["meta"] = meta
+    source = _ensure_dict(getattr(original, "structured_data", None))
+    sd: dict[str, Any] = {}
+    if isinstance(source.get("parties"), dict):
+        sd["parties"] = _copy_parties(source["parties"])
+    if isinstance(source.get("site"), dict):
+        sd["site"] = _pick(source["site"], _SITE_COPY_KEYS)
+    if isinstance(source.get("items"), list):
+        sd["items"] = [
+            _pick(item, _ITEM_COPY_KEYS) for item in source["items"] if isinstance(item, dict)
+        ]
+    notes = source.get("notes")
+    if isinstance(notes, dict):
+        sd["notes"] = _pick(notes, _NOTES_COPY_KEYS)
+    elif isinstance(notes, str):
+        # 마법사 · 협력사 주문은 접수 메모를 글 한 칸으로 둔다.
+        sd["notes"] = notes
+    if isinstance(source.get("flags"), dict):
+        sd["flags"] = _pick(source["flags"], _FLAGS_COPY_KEYS)
+    if isinstance(source.get("payment"), dict):
+        sd["payment"] = _pick(source["payment"], _PAYMENT_COPY_KEYS)
+    sd["meta"] = {
+        "draft": False,
+        "created_via": "ORDER_COPY",
+        "copied_from_order_id": original.id,
+        "copied_at": copied_at.isoformat(),
+    }
     return sd
 
 

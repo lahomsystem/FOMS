@@ -70,10 +70,18 @@
     return msg + "\n보류를 해제하고 진행할까요?";
   }
 
+  // 시공일이 둘 이상인 주문만 서버가 카드 뿌리에 한 줄(data-production-split-note)을 실어 준다.
+  function productionSplitNote(orderId) {
+    var src = document.querySelector('[data-production-split-note][data-order-id="' + orderId + '"]');
+    var note = src ? (src.getAttribute("data-production-split-note") || "") : "";
+    return note ? "\n\n" + note : "";
+  }
+
   function moveOrder(orderId, action) {
     var spec = ACTIONS[action];
     if (!orderId || !spec) return;
-    if (!window.confirm(spec.confirm)) return;
+    var message = spec.confirm + (action === "complete" ? productionSplitNote(orderId) : "");
+    if (!window.confirm(message)) return;
     var body = {};
     if (spec.promptReason) {
       // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.

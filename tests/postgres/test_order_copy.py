@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from foms.services.order_copy import OrderCopyError, copy_orders_batch
+from foms.services.order_date_sync import collect_order_schedule_date_specs
 from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.order_create import OwnerPolicyError
 from models import (
@@ -28,6 +29,7 @@ from models import (
     OrderAttachment,
     OrderEvent,
     OrderItemIdentity,
+    OrderScheduleDate,
     User,
 )
 
@@ -186,6 +188,85 @@ def test_copy_erp_fresh_identity_and_reset(pg_engine):
         assert original_saved.status == "DRAWING"
         assert original_saved.structured_data["workflow"]["stage"] == "DRAWING"
         assert s.query(OrderAttachment).filter_by(order_id=original_id).count() == 1
+    finally:
+        s.close()
+
+
+# --------------------------------------------------------------------------- #
+# 넣을 것만 넣기 (설계서 2026-11-20 6.3 · M14)
+# --------------------------------------------------------------------------- #
+def test_copy_allowlist_drops_payment_as_alimtalk_and_item_dates(pg_engine):
+    """결제 · AS · 알림톡 · 제품 칸 날짜 · 새 열쇠는 안 따라온다 — 복사본은 AS 축이 비고 일정 줄이 없다."""
+    s = _session(pg_engine)
+    try:
+        staff = _user(s, role="STAFF", team="SALES")
+        original = _erp_original(s, owner=staff)
+        sd = dict(original.structured_data)
+        sd["items"] = [
+            {"product_name": "붙박이장", "price": 1000000, "color": "화이트",
+             "construction_date": "2026-07-12", "measurement_date": "2026-07-05",
+             "attachments": [{"key": "orders/a.png"}], "naver_paid_amount": 1000000},
+            {"product_name": "수납장", "price": 500000, "construction_date": "2026-07-19",
+             "cancel": {"reason": "customer_change"}},
+        ]
+        sd["payment"] = {"deposit": "300,000", "discount": 50000, "free_input": "배송 30000",
+                         "deposit_confirmed": True, "cash_receipt": "010-0000-0000"}
+        sd["settlement"] = {"deductions": [{"amount": 10000}]}
+        sd["as_lifecycle"] = {"current_cycle_id": "c1", "cycles": [
+            {"cycle_id": "c1", "transitions": [{"to": "RECEIVED", "at": "2026-07-15T09:00:00"}]}]}
+        sd["as_info"] = [{"content": "문짝 처짐"}]
+        sd["alimtalk_construction"] = {"sent_at": "2026-07-11T09:00:00"}
+        sd["channeltalk_push_as"] = {"pushed": True}
+        sd["calls"] = [{"result": "ABSENT"}]
+        sd["production"] = {"steps": {"cut": True}}
+        sd["construction"] = {"evidence": {"photos": ["k"]}}
+        sd["naver"] = {"product_order_id": "2026"}
+        sd["source"] = "PARTNER"
+        sd["flags"] = {"urgent": True, "factory2": True}
+        sd["notes"] = {"phone_note": "오후 통화", "measurement_note": "천장 2350"}
+        sd["brand_new_server_key"] = {"anything": 1}
+        original.structured_data = sd
+        original.as_axis_status = "RECEIVED"
+        s.commit()
+        original_id = original.id
+        # 대조군: 원본은 제품 칸 날짜가 일정 줄 재료가 된다.
+        assert [spec["date"] for spec in collect_order_schedule_date_specs(original) if spec["kind"] == "construction"]
+
+        results = copy_orders_batch(s, actor=staff, order_ids=[original_id])
+        s.commit()
+        new_id = results[0][1].id
+        s.expire_all()
+        copied = s.get(Order, new_id)
+        out = copied.structured_data
+
+        allowed = {"parties", "site", "items", "notes", "flags", "payment", "meta", "workflow", "quests", "totals"}
+        assert set(out) <= allowed, set(out) - allowed
+        assert [item["product_name"] for item in out["items"]] == ["붙박이장", "수납장"]
+        assert out["items"][0]["price"] == 1000000 and out["items"][0]["color"] == "화이트"
+        for item in out["items"]:
+            for key in ("construction_date", "measurement_date", "attachments", "naver_paid_amount", "cancel"):
+                assert key not in item, key
+        assert out["payment"] == {"discount": 50000, "free_input": "배송 30000"}
+        assert out["flags"] == {"factory2": True}
+        assert out["notes"] == {"phone_note": "오후 통화"}
+        assert set(out["meta"]) == {"draft", "created_via", "copied_from_order_id", "copied_at"}
+        assert out["totals"]["deposit_amount"] == 0 and out["totals"]["discount_amount"] == 50000
+
+        # 복사본은 AS 화면 모집단에 들지 않고 일정 줄(재료 포함)이 없다.
+        assert copied.as_axis_status is None
+        assert not copied.erp_urgent
+        assert collect_order_schedule_date_specs(copied) == []
+        assert s.query(OrderScheduleDate).filter_by(order_id=new_id).count() == 0
+
+        # 생성 기록: 진행 중(DRAWING)인 원본이 같은 고객 주문으로 남는다.
+        created = s.query(OrderEvent).filter_by(order_id=new_id, event_type="ORDER_CREATED").one()
+        assert "open_order_ids" in created.payload
+
+        # 원본 불변.
+        original_saved = s.get(Order, original_id)
+        assert original_saved.as_axis_status == "RECEIVED"
+        assert original_saved.structured_data["payment"]["deposit"] == "300,000"
+        assert original_saved.structured_data["brand_new_server_key"] == {"anything": 1}
     finally:
         s.close()
 
