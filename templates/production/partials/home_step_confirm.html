@@ -1,0 +1,19 @@
+{# '내 공정' 판 [<공정> 끝] 확인 창 — 화면에 하나(판이 있을 때만, 설계서 2026-11-21-production-my-steps-panel §3-5 · 사용자 결정 11-21).
+   꼴 = 파트 도면 카드 확인 창(home_parts_overlays.html #foms-part-confirm-modal)과 같다: 모양 CSS 는 foms-tablet-production-kanban.css 의
+   .foms-prod-change-modal + parts.css 의 .pp-modal(줄 그림 · 바뀔 상태 한 줄 · 60px 단추 · 끝 초록) 그대로 — 복사 0.
+   id 는 옛 보드 창(foms-prod-change-modal) · 파트 창과 달라 tablet-domain-sheets.js · parts.js 가 건드리지 않는다. 목록 줄은 JS 가 채운다.
+   data-foms-step-me = 바뀔 상태 한 줄의 '누가'(로그인한 사람), data-foms-step-base = 다음 줄이 없을 때 다시 받을 주소. #}{% from 'production/partials/home_date_macros.html' import home_href %}
+<div id="foms-step-confirm-modal" class="foms-prod-change-modal pp-modal" data-foms-step-modal data-foms-step-me="{{ step_me }}" data-foms-step-base="{{ home_href('steps') }}" role="dialog" aria-modal="true" aria-labelledby="foms-step-confirm-title" hidden>
+  <div class="foms-prod-change-modal__dialog">
+    <div class="foms-prod-change-modal__head">
+      <h2 class="foms-prod-change-modal__title" id="foms-step-confirm-title" data-foms-step-modal-title>확인</h2>
+      <span class="foms-prod-change-modal__count">1건</span>
+    </div>
+    <ul class="foms-prod-change-modal__list" data-foms-step-modal-list></ul>
+    <p class="pp-merr" data-foms-step-modal-err role="alert" hidden></p>
+    <div class="foms-prod-change-modal__foot">
+      <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close pp-mbtn" data-foms-step-modal-close>취소</button>
+      <button type="button" class="foms-prod-change-modal__btn pp-mbtn pp-mgo pp-mgo--done" data-foms-step-modal-run>확인</button>
+    </div>
+  </div>
+</div>

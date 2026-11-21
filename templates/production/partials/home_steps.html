@@ -1,17 +1,19 @@
-{# 탭 "내 공정"(안 3) — 공정 4탭(사람마다 마지막 탭 기억), 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양 없음(D11). #}
-<div class="fph-steptabs" role="tablist" aria-label="공정">
+{# 탭 "내 공정"(안 3) — 공정 4탭(사람마다 마지막 탭 기억), 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양 없음(D11).
+   오른쪽 판(step_panel, 설계서 2026-11-21-production-my-steps-panel · 사용자 결정 11-21 '추천안 반반'): 태블릿 가로(모바일 v2 + 터치 + 넓은 창)만 —
+   공정 줄마다 줄 칸 | 판 반반, 줄을 누르면 판이 바뀐다(화면 안 보이기/숨기기 · foms-production-home-steps.js). 판이 없으면 아래 출력은 지금과 한 글자도 같다. #}{% from 'production/partials/home_date_macros.html' import home_href %}
+{% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}>
   {% for q in queues.queues %}
-  <button type="button" class="fph-steptab{% if loop.first %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
+  <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
   {% endfor %}
 </div>
-<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>
-{% for q in queues.queues %}
-<div class="fph-q" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if not loop.first %} hidden{% endif %}>
+{% if not step_panel %}{{ _note }}
+{% endif %}{% for q in queues.queues %}
+<div class="fph-q{% if step_panel %} fph-q--sp{% if q.rows %} has-sp{% endif %}{% endif %}" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>{% if step_panel %}<div class="fph-q__list">{{ _note }}{% endif %}
   {% for r in q.rows %}
-  <div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}" data-foms-home-qrow="{{ r.id }}">
+  {% set _sel = step_panel and r.id == q.selected_id %}<div class="fph-qr{% if r.hold_active %} is-hold{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if _sel %} is-on{% endif %}" data-foms-home-qrow="{{ r.id }}"{% if _sel %} aria-current="true"{% endif %}>
     <span class="fph-qr__n">{{ loop.index }}</span>
-    <a class="fph-qr__who" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">
-      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
+    <a class="fph-qr__who" href="{% if step_panel %}{{ home_href('steps', order=r.id) }}" data-foms-erp-no-shell="1" data-foms-step-sheet="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% else %}{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}{% endif %}">
+      <div class="fph-qr__ln"><b>{{ r.customer_name }} <small>#{{ r.id }}</small></b>{% if step_panel and r.hold_active %}<span class="fph-qr__holdtag">보류</span>{% endif %}{% if r.by_parts %}<span class="fph-qr__by">{% for p in r.by_parts %}<span class="fph-by is-{{ p.k }}"><i>{{ p.label }}</i> {{ p.name }}</span>{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}</div>
       <span>{{ r.v3_product_label or '품목 없음' }}{% if r.v3_material %} · {{ r.v3_material }}{% endif %}{% if r.has_changes %} · <em>{{ r.change_line }}</em>{% endif %}</span>
     </a>
     <span class="fph-qr__due">시공<b>{{ r.day_label }}</b></span>
@@ -37,5 +39,5 @@
     {% endfor %}
   </div>
   {% endif %}
-</div>
-{% endfor %}
+{% if step_panel %}</div>{% if q.rows %}<div class="fph-q__panes" data-foms-step-panes>{% for p in q.panels %}{% include 'production/partials/home_step_panel.html' %}{% endfor %}</div>{% endif %}{% endif %}</div>
+{% endfor %}{% if step_panel %}{% include 'production/partials/home_step_confirm.html' %}{% endif %}
