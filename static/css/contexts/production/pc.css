@@ -1,0 +1,205 @@
+/* PC(마우스) 생산 화면 — 보기 전용 첫 화면 · 작업 시트 PC 꼴. 설계서 docs/specs/2026-11-21-production-pc-viewer_SPEC.md
+   §6(꼴: 여섯 칸 줄 · 시공일 칸 · 누가 · 언제) · §7([고치기] 주황 띠) · §8(늦음 · 빠듯). 목업 docs/design/mockups/pc-production-viewer.html.
+   서버가 PC 응답(foms_ptr=fine)에서만 싣는다(home_styles.html · sheet.html) — 태블릿 · 폰은 이 파일을 받지 않는다.
+   글자는 탭별 글자 손잡이를 따른다: calc(Npx * var(--foms-fs, 1)). 줄이지 않는다(사용자 PC 80% 배율). 색은 아래 토큰만(무채색 상태 표 없음). */
+.foms-prod-home.is-pc, .foms-prod-page {
+  --fpc-brand: #5a67d8;
+  --fpc-brand-dark: #4a55b8;
+  --fpc-brand-50: #f3f4ff;
+  --fpc-line: #dde1e6;
+  --fpc-line2: #c1c7d0;
+  --fpc-text: #14171c;
+  --fpc-text2: #4b525d;
+  --fpc-text3: #6b7380;
+  --fpc-danger: #dc2626;
+  --fpc-danger-ink: #b91c1c;
+  --fpc-danger-50: #fef2f2;
+  --fpc-danger-line: #fca5a5;
+  --fpc-warn: #d97706;
+  --fpc-warn-line: #f59e0b;
+  --fpc-warn-ink: #92400e;
+  --fpc-warn-50: #fffbeb;
+  --fpc-warn-soft: #fcd34d;
+  --fpc-teal: #0f766e;
+  --fpc-teal-50: #ecfdf5;
+  --fpc-teal-line: #5eead4;
+  --fpc-ok-dark: #047857;
+  --fpc-hold: #be185d;
+  --fpc-hold-50: #fdf2f8;
+  --fpc-hold-line: #f472b6;
+  --fpc-tip: #1f2329;
+}
+
+/* ── 제목 줄: [보드 →] · 보기 전용 표 · [고치기] · 주황 띠 ── */
+.foms-prod-home__navtab.fpc-board { gap: 6px; border-left: 1px solid var(--fpc-line2); border-radius: 0 9px 9px 0; }
+.fpc-board svg { font-size: calc(16px * var(--foms-fs, 1)); stroke-width: 2.6; }
+.fpc-view { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border: 1.5px solid var(--fpc-teal-line); border-radius: 999px; background: var(--fpc-teal-50); color: var(--fpc-teal); font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
+.fpc-view svg, .fpc-edit svg, .fpc-band svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.fpc-edit { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 18px; border: 1.5px solid var(--fpc-warn-line); border-radius: 10px; background: #fff; color: var(--fpc-warn-ink); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; cursor: pointer; }
+.fpc-edit:hover, .fpc-edit:focus-visible { background: var(--fpc-warn-50); color: var(--fpc-warn-ink); }
+.fpc-edit.is-on, .fpc-edit.is-on:hover, .fpc-edit.is-on:focus-visible { background: var(--fpc-warn); border-color: var(--fpc-warn); color: #fff; }
+.fpc-edit:disabled { opacity: .6; cursor: wait; }
+.foms-prod-home.is-editing .foms-prod-home__bar { box-shadow: inset 0 -3px 0 var(--fpc-warn-line); }
+.fpc-band { margin: 0; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 6px 22px; background: var(--fpc-warn-50); border-bottom: 2px solid var(--fpc-warn-line); color: var(--fpc-warn-ink); font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; }
+.fpc-band__off { margin-left: auto; min-height: 44px; padding: 0 18px; border: 1.5px solid var(--fpc-warn); border-radius: 10px; background: #fff; color: var(--fpc-warn-ink); font: inherit; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.fpc-band__off:hover, .fpc-band__off:focus-visible { background: var(--fpc-warn); color: #fff; }
+
+/* ── ① 시공일 칸(§6-3) — 큰 날짜 + D-n · 외 n · 바뀐 날. 늦음 · 빠듯이면 빨강 · 주황 ── */
+.fpc-due { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; line-height: 1.15; color: var(--fpc-text); }
+.fpc-due b { flex: 1 1 100%; font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
+.fpc-due > span { margin-top: 3px; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-brand-dark); white-space: nowrap; }
+.fpc-due small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text3); white-space: nowrap; }
+.fpc-due em { flex: 1 1 100%; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text3); white-space: nowrap; }
+.fpc-due.is-past > span { color: var(--fpc-danger-ink); }
+.fpc-due.is-none b { font-size: calc(17px * var(--foms-fs, 1)); color: var(--fpc-warn-ink); }
+.is-late > .fpc-due b, .is-late > .fpc-due > span { color: var(--fpc-danger-ink); }
+.is-tight > .fpc-due b, .is-tight > .fpc-due > span { color: var(--fpc-warn-ink); }
+
+/* ── 줄(§6-2): 기본 = 접힌 꼴(992 아래 PC 창), 넓은 창은 아래 미디어쿼리에서 여섯 칸 ── */
+.fpc-r, .fpc-q { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 78px; padding: 8px 14px 8px 12px; margin: 0; background: #fff; border: 1px solid var(--fpc-line); border-radius: 10px; color: var(--fpc-text); word-break: keep-all; overflow-wrap: anywhere; } /* 한글 글은 낱말 단위로 줄을 넘긴다('아 / 직' 꺾임 없음) */
+.fpc-r + .fpc-r, .fpc-q + .fpc-q, .fpc-r + .fpc-q, .fpc-q + .fpc-r { margin-top: 8px; }
+.fpc-r--mini { min-height: 58px; background: #fafbfc; }
+.fpc-r:hover, .fpc-q:hover { border-color: var(--fpc-brand); box-shadow: 0 0 0 2px var(--fpc-brand-50); }
+.fpc-r.is-late, .fpc-q.is-late { background: var(--fpc-danger-50); border-color: var(--fpc-danger-line); box-shadow: inset 6px 0 0 var(--fpc-danger); }
+.fpc-r.is-tight, .fpc-q.is-tight { background: var(--fpc-warn-50); border-color: var(--fpc-warn-soft); box-shadow: inset 6px 0 0 var(--fpc-warn-line); }
+.fpc-r.is-chg, .fpc-q.is-chg { outline: 2px solid #f87171; outline-offset: -1px; }
+.fpc-r[hidden] { display: none; }
+.fpc-pane > .fph-pane__g + .fpc-r, .fpc-qs > .fph-pane__g + .fpc-q { margin-top: 0; }
+
+/* ② 상태 */
+.fpc-st { min-width: 0; line-height: 1.2; }
+.fpc-st b { display: block; font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; color: var(--fpc-brand-dark); }
+.fpc-st.is-w b { color: var(--fpc-warn-ink); }
+.fpc-st.is-h b { color: var(--fpc-hold); }
+.fpc-st.is-f b { color: var(--fpc-ok-dark); }
+.fpc-st small { display: block; margin-top: 3px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; line-height: 1.3; color: var(--fpc-text2); }
+.is-late > .fpc-st small { color: var(--fpc-danger-ink); }
+.is-tight > .fpc-st small { color: var(--fpc-warn-ink); }
+
+/* ③ 손님 · 품목 — 이름 링크가 줄 전체를 덮는다(::after). 마우스 글 칸은 그 위(z-index)라 올리면 글이 뜬다 */
+.fpc-who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fpc-nm { display: flex; align-items: baseline; gap: 6px; min-width: 0; color: inherit; text-decoration: none; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; }
+.fpc-nm::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.fpc-nm:hover, .fpc-nm:focus-visible { color: var(--fpc-brand-dark); text-decoration: none; outline: none; }
+.fpc-nm:focus-visible::after { outline: 3px solid var(--fpc-brand); outline-offset: -2px; }
+.fpc-nm b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: inherit; }
+.fpc-nm small { flex-shrink: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text3); }
+.fpc-pr { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fpc-text2); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.fpc-cl { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-danger-ink); }
+
+/* ④ 공정 4칸 — 칸 폭을 4등분(오른쪽 끝에 붙지 않음). 칸 안 '김재단 11/20' 은 아주 넓은 화면에서만 */
+.fpc-steps { min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fpc-s { height: 56px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--fpc-line2); border-radius: 9px; background: #fff; color: #3b4250; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.15; cursor: default; }
+.fpc-s__lb { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.fpc-s__m { display: none; max-width: 100%; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; opacity: .95; }
+.fpc-s.is-done { background: var(--fpc-brand); border-color: var(--fpc-brand); color: #fff; }
+.fpc-s.is-now { border: 3px solid var(--fpc-brand); background: var(--fpc-brand-50); color: var(--fpc-brand-dark); }
+.fpc-s.is-stop { border: 3px solid var(--fpc-hold-line); background: var(--fpc-hold-50); color: var(--fpc-hold); }
+
+/* ⑤ 발주 · 담당 · ⑥ 도면 */
+.fpc-by { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: calc(15px * var(--foms-fs, 1)); line-height: 1.35; }
+.fpc-by .fph-by { font-size: calc(15px * var(--foms-fs, 1)); }
+.fpc-by .fph-by i { font-size: calc(13px * var(--foms-fs, 1)); margin-right: 3px; }
+.fpc-dw { text-align: right; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: #2f3540; white-space: nowrap; }
+
+/* ── '내 공정' 줄(§6-4) — 앞 공정 누가 · 언제, [<공정> 끝]은 [고치기] 켬일 때만 ── */
+.fpc-prev { min-width: 0; font-size: calc(15px * var(--foms-fs, 1)); line-height: 1.4; color: var(--fpc-text2); }
+.fpc-prev i { font-style: normal; font-size: calc(13px * var(--foms-fs, 1)); color: var(--fpc-text3); }
+.fpc-prev b { font-weight: 800; color: var(--fpc-text); }
+.fpc-done { position: relative; z-index: 1; min-height: 60px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--fpc-ok-dark); color: #fff; font: inherit; font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; cursor: pointer; }
+.fpc-done:hover, .fpc-done:focus-visible { background: #065f46; outline: none; }
+.fpc-done:disabled { opacity: .6; cursor: wait; }
+.fpc-hold { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 4px 12px; border: 2px solid #f9a8d4; border-radius: 10px; background: #fff; color: var(--fpc-hold); font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; }
+.fpc-prev .fpc-hold { display: flex; width: fit-content; min-height: 0; margin-top: 4px; padding: 2px 10px; font-size: calc(14px * var(--foms-fs, 1)); }
+.fpc-qs > .fph-q__next { margin-bottom: 8px; }
+
+/* ── 마우스 올리기(§6-5) — CSS 만(JS 없음). 칸은 tabindex · aria-label 같은 글이라 키보드로도 뜬다 ── */
+.foms-prod-home.is-pc [data-tip] { position: relative; z-index: 1; }
+.foms-prod-home.is-pc [data-tip]:hover, .foms-prod-home.is-pc [data-tip]:focus-visible { z-index: 6; outline: none; }
+.foms-prod-home.is-pc [data-tip]:focus-visible { box-shadow: 0 0 0 3px var(--fpc-brand-dark); border-radius: 9px; }
+.foms-prod-home.is-pc [data-tip]:hover::after, .foms-prod-home.is-pc [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--fpc-tip);
+  color: #fff;
+  font-size: calc(15px * var(--foms-fs, 1));
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+  pointer-events: none;
+}
+.foms-prod-home.is-pc [data-tip]:hover::before, .foms-prod-home.is-pc [data-tip]:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 6px);
+  margin-left: -8px;
+  border: 8px solid transparent;
+  border-top-color: var(--fpc-tip);
+  pointer-events: none;
+}
+.foms-prod-home.is-pc .fpc-due[data-tip]:hover::after, .foms-prod-home.is-pc .fpc-due[data-tip]:focus-visible::after,
+.foms-prod-home.is-pc .fpc-st[data-tip]:hover::after, .foms-prod-home.is-pc .fpc-st[data-tip]:focus-visible::after { left: 0; transform: none; }
+.foms-prod-home.is-pc .fpc-due[data-tip]:hover::before, .foms-prod-home.is-pc .fpc-due[data-tip]:focus-visible::before,
+.foms-prod-home.is-pc .fpc-st[data-tip]:hover::before, .foms-prod-home.is-pc .fpc-st[data-tip]:focus-visible::before { left: 24px; }
+
+/* ── 바뀐 것 받은함(PC): 장 맨 앞 시공일 칸 ── */
+.fph-al.fpc-al { grid-template-columns: 8.5rem minmax(0, 1fr) auto; gap: 4px 14px; word-break: keep-all; overflow-wrap: anywhere; }
+.fph-al.fpc-al.is-late { border-color: var(--fpc-danger-line); box-shadow: inset 6px 0 0 var(--fpc-danger); }
+.fph-al.fpc-al.is-tight { border-color: var(--fpc-warn-soft); box-shadow: inset 6px 0 0 var(--fpc-warn-line); }
+
+/* ── 넓은 창(992 이상): 여섯 칸 줄. 칸 폭 = 목업 값(1440×900 넘침 0). 칸 크기는 글자 배율(rem)을 따른다.
+   줄을 담는 PC 칸(날짜 장 · 찾기 목록 · 공정 줄)을 한 이름(fpc) 컨테이너로 재서 세 단계로 접는다(media 는 화면 크기 배율을 못 본다):
+   ① 넓음(칸 61rem + 78px 이상) 여섯 칸 ② 좁음(글자를 키우거나 창이 좁음) ⑤ 발주 · 담당을 ③ 아래로 ③ 아주 좁음 = 접힌 꼴(가로 넘침 0). ── */
+.fpc-due { flex: 0 0 8.5rem; }
+.fpc-st { flex: 0 0 7rem; }
+.fpc-who { flex: 1 1 12rem; }
+.fpc-steps { flex: 1 1 100%; }
+.fpc-by { flex: 1 1 9rem; }
+.fpc-prev { flex: 1 1 12rem; }
+@media (min-width: 992px) {
+  .fpc-pane, .foms-prod-home__list.fpc-list, .fph-q.fpc-qs { container: fpc / inline-size; }
+  .fpc-r { display: grid; grid-template-columns: 8.5rem 7rem minmax(14rem, 1.3fr) minmax(19rem, 2fr) minmax(7.5rem, .8fr) 5rem; gap: 10px; }
+  .fpc-r--mini { grid-template-columns: 8.5rem 7rem minmax(15rem, 1fr) minmax(8rem, .6fr); }
+  .fpc-q { display: grid; grid-template-columns: 8.5rem minmax(12rem, 1.4fr) minmax(10rem, 1.2fr) minmax(7rem, .8fr); gap: 14px; min-height: 80px; }
+  .fpc-q.is-act { grid-template-columns: 8.5rem minmax(12rem, 1.4fr) minmax(10rem, 1.2fr) minmax(7rem, .8fr) 11.5rem; }
+  /* ② 좁음: 여섯 칸 최소 폭(칸 61rem + 틈 50 + 여백 26 + 테두리 2)보다 좁으면 발주 · 담당을 이름 아래 줄로 */
+  @container fpc (max-width: calc(61rem + 78px - 0.02px)) {
+    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 8.5rem 7rem minmax(10rem, 1fr) minmax(15rem, 1.5fr) 5rem; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-due { grid-column: 1; grid-row: 1 / 3; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-st { grid-column: 2; grid-row: 1 / 3; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-who { grid-column: 3; grid-row: 1; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-by { grid-column: 3; grid-row: 2; flex-direction: row; flex-wrap: wrap; column-gap: 14px; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-steps { grid-column: 4; grid-row: 1 / 3; }
+    .fpc-r:not(.fpc-r--mini) > .fpc-dw { grid-column: 5; grid-row: 1 / 3; }
+    .fpc-r--mini { grid-template-columns: 8.5rem 7rem minmax(10rem, 1fr) minmax(7rem, .6fr); }
+  }
+  /* ③ 아주 좁음(좁음 꼴 최소 폭 45.5rem + 68px · 작은 줄 32.5rem + 58px 아래): 접힌 꼴 — 시공일 · 상태 · 이름 한 줄, 공정 칸은 다음 줄 */
+  @container fpc (max-width: calc(45.5rem + 68px - 0.02px)) {
+    .fpc-r:not(.fpc-r--mini) { display: flex; }
+  }
+  @container fpc (max-width: calc(32.5rem + 58px - 0.02px)) {
+    .fpc-r--mini { display: flex; }
+  }
+  /* 아주 넓을 때(줄 칸 1,500px 이상 — 1920@80% 는 CSS 2,400px): 공정 칸이 폭을 더 갖고(1 : 2.4 : .8) 칸 안에 누가 · 날짜를 글로 */
+  @container fpc (min-width: 1500px) {
+    .fpc-r:not(.fpc-r--mini) { grid-template-columns: 9rem 8rem minmax(14rem, 1fr) minmax(19rem, 2.4fr) minmax(7.5rem, .8fr) 5rem; }
+    .fpc-r--mini { grid-template-columns: 9rem 8rem minmax(15rem, 1fr) minmax(8rem, .6fr); }
+    .fpc-s { height: 62px; }
+    .fpc-s__m { display: block; }
+  }
+}
+
+/* ── 작업 시트(PC): 머리 시공일 D-n · 보기 전용 공정 칸 · 표 · [고치기] · 띠 ── */
+.fpc-sheet-due b { font-weight: 800; }
+.fpc-sheet-due.is-past b { color: var(--fpc-danger-ink); }
+.fpc-sheet-due.is-none { background: var(--fpc-warn-50); color: var(--fpc-warn-ink); }
+.foms-prod-page .fpc-edit { min-height: 48px; }
+.foms-prod-page .fpc-view { min-height: 44px; }
+.foms-prod-page__step.is-view { cursor: default; }

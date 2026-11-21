@@ -50,22 +50,56 @@ _PRODUCTION_STAGES = ('PRODUCTION', '생산')
 _CONSTRUCTION_STAGES = ('CONSTRUCTION', '시공')
 
 
+_KST = datetime.timezone(datetime.timedelta(hours=9))
+
+
+def format_step_at_kst(value: Any) -> str:
+    """공정 체크 · 불량 기록 시각(UTC iso 글) → 'M/D HH:MM'(KST). 못 읽으면 빈 글.
+
+    작업 시트(``production_sheet_view._format_at_kst`` 는 이 함수의 옛 이름)와 첫 화면 공정 칸이 같은 글을 쓴다.
+
+    Args:
+        value: ``'2026-11-21T00:12:00+00:00'`` · ``'...Z'`` 같은 iso 글(시간대 없으면 UTC 로 본다).
+
+    Returns:
+        ``'11/21 09:12'`` 또는 빈 글.
+    """
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    try:
+        parsed = datetime.datetime.fromisoformat(text.replace('Z', '+00:00'))
+    except ValueError:
+        return ''
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    local = parsed.astimezone(_KST)
+    return f"{local.month}/{local.day} {local.hour:02d}:{local.minute:02d}"
+
+
 def production_home_steps(sd: dict[str, Any], *, mark_now: bool) -> list[dict[str, Any]]:
-    """공정 4칸 — ``{key, label, done, now}``. ``mark_now`` 면 첫 미완 칸을 '지금 여기'로 표시한다."""
+    """공정 4칸 — ``{key, label, done, now, by, at_label}``. ``mark_now`` 면 첫 미완 칸을 '지금 여기'로 표시한다.
+
+    ``by`` · ``at_label`` = 끝낸 사람 · 'M/D HH:MM'(KST) — 같은 행의 저장 칸(``{key, done, at, by_name}``)에서 꺼낸다(쿼리 0).
+    끝나지 않은 칸 · 기록 없는 옛 칸은 빈 글. PC 공정 칸 마우스 글(설계서 2026-11-21-production-pc-viewer §6-5)만 읽는다.
+    """
     prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
     raw = prod.get('steps') if isinstance(prod.get('steps'), list) else []
-    done_by_key: dict[str, bool] = {}
+    by_key: dict[str, dict[str, Any]] = {}
     for item in raw:
         if isinstance(item, dict) and item.get('key'):
-            done_by_key[str(item['key'])] = bool(item.get('done'))
+            by_key[str(item['key'])] = item
     steps: list[dict[str, Any]] = []
     now_taken = False
     for key, label in PRODUCTION_HOME_STEP_DEFS:
-        done = done_by_key.get(key, False)
+        src = by_key.get(key) or {}
+        done = bool(src.get('done'))
         now = bool(mark_now and not done and not now_taken)
         if now:
             now_taken = True
-        steps.append({'key': key, 'label': label, 'done': done, 'now': now})
+        by = str(src.get('by_name') or '').strip() if done else ''
+        at_label = format_step_at_kst(src.get('at')) if done else ''
+        steps.append({'key': key, 'label': label, 'done': done, 'now': now, 'by': by, 'at_label': at_label})
     return steps
 
 
@@ -375,6 +409,7 @@ def build_production_home(
         row['home_steps'] = steps
         # 회차 시작 시각(UTC naive, 없으면 None) — '내 공정' 판의 재단 '앞 공정' 글(home_step_panel)만 읽는다
         row['run_started_at'] = run_starts.get(row['id'])
+        row['home_has_run'] = has_run  # 보류 줄의 늦음 자리(제작 대기 · 멈춘 공정) — late_rule 만 읽는다
         row['home_stage'] = big
         row['home_stage_sub'] = sub
         row['home_view'] = view

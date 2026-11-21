@@ -30,13 +30,12 @@ from foms.services.production_dashboard_display import (
     _whd_text,
 )
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
-from foms.services.production_home_read_model import production_home_steps
+from foms.services.production_home_read_model import format_step_at_kst, production_home_steps
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
 from foms.services.production.steps import production_complete_ready
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
-_KST = datetime.timezone(datetime.timedelta(hours=9))
 
 
 def _prod_item_total_w_mm(item: dict[str, Any]) -> float:
@@ -150,19 +149,8 @@ def _prod_sheet_drawing_files(sd: dict[str, Any]) -> list[dict[str, str]]:
     return out
 
 
-def _format_at_kst(value: Any) -> str:
-    """공정 체크·불량 기록 시각(UTC iso) → 'M/D HH:MM'(KST). 못 읽으면 빈 글."""
-    text = str(value or '').strip()
-    if not text:
-        return ''
-    try:
-        parsed = datetime.datetime.fromisoformat(text.replace('Z', '+00:00'))
-    except ValueError:
-        return ''
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-    local = parsed.astimezone(_KST)
-    return f"{local.month}/{local.day} {local.hour:02d}:{local.minute:02d}"
+#: 공정 체크 · 불량 기록 시각 → 'M/D HH:MM'(KST). 첫 화면 공정 칸과 같은 함수(production_home_read_model 로 옮김, 옛 이름 유지).
+_format_at_kst = format_step_at_kst
 
 
 def _construction_label(value: Any) -> str:

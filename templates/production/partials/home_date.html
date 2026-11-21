@@ -31,6 +31,6 @@
   <div class="fph-panes" data-foms-home-panes>
     <p class="fph-pane__load" data-foms-home-dayload role="status" hidden>그 날을 받는 중이에요…</p>
     <p class="fph-pane__err" data-foms-home-dayerr role="alert" hidden></p>
-    {% with d = pane %}{% include 'production/partials/home_day_pane.html' %}{% endwith %}
+    {% with d = pane %}{% include ('production/partials/home_pc_day_pane.html' if pc_view else 'production/partials/home_day_pane.html') %}{% endwith %}
   </div>
 </div>

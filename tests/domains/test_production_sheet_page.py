@@ -30,6 +30,9 @@ def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> 
         sess["user_id"] = user.id
         sess["username"] = user.username
         sess["role"] = user.role
+    # 작업 시트 단추는 쓰기 팀 + 태블릿(foms_ptr=coarse) 또는 PC [고치기] 켬일 때만 그린다(설계서 2026-11-21-production-pc-viewer §4 · §5).
+    # 이 파일은 공장 태블릿 화면을 본다 — PC 보기 전용은 test_production_pc_viewer.
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
     return user
 
 
