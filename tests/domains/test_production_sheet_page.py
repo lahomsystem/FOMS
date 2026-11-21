@@ -216,6 +216,21 @@ def test_검수까지_끝나면_제작_완료가_파랗다(client) -> None:
     assert "지금 여기" not in html  # 다 끝나면 '지금' 칸이 없다
 
 
+def test_공정_칸을_한_칸도_안_켠_주문은_제작_완료가_파랗다(client) -> None:
+    """11-21 사용자 "공정 칸을 쓴 주문만 막기": 한 칸도 안 켠 주문은 규칙 밖 — 서버가 그대로 완료시키니 단추도 파랑."""
+    _make_user(client, "sheet_prod_gate3", "PRODUCTION")
+    order = _seed_order()
+    sd = dict(order.structured_data)
+    sd["production"] = dict(sd["production"], steps=[dict(s, done=False, at=None, by_name=None)
+                                                    for s in sd["production"]["steps"]])
+    order.structured_data = sd
+    db_session.commit()
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--pri" in btn and "foms-prod-page__btn--off" not in btn
+    assert " disabled" not in btn and "data-foms-sheet-complete-hint hidden" in btn
+
+
 def test_아래_단추_줄_지금_여기_치수_연결_한_줄(client) -> None:
     _make_user(client, "sheet_prod_foot", "PRODUCTION")
     order = _seed_order()
@@ -263,12 +278,21 @@ def test_아래_단추_줄은_가로_태블릿에서만_바닥에_붙는다() ->
 
 
 def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다() -> None:
+    """11-21 서버도 같은 규칙: 공정 API 응답의 complete_ready(서버 한 함수)로 단추를 바꾼다 — 응답이 없을 때만
+    (오프라인 줄 세움) 칸 모양으로 미리 보인다. 옆 시트도 같은 단추(공정 루트 밖 바닥 줄)를 찾는다."""
     js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
-    assert "function syncComplete()" in js and "[data-foms-sheet-complete]" in js and "[data-foms-sheet-complete-hint]" in js
+    assert "function syncComplete(serverReady)" in js and "[data-foms-sheet-complete]" in js and "[data-foms-sheet-complete-hint]" in js
+    assert "typeof serverReady === 'boolean' ? serverReady" in js
     assert "buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; })" in js
-    assert js.count("syncComplete();") == 2  # 서버 공정 목록으로 다시 그릴 때 · 목록 없이 한 칸만 바꿀 때
+    # 오프라인 미리 판정도 서버와 같다 — 한 칸도 안 켰으면 규칙 밖(파랑, 11-21 "공정 칸을 쓴 주문만 막기")
+    assert "|| buttons.every(function (b) { return b.getAttribute('aria-pressed') !== 'true'; })" in js
+    assert "renderSteps(payload.steps, payload.complete_ready)" in js and "syncComplete(serverReady);" in js
+    assert js.count("syncComplete();") == 1  # 목록 없이 한 칸만 바꿀 때(오프라인 줄 세움)
+    assert "page.closest('.foms-prod-sheet')" in js  # 옆 시트 단추는 공정 루트 밖
+    assert "completeBase + '--pri'" in js and "completeBase + '--off'" in js
     # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
     assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js
     assert "navigator.onLine !== false && !netFailed" in js
     side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
-    assert "data-foms-sheet-net" not in side and "data-foms-sheet-complete" not in side
+    assert "data-foms-sheet-net" not in side
+    assert "data-foms-sheet-complete" in side and "foms-prod-sheet__btn--off" in side  # 옆 시트도 검수 전 회색(11-21)

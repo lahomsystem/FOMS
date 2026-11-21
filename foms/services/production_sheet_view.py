@@ -30,6 +30,7 @@ from foms.services.production_dashboard_display import (
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import production_home_steps
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
+from foms.services.production.steps import production_complete_ready
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
@@ -225,6 +226,8 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
         'drawing_files': _prod_sheet_drawing_files(sd),
         'steps': steps,
         'steps_done': sum(1 for s in steps if s['done']),
+        # [제작 완료] 를 누를 수 있는지(검수까지 끝남) — 제작 완료 API 와 같은 한 함수(서버 · 화면 같은 규칙, 11-21)
+        'complete_ready': production_complete_ready(sd),
         'latest_defect': {
             'reason': str(latest.get('reason') or ''),
             'meta': ' '.join(p for p in (str(latest.get('by_name') or '').strip(), _format_at_kst(latest.get('at'))) if p),

@@ -180,7 +180,7 @@ def test_changed_assets_are_pinned():
     assert core_pin >= PIN, core_pin
     # 리뷰 P1 수정: 첨부 미리보기 클릭을 페이지마다 한 번만(detail-dom·시공 dashboard.js 도 바뀜).
     # erp-pro.css 는 이후 board_state 줄로 20260930c, 2b 까지 합친 detail-dom·entry 는 20260929l.
-    assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
+    assert "erp-dashboard-detail-dom.js?v=20261121a" in entry
     # 뒤 작업이 정당하게 올린다(2026-11-12 셸 교체 재실행 const → var, 20261112e) — "이 작업 핀보다 오래되지 않았다".
     cons_pin = _read("templates/construction/partials/scripts.html").split(
         "js/construction/dashboard.js') }}?v=", 1)[1].split('"', 1)[0]

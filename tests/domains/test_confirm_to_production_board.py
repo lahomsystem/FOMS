@@ -20,6 +20,7 @@ from foms.services.production_read_model import (
     production_stage_bucket_expr,
 )
 from models import Order, ProductionRun, User
+from tests.support.production_steps_seed import mark_order_inspected
 
 
 def _make_user(username: str, *, team: str = "PRODUCTION") -> User:
@@ -152,6 +153,7 @@ def test_superseded_run_does_not_count_as_running(app):
 def test_uncomplete_reopens_the_completed_run(client):
     _login(client, _make_user("board_uncomplete"))
     order_id = _make_order("PRODUCTION").id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
     run_id = _mint_run(order_id).id
 
     assert client.post(f"/api/orders/{order_id}/production/complete", json={}).status_code == 200

@@ -25,6 +25,7 @@ from tests.support.confirm_seed import (
     seed_user,
 )
 from tests.support.quest_seed import confirm_quest_completed, confirm_quest_open
+from tests.support.production_steps_seed import mark_order_inspected
 
 _ROOT = Path(__file__).resolve().parents[2]
 _OVERRIDE = {"admin_override": True, "override_reason": "고객이 전화로 최종 컨펌 — 도면 경미 수정은 현장 반영"}
@@ -209,6 +210,7 @@ def test_production_complete_is_not_blocked_by_revision(client):
     sd["drawing_status"] = "RETURNED"
     saved.structured_data = sd
     db_session.commit()
+    mark_order_inspected(oid)  # 검수까지 끝(2026-11-21 서버 규칙) — 이 시험은 도면 상태만 본다
 
     resp = client.post(f"/api/orders/{oid}/production/complete", json={})
 

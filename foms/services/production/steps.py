@@ -4,6 +4,8 @@
 도면 쓰기 셋)가 **같은 함수**로 칸을 바꾼다(복사 금지). 모두 순수 계산이다 — DB · commit · 이벤트 없이 호출자가
 deepcopy 한 ``structured_data`` dict 만 제자리에서 고친다(재대입 · ``flag_modified`` 는 호출자 몫).
 
+[제작 완료]를 누를 수 있는지(검수까지 끝남)도 여기 한 함수 :func:`production_complete_ready` 가 정한다(2026-11-21).
+
 칸 모양: ``{key, label, done, at, by_name}`` — ``at`` = 켠 때(UTC iso), ``by_name`` = 켠 사람 이름. 끄면 둘 다 None.
 """
 
@@ -62,6 +64,56 @@ def step_done_map(sd: Any) -> dict[str, bool]:
     production = sd.get("production") if isinstance(sd, dict) else None
     raw = production.get("steps") if isinstance(production, dict) else None
     return {str(s["key"]): bool(s.get("done")) for s in normalize_production_steps(raw)}
+
+
+# --- [제작 완료] 막기(사용자 결정 2026-11-21 "검수까지 끝나기 전엔 막는다 — 서버도 막기, 모든 화면 같은 규칙") ---
+# 공정 칸을 하나도 안 켠 주문은 이 규칙 밖이다(11-21 사용자 "공정 칸을 쓴 주문만 막기" — :func:`production_steps_missing`).
+# "검수까지 끝남" = 공정 4칸(재단 · 엣지 · 조립 · 검수)이 모두 켜짐 — 첫 화면 큰 글자 '검수 끝'
+# (``production_home_read_model.production_home_stage``)과 작업 시트 '4/4' 와 같은 뜻이다. 칸이 아예 없는 옛 주문은
+# 4칸 모두 꺼짐으로 읽는다(:func:`normalize_production_steps`). 옛 주문에 남은 도장(paint)은 보지 않는다(D15).
+# 제작 완료 API · 일반 단계 쓰기(생산 → 시공) · 작업 시트 단추 · 공정 체크 응답이 모두 :func:`production_complete_ready`
+# 하나로 판정한다(복사 금지 — ``tests/domains/test_production_complete_requires_inspect.py`` 가 위치를 고정).
+
+#: 막힘 코드 — 관리자 강제 진행 게이트 코드(``admin_override.GATE_STEPS_INCOMPLETE``) · 화면 재시도 목록과 같은 글자.
+STEPS_INCOMPLETE_CODE = "STEPS_INCOMPLETE"
+#: 막힘 글(서버 거절) — 작업 시트 회색 단추 글 "검수까지 끝나면 눌러요" 와 같은 말.
+STEPS_INCOMPLETE_MESSAGE = "검수까지 끝나야 제작 완료할 수 있어요."
+
+
+def production_steps_missing(sd: Any) -> list[dict[str, str]]:
+    """아직 안 끝난 공정 칸(정의 순서) — ``[{key, label}]``. sd 는 읽기만 한다.
+
+    **공정 칸을 하나도 안 켠 주문은 막지 않는다(빈 목록)** — 사용자 결정 2026-11-21 "공정 칸을 쓴 주문만 막기".
+    운영 생산팀이 아직 공정 칸을 안 쓴다(11-12 실측: 생산 중 4집 모두 기록 없음). 한 칸이라도 켜면 그 주문은
+    4칸을 다 켜야 완료된다. 칸을 모두 다시 끄면 안 쓴 주문으로 돌아간다.
+    """
+    done = step_done_map(sd)
+    if not any(done.values()):
+        return []
+    return [{"key": key, "label": label} for key, label in PRODUCTION_STEP_DEFS if not done.get(key)]
+
+
+def production_complete_ready(sd: Any) -> bool:
+    """[제작 완료]를 누를 수 있는지 — 검수까지(공정 4칸 모두) 끝났으면 True. 서버 · 화면이 같이 쓰는 한 규칙."""
+    return not production_steps_missing(sd)
+
+
+def production_complete_block_body(sd: Any) -> Optional[dict[str, Any]]:
+    """검수까지 안 끝났으면 거절 본문(409 로 보낼 것), 끝났으면 None.
+
+    모양은 같은 라우트의 다른 업무 게이트(``QUEST_INCOMPLETE`` 의 ``missing_teams``)와 같다 —
+    ``{success: False, code, message, missing_steps}``. 글에 남은 공정 이름을 붙인다.
+    """
+    missing = production_steps_missing(sd)
+    if not missing:
+        return None
+    labels = " · ".join(m["label"] for m in missing)
+    return {
+        "success": False,
+        "code": STEPS_INCOMPLETE_CODE,
+        "message": f"{STEPS_INCOMPLETE_MESSAGE} (남은 공정: {labels})",
+        "missing_steps": missing,
+    }
 
 
 def set_production_step(sd: dict[str, Any], key: str, done: bool, *, by_name: Optional[str],

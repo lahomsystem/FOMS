@@ -52,6 +52,7 @@ from foms.services.orders.state_axes import (
     read_main_stage,
 )
 from foms.services.orders.admin_override import (
+    GATE_STEPS_INCOMPLETE,
     admin_override_error,
     log_admin_override_denied,
     record_admin_override_event,
@@ -69,6 +70,8 @@ from foms.services.production.steps import (
     PRODUCTION_STEP_KEYS,
     ensure_production_steps,
     normalize_production_steps,
+    production_complete_block_body,
+    production_complete_ready,
     set_production_step,
 )
 
@@ -432,6 +435,15 @@ def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *,
         }),
         409,
     )
+
+
+def _steps_incomplete_block(sd: dict[str, Any]):
+    """검수까지(공정 4칸) 안 끝났으면 409 STEPS_INCOMPLETE 튜플, 끝났으면 None(read-only).
+
+    판정 · 글은 :func:`production_complete_block_body` 한 곳(작업 시트 단추 · 일반 단계 쓰기와 같은 함수).
+    """
+    body = production_complete_block_body(sd)
+    return None if body is None else (jsonify(body), 409)
 
 
 def _punch_or_return(blocked, code: str, override, punched: list):
@@ -901,11 +913,16 @@ def api_production_start(order_id):
 def api_production_complete(order_id):
     """제작 완료 (제작중/PRODUCTION → CONSTRUCTION), transition_order(PRODUCTION_COMPLETE) 경유.
 
-    5단계 하드 게이트: 존재(404) → team 권한(데코레이터 403) → 제작중 stage(INVALID_STAGE 409)
-    → 보류(HOLD_ACTIVE 409, release_hold 예외) → 현재 stage quest 완료(QUEST_INCOMPLETE 409).
+    6단계 하드 게이트: 존재(404) → team 권한(데코레이터 403) → 제작중 stage(INVALID_STAGE 409)
+    → 보류(HOLD_ACTIVE 409, release_hold 예외) → 현재 stage quest 완료(QUEST_INCOMPLETE 409)
+    → **검수까지 끝남**(STEPS_INCOMPLETE 409 — 공정 4칸 재단 · 엣지 · 조립 · 검수가 모두 켜져야 한다.
+    사용자 결정 2026-11-21 "검수까지 끝나기 전엔 막는다 — 서버도 막기, 모든 화면 같은 규칙").
+    판정은 :func:`foms.services.production.steps.production_complete_ready` 하나 — 작업 시트 회색 단추와 같은 함수다.
+    칸이 없는 옛 주문도 막힌다(4칸 모두 꺼짐). 비상구: 공정 칸 켜기(작업 시트 · 옆 시트 · 폰 공정 시트 · 첫 화면
+    내 공정 탭), ADMIN ``admin_override``(사유) 로 이 게이트 뚫기, ADMIN/MANAGER 단계 강제 변경(이 규칙을 타지 않음).
     same-key 재요청은 전이/side-effect 없이 replay. 전이 후 same-tx 로 history·재제작 표식 해제·
-    보류해제·PRODUCTION_COMPLETED event 보강·current run 종결(COMPLETED)을 반영한다. 5-step
-    process/defect 는 완료의 hard gate 가 아니다(§341).
+    보류해제·PRODUCTION_COMPLETED event 보강·current run 종결(COMPLETED)을 반영한다. 불량 보고(defect)는
+    완료 게이트가 아니다.
     """
     db = get_db()
     try:
@@ -945,6 +962,10 @@ def api_production_complete(order_id):
                 return blocked
             blocked = _punch_or_return(
                 _stage_quest_block(sd, "PRODUCTION", "생산"), "QUEST_INCOMPLETE", override, punched)
+            if blocked is not None:
+                return blocked
+            blocked = _punch_or_return(
+                _steps_incomplete_block(sd), GATE_STEPS_INCOMPLETE, override, punched)
             if blocked is not None:
                 return blocked
 
@@ -1416,6 +1437,8 @@ def api_production_steps_get(order_id: int):
                 "steps": steps,
                 "done_count": done_count,
                 "total": len(steps),
+                # [제작 완료] 를 누를 수 있는지 — 제작 완료 API 와 같은 한 함수(검수까지 끝남)
+                "complete_ready": production_complete_ready(sd),
                 "latest_defect": latest_defect,
                 "locked": locked,
                 "locked_note": PART_ACCOUNT_STEPS_MESSAGE if locked else None,
@@ -1476,6 +1499,7 @@ def api_production_steps(order_id: int):
                 )
             )
             captured["steps"] = steps
+            captured["complete_ready"] = production_complete_ready(sd)
             return {o.id: []}
 
         try:
@@ -1499,8 +1523,10 @@ def api_production_steps(order_id: int):
         db.commit()
         steps = _normalize_production_steps(captured["steps"])  # 옛 주문의 paint 는 응답에서 뺀다(D15)
         done_count = sum(1 for s in steps if s.get("done"))
+        # complete_ready = 제작 완료 API 와 같은 한 함수 — 작업 시트 JS 가 [제작 완료] 단추 색을 이 값으로 바꾼다.
         return jsonify(
-            {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
+            {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps),
+                                       "complete_ready": captured["complete_ready"]}}
         )
     except Exception as exc:
         db.rollback()

@@ -25,6 +25,7 @@ from foms.services.orders.state_axes import (
     read_as_status,
 )
 from models import Order, User
+from tests.support.production_steps_seed import with_inspected_steps
 
 _seq = itertools.count(1)
 
@@ -42,6 +43,9 @@ def _order(*, status: str, stage: str = "PRODUCTION", is_erp: bool = True, lifec
     sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": "가짜고객"}}}
     if lifecycle is not None:
         sd["as_lifecycle"] = lifecycle
+    if stage == "PRODUCTION":
+        # 생산 → 시공 쓰기는 검수까지(공정 4칸) 끝나야 한다(2026-11-21) — 이 시험은 AS 표시만 보므로 공정은 끝으로 둔다.
+        sd = with_inspected_steps(sd)
     order = Order(received_date="2026-11-01", customer_name="가짜고객", phone="010-0000-0000", address="가짜시 가짜로 1",
                   product="가짜장", status=status, is_erp_order=is_erp, erp_stage_code=stage if is_erp else None,
                   as_received_date="2026-11-01" if status.startswith("AS") else None,
