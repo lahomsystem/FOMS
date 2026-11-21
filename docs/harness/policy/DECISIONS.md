@@ -10,6 +10,19 @@
 
 ---
 
+### [2026-11-22] 생산 화면 = 공장은 태블릿 · PC 는 보기 전용 확인 화면 · 생산 쓰기는 관리자 · 생산팀만
+- **키워드**: can_write_production, can_ack_production_change, PRODUCTION_EDIT, PRODUCTION_ACK, write_access, pc_view, production_screen_flags, late_rule, production_late_level, foms_prod_edit, 고치기, 보기 전용, nav_target, 일하는 날, 시공일
+- **결정**: 사장님(2026-11-21 질문 창, 설계서 `docs/specs/2026-11-21-production-pc-viewer_SPEC.md` §13). 공장은 태블릿을 쓰고, PC 는 관리자 · 다른 부서가 생산 진행을 확인하는 화면이다.
+  - 생산 쓰기 API 여덟(start · complete · rework · cancel · uncomplete · steps · defect · hold)은 모든 기기에서 관리자 + 생산팀만(`can_write_production` 한 곳). CS · 영업은 보기만(지난 30일 CS · 영업 생산 쓰기 = 영업 매니저 제작 시작 4건, CS 0건).
+  - [확인했어요](change-ack)는 사람마다 기록이라 생산 화면을 볼 수 있는 사람 누구나(`can_ack_production_change`, VIEWER 제외).
+  - PC(포인터 fine)는 쓰기 단추를 그리지 않는다. 관리자 · 생산팀만 [고치기](세션 쿠키 `foms_prod_edit`, 2시간)로 켠다.
+  - 도면 · 시공 · 출고 팀도 생산 첫 화면을 본다. PC · 폰 · 태블릿 메뉴 · 알림 · 바로가기의 '생산' = `/erp/production/home`(`nav_target.py`). 옛 보드 주소는 남기고, 넘겨주기는 2주 뒤 접속 기록을 보고 따로 정한다.
+  - 늦음 · 빠듯 색은 일하는 날(주말 · 공휴일 뺌, `business_calendar.py`)로 센다. 줄의 D-n 글은 달력 날.
+  - 시공일은 모든 생산 줄 · 칸 · 카드 · 판에 늘 보인다(사장님 "아주 중요한 정보"). '바뀜' 이 날짜를 대신하지 않는다.
+- **이유**: PC 로 생산 탭을 쓰는 사람이 없고, 옛 보드는 공정 진행(재단 · 엣지 · 조립 · 검수)을 못 보여 준다. 화면만 숨기면 같은 계정이 태블릿 · 직접 호출로 누를 수 있어 서버에서 막는다.
+- **남는 위험**: 쿠키 없는 첫 태블릿 요청은 쓰기 단추를 빼고 한 번 다시 받는다(`data-foms-write-omitted`). 옛 보드 폰 "공정 n/4" 창은 CS · 영업에게 단추가 보이나 누르면 403. 성능 예산의 생산 칸 값은 옛 보드 값을 옮긴 것(스테이징 실측 10KB · 서버 103ms 로 통과).
+- **영향**: `foms/services/production/{write_access,pc_view,late_rule,nav_target,home_access}.py`, `foms/api/production/*`, `foms/web/production/home.py`, `templates/production/partials/home_pc_*.html`, `static/css/contexts/production/pc.css`, 메뉴 계약 · 셸 9탭.
+
 ### [2026-11-21] [제작 완료]는 검수까지 끝나야 — 서버도 막는다 · 공정 칸을 쓴 주문만 · 단계 강제 변경은 비상구
 - **키워드**: production_complete_ready, production_steps_missing, production_complete_block_body, STEPS_INCOMPLETE, 검수까지, 제작 완료, 공정 칸, 규칙 밖, stage-override, 비상구, ADMIN_OVERRIDE
 - **결정**: 사용자 선택(2026-11-21 "서버도 막기" · "공정 칸을 쓴 주문만 막기"). 공정 칸을 한 칸이라도 켠 주문은 4칸(재단 · 엣지 · 조립 · 검수)을 다 켜야 제작 완료 API · 일반 단계 쓰기(생산 → 시공)가 통과한다. 한 칸도 안 켠 주문은 막지 않는다. 판정은 `foms/services/production/steps.py` 한 함수(`production_steps_missing` → `production_complete_ready` · `production_complete_block_body`)이고 화면 · 서버가 같이 쓴다.
