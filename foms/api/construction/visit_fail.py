@@ -37,6 +37,7 @@ __all__ = ["evidence_reuse_blocked", "production_visit_fail_applies", "visit_fai
 _POLICY_CONSTRUCTION_VISIT_FAIL = "STATE_CONSTRUCTION_VISIT_FAIL"
 #: 봉인된(닫힌) 방문 줄 — 이 줄들의 사진 · 서명 사본은 다음 방문 증빙으로 다시 쓰지 못한다.
 _SEALED_STATUSES = (VISITED_STATUS, "REWORKED", "COMPLETED", "READY")
+_ERR_VISIT_NOT_OPEN = "열린 방문이 없거나 단계가 바뀌었어요. 화면을 새로 열어 주세요"
 
 
 def _as_int(value: Any) -> Optional[int]:
@@ -69,12 +70,23 @@ def evidence_reuse_blocked(db: Any, order: Order, attachment_id: int) -> bool:
     return int(attachment_id) in _sealed_attachment_ids(db, order.id)
 
 
+def _production_split(order: Order) -> bool:
+    return order.erp_stage_code in _PRODUCTION_STAGES and split_flow_active(order.structured_data)
+
+
 def production_visit_fail_applies(db: Any, order: Order, user_id: Any, idem_key: Optional[str]) -> bool:
-    """[시공 불가]가 방문만 닫는 경우인가 — 스위치 켜짐 · 나눠 시공 · 생산 단계 · 열린 방문(또는 그 다시 보내기)."""
-    if order.erp_stage_code not in _PRODUCTION_STAGES or not split_flow_active(order.structured_data):
+    """[시공 불가]가 방문만 닫는 경우인가 — 스위치 켜짐 · 나눠 시공 · 생산 단계 · 열린 방문(또는 그 다시 보내기).
+
+    잠그기 전 값으로 고르는 갈림길일 뿐이다 — 쓰기 직전에 잠근 행으로 :func:`visit_fail_response` 가 다시 본다.
+    """
+    if not _production_split(order):
         return False
     return (_current_attempt(db, order.id) is not None
             or _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_VISIT_FAIL, idem_key))
+
+
+class _VisitNotOpen(Exception):
+    """잠근 뒤 다시 보니 생산 단계 · 나눠 시공 · 열린 방문이 아니다(그사이 다른 쓰기) — 쓰기 없이 되감는다."""
 
 
 def visit_fail_response(db: Any, order_id: int, *, data: dict[str, Any], user: Any, user_id: Any,
@@ -89,6 +101,9 @@ def visit_fail_response(db: Any, order_id: int, *, data: dict[str, Any], user: A
 
     def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
         o = orders[0]
+        # 잠근 최신 행으로 다시 본다 — 그사이 [제작 완료] · 다른 창의 [시공 불가] · 완료가 커밋됐으면 쓰지 않는다.
+        if not _production_split(o) or _current_attempt(sess, o.id) is None:
+            raise _VisitNotOpen()
         stage = read_main_stage(o) or "PRODUCTION"
         attempt_id = _apply_fail_side_effects(sess, o, user, user_id, reason, detail, reschedule_date,
                                               keep_stage=stage)
@@ -107,6 +122,10 @@ def visit_fail_response(db: Any, order_id: int, *, data: dict[str, Any], user: A
             scope_hash=_scope_hash("CONSTRUCTION_VISIT_FAIL", order_id), request_hash=_request_hash(data),
             mutation=_mutate, idempotency_key=_idempotency_key(data),
         )
+    except _VisitNotOpen:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "code": "VISIT_NOT_OPEN",
+                        "error": _ERR_VISIT_NOT_OPEN, "message": _ERR_VISIT_NOT_OPEN}), 409
     except RevisionError as exc:
         db.rollback()
         return jsonify({"success": False, "data": None, "error": str(exc), "code": exc.error_code}), exc.status_code

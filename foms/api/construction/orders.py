@@ -48,7 +48,7 @@ from foms.services.orders.order_transition_service import (
 )
 from foms.services.orders.construction_schedule import reschedule_text_after_fail
 from foms.services.orders.construction_visit import split_flow_active, split_production_start_allowed
-from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
 from foms.services.partners.notify import notify_partner_construction_done
 from foms.services.orders.admin_override import (
@@ -510,7 +510,9 @@ def api_construction_evidence(order_id):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 먼저 잠근 최신 행을 읽는다 — 잠그기 전 값을 deepcopy 해 되쓰면 그사이 커밋된 부분 방문의
+        # '시공 끝' 표시 · history 가 지워진다(lost update).
+        order = lock_order_row(db, order_id)
         if (
             not order
             or getattr(order, "status", None) == "DELETED"
