@@ -68,6 +68,22 @@
     return knownDates.length >= 2 ? document.getElementById('erp-construction-only-from') : null;
   }
 
+  // 달력 글에서 아는 날 가운데 빠진 날 · 새로 더한 날.
+  function dateDiff(dates) {
+    return {
+      added: dates.filter(function (d) { return knownDates.indexOf(d) < 0; }),
+      removed: knownDates.filter(function (d) { return dates.indexOf(d) < 0; })
+    };
+  }
+  // 달력에서 아는 날 하나를 빼면 그 날이 옮길 날이다 — 고르기 칸을 그 날로 맞춘다.
+  function syncFromPick() {
+    var sel = fromBox();
+    var dateEl = document.getElementById('erp-construction-date');
+    if (!sel || !dateEl) return;
+    var diff = dateDiff(splitDates(dateEl.value));
+    if (diff.removed.length === 1) sel.value = diff.removed[0];
+  }
+
   function root() { return config.closest('.card') || document.getElementById('main-content') || document.body; }
   function isOpen(el) {
     if (OPEN_IDS.indexOf(el.id) >= 0) return true;
@@ -103,9 +119,14 @@
     var sendFrom = false;
     if (fromSel) {
       // 나눠 시공하는 주문 — 달력에 새로 더한 날 하나가 옮길 새 날이다. 새로 더한 날이 없으면 날은 두고 시간만 바꾼다.
-      var added = dates.filter(function (d) { return knownDates.indexOf(d) < 0; });
-      if (added.length === 1) { dates = added; sendFrom = true; }
-      else if (added.length === 0 && dates.length) dates = [dates[0]];
+      // 아는 날 하나가 빠지고 새 날 하나가 더해졌으면 빠진 날이 옮길 날이다(고르기 칸보다 달력이 먼저).
+      var diff = dateDiff(dates);
+      var added = diff.added;
+      if (added.length === 1) {
+        if (diff.removed.length === 1) fromSel.value = diff.removed[0];
+        dates = added;
+        sendFrom = true;
+      } else if (added.length === 0 && dates.length) dates = [dates[0]];
     }
     if (dates.length !== 1) {
       note(dates.length ? (fromSel ? '새 시공일을 하루만 골라 주세요.' : '여기서는 시공일을 하루만 정할 수 있어요. 여러 날은 CS팀에 말해 주세요.') : '시공일을 골라 주세요.', true);
@@ -156,6 +177,8 @@
     document.getElementById('erp-construction-only-save').addEventListener('click', save);
     var fromSel = fromBox();
     if (fromSel) fillFromSelect(fromSel);
+    var dateEl = document.getElementById('erp-construction-date');
+    if (dateEl) dateEl.addEventListener('change', syncFromPick);  // 달력이 바뀌면 고르기 칸도 맞춘다
   }
 
   function start() {

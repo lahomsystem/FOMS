@@ -125,6 +125,12 @@ function orderHost(orderId, uid, canUndo) {
   assert.ok(/REASON_MAX = 200;/.test(src), '되돌리기 사유 200자');
 })();
 
+function isoDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // ── 2) 완료 창 체크 목록 ──
 async function visitItemsChecks() {
   const { ctx, body } = makeContext();
@@ -137,20 +143,24 @@ async function visitItemsChecks() {
   const api = ctx.window.FomsVisitItems;
   const row = el('tr');
   row.setAttribute('data-order-id', '7');
-  row.setAttribute('data-visit-date', '2026-11-05');
+  const day = isoDaysAgo(2);
+  row.setAttribute('data-visit-date', day);
   body.appendChild(row);
   const host = el('div');
   const anchor = el('p');
   host.appendChild(anchor);
   body.appendChild(host);
   let changes = 0;
-  await api.mount(host, () => anchor, 7, () => true, () => { changes += 1; });
-  assert.ok(changes >= 1);
+  const pending = api.mount(host, () => anchor, 7, () => true, () => { changes += 1; });
+  assert.ok(host.querySelector('[data-foms-visit-items-loading]') && api.blocked(host), '읽는 동안 단추 끔');
+  assert.strictEqual(api.selected(host), null);
+  await pending;
+  assert.ok(changes >= 2 && !host.querySelector('[data-foms-visit-items-loading]'));
   assert.strictEqual(api.buttonLabel(host, '시공 완료'), '오늘 시공 끝 — 남은 제품 1개');
   assert.ok(api.leavesRemaining(host) && !api.blocked(host));
   const body1 = api.extendBody(host, 7, { completion_note: '' });
   assert.deepStrictEqual(JSON.parse(JSON.stringify(body1)),
-    { completion_note: '', done_item_uids: ['uid-a'], visit_date: '2026-11-05' });
+    { completion_note: '', done_item_uids: ['uid-a'], visit_date: day });
   host.querySelectorAll('input[data-foms-visit-item]').forEach((b) => { b.checked = false; });
   assert.ok(api.blocked(host), '하나도 안 고르면 단추 끔');
   host.querySelectorAll('input[data-foms-visit-item]').forEach((b) => { b.checked = true; });
@@ -179,6 +189,22 @@ async function visitItemsChecks() {
   reply = { success: true, data: { split: false, items: [] } };  // 나눠 시공 아님
   await api.mount(plain, () => null, 7, () => true, () => {});
   assert.strictEqual(plain.querySelector('[data-foms-visit-items]'), null);
+
+  // 나눠 시공 줄이 아니면 목록을 읽지 않는다(F-S8)
+  let calls = 0;
+  ctx.fetch = async () => { calls += 1; return { json: async () => reply }; };
+  await api.mount(plain, () => null, 99, () => true, () => {});
+  assert.strictEqual(calls, 0);
+
+  // 그날 = min(고른 날, 오늘), 오늘-13일보다 이전이면 오늘(F-S1)
+  const today = isoDaysAgo(0);
+  row.setAttribute('data-visit-date', '2999-01-01');
+  assert.strictEqual(api.visitDate(7), today);
+  row.setAttribute('data-visit-date', isoDaysAgo(13));
+  assert.strictEqual(api.visitDate(7), isoDaysAgo(13));
+  row.setAttribute('data-visit-date', isoDaysAgo(14));
+  assert.strictEqual(api.visitDate(7), today);
+  assert.ok(api.isStale({ success: false, code: 'VISIT_ITEMS_STALE' }) && !api.isStale({ code: 'X' }));
 }
 
 visitItemsChecks().then(() => { console.log('ITEM_DONE_DOM_OK'); }, (err) => { console.error(err); process.exit(1); });

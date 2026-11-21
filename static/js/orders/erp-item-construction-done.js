@@ -75,29 +75,46 @@
     });
   }
 
-  function askReason(name, onReason) {
+  /**
+   * 사유를 묻는다. 200자(REASON_MAX)를 넘기면 알린 뒤 적은 글을 채워 다시 묻는다(공용 사유 창은 손대지 않는다).
+   * @param {string} name 제품 이름
+   * @param {function(string): void} onReason
+   * @param {string} [prefill] 다시 열 때 채울 글
+   */
+  function askReason(name, onReason, prefill) {
+    var tooLong = function (reason) {
+      if (reason.length <= REASON_MAX) return false;
+      window.alert('사유는 ' + REASON_MAX + '자까지 적을 수 있어요. 지금 ' + reason.length + '자예요.');
+      askReason(name, onReason, reason);
+      return true;
+    };
     var sheet = window.FomsReasonSheet;
-    if (sheet && typeof sheet.open === 'function' && document.querySelector('[data-foms-reason-sheet]')) {
+    var sheetEl = document.querySelector('[data-foms-reason-sheet]');
+    if (sheet && typeof sheet.open === 'function' && sheetEl) {
       sheet.open({
         title: '시공 끝 되돌리기',
         actionLabel: '되돌리기',
         reasons: null,
-        detailLabel: (name ? name + ' — ' : '') + '되돌리는 사유',
+        detailLabel: (name ? name + ' — ' : '') + '되돌리는 사유 (' + REASON_MAX + '자까지)',
         requireDetail: true,
         onSubmit: function (_code, detail) {
-          onReason(String(detail || '').trim());
+          var reason = String(detail || '').trim();
+          if (!tooLong(reason)) onReason(reason);
         }
       });
+      var box = sheetEl.querySelector('[data-foms-reason-detail]');
+      if (box && prefill) box.value = prefill;
       return;
     }
-    var typed = window.prompt((name ? name + ' ' : '') + '시공 끝 표시를 지웁니다. 사유를 적어 주세요.', '');
+    var typed = window.prompt((name ? name + ' ' : '') + '시공 끝 표시를 지웁니다. 사유를 적어 주세요(' + REASON_MAX + '자까지).',
+      prefill || '');
     if (typed === null) return;
     var reason = String(typed).trim();
     if (!reason) {
       window.alert('사유를 적어 주세요.');
       return;
     }
-    onReason(reason);
+    if (!tooLong(reason)) onReason(reason);
   }
 
   async function sendUndo(btn, orderId, uid, reason) {

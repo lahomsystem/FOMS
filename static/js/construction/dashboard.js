@@ -492,12 +492,22 @@
     const label = api.buttonLabel(modalEl, '');
     if (label) btn.textContent = label;
     else btn.innerHTML = COMPLETE_BTN_HTML;
-    btn.disabled = api.blocked(modalEl);
+    // 보내는 중(data-busy)이면 켜지 않는다 — 늦게 온 목록 응답이 단추를 다시 켜 두 번 보내지 않게.
+    btn.disabled = btn.hasAttribute('data-busy') || api.blocked(modalEl);
     const lead = modalEl ? modalEl.querySelector('[data-cons-complete-lead]') : null;
     if (lead) {
       if (!lead.hasAttribute('data-lead-text')) lead.setAttribute('data-lead-text', lead.textContent);
       lead.textContent = api.leavesRemaining(modalEl) ? COMPLETE_LEAD_KEEP : lead.getAttribute('data-lead-text');
     }
+  }
+
+  // 완료 요청이 끝나 다시 누를 수 있게 한다 — 목록이 막는 경우(읽는 중 · 못 읽음 · 0개)는 다시 끈다.
+  function releaseCompleteBtn() {
+    const btn = document.getElementById('erp-cons-complete-btn');
+    if (!btn) return;
+    btn.removeAttribute('data-busy');
+    btn.disabled = false;
+    refreshCompleteBtnLabel(document.getElementById('erpConstructionCompleteModal'));
   }
 
   function mountCompleteVisitItems(modalEl, orderId) {
@@ -651,13 +661,13 @@
     const files = (input && input.files) ? Array.from(input.files) : [];
     const hasFiles = files.length > 0;
 
-    if (completeBtn) completeBtn.disabled = true;
+    if (completeBtn) { completeBtn.disabled = true; completeBtn.setAttribute('data-busy', '1'); }
 
     if (hasFiles) {
       const result = await executeBatchUpload(orderId, files, 'construction', { statusEl, progressWrap, progressBar });
       if (result.ok < result.total) {
         if (statusEl) statusEl.innerHTML = '<span class="text-danger">일부 파일 업로드에 실패했습니다. 다시 시도해주세요.</span>';
-        if (completeBtn) completeBtn.disabled = false;
+        releaseCompleteBtn();
         return;
       }
       if (statusEl) statusEl.innerHTML = `<span class="text-success">${result.ok}개 사진 업로드 완료! 상태 변경 중...</span>`;
@@ -715,12 +725,16 @@
           html += ' <span class="text-muted small">아래 사진 첨부 칸에 올린 뒤 다시 눌러 주세요.</span>';
         }
         if (statusEl) statusEl.innerHTML = html;
-        if (completeBtn) completeBtn.disabled = false;
+        releaseCompleteBtn();
+        // 목록을 연 뒤 제품 · 기록이 바뀌었다(409 VISIT_ITEMS_STALE) — 목록을 다시 읽는다. 오류 글은 그대로 둔다.
+        if (window.FomsVisitItems && window.FomsVisitItems.isStale(data)) {
+          mountCompleteVisitItems(document.getElementById('erpConstructionCompleteModal'), orderId);
+        }
       }
     } catch (err) {
       console.error('Construction complete error:', err);
       if (statusEl) statusEl.innerHTML = '<span class="text-danger">처리 중 오류가 발생했습니다.</span>';
-      if (completeBtn) completeBtn.disabled = false;
+      releaseCompleteBtn();
     }
   }
 

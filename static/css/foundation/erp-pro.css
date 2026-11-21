@@ -982,6 +982,7 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   font-weight: 600;
   color: var(--foms-color-success-600, #15803d);
 }
+.foms-visit-items__loading,
 .foms-visit-items__failed {
   font-size: calc(14px * var(--foms-fs, 1));
   font-weight: 600;

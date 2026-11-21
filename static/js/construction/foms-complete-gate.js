@@ -29,7 +29,8 @@
       return;
     }
     btn.textContent = api ? api.buttonLabel(sheet, BASE_LABEL) : BASE_LABEL;
-    btn.disabled = !sheet.__cgateEvidenceOk || !!(api && api.blocked(sheet));
+    // 보내는 중(data-busy)이면 켜지 않는다 — 늦게 온 목록 · 사진 응답이 단추를 다시 켜 두 번 보내지 않게.
+    btn.disabled = btn.hasAttribute('data-busy') || !sheet.__cgateEvidenceOk || !!(api && api.blocked(sheet));
   }
 
   function mountVisitItems(sheet, orderId) {
@@ -308,6 +309,7 @@
     var btn = sheet.querySelector('[data-foms-cgate-complete]');
     if (btn) {
       btn.disabled = true;
+      btn.setAttribute('data-busy', '1');
     }
     setError(sheet, '');
     var body = { completion_note: note };
@@ -323,8 +325,12 @@
       if (!result.ok) {
         // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)도 서버 글 그대로.
         setError(sheet, result.message || '완료 처리에 실패했습니다.');
-        if (btn) { btn.disabled = false; }
+        if (btn) { btn.removeAttribute('data-busy'); btn.disabled = false; }
         refreshLabel(sheet);  // 목록이 막는 경우(체크 0개 · 못 읽음)는 다시 끈다
+        // 목록을 연 뒤 제품 · 기록이 바뀌었다(409 VISIT_ITEMS_STALE) — 목록을 다시 읽는다. 오류 글은 그대로 둔다.
+        if (window.FomsVisitItems && window.FomsVisitItems.isStale(result.data)) {
+          mountVisitItems(sheet, orderId);
+        }
         return;
       }
       closeSheet();
