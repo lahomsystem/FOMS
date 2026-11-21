@@ -473,3 +473,21 @@ def test_스위치_끄면_보통_주문_제품_칸은_그대로(client, flag_off
     oid = _order(_day(3), [_day(3), None])
     assert _post_schedule(client, oid, {"date": _day(8), "time": ""}).status_code == 200
     assert _saved(oid) == (_day(8), [_day(3), None])
+
+
+def test_주문_칸이_비어도_보통_주문은_날이_적힌_제품_칸을_같이_쓴다(client, flag_on):
+    from foms.services.orders.item_construction_done import is_split_order
+
+    sd = _sd("", ["2026-12-05", None, "2026-12-05"])
+    assert not is_split_order(sd)
+    assert move_first_date_for_field(sd, "2026-12-20") is None
+    sd["schedule"]["construction"]["date"] = "2026-12-20"
+    assert [it.get("construction_date") for it in sd["items"]] == ["2026-12-20", None, "2026-12-20"]
+    assert not is_split_order(sd)
+
+    _login(client, _user("mv_empty_plain"))
+    oid = _order("", [_day(3), None])
+    assert _post_schedule(client, oid, {"date": _day(8), "time": ""}).status_code == 200
+    assert _saved(oid) == (_day(8), [_day(8), None])
+    db_session.expire_all()
+    assert not is_split_order(db_session.get(Order, oid).structured_data)

@@ -127,13 +127,14 @@ def sync_items_for_whole_write(sd: dict[str, Any], new_value: Any) -> bool:
     나눠 시공이 아니면 모든 제품의 마지막 날이 같아 일정이 같다. 주문 칸만 새 날이 되고 날이 적힌 제품 칸이 옛 날에
     머물면, 날을 물려받는 다른 제품과 마지막 날이 갈려 ``is_split_order`` 가 참이 된다(거짓 나눠 시공 — 보통 주문인데
     완료 창이 "오늘 끝낸 제품"을 요구한다). 취소 안 됐고 ``construction_date`` 가 비지 않은 제품만 쓴다. 비우는
-    쓰기(되돌리기)면 제품 칸도 비운다. 스위치가 꺼졌거나 · 주문 칸이 비었거나 · 나눠 시공 주문이면 손대지 않는다.
+    쓰기(되돌리기)면 제품 칸도 비운다. 주문 칸이 비어 있어도 같다. 스위치가 꺼졌거나 쓰기 직전 이미 나눠 시공인
+    주문이면 손대지 않는다.
 
     :returns: 제품 칸을 고쳤는가.
     """
     if not is_item_construction_done_enabled() or not isinstance(sd, dict):
         return False
-    if not split_date_text(_construction(sd).get("date")) or is_split_order(sd):
+    if is_split_order(sd):  # 쓰기 직전 이미 나눠 시공인 주문은 제품 칸 그대로(주문 칸이 비어 있어도)
         return False
     text = str(new_value if new_value is not None else "")
     changed = False
