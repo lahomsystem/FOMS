@@ -33,6 +33,8 @@ from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, ste
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
+# 품목 · 규격 칸 이름(견적 · 도면 변경 알림과 같은 이름들)
+_WHD_KEYS = (('W', ('spec_width', 'w', 'width')), ('D', ('spec_depth', 'd', 'depth')), ('H', ('spec_height', 'h', 'height')))
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 
 
@@ -53,8 +55,25 @@ def _prod_item_total_w_mm(item: dict[str, Any]) -> float:
     return eval_spec_width_mm(item.get('spec_width') or item.get('spec') or '')
 
 
+def _prod_item_whd(item: dict[str, Any]) -> str:
+    """'W3100 × D500 × H2300'(전체 화면 시트 '만들 것', 시안 안 2). 칸이 여럿이면 ' / ' 로 잇는다. 값 없는 축은 뺀다."""
+    rows = item.get('spec_rows') if isinstance(item.get('spec_rows'), list) and item.get('spec_rows') else [item]
+    lines: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        parts: list[str] = []
+        for axis, keys in _WHD_KEYS:
+            value = next((str(row.get(k)).strip() for k in keys if str(row.get(k) or '').strip()), '')
+            if value:
+                parts.append(f"{axis}{value}")
+        if parts:
+            lines.append(' × '.join(parts))
+    return ' / '.join(lines)
+
+
 def _prod_sheet_spec_rows_view(items: list[Any]) -> list[dict[str, Any]]:
-    """규격 미니테이블 행: {label(품목), w(가로 mm 표시), qty(수량)}."""
+    """규격 미니테이블 행: {label(품목), w(가로 mm 표시), whd(W×D×H 글), qty(수량)}."""
     view: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -63,6 +82,7 @@ def _prod_sheet_spec_rows_view(items: list[Any]) -> list[dict[str, Any]]:
         view.append({
             'label': item.get('product_name') or item.get('name') or '품목',
             'w': ('%g' % w_mm) if w_mm else '-',
+            'whd': _prod_item_whd(item),
             'qty': item.get('quantity') or item.get('qty') or 1,
         })
     return view
