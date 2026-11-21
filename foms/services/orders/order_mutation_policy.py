@@ -188,7 +188,13 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # 팀 검사보다 먼저 통과하는 엔진 순서를 피해 게이트 함수 하나가 판정한다 — 라우트 데코레이터 · 화면 단추도 같은 함수다.
     "PRODUCTION_EDIT": _p("PRODUCTION_EDIT", teams=("PRODUCTION",),
                           gate="foms.services.production.write_access:can_write_production",
-                          description="production start/complete/rework/cancel/uncomplete/steps/defect/hold/ack — ADMIN, 또는 생산팀 STAFF · MANAGER(2026-11-21). CS/회계/영업 · 도면 · 시공 · 출고 · VIEWER · 협력사 deny. 전이는 STATE-PROD-01."),
+                          description="production start/complete/rework/cancel/uncomplete/steps/defect/hold — ADMIN, 또는 생산팀 STAFF · MANAGER(2026-11-21). CS/회계/영업 · 도면 · 시공 · 출고 · VIEWER · 협력사 deny. 전이는 STATE-PROD-01. 변경 확인(ack)은 PRODUCTION_ACK."),
+    # 생산 변경 확인 [확인했어요](change-ack) — 사람마다 남기는 확인 기록이라 생산 화면을 보는 사람 모두(설계서
+    # 2026-11-21-production-pc-viewer §13 결정 5 — PC 보기 전용에서도 허용). 주문은 바꾸지 않는다(OrderEvent · receipt 만).
+    # 팀 목록은 보기 팀(home_access.PRODUCTION_HOME_TEAMS)과 같은 뜻이고, 판정은 게이트 함수 하나다(라우트 · 화면 단추도 같은 함수).
+    "PRODUCTION_ACK": _p("PRODUCTION_ACK", teams=("CS", "SALES", "PRODUCTION", "DRAWING", "CONSTRUCTION", "SHIPMENT"),
+                         gate="foms.services.production.write_access:can_ack_production_change",
+                         description="production change-ack(개인 확인 기록, Order 불변) — ADMIN, 또는 생산 화면 보는 팀(CS · 회계 · 영업 · 생산 · 도면 · 시공 · 출고)의 STAFF · MANAGER(2026-11-21 결정 5). VIEWER · 팀 없음 · 협력사 deny."),
     # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55):
     # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트만 · 관리자 아무 파트)은 핸들러가
     # foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.

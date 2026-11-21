@@ -3,7 +3,7 @@
 - 기기 문: PC(마우스, ``foms_ptr=fine``)는 쓰기 단추 · 쓰기 JS 를 **서버가 그리지 않는다**. 쓰기 = 쓰기 팀(관리자 · 생산팀,
   ``can_write_production``) and (태블릿 ``coarse`` or [고치기] 켬). 쿠키 없는 첫 요청도 안 그린다.
 - [고치기] = 관리자 · 생산팀만(§13 결정 1), 쿠키 ``foms_prod_edit=<켠 시각>`` 2시간 안일 때만 켬. CS · 영업은 쿠키를 심어도 무시.
-- [확인했어요] 는 PC 보기 전용에서도 쓰기 팀에게(§13 결정 5).
+- [확인했어요] 는 개인 확인 기록이라 기기와 상관없이 보는 사람 모두에게(PC 보기 전용 포함, §13 결정 5).
 - PC 꼴: ERP 둘째 줄 메뉴 · 모든 줄 맨 앞 시공일 칸 · 공정 칸 누가 · 언제 마우스 글 · 늦음 줄. 태블릿 · 폰 출력에는 하나도 없다.
 대조군: 같은 사람 · 같은 주문의 태블릿 응답.
 """
@@ -49,7 +49,7 @@ def cohort(monkeypatch):
 
 def _login(client, who: str) -> User:
     team, role = {"admin": ("CS", "ADMIN"), "prod": ("PRODUCTION", "STAFF"), "cs": ("CS", "STAFF"),
-                  "sales": ("SALES", "STAFF")}[who]
+                  "sales": ("SALES", "STAFF"), "drawing": ("DRAWING", "STAFF")}[who]
     user = User(username=f"pcv_{who}_{next(_seq)}", password=generate_password_hash("pw"), role=role, team=team,
                 name=f"{who}사람", is_active=True)
     db_session.add(user)
@@ -134,11 +134,16 @@ def test_화면_판정_표() -> None:
     now = 1_800_000_000
     admin, prod, cs = _U("ADMIN", "CS"), _U(team="PRODUCTION"), _U(team="CS")
     fresh = str(now - 60)
-    # PC 보기 전용 — 쓰기 없음, [확인했어요]는 쓰기 팀(§13 결정 5), [고치기]는 쓰기 팀만
+    # PC 보기 전용 — 쓰기 없음, [확인했어요]는 보는 사람 모두(§13 결정 5, 기기 무관), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
         "pc_view": True, "can_act": False, "can_ack": True, "edit_on": False, "edit_toggle": True, "edit_now": now,
         "write_omitted": False}
-    assert production_screen_flags(cs, _Req(foms_ptr="fine"), now)["can_ack"] is False
+    for ptr in ("fine", "coarse", "", "weird"):
+        for user in (cs, _U(team="SALES"), _U(team="DRAWING"), _U(team="SHIPMENT"), prod):
+            assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is True, (ptr, user.team)
+        # 음성 대조 — 생산 화면을 못 보는 사람(팀 없음 · 협력사 · 조회 전용)은 없다
+        for user in (_U(team=None), _U(team="CS", partner_org_id=3), _U("VIEWER", "CS")):
+            assert production_screen_flags(user, _Req(foms_ptr=ptr), now)["can_ack"] is False, (ptr, user.role)
     # [고치기] 켬 — 쓰기 팀 + PC + 2시간 안
     for user in (admin, prod):
         flags = production_screen_flags(user, _Req(foms_ptr="fine", foms_prod_edit=fresh), now)
@@ -179,8 +184,8 @@ def test_PC_보기_전용은_쓰기_단추와_쓰기_JS_가_없다(client, cohor
         assert ('data-foms-prod-edit="on"' in html) is writer, (who, name)
         assert ("foms-production-edit.js" in html) is writer, (who, name)
     pages = _all_pages(client, orders)
-    # [확인했어요]는 PC 보기 전용에서도 쓰기 팀에게(§13 결정 5) — CS · 영업은 없다
-    assert (ACK in pages["?tab=changes"]) is writer and ("tablet-domain-sheets.js" in pages["?tab=changes"]) is writer
+    # [확인했어요]는 PC 보기 전용에서도 보는 사람 모두(§13 결정 5) — CS · 영업도 있다(그 배선 JS 만 같이)
+    assert ACK in pages["?tab=changes"] and "tablet-domain-sheets.js" in pages["?tab=changes"], who
     for name in ("date", "?tab=steps", "?tab=all"):
         assert "tablet-domain-sheets.js" not in pages[name], name
 
@@ -240,9 +245,11 @@ def test_CS_영업은_고치기가_없고_쿠키를_심어도_보기만(client, 
     _login(client, who)
     set_cookies(client, PC)
     _edit(client, time.time() - 60)
-    for name, html in _all_pages(client, orders).items():
+    pages = _all_pages(client, orders)
+    for name, html in pages.items():
         assert not any(mark in html for mark in WRITE), name
-        assert "data-foms-prod-edit" not in html and "data-foms-pc-editband" not in html and ACK not in html, name
+        assert "data-foms-prod-edit" not in html and "data-foms-pc-editband" not in html, name
+    assert ACK in pages["?tab=changes"]  # [확인했어요]는 쿠키와 상관없이 그대로(§13 결정 5)
 
 
 # --------------------------------------------------------------------------- #
@@ -261,8 +268,24 @@ def test_태블릿_쓰기_팀은_지금_그대로_CS_는_단추가_없다(client
         for mark in PC_ONLY + ("data-foms-prod-edit", "보기 전용"):
             assert mark not in html, (name, mark)
     _login(client, "cs")
-    for name, html in _all_pages(client, orders).items():
-        assert not any(mark in html for mark in WRITE) and ACK not in html, name
+    pages = _all_pages(client, orders)
+    for name, html in pages.items():
+        assert not any(mark in html for mark in WRITE), name
+    assert ACK in pages["?tab=changes"]  # CS 는 쓰기 단추가 없어도 [확인했어요]는 있다(§13 결정 5)
+
+
+@pytest.mark.parametrize("cookies", [PC, TABLET, None])
+def test_확인했어요는_보는_사람_모두에게_기기_무관(client, cohort, cookies) -> None:
+    """도면팀(2단계에 보기를 연 팀)도 PC · 태블릿 · 쿠키 없음 모두 [확인했어요]가 있고, 누르면 200 — 쓰기 단추는 없다."""
+    orders = _seed()
+    _login(client, "drawing")
+    set_cookies(client, cookies)
+    changes = get_html(client, HOME + "?tab=changes")
+    cards = changes.count("data-foms-home-inbox=")
+    assert cards and changes.count(ACK) == cards and "tablet-domain-sheets.js" in changes
+    assert not any(mark in get_html(client, HOME + "?tab=steps") for mark in WRITE)
+    resp = client.post(f"/api/orders/{orders['changed'].id}/production/change-ack", json={})
+    assert resp.status_code == 200 and resp.get_json()["success"] is True
 
 
 def test_쿠키_없는_첫_요청은_쓰기_단추를_안_그리고_PC_꼴도_아니다(client, cohort) -> None:

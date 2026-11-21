@@ -65,8 +65,10 @@ from foms.services.orders.order_mutation_policy import (
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
 from foms.services.production.write_access import (
+    PRODUCTION_ACK_DENIED_MESSAGE,
     PRODUCTION_WRITE_DENIED_MESSAGE,
     PRODUCTION_WRITE_TEAMS,
+    can_ack_production_change,
     can_write_production,
 )
 from foms.services.production.steps import (
@@ -109,7 +111,7 @@ def _can_edit_production_steps(user: Any) -> bool:
 
 
 def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
-    """생산 쓰기 API 아홉의 권한 데코레이터 — 관리자 · 생산팀만, 그 밖은 403(문지기 PRODUCTION_EDIT 와 같은 함수)."""
+    """생산 쓰기 API 여덟의 권한 데코레이터 — 관리자 · 생산팀만, 그 밖은 403(문지기 PRODUCTION_EDIT 와 같은 함수)."""
 
     @wraps(f)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
@@ -119,6 +121,24 @@ def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]
         if _can_edit_production_steps(user):
             return f(*args, **kwargs)
         return jsonify({"success": False, "error": PRODUCTION_WRITE_DENIED_MESSAGE}), 403
+
+    return wrapped
+
+
+def _production_change_ack_required(f: Callable[..., Any]) -> Callable[..., Any]:
+    """[확인했어요](change-ack) 권한 데코레이터 — 생산 화면을 보는 사람 모두, 그 밖은 403(문지기 PRODUCTION_ACK 와 같은 함수).
+
+    확인은 주문을 바꾸지 않는 개인 기록이라 쓰기 팀보다 넓다(설계서 2026-11-21-production-pc-viewer §13 결정 5).
+    """
+
+    @wraps(f)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        user = get_user_by_id(session.get("user_id"))
+        if not user:
+            return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+        if can_ack_production_change(user):
+            return f(*args, **kwargs)
+        return jsonify({"success": False, "error": PRODUCTION_ACK_DENIED_MESSAGE}), 403
 
     return wrapped
 
@@ -1334,7 +1354,7 @@ def api_production_uncomplete(order_id: int):
 
 @erp_orders_production_bp.route("/<int:order_id>/production/change-ack", methods=["POST"])
 @login_required
-@_production_steps_edit_required
+@_production_change_ack_required
 def api_production_change_ack(order_id: int):
     """생산 변경 확인(ack). 카드/시트 변경 스트립·묘비 [확인] 버튼이 호출한다.
 
@@ -1347,9 +1367,9 @@ def api_production_change_ack(order_id: int):
     재기록하지 않고 저장 응답을 replay 한다(event 0). key 가 없으면 dedupe 하지 않는다(레거시
     묘비 재확인·매 요청 기록 — 기존 동작 보존).
 
-    권한: 생산 공정 스텝과 동일 게이트(관리자 또는 **생산팀**, ``can_write_production`` — 2026-11-21 CS · 영업 뺌).
-    ack 는 "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
-    전용)이 아닌 스텝 게이트를 재사용한다.
+    권한: 생산 화면을 보는 사람 모두(관리자 · CS · 회계 · 영업 · 생산 · 도면 · 시공 · 출고, ``can_ack_production_change``,
+    문지기 정책 PRODUCTION_ACK). ack 는 "사람마다" 남기는 확인 기록이라 주문을 바꾸는 쓰기(관리자 · 생산팀)보다 넓다 —
+    PC 보기 전용에서도 누른다(설계서 2026-11-21-production-pc-viewer §13 결정 5). 조회 전용 · 팀 없음 · 협력사는 403.
 
     :param order_id: 대상 주문 id.
     :return: ``{success, data:{order_id}}`` 또는 오류 JSON.

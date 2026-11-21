@@ -30,17 +30,23 @@ PEOPLE = [
     ("noteam_staff", "STAFF", None, False, False),
 ]
 
+#: 생산 쓰기 API 여덟(관리자 · 생산팀만). [확인했어요](change-ack)는 쓰기가 아니라 개인 확인 기록이라 따로 — 보는 사람 모두(§13 결정 5).
 WRITE_ENDPOINTS = [
     ("start", {}),
     ("complete", {}),
     ("rework", {"reason": "가짜 사유"}),
     ("cancel", {}),
     ("uncomplete", {}),
-    ("change-ack", {}),
     ("steps", {"key": "cut", "done": True}),
     ("defect", {"reason": "파손"}),
     ("hold", {"active": True, "reason": "가짜 사유"}),
 ]
+ACK_PATH = "change-ack"
+
+
+def can_ack(role: str, view: bool) -> bool:
+    """사람 표의 [확인했어요] 열 — 보기 열이 참이고 조회 전용(VIEWER)이 아니면 참(엔진 F-01 과 같은 답)."""
+    return view and role != "VIEWER"
 
 
 

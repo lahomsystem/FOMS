@@ -1,6 +1,7 @@
 """생산 변경 확인 ack API + field_update 이벤트 + 시공일 정렬 계약.
 
-- POST /api/orders/<id>/production/change-ack: 정상 기록, 삭제 주문 허용, 권한(ADMIN/CS/SALES/PRODUCTION 200, DRAWING 403).
+- POST /api/orders/<id>/production/change-ack: 정상 기록, 삭제 주문 허용, 권한(생산 화면을 보는 사람 모두 200 — 관리자 · CS · 영업 ·
+  생산 · 도면 · 시공 · 출고, 2026-11-21 결정 5. 팀 없음 · 조회 전용 403).
 - field_update scheduled_date: 값 변경 시 CONSTRUCTION_DATE_CHANGED OrderEvent 기록(근본수정).
 - 생산 대시보드 정렬: erp_construction_date asc nulls last, created_at desc.
 """
@@ -100,13 +101,25 @@ def test_change_ack_allowed_on_deleted_order(client):
     assert events[0].payload["deleted_at"] == "2026-07-20 12:00:00"
 
 
-def test_change_ack_forbidden_for_drawing_team(client):
+def test_change_ack_allowed_for_drawing_team(client):
+    """도면팀도 생산 첫 화면을 본다(2026-11-21 §9-1) — [확인했어요]는 개인 확인 기록이라 보는 사람 모두(§13 결정 5)."""
     user = _make_user("ack_draw", role="STAFF", team="DRAWING")
     _login(client, user)
     order_id = _make_order().id
     resp = client.post(f"/api/orders/{order_id}/production/change-ack")
-    assert resp.status_code == 403
-    assert resp.get_json()["success"] is False
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
+
+
+def test_change_ack_forbidden_for_teamless_staff_and_viewer(client):
+    """음성 대조 — 생산 화면을 못 보는 사람(팀 없음)과 조회 전용은 403, 기록 0."""
+    order_id = _make_order().id
+    for name, role, team in (("ack_noteam", "STAFF", None), ("ack_viewer", "VIEWER", "CS")):
+        _login(client, _make_user(name, role=role, team=team))
+        resp = client.post(f"/api/orders/{order_id}/production/change-ack")
+        assert resp.status_code == 403, name
+        assert resp.get_json()["success"] is False
+    assert db_session.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_CHANGE_ACK").count() == 0
 
 
 def test_change_ack_allowed_for_production_team(client):
@@ -119,15 +132,16 @@ def test_change_ack_allowed_for_production_team(client):
     assert resp.get_json()["success"] is True
 
 
-def test_change_ack_refused_for_sales_team(client):
-    """영업은 생산 화면을 보기만 한다(설계서 2026-11-21-production-pc-viewer §13 결정 2) — 변경 확인도 쓰기 API 아홉 중 하나라 403."""
+def test_change_ack_allowed_for_sales_team_but_start_refused(client):
+    """영업은 생산 일을 못 하지만(§13 결정 2 — 제작 시작 403) [확인했어요]는 누른다(§13 결정 5, 자기 확인 기록 1건)."""
     user = _make_user("ack_sales", role="STAFF", team="SALES")
     _login(client, user)
     order_id = _make_order().id
     resp = client.post(f"/api/orders/{order_id}/production/change-ack")
-    assert resp.status_code == 403
-    assert resp.get_json()["success"] is False
-    assert db_session.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_CHANGE_ACK").count() == 0
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
+    assert db_session.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_CHANGE_ACK").count() == 1
+    assert client.post(f"/api/orders/{order_id}/production/start", json={}).status_code == 403
 
 
 def test_change_ack_missing_order_404(client):

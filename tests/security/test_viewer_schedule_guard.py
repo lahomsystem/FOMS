@@ -180,10 +180,10 @@ _NON_VIEWER = sorted(pid for pid, p in POLICY_REGISTRY.items() if not p.viewer)
 
 
 def test_gated_policy_list_is_what_this_table_covers():
-    """문지기 정책이 새로 생기면 이 표가 자동으로 그 정책까지 덮는다 — 지금 10종(생산 쓰기 2026-11-21), 전부 VIEWER 비허용."""
+    """문지기 정책이 새로 생기면 이 표가 자동으로 그 정책까지 덮는다 — 지금 11종(생산 쓰기 · 생산 변경 확인 2026-11-21), 전부 VIEWER 비허용."""
     assert _GATED == sorted([
         "CONSTRUCTION_SCHEDULE_EDIT", "CS_AGENT_SEND", "NAVER_INGEST_RUN", "PARTNER_STATEMENT",
-        "PRODUCTION_EDIT", "SALES_COMMISSION_WRITE", "SETTLEMENT_CHANNEL_READ", "SETTLEMENT_CHANNEL_SYNC",
+        "PRODUCTION_ACK", "PRODUCTION_EDIT", "SALES_COMMISSION_WRITE", "SETTLEMENT_CHANNEL_READ", "SETTLEMENT_CHANNEL_SYNC",
         "SETTLEMENT_DASHBOARD_READ", "SHIPMENT_ASSIGN",
     ])
     assert all(not POLICY_REGISTRY[pid].viewer for pid in _GATED)
