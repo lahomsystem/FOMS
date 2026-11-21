@@ -46,6 +46,7 @@ from foms.services.orders.order_transition_service import (
     TransitionError,
     transition_order,
 )
+from foms.services.orders.construction_visit import split_flow_active, split_production_start_allowed
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
 from foms.services.partners.notify import notify_partner_construction_done
@@ -252,8 +253,10 @@ def api_construction_start(order_id):
         override = resolve_admin_override(user, body)
         punched: list = []
 
+        # 제품마다 '시공 끝'(N3): 나눠 시공하는 주문은 생산 단계에서도 먼저 시공하는 제품의 방문을 연다(단계 그대로).
+        production_visit = split_production_start_allowed(order)
         if not _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_START, idem_key):
-            if order.erp_stage_code not in _CONSTRUCTION_STAGES:
+            if order.erp_stage_code not in _CONSTRUCTION_STAGES and not production_visit:
                 if override is None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
                                     "message": "시공 대기 상태에서만 시공을 시작할 수 있습니다."}), 409
@@ -277,7 +280,8 @@ def api_construction_start(order_id):
             construction["evidence"] = _fresh_evidence()
             wf = sd.get("workflow") or {}
             hist = wf.get("history") or []
-            hist.append({"stage": "CONSTRUCTION", "updated_at": now.isoformat(),
+            hist.append({"stage": "PRODUCTION" if production_visit else "CONSTRUCTION",
+                         "updated_at": now.isoformat(),
                          "updated_by": user.name if user else "Unknown", "note": "시공 시작"})
             wf["history"] = hist
             sd["workflow"] = wf
@@ -351,12 +355,19 @@ def _audit_construction(
     )
 
 
-def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, completion_note: str) -> None:
-    """CONSTRUCTION_COMPLETE 전이 후 same-tx: current attempt READY 봉인 + history append."""
+def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, completion_note: str,
+                                 visit: Optional[dict[str, Any]] = None) -> None:
+    """CONSTRUCTION_COMPLETE 전이 후 same-tx: current attempt READY 봉인 + history append.
+
+    ``visit`` 은 나눠 시공 주문의 마지막 방문 ``{date, item_uids}`` — 봉인 스냅샷과 감사에 함께 남긴다.
+    """
     attempt = _current_attempt(db, order.id)
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     if attempt is not None:
-        attempt.evidence = _live_evidence(sd)  # live evidence 를 attempt 스냅샷으로 봉인.
+        snapshot = _live_evidence(sd)  # live evidence 를 attempt 스냅샷으로 봉인.
+        if visit:
+            snapshot["visit"] = dict(visit)
+        attempt.evidence = snapshot
         attempt.status = "READY"
         attempt.completed_at = now_utc_naive()
         attempt.completed_by = user.name if user else None
@@ -372,11 +383,15 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    _audit_construction(
-        order, "CONSTRUCTION_COMPLETED", user_id,
-        note=completion_note or None,
-        extra={"new_stage": "CS", "completion_note": completion_note or None},
-    )
+    extra: dict[str, Any] = {"new_stage": "CS", "completion_note": completion_note or None}
+    if visit:
+        extra["visit"] = dict(visit)
+    _audit_construction(order, "CONSTRUCTION_COMPLETED", user_id, note=completion_note or None, extra=extra)
+
+
+# 제품마다 '시공 끝' 갈래 — 그 모듈이 위 헬퍼(시도 줄 · 증빙 · 감사 · 해시)를 가져다 쓰므로 그것들을 다 정의한 뒤
+# 여기서 가져온다(순서 고정). 같은 Blueprint 에 "오늘 끝낸 제품" 목록 GET 도 이때 붙는다.
+from foms.api.construction import item_done as _item_done  # noqa: E402
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/complete", methods=["POST"])
@@ -417,6 +432,12 @@ def api_construction_complete(order_id):
         override = resolve_admin_override(user, body)
         punched: list = []
         from_stage = read_main_stage(order)
+
+        # 제품마다 '시공 끝'(설계서 5.3): 스위치가 켜진 나눠 시공 주문은 "오늘 끝낸 제품"(done_item_uids)으로
+        # 부분 방문 / 완료를 가른다. 아니면 이 값은 무시하고 아래 지금 흐름 그대로다.
+        if split_flow_active(order.structured_data):
+            return _item_done.split_complete_response(
+                db, order_id, body=body, user=user, user_id=user_id, override=override)
 
         if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=True):
             missing = _evidence_gate_missing(order)

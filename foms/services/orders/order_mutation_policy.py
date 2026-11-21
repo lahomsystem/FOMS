@@ -198,6 +198,10 @@ POLICY_REGISTRY: dict[str, Policy] = {
     "CONSTRUCTION_ASSIGNED": _p("CONSTRUCTION_ASSIGNED", teams=("CS", "SALES", "CONSTRUCTION"),
                                 assignment="CONSTRUCTION",
                                 description="construction start/evidence/complete/fail — 배정된 CONSTRUCTION user ID(§2.1 line 168). backfill 전이면 team 폴백."),
+    # 잘못 찍은 제품 '시공 끝' 되돌리기(설계서 2026-11-21-item-construction-done N9): 관리자 · 매니저 · CS 만
+    # (회계팀은 CS capability 별칭으로 함께). 사유 필수 · 생산 · 시공 단계 판정은 핸들러가 잠금 아래에서 한다.
+    "ITEM_CONSTRUCTION_DONE_UNDO": _p("ITEM_CONSTRUCTION_DONE_UNDO", teams=("CS",),
+                                      description="제품 '시공 끝' 되돌리기(items/<uid>/construction-done/undo) — ADMIN/MANAGER 또는 STAFF+CS(ACCOUNTING→CS). 영업 · 시공 · VIEWER deny."),
     "PACKING_WRITE": _p("PACKING_WRITE", teams=("CS", "SALES", "SHIPMENT", "CONSTRUCTION"),
                         description="packing write — SHIPMENT team-wide + assigned CONSTRUCTION(§2.1 packing 분리)."),
 

@@ -10,6 +10,7 @@ from .calendar import calendar_orders_response
 from .call_log import log_call_response
 from .copy import copy_orders_response
 from .measurement_visit import measurement_visit_response
+from .item_construction_done import item_construction_done_undo_response
 from .field_update import update_order_field_response
 from .mobile_delete import mobile_delete_order_response, mobile_restore_order_response
 from .nearby import nearby_orders_response
@@ -121,6 +122,13 @@ def api_order_measurement_visit(order_id):
     return measurement_visit_response(order_id)
 
 
+@orders_bp.route("/orders/<int:order_id>/items/<uid>/construction-done/undo", methods=["POST"])
+@login_required
+def api_order_item_construction_done_undo(order_id, uid):
+    """잘못 찍은 제품 '시공 끝' 되돌리기(사유 필수). 권한 ITEM_CONSTRUCTION_DONE_UNDO 는 handler 가 enforce."""
+    return item_construction_done_undo_response(order_id, uid)
+
+
 @orders_bp.route("/orders/<int:order_id>/qr.svg")
 @login_required
 def api_order_qr_svg(order_id):
@@ -131,6 +139,7 @@ def api_order_qr_svg(order_id):
 __all__ = [
     "api_bulk_stage_override",
     "api_order_call_log",
+    "api_order_item_construction_done_undo",
     "api_order_measurement_visit",
     "api_open_orders_for_customer",
     "api_orders",
@@ -144,6 +153,7 @@ __all__ = [
     "copy_orders_response",
     "enqueue_geocode_order_address",
     "erp_edit_required",
+    "item_construction_done_undo_response",
     "log_call_response",
     "measurement_visit_response",
     "get_today_kst",
