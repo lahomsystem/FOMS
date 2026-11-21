@@ -46,6 +46,7 @@ from foms.services.orders.order_transition_service import (
     TransitionError,
     transition_order,
 )
+from foms.services.orders.construction_schedule import reschedule_text_after_fail
 from foms.services.orders.construction_visit import split_flow_active, split_production_start_allowed
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
@@ -644,7 +645,6 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
 
     if reschedule_date:
         # 스위치가 켜져 있으면 그 방문 날 하나만 새 날로 옮긴다(설계서 2026-11-21 8절 — 꺼져 있으면 지금처럼 통째로).
-        from foms.services.orders.construction_schedule import reschedule_text_after_fail
 
         schedule = sd.get("schedule") or {}
         construction = schedule.get("construction") or {}

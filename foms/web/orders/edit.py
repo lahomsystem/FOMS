@@ -28,6 +28,8 @@ from db import get_db
 from models import Order
 from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
 from foms.services.orders.state_axes import open_as_outranks_main_status_write
+from foms.services.orders.construction_dates import all_construction_dates
+from foms.services.orders.construction_schedule import one_day_move_applies
 from foms.services.orders.item_construction_done import blocked_message
 from foms.services.orders.items_construction_gate import items_gate_blocks_locked
 from foms.services.orders.status_constants import STATUS
@@ -679,9 +681,6 @@ def edit_order(order_id):
     # 출고팀 시공일 바꾸기 — 나눠 시공하는 주문이면 화면이 "어느 날을 옮길까요" 를 고르게 한다(설계서 2026-11-21 8절).
     construction_dates: list = []
     if construction_only:
-        from foms.services.orders.construction_dates import all_construction_dates
-        from foms.services.orders.construction_schedule import one_day_move_applies
-
         _cons_sd = getattr(order, 'structured_data', None)
         if one_day_move_applies(_cons_sd):
             construction_dates = all_construction_dates(_cons_sd)
