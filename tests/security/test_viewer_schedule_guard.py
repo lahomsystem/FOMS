@@ -180,10 +180,10 @@ _NON_VIEWER = sorted(pid for pid, p in POLICY_REGISTRY.items() if not p.viewer)
 
 
 def test_gated_policy_list_is_what_this_table_covers():
-    """문지기 정책이 새로 생기면 이 표가 자동으로 그 정책까지 덮는다 — 지금 9종, 전부 VIEWER 비허용."""
+    """문지기 정책이 새로 생기면 이 표가 자동으로 그 정책까지 덮는다 — 지금 10종(생산 쓰기 2026-11-21), 전부 VIEWER 비허용."""
     assert _GATED == sorted([
         "CONSTRUCTION_SCHEDULE_EDIT", "CS_AGENT_SEND", "NAVER_INGEST_RUN", "PARTNER_STATEMENT",
-        "SALES_COMMISSION_WRITE", "SETTLEMENT_CHANNEL_READ", "SETTLEMENT_CHANNEL_SYNC",
+        "PRODUCTION_EDIT", "SALES_COMMISSION_WRITE", "SETTLEMENT_CHANNEL_READ", "SETTLEMENT_CHANNEL_SYNC",
         "SETTLEMENT_DASHBOARD_READ", "SHIPMENT_ASSIGN",
     ])
     assert all(not POLICY_REGISTRY[pid].viewer for pid in _GATED)
@@ -200,7 +200,7 @@ def test_viewer_denied_by_every_non_viewer_policy(policy_id, team):
 
 @pytest.mark.parametrize("policy_id", _GATED)
 def test_gated_policy_controls_admin_passes(policy_id):
-    """대조군 — 문지기 정책 9종 모두 ADMIN 은 통과(VIEWER 막기가 다른 역할을 건드리지 않는다)."""
+    """대조군 — 문지기 정책 모두 ADMIN 은 통과(VIEWER 막기가 다른 역할을 건드리지 않는다)."""
     assert evaluate_policy(POLICY_REGISTRY[policy_id], _person("ADMIN", None)).allowed
 
 

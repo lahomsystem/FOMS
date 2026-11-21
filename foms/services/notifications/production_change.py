@@ -5,8 +5,9 @@
 order+type+팀 기준(actor 무관)이다. 생산 알림은 팀 공지 성격이라 누가 바꿨든 같은 주문의
 같은 종류 변경은 60초 내 한 줄로 합친다.
 
-수신 팀 = :data:`TARGET_TEAMS`\\ ``= ("CS", "SALES", "PRODUCTION")`` — 권한 정책
-``PRODUCTION_EDIT`` 의 팀 집합과 같다. 원래는 ``"PRODUCTION"`` 하나였는데 **그 팀 소속 활성
+수신 팀 = :data:`TARGET_TEAMS`\\ ``= ("CS", "SALES", "PRODUCTION")`` — 생산 첫 화면을 보는 팀
+(``foms/services/production/home_access.py``) 안에 있다. 2026-11-21 부터 생산 **쓰기**는 관리자 · 생산팀만이지만
+(``PRODUCTION_EDIT``), CS · 영업은 손님과 생산을 잇는 쪽이라 생산 변경을 계속 받는다(보기만). 원래는 ``"PRODUCTION"`` 하나였는데 **그 팀 소속 활성
 사용자가 0명**이라(운영 DB 실측 2026-08-05) ``fan_out`` 이 0건 = 아무에게도 안 가는 무음
 알림이었다(ADMIN 은 팬아웃 대상이 아니다 — ``recipients`` 모듈 docstring). 그래서 CS·영업으로
 바꿨다가, 2026-10-27 사용자 결정("생산 단계 도면 수정은 생산팀 전원이 알아야 한다", 생산팀

@@ -64,7 +64,7 @@ from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
 )
-from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.production.write_access import can_write_production
 from foms.services.feature_flags import (
     is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
     wants_wide_viewport_surfaces,
@@ -235,11 +235,8 @@ def erp_production_dashboard():
     # detail-payload)로 전환되어 이 서버측 계산은 미사용이었다(매 요청 N행 낭비).
 
     # C-D1: 생산 되돌리기 버튼(수정 제작·제작 취소·완료 취소)은 서버 술어와 같은 조건에서만
-    # 그린다 — foms/api/production/orders.py 의 _PRODUCTION_STEPS_EDIT_TEAMS 와 같은 답이다.
-    can_act_production = bool(user) and (
-        user.role == 'ADMIN'
-        or team_has_capability(getattr(user, 'team', None), ('CS', 'SALES', 'PRODUCTION'))
-    )
+    # 그린다 — 생산 쓰기 API 와 같은 한 함수(관리자 + 생산팀, 설계서 2026-11-21-production-pc-viewer §13 결정 2).
+    can_act_production = can_write_production(user)
     template_name = (
         'production/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)

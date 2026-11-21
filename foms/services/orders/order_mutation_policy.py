@@ -184,8 +184,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
                          description="structured/field/status/regional/quest/task/draft/blueprint/attachment/queue 등 전 STAFF 팀 업무. VIEWER deny."),
 
     # --- 생산 (§2.1 line 164, P0-9) -----------------------------------------
-    "PRODUCTION_EDIT": _p("PRODUCTION_EDIT", teams=("CS", "SALES", "PRODUCTION"),
-                          description="production start/complete/rework/steps/defect/hold/ack — CS/SALES/PRODUCTION team-wide(P0-9 역전 수정). 전이는 STATE-PROD-01."),
+    # 생산 쓰기 = 관리자 + 생산팀(설계서 2026-11-21-production-pc-viewer §13 결정 2 — CS · 영업은 기기 무관 보기만). MANAGER 가
+    # 팀 검사보다 먼저 통과하는 엔진 순서를 피해 게이트 함수 하나가 판정한다 — 라우트 데코레이터 · 화면 단추도 같은 함수다.
+    "PRODUCTION_EDIT": _p("PRODUCTION_EDIT", teams=("PRODUCTION",),
+                          gate="foms.services.production.write_access:can_write_production",
+                          description="production start/complete/rework/cancel/uncomplete/steps/defect/hold/ack — ADMIN, 또는 생산팀 STAFF · MANAGER(2026-11-21). CS/회계/영업 · 도면 · 시공 · 출고 · VIEWER · 협력사 deny. 전이는 STATE-PROD-01."),
     # 생산 파트 표시(도면 카드 맡기 · 기본 · 완료 · 되돌리기 — 설계서 2026-11-09-tablet-production-ui §15.4 · D53 · D55):
     # 가드는 팀 PRODUCTION(+ ADMIN/MANAGER override)까지만 거르고, 파트 판정(자기 파트만 · 관리자 아무 파트)은 핸들러가
     # foms.services.production.part_access 로 한다. 켜진 프리랜서 허용 목록에는 넣지 않는다.

@@ -61,10 +61,14 @@ from foms.services.orders.admin_override import (
 from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
-    team_has_capability,
 )
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
+from foms.services.production.write_access import (
+    PRODUCTION_WRITE_DENIED_MESSAGE,
+    PRODUCTION_WRITE_TEAMS,
+    can_write_production,
+)
 from foms.services.production.steps import (
     PRODUCTION_STEP_DEFS,
     PRODUCTION_STEP_KEYS,
@@ -78,12 +82,11 @@ from foms.services.production.steps import (
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
 
 
-# --- 생산 공정 스텝 권한/스키마 (erp_permissions 통합 후보) --------------------------
-# 아래 _can_edit_production_steps / _production_steps_edit_required 는
-# erp_permissions.erp_construction_edit_required 스타일을 모듈 로컬로 복제한 것이다.
-# 생산 공정 스텝 체크는 ADMIN 또는 team∈(CS,SALES,PRODUCTION) 에게 허용한다.
-# 안정화되면 erp_permissions.py 의 can_edit_* / *_edit_required 계열로 승격(통합) 검토.
-_PRODUCTION_STEPS_EDIT_TEAMS = ("CS", "SALES", "PRODUCTION")
+# --- 생산 쓰기 권한 ------------------------------------------------------------------
+# 쓰는 사람 = 관리자 + 생산팀(설계서 2026-11-21-production-pc-viewer §13 결정 2 — CS · 영업은 보기만). 판정은 한 곳
+# ``foms/services/production/write_access.can_write_production`` 이고, 문지기 정책 PRODUCTION_EDIT(gate)와 아래 데코레이터 ·
+# 화면 단추가 같은 함수를 본다. ``_PRODUCTION_STEPS_EDIT_TEAMS`` 는 옛 이름(시험 · 주석이 읽는다) — 값은 그 팀 목록과 같다.
+_PRODUCTION_STEPS_EDIT_TEAMS = PRODUCTION_WRITE_TEAMS
 
 # 생산 공정 4단계 정의 · 읽기 정규화 · 칸 만들기는 한 곳(``foms/services/production/steps.py``)에 둔다 — 지금 공정 API 와
 # 파트 카드 동기화(설계서 §15.5)가 같은 함수로 칸을 바꾼다. 옛 이름은 이 모듈을 import 하는 시험·화면을 위해 남긴다.
@@ -101,16 +104,12 @@ _PRODUCTION_HOLD_HISTORY_CAP = 20
 
 
 def _can_edit_production_steps(user: Any) -> bool:
-    """생산 공정 스텝 편집 가능 여부(ADMIN 또는 CS/SALES/PRODUCTION 팀)."""
-    if not user:
-        return False
-    if user.role == "ADMIN":
-        return True
-    return team_has_capability(getattr(user, "team", None), _PRODUCTION_STEPS_EDIT_TEAMS)
+    """생산 쓰기 가능 여부(관리자 또는 생산팀) — :func:`can_write_production` 의 옛 이름."""
+    return can_write_production(user)
 
 
 def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
-    """생산 공정 스텝 write 권한 데코레이터(모듈 로컬; erp_permissions 통합 후보)."""
+    """생산 쓰기 API 아홉의 권한 데코레이터 — 관리자 · 생산팀만, 그 밖은 403(문지기 PRODUCTION_EDIT 와 같은 함수)."""
 
     @wraps(f)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
@@ -119,15 +118,7 @@ def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
         if _can_edit_production_steps(user):
             return f(*args, **kwargs)
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "공정 스텝 수정 권한이 없습니다. (관리자, 라홈팀, 영업팀 또는 생산팀만 가능)",
-                }
-            ),
-            403,
-        )
+        return jsonify({"success": False, "error": PRODUCTION_WRITE_DENIED_MESSAGE}), 403
 
     return wrapped
 
@@ -1356,8 +1347,8 @@ def api_production_change_ack(order_id: int):
     재기록하지 않고 저장 응답을 replay 한다(event 0). key 가 없으면 dedupe 하지 않는다(레거시
     묘비 재확인·매 요청 기록 — 기존 동작 보존).
 
-    권한: 생산 공정 스텝과 동일 게이트(ADMIN 또는 CS/SALES/**PRODUCTION** 팀). ack 는
-    "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
+    권한: 생산 공정 스텝과 동일 게이트(관리자 또는 **생산팀**, ``can_write_production`` — 2026-11-21 CS · 영업 뺌).
+    ack 는 "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
     전용)이 아닌 스텝 게이트를 재사용한다.
 
     :param order_id: 대상 주문 id.
@@ -1684,7 +1675,7 @@ def api_production_hold(order_id: int):
     :func:`_mirror_workflow_hold_to_production`). 해제(active=False) 미러 시에는 초기화 직전의
     active hold 를 ``production.hold_history`` 에 보존한다(완료 후 이력 소실 방지,
     :func:`_append_hold_history` — 전이 게이트 release 경로와 같은 헬퍼). 권한은 생산 팀
-    (PRODUCTION_EDIT: ADMIN 또는 CS/SALES/PRODUCTION). 이미 보류/해제 상태에서 같은 방향을 다시
+    (PRODUCTION_EDIT: 관리자 또는 생산팀, ``can_write_production``). 이미 보류/해제 상태에서 같은 방향을 다시
     호출하면 전이 엔진이 409 로 거부한다(상태 불변). same idempotency_key 재요청은 전이 1회 후
     저장된 응답을 replay 한다.
 
