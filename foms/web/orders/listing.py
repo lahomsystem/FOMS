@@ -18,7 +18,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
 from foms.services.orders.state_axes import open_as_outranks_main_status_write
-from foms.services.orders.items_construction_gate import items_gate_blocks
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.erp_display import manager_display_name
@@ -665,8 +665,9 @@ def bulk_action():
                         as_kept_count += 1
                         continue
                     # 남은 제품 시공이 있으면 CS · 완료 상태 글로 바꾸지 않는다(제품마다 '시공 끝' 2단계 7절).
-                    if order is not None and old_status_val != new_status and items_gate_blocks(
-                            getattr(order, 'structured_data', None), new_status):
+                    # 잠근 최신 값 · 지금 단계로 판정한다(이미 CS · 완료면 쉰다 — 검수 E2-1 · E2-5).
+                    if order is not None and old_status_val != new_status and items_gate_blocks_locked(
+                            db, order, new_status):
                         items_open_count += 1
                         continue
                     if order is not None and old_status_val != new_status:

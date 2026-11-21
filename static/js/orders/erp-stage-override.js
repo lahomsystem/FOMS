@@ -50,6 +50,17 @@
   var ITEMS_OPEN_CODE = 'ITEMS_CONSTRUCTION_OPEN';
   var CLOSE_ITEMS_CONFIRM = '남은 제품도 시공 끝으로 찍고 넘길까요?';
 
+  // 확인 창 글 — 일괄은 막힌 주문마다 한 줄("#12 11/17 부엌가구"), 단건은 서버 글 그대로.
+  function closeItemsText(payload) {
+    var blocked = (payload && payload.data && Array.isArray(payload.data.blocked)) ? payload.data.blocked : [];
+    if (blocked.length) {
+      return '남은 제품 시공이 있는 주문 ' + blocked.length + '건\n' + blocked.map(function (it) {
+        return '#' + it.order_id + ' ' + (it.remaining_summary || '남은 제품');
+      }).join('\n');
+    }
+    return (payload && (payload.message || payload.error)) || '';
+  }
+
   function adminTargetKind(code) {
     return ADMIN_ONLY_TARGETS[String(code || '').trim()] || '';
   }
@@ -554,9 +565,10 @@
       });
     }
 
-    // 남은 제품이 있어 막혔다 — 서버 글을 보여 주고 확인을 받으면 남은 제품을 찍고 다시 보낸다.
+    // 남은 제품이 있어 막혔다 — 막힌 주문 목록(일괄)이나 서버 글(단건)을 보여 주고, 확인을 받으면
+    // 남은 제품을 찍고 다시 보낸다. 동의한 사람이 어느 주문의 무엇을 찍는지 다 보게 한다(검수 E2-2).
     function resendClosingItems(res) {
-      var msg = (res.data && (res.data.message || res.data.error)) || '';
+      var msg = closeItemsText(res.data);
       if (!window.confirm((msg ? msg + '\n\n' : '') + CLOSE_ITEMS_CONFIRM)) {
         showFailure(res);
         return null;
@@ -806,6 +818,7 @@
     confirmForceMove: confirmForceMove,
     drawingWarningText: drawingWarningText,
     asOverlayKeptText: asOverlayKeptText,
+    closeItemsText: closeItemsText,
     wireUi: wireUi
   };
 

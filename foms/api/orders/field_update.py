@@ -33,7 +33,7 @@ from foms.services.orders.admin_override import (
 )
 from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
-from foms.services.orders.items_construction_gate import items_gate_blocks, items_open_body
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked, items_open_body
 from foms.services.orders.complete_path_policy import (
     rejects_completed_field_write,
     use_cs_complete_response_body,
@@ -614,8 +614,8 @@ def update_order_field_from_payload(
 
     # 남은 제품 문지기(제품마다 '시공 끝' 2단계 7절): 이 칸 쓰기의 세 갈래(엔진 · CS 완료 서비스 ·
     # 엔진 밖 옛 쓰기 ``workflow.stage = value``) 모두 여기서 한 번에 막는다. 뚫기로도 못 넘는다.
-    if field == "status" and items_gate_blocks(getattr(order, "structured_data", None), value,
-                                               current=read_main_stage(order)):
+    # 행을 잠근 최신 값 · 지금 단계로 판정한다 — 이미 CS · 완료면 쉰다(검수 E2-1 · E2-5).
+    if field == "status" and items_gate_blocks_locked(db, order, value):
         return jsonify(items_open_body(order)), 409
 
     # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다. 이 우회로는

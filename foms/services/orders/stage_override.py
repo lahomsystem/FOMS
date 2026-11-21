@@ -394,7 +394,8 @@ def apply_stage_override(
     if mode == "same":
         raise ValueError("현재와 동일한 단계로는 변경할 수 없습니다.")
     items_closed: list[str] = []
-    if items_gate_blocks(getattr(order, "structured_data", None), to_code):
+    # 이미 CS · 완료에서 떠나는 변경(완료 → CS 되돌리기 등)은 쉰다(검수 E2-1 · E2-4).
+    if items_gate_blocks(getattr(order, "structured_data", None), to_code, current=from_code):
         if not close_remaining_items:
             raise items_open_error(order)
         items_closed = _close_remaining_items(

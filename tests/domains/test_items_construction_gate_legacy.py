@@ -8,13 +8,23 @@ from __future__ import annotations
 
 import datetime
 import importlib.util
+import json
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import text
 
+from db import db_session
 from foms.services.orders import item_construction_done as icd
-from foms.services.orders.items_construction_gate import ITEMS_CONSTRUCTION_OPEN
+from foms.services.orders.items_construction_gate import (
+    ITEMS_CONSTRUCTION_OPEN,
+    items_gate_blocks,
+    items_gate_blocks_locked,
+)
+from models import Order
 from tests.support.item_construction_seed import (
     BLOCKED, FLAG, UID_A, UID_B, flashes, login, mark, saved, seed_order, seed_sd,
 )
@@ -117,6 +127,36 @@ def test_legacy_list_bulk_action_skips_partial_open(client, monkeypatch) -> None
     assert saved(partial)[0] == "COMPLETED"
 
 
+def test_legacy_writes_rest_when_stage_is_already_cs(client) -> None:
+    """옛 쓰기 다섯 길도 지금 단계를 본다 — 단계가 이미 CS 면(상태 글은 물류 표시) 막지 않는다(검수 E2-1 · E2-5)."""
+    login(client)
+    single, bulk, field, edit, listing = (seed_order("CS", status="SCHEDULED") for _ in range(5))
+
+    resp = client.post("/api/update_order_status", json={"order_id": single, "status": "CS"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    resp = client.post("/api/bulk_update_order_status", json={"order_ids": [bulk], "status": "CS"})
+    assert resp.status_code == 200 and resp.get_json()["blocked_items_construction_open"] == []
+    resp = client.post("/api/update_order_field", json={"order_id": field, "field": "status", "value": "CS"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    client.post(f"/edit/{edit}", data={"status": "COMPLETED"}, follow_redirects=False)
+    client.post("/bulk_action", data={"action": "status_COMPLETED", "selected_order": [str(listing)]})
+    assert [saved(o)[0] for o in (single, bulk, field, edit, listing)] == ["CS", "CS", "CS", "COMPLETED", "COMPLETED"]
+    assert not any(BLOCKED in m for m in flashes(client))
+
+
+def test_locked_recheck_sees_marks_written_after_the_route_read(app) -> None:
+    """옛 쓰기는 행을 잠근 최신 값으로 다시 판정한다 — 먼저 읽은 사본 뒤에 찍힌 '시공 끝'도 본다(검수 E2-5)."""
+    oid = seed_order("CONSTRUCTION", "plain")
+    order = db_session.get(Order, oid)
+    stale = order.structured_data
+    db_session.execute(text("UPDATE orders SET structured_data = :sd WHERE id = :id"),
+                       {"sd": json.dumps(seed_sd("CONSTRUCTION", "partial"), ensure_ascii=False), "id": oid})
+    assert items_gate_blocks(stale, "CS", current="CONSTRUCTION") is False     # 잠그기 전 사본은 모른다
+    assert items_gate_blocks_locked(db_session, order, "CONSTRUCTION") is False  # CS · 완료가 아니면 판정 밖
+    assert items_gate_blocks_locked(db_session, order, "CS") is True
+    db_session.rollback()
+
+
 # ── 5. 지난 주문 일괄 완료 도구 — 스위치와 상관없이 자료로 뺀다 ───────────────
 
 _TOOL_PATH = Path(__file__).resolve().parents[2] / "tools" / "ops" / "bulk_complete_past_construction.py"
@@ -217,6 +257,25 @@ def test_partner_as_intake_mode(monkeypatch, stage, kind, flag, expected) -> Non
     assert as_intake.as_mode(order) == expected
 
 
+@pytest.mark.parametrize("stage,kind,flag,show", [
+    ("PRODUCTION", "partial", "1", True),        # AS 를 받는 주문이면 완공 사진 · AS 탭도 연다
+    ("PRODUCTION", "plain", "1", False),
+    ("PRODUCTION", "partial", "0", False),
+    ("CONSTRUCTION", "plain", "1", True),         # 지금 규칙 그대로
+])
+def test_partner_completion_tab_uses_the_as_intake_rule(app, monkeypatch, stage, kind, flag, show) -> None:
+    """협력사 화면 완공 사진 · AS 탭은 AS 접수와 같은 판정(stage_allows_as)을 쓴다(검수 E2-3)."""
+    from foms.services.partners import as_intake
+    from foms.web.partner import _completion_context
+
+    monkeypatch.setenv(FLAG, flag)
+    order = db_session.get(Order, seed_order(stage, kind))
+    with app.test_request_context():
+        ctx = _completion_context(db_session, order, stage)
+    assert ctx["show_completion"] is show
+    assert as_intake.stage_allows_as(stage, order.structured_data) is show
+
+
 # ── 화면: 강제 변경 창의 확인 · 다시 보내기 ──────────────────────────────────
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -229,7 +288,26 @@ def test_override_js_asks_and_resends_with_close_remaining_items() -> None:
     assert "!body.close_remaining_items" in js                                # 두 번째로는 묻지 않는다
     for rel in ("templates/orders/partials/dashboard_main.html", "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
-        assert "erp-stage-override.js') }}?v=20261121b" in (_ROOT / rel).read_text(encoding="utf-8"), rel
+        assert "erp-stage-override.js') }}?v=20261121c" in (_ROOT / rel).read_text(encoding="utf-8"), rel
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_override_js_close_items_text_lists_every_blocked_order() -> None:
+    """일괄 확인 창은 막힌 주문마다 한 줄을 보여 준다, 단건은 서버 글 그대로(검수 E2-2)."""
+    script = (
+        "global.window={};"
+        "global.document={readyState:'complete',addEventListener(){},querySelectorAll(){return []},"
+        "getElementById(){return null},querySelector(){return null}};"
+        f"require({json.dumps(str(_ROOT / 'static/js/orders/erp-stage-override.js'))});"
+        "var f=window.FOMS_STAGE_OVERRIDE.closeItemsText;"
+        "process.stdout.write(JSON.stringify([f({data:{blocked:[{order_id:7,remaining_summary:'11/17 부엌가구'},"
+        "{order_id:9,remaining_summary:''}]}}),f({message:'11/17 부엌가구 시공이 남아 있어요'}),f(null)]));"
+    )
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, encoding="utf-8",
+                         timeout=60, check=True).stdout
+    bulk, single, empty = json.loads(out)
+    assert bulk == chr(10).join(["남은 제품 시공이 있는 주문 2건", "#7 11/17 부엌가구", "#9 남은 제품"])
+    assert single == BLOCKED and empty == ""
 
 
 def test_tool_module_has_no_foms_import() -> None:

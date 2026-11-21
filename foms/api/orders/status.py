@@ -71,7 +71,7 @@ from foms.services.orders.admin_override import (
 )
 from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
-from foms.services.orders.items_construction_gate import items_gate_blocks, items_open_body
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked, items_open_body
 from foms.services.orders.trash_mirror import (
     invalidate_trash_caches,
     soft_delete_with_trash_mirror,
@@ -373,7 +373,8 @@ def update_order_status_response(
 
         # 남은 제품 문지기(제품마다 '시공 끝' 2단계 7절): CS · 완료로 가는 세 갈래(엔진 · 완료 서비스 ·
         # 엔진 밖 옛 쓰기) 모두 여기서 한 번에 막는다. 관리자 뚫기로도 못 넘는다(강제 변경 창이 길이다).
-        if items_gate_blocks(getattr(order, "structured_data", None), new_status, current=from_stage):
+        # 행을 잠근 최신 값 · 지금 단계로 판정한다 — 이미 CS · 완료면 쉰다(검수 E2-1 · E2-5).
+        if items_gate_blocks_locked(db, order, new_status):
             return jsonify(items_open_body(order)), 409
 
         if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
@@ -665,7 +666,7 @@ def bulk_update_order_status_response(
                 blocked_as_orders.append({"order_id": int(order.id), "status": overlay})
                 continue
             from_stage = current_stage_for_order(order)
-            if items_gate_blocks(getattr(order, "structured_data", None), new_status, current=from_stage):
+            if items_gate_blocks_locked(db, order, new_status):  # 잠근 최신 값 · 지금 단계로(E2-5)
                 blocked_items_construction_open.append(int(order.id))
                 continue
             punched: list[str] = []

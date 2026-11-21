@@ -44,14 +44,14 @@ def seed_sd(stage: str, kind: str) -> dict:
 
 
 def seed_order(stage: str = "CONSTRUCTION", kind: str = "partial", *, status: str | None = None,
-               hold: bool = False) -> int:
-    """ERP 주문 한 건(``hold=True`` 면 보류 — 상태 쓰기가 엔진 밖 옛 길로 간다)."""
+               hold: bool = False, regional: bool = False) -> int:
+    """ERP 주문 한 건(``hold=True`` 면 보류 — 상태 쓰기가 엔진 밖 옛 길로 간다, ``regional`` 은 지방 주문)."""
     sd = seed_sd(stage, kind)
     if hold:
         sd["workflow"]["hold"] = {"active": True, "held_at": "2026-11-10T00:00:00", "reason": "시험"}
     order = Order(received_date="2026-11-01", customer_name="가짜고객", phone="010-0000-0000",
                   address="가짜시 가짜로 1", product="가짜장", status=status or stage, is_erp_order=True,
-                  erp_stage_code=stage, structured_data=sd)
+                  erp_stage_code=stage, structured_data=sd, is_regional=regional)
     db_session.add(order)
     db_session.commit()
     return int(order.id)

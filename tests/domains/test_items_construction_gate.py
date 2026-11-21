@@ -42,7 +42,14 @@ def test_gate_table(monkeypatch) -> None:
     for target in ("CONSTRUCTION", "PRODUCTION", "SCHEDULED", "AS_COMPLETED"):
         assert items_gate_blocks(partial, target) is False, target
     assert items_gate_message(partial, "CONSTRUCTION", "CS") == BLOCKED
-    assert items_gate_message(partial, "CS", "CS") is None          # 제자리 전이는 막지 않는다
+    assert items_gate_message(partial, "PRODUCTION", "COMPLETED") == BLOCKED   # 지방 완료 꼴
+    # 들어갈 때만 막는다 — 지금 단계가 이미 CS · 완료면 쉰다(검수 E2-1 · E2-4)
+    for current in ("CS", "COMPLETED", "완료"):
+        for target in ("CS", "COMPLETED"):
+            assert items_gate_blocks(partial, target, current=current) is False, (current, target)
+            assert items_gate_message(partial, current, target) is None, (current, target)
+    for current in ("CONSTRUCTION", "PRODUCTION", "시공", "", None):
+        assert items_gate_blocks(partial, "CS", current=current) is True, current
     monkeypatch.setenv(FLAG, "0")
     assert items_gate_blocks(partial, "CS") is False
     assert items_gate_message(partial, "CONSTRUCTION", "CS") is None
@@ -54,8 +61,15 @@ _ENGINE_CASES = [
     ("CONSTRUCTION_COMPLETE", "CONSTRUCTION", "CS"),
     ("SET_MAIN_STAGE", "CONSTRUCTION", "CS"),
     ("SET_MAIN_STAGE", "PRODUCTION", "COMPLETED"),
-    ("CS_COMPLETE", "CS", "COMPLETED"),
     ("REGIONAL_COMPLETE", "PRODUCTION", "COMPLETED"),   # 지방 완료는 생산에서 곧장 완료로 간다
+]
+
+#: 이미 CS · 완료에서 떠나는 전이 — 부분 시공 중이어도 쉰다(검수 E2-1 · E2-4).
+_LEAVING_CASES = [
+    ("CS_COMPLETE", "CS", "COMPLETED"),
+    ("SET_MAIN_STAGE", "CS", "COMPLETED"),
+    ("SET_MAIN_STAGE", "COMPLETED", "CS"),               # 되돌리기
+    ("SET_MAIN_STAGE", "COMPLETED", "CONSTRUCTION"),
 ]
 
 
@@ -89,6 +103,15 @@ def test_engine_passes_controls_and_flag_off(app, monkeypatch, command, frm, to,
     assert not result.replayed and saved(oid)[1] == to
 
 
+@pytest.mark.parametrize("command,frm,to", _LEAVING_CASES)
+def test_engine_rests_when_order_is_already_cs_or_completed(app, command, frm, to) -> None:
+    actor = seed_user()
+    oid = seed_order(frm)
+    result = _engine(oid, actor.id, command, frm, to)
+    db_session.commit()
+    assert not result.replayed and saved(oid)[1] == to
+
+
 def test_engine_does_not_gate_other_targets(app) -> None:
     """대조군 — 생산 → 시공 같은 본 흐름 전이는 남은 제품과 상관없다."""
     actor = seed_user()
@@ -100,16 +123,41 @@ def test_engine_does_not_gate_other_targets(app) -> None:
 
 # ── 2. CS 완료 정본(둘째 자리) · cs/complete 라우트 ───────────────────────────
 
-def test_cs_complete_route_blocks_partial_open_even_for_admin_override(client) -> None:
+def test_cs_complete_regional_production_blocks_even_for_admin_override(client) -> None:
+    """지방 주문은 생산에서 곧장 완료로 들어간다 — 그 길은 막고 관리자 뚫기로도 못 넘는다."""
     login(client)
-    oid = seed_order("CS")
+    oid = seed_order("PRODUCTION", regional=True)
     for extra in ({}, {"admin_override": True, "override_reason": "관리자 뚫기"}):
         resp = client.post(f"/api/orders/{oid}/cs/complete", json=dict(extra))
         assert resp.status_code == 409, resp.get_data(as_text=True)
         body = resp.get_json()
         assert (body["success"], body["code"], body["message"], body["error"]) == (
             False, ITEMS_CONSTRUCTION_OPEN, BLOCKED, BLOCKED)
-    assert saved(oid)[1] == "CS"
+    assert saved(oid)[1] == "PRODUCTION"
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "STAFF"])
+def test_cs_complete_rests_on_cs_stage_so_cs_staff_is_not_stuck(client, role) -> None:
+    """이미 CS 인 부분 시공 주문 — CS 직원이 완료할 길이 있어야 한다(검수 E2-1, 탐침 P1)."""
+    login(client, role=role, team="CS")
+    oid = seed_order("CS")
+    resp = client.post(f"/api/orders/{oid}/cs/complete", json={})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert saved(oid)[:2] == ("COMPLETED", "COMPLETED")
+    assert UID_B not in saved(oid)[2]                                        # 아무것도 대신 찍지 않는다
+
+
+def test_flag_off_then_on_does_not_strand_order_in_cs(client, monkeypatch) -> None:
+    """스위치를 끈 사이 CS 로 간 부분 시공 주문 — 다시 켜도 완료할 수 있다(탐침 P2)."""
+    monkeypatch.setenv("FOMS_CONSTRUCTION_GATE_ENABLED", "0")
+    login(client)
+    oid = seed_order("CONSTRUCTION")
+    monkeypatch.setenv(FLAG, "0")
+    resp = client.post(f"/api/orders/{oid}/construction/complete", json={})
+    assert resp.status_code == 200 and saved(oid)[1] == "CS", resp.get_data(as_text=True)
+    monkeypatch.setenv(FLAG, "1")
+    resp = client.post(f"/api/orders/{oid}/cs/complete", json={})
+    assert resp.status_code == 200 and saved(oid)[1] == "COMPLETED", resp.get_data(as_text=True)
 
 
 @pytest.mark.parametrize("kind,flag", [("plain", "1"), ("all_done", "1"), ("partial", "0")])
@@ -122,8 +170,8 @@ def test_cs_complete_route_controls(client, monkeypatch, kind, flag) -> None:
     assert saved(oid)[:2] == ("COMPLETED", "COMPLETED")
 
 
-def test_quest_cs_approve_keeps_approval_and_reports_items_open(app) -> None:
-    """CS 최종 승인 뒤 자동 완료는 보류 · AS 처럼 막고 사유를 돌려준다(승인은 남는다)."""
+def test_quest_cs_approve_auto_complete_rests_on_cs_stage(app) -> None:
+    """CS 최종 승인 뒤 자동 완료 — 주문이 이미 CS 라 문지기는 쉰다(검수 E2-1)."""
     from foms.api.quest import _complete_cs_after_approve
 
     user = seed_user()
@@ -131,10 +179,9 @@ def test_quest_cs_approve_keeps_approval_and_reports_items_open(app) -> None:
     order = db_session.get(Order, oid)
     with app.test_request_context():
         completed, blocked, failed = _complete_cs_after_approve(db_session, order, user, user.id, {})
-    assert (completed, failed) == (False, None)
-    assert blocked["code"] == ITEMS_CONSTRUCTION_OPEN and "11/17 부엌가구" in blocked["message"]
-    db_session.rollback()
-    assert saved(oid)[1] == "CS"
+    assert (completed, blocked, failed) == (True, None, None)
+    db_session.commit()
+    assert saved(oid)[1] == "COMPLETED"
 
 
 # ── 3. 관리자 강제 단계 변경(N4) ───────────────────────────────────────────────
@@ -182,20 +229,31 @@ def test_stage_override_cs_controls(client, monkeypatch, kind, flag) -> None:
     assert all(m["source"] == icd.SOURCE_VISIT for m in marks.values())   # 아무것도 새로 찍지 않는다
 
 
-def test_stage_override_completed_manager_blocks_without_admin_hint_then_closes(client) -> None:
+@pytest.mark.parametrize("frm,to", [("CS", "COMPLETED"), ("COMPLETED", "CS")])
+def test_stage_override_rests_when_leaving_cs_or_completed(client, frm, to) -> None:
+    """CS → 완료, 완료 → CS 되돌리기는 막지 않고 아무것도 대신 찍지 않는다(검수 E2-1 · E2-4, 탐침 P5)."""
     login(client, role="MANAGER")
-    oid = seed_order("CS")
+    oid = seed_order(frm)
+    resp = _override(client, oid, to)
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert saved(oid)[1] == to and UID_B not in saved(oid)[2]
+
+
+def test_stage_override_regional_production_completed_blocks_without_admin_hint_then_closes(client) -> None:
+    """지방 주문 생산 → 완료(탐침 P4) — 막고(관리자 안내 없음), 동의하면 남은 제품을 찍고 넘긴다."""
+    login(client, role="MANAGER")
+    oid = seed_order("PRODUCTION", regional=True)
     resp = _override(client, oid, "COMPLETED")
     assert resp.status_code == 409, resp.get_data(as_text=True)
     body = resp.get_json()
     assert body["code"] == ITEMS_CONSTRUCTION_OPEN and body["message"] == BLOCKED   # 관리자 안내를 붙이지 않는다
-    assert saved(oid)[1] == "CS"
+    assert saved(oid)[1] == "PRODUCTION"
 
     resp = _override(client, oid, "COMPLETED", close_remaining_items=True)
     assert resp.status_code == 200, resp.get_data(as_text=True)
     status, stage, marks = saved(oid)
     assert (status, stage) == ("COMPLETED", "COMPLETED")
-    assert marks[UID_B]["source"] == icd.SOURCE_ADMIN_OVERRIDE
+    assert marks[UID_A]["source"] == icd.SOURCE_VISIT and marks[UID_B]["source"] == icd.SOURCE_ADMIN_OVERRIDE
 
 
 def test_stage_override_completed_admin_override_cannot_punch_but_close_passes(client) -> None:
@@ -215,29 +273,48 @@ def test_stage_override_completed_admin_override_cannot_punch_but_close_passes(c
 def test_stage_override_completed_close_requires_reason(client) -> None:
     """사유가 비면 찍지 않는다 — 빈 사유는 먼저 400 으로 끊긴다(기존 계약)."""
     login(client, role="MANAGER")
-    oid = seed_order("CS")
+    oid = seed_order("PRODUCTION", regional=True)
     resp = client.post(f"/api/orders/{oid}/workflow/stage-override",
                        json={"to_stage": "COMPLETED", "reason": " ", "confirm": True, "close_remaining_items": True})
     assert resp.status_code == 400
-    assert saved(oid)[1] == "CS" and UID_B not in saved(oid)[2]
+    assert saved(oid)[1] == "PRODUCTION" and UID_B not in saved(oid)[2]
 
 
-@pytest.mark.parametrize("to,stage", [("CS", "CONSTRUCTION"), ("COMPLETED", "CS")])
-def test_bulk_stage_override_is_all_or_nothing_then_closes(client, to, stage) -> None:
-    login(client, role="MANAGER")
-    partial, plain = seed_order(stage), seed_order(stage, "plain")
-    body = {"order_ids": [partial, plain], "to_stage": to, "reason": "일괄 정리", "confirm": True}
+@pytest.mark.parametrize("to,role,extra", [
+    ("CS", "MANAGER", {}),
+    ("COMPLETED", "ADMIN", {"admin_override": True, "override_reason": "관리자 뚫기"}),
+])
+def test_bulk_stage_override_names_every_blocked_order_then_closes(client, to, role, extra) -> None:
+    """일괄은 묶음 전체를 먼저 훑어 막힌 주문을 **모두** 알린다 — 동의 없이 찍히는 주문이 없다(검수 E2-2, 탐침 P3)."""
+    login(client, role=role)
+    first, second = seed_order("CONSTRUCTION"), seed_order("CONSTRUCTION")
+    plain = seed_order("CONSTRUCTION", "plain")
+    body = {"order_ids": [first, second, plain], "to_stage": to, "reason": "일괄 정리", "confirm": True, **extra}
 
     resp = client.post("/api/orders/workflow/stage-override/bulk", json=body)
     assert resp.status_code == 409, resp.get_data(as_text=True)
     data = resp.get_json()
-    assert data["code"] == ITEMS_CONSTRUCTION_OPEN and data["error"] == f"#{partial} {BLOCKED}"
-    assert saved(partial)[1] == stage and saved(plain)[1] == stage       # 한 건도 바뀌지 않는다
+    assert data["code"] == ITEMS_CONSTRUCTION_OPEN
+    assert data["data"]["order_ids"] == [first, second]
+    assert data["data"]["blocked"] == [{"order_id": first, "remaining_summary": "11/17 부엌가구"},
+                                       {"order_id": second, "remaining_summary": "11/17 부엌가구"}]
+    assert data["error"] == f"#{first} {BLOCKED}" + chr(10) + f"#{second} {BLOCKED}"
+    assert all(saved(o)[1] == "CONSTRUCTION" for o in (first, second, plain))   # 한 건도 바뀌지 않는다
 
     resp = client.post("/api/orders/workflow/stage-override/bulk", json={**body, "close_remaining_items": True})
     assert resp.status_code == 200, resp.get_data(as_text=True)
-    assert saved(partial)[1] == to and saved(plain)[1] == to
-    assert saved(partial)[2][UID_B]["source"] == icd.SOURCE_ADMIN_OVERRIDE
+    assert all(saved(o)[1] == to for o in (first, second, plain))
+    assert saved(first)[2][UID_B]["source"] == saved(second)[2][UID_B]["source"] == icd.SOURCE_ADMIN_OVERRIDE
+
+
+def test_bulk_stage_override_leaves_cs_orders_alone(client) -> None:
+    """완료 목표 일괄에 이미 CS 인 부분 시공 주문이 섞여도 그 주문은 막지 않는다(검수 E2-1)."""
+    login(client, role="MANAGER")
+    at_cs = seed_order("CS")
+    body = {"order_ids": [at_cs], "to_stage": "COMPLETED", "reason": "일괄 정리", "confirm": True}
+    resp = client.post("/api/orders/workflow/stage-override/bulk", json=body)
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert saved(at_cs)[1] == "COMPLETED" and UID_B not in saved(at_cs)[2]
 
 
 def test_apply_stage_override_service_backstop(app) -> None:
@@ -255,3 +332,7 @@ def test_apply_stage_override_service_backstop(app) -> None:
     payload = apply_stage_override(order=order, to_stage="MEASURE", reason="되돌림", user_id=user.id, db=db_session)
     db_session.commit()
     assert payload["to"] == "MEASURE" and "items_closed" not in payload      # 대조군 — CS · 완료가 아니다
+    done = db_session.get(Order, seed_order("COMPLETED"))
+    payload = apply_stage_override(order=done, to_stage="CS", reason="되돌림", user_id=user.id, db=db_session)
+    db_session.commit()
+    assert payload["mode"] == "regress" and "items_closed" not in payload   # 완료 → CS 되돌리기는 쉰다(E2-4)

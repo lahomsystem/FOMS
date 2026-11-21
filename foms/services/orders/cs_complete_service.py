@@ -238,7 +238,8 @@ def _completion_gate(db: Any, order: Order, actor_id: Any, idem_key: Optional[st
         if override is None:
             return _cs_gate_block(order, _ensure_dict(order.structured_data))
         punched.append(hit[0])
-    if items_gate_blocks(order.structured_data, "COMPLETED"):
+    # 지금 단계가 이미 CS 면 쉰다(검수 E2-1 — CS 에 갇히지 않게). 지방 완료(생산 → 완료)는 막는다.
+    if items_gate_blocks(order.structured_data, "COMPLETED", current=read_main_stage(order)):
         if close_items is None:
             return jsonify(items_open_body(order)), 409
         # 찍기는 잠근 최신 행에 한다(잠그기 전 사본을 되쓰면 남의 저장을 덮는다). 전이 엔진이 같은 잠금을 잇는다.

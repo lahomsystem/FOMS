@@ -29,7 +29,7 @@ from models import Order
 from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
 from foms.services.orders.state_axes import open_as_outranks_main_status_write
 from foms.services.orders.item_construction_done import blocked_message
-from foms.services.orders.items_construction_gate import items_gate_blocks
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked
 from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 # 의존성 없는 상수 모듈이다(수집 파이프라인을 끌어오지 않는다 — constants.py 도입부 참고).
@@ -331,7 +331,8 @@ def edit_order(order_id):
                 status = getattr(_o, 'status', None) or ''
                 flash('AS 접수 중인 주문이라 주문 상태는 그대로 두었습니다. AS 표시는 그대로 남습니다.', 'info')
             # 남은 제품 문지기(제품마다 '시공 끝' 2단계 7절) — CS · 완료로 바꾸는 상태 글만 두고 나머지 칸은 저장한다.
-            if status != (getattr(_o, 'status', None) or '') and items_gate_blocks(getattr(_o, 'structured_data', None), status):
+            # 행을 잠근 최신 값 · 지금 단계로 판정한다(이미 CS · 완료면 쉰다 — 검수 E2-1 · E2-5).
+            if status != (getattr(_o, 'status', None) or '') and items_gate_blocks_locked(db, _o, status):
                 status = getattr(_o, 'status', None) or ''
                 flash(f"{blocked_message(getattr(_o, 'structured_data', None))}. 주문 상태는 그대로 두고 나머지만 저장했어요.", 'warning')
             measurement_date = request.form.get('measurement_date', getattr(_o, 'measurement_date', None) or '')
