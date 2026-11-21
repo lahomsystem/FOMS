@@ -2020,7 +2020,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_approve",
-      "lineno": 373,
+      "lineno": 380,
       "methods": [
         "POST"
       ],
@@ -2029,7 +2029,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_create",
-      "lineno": 152,
+      "lineno": 154,
       "methods": [
         "POST"
       ],
@@ -2038,7 +2038,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
-      "lineno": 836,
+      "lineno": 843,
       "methods": [
         "PUT"
       ],
@@ -2866,7 +2866,7 @@
     {
       "path": "foms/web/orders/edit.py",
       "endpoint": "edit_order",
-      "lineno": 241,
+      "lineno": 243,
       "methods": [
         "POST"
       ],
@@ -2875,7 +2875,7 @@
     {
       "path": "foms/web/orders/listing.py",
       "endpoint": "add_order",
-      "lineno": 341,
+      "lineno": 342,
       "methods": [
         "POST"
       ],
@@ -2884,7 +2884,7 @@
     {
       "path": "foms/web/orders/listing.py",
       "endpoint": "bulk_action",
-      "lineno": 581,
+      "lineno": 582,
       "methods": [
         "POST"
       ],

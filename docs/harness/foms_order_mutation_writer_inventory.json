@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 90,
+    "total": 91,
     "external": 34
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 49,
+    "CANONICAL": 50,
     "EXTERNAL": 34,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 86,
+    "flag_modified_structured_data": 87,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -55,31 +55,31 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 956,
+      "lineno": 963,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-LEGACY-01"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 296,
+      "lineno": 297,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-LEGACY-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 195,
+      "lineno": 197,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 708,
+      "lineno": 715,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 907,
+      "lineno": 914,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -169,7 +169,7 @@
     },
     {
       "path": "foms/services/orders/cs_complete_service.py",
-      "lineno": 182,
+      "lineno": 187,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
@@ -217,7 +217,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 499,
+      "lineno": 505,
       "kind": "flag_modified_structured_data",
       "owner": "ORDER-CREATE-01"
     }
@@ -435,7 +435,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 956,
+      "lineno": 963,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-LEGACY-01"
@@ -456,7 +456,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 296,
+      "lineno": 297,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-LEGACY-01"
@@ -526,21 +526,21 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 195,
+      "lineno": 197,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 708,
+      "lineno": 715,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 907,
+      "lineno": 914,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
@@ -694,7 +694,7 @@
     },
     {
       "path": "foms/services/orders/cs_complete_service.py",
-      "lineno": 182,
+      "lineno": 187,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
@@ -714,6 +714,13 @@
       "owner": "RESTORE-GUI-01"
     },
     {
+      "path": "foms/services/orders/items_construction_gate.py",
+      "lineno": 157,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "ITEM-CONSTRUCTION-DONE-E2"
+    },
+    {
       "path": "foms/services/orders/offline_recovery.py",
       "lineno": 257,
       "kind": "flag_modified_structured_data",
@@ -722,7 +729,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 409,
+      "lineno": 417,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-CORE-00"
@@ -750,7 +757,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 407,
+      "lineno": 426,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-OVERLAY-01"
@@ -848,7 +855,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 499,
+      "lineno": 505,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "ORDER-CREATE-01"
