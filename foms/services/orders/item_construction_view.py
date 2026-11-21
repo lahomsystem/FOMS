@@ -6,8 +6,9 @@
 스위치(``is_item_construction_done_enabled``)가 꺼져 있거나 나눠 시공하는 주문이 아니면 모든 함수가
 "바꿀 것 없음"(None · 빈 값 · 그대로)을 돌려준다 — 화면이 지금과 같다.
 
-방문이 열려 있는지는 ``workflow.history`` 로 가른다: 마지막 "시공 시작" 줄 뒤에 "부분 시공 끝 …" 줄
-(``PARTIAL_VISIT_NOTE_PREFIX`` — [오늘 시공 끝] 때 서버가 남긴다, 설계서 4.2 ③)이 있으면 방문은 닫혔다.
+방문이 열려 있는지는 ``workflow.history`` 로 가른다: 마지막 "시공 시작" 줄 뒤에 방문을 닫는 줄 — "부분 시공 끝 …"
+(``PARTIAL_VISIT_NOTE_PREFIX`` — [오늘 시공 끝], 설계서 4.2 ③) 또는 "시공 불가 …"(``FAIL_NOTE_PREFIX`` — 생산 단계
+[시공 불가]가 방문만 닫는 "시공 불가 (단계 그대로) → …" 포함) — 이 있으면 방문은 닫혔다.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.state_axes import read_main_stage
 
 __all__ = [
+    "FAIL_NOTE_PREFIX",
     "PARTIAL_VISIT_NOTE_PREFIX",
     "SPLIT_PRODUCTION_NOTE",
     "SPLIT_PRODUCTION_STAGE_TEXT",
@@ -46,6 +48,8 @@ __all__ = [
 
 #: [오늘 시공 끝] 때 서버(E1)가 ``workflow.history`` 에 남기는 줄의 머리말(설계서 4.2 ③).
 PARTIAL_VISIT_NOTE_PREFIX = "부분 시공 끝"
+#: [시공 불가] 줄의 머리말 — 시공 단계 "시공 불가 → …", 생산 단계(방문만 닫음) "시공 불가 (단계 그대로) → …".
+FAIL_NOTE_PREFIX = "시공 불가"
 _START_NOTE = "시공 시작"
 PRODUCTION_STAGE_CODES = ("PRODUCTION", "생산")
 #: [되돌리기]가 열리는 주 단계(``read_main_stage`` 값) — 서버 되돌리기와 같은 조건(결정 N9).
@@ -68,7 +72,7 @@ def _label(day: Any) -> str:
 
 
 def _last_note_indexes(sd: dict) -> tuple[int, int]:
-    """(마지막 "시공 시작" 줄 위치, 마지막 "부분 시공 끝" 줄 위치). 없으면 -1."""
+    """(마지막 "시공 시작" 줄 위치, 마지막 방문 닫는 줄["부분 시공 끝" · "시공 불가"] 위치). 없으면 -1."""
     workflow = sd.get("workflow")
     history = workflow.get("history") if isinstance(workflow, dict) else None
     start = partial = -1
@@ -78,18 +82,20 @@ def _last_note_indexes(sd: dict) -> tuple[int, int]:
         note = str(entry.get("note") or "").strip()
         if note == _START_NOTE:
             start = index
-        elif note.startswith(PARTIAL_VISIT_NOTE_PREFIX):
+        elif note.startswith((PARTIAL_VISIT_NOTE_PREFIX, FAIL_NOTE_PREFIX)):
             partial = index
     return start, partial
 
 
 def partial_visit_closed(structured_data: Any) -> bool:
-    """마지막 "시공 시작" 뒤에 [오늘 시공 끝] 줄이 있다 — 그 방문은 닫혔고 다음 방문은 [시공 시작]부터다.
+    """나눠 시공 주문에서 마지막 "시공 시작" 뒤에 방문 닫는 줄이 있다 — 다음 방문은 [시공 시작]부터다.
 
-    스위치가 꺼져 있으면 늘 False(지금과 같다). [오늘 시공 끝] 줄이 하나도 없는 주문은 False.
+    스위치가 꺼져 있거나 나눠 시공이 아니면 늘 False(지금과 같다 — 시공 단계 보통 주문의 [시공 불가]
+    "현장 문제"는 단계가 시공에 남지만 지금 표시 그대로 둔다).
     """
-    start, partial = _last_note_indexes(_sd(structured_data))
-    return partial > start and is_item_construction_done_enabled()
+    sd = _sd(structured_data)
+    start, partial = _last_note_indexes(sd)
+    return partial > start and is_item_construction_done_enabled() and is_split_order(sd)
 
 
 def visit_open(structured_data: Any) -> bool:
