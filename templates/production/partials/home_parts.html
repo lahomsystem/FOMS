@@ -3,7 +3,7 @@
    카드 = 확정 도면 한 장. 내 파트 단추는 쓸 수 있는 사람에게만(D53 · D55), 다른 파트 한 줄은 누를 수 없는 글(D51).
    칸 단추 셋은 보이기/숨기기만(새 요청 없음). 확인 창 · 크게 보기 겉틀은 home_parts_overlays.html 에 한 번만 있다.
    인라인 style · script 없음, 모양은 static/css/contexts/production/parts.css. 금액 없음(D7). #}
-{% from 'production/partials/home_date_macros.html' import home_href %}
+{% from 'production/partials/home_date_macros.html' import home_href, fph_due, fph_chip %}
 {% set pb = part_board %}
 {% set pp = pb.panes[d.key] %}
 {% set is_cut = pb.part == 'cut' %}
@@ -62,6 +62,7 @@
         <a class="pp-img pp-file" href="{{ c.view_url }}" target="_blank" rel="noopener"><b>{{ (c.filename or c.key).rsplit('.', 1)[-1] | upper }}</b><span>{{ c.filename or '파일' }}</span></a>
         {% endif %}
         <div class="pp-ln"><span class="fph-dr__nm"><b>{{ c.customer_name }}</b> <small>#{{ c.order_id }}</small>{% if c.has_changes %}<em class="pp-chg">바뀜</em>{% endif %}</span><span class="pp-no">도면 {{ c.no }}/{{ c.of }}</span></div>
+        {{ fph_due(c) }}
         <span class="fph-dr__pr pp-item">{{ c.item_label or '품목 없음' }}{% if c.item_spec %} · {{ c.item_spec }}{% endif %}</span>
         {% if c.replaced %}<span class="pp-replaced">{{ c.replaced.label }}</span>{% endif %}
         <span class="fph-dr__by pp-by">{% for o in c.others %}<span class="fph-by pp-w-{{ o.tone }}" data-pp-other="{{ o.part }}"><i>{{ o.label }}</i> {{ o.word }}</span>{% endfor %}</span>
@@ -73,11 +74,11 @@
     {% if pp.hidden %}<p class="pp-cap">더 있는 {{ pp.hidden }}장은 안 보여요. 날을 나눠 보거나 찾기 탭에서 찾아 주세요.</p>{% endif %}
     {% if pp.wait_count %}
     <h3 class="fph-pane__g pp-wait-g">도면·컨펌 기다림 {{ pp.wait_count }} <small>도면이 오면 카드로 나와요</small></h3>
-    <div class="fph-wg">{% for r in pp.wait_rows %}<a class="fph-wi pp-wait" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small></a>{% endfor %}{% for r in pp.no_drawing_rows %}<a class="fph-wi pp-wait" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · 도면 없음</small></a>{% endfor %}</div>
+    <div class="fph-wg">{% for r in pp.wait_rows %}{{ fph_chip(r, false, 'pp-wait') }}{% endfor %}{% for r in pp.no_drawing_rows %}{{ fph_chip(r, false, 'pp-wait', '도면 없음') }}{% endfor %}</div>
     {% endif %}
     {% if pp.done_count %}
     <h3 class="fph-pane__g">제작 완료 {{ pp.done_count }} <small>파트 일이 끝난 집</small></h3>
-    <div class="fph-wg">{% for r in d.done_rows %}<a class="fph-wi is-done pp-donechip" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ r.customer_name }} <small>#{{ r.id }} · {{ r.v3_product_label or r.home_stage }}</small></a>{% endfor %}</div>
+    <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true, 'pp-donechip') }}{% endfor %}</div>
     {% endif %}
   </div>
 </div>
