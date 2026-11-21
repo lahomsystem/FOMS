@@ -1,0 +1,4 @@
+{# PC(마우스) 응답에만 — ERP 둘째 줄 메뉴(다른 PC 화면과 같은 조각, '생산' 켜짐). 설계서 2026-11-21-production-pc-viewer §6-1.
+   태블릿은 레일이 있어 그리지 않는다. 좁은 PC 창(992 아래)은 모바일 셸 규칙(foms-shell.css)이 .foms-shell-desktop-only 를 숨긴다.
+   전체 페이지 · 셸 조각이 같은 몸통(home_body.html)을 쓰므로 둘 다 같은 메뉴를 싣는다(parity). #}
+<div class="foms-shell-desktop-only fpc-subnav">{% set erp_sub_nav_active = 'production' %}{% include 'partials/shared/erp_sub_nav.html' %}</div>

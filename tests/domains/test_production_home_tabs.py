@@ -163,6 +163,8 @@ def test_바뀐_것_탭은_받은함에_취소_주문과_확인_단추(client) -
 
 def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_단추가_없다(client) -> None:
     _make_user(client, "tabs_prod_steps", "PRODUCTION")
+    # [끝]은 쓰기 팀 + 태블릿(foms_ptr=coarse)에서만(쿠키 없는 첫 요청 · PC 는 안 그림, 설계서 2026-11-21-production-pc-viewer §4)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
     _add_order("PRODUCTION", "엣지차례", 3, steps_done=("cut",), with_run=True)
     _add_order("PRODUCTION", "재단차례", 4, with_run=True)
     _add_order("PRODUCTION", "보류중", 5, with_run=True, hold=True)

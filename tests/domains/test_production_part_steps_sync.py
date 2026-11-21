@@ -58,6 +58,8 @@ def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", pa
 def _login(client, user: Person) -> None:
     with client.session_transaction() as sess:
         sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    # 전체 화면 시트의 공정 단추는 태블릿(foms_ptr=coarse)에서만 그린다(PC 보기 전용, 설계서 2026-11-21-production-pc-viewer §5)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
 
 
 def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None) -> int:

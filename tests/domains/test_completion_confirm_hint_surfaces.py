@@ -204,6 +204,7 @@ def test_production_tablet_kanban_card_carries_split_note(client, monkeypatch):
 def test_production_side_sheet_and_sheet_page_carry_split_note(client, monkeypatch):
     """생산 옆 시트 · 전체 화면 시트 — 시트 뿌리에 [제작 완료] 글(대조군 시트에는 없음)."""
     _login(client, monkeypatch, v2=False)
+    _hints(client, **TABLET)  # 전체 화면 시트의 [제작 완료]는 태블릿에서만(PC 보기 전용, 설계서 2026-11-21-production-pc-viewer §5)
     two, one = _seed_production()
     for url, marker in (("/erp/production/tablet-sheet/{id}", 'class="foms-prod-sheet"'),
                         ("/erp/production/sheet/{id}", "data-foms-prod-sheet-page")):

@@ -23,14 +23,14 @@
   <div class="fph-sp__bot" data-foms-prod-sheet-page data-order-id="{{ p.id }}">
     {% if p.hold_active %}
     <div class="fph-sp__hold"><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>보류 중</b>{% if p.hold_reason %}<span>보류 사유 · {{ p.hold_reason }}</span>{% endif %}</div>
-    {% else %}
+    {% elif can_act %}
     <button type="button" class="fph-sp__done" data-foms-step-finish data-order-id="{{ p.id }}" data-step-key="{{ p.key }}" data-step-label="{{ p.label }}"{% if p.next_id %} data-next-order="{{ p.next_id }}"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ p.label }} 끝</button>
     {% endif %}
-    <div class="fph-sp__acts">
+    {% if can_act %}<div class="fph-sp__acts">
       <button type="button" class="fph-sp__act is-bad" data-foms-sheet-defect-toggle aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량</button>
       <button type="button" class="fph-sp__act{% if p.hold_active %} is-on{% endif %}" data-tablet-sheet-action="production-hold" data-order-id="{{ p.id }}" data-hold-active="{{ 1 if p.hold_active else 0 }}" data-hold-reason="{{ p.hold_reason }}">{% if not p.hold_active %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>{% endif %}{{ '보류 해제' if p.hold_active else '보류' }}</button>
     </div>
-    <div class="fph-sp__chips" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">{% for r in defect_reasons %}<button type="button" class="fph-sp__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}</div>
+    <div class="fph-sp__chips" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">{% for r in defect_reasons %}<button type="button" class="fph-sp__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}</div>{% endif %}
     <p class="fph-sp__recent" data-foms-sheet-defect-recent{% if not p.latest_defect %} hidden{% endif %}>{% if p.latest_defect %}최근 불량 · {{ p.latest_defect.reason }}{% if p.latest_defect.meta %} · {{ p.latest_defect.meta }}{% endif %}{% endif %}</p>
     <p class="fph-sp__status" data-foms-sheet-status aria-live="polite"></p>
     {% if p.next_id %}<p class="fph-sp__next">끝내면 다음은 <b>{{ p.next_name }}</b></p>{% endif %}

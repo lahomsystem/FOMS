@@ -31,6 +31,7 @@ from foms.services.production.home_step_panel import attach_step_panels, parse_s
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
+from foms.services.production.pc_view import attach_pc_inbox, attach_pc_rows, pc_due, production_screen_flags
 from foms.services.production_change_alerts import collect_production_tombstones
 from foms.services.production_home_changes import (
     DONE_ALL_VALUE,
@@ -166,10 +167,14 @@ def erp_production_home():
     surface = _tablet_part_surface(user)
     tab = _resolve_home_tab(request.args.get('tab') or 'date', mode, surface)
     day_view = request.args.get('view') == DAY_VIEW and tab in ('date', 'parts')
+    # 기기 · 권한 판정 한 곳(PC 보기 전용 · [고치기] · 쓰기 단추, 설계서 2026-11-21-production-pc-viewer §4 · §5 · §7)
+    flags = production_screen_flags(user, request)
     # 협력사 거르기(헤더 메뉴 · 쿠키)를 보드와 같이 먹는다(설계서 2026-11-21-production-pc-viewer §9-11).
     partner_org = partner_filter_value(request)
     rows, stats = build_production_home(db, user, partner_org=partner_org)
     today = get_today_kst()
+    if flags['pc_view']:
+        attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
     now_kst = datetime.datetime.now(_KST)
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
@@ -181,7 +186,8 @@ def erp_production_home():
     screen = _part_screen(db, user, tab, mode, surface, {'panes': [pane]} if pane is not None else None)
     _t0 = time.perf_counter()
     if day_view:
-        response = make_response(render_template('production/partials/home_day_pane.html', tab=tab, d=pane, **screen))
+        pane_tpl = 'production/partials/home_pc_day_pane.html' if flags['pc_view'] else 'production/partials/home_day_pane.html'
+        response = make_response(render_template(pane_tpl, tab=tab, d=pane, **screen, **flags))
         response.headers[DAY_PANE_HEADER] = pane['key']
         response.headers['Cache-Control'] = 'no-store'
         apply_ept_b7_render_headers(response, route_id='erp_production_home_day',
@@ -195,6 +201,8 @@ def erp_production_home():
     changes = (production_home_changes_view(db, user, rows, tombstones,
                                             show_all_done=request.args.get('done') == DONE_ALL_VALUE)
                if tab == 'changes' else None)
+    if flags['pc_view']:
+        attach_pc_inbox(changes, rows)
     if tab == 'all':
         production_home_attach_change_by(db, rows)
     queues = production_home_step_queues(rows) if tab == 'steps' else None
@@ -214,6 +222,7 @@ def erp_production_home():
         changes=changes,
         queues=queues,
         **_step_panel_screen(tab, surface, queues, user),
+        **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),
         loaded_at_iso=now_kst.isoformat(timespec='seconds'),
@@ -241,11 +250,17 @@ def erp_production_sheet_page(order_id: int):
     if order is None:
         abort(404)
     sheet = build_production_sheet_view(db, order, user, full=True)
+    flags = production_screen_flags(user, request)
+    # PC 머리 시공일 = 첫 화면 ① 칸과 같은 글(M/D (요일) · D-n · 외 n, 설계서 §6-3 규칙 1). 태블릿 · 폰은 지금 글 그대로.
+    due = (pc_due({'construction_date': order.erp_construction_date, 'structured_data': order.structured_data or {}},
+                  get_today_kst()) if flags['pc_view'] else None)
     return render_template(
         'production/sheet.html',
         order=sheet,
         is_admin=bool(user and user.role == 'ADMIN'),
         defect_reasons=_PRODUCTION_DEFECT_REASONS,
+        pc_sheet_due=due,
+        **flags,
     )
 
 

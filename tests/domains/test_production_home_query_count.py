@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 
+import pytest
 from sqlalchemy import event
 from werkzeug.security import generate_password_hash
 
@@ -174,3 +175,36 @@ def test_production_home_day_pane_fragment_query_count(client, monkeypatch):
     assert resp_big.get_data(as_text=True).count("data-pp-card ") == 6
     assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
     assert q_big <= DAY_PANE_QUERY_CAP, f"날 조각 쿼리 상한 넘음: big={q_big} > {DAY_PANE_QUERY_CAP}"
+
+
+# PC(마우스) 첫 화면(설계서 2026-11-21-production-pc-viewer §6 · §11): ERP 둘째 줄 메뉴 · 시공일 칸 · 누가 · 언제 · 늦음 줄은 이미 읽은
+# 행에서 만든다(쿼리 0). 날짜 · 찾기 탭 PC 응답도 같은 상한(11) 안이고 주문이 늘어도 늘지 않는다.
+PC_COOKIES = {"foms_ptr": "fine", "foms_vw": "wide", "foms_scr": "1920"}
+
+
+@pytest.mark.parametrize("tab", ["", "?tab=all", "?tab=steps"])
+def test_production_home_pc_query_count_same_cap(client, monkeypatch, tab):
+    """PC 관리자: 날짜 · 찾기 · 내 공정 탭 — 주문 4 → 12건에도 쿼리가 늘지 않고 상한 11 안."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    user = User(username=f"prod_home_qc_pc{tab[-3:]}", password=generate_password_hash("x"), role="ADMIN", team="CS",
+                name="관리자", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    for name, value in PC_COOKIES.items():
+        client.set_cookie(name, value, domain="localhost")
+    for i in range(4):
+        _seed_order(i)
+    url = HOME_URL + tab
+    assert client.get(url).status_code == 200
+    resp_small, q_small = _count_queries(lambda: client.get(url))
+    html = resp_small.get_data(as_text=True)
+    assert "foms-prod-home is-pc" in html and '<nav class="erp-pro-nav"' in html and "data-foms-pc-due" in html
+    for i in range(400, 408):
+        _seed_order(i)
+    resp_big, q_big = _count_queries(lambda: client.get(url))
+    assert resp_big.status_code == 200
+    assert q_big - q_small <= ALLOWED_DELTA, f"N+1 회귀 의심: small={q_small}, big={q_big}"
+    assert q_big <= ABS_QUERY_CAP, f"PC 첫 화면 쿼리 상한 넘음({tab or 'date'}): big={q_big} > {ABS_QUERY_CAP}"
