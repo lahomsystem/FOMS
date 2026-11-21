@@ -21,17 +21,11 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.as_axis_read import open_as_status_text
-from foms.services.orders.confirm_drawing_gate import (
-    effective_drawing_status,
-    stage_override_drawing_warning,
-)
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status, stage_override_drawing_warning
 from foms.services.orders.draft_guard import ensure_order_promoted
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
-from foms.services.orders.items_construction_gate import (
-    close_remaining_items as _close_remaining_items,
-    items_gate_blocks,
-    items_open_error,
-)
+from foms.services.orders.items_construction_gate import close_remaining_items as _close_remaining_items
+from foms.services.orders.items_construction_gate import items_gate_blocks, items_open_error
 from foms.services.production.steps import production_complete_block_body
 from models import Order, OrderEvent
 
