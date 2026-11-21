@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PC 생산 보기 화면</title>
+<style>
+/* PC 생산 첫 화면 = 보기 전용 시안 — 2026-11-21.
+   설계서 docs/specs/2026-11-21-production-pc-viewer_SPEC.md (§4 기기 · §5 권한 · §6 꼴 · §6-3 시공일 · §7 [고치기] · §8 늦음).
+   ① PC 1440×900 날짜 탭(보기 전용)  ② 1920×1080 · 브라우저 80% = CSS 2400×1350  ③ 관리자 [고치기] 켬 · 내 공정 탭  ④ 권한 표.
+   오늘 = 11/21 (토)로 가정. 이름 · 회사는 전부 지어낸 것. 금액 없음(D7). 바깥 글꼴 · 그림 · 요청 없음 — 이 파일 하나로 열린다. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;--accent:#4a55b8;
+  --mark:#db2777;--mark-ink:#ffffff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;
+  --app-danger:#dc2626;--app-danger-ink:#b91c1c;--app-danger-50:#fef2f2;
+  --app-warn:#d97706;--app-warn-line:#f59e0b;--app-warn-50:#fffbeb;--app-warn-ink:#92400e;
+  --app-ok:#059669;--app-ok-dark:#047857;--app-teal:#0f766e;--app-teal-50:#ecfdf5;
+  --app-tip:#1f2329;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 16px 56px}
+h1,h2,h3,p{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em}
+.lead{max-width:80ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.toc{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:700}
+.frame{margin-top:48px}
+.frame h2{font-size:26px;font-weight:800;margin-bottom:4px}
+.frame h2 small{font-size:17px;font-weight:700;color:var(--muted);margin-left:8px}
+.frame .idea{color:var(--muted);margin-bottom:12px;max-width:84ch}
+.frame .idea b{color:var(--fg)}
+.stage{position:relative;overflow:hidden;width:100%;border-radius:12px;border:1px solid var(--line);background:var(--app-bg)}
+.notes{list-style:none;padding:0;margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:8px 22px}
+.notes li{display:flex;gap:10px;align-items:flex-start;font-size:16px;line-height:1.45}
+.notes li span{color:var(--muted)}
+.notes li b{color:var(--fg)}
+.num{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--mark);color:var(--mark-ink);font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.tbl-wrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table.perm{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+table.perm th,table.perm td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.perm th{font-weight:800;background:color-mix(in srgb,var(--card) 92%,var(--accent))}
+table.perm tr:last-child td{border-bottom:0}
+.y{color:#047857;font-weight:800}.n{color:#b91c1c;font-weight:800}.c{color:#92400e;font-weight:800}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .y{color:#6ee7b7}:root:not([data-theme="light"]) .n{color:#fca5a5}:root:not([data-theme="light"]) .c{color:#fcd34d}}
+
+/* ───── 화면 그림(테마와 무관하게 밝은 한 벌) ───── */
+.art{position:absolute;left:0;top:0;transform-origin:0 0;background:var(--app-bg);color:var(--app-text);font-size:15px;line-height:1.35;overflow:hidden;font-variant-numeric:tabular-nums;display:flex;flex-direction:column}
+.art.w1440{width:1440px;height:900px}
+.art.w2400{width:2400px;height:1350px}
+.art *{box-sizing:border-box}
+.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.rel{position:relative}
+.mk{position:absolute;z-index:8;top:-13px;left:-13px;width:34px;height:34px;border-radius:50%;background:#db2777;color:#fff;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;font-style:normal;line-height:1;pointer-events:none}
+.mk.right{left:auto;right:-13px}
+.mk.in{top:6px;left:6px}
+.mk.inr{top:6px;left:auto;right:6px}
+
+/* ERP 위 줄 · 첫째 메뉴 줄(지금 그대로) */
+.tb{height:86px;flex-shrink:0;display:flex;align-items:center;padding:0 24px;gap:14px;background:var(--app-raised)}
+.tb h3{font-size:30px;font-weight:500;letter-spacing:-.01em;margin-right:auto}
+.tb .sq{width:62px;height:54px;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:26px;color:#4b525d}
+.tb .sq.hot{color:#dc2626}
+.tb .zm{display:flex;align-items:center;border:1px solid var(--app-line);border-radius:999px;background:#fff;height:36px;font-weight:700;font-size:15px}
+.tb .zm span{padding:0 10px}
+.tb .me{height:48px;border:1px solid var(--app-line);border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 18px;font-weight:800;font-size:17px}
+.mr{height:64px;flex-shrink:0;display:flex;align-items:center;gap:22px;padding:0 32px;background:var(--app-raised);border-top:1px solid var(--app-line);border-bottom:1px solid var(--app-line);font-size:17px;color:#3b4250}
+.mr .sp{margin-left:auto;padding-left:22px;border-left:1px solid var(--app-line);display:flex;gap:18px}
+.mr .nv{display:inline-flex;align-items:center;gap:4px}
+.mr .nv i{font-style:normal;background:#03c75a;color:#fff;font-size:11px;font-weight:800;border-radius:3px;padding:0 4px}
+
+/* 페이지 카드 */
+.pg{flex:1;min-height:0;margin:0 12px;background:#fff;border-radius:0 0 12px 12px;display:flex;flex-direction:column;overflow:hidden}
+.sn{height:56px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 24px;border-bottom:1px solid var(--app-line);font-size:15px;color:#2f3540}
+.sn a{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;color:inherit;text-decoration:none;font-weight:600}
+.sn a.on{background:var(--app-brand-50);color:var(--app-brand-dark);font-weight:800;box-shadow:inset 0 -3px 0 var(--app-brand)}
+.tr{height:70px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 16px 0 22px;border-bottom:1px solid var(--app-line)}
+.tr .ttl{font-size:24px;font-weight:800}
+.tr .sub{color:var(--app-text2);font-size:16px}
+.tabs{display:flex;align-items:stretch;background:#eef0f6;border-radius:12px;padding:4px;height:52px}
+.tabs a{display:flex;align-items:center;gap:6px;padding:0 20px;border-radius:9px;font-weight:800;font-size:16px;color:#2f3540;text-decoration:none}
+.tabs a small{font-size:14px;color:var(--app-text3);font-weight:700}
+.tabs a small.hot{color:var(--app-danger)}
+.tabs a.on{background:#fff;color:var(--app-brand-dark);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tabs a.out{border-left:1px solid var(--app-line2);border-radius:0 9px 9px 0}
+.tools{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:15px;color:var(--app-text2)}
+.chip-view{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border-radius:999px;background:var(--app-teal-50);color:var(--app-teal);border:1.5px solid #5eead4;font-weight:800;font-size:15px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:48px;padding:0 18px;border-radius:10px;border:1.5px solid var(--app-line2);background:#fff;font-weight:800;font-size:16px;color:var(--app-text)}
+.btn.edit{border-color:var(--app-warn-line);color:var(--app-warn-ink)}
+.btn.edit-on{background:var(--app-warn);border-color:var(--app-warn);color:#fff}
+.fs{display:flex;align-items:center;gap:4px}
+.fs b{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--app-line);border-radius:7px;background:#fff;color:var(--app-text)}
+.fs span{border:1px solid var(--app-line);border-radius:7px;height:30px;padding:0 8px;display:inline-flex;align-items:center;font-weight:700;color:var(--app-text)}
+.dot{width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block}
+
+/* 몸통: 왼쪽 시공일 띠 + 오른쪽 줄 칸 */
+.bd{flex:1;min-height:0;display:grid;grid-template-columns:316px minmax(0,1fr)}
+.strip{border-right:1px solid var(--app-line);overflow:hidden;display:flex;flex-direction:column}
+.strip .h{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:800;font-size:15px;border-bottom:1px solid var(--app-line)}
+.strip .h small{font-size:12px;color:var(--app-text3);font-weight:700}
+.sd{display:grid;grid-template-columns:84px 1fr 46px;align-items:center;gap:10px;height:48px;padding:0 14px;border-bottom:1px solid #eef0f3}
+.sd b{font-size:16px;font-weight:800;display:block;line-height:1.1}
+.sd small{font-size:12px;color:var(--app-text3);font-weight:700}
+.sd.red b{color:var(--app-danger)}
+.sd.on{background:var(--app-brand-50);box-shadow:inset 4px 0 0 var(--app-brand)}
+.sd .bar{height:12px;border-radius:6px;background:#d5d9e0;overflow:hidden;display:flex}
+.sd .bar i{display:block;height:100%}
+.sd .bar .d{background:var(--app-brand)}.sd .bar .w{background:#f59e0b}
+.sd .ct{text-align:right;font-weight:800;font-size:15px}
+.sd .ct small{font-size:12px}
+.pane{overflow:hidden;padding:12px 16px 16px;container-type:inline-size;container-name:pane}
+.dh{display:flex;align-items:baseline;gap:12px;margin:2px 0 10px}
+.dh b{font-size:22px;font-weight:800;color:var(--app-brand-dark)}
+.dh span{color:var(--app-text2);font-size:15px}
+.sec{font-size:15px;font-weight:800;margin:12px 0 8px;color:#2f3540}
+.sec small{font-weight:600;color:var(--app-text3);margin-left:6px}
+
+/* 줄 = 여섯 칸 (설계서 §6-2) */
+.r{position:relative;display:grid;grid-template-columns:8.5rem 7rem minmax(14rem,1.3fr) minmax(19rem,2fr) minmax(7.5rem,.8fr) 5rem;gap:10px;align-items:center;min-height:78px;padding:8px 14px 8px 12px;margin-bottom:8px;background:#fff;border:1px solid var(--app-line);border-radius:10px}
+.r.wait{grid-template-columns:8.5rem 7rem minmax(15rem,1fr) minmax(8rem,.6fr);min-height:58px;background:#fafbfc}
+.r.late{background:var(--app-danger-50);border-color:#fca5a5;box-shadow:inset 6px 0 0 var(--app-danger)}
+.r.tight{background:var(--app-warn-50);border-color:#fcd34d;box-shadow:inset 6px 0 0 var(--app-warn-line)}
+.r.chg{outline:2px solid #f87171;outline-offset:-1px}
+.due b{display:block;font-size:22px;font-weight:800;line-height:1.15;letter-spacing:-.01em}
+.due span{display:inline-block;margin-top:3px;font-size:16px;font-weight:800;color:var(--app-brand-dark)}
+.due em:not(.mk){display:block;font-style:normal;font-size:14px;font-weight:700;color:var(--app-text3)}
+.r.late .due b,.r.late .due span{color:var(--app-danger-ink)}
+.r.tight .due b,.r.tight .due span{color:var(--app-warn-ink)}
+.st b{display:block;font-size:18px;font-weight:800;line-height:1.2}
+.st b.wt{color:#92400e}.st b.go{color:var(--app-brand-dark)}.st b.hd{color:#be185d}
+.st small{display:block;font-size:14px;font-weight:700;line-height:1.3;margin-top:3px}
+.r.late .st small{color:var(--app-danger-ink)}.r.tight .st small{color:var(--app-warn-ink)}
+.who .nm{font-size:20px;font-weight:800;line-height:1.2}
+.who .nm small{font-size:14px;color:var(--app-text3);font-weight:700;margin-left:4px}
+.who .pr{font-size:15px;color:var(--app-text2);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.who .cl{font-size:14px;color:var(--app-danger-ink);font-weight:700;margin-top:2px}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.s{position:relative;height:56px;border-radius:9px;border:2px solid var(--app-line2);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#3b4250;line-height:1.15}
+.s.d{background:var(--app-brand);border-color:var(--app-brand);color:#fff}
+.s.n{border-color:var(--app-brand);border-width:3px;background:var(--app-brand-50);color:var(--app-brand-dark)}
+.s .m{display:none;font-size:13px;font-weight:700;margin-top:3px;opacity:.95}
+.s .lb{display:inline-flex;align-items:center;gap:5px}
+@container pane (min-width:1500px){
+  .r{grid-template-columns:9rem 8rem minmax(14rem,1fr) minmax(19rem,2.4fr) minmax(7.5rem,.8fr) 5rem}
+  .s{height:62px}
+  .s .m{display:block}
+}
+.tip{position:absolute;z-index:7;left:50%;bottom:calc(100% + 12px);transform:translateX(-50%);white-space:nowrap;background:var(--app-tip);color:#fff;font-size:15px;font-weight:700;padding:9px 13px;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.tip::after{content:"";position:absolute;left:50%;top:100%;margin-left:-8px;border:8px solid transparent;border-top-color:var(--app-tip)}
+.tip small{display:block;font-size:13px;font-weight:600;color:#c9ced8;margin-top:2px}
+.cur{position:absolute;z-index:7;right:10px;bottom:-14px;width:26px;height:26px;color:#111}
+.by{font-size:15px;color:var(--app-text2);line-height:1.4}
+.by i{font-style:normal;font-size:13px;color:var(--app-text3);margin-right:5px}
+.by b{color:var(--app-text);font-weight:700}
+.dw{font-size:15px;font-weight:800;text-align:right;color:#2f3540}
+
+/* ③ 고치기 켬 */
+.band{flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 22px;height:56px;background:var(--app-warn-50);border-bottom:2px solid var(--app-warn-line);color:var(--app-warn-ink);font-size:17px;font-weight:800}
+.band .btn{height:42px;margin-left:auto;border-color:var(--app-warn);color:var(--app-warn-ink);background:#fff}
+.ptabs{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--app-line);flex-shrink:0}
+.ptabs a{display:flex;align-items:center;gap:8px;height:52px;padding:0 26px;border-radius:10px;border:1.5px solid var(--app-line2);font-weight:800;font-size:18px;color:#2f3540;text-decoration:none;background:#fff}
+.ptabs a small{font-size:15px;color:var(--app-text3)}
+.ptabs a.on{background:var(--app-brand);border-color:var(--app-brand);color:#fff}
+.ptabs a.on small{color:#e0e3ff}
+.q{position:relative;display:grid;grid-template-columns:8.5rem minmax(16rem,1.4fr) minmax(15rem,1.2fr) minmax(8rem,.8fr) 11.5rem;gap:14px;align-items:center;min-height:80px;padding:8px 14px 8px 12px;margin-bottom:8px;background:#fff;border:1px solid var(--app-line);border-radius:10px}
+.q.late{background:var(--app-danger-50);border-color:#fca5a5;box-shadow:inset 6px 0 0 var(--app-danger)}
+.q.late .due b,.q.late .due span{color:var(--app-danger-ink)}
+.q.tight{background:var(--app-warn-50);border-color:#fcd34d;box-shadow:inset 6px 0 0 var(--app-warn-line)}
+.q.tight .due b,.q.tight .due span{color:var(--app-warn-ink)}
+.prev{font-size:15px;color:var(--app-text2);line-height:1.4}
+.prev b{color:var(--app-text);font-weight:800}
+.go-btn{height:60px;border-radius:10px;background:var(--app-ok-dark);color:#fff;font-weight:800;font-size:19px;display:flex;align-items:center;justify-content:center;gap:8px}
+.go-btn.hold{background:#fff;border:2px solid #f9a8d4;color:#be185d;font-size:16px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4zM14 7l3 3"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4l2-2zM10 21h4"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M3 12l4-4 5 3 5-3 4 4-5 5-4-2-4 2z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4"/></symbol>
+    <symbol id="i-cur" viewBox="0 0 24 24"><path d="M5 3l13 8-6 1.5L9 19 5 3z" fill="#fff" stroke="#111" stroke-width="1.6"/></symbol>
+  </defs>
+</svg>
+
+<!-- 같이 쓰는 조각: ERP 위 줄 + 첫째 메뉴 줄 + 둘째 줄 메뉴 -->
+<template id="t-top">
+  <div class="tb"><h3>가구 주문 관리 시스템</h3>
+    <span class="sq hot"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="sq"><svg class="ic"><use href="#i-user"/></svg></span><span class="sq"><svg class="ic"><use href="#i-hand"/></svg></span><span class="sq"><svg class="ic"><use href="#i-bell"/></svg></span>
+    <span class="zm"><span>−</span>100%<span>+</span></span><span class="me">관리자 (관리자) ▾</span></div>
+  <div class="mr"><span>전체 주문</span><span>접수</span><span>실측</span><span class="nv"><i>N</i>네이버 수집</span><span>자가실측 대시보드</span><span>지방 주문 대시보드</span><span>휴지통</span><span>관리자</span>
+    <span class="sp"><span>ERP 대시보드</span><span>WDCalculator</span></span></div>
+</template>
+<template id="t-subnav">
+  <nav class="sn" aria-label="ERP 메뉴"><a>대시보드</a><a>실측</a><a>도면작업실</a><a class="on">생산</a><a>출고</a><a>AS</a><a>시공</a><a>시공 완료</a><a>정산</a><a>협력사 명세서</a><a>과거 이력 검색</a></nav>
+</template>
+<template id="t-strip">
+  <div class="strip">
+    <div class="h">시공일 2주 <small>만들 것 / 전체</small></div>
+    <div class="sd"><span><b>지난 7일</b><small>11/14~11/20</small></span><span class="bar"><i class="d" data-w="60"></i><i class="w" data-w="20"></i></span><span class="ct">4<small> / 5</small></span></div>
+    <div class="sd on red"><span><b>오늘 11/21</b><small>토</small></span><span class="bar"></span><span class="ct">0<small> / 1</small></span></div>
+    <div class="sd red"><span><b>11/22</b><small>일 · 내일</small></span><span class="bar"><i class="w" data-w="50"></i></span><span class="ct">1<small> / 2</small></span></div>
+    <div class="sd"><span><b>11/23</b><small>월 · D-2</small></span><span class="bar"><i class="d" data-w="100"></i></span><span class="ct">1<small> / 1</small></span></div>
+    <div class="sd"><span><b>11/24</b><small>화 · D-3</small></span><span class="bar"><i class="d" data-w="50"></i><i class="w" data-w="50"></i></span><span class="ct">2<small> / 2</small></span></div>
+    <div class="sd"><span><b>11/25</b><small>수 · D-4</small></span><span class="bar"><i class="w" data-w="50"></i></span><span class="ct">1<small> / 2</small></span></div>
+    <div class="sd"><span><b>11/26</b><small>목 · D-5</small></span><span class="bar"><i class="d" data-w="100"></i></span><span class="ct">3<small> / 3</small></span></div>
+    <div class="sd"><span><b>11/27</b><small>금 · D-6</small></span><span class="bar"><i class="w" data-w="100"></i></span><span class="ct">1<small> / 1</small></span></div>
+    <div class="sd red"><span><b>11/28</b><small>토 · D-7</small></span><span class="bar"><i class="d" data-w="50"></i></span><span class="ct">1<small> / 2</small></span></div>
+    <div class="sd red"><span><b>11/29</b><small>일 · D-8</small></span><span class="bar"><i class="d" data-w="100"></i></span><span class="ct">3<small> / 3</small></span></div>
+    <div class="sd"><span><b>11/30</b><small>월 · D-9</small></span><span class="bar"><i class="d" data-w="40"></i></span><span class="ct">1<small> / 1</small></span></div>
+    <div class="sd"><span><b>12/1</b><small>화 · D-10</small></span><span class="bar"><i class="w" data-w="50"></i></span><span class="ct">1<small> / 2</small></span></div>
+    <div class="sd"><span><b>그 뒤</b><small>12/2~</small></span><span class="bar"><i class="d" data-w="100"></i></span><span class="ct">3<small> / 3</small></span></div>
+  </div>
+</template>
+
+<!-- 날짜 탭 줄(①·② 같은 자료) -->
+<template id="t-rows">
+  <div class="dh"><b>오늘 11/21 (토)</b><span>시공 1건 · 만들 것 0 · 도면·컨펌 기다림 1</span></div>
+  <div class="sec">도면·컨펌 기다림 1<small>도면이 오면 위로 올라와요</small></div>
+  <div class="r wait"><div class="due"><b>11/21 (토)</b><span>오늘</span></div><div class="st"><b class="wt">컨펌 기다림</b></div><div class="who"><div class="nm">나다라5<small>#6</small></div><div class="pr">붙박이장</div></div><div class="by"><i>발주</i><b>가짜 인테리어</b> · <i>담당</i>나영업</div></div>
+  <div class="sec">다음에 만들 것 16<small>미리 보기 · 시공일 빠른 순</small></div>
+  <div class="r late" data-k="late"><div class="due"><b>11/22 (일)</b><span>내일</span></div><div class="st"><b class="wt">제작 대기</b><small>늦음 — 내일 시공, 아직 시작 전</small></div><div class="who"><div class="nm">아자차7<small>#8</small></div><div class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</div></div>
+    <div class="steps"><span class="s n"><span class="lb">재단</span><span class="m">지금 여기</span></span><span class="s"><span class="lb">엣지</span><span class="m">아직</span></span><span class="s"><span class="lb">조립</span><span class="m">아직</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>나영업</div><div class="dw">도면 2장</div></div>
+  <div class="r tight" data-k="tight"><div class="due"><b>11/24 (화)</b><span>D-3</span></div><div class="st"><b class="go">엣지 중</b><small>빠듯 — D-3, 아직 엣지</small></div><div class="who"><div class="nm">카타파8<small>#9</small></div><div class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</div></div>
+    <div class="steps"><span class="s d" data-k="tipcell"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>재단</span><span class="m">김재단 11/20</span></span><span class="s n"><span class="lb">엣지</span><span class="m">지금 여기</span></span><span class="s"><span class="lb">조립</span><span class="m">아직</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>다영업</div><div class="dw">도면 2장</div></div>
+  <div class="r"><div class="due"><b>11/24 (화)</b><span>D-3</span></div><div class="st"><b class="go">검수 중</b></div><div class="who"><div class="nm">다라마10<small>#11</small></div><div class="pr">키큰장, 서랍장 · W600 × D600 × H2300 · 그레이</div></div>
+    <div class="steps"><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>재단</span><span class="m">김재단 11/19</span></span><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>엣지</span><span class="m">이엣지 11/19</span></span><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>조립</span><span class="m">박조립 11/20</span></span><span class="s n"><span class="lb">검수</span><span class="m">지금 여기</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 가구</b><br><i>담당</i>나영업</div><div class="dw">도면 2장</div></div>
+  <div class="r"><div class="due"><b>11/25 (수)</b><span>D-4</span></div><div class="st"><b class="go">조립 중</b></div><div class="who"><div class="nm">하가나9<small>#10</small></div><div class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</div></div>
+    <div class="steps"><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>재단</span><span class="m">김재단 11/18</span></span><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>엣지</span><span class="m">기록 없음</span></span><span class="s n"><span class="lb">조립</span><span class="m">지금 여기</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>라영업</div><div class="dw">도면 2장</div></div>
+  <div class="r chg" data-k="chg"><div class="due"><b>11/27 (금)</b><span>D-6</span><em>← 11/30</em></div><div class="st"><b class="wt">제작 대기</b></div><div class="who"><div class="nm">타파하13<small>#14</small></div><div class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</div><div class="cl">시공일 11/30 → 11/27 · 나영업 11/21 10:12</div></div>
+    <div class="steps"><span class="s n"><span class="lb">재단</span><span class="m">지금 여기</span></span><span class="s"><span class="lb">엣지</span><span class="m">아직</span></span><span class="s"><span class="lb">조립</span><span class="m">아직</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>나영업</div><div class="dw">도면 2장</div></div>
+  <div class="r"><div class="due"><b>11/28 (토)</b><span>D-7</span></div><div class="st"><b class="go">검수 중</b></div><div class="who"><div class="nm">다바자16<small>#17</small></div><div class="pr">키큰장, 서랍장 · W600 × D600 × H2300 · 그레이</div></div>
+    <div class="steps"><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>재단</span><span class="m">김재단 11/20</span></span><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>엣지</span><span class="m">이엣지 11/20</span></span><span class="s d"><span class="lb"><svg class="ic"><use href="#i-check"/></svg>조립</span><span class="m">박조립 11/21</span></span><span class="s n"><span class="lb">검수</span><span class="m">지금 여기</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 가구</b><br><i>담당</i>마영업</div><div class="dw">도면 1장</div></div>
+  <div class="r"><div class="due"><b>11/30 (월)</b><span>D-9</span></div><div class="st"><b class="hd">보류</b><small>재단에서 멈춤</small></div><div class="who"><div class="nm">마바사3<small>#4</small></div><div class="pr">붙박이장 · W2400 × D600 × H2300 · 화이트</div></div>
+    <div class="steps"><span class="s n"><span class="lb">재단</span><span class="m">보류</span></span><span class="s"><span class="lb">엣지</span><span class="m">아직</span></span><span class="s"><span class="lb">조립</span><span class="m">아직</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>나영업</div><div class="dw">도면 3장</div></div>
+  <div class="r"><div class="due"><b>12/1 (화)</b><span>D-10</span></div><div class="st"><b class="wt">제작 대기</b></div><div class="who"><div class="nm">사아자11<small>#12</small></div><div class="pr">드레스룸 · W1800 × D600 × H2300 · 크림</div></div>
+    <div class="steps"><span class="s n"><span class="lb">재단</span><span class="m">지금 여기</span></span><span class="s"><span class="lb">엣지</span><span class="m">아직</span></span><span class="s"><span class="lb">조립</span><span class="m">아직</span></span><span class="s"><span class="lb">검수</span><span class="m">아직</span></span></div>
+    <div class="by"><i>발주</i><b>가짜 가구</b><br><i>담당</i>다영업</div><div class="dw">도면 2장</div></div>
+</template>
+
+<!-- 제목 줄(보기 전용, 관리자) -->
+<template id="t-title-view">
+  <div class="tr"><span class="ttl">생산</span><span class="sub">11월 21일 (토) · 전체 29건</span>
+    <nav class="tabs"><a class="on">날짜</a><a>내 공정 <small>15</small></a><a>바뀐 것 <small class="hot">1</small></a><a>찾기</a><a class="out">보드 <svg class="ic"><use href="#i-arrow"/></svg></a></nav>
+    <div class="tools"><span class="chip-view"><svg class="ic"><use href="#i-eye"/></svg>보기 전용</span><span class="btn edit"><svg class="ic"><use href="#i-pen"/></svg>고치기</span><span><span class="dot"></span> 14:05 에 받음</span><span class="fs">글자 <b>−</b><span>100%</span><b>+</b></span><span class="btn">다시 받기</span></div></div>
+</template>
+
+<div class="wrap">
+  <h1>PC 생산 화면 — 보기 전용 시안</h1>
+  <p class="lead">PC 메뉴 <b>생산</b>이 새 첫 화면으로 와요. PC 에서는 <b>보기만</b> 돼요(관리자만 [고치기]). 줄마다 <b>시공일(요일 · D-숫자)</b>이 맨 앞에 늘 보이고, 넓은 화면을 줄이 꽉 채우고, 공정 칸에 마우스를 올리면 누가 · 언제 했는지 보여요. 시공일에 늦은 줄은 빨강, 빠듯한 줄은 주황이에요. 오늘은 11/21 (토)로 가정했어요. 이름 · 회사는 지어낸 거예요.</p>
+  <ul class="toc"><li><a href="#f1">① PC 1440×900</a></li><li><a href="#f2">② 1920×1080 · 80%</a></li><li><a href="#f3">③ 관리자 [고치기] 켬</a></li><li><a href="#f4">④ 누가 보고 누가 누르나</a></li></ul>
+
+  <section class="frame" id="f1">
+    <h2>① PC 1440×900 · 날짜 탭 · 보기 전용<small>관리자 화면</small></h2>
+    <p class="idea">다른 PC 화면과 같은 <b>ERP 메뉴 두 줄</b> 아래에 생산 첫 화면이 와요. 쓰기 단추는 서버가 아예 안 그려요.</p>
+    <div class="stage" data-w="1440" data-h="900"><div class="art w1440" data-shot="f1">
+      <div data-use="t-top"></div>
+      <div class="pg">
+        <div class="rel"><div data-use="t-subnav"></div><em class="mk in">2</em></div>
+        <div class="rel"><div data-use="t-title-view"></div></div>
+        <div class="bd"><div data-use="t-strip"></div><div class="pane"><div data-use="t-rows"></div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span class="num">1</span><span><b>시공일 칸</b> — 모든 줄 맨 앞에 <b>11/22 (일) · 내일</b>, <b>11/24 (화) · D-3</b> 처럼 늘 보여요. 마우스 뒤에 숨기지 않아요.</span></li>
+      <li><span class="num">2</span><span><b>ERP 둘째 줄 메뉴</b> — 다른 PC 화면과 같은 줄, '생산' 이 켜져 있어요.</span></li>
+      <li><span class="num">3</span><span><b>보기 전용</b> 표 — 이 화면에는 [제작 시작] · [끝] · [보류] 단추가 없어요.</span></li>
+      <li><span class="num">4</span><span><b>[고치기]</b> — 관리자에게만 보여요. 누르면 ③ 처럼 바뀌어요.</span></li>
+      <li><span class="num">5</span><span><b>꽉 찬 줄</b> — 공정 네 칸이 가운데를 채워요. 오른쪽 끝에 몰리지 않아요.</span></li>
+      <li><span class="num">6</span><span><b>마우스 올리기</b> — 끝난 칸에 올리면 <b>누가 · 몇 시</b>에 끝냈는지 보여요.</span></li>
+      <li><span class="num">7</span><span><b>늦음(빨강)</b> — 내일 시공인데 아직 제작 대기. 까닭이 한 줄로 나와요.</span></li>
+      <li><span class="num">8</span><span><b>빠듯(주황)</b> — 시공까지 3일인데 아직 엣지.</span></li>
+      <li><span class="num">9</span><span><b>[보드 →]</b> — 옛 보드로 가는 길은 당분간 남겨요.</span></li>
+    </ol>
+  </section>
+
+  <section class="frame" id="f2">
+    <h2>② 1920×1080 · 브라우저 80%<small>CSS 2400×1350 을 줄여 그림</small></h2>
+    <p class="idea">화면이 아주 넓으면 공정 칸 안에 <b>누가 · 날짜</b>가 글로 바로 보여요(마우스를 안 올려도). 글자 · 단추 크기는 ① 과 같아요 — 줄이지 않아요.</p>
+    <div class="stage" data-w="2400" data-h="1350"><div class="art w2400" data-shot="f2">
+      <div data-use="t-top"></div>
+      <div class="pg">
+        <div data-use="t-subnav"></div>
+        <div data-use="t-title-view"></div>
+        <div class="bd"><div data-use="t-strip"></div><div class="pane"><div data-use="t-rows"></div></div></div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span class="num">1</span><span><b>칸 안 글</b> — 줄 칸이 1,500px 넘으면 <b>김재단 11/20</b> 처럼 칸 안에 나와요.</span></li>
+      <li><span class="num">2</span><span><b>시공일 칸</b>은 넓어져도 맨 앞 그대로예요.</span></li>
+      <li><span class="num">3</span><span><b>빈 가운데 없음</b> — 아주 넓으면 공정 칸이 폭을 더 가져가요(손님 · 공정 · 발주 = 1 : 2.4 : 0.8).</span></li>
+      <li><span class="num">4</span><span><b>바뀐 시공일</b> — 새 날짜를 크게 두고 옛 날짜는 <b>← 11/30</b> 으로 작게. '바뀜' 표가 날짜를 가리지 않아요.</span></li>
+    </ol>
+  </section>
+
+  <section class="frame" id="f3">
+    <h2>③ 관리자 [고치기] 켬 · 내 공정 탭<small>PC 1440×900</small></h2>
+    <p class="idea">켜면 주황 띠가 늘 보이고, <b>지금 태블릿과 같은 단추</b>가 나와요. 새 쓰기 화면은 없어요. 브라우저를 닫거나 2시간이 지나면 꺼져요.</p>
+    <div class="stage" data-w="1440" data-h="900"><div class="art w1440" data-shot="f3">
+      <div data-use="t-top"></div>
+      <div class="pg">
+        <div data-use="t-subnav"></div>
+        <div class="tr"><span class="ttl">생산</span><span class="sub">11월 21일 (토) · 전체 29건</span>
+          <nav class="tabs"><a>날짜</a><a class="on">내 공정 <small>15</small></a><a>바뀐 것 <small class="hot">1</small></a><a>찾기</a><a class="out">보드 <svg class="ic"><use href="#i-arrow"/></svg></a></nav>
+          <div class="tools"><span class="btn edit-on"><svg class="ic"><use href="#i-pen"/></svg>고치는 중</span><span><span class="dot"></span> 14:05 에 받음</span><span class="fs">글자 <b>−</b><span>100%</span><b>+</b></span><span class="btn">다시 받기</span></div></div>
+        <div class="band rel"><svg class="ic"><use href="#i-pen"/></svg>고치는 중이에요 — 누르면 바로 저장돼요<span class="btn">그만 고치기</span><em class="mk in">1</em></div>
+        <div class="ptabs"><a>재단 <small>5</small></a><a class="on">엣지 <small>4</small></a><a>조립 <small>3</small></a><a>검수 <small>3</small></a></div>
+        <div class="pane">
+          <div class="sec">엣지에 와 있는 것 4건<small>시공일 빠른 순</small></div>
+          <div class="q tight rel"><div class="due"><b>11/24 (화)</b><span>D-3</span></div><div class="who"><div class="nm">카타파8<small>#9</small></div><div class="pr">슬라이딩 붙박이장 · W2740 × D700 × H2330 · 그레이</div></div><div class="prev">앞 공정 <b>재단 끝</b><br>김재단 · 11/20 14:05</div><div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>다영업</div><div class="go-btn rel"><svg class="ic"><use href="#i-check"/></svg>엣지 끝<em class="mk right">2</em></div><em class="mk">3</em></div>
+          <div class="q"><div class="due"><b>11/26 (목)</b><span>D-5</span></div><div class="who"><div class="nm">가나다2<small>#3</small></div><div class="pr">붙박이장 · W2400 × D600 × H2300 · 화이트</div></div><div class="prev">앞 공정 <b>재단 끝</b><br>김재단 · 11/21 09:12</div><div class="by"><i>발주</i><b>가짜 가구</b><br><i>담당</i>나영업</div><div class="go-btn"><svg class="ic"><use href="#i-check"/></svg>엣지 끝</div></div>
+          <div class="q"><div class="due"><b>11/29 (일)</b><span>D-8</span></div><div class="who"><div class="nm">바사아12<small>#13</small></div><div class="pr">키큰장 · W600 × D600 × H2300 · 크림</div></div><div class="prev">앞 공정 <b>재단 끝</b><br>기록 없음</div><div class="by"><i>발주</i><b>가짜 인테리어</b><br><i>담당</i>라영업</div><div class="go-btn"><svg class="ic"><use href="#i-check"/></svg>엣지 끝</div></div>
+          <div class="q"><div class="due"><b>12/1 (화)</b><span>D-10</span></div><div class="who"><div class="nm">자차카15<small>#16</small></div><div class="pr">드레스룸 · W1800 × D600 × H2300 · 그레이</div></div><div class="prev">앞 공정 <b>재단 끝</b><br>김재단 · 11/21 11:40</div><div class="by"><i>발주</i><b>가짜 가구</b><br><i>담당</i>마영업</div><div class="go-btn hold">보류 중 · 자재 기다림</div></div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="notes">
+      <li><span class="num">1</span><span><b>주황 띠</b> — 고치는 중임을 늘 알려요. [그만 고치기] 로 바로 꺼요.</span></li>
+      <li><span class="num">2</span><span><b>[엣지 끝]</b> — 지금 태블릿 · 폰과 같은 단추, 같은 저장. 관리자만 PC 에서 볼 수 있어요.</span></li>
+      <li><span class="num">3</span><span><b>시공일 칸</b> — 내 공정 탭 줄에도 맨 앞에 있어요. 빠듯 · 늦음 색도 같아요.</span></li>
+    </ol>
+  </section>
+
+  <section class="frame" id="f4">
+    <h2>④ 누가 보고 누가 누르나</h2>
+    <p class="idea">PC 는 누구든 보기만이에요(관리자가 [고치기] 켰을 때만 빼고). 도면 · 시공 · 출고 팀은 2단계에서 보기가 열리고, 누르기는 서버가 막아요.</p>
+    <div class="tbl-wrap"><table class="perm">
+      <thead><tr><th>사람</th><th>보기</th><th>태블릿 · 폰 누르기</th><th>PC 누르기</th><th>막는 곳</th></tr></thead>
+      <tbody>
+        <tr><td>관리자</td><td class="y">예</td><td class="y">예</td><td class="c">[고치기] 켰을 때만</td><td>화면(서버가 단추를 그리거나 안 그림)</td></tr>
+        <tr><td>생산팀 · 파트 없음</td><td class="y">예</td><td class="y">예</td><td class="n">아니요</td><td>화면</td></tr>
+        <tr><td>생산팀 파트 계정</td><td class="y">예</td><td class="c">자기 파트 카드만</td><td class="n">아니요</td><td>지금 그대로(D53 · D50)</td></tr>
+        <tr><td>CS · 회계 · 영업</td><td class="y">예</td><td class="y">예(지금)</td><td class="n">아니요</td><td>화면 — 서버까지 막을지는 사장님께 물음</td></tr>
+        <tr><td>도면 · 시공 · 출고(2단계)</td><td class="y">예(새로)</td><td class="n">아니요</td><td class="n">아니요</td><td>서버 API 가 이미 막음 + 화면</td></tr>
+        <tr><td>협력사 · 켜진 프리랜서</td><td class="n">아니요</td><td>—</td><td>—</td><td>지금 그대로</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tbl-wrap"><table class="perm">
+      <thead><tr><th>지금 자리</th><th>빠듯(주황)</th><th>늦음(빨강)</th></tr></thead>
+      <tbody>
+        <tr><td>도면 · 컨펌 기다림</td><td>D-5 안</td><td>D-3 안</td></tr>
+        <tr><td>제작 대기</td><td>D-4 안</td><td>D-2 안</td></tr>
+        <tr><td>재단 중 · 엣지 중</td><td>D-3 안</td><td>D-1 안</td></tr>
+        <tr><td>조립 중 · 검수 중</td><td>D-2 안</td><td>오늘</td></tr>
+        <tr><td>시공일 지남 · 제작 완료 전</td><td>—</td><td>늘 늦음</td></tr>
+      </tbody>
+    </table></div>
+    <p class="idea">숫자는 제안이에요. 줄에 쓴 D-숫자(달력 날)와 같은 숫자로 정해요.</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  /* 같이 쓰는 조각을 제자리에 넣는다 */
+  [].slice.call(document.querySelectorAll('[data-use]')).forEach(function(slot){
+    var t=document.getElementById(slot.getAttribute('data-use'));
+    if(t){slot.replaceWith(t.content.cloneNode(true));}
+  });
+  /* 띠 막대 폭 */
+  [].slice.call(document.querySelectorAll('.sd .bar i')).forEach(function(i){i.style.width=(i.getAttribute('data-w')||0)+'%';});
+  function mk(el,n,cls){if(!el){return;}el.classList.add('rel');var m=document.createElement('em');m.className='mk'+(cls?' '+cls:'');m.textContent=n;el.appendChild(m);}
+  var f1=document.querySelector('[data-shot="f1"]');
+  if(f1){
+    mk(f1.querySelector('.r.late .due'),'1','right');
+    mk(f1.querySelector('.chip-view'),'3');
+    mk(f1.querySelector('.btn.edit'),'4','right');
+    mk(f1.querySelector('.r.late .steps'),'5','right');
+    mk(f1.querySelector('.r.late .st'),'7','right');
+    mk(f1.querySelector('.r.tight .st'),'8','right');
+    mk(f1.querySelector('.tabs a.out'),'9','right');
+    /* 마우스 올림 예시: 카타파8 재단 칸 */
+    var cell=f1.querySelector('[data-k="tipcell"]');
+    if(cell){
+      var tip=document.createElement('span');tip.className='tip';tip.innerHTML='재단 끝 · 김재단 · 11/20 14:05<small>제작 시작 11/20 08:40</small>';
+      cell.appendChild(tip);
+      var c=document.createElementNS('http://www.w3.org/2000/svg','svg');c.setAttribute('class','cur');c.innerHTML='<use href="#i-cur"/>';cell.appendChild(c);
+      mk(tip,'6','right');
+    }
+  }
+  var f2=document.querySelector('[data-shot="f2"]');
+  if(f2){
+    mk(f2.querySelector('.r.tight .steps .s.d'),'1');
+    mk(f2.querySelector('.r.late .due'),'2','right');
+    mk(f2.querySelector('.r.chg .who .cl'),'4','right');
+    mk(f2.querySelector('.r.late .who'),'3','right');
+  }
+  /* 큰 틀을 칸 폭에 맞게 줄여 보인다 */
+  var stages=[].slice.call(document.querySelectorAll('.stage'));
+  function fit(){
+    stages.forEach(function(s){
+      var a=s.firstElementChild;if(!a){return;}
+      var w=parseFloat(s.getAttribute('data-w')),h=parseFloat(s.getAttribute('data-h'));
+      var k=Math.min(1,s.clientWidth/w);
+      a.style.transform='scale('+k+')';
+      s.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+})();
+</script>
+</body>
+</html>
