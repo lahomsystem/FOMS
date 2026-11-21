@@ -1,0 +1,8 @@
+{# 생산 쓰기 단추를 뺐다는 표식(내용 없는 inert <template>) — 쓰기 팀(관리자 · 생산팀)인데 기기 쿠키 foms_ptr 가 없거나 이상한 첫 요청.
+   설계서 docs/specs/2026-11-21-production-pc-viewer_SPEC.md §4 · §12: 쓰기 단추는 foms_ptr=coarse(태블릿)일 때만 그린다.
+   사이트 데이터를 지운 공장 태블릿도 이 화면을 그리기 전에 layout_head 인라인 부트가 foms_ptr 를 심는다 — 터치 기기
+   (pointer: coarse)에서 이 표식이 남아 있으면 static/js/runtime/foms-wide-surface-recover.js 가 지금 화면을 한 번 다시 받아
+   단추가 온다(셸 다시 받기 → 새로고침 1회 → 되풀이 막음, sessionStorage). 마우스 기기는 아무것도 하지 않는다.
+   판정 pc_view.production_screen_flags 의 write_omitted. 한 화면에 한 번(첫 화면 '내 공정' 탭 · 작업 시트).
+   스크립트는 넓은 창 표식(wide_surface_omitted_marker.html)과 같은 파일 · 같은 run-once 열쇠라 둘이 함께 있어도 한 번만 묶인다. #}
+<template data-foms-write-omitted></template><script defer src="{{ url_for('static', filename='js/runtime/foms-wide-surface-recover.js') }}?v=20261121a" data-foms-run-once="wide-surface-recover"></script>
