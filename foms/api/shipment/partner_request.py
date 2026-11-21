@@ -21,11 +21,13 @@ from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.construction_dates import all_construction_dates
 from foms.services.orders.construction_schedule import (
     ScheduleConflict,
     ScheduleInputError,
     confirm_partner_request,
     finalize_schedule_notifications,
+    one_day_move_applies,
     revert_to_partner_request,
     validate_schedule_input,
     write_construction_schedule,
@@ -102,10 +104,15 @@ def _save(order_id: int, source: str, *, partner_only: bool, revert: bool = Fals
 
     finalize_schedule_notifications(db, result)
     hope_date = str((hope if isinstance(hope, dict) else {}).get("date") or "")
+    # 화면이 저장 뒤 "어느 날을 옮길까요" 고르기 · 달력을 다시 맞춘다(설계서 2026-11-21 8절).
+    saved_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    split = one_day_move_applies(saved_sd)
     return jsonify({"success": True, "error": None, "data": {
         "order_id": int(order_id), "date": result.date, "time": result.time,
         "before_date": result.before_date, "moved": bool(hope_date) and hope_date != result.date,
         "change_reason_required": result.reason_required, "change_set": result.change_set_id,
+        "from_date": result.from_date, "all_construction_dates": all_construction_dates(saved_sd),
+        "split": split,
     }})
 
 

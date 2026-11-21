@@ -35,7 +35,8 @@ from foms.services.orders.as_cycle_service import current_cycle
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.construction_note import note_lines, note_problem
-from foms.services.orders.construction_schedule import ScheduleInputError, validate_schedule_input
+from foms.services.orders.construction_schedule import (ScheduleInputError, move_landed, move_preview_day,
+                                                       validate_schedule_input)
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.orders.erp_policy_data_access import get_stage
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
@@ -186,6 +187,7 @@ def _check_schedule(order: Any, params: Params, *, first: bool) -> Optional[str]
 
 def _preview_schedule(order: Any, params: Params, *, first: bool) -> list[dict[str, str]]:
     day, time = _construction(order)
+    day = day if first else move_preview_day(_sd(order), day)  # 나눠 시공이면 "옮길 날 → 새 날"
     rows = _row("시공 날짜", _when(day, time), _when(params.get("date"), _kept_time(order, params, first)))
     return rows + notice.notice_rows(order, params)
 
@@ -193,7 +195,7 @@ def _preview_schedule(order: Any, params: Params, *, first: bool) -> list[dict[s
 def _verify_schedule(order: Any, params: Params, *, first: bool) -> bool:
     day, time = _construction(order)
     wanted = _text(params.get("time"))
-    return day == _text(params.get("date")) and (not wanted or time == _kept_time(order, params, first))
+    return move_landed(day, _text(params.get("date"))) and (not wanted or time == _kept_time(order, params, first))
 
 
 def _schedule_reason_required(order: Any, params: Params, *, first: bool) -> bool:

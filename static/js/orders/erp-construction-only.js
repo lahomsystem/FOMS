@@ -4,7 +4,7 @@
  * 서버가 #erp-order-config[data-erp-construction-only="true"] 를 줄 때만 움직인다. 폼 전체 저장(PUT)은 서버가 CS · 영업
  * 전용으로 막고, 이 화면은 [시공일 저장]으로 POST /api/orders/<id>/construction-schedule 만 부른다. 품목 칸처럼 뒤에
  * 그려지는 입력도 MutationObserver 로 같이 잠근다. 시공일을 바꿔서 사유가 필요하면 기존 사유 창(order-change-reason.js)을 띄운다.
- * 시공일이 둘 이상이면 "어느 날을 옮길까요" 고르기를 더해 from_date 를 같이 보낸다(서버가 data-erp-construction-dates 로
+ * 나눠 시공하는 주문이면 "어느 날을 옮길까요" 고르기를 더해 from_date 를 같이 보낸다(서버가 data-erp-construction-dates 로
  * 날 목록을 줄 때만 — 설계서 docs/specs/2026-11-21-item-construction-done_SPEC.md 8절).
  */
 (function () {
@@ -50,6 +50,18 @@
       sel.appendChild(o);
     });
   }
+  // 저장 뒤 서버가 준 날 목록으로 고르기 · 달력을 다시 맞춘다.
+  function syncDates(all, split) {
+    knownDates = split ? all.slice() : [];
+    var picker = window._erpConstructionDatePicker;
+    if (picker && typeof picker.setDate === 'function') picker.setDate(all);
+    else {
+      var dateEl = document.getElementById('erp-construction-date');
+      if (dateEl) dateEl.value = all.join(', ');
+    }
+    var sel = fromBox();
+    if (sel) fillFromSelect(sel);
+  }
   function fromBox() {
     var wrap = document.getElementById('erp-construction-only-from-wrap');
     if (wrap) wrap.classList.toggle('d-none', knownDates.length < 2);
@@ -88,17 +100,19 @@
     var dateEl = document.getElementById('erp-construction-date');
     var dates = splitDates(dateEl && dateEl.value);
     var fromSel = fromBox();
-    if (fromSel && dates.length > 1) {
-      // 날이 여럿인 주문 — 달력에 새로 더한 날 하나가 옮길 새 날이다.
+    var sendFrom = false;
+    if (fromSel) {
+      // 나눠 시공하는 주문 — 달력에 새로 더한 날 하나가 옮길 새 날이다. 새로 더한 날이 없으면 날은 두고 시간만 바꾼다.
       var added = dates.filter(function (d) { return knownDates.indexOf(d) < 0; });
-      if (added.length === 1) dates = added;
+      if (added.length === 1) { dates = added; sendFrom = true; }
+      else if (added.length === 0 && dates.length) dates = [dates[0]];
     }
     if (dates.length !== 1) {
       note(dates.length ? (fromSel ? '새 시공일을 하루만 골라 주세요.' : '여기서는 시공일을 하루만 정할 수 있어요. 여러 날은 CS팀에 말해 주세요.') : '시공일을 골라 주세요.', true);
       return;
     }
     var payload = { date: dates[0], time: '' };
-    if (fromSel && fromSel.value) payload.from_date = fromSel.value;
+    if (sendFrom && fromSel.value) payload.from_date = fromSel.value;
     var time = String(readTime() || '').trim();
     if (TIMES.indexOf(time) < 0) { note('시간은 오전 · 오후 · 종일 중에서 골라 주세요.', true); return; }
     payload.time = time;
@@ -116,11 +130,7 @@
         if (!data || data.success !== true) { note((data && (data.error || data.message)) || '저장하지 못했어요.', true); return; }
         var d = data.data || {};
         note('저장했어요 — 시공일 ' + d.date + (d.time ? ' ' + d.time : ''), false);
-        if (fromSel) {
-          knownDates = splitDates(d.date);
-          var sel = fromBox();
-          if (sel) fillFromSelect(sel);
-        }
+        if (fromSel && Array.isArray(d.all_construction_dates)) syncDates(d.all_construction_dates, d.split === true);
         if (d.change_reason_required === true && d.change_set) {
           document.dispatchEvent(new CustomEvent('foms:change-reason-required', {
             detail: { orderId: orderId, changeSet: d.change_set, mode: 'full' }
