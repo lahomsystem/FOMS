@@ -22,7 +22,7 @@ from foms.services.cs_agent import learning_pass
 from foms.services.brain.proposals import Proposer
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD
 from foms.services.cs_agent.handoff_learning_gates import MERGED_ACTION
-from models import SecurityLog
+from models import SecurityLog, SystemSetting
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture
 from tests.domains.test_cs_handoff_learning import NOW, admin, changes, handed, on  # noqa: F401 — admin 은 fixture
 from tests.domains.test_cs_learn_everything import SAID, TARGET, differs, run_clash
@@ -165,3 +165,48 @@ def test_the_learning_share_runs_the_resort_at_any_hour(admin, monkeypatch):
     monkeypatch.setattr(learning_pass, "resort_cards", lambda session, now: seen.append(now) or {"checked": 1})
     out = learning_pass.run_learning(db_session, now=LATER, stop_check=lambda: None)
     assert seen == [LATER] and out["card_resort"] == {"checked": 1}
+
+
+# ── 다른 말 전용 판정자(모델 길 — 합성 판정자 없이 가짜 두뇌로) ───────────────
+def _verdict(client, cfg=None, **kw):
+    from foms.services.cs_agent.handoff_learning_judge import differs_verdict
+    from foms.services.cs_agent.settings import read_settings
+    return differs_verdict(db_session, target_key=TARGET, title="합성 콘센트 자리 타공", text=NEW_TEXT,
+                           cfg=read_settings(db_session, log=False) if cfg is None else cfg, now=NOW, client=client, **kw)
+
+
+@pytest.mark.parametrize("answer, want", [
+    ({"verdict": "adds", "why": "합성"}, "adds"),
+    ({"verdict": "contradicts", "why": "합성"}, "contradicts"),
+    ({"verdict": "maybe", "why": "합성"}, "unknown"),  # 정한 꼴이 아닌 답 — 카드로 둔다
+])
+def test_the_differs_judge_asks_one_way_with_the_target_on_the_learning_line(admin, answer, want):
+    from foms.services.cs_agent import handoff_learning_judge as judge
+    on(**{AUTO_FIELD: True})
+    client = FakeAnthropic(answer)
+    assert _verdict(client) == want
+    (params,) = client.params
+    assert (params["model"], params["output_config"]["effort"]) == (judge.MODEL, judge.EFFORT) == ("claude-sonnet-5-5", "medium")
+    user = params["messages"][0]["content"]
+    assert current_object(db_session, TARGET).text in user and NEW_TEXT in user  # 두뇌가 짚은 항목과 직원 말
+    assert user.index("[회사 지식]") < user.index("[직원 말]")  # 한 방향
+    spend = db_session.get(SystemSetting, "cs_agent_learning_spend")
+    assert spend is not None and spend.setting_value.get("calls", 0) >= 1  # 학습 돈 줄(챗봇 돈 줄 아님)
+
+
+def test_the_differs_judge_is_unavailable_without_a_learning_cap(admin):
+    from foms.services.cs_agent.settings import read_settings
+    on(**{AUTO_FIELD: True, "learning_cap_usd_panel": None})
+    client = FakeAnthropic({"verdict": "adds", "why": "합성"})
+    assert _verdict(client, cfg=read_settings(db_session, log=False)) == "unavailable" and client.params == []
+
+
+def test_a_new_resort_version_checks_every_card_again(admin):
+    clash, new, number, same = _cards()
+    db_session.add(SystemSetting(setting_key=resort.STORE_KEY, description="합성", setting_value={
+        "policy": 1, "until": same.id, "checked": [clash.id, new.id, number.id, same.id], "done": True}))
+    db_session.commit()
+    counts = _resort(Judge(clash="400mm"))
+    assert (counts["checked"], counts.get("moved"), counts.get("merged")) == (4, 1, 1)  # 판 1 이 가른 표는 버리고 처음부터
+    state = resort.card_resort_state(db_session)
+    assert (state["policy"], state["done"]) == (resort.RESORT_POLICY, True) and len(state["checked"]) == 4
