@@ -41,7 +41,7 @@
   {% set _last_call = _lc_calls[-1] if _lc_calls else None %}
   {% set _last_call_result = _last_call.result if _last_call else '' %}
 
-  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}" data-workflow-stage="{{ workflow_stage }}"{% if show_last_call %} data-foms-last-call="{{ _last_call_result }}"{% endif %}{% if order.remaining_construction_note %} data-remaining-construction="{{ order.remaining_construction_note }}"{% endif %}{% if order.production_split_note %} data-production-split-note="{{ order.production_split_note }}"{% endif %}>
+  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}" data-workflow-stage="{{ workflow_stage }}"{% if show_last_call %} data-foms-last-call="{{ _last_call_result }}"{% endif %}{% if order.remaining_construction_note %} data-remaining-construction="{{ order.remaining_construction_note }}"{% endif %}{% if order.production_split_note %} data-production-split-note="{{ order.production_split_note }}"{% endif %}{% if order.item_done_visit_date %} data-visit-date="{{ order.item_done_visit_date }}"{% endif %}>
     <header class="queue-card__head foms-queue-card-v2__head">
       <span class="foms-stage-badge foms-stage-badge{{ badge_mod }}">{{ badge_label }}</span>
       {#- AI 제안 칩 묶음(접목판 점검 3차): 칩 자리와 함께만 — 단계 배지 뒤 배지들과 칩을 한 상자에(꾸밈 foms-graft-cells.css,

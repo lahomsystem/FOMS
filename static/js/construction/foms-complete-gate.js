@@ -20,12 +20,16 @@
   var SHEET_SEL = '[data-foms-cgate-sheet]';
   var BASE_LABEL = '시공 완료';
 
-  // 단추 글 — 체크 목록이 있으면 고른 것에 따라 [시공 완료] / "오늘 시공 끝 — 남은 제품 N개".
+  // 단추 글 · 켜짐 — 체크 목록이 있으면 고른 것에 따라 [시공 완료] / "오늘 시공 끝 — 남은 제품 N개",
+  // 하나도 안 골랐거나 목록을 못 읽었으면 끈다(사진 · 서명 문은 updateGate 가 sheet.__cgateEvidenceOk 로 남긴다).
   function refreshLabel(sheet) {
     var btn = sheet.querySelector('[data-foms-cgate-complete]');
-    if (btn) {
-      btn.textContent = window.FomsVisitItems ? window.FomsVisitItems.buttonLabel(sheet, BASE_LABEL) : BASE_LABEL;
+    var api = window.FomsVisitItems;
+    if (!btn) {
+      return;
     }
+    btn.textContent = api ? api.buttonLabel(sheet, BASE_LABEL) : BASE_LABEL;
+    btn.disabled = !sheet.__cgateEvidenceOk || !!(api && api.blocked(sheet));
   }
 
   function mountVisitItems(sheet, orderId) {
@@ -33,13 +37,9 @@
     if (!api) {
       return;
     }
-    api.load(orderId).then(function (d) {
-      if (!d || sheet.getAttribute('data-order-id') !== String(orderId)) {
-        return;
-      }
-      api.render(sheet, sheet.querySelector('.foms-cgate-sign'), d, function () { refreshLabel(sheet); });
-      refreshLabel(sheet);
-    });
+    api.mount(sheet, function () { return sheet.querySelector('.foms-cgate-sign'); }, orderId,
+      function () { return sheet.getAttribute('data-order-id') === String(orderId); },
+      function () { refreshLabel(sheet); });
   }
 
   function getSheet() {
@@ -81,8 +81,9 @@
       status.textContent = '완료까지: 시공 후 ' + after + '/2 · 서명 ' + (signed ? 'O' : 'X');
     }
     var btn = sheet.querySelector('[data-foms-cgate-complete]');
+    sheet.__cgateEvidenceOk = after >= 2 && signed;
     if (btn) {
-      btn.disabled = !(after >= 2 && signed);
+      btn.disabled = !sheet.__cgateEvidenceOk;
     }
     refreshLabel(sheet);
   }
@@ -108,7 +109,7 @@
 
   function resetSheet(sheet) {
     if (window.FomsVisitItems) {
-      window.FomsVisitItems.remove(sheet);
+      window.FomsVisitItems.remove(sheet);  // 다른 주문의 목록 · 못 읽은 자리를 남기지 않는다
     }
     ['before', 'after'].forEach(function (kind) {
       var thumbs = sheet.querySelector('[data-foms-cgate-thumbs="' + kind + '"]');
@@ -310,9 +311,8 @@
     }
     setError(sheet, '');
     var body = { completion_note: note };
-    var doneRefs = window.FomsVisitItems ? window.FomsVisitItems.selected(sheet) : null;
-    if (doneRefs) {
-      body.done_item_uids = doneRefs;
+    if (window.FomsVisitItems) {
+      window.FomsVisitItems.extendBody(sheet, orderId, body);  // 나눠 시공: done_item_uids · visit_date
     }
     mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/complete', {
       method: 'POST',
@@ -324,6 +324,7 @@
         // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)도 서버 글 그대로.
         setError(sheet, result.message || '완료 처리에 실패했습니다.');
         if (btn) { btn.disabled = false; }
+        refreshLabel(sheet);  // 목록이 막는 경우(체크 0개 · 못 읽음)는 다시 끈다
         return;
       }
       closeSheet();

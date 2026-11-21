@@ -10,19 +10,17 @@
  * [되돌리기]는 관리자 · 매니저 · CS 에게만(can_undo) — 사유를 받아
  * POST /api/orders/<id>/items/<uid>/construction-done/undo {reason} → 성공하면 화면을 다시 읽는다.
  * 사유 창은 그 화면의 공용 사유 시트(window.FomsReasonSheet), 없으면 window.prompt.
+ * 셸 조각 로더(fragment-loader.js)는 src 스크립트를 한 번만 실행한다 — 태블릿 나눠 보기에서 주문 A → B 를 열면
+ * #erp-items 가 새로 생기므로 foms:main-content-swapped 때 start() 를 다시 돌려 옛 지켜보기를 끊고 새 칸을 찾는다.
+ * 싱글턴 가드는 문서 클릭 위임 · 이벤트 연결에만 둔다.
  */
 (function () {
   'use strict';
 
-  if (window.__FOMS_ITEM_DONE_BOUND) {
-    return;
-  }
-  window.__FOMS_ITEM_DONE_BOUND = true;
-
   var HOST_SEL = '#erp-items[data-item-construction-done]';
   var LINE_CLASS = 'erp-item-done-line';
   var UNDO_SEL = '[data-erp-item-done-undo]';
-  var REASON_MAX = 500;
+  var REASON_MAX = 200;
 
   function safeJsonParse(val, fb) {
     try {
@@ -135,7 +133,7 @@
     }
   }
 
-  document.addEventListener('click', function (event) {
+  function onClick(event) {
     var target = event.target;
     var btn = target && target.closest ? target.closest(UNDO_SEL) : null;
     if (!btn) return;
@@ -147,15 +145,33 @@
     askReason(btn.getAttribute('data-name') || '', function (reason) {
       sendUndo(btn, cfg.order_id, uid, reason);
     });
-  });
+  }
 
+  /**
+   * 지금 문서의 #erp-items 를 찾아 글을 달고 지켜본다. 옛 지켜보기는 끊는다(조각 교체마다 다시 부른다).
+   * 지켜보기는 window 에 하나만 둔다 — 파일이 두 번 실려도 앞 실행의 지켜보기까지 끊긴다.
+   */
   function start() {
+    if (window.__fomsItemDoneObserver) {
+      window.__fomsItemDoneObserver.disconnect();
+      window.__fomsItemDoneObserver = null;
+    }
     var host = document.querySelector(HOST_SEL);
     if (!host) return;
     decorate(host);
     if (typeof MutationObserver === 'function') {
-      new MutationObserver(function () { decorate(host); }).observe(host, { childList: true, subtree: true });
+      var observer = new MutationObserver(function () { decorate(host); });
+      observer.observe(host, { childList: true, subtree: true });
+      window.__fomsItemDoneObserver = observer;
     }
+  }
+
+  window.FomsItemConstructionDone = { start: start };
+
+  if (!window.__FOMS_ITEM_DONE_BOUND) {
+    window.__FOMS_ITEM_DONE_BOUND = true;
+    document.addEventListener('click', onClick);
+    document.addEventListener('foms:main-content-swapped', function () { window.FomsItemConstructionDone.start(); });
   }
 
   if (document.readyState === 'loading') {

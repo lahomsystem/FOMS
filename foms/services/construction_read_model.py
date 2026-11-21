@@ -22,6 +22,7 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.construction_dashboard_display import _display_stage_for_order
+from foms.services.orders.item_construction_view import visit_open
 from foms.services.erp_dashboard_search import (
     erp_order_dashboard_search_predicate,
     search_query_tokens,
@@ -77,22 +78,32 @@ def apply_construction_list_scope_filter(query: Query, f_stage: str, extra_ids: 
         f_stage: 명시 단계('' 또는 시공대기/시공중/시공완료). 값이 있으면 그 단계로 좁히고,
             없으면(기본 뷰·검색) 전 시공 단계로 스코프한다.
 
-        extra_ids: 단계 미선택 뷰에 더할 주문 번호 — 나눠 시공하는 생산 단계 주문(2단계,
-            ``item_construction_view.split_production_candidate_ids``). 비면 지금과 같은 SQL.
+        extra_ids: 단계 미선택 · 시공대기 · 시공중 칩에 더할 주문 번호 — 나눠 시공하는 생산 단계 주문(2단계,
+            ``item_construction_view.split_production_candidate_ids``). 그 줄의 표시 단계는 시공대기 · 시공중이라
+            시공완료 칩에는 넣지 않는다. 비면 지금과 같은 SQL.
 
     Returns:
         Query: 시공 단계로 스코프된 리스트 쿼리.
     """
-    if f_stage:
+    if f_stage in ("시공대기", "시공중"):
+        stage_clause = Order.erp_stage_code.in_(CONSTRUCTION_ACTIVE_STAGE_CODES)
+    elif f_stage:
         return apply_construction_stage_sql_filter(query, f_stage)
-    stage_clause = Order.erp_stage_code.in_(CONSTRUCTION_ALL_STAGE_CODES)
+    else:
+        stage_clause = Order.erp_stage_code.in_(CONSTRUCTION_ALL_STAGE_CODES)
     if extra_ids:
         return query.filter(or_(stage_clause, Order.id.in_(list(extra_ids))))
     return query.filter(stage_clause)
 
 
-def compute_construction_kpis_and_badges(query: Query) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
-    """60일 ERP 윈도우 KPI + step_stats (slim JSONB projection)."""
+def compute_construction_kpis_and_badges(
+    query: Query, split_ids: Sequence[int] = ()
+) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
+    """60일 ERP 윈도우 KPI + step_stats (slim JSONB projection).
+
+    ``split_ids``(나눠 시공하는 생산 단계 주문, 2단계)는 목록 줄과 같이 방문이 열렸으면 시공중, 아니면 시공대기로 센다.
+    """
+    split = set(split_ids or ())
     sd_json = Order.structured_data
     kpi_rows = query.order_by(None).with_entities(
         Order.id,
@@ -121,6 +132,8 @@ def compute_construction_kpis_and_badges(query: Query) -> tuple[dict[str, dict[s
             "workflow": _ensure_dict(row.sd_workflow),
         }
         display_stage = _display_stage_for_order(row, structured_data)
+        if not display_stage and row.id in split:
+            display_stage = "시공중" if visit_open(structured_data) else "시공대기"
         if not display_stage:
             continue
         alerts = _erp_alerts(row, structured_data, 0)
@@ -212,9 +225,9 @@ def paginate_construction_orders(
     return page, total_pages, total_orders, page_rows
 
 
-def compute_construction_summary_blob(query: Query) -> dict[str, Any]:
+def compute_construction_summary_blob(query: Query, split_ids: Sequence[int] = ()) -> dict[str, Any]:
     """KPI + step_stats JSON DTO for micro-cache."""
-    step_stats, kpis = compute_construction_kpis_and_badges(query)
+    step_stats, kpis = compute_construction_kpis_and_badges(query, split_ids)
     return {"step_stats": step_stats, "kpis": kpis}
 
 

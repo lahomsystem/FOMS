@@ -27,7 +27,8 @@ from foms.services.orders.item_construction_done import (
     item_lines,
     remaining_lines,
 )
-from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, team_has_capability
+from foms.services.orders.state_axes import read_main_stage
 
 __all__ = [
     "PARTIAL_VISIT_NOTE_PREFIX",
@@ -47,7 +48,10 @@ __all__ = [
 PARTIAL_VISIT_NOTE_PREFIX = "부분 시공 끝"
 _START_NOTE = "시공 시작"
 PRODUCTION_STAGE_CODES = ("PRODUCTION", "생산")
-_UNDO_STAGE_CODES = PRODUCTION_STAGE_CODES + ("CONSTRUCTION", "시공", "CONSTRUCTING")
+#: [되돌리기]가 열리는 주 단계(``read_main_stage`` 값) — 서버 되돌리기와 같은 조건(결정 N9).
+_UNDO_MAIN_STAGES = ("PRODUCTION", "CONSTRUCTION")
+#: 되돌리기 권한 정책 칸 이름(E1 이 ``POLICY_REGISTRY`` 에 둔다). 칸이 없으면 손 판정으로 떨어진다.
+UNDO_POLICY_NAME = "ITEM_CONSTRUCTION_DONE_UNDO"
 SPLIT_PRODUCTION_STAGE_TEXT = "생산 · 부분 시공"
 SPLIT_PRODUCTION_NOTE = "생산 중 — 먼저 시공하는 제품만 기록해요"
 
@@ -195,9 +199,15 @@ def annotate_split_rows(rows: list[dict], *, visit_date: Optional[str] = None) -
 
 
 def user_may_undo_item_done(user: Any) -> bool:
-    """[되돌리기]를 그릴 사람 — 관리자 · 매니저, 또는 CS 능력 팀(회계팀 별칭 포함) 직원. 조회 전용은 아니다."""
+    """[되돌리기]를 그릴 사람 — 서버 문지기와 같은 정책(``UNDO_POLICY_NAME``)으로 판정한다.
+
+    정책 칸이 아직 없으면(통합 전) 같은 뜻의 손 판정: 관리자 · 매니저, 또는 CS 능력 팀(회계팀 별칭 포함) 직원.
+    """
     if user is None:
         return False
+    policy = POLICY_REGISTRY.get(UNDO_POLICY_NAME)
+    if policy is not None:
+        return bool(evaluate_policy(policy, user).allowed)
     role = str(getattr(user, "role", "") or "").upper()
     if role in ("ADMIN", "MANAGER"):
         return True
@@ -223,6 +233,5 @@ def order_item_done_view(order: Any, user: Any = None) -> Optional[dict]:
         records.append({"uid": line.uid, "name": line.name, "label": f"{label} 시공 끝" if label else "시공 끝"})
     if not records:
         return None
-    stage = str(getattr(order, "erp_stage_code", "") or "").strip().upper()
     return {"order_id": int(order.id), "records": records,
-            "can_undo": stage in _UNDO_STAGE_CODES and user_may_undo_item_done(user)}
+            "can_undo": read_main_stage(order) in _UNDO_MAIN_STAGES and user_may_undo_item_done(user)}
