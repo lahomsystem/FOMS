@@ -61,30 +61,43 @@ def _production_product_label(items: list[Any]) -> str:
     return ', '.join(names)
 
 
+# 품목 · 규격 칸 이름(견적 · 도면 변경 알림과 같은 이름들). 생산 화면 줄 글과 작업 시트
+# (production_sheet_view)가 이 한 규칙을 같이 쓴다.
+_WHD_KEYS = (('W', ('spec_width', 'w', 'width')), ('D', ('spec_depth', 'd', 'depth')), ('H', ('spec_height', 'h', 'height')))
+
+
+def _whd_text(row: dict[str, Any]) -> str:
+    """dict 한 개(품목 자체 또는 ``spec_rows`` 한 줄)의 'W3100 × D500 × H2300'. 값 없는 축('' · '-')은 뺀다."""
+    parts: list[str] = []
+    for axis, keys in _WHD_KEYS:
+        for k in keys:
+            v = row.get(k)
+            text = str(v).strip() if v is not None else ''
+            if text and text != '-':
+                parts.append(f'{axis}{text}')
+                break
+    return ' × '.join(parts)
+
+
+def _spec_rows_whd(item: dict[str, Any]) -> str:
+    """``item['spec_rows']`` 각 줄의 W×D×H 를 ' / ' 로 잇는다(작업 시트와 같은 모양). 빈 줄 · dict 아닌 줄은 뺀다."""
+    rows = item.get('spec_rows')
+    if not isinstance(rows, list):
+        return ''
+    return ' / '.join(t for t in (_whd_text(r) for r in rows if isinstance(r, dict)) if t)
+
+
 def _production_spec_display(item: dict[str, Any] | None) -> str:
-    """첫 항목의 W×D×H 규격 표시(가로/깊이/높이). 없으면 spec 원문 폴백."""
+    """첫 항목의 W×D×H 규격 표시(가로/깊이/높이).
+
+    순서: 품목 자체 칸(spec_width 등) → ``spec_rows``(주문 마법사 주문은 여기에만 있다, 여러 줄은 ' / ')
+    → spec 원문.
+    """
     if not item:
         return ''
-
-    def _dim(*keys: str) -> str:
-        for k in keys:
-            v = item.get(k)
-            if v not in (None, '', '-'):
-                return str(v).strip()
-        return ''
-
-    w = _dim('spec_width', 'width')
-    d = _dim('spec_depth', 'depth')
-    h = _dim('spec_height', 'height')
-    parts = []
-    if w:
-        parts.append(f'W{w}')
-    if d:
-        parts.append(f'D{d}')
-    if h:
-        parts.append(f'H{h}')
-    if parts:
-        return ' × '.join(parts)
+    whd = _whd_text(item) or _spec_rows_whd(item)
+    if whd:
+        return whd
     spec = item.get('spec')
     return str(spec).strip() if isinstance(spec, str) and spec.strip() else ''
 
