@@ -453,3 +453,35 @@ def test_고치기_JS_는_세션_쿠키_한_경로_새_API_없음() -> None:
     # 켤 때는 만료 없음(세션 쿠키), 끌 때만 max-age=0. fetch · XHR 없음
     assert js.count("max-age") == 1 and "NAME + '=;max-age=0'" in js and "expires" not in js
     assert "fetch(" not in js and "XMLHttpRequest" not in js and "data-foms-prod-edit-now" in js
+
+
+# --------------------------------------------------------------------------- #
+# 바로가기 order= — PC 줄도 태블릿처럼 테두리(설계서 §9-10)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("param", ["order", "focus_order"])
+def test_PC_바로가기_주문은_그_날_장과_줄_테두리(client, cohort, param) -> None:
+    orders = _seed()
+    _login(client, "cs")
+    set_cookies(client, PC)
+    target = orders["hold"]  # 닷새 뒤 — 오늘 장이 아니다
+    day = (get_today_kst() + datetime.timedelta(days=5)).isoformat()
+    html = get_html(client, HOME + f"?{param}={target.id}")
+    assert f'data-foms-home-daypane="{day}"' in html
+    focused = re.findall(r'<div class="fpc-r[^"]*\bis-focus\b[^"]*" data-foms-home-dayrow="(\d+)"', html)
+    assert focused and set(focused) == {str(target.id)}, focused
+    # 음성 대조 — order= 가 없으면 테두리 없음, 같은 사람 태블릿은 옛 줄(fph-dr) 테두리 그대로
+    assert "is-focus" not in get_html(client, HOME + f"?day={day}")
+    set_cookies(client, TABLET)
+    tablet = get_html(client, HOME + f"?{param}={target.id}")
+    assert re.search(r'<a class="fph-dr[^"]*\bis-focus\b', tablet) and 'class="fpc-r' not in tablet
+
+
+def test_pc_css_바로가기_테두리는_태블릿과_같은_꼴이고_핀을_올렸다() -> None:
+    css = (ROOT / "static/css/contexts/production/pc.css").read_text(encoding="utf-8")
+    rule = ".fpc-r.is-focus, .fpc-q.is-focus { outline: 3px solid var(--fpc-brand); outline-offset: 2px; }"
+    assert rule in css and css.index(rule) > css.index(".fpc-r.is-chg, .fpc-q.is-chg {")  # 바뀜 테두리보다 뒤(이긴다)
+    home = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    assert ".fph-dr.is-focus, .fph-wi.is-focus { outline: 3px solid var(--fph-brand); outline-offset: 2px; }" in home
+    assert re.search(r"--fpc-brand:\s*#5a67d8;", css) and re.search(r"--fph-brand:\s*#5a67d8;", home)  # 같은 색
+    for tpl in ("templates/production/partials/home_styles.html", "templates/production/sheet.html"):
+        assert "pc.css') }}?v=20261121b" in (ROOT / tpl).read_text(encoding="utf-8"), tpl
