@@ -16,6 +16,7 @@ from db import get_db
 from models import Order
 from foms.api.production.orders import _PRODUCTION_DEFECT_REASONS
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.partner_order_filter import partner_filter_value
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.datetime_kst import get_today_kst
 from foms.services.feature_flags import (
@@ -135,7 +136,7 @@ def selected_day_pane(days: dict) -> dict:
 
 
 def _require_home_user():
-    """생산 홈·전체 화면 시트를 볼 수 있는 사람(관리자·CS·영업·생산, 협력사 제외). 아니면 403."""
+    """생산 홈·전체 화면 시트를 볼 수 있는 사람(관리자 · CS · 영업 · 생산 · 도면 · 시공 · 출고, 협력사 제외). 아니면 403."""
     user = getattr(g, 'current_user', None)
     # 규칙은 한 곳(home_access) — 태블릿 레일의 생산 단추 주소도 같은 답을 쓴다(D19).
     if not can_view_production_home(user):
@@ -148,8 +149,8 @@ def _require_home_user():
 def erp_production_home():
     """생산팀 첫 화면 — 탭 날짜(2주 띠 + 그날, D18 11-10) · 내 공정 · 바뀐 것 · 전체 주문(찾기). 설계서 §12 · D10·D12.
 
-    볼 수 있는 사람 = 공정 체크를 할 수 있는 사람과 같다(관리자·CS·영업·생산, ``_PRODUCTION_STEPS_EDIT_TEAMS``
-    와 같은 답). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
+    볼 수 있는 사람 = ``home_access.can_view_production_home``(관리자 · CS · 영업 · 생산 · 도면 · 시공 · 출고), 쓰는 사람은
+    더 좁다(관리자 · 생산팀, ``write_access.can_write_production``). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
 
     생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장에 도면 카드 판을 더 그리고(지금 장은
     태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
@@ -165,12 +166,16 @@ def erp_production_home():
     surface = _tablet_part_surface(user)
     tab = _resolve_home_tab(request.args.get('tab') or 'date', mode, surface)
     day_view = request.args.get('view') == DAY_VIEW and tab in ('date', 'parts')
-    rows, stats = build_production_home(db, user)
+    # 협력사 거르기(헤더 메뉴 · 쿠키)를 보드와 같이 먹는다(설계서 2026-11-21-production-pc-viewer §9-11).
+    partner_org = partner_filter_value(request)
+    rows, stats = build_production_home(db, user, partner_org=partner_org)
     today = get_today_kst()
     now_kst = datetime.datetime.now(_KST)
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
-    days = (production_home_days(rows, today, request.args.get('day'), past_hidden=past_hidden)
+    # 주소 order= (옛 focus_order=)는 그 주문의 날 장을 고르고 줄에 테두리를 친다(바로가기 · 알림 · 검색, §9-10).
+    days = (production_home_days(rows, today, request.args.get('day'), past_hidden=past_hidden,
+                                 focus_order=parse_step_order(request.args.get('order') or request.args.get('focus_order')))
             if tab in ('date', 'parts') else None)
     pane = selected_day_pane(days) if days is not None else None
     screen = _part_screen(db, user, tab, mode, surface, {'panes': [pane]} if pane is not None else None)
@@ -184,7 +189,7 @@ def erp_production_home():
         return response
     # 네 탭은 같은 행 집합에서 파생 — 쿼리는 묘비(취소 주문) 하나만 더한다. 묘비는 모든 탭에서 세어
     # "바뀐 것" 탭 숫자 = 받은함 장 수가 되게 한다(R2, 11-10).
-    tombstones = collect_production_tombstones(db, user, False)
+    tombstones = collect_production_tombstones(db, user, False, partner_org)
     # 바뀐 것 탭의 '누가 · 언제' · 확인한 것 · 더 보기(11-21)와 찾기 탭 바뀐 줄의 '누가 · 언제'는 사람 이름 읽기 1회를 더한다
     # (그 두 탭만, 읽을 사람이 없으면 0회). 날짜 · 내 공정 탭 쿼리는 그대로다.
     changes = (production_home_changes_view(db, user, rows, tombstones,

@@ -1,5 +1,5 @@
 {# ERP 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'production' | 'construction' | 'as' | 'shipment' | 'drawing_workbench' | 'completion' | 'settlement' | 'history' #}
-{# 시공팀(CONSTRUCTION)은 출고·시공만 표시 #}
+{# 시공팀(CONSTRUCTION)은 생산(보기)·출고·시공만 표시 #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
 {# 켜진 프리랜서(FCOMM-01 겹 5 메뉴)는 문지기 허용 목록 안 메뉴만(foms/services/auth/freelancer_menu.py). 이 주석 · 아래 set 의 끝 빼기 기호와
@@ -33,12 +33,14 @@
     <i class="fas fa-drafting-compass"></i>
     <span>도면작업실</span>
   </a>
+  {% endif %}
+  {# 생산(설계서 2026-11-21-production-pc-viewer §9-2): 첫 화면을 여는 사람은 첫 화면, 그 밖은 옛 보드 — 판정은 한 곳
+     (production_nav_href, foms/services/production/nav_target.py). 시공팀도 보인다(§13 결정 5, 보기만). #}
   <a class="erp-pro-nav-item {% if _active == 'production' %}active{% endif %}"
-    href="{{ url_for('erp_production_page.erp_production_dashboard') }}">
+    href="{{ production_nav_href() }}">
     <i class="fas fa-industry"></i>
     <span>생산</span>
   </a>
-  {% endif %}
   <a class="erp-pro-nav-item {% if _active == 'shipment' %}active{% endif %}"
     href="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}"
     data-foms-erp-fast-tab="1">

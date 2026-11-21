@@ -17,6 +17,7 @@ from foms.services.common.ept_b7_profile import format_phases
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
+from foms.services.production.home_access import PRODUCTION_VIEW_PATH_PREFIXES
 from foms.services.security.session_guard import impersonator_ok, session_is_current
 from foms.services.user_activity import touch_last_seen
 
@@ -300,6 +301,9 @@ def register_http_bootstrap(
             or path.startswith("/erp/construction")
             or path.startswith("/erp/completion")
             or path.startswith("/erp/history")
+            # 생산 보기 화면(첫 화면 · 작업 시트 · 인쇄 · 카드 그림) — 시공팀도 보기만(설계서 2026-11-21-production-pc-viewer
+            # §9-1 · §13 결정 5). 그 화면 문지기(can_view_production_home)가 따로 본다. 옛 보드는 그대로 돌려보낸다.
+            or path.startswith(PRODUCTION_VIEW_PATH_PREFIXES)
         ):
             return None
         if path.startswith("/erp/"):

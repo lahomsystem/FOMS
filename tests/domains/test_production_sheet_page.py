@@ -140,9 +140,12 @@ def test_제작대기_주문은_제작_시작_단추를_보인다(client) -> Non
     assert "is-now" not in html
 
 
-def test_도면팀은_403_없는_주문은_404(client) -> None:
+def test_팀_없으면_403_없는_주문은_404(client) -> None:
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
     _make_user(client, "sheet_drawing_staff", "DRAWING")
     order = _seed_order()
+    assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "sheet_noteam_staff", None)
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 403
     _make_user(client, "sheet_prod_staff3", "PRODUCTION")
     assert client.get(SHEET_URL.format(id=order.id + 999)).status_code == 404

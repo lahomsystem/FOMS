@@ -316,7 +316,7 @@ def test_cs_단계_버튼은_완료_단계로_넘기기(client):
 
 
 def test_pc_grid_shows_board_state_for_production(client):
-    """PC 그리드 — 생산 줄은 합성 quest 대신 '제작대기' 배지와 '생산 보드 열기' 링크다."""
+    """PC 그리드 — 생산 줄은 합성 quest 대신 '제작대기' 배지와 '생산 화면 열기' 링크다(2026-11-21 첫 화면 order=)."""
     user = _db_user("grid_synth_admin", role="ADMIN", team="SALES")
     order = _db_order("PRODUCTION", "합성 생산")
 
@@ -325,7 +325,7 @@ def test_pc_grid_shows_board_state_for_production(client):
     assert "(보드에서 진행)" not in html
     assert "(담당자만 누를 수 있어요)" not in html
     assert "제작대기" in html
-    assert f'href="/erp/production/dashboard?focus_order={order.id}">생산 보드 열기</a>' in html
+    assert f'href="/erp/production/home?order={order.id}">생산 화면 열기</a>' in html
 
 
 def test_pc_grid_keeps_permission_note_for_synthesized_received_quest_without_rights(client):

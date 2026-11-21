@@ -105,8 +105,9 @@ def test_production_row_with_current_run_shows_running(client):
     cell = _board_cell(_grid_html(client, user, "생산"), order.id)
     assert cell.select_one(".erp-board-state .badge").get_text(strip=True) == "제작중"
     link = cell.select_one(".erp-board-state a")
-    assert link["href"] == f"/erp/production/dashboard?focus_order={order.id}"
-    assert link.get_text(strip=True) == "생산 보드 열기"
+    # 생산 화면 = 새 첫 화면 order=(설계서 2026-11-21-production-pc-viewer §9-9)
+    assert link["href"] == f"/erp/production/home?order={order.id}"
+    assert link.get_text(strip=True) == "생산 화면 열기"
 
 
 def test_completed_row_is_green_badge_only(client):

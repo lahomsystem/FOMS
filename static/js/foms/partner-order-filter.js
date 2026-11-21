@@ -5,7 +5,7 @@
   window.__FOMS_PARTNER_FILTER_BOUND = true;
 
   var paths = ['/', '/erp/dashboard', '/erp/dashboard/', '/erp/measurement', '/erp/drawing-workbench',
-    '/erp/production/dashboard', '/erp/shipment', '/erp/as', '/erp/construction/dashboard',
+    '/erp/production/dashboard', '/erp/production/home', '/erp/shipment', '/erp/as', '/erp/construction/dashboard',
     '/erp/completion', '/erp/settlement', '/erp/history/'];
   var resetKeys = ['page', 'order', 'focus_order', 'view', 'mobile_chunk', 'from_history', 'from_dashboard'];
 

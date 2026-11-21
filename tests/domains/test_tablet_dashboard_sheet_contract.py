@@ -368,11 +368,12 @@ def test_시트_라우트는_생산_run_으로_제작중과_보드_링크를_그
     order_id = _db_production_order(with_run=True)
     html = _sheet_html(client, order_id)
     with _app.app.test_request_context("/"):
-        href = url_for("erp_production_page.erp_production_dashboard", focus_order=order_id)
+        # 생산 화면 = 새 첫 화면 order=(설계서 2026-11-21-production-pc-viewer §9-9)
+        href = url_for("erp_production_page.erp_production_home", order=order_id)
     assert _quest_title(html) == "제작중"
     btn = _pri_button(html)
     assert btn["href"] == href
-    assert btn.get_text(strip=True) == "생산 보드 열기"
+    assert btn.get_text(strip=True) == "생산 화면 열기"
     assert "erp-btn-approve-team" not in html
 
 

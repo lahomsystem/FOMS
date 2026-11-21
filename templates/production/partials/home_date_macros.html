@@ -14,7 +14,7 @@
 <span class="fph-due{% if r.day_is_today %} is-today{% elif _none %} is-none{% elif r.day_sub and r.day_sub.endswith('지남') %} is-past{% endif %}" data-foms-home-due>{% if not _none %}<i>시공</i>{% endif %}<b>{{ _lb }}</b>{% if sub and r.day_sub %}<small>{{ r.day_sub }}</small>{% endif %}</span>
 {%- endmacro %}
 {% macro fph_row(r) %}
-<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}"
+<a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}"
    href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}" data-foms-home-dayrow="{{ r.id }}">
   <span class="fph-dr__sg">{{ r.home_stage }}{% if r.has_changes %}<small>바뀜</small>{% endif %}</span>
   <span class="fph-dr__who">
@@ -29,5 +29,5 @@
 {% endmacro %}
 {# 작은 칸(도면·컨펌 기다림 · 제작 완료) — 시공일이 맨 앞이라 칸이 좁아도 안 잘린다. tail = 번호 뒤 글(없으면 품목 · 단계). #}
 {% macro fph_chip(r, done, extra='', tail=None) %}
-<a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small></a>
+<a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small></a>
 {% endmacro %}
