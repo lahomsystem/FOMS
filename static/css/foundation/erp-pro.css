@@ -982,6 +982,12 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   font-weight: 600;
   color: var(--foms-color-success-600, #15803d);
 }
+.foms-visit-items__failed {
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-color-warning-700, #b45309);
+}
+.foms-visit-items__retry,
 .erp-item-done-line__undo {
   padding: 0;
   border: 0;
@@ -990,6 +996,9 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
   color: var(--foms-interactive-primary, #2563eb);
   text-decoration: underline;
   cursor: pointer;
+}
+.foms-visit-items__retry {
+  min-height: 44px;
 }
 .erp-item-done-line__undo:disabled {
   opacity: 0.5;

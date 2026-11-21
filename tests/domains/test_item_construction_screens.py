@@ -388,3 +388,86 @@ def test_new_js_files_under_ratchet_and_wired() -> None:
     css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
     block = css[css.index(".foms-visit-items {"):]
     assert "font-size: calc(" in block and not re.search(r"font-size:\s*\d+px", block)
+
+
+# ── 교차 검수 고침(E3-1 ~ E3-7) ─────────────────────────────────────────────
+
+def test_js_dom_checks_swap_block_retry_and_body() -> None:
+    """가짜 DOM 위에서: 조각 교체 뒤 주문 B 줄에 글 · 옛 지켜보기 끊음(E3-1), 사유 200자(E3-3),
+    체크 0개 끔 · 못 읽음 [다시 읽기](E3-5), 몸에 done_item_uids · visit_date(E3-2)."""
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    assert node, "node must be on PATH"
+    proc = subprocess.run([node, str(ROOT / "tests/support/item_construction_dom_node_checks.js")], cwd=str(ROOT),
+                          capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert proc.returncode == 0 and "ITEM_DONE_DOM_OK" in proc.stdout, proc.stdout + proc.stderr
+
+
+def test_complete_windows_send_visit_date_and_pc_lead_text() -> None:
+    gate = (ROOT / "static/js/construction/foms-complete-gate.js").read_text(encoding="utf-8")
+    dash = (ROOT / "static/js/construction/dashboard.js").read_text(encoding="utf-8")
+    for js in (gate, dash):
+        assert "FomsVisitItems.extendBody(" in js and ".blocked(" in js
+    shared = (ROOT / "static/js/construction/foms-visit-items.js").read_text(encoding="utf-8")
+    assert "body.visit_date = visitDate(orderId)" in shared
+    modal = (ROOT / "templates/construction/partials/modals.html").read_text(encoding="utf-8")
+    assert '<p class="mb-3" data-cons-complete-lead>시공을 완료하시겠습니까? (상태가 완료(AS대기)로 변경됩니다)</p>' in modal
+    assert "주문은 지금 단계에 그대로 남아요" in dash and "leavesRemaining(modalEl)" in dash
+
+
+@pytest.mark.parametrize("role,team,can", [
+    ("ADMIN", None, True), ("MANAGER", "SALES", True), ("STAFF", "CS", True), ("STAFF", "ACCOUNTING", True),
+    ("STAFF", "SALES", False), ("STAFF", "CONSTRUCTION", False), ("VIEWER", "CS", False),
+])
+def test_undo_visibility_uses_policy_when_registered(monkeypatch, role, team, can) -> None:
+    """정책 칸(ITEM_CONSTRUCTION_DONE_UNDO)이 있으면 그 판정, 없으면 같은 뜻의 손 판정 — 두 길이 같은 답(E3-4)."""
+    from foms.services.orders import order_mutation_policy as omp
+
+    user = User(role=role, team=team, is_active=True)
+    order = _Row("CONSTRUCTION", _split_sd(stage="CONSTRUCTION"), 9)
+    registry = dict(omp.POLICY_REGISTRY)
+    registry.pop(icv.UNDO_POLICY_NAME, None)
+    monkeypatch.setattr(icv, "POLICY_REGISTRY", registry)
+    assert icv.order_item_done_view(order, user)["can_undo"] is can  # 손 판정
+    registry[icv.UNDO_POLICY_NAME] = omp._p(icv.UNDO_POLICY_NAME, teams=("CS",), description="시험용")
+    assert icv.order_item_done_view(order, user)["can_undo"] is can  # 정책 판정
+
+
+def test_stage_chips_and_summary_count_split_production(client) -> None:
+    """시공대기 칩 목록 · 숫자판에도 나눠 시공 생산 단계 주문이 든다, 시공완료 칩에는 안 든다(E3-6)."""
+    from foms.services.construction_read_model import (
+        apply_construction_list_scope_filter,
+        compute_construction_kpis_and_badges,
+    )
+
+    _login(client)
+    _cookies(client, _PC)
+    split = _order(_split_sd(), "PRODUCTION", [_d(-3), _d(5)])
+    cons = _order(_plain_sd(stage="CONSTRUCTION"), "CONSTRUCTION", [_d(1), _d(2)])
+    wait = client.get(URL + "?stage=시공대기", headers=SHELL).get_data(as_text=True)
+    assert f'data-order-id="{split}"' in wait and f'data-order-id="{cons}"' in wait
+    assert f'data-visit-date="{_d(0)}"' in wait[wait.index(f'<tr class="erp-main-row" data-order-id="{split}"'):][:400]
+    assert f'<tr class="erp-main-row" data-order-id="{split}"' not in client.get(URL + "?stage=시공중", headers=SHELL).get_data(as_text=True)
+    assert f'data-order-id="{split}"' not in client.get(URL + "?stage=시공완료", headers=SHELL).get_data(as_text=True)
+
+    base = db_session.query(Order).filter(Order.is_erp_order.is_(True))
+    stats, _ = compute_construction_kpis_and_badges(apply_construction_list_scope_filter(base, "", [split]), [split])
+    plain_stats, _ = compute_construction_kpis_and_badges(apply_construction_list_scope_filter(base, ""))
+    assert stats["시공대기"]["count"] == plain_stats["시공대기"]["count"] + 1
+
+
+def test_stage_chip_query_count_flat(client) -> None:
+    _login(client)
+    _cookies(client, _PC)
+    _order(_split_sd(), "PRODUCTION", [_d(-3), _d(5)])
+    client.get(URL + "?stage=시공대기", headers=SHELL)  # warmup
+    dc.reset_dashboard_cache_runtime_for_tests()
+    _, small = _count(lambda: client.get(URL + "?stage=시공대기", headers=SHELL))
+    for _ in range(6):
+        _order(_split_sd(), "PRODUCTION", [_d(-3), _d(5)])
+    dc.reset_dashboard_cache_runtime_for_tests()
+    resp, big = _count(lambda: client.get(URL + "?stage=시공대기", headers=SHELL))
+    assert resp.get_data(as_text=True).count("생산 · 부분 시공") == 7
+    assert big - small <= 2, (small, big)

@@ -481,14 +481,23 @@
     }
   }
 
-  // 나눠 시공(2단계): 완료 창에 "오늘 끝낸 제품" 체크 목록 · 단추 글(foms-visit-items.js). 나눠 시공이 아니면 그대로.
+  // 나눠 시공(2단계): 완료 창에 "오늘 끝낸 제품" 체크 목록 · 단추 글 · 끔(foms-visit-items.js). 나눠 시공이 아니면 그대로.
+  // 남은 제품이 남는 선택이면 머리 글 "(상태가 완료(AS대기)로 변경됩니다)" 를 "주문은 지금 단계에 그대로 남아요" 로 바꾼다.
   var COMPLETE_BTN_HTML = '<i class="fas fa-check"></i> 완료 처리';
+  var COMPLETE_LEAD_KEEP = '오늘 끝낸 제품만 시공 끝으로 남기고, 주문은 지금 단계에 그대로 남아요.';
   function refreshCompleteBtnLabel(modalEl) {
     const btn = document.getElementById('erp-cons-complete-btn');
-    if (!btn || !window.FomsVisitItems) return;
-    const label = window.FomsVisitItems.buttonLabel(modalEl, '');
+    const api = window.FomsVisitItems;
+    if (!btn || !api) return;
+    const label = api.buttonLabel(modalEl, '');
     if (label) btn.textContent = label;
     else btn.innerHTML = COMPLETE_BTN_HTML;
+    btn.disabled = api.blocked(modalEl);
+    const lead = modalEl ? modalEl.querySelector('[data-cons-complete-lead]') : null;
+    if (lead) {
+      if (!lead.hasAttribute('data-lead-text')) lead.setAttribute('data-lead-text', lead.textContent);
+      lead.textContent = api.leavesRemaining(modalEl) ? COMPLETE_LEAD_KEEP : lead.getAttribute('data-lead-text');
+    }
   }
 
   function mountCompleteVisitItems(modalEl, orderId) {
@@ -496,14 +505,12 @@
     if (!api || !modalEl) return;
     api.remove(modalEl);
     refreshCompleteBtnLabel(modalEl);
-    api.load(orderId).then(function (d) {
-      const idEl = document.getElementById('erp-cons-complete-order-id');
-      if (!d || !idEl || idEl.value !== String(orderId)) return;
-      api.render(modalEl, document.getElementById('erp-cons-complete-remaining'), d, function () {
-        refreshCompleteBtnLabel(modalEl);
-      });
-      refreshCompleteBtnLabel(modalEl);
-    });
+    api.mount(modalEl, function () { return document.getElementById('erp-cons-complete-remaining'); }, orderId,
+      function () {
+        const idEl = document.getElementById('erp-cons-complete-order-id');
+        return !!idEl && idEl.value === String(orderId);
+      },
+      function () { refreshCompleteBtnLabel(modalEl); });
   }
 
   // 시공 불가 사유 4종(서버 화이트리스트와 같은 코드·순서).
@@ -661,10 +668,9 @@
     const noteEl = document.getElementById('erp-cons-complete-note');
     const noteValue = (noteEl && noteEl.value) ? String(noteEl.value).trim() : '';
     const completeBody = { completion_note: noteValue };
-    const doneRefs = window.FomsVisitItems
-      ? window.FomsVisitItems.selected(document.getElementById('erpConstructionCompleteModal'))
-      : null;
-    if (doneRefs) completeBody.done_item_uids = doneRefs;
+    if (window.FomsVisitItems) {  // 나눠 시공: done_item_uids · visit_date
+      window.FomsVisitItems.extendBody(document.getElementById('erpConstructionCompleteModal'), orderId, completeBody);
+    }
 
     try {
       const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
