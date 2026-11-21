@@ -290,6 +290,24 @@ def fetch_production_current_run_ids(db: Any, page_rows: list[Any]) -> set[int]:
     return {int(r.order_id) for r in rows}
 
 
+def fetch_production_current_run_starts(db: Any, page_rows: list[Any]) -> dict[int, Any]:
+    """생산 첫 화면 전용 — current run 이 있는 주문 id → 회차 시작 시각(``started_at``, 없으면 None). 쿼리 1회.
+
+    :func:`fetch_production_current_run_ids` 와 같은 조건 · 같은 색인(``uq_production_run_current``)에 칸 하나만 더 읽는다.
+    '내 공정' 탭 판의 재단 '앞 공정'(제작 시작 · 시각)이 쓴다(설계서 2026-11-21-production-my-steps-panel §3-3).
+    옛 보드 · 칸반은 id 집합 함수를 그대로 쓴다. 빈 목록이면 쿼리 없이 빈 dict.
+    """
+    if not page_rows:
+        return {}
+    ids = [o.id for o in page_rows]
+    rows = (
+        db.query(ProductionRun.order_id, ProductionRun.started_at)
+        .filter(ProductionRun.order_id.in_(ids), ProductionRun.is_current.is_(True))
+        .all()
+    )
+    return {int(r.order_id): r.started_at for r in rows}
+
+
 def paginate_production_rows(
     _q: Query, page_raw: int | None, total_orders: int
 ) -> tuple[int, int, list[Any]]:

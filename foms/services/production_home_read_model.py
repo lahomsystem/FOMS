@@ -28,7 +28,7 @@ from foms.services.production_read_model import (
     PRODUCTION_KANBAN_MAX_ROWS,
     apply_production_dashboard_sort,
     build_production_orders_query,
-    fetch_production_current_run_ids,
+    fetch_production_current_run_starts,
 )
 
 #: 첫 화면에 싣는 단계 — 도면 + 칸반 단계(고객컨펌·생산·시공). 접수·실측은 생산과 무관해 뺀다.
@@ -315,7 +315,7 @@ def build_production_home_rows(
 def build_production_home(
     db: Any, user: Any, *, partner_org: str = '', today: datetime.date | None = None
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """첫 화면 행 + 통계 ``{'past_hidden', 'total'}``(total = 캡과 무관한 실제 총계). 쿼리 4회 + run id 1회.
+    """첫 화면 행 + 통계 ``{'past_hidden', 'total'}``(total = 캡과 무관한 실제 총계). 쿼리 4회 + run(id · 시작 시각) 1회.
 
     시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 안이거나 앞날·미정인 주문은 **전부** 읽는다(일거리). 그보다 지난 주문은
     최근 것부터 ``PRODUCTION_KANBAN_MAX_ROWS`` 에 남는 자리만 채운다 — 운영 실측(2026-11-09)에서 옛 주문이
@@ -344,7 +344,8 @@ def build_production_home(
             .all()
         )
     stats = {'past_hidden': max(0, past_total - min(room, past_total)), 'total': live_count + past_total}
-    run_ids = fetch_production_current_run_ids(db, orders)
+    run_starts = fetch_production_current_run_starts(db, orders)
+    run_ids = set(run_starts)
     rows = build_production_home_enriched_rows(orders, run_ids)
     alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None, with_ack_time=True)
     # 장 나누기도 캡·정렬과 같은 출처(납작 열)로 — 행의 construction_date 는 JSONB 라 직접 SQL 로 고친 옛 주문에서
@@ -370,6 +371,8 @@ def build_production_home(
         done = _newest_first(change.get('history') or []) if not alerts and acked_at is not None else []
         drawing_count = len(resolve_final_drawing_files(sd))
         row['home_steps'] = steps
+        # 회차 시작 시각(UTC naive, 없으면 None) — '내 공정' 판의 재단 '앞 공정' 글(home_step_panel)만 읽는다
+        row['run_started_at'] = run_starts.get(row['id'])
         row['home_stage'] = big
         row['home_stage_sub'] = sub
         row['home_view'] = view

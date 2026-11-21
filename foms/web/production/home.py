@@ -22,8 +22,11 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
     wants_coarse_pointer_surfaces,
+    wants_wide_only_surfaces,
+    wants_wide_viewport_surfaces,
 )
 from foms.services.production.home_access import can_view_production_home
+from foms.services.production.home_step_panel import attach_step_panels, parse_step_order
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
@@ -102,6 +105,28 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
     }
 
 
+def _step_panel_screen(tab: str, surface: bool, queues: dict | None, user) -> dict:
+    """'내 공정' 탭 오른쪽 판(설계서 2026-11-21-production-my-steps-panel §3-1 · §3-6) 템플릿 값.
+
+    문 = 도면 카드와 같은 기기 문(모바일 v2 셸 + 터치) + 넓은 창. 문 밖(PC 마우스 · 폰 · 세로 쿠키)은 판을 아예 그리지 않는다 —
+    지금 화면 그대로. 터치인데 창이 좁아(세로) 뺐으면 생략 표식을 남겨 가로로 돌리면 화면을 다시 받는다 — 화면 긴 변이
+    992 미만인 폰(``foms_scr``)은 가로로 돌려도 못 보므로 표식도 없다(폰 출력은 지금과 같다).
+    판 자료는 이미 읽은 행에서(쿼리 0). 주소 ``order=`` 는 판이 있을 때만 읽는다(고른 줄 · 첫 탭).
+    """
+    door = tab == 'steps' and surface and queues is not None
+    panel = door and wants_wide_viewport_surfaces()
+    order = parse_step_order(request.args.get('order')) if panel else None
+    pinned = attach_step_panels(queues, order) if panel else None
+    return {
+        'step_panel': panel,
+        'step_panel_omitted': door and not panel and wants_wide_only_surfaces(),
+        'step_pin': pinned,
+        'step_order': order if pinned else None,
+        'defect_reasons': _PRODUCTION_DEFECT_REASONS,
+        'step_me': (getattr(user, 'name', None) or getattr(user, 'username', '') or '') if panel else '',
+    }
+
+
 def selected_day_pane(days: dict) -> dict:
     """고른 날(주소 ``day=`` 또는 자동으로 고른 날)의 장 하나. ``production_home_days`` 의 ``selected`` 는 늘 장 열쇠다."""
     return next((p for p in days['panes'] if p['key'] == days['selected']), days['panes'][0])
@@ -165,6 +190,7 @@ def erp_production_home():
                if tab == 'changes' else None)
     if tab == 'all':
         production_home_attach_change_by(db, rows)
+    queues = production_home_step_queues(rows) if tab == 'steps' else None
     # 셸 조각(레일 · 아래 메뉴에서 온 view=fragment): 몸통 + 이 화면 CSS · 스크립트(다른 탭 조각과 같은 꼴, 11-14).
     template_name = ('production/partials/home_fragment.html' if wants_erp_shell_tab_body(request)
                      else 'production/home.html')
@@ -179,7 +205,8 @@ def erp_production_home():
         **screen,
         counts=production_home_counts(rows, len(tombstones)),
         changes=changes,
-        queues=production_home_step_queues(rows) if tab == 'steps' else None,
+        queues=queues,
+        **_step_panel_screen(tab, surface, queues, user),
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
         loaded_at_hm=now_kst.strftime('%H:%M'),
         loaded_at_iso=now_kst.isoformat(timespec='seconds'),
