@@ -189,7 +189,7 @@ def fetch_no_construction(conn) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # 순수 판정
 # --------------------------------------------------------------------------- #
-_DATE_TOKEN_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)")
+_DATE_TOKEN_RE = re.compile(r"^(?:(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})|(\d{4})(\d{2})(\d{2}))(?!\d)")
 #: 적용 직전 재확인용 — 후보 질의의 ``later_construction_date`` 하위 질의와 같은 조건.
 _LATER_DATE_SQL = """
 SELECT min(d.date) AS later FROM order_schedule_dates d
@@ -209,8 +209,9 @@ def text_dates(raw: Any) -> list[str]:
         m = _DATE_TOKEN_RE.match(token.strip())
         if not m:
             continue
+        y, mo, d = (g for g in m.groups() if g is not None)
         try:
-            found.add(date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat())
+            found.add(date(int(y), int(mo), int(d)).isoformat())
         except ValueError:
             continue
     return sorted(found)

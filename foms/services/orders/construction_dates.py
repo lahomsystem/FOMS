@@ -29,8 +29,9 @@ __all__ = [
     "split_date_text",
 ]
 
-#: 토큰 맨 앞의 ``YYYY-MM-DD``(구분자 - / . , 한 자리 월 · 일 허용). 뒤에 숫자가 이어지면 날짜가 아니다.
-_DATE_TOKEN_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)")
+#: 토큰 맨 앞의 ``YYYY-MM-DD``(구분자 - / . , 한 자리 월 · 일 허용) 또는 붙여 쓴 ``YYYYMMDD``.
+#: 뒤에 숫자가 이어지면 날짜가 아니다.
+_DATE_TOKEN_RE = re.compile(r"^(?:(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})|(\d{4})(\d{2})(\d{2}))(?!\d)")
 
 #: "두 번" 처럼 읽히게 하는 셈말. 표에 없는 수는 숫자로 적는다.
 _COUNT_WORDS = {2: "두", 3: "세", 4: "네", 5: "다섯"}
@@ -38,15 +39,17 @@ _COUNT_WORDS = {2: "두", 3: "세", 4: "네", 5: "다섯"}
 
 def split_date_text(raw: Any) -> list[str]:
     """쉼표로 이은 날짜 글을 ``YYYY-MM-DD`` 목록으로(정렬 · 중복 제거). 못 읽는 토큰은 버린다."""
-    if raw is None or isinstance(raw, (dict, list, tuple, set, bool)):
+    # 숫자 값(JSON 20261105 등)은 글로 적힌 날이 아니라 버린다 — 붙여 쓴 날은 글일 때만 읽는다.
+    if raw is None or isinstance(raw, (dict, list, tuple, set, bool, int, float)):
         return []
     found: set[str] = set()
     for token in str(raw).split(","):
         match = _DATE_TOKEN_RE.match(token.strip())
         if not match:
             continue
+        year, month, mday = (part for part in match.groups() if part is not None)
         try:
-            day = datetime.date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+            day = datetime.date(int(year), int(month), int(mday))
         except ValueError:
             continue
         found.add(day.isoformat())

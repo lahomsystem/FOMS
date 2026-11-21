@@ -77,6 +77,21 @@ def test_garbage_token_beside_valid_date_keeps_the_valid_one():
     assert cd.split_date_text("2026-11-05, 미정, 2026-11-17 오후") == ["2026-11-05", "2026-11-17"]
 
 
+def test_compact_eight_digit_date_is_read():
+    """붙여 쓴 ``YYYYMMDD`` 도 읽는다(옛 파서가 읽던 꼴) — 날짜 하나짜리 주문의 동작이 그대로다."""
+    assert cd.split_date_text("20261117") == ["2026-11-17"]
+    assert cd.split_date_text("20261105, 2026-11-17") == ["2026-11-05", "2026-11-17"]
+    assert cd.split_date_text("20261117 오후") == ["2026-11-17"]
+    sd = _sd("20261105", items=[{"construction_date": "20261117"}])
+    assert cd.remaining_construction_note(sd, TODAY) == "11/17 시공이 남아 있어요"
+
+
+@pytest.mark.parametrize("bad", ["20260230", "20261301", "20261100", "202611170", "2026111"])
+def test_invalid_compact_date_yields_nothing(bad):
+    """없는 날 · 자리 수가 틀린 붙여 쓴 글은 버린다."""
+    assert cd.split_date_text(bad) == []
+
+
 def test_all_past_dates_leave_no_note():
     """시공일이 모두 지났으면 한 줄이 없다(대조군)."""
     sd = _sd("2026-10-01, 2026-10-20")
