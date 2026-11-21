@@ -1,8 +1,8 @@
 {# 생산 첫 화면 매크로 — 주소(home_href) · 날짜 탭 줄 · 칸. home_body · home_date · home_day_pane · home_parts 가 같이 쓴다. #}
-{# 첫 화면 주소는 여기 한 곳에서 만든다(11-14): 탭(날짜는 생략) · 파트('도면 카드' 탭만) · 날(날짜 · 도면 카드 탭만).
+{# 첫 화면 주소는 여기 한 곳에서 만든다(11-14): 탭(날짜는 생략) · 파트('도면 카드' 탭만) · 날(날짜 · 도면 카드 탭만) · 확인한 것 다 보기('바뀐 것' 탭만, 11-21).
    화면 탭 · 날 단추 · 파트 고르기 · [다시 받기] 가 모두 이것을 쓰고, JS 는 링크의 href 를 그대로 쓴다(주소를 다시 짓지 않는다). #}
-{% macro home_href(tab=None, part=None, day=None) -%}
-{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab == 'parts' else None), day=(day if tab in (None, 'date', 'parts') else None)) }}
+{% macro home_href(tab=None, part=None, day=None, done=None) -%}
+{{ url_for('erp_production_page.erp_production_home', tab=(tab if tab and tab != 'date' else None), part=(part if tab == 'parts' else None), day=(day if tab in (None, 'date', 'parts') else None), done=(done if tab == 'changes' else None)) }}
 {%- endmacro %}
 {% macro fph_row(r, show_day) %}
 <a class="fph-dr is-{{ 'w' if r.home_stage == '제작 대기' else ('f' if r.home_stage == '검수 끝' else 'p') }}{% if r.has_changes %} is-chg{% endif %}"
