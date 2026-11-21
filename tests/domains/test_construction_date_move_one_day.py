@@ -345,10 +345,12 @@ def test_출고팀_화면은_시공일_목록을_data_칸으로_받는다(client
 
 
 def test_출고팀_화면_스위치_끄면_빈_목록(client, flag_off):
+    """스위치가 꺼지면 날 목록 칸 자체를 내보내지 않는다(목록이 있을 때만 — 최종 검수 F-S8)."""
     _login(client, _user("mv_ship_off", role="STAFF", team="SHIPMENT"))
     oid = _order(f"{_day(3)}, {_day(10)}", [_day(3), _day(10)], stage="RECEIVED")
     body = client.get(f"/edit/{oid}?open=erp-order").get_data(as_text=True)
-    assert 'data-erp-construction-dates="[]"' in body
+    assert 'data-erp-construction-only="true"' in body
+    assert "data-erp-construction-dates" not in body
 
 
 def _date_changes(order_id: int) -> int:

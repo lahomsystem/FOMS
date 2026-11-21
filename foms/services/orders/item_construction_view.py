@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import datetime
 from typing import Any, Optional
 
 from sqlalchemy import func, select
@@ -45,6 +46,7 @@ __all__ = [
     "partial_visit_closed",
     "production_split_listed",
     "split_production_candidate_ids",
+    "visit_day",
     "visit_open",
 ]
 
@@ -174,6 +176,25 @@ def split_production_candidate_ids(base_query: Query, today_iso: Optional[str] =
     return out
 
 
+#: 고른 날이 이보다 더 지난 날이면 오늘로 본다(지난 화면을 열어 둔 채 옛 날로 찍지 않게).
+VISIT_DAY_LOOKBACK_DAYS = 13
+
+
+def visit_day(chosen: Optional[str], today: Optional[datetime.date] = None) -> str:
+    """완료 창이 쓸 그날 — min(고른 날, 오늘 KST). 못 읽거나 오늘-13일보다 이전이면 오늘.
+
+    방문 날(visit_date)과 미리 체크 기준이 모두 이 날이다(앞날 줄을 열어 미리 끝으로 찍지 않는다).
+    """
+    base = today or get_today_kst()
+    try:
+        day = datetime.date.fromisoformat(str(chosen or "")[:10])
+    except ValueError:
+        return base.isoformat()
+    if day > base or day < base - datetime.timedelta(days=VISIT_DAY_LOOKBACK_DAYS):
+        return base.isoformat()
+    return day.isoformat()
+
+
 def annotate_split_rows(rows: list[dict], *, visit_date: Optional[str] = None) -> None:
     """시공 목록 · 태블릿 줄 DTO 에 나눠 시공 표시를 단다(나눠 시공하는 주문 줄만 — 그 밖 줄은 손대지 않는다).
 
@@ -181,11 +202,11 @@ def annotate_split_rows(rows: list[dict], *, visit_date: Optional[str] = None) -
       '시공중'(방문 열림) · '시공대기'(닫힘)로 바꾸고, 글은 ``stage_text`` "생산 · 부분 시공", 상세 한 줄
       ``split_production_note``. 생산 안내(``tablet_note``)는 뺀다(같은 말 한 번).
     * 시공 단계 줄은 상태 글만 ``partial_board_label`` 로(방문이 닫힌 부분 시공 중).
-    * 완료 창이 "오늘 끝낸 제품"을 고를 날 ``visit_date``(없으면 오늘)를 줄에 싣는다.
+    * 완료 창이 "오늘 끝낸 제품"을 고를 날(``visit_day`` — 고른 날과 오늘 중 이른 날)을 줄에 싣는다.
     """
     if not rows or not is_item_construction_done_enabled():
         return
-    day = visit_date or get_today_kst().isoformat()
+    day = visit_day(visit_date)
     for row in rows:
         sd = _sd(row.get("structured_data"))
         if not is_split_order(sd):

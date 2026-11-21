@@ -37,11 +37,21 @@
     return document.querySelector('[data-visit-date][data-order-id="' + String(orderId) + '"]');
   }
 
-  /** 완료 창이 고를 날 — 나눠 시공 줄의 data-visit-date, 없으면 오늘. */
+  var LOOKBACK_DAYS = 13;  // 서버 item_construction_view.VISIT_DAY_LOOKBACK_DAYS 와 같은 값
+
+  /**
+   * 완료 창이 고를 날 — min(나눠 시공 줄의 data-visit-date, 오늘). 못 읽거나 오늘-13일보다 이전이면 오늘.
+   * 방문 날(visit_date)과 미리 체크 기준이 모두 이 날이다(서버 visit_day 와 같은 규칙).
+   */
   function visitDate(orderId) {
     var src = splitRow(orderId);
     var v = src ? String(src.getAttribute('data-visit-date') || '') : '';
-    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : todayIso();
+    var today = todayIso();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || v > today) return today;
+    var floor = new Date();
+    floor.setDate(floor.getDate() - LOOKBACK_DAYS);
+    var floorIso = floor.getFullYear() + '-' + pad(floor.getMonth() + 1) + '-' + pad(floor.getDate());
+    return v < floorIso ? today : v;
   }
 
   /**
@@ -130,6 +140,16 @@
     return section;
   }
 
+  /** 읽는 중 자리 — 읽는 동안 완료 단추를 끈다(나눠 시공 줄일 때만 그린다). */
+  function renderLoading(host, anchor) {
+    remove(host);
+    var section = shell();
+    section.setAttribute('data-foms-visit-items-loading', '');
+    section.appendChild(el('div', 'foms-visit-items__loading', '제품 목록을 읽는 중이에요'));
+    place(host, anchor, section);
+    return section;
+  }
+
   /** 못 읽은 자리 — "제품 목록을 못 읽었어요" + [다시 읽기]. 이 자리가 있으면 완료 단추를 끈다. */
   function renderRetry(host, anchor, onRetry) {
     remove(host);
@@ -158,14 +178,21 @@
    */
   function mount(host, anchorOf, orderId, stillOpen, onChange) {
     remove(host);
+    // 나눠 시공 줄(data-visit-date — 스위치가 켜지고 나눠 시공하는 주문에만 서버가 싣는다)이 아니면 읽지 않는다.
+    if (!splitRow(orderId)) {
+      if (typeof onChange === 'function') onChange();
+      return Promise.resolve();
+    }
+    renderLoading(host, anchorOf());
+    if (typeof onChange === 'function') onChange();
     return load(orderId).then(function (d) {
       if (!stillOpen()) return;
       if (d && d.failed) {
-        if (splitRow(orderId)) {
-          renderRetry(host, anchorOf(), function () { mount(host, anchorOf, orderId, stillOpen, onChange); });
-        }
+        renderRetry(host, anchorOf(), function () { mount(host, anchorOf, orderId, stillOpen, onChange); });
       } else if (d) {
         render(host, anchorOf(), d, onChange);
+      } else {
+        remove(host);
       }
       if (typeof onChange === 'function') onChange();
     });
@@ -173,7 +200,8 @@
 
   function boxes(host) {
     var section = host ? host.querySelector(SECTION_SEL) : null;
-    if (!section || section.hasAttribute('data-foms-visit-items-failed')) return null;
+    if (!section || section.hasAttribute('data-foms-visit-items-failed')
+      || section.hasAttribute('data-foms-visit-items-loading')) return null;
     return Array.prototype.slice.call(section.querySelectorAll(CHECK_SEL));
   }
 
@@ -184,11 +212,11 @@
     return list.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
   }
 
-  /** 완료 단추를 꺼야 하나 — 못 읽은 자리가 있거나, 목록이 있는데 하나도 안 골랐다. */
+  /** 완료 단추를 꺼야 하나 — 읽는 중 · 못 읽은 자리가 있거나, 목록이 있는데 하나도 안 골랐다. */
   function blocked(host) {
     var section = host ? host.querySelector(SECTION_SEL) : null;
     if (!section) return false;
-    if (section.hasAttribute('data-foms-visit-items-failed')) return true;
+    if (section.hasAttribute('data-foms-visit-items-failed') || section.hasAttribute('data-foms-visit-items-loading')) return true;
     var picked = selected(host);
     return !!picked && picked.length === 0;
   }
@@ -243,6 +271,7 @@
     buttonLabel: buttonLabel,
     extendBody: extendBody,
     visitDate: visitDate,
+    isStale: function (payload) { return !!payload && payload.code === 'VISIT_ITEMS_STALE'; },
     notifyVisit: notifyVisit,
     TOAST_WAIT_MS: 1200
   };
