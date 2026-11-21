@@ -5,7 +5,8 @@ BACKLOG-COMPLETE-01 (스펙 ``docs/plans/2026-09-22-past-construction-bulk-compl
 정리한다. 판정 기준은 ``erp_construction_date`` 가 오늘(KST) 기준 ``--cutoff-days``(기본 7일)
 이상 지난 ERP 본공정 주문이다. 그 칸은 시공일 글에서 "먼저 적힌 날"일 뿐이라, 기준일 이후
 시공일이 하나라도 남은 주문(일정 표 ``order_schedule_dates`` 또는 주문 칸 글)은
-``later_construction_date`` 사유로 뺀다.
+``later_construction_date`` 사유로 뺀다. 제품마다 '시공 끝'(2단계)으로 먼저 끝낸 제품이 있고 남은 제품도
+있는 주문은 스위치와 상관없이 ``items_construction_open`` 사유로 뺀다(apply 직전에도 다시 본다).
 
 기존 「단계 강제 변경」 일괄 경로(``foms/services/orders/stage_override.py``)를 쓰지 않는 이유:
 그 경로는 ``order.status`` 를 통째 덮어 AS 접수·완료 건이 AS 대시보드에서 사라진다
@@ -75,6 +76,7 @@ from bulk_complete_past_construction_core import (  # noqa: E402
     cutoff_iso,
     fetch_candidates,
     fetch_no_construction,
+    items_construction_open,
     later_construction_date,
     rollback_one,
     text_dates,
@@ -87,7 +89,7 @@ __all__ = [
     "_connect", "_rows", "_snapshot_rows", "apply_one", "assert_env_fingerprint", "build_plan",
     "classify_row", "completed_workflow", "cutoff_iso", "fetch_candidates",
     "fetch_no_construction", "rollback_one", "today_kst", "main", "build_parser",
-    "later_construction_date", "text_dates",
+    "later_construction_date", "text_dates", "items_construction_open",
 ]
 
 
@@ -103,6 +105,9 @@ def _print_summary(plan: dict[str, Any]) -> None:
     if later:
         print("  뒤 시공일이 남아 뺀 주문:", ", ".join(
             f"#{x['order_id']}({x.get('later_construction_date')})" for x in later))
+    items_open = [x for x in plan["skipped"] if x.get("reason") == "items_construction_open"]
+    if items_open:
+        print("  남은 제품 시공이 있어 뺀 주문:", ", ".join(f"#{x['order_id']}" for x in items_open))
 
 
 # --------------------------------------------------------------------------- #
