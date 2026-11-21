@@ -31,6 +31,7 @@ from foms.services.orders.admin_override import (
     record_admin_override_event,
     resolve_admin_override,
 )
+from foms.services.orders.construction_schedule import move_first_date_for_field
 from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
 from foms.services.orders.items_construction_gate import items_gate_blocks_locked, items_open_body
@@ -854,7 +855,6 @@ def update_order_field_from_payload(
                 ).get("date")
                 # 스위치가 켜져 있고 새 값이 날 하나면 칸에 보이는 첫 날 하나만 옮긴다(제품 칸도 같이 —
                 # 설계서 2026-11-21 8절). 꺼져 있거나 빈 값 · 여러 날이면 지금처럼 통째로 쓴다.
-                from foms.services.orders.construction_schedule import move_first_date_for_field
 
                 _moved = move_first_date_for_field(structured_data, value)
                 if _moved is None:
