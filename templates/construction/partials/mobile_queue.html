@@ -116,7 +116,7 @@
             {'label': 'AS 접수', 'icon': 'fas fa-tools', 'data_action': 'openAsAcceptModal', 'button_class': 'erp-construction-action'}
           ] %}
         {% endif %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--construction', o.stage, task_actions=task_actions) }}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--construction', o.stage_text or o.stage, task_actions=task_actions) }}
       {% endfor %}
     </div>
     {{ render_mobile_pager(_mq_base, _mq_ctx|join('&'), page, total_pages) }}

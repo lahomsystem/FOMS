@@ -31,8 +31,10 @@ from foms.services.orders.admin_override import (
     record_admin_override_event,
     resolve_admin_override,
 )
+from foms.services.orders.construction_schedule import move_first_date_for_field
 from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked, items_open_body
 from foms.services.orders.complete_path_policy import (
     rejects_completed_field_write,
     use_cs_complete_response_body,
@@ -611,6 +613,12 @@ def update_order_field_from_payload(
             getattr(order, "structured_data", None) or {},
         ))
 
+    # 남은 제품 문지기(제품마다 '시공 끝' 2단계 7절): 이 칸 쓰기의 세 갈래(엔진 · CS 완료 서비스 ·
+    # 엔진 밖 옛 쓰기 ``workflow.stage = value``) 모두 여기서 한 번에 막는다. 뚫기로도 못 넘는다.
+    # 행을 잠근 최신 값 · 지금 단계로 판정한다 — 이미 CS · 완료면 쉰다(검수 E2-1 · E2-5).
+    if field == "status" and items_gate_blocks_locked(db, order, value):
+        return jsonify(items_open_body(order)), 409
+
     # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다. 이 우회로는
     # CS quest·보류·AS 게이트를 통째로 건너뛰고 workflow.stage 까지 COMPLETED 로 덮었다.
     # 다른 축은 막지 않는다 — 술어가 value == 'COMPLETED' 에서 먼저 끊기므로 출고 보드
@@ -845,14 +853,20 @@ def update_order_field_from_payload(
                 old_cons = (
                     (old_sd_snapshot.get("schedule") or {}).get("construction") or {}
                 ).get("date")
-                construction["date"] = value
+                # 스위치가 켜져 있고 새 값이 날 하나면 칸에 보이는 첫 날 하나만 옮긴다(제품 칸도 같이 —
+                # 설계서 2026-11-21 8절). 꺼져 있거나 빈 값 · 여러 날이면 지금처럼 통째로 쓴다.
+
+                _moved = move_first_date_for_field(structured_data, value)
+                if _moved is None:
+                    construction["date"] = value
                 structured_changed = True
                 # CONSTRUCTION_DATE_CHANGED OrderEvent 는 여기서 남기지 않는다 — 시공일
                 # 이벤트 SSOT 는 foms/services/order_date_sync.py 의 전역 before_flush 훅
                 # (모든 쓰기 경로가 통과하는 유일 지점). 여기 남은 비교는 생산팀 벨 알림
                 # 트리거 전용이다.
-                if old_cons != value:
-                    _prod_cons_change = (old_cons, value)
+                # 날 하나 옮기기에서 날이 그대로면(_moved == "") 생산팀 알림도 없다.
+                if old_cons != value and _moved != "":
+                    _prod_cons_change = (_moved or old_cons, value)
             elif field == "as_visit_date":
                 trimmed = str(value or "").strip()
                 normalized_visit = _normalize_date_to_yyyymmdd(trimmed) if trimmed else None

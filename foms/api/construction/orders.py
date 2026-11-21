@@ -46,7 +46,9 @@ from foms.services.orders.order_transition_service import (
     TransitionError,
     transition_order,
 )
-from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.construction_schedule import reschedule_text_after_fail
+from foms.services.orders.construction_visit import split_flow_active, split_production_start_allowed
+from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
 from foms.services.partners.notify import notify_partner_construction_done
 from foms.services.orders.admin_override import (
@@ -252,8 +254,10 @@ def api_construction_start(order_id):
         override = resolve_admin_override(user, body)
         punched: list = []
 
+        # 제품마다 '시공 끝'(N3): 나눠 시공하는 주문은 생산 단계에서도 먼저 시공하는 제품의 방문을 연다(단계 그대로).
+        production_visit = split_production_start_allowed(order)
         if not _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_START, idem_key):
-            if order.erp_stage_code not in _CONSTRUCTION_STAGES:
+            if order.erp_stage_code not in _CONSTRUCTION_STAGES and not production_visit:
                 if override is None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
                                     "message": "시공 대기 상태에서만 시공을 시작할 수 있습니다."}), 409
@@ -277,7 +281,8 @@ def api_construction_start(order_id):
             construction["evidence"] = _fresh_evidence()
             wf = sd.get("workflow") or {}
             hist = wf.get("history") or []
-            hist.append({"stage": "CONSTRUCTION", "updated_at": now.isoformat(),
+            hist.append({"stage": "PRODUCTION" if production_visit else "CONSTRUCTION",
+                         "updated_at": now.isoformat(),
                          "updated_by": user.name if user else "Unknown", "note": "시공 시작"})
             wf["history"] = hist
             sd["workflow"] = wf
@@ -351,12 +356,19 @@ def _audit_construction(
     )
 
 
-def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, completion_note: str) -> None:
-    """CONSTRUCTION_COMPLETE 전이 후 same-tx: current attempt READY 봉인 + history append."""
+def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, completion_note: str,
+                                 visit: Optional[dict[str, Any]] = None) -> None:
+    """CONSTRUCTION_COMPLETE 전이 후 same-tx: current attempt READY 봉인 + history append.
+
+    ``visit`` 은 나눠 시공 주문의 마지막 방문 ``{date, item_uids}`` — 봉인 스냅샷과 감사에 함께 남긴다.
+    """
     attempt = _current_attempt(db, order.id)
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     if attempt is not None:
-        attempt.evidence = _live_evidence(sd)  # live evidence 를 attempt 스냅샷으로 봉인.
+        snapshot = _live_evidence(sd)  # live evidence 를 attempt 스냅샷으로 봉인.
+        if visit:
+            snapshot["visit"] = dict(visit)
+        attempt.evidence = snapshot
         attempt.status = "READY"
         attempt.completed_at = now_utc_naive()
         attempt.completed_by = user.name if user else None
@@ -372,11 +384,15 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    _audit_construction(
-        order, "CONSTRUCTION_COMPLETED", user_id,
-        note=completion_note or None,
-        extra={"new_stage": "CS", "completion_note": completion_note or None},
-    )
+    extra: dict[str, Any] = {"new_stage": "CS", "completion_note": completion_note or None}
+    if visit:
+        extra["visit"] = dict(visit)
+    _audit_construction(order, "CONSTRUCTION_COMPLETED", user_id, note=completion_note or None, extra=extra)
+
+
+# 제품마다 '시공 끝' 갈래 — 그 모듈이 위 헬퍼(시도 줄 · 증빙 · 감사 · 해시)를 가져다 쓰므로 그것들을 다 정의한 뒤
+# 여기서 가져온다(순서 고정). 같은 Blueprint 에 "오늘 끝낸 제품" 목록 GET 도 이때 붙는다.
+from foms.api.construction import item_done as _item_done  # noqa: E402
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/complete", methods=["POST"])
@@ -417,6 +433,12 @@ def api_construction_complete(order_id):
         override = resolve_admin_override(user, body)
         punched: list = []
         from_stage = read_main_stage(order)
+
+        # 제품마다 '시공 끝'(설계서 5.3): 스위치가 켜진 나눠 시공 주문은 "오늘 끝낸 제품"(done_item_uids)으로
+        # 부분 방문 / 완료를 가른다. 아니면 이 값은 무시하고 아래 지금 흐름 그대로다.
+        if split_flow_active(order.structured_data):
+            return _item_done.split_complete_response(
+                db, order_id, body=body, user=user, user_id=user_id, override=override)
 
         if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=True):
             missing = _evidence_gate_missing(order)
@@ -488,7 +510,9 @@ def api_construction_evidence(order_id):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 먼저 잠근 최신 행을 읽는다 — 잠그기 전 값을 deepcopy 해 되쓰면 그사이 커밋된 부분 방문의
+        # '시공 끝' 표시 · history 가 지워진다(lost update).
+        order = lock_order_row(db, order_id)
         if (
             not order
             or getattr(order, "status", None) == "DELETED"
@@ -515,6 +539,9 @@ def api_construction_evidence(order_id):
                 jsonify({"success": False, "error": "유효한 시공 첨부가 아닙니다."}),
                 400,
             )
+        # 제품마다 '시공 끝': 나눠 시공 주문은 지난 방문에 봉인된 사진 · 서명을 이번 방문 증빙으로 받지 않는다.
+        if _visit_fail.evidence_reuse_blocked(db, order, attachment_id):
+            return jsonify({"success": False, "error": "이전 방문 사진이에요", "code": "PREVIOUS_VISIT_PHOTO"}), 400
 
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
@@ -562,7 +589,7 @@ def api_construction_evidence(order_id):
 
 
 def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, reason: str,
-                             detail: str, reschedule_date: Any) -> Optional[int]:
+                             detail: str, reschedule_date: Any, keep_stage: Optional[str] = None) -> Optional[int]:
     """CONSTRUCTION_REWORK 전이 후 same-tx 부수효과(단계·status 는 절대 쓰지 않는다).
 
     현재 attempt 를 REWORKED 로 봉인하고, 시공 불가 이력·workflow 이력·재예약을 남긴다.
@@ -571,10 +598,12 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
     :param reason: 사유 코드(``drawing_error`` 등).
     :param detail: 사유 상세(자유 문장).
     :param reschedule_date: 재예약 시공일(없으면 None).
+    :param keep_stage: 나눠 시공 주문의 생산 단계 방문만 닫을 때 그 단계(전이 없음 — 이력에 그 단계를
+        적고 재작업 사유는 남기지 않으며, 다음 방문에 섞이지 않게 사진 · 서명 칸을 비운다).
     :returns: 봉인한 attempt id(열린 attempt 가 없으면 None).
     """
     now = now_utc_naive()
-    new_stage = _REWORK_STAGE_MAP.get(reason, "CONSTRUCTION")
+    new_stage = keep_stage or _REWORK_STAGE_MAP.get(reason, "CONSTRUCTION")
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
 
     # 현재(열린) attempt 만 REWORKED 로 봉인 — 과거 terminal attempt 는 손대지 않는다.
@@ -587,31 +616,42 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
         attempt.fail_reason = reason
         attempt.fail_detail = detail
         attempt_id = attempt.id
+    if keep_stage:  # 방문만 닫음 — 다음 [시공 시작] 전에도 이 방문 사진이 남은 칸에 남지 않게 비운다.
+        construction = sd.get("construction") if isinstance(sd.get("construction"), dict) else {}
+        construction["evidence"] = _fresh_evidence()
+        sd["construction"] = construction
 
     fail_info = sd.get("construction_fail_history") or []
     fail_info.append({
         "id": len(fail_info) + 1, "failed_at": now.isoformat(),
         "failed_by": user.name if user else "Unknown", "reason": reason,
-        "detail": detail, "reschedule_date": reschedule_date, "previous_stage": "CONSTRUCTION",
+        "detail": detail, "reschedule_date": reschedule_date, "previous_stage": keep_stage or "CONSTRUCTION",
     })
     sd["construction_fail_history"] = fail_info
 
     wf = sd.get("workflow") or {}
-    wf["stage_updated_by"] = user.name if user else "Unknown"
-    wf["rework_reason"] = reason
+    actor = user.name if user else "Unknown"
+    if not keep_stage:  # 단계를 옮기지 않으면 단계 바꾼 사람 · 재작업 사유도 쓰지 않는다.
+        wf["stage_updated_by"] = actor
+        wf["rework_reason"] = reason
     hist = wf.get("history") or []
+    label = _REWORK_LABELS.get(reason, reason)
     hist.append({
-        "stage": new_stage, "updated_at": wf.get("stage_updated_at") or now.isoformat(),
-        "updated_by": wf["stage_updated_by"],
-        "note": f"시공 불가 → {_REWORK_LABELS.get(reason, reason)}: {detail}",
+        "stage": new_stage,
+        "updated_at": now.isoformat() if keep_stage else (wf.get("stage_updated_at") or now.isoformat()),
+        "updated_by": actor,
+        "note": f"시공 불가 (단계 그대로) → {label}: {detail}" if keep_stage else f"시공 불가 → {label}: {detail}",
     })
     wf["history"] = hist
     sd["workflow"] = wf
 
     if reschedule_date:
+        # 스위치가 켜져 있으면 그 방문 날 하나만 새 날로 옮긴다(설계서 2026-11-21 8절 — 꺼져 있으면 지금처럼 통째로).
+
         schedule = sd.get("schedule") or {}
         construction = schedule.get("construction") or {}
-        construction["date"] = reschedule_date
+        construction["date"] = reschedule_text_after_fail(
+            sd, reschedule_date, getattr(attempt, "started_at", None))
         construction["rescheduled"] = True
         construction["reschedule_reason"] = reason
         schedule["construction"] = construction
@@ -635,6 +675,9 @@ _REWORK_LABELS = {
     "product_defect": "제품 불량",
     "site_issue": "현장 문제",
 }
+
+# 제품마다 '시공 끝' — 지난 방문 사진 막기 · 생산 단계 방문의 [시공 불가]. 위 헬퍼를 다 정의한 뒤 가져온다(순서 고정).
+from foms.api.construction import visit_fail as _visit_fail  # noqa: E402
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/fail", methods=["POST"])
@@ -674,6 +717,12 @@ def api_construction_fail(order_id):
         # 사유 상세는 전이 이벤트 payload 의 reason 에 함께 싣는다 — 타임라인에서
         # "무엇 때문에 되돌렸는가" 를 이벤트 하나만 보고 알 수 있어야 한다.
         transition_reason = f"{reason_label}: {detail}" if detail else reason_label
+
+        # 제품마다 '시공 끝': 나눠 시공 주문의 생산 단계 방문은 방문만 닫는다(단계 · 상태 그대로, 사유별 되돌림 없음).
+        if _visit_fail.production_visit_fail_applies(db, order, user_id, idem_key):
+            return _visit_fail.visit_fail_response(
+                db, order_id, data=data, user=user, user_id=user_id, reason=reason, detail=detail,
+                reschedule_date=reschedule_date)
 
         try:
             result = transition_order(

@@ -18,6 +18,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
 from foms.services.orders.state_axes import open_as_outranks_main_status_write
+from foms.services.orders.items_construction_gate import items_gate_blocks_locked
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.erp_display import manager_display_name
@@ -655,12 +656,19 @@ def bulk_action():
                     for order in db.query(Order).filter(Order.id.in_(order_ids), Order.active_filter()).all()  # perf-ok
                 }
                 as_kept_count = 0
+                items_open_count = 0
                 for order_id in selected_ids:
                     order = orders_by_id.get(int(order_id))
                     old_status_val = getattr(order, 'status', None) if order is not None else None
                     # 열린 AS 는 본 흐름 목표 쓰기를 이긴다(STATE-AS-01) — 이 길은 단계를 안 옮기므로 그 주문은 건너뛴다.
                     if order is not None and open_as_outranks_main_status_write(order, new_status):
                         as_kept_count += 1
+                        continue
+                    # 남은 제품 시공이 있으면 CS · 완료 상태 글로 바꾸지 않는다(제품마다 '시공 끝' 2단계 7절).
+                    # 잠근 최신 값 · 지금 단계로 판정한다(이미 CS · 완료면 쉰다 — 검수 E2-1 · E2-5).
+                    if order is not None and old_status_val != new_status and items_gate_blocks_locked(
+                            db, order, new_status):
+                        items_open_count += 1
                         continue
                     if order is not None and old_status_val != new_status:
                         setattr(order, 'status', new_status)
@@ -681,6 +689,8 @@ def bulk_action():
                         failed_count += 1
                 if as_kept_count:
                     flash(f"AS 접수 중인 주문 {as_kept_count}건은 상태를 바꾸지 않았습니다. AS 표시는 그대로 남습니다.", 'warning')
+                if items_open_count:
+                    flash(f"남은 제품 시공이 있는 주문 {items_open_count}건은 상태를 바꾸지 않았습니다.", 'warning')
             else:
                 flash("'" + new_status + "'" + '는 유효하지 않은 상태입니다.', 'error')
                 redirect_args = get_preserved_filter_args(request.args)

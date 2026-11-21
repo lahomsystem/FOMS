@@ -5,6 +5,7 @@ import re
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
 from foms.services.files.list_thumb import list_thumb_url, mid_thumb_url
 from foms.services.orders.as_cancel_policy import as_cancel_allowed
+from foms.services.orders.item_construction_view import order_item_done_view
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.manager_names import manager_label_filter
 from foms.services.orders.partner_push_marks import (
@@ -383,6 +384,8 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(effective_drawing_status, 'effective_drawing_status')
     # [AS 접수 취소] 단추를 그릴지 — API 문지기와 같은 판정(접수 상태 + 관리자 · CS 능력). `order|as_cancel_allowed(current_user)`.
     bp.add_app_template_filter(as_cancel_allowed, 'as_cancel_allowed')
+    # 제품마다 시공 끝(2단계): 주문 화면 제품 줄 "11/05 시공 끝" · [되돌리기] 자료 — 나눠 시공 아니면 None.
+    bp.add_app_template_global(order_item_done_view, 'item_construction_done_view')
     # 작은 칸 그림 주소(320px 작은 그림 길) — 템플릿이 key 로 주소를 만드는 칸(도면 작업실 도면 갤러리)이
     # 그림 판정을 흉내 내지 않고 정본(list_thumb.is_list_thumb_source)을 쓰게. 그림이 아니면 None → 원본 유지.
     bp.add_app_template_filter(list_thumb_url, 'list_thumb_url')

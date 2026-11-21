@@ -6,6 +6,7 @@ from typing import Any
 from foms.services.erp_display import _erp_get_stage
 from foms.services.orders.confirm_drawing_gate import revision_in_flight_block
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
+from foms.services.orders.item_construction_view import partial_board_label, partial_visit_closed
 from foms.services.orders.quest_approve_cta import display_quest_title
 from foms.services.production_read_model import (
     _kpi_stage_label_from_erp_stage,
@@ -28,7 +29,8 @@ def construction_display_stage(order, structured_data):
         for entry in history
     )
     if stage in ("CONSTRUCTION", "시공"):
-        return "시공중" if is_started else "시공대기"
+        # 나눠 시공(2단계): [오늘 시공 끝]으로 방문이 닫혔으면 다음 방문은 [시공 시작]부터 — 시공대기로 본다.
+        return "시공중" if is_started and not partial_visit_closed(structured_data) else "시공대기"
     if stage in ("COMPLETED", "완료", "AS_WAIT") or stage == "CS":
         return "시공완료"
     if stage == "CONSTRUCTING":
@@ -87,7 +89,7 @@ def build_board_state(order, sd, stage_code, *, has_current_run=False, current_q
     if stage_code == "CONSTRUCTION":
         return _state(
             "construction",
-            construction_display_stage(order, sd),
+            partial_board_label(sd) or construction_display_stage(order, sd),
             "soft",
             link_label="시공 보드 열기",
             link_endpoint="erp_construction_page.erp_construction_dashboard",

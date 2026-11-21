@@ -45,6 +45,22 @@
       '이 목표는 다른 탭 감지(If-Match)를 아직 지원하지 않습니다. 새로고침 후 다시 시도하세요.'
   };
 
+  // 남은 제품 문지기(제품마다 '시공 끝' 2단계 N4). 관리자 뚫기로는 못 넘고, 확인을 받아
+  // close_remaining_items 로 남은 제품을 시공 끝으로 찍어 한 번 더 보낸다(사유는 위 칸 그대로).
+  var ITEMS_OPEN_CODE = 'ITEMS_CONSTRUCTION_OPEN';
+  var CLOSE_ITEMS_CONFIRM = '남은 제품도 시공 끝으로 찍고 넘길까요?';
+
+  // 확인 창 글 — 일괄은 막힌 주문마다 한 줄("#12 11/17 부엌가구"), 단건은 서버 글 그대로.
+  function closeItemsText(payload) {
+    var blocked = (payload && payload.data && Array.isArray(payload.data.blocked)) ? payload.data.blocked : [];
+    if (blocked.length) {
+      return '남은 제품 시공이 있는 주문 ' + blocked.length + '건\n' + blocked.map(function (it) {
+        return '#' + it.order_id + ' ' + (it.remaining_summary || '남은 제품');
+      }).join('\n');
+    }
+    return (payload && (payload.message || payload.error)) || '';
+  }
+
   function adminTargetKind(code) {
     return ADMIN_ONLY_TARGETS[String(code || '').trim()] || '';
   }
@@ -537,20 +553,45 @@
       }
     }
 
-    fetch(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body)
-    })
-      .then(function (r) {
+    function postOnce() {
+      return fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+      }).then(function (r) {
         return r.json().then(function (data) {
           return { ok: r.ok, status: r.status, data: data };
         });
-      })
+      });
+    }
+
+    // 남은 제품이 있어 막혔다 — 막힌 주문 목록(일괄)이나 서버 글(단건)을 보여 주고, 확인을 받으면
+    // 남은 제품을 찍고 다시 보낸다. 동의한 사람이 어느 주문의 무엇을 찍는지 다 보게 한다(검수 E2-2).
+    function resendClosingItems(res) {
+      var msg = closeItemsText(res.data);
+      if (!window.confirm((msg ? msg + '\n\n' : '') + CLOSE_ITEMS_CONFIRM)) {
+        showFailure(res);
+        return null;
+      }
+      body.close_remaining_items = true;
+      return postOnce().then(function (again) {
+        if (again.data && again.data.success) {
+          applySuccess(again.data);
+          return;
+        }
+        showFailure(again);
+      });
+    }
+
+    postOnce()
       .then(function (res) {
         if (res.data && res.data.success) {
           applySuccess(res.data);
           return null;
+        }
+        var failCode = String((res.data && res.data.code) || '').trim();
+        if (res.status === 409 && failCode === ITEMS_OPEN_CODE && !body.close_remaining_items) {
+          return resendClosingItems(res);
         }
         // 게이트에 막힌 관리자는 공통 컨트롤러가 사유를 받아 딱 한 번 다시 보낸다.
         var ctl = window.FomsAdminOverride;
@@ -777,6 +818,7 @@
     confirmForceMove: confirmForceMove,
     drawingWarningText: drawingWarningText,
     asOverlayKeptText: asOverlayKeptText,
+    closeItemsText: closeItemsText,
     wireUi: wireUi
   };
 

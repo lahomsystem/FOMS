@@ -41,6 +41,8 @@ from foms.services.erp_permissions import (
 from foms.services.erp_shipment_settings import load_erp_shipment_settings, normalize_erp_shipment_workers
 from foms.services.erp_template_filters import strip_product_w_filter
 from foms.services.orders.board_state_display import construction_display_stage
+from foms.services.orders.item_construction_view import done_item_uids
+from foms.services.orders.structured_item_uid import item_uid_of
 from foms.services.orders.schedule_row_kind import (
     as_status_clause,
     kind_pair_case,
@@ -277,6 +279,11 @@ def _drawing_fields(sd: dict) -> tuple[str, bool]:
 
 def _product_text(row: _DayRow) -> str:
     items = [it for it in (row.shipment_visible_items or []) if isinstance(it, dict)]
+    done = done_item_uids(_sd(row)) if items else set()
+    if done and any(item_uid_of(it) in done for it in items):
+        # 나눠 시공(2단계): 그날 제품을 다 적고 이미 끝난 제품엔 " · 끝"(설계서 6절 첫 화면 줄).
+        names = [strip_product_w_filter(it.get("product_name") or "") or "제품" for it in items]
+        return ", ".join(n + (" · 끝" if item_uid_of(it) in done else "") for n, it in zip(names, items))
     first = strip_product_w_filter((items[0].get("product_name") or "")) if items else ""
     if first:
         return first + (f" 외 {len(items) - 1}" if len(items) > 1 else "")

@@ -221,5 +221,7 @@ def test_asset_pins_bumped_to_20260929i():
     for rel in ("templates/orders/partials/dashboard_main.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
-        # 2026-11-21: AS 표시 유지 안내(as_overlay_kept)로 20261121a.
-        assert "erp-stage-override.js') }}?v=20261121a" in _read(rel), rel
+        # 2026-11-21: AS 표시 유지 안내(as_overlay_kept)로 20261121a,
+        # 남은 제품 문지기 확인(close_remaining_items — 제품마다 '시공 끝' 2단계 N4)으로 20261121b,
+        # 일괄 확인 창에 막힌 주문 목록(검수 E2-2)으로 20261121c.
+        assert "erp-stage-override.js') }}?v=20261121c" in _read(rel), rel

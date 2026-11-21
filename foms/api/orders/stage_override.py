@@ -45,6 +45,9 @@ from foms.services.orders.admin_override import (
     log_admin_override_denied,
     resolve_admin_override,
 )
+from foms.services.orders.items_construction_gate import (
+    ItemsConstructionOpen, items_gate_blocks, items_open_bulk_body, items_open_response, order_stage,
+)
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     OVERRIDE_ALLOWED_ROLES,
@@ -68,27 +71,11 @@ def stage_override_response(order_id: int):
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
         role = str(getattr(user, "role", "") or "").strip().upper()
         if role not in OVERRIDE_ALLOWED_ROLES:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "단계 강제 변경은 ADMIN/MANAGER만 가능합니다.",
-                    }
-                ),
-                403,
-            )
+            return _json_error("단계 강제 변경은 ADMIN/MANAGER만 가능합니다.", 403)
 
         data = request.get_json(silent=True) or {}
         if data.get("confirm") is not True:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "confirm: true 가 필요합니다.",
-                    }
-                ),
-                400,
-            )
+            return _json_error("confirm: true 가 필요합니다.", 400)
 
         # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 정확한 오답(403)을 받는다.
         err = admin_override_error(user, data)
@@ -157,6 +144,9 @@ def stage_override_response(order_id: int):
                 reason=reason,
                 user_id=user_id,
                 db=sess,
+                # 남은 제품 문지기(2단계 N4) — 화면이 확인을 받고 다시 보낼 때만 켠다.
+                close_remaining_items=data.get("close_remaining_items") is True,
+                user_name=str(getattr(user, "name", "") or ""),
             )
             captured["payload"] = payload
             captured["status"] = o.status
@@ -179,6 +169,9 @@ def stage_override_response(order_id: int):
                 user_id,
             )
             db.commit()
+        except ItemsConstructionOpen as exc:
+            db.rollback()
+            return items_open_response(exc)
         except ValueError as exc:
             # apply_stage_override 검증 실패(무효 전이/빈 사유/동일 단계)는 400.
             db.rollback()
@@ -315,13 +308,16 @@ def _apply_locked_overrides(
     reason: str,
     user_id: int,
     captured: dict[str, Any],
+    close_items: bool = False,
+    user_name: str = "",
 ) -> Mapping[int, List[str]]:
-    """FOR UPDATE 락 아래 주문마다 apply_stage_override 를 적용한다."""
+    """FOR UPDATE 락 아래 주문마다 apply_stage_override 를 적용한다(한 건이라도 막히면 전체 되감기)."""
     families: dict[int, list[str]] = {}
     results: list[dict[str, Any]] = []
     for order in orders:
         payload = apply_stage_override(
             order=order, to_stage=to_stage, reason=reason, user_id=user_id, db=sess,
+            close_remaining_items=close_items, user_name=user_name,
         )
         results.append({"order_id": int(order.id), "order": order, **payload})
         families[int(order.id)] = [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]
@@ -338,6 +334,7 @@ def _execute_bulk_override(
     reason: str,
     data: Mapping[str, Any],
     captured: dict[str, Any],
+    user_name: str = "",
 ):
     """잠금 아래 일괄 apply_stage_override. 성공 시 outcome, 실패 시 (None, response)."""
     scope_key = f"{STAGE_OVERRIDE_POLICY_ID}:bulk:{','.join(str(i) for i in sorted(change_ids))}"
@@ -356,10 +353,14 @@ def _execute_bulk_override(
             mutation=lambda sess, orders: _apply_locked_overrides(
                 sess, orders, to_stage=to_stage, reason=reason,
                 user_id=user_id, captured=captured,
+                close_items=data.get("close_remaining_items") is True, user_name=user_name,
             ),
         )
         _audit_stage_override_status(captured.get("results") or [], user_id)
         db.commit()
+    except ItemsConstructionOpen as exc:
+        db.rollback()
+        return None, items_open_response(exc, bulk=True)
     except ValueError as exc:
         db.rollback()
         return None, _json_error(str(exc), 400)
@@ -456,6 +457,12 @@ def bulk_stage_override_response():
             return jsonify(draft_not_promoted_body(skipped_draft[0])), 409
         return _json_error("주문을 찾을 수 없습니다.", 404)
     user_id = int(user.id)
+    # 남은 제품 문지기(2단계 N4 · 검수 E2-2): 묶음 전체를 먼저 훑어 막힌 주문을 **모두** 알린다 — 화면이
+    # 그 목록을 보여 주고 동의를 받아야 close_remaining_items 로 다시 보낸다(첫 건만 알리면 나머지는 모른 채 찍힌다).
+    if data.get("close_remaining_items") is not True:
+        items_open = [o for o in change if items_gate_blocks(o.structured_data, to_code, current=order_stage(o))]
+        if items_open:
+            return jsonify(items_open_bulk_body(items_open)), 409
     if kind != KIND_MAIN or to_code == "COMPLETED":
         return extended_bulk_response(
             db, change, kind=kind, to_code=to_code, override=override, data=data,
@@ -472,6 +479,7 @@ def bulk_stage_override_response():
         reason=reason,
         data=data,
         captured=captured,
+        user_name=str(getattr(user, "name", "") or ""),
     )
     if mut_err is not None:
         return mut_err

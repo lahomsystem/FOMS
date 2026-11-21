@@ -929,3 +929,79 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__partner.is-active {
     font-size: calc(18px * var(--foms-fs, 1));
   }
 }
+
+/* 제품마다 시공 끝(2단계, docs/specs/2026-11-21-item-construction-done_SPEC.md 6절) — 나눠 시공하는 주문에만 그려진다.
+   ① 완료 창 "오늘 끝낸 제품" 체크 목록(foms-visit-items.js — 태블릿 · 폰 완료 준비 창, PC 시공 완료 창 공용).
+   ② 주문 화면 제품 줄 "11/05 시공 끝" 작은 글 + [되돌리기] 글 단추(erp-item-construction-done.js). */
+.foms-visit-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1.5px solid var(--foms-border-default, #d1d5db);
+  border-radius: 12px;
+}
+.foms-visit-items__title {
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 700;
+  color: var(--foms-text-primary, #1f2937);
+}
+.foms-visit-items__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  cursor: pointer;
+}
+.foms-visit-items__box {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  accent-color: var(--foms-color-success-600, #15803d);
+}
+.foms-visit-items__name {
+  font-size: calc(15px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-text-primary, #1f2937);
+}
+.foms-visit-items__later {
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-color-warning-700, #b45309);
+}
+.erp-item-done-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: calc(13px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-color-success-600, #15803d);
+}
+.foms-visit-items__loading,
+.foms-visit-items__failed {
+  font-size: calc(14px * var(--foms-fs, 1));
+  font-weight: 600;
+  color: var(--foms-color-warning-700, #b45309);
+}
+.foms-visit-items__retry,
+.erp-item-done-line__undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--foms-interactive-primary, #2563eb);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.foms-visit-items__retry {
+  min-height: 44px;
+}
+.erp-item-done-line__undo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

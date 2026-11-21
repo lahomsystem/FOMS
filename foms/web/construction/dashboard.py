@@ -31,6 +31,7 @@ from foms.services.erp_permissions import (
 )
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.orders.construction_dates import attach_remaining_construction_notes
+from foms.services.orders.item_construction_view import annotate_split_rows, split_production_candidate_ids
 from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
@@ -70,6 +71,18 @@ from models import Order
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
 
 
+#: 나눠 시공 생산 단계 주문이 들 수 있는 단계 칩 — 그 줄의 표시 단계는 시공대기 · 시공중이다.
+_SPLIT_STAGE_CHIPS = ("", "시공대기", "시공중")
+
+
+def _split_ids(query: Any, cons_tablet: dict[str, Any], focus_order_id: Any) -> list[int]:
+    """PC · 폰 목록 · 숫자판에 더할 나눠 시공 생산 단계 주문 번호(2단계, 쿼리 1번). 태블릿 가로 화면은 첫 화면 ·
+    상세가 생산 단계 집을 따로 실으므로(``keep_production``), 한 집 보기(``focus_order``)는 목록을 안 읽으므로 묻지 않는다."""
+    if cons_tablet.get("mode") or focus_order_id:
+        return []
+    return split_production_candidate_ids(query)
+
+
 @erp_construction_page_bp.route("/construction/dashboard")
 @login_required
 def erp_construction_dashboard():
@@ -95,6 +108,18 @@ def erp_construction_dashboard():
         else:
             query = query.filter(Order.id == -1)
 
+    # 태블릿 가로 시공 탭(설계서 tablet-production-ui §13): 첫 화면 = 날짜 버튼 + 시공자 묶음(쿼리 A · B),
+    # 상세(?focus_order=) = 3분할 왼쪽을 그날 · 그 시공자 집으로. 폰 · PC · 코호트 밖은 mode '' — 지금 그대로.
+    current_user = getattr(g, "current_user", None)
+    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
+    mobile_v2_active = is_mobile_v2_shell(shell_variant)
+    cons_tablet: dict[str, Any] = {"mode": tablet_mode(
+        mobile_v2=mobile_v2_active, coarse=wants_coarse_pointer_surfaces(), wide=wants_wide_only_surfaces(),
+        focus_order_id=focus_order_id, q=f_q, undated=request.args.get("undated") == "1")}
+
+    # 나눠 시공하는 생산 단계 주문(남은 제품 · 오늘 이후 시공일) — 숫자판 · 목록(단계 미선택 · 시공대기 · 시공중 칩)에 같이 든다.
+    split_ids = _split_ids(query, cons_tablet, focus_order_id)
+
     # 요약(KPI/step_stats)은 위 ``query`` 만 읽는다. 그 query 는 mine_only 일 때만 사용자
     # 조건을 얹으므로, 공용(mine=False) 결과는 누가 열어도 값이 같다. 그런데도 키에 uid/role 을
     # 넣으면 같은 숫자를 사용자 수만큼 따로 계산·저장하게 되어(캐시 미스 = 60일 주문 전량 순회
@@ -113,16 +138,20 @@ def erp_construction_dashboard():
         # 켜진 프리랜서(FCOMM-01)는 mine 이 늘 켜지고 "내 것"이 연결 표다 — 지정 직후 이름 판정 캐시를 받지 않게 표시.
         if is_list_freelancer(user):
             _summary_fp["freelancer"] = True
+    if split_ids:  # 더한 주문이 바뀌면 숫자도 바뀐다(없으면 키는 지금과 같다)
+        _summary_fp["split"] = sorted(split_ids)
     _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
     # 숫자판(긴급 발주·시공 D-3·단계별 건수)은 시공 대시보드의 것이므로 시공 표시단계
     # 주문만 센다. 목록과 같은 스코프(apply_construction_list_scope_filter)를 써서
     # "위 숫자와 아래 목록이 다른 모집단" 이던 어긋남도 함께 사라진다.
-    _summary_query = apply_construction_list_scope_filter(query, "")
+    _summary_query = apply_construction_list_scope_filter(query, "", split_ids)
     with phase("summary_slice"):
         _summary_blob = get_or_compute_dashboard_slice(
             _summary_key,
             TTL_SUMMARY_COUNTS,
-            lambda: compute_construction_summary_blob(_summary_query),
+            # 더한 주문이 없으면 지금과 같은 부름(인자 하나) — 숫자판 계약 시험이 이 꼴을 본다.
+            (lambda: compute_construction_summary_blob(_summary_query, split_ids)) if split_ids
+            else (lambda: compute_construction_summary_blob(_summary_query)),
             page="construction",
             slice_name="summary_counts",
         )
@@ -134,15 +163,6 @@ def erp_construction_dashboard():
     total_pages = 0
     total_orders = 0
     orders: list[Order] = []
-
-    # 태블릿 가로 시공 탭(설계서 tablet-production-ui §13): 첫 화면 = 날짜 버튼 + 시공자 묶음(쿼리 A · B),
-    # 상세(?focus_order=) = 3분할 왼쪽을 그날 · 그 시공자 집으로. 폰 · PC · 코호트 밖은 mode '' — 지금 그대로.
-    current_user = getattr(g, "current_user", None)
-    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
-    mobile_v2_active = is_mobile_v2_shell(shell_variant)
-    cons_tablet: dict[str, Any] = {"mode": tablet_mode(
-        mobile_v2=mobile_v2_active, coarse=wants_coarse_pointer_surfaces(), wide=wants_wide_only_surfaces(),
-        focus_order_id=focus_order_id, q=f_q, undated=request.args.get("undated") == "1")}
 
     if focus_order_id:
         focus = (
@@ -166,7 +186,7 @@ def erp_construction_dashboard():
         page = 1
     elif f_q:
         # 검색도 시공 단계로 선스코프(전 단계) 후 검색 — 페이지네이션이 시공 주문 위에서 동작.
-        list_query = apply_construction_list_scope_filter(query, f_stage)
+        list_query = apply_construction_list_scope_filter(query, f_stage, split_ids)
         list_query = apply_construction_search_filter(list_query, f_q)
         with phase("list_query"):
             page, total_pages, total_orders, orders = paginate_construction_orders(
@@ -181,7 +201,7 @@ def erp_construction_dashboard():
         # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
         # 페이지네이션이 시공 주문 위에서 동작(전체 60일 활성 리스트 newest-N에 시공 주문이
         # 없어 board가 0건 되던 회귀의 근본 차단). 단계 칩 선택 시 해당 단계로 좁혀진다.
-        list_query = apply_construction_list_scope_filter(query, f_stage)
+        list_query = apply_construction_list_scope_filter(query, f_stage, split_ids)
         with phase("list_query"):
             page, total_pages, total_orders, orders = paginate_construction_orders(
                 list_query,
@@ -234,8 +254,15 @@ def erp_construction_dashboard():
     att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
 
     with phase("row_dtos"):
-        enriched = build_construction_row_dtos(orders, att_counts, f_stage, keep_production=bool(cons_tablet["mode"]))
+        # 단계 칩 + 나눠 시공 줄: 생산 단계 줄의 표시 단계는 annotate_split_rows 뒤에 정해지므로 칩 거르기를 그 뒤로 미룬다.
+        _late_chip = bool(split_ids) and f_stage in _SPLIT_STAGE_CHIPS[1:]
+        enriched = build_construction_row_dtos(orders, att_counts, "" if _late_chip else f_stage,
+                                               keep_production=bool(cons_tablet["mode"]))
         annotate_rows(enriched)
+        # 나눠 시공 줄(2단계): 생산 단계 줄 단추 · "생산 · 부분 시공" · "부분 시공 · 남은 11/17" · 완료 창이 고를 날.
+        annotate_split_rows(enriched, visit_date=(cons_tablet.get("detail") or {}).get("date") or None)
+        if _late_chip:
+            enriched = [row for row in enriched if row.get("stage") == f_stage]
         attach_remaining_construction_notes(enriched)  # [시공 완료] 확인 창의 "남은 시공" 한 줄
 
     if f_q or focus_order_id:

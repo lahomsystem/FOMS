@@ -223,6 +223,11 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "MEASUREMENT_TIME_CHANGED": "실측 시간 변경",
         "MEASUREMENT_VISIT_MARKED": "실측 방문 체크",
         "MEASUREMENT_VISIT_UNMARKED": "실측 방문 체크 해제",
+        # 제품마다 '시공 끝'(설계서 2026-11-21-item-construction-done 5.5). 단계 이벤트가 아니라서
+        # _STAGE_EVENT_TYPES 에는 넣지 않는다 — 넣으면 타임라인에 밟지 않은 유령 단계 행이 생긴다.
+        "ITEM_CONSTRUCTION_DONE": "제품 시공 끝",
+        "ITEM_CONSTRUCTION_DONE_UNDONE": "제품 시공 끝 되돌림",
+        "CONSTRUCTION_VISIT_DONE": "부분 시공 끝",
         "CONSTRUCTION_DATE_CHANGED": "시공 일정 변경",
         "OWNER_TEAM_CHANGED": "담당팀 변경",
         "AS_RECOMMENDATION_APPLIED": "AS 권고 적용",
@@ -518,6 +523,34 @@ def _describe_quest_approval(payload: dict[str, Any]) -> str:
     return f"{who}{what}"
 
 
+def _short_day_label(raw: Any) -> str:
+    """``2026-11-05`` → ``11/5``. 못 읽으면 빈 글."""
+    try:
+        day = datetime.strptime(str(raw or "").strip(), "%Y-%m-%d")
+    except ValueError:
+        return ""
+    return f"{day.month}/{day.day}"
+
+
+def _describe_item_construction_done(event_type: str, payload: dict[str, Any]) -> str:
+    """제품마다 '시공 끝' 이벤트 3종의 한 줄 — 제품 이름 · 남은 시공 · 되돌린 이유를 함께 보여 준다."""
+    raw_names = payload.get("names")
+    names = " · ".join(str(n).strip() for n in raw_names if str(n).strip()) if isinstance(raw_names, list) else ""
+    if event_type == "ITEM_CONSTRUCTION_DONE_UNDONE":
+        name = str(payload.get("name") or "").strip()
+        reason = str(payload.get("reason") or "").strip()
+        text = f"{name} 시공 끝 표시를 되돌렸습니다" if name else "제품 시공 끝 표시를 되돌렸습니다"
+        return f"{text} (사유: {reason})" if reason else text
+    if event_type == "CONSTRUCTION_VISIT_DONE":
+        # 나중에 이력을 읽어도 맞도록 "오늘" 대신 방문 날을 적는다 — "11/5 시공 끝 (화장대)".
+        label = _short_day_label(payload.get("date"))
+        head = f"{label} 시공 끝" if label else "시공 끝"
+        text = f"{head} ({names})" if names else head
+        remaining = str(payload.get("remaining_summary") or "").strip()
+        return f"{text} — 남은 시공 {remaining}" if remaining else text
+    return f"{names} 시공 끝을 표시했습니다" if names else "제품 시공 끝을 표시했습니다"
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -610,6 +643,8 @@ def generate_change_description(
         return "실측 방문을 체크했습니다"
     if event_type == "MEASUREMENT_VISIT_UNMARKED":
         return "실측 방문 체크를 해제했습니다"
+    if event_type in ("ITEM_CONSTRUCTION_DONE", "ITEM_CONSTRUCTION_DONE_UNDONE", "CONSTRUCTION_VISIT_DONE"):
+        return _describe_item_construction_done(event_type, payload)
     if event_type == "CONSTRUCTION_DATE_CHANGED":
         return "시공 일정을 변경했습니다"
     if event_type == "OWNER_TEAM_CHANGED":

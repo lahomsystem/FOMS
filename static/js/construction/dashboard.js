@@ -474,10 +474,53 @@
     const progressWrap = document.getElementById('erp-cons-complete-progress');
     if (progressWrap) progressWrap.classList.add('d-none');
     const modalEl = document.getElementById('erpConstructionCompleteModal');
+    mountCompleteVisitItems(modalEl, orderId);
     if (modalEl) {
       const modal = new bootstrap.Modal(modalEl);
       modal.show();
     }
+  }
+
+  // 나눠 시공(2단계): 완료 창에 "오늘 끝낸 제품" 체크 목록 · 단추 글 · 끔(foms-visit-items.js). 나눠 시공이 아니면 그대로.
+  // 남은 제품이 남는 선택이면 머리 글 "(상태가 완료(AS대기)로 변경됩니다)" 를 "주문은 지금 단계에 그대로 남아요" 로 바꾼다.
+  var COMPLETE_BTN_HTML = '<i class="fas fa-check"></i> 완료 처리';
+  var COMPLETE_LEAD_KEEP = '오늘 끝낸 제품만 시공 끝으로 남기고, 주문은 지금 단계에 그대로 남아요.';
+  function refreshCompleteBtnLabel(modalEl) {
+    const btn = document.getElementById('erp-cons-complete-btn');
+    const api = window.FomsVisitItems;
+    if (!btn || !api) return;
+    const label = api.buttonLabel(modalEl, '');
+    if (label) btn.textContent = label;
+    else btn.innerHTML = COMPLETE_BTN_HTML;
+    // 보내는 중(data-busy)이면 켜지 않는다 — 늦게 온 목록 응답이 단추를 다시 켜 두 번 보내지 않게.
+    btn.disabled = btn.hasAttribute('data-busy') || api.blocked(modalEl);
+    const lead = modalEl ? modalEl.querySelector('[data-cons-complete-lead]') : null;
+    if (lead) {
+      if (!lead.hasAttribute('data-lead-text')) lead.setAttribute('data-lead-text', lead.textContent);
+      lead.textContent = api.leavesRemaining(modalEl) ? COMPLETE_LEAD_KEEP : lead.getAttribute('data-lead-text');
+    }
+  }
+
+  // 완료 요청이 끝나 다시 누를 수 있게 한다 — 목록이 막는 경우(읽는 중 · 못 읽음 · 0개)는 다시 끈다.
+  function releaseCompleteBtn() {
+    const btn = document.getElementById('erp-cons-complete-btn');
+    if (!btn) return;
+    btn.removeAttribute('data-busy');
+    btn.disabled = false;
+    refreshCompleteBtnLabel(document.getElementById('erpConstructionCompleteModal'));
+  }
+
+  function mountCompleteVisitItems(modalEl, orderId) {
+    const api = window.FomsVisitItems;
+    if (!api || !modalEl) return;
+    api.remove(modalEl);
+    refreshCompleteBtnLabel(modalEl);
+    api.mount(modalEl, function () { return document.getElementById('erp-cons-complete-remaining'); }, orderId,
+      function () {
+        const idEl = document.getElementById('erp-cons-complete-order-id');
+        return !!idEl && idEl.value === String(orderId);
+      },
+      function () { refreshCompleteBtnLabel(modalEl); });
   }
 
   // 시공 불가 사유 4종(서버 화이트리스트와 같은 코드·순서).
@@ -618,13 +661,13 @@
     const files = (input && input.files) ? Array.from(input.files) : [];
     const hasFiles = files.length > 0;
 
-    if (completeBtn) completeBtn.disabled = true;
+    if (completeBtn) { completeBtn.disabled = true; completeBtn.setAttribute('data-busy', '1'); }
 
     if (hasFiles) {
       const result = await executeBatchUpload(orderId, files, 'construction', { statusEl, progressWrap, progressBar });
       if (result.ok < result.total) {
         if (statusEl) statusEl.innerHTML = '<span class="text-danger">일부 파일 업로드에 실패했습니다. 다시 시도해주세요.</span>';
-        if (completeBtn) completeBtn.disabled = false;
+        releaseCompleteBtn();
         return;
       }
       if (statusEl) statusEl.innerHTML = `<span class="text-success">${result.ok}개 사진 업로드 완료! 상태 변경 중...</span>`;
@@ -634,18 +677,22 @@
 
     const noteEl = document.getElementById('erp-cons-complete-note');
     const noteValue = (noteEl && noteEl.value) ? String(noteEl.value).trim() : '';
+    const completeBody = { completion_note: noteValue };
+    if (window.FomsVisitItems) {  // 나눠 시공: done_item_uids · visit_date
+      window.FomsVisitItems.extendBody(document.getElementById('erpConstructionCompleteModal'), orderId, completeBody);
+    }
 
     try {
       const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completion_note: noteValue })
+        body: JSON.stringify(completeBody)
       });
       let data = await res.json();
       if (!data.success) {
         const again = await askAdminOverride(
           `/api/orders/${orderId}/construction/complete`,
-          { completion_note: noteValue },
+          completeBody,
           data,
           describeCompleteGateMissing(data) ? 'EVIDENCE_MISSING' : ''
         );
@@ -657,12 +704,18 @@
           const modal = bootstrap.Modal.getInstance(modalEl);
           if (modal) modal.hide();
         }
+        // 부분 방문(오늘 시공 끝)이면 짧은 알림 뒤에 같은 길로 다시 읽는다.
+        if (window.FomsVisitItems && window.FomsVisitItems.notifyVisit(data.data)) {
+          setTimeout(function () { window.location.href = '/erp/construction/dashboard'; }, window.FomsVisitItems.TOAST_WAIT_MS);
+          return;
+        }
         window.location.href = '/erp/construction/dashboard';
       } else {
         // 요건 미충족이면 "무엇이 없어서 막혔는지" 를 사람 말로 붙이고, 곧바로 채울 수 있는
         // 길(완료 준비 시트)을 준다 — 코드만 보여 주는 막다른 길을 만들지 않는다.
         const missingText = describeCompleteGateMissing(data);
-        let html = '<span class="text-danger">오류: ' + esc(data.message);
+        // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)은 error 칸에 글이 올 수 있다.
+        let html = '<span class="text-danger">오류: ' + esc((data && (data.message || data.error)) || '완료 처리에 실패했습니다.');
         if (missingText) html += ' — ' + esc(missingText);
         html += '</span>';
         if (missingText && typeof window.openCompleteGate === 'function') {
@@ -672,12 +725,16 @@
           html += ' <span class="text-muted small">아래 사진 첨부 칸에 올린 뒤 다시 눌러 주세요.</span>';
         }
         if (statusEl) statusEl.innerHTML = html;
-        if (completeBtn) completeBtn.disabled = false;
+        releaseCompleteBtn();
+        // 목록을 연 뒤 제품 · 기록이 바뀌었다(409 VISIT_ITEMS_STALE) — 목록을 다시 읽는다. 오류 글은 그대로 둔다.
+        if (window.FomsVisitItems && window.FomsVisitItems.isStale(data)) {
+          mountCompleteVisitItems(document.getElementById('erpConstructionCompleteModal'), orderId);
+        }
       }
     } catch (err) {
       console.error('Construction complete error:', err);
       if (statusEl) statusEl.innerHTML = '<span class="text-danger">처리 중 오류가 발생했습니다.</span>';
-      if (completeBtn) completeBtn.disabled = false;
+      releaseCompleteBtn();
     }
   }
 

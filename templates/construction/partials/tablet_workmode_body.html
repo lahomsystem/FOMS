@@ -54,9 +54,9 @@
         {% set _ctime = csched.get('time') or '' %}
         <button type="button" class="foms-cwork-card{% if o.id == _active_id %} is-active{% endif %}"
           data-order-id="{{ o.id }}"{% if o.remaining_construction_note %} data-remaining-construction="{{ o.remaining_construction_note }}"{% endif %}
-          data-cwork-date="{{ (o.construction_date or '').split(',')[0].strip()[:10] }}">
+          data-cwork-date="{{ (o.construction_date or '').split(',')[0].strip()[:10] }}"{% if o.item_done_visit_date %} data-visit-date="{{ o.item_done_visit_date }}"{% endif %}>
           <span class="foms-cwork-card__row">
-            <span class="foms-cwork-status foms-cwork-status--{{ 'done' if o.stage=='시공완료' else 'active' if o.stage=='시공중' else 'wait' }}">{{ o.stage }}</span>
+            <span class="foms-cwork-status foms-cwork-status--{{ 'done' if o.stage=='시공완료' else 'active' if o.stage=='시공중' else 'wait' }}">{{ o.stage_text or o.stage }}</span>
             {% if _ct_mode == 'undated' %}<span class="foms-cwork-card__time foms-cwork-card__time--none">날짜 미정</span>{% elif _ctime %}<span class="foms-cwork-card__time">{{ _ctime }}</span>{% else %}<span class="foms-cwork-card__time foms-cwork-card__time--none">시간 미정</span>{% endif %}
           </span>
           <span class="foms-cwork-card__name">{{ o.customer_name }}</span>
@@ -158,7 +158,7 @@
           {% elif not _can_cons %}
             <p class="foms-cwork-note" data-cwork-note>보기만 할 수 있어요</p>
           {% else %}
-          <div class="foms-cwork-actionbar__lead">
+          {% if o.split_production_note %}<p class="foms-cwork-note foms-cwork-note--split" data-cwork-note>{{ o.split_production_note }}</p>{% endif %}<div class="foms-cwork-actionbar__lead">
             <button type="button" class="foms-cwork-btn foms-cwork-btn--danger" data-cwork-fail data-order-id="{{ o.id }}">시공 불가</button>
             <button type="button" class="foms-cwork-btn foms-cwork-btn--ghost erp-construction-action" data-action="openAsAcceptModal" data-order-id="{{ o.id }}">AS 접수</button>
           </div>

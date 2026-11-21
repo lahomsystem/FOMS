@@ -6,6 +6,8 @@
  * - 서명: canvas 드로잉 → toBlob(PNG) 업로드 → evidence 등록(kind=signature).
  * - 게이트(after >= 2 AND 서명) 충족 시 [시공 완료] 활성 → 기존 complete API 호출.
  * - document 위임 + __FOMS_CGATE_BOUND 싱글톤 → 셸 프래그먼트 재실행에도 중복 바인딩 없음(G4).
+ * - 나눠 시공(2단계): 서명 칸 아래 "오늘 끝낸 제품" 체크 목록(foms-visit-items.js) · 단추 글 · done_item_uids.
+ *   나눠 시공하는 주문이 아니면 목록이 없고 창이 지금과 같다.
  */
 (function () {
   'use strict';
@@ -16,6 +18,30 @@
   window.__FOMS_CGATE_BOUND = true;
 
   var SHEET_SEL = '[data-foms-cgate-sheet]';
+  var BASE_LABEL = '시공 완료';
+
+  // 단추 글 · 켜짐 — 체크 목록이 있으면 고른 것에 따라 [시공 완료] / "오늘 시공 끝 — 남은 제품 N개",
+  // 하나도 안 골랐거나 목록을 못 읽었으면 끈다(사진 · 서명 문은 updateGate 가 sheet.__cgateEvidenceOk 로 남긴다).
+  function refreshLabel(sheet) {
+    var btn = sheet.querySelector('[data-foms-cgate-complete]');
+    var api = window.FomsVisitItems;
+    if (!btn) {
+      return;
+    }
+    btn.textContent = api ? api.buttonLabel(sheet, BASE_LABEL) : BASE_LABEL;
+    // 보내는 중(data-busy)이면 켜지 않는다 — 늦게 온 목록 · 사진 응답이 단추를 다시 켜 두 번 보내지 않게.
+    btn.disabled = btn.hasAttribute('data-busy') || !sheet.__cgateEvidenceOk || !!(api && api.blocked(sheet));
+  }
+
+  function mountVisitItems(sheet, orderId) {
+    var api = window.FomsVisitItems;
+    if (!api) {
+      return;
+    }
+    api.mount(sheet, function () { return sheet.querySelector('.foms-cgate-sign'); }, orderId,
+      function () { return sheet.getAttribute('data-order-id') === String(orderId); },
+      function () { refreshLabel(sheet); });
+  }
 
   function getSheet() {
     return document.querySelector(SHEET_SEL);
@@ -56,9 +82,11 @@
       status.textContent = '완료까지: 시공 후 ' + after + '/2 · 서명 ' + (signed ? 'O' : 'X');
     }
     var btn = sheet.querySelector('[data-foms-cgate-complete]');
+    sheet.__cgateEvidenceOk = after >= 2 && signed;
     if (btn) {
-      btn.disabled = !(after >= 2 && signed);
+      btn.disabled = !sheet.__cgateEvidenceOk;
     }
+    refreshLabel(sheet);
   }
 
   function applyEvidence(sheet, ev) {
@@ -81,6 +109,9 @@
   }
 
   function resetSheet(sheet) {
+    if (window.FomsVisitItems) {
+      window.FomsVisitItems.remove(sheet);  // 다른 주문의 목록 · 못 읽은 자리를 남기지 않는다
+    }
     ['before', 'after'].forEach(function (kind) {
       var thumbs = sheet.querySelector('[data-foms-cgate-thumbs="' + kind + '"]');
       if (thumbs) {
@@ -136,6 +167,7 @@
         }
       })
       .catch(function () { /* 시딩 실패는 무시: 0부터 시작 */ });
+    mountVisitItems(sheet, orderId);
   }
   // 기존 .erp-construction-action 위임(construction/partials/scripts.html)이 호출한다.
   window.openCompleteGate = openSheet;
@@ -277,21 +309,36 @@
     var btn = sheet.querySelector('[data-foms-cgate-complete]');
     if (btn) {
       btn.disabled = true;
+      btn.setAttribute('data-busy', '1');
     }
     setError(sheet, '');
+    var body = { completion_note: note };
+    if (window.FomsVisitItems) {
+      window.FomsVisitItems.extendBody(sheet, orderId, body);  // 나눠 시공: done_item_uids · visit_date
+    }
     mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/complete', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completion_note: note })
+      body: JSON.stringify(body)
     }).then(function (result) {
       if (!result.ok) {
+        // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)도 서버 글 그대로.
         setError(sheet, result.message || '완료 처리에 실패했습니다.');
-        if (btn) { btn.disabled = false; }
+        if (btn) { btn.removeAttribute('data-busy'); btn.disabled = false; }
+        refreshLabel(sheet);  // 목록이 막는 경우(체크 0개 · 못 읽음)는 다시 끈다
+        // 목록을 연 뒤 제품 · 기록이 바뀌었다(409 VISIT_ITEMS_STALE) — 목록을 다시 읽는다. 오류 글은 그대로 둔다.
+        if (window.FomsVisitItems && window.FomsVisitItems.isStale(result.data)) {
+          mountVisitItems(sheet, orderId);
+        }
         return;
       }
       closeSheet();
-      window.location.reload();
+      // 부분 방문(오늘 시공 끝)이면 짧은 알림을 보인 뒤, 아니면 곧바로 다시 읽는다.
+      var payload = result.data && result.data.data;
+      var api = window.FomsVisitItems;
+      var wait = (api && api.notifyVisit(payload)) ? api.TOAST_WAIT_MS : 0;
+      setTimeout(function () { window.location.reload(); }, wait);
     });
   }
 

@@ -17,7 +17,7 @@ __all__ = [
     "AS_OVERLAY_STATUSES", "OPEN_CLAIM_STATUSES", "OLD_CONSTRUCTION_BEFORE", "dict_row",
     "_connect", "_rows", "today_kst", "cutoff_iso", "assert_env_fingerprint",
     "fetch_candidates", "fetch_no_construction", "classify_row", "build_plan",
-    "text_dates", "later_construction_date",
+    "text_dates", "later_construction_date", "items_construction_open", "ITEMS_CONSTRUCTION_OPEN_REASON",
     "completed_workflow", "_snapshot_rows", "apply_one", "rollback_one",
 ]
 
@@ -27,6 +27,14 @@ try:
     from psycopg.types.json import Jsonb
 except ImportError:  # pragma: no cover - 실행 환경 안내용
     psycopg = None  # type: ignore[assignment]
+
+# 같은 폴더 모듈 — CLI(bulk_complete_past_construction.py)가 이 폴더를 sys.path 에 넣는다.
+from bulk_complete_past_construction_remaining import (  # noqa: E402
+    ITEMS_CONSTRUCTION_OPEN_REASON,
+    items_construction_open,
+    later_construction_date,
+    text_dates,
+)
 
 BATCH_ID = "2026-09-22-backlog"
 DEFAULT_REASON = "2026-09 실측·도면 적체 정리(시공일 경과)"
@@ -137,7 +145,8 @@ SELECT o.id, o.customer_name, o.status, o.is_erp_order, o.erp_stage_code,
            AND d.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
            AND d.date >= %(cutoff)s) AS later_construction_date,
        o.structured_data->'schedule'->'construction'->>'date' AS construction_text,
-       o.structured_data->'items' AS items
+       o.structured_data->'items' AS items,
+       o.structured_data->'item_construction_done' AS item_construction_done
   FROM orders o
  WHERE o.deleted_at IS NULL
    AND o.status <> 'DELETED'
@@ -187,56 +196,14 @@ def fetch_no_construction(conn) -> list[dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------- #
-# 순수 판정
+# 순수 판정 (남은 시공 판정 두 가지는 bulk_complete_past_construction_remaining.py)
 # --------------------------------------------------------------------------- #
-_DATE_TOKEN_RE = re.compile(r"^(?:(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})|(\d{4})(\d{2})(\d{2}))(?!\d)")
 #: 적용 직전 재확인용 — 후보 질의의 ``later_construction_date`` 하위 질의와 같은 조건.
 _LATER_DATE_SQL = """
 SELECT min(d.date) AS later FROM order_schedule_dates d
  WHERE d.order_id = %(oid)s AND d.kind = 'construction'
    AND d.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND d.date >= %(cutoff)s
 """
-
-
-def text_dates(raw: Any) -> list[str]:
-    """쉼표로 이은 시공일 글 → ``YYYY-MM-DD`` 목록(정렬 · 중복 제거, 못 읽는 토큰은 버림).
-
-    앱의 ``foms.services.orders.construction_dates.split_date_text`` 와 같은 규칙이다
-    (이 도구는 foms 를 import 하지 않아 한 벌 더 둔다 — 순수 시험이 두 벌을 견준다).
-    """
-    found: set[str] = set()
-    for token in str(raw or "").split(","):
-        m = _DATE_TOKEN_RE.match(token.strip())
-        if not m:
-            continue
-        y, mo, d = (g for g in m.groups() if g is not None)
-        try:
-            found.add(date(int(y), int(mo), int(d)).isoformat())
-        except ValueError:
-            continue
-    return sorted(found)
-
-
-def _item_dates(items: Any) -> list[str]:
-    """제품 칸 ``items[*].construction_date`` 의 날짜 전부(취소 제품도 넣는다 — 잘못 빼도 해가 없다)."""
-    rows = items if isinstance(items, list) else []
-    return [d for it in rows if isinstance(it, dict) for d in text_dates(it.get("construction_date"))]
-
-
-def later_construction_date(row: dict[str, Any], cutoff: str | None) -> str | None:
-    """``cutoff`` 이후(당일 포함)로 남은 가장 이른 시공일. 없으면 None.
-
-    일정 표(``later_construction_date`` 칸) · 주문 칸 글(``construction_text``) · 제품 칸
-    (``items``) 가운데 하나라도 걸리면 남은 것으로 본다 — 표가 뒤처져도 글에 적힌 날은 잡는다.
-    """
-    found = []
-    from_table = str(row.get("later_construction_date") or "").strip()
-    if _DATE_RE.match(from_table):
-        found.append(from_table)
-    if cutoff:
-        texts = text_dates(row.get("construction_text")) + _item_dates(row.get("items"))
-        found.extend(d for d in texts if d >= cutoff)
-    return min(found) if found else None
 
 
 def classify_row(row: dict[str, Any], *, cutoff: str | None = None
@@ -275,6 +242,9 @@ def classify_row(row: dict[str, Any], *, cutoff: str | None = None
     # 시공일이 여럿인 주문 — 첫 날만 지났고 뒤 시공이 남았으면 닫지 않는다(main · as_stage_only 모두).
     if later_construction_date(row, cutoff):
         return None, "later_construction_date", []
+    # 제품마다 '시공 끝'(2단계 N7) — 먼저 끝낸 제품이 있고 남은 제품도 있으면 스위치와 상관없이 닫지 않는다.
+    if items_construction_open(row):
+        return None, ITEMS_CONSTRUCTION_OPEN_REASON, []
 
     flags: list[str] = []
     if cons < OLD_CONSTRUCTION_BEFORE:
@@ -421,6 +391,8 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         }, cutoff)
         if later:
             return f"skipped:later_construction_date({later})"
+    if items_construction_open(structured):  # plan 뒤에 '시공 끝'이 찍혔어도 잠근 뒤 다시 본다
+        return f"skipped:{ITEMS_CONSTRUCTION_OPEN_REASON}"
     structured["workflow"] = completed_workflow(structured.get("workflow"), now=now)
     mode = item["mode"]
     if mode == "main":

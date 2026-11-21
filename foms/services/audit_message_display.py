@@ -186,6 +186,10 @@ ACTION_LABELS: dict[str, str] = {
     "CONSTRUCTION_COMPLETED": "시공 완료",
     "CONSTRUCTION_REWORK_REQUESTED": "시공 불가(재작업 요청)",
     "CONSTRUCTION_EVIDENCE_UPDATED": "시공 증빙 등록",
+    # 제품마다 '시공 끝'(설계서 2026-11-21-item-construction-done 5.5)
+    "CONSTRUCTION_VISIT_DONE": "부분 시공 끝",
+    "ITEM_CONSTRUCTION_DONE": "제품 시공 끝",
+    "ITEM_CONSTRUCTION_DONE_UNDONE": "제품 시공 끝 되돌림",
     # --- 생산 ---
     "PRODUCTION_STARTED": "제작 시작",
     "PRODUCTION_COMPLETED": "제작 완료",
