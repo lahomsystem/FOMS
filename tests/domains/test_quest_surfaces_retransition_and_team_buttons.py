@@ -464,14 +464,17 @@ def test_asset_pins_current():
     # 2026-09-30 이름 정리로 erp-quest-approve.js 는 20260930b, entry·quest 모듈은 20260930a.
     assert "erp-quest-approve.js') }}?v=20260930b" in _read("templates/partials/shared/layout_scripts.html")
     # erp-pro.css·04 자식은 잔금 결제수단으로 20261014a, detail-dom 은 도면 창구 버튼 글자로 20260930a.
-    assert "erp-dashboard-entry.js') }}?v=20261120m" in _read("templates/partials/shared/layout_scripts.html")
+    # entry 는 뒤 작업이 정당하게 올린다(2026-11-21 일괄 바꾸기 검수 전 알림, 20261121a) — "이 작업 핀보다 오래되지 않았다".
+    entry_pin = _read("templates/partials/shared/layout_scripts.html").split(
+        "erp-dashboard-entry.js') }}?v=", 1)[1].split('"', 1)[0]
+    assert entry_pin >= "20261120m", entry_pin
     # erp-pro.css 핀은 뒤 작업이 올릴 수 있다(2026-10-02 20261002t) — 이 작업 핀보다 오래되지만 않으면 된다.
     erp_pro_pin = _read("templates/partials/shared/layout_head.html").split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
     assert erp_pro_pin >= "20261001d", erp_pro_pin
     assert "04-filter-table-badges-buttons.css?v=20261111a" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260930a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
+    assert "erp-dashboard-detail-dom.js?v=20261121a" in entry  # 2026-11-21 일괄 바꾸기 검수 전 알림
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from pathlib import Path
 
 from sqlalchemy import event
@@ -15,7 +16,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session, engine
 from foms.services.datetime_kst import get_today_kst
 from foms.services.production_sheet_view import _format_at_kst, _prod_sheet_drawing_files
-from models import Order, ProductionRun, User
+from models import Order, OrderEvent, ProductionRun, User
 
 ROOT = Path(__file__).resolve().parents[2]
 SHEET_URL = "/erp/production/sheet/{id}"
@@ -174,3 +175,160 @@ def test_도면_목록과_시각_규칙() -> None:
     assert _format_at_kst("2026-11-09T00:12:00+00:00") == "11/9 09:12"
     assert _format_at_kst("2026-11-09T00:12:00Z") == "11/9 09:12"
     assert _format_at_kst("") == "" and _format_at_kst("이상") == ""
+
+
+# --------------------------------------------------------------------------- #
+# 11-21 시안 안 2 맞춤(사용자 "목업대로") — 아래 단추 줄 · 검수 전 회색 [제작 완료] · 지금 여기 · W×D×H · 저장/연결 한 줄
+# --------------------------------------------------------------------------- #
+def _all_steps_done(order: Order) -> None:
+    sd = dict(order.structured_data)
+    sd["production"] = dict(sd["production"], steps=[
+        {"key": k, "label": k, "done": True, "at": "2026-11-09T00:12:00+00:00", "by_name": "이철호"}
+        for k in ("cut", "edge", "assemble", "inspect")
+    ])
+    order.structured_data = sd
+    db_session.commit()
+
+
+def _complete_button(html: str) -> str:
+    import re
+    return re.search(r'<button [^>]*data-tablet-sheet-action="production-complete"[^>]*>.*?</button>', html, re.S).group(0)
+
+
+def test_검수_전_제작_완료는_회색이고_누를_수_없다(client) -> None:
+    _make_user(client, "sheet_prod_gate1", "PRODUCTION")
+    order = _seed_order()  # 공정 1/4
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--off" in btn and "foms-prod-page__btn--pri" not in btn
+    assert " disabled" in btn and 'aria-disabled="true"' in btn and "data-foms-sheet-complete" in btn
+    assert ">제작 완료<" in btn and "검수까지 끝나면 눌러요" in btn and "data-foms-sheet-complete-hint>" in btn
+
+
+def test_검수까지_끝나면_제작_완료가_파랗다(client) -> None:
+    _make_user(client, "sheet_prod_gate2", "PRODUCTION")
+    order = _seed_order()
+    _all_steps_done(order)
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--pri" in btn and "foms-prod-page__btn--off" not in btn
+    assert " disabled" not in btn and "aria-disabled" not in btn
+    assert "data-foms-sheet-complete-hint hidden" in btn and ">4/4<" in html
+    assert "지금 여기" not in html  # 다 끝나면 '지금' 칸이 없다
+
+
+def test_공정_칸을_한_칸도_안_켠_주문은_제작_완료가_파랗다(client) -> None:
+    """11-21 사용자 "공정 칸을 쓴 주문만 막기": 한 칸도 안 켠 주문은 규칙 밖 — 서버가 그대로 완료시키니 단추도 파랑."""
+    _make_user(client, "sheet_prod_gate3", "PRODUCTION")
+    order = _seed_order()
+    sd = dict(order.structured_data)
+    sd["production"] = dict(sd["production"], steps=[dict(s, done=False, at=None, by_name=None)
+                                                    for s in sd["production"]["steps"]])
+    order.structured_data = sd
+    db_session.commit()
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--pri" in btn and "foms-prod-page__btn--off" not in btn
+    assert " disabled" not in btn and "data-foms-sheet-complete-hint hidden" in btn
+
+
+def test_아래_단추_줄_지금_여기_치수_연결_한_줄(client) -> None:
+    _make_user(client, "sheet_prod_foot", "PRODUCTION")
+    order = _seed_order()
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    side = html.split('class="foms-prod-page__side"', 1)[1]
+    scroll, foot = side.split('class="foms-prod-page__foot"', 1)
+    # 위 굴러가는 칸: 공정(최근 불량 줄 포함) · 바뀐 것 · 만들 것 · 고객(11-21 순서). 단추는 없다
+    assert 'class="foms-prod-page__side-scroll"' in scroll and 'aria-label="공정"' in scroll and "최근 불량 · 파손" in scroll
+    assert "data-tablet-sheet-action" not in scroll and "data-foms-sheet-defect-toggle" not in scroll
+    # 아래 줄: [불량 알리기] · [보류] 한 줄 → 칩 → 큰 단추 → 저장 · 연결
+    pair = foot.split('class="foms-prod-page__pair"', 1)[1].split("</div>", 1)[0]
+    assert pair.index("data-foms-sheet-defect-toggle") < pair.index('data-tablet-sheet-action="production-hold"')
+    assert foot.index("data-foms-sheet-defect-reasons") < foot.index('data-tablet-sheet-action="production-complete"')
+    assert foot.index('data-tablet-sheet-action="production-complete"') < foot.index("data-foms-sheet-status")
+    assert "data-foms-sheet-net>연결 좋음<" in foot
+    # 공정: 지금 칸(엣지) 옆 '지금 여기', 끝난 칸은 누가 · 몇 시
+    assert html.count("지금 여기") == 1 and "이철호 · 11/9 09:12" in html
+    # 만들 것: 품목마다 'W×D×H · 수량'(시드는 가로만 있어 W 만)
+    assert "<span>거실장</span><span>W3100 · 1</span>" in html and "<span>W2160 · 1</span>" in html
+
+
+def test_만들_것_치수는_있는_축만_칸마다() -> None:
+    from foms.services.production_sheet_view import _prod_sheet_spec_rows_view
+    rows = _prod_sheet_spec_rows_view([
+        {"product_name": "거실장", "spec_width": "3100", "spec_depth": "500", "spec_height": "2300", "quantity": 1},
+        {"product_name": "장", "spec_rows": [{"w": "1200", "d": "600", "h": "2300"}, {"spec_width": "900", "spec_height": "2100"}]},
+        {"product_name": "빈 것"},
+    ])
+    assert [r["whd"] for r in rows] == ["W3100 × D500 × H2300", "W1200 × D600 × H2300 / W900 × H2100", ""]
+    assert rows[1]["w"] == "2100" and rows[2]["w"] == "-"  # 옆 시트가 쓰는 총 가로 폭은 그대로
+
+
+def test_아래_단추_줄은_가로_태블릿에서만_바닥에_붙는다() -> None:
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    gate = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {"
+    head, _, rest = css.partition(gate)
+    block = rest.split("\n}\n", 1)[0]
+    assert ".foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }" in block
+    assert ".foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto;" in block
+    assert ".foms-prod-page__foot { flex-shrink: 0;" in block
+    assert "overflow-y: auto" not in head.split(".foms-prod-page__side-scroll", 1)[1].split("}", 1)[0]  # 밖(PC · 세로)에서는 안 굴린다
+    assert ".foms-prod-page__pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);" in head
+    assert ".foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1;" in head
+    assert ".foms-prod-page__btn:disabled > * { pointer-events: none; }" in head
+
+
+def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다() -> None:
+    """11-21 서버도 같은 규칙: 공정 API 응답의 complete_ready(서버 한 함수)로 단추를 바꾼다 — 응답이 없을 때만
+    (오프라인 줄 세움) 칸 모양으로 미리 보인다. 옆 시트도 같은 단추(공정 루트 밖 바닥 줄)를 찾는다."""
+    js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
+    assert "function syncComplete(serverReady)" in js and "[data-foms-sheet-complete]" in js and "[data-foms-sheet-complete-hint]" in js
+    assert "typeof serverReady === 'boolean' ? serverReady" in js
+    assert "buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; })" in js
+    # 오프라인 미리 판정도 서버와 같다 — 한 칸도 안 켰으면 규칙 밖(파랑, 11-21 "공정 칸을 쓴 주문만 막기")
+    assert "|| buttons.every(function (b) { return b.getAttribute('aria-pressed') !== 'true'; })" in js
+    assert "renderSteps(payload.steps, payload.complete_ready)" in js and "syncComplete(serverReady);" in js
+    assert js.count("syncComplete();") == 1  # 목록 없이 한 칸만 바꿀 때(오프라인 줄 세움)
+    assert "page.closest('.foms-prod-sheet')" in js  # 옆 시트 단추는 공정 루트 밖
+    assert "completeBase + '--pri'" in js and "completeBase + '--off'" in js
+    # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
+    assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js
+    assert "navigator.onLine !== false && !netFailed" in js
+    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
+    assert "data-foms-sheet-net" not in side
+    assert "data-foms-sheet-complete" in side and "foms-prod-sheet__btn--off" in side  # 옆 시트도 검수 전 회색(11-21)
+
+
+def test_오른쪽_칸은_공정_바뀐_것_만들_것_고객_순서(client) -> None:
+    """11-21 사용자 결정 — 바닥 단추 줄을 고정해(53d1c5bb6) 굴러가는 칸이 작아졌고, 공정 칸을 켜야 [제작 완료]가
+    풀리므로 공정 4칸 줄을 맨 위로. 마크업 순서 = 읽기 · 키보드 순서(CSS order 아님). 보류 사유는 바뀐 것 다음,
+    특이사항은 만들 것 다음. 옆 시트(tablet_sheet.html)는 그대로(고객 → … → 공정)."""
+    from foms.services.datetime_kst import now_utc_naive
+    _make_user(client, "sheet_prod_order", "PRODUCTION")
+    order = _seed_order()
+    now = now_utc_naive()
+    sd = dict(order.structured_data)
+    sd["production"] = {**sd["production"], "hold": {"active": True, "reason": "자재 기다림", "at": now.isoformat()}}
+    order.structured_data = sd
+    order.erp_stage_updated_at = now - datetime.timedelta(days=4)
+    db_session.add(OrderEvent(order_id=order.id, event_type="CONSTRUCTION_DATE_CHANGED",
+                              payload={"from": (get_today_kst() + datetime.timedelta(days=5)).isoformat(),
+                                       "to": (get_today_kst() + datetime.timedelta(days=3)).isoformat()},
+                              created_at=now - datetime.timedelta(hours=5)))
+    db_session.commit()
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    scroll = html.split('class="foms-prod-page__side-scroll"', 1)[1].split('class="foms-prod-page__foot"', 1)[0]
+    marks = ['aria-label="공정"', 'aria-label="변경 알림"', "보류 사유 <strong>자재 기다림</strong>",
+             'aria-label="만들 것"', 'aria-label="특이사항"', 'aria-label="고객"']
+    pos = [scroll.find(m) for m in marks]
+    assert -1 not in pos, dict(zip(marks, pos))
+    assert pos == sorted(pos), dict(zip(marks, pos))
+    # 공정이 굴러가는 칸의 첫 상자다(앞에 다른 상자 · 안내 줄이 없다)
+    head = scroll[: pos[0]]
+    assert head.count("<section") == 1 and "foms-prod-page__callout" not in head and "<p" not in head
+    # 순서는 마크업으로 — CSS order 로 바꾸지 않는다
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    assert not re.search(r"(?<![\w-])order\s*:", css)
+    # 옆 시트는 범위 밖 — 규격이 공정보다 먼저(그대로)
+    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
+    assert 0 <= side.find('aria-label="규격"') < side.find('aria-label="공정"')

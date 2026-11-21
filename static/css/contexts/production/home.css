@@ -97,6 +97,7 @@
   white-space: nowrap;
 }
 .foms-prod-home__btn:hover, .foms-prod-home__btn:focus-visible { background: var(--fph-brand-50); color: var(--fph-brand-dark); text-decoration: none; }
+.foms-prod-home__btn-ic { display: none; } /* [다시 받기] 돌림 그림 — 가로 태블릿에서만(아래 미디어쿼리, 시안 안 3) */
 .foms-prod-home__offline {
   margin: 0;
   padding: 10px 20px;
@@ -255,11 +256,25 @@
 .fph-al__name { font-size: calc(19px * var(--foms-fs, 1)); font-weight: 800; }
 .fph-al__name small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); margin-left: 4px; }
 .fph-al__meta { font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text3); }
-.fph-al__list { margin: 6px 0 0; padding-left: 18px; font-size: calc(15px * var(--foms-fs, 1)); display: grid; gap: 2px; }
-.fph-al__list b { color: var(--fph-danger); }
-.fph-al__list li.is-drawing b { color: #2563eb; }
-.fph-al__list li.is-cancelled b { color: var(--fph-warn); }
+/* 목업 안 4(사용자 11-21): 바뀐 것 큰 글(17px/800, 시공일 빨강 · 도면 파랑 · 취소 갈색) → 이름 → 작은 글. 줄마다 아래에 '누가 · 언제 · 메모' */
+.fph-al__list { margin: 0 0 4px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.fph-al__list li { font-size: calc(17px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.3; color: var(--fph-danger); }
+.fph-al__list b { font-weight: 800; }
+.fph-al__d strong { font-weight: 800; }
+.fph-al__list li.is-drawing { color: #2563eb; }
+.fph-al__list li.is-cancelled { color: #92400e; }
+.fph-al__m { display: block; margin-top: 1px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 400; line-height: 1.35; color: var(--fph-text3); }
 .fph-al .foms-prod-home__btn { min-width: 128px; }
+/* 머리 "바뀐 것 n"(빨간 동그라미, 0 이면 초록) · 확인한 것(흐린 장 + "이름 확인 M/D HH:MM") · 더 보기 링크 */
+.fph-inbox__h { margin: 0; display: flex; align-items: center; gap: 10px; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; line-height: 1.2; }
+.fph-inbox__h b { min-width: calc(30px * var(--foms-fs, 1)); height: calc(30px * var(--foms-fs, 1)); padding: 0 8px; border-radius: 999px; background: var(--fph-danger); color: #fff; font-size: calc(16px * var(--foms-fs, 1)); display: inline-flex; align-items: center; justify-content: center; }
+.fph-inbox__h b.is-zero { background: var(--fph-ok); }
+.fph-inbox--page > .fph-inbox__h, .fph-inbox--page > .fph-inbox__more { grid-column: 1 / -1; }
+.fph-al.is-done { opacity: .55; }
+.fph-al__ok { min-width: 128px; text-align: center; font-size: calc(15px * var(--foms-fs, 1)); line-height: 1.4; color: var(--fph-text3); }
+.fph-inbox__more { margin: 0; text-align: center; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); }
+.fph-inbox__more a { min-height: 56px; padding: 0 24px; display: inline-flex; align-items: center; color: var(--fph-brand); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.fph-inbox__more a:hover, .fph-inbox__more a:focus-visible { color: var(--fph-brand-dark); }
 
 /* ── 내 공정(안 3): 공정 탭 + 줄 ── */
 .fph-steptabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--fph-surface); border-bottom: 1px solid var(--fph-line); }
@@ -623,4 +638,27 @@
   .fph-dr__dw { display: none; }
   .fph-wg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fph-q__nextlist { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── 가로 태블릿(터치) 제목 줄 — 시안 안 3(tablet-production-home-v2.html .seg · .fs · .btn, 11-21 사용자 "목업대로") ──
+   ① 화면 탭: 회색 쟁반 안 흰 알약 → 테두리 상자 하나 + 칸 사이 세로 줄 + 고른 탭 남색 칠 · 흰 글. 탭 이름 · 순서 · 숫자 · 높이 48px 그대로.
+   ② 글자 손잡이: 30px 단추 → 44px 칸 셋('글자' · − · 100% · +)이 한 테두리 상자(장갑 D5). 글자 크기는 공용 조각 그대로(손잡이는 배율을 안 따른다).
+   ③ [다시 받기] 앞 돌림 그림. 세로 · 폰 · PC(마우스)는 이 규칙 밖이라 지금 그대로다. ── */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-prod-home__nav { gap: 0; padding: 0; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); }
+  .foms-prod-home__navtab { justify-content: center; padding: 0 14px; border-radius: 0; border-right: 1px solid var(--fph-line2); }
+  .foms-prod-home__navtab:last-child { border-right: 0; }
+  .foms-prod-home__navtab--out { margin-left: 0; border-left: 0; border-radius: 0; }
+  .foms-prod-home__navtab.is-on, .foms-prod-home__navtab.is-on:hover, .foms-prod-home__navtab.is-on:focus-visible { background: var(--fph-brand); color: #fff; box-shadow: none; }
+  .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; opacity: .85; }
+  .foms-prod-home .foms-fs { gap: 0; height: 44px; margin-right: 0; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
+  .foms-prod-home .foms-fs__label { margin: 0; padding: 0 10px; align-self: stretch; display: inline-flex; align-items: center; border-right: 1px solid var(--fph-line2); color: var(--fph-text3); }
+  .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: 44px; min-width: 44px; border: 0; border-right: 1px solid var(--fph-line2); border-radius: 0; background: var(--fph-surface); color: var(--fph-text2); }
+  .foms-prod-home .foms-fs__btn { width: 44px; }
+  .foms-prod-home .foms-fs__now { min-width: 60px; }
+  .foms-prod-home .foms-fs > :last-child { border-right: 0; }
+  .foms-prod-home .foms-fs__btn:hover:not(:disabled), .foms-prod-home .foms-fs__now:hover { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
+  .foms-prod-home .foms-fs__btn:focus-visible, .foms-prod-home .foms-fs__now:focus-visible { outline-offset: -3px; }
+  .foms-prod-home__btn-ic { display: block; margin-right: 8px; font-size: calc(22px * var(--foms-fs, 1)); }
+  .foms-prod-home__btn[data-foms-home-reload] { padding: 0 14px; } /* 시안 .btn 여백 — 손잡이 · 그림이 커진 만큼 날짜 글 자리를 남긴다 */
 }

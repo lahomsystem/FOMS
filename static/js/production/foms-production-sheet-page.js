@@ -3,7 +3,9 @@
  * foms:erp-shell-fragment-swapped 때 새 루트를 다시 묶는다(루트마다 1회, data-foms-sheet-init).
  * 도면 넘기기·전역 뷰어·공정 체크 POST·불량 알리기 POST. 설계서 §12.2·F2 ② (2026-11-09).
  * 제작 시작/완료/취소/보류/변경 확인 단추는 tablet-domain-sheets.js 몫(여기선 안 건드림).
- * 실패 글은 설계서 §8 한 가지: "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요." */
+ * 실패 글은 설계서 §8 한 가지: "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요."
+ * 전체 화면 시트만(11-21, 시안 안 2): 공정 '지금 여기' 글 · 저장 · 연결 한 줄.
+ * 두 시트 모두(11-21): 검수까지 끝나야 파란 [제작 완료] — 서버 제작 완료 API 와 같은 규칙(공정 API 응답 complete_ready). */
 (function () {
   'use strict';
 
@@ -57,6 +59,30 @@
       statusEl.classList.toggle('is-bad', kind === 'bad');
       statusEl.classList.toggle('is-ok', kind === 'ok');
     }
+    // 연결 한 줄(전체 화면 시트만) — 첫 화면 '연결 끊김' 줄과 같은 navigator.onLine + 이 화면 요청이 연결 실패로 끝났는지.
+    var netEl = page.querySelector('[data-foms-sheet-net]');
+    var netFailed = false;
+    function renderNet() {
+      if (!netEl) { return; }
+      var ok = navigator.onLine !== false && !netFailed;
+      netEl.textContent = ok ? '연결 좋음' : '연결 끊김';
+      netEl.classList.toggle('is-ok', ok);
+      netEl.classList.toggle('is-bad', !ok);
+    }
+    function noteResult(result) {
+      netFailed = !!result && !result.ok && (result.kind === 'network' || result.status === 0);
+      renderNet();
+    }
+    if (netEl) {
+      window.addEventListener('online', function () { netFailed = false; renderNet(); });
+      window.addEventListener('offline', renderNet);
+      renderNet();
+    }
+    function savedText(fallback) {
+      if (!netEl) { return fallback; }
+      var d = new Date();
+      return '저장됨 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
 
     // ── 도면 넘기기(전체 화면 시트만 main 이 있다) ──
     var mainImg = page.querySelector('[data-foms-sheet-dwg-main]');
@@ -90,8 +116,29 @@
 
     // ── 공정 체크 ──
     var countEl = page.querySelector('[data-foms-sheet-steps-count]');
+    var nowText = netEl ? '지금 여기' : '';  // 전체 화면 시트만 지금 공정 옆에 글(옆 시트는 칸 테두리만)
+    // [제작 완료] 단추 — 전체 화면 시트는 루트 안, 옆 시트는 공정 루트 밖 바닥 줄(.foms-prod-sheet 안)에 있다.
+    var completeScope = (typeof page.closest === 'function' && page.closest('.foms-prod-sheet')) || page;
+    var completeBtn = completeScope.querySelector('[data-foms-sheet-complete]');
+    var completeHint = completeBtn ? completeBtn.querySelector('[data-foms-sheet-complete-hint]') : null;
+    var completeBase = completeBtn && completeBtn.classList.contains('foms-prod-sheet__btn') ? 'foms-prod-sheet__btn' : 'foms-prod-page__btn';
     function stepButtons() { return toArr(page.querySelectorAll('[data-foms-sheet-step]')); }
-    function renderSteps(steps) {
+    // [제작 완료]: 검수까지(공정 4칸 모두) 끝났을 때만 파랗게 누를 수 있다 — 서버 제작 완료 API 도 같은 규칙으로 막는다(11-21).
+    // serverReady = 공정 API 응답의 complete_ready(서버 한 함수 production_complete_ready). 응답이 없을 때만(오프라인 줄 세움)
+    // 지금 칸 모양으로 미리 보인다 — 그래도 누르면 서버가 같은 판정으로 다시 본다.
+    function syncComplete(serverReady) {
+      if (!completeBtn) { return; }
+      var buttons = stepButtons();
+      var ready = typeof serverReady === 'boolean' ? serverReady
+        : (buttons.length > 0 && (buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; })
+          || buttons.every(function (b) { return b.getAttribute('aria-pressed') !== 'true'; })));  // 한 칸도 안 켰으면 규칙 밖(11-21)
+      completeBtn.disabled = !ready;
+      if (ready) { completeBtn.removeAttribute('aria-disabled'); } else { completeBtn.setAttribute('aria-disabled', 'true'); }
+      completeBtn.classList.toggle(completeBase + '--pri', ready);
+      completeBtn.classList.toggle(completeBase + '--off', !ready);
+      if (completeHint) { completeHint.hidden = ready; }
+    }
+    function renderSteps(steps, serverReady) {
       var buttons = stepButtons();
       var doneCount = 0;
       var nowTaken = false;
@@ -107,10 +154,11 @@
         btn.setAttribute('aria-pressed', done ? 'true' : 'false');
         var meta = btn.querySelector('[data-foms-sheet-step-meta]');
         if (meta) {
-          meta.textContent = done ? [(s.by_name || '').trim(), fmtAt(s.at)].filter(Boolean).join(' · ') : '';
+          meta.textContent = done ? [(s.by_name || '').trim(), fmtAt(s.at)].filter(Boolean).join(' · ') : (isNow ? nowText : '');
         }
       });
       if (countEl) { countEl.textContent = doneCount + '/' + steps.length; }
+      syncComplete(serverReady);
     }
     function toggleStep(btn) {
       if (btn.disabled) { return; }
@@ -121,15 +169,17 @@
       mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/steps', { key: key, done: done })
         .then(function (result) {
           btn.disabled = false;
+          noteResult(result);
           if (!result.ok) { setStatus(failText(result), 'bad'); return; }
           var payload = (result.data && result.data.data) || {};
           if (payload.steps && payload.steps.length) {
-            renderSteps(payload.steps);
+            renderSteps(payload.steps, payload.complete_ready);
           } else {
             btn.classList.toggle('is-done', done);
             btn.setAttribute('aria-pressed', done ? 'true' : 'false');
+            syncComplete();
           }
-          setStatus(done ? '체크했어요' : '체크를 풀었어요', 'ok');
+          setStatus(savedText(done ? '체크했어요' : '체크를 풀었어요'), 'ok');
         });
     }
 
@@ -151,6 +201,7 @@
       mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/defect', { reason: reason })
         .then(function (result) {
           chips.forEach(function (c) { c.disabled = false; });
+          noteResult(result);
           if (!result.ok) { setStatus(failText(result), 'bad'); return; }
           var latest = (result.data && result.data.data && result.data.data.latest) || { reason: reason };
           if (defectRecent) {
@@ -161,7 +212,7 @@
             defectRecent.hidden = false;
           }
           setReasonsOpen(false);
-          setStatus('불량을 알렸어요', 'ok');
+          setStatus(netEl ? savedText('') + ' · 불량을 알렸어요' : '불량을 알렸어요', 'ok');
         });
     }
 

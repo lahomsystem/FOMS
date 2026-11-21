@@ -75,6 +75,10 @@
 .pp-file b { font-size: calc(22px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
 .pp-file span { max-width: 92%; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fph-text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-ln { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+/* 이름 · #번호와 '도면 n/N' 이 한 줄에 안 들어가면 '도면 n/N' 이 다음 줄로 — 이름이 한 글자 + '…' 로 줄지 않게(11-21, 글자 150% 실측
+   '자…' 6장). 들어가면 지금처럼 한 줄. 이름이 카드 폭보다 길 때만 말줄임 */
+.pp-card .pp-ln { flex-wrap: wrap; row-gap: 0; }
+.pp-card .pp-ln .fph-dr__nm { flex: 0 1 auto; }
 .pp-no { flex-shrink: 0; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); white-space: nowrap; }
 .pp-chg { flex-shrink: 0; font-style: normal; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-danger); }
 .pp-card .fph-dr__pr { -webkit-line-clamp: 1; line-clamp: 1; }
@@ -112,12 +116,13 @@
 .pp-grid:not(.is-done) .pp-only-done, .pp-grid.is-done .pp-not-done { display: none; }
 /* 작업 필요 칸 — 그림을 왼쪽에 크게(자르면서 치수를 읽는 칸, 시안 f61) */
 .pp-grid.is-need { grid-template-columns: minmax(0, 1fr); }
-.pp-grid.is-need .pp-card { display: grid; grid-template-columns: 56% minmax(0, 1fr); grid-auto-rows: min-content; column-gap: 14px; padding: 9px; }
+.pp-grid.is-need .pp-card { display: grid; grid-template-columns: 56% minmax(0, 1fr); grid-template-rows: repeat(4, min-content) 1fr; column-gap: 14px; padding: 9px; }
 .pp-grid.is-need .pp-card > * { grid-column: 2; }
-.pp-grid.is-need .pp-img { grid-column: 1; grid-row: 1 / span 7; height: 280px; margin: 0; }
+.pp-grid.is-need .pp-img { grid-column: 1; grid-row: 1 / -1; height: 280px; margin: 0; }
 .pp-grid.is-need .pp-ln { flex-direction: column; gap: 2px; }
 .pp-grid.is-need .fph-dr__nm { white-space: normal; }
-.pp-grid.is-need .pp-actbox { align-self: end; }
+/* 큰 [재단 완료]는 카드 바닥에(시안 f61) — 글 줄(이름 · 품목 · 바뀐 도면 · 다른 파트, 많아야 넷) 아래 남는 칸(1fr)의 맨 아래 */
+.pp-grid.is-need .pp-actbox { grid-row: 5; align-self: end; }
 
 /* ── 장 아래: 빈 칸 · 캡 · 도면·컨펌 기다림(연두 칩, 시안 f68) ── */
 .pp-empty { margin: 0; padding: 28px 8px; text-align: center; font-size: calc(17px * var(--foms-fs, 1)); color: var(--fph-text3); }

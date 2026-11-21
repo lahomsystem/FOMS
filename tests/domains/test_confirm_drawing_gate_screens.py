@@ -216,8 +216,8 @@ def test_asset_pins_bumped_to_20260929i():
     erp_pro_pin = _read("templates/partials/shared/layout_head.html").split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
     assert erp_pro_pin >= "20261001d", erp_pro_pin
     assert ".foms-gate-blocked-reason" in _read("static/css/foundation/erp-pro.css")
-    assert "erp-dashboard-entry.js') }}?v=20261120m" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-detail-dom.js?v=20261001a" in _read("static/js/orders/erp-dashboard-entry.js")
+    assert "erp-dashboard-entry.js') }}?v=20261121a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-detail-dom.js?v=20261121a" in _read("static/js/orders/erp-dashboard-entry.js")
     for rel in ("templates/orders/partials/dashboard_main.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):

@@ -31,6 +31,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.production.steps import STEPS_INCOMPLETE_CODE
 from models import OrderEvent, SecurityLog
 
 #: 뚫기에 성공했을 때만 남기는 주문 이벤트 종류(실패한 시도는 SecurityLog 만).
@@ -52,6 +53,8 @@ GATE_COMMAND_REQUIRED = "COMMAND_REQUIRED"
 GATE_DRAWING_STATUS = "DRAWING_STATUS"
 GATE_EVIDENCE_MISSING = "EVIDENCE_MISSING"
 GATE_OVERRIDE_TARGET = "OVERRIDE_TARGET"
+#: [제작 완료] 검수 전(공정 4칸 미완) — 코드 글자는 공정 모듈 한 곳(``production.steps``)에서 온다(2026-11-21).
+GATE_STEPS_INCOMPLETE = STEPS_INCOMPLETE_CODE
 
 GATE_CODES: tuple[str, ...] = (
     GATE_OVERRIDE_BLOCK,
@@ -64,6 +67,7 @@ GATE_CODES: tuple[str, ...] = (
     GATE_DRAWING_STATUS,
     GATE_EVIDENCE_MISSING,
     GATE_OVERRIDE_TARGET,
+    GATE_STEPS_INCOMPLETE,
 )
 
 #: 뚫기 축 이름(이벤트 payload 의 ``axis``).

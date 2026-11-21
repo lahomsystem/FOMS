@@ -187,7 +187,7 @@
   {% include 'partials/shared/foms_reason_sheet.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261121a" defer></script>
   {# 시공 완료 게이트(사진 2장 + 서명) · 태블릿 작업 모드(카드 → 패널 전환) · 출발 전 자재 확인(출고 패킹 시트 재사용).
      예전엔 온전한 페이지(dashboard.html scripts 블록)만 실어 다른 탭에서 셸 스왑으로 들어오면 셋 다 죽었다
      (콘솔 오류 없음 — [완료 준비]는 window.openCompleteGate 가 없어 무음, 2026-11-18). 온전한 페이지와 셸 조각이

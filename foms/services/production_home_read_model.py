@@ -120,7 +120,8 @@ def production_home_day(construction_date: Any, today: datetime.date) -> dict[st
     return {'key': day.isoformat(), 'label': md, 'sub': f"D-{delta}", 'is_today': False}
 
 
-def _change_line(alerts: list[dict[str, Any]]) -> str:
+def _change_line(alerts: list[dict[str, Any]], by: str = '') -> str:
+    """바뀐 줄 한 줄 — 맨 앞(가장 최근) 변경 + ``by``('영업 서하나 · 2시간 전', 찾기 탭만) + '그 외 n건'."""
     if not alerts:
         return ''
     first = alerts[0]
@@ -129,9 +130,16 @@ def _change_line(alerts: list[dict[str, Any]]) -> str:
     if first.get('kind') == 'construction_date' and first.get('to_md'):
         detail = f"{first.get('from_md') or '미정'} → {first.get('to_md')}"
     line = f"{label} {detail}".strip()
+    if by:
+        line = f"{line} · {by}"
     if len(alerts) > 1:
         line = f"{line} · 그 외 {len(alerts) - 1}건"
     return line
+
+
+def _newest_first(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """변경 항목을 바뀐 시각(``at``) 늦은 순으로 — 시각이 없으면 맨 뒤, 같으면 원래 순서."""
+    return sorted(items, key=lambda a: a.get('at') or datetime.datetime.min, reverse=True)
 
 
 def _by_parts(row: dict[str, Any]) -> list[dict[str, str]]:
@@ -338,7 +346,7 @@ def build_production_home(
     stats = {'past_hidden': max(0, past_total - min(room, past_total)), 'total': live_count + past_total}
     run_ids = fetch_production_current_run_ids(db, orders)
     rows = build_production_home_enriched_rows(orders, run_ids)
-    alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None)
+    alerts_by_id = collect_production_change_alerts(db, orders, user.id if user else None, with_ack_time=True)
     # 장 나누기도 캡·정렬과 같은 출처(납작 열)로 — 행의 construction_date 는 JSONB 라 직접 SQL 로 고친 옛 주문에서
     # 어긋나면 "앞날이라 읽은 주문이 지난 시공일 장에" 선다(R6, 11-11). 이 행 사전은 첫 화면 전용이다.
     flat_dates = {o.id: o.erp_construction_date for o in orders}
@@ -354,7 +362,12 @@ def build_production_home(
         day = production_home_day(row.get('construction_date'), today)
         # 바뀐 것(숫자·받은함·빨간 테두리·정렬·찾기 거르기)은 생산팀이 만들 주문만 — 도면·컨펌 기다림과 제작 완료는
         # 알림이 있어도 치지 않는다(사용자 D20 11-10 "만들 주문만": 운영 '바뀐 것 218' 대부분이 도면 단계 재전달이었다).
-        alerts = ((alerts_by_id.get(row['id']) or {}).get('alerts') or []) if view == 'prod' else []
+        change = (alerts_by_id.get(row['id']) or {}) if view == 'prod' else {}
+        # 가장 최근 변경이 앞(11-21) — 바뀐 줄 · 받은함 장이 같은 첫 줄을 쓴다.
+        alerts = _newest_first(change.get('alerts') or [])
+        # 확인한 것(받은함 아래 흐린 장): 미확인이 없고 본인이 확인한 변경 이력이 있는 생산 단계 주문(D20 같은 거르기).
+        acked_at = change.get('acked_at')
+        done = _newest_first(change.get('history') or []) if not alerts and acked_at is not None else []
         drawing_count = len(resolve_final_drawing_files(sd))
         row['home_steps'] = steps
         row['home_stage'] = big
@@ -367,6 +380,8 @@ def build_production_home(
         row['day_is_today'] = day['is_today']
         row['has_changes'] = bool(alerts)
         row['home_alerts'] = alerts
+        row['home_done'] = done
+        row['home_acked_at'] = acked_at if done else None
         row['change_line'] = _change_line(alerts)
         row['by_parts'] = _by_parts(row)
         row['drawing_label'] = f"도면 {drawing_count}장" if drawing_count else '도면 없음'

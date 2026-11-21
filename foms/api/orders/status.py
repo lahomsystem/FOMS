@@ -50,6 +50,7 @@ from foms.services.orders.stage_override import (
     as_overlay_status,
     current_stage_for_order,
     normalize_main_stage,
+    production_complete_move_block,
     requires_dedicated_command,
     requires_privileged_override,
 )
@@ -62,6 +63,7 @@ from foms.services.orders.order_transition_service import (
 )
 from foms.services.orders.revision import RevisionError
 from foms.services.orders.admin_override import (
+    GATE_STEPS_INCOMPLETE,
     admin_override_error,
     log_admin_override_denied,
     record_admin_override_event,
@@ -381,6 +383,14 @@ def update_order_status_response(
                                 "message": DEDICATED_COMMAND_MESSAGE}), 409
             punched.append("COMMAND_REQUIRED")
 
+        # 생산 → 시공(= 제작 완료)은 [제작 완료] 단추와 같은 규칙 — 검수까지(공정 4칸) 끝나야 한다(2026-11-21).
+        # 관리자 뚫기는 끝의 공통 기록 흐름이 남긴다. 단계 강제 변경 라우트는 이 규칙을 타지 않는다(비상구).
+        steps_blocked = production_complete_move_block(order, from_stage, new_status)
+        if steps_blocked is not None:
+            if override is None:
+                return jsonify(steps_blocked), 409
+            punched.append(GATE_STEPS_INCOMPLETE)
+
         # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다.
         # field_update 와 **같은 술어·같은 문구**를 쓴다(complete_path_policy 한 곳에서 만든다).
         # 다른 축 상태 쓰기(출고·AS)는 술어가 value=='COMPLETED' 에서 끊겨 들어오지 않는다.
@@ -608,6 +618,8 @@ def bulk_update_order_status_response(
         blocked_command_required: list[int] = []
         # 승격 전 초안(draft_guard) — 뚫기와 무관하게 건너뛴다.
         blocked_unpromoted_draft: list[int] = []
+        # 생산 → 시공(= 제작 완료)인데 검수(공정 4칸) 전 — [제작 완료] 단추와 같은 규칙(2026-11-21).
+        blocked_steps_incomplete: list[int] = []
         # 열린 AS 라 단계만 옮기고 상태 글(AS 표시)은 그대로 둔 주문.
         as_overlay_kept: list[int] = []
 
@@ -656,6 +668,11 @@ def bulk_update_order_status_response(
                     blocked_command_required.append(int(order.id))
                     continue
                 punched.append("COMMAND_REQUIRED")
+            if production_complete_move_block(order, from_stage, new_status) is not None:
+                if override is None:
+                    blocked_steps_incomplete.append(int(order.id))
+                    continue
+                punched.append(GATE_STEPS_INCOMPLETE)
 
             # 단건 라우트와 같은 술어 — 메인 파이프라인 주문의 COMPLETED 직접 저장만 걸린다.
             if rejects_completed_field_write(order, new_status):
@@ -732,7 +749,7 @@ def bulk_update_order_status_response(
         db.commit()
         success = updated > 0 or not (
             blocked_override_required or blocked_as_orders or blocked_command_required
-            or blocked_unpromoted_draft
+            or blocked_unpromoted_draft or blocked_steps_incomplete
         )
         message = None
         if blocked_override_required and updated == 0:
@@ -757,6 +774,12 @@ def bulk_update_order_status_response(
                 f"{len(blocked_command_required)}건은 전용 버튼으로만 넘길 수 있어 바꾸지 않았습니다."
             )
             message = f"{message} {cmd_note}" if message else cmd_note
+        if blocked_steps_incomplete:
+            steps_note = (
+                f"{len(blocked_steps_incomplete)}건은 검수까지 끝나지 않아 바꾸지 않았습니다"
+                " — 공정(재단 · 엣지 · 조립 · 검수)을 먼저 체크해 주세요."
+            )
+            message = f"{message} {steps_note}" if message else steps_note
         if blocked_unpromoted_draft:
             draft_note = (
                 f"{len(blocked_unpromoted_draft)}건은 아직 저장하지 않은 초안이라 바꾸지 않았습니다."
@@ -775,14 +798,15 @@ def bulk_update_order_status_response(
             "blocked_use_cs_complete": blocked_use_cs_complete,
             "blocked_command_required": blocked_command_required,
             "blocked_unpromoted_draft": blocked_unpromoted_draft,
+            "blocked_steps_incomplete": blocked_steps_incomplete,
             "as_overlay_kept": as_overlay_kept,
         }
         if message:
             payload["message"] = message
         status_code = 200 if success else 403
-        if (not success and (blocked_command_required or blocked_unpromoted_draft)
+        if (not success and (blocked_command_required or blocked_unpromoted_draft or blocked_steps_incomplete)
                 and not blocked_override_required):
-            status_code = 409  # 경로 충돌이지 권한 문제가 아니다(전용 버튼·승격 전 초안)
+            status_code = 409  # 경로 충돌 · 업무 전제지 권한 문제가 아니다(전용 버튼·승격 전 초안·검수 전)
         return jsonify(payload), status_code
     except Exception as exc:
         db = get_db()

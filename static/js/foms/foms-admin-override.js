@@ -35,7 +35,9 @@
     'COMMAND_REQUIRED',
     'DRAWING_STATUS',
     'EVIDENCE_MISSING',
-    'OVERRIDE_BLOCK'
+    'OVERRIDE_BLOCK',
+    // 제작 완료 검수 전(공정 4칸 미완, 2026-11-21) — 관리자만 사유 적고 넘긴다. 서버 GATE_STEPS_INCOMPLETE 와 같은 글자.
+    'STEPS_INCOMPLETE'
   ];
 
   function canOverride() {

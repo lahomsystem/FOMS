@@ -34,6 +34,7 @@ from models import (
 )
 from tests.support.quest_seed import confirm_quest_completed
 from tests.support.confirm_seed import drawing_for_stage
+from tests.support.production_steps_seed import mark_order_inspected, with_inspected_steps
 
 # 2026-09-20 F2: 생산 시작의 CONFIRM 호환 경로는 승인 완료된 CONFIRM quest 를 요구한다.
 _CONFIRM_DONE = {"quests": [confirm_quest_completed()]}
@@ -143,6 +144,7 @@ def test_complete_routes_through_transition_engine_and_closes_run(client):
     _login(client, _make_user("sp_complete", role="STAFF", team="PRODUCTION"))
     order_id = _make_order("PRODUCTION").id
     _mint_run(order_id)  # backfill 이 발급했을 current IN_PROGRESS run.
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙) — 버전은 그대로 1
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200 and resp.get_json()["new_status"] == "CONSTRUCTION"
@@ -196,7 +198,8 @@ def test_complete_blocked_when_production_quest_incomplete(client):
 def test_complete_succeeds_when_production_quest_complete(client):
     """PRODUCTION quest 완료 → complete 200(게이트 통과)."""
     _login(client, _make_user("sp_q2", role="STAFF", team="PRODUCTION"))
-    order_id = _make_order("PRODUCTION", structured_data={"quests": [_quest("PRODUCTION", approved=True)]}).id
+    order_id = _make_order("PRODUCTION", structured_data=with_inspected_steps(
+        {"quests": [_quest("PRODUCTION", approved=True)]})).id
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200
@@ -335,7 +338,7 @@ def test_rework_completion_preserves_legacy_event_payload(client):
     _login(client, _make_user("sp_rw", role="STAFF", team="PRODUCTION"))
     order_id = _make_order(
         "PRODUCTION",
-        structured_data={"production": {"rework": {"active": True, "count": 2, "reason": "치수"}}},
+        structured_data=with_inspected_steps({"production": {"rework": {"active": True, "count": 2, "reason": "치수"}}}),
     ).id
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})

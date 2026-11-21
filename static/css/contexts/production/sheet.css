@@ -84,6 +84,12 @@
 .foms-prod-page__btn--warn { background: var(--fpp-warn); border-color: var(--fpp-warn); }
 .foms-prod-page__btn.is-active { background: var(--fpp-warn-50); border-color: var(--fpp-warn); color: var(--fpp-amber-text); }
 .foms-prod-page__btn:disabled { opacity: .55; cursor: default; }
+/* 검수 전 [제작 완료] — 회색 칸 + 안내 글(시안 안 2 .btn.off). 흐리게 겹치지 않고 그대로 보인다 */
+.foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1; background: var(--fpp-raised); border-color: var(--fpp-line); color: var(--fpp-text3); }
+.foms-prod-page__btn:disabled > * { pointer-events: none; } /* 글 조각을 눌러도 꺼진 단추 밖으로 누름이 새지 않게 */
+.foms-prod-page__btn b { font-weight: inherit; }
+.foms-prod-page__off-hint { font-weight: 700; white-space: normal; word-break: keep-all; }
+.foms-prod-page__off-hint[hidden] { display: none; }
 
 /* ── 본문 두 단 ── */
 .foms-prod-page__body { display: grid; grid-template-columns: minmax(0, 1fr) 500px; min-height: calc(100dvh / var(--foms-ui-zoom, 1) - 64px); }
@@ -149,11 +155,11 @@
 .foms-prod-page__v { flex: 1; min-width: 0; font-size: calc(18px * var(--foms-fs, 1)); font-weight: 800; }
 .foms-prod-page__v small { display: block; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 500; color: var(--fpp-text2); white-space: normal; }
 .foms-prod-page__v--addr { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 600; color: var(--fpp-text); }
-.foms-prod-page__spec { width: 100%; border-collapse: collapse; font-size: calc(16px * var(--foms-fs, 1)); }
-.foms-prod-page__spec th { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); text-align: left; padding: 2px 0; }
-.foms-prod-page__spec td { padding: 4px 0; border-top: 1px solid var(--fpp-line); }
-.foms-prod-page__spec td:first-child { font-weight: 700; }
-.foms-prod-page__spec th:not(:first-child), .foms-prod-page__spec td:not(:first-child) { text-align: right; white-space: nowrap; }
+.foms-prod-page__items { margin: 0; padding: 0; list-style: none; }
+/* 품목 한 줄 = 이름(굵게) · 'W×D×H · 수량'(오른쪽) — 자리가 모자라면 치수가 다음 줄로(시안 안 2 .items) */
+.foms-prod-page__item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 12px; padding: 4px 0; font-size: calc(16px * var(--foms-fs, 1)); }
+.foms-prod-page__item span:first-child { font-weight: 700; }
+.foms-prod-page__item span:last-child { margin-left: auto; color: var(--fpp-text2); text-align: right; }
 .foms-prod-page__clr { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); }
 .foms-prod-page__muted { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fpp-text3); align-self: center; }
 .foms-prod-page__notes { margin: 0; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); white-space: pre-wrap; }
@@ -192,18 +198,28 @@
 /* 파트 계정 = 공정 읽기 전용(설계서 §15.4) — 저장 중 흐림이 아니라 그대로 보이고 누를 수만 없다 */
 .foms-prod-page__step.is-locked:disabled { opacity: 1; cursor: default; }
 .foms-prod-page__steps-note { margin: 6px 0 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-text3); }
-.foms-prod-page__defect { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--fpp-line); display: flex; flex-direction: column; gap: 8px; }
 .foms-prod-page__defect-recent { margin: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpp-danger); }
+.foms-prod-page__box > .foms-prod-page__defect-recent { margin-top: 8px; }
 .foms-prod-page__chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .foms-prod-page__chip { min-height: 48px; padding: 0 16px; border: 1px solid var(--fpp-danger); border-radius: 999px; background: var(--fpp-surface); color: var(--fpp-danger); font: inherit; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 700; cursor: pointer; }
 .foms-prod-page__chip:hover, .foms-prod-page__chip:focus-visible { background: var(--fpp-danger); color: #fff; outline: none; }
 .foms-prod-page__chip:disabled { opacity: .5; cursor: wait; }
 
+/* 오른쪽 칸 = 굴러가는 위 내용 + 아래 단추 줄(시안 안 2). 가로 태블릿 밖에서는 둘 다 한 단으로 이어진다 */
+.foms-prod-page__side-scroll { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.foms-prod-page__foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.foms-prod-page__pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.foms-prod-page__foot .foms-prod-page__chips[hidden] { display: none; }
+
 /* 단추 줄·상태 */
-.foms-prod-page__acts { display: flex; gap: 10px; align-items: stretch; margin-top: auto; padding-top: 4px; }
+.foms-prod-page__acts { display: flex; gap: 10px; align-items: stretch; }
+.foms-prod-page__statusrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 20px; }
 .foms-prod-page__status { margin: 0; min-height: 20px; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); text-align: right; }
+.foms-prod-page__statusrow .foms-prod-page__status { text-align: left; }
 .foms-prod-page__status.is-bad { color: var(--fpp-danger); font-weight: 700; }
 .foms-prod-page__status.is-ok { color: var(--fpp-ok); font-weight: 700; }
+.foms-prod-page__net { flex-shrink: 0; font-size: calc(14px * var(--foms-fs, 1)); color: var(--fpp-text3); white-space: nowrap; }
+.foms-prod-page__net.is-bad { color: var(--fpp-danger); font-weight: 700; }
 
 /* ── 가로 태블릿(레일 + 터치): 화면 높이에 맞추고 오른쪽만 스크롤 — 도면은 늘 보인다 ── */
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
@@ -213,7 +229,11 @@
   .foms-prod-page__bar { flex-wrap: nowrap; flex-shrink: 0; }
   .foms-prod-page__body { flex: 1 1 auto; height: auto; min-height: 0; }
   .foms-prod-page__dwg { min-height: 0; }
-  .foms-prod-page__side { overflow-y: auto; }
+  /* 오른쪽 칸: 아래 단추 줄은 바닥에 붙고 위 내용(고객 · 만들 것 · 바뀐 것 · 공정)만 굴러간다 — [제작 완료] · [보류] ·
+     [불량 알리기]가 글자 150% · 현장 창 1176×626 에서도 첫 화면 안(시안 안 2, 11-21 사용자) */
+  .foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }
+  .foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 4px; }
+  .foms-prod-page__foot { flex-shrink: 0; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--fpp-line); }
   .foms-prod-page__main-btn { padding: 12px 86px; }
 }
 
@@ -233,6 +253,13 @@
 /* ── 칸반 옆 시트(400px, .foms-prod-sheet) 안에서 같은 조각을 쓸 때 — 연락처·공정 블록·도면 스트립 (F2 ①②③, 11-09) ── */
 /* 글자를 140% 넘게 키우면 바닥 단추 셋이 시트 폭을 넘는다 → 다음 줄로 넘긴다(실화면 S1, 11-10) */
 .foms-prod-sheet__foot { flex-wrap: wrap; }
+/* 검수 전 [제작 완료](11-21, 서버도 같은 규칙으로 막는다) — 전체 화면 시트 .foms-prod-page__btn--off 와 같은 회색 칸 + 안내 글.
+   흐리게 겹치지 않고 그대로 보인다. 글 조각을 눌러도 꺼진 단추 밖으로 누름이 새지 않게 한다. */
+.foms-prod-sheet__btn--off, .foms-prod-sheet__btn--off:disabled, .foms-prod-sheet__btn--off:hover { flex: 2; opacity: 1; background: #f7f8fa; border-color: #dde1e6; color: #6b7380; cursor: default; white-space: normal; }
+.foms-prod-sheet__btn:disabled > * { pointer-events: none; }
+.foms-prod-sheet__btn b { font-weight: inherit; }
+.foms-prod-sheet__off-hint { display: block; font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; word-break: keep-all; }
+.foms-prod-sheet__off-hint[hidden] { display: none; }
 /* 머리 줄(이름 · #번호 · 상차)이 떠 있는 닫기 단추 밑으로 안 들어가게 그 자리를 비운다(S4 11-11: 100% 에서 20×8px 겹침) */
 .foms-tablet-sheet--headless .foms-prod-sheet__titlebar { padding-right: 36px; }
 .foms-prod-sheet__contact { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 0 0 10px; border: 1px solid #dde1e6; border-radius: 10px; background: #fff; }

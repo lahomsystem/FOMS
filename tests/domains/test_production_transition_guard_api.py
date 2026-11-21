@@ -4,7 +4,8 @@
   경로, CONFIRM→PRODUCTION 전이) 또는 PRODUCTION 인데 current run 이 없는 주문(2026-09-17,
   단계는 그대로 두고 run 만 발급). 그 외 → 409 + code=INVALID_STAGE, message 키, 상태 불변.
 - 제작 취소: PRODUCTION + current run 이 있을 때만. 단계는 PRODUCTION 에 남고 run 만 SUPERSEDED.
-- 제작 완료(POST /api/orders/<id>/production/complete): 제작중(생산/PRODUCTION)에서만 허용.
+- 제작 완료(POST /api/orders/<id>/production/complete): 제작중(생산/PRODUCTION)에서만 허용 + 검수까지(공정 4칸)
+  끝나야 한다(2026-11-21, STEPS_INCOMPLETE 409 — 전용 시험 test_production_complete_requires_inspect.py).
 - 레거시 한글 stage 값('생산' 등)도 허용 목록에 포함.
 - 시트 풋터 조건 렌더: stage/is_sales_approved 분기(제작중 → 생산 완료, 제작대기 미승인 → 고객 컨펌 전).
 
@@ -21,6 +22,7 @@ from db import db_session
 from models import Order, OrderEvent, ProductionRun, User
 from tests.support.quest_seed import confirm_quest_completed
 from tests.support.confirm_seed import drawing_for_stage
+from tests.support.production_steps_seed import mark_order_inspected
 
 _CONFIRM_STAGES = ("CONFIRM", "고객컨펌")
 
@@ -159,9 +161,14 @@ def test_complete_blocked_when_not_production(client):
 
 
 def test_complete_succeeds_from_production(client):
-    """제작중(PRODUCTION) 주문 완료 → success, CONSTRUCTION 전이."""
+    """제작중(PRODUCTION) + 검수까지(공정 4칸) 끝 → success, CONSTRUCTION 전이.
+
+    2026-11-21 계약 변경: 예전엔 공정 칸 없이도 완료됐다. 이제 검수 전이면 409 STEPS_INCOMPLETE 다
+    (``tests/domains/test_production_complete_requires_inspect.py``).
+    """
     _login(client, _make_user("guard_c2"))
     order_id = _make_order("PRODUCTION").id
+    mark_order_inspected(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200
@@ -174,9 +181,10 @@ def test_complete_succeeds_from_production(client):
 
 
 def test_complete_succeeds_from_legacy_korean_stage(client):
-    """레거시 한글 stage('생산') 주문 완료 → success (한글 값 허용 목록 포함)."""
+    """레거시 한글 stage('생산') + 검수까지 끝 → success (한글 값 허용 목록 포함)."""
     _login(client, _make_user("guard_c3"))
     order_id = _make_order("생산").id
+    mark_order_inspected(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
     assert resp.status_code == 200
@@ -489,6 +497,7 @@ def test_complete_with_release_hold_succeeds(client):
     """보류 주문 완료 + release_hold → success, CONSTRUCTION 전이, hold 해제, 이벤트 via 표기."""
     _login(client, _make_user("guard_h4"))
     order_id = _make_order_with_hold("PRODUCTION").id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
     resp = client.post(
         f"/api/orders/{order_id}/production/complete", json={"release_hold": True}
@@ -577,6 +586,7 @@ def test_rework_then_complete_clears_active_preserves_count(client):
     """rework 후 complete → CONSTRUCTION, rework active False + count 보존, 재제작 history/이벤트."""
     _login(client, _make_user("guard_r2"))
     order_id = _make_order("CONSTRUCTION").id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
     assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
     resp = client.post(f"/api/orders/{order_id}/production/complete", json={})
@@ -609,6 +619,7 @@ def test_rework_second_round_increments_count(client):
     """2회차 rework → count=2 (rework → complete → rework)."""
     _login(client, _make_user("guard_r3"))
     order_id = _make_order("CONSTRUCTION").id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
     assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
     assert client.post(f"/api/orders/{order_id}/production/complete", json={}).status_code == 200
@@ -816,6 +827,7 @@ def test_uncomplete_restores_rework_when_was_rework_completion(client):
     """재제작 완료(rework→complete) 후 uncomplete → rework active 복원 + completed_at 삭제, count 불변."""
     _login(client, _make_user("guard_x5"))
     order_id = _make_order("CONSTRUCTION").id
+    mark_order_inspected(order_id)  # 검수까지 끝(2026-11-21 서버 규칙)
 
     # rework → complete (completed_at 기록, active False, count=1)
     assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
