@@ -523,6 +523,15 @@ def _describe_quest_approval(payload: dict[str, Any]) -> str:
     return f"{who}{what}"
 
 
+def _short_day_label(raw: Any) -> str:
+    """``2026-11-05`` → ``11/5``. 못 읽으면 빈 글."""
+    try:
+        day = datetime.strptime(str(raw or "").strip(), "%Y-%m-%d")
+    except ValueError:
+        return ""
+    return f"{day.month}/{day.day}"
+
+
 def _describe_item_construction_done(event_type: str, payload: dict[str, Any]) -> str:
     """제품마다 '시공 끝' 이벤트 3종의 한 줄 — 제품 이름 · 남은 시공 · 되돌린 이유를 함께 보여 준다."""
     raw_names = payload.get("names")
@@ -533,7 +542,10 @@ def _describe_item_construction_done(event_type: str, payload: dict[str, Any]) -
         text = f"{name} 시공 끝 표시를 되돌렸습니다" if name else "제품 시공 끝 표시를 되돌렸습니다"
         return f"{text} (사유: {reason})" if reason else text
     if event_type == "CONSTRUCTION_VISIT_DONE":
-        text = f"오늘 시공을 끝냈습니다 ({names})" if names else "오늘 시공을 끝냈습니다"
+        # 나중에 이력을 읽어도 맞도록 "오늘" 대신 방문 날을 적는다 — "11/5 시공 끝 (화장대)".
+        label = _short_day_label(payload.get("date"))
+        head = f"{label} 시공 끝" if label else "시공 끝"
+        text = f"{head} ({names})" if names else head
         remaining = str(payload.get("remaining_summary") or "").strip()
         return f"{text} — 남은 시공 {remaining}" if remaining else text
     return f"{names} 시공 끝을 표시했습니다" if names else "제품 시공 끝을 표시했습니다"

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import itertools
 import uuid
 from datetime import date
@@ -23,13 +24,19 @@ from werkzeug.security import generate_password_hash
 
 import foms.services.orders.order_transition_service as transition_module
 from db import db_session, engine
+from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.construction_dates import short_date_label
 from foms.services.orders.construction_visit import PARTIAL_VISIT_NOTE_PREFIX
 from foms.services.orders.item_construction_done import DONE_KEY, is_partial_open
 from foms.services.orders.state_axes import read_main_stage
 from models import Order, OrderConstructionAttempt, OrderEvent, SecurityLog, User
 
 UID_A, UID_B, UID_C = (str(uuid.uuid4()) for _ in range(3))
-FIRST_DAY, LAST_DAY = "2026-11-05", "2026-11-17"
+#: 방문 날은 오늘(KST) 포함 지난 14일 안이어야 한다 — 시험 날짜도 오늘 기준으로 잡는다.
+_TODAY = get_today_kst()
+FIRST_DAY = (_TODAY - datetime.timedelta(days=2)).isoformat()
+LAST_DAY = (_TODAY + datetime.timedelta(days=10)).isoformat()
+LAST_LABEL = short_date_label(LAST_DAY)
 _counter = itertools.count(1)
 _CURRENT_INDEX = "uq_construction_attempt_current"
 
@@ -210,7 +217,7 @@ def test_partial_visit_seals_attempt_clears_evidence_and_keeps_stage(client, vis
     body = resp.get_json()
     assert body["success"] is True and body["error"] is None
     assert body["data"]["mode"] == "visit"
-    assert body["data"]["remaining_summary"] == "11/17 부엌가구"
+    assert body["data"]["remaining_summary"] == f"{LAST_LABEL} 부엌가구"
     assert body["data"]["remaining"] == [{"name": "부엌가구", "date": LAST_DAY}]
 
     order = _fresh(oid)
@@ -226,7 +233,7 @@ def test_partial_visit_seals_attempt_clears_evidence_and_keeps_stage(client, vis
     assert sd[DONE_KEY][UID_A]["date"] == FIRST_DAY and sd[DONE_KEY][UID_A]["attempt_id"] == attempt.id
     note = sd["workflow"]["history"][-1]["note"]
     assert note.startswith(PARTIAL_VISIT_NOTE_PREFIX)
-    assert note.startswith("부분 시공 끝 (화장대 · 베란다장) — 남은 시공 11/17")
+    assert note.startswith(f"부분 시공 끝 (화장대 · 베란다장) — 남은 시공 {LAST_LABEL}")
     # 단계 기록 · 알림이 없다 — 시공 완료 이벤트 0, 방문 · 제품 이벤트 1씩.
     assert _events(oid, "CONSTRUCTION_COMPLETED") == 0
     assert _events(oid, "CONSTRUCTION_VISIT_DONE") == 1 and _events(oid, "ITEM_CONSTRUCTION_DONE") == 1
@@ -329,7 +336,7 @@ def test_done_items_required_when_nothing_valid_is_chosen(client):
     oid = _make_order("CONSTRUCTION")
     assert _start(client, oid).status_code == 200
     _seed_evidence(oid)
-    for refs in ([], ["no-such-ref"], None):
+    for refs in ([], None):
         resp = client.post(f"/api/orders/{oid}/construction/complete", json={"done_item_uids": refs})
         assert resp.status_code == 400
         body = resp.get_json()

@@ -97,6 +97,8 @@ OWN_ORDER_ENDPOINTS: dict[str, tuple[str, ...]] = {endpoint: _ORDER_ID for endpo
     "erp_orders_construction.api_construction_evidence",
     "erp_orders_construction.api_construction_fail",
     "erp_orders_construction.api_construction_start",
+    # 제품마다 '시공 끝' — [시공 완료] 창의 "오늘 끝낸 제품" 목록(완료와 한 몸이라 같이 연다. 되돌리기는 CS 몫이라 뺌)
+    "erp_orders_construction.api_construction_visit_items",
     "erp_orders_cs.api_cs_complete",
     "erp_orders_item_cancel.api_order_item_cancel_after_confirm",
     # 단계 · 변경 되돌리기 · 퀘스트 · 통화 기록 · 할 일 · 공유 링크 · 보관 칸 · 휴지통으로 보내기/되살리기

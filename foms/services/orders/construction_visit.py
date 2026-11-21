@@ -26,7 +26,7 @@ __all__ = [
     "names_for_uids",
     "partial_visit_note",
     "remaining_entries",
-    "remaining_last_dates_after",
+    "remaining_dates_after",
     "split_flow_active",
     "split_production_start_allowed",
 ]
@@ -60,10 +60,13 @@ def names_for_uids(structured_data: Any, uids: Iterable[str]) -> list[str]:
     return [line.name for line in _done.item_lines(structured_data) if line.uid and line.uid in wanted]
 
 
-def remaining_last_dates_after(structured_data: Any, after: datetime.date) -> list[str]:
-    """남은 제품(취소 · '시공 끝' 제외)의 마지막 시공일 가운데 ``after`` 보다 뒤인 날(정렬 · 중복 제거)."""
+def remaining_dates_after(structured_data: Any, after: datetime.date) -> list[str]:
+    """남은 제품(취소 · '시공 끝' 제외)의 시공일 **전부** 가운데 ``after`` 보다 뒤인 날(정렬 · 중복 제거).
+
+    마지막 날만 보면 한 제품에 날이 둘(11/10 · 11/17)일 때 앞날이 남은 시공에서 빠진다.
+    """
     limit = after.isoformat()
-    days = {line.last_date for line in _done.remaining_lines(structured_data) if line.last_date}
+    days = {day for line in _done.remaining_lines(structured_data) for day in line.dates}
     return sorted(day for day in days if day > limit)
 
 

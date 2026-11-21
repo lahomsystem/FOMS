@@ -227,6 +227,14 @@ def test_remaining_note_skips_done_items_dates(monkeypatch):
     assert cd.remaining_construction_note(sd, today) == "11/5 · 11/17 시공이 남아 있어요"
 
 
+def test_remaining_note_counts_every_date_of_a_remaining_item():
+    """남은 제품에 날이 둘(11/10 · 11/17)이면 앞날도 남은 시공이다 — 마지막 날만 세지 않는다(E1-4)."""
+    sd = _sd(marks=_mark(UID_A))
+    sd["items"][2]["construction_date"] = "2026-11-10, 2026-11-17"
+    assert cd.remaining_construction_note(sd, datetime.date(2026, 11, 6)) == "11/10 · 11/17 시공이 남아 있어요"
+    assert cd.remaining_construction_note(sd, datetime.date(2026, 11, 12)) == "11/17 시공이 남아 있어요"
+
+
 def test_partial_visit_note_prefix_is_the_screen_contract():
     sd = _sd(marks={**_mark(UID_A), **_mark(UID_B)})
     note = partial_visit_note(["화장대", "베란다장"], sd)
@@ -243,9 +251,12 @@ def test_event_and_audit_labels_are_plain_korean_and_not_stage_events():
     assert ev.generate_change_description(
         "ITEM_CONSTRUCTION_DONE", "", "", "", {"names": ["화장대", "베란다장"]}
     ) == "화장대 · 베란다장 시공 끝을 표시했습니다"
+    # 나중에 읽어도 맞게 "오늘" 이 아니라 방문 날로 적는다(E1-9).
     assert ev.generate_change_description(
-        "CONSTRUCTION_VISIT_DONE", "", "", "", {"names": ["화장대"], "remaining_summary": "11/17 부엌가구"}
-    ) == "오늘 시공을 끝냈습니다 (화장대) — 남은 시공 11/17 부엌가구"
+        "CONSTRUCTION_VISIT_DONE", "", "", "",
+        {"names": ["화장대"], "date": "2026-11-05", "remaining_summary": "11/17 부엌가구"},
+    ) == "11/5 시공 끝 (화장대) — 남은 시공 11/17 부엌가구"
+    assert ev.generate_change_description("CONSTRUCTION_VISIT_DONE", "", "", "", {"date": "엉뚱"}) == "시공 끝"
     assert ev.generate_change_description(
         "ITEM_CONSTRUCTION_DONE_UNDONE", "", "", "", {"name": "화장대", "reason": "잘못 눌렀어요"}
     ) == "화장대 시공 끝 표시를 되돌렸습니다 (사유: 잘못 눌렀어요)"

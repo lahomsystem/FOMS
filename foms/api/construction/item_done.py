@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import uuid
 from typing import Any, Optional
 
@@ -66,17 +67,22 @@ from foms.services.orders.order_transition_service import TransitionError, trans
 from foms.services.orders.revision import RevisionError, execute_order_mutation, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.partners.notify import notify_partner_construction_done
-from models import Order, OrderConstructionAttempt, OrderEvent
+from models import Order, OrderConstructionAttempt, OrderEvent, OrderMutationReceipt
 
 __all__ = [
     "ITEM_CONSTRUCTION_DONE",
     "CONSTRUCTION_VISIT_DONE",
+    "VISIT_DATE_WINDOW_DAYS",
     "api_construction_visit_items",
     "split_complete_response",
 ]
 
 #: 부분 방문 receipt 범위(완료와 다른 정책 문자열 — 같은 키로 완료를 다시 눌러도 방문 replay 가 아니다).
 _POLICY_CONSTRUCTION_VISIT = "STATE_CONSTRUCTION_VISIT"
+#: 처음 응답을 영수증에 함께 적어 두는 칸 — 같은 키로 다시 보내면 이 몸을 그대로 돌려준다.
+_RESPONSE_KEY = "construction_response"
+#: 고를 수 있는 시공한 날 — 오늘(KST) 포함 지난 14일, 앞날은 안 된다.
+VISIT_DATE_WINDOW_DAYS = 14
 
 ITEM_CONSTRUCTION_DONE = "ITEM_CONSTRUCTION_DONE"
 CONSTRUCTION_VISIT_DONE = "CONSTRUCTION_VISIT_DONE"
@@ -86,6 +92,8 @@ _ERR_NOT_FOUND = "주문을 찾을 수 없습니다."
 _ERR_DATE = "날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)."
 _ERR_DONE_ITEMS = "오늘 끝낸 제품을 골라 주세요"
 _ERR_PRODUCTION = "제작 완료를 먼저 눌러 주세요"
+_ERR_STALE = "목록이 바뀌었어요. 다시 열어 골라 주세요"
+_ERR_VISIT_DATE = f"시공한 날은 오늘부터 {VISIT_DATE_WINDOW_DAYS - 1}일 전까지만 고를 수 있어요"
 
 
 def _is_gone(order: Optional[Order]) -> bool:
@@ -146,9 +154,35 @@ def _done_refs(body: dict[str, Any]) -> list[str]:
     return out
 
 
-def _visit_day(body: dict[str, Any]) -> str:
-    """방문 날 — 몸의 ``visit_date`` 가 바른 ``YYYY-MM-DD`` 면 그 날, 아니면 오늘(KST)."""
-    return normalize_visit_date(body.get("visit_date")) or get_today_kst().isoformat()
+def _visit_day(body: dict[str, Any]) -> Optional[str]:
+    """방문 날 — ``visit_date`` 가 없으면 오늘(KST). 있으면 ``YYYY-MM-DD`` 이고 오늘 포함 지난
+    :data:`VISIT_DATE_WINDOW_DAYS` 일 안이어야 한다(앞날 · 형식 오류는 None)."""
+    raw = body.get("visit_date")
+    today = get_today_kst()
+    if raw is None or raw == "":
+        return today.isoformat()
+    day_iso = normalize_visit_date(raw)
+    earliest = (today - datetime.timedelta(days=VISIT_DATE_WINDOW_DAYS - 1)).isoformat()
+    if day_iso is None or not earliest <= day_iso <= today.isoformat():
+        return None
+    return day_iso
+
+
+def _remember_response(db: Any, read_receipt_id: Optional[str], payload: dict[str, Any]) -> None:
+    """처음 응답을 같은 거래의 영수증에 적는다 — 같은 키 다시 보내기가 처음과 같은 몸을 받는다."""
+    if not read_receipt_id:
+        return
+    receipt = (db.query(OrderMutationReceipt)
+               .filter(OrderMutationReceipt.read_receipt_id == read_receipt_id).first())
+    if receipt is not None:
+        receipt.response_body = {**(receipt.response_body or {}), _RESPONSE_KEY: payload}
+
+
+def _replayed(db: Any, stored_body: Any, fallback: dict[str, Any]):
+    """다시 보내기 응답 — 영수증에 적어 둔 처음 몸, 없으면(옛 영수증) ``fallback``."""
+    db.commit()  # 잠금만 풀어 준다(쓴 것 없음).
+    stored = stored_body.get(_RESPONSE_KEY) if isinstance(stored_body, dict) else None
+    return jsonify(stored if isinstance(stored, dict) else fallback)
 
 
 def _user_name(user: Any) -> str:
@@ -160,7 +194,8 @@ def split_complete_response(db: Any, order_id: int, *, body: dict[str, Any], use
     """스위치가 켜진 나눠 시공 주문의 [시공 완료] — 부분 방문 또는 완료(설계서 5.3).
 
     판정은 잠근 최신 행으로 한다(:func:`lock_order_row`). 본문 ``done_item_uids`` 는 남은 제품의
-    참조(uid 또는 ``idx:N``)만 받고 나머지는 버린다.
+    참조(uid 또는 ``idx:N``)여야 한다 — 모르는 참조가 하나라도 있으면 창이 낡은 것이라 409 로 돌려보낸다.
+    ``visit_date`` 는 오늘(KST) 포함 지난 :data:`VISIT_DATE_WINDOW_DAYS` 일 안(없으면 오늘).
     """
     order = lock_order_row(db, order_id)
     if _is_gone(order):
@@ -168,20 +203,27 @@ def split_complete_response(db: Any, order_id: int, *, body: dict[str, Any], use
     idem_key = _idempotency_key(body)
     ctx = {
         "body": body, "user": user, "user_id": user_id, "override": override, "idem_key": idem_key,
-        "day_iso": _visit_day(body), "note": (body.get("completion_note") or "").strip(),
+        "day_iso": get_today_kst().isoformat(), "note": (body.get("completion_note") or "").strip(),
     }
-    # 같은 키 재요청은 문을 다시 보지 않는다 — 엔진이 저장된 응답으로 replay 한다.
+    # 같은 키 재요청은 문을 다시 보지 않는다 — 엔진이 replay 하고 영수증에 적어 둔 처음 몸을 돌려준다.
     if _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_VISIT, idem_key):
         return _partial_visit(db, order, [], [], ctx)
     if _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_COMPLETE, idem_key):
-        return _full_complete(db, order, [], [], ctx)
+        return _full_complete(db, order, [], [], ctx, replay=True)
 
+    day_iso = _visit_day(body)
+    if day_iso is None:
+        return _fail(_ERR_VISIT_DATE, 400, code="VISIT_DATE_OUT_OF_RANGE")
+    ctx["day_iso"] = day_iso
     sd = _ensure_dict(order.structured_data)
     remaining_before = remaining_lines(sd)
     open_refs = {line.ref for line in remaining_before}
-    wanted = [ref for ref in _done_refs(body) if ref in open_refs]
+    wanted = _done_refs(body)
     if remaining_before and not wanted:
         return _fail(_ERR_DONE_ITEMS, 400, code="DONE_ITEMS_REQUIRED")
+    # 창을 연 뒤 제품 목록이 바뀌었다(이미 끝남 · 취소 · 폼 저장으로 이름표가 붙음) — 고른 것을 믿지 않는다.
+    if any(ref not in open_refs for ref in wanted):
+        return _fail(_ERR_STALE, 409, code="VISIT_ITEMS_STALE")
     preview = copy.deepcopy(sd)
     apply_done_marks(preview, wanted, day_iso=ctx["day_iso"], at_iso="", user_id=None, user_name="")
     full = not remaining_lines(preview)
@@ -218,10 +260,15 @@ def _item_done_event(order_id: int, uids: list[str], names: list[str], day_iso: 
     )
 
 
-def _full_complete(db: Any, order: Order, wanted: list[str], punched: list[str], ctx: dict[str, Any]):
-    """마지막 방문 — 남은 제품을 찍고 같은 거래에서 CONSTRUCTION→CS 전이(지금의 시공 완료)."""
+def _full_complete(db: Any, order: Order, wanted: list[str], punched: list[str], ctx: dict[str, Any],
+                   *, replay: bool = False):
+    """마지막 방문 — 남은 제품을 찍고 같은 거래에서 CONSTRUCTION→CS 전이(지금의 시공 완료).
+
+    ``replay`` 면 주문은 이미 CS 다. 엔진의 앞 검사(출발 단계)를 지나 영수증 replay 에 닿도록 이 명령의
+    출발 단계를 넘긴다 — 엔진은 잠근 뒤 영수증을 먼저 보고 저장된 결과를 돌려준다.
+    """
     user, user_id, override, day_iso = ctx["user"], ctx["user_id"], ctx["override"], ctx["day_iso"]
-    from_stage = read_main_stage(order)
+    from_stage = "CONSTRUCTION" if replay else read_main_stage(order)
     marked: list[str] = []
     if wanted:
         attempt = _current_attempt(db, order.id)
@@ -250,21 +297,24 @@ def _full_complete(db: Any, order: Order, wanted: list[str], punched: list[str],
         db.rollback()
         return _transition_error_response(exc)
 
-    if not result.replayed:
-        visit = {"date": day_iso, "item_uids": marked} if marked else None
-        _apply_complete_side_effects(db, order, user, user_id, ctx["note"], visit=visit)
+    payload = {
+        "success": True, "message": "시공이 완료되었습니다. CS 단계로 이동합니다.", "new_status": "CS",
+        "data": {"mode": "complete", "remaining_summary": "", "remaining": [], "done_item_uids": marked},
+        "error": None,
+    }
+    if result.replayed:
+        return _replayed(db, result.mutation.body, payload)
+    visit = {"date": day_iso, "item_uids": marked} if marked else None
+    _apply_complete_side_effects(db, order, user, user_id, ctx["note"], visit=visit)
     if override is not None and punched:
         record_admin_override_event(
             db, order, override=override, gates=punched,
             route="erp_orders_construction.api_construction_complete", axis="MAIN",
             from_value=from_stage, to_value="CS")
+    _remember_response(db, result.mutation.read_receipt_id, payload)
     db.commit()
     notify_partner_construction_done(db, order)
-    return jsonify({
-        "success": True, "message": "시공이 완료되었습니다. CS 단계로 이동합니다.", "new_status": "CS",
-        "data": {"mode": "complete", "remaining_summary": "", "remaining": [], "done_item_uids": marked},
-        "error": None,
-    })
+    return jsonify(payload)
 
 
 def _seal_visit_attempt(attempt: OrderConstructionAttempt, sd: dict[str, Any], marked: list[str],
@@ -334,24 +384,27 @@ def _partial_visit(db: Any, order: Order, wanted: list[str], punched: list[str],
         db.rollback()
         return jsonify({"success": False, "data": None, "error": str(exc), "code": exc.error_code}), exc.status_code
 
-    if not result.replayed:
-        _audit_construction(
-            order, CONSTRUCTION_VISIT_DONE, user_id, note=" · ".join(captured["names"]) or None,
-            extra={"attempt_id": captured["attempt_id"], "date": day_iso, "item_uids": captured["marked"],
-                   "remaining_summary": captured["summary"], "completion_note": ctx["note"] or None},
-        )
-    if override is not None and punched:
-        record_admin_override_event(
-            db, order, override=override, gates=punched,
-            route="erp_orders_construction.api_construction_complete", axis="CONSTRUCTION",
-            from_value="", to_value="")
-    db.commit()
     sd_after = _ensure_dict(order.structured_data)
     summary = remaining_summary(sd_after)
-    return jsonify({
+    payload = {
         "success": True,
         "message": f"{PARTIAL_VISIT_NOTE_PREFIX}으로 기록했어요." + (f" 남은 시공: {summary}" if summary else ""),
         "data": {"mode": "visit", "remaining_summary": summary, "remaining": remaining_entries(sd_after),
                  "attempt_id": captured.get("attempt_id"), "done_item_uids": captured.get("marked", [])},
         "error": None,
-    })
+    }
+    if result.replayed:
+        return _replayed(db, result.body, payload)
+    _audit_construction(
+        order, CONSTRUCTION_VISIT_DONE, user_id, note=" · ".join(captured["names"]) or None,
+        extra={"attempt_id": captured["attempt_id"], "date": day_iso, "item_uids": captured["marked"],
+               "remaining_summary": captured["summary"], "completion_note": ctx["note"] or None},
+    )
+    if override is not None and punched:
+        record_admin_override_event(
+            db, order, override=override, gates=punched,
+            route="erp_orders_construction.api_construction_complete", axis="CONSTRUCTION",
+            from_value="", to_value="")
+    _remember_response(db, result.read_receipt_id, payload)
+    db.commit()
+    return jsonify(payload)
