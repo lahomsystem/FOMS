@@ -60,3 +60,31 @@
 미확인: PostgreSQL 행 잠금 아래 동시 요청, 본사 취소 뒤 협력사 옛 화면의 "수정", 다른 탭의 옛 폼 저장이 AS 글을 되살리는지.
 
 검수 고침(묶음 A 2회차): 위 OPEN 18개를 `aceeea1aa` · `e2c65d512` · `95dd397e7` 로 고침. 총괄이 취소 · 줄 종류 · 상태 쓰기 · 태블릿 · 층 래칫 시험 10파일을 다시 돌려 133개 통과를 확인. 워커 판단 둘을 받아들임: (1) 스냅샷 없는 기존 건의 409 는 남은 건도 없을 때만 건다(남은 건이 있으면 그 건 값으로 되돌릴 수 있다), 옛 주문 끌어올리기 건은 409 검사에서 뺀다. (2) 전달 배정(`sales_delivery_link`)은 통째로 지우지 않고 접수 전 값으로 되돌린다. 남은 확인: PG 레인, 스테이징 실화면([AS 접수 수정] 창 단추 → 창 닫힘 → 사유 시트, 태블릿 출고표 고객 칸 표식).
+
+## 묶음 C (새 주문 안내 · 주문 복사) — 검수 1회차 2026-11-21
+
+심각한 결함 없음. 도우미 옮기기 · 권한(프리랜서 · 협력사 403) · JS(textContent · 늦은 응답 버림) · 복사본 화면 열림 확인.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| C-1 | 고칠 것 | 주소로만 걸린 엉뚱한 집. 동 · 호 키가 건물번호 뒤 아무 숫자나 잡고 시 · 구를 안 본다 — "동탄대로 100 래미안2차"가 다른 집에, 서울 테헤란로 100 3동 101호가 부산 같은 주소에 걸린다. 양쪽 모두 `N호` 가 있을 때만 견주고, 양쪽에 시 · 구가 있으면 같아야 한다 | `foms/services/orders/open_order_lookup.py:110-119`, `foms/services/common/address_query.py:226-251` | OPEN |
+| C-2 | 고칠 것 | 단계 칸이 비고 상태가 완료인 ERP 주문을 진행 중으로 센다(화면 글 "완료 단계") | `open_order_lookup.py:89` | OPEN |
+| C-3 | 고칠 것 | 생성 기록용 찾기가 PostgreSQL 에서 DB 오류를 내면 트랜잭션이 깨진 채 남아 주문 생성이 500 이 된다. ORM flush 를 부르지 않는 Core 저장점(`db.connection().begin_nested()`)으로 감싼다 | `open_order_lookup.py:246-259` | OPEN |
+| C-4 | 작음 | 고객 이름이 GET 주소로 가서 접속 로그에 남는다(서버는 이름을 안 쓴다). 응답의 `customer_name` 도 화면이 안 그린다. 둘 다 뺀다. 전화는 같은 선례(`/api/foms/search?q=`)가 있어 GET 유지 | `static/js/orders/erp-same-customer-notice.js:128`, `static/js/foms/wizard-same-customer.js:99`, `foms/api/orders/open_for_customer.py` | OPEN |
+| C-5 | 작음 | 보기 전용 등 목록 밖 역할은 403 대신 302 HTML 을 받아 JS 가 값이 바뀔 때마다 다시 묻는다. JSON 이 아니면 막힘으로 본다 | 두 JS | OPEN |
+| C-6 | 작음 | 알림 칸이 채워지기 전까지 숨어 있어 화면 낭독기가 첫 안내를 못 읽을 수 있다 | 두 JS · 템플릿 | OPEN |
+| C-7 | 작음 | 주석 "주소 칸 색인 없음"이 틀렸다(`ix_orders_address_trgm` 있음). 따옴표 붙은 옛 완료 값(`'"COMPLETED"'` 등)도 완료로 본다 | `open_order_lookup.py:116, DONE_STAGE_CODES` | OPEN |
+| C-8 | 그대로 | 복사 도착 안내가 복사본이 접수 단계인 동안 열 때마다 뜬다. 안내일 뿐이고 막지 않는다 | `erp-same-customer-notice.js` | KEPT |
+| C-9 | 다음 | 전화 조각 나누기가 7~8자리를 욕심내 잡아 둘째 번호를 놓치는 꼴(옮기기 전 코드 그대로) · 큰 도로에서 주소 LIKE 상한 200 · 옛 텍스트 파서 모양 `payments` 복사 · 협력사 주문 복사의 "담당 (협력사)" 글 | `foms/services/phone_search.py`, `open_order_lookup.py`, `order_copy.py` | LATER |
+
+## 묶음 B (틀린 완료 막기) — 검수 1회차 2026-11-21
+
+심각한 결함 없음. 남은 시공일이 있는 주문을 잘못 닫게 만드는 길은 찾지 못함.
+
+| # | 심각도 | 내용 | 자리 | 상태 |
+|---|---|---|---|---|
+| B-1 | 고칠 것 | 일괄 완료 도구의 두 안전망이 제품 칸 시공일(`items[*].construction_date`)을 다시 읽지 않는다. 일정 표가 뒤처진 주문(날 SQL 쓰기 · 복원 뒤)에서 제품 하나에만 뒤 시공일이 있으면 운영에서 끝나지 않은 주문이 닫힌다. 가능성은 낮지만 한쪽으로만 위험하다 | `tools/ops/bulk_complete_past_construction_core.py:221-232, 404-414` | OPEN |
+| B-2 | 고칠 것 | 주문 대시보드의 시공 D-3 · 생산 D-2 숫자판과 그 필터는 아직 평면 칸(먼저 적힌 날)으로 거른다. 줄에는 임박 배지가 뜨는데 숫자판 수에 안 들고, 칸을 누르면 목록에서 빠진다 | `foms/services/orders/dashboard_read_model.py:178-182, 296-312` | OPEN |
+| B-3 | 작음 | 새 도우미가 `20261117` 꼴(구분자 없는 8자리)을 버린다. 옛 파서는 읽었다 — 날짜 하나짜리 주문의 동작이 바뀔 수 있다 | `foms/services/orders/construction_dates.py` | OPEN |
+| B-4 | 그대로 | 쉼표 말고 공백 · 물결 · 쌍반점으로 나눈 둘째 날은 버린다. 저장 훅(`order_date_sync.py:190`)과 같은 규칙이다 | `construction_dates.py:44` | KEPT |
+| B-5 | 그대로 | 임박 배지는 주문 칸 글만, 자동 할 일은 제품 칸까지 본다(숫자판과 수가 갈리지 않게 한 의도된 선택) | `foms/services/erp_display.py:479` | KEPT |
