@@ -15,6 +15,10 @@
    카드 탭 → 상세: tablet-side-sheet.js(위임 셀렉터에 .foms-kanban-card[data-order-id]
    확장). 열 이동 버튼 → tablet-production-kanban.js(기존 /api/orders/<id>/production/
    start|complete fetch + 성공 시 새로고침).
+   단추 그리기(설계서 2026-11-21-production-pc-viewer §13 결정 2 · 5): 열 이동 단추는 쓰기 팀(관리자 · 생산팀,
+   can_act_production = write_access.can_write_production)에게만, [확인](change-ack)은 생산 화면을 보는 사람 모두
+   (can_ack_production = write_access.can_ack_production_change). 누르면 403 이 될 단추는 그리지 않는다.
+   쓰기 팀 출력은 이 둘이 생기기 전과 바이트까지 같다(태그를 글 옆에 붙여 빈 줄을 더하지 않았다 — 시험).
 
    HMI 색 규율: 카드/열 = 무채색. 시공 D-day 칩만 임박(D-2 이내)/지연 시 유채색.
    표시/은닉·배타는 foms-tablet-production-kanban.css 소유(코호트 게이트).
@@ -153,10 +157,10 @@
         {% if t.product_label %}
         <div class="foms-kanban-card__product">{{ t.product_label }}</div>
         {% endif %}
-        <div class="foms-kanban-card__foot">
+        <div class="foms-kanban-card__foot">{% if can_ack_production %}
           <button type="button" class="foms-kanban-ack-btn" data-order-id="{{ t.id }}" data-kanban-action="change-ack">
             <i class="fas fa-check" aria-hidden="true"></i> 확인
-          </button>
+          </button>{% endif %}
         </div>
       </article>
       {% endfor %}
@@ -323,21 +327,21 @@
             {% if o.is_sales_approved and o.production_start_blocked and not is_admin %}
             {# 도면 게이트(Q2): 서버가 409 로 막을 버튼 대신 칩 — 이유는 title 과 위 스트립. #}
             <span class="foms-kanban-chip is-muted" data-production-start-blocked title="{{ o.production_start_block_reason }}">도면 확정 대기</span>
-            {% elif o.is_sales_approved %}
+            {% elif o.is_sales_approved %}{% if can_act_production %}
             <button type="button" class="foms-kanban-move-btn{% if o.production_start_blocked %} foms-kanban-move-btn--warn{% endif %}" data-order-id="{{ o.id }}" data-kanban-action="start">
               <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
-            </button>
+            </button>{% endif %}
             {% else %}
             <span class="foms-kanban-chip is-muted">고객 컨펌 전</span>
             {% endif %}
-          {% elif col.move == 'complete' %}
+          {% elif col.move == 'complete' %}{% if can_act_production %}
             <button type="button" class="foms-kanban-move-btn" data-order-id="{{ o.id }}" data-kanban-action="complete">
               <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
-            </button>
-          {% elif col.move == 'rework' %}
+            </button>{% endif %}
+          {% elif col.move == 'rework' %}{% if can_act_production %}
             <button type="button" class="foms-kanban-move-btn" data-order-id="{{ o.id }}" data-kanban-action="rework">
               <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
-            </button>
+            </button>{% endif %}
           {% endif %}
         </div>
       </article>
@@ -380,8 +384,8 @@
               {% elif a.detail %}<span class="foms-prod-change-modal__alert-detail">{{ a.detail }}</span>{% endif %}
             </div>
             {% endfor %}
-          </div>
-          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ o.id }}">확인</button>
+          </div>{% if can_ack_production %}
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ o.id }}">확인</button>{% endif %}
         </li>
         {% endfor %}
         {% for t in tombstones | default([], true) %}
@@ -394,8 +398,8 @@
             <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--tomb">
               <span class="foms-prod-change-modal__alert-label">취소됨{% if t.deleted_md %} · {{ t.deleted_md }}{% endif %}</span>
             </div>
-          </div>
-          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ t.id }}">확인</button>
+          </div>{% if can_ack_production %}
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ t.id }}">확인</button>{% endif %}
         </li>
         {% endfor %}
       </ul>

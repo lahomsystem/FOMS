@@ -304,8 +304,11 @@ def _sheet_ctx(**over) -> dict:
 
 
 def _render_sheet(app, **over) -> str:
+    # 쓰기 팀(관리자 · 생산팀) 화면 — 단추는 쓰기 팀에게만 그린다(설계서 2026-11-21-production-pc-viewer §13 결정 2,
+    # 보기 팀 쪽은 test_production_old_board_buttons).
     with app.test_request_context():
-        return app.jinja_env.get_template(_SHEET_TEMPLATE).render(order=_sheet_ctx(**over))
+        return app.jinja_env.get_template(_SHEET_TEMPLATE).render(
+            order=_sheet_ctx(**over), can_act_production=True, can_ack_production=True)
 
 
 def test_sheet_production_shows_complete_button(app):

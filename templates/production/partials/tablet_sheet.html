@@ -96,8 +96,8 @@
         {% elif a.detail %}<span class="foms-prod-sheet__change-detail">{{ a.detail }}</span>{% endif %}
       </li>
       {% endfor %}
-    </ul>
-    <button type="button" class="foms-prod-sheet__change-ack" data-kanban-action="change-ack" data-order-id="{{ order.id }}">변경 확인</button>
+    </ul>{% if can_ack_production %}
+    <button type="button" class="foms-prod-sheet__change-ack" data-kanban-action="change-ack" data-order-id="{{ order.id }}">변경 확인</button>{% endif %}
   </section>
   {% endif %}
 
@@ -158,21 +158,21 @@
     <div class="foms-prod-sheet__card-title">공정 <span class="foms-prod-sheet__card-count" data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</span></div>
     <div class="foms-prod-page__steps">
       {% for s in order.steps %}
-      <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
+      {% if can_act_production %}<button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
+              data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
         <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
         <span>{{ s.label }}</span>
         <small data-foms-sheet-step-meta>{{ s.meta }}</small>
-      </button>
+      {% if can_act_production %}</button>{% else %}</div>{% endif %}
       {% endfor %}
     </div>
     {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
     <div class="foms-prod-page__defect" data-foms-sheet-defect>
-      <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
+      <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>{% if can_act_production %}
       <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false">불량 알리기</button>
       <div class="foms-prod-page__chips" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
         {% for r in defect_reasons | default(['자재 불량', '가공 오류', '파손', '기타'], true) %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}
-      </div>
+      </div>{% endif %}
     </div>
     <p class="foms-prod-page__status" data-foms-sheet-status aria-live="polite"></p>
   </section>
@@ -215,12 +215,15 @@
 
   {# ── m-foot: 보류 토글 + 생산 완료(pri). 보류는 표시 전용 플래그 토글(워크플로 전이 없음).
      활성 시 "보류 해제", 비활성 시 "보류"로 라벨을 서버 렌더하고, 클릭 배선/사유 prompt 는
-     tablet-domain-sheets.js(document 위임)가 소유한다. ── #}
+     tablet-domain-sheets.js(document 위임)가 소유한다.
+     쓰기 단추(이 줄 · 공정 칸 · 불량 알리기)는 쓰기 팀(관리자 · 생산팀, can_act_production)에게만, [변경 확인]은 보는 사람
+     모두(can_ack_production) — 설계서 2026-11-21-production-pc-viewer §13 결정 2 · 5. 보기 팀은 공정 칸을 보기만(is-view)으로 받는다.
+     쓰기 팀 출력은 바이트까지 그대로(태그를 글 옆에 붙였다 — 시험). ── #}
   {# 도면 게이트(Q2, 2a-2): [제작 시작] 이 막힌 이유(서버 409 와 같은 판정·문구). 관리자는 경고 버튼으로 뚫는다. #}
   {% if order.production_start_blocked %}
   <p class="foms-gate-blocked-reason" data-production-start-blocked>{{ order.production_start_block_reason }}</p>
   {% endif %}
-  <div class="foms-prod-sheet__foot">
+  {% if can_act_production %}<div class="foms-prod-sheet__foot">
     <button type="button"
             class="foms-prod-sheet__btn foms-prod-sheet__btn--hold{% if order.hold_active %} is-active{% endif %}"
             data-tablet-sheet-action="production-hold"
@@ -252,7 +255,7 @@
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
               data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
     {% endif %}
-  </div>
+  </div>{% endif %}
 </div>
 {# 도면 전달본 썸네일 → 기존 전역 이미지 뷰어 배선(신규 뷰어 없음). 표준 갤러리
    마운터가 있으면 그 경로로 위임하고, 없으면(생산 대시보드) 전역 GlobalImageViewer로
