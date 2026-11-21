@@ -27,6 +27,11 @@ from foms.services.orders.confirm_drawing_gate import (
 )
 from foms.services.orders.draft_guard import ensure_order_promoted
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.orders.items_construction_gate import (
+    close_remaining_items as _close_remaining_items,
+    items_gate_blocks,
+    items_open_error,
+)
 from foms.services.production.steps import production_complete_block_body
 from models import Order, OrderEvent
 
@@ -349,8 +354,14 @@ def apply_stage_override(
     reason: str,
     user_id: Any,
     db: Any,
+    close_remaining_items: bool = False,
+    user_name: str = "",
 ) -> dict[str, Any]:
     """status + workflow.stage 만 변경하고 STAGE_OVERRIDE 이벤트를 남긴다.
+
+    남은 제품 문지기(제품마다 '시공 끝' 2단계 7절 · N4): 목표가 CS · 완료이고 부분 시공 중이면 막는다.
+    ``close_remaining_items=True`` 면 남은 제품을 ``admin_override`` 로 찍고 넘긴다(사유는 이미 필수,
+    payload ``items_closed`` 에 찍은 uid). 이 함수는 엔진을 안 타므로 문지기를 여기 둔다.
 
     열린 AS(접수 · 처리 중)가 걸린 ERP 주문은 단계만 옮기고 ``order.status`` 의 AS 표시는 그대로 둔다
     (``as_overlay_kept`` — 설계서 2026-11-20-multi-item-split-schedule §4.3). 닫힌 AS(완료)는 지금처럼 덮인다.
@@ -360,9 +371,10 @@ def apply_stage_override(
     승인 버튼 없는 완료 배지만 남아 막다른 길이 된다. advance/skip/jump 는 quest 를 건드리지 않는다.
     drawing_transfer_history 등 운영 JSON은 건드리지 않는다.
 
-    :returns: {from, to, mode, reason, from_status[, as_overlay_kept][, quest_reopened]}
+    :returns: {from, to, mode, reason, from_status[, as_overlay_kept][, quest_reopened][, items_closed]}
     :raises ValueError: 검증 실패(메시지 한글)
     :raises DraftNotPromotedError: 아직 승격하지 않은 초안(잠금 아래 백스톱 — 409)
+    :raises ItemsConstructionOpen: 남은 제품 시공이 있는데 CS · 완료 목표(409 ``ITEMS_CONSTRUCTION_OPEN``)
     """
     ensure_order_promoted(order)
     to_code = normalize_main_stage(to_stage)
@@ -381,6 +393,13 @@ def apply_stage_override(
     mode = classify_stage_move(from_code, to_code)
     if mode == "same":
         raise ValueError("현재와 동일한 단계로는 변경할 수 없습니다.")
+    items_closed: list[str] = []
+    if items_gate_blocks(getattr(order, "structured_data", None), to_code):
+        if not close_remaining_items:
+            raise items_open_error(order)
+        items_closed = _close_remaining_items(
+            order, user_id=user_id, user_name=user_name, reason=reason_clean, db=db,
+        )
 
     # 덮어쓰기 전 **실제 status** 를 잡아 payload 에 싣는다. from(=workflow.stage) 만
     # 남기면 AS overlay(AS_RECEIVED 등)가 흔적 없이 사라져 사고 후 복구 근거가 없다
@@ -442,6 +461,8 @@ def apply_stage_override(
         payload["as_overlay_kept"] = overlay_kept
     if quest_reopened:
         payload["quest_reopened"] = quest_reopened
+    if items_closed:
+        payload["items_closed"] = items_closed
     db.add(
         OrderEvent(
             order_id=order.id,

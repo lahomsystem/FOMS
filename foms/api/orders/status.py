@@ -71,6 +71,7 @@ from foms.services.orders.admin_override import (
 )
 from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
+from foms.services.orders.items_construction_gate import items_gate_blocks, items_open_body
 from foms.services.orders.trash_mirror import (
     invalidate_trash_caches,
     soft_delete_with_trash_mirror,
@@ -370,6 +371,11 @@ def update_order_status_response(
                             "message": "삭제된 주문입니다. 휴지통에서 먼저 복구하세요."}), 404
         punched: list[str] = []
 
+        # 남은 제품 문지기(제품마다 '시공 끝' 2단계 7절): CS · 완료로 가는 세 갈래(엔진 · 완료 서비스 ·
+        # 엔진 밖 옛 쓰기) 모두 여기서 한 번에 막는다. 관리자 뚫기로도 못 넘는다(강제 변경 창이 길이다).
+        if items_gate_blocks(getattr(order, "structured_data", None), new_status, current=from_stage):
+            return jsonify(items_open_body(order)), 409
+
         if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
             if override is None:
                 return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
@@ -622,6 +628,8 @@ def bulk_update_order_status_response(
         blocked_steps_incomplete: list[int] = []
         # 열린 AS 라 단계만 옮기고 상태 글(AS 표시)은 그대로 둔 주문.
         as_overlay_kept: list[int] = []
+        # 남은 제품 시공이 있어 CS · 완료로 넘기지 않은 주문(2단계 7절 — 뚫기와 무관하게 건너뛴다).
+        blocked_items_construction_open: list[int] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -657,6 +665,9 @@ def bulk_update_order_status_response(
                 blocked_as_orders.append({"order_id": int(order.id), "status": overlay})
                 continue
             from_stage = current_stage_for_order(order)
+            if items_gate_blocks(getattr(order, "structured_data", None), new_status, current=from_stage):
+                blocked_items_construction_open.append(int(order.id))
+                continue
             punched: list[str] = []
             if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
                 if override is None:
@@ -750,6 +761,7 @@ def bulk_update_order_status_response(
         success = updated > 0 or not (
             blocked_override_required or blocked_as_orders or blocked_command_required
             or blocked_unpromoted_draft or blocked_steps_incomplete
+            or blocked_items_construction_open
         )
         message = None
         if blocked_override_required and updated == 0:
@@ -785,6 +797,11 @@ def bulk_update_order_status_response(
                 f"{len(blocked_unpromoted_draft)}건은 아직 저장하지 않은 초안이라 바꾸지 않았습니다."
             )
             message = f"{message} {draft_note}" if message else draft_note
+        if blocked_items_construction_open:
+            items_note = (
+                f"{len(blocked_items_construction_open)}건은 남은 제품 시공이 있어 바꾸지 않았습니다."
+            )
+            message = f"{message} {items_note}" if message else items_note
         if as_overlay_kept:
             kept_note = f"AS 접수 중인 {len(as_overlay_kept)}건은 단계만 바꿨습니다. AS 표시는 그대로 남습니다."
             message = f"{message} {kept_note}" if message else kept_note
@@ -799,14 +816,16 @@ def bulk_update_order_status_response(
             "blocked_command_required": blocked_command_required,
             "blocked_unpromoted_draft": blocked_unpromoted_draft,
             "blocked_steps_incomplete": blocked_steps_incomplete,
+            "blocked_items_construction_open": blocked_items_construction_open,
             "as_overlay_kept": as_overlay_kept,
         }
         if message:
             payload["message"] = message
         status_code = 200 if success else 403
-        if (not success and (blocked_command_required or blocked_unpromoted_draft or blocked_steps_incomplete)
+        if (not success and (blocked_command_required or blocked_unpromoted_draft or blocked_steps_incomplete
+                             or blocked_items_construction_open)
                 and not blocked_override_required):
-            status_code = 409  # 경로 충돌 · 업무 전제지 권한 문제가 아니다(전용 버튼·승격 전 초안·검수 전)
+            status_code = 409  # 경로 충돌 · 업무 전제지 권한 문제가 아니다(전용 버튼·승격 전 초안·검수 전·남은 제품)
         return jsonify(payload), status_code
     except Exception as exc:
         db = get_db()

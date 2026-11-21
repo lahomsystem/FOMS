@@ -205,6 +205,12 @@
       "classification": "CANONICAL",
       "owner": "GRAFT-T7",
       "reason": "시공 메모 한 줄 더하기(add_construction_note — 설계서 2026-11-14-foms-graft 3.3) — 실행기가 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 깊은 복사 · 재대입 · flag_modified 는 execute_single_order_write 콜백(→ REV-00 execute_order_mutation, version bump + receipt) 안에서만 한다."
+    },
+    {
+      "path": "foms/services/orders/items_construction_gate.py",
+      "classification": "CANONICAL",
+      "owner": "ITEM-CONSTRUCTION-DONE-E2",
+      "reason": "CS · 완료 문지기의 '남은 제품도 시공 끝으로 찍고 넘기기'(close_remaining_items — 설계서 2026-11-21-item-construction-done N4). 강제 단계 변경 apply_stage_override 가 REV-00 execute_order_mutation 콜백 안에서, 또는 CS 완료 정본 complete_order_as_cs 가 행을 FOR UPDATE 로 다시 읽은 뒤 같은 거래의 transition_order(version bump + receipt) 바로 앞에서만 부른다. structured_data 깊은 복사 · 재대입 · flag_modified 로만 쓰고 커밋하지 않는다."
     }
   ]
 }
