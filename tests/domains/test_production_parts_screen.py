@@ -209,7 +209,7 @@ def test_admin_parts_tab_has_picker_and_chosen_part_buttons(client, cohort):
     _seed_day(me, park)
     _login(client, _user("관리자", team="CS", role="ADMIN"))
     date_html = _get(client, HOME)
-    assert "data-foms-home-partstab" in date_html and "data-pp-card" not in date_html  # 날짜 탭은 지금 그대로 + 탭 하나
+    assert "data-foms-home-partslink" in date_html and "data-pp-card" not in date_html  # 날짜 탭 = 줄 목록 + [도면 카드로 보기](11-21)
 
     html = _get(client, HOME + "?tab=parts&part=cut")
     pane = _today_pane(html)
@@ -247,16 +247,16 @@ def test_readonly_staff_sees_badges_only_no_modal_no_write_binding(client, cohor
 def test_parts_tab_needs_tablet_and_staff(client, cohort):
     _order("한빛", _files("oa", 1))
     admin = _user("관리자", team="CS", role="ADMIN")
-    _login(client, admin, ptr="fine")  # 마우스 PC — 탭 없음, 주소로 와도 날짜
+    _login(client, admin, ptr="fine")  # 마우스 PC — 단추 없음, 주소로 와도 날짜
     html = _get(client, HOME + "?tab=parts")
-    assert "data-foms-home-partstab" not in html and 'data-foms-home-tab="date"' in html and "data-pp-card" not in html
-    _login(client, _user("김재단", part="cut"))  # 파트 계정은 '도면 카드' 탭이 아니라 날짜 탭에서 본다
+    assert "data-foms-home-partslink" not in html and 'data-foms-home-tab="date"' in html and "data-pp-card" not in html
+    _login(client, _user("김재단", part="cut"))  # 파트 계정은 '도면 카드' 화면이 아니라 날짜 탭에서 본다
     html = _get(client, HOME + "?tab=parts")
-    assert "data-foms-home-partstab" not in html and 'data-foms-home-tab="date"' in html and "data-pp-card" in html
+    assert "data-foms-home-partslink" not in html and 'data-foms-home-tab="date"' in html and "data-pp-card" in html
 
 
 # --------------------------------------------------------------------------- #
-# 대조군 — 파트 없는 계정의 날짜 탭은 탭 단추 하나만 빼고 지금과 같다
+# 대조군 — 파트 없는 계정의 날짜 탭은 [도면 카드로 보기] 하나만 빼고 지금과 같다
 # --------------------------------------------------------------------------- #
 def _normalize(html: str) -> str:
     html = re.sub(r'data-loaded-at="[^"]*"', "", html)
@@ -266,14 +266,14 @@ def _normalize(html: str) -> str:
 
 
 @pytest.mark.parametrize("who", ["admin", "prod"])
-def test_date_tab_html_equals_before_except_parts_tab(client, cohort, monkeypatch, who):
+def test_date_tab_html_equals_before_except_parts_link(client, cohort, monkeypatch, who):
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     _seed_day(me, park)
     account = _user("관리자", team="CS", role="ADMIN") if who == "admin" else _user("생산사람")
     _login(client, account)
     now = _normalize(_get(client, HOME))
-    tab_line = re.search(r'\n\s*<a class="foms-prod-home__navtab" data-foms-home-partstab [^\n]*</a>', now)
-    assert tab_line, "태블릿 코호트 직원에게는 '도면 카드' 탭이 있어야 한다"
+    tab_line = re.search(r'<a class="fph-pane__cards" data-foms-home-partslink [^>]*>도면 카드로 보기<svg [^>]*>(<path [^>]*/>)+</svg></a>', now)
+    assert tab_line, "태블릿 코호트 직원에게는 [도면 카드로 보기] 가 있어야 한다"
     # 파트 규칙을 끈 화면 = P15-5 전 화면(판 · 탭 · '내 공정' 숨김 모두 없음)
     monkeypatch.setattr("foms.web.production.home.part_view_mode", lambda user: "none")
     before = _normalize(_get(client, HOME))

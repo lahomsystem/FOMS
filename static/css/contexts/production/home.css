@@ -230,13 +230,15 @@
 .foms-prod-home__nav { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--fph-bg); }
 .foms-prod-home__navtab { min-height: 48px; padding: 0 18px; border-radius: 9px; display: inline-flex; align-items: center; font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); text-decoration: none; white-space: nowrap; }
 .foms-prod-home__navtab:hover, .foms-prod-home__navtab:focus-visible { color: var(--fph-brand-dark); text-decoration: none; }
-/* [보드](D19) — 다른 화면으로 나가는 단추: 탭과 같은 모양, 앞에 가는 줄 + 작은 화살표로 탭과 가른다 */
-.foms-prod-home__navtab--out { gap: 6px; margin-left: 4px; border-left: 1px solid var(--fph-line2); border-radius: 0 9px 9px 0; }
-.foms-prod-home__navtab--out i { font-size: calc(13px * var(--foms-fs, 1)); }
 .foms-prod-home__navtab.is-on { background: var(--fph-surface); color: var(--fph-brand-dark); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .foms-prod-home__navtab:active { background: var(--fph-brand-50); color: var(--fph-brand-dark); } /* 누른 느낌(11-14) */
 .foms-prod-home__sp { flex: 1; }
 .foms-prod-home__tools { margin-left: auto; display: flex; align-items: center; gap: 10px 14px; }
+/* 알림 종(11-21 사용자 ③) — 가로 태블릿에서 레일이 보일 때만(맨 아래 가로 태블릿 블록). PC · 폰은 제 위 줄 종이 있어 숨긴다. */
+.foms-prod-home__btn.foms-prod-home__bell { display: none; position: relative; width: 56px; padding: 0; }
+.foms-prod-home__bell i { font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-home__bell-badge { position: absolute; top: 7px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--fph-danger); color: #fff; font-size: calc(10px * var(--foms-fs, 1)); font-weight: 700; line-height: 16px; text-align: center; }
+.foms-prod-home__bell-badge[hidden] { display: none; }
 .foms-prod-home__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 20px 0; }
 .foms-prod-home__filters .foms-prod-home__search { flex: 1 1 260px; }
 .foms-prod-home__filters .foms-prod-home__ctl { flex: 1 1 100%; padding: 0; }
@@ -363,7 +365,6 @@
 .fph-sd__d { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .fph-sd__d b { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 800; white-space: nowrap; }
 .fph-sd__d small { font-size: calc(12px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); white-space: nowrap; }
-.fph-sd__d .fph-sd__wd { display: none; } /* 요일만 쓴 글 — 아래 ② 가장 빠듯한 띠에서만 긴 글 대신 보인다 */
 .fph-sd.is-wk .fph-sd__d b { color: var(--fph-danger); }
 .fph-sd.is-zero .fph-sd__d b, .fph-sd.is-zero .fph-sd__n b { color: var(--fph-text3); }
 .foms-prod-home .fph-sd__bar { width: 100%; height: 16px; border-radius: 5px; background: var(--fph-raised); border: 1px solid var(--fph-line); stroke: none; }
@@ -390,6 +391,11 @@
 .fph-pane__load[hidden], .fph-pane__err[hidden] { display: none; }
 .fph-pane__h { margin: 0; min-height: 44px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; padding-top: 10px; font-size: calc(20px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); }
 .fph-pane__h small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
+/* [도면 카드로 보기](11-21 사용자 ② — 위 탭 '도면 카드' 를 뺀 자리): 그날 제목 줄 오른쪽 끝. 관리자 · 읽기 전용 + 태블릿만 그린다(home.py parts_link). */
+.fph-pane__cards { margin-left: auto; align-self: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); display: inline-flex; align-items: center; gap: 6px; font-size: calc(15px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-brand-dark); text-decoration: none; white-space: nowrap; }
+.fph-pane__cards svg { font-size: calc(14px * var(--foms-fs, 1)); stroke-width: 2.6; }
+.fph-pane__cards:hover, .fph-pane__cards:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; }
+.fph-pane__cards:active { background: var(--fph-brand-50); }
 .fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
 .fph-pane__g small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
@@ -478,65 +484,30 @@
   .foms-prod-home__nav::-webkit-scrollbar { display: none; }
 }
 
-/* ── 키 낮은 가로 터치 화면: 시공일 띠 날 단추 두 칸씩(11-14 현장 태블릿 창 1176×626 실측) ──
-   한 줄씩이면 띠에 머리 40 + 날 13줄 × 48 + 아래 칸 49 = 713px 가 들어가야 하는데 창 626 − 제목 줄 73 = 553px 라
-   마지막 날 3개와 아래 칸(지난 시공일 · 시공일 없음)이 띠 안에서 따로 굴려야 보였다. 713 + 73 = 786px 아래에서만
-   '지난 7일' 은 한 줄 그대로, 나머지 날은 두 칸씩(날짜 · 수 / 막대 밑줄) — 단추 높이 48(장갑, D5)은 그대로.
-   1280×800 · PC(마우스)는 이 규칙 밖이라 한 줄씩 그대로다. ── */
-@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) and (max-height: 785.98px) {
-  .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
-  .fph-strip__h, .fph-strip__f, .fph-sd:first-of-type { grid-column: 1 / -1; }
-  .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
-  .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
-  .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
-  .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
-}
-
-/* ── 화면 크기 · 글자 배율을 키운 가로 터치 화면: 띠가 쓸 수 있는 키를 재서 고른다(11-14 실측, 컨테이너 쿼리) ──
-   media 의 키는 배율 전 실제 화면 px 라 화면 크기 z 도 글자 배율도 못 본다. 그래서 키운 경우(html 에 data-foms-ui-zoom 1.1~1.3
-   이나 data-foms-fs 가 있을 때 · 80 · 90% 는 빼고)에만 띠를 상자(.fph-stripbox)에 담아 상자 키 = 띠 칸(100dvh ÷ z − 제목 줄)을
-   컨테이너로 잰다. 상자는 투명 · 테두리 없음이고 띠는 그 안에서 지금처럼 붙어(sticky) 있어 보이는 것은 같다.
-   그 밖(100% · 글자 100%, 80 · 90%, PC, 세로 · 폰)에는 상자가 display: contents 라 없는 것과 같고 위 786px 규칙만 쓴다.
-   쿼리 안 단위: 1rem = 16px × 글자 배율(html 글자 크기), 1em = 16px ÷ z(상자 글자 크기 — 띠 안은 1rem 으로 되돌린다)
-   → 3em = 단추 최소 키 48 ÷ z(화면에서 실제 48, 장갑 D5), 2.5em = 머리 40 ÷ z.
-   ① 두 칸씩(fph-strip): 한 줄씩 띠 = 머리 40 + 13줄 × max(48, 2줄 날짜 2.0125rem + 5) + 아래 칸 max(49, 2줄 2.34rem) 이
-      안 들어가면. 글자 100~130% 는 713px(= 786 − 73, 위 규칙과 같은 경계를 ÷ z 로), 150% 는 789px —
-      1280×800 글자 150% 는 한 줄씩 띠 782px 가 727px 칸을 넘어 날 3개가 숨었다.
-   ② 가장 빠듯함: 두 칸씩 띠 = 머리 max(40 ÷ z, 1.375rem + 2) + 지난 7일 max(48 ÷ z, 2.0125rem + 5)
-      + 6줄 × max(48 ÷ z, 2.0125rem + 17) + 아래 칸 max(48 ÷ z + 1, 2줄 2.34rem)(아래 칸은 'n건 더' 2줄로 잡는다)도
-      안 들어가면 날짜 옆에 요일을 한 줄로 붙이고 요일 뒤 '· 내일 · D-n · 없음'을 뺀다(긴 글 fph-sd__long 대신 요일만 쓴 fph-sd__wd). 요일 · 수 · 막대는 그대로.
-      1176×626 에서 110% + 글자 150%, 120 · 130% + 글자 120% 이상일 때만(실측 띠 칸 409~496px 에 444~525px 가 들어가야 했다).
-      '오늘 11/14 토' 처럼 한 줄에 안 들어가는 칸만 요일이 다음 줄로 내려간다(글자는 줄이지 않는다).
-      실측 130% + 글자 150%: 띠 382px(아래 칸 2줄이어도 401) ≤ 띠 칸 406px, 날 칸 42.3px = 화면에서 55px. ── */
+/* ── 가로 터치 화면: 시공일 띠는 늘 한 줄에 하루씩(시안 안 3), 왼쪽 칸을 위에서 아래까지 채운다(11-21 사용자 ①) ──
+   예전(11-14)에는 키 낮은 터치 화면(max-height 786px)에서 날을 두 칸씩 놓았는데, media 키는 화면 크기 배율 전 값이라
+   현장 태블릿 1176×626 을 80% 로 줄여도 두 칸씩 — 띠가 칸 키의 61% 에서 끝나 아래가 비었다. 이제 두 칸씩은 없다.
+   띠를 상자(.fph-stripbox)에 담아 상자 키 = 왼쪽 칸(100dvh ÷ 화면 크기 z − 제목 줄)으로 박고, 날 줄이 남는 키를 나눠 가진다(flex-grow).
+   상자는 컨테이너라 띠가 쓸 수 있는 키를 잰다(media 는 z 를 못 본다):
+   ① 들어가면 — 머리 40 + 13줄 × max(44, 2줄 날짜 2.0125rem + 5) + 아래 칸 max(49, 2줄 2.34rem) ≤ 칸 키 — 줄은 44px 까지 줄 수 있고
+      칸을 꼭 채운다(1176×626 80%: 칸 709.5px, 줄 47.7px · 1280×800 100%: 칸 727px, 줄 49.1px).
+   ② 안 들어가면(1176×626 100% · 90% 등) 줄은 48px 그대로(장갑 D5) 띠 안에서 굴린다 — 칸은 꽉 차 있고 아래가 비지 않는다.
+   쿼리 안 단위: px = 화면 크기를 나눈 뒤의 CSS px(상자 키와 같은 단위), 1rem = 16px × 글자 배율.
+   PC(마우스) · 세로 · 폰은 이 규칙 밖이라 지금 그대로(PC 는 내용 키, 세로 · 폰은 가로 띠). ── */
 .fph-stripbox { display: contents; }
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
-  html:is([data-foms-ui-zoom], [data-foms-fs]):not([data-foms-ui-zoom^="0."]) .fph-stripbox {
+  .fph-stripbox {
     display: block;
     position: sticky;
     top: var(--fph-bar-h, 73px);
     height: calc(100dvh / var(--foms-ui-zoom, 1) - var(--fph-bar-h, 73px));
     container: fph-strip / size;
-    font-size: calc(16px / var(--foms-ui-zoom, 1));
   }
-  html:is([data-foms-ui-zoom], [data-foms-fs]):not([data-foms-ui-zoom^="0."]) .fph-stripbox > .fph-strip { font-size: 1rem; }
+  .fph-stripbox > .fph-strip { position: static; height: 100%; max-height: none; }
+  .fph-sd { flex-grow: 1; }
 }
-@container fph-strip (max-height: calc(39.98px + 13 * max(48px, 2.0125rem + 5px) + max(49px, 2.34rem))) {
-  .fph-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
-  .fph-strip__h, .fph-strip__f, .fph-sd:first-of-type { grid-column: 1 / -1; }
-  .fph-sd:not(:first-of-type) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 8px; gap: 2px 6px; padding: 3px 10px; }
-  .fph-sd:nth-of-type(even) { border-right: 1px solid var(--fph-line); }
-  .foms-prod-home .fph-sd:not(:first-of-type) .fph-sd__bar { grid-column: 1 / -1; grid-row: 2; height: 8px; }
-  .fph-sd:not(:first-of-type) .fph-sd__n { grid-column: 2; grid-row: 1; }
-  .fph-strip__h { min-height: calc(40px / var(--foms-ui-zoom, 1)); }
-  .fph-sd, .fph-sf { min-height: calc(48px / var(--foms-ui-zoom, 1)); }
-}
-@container fph-strip (max-height: calc(max(2.5em, 1.375rem + 2px) + max(3em, 2.0125rem + 5px) + 6 * max(3em, 2.0125rem + 17px) + max(3em + 1px, 2.34rem) - 0.02px)) {
-  .fph-sd__d { flex-flow: row wrap; align-items: baseline; column-gap: 4px; }
-  .fph-sd__d .fph-sd__long { display: none; }
-  .fph-sd__d .fph-sd__wd { display: block; }
-  .fph-sd:first-of-type { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .fph-sd:not(:first-of-type) { padding: 2px 6px; }
-  .fph-sd__n { line-height: 1.15; } /* 수 줄도 날짜 줄과 같은 줄 높이 — 'normal' 이면 이 줄이 32px 로 칸을 키운다(150%) */
+@container fph-strip (min-height: calc(max(40px, 1.375rem + 2px) + 13 * max(44px, 2.0125rem + 5px) + max(49px, 2.34rem))) {
+  .fph-sd { flex-shrink: 1; min-height: max(44px, 2.0125rem + 5px); }
 }
 
 /* ── 화면 크기 · 글자 배율을 키운 넓은 화면: 이름 칸이 좁아지면 카드를 두 줄로(11-14 실측, 컨테이너 쿼리) ──
@@ -747,7 +718,6 @@
   .foms-prod-home__nav { gap: 0; padding: 0; border: 1px solid var(--fph-line2); border-radius: 10px; background: var(--fph-surface); }
   .foms-prod-home__navtab { justify-content: center; padding: 0 14px; border-radius: 0; border-right: 1px solid var(--fph-line2); }
   .foms-prod-home__navtab:last-child { border-right: 0; }
-  .foms-prod-home__navtab--out { margin-left: 0; border-left: 0; border-radius: 0; }
   .foms-prod-home__navtab.is-on, .foms-prod-home__navtab.is-on:hover, .foms-prod-home__navtab.is-on:focus-visible { background: var(--fph-brand); color: #fff; box-shadow: none; }
   .foms-prod-home__navtab.is-on small, .foms-prod-home__navtab.is-on small.is-hot { color: inherit; opacity: .85; }
   .foms-prod-home .foms-fs { gap: 0; height: 44px; margin-right: 0; border: 1px solid var(--fph-line2); border-radius: 10px; overflow: hidden; background: var(--fph-surface); }
@@ -760,4 +730,13 @@
   .foms-prod-home .foms-fs__btn:focus-visible, .foms-prod-home .foms-fs__now:focus-visible { outline-offset: -3px; }
   .foms-prod-home__btn-ic { display: block; margin-right: 8px; font-size: calc(22px * var(--foms-fs, 1)); }
   .foms-prod-home__btn[data-foms-home-reload] { padding: 0 14px; } /* 시안 .btn 여백 — 손잡이 · 그림이 커진 만큼 날짜 글 자리를 남긴다 */
+  /* ④ 왼쪽 줄(레일) — 생산 첫 화면에서만 계산기 · 회사 지식 · 알림을 숨기고(11-21 사용자 ③, 시안 Ⓑ) 알림 종은 위 줄 [다시 받기] 묶음으로.
+     레일 조각(foms_tablet_rail.html)은 모든 화면이 같이 쓰므로 고치지 않는다 — 이 화면 몸통(.foms-prod-home-page)이 있을 때만 :has 로 숨긴다.
+     셸 조각 교체로 다른 화면이 오면 몸통이 사라져 셋이 바로 돌아온다. 숨겨도 칸은 DOM 에 남아 레일 줄이기 규칙
+     (foms-tablet-rail.css 10번째 칸 · foms-graft-cells.css 회사 지식 칸)이 다른 화면과 같게 걸린다 — 단추 크기가 화면마다 달라지지 않는다.
+     계산기 칸은 클래스가 따로 없어 주소로 고른다(foms_split_view._CALCULATOR_ITEM). :has 를 모르는 브라우저는 레일도 종도 안 보인다. */
+  body:has(.foms-prod-home-page) .foms-tablet-rail__menu > a[href="/wdcalculator"],
+  body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-graft-rail,
+  body:has(.foms-prod-home-page) .foms-tablet-rail > .foms-tablet-rail__notify { display: none; }
+  body:has(.foms-tablet-rail) .foms-prod-home__btn.foms-prod-home__bell { display: inline-flex; }
 }
