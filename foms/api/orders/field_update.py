@@ -864,7 +864,8 @@ def update_order_field_from_payload(
                 # 이벤트 SSOT 는 foms/services/order_date_sync.py 의 전역 before_flush 훅
                 # (모든 쓰기 경로가 통과하는 유일 지점). 여기 남은 비교는 생산팀 벨 알림
                 # 트리거 전용이다.
-                if old_cons != value:
+                # 날 하나 옮기기에서 날이 그대로면(_moved == "") 생산팀 알림도 없다.
+                if old_cons != value and _moved != "":
                     _prod_cons_change = (_moved or old_cons, value)
             elif field == "as_visit_date":
                 trimmed = str(value or "").strip()

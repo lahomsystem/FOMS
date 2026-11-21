@@ -32,7 +32,7 @@ from foms.services.notifications.production_change import (
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.construction_dates import all_construction_dates, pick_nearest_date, split_date_text
 from foms.services.orders.drawing_confirm_partial import is_item_cancelled
-from foms.services.orders.item_construction_done import is_split_order
+from foms.services.orders.item_construction_done import is_split_order, remaining_lines
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.structured_diff import diff_structured
@@ -76,20 +76,41 @@ DATE_JOIN = ", "
 FROM_DATE_MISSING_MESSAGE = "옮길 날을 다시 골라 주세요."
 
 
+def _remaining_days(sd: Any) -> list[str]:
+    """나눠 시공하는 주문의 남은 제품('시공 끝' 기록 없음) 날들(정렬). 나눠 시공이 아니거나 남은 날이 없으면 빈 목록."""
+    if not isinstance(sd, dict) or not is_split_order(sd):
+        return []
+    return sorted({day for line in remaining_lines(sd) for day in line.dates if day})
+
+
+def _text_order_days(sd: Any) -> list[str]:
+    """주문 칸 글에 적힌 차례 그대로의 날들(정렬하지 않는다 · 못 읽는 토큰은 건너뛴다)."""
+    raw = _construction(sd if isinstance(sd, dict) else {}).get("date")
+    if raw is None or isinstance(raw, (dict, list, tuple, set, bool, int, float)):
+        return []
+    out: list[str] = []
+    for token in str(raw).split(","):
+        days = split_date_text(token)
+        if days:
+            out.append(days[0])
+    return out
+
+
 def first_order_date(sd: Any) -> str:
     """주문 칸(``schedule.construction.date``) 글에 **처음 적힌** 시공일(``YYYY-MM-DD``, 정렬하지 않는다). 없으면 빈 글.
 
     평면 칸 ``erp_construction_date``(``erp_display._normalize_date_to_yyyymmdd`` — 글 앞 날)와 같은 기준이라
-    대시보드 칸 · 판에 보이는 첫 날과 같다.
+    대시보드 칸 · 판에 보이는 첫 날과 같다. 나눠 시공하는 주문이면 남은 제품 날 가운데 글에 처음 적힌 날을 먼저
+    고른다('시공 끝' 제품의 날은 옮기지 않는다). 남은 날이 없을 때만 위 규칙.
     """
-    raw = _construction(sd if isinstance(sd, dict) else {}).get("date")
-    if raw is None or isinstance(raw, (dict, list, tuple, set, bool, int, float)):
-        return ""
-    for token in str(raw).split(","):
-        days = split_date_text(token)
-        if days:
-            return days[0]
-    return ""
+    text_days = _text_order_days(sd)
+    remaining = _remaining_days(sd)
+    if remaining:
+        for day in text_days:
+            if day in remaining:
+                return day
+        return remaining[0]
+    return text_days[0] if text_days else ""
 
 
 def nearest_order_date(sd: Any, today: Any = None) -> str:
@@ -101,8 +122,11 @@ def nearest_order_date(sd: Any, today: Any = None) -> str:
 
 
 def visit_order_date(sd: Any, visit_day: datetime.date) -> str:
-    """그 방문의 시공일 — 방문 날 이하에서 가장 늦은 주문 시공일, 없으면 그 뒤 가장 가까운 날. 날이 없으면 빈 글."""
-    days = split_date_text(_construction(sd if isinstance(sd, dict) else {}).get("date"))
+    """그 방문의 시공일 — 방문 날 이하에서 가장 늦은 주문 시공일, 없으면 그 뒤 가장 가까운 날. 날이 없으면 빈 글.
+
+    나눠 시공하는 주문이면 남은 제품 날들 가운데에서 같은 규칙으로 먼저 고른다('시공 끝' 제품의 날은 옮기지 않는다).
+    """
+    days = _remaining_days(sd) or split_date_text(_construction(sd if isinstance(sd, dict) else {}).get("date"))
     limit = visit_day.isoformat()
     before = [day for day in days if day <= limit]
     if before:
