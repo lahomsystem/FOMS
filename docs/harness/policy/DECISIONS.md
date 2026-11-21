@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-11-21] [제작 완료]는 검수까지 끝나야 — 서버도 막는다 · 공정 칸을 쓴 주문만 · 단계 강제 변경은 비상구
+- **키워드**: production_complete_ready, production_steps_missing, production_complete_block_body, STEPS_INCOMPLETE, 검수까지, 제작 완료, 공정 칸, 규칙 밖, stage-override, 비상구, ADMIN_OVERRIDE
+- **결정**: 사용자 선택(2026-11-21 "서버도 막기" · "공정 칸을 쓴 주문만 막기"). 공정 칸을 한 칸이라도 켠 주문은 4칸(재단 · 엣지 · 조립 · 검수)을 다 켜야 제작 완료 API · 일반 단계 쓰기(생산 → 시공)가 통과한다. 한 칸도 안 켠 주문은 막지 않는다. 판정은 `foms/services/production/steps.py` 한 함수(`production_steps_missing` → `production_complete_ready` · `production_complete_block_body`)이고 화면 · 서버가 같이 쓴다.
+- **이유**: 화면만 회색이면 다른 단추 · 일괄 쓰기 · 칸 고치기로 검수 전 주문이 시공으로 넘어간다. 운영 생산팀은 아직 공정 칸을 안 써서(11-12 실측: 생산 중 4집 모두 기록 없음, 원장 `docs/plans/2026-11-09-tablet-production-ui-ledger.md:495`) 모든 주문을 막으면 생산이 멈춘다.
+- **남는 위험**: 칸을 쓰다 만 주문은 4칸을 다 켜거나 모두 꺼야 풀린다. 관리자는 사유를 적어 한 번 뚫거나(`ADMIN_OVERRIDE`) 단계 강제 변경(`stage-override`, 이 규칙을 타지 않음)으로 넘긴다.
+- **영향**: `foms/services/production/steps.py`, `foms/api/production/orders.py`, `foms/api/orders/{status,field_update}.py`, `foms/services/orders/stage_override.py`, `templates/production/{sheet.html,partials/tablet_sheet.html}`, `static/js/production/foms-production-sheet-page.js`, 시험 `tests/domains/test_production_complete_requires_inspect.py` · `tests/postgres/test_production_complete_inspect_pg.py`, 설계서 `docs/specs/2026-11-09-tablet-production-ui_SPEC.md` §12.2.
+
 ### [2026-11-02] 푸시 가드·커밋 원장은 명령이 실제로 도는 저장소로 판정한다 · 배포 확인 도구는 먼저 fetch · CI 본 스위트 3조각
 - **키워드**: guard_policy, _push_scope_root, effective_repo, git_command_dir, record_commit_ledger, deploy_push_scope, 타 세션 커밋 포함, 레저 없음, payload cwd, check_deploy_drift, REMOVED, ci_watch fetch, CI-SHARD-01, FOMS_TEST_SHARD, 메인 체크아웃 낡음
 - **결정**: 사용자 선택(2026-11-02 "①② 고치기 설계부터" 뒤 "검사 나눠 돌리기도 같이"). 설계서 `docs/specs/2026-11-02-push-guard-effective-repo_SPEC.md` F1~F5.

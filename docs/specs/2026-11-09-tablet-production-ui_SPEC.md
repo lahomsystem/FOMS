@@ -139,6 +139,7 @@
 ### 12.2 전체 화면 작업 시트 (안 2) — `GET /erp/production/sheet/<id>` (T0-2)
 - 옆 시트 뷰 모델(`erp_production_tablet_sheet`, `dashboard.py:408-468`)을 함수로 빼서 둘이 같이 쓴다. 더하는 키: 전화·주소·실측일·출고일, 도면 이미지 전체 목록(F2 ③), 공정 5줄(누가·몇 시). 왼쪽 6할 도면(넘기기 72px·썸네일·PDF 는 파일 열기, 뷰어는 F3 마운터), 오른쪽 고객·만들 것·공정·[불량 알리기]·[보류]·[제작 완료](검수 전 회색)·위 막대 [인쇄](F8)·[상세]. 쓰기는 전부 기존 API(공정 체크·불량·보류·시작/완료). 공정 JS 는 F2 ② 의 스코프 재작성 결과를 그대로 쓴다.
 - 12.1 카드 링크를 이 라우트로 바꾼다.
+- **[제작 완료] 서버도 막기(2026-11-21 사용자 "검수까지 끝나기 전엔 막는다 — 서버도 막기" · "공정 칸을 쓴 주문만 막기")** 공정 칸을 한 칸이라도 켠 주문은 4칸(재단 · 엣지 · 조립 · 검수)을 다 켜야 완료 — 한 칸도 안 켠 주문(칸 없음 · 모두 꺼짐 · 모두 켰다가 모두 끔)은 규칙 밖(운영 생산팀이 아직 공정 칸을 안 씀, 원장 `docs/plans/2026-11-09-tablet-production-ui-ledger.md:495`). 판정은 한 함수 `foms/services/production/steps.py` 의 `production_steps_missing` · `production_complete_ready` · `production_complete_block_body` — 제작 완료 API(409 `STEPS_INCOMPLETE`) · 일반 단계 쓰기 생산 → 시공(단건 · 일괄 · 칸 고치기) · 시트 두 곳 회색/파랑 · 공정 API `complete_ready` 가 같이 쓴다. 관리자는 사유를 적어 한 번 뚫을 수 있고(`ADMIN_OVERRIDE`), 관리자 단계 강제 변경(`stage-override`)은 이 규칙을 타지 않는 비상구다.
 
 ### 12.3 첫 화면 탭 — 날짜 · 내 공정 · 바뀐 것 · 찾기 (D13 → D17·D18, 2026-11-10 사용자 "최우선은 생산" · "3안으로")
 - 사용자 세 요청을 생산 첫 화면에: ① 글자 크기 조절 ② 이유 없는 빈 공간 없이 ③ 날짜별로 시공을 한눈에. 시안 `docs/design/mockups/tablet-production-home-v2.html` 안 3.
