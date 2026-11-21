@@ -177,8 +177,10 @@ def _target(session: Any, key: str, base_version: Any) -> BrainObject:
 def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type: str, values: Mapping[str, Any],
                    reason: str, proposer: Proposer, evidence: Iterable[str] = (), grade: Optional[str] = None,
                    now: Optional[datetime.datetime] = None, known: Optional[str] = None,
-                   rollback_of: Optional[int] = None, action: str = "propose_create") -> BrainChange:
-    """새 항목 제안. ``values`` 는 값 칸(:data:`OBJECT_FIELDS` — 없는 칸은 비움). 확신 값은 옮기기만 싣는다."""
+                   rollback_of: Optional[int] = None, action: str = "propose_create",
+                   skip_gates: Iterable[str] = ()) -> BrainChange:
+    """새 항목 제안. ``values`` 는 값 칸(:data:`OBJECT_FIELDS` — 없는 칸은 비움). 확신 값은 옮기기만 싣는다.
+    ``skip_gates`` 는 막지 않을 에이전트 관문 이름(:func:`_ai_gates` — 부르는 쪽이 같은 판정을 이미 더 넓게 했을 때)."""
     evidence = list(evidence)
     full = {**dict.fromkeys(OBJECT_FIELDS), **values}
     if not _trusted(proposer):
@@ -192,7 +194,7 @@ def propose_create(session: Any, *, key: str, brand: str, layer: str, item_type:
         raise BrainTargetError(f"이미 지금 판이 있는 키다: {key}")
     gates = _gates((full["name"], full["text"]), known_text(session) if known is None else known, proposer, item_type,
                    payload_gates(full["payload"]))
-    gates = _ai_gates(session, gates, proposer, op=OP_CREATE, key=key, item_type=item_type,
+    gates = _ai_gates(session, gates, proposer, skip=skip_gates, op=OP_CREATE, key=key, item_type=item_type,
                       texts=[full["name"] or "", full["text"] or ""], evidence=evidence, after=full, brand=brand)
     return _insert(session, now=now, op=OP_CREATE, item_key=key, brand=brand, layer=layer, item_type=item_type,
                    fields={n: {"before": None, "after": v} for n, v in full.items() if v is not None},

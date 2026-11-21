@@ -403,7 +403,8 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
     got = file_proposals(session, raw, sent, now=now, known=known, approved=approved, auto=auto)
     more = file_ontology(session, onto, sent, now=now, known=known, auto=auto)
     session.commit()
-    for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed")):
+    for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed"),
+                      ("new", "differs_new")):
         counts[name] = got.pop(key, 0) + more.pop(key, 0)
     counts["blocked"] = {code: got.get(code, 0) + more.get(code, 0) for code in sorted({*got, *more})}
 
@@ -432,7 +433,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     talks = _talks(reader, cfg, cases, photos)
     counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
                               "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
-                              "cards": 0, "fixed": 0, "blocked": {}, "halted": None}
+                              "cards": 0, "fixed": 0, "new": 0, "blocked": {}, "halted": None}
     try:
         _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
@@ -450,9 +451,9 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         close_day(session, day)
     release(session)
     logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
-                "applied=%d cards=%d fixed=%d blocked=%s halted=%s", day, tier, counts["left"], counts["cases"],
+                "applied=%d cards=%d fixed=%d new=%d blocked=%s halted=%s", day, tier, counts["left"], counts["cases"],
                 counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
-                counts["applied"], counts["cards"], counts["fixed"], counts["blocked"], counts["halted"])
+                counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["blocked"], counts["halted"])
     return counts
 
 
