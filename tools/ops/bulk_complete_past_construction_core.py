@@ -5,7 +5,6 @@
 순수 함수만 담고 argparse·파일 입출력을 모른다(순수 계약 테스트가 DB 없이 붙는 자리).
 """
 
-
 from __future__ import annotations
 
 import json
@@ -137,7 +136,8 @@ SELECT o.id, o.customer_name, o.status, o.is_erp_order, o.erp_stage_code,
          WHERE d.order_id = o.id AND d.kind = 'construction'
            AND d.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
            AND d.date >= %(cutoff)s) AS later_construction_date,
-       o.structured_data->'schedule'->'construction'->>'date' AS construction_text
+       o.structured_data->'schedule'->'construction'->>'date' AS construction_text,
+       o.structured_data->'items' AS items
   FROM orders o
  WHERE o.deleted_at IS NULL
    AND o.status <> 'DELETED'
@@ -217,18 +217,25 @@ def text_dates(raw: Any) -> list[str]:
     return sorted(found)
 
 
+def _item_dates(items: Any) -> list[str]:
+    """제품 칸 ``items[*].construction_date`` 의 날짜 전부(취소 제품도 넣는다 — 잘못 빼도 해가 없다)."""
+    rows = items if isinstance(items, list) else []
+    return [d for it in rows if isinstance(it, dict) for d in text_dates(it.get("construction_date"))]
+
+
 def later_construction_date(row: dict[str, Any], cutoff: str | None) -> str | None:
     """``cutoff`` 이후(당일 포함)로 남은 가장 이른 시공일. 없으면 None.
 
-    일정 표(``later_construction_date`` 칸)와 주문 칸 글(``construction_text``) 둘 중 하나라도
-    걸리면 남은 것으로 본다 — 표가 뒤처져도 주문 칸에 적힌 둘째 날짜는 잡는다.
+    일정 표(``later_construction_date`` 칸) · 주문 칸 글(``construction_text``) · 제품 칸
+    (``items``) 가운데 하나라도 걸리면 남은 것으로 본다 — 표가 뒤처져도 글에 적힌 날은 잡는다.
     """
     found = []
     from_table = str(row.get("later_construction_date") or "").strip()
     if _DATE_RE.match(from_table):
         found.append(from_table)
     if cutoff:
-        found.extend(d for d in text_dates(row.get("construction_text")) if d >= cutoff)
+        texts = text_dates(row.get("construction_text")) + _item_dates(row.get("items"))
+        found.extend(d for d in texts if d >= cutoff)
     return min(found) if found else None
 
 
@@ -410,6 +417,7 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
         later = later_construction_date({
             "later_construction_date": (cur.fetchone() or {}).get("later"),
             "construction_text": cons.get("date") if isinstance(cons, dict) else None,
+            "items": structured.get("items"),
         }, cutoff)
         if later:
             return f"skipped:later_construction_date({later})"

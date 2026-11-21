@@ -13,7 +13,7 @@
 | 항목 | 결정 |
 |---|---|
 | 판정 기준 | `erp_construction_date` 가 오늘(KST) 기준 **7일 이상 지난** 건 |
-| 제외 사유 `later_construction_date` (2026-11-21 추가) | 시공일이 여럿인 주문에서 평면 칸은 "먼저 적힌 날"일 뿐이다. 기준일 이후(당일 포함) 시공일이 일정 표 `order_schedule_dates`(`kind='construction'`) 또는 주문 칸 글(`schedule.construction.date`)에 하나라도 남으면 `main` · `as_stage_only` 모두 대상에서 빼고 plan 의 `skipped[]` 에 남은 날짜와 함께 적는다. apply 는 행을 잠근 뒤 한 번 더 확인해 `skipped:later_construction_date(날짜)` 로 건너뛴다 |
+| 제외 사유 `later_construction_date` (2026-11-21 추가) | 시공일이 여럿인 주문에서 평면 칸은 "먼저 적힌 날"일 뿐이다. 기준일 이후(당일 포함) 시공일이 일정 표 `order_schedule_dates`(`kind='construction'`) · 주문 칸 글(`schedule.construction.date`) · 제품 칸(`items[*].construction_date`, 취소 제품 포함)에 하나라도 남으면 `main` · `as_stage_only` 모두 대상에서 빼고 plan 의 `skipped[]` 에 남은 날짜와 함께 적는다. apply 는 행을 잠근 뒤 한 번 더 확인해 `skipped:later_construction_date(날짜)` 로 건너뛴다 |
 | 일반 건 | 본공정 `COMPLETED` + `status = COMPLETED` |
 | AS 탭 건(미완료·완료 탭 모두) | **status·as_lifecycle·as_axis_status 불변**. `workflow.stage` 만 `COMPLETED` (선택지 B) |
 | 열린 quest | 그대로 둔다(기존 강제 변경 규율과 동일) |
