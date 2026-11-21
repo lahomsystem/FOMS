@@ -2,9 +2,10 @@
    위 칸(이름 · 품목 · 그림 · 색/앞 공정/다음 공정)은 판이 짧으면 판 안에서 굴러가고, 아래 묶음([끝] · [불량] [보류] · 다음 손님)은 늘 보인다.
    그림이 남는 키를 모두 가진다(빈 칸 없음, 사용자 11-10 ②). 엣지 줄 없음(D11). 금액 없음(D7). id 없음(판이 여럿) · 인라인 style · script 없음.
    아래 묶음 = 작업 시트 JS 루트([data-foms-prod-sheet-page] — [불량] 칩 · 최근 불량 · 상태 글), [보류] = tablet-domain-sheets.js 와 같은 단추 계약. #}
+{% from 'production/partials/home_date_macros.html' import fph_due %}
 <section class="fph-sp{% if p.hold_active %} is-hold{% endif %}" data-foms-step-pane="{{ p.id }}" aria-label="{{ p.name }} #{{ p.id }}"{% if p.id != q.selected_id %} hidden{% endif %}>
   <div class="fph-sp__top">
-    <h2 class="fph-sp__nm"><a href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=p.id) }}" data-foms-step-name>{{ p.name }}</a> <small>#{{ p.id }}</small></h2>
+    <h2 class="fph-sp__nm"><a href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=p.id) }}" data-foms-step-name>{{ p.name }}</a> <small>#{{ p.id }}</small>{{ fph_due(p) }}</h2>
     <p class="fph-sp__sub" data-foms-step-sub>{{ p.sub }}</p>
     {% if p.pic.kind == 'image' %}
     <button type="button" class="fph-sp__pic" data-foms-step-view="{{ p.pic.files | tojson | forceescape }}" aria-label="도면 크게 보기"><img src="{{ p.pic.src }}" alt="{{ p.pic.alt }}" loading="lazy" decoding="async" data-foms-step-img><span class="fph-sp__cap"><span data-foms-step-piclabel>{{ p.pic.label }}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>눌러서 크게</span></span></button>

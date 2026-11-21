@@ -121,7 +121,8 @@ def _done_items(rows: list[dict[str, Any]], me: str) -> list[dict[str, Any]]:
         items.append({
             "kind": "done", "id": row["id"], "customer_name": row.get("customer_name") or "-",
             "product_label": row.get("v3_product_label") or "", "stage": row.get("home_stage") or "",
-            "day_label": row.get("day_label") or "", "alerts": row["home_done"], "acked_at": row["home_acked_at"],
+            "day_label": row.get("day_label") or "", "day_sub": row.get("day_sub") or "",
+            "day_is_today": bool(row.get("day_is_today")), "alerts": row["home_done"], "acked_at": row["home_acked_at"],
             "ack_by": me, "ack_when": ack_when_label(row["home_acked_at"]),
         })
     items.sort(key=lambda it: it["acked_at"], reverse=True)

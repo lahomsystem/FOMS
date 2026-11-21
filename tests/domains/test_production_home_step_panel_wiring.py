@@ -178,10 +178,10 @@ def test_판_CSS_반반_문_밖은_숨김_끝_단추는_늘_판_안() -> None:
 
 def test_핀과_화면_HTML(client, cohort) -> None:
     styles = (ROOT / "templates/production/partials/home_styles.html").read_text(encoding="utf-8")
-    assert "home.css') }}?v=20261121d" in styles and "{% if part_board or step_panel %}" in styles
+    assert "home.css') }}?v=20261121e" in styles and "{% if part_board or step_panel %}" in styles
     early = (ROOT / "templates/production/partials/home_early.html").read_text(encoding="utf-8")
     assert f"filename='{STEPS_JS}') }}}}?v=20261121a" in early
     login(client)
     seed_cut_queue()
     set_cookies(client, TABLET)
-    assert "home.css?v=20261121d" in get_html(client, HOME + "?tab=steps")
+    assert "home.css?v=20261121e" in get_html(client, HOME + "?tab=steps")

@@ -230,6 +230,8 @@ def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str,
             'product_label': row.get('v3_product_label') or '',
             'stage': row.get('home_stage') or '',
             'day_label': row.get('day_label') or '',
+            'day_sub': row.get('day_sub') or '',
+            'day_is_today': bool(row.get('day_is_today')),
             'alerts': alerts,
         })
     for tomb in tombstones or []:

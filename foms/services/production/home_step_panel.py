@@ -116,6 +116,10 @@ def production_home_step_panel(row: dict[str, Any], key: str, next_row: dict[str
         'id': row['id'],
         'name': row.get('customer_name') or '-',
         'sub': f"{product} · {spec}" if spec else product,
+        # 시공일 표(fph_due) — 줄 행이 이미 가진 값(사용자 11-21 "아주 중요한 정보")
+        'day_label': row.get('day_label') or '',
+        'day_sub': row.get('day_sub') or '',
+        'day_is_today': bool(row.get('day_is_today')),
         'pic': _picture(sd),
         'color': _color_line(row),
         'prev': _prev_line(sd, key, row.get('run_started_at')),
