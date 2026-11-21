@@ -5234,7 +5234,7 @@
     },
     {
       "path": "foms/services/orders/dashboard_read_model.py",
-      "lineno": 404,
+      "lineno": 398,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5315,7 +5315,7 @@
     },
     {
       "path": "foms/services/orders/open_order_lookup.py",
-      "lineno": 256,
+      "lineno": 273,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
