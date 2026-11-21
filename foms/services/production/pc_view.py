@@ -55,7 +55,9 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
 
     Returns:
         ``pc_view``(PC 꼴 · 마우스 기기) · ``can_act``(쓰기 단추) · ``can_ack``([확인했어요] — PC 보기 전용에서도 허용, §13 결정 5)
-        · ``edit_on``([고치기] 켬) · ``edit_toggle``([고치기] 단추를 그림) · ``edit_now``(JS 가 심을 서버 시각).
+        · ``edit_on``([고치기] 켬) · ``edit_toggle``([고치기] 단추를 그림) · ``edit_now``(JS 가 심을 서버 시각)
+        · ``write_omitted``(쓰기 팀인데 기기 쿠키가 없거나 이상해 단추를 뺐다 — 화면이 표식을 남기면 터치 기기는
+        foms-wide-surface-recover.js 가 쿠키가 심긴 뒤 한 번 다시 받는다, §12).
     """
     now = time.time() if now_epoch is None else now_epoch
     pointer = _pointer(request)
@@ -69,6 +71,7 @@ def production_screen_flags(user: Any, request: Any, now_epoch: float | None = N
         'edit_on': edit_on,
         'edit_toggle': bool(writer and pc),
         'edit_now': int(now),
+        'write_omitted': bool(writer and pointer == '' and not edit_on),
     }
 
 

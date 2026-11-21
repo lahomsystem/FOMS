@@ -136,7 +136,8 @@ def test_화면_판정_표() -> None:
     fresh = str(now - 60)
     # PC 보기 전용 — 쓰기 없음, [확인했어요]는 쓰기 팀(§13 결정 5), [고치기]는 쓰기 팀만
     assert production_screen_flags(admin, _Req(foms_ptr="fine"), now) == {
-        "pc_view": True, "can_act": False, "can_ack": True, "edit_on": False, "edit_toggle": True, "edit_now": now}
+        "pc_view": True, "can_act": False, "can_ack": True, "edit_on": False, "edit_toggle": True, "edit_now": now,
+        "write_omitted": False}
     assert production_screen_flags(cs, _Req(foms_ptr="fine"), now)["can_ack"] is False
     # [고치기] 켬 — 쓰기 팀 + PC + 2시간 안
     for user in (admin, prod):
@@ -154,6 +155,11 @@ def test_화면_판정_표() -> None:
     for req in (_Req(), _Req(foms_ptr="weird")):
         flags = production_screen_flags(prod, req, now)
         assert not flags["pc_view"] and not flags["can_act"] and not flags["edit_toggle"]
+        # 쓰기 팀인데 기기를 몰라 뺐다 → 표식(터치 기기면 쿠키가 심긴 뒤 다시 받는다, §12)
+        assert flags["write_omitted"] is True
+        assert production_screen_flags(cs, req, now)["write_omitted"] is False
+    for ptr in ("fine", "coarse"):
+        assert production_screen_flags(prod, _Req(foms_ptr=ptr, foms_prod_edit=fresh), now)["write_omitted"] is False
 
 
 # --------------------------------------------------------------------------- #
@@ -266,6 +272,52 @@ def test_쿠키_없는_첫_요청은_쓰기_단추를_안_그리고_PC_꼴도_�
     for name, html in _all_pages(client, orders).items():
         assert not any(mark in html for mark in WRITE), name
         assert not any(mark in html for mark in PC_ONLY), name
+
+
+WRITE_MARK = "<template data-foms-write-omitted></template>"
+
+
+@pytest.mark.parametrize(("who", "cookies", "want"), [
+    ("prod", None, 1), ("admin", None, 1), ("prod", {"foms_ptr": "weird"}, 1),  # 쓰기 팀 + 기기 모름 → 표식
+    ("cs", None, 0), ("sales", None, 0),  # 보기 팀은 다시 받아도 단추가 없다 — 표식 없음
+    ("prod", PC, 0), ("prod", TABLET, 0), ("admin", PC, 0),  # 기기를 알면 표식 없음
+])
+def test_쿠키_없는_첫_요청의_쓰기_팀만_단추_자리에_되돌림_표식(client, cohort, who, cookies, want) -> None:
+    """사이트 데이터를 지운 공장 태블릿(사장님 11-21): 첫 화면에 단추 대신 표식 + 되돌림 스크립트 — 터치 기기면 다시 받는다."""
+    orders = _seed()
+    _login(client, who)
+    set_cookies(client, cookies)
+    steps = get_html(client, HOME + "?tab=steps")
+    sheet = get_html(client, _sheet(orders["edge"]))
+    assert steps.count(WRITE_MARK) == want and sheet.count(WRITE_MARK) == want, (who, cookies)
+    for html in (steps, sheet):
+        assert ("js/runtime/foms-wide-surface-recover.js?v=" in html) is bool(want)
+        if want:
+            assert not any(mark in html for mark in WRITE)  # 표식 자리 = 단추를 뺀 자리
+    # 셸 조각(레일 · 아래 메뉴로 온 '내 공정')도 같은 몸통이라 같은 표식
+    frag = get_html(client, HOME + "?tab=steps&view=fragment", headers={"X-FOMS-ERP-SHELL": "1"})
+    assert frag.count(WRITE_MARK) == want
+    # 쓰기 단추가 없는 탭(날짜 · 바뀐 것 · 찾기)은 다시 받을 까닭이 없다
+    for tab in ("", "?tab=changes", "?tab=all"):
+        assert WRITE_MARK not in get_html(client, HOME + tab), tab
+
+
+def test_되돌림_JS_는_터치_기기에서만_쓰기_표식을_다시_받는다() -> None:
+    js = (ROOT / "static/js/runtime/foms-wide-surface-recover.js").read_text(encoding="utf-8")
+    assert len(js.splitlines()) <= 300
+    assert "var COARSE_MQ = '(pointer: coarse)';" in js and "var WRITE_OMITTED_SELECTOR = '[data-foms-write-omitted]';" in js
+    assert "(coarseMql.matches && !!document.querySelector(WRITE_OMITTED_SELECTOR))" in js
+    assert "if (!omittedNow()) {" in js and "if (reloadedRecently(guard, key)) {" in js  # 되풀이 막음(같은 길)
+    # 쿠키를 심는 부트와 같은 식 — 터치면 이 화면에서 이미 foms_ptr=coarse 가 심겨 있다
+    head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine'" in head
+    # 두 표식이 같은 파일 · 같은 핀 · 같은 run-once 열쇠(한 화면에 같이 있어도 한 번만 묶인다)
+    pins = []
+    for tpl in ("templates/production/partials/write_omitted_marker.html", "templates/partials/shared/wide_surface_omitted_marker.html"):
+        tag = re.search(r"<script[^>]*foms-wide-surface-recover\.js[^>]*>", (ROOT / tpl).read_text(encoding="utf-8")).group(0)
+        assert " defer" in tag and 'data-foms-run-once="wide-surface-recover"' in tag, tpl
+        pins.append(re.search(r"\?v=(\w+)", tag).group(1))
+    assert pins[0] == pins[1], pins
 
 
 # --------------------------------------------------------------------------- #

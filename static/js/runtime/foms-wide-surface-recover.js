@@ -13,6 +13,13 @@
    로만 쓴다(그 파일은 건드리지 않는다).
 
    판정 식 = 서버의 narrow 와 같은 식 `(min-width: 992px)`(foms-viewport-hint-boot.js 가 쿠키를 쓰는 식).
+
+   둘째 표식(2026-11-21): 생산 쓰기 단추는 쓰기 팀 + foms_ptr=coarse 일 때만 그린다(설계서 2026-11-21-production-pc-viewer §4).
+   쿠키 없는 첫 요청(사이트 데이터를 지운 공장 태블릿)은 단추 대신 [data-foms-write-omitted] 표식만 받는다
+   (foms/services/production/pc_view.production_screen_flags 의 write_omitted, 표식 templates/production/partials/
+   write_omitted_marker.html). 그 화면을 그리기 전에 layout_head 인라인 부트가 이미 foms_ptr 를 심었으므로, 터치 기기
+   `(pointer: coarse)` 이고 표식이 남아 있으면 같은 길(셸 다시 받기 1회 → 새로고침 1회 → 멈춤)로 지금 화면을 다시 받는다.
+   마우스 기기(fine)는 아무것도 하지 않는다.
    한 번만 묶는다(셸 스왑으로 다시 실행돼도 리스너가 쌓이지 않게 — 퍼포먼스 가드 G4). */
 (function () {
   'use strict';
@@ -22,9 +29,12 @@
 
   var WIDE_MQ = '(min-width: 992px)';
   var OMITTED_SELECTOR = '[data-foms-wide-surface-omitted]';
+  var COARSE_MQ = '(pointer: coarse)';
+  var WRITE_OMITTED_SELECTOR = '[data-foms-write-omitted]';
   var RELOAD_GUARD_KEY = 'foms_wide_surface_reload';
   var RELOAD_GUARD_MS = 60 * 1000;
   var wideMql = window.matchMedia(WIDE_MQ);
+  var coarseMql = window.matchMedia(COARSE_MQ);
   /** 셸 다시 받기를 이미 한 주소(캐시 키). 표면이 돌아오면 비운다. */
   var refetchKey = null;
   /** 셸 다시 받기를 보내고 스왑을 기다리는 중 — 그 사이 다른 호출이 새로고침으로 넘어가지 않게. */
@@ -61,6 +71,12 @@
     return guard.slice(0, cut) === key && Date.now() - Number(guard.slice(cut + 1)) < RELOAD_GUARD_MS;
   }
 
+  /** 서버가 뺀 표면이 지금 기기 · 창에서 필요한가 — 넓은 창 표면 또는 터치 기기의 생산 쓰기 단추. */
+  function omittedNow() {
+    return (wideMql.matches && !!document.querySelector(OMITTED_SELECTOR)) ||
+      (coarseMql.matches && !!document.querySelector(WRITE_OMITTED_SELECTOR));
+  }
+
   function shellApi() {
     var shell = window.FOMS_ERP_SHELL;
     if (!shell || typeof shell.navigateByShell !== 'function' || typeof shell.isShellFragmentSwapUrl !== 'function') {
@@ -74,7 +90,7 @@
     var shell = shellApi();
     var here = window.location.href;
     var key = shell && typeof shell.getCacheKey === 'function' ? shell.getCacheKey(here) : here;
-    if (!wideMql.matches || !document.querySelector(OMITTED_SELECTOR)) {
+    if (!omittedNow()) {
       // 표면이 필요 없거나 이미 그려져 있다 = 되돌림 불필요·성공 → 되풀이 표식 정리.
       refetchKey = null;
       if (reloadGuard('get')) reloadGuard('remove');
