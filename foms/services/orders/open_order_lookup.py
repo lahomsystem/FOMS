@@ -8,7 +8,8 @@ ERP 주문 · 단계가 완료가 아님. 완료됐는데 AS 가 열린 주문�
 "열린 주문" :mod:`foms.services.cs_agent.order_find` 과 여기만 다르다).
 
 **찾는 축**: 전화(숫자 칸 포함 검색 뒤 번호 조각을 정확히 견줌 — 번호를 두 개 적은 주문도 맞는다),
-또는 주소(도로명 + 건물번호 + 동 · 호). 이름만 같은 것은 치지 않는다(동명이인).
+또는 주소(도로명 + 건물번호 + 동 · 호 — 양쪽 모두 ``N호`` 가 있고 적힌 시 · 구가 같을 때만,
+:func:`foms.services.common.address_query.same_unit_address`). 이름만 같은 것은 치지 않는다(동명이인).
 
 주문 한 줄을 통째로 읽지 않는다 — ``structured_data`` 를 풀면 느려진다. 칸만 고른다.
 """
@@ -18,9 +19,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 
-from foms.services.common.address_query import unit_address_key
+from foms.services.common.address_query import same_unit_address, unit_address_key
 from foms.services.erp_sync_columns import is_placeholder_phone
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.phone_search import normalize_phone_digits, split_phone_pieces
@@ -41,8 +42,11 @@ __all__ = [
 OPEN_ORDER_NOTICE_LIMIT = 3
 #: 생성 기록(``ORDER_CREATED`` payload ``open_order_ids``)에 남기는 번호 수 상한.
 OPEN_ORDER_RECORD_CAP = 20
-#: 완료 단계(옛 한글 값 포함). 이 단계가 아니면 진행 중이다.
-DONE_STAGE_CODES = ("COMPLETED", "AS_COMPLETED", "완료", "AS완료")
+#: 완료 단계(옛 한글 값 · 따옴표가 붙은 옛 값 포함 — :meth:`models.Order.dashboard_active_filter` 와 같은 묶음).
+#: 단계 칸이 빈 옛 주문은 상태 칸이 이 값이면 완료다.
+DONE_STAGE_CODES = (
+    "COMPLETED", "AS_COMPLETED", '"COMPLETED"', '"AS_COMPLETED"', "완료", "AS완료", '"완료"', '"AS완료"',
+)
 
 #: 전화 축 한 번호당 읽는 줄 상한.
 _PHONE_SCAN_CAP = 50
@@ -86,7 +90,13 @@ def _open_orders(exclude_order_id: Optional[int], scope_clause: Any):
     stmt = select(*_COLUMNS).where(
         Order.active_filter(),
         Order.is_erp_order.is_(True),
-        or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(DONE_STAGE_CODES)),
+        or_(
+            Order.erp_stage_code.notin_(DONE_STAGE_CODES),
+            and_(
+                Order.erp_stage_code.is_(None),
+                or_(Order.status.is_(None), Order.status.notin_(DONE_STAGE_CODES)),
+            ),
+        ),
     )
     if exclude_order_id:
         stmt = stmt.where(Order.id != int(exclude_order_id))
@@ -108,15 +118,15 @@ def _by_phone(db: Any, base: Any, phones: tuple[str, ...]) -> list[Any]:
 
 
 def _by_address(db: Any, base: Any, address: Any) -> list[Any]:
-    """같은 집(도로명 + 건물번호 + 동 · 호)의 진행 중 주문. 동 · 호가 없는 주소는 견주지 않는다."""
+    """같은 집의 진행 중 주문. 호수가 없거나 적힌 시 · 구가 다른 주소는 남의 집으로 본다."""
     key = unit_address_key(address)
-    if key is None:
+    if key is None or not same_unit_address(address, address):  # 자기와 견주면 호수가 있는지만 남는다
         return []
     rows = db.execute(
-        base.where(Order.address.contains(key[0]))  # perf-ok: 진행 중 주문만 훑는다(주소 칸 색인 없음)
+        base.where(Order.address.contains(key[0]))  # perf-ok: ix_orders_address_trgm
         .limit(_ADDRESS_SCAN_CAP)
     ).all()
-    return [row for row in rows if unit_address_key(row.address) == key]
+    return [row for row in rows if same_unit_address(address, row.address)]
 
 
 def _matches(
@@ -172,7 +182,7 @@ def find_open_orders_with_more(
         db: DB 세션.
         phone: 고객 전화(하이픈 · 번호 둘 붙임 허용). 자리표시자면 전화 축을 건너뛴다.
         name: 고객 이름. **찾는 데 쓰지 않는다**(이름만 같은 것은 치지 않는다 — M16).
-        address: 고객 주소. 도로명 + 건물번호 + 동 · 호가 다 있어야 주소 축이 돈다.
+        address: 고객 주소. 도로명 + 건물번호 + 호수가 있어야 주소 축이 돈다(적힌 시 · 구가 다른 집은 뺀다).
         exclude_order_id: 빼는 주문 번호(자기 자신 · 자기 초안 줄).
         scope_clause: 보는 사람 범위 SQL 조건(없으면 전체).
         limit: 돌려주는 건수.
@@ -234,6 +244,10 @@ def created_event_payload(db: Any, order: Any, payload: dict[str, Any]) -> dict[
     협력사 · 옛 폼 · 네이버)도 같은 기록을 남긴다. 찾기가 실패해도 주문 생성은 막지 않는다 — 그때는
     열쇠를 넣지 않아 "없었다"(빈 목록)와 "못 셌다"(열쇠 없음)를 가른다.
 
+    찾기는 연결 단계 저장점 안에서 돈다 — PostgreSQL 은 SQL 오류 하나로 트랜잭션 전체가 깨지므로 그 저장점만
+    되돌려 주문 생성을 이어 간다. ``Session.begin_nested()`` 는 저장점을 열기 전에 flush 하므로 쓰지 않는다
+    (초안 승격 길은 바꾼 칸을 아직 flush 하지 않은 채 여기를 부른다).
+
     Args:
         db: 주문을 만드는 세션(자동 flush 없이 읽는다 — 만드는 중인 줄을 중간에 밀어 넣지 않는다).
         order: 방금 만든(또는 승격하는) 주문. ``phone`` · ``address`` · ``id`` 를 읽는다.
@@ -243,7 +257,9 @@ def created_event_payload(db: Any, order: Any, payload: dict[str, Any]) -> dict[
         ``open_order_ids`` 가 더해진 새 dict.
     """
     out = dict(payload)
+    savepoint = None
     try:
+        savepoint = db.connection().begin_nested()
         with db.no_autoflush:
             matches = _matches(
                 db,
@@ -252,8 +268,11 @@ def created_event_payload(db: Any, order: Any, payload: dict[str, Any]) -> dict[
                 exclude_order_id=getattr(order, "id", None),
                 scope_clause=None,
             )
+        savepoint.commit()
         out["open_order_ids"] = [int(row.id) for row, _ in matches[:OPEN_ORDER_RECORD_CAP]]
     except Exception:
+        if savepoint is not None and savepoint.is_active:
+            savepoint.rollback()
         logger.warning(
             "open_order_ids 기록을 건너뜀 order_id=%s", getattr(order, "id", None), exc_info=True
         )
