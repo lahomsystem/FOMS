@@ -1,0 +1,6 @@
+{# 생산 화면 위 줄 알림 종(11-21 사용자 ③, 시안 docs/design/mockups/tablet-production-home-restore-compare.html Ⓑ) — 생산 첫 화면 ·
+   전체 화면 시트가 같이 쓴다. 생산 화면에서는 왼쪽 줄(레일)의 계산기 · 회사 지식 · 알림을 CSS 로 숨기고 종을 여기로 옮긴다.
+   여는 것 · 빨간 숫자는 레일 종과 같은 훅이다(data-foms-notif-open → 알림 시트, data-foms-notif-badge → 공유 미읽음 수,
+   mobile-notification.js — 새 스크립트 · 요청 없음). 보이는 곳은 레일이 보이는 가로 태블릿뿐이다(PC · 폰은 제 위 줄 종을 쓴다).
+   쓰는 값: foms_prod_bell_ns = 'foms-prod-home'(첫 화면) · 'foms-prod-page'(전체 화면 시트) — 그 화면 단추 꼴(__btn)을 쓴다. #}
+<button type="button" class="{{ foms_prod_bell_ns }}__btn {{ foms_prod_bell_ns }}__bell" data-foms-notif-open aria-label="알림" aria-haspopup="dialog" aria-expanded="false" aria-controls="erp-mobile-notification-sheet" title="알림"><i class="fas fa-bell" aria-hidden="true"></i><span class="{{ foms_prod_bell_ns }}__bell-badge" data-foms-notif-badge hidden aria-hidden="true">0</span></button>

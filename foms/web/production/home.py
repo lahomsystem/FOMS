@@ -77,9 +77,9 @@ def _resolve_home_tab(raw, mode: str, surface: bool) -> str:
 
 
 def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
-    """파트 화면 템플릿 값 — 판(없으면 None) · '도면 카드' 탭 · '내 공정' 숨김 · 위 줄 제목 · JS 설정.
+    """파트 화면 템플릿 값 — 판(없으면 None) · [도면 카드로 보기] · '내 공정' 숨김 · 위 줄 제목 · JS 설정.
 
-    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 탭에서만 만든다(표시 줄 읽기 쿼리 +1).
+    판은 파트 계정의 날짜 탭(태블릿) 또는 관리자 · 읽기 전용의 '도면 카드' 화면(?tab=parts)에서만 만든다(표시 줄 읽기 쿼리 +1).
     ``days`` 는 그릴 장만 담은 묶음(``{'panes': [고른 장]}``) — 다른 날 판은 그 날을 누를 때 조각으로 만든다(11-14).
     """
     board = None
@@ -99,7 +99,9 @@ def _part_screen(db, user, tab: str, mode: str, surface: bool, days) -> dict:
         'part_board': board,
         'part_config': config,
         'part_since': since if board is not None else None,
-        'parts_tab': surface and mode in (VIEW_ADMIN, VIEW_READONLY),
+        # 날짜 장 제목 옆 [도면 카드로 보기](11-21 사용자 ② — '도면 카드' 탭을 뺀 자리). 문은 예전 탭과 같고(관리자 · 읽기 전용 +
+        # 터치 기기), 화면 긴 변이 992 미만인 폰(``foms_scr``)은 가로로 돌려도 카드를 못 보니 뺀다. 주소(?tab=parts)는 그대로 열린다.
+        'parts_link': surface and mode in (VIEW_ADMIN, VIEW_READONLY) and wants_wide_only_surfaces(),
         'hide_steps_tab': mode == VIEW_PART,
         'part_title': (board['part_label'], name) if board is not None and mode == VIEW_PART else None,
     }
@@ -150,7 +152,7 @@ def erp_production_home():
     와 같은 답). 협력사 계정은 없다. 금액은 뷰 모델에 싣지 않는다(D7).
 
     생산 파트(설계서 §15.6, P15-5): 파트 계정 + 태블릿이면 날짜 탭의 장에 도면 카드 판을 더 그리고(지금 장은
-    태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 '도면 카드' 탭(``?tab=parts&part=``)으로 본다.
+    태블릿 가로에서만 숨김), 관리자 · 읽기 전용 직원은 태블릿에서 날짜 장 제목 옆 [도면 카드로 보기](``?tab=parts&part=&day=``, 11-21 위 탭에서 뺐다)로 본다.
     파트 계정은 '내 공정' 탭이 없다(D50, 기기 무관).
 
     날짜 · 도면 카드 탭은 고른 날 장 하나만 그린다(11-14, 예전 D5 는 15장을 다 보냈다). 띠 숫자는 모든 날을 센다.

@@ -74,6 +74,11 @@
   cursor: pointer;
 }
 .foms-prod-page__btn svg { font-size: calc(20px * var(--foms-fs, 1)); }
+/* 알림 종(11-21 사용자 ③ — 생산 화면에서는 레일 종이 숨는다) — 가로 태블릿에서 레일이 보일 때만(아래 가로 태블릿 블록). PC · 폰은 숨김. */
+.foms-prod-page__btn.foms-prod-page__bell { display: none; position: relative; width: 56px; padding: 0; }
+.foms-prod-page__bell i { font-size: calc(20px * var(--foms-fs, 1)); }
+.foms-prod-page__bell-badge { position: absolute; top: 7px; right: 9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--fpp-danger); color: #fff; font-size: calc(10px * var(--foms-fs, 1)); font-weight: 700; line-height: 16px; text-align: center; }
+.foms-prod-page__bell-badge[hidden] { display: none; }
 .foms-prod-page__btn:hover, .foms-prod-page__btn:focus-visible { background: var(--fpp-brand-50); color: var(--fpp-brand-dark); text-decoration: none; outline: none; }
 .foms-prod-page__btn--pri { background: var(--fpp-brand); border-color: var(--fpp-brand); color: #fff; }
 .foms-prod-page__btn--pri:hover, .foms-prod-page__btn--pri:focus-visible { background: var(--fpp-brand-dark); border-color: var(--fpp-brand-dark); color: #fff; }
@@ -235,6 +240,13 @@
   .foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 4px; }
   .foms-prod-page__foot { flex-shrink: 0; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--fpp-line); }
   .foms-prod-page__main-btn { padding: 12px 86px; }
+  /* 왼쪽 줄(레일) — 전체 화면 시트에서만 계산기 · 회사 지식 · 알림을 숨기고 종은 위 줄로(11-21 사용자 ③, 생산 첫 화면 home.css ④ 와 같은 규칙).
+     레일 조각은 고치지 않고 이 화면 몸통(.foms-prod-page-wrap)이 있을 때만 :has 로 숨긴다 — 칸은 DOM 에 남아 레일 줄이기 규칙이 그대로다.
+     (이 파일을 같이 싣는 옛 보드 옆 시트에는 이 몸통이 없어 걸리지 않는다.) */
+  body:has(.foms-prod-page-wrap) .foms-tablet-rail__menu > a[href="/wdcalculator"],
+  body:has(.foms-prod-page-wrap) .foms-tablet-rail > .foms-graft-rail,
+  body:has(.foms-prod-page-wrap) .foms-tablet-rail > .foms-tablet-rail__notify { display: none; }
+  body:has(.foms-tablet-rail) .foms-prod-page__btn.foms-prod-page__bell { display: inline-flex; }
 }
 
 /* ── 992px 아래(세로·폰): 위아래로 ── */
