@@ -65,7 +65,7 @@
                     </div>
                   </td>
                   <td data-label="단계"><span class="badge bg-secondary erp-c-stage-badge"
-                      >{{ o.stage }}</span></td>
+                      >{{ o.stage_text or o.stage }}</span></td>
                   <td data-label="현재 작업" class="erp-quest-cell erp-wrap">
                     {% if o.stage == '시공대기' %}
                     <div class="erp-grid-quest-stack">

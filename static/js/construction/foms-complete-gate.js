@@ -6,6 +6,8 @@
  * - 서명: canvas 드로잉 → toBlob(PNG) 업로드 → evidence 등록(kind=signature).
  * - 게이트(after >= 2 AND 서명) 충족 시 [시공 완료] 활성 → 기존 complete API 호출.
  * - document 위임 + __FOMS_CGATE_BOUND 싱글톤 → 셸 프래그먼트 재실행에도 중복 바인딩 없음(G4).
+ * - 나눠 시공(2단계): 서명 칸 아래 "오늘 끝낸 제품" 체크 목록(foms-visit-items.js) · 단추 글 · done_item_uids.
+ *   나눠 시공하는 주문이 아니면 목록이 없고 창이 지금과 같다.
  */
 (function () {
   'use strict';
@@ -16,6 +18,29 @@
   window.__FOMS_CGATE_BOUND = true;
 
   var SHEET_SEL = '[data-foms-cgate-sheet]';
+  var BASE_LABEL = '시공 완료';
+
+  // 단추 글 — 체크 목록이 있으면 고른 것에 따라 [시공 완료] / "오늘 시공 끝 — 남은 제품 N개".
+  function refreshLabel(sheet) {
+    var btn = sheet.querySelector('[data-foms-cgate-complete]');
+    if (btn) {
+      btn.textContent = window.FomsVisitItems ? window.FomsVisitItems.buttonLabel(sheet, BASE_LABEL) : BASE_LABEL;
+    }
+  }
+
+  function mountVisitItems(sheet, orderId) {
+    var api = window.FomsVisitItems;
+    if (!api) {
+      return;
+    }
+    api.load(orderId).then(function (d) {
+      if (!d || sheet.getAttribute('data-order-id') !== String(orderId)) {
+        return;
+      }
+      api.render(sheet, sheet.querySelector('.foms-cgate-sign'), d, function () { refreshLabel(sheet); });
+      refreshLabel(sheet);
+    });
+  }
 
   function getSheet() {
     return document.querySelector(SHEET_SEL);
@@ -59,6 +84,7 @@
     if (btn) {
       btn.disabled = !(after >= 2 && signed);
     }
+    refreshLabel(sheet);
   }
 
   function applyEvidence(sheet, ev) {
@@ -81,6 +107,9 @@
   }
 
   function resetSheet(sheet) {
+    if (window.FomsVisitItems) {
+      window.FomsVisitItems.remove(sheet);
+    }
     ['before', 'after'].forEach(function (kind) {
       var thumbs = sheet.querySelector('[data-foms-cgate-thumbs="' + kind + '"]');
       if (thumbs) {
@@ -136,6 +165,7 @@
         }
       })
       .catch(function () { /* 시딩 실패는 무시: 0부터 시작 */ });
+    mountVisitItems(sheet, orderId);
   }
   // 기존 .erp-construction-action 위임(construction/partials/scripts.html)이 호출한다.
   window.openCompleteGate = openSheet;
@@ -279,19 +309,29 @@
       btn.disabled = true;
     }
     setError(sheet, '');
+    var body = { completion_note: note };
+    var doneRefs = window.FomsVisitItems ? window.FomsVisitItems.selected(sheet) : null;
+    if (doneRefs) {
+      body.done_item_uids = doneRefs;
+    }
     mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/complete', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completion_note: note })
+      body: JSON.stringify(body)
     }).then(function (result) {
       if (!result.ok) {
+        // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)도 서버 글 그대로.
         setError(sheet, result.message || '완료 처리에 실패했습니다.');
         if (btn) { btn.disabled = false; }
         return;
       }
       closeSheet();
-      window.location.reload();
+      // 부분 방문(오늘 시공 끝)이면 짧은 알림을 보인 뒤, 아니면 곧바로 다시 읽는다.
+      var payload = result.data && result.data.data;
+      var api = window.FomsVisitItems;
+      var wait = (api && api.notifyVisit(payload)) ? api.TOAST_WAIT_MS : 0;
+      setTimeout(function () { window.location.reload(); }, wait);
     });
   }
 

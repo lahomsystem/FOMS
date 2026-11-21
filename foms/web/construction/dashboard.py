@@ -31,6 +31,7 @@ from foms.services.erp_permissions import (
 )
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.orders.construction_dates import attach_remaining_construction_notes
+from foms.services.orders.item_construction_view import annotate_split_rows, split_production_candidate_ids
 from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
@@ -68,6 +69,14 @@ from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
+
+
+def _split_ids(query: Any, f_stage: str, cons_tablet: dict[str, Any]) -> list[int]:
+    """PC · 폰 목록(단계 미선택)에 더할 나눠 시공 생산 단계 주문 번호(2단계). 태블릿 가로 화면은 첫 화면 ·
+    상세가 생산 단계 집을 따로 실으므로(``keep_production``) 묻지 않는다 — 쿼리 수 그대로."""
+    if f_stage or cons_tablet.get("mode"):
+        return []
+    return split_production_candidate_ids(query)
 
 
 @erp_construction_page_bp.route("/construction/dashboard")
@@ -166,7 +175,9 @@ def erp_construction_dashboard():
         page = 1
     elif f_q:
         # 검색도 시공 단계로 선스코프(전 단계) 후 검색 — 페이지네이션이 시공 주문 위에서 동작.
-        list_query = apply_construction_list_scope_filter(query, f_stage)
+        # 나눠 시공하는 생산 단계 주문(남은 제품 · 오늘 이후 시공일)도 단계 미선택 뷰에 더한다(2단계, 스위치 안).
+        split_ids = _split_ids(query, f_stage, cons_tablet)
+        list_query = apply_construction_list_scope_filter(query, f_stage, split_ids)
         list_query = apply_construction_search_filter(list_query, f_q)
         with phase("list_query"):
             page, total_pages, total_orders, orders = paginate_construction_orders(
@@ -181,7 +192,8 @@ def erp_construction_dashboard():
         # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
         # 페이지네이션이 시공 주문 위에서 동작(전체 60일 활성 리스트 newest-N에 시공 주문이
         # 없어 board가 0건 되던 회귀의 근본 차단). 단계 칩 선택 시 해당 단계로 좁혀진다.
-        list_query = apply_construction_list_scope_filter(query, f_stage)
+        split_ids = _split_ids(query, f_stage, cons_tablet)
+        list_query = apply_construction_list_scope_filter(query, f_stage, split_ids)
         with phase("list_query"):
             page, total_pages, total_orders, orders = paginate_construction_orders(
                 list_query,
@@ -236,6 +248,8 @@ def erp_construction_dashboard():
     with phase("row_dtos"):
         enriched = build_construction_row_dtos(orders, att_counts, f_stage, keep_production=bool(cons_tablet["mode"]))
         annotate_rows(enriched)
+        # 나눠 시공 줄(2단계): 생산 단계 줄 단추 · "생산 · 부분 시공" · "부분 시공 · 남은 11/17" · 완료 창이 고를 날.
+        annotate_split_rows(enriched, visit_date=(cons_tablet.get("detail") or {}).get("date") or None)
         attach_remaining_construction_notes(enriched)  # [시공 완료] 확인 창의 "남은 시공" 한 줄
 
     if f_q or focus_order_id:

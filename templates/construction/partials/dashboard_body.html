@@ -195,7 +195,10 @@
      작업 모드는 늦게 실려도 곧바로 초기화(readyState)하므로 data-foms-run-once 로 문서당 한 번만 실행한다.
      scripts.html(dashboard.js) 뒤에 두어 온전한 페이지의 실행 순서(dashboard.js → 이 셋)를 지킨다.
      foms-packing.js 는 출고 탭 shipment-entry.js CHAIN 과 같은 핀 — 캐시 한 벌, 두 번째 실행은 싱글턴이 막는다. #}
-  <script data-foms-run-once src="{{ url_for('static', filename='js/construction/foms-complete-gate.js') }}?v=20261121b" defer></script>
+  {# 나눠 시공(2단계) "오늘 끝낸 제품" 체크 목록 — 태블릿 · 폰 완료 준비 창(foms-complete-gate.js)과 PC 완료 창(dashboard.js)이 함께 쓴다.
+     나눠 시공하는 주문이 아니면 아무것도 그리지 않는다. #}
+  <script data-foms-run-once src="{{ url_for('static', filename='js/construction/foms-visit-items.js') }}?v=20261121m" defer></script>
+  <script data-foms-run-once src="{{ url_for('static', filename='js/construction/foms-complete-gate.js') }}?v=20261121m" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/foms/tablet-construction-workmode.js') }}?v=20261119a" defer></script>
   <script data-foms-run-once src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20261019a" defer></script>
 </div>
