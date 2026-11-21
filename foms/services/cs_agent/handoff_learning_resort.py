@@ -5,8 +5,11 @@
 (:func:`.handoff_learning_gates.new_or_card`)과 같은 판정으로 그때 카드를 한 번 다시 가른다:
 
 - **숫자**: 이름 · 글의 숫자 조각이 회사 지식 · 근거 상담의 직원 답에 그대로 있어야 한다(없으면 카드로 둔다).
-- **부딪침**: 그 카드가 가리키는 항목 + 가까운 승인 지식과 두 순서로 판정(:func:`foms.services.brain.ai_gates.conflict_gate`) —
-  부딪치면 카드로 둔다. 판정을 못 하면(꺼짐 · 돈 상한 · 오류) 이번 바퀴는 멈추고 다음 바퀴에 다시 한다.
+- **부딪침**: 그 카드가 가리키는 항목 + 가까운 승인 지식에 더함인가 부딪침인가(:func:`.handoff_learning_judge.differs_verdict`
+  — 밤 배우기와 같은 판정자 · 학습 돈 줄) — 부딪치거나 한 번 부르기가 실패하면 카드로 둔다. 부를 수 없으면(돈 상한 · 준비 안 됨)
+  이번 바퀴는 멈추고 다음 바퀴에 다시 한다.
+- **판 2(11-21)**: 판 1 은 공용 부딪침 관문(보조 모델 · 두 순서 가운데 하나라도)으로 갈라 첫 바퀴 16장을 모두 부딪침으로 봤다 —
+  판이 바뀌면 가른 표를 비우고 처음부터 다시 가른다.
 - 부딪치지 않으면 **새 지식**(사실 · 정책 — 글이 응대 절차면 정책)으로 넣고 바로 반영한 뒤 카드를 '합쳐짐'으로 닫는다(감사
   ``BRAIN_MERGE``). 같은 말을 한 카드가 여럿이면 처음 것만 새 지식이 되고 나머지는 그 지식에 합쳐 닫는다. 지식에 이미 아주
   비슷한 글이 있으면(같음 관문) 넣지도 닫지도 않는다(조금 다른 값이 묻힐 수 있어 사람이 본다).
@@ -29,8 +32,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.persistence.brain.models import BrainChange
-from foms.services.brain.ai_gates import FAIL, UNAVAILABLE, conflict_gate
-from foms.services.brain.constants import OP_UPDATE
 from foms.services.brain.errors import BrainError as BrainStoreError
 from foms.services.brain.photo_cards import ABOUT_PREFIX
 from foms.services.brain.proposals import Proposer, after_values, known_text
@@ -41,11 +42,11 @@ from foms.services.cs_agent.handoff_learning import auto_learn
 from foms.services.cs_agent.handoff_learning_gates import (
     AGENT, CARD_PREFIX, DUP_SIMILARITY, MAX_TITLE, _card_rows, _filer, _numbers_ok, _store_code, apply_now, close_cards, seen_proposals,
 )
+from foms.services.cs_agent.handoff_learning_judge import ADDS, CONTRADICTS, UNAVAILABLE, differs_verdict
 from foms.services.cs_agent.handoff_learning_prompt import knowledge_rows
 from foms.services.cs_agent.knowledge import load_approved
 from foms.services.cs_agent.learning_brain import off_reason
 from foms.services.cs_agent.send import SEND_BRAND
-from foms.services.cs_agent.state import KST
 from models import CsAgentTurn, SystemSetting
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["PER_TICK", "RESORT_POLICY", "STORE_KEY", "resort_cards"]
 
 STORE_KEY = "cs_agent_card_resort"
-RESORT_POLICY = 1
+RESORT_POLICY = 2
 PER_TICK = 16
 REASON = "넘긴 상담 배우기 · 지금 지식과 부딪치지 않는 새 내용 — 엇갈림 카드에서 새 지식으로 옮김(사장님 11-21)"
 #: 응대 절차 글(무엇을 묻고 · 안내하고 · 넘기는지)이면 정책, 아니면 사실(지시문 3번과 같은 가름).
@@ -84,10 +85,11 @@ def _row(session: Any) -> Any:
 
 
 def _save(session: Any, doc: dict[str, Any]) -> None:
-    """잠가 다시 읽은 줄에 쓰고 커밋한다(가른 id 는 앞 값과 합친다)."""
+    """잠가 다시 읽은 줄에 쓰고 커밋한다(가른 id 는 같은 판의 앞 값과 합친다)."""
     row = _row(session)
     old = _doc(row)
-    row.setting_value = {**doc, "checked": sorted({*old["checked"], *doc["checked"]})}
+    before = old["checked"] if old["policy"] == doc["policy"] else []
+    row.setting_value = {**doc, "checked": sorted({*before, *doc["checked"]})}
     flag_modified(row, "setting_value")
     session.commit()
 
@@ -128,11 +130,10 @@ def _one(session: Any, card: tuple[int, str, str, str, list[Any]], ctx: dict[str
     replies = _replies(session, evidence)
     if not _numbers_ok([title, text], ctx["known"], replies):
         return "numbers"
-    verdict = conflict_gate(session, op=OP_UPDATE, key=target, item_type=_kind(text), texts=[title, text],
-                            today=now.astimezone(KST).date(), brand=SEND_BRAND)
+    verdict = differs_verdict(session, target_key=target, title=title, text=text, cfg=ctx["cfg"], now=now)
     session.commit()  # 판정자 부르기가 연 트랜잭션을 닫는다
-    if verdict in (FAIL, UNAVAILABLE):
-        return "conflict" if verdict == FAIL else "unavailable"
+    if verdict != ADDS:
+        return {CONTRADICTS: "conflict", UNAVAILABLE: "unavailable"}.get(verdict, "judge_failed")
     allowed = "\n".join([ctx["known"], *(one for said in replies.values() for one in said)])
     common = dict(reason=REASON, proposer=Proposer.agent_named(AGENT), now=naive_utc(now), known=allowed,
                   evidence=[e for e in evidence if not (isinstance(e, str) and e.startswith(ABOUT_PREFIX))])
@@ -162,6 +163,8 @@ def resort_cards(session: Any, *, now: datetime.datetime) -> dict[str, Any]:
         return {"off": off}
     doc = _doc(_row(session))
     session.commit()
+    if doc["policy"] < RESORT_POLICY:  # 판이 바뀌었다 — 가른 표를 비우고 처음부터(모듈 설명)
+        doc = {"policy": RESORT_POLICY, "until": None, "checked": [], "done": False}
     if doc["done"] and doc["policy"] >= RESORT_POLICY:
         return {"off": "done"}
     auto = auto_learn(session, cfg)
@@ -175,7 +178,7 @@ def resort_cards(session: Any, *, now: datetime.datetime) -> dict[str, Any]:
     todo = [card for card in cards if card[0] <= doc["until"] and card[0] not in seen_ids]
     rows = knowledge_rows(session)
     approved_cs = [item.text for item in load_approved(session, SEND_BRAND).items]
-    ctx = {"now": now, "auto": auto, "known": "\n".join([known_text(session), *approved_cs]),
+    ctx = {"now": now, "auto": auto, "cfg": cfg, "known": "\n".join([known_text(session), *approved_cs]),
            "approved": [row.text for row in rows if row.text] + approved_cs,
            "seen": [s for s in seen_proposals(session) if not str(s[1] or "").startswith(CARD_PREFIX)], "moved": []}
     session.commit()
