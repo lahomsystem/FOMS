@@ -119,13 +119,15 @@ def test_change_ack_allowed_for_production_team(client):
     assert resp.get_json()["success"] is True
 
 
-def test_change_ack_allowed_for_sales_team(client):
+def test_change_ack_refused_for_sales_team(client):
+    """영업은 생산 화면을 보기만 한다(설계서 2026-11-21-production-pc-viewer §13 결정 2) — 변경 확인도 쓰기 API 아홉 중 하나라 403."""
     user = _make_user("ack_sales", role="STAFF", team="SALES")
     _login(client, user)
     order_id = _make_order().id
     resp = client.post(f"/api/orders/{order_id}/production/change-ack")
-    assert resp.status_code == 200
-    assert resp.get_json()["success"] is True
+    assert resp.status_code == 403
+    assert resp.get_json()["success"] is False
+    assert db_session.query(OrderEvent).filter_by(order_id=order_id, event_type="PRODUCTION_CHANGE_ACK").count() == 0
 
 
 def test_change_ack_missing_order_404(client):

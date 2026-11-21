@@ -43,8 +43,8 @@
         {% set task_action = None %}
         {% set task_actions = None %}
         {# 되돌리기 액션(수정 제작·제작 취소·완료 취소)은 서버 술어와 같은 조건에서만 그린다
-           — can_act_production = ADMIN 또는 team capability CS/SALES/PRODUCTION
-           (foms/api/production/orders.py 의 _PRODUCTION_STEPS_EDIT_TEAMS 와 같은 답). #}
+           — can_act_production = 관리자 또는 생산팀(foms/services/production/write_access.py 의
+           can_write_production, 생산 쓰기 API 와 같은 답). #}
         {% set _can_prod = can_act_production|default(false) %}
         {% set _gate_slot = None %}
         {% if o.stage == '제작대기' and o.is_sales_approved and o.production_start_blocked %}

@@ -60,9 +60,13 @@ def test_accounting_team_has_the_same_capabilities_as_cs() -> None:
     ) == "sales"
 
     accounting_staff = SimpleNamespace(id=1, role="STAFF", team="ACCOUNTING")
-    for policy_id in ("ERP_EDIT", "PRODUCTION_EDIT", "CONSTRUCTION_EDIT", "SHIPMENT_EDIT",
+    for policy_id in ("ERP_EDIT", "CONSTRUCTION_EDIT", "SHIPMENT_EDIT",
                       "PACKING_WRITE", "WDC_ESTIMATE", "FINANCE_MUTATION"):
         assert evaluate_policy(POLICY_REGISTRY[policy_id], accounting_staff).allowed, policy_id
+    # 생산 쓰기는 CS 와 함께 회계도 뺐다(설계서 2026-11-21-production-pc-viewer §13 결정 2) — 둘이 같은 답이다.
+    cs_like = SimpleNamespace(id=3, role="STAFF", team="CS")
+    for person in (accounting_staff, cs_like):
+        assert not evaluate_policy(POLICY_REGISTRY["PRODUCTION_EDIT"], person).allowed
 
     # 반대 방향으로는 안 흐른다 — CS 는 회계 전용(정산) 권한을 얻지 않는다.
     cs_staff = SimpleNamespace(id=2, role="STAFF", team="CS")
