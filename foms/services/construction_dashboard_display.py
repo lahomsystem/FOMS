@@ -20,6 +20,7 @@ from foms.services.erp_mobile_order_display import (
 )
 from foms.services.estimate_service import build_measurement_manager_phone_map
 from foms.services.orders.board_state_display import construction_display_stage as _display_stage_for_order
+from foms.services.orders.item_construction_view import production_split_listed
 from foms.services.orders.manager_names import manager_label_from_parties
 from foms.services.orders.schedule_row_kind import row_is_as
 from foms.services.production_dashboard_display import (
@@ -450,7 +451,8 @@ def build_construction_row_dtos(orders, att_counts, f_stage, *, keep_production=
         display_stage = _display_stage_for_order(order, structured_data)
         if keep_production and row_is_as(order):
             display_stage = 'AS 방문'
-        elif not display_stage and keep_production and str(order.erp_stage_code or '').strip().upper() in ('PRODUCTION', '생산'):
+        elif not display_stage and (keep_production and str(order.erp_stage_code or '').strip().upper() in ('PRODUCTION', '생산')
+                                    or production_split_listed(order, structured_data)):  # 나눠 시공 생산 줄(2단계)
             display_stage = '생산중'
         if not display_stage:
             continue
@@ -458,9 +460,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage, *, keep_production=
             continue
 
         alerts = _erp_alerts(order, structured_data, att_counts.get(order.id, 0))
-        workmode_product_label, workmode_spec_display = _workmode_display_fields(
-            structured_data
-        )
+        workmode_product_label, workmode_spec_display = _workmode_display_fields(structured_data)
         enriched.append(
             {
                 "id": order.id,

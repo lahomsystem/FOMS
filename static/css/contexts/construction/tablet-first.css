@@ -328,4 +328,8 @@
     font-weight: 700;
     color: var(--foms-text-secondary, #4a515b);
   }
+  /* 나눠 시공 생산 단계 집(2단계) — 단추 위 한 줄을 액션 바 한 줄 전체로. */
+  body.erp-mobile-v2-layout .foms-cwork-actionbar > .foms-cwork-note--split {
+    flex-basis: 100%;
+  }
 }

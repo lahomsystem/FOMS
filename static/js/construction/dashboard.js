@@ -474,10 +474,36 @@
     const progressWrap = document.getElementById('erp-cons-complete-progress');
     if (progressWrap) progressWrap.classList.add('d-none');
     const modalEl = document.getElementById('erpConstructionCompleteModal');
+    mountCompleteVisitItems(modalEl, orderId);
     if (modalEl) {
       const modal = new bootstrap.Modal(modalEl);
       modal.show();
     }
+  }
+
+  // 나눠 시공(2단계): 완료 창에 "오늘 끝낸 제품" 체크 목록 · 단추 글(foms-visit-items.js). 나눠 시공이 아니면 그대로.
+  var COMPLETE_BTN_HTML = '<i class="fas fa-check"></i> 완료 처리';
+  function refreshCompleteBtnLabel(modalEl) {
+    const btn = document.getElementById('erp-cons-complete-btn');
+    if (!btn || !window.FomsVisitItems) return;
+    const label = window.FomsVisitItems.buttonLabel(modalEl, '');
+    if (label) btn.textContent = label;
+    else btn.innerHTML = COMPLETE_BTN_HTML;
+  }
+
+  function mountCompleteVisitItems(modalEl, orderId) {
+    const api = window.FomsVisitItems;
+    if (!api || !modalEl) return;
+    api.remove(modalEl);
+    refreshCompleteBtnLabel(modalEl);
+    api.load(orderId).then(function (d) {
+      const idEl = document.getElementById('erp-cons-complete-order-id');
+      if (!d || !idEl || idEl.value !== String(orderId)) return;
+      api.render(modalEl, document.getElementById('erp-cons-complete-remaining'), d, function () {
+        refreshCompleteBtnLabel(modalEl);
+      });
+      refreshCompleteBtnLabel(modalEl);
+    });
   }
 
   // 시공 불가 사유 4종(서버 화이트리스트와 같은 코드·순서).
@@ -634,18 +660,23 @@
 
     const noteEl = document.getElementById('erp-cons-complete-note');
     const noteValue = (noteEl && noteEl.value) ? String(noteEl.value).trim() : '';
+    const completeBody = { completion_note: noteValue };
+    const doneRefs = window.FomsVisitItems
+      ? window.FomsVisitItems.selected(document.getElementById('erpConstructionCompleteModal'))
+      : null;
+    if (doneRefs) completeBody.done_item_uids = doneRefs;
 
     try {
       const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completion_note: noteValue })
+        body: JSON.stringify(completeBody)
       });
       let data = await res.json();
       if (!data.success) {
         const again = await askAdminOverride(
           `/api/orders/${orderId}/construction/complete`,
-          { completion_note: noteValue },
+          completeBody,
           data,
           describeCompleteGateMissing(data) ? 'EVIDENCE_MISSING' : ''
         );
@@ -657,12 +688,18 @@
           const modal = bootstrap.Modal.getInstance(modalEl);
           if (modal) modal.hide();
         }
+        // 부분 방문(오늘 시공 끝)이면 짧은 알림 뒤에 같은 길로 다시 읽는다.
+        if (window.FomsVisitItems && window.FomsVisitItems.notifyVisit(data.data)) {
+          setTimeout(function () { window.location.href = '/erp/construction/dashboard'; }, window.FomsVisitItems.TOAST_WAIT_MS);
+          return;
+        }
         window.location.href = '/erp/construction/dashboard';
       } else {
         // 요건 미충족이면 "무엇이 없어서 막혔는지" 를 사람 말로 붙이고, 곧바로 채울 수 있는
         // 길(완료 준비 시트)을 준다 — 코드만 보여 주는 막다른 길을 만들지 않는다.
         const missingText = describeCompleteGateMissing(data);
-        let html = '<span class="text-danger">오류: ' + esc(data.message);
+        // 나눠 시공 거절(DONE_ITEMS_REQUIRED · PRODUCTION_NOT_DONE · ITEMS_CONSTRUCTION_OPEN)은 error 칸에 글이 올 수 있다.
+        let html = '<span class="text-danger">오류: ' + esc((data && (data.message || data.error)) || '완료 처리에 실패했습니다.');
         if (missingText) html += ' — ' + esc(missingText);
         html += '</span>';
         if (missingText && typeof window.openCompleteGate === 'function') {

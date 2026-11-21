@@ -6,9 +6,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Sequence
 
-from sqlalchemy import and_, bindparam, case as sql_case, text
+from sqlalchemy import and_, bindparam, case as sql_case, or_, text
 from sqlalchemy.orm import Query
 
 from models import Order
@@ -57,7 +57,7 @@ def apply_construction_stage_sql_filter(query: Query, f_stage: str) -> Query:
     return query
 
 
-def apply_construction_list_scope_filter(query: Query, f_stage: str) -> Query:
+def apply_construction_list_scope_filter(query: Query, f_stage: str, extra_ids: Sequence[int] = ()) -> Query:
     """시공 대시보드 리스트를 시공 표시단계로 SQL 선(先)스코프한다(페이지네이션 정합).
 
     근본 원인: 단계 미선택 기본 뷰가 전체 60일 활성 리스트(모든 워크플로 단계)의
@@ -77,12 +77,18 @@ def apply_construction_list_scope_filter(query: Query, f_stage: str) -> Query:
         f_stage: 명시 단계('' 또는 시공대기/시공중/시공완료). 값이 있으면 그 단계로 좁히고,
             없으면(기본 뷰·검색) 전 시공 단계로 스코프한다.
 
+        extra_ids: 단계 미선택 뷰에 더할 주문 번호 — 나눠 시공하는 생산 단계 주문(2단계,
+            ``item_construction_view.split_production_candidate_ids``). 비면 지금과 같은 SQL.
+
     Returns:
         Query: 시공 단계로 스코프된 리스트 쿼리.
     """
     if f_stage:
         return apply_construction_stage_sql_filter(query, f_stage)
-    return query.filter(Order.erp_stage_code.in_(CONSTRUCTION_ALL_STAGE_CODES))
+    stage_clause = Order.erp_stage_code.in_(CONSTRUCTION_ALL_STAGE_CODES)
+    if extra_ids:
+        return query.filter(or_(stage_clause, Order.id.in_(list(extra_ids))))
+    return query.filter(stage_clause)
 
 
 def compute_construction_kpis_and_badges(query: Query) -> tuple[dict[str, dict[str, int]], dict[str, int]]:

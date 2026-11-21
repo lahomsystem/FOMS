@@ -225,7 +225,7 @@ ERP Order mobile-v2 tab pane.
                         <div class="erp-mobile-section-head">
                             <h3 class="erp-form-section__title"><i class="fas fa-ruler-combined erp-sec-ico" aria-hidden="true"></i>현장 스펙</h3>
                         </div>
-                        <div id="erp-items" class="erp-items-mobile-stack"></div>
+                        {% set _icd = item_construction_done_view(order, current_user if current_user is defined else none) if (order is defined and order) else none %}<div id="erp-items" class="erp-items-mobile-stack"{% if _icd %} data-item-construction-done='{{ _icd|tojson }}'{% endif %}></div>
                         <button class="foms-btn foms-btn--secondary erp-mobile-add-item-btn" type="button" id="erp-add-item-btn">
                             <i class="fas fa-plus"></i> 항목 추가
                         </button>

@@ -424,7 +424,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </aside>
                             <main class="item-detail foms-page-form" aria-label="선택 항목 편집">
                                 <div class="item-detail__scroll">
-                                    <div id="erp-items"></div>
+                                    {% set _icd = item_construction_done_view(order, current_user if current_user is defined else none) if (order is defined and order) else none %}<div id="erp-items"{% if _icd %} data-item-construction-done='{{ _icd|tojson }}'{% endif %}></div>
                                 </div>
                                 <footer class="item-detail__foot">
                                     <div class="item-detail__kbd" aria-label="키보드 단축키 안내">
