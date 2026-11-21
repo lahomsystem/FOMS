@@ -6,13 +6,17 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 
+from sqlalchemy import update
+
+import foms.api.construction.visit_fail as visit_fail
 from db import db_session
 from foms.services.auth.freelancer_order_rights import OWN_ORDER_ENDPOINTS
 from foms.services.orders.item_construction_done import DONE_KEY
 from foms.services.orders.state_axes import read_main_stage
-from models import OrderAttachment, OrderConstructionAttempt, OrderEvent, SecurityLog
+from models import Order, OrderAttachment, OrderConstructionAttempt, OrderEvent, SecurityLog
 from tests.domains.test_item_construction_done_api import (  # noqa: F401 - visit_history 는 준비물
     FIRST_DAY, UID_A, UID_B, UID_C, _TODAY, _attempts, _events, _fresh, _login, _make_order, _seed_evidence,
     _set_stage, _start, visit_history,
@@ -222,3 +226,55 @@ def test_freelancer_reads_visit_items_of_own_order_only(app):
     browser = _client(app, fl)
     assert browser.get(f"/api/orders/{own}/construction/visit-items").status_code == 200
     assert browser.get(f"/api/orders/{other}/construction/visit-items").status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# 최종 검수 F-B2 · F-B4 · F-B5 — 잠근 뒤 판정 · 스위치 꺼짐
+# --------------------------------------------------------------------------- #
+def test_evidence_register_writes_on_top_of_the_latest_row(client):
+    """[증빙 등록]은 잠근 최신 행 위에 쓴다 — 다른 창이 막 커밋한 시공 끝 표시 · history 를 지우지 않는다(F-B2)."""
+    _login(client)
+    oid = _make_order("CONSTRUCTION")
+    att = _attachment(oid, "after1.jpg")
+    db_session.remove()
+    stale = db_session.query(Order).filter_by(id=oid).first()  # 낡은 값이 identity map 에 남는다
+    newer = copy.deepcopy(stale.structured_data)
+    newer[DONE_KEY] = {UID_A: {"date": FIRST_DAY, "source": "visit"}}
+    newer["workflow"]["history"] = [{"stage": "CONSTRUCTION", "note": "부분 시공 끝 (화장대)"}]
+    db_session.execute(update(Order).where(Order.id == oid).values(structured_data=newer)
+                       .execution_options(synchronize_session=False))
+    assert DONE_KEY not in stale.structured_data
+
+    assert _evidence(client, oid, "after", att).status_code == 200
+    sd = _fresh(oid).structured_data
+    assert set(sd[DONE_KEY]) == {UID_A}
+    assert sd["workflow"]["history"][-1]["note"] == "부분 시공 끝 (화장대)"
+    assert sd["construction"]["evidence"]["after"] == [att]
+
+
+def test_visit_fail_rechecks_under_lock_and_writes_nothing_when_closed(client, monkeypatch):
+    """잠그기 전엔 열린 방문으로 보였어도 잠근 뒤 아니면 409 — 그사이 닫힘 · 단계 바뀜(F-B4)."""
+    monkeypatch.setattr(visit_fail, "production_visit_fail_applies", lambda *a, **k: True)
+    _login(client)
+    closed = _make_order("PRODUCTION")  # 열린 방문 줄이 없다
+    moved = _make_order("CONSTRUCTION")  # 단계가 시공으로 넘어갔다
+    db_session.add(OrderConstructionAttempt(order_id=moved, status="IN_PROGRESS", is_current=True,
+                                            evidence={"before": [], "after": []}))
+    db_session.commit()
+    for oid in (closed, moved):
+        resp = client.post(f"/api/orders/{oid}/construction/fail", json={"reason": "site_issue"})
+        assert resp.status_code == 409, oid
+        assert resp.get_json()["code"] == "VISIT_NOT_OPEN"
+        assert "construction_fail_history" not in _fresh(oid).structured_data
+        assert _events(oid, "CONSTRUCTION_REWORKED") == 0
+    assert _attempts(moved)[0].status == "IN_PROGRESS"
+
+
+def test_undo_is_404_when_flag_off(client, monkeypatch):
+    """스위치가 꺼지면 되돌리기 문도 없다(F-B5) — 표시는 그대로."""
+    monkeypatch.setenv("FOMS_ITEM_CONSTRUCTION_DONE_ENABLED", "0")
+    _login(client, team="CS")
+    oid = _make_order("CONSTRUCTION", extra={DONE_KEY: {UID_A: {"date": FIRST_DAY, "source": "visit"}}})
+    resp = client.post(f"/api/orders/{oid}/items/{UID_A}/construction-done/undo", json={"reason": "잘못 눌렀어요"})
+    assert resp.status_code == 404 and resp.get_json()["code"] == "FEATURE_OFF"
+    assert set(_fresh(oid).structured_data[DONE_KEY]) == {UID_A}

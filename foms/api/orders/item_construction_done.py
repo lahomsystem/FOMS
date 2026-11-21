@@ -26,6 +26,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import normalize_security_detail
+from foms.services.feature_flags import is_item_construction_done_enabled
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.construction_visit import names_for_uids
 from foms.services.orders.item_construction_done import remove_done_mark
@@ -49,6 +50,7 @@ _ERR_NOT_DONE = "시공 끝 표시가 없는 제품이에요."
 _ERR_STAGE = "생산 · 시공 단계 주문만 되돌릴 수 있어요."
 _ERR_IF_MATCH = "If-Match 형식이 올바르지 않습니다."
 _ERR_SERVER = "시공 끝 표시를 되돌리지 못했어요."
+_ERR_FEATURE_OFF = "지금은 쓸 수 없는 기능이에요."
 
 
 class _UndoRejected(Exception):
@@ -89,6 +91,9 @@ def _add_audit(sess: Any, *, order: Order, user_id: Any, uid: str, name: str, re
 
 def item_construction_done_undo_response(order_id: int, uid: str) -> Any:
     """제품 하나의 '시공 끝' 표시를 지운다. 실패하면 아무것도 바꾸지 않는다."""
+    # 스위치가 꺼지면 이 기능은 없는 것과 같다(지금과 같게) — 되돌리기 문도 열지 않는다.
+    if not is_item_construction_done_enabled():
+        return _fail(_ERR_FEATURE_OFF, 404, code="FEATURE_OFF")
     user = getattr(g, "current_user", None)
     decision = evaluate_policy(POLICY_REGISTRY[ITEM_CONSTRUCTION_DONE_UNDO_POLICY_ID], user)
     if not decision.allowed:
