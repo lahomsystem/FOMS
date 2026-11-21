@@ -5,12 +5,15 @@
 PC 주문 폼의 초안 승격.
 
 완료 기준: PC 승격 · 마법사 · 옛 폼 · ``create_order`` 직접 호출 모두 기록 · 자기 자신과 남의 초안 줄은 안 셈 ·
-걸린 주문이 없으면 빈 목록 · 찾기가 실패해도 주문은 만들어지고 열쇠만 빠짐.
+걸린 주문이 없으면 빈 목록 · 찾기가 실패해도 주문은 만들어지고 열쇠만 빠짐 · SQL 오류는 찾기의 저장점만 되돌림 ·
+찾기가 만드는 중인 줄을 flush 하지 않음.
 """
 
 from __future__ import annotations
 
 import json
+
+from sqlalchemy import event, text
 
 from db import db_session
 from foms.services.orders import open_order_lookup
@@ -143,3 +146,78 @@ def test_lookup_failure_never_blocks_creation(app, monkeypatch):
 
     event = db_session.query(OrderEvent).filter_by(order_id=order.id, event_type=_CREATED).one()
     assert event.payload == {"owner_user_id": owner.id, "status": "RECEIVED"}, "못 셌으면 열쇠를 넣지 않는다"
+
+
+def _savepoint_calls(engine):
+    """연결 단계 저장점 신호(열기 · 되돌리기 · 풀기)를 센다."""
+    calls: list[str] = []
+    listeners = {
+        "savepoint": lambda conn, name: calls.append("savepoint"),
+        "rollback_savepoint": lambda conn, name, context: calls.append("rollback_savepoint"),
+        "release_savepoint": lambda conn, name, context: calls.append("release_savepoint"),
+    }
+    for name, fn in listeners.items():
+        event.listen(engine, name, fn)
+    return calls, listeners
+
+
+def test_db_error_inside_lookup_rolls_back_only_its_savepoint(app, monkeypatch):
+    owner = _make_user("c7_sql_error_owner", role="STAFF", team="SALES")
+    engine = db_session.get_bind()
+
+    def broken_query(db, *_args, **_kwargs):
+        db.execute(text("select * from c3_no_such_table"))  # 진짜 SQL 오류
+        return []
+
+    monkeypatch.setattr(open_order_lookup, "_by_phone", broken_query)
+    calls, listeners = _savepoint_calls(engine)
+    try:
+        order = create_order(
+            db_session, actor_user_id=owner.id, owner_user_id=owner.id, is_erp_order=False,
+            order_fields=dict(received_date="2026-11-20", customer_name="오류 뒤에도", phone="010-5050-7070",
+                              address="-", product="장", status="RECEIVED"),
+        )
+        db_session.commit()
+    finally:
+        for name, fn in listeners.items():
+            event.remove(engine, name, fn)
+
+    assert calls == ["savepoint", "rollback_savepoint"], "찾기만 저장점 안에서 되돌린다"
+    event_row = db_session.query(OrderEvent).filter_by(order_id=order.id, event_type=_CREATED).one()
+    assert "open_order_ids" not in event_row.payload, "못 셌으면 열쇠를 넣지 않는다"
+    # 세션은 그대로 쓸 수 있다.
+    assert db_session.get(Order, order.id).customer_name == "오류 뒤에도"
+    db_session.add(OrderEvent(order_id=order.id, event_type="C3_AFTER", payload={}))
+    db_session.commit()
+
+
+def test_successful_lookup_releases_its_savepoint(app):
+    owner = _make_user("c7_sql_ok_owner", role="STAFF", team="SALES")
+    engine = db_session.get_bind()
+    calls, listeners = _savepoint_calls(engine)
+    try:
+        create_order(
+            db_session, actor_user_id=owner.id, owner_user_id=owner.id, is_erp_order=False,
+            order_fields=dict(received_date="2026-11-20", customer_name="잘 셈", phone="010-5050-8080",
+                              address="-", product="장", status="RECEIVED"),
+        )
+        db_session.commit()
+    finally:
+        for name, fn in listeners.items():
+            event.remove(engine, name, fn)
+
+    assert calls == ["savepoint", "release_savepoint"]
+
+
+def test_lookup_does_not_flush_pending_changes(app):
+    """초안 승격 길은 바꾼 칸을 flush 하지 않은 채 부른다 — ``Session.begin_nested()`` 는 여기서 flush 한다."""
+    existing_id = _open_order("010-6060-7070")
+    pending = Order(received_date="2026-11-20", customer_name="아직 안 밀어 넣음", phone="010-6060-7070",
+                    address="-", product="장", status="RECEIVED")
+    db_session.add(pending)
+
+    payload = open_order_lookup.created_event_payload(db_session, pending, {"via": "test"})
+
+    assert pending in db_session.new, "찾기가 만드는 중인 줄을 flush 했다"
+    assert payload == {"via": "test", "open_order_ids": [existing_id]}
+    db_session.rollback()
