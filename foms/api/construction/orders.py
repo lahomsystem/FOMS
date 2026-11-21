@@ -536,6 +536,9 @@ def api_construction_evidence(order_id):
                 jsonify({"success": False, "error": "유효한 시공 첨부가 아닙니다."}),
                 400,
             )
+        # 제품마다 '시공 끝': 나눠 시공 주문은 지난 방문에 봉인된 사진 · 서명을 이번 방문 증빙으로 받지 않는다.
+        if _visit_fail.evidence_reuse_blocked(db, order, attachment_id):
+            return jsonify({"success": False, "error": "이전 방문 사진이에요", "code": "PREVIOUS_VISIT_PHOTO"}), 400
 
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
@@ -583,7 +586,7 @@ def api_construction_evidence(order_id):
 
 
 def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, reason: str,
-                             detail: str, reschedule_date: Any) -> Optional[int]:
+                             detail: str, reschedule_date: Any, keep_stage: Optional[str] = None) -> Optional[int]:
     """CONSTRUCTION_REWORK 전이 후 same-tx 부수효과(단계·status 는 절대 쓰지 않는다).
 
     현재 attempt 를 REWORKED 로 봉인하고, 시공 불가 이력·workflow 이력·재예약을 남긴다.
@@ -592,10 +595,12 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
     :param reason: 사유 코드(``drawing_error`` 등).
     :param detail: 사유 상세(자유 문장).
     :param reschedule_date: 재예약 시공일(없으면 None).
+    :param keep_stage: 나눠 시공 주문의 생산 단계 방문만 닫을 때 그 단계(전이 없음 — 이력에 그 단계를
+        적고 재작업 사유는 남기지 않으며, 다음 방문에 섞이지 않게 사진 · 서명 칸을 비운다).
     :returns: 봉인한 attempt id(열린 attempt 가 없으면 None).
     """
     now = now_utc_naive()
-    new_stage = _REWORK_STAGE_MAP.get(reason, "CONSTRUCTION")
+    new_stage = keep_stage or _REWORK_STAGE_MAP.get(reason, "CONSTRUCTION")
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
 
     # 현재(열린) attempt 만 REWORKED 로 봉인 — 과거 terminal attempt 는 손대지 않는다.
@@ -608,23 +613,31 @@ def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, rea
         attempt.fail_reason = reason
         attempt.fail_detail = detail
         attempt_id = attempt.id
+    if keep_stage:  # 방문만 닫음 — 다음 [시공 시작] 전에도 이 방문 사진이 남은 칸에 남지 않게 비운다.
+        construction = sd.get("construction") if isinstance(sd.get("construction"), dict) else {}
+        construction["evidence"] = _fresh_evidence()
+        sd["construction"] = construction
 
     fail_info = sd.get("construction_fail_history") or []
     fail_info.append({
         "id": len(fail_info) + 1, "failed_at": now.isoformat(),
         "failed_by": user.name if user else "Unknown", "reason": reason,
-        "detail": detail, "reschedule_date": reschedule_date, "previous_stage": "CONSTRUCTION",
+        "detail": detail, "reschedule_date": reschedule_date, "previous_stage": keep_stage or "CONSTRUCTION",
     })
     sd["construction_fail_history"] = fail_info
 
     wf = sd.get("workflow") or {}
-    wf["stage_updated_by"] = user.name if user else "Unknown"
-    wf["rework_reason"] = reason
+    actor = user.name if user else "Unknown"
+    if not keep_stage:  # 단계를 옮기지 않으면 단계 바꾼 사람 · 재작업 사유도 쓰지 않는다.
+        wf["stage_updated_by"] = actor
+        wf["rework_reason"] = reason
     hist = wf.get("history") or []
+    label = _REWORK_LABELS.get(reason, reason)
     hist.append({
-        "stage": new_stage, "updated_at": wf.get("stage_updated_at") or now.isoformat(),
-        "updated_by": wf["stage_updated_by"],
-        "note": f"시공 불가 → {_REWORK_LABELS.get(reason, reason)}: {detail}",
+        "stage": new_stage,
+        "updated_at": now.isoformat() if keep_stage else (wf.get("stage_updated_at") or now.isoformat()),
+        "updated_by": actor,
+        "note": f"시공 불가 (단계 그대로) → {label}: {detail}" if keep_stage else f"시공 불가 → {label}: {detail}",
     })
     wf["history"] = hist
     sd["workflow"] = wf
@@ -656,6 +669,9 @@ _REWORK_LABELS = {
     "product_defect": "제품 불량",
     "site_issue": "현장 문제",
 }
+
+# 제품마다 '시공 끝' — 지난 방문 사진 막기 · 생산 단계 방문의 [시공 불가]. 위 헬퍼를 다 정의한 뒤 가져온다(순서 고정).
+from foms.api.construction import visit_fail as _visit_fail  # noqa: E402
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/fail", methods=["POST"])
@@ -695,6 +711,12 @@ def api_construction_fail(order_id):
         # 사유 상세는 전이 이벤트 payload 의 reason 에 함께 싣는다 — 타임라인에서
         # "무엇 때문에 되돌렸는가" 를 이벤트 하나만 보고 알 수 있어야 한다.
         transition_reason = f"{reason_label}: {detail}" if detail else reason_label
+
+        # 제품마다 '시공 끝': 나눠 시공 주문의 생산 단계 방문은 방문만 닫는다(단계 · 상태 그대로, 사유별 되돌림 없음).
+        if _visit_fail.production_visit_fail_applies(db, order, user_id, idem_key):
+            return _visit_fail.visit_fail_response(
+                db, order_id, data=data, user=user, user_id=user_id, reason=reason, detail=detail,
+                reschedule_date=reschedule_date)
 
         try:
             result = transition_order(

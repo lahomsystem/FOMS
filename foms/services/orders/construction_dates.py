@@ -86,7 +86,7 @@ def remaining_construction_note(sd: Any, today: Optional[datetime.date] = None) 
     """[시공 완료] 확인 창의 한 줄 — 오늘보다 뒤 시공일이 남았을 때만. 없으면 빈 글.
 
     제품마다 '시공 끝'(2단계)이 켜져 있고 나눠 시공하는 주문이면, '시공 끝' 제품의 날짜는 세지 않고
-    남은 제품의 마지막 시공일만 본다(설계서 2026-11-21-item-construction-done 5.1).
+    남은 제품의 시공일만 본다(설계서 2026-11-21-item-construction-done 5.1).
     """
     day = today or get_today_kst()
     remaining = _split_remaining_dates(sd, day)
@@ -101,7 +101,7 @@ def _split_remaining_dates(sd: Any, day: datetime.date) -> Optional[list[str]]:
     """스위치가 켜진 나눠 시공 주문이면 남은 제품의 남은 날, 아니면 None(지금 규칙을 쓴다)."""
     if not _construction_visit.split_flow_active(sd):
         return None
-    return _construction_visit.remaining_last_dates_after(sd, day)
+    return _construction_visit.remaining_dates_after(sd, day)
 
 
 def attach_remaining_construction_notes(rows: Iterable[Any],
