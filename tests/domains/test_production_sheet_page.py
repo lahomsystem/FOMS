@@ -174,3 +174,101 @@ def test_도면_목록과_시각_규칙() -> None:
     assert _format_at_kst("2026-11-09T00:12:00+00:00") == "11/9 09:12"
     assert _format_at_kst("2026-11-09T00:12:00Z") == "11/9 09:12"
     assert _format_at_kst("") == "" and _format_at_kst("이상") == ""
+
+
+# --------------------------------------------------------------------------- #
+# 11-21 시안 안 2 맞춤(사용자 "목업대로") — 아래 단추 줄 · 검수 전 회색 [제작 완료] · 지금 여기 · W×D×H · 저장/연결 한 줄
+# --------------------------------------------------------------------------- #
+def _all_steps_done(order: Order) -> None:
+    sd = dict(order.structured_data)
+    sd["production"] = dict(sd["production"], steps=[
+        {"key": k, "label": k, "done": True, "at": "2026-11-09T00:12:00+00:00", "by_name": "이철호"}
+        for k in ("cut", "edge", "assemble", "inspect")
+    ])
+    order.structured_data = sd
+    db_session.commit()
+
+
+def _complete_button(html: str) -> str:
+    import re
+    return re.search(r'<button [^>]*data-tablet-sheet-action="production-complete"[^>]*>.*?</button>', html, re.S).group(0)
+
+
+def test_검수_전_제작_완료는_회색이고_누를_수_없다(client) -> None:
+    _make_user(client, "sheet_prod_gate1", "PRODUCTION")
+    order = _seed_order()  # 공정 1/4
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--off" in btn and "foms-prod-page__btn--pri" not in btn
+    assert " disabled" in btn and 'aria-disabled="true"' in btn and "data-foms-sheet-complete" in btn
+    assert ">제작 완료<" in btn and "검수까지 끝나면 눌러요" in btn and "data-foms-sheet-complete-hint>" in btn
+
+
+def test_검수까지_끝나면_제작_완료가_파랗다(client) -> None:
+    _make_user(client, "sheet_prod_gate2", "PRODUCTION")
+    order = _seed_order()
+    _all_steps_done(order)
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    btn = _complete_button(html)
+    assert "foms-prod-page__btn--pri" in btn and "foms-prod-page__btn--off" not in btn
+    assert " disabled" not in btn and "aria-disabled" not in btn
+    assert "data-foms-sheet-complete-hint hidden" in btn and ">4/4<" in html
+    assert "지금 여기" not in html  # 다 끝나면 '지금' 칸이 없다
+
+
+def test_아래_단추_줄_지금_여기_치수_연결_한_줄(client) -> None:
+    _make_user(client, "sheet_prod_foot", "PRODUCTION")
+    order = _seed_order()
+    html = client.get(SHEET_URL.format(id=order.id)).get_data(as_text=True)
+    side = html.split('class="foms-prod-page__side"', 1)[1]
+    scroll, foot = side.split('class="foms-prod-page__foot"', 1)
+    # 위 굴러가는 칸: 고객 · 만들 것 · 바뀐 것 · 공정(최근 불량 줄 포함). 단추는 없다
+    assert 'class="foms-prod-page__side-scroll"' in scroll and 'aria-label="공정"' in scroll and "최근 불량 · 파손" in scroll
+    assert "data-tablet-sheet-action" not in scroll and "data-foms-sheet-defect-toggle" not in scroll
+    # 아래 줄: [불량 알리기] · [보류] 한 줄 → 칩 → 큰 단추 → 저장 · 연결
+    pair = foot.split('class="foms-prod-page__pair"', 1)[1].split("</div>", 1)[0]
+    assert pair.index("data-foms-sheet-defect-toggle") < pair.index('data-tablet-sheet-action="production-hold"')
+    assert foot.index("data-foms-sheet-defect-reasons") < foot.index('data-tablet-sheet-action="production-complete"')
+    assert foot.index('data-tablet-sheet-action="production-complete"') < foot.index("data-foms-sheet-status")
+    assert "data-foms-sheet-net>연결 좋음<" in foot
+    # 공정: 지금 칸(엣지) 옆 '지금 여기', 끝난 칸은 누가 · 몇 시
+    assert html.count("지금 여기") == 1 and "이철호 · 11/9 09:12" in html
+    # 만들 것: 품목마다 'W×D×H · 수량'(시드는 가로만 있어 W 만)
+    assert "<span>거실장</span><span>W3100 · 1</span>" in html and "<span>W2160 · 1</span>" in html
+
+
+def test_만들_것_치수는_있는_축만_칸마다() -> None:
+    from foms.services.production_sheet_view import _prod_sheet_spec_rows_view
+    rows = _prod_sheet_spec_rows_view([
+        {"product_name": "거실장", "spec_width": "3100", "spec_depth": "500", "spec_height": "2300", "quantity": 1},
+        {"product_name": "장", "spec_rows": [{"w": "1200", "d": "600", "h": "2300"}, {"spec_width": "900", "spec_height": "2100"}]},
+        {"product_name": "빈 것"},
+    ])
+    assert [r["whd"] for r in rows] == ["W3100 × D500 × H2300", "W1200 × D600 × H2300 / W900 × H2100", ""]
+    assert rows[1]["w"] == "2100" and rows[2]["w"] == "-"  # 옆 시트가 쓰는 총 가로 폭은 그대로
+
+
+def test_아래_단추_줄은_가로_태블릿에서만_바닥에_붙는다() -> None:
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    gate = "@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {"
+    head, _, rest = css.partition(gate)
+    block = rest.split("\n}\n", 1)[0]
+    assert ".foms-prod-page__side { overflow: hidden; padding-bottom: 12px; }" in block
+    assert ".foms-prod-page__side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto;" in block
+    assert ".foms-prod-page__foot { flex-shrink: 0;" in block
+    assert "overflow-y: auto" not in head.split(".foms-prod-page__side-scroll", 1)[1].split("}", 1)[0]  # 밖(PC · 세로)에서는 안 굴린다
+    assert ".foms-prod-page__pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);" in head
+    assert ".foms-prod-page__btn--off, .foms-prod-page__btn--off:disabled, .foms-prod-page__btn--off:hover { opacity: 1;" in head
+    assert ".foms-prod-page__btn:disabled > * { pointer-events: none; }" in head
+
+
+def test_시트_JS는_공정을_체크하면_제작_완료를_바로_바꾼다() -> None:
+    js = (ROOT / "static/js/production/foms-production-sheet-page.js").read_text(encoding="utf-8")
+    assert "function syncComplete()" in js and "[data-foms-sheet-complete]" in js and "[data-foms-sheet-complete-hint]" in js
+    assert "buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; })" in js
+    assert js.count("syncComplete();") == 2  # 서버 공정 목록으로 다시 그릴 때 · 목록 없이 한 칸만 바꿀 때
+    # 지금 여기 · 연결 한 줄은 전체 화면 시트에만(옆 시트에는 data-foms-sheet-net 이 없다)
+    assert "var nowText = netEl ? '지금 여기' : '';" in js and "(isNow ? nowText : '')" in js
+    assert "navigator.onLine !== false && !netFailed" in js
+    side = (ROOT / "templates/production/partials/tablet_sheet.html").read_text(encoding="utf-8")
+    assert "data-foms-sheet-net" not in side and "data-foms-sheet-complete" not in side

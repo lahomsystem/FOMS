@@ -3,7 +3,8 @@
  * foms:erp-shell-fragment-swapped 때 새 루트를 다시 묶는다(루트마다 1회, data-foms-sheet-init).
  * 도면 넘기기·전역 뷰어·공정 체크 POST·불량 알리기 POST. 설계서 §12.2·F2 ② (2026-11-09).
  * 제작 시작/완료/취소/보류/변경 확인 단추는 tablet-domain-sheets.js 몫(여기선 안 건드림).
- * 실패 글은 설계서 §8 한 가지: "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요." */
+ * 실패 글은 설계서 §8 한 가지: "연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요."
+ * 전체 화면 시트만(11-21, 시안 안 2): 공정 '지금 여기' 글 · 검수까지 끝나야 파란 [제작 완료] · 저장 · 연결 한 줄. */
 (function () {
   'use strict';
 
@@ -57,6 +58,30 @@
       statusEl.classList.toggle('is-bad', kind === 'bad');
       statusEl.classList.toggle('is-ok', kind === 'ok');
     }
+    // 연결 한 줄(전체 화면 시트만) — 첫 화면 '연결 끊김' 줄과 같은 navigator.onLine + 이 화면 요청이 연결 실패로 끝났는지.
+    var netEl = page.querySelector('[data-foms-sheet-net]');
+    var netFailed = false;
+    function renderNet() {
+      if (!netEl) { return; }
+      var ok = navigator.onLine !== false && !netFailed;
+      netEl.textContent = ok ? '연결 좋음' : '연결 끊김';
+      netEl.classList.toggle('is-ok', ok);
+      netEl.classList.toggle('is-bad', !ok);
+    }
+    function noteResult(result) {
+      netFailed = !!result && !result.ok && (result.kind === 'network' || result.status === 0);
+      renderNet();
+    }
+    if (netEl) {
+      window.addEventListener('online', function () { netFailed = false; renderNet(); });
+      window.addEventListener('offline', renderNet);
+      renderNet();
+    }
+    function savedText(fallback) {
+      if (!netEl) { return fallback; }
+      var d = new Date();
+      return '저장됨 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
 
     // ── 도면 넘기기(전체 화면 시트만 main 이 있다) ──
     var mainImg = page.querySelector('[data-foms-sheet-dwg-main]');
@@ -90,7 +115,21 @@
 
     // ── 공정 체크 ──
     var countEl = page.querySelector('[data-foms-sheet-steps-count]');
+    var nowText = netEl ? '지금 여기' : '';  // 전체 화면 시트만 지금 공정 옆에 글(옆 시트는 칸 테두리만)
+    var completeBtn = page.querySelector('[data-foms-sheet-complete]');
+    var completeHint = page.querySelector('[data-foms-sheet-complete-hint]');
     function stepButtons() { return toArr(page.querySelectorAll('[data-foms-sheet-step]')); }
+    // [제작 완료]: 공정이 모두(검수까지) 끝났을 때만 파랗게 누를 수 있다(화면 규칙 — 서버 완료 API 는 공정을 보지 않는다).
+    function syncComplete() {
+      if (!completeBtn) { return; }
+      var buttons = stepButtons();
+      var ready = buttons.length > 0 && buttons.every(function (b) { return b.getAttribute('aria-pressed') === 'true'; });
+      completeBtn.disabled = !ready;
+      if (ready) { completeBtn.removeAttribute('aria-disabled'); } else { completeBtn.setAttribute('aria-disabled', 'true'); }
+      completeBtn.classList.toggle('foms-prod-page__btn--pri', ready);
+      completeBtn.classList.toggle('foms-prod-page__btn--off', !ready);
+      if (completeHint) { completeHint.hidden = ready; }
+    }
     function renderSteps(steps) {
       var buttons = stepButtons();
       var doneCount = 0;
@@ -107,10 +146,11 @@
         btn.setAttribute('aria-pressed', done ? 'true' : 'false');
         var meta = btn.querySelector('[data-foms-sheet-step-meta]');
         if (meta) {
-          meta.textContent = done ? [(s.by_name || '').trim(), fmtAt(s.at)].filter(Boolean).join(' · ') : '';
+          meta.textContent = done ? [(s.by_name || '').trim(), fmtAt(s.at)].filter(Boolean).join(' · ') : (isNow ? nowText : '');
         }
       });
       if (countEl) { countEl.textContent = doneCount + '/' + steps.length; }
+      syncComplete();
     }
     function toggleStep(btn) {
       if (btn.disabled) { return; }
@@ -121,6 +161,7 @@
       mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/steps', { key: key, done: done })
         .then(function (result) {
           btn.disabled = false;
+          noteResult(result);
           if (!result.ok) { setStatus(failText(result), 'bad'); return; }
           var payload = (result.data && result.data.data) || {};
           if (payload.steps && payload.steps.length) {
@@ -128,8 +169,9 @@
           } else {
             btn.classList.toggle('is-done', done);
             btn.setAttribute('aria-pressed', done ? 'true' : 'false');
+            syncComplete();
           }
-          setStatus(done ? '체크했어요' : '체크를 풀었어요', 'ok');
+          setStatus(savedText(done ? '체크했어요' : '체크를 풀었어요'), 'ok');
         });
     }
 
@@ -151,6 +193,7 @@
       mutate('/api/orders/' + encodeURIComponent(orderId) + '/production/defect', { reason: reason })
         .then(function (result) {
           chips.forEach(function (c) { c.disabled = false; });
+          noteResult(result);
           if (!result.ok) { setStatus(failText(result), 'bad'); return; }
           var latest = (result.data && result.data.data && result.data.data.latest) || { reason: reason };
           if (defectRecent) {
@@ -161,7 +204,7 @@
             defectRecent.hidden = false;
           }
           setReasonsOpen(false);
-          setStatus('불량을 알렸어요', 'ok');
+          setStatus(netEl ? savedText('') + ' · 불량을 알렸어요' : '불량을 알렸어요', 'ok');
         });
     }
 

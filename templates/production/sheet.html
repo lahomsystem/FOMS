@@ -6,7 +6,7 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261113p">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261121a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
 {% endblock %}
 
@@ -69,6 +69,7 @@
 
       {# ── 오른쪽 ── #}
       <div class="foms-prod-page__side">
+        <div class="foms-prod-page__side-scroll">
         <section class="foms-prod-page__box" aria-label="고객">
           <h2 class="foms-prod-page__h">고객</h2>
           <div class="foms-prod-page__row">
@@ -84,12 +85,10 @@
         <section class="foms-prod-page__box" aria-label="만들 것">
           <h2 class="foms-prod-page__h">만들 것 <small>총 자수 {{ order.total_units_display }}</small></h2>
           {% if order.spec_rows_view %}
-          <table class="foms-prod-page__spec">
-            <thead><tr><th scope="col">품목</th><th scope="col">W</th><th scope="col">수량</th></tr></thead>
-            <tbody>
-              {% for r in order.spec_rows_view %}<tr><td>{{ r.label }}</td><td>{{ r.w }}</td><td>{{ r.qty }}</td></tr>{% endfor %}
-            </tbody>
-          </table>
+          {# 품목마다 'W×D×H · 수량'(시안 안 2) — 깊이 · 높이가 없는 품목은 있는 축만, 아무것도 없으면 총 가로 폭 #}
+          <ul class="foms-prod-page__items">
+            {% for r in order.spec_rows_view %}<li class="foms-prod-page__item"><span>{{ r.label }}</span><span>{{ r.whd or ('W' ~ r.w) }} · {{ r.qty }}</span></li>{% endfor %}
+          </ul>
           {% else %}
           <p class="foms-prod-page__muted">규격 정보 없음</p>
           {% endif %}
@@ -134,25 +133,29 @@
                     data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
               <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
               <span>{{ s.label }}</span>
-              <small data-foms-sheet-step-meta>{{ s.meta }}</small>
+              <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
             </button>
             {% endfor %}
           </div>
           {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
-          <div class="foms-prod-page__defect" data-foms-sheet-defect>
-            <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false" aria-controls="foms-prod-page-defect-reasons"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량 알리기</button>
-            <div class="foms-prod-page__chips" id="foms-prod-page-defect-reasons" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
-              {% for r in defect_reasons %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}
-            </div>
-          </div>
+          <p class="foms-prod-page__defect-recent" data-foms-sheet-defect-recent{% if not order.latest_defect %} hidden{% endif %}>{% if order.latest_defect %}최근 불량 · {{ order.latest_defect.reason }}{% if order.latest_defect.meta %} · {{ order.latest_defect.meta }}{% endif %}{% endif %}</p>
         </section>
+        </div>
 
-        {# ── 단추: 옆 시트(tablet_sheet.html:176-204)와 같은 data-tablet-sheet-action 계약. 글만 "제작 완료". ── #}
-        <div class="foms-prod-page__acts">
-          <button type="button" class="foms-prod-page__btn{% if order.hold_active %} is-active{% endif %}"
-                  data-tablet-sheet-action="production-hold" data-order-id="{{ order.id }}"
-                  data-hold-active="{{ 1 if order.hold_active else 0 }}" data-hold-reason="{{ order.hold_reason }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
+        {# ── 아래 단추 줄(시안 안 2) — 가로 태블릿에서는 오른쪽 칸 바닥에 붙고 위 내용만 굴러간다(sheet.css).
+           [불량 알리기] · [보류] 한 줄, 그 아래 큰 단추, 맨 아래 저장 · 연결 한 줄.
+           단추는 옆 시트(tablet_sheet.html)와 같은 data-tablet-sheet-action 계약. 글만 "제작 완료". ── #}
+        <div class="foms-prod-page__foot" data-foms-sheet-defect>
+          <div class="foms-prod-page__pair">
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false" aria-controls="foms-prod-page-defect-reasons"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량 알리기</button>
+            <button type="button" class="foms-prod-page__btn{% if order.hold_active %} is-active{% endif %}"
+                    data-tablet-sheet-action="production-hold" data-order-id="{{ order.id }}"
+                    data-hold-active="{{ 1 if order.hold_active else 0 }}" data-hold-reason="{{ order.hold_reason }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>{{ '보류 해제' if order.hold_active else '보류' }}</button>
+          </div>
+          <div class="foms-prod-page__chips" id="foms-prod-page-defect-reasons" data-foms-sheet-defect-reasons hidden role="group" aria-label="불량 사유">
+            {% for r in defect_reasons %}<button type="button" class="foms-prod-page__chip" data-foms-sheet-defect-reason="{{ r }}">{{ r }}</button>{% endfor %}
+          </div>
+          <div class="foms-prod-page__acts">
           {% if order.stage == '제작대기' %}
             {% if order.is_sales_approved and order.production_start_blocked and not is_admin %}
             <span class="foms-prod-page__muted" data-tablet-sheet-muted>도면 확정 대기</span>
@@ -163,13 +166,21 @@
             {% endif %}
           {% elif order.stage == '제작중' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri foms-prod-page__btn--big" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">제작 완료</button>
+            {# 검수까지(공정 모두) 끝나기 전엔 회색 · 누를 수 없음(설계서 §12.2 · 시안 안 2). 화면 규칙 — 서버 완료 API 는 공정을 막지 않는다.
+               공정을 체크하면 foms-production-sheet-page.js 가 바로 파랗게 바꾼다. #}
+            {% set _inspected = order.steps and order.steps_done >= (order.steps | length) %}
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} disabled aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
           {% elif order.stage == '제작완료' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
           {% endif %}
         </div>
-        <p class="foms-prod-page__status" data-foms-sheet-status aria-live="polite"></p>
+        {# 저장 · 연결 한 줄 — 왼쪽은 마지막 저장 결과, 오른쪽은 연결 상태(첫 화면 '연결 끊김' 줄과 같은 navigator.onLine + 이 화면 요청 실패) #}
+        <div class="foms-prod-page__statusrow">
+          <p class="foms-prod-page__status" data-foms-sheet-status aria-live="polite"></p>
+          <span class="foms-prod-page__net is-ok" data-foms-sheet-net>연결 좋음</span>
+        </div>
+        </div>
       </div>
     </div>
   </section>
@@ -182,5 +193,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261110a" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121a" defer></script>
 {% endblock %}
