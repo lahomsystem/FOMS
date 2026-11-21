@@ -26,6 +26,8 @@ from foms.services.production_dashboard_display import (
     _production_product_label,
     _production_quest_sales_state,
     _production_stage_label_from_stage,
+    _spec_rows_whd,
+    _whd_text,
 )
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import production_home_steps
@@ -34,8 +36,6 @@ from foms.services.production.steps import production_complete_ready
 
 _PROD_SHEET_IMG_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp')
 _WEEKDAY_KO = '월화수목금토일'
-# 품목 · 규격 칸 이름(견적 · 도면 변경 알림과 같은 이름들)
-_WHD_KEYS = (('W', ('spec_width', 'w', 'width')), ('D', ('spec_depth', 'd', 'depth')), ('H', ('spec_height', 'h', 'height')))
 _KST = datetime.timezone(datetime.timedelta(hours=9))
 
 
@@ -57,20 +57,13 @@ def _prod_item_total_w_mm(item: dict[str, Any]) -> float:
 
 
 def _prod_item_whd(item: dict[str, Any]) -> str:
-    """'W3100 × D500 × H2300'(전체 화면 시트 '만들 것', 시안 안 2). 칸이 여럿이면 ' / ' 로 잇는다. 값 없는 축은 뺀다."""
-    rows = item.get('spec_rows') if isinstance(item.get('spec_rows'), list) and item.get('spec_rows') else [item]
-    lines: list[str] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        parts: list[str] = []
-        for axis, keys in _WHD_KEYS:
-            value = next((str(row.get(k)).strip() for k in keys if str(row.get(k) or '').strip()), '')
-            if value:
-                parts.append(f"{axis}{value}")
-        if parts:
-            lines.append(' × '.join(parts))
-    return ' / '.join(lines)
+    """'W3100 × D500 × H2300'(전체 화면 시트 '만들 것', 시안 안 2). 칸이 여럿이면 ' / ' 로 잇는다. 값 없는 축은 뺀다.
+
+    ``spec_rows`` 가 있으면 그것만 읽는다(규칙 정본 = production_dashboard_display ``_whd_text``).
+    """
+    if isinstance(item.get('spec_rows'), list) and item.get('spec_rows'):
+        return _spec_rows_whd(item)
+    return _whd_text(item)
 
 
 def _prod_sheet_spec_rows_view(items: list[Any]) -> list[dict[str, Any]]:
