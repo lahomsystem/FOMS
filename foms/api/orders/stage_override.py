@@ -45,7 +45,9 @@ from foms.services.orders.admin_override import (
     log_admin_override_denied,
     resolve_admin_override,
 )
-from foms.services.orders.items_construction_gate import ItemsConstructionOpen, items_open_response
+from foms.services.orders.items_construction_gate import (
+    ItemsConstructionOpen, items_gate_blocks, items_open_bulk_body, items_open_response, order_stage,
+)
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     OVERRIDE_ALLOWED_ROLES,
@@ -455,6 +457,12 @@ def bulk_stage_override_response():
             return jsonify(draft_not_promoted_body(skipped_draft[0])), 409
         return _json_error("주문을 찾을 수 없습니다.", 404)
     user_id = int(user.id)
+    # 남은 제품 문지기(2단계 N4 · 검수 E2-2): 묶음 전체를 먼저 훑어 막힌 주문을 **모두** 알린다 — 화면이
+    # 그 목록을 보여 주고 동의를 받아야 close_remaining_items 로 다시 보낸다(첫 건만 알리면 나머지는 모른 채 찍힌다).
+    if data.get("close_remaining_items") is not True:
+        items_open = [o for o in change if items_gate_blocks(o.structured_data, to_code, current=order_stage(o))]
+        if items_open:
+            return jsonify(items_open_bulk_body(items_open)), 409
     if kind != KIND_MAIN or to_code == "COMPLETED":
         return extended_bulk_response(
             db, change, kind=kind, to_code=to_code, override=override, data=data,

@@ -56,16 +56,17 @@ def _sd(order: Any) -> dict:
     return sd if isinstance(sd, dict) else {}
 
 
-def _stage_open_for_as(order: Any, sd: dict) -> bool:
+def stage_allows_as(stage: Any, structured_data: Any) -> bool:
     """AS 를 받을 수 있는 단계인가 — 시공 뒤, 또는 먼저 끝낸 제품이 있는 생산 · 시공 단계(N10).
 
     제품마다 '시공 끝'(2단계, 스위치 켜짐)으로 일부 제품을 먼저 끝낸 주문은 주문이 아직 생산 단계여도
-    그 제품의 AS 를 받는다(설계서 2026-11-21-item-construction-done N10).
+    그 제품의 AS 를 받는다(설계서 2026-11-21-item-construction-done N10). AS 접수 단추(:func:`as_mode`)와
+    협력사 화면의 완공 사진 · AS 탭이 같은 판정을 쓴다(검수 E2-3).
     """
-    stage = (getattr(order, "erp_stage_code", None) or "").upper()
-    if stage in AS_OPEN_STAGES:
+    code = str(stage or "").strip().upper()
+    if code in AS_OPEN_STAGES:
         return True
-    return stage in EARLY_AS_STAGES and is_item_construction_done_enabled() and has_done_marks(sd)
+    return code in EARLY_AS_STAGES and is_item_construction_done_enabled() and has_done_marks(structured_data)
 
 
 def as_mode(order: Any) -> str | None:
@@ -74,7 +75,7 @@ def as_mode(order: Any) -> str | None:
     cycle = current_cycle(sd)
     if cycle is not None and cycle_status(cycle) in OPEN_STATUSES:
         return MODE_EDIT
-    if not _stage_open_for_as(order, sd):
+    if not stage_allows_as(getattr(order, "erp_stage_code", None), sd):
         return None
     return MODE_REINTAKE if last_closed_cycle_summary(sd) is not None else MODE_NEW
 

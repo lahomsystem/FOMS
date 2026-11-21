@@ -20,7 +20,6 @@ from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.partners import as_intake as as_svc
-from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.as_history import as_history_for_partner
 from foms.services.partners.channel_push import push_state
@@ -346,7 +345,7 @@ def _with_urls(photos: list[dict]) -> list[dict]:
 
 def _completion_context(db, order: Order, stage: str) -> dict:
     """완공 사진 탭(시공이 시작된 뒤만) · AS 진행 상황. 설계서 2026-10-19 §3.6."""
-    show = stage in AS_OPEN_STAGES
+    show = as_svc.stage_allows_as(stage, order.structured_data)  # AS 접수와 같은 판정(N10 · 검수 E2-3)
     progress = as_progress_for_partner(db, order) if show else None
     if progress is not None:
         progress = {**progress, "photos": _with_urls(progress["photos"])}
