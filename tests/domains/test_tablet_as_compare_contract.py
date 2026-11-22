@@ -176,7 +176,7 @@ def test_tablet_bundle_imports_compare_css_pinned_version() -> None:
     """캐시 계약: sticky 헤드 + 검색 구조 변경(2026-07-24)으로 대조 CSS @import ?v 범프(구버전에서
     신버전 20260724a 로) — 브라우저가 구 캐시로 신규 마크업/CSS 를 못 받는 회귀 차단."""
     bundle = _read(TABLET_BUNDLE_CSS)
-    assert '@import url("foms-tablet-as-compare.css?v=20261122w")' in bundle
+    assert '@import url("foms-tablet-as-compare.css?v=20261123a")' in bundle
 
 
 # --- (5) 서비스: 전/후 사진 매핑 기능 계약 ----------------------------------
