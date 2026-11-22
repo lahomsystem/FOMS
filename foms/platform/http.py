@@ -14,6 +14,7 @@ from foms.platform.security_headers import apply_security_headers
 from foms.services.auth.freelancer_scope import freelancer_gate
 from foms.services.auth.partner_scope import partner_gate
 from foms.services.common.ept_b7_profile import format_phases
+from foms.services.common.release_watch import attach_release_header
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
@@ -358,6 +359,12 @@ def register_http_bootstrap(
         # RESP-HEADERS-01: 표준 보안 헤더를 앱 전역 한 곳에서 붙인다. 앞단(Railway 엣지)이
         # 붙여 주지 않는다. 이미 정한 값(공유 화면 no-referrer 등)은 덮어쓰지 않는다.
         return apply_security_headers(response, request.path or "", hsts=deployed)
+
+    @app.after_request
+    def _attach_release_header(response: Any) -> Any:
+        # STALE-TAB-01: 열어 둔 탭이 새 배포를 알아채게 HTML · 셸 조각(304 포함)에 지금 릴리스를 싣는다
+        # (foms/services/common/release_watch.py · static/js/runtime/foms-release-watch.js).
+        return attach_release_header(response)
 
     @app.after_request
     def _log_request_duration(response: Any) -> Any:

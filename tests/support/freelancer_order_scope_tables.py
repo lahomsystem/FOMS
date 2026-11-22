@@ -28,6 +28,7 @@ QUERY_EXEMPT = {"sales_commission_web.my_commission"}
 # 주문 번호를 받지 않는 허용 endpoint(초안 토큰 · 초안 키 · 알림 · 공지 번호는 모두 본인 것만 다룬다).
 NO_ORDER_ID = {
     "static", "favicon", "auth.logout", "auth.switch_back", "auth.profile", "foms_rum.ingest_rum_event",
+    "health.foms_release",
     "notifications.api_notifications_list", "notifications.api_notifications_badge",
     "notifications.api_notification_mark_read", "notifications.api_notifications_mark_all_read",
     "notifications.api_notification_ack", "notifications.api_notification_archive",

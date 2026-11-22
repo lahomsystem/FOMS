@@ -254,7 +254,7 @@ def test_shell_swaps_and_prefetches_production_home():
     assert "/erp/production/home" in enc.ERP_FRAGMENT_READY_PATHS
     assert "/erp/production/dashboard" not in enc.ERP_FRAGMENT_READY_PATHS
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261121p" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261122a" in layout
 
 
 def test_rail_production_button_goes_to_home_href():
