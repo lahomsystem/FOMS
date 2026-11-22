@@ -27,7 +27,7 @@ from foms.services.feature_flags import (
     wants_wide_viewport_surfaces,
 )
 from foms.services.production.home_access import can_view_production_home
-from foms.services.production.home_step_panel import attach_step_panels, parse_step_order
+from foms.services.production.home_step_panel import attach_step_panels, parse_step_order, step_panel_for
 from foms.services.production.part_access import VIEW_ADMIN, VIEW_PART, VIEW_READONLY, part_view_mode
 from foms.services.production.part_board import build_part_board, part_sync_cursor
 from foms.services.production.part_constants import PART_CUT
@@ -53,6 +53,10 @@ _HOME_TABS = ('date', 'steps', 'changes', 'all', 'parts')
 DAY_VIEW = 'day'
 #: 날짜 한 장 조각 응답 머리글 — 받은 장의 열쇠(JS 가 고른 날과 같은지 본다).
 DAY_PANE_HEADER = 'X-FOMS-HOME-DAY'
+#: '내 공정' 판 하나 조각(``?tab=steps&view=panel&step=&order=``) — 줄을 누르면 JS 가 그 판만 받아 끼운다(2026-11-22,
+#: 날짜 한 장과 같은 꼴). 응답 머리글 = 받은 판의 주문 번호(JS 가 누른 줄과 같은지 본다).
+PANEL_VIEW = 'panel'
+PANEL_HEADER = 'X-FOMS-HOME-PANEL'
 from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
@@ -134,6 +138,28 @@ def _step_panel_screen(tab: str, surface: bool, queues: dict | None, user) -> di
     }
 
 
+def _step_panel_response(tab: str, surface: bool, rows: list, flags: dict):
+    """'내 공정' 판 하나 조각(``view=panel``) — 문 · 권한은 한 화면을 다 그릴 때와 같다(읽기만, 새 쓰기 길 없음).
+
+    문 = 판이 있는 화면(``_step_panel_screen`` 과 같은 '내 공정' 탭 + 터치 v2 + 넓은 창). 파트 계정은 탭이 날짜로 돌아가(D50)
+    여기 못 온다. 쓰기 단추는 같은 ``flags['can_act']``. 판 자료는 같은 행 · 같은 공정 줄에서(``step_panel_for``) — 줄이
+    그 사이 다른 공정으로 옮겨 갔거나 문 밖이면 404(JS 가 '다시 받기' 글을 보인다).
+    """
+    door = tab == 'steps' and surface and wants_wide_viewport_surfaces()
+    order = parse_step_order(request.args.get('order')) if door else None
+    panel = step_panel_for(production_home_step_queues(rows), request.args.get('step') or '', order) if door else None
+    if panel is None:
+        abort(404)
+    _t0 = time.perf_counter()
+    response = make_response(render_template('production/partials/home_step_panel.html', p=panel,
+                                             q={'selected_id': panel['id']}, defect_reasons=_PRODUCTION_DEFECT_REASONS,
+                                             **flags))
+    response.headers[PANEL_HEADER] = str(panel['id'])
+    response.headers['Cache-Control'] = 'no-store'
+    apply_ept_b7_render_headers(response, route_id='erp_production_home_panel', render_ms=(time.perf_counter() - _t0) * 1000)
+    return response
+
+
 def selected_day_pane(days: dict) -> dict:
     """고른 날(주소 ``day=`` 또는 자동으로 고른 날)의 장 하나. ``production_home_days`` 의 ``selected`` 는 늘 장 열쇠다."""
     return next((p for p in days['panes'] if p['key'] == days['selected']), days['panes'][0])
@@ -163,6 +189,7 @@ def erp_production_home():
     날짜 · 도면 카드 탭은 고른 날 장 하나만 그린다(11-14, 예전 D5 는 15장을 다 보냈다). 띠 숫자는 모든 날을 센다.
     응답은 셋 — 전체 페이지 · 셸 조각(``view=fragment`` + 셸 머리글, 레일 · 아래 메뉴) · 날짜 한 장 조각
     (``view=day&day=``, 날을 누를 때 JS 가 받는다, 머리글 :data:`DAY_PANE_HEADER`). 셋 다 같은 자료 경로다.
+    '내 공정' 판 하나 조각(``view=panel&step=&order=``, 줄을 누를 때, 머리글 :data:`PANEL_HEADER`)도 같은 행에서 만든다.
     """
     db = get_db()
     user = _require_home_user()
@@ -178,6 +205,8 @@ def erp_production_home():
     today = get_today_kst()
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
+    if request.args.get('view') == PANEL_VIEW:
+        return _step_panel_response(tab, surface, rows, flags)  # '내 공정' 판 하나(누른 줄) — 행 읽기 뒤 쿼리 0
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
     # 주소 order= (옛 focus_order=)는 그 주문의 날 장을 고르고 줄에 테두리를 친다(바로가기 · 알림 · 검색, §9-10).

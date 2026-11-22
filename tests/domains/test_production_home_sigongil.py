@@ -125,7 +125,9 @@ def test_내_공정_줄과_오른쪽_판에_시공일(client, cohort) -> None:
     for order, off, sub in ((a, 1, ""), (b, 4, "D-4")):
         row = _block(cut, f'data-foms-home-qrow="{order.id}"', "</div>\n  ")
         assert f'<span class="fph-qr__due">시공<b>{_label(off)}</b></span>' in row
-        pane = _block(cut, f'data-foms-step-pane="{order.id}"', "</h2>")
+        # 고른 줄(a) 판은 화면에, 다른 줄(b) 판은 누를 때 받는 조각(view=panel, 2026-11-22)
+        src = cut if order is a else get_html(client, HOME + f"?tab=steps&order={order.id}&view=panel&step=cut")
+        pane = _block(src, f'data-foms-step-pane="{order.id}"', "</h2>")
         assert _dues(pane) == [("", _label(off), sub)]
 
 

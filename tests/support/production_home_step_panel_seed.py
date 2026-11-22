@@ -79,6 +79,11 @@ def seed_cut_queue():
     return a, b, c, d, e
 
 
+def panel_url(step: str, oid: int) -> str:
+    """판 하나 조각 주소(줄을 누르면 JS 가 받는 것 — ``?tab=steps&order=<id>`` + ``view=panel&step=``)."""
+    return f"{HOME}?tab=steps&order={oid}&view=panel&step={step}"
+
+
 def get_html(client, url, headers=None):
     resp = client.get(url, headers=headers or {})
     assert resp.status_code == 200, url

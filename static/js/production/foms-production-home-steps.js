@@ -1,6 +1,7 @@
 /* 생산 첫 화면 '내 공정' 탭 오른쪽 판(태블릿 가로) — 설계서 docs/specs/2026-11-21-production-my-steps-panel_SPEC.md §3-4 ~ §3-6
  * · 사용자 결정 2026-11-21 "추천안(반반)대로 만들기".
- * 줄을 누르면 판을 바꾼다 — 서버가 공정 줄 전부의 판을 그려 두었고 여기서는 보이기/숨기기만 한다(새 요청 없음, 공장 와이파이 D5).
+ * 줄을 누르면 고른 표시를 바로 바꾸고 판을 바꾼다 — 서버는 공정 줄마다 고른 줄 판 하나만 그리고, 다른 줄 판은 받아 끼운다
+ * (foms-production-home-steppane.js, 2026-11-22). 그 파일이 아직 없으면 줄 링크(?tab=steps&order=)가 그대로 그 줄 페이지를 연다.
  * 주소 · [다시 받기]는 고른 줄 링크의 href(?tab=steps&order=<id>, 서버 home_href 가 지은 것)로 맞춘다(replaceState). 공정 탭을 바꾸면
  * 그 탭의 고른 줄로, [보류]를 누르면 그 판의 줄로 맞춘다(보류 뒤 새로고침이 같은 줄로 돌아온다).
  * 큰 [<공정> 끝] = 확인 창(#foms-step-confirm-modal, 파트 도면 카드 창 꼴) — 창의 [<공정> 끝]을 눌러야 POST /api/orders/<id>/production/steps
@@ -68,18 +69,22 @@
     return toArr(queue ? queue.querySelectorAll('[data-foms-home-qrow]') : []).filter(function (r) { return r.classList.contains('is-on'); })[0] || null;
   }
 
-  // ── 줄 고르기 = 판 보이기/숨기기 ──
+  // ── 줄 고르기 = 누르는 즉시 고른 표시, 판은 steppane.js(받은 판이면 바로 · 아니면 받는다) ──
   function selectRow(row) {
     var queue = row.closest('[data-foms-home-stepq]');
     if (!queue) { return; }
-    var id = attr(row, 'data-foms-home-qrow');
     toArr(queue.querySelectorAll('[data-foms-home-qrow]')).forEach(function (r) {
       var on = r === row;
       r.classList.toggle('is-on', on);
       if (on) { r.setAttribute('aria-current', 'true'); } else { r.removeAttribute('aria-current'); }
     });
-    toArr(queue.querySelectorAll('[data-foms-step-pane]')).forEach(function (p) { p.hidden = attr(p, 'data-foms-step-pane') !== id; });
     keepUrl(rowHref(row));
+    panes().select(row); // 받은 판이면 바로 · 아니면 받는다(받는 동안 옛 판은 숨김)
+  }
+  var paneApi = null;
+  function panes() {
+    if (!paneApi && window.FomsProdStepPanes) { paneApi = window.FomsProdStepPanes.create(rowHref); }
+    return paneApi;
   }
   function panelShown(queue) {
     var panes = queue && queue.querySelector('[data-foms-step-panes]');
@@ -209,10 +214,18 @@
     if (finish) { openModal(finish); return; }
     var pic = t.closest('[data-foms-step-view]');
     if (pic) { openViewer(pic); return; }
+    var retry = t.closest('[data-foms-step-retry]');
+    if (retry && panes()) {
+      var rq = retry.closest('[data-foms-home-stepq]');
+      if (panes().isGone(rq)) { go(attr(root.querySelector('[data-foms-home-reload]'), 'href') || window.location.href); } else { panes().ensure(rq); }
+      return;
+    }
     var tab = t.closest('[data-foms-home-steptab]');
     if (tab) {
-      var on = selectedRow(queueOf(attr(tab, 'data-foms-home-steptab')));
+      var tq = queueOf(attr(tab, 'data-foms-home-steptab'));
+      var on = selectedRow(tq);
       keepUrl(on ? rowHref(on) : attr(modal, 'data-foms-step-base'));
+      if (panes()) { panes().ensure(tq); }
       return;
     }
     var pane = t.closest('[data-foms-step-pane]');
@@ -228,6 +241,7 @@
       if (link) { e.preventDefault(); window.location.assign(attr(link, 'data-foms-step-sheet')); }
       return;
     }
+    if (!panes()) { return; } // 판 받기 파일이 아직 없으면 줄 링크가 그 줄 페이지를 연다
     if (link) { e.preventDefault(); }
     selectRow(row);
   });

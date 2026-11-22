@@ -706,6 +706,12 @@
 .fph-sp__status.is-ok { color: var(--fph-ok); font-weight: 700; }
 .fph-sp__next { margin: 0; font-size: calc(15px * var(--foms-fs, 1)); color: var(--fph-text3); text-align: center; }
 .fph-sp__next b { color: var(--fph-text2); }
+/* 판 받는 중 · 못 받음(2026-11-22 — 다른 줄 판은 누를 때 받는다): 판 자리 한 칸. 옛 판은 숨겨 다른 주문 [끝]을 누르지 않게 */
+.fph-sp-wait { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; background: var(--fph-surface); border-left: 1px solid var(--fph-line); color: var(--fph-text3); font-size: calc(18px * var(--foms-fs, 1)); font-weight: 700; text-align: center; }
+.fph-sp-wait[hidden], .fph-sp-wait [hidden] { display: none; }
+.fph-sp-wait p { margin: 0; }
+.fph-sp-wait.is-bad { color: var(--fph-danger); }
+.fph-sp-wait .fph-sp__act { min-width: 180px; padding: 0 20px; }
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   /* 몸통 키 = 화면 키 − 제목 줄 − 공정 탭, 페이지는 안 굴러가고 줄 칸만 굴러간다(작업 시트 선례). 판은 늘 다 보인다. */
   body.erp-mobile-v2-layout .foms-prod-home.fph-has-sp { height: calc(100dvh / var(--foms-ui-zoom, 1)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
