@@ -99,6 +99,25 @@ def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무�
     assert "style=" not in (ROOT / "templates/production/partials/home_date_macros.html").read_text(encoding="utf-8")
 
 
+def test_PC_여러_시공일_기다림_줄_늦음은_띠와_같은_날(client, cohort) -> None:
+    """§4-6: 납작 칸 = 열흘 뒤(띠 · 장: 마감 여유), 다른 제품 날 = 내일(PC ① 칸 '가장 가까운 날'). 늦음 색은 띠와 같은 날로 —
+    ① 칸은 그대로 가까운 날 + 외 1(PC 설계서 §6-3 결정 5)."""
+    flat = (get_today_kst() + datetime.timedelta(days=10)).isoformat()
+    near = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+    order = _wait_order("가여럿", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}],
+                        items=[{"product_name": "붙박이장", "construction_date": near}])
+    oid = order.id
+    _login(client, "admin")
+    set_cookies(client, PC)
+    pane = get_html(client, HOME + f"?view=day&day={flat}")
+    head = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[0].rsplit("<div ", 1)[1]
+    row = pane.split(f'data-foms-home-dayrow="{oid}"', 1)[1].split('<div class="fpc-r', 1)[0]
+    assert "is-late" not in head and "is-tight" not in head and "늦음" not in row  # 가까운 날로 셌다면 늦음
+    assert "<small>외 1</small>" in row  # ① 칸은 그대로 가까운 날 + 외 n
+    strip = get_html(client, HOME)
+    assert "마감 지남" not in strip.split(f'data-foms-home-daybtn="{flat}"')[1].split("</a>")[0]
+
+
 def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지난_날이면_빨강(client, cohort) -> None:
     """§5-4: 셈 = 안 내려옴 · 시공일 ≥ 오늘 · 마감 < 오늘(시공일이 이미 지난 옛 주문은 안 셈). 줄 시공 칸 is-past + 'n일 지남'."""
     from tests.domains.test_production_home_tabs import _add_order, _make_user

@@ -91,30 +91,47 @@ def production_late_level(row: dict[str, Any], today: datetime.date, *, due: Any
     시공일이 오늘보다 앞(지남)인데 제작 완료가 아니면 자리와 상관없이 늦음. 기다림은 도면 마감(늦음 = 지남 · 빠듯 = 오늘 ·
     다음 영업일), 그 밖은 W(일하는 날)와 자리 표를 견준다.
 
+    기다림 줄의 기준 시공일은 ``due`` 가 아니라 행의 납작 칸(``construction_date``) — 띠 · 장 · 찾기 묶음이 그 주문을 세는 날과 같다
+    (설계서 2026-11-22-production-drawing-arrival-upgrade §4-6 "띠 · 장 제목 · 칸 · 알림이 한 날을 써야"). PC ① 칸이 여러 시공일
+    주문을 '가장 가까운 날 + 외 n' 으로 보여도(PC 설계서 §6-3 결정 5 — 보이는 날) 기다림 줄 색은 띠와 같은 날로 센다.
+
     Args:
         row: 첫 화면 행. ``home_view`` 가 'done'(제작 완료)이면 늘 None.
         today: KST 오늘(``get_today_kst()``).
-        due: 견줄 시공일(여러 시공일 주문의 가장 가까운 날). 없으면 ``row['construction_date']``.
+        due: 견줄 시공일(여러 시공일 주문의 가장 가까운 날). 없으면 ``row['construction_date']``. 기다림 줄은 쓰지 않는다.
 
     Returns:
         ``'late'`` · ``'tight'`` · None.
     """
+    spot, where = late_spot(row)
+    if spot == 'wait':
+        return _wait_level(row, today)
     day = _parse_day(due if due is not None else row.get('construction_date'))
     if day is None or row.get('home_view') == 'done' or row.get('home_stage') == _DONE_STAGE:
         return None
-    spot, where = late_spot(row)
     if day < today:
         return LATE if (spot is not None or where) else None
     if spot is None:
         return None
-    if spot == 'wait':
-        state = deadline_state(drawing_deadline(day), today, all_in=False)
-        return {DEADLINE_LATE: LATE, DEADLINE_SOON: TIGHT}.get(state)
     tight_max, late_max = LATE_THRESHOLDS[spot]
     work = business_days_between(today, day)
     if work <= late_max:
         return LATE
     return TIGHT if work <= tight_max else None
+
+
+def _wait_deadline(row: dict[str, Any]) -> datetime.date | None:
+    """기다림 줄의 도면 마감 — 행의 납작 칸(§4-6 기준 시공일)에서. 시공일이 없으면 None."""
+    day = _parse_day(row.get('construction_date'))
+    return drawing_deadline(day) if day is not None else None
+
+
+def _wait_level(row: dict[str, Any], today: datetime.date) -> str | None:
+    """기다림 줄 늦음 · 빠듯 = 도면 마감 상태(띠 · 장과 같은 판정 ``deadline_state``)."""
+    deadline = _wait_deadline(row)
+    if deadline is None:
+        return None
+    return {DEADLINE_LATE: LATE, DEADLINE_SOON: TIGHT}.get(deadline_state(deadline, today, all_in=False))
 
 
 def _when_text(day: datetime.date, today: datetime.date) -> str:
@@ -144,8 +161,8 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     line = ''
     if level is not None:
         spot, where = late_spot(row)
-        if spot == 'wait':
-            deadline = drawing_deadline(day)
+        deadline = _wait_deadline(row) if spot == 'wait' else None
+        if deadline is not None:
             line = (f"늦음 — 도면 마감 {(today - deadline).days}일 지남" if level == LATE
                     else f"빠듯 — 도면 마감 {soon_word(deadline, today)}")
         else:

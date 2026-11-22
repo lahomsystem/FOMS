@@ -136,6 +136,22 @@ def test_기다림_줄은_도면_마감에_맞춘다_띠와_같은_말() -> None
     assert production_late_level(_row("제작 대기", _d(26), run=False), tue) == "late"
 
 
+def test_여러_시공일_기다림_줄은_띠와_같은_납작_칸_날로_센다() -> None:
+    """§4-6: 기다림 줄 마감은 행의 납작 칸(띠 · 장이 세는 날). PC ① 칸이 넘기는 '가장 가까운 날'(due)은 쓰지 않는다.
+    생산 줄은 그대로 due(PC 설계서 §6-3 결정 5 · §8)."""
+    tue = datetime.date(2026, 11, 24)
+    wait = _row("도면 기다림", _d(30), view="wait", run=False)  # 납작 칸 11/30(월) → 마감 11/26(목) — 여유
+    near = datetime.date(2026, 11, 25)  # 다른 제품 날(더 이름) → 이 날로 셌다면 마감 11/23 지남 = 늦음
+    assert production_late_level(wait, tue, due=near) is None
+    assert production_late_view(wait, tue, due=near)["level"] is None and production_late_view(wait, tue, due=near)["line"] == ""
+    soon = {**wait, "construction_date": _d(27)}  # 납작 칸 11/27 → 마감 11/25 = 내일
+    assert production_late_view(soon, tue, due=near)["line"] == "빠듯 — 도면 마감 내일"
+    assert production_late_view(soon, tue, due=near)["tip"] == "시공까지 일하는 날 1일"  # ① 칸 마우스 글은 보이는 날(due)
+    assert production_late_level({**wait, "construction_date": None}, tue, due=near) is None  # 납작 칸 없음 = 시공일 없음 장
+    # 생산 줄은 due 그대로(제작 대기 W 1 = 늦음)
+    assert production_late_level(_row("제작 대기", _d(30), run=False), tue, due=near) == "late"
+
+
 def test_KST_자정_경계_UTC_서버에서도_KST_오늘(monkeypatch) -> None:
     """UTC 11/22 15:30 = KST 11/23 00:30. 오늘은 KST 11/23 이어야 하고(get_today_kst), 11/23 시공 조립 중은 W 0 → 늦음.
     서버 날짜(UTC 11/22)로 셌다면 W 1 → 빠듯이었다."""
