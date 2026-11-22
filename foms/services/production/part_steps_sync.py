@@ -92,13 +92,18 @@ def _last_finisher(sd: Any, marks: dict[str, Any]) -> Optional[str]:
     rows = [marks[k] for k in keys if k in marks and getattr(marks[k], "done_by_name", None)]
     if not rows:
         return None
-    floor = datetime.datetime.min
-    # 시각이 같으면(시계 눈금이 거친 환경 — Windows 약 15ms) 늦게 만든 줄(id 큰 쪽)을 마지막으로 본다.
-    # max 는 같은 값이면 첫 줄을 돌려줘, 같은 눈금에 끝낸 두 사람 중 먼저 끝낸 사람 이름이 적혔다.
-    return getattr(
-        max(rows, key=lambda r: (getattr(r, "done_at", None) or floor, getattr(r, "id", None) or 0)),
-        "done_by_name", None,
-    )
+    return getattr(max(rows, key=_finish_order), "done_by_name", None)
+
+
+def _finish_order(row: Any) -> tuple[datetime.datetime, bool, int]:
+    """'누가 마지막에 끝냈나' 순서 — ``done_at`` → 이번 요청이 막 쓴 줄 → 줄 id.
+
+    시계 눈금이 거칠면(Windows 약 15ms) 두 사람의 ``done_at`` 이 같다. 그때 ``max`` 는 첫 줄을 돌려줘 먼저 끝낸
+    사람 이름이 적혔다. 표시 API 는 이번 쓰기를 저장 전 모습(``id`` 없음)으로 넘기므로, id 가 없는 줄은 저장된
+    어떤 줄보다 늦다(방금 쓴 것). 저장된 줄끼리는 id(만든 차례)로 가른다.
+    """
+    row_id = getattr(row, "id", None)
+    return (getattr(row, "done_at", None) or datetime.datetime.min, row_id is None, row_id or 0)
 
 
 def plan_part_step_changes(sd: Any, marks: Iterable[Any]) -> list[StepChange]:

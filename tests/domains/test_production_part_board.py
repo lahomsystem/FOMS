@@ -19,6 +19,7 @@ from foms.services.production.part_board import (
     build_part_board,
     card_counts,
     other_part_word,
+    replaced_info,
     sort_cards,
 )
 from foms.services.production_home_days import production_home_days
@@ -284,3 +285,17 @@ def test_board_adds_one_query_regardless_of_card_count(app):
     big, q_big = _count(lambda: build_part_board(db_session, me, days))
     assert sum(p["counts"]["all"] for p in big["panes"].values()) == 40
     assert q_small == 1 and 0 <= q_big - q_small <= 1, (q_small, q_big)
+
+
+def test_replaced_prev_on_identical_updated_at_takes_larger_id_regardless_of_row_order():
+    """옛 판 두 장이 같은 시각에 끝났어도(일괄 기본 · 거친 시계) 전 판 이름은 id 큰 줄 — 쿼리 줄 차례와 무관."""
+    from types import SimpleNamespace
+
+    at = now_utc_naive()
+    row = lambda key, name, rid: SimpleNamespace(order_id=1, drawing_key=key, sheet_id="sh", part="cut", state="DONE",
+                                                 done_by_name=name, picked_by_name=None, updated_at=at, id=rid,
+                                                 picked_by_user_id=None, done_by_user_id=None, updated_by_user_id=None)
+    rows = [row("old-a", "최재단", 9), row("old-b", "박재단", 4)]
+    for order in (rows, list(reversed(rows))):
+        info = replaced_info(1, {"key": "new", "sheet_id": "sh"}, {"new"}, {(1, "sh"): order}, "cut")
+        assert info["prev"]["cut"]["name"] == "최재단"

@@ -190,7 +190,8 @@ def replaced_info(order_id: int, entry: dict[str, Any], current_keys: set[str], 
     if not old:
         return None
     latest: dict[str, Any] = {}
-    for row in sorted(old, key=lambda r: (r.updated_at is not None, r.updated_at)):
+    # 같은 시각(일괄 기본 한 번 · 거친 시계 눈금)이면 id 큰 줄이 나중 — 표시 줄 쿼리는 ORDER BY 가 없어 줄 차례에 기대면 흔들린다.
+    for row in sorted(old, key=lambda r: (r.updated_at is not None, r.updated_at, getattr(r, "id", None) or 0)):
         if row.state != MARK_STATE_NONE:
             latest[str(row.part)] = row
     prev = {key: {"state": MarkSnapshot.from_row(r).seen_key, "name": r.done_by_name or r.picked_by_name}
