@@ -322,7 +322,7 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20261109f">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261109j">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-ui-zoom.css') }}?v=20261122t">
     {# P0-07 토큰(--foms-*)은 아래 erp-pro 번들 링크 바로 앞 이 한 줄로만 싣는다(2026-10-02). 예전엔
        erp-pro/01-intro-tokens.css 가 무버전 @import 로 한 번 더 받아(URL 이 달라 이중 다운로드)
        erp-pro 첫 규칙 앞에 다시 깔았다 — 이 자리가 그 순서를 그대로 잇는다. 핀은 WAM 레이아웃과 같은 값. #}
@@ -365,7 +365,7 @@
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint in ('order_edit.edit_order', 'notices_web.notice_list') or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261115m">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20261122t">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(2026-07-13 누출 봉합).
        원 소유 hide 규칙이 담긴 foms-shell.css 는 /erp·주문 수정 경로에서만 @import 되므로,
@@ -381,7 +381,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20261109f">
     {# 알림 센터 시트 전역 스타일 — 시트 partial 이 layout_scripts 에서 전 페이지
        include 되므로 CSS 도 셸 변형 무관 전역 로드(SSOT, foms-shell.css 에서 이관). #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20261109f">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20261122t">
     {# ORDER-REASON-00: 사유 시트/배너는 PC·태블릿·모바일 모두에서 뜬다 — 전역 로드. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-change-reason.css') }}?v=20260813a">
     {# 판매채널 출처 마크 — 대시보드 밖(전체 주문 목록 `/` · 실측 `/erp/measurement`)에도

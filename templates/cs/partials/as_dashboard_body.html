@@ -22,7 +22,7 @@
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20261117b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20261122t">
 {# x-ignore 는 무거운 목록 칸(PC 표 · 카드 목록)에만 건다 — 셸이 조각을 끼우면 Alpine 의 MutationObserver 가 새 요소를
    전부 훑는데(폰 AS 1만3천 개 — 4배 CPU 175~324ms) x-ignore 칸에서 멈춘다. 화면 뿌리에 걸면 안 된다: 뿌리 안에는
    Alpine 토스트 호스트(#foms-alpine-toast-root)가 있어, 다른 탭에서 AS 로 넘어오면 토스트가 안 떴다(2026-11-18 실측, 11-17 판).

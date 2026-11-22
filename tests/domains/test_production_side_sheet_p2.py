@@ -44,11 +44,11 @@ def test_옆_시트에_연락처_도면_전부_공정_블록이_있다(client) -
 
 def test_칸반_body_가_시트_공통_CSS_JS_를_싣고_핀이_같다() -> None:
     body = _read("templates/production/partials/tablet_kanban_body.html")
-    assert "css/contexts/production/sheet.css') }}?v=20261121d" in body
-    assert "js/production/foms-production-sheet-page.js') }}?v=20261121c" in body
+    assert "css/contexts/production/sheet.css') }}?v=20261122t" in body
+    assert "js/production/foms-production-sheet-page.js') }}?v=20261122t" in body
     page = _read("templates/production/sheet.html")
-    assert "css/contexts/production/sheet.css') }}?v=20261121d" in page
-    assert "js/production/foms-production-sheet-page.js') }}?v=20261121c" in page
+    assert "css/contexts/production/sheet.css') }}?v=20261122t" in page
+    assert "js/production/foms-production-sheet-page.js') }}?v=20261122t" in page
     js = _read("static/js/production/foms-production-sheet-page.js")
     assert "foms:erp-shell-fragment-swapped" in js and "data-foms-sheet-init" in js
     # 도메인 시트 핀 lockstep(칸반 = 시트 페이지 = 홈 = 출고 CHAIN)
@@ -62,8 +62,8 @@ def test_브리핑_목록_60vh_보정과_번들_핀() -> None:
     css = " ".join(_read("static/css/foundation/foms-tablet-production-kanban.css").split())
     assert "max-height: calc(60vh / var(--foms-ui-zoom, 1))" in css
     bundle = _read("static/css/foundation/foms-tablet-bundle.css")
-    assert 'foms-tablet-production-kanban.css?v=20261109b' in bundle and 'foms-tablet-rail.css?v=20261115k' in bundle
-    assert "foms-tablet-bundle.css') }}?v=20261115m" in _read("templates/partials/shared/layout_head.html")
+    assert 'foms-tablet-production-kanban.css?v=20261122t' in bundle and 'foms-tablet-rail.css?v=20261122t' in bundle
+    assert "foms-tablet-bundle.css') }}?v=20261122t" in _read("templates/partials/shared/layout_head.html")
 
 
 def test_레일_브랜드_아래_화면_크기_단추() -> None:
