@@ -27,6 +27,11 @@ from foms.services.notifications.brain_ask_push import (
     is_brain_ask_notification_type,
 )
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_draft_chat, cs_send_link
+from foms.services.notifications.drawing_deadline_push import (
+    NOTIFICATION_TYPE as DRAWING_DEADLINE_DUE,
+    drawing_deadline_deep_link,
+    drawing_deadline_push_text,
+)
 from foms.services.notifications.erp_action_push import (
     ERP_ACTION_PROPOSAL_TYPE,
     erp_action_deep_link,
@@ -102,6 +107,8 @@ _HIGH_URGENCY_TYPES = frozenset(
         "AS_DRAWING_REQUEST",
         "AS_DRAWING_TRANSFERRED",
         "AS_DRAWING_REVISION",
+        # 도면 마감 날 아침 · 저녁(설계서 2026-11-22-production-drawing-arrival-upgrade §9) — 그날 안에 닿아야 뜻이 있다.
+        DRAWING_DEADLINE_DUE,
     }
 )
 
@@ -157,6 +164,9 @@ _DEFAULT_P1_TYPES = frozenset(
         ERP_ACTION_PROPOSAL_TYPE,
         # 물어보기 [○○팀에 묻기](D233) — 그 팀 직원 폰에도 알린다(사용자 결정 D240). 질문 글은 싣지 않는다.
         BRAIN_ASK_TEAM_TYPE,
+        # 도면 마감 알림(설계서 2026-11-22-production-drawing-arrival-upgrade §9-5) — 벨 + 폰. 도면 담당 · 영업 쪽이
+        # 마감 날 아침 · 저녁, 마감이 지나면 일하는 날 아침마다 받는다.
+        DRAWING_DEADLINE_DUE,
     }
 )
 
@@ -274,6 +284,9 @@ def _deep_link(notif: Notification) -> str:
         if ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_REVISION"):
             # 도면팀이 일하는 곳 — 실행판 맨 위 AS 도면 카드.
             return f"/erp/drawing-workbench/{oid}"
+        if ntype == DRAWING_DEADLINE_DUE:
+            # 도면 마감 — 도면 작업실 그 주문(그리기 · 고치기 · 담당 정하기 · 수령 확정을 거기서 한다, §9-5).
+            return drawing_deadline_deep_link(oid)
         if ntype == "SHIPMENT_ORDER_CHANGED":
             # 날짜는 붙이지 않는다 — Notification 모델에 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
             # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
@@ -309,6 +322,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면 전달 취소"
     if ntype in ("AS_DRAWING_REQUEST", "AS_DRAWING_TRANSFERRED", "AS_DRAWING_REVISION"):
         return "AS 도면 알림"
+    if ntype == DRAWING_DEADLINE_DUE:
+        return "도면 마감 알림"
     if ntype == "SHIPMENT_ORDER_CHANGED":
         return "출고 일정 변경"
     if ntype == "PRODUCTION_ORDER_CHANGED":
@@ -362,6 +377,8 @@ def _generic_body(urgent: bool, ntype: str) -> str:
         return "수수료 차감이 바뀌었어요 — 눌러서 확인해 주세요"
     if ntype == "SALES_ORDER_ASSIGNED":
         return "새 주문이 배정됐어요 — 눌러서 확인해 주세요"
+    if ntype == DRAWING_DEADLINE_DUE:
+        return "도면 마감 확인이 필요해요 — 눌러서 도면 작업실을 여세요"
     return "확인이 필요한 새 알림이 있습니다."
 
 
@@ -495,6 +512,9 @@ def _build_payload(
     if is_partner_notification_type(ntype):
         # 협력사 알림 문장은 협력사 알림 서비스가 주소 · 메모 없이, 고객 이름을 가려서 만든다.
         title, body = partner_push_text(ntype, notif.message)
+    elif ntype == DRAWING_DEADLINE_DUE and notif.order_id:
+        # 도면 마감 — 제목은 코드가 만든 세 글 가운데 하나일 때만 그대로, 본문은 번호 · 고객 이름 · 고정 글(알림 글은 안 읽는다).
+        title, body = drawing_deadline_push_text(notif.title, int(notif.order_id), name)
     elif name and notif.order_id and ntype not in _WORKER_HEALTH_TYPES:
         title, body = _order_bound_text(urgent, ntype, int(notif.order_id), name)
     else:
