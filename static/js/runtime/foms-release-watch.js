@@ -9,7 +9,7 @@
    묻는 때: 다시 보일 때 · bfcache 복귀 · 망 복귀 · 캐시에서 꺼낸 문서 · 보이는 동안 5분마다(셸 하트비트 · 이동 응답 머리글로
    이미 들었으면 건너뛴다 — erp-shell.js 가 FOMS_RELEASE_WATCH.observe 를 부른다).
    새로 읽는 때: 다를 때, 안전할 때만 — 보임 · 온라인 · 인쇄 아님 · 30초 손대지 않음 · 쓰기 요청 없음 · 글 칸 커서 없음 · 고친 칸
-   없음 · 바쁨 표시 없음 · 열린 창(모달 · 시트 · 사진 보기) 없음 · 1분 안에 서버가 새 릴리스로 답함(배포 중 502 에 읽지 않게).
+   (찾을 말을 쳐 둔 검색 칸 포함) 없음 · 바쁨 표시 없음 · 열린 창(모달 · 시트 · 사진 보기 — 뒤를 막지 않는 붙박이 패널은 빼고) 없음 · 1분 안에 서버가 새 릴리스로 답함(배포 중 502 에 읽지 않게).
    안전하지 않으면 15초 뒤 다시 본다. 숨으면 멈추고 다시 보일 때 처음부터.
    되풀이 방지: sessionStorage `바라던|시각|횟수|떠난`. 같은 릴리스로 2번까지, 두 번째는 5분 뒤(롤링 배포 중 옛 컨테이너가
    받았거나 페이지의 나가기 확인 창에서 머문 경우). 떠난 릴리스는 10분 동안 다시 좇지 않는다(배포 중 옛 · 새 컨테이너가 번갈아
@@ -34,7 +34,10 @@
   var SECOND_TRY_AFTER_MS = 5 * MIN;
   var LEFT_MEMORY_MS = 10 * MIN;
   var MAX_TRIES = 2;
-  var OVERLAY_SELECTOR = 'dialog[open], .modal.show, .offcanvas.show, [aria-modal="true"], [role="dialog"], [role="alertdialog"]';
+  /** 열린 창. aria-modal="false" 인 창은 뒤를 막지 않는 붙박이 패널(대시보드 태블릿 오른쪽 도킹 시트, tablet-side-sheet.js)이라
+      빼고, 같은 시트가 도킹 없이 밀려 나와 주문을 보이는 동안(is-open)만 따로 센다(2026-11-22 터치 감사 — 도킹 시트 때문에 늘 '열린 창'). */
+  var OVERLAY_SELECTOR = 'dialog[open], .modal.show, .offcanvas.show, [aria-modal="true"], [role="dialog"]:not([aria-modal="false"]), ' +
+    '[role="alertdialog"]:not([aria-modal="false"]), .foms-tablet-sheet.is-open:not(.foms-tablet-sheet--docked)';
   /** html · body 에 다는 열림 표시(modal-open · foms-lightbox-open · foms-tower-sheet-open · foms-mdel-lock …). */
   var OPEN_CLASS_RE = /(^|\s)(modal-open|[\w-]+-open|[\w-]+-lock)(?=\s|$)/;
   var NOT_TEXT_TYPES = /^(checkbox|radio|range|color|file|button|submit|reset|image|hidden)$/;
@@ -80,11 +83,11 @@
     return el.tagName === 'INPUT' && !NOT_TEXT_TYPES.test(inputType(el));
   }
 
-  /** 고친 칸으로 칠 것 — 글 칸(검색 칸 빼고) · 폼 안의 고르기 칸. 폼 밖 체크는 누르는 즉시 저장하는 단추다. */
+  /** 고친 칸으로 칠 것 — 글 칸(검색 칸 포함) · 폼 안의 고르기 칸. 폼 밖 체크는 누르는 즉시 저장하는 단추다. */
   function countsAsEdit(el) {
     if (!el || el.nodeType !== 1 || el.tagName !== 'INPUT') return isTextEntry(el);
     if (CHOICE_TYPES.test(inputType(el))) return !!el.form;
-    return isTextEntry(el) && inputType(el) !== 'search';
+    return isTextEntry(el);
   }
 
   function selectChanged(el) {
@@ -103,6 +106,8 @@
     var type = inputType(el);
     if (type === 'checkbox' || type === 'radio') return el.checked !== el.defaultChecked;
     if (type === 'file') return !!(el.files && el.files.length);
+    // 검색 칸: 쳐 둔 찾을 말이 새로 읽으면 사라진다(실측 · AS · 완료, 11-22). 비웠거나 닫힌 창 속(그려지지 않음)이면 아니다.
+    if (type === 'search') return el.value !== el.defaultValue && el.getClientRects().length > 0;
     return el.value !== el.defaultValue;
   }
 
