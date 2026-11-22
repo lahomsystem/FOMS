@@ -30,23 +30,7 @@ function el(props) {
   }, props);
 }
 
-/* 겹층 셀렉터 판정 — attrs/classes 를 가진 가짜 요소만 실제 셀렉터 글로 견준다(태그 · .class · [attr] · [attr="v"] · :not(…)). */
-function matchCompound(e, compound) {
-  const nots = [];
-  const body = compound.replace(/:not\(([^)]*)\)/g, (_, inner) => { nots.push(inner); return ''; }).trim();
-  const tokens = body.match(/^[a-z]+|\.[\w-]+|\[[\w-]+(?:="[^"]*")?\]/g) || [];
-  if (tokens.join('') !== body) throw new Error('가짜 셀렉터 판정이 모르는 꼴: ' + compound);
-  const one = (t) => {
-    if (t[0] === '.') return (e.classes || []).indexOf(t.slice(1)) !== -1;
-    if (t[0] === '[') {
-      const m = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(t);
-      return Object.prototype.hasOwnProperty.call(e.attrs, m[1]) && (m[2] === undefined || e.attrs[m[1]] === m[2]);
-    }
-    return String(e.tagName).toLowerCase() === t;
-  };
-  return tokens.every(one) && !nots.some((n) => matchCompound(e, n));
-}
-const matchesSel = (e, sel) => sel.split(',').some((c) => matchCompound(e, c.trim()));
+const { matchesSel } = require('./fake_selector_match');
 
 function FakeXHR() { this.ls = {}; }
 FakeXHR.prototype.open = function (m) { this.method = m; };
@@ -166,44 +150,6 @@ S.dirty_field_removed = () => run({}, async (t) => {
   await t.advance(15 * SEC);
   return { before };
 });
-S.search_box_is_unsaved = () => run({}, async (t) => {
-  const box = el({ type: 'search', value: '김' });
-  await t.fire('document', 'input', { target: box });
-  await t.advance(31 * SEC);
-  await t.wake();
-  const before = { n: t.env.reloads, why: t.why() };
-  box.value = ''; // 비우면 막지 않는다
-  await t.advance(15 * SEC);
-  return { before };
-});
-S.untouched_search_box_does_not_block = () => run({}, async (t) => {
-  t.document.activeElement = t.body; // 서버가 그린 찾을 말(defaultValue)은 그대로 — 고친 것이 아니다
-  await t.fire('document', 'change', { target: el({ type: 'search', value: '박', defaultValue: '박' }) });
-  await t.wake();
-});
-S.closed_overlay_search_does_not_block = () => run({}, async (t) => {
-  await t.fire('document', 'input', { target: el({ type: 'search', value: '김', rendered: false }) }); // 닫힌 찾기 창 속 칸
-  await t.wake();
-});
-const dialogEl = (attrs, classes) => el({ tagName: 'ASIDE', attrs, classes: classes || [] });
-const SHEET = ['foms-tablet-sheet', 'is-open'];
-S.docked_side_sheet_is_not_overlay = () => run({ overlays: [dialogEl({ role: 'dialog', 'aria-modal': 'false' }, SHEET.concat('foms-tablet-sheet--docked'))] },
-  async (t) => { await t.wake(); return { why: t.why() }; });
-S.undocked_open_side_sheet_blocks = () => run({ overlays: [dialogEl({ role: 'dialog', 'aria-modal': 'false' }, SHEET)] }, async (t) => {
-  await t.wake();
-  const before = { n: t.env.reloads, why: t.why() };
-  t.env.overlays[0].classes = ['foms-tablet-sheet']; // 닫힘
-  await t.advance(15 * SEC);
-  return { before };
-});
-S.modal_dialog_role_blocks = () => run({ overlays: [dialogEl({ role: 'dialog', 'aria-modal': 'true' }), dialogEl({ role: 'alertdialog' })] },
-  async (t) => {
-    await t.wake();
-    const before = { n: t.env.reloads, why: t.why() };
-    t.env.overlays.forEach((o) => { o.hiddenUp = true; }); // 문서에 남아 있어도 숨으면(hidden) 열린 창이 아니다
-    await t.advance(15 * SEC);
-    return { before };
-  });
 S.instant_checkbox_is_not_unsaved = () => run({}, async (t) => {
   await t.fire('document', 'change', { target: el({ type: 'checkbox', checked: true, defaultChecked: false }) });
   await t.wake();
@@ -326,8 +272,11 @@ S.no_flapping_back = async () => {
   });
 };
 
-(async () => {
+async function main(scenarios) {
   const out = {};
-  for (const name of Object.keys(S)) out[name] = await S[name]();
+  for (const name of Object.keys(scenarios)) out[name] = await scenarios[name]();
   process.stdout.write(JSON.stringify(out));
-})().catch((e) => { console.error(e); process.exit(1); });
+}
+
+module.exports = { el, run, main, SEC, MIN };
+if (require.main === module) main(S).catch((e) => { console.error(e); process.exit(1); });
