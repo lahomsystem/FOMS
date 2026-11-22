@@ -349,7 +349,7 @@ def test_results_hold_no_text_and_only_the_last_ten(world):
     runs = _results()
     assert [run["id"] for run in runs] == list(range(12, 2, -1))
     keys = {"id", "status", "code", "actor_id", "started_at", "heartbeat_at", "finished_at", "model", "cost_usd",
-            "target_pct", "past", "risk", "codes", "failures"}
+            "target_pct", "past", "risk", "codes", "handoffs", "failures"}
     assert all(set(run) == keys for run in runs)
     assert "합성" not in json.dumps(runs, ensure_ascii=False)
 

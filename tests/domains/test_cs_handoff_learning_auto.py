@@ -29,7 +29,7 @@ from tests.domains.test_cs_handoff_learning import (  # noqa: F401 — admin · 
     FACT, NOW, admin, ask, changes, handed, on, run, two,
 )
 from tests.support.brain_support import agent_judge, create
-from tests.support.cs_agent_fakes import FakeAnthropic, at, keys, naive  # noqa: F401 — keys 는 fixture
+from tests.support.cs_agent_fakes import FakeAnthropic, at, clash_placer, keys, naive  # noqa: F401 — keys 는 fixture
 
 
 # ── 배운 것 바로 반영(사장님 11-19) ──────────────────────────────────────
@@ -166,7 +166,7 @@ def test_a_cut_off_answer_keeps_the_cases_unread_and_the_next_tick_halves_the_ba
 def test_a_differs_card_number_never_enters_the_known_number_list_even_after_the_owner_files_it(two, admin):
     on()
     raw = [ask(two, op="differs", key="lahom/shelf-depth", title="합성 선반 깊이 다른 말", text="합성 선반 깊이는 437mm 로 안내했어요")]
-    run(FakeAnthropic({"proposals": raw}))
+    run(FakeAnthropic({"proposals": raw}), placer=clash_placer("lahom/shelf-depth"))
     (card,) = changes()
     apply_change(db_session, card.id, actor=admin, now=naive(NOW))  # 사장님이 엇갈림 항목으로 넣음('확인 필요' 표시)
     db_session.commit()

@@ -24,6 +24,7 @@ from foms.services.cs_agent import handoff_learning as hl
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD
 from foms.services.cs_agent.handoff_learning_gates import MERGED_ACTION
 from foms.services.cs_agent.handoff_learning_pick import EASY, HARD, hard_case, model_for, pick_batch
+from foms.services.cs_agent.handoff_learning_place import placer_source
 from tests.domains.test_cs_drafting import (  # noqa: F401 — channel 은 fixture
     FakeBrain, FakePoster, channel, customer, loop_pass, set_switch, turn,
 )
@@ -31,7 +32,7 @@ from tests.domains.test_cs_drafting import run as draft_run
 from tests.domains.test_cs_handoff_learning import (  # noqa: F401 — admin · two 는 fixture
     NOW, admin, ask, body, changes, handed, on, run, two,
 )
-from tests.support.cs_agent_fakes import FakeAnthropic, at, keys, naive  # noqa: F401 — keys 는 fixture
+from tests.support.cs_agent_fakes import FakeAnthropic, at, clash_placer, keys, naive  # noqa: F401 — keys 는 fixture
 
 TARGET = "lahom/shelf-depth"
 SAID = "합성 직원 답 — 선반 깊이는 400mm 로 짜 드려요"
@@ -39,8 +40,9 @@ FIXED = "합성 선반 깊이는 400mm 입니다"
 
 
 def run_clash(client, now=NOW):
-    """판정자가 '승인 지식과 부딪침'이라고 하는 밤 — 한 번뿐인 다른 말이 엇갈림 카드로 남는다(11-21 부터 부딪치지 않으면 새 지식)."""
-    with judge_source(lambda _s, _a, _b: True):
+    """판정자가 '승인 지식과 부딪침'이라고 하는 밤 — 한 번뿐인 다른 말이 엇갈림 카드로 남는다(11-22 부터 놓을 자리 판정이
+    부딪침이라고 할 때만)."""
+    with judge_source(lambda _s, _a, _b: True), placer_source(clash_placer(TARGET)):
         return hl.run_handoff_learning(db_session, now=now, client=client)
 
 

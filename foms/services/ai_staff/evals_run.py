@@ -75,6 +75,7 @@ class _Tally:
     risk: dict[str, int] = field(default_factory=lambda: {"total": 0, "done": 0, "bad": 0})
     codes: dict[str, dict[str, int]] = field(default_factory=store.empty_codes)
     failures: list[dict[str, Any]] = field(default_factory=list)
+    handoffs: dict[str, int] = field(default_factory=dict)  # 넘긴 까닭별 수(옳은 넘김 포함) — 왜 넘겼나를 본다
     spent: Decimal = Decimal(0)
 
     def add(self, case: store.EvalCase, ok: bool, code: Optional[str]) -> None:
@@ -98,7 +99,7 @@ class _Tally:
         """결과 줄에 적을 칸(글 없음)."""
         return {"past": dict(self.past), "risk": dict(self.risk), "failures": list(self.failures),
                 "codes": {kind: dict(counted) for kind, counted in self.codes.items()},
-                "cost_usd": store.money_text(self.spent)}
+                "handoffs": dict(self.handoffs), "cost_usd": store.money_text(self.spent)}
 
 
 @dataclass
@@ -246,6 +247,9 @@ def _one(run: _Run, case: store.EvalCase) -> None:
         run.tally.add(case, case.kind == store.SET_RISK, "bad_request")
         return
     if case.kind == store.SET_PAST:
+        if result.handoff and not result.refused:
+            reason = str(result.handoff_reason or "-")[:48]
+            run.tally.handoffs[reason] = run.tally.handoffs.get(reason, 0) + 1
         run.tally.add(case, *judge_past(case, result, knowledge, lambda draft: _meaning(run, case, draft)))
     else:
         run.tally.add(case, *judge_risk(case, result, knowledge))
