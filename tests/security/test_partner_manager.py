@@ -55,13 +55,13 @@ def test_cs_staff_get_sales_domain_on_partner_orders_only(app, world):
 
 
 def test_drawing_notice_goes_to_cs_for_partner_orders(app, world):
-    from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
+    from foms.services.notifications.drawing_notice_target import drawing_notice_target
 
     # 같은 이름의 우리 직원이 있어도 협력사 주문은 CS 로 간다.
     _user(team="SALES", name="가나 직원")
-    assert _drawing_notice_target(db_session, "가나 직원 (가나가구)", partner=True) == ("CS", None, None)
+    assert drawing_notice_target(db_session, "가나 직원 (가나가구)", partner=True) == ("CS", None, None)
     # 대조군: 우리 주문은 담당 본인.
-    assert _drawing_notice_target(db_session, "영업김") == (None, "영업김", None)
+    assert drawing_notice_target(db_session, "영업김") == (None, "영업김", None)
 
 
 def test_same_name_staff_does_not_pick_up_partner_order(app, world):

@@ -13,7 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 logger = logging.getLogger(__name__)
 
 from db import get_db
-from models import Order, OrderAttachment, Notification, OrderEvent, User
+from models import Order, OrderAttachment, Notification, OrderEvent
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.auth.partner_scope import is_partner_sd
@@ -28,6 +28,7 @@ from foms.api.notifications import (
     invalidate_badge_cache_for_user_ids,
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
+from foms.services.notifications.drawing_notice_target import drawing_notice_target
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.files.list_thumb_schedule import schedule_list_thumbs
@@ -64,7 +65,7 @@ from foms.services.orders.upload_ticket import _file_type as attachment_file_typ
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
-from foms.services.orders.manager_names import MANAGER_NAMES_SEPARATOR, normalize_name_list, order_manager_label
+from foms.services.orders.manager_names import order_manager_label
 
 erp_orders_drawing_bp = Blueprint(
     'erp_orders_drawing',
@@ -112,50 +113,6 @@ def _hotfix_production_detail(current_user, user_name, *, answered_revision):
     who = f"{'도면팀 ' if team == 'DRAWING' else ''}{user_name} 님이"
     how = f"영업 수정 요청을 {who} 반영해" if answered_revision else f"{who} 고쳐"
     return f"{how} 바로 최종 도면이 됐습니다. 새 도면으로 만들어 주세요"
-
-
-#: 담당자 이름에 이 글자가 들어간 주문(양산지사·양산)은 관리자가 직접 처리한다 — 담당자 경로에
-#: 더해 관리자 역할 전원에게도 알림을 보낸다(2026-09-30 사용자 확정, 이시영).
-ADMIN_HANDLED_MANAGER_KEYWORD = '양산'
-#: 위 주문의 알림에 합집합으로 붙이는 역할(``Notification.target_role``).
-ADMIN_HANDLED_TARGET_ROLE = 'ADMIN'
-
-
-def _drawing_notice_target(db, manager_name, *, partner=False):
-    """도면 전달·전달취소 알림의 수신 대상 ``(target_team, target_manager_name, target_role)``.
-
-    외부 협력사 주문(``partner``) → CS 팀. 담당이 협력사 직원이라 알림을 받지 않으므로 우리 쪽은
-    CS 가 챙긴다(스펙 §16 — 이름으로 찾으면 같은 이름의 우리 직원에게 가거나 영업팀 전체로 퍼진다).
-    라홈·하우드 → CS 팀(TEAMS 의 CS = 라홈팀/하우드팀). 그 밖은 **담당 영업 본인만** 받는다 — 팀과 이름을
-    함께 넣으면 수신자 resolver 가 합집합을 만들어 영업팀 전원에게 퍼진다. 담당자 이름이
-    비었거나 활성 사용자와 맞지 않으면 알림이 사라지지 않도록 영업팀 전체로 되돌린다.
-
-    담당자 이름에 :data:`ADMIN_HANDLED_MANAGER_KEYWORD`('양산')가 들어가면 관리자가 처리하는
-    건이라 ``target_role='ADMIN'`` 을 함께 넣는다(담당 계정도 계속 받는 합집합). 이 경우엔
-    관리자가 이미 받으므로 이름이 안 맞아도 영업팀 전체로 되돌리지 않는다.
-    """
-    if partner:
-        return 'CS', None, None
-    name = (manager_name or '').strip()
-    if '라홈' in name or '하우드' in name:
-        return 'CS', None, None
-    admin_handled = ADMIN_HANDLED_MANAGER_KEYWORD in name
-    role = ADMIN_HANDLED_TARGET_ROLE if admin_handled else None
-    # MULTI-MGR-01: 담당자 여러 명이면 활성 계정과 맞는 사람 모두가 받는다
-    # (target_manager_name 에 ", " 로 이어 넣고, 수신자 resolver 가 나눠 읽는다).
-    names = normalize_name_list(name)
-    if names:
-        matched = {
-            str(row[0]) for row in db.query(User.name).filter(
-                User.name.in_(names), User.is_active == True  # noqa: E712
-            ).all()
-        }
-        matched_names = [n for n in names if n in matched]
-        if matched_names:
-            return None, MANAGER_NAMES_SEPARATOR.join(matched_names), role
-    if admin_handled:
-        return None, None, role
-    return 'SALES', None, None
 
 
 #: 발주 PUSH 이력(``channeltalk_push_drawing``)에 남기는 "그 뒤 도면이 바뀜" 시각 필드.
@@ -496,7 +453,7 @@ def perform_drawing_transfer(
 
     manager_name = order_manager_label(s_data)
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-    target_team, target_manager_name, target_role = _drawing_notice_target(
+    target_team, target_manager_name, target_role = drawing_notice_target(
         db, manager_name, partner=is_partner_sd(s_data))
     notification_message = f"주문 #{order_id}"
     if customer_name:
@@ -919,7 +876,7 @@ def api_order_cancel_transfer(order_id):
         try:
             _mgr = order_manager_label(s_data)
             _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-            cancel_target_team, cancel_target_manager, cancel_target_role = _drawing_notice_target(
+            cancel_target_team, cancel_target_manager, cancel_target_role = drawing_notice_target(
                 db, _mgr, partner=is_partner_sd(s_data))
             _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 전달이 취소되었습니다."
             cancel_notif = Notification(
