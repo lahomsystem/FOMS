@@ -823,3 +823,22 @@
     transition: none !important;
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   시공 작업 화면: 위 [전화] · [내비](48px), 아래 줄 [시공 불가] · [AS 접수](44px) · [시공 시작](48px), [현장 메모 입력] 칸이 화면 크기 80% 에서
+   보이는 35 ~ 38px 였다. '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px 이상(100% 에선 지금 크기 그대로). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-cwork-btn,
+  body.erp-mobile-v2-layout .foms-cwork-memo {
+    min-height: max(var(--foms-touch-target-comfortable), calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .foms-cwork-link,
+  body.erp-mobile-v2-layout .foms-cwork-btn--primary,
+  body.erp-mobile-v2-layout .foms-cwork-btn--lg {
+    min-height: max(var(--foms-touch-target-min), calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-cwork-links {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+}

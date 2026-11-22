@@ -1173,3 +1173,49 @@
     transition: none;
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   실측 화면: 화면 크기 80% 에서 목록 검색 칸 · 거르기 칩 · [지도로 보기] · 주문/계산기/견적서 탭 · 입력 칸 · 고르기 · 항목 칩 ·
+   [복합 규격 행 추가] · 첨부 분류 · 접어 둔 칸 머리 · 체크 · [변환 텍스트 생성] 줄 · 위 [고객에게 전화] · [현장 내비게이션] ·
+   아래 [저장] 줄이 보이는 29 ~ 42px 였다.
+   '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44px 이상(100% 에선 지금 크기 그대로 — 원래 48 · 52px 칸은 max 로 지킨다). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 입력 칸(48px)을 먼저 — 첨부 분류 고르기(.foms-tmf__finput 이면서 44px)는 아래 목록 규칙이 이긴다(원래 순서와 같게). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__finput {
+    min-height: max(48px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__search-input,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__foot .foms-btn,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-tab,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__chip,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__item-del,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__spec-add,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__uploadcat,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__uploadbtn,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__acc-summary,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__check,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__convo-actions .foms-btn {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-chip,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__spec-del {
+    min-height: max(var(--foms-touch-target-min, 32px), calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__input,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-context__btn,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-actions__btn {
+    min-height: max(52px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__num {
+    height: max(52px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-context__actions,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__chips,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-tabs,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__chips,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__convo-actions {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+}

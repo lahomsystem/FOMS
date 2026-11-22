@@ -424,4 +424,22 @@
     color: var(--foms-color-danger-600, #dc2626);
   }
   body.erp-mobile-v2-layout .foms-ship-names__msg:empty { display: none; }
+
+  /* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) — [＋ 날짜 없는 AS] · 시공자 고르기 창 [닫기] · 아래 단추([직접 쓰기] 등)가 화면 크기 80% 에서 보이는 35px 였다.
+     '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px. 표 줄 안의 시공자 칸은 줄 높이에 묶여 있어 여기서 키우지 않는다. --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__addas {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__close {
+    width: calc(44px / var(--foms-ui-zoom, 1));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-ship-names__btn,
+  body.erp-mobile-v2-layout .foms-ship-names__input {
+    height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  body.erp-mobile-v2-layout:is(html[data-foms-ui-zoom^="0."] > body) .foms-ship-names__foot {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
 }

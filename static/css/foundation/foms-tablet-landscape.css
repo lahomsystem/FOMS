@@ -1280,3 +1280,43 @@
     min-height: calc(44px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   1차 뒤에도 화면 크기 80% 에서 44px 칸이 보이는 35px(거르기 칸 · 고르기는 40px)였다. '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두
+   보이는 44px — 100% 에선 지금 크기(44px 이상) 그대로다. 이웃 칸 사이 '보이는 8px' 은 100% 미만에서만 넓힌다(100% 화면은 그대로).
+   ① 줄 높이 40 · 48 · 56(대시보드 · AS · 완료 · 이력 · 출고 더보기 공용) ② 대시보드 위 줄 [지도 생성] · [주문 생성]
+   ③ 대시보드 거르기 줄: 검색 칸 · [검색] · 단계 · 담당팀 고르기 · [초기화] ④ 옆 시트 [첨부 추가] · 아래 단추 줄(전화 · ERP 편집 · 단계로) */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-density-toggle__btn {
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-density-toggle {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__btn,
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__create {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-control,
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-select,
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary,
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  .foms-tsheet-attach-add {
+    width: max(60px, calc(44px / var(--foms-ui-zoom, 1)));
+    height: max(46px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  .foms-tsheet-foot__btn {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  /* 옆 시트 아래 단추 줄은 넓히지 않는다 — 2px 만 좁아져도 [ERP 편집] 글이 두 줄로 꺾였다(80% 실측). */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-tdash-pcbar__actions {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout #erp-filters-form {
+    gap: calc(8px / var(--foms-ui-zoom, 1)) !important;
+  }
+}
