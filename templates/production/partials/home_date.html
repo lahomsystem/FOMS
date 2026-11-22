@@ -1,4 +1,6 @@
 {# 탭 "날짜"(안 3, 사용자 11-10 "3안으로") — 왼쪽 2주 띠(시공일마다 막대 + 만들 것/전체) + 오른쪽 고른 날. home.html 이 include.
+   시공이 있는 띠 줄은 막대 밑에 도면 글 한 줄(fph-sd__mid · d.arrival — 설계서 2026-11-22-production-drawing-arrival-upgrade §5-1:
+   '도면 5/6 마감 지남' 빨강 · '도면 3/7 마감 내일' 주황 · '도면 5/5 다 옴' 초록 · '도면 0/4' 남색). 줄 높이 · 줄 수 · 아래 단추 둘은 그대로.
    오른쪽은 고른 날 장 하나만 그린다(home_day_pane.html, 11-14 — 예전 D5 는 15장을 다 보내고 보이기/숨기기만 했다). 다른 날을 누르면
    foms-production-home.js 가 그 날 장만 받아(?view=day&day=) 끼우고, 한 번 받은 날은 기억한다. 날 단추는 진짜 링크다 —
    스크립트가 묶이기 전에 눌러도 그 날 주소로 이동한다(셸 조각 교체 제외 data-foms-erp-no-shell). 막대는 SVG 좌표(인라인 style 없음).
@@ -16,7 +18,8 @@
        href="{{ home_href(tab, part_board.part if part_board else None, d.key) }}" data-foms-erp-no-shell="1" data-foms-home-daybtn="{{ d.key }}"{% if d.key == days.selected %} aria-current="true"{% endif %}>
       {%- set sub = d.sub ~ (' · 없음' if not d.total and not d.show_day else '') %}
       <span class="fph-sd__d"><b>{{ d.label }}</b><small>{{ sub }}</small></span>
-      <svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>
+      {%- set _bar %}<svg class="fph-sd__bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">{% for s in d.segs %}<rect class="is-{{ s.k }}" x="{{ s.x }}" y="0" width="{{ s.w }}" height="10"/>{% endfor %}</svg>{% endset %}
+      {% if d.arrival %}<span class="fph-sd__mid">{{ _bar }}<span class="fph-sd__dw is-{{ d.arrival.state }}">{{ d.arrival.strip }}</span></span>{% else %}{{ _bar }}{% endif %}
       <span class="fph-sd__n"><b>{{ d.make }}</b><small> / {{ d.total }}</small></span>
     </a>
     {% endfor %}

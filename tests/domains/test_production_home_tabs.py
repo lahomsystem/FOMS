@@ -115,11 +115,24 @@ def test_날짜_탭은_2주_띠와_고른_날_한_장을_그린다(client) -> No
     for other in ("내일완료", "오래된주문", "먼날주문", "날짜미정"):
         assert other not in html, other
     pane = _pane(html, today_key)
-    assert "시공 2건 · 만들 것 1 · 도면·컨펌 기다림 1" in pane
+    # 제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색 — 오늘 시공 도면 주문은 마감이 지나 빨강, 설계서 2026-11-22 §5-2)
+    assert '시공 2건 · 만들 것 1 · <span class="fph-dwst is-late">도면 1/2 내려옴</span>' in pane
     assert "오늘엣지" in pane and "엣지 중" in pane and "오늘도면" in pane
     assert pane.count("fph-dr__st is-done") == 1 and pane.count("fph-dr__st is-now") == 1  # 재단 끝 · 엣지 지금
-    # 오늘 아래 미리 보기 = 다음에 만들 것이 있는 날(내일은 제작 완료뿐이라 건너뜀)
-    assert "미리 보기" in pane and "사흘뒤대기" in pane and "내일완료" not in pane
+    # 순서 = 기다림(안 내려옴) → 만들 것(내려옴) → 제작 완료, 그날 주문만(미리 보기 · 밀린 것 없음)
+    assert pane.index(">도면·컨펌 기다림 1 <small>") < pane.index(">만들 것 1</h3>")
+    assert "미리 보기" not in pane and "사흘뒤대기" not in pane and "사흘전대기" not in pane and "내일완료" not in pane
+    # 띠: 시공 있는 줄마다 막대 밑 도면 글(오늘 · 지난 7일 · 그 뒤 포함, §5-1 · §14 답 2), 시공 없는 줄 · 아래 단추는 글 없음
+    assert '<span class="fph-sd__dw is-late">도면 1/2 마감 지남</span>' in today_btn
+    recent_btn = html.split('data-foms-home-daybtn="recent"')[1].split("</a>")[0]
+    assert '<span class="fph-sd__dw is-ok">도면 1/1 다 옴</span>' in recent_btn
+    later_btn = html.split('data-foms-home-daybtn="later"')[1].split("</a>")[0]
+    assert '<span class="fph-sd__dw is-calm">도면 0/1</span>' in later_btn
+    empty_key = (today + datetime.timedelta(days=2)).isoformat()
+    empty_btn = html.split(f'data-foms-home-daybtn="{empty_key}"')[1].split("</a>")[0]
+    assert "fph-sd__dw" not in empty_btn and "fph-sd__mid" not in empty_btn
+    for key in ("past", "none"):
+        assert "fph-sd__dw" not in html.split(f'data-foms-home-daybtn="{key}"')[1].split("</a>")[0], key
     # 다른 날 = 같은 주소 + view=day 조각: 그 날 장 하나만(셸 · 띠 · 머리 없음), 머리글로 받은 날을 알린다
     frag = client.get(HOME + f"?day={tomorrow_key}&view=day")
     assert frag.status_code == 200 and frag.headers["X-FOMS-HOME-DAY"] == tomorrow_key
@@ -247,14 +260,18 @@ def test_날짜_띠_규칙() -> None:
     assert by["recent"]["total"] == 1 and by["recent"]["show_day"] and by["recent"]["sub"] == "11/4~11/10"
     assert by["past"]["total"] == 1 and by["past"]["note"] == "더 오래된 7건은 안 보여요"
     assert by["later"]["total"] == 1 and by["later"]["sub"] == "11/22~" and by["none"]["total"] == 1
-    # 미리 보기 = 뒤 장들 만들 것을 6줄까지 이어 붙이고 모자라면 밀린 것(M4 §18). 자기 날은 아님
-    def _pv(key: str) -> list:
-        return [(p["title"], p["hint"], [r["id"] for r in p["rows"]]) for p in by[key]["previews"]]
-    assert _pv("2026-11-11") == [("다음에 만들 것 2", "미리 보기", [9, 10]), ("지난 7일 만들 것 1", "밀린 것", [2])]
-    assert _pv("recent") == [("다음에 만들 것 5", "미리 보기", [5, 4, 3, 9, 10])]  # 지난 7일 장은 오늘부터, 밀린 것 없음
-    for key in ("2026-11-21", "later"):  # 뒤로 만들 것이 없는 끝날·그 뒤 장은 밀린 것만
-        assert _pv(key) == [("지난 7일 만들 것 1", "밀린 것", [2])] and by[key]["previews"][0]["show_day"], key
-    assert by["past"]["previews"] == [] and by["none"]["previews"] == []
+    # 미리 보기는 없다(2026-11-22 §5-2 — 그날 주문만). 띠 · 장 도면 글 = 내려옴 x / 그 줄 n(제작 완료 포함) + 마감 상태
+    assert all("previews" not in b for b in days["panes"])
+    assert wed["arrival"] == {"x": 4, "n": 5, "state": "late", "strip": "도면 4/5 마감 지남", "pane": "도면 4/5 내려옴"}
+    # 11/12(목) 시공 = 마감 11/10(화) — 이미 지남. 그 뒤 줄 11/22(일) 시공 = 마감 11/19(목) — 여유(남색, 글은 x/n 만)
+    assert by["2026-11-12"]["arrival"]["strip"] == "도면 0/1 마감 지남"
+    assert by["2026-11-14"]["arrival"] == {"x": 1, "n": 1, "state": "ok", "strip": "도면 1/1 다 옴", "pane": "도면 1/1 내려옴"}
+    assert by["later"]["arrival"]["state"] == "calm" and by["later"]["arrival"]["strip"] == "도면 0/1"
+    assert by["2026-11-13"]["arrival"] is None and by["none"]["arrival"]["strip"] == "도면 0/1"  # 시공일 없음 = 여유(마감 없음)
+    # 기다림 묶음 머리: 하루 장 = 그날 마감, 시공일 없음 장 = 마감 없음 글, 여러 날 장 · 기다림 없는 장 = 없음(칸마다 마감)
+    assert wed["wait_head"] == {"text": "마감 11/9 (월) 지났어요", "state": "late"}
+    assert by["none"]["wait_head"] == {"text": "시공일이 없어 마감이 없어요", "state": ""}
+    assert by["later"]["wait_head"] is None and by["2026-11-14"]["wait_head"] is None
     # 고른 날: 아는 열쇠만
     assert production_home_days(rows, today, "past")["selected"] == "past"
     assert production_home_days(rows, today, "2026-12-25")["selected"] == "2026-11-11"

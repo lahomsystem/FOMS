@@ -89,6 +89,10 @@
 .fpc-nm small { flex-shrink: 0; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text3); }
 .fpc-pr { font-size: calc(15px * var(--foms-fs, 1)); color: var(--fpc-text2); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .fpc-cl { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-danger-ink); }
+/* 기다림 줄 ③ 칸 안 막힌 까닭 · 담당 한 줄(설계서 2026-11-22-production-drawing-arrival-upgrade §6 — 칸 · 폭 그대로). '담당 없음' 만 빨강 */
+.fpc-why { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: var(--fpc-text2); }
+.fpc-why b { font-weight: 800; color: var(--fpc-warn-ink); }
+.fpc-why b.is-none { color: var(--fpc-danger-ink); }
 
 /* ④ 공정 4칸 — 칸 폭을 4등분(오른쪽 끝에 붙지 않음). 칸 안 '김재단 11/20' 은 아주 넓은 화면에서만 */
 .fpc-steps { min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }

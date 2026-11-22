@@ -3,6 +3,7 @@
    행 값(pc_due · pc_late · pc_steps · pc_status_* · pc_prev)은 foms/services/production/pc_view.attach_pc_rows(쿼리 0).
    줄은 div 이고 이름 링크(.fpc-nm)가 줄 전체를 덮는다 — 마우스 글 칸(tabindex)을 링크 안에 넣지 않으려고(링크 안 포커스 칸 금지).
    마우스 글 = data-tip(CSS 만, JS 없음) + tabindex · aria-label 같은 글. 인라인 style · script 없음. 금액 없음(D7). #}
+{% from 'production/partials/home_date_macros.html' import fph_why %}
 
 {# ① 시공일 칸 — 'M/D (요일)' 큰 글 + D-n · 오늘 · 내일 · n일 지남 · 외 n · 바뀐 날(← 옛 날). 마우스 글 = 일하는 날(색 기준, §8). #}
 {% macro pc_due_cell(r) -%}
@@ -22,8 +23,10 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 {% if lv %} is-{{ lv }}{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.hold_active %} is-hold{% endif %}{% if r.home_focus %} is-focus{% endif %}
 {%- endmacro %}
 
-{% macro _who(r, spec=True) -%}
-<span class="fpc-who"><a class="fpc-nm" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}"><b>{{ r.customer_name }}</b><small>#{{ r.id }}</small></a><span class="fpc-pr">{{ r.v3_product_label or '품목 없음' }}{% if spec and r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if spec and r.v3_material %} · {{ r.v3_material }}{% endif %}</span>{% if r.has_changes %}<span class="fpc-cl">{{ r.change_line }}</span>{% endif %}</span>
+{# ③ 손님 · 품목 칸. 안 내려온 주문(기다림)은 칸 안에 막힌 까닭 · 도면 담당 · 영업 담당 한 줄(fph_why, 칸 · 폭 그대로 — 설계서
+   2026-11-22-production-drawing-arrival-upgrade §6). deadline=True(여러 날 장 · 찾기)면 그 줄 앞에 마감. #}
+{% macro _who(r, spec=True, deadline=False) -%}
+<span class="fpc-who"><a class="fpc-nm" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}"><b>{{ r.customer_name }}</b><small>#{{ r.id }}</small></a><span class="fpc-pr">{{ r.v3_product_label or '품목 없음' }}{% if spec and r.v3_spec_display %} · {{ r.v3_spec_display }}{% endif %}{% if spec and r.v3_material %} · {{ r.v3_material }}{% endif %}</span>{% if r.has_changes %}<span class="fpc-cl">{{ r.change_line }}</span>{% endif %}{% if r.home_view == 'wait' and r.dw_blocker %}<span class="fpc-why">{{ fph_why(r, deadline) }}</span>{% endif %}</span>
 {%- endmacro %}
 
 {% macro _by(r) -%}
@@ -48,11 +51,11 @@ data-foms-home-job data-day="{{ r.day_key }}" data-view="{{ r.home_view }}" data
 {% endmacro %}
 
 {# 작은 줄(도면 · 컨펌 기다림 · 제작 완료 · 곧 올 것) = 네 칸(시공일 · 상태 · 손님/품목 · 발주/담당). 시공일 칸은 큰 줄과 같은 자리 · 같은 꼴. #}
-{% macro pc_mini(r, job=False) %}
+{% macro pc_mini(r, job=False, deadline=False) %}
 <div class="fpc-r fpc-r--mini{{ _row_class(r) }}" data-foms-home-dayrow="{{ r.id }}"{% if job %} {{ _job_attrs(r) }}{% endif %}>
   {{ pc_due_cell(r) }}
   {{ _status(r) }}
-  {{ _who(r, spec=False) }}
+  {{ _who(r, spec=False, deadline=deadline) }}
   {{ _by(r) }}
 </div>
 {% endmacro %}

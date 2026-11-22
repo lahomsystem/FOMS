@@ -3,28 +3,27 @@
    생산 파트: part_board 가 있으면 도면 카드 판(home_parts.html)을 앞에 그리고 지금 장은 fph-pane__now 로 감싼다(태블릿 가로 파트
    계정에서만 숨김, parts.css). '도면 카드' 화면(tab=parts)은 판만 그린다.
    [도면 카드로 보기](parts_link, 11-21 사용자 ② — 위 탭 '도면 카드' 를 뺀 자리): 관리자 · 읽기 전용 + 태블릿만, 이 장의 날 그대로 카드 화면으로.
-   장 안에 있어 다른 날을 눌러 장을 바꿔 끼우면 단추의 날도 같이 바뀐다. #}
-{% from 'production/partials/home_date_macros.html' import fph_row, fph_chip, home_href %}
-{% set _wait_n = d.wait_rows | length %}
+   장 안에 있어 다른 날을 눌러 장을 바꿔 끼우면 단추의 날도 같이 바뀐다.
+   그날 시공 주문만, 순서 = 도면·컨펌 기다림(아직 안 내려옴) → 만들 것(내려옴) → 제작 완료(끝남) — 설계서
+   2026-11-22-production-drawing-arrival-upgrade §5-2(사장님 "당일 것만 · 미도착 › 도착 › 끝난 주문"). 미리 보기 · 밀린 것은 뺐다.
+   제목 작은 글 끝 = 도면 x/n 내려옴(띠와 같은 색), 기다림 묶음 머리 = 그날 마감(d.wait_head, 하루 장 · 시공일 없음 장만).
+   여러 날 장(d.show_day — 지난 7일 · 그 뒤 · 지난 시공일)은 칸마다 둘째 줄 앞에 마감. #}
+{% from 'production/partials/home_date_macros.html' import fph_row, fph_chip, fph_wait, fph_wait_head, home_href %}
 <section class="fph-pane" data-foms-home-daypane="{{ d.key }}">
-  {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small>{% if parts_link %}<a class="fph-pane__cards" data-foms-home-partslink href="{{ home_href('parts', 'cut', d.key) }}">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>{% endif %}</h2>
+  {% if part_board %}{% include 'production/partials/home_parts.html' %}{% endif %}{% if tab != 'parts' %}{% if part_board %}<div class="fph-pane__now">{% endif %}<h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }}{% if d.arrival %} · <span class="fph-dwst is-{{ d.arrival.state }}">{{ d.arrival.pane }}</span>{% endif %}{% if d.note %} · {{ d.note }}{% endif %}</small>{% if parts_link %}<a class="fph-pane__cards" data-foms-home-partslink href="{{ home_href('parts', 'cut', d.key) }}">도면 카드로 보기<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>{% endif %}</h2>
   {% if not d.total and not d.note %}
   <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+  {% endif %}
+  {% if d.wait_rows %}
+  <h3 class="fph-pane__g">도면·컨펌 기다림 {{ d.wait_rows | length }} <small>{{ fph_wait_head(d.wait_head) }}도면이 오면 아래로 내려가요</small></h3>
+  <div class="fph-wg">{% for r in d.wait_rows %}{{ fph_wait(r, d.show_day) }}{% endfor %}</div>
   {% endif %}
   {% if d.make_rows %}
   <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
   {% for r in d.make_rows %}{{ fph_row(r) }}{% endfor %}
   {% endif %}
-  {% if d.wait_rows %}
-  <h3 class="fph-pane__g">도면·컨펌 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
-  <div class="fph-wg">{% for r in d.wait_rows %}{{ fph_chip(r, false) }}{% endfor %}</div>
-  {% endif %}
   {% if d.done_rows %}
   <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
   <div class="fph-wg">{% for r in d.done_rows %}{{ fph_chip(r, true) }}{% endfor %}</div>
   {% endif %}
-  {% for p in d.previews %}
-  <h3 class="fph-pane__g fph-pane__g--next">{{ p.title }} <small>{{ p.hint }}</small></h3>
-  {% for r in p.rows %}{{ fph_row(r) }}{% endfor %}
-  {% endfor %}
 {% if part_board %}</div>{% endif %}{% endif %}</section>
