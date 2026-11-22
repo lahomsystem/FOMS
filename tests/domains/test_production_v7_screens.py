@@ -92,7 +92,6 @@ def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무�
                  ".fph-sd__dw.is-ok, .fph-dwst.is-ok { color: var(--fph-dw-ok); }",
                  ".fph-wi__why b.is-none { color: var(--fph-danger); }"):
         assert line in block, line
-    assert "--fph-dw-late: #b91c1c;" in css and "--fph-dw-soon: #b45309;" in css and "--fph-dw-ok: #047857;" in css
     import re
     for size in re.findall(r"font-size:\s*([^;]+);", block):
         assert re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", size.strip()), size
@@ -269,3 +268,50 @@ def test_작업_시트_도면_칸_글은_쿼리를_늘리지_않는다(client, c
             event.remove(engine, "before_cursor_execute", _before)
         counts[name] = seen["q"]
     assert counts["wait"] == counts["made"], counts
+
+
+def _css_token(css: str, name: str) -> str:
+    m = re.search(rf"{re.escape(name)}:\s*(#[0-9a-fA-F]{{6}});", css)
+    assert m, name
+    return m.group(1).lower()
+
+
+#: 도면 마감 상태 색 — 2026-11-22 실화면 검토 뒤 값. 바꾸려면 아래 거리 · 대비 규칙을 다시 재고 이 표와 같이 고친다.
+DEADLINE_TOKENS = {"--fph-dw-late": "#b91c1c", "--fph-dw-soon": "#68550d", "--fph-dw-ok": "#047857", "--fph-brand-dark": "#4a55b8"}
+DARK_TOKENS = {"--fpp-dw-late-on-dark": "#fca5a5", "--fpp-dw-soon-on-dark": "#fcd34d"}
+
+
+def test_도면_마감_색_넷은_짝마다_정상_10_색약_6_이상이고_글_대비_4_5_이상() -> None:
+    """상태 색 규칙(ΔE2000 ≥ 10 정상 · ≥ 6 녹색맹 · 적색맹 흉내, 글 대비 ≥ 4.5)을 값과 함께 못 박는다(소스 계약).
+    목업 빠듯 주황 #b45309 는 늦음 빨강과 녹색맹 흉내 5.8 이라 실화면에서 같은 빨강으로 읽혔다(2026-11-22)."""
+    from itertools import combinations
+
+    from tests.support.color_contrast import blend, contrast_ratio, hex_rgb, pair_distances
+
+    home = (ROOT / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
+    sheet = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    parts = (ROOT / "static/css/contexts/production/parts.css").read_text(encoding="utf-8")
+    assert {k: _css_token(home, k) for k in DEADLINE_TOKENS} == DEADLINE_TOKENS
+    assert {k: _css_token(sheet, k) for k in DARK_TOKENS} == DARK_TOKENS
+    colors = {k: hex_rgb(v) for k, v in DEADLINE_TOKENS.items()}
+    for a, b in combinations(colors, 2):
+        normal, deu, pro = pair_distances(colors[a], colors[b])
+        assert normal >= 10 and deu >= 6 and pro >= 6, (a, b, round(normal, 1), round(deu, 1), round(pro, 1))
+    # 글이 놓이는 바탕: 띠 흰 · 고른 띠 줄 · 장 · 찾기 바탕(넷 다). 칩(여러 날 장의 '마감 M/D' — 기다림 칸 · 파트 기다림 칩)은
+    # 주문 하나의 상태(늦음 · 빠듯 · 여유)만 놓인다 — '다 옴' 은 줄 · 묶음 글에만 있다.
+    wide = [_css_token(home, k) for k in ("--fph-surface", "--fph-brand-50", "--fph-bg")]
+    chips = [_css_token(home, "--fph-raised"), _css_token(parts, "--fph-wait-50")]
+    for name, rgb in colors.items():
+        for back in wide + (chips if name != "--fph-dw-ok" else []):
+            assert contrast_ratio(rgb, hex_rgb(back)) >= 4.5, (name, back)
+    # 어두운 도면 칸(작업 시트): 늦음 · 빠듯 · 그 밖(흰 글 85%) 짝 거리, 칸 · 띠 바탕 대비
+    dwg = hex_rgb(_css_token(sheet, "--fpp-dwg"))
+    band = blend((0, 0, 0), 0.28, dwg)
+    dark = {k: hex_rgb(v) for k, v in DARK_TOKENS.items()}
+    dark["plain"] = blend((255, 255, 255), 0.85, dwg)
+    for a, b in combinations(dark, 2):
+        normal, deu, pro = pair_distances(dark[a], dark[b])
+        assert normal >= 10 and deu >= 6 and pro >= 6, (a, b, round(normal, 1), round(deu, 1), round(pro, 1))
+    for name, rgb in dark.items():
+        assert contrast_ratio(rgb, dwg) >= 4.5 and contrast_ratio(rgb, band) >= 4.5, name
+    assert "#fdba74" not in sheet and "#b45309" not in home  # 옛 빠듯 색이 돌아오면 실패

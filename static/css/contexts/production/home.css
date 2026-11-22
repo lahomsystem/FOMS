@@ -18,10 +18,13 @@
   --fph-danger-50: #fef2f2;
   --fph-warn: #d97706;
   --fph-ok: #059669;
-  /* 도면 마감 상태 색(설계서 2026-11-22-production-drawing-arrival-upgrade §4-3, 목업 값) — 늦음 · 빠듯 · 다 옴. 여유는 --fph-brand-dark.
-     띠 · 장 제목 · 묶음 머리 · 찾기가 같이 쓴다(작업 시트는 어두운 도면 칸이라 sheet.css 에 밝은 짝). */
+  /* 도면 마감 상태 색(설계서 2026-11-22-production-drawing-arrival-upgrade §4-3) — 늦음 · 빠듯 · 다 옴. 여유는 --fph-brand-dark.
+     띠 · 장 제목 · 묶음 머리 · 찾기가 같이 쓴다(작업 시트는 어두운 도면 칸이라 sheet.css 에 밝은 짝).
+     빠듯은 목업 주황에서 짙은 호박색으로 옮겼다(2026-11-22 실화면 검토 — '마감 지남' 빨강과 '마감 오늘' 이 같은 빨강으로
+     읽혔고 녹색맹 흉내 ΔE2000 5.8). 넷이 짝마다 ΔE2000 ≥ 10(정상) · ≥ 6(녹색맹 · 적색맹 흉내), 모든 바탕에서 글 대비 ≥ 4.5 —
+     값은 시험이 못 박는다(tests/domains/test_production_v7_screens.py). */
   --fph-dw-late: #b91c1c;
-  --fph-dw-soon: #b45309;
+  --fph-dw-soon: #68550d;
   --fph-dw-ok: #047857;
   --fph-why: #92400e;
   background: var(--fph-bg);
