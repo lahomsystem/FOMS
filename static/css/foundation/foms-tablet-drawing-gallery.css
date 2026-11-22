@@ -896,3 +896,60 @@
     margin-inline: calc(2px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   도면 작업실: 화면 크기 80% 에서 카드 크기 [작게 · 보통 · 크게](39×35) · [도면공 일괄 배정] · [도면 마법사] · 정렬 · 검색 칸 · [검색](39×35) · [초기화] ·
+   안내 닫기 · 옆 시트 [마법사 열기] 가 보이는 35px, 옆 시트 '원 주문 열기' 글 링크는 17px 였다. '44px ÷ 배율'로 80 · 90 · 100% 모두
+   보이는 44px. 카드 크기 세 칸은 100% 미만에서 붙은 한 덩어리 대신 칸마다 테두리를 두르고 보이는 8px 를 띄운다(이웃 누름이 새지 않게).
+   '원 주문 열기'는 글 줄 높이를 그대로 두고 투명 누름 칸(::after)만 44×44 로 넓힌다(위아래는 글 · 정보 상자라 누름 없음). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-drawing-workshop__size {
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-drawing-workshop__sizes {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+    border: 0;
+    overflow: visible;
+    background: transparent;
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-drawing-workshop__size {
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+  }
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-drawing-workshop__size.is-active {
+    border-color: var(--foms-interactive-primary);
+    background: var(--foms-interactive-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn {
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn,
+  body.erp-mobile-v2-layout .foms-drawing-workshop__sort,
+  body.erp-mobile-v2-layout .foms-drawing-workshop__search,
+  body.erp-mobile-v2-layout .foms-drawing-sheet__btn {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-hint__close {
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__order-link {
+    position: relative;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__order-link::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, calc(44px / var(--foms-ui-zoom, 1)));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    transform: translate(-50%, -50%);
+  }
+  /* 나란히 놓인 칸 사이 '보이는 8px'(원래 8px 칸 사이가 80% 에서 6px 로 보였다) — 화면 크기 100% 미만에서만. */
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-drawing-workshop__tools,
+  html[data-foms-ui-zoom^="0."] body.erp-mobile-v2-layout .foms-drawing-workshop__filters {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+}

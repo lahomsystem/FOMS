@@ -747,3 +747,22 @@
     min-height: calc(44px / var(--foms-ui-zoom, 1));
   }
 }
+
+/* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) ---
+   완료 화면: 화면 크기 80% 에서 [CSV 내보내기] · 검색 칸 · 기간 · 정산 고르기 · [적용] · [초기화], 옆 정산 시트의 귀속 부서 · 청구 금액
+   칸 · [비용 청구 등록] 이 보이는 35 ~ 40px 였다. '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px.
+   여러 줄 글 칸(textarea)은 원래 높이가 더 커서 넣지 않는다(넣으면 100% 에서 88 → 74px 로 줄었다). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-completion-grid__excel,
+  body.erp-mobile-v2-layout .foms-completion-grid__filterbar input[type="search"],
+  body.erp-mobile-v2-layout .foms-completion-grid__filterbar select,
+  body.erp-mobile-v2-layout .foms-completion-grid__apply,
+  body.erp-mobile-v2-layout .foms-completion-grid__reset,
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-submit,
+  body.erp-mobile-v2-layout .foms-completion-sheet__field .form-select,
+  body.erp-mobile-v2-layout .foms-completion-sheet__field .form-control:not(textarea),
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] select,
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] input {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}

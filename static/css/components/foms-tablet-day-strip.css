@@ -106,4 +106,22 @@
   body.erp-mobile-v2-layout [data-ship-color="8"] { --ship-pc: #D5E9E5; }
   body.erp-mobile-v2-layout [data-ship-color="9"] { --ship-pc: #F5D5E5; }
   body.erp-mobile-v2-layout [data-ship-color="10"] { --ship-pc: #E9E5D5; }
+
+  /* --- 터치 태블릿 누름 칸 44px 2차(보이는 크기, 2026-11-22) — 날짜 칸(50px) · [◀ ▶](44×50) 가 화면 크기 80% 에서 보이는 40px · 35×40 이었다. 높이 · 화살표 폭을
+     '44px ÷ 배율'로 80 · 90 · 100% 모두 보이는 44px 이상(100% 에선 지금 크기 그대로). 날짜 칸 사이 · 화살표와 띠 사이는
+     100% 미만에서만 보이는 8px 로 넓히고 띠 폭(7칸)도 같이 늘린다(100% 화면은 그대로). --- */
+  body.erp-mobile-v2-layout .foms-ship-days__nav {
+    flex-basis: max(44px, calc(44px / var(--foms-ui-zoom, 1)));
+    height: max(50px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout .foms-ship-day {
+    height: max(50px, calc(44px / var(--foms-ui-zoom, 1)));
+  }
+  body.erp-mobile-v2-layout:is(html[data-foms-ui-zoom^="0."] > body) .foms-ship-days {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  body.erp-mobile-v2-layout:is(html[data-foms-ui-zoom^="0."] > body) .foms-ship-days__track {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+    width: calc(var(--ship-day-w) * 7 + calc(8px / var(--foms-ui-zoom, 1)) * 6);
+  }
 }
