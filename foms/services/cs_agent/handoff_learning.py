@@ -26,9 +26,9 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
    둔 앞뒤 대화 창. 대화를 못 읽으면 질문 앞 6줄. 조각마다 가림 검사 — 하나라도 걸리면 그 사례만 뺀다(``mask_dropped``).
 4. **두뇌**: 회사 지식 · 온톨로지 목록 · 이미 모아 둔 다른 말과 견줘 안을 구조화 출력으로. 부르기가 끝나면 보낸 차례를 '읽음'으로
    적는다(부르기가 실패하면 적지 않아 다음 바퀴 · 다음 밤에 다시 본다).
-5. **관문 · 넣기**(:mod:`.handoff_learning_gates` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
-   부딪침 → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을 지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과
-   다른 말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고치고, 한 번뿐이면 승인 대기 ③ 엇갈림 카드로 모은다.
+5. **관문 · 넣기**(:mod:`.handoff_learning_route` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
+   놓을 자리(같음 · 더함 · 새 지식 · 부딪침 · 이미 정함 · 규칙 아님 — 11-22) → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을
+   지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과 다른 말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고친다.
 
 로그 · 결과에는 숫자 · 코드만 싣는다(글 · 상담 id 없음).
 """
@@ -53,9 +53,10 @@ from foms.services.cs_agent.channel_read import naive_utc
 from foms.services.cs_agent.drafting import SKIP_CHECK, SKIP_HANDOFF
 from foms.services.cs_agent.full_conversation import MIN_CASE_CHARS, case_limit, read_talk, talk_on, talk_text
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
-from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, file_proposals, open_cards, seen_proposals
+from foms.services.cs_agent.handoff_learning_gates import EVIDENCE_MIN_CHATS, open_cards, seen_proposals
 from foms.services.cs_agent.handoff_learning_onto import file_ontology
 from foms.services.cs_agent.handoff_learning_pick import model_for, pick_batch
+from foms.services.cs_agent.handoff_learning_route import file_proposals
 from foms.services.cs_agent.handoff_learning_prompt import (
     anchor_mark, build_params, case_lines, complete, differs_lines, knowledge_lines, knowledge_rows, pending_lines,
     raw_ontology, raw_proposals, talk_window,
@@ -404,7 +405,8 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
     more = file_ontology(session, onto, sent, now=now, known=known, auto=auto)
     session.commit()
     for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed"),
-                      ("new", "differs_new")):
+                      ("new", "placed_new"), ("added", "placed_added"), ("same", "same"), ("decided", "decided_before"),
+                      ("not_rule", "not_rule")):  # 놓을 자리 판정 답(11-22) — 같음은 글자 같음 관문 것도 센다
         counts[name] = got.pop(key, 0) + more.pop(key, 0)
     counts["blocked"] = {code: got.get(code, 0) + more.get(code, 0) for code in sorted({*got, *more})}
 
@@ -433,7 +435,8 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     talks = _talks(reader, cfg, cases, photos)
     counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
                               "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
-                              "cards": 0, "fixed": 0, "new": 0, "blocked": {}, "halted": None}
+                              "cards": 0, "fixed": 0, "new": 0, "added": 0, "same": 0, "decided": 0, "not_rule": 0,
+                              "blocked": {}, "halted": None}
     try:
         _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
@@ -451,9 +454,10 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         close_day(session, day)
     release(session)
     logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
-                "applied=%d cards=%d fixed=%d new=%d blocked=%s halted=%s", day, tier, counts["left"], counts["cases"],
-                counts["talks"], counts["mask_dropped"], counts["sent"], counts["proposed"], counts["filed"],
-                counts["applied"], counts["cards"], counts["fixed"], counts["new"], counts["blocked"], counts["halted"])
+                "applied=%d cards=%d fixed=%d new=%d added=%d same=%d decided=%d not_rule=%d blocked=%s halted=%s", day,
+                tier, counts["left"], counts["cases"], counts["talks"], counts["mask_dropped"], counts["sent"],
+                counts["proposed"], counts["filed"], counts["applied"], counts["cards"], counts["fixed"], counts["new"],
+                counts["added"], counts["same"], counts["decided"], counts["not_rule"], counts["blocked"], counts["halted"])
     return counts
 
 

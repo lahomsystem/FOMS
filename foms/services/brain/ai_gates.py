@@ -29,7 +29,7 @@ from foms.services.brain.chat_model import build_params, call_model
 from foms.services.brain.chat_settings import read_chat_settings
 from foms.services.brain.chat_tools import score_values, search_objects, terms
 from foms.services.brain.constants import (
-    AGENT_WORK_TYPES, BRAND_COMMON, CONFIRMED, OP_CREATE, OP_DELETE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE,
+    AGENT_WORK_TYPES, BRAND_COMMON, CONFIRMED, EVIDENCED, OP_CREATE, OP_DELETE, OP_RETIRE, OP_UPDATE, STATUS_ACTIVE,
 )
 from foms.services.brain.embeddings import HELD_SCOPES, account_like
 from foms.services.brain.eval_set import stored_questions
@@ -136,24 +136,60 @@ def same_brand(proposal_brand: Optional[str], hit_brand: Any) -> bool:
     return hit_brand in (proposal_brand, BRAND_COMMON)
 
 
+#: 빈 설명 칸 유형 — 공정 단계 · 견적 계산기 제품 · 옵션(뜻은 이름 · 링크 · 계산기에 있고 글은 비었거나 짧다). 넘긴 상담 배우기의
+#: 놓을 자리 판정에서 견줄 후보 · 고침 · 엇갈림 카드의 대상이 되지 못한다(사장님 11-22 — 「시공」 · 「생산」 과 견준 카드).
+STUB_TYPES: frozenset[str] = frozenset({"process_step", "product_line", "option"})
+
+
+def _sendable(visibility: Any, body: str) -> bool:
+    """판정자에게 보낼 수 있는 글인가 — 가격 재량 · 관리 글 · 개인정보 · 계좌 같은 번호는 판정자에게도 안 보낸다."""
+    return visibility not in HELD_SCOPES and not any(leak_counts(body).values()) and not account_like(body)
+
+
 def related_knowledge(session: Any, *, key: str, texts: list[str], today: datetime.date,
                       brand: Optional[str] = None) -> list[str]:
     """제안과 가까운 승인 지식 글 — 같은 항목의 지금 글 + 찾기 앞 몇 개(반영 · 확정만, 다른 키, 견줄 브랜드만 —
     :func:`same_brand`)."""
-    def sendable(visibility: Any, body: str) -> bool:  # 가격 재량 · 관리 글 · 개인정보 · 계좌 같은 번호는 판정자에게도 안 보낸다
-        return visibility not in HELD_SCOPES and not any(leak_counts(body).values()) and not account_like(body)
-
     out = []
     current = current_object(session, key)
-    if current is not None and current.status == STATUS_ACTIVE and current.text and sendable(current.visibility,
-                                                                                               current.text):
+    if current is not None and current.status == STATUS_ACTIVE and current.text and _sendable(current.visibility,
+                                                                                                current.text):
         out.append(f"{current.name}: {current.text}")
     for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=RELATED_LIMIT * 2):
         if (hit["key"] != key and hit["confidence"] == CONFIRMED and hit["score"] >= MIN_RELATED_SCORE
                 and same_brand(brand, hit.get("brand"))
-                and len(out) < RELATED_LIMIT + 1 and sendable(hit["visibility"], hit["text"])):
+                and len(out) < RELATED_LIMIT + 1 and _sendable(hit["visibility"], hit["text"])):
             out.append(f"{hit['name']}: {hit['text']}")
     return out
+
+
+#: 놓을 자리 후보의 확신 — 확정 + 근거 있음(밤 배우기가 바로 반영한 항목. 이것을 빼면 배운 말끼리의 되풀이를 못 잡는다 —
+#: 11-22 점검: 같은 말 묶음 61개 가운데 11개가 배운 말끼리).
+_PLACED = frozenset({CONFIRMED, EVIDENCED})
+
+
+def related_items(session: Any, *, key: Optional[str], texts: list[str], today: datetime.date,
+                  brand: Optional[str] = None, limit: int = RELATED_LIMIT + 1) -> list[dict[str, str]]:
+    """:func:`related_knowledge` 와 같은 거름으로 고른 항목 — 짚은 항목(``key``) + 찾기 앞 ``limit`` 개, 저마다 키 · 이름 · 유형 ·
+    지금 글 전체. 빈 설명 칸 유형(:data:`STUB_TYPES`)은 뺀다(넘긴 상담 배우기의 놓을 자리 판정 — 사장님 11-22)."""
+    def keep(row: Any) -> bool:
+        return (row is not None and row.status == STATUS_ACTIVE and bool(row.text) and row.item_type not in STUB_TYPES
+                and _sendable(row.visibility, row.text))
+
+    current = current_object(session, key) if key else None
+    rows = [current] if keep(current) else []
+    found = 0
+    for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=limit * 3):
+        if found >= limit:
+            break
+        if (hit["key"] == key or hit["confidence"] not in _PLACED or hit["score"] < MIN_RELATED_SCORE
+                or not same_brand(brand, hit.get("brand")) or hit.get("type") in STUB_TYPES):
+            continue
+        row = current_object(session, hit["key"])
+        if keep(row):
+            rows.append(row)
+            found += 1
+    return [{"key": row.item_key, "name": row.name or "", "type": row.item_type, "text": row.text} for row in rows]
 
 
 def related_key(session: Any, *, texts: list[str], today: datetime.date, brand: Optional[str] = None) -> Optional[str]:
