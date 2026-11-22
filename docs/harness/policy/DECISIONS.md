@@ -10,6 +10,18 @@
 
 ---
 
+### [2026-11-22] 생산 화면 7판 — 지금 날짜 탭 그대로 + 도면 내려옴 · 마감 색 · 마감 알림(꺼 둔 채)
+- **키워드**: drawing_arrival, drawing_deadline, deadline_state, drawing_blocker, fph_wait, DRAWING_DEADLINE_DUE, drawing_deadline_alert, FOMS_DRAWING_DEADLINE_ALERT_ENABLED, FOMS_DRAWING_DEADLINE_ALERT_ONLY_USERS, drawing_deadline_alert_state, drawing_notice_target, 도면 마감, 내려옴, 기다림
+- **결정**: 사장님(2026-11-22 — 시안 일곱 판 뒤 "지금 구현된 메인 화면이 가장 낫다, 업그레이드만", 설계서 `docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md` 2판 승인).
+  - 새 판을 만들지 않는다. 날짜 탭(왼쪽 띠 + 오른쪽 그날 장)을 뼈대로 두고 얹는다. 띠의 날 범위 · 줄 높이(80% 에서 38px, 2026-11-23 "지금 그대로")는 그대로.
+  - "도면 내려옴" = 주문이 생산 단계로 넘어간 때. 도면 마감 = 시공일 − 2영업일(`drawing_arrival.py` 한 곳). 색 넷: 지남 빨강 · 오늘/내일(다음 영업일) 짙은 호박색 · 다 옴 초록 · 그 밖 남색 — 색 값은 시험으로 못 박음(색약 ΔE ≥ 6).
+  - 띠의 시공 있는 모든 날(오늘 · 지난 7일 포함)에 "도면 x/n". 그날 장은 그날 시공 주문만, 순서 기다림 → 만들 것 → 제작 완료(다른 날 미리 보기 뺌). 기다림 칸에 까닭 다섯 · 도면 담당 · 영업 담당.
+  - 자동 알림: 마감 날 08:00 · 18:00, 그 뒤 일하는 날 아침마다, 내려오거나 시공일이 지날 때까지. 받는 사람 = 도면 담당 + 영업 쪽, 담당 없으면 도면팀 전원 + 영업 + 관리자. 벨 + 폰만(채널톡 방 · 알림톡 · 문자 안 씀). **스위치 꺼 둔 채 배포**, 운영은 미리 보기 사흘 뒤 사장님 승인으로 켠다.
+  - 일 나누는 방법 · PC 4일 판은 "추후 통보" — 묻지 않고 기다린다.
+- **이유**: 생산팀 실제 흐름이 "출고 일자별로 도면이 다 내려왔는지 체크 → 분배 → 작업"이고, 도면은 늦어도 시공 2영업일 전에 내려와야 한다.
+- **남는 위험**: 알림은 실서버에서 아직 한 번도 돌지 않았다. `FOMS_PUSH_P1_TYPES` 가 설정된 환경은 새 종류를 거기 더해야 폰 알림이 간다. 옛 PC 벨 화면은 새 종류를 작업실로 열지 않는다.
+- **영향**: `foms/services/production/drawing_arrival.py`, `production_home_days.py`, `production_home_read_model.py`, `late_rule.py`, `production_sheet_view.py`, `foms/services/notifications/drawing_deadline_*.py`, `drawing_notice_target.py`, `scripts/maintenance/run_notification_escalation.py`, `templates/production/partials/home_{date,day_pane,date_macros,parts,steps,all}.html`, `sheet.html`, `tools/ops/drawing_deadline_alert_preview.py`.
+
 ### [2026-11-22] 태블릿 터치 — 내 공정 [끝]은 확인 창 없이 바로 저장 + 되돌리기 · 회색 단추는 누르면 까닭을 말한다 · 작은 단추는 '44px ÷ 화면 크기'
 - **키워드**: foms-production-home-steppane, view=panel, step_panel_for, 되돌리기, aria-disabled, pointer_hint, foms_ptr, any-pointer, data-foms-shell-checked-at, etag_ignore, data-foms-production-work, foms-ui-zoom, 44px, 터치 점검
 - **결정**: 사장님(2026-11-22 질문 창 — "안 눌러지거나 여러 번 눌러야 되는 버튼이 갑자기 너무 많아졌어" 전수 검사 뒤).
