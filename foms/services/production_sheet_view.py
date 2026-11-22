@@ -32,6 +32,7 @@ from foms.services.production_dashboard_display import (
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_display import _erp_get_stage
 from foms.services.orders.manager_names import manager_label_from_parties
+from foms.services.notifications.drawing_deadline_alert import sheet_alert_line
 from foms.services.production.drawing_arrival import sheet_wait_view
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.production_home_read_model import (
@@ -225,16 +226,19 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
     }
 
 
-def _drawing_wait(order: Order, sd: dict[str, Any], today: datetime.date | None) -> dict[str, Any] | None:
+def _drawing_wait(db: Any, order: Order, sd: dict[str, Any], today: datetime.date | None) -> dict[str, Any] | None:
     """안 내려온 주문(첫 화면 '도면·컨펌 기다림' 과 같은 판정)의 도면 칸 글 — 내려온 주문 · 첫 화면에 없는 단계는 None.
 
-    설계서 2026-11-22-production-drawing-arrival-upgrade §5-7: 까닭 · 도면 담당 · 영업 담당 · 마감(기준 시공일 = 납작 칸). 쿼리 0.
+    설계서 2026-11-22-production-drawing-arrival-upgrade §5-7: 까닭 · 도면 담당 · 영업 담당 · 마감(기준 시공일 = 납작 칸).
+    '알림 보냄 …' 줄(§9-6)은 도면 마감 알림 스위치가 켜졌을 때만 기록 줄 하나를 읽는다(안 내려온 주문만 +1, 꺼지면 쿼리 0).
     """
     raw_stage = _erp_get_stage(order, sd)
     if raw_stage not in PRODUCTION_HOME_STAGE_CODES or production_home_stage(raw_stage, False, [], False)[2] != 'wait':
         return None
     manager = manager_label_from_parties(sd.get('parties')) or '-'
-    return sheet_wait_view(sd, order.erp_construction_date, manager, today or get_today_kst())
+    view = sheet_wait_view(sd, order.erp_construction_date, manager, today or get_today_kst())
+    view['alert_line'] = sheet_alert_line(db, order.id)
+    return view
 
 
 def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False,
@@ -290,5 +294,5 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label))
         # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
         sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
-        sheet['dw_wait'] = _drawing_wait(order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7, 쿼리 0)
+        sheet['dw_wait'] = _drawing_wait(db, order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7 · 알림 켬이면 +1)
     return sheet

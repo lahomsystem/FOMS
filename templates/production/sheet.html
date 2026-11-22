@@ -37,7 +37,7 @@
     <div class="foms-prod-page__body">
       {# ── 왼쪽: 도면 ── 안 내려온 주문(order.dw_wait, 설계서 2026-11-22-production-drawing-arrival-upgrade §5-7)은 '도면이 아직 안
          내려왔어요' · 까닭 · 담당 · 마감 — 확정 그림이 없으면 빈 자리 글을 이것으로, 있으면(영업 확인 · 고객 컨펌 기다림) 그림 위 띠로.
-         '알림 보냄 …' 줄(alert_line)은 자동 알림(P3)이 채우는 자리 — 지금은 빈 글이라 안 그린다. 내려온 주문은 그대로. #}
+         '알림 보냄 …' 줄(alert_line)은 도면 마감 알림(§9-6)이 실제로 보냈을 때만 글이 있다(스위치 끔 · 안 보냄이면 안 그린다). 내려온 주문은 그대로. #}
       {% macro dw_wait_lines(w) -%}
       <b>도면이 아직 안 내려왔어요</b><span>{% if w.blocker.none %}<em class="is-none">{{ w.blocker.label }}</em>{% else %}{{ w.blocker.label }}{% endif %}{% for p in w.people.parts %} · {{ p }}{% endfor %}</span><span{% if w.deadline.state %} class="is-{{ w.deadline.state }}"{% endif %}>{{ w.deadline.text }}</span>{% if w.alert_line %}<small>{{ w.alert_line }}</small>{% endif %}
       {%- endmacro %}

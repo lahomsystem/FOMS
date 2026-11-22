@@ -273,8 +273,8 @@ def sheet_wait_view(sd: Any, construction_date: Any, manager_name: Any, today: d
         today: KST 오늘.
 
     Returns:
-        ``{'blocker', 'people', 'deadline': {'text', 'state'}, 'alert_line'}``. ``alert_line`` 은 P3 자동 알림(§9-6)이
-        '알림 보냄 …' 을 채울 자리 — 지금은 늘 빈 글이라 화면에 아무것도 안 그린다.
+        ``{'blocker', 'people', 'deadline': {'text', 'state'}, 'alert_line'}``. ``alert_line`` 은 여기서는 늘 빈 글 —
+        도면 마감 알림(§9-6)이 보냈으면 부르는 쪽(``production_sheet_view._drawing_wait``)이 기록 줄을 읽어 채운다.
     """
     sd = sd if isinstance(sd, dict) else {}
     day = _parse_day(construction_date)
