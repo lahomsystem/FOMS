@@ -27,6 +27,8 @@ EDIT_COOKIE = 'foms_prod_edit'
 EDIT_COOKIE_PATH = '/erp/production'
 #: 켠 뒤 이 시간이 지나면 서버가 끈 것으로 본다(§7 — 켠 채 잊어 보기만 하려던 날 잘못 누르지 않게).
 EDIT_TTL_SECONDS = 2 * 60 * 60
+#: 켠 시각이 서버 시각보다 이만큼까지 앞서도 받는다(서버 여러 대의 시계 차 · JS 가 센 초 반올림, 2026-11-22). 더 먼 앞날 값은 거절.
+EDIT_CLOCK_SKEW_SECONDS = 60
 _WEEKDAY_KO = '월화수목금토일'
 
 
@@ -36,13 +38,16 @@ def _pointer(request: Any) -> str:
 
 
 def edit_cookie_fresh(request: Any, now_epoch: float | None = None) -> bool:
-    """[고치기] 쿠키가 있고 켠 지 2시간 안이면 True(누가 켰는지는 보지 않는다 — :func:`production_screen_flags` 몫)."""
+    """[고치기] 쿠키가 있고 켠 지 2시간 안이면 True(누가 켰는지는 보지 않는다 — :func:`production_screen_flags` 몫).
+
+    켠 시각이 서버 시각보다 :data:`EDIT_CLOCK_SKEW_SECONDS` 까지 앞선 값(시계 차)은 받고, 그보다 먼 앞날 값은 거절한다.
+    """
     cookies = getattr(request, 'cookies', None) or {}
     raw = str(cookies.get(EDIT_COOKIE) or '').strip()
     if not raw.isdigit():
         return False
     age = (time.time() if now_epoch is None else now_epoch) - int(raw)
-    return 0 <= age < EDIT_TTL_SECONDS
+    return -EDIT_CLOCK_SKEW_SECONDS <= age < EDIT_TTL_SECONDS
 
 
 def production_screen_flags(user: Any, request: Any, now_epoch: float | None = None) -> dict[str, Any]:
