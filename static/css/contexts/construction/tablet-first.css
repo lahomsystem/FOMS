@@ -333,3 +333,13 @@
     flex-basis: 100%;
   }
 }
+
+/* 글자 손잡이 누름 칸 보이는 44px(2026-11-22 터치 점검) — 위 44px 칸이 화면 크기 80% 에서 35px 로 보였다.
+   '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44px, 칸 사이 8px(foms-ui-zoom.css 터치 태블릿 규칙과 같은 값). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-cons-first__tools { gap: max(var(--foms-space-2, 0.5rem), calc(8px / var(--foms-ui-zoom, 1))); }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs { gap: calc(8px / var(--foms-ui-zoom, 1)); }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn,
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__now { height: calc(44px / var(--foms-ui-zoom, 1)); }
+  body.erp-mobile-v2-layout .foms-cons-first__tools .foms-fs__btn { width: calc(44px / var(--foms-ui-zoom, 1)); }
+}

@@ -149,3 +149,15 @@
 body.foms-reason-sheet-open {
   overflow: hidden;
 }
+
+/* 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) — 화면 크기 80% 에서 [닫기] 가 21×25px 로 보였다.
+   '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두 보이는 44×44. 그림 크기는 그대로. PC(마우스) · 폰은 이 규칙 밖. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-reason-sheet__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: calc(44px / var(--foms-ui-zoom, 1));
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}
