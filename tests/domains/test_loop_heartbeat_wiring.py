@@ -38,8 +38,9 @@ _RQ_RUNNER = _REPO_ROOT / "tools" / "ops" / "run_rq_worker.py"
 
 #: metadata 에 허용된 키. 이름·전화·주소 같은 고객 축이 새로 들어오면 red.
 _ALLOWED_METADATA_KEYS = {
+    # deadline_alerts = 도면 마감 알림 줄 수(설계서 2026-11-22 §9-8 — 받는 사람 이름 · 주문 번호 없음).
     "run_notification_escalation": {"interval_seconds", "outcome", "checked", "escalated",
-                                    "operator_escalated", "pushed"},
+                                    "operator_escalated", "pushed", "deadline_alerts"},
     "run_naver_order_sync": {"interval_seconds", "outcome", "changed", "candidates",
                              "created", "pending_review"},
     "run_naver_settle_sync": {"interval_seconds", "ran", "status", "calls", "rows"},

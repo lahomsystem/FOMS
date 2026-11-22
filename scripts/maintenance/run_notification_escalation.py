@@ -23,6 +23,8 @@ import time
 import traceback
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
+
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 )
@@ -41,6 +43,7 @@ from foms.services.notifications.escalation import (  # noqa: E402
 )
 from foms.api.notifications import invalidate_badge_cache_for_user_ids  # noqa: E402
 from foms.services.notifications import draft_send_reminder  # noqa: E402
+from foms.services.notifications import drawing_deadline_alert  # noqa: E402
 from foms.services.partners import statement_reminder  # noqa: E402
 from foms.services.notifications.push_sender import enqueue_push_for_notification  # noqa: E402
 from foms.services.notifications.realtime_notifications import (  # noqa: E402
@@ -100,6 +103,7 @@ def _sweep_once(dry_run: bool) -> dict:
         result["draft_reminder"] = _draft_reminder_once(db)
         result["draft_idle_reminder"] = _idle_draft_reminder_once(db)
         result["partner_statement_reminder"] = _partner_statement_reminder_once(db)
+        result["drawing_deadline_alert"] = _drawing_deadline_alert_once(db)
         return result
     except Exception:
         db.rollback()
@@ -110,8 +114,9 @@ def _deliver_draft_reminders(
     db, notification_ids, recipient_user_ids,
     notification_type=draft_send_reminder.NOTIFICATION_TYPE,
     title=draft_send_reminder.TITLE,
+    label="draft-reminder",
 ) -> int:
-    """커밋된 미등록 알림의 배지 무효화 + 실시간 + 웹푸시 enqueue. 푸시 enqueue 수를 준다."""
+    """커밋된 미등록 알림의 배지 무효화 + 실시간 + 웹푸시 enqueue. 푸시 enqueue 수를 준다(실패는 알림마다 ``label`` 로 기록)."""
     recipients = sorted({int(x) for x in (recipient_user_ids or [])})
     if recipients:
         invalidate_badge_cache_for_user_ids(recipients)
@@ -130,7 +135,7 @@ def _deliver_draft_reminders(
             if enqueue_push_for_notification(int(nid), db=db).get("enqueued"):
                 pushed += 1
         except Exception:
-            _LOGGER.exception("[draft-reminder] push enqueue failed notification_id=%s", nid)
+            _LOGGER.exception("[%s] push enqueue failed notification_id=%s", label, nid)
     return pushed
 
 
@@ -198,6 +203,34 @@ def _partner_statement_reminder_once(db) -> dict:
     return {"checked": reminder["checked"], "reminded": reminder["reminded"], "pushed": pushed}
 
 
+def _drawing_deadline_alert_once(db) -> dict:
+    """도면 마감 알림(마감 날 아침 · 저녁 · 마감 뒤 일하는 날 아침) — 같은 루프, 실패는 그 단계만 되돌리고 기록.
+
+    설계서 docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md §9. 스위치
+    ``FOMS_DRAWING_DEADLINE_ALERT_ENABLED`` 가 꺼져 있으면(기본) 쿼리 0 · 안 보냄.
+    """
+    try:
+        alert = drawing_deadline_alert.run_drawing_deadline_alerts(db)
+        db.commit()
+    except IntegrityError:
+        # 기록 줄이 아직 없을 때 WORKER 둘이 같은 바퀴에 처음 만들면 늦은 쪽이 여기 온다 — 그쪽 알림은 함께 되돌아간다.
+        db.rollback()
+        _LOGGER.warning("[drawing-deadline-alert] state row created by another worker; next pass retries")
+        return {"error": "state_race"}
+    except Exception:
+        db.rollback()
+        _LOGGER.exception("[drawing-deadline-alert] sweep failed")
+        return {"error": "sweep_failed"}
+    pushed = _deliver_draft_reminders(
+        db, alert["created_notification_ids"], alert["recipient_user_ids"],
+        notification_type=drawing_deadline_alert.NOTIFICATION_TYPE, title=alert["title"],
+        label="drawing-deadline-alert",
+    )
+    return {"slot": alert["slot"], "checked": alert["checked"], "due": alert["due"], "sent": alert["sent"],
+            "notifications": alert["notifications"], "skipped": alert["skipped"],
+            "missed_slot": alert["missed_slot"], "pushed": pushed}
+
+
 def _print_result(result: dict, as_json: bool) -> None:
     """스윕 결과를 사람/기계 판독 형식으로 출력."""
     if as_json:
@@ -227,6 +260,8 @@ def _heartbeat_metadata(result, interval: int = 0) -> dict:
         "escalated": int(payload.get("escalated") or 0),
         "operator_escalated": int(payload.get("operator_escalated") or 0),
         "pushed": int(delivery.get("pushed") or 0),
+        # 도면 마감 알림 줄 수(받는 사람 이름 · 주문 번호는 싣지 않는다, 설계서 2026-11-22 §9-8).
+        "deadline_alerts": int((payload.get("drawing_deadline_alert") or {}).get("notifications") or 0),
     }
 
 
@@ -251,7 +286,7 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
         metadata = safe_metadata(
             lambda: _heartbeat_metadata(result, interval),
             {"interval_seconds": interval, "outcome": "ok" if result is not None else "sweep_failed",
-             "checked": 0, "escalated": 0, "operator_escalated": 0, "pushed": 0},
+             "checked": 0, "escalated": 0, "operator_escalated": 0, "pushed": 0, "deadline_alerts": 0},
             logger=_LOGGER, label="escalation",
         )
         emit_heartbeat(engine, HEARTBEAT_WORKER_KIND, metadata=metadata, logger=_LOGGER)

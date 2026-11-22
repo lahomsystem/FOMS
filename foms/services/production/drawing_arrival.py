@@ -56,6 +56,11 @@ def _md(day: datetime.date) -> str:
     return f"{day.month}/{day.day} ({_WEEKDAY_KO[day.weekday()]})"
 
 
+def day_md(day: datetime.date) -> str:
+    """날 → 'M/D (요일)' — 화면 마감 글과 같은 꼴을 자동 알림 글(§9-4) · 작업 시트 '알림 보냄' 줄이 같이 쓴다."""
+    return _md(day)
+
+
 def drawing_deadline(day: datetime.date) -> datetime.date:
     """시공일 → 도면 마감(시공일 앞 영업일 둘째 날 — 주말 · 한국 공휴일 뺌). 마감 날은 늘 영업일이다.
 
