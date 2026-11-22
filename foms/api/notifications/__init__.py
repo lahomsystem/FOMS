@@ -64,6 +64,11 @@ _badge_cache = {}
 BADGE_CACHE_TTL_SECONDS = 30
 
 
+def reset_badge_cache_for_tests():
+    """테스트 격리용 — 알림 종 배지 캐시(사용자 id 열쇠 · 30초)를 비운다. 시험은 테스트마다 id 를 1 부터 다시 매긴다."""
+    _badge_cache.clear()
+
+
 def _invalidate_badge_cache(user_id):
     """사용자별 배지 캐시 무효화 (읽음 처리 시 호출)."""
     if user_id is not None:
