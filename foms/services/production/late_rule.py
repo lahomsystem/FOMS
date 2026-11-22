@@ -50,13 +50,11 @@ def late_spot(row: dict[str, Any]) -> tuple[str | None, str]:
         row: 첫 화면 행(``home_stage`` · ``home_steps`` · ``hold_active`` · ``home_has_run``).
 
     Returns:
-        ``('ready', '시작 전')`` · ``('early', '엣지')`` · ``(None, '제작 완료 전')`` 같은 쌍. 기다림은 막힌 까닭
-        (``dw_blocker`` — '도면 고치는 중', 행에 없으면 단계 글).
+        ``('ready', '시작 전')`` · ``('early', '엣지')`` · ``(None, '제작 완료 전')`` 같은 쌍.
     """
     stage = str(row.get('home_stage') or '')
     if stage in _WAIT_STAGES:
-        blocker = row.get('dw_blocker') if isinstance(row.get('dw_blocker'), dict) else {}
-        return 'wait', str(blocker.get('label') or stage)
+        return 'wait', stage
     if stage == '제작 대기':
         return 'ready', '시작 전'
     if stage == '보류':
@@ -133,7 +131,9 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     """PC 줄의 늦음 표 — ``{'level', 'line', 'tip'}``. 시공일이 없으면 모두 빈 값.
 
     ``line`` = 상태 칸 아래 한 줄(``늦음 — 내일 시공, 아직 시작 전``), ``tip`` = 시공일 칸 마우스 글
-    (``시공까지 일하는 날 2일`` — 색 기준이 일하는 날임을 적는다, §8).
+    (``시공까지 일하는 날 2일`` — 색 기준이 일하는 날임을 적는다, §8). 도면 · 컨펌 기다림 줄은 도면 마감 대비만
+    (``늦음 — 도면 마감 2일 지남`` · ``빠듯 — 도면 마감 내일``) — 막힌 까닭은 ③ 칸 까닭 줄에 한 번만 쓴다
+    (사장님 "같은 말은 한 번", 설계서 2026-11-22-production-drawing-arrival-upgrade §7).
     """
     day = _parse_day(due if due is not None else row.get('construction_date'))
     if day is None:
@@ -144,10 +144,10 @@ def production_late_view(row: dict[str, Any], today: datetime.date, *, due: Any 
     line = ''
     if level is not None:
         spot, where = late_spot(row)
-        if spot == 'wait' and day >= today:
+        if spot == 'wait':
             deadline = drawing_deadline(day)
-            line = (f"늦음 — 도면 마감 {deadline.month}/{deadline.day} ({'월화수목금토일'[deadline.weekday()]}) 지남, 아직 {where}"
-                    if level == LATE else f"빠듯 — 도면 마감 {soon_word(deadline, today)}")
+            line = (f"늦음 — 도면 마감 {(today - deadline).days}일 지남" if level == LATE
+                    else f"빠듯 — 도면 마감 {soon_word(deadline, today)}")
         else:
             line = f"{'늦음' if level == LATE else '빠듯'} — {_when_text(day, today)}, 아직 {where}"
     return {'level': level, 'line': line, 'tip': tip}

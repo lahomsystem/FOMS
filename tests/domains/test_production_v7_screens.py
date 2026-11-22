@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 
 import pytest
 
@@ -68,7 +69,8 @@ def test_PC_장은_태블릿과_같은_순서_기다림_줄에_까닭_한_줄_�
     assert '<span class="fpc-why"><b>도면 고치는 중</b> · <span>도면 장가짜</span> · <span>영업 이가짜</span></span>' in row
     head = pane.split(f'data-foms-home-dayrow="{late.id}"', 1)[0].rsplit("<div ", 1)[1]
     assert "fpc-r--mini is-late" in head  # 내일 시공 = 마감(어제 이전) 지남
-    assert "<small>늦음 — 도면 마감 " in row and "지남, 아직 도면 고치는 중</small>" in row
+    # 상태 칸은 마감 대비 늦음만, 까닭은 ③ 칸에 한 번(사장님 "같은 말은 한 번", 2026-11-22 §7 고침)
+    assert re.search(r"<small>늦음 — 도면 마감 \d+일 지남</small>", row) and row.count("도면 고치는 중") == 1
     # 마감이 아직 먼 기다림 줄은 색 없음(옛 W ≤ 5 표라면 빠듯이었다)
     calm = _wait_order("나여유", 10, drawing_assignees=[{"id": 1, "name": "장가짜"}])
     far = (get_today_kst() + datetime.timedelta(days=10)).isoformat()

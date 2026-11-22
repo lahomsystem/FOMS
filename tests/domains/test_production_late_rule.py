@@ -106,8 +106,9 @@ def test_줄_글과_마우스_글() -> None:
     assert view == {"level": "tight", "line": "빠듯 — 시공 D-3, 아직 엣지", "tip": "시공까지 일하는 날 3일"}
     view = production_late_view(_row("재단 중", _d(23)), MON)
     assert view["line"] == "늦음 — 오늘 시공, 아직 재단" and view["tip"] == "시공까지 일하는 날 0일"
+    # 기다림 줄은 도면 마감 대비만(시공 11/21 토 → 마감 11/19 목, 오늘 11/23 = 달력 4일 지남) — 까닭은 ③ 칸에 한 번(2026-11-22 §7 고침)
     view = production_late_view(_row("컨펌 기다림", _d(21), view="wait", run=False), MON)
-    assert view == {"level": "late", "line": "늦음 — 시공 2일 지남, 아직 컨펌 기다림", "tip": "시공일 2일 지남"}
+    assert view == {"level": "late", "line": "늦음 — 도면 마감 4일 지남", "tip": "시공일 2일 지남"}
     # 줄에 쓰는 D-n 은 달력 날(D-3), 색 기준은 일하는 날 — 같은 숫자가 아닐 수 있어 마우스 글에 적는다
     assert production_late_view(_row("제작 대기", _d(30), run=False), MON)["tip"] == "시공까지 일하는 날 5일"
     # 여러 시공일 주문은 견줄 날(due)을 따로 받는다
@@ -121,10 +122,12 @@ def test_기다림_줄은_도면_마감에_맞춘다_띠와_같은_말() -> None
     assert production_late_level({**wait, "construction_date": _d(27)}, tue) == "tight"  # 금(W 3): 빨강 → 주황
     assert production_late_level({**wait, "construction_date": _d(30)}, tue) is None  # 월(W 4): 주황 → 색 없음
     assert production_late_level({**wait, "construction_date": _d(25)}, tue) == "late"  # 수: 빨강 그대로
-    # 줄 글 — 늦음은 마감 날과 막힌 까닭(행의 dw_blocker), 빠듯은 마감 '언제'
+    # 줄 글 — 늦음은 마감에서 지난 날(달력), 빠듯은 마감 '언제'. 막힌 까닭은 되풀이하지 않는다(③ 칸 까닭 줄에 한 번)
     fixing = {**wait, "construction_date": _d(25), "dw_blocker": {"key": "fixing", "label": "도면 고치는 중", "none": False}}
-    assert production_late_view(fixing, tue)["line"] == "늦음 — 도면 마감 11/23 (월) 지남, 아직 도면 고치는 중"
+    assert production_late_view(fixing, tue)["line"] == "늦음 — 도면 마감 1일 지남"
+    assert "고치는" not in production_late_view(fixing, tue)["line"]
     assert production_late_view({**wait, "construction_date": _d(27)}, tue)["line"] == "빠듯 — 도면 마감 내일"
+    assert production_late_view({**wait, "construction_date": _d(26)}, tue)["line"] == "빠듯 — 도면 마감 오늘"
     # 금요일에 월요일 마감 = 빠듯 '월요일'(다음 영업일을 '내일'로 친다, §14 답 4)
     fri = datetime.date(2026, 11, 27)
     assert production_late_level({**wait, "construction_date": _d(2, 12)}, fri) == "tight"
