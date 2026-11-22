@@ -63,3 +63,21 @@ def test_시트_JS_는_aria_disabled_로_막고_진짜_disabled_를_쓰지_않�
         assert "disabled aria-disabled" not in text, rel
     css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
     assert ".is-locked:disabled" not in css and '.foms-prod-page__step.is-locked[aria-disabled="true"]' in css
+
+
+def test_공정_칸은_칸_하나가_누를_곳_하나이고_칸_사이_8px_네_칸_키_합은_그대로() -> None:
+    """2026-11-22 터치 점검 P3 — 칸 경계 ±1~7px 누름이 이웃 칸으로 가던 것(80% 14/89 · 100% 12/112).
+
+    원인: 칸이 틈 없이 붙어 있고 칸 안 그림 · 글 · 작은 글이 따로 누를 곳으로 잡혀, 크롬 터치 보정이 이웃 칸의 작은 안쪽 조각을
+    더 맞는 곳으로 골랐다(누른 점 y 169.8 → click y 178). 고침: 안쪽 조각은 누름을 받지 않고, 칸 사이 8px(칸 56 → 50, 합 224 그대로).
+    실화면 다시 쓸기: 이웃 칸 0/89 · 0/112(틈 누름은 가까운 칸으로).
+    """
+    css = (ROOT / "static/css/contexts/production/sheet.css").read_text(encoding="utf-8")
+    assert ".foms-prod-page__step > * { pointer-events: none; }" in css
+    steps = re.search(r"^\.foms-prod-page__steps \{([^}]*)\}", css, re.M).group(1)
+    cell = re.search(r"^\.foms-prod-page__step \{([^}]*)\}", css, re.M).group(1)
+    gap = int(re.search(r"gap:\s*(\d+)px", steps).group(1))
+    height = int(re.search(r"min-height:\s*(\d+)px", cell).group(1))
+    assert gap >= 8 and height >= 48 and 4 * height + 3 * gap == 4 * 56  # 네 칸 키 합 = 예전(56 × 4) 그대로
+    # 옆 시트(옛 보드) 꼴은 그대로 — 누를 곳 하나 규칙만 같이 받는다
+    assert ".foms-prod-sheet .foms-prod-page__steps { display: flex; flex-direction: column; gap: 0; }" in css
