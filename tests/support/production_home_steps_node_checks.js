@@ -2,7 +2,8 @@
 // tests/domains/test_production_home_step_panel.py 가 부른다(설계서 2026-11-21-production-my-steps-panel §3-5 · §6).
 // 1) foms-production-home-steps.js + steppane.js: 줄 누름 = 고른 표시 즉시 · 판 하나 받기(view=panel 한 번, 받은 판은 남김 — 다시 누르면 0)
 //    · 주소 replaceState order= · 공정 탭 = 그 탭 고른 줄 주소 ·
-//    [<공정> 끝] = 확인 창 → [취소] POST 0 → [<공정> 끝] = POST /api/orders/<id>/production/steps {key, done:true} 한 번 → 다음 손님 주소 ·
+//    [<공정> 끝] = 바로 POST /api/orders/<id>/production/steps {key, done:true} 한 번(두 번 눌러도) → 다음 손님 주소 · 새 화면 [끝] 600ms 잠금 ·
+//    [되돌리기] = {done:false} 한 번 → 그 주문 주소 · 저장 · 되돌리기 실패 글 ·
 //    그림 = 전역 원본 뷰어(그림 원본 전부).
 // 2) foms-production-sheet-page.js: 판 [불량] → 칩 → POST …/production/defect {reason}.
 // 3) tablet-domain-sheets.js: 판 [보류] → 사유 창 → POST …/production/hold {active:true, reason}, [보류 해제] → 확인 → {active:false}.
@@ -76,7 +77,6 @@ for (const rel of ['static/js/production/foms-production-home-steppane.js', 'sta
 const flush = () => new Promise((r) => setImmediate(r));
 const $ = (s) => body.querySelector(s);
 const pane = (id) => $(`[data-foms-step-pane="${id}"]`);
-const modal = $('[data-foms-step-modal]');
 
 (async () => {
   // 0) order= 로 고른 탭은 마지막 탭 기억보다 앞(home.js 가 읽기 전에 기억을 맞춘다)
@@ -106,39 +106,66 @@ const modal = $('[data-foms-step-modal]');
   assert.strictEqual(calls.replaceState.pop(), want.other_url, '공정 탭 주소');
   dispatch($(`[data-foms-home-qrow="${want.first}"]`).querySelector('.fph-qr__n'), 'click');
   assert.ok(!pane(want.first).hidden);
-  // 3) [끝] → 확인 창 → [취소] = POST 0
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  assert.ok(!modal.hidden && modal.classList.contains('is-open'), '창이 열린다');
-  assert.strictEqual(modal.querySelector('[data-foms-step-modal-title]').textContent, `${want.label} 끝으로 바꿀까요?`);
-  assert.strictEqual(modal.querySelector('[data-foms-step-modal-run]').textContent, `${want.label} 끝`);
-  const item = modal.querySelector('[data-foms-step-modal-list]').textContent;
-  assert.ok(item.includes(`${want.label} 중 → ${want.label} 끝 · ${want.me}`) && item.includes(`#${want.first}`), item);
-  assert.ok(modal.querySelector('.pp-mimg img'), '판 그림을 창 줄에 옮겨 담는다');
-  dispatch(modal.querySelector('[data-foms-step-modal-close]'), 'click');
-  assert.ok(modal.hidden && !modal.classList.contains('is-open'));
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  dispatch(modal, 'click'); // 바깥(딤) 누름
-  assert.ok(modal.hidden);
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  (docListeners.keydown || []).forEach((f) => f({ key: 'Escape' }));
-  assert.ok(modal.hidden, 'Esc 로 닫힌다');
-  assert.strictEqual(calls.fetch.length, 0, '[취소] · 바깥 · Esc = POST 0');
-  // 4) [끝] → 창 [끝] = 공정 API 한 번 → 다음 손님 주소
+  // 3) [끝] = 확인 창 없이 바로 공정 API 한 번(두 번 눌러도 한 번, 2026-11-22 "확인 창 빼기") → 다음 손님 주소 · [되돌리기] 띠
+  assert.strictEqual($('[data-foms-step-modal]'), null, '확인 창은 없다');
   fetchReply = () => ({ success: true, data: { steps: [], complete_ready: false } });
-  dispatch(pane(want.first).querySelector('[data-foms-step-finish]'), 'click');
-  dispatch(modal.querySelector('[data-foms-step-modal-run]'), 'click');
-  dispatch(modal.querySelector('[data-foms-step-modal-run]'), 'click'); // 두 번 눌러도 한 번
+  const fin = pane(want.first).querySelector('[data-foms-step-finish]');
+  dispatch(fin, 'click');
+  assert.ok(fin.getAttribute('aria-disabled') === 'true' && fin.classList.contains('is-wait'), '첫 누름부터 답이 올 때까지 잠근다');
+  dispatch(fin, 'click');
   await flush(); await flush();
-  assert.deepStrictEqual(calls.fetch, [{ url: `/api/orders/${want.first}/production/steps`, method: 'POST', body: { key: want.key, done: true } }]);
+  const stepCall = (done) => ({ url: `/api/orders/${want.first}/production/steps`, method: 'POST', body: { key: want.key, done } });
+  assert.deepStrictEqual(calls.fetch, [stepCall(true)]);
   assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.next}`]);
-  // 실패면 창에 글 · 단추가 풀린다
+  const status = $('[data-foms-home-status]');
+  assert.ok(status.classList.contains('is-undo') && status.querySelector('span').textContent === `${want.first_name} ${want.label} 끝`, status.textContent);
+  assert.strictEqual(status.querySelector('[data-foms-step-undo]').textContent, '되돌리기');
+  // 4) 새 화면(셸 교체로 이 JS 가 다시 돈다): 되돌리기 띠를 다시 그리고 [끝]은 잠깐(600ms) 잠근다 — 두 번 누름이 다음 주문에 떨어지지 않게
   calls.fetch.length = 0;
-  ctx.fetch = () => Promise.reject(new Error('offline'));
-  // 새 판(다음 줄)으로 다시: 창 상태를 비운다
-  modal.hidden = true; modal.classList.remove('is-open');
+  const homeRoot = $('[data-foms-prod-home]');
+  homeRoot.removeAttribute('data-foms-home-steps-bound');
+  status.textContent = '';
+  status.classList.remove('is-undo');
+  vm.runInContext(read('static/js/production/foms-production-home-steps.js'), ctx);
+  assert.ok(status.classList.contains('is-undo') && status.querySelector('[data-foms-step-undo]'), '새 화면에도 되돌리기');
+  const locked = () => fin.getAttribute('aria-disabled') === 'true' && fin.classList.contains('is-wait');
+  assert.ok(locked() && !fin.disabled, '새 화면 [끝] 잠금(진짜 disabled 아님 — 누름을 받아 연장한다)');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  dispatch(fin, 'click'); // 연타: 잠금 동안 누르면 600ms 를 다시 센다
+  await sleep(400);
+  dispatch(fin, 'click');
+  await sleep(400);
+  assert.ok(locked(), '연타하는 동안은 계속 잠금');
+  assert.strictEqual(calls.fetch.length, 0, '잠금 동안 [끝] 누름은 버린다');
+  await sleep(350);
+  assert.ok(!locked(), '손을 떼고 600ms 뒤 풀린다');
+  // 5) [되돌리기] = 같은 공정 API {done:false} 한 번(두 번 눌러도) → 그 주문 줄로 다시 받기
+  calls.replace.length = 0;
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  await flush(); await flush();
+  assert.deepStrictEqual(calls.fetch, [stepCall(false)]);
+  assert.deepStrictEqual(calls.replace, [`http://127.0.0.1/erp/production/home?tab=steps&order=${want.first}`]);
+  assert.ok(status.textContent.startsWith('되돌렸어요') && !status.classList.contains('is-undo'), status.textContent);
+  // 6) 실패: 저장 실패 = 판 글 · 단추 풀림 · 이동 0. 되돌리기 실패 = 띠가 붉게 + 글, 단추는 남는다
+  calls.fetch.length = 0;
+  calls.replace.length = 0;
+  ctx.fetch = (url, opts) => { calls.fetch.push({ url, method: opts.method, body: JSON.parse(opts.body) }); return Promise.reject(new Error('offline')); };
+  dispatch(fin, 'click');
+  await flush(); await flush();
+  assert.strictEqual(pane(want.first).querySelector('[data-foms-sheet-status]').textContent, '연결이 끊겼어요. 다시 연결되면 한 번 더 눌러 주세요.');
+  assert.ok(!fin.hasAttribute('aria-disabled') && calls.replace.length === 0 && !status.classList.contains('is-undo'));
+  const G = ctx.__FOMS_PROD_STEPS_BOUND;
+  G.undo = { id: String(want.first), key: want.key, name: want.first_name, label: want.label, until: Date.now() + 8000, busy: false, error: '' };
+  G.api.showUndo();
+  dispatch(status.querySelector('[data-foms-step-undo]'), 'click');
+  await flush(); await flush();
+  assert.ok(status.classList.contains('is-err') && status.textContent.includes('되돌리지 못했어요') && status.querySelector('[data-foms-step-undo]'), status.textContent);
+  assert.strictEqual(calls.replace.length, 0);
+  G.undo = null;
   // 5) 그림 = 원본 뷰어(그림 원본 전부)
   dispatch(pane(want.first).querySelector('[data-foms-step-view]'), 'click');
-  assert.strictEqual(calls.viewer.length, 1);
+  assert.ok(calls.viewer.length >= 1); // 4) 에서 셸 교체를 같은 루트로 흉내 내 두 번 묶였다(실제는 새 루트) — 열림만 본다
   assert.ok(calls.viewer[0].files.length >= 1 && calls.viewer[0].files.every((f) => f.view_url.startsWith('/api/files/view/')), JSON.stringify(calls.viewer));
   // 6) [불량] → 칩 → 불량 API
   ctx.fetch = (url, opts) => { calls.fetch.push({ url, method: opts.method, body: JSON.parse(opts.body) }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { latest: { reason: '파손' } } }) }); };
@@ -163,4 +190,5 @@ const modal = $('[data-foms-step-modal]');
   assert.deepStrictEqual(calls.fetch.pop(), { url: `/api/orders/${want.hold}/production/hold`, method: 'POST', body: { active: false, reason: '' } });
   // 8) 쓰기 길은 셋뿐(공정 · 불량 · 보류)
   console.log('OK');
+  process.exit(0); // 되돌리기 · 잠금 타이머를 기다리지 않는다
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

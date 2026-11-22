@@ -2,8 +2,9 @@
    오른쪽 판(step_panel, 설계서 2026-11-21-production-my-steps-panel · 사용자 결정 11-21 '추천안 반반'): 태블릿 가로(모바일 v2 + 터치 + 넓은 창)만 —
    공정 줄마다 줄 칸 | 판 반반, 줄을 누르면 판이 바뀐다(foms-production-home-steps.js). 서버는 공정 줄마다 고른 줄 판 하나만 그리고
    다른 줄 판은 누를 때 조각(view=panel)으로 받아 끼운다(2026-11-22 — 숨은 판을 다 그리면 주문 150건에 396KB · DOM 13,100 이라 화면이 얼었다).
-   받는 동안 · 못 받으면 판 자리에 data-foms-step-wait 한 칸. 판이 없으면 아래 출력은 지금과 한 글자도 같다. #}{% from 'production/partials/home_date_macros.html' import home_href %}
-{% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}>
+   받는 동안 · 못 받으면 판 자리에 data-foms-step-wait 한 칸. 판 [끝]은 확인 창 없이 바로 저장 + 화면 상태 줄 [되돌리기](2026-11-22 사장님
+   "확인 창 빼기"), data-foms-step-base = 다음 줄이 없을 때 · 되돌린 뒤 다시 받을 주소. 판이 없으면 아래 출력은 지금과 한 글자도 같다. #}{% from 'production/partials/home_date_macros.html' import home_href %}
+{% set _on = step_pin or (queues.queues[0].key if queues.queues else '') %}{% set _note %}<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건 — 시작과 제작 완료는 작업 시트에서 눌러요.</p>{% endset %}<div class="fph-steptabs" role="tablist" aria-label="공정"{% if step_pin %} data-foms-home-step-pin="{{ step_pin }}"{% endif %}{% if step_panel %} data-foms-step-base="{{ home_href('steps') }}"{% endif %}>
   {% for q in queues.queues %}
   <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
   {% endfor %}
@@ -42,4 +43,4 @@
   </div>
   {% endif %}
 {% if step_panel %}</div>{% if q.rows %}<div class="fph-q__panes" data-foms-step-panes>{% for p in q.panels %}{% include 'production/partials/home_step_panel.html' %}{% endfor %}<div class="fph-sp-wait" data-foms-step-wait role="status" aria-live="polite" hidden><p data-foms-step-wait-text>판을 받는 중…</p><button type="button" class="fph-sp__act" data-foms-step-retry hidden>다시 해 보기</button></div></div>{% endif %}{% endif %}</div>
-{% endfor %}{% if step_panel %}{% include 'production/partials/home_step_confirm.html' %}{% endif %}
+{% endfor %}
