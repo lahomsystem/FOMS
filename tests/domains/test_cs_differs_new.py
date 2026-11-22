@@ -1,7 +1,7 @@
-"""부딪치지 않는 다른 말은 새 지식(사장님 2026-11-21 '새 내용은 바로 넣기' · 상담 원장 D276).
+"""부딪치지 않는 다른 말은 새 지식(사장님 2026-11-21 '새 내용은 바로 넣기' · 상담 원장 D276 → 11-22 놓을 자리 판정).
 
-- 밤 배우기: 바로 고치지 못한 한 번뿐인 다른 말 — 두뇌가 짚은 항목과 부딪치지 않으면 새 지식(바로 반영), 부딪치거나 · 판정을
-  못 하거나 · 숫자가 직원 답에 없으면 예전처럼 엇갈림 카드.
+- 밤 배우기: 바로 고치지 못한 한 번뿐인 다른 말 — 놓을 자리 판정이 '새 지식'이면 새 지식(바로 반영), '부딪침'이면 엇갈림 카드,
+  판정을 못 하면 넣지도 카드도 없고, 직원 답에 없는 숫자는 새 지식이 되지 못한다(``numbers``).
 - 쌓인 카드 다시 가르기(:mod:`foms.services.cs_agent.handoff_learning_resort`): 같은 판정으로 한 번 — 옮긴 카드는 '합쳐짐'으로
   닫고, 같은 말 카드는 합치고, 부딪침 · 숫자는 그대로 둔다. 판정을 못 하면 다음 바퀴에 다시. 다 하면 다시 안 한다.
 
@@ -22,11 +22,12 @@ from foms.services.cs_agent import learning_pass
 from foms.services.brain.proposals import Proposer
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD
 from foms.services.cs_agent.handoff_learning_gates import MERGED_ACTION
+from foms.services.cs_agent.handoff_learning_place import placer_source
 from models import SecurityLog, SystemSetting
 from tests.domains.test_cs_drafting import channel  # noqa: F401 — fixture
 from tests.domains.test_cs_handoff_learning import NOW, admin, changes, handed, on  # noqa: F401 — admin 은 fixture
 from tests.domains.test_cs_learn_everything import SAID, TARGET, differs, run_clash
-from tests.support.cs_agent_fakes import FakeAnthropic, at, keys, naive  # noqa: F401 — keys 는 fixture
+from tests.support.cs_agent_fakes import FakeAnthropic, FakePlacer, at, clash_placer, keys, naive  # noqa: F401 — keys 는 fixture
 
 NEW_TEXT = "합성 선반 뒤 콘센트 자리는 타공해 드린다고 안내한다"
 NEW_SAID = "합성 직원 답 — 선반 뒤 콘센트 자리는 타공해 드려요"
@@ -47,8 +48,8 @@ class Judge:
         return self.clash in first or self.clash in second
 
 
-def _night(judge, proposals, now=NOW):
-    with judge_source(judge):
+def _night(judge, proposals, now=NOW, placer=None):
+    with judge_source(judge), placer_source(placer or FakePlacer()):
         return hl.run_handoff_learning(db_session, now=now, client=FakeAnthropic({"proposals": proposals}))
 
 
@@ -61,27 +62,29 @@ def _resort(judge, now=LATER):
 def test_a_one_off_new_detail_that_does_not_clash_goes_in_as_new_knowledge_at_once(admin):
     on(**{AUTO_FIELD: True})
     before = current_object(db_session, TARGET)
-    judge = Judge()
-    counts = _night(judge, [differs([handed("uc-5", reply=NEW_SAID)], title="합성 콘센트 자리 타공", text=NEW_TEXT)])
+    placer = FakePlacer()
+    counts = _night(Judge(), [differs([handed("uc-5", reply=NEW_SAID)], title="합성 콘센트 자리 타공", text=NEW_TEXT)],
+                    placer=placer)
     assert (counts["new"], counts["applied"], counts["cards"], counts["fixed"]) == (1, 1, 0, 0)
     (change,) = changes()
     assert (change.op, change.status, change.decided_action, change.item_type) == ("create", "applied", "auto_learn", "fact")
     assert change.item_key.startswith("lahom/handoff-") and current_object(db_session, change.item_key).text == NEW_TEXT
     assert (current_object(db_session, TARGET).version, current_object(db_session, TARGET).text) == (before.version, before.text)
-    assert judge.calls and all(before.text in pair[0] + pair[1] for pair in judge.calls)  # 두뇌가 짚은 항목과 견줬다
-    assert change.gates["conflict"] == "skipped" or "conflict" in change.gates  # 제안 길은 같은 판정을 다시 막지 않는다
+    (request,) = placer.requests
+    assert request["candidates"][0] == {"key": TARGET, "name": before.name, "type": before.item_type, "text": before.text}
 
 
-@pytest.mark.parametrize("judge, said, text", [
-    (Judge(clash="400mm"), SAID, "합성 선반 깊이는 400mm 로 안내했어요"),  # 부딪침
-    (Judge(down=True), NEW_SAID, NEW_TEXT),  # 판정을 못 함
-    (Judge(), NEW_SAID, "합성 선반 뒤 콘센트 자리는 37곳 타공한다고 안내한다"),  # 직원 답에 없는 숫자
+@pytest.mark.parametrize("placer, said, text, cards, blocked", [
+    (clash_placer(TARGET), SAID, "합성 선반 깊이는 400mm 로 안내했어요", 1, {}),  # 부딪침 — 카드
+    (FakePlacer(down=True), NEW_SAID, NEW_TEXT, 0, {"place_unavailable": 1}),  # 판정을 못 함 — 넣지도 카드도 없다
+    (FakePlacer({"verdict": "maybe"}), NEW_SAID, NEW_TEXT, 0, {"place_unknown": 1}),  # 꼴이 틀린 답
+    (FakePlacer(), NEW_SAID, "합성 선반 뒤 콘센트 자리는 37곳 타공한다고 안내한다", 0, {"numbers": 1}),  # 직원 답에 없는 숫자
 ])
-def test_a_clash_an_unjudged_detail_or_a_made_up_number_stays_a_card(admin, judge, said, text):
+def test_a_clash_is_a_card_and_an_unjudged_or_made_up_number_is_never_filed(admin, placer, said, text, cards, blocked):
     on(**{AUTO_FIELD: True})
-    counts = _night(judge, [differs([handed("uc-5", reply=said)], text=text)])
-    assert (counts["new"], counts["applied"], counts["cards"]) == (0, 0, 1)
-    assert [c.item_type for c in changes()] == ["conflict"]
+    counts = _night(Judge(), [differs([handed("uc-5", reply=said)], text=text)], placer=placer)
+    assert (counts["new"], counts["applied"], counts["cards"], counts["blocked"]) == (0, 0, cards, blocked)
+    assert [c.item_type for c in changes()] == ["conflict"] * cards
 
 
 def test_a_new_detail_also_closes_the_earlier_card_that_said_the_same(admin):

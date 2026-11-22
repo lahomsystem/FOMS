@@ -26,7 +26,8 @@ from foms.services.brain.store import current_object
 from foms.services.cs_agent import handoff_learning as hl
 from foms.services.cs_agent import learning_pass
 from foms.services.cs_agent.handoff_learn_settings import AUTO_FIELD, CASES_FIELD, EDIT_LEARN_FIELD, HANDOFF_LEARN_FIELD
-from foms.services.cs_agent.handoff_learning_gates import AGENT
+from foms.services.cs_agent.handoff_learning_gates import AGENT, CLASH_HEAD
+from foms.services.cs_agent.handoff_learning_place import placer_source
 from foms.services.cs_agent.handoff_learning_prompt import (
     ANCHOR_MARK, CHIP_WORDS, INSTRUCTIONS, TALK_HEAD, TAUGHT_MARK, WHOLE_HEAD, anchor_mark, case_lines,
 )
@@ -39,7 +40,7 @@ from tests.domains.test_cs_photo_read import PHONE
 from tests.domains.test_cs_weekly_fix import into_brain, panel
 from tests.support.brain_support import agent_judge, person
 from tests.support.cs_agent_fakes import (  # noqa: F401 — keys 는 fixture
-    FakeAnthropic, FakeClock, api_message, at, keys, make_reader, naive,
+    FakeAnthropic, FakeClock, FakePlacer, api_message, at, clash_placer, keys, make_reader, naive,
 )
 from tests.support.cs_talk_support import START, PagedChannel
 
@@ -84,8 +85,9 @@ def changes():
                                    .order_by(BrainChange.id)))
 
 
-def run(client, now=NOW, reader=None):
-    with agent_judge():
+def run(client, now=NOW, reader=None, placer=None):
+    """밤 한 번 — 합성 부딪침 판정자(부딪침 없음) + 합성 놓을 자리 판정자(처음 값 '새 지식')."""
+    with agent_judge(), placer_source(placer or FakePlacer()):
         return hl.run_handoff_learning(db_session, now=now, client=client, reader=reader)
 
 
@@ -323,8 +325,10 @@ def test_an_update_of_an_approved_fact_is_preferred_and_only_lahom_facts_are_tar
 ])
 def test_blocked_ideas_are_counted_and_never_filed(two, bad, code):
     on()
-    counts = run(FakeAnthropic({"proposals": [ask(two, **bad)]}))
-    assert counts["filed"] == 0 and counts["blocked"] == {code: 1} and changes() == []
+    placer = FakePlacer()
+    counts = run(FakeAnthropic({"proposals": [ask(two, **bad)]}), placer=placer)
+    assert counts["filed"] == 0 and changes() == [] and placer.requests == []  # 싼 관문이 먼저 — 판정자를 부르지 않는다
+    assert (counts["same"], counts["blocked"]) == (1, {}) if code == "same" else counts["blocked"] == {code: 1}
 
 
 def test_a_number_must_be_in_a_cited_staff_reply_or_the_knowledge(admin):
@@ -369,7 +373,8 @@ def test_conflict_with_approved_knowledge_never_overwrites_and_becomes_a_card_fo
     raw = [ask(two, op="update", key="lahom/shelf-depth", text=said),
            ask(two, op="differs", key="lahom/shelf-depth", title="합성 선반 깊이 다른 말", text="합성 선반 깊이는 400mm 로 안내했어요"),
            ask(two, op="differs", key="lahom/none", title="합성 없는 항목", text="합성 다른 말 — 대상이 없다")]
-    with judge_source(lambda _s, _a, _b: True):  # 판정자: 승인 지식과 부딪침
+    placer = clash_placer("lahom/shelf-depth", knowledge="350mm", staff="400mm")  # 놓을 자리: 그 항목과 부딪침
+    with judge_source(lambda _s, _a, _b: True), placer_source(placer):  # 고치기 안의 공용 판정자: 승인 지식과 부딪침
         counts = hl.run_handoff_learning(db_session, now=NOW, client=FakeAnthropic({"proposals": raw}))
     assert (counts["cards"], counts["applied"], counts["filed"], counts["blocked"]) == (2, 0, 0, {"target": 1})
     cards = changes()
@@ -377,8 +382,11 @@ def test_conflict_with_approved_knowledge_never_overwrites_and_becomes_a_card_fo
     assert [c.item_key for c in cards] == ["conflict/lahom-handoff-20261111-h02m00-1",
                                            "conflict/lahom-handoff-20261111-h02m00-2"]
     assert all("about:lahom/shelf-depth" in c.evidence for c in cards)
-    assert cards[0].fields["text"]["after"] == f"승인된 규칙과 다름\n{said}"
+    assert cards[0].fields["text"]["after"] == f"승인된 규칙과 다름\n{said}"  # 두뇌의 고치기 안은 예전 그대로
+    assert cards[1].fields["text"]["after"] == (f"{CLASH_HEAD}회사 지식 「350mm」 ↔ 직원 「400mm」\n승인된 규칙과 다름\n"
+                                                "합성 선반 깊이는 400mm 로 안내했어요")  # 첫 줄에 어긋나는 두 구절
     assert cards[1].fields["payload"]["after"]["target"] == "lahom/shelf-depth"  # 한 손님 숫자도 카드로는 올린다
+    assert len(placer.requests) == 1  # 없는 항목을 짚은 다른 말은 판정자를 부르지 않는다
     after = current_object(db_session, "lahom/shelf-depth")
     assert (after.version, after.text) == (before.version, before.text)  # 승인 지식 글은 그대로
     assert {c.id for c in cards} <= {c.id for c, _row, _end in open_rows(db_session, viewer_of(admin), naive(NOW))}

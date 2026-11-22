@@ -323,6 +323,27 @@ class FakeAnthropic:
                       "cache_creation_input_tokens": 0}})
 
 
+class FakePlacer:
+    """합성 놓을 자리 판정자(:func:`foms.services.cs_agent.handoff_learning_place.placer_source`) — 받은 요청을 남기고 정한 답을
+    낸다(같은 답 읽기를 지난다 · 모델 없음). ``answer`` 는 답 dict(처음 값 ``new``) 또는 요청 → 답 dict 함수, ``down`` 이면 부를
+    수 없음."""
+
+    def __init__(self, answer=None, down: bool = False) -> None:
+        self.answer, self.down, self.requests = answer if answer is not None else {"verdict": "new"}, down, []
+
+    def __call__(self, _session, request):
+        if self.down:
+            from foms.services.brain.ai_gates import JudgeUnavailable
+            raise JudgeUnavailable("place_off")
+        self.requests.append(request)
+        return self.answer(request) if callable(self.answer) else dict(self.answer)
+
+
+def clash_placer(target: str, knowledge: str = "합성 지식 구절", staff: str = "합성 직원 구절") -> FakePlacer:
+    """그 항목과 부딪친다고 답하는 합성 판정자."""
+    return FakePlacer({"verdict": "contradicts", "target": target, "clash": {"knowledge": knowledge, "staff": staff}})
+
+
 def chat_snap(chat: str, when: datetime.datetime, state: str = "opened", brand: str = "LAHOM") -> cr.ChatSnapshot:
     """Open API 상담 목록 항목(상태 · 바뀐 시각)."""
     return cr.ChatSnapshot(chat, brand, LAHOM_CHANNEL if brand == "LAHOM" else HAUD_CHANNEL, state, when)
