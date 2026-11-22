@@ -19,6 +19,10 @@
   --fpp-amber-text: #92400e;
   --fpp-ok: #059669;
   --fpp-dwg: #2b2f36;
+  /* 어두운 도면 칸 위 도면 마감 글 색(home.css --fph-dw-* 의 밝은 짝) — 늦음 · '담당 없음' 연빨강, 빠듯 호박색(2026-11-22:
+     목업 연주황에서 옮김). 값은 시험이 못 박는다(tests/domains/test_production_v7_screens.py). */
+  --fpp-dw-late-on-dark: #fca5a5;
+  --fpp-dw-soon-on-dark: #fcd34d;
   --fpp-dwg-dim: rgba(0, 0, 0, .35);
   background: var(--fpp-bg);
   color: var(--fpp-text);
@@ -125,7 +129,7 @@
 .foms-prod-page__nav--next { right: 12px; }
 .foms-prod-page__nodwg { flex: 1; margin: 0; display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--foms-fs, 1)); color: rgba(255, 255, 255, .7); }
 /* 안 내려온 주문의 도면 칸 글(설계서 2026-11-22-production-drawing-arrival-upgrade §5-7, 목업 '7판에서 더한 것' 그대로) — 어두운 도면 칸이라
-   마감 상태 색은 밝은 짝(늦음 · '담당 없음' 연빨강 · 빠듯 연주황). 그림이 있으면(영업 확인 · 고객 컨펌 기다림) 같은 글을 그림 위 띠로. */
+   마감 상태 색은 밝은 짝(늦음 · '담당 없음' 연빨강 · 빠듯 호박색, 위 --fpp-dw-*-on-dark). 그림이 있으면(영업 확인 · 고객 컨펌 기다림) 같은 글을 그림 위 띠로. */
 .foms-prod-page__nodwg.is-wait { flex-direction: column; gap: 10px; padding: 0 24px; text-align: center; color: #fff; }
 .foms-prod-page__nodwg.is-wait b { font-size: calc(24px * var(--foms-fs, 1)); font-weight: 800; }
 .foms-prod-page__nodwg.is-wait span { font-size: calc(18px * var(--foms-fs, 1)); font-weight: 700; color: rgba(255, 255, 255, .85); }
@@ -135,8 +139,8 @@
 .foms-prod-page__dwband span { font-size: calc(16px * var(--foms-fs, 1)); font-weight: 700; color: rgba(255, 255, 255, .85); }
 .foms-prod-page__dwband small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 700; color: rgba(255, 255, 255, .9); }
 .foms-prod-page__nodwg.is-wait .is-late, .foms-prod-page__dwband .is-late,
-.foms-prod-page__nodwg.is-wait .is-none, .foms-prod-page__dwband .is-none { color: #fca5a5; font-style: normal; }
-.foms-prod-page__nodwg.is-wait .is-soon, .foms-prod-page__dwband .is-soon { color: #fdba74; }
+.foms-prod-page__nodwg.is-wait .is-none, .foms-prod-page__dwband .is-none { color: var(--fpp-dw-late-on-dark); font-style: normal; }
+.foms-prod-page__nodwg.is-wait .is-soon, .foms-prod-page__dwband .is-soon { color: var(--fpp-dw-soon-on-dark); }
 .foms-prod-page__thumbs { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 10px 12px; background: var(--fpp-dwg-dim); overflow-x: auto; }
 .foms-prod-page__th {
   position: relative;
