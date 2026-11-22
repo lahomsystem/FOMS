@@ -27,6 +27,7 @@ from foms.services.integrations.naver_commerce.triage_count import get_triage_pe
 from foms.services.common.ept_b7_profile import phase, template_mark
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
+from foms.services.common.release_watch import public_release_id
 from foms.services.orders.order_flag_permissions import can_toggle_factory2_flag, can_toggle_order_flags
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
@@ -480,6 +481,8 @@ def inject_tablet_rail_helper() -> dict[str, Any]:
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
     app.jinja_env.globals.update(mark=template_mark, asset_url=asset_url)  # mark=계측 전용 · asset_url=내용 해시 ?v=
+    # 이 문서를 그린 릴리스(STALE-TAB-01) — layout_scripts.html 의 새 화면 감시가 서버 값과 견준다.
+    app.jinja_env.globals.update(foms_release_id=public_release_id)
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
     app.add_template_filter(format_datetime_kst, "format_datetime_kst")
     app.add_template_filter(team_label, "team_label")

@@ -89,10 +89,12 @@ function boot(opts) {
     calls.push(call);
     const signal = init && init.signal;
     const reply = () => {
+      // o.release = 서버 릴리스 머리글(X-Foms-Release) — 304 에도 실린다(foms/services/common/release_watch.py).
+      const rel = o.release ? { 'x-foms-release': o.release } : {};
       if (call.inm && (o.unchanged === undefined || o.unchanged)) {
-        return { status: 304, ok: false, headers: { get: () => null }, url: String(url) };
+        return { status: 304, ok: false, headers: { get: (n) => rel[String(n).toLowerCase()] || null }, url: String(url) };
       }
-      const hdr = { 'x-foms-erp-fragment': '1', etag: '"e:' + u.pathname + '"' };
+      const hdr = Object.assign({ 'x-foms-erp-fragment': '1', etag: '"e:' + u.pathname + '"' }, rel);
       return { status: 200, ok: true, url: String(url), headers: { get: (n) => hdr[String(n).toLowerCase()] || null },
         text: () => Promise.resolve((o.fragmentHtml && o.fragmentHtml(u.pathname)) || '<div>' + u.pathname + u.search + '</div>') };
     };
