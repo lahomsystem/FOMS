@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>생산 거시 미시 견주기</title>
+<style>
+/* 생산 탭 3판 시안 — 2026-11-22. 일자별 시공 스케줄 + 그 정보(도면 왔나 · 시공일 바뀜) + 전체 생산 흐름, 거시 · 미시.
+   Ⓐ 지금 · Ⓑ 안 1(+ Ⓑ-2 주문 판) · Ⓒ 안 2(+ Ⓒ-2 단계 목록) · Ⓓ PC. 태블릿 틀 1176 × 626(80% = 1470 × 782.5 를 0.8 로 줄여 그림), PC 1440 × 900.
+   이름 · 회사 · 숫자는 전부 지어낸 것. 금액 없음. 바깥 글꼴 · 그림 파일 없음 — 이 파일 하나로 열린다. */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f7;--fg:#14171c;--muted:#4b525d;--card:#ffffff;--line:#dde1e6;--accent:#4a55b8;
+  --mark:#db2777;--mark-ink:#ffffff;
+  --app-bg:#eef0f3;--app-surface:#ffffff;--app-raised:#f7f8fa;--app-line:#dde1e6;--app-line2:#c1c7d0;
+  --app-text:#14171c;--app-text2:#4b525d;--app-text3:#6b7380;
+  --app-brand:#5a67d8;--app-brand-dark:#4a55b8;--app-brand-50:#f3f4ff;
+  --app-danger:#dc2626;--app-danger-ink:#b91c1c;--app-danger-50:#fef2f2;--app-danger-line:#fecaca;
+  --app-warn:#d97706;--app-warn-line:#f59e0b;--app-warn-50:#fffbeb;--app-warn-ink:#92400e;--app-warn-soft:#fde68a;
+  --app-ok:#059669;--app-ok-50:#ecfdf5;--app-ok-line:#a7f3d0;--app-ok-ink:#047857;
+  --app-plan:#7c3aed;--app-plan-50:#f5f3ff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1115;--fg:#eef0f3;--muted:#b8bec8;--card:#171a21;--line:#2a2f3a;--accent:#9ea4ff;--mark:#f472b6;--mark-ink:#1a0610}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+h1,h2,h3,h4,h5,p,ul,ol{margin:0}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:84ch;color:var(--muted);margin-top:10px}
+.lead b{color:var(--fg)}
+.toc{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;font-size:15px}
+.toc a{color:var(--accent);text-decoration:none;font-weight:700}
+.toc a:hover{text-decoration:underline}
+.frame{margin-top:52px;scroll-margin-top:16px}
+.frame h2{font-size:26px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px;text-wrap:balance}
+.frame h2 small{font-size:17px;font-weight:700;color:var(--muted);margin-left:8px}
+.frame h3.sub{font-size:19px;font-weight:800;margin:26px 0 8px}
+.frame .idea{color:var(--muted);font-size:16px;margin-bottom:12px;max-width:86ch}
+.frame .idea b{color:var(--fg)}
+.fit{width:100%;overflow:hidden}
+.stage{position:relative;overflow:hidden;border-radius:12px;box-shadow:0 0 0 1px var(--line);background:var(--app-bg);transform-origin:0 0}
+.stage.t1176{width:1176px;height:626px}
+.stage.t1280{width:1280px;height:800px}
+.notes{list-style:none;padding:0;margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:8px 22px}
+.notes li{display:flex;gap:10px;align-items:flex-start;font-size:16px;line-height:1.5}
+.notes li span{color:var(--muted)}
+.notes li span b{color:var(--fg)}
+.num{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--mark);color:var(--mark-ink);font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px;margin-top:16px}
+.col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.col h3{font-size:18px;font-weight:800;margin-bottom:8px}
+.col.good h3{color:#047857}.col.bad h3{color:#b91c1c}.col.new h3{color:#6d28d9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .col.good h3{color:#6ee7b7}:root:not([data-theme="light"]) .col.bad h3{color:#fca5a5}:root:not([data-theme="light"]) .col.new h3{color:#c4b5fd}}
+:root[data-theme="dark"] .col.good h3{color:#6ee7b7}:root[data-theme="dark"] .col.bad h3{color:#fca5a5}:root[data-theme="dark"] .col.new h3{color:#c4b5fd}
+.col ul{padding-left:20px;display:grid;gap:6px;font-size:15px;color:var(--muted)}
+.col ul b{color:var(--fg)}
+.box{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.box h3{font-size:19px;font-weight:800;margin-bottom:10px}
+.box ol,.box ul{padding-left:22px;display:grid;gap:7px;font-size:15.5px;color:var(--muted)}
+.box b{color:var(--fg)}
+.box p{font-size:16px;color:var(--muted);margin-top:8px}
+.tblw{overflow-x:auto;margin-top:6px}
+table.cmp{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+table.cmp th,table.cmp td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+table.cmp thead th{background:var(--bg);font-weight:800}
+table.cmp tbody th{font-weight:800;width:22%}
+table.cmp td{color:var(--muted)}
+table.cmp td b{color:var(--fg)}
+table.cmp td.best{background:rgba(5,150,105,.09)}
+details.dev{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--muted)}
+details.dev summary{cursor:pointer;font-weight:800;color:var(--fg);font-size:15px}
+details.dev ul{padding-left:20px;display:grid;gap:5px;margin-top:8px}
+details.dev code{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--fg);overflow-wrap:anywhere}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ─── 화면 틀 안 — home.css · foms-tablet-rail.css 값을 옮겨 그림 ─── */
+.art{position:absolute;left:0;top:0;display:flex;background:var(--app-bg);color:var(--app-text);font-size:15px;line-height:1.35;overflow:hidden;font-variant-numeric:tabular-nums;color-scheme:light}
+.art *{box-sizing:border-box}
+.art.z80{width:1470px;height:782.5px;transform:scale(.8);transform-origin:0 0}
+.art.z100{width:1280px;height:800px}
+.art .ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.rel{position:relative}
+.mk{--k:1;position:absolute;z-index:9;top:calc(-13px*var(--k));left:calc(-13px*var(--k));width:calc(34px*var(--k));height:calc(34px*var(--k));border-radius:50%;background:#db2777;color:#fff;border:calc(3px*var(--k)) solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:calc(17px*var(--k));font-weight:800;display:flex;align-items:center;justify-content:center;font-style:normal;line-height:1;pointer-events:none}
+.z80 .mk{--k:1.25}
+.mk.r{left:auto;right:calc(-13px*var(--k))}
+.mk.in{top:calc(4px*var(--k));left:calc(4px*var(--k))}
+.mk.ir{top:calc(4px*var(--k));left:auto;right:calc(4px*var(--k))}
+.mk.mr{top:50%;left:auto;right:calc(6px*var(--k));margin-top:calc(-17px*var(--k))}
+.mk.br{top:auto;left:auto;bottom:calc(4px*var(--k));right:calc(4px*var(--k))}
+.nav > span.rel{padding-right:30px}
+.sh.rel,.qtop.rel,.qd.rel,.sth.rel{padding-right:56px}
+
+.rail{width:72px;flex-shrink:0;height:100%;background:#fff;border-right:1px solid var(--app-line);display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:4px;position:relative;z-index:3}
+.rail .brand{height:28px;margin-bottom:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--app-brand-dark)}
+.rail .zoom{width:44px;flex-shrink:0;margin:2px 0 8px;border:1px solid #ced4da;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.rail .zoom span{height:30px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#495057}
+.rail .zoom span.v{height:20px;font-size:11px;border-top:1px solid #ced4da;border-bottom:1px solid #ced4da}
+.rail .menu{align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 1 auto;min-height:0;overflow:hidden}
+.rail .it{flex-shrink:0;width:100%;min-height:50px;padding:6px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;line-height:1.1;color:#6b7280;position:relative;white-space:nowrap}
+.rail .it .ic{font-size:22px}
+.rail .it.on{color:var(--app-brand-dark);font-weight:600;background:var(--app-brand-50)}
+.rail .it.on::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--app-brand);border-radius:0 4px 4px 0}
+.rail .sp{flex:1 1 auto;min-height:12px;align-self:stretch}
+.rail .ava{width:40px;height:40px;flex-shrink:0;margin:4px 0 8px;border-radius:50%;background:var(--app-brand-50);color:var(--app-brand-dark);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.badge{position:absolute;top:7px;right:9px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;font-style:normal}
+
+.app{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.bar{height:73px;flex-shrink:0;display:flex;align-items:center;gap:10px 14px;padding:8px 20px;background:#fff;border-bottom:1px solid var(--app-line);position:relative;z-index:2}
+.bar h3{margin:0;font-size:22px;font-weight:800;white-space:nowrap;flex-shrink:0}
+.bar .date{font-size:16px;color:var(--app-text2);white-space:nowrap;flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;flex:0 1 auto;min-width:0;border:1px solid var(--app-line2);border-radius:10px;background:#fff}
+.nav > span{min-height:48px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--app-text2);white-space:nowrap;border-right:1px solid var(--app-line2)}
+.nav > span:first-child{border-radius:9px 0 0 9px}
+.nav > span:last-child{border-right:0;border-radius:0 9px 9px 0}
+.nav > span small{margin-left:6px;font-size:14px;font-weight:800;color:var(--app-text3)}
+.nav > span small.hot{color:var(--app-danger)}
+.nav > span.on{background:var(--app-brand);color:#fff}
+.nav > span.on small{color:inherit;opacity:.85}
+.tools{margin-left:auto;display:flex;align-items:center;gap:10px 14px;flex-shrink:0}
+.sync{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--app-text3);white-space:nowrap}
+.sync::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--app-ok)}
+.fs{display:inline-flex;height:44px;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:#fff}
+.fs span{min-width:44px;display:inline-flex;align-items:center;justify-content:center;border-right:1px solid var(--app-line2);color:var(--app-text2);font-size:17px;font-weight:700}
+.fs span.l{min-width:0;padding:0 10px;font-size:13px;font-weight:600;color:var(--app-text3)}
+.fs span.v{min-width:60px;font-size:13px;font-weight:600}
+.fs span:last-child{border-right:0}
+.btn{position:relative;min-height:56px;padding:0 14px;border:1px solid var(--app-line2);border-radius:10px;background:#fff;color:var(--app-text);font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.btn .ic{font-size:22px;margin-right:8px;stroke-width:2.5}
+.btn.bell{width:56px;padding:0}
+.btn.bell .ic{margin:0}
+
+/* 날짜 탭 */
+.dgrid{flex:1;min-height:0;display:grid;grid-template-columns:316px minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.lcol{display:flex;flex-direction:column;min-height:0}
+.strip{background:#fff;border-right:1px solid var(--app-line);display:flex;flex-direction:column;height:100%}
+.sh{min-height:40px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--app-line);font-size:15px;font-weight:800}
+.sh small{margin-left:auto;font-size:12px;font-weight:700;color:var(--app-text3)}
+.sd{width:100%;flex:1 1 0;min-height:44px;display:grid;grid-template-columns:88px minmax(0,1fr) 62px;align-items:center;gap:8px;padding:2px 14px;border-bottom:1px solid var(--app-line)}
+.sd.on{background:var(--app-brand-50);box-shadow:inset 4px 0 0 var(--app-brand)}
+.sd .d{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.sd .d b{font-size:16px;font-weight:800;white-space:nowrap}
+.sd .d small{font-size:12px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.sd.wk .d b{color:var(--app-danger)}
+.sd.zero .d b,.sd.zero .n b{color:var(--app-text3)}
+.sb{height:16px;border-radius:5px;background:var(--app-raised);border:1px solid var(--app-line);display:flex;overflow:hidden}
+.sb i{display:block;height:100%}
+.sb i.f{background:var(--app-ok)}.sb i.p{background:var(--app-brand)}.sb i.w{background:var(--app-warn-line)}.sb i.x{background:var(--app-line2)}
+.sd .n{text-align:right;white-space:nowrap}
+.sd .n b{font-size:15px;font-weight:800}
+.sd .n small{font-size:12px;font-weight:700;color:var(--app-text3)}
+.sf{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--app-line)}
+.sf span{min-height:48px;padding:0 8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--app-text2);text-align:center}
+.sf span + span{border-left:1px solid var(--app-line)}
+
+
+.pane{min-width:0;min-height:0;overflow:hidden;padding:4px 16px 24px 12px;display:flex;flex-direction:column;gap:6px}
+.ph{margin:0;min-height:44px;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 12px;padding-top:10px;font-size:20px;font-weight:800;color:var(--app-brand-dark)}
+.ph small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.pg{margin:4px 0 0;min-height:28px;display:flex;align-items:center;gap:8px;padding:0 4px;font-size:14px;font-weight:800;color:var(--app-text2)}
+.pg small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.pg.next{margin-top:10px;padding-top:10px;border-top:1px dashed var(--app-line2)}
+.dr{flex-shrink:0;min-height:74px;display:grid;grid-template-columns:128px minmax(0,1fr) auto 92px;align-items:center;gap:0 12px;padding-right:12px;background:#fff;border:1px solid var(--app-line);border-radius:12px}
+.dr.chg{border-color:var(--app-danger)}
+.dr.late{background:var(--app-danger-50);border-color:var(--app-danger-line);box-shadow:inset 6px 0 0 var(--app-danger)}
+.dr.tight{background:var(--app-warn-50);border-color:var(--app-warn-soft);box-shadow:inset 6px 0 0 var(--app-warn-line)}
+.dr.chg.late{border-color:var(--app-danger)}
+.dr .sg{align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 6px;border-right:1px solid var(--app-line);text-align:center;font-size:19px;font-weight:800;line-height:1.15;color:var(--app-brand-dark)}
+.dr .sg small{font-size:12px;font-weight:700;color:var(--app-text3)}
+.dr.w .sg{color:#92400e}
+.dr.chg .sg small{color:var(--app-danger)}
+.dr .who{min-width:0;display:flex;flex-direction:column;gap:2px;padding:8px 0}
+.dr .ln{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;min-width:0}
+.dr .nm{display:flex;align-items:baseline;gap:6px;font-size:20px;font-weight:800;line-height:1.2;white-space:nowrap;min-width:0}
+.dr .nm small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.dr .by{font-size:14px;font-weight:700;color:var(--app-text);white-space:nowrap}
+.dr .by.m{color:var(--app-brand-dark)}
+.dr .by.s{color:#0f766e}
+.dr .by.none{color:var(--app-warn-ink)}
+.dr .by i{font-style:normal;font-size:12px;color:var(--app-text3)}
+.dr .pr{font-size:14px;color:var(--app-text2);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.dr .pr em{font-style:normal;font-weight:800;color:var(--app-danger)}
+.dr .pr em.tight{color:var(--app-warn-ink)}
+.steps{display:flex;gap:6px}
+.st{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--app-text3)}
+.st i{width:34px;height:34px;border-radius:8px;border:2px solid var(--app-line2);background:#fff}
+.st.done,.st.now{color:var(--app-brand-dark)}
+.st.done i{background:var(--app-brand);border-color:var(--app-brand)}
+.st.now i{border:3px solid var(--app-brand);background:var(--app-brand-50)}
+.dr .dw{text-align:right;font-size:15px;font-weight:800;white-space:nowrap}
+.wg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;flex-shrink:0}
+.wi{min-height:44px;display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:9px;border:1px solid var(--app-line);background:var(--app-raised);color:var(--app-text2);font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden}
+.wi > b{min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;font-weight:inherit}
+.wi > small{flex:1 1 0;min-width:0;font-size:12px;font-weight:700;color:var(--app-text3);overflow:hidden;text-overflow:ellipsis}
+.wi.done{background:var(--app-ok-50);border-color:var(--app-ok-line);color:var(--app-ok-ink)}
+/* 시공일 표(fph_due) */
+.due{flex-shrink:0;display:inline-flex;align-items:baseline;gap:4px;margin-left:2px;padding:1px 7px;border:1px solid #c7cdf7;border-radius:7px;background:#e8ebff;color:var(--app-brand-dark);font-size:15px;font-weight:800;line-height:1.2;letter-spacing:-.01em;white-space:nowrap}
+.due i{font-style:normal;font-size:12px;font-weight:700}
+.due small{font-size:12px;font-weight:700}
+.due em{font-style:normal;font-size:14px;font-weight:800;padding-left:6px;margin-left:2px;border-left:1px solid currentColor}
+.due.today{border-color:var(--app-brand);background:var(--app-brand);color:#fff}
+.due.sm{font-size:13px;padding:0 5px;margin:0}
+
+/* ─── 2판: 도면 마감 · 나누기 ─── */
+.nav > span.new{position:relative}
+.nav > span.new::after{content:"새";position:absolute;top:3px;right:3px;font-size:10px;font-weight:800;line-height:1;padding:2px 4px;border-radius:5px;background:var(--app-plan);color:#fff}
+.nav > span.on.new::after{background:#fff;color:var(--app-plan)}
+/* 안 1 띠: 도면 x/n · 마감 */
+.dgrid.g2{grid-template-columns:352px minmax(0,1fr)}
+.sd.dl{grid-template-columns:76px minmax(0,1fr) 70px;gap:8px;padding:2px 12px 2px 14px}
+.sd.dl .mid{display:flex;flex-direction:column;gap:1px;min-width:0;line-height:1.15}
+.sd.dl .mid b{font-size:16px;font-weight:800;white-space:nowrap}
+.sd.dl .mid b small{font-size:12.5px;font-weight:700;color:var(--app-text3);margin-left:4px}
+.dd{font-size:12.5px;font-weight:700;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dd.late{color:var(--app-danger-ink);font-weight:800}.dd.soon{color:#9a3412;font-weight:800}.dd.ok{color:var(--app-ok-ink)}
+.sd.dl.late{background:var(--app-danger-50)}
+.sd.dl.soon{background:#fff7ed}
+.sd.dl.on{background:var(--app-brand-50)}
+.pl{justify-self:end;min-height:26px;padding:0 8px;border-radius:7px;font-size:13px;font-weight:800;display:inline-flex;align-items:center;white-space:nowrap;font-style:normal}
+.pl.late{background:var(--app-danger);color:#fff}
+.pl.soon{background:#fed7aa;color:#7c2d12;border:1px solid #fb923c}
+.pl.ok{background:var(--app-ok-50);color:var(--app-ok-ink);border:1px solid var(--app-ok-line)}
+.pl.wait{padding:0;color:var(--app-text2);font-weight:700;font-size:12.5px}
+.pl.gv{background:#eecbda;color:#7a3f5c;border:1px solid #d9a3bd}
+/* 장 머리 마감 한 줄 */
+.dlb{flex-shrink:0;min-height:52px;display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px;padding:6px 14px;border-radius:10px;font-size:16px;font-weight:700}
+.dlb > b{font-size:17px;font-weight:800}
+.dlb small{margin-left:auto;font-size:13px;font-weight:700;opacity:.85}
+.dlb.soon{background:#fff7ed;border:1px solid #fb923c;color:#7c2d12}
+.dlb.late{background:var(--app-danger-50);border:1px solid var(--app-danger-line);color:var(--app-danger-ink)}
+.dlb.ok{background:var(--app-ok-50);border:1px solid var(--app-ok-line);color:var(--app-ok-ink)}
+.dlb .cnt{display:inline-flex;align-items:baseline;gap:4px;font-size:15px}
+.dlb .cnt b{font-size:22px;font-weight:800}
+.pg.miss{color:#9a3412}
+.pg.miss.late{color:var(--app-danger-ink)}
+/* 안 온 집 줄 */
+.mrow{flex-shrink:0;min-height:74px;display:grid;grid-template-columns:190px minmax(0,1fr) 220px 112px;align-items:center;gap:0 14px;padding-right:12px;background:#fff;border:2px dashed #fb923c;border-radius:12px}
+.mrow.late{border-color:var(--app-danger);background:var(--app-danger-50)}
+.mrow .bk{align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:4px 12px;border-right:1px solid var(--app-line);font-size:17px;font-weight:800;line-height:1.2;color:#9a3412}
+.mrow.late .bk{color:var(--app-danger-ink);border-color:var(--app-danger-line)}
+.mrow .bk small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.mrow .who{min-width:0;display:flex;flex-direction:column;gap:2px;padding:8px 0}
+.mrow .nm{display:flex;align-items:baseline;gap:6px;font-size:20px;font-weight:800;white-space:nowrap}
+.mrow .nm small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.mrow .pr{font-size:14px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ow{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ow b{font-size:17px;font-weight:800;white-space:nowrap}
+.ow b i{font-style:normal;font-size:12.5px;font-weight:700;color:var(--app-text3);margin-right:5px}
+.ow b.d{color:#0e7490}.ow b.s{color:var(--app-brand-dark)}
+.ow small{font-size:12.5px;font-weight:700;color:var(--app-text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .pl{justify-self:end}
+/* 나눔 줄: 공정 칸 아래 맡은 사람 */
+.dr.nb{grid-template-columns:128px minmax(0,1fr) auto 150px}
+.give{min-height:60px;min-width:132px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;background:var(--app-brand);color:#fff;font-size:18px;font-weight:800;white-space:nowrap}
+.give.sm{min-width:0}
+.give.ghost{background:#fff;color:var(--app-brand-dark);border:2px solid var(--app-brand)}
+.steps.wn .st{min-width:54px}
+.st small{font-size:11.5px;font-weight:800;color:#7a3f5c;line-height:1;white-space:nowrap}
+.st small.no{color:var(--app-text3);font-weight:700}
+.dr .pr em.late{color:var(--app-danger-ink)}
+.dr .ar{font-size:13px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.ph .sp4{margin-left:auto;display:inline-flex;gap:10px;font-size:13.5px;font-weight:800;color:var(--app-text2)}
+.ph .sp4 b{color:var(--app-brand-dark)}
+/* 안 1-2: 나누기 창 */
+.art.dim .dgrid{position:relative}
+.art.dim .dgrid::after{content:"";position:absolute;inset:0;background:rgba(15,23,42,.18);pointer-events:none}
+.gd{position:absolute;z-index:5;top:73px;right:0;bottom:0;width:600px;display:flex;flex-direction:column;gap:10px;padding:0 20px 16px;background:#fff;border-left:1px solid var(--app-line2);box-shadow:-12px 0 28px rgba(15,23,42,.2)}
+.gdh{flex-shrink:0;min-height:62px;display:flex;align-items:center;gap:10px;margin:0 -20px;padding:0 10px 0 20px;border-bottom:1px solid var(--app-line);font-size:20px;font-weight:800}
+.gdh > .rel{padding-right:46px}
+.ctop.rel,.lh.rel{padding-right:60px}
+.gdh small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.gdh .x{margin-left:auto;width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--app-text2);border:1px solid var(--app-line2);border-radius:10px}
+.gbox{flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding:10px 14px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-raised)}
+.gbox .l1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.gbox .l1 b{font-size:20px;font-weight:800}
+.gbox .l1 small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.gbox .l2{font-size:14px;color:var(--app-text2)}
+.gbox .l3{font-size:14px;font-weight:800;color:var(--app-danger-ink)}
+.prow{flex-shrink:0;display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;gap:10px}
+.prow > b{font-size:18px;font-weight:800}
+.prow .chs{display:flex;flex-wrap:wrap;gap:8px}
+.pc{min-height:60px;min-width:118px;padding:0 14px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--app-line2);border-radius:12px;background:#fff;font-size:18px;font-weight:800;color:var(--app-text);line-height:1.15}
+.pc small{font-size:11.5px;font-weight:700;color:var(--app-text3)}
+.pc.on{border:3px solid #b45685;background:#eecbda;color:#5b2a43}
+.pc.on small{color:#7a3f5c}
+.ghint{flex-shrink:0;font-size:13.5px;font-weight:600;color:var(--app-text2);line-height:1.45;padding:8px 12px;border-radius:10px;background:var(--app-plan-50);border:1px solid #ddd6fe}
+.ghint b{color:#5b21b6}
+.gfoot{margin-top:auto;display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px}
+.gfoot span{min-height:64px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:19px;font-weight:800}
+.gfoot .cancel{border:1px solid var(--app-line2);background:#fff;color:var(--app-text2)}
+.gfoot .save{background:var(--app-brand);color:#fff}
+/* 안 2: 도면 확인 탭 */
+.cgrid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 588px;grid-template-rows:minmax(0,1fr)}
+.clist{min-width:0;min-height:0;overflow:hidden;padding:8px 14px 16px;display:flex;flex-direction:column;gap:8px}
+.ctop{flex-shrink:0;min-height:48px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.ctop > b{font-size:21px;font-weight:800;color:var(--app-text)}
+.ctop > small{font-size:13.5px;font-weight:700;color:var(--app-text3)}
+.ctop .cs{margin-left:auto;display:flex;gap:6px}
+.cc{flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px 16px;background:#fff;border:1px solid var(--app-line);border-radius:12px;box-shadow:inset 7px 0 0 var(--app-line2)}
+.cc.late{border-color:var(--app-danger-line);box-shadow:inset 7px 0 0 var(--app-danger);background:var(--app-danger-50)}
+.cc.soon{border-color:#fdba74;box-shadow:inset 7px 0 0 #f97316;background:#fff7ed}
+.cc.ok{border-color:var(--app-ok-line);box-shadow:inset 7px 0 0 var(--app-ok);background:var(--app-ok-50)}
+.cc.pick{outline:3px solid var(--app-brand);outline-offset:1px}
+.cch{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-height:40px}
+.cch > b{font-size:20px;font-weight:800}
+.cch .tg{font-size:13px;font-weight:800;padding:2px 8px;border-radius:6px;background:var(--app-brand);color:#fff}
+.cch .dd{font-size:14.5px}
+.cch .n{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;font-size:14px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.cch .n b{font-size:22px;font-weight:800;color:var(--app-text)}
+.cch .go{display:inline-flex;align-items:center;font-size:14px;font-weight:800;color:var(--app-brand-dark);white-space:nowrap}
+.cm{min-height:54px;display:grid;grid-template-columns:150px minmax(0,1fr) 190px;align-items:center;gap:0 12px;padding:4px 10px;background:#fff;border:2px dashed #fb923c;border-radius:10px}
+.cc.late .cm{border-color:var(--app-danger)}
+.cm .bk{font-size:15.5px;font-weight:800;color:#9a3412;line-height:1.2}
+.cc.late .cm .bk{color:var(--app-danger-ink)}
+.cm .nm{display:flex;align-items:baseline;gap:6px;min-width:0;white-space:nowrap}
+.cm .nm b{font-size:18px;font-weight:800}
+.cm .nm small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.cm .ow b{font-size:15.5px}
+.cc .ft{font-size:13.5px;font-weight:700;color:var(--app-text2)}
+.cc .ft b{color:var(--app-text)}
+.cc .ft em{font-style:normal;font-weight:800;color:#7a3f5c}
+.lr{flex-shrink:0;min-height:48px;display:grid;grid-template-columns:118px 170px 86px minmax(0,1fr);align-items:center;gap:0 10px;padding:0 12px;background:#fff;border:1px solid var(--app-line);border-radius:10px;font-size:14px;font-weight:700;color:var(--app-text2)}
+.lr > b{font-size:16.5px;font-weight:800;color:var(--app-text)}
+.lr .n b{font-size:17px;font-weight:800;color:var(--app-text)}
+.lr .why{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lh{flex-shrink:0;margin-top:4px;font-size:14px;font-weight:800;color:var(--app-text2);padding:0 4px}
+/* 안 2 오른쪽: 날 통째 나누기 표 */
+.spl{min-height:0;display:flex;flex-direction:column;gap:8px;padding:0 16px 14px;background:#fff;border-left:1px solid var(--app-line);position:relative}
+.sph{flex-shrink:0;min-height:62px;display:flex;flex-direction:column;justify-content:center;margin:0 -16px;padding:6px 16px;border-bottom:1px solid var(--app-line)}
+.sph b{font-size:20px;font-weight:800}
+.sph small{font-size:13.5px;font-weight:700;color:var(--app-ok-ink)}
+.gt{flex-shrink:0;display:grid;grid-template-columns:150px repeat(4,minmax(0,1fr));gap:6px;align-items:stretch}
+.gt .h{min-height:30px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--app-text2);background:var(--app-raised);border-radius:7px}
+.gt .h:first-child{justify-content:flex-start;padding-left:8px}
+.gt .o{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;padding:4px 2px}
+.gt .o b{font-size:17px;font-weight:800;white-space:nowrap}
+.gt .o b small{font-size:12px;font-weight:700;color:var(--app-text3);margin-left:3px}
+.gt .o > small{font-size:12px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.gc{min-height:64px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-size:17px;font-weight:800;text-align:center;position:relative}
+.gc.on{border:2px solid #b45685;background:#eecbda;color:#5b2a43}
+.gc.no{border:2px dashed var(--app-line2);background:#fff;color:var(--app-text3);font-size:14.5px}
+.gc.cur{outline:3px solid var(--app-brand);outline-offset:1px}
+.gc.bs{border:2px solid #7dd3fc;background:#ccedff;color:#075985;font-size:15px}
+.pop{position:absolute;z-index:6;display:flex;flex-direction:column;gap:6px;padding:10px;background:#fff;border:1px solid var(--app-line2);border-radius:12px;box-shadow:0 12px 28px rgba(15,23,42,.22)}
+.pop > small{padding-left:30px;font-size:12.5px;font-weight:800;color:var(--app-text3)}
+.pop .pc{min-width:140px}
+.spf{margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+.spf .give{min-height:64px;font-size:19px}
+.spf small{font-size:13px;font-weight:600;color:var(--app-text2);line-height:1.4}
+/* 안 3: 2주 판 */
+.bwrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:8px 12px 12px;gap:8px}
+.btop{flex-shrink:0;min-height:52px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:var(--app-text2)}
+.btop > b{font-size:19px;font-weight:800;color:var(--app-text)}
+.arw{width:60px;height:60px;display:flex;align-items:center;justify-content:center;border:1px solid var(--app-line2);border-radius:10px;background:#fff;font-size:18px;color:var(--app-text2)}
+.lg{display:flex;align-items:center;gap:6px;margin-left:12px;font-size:13.5px;font-weight:800;color:var(--app-text2);white-space:nowrap}
+.lg i{width:16px;height:16px;border-radius:4px;margin-left:8px}
+.lg i.late{background:var(--app-danger)}.lg i.soon{background:#f97316}.lg i.ok{background:var(--app-ok)}.lg i.wait{background:#fff;border:2px dashed #fb923c}.lg i.gv{background:#eecbda;border:1px solid #b45685}
+.bgrid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:8px}
+.bcell{min-width:0;min-height:0;display:flex;flex-direction:column;gap:5px;padding:6px 8px 7px;background:#fff;border:1px solid var(--app-line);border-radius:12px;overflow:hidden}
+.bcell.late{border:3px solid var(--app-danger);padding:4px 6px 5px}
+.bcell.soon{border:3px solid #f97316;padding:4px 6px 5px}
+.bh{flex-shrink:0;display:flex;align-items:baseline;gap:6px;min-height:28px;white-space:nowrap}
+.bh > b{font-size:18px;font-weight:800}
+.bcell.wk .bh > b{color:var(--app-danger)}
+.bh .tg{font-size:12px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--app-brand);color:#fff}
+.bh .n{margin-left:auto;font-size:12px;font-weight:700;color:var(--app-text3)}
+.bh .n b{font-size:19px;font-weight:800;color:var(--app-text)}
+.rb{flex-shrink:0;min-height:30px;display:flex;align-items:center;gap:5px;padding:0 8px;border-radius:7px;font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden}
+.rb.late{background:var(--app-danger);color:#fff}
+.rb.soon{background:#fed7aa;color:#7c2d12}
+.rb.ok{background:var(--app-ok-50);color:var(--app-ok-ink);border:1px solid var(--app-ok-line)}
+.rb.wait{background:var(--app-raised);color:var(--app-text2);border:1px solid var(--app-line)}
+.mc{flex-shrink:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:2px 8px;border:2px dashed #fb923c;border-radius:8px;background:#fff}
+.bcell.late .mc{border-color:var(--app-danger);background:var(--app-danger-50)}
+.mc b{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc small{font-size:11.5px;font-weight:700;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc small i{font-style:normal;color:#9a3412;font-weight:800}
+.bcell.late .mc small i{color:var(--app-danger-ink)}
+.mcs{flex-shrink:0;display:flex;flex-direction:column;gap:2px;padding:5px 8px;border:2px dashed #fdba74;border-radius:8px;font-size:12.5px;font-weight:700;color:var(--app-text2)}
+.mcs b{color:#9a3412;font-weight:800}
+.gvl{flex-shrink:0;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--app-text2);white-space:nowrap}
+.gvl .pl{min-height:22px;font-size:12px;padding:0 6px}
+.pgr{margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;gap:3px;padding-top:5px;border-top:1px dashed var(--app-line2)}
+.pgr .r{display:grid;grid-template-columns:28px minmax(0,1fr) 30px;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--app-text2)}
+.pgr .r span:last-child{text-align:right}
+.pgr .jb{height:8px;border-radius:5px;background:var(--app-raised);border:1px solid var(--app-line);overflow:hidden;display:block}
+.pgr .jb i{display:block;height:100%;background:var(--app-brand)}
+.pgr .lt{font-size:11.5px;font-weight:800;white-space:nowrap}
+.pgr .lt em{font-style:normal;color:var(--app-danger-ink)}
+.pgr .lt i{font-style:normal;color:var(--app-warn-ink);margin-left:6px}
+.pgr .lt.none{color:var(--app-text3)}
+.bf{flex-shrink:0;font-size:12.5px;font-weight:800;color:var(--app-text3);padding:0 2px;white-space:nowrap}
+.emp{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--app-text3)}
+
+
+/* ─── 3판: 거시(흐름 · 2주) + 미시(그날 · 주문 하나) ─── */
+:root{
+  --s-draw:#fcd34d;--s-draw-ink:#78350f;
+  --s-conf:#7dd3fc;--s-conf-ink:#075985;
+  --s-wait:#c4b5fd;--s-wait-ink:#4c1d95;
+  --s-cut:#a5b4fc;--s-cut-ink:#312e81;
+  --s-edge:#818cf8;--s-edge-ink:#1e1b4b;
+  --s-asm:#6366f1;--s-asm-ink:#ffffff;
+  --s-ins:#4338ca;--s-ins-ink:#ffffff;
+  --s-hold:#fca5a5;--s-hold-ink:#7f1d1d;
+  --s-done:#6ee7b7;--s-done-ink:#064e3b;
+  --s-end:#047857;--s-end-ink:#ffffff;
+}
+.nt{display:inline-flex;align-items:center;margin-left:6px;padding:1px 6px;border-radius:5px;background:var(--app-plan);color:#fff;font-size:11px;font-weight:800;line-height:1.3;font-style:normal;white-space:nowrap;vertical-align:middle}
+.nw{outline:2px dashed #a78bfa;outline-offset:2px}
+/* 흐름 줄(공통) */
+.pipe{display:flex;align-items:stretch;gap:10px;min-width:0}
+.pgp{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pgp .gl{display:flex;align-items:center;gap:6px;padding:0 4px;font-size:13px;font-weight:800;color:var(--app-text2);white-space:nowrap}
+.pgp .gl b{font-size:15px;color:var(--app-text)}
+.pgp.out .gl{color:#9a3412}.pgp.in .gl{color:var(--app-brand-dark)}.pgp.fin .gl{color:var(--app-ok-ink)}
+.segs{display:flex;gap:3px;min-width:0}
+.ps{position:relative;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 4px;border-radius:9px;font-weight:800;line-height:1.1;text-align:center;white-space:nowrap}
+.ps b{font-size:24px}
+.ps span{font-size:13.5px}
+.ps small{font-size:12px;font-weight:800;padding:0 5px;border-radius:5px;background:rgba(255,255,255,.85);color:var(--app-danger-ink)}
+.ps small.t{color:var(--app-warn-ink)}
+.ps.draw{background:var(--s-draw);color:var(--s-draw-ink)}
+.ps.conf{background:var(--s-conf);color:var(--s-conf-ink)}
+.ps.wait{background:var(--s-wait);color:var(--s-wait-ink)}
+.ps.cut{background:var(--s-cut);color:var(--s-cut-ink)}
+.ps.edge{background:var(--s-edge);color:var(--s-edge-ink)}
+.ps.asm{background:var(--s-asm);color:var(--s-asm-ink)}
+.ps.ins{background:var(--s-ins);color:var(--s-ins-ink)}
+.ps.hold{background:var(--s-hold);color:var(--s-hold-ink)}
+.ps.done{background:var(--s-done);color:var(--s-done-ink)}
+.ps.end{background:var(--s-end);color:var(--s-end-ink)}
+.ps.pick{outline:4px solid #111827;outline-offset:1px;z-index:1}
+.ps + .ps::before{content:"";position:absolute;left:-3px;top:50%;margin-top:-6px;border:6px solid transparent;border-left-color:#fff;border-right:0}
+.pipe.sm .ps{min-height:48px;flex-direction:row;gap:5px;padding:0 6px}
+.pipe.sm .ps b{font-size:19px}
+.pipe.sm .ps span{font-size:13px}
+.pipe.sm .ps small{font-size:11px;padding:0 4px}
+.pipe.lg .ps{min-height:84px}
+.pipe.lg .ps b{font-size:30px}
+.pipe.lg .ps span{font-size:15px}
+.pipe.lg .gl{font-size:14.5px}
+/* 흐름 막대(날마다 그 날 집이 어느 단계에 있나) */
+.fb{display:flex;height:18px;border-radius:5px;overflow:hidden;background:#fff;border:1px solid var(--app-line2)}
+.fb i{display:block;height:100%}
+.fb i.draw{background:var(--s-draw)}.fb i.conf{background:var(--s-conf)}.fb i.wait{background:var(--s-wait)}.fb i.cut{background:var(--s-cut)}
+.fb i.edge{background:var(--s-edge)}.fb i.asm{background:var(--s-asm)}.fb i.ins{background:var(--s-ins)}.fb i.hold{background:var(--s-hold)}.fb i.done{background:var(--s-done)}
+/* 안 1 띠 */
+.dgrid.g3{grid-template-columns:474px minmax(0,1fr)}
+.sh3{min-height:40px;flex-shrink:0;display:grid;grid-template-columns:70px minmax(0,1fr) 50px 98px 58px;gap:6px;align-items:center;padding:0 10px 0 12px;border-bottom:1px solid var(--app-line);font-size:12px;font-weight:800;color:var(--app-text3);line-height:1.1}
+.sh3 b{font-size:14px;color:var(--app-text)}
+.sd.m3{grid-template-columns:70px minmax(0,1fr) 50px 98px 58px;gap:6px;padding:1px 10px 1px 12px}
+.sd.m3 .mid{display:flex;flex-direction:column;min-width:0;line-height:1.12}
+.sd.m3 .mid b{font-size:15.5px;font-weight:800;white-space:nowrap}
+.sd.m3 .mid b small{font-size:12px;color:var(--app-text3);margin-left:2px}
+.sd.m3 .mid b.late{color:var(--app-danger-ink)}.sd.m3 .mid b.soon{color:#9a3412}.sd.m3 .mid b.ok{color:var(--app-ok-ink)}
+.sd.m3 .mid .dd{font-size:11.5px}
+.sd.m3 .mid .dd .ic{font-size:12px;margin-right:2px;vertical-align:-1px}
+.mv{display:flex;flex-direction:column;align-items:flex-start;gap:1px;font-size:12px;font-weight:800;line-height:1.1;white-space:nowrap}
+.mv .in{color:#0e7490}.mv .out{color:#9d174d}
+.mv .no{color:var(--app-text3);font-weight:700}
+.sd.m3 .fb{height:16px}
+.lt3{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-size:12px;font-weight:800;line-height:1.1;white-space:nowrap}
+.lt3 .l{color:var(--app-danger-ink)}.lt3 .t{color:var(--app-warn-ink)}.lt3 .no{color:var(--app-text3);font-weight:700}
+.sd.m3.late{background:var(--app-danger-50)}.sd.m3.soon{background:#fff7ed}
+.sd.m3.on{background:var(--app-brand-50);box-shadow:inset 5px 0 0 var(--app-brand)}
+.sd.m3.past{background:#fff1f2}
+.sd.m3.past .d b{color:var(--app-danger-ink)}
+/* 안 1 오른쪽: 흐름 줄 + 장 */
+.rcol{min-width:0;min-height:0;display:flex;flex-direction:column}
+.ptop{flex-shrink:0;display:flex;align-items:flex-end;gap:10px;padding:6px 14px 8px 12px;background:#fff;border-bottom:1px solid var(--app-line)}
+.ptop > .pipe{flex:1}
+.ptop .scope{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;font-weight:800;color:var(--app-text3);white-space:nowrap;padding-bottom:4px}
+.ptop .scope b{font-size:14px;color:var(--app-text)}
+.pane3{flex:1;min-height:0;overflow:hidden;padding:2px 16px 20px 12px;display:flex;flex-direction:column;gap:6px}
+.dlb3{flex-shrink:0;min-height:56px;display:flex;align-items:center;flex-wrap:nowrap;gap:4px 14px;padding:4px 8px 4px 14px;border-radius:10px;font-size:15px;font-weight:700;background:var(--app-danger-50);border:1px solid var(--app-danger-line);color:var(--app-danger-ink)}
+.dlb3 > b{font-size:16.5px;font-weight:800;white-space:nowrap}
+.dlb3 .cnt{display:inline-flex;align-items:baseline;gap:4px;font-size:14.5px;white-space:nowrap}
+.dlb3 .cnt b{font-size:22px;font-weight:800}
+.snt{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:#fff;border:1px solid var(--app-danger-line);font-size:14px;font-weight:800;color:var(--app-danger-ink);white-space:nowrap}
+.snt .ic{font-size:16px}
+.snt.plan{border-style:dashed;border-color:#fb923c;color:#9a3412}
+.ph3{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;min-height:40px;padding-top:6px;font-size:20px;font-weight:800;color:var(--app-brand-dark)}
+.ph3 small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.ph3 .give0{margin-left:auto;align-self:center;display:inline-flex;align-items:center;min-height:32px;padding:0 10px;border:2px dashed var(--app-line2);border-radius:8px;font-size:12.5px;font-weight:800;color:var(--app-text3);white-space:nowrap}
+.mrow3{flex-shrink:0;min-height:70px;display:grid;grid-template-columns:150px minmax(0,1fr) 150px 222px;align-items:center;gap:0 12px;padding-right:10px;background:var(--app-danger-50);border:2px dashed var(--app-danger);border-radius:12px}
+.mrow3 .bk{align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:4px 10px;border-right:1px solid var(--app-danger-line);font-size:16px;font-weight:800;line-height:1.2;color:var(--app-danger-ink)}
+.mrow3 .bk small{font-size:12px;font-weight:700;color:var(--app-text3)}
+.mrow3 .who{min-width:0;display:flex;flex-direction:column;gap:2px;padding:6px 0}
+.mrow3 .nm{display:flex;align-items:baseline;gap:6px;font-size:19px;font-weight:800;white-space:nowrap}
+.mrow3 .nm small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.mrow3 .pr{font-size:13.5px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow3 .ow b{font-size:15px}
+.al{display:flex;flex-direction:column;gap:2px;min-width:0;justify-self:end;align-items:flex-end}
+.al .snt{font-size:13.5px}
+.al small{font-size:11.5px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.cr{flex-shrink:0;min-height:60px;display:grid;grid-template-columns:86px minmax(0,1fr) 210px 200px;align-items:center;gap:0 12px;padding:0 12px 0 0;background:#fff;border:1px solid var(--app-line);border-radius:12px}
+.cr .k{align-self:stretch;display:flex;align-items:center;justify-content:center;border-radius:11px 0 0 11px;font-size:15px;font-weight:800}
+.cr .k.in{background:#cffafe;color:#155e75}
+.cr .k.out{background:#fce7f3;color:#9d174d}
+.cr .nm{display:flex;align-items:baseline;gap:6px;min-width:0;white-space:nowrap;font-size:18px;font-weight:800}
+.cr .nm small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.cr .nm em{font-style:normal;font-size:13px;font-weight:800;color:var(--app-text2);overflow:hidden;text-overflow:ellipsis}
+.cr .mvd{display:flex;align-items:baseline;gap:6px;font-size:15px;font-weight:800;white-space:nowrap}
+.cr .mvd s{color:var(--app-text3);font-weight:700}
+.cr .mvd b{font-size:17px;color:var(--app-danger-ink)}
+.cr .wh{font-size:13px;font-weight:700;color:var(--app-text2);white-space:nowrap;text-align:right}
+.cr .wh b{color:var(--app-text)}
+/* 미시 줄: 공정 칸 아래 누가 · 언제 */
+.dr.m3{grid-template-columns:118px minmax(0,1fr) auto 64px;min-height:78px}
+.steps.ww .st{min-width:62px;gap:2px}
+.st .w{font-size:11px;font-weight:800;color:#7a3f5c;line-height:1.05;white-space:nowrap;text-align:center}
+.st .w.done{color:var(--app-brand-dark)}
+.st .w.no{color:var(--app-text3);font-weight:700}
+.dr .ar3{font-size:12.5px;font-weight:700;color:var(--app-ok-ink);white-space:nowrap}
+.dr .tl{text-align:right;font-size:13px;font-weight:800;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.hb{display:inline-flex;align-items:center;padding:1px 6px;border-radius:6px;font-size:12px;font-weight:800;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+/* 주문 하나 판 */
+.od{position:absolute;z-index:5;top:73px;right:0;bottom:0;width:640px;display:flex;flex-direction:column;gap:8px;padding:0 18px 14px;background:#fff;border-left:1px solid var(--app-line2);box-shadow:-12px 0 28px rgba(15,23,42,.2)}
+.odh{flex-shrink:0;min-height:64px;display:flex;align-items:center;gap:10px;margin:0 -18px;padding:0 10px 0 18px;border-bottom:1px solid var(--app-line)}
+.odh .nm{display:flex;align-items:baseline;gap:8px;font-size:22px;font-weight:800;white-space:nowrap}
+.odh .nm small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.odh .due{font-size:18px}
+.odh .x{margin-left:auto;width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--app-text2);border:1px solid var(--app-line2);border-radius:10px;flex-shrink:0}
+.ods{flex-shrink:0;display:grid;grid-template-columns:92px minmax(0,1fr);gap:6px 12px;padding:8px 12px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-raised)}
+.ods > b{font-size:16px;font-weight:800;color:var(--app-text);padding-top:2px}
+.ods ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:3px;min-width:0}
+.ods li{display:flex;align-items:baseline;gap:8px;font-size:14.5px;color:var(--app-text2);min-width:0;white-space:nowrap}
+.ods li > b{font-size:15.5px;color:var(--app-text);font-weight:800}
+.ods li em{font-style:normal;font-weight:800}
+.ods li em.ok{color:var(--app-ok-ink)}.ods li em.red{color:var(--app-danger-ink)}.ods li em.br{color:var(--app-brand-dark)}.ods li em.pk{color:#7a3f5c}
+.ods li small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.ods li .tk{flex-shrink:0;width:20px;height:20px;border-radius:5px;border:2px solid var(--app-line2);background:#fff;align-self:center}
+.ods li .tk.d{background:var(--app-brand);border-color:var(--app-brand)}
+.ods li .tk.n{border:3px solid var(--app-brand);background:var(--app-brand-50)}
+.odf{margin-top:auto;flex-shrink:0;display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:10px}
+.odf span{min-height:64px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:19px;font-weight:800}
+.odf .open{background:var(--app-brand);color:#fff}
+.odf .day{border:1px solid var(--app-line2);background:#fff;color:var(--app-text2);font-size:17px}
+/* 안 2: 흐름 탭 */
+.fw{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:6px 12px 12px}
+.ftop{flex-shrink:0;min-height:62px;display:flex;align-items:center;gap:10px}
+.ftop > b{font-size:20px;font-weight:800;white-space:nowrap}
+.ftop > small{font-size:14px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.chips{display:flex;border:1px solid var(--app-line2);border-radius:10px;overflow:hidden;background:#fff;margin-left:auto}
+.chips span{min-height:60px;min-width:96px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--app-text2);border-right:1px solid var(--app-line2);white-space:nowrap}
+.chips span:last-child{border-right:0}
+.chips span.on{background:var(--app-brand-dark);color:#fff}
+.fpipe{flex-shrink:0;padding:8px 10px 10px;background:#fff;border:1px solid var(--app-line);border-radius:12px}
+.fgrid{flex:1;min-height:0;display:grid;grid-template-columns:118px repeat(12,minmax(0,1fr));grid-template-rows:62px 74px 66px 40px 56px 40px 34px;gap:4px;background:#fff;border:1px solid var(--app-line);border-radius:12px;padding:6px}
+.fgrid .rl{display:flex;flex-direction:column;justify-content:center;padding:0 6px;font-size:13.5px;font-weight:800;color:var(--app-text2);line-height:1.15}
+.fgrid .rl small{font-size:11px;font-weight:700;color:var(--app-text3)}
+.fc{min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:stretch;gap:2px;padding:2px 5px;border-radius:8px;background:var(--app-raised);font-size:12.5px;font-weight:800;line-height:1.15;color:var(--app-text2);overflow:hidden;text-align:center}
+.fc.hd{background:#fff;border:1px solid var(--app-line2)}
+.fc.hd b{font-size:19px;color:var(--app-text)}
+.fc.hd small{font-size:11.5px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.fc.hd.today{border:2px solid var(--app-brand);background:var(--app-brand-50)}
+.fc.hd.wk b{color:var(--app-danger)}
+.fc.hd.past{border-color:var(--app-danger-line);background:#fff1f2}
+.fc.hd.past b{font-size:15px;color:var(--app-danger-ink)}
+.fc.dw b{font-size:22px;color:var(--app-text)}
+.fc.dw b small{font-size:13px;color:var(--app-text3)}
+.fc.dw > span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc.dw.late{background:var(--app-danger);color:#fff}.fc.dw.late b,.fc.dw.late b small{color:#fff}
+.fc.dw.soon{background:#fed7aa;color:#7c2d12;border:1px solid #fb923c}.fc.dw.soon b{color:#7c2d12}
+.fc.dw.ok{background:var(--app-ok-50);color:var(--app-ok-ink);border:1px solid var(--app-ok-line)}.fc.dw.ok b{color:var(--app-ok-ink)}
+.fc.dw .ic{font-size:11px;vertical-align:-1px;margin-right:2px}
+.fc.ms{font-size:12.5px;align-items:center}
+.fc.ms b{font-size:13.5px;color:var(--app-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.fc.ms small{font-size:11px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.fc.mvc{flex-direction:row;justify-content:center;gap:6px;font-size:13.5px}
+.fc.mvc .in{color:#0e7490}.fc.mvc .out{color:#9d174d}.fc.mvc .no{color:var(--app-text3);font-weight:700}
+.fc.fl{background:#fff}
+.fc.fl .fb{height:22px}
+.fc.fl small{font-size:11.5px;color:var(--app-text2);white-space:nowrap}
+.fc.lt{flex-direction:row;justify-content:center;gap:6px;font-size:13px}
+.fc.lt .l{color:var(--app-danger-ink)}.fc.lt .t{color:var(--app-warn-ink)}.fc.lt .no{color:var(--app-text3);font-weight:700}
+.fc.hb3{font-size:12px}
+.fc.hb3 .h{color:#991b1b}.fc.hb3 .no{color:var(--app-text3);font-weight:700}
+.fcol{outline:3px solid var(--app-brand);outline-offset:2px;border-radius:8px}
+.flg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12.5px;font-weight:800;color:var(--app-text2)}
+.flg i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:4px;vertical-align:-2px}
+/* 안 2-2: 공정 칸 누르면 목록 */
+.pl3{position:absolute;z-index:5;top:73px;right:0;bottom:0;width:620px;display:flex;flex-direction:column;gap:8px;padding:0 16px 14px;background:#fff;border-left:1px solid var(--app-line2);box-shadow:-12px 0 28px rgba(15,23,42,.2)}
+.plr{flex-shrink:0;min-height:76px;display:grid;grid-template-columns:minmax(0,1fr) 168px;align-items:center;gap:4px 12px;padding:6px 12px 6px 16px;border:1px solid var(--app-line);border-radius:12px;background:#fff}
+.plr.late{background:var(--app-danger-50);border-color:var(--app-danger-line);box-shadow:inset 6px 0 0 var(--app-danger)}
+.plr.tight{background:var(--app-warn-50);border-color:var(--app-warn-soft);box-shadow:inset 6px 0 0 var(--app-warn-line)}
+.plr .a{display:flex;flex-direction:column;gap:2px;min-width:0}
+.plr .a .nm{display:flex;align-items:baseline;gap:6px;font-size:19px;font-weight:800;white-space:nowrap}
+.plr .a .nm small{font-size:12.5px;font-weight:700;color:var(--app-text3)}
+.plr .a .pr{font-size:13.5px;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plr .a .pr em{font-style:normal;font-weight:800;color:var(--app-danger-ink)}
+.plr .a .pr em.t{color:var(--app-warn-ink)}
+.plr .b{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:13px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.plr .b b{font-size:15px;color:#7a3f5c}
+/* PC 틀 */
+.stage.p1440{width:1440px;height:900px}
+.art.pcv{width:1440px;height:900px;flex-direction:column}
+.erp1{height:56px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 24px;background:#fff;border-bottom:1px solid var(--app-line);font-size:20px;font-weight:800}
+.erp1 .sp{flex:1}
+.erp1 span.u{font-size:15px;font-weight:700;color:var(--app-text2)}
+.erp2{height:44px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 20px;background:#fff;border-bottom:1px solid var(--app-line);font-size:15px;font-weight:700;color:var(--app-text2)}
+.erp2 span{padding:8px 12px;border-radius:8px}
+.erp2 span.on{background:var(--app-brand-50);color:var(--app-brand-dark);font-weight:800}
+.pcbar{height:62px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;background:#fff;border-bottom:1px solid var(--app-line)}
+.pcbar h3{font-size:22px;font-weight:800;margin:0}
+.pcbar .date{font-size:16px;color:var(--app-text2);white-space:nowrap}
+.pcbar .nav > span{min-height:44px}
+.vo{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;background:var(--app-ok-50);border:1px solid var(--app-ok-line);color:var(--app-ok-ink);font-size:14px;font-weight:800;white-space:nowrap}
+.pcbar .tools .btn{min-height:44px}
+.pcw{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px 20px 12px}
+.pcw .fgrid{flex:0 0 auto;grid-template-rows:56px 70px 58px 34px 46px 34px;padding:6px;grid-template-columns:120px repeat(12,minmax(0,1fr))}
+.pcw .fpipe{padding:6px 10px 8px}
+.pcd{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;overflow:hidden;background:#fff;border:1px solid var(--app-line);border-radius:12px;padding:8px 12px}
+.pcd h4{margin:0;display:flex;align-items:baseline;gap:12px;font-size:18px;font-weight:800;color:var(--app-brand-dark)}
+.pcd h4 small{font-size:14px;font-weight:700;color:var(--app-text3)}
+.pcr{flex-shrink:0;min-height:44px;display:grid;grid-template-columns:150px 110px minmax(0,1.3fr) 210px 340px minmax(0,1fr);align-items:center;gap:10px;padding:2px 10px;border:1px solid var(--app-line);border-radius:9px;font-size:14.5px;font-weight:700;color:var(--app-text2)}
+.pcr.late{background:var(--app-danger-50);border-color:var(--app-danger-line)}
+.pcr.tight{background:var(--app-warn-50);border-color:var(--app-warn-soft)}
+.pcr.miss{border:2px dashed var(--app-danger)}
+.pcr > b.d{font-size:16px;color:var(--app-text)}
+.pcr > b.d small{font-size:12.5px;color:var(--app-danger-ink);margin-left:6px}
+.pcr .s{font-size:15.5px;font-weight:800;color:var(--app-brand-dark)}
+.pcr .s.r{color:var(--app-danger-ink)}
+.pcr .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcr .n b{font-size:16.5px;color:var(--app-text);margin-right:6px}
+.pcr .a3{font-size:13.5px;white-space:nowrap}
+.pcr .a3 .ok{color:var(--app-ok-ink)}.pcr .a3 .red{color:var(--app-danger-ink)}
+.ps4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.ps4 span{min-height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:7px;border:2px solid var(--app-line2);font-size:11.5px;font-weight:800;line-height:1.05;color:var(--app-text3);background:#fff}
+.ps4 span.d{background:var(--app-brand);border-color:var(--app-brand);color:#fff}
+.ps4 span.n{border:2px solid var(--app-brand);background:var(--app-brand-50);color:var(--app-brand-dark)}
+.pcr .c{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcr .c b{color:var(--app-danger-ink)}
+
+/* ─── 3판 고침: 집 이름 칩(거시에서도 어떤 집이 왔나 · 안 왔나) ─── */
+.ch{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:0;padding:2px 7px;border-radius:8px;border:1px solid;line-height:1.12;overflow:hidden}
+.ch .l1{display:flex;align-items:baseline;gap:4px;min-width:0;white-space:nowrap}
+.ch .l1 b{font-size:15px;font-weight:800}
+.ch .l1 small{font-size:11px;font-weight:700;opacity:.85}
+.ch .l1 i{margin-left:auto;font-style:normal;font-size:11.5px;font-weight:800;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.8);white-space:nowrap}
+.ch .mvt{font-size:11.5px;font-weight:800;color:#0e7490;white-space:nowrap}
+.ch.late{background:#dc2626;border-color:#b91c1c;color:#fff}
+.ch.late i{color:#b91c1c}
+.ch.late .mvt{color:#fff}
+.ch.soon{background:#ffedd5;border:2px solid #f97316;color:#7c2d12}
+.ch.pend{background:#fffbeb;border:2px dashed #f59e0b;color:#92400e}
+.ch.arr{background:#ecfdf5;border-color:#6ee7b7;color:#064e3b}
+.ch.arr.done{background:#d1fae5;border-color:#34d399}
+.ch.arr.hold{background:#fef2f2;border-color:#fca5a5;color:#7f1d1d}
+.ch.arr.wait i{background:var(--s-wait);color:var(--s-wait-ink)}.ch.arr.cut i{background:var(--s-cut);color:var(--s-cut-ink)}
+.ch.arr.edge i{background:var(--s-edge);color:var(--s-edge-ink)}.ch.arr.asm i{background:var(--s-asm);color:var(--s-asm-ink)}
+.ch.arr.ins i{background:var(--s-ins);color:var(--s-ins-ink)}.ch.arr.hold i{background:var(--s-hold);color:var(--s-hold-ink)}
+.ch.arr.done i{background:var(--s-done);color:var(--s-done-ink)}
+.ch.mvin{border-left:6px solid #06b6d4}
+.ch.gone{background:#fdf2f8;border:2px dashed #ec4899;color:#9d174d}
+.ch.gone i{background:#fce7f3;color:#9d174d}
+.ch.gone .mvt{color:#9d174d}
+.ch.more{background:#d1fae5;border:1px solid #34d399;color:#065f46}
+.ch.more i{color:#065f46}
+.ch.one{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:0 5px;min-height:30px;align-content:center;padding:2px 8px}
+.ch.one .l1{display:contents}
+.ch.one .l1 i{margin-left:0}
+/* 안 1: 2주 명단 띠 */
+.dgrid.g3{grid-template-columns:590px minmax(0,1fr)}
+.ags{overflow:hidden}
+.agt{min-height:70px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:4px 12px;border-bottom:1px solid var(--app-line)}
+.agt > b{font-size:18px;font-weight:800}
+.agt > small{font-size:12.5px;font-weight:700;color:var(--app-text3);white-space:nowrap}
+.agt .chips{margin-left:0}
+.chips.sm span{min-height:60px;min-width:92px;font-size:15px}
+.agt.rel{padding-right:56px}
+.agl{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.ag{flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding:5px 12px 7px 14px;border-bottom:1px solid var(--app-line)}
+.ag.on{background:var(--app-brand-50);box-shadow:inset 5px 0 0 var(--app-brand)}
+.ag.past{background:#fff1f2}
+.ag.past .dt{color:var(--app-danger-ink)}
+.agh{display:flex;align-items:baseline;gap:8px;white-space:nowrap;min-height:24px}
+.agh .dt,.cch3 .dt{font-size:17px;font-weight:800}
+.agh .sb2,.cch3 .sb2{font-size:12px;font-weight:700;color:var(--app-text3)}
+.agh .dn{margin-left:auto}
+.dn{font-size:12.5px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.dn b{font-size:16px;font-weight:800;color:var(--app-text)}
+.dl{font-size:12px;font-weight:800;color:var(--app-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dn.late b,.dl.late{color:var(--app-danger-ink)}.dn.soon b,.dl.soon{color:#9a3412}.dn.ok b,.dl.ok{color:var(--app-ok-ink)}
+.snt.sm{padding:1px 5px;font-size:11.5px;gap:3px;border-radius:6px}
+.snt.sm .ic{font-size:12px}
+.snt.sm .nt{margin-left:2px;font-size:10px;padding:0 4px}
+.agc{display:flex;flex-wrap:wrap;gap:4px}
+.mrow3{grid-template-columns:132px minmax(0,1fr) 150px 180px}
+.cr{grid-template-columns:86px minmax(0,1fr) 200px 180px}
+/* 안 2: 2주 달력 */
+.ftop{gap:12px}
+.pbox{display:flex;flex-direction:column;justify-content:center;min-height:60px;padding:2px 12px;border-radius:10px;background:#fff1f2;border:2px solid var(--app-danger-line);font-size:14px;font-weight:800;color:var(--app-danger-ink);white-space:nowrap;line-height:1.25;min-width:0;overflow:hidden}
+.pbox b{font-size:14px}
+.pbox span{font-size:13.5px;color:var(--app-text);overflow:hidden;text-overflow:ellipsis}
+.pbox small{font-size:11.5px;color:var(--app-text3);font-weight:700}
+.abox{display:flex;align-items:center;min-height:60px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid var(--app-line2);font-size:14px;font-weight:700;color:var(--app-text2);white-space:nowrap}
+.abox b{margin:0 4px;color:var(--app-text)}
+.ftop .chips{margin-left:auto;flex-shrink:0}
+.cal{flex:1;min-height:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px}
+.cc3{min-width:0;min-height:0;display:flex;flex-direction:column;gap:4px;padding:5px 7px 6px;background:#fff;border:1px solid var(--app-line);border-radius:12px;overflow:hidden}
+.cc3.late{border:3px solid var(--app-danger);padding:3px 5px 4px}
+.cc3.soon{border:3px solid #f97316;padding:3px 5px 4px}
+.cc3.ok{border:2px solid #6ee7b7;padding:4px 6px 5px}
+.cc3.today{background:var(--app-brand-50)}
+.cc3.wk .dt{color:var(--app-danger)}
+.cc3.fcol{outline:4px solid var(--app-brand);outline-offset:-1px}
+.cch3{flex-shrink:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"dt sb dn" "dl dl bl";align-items:baseline;gap:0 6px}
+.cch3 .dt{grid-area:dt;font-size:19px}
+.cch3 .sb2{grid-area:sb;white-space:nowrap;overflow:hidden}
+.cch3 .dn{grid-area:dn}
+.cch3 .dl{grid-area:dl}
+.cch3 .snt{grid-area:bl}
+.chs{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:row dense;gap:4px;align-content:start;overflow:hidden}
+.chs > .ch{min-height:36px}
+.chs > .mvin,.chs > .gone{grid-column:span 2}
+.chs.one{grid-template-columns:minmax(0,1fr);gap:3px}
+.chs.one > .ch{min-height:28px}
+.chs.one > .mvin,.chs.one > .gone{grid-column:auto}
+.cf{flex-shrink:0;display:flex;flex-direction:column;gap:2px}
+.cf .fb{height:8px;border-radius:4px}
+.cf .lt{display:flex;gap:8px;font-size:12px;font-weight:800;white-space:nowrap}
+.cf .lt .l{color:var(--app-danger-ink)}.cf .lt .t{color:var(--app-warn-ink)}.cf .lt .h{color:#991b1b}.cf .lt .no{color:var(--app-ok-ink);font-weight:700}
+/* PC: 달력 + 흐름 판 */
+.pcw2{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;padding:10px 20px 12px}
+.pcl{min-width:0;min-height:0;display:flex}
+.pcl .cal{flex:1}
+.pfl{min-height:0;display:flex;flex-direction:column;gap:5px;padding:8px 10px;background:#fff;border:1px solid var(--app-line);border-radius:12px;overflow:hidden}
+.pflh{display:flex;align-items:baseline;gap:8px;padding:0 2px 2px}
+.pflh b{font-size:18px;font-weight:800}
+.pflh small{font-size:13px;font-weight:700;color:var(--app-text3)}
+.fr{flex-shrink:0;display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;align-items:start}
+.fr .ps{min-height:46px;flex-direction:column}
+.fr .ps b{font-size:19px}
+.fr .ps span{font-size:12.5px}
+.fns{display:flex;flex-wrap:wrap;gap:3px;padding-top:2px}
+.fn{font-size:13.5px;font-weight:800;padding:1px 6px;border-radius:6px;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;white-space:nowrap}
+.fn small{font-size:11px;font-weight:700;opacity:.8}
+.fn.miss.late{background:#dc2626;border-color:#b91c1c;color:#fff}
+.fn.miss.soon{background:#ffedd5;border:1px solid #f97316;color:#7c2d12}
+.fn.miss.pend{background:#fffbeb;border:1px dashed #f59e0b;color:#92400e}
+.fn.more{background:#fff;border:1px solid var(--app-line2);color:var(--app-brand-dark)}
+
+.ch .l2{display:flex;align-items:baseline;gap:5px;min-width:0;white-space:nowrap}
+.ch .l2 i{margin-left:0;font-style:normal;font-size:11.5px;font-weight:800;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.85);white-space:nowrap}
+.ch.late .l2 i{color:#b91c1c}
+.chips.two span{min-width:80px}
+.ch.one .l2{display:contents}
+.ch .l1 i{margin-left:0}
+.cch3{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px}
+.cch3 .dn{margin-left:auto}
+.cch3 .dl{flex:1 1 auto;min-width:0}
+.cch3 .snt{margin-left:auto}
+.ftop > small{line-height:1.2}
+.pbox{flex:1 1 0}
+.pipe.sm .ps{min-height:60px}
+.vo.rel{padding-right:46px}
+.ag.rel{padding-right:52px}
+.mrow3{grid-template-columns:158px minmax(0,1fr) 128px 176px}
+.mrow3 .ow b{white-space:nowrap}
+
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 3 7"/><path d="M3 4v6h6"/></symbol>
+  <symbol id="r-dash" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+  <symbol id="r-ruler" viewBox="0 0 24 24"><path d="M4 3v18h16v-6H10V3H4Z"/><path d="M4 8h3M4 13h3M14 18v-3M18 18v-3"/></symbol>
+  <symbol id="r-draw" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="m11 7-6 14M13 7l6 14M7 15h10"/></symbol>
+  <symbol id="r-fac" viewBox="0 0 24 24"><path d="M3 21V10l6 4V10l6 4V4h6v17H3Z"/></symbol>
+  <symbol id="r-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2zM13 10h5l4 4v2h-9"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="r-wrench" viewBox="0 0 24 24"><path d="M15 4a5 5 0 0 0-5 6l-7 7 4 4 7-7a5 5 0 0 0 6-5l-3 3-3-1-1-3 3-3a5 5 0 0 0-1-1Z"/></symbol>
+  <symbol id="r-hammer" viewBox="0 0 24 24"><path d="M14 4h6l-2 5-4-1-9 9-2-2 9-9-1-2h3Z"/></symbol>
+  <symbol id="r-clip" viewBox="0 0 24 24"><path d="M8 4h8v3H8zM6 5H5v16h14V5h-1"/><path d="m9 14 2 2 4-5"/></symbol>
+  <symbol id="r-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4M12 7v5l3 3"/></symbol>
+  <symbol id="r-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></symbol>
+</svg>
+<div class="wrap">
+  <h1>생산 — 날마다 시공 스케줄과 전체 흐름, 크게 보기 · 자세히 보기</h1>
+  <p class="lead">사장님 말씀(11-22): <b>"생산에서 일자별 시공 스케쥴과 정보(어떤 도면이 왔고 안 왔고, 시공일이 변경됐고 등)를 알아야 하고, 전체적인 생산 프로세스 확인도 필요해 (거시, 미시)."</b>
+  그래서 두 눈으로 나눴어요. <b>크게 보기(거시)</b> = 2주 동안 날마다 시공 몇 집 · 도면 몇 집 왔나 · 시공일 바뀐 집 · 진행 · 늦음, 그리고 전체가 어느 단계에 몇 집인지(흐름). <b>자세히 보기(미시)</b> = 그 날 집 하나하나, 그리고 주문 하나의 이야기 전부.
+  도면 마감 = 시공일에서 일하는 날 2일 앞, "도면 내려옴" = 생산으로 넘어간 때(사장님 답). 나누기는 "추후 통보"라 자리만 비워 뒀어요. 그림 속 오늘은 <b>11/23 (월)</b>, 이름 · 회사 · 숫자는 모두 지어낸 것이에요.
+  <b>보라 "새"</b> = 지금 없어 새로 만들어야 하는 것.</p>
+  <ul class="toc">
+    <li><a href="#now">Ⓐ 지금</a></li>
+    <li><a href="#opt1">Ⓑ 안 1 날짜 탭 하나에</a></li>
+    <li><a href="#opt1b">Ⓑ-2 주문 하나 판</a></li>
+    <li><a href="#opt2">Ⓒ 안 2 흐름 탭</a></li>
+    <li><a href="#opt2b">Ⓒ-2 단계 목록</a></li>
+    <li><a href="#pc">Ⓓ PC 보기 전용</a></li>
+    <li><a href="#cmp">견주기 · 추천</a></li>
+    <li><a href="#facts">확인한 사실 · 정해 주실 것</a></li>
+  </ul>
+<section class="frame" id="now"><h2>Ⓐ 지금 <small>운영 중인 날짜 탭 · 현장 태블릿 1176 × 626 · 화면 크기 80%</small></h2><p class="idea">지금 화면을 그대로 옮겨 그렸어요(같은 자료로 견주려고 <b>내일 11/24 를 누른 모습</b>). 시공일은 모든 줄에 보여요. 그런데 <b>"이 날 도면이 다 내려왔나"를 셀 숫자와 도면 마감일이 없어요.</b></p><div class="fit"><div class="stage t1176"><div class="art z80"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 23일 (월) · 전체 75건</span><nav class="nav"><span class="on">날짜</span><span class="">내 공정 <small class="">11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn bell" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid"><div class="lcol"><aside class="strip one"><div class="sh rel">시공일 2주<small>만들 것 / 전체</small><em class="mk mr">1</em></div><div class="sd"><span class="d"><b>지난 7일</b><small>11/16~11/22</small></span><span class="sb"><i class="f" style="width:100%"></i></span><span class="n"><b>0</b><small> / 6</small></span></div><div class="sd"><span class="d"><b>오늘 11/23</b><small>월</small></span><span class="sb"><i class="f" style="width:80%"></i><i class="p" style="width:20%"></i></span><span class="n"><b>1</b><small> / 5</small></span></div><div class="sd on"><span class="d"><b>11/24</b><small>화 · 내일</small></span><span class="sb"><i class="f" style="width:20%"></i><i class="p" style="width:60%"></i><i class="x" style="width:20%"></i></span><span class="n"><b>3</b><small> / 5</small></span></div><div class="sd"><span class="d"><b>11/25</b><small>수 · D-2</small></span><span class="sb"><i class="p" style="width:60%"></i><i class="w" style="width:20%"></i><i class="x" style="width:20%"></i></span><span class="n"><b>4</b><small> / 5</small></span></div><div class="sd"><span class="d"><b>11/26</b><small>목 · D-3</small></span><span class="sb"><i class="p" style="width:33.3%"></i><i class="w" style="width:33.3%"></i><i class="x" style="width:33.4%"></i></span><span class="n"><b>2</b><small> / 3</small></span></div><div class="sd"><span class="d"><b>11/27</b><small>금 · D-4</small></span><span class="sb"><i class="p" style="width:25%"></i><i class="w" style="width:25%"></i><i class="x" style="width:50%"></i></span><span class="n"><b>2</b><small> / 4</small></span></div><div class="sd wk"><span class="d"><b>11/28</b><small>토 · D-5</small></span><span class="sb"><i class="w" style="width:100%"></i></span><span class="n"><b>3</b><small> / 3</small></span></div><div class="sd wk zero"><span class="d"><b>11/29</b><small>일 · D-6 · 없음</small></span><span class="sb"></span><span class="n"><b>0</b></span></div><div class="sd"><span class="d"><b>11/30</b><small>월 · D-7</small></span><span class="sb"><i class="p" style="width:16.7%"></i><i class="w" style="width:33.3%"></i><i class="x" style="width:50%"></i></span><span class="n"><b>3</b><small> / 6</small></span></div><div class="sd"><span class="d"><b>12/1</b><small>화 · D-8</small></span><span class="sb"><i class="w" style="width:20%"></i><i class="x" style="width:80%"></i></span><span class="n"><b>1</b><small> / 5</small></span></div><div class="sd"><span class="d"><b>12/2</b><small>수 · D-9</small></span><span class="sb"><i class="x" style="width:100%"></i></span><span class="n"><b>0</b><small> / 4</small></span></div><div class="sd"><span class="d"><b>12/3</b><small>목 · D-10</small></span><span class="sb"><i class="w" style="width:16.7%"></i><i class="x" style="width:83.3%"></i></span><span class="n"><b>1</b><small> / 6</small></span></div><div class="sd"><span class="d"><b>그 뒤</b><small>12/4~</small></span><span class="sb"><i class="w" style="width:16.7%"></i><i class="x" style="width:83.3%"></i></span><span class="n"><b>2</b><small> / 12</small></span></div><div class="sf"><span>지난 시공일 2건</span><span>시공일 없음 9건</span></div></aside></div><section class="pane"><h4 class="ph">내일 11/24 (화) <small>시공 5건 · 만들 것 3 · 도면·컨펌 기다림 1</small></h4><h5 class="pg">만들 것 3</h5><div class="dr p chg rel"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr"><em>시공일 11/26 → 11/24</em> · 거실장, 몰딩 벽박이장 · W3100 × D500 × H2300 · 화이트 오크</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st now"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 4장</span><em class="mk r">3</em></div><div class="dr p"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span><span class="by"><i>발주</i> 가짜 인테리어</span><span class="by m"><i>담당</i> 나영업</span></span><span class="pr">주방 상부장, 하부장, 키큰장 · 화이트 오크</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st done"><i></i>엣지</span><span class="st now"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 6장</span></div><div class="dr p"><span class="sg">검수 중</span><span class="who"><span class="ln"><span class="nm"><b>강다온</b> <small>#5129</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">TV장 · W2000 × D450 × H500 · 월넛</span></span><span class="steps"><span class="st done"><i></i>재단</span><span class="st done"><i></i>엣지</span><span class="st done"><i></i>조립</span><span class="st now"><i></i>검수</span></span><span class="dw">도면 2장</span></div><h5 class="pg rel">도면·컨펌 기다림 1 <small>도면이 오면 위로 올라와요</small><em class="mk mr">2</em></h5><div class="wg"><span class="wi"><span class="due sm"><i>시공</i><b>내일 11/24 (화)</b></span><b>남도윤</b><small>#5138 · 붙박이장 · 화이트</small></span></div><h5 class="pg">제작 완료 1 <small>시공 대기</small></h5><div class="wg"><span class="wi done"><span class="due sm"><i>시공</i><b>내일 11/24 (화)</b></span><b>유하린</b><small>#5127 · 몰딩 여닫이</small></span></div><h5 class="pg next">다음에 만들 것 13 <small>미리 보기</small></h5><div class="dr w"><span class="sg">제작 대기</span><span class="who"><span class="ln"><span class="nm"><b>이도윤</b> <small>#5099</small><span class="due"><i>시공</i><b>11/25 (수)</b><small>D-2</small></span></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">냉장고장 · W1200 × D650 × H2300 · 화이트</span></span><span class="steps"><span class="st"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div><div class="dr p"><span class="sg">재단 중</span><span class="who"><span class="ln"><span class="nm"><b>최유진</b> <small>#5097</small><span class="due"><i>시공</i><b>11/25 (수)</b><small>D-2</small></span></span><span class="by m"><i>담당</i> 다영업</span></span><span class="pr">몰딩 벽박이장 · W2400 × D600 × H2300 · 크림</span></span><span class="steps"><span class="st now"><i></i>재단</span><span class="st"><i></i>엣지</span><span class="st"><i></i>조립</span><span class="st"><i></i>검수</span></span><span class="dw">도면 2장</span></div></section></div></div></div></div></div><ol class="notes"><li><b class="num">1</b><span>왼쪽 띠는 날마다 <b>만들 것 / 전체</b>와 막대뿐 — <b>도면 몇 집 왔나 · 마감 · 시공일 바뀐 집 · 늦음 수</b>가 없어요. 2주 동안 <b>전체가 어느 단계에 몇 집인지</b>(흐름) 보는 곳도 없어요.</span></li><li><b class="num">2</b><span>장 안 <b>"도면·컨펌 기다림"</b>은 이름 · 제품뿐 — 막힌 까닭 · 누구 일 · 마감 · 알림이 없어요. <b>도면이 언제 내려왔는지</b>도 줄에 없어요.</span></li><li><b class="num">3</b><span>시공일이 바뀐 집은 <b>"시공일 11/26 → 11/24"</b> 한 줄과 '바뀐 것' 탭에만. <b>이 날에서 나간 집</b>(다른 날로 밀린 집)은 이 날에서 안 보여요. 공정 칸 <b>누가 · 언제</b>는 PC 에서 마우스를 올려야만 보여요.</span></li></ol></section>
+<section class="frame" id="opt1"><h2>Ⓑ 안 1 — 날짜 탭 하나에: 왼쪽 "2주 명단"(거시) + 오른쪽 "그 날"(미시) <small>같은 태블릿 1176 × 626 · 80%</small></h2><p class="idea">지금 날짜 탭 자리를 그대로 쓰고 <b>왼쪽 띠를 날마다 집 이름이 보이는 "2주 명단"</b>으로, <b>오른쪽 장을 그 날 집 하나하나</b>로 키워요. 오른쪽 위 한 줄은 <b>2주 전체 흐름</b>. 그림은 <b>내일 11/24 (화)</b>를 누른 모습 — 도면 마감이 지났는데 남도윤 집이 안 왔어요.</p><div class="fit"><div class="stage t1176"><div class="art z80"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 23일 (월) · 전체 75건</span><nav class="nav"><span class="on">날짜</span><span class="">내 공정 <small class="">11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn bell" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid g3"><div class="lcol"><aside class="strip one ags"><div class="agt rel"><b>2주 명단</b><span class="chips sm"><span class="on">이번 주</span><span>다음 주</span></span><small>안 온 집 먼저</small><em class="mk ir">3</em></div><div class="agl"><div class="ag past"><div class="agh"><b class="dt">지난 시공일</b><small class="sb2">제작 완료 전 2</small></div><div class="agc"><span class="ch one late"><span class="l1"><b>백도현</b><small>#5070</small></span><span class="l2"><i>조립</i><span class="mvt">시공 11/21 지남</span></span></span><span class="ch one late"><span class="l1"><b>노아린</b><small>#5072</small></span><span class="l2"><i>보류</i><span class="mvt">시공 11/20 지남</span></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/23</b><small class="sb2">월 · 오늘</small><span class="dn ok"><b>도면 5</b>/5집</span><span class="dl ok">마감 11/19 · 다 옴</span></div><div class="agc"><span class="ch arr ins one"><span class="l1"><b>유채원</b><small>#5088</small></span><span class="l2"><i>검수</i></span></span><span class="ch more one"><span class="l1"><b>+4 완료</b></span><span class="l2"><i>펼치기</i></span></span></div></div><div class="ag on rel"><div class="agh"><b class="dt">11/24</b><small class="sb2">화 · 내일</small><span class="dn late"><b>도면 4</b>/5집</span><span class="dl late">마감 11/20 (금) 지남</span><span class="snt sm"><svg class="ic"><use href="#i-send"/></svg>알림 11/20<i class="nt">새</i></span></div><div class="agc"><span class="ch late one"><span class="l1"><b>남도윤</b><small>#5138</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr edge mvin one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>엣지</i><span class="mvt">11/26 → 11/24</span></span></span><span class="ch arr asm one"><span class="l1"><b>정수아</b><small>#5110</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr ins one"><span class="l1"><b>강다온</b><small>#5129</small></span><span class="l2"><i>검수</i></span></span><span class="ch arr done one"><span class="l1"><b>유하린</b><small>#5127</small></span><span class="l2"><i>완료</i></span></span><span class="ch gone one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>나감</i><span class="mvt">11/24 → 11/27</span></span></span></div><em class="mk ir">1</em></div><div class="ag"><div class="agh"><b class="dt">11/25</b><small class="sb2">수 · D-2</small><span class="dn soon"><b>도면 4</b>/5집</span><span class="dl soon">마감 오늘 11/23</span></div><div class="agc"><span class="ch soon one"><span class="l1"><b>박서준</b><small>#5107</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait one"><span class="l1"><b>이도윤</b><small>#5099</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>최유진</b><small>#5097</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>표서진</b><small>#5132</small></span><span class="l2"><i>엣지</i></span></span><span class="ch arr asm one"><span class="l1"><b>임소율</b><small>#5130</small></span><span class="l2"><i>조립</i></span></span></div></div><div class="ag rel"><div class="agh"><b class="dt">11/26</b><small class="sb2">목 · D-3</small><span class="dn soon"><b>도면 2</b>/3집</span><span class="dl soon">마감 내일 11/24</span></div><div class="agc"><span class="ch soon one"><span class="l1"><b>홍지안</b><small>#5131</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr cut one"><span class="l1"><b>우지호</b><small>#5134</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>백시우</b><small>#5121</small></span><span class="l2"><i>엣지</i></span></span><span class="ch gone one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>나감</i><span class="mvt">11/26 → 11/24</span></span></span></div><em class="mk ir">2</em></div><div class="ag"><div class="agh"><b class="dt">11/27</b><small class="sb2">금 · D-4</small><span class="dn "><b>도면 2</b>/4집</span><span class="dl ">마감 11/25 (수)</span></div><div class="agc"><span class="ch pend mvin one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>확인</i><span class="mvt">11/24 → 11/27</span></span></span><span class="ch pend one"><span class="l1"><b>고은채</b><small>#5141</small></span><span class="l2"><i>수정</i></span></span><span class="ch arr asm one"><span class="l1"><b>윤채원</b><small>#5117</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr hold one"><span class="l1"><b>문지후</b><small>#5122</small></span><span class="l2"><i>보류</i></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/28</b><small class="sb2">토 · D-5</small><span class="dn ok"><b>도면 3</b>/3집</span><span class="dl ok">마감 11/26 (목) · 다 옴</span></div><div class="agc"><span class="ch arr wait one"><span class="l1"><b>문가온</b><small>#5136</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>송하율</b><small>#5143</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>진서윤</b><small>#5144</small></span><span class="l2"><i>엣지</i></span></span></div></div></div></aside></div><div class="rcol"><div class="ptop"><div class="pipe sm rel"><div class="pgp out" style="flex:2 1 0"><div class="gl">도면 안 옴 <b>25</b></div><div class="segs"><span class="ps draw"><b>20</b><span>도면</span></span><span class="ps conf"><b>5</b><span>컨펌</span></span></div></div><div class="pgp in" style="flex:6 1 0"><div class="gl">생산으로 내려옴 · 만드는 중 <b>20</b></div><div class="segs"><span class="ps wait"><b>6</b><span>대기</span></span><span class="ps cut"><b>4</b><span>재단</span></span><span class="ps edge"><b>4</b><span>엣지</span></span><span class="ps asm"><b>3</b><span>조립</span></span><span class="ps ins"><b>2</b><span>검수</span></span><span class="ps hold"><b>1</b><span>보류</span></span></div></div><div class="pgp fin" style="flex:1.5 1 0"><div class="gl">끝 <b>11</b></div><div class="segs"><span class="ps done"><b>5</b><span>완료</span></span><span class="ps end nw"><b>6</b><span>시공 끝</span></span></div></div><em class="mk" style="left:180px;top:-26px">8</em></div></div><section class="pane3"><h4 class="ph3">내일 11/24 (화) <small>시공 5집 · 내려옴 4 · 만드는 중 3 · 제작 완료 1</small><span class="give0">나누기 — 방법 정해지면</span></h4><div class="dlb3 rel"><b>도면 마감 11/20 (금) 지남</b><span class="cnt"><b>4</b>/ 5 내려옴</span><span>1집 안 옴</span><span class="snt" style="margin-left:auto"><svg class="ic"><use href="#i-send"/></svg>자동 알림 보냄 11/20 18:00<i class="nt">새</i></span><em class="mk r">4</em></div><h5 class="pg miss late">도면 안 옴 1</h5><div class="mrow3 rel"><span class="bk">고객 컨펌 기다림<small>도면은 11/17 영업 확인 끝</small></span><span class="who"><span class="nm"><b>남도윤</b> <small>#5138</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span><span class="pr">붙박이장 · W2400 × D600 × H2300 · 화이트</span></span><span class="ow"><b class="s"><i>영업</i>다영업</b><small>도면 가도면</small></span><span class="al"><span class="snt"><svg class="ic"><use href="#i-send"/></svg>알림 11/20 18:00<i class="nt">새</i></span><small>받은 사람 가도면 · 다영업 · 아직 안 읽음</small></span><em class="mk r">5</em></div><h5 class="pg">시공일 바뀜 2 <small>생산으로 내려온 뒤 바뀐 것</small></h5><div class="cr rel"><span class="k in">들어옴</span><span class="nm"><b>김하늘</b><small>#5103</small><em>· 지금 엣지 중</em></span><span class="mvd"><s>11/26 (목)</s>→<b>11/24 (화)</b></span><span class="wh">영업 <b>나영업</b> · 11/20 (금) 15:10</span><em class="mk r">6</em></div><div class="cr"><span class="k out">나감</span><span class="nm"><b>서하은</b><small>#5140</small><em>· 도면 · 영업 확인 기다림</em></span><span class="mvd"><s>11/24 (화)</s>→<b>11/27 (금)</b></span><span class="wh">영업 <b>다영업</b> · 11/21 (토) 10:02</span></div><h5 class="pg">내려옴 · 만드는 중 3 <small>공정 칸 아래 = 누가 · 언제</small></h5><div class="dr m3 late chg rel"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em>늦음 — 시공 내일, 아직 엣지</em> · <span class="ar3">도면 내려옴 11/18 (수)</span> · 거실장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">김재단<br>11/19 14:05</span></span><span class="st now"><i></i>엣지<span class="w">이엣지 맡음<br>11/20</span></span><span class="st"><i></i>조립<span class="w no">아직<br>&nbsp;</span></span><span class="st"><i></i>검수<span class="w no">아직<br>&nbsp;</span></span></span><span class="tl">도면 4장</span><em class="mk r">7</em></div><div class="dr m3 tight"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em class="tight">빠듯 — 시공 내일, 아직 조립</em> · <span class="ar3">도면 내려옴 11/16 (월)</span> · 주방장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">박재단<br>11/17 11:20</span></span><span class="st done"><i></i>엣지<span class="w done">오엣지<br>11/19 16:40</span></span><span class="st now"><i></i>조립<span class="w">최조립 맡음<br>11/20</span></span><span class="st"><i></i>검수<span class="w no">아직<br>&nbsp;</span></span></span><span class="tl"><span class="hb">불량 1</span>도면 6장</span></div><div class="dr m3 tight"><span class="sg">검수 중</span><span class="who"><span class="ln"><span class="nm"><b>강다온</b> <small>#5129</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em class="tight">빠듯 — 시공 내일, 아직 검수</em> · <span class="ar3">도면 내려옴 11/13 (금)</span> · TV장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">김재단<br>11/16 10:05</span></span><span class="st done"><i></i>엣지<span class="w done">이엣지<br>11/17 15:30</span></span><span class="st done"><i></i>조립<span class="w done">이조립<br>11/20 17:45</span></span><span class="st now"><i></i>검수<span class="w no">지금<br>&nbsp;</span></span></span><span class="tl">도면 2장</span></div><h5 class="pg">제작 완료 1</h5><div class="wg"><span class="wi done"><span class="due sm"><i>시공</i><b>내일 11/24 (화)</b></span><b>유하린</b><small>#5127 · 검수 한검수 11/21</small></span></div></section></div></div></div></div></div></div><ol class="notes"><li><b class="num">1</b><span>명단 한 칸 = 시공일 하루. 머리에 <b>도면 온 집 / 시공 집 · 마감</b>(빨강 지남 · 주황 오늘 · 내일 · 초록 다 옴) · <b>알림 보낸 날</b>(새). 아래 칩 = <b>집 이름 + 번호</b>: <b>안 온 집이 먼저</b>(마감 색 + 까닭 한 마디 컨펌 · 도면 · 확인 · 수정 · 담당 없음), 그 다음 <b>온 집은 초록 + 지금 공정</b>. 다 끝난 집은 "+n 완료"로 접어요.</span></li><li><b class="num">2</b><span><b>시공일 바뀐 집</b>: 들어온 집은 칩 뒤에 "옛 날 → 새 날", 나간 집은 옛 날 칸에 분홍 점선 "나감"(11/26 칸의 김하늘 → 11/24).</span></li><li><b class="num">3</b><span>한 화면에 <b>한 주</b>(6일)가 들어가요. 다음 주는 [다음 주] 단추나 밀어서. 맨 위 <b>지난 시공일</b>인데 아직 제작 완료 전인 집은 이름으로.</span></li><li><b class="num">4</b><span>그 날 머리에 <b>도면 마감</b>과 <b>자동 알림 보낸 때</b>. 마감이 지났는데 안 온 집이 있으면 도면 담당 · 영업 담당에게 저절로 가요(<b>새</b> — 지금은 없음). 나누기는 자리만("방법 정해지면").</span></li><li><b class="num">5</b><span>안 온 집 줄 — <b>막힌 까닭 · 누구 일 · 알림 받은 사람 · 읽었나</b>(알림 읽음 기록은 이미 있음).</span></li><li><b class="num">6</b><span><b>시공일 바뀜</b>: 이 날로 들어온 집 · 나간 집을 옛 날 → 새 날, <b>누가 · 언제</b>와 함께.</span></li><li><b class="num">7</b><span>만드는 줄마다 <b>도면 내려온 날</b>과 공정 칸 아래 <b>누가 · 언제</b>(끝낸 사람 · 맡은 사람). 줄을 누르면 Ⓑ-2 판.</span></li><li><b class="num">8</b><span><b>흐름 줄</b> = 2주 시공 집이 어느 단계에 몇 집. 칸을 누르면 그 단계 집 이름 목록(Ⓒ-2 와 같은 판).</span></li></ol><h3 class="sub">Ⓑ 안 1 — 좋은 점 · 아쉬운 점 · 새로 필요한 칸</h3>
+<div class="cols"><div class="col good"><h3>좋은 점</h3><ul><li><b>탭이 그대로 넷</b> — 지금 날짜 탭 자리라 새로 익힐 것이 적어요.</li><li>명단에서 <b>어느 집이 왔나 · 안 왔나를 이름으로</b> 보고, 누르면 <b>같은 화면에서 바로 그 날</b>(거시 → 미시 한 번).</li><li>명단 · 장 · 판 어디서나 <b>시공일이 늘 보여요.</b></li></ul></div><div class="col bad"><h3>아쉬운 점</h3><ul><li>한 화면에 <b>한 주만</b> — 다음 주는 [다음 주]로 넘겨야 해요(2주를 한눈에는 못 봐요).</li><li>이름 칩 글이 작아요(이름 실제 12, 번호 9 정도).</li><li>명단이 넓어진 만큼 <b>그 날 장이 좁아져</b> 줄 글이 두 줄로 접혀요. 흐름 줄도 작아요.</li></ul></div><div class="col new"><h3>새로 필요한 칸 · 일</h3><ul><li><b>새 일</b>: 도면 마감 자동 알림 + 보낸 기록(주문 기록 한 줄).</li><li><b>새 읽기</b>: 2주 집의 시공일 바뀐 기록(날별 들어옴 · 나감), "시공 끝" 수.</li><li>셈만(저장 없음): 도면 마감 · 날별 흐름 막대 · 늦음 수 · 도면 내려온 때.</li></ul></div></div></section>
+<section class="frame" id="opt1b"><h2>Ⓑ-2 줄 하나를 누르면 — 주문 하나 판(미시의 끝) <small>안 1 · 안 2 같이 씀 · 80%</small></h2><p class="idea">그 날 줄에서 집 하나를 누르면 오른쪽에 <b>그 집 이야기 전부</b>가 열려요 — 시공일이 어떻게 바뀌었나, 도면이 언제 누구 손으로 내려왔나, 공정을 누가 언제 했나, 보류 · 불량. <b>새로 저장하는 것은 없어요</b> — 모두 지금 주문 기록에 있어요. 일은 지금처럼 <b>[작업 시트 열기]</b>에서 해요.</p><div class="fit"><div class="stage t1176"><div class="art z80 dim"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 23일 (월) · 전체 75건</span><nav class="nav"><span class="on">날짜</span><span class="">내 공정 <small class="">11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn bell" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="dgrid g3"><div class="lcol"><aside class="strip one ags"><div class="agt rel"><b>2주 명단</b><span class="chips sm"><span class="on">이번 주</span><span>다음 주</span></span><small>안 온 집 먼저</small></div><div class="agl"><div class="ag past"><div class="agh"><b class="dt">지난 시공일</b><small class="sb2">제작 완료 전 2</small></div><div class="agc"><span class="ch one late"><span class="l1"><b>백도현</b><small>#5070</small></span><span class="l2"><i>조립</i><span class="mvt">시공 11/21 지남</span></span></span><span class="ch one late"><span class="l1"><b>노아린</b><small>#5072</small></span><span class="l2"><i>보류</i><span class="mvt">시공 11/20 지남</span></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/23</b><small class="sb2">월 · 오늘</small><span class="dn ok"><b>도면 5</b>/5집</span><span class="dl ok">마감 11/19 · 다 옴</span></div><div class="agc"><span class="ch arr ins one"><span class="l1"><b>유채원</b><small>#5088</small></span><span class="l2"><i>검수</i></span></span><span class="ch more one"><span class="l1"><b>+4 완료</b></span><span class="l2"><i>펼치기</i></span></span></div></div><div class="ag on"><div class="agh"><b class="dt">11/24</b><small class="sb2">화 · 내일</small><span class="dn late"><b>도면 4</b>/5집</span><span class="dl late">마감 11/20 (금) 지남</span><span class="snt sm"><svg class="ic"><use href="#i-send"/></svg>알림 11/20<i class="nt">새</i></span></div><div class="agc"><span class="ch late one"><span class="l1"><b>남도윤</b><small>#5138</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr edge mvin one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>엣지</i><span class="mvt">11/26 → 11/24</span></span></span><span class="ch arr asm one"><span class="l1"><b>정수아</b><small>#5110</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr ins one"><span class="l1"><b>강다온</b><small>#5129</small></span><span class="l2"><i>검수</i></span></span><span class="ch arr done one"><span class="l1"><b>유하린</b><small>#5127</small></span><span class="l2"><i>완료</i></span></span><span class="ch gone one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>나감</i><span class="mvt">11/24 → 11/27</span></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/25</b><small class="sb2">수 · D-2</small><span class="dn soon"><b>도면 4</b>/5집</span><span class="dl soon">마감 오늘 11/23</span></div><div class="agc"><span class="ch soon one"><span class="l1"><b>박서준</b><small>#5107</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait one"><span class="l1"><b>이도윤</b><small>#5099</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>최유진</b><small>#5097</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>표서진</b><small>#5132</small></span><span class="l2"><i>엣지</i></span></span><span class="ch arr asm one"><span class="l1"><b>임소율</b><small>#5130</small></span><span class="l2"><i>조립</i></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/26</b><small class="sb2">목 · D-3</small><span class="dn soon"><b>도면 2</b>/3집</span><span class="dl soon">마감 내일 11/24</span></div><div class="agc"><span class="ch soon one"><span class="l1"><b>홍지안</b><small>#5131</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr cut one"><span class="l1"><b>우지호</b><small>#5134</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>백시우</b><small>#5121</small></span><span class="l2"><i>엣지</i></span></span><span class="ch gone one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>나감</i><span class="mvt">11/26 → 11/24</span></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/27</b><small class="sb2">금 · D-4</small><span class="dn "><b>도면 2</b>/4집</span><span class="dl ">마감 11/25 (수)</span></div><div class="agc"><span class="ch pend mvin one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>확인</i><span class="mvt">11/24 → 11/27</span></span></span><span class="ch pend one"><span class="l1"><b>고은채</b><small>#5141</small></span><span class="l2"><i>수정</i></span></span><span class="ch arr asm one"><span class="l1"><b>윤채원</b><small>#5117</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr hold one"><span class="l1"><b>문지후</b><small>#5122</small></span><span class="l2"><i>보류</i></span></span></div></div><div class="ag"><div class="agh"><b class="dt">11/28</b><small class="sb2">토 · D-5</small><span class="dn ok"><b>도면 3</b>/3집</span><span class="dl ok">마감 11/26 (목) · 다 옴</span></div><div class="agc"><span class="ch arr wait one"><span class="l1"><b>문가온</b><small>#5136</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>송하율</b><small>#5143</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>진서윤</b><small>#5144</small></span><span class="l2"><i>엣지</i></span></span></div></div></div></aside></div><div class="rcol"><div class="ptop"><div class="pipe sm"><div class="pgp out" style="flex:2 1 0"><div class="gl">도면 안 옴 <b>25</b></div><div class="segs"><span class="ps draw"><b>20</b><span>도면</span></span><span class="ps conf"><b>5</b><span>컨펌</span></span></div></div><div class="pgp in" style="flex:6 1 0"><div class="gl">생산으로 내려옴 · 만드는 중 <b>20</b></div><div class="segs"><span class="ps wait"><b>6</b><span>대기</span></span><span class="ps cut"><b>4</b><span>재단</span></span><span class="ps edge"><b>4</b><span>엣지</span></span><span class="ps asm"><b>3</b><span>조립</span></span><span class="ps ins"><b>2</b><span>검수</span></span><span class="ps hold"><b>1</b><span>보류</span></span></div></div><div class="pgp fin" style="flex:1.5 1 0"><div class="gl">끝 <b>11</b></div><div class="segs"><span class="ps done"><b>5</b><span>완료</span></span><span class="ps end nw"><b>6</b><span>시공 끝</span></span></div></div></div></div><section class="pane3"><h4 class="ph3">내일 11/24 (화) <small>시공 5집 · 내려옴 4 · 만드는 중 3 · 제작 완료 1</small><span class="give0">나누기 — 방법 정해지면</span></h4><div class="dlb3 rel"><b>도면 마감 11/20 (금) 지남</b><span class="cnt"><b>4</b>/ 5 내려옴</span><span>1집 안 옴</span><span class="snt" style="margin-left:auto"><svg class="ic"><use href="#i-send"/></svg>자동 알림 보냄 11/20 18:00<i class="nt">새</i></span></div><h5 class="pg miss late">도면 안 옴 1</h5><div class="mrow3 rel"><span class="bk">고객 컨펌 기다림<small>도면은 11/17 영업 확인 끝</small></span><span class="who"><span class="nm"><b>남도윤</b> <small>#5138</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span><span class="pr">붙박이장 · W2400 × D600 × H2300 · 화이트</span></span><span class="ow"><b class="s"><i>영업</i>다영업</b><small>도면 가도면</small></span><span class="al"><span class="snt"><svg class="ic"><use href="#i-send"/></svg>알림 11/20 18:00<i class="nt">새</i></span><small>받은 사람 가도면 · 다영업 · 아직 안 읽음</small></span></div><h5 class="pg">시공일 바뀜 2 <small>생산으로 내려온 뒤 바뀐 것</small></h5><div class="cr rel"><span class="k in">들어옴</span><span class="nm"><b>김하늘</b><small>#5103</small><em>· 지금 엣지 중</em></span><span class="mvd"><s>11/26 (목)</s>→<b>11/24 (화)</b></span><span class="wh">영업 <b>나영업</b> · 11/20 (금) 15:10</span></div><div class="cr"><span class="k out">나감</span><span class="nm"><b>서하은</b><small>#5140</small><em>· 도면 · 영업 확인 기다림</em></span><span class="mvd"><s>11/24 (화)</s>→<b>11/27 (금)</b></span><span class="wh">영업 <b>다영업</b> · 11/21 (토) 10:02</span></div><h5 class="pg">내려옴 · 만드는 중 3 <small>공정 칸 아래 = 누가 · 언제</small></h5><div class="dr m3 late chg"><span class="sg">엣지 중<small>바뀜</small></span><span class="who"><span class="ln"><span class="nm"><b>김하늘</b> <small>#5103</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em>늦음 — 시공 내일, 아직 엣지</em> · <span class="ar3">도면 내려옴 11/18 (수)</span> · 거실장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">김재단<br>11/19 14:05</span></span><span class="st now"><i></i>엣지<span class="w">이엣지 맡음<br>11/20</span></span><span class="st"><i></i>조립<span class="w no">아직<br>&nbsp;</span></span><span class="st"><i></i>검수<span class="w no">아직<br>&nbsp;</span></span></span><span class="tl">도면 4장</span></div><div class="dr m3 tight"><span class="sg">조립 중</span><span class="who"><span class="ln"><span class="nm"><b>정수아</b> <small>#5110</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em class="tight">빠듯 — 시공 내일, 아직 조립</em> · <span class="ar3">도면 내려옴 11/16 (월)</span> · 주방장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">박재단<br>11/17 11:20</span></span><span class="st done"><i></i>엣지<span class="w done">오엣지<br>11/19 16:40</span></span><span class="st now"><i></i>조립<span class="w">최조립 맡음<br>11/20</span></span><span class="st"><i></i>검수<span class="w no">아직<br>&nbsp;</span></span></span><span class="tl"><span class="hb">불량 1</span>도면 6장</span></div><div class="dr m3 tight"><span class="sg">검수 중</span><span class="who"><span class="ln"><span class="nm"><b>강다온</b> <small>#5129</small><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span></span></span><span class="pr"><em class="tight">빠듯 — 시공 내일, 아직 검수</em> · <span class="ar3">도면 내려옴 11/13 (금)</span> · TV장</span></span><span class="steps ww"><span class="st done"><i></i>재단<span class="w done">김재단<br>11/16 10:05</span></span><span class="st done"><i></i>엣지<span class="w done">이엣지<br>11/17 15:30</span></span><span class="st done"><i></i>조립<span class="w done">이조립<br>11/20 17:45</span></span><span class="st now"><i></i>검수<span class="w no">지금<br>&nbsp;</span></span></span><span class="tl">도면 2장</span></div><h5 class="pg">제작 완료 1</h5><div class="wg"><span class="wi done"><span class="due sm"><i>시공</i><b>내일 11/24 (화)</b></span><b>유하린</b><small>#5127 · 검수 한검수 11/21</small></span></div></section></div></div><aside class="od"><div class="odh rel"><span class="nm"><b>김하늘</b><small>#5103</small></span><span class="due"><i>시공</i><b>내일 11/24 (화)</b></span><span class="x">✕</span><em class="mk ir" style="right:76px">1</em></div><div class="ods rel"><b>시공일</b><ul><li><b>11/24 (화)</b><small>내일 · 일하는 날 1일 남음</small></li><li><em class="red">11/26 (목) → 11/24 (화)</em><small>영업 나영업 · 11/20 (금) 15:10</small></li><li><em>처음 정함 11/26 (목)</em><small>영업 나영업 · 11/10 (화) 09:30</small></li></ul><em class="mk ir">2</em></div><div class="ods rel"><b>도면</b><ul><li><b>내려옴 11/18 (수) 16:20</b><small>영업 나영업 고객 컨펌 끝 → 생산</small></li><li><em class="ok">마감 11/20 (금) 전에 옴</em><small>시공일이 당겨져 마감도 11/24 → 11/20</small></li><li>도면 4장 · 도면 담당 <em>가도면</em> · 영업 <em>나영업</em> · 발주 가짜 인테리어</li></ul><em class="mk ir">3</em></div><div class="ods rel"><b>공정</b><ul><li><span class="tk"></span><b>제작 시작</b><small>11/19 (목) 08:40</small></li><li><span class="tk d"></span><b>재단 끝</b><em class="br">김재단</em><small>11/19 (목) 14:05 · 도면 4장 모두</small></li><li><span class="tk n"></span><b>엣지 지금</b><em class="pk">이엣지 맡음</em><small>11/20 (금) · 4장 중 2장 끝</small></li><li><span class="tk"></span><b>조립 · 검수</b><small>아직</small></li></ul><em class="mk ir">4</em></div><div class="ods rel"><b>보류 · 불량</b><ul><li><em class="red">보류 1번</em><small>자재 기다림 · 11/19 10:00 ~ 15:30 풀림 · 이철</small></li><li>불량 없음</li></ul></div><div class="odf rel"><span class="open">작업 시트 열기</span><span class="day">11/24 장으로</span><em class="mk r">5</em></div></aside></div></div></div></div><ol class="notes"><li><b class="num">1</b><span>머리: 이름 · 번호 · <b>시공일</b>(늘 보임). 닫기 단추는 화면에서 60(실제 48).</span></li><li><b class="num">2</b><span><b>시공일 바뀐 기록</b>을 새 것부터: 옛 날 → 새 날 · 누가 · 언제. 시공일을 바꿀 때마다 주문 기록에 한 줄씩 남아요(이미 있음).</span></li><li><b class="num">3</b><span><b>도면 내려온 때</b> = 영업이 고객 컨펌을 끝내 생산으로 넘어간 때(사장님 답). 그때 시각 · 누른 사람이 기록에 있어요. 마감 안에 왔는지도 셈으로 보여요.</span></li><li><b class="num">4</b><span>공정: <b>제작 시작</b> · 칸마다 <b>끝낸 사람 · 시각</b>, 지금 칸은 <b>맡은 사람</b>(파트 카드의 분홍 '맡음')과 장 수.</span></li><li><b class="num">5</b><span>일은 지금 작업 시트에서. <b>[11/24 장으로]</b>는 판을 닫고 그 날로 가요.</span></li></ol></section>
+<section class="frame" id="opt2"><h2>Ⓒ 안 2 — 새 "흐름" 탭: 위 전체 흐름 줄, 아래 2주 달력에 집 이름 <small>같은 태블릿 · 80%</small></h2><p class="idea">맨 앞에 <b>"흐름" 탭</b>을 더해 <b>거시만</b> 크게 보여요. 아래 달력은 <b>2주 12일(일요일 뺌)을 한 화면</b>에 — 날마다 <b>어느 집 도면이 왔고 안 왔는지 이름으로</b>, 시공일이 바뀐 집은 옛 날 → 새 날까지. <b>날 칸을 누르면 그 날(미시 — Ⓑ 의 장)</b>, <b>흐름 칸을 누르면 그 단계 집 이름 목록</b>(Ⓒ-2)이 열려요.</p><div class="fit"><div class="stage t1176"><div class="art z80"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 23일 (월) · 전체 75건</span><nav class="nav"><span class="on new">흐름</span><span class="">날짜</span><span class="">내 공정 <small class="">11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn bell" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="fw"><div class="ftop"><b>11/23 ~ 12/5</b><small>시공 50집<br>일요일 뺌</small><span class="pbox rel"><b>지난 시공일 · 제작 완료 전 2</b><span>백도현 <small>#5070 조립 · 시공 11/21</small> · 노아린 <small>#5072 보류 · 시공 11/20</small></span><em class="mk ir">5</em></span><span class="abox">그 뒤 12/7~ <b>8집</b> · 도면 2</span><span class="rel" style="width:0;align-self:stretch"><em class="mk" style="left:-14px;top:-16px">6</em></span><span class="chips two"><span class="on">2주</span><span>1주</span></span></div><div class="fpipe"><div class="pipe sm rel"><div class="pgp out" style="flex:2 1 0"><div class="gl">도면 안 옴 <b>25</b></div><div class="segs"><span class="ps draw"><b>20</b><span>도면</span><small class="">늦음 1</small></span><span class="ps conf"><b>5</b><span>컨펌</span><small class="">늦음 2</small></span></div></div><div class="pgp in" style="flex:6 1 0"><div class="gl">생산으로 내려옴 · 만드는 중 <b>20</b></div><div class="segs"><span class="ps wait"><b>6</b><span>대기</span><small class="">늦음 1</small></span><span class="ps cut"><b>4</b><span>재단</span><small class="t">빠듯 3</small></span><span class="ps edge"><b>4</b><span>엣지</span><small class="">늦음 1</small></span><span class="ps asm"><b>3</b><span>조립</span><small class="t">빠듯 2</small></span><span class="ps ins"><b>2</b><span>검수</span><small class="t">빠듯 2</small></span><span class="ps hold"><b>1</b><span>보류</span></span></div></div><div class="pgp fin" style="flex:1.5 1 0"><div class="gl">끝 <b>11</b></div><div class="segs"><span class="ps done"><b>5</b><span>완료</span></span><span class="ps end nw"><b>6</b><span>시공 끝</span></span></div></div><em class="mk" style="left:180px;top:-26px">4</em></div></div><div class="cal"><div class="cc3 ok today rel"><div class="cch3"><b class="dt">11/23</b><small class="sb2">월 · 오늘</small><span class="dn ok"><b>도면 5</b>/5</span><span class="dl ok">마감 11/19 · 다 옴</span></div><div class="chs"><span class="ch arr ins"><span class="l1"><b>유채원</b><small>#5088</small></span><span class="l2"><i>검수</i></span></span><span class="ch more"><span class="l1"><b>+4 완료</b></span><span class="l2"><i>펼치기</i></span></span></div><div class="cf"><span class="fb"><i class="ins" style="width:20.0%"></i><i class="done" style="width:80.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div><em class="mk br">3</em></div><div class="cc3 late rel"><div class="cch3"><b class="dt">11/24</b><small class="sb2">화 · 내일</small><span class="dn late"><b>도면 4</b>/5</span><span class="dl late">마감 11/20 지남</span><span class="snt sm"><svg class="ic"><use href="#i-send"/></svg>알림 11/20<i class="nt">새</i></span></div><div class="chs"><span class="ch late"><span class="l1"><b>남도윤</b><small>#5138</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr edge mvin"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>엣지</i><span class="mvt">11/26 → 11/24</span></span></span><span class="ch arr asm"><span class="l1"><b>정수아</b><small>#5110</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr ins"><span class="l1"><b>강다온</b><small>#5129</small></span><span class="l2"><i>검수</i></span></span><span class="ch arr done"><span class="l1"><b>유하린</b><small>#5127</small></span><span class="l2"><i>완료</i></span></span><span class="ch gone"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>나감</i><span class="mvt">11/24 → 11/27</span></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i><i class="ins" style="width:20.0%"></i><i class="done" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 2</span><span class="h">불량 1</span></span></div><em class="mk br">1</em></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/25</b><small class="sb2">수 · D-2</small><span class="dn soon"><b>도면 4</b>/5</span><span class="dl soon">마감 오늘 11/23</span></div><div class="chs"><span class="ch soon"><span class="l1"><b>박서준</b><small>#5107</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>이도윤</b><small>#5099</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>최유진</b><small>#5097</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>표서진</b><small>#5132</small></span><span class="l2"><i>엣지</i></span></span><span class="ch arr asm"><span class="l1"><b>임소율</b><small>#5130</small></span><span class="l2"><i>조립</i></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i><i class="cut" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 3</span></span></div></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/26</b><small class="sb2">목 · D-3</small><span class="dn soon"><b>도면 2</b>/3</span><span class="dl soon">마감 내일 11/24</span></div><div class="chs"><span class="ch soon"><span class="l1"><b>홍지안</b><small>#5131</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr cut"><span class="l1"><b>우지호</b><small>#5134</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>백시우</b><small>#5121</small></span><span class="l2"><i>엣지</i></span></span><span class="ch gone"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>나감</i><span class="mvt">11/26 → 11/24</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="l">늦음 1</span><span class="t">빠듯 2</span></span></div></div><div class="cc3  rel"><div class="cch3"><b class="dt">11/27</b><small class="sb2">금 · D-4</small><span class="dn "><b>도면 2</b>/4</span><span class="dl ">마감 11/25</span></div><div class="chs"><span class="ch pend mvin"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>확인</i><span class="mvt">11/24 → 11/27</span></span></span><span class="ch pend"><span class="l1"><b>고은채</b><small>#5141</small></span><span class="l2"><i>수정</i></span></span><span class="ch arr asm"><span class="l1"><b>윤채원</b><small>#5117</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr hold"><span class="l1"><b>문지후</b><small>#5122</small></span><span class="l2"><i>보류</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:50.0%"></i><i class="asm" style="width:25.0%"></i><i class="hold" style="width:25.0%"></i></span><span class="lt"><span class="t">빠듯 2</span><span class="h">보류 1</span></span></div><em class="mk br">2</em></div><div class="cc3 ok wk"><div class="cch3"><b class="dt">11/28</b><small class="sb2">토 · D-5</small><span class="dn ok"><b>도면 3</b>/3</span><span class="dl ok">마감 11/26 · 다 옴</span></div><div class="chs"><span class="ch arr wait"><span class="l1"><b>문가온</b><small>#5136</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>송하율</b><small>#5143</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>진서윤</b><small>#5144</small></span><span class="l2"><i>엣지</i></span></span></div><div class="cf"><span class="fb"><i class="wait" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="t">빠듯 1</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">11/30</b><small class="sb2">월 · D-7</small><span class="dn "><b>도면 3</b>/6</span><span class="dl ">마감 11/26</span></div><div class="chs"><span class="ch pend mvin"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>컨펌</i><span class="mvt">12/1 → 11/30</span></span></span><span class="ch pend"><span class="l1"><b>차민서</b><small>#5150</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>오태윤</b><small>#5151</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr wait"><span class="l1"><b>장서율</b><small>#5147</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr wait"><span class="l1"><b>류지안</b><small>#5148</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>한도윤</b><small>#5146</small></span><span class="l2"><i>재단</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:33.3%"></i><i class="cut" style="width:16.7%"></i></span><span class="lt"><span class="t">빠듯 3</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/1</b><small class="sb2">화 · D-8</small><span class="dn "><b>도면 1</b>/5</span><span class="dl ">마감 11/27</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>나윤서</b><small>#5152</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>탁건우</b><small>#5153</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>석다은</b><small>#5154</small></span><span class="l2"><i>수정</i></span></span><span class="ch pend"><span class="l1"><b>변하람</b><small>#5155</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>엄지율</b><small>#5149</small></span><span class="l2"><i>대기</i></span></span><span class="ch gone"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>나감</i><span class="mvt">12/1 → 11/30</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:60.0%"></i><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/2</b><small class="sb2">수 · D-9</small><span class="dn "><b>도면 0</b>/4</span><span class="dl ">마감 11/30</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>노소윤</b><small>#5156</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>구태오</b><small>#5157</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>염하윤</b><small>#5158</small></span><span class="l2"><i>담당 없음</i></span></span><span class="ch pend"><span class="l1"><b>연도하</b><small>#5159</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/3</b><small class="sb2">목 · D-10</small><span class="dn "><b>도면 1</b>/6</span><span class="dl ">마감 12/1</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>지우진</b><small>#5160</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>육서아</b><small>#5161</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>국하진</b><small>#5162</small></span><span class="l2"><i>확인</i></span></span><span class="ch pend"><span class="l1"><b>도윤아</b><small>#5163</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>방예준</b><small>#5164</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>성다올</b><small>#5165</small></span><span class="l2"><i>대기</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:66.7%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:16.7%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/4</b><small class="sb2">금 · D-11</small><span class="dn "><b>도면 0</b>/3</span><span class="dl ">마감 12/2</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>기은솔</b><small>#5166</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>마준혁</b><small>#5167</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>하지아</b><small>#5168</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3  wk"><div class="cch3"><b class="dt">12/5</b><small class="sb2">토 · D-12</small><span class="dn "><b>도면 0</b>/1</span><span class="dl ">마감 12/3</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>금하솔</b><small>#5169</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div></div></div></div></div></div></div><ol class="notes"><li><b class="num">1</b><span>날 칸 하나 = 시공일 하루. 머리에 <b>도면 온 집 / 시공 집 · 마감 · 알림 보낸 날</b>(새). 아래 칩 = 그 날 <b>집 하나하나</b>: <b>안 온 집이 먼저</b>(빨강 마감 지남 · 주황 오늘 · 내일 · 노랑 점선 아직 + 까닭 한 마디 <b>컨펌 · 도면 · 확인 · 수정 · 담당 없음</b>), 그 다음 <b>온 집은 초록 + 지금 공정</b>.</span></li><li><b class="num">2</b><span>시공일이 바뀐 집: <b>들어온 집</b>은 칩 아래 하늘색 "옛 날 → 새 날", <b>나간 집</b>은 옛 날 칸에 분홍 점선 "나감"으로 남아요. 11/27 서하은은 11/24 에서 왔어요.</span></li><li><b class="num">3</b><span>집이 많은 날은 <b>제작 완료만 "+n 완료"로 접어요</b>(누르면 펼침). 안 온 집 · 만드는 집은 접지 않아요. 칸 아래 = 그 날 흐름 막대와 늦음 · 빠듯 · 보류 · 불량.</span></li><li><b class="num">4</b><span><b>전체 흐름</b>: 도면 안 옴(도면 · 고객 컨펌) → 생산(제작 대기 · 재단 · 엣지 · 조립 · 검수 · 보류) → 끝(제작 완료 · 시공 끝). 칸마다 늦음 · 빠듯. 칸을 누르면 그 단계 집 이름(Ⓒ-2). <b>시공 끝</b>은 새로 읽어야 해요(점선).</span></li><li><b class="num">5</b><span><b>지난 시공일</b>인데 아직 제작 완료 전인 집은 이름으로 위에, <b>2주 뒤</b>는 수만.</span></li><li><b class="num">6</b><span>보는 기간 단추(화면 60 = 실제 48). 날 칸 · 흐름 칸도 모두 실제 48 넘어요. 이름 칩은 읽기용 — 칸을 누르면 그 날 장으로 가서 집을 눌러요.</span></li></ol><h3 class="sub">Ⓒ 안 2 — 좋은 점 · 아쉬운 점 · 새로 필요한 칸</h3>
+<div class="cols"><div class="col good"><h3>좋은 점</h3><ul><li><b>거시가 크고 또렷</b> — 날 칸 · 흐름 칸이 커서 멀리서도 읽혀요.</li><li>거시 → 미시 <b>길이 둘</b>: 날 칸(그 날) · 흐름 칸(그 단계 집).</li><li><b>PC 첫 화면으로 그대로</b> 써요(Ⓓ) — 관리자 · 다른 부서가 보기 좋아요.</li><li>누르는 곳이 모두 실제 48 넘음.</li></ul></div><div class="col bad"><h3>아쉬운 점</h3><ul><li><b>탭이 하나 늘어요</b>(넷 → 다섯).</li><li>그 날 집 하나하나는 <b>날짜 탭으로 한 번 넘어가야</b> 보여요.</li><li>2주보다 길면 칸이 좁아져 기간 단추로 나눠 봐요.</li></ul></div><div class="col new"><h3>새로 필요한 칸 · 일</h3><ul><li>안 1 과 같은 새 일 · 새 읽기.</li><li><b>새 화면</b>: 흐름 탭(태블릿 · PC 같은 조각), 흐름 칸 누르면 뜨는 목록.</li><li>미시는 안 1 의 날짜 장 · 주문 판을 그대로.</li></ul></div></div></section>
+<section class="frame" id="opt2b"><h2>Ⓒ-2 흐름 칸 "재단 4"를 누르면 — 그 단계 집 목록 <small>같은 태블릿 · 80%</small></h2><p class="idea">거시에서 미시로 가는 <b>두 번째 길</b> — 날이 아니라 <b>단계</b>로 들어가요. "재단에 4집이 있네, 누구 집이지?"에 바로 답해요. 줄을 누르면 Ⓑ-2 주문 판이 열려요.</p><div class="fit"><div class="stage t1176"><div class="art z80 dim"><nav class="rail" aria-hidden="true"><span class="brand">F</span><span class="zoom"><span>−</span><span class="v">80%</span><span>+</span></span><span class="menu"><span class="it"><svg class="ic"><use href="#r-dash"/></svg>대시보드</span><span class="it"><svg class="ic"><use href="#r-ruler"/></svg>실측</span><span class="it"><svg class="ic"><use href="#r-draw"/></svg>도면</span><span class="it on"><svg class="ic"><use href="#r-fac"/></svg>생산</span><span class="it"><svg class="ic"><use href="#r-truck"/></svg>출고</span><span class="it"><svg class="ic"><use href="#r-wrench"/></svg>AS</span><span class="it"><svg class="ic"><use href="#r-hammer"/></svg>시공</span><span class="it"><svg class="ic"><use href="#r-clip"/></svg>완료</span><span class="it"><svg class="ic"><use href="#r-hist"/></svg>이력</span></span><span class="sp"></span><span class="ava">이철</span></nav><div class="app"><header class="bar"><h3>생산</h3><span class="date">11월 23일 (월) · 전체 75건</span><nav class="nav"><span class="on new">흐름</span><span class="">날짜</span><span class="">내 공정 <small class="">11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn bell" title="알림"><svg class="ic"><use href="#r-bell"/></svg><b class="badge">2</b></span><span class="fs"><span class="l">글자</span><span>−</span><span class="v">100%</span><span>+</span></span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></header><div class="fw"><div class="ftop"><b>11/23 ~ 12/5</b><small>시공 50집<br>일요일 뺌</small><span class="pbox rel"><b>지난 시공일 · 제작 완료 전 2</b><span>백도현 <small>#5070 조립 · 시공 11/21</small> · 노아린 <small>#5072 보류 · 시공 11/20</small></span></span><span class="abox">그 뒤 12/7~ <b>8집</b> · 도면 2</span><span class="rel" style="width:0;align-self:stretch"></span><span class="chips two"><span class="on">2주</span><span>1주</span></span></div><div class="fpipe"><div class="pipe sm"><div class="pgp out" style="flex:2 1 0"><div class="gl">도면 안 옴 <b>25</b></div><div class="segs"><span class="ps draw"><b>20</b><span>도면</span><small class="">늦음 1</small></span><span class="ps conf"><b>5</b><span>컨펌</span><small class="">늦음 2</small></span></div></div><div class="pgp in" style="flex:6 1 0"><div class="gl">생산으로 내려옴 · 만드는 중 <b>20</b></div><div class="segs"><span class="ps wait"><b>6</b><span>대기</span><small class="">늦음 1</small></span><span class="ps cut pick"><b>4</b><span>재단</span><small class="t">빠듯 3</small></span><span class="ps edge"><b>4</b><span>엣지</span><small class="">늦음 1</small></span><span class="ps asm"><b>3</b><span>조립</span><small class="t">빠듯 2</small></span><span class="ps ins"><b>2</b><span>검수</span><small class="t">빠듯 2</small></span><span class="ps hold"><b>1</b><span>보류</span></span></div></div><div class="pgp fin" style="flex:1.5 1 0"><div class="gl">끝 <b>11</b></div><div class="segs"><span class="ps done"><b>5</b><span>완료</span></span><span class="ps end nw"><b>6</b><span>시공 끝</span></span></div></div></div></div><div class="cal"><div class="cc3 ok today"><div class="cch3"><b class="dt">11/23</b><small class="sb2">월 · 오늘</small><span class="dn ok"><b>도면 5</b>/5</span><span class="dl ok">마감 11/19 · 다 옴</span></div><div class="chs"><span class="ch arr ins"><span class="l1"><b>유채원</b><small>#5088</small></span><span class="l2"><i>검수</i></span></span><span class="ch more"><span class="l1"><b>+4 완료</b></span><span class="l2"><i>펼치기</i></span></span></div><div class="cf"><span class="fb"><i class="ins" style="width:20.0%"></i><i class="done" style="width:80.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 late"><div class="cch3"><b class="dt">11/24</b><small class="sb2">화 · 내일</small><span class="dn late"><b>도면 4</b>/5</span><span class="dl late">마감 11/20 지남</span><span class="snt sm"><svg class="ic"><use href="#i-send"/></svg>알림 11/20<i class="nt">새</i></span></div><div class="chs"><span class="ch late"><span class="l1"><b>남도윤</b><small>#5138</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr edge mvin"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>엣지</i><span class="mvt">11/26 → 11/24</span></span></span><span class="ch arr asm"><span class="l1"><b>정수아</b><small>#5110</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr ins"><span class="l1"><b>강다온</b><small>#5129</small></span><span class="l2"><i>검수</i></span></span><span class="ch arr done"><span class="l1"><b>유하린</b><small>#5127</small></span><span class="l2"><i>완료</i></span></span><span class="ch gone"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>나감</i><span class="mvt">11/24 → 11/27</span></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i><i class="ins" style="width:20.0%"></i><i class="done" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 2</span><span class="h">불량 1</span></span></div></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/25</b><small class="sb2">수 · D-2</small><span class="dn soon"><b>도면 4</b>/5</span><span class="dl soon">마감 오늘 11/23</span></div><div class="chs"><span class="ch soon"><span class="l1"><b>박서준</b><small>#5107</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>이도윤</b><small>#5099</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>최유진</b><small>#5097</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>표서진</b><small>#5132</small></span><span class="l2"><i>엣지</i></span></span><span class="ch arr asm"><span class="l1"><b>임소율</b><small>#5130</small></span><span class="l2"><i>조립</i></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i><i class="cut" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 3</span></span></div></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/26</b><small class="sb2">목 · D-3</small><span class="dn soon"><b>도면 2</b>/3</span><span class="dl soon">마감 내일 11/24</span></div><div class="chs"><span class="ch soon"><span class="l1"><b>홍지안</b><small>#5131</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr cut"><span class="l1"><b>우지호</b><small>#5134</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>백시우</b><small>#5121</small></span><span class="l2"><i>엣지</i></span></span><span class="ch gone"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>나감</i><span class="mvt">11/26 → 11/24</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="l">늦음 1</span><span class="t">빠듯 2</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">11/27</b><small class="sb2">금 · D-4</small><span class="dn "><b>도면 2</b>/4</span><span class="dl ">마감 11/25</span></div><div class="chs"><span class="ch pend mvin"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>확인</i><span class="mvt">11/24 → 11/27</span></span></span><span class="ch pend"><span class="l1"><b>고은채</b><small>#5141</small></span><span class="l2"><i>수정</i></span></span><span class="ch arr asm"><span class="l1"><b>윤채원</b><small>#5117</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr hold"><span class="l1"><b>문지후</b><small>#5122</small></span><span class="l2"><i>보류</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:50.0%"></i><i class="asm" style="width:25.0%"></i><i class="hold" style="width:25.0%"></i></span><span class="lt"><span class="t">빠듯 2</span><span class="h">보류 1</span></span></div></div><div class="cc3 ok wk"><div class="cch3"><b class="dt">11/28</b><small class="sb2">토 · D-5</small><span class="dn ok"><b>도면 3</b>/3</span><span class="dl ok">마감 11/26 · 다 옴</span></div><div class="chs"><span class="ch arr wait"><span class="l1"><b>문가온</b><small>#5136</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>송하율</b><small>#5143</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge"><span class="l1"><b>진서윤</b><small>#5144</small></span><span class="l2"><i>엣지</i></span></span></div><div class="cf"><span class="fb"><i class="wait" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="t">빠듯 1</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">11/30</b><small class="sb2">월 · D-7</small><span class="dn "><b>도면 3</b>/6</span><span class="dl ">마감 11/26</span></div><div class="chs"><span class="ch pend mvin"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>컨펌</i><span class="mvt">12/1 → 11/30</span></span></span><span class="ch pend"><span class="l1"><b>차민서</b><small>#5150</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>오태윤</b><small>#5151</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr wait"><span class="l1"><b>장서율</b><small>#5147</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr wait"><span class="l1"><b>류지안</b><small>#5148</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut"><span class="l1"><b>한도윤</b><small>#5146</small></span><span class="l2"><i>재단</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:33.3%"></i><i class="cut" style="width:16.7%"></i></span><span class="lt"><span class="t">빠듯 3</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/1</b><small class="sb2">화 · D-8</small><span class="dn "><b>도면 1</b>/5</span><span class="dl ">마감 11/27</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>나윤서</b><small>#5152</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>탁건우</b><small>#5153</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>석다은</b><small>#5154</small></span><span class="l2"><i>수정</i></span></span><span class="ch pend"><span class="l1"><b>변하람</b><small>#5155</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>엄지율</b><small>#5149</small></span><span class="l2"><i>대기</i></span></span><span class="ch gone"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>나감</i><span class="mvt">12/1 → 11/30</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:60.0%"></i><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/2</b><small class="sb2">수 · D-9</small><span class="dn "><b>도면 0</b>/4</span><span class="dl ">마감 11/30</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>노소윤</b><small>#5156</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>구태오</b><small>#5157</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>염하윤</b><small>#5158</small></span><span class="l2"><i>담당 없음</i></span></span><span class="ch pend"><span class="l1"><b>연도하</b><small>#5159</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/3</b><small class="sb2">목 · D-10</small><span class="dn "><b>도면 1</b>/6</span><span class="dl ">마감 12/1</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>지우진</b><small>#5160</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>육서아</b><small>#5161</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>국하진</b><small>#5162</small></span><span class="l2"><i>확인</i></span></span><span class="ch pend"><span class="l1"><b>도윤아</b><small>#5163</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>방예준</b><small>#5164</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait"><span class="l1"><b>성다올</b><small>#5165</small></span><span class="l2"><i>대기</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:66.7%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:16.7%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/4</b><small class="sb2">금 · D-11</small><span class="dn "><b>도면 0</b>/3</span><span class="dl ">마감 12/2</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>기은솔</b><small>#5166</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>마준혁</b><small>#5167</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend"><span class="l1"><b>하지아</b><small>#5168</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3  wk"><div class="cch3"><b class="dt">12/5</b><small class="sb2">토 · D-12</small><span class="dn "><b>도면 0</b>/1</span><span class="dl ">마감 12/3</span></div><div class="chs"><span class="ch pend"><span class="l1"><b>금하솔</b><small>#5169</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div></div></div><aside class="pl3"><div class="odh rel"><span class="nm"><b>재단에 있는 집 4</b><small>시공일 빠른 순</small></span><span class="x">✕</span><em class="mk ir" style="right:76px">1</em></div><div class="plr tight rel"><span class="a"><span class="nm"><b>최유진</b><small>#5097</small><span class="due"><i>시공</i><b>11/25 (수)</b><small>D-2</small></span></span><span class="pr"><em class="t">빠듯 — 시공 D-2, 아직 재단</em> · 몰딩 벽박이장 · 도면 2장</span></span><span class="b"><b>김재단 맡음</b>제작 시작 11/21 08:30</span><em class="mk r">2</em></div><div class="plr tight"><span class="a"><span class="nm"><b>우지호</b><small>#5134</small><span class="due"><i>시공</i><b>11/26 (목)</b><small>D-3</small></span></span><span class="pr"><em class="t">빠듯 — 시공 D-3, 아직 재단</em> · 신발장 · 도면 1장</span></span><span class="b"><b>맡은 사람 없음</b>제작 시작 11/23 08:10</span></div><div class="plr "><span class="a"><span class="nm"><b>송하율</b><small>#5143</small><span class="due"><i>시공</i><b>11/28 (토)</b><small>D-5</small></span></span><span class="pr">몰딩 여닫이 · 도면 3장 · <span style="color:var(--app-ok-ink);font-weight:800">도면 내려옴 11/20</span></span></span><span class="b"><b>박재단 맡음</b>제작 시작 11/23 09:05</span></div><div class="plr "><span class="a"><span class="nm"><b>한도윤</b><small>#5146</small><span class="due"><i>시공</i><b>11/30 (월)</b><small>D-7</small></span></span><span class="pr">드레스룸 · 도면 3장 · 도면 내려옴 11/21</span></span><span class="b"><b>박재단 맡음</b>제작 시작 11/23 10:40</span></div><div class="ghint">늦음 = 시공일까지 일하는 날이 재단 · 엣지는 1일 이하, 빠듯 = 3일 이하(지금 PC 규칙). <b>"맡은 사람 없음"</b>은 파트 카드에서 아직 아무도 '맡음'을 안 누른 집 — 나누는 방법이 정해지면 여기서 보여요.</div><div class="odf rel"><span class="open">재단 목록 크게 (내 공정 탭)</span><span class="day">닫기</span><em class="mk r">3</em></div></aside></div></div></div></div><ol class="notes"><li><b class="num">1</b><span>판 머리 = 누른 단계와 집 수. 위 흐름 줄의 그 칸에 검은 테두리.</span></li><li><b class="num">2</b><span>줄마다 <b>시공일</b>(늘 보임) · 늦음 · 빠듯 · 도면 장 수 · <b>맡은 사람</b> · 제작 시작 때. 시공일 빠른 순.</span></li><li><b class="num">3</b><span>공정 하나만 크게 보려면 지금 <b>내 공정</b> 탭으로(이미 있음).</span></li></ol></section>
+<section class="frame" id="pc"><h2>Ⓓ PC 1440 × 900 · 보기 전용 — 관리자 · 다른 부서 <small>안 2 의 흐름 탭을 PC 에 · 글자 그대로</small></h2><p class="idea">PC 는 <b>보는 사람</b>(관리자 · 영업 · 도면팀)이 "생산이 어디까지 왔나"를 확인하는 곳이에요. 화면이 넓어 <b>2주 달력(집 이름)</b>과 <b>단계마다 집 이름</b>을 한 화면에 같이 보여요. 날 칸을 누르면 날짜 탭 그 날, 이름을 누르면 주문 판(Ⓑ-2). 공정 단추는 없어요(지금 PC 설계서와 같은 규칙).</p><div class="fit"><div class="stage p1440"><div class="art pcv"><div class="erp1">가구 주문 관리 시스템<span class="sp"></span><span class="u">관리자 (관리자) ▾</span></div><div class="erp2"><span>대시보드</span><span>실측</span><span>도면작업실</span><span class="on">생산</span><span>출고</span><span>AS</span><span>시공</span><span>시공 완료</span><span>정산</span></div><div class="pcbar"><h3>생산</h3><span class="date">11월 23일 (월) · 11/23 ~ 12/5 시공 50집</span><nav class="nav"><span class="on new">흐름</span><span class="">날짜</span><span class="">내 공정 <small>11</small></span><span class="">바뀐 것 <small class="hot">3</small></span><span class="">찾기</span></nav><span class="vo rel">보기 전용<em class="mk r">1</em></span><div class="tools"><span class="sync">08:05 에 받음</span><span class="btn"><svg class="ic"><use href="#i-redo"/></svg>다시 받기</span></div></div><div class="pcw2"><div class="pcl rel"><div class="cal"><div class="cc3 ok today"><div class="cch3"><b class="dt">11/23</b><small class="sb2">월 · 오늘</small><span class="dn ok"><b>도면 5</b>/5</span><span class="dl ok">마감 11/19 · 다 옴</span></div><div class="chs one"><span class="ch arr ins one"><span class="l1"><b>유채원</b><small>#5088</small></span><span class="l2"><i>검수</i></span></span><span class="ch more one"><span class="l1"><b>+4 완료</b></span><span class="l2"><i>펼치기</i></span></span></div><div class="cf"><span class="fb"><i class="ins" style="width:20.0%"></i><i class="done" style="width:80.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 late fcol"><div class="cch3"><b class="dt">11/24</b><small class="sb2">화 · 내일</small><span class="dn late"><b>도면 4</b>/5</span><span class="dl late">마감 11/20 지남</span><span class="snt sm"><svg class="ic"><use href="#i-send"/></svg>알림 11/20<i class="nt">새</i></span></div><div class="chs one"><span class="ch late one"><span class="l1"><b>남도윤</b><small>#5138</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr edge mvin one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>엣지</i><span class="mvt">11/26 → 11/24</span></span></span><span class="ch arr asm one"><span class="l1"><b>정수아</b><small>#5110</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr ins one"><span class="l1"><b>강다온</b><small>#5129</small></span><span class="l2"><i>검수</i></span></span><span class="ch arr done one"><span class="l1"><b>유하린</b><small>#5127</small></span><span class="l2"><i>완료</i></span></span><span class="ch gone one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>나감</i><span class="mvt">11/24 → 11/27</span></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i><i class="ins" style="width:20.0%"></i><i class="done" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 2</span><span class="h">불량 1</span></span></div></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/25</b><small class="sb2">수 · D-2</small><span class="dn soon"><b>도면 4</b>/5</span><span class="dl soon">마감 오늘 11/23</span></div><div class="chs one"><span class="ch soon one"><span class="l1"><b>박서준</b><small>#5107</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait one"><span class="l1"><b>이도윤</b><small>#5099</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>최유진</b><small>#5097</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>표서진</b><small>#5132</small></span><span class="l2"><i>엣지</i></span></span><span class="ch arr asm one"><span class="l1"><b>임소율</b><small>#5130</small></span><span class="l2"><i>조립</i></span></span></div><div class="cf"><span class="fb"><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i><i class="cut" style="width:20.0%"></i><i class="edge" style="width:20.0%"></i><i class="asm" style="width:20.0%"></i></span><span class="lt"><span class="l">늦음 2</span><span class="t">빠듯 3</span></span></div></div><div class="cc3 soon"><div class="cch3"><b class="dt">11/26</b><small class="sb2">목 · D-3</small><span class="dn soon"><b>도면 2</b>/3</span><span class="dl soon">마감 내일 11/24</span></div><div class="chs one"><span class="ch soon one"><span class="l1"><b>홍지안</b><small>#5131</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr cut one"><span class="l1"><b>우지호</b><small>#5134</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>백시우</b><small>#5121</small></span><span class="l2"><i>엣지</i></span></span><span class="ch gone one"><span class="l1"><b>김하늘</b><small>#5103</small></span><span class="l2"><i>나감</i><span class="mvt">11/26 → 11/24</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="l">늦음 1</span><span class="t">빠듯 2</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">11/27</b><small class="sb2">금 · D-4</small><span class="dn "><b>도면 2</b>/4</span><span class="dl ">마감 11/25</span></div><div class="chs one"><span class="ch pend mvin one"><span class="l1"><b>서하은</b><small>#5140</small></span><span class="l2"><i>확인</i><span class="mvt">11/24 → 11/27</span></span></span><span class="ch pend one"><span class="l1"><b>고은채</b><small>#5141</small></span><span class="l2"><i>수정</i></span></span><span class="ch arr asm one"><span class="l1"><b>윤채원</b><small>#5117</small></span><span class="l2"><i>조립</i></span></span><span class="ch arr hold one"><span class="l1"><b>문지후</b><small>#5122</small></span><span class="l2"><i>보류</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:50.0%"></i><i class="asm" style="width:25.0%"></i><i class="hold" style="width:25.0%"></i></span><span class="lt"><span class="t">빠듯 2</span><span class="h">보류 1</span></span></div></div><div class="cc3 ok wk"><div class="cch3"><b class="dt">11/28</b><small class="sb2">토 · D-5</small><span class="dn ok"><b>도면 3</b>/3</span><span class="dl ok">마감 11/26 · 다 옴</span></div><div class="chs one"><span class="ch arr wait one"><span class="l1"><b>문가온</b><small>#5136</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>송하율</b><small>#5143</small></span><span class="l2"><i>재단</i></span></span><span class="ch arr edge one"><span class="l1"><b>진서윤</b><small>#5144</small></span><span class="l2"><i>엣지</i></span></span></div><div class="cf"><span class="fb"><i class="wait" style="width:33.3%"></i><i class="cut" style="width:33.3%"></i><i class="edge" style="width:33.3%"></i></span><span class="lt"><span class="t">빠듯 1</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">11/30</b><small class="sb2">월 · D-7</small><span class="dn "><b>도면 3</b>/6</span><span class="dl ">마감 11/26</span></div><div class="chs one"><span class="ch pend mvin one"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>컨펌</i><span class="mvt">12/1 → 11/30</span></span></span><span class="ch pend one"><span class="l1"><b>차민서</b><small>#5150</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>오태윤</b><small>#5151</small></span><span class="l2"><i>도면</i></span></span><span class="ch arr wait one"><span class="l1"><b>장서율</b><small>#5147</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr wait one"><span class="l1"><b>류지안</b><small>#5148</small></span><span class="l2"><i>대기</i></span></span><span class="ch arr cut one"><span class="l1"><b>한도윤</b><small>#5146</small></span><span class="l2"><i>재단</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:33.3%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:33.3%"></i><i class="cut" style="width:16.7%"></i></span><span class="lt"><span class="t">빠듯 3</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/1</b><small class="sb2">화 · D-8</small><span class="dn "><b>도면 1</b>/5</span><span class="dl ">마감 11/27</span></div><div class="chs one"><span class="ch pend one"><span class="l1"><b>나윤서</b><small>#5152</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>탁건우</b><small>#5153</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>석다은</b><small>#5154</small></span><span class="l2"><i>수정</i></span></span><span class="ch pend one"><span class="l1"><b>변하람</b><small>#5155</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait one"><span class="l1"><b>엄지율</b><small>#5149</small></span><span class="l2"><i>대기</i></span></span><span class="ch gone one"><span class="l1"><b>한예린</b><small>#5145</small></span><span class="l2"><i>나감</i><span class="mvt">12/1 → 11/30</span></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:60.0%"></i><i class="conf" style="width:20.0%"></i><i class="wait" style="width:20.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/2</b><small class="sb2">수 · D-9</small><span class="dn "><b>도면 0</b>/4</span><span class="dl ">마감 11/30</span></div><div class="chs one"><span class="ch pend one"><span class="l1"><b>노소윤</b><small>#5156</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>구태오</b><small>#5157</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>염하윤</b><small>#5158</small></span><span class="l2"><i>담당 없음</i></span></span><span class="ch pend one"><span class="l1"><b>연도하</b><small>#5159</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/3</b><small class="sb2">목 · D-10</small><span class="dn "><b>도면 1</b>/6</span><span class="dl ">마감 12/1</span></div><div class="chs one"><span class="ch pend one"><span class="l1"><b>지우진</b><small>#5160</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>육서아</b><small>#5161</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>국하진</b><small>#5162</small></span><span class="l2"><i>확인</i></span></span><span class="ch pend one"><span class="l1"><b>도윤아</b><small>#5163</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>방예준</b><small>#5164</small></span><span class="l2"><i>컨펌</i></span></span><span class="ch arr wait one"><span class="l1"><b>성다올</b><small>#5165</small></span><span class="l2"><i>대기</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:66.7%"></i><i class="conf" style="width:16.7%"></i><i class="wait" style="width:16.7%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3 "><div class="cch3"><b class="dt">12/4</b><small class="sb2">금 · D-11</small><span class="dn "><b>도면 0</b>/3</span><span class="dl ">마감 12/2</span></div><div class="chs one"><span class="ch pend one"><span class="l1"><b>기은솔</b><small>#5166</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>마준혁</b><small>#5167</small></span><span class="l2"><i>도면</i></span></span><span class="ch pend one"><span class="l1"><b>하지아</b><small>#5168</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div><div class="cc3  wk"><div class="cch3"><b class="dt">12/5</b><small class="sb2">토 · D-12</small><span class="dn "><b>도면 0</b>/1</span><span class="dl ">마감 12/3</span></div><div class="chs one"><span class="ch pend one"><span class="l1"><b>금하솔</b><small>#5169</small></span><span class="l2"><i>담당 없음</i></span></span></div><div class="cf"><span class="fb"><i class="draw" style="width:100.0%"></i></span><span class="lt"><span class="no">늦음 없음</span></span></div></div></div><em class="mk ir" style="top:auto;bottom:8px">2</em></div><aside class="pfl rel"><div class="pflh"><b>흐름</b><small>단계마다 집 · 시공일 빠른 순</small></div><div class="fr"><span class="ps draw"><b>20</b><span>도면</span></span><span class="fns"><span class="fn miss soon">홍지안 <small>11/26</small></span><span class="fn miss pend">서하은 <small>11/27</small></span><span class="fn miss pend">고은채 <small>11/27</small></span><span class="fn miss pend">차민서 <small>11/30</small></span><span class="fn miss pend">오태윤 <small>11/30</small></span><span class="fn miss pend">나윤서 <small>12/1</small></span><span class="fn miss pend">탁건우 <small>12/1</small></span><span class="fn more">외 13 ▾</span></span></div><div class="fr"><span class="ps conf"><b>5</b><span>고객 컨펌</span></span><span class="fns"><span class="fn miss late">남도윤 <small>11/24</small></span><span class="fn miss soon">박서준 <small>11/25</small></span><span class="fn miss pend">한예린 <small>11/30</small></span><span class="fn miss pend">변하람 <small>12/1</small></span><span class="fn miss pend">방예준 <small>12/3</small></span></span></div><div class="fr"><span class="ps wait"><b>6</b><span>제작 대기</span></span><span class="fns"><span class="fn ">이도윤 <small>11/25</small></span><span class="fn ">문가온 <small>11/28</small></span><span class="fn ">장서율 <small>11/30</small></span><span class="fn ">류지안 <small>11/30</small></span><span class="fn ">엄지율 <small>12/1</small></span><span class="fn ">성다올 <small>12/3</small></span></span></div><div class="fr"><span class="ps cut"><b>4</b><span>재단</span></span><span class="fns"><span class="fn ">최유진 <small>11/25</small></span><span class="fn ">우지호 <small>11/26</small></span><span class="fn ">송하율 <small>11/28</small></span><span class="fn ">한도윤 <small>11/30</small></span></span></div><div class="fr"><span class="ps edge"><b>4</b><span>엣지</span></span><span class="fns"><span class="fn ">김하늘 <small>11/24</small></span><span class="fn ">표서진 <small>11/25</small></span><span class="fn ">백시우 <small>11/26</small></span><span class="fn ">진서윤 <small>11/28</small></span></span></div><div class="fr"><span class="ps asm"><b>3</b><span>조립</span></span><span class="fns"><span class="fn ">정수아 <small>11/24</small></span><span class="fn ">임소율 <small>11/25</small></span><span class="fn ">윤채원 <small>11/27</small></span></span></div><div class="fr"><span class="ps ins"><b>2</b><span>검수</span></span><span class="fns"><span class="fn ">유채원 <small>11/23</small></span><span class="fn ">강다온 <small>11/24</small></span></span></div><div class="fr"><span class="ps hold"><b>1</b><span>보류</span></span><span class="fns"><span class="fn ">문지후 <small>11/27</small></span></span></div><div class="fr"><span class="ps done"><b>5</b><span>제작 완료</span></span><span class="fns"><span class="fn ">배하준 <small>11/23</small></span><span class="fn ">신다인 <small>11/23</small></span><span class="fn ">조은우 <small>11/23</small></span><span class="fn more">외 2 ▾</span></span></div><div class="fr"><span class="ps end nw"><b>6</b><span>시공 끝</span></span><span class="fns"><span class="fn">지난 7일 — 새로 읽기</span></span></div><em class="mk ir">3</em></aside></div></div></div></div><ol class="notes"><li><b class="num">1</b><span><b>보기 전용</b> 표. 누르는 것은 탭 · 날 칸 · 이름 · 다시 받기뿐(관리자 [고치기]는 지금처럼 날짜 탭에서).</span></li><li><b class="num">2</b><span>2주 달력 — 태블릿과 같은 칩을 <b>한 줄짜리</b>로(PC 는 마우스라 작아도 돼요). 안 온 집 먼저, 바뀐 집은 옛 날 → 새 날.</span></li><li><b class="num">3</b><span>오른쪽 <b>흐름 판</b>: 단계마다 수와 <b>집 이름 + 시공일</b>. 도면 · 컨펌 칸 이름은 마감 색. 많으면 "외 n ▾"로 펼쳐요. 도면팀 · 영업이 <b>자기 일이 남은 집</b>을 바로 찾아요.</span></li></ol></section>
+
+<section class="frame" id="cmp"><h2>두 안 견주기</h2>
+<div class="tblw"><table class="cmp"><thead><tr><th>볼 것</th><th>Ⓑ 안 1 날짜 탭 하나에</th><th>Ⓒ 안 2 흐름 탭 + 날짜 탭</th></tr></thead><tbody>
+<tr><th>날마다 어느 집이 왔나 · 안 왔나(이름)</th><td>예 — 한 주씩(다음 주는 넘김)</td><td class="best"><b>예 — 2주 12일을 한 화면에</b></td></tr>
+<tr><th>시공일 바뀐 집(옛 날 → 새 날)</th><td class="best"><b>예</b> — 명단 칩 + 그 날 장에 누가 · 언제</td><td class="best"><b>예</b> — 달력 칩(누가 · 언제는 그 날 장에서)</td></tr>
+<tr><th>전체 생산 흐름(거시)</th><td>장 위 한 줄(작게)</td><td class="best"><b>화면 위에 크게</b>, 칸마다 늦음 · 빠듯</td></tr>
+<tr><th>그 날 집 하나하나(미시)</th><td class="best"><b>같은 화면 오른쪽</b> — 띠를 누르면 바로</td><td>칸을 누르면 날짜 탭으로 한 번 넘어감(같은 장)</td></tr>
+<tr><th>단계마다 어느 집인지</th><td class="best"><b>흐름 칸을 누르면 이름 목록</b>(Ⓒ-2 판)</td><td class="best"><b>같음</b> — PC 는 이름이 늘 보임(Ⓓ)</td></tr>
+<tr><th>장갑 손으로 누르기(80%)</th><td class="best"><b>날 칸 · 흐름 칸 · 단추 48 넘음</b></td><td class="best"><b>날 칸 · 흐름 칸 · 단추 48 넘음</b></td></tr>
+<tr><th>시공일이 늘 보이나</th><td class="best"><b>예</b> — 띠 · 줄 · 판</td><td class="best"><b>예</b> — 칸 머리 · 목록 줄 · 판</td></tr>
+<tr><th>PC(보는 사람)에 맞나</th><td>그대로 쓰면 띠가 좁음</td><td class="best"><b>PC 첫 화면으로 딱</b>(Ⓓ)</td></tr>
+<tr><th>바뀌는 양</th><td class="best"><b>탭 넷 그대로</b>, 띠 · 장만 바뀜</td><td>탭 하나 더(넷 → 다섯) + 새 화면 하나</td></tr>
+</tbody></table></div>
+<div class="box"><h3>추천 — 안 2: 거시는 "흐름" 탭, 미시는 지금 날짜 탭을 키워서</h3>
+<p>사장님 말씀이 <b>"거시 · 미시 둘 다"</b>, 그리고 <b>"어떤 주문이 왔는지 안 왔는지"</b>라 2주 동안 집 이름을 <b>한 화면에</b> 보여 주는 흐름 탭(안 2)이 더 맞아요. 안 1 은 한 주씩 넘겨 봐야 해요. <b>큰 그림은 흐름 탭</b>, <b>집 하나하나는 날짜 탭</b>에 두면 공장 태블릿에서 더 잘 읽혀요. 미시 쪽 날짜 탭 장은 안 1 의 장(Ⓑ)과 주문 판(Ⓑ-2)을 그대로 써요.</p>
+<p><b>첫 걸음 — 저장하는 것 없이 보기만</b>: 흐름 탭(태블릿 · PC), 날짜 장의 도면 마감 줄 · 안 온 집 까닭 · 시공일 들어옴 / 나감 · 도면 내려온 날 · 공정 칸 누가 · 언제, 주문 판. 모두 <b>지금 주문 기록에 있는 값</b>이에요.</p>
+<p><b>둘째 걸음 — 새로 필요한 일</b>: 도면 마감 자동 알림(보내는 일 + 보낸 기록), "시공 끝" 칸(생산 화면이 지금 안 읽는 단계). 나누기는 방법을 알려 주시면 그때.</p>
+<p>태블릿 첫 탭은 <b>날짜 그대로</b>, PC 첫 탭은 <b>흐름</b>을 추천해요(질문 1).</p>
+</div>
+</section>
+
+
+<section class="frame" id="facts"><h2>지금 코드에서 확인한 사실 — 칸마다 어디서 오나</h2>
+<div class="tblw"><table class="cmp"><thead><tr><th>화면 칸</th><th>지금 있나</th><th>어디서</th></tr></thead><tbody>
+<tr><th>시공일</th><td class="best"><b>있음</b></td><td>주문의 시공 일정. 여러 날로 나뉜 주문은 "가장 가까운 날 + 외 n"(PC 설계서 결정).</td></tr>
+<tr><th>시공일 바뀐 기록 (옛 날 → 새 날 · 누가 · 언제)</th><td class="best"><b>있음 — 바뀔 때마다 한 줄</b></td><td>주문 기록 "시공 일정 변경": 옛 날 · 새 날 · 바꾼 사람 · 시각. 어느 화면에서 바꿔도 같은 곳에 한 줄만 남아요. 지금 생산 화면은 <b>생산으로 내려온 뒤</b> 바뀐 것만 보여요(11-11 결정). <b>날별 들어옴 · 나감 수</b>는 이 기록으로 세는 셈(새 저장 없음) — 2주 집 기록을 한 번 더 읽어요.</td></tr>
+<tr><th>도면 내려온 때 · 누가</th><td class="best"><b>있음</b></td><td>사장님 답대로 = 생산 단계로 넘어간 때. 단계를 옮길 때 남는 기록(고객 컨펌 끝 · 단계 변경 · 강제 변경 · 바로 제작 시작)의 시각 · 누른 사람. 생산 화면의 '바뀐 것' 계산이 이미 이 시각("마지막 생산 진입")을 구해요.</td></tr>
+<tr><th>도면 마감</th><td class="best"><b>셈 — 있음</b></td><td>회사 달력(주말 · 공휴일 뺌)의 "일하는 날 2일 앞". 11/24 → 11/20 (금), 11/25 → 11/23 (월), 11/28 (토) · 11/30 (월) → 둘 다 11/26 (목). 코드로 다시 돌려 확인했어요.</td></tr>
+<tr><th>안 온 까닭 · 누구 일</th><td class="best"><b>있는 값으로 셈</b></td><td>주문 단계 + 도면 상태 · 도면 담당(여러 명 가능) · 영업 담당. 칩의 한 마디: <b>도면</b> = 그리는 중(도면 담당 일) · <b>담당 없음</b> = 도면 담당이 비었음 · <b>확인</b> = 도면을 보냈고 영업 수령 확정 기다림 · <b>수정</b> = 영업이 수정 요청 · <b>컨펌</b> = 고객 컨펌 기다림(영업 일).</td></tr>
+<tr><th>날마다 집 이름 칩(거시)</th><td class="best"><b>있음</b></td><td>생산 첫 화면이 이미 2주 집을 모두 읽어 날별로 묶어요(이름 · 번호 · 단계 · 공정). 칩은 같은 행을 다르게 그릴 뿐 — 새 읽기 없음.</td></tr>
+<tr><th>마감 지남 자동 알림 · "알림 보냄 11/20 18:00"</th><td><b>없음 — 새로 필요한 일 · 칸</b></td><td>지금 있는 것: 알림 보내기 길(앱 알림 · 폰 알림 · 읽음 기록), 정해진 때 도는 일(긴급 알림 미확인 올려 보내기와 같은 꼴), 생산 D-2 자동 할 일(생산팀 몫 · 알림 아님). 새로: 마감 날 정해진 시각에 도는 일 + 받는 사람(도면 담당 · 영업 담당) + <b>보낸 기록</b>(주문 기록 한 줄 — 언제 · 누구에게). 화면의 "보냄 · 읽음"은 이 기록과 알림 읽음 표에서.</td></tr>
+<tr><th>공정 칸 누가 · 언제</th><td class="best"><b>있음</b></td><td>칸마다 끝낸 사람 이름 · 시각. 파트 표에 도면 장 × 파트마다 <b>맡은 사람 · 맡은 때 · 끝낸 사람 · 끝낸 때</b>. 제작 시작 시각도 있어요.</td></tr>
+<tr><th>보류 · 불량</th><td class="best"><b>있음</b></td><td>보류(지금 켜짐 · 까닭 · 때 · 지난 보류 기록), 불량(까닭 · 때 · 누가).</td></tr>
+<tr><th>흐름 칸 수 (도면 · 컨펌 · 제작 대기 · 재단 … · 제작 완료)</th><td class="best"><b>셈 — 있음</b></td><td>생산 첫 화면이 이미 집마다 "도면 기다림 · 컨펌 기다림 · 제작 대기 · ○○ 중 · 보류 · 제작 완료"를 정해요. 날별로 세면 돼요.</td></tr>
+<tr><th>시공 끝 (지난 7일)</th><td><b>새로 읽기</b></td><td>생산 화면은 도면 · 컨펌 · 생산 · 시공 단계만 읽어요. 시공을 마친 집은 안 읽어서 세려면 한 번 더 읽어야 해요.</td></tr>
+<tr><th>나누기</th><td>보류(추후 통보)</td><td>자리만 비워 둠("나누기 — 방법 정해지면").</td></tr>
+</tbody></table></div>
+<div class="box"><h3>정해 주실 것</h3><ol>
+ <li><b>첫 화면</b>: 태블릿은 <b>날짜</b>, PC 는 <b>흐름</b>으로 열까요? (추천) 아니면 둘 다 흐름?</li>
+ <li><b>자동 알림 보내는 때</b>: 마감 날 <b>저녁 6시</b>에 한 번 보낼까요? 그 뒤에도 안 오면 <b>매일 아침</b> 다시 보낼까요?</li>
+ <li><b>"시공일 바뀜"을 언제부터 셀까요?</b> (가) 생산으로 내려온 뒤 바뀐 것만(지금 '바뀐 것' 탭과 같음) · (나) 도면 단계부터 모두. 추천 (가).</li>
+ <li><b>흐름 끝 "시공 끝" 칸</b>도 볼까요? 보려면 생산 화면이 시공 마친 집을 더 읽어야 해요.</li>
+</ol></div>
+<details class="dev"><summary>만드는 사람용 메모 — 근거 자리</summary><ul>
+ <li>시공일 변경: <code>OrderEvent</code> <code>CONSTRUCTION_DATE_CHANGED</code> — payload <code>from</code> · <code>to</code>(정렬된 날짜 콤마 글, 여러 날이면 "a,b") · <code>source</code>, <code>created_by_user_id</code>, <code>created_at</code>(naive UTC). 정본 하나 = <code>foms/services/order_date_sync.py</code> <code>_emit_construction_date_event</code>(같은 트랜잭션 한 줄, 되돌리면 취소). 생산 표시 = <code>foms/services/production_change_alerts.py</code>(<code>compute_window_start</code> · D22 바닥선 <code>_production_entry_floor</code>) → <code>production_home_changes.py</code> 누가 · 언제.</li>
+ <li>도면 내려온 때: <code>_STAGE_MOVE_EVENT_TYPES</code> = <code>STAGE_CHANGED</code> · <code>STAGE_OVERRIDE</code> · <code>CUSTOMER_CONFIRMED</code> · <code>PRODUCTION_STARTED</code>(payload <code>from</code>/<code>to</code>) — 마지막 "밖 → 생산 · 시공" 이벤트의 <code>created_at</code> · <code>created_by_user_id</code>. 보조: <code>workflow.history[]</code>, <code>ProductionRun.started_at</code>(제작 시작), <code>drawing_confirmed_at</code>(영업 수령 확정 — 내려옴 아님).</li>
+ <li>마감: <code>foms/services/common/business_calendar.py</code> <code>add_business_days(시공일, -2)</code>. 늦음: <code>foms/services/production/late_rule.py</code> <code>LATE_THRESHOLDS</code> wait (5, 3) · ready (4, 2) · early (3, 1) · final (2, 0).</li>
+ <li>알림(새): 보내는 길 <code>models.Notification</code> + <code>foms/services/notifications/push_sender.py</code>(예 <code>PRODUCTION_ORDER_CHANGED</code>), 정해진 때 도는 꼴 <code>foms/services/notifications/escalation.py</code>(멱등 · 원본당 1건). 생산 D-2 할 일 <code>foms/services/orders/erp_policy_tasks.py</code> <code>AUTO_PRODUCTION_D2</code>(생산팀 할 일 — 도면 · 영업 알림 아님). 새 것: 스윕 + 새 알림 종류 + <code>OrderEvent</code> 한 줄(예 <code>DRAWING_DEADLINE_ALERTED</code>, payload 받는 사람 id · 마감일). 서비스는 WORKER / FOMS-cron 중 어디서 돌릴지 설계서에서.</li>
+ <li>공정: <code>sd.production.steps[]</code> <code>{key, label, done, at, by_name}</code>(<code>foms/services/production/steps.py</code>), 파트 표 <code>ProductionPartMark</code> <code>picked_by_*</code> · <code>picked_at</code> · <code>done_by_*</code> · <code>done_at</code>. 보류 <code>sd.production.hold{active, at, reason}</code> · <code>hold_history[]</code>, 불량 <code>sd.production.defects[]{reason, at, by_name}</code>.</li>
+ <li>흐름 칸: <code>foms/services/production_home_read_model.py</code> <code>production_home_stage</code>. 생산 화면이 읽는 단계 = 도면 · 고객컨펌 · 생산 · 시공(제작 완료). "시공 끝"은 그 다음 단계라 새 읽기.</li>
+ <li>지어낸 자료 맞춤: 2주(11/23~12/3) 시공 50집 = 흐름 칸 합 = 날 막대 합(생성기 assert). 2판과 같은 집 · 같은 마감 숫자.</li>
+</ul></details>
+</section>
+
+</div>
+<script>
+(function(){
+  /* 틀을 칸 폭에 맞게 줄여 보인다(넓으면 실제 크기 그대로) */
+  var fits=[].slice.call(document.querySelectorAll('.fit'));
+  function fit(){
+    fits.forEach(function(f){
+      var s=f.firstElementChild;if(!s){return;}
+      var w=s.offsetWidth,h=s.offsetHeight;
+      var k=Math.min(1,f.clientWidth/w);
+      s.style.transform=k<1?'scale('+k+')':'';
+      f.style.height=Math.round(h*k)+'px';
+    });
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('load',fit);
+})();
+</script>
+</body>
+</html>
