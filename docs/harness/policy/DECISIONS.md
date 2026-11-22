@@ -10,6 +10,19 @@
 
 ---
 
+### [2026-11-22] 태블릿 터치 — 내 공정 [끝]은 확인 창 없이 바로 저장 + 되돌리기 · 회색 단추는 누르면 까닭을 말한다 · 작은 단추는 '44px ÷ 화면 크기'
+- **키워드**: foms-production-home-steppane, view=panel, step_panel_for, 되돌리기, aria-disabled, pointer_hint, foms_ptr, any-pointer, data-foms-shell-checked-at, etag_ignore, data-foms-production-work, foms-ui-zoom, 44px, 터치 점검
+- **결정**: 사장님(2026-11-22 질문 창 — "안 눌러지거나 여러 번 눌러야 되는 버튼이 갑자기 너무 많아졌어" 전수 검사 뒤).
+  - 내 공정 판 [<공정> 끝]은 **확인 창을 빼고** 한 번에 저장한다. 잘못 누른 것은 저장 직후 8초 동안 뜨는 [되돌리기](같은 공정 API `done:false`)로 취소한다. 두 번 누름은 저장 답까지 잠금 + 새 화면 뒤 600ms 잠금(그 사이 누르면 다시 600ms)으로 막는다. 줄의 [끝]은 숨긴 채 둔다.
+  - 작업 시트 [제작 완료]의 "공정 4칸을 다 켠 뒤" 규칙은 그대로. 회색일 때 눌러도 조용하던 것을 **누르면 남은 공정을 글로 알린다**(`disabled` 대신 `aria-disabled`). "남은 공정까지 한 번에 끝내기"는 넣지 않는다(공정 칸 기록이 실제 작업 시각과 달라진다).
+  - 내 공정 탭은 고른 줄의 판만 그리고 다른 줄 판은 누를 때 받는다(`view=panel`) — 모든 줄 판을 숨겨 그리던 것이 조각을 3.9배로 불렸다.
+  - 가로 터치 태블릿에서 36px 아래로 보이던 누름 칸은 `calc(44px / var(--foms-ui-zoom, 1))` 로 보이는 44px. 레일 가운데 화면 크기 숫자는 태블릿에서 눌리지 않는다(누르다 100% 로 튀던 것). 100% 미만에서만 레일 맨 위 'F' 를 숨기고 칸 틈을 없앤다.
+  - 포인터 쿠키(`foms_ptr`): 주 포인터 coarse 또는 터치 화면이 있는 폰 · 태블릿이면 터치. 서버 읽기는 `feature_flags.pointer_hint` 한 곳, 쿠키 없음 = "모름".
+  - 생산 첫 화면 조각은 받은 시각을 본문에 두지 않는다(304 가 되게). 50초 미리 받기는 생산 쓰기 팀 · 태블릿 레일만, 보고 있는 화면은 받지 않는다.
+- **이유**: 흉내 기기 1,780번 누름에서 버려진 눌림은 0 이었고, 느낌의 원인은 어제 올린 것 셋(무거워진 내 공정 탭 · 조용한 회색 단추 · 1번 → 3번 누름)과 80% 에서 작아진 단추였다.
+- **남는 위험**: 실기기 손가락으로는 확인하지 못했다. 위 탭(`?tab=`)은 60초 뒤 누르면 서버를 다녀온다. 대시보드 줄 선택 체크(19px)와 다른 화면의 35px 단추 약 45종은 그대로다. 키보드 덮개 태블릿(주 포인터 fine)은 '44px ÷ 화면 크기' 규칙이 먹지 않는다.
+- **영향**: `foms/web/production/home.py`, `foms/services/production/{home_step_panel,pc_view}.py`, `foms/services/feature_flags.py`, `foms/services/common/erp_shell_http.py`, `static/js/production/foms-production-home-{steps,steppane}.js`, `foms-production-{sheet-page,edit,home}.js`, `static/js/runtime/{erp-shell,foms-release-watch,foms-pointer-hint-boot,foms-wide-surface-recover}.js`, `static/css/foundation/foms-tablet-*.css`, `static/css/contexts/production/{home,sheet}.css`, 설계서 `docs/specs/2026-11-21-production-my-steps-panel_SPEC.md`.
+
 ### [2026-11-22] 생산 화면 = 공장은 태블릿 · PC 는 보기 전용 확인 화면 · 생산 쓰기는 관리자 · 생산팀만
 - **키워드**: can_write_production, can_ack_production_change, PRODUCTION_EDIT, PRODUCTION_ACK, write_access, pc_view, production_screen_flags, late_rule, production_late_level, foms_prod_edit, 고치기, 보기 전용, nav_target, 일하는 날, 시공일
 - **결정**: 사장님(2026-11-21 질문 창, 설계서 `docs/specs/2026-11-21-production-pc-viewer_SPEC.md` §13). 공장은 태블릿을 쓰고, PC 는 관리자 · 다른 부서가 생산 진행을 확인하는 화면이다.
