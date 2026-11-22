@@ -12,6 +12,7 @@ import pathlib
 
 import foms.api.drawing.as_drawing as as_drawing_api
 import foms.api.drawing.erp_orders_drawing as drawing_api
+from foms.services.notifications import drawing_deadline_plan as plan
 from foms.services.notifications import drawing_notice_target as target_mod
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -21,13 +22,15 @@ def test_규칙은_서비스_층_한_함수이고_부르는_곳_넷이_같은_�
     fn = target_mod.drawing_notice_target
     assert drawing_api.drawing_notice_target is fn
     assert as_drawing_api.drawing_notice_target is fn
-    # 부르는 곳 셋: 도면 전달 · 전달 취소 · AS 도면 전달
+    assert plan.drawing_notice_target is fn
+    # 부르는 곳 넷: 도면 전달 · 전달 취소 · AS 도면 전달 · 도면 마감 알림
     assert "drawing_notice_target(\n        db, manager_name, partner=is_partner_sd(s_data))" in inspect.getsource(
         drawing_api.perform_drawing_transfer)
     assert "= drawing_notice_target(\n                db, _mgr, partner=is_partner_sd(s_data))" in inspect.getsource(
         drawing_api.api_order_cancel_transfer)
     assert "sales_target = drawing_notice_target(sess, order_manager_label(sd), partner=is_partner_sd(sd))" in (
         inspect.getsource(as_drawing_api.run_as_transfer))
+    assert "drawing_notice_target(db, due.sales_label, partner=due.partner)" in inspect.getsource(plan.recipients_for)
 
 
 def test_api_층에_옛_이름이나_사본이_없다() -> None:
@@ -43,11 +46,14 @@ def test_api_층에_옛_이름이나_사본이_없다() -> None:
 
 
 def test_서비스_층은_api_를_부르지_않는다() -> None:
-    """옮긴 모듈은 api · web 층을 import 하지 않는다(레이어 래칫과 같은 방향)."""
-    tree = ast.parse(inspect.getsource(target_mod))
-    names = [n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)]
-    names += [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
-    assert not [n for n in names if n.startswith(("foms.api", "foms.web"))]
+    """알림 쪽 새 모듈 넷은 api · web 층을 import 하지 않는다(레이어 래칫과 같은 방향, 이 모듈들은 기준선에 없다)."""
+    from foms.services.notifications import drawing_deadline_alert, drawing_deadline_push
+
+    for mod in (target_mod, plan, drawing_deadline_alert, drawing_deadline_push):
+        tree = ast.parse(inspect.getsource(mod))
+        names = [n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)]
+        names += [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
+        assert not [n for n in names if n.startswith(("foms.api", "foms.web"))], mod.__name__
 
 
 def test_옮긴_뒤에도_같은_답(app) -> None:
