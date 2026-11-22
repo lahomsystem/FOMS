@@ -92,9 +92,35 @@ def test_unsaved_rules(sim):
     assert sim["dirty_field_removed"] == {"reloads": 1, "asks": 1, "before": 0}, "사라진 칸은 고친 칸이 아니다"
     assert sim["form_checkbox_is_unsaved"]["reloads"] == 0
     assert sim["form_checkbox_is_unsaved"]["why"] == "unsaved"
-    assert sim["search_box_is_not_unsaved"]["reloads"] == 1
+    assert sim["search_box_is_unsaved"] == {"reloads": 1, "asks": 1, "before": {"n": 0, "why": "unsaved"}},         "찾을 말을 쳐 둔 검색 칸은 새로 읽기를 막고, 비우면 풀린다(11-22 터치 감사)"
+    assert sim["untouched_search_box_does_not_block"]["reloads"] == 1, "서버가 그린 그대로인 검색 칸은 막지 않는다"
+    assert sim["closed_overlay_search_does_not_block"]["reloads"] == 1, "닫힌 창 속(그려지지 않은) 검색 칸은 막지 않는다"
     assert sim["instant_checkbox_is_not_unsaved"]["reloads"] == 1
     assert sim["offscreen_sheet_is_closed"]["reloads"] == 1, "화면 밖으로 밀어 둔 닫힌 시트는 열린 창이 아니다"
+
+
+def test_docked_side_sheet_is_not_an_open_overlay(sim):
+    """대시보드 태블릿의 붙박이 도킹 시트(role=dialog · aria-modal=false)는 열린 창이 아니다 — 진짜 창은 그대로 막는다."""
+    assert sim["docked_side_sheet_is_not_overlay"] == {"reloads": 1, "asks": 1, "why": ""}
+    assert sim["undocked_open_side_sheet_blocks"] == {"reloads": 1, "asks": 1, "before": {"n": 0, "why": "overlay"}},         "도킹 없이 밀려 나와 주문을 보이는 시트는 닫힐 때까지 기다린다"
+    assert sim["modal_dialog_role_blocks"] == {"reloads": 1, "asks": 1, "before": {"n": 0, "why": "overlay"}},         "aria-modal=true · alertdialog 는 열린 창, 숨으면(hidden) 아니다"
+
+
+def test_negative_control_old_rules_block_dashboard_and_drop_search(tmp_path):
+    """음성 대조군: 옛 셀렉터(모든 role=dialog) · 옛 검색 칸 규칙이면 도킹 시트가 늘 막고 검색 글은 막지 않는다."""
+    src = WATCH_JS.read_text(encoding="utf-8")
+    sel_part = """[role="dialog"]:not([aria-modal="false"]), '"""
+    sheet_part = """'[role="alertdialog"]:not([aria-modal="false"]), .foms-tablet-sheet.is-open:not(.foms-tablet-sheet--docked)'"""
+    search_rule = "if (type === 'search') return el.value !== el.defaultValue && el.getClientRects().length > 0;"
+    assert src.count(sel_part) == 1 and src.count(sheet_part) == 1 and src.count(search_rule) == 1
+    old = (src.replace(sel_part, """[role="dialog"], '""").replace(sheet_part, """'[role="alertdialog"]'""")
+           .replace(search_rule, "if (type === 'search') return false;"))
+    copy = tmp_path / "foms-release-watch.js"
+    copy.write_text(old, encoding="utf-8")
+    out = _node(WATCH_SIM, "FOMS_SIM_WATCH_JS", copy)
+    assert out["docked_side_sheet_is_not_overlay"]["reloads"] == 0
+    assert out["docked_side_sheet_is_not_overlay"]["why"] == "overlay"
+    assert out["search_box_is_unsaved"]["before"] == {"n": 1, "why": ""}
 
 
 def test_hidden_and_offline_wait(sim):
