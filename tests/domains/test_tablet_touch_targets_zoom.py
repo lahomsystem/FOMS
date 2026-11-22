@@ -8,6 +8,9 @@
 2차(같은 날): 80% 에서 보이는 35 ~ 43px 이던 칸(줄 높이 40 · 48 · 56, 위 줄 단추, 검색 칸 · 고르기, AS 세 칸, 날짜 띠 등)도
 같은 방법으로 44px. 100% 에서 원래 44px 넘던 칸(48 · 50 · 52px)은 max() 로 지켜 100% 화면은 그대로이고, 이웃 칸 사이를
 넓히는 규칙은 화면 크기 100% 미만(html[data-foms-ui-zoom^="0."])에서만 켠다. 실측은 스크래치패드 touch_fix/targets2.
+3차(2026-11-23): 준비물에 쪽 넘김 · 기준 일정 바뀜 칩이 없어 놓친 것 — 대시보드 · 이력 쪽 넘김, 완료 [이전] · [다음],
+AS 쪽 넘김, AS 배너 바로 가기 칩(알약은 그대로, 투명 누름 칸 ::after 만 44px). 원래 칸 사이가 100% 에서도 8px 미만이라
+100% 는 8px, 100% 미만은 '8px ÷ 배율'. 실측은 스크래치패드 touch_fix/targets3.
 """
 
 from __future__ import annotations
@@ -313,11 +316,11 @@ def test_2차_이웃_띄움_넓히기는_100퍼센트_미만에서만() -> None:
 
 def test_2차_바뀐_파일_핀은_20261122w() -> None:
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
-    for f in ("foms-tablet-landscape.css", "../components/foms-tablet-side-sheet.css", "foms-tablet-measurement.css",
-              "foms-tablet-completion-grid.css", "foms-tablet-drawing-gallery.css", "foms-tablet-as-compare.css",
-              "foms-tablet-construction.css"):
+    # 랜드스케이프 · 완료 · AS 대조 셋은 3차가 다시 올렸다(아래 3차 핀 시험) — 나머지 넷은 2차 핀 그대로.
+    for f in ("../components/foms-tablet-side-sheet.css", "foms-tablet-measurement.css",
+              "foms-tablet-drawing-gallery.css", "foms-tablet-construction.css"):
         assert f'@import url("{f}?v=20261122w")' in bundle, f
-    assert "foms-tablet-bundle.css') }}?v=20261122w" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert "foms-tablet-bundle.css') }}?v=20261123a" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     ship = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     cons = (ROOT / "templates/construction/partials/styles.html").read_text(encoding="utf-8")
     for f in ("shipment-dashboard-columns.css", "foms-tablet-day-strip.css", "tablet-day-sheet.css"):
@@ -325,3 +328,59 @@ def test_2차_바뀐_파일_핀은_20261122w() -> None:
     assert "foms-tablet-day-strip.css') }}?v=20261122w" in cons and "tablet-first.css') }}?v=20261122w" in cons
     hist = (ROOT / "templates/orders/partials/history_dashboard_body.html").read_text(encoding="utf-8")
     assert "history-tablet.css') }}?v=20261122w" in hist
+
+
+# ── 3차 ────────────────────────────────────────────────────────────────────────────────────
+def test_3차_대시보드_이력_쪽_넘김_44_겹침_없이_칸_사이_8() -> None:
+    land = _tablet_text("landscape")
+    link = _decl(land, ".foms-tablet-workqueue-wrap .pagination .page-link")
+    assert f"min-width: {TAP}" in link and f"min-height: {TAP}" in link and "margin-left: 0" in link
+    assert "gap: 8px" in _decl(land, ".foms-tablet-workqueue-wrap .pagination")
+    assert f"gap: {GAP}" in _decl(land, f"{ZOOM_LT_100} .foms-tablet-workqueue-wrap .pagination")
+    # 태블릿 밖 바탕 규칙(44px 고정 · 4px 띄움)은 그대로 — 태블릿 규칙이 같은 선택자로 파일 뒤에서 이긴다
+    css = _strip_comments(_css("landscape"))
+    assert re.search(r"(?m)^\.foms-tablet-workqueue-wrap \.pagination \.page-link \{\s*min-width: var\(--foms-touch-target-comfortable, 44px\);", css)
+    base = css.rindex("min-width: var(--foms-touch-target-comfortable, 44px)")
+    assert base < css.rindex("margin-left: 0;"), "태블릿 쪽 넘김 규칙이 바탕 규칙보다 뒤에 있어야 이긴다"
+
+
+def test_3차_완료_이전_다음_44() -> None:
+    link = _decl(_tablet_text("completion"), "body.erp-mobile-v2-layout .foms-completion-grid__page-link")
+    assert f"min-width: {TAP}" in link and f"min-height: {TAP}" in link
+
+
+def test_3차_AS_바로_가기_칩은_투명_누름_칸만_44_알약은_그대로() -> None:
+    a = _tablet_text("as")
+    pre = "body.erp-mobile-v2-layout .erp-as-dashboard "
+    hit = _decl(a, pre + "a.as-drift-chip::after")
+    assert "content: ''" in hit and "position: absolute" in hit and f"height: {TAP}" in hit
+    assert "left: 0" in hit and "right: 0" in hit and "translateY(-50%)" in hit
+    assert "position: relative" in _decl(a, pre + "a.as-drift-chip")
+    # 칩 자체(알약) 높이 · 안쪽 여백은 건드리지 않는다 — 배너가 커져 목록이 밀리지 않게
+    bodies = re.findall(r"a\.as-drift-chip\s*\{([^}]*)\}", a)
+    assert bodies
+    for body in bodies:
+        assert "height" not in body and "padding" not in body, body
+    chips = _decl(a, pre + ".as-schedule-drift-banner__chips")
+    assert "column-gap: 8px" in chips and "row-gap: calc(52px / var(--foms-ui-zoom, 1) - 24px)" in chips
+    assert f"column-gap: {GAP}" in _decl(a, f"{ZOOM_LT_100} {pre}.as-schedule-drift-banner__chips")
+    # 칩 갈래(ref_moved · both_moved …)는 모두 공통 클래스 as-drift-chip 을 단다 — 갈래별 규칙이 없어도 다 덮인다
+    macro = (ROOT / "templates/cs/partials/as_card_macros.html").read_text(encoding="utf-8")
+    assert '<a class="as-drift-chip as-drift-chip--{{ chip.state }}' in macro
+
+
+def test_3차_AS_쪽_넘김_44_낱개_알약_칸_사이_8() -> None:
+    a = _tablet_text("as")
+    pre = "body.erp-mobile-v2-layout .erp-as-dashboard "
+    link = _decl(a, pre + ".pagination .page-link")
+    assert f"min-width: {TAP}" in link and f"min-height: {TAP}" in link and "margin-left: 0" in link
+    assert "border-radius: var(--bs-pagination-border-radius)" in link
+    assert "gap: 8px" in _decl(a, pre + ".pagination")
+    assert f"gap: {GAP}" in _decl(a, f"{ZOOM_LT_100} {pre}.pagination")
+
+
+def test_3차_바뀐_파일_핀은_20261123a() -> None:
+    bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
+    for f in ("foms-tablet-landscape.css", "foms-tablet-completion-grid.css", "foms-tablet-as-compare.css"):
+        assert f'@import url("{f}?v=20261123a")' in bundle, f
+    assert "foms-tablet-bundle.css') }}?v=20261123a" in (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")

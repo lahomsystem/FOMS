@@ -48,7 +48,7 @@ def test_tablet_workqueue_box_scrolls_sideways_instead_of_cutting_columns():
     assert "white-space: nowrap;" in nowrap
     assert "display: none" not in css[css.index(".foms-tqcell-date,"):css.index("/* 첨부 — 우측 정렬")]
     bundle = (ROOT / "static/css/foundation/foms-tablet-bundle.css").read_text(encoding="utf-8")
-    assert "foms-tablet-landscape.css?v=20261122w" in bundle  # 기기에 닿게 — 부모 핀은 layout_head 를 시험 다섯이 본다
+    assert "foms-tablet-landscape.css?v=20261123a" in bundle  # 기기에 닿게 — 부모 핀은 layout_head 를 시험 다섯이 본다
 
 
 # --- C2 폰 목록 카드: 칩 설 자리가 없으면 배지 밑으로(머리는 한 줄 높이) ------------------------------------------
