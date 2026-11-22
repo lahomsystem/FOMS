@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import datetime
 import re
 import time
 
@@ -70,11 +71,23 @@ def test_home_fragment_answers_304_until_something_changes(client, cohort, who):
 
 
 def test_negative_control_since_in_etag_breaks_304(client, cohort, monkeypatch):
-    """음성 대조군: 기준 시각을 ETag 에서 빼지 않으면(아무것도 안 거르는 식) 같은 화면도 늘 200 이다."""
+    """음성 대조군: 기준 시각을 ETag 에서 빼지 않으면(아무것도 안 거르는 식) 같은 화면도 늘 200 이다.
+
+    기준 시각의 시계(``part_sync_cursor`` 가 읽는 ``now_utc_naive``)를 시험이 쥔다. 실제 시계에 맡기면 두 요청이
+    같은 눈금(Windows 약 15ms)에 들어 기준 시각이 같아지고, 그러면 304 가 나와 대조군이 거짓으로 깨졌다.
+    """
+    clock = {"now": datetime.datetime(2026, 11, 22, 1, 2, 3, 456000)}
+    monkeypatch.setattr("foms.services.production.part_board.now_utc_naive", lambda: clock["now"])
     me, park = _user("김재단", part="cut"), _user("박재단", part="cut")
     _seed_day(me, park)
     _login(client, me)
     monkeypatch.setattr("foms.web.production.home._ETAG_VOLATILE", re.compile(rb"(?!)"))
     first = _frag(client, HOME)
-    assert "data-pp-since=" in first.get_data(as_text=True)
-    assert _frag(client, HOME, first.headers["ETag"]).status_code == 200
+    first_since = re.search(r'data-pp-since="([^"]*)"', first.get_data(as_text=True)).group(1)
+    clock["now"] += datetime.timedelta(seconds=30)  # 다음 받아 오기 — 바뀐 것은 기준 시각뿐
+    second = _frag(client, HOME, first.headers["ETag"])
+    assert second.status_code == 200 and second.headers["ETag"] != first.headers["ETag"]
+    second_body = second.get_data(as_text=True)
+    assert f'data-pp-since="{first_since}"' not in second_body and "data-pp-since=" in second_body
+    # 같은 대조 화면도 기준 시각만 같으면 304 — 위의 200 은 기준 시각이 ETag 에 섞인 탓이다(다른 까닭이 아님)
+    assert _frag(client, HOME, second.headers["ETag"]).status_code == 304
