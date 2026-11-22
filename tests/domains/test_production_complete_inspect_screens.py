@@ -77,7 +77,8 @@ def _render_side_sheet(client, oid: int) -> str:
 def test_옆_시트_제작_완료는_검수_전_회색_검수_끝_파랑(client) -> None:
     _login(client, _user())
     grey = _render_side_sheet(client, _order(production={"steps": inspected_steps(upto="cut")}))
-    assert "foms-prod-sheet__btn--off" in grey and " disabled" in grey and 'aria-disabled="true"' in grey
+    # 진짜 disabled 없이 aria-disabled 만 — 누르면 남은 공정을 알린다(2026-11-22, test_production_sheet_tap_explains)
+    assert "foms-prod-sheet__btn--off" in grey and " disabled" not in grey and 'aria-disabled="true"' in grey
     assert "검수까지 끝나면 눌러요" in grey and "data-foms-sheet-complete-hint>" in grey
     blue = _render_side_sheet(client, _order(production={"steps": inspected_steps()}))
     assert "foms-prod-sheet__btn--pri" in blue and " disabled" not in blue

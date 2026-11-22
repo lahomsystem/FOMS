@@ -83,7 +83,7 @@
           <div class="foms-prod-page__steps">
             {% for s in order.steps %}
             {% if can_act %}<button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
+                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
               <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
               <span>{{ s.label }}</span>
               <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
@@ -176,9 +176,11 @@
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
             {# 검수까지(공정 4칸 모두) 끝나기 전엔 회색 · 누를 수 없음(설계서 §12.2 · 시안 안 2). 서버 제작 완료 API 도 같은 규칙으로
                막는다(11-21) — 판정은 뷰 모델 complete_ready = production_complete_ready(sd) 한 함수. 공정을 체크하면
-               foms-production-sheet-page.js 가 공정 API 응답의 complete_ready(같은 함수)로 바로 파랗게 바꾼다. #}
+               foms-production-sheet-page.js 가 공정 API 응답의 complete_ready(같은 함수)로 바로 파랗게 바꾼다.
+               2026-11-22: 진짜 disabled 를 빼고 aria-disabled 만 — 눌러도 아무 일이 없던 것을, 누르면 남은 공정을 글로 알린다
+               (요청 없음, foms-production-sheet-page.js). 공정 칸 잠금(파트 계정)도 같다. #}
             {% set _inspected = order.complete_ready %}
-            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} disabled aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
+            <button type="button" class="foms-prod-page__btn foms-prod-page__btn--big {{ 'foms-prod-page__btn--pri' if _inspected else 'foms-prod-page__btn--off' }}" data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}" data-foms-sheet-complete{% if not _inspected %} aria-disabled="true"{% endif %}><b>제작 완료</b><span class="foms-prod-page__off-hint" data-foms-sheet-complete-hint{% if _inspected %} hidden{% endif %}>— 검수까지 끝나면 눌러요</span></button>
           {% elif order.stage == '제작완료' %}
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--ghost" data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
