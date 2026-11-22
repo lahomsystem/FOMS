@@ -357,15 +357,18 @@ def _rule(css: str, selector: str) -> str:
     return css[start: css.index("}", start)]
 
 
-def test_바뀐_것_탭은_장_최소_너비로_칸_수를_정하고_한_줄의_장은_키가_같다() -> None:
-    """11-22 실측(1176×626, 가짜 주문 12 · 7 · 3 · 1 · 0장): 두 칸 고정 + 칸마다 제 키라 키 큰 장 옆이 줄마다 최대 96px 비었고,
-    화면 크기 80% 는 장마다 글 끝 ~ 단추 사이가 평균 270 · 최대 336px 비었다. 칸 수는 장 최소 너비가 정한다(auto-fit — 장이 적으면 남는 칸을 접는다)."""
+def test_바뀐_것_탭은_신문_단으로_빈틈_없이_채우고_단_수는_장_최소_너비가_정한다() -> None:
+    """11-22 실측(1176×626, 가짜 주문 12 · 7 · 3 · 1 · 0장): 두 칸 격자 + 칸마다 제 키라 키 큰 장 옆이 줄마다 최대 96px 비었고,
+    화면 크기 80% 는 장마다 글 끝 ~ 단추 사이가 평균 270 · 최대 336px 비었다. 사장님 선택 "빈틈 없이 채우기": 신문 단(multi-column) —
+    장은 제 키 그대로 단을 위에서 아래로 채우고(구멍 0), 단 수는 장 최소 너비(column-width)가 정한다. 장 1 · 2장이면 단 수 = 장 수."""
     css = (ROOT_DIR / "static/css/contexts/production/home.css").read_text(encoding="utf-8")
     pc = (ROOT_DIR / "static/css/contexts/production/pc.css").read_text(encoding="utf-8")
     page = _rule(css, ".fph-inbox--page")
-    assert "grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--fph-al-min)), 1fr));" in page
-    assert "align-items: stretch;" in page and "align-items: start" not in page
-    assert ".fph-inbox--page > .fph-al { align-items: start; }" in css  # 글 · 단추는 장 위에서(옆 장과 첫 줄이 맞게)
+    assert "display: block;" in page and "column-width: var(--fph-al-min);" in page and "column-gap: 10px;" in page
+    assert "grid-template-columns" not in page and "align-items" not in page  # 옛 격자 · 키 맞춤 없음(장은 제 키)
+    assert ".fph-inbox--page > .fph-al { break-inside: avoid; margin: 0 0 10px; }" in css  # 장은 단 사이에서 쪼개지지 않는다
+    assert ".fph-inbox--page:has(> div.fph-al:only-of-type) { column-count: 1; }" in css  # 1장 = 전체 폭
+    assert ".fph-inbox--page:has(> div.fph-al:nth-of-type(2):last-of-type) { column-count: 2; }" in css  # 2장 = 두 단까지
     wide = css.split("@media (min-width: 992px) {\n  .fph-panes")[1].split("\n}\n")[0]
     assert "fph-inbox" not in wide  # 옛 두 칸 → 한 칸 컨테이너 쿼리 없음
     tablet = re.search(r"--fph-al-min: calc\(([^;]+)\);", page).group(1)
@@ -374,26 +377,29 @@ def test_바뀐_것_탭은_장_최소_너비로_칸_수를_정하고_한_줄의_
     def _px(expr: str, fs: float) -> float:  # 1rem = 16px × 글자 배율
         return eval(re.sub(r"(\d+(?:\.\d+)?)rem", rf"(\1*{16 * fs})", expr).replace("px", ""), {"max": max})  # noqa: S307
 
-    def _cols(content_w: float, expr: str, fs: float) -> int:  # auto-fit: 틈 10px
+    def _cols(content_w: float, expr: str, fs: float) -> int:  # column-width: 단 수 = (너비 + 틈) ÷ (최소 너비 + 틈), 틈 10px
         return max(1, int((content_w + 10) // (_px(expr, fs) + 10)))
 
-    # 실측 칸 너비(CSS px, 좌우 여백 32 뺌): 태블릿 100% 1048 · 화면 크기 80% 1342 · PC 1440×900 1384 · 세로 800 은 992 아래(한 칸 규칙)
+    # 실측 단 너비(CSS px, 좌우 여백 32 뺌): 태블릿 100% 1048 · 화면 크기 80% 1342 · PC 1440×900 1384 · 세로 800 은 992 아래(한 단 규칙)
     assert abs(_px(tablet, 1) - (2 + 28 + 12 + 128 + 16 * 16)) < 0.01
     assert _cols(1048, tablet, 1) == 2 and _cols(1342, tablet, 1) == 3 and _cols(1048, tablet, 1.2) == 2
     assert _cols(1048, tablet, 1.5) == 1 and _cols(1342, tablet, 1.5) == 2
-    # PC(1440×900 칸 1384 · 글자 150% 1372)는 시공일 칸이 더 있고 글 칸 10.5rem — 글자 100 ~ 150% 모두 두 칸(한 칸이면 장 안이 600px 넘게 빈다)
+    # PC(1440×900 단 1384 · 글자 150% 1372)는 시공일 칸이 더 있고 글 칸 10.5rem — 글자 100 ~ 150% 모두 두 단(한 단이면 장 안이 600px 넘게 빈다)
     assert abs(_px(pc_min, 1) - (58 + 8.5 * 16 + 128 + 10.5 * 16)) < 0.01
     assert _cols(1384, pc_min, 1) == 2 and _cols(1372, pc_min, 1.5) == 2 and _cols(1860, pc_min, 1) == 3
-    # 빈 글은 머리 아래 한 줄(가운데 큰 상자 아님) · 머리 · 더 보기는 모든 칸을 가로지른다
-    assert ".fph-inbox--page > .foms-prod-home__empty { grid-column: 1 / -1; padding: 6px 4px; text-align: left; }" in css
-    assert ".fph-inbox--page > .fph-inbox__h, .fph-inbox--page > .fph-inbox__more { grid-column: 1 / -1; }" in css
+    # 머리 · 빈 글 · 더 보기는 모든 단을 가로지른다 · 빈 글은 머리 아래 한 줄(가운데 큰 상자 아님)
+    assert (".fph-inbox--page > .fph-inbox__h, .fph-inbox--page > .fph-inbox__more, .fph-inbox--page > .foms-prod-home__empty "
+            "{ column-span: all; }") in css
+    assert ".fph-inbox--page > .foms-prod-home__empty { padding: 6px 4px; margin-bottom: 10px; text-align: left; }" in css
+    assert ".fph-inbox--page .fph-al { background: var(--fph-surface); word-break: keep-all; overflow-wrap: anywhere; }" in css
     # 누르는 곳: 화면 크기 80% 에서도 실제 48px 이상
     btn = re.search(r"\.fph-al \.foms-prod-home__btn \{ min-width: 128px; min-height: (\d+)px; \}", css)
     more = re.search(r"\.fph-inbox__more a \{ min-height: (\d+)px;", css)
     assert btn and more and int(btn.group(1)) * 0.8 >= 48 and int(more.group(1)) * 0.8 >= 48
-    # 세로 · 폰(992 아래)은 그대로 한 칸
+    # 세로 · 폰(992 아래)은 한 단(2장 규칙보다 강하게)
     phone = css[css.index("@media (max-width: 991.98px) {"):]
-    assert ".fph-inbox--page { grid-template-columns: minmax(0, 1fr); padding: 12px 12px 90px; }" in phone
+    assert (".fph-inbox--page, .fph-inbox--page:has(> div.fph-al:nth-of-type(2):last-of-type) "
+            "{ column-count: 1; padding: 12px 12px 90px; }") in phone
 
 
 def test_바뀐_것_탭_장_마크업은_그대로다(client) -> None:
