@@ -24,6 +24,7 @@ from foms.services.auth.freelancer_lists import is_list_freelancer
 from foms.services.auth.freelancer_scope import FREELANCER_URGENT_TARGET_MSG, FREELANCER_URGENT_TARGET_TEAMS
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.cs_draft_link import NOTIFY_DRAFT_READY, cs_send_link
+from foms.services.notifications.drawing_deadline_push import drawing_deadline_deep_link, is_drawing_deadline_type
 from foms.services.notifications.notice_push import is_notice_notification_type, notice_deep_link
 from foms.services.brain.chat_team_ask import BRAIN_ASK_TEAM_TYPE, team_ask_link
 from foms.services.notifications.brain_change_notice import BRAIN_CHANGE_REQUEST_TYPE, request_link
@@ -282,6 +283,15 @@ def _resolve_notification_deep_link(
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": f"/erp/drawing-workbench/{oid}",
+        }
+
+    if is_drawing_deadline_type(n_type) and oid:
+        # 도면 마감 알림(설계서 2026-11-22-production-drawing-arrival-upgrade §9-5) — 폰 알림과 같은 곳(도면 작업실 그 주문).
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": drawing_deadline_deep_link(oid),
         }
 
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
