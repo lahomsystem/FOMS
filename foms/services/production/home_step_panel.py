@@ -4,8 +4,13 @@
 DB 를 읽지 않는다(쿼리 0개 더함). 금액은 싣지 않는다(D7). 엣지 사양 같은 ERP 에 없는 값은 안 그린다(D11).
 
 - :func:`production_home_step_panel` — 줄 하나의 판(이름 · 품목 · 그림 · 색 · 앞 공정 · 다음 공정 · [끝] · 보류 · 다음 손님).
-- :func:`attach_step_panels` — 공정 줄마다 판 목록 · 고른 줄(주소 ``order=`` · 보류 아닌 첫 줄 · 모두 보류면 첫 줄)을 붙이고,
-  ``order=`` 가 선 공정 탭 열쇠를 돌려준다(그 탭이 첫 화면 탭 — 마지막 탭 기억보다 앞).
+- :func:`attach_step_panels` — 공정 줄마다 고른 줄(주소 ``order=`` · 보류 아닌 첫 줄 · 모두 보류면 첫 줄)과 **그 줄의 판 하나**를
+  붙이고, ``order=`` 가 선 공정 탭 열쇠를 돌려준다(그 탭이 첫 화면 탭 — 마지막 탭 기억보다 앞).
+- :func:`step_panel_for` — 다른 줄을 누를 때 받는 판 하나 조각(``view=panel&step=&order=``)의 자료. 같은 공정 줄에서 만들어
+  '끝내면 다음은' 이 한 화면에 다 그릴 때와 같다.
+
+2026-11-22 터치 점검: 숨은 판을 줄마다 다 그리면(주문 150건 · 판 96개) 조각이 396KB · DOM 13,100 이 되어 탭 바꾸기 ·
+[다시 받기] · [끝] 뒤 화면이 1~2초 얼고 그동안 누름이 버려졌다 — 날짜 탭(11-14)처럼 고른 판만 그리고 나머지는 누를 때 받는다.
 """
 
 from __future__ import annotations
@@ -140,20 +145,22 @@ def parse_step_order(raw: Any) -> int | None:
     return int(text) if text.isdigit() and len(text) <= 12 else None
 
 
+def _panel_at(q: dict[str, Any], index: int) -> dict[str, Any]:
+    """공정 줄 ``q`` 의 ``index`` 번째 줄 판 — '끝내면 다음은' = 그 뒤의 보류 아닌 줄(보류 줄은 건너뛴다)."""
+    rows = q.get('rows') or []
+    next_row = next((r for r in rows[index + 1:] if not r.get('hold_active')), None)
+    return production_home_step_panel(rows[index], q['key'], next_row)
+
+
 def attach_step_panels(queues: dict[str, Any], order_id: int | None) -> str | None:
-    """공정 줄마다 ``panels``(줄 순서 그대로) · ``selected_id`` 를 붙인다. ``order_id`` 가 선 공정 열쇠를 돌려준다(없으면 None).
+    """공정 줄마다 ``selected_id`` 와 그 줄의 판 하나(``panels`` = 0 · 1개)를 붙인다. ``order_id`` 가 선 공정 열쇠를 돌려준다.
 
     고른 줄 = 그 공정 줄에 ``order_id`` 가 있으면 그 줄, 없으면 보류 아닌 첫 줄, 모두 보류면 첫 줄(줄이 없으면 None).
-    '끝내면 다음은' = 이 줄 다음의 보류 아닌 줄(보류 줄은 건너뛴다).
+    다른 줄의 판은 그 줄을 누를 때 :func:`step_panel_for` 조각으로 받는다(숨은 판을 다 그리지 않는다, 2026-11-22).
     """
     pinned = None
     for q in queues.get('queues') or []:
         rows = q.get('rows') or []
-        panels = []
-        for i, row in enumerate(rows):
-            next_row = next((r for r in rows[i + 1:] if not r.get('hold_active')), None)
-            panels.append(production_home_step_panel(row, q['key'], next_row))
-        q['panels'] = panels
         ids = [r['id'] for r in rows]
         if order_id is not None and order_id in ids:
             q['selected_id'] = order_id
@@ -161,4 +168,26 @@ def attach_step_panels(queues: dict[str, Any], order_id: int | None) -> str | No
         else:
             free = next((r['id'] for r in rows if not r.get('hold_active')), None)
             q['selected_id'] = free if free is not None else (ids[0] if ids else None)
+        q['panels'] = [_panel_at(q, ids.index(q['selected_id']))] if q['selected_id'] is not None else []
     return pinned
+
+
+def step_panel_for(queues: dict[str, Any], key: str, order_id: int | None) -> dict[str, Any] | None:
+    """판 하나 조각(``view=panel``)의 자료 — 공정 ``key`` 줄에 ``order_id`` 가 있을 때만(없으면 None → 404).
+
+    Args:
+        queues: :func:`production_home_step_queues` 결과(이 요청이 읽은 행 — 한 화면을 다 그릴 때와 같은 줄 · 순서).
+        key: 누른 줄이 선 공정 열쇠(``cut`` · ``edge`` · ``assemble`` · ``inspect``).
+        order_id: 누른 줄 주문 번호.
+
+    Returns:
+        :func:`production_home_step_panel` 판 자료, 또는 그 사이 줄이 다른 공정으로 옮겨 갔거나 없는 번호면 None.
+    """
+    if order_id is None:
+        return None
+    for q in queues.get('queues') or []:
+        if q.get('key') != key:
+            continue
+        ids = [r['id'] for r in q.get('rows') or []]
+        return _panel_at(q, ids.index(order_id)) if order_id in ids else None
+    return None

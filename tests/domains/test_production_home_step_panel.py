@@ -23,6 +23,7 @@ from foms.services.production.home_step_panel import (
     attach_step_panels,
     parse_step_order,
     production_home_step_panel,
+    step_panel_for,
 )
 from tests.support.production_home_step_panel_seed import (
     HOME,
@@ -32,6 +33,7 @@ from tests.support.production_home_step_panel_seed import (
     get_html,
     login,
     pane_html,
+    panel_url,
     queue_html,
     seed_cut_queue,
     set_cookies,
@@ -125,14 +127,22 @@ def test_다음_손님은_보류_줄을_건너뛰고_고른_줄은_order_보류_
                          {"key": "inspect", "label": "검수", "rows": [_row(9, hold=True), _row(10)]}]}
     assert attach_step_panels(queues, None) is None
     cut = queues["queues"][0]
-    assert [(p["id"], p["next_id"], p["next_name"]) for p in cut["panels"]] == [
-        (1, 3, "손님3"), (2, 3, "손님3"), (3, None, ""), (4, None, "")]
+    # 공정 줄마다 고른 줄 판 하나만 그린다(2026-11-22 — 숨은 판을 다 그리면 주문 150건에 396KB · DOM 13,100)
+    assert [(p["id"], p["next_id"], p["next_name"]) for p in cut["panels"]] == [(1, 3, "손님3")]
     assert cut["selected_id"] == 1
     assert queues["queues"][1]["selected_id"] is None and queues["queues"][1]["panels"] == []
-    assert queues["queues"][2]["selected_id"] == 7  # 모두 보류면 첫 줄
-    assert queues["queues"][3]["selected_id"] == 10  # 보류 아닌 첫 줄
-    # order= 가 선 줄 · 그 공정 열쇠(첫 탭)
-    assert attach_step_panels(queues, 4) == "cut" and cut["selected_id"] == 4
+    assert queues["queues"][2]["selected_id"] == 7 and [p["id"] for p in queues["queues"][2]["panels"]] == [7]  # 모두 보류면 첫 줄
+    assert queues["queues"][3]["selected_id"] == 10 and [p["id"] for p in queues["queues"][3]["panels"]] == [10]
+    # 다른 줄 판(누를 때 받는 조각) = 같은 공정 줄에서 — '끝내면 다음은' 이 다 그릴 때와 같다(보류 건너뜀 · 마지막 줄 없음)
+    assert [(p["id"], p["next_id"], p["next_name"]) for p in (step_panel_for(queues, "cut", i) for i in (1, 2, 3, 4))] == [
+        (1, 3, "손님3"), (2, 3, "손님3"), (3, None, ""), (4, None, "")]
+    assert step_panel_for(queues, "assemble", 7)["next_id"] is None  # 다음 줄이 모두 보류
+    assert step_panel_for(queues, "inspect", 9)["next_id"] == 10 and step_panel_for(queues, "inspect", 9)["key"] == "inspect"
+    # 그 공정 줄에 없는 주문(다른 공정으로 옮겨 감 · 없는 번호 · 모르는 공정)은 None → 404
+    for key, oid in (("edge", 1), ("cut", 9), ("cut", 999), ("paint", 1), ("cut", None)):
+        assert step_panel_for(queues, key, oid) is None, (key, oid)
+    # order= 가 선 줄 · 그 공정 열쇠(첫 탭) — 고른 판도 그 줄
+    assert attach_step_panels(queues, 4) == "cut" and cut["selected_id"] == 4 and [p["id"] for p in cut["panels"]] == [4]
     assert attach_step_panels(queues, 9) == "inspect" and queues["queues"][3]["selected_id"] == 9
     assert attach_step_panels(queues, 999) is None and cut["selected_id"] == 1
 
@@ -151,11 +161,13 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
     a, b, c, d, e = seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    assert html.count('data-foms-step-pane="') == 5 and html.count('id="foms-step-confirm-modal"') == 1
+    # 판 = 공정 줄마다 고른 줄 하나(재단 박서준 · 엣지 엣지집) — 다른 줄 판은 누를 때 받는다
+    assert re.findall(r'data-foms-step-pane="(\d+)"', html) == [str(a.id), str(e.id)]
+    assert html.count('id="foms-step-confirm-modal"') == 1
     assert 'class="foms-prod-home fph-has-sp"' in html
     # 문 밖: PC 마우스 · 폰(세로) · 쿠키 없음(안전 폴백 = 다 그림)은 각각
     for cookies, want in (({"foms_ptr": "fine", "foms_vw": "wide"}, 0), ({"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"}, 0),
-                          (None, 5)):
+                          (None, 2)):
         set_cookies(client, cookies)
         out = get_html(client, HOME + "?tab=steps")
         assert out.count('data-foms-step-pane="') == want, cookies
@@ -204,7 +216,7 @@ def test_관리자_영업_CS_도_판을_본다(client, cohort, who) -> None:
     seed_cut_queue()
     set_cookies(client, TABLET)
     html = get_html(client, HOME + "?tab=steps")
-    assert html.count('data-foms-step-pane="') == 5 and f'data-foms-step-me="{name}"' in html
+    assert html.count('data-foms-step-pane="') == 2 and f'data-foms-step-me="{name}"' in html
 
 
 # --------------------------------------------------------------------------- #
@@ -233,10 +245,11 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     assert f'data-foms-prod-sheet-page data-order-id="{a.id}"' in pane
     assert [m for m in re.findall(r'data-foms-sheet-defect-reason="([^"]+)"', pane)] == list(_PRODUCTION_DEFECT_REASONS)
     assert "끝내면 다음은 <b>김하늘</b>" in pane
-    # 고른 줄(보류 아닌 첫 줄)만 판이 보이고 줄에 남색 표시 · 나머지 판은 숨김
+    # 고른 줄(보류 아닌 첫 줄) 판만 그리고 줄에 남색 표시 · 다른 줄 판은 그리지 않는다(누를 때 받는다)
     cut = queue_html(html, "cut")
     assert re.search(rf'<section class="fph-sp" data-foms-step-pane="{a.id}" aria-label="[^"]+">', cut)
-    assert re.search(rf'data-foms-step-pane="{b.id}" aria-label="[^"]+" hidden>', cut)
+    assert f'data-foms-step-pane="{b.id}"' not in cut and f'data-foms-step-pane="{d.id}"' not in cut
+    assert '<div class="fph-sp-wait" data-foms-step-wait role="status" aria-live="polite" hidden>' in cut
     assert f'<div class="fph-qr is-on" data-foms-home-qrow="{a.id}" aria-current="true">' in cut
     # 줄 = 진짜 링크(?tab=steps&order=, 셸 교체 아님) + 판이 안 보일 때 갈 작업 시트. 줄 [끝]은 마크업에 남는다(세로로 돌리면 보인다)
     assert (f'href="/erp/production/home?tab=steps&amp;order={a.id}" data-foms-erp-no-shell="1" '
@@ -245,9 +258,10 @@ def test_판_요소와_순서_640_그림_원본_뷰어(client, cohort) -> None:
     # PDF 만 · 그림 0장
     assert f'class="fph-sp__pic is-file" href="/api/files/view/orders/x/drawing/엣지집_0.pdf" target="_blank"' in pane_html(html, e.id)
     assert "도면 1장 · 파일" in pane_html(html, e.id)
-    assert '<div class="fph-sp__pic is-none"><b data-foms-step-piclabel>도면 없음</b></div>' in pane_html(html, d.id)
+    d_pane = get_html(client, panel_url("cut", d.id))  # 고르지 않은 줄 = 판 하나 조각
+    assert '<div class="fph-sp__pic is-none"><b data-foms-step-piclabel>도면 없음</b></div>' in pane_html(d_pane, d.id)
     # 금액 · 인라인 style · script 없음
-    panes = "".join(pane_html(html, o.id) for o in (a, b, c, d, e))
+    panes = "".join(pane_html(get_html(client, panel_url("cut", o.id)), o.id) for o in (a, b, c, d)) + pane_html(html, e.id)
     assert not re.search(r"금액|단가|price|amount|₩|\d원", panes)
     for rel in ("home_step_panel.html", "home_step_confirm.html", "home_steps.html"):
         text = (ROOT / "templates/production/partials" / rel).read_text(encoding="utf-8")
@@ -316,3 +330,70 @@ def test_확인_창_마크업과_실을_것(client, cohort) -> None:
     pc = get_html(client, HOME + "?tab=steps")
     for asset in (STEPS_JS, "foms-production-sheet-page.js", "tablet-domain-sheets.js", "foms-reason-sheet.js", "parts.css"):
         assert asset not in pc, asset
+
+
+# --------------------------------------------------------------------------- #
+# ④ 판 하나 조각(view=panel, 2026-11-22) — 고른 판만 그리고 다른 줄은 누를 때 받는다
+# --------------------------------------------------------------------------- #
+def _norm(pane: str) -> str:
+    """판 마크업 견주기 — 줄 앞 공백(include 들여쓰기)만 무시한다."""
+    return re.sub(r"\s+", " ", pane).strip()
+
+
+def test_판_하나_조각은_다_그릴_때와_같은_판이고_다음_손님도_같다(client, cohort) -> None:
+    login(client)
+    a, b, c, d, e = seed_cut_queue()
+    set_cookies(client, TABLET)
+    resp = client.get(panel_url("cut", b.id))
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200 and resp.headers["X-FOMS-HOME-PANEL"] == str(b.id)
+    assert resp.headers["Cache-Control"] == "no-store"
+    # 판 하나뿐 — 페이지 틀 · 다른 판 · 줄 · 확인 창 · 스크립트 없음, 숨김 아님
+    assert re.findall(r'data-foms-step-pane="(\d+)"', body) == [str(b.id)]
+    assert "<html" not in body and "data-foms-home-qrow" not in body and "foms-step-confirm-modal" not in body
+    assert "<script" not in body and f'data-foms-step-pane="{b.id}" aria-label="김하늘 #{b.id}">' in body
+    # 같은 줄을 order= 로 골라 다 그린 페이지의 판과 같다(공백만 다름) — 다음 손님 = 보류 건너뛴 오민재
+    full = get_html(client, HOME + f"?tab=steps&order={b.id}")
+    assert _norm(pane_html(body, b.id)) == _norm(pane_html(full, b.id))
+    assert "끝내면 다음은 <b>오민재</b>" in body and f'data-next-order="{d.id}"' in body
+    # 마지막 줄 = 다음 손님 없음 · 보류 줄 = [끝] 자리에 보류 글
+    assert "fph-sp__next" not in pane_html(get_html(client, panel_url("cut", d.id)), d.id)
+    held = get_html(client, panel_url("cut", c.id))
+    assert "data-foms-step-finish" not in held and ">보류 중</b>" in held
+
+
+def test_판_하나_조각_문_밖_파트_계정_다른_공정_없는_번호는_404(client, cohort, monkeypatch) -> None:
+    login(client)
+    a, b, c, d, e = seed_cut_queue()
+    set_cookies(client, TABLET)
+    for url in (panel_url("edge", b.id), panel_url("cut", e.id), panel_url("cut", 999999), panel_url("paint", b.id),
+                f"{HOME}?tab=steps&order=abc&view=panel&step=cut", f"{HOME}?tab=steps&view=panel&step=cut",
+                f"{HOME}?tab=date&order={b.id}&view=panel&step=cut"):
+        assert client.get(url).status_code == 404, url
+    # 문 밖(PC 마우스 · 폰 · 세로 태블릿)은 판이 없는 화면이라 조각도 없다
+    for cookies in ({"foms_ptr": "fine", "foms_vw": "wide"}, {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "915"},
+                    {"foms_ptr": "coarse", "foms_vw": "narrow", "foms_scr": "1280"}):
+        set_cookies(client, cookies)
+        assert client.get(panel_url("cut", b.id)).status_code == 404, cookies
+    # 파트 계정(D50 — 내 공정 탭이 없다)은 어느 파트 판도 못 받는다
+    login(client, "김재단", part="cut")
+    set_cookies(client, TABLET)
+    for step, oid in (("cut", a.id), ("cut", b.id), ("edge", e.id)):
+        assert client.get(panel_url(step, oid)).status_code == 404, (step, oid)
+    # 레거시 셸도 판이 없다
+    login(client, "박생산")
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "false")
+    assert client.get(panel_url("cut", b.id)).status_code == 404
+
+
+@pytest.mark.parametrize("who, writes", [(("이철호", "PRODUCTION", "STAFF"), True), (("관리자", "CS", "ADMIN"), True),
+                                         (("상담", "CS", "STAFF"), False), (("영업", "SALES", "STAFF"), False)])
+def test_판_하나_조각의_쓰기_단추는_다_그린_탭과_같은_사람만(client, cohort, who, writes) -> None:
+    name, team, role = who
+    login(client, name, team=team, role=role)
+    a, b, c, d, e = seed_cut_queue()
+    set_cookies(client, TABLET)
+    body = get_html(client, panel_url("cut", b.id))
+    full = get_html(client, HOME + "?tab=steps")
+    for mark in ("data-foms-step-finish", "data-foms-sheet-defect-toggle", 'data-tablet-sheet-action="production-hold"'):
+        assert (mark in body) == writes == (mark in pane_html(full, a.id)), (name, mark)
