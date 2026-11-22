@@ -29,8 +29,17 @@ from foms.services.production_dashboard_display import (
     _spec_rows_whd,
     _whd_text,
 )
+from foms.services.datetime_kst import get_today_kst
+from foms.services.erp_display import _erp_get_stage
+from foms.services.orders.manager_names import manager_label_from_parties
+from foms.services.production.drawing_arrival import sheet_wait_view
 from foms.services.production_drawing_gate_display import attach_production_drawing_gate
-from foms.services.production_home_read_model import format_step_at_kst, production_home_steps
+from foms.services.production_home_read_model import (
+    PRODUCTION_HOME_STAGE_CODES,
+    format_step_at_kst,
+    production_home_stage,
+    production_home_steps,
+)
 from foms.services.production.part_access import PART_ACCOUNT_STEPS_MESSAGE, steps_locked_for
 from foms.services.production.steps import production_complete_ready
 
@@ -216,12 +225,26 @@ def _full_sheet_extras(sd: dict[str, Any], items: list[Any], construction_date: 
     }
 
 
-def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False) -> dict[str, Any]:
+def _drawing_wait(order: Order, sd: dict[str, Any], today: datetime.date | None) -> dict[str, Any] | None:
+    """안 내려온 주문(첫 화면 '도면·컨펌 기다림' 과 같은 판정)의 도면 칸 글 — 내려온 주문 · 첫 화면에 없는 단계는 None.
+
+    설계서 2026-11-22-production-drawing-arrival-upgrade §5-7: 까닭 · 도면 담당 · 영업 담당 · 마감(기준 시공일 = 납작 칸). 쿼리 0.
+    """
+    raw_stage = _erp_get_stage(order, sd)
+    if raw_stage not in PRODUCTION_HOME_STAGE_CODES or production_home_stage(raw_stage, False, [], False)[2] != 'wait':
+        return None
+    manager = manager_label_from_parties(sd.get('parties')) or '-'
+    return sheet_wait_view(sd, order.erp_construction_date, manager, today or get_today_kst())
+
+
+def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool = False,
+                                today: datetime.date | None = None) -> dict[str, Any]:
     """작업 시트 뷰 모델. 쿼리: current run 1 + 도면 게이트 + 변경 알림(OrderEvent IN) — 옆 시트와 같다.
 
     Args:
         db: 세션. order: 이미 읽은 ``Order``. user: 보는 사람(변경 알림 ack 판정).
-        full: 전체 화면 시트 키(전화·주소·도면 전체·공정·최근 불량)를 덧붙인다.
+        full: 전체 화면 시트 키(전화·주소·도면 전체·공정·최근 불량 · 안 내려온 주문의 도면 칸 글 ``dw_wait``)를 덧붙인다.
+        today: KST 오늘(시험 주입용, 없으면 ``get_today_kst()``) — 도면 마감 상태에만 쓴다.
     """
     sd = _ensure_dict(order.structured_data)
     items = active_items(sd)  # 취소 품목은 생산 시트에서 뺀다(DRAWING-PARTIAL-CONFIRM)
@@ -267,4 +290,5 @@ def build_production_sheet_view(db: Any, order: Order, user: Any, *, full: bool 
         sheet.update(_full_sheet_extras(sd, items, construction_date, stage_label))
         # 파트 계정 = 공정 단추 읽기 전용 + 한 줄(설계서 §15.4 — 공정 API 403 과 같은 판정)
         sheet.update(steps_locked=steps_locked_for(user), steps_locked_note=PART_ACCOUNT_STEPS_MESSAGE)
+        sheet['dw_wait'] = _drawing_wait(order, sd, today)  # 안 내려온 주문의 도면 칸 글(§5-7, 쿼리 0)
     return sheet

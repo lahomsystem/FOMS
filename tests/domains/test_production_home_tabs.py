@@ -203,7 +203,8 @@ def test_내_공정_탭은_첫_미완_공정으로_줄을_세우고_보류는_�
     assemble_q = html.split('data-foms-home-stepq="assemble"')[1].split('data-foms-home-stepq="inspect"')[0]
     assert "조립에 와 있는 주문이 없어요." in assemble_q and "엣지차례" in assemble_q.split("fph-q__nextlist")[1]
     # 줄 밖 숫자: 제작 대기 1 · 검수 끝 1. 도면 주문은 아예 없음
-    assert "제작 대기 <b>1</b>건 · 검수까지 끝난 것 <b>1</b>건" in html
+    # 가운데 '도면 마감 지난 집'(2026-11-22 §5-4) — 도면중은 시공 8일 뒤라 마감 전
+    assert "제작 대기 <b>1</b>건 · 도면 마감 지난 집 <b>0</b>건 · 검수까지 끝난 것 <b>1</b>건" in html
     assert "도면중" not in html
     # 일의 양(판 장수) 글자 없음(D11)
     assert "판 " not in html

@@ -530,6 +530,15 @@
 .fph-pane__g { flex-wrap: wrap; }
 .fph-pane__g small .is-late { color: var(--fph-dw-late); font-weight: 800; }
 .fph-pane__g small .is-soon { color: var(--fph-dw-soon); font-weight: 800; }
+/* ④ 내 공정 줄의 시공 칸 — 날짜 탭 시공일 표와 같은 색(지난 집 빨강 + 'n일 지남', §5-4) */
+.fph-qr__due.is-past, .fph-qr__due.is-past b { color: var(--fph-dw-late); }
+.fph-qr__due small { font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; }
+/* ⑤ 찾기: 묶음 머리 도면 한 줄 · 기다림 줄 막힌 까닭(§5-6). 머리 글이 길어 좁은 화면에서 넘치면 다음 줄로(가로 넘침 없이) */
+.foms-prod-home__day { flex-wrap: wrap; row-gap: 2px; }
+.foms-prod-home__day .fph-dwst { font-size: calc(14px * var(--foms-fs, 1)); }
+.foms-prod-home__pr.is-why { white-space: normal; } /* 좁은 화면(폰)에서 영업 담당 이름이 '…' 로 잘리지 않게 — 조각 단위로 다음 줄 */
+.foms-prod-home__pr.is-why > * { display: inline-block; max-width: 100%; }
+.foms-prod-home__pr.is-why b { color: var(--fph-why); }
 
 /* ── 내 공정: 곧 올 것(바로 앞 공정에 와 있는 주문) ── */
 .fph-q .foms-prod-home__empty { padding: 14px 4px; text-align: left; }
