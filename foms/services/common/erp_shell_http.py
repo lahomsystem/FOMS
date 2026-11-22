@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
 from flask import Request, Response
+from werkzeug.http import generate_etag
 
 from foms.services.common import erp_navigation_contract as enc
 
@@ -54,7 +57,9 @@ def wants_erp_tab_fragment(req: Request) -> bool:
     return wants_erp_shell_tab_body(req)
 
 
-def apply_erp_shell_fragment_headers(response: Response, req: Request) -> None:
+def apply_erp_shell_fragment_headers(
+    response: Response, req: Request, etag_ignore: re.Pattern[bytes] | None = None
+) -> None:
     """Set fragment response headers when ``get_erp_shell_view_mode`` is non-None.
 
     Wave 4.1 (conditional fragment): the ERP shell fragment body is large
@@ -77,6 +82,10 @@ def apply_erp_shell_fragment_headers(response: Response, req: Request) -> None:
     무압축 경로(테스트 클라·curl)를 커버한다. 그 config가 꺼지면 304가 소리 없이
     영구 200으로 퇴화하므로 app_factory에서 명시 고정 + 압축 경로 회귀 테스트로 방어.
     브라우저 HTTP 캐시 정책과 무관하게 조건부 재검증의 주체는 우리 JS warm 캐시다.
+
+    ``etag_ignore``: 본문에 요청마다 바뀌지만 "내용이 그대로"인지와 상관없는 조각(생산 파트 판의 첫 받아 오기
+    기준 시각 ``data-pp-since``)이 있으면 그 부분을 뺀 본문으로 ETag 를 만든다. 304 면 클라가 들고 있는 옛 본문의
+    값을 그대로 쓰는데, 내용이 그대로라 그 값도 맞다(2026-11-22 — 그 시각 때문에 생산 첫 화면이 늘 200 이었다).
     """
     mode = get_erp_shell_view_mode(req)
     if mode is None:
@@ -87,5 +96,7 @@ def apply_erp_shell_fragment_headers(response: Response, req: Request) -> None:
     # ``make_conditional`` self-guards to GET/HEAD, but we mirror that guard so a
     # future non-GET caller of this helper is never turned conditional.
     if req.method in ("GET", "HEAD"):
+        if etag_ignore is not None and "etag" not in response.headers:
+            response.set_etag(generate_etag(etag_ignore.sub(b"", response.get_data())))
         response.add_etag()
         response.make_conditional(req)

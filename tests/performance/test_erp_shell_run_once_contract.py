@@ -86,7 +86,7 @@ def _unmarked_script_tags(html: str) -> list[str]:
 
 
 def _apply_fragment_body(js: str) -> str:
-    return js.split("function applyFragmentToMain(html, swapUrl) {", 1)[1].split("\n  }\n", 1)[0]
+    return js.split("function applyFragmentToMain(html, swapUrl, meta) {", 1)[1].split("\n  }\n", 1)[0]
 
 
 def _order_ok(body: str, *tokens: str) -> bool:

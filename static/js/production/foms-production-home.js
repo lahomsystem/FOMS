@@ -192,13 +192,26 @@
   });
 
   // ── 받은 시각 — 1분마다 "N분 전에 받음". 10분 넘으면 점이 노랗게. ──
+  // 시각은 본문에 없다(셸 조각이 304 로 답하게, 11-22). 셸로 끼운 화면 = 셸이 #main-content 에 적은 때(그 본문을 받았거나
+  // 서버가 '그대로'라고 확인한 때 — 복귀 재수혈 · 같은 탭 다시 받기가 304 면 새로 적고 foms:shell-fragment-checked 를 쏜다), 온전한 문서 = 문서를 연 때.
   var sync = root.querySelector('[data-foms-home-sync]');
-  var loadedAt = Date.parse(root.getAttribute('data-loaded-at') || '');
+  var syncAt = root.querySelector('[data-foms-home-sync-at]');
+  var openedAt = (window.performance && window.performance.timeOrigin) || Date.now();
+  function loadedAt() {
+    var main = document.getElementById('main-content');
+    var stamped = main && main.contains(root) ? Number(main.getAttribute('data-foms-shell-checked-at')) : 0;
+    return stamped > 0 ? stamped : openedAt;
+  }
   function tick() {
-    if (!sync || isNaN(loadedAt) || !document.contains(root)) { return; }
-    var minutes = Math.floor((Date.now() - loadedAt) / 60000);
+    if (!sync || !document.contains(root)) { return; }
+    var at = loadedAt();
+    var minutes = Math.max(0, Math.floor((Date.now() - at) / 60000));
     sync.textContent = minutes < 1 ? '방금 받음' : (minutes + '분 전에 받음');
     sync.classList.toggle('is-stale', minutes >= 10);
+    if (syncAt) {
+      var d = new Date(at);
+      syncAt.textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    }
   }
   tick();
 
@@ -214,5 +227,6 @@
     window.addEventListener('online', function () { G.api.online(); });
     window.addEventListener('offline', function () { G.api.online(); });
     window.setInterval(function () { G.api.tick(); }, 60000);
+    document.addEventListener('foms:shell-fragment-checked', function () { G.api.tick(); });
   }
 })();

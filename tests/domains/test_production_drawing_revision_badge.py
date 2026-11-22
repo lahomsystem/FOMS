@@ -258,4 +258,4 @@ def test_shell_does_not_hold_production_board_for_primary_ttl():
     ttl = js[js.index("function cacheTtlForKey(key)"):].split("function ", 2)[1]
     assert "LEGACY_SWAP_PATHS.indexOf(path) >= 0" in ttl and "FRESH_TTL_MS : CACHE_TTL_MS" in ttl
     layout = (root / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261122a" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261122s" in layout
