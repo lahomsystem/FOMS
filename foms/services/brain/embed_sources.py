@@ -9,6 +9,9 @@
   **백필만**(설정 ``cs_case_embeddings_enabled`` 처음 끔) — 상담 초안의 비슷한 사례 고르기는 상담 관리 칸 '뜻으로도 비슷한
   상담 찾기'(:mod:`foms.services.cs_agent.case_meaning`)가 켜졌을 때만 쓴다.
 - 모든 근원이 같은 돈 줄 · 하루 상한 · 시간 상한(:func:`.embeddings.embed_texts`)을 쓴다. ``apply`` 가 거짓이면 세기만(돈 0).
+- 넘긴 상담 배우기가 바로 반영한 항목은 그 자리에서 그 항목만 넣는다(:func:`embed_items` — 설계서 2026-11-23 2.2). '기다리는
+  말'(``cs_learn_held``)은 여기서 넣지 않는다 — 놓을 자리 판정에 만든 벡터를 :mod:`foms.services.cs_agent.handoff_learning_held`
+  가 남긴다.
 """
 
 from __future__ import annotations
@@ -38,13 +41,15 @@ NIGHTLY_SOURCES: tuple[str, ...] = (SOURCE_ITEM, SOURCE_QUESTION)
 Todo = tuple[str, Optional[int], str]  # (근원 키, 근원 판, 넣을 글)
 
 
-def item_todo(session: Any, limit: int) -> list[Todo]:
-    """새로 넣을 회사 지식 항목 — 지금 판인데 벡터가 없거나 판 · 글 지문이 다른 것."""
+def item_todo(session: Any, limit: int, keys: Optional[Iterable[str]] = None) -> list[Todo]:
+    """새로 넣을 회사 지식 항목 — 지금 판인데 벡터가 없거나 판 · 글 지문이 다른 것(``keys`` 를 주면 그 항목만)."""
     have = stored(session, SOURCE_ITEM)
     out: list[Todo] = []
-    for row in session.execute(select(BrainObject).where(is_current(BrainObject), BrainObject.status == STATUS_ACTIVE,
-                                                         BrainObject.item_type.in_(IDENTITY_TYPES))
-                               .order_by(BrainObject.item_key)).scalars():
+    stmt = select(BrainObject).where(is_current(BrainObject), BrainObject.status == STATUS_ACTIVE,
+                                     BrainObject.item_type.in_(IDENTITY_TYPES))
+    if keys is not None:
+        stmt = stmt.where(BrainObject.item_key.in_(sorted(set(keys))))
+    for row in session.execute(stmt.order_by(BrainObject.item_key)).scalars():
         body = doc_text(row)
         if body is not None and have.get(row.item_key) != (row.version, text_hash(body)):
             out.append((row.item_key, row.version, body))
@@ -102,24 +107,39 @@ def drop_stale_items(session: Any) -> int:
     return drop_vectors(session, SOURCE_ITEM, set(stored(session, SOURCE_ITEM)) - keep)
 
 
+def _store_todo(session: Any, kind: str, todo: list[Todo], *, cfg: ChatSettings, now: datetime.datetime) -> int:
+    """넣을 줄들을 묶음마다 벡터로 바꿔 넣는다(묶음마다 커밋) — 넣은 수. 실패는 :class:`.embeddings.EmbedUnavailable`."""
+    done = 0
+    for start in range(0, len(todo), MAX_BATCH):
+        chunk = todo[start:start + MAX_BATCH]
+        vectors = embed_texts(session, [b for _k, _v, b in chunk], input_type=SOURCES[kind][1], cfg=cfg, now=now)
+        for (key, version, body), vector in zip(chunk, vectors):
+            store_vector(session, kind, key, version, vector, text_hash(body), now)
+        session.commit()
+        done += len(chunk)
+    return done
+
+
+def embed_items(session: Any, keys: Iterable[str], *, cfg: ChatSettings, now: datetime.datetime) -> int:
+    """방금 반영한 회사 지식 항목만 그 자리에서 넣는다(넘긴 상담 배우기 바로 반영 — 같은 밤 뒤 바퀴가 뜻으로 찾게). 꺼짐 ·
+    넣을 것 없음이면 0(돈 0). 실패는 :class:`.embeddings.EmbedUnavailable`(부르는 쪽이 적고 넘어간다). 커밋한다."""
+    wanted = sorted({str(k) for k in keys if k})
+    if not wanted or off_reason(session, cfg, SOURCES[SOURCE_ITEM][0]) is not None:
+        return 0
+    return _store_todo(session, SOURCE_ITEM, item_todo(session, len(wanted), keys=wanted), cfg=cfg, now=now)
+
+
 def _run_one(session: Any, kind: str, *, cfg: ChatSettings, now: datetime.datetime, limit: int,
              apply: bool) -> dict[str, Any]:
     """근원 하나 — 꺼짐이면 까닭, 아니면 모의 실행(수 · 어림 돈) 또는 넣기."""
-    switch, input_type = SOURCES[kind]
+    switch, _input_type = SOURCES[kind]
     reason = off_reason(session, cfg, switch)
     if reason is not None:
         return {"off": reason}
     todo = _TODO[kind](session, limit)
     if not apply:
         return {"pending": len(todo), "estimate_usd": str(estimate_cost([b for _k, _v, b in todo])), "applied": False}
-    done = 0
-    for start in range(0, len(todo), MAX_BATCH):
-        chunk = todo[start:start + MAX_BATCH]
-        vectors = embed_texts(session, [b for _k, _v, b in chunk], input_type=input_type, cfg=cfg, now=now)
-        for (key, version, body), vector in zip(chunk, vectors):
-            store_vector(session, kind, key, version, vector, text_hash(body), now)
-        session.commit()
-        done += len(chunk)
+    done = _store_todo(session, kind, todo, cfg=cfg, now=now)
     out: dict[str, Any] = {"pending": len(todo), "embedded": done, "applied": True}
     if kind == SOURCE_ITEM:
         out["removed"] = drop_stale_items(session)

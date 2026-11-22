@@ -58,7 +58,7 @@
     "foms/services/channel_token_cache.py:117",
     "foms/services/common/business_calendar.py:65",
     "foms/services/cs_agent/drafting.py:341",
-    "foms/services/cs_agent/handoff_learning.py:442",
+    "foms/services/cs_agent/handoff_learning.py:443",
     "foms/services/cs_agent/handoff_memo.py:207",
     "foms/services/cs_agent/handoff_send.py:248",
     "foms/services/cs_agent/rewrite.py:117",
@@ -3695,7 +3695,7 @@
     },
     {
       "path": "foms/services/cs_agent/handoff_learning.py",
-      "lineno": 442,
+      "lineno": 443,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

@@ -1,7 +1,9 @@
 """의미 찾기 — Voyage AI 벡터(사장님 D114 · 설계서 7절 '비슷한 것 찾기' · 7.5 끝). **처음 끔**(설정 ``brain_embeddings_enabled``).
 
-근원 종류는 셋(:data:`foms.persistence.brain.vectors.SOURCE_KINDS` — 회사 지식 항목 · 물어보기 가린 질문 · 상담 사례 가린 질문 +
-가린 직원 답)이고 근원별 넣기는 :mod:`.embed_sources` 다. 상담 사례는 백필만(설정 ``cs_case_embeddings_enabled`` 처음 끔).
+근원 종류는 넷(:data:`foms.persistence.brain.vectors.SOURCE_KINDS` — 회사 지식 항목 · 물어보기 가린 질문 · 상담 사례 가린 질문 +
+가린 직원 답 · 넘긴 상담 배우기 '기다리는 말')이고 근원별 넣기는 :mod:`.embed_sources` 다. 상담 사례는 백필만(설정
+``cs_case_embeddings_enabled`` 처음 끔). 기다리는 말은 놓을 자리 판정에 이미 만든 질문 벡터를 그 자리에서 남긴다(돈 더 안 듦 —
+:mod:`foms.services.cs_agent.handoff_learning_held`).
 
 공급처 · 꼴(공식 문서 docs.voyageai.com 2026-11-02 열람): 모델 :data:`MODEL` ``voyage-4``(다국어 일반 찾기 · 기본 1024 차원 ·
 백만 토큰당 0.06달러 — 새 v4 모델은 2억 토큰 무료 몫이 있지만 돈 상한은 정가로 센다), ``POST https://api.voyageai.com/v1/embeddings``
@@ -53,7 +55,7 @@ PRICE_PER_MILLION = Decimal("0.06")
 API_URL = "https://api.voyageai.com/v1/embeddings"
 KEY_ENV = "VOYAGE_API_KEY"
 SPEND_KEY = "brain_embed_spend"
-SOURCE_ITEM, SOURCE_QUESTION, SOURCE_CASE = SOURCE_KINDS
+SOURCE_ITEM, SOURCE_QUESTION, SOURCE_CASE, SOURCE_HELD = SOURCE_KINDS
 MAX_BATCH, DOC_CHARS = 64, 800
 #: 넣지 않는 보기 범위(가격 재량 · 관리).
 HELD_SCOPES = frozenset({SCOPE_PRICE, SCOPE_ADMIN})

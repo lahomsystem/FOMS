@@ -1,7 +1,8 @@
 """의미 찾기 표(``brain_embeddings``) — **판 행과 따로 · 근원 종류별 하나의 표**(사장님 D114 · 설계서 7절 '비슷한 것 찾기').
 
 - 근원 종류(``source_kind``): ``brain_item``(회사 지식 항목 — 근원 키 = 항목 키, 근원 판 = 그 판 번호) · ``chatbot_question``
-  (물어보기 가린 질문 — 근원 키 = 질문 번호) · ``cs_case``(상담 사례 — 가린 손님 질문 + 가린 직원 답, 근원 키 = 상담 차례 번호).
+  (물어보기 가린 질문 — 근원 키 = 질문 번호) · ``cs_case``(상담 사례 — 가린 손님 질문 + 가린 직원 답, 근원 키 = 상담 차례 번호) ·
+  ``cs_learn_held``(넘긴 상담 배우기 '기다리는 말' — 일반화한 가린 글, 근원 키 = 그 줄 번호 · 마이그레이션 ``csagent_08``).
   (근원 종류, 근원 키, 모델)마다 한 줄 — 근원이 바뀌면 그 줄을 바꾼다(쌓기만 하는 판 행 ``brain_objects`` 에는 벡터를 넣지 않는다).
 - **이 표는 ORM ``Base`` 밖이다**(따로 :data:`vector_metadata`) — PostgreSQL ``vector`` 형은 pgvector 확장이 있어야 하는데
   CI PG 레인 이미지(postgres:17)에는 없어 ``create_all`` 이 통째로 죽는다. 운영 · 스테이징은 마이그레이션 ``brain_02`` 가 pgvector 가
@@ -65,8 +66,8 @@ def _utcnow() -> datetime.datetime:
 
 vector_metadata = MetaData()
 
-#: 근원 종류(정본 목록 — 마이그레이션 ``brain_02`` 의 검사 제약과 같다).
-SOURCE_KINDS: tuple[str, ...] = ("brain_item", "chatbot_question", "cs_case")
+#: 근원 종류(정본 목록 — 앞 셋은 마이그레이션 ``brain_02``, 넷째는 ``csagent_08`` 이 검사 제약을 넓혔다).
+SOURCE_KINDS: tuple[str, ...] = ("brain_item", "chatbot_question", "cs_case", "cs_learn_held")
 
 brain_embeddings = Table(
     TABLE, vector_metadata,
@@ -79,6 +80,7 @@ brain_embeddings = Table(
     Column("embedding", VectorType(DIMENSION), nullable=False),
     Column("text_hash", String(64), nullable=False),
     Column("created_at", DateTime, nullable=False, default=_utcnow, server_default=func.now()),
-    CheckConstraint("source_kind IN ('brain_item','chatbot_question','cs_case')", name="ck_brain_embeddings_source_kind"),
+    CheckConstraint("source_kind IN (" + ",".join(f"'{kind}'" for kind in SOURCE_KINDS) + ")",
+                    name="ck_brain_embeddings_source_kind"),
     Index("uq_brain_embeddings_source_model", "source_kind", "source_key", "model", unique=True),
 )

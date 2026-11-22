@@ -16,20 +16,20 @@
 6. **같음**: 새로 만들기 글이 반영된 지식 글과 :data:`SAME_SIMILARITY` 이상 비슷하면 넣지 않는다(``same``).
 7. **겹침**: 넘김 학습이 낸 열린 · 거절된 안과 글이 :data:`DUP_SIMILARITY` 이상 비슷하면(``open_proposal`` ·
    ``rejected_before``), 고칠 항목에 누구든 열린 안이 있으면(``open_proposal``) 넣지 않는다.
-8. **놓을 자리**(사장님 11-22): 새로 만들기 · 바로 고치지 못한 다른 말은 같음 · 겹침 뒤 놓을 자리 판정자
-   (:mod:`.handoff_learning_place`)의 답대로 넣는다(:mod:`.handoff_learning_route`) — 그 안은 공용 부딪침 관문에 막히지 않는다.
-   두뇌의 고치기 안은 예전처럼 제안 길의 에이전트 관문(:mod:`foms.services.brain.ai_gates` — 승인 지식과 두 순서 판정, 판정을 못
-   하면 막음)이 막으면 ``brain_<관문>`` 으로 센다. 빈 설명 칸(:data:`foms.services.brain.ai_gates.STUB_TYPES`)은 고침 · 카드의
-   대상이 아니다(``target``).
+8. **놓을 자리**(사장님 11-22 · 11-23): 새로 만들기 · 두뇌의 고치기 · 바로 고치지 못한 다른 말은 같음 · 겹침 뒤 놓을 자리
+   판정자(:mod:`.handoff_learning_place`)의 답대로 넣는다(:mod:`.handoff_learning_route`) — 그 안은 공용 부딪침 관문에 막히지
+   않는다(결과만 적힌다). 한 상담에서만 들은 새 지식 · 더함은 넣지 않고 '기다리는 말'로 모은다(되풀이 문턱 —
+   :mod:`.handoff_learning_held`). 그 밖의 에이전트 관문(근거 · 평가 묶음)이 막으면 ``brain_<관문>`` 으로 센다. 빈 설명 칸
+   (:data:`foms.services.brain.ai_gates.STUB_TYPES`)은 고침 · 카드의 대상이 아니다(``target``).
 
 넣기: :func:`foms.services.brain.proposals.propose_create` · ``propose_update`` 에 제안한 이 ``agent:`` :data:`AGENT` 로. 새로
 만들기는 지식 문서 유형 항목(사실 · 정책 — 승인하면 같은 저장점에서 라홈 지식 문서를 표로 다시 써 다음 초안 재료가 된다,
 :mod:`foms.services.brain.photo_cards` 와 같은 꼴). 근거는 차례 번호(``case:<id>``)뿐이다(직원 번호 · 상담 id 없음). 안마다
 커밋한다(부딪침 판정자의 모델 부르기가 세션을 커밋한다 — 사진 카드와 같다).
 
-**다른 말(사장님 11-19 '따로 모아 보여 주기')**: 놓을 자리 판정이 '부딪침'이라고 한 안과, 두뇌의 고치기 안 가운데 제안 길의
-부딪침 관문**만** 막은 안은 버리지 않고 그 승인 항목에 대한 **엇갈림 카드**(에이전트 일 ``conflict`` 항목 만들기 제안 — 키
-``conflict/lahom-handoff-…`` · 글 첫 줄에 어긋나는 두 구절(:data:`CLASH_HEAD` — 판정자가 낸 때만) 다음
+**다른 말(사장님 11-19 '따로 모아 보여 주기')**: 놓을 자리 판정이 '부딪침'이라고 한 안(두뇌의 고치기 안 포함 — 11-23 부터
+공용 부딪침 관문만으로는 카드가 생기지 않는다)과 바로 고침이 막힌 안은 버리지 않고 그 승인 항목에 대한 **엇갈림 카드**(에이전트 일
+``conflict`` 항목 만들기 제안 — 키 ``conflict/lahom-handoff-…`` · 글 첫 줄에 어긋나는 두 구절(:data:`CLASH_HEAD` — 판정자가 낸 때만) 다음
 :data:`foms.services.brain.photo_cards.DIFFERS_LINE` · 실음 칸 ``target`` · 근거에 ``about:<키>``)로 승인 대기 ③ 에 올린다
 (``conflict_card``). 승인 항목의 글은 건드리지 않는다. 무엇과 다른지 못 찾으면 예전처럼 센다(``brain_conflict``).
 
