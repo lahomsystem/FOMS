@@ -42,9 +42,11 @@ def _night(proposals, placer, *, now=NOW, judge=no_conflict):
 
 
 def _one(**fields):
-    """한 손님 다른 말 — 두뇌가 짚은 항목이 늘 후보 맨 앞이다."""
-    return differs([handed("uc-5", reply="합성 직원 답 — 선반 받침은 두 줄로 넣어 드려요")],
-                   **{"title": "합성 선반 받침", "text": TEXT, **fields})
+    """두 상담에서 들은 다른 말(바로 고칠 글 없음 — 놓을 자리 판정으로) — 두뇌가 짚은 항목이 늘 후보 맨 앞이다. 근거 상담이 둘이라
+    되풀이 문턱(11-23 — 한 상담뿐이면 기다리는 말, :mod:`tests.domains.test_cs_learn_held`)을 넘는다."""
+    said = "합성 직원 답 — 선반 받침은 두 줄로 넣어 드려요"
+    return differs([handed("uc-5", reply=said), handed("uc-6", reply=said)],
+                   **{"title": "합성 선반 받침", "text": TEXT, "fixed_text": "", **fields})
 
 
 @pytest.fixture

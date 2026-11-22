@@ -27,8 +27,9 @@ WORKER 15분 바퀴 학습 몫(:mod:`.learning_pass`)이 부르고, **밤(KST :d
 4. **두뇌**: 회사 지식 · 온톨로지 목록 · 이미 모아 둔 다른 말과 견줘 안을 구조화 출력으로. 부르기가 끝나면 보낸 차례를 '읽음'으로
    적는다(부르기가 실패하면 적지 않아 다음 바퀴 · 다음 밤에 다시 본다).
 5. **관문 · 넣기**(:mod:`.handoff_learning_route` · :mod:`.handoff_learning_onto`): 꼴 · 가림 · 근거 · 숫자 · 대상 · 같음 · 겹침 ·
-   놓을 자리(같음 · 더함 · 새 지식 · 부딪침 · 이미 정함 · 규칙 아님 — 11-22) → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을
-   지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과 다른 말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고친다.
+   놓을 자리(같음 · 더함 · 새 지식 · 부딪침 · 이미 정함 · 규칙 아님 — 11-22) → 되풀이 문턱(한 상담뿐인 말은 '기다리는 말' — 11-23)
+   → 제안 길. 패널 '배운 것 바로 반영'이 켜져 있으면 관문을 지난 안을 그 자리에서 반영한다(:func:`auto_learn`). 지금 지식과 다른
+   말은 서로 다른 손님 둘 이상이면 그 항목을 바로 고친다.
 
 로그 · 결과에는 숫자 · 코드만 싣는다(글 · 상담 id 없음).
 """
@@ -406,7 +407,7 @@ def _propose(session: Any, sent: list[dict[str, Any]], blocks: list[list[str]], 
     session.commit()
     for name, key in (("filed", "filed"), ("applied", "applied"), ("cards", "conflict_card"), ("fixed", "differs_fixed"),
                       ("new", "placed_new"), ("added", "placed_added"), ("same", "same"), ("decided", "decided_before"),
-                      ("not_rule", "not_rule")):  # 놓을 자리 판정 답(11-22) — 같음은 글자 같음 관문 것도 센다
+                      ("not_rule", "not_rule"), ("held", "held"), ("promoted", "promoted")):  # 놓을 자리(11-22) · 되풀이 문턱(11-23)
         counts[name] = got.pop(key, 0) + more.pop(key, 0)
     counts["blocked"] = {code: got.get(code, 0) + more.get(code, 0) for code in sorted({*got, *more})}
 
@@ -436,7 +437,7 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
     counts: dict[str, Any] = {"day": day, "tier": tier, "left": len(pool) - len(cases), "cases": len(cases),
                               "talks": len(talks), "mask_dropped": 0, "sent": 0, "proposed": 0, "filed": 0, "applied": 0,
                               "cards": 0, "fixed": 0, "new": 0, "added": 0, "same": 0, "decided": 0, "not_rule": 0,
-                              "blocked": {}, "halted": None}
+                              "held": 0, "promoted": 0, "blocked": {}, "halted": None}
     try:
         _run(session, cases, talks, cfg=cfg, now=now, client=client, counts=counts, tier=tier)
     except Exception:  # 뜻밖의 오류 — 그 밤을 닫고 잠금을 푼 뒤 그대로 올린다(학습 몫이 길 이름 · 예외 종류만 적는다)
@@ -454,10 +455,11 @@ def run_handoff_learning(session: Any, *, now: datetime.datetime, client: Any = 
         close_day(session, day)
     release(session)
     logger.info("[CS 넘김 학습] day=%s tier=%s left=%d cases=%d talks=%d mask_dropped=%d sent=%d proposed=%d filed=%d "
-                "applied=%d cards=%d fixed=%d new=%d added=%d same=%d decided=%d not_rule=%d blocked=%s halted=%s", day,
-                tier, counts["left"], counts["cases"], counts["talks"], counts["mask_dropped"], counts["sent"],
-                counts["proposed"], counts["filed"], counts["applied"], counts["cards"], counts["fixed"], counts["new"],
-                counts["added"], counts["same"], counts["decided"], counts["not_rule"], counts["blocked"], counts["halted"])
+                "applied=%d cards=%d fixed=%d new=%d added=%d same=%d decided=%d not_rule=%d held=%d promoted=%d "
+                "blocked=%s halted=%s", day, tier, counts["left"], counts["cases"], counts["talks"], counts["mask_dropped"],
+                counts["sent"], counts["proposed"], counts["filed"], counts["applied"], counts["cards"], counts["fixed"],
+                counts["new"], counts["added"], counts["same"], counts["decided"], counts["not_rule"], counts["held"],
+                counts["promoted"], counts["blocked"], counts["halted"])
     return counts
 
 

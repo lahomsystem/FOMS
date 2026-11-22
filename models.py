@@ -4769,6 +4769,42 @@ class CsAgentImageRead(Base):
 
 
 # --------------------------------------------------------------------------- #
+# CS-AGENT 되풀이 문턱(설계서 2026-11-23 3절): 넘긴 상담 배우기 '기다리는 말' — 가린 · 일반화한 글과 근거 번호만
+# --------------------------------------------------------------------------- #
+
+
+class CsAgentLearnHeld(Base):
+    """넘긴 상담 배우기가 한 상담에서만 들은 말 한 줄(사장님 11-23 '여러 번 나온 것만 바로 반영').
+
+    밤 배우기는 서로 다른 상담 둘 이상에서 나온 말만 지식에 바로 넣고, 한 번뿐인 말은 여기 모아 둔다. 다른 상담에서 같은 말이
+    다시 나오면 근거를 합쳐 지식으로 올린다(``promoted``). 60일 동안 다시 안 나오면 ``dropped``. ``title`` · ``text`` 는 가림
+    관문을 지난 일반화한 글(손님 원문 · 직원 답 원문 없음), ``chat_ids`` · ``turn_ids`` 는 근거 상담 · 차례 번호, ``evidence``
+    는 올릴 때 제안 근거로 합칠 글(``case:<차례>`` · ``staff:<상담원>``). 쓰기 · 읽기는
+    :mod:`foms.services.cs_agent.handoff_learning_held`. DDL 은 ``csagent_08`` 과 같다.
+    """
+
+    __tablename__ = 'cs_agent_learn_held'
+
+    id = Column(Integer, primary_key=True)
+    brand = Column(String(8), nullable=False)
+    title = Column(String(100), nullable=False)
+    text = Column(Text, nullable=False)
+    chat_ids = Column(JSONColumn, nullable=False)
+    turn_ids = Column(JSONColumn, nullable=False)
+    evidence = Column(JSONColumn, nullable=False)
+    state = Column(String(16), nullable=False)
+    first_seen = Column(DateTime, nullable=False)
+    last_seen = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("state IN ('waiting','promoted','dropped')", name='ck_cs_agent_learn_held_state'),
+        # 밤 배우기가 60일 지난 기다리는 말을 찾는다 · 놓을 자리 판정이 그 브랜드의 기다리는 말을 읽는다.
+        Index('ix_cs_agent_learn_held_state_last_seen', 'state', 'last_seen'),
+        Index('ix_cs_agent_learn_held_brand_state', 'brand', 'state'),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # BRAIN-00: HAUD master brain 표 다섯(설계서 2026-11-02-haud-master-brain 7.5 · D97)
 # --------------------------------------------------------------------------- #
 # 표 정의는 foms/persistence/brain/models.py 에 둔다(이 파일을 더 키우지 않는다). 여기서 불러 Base 에 올린다 —

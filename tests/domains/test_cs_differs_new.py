@@ -1,7 +1,8 @@
 """부딪치지 않는 다른 말은 새 지식(사장님 2026-11-21 '새 내용은 바로 넣기' · 상담 원장 D276 → 11-22 놓을 자리 판정).
 
-- 밤 배우기: 바로 고치지 못한 한 번뿐인 다른 말 — 놓을 자리 판정이 '새 지식'이면 새 지식(바로 반영), '부딪침'이면 엇갈림 카드,
-  판정을 못 하면 넣지도 카드도 없고, 직원 답에 없는 숫자는 새 지식이 되지 못한다(``numbers``).
+- 밤 배우기: 바로 고치지 못한 다른 말 — 놓을 자리 판정이 '새 지식'이면 두 상담에서 들은 말은 새 지식(바로 반영 · 한 상담뿐이면
+  기다리는 말 — 11-23), '부딪침'이면 엇갈림 카드(한 상담이어도), 판정을 못 하면 넣지도 카드도 없고, 직원 답에 없는 숫자는 새
+  지식이 되지 못한다(``numbers``).
 - 쌓인 카드 다시 가르기(:mod:`foms.services.cs_agent.handoff_learning_resort`): 같은 판정으로 한 번 — 옮긴 카드는 '합쳐짐'으로
   닫고, 같은 말 카드는 합치고, 부딪침 · 숫자는 그대로 둔다. 판정을 못 하면 다음 바퀴에 다시. 다 하면 다시 안 한다.
 
@@ -59,12 +60,13 @@ def _resort(judge, now=LATER):
 
 
 # ── 밤 배우기 ─────────────────────────────────────────────────────────────
-def test_a_one_off_new_detail_that_does_not_clash_goes_in_as_new_knowledge_at_once(admin):
+def test_a_new_detail_from_two_chats_that_does_not_clash_goes_in_as_new_knowledge_at_once(admin):
+    """한 상담뿐이면 기다리는 말(되풀이 문턱 11-23 — :mod:`tests.domains.test_cs_learn_held`), 두 상담이면 바로 새 지식."""
     on(**{AUTO_FIELD: True})
     before = current_object(db_session, TARGET)
     placer = FakePlacer()
-    counts = _night(Judge(), [differs([handed("uc-5", reply=NEW_SAID)], title="합성 콘센트 자리 타공", text=NEW_TEXT)],
-                    placer=placer)
+    ids = [handed("uc-5", reply=NEW_SAID), handed("uc-6", reply=NEW_SAID)]
+    counts = _night(Judge(), [differs(ids, title="합성 콘센트 자리 타공", text=NEW_TEXT, fixed_text="")], placer=placer)
     assert (counts["new"], counts["applied"], counts["cards"], counts["fixed"]) == (1, 1, 0, 0)
     (change,) = changes()
     assert (change.op, change.status, change.decided_action, change.item_type) == ("create", "applied", "auto_learn", "fact")

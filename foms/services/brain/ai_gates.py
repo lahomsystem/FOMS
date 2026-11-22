@@ -166,12 +166,23 @@ def related_knowledge(session: Any, *, key: str, texts: list[str], today: dateti
 #: 놓을 자리 후보의 확신 — 확정 + 근거 있음(밤 배우기가 바로 반영한 항목. 이것을 빼면 배운 말끼리의 되풀이를 못 잡는다 —
 #: 11-22 점검: 같은 말 묶음 61개 가운데 11개가 배운 말끼리).
 _PLACED = frozenset({CONFIRMED, EVIDENCED})
+#: 뜻 찾기로만 닿은 후보의 벡터 비슷함 하한(설계서 2026-11-23 2.2 — 글자가 안 겹치는 되풀이도 후보에 들게. 상담 사례 뜻 찾기와 같은 값).
+MEANING_MIN = 0.5
+
+
+def _close_enough(hit: dict[str, Any]) -> bool:
+    """찾기 줄이 후보가 될 만큼 가까운가 — 글자 점수 하한(:data:`MIN_RELATED_SCORE`) 또는 벡터 비슷함 하한(:data:`MEANING_MIN`).
+    벡터를 섞은 찾기는 ``score`` 가 섞은 점수라 글자 점수는 ``lexical`` 로 본다."""
+    lexical = hit.get("lexical", hit["score"])
+    return lexical >= MIN_RELATED_SCORE or (hit.get("similarity") or 0.0) >= MEANING_MIN
 
 
 def related_items(session: Any, *, key: Optional[str], texts: list[str], today: datetime.date,
-                  brand: Optional[str] = None, limit: int = RELATED_LIMIT + 1) -> list[dict[str, str]]:
+                  brand: Optional[str] = None, limit: int = RELATED_LIMIT + 1,
+                  vector: Optional[list[float]] = None) -> list[dict[str, str]]:
     """:func:`related_knowledge` 와 같은 거름으로 고른 항목 — 짚은 항목(``key``) + 찾기 앞 ``limit`` 개, 저마다 키 · 이름 · 유형 ·
-    지금 글 전체. 빈 설명 칸 유형(:data:`STUB_TYPES`)은 뺀다(넘긴 상담 배우기의 놓을 자리 판정 — 사장님 11-22)."""
+    지금 글 전체. 빈 설명 칸 유형(:data:`STUB_TYPES`)은 뺀다(넘긴 상담 배우기의 놓을 자리 판정 — 사장님 11-22). ``vector`` 는
+    그 글의 뜻 찾기 벡터(:func:`foms.services.brain.chat_tools.search_objects` 에 넘긴다 — 없으면 글자 찾기만, 예전 그대로)."""
     def keep(row: Any) -> bool:
         return (row is not None and row.status == STATUS_ACTIVE and bool(row.text) and row.item_type not in STUB_TYPES
                 and _sendable(row.visibility, row.text))
@@ -179,10 +190,10 @@ def related_items(session: Any, *, key: Optional[str], texts: list[str], today: 
     current = current_object(session, key) if key else None
     rows = [current] if keep(current) else []
     found = 0
-    for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=limit * 3):
+    for hit in search_objects(session, SYSTEM, " ".join(texts)[:500], today=today, limit=limit * 3, vector=vector):
         if found >= limit:
             break
-        if (hit["key"] == key or hit["confidence"] not in _PLACED or hit["score"] < MIN_RELATED_SCORE
+        if (hit["key"] == key or hit["confidence"] not in _PLACED or not _close_enough(hit)
                 or not same_brand(brand, hit.get("brand")) or hit.get("type") in STUB_TYPES):
             continue
         row = current_object(session, hit["key"])
