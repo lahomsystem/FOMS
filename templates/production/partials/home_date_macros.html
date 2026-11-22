@@ -32,7 +32,8 @@
 <a class="fph-wi{% if done %} is-done{% endif %}{% if r.has_changes %} is-chg{% endif %}{% if r.home_focus %} is-focus{% endif %}{% if extra %} {{ extra }}{% endif %}" href="{{ url_for('erp_production_page.erp_production_sheet_page', order_id=r.id) }}">{{ fph_due(r, false) }}<b class="fph-wi__nm">{{ r.customer_name }}</b><small>#{{ r.id }} · {{ tail if tail is not none else (r.v3_product_label or r.home_stage) }}</small></a>
 {% endmacro %}
 {# 안 내려온 주문의 막힌 까닭 한 줄(설계서 2026-11-22-production-drawing-arrival-upgrade §4-4 · §4-5) — '도면 고치는 중 · 도면 장미래 · 영업 이하늘'.
-   '담당 없음' 만 빨강(is-none). deadline=True(여러 날 장 · 찾기 밖 칸)면 앞에 '마감 M/D'(마감 상태 색). 값 = drawing_arrival.attach_drawing_arrival. #}
+   '담당 없음' 만 빨강(is-none). deadline=True(여러 날 장의 칸)면 앞에 '마감 M/D'(마감 상태 색). 값 = drawing_arrival.attach_drawing_arrival.
+   날짜 탭 기다림 칸 · 찾기 기다림 줄 셋째 줄 · PC 기다림 줄 ③ 칸이 같이 쓴다. #}
 {% macro fph_why(r, deadline=False) -%}
 {%- if deadline and r.dw_deadline_md %}<span class="fph-dwst is-{{ r.dw_state }}">마감 {{ r.dw_deadline_md }}</span> · {% endif -%}
 {%- if r.dw_blocker %}<b{% if r.dw_blocker.none %} class="is-none"{% endif %}>{{ r.dw_blocker.label }}</b>{% for p in (r.dw_people.parts if r.dw_people else []) %} · <span>{{ p }}</span>{% endfor %}{% endif -%}

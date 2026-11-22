@@ -1,7 +1,8 @@
 """생산 화면 7판 — 화면 시험(설계서 docs/specs/2026-11-22-production-drawing-arrival-upgrade_SPEC.md §5 · §6 · §7 · §10).
 
 순수 규칙은 ``test_production_drawing_arrival.py``. 여기는 실제 응답 HTML: 파트 계정 기다림 묶음이 카드 위(§5-3), PC 장 순서 ·
-기다림 줄 까닭 한 줄 · 늦음 색이 도면 마감(§6 · §7). 큰 시험 파일(500줄 래칫) 옆에 따로 둔다. 이름은 모두 지어낸 값이다.
+기다림 줄 까닭 한 줄 · 늦음 색이 도면 마감(§6 · §7), 내 공정 안내 · 지난 시공 빨강(§5-4), 바뀐 것 회귀(§5-5), 찾기 묶음 머리 ·
+순서 · 까닭 줄(§5-6), 작업 시트 도면 칸 글(§5-7). 큰 시험 파일(500줄 래칫) 옆에 따로 둔다. 이름은 모두 지어낸 값이다.
 """
 from __future__ import annotations
 
@@ -10,8 +11,8 @@ import datetime
 import pytest
 
 from db import db_session
-from foms.services.datetime_kst import get_today_kst
-from models import Order
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from models import Order, OrderEvent
 from tests.domains.test_production_parts_screen import _get, _login as _part_login, _parts_block, _seed_day, _today_pane, _user
 from tests.domains.test_production_pc_viewer import PC, ROOT, _login, _seed
 from tests.support.production_home_step_panel_seed import HOME, get_html, set_cookies
@@ -94,3 +95,156 @@ def test_7판_CSS_는_목업_덩이_그대로_글자는_배율을_따르고_무�
     for size in re.findall(r"font-size:\s*([^;]+);", block):
         assert re.fullmatch(r"calc\(\d+px \* var\(--foms-fs, 1\)\)", size.strip()), size
     assert "style=" not in (ROOT / "templates/production/partials/home_date_macros.html").read_text(encoding="utf-8")
+
+
+def test_내_공정_안내에_도면_마감_지난_집_수_줄_시공_칸은_지난_날이면_빨강(client, cohort) -> None:
+    """§5-4: 셈 = 안 내려옴 · 시공일 ≥ 오늘 · 마감 < 오늘(시공일이 이미 지난 옛 주문은 안 셈). 줄 시공 칸 is-past + 'n일 지남'."""
+    from tests.domains.test_production_home_tabs import _add_order, _make_user
+
+    _make_user(client, "v7_steps", "PRODUCTION")
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
+    old = _add_order("PRODUCTION", "지난집", -3, steps_done=("cut",), with_run=True)  # 엣지 줄 · 시공 3일 지남
+    _add_order("PRODUCTION", "앞날집", 4, with_run=True)
+    _add_order("DRAWING", "늦은도면", 1)  # 내일 시공 = 마감 지남 → 셈
+    _add_order("CONFIRM", "옛날컨펌", -2)  # 시공일 지남 → 안 셈
+    _add_order("DRAWING", "여유도면", 12)  # 마감 전 → 안 셈
+    html = client.get(HOME + "?tab=steps").get_data(as_text=True)
+    assert "제작 대기 <b>0</b>건 · 도면 마감 지난 집 <b>1</b>건 · 검수까지 끝난 것 <b>0</b>건" in html
+    edge = html.split('data-foms-home-stepq="edge"')[1].split('data-foms-home-stepq="assemble"')[0]
+    row = edge.split(f'data-foms-home-qrow="{old.id}"')[1].split("</div>\n  ")[0]
+    assert '<span class="fph-qr__due is-past">시공<b>' in row and "<small>3일 지남</small></span>" in row
+    cut = html.split('data-foms-home-stepq="cut"')[1].split('data-foms-home-stepq="edge"')[0]
+    assert 'class="fph-qr__due">시공<b>' in cut and "is-past" not in cut.split("fph-q__nextlist")[0]
+    # PC 안내 글도 같은 셈
+    set_cookies(client, PC)
+    assert "도면 마감 지난 집 <b>1</b>건" in get_html(client, HOME + "?tab=steps")
+
+
+def test_바뀐_것은_컨펌_단계_시공일_변경을_안_치고_생산_진입_뒤만_친다(client) -> None:
+    """§5-5 회귀(목업 '류하은'): 코드는 그대로 — D20(만들 주문만) · D22(생산 진입 바닥선)가 이미 그렇다."""
+    from tests.domains.test_production_home_changes import _order as _changed_order
+    from tests.domains.test_production_home_tabs import _make_user
+
+    _make_user(client, "v7_changes", "PRODUCTION")
+    order = _changed_order("CONFIRM", "류하은", 5)  # 단계 진입 20일 전 — 창은 그때부터(바닥선은 생산 진입 뒤에만)
+    db_session.add(OrderEvent(order_id=order.id, event_type="CONSTRUCTION_DATE_CHANGED",
+                              payload={"from": "2026-11-28", "to": "2026-11-30"},
+                              created_at=now_utc_naive() - datetime.timedelta(hours=3)))
+    db_session.commit()
+    zero = ">바뀐 것 <small>0</small></a>"
+    html = client.get(HOME + "?tab=changes").get_data(as_text=True)
+    assert zero in html and "data-foms-home-inbox=" not in html
+    # 생산으로 내려옴(고객 컨펌 → 생산) — 그 앞 변경은 여전히 안 친다(D22 바닥선). 요청 뒤라 주문을 다시 읽는다
+    order = db_session.get(Order, order.id)
+    sd = dict(order.structured_data)
+    sd["workflow"] = {"stage": "PRODUCTION"}
+    order.structured_data, order.erp_stage_code, order.status = sd, "PRODUCTION", "PRODUCTION"
+    db_session.add(OrderEvent(order_id=order.id, event_type="CUSTOMER_CONFIRMED", payload={"from": "CONFIRM", "to": "PRODUCTION"},
+                              created_at=now_utc_naive() - datetime.timedelta(hours=2)))
+    db_session.commit()
+    html = client.get(HOME + "?tab=changes").get_data(as_text=True)
+    assert zero in html and "data-foms-home-inbox=" not in html
+    # 생산 진입 뒤 바뀌면 1
+    db_session.add(OrderEvent(order_id=order.id, event_type="CONSTRUCTION_DATE_CHANGED",
+                              payload={"from": "2026-11-30", "to": "2026-12-01"},
+                              created_at=now_utc_naive() - datetime.timedelta(hours=1)))
+    db_session.commit()
+    html = client.get(HOME + "?tab=changes").get_data(as_text=True)
+    assert '>바뀐 것 <small class="is-hot">1</small></a>' in html and html.count("data-foms-home-inbox=") == 1 and "류하은" in html
+
+
+def test_찾기_묶음_머리_도면_글_순서_기다림_줄_까닭(client, cohort) -> None:
+    """§5-6: 머리 = 날짜 · 건수 · 바뀜 뒤 도면 한 줄(띠와 같은 글 · 색), 순서 = 기다림 → 생산 → 제작 완료(같은 칸 안 지금 순서),
+    기다림 줄 셋째 줄 = 까닭 · 담당(주소 찾기는 data-q 에 그대로). PC 찾기도 같은 머리 · 순서."""
+    from tests.domains.test_production_home_tabs import _add_order, _make_user
+
+    _make_user(client, "v7_all", "PRODUCTION")
+    done = _add_order("CONSTRUCTION", "가완료", 1)
+    made = _add_order("PRODUCTION", "나생산", 1, with_run=True)
+    wait = _add_order("DRAWING", "다도면", 1, manager="박가짜")
+    html = client.get(HOME + "?tab=all").get_data(as_text=True)
+    key = (get_today_kst() + datetime.timedelta(days=1)).isoformat()
+    grp = html.split(f'data-foms-home-grp="{key}"')[1].split("data-foms-home-grp=")[0]
+    assert '<span class="fph-dwst is-late">도면 2/3 마감 지남</span>' in grp.split("</button>")[0]
+    assert grp.index(f"/sheet/{wait.id}") < grp.index(f"/sheet/{made.id}") < grp.index(f"/sheet/{done.id}")
+    job = grp.split(f"/sheet/{wait.id}")[1].split("</a>")[0]
+    assert '<span class="foms-prod-home__pr is-why"><b class="is-none">담당 없음</b> · <span>영업 박가짜</span></span>' in job
+    assert "다도면 사는 곳" in job.split('data-q="')[1].split('"')[0]  # 주소로 찾기는 그대로
+    made_job = grp.split(f"/sheet/{made.id}")[1].split("</a>")[0]
+    assert "나생산 사는 곳" in made_job and "is-why" not in made_job  # 내려온 줄은 주소 그대로
+    set_cookies(client, PC)
+    pc = get_html(client, HOME + "?tab=all")
+    pgrp = pc.split(f'data-foms-home-grp="{key}"')[1].split("data-foms-home-grp=")[0]
+    assert '<span class="fph-dwst is-late">도면 2/3 마감 지남</span>' in pgrp.split("</button>")[0]
+    order = [pgrp.index(f'data-foms-home-dayrow="{o.id}"') for o in (wait, made, done)]
+    assert order == sorted(order)
+
+
+def _sheet_order(name: str, stage: str, off: int, *, files: int = 0, **sd_extra) -> Order:
+    day = (get_today_kst() + datetime.timedelta(days=off)).isoformat()
+    sd = {"workflow": {"stage": stage}, "parties": {"customer": {"name": name}, "manager": {"name": "이가짜"}},
+          "schedule": {"construction": {"date": day}}, "items": [{"product_name": "붙박이장"}],
+          "drawing_current_files": [{"key": f"orders/x/{name}{j}.png", "filename": f"{name}{j}.png",
+                                     "view_url": f"/files/view/{name}{j}.png"} for j in range(files)], **sd_extra}
+    order = Order(received_date=day, customer_name=name, phone="010-0000-0000", address="가짜시", product="장", status=stage,
+                  is_erp_order=True, erp_stage_code=stage, erp_construction_date=day, structured_data=sd)
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def test_작업_시트_안_내려온_주문은_도면_칸에_까닭_담당_마감(client, cohort) -> None:
+    """§5-7: 그림이 없으면 빈 자리 글을 바꾸고, 그림이 있으면(영업 확인 · 고객 컨펌) 그림 위 띠로 같은 글. 내려온 주문은 그대로.
+    '알림 보냄' 줄은 P3 자리라 지금은 안 그린다."""
+    from tests.domains.test_production_home_tabs import _make_user
+
+    _make_user(client, "v7_sheet", "PRODUCTION")
+    fix = _sheet_order("가고침", "DRAWING", 1, drawing_status="RETURNED", drawing_assignees=[{"id": 1, "name": "장가짜"}])
+    sales = _sheet_order("나확인", "DRAWING", 12, files=2, drawing_status="TRANSFERRED",
+                         drawing_assignees=[{"id": 1, "name": "장가짜"}])
+    nobody = _sheet_order("다없음", "CONFIRM", 1, drawing_status="PENDING")
+    made = _sheet_order("라생산", "PRODUCTION", 1)
+    fix, sales, nobody, made = fix.id, sales.id, nobody.id, made.id  # 요청마다 세션이 닫혀 객체가 떨어진다 — 번호만 쓴다
+    body = client.get(f"/erp/production/sheet/{fix}").get_data(as_text=True)
+    box = body.split('class="foms-prod-page__nodwg is-wait" data-foms-sheet-dwwait>')[1].split("</div>")[0]
+    assert box.startswith('<b>도면이 아직 안 내려왔어요</b><span>도면 고치는 중 · 도면 장가짜 · 영업 이가짜</span><span class="is-late">마감 ')
+    assert "지났어요</span>" in box and "<small>" not in box and "알림 보냄" not in body
+    assert "도면 전달본이 아직 없어요." not in body
+    body = client.get(f"/erp/production/sheet/{sales}").get_data(as_text=True)
+    band = body.split('class="foms-prod-page__dwband" data-foms-sheet-dwwait>')[1].split("</div>")[0]
+    assert "<span>영업 확인 기다림 · 도면 장가짜 · 영업 이가짜</span><span>마감 " in band  # 여유 = 색 없음
+    assert "data-foms-sheet-dwg-main" in body  # 그림은 그대로
+    body = client.get(f"/erp/production/sheet/{nobody}").get_data(as_text=True)
+    assert '<span><em class="is-none">담당 없음</em> · 영업 이가짜</span>' in body
+    body = client.get(f"/erp/production/sheet/{made}").get_data(as_text=True)
+    assert "data-foms-sheet-dwwait" not in body and "도면 전달본이 아직 없어요." in body
+    # PC 시트도 같은 템플릿
+    set_cookies(client, PC)
+    assert "data-foms-sheet-dwwait" in get_html(client, f"/erp/production/sheet/{fix}")
+
+
+def test_작업_시트_도면_칸_글은_쿼리를_늘리지_않는다(client, cohort) -> None:
+    """§8 표: 작업 시트는 P3(알림 기록 읽기) 전까지 쿼리 그대로 — 안 내려온 주문 · 내려온 주문 같은 수."""
+    from sqlalchemy import event
+
+    from db import engine
+    from tests.domains.test_production_home_tabs import _make_user
+
+    _make_user(client, "v7_sheet_qc", "PRODUCTION")
+    wait = _sheet_order("가기다림", "DRAWING", 3, drawing_assignees=[{"id": 1, "name": "장가짜"}]).id
+    made = _sheet_order("나생산", "PRODUCTION", 3).id
+    counts = {}
+    for name, oid in (("wait", wait), ("made", made)):
+        client.get(f"/erp/production/sheet/{oid}")
+        seen = {"q": 0}
+
+        def _before(*_a, **_k):
+            seen["q"] += 1
+
+        event.listen(engine, "before_cursor_execute", _before)
+        try:
+            assert client.get(f"/erp/production/sheet/{oid}").status_code == 200
+        finally:
+            event.remove(engine, "before_cursor_execute", _before)
+        counts[name] = seen["q"]
+    assert counts["wait"] == counts["made"], counts

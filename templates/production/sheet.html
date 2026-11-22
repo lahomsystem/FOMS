@@ -6,7 +6,7 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261122t">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261122v">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261122t">{% if pc_view %}
 {# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261122v">{% endif %}
@@ -35,9 +35,15 @@
     </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
 
     <div class="foms-prod-page__body">
-      {# ── 왼쪽: 도면 ── #}
+      {# ── 왼쪽: 도면 ── 안 내려온 주문(order.dw_wait, 설계서 2026-11-22-production-drawing-arrival-upgrade §5-7)은 '도면이 아직 안
+         내려왔어요' · 까닭 · 담당 · 마감 — 확정 그림이 없으면 빈 자리 글을 이것으로, 있으면(영업 확인 · 고객 컨펌 기다림) 그림 위 띠로.
+         '알림 보냄 …' 줄(alert_line)은 자동 알림(P3)이 채우는 자리 — 지금은 빈 글이라 안 그린다. 내려온 주문은 그대로. #}
+      {% macro dw_wait_lines(w) -%}
+      <b>도면이 아직 안 내려왔어요</b><span>{% if w.blocker.none %}<em class="is-none">{{ w.blocker.label }}</em>{% else %}{{ w.blocker.label }}{% endif %}{% for p in w.people.parts %} · {{ p }}{% endfor %}</span><span{% if w.deadline.state %} class="is-{{ w.deadline.state }}"{% endif %}>{{ w.deadline.text }}</span>{% if w.alert_line %}<small>{{ w.alert_line }}</small>{% endif %}
+      {%- endmacro %}
       <div class="foms-prod-page__dwg" data-foms-sheet-dwg>
         {% set _imgs = order.drawing_files | selectattr('kind', 'equalto', 'image') | list %}
+        {% if order.dw_wait and _imgs %}<div class="foms-prod-page__dwband" data-foms-sheet-dwwait>{{ dw_wait_lines(order.dw_wait) }}</div>{% endif %}
         {% if _imgs %}
         <p class="foms-prod-page__cap" data-foms-sheet-dwg-cap>도면 1 / {{ _imgs | length }} · {{ _imgs[0].label }}</p>
         <button type="button" class="foms-prod-page__main-btn" data-foms-sheet-dwg-open aria-label="도면 크게 보기">
@@ -47,6 +53,8 @@
         <button type="button" class="foms-prod-page__nav foms-prod-page__nav--prev" data-foms-sheet-dwg-prev aria-label="이전 도면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
         <button type="button" class="foms-prod-page__nav foms-prod-page__nav--next" data-foms-sheet-dwg-next aria-label="다음 도면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
         {% endif %}
+        {% elif order.dw_wait %}
+        <div class="foms-prod-page__nodwg is-wait" data-foms-sheet-dwwait>{{ dw_wait_lines(order.dw_wait) }}</div>
         {% else %}
         <p class="foms-prod-page__nodwg">도면 전달본이 아직 없어요.</p>
         {% endif %}

@@ -21,7 +21,8 @@ from sqlalchemy import or_
 from models import Order
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
-from foms.services.production.drawing_arrival import attach_drawing_arrival
+from foms.services.production.drawing_arrival import LATE as DEADLINE_LATE
+from foms.services.production.drawing_arrival import arrival_line, attach_drawing_arrival
 from foms.services.production_change_alerts import collect_production_change_alerts
 from foms.services.production_dashboard_display import build_production_home_enriched_rows
 from foms.services.production_read_model import (
@@ -207,6 +208,8 @@ def production_home_groups(
     - 시공일이 ``PRODUCTION_HOME_PAST_DAYS`` 보다 더 지난 행은 맨 아래 "지난 시공일" 한 묶음(접힘)으로.
       일주일 안에 지난 것은 아직 급한 일이라 제자리(맨 위)에 둔다.
     - 처음 펼쳐 두는 묶음 = 오늘·내일. 둘 다 없으면 첫 묶음 하나만 펼친다(화면이 비어 보이지 않게).
+    - 묶음마다 ``arrival`` = 머리의 도면 글(띠와 같은 글 · 색), 묶음 안 순서 = 기다림 → 생산 → 제작 완료(같은 칸 안은 지금 순서,
+      설계서 2026-11-22-production-drawing-arrival-upgrade §5-6).
     """
     today = today or get_today_kst()
     cutoff = today - datetime.timedelta(days=PRODUCTION_HOME_PAST_DAYS)
@@ -244,8 +247,14 @@ def production_home_groups(
             past['sub'] = f"더 오래된 {past_hidden}건은 안 보여요"
         groups.append(past)
     for group in groups:
+        group['rows'].sort(key=lambda r: _VIEW_ORDER.get(r.get('home_view'), 1))  # 안정 정렬 — 같은 칸 안은 지금 순서
         group['count'] = len(group['rows'])
+        group['arrival'] = arrival_line(group['rows'], today)
     return groups
+
+
+#: 찾기 묶음 안 순서 — 안 내려옴(기다림) → 내려옴(생산) → 끝남(제작 완료). 날짜 탭 장과 같은 순서(§5-6).
+_VIEW_ORDER = {'wait': 0, 'prod': 1, 'done': 2}
 
 
 def production_home_inbox(rows: list[dict[str, Any]], tombstones: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
@@ -300,8 +309,11 @@ def _due_sort_key(row: dict[str, Any]) -> tuple[int, str, int]:
     return (0, day.isoformat(), int(row.get('id') or 0)) if day else (1, '', int(row.get('id') or 0))
 
 
-def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def production_home_step_queues(rows: list[dict[str, Any]], today: datetime.date | None = None) -> dict[str, Any]:
     """탭 "내 공정"(안 3): 공정 4탭, 그 공정이 첫 미완인 제작 중 주문만 줄로. 일의 양은 안 보인다(D11).
+
+    위 안내의 ``deadline_missed`` = 도면 마감이 지났는데 아직 안 내려온 집(시공일 ≥ 오늘만 — 시공일이 이미 지난 옛 주문은
+    안 센다, 설계서 2026-11-22-production-drawing-arrival-upgrade §5-4). 같은 행의 ``dw_state``(쿼리 0).
 
     줄 아래 "곧 올 것" = 바로 앞 공정에 와 있는 주문(재단은 제작 대기) — 줄이 적어도 화면이 비지 않는다(사용자 11-10).
 
@@ -321,6 +333,9 @@ def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
         elif row.get('home_view') == 'prod' and row.get('home_stage') == '검수 끝':
             finished += 1
     waiting_rows.sort(key=_due_sort_key)
+    today_iso = (today or get_today_kst()).isoformat()
+    missed = sum(1 for r in rows if r.get('home_view') == 'wait' and r.get('dw_state') == DEADLINE_LATE
+                 and str(r.get('construction_date') or '')[:10] >= today_iso)
     prev: dict[str, Any] | None = None
     for q in queues:
         q['rows'].sort(key=_due_sort_key)
@@ -328,7 +343,7 @@ def production_home_step_queues(rows: list[dict[str, Any]]) -> dict[str, Any]:
         q['incoming'] = waiting_rows if prev is None else [r for r in prev['rows'] if not r.get('hold_active')]
         q['incoming_label'] = '제작 대기' if prev is None else f"{prev['label']} 중"
         prev = q
-    return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished}
+    return {'queues': queues, 'waiting': len(waiting_rows), 'finished': finished, 'deadline_missed': missed}
 
 
 def production_home_counts(rows: list[dict[str, Any]], tombstone_count: int = 0) -> dict[str, int]:

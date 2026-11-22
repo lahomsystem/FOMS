@@ -256,3 +256,27 @@ def wait_head_for_day(day: datetime.date, today: datetime.date) -> dict[str, Any
 
 #: 시공일 없음 장 기다림 묶음 머리(§4-6).
 NO_DATE_WAIT_HEAD = {'text': '시공일이 없어 마감이 없어요', 'state': ''}
+
+
+def sheet_wait_view(sd: Any, construction_date: Any, manager_name: Any, today: datetime.date) -> dict[str, Any]:
+    """작업 시트 도면 칸의 안 내려온 주문 글(§5-7) — 까닭 · 담당 · 마감. 안 내려온 주문에만 부른다(쿼리 0).
+
+    Args:
+        sd: 주문 ``structured_data``.
+        construction_date: 기준 시공일(납작 칸 ``erp_construction_date`` — 첫 화면 장과 같은 날, §4-6).
+        manager_name: 영업 담당 이름(첫 화면 행 ``manager_name`` 과 같은 규칙).
+        today: KST 오늘.
+
+    Returns:
+        ``{'blocker', 'people', 'deadline': {'text', 'state'}, 'alert_line'}``. ``alert_line`` 은 P3 자동 알림(§9-6)이
+        '알림 보냄 …' 을 채울 자리 — 지금은 늘 빈 글이라 화면에 아무것도 안 그린다.
+    """
+    sd = sd if isinstance(sd, dict) else {}
+    day = _parse_day(construction_date)
+    if day is None:
+        head = dict(NO_DATE_WAIT_HEAD)
+    else:
+        deadline = drawing_deadline(day)
+        state = deadline_state(deadline, today, all_in=False)
+        head = {'text': deadline_head(deadline, today, state), 'state': state if state in (LATE, SOON) else ''}
+    return {'blocker': drawing_blocker(sd), 'people': drawing_people(sd, manager_name), 'deadline': head, 'alert_line': ''}
