@@ -263,7 +263,8 @@ def _rail_production(user) -> dict:
 
 
 def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈() -> None:
-    """관리자 · CS · 영업 · 생산(별칭 회계=CS · 옛 실측=영업 포함)은 첫 화면, 그 밖 팀 · 협력사는 보드(403 화면으로 안 보낸다)."""
+    """관리자 · CS · 영업 · 생산 · 도면 · 출고(별칭 회계=CS · 옛 실측=영업 포함)는 첫 화면, 팀 없음 · 협력사는 보드(403 화면으로
+    안 보낸다). 도면 · 시공 · 출고는 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1)."""
     for user in (
         SimpleNamespace(team=None, role="ADMIN"),
         SimpleNamespace(team="DRAWING", role="ADMIN"),
@@ -272,16 +273,18 @@ def test_레일_생산_주소는_첫_화면을_볼_수_있는_사람이면_홈()
         SimpleNamespace(team="SALES", role="STAFF"),
         SimpleNamespace(team="MEASURE", role="STAFF"),  # 옛 실측팀 = 영업(normalize_team)
         SimpleNamespace(team="PRODUCTION", role="STAFF"),
+        SimpleNamespace(team="DRAWING", role="STAFF"),
+        SimpleNamespace(team="SHIPMENT", role="STAFF"),
     ):
         assert _rail_production(user)["href"] == _HOME, user
     for user in (
-        SimpleNamespace(team="DRAWING", role="STAFF"),
         SimpleNamespace(team=None, role="STAFF"),
         SimpleNamespace(team="PRODUCTION", role="STAFF", partner_org_id=3),
         None,
     ):
         assert _rail_production(user)["href"] == _BOARD, user
     # 강조 접두어는 누구든 같다 — 보드로 조각 이동한 뒤에도 생산이 강조된다(tablet-rail-nav.js).
+    assert _rail_production(SimpleNamespace(team=None, role="STAFF"))["match"] == "/erp/production"
     assert _rail_production(SimpleNamespace(team="DRAWING", role="STAFF"))["match"] == "/erp/production"
 
 
@@ -291,7 +294,9 @@ def test_레일_규칙은_첫_화면_문지기와_한_곳() -> None:
 
     home_src = _read("foms/web/production/home.py")
     assert "can_view_production_home(user)" in home_src and "team_has_capability" not in home_src
-    assert "can_view_production_home" in _read("foms/services/foms_split_view.py")
+    # 레일 · 메뉴 · 바로가기 주소는 한 곳(nav_target)이 같은 판정 함수로 고른다(2026-11-21, 설계서 production-pc-viewer §9)
+    assert "production_nav_href" in _read("foms/services/foms_split_view.py")
+    assert "can_view_production_home" in _read("foms/services/production/nav_target.py")
     assert home_access.PRODUCTION_HOME_PATH == _HOME
 
 
@@ -310,11 +315,14 @@ def test_첫_화면과_전체_화면_시트도_생산이_강조된다() -> None:
     assert [it["id"] for it in items if it["active"]] == ["production"]
 
 
-def test_split_셸_레일은_그대로_보드() -> None:
-    """split 셸(/erp/dashboard, PC 마우스 좁은 창 전용)은 D19 범위 밖 — 생산은 계약 경로(보드) 그대로."""
+def test_split_셸_레일도_첫_화면() -> None:
+    """split 셸(/erp/dashboard, PC 마우스 좁은 창 전용)도 2026-11-21 부터 첫 화면(설계서 production-pc-viewer §9-4) —
+    계약 경로가 첫 화면이 됐고, 첫 화면을 못 보는 사람은 보드."""
     from foms.services.foms_split_view import build_split_side_items
 
     items = build_split_side_items(SimpleNamespace(team="PRODUCTION", role="STAFF"))
+    assert next(it for it in items if it["id"] == "production")["href"] == _HOME
+    items = build_split_side_items(SimpleNamespace(team=None, role="STAFF"))
     assert next(it for it in items if it["id"] == "production")["href"] == _BOARD
 
 

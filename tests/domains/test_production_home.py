@@ -131,12 +131,16 @@ def test_생산팀_첫_화면은_도면부터_시공까지_시공일_순으로_�
     assert "js/production/foms-production-home.js" in html
 
 
-def test_도면팀과_시공팀은_생산_첫_화면을_못_본다(client) -> None:
+def test_도면팀과_시공팀도_생산_첫_화면을_본다_팀_없으면_못_본다(client) -> None:
+    """2026-11-21 보는 팀에 도면 · 시공 · 출고를 더했다(설계서 production-pc-viewer §9-1). 시공팀 화면 이동 제한도 보기 화면은 연다."""
     _make_user(client, "home_drawing_staff", "DRAWING")
-    assert client.get(HOME_URL).status_code == 403
-    # 시공팀은 전역 문지기가 먼저 출고 화면으로 돌려보낸다(302) — 어느 쪽이든 200 은 아니다.
+    assert client.get(HOME_URL).status_code == 200
     _make_user(client, "home_construction_staff", "CONSTRUCTION")
-    assert client.get(HOME_URL).status_code in (302, 403)
+    assert client.get(HOME_URL).status_code == 200
+    # 시공팀이라도 옛 보드는 그대로 출고 화면으로 돌려보낸다(이동 제한은 보기 화면만 연다)
+    assert client.get("/erp/production/dashboard").status_code == 302
+    _make_user(client, "home_noteam_staff", None)
+    assert client.get(HOME_URL).status_code == 403
 
 
 def test_관리자와_CS_는_생산_첫_화면을_본다(client) -> None:
@@ -286,7 +290,7 @@ def test_바뀐_것은_생산_단계_주문만_도면_기다림과_제작_완료
     date = client.get(HOME_URL + f"?day={day}").get_data(as_text=True)
     assert tab_n in date
     pane = date.split(f'data-foms-home-daypane="{day}"')[1].split("data-foms-home-daypane=")[0]
-    chips = {m.group(2).strip(): m.group(1) for m in re.finditer(r'<a class="fph-wi([^"]*)"[^>]*>([^<]+)<small>', pane)}
+    chips = {m.group(2).strip(): m.group(1) for m in re.finditer(r'<a class="fph-wi([^"]*)"[^>]*><span class="fph-due[^"]*" data-foms-home-due>.*?</span><b class="fph-wi__nm">([^<]+)</b><small>', pane)}
     assert chips == {"도면바뀜": "", "완료바뀜": " is-done"}
     big = re.search(r'<a class="fph-dr ([^"]*)"[^>]*>.*?fph-dr__nm"><b>생산바뀜', pane, re.S)
     assert big and "is-chg" in big.group(1) and "<small>바뀜</small>" in pane

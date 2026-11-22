@@ -2,7 +2,7 @@
    [확인했어요] = change-ack(tablet-domain-sheets.js). "이번 주" 탭 오른쪽 받은함을 한 화면으로 옮겼다(D18 11-10: 요일 칸은 날짜 탭이 대신).
    목업 안 4 받은함대로 채움(사용자 11-21): 줄마다 바뀐 것(큰 글) + '누가 · 언제 · 메모'(작은 글), 확인한 것은 "<이름> 확인 M/D HH:MM",
    더 보기 = 같은 탭 다시 받기 링크(?done=all, 스크립트 없음). 값은 production_home_changes.py. home.html 이 include. #}
-{% from 'production/partials/home_date_macros.html' import home_href %}
+{% from 'production/partials/home_date_macros.html' import home_href, fph_due %}{% from 'production/partials/home_pc_macros.html' import pc_due_cell %}
 {% macro _al_body(it) %}
     <div class="fph-al__body">
       <ul class="fph-al__list">
@@ -10,23 +10,27 @@
         <li class="is-{{ a.kind }}"><b>{{ a.label }}</b>{% if a.kind == 'construction_date' and a.to_md %} <span class="fph-al__d">{{ a.from_md | default('미정', true) }} → <strong>{{ a.to_md }}</strong></span>{% endif %}{% if a.m %}<span class="fph-al__m">{{ a.m }}</span>{% endif %}</li>
         {% endfor %}
       </ul>
-      <div class="fph-al__name">{{ it.customer_name }} <small>#{{ it.id }}</small></div>
-      <div class="fph-al__meta">{{ it.stage }}{% if it.product_label %} · {{ it.product_label }}{% endif %}{% if it.day_label %} · {{ it.day_label }}{% endif %}</div>
+      <div class="fph-al__name">{{ it.customer_name }} <small>#{{ it.id }}</small>{% if it.kind != 'cancelled' and not it.pc_due %}{{ fph_due(it, false) }}{% endif %}</div>
+      <div class="fph-al__meta">{{ it.stage }}{% if it.product_label %} · {{ it.product_label }}{% endif %}{% if it.kind == 'cancelled' and it.day_label %} · {{ it.day_label }}{% endif %}</div>
     </div>
 {% endmacro %}
+{#- PC(마우스)만 — 장 맨 앞 ① 시공일 칸(설계서 2026-11-21-production-pc-viewer §6-3 규칙 1). 묘비(취소)는 행이 없어 빈 칸. [확인했어요]는
+   기기와 상관없이 생산 화면을 보는 사람 모두에게 그린다(can_ack, PC 보기 전용 포함 — §13 결정 5, 개인 확인 기록이라 쓰기 팀보다 넓다).
+   이 두 줄은 출력에 글자를 더하지 않는다(태블릿 바이트 그대로). -#}
+{%- macro _pc_due(it) %}{% if it.pc_due %}{{ pc_due_cell(it) }}{% else %}<span class="fpc-due is-none"></span>{% endif %}{% endmacro %}
 <div class="fph-inbox fph-inbox--page" aria-label="바뀐 것">
   <h2 class="fph-inbox__h">바뀐 것 <b{% if not changes.count %} class="is-zero"{% endif %}>{{ changes.count }}</b></h2>
   {% for it in changes.inbox %}
-  <div class="fph-al{% if it.kind == 'cancelled' %} fph-al--cancel{% endif %}" data-foms-home-inbox="{{ it.id }}">
-    {{ _al_body(it) }}
-    <button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-kanban-action="change-ack" data-order-id="{{ it.id }}">확인했어요</button>
+  <div class="fph-al{% if it.kind == 'cancelled' %} fph-al--cancel{% endif %}{% if pc_view %} fpc-al{% if it.pc_late and it.pc_late.level %} is-{{ it.pc_late.level }}{% endif %}{% endif %}" data-foms-home-inbox="{{ it.id }}">
+    {% if pc_view %}{{ _pc_due(it) }}{% endif %}{{ _al_body(it) }}
+    {% if can_ack %}<button type="button" class="foms-prod-home__btn foms-prod-home__btn--pri" data-kanban-action="change-ack" data-order-id="{{ it.id }}">확인했어요</button>{% endif %}
   </div>
   {% else %}
   <p class="foms-prod-home__empty">새로 바뀐 것이 없어요.</p>
   {% endfor %}
   {% for it in changes.done %}
-  <div class="fph-al is-done" data-foms-home-done="{{ it.id }}">
-    {{ _al_body(it) }}
+  <div class="fph-al is-done{% if pc_view %} fpc-al{% endif %}" data-foms-home-done="{{ it.id }}">
+    {% if pc_view %}{{ _pc_due(it) }}{% endif %}{{ _al_body(it) }}
     <div class="fph-al__ok">{{ it.ack_by }} 확인<br>{{ it.ack_when }}</div>
   </div>
   {% endfor %}

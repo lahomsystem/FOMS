@@ -21,6 +21,8 @@ MICRO_CACHE_READ_SLICES_RETAINED: bool = True
 # ERP primary surface (9) vs fragment-ready subset (9) — EPT-B4 secondary primary 편입
 # -----------------------------------------------------------------------------
 # PRIMARY_NAV: 잠금판 9 primary — 문서/인벤토리/B1과 동일 문자열.
+# 생산 칸(tab id ``production``)은 2026-11-21 옛 보드(/erp/production/dashboard)에서 새 첫 화면(/erp/production/home)으로
+# 바꿨다(설계서 2026-11-21-production-pc-viewer §9-5 · 계약 SPEC §2). 옛 보드 라우트는 남고, 셸은 그것을 하위 조각으로 바꿔 끼운다.
 # FRAGMENT_READY: 서버가 shell+view=fragment 로 본문 조각을 내는 경로만 (fetch 허용).
 # ERP_CANONICAL_TAB_PATHS: SPEC §2·하위 호환 — FRAGMENT_READY 와 동일 튜플 객체.
 
@@ -28,7 +30,7 @@ ERP_PRIMARY_NAV_PATHS: tuple[str, ...] = (
     "/erp/dashboard",
     "/erp/measurement",
     "/erp/drawing-workbench",
-    "/erp/production/dashboard",
+    "/erp/production/home",
     "/erp/shipment",
     "/erp/as",
     "/erp/construction/dashboard",
@@ -40,7 +42,7 @@ ERP_FRAGMENT_READY_PATHS: tuple[str, ...] = (
     "/erp/dashboard",
     "/erp/measurement",
     "/erp/drawing-workbench",
-    "/erp/production/dashboard",
+    "/erp/production/home",
     "/erp/shipment",
     "/erp/as",
     "/erp/construction/dashboard",
@@ -67,7 +69,7 @@ ERP_PATH_TO_TAB_ID: dict[str, str] = {
     "/erp/dashboard": "dashboard",
     "/erp/measurement": "measurement",
     "/erp/drawing-workbench": "drawing_workbench",
-    "/erp/production/dashboard": "production",
+    "/erp/production/home": "production",
     "/erp/shipment": "shipment",
     "/erp/as": "as",
     "/erp/construction/dashboard": "construction",

@@ -77,9 +77,10 @@ def _schedule_violations(runs: list[dict], fresh: list[str]) -> list[str]:
 def test_each_tab_is_refreshed_by_exactly_one_schedule(tmp_path: Path) -> None:
     src = SHELL_JS.read_text(encoding="utf-8")
     fresh = _fresh_paths(src)
-    assert fresh == ["/erp/dashboard", "/erp/measurement", "/erp/production/dashboard"]
+    # 9탭의 생산 칸 = 생산 첫 화면(2026-11-21, 설계서 production-pc-viewer §9-5) — 옛 보드 자리의 fresh 경로를 이어받았다.
+    assert fresh == ["/erp/dashboard", "/erp/measurement", "/erp/production/home"]
     runs = _run_simulation(tmp_path)
-    assert {r["current"] for r in runs} == {"/erp/production/dashboard", "/erp/shipment"}
+    assert {r["current"] for r in runs} == {"/erp/production/home", "/erp/shipment"}
     assert _schedule_violations(runs, fresh) == []
 
 

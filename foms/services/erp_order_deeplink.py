@@ -8,14 +8,24 @@ from models import Order
 
 from foms.services.erp_display import _ensure_dict, _erp_get_stage
 from foms.services.erp_policy import STAGE_NAME_TO_CODE
+from foms.services.production.home_access import PRODUCTION_HOME_PATH
+from foms.services.production.nav_target import (
+    HOME_ORDER_PARAM,
+    PRODUCTION_BOARD_ENDPOINT,
+    PRODUCTION_BOARD_PATH,
+    PRODUCTION_HOME_ENDPOINT,
+    production_home_open_for,
+    request_user,
+)
 
-# 단계별 큐 대시보드 (STAGE_DASHBOARD_URL SSOT)
+# 단계별 큐 대시보드 (STAGE_DASHBOARD_URL SSOT). 생산은 2026-11-21 부터 새 첫 화면(설계서 2026-11-21-production-pc-viewer
+# §9-7) — 첫 화면을 못 여는 사람(켜진 프리랜서 등)은 :func:`build_order_queue_focus_href` 가 옛 보드로 돌린다.
 STAGE_DASHBOARD_URL: dict[str, str] = {
     "RECEIVED": "/erp/dashboard",
     "MEASURE": "/erp/measurement",
     "DRAWING": "/erp/drawing-workbench",
     "CONFIRM": "/erp/dashboard",
-    "PRODUCTION": "/erp/production/dashboard",
+    "PRODUCTION": PRODUCTION_HOME_PATH,
     "CONSTRUCTION": "/erp/construction/dashboard",
     "CS": "/erp/dashboard",
     "COMPLETED": "/erp/completion",
@@ -25,10 +35,12 @@ STAGE_DASHBOARD_URL: dict[str, str] = {
 }
 
 
+# 돌아가기 열쇠. ``erp_production_dashboard`` 는 옛 링크가 깨지지 않게 이름을 그대로 두고 첫 화면으로 보낸다(§9-8) —
+# 첫 화면을 못 여는 사람은 :func:`resolve_edit_return_back_endpoint` 가 옛 보드로 돌린다.
 RETURN_TO_BACK_ENDPOINT: dict[str, str] = {
     "erp_measurement_dashboard": "erp_measurement_dashboard.erp_measurement_dashboard",
     "erp_shipment_dashboard": "erp_shipment_page.erp_shipment_dashboard",
-    "erp_production_dashboard": "erp_production_page.erp_production_dashboard",
+    "erp_production_dashboard": PRODUCTION_HOME_ENDPOINT,
     "erp_construction_dashboard": "erp_construction_page.erp_construction_dashboard",
     "erp_drawing_workbench_dashboard": "erp_drawing_workbench.erp_drawing_workbench_dashboard",
     "erp_history_dashboard": "erp_history.history_dashboard",
@@ -46,7 +58,10 @@ def resolve_edit_return_back_endpoint(return_to: str) -> str:
         Blueprint endpoint name for ``url_for``.
     """
     token = (return_to or "").strip()
-    return RETURN_TO_BACK_ENDPOINT.get(token, "erp_dashboard.erp_dashboard")
+    endpoint = RETURN_TO_BACK_ENDPOINT.get(token, "erp_dashboard.erp_dashboard")
+    if endpoint == PRODUCTION_HOME_ENDPOINT and not production_home_open_for(request_user()):
+        return PRODUCTION_BOARD_ENDPOINT
+    return endpoint
 
 
 def resolve_order_stage_code(order: Order) -> str:
@@ -94,10 +109,16 @@ def build_order_queue_focus_href(
         search_query: Optional search term to pre-filter the queue list.
 
     Returns:
-        Relative URL with ``focus_order`` (and ``view=queue`` on home when needed).
+        Relative URL with ``focus_order`` (and ``view=queue`` on home when needed). 생산 단계는 첫 화면을 여는
+        사람이면 ``/erp/production/home?order=<id>``, 아니면 옛 보드(``q`` · ``focus_order``).
     """
     stage_code = resolve_order_stage_code(order)
     base = STAGE_DASHBOARD_URL.get(stage_code, "/erp/dashboard").split("?")[0]
+    if base == PRODUCTION_HOME_PATH:
+        # 생산 첫 화면은 ``order=`` 하나로 그 주문의 날 장을 고른다(§9-10). 검색어는 첫 화면이 읽지 않는다.
+        if production_home_open_for(request_user()):
+            return f"{PRODUCTION_HOME_PATH}?{HOME_ORDER_PARAM}={order.id}"
+        base = PRODUCTION_BOARD_PATH
     params: list[str] = []
 
     if stage_code == "AS_COMPLETED":

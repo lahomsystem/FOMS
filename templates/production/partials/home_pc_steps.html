@@ -1,0 +1,23 @@
+{# 탭 "내 공정" — PC(마우스) 꼴(설계서 2026-11-21-production-pc-viewer §6-4). home_steps.html 의 PC 짝: 같은 공정 4탭 ·
+   같은 줄(queues), 탭 기억 · [끝] 배선은 foms-production-home.js 그대로(data-foms-home-steptab · data-foms-home-stepq · data-foms-home-step-done).
+   줄 = 시공일 | 번호 · 이름 · 품목 | 앞 공정 누가 · 언제 | 발주 · 담당, [<공정> 끝]은 [고치기] 켬(can_act)일 때만. 곧 올 것도 시공일 칸이 맨 앞. #}
+{% from 'production/partials/home_pc_macros.html' import pc_qrow, pc_mini %}
+{% set _on = queues.queues[0].key if queues.queues else '' %}
+<div class="fph-steptabs" role="tablist" aria-label="공정">
+  {% for q in queues.queues %}
+  <button type="button" class="fph-steptab{% if q.key == _on %} is-on{% endif %}" role="tab" data-foms-home-steptab="{{ q.key }}" aria-selected="{{ 'true' if q.key == _on else 'false' }}" aria-controls="fph-q-{{ q.key }}">{{ q.label }} <small>{{ q.count }}</small></button>
+  {% endfor %}
+</div>
+<p class="fph-stepnote">제작 대기 <b>{{ queues.waiting }}</b>건 · 검수까지 끝난 것 <b>{{ queues.finished }}</b>건{% if can_act %} — 시작과 제작 완료는 작업 시트에서 눌러요.{% endif %}</p>
+{% for q in queues.queues %}
+<div class="fph-q fpc-qs" id="fph-q-{{ q.key }}" role="tabpanel" data-foms-home-stepq="{{ q.key }}"{% if q.key != _on %} hidden{% endif %}>
+  <h3 class="fph-pane__g">{{ q.label }}에 와 있는 것 {{ q.count }}건 <small>시공일 빠른 순</small></h3>
+  {% for r in q.rows %}{{ pc_qrow(r, q, can_act) }}{% else %}
+  <p class="foms-prod-home__empty">{{ q.label }}에 와 있는 주문이 없어요.</p>
+  {% endfor %}
+  {% if q.incoming %}
+  <h3 class="fph-q__next">곧 올 것 <b>{{ q.incoming | length }}</b><small>{{ q.incoming_label }}</small></h3>
+  {% for r in q.incoming %}{{ pc_mini(r) }}{% endfor %}
+  {% endif %}
+</div>
+{% endfor %}

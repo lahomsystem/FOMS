@@ -108,7 +108,7 @@ _PHONE_PREWARM = [
     # 2단계: 예전 고정 목록(PRIMARY 앞 3개) — 예전에 데우던 것은 계속 데운다
     "/erp/measurement?foms_shell=fragment",
     "/erp/drawing-workbench?foms_shell=fragment",
-    "/erp/production/dashboard?foms_shell=fragment",
+    "/erp/production/home?foms_shell=fragment",
 ]
 
 
@@ -130,7 +130,7 @@ def test_prewarm_follows_visible_bottom_nav_then_falls_back(sim: dict) -> None:
     assert pw["pc"] == [  # 아래 탭이 없는 태블릿 · PC: 예전 그대로(서랍을 열어도 더 받지 않는다)
         "/erp/measurement?foms_shell=fragment",
         "/erp/drawing-workbench?foms_shell=fragment",
-        "/erp/production/dashboard?foms_shell=fragment",
+        "/erp/production/home?foms_shell=fragment",
     ]
 
 

@@ -1,0 +1,27 @@
+{# 날짜 탭 오른쪽 한 장 — PC(마우스) 꼴(설계서 2026-11-21-production-pc-viewer §6-2 · §6-3). home_day_pane.html 의 PC 짝:
+   같은 장 값(d = 날짜 묶음 한 장), 같은 순서(만들 것 → 도면·컨펌 기다림 → 제작 완료 → 미리 보기), 같은 조각 주소(?view=day&day=).
+   줄 = 여섯 칸(pc_row), 기다림 · 제작 완료 = 네 칸(pc_mini) — 모든 줄 맨 앞에 시공일 칸. 도면 카드 판 · [도면 카드로 보기]는 태블릿 전용이라 없다. #}
+{% from 'production/partials/home_pc_macros.html' import pc_row, pc_mini %}
+{% set _wait_n = d.wait_rows | length %}
+<section class="fph-pane fpc-pane" data-foms-home-daypane="{{ d.key }}">
+  <h2 class="fph-pane__h">{{ d.title }} <small>시공 {{ d.total }}건 · 만들 것 {{ d.make }} · 도면·컨펌 기다림 {{ _wait_n }}{% if d.note %} · {{ d.note }}{% endif %}</small></h2>
+  {% if not d.total and not d.note %}
+  <p class="fph-pane__none">이 날은 시공이 없어요.</p>
+  {% endif %}
+  {% if d.make_rows %}
+  <h3 class="fph-pane__g">만들 것 {{ d.make }}</h3>
+  {% for r in d.make_rows %}{{ pc_row(r) }}{% endfor %}
+  {% endif %}
+  {% if d.wait_rows %}
+  <h3 class="fph-pane__g">도면·컨펌 기다림 {{ _wait_n }} <small>도면이 오면 위로 올라와요</small></h3>
+  {% for r in d.wait_rows %}{{ pc_mini(r) }}{% endfor %}
+  {% endif %}
+  {% if d.done_rows %}
+  <h3 class="fph-pane__g">제작 완료 {{ d.done_rows | length }} <small>시공 대기</small></h3>
+  {% for r in d.done_rows %}{{ pc_mini(r) }}{% endfor %}
+  {% endif %}
+  {% for p in d.previews %}
+  <h3 class="fph-pane__g fph-pane__g--next">{{ p.title }} <small>{{ p.hint }}</small></h3>
+  {% for r in p.rows %}{{ pc_row(r) }}{% endfor %}
+  {% endfor %}
+</section>

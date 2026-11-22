@@ -58,6 +58,8 @@ def _user(name: str, *, team: str | None = "PRODUCTION", role: str = "STAFF", pa
 def _login(client, user: Person) -> None:
     with client.session_transaction() as sess:
         sess["user_id"], sess["username"], sess["role"] = user.id, user.username, user.role
+    # 전체 화면 시트의 공정 단추는 태블릿(foms_ptr=coarse)에서만 그린다(PC 보기 전용, 설계서 2026-11-21-production-pc-viewer §5)
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
 
 
 def _order(n: int = 3, *, steps_done: tuple[str, ...] = (), extra: dict | None = None) -> int:
@@ -309,8 +311,9 @@ def test_part_account_cannot_write_order_steps(client):
     assert got["locked"] is True and got["locked_note"] == "공정은 도면 카드에서 체크해요"
 
 
+# CS 직원은 2026-11-21 부터 생산을 보기만 한다(설계서 production-pc-viewer §13 결정 2) — 대조군은 파트 없는 생산 매니저로 바꿨다.
 @pytest.mark.parametrize("team,role,part", [("PRODUCTION", "STAFF", None), ("CS", "ADMIN", "cut"),
-                                            ("PRODUCTION", "ADMIN", "cut"), ("CS", "STAFF", None)])
+                                            ("PRODUCTION", "ADMIN", "cut"), ("PRODUCTION", "MANAGER", None)])
 def test_control_non_part_accounts_still_write_steps(client, team, role, part):
     oid = _order(1)
     _login(client, _user("대조", team=team, role=role, part=part))

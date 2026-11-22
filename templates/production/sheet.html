@@ -6,8 +6,10 @@
    공정·불량·도면 넘기기는 foms-production-sheet-page.js. 금액 없음(D7). 인라인 style·script 없음. #}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261121c">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/sheet.css') }}?v=20261121d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20261109a">{% if pc_view %}
+{# PC(마우스) — 보기 전용 표 · [고치기] · 주황 띠 · 시공일 D-n(설계서 2026-11-21-production-pc-viewer §5 · §6-3 · §7) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/production/pc.css') }}?v=20261121b">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -21,14 +23,16 @@
     <header class="foms-prod-page__bar">
       <a class="foms-prod-page__back" data-foms-prod-back href="{{ url_for('erp_production_page.erp_production_home') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>생산</a>
       <h1 class="foms-prod-page__title">{{ order.customer_name }} <small>#{{ order.id }}</small><span class="foms-prod-page__title-prod"> · {{ order.product_label }}</span></h1>
-      <span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>
+      {% if pc_sheet_due %}<span class="foms-prod-page__due fpc-sheet-due is-{{ pc_sheet_due.state }}" data-foms-pc-due>시공 {{ pc_sheet_due.md }}{% if pc_sheet_due.rel %} · <b>{{ pc_sheet_due.rel }}</b>{% endif %}{% if pc_sheet_due.more %} · 외 {{ pc_sheet_due.more }}{% endif %}</span>{% else %}<span class="foms-prod-page__due">시공 {{ order.construction_label }}</span>{% endif %}
       {% if order.hold_active %}<span class="foms-prod-page__badge foms-prod-page__badge--hold">보류</span>{% endif %}
       {% if order.rework_active %}<span class="foms-prod-page__badge foms-prod-page__badge--rework">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>{% endif %}
       {% if order.drawing_badge %}<span class="foms-prod-page__badge foms-prod-page__badge--drawing" title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>{% endif %}
-      <span class="foms-prod-page__sp"></span>
+      <span class="foms-prod-page__sp"></span>{% if pc_view %}{% include 'production/partials/home_pc_tools.html' %}{% endif %}
+      {# 알림 종 — 생산 화면에서는 레일 종이 숨어서 여기로 온다(가로 태블릿만, 11-21 사용자 ③) #}
+      {% set foms_prod_bell_ns = 'foms-prod-page' %}{% include 'production/partials/notif_bell.html' %}
       <a class="foms-prod-page__btn" href="{{ url_for('erp_production_page.erp_production_print_sheet', order_id=order.id) }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Z"/></svg>인쇄</a>
       <a class="foms-prod-page__btn foms-prod-page__btn--ghost" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">상세</a>
-    </header>
+    </header>{% if edit_on %}{% include 'production/partials/home_pc_band.html' %}{% endif %}
 
     <div class="foms-prod-page__body">
       {# ── 왼쪽: 도면 ── #}
@@ -78,12 +82,12 @@
           <h2 class="foms-prod-page__h">공정 <small data-foms-sheet-steps-count>{{ order.steps_done }}/{{ order.steps | length }}</small></h2>
           <div class="foms-prod-page__steps">
             {% for s in order.steps %}
-            <button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
-                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>
+            {% if can_act %}<button type="button" class="foms-prod-page__step{% if s.done %} is-done{% elif s.now %} is-now{% endif %}{% if order.steps_locked %} is-locked{% endif %}"
+                    data-foms-sheet-step="{{ s.key }}" aria-pressed="{{ 'true' if s.done else 'false' }}"{% if order.steps_locked %} disabled aria-disabled="true"{% endif %}>{% else %}<div class="foms-prod-page__step is-view{% if s.done %} is-done{% elif s.now %} is-now{% endif %}">{% endif %}
               <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></i>
               <span>{{ s.label }}</span>
               <small data-foms-sheet-step-meta>{{ s.meta or ('지금 여기' if s.now else '') }}</small>
-            </button>
+            {% if can_act %}</button>{% else %}</div>{% endif %}
             {% endfor %}
           </div>
           {% if order.steps_locked %}<p class="foms-prod-page__steps-note" data-foms-sheet-steps-locked>{{ order.steps_locked_note }}</p>{% endif %}
@@ -99,7 +103,7 @@
             <li><b>{{ a.label }}</b>{% if a.kind == 'construction_date' and a.to_md %} {{ a.from_md | default('미정', true) }} → <strong>{{ a.to_md }}</strong>{% elif a.detail %} {{ a.detail }}{% endif %}</li>
             {% endfor %}
           </ul>
-          <button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-kanban-action="change-ack" data-order-id="{{ order.id }}">확인했어요</button>
+          {% if can_ack %}<button type="button" class="foms-prod-page__btn foms-prod-page__btn--pri" data-kanban-action="change-ack" data-order-id="{{ order.id }}">확인했어요</button>{% endif %}
         </section>
         {% endif %}
 
@@ -149,7 +153,7 @@
         {# ── 아래 단추 줄(시안 안 2) — 가로 태블릿에서는 오른쪽 칸 바닥에 붙고 위 내용만 굴러간다(sheet.css).
            [불량 알리기] · [보류] 한 줄, 그 아래 큰 단추, 맨 아래 저장 · 연결 한 줄.
            단추는 옆 시트(tablet_sheet.html)와 같은 data-tablet-sheet-action 계약. 글만 "제작 완료". ── #}
-        <div class="foms-prod-page__foot" data-foms-sheet-defect>
+        {% if can_act %}{# 쓰기 단추 줄 — 쓰기 팀(관리자 · 생산팀)이 태블릿(foms_ptr=coarse)이거나 PC [고치기] 켬일 때만(can_act, §5) #}<div class="foms-prod-page__foot" data-foms-sheet-defect>
           <div class="foms-prod-page__pair">
             <button type="button" class="foms-prod-page__btn foms-prod-page__btn--bad" data-foms-sheet-defect-toggle aria-expanded="false" aria-controls="foms-prod-page-defect-reasons"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/></svg>불량 알리기</button>
             <button type="button" class="foms-prod-page__btn{% if order.hold_active %} is-active{% endif %}"
@@ -185,18 +189,19 @@
           <p class="foms-prod-page__status" data-foms-sheet-status aria-live="polite"></p>
           <span class="foms-prod-page__net is-ok" data-foms-sheet-net>연결 좋음</span>
         </div>
-        </div>
+        </div>{% endif %}
       </div>
     </div>
   </section>
   {# 단추 배선 세트(칸반 tablet_kanban_body.html:409-415 와 같은 세트 — 하나라도 빠지면 재시도가 무음으로 실패). #}
-  <script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>
-  {% include 'partials/shared/foms_reason_sheet.html' %}
+  {% if can_act or (can_ack and order.has_changes) %}<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20261121b" defer></script>{% endif %}
+  {% if can_act %}{% include 'partials/shared/foms_reason_sheet.html' %}
   <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261121a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20261121a" defer></script>{% endif %}{% if write_omitted %}{# 쿠키 없는 첫 요청이라 단추 줄을 뺐다 — 터치 기기면 다시 받는다 #}{% include 'production/partials/write_omitted_marker.html' %}{% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121c" defer></script>
+<script src="{{ url_for('static', filename='js/production/foms-production-sheet-page.js') }}?v=20261121c" defer></script>{% if edit_toggle %}
+<script src="{{ url_for('static', filename='js/production/foms-production-edit.js') }}?v=20261121a" defer></script>{% endif %}
 {% endblock %}

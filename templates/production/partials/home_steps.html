@@ -19,7 +19,7 @@
     <span class="fph-qr__due">시공<b>{{ r.day_label }}</b></span>
     {% if r.hold_active %}
     <span class="fph-qr__hold">보류</span>
-    {% else %}
+    {% elif can_act %}
     <button type="button" class="fph-qr__done" data-foms-home-step-done data-order-id="{{ r.id }}" data-step-key="{{ q.key }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{ q.label }} 끝</button>
     {% endif %}
   </div>

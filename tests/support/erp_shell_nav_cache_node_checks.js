@@ -89,7 +89,8 @@ async function dedupe() {
 }
 
 const PHONE_NAV = ['/erp/construction/dashboard', '/erp/shipment', '/erp/dashboard', '/erp/as', '/wdcalculator'];
-const PHONE_DRAWER = ['/erp/drawing-workbench', '/erp/production/dashboard', '/erp/as', '/erp/completion', '/erp/history/',
+// 생산 칸 = 생산 첫 화면(2026-11-21 폰 메뉴 주소, 설계서 production-pc-viewer §9-3)
+const PHONE_DRAWER = ['/erp/drawing-workbench', '/erp/production/home', '/erp/as', '/erp/completion', '/erp/history/',
   '/erp/settlement', '/erp/shipment-settings', '/notices', '/erp/dashboard'];
 
 /* 서랍 열림: Bootstrap 은 서랍 요소에서 show.bs.offcanvas 를 거품으로 올린다. other=true 면 다른 offcanvas 가 열린 것.

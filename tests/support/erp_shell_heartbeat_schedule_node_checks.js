@@ -26,7 +26,7 @@ const ACTIVITY_EVERY_MS = 30 * 1000;
 const PREFETCH_ALLOW = process.env.FOMS_SIM_PREFETCH_ALLOW;
 const CURRENT_PATHS = process.env.FOMS_SIM_CURRENT
   ? process.env.FOMS_SIM_CURRENT.split(',')
-  : ['/erp/production/dashboard', '/erp/shipment'];
+  : ['/erp/production/home', '/erp/shipment'];
 
 async function simulate(currentPath) {
   let clock = 1700000000000;

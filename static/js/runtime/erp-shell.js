@@ -13,7 +13,7 @@
     '/erp/dashboard',
     '/erp/measurement',
     '/erp/drawing-workbench',
-    '/erp/production/dashboard',
+    '/erp/production/home',
     '/erp/shipment',
     '/erp/as',
     '/erp/construction/dashboard',
@@ -26,7 +26,7 @@
     '/erp/dashboard',
     '/erp/measurement',
     '/erp/drawing-workbench',
-    '/erp/production/dashboard',
+    '/erp/production/home',
     '/erp/shipment',
     '/erp/as',
     '/erp/construction/dashboard',
@@ -47,17 +47,22 @@
     // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈). 하트비트로 만료 전 갱신 + focus/bfcache 재수혈로 신선도 유지.
     // (과거엔 NO_FRAGMENT_CACHE 로 매 스왑 refetch → 5.8s. 이제 fragment 안에 마크업만 남아 warm-cache 가능.)
     '/erp/measurement',
-    // 생산 보드: '도면 수정 중' 배지·[제작 시작] 막힘이 다른 사람의 수정요청·수령 확정으로 바뀐다(Q2).
-    // 5분 primary 캐시면 수령 확정 뒤에도 배지가 남으므로 fresh(60s·하트비트 50s)+복귀 재수혈로 둔다.
-    '/erp/production/dashboard',
+    // 생산 첫 화면(2026-11-21 부터 9탭의 생산 칸 — 옛 보드 자리): 공정 칸 · '바뀐 것' · 도면 기다림이 다른 사람(공장 태블릿 ·
+    // 도면팀)의 손으로 바뀐다(Q2 와 같은 까닭). 5분 primary 캐시면 오래된 줄이 남으므로 fresh(60s·하트비트 50s)+복귀 재수혈로 둔다.
+    '/erp/production/home',
   ];
   /**
-   * 9탭 밖이지만 같은 셸 조각 규약을 내는 화면 중 fresh 로 다루는 것 — 생산 첫 화면(D19: 태블릿 레일 · 생산팀 폰 아래 메뉴의
-   * 생산 단추 주소, 2026-11-14). 예전엔 온전한 페이지 이동이라 생산으로 돌아올 때마다 서버 왕복 + 스크립트 64개 다시 실행이었다.
-   * 미리 받기(첫 웜업 · fresh 하트비트 · 복귀 재수혈)는 이 주소로 가는 링크가 **보이는** 사람만 — 레일은 태블릿 가로에서만
-   * 보이고, 첫 화면을 못 보는 팀은 링크가 보드다. 지금 그 화면에 있으면 자기 자신은 미리 받지 않는다([다시 받기]는 캐시 없이 받는다).
+   * 9탭 밖이지만 같은 셸 조각 규약을 내는 화면 중 fresh 로 다루는 것. 미리 받기(첫 웜업 · fresh 하트비트 · 복귀 재수혈)는 이
+   * 주소로 가는 링크가 **보이는** 사람만, 지금 그 화면이면 자기 자신은 빼고. 예전 생산 첫 화면(D19, 2026-11-14)이 여기 있었는데
+   * 2026-11-21 9탭의 생산 칸이 되어(FRESH_TTL_PATHS) 지금은 비었다 — 둘 다에 두면 하트비트가 한 주소를 두 번 받는다.
    */
-  var LINKED_FRESH_PATHS = ['/erp/production/home'];
+  var LINKED_FRESH_PATHS = [];
+  /**
+   * 9탭에서 빠진 옛 생산 보드(2026-11-21) — 첫 화면 [보드 →] · 켜진 프리랜서 메뉴 · 첫 화면을 못 보는 사람의 생산 칸이 여기로
+   * 온다. 조각 규약은 그대로라 다른 하위 화면처럼 바꿔 끼운다 — 9탭 하트비트 · fresh 목록에는 없어서, 미리 받기는 링크에
+   * 마우스를 올리거나 서랍을 열 때뿐이다.
+   */
+  var LEGACY_SWAP_PATHS = ['/erp/production/dashboard'];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
@@ -335,7 +340,7 @@
     if (p === '/erp/shipment-settings') {
       return true;
     }
-    if (LINKED_FRESH_PATHS.indexOf(p) >= 0) {
+    if (LINKED_FRESH_PATHS.indexOf(p) >= 0 || LEGACY_SWAP_PATHS.indexOf(p) >= 0) {
       return true;
     }
     if (/^\/erp\/drawing-workbench\/\d+$/.test(p)) {
@@ -417,10 +422,11 @@
     }
   }
 
-  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast. */
+  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast(옛 생산 보드도 — 배지 신선도, Q2). */
   function cacheTtlForKey(key) {
     var path = key.split('?')[0];
-    return FRESH_TTL_PATHS.indexOf(path) >= 0 || LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
+    return FRESH_TTL_PATHS.indexOf(path) >= 0 || LEGACY_SWAP_PATHS.indexOf(path) >= 0
+      || LINKED_FRESH_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
   }
 
   /**

@@ -30,6 +30,9 @@ def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> 
         sess["user_id"] = user.id
         sess["username"] = user.username
         sess["role"] = user.role
+    # 작업 시트 단추는 쓰기 팀 + 태블릿(foms_ptr=coarse) 또는 PC [고치기] 켬일 때만 그린다(설계서 2026-11-21-production-pc-viewer §4 · §5).
+    # 이 파일은 공장 태블릿 화면을 본다 — PC 보기 전용은 test_production_pc_viewer.
+    client.set_cookie("foms_ptr", "coarse", domain="localhost")
     return user
 
 
@@ -140,9 +143,12 @@ def test_제작대기_주문은_제작_시작_단추를_보인다(client) -> Non
     assert "is-now" not in html
 
 
-def test_도면팀은_403_없는_주문은_404(client) -> None:
+def test_팀_없으면_403_없는_주문은_404(client) -> None:
+    # 도면팀은 2026-11-21 보는 팀(설계서 production-pc-viewer §9-1) — 막히는 쪽은 첫 화면을 못 보는 사람(팀 없음)이다.
     _make_user(client, "sheet_drawing_staff", "DRAWING")
     order = _seed_order()
+    assert client.get(SHEET_URL.format(id=order.id)).status_code == 200
+    _make_user(client, "sheet_noteam_staff", None)
     assert client.get(SHEET_URL.format(id=order.id)).status_code == 403
     _make_user(client, "sheet_prod_staff3", "PRODUCTION")
     assert client.get(SHEET_URL.format(id=order.id + 999)).status_code == 404

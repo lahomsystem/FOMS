@@ -162,8 +162,10 @@ def test_판은_태블릿_가로_터치_넓은_창에서만(client, cohort) -> N
         assert ("foms-step-confirm-modal" in out) == bool(want), cookies
         if not want:
             assert "fph-has-sp" not in out and STEPS_JS not in out and "fph-q__list" not in out
-            # 판 없는 화면 = 지금 그대로: 줄마다 [끝](보류 줄 빼고), 줄 링크 = 작업 시트
-            assert out.count("data-foms-home-step-done") == 3 + 1
+            # 판 없는 화면 = 지금 그대로: 줄마다 [끝](보류 줄 빼고), 줄 링크 = 작업 시트. PC 마우스는 보기 전용이라
+            # [끝]이 없다(설계서 2026-11-21-production-pc-viewer §5 — [고치기] 켬일 때만, test_production_pc_viewer)
+            pc = cookies["foms_ptr"] == "fine"
+            assert out.count("data-foms-home-step-done") == (0 if pc else 3 + 1)
             assert f'href="/erp/production/sheet/{a.id}"' in queue_html(out, "cut")
             assert "data-foms-wide-surface-omitted" not in out  # 폰 · PC 는 생략 표식도 없다
 

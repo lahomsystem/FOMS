@@ -369,4 +369,5 @@ def test_shell_prefetches_only_allowed_paths():
         assert set(run["perPath"]) <= {"/erp/dashboard", "/erp/measurement"}, run
         assert run["perPath"].get("/erp/measurement"), run  # 허용 경로는 계속 미리 받는다
     staff = _simulate_prefetch(None, ["/erp/dashboard"])[0]["perPath"]
-    assert {"/erp/drawing-workbench", "/erp/production/dashboard", "/erp/shipment", "/erp/history/"} <= set(staff)
+    # 9탭의 생산 칸 = 생산 첫 화면(2026-11-21, 설계서 production-pc-viewer §9-5)
+    assert {"/erp/drawing-workbench", "/erp/production/home", "/erp/shipment", "/erp/history/"} <= set(staff)

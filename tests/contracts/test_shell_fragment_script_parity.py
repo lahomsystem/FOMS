@@ -143,6 +143,10 @@ def _subordinate_shell_paths() -> set[str]:
     linked = re.search(r"var LINKED_FRESH_PATHS = \[([^\]]*)\]", src)
     assert linked and "LINKED_FRESH_PATHS.indexOf(p)" in body, "erp-shell.js 하위 경로 판정 모양이 바뀌었다 — 이 시험을 맞춰라"
     paths |= set(re.findall(r"'([^']+)'", linked.group(1)))
+    # 9탭에서 빠진 옛 생산 보드(2026-11-21) — 바꿔 끼우기만 하는 하위 경로
+    legacy = re.search(r"var LEGACY_SWAP_PATHS = \[([^\]]*)\]", src)
+    assert legacy and "LEGACY_SWAP_PATHS.indexOf(p)" in body, "erp-shell.js 옛 보드 하위 경로 판정 모양이 바뀌었다 — 이 시험을 맞춰라"
+    paths |= set(re.findall(r"'([^']+)'", legacy.group(1)))
     if "drawing-workbench\\/\\d+" in body:
         paths.add("/erp/drawing-workbench/<id>")
     return paths

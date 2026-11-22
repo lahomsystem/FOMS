@@ -1,0 +1,41 @@
+{# 탭 "찾기" — PC(마우스) 꼴(설계서 2026-11-21-production-pc-viewer §6-2). home_all.html 의 PC 짝: 같은 거르기 줄 · 같은 날짜 묶음 ·
+   같은 JS 열쇠(data-foms-home-view · -q · -grp · -tog · -all · -job, foms-production-home.js). 줄만 여섯 칸(기다림 · 제작 완료는 네 칸). #}
+{% from 'production/partials/home_pc_macros.html' import pc_row, pc_mini %}
+{% set _open_n = groups | selectattr('is_open') | list | length %}
+<div class="foms-prod-home__filters">
+  <div class="foms-prod-home__tabs" role="group" aria-label="보기">
+    <button type="button" class="foms-prod-home__tab is-on" data-foms-home-view="all" aria-pressed="true">전체 <small>{{ counts.all }}</small></button>
+    <button type="button" class="foms-prod-home__tab" data-foms-home-view="prod" aria-pressed="false">생산 중 <small>{{ counts.prod }}</small></button>
+    <button type="button" class="foms-prod-home__tab" data-foms-home-view="changed" aria-pressed="false">바뀐 것 <small>{{ counts.changed }}</small></button>
+  </div>
+  <label class="foms-prod-home__search">
+    <span class="visually-hidden">찾기</span>
+    <input type="search" id="foms-prod-home-q" data-foms-home-q autocomplete="off" placeholder="이름 · 주소 · 번호로 찾기">
+  </label>
+  {% if groups %}
+  <div class="foms-prod-home__ctl" data-foms-home-ctl>
+    <span>날짜 <b>{{ groups | length }}</b> · 펼침 <b data-foms-home-open-count>{{ _open_n }}</b></span>
+    <button type="button" class="foms-prod-home__ctl-all" data-foms-home-all="{{ 'close' if _open_n == groups | length else 'open' }}"><span data-foms-home-all-label>{{ '모두 접기' if _open_n == groups | length else '모두 펼치기' }}</span></button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="foms-prod-home__list fpc-list" data-foms-home-list>
+  {% for g in groups %}
+  <div class="foms-prod-home__grp{% if not g.is_open %} is-closed{% endif %}{% if g.is_today %} is-today{% endif %}" data-foms-home-grp="{{ g.key }}">
+    <button type="button" class="foms-prod-home__day" data-foms-home-tog aria-expanded="{{ 'true' if g.is_open else 'false' }}" aria-controls="foms-prod-home-rows-{{ loop.index }}">
+      <b>{{ g.label }}</b>{% if g.sub %}<small>{{ g.sub }}</small>{% endif %}
+      <span class="foms-prod-home__gcount" data-foms-home-grp-count>{{ g.count }}건</span>
+      {% if g.changed %}<span class="foms-prod-home__gchg">바뀜 {{ g.changed }}</span>{% endif %}
+      <svg class="foms-prod-home__gchev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="foms-prod-home__rows" id="foms-prod-home-rows-{{ loop.index }}">
+    {% for r in g.rows %}{% if r.home_view == 'prod' %}{{ pc_row(r, job=True) }}{% else %}{{ pc_mini(r, job=True) }}{% endif %}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if not groups %}
+  <p class="foms-prod-home__empty">보여 줄 주문이 없어요.</p>
+  {% endif %}
+</div>
+<p class="foms-prod-home__empty" data-foms-home-none hidden>맞는 주문이 없어요.</p>

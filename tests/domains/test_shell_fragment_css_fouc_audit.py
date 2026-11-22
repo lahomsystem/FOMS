@@ -36,9 +36,10 @@ _TAB_TEMPLATES: dict[str, tuple[str, tuple[str, ...]]] = {
         "templates/drawing/workbench_dashboard.html",
         ("templates/drawing/partials/workbench_dashboard_fragment.html",),
     ),
-    "/erp/production/dashboard": (
-        "templates/production/dashboard.html",
-        ("templates/production/partials/dashboard_fragment.html",),
+    # 9탭의 생산 칸 = 생산 첫 화면(2026-11-21, 설계서 production-pc-viewer §9-5). 화면 CSS 는 두 쪽이 같이 싣는 home_styles 조각에 있다.
+    "/erp/production/home": (
+        "templates/production/home.html",
+        ("templates/production/partials/home_fragment.html", "templates/production/partials/home_styles.html"),
     ),
     "/erp/shipment": (
         "templates/shipment/dashboard.html",

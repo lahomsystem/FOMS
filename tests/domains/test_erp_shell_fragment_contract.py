@@ -58,7 +58,7 @@ def test_contract_constants_and_paths_frozen():
         "/erp/dashboard",
         "/erp/measurement",
         "/erp/drawing-workbench",
-        "/erp/production/dashboard",
+        "/erp/production/home",  # 2026-11-21 옛 보드에서 바꿈(설계서 production-pc-viewer §9-5 · 계약 SPEC §2)
         "/erp/shipment",
         "/erp/as",
         "/erp/construction/dashboard",
@@ -193,7 +193,8 @@ def test_orders_dashboard_fragment_returns_fragment_header(client, monkeypatch):
         ("/erp/shipment", b"erp-mobile-shell"),
         ("/erp/as", b"erp-as"),
         ("/erp/drawing-workbench", b"dw-process-map"),
-        ("/erp/production/dashboard", b"erp-dashboard"),
+        ("/erp/production/dashboard", b"erp-dashboard"),  # 9탭 밖 하위 조각(2026-11-21)이어도 조각 규약은 그대로
+        ("/erp/production/home", b"foms-prod-home"),
         ("/erp/construction/dashboard", b"erp-dashboard"),
         ("/erp/completion", b"erp-completion"),
         ("/erp/history/", b"history-chevron"),

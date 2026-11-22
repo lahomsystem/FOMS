@@ -221,15 +221,15 @@ def test_start_blocked_when_confirm_quest_incomplete(client):
 
 
 # --------------------------------------------------------------------------- #
-# 4. team-wide — CS/SALES/PRODUCTION 200, 무관 팀 403
+# 4. 쓰는 팀 — 생산팀(+관리자) 200, CS · 영업(2026-11-21 보기만) · 무관 팀 403
 # --------------------------------------------------------------------------- #
-def test_team_wide_allows_cs_sales_production(client):
-    """CS·SALES·PRODUCTION STAFF 모두 start 200(P0-9 team-wide, erp_edit_required 복구 금지)."""
-    for i, team in enumerate(("CS", "SALES", "PRODUCTION")):
+def test_team_wide_allows_production_only(client):
+    """PRODUCTION STAFF 는 start 200, CS · SALES STAFF 는 403(설계서 2026-11-21-production-pc-viewer §13 결정 2)."""
+    for team, expected in (("PRODUCTION", 200), ("CS", 403), ("SALES", 403)):
         _login(client, _make_user(f"sp_tw_{team}", role="STAFF", team=team))
         order_id = _make_order("CONFIRM", structured_data=_CONFIRM_DONE).id
         resp = client.post(f"/api/orders/{order_id}/production/start", json={})
-        assert resp.status_code == 200, (team, resp.get_data(as_text=True))
+        assert resp.status_code == expected, (team, resp.get_data(as_text=True))
 
 
 def test_unrelated_team_denied(client):

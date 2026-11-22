@@ -78,17 +78,18 @@ def _notifs(order_id: int) -> list[Notification]:
 
 
 def test_target_teams_are_teams_that_actually_have_users():
-    """수신 팀은 PRODUCTION_EDIT 권한 팀이고, **실사용자가 있는** CS·영업이 늘 들어 있어야 한다.
+    """수신 팀은 생산 첫 화면을 보는 팀이고(알림이 그 화면을 연다), **실사용자가 있는** CS·영업이 늘 들어 있어야 한다.
 
     운영 DB 실측(2026-08-05·2026-10-27): PRODUCTION·SHIPMENT 팀은 활성 사용자 0명이다. 그
     팀만 target 으로 두면 fan_out 이 0건 = 무음 알림이 된다(ADMIN 은 팬아웃 대상이 아니다).
     2026-10-27 사용자 결정 — 생산 단계 도면 수정은 생산팀 전원이 알아야 하고 생산팀 계정은
     전원 만든다 — 으로 PRODUCTION 을 넣는다. CS·영업이 함께 받으므로 무음이 아니다.
+    2026-11-21: 생산 **쓰기**는 관리자 · 생산팀만(PRODUCTION_EDIT)이지만 CS · 영업은 보기로 계속 받는다
+    (설계서 2026-11-21-production-pc-viewer §13 결정 2) — 그래서 비교 대상이 쓰기 정책이 아니라 보기 팀이다.
     """
-    from foms.services.orders.order_mutation_policy import POLICY_REGISTRY
+    from foms.services.production.home_access import PRODUCTION_HOME_TEAMS
 
-    policy_teams = set(POLICY_REGISTRY["PRODUCTION_EDIT"].teams)
-    assert set(TARGET_TEAMS) <= policy_teams, "생산 권한이 없는 팀에 알림을 보내고 있다"
+    assert set(TARGET_TEAMS) <= set(PRODUCTION_HOME_TEAMS), "생산 화면을 못 보는 팀에 알림을 보내고 있다"
     assert {"CS", "SALES"} <= set(TARGET_TEAMS), "실사용자가 있는 팀이 빠지면 무음 알림이 된다"
     assert "PRODUCTION" in TARGET_TEAMS, "생산 단계 도면 수정은 생산팀 전원이 알아야 한다(2026-10-27)"
     assert "SHIPMENT" not in TARGET_TEAMS, "활성 사용자 0명인 팀 = 무음 알림"
@@ -105,8 +106,8 @@ def test_push_type_is_registered():
         order_id=1, notification_type=NOTIFICATION_TYPE, target_type="TEAM",
         target_team=TARGET_TEAMS[0], title="t", message="m",
     )
-    # 딥링크는 주문 상세가 아니라 생산 칸반이어야 한다(이 알림의 작업 화면).
-    assert _deep_link(notif) == "/erp/production/dashboard"
+    # 딥링크는 주문 상세가 아니라 생산 첫 화면 '바뀐 것' 탭이어야 한다(이 알림의 작업 화면, 2026-11-21 §9-6).
+    assert _deep_link(notif) == "/erp/production/home?tab=changes"
 
 
 # --- 게이트 ----------------------------------------------------------------

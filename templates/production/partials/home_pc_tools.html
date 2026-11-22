@@ -1,0 +1,4 @@
+{# PC(마우스) 응답에만 — 제목 줄 오른쪽 '보기 전용' 표 + [고치기](관리자 · 생산팀만, 설계서 2026-11-21-production-pc-viewer §7 · §13 결정 1).
+   [고치기] = foms-production-edit.js 가 쿠키 foms_prod_edit=<켠 시각>(Path=/erp/production · 세션 쿠키 · SameSite=Lax)를 심고 다시 받는다.
+   켠 시각은 서버 시각(data-foms-prod-edit-now)에서 센다 — 기기 시계가 틀려도 2시간 판정이 어긋나지 않게. 새 API 없음. #}
+{% if not edit_on %}<span class="fpc-view" data-foms-pc-viewonly><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>보기 전용</span>{% endif %}{% if edit_toggle %}<button type="button" class="foms-prod-home__btn fpc-edit{% if edit_on %} is-on{% endif %}" data-foms-prod-edit="{{ 'off' if edit_on else 'on' }}" data-foms-prod-edit-now="{{ edit_now }}" aria-pressed="{{ 'true' if edit_on else 'false' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4zM14 7l3 3"/></svg>{{ '고치는 중' if edit_on else '고치기' }}</button>{% endif %}

@@ -22,6 +22,10 @@ from models import Order, ProductionRun, User
 _KEYS = {"kind", "label", "tone", "title", "link_label", "link_endpoint", "link_params"}
 
 
+#: 생산 첫 화면을 여는 직원(첫 화면 ``order=`` 링크). 첫 화면을 못 여는 사람의 옛 보드 링크는 test_production_view_write_access.
+_CS_VIEWER = type("_Viewer", (), {"role": "STAFF", "team": "CS", "partner_org_id": None, "is_active": True})()
+
+
 class _O:
     def __init__(self, oid: int):
         self.id = oid
@@ -79,15 +83,15 @@ def _count_queries(fn):
     [
         ("PRODUCTION", _sd("PRODUCTION"), True, {
             "kind": "production", "label": "제작중", "tone": "soft", "title": "",
-            "link_label": "생산 보드 열기",
-            "link_endpoint": "erp_production_page.erp_production_dashboard",
-            "link_params": {"focus_order": 7},
+            "link_label": "생산 화면 열기",
+            "link_endpoint": "erp_production_page.erp_production_home",
+            "link_params": {"order": 7},
         }),
         ("PRODUCTION", _sd("PRODUCTION"), False, {
             "kind": "production", "label": "제작대기", "tone": "soft", "title": "",
-            "link_label": "생산 보드 열기",
-            "link_endpoint": "erp_production_page.erp_production_dashboard",
-            "link_params": {"focus_order": 7},
+            "link_label": "생산 화면 열기",
+            "link_endpoint": "erp_production_page.erp_production_home",
+            "link_params": {"order": 7},
         }),
         ("CONSTRUCTION", _sd("CONSTRUCTION", [{"note": "시공 시작"}]), False, {
             "kind": "construction", "label": "시공중", "tone": "soft", "title": "",
@@ -122,7 +126,8 @@ def _count_queries(fn):
     ],
 )
 def test_board_state_table(stage_code, sd, has_run, expected):
-    state = build_board_state(_O(7), sd, stage_code, has_current_run=has_run)
+    # 생산 칸 링크는 보는 사람마다(설계서 2026-11-21-production-pc-viewer §9-9) — 첫 화면을 여는 CS 직원으로 본다.
+    state = build_board_state(_O(7), sd, stage_code, has_current_run=has_run, viewer=_CS_VIEWER)
     assert set(state) == _KEYS
     assert state == expected
 
@@ -338,6 +343,6 @@ def test_orders_dashboard_board_rows_no_n_plus_one(app, monkeypatch):
         dc.reset_dashboard_cache_runtime_for_tests()
 
     assert resp_small.status_code == 200 and resp_big.status_code == 200
-    assert "생산 보드 열기" in resp_big.get_data(as_text=True)
+    assert "생산 화면 열기" in resp_big.get_data(as_text=True)
     assert q_big - q_small == 0, (q_small, q_big)
     assert q_big <= 12, q_big
