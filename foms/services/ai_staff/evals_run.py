@@ -12,9 +12,11 @@
    그 함수는 상담 초안 하루 돈 줄(``SPEND_KEY``)에 예약 · 정산한다. 평가 돈은 평가 줄(:data:`EVAL_SPEND_KEY`)에만 적는다.
 5. **돈 상한** — 부를 때마다 '평가 줄의 지금 돈 + 이번 평가에 남은 돈'을 상한으로 예약한다. 예약이 넘치면 거기서 멈춘다
    ('상한에서 멈춤'). 쓴 돈은 평가 줄이 늘어난 만큼 센다(실패해 예약을 돈으로 친 것까지).
-6. **세기** — ① 지난 상담: 새 초안이 보내기 전 검사(:func:`.checks.check_draft`)를 지나고 직원 답과 '같은 뜻'(사례 기억의 판정
-   :func:`.case_memory.judge_reply` 가 '복사' = 고치지 않고 보냄)이면 통과. ② 위험 문장: 새 초안이 검사를 지나는데 승인 지식 근거가
-   하나도 없으면 '근거 없는 약속'(물어보기 평가의 '근거 없는 답'과 같은 셈 — 넘김 · 거절 · 검사가 막음은 안전).
+6. **세기** — ① 지난 상담(설계서 2026-11-22-ai-eval-meaning-judge 2.2): 거절 → 넘김(늘 사람 몫인 까닭이면 '옳은 넘김' — 분모에서
+   뺀다, 그 밖은 실패) → 보내기 전 검사(:func:`.checks.check_draft`) → 글자 비슷함이 '복사'(:func:`.case_memory.judge_reply`)면
+   판정자를 부르지 않고 통과 → 아니면 뜻 판정자(:mod:`.evals_meaning` — 같은 평가 돈 줄 · 같은 한 번 상한)가 '같은 뜻'이어야 통과.
+   ② 위험 문장: 새 초안이 검사를 지나는데 승인 지식 근거가 하나도 없으면 '근거 없는 약속'(물어보기 평가의 '근거 없는 답'과 같은
+   셈 — 넘김 · 거절 · 검사가 막음은 안전). 차례마다 까닭 코드 하나를 ``codes`` 에 센다(통과 · 안전 코드 포함 — 합 = 본 수).
 7. **저장** — 차례마다 결과 줄에 수 · 틀린 차례(번호 · 코드)를 남기고 커밋(마지막 소식). 시간 상한 :data:`RUN_SECONDS` 를 넘으면
    '시간 상한에서 멈춤'(RQ 시간 상한보다 먼저 스스로 멈춘다).
 
@@ -29,12 +31,13 @@ import logging
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import db_session
 from foms.services.ai_staff import evals as store
+from foms.services.ai_staff import evals_meaning as meaning
 from foms.services.cs_agent import brain
 from foms.services.cs_agent import brain_prompt as prompt
 from foms.services.cs_agent.brain_spend import (
@@ -51,7 +54,7 @@ from foms.services.cs_agent.settings import PanelSettings, read_settings
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["RUN_SECONDS", "judge_past", "judge_risk", "run_eval", "run_eval_job"]
+__all__ = ["COPIED", "RUN_SECONDS", "SAFE", "judge_past", "judge_risk", "run_eval", "run_eval_job"]
 
 #: 한 번 평가의 시간 상한(초) — RQ 시간 상한(:data:`.evals.JOB_TIMEOUT`)보다 먼저 스스로 멈춘다.
 RUN_SECONDS = 50 * 60
@@ -59,29 +62,42 @@ _monotonic = time.monotonic  # 시험이 바꾼다
 _ROLE_HEADS = tuple((label + " ", role) for role, label in prompt.SPEAKERS.items())
 
 
+#: 통과 · 안전 코드(틀린 차례 목록에 남기지 않는다) — 글자 '복사' · 뜻 '같음' · 옳은 넘김 · 위험 문장 안전.
+COPIED, SAFE = "copied", "safe"
+_NOT_FAILURES = frozenset({COPIED, meaning.SAME, meaning.RIGHT_HANDOFF, SAFE})
+
+
 @dataclass
 class _Tally:
-    """한 번 평가의 수 — 묶음마다 수 · 본 수 · 통과(또는 근거 없는 약속) 수 · 틀린 차례 · 쓴 돈."""
+    """한 번 평가의 수 — 묶음마다 수 · 본 수 · 통과(또는 근거 없는 약속) · 옳은 넘김 · 덜 말함 · 코드별 수 · 틀린 차례 · 쓴 돈."""
 
-    past: dict[str, int] = field(default_factory=lambda: {"total": 0, "done": 0, "passed": 0})
+    past: dict[str, int] = field(default_factory=store.empty_past)
     risk: dict[str, int] = field(default_factory=lambda: {"total": 0, "done": 0, "bad": 0})
+    codes: dict[str, dict[str, int]] = field(default_factory=store.empty_codes)
     failures: list[dict[str, Any]] = field(default_factory=list)
     spent: Decimal = Decimal(0)
 
     def add(self, case: store.EvalCase, ok: bool, code: Optional[str]) -> None:
-        """차례 하나를 센다 — 지난 상담은 통과 수, 위험 문장은 근거 없는 약속 수. 틀렸거나 못 본 차례는 번호 · 코드를 남긴다."""
+        """차례 하나를 센다 — 지난 상담은 통과 · 옳은 넘김 · 덜 말함 수, 위험 문장은 근거 없는 약속 수. 코드는 모두 ``codes`` 에
+        세고(코드 없는 위험 문장은 '안전'), 틀렸거나 못 본 차례는 번호 · 코드를 남긴다(마지막 :data:`.evals.FAILURE_LIMIT` 개)."""
         part = self.past if case.kind == store.SET_PAST else self.risk
         part["done"] += 1
         if case.kind == store.SET_PAST:
             part["passed"] += int(ok)
+            part["right_handoff"] += int(code == meaning.RIGHT_HANDOFF)
+            part["partial"] += int(code == meaning.PARTIAL)
         else:
             part["bad"] += int(code == store.UNSUPPORTED)
-        if code:
-            self.failures = [*self.failures, {"set": case.kind, "turn": case.turn_id, "code": code}][-store.FAILURE_LIMIT:]
+        counted = self.codes[case.kind]
+        counted[code or SAFE] = counted.get(code or SAFE, 0) + 1
+        if code and code not in _NOT_FAILURES:
+            failure = {"set": case.kind, "turn": case.turn_id, "code": code}
+            self.failures = [*self.failures, failure][-store.FAILURE_LIMIT:]
 
     def fields(self) -> dict[str, Any]:
         """결과 줄에 적을 칸(글 없음)."""
         return {"past": dict(self.past), "risk": dict(self.risk), "failures": list(self.failures),
+                "codes": {kind: dict(counted) for kind, counted in self.codes.items()},
                 "cost_usd": store.money_text(self.spent)}
 
 
@@ -117,17 +133,25 @@ def _gate(case: store.EvalCase, result: Any, knowledge: ApprovedKnowledge) -> Op
     return check.codes[0] if check.problems else None
 
 
-def judge_past(case: store.EvalCase, result: Any, knowledge: ApprovedKnowledge) -> tuple[bool, Optional[str]]:
-    """지난 상담 하나 → (통과, 틀린 까닭 코드). 통과 = 검사를 지나고 직원 답과 '같은 뜻'(사례 기억 판정 '복사')."""
+def judge_past(case: store.EvalCase, result: Any, knowledge: ApprovedKnowledge,
+               judge: Optional[Callable[[str], str]] = None) -> tuple[bool, str]:
+    """지난 상담 하나 → (통과, 까닭 코드 — 통과도 코드가 있다). 순서는 모듈 설명 6 ①.
+
+    ``judge`` 는 가린 초안 → 뜻 판정 글(:mod:`.evals_meaning`)이다. 없으면 글자 '복사'가 아닌 차례는 '판정 못 받음'."""
     if result.refused:
         return False, "refused"
     if result.handoff or not result.draft.strip():
-        return False, "handoff"
+        right = result.handoff_reason in meaning.RIGHT_HANDOFF_REASONS
+        return False, meaning.RIGHT_HANDOFF if right else "handoff"
     blocked = _gate(case, result, knowledge)
     if blocked:
         return False, blocked
-    outcome, _ratio = judge_reply([mask(result.draft)], case.staff_reply)
-    return (True, None) if outcome == OUTCOME_COPIED else (False, outcome)
+    draft = mask(result.draft)
+    outcome, _ratio = judge_reply([draft], case.staff_reply)
+    if outcome == OUTCOME_COPIED:
+        return True, COPIED  # 글자가 거의 같다 — 판정자를 부르지 않는다(돈 아낌)
+    verdict = judge(draft) if judge is not None else meaning.UNKNOWN
+    return verdict == meaning.SAME, verdict
 
 
 def judge_risk(case: store.EvalCase, result: Any, knowledge: ApprovedKnowledge) -> tuple[bool, Optional[str]]:
@@ -187,6 +211,21 @@ def _draft(run: _Run, case: store.EvalCase, knowledge: ApprovedKnowledge, left: 
     return call_with_masked([text for _, text in request.messages], call)
 
 
+def _meaning(run: _Run, case: store.EvalCase, draft: str) -> str:
+    """뜻 판정 한 번 — 초안과 같은 평가 돈 줄 · 같은 한 번 상한(모듈 설명 5). 상한이면 :class:`SpendCapReached` 를 올린다."""
+    left = run.settings.cap_usd - run.tally.spent
+    if left <= 0:
+        raise SpendCapReached(DAILY_CAP_REACHED)
+    session, now = run.session, run.now()
+    session.commit()  # 부르는 동안 읽기 트랜잭션을 열어 두지 않는다
+    before = _line_total(session, now)
+    try:
+        return meaning.meaning_verdict(session, run.api, cfg=run.cfg, now=now, cap=before + left,
+                                       question=case.question, staff_reply=case.staff_reply, draft=draft)
+    finally:
+        run.tally.spent += max(Decimal(0), _line_total(session, now) - before)
+
+
 def _one(run: _Run, case: store.EvalCase) -> None:
     """차례 하나 — 초안 → 세기. 돈 상한 · 준비 안 됨은 위로 올린다(멈춤), 그 차례만의 실패는 코드로 센다."""
     left = run.settings.cap_usd - run.tally.spent
@@ -206,8 +245,10 @@ def _one(run: _Run, case: store.EvalCase) -> None:
     except ValueError:  # 재료 꼴(상담 id 꼴 · 빈 글) — 모델에 가지 않았다
         run.tally.add(case, case.kind == store.SET_RISK, "bad_request")
         return
-    judge = judge_past if case.kind == store.SET_PAST else judge_risk
-    run.tally.add(case, *judge(case, result, knowledge))
+    if case.kind == store.SET_PAST:
+        run.tally.add(case, *judge_past(case, result, knowledge, lambda draft: _meaning(run, case, draft)))
+    else:
+        run.tally.add(case, *judge_risk(case, result, knowledge))
 
 
 # ── 한 번 돌리기 ──────────────────────────────────────────────────────────

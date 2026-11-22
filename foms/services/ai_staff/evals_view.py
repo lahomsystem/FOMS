@@ -2,7 +2,8 @@
 
 저장은 :mod:`.evals`(설정 · 묶음 · 결과 줄), 돌리기는 :mod:`.evals_run`. 이 모듈은 읽기만 한다(500줄 상한으로 나눴다).
 
-- 줄 셋: '지난 상담'(고치지 않고 보냄 예상 비율 · 기준 — 0 이면 기준 없음) · '위험 문장'(근거 없는 약속 수 · 기준 0) · '능력 질문'
+- 줄 셋: '지난 상담'(AI 답이 직원 답과 같은 뜻인 비율 — 분모는 본 수 − 옳은 넘김, 지난번 비율 · 기준 — 0 이면 기준 없음 —
+  설계서 2026-11-22-ai-eval-meaning-judge 2.5) · '위험 문장'(근거 없는 약속 수 · 기준 0) · '능력 질문'
   (온톨로지 화면과 같은 재료 점수 — 돈 0, 보는 사람의 보기 범위). 숫자를 낸 마지막 시험(끝남 · 상한 · 시간 상한 · 도는 중)으로 그린다.
 - 틀린 차례(차례 번호 · 까닭 코드 · 화면 말 — 글 없음) · 마지막 시험 줄(때 · 상태 · 까닭 말 · 모델 · 진행 · ADMIN 만 쓴 돈).
 - ADMIN 만: 돌릴 수 있음 · 막힌 까닭(돈 상한 0 · 묶음 0) · 설정 값. MANAGER 답에는 돈 열쇠가 없다.
@@ -37,7 +38,8 @@ SET_LABELS = {SET_PAST: "지난 상담", SET_RISK: "위험 문장"}
 RUNNING_VERDICT = ("도는 중", "primary")
 #: 틀린 까닭 코드 → 화면 말(검사 코드는 :data:`foms.services.cs_agent.checks.REASONS` 의 말).
 CODE_LABELS: dict[str, str] = {
-    "direct": "직원 답과 많이 다름", "edited": "직원이 고쳐 보냈을 답", "handoff": "사람에게 넘김", "refused": "답하지 않음",
+    "direct": "직원 답과 많이 다름", "edited": "직원이 고쳐 보냈을 답", "different": "직원 답과 뜻이 다름",
+    "partial": "맞지만 중요한 안내가 빠짐", "judge_unknown": "뜻 판정을 못 받음", "handoff": "사람에게 넘김", "refused": "답하지 않음",
     UNSUPPORTED: "근거 없는 약속", "mask_leak": "가림 검사에 걸림", "bad_request": "재료 꼴이 틀림",
     "timeout": "모델 답을 못 받음", "rate_limited": "모델 답을 못 받음", "api_error": "모델 답을 못 받음",
     "bad_response": "모델 답을 못 받음",
@@ -67,18 +69,29 @@ def _row(key: str, label: str, pct: Optional[int], text: str, verdict: tuple[str
     return {"key": key, "label": label, "pct": pct, "text": text, "verdict": {"text": verdict[0], "tone": verdict[1]}}
 
 
-def _past_row(run: Optional[Mapping[str, Any]], live: bool = False) -> dict[str, Any]:
-    """'지난 상담' 줄 — 고치지 않고 보냄 예상 비율 · 기준(0 이면 기준 없음). ``live`` 면(도는 중) 판정 대신 '도는 중'."""
+def _past_pct(run: Optional[Mapping[str, Any]]) -> Optional[int]:
+    """'지난 상담' 같은 뜻 비율 = 통과 ÷ (본 수 − 옳은 넘김). 옳은 넘김 칸이 없는 옛 줄은 0 으로 본다."""
     part = _part(run, SET_PAST)
-    total, done, passed = part.get("total", 0), part.get("done", 0), part.get("passed", 0)
+    return _pct(part.get("passed", 0), part.get("done", 0) - part.get("right_handoff", 0))
+
+
+def _past_row(run: Optional[Mapping[str, Any]], live: bool = False,
+              previous: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    """'지난 상담' 줄 — 같은 뜻 비율(차례 · 옳은 넘김 · 지난번) · 기준(0 이면 기준 없음). ``live`` 면(도는 중) 판정 대신 '도는 중'."""
+    part = _part(run, SET_PAST)
+    total, done, right = part.get("total", 0), part.get("done", 0), part.get("right_handoff", 0)
     if run is None:
         return _row(SET_PAST, "지난 상담", None, "아직 돌리지 않았어요.", ("아직", "warning"))
     if total == 0:
         return _row(SET_PAST, "지난 상담 0개", None, "시험용으로 떼어 둔 상담이 없어요 — 묶음 0", ("묶음 0", "warning"))
-    pct, target = _pct(passed, done), int(run.get("target_pct") or 0)
+    pct, target = _past_pct(run), int(run.get("target_pct") or 0)
     if pct is None:
-        return _row(SET_PAST, f"지난 상담 {total}개", None, "아직 한 차례도 못 봤어요.", ("아직", "warning"))
-    text = f"고치지 않고 보냄 예상 {pct}% · " + (f"기준 {target}%" if target else "기준 없음")
+        text = f"견줄 차례가 아직 없어요 (옳은 넘김 {right})" if done else "아직 한 차례도 못 봤어요."
+        return _row(SET_PAST, f"지난 상담 {total}개", None, text, ("아직", "warning"))
+    before = _past_pct(previous)
+    text = (f"AI 답이 직원 답과 같은 뜻 {pct}% ({done - right}차례 · 옳은 넘김 {right}"
+            + (f" · 지난번 {before}%)" if before is not None else ")"))
+    text += f" · 기준 {target}%" if target else ""
     text += f" · {done}/{total}개 봄" if done < total else ""
     verdict = (("통과", "success") if pct >= target else ("기준 밑", "danger")) if target else (f"{pct}%", "primary")
     return _row(SET_PAST, f"지난 상담 {total}개", pct, text, RUNNING_VERDICT if live else verdict)
@@ -155,11 +168,13 @@ def eval_view(session: Any, viewer: Viewer, *, now: datetime.datetime, erp: bool
     at = naive_utc(now)
     runs = latest_results(session)
     latest = runs[0] if runs else None
-    shown = next((run for run in runs if run.get("status") in SCORED), None)
+    scored = [run for run in runs if run.get("status") in SCORED]
+    shown, previous = (scored + [None, None])[:2]
     running = latest is not None and _status_of(latest, at) in ACTIVE
     live = shown is not None and _status_of(shown, at) in ACTIVE  # 보이는 숫자가 아직 끝나지 않은 시험 것
-    out: dict[str, Any] = {"rows": [_past_row(shown, live), _risk_row(shown, live), _cq_row(session, viewer, erp)],
-                           "failures": _failures(shown), "last": _last(latest, at, viewer.is_admin), "running": running}
+    rows = [_past_row(shown, live, previous), _risk_row(shown, live), _cq_row(session, viewer, erp)]
+    out: dict[str, Any] = {"rows": rows, "failures": _failures(shown), "last": _last(latest, at, viewer.is_admin),
+                           "running": running}
     if viewer.is_admin:
         settings = read_eval_settings(session)
         blocked = ("EVAL_NO_CAP" if settings.cap_usd <= 0 else
