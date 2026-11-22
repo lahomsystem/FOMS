@@ -96,8 +96,8 @@ def notify_as_drawing(db: Any, order: Any, kind: str, *, round_no: int, actor: A
         text: 덧붙일 한 줄(메모·사유).
         opener_id: 차수를 연 사람 id(revision·confirm 수신자).
         sales_target: ``transfer`` 의 영업 쪽 수신 ``(target_team, target_manager_name, target_role)``.
-            도면 전달 알림과 같은 규칙(``erp_orders_drawing._drawing_notice_target``)을 API 층이 계산해
-            넘긴다(서비스 층은 API 를 부르지 않는다). 없으면 CS 팀만 받는다.
+            도면 전달 알림과 같은 규칙(``foms.services.notifications.drawing_notice_target.drawing_notice_target``)을
+            부르는 쪽이 계산해 넘긴다. 없으면 CS 팀만 받는다.
 
     Returns:
         만든 Notification 목록.

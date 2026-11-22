@@ -25,7 +25,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from foms.api.cs.as_orders import _invalidate_shipment_asrec_caches, register_as_from_payload
-from foms.api.drawing.erp_orders_drawing import _drawing_notice_target
+from foms.services.notifications.drawing_notice_target import drawing_notice_target
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.audit_message_display import describe_order_action
 from foms.services.files.list_thumb import list_thumb_url
@@ -383,7 +383,7 @@ def run_as_transfer(order_id: int, user: Any, note: str = ""):
         rnd = out["round"]
         locked_order.structured_data = sd  # 알림 본문이 최신 값을 읽게
         # 영업 쪽 수신은 도면 전달 알림과 같은 규칙(담당 영업 본인 · 라홈/하우드는 CS · 협력사는 CS).
-        sales_target = _drawing_notice_target(sess, order_manager_label(sd), partner=is_partner_sd(sd))
+        sales_target = drawing_notice_target(sess, order_manager_label(sd), partner=is_partner_sd(sd))
         notices = notify_as_drawing(sess, locked_order, "transfer", round_no=round_no(sd, rnd), actor=user,
                                     text=note, sales_target=sales_target)
         return {"round": round_view(sd, rnd), "sent": len(out["files"]), "replaced": out["replaced"],
