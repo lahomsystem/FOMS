@@ -12,7 +12,9 @@
   - '위험 문장': 보내기 전 검사에 걸린 적 있는 차례(``check_codes`` 에 막는 코드가 있음 — 말투 알림만 있는 줄은 뺀다), 최근 것부터.
     JSON 칸을 글자로 바꿔 찾지 않고, 최근 :data:`RISK_POOL` 줄의 코드 칸만 읽어 파이썬으로 거른다.
 - **결과**(SystemSetting :data:`RESULTS_KEY`): ``{"runs": [...]}`` 최근 :data:`KEEP_RUNS` 번 — 시작 · 마지막 소식 · 끝 · 누른 사람
-  번호 · 묶음마다 수 · 통과 수 · 모델 · 쓴 돈 · 상태 · 틀린 차례(번호 · 까닭 코드). **글은 없다.**
+  번호 · 묶음마다 수 · 통과 수(지난 상담은 옳은 넘김 · 덜 말함 수도 — 설계서 2026-11-22-ai-eval-meaning-judge 2.3) · 모델 · 쓴 돈 ·
+  상태 · 까닭 코드별 수(``codes`` — 묶음마다 모든 차례) · 틀린 차례(마지막 :data:`FAILURE_LIMIT` 개 번호 · 까닭 코드).
+  **글은 없다.** 그 칸이 없는 옛 줄은 0 으로 본다.
 - **한 번에 하나만**: 마지막 줄이 '줄 섬' · '도는 중'이고 마지막 소식이 :data:`STALE_AFTER` 안이면 도는 중이다(새로 누르면 409).
   그보다 오래 소식이 없으면 멈춘 것으로 보고 '멈춘 채 끝남'으로 풀어 준다.
 - **줄 일**: :data:`JOB_PATH` 를 RQ ``default`` 줄에 넣는다(:func:`enqueue_run`) — 그 줄은 WORKER 의 감독받는 큐 소비자만 꺼낸다.
@@ -45,8 +47,9 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "AUDIT_RUN", "AUDIT_SETTINGS", "JOB_PATH", "RESULTS_KEY", "SETTINGS_KEY", "EvalCase", "EvalError", "EvalSet",
-    "EvalSettings", "add_run", "begin_run", "blocking_codes", "build_eval_set", "claim_run", "enqueue_run", "is_stale",
-    "latest_results", "money_text", "naive_utc", "parse_money", "read_eval_settings", "save_eval_settings", "update_run",
+    "EvalSettings", "add_run", "begin_run", "blocking_codes", "build_eval_set", "claim_run", "empty_codes",
+    "empty_past", "enqueue_run", "is_stale", "latest_results", "money_text", "naive_utc", "parse_money", "parse_started",
+    "read_eval_settings", "save_eval_settings", "update_run",
 ]
 
 SETTINGS_KEY = "ai_staff_eval_settings"
@@ -148,6 +151,11 @@ def _parsed(raw: Any) -> Optional[datetime.datetime]:
     """결과 줄의 때 글 → UTC naive(틀리면 ``None``)."""
     parsed = parse_datetime_utc(raw) if isinstance(raw, str) else None
     return parsed.replace(tzinfo=None) if parsed is not None else None
+
+
+def parse_started(run: Mapping[str, Any]) -> Optional[datetime.datetime]:
+    """결과 줄의 시작 때(UTC naive — 틀리면 ``None``)."""
+    return _parsed(run.get("started_at"))
 
 
 def is_stale(run: Mapping[str, Any], at: datetime.datetime) -> bool:
@@ -329,6 +337,16 @@ def build_eval_set(session: Any, now: datetime.datetime, settings: Optional[Eval
 
 
 # ── 결과 ─────────────────────────────────────────────────────────────────
+def empty_past() -> dict[str, int]:
+    """'지난 상담' 수 처음 값 — 차례 수 · 본 수 · 통과 · 옳은 넘김(분모에서 뺀다) · 덜 말함(실패 가운데)."""
+    return {"total": 0, "done": 0, "passed": 0, "right_handoff": 0, "partial": 0}
+
+
+def empty_codes() -> dict[str, dict[str, int]]:
+    """까닭 코드별 수 처음 값(묶음마다)."""
+    return {SET_PAST: {}, SET_RISK: {}}
+
+
 def _runs_of(row: Optional[SystemSetting]) -> list[dict[str, Any]]:
     value = row.setting_value if row is not None and isinstance(row.setting_value, dict) else {}
     runs = value.get("runs")
@@ -374,8 +392,8 @@ def add_run(session: Any, *, actor_id: Optional[int], now: datetime.datetime, se
         raise EvalError("EVAL_BUSY")
     run = {"id": max((int(r.get("id") or 0) for r in runs), default=0) + 1, "status": QUEUED, "code": None,
            "actor_id": actor_id, "started_at": _iso(at), "heartbeat_at": _iso(at), "finished_at": None, "model": None,
-           "cost_usd": "0", "target_pct": settings.past_target_pct, "past": {"total": 0, "done": 0, "passed": 0},
-           "risk": {"total": 0, "done": 0, "bad": 0}, "failures": []}
+           "cost_usd": "0", "target_pct": settings.past_target_pct, "past": empty_past(),
+           "risk": {"total": 0, "done": 0, "bad": 0}, "codes": empty_codes(), "failures": []}
     _put(row, {"runs": [*runs, run][-KEEP_RUNS:]})
     session.flush()
     return copy.deepcopy(run)

@@ -1,6 +1,7 @@
 """15분 바퀴의 학습 몫 — 사진 설명 뽑기(:mod:`.photo_desc`) · 주간 고침 안(:mod:`.weekly_fix`) · 사진 학습 → 회사 지식 제안
 (:mod:`.photo_learning` — 설계서 17.11.1 의 7) · 넘긴 상담 배우기 → 회사 지식 제안(:mod:`.handoff_learning` — 사장님 11-11) ·
-쌓인 엇갈림 카드 다시 가르기(:mod:`.handoff_learning_resort` — 사장님 11-21, 한 번)를 차례로 부른다(설계서 17.6.1).
+쌓인 엇갈림 카드 다시 가르기(:mod:`.handoff_learning_resort` — 사장님 11-21, 한 번) · 'AI 시험' 매주 한 번 줄 넣기
+(:mod:`foms.services.ai_staff.evals_weekly` — 사장님 11-22, KST 월요일)를 차례로 부른다(설계서 17.6.1).
 
 감시 루프(:mod:`.loop`)가 초안 스위치가 꺼지지 않은 바퀴에서만 부른다 — 빠른 길(:mod:`.realtime`)은 부르지 않는다. 두 길은 각자
 패널 칸 · 비상 정지 · 학습 돈 상한을 다시 본다. 학습 몫이 실패해도 바퀴(보정 · 아침 보고 · 초안)는 이어 간다 — 실패는 길 이름과
@@ -15,6 +16,7 @@ from typing import Any, Callable, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from foms.services.ai_staff.evals_weekly import run_weekly_eval
 from foms.services.cs_agent.brain_spend import BrainError
 from foms.services.cs_agent.handoff_learning import run_handoff_learning
 from foms.services.cs_agent.handoff_learning_resort import resort_cards
@@ -38,14 +40,15 @@ def _quiet(result: dict[str, Any]) -> bool:
 def run_learning(session: Any, *, now: datetime.datetime, stop_check: Callable[[], None],
                  client: Any = None, storage: Any = None, reader: Any = None) -> Optional[dict[str, Any]]:
     """학습 몫 한 번. 돈 길이 있으면 ``{"photo_desc": {...}, "weekly_fix": {...}, "photo_learning": {...},
-    "handoff_learning": {...}}``(숫자 · 코드만), 모두 꺼졌으면 ``None``. ``reader`` 는 상담 전체 대화(설계서 17.11.2)를 읽는
-    감시 바퀴의 채널톡 읽기 도우미다."""
+    "handoff_learning": {...}, "card_resort": {...}, "weekly_eval": {...}}``(숫자 · 코드만 — 켜진 길만), 모두 꺼졌으면
+    ``None``. ``reader`` 는 상담 전체 대화(설계서 17.11.2)를 읽는 감시 바퀴의 채널톡 읽기 도우미다."""
     out: dict[str, Any] = {}
     steps = (("photo_desc", lambda: run_photo_desc(session, now=now, client=client, storage=storage)),
              ("weekly_fix", lambda: run_weekly_fix(session, now=now, client=client, reader=reader)),
              ("photo_learning", lambda: run_photo_learning(session, now=now, client=client, reader=reader)),
              ("handoff_learning", lambda: run_handoff_learning(session, now=now, client=client, reader=reader)),
-             ("card_resort", lambda: resort_cards(session, now=now)))
+             ("card_resort", lambda: resort_cards(session, now=now)),
+             ("weekly_eval", lambda: run_weekly_eval(session, now=now)))
     for name, step in steps:
         stop_check()  # 길마다 앞에서 TERM 을 본다(멈춤은 그대로 올라간다)
         try:
