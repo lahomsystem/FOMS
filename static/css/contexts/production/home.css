@@ -421,6 +421,8 @@
 .fph-pane__cards svg { font-size: calc(14px * var(--foms-fs, 1)); stroke-width: 2.6; }
 .fph-pane__cards:hover, .fph-pane__cards:focus-visible { border-color: var(--fph-brand); color: var(--fph-brand-dark); text-decoration: none; }
 .fph-pane__cards:active { background: var(--fph-brand-50); }
+/* 터치 태블릿 누름 칸 보이는 44px(2026-11-22 터치 점검) — 화면 크기 80% 에서 35px 로 보였다. '44px ÷ 배율'. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) { .fph-pane__cards { min-height: calc(44px / var(--foms-ui-zoom, 1)); } }
 .fph-pane__g { margin: 4px 0 0; min-height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: calc(14px * var(--foms-fs, 1)); font-weight: 800; color: var(--fph-text2); }
 .fph-pane__g small { font-size: calc(13px * var(--foms-fs, 1)); font-weight: 700; color: var(--fph-text3); }
 .fph-pane__g--next { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--fph-line2); }
@@ -770,6 +772,11 @@
   .foms-prod-home .foms-fs > :last-child { border-right: 0; }
   .foms-prod-home .foms-fs__btn:hover:not(:disabled), .foms-prod-home .foms-fs__now:hover { background: var(--fph-brand-50); color: var(--fph-brand-dark); }
   .foms-prod-home .foms-fs__btn:focus-visible, .foms-prod-home .foms-fs__now:focus-visible { outline-offset: -3px; }
+  /* 글자 손잡이 누름 칸 보이는 44px(2026-11-22 터치 점검) — 화면 크기 80% 에서 44px 칸이 35px 로 보였다. '44px ÷ 배율' + 칸 사이 8px(이웃 누름이 새지 않게). */
+  .foms-prod-home .foms-fs { height: auto; gap: calc(8px / var(--foms-ui-zoom, 1)); }
+  .foms-prod-home .foms-fs__btn, .foms-prod-home .foms-fs__now { height: calc(44px / var(--foms-ui-zoom, 1)); }
+  .foms-prod-home .foms-fs__btn { width: calc(44px / var(--foms-ui-zoom, 1)); }
+  .foms-prod-home .foms-fs__now { min-width: max(60px, calc(44px / var(--foms-ui-zoom, 1))); }
   .foms-prod-home__btn-ic { display: block; margin-right: 8px; font-size: calc(22px * var(--foms-fs, 1)); }
   .foms-prod-home__btn[data-foms-home-reload] { padding: 0 14px; } /* 시안 .btn 여백 — 손잡이 · 그림이 커진 만큼 날짜 글 자리를 남긴다 */
   /* ④ 왼쪽 줄(레일) — 생산 첫 화면에서만 계산기 · 회사 지식 · 알림을 숨기고(11-21 사용자 ③, 시안 Ⓑ) 알림 종은 위 줄 [다시 받기] 묶음으로.

@@ -249,3 +249,43 @@
   border-top: 1px solid #ced4da;
   border-bottom: 1px solid #ced4da;
 }
+
+/* --- 터치 태블릿 누름 칸 44px(보이는 크기) — 화면 크기 80 · 90 · 100% 모두 (2026-11-22 터치 점검) ---
+   화면 크기(--foms-ui-zoom)는 레일까지 같이 줄인다. 80% 에서 [−] 는 35×24, [80%] 는 42×16 으로 보여 [−] 아래쪽을 누르면
+   [80%](되돌리기)가 받아 100% 로 튀었다. 칸 크기를 '44px ÷ 배율'로 잡아 어느 배율에서도 보이는 크기가 44px 가 되게 한다.
+   ① [−] · [+] 는 44×44. ② 가운데 숫자는 보여 주기만 한다(누름 없음) — 숫자 칸이 [−] · [+] 사이 띄움(8px 넘게)이 되어
+   이웃 누름이 숫자로 새지 않는다. 키보드로는 그대로 눌린다(되돌리기 단추는 PC 위 막대 · 폰 메뉴 서랍에 그대로 있다).
+   ③ 내 정보(아바타)는 보이는 원(40px)은 두고 누름 칸만 44px(안쪽 여백 + 바탕은 안쪽 상자만), 위 알림 칸과 8px 띄운다.
+   특이도: 접목판(foms-graft-cells.css, 뒤에 실림)의 아바타 여백 규칙(0,4,0)보다 높게 [href] 를 붙였다.
+   ④ 화면 크기 100% 미만에서만 맨 위 "F" 글자를 숨기고 칸 사이 4px 를 0 으로 — 80% 에서 관리자 레일(메뉴 10칸 + 회사 지식
+   + 알림 + 내 정보)이 굴리지 않고 한 화면(1176×626)에 다 들어간다(전엔 계산기 아래 절반이 가려져 눌리지 않았다).
+   90 · 100% 는 칸이 44px 넘게 커서 다 들어갈 수 없어 지금처럼 위 메뉴 묶음 안에서 굴린다. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-tablet-rail .foms-ui-zoom--rail {
+    width: calc(max(44px, calc(44px / var(--foms-ui-zoom, 1))) + 4px); /* + 테두리 두 쪽(배율 뒤 반올림 여유) — 안쪽 단추 폭이 44px 이상 */
+    margin-bottom: calc(8px / var(--foms-ui-zoom, 1)); /* [+] 와 첫 메뉴 칸 사이 보이는 8px(80% 에선 칸 사이 0) */
+  }
+  .foms-tablet-rail .foms-ui-zoom--rail .foms-ui-zoom__btn {
+    width: 100%;
+    height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  .foms-tablet-rail .foms-ui-zoom--rail .foms-ui-zoom__now {
+    width: 100%;
+    pointer-events: none;
+    cursor: default;
+  }
+  .foms-tablet-rail:has(> .foms-tablet-rail__menu) > a.foms-tablet-rail__avatar[href] {
+    width: max(40px, calc(44px / var(--foms-ui-zoom, 1)));
+    height: max(40px, calc(44px / var(--foms-ui-zoom, 1)));
+    padding: max(0px, calc((44px / var(--foms-ui-zoom, 1) - 40px) / 2));
+    margin: calc(8px / var(--foms-ui-zoom, 1)) 0 calc(4px / var(--foms-ui-zoom, 1));
+    background-clip: content-box;
+  }
+  html[data-foms-ui-zoom^="0."] .foms-tablet-rail__brand {
+    display: none;
+  }
+  html[data-foms-ui-zoom^="0."] .foms-tablet-rail,
+  html[data-foms-ui-zoom^="0."] .foms-tablet-rail__menu {
+    gap: 0;
+  }
+}

@@ -155,3 +155,11 @@
     padding-bottom: var(--foms-space-1, 0.25rem);
   }
 }
+
+/* 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) — 위 얇은 거르기 줄의 [검색] 단추가 화면 크기 80% 에서
+   높이 25px 로 보였다. 단추만 '44px ÷ 배율'(80 · 90 · 100% 모두 보이는 44px)로 — 위 'min-height: 0' 규칙 뒤라 이긴다. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-filters-form .erp-pro-btn {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+}

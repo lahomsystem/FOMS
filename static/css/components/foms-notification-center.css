@@ -362,3 +362,22 @@
     border-bottom-right-radius: var(--foms-radius-lg);
   }
 }
+
+/* ---- 터치 태블릿 누름 칸 44px(보이는 크기, 2026-11-22 터치 점검) ----
+   화면 크기 80% 에서 [닫기] 26px · [모두 읽음] · [모두 삭제] 29px 로 보였다. '44px ÷ 배율'로 잡아 80 · 90 · 100% 모두
+   보이는 44px, 단추 사이 8px. 닫기(Bootstrap .btn-close)는 그림(1em)은 그대로 두고 상자만 키운다. PC(마우스) · 폰은 이 규칙 밖. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .erp-mobile-notif-sheet__actions {
+    gap: calc(8px / var(--foms-ui-zoom, 1));
+  }
+  .erp-mobile-notif-sheet__action {
+    min-height: calc(44px / var(--foms-ui-zoom, 1));
+  }
+  .erp-mobile-notif-sheet__actions .btn-close {
+    box-sizing: border-box;
+    width: calc(44px / var(--foms-ui-zoom, 1));
+    height: calc(44px / var(--foms-ui-zoom, 1));
+    margin: 0;
+    padding: 0;
+  }
+}
