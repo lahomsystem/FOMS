@@ -1649,10 +1649,12 @@
     밖에서 정한다 — 묶음 안의 endif 가 다른 계약 시험의 구간 자르기를 깨뜨린다. -#}
 {% set _foms_prefetch_allow = (freelancer_nav_items()|map(attribute='href')|join(' ')) if (current_user and is_sales_freelancer()) else '' %}
 {% set _foms_prefetch_allow_attr = (' data-foms-prefetch-allow="%s"'|format(_foms_prefetch_allow|e))|safe if _foms_prefetch_allow else '' %}
+{#- 생산 쓰기 팀(관리자 · 생산팀): 생산 첫 화면 50초 하트비트를 받는다(erp-shell.js productionIsWorkScreen, 11-22). -#}
+{% set _foms_production_work_attr = ' data-foms-production-work="1"'|safe if (current_user and production_work_user()) else '' %}
 {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260930b" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261122a"{{ _foms_prefetch_allow_attr }} defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20261122s"{{ _foms_prefetch_allow_attr }}{{ _foms_production_work_attr }} defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20261121a" defer></script>
     {# 주문·생산·시공 상세 펼침의 제품 여러 건 목록+상세 공용 도우미. 조각(fragment)에 두면 탭 전환마다 다시 읽혀 여기서 한 번만 싣는다. #}
     <script src="{{ url_for('static', filename='js/foms/order-items-md.js') }}?v=20260929a" defer></script>

@@ -248,13 +248,16 @@ def test_shell_swaps_and_prefetches_production_home():
     idle = src[src.index("function scheduleIdlePrimaryPrefetch()"):src.index("function onAnchorHoverFocus(ev)")]
     fresh = src[src.index("function runFreshHeartbeat()"):src.index("function onShellActivity()")]
     focus = src[src.index("function refreshFreshTtlSurfaces()"):src.index("document.addEventListener('visibilitychange'")]
-    for name, block in (("첫 웜업", idle), ("fresh 하트비트", fresh), ("복귀 재수혈", focus)):
-        assert "visibleLinkedFreshPaths()" in block, name
+    assert "visibleLinkedFreshPaths()" in idle, "첫 웜업"
+    # 하트비트 · 복귀 재수혈은 freshRefreshPaths 하나로(보이는 링크 + 생산 첫 화면은 일터인 사람만, 11-22)
+    assert "freshRefreshPaths(true)" in fresh and "freshRefreshPaths(false)" in focus
+    targets = src[src.index("function freshRefreshPaths(heartbeat)"):src.index("function stripShellMarkers(u)")]
+    assert ".concat(visibleLinkedFreshPaths())" in targets
     # 9탭 계약: 생산 칸 = 첫 화면, 옛 보드는 9탭 밖
     assert "/erp/production/home" in enc.ERP_FRAGMENT_READY_PATHS
     assert "/erp/production/dashboard" not in enc.ERP_FRAGMENT_READY_PATHS
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20261122a" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261122s" in layout
 
 
 def test_rail_production_button_goes_to_home_href():

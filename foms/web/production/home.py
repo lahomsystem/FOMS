@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import datetime
-
+import re
 import time
 
 from flask import abort, g, make_response, render_template, request
@@ -57,6 +57,9 @@ from foms.web.auth import login_required
 from foms.web.production.dashboard import erp_production_page_bp
 
 _KST = datetime.timezone(datetime.timedelta(hours=9))
+#: 셸 조각 ETag 에서 뺄 값 — 파트 판의 첫 받아 오기 기준 시각(그릴 때마다 바뀐다, home_parts_overlays.html).
+#: 받은 시각('방금 받음')은 본문에 두지 않는다 — 셸이 받거나 304 로 확인한 때를 #main-content 에 적고 JS 가 읽는다(11-22).
+_ETAG_VOLATILE = re.compile(rb' data-pp-since="[^"]*"')
 
 
 def _tablet_part_surface(user) -> bool:
@@ -175,7 +178,6 @@ def erp_production_home():
     today = get_today_kst()
     if flags['pc_view']:
         attach_pc_rows(rows, today)  # PC 줄 값(시공일 칸 · 누가 · 언제 · 늦음) — 이미 읽은 행에서, 쿼리 0
-    now_kst = datetime.datetime.now(_KST)
     past_hidden = stats['past_hidden']
     # 띠 숫자는 모든 날을 같은 행에서 센다(쿼리 없음). 그리는 장은 고른 날 하나뿐 — 나머지 날은 누를 때 조각으로(11-14).
     # 주소 order= (옛 focus_order=)는 그 주문의 날 장을 고르고 줄에 테두리를 친다(바로가기 · 알림 · 검색, §9-10).
@@ -224,11 +226,9 @@ def erp_production_home():
         **_step_panel_screen(tab, surface, queues, user),
         **flags,
         today_label=f"{today.month}월 {today.day}일 ({'월화수목금토일'[today.weekday()]})",
-        loaded_at_hm=now_kst.strftime('%H:%M'),
-        loaded_at_iso=now_kst.isoformat(timespec='seconds'),
     ))
     apply_ept_b7_render_headers(response, route_id='erp_production_home', render_ms=(time.perf_counter() - _t0) * 1000)
-    apply_erp_shell_fragment_headers(response, request)
+    apply_erp_shell_fragment_headers(response, request, etag_ignore=_ETAG_VOLATILE)
     return response
 
 

@@ -42,13 +42,15 @@
    * 신선도는 A2 복귀-재수혈(refreshFreshTtlSurfaces)+서버 티어 무효화가 담당. 전체 리로드는 이 캐시 우회.
    */
   var FRESH_TTL_MS = 60 * 1000;
+  var PRODUCTION_HOME_PATH = '/erp/production/home';
   var FRESH_TTL_PATHS = [
     '/erp/dashboard',
     // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈). 하트비트로 만료 전 갱신 + focus/bfcache 재수혈로 신선도 유지.
     // (과거엔 NO_FRAGMENT_CACHE 로 매 스왑 refetch → 5.8s. 이제 fragment 안에 마크업만 남아 warm-cache 가능.)
     '/erp/measurement',
     // 생산 첫 화면(2026-11-21 부터 9탭의 생산 칸 — 옛 보드 자리): 공정 칸 · '바뀐 것' · 도면 기다림이 다른 사람(공장 태블릿 ·
-    // 도면팀)의 손으로 바뀐다(Q2 와 같은 까닭). 5분 primary 캐시면 오래된 줄이 남으므로 fresh(60s·하트비트 50s)+복귀 재수혈로 둔다.
+    // 도면팀)의 손으로 바뀐다(Q2 와 같은 까닭). 5분 primary 캐시면 오래된 줄이 남으므로 fresh(60s)로 둔다. 50초 하트비트 ·
+    // 복귀 재수혈은 생산이 일터인 사람만(productionIsWorkScreen) — 나머지는 들어갈 때 받는다(60초 지난 캐시 → If-None-Match).
     '/erp/production/home',
   ];
   /**
@@ -127,6 +129,16 @@
    * 속성이 없으면(보통 직원) null = 지금처럼 모두 받는다.
    */
   var PREFETCH_ALLOW_PATHS = readPrefetchAllowPaths();
+  /**
+   * 생산 쓰기 팀(관리자 · 생산팀) — 서버가 이 스크립트 태그에 data-foms-production-work="1" 을 그린다(layout_scripts.html,
+   * can_write_production). 생산 첫 화면 50초 하트비트를 받을 사람을 가른다(productionIsWorkScreen).
+   */
+  var PRODUCTION_WORK_USER = readShellScriptFlag('data-foms-production-work');
+
+  function readShellScriptFlag(name) {
+    var el = document.querySelector('script[' + name + ']');
+    return !!el && el.getAttribute(name) === '1';
+  }
 
   function readPrefetchAllowPaths() {
     var el = document.querySelector('script[data-foms-prefetch-allow]');
@@ -301,6 +313,39 @@
       }
       return false;
     });
+  }
+
+  /**
+   * 생산 첫 화면이 이 사람의 일터인가 — 생산 쓰기 팀 · 태블릿 가로 레일이 보임(공장 태블릿). 2026-11-21 9탭에 들어온 뒤
+   * PC · 폰 · 도면/시공/출고 팀까지 모두 50초마다 받았다(11-22 터치 감사). 그 밖의 사람은 들어갈 때 받는다(60초 TTL 이 지나 있으면 재검증).
+   */
+  function productionIsWorkScreen() {
+    if (PRODUCTION_WORK_USER) {
+      return true;
+    }
+    var rail = document.querySelector('.foms-tablet-rail');
+    return !!rail && rail.getClientRects().length > 0;
+  }
+
+  /**
+   * 50초 하트비트(heartbeat=true) · 복귀 재수혈 대상 — fresh 경로 + 보이는 링크의 LINKED_FRESH_PATHS. 생산 첫 화면은 일터인 사람만,
+   * 그리고 하트비트는 그 화면에 있는 동안 부르지 않는다(primary 하트비트처럼): 받은 사본은 보이는 화면을 다시 그리지 않고 같은 탭을
+   * 다시 누를 때만 쓰인다 — 그 화면에 앉은 공장 태블릿이 50초마다 자기 화면을 통째로 다시 그리게 하던 요청이었다(11-22).
+   * 복귀 재수혈은 지금 화면(지금 탭 주소 그대로)도 묻는다 — 304 면 '방금 받음'으로 돌아간다(noteRenderedStillCurrent).
+   */
+  function freshRefreshPaths(heartbeat) {
+    var here = pathOnly(window.location.href) === PRODUCTION_HOME_PATH;
+    var withProduction = here ? !heartbeat : productionIsWorkScreen();
+    var out = [];
+    FRESH_TTL_PATHS.forEach(function (p) {
+      if (p !== PRODUCTION_HOME_PATH) {
+        out.push(p);
+      } else if (withProduction) {
+        var u = here ? shellUrl(window.location.href) : null;
+        out.push(u ? u.pathname + u.search : p);
+      }
+    });
+    return out.concat(visibleLinkedFreshPaths());
   }
 
   /**
@@ -964,6 +1009,22 @@
    * 화면 안에서 replaceState 로 주소만 바꾸는 쪽(실측 탭 ?mgr=)은 syncRenderedUrl() 로 알린다.
    */
   var lastRenderedKey = getCacheKey(window.location.href);
+  /**
+   * 지금 #main-content 에 끼운 조각의 열쇠 · ETag(온전한 문서면 null). 같은 열쇠의 재검증이 같은 ETag(304 · 같은 본문 200)로
+   * 끝나면 "지금 화면이 아직 최신"이다 — 그 때를 #main-content 의 FRAGMENT_CHECKED_ATTR(epoch ms)에 적고
+   * foms:shell-fragment-checked 를 쏜다. 조각을 끼울 때도 그 본문을 받거나 확인한 때를 적는다(생산 첫 화면 '방금 받음', 11-22).
+   */
+  var renderedFragment = null;
+  var FRAGMENT_CHECKED_ATTR = 'data-foms-shell-checked-at';
+
+  function noteRenderedStillCurrent(key, etag) {
+    var main = document.getElementById('main-content');
+    if (!main || !renderedFragment || !etag || renderedFragment.key !== key || renderedFragment.etag !== etag) {
+      return;
+    }
+    main.setAttribute(FRAGMENT_CHECKED_ATTR, String(Date.now()));
+    document.dispatchEvent(new CustomEvent('foms:shell-fragment-checked', { detail: { key: key } }));
+  }
 
   function syncRenderedUrl() {
     lastRenderedKey = getCacheKey(window.location.href);
@@ -973,7 +1034,12 @@
     return !!(state && state.fomsShellKeep) && getCacheKey(window.location.href) === lastRenderedKey;
   }
 
-  function applyFragmentToMain(html, swapUrl) {
+  /**
+   * @param {string} html
+   * @param {string} swapUrl
+   * @param {{ etag?: string|null, checkedAt?: number }} [meta] 이 본문의 ETag · 서버에서 받거나 확인한 때(없으면 지금).
+   */
+  function applyFragmentToMain(html, swapUrl, meta) {
     var main = document.getElementById('main-content');
     if (!main) {
       return false;
@@ -985,7 +1051,10 @@
     main.innerHTML = html;
     if (typeof swapUrl === 'string' && swapUrl) {
       lastRenderedKey = getCacheKey(swapUrl);
+      renderedFragment = { key: lastRenderedKey, etag: (meta && meta.etag) || null };
     }
+    // 화면 스크립트가 돌기 전에 — 그 스크립트가 바로 읽는다.
+    main.setAttribute(FRAGMENT_CHECKED_ATTR, String((meta && meta.checkedAt) || Date.now()));
     activateScripts(main);
     processHtmxIn(main);
     if (typeof swapUrl === 'string' && swapUrl) {
@@ -1242,6 +1311,8 @@
         if (cacheable && finalKey !== key) {
           delete fragmentHtmlCache[key];
         }
+        // 하트비트 · 복귀 재수혈이 지금 화면을 같은 ETag 로 확인했다(304) — 화면의 '받은 때'를 지금으로.
+        noteRenderedStillCurrent(finalKey, payload.etag);
         if (isBackgroundFetch) {
           // 이 응답 처리 밖(그린 뒤 다음 작업)에서 — 같은 응답을 이어받은 누름이 먼저 stylesheet 를 달면 건너뛴다.
           afterNextPaint(warmFragmentStylesheets.bind(null, payload.html));
@@ -1381,6 +1452,8 @@
     function swapFromCacheOrNetwork() {
     if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
       var cached = cacheGet(destKey);
+      // 그 본문의 ETag · 받은(확인한) 때 — 스타일을 받는 사이 하트비트가 줄을 갈아 끼워도 이 본문 것을 쓴다.
+      var cachedRow = cached ? fragmentHtmlCache[destKey] : null;
       if (cached) {
         // 스타일 선로드 후 swap — 콜드 캐시라도 FOUC 없이 즉시 정상 렌더.
         return preloadFragmentStylesheets(cached).then(function () {
@@ -1390,7 +1463,7 @@
           }
           commitShellHistory(canonical);
           beforeSwap();
-          if (applyFragmentToMain(cached, canonical.href)) {
+          if (applyFragmentToMain(cached, canonical.href, { etag: cachedRow.etag, checkedAt: cachedRow.ts })) {
             lastSwapDoneAt = nowTs();
             afterSwap();
             // 앞선 network nav 가 켜 둔 오버레이가 남아 있을 수 있어 명시적으로 내린다.
@@ -1419,7 +1492,7 @@
           }
           commitShellHistory(finalUrl);
           beforeSwap();
-          if (!applyFragmentToMain(payload.html, finalUrl.href)) {
+          if (!applyFragmentToMain(payload.html, finalUrl.href, { etag: payload.etag })) {
             setShellFragmentLoading(false);
             window.location.href = canonical.pathname + canonical.search + canonical.hash;
             return;
@@ -1875,7 +1948,7 @@
       return;
     }
     lastFocusRefreshTs = now;
-    FRESH_TTL_PATHS.concat(visibleLinkedFreshPaths()).forEach(function (p) {
+    freshRefreshPaths(false).forEach(function (p) {
       prefetchShellFragment(window.location.origin + p, { force: true });
     });
   }
@@ -1955,13 +2028,13 @@
     step();
   }
 
-  /** fresh 경로(3개 + 보이는 링크의 LINKED_FRESH_PATHS)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
+  /** fresh 경로(freshRefreshPaths — 생산 첫 화면은 일터인 사람만)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
   function runFreshHeartbeat() {
     if (freshHeartbeatSweeping) {
       return;
     }
     lastFreshHeartbeatTs = Date.now();
-    var targets = FRESH_TTL_PATHS.concat(visibleLinkedFreshPaths());
+    var targets = freshRefreshPaths(true);
     if (!targets.length) {
       return;
     }
